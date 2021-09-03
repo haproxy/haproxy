@@ -2254,15 +2254,18 @@ set timeout cli <delay>
   some indicators without being disconnected. The delay is passed in seconds.
 
 set var <name> <expression>
+set var <name> expr <expression>
+set var <name> fmt <format>
   Allows to set or overwrite the process-wide variable 'name' with the result
-  of expression <expression>. Only process-wide variables may be used, so the
-  name must begin with 'proc.' otherwise no variable will be set. The
-  <expression> may only involve "internal" sample fetch keywords and converters
-  even though the most likely useful ones will be str('something') or int().
-  Note that the command line parser doesn't know about quotes, so any space in
-  the expression must be preceded by a backslash. This command requires levels
-  "operator" or "admin". This command is only supported on a CLI connection
-  running in experimental mode (see "experimental-mode on").
+  of expression <expression> or format string <format>. Only process-wide
+  variables may be used, so the name must begin with 'proc.' otherwise no
+  variable will be set. The <expression> and <format> may only involve
+  "internal" sample fetch keywords and converters even though the most likely
+  useful ones will be str('something'), int(), simple strings or references to
+  other variables. Note that the command line parser doesn't know about quotes,
+  so any space in the expression must be preceded by a backslash. This command
+  requires levels "operator" or "admin". This command is only supported on a
+  CLI connection running in experimental mode (see "experimental-mode on").
 
 set weight <backend>/<server> <weight>[%]
   Change a server's weight to the value passed in argument. If the value ends

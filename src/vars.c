@@ -1015,7 +1015,11 @@ static int vars_parse_cli_get_var(char **args, char *payload, struct appctx *app
 	return cli_msg(appctx, LOG_INFO, trash.area);
 }
 
-/* parse CLI's "set var <name> <expression>" */
+/* parse CLI's "set var <name>". It accepts:
+ *  - set var <name> <expression>
+ *  - set var <name> expr <expression>
+ *  - set var <name> fmt <format>
+ */
 static int vars_parse_cli_set_var(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	struct proxy px = {
@@ -1027,31 +1031,50 @@ static int vars_parse_cli_set_var(char **args, char *payload, struct appctx *app
 		.arg.vars.scope = SCOPE_PROC,
 		.from = ACT_F_CLI_PARSER,
 	};
+	enum obj_type objt = OBJ_TYPE_NONE;
+	struct session *sess = NULL;
 	enum act_parse_ret p_ret;
-	char *old_arg2;
-	char *tmp_arg2;
+	const char *tmp_args[3];
+	int tmp_arg;
+	char *tmp_act;
 	char *err = NULL;
-	int arg = 2; // variable name
 	int nberr;
+	int use_fmt = 0;
 
 	LIST_INIT(&px.conf.args.list);
 
 	if (!cli_has_level(appctx, ACCESS_LVL_OPER))
 		return 1;
 
-	if (!*args[2] || !*args[3])
-		return cli_err(appctx, "Missing process-wide variable identifier and expression.\n");
+	if (!*args[2])
+		return cli_err(appctx, "Missing process-wide variable identifier.\n");
 
-	tmp_arg2 = NULL;
-	if (!memprintf(&tmp_arg2, "set-var(%s)", args[2])) {
+	if (!*args[3])
+		return cli_err(appctx, "Missing either 'expr', 'fmt' or expression.\n");
+
+	if (*args[4]) {
+		/* this is the long format */
+		if (strcmp(args[3], "fmt") == 0)
+			use_fmt = 1;
+		else if (strcmp(args[3], "expr") != 0) {
+			memprintf(&err, "'%s %s': arg type must be either 'expr' or 'fmt' but got '%s'.", args[0], args[1], args[3]);
+			goto fail;
+		}
+	}
+
+	tmp_act = NULL;
+	if (!memprintf(&tmp_act, "set-var%s(%s)", use_fmt ? "-fmt" : "", args[2])) {
 		memprintf(&err, "memory allocation error.");
 		goto fail;
 	}
 
 	/* parse_store() will always return a message in <err> on error */
-	old_arg2 = args[2]; args[2] = tmp_arg2;
-	p_ret = parse_store((const char **)(args + 1), &arg, &px, &rule, &err);
-	free(args[2]); args[2] = old_arg2;
+	tmp_args[0] = tmp_act;
+	tmp_args[1] = (*args[4]) ? args[4] : args[3];
+	tmp_args[2] = "";
+	tmp_arg = 1; // must point to the first arg after the action
+	p_ret = parse_store(tmp_args, &tmp_arg, &px, &rule, &err);
+	free(tmp_act);
 
 	if (p_ret != ACT_RET_PRS_OK)
 		goto fail;
@@ -1069,8 +1092,17 @@ static int vars_parse_cli_set_var(char **args, char *payload, struct appctx *app
 		goto fail;
 	}
 
-	action_store(&rule, &px, NULL, NULL, 0);
+	if (use_fmt && !(sess = session_new(&px, NULL, &objt))) {
+		release_sample_expr(rule.arg.vars.expr);
+		memprintf(&err, "memory allocation error.");
+		goto fail;
+	}
+
+	action_store(&rule, &px, sess, NULL, 0);
 	release_sample_expr(rule.arg.vars.expr);
+	if (sess)
+		session_free(sess);
+
 	appctx->st0 = CLI_ST_PROMPT;
 	return 0;
  fail:
@@ -1239,7 +1271,7 @@ INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
 	{ { "get",   "var", NULL }, "get var <name>                          : retrieve contents of a process-wide variable", vars_parse_cli_get_var, NULL },
-	{ { "set",   "var", NULL }, "set var <name> <expr>                   : set variable from an expression",              vars_parse_cli_set_var, NULL, NULL, NULL, ACCESS_EXPERIMENTAL },
+	{ { "set",   "var", NULL }, "set var <name> [fmt|expr] {<fmt>|<expr>}: set variable from an expression or a format",  vars_parse_cli_set_var, NULL, NULL, NULL, ACCESS_EXPERIMENTAL },
 	{ { NULL }, NULL, NULL, NULL }
 }};
 INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);

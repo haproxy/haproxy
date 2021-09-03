@@ -71,7 +71,7 @@ haproxy h1 -cli {
 }
 
 haproxy h1 -cli {
-    send "experimental-mode on; set var proc.str str(updated)"
+    send "experimental-mode on; set var proc.str str(updating); set var proc.str fmt %[var(proc.str),regsub(ing,ed)]"
     expect ~ .*
 }
 
