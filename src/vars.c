@@ -724,7 +724,8 @@ static enum act_return action_clear(struct act_rule *rule, struct proxy *px,
 static void release_store_rule(struct act_rule *rule)
 {
 	struct logformat_node *lf, *lfb;
-	list_for_each_entry_safe(lf, lfb, &rule->arg.http.fmt, list) {
+
+	list_for_each_entry_safe(lf, lfb, &rule->arg.vars.fmt, list) {
 		LIST_DELETE(&lf->list);
 		release_sample_expr(lf->expr);
 		free(lf->arg);
