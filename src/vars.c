@@ -902,7 +902,7 @@ static int vars_parse_global_set_var(char **args, int section_type, struct proxy
                                      char **err)
 {
 	struct proxy px = {
-		.id = "CLI",
+		.id = "CFG",
 		.conf.args.file = file,
 		.conf.args.line = line,
 	};
