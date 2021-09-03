@@ -569,29 +569,17 @@ int vars_unset_by_name_ifexist(const char *name, size_t len, struct sample *smp)
 }
 
 
-/* This function fills a sample with the variable content.
+/* This retrieves variable <name> from variables <vars>, and if found,
+ * duplicates the result into sample <smp>. smp_dup() is used in order to
+ * release the variables lock ASAP (so a pre-allocated chunk is obtained
+ * via get_trash_shunk()). The variables' lock is used for reads.
  *
- * Keep in mind that a sample content is duplicated by using smp_dup()
- * and it therefore uses a pre-allocated trash chunk as returned by
- * get_trash_chunk().
- *
- * Returns 1 if the sample is filled, otherwise it returns 0.
+ * The function returns 0 if the variable was not found, otherwise 1
+ * with the sample filled.
  */
-int vars_get_by_name(const char *name, size_t len, struct sample *smp)
+static int var_to_smp(struct vars *vars, const char *name, struct sample *smp)
 {
-	struct vars *vars;
 	struct var *var;
-	enum vars_scope scope;
-
-	/* Resolve name and scope. */
-	name = register_name(name, len, &scope, 0, NULL);
-	if (!name)
-		return 0;
-
-	/* Select "vars" pool according with the scope. */
-	vars = get_vars(smp->sess, smp->strm, scope);
-	if (!vars || vars->scope != scope)
-		return 0;
 
 	/* Get the variable entry. */
 	HA_RWLOCK_RDLOCK(VARS_LOCK, &vars->rwlock);
@@ -609,6 +597,32 @@ int vars_get_by_name(const char *name, size_t len, struct sample *smp)
 	return 1;
 }
 
+/* This function fills a sample with the variable content.
+ *
+ * Keep in mind that a sample content is duplicated by using smp_dup()
+ * and it therefore uses a pre-allocated trash chunk as returned by
+ * get_trash_chunk().
+ *
+ * Returns 1 if the sample is filled, otherwise it returns 0.
+ */
+int vars_get_by_name(const char *name, size_t len, struct sample *smp)
+{
+	struct vars *vars;
+	enum vars_scope scope;
+
+	/* Resolve name and scope. */
+	name = register_name(name, len, &scope, 0, NULL);
+	if (!name)
+		return 0;
+
+	/* Select "vars" pool according with the scope. */
+	vars = get_vars(smp->sess, smp->strm, scope);
+	if (!vars || vars->scope != scope)
+		return 0;
+
+	return var_to_smp(vars, name, smp);
+}
+
 /* This function fills a sample with the content of the variable described
  * by <var_desc>.
  *
@@ -621,7 +635,6 @@ int vars_get_by_name(const char *name, size_t len, struct sample *smp)
 int vars_get_by_desc(const struct var_desc *var_desc, struct sample *smp)
 {
 	struct vars *vars;
-	struct var *var;
 
 	/* Select "vars" pool according with the scope. */
 	vars = get_vars(smp->sess, smp->strm, var_desc->scope);
@@ -630,20 +643,7 @@ int vars_get_by_desc(const struct var_desc *var_desc, struct sample *smp)
 	if (!vars || vars->scope != var_desc->scope)
 		return 0;
 
-	/* Get the variable entry. */
-	HA_RWLOCK_RDLOCK(VARS_LOCK, &vars->rwlock);
-	var = var_get(vars, var_desc->name);
-	if (!var) {
-		HA_RWLOCK_RDUNLOCK(VARS_LOCK, &vars->rwlock);
-		return 0;
-	}
-
-	/* Copy sample. */
-	smp->data = var->data;
-	smp_dup(smp);
-
-	HA_RWLOCK_RDUNLOCK(VARS_LOCK, &vars->rwlock);
-	return 1;
+	return var_to_smp(vars, var_desc->name, smp);
 }
 
 /* Always returns ACT_RET_CONT even if an error occurs. */
