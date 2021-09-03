@@ -2075,8 +2075,13 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				key = NULL;
 				if (tmp->options & LOG_OPT_REQ_CAP)
 					key = sample_fetch_as_type(be, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, tmp->expr, SMP_T_STR);
+
 				if (!key && (tmp->options & LOG_OPT_RES_CAP))
 					key = sample_fetch_as_type(be, sess, s, SMP_OPT_DIR_RES|SMP_OPT_FINAL, tmp->expr, SMP_T_STR);
+
+				if (!key && !(tmp->options & (LOG_OPT_REQ_CAP|LOG_OPT_RES_CAP))) // cfg, cli
+					key = sample_fetch_as_type(be, sess, s, SMP_OPT_FINAL, tmp->expr, SMP_T_STR);
+
 				if (tmp->options & LOG_OPT_HTTP)
 					ret = lf_encode_chunk(tmplog, dst + maxsize,
 					                      '%', http_encode_map, key ? &key->data.u.str : &empty, tmp);
