@@ -1039,7 +1039,7 @@ static int vars_parse_cli_set_var(char **args, char *payload, struct appctx *app
 		goto fail;
 
 	if (rule.arg.vars.scope != SCOPE_PROC) {
-		memprintf(&err, "'%s %s': cannot set variable '%s', only scope 'proc' is permitted in the global section.", args[0], args[1], args[2]);
+		memprintf(&err, "'%s %s': cannot set variable '%s', only scope 'proc' is permitted here.", args[0], args[1], args[2]);
 		goto fail;
 	}
 
