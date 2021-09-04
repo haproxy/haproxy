@@ -89,7 +89,7 @@
 #endif // USE_OBSOLETE_LINKER
 
 /* use this attribute on a variable to move it to the read_mostly section */
-#if !defined(__DragonFly__)
+#if !defined(__read_mostly)
 #define __read_mostly           HA_SECTION("read_mostly")
 #endif
 
