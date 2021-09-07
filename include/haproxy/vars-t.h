@@ -25,6 +25,9 @@
 #include <haproxy/sample_data-t.h>
 #include <haproxy/thread-t.h>
 
+/* flags used when setting/clearing variables */
+#define VF_UPDATEONLY 0x00000001   // SCOPE_PROC variables are only updated
+
 enum vars_scope {
 	SCOPE_SESS = 0,
 	SCOPE_TXN,

@@ -2023,8 +2023,9 @@ TXN class
                      integer.
   :param boolean ifexist: If this parameter is set to a truthy value the variable
                           will only be set if it was defined elsewhere (i.e. used
-                          within the configuration). It is highly recommended to
-                          always set this to true.
+                          within the configuration). For global variables (using the
+                          "proc" scope), they will only be updated and never created.
+                          It is highly recommended to always set this to true.
 
 .. js:function:: TXN.unset_var(TXN, var)
 
@@ -2831,7 +2832,9 @@ AppletHTTP class
                      integer.
   :param boolean ifexist: If this parameter is set to a truthy value the variable
                           will only be set if it was defined elsewhere (i.e. used
-                          within the configuration). It is highly recommended to
+                          within the configuration). For global variables (using the
+                          "proc" scope), they will only be updated and never created.
+                           It is highly recommended to
                           always set this to true.
   :see: :js:func:`AppletHTTP.unset_var`
   :see: :js:func:`AppletHTTP.get_var`
@@ -2946,7 +2949,9 @@ AppletTCP class
                      integer.
   :param boolean ifexist: If this parameter is set to a truthy value the variable
                           will only be set if it was defined elsewhere (i.e. used
-                          within the configuration). It is highly recommended to
+                          within the configuration). For global variables (using the
+                          "proc" scope), they will only be updated and never created.
+                           It is highly recommended to
                           always set this to true.
   :see: :js:func:`AppletTCP.unset_var`
   :see: :js:func:`AppletTCP.get_var`

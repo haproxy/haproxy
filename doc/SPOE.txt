@@ -276,7 +276,8 @@ no option dontlog-normal
 
 option force-set-var
   By default, SPOE filter only register already known variables (mainly from
-  parsing of the configuration). If you want that haproxy trusts the agent and
+  parsing of the configuration), and process-wide variables (those of scope
+  "proc") cannot be created. If you want that haproxy trusts the agent and
   registers all variables (ex: can be useful for LUA workload), activate this
   option.
 

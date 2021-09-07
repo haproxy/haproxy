@@ -352,9 +352,14 @@ static int smp_fetch_var(const struct arg *args, struct sample *smp, const char 
  * and the stream may be NULL when scope is SCOPE_SESS. In case there wouldn't
  * be enough memory to store the sample while the variable was already created,
  * it would be changed to a bool (which is memory-less).
+ *
+ * Flags is a bitfield that may contain one of the following flags:
+ *   - VF_UPDATEONLY: if the scope is SCOPE_PROC, the variable may only be
+ *     updated but not created.
+ *
  * It returns 0 on failure, non-zero on success.
  */
-static int var_set(const char *name, enum vars_scope scope, struct sample *smp)
+static int var_set(const char *name, enum vars_scope scope, struct sample *smp, uint flags)
 {
 	struct vars *vars;
 	struct var *var;
@@ -383,6 +388,10 @@ static int var_set(const char *name, enum vars_scope scope, struct sample *smp)
 					    -var->data.u.meth.str.data);
 		}
 	} else {
+		/* creation permitted for proc ? */
+		if (flags & VF_UPDATEONLY && scope == SCOPE_PROC)
+			goto unlock;
+
 		/* Check memory available. */
 		if (!var_accounting_add(vars, smp->sess, smp->strm, sizeof(struct var)))
 			goto unlock;
@@ -487,7 +496,7 @@ static int var_unset(const char *name, enum vars_scope scope, struct sample *smp
 /* Returns 0 if fails, else returns 1. */
 static int smp_conv_store(const struct arg *args, struct sample *smp, void *private)
 {
-	return var_set(args[0].data.var.name, args[0].data.var.scope, smp);
+	return var_set(args[0].data.var.name, args[0].data.var.scope, smp, 0);
 }
 
 /* Returns 0 if fails, else returns 1. */
@@ -541,7 +550,7 @@ int vars_set_by_name_ifexist(const char *name, size_t len, struct sample *smp)
 	if (!name)
 		return 0;
 
-	return var_set(name, scope, smp);
+	return var_set(name, scope, smp, VF_UPDATEONLY);
 }
 
 
@@ -557,7 +566,7 @@ int vars_set_by_name(const char *name, size_t len, struct sample *smp)
 	if (!name)
 		return 0;
 
-	return var_set(name, scope, smp);
+	return var_set(name, scope, smp, 0);
 }
 
 /* This function unset a variable if it was already defined.
@@ -717,7 +726,7 @@ static enum act_return action_store(struct act_rule *rule, struct proxy *px,
 		smp_set_owner(&smp, px, sess, s, 0);
 		smp.data.type = SMP_T_STR;
 		smp.data.u.str = *fmtstr;
-		var_set(rule->arg.vars.name, rule->arg.vars.scope, &smp);
+		var_set(rule->arg.vars.name, rule->arg.vars.scope, &smp, 0);
 	}
 	else {
 		/* an expression is used */
@@ -727,7 +736,7 @@ static enum act_return action_store(struct act_rule *rule, struct proxy *px,
 	}
 
 	/* Store the sample, and ignore errors. */
-	var_set(rule->arg.vars.name, rule->arg.vars.scope, &smp);
+	var_set(rule->arg.vars.name, rule->arg.vars.scope, &smp, 0);
 	free_trash_chunk(fmtstr);
 	return ACT_RET_CONT;
 }
