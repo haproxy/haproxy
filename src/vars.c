@@ -347,14 +347,24 @@ static int smp_fetch_var(const struct arg *args, struct sample *smp, const char 
 	return vars_get_by_desc(var_desc, smp, def);
 }
 
-/* This function search in the <head> a variable with the same
- * pointer value that the <name>. If the variable doesn't exists,
- * create it. The function stores a copy of smp> if the variable.
- * It returns 0 if fails, else returns 1.
+/* This function tries to create variable <name> in scope <scope> and store
+ * sample <smp> as its value. The stream and session are extracted from <smp>,
+ * and the stream may be NULL when scope is SCOPE_SESS. In case there wouldn't
+ * be enough memory to store the sample while the variable was already created,
+ * it would be changed to a bool (which is memory-less).
+ * It returns 0 on failure, non-zero on success.
  */
-static int sample_store(struct vars *vars, const char *name, struct sample *smp)
+static int var_set(const char *name, enum vars_scope scope, struct sample *smp)
 {
+	struct vars *vars;
 	struct var *var;
+	int ret = 0;
+
+	vars = get_vars(smp->sess, smp->strm, scope);
+	if (!vars || vars->scope != scope)
+		return 0;
+
+	HA_RWLOCK_WRLOCK(VARS_LOCK, &vars->rwlock);
 
 	/* Look for existing variable name. */
 	var = var_get(vars, name);
@@ -373,15 +383,14 @@ static int sample_store(struct vars *vars, const char *name, struct sample *smp)
 					    -var->data.u.meth.str.data);
 		}
 	} else {
-
 		/* Check memory available. */
 		if (!var_accounting_add(vars, smp->sess, smp->strm, sizeof(struct var)))
-			return 0;
+			goto unlock;
 
 		/* Create new entry. */
 		var = pool_alloc(var_pool);
 		if (!var)
-			return 0;
+			goto unlock;
 		LIST_APPEND(&vars->head, &var->l);
 		var->name = name;
 	}
@@ -405,14 +414,15 @@ static int sample_store(struct vars *vars, const char *name, struct sample *smp)
 	case SMP_T_BIN:
 		if (!var_accounting_add(vars, smp->sess, smp->strm, smp->data.u.str.data)) {
 			var->data.type = SMP_T_BOOL; /* This type doesn't use additional memory. */
-			return 0;
+			goto unlock;
 		}
+
 		var->data.u.str.area = malloc(smp->data.u.str.data);
 		if (!var->data.u.str.area) {
 			var_accounting_diff(vars, smp->sess, smp->strm,
 					    -smp->data.u.str.data);
 			var->data.type = SMP_T_BOOL; /* This type doesn't use additional memory. */
-			return 0;
+			goto unlock;
 		}
 		var->data.u.str.data = smp->data.u.str.data;
 		memcpy(var->data.u.str.area, smp->data.u.str.area,
@@ -425,14 +435,15 @@ static int sample_store(struct vars *vars, const char *name, struct sample *smp)
 
 		if (!var_accounting_add(vars, smp->sess, smp->strm, smp->data.u.meth.str.data)) {
 			var->data.type = SMP_T_BOOL; /* This type doesn't use additional memory. */
-			return 0;
+			goto unlock;
 		}
+
 		var->data.u.meth.str.area = malloc(smp->data.u.meth.str.data);
 		if (!var->data.u.meth.str.area) {
 			var_accounting_diff(vars, smp->sess, smp->strm,
 					    -smp->data.u.meth.str.data);
 			var->data.type = SMP_T_BOOL; /* This type doesn't use additional memory. */
-			return 0;
+			goto unlock;
 		}
 		var->data.u.meth.str.data = smp->data.u.meth.str.data;
 		var->data.u.meth.str.size = smp->data.u.meth.str.data;
@@ -440,21 +451,10 @@ static int sample_store(struct vars *vars, const char *name, struct sample *smp)
 		       var->data.u.meth.str.data);
 		break;
 	}
-	return 1;
-}
 
-/* Returns 0 if fails, else returns 1. Note that stream may be null for SCOPE_SESS. */
-static inline int sample_store_stream(const char *name, enum vars_scope scope, struct sample *smp)
-{
-	struct vars *vars;
-	int ret;
-
-	vars = get_vars(smp->sess, smp->strm, scope);
-	if (!vars || vars->scope != scope)
-		return 0;
-
-	HA_RWLOCK_WRLOCK(VARS_LOCK, &vars->rwlock);
-	ret = sample_store(vars, name, smp);
+	/* OK, now done */
+	ret = 1;
+ unlock:
 	HA_RWLOCK_WRUNLOCK(VARS_LOCK, &vars->rwlock);
 	return ret;
 }
@@ -487,7 +487,7 @@ static int var_unset(const char *name, enum vars_scope scope, struct sample *smp
 /* Returns 0 if fails, else returns 1. */
 static int smp_conv_store(const struct arg *args, struct sample *smp, void *private)
 {
-	return sample_store_stream(args[0].data.var.name, args[0].data.var.scope, smp);
+	return var_set(args[0].data.var.name, args[0].data.var.scope, smp);
 }
 
 /* Returns 0 if fails, else returns 1. */
@@ -541,7 +541,7 @@ int vars_set_by_name_ifexist(const char *name, size_t len, struct sample *smp)
 	if (!name)
 		return 0;
 
-	return sample_store_stream(name, scope, smp);
+	return var_set(name, scope, smp);
 }
 
 
@@ -557,7 +557,7 @@ int vars_set_by_name(const char *name, size_t len, struct sample *smp)
 	if (!name)
 		return 0;
 
-	return sample_store_stream(name, scope, smp);
+	return var_set(name, scope, smp);
 }
 
 /* This function unset a variable if it was already defined.
@@ -717,7 +717,7 @@ static enum act_return action_store(struct act_rule *rule, struct proxy *px,
 		smp_set_owner(&smp, px, sess, s, 0);
 		smp.data.type = SMP_T_STR;
 		smp.data.u.str = *fmtstr;
-		sample_store_stream(rule->arg.vars.name, rule->arg.vars.scope, &smp);
+		var_set(rule->arg.vars.name, rule->arg.vars.scope, &smp);
 	}
 	else {
 		/* an expression is used */
@@ -727,7 +727,7 @@ static enum act_return action_store(struct act_rule *rule, struct proxy *px,
 	}
 
 	/* Store the sample, and ignore errors. */
-	sample_store_stream(rule->arg.vars.name, rule->arg.vars.scope, &smp);
+	var_set(rule->arg.vars.name, rule->arg.vars.scope, &smp);
 	free_trash_chunk(fmtstr);
 	return ACT_RET_CONT;
 }
