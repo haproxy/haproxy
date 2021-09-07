@@ -459,8 +459,11 @@ static inline int sample_store_stream(const char *name, enum vars_scope scope, s
 	return ret;
 }
 
-/* Returns 0 if fails, else returns 1. Note that stream may be null for SCOPE_SESS. */
-static inline int sample_clear_stream(const char *name, enum vars_scope scope, struct sample *smp)
+/* This unsets variable <name> from scope <scope>, using the session and stream
+ * found in <smp>. Note that stream may be null for SCOPE_SESS. Returns 0 if
+ * the scope was not found otherwise 1.
+ */
+static int var_unset(const char *name, enum vars_scope scope, struct sample *smp)
 {
 	struct vars *vars;
 	struct var  *var;
@@ -490,7 +493,7 @@ static int smp_conv_store(const struct arg *args, struct sample *smp, void *priv
 /* Returns 0 if fails, else returns 1. */
 static int smp_conv_clear(const struct arg *args, struct sample *smp, void *private)
 {
-	return sample_clear_stream(args[0].data.var.name, args[0].data.var.scope, smp);
+	return var_unset(args[0].data.var.name, args[0].data.var.scope, smp);
 }
 
 /* This functions check an argument entry and fill it with a variable
@@ -569,7 +572,7 @@ int vars_unset_by_name_ifexist(const char *name, size_t len, struct sample *smp)
 	if (!name)
 		return 0;
 
-	return sample_clear_stream(name, scope, smp);
+	return var_unset(name, scope, smp);
 }
 
 
@@ -739,7 +742,7 @@ static enum act_return action_clear(struct act_rule *rule, struct proxy *px,
 	smp_set_owner(&smp, px, sess, s, SMP_OPT_FINAL);
 
 	/* Clear the variable using the sample context, and ignore errors. */
-	sample_clear_stream(rule->arg.vars.name, rule->arg.vars.scope, &smp);
+	var_unset(rule->arg.vars.name, rule->arg.vars.scope, &smp);
 	return ACT_RET_CONT;
 }
 
