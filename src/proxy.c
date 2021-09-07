@@ -1928,6 +1928,34 @@ struct task *manage_proxy(struct task *t, void *context, unsigned int state)
 }
 
 
+static int proxy_parse_grace(char **args, int section_type, struct proxy *curpx,
+                             const struct proxy *defpx, const char *file, int line,
+                             char **err)
+{
+	const char *res;
+
+	if (!*args[1]) {
+		memprintf(err, "'%s' expects <time> as argument.\n", args[0]);
+		return -1;
+	}
+	res = parse_time_err(args[1], &global.grace_delay, TIME_UNIT_MS);
+	if (res == PARSE_TIME_OVER) {
+		memprintf(err, "timer overflow in argument '%s' to '%s' (maximum value is 2147483647 ms or ~24.8 days)",
+			  args[1], args[0]);
+		return -1;
+	}
+	else if (res == PARSE_TIME_UNDER) {
+		memprintf(err, "timer underflow in argument '%s' to '%s' (minimum non-null value is 1 ms)",
+			  args[1], args[0]);
+		return -1;
+	}
+	else if (res) {
+		memprintf(err, "unexpected character '%c' in argument to <%s>.\n", *res, args[0]);
+		return -1;
+	}
+	return 0;
+}
+
 static int proxy_parse_hard_stop_after(char **args, int section_type, struct proxy *curpx,
                                 const struct proxy *defpx, const char *file, int line,
                                 char **err)
@@ -2001,17 +2029,15 @@ struct task *hard_stop(struct task *t, void *context, unsigned int state)
 	return t;
 }
 
-/*
- * this function disables health-check servers so that the process will quickly be ignored
- * by load balancers.
- */
-void soft_stop(void)
+/* perform the soft-stop right now (i.e. unbind listeners) */
+static void do_soft_stop_now()
 {
 	struct task *task;
 
-	stopping = 1;
 	/* disable busy polling to avoid cpu eating for the new process */
 	global.tune.options &= ~GTUNE_BUSY_POLLING;
+
+	/* schedule a hard-stop after a delay if needed */
 	if (tick_isset(global.hard_stop_after)) {
 		task = task_new(MAX_THREADS_MASK);
 		if (task) {
@@ -2028,6 +2054,44 @@ void soft_stop(void)
 
 	/* signal zero is used to broadcast the "stopping" event */
 	signal_handler(0);
+}
+
+/* triggered by a soft-stop delayed with `grace` */
+static struct task *grace_expired(struct task *t, void *context, unsigned int state)
+{
+	ha_notice("Grace period expired, proceeding with soft-stop now.\n");
+	send_log(NULL, LOG_NOTICE, "Grace period expired, proceeding with soft-stop now.\n");
+	do_soft_stop_now();
+	task_destroy(t);
+	return NULL;
+}
+
+/*
+ * this function disables health-check servers so that the process will quickly be ignored
+ * by load balancers.
+ */
+void soft_stop(void)
+{
+	struct task *task;
+
+	stopping = 1;
+
+	if (tick_isset(global.grace_delay)) {
+		task = task_new(MAX_THREADS_MASK);
+		if (task) {
+			ha_notice("Scheduling a soft-stop in %u ms.\n", global.grace_delay);
+			send_log(NULL, LOG_WARNING, "Scheduling a soft-stop in %u ms.\n", global.grace_delay);
+			task->process = grace_expired;
+			task_schedule(task, tick_add(now_ms, global.grace_delay));
+			return;
+		}
+		else {
+			ha_alert("out of memory trying to allocate the stop-stop task, stopping now.\n");
+		}
+	}
+
+	/* no grace (or failure to enforce it): stop now */
+	do_soft_stop_now();
 }
 
 
@@ -2373,6 +2437,7 @@ void proxy_adjust_all_maxconn()
 /* Config keywords below */
 
 static struct cfg_kw_list cfg_kws = {ILH, {
+	{ CFG_GLOBAL, "grace", proxy_parse_grace },
 	{ CFG_GLOBAL, "hard-stop-after", proxy_parse_hard_stop_after },
 	{ CFG_LISTEN, "timeout", proxy_parse_timeout },
 	{ CFG_LISTEN, "clitimeout", proxy_parse_timeout }, /* This keyword actually fails to parse, this line remains for better error messages. */

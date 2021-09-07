@@ -994,6 +994,7 @@ The following keywords are supported in the "global" section :
    - expose-experimental-directives
    - external-check
    - gid
+   - grace
    - group
    - hard-stop-after
    - h1-case-adjust
@@ -1309,6 +1310,52 @@ gid <number>
   will only be able to drop these groups if started with superuser privileges.
   See also "group" and "uid".
 
+grace <time>
+  Defines a delay between SIGUSR1 and real soft-stop.
+
+  Arguments :
+    <time>  is an extra delay (by default in milliseconds) after receipt of the
+            SIGUSR1 signal that will be waited for before proceeding with the
+            soft-stop operation.
+
+  This is used for compatibility with legacy environments where the haproxy
+  process needs to be stopped but some external components need to detect the
+  status before listeners are unbound. The principle is that the internal
+  "stopping" variable (which is reported by the "stopping" sample fetch
+  function) will be turned to true, but listeners will continue to accept
+  connections undisturbed, until the delay expires, after what the regular
+  soft-stop will proceed. This must not be used with processes that are
+  reloaded, or this will prevent the old process from unbinding, and may
+  prevent the new one from starting, or simply cause trouble.
+
+  Example:
+
+    global
+      grace 10s
+
+    # Returns 200 OK until stopping is set via SIGUSR1
+    frontend ext-check
+      bind :9999
+      monitor-uri /ext-check
+      monitor fail if { stopping }
+
+  Please note that a more flexible and durable approach would instead consist
+  for an orchestration system in setting a global variable from the CLI, use
+  that variable to respond to external checks, then after a delay send the
+  SIGUSR1 signal.
+
+  Example:
+
+    # Returns 200 OK until proc.stopping is set to non-zero. May be done
+    # from HTTP using set-var(proc.stopping) or from the CLI using:
+    # > set var proc.stopping int(1)
+    frontend ext-check
+      bind :9999
+      monitor-uri /ext-check
+      monitor fail if { var(proc.stopping) -m int gt 0 }
+
+  See also: hard-stop-after, monitor
+
 group <group name>
   Similar to "gid" but uses the GID of group name <group name> from /etc/group.
   See also "gid" and "user".
@@ -1328,6 +1375,8 @@ hard-stop-after <time>
   Example:
     global
       hard-stop-after 30s
+
+  See also: grace
 
 h1-case-adjust <from> <to>
   Defines the case adjustment to apply, when enabled, to the header name
