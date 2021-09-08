@@ -41,28 +41,32 @@ int vars_unset_by_name_ifexist(const char *name, size_t len, struct sample *smp)
 int vars_get_by_desc(const struct var_desc *var_desc, struct sample *smp, const struct buffer *def);
 int vars_check_arg(struct arg *arg, char **err);
 
-/* locks the <vars> for writes */
+/* locks the <vars> for writes if it's in a shared scope */
 static inline void vars_wrlock(struct vars *vars)
 {
-	HA_RWLOCK_WRLOCK(VARS_LOCK, &vars->rwlock);
+	if (vars->scope == SCOPE_PROC)
+		HA_RWLOCK_WRLOCK(VARS_LOCK, &vars->rwlock);
 }
 
-/* unlocks the <vars> for writes */
+/* unlocks the <vars> for writes if it's in a shared scope */
 static inline void vars_wrunlock(struct vars *vars)
 {
-	HA_RWLOCK_WRUNLOCK(VARS_LOCK, &vars->rwlock);
+	if (vars->scope == SCOPE_PROC)
+		HA_RWLOCK_WRUNLOCK(VARS_LOCK, &vars->rwlock);
 }
 
-/* locks the <vars> for reads */
+/* locks the <vars> for reads if it's in a shared scope */
 static inline void vars_rdlock(struct vars *vars)
 {
-	HA_RWLOCK_RDLOCK(VARS_LOCK, &vars->rwlock);
+	if (vars->scope == SCOPE_PROC)
+		HA_RWLOCK_RDLOCK(VARS_LOCK, &vars->rwlock);
 }
 
-/* unlocks the <vars> for reads */
+/* unlocks the <vars> for reads if it's in a shared scope */
 static inline void vars_rdunlock(struct vars *vars)
 {
-	HA_RWLOCK_RDUNLOCK(VARS_LOCK, &vars->rwlock);
+	if (vars->scope == SCOPE_PROC)
+		HA_RWLOCK_RDUNLOCK(VARS_LOCK, &vars->rwlock);
 }
 
 #endif
