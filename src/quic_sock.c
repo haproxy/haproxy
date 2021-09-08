@@ -105,7 +105,6 @@ static int new_quic_cli_conn(struct quic_conn *qc, struct listener *l,
 
 	cli_conn->dst = dst;
 	cli_conn->handle.fd = l->rx.fd;
-	cli_conn->flags |= CO_FL_ADDR_FROM_SET;
 	cli_conn->target = &l->obj_type;
 
 	/* XXX Should not be there. */
