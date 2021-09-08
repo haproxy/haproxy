@@ -168,11 +168,11 @@ void vars_prune(struct vars *vars, struct session *sess, struct stream *strm)
 	struct var *var, *tmp;
 	unsigned int size = 0;
 
-	HA_RWLOCK_WRLOCK(VARS_LOCK, &vars->rwlock);
+	vars_wrlock(vars);
 	list_for_each_entry_safe(var, tmp, &vars->head, l) {
 		size += var_clear(var, 1);
 	}
-	HA_RWLOCK_WRUNLOCK(VARS_LOCK, &vars->rwlock);
+	vars_wrunlock(vars);
 	var_accounting_diff(vars, sess, strm, -size);
 }
 
@@ -184,11 +184,11 @@ void vars_prune_per_sess(struct vars *vars)
 	struct var *var, *tmp;
 	unsigned int size = 0;
 
-	HA_RWLOCK_WRLOCK(VARS_LOCK, &vars->rwlock);
+	vars_wrlock(vars);
 	list_for_each_entry_safe(var, tmp, &vars->head, l) {
 		size += var_clear(var, 1);
 	}
-	HA_RWLOCK_WRUNLOCK(VARS_LOCK, &vars->rwlock);
+	vars_wrunlock(vars);
 
 	_HA_ATOMIC_SUB(&vars->size, size);
 	_HA_ATOMIC_SUB(&proc_vars.size, size);
@@ -321,7 +321,7 @@ static int var_set(uint64_t name_hash, enum vars_scope scope, struct sample *smp
 	if (!vars || vars->scope != scope)
 		return 0;
 
-	HA_RWLOCK_WRLOCK(VARS_LOCK, &vars->rwlock);
+	vars_wrlock(vars);
 
 	/* Look for existing variable name. */
 	var = var_get(vars, name_hash);
@@ -422,7 +422,7 @@ static int var_set(uint64_t name_hash, enum vars_scope scope, struct sample *smp
 	/* OK, now done */
 	ret = 1;
  unlock:
-	HA_RWLOCK_WRUNLOCK(VARS_LOCK, &vars->rwlock);
+	vars_wrunlock(vars);
 	return ret;
 }
 
@@ -441,13 +441,13 @@ static int var_unset(uint64_t name_hash, enum vars_scope scope, struct sample *s
 		return 0;
 
 	/* Look for existing variable name. */
-	HA_RWLOCK_WRLOCK(VARS_LOCK, &vars->rwlock);
+	vars_wrlock(vars);
 	var = var_get(vars, name_hash);
 	if (var) {
 		size = var_clear(var, 0);
 		var_accounting_diff(vars, smp->sess, smp->strm, -size);
 	}
-	HA_RWLOCK_WRUNLOCK(VARS_LOCK, &vars->rwlock);
+	vars_wrunlock(vars);
 	return 1;
 }
 
@@ -565,11 +565,11 @@ static int var_to_smp(struct vars *vars, uint64_t name_hash, struct sample *smp,
 	struct var *var;
 
 	/* Get the variable entry. */
-	HA_RWLOCK_RDLOCK(VARS_LOCK, &vars->rwlock);
+	vars_rdlock(vars);
 	var = var_get(vars, name_hash);
 	if (!var || !var->data.type) {
 		if (!def) {
-			HA_RWLOCK_RDUNLOCK(VARS_LOCK, &vars->rwlock);
+			vars_rdunlock(vars);
 			return 0;
 		}
 
@@ -583,7 +583,7 @@ static int var_to_smp(struct vars *vars, uint64_t name_hash, struct sample *smp,
 	/* Copy sample. */
 	smp_dup(smp);
 
-	HA_RWLOCK_RDUNLOCK(VARS_LOCK, &vars->rwlock);
+	vars_rdunlock(vars);
 	return 1;
 }
 
