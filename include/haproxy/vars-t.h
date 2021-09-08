@@ -27,6 +27,7 @@
 
 /* flags used when setting/clearing variables */
 #define VF_UPDATEONLY 0x00000001   // SCOPE_PROC variables are only updated
+#define VF_CREATEONLY 0x00000002   // do nothing if the variable already exists
 
 enum vars_scope {
 	SCOPE_SESS = 0,

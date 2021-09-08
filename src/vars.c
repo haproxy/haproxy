@@ -356,6 +356,7 @@ static int smp_fetch_var(const struct arg *args, struct sample *smp, const char 
  * Flags is a bitfield that may contain one of the following flags:
  *   - VF_UPDATEONLY: if the scope is SCOPE_PROC, the variable may only be
  *     updated but not created.
+ *   - VF_CREATEONLY: do nothing if the variable already exists (success).
  *
  * It returns 0 on failure, non-zero on success.
  */
@@ -375,6 +376,11 @@ static int var_set(const char *name, enum vars_scope scope, struct sample *smp, 
 	var = var_get(vars, name);
 
 	if (var) {
+		if (flags & VF_CREATEONLY) {
+			ret = 1;
+			goto unlock;
+		}
+
 		/* free its used memory. */
 		if (var->data.type == SMP_T_STR ||
 		    var->data.type == SMP_T_BIN) {
