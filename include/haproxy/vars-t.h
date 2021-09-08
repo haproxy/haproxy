@@ -28,6 +28,7 @@
 /* flags used when setting/clearing variables */
 #define VF_UPDATEONLY 0x00000001   // SCOPE_PROC variables are only updated
 #define VF_CREATEONLY 0x00000002   // do nothing if the variable already exists
+#define VF_PERMANENT  0x00000004   // variables known to the config parser
 
 enum vars_scope {
 	SCOPE_SESS = 0,
@@ -54,6 +55,8 @@ struct var_desc {
 struct var {
 	struct list l; /* Used for chaining vars. */
 	const char *name; /* Contains the variable name. */
+	uint flags;       // VF_*
+	/* 32-bit hole here */
 	struct sample_data data; /* data storage. */
 };
 

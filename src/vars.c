@@ -357,6 +357,7 @@ static int smp_fetch_var(const struct arg *args, struct sample *smp, const char 
  *   - VF_UPDATEONLY: if the scope is SCOPE_PROC, the variable may only be
  *     updated but not created.
  *   - VF_CREATEONLY: do nothing if the variable already exists (success).
+ *   - VF_PERMANENT: this flag will be passed to the variable upon creation
  *
  * It returns 0 on failure, non-zero on success.
  */
@@ -408,6 +409,7 @@ static int var_set(const char *name, enum vars_scope scope, struct sample *smp, 
 			goto unlock;
 		LIST_APPEND(&vars->head, &var->l);
 		var->name = name;
+		var->flags = flags & VF_PERMANENT;
 	}
 
 	/* Set type. */
