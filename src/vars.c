@@ -142,8 +142,11 @@ scope_sess:
 	return 1;
 }
 
-/* This fnuction remove a variable from the list and free memory it used */
-unsigned int var_clear(struct var *var)
+/* This function removes a variable from the list and frees the memory it was
+ * using. If the variable is marked "VF_PERMANENT", the sample_data is only
+ * reset to SMP_T_ANY unless <force> is non nul. Returns the freed size.
+ */
+unsigned int var_clear(struct var *var, int force)
 {
 	unsigned int size = 0;
 
@@ -155,9 +158,14 @@ unsigned int var_clear(struct var *var)
 		ha_free(&var->data.u.meth.str.area);
 		size += var->data.u.meth.str.data;
 	}
-	LIST_DELETE(&var->l);
-	pool_free(var_pool, var);
-	size += sizeof(struct var);
+	/* wipe the sample */
+	var->data.type = SMP_T_ANY;
+
+	if (!(var->flags & VF_PERMANENT) || force) {
+		LIST_DELETE(&var->l);
+		pool_free(var_pool, var);
+		size += sizeof(struct var);
+	}
 	return size;
 }
 
@@ -171,7 +179,7 @@ void vars_prune(struct vars *vars, struct session *sess, struct stream *strm)
 
 	HA_RWLOCK_WRLOCK(VARS_LOCK, &vars->rwlock);
 	list_for_each_entry_safe(var, tmp, &vars->head, l) {
-		size += var_clear(var);
+		size += var_clear(var, 1);
 	}
 	HA_RWLOCK_WRUNLOCK(VARS_LOCK, &vars->rwlock);
 	var_accounting_diff(vars, sess, strm, -size);
@@ -187,7 +195,7 @@ void vars_prune_per_sess(struct vars *vars)
 
 	HA_RWLOCK_WRLOCK(VARS_LOCK, &vars->rwlock);
 	list_for_each_entry_safe(var, tmp, &vars->head, l) {
-		size += var_clear(var);
+		size += var_clear(var, 1);
 	}
 	HA_RWLOCK_WRUNLOCK(VARS_LOCK, &vars->rwlock);
 
@@ -494,7 +502,7 @@ static int var_unset(const char *name, enum vars_scope scope, struct sample *smp
 	HA_RWLOCK_WRLOCK(VARS_LOCK, &vars->rwlock);
 	var = var_get(vars, name);
 	if (var) {
-		size = var_clear(var);
+		size = var_clear(var, 0);
 		var_accounting_diff(vars, smp->sess, smp->strm, -size);
 	}
 	HA_RWLOCK_WRUNLOCK(VARS_LOCK, &vars->rwlock);
