@@ -591,9 +591,9 @@ int vars_unset_by_name_ifexist(const char *name, size_t len, struct sample *smp)
 }
 
 
-/* This retrieves variable <name> from variables <vars>, and if found,
- * duplicates the result into sample <smp>. smp_dup() is used in order to
- * release the variables lock ASAP (so a pre-allocated chunk is obtained
+/* This retrieves variable <name> from variables <vars>, and if found and not
+ * empty, duplicates the result into sample <smp>. smp_dup() is used in order
+ * to release the variables lock ASAP (so a pre-allocated chunk is obtained
  * via get_trash_shunk()). The variables' lock is used for reads.
  *
  * The function returns 0 if the variable was not found and no default
@@ -607,7 +607,7 @@ static int var_to_smp(struct vars *vars, const char *name, struct sample *smp, c
 	/* Get the variable entry. */
 	HA_RWLOCK_RDLOCK(VARS_LOCK, &vars->rwlock);
 	var = var_get(vars, name);
-	if (!var) {
+	if (!var || !var->data.type) {
 		if (!def) {
 			HA_RWLOCK_RDUNLOCK(VARS_LOCK, &vars->rwlock);
 			return 0;
