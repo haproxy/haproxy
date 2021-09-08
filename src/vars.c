@@ -529,6 +529,7 @@ int vars_check_arg(struct arg *arg, char **err)
 {
 	char *name;
 	enum vars_scope scope;
+	struct sample empty_smp = { };
 
 	/* Check arg type. */
 	if (arg->type != ARGT_STR) {
@@ -541,6 +542,9 @@ int vars_check_arg(struct arg *arg, char **err)
 			     1,
 			     err);
 	if (!name)
+		return 0;
+
+	if (scope == SCOPE_PROC && !var_set(name, scope, &empty_smp, VF_CREATEONLY|VF_PERMANENT))
 		return 0;
 
 	/* properly destroy the chunk */
@@ -823,6 +827,7 @@ static enum act_parse_ret parse_store(const char **args, int *arg, struct proxy 
 	int var_len;
 	const char *kw_name;
 	int flags, set_var = 0; /* 0=unset-var, 1=set-var, 2=set-var-fmt */
+	struct sample empty_smp = { };
 
 	if (strncmp(var_name, "set-var-fmt", 11) == 0) {
 		var_name += 11;
@@ -855,6 +860,10 @@ static enum act_parse_ret parse_store(const char **args, int *arg, struct proxy 
 	rule->arg.vars.name = register_name(var_name, var_len, &rule->arg.vars.scope, 1, err);
 	if (!rule->arg.vars.name)
 		return ACT_RET_PRS_ERR;
+
+	if (rule->arg.vars.scope == SCOPE_PROC &&
+	    !var_set(rule->arg.vars.name, rule->arg.vars.scope, &empty_smp, VF_CREATEONLY|VF_PERMANENT))
+		return 0;
 
 	/* There is no fetch method when variable is unset. Just set the right
 	 * action and return. */
