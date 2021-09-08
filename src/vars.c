@@ -67,14 +67,15 @@ void var_accounting_diff(struct vars *vars, struct session *sess, struct stream 
 	switch (vars->scope) {
 	case SCOPE_REQ:
 	case SCOPE_RES:
-		if (strm)
+		if (var_reqres_limit && strm)
 			_HA_ATOMIC_ADD(&strm->vars_reqres.size, size);
 		/* fall through */
 	case SCOPE_TXN:
-		if (strm)
+		if (var_txn_limit && strm)
 			_HA_ATOMIC_ADD(&strm->vars_txn.size, size);
 		goto scope_sess;
-	case SCOPE_CHECK: {
+	case SCOPE_CHECK:
+		if (var_check_limit) {
 			struct check *check = objt_check(sess->origin);
 
 			if (check)
@@ -83,10 +84,12 @@ void var_accounting_diff(struct vars *vars, struct session *sess, struct stream 
 		/* fall through */
 scope_sess:
 	case SCOPE_SESS:
-		_HA_ATOMIC_ADD(&sess->vars.size, size);
+		if (var_sess_limit)
+			_HA_ATOMIC_ADD(&sess->vars.size, size);
 		/* fall through */
 	case SCOPE_PROC:
-		_HA_ATOMIC_ADD(&proc_vars.size, size);
+		if (var_proc_limit || var_global_limit)
+			_HA_ATOMIC_ADD(&proc_vars.size, size);
 	}
 }
 
@@ -191,8 +194,10 @@ void vars_prune_per_sess(struct vars *vars)
 	}
 	vars_wrunlock(vars);
 
-	_HA_ATOMIC_SUB(&vars->size, size);
-	_HA_ATOMIC_SUB(&proc_vars.size, size);
+	if (var_sess_limit)
+		_HA_ATOMIC_SUB(&vars->size, size);
+	if (var_proc_limit || var_global_limit)
+		_HA_ATOMIC_SUB(&proc_vars.size, size);
 }
 
 /* This function initializes a variables list head */
