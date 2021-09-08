@@ -28,7 +28,6 @@ struct vars proc_vars THREAD_ALIGNED(64);
 
 /* This array of int contains the system limits per context. */
 static unsigned int var_global_limit = 0;
-static unsigned int var_global_size = 0;
 static unsigned int var_proc_limit = 0;
 static unsigned int var_sess_limit = 0;
 static unsigned int var_txn_limit = 0;
@@ -88,7 +87,6 @@ scope_sess:
 		/* fall through */
 	case SCOPE_PROC:
 		_HA_ATOMIC_ADD(&proc_vars.size, size);
-		_HA_ATOMIC_ADD(&var_global_size, size);
 	}
 }
 
@@ -124,9 +122,12 @@ scope_sess:
 			return 0;
 		/* fall through */
 	case SCOPE_PROC:
+		/* note: scope proc collects all others and is currently identical to the
+		 * global limit.
+		 */
 		if (var_proc_limit && proc_vars.size + size > var_proc_limit)
 			return 0;
-		if (var_global_limit && var_global_size + size > var_global_limit)
+		if (var_global_limit && proc_vars.size + size > var_global_limit)
 			return 0;
 	}
 	var_accounting_diff(vars, sess, strm, size);
@@ -192,7 +193,6 @@ void vars_prune_per_sess(struct vars *vars)
 
 	_HA_ATOMIC_SUB(&vars->size, size);
 	_HA_ATOMIC_SUB(&proc_vars.size, size);
-	_HA_ATOMIC_SUB(&var_global_size, size);
 }
 
 /* This function initializes a variables list head */
