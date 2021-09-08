@@ -560,7 +560,9 @@ static int flt_ot_attach(struct stream *s, struct filter *f)
 
 	FLT_OT_LOG(LOG_INFO, "%08x %08x", f->pre_analyzers, f->post_analyzers);
 
+#ifdef USE_OT_VARS
 	flt_ot_vars_dump(s);
+#endif
 	flt_ot_http_headers_dump(&(s->req));
 
 	FLT_OT_RETURN(FLT_OT_RET_OK);

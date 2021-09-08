@@ -120,8 +120,14 @@ struct flt_ot_runtime_context *flt_ot_runtime_context_init(struct stream *s, str
 	               (uint16_t)(retptr->uuid.clock_seq | UINT16_C(0x8000)),
 	               (uint64_t)retptr->uuid.node);
 
-	if (flt_ot_var_register(FTL_OT_VAR_UUID, err) != -1)
-		(void)flt_ot_var_set(s, FTL_OT_VAR_UUID, retptr->uuid.s, SMP_OPT_DIR_REQ, err);
+#ifdef USE_OT_VARS
+	/*
+	 * The HAProxy variable 'sess.ot.uuid' is registered here,
+	 * after which its value is set to runtime context UUID.
+	 */
+	if (flt_ot_var_register(FLT_OT_VAR_UUID, err) != -1)
+		(void)flt_ot_var_set(s, FLT_OT_VAR_UUID, retptr->uuid.s, SMP_OPT_DIR_REQ, err);
+#endif
 
 	FLT_OT_DBG_RUNTIME_CONTEXT("session context: ", retptr);
 
@@ -610,7 +616,9 @@ void flt_ot_scope_free_unused(struct flt_ot_runtime_context *rt_ctx, struct chan
 				 * the context in question should be deleted.
 				 */
 				(void)flt_ot_http_headers_remove(chn, ctx->id, NULL);
+#ifdef USE_OT_VARS
 				(void)flt_ot_vars_unset(rt_ctx->stream, FLT_OT_VARS_SCOPE, ctx->id, ctx->smp_opt_dir, NULL);
+#endif
 
 				flt_ot_scope_context_free(&ctx);
 			}

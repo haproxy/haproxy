@@ -720,8 +720,10 @@ static int flt_ot_parse_cfg_scope_ctx(char **args, int cur_arg, char **err)
 
 	if (strcmp(args[cur_arg], FLT_OT_PARSE_CTX_USE_HEADERS) == 0)
 		flags = FLT_OT_CTX_USE_HEADERS;
+#ifdef USE_OT_VARS
 	else if (strcmp(args[cur_arg], FLT_OT_PARSE_CTX_USE_VARS) == 0)
 		flags = FLT_OT_CTX_USE_VARS;
+#endif
 	else
 		FLT_OT_PARSE_ERR(err, "'%s' : invalid context storage type", args[0]);
 
@@ -939,8 +941,10 @@ static int flt_ot_parse_cfg_scope(const char *file, int linenum, char **args, in
 			conf_ctx->flags = FLT_OT_CTX_USE_HEADERS;
 		else if (strcmp(args[2], FLT_OT_PARSE_CTX_USE_HEADERS) == 0)
 			conf_ctx->flags = FLT_OT_CTX_USE_HEADERS;
+#ifdef USE_OT_VARS
 		else if (strcmp(args[2], FLT_OT_PARSE_CTX_USE_VARS) == 0)
 			conf_ctx->flags = FLT_OT_CTX_USE_VARS;
+#endif
 		else
 			FLT_OT_PARSE_ERR(&err, "'%s' : invalid context storage type", args[2]);
 	}

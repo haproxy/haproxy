@@ -85,12 +85,14 @@ static int flt_ot_scope_run_span(struct stream *s, struct filter *f, struct chan
 
 			if (conf_span->ctx_flags & (FLT_OT_CTX_USE_VARS | FLT_OT_CTX_USE_HEADERS)) {
 				for (text_map = &(writer.text_map); i < text_map->count; i++) {
+#ifdef USE_OT_VARS
 					if (!(conf_span->ctx_flags & FLT_OT_CTX_USE_VARS))
 						/* Do nothing. */;
 					else if (flt_ot_var_register(FLT_OT_VARS_SCOPE, conf_span->ctx_id, text_map->key[i], err) == -1)
 						retval = FLT_OT_RET_ERROR;
 					else if (flt_ot_var_set(s, FLT_OT_VARS_SCOPE, conf_span->ctx_id, text_map->key[i], text_map->value[i], dir, err) == -1)
 						retval = FLT_OT_RET_ERROR;
+#endif
 
 					if (!(conf_span->ctx_flags & FLT_OT_CTX_USE_HEADERS))
 						/* Do nothing. */;
@@ -184,7 +186,7 @@ int flt_ot_scope_run(struct stream *s, struct filter *f, struct channel *chn, st
 	}
 
 	list_for_each_entry(conf_ctx, &(conf_scope->contexts), list) {
-		struct otc_text_map *text_map;
+		struct otc_text_map *text_map = NULL;
 
 		FLT_OT_DBG(3, "run context '%s' -> '%s'", conf_scope->id, conf_ctx->id);
 		FLT_OT_DBG_CONF_CONTEXT("run context ", conf_ctx);
@@ -195,8 +197,10 @@ int flt_ot_scope_run(struct stream *s, struct filter *f, struct channel *chn, st
 		 */
 		if (conf_ctx->flags & FLT_OT_CTX_USE_HEADERS)
 			text_map = flt_ot_http_headers_get(chn, conf_ctx->id, conf_ctx->id_len, err);
+#ifdef USE_OT_VARS
 		else
 			text_map = flt_ot_vars_get(s, FLT_OT_VARS_SCOPE, conf_ctx->id, dir, err);
+#endif
 
 		if (text_map != NULL) {
 			if (flt_ot_scope_context_init(f->ctx, conf->tracer->tracer, conf_ctx->id, conf_ctx->id_len, text_map, dir, err) == NULL)
@@ -314,7 +318,9 @@ int flt_ot_event_run(struct stream *s, struct filter *f, struct channel *chn, in
 			retval = FLT_OT_RET_ERROR;
 	}
 
+#ifdef USE_OT_VARS
 	flt_ot_vars_dump(s);
+#endif
 	flt_ot_http_headers_dump(chn);
 
 	FLT_OT_DBG(3, "event = %d, chn = %p, s->req = %p, s->res = %p", event, chn, &(s->req), &(s->res));

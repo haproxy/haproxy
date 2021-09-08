@@ -65,14 +65,29 @@
 	FLT_OT_PARSE_GROUP_DEF(    ID, 0, 1, 2, 2, "ot-group", " <name>") \
 	FLT_OT_PARSE_GROUP_DEF(SCOPES, 0, 0, 2, 0, "scopes",   " <name> ...")
 
+#ifdef USE_OT_VARS
+#  define FLT_OT_PARSE_SCOPE_INJECT_HELP    " <name-prefix> [use-vars] [use-headers]"
+#  define FLT_OT_PARSE_SCOPE_EXTRACT_HELP   " <name-prefix> [use-vars | use-headers]"
+#else
+#  define FLT_OT_PARSE_SCOPE_INJECT_HELP    " <name-prefix> [use-headers]"
+#  define FLT_OT_PARSE_SCOPE_EXTRACT_HELP   " <name-prefix> [use-headers]"
+#endif
+
+/*
+ * In case the possibility of working with OpenTracing context via HAProxyu
+ * variables is not used, args_max member of the structure flt_ot_parse_data
+ * should be reduced for 'inject' keyword.  However, this is not critical
+ * because in this case the 'use-vars' argument cannot be entered anyway,
+ * so I will not complicate it here with additional definitions.
+ */
 #define FLT_OT_PARSE_SCOPE_DEFINES                                                                                    \
 	FLT_OT_PARSE_SCOPE_DEF(     ID, 0, 1, 2, 2, "ot-scope", " <name>")                                            \
 	FLT_OT_PARSE_SCOPE_DEF(   SPAN, 0, 0, 2, 5, "span",     " <name> [<reference>] [root]")                       \
 	FLT_OT_PARSE_SCOPE_DEF(    TAG, 1, 0, 3, 0, "tag",      " <name> <sample> ...")                               \
 	FLT_OT_PARSE_SCOPE_DEF(    LOG, 1, 0, 3, 0, "log",      " <name> <sample> ...")                               \
 	FLT_OT_PARSE_SCOPE_DEF(BAGGAGE, 1, 4, 3, 0, "baggage",  " <name> <sample> ...")                               \
-	FLT_OT_PARSE_SCOPE_DEF( INJECT, 1, 3, 2, 4, "inject",   " <name-prefix> [use-vars] [use-headers]")            \
-	FLT_OT_PARSE_SCOPE_DEF(EXTRACT, 0, 3, 2, 3, "extract",  " <name-prefix> [use-vars | use-headers]")            \
+	FLT_OT_PARSE_SCOPE_DEF( INJECT, 1, 3, 2, 4, "inject",   FLT_OT_PARSE_SCOPE_INJECT_HELP)                       \
+	FLT_OT_PARSE_SCOPE_DEF(EXTRACT, 0, 3, 2, 3, "extract",  FLT_OT_PARSE_SCOPE_EXTRACT_HELP)                      \
 	FLT_OT_PARSE_SCOPE_DEF( FINISH, 0, 0, 2, 0, "finish",   " <name> ...")                                        \
 	FLT_OT_PARSE_SCOPE_DEF(    ACL, 0, 1, 3, 0, "acl",      " <name> <criterion> [flags] [operator] <value> ...") \
 	FLT_OT_PARSE_SCOPE_DEF(  EVENT, 0, 0, 2, 0, "event",    " <name> [{ if | unless } <condition>]")

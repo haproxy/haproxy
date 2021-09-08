@@ -107,6 +107,7 @@
 #   OT_INC         : force the include path to libopentracing-c-wrapper
 #   OT_LIB         : force the lib path to libopentracing-c-wrapper
 #   OT_RUNPATH     : add RUNPATH for libopentracing-c-wrapper to haproxy executable
+#   OT_USE_VARS    : allows the use of variables for the OpenTracing context
 #   IGNOREGIT      : ignore GIT commit versions if set.
 #   VERSION        : force haproxy version reporting.
 #   SUBVERS        : add a sub-version (eg: platform, model, ...).
