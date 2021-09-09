@@ -587,6 +587,39 @@ static inline size_t b_xfer(struct buffer *dst, struct buffer *src, size_t count
 	return ret;
 }
 
+/* b_force_xfer() : same as b_xfer() but without zero copy.
+ * The caller is responsible for ensuring that <count> is not
+ * larger than b_room(dst).
+ */
+static inline size_t b_force_xfer(struct buffer *dst, struct buffer *src, size_t count)
+{
+	size_t ret, block1, block2;
+
+	ret = 0;
+	if (!count)
+		goto leave;
+
+	ret = b_data(src);
+	if (!ret)
+		goto leave;
+
+	if (ret > count)
+		ret = count;
+	block1 = b_contig_data(src, 0);
+	if (block1 > ret)
+		block1 = ret;
+	block2 = ret - block1;
+
+	if (block1)
+		__b_putblk(dst, b_head(src), block1);
+
+	if (block2)
+		__b_putblk(dst, b_peek(src, block1), block2);
+
+	b_del(src, ret);
+ leave:
+	return ret;
+}
 /* Moves <len> bytes from absolute position <src> of buffer <b> by <shift>
  * bytes, while supporting wrapping of both the source and the destination.
  * The position is relative to the buffer's origin and may overlap with the
