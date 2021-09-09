@@ -5288,7 +5288,7 @@ static size_t h2s_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 				continue;
 
 			/* Convert connection: upgrade to Extended connect from rfc 8441 */
-			if (isteqi(list[hdr].n, ist("connection"))) {
+			if ((sl->flags & HTX_SL_F_CONN_UPG) && isteqi(list[hdr].n, ist("connection"))) {
 				/* rfc 7230 #6.1 Connection = list of tokens */
 				struct ist connection_ist = list[hdr].v;
 				do {
@@ -5306,7 +5306,7 @@ static size_t h2s_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 				} while (istlen(connection_ist));
 			}
 
-			if (isteq(list[hdr].n, ist("upgrade"))) {
+			if ((sl->flags & HTX_SL_F_CONN_UPG) && isteq(list[hdr].n, ist("upgrade"))) {
 				/* rfc 7230 #6.7 Upgrade = list of protocols
 				 * rfc 8441 #4 Extended connect = :protocol is single-valued
 				 *
