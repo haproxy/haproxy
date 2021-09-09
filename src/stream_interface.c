@@ -1381,6 +1381,14 @@ int si_cs_recv(struct conn_stream *cs)
 		ic->flags |= CF_READ_PARTIAL;
 		ic->total += ret;
 
+		/* End-of-input reached, we can leave. In this case, it is
+		 * important to break the loop to not block the SI because of
+		 * the channel's policies.This way, we are still able to receive
+		 * shutdowns.
+		 */
+		if (cs->flags & CS_FL_EOI)
+			break;
+
 		if ((ic->flags & CF_READ_DONTWAIT) || --read_poll <= 0) {
 			/* we're stopped by the channel's policy */
 			si_rx_chan_blk(si);
