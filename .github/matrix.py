@@ -73,7 +73,6 @@ for CC in ["gcc", "clang"]:
             "CC": CC,
             "FLAGS": [
                 "USE_ZLIB=1",
-                "USE_OT=1",
                 "OT_INC=${HOME}/opt/include",
                 "OT_LIB=${HOME}/opt/lib",
                 "OT_RUNPATH=1",
@@ -148,7 +147,6 @@ matrix.append(
         "FLAGS": get_asan_flags(CC)
         + [
             "USE_ZLIB=1",
-            "USE_OT=1",
             "OT_INC=${HOME}/opt/include",
             "OT_LIB=${HOME}/opt/lib",
             "OT_RUNPATH=1",
