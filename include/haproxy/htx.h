@@ -517,12 +517,19 @@ static inline struct htx_blk *htx_add_endof(struct htx *htx, enum htx_blk_type t
 
 /* Add all headers from the list <hdrs> into the HTX message <htx>, followed by
  * the EOH. On success, it returns the last block inserted (the EOH), otherwise
- * NULL is returned. */
+ * NULL is returned.
+ *
+ * Headers with a NULL value (.ptr == NULL) are ignored but not those with empty
+ * value (.len == 0 but .ptr != NULL)
+ */
 static inline struct htx_blk *htx_add_all_headers(struct htx *htx, const struct http_hdr *hdrs)
 {
 	int i;
 
 	for (i = 0; hdrs[i].n.len; i++) {
+		/* Don't check the value length because a header value may be empty */
+		if (isttest(hdrs[i].v) == 0)
+			continue;
 		if (!htx_add_header(htx, hdrs[i].n, hdrs[i].v))
 			return NULL;
 	}
@@ -531,12 +538,19 @@ static inline struct htx_blk *htx_add_all_headers(struct htx *htx, const struct 
 
 /* Add all trailers from the list <hdrs> into the HTX message <htx>, followed by
  * the EOT. On success, it returns the last block inserted (the EOT), otherwise
- * NULL is returned. */
+ * NULL is returned.
+ *
+ * Trailers with a NULL value (.ptr == NULL) are ignored but not those with
+ * empty value (.len == 0 but .ptr != NULL)
+ */
 static inline struct htx_blk *htx_add_all_trailers(struct htx *htx, const struct http_hdr *hdrs)
 {
 	int i;
 
 	for (i = 0; hdrs[i].n.len; i++) {
+		/* Don't check the value length because a header value may be empty */
+		if (isttest(hdrs[i].v) == 0)
+			continue;
 		if (!htx_add_trailer(htx, hdrs[i].n, hdrs[i].v))
 			return NULL;
 	}
