@@ -1535,14 +1535,6 @@ static size_t h1_process_demux(struct h1c *h1c, struct buffer *buf, size_t count
 			TRACE_USER((!(h1m->flags & H1_MF_RESP) ? "rcvd H1 request headers" : "rcvd H1 response headers"),
 				   H1_EV_RX_DATA|H1_EV_RX_HDRS, h1c->conn, h1s, htx, (size_t[]){ret});
 
-			/* Reject Protocol upgrade request with payload */
-			if ((h1m->flags & (H1_MF_RESP|H1_MF_CONN_UPG)) == H1_MF_CONN_UPG && h1m->state != H1_MSG_DONE) {
-				h1s->flags |= H1S_F_NOT_IMPL_ERROR;
-				TRACE_ERROR("Upgrade with body not implemented, reject H1 message",
-					    H1_EV_RX_DATA|H1_EV_RX_HDRS|H1_EV_H1S_ERR, h1s->h1c->conn, h1s);
-				break;
-			}
-
 			if ((h1m->flags & H1_MF_RESP) &&
 			    h1s->status < 200 && (h1s->status == 100 || h1s->status >= 102)) {
 				h1m_init_res(&h1s->res);
