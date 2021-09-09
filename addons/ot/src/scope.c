@@ -117,7 +117,7 @@ struct flt_ot_runtime_context *flt_ot_runtime_context_init(struct stream *s, str
 
 #ifdef USE_OT_VARS
 	/*
-	 * The HAProxy variable 'sess.ot.uuid' is registered here,
+	 * The HAProxy variable 'txn.ot.uuid' is registered here,
 	 * after which its value is set to runtime context UUID.
 	 */
 	if (flt_ot_var_register(FLT_OT_VAR_UUID, err) != -1)
