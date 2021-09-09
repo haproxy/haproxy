@@ -40,10 +40,10 @@
 	FLT_OT_DBG(3, "%s%p:{ %p %d %p %p %d }", \
 	           (f), (a), (a)->tags, (a)->num_tags, (a)->baggage, (a)->log_fields, (a)->num_log_fields)
 
-#define FLT_OT_DBG_RUNTIME_CONTEXT(f,a)                                                                                    \
-	FLT_OT_DBG(3, "%s%p:{ %p %p { %016" PRIx64 " %016" PRIx64 " '%s' } %hhu %hhu 0x%02hhx 0x%08x %s %s }",             \
-	           (f), (a), (a)->stream, (a)->filter, (a)->uuid.u64[0], (a)->uuid.u64[1], (a)->uuid.s, (a)->flag_harderr, \
-	           (a)->flag_disabled, (a)->logging, (a)->analyzers, flt_ot_list_debug(&((a)->spans)),                     \
+#define FLT_OT_DBG_RUNTIME_CONTEXT(f,a)                                                                \
+	FLT_OT_DBG(3, "%s%p:{ %p %p '%s' %hhu %hhu 0x%02hhx 0x%08x %s %s }",                           \
+	           (f), (a), (a)->stream, (a)->filter, (a)->uuid, (a)->flag_harderr,                   \
+	           (a)->flag_disabled, (a)->logging, (a)->analyzers, flt_ot_list_debug(&((a)->spans)), \
 	           flt_ot_list_debug(&((a)->contexts)))
 
 #define FLT_OT_CONST_STR_HDR(a)      \
@@ -82,26 +82,11 @@ struct flt_ot_scope_context {
 	struct list              list;        /* Used to chain this structure. */
 };
 
-struct flt_ot_uuid {
-	union {
-		uint64_t u64[2];
-		uint8_t  u8[16];
-		struct {
-			uint32_t time_low;
-			uint16_t time_mid;
-			uint16_t time_hi_and_version;
-			uint16_t clock_seq;
-			uint64_t node : 48;
-		} __attribute__((packed));
-	};
-	char s[40];
-};
-
 /* The runtime filter context attached to a stream. */
 struct flt_ot_runtime_context {
 	struct stream      *stream;        /* The stream to which the filter is attached. */
 	struct filter      *filter;        /* The OpenTracing filter. */
-	struct flt_ot_uuid  uuid;          /* Randomly generated UUID. */
+	char                uuid[40];      /* Randomly generated UUID. */
 	bool                flag_harderr;  /* [0 1] */
 	bool                flag_disabled; /* [0 1] */
 	uint8_t             logging;       /* [0 1 3] */

@@ -95,6 +95,7 @@ void flt_ot_pools_info(void)
 struct flt_ot_runtime_context *flt_ot_runtime_context_init(struct stream *s, struct filter *f, char **err)
 {
 	const struct flt_ot_conf      *conf = FLT_OT_CONF(f);
+	struct buffer                  uuid;
 	struct flt_ot_runtime_context *retptr = NULL;
 
 	FLT_OT_FUNC("%p, %p, %p:%p", s, f, FLT_OT_DPTR_ARGS(err));
@@ -105,20 +106,14 @@ struct flt_ot_runtime_context *flt_ot_runtime_context_init(struct stream *s, str
 
 	retptr->stream        = s;
 	retptr->filter        = f;
-	retptr->uuid.u64[0]   = ha_random64();
-	retptr->uuid.u64[1]   = ha_random64();
 	retptr->flag_harderr  = conf->tracer->flag_harderr;
 	retptr->flag_disabled = conf->tracer->flag_disabled;
 	retptr->logging       = conf->tracer->logging;
 	LIST_INIT(&(retptr->spans));
 	LIST_INIT(&(retptr->contexts));
 
-	(void)snprintf(retptr->uuid.s, sizeof(retptr->uuid.s), "%08x-%04hx-%04hx-%04hx-%012" PRIx64,
-	               retptr->uuid.time_low,
-	               retptr->uuid.time_mid,
-	               (uint16_t)((retptr->uuid.time_hi_and_version & UINT16_C(0xfff)) | UINT16_C(0x4000)),
-	               (uint16_t)(retptr->uuid.clock_seq | UINT16_C(0x8000)),
-	               (uint64_t)retptr->uuid.node);
+	uuid = b_make(retptr->uuid, sizeof(retptr->uuid), 0, 0);
+	ha_generate_uuid(&uuid);
 
 #ifdef USE_OT_VARS
 	/*
@@ -126,7 +121,7 @@ struct flt_ot_runtime_context *flt_ot_runtime_context_init(struct stream *s, str
 	 * after which its value is set to runtime context UUID.
 	 */
 	if (flt_ot_var_register(FLT_OT_VAR_UUID, err) != -1)
-		(void)flt_ot_var_set(s, FLT_OT_VAR_UUID, retptr->uuid.s, SMP_OPT_DIR_REQ, err);
+		(void)flt_ot_var_set(s, FLT_OT_VAR_UUID, retptr->uuid, SMP_OPT_DIR_REQ, err);
 #endif
 
 	FLT_OT_DBG_RUNTIME_CONTEXT("session context: ", retptr);
