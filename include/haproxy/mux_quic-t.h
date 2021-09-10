@@ -185,7 +185,6 @@ struct qcs {
 	struct session *sess;
 	struct qcc *qcc;
 	struct eb64_node by_id; /* place in qcc's streams_by_id */
-	struct eb_root frms;
 	uint64_t id; /* stream ID */
 	uint32_t flags;      /* QC_SF_* */
 	struct {
@@ -194,12 +193,15 @@ struct qcs {
 		uint64_t offset;   /* the current offset of received data */
 		uint64_t bytes;    /* number of bytes received */
 		struct buffer buf; /* receive buffer, always valid (buf_empty or real buffer) */
+		struct eb_root frms; /* received frames ordered by their offsets */
 	} rx;
 	struct {
 		enum qcs_tx_st st; /* TX state */
 		uint64_t max_data; /* maximum number of bytes which may be sent */
 		uint64_t offset;   /* the current offset of data to send */
 		uint64_t bytes;    /* number of bytes sent */
+		uint64_t ack_offset; /* last acked ordered byte offset */
+		struct eb_root acked_frms; /* acked frames ordered by their offsets */
 		struct buffer buf; /* transmit buffer, always valid (buf_empty or real buffer) */
 		struct buffer mbuf[QCC_MBUF_CNT];
 		uint64_t left;     /* data currently stored in mbuf waiting for send */

@@ -375,15 +375,29 @@ static int quic_build_stream_frame(unsigned char **buf, const unsigned char *end
                                    struct quic_frame *frm, struct quic_conn *conn)
 {
 	struct quic_stream *stream = &frm->stream;
+	size_t offset, block1, block2;
+	struct buffer b;
 
 	if (!quic_enc_int(buf, end, stream->id) ||
-	    ((frm->type & QUIC_STREAM_FRAME_TYPE_OFF_BIT) && !quic_enc_int(buf, end, stream->offset)) ||
+	    ((frm->type & QUIC_STREAM_FRAME_TYPE_OFF_BIT) && !quic_enc_int(buf, end, stream->offset.key)) ||
 	    ((frm->type & QUIC_STREAM_FRAME_TYPE_LEN_BIT) &&
 	     (!quic_enc_int(buf, end, stream->len) || end - *buf < stream->len)))
 		return 0;
 
-	memcpy(*buf, stream->data, stream->len);
-	*buf += stream->len;
+	/* Buffer copy */
+	b = *stream->buf;
+	offset = (frm->type & QUIC_STREAM_FRAME_TYPE_OFF_BIT) ?
+		stream->offset.key & (b_size(stream->buf) - 1): 0;
+	block1 = b_wrap(&b) - (b_orig(&b) + offset);
+	if (block1 > stream->len)
+		block1 = stream->len;
+	block2 = stream->len - block1;
+	memcpy(*buf, b_orig(&b) + offset, block1);
+	*buf += block1;
+	if (block2) {
+		memcpy(*buf, b_orig(&b), block2);
+		*buf += block2;
+	}
 
 	return 1;
 }
@@ -401,9 +415,9 @@ static int quic_parse_stream_frame(struct quic_frame *frm, struct quic_conn *qc,
 
 	/* Offset parsing */
 	if (!(frm->type & QUIC_STREAM_FRAME_TYPE_OFF_BIT)) {
-		stream->offset = 0;
+		stream->offset.key = 0;
 	}
-	else if (!quic_dec_int(&stream->offset, buf, end))
+	else if (!quic_dec_int((uint64_t *)&stream->offset.key, buf, end))
 		return 0;
 
 	/* Length parsing */

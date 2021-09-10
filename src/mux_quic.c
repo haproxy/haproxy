@@ -970,19 +970,20 @@ struct qcs *bidi_qcs_new(struct qcc *qcc, uint64_t id)
 	qcs->qcc         = qcc;
 	qcs->cs          = NULL;
 	qcs->id = qcs->by_id.key = id;
-	qcs->frms        = EB_ROOT_UNIQUE;
 	qcs->flags       = QC_SF_NONE;
 
 	qcs->rx.buf      = BUF_NULL;
 	qcs->rx.st       = QC_RX_SS_IDLE;
 	qcs->rx.bytes    = qcs->rx.offset = 0;
 	qcs->rx.max_data = qcc->strms[qcs_type].rx.max_data;
-
 	qcs->rx.buf      = BUF_NULL;
+	qcs->rx.frms     = EB_ROOT_UNIQUE;
+
 	qcs->tx.st       = QC_TX_SS_IDLE;
-	qcs->tx.bytes    = qcs->tx.offset = 0;
+	qcs->tx.bytes    = qcs->tx.offset = qcs->tx.ack_offset = 0;
+	qcs->tx.acked_frms = EB_ROOT_UNIQUE;
 	qcs->tx.max_data = qcc->strms[qcs_type].tx.max_data;
-	qcs->tx.buf = BUF_NULL;
+	qcs->tx.buf      = BUF_NULL;
 	br_init(qcs->tx.mbuf, sizeof(qcs->tx.mbuf) / sizeof(qcs->tx.mbuf[0]));
 	qcs->tx.left     = 0;
 
@@ -1041,13 +1042,13 @@ struct qcs *luqs_new(struct qcc *qcc)
 	qcs->qcc = qcc;
 	qcs->cs = NULL;
 	qcs->id = qcs->by_id.key = next_id;
-	qcs->frms = EB_ROOT_UNIQUE;
 	qcs->flags = QC_SF_NONE;
 
-	qcs->tx.st = QC_TX_SS_IDLE;
-	qcs->tx.max_data = qcc->strms[qcs_type].tx.max_data;
-	qcs->tx.offset = qcs->tx.bytes = 0;
-	qcs->tx.buf = BUF_NULL;
+	qcs->tx.st         = QC_TX_SS_IDLE;
+	qcs->tx.max_data   = qcc->strms[qcs_type].tx.max_data;
+	qcs->tx.offset     = qcs->tx.bytes = qcs->tx.ack_offset = 0;
+	qcs->tx.acked_frms = EB_ROOT_UNIQUE;
+	qcs->tx.buf        = BUF_NULL;
 	br_init(qcs->tx.mbuf, sizeof(qcs->tx.mbuf) / sizeof(qcs->tx.mbuf[0]));
 	qcs->tx.left = 0;
 
@@ -1083,13 +1084,13 @@ struct qcs *ruqs_new(struct qcc *qcc, uint64_t id)
 
 	qcs->qcc = qcc;
 	qcs->id = qcs->by_id.key = id;
-	qcs->frms = EB_ROOT_UNIQUE;
 	qcs->flags = QC_SF_NONE;
 
 	qcs->rx.st = QC_RX_SS_IDLE;
 	qcs->rx.max_data = qcc->strms[qcs_type].rx.max_data;
 	qcs->rx.offset = qcs->rx.bytes = 0;
 	qcs->rx.buf = BUF_NULL;
+	qcs->rx.frms = EB_ROOT_UNIQUE;
 	br_init(qcs->tx.mbuf, sizeof(qcs->tx.mbuf) / sizeof(qcs->tx.mbuf[0]));
 	qcs->tx.left = 0;
 
@@ -1396,12 +1397,12 @@ leave:
 static int qcs_push_frame(struct qcs *qcs, struct buffer *payload, int fin, uint64_t offset)
 {
 	struct quic_frame *frm;
-	struct buffer buf = BUF_NULL;
+	struct buffer *buf = &qcs->tx.buf;
+	struct quic_enc_level *qel = &qcs->qcc->conn->qc->els[QUIC_TLS_ENC_LEVEL_APP];
 	int total = 0;
 
-	qc_get_buf(qcs->qcc, &buf);
-	total = b_xfer(&buf, payload, b_data(payload));
-
+	qc_get_buf(qcs->qcc, buf);
+	total = b_force_xfer(buf, payload, QUIC_MIN(b_data(payload), b_room(buf)));
 	frm = pool_zalloc(pool_head_quic_frame);
 	if (!frm)
 		goto err;
@@ -1411,16 +1412,16 @@ static int qcs_push_frame(struct qcs *qcs, struct buffer *payload, int fin, uint
 		frm->type |= QUIC_STREAM_FRAME_TYPE_FIN_BIT;
 	if (offset) {
 		frm->type |= QUIC_STREAM_FRAME_TYPE_OFF_BIT;
-		frm->stream.offset = offset;
+		frm->stream.offset.key = offset;
 	}
+	frm->stream.qcs = qcs;
+	frm->stream.buf = buf;
 	frm->stream.id = qcs->by_id.key;
 	if (total) {
 		frm->type |= QUIC_STREAM_FRAME_TYPE_LEN_BIT;
 		frm->stream.len = total;
-		frm->stream.data = (unsigned char *)b_head(&buf);
 	}
 
-	struct quic_enc_level *qel = &qcs->qcc->conn->qc->els[QUIC_TLS_ENC_LEVEL_APP];
 	MT_LIST_APPEND(&qel->pktns->tx.frms, &frm->mt_list);
 	fprintf(stderr, "%s: total=%d fin=%d offset=%lu\n", __func__, total, fin, offset);
 	return total;

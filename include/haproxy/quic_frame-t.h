@@ -31,6 +31,8 @@
 
 #include <haproxy/list.h>
 
+#include <import/eb64tree.h>
+
 /* QUIC frame types. */
 enum quic_frame_type {
 	QUIC_FT_PADDING      = 0x00,
@@ -141,7 +143,9 @@ struct quic_new_token {
 
 struct quic_stream {
 	uint64_t id;
-	uint64_t offset;
+	struct qcs *qcs;
+	struct buffer *buf;
+	struct eb64_node offset;
 	uint64_t len;
 	const unsigned char *data;
 };
