@@ -537,7 +537,7 @@ flt_set_stream_backend(struct stream *s, struct proxy *be)
 	}
 	if (be->be_req_ana & AN_REQ_FLT_START_BE) {
 		s->req.flags |= CF_FLT_ANALYZE;
-		s->req.analysers |= AN_RES_FLT_END;
+		s->req.analysers |= AN_REQ_FLT_END;
 	}
 	if ((strm_fe(s)->fe_rsp_ana | be->be_rsp_ana) & (AN_RES_FLT_START_FE|AN_RES_FLT_START_BE)) {
 		s->res.flags |= CF_FLT_ANALYZE;
@@ -712,7 +712,7 @@ flt_start_analyze(struct stream *s, struct channel *chn, unsigned int an_bit)
 
 	/* Set flag on channel to tell that the channel is filtered */
 	chn->flags |= CF_FLT_ANALYZE;
-	chn->analysers |= AN_RES_FLT_END;
+	chn->analysers |= ((chn->flags & CF_ISRESP) ? AN_RES_FLT_END : AN_REQ_FLT_END);
 
 	RESUME_FILTER_LOOP(s, chn) {
 		if (!(chn->flags & CF_ISRESP)) {
