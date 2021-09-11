@@ -10005,6 +10005,7 @@ static int hlua_filter_new(struct stream *s, struct filter *filter)
 		/* Check stack size. */
 		if (!lua_checkstack(s->hlua->T, 1)) {
 			SEND_ERR(s->be, "Lua filter '%s': full stack.\n", conf->reg->name);
+			RESET_SAFE_LJMP(s->hlua);
 			ret = 0;
 			goto end;
 		}
