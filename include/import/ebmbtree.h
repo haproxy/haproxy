@@ -358,7 +358,7 @@ __ebmb_insert(struct eb_root *root, struct ebmb_node *new, unsigned int len)
 		new->node.leaf_p = new_rght;
 		*up_ptr = new_left;
 	}
-	else if (diff < 0) {
+	else {
 		new->node.branches.b[EB_LEFT] = new_leaf;
 		new->node.branches.b[EB_RGHT] = troot;
 		new->node.leaf_p = new_left;
