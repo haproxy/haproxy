@@ -42,4 +42,11 @@
 
 #include <import/xxhash.h>
 
+/* Make the new complex name for the xxhash function easier to remember
+ * and use.
+ */
+#ifndef XXH3
+#define XXH3(data, len, seed) XXH3_64bits_withSeed(data, len, seed)
+#endif
+
 #endif
