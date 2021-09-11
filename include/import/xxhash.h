@@ -75,8 +75,6 @@ XXH32        6.8 GB/s            6.0 GB/s
 extern "C" {
 #endif
 
-#include <haproxy/defaults.h>
-
 /* ****************************
  *  INLINE mode
  ******************************/

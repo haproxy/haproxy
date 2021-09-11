@@ -404,13 +404,6 @@
 #define MAX_POLLERS	10
 #endif
 
-/* Make all xxhash functions inline, with implementations being directly
- * included within xxhash.h.
- */
-#ifndef XXH_INLINE_ALL
-#define XXH_INLINE_ALL
-#endif
-
 /* system sysfs directory */
 #define NUMA_DETECT_SYSTEM_SYSFS_PATH "/sys/devices/system"
 

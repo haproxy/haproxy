@@ -1,7 +1,6 @@
 #include <stdio.h>
 
 #include <import/lru.h>
-#include <import/xxhash.h>
 #include <haproxy/api.h>
 #include <haproxy/arg.h>
 #include <haproxy/buf-t.h>
@@ -15,6 +14,7 @@
 #include <haproxy/sample.h>
 #include <haproxy/thread.h>
 #include <haproxy/tools.h>
+#include <haproxy/xxhash.h>
 #include <51Degrees.h>
 
 struct _51d_property_names {

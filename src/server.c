@@ -16,8 +16,6 @@
 #include <ctype.h>
 #include <errno.h>
 
-#include <import/xxhash.h>
-
 #include <haproxy/api.h>
 #include <haproxy/applet-t.h>
 #include <haproxy/backend.h>
@@ -46,6 +44,7 @@
 #include <haproxy/tcpcheck.h>
 #include <haproxy/time.h>
 #include <haproxy/tools.h>
+#include <haproxy/xxhash.h>
 
 
 static void srv_update_status(struct server *s);

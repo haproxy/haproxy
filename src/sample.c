@@ -18,7 +18,6 @@
 
 #include <import/mjson.h>
 #include <import/sha1.h>
-#include <import/xxhash.h>
 
 #include <haproxy/api.h>
 #include <haproxy/arg.h>
@@ -43,6 +42,7 @@
 #include <haproxy/tools.h>
 #include <haproxy/uri_auth-t.h>
 #include <haproxy/vars.h>
+#include <haproxy/xxhash.h>
 
 /* sample type names */
 const char *smp_to_type[SMP_TYPES] = {

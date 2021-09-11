@@ -43,7 +43,6 @@
 #include <import/ebpttree.h>
 #include <import/ebsttree.h>
 #include <import/lru.h>
-#include <import/xxhash.h>
 
 #include <haproxy/api.h>
 #include <haproxy/arg.h>
@@ -79,6 +78,7 @@
 #include <haproxy/tools.h>
 #include <haproxy/vars.h>
 #include <haproxy/xprt_quic.h>
+#include <haproxy/xxhash.h>
 
 
 /* ***** READ THIS before adding code here! *****

@@ -13,7 +13,6 @@
 #include <errno.h>
 
 #include <import/eb64tree.h>
-#include <import/xxhash.h>
 #include <import/ebistree.h>
 
 #include <haproxy/api.h>
@@ -29,6 +28,7 @@
 #include <haproxy/server.h>
 #include <haproxy/ssl_sock.h>
 #include <haproxy/tools.h>
+#include <haproxy/xxhash.h>
 
 
 /* Update a server state using the parameters available in the params list.

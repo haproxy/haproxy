@@ -30,7 +30,6 @@
 
 #include <import/ebmbtree.h>
 #include <import/ist.h>
-#include <import/xxhash.h>
 
 #include <haproxy/api-t.h>
 #include <haproxy/buf-t.h>
@@ -38,6 +37,7 @@
 #include <haproxy/port_range-t.h>
 #include <haproxy/protocol-t.h>
 #include <haproxy/thread-t.h>
+#include <haproxy/xxhash.h>
 
 /* referenced below */
 struct connection;

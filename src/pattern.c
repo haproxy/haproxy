@@ -16,7 +16,6 @@
 
 #include <import/ebsttree.h>
 #include <import/lru.h>
-#include <import/xxhash.h>
 
 #include <haproxy/api.h>
 #include <haproxy/global.h>
@@ -26,6 +25,7 @@
 #include <haproxy/regex.h>
 #include <haproxy/sample.h>
 #include <haproxy/tools.h>
+#include <haproxy/xxhash.h>
 
 
 const char *const pat_match_names[PAT_MATCH_NUM] = {
