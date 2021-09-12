@@ -134,19 +134,24 @@ struct otc_text_map *flt_ot_http_headers_get(struct channel *chn, const char *pr
 				v = htx_get_blk_value(htx, blk);
 
 				/*
+				 * In case the data of the HTTP header is not
+				 * specified, v.ptr will have some non-null
+				 * value and v.len will be equal to 0.  The
+				 * otc_text_map_add() function will not
+				 * interpret this well.  In this case v.ptr
+				 * is set to an empty string.
+				 */
+				if (v.len == 0)
+					v = ist("");
+
+				/*
 				 * Here, an HTTP header (which is actually part
 				 * of the span context is added to the text_map.
 				 *
 				 * Before adding, the prefix is removed from the
 				 * HTTP header name.
-				 *
-				 * In case the data of the HTTP header is not
-				 * specified, v.len will be equal to 0, and
-				 * the function otc_text_map_add() will not
-				 * interpret this well.  In this case, instead
-				 * of v.ptr, "" is used.
 				 */
-				if (otc_text_map_add(retptr, n.ptr + prefix_len, n.len - prefix_len, (v.len > 0) ? v.ptr : "", v.len, OTC_TEXT_MAP_DUP_KEY | OTC_TEXT_MAP_DUP_VALUE) == -1) {
+				if (otc_text_map_add(retptr, n.ptr + prefix_len, n.len - prefix_len, v.ptr, v.len, OTC_TEXT_MAP_DUP_KEY | OTC_TEXT_MAP_DUP_VALUE) == -1) {
 					FLT_OT_ERR("failed to add HTTP header data");
 
 					otc_text_map_destroy(&retptr, OTC_TEXT_MAP_FREE_KEY | OTC_TEXT_MAP_FREE_VALUE);
