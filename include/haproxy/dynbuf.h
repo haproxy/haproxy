@@ -36,7 +36,7 @@
 
 extern struct pool_head *pool_head_buffer;
 
-int init_buffer();
+int init_buffer(void);
 void buffer_dump(FILE *o, struct buffer *b, int from, int to);
 
 /*****************************************************************/

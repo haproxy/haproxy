@@ -39,6 +39,6 @@ void ha_cpuset_assign(struct hap_cpuset *dst, const struct hap_cpuset *src);
 
 /* Returns the biggest index plus one usable on the platform.
  */
-int ha_cpuset_size();
+int ha_cpuset_size(void);
 
 #endif /* _HAPROXY_CPUSET_H */

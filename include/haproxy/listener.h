@@ -66,7 +66,7 @@ void stop_listener(struct listener *l, int lpx, int lpr, int lli);
 void enable_listener(struct listener *listener);
 
 /* Dequeues all listeners waiting for a resource the global wait queue */
-void dequeue_all_listeners();
+void dequeue_all_listeners(void);
 
 /* Dequeues all listeners waiting for a resource in proxy <px>'s queue */
 void dequeue_proxy_listeners(struct proxy *px);

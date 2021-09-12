@@ -981,7 +981,7 @@ void dump_addr_and_bytes(struct buffer *buf, const char *pfx, const void *addr, 
 void dump_hex(struct buffer *out, const char *pfx, const void *buf, int len, int unsafe);
 int may_access(const void *ptr);
 const void *resolve_sym_name(struct buffer *buf, const char *pfx, const void *addr);
-const char *get_exec_path();
+const char *get_exec_path(void);
 void *get_sym_curr_addr(const char *name);
 void *get_sym_next_addr(const char *name);
 
@@ -1027,7 +1027,7 @@ int parse_dotted_uints(const char *s, unsigned int **nums, size_t *sz);
 void ha_generate_uuid(struct buffer *output);
 void ha_random_seed(const unsigned char *seed, size_t len);
 void ha_random_jump96(uint32_t dist);
-uint64_t ha_random64();
+uint64_t ha_random64(void);
 
 static inline uint32_t ha_random32()
 {

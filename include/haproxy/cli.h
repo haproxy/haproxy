@@ -40,10 +40,10 @@ int cli_parse_default(char **args, char *payload, struct appctx *appctx, void *p
 
 /* mworker proxy functions */
 
-int mworker_cli_proxy_create();
+int mworker_cli_proxy_create(void);
 int mworker_cli_proxy_new_listener(char *line);
 int mworker_cli_sockpair_new(struct mworker_proc *mworker_proc, int proc);
-void mworker_cli_proxy_stop();
+void mworker_cli_proxy_stop(void);
 
 /* proxy mode cli functions */
 

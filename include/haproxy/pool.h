@@ -52,17 +52,17 @@ void *pool_get_from_os(struct pool_head *pool);
 void pool_put_to_os(struct pool_head *pool, void *ptr);
 void *pool_alloc_nocache(struct pool_head *pool);
 void pool_free_nocache(struct pool_head *pool, void *ptr);
-void dump_pools_to_trash();
+void dump_pools_to_trash(void);
 void dump_pools(void);
-int pool_total_failures();
-unsigned long pool_total_allocated();
-unsigned long pool_total_used();
+int pool_total_failures(void);
+unsigned long pool_total_allocated(void);
+unsigned long pool_total_used(void);
 void pool_flush(struct pool_head *pool);
 void pool_gc(struct pool_head *pool_ctx);
 struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags);
 void create_pool_callback(struct pool_head **ptr, char *name, unsigned int size);
 void *pool_destroy(struct pool_head *pool);
-void pool_destroy_all();
+void pool_destroy_all(void);
 int mem_should_fail(const struct pool_head *pool);
 
 
@@ -74,7 +74,7 @@ extern THREAD_LOCAL size_t pool_cache_bytes;   /* total cache size */
 extern THREAD_LOCAL size_t pool_cache_count;   /* #cache objects   */
 
 void pool_evict_from_local_cache(struct pool_head *pool);
-void pool_evict_from_local_caches();
+void pool_evict_from_local_caches(void);
 void pool_put_to_cache(struct pool_head *pool, void *ptr);
 
 /* returns true if the pool is considered to have too many free objects */

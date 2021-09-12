@@ -62,7 +62,7 @@ void init_new_proxy(struct proxy *p);
 void proxy_preset_defaults(struct proxy *defproxy);
 void proxy_free_defaults(struct proxy *defproxy);
 void proxy_destroy_defaults(struct proxy *px);
-void proxy_destroy_all_defaults();
+void proxy_destroy_all_defaults(void);
 struct proxy *alloc_new_proxy(const char *name, unsigned int cap,
                               char **errmsg);
 struct proxy *parse_new_proxy(const char *name, unsigned int cap,
@@ -77,7 +77,7 @@ void proxy_capture_error(struct proxy *proxy, int is_back,
 			 unsigned int buf_out, unsigned int err_pos,
 			 const union error_snapshot_ctx *ctx,
 			 void (*show)(struct buffer *, const struct error_snapshot *));
-void proxy_adjust_all_maxconn();
+void proxy_adjust_all_maxconn(void);
 struct proxy *cli_find_frontend(struct appctx *appctx, const char *arg);
 struct proxy *cli_find_frontend(struct appctx *appctx, const char *arg);
 

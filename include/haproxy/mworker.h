@@ -19,12 +19,12 @@
 
 extern struct mworker_proc *proc_self;
 
-void mworker_proc_list_to_env();
-int mworker_env_to_proc_list();
+void mworker_proc_list_to_env(void);
+int mworker_env_to_proc_list(void);
 
 
-void mworker_block_signals();
-void mworker_unblock_signals();
+void mworker_block_signals(void);
+void mworker_unblock_signals(void);
 
 void mworker_broadcast_signal(struct sig_handler *sh);
 void mworker_catch_sighup(struct sig_handler *sh);
@@ -33,11 +33,11 @@ void mworker_catch_sigchld(struct sig_handler *sh);
 
 void mworker_accept_wrapper(int fd);
 
-void mworker_cleanlisteners();
+void mworker_cleanlisteners(void);
 
-int mworker_child_nb();
+int mworker_child_nb(void);
 
-int mworker_ext_launch_all();
+int mworker_ext_launch_all(void);
 
 void mworker_kill_max_reloads(int sig);
 

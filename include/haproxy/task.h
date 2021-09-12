@@ -124,24 +124,24 @@ unsigned int run_tasks_from_lists(unsigned int budgets[]);
  *   - return the date of next event in <next> or eternity.
  */
 
-void process_runnable_tasks();
+void process_runnable_tasks(void);
 
 /*
  * Extract all expired timers from the timer queue, and wakes up all
  * associated tasks.
  */
-void wake_expired_tasks();
+void wake_expired_tasks(void);
 
 /* Checks the next timer for the current thread by looking into its own timer
  * list and the global one. It may return TICK_ETERNITY if no timer is present.
  * Note that the next timer might very well be slightly in the past.
  */
-int next_timer_expiry();
+int next_timer_expiry(void);
 
 /*
  * Delete every tasks before running the master polling loop
  */
-void mworker_cleantasks();
+void mworker_cleantasks(void);
 
 /* returns the number of running tasks+tasklets on the whole process. Note
  * that this *is* racy since a task may move from the global to a local

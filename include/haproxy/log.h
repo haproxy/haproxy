@@ -57,8 +57,8 @@ extern int cum_log_messages;
 void syslog_fd_handler(int fd);
 
 /* Initialize/Deinitialize log buffers used for syslog messages */
-int init_log_buffers();
-void deinit_log_buffers();
+int init_log_buffers(void);
+void deinit_log_buffers(void);
 
 /* build a log line for the session and an optional stream */
 int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t maxsize, struct list *list_format);

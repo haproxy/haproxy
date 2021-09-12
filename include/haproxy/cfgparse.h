@@ -101,7 +101,7 @@ int cfg_parse_track_sc_num(unsigned int *track_sc_num,
 int readcfgfile(const char *file);
 void cfg_register_keywords(struct cfg_kw_list *kwl);
 void cfg_unregister_keywords(struct cfg_kw_list *kwl);
-int check_config_validity();
+int check_config_validity(void);
 int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bind_conf, const char *file, int line, char **err);
 int str2receiver(char *str, struct proxy *curproxy, struct bind_conf *bind_conf, const char *file, int line, char **err);
 int cfg_register_section(char *section_name,

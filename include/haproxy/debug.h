@@ -29,8 +29,8 @@ extern unsigned int debug_commands_issued;
 void ha_task_dump(struct buffer *buf, const struct task *task, const char *pfx);
 void ha_thread_dump(struct buffer *buf, int thr, int calling_tid);
 void ha_dump_backtrace(struct buffer *buf, const char *prefix, int dump);
-void ha_backtrace_to_stderr();
-void ha_thread_dump_all_to_trash();
-void ha_panic();
+void ha_backtrace_to_stderr(void);
+void ha_thread_dump_all_to_trash(void);
+void ha_panic(void);
 
 #endif /* _HAPROXY_DEBUG_H */

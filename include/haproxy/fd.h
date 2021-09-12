@@ -82,12 +82,12 @@ void poller_pipe_io_handler(int fd);
  * If none works, returns 0, otherwise 1.
  * The pollers register themselves just before main() is called.
  */
-int init_pollers();
+int init_pollers(void);
 
 /*
  * Deinitialize the pollers.
  */
-void deinit_pollers();
+void deinit_pollers(void);
 
 /*
  * Some pollers may lose their connection after a fork(). It may be necessary
@@ -96,7 +96,7 @@ void deinit_pollers();
  * the the current poller is destroyed and the caller is responsible for trying
  * another one by calling init_pollers() again.
  */
-int fork_poller();
+int fork_poller(void);
 
 /*
  * Lists the known pollers on <out>.

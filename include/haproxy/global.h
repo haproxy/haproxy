@@ -65,7 +65,7 @@ int split_version(const char *version, unsigned int *value);
 int compare_current_version(const char *version);
 
 void mworker_accept_wrapper(int fd);
-void mworker_reload();
+void mworker_reload(void);
 
 /* to be used with warned and WARN_* */
 static inline int already_warned(unsigned int warning)
@@ -90,7 +90,7 @@ enum tainted_flags {
 	TAINTED_CLI_EXPERIMENTAL_MODE  = 0x8,
 };
 void mark_tainted(const enum tainted_flags flag);
-unsigned int get_tainted();
+unsigned int get_tainted(void);
 
 extern unsigned int experimental_directives_allowed;
 

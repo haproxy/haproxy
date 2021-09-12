@@ -88,8 +88,8 @@ int tv_ms_cmp2(const struct timeval *tv1, const struct timeval *tv2);
  * timeout).
  */
 void tv_update_date(int max_wait, int interrupted);
-void tv_init_process_date();
-void tv_init_thread_date();
+void tv_init_process_date(void);
+void tv_init_thread_date(void);
 
 char *timeofday_as_iso_us(int pad);
 

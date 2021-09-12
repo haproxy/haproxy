@@ -166,11 +166,11 @@ static inline unsigned long thread_isolated()
 #include <string.h>
 #include <import/plock.h>
 
-void thread_harmless_till_end();
-void thread_isolate();
-void thread_isolate_full();
-void thread_release();
-void thread_sync_release();
+void thread_harmless_till_end(void);
+void thread_isolate(void);
+void thread_isolate_full(void);
+void thread_release(void);
+void thread_sync_release(void);
 void ha_tkill(unsigned int thr, int sig);
 void ha_tkillall(int sig);
 void ha_spin_init(HA_SPINLOCK_T *l);
@@ -325,7 +325,7 @@ static inline unsigned long thread_isolated()
 /* Returns 1 if the cpu set is currently restricted for the process else 0.
  * Currently only implemented for the Linux platform.
  */
-int thread_cpu_mask_forced();
+int thread_cpu_mask_forced(void);
 
 #if !defined(DEBUG_THREAD) && !defined(DEBUG_FULL)
 
