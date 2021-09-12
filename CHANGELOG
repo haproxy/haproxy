@@ -1,6 +1,47 @@
 ChangeLog :
 ===========
 
+2021/09/12 : 2.5-dev7
+    - BUG/MINOR: config: reject configs using HTTP with bufsize >= 256 MB
+    - CLEANUP: htx: remove comments about "must be < 256 MB"
+    - BUG/MAJOR: htx: fix missing header name length check in htx_add_header/trailer
+    - Revert "BUG/MINOR: stream-int: Don't block reads in si_update_rx() if chn may receive"
+    - MINOR: proxy: add a global "grace" directive to postpone soft-stop
+    - MINOR: vars: rename vars_init() to vars_init_head()
+    - CLEANUP: vars: rename sample_clear_stream() to var_unset()
+    - REORG: vars: remerge sample_store{,_stream}() into var_set()
+    - MEDIUM: vars: make the ifexist variant of set-var only apply to the proc scope
+    - MINOR: vars: add a VF_CREATEONLY flag for creation
+    - MINOR: vars: support storing empty sample data with a variable
+    - MINOR: vars: store flags into variables and add VF_PERMANENT
+    - MEDIUM: vars: make var_clear() only reset VF_PERMANENT variables
+    - MEDIUM: vars: pre-create parsed SCOPE_PROC variables as permanent ones
+    - MINOR: vars: preset a random seed to hash variables names
+    - MEDIUM: vars: replace the global name index with a hash
+    - CLEANUP: vars: remove the now unused var_names array
+    - MINOR: vars: centralize the lock/unlock into static inlines
+    - OPTIM: vars: only takes the variables lock on shared entries
+    - OPTIM: vars: remove internal bookkeeping for vars_global_size
+    - OPTIM: vars: do not keep variables usage stats if no limit is set
+    - BUILD: fix dragonfly build again on __read_mostly
+    - CI: Github Actions: temporarily disable Opentracing
+    - BUG/MEDIUM: mux-h1: Remove "Upgrade:" header for requests with payload
+    - MINOR: htx: Skip headers with no value when adding a header list to a message
+    - CLEANUP: mux-h1: Remove condition rejecting upgrade requests with payload
+    - BUG/MEDIUM: stream-int: Don't block SI on a channel policy if EOI is reached
+    - BUG/MEDIUM: http-ana: Reset channels analysers when returning an error
+    - BUG/MINOR: filters: Set right FLT_END analyser depending on channel
+    - CLEANUP: Add haproxy/xxhash.h to avoid modifying import/xxhash.h
+    - CLEANUP: ebmbtree: Replace always-taken elseif by else
+    - CLEANUP: Move XXH3 macro from haproxy/compat.h to haproxy/xxhash.h
+    - BUILD: opentracing: exclude the use of haproxy variables for the OpenTracing context
+    - BUG/MINOR: opentracing: enable the use of http headers without a set value
+    - CLEANUP: opentracing: use the haproxy function to generate uuid
+    - MINOR: opentracing: change the scope of the variable 'ot.uuid' from 'sess' to 'txn'
+    - CI: Github Actions: re-enable Opentracing
+    - CLEANUP: opentracing: simplify the condition on the empty header
+    - BUG/MEDIUM lua: Add missing call to RESET_SAFE_LJMP in hlua_filter_new()
+
 2021/09/03 : 2.5-dev6
     - BUG/MINOR threads: Use get_(local|gm)time instead of (local|gm)time
     - BUG/MINOR: tools: Fix loop condition in dump_text()
