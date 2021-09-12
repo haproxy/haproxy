@@ -46,7 +46,6 @@
 
 /* Generic exports */
 int parse_nbthread(const char *arg, char **err);
-int thread_get_default_count();
 extern int thread_cpus_enabled_at_boot;
 
 
