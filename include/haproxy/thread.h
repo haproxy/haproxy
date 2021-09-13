@@ -95,11 +95,6 @@ static inline void ha_set_tid(unsigned int tid)
 	ti = &ha_thread_info[tid];
 }
 
-static inline unsigned long long ha_get_pthread_id(unsigned int thr)
-{
-	return 0;
-}
-
 static inline void ha_thread_relax(void)
 {
 #ifdef _POSIX_PRIORITY_SCHEDULING
@@ -217,37 +212,6 @@ static inline void ha_set_tid(unsigned int data)
 	tid     = data;
 	tid_bit = (1UL << tid);
 	ti      = &ha_thread_info[tid];
-}
-
-/* Retrieves the opaque pthread_t of thread <thr> cast to an unsigned long long
- * since POSIX took great care of not specifying its representation, making it
- * hard to export for post-mortem analysis. For this reason we copy it into a
- * union and will use the smallest scalar type at least as large as its size,
- * which will keep endianness and alignment for all regular sizes. As a last
- * resort we end up with a long long ligned to the first bytes in memory, which
- * will be endian-dependent if pthread_t is larger than a long long (not seen
- * yet).
- */
-static inline unsigned long long ha_get_pthread_id(unsigned int thr)
-{
-	union {
-		pthread_t t;
-		unsigned long long ll;
-		unsigned int i;
-		unsigned short s;
-		unsigned char c;
-	} u;
-
-	memset(&u, 0, sizeof(u));
-	u.t = ha_thread_info[thr].pthread;
-
-	if (sizeof(u.t) <= sizeof(u.c))
-		return u.c;
-	else if (sizeof(u.t) <= sizeof(u.s))
-		return u.s;
-	else if (sizeof(u.t) <= sizeof(u.i))
-		return u.i;
-	return u.ll;
 }
 
 static inline void ha_thread_relax(void)

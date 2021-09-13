@@ -29,4 +29,38 @@
 extern struct thread_info ha_thread_info[MAX_THREADS];
 extern THREAD_LOCAL struct thread_info *ti; /* thread_info for the current thread */
 
+/* Retrieves the opaque pthread_t of thread <thr> cast to an unsigned long long
+ * since POSIX took great care of not specifying its representation, making it
+ * hard to export for post-mortem analysis. For this reason we copy it into a
+ * union and will use the smallest scalar type at least as large as its size,
+ * which will keep endianness and alignment for all regular sizes. As a last
+ * resort we end up with a long long ligned to the first bytes in memory, which
+ * will be endian-dependent if pthread_t is larger than a long long (not seen
+ * yet).
+ */
+static inline unsigned long long ha_get_pthread_id(unsigned int thr)
+{
+#ifdef USE_THREAD
+	union {
+		pthread_t t;
+		unsigned long long ll;
+		unsigned int i;
+		unsigned short s;
+		unsigned char c;
+	} u = { 0 };
+
+	u.t = ha_thread_info[thr].pthread;
+
+	if (sizeof(u.t) <= sizeof(u.c))
+		return u.c;
+	else if (sizeof(u.t) <= sizeof(u.s))
+		return u.s;
+	else if (sizeof(u.t) <= sizeof(u.i))
+		return u.i;
+	return u.ll;
+#else
+	return 0;
+#endif
+}
+
 #endif /* _HAPROXY_TINFO_H */
