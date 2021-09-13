@@ -873,7 +873,7 @@ static struct appctx *dns_session_create(struct dns_session *ds)
 	struct stream *s;
 	struct applet *applet = &dns_session_applet;
 
-	appctx = appctx_new(applet, tid_bit);
+	appctx = appctx_new(applet);
 	if (!appctx)
 		goto out_close;
 

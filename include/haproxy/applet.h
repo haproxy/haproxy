@@ -56,9 +56,10 @@ static inline void appctx_init(struct appctx *appctx)
 
 /* Tries to allocate a new appctx and initialize its main fields. The appctx
  * is returned on success, NULL on failure. The appctx must be released using
- * appctx_free(). <applet> is assigned as the applet, but it can be NULL.
+ * appctx_free(). <applet> is assigned as the applet, but it can be NULL. The
+ * applet's task is always created on the current thread.
  */
-static inline struct appctx *appctx_new(struct applet *applet, unsigned long thread_mask)
+static inline struct appctx *appctx_new(struct applet *applet)
 {
 	struct appctx *appctx;
 
@@ -67,7 +68,7 @@ static inline struct appctx *appctx_new(struct applet *applet, unsigned long thr
 		appctx->obj_type = OBJ_TYPE_APPCTX;
 		appctx->applet = applet;
 		appctx_init(appctx);
-		appctx->t = task_new(thread_mask);
+		appctx->t = task_new(tid_bit);
 		if (unlikely(appctx->t == NULL)) {
 			pool_free(pool_head_appctx, appctx);
 			return NULL;

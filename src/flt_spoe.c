@@ -1989,7 +1989,7 @@ spoe_create_appctx(struct spoe_config *conf)
 	struct session     *sess;
 	struct stream      *strm;
 
-	if ((appctx = appctx_new(&spoe_applet, tid_bit)) == NULL)
+	if ((appctx = appctx_new(&spoe_applet)) == NULL)
 		goto out_error;
 
 	appctx->ctx.spoe.ptr = pool_zalloc(pool_head_spoe_appctx);

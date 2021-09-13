@@ -341,7 +341,7 @@ struct appctx *httpclient_start(struct httpclient *hc)
 
 	/* The HTTP client will be created in the same thread as the caller,
 	 * avoiding threading issues */
-	appctx = appctx_new(applet, tid_bit);
+	appctx = appctx_new(applet);
 	if (!appctx)
 		goto out;
 
