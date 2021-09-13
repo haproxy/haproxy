@@ -1315,13 +1315,84 @@ static int qc_recv(struct qcc *qcc)
 	return 0;
 }
 
+static int qcs_push_frame(struct qcs *qcs, struct buffer *payload, int fin, uint64_t offset)
+{
+	struct quic_frame *frm;
+	struct buffer *buf = &qcs->tx.buf;
+	struct quic_enc_level *qel = &qcs->qcc->conn->qc->els[QUIC_TLS_ENC_LEVEL_APP];
+	int total = 0;
+
+	qc_get_buf(qcs->qcc, buf);
+	total = b_force_xfer(buf, payload, QUIC_MIN(b_data(payload), b_room(buf)));
+	frm = pool_zalloc(pool_head_quic_frame);
+	if (!frm)
+		goto err;
+
+	frm->type = QUIC_FT_STREAM_8;
+	if (fin)
+		frm->type |= QUIC_STREAM_FRAME_TYPE_FIN_BIT;
+	if (offset) {
+		frm->type |= QUIC_STREAM_FRAME_TYPE_OFF_BIT;
+		frm->stream.offset.key = offset;
+	}
+	frm->stream.qcs = qcs;
+	frm->stream.buf = buf;
+	frm->stream.id = qcs->by_id.key;
+	if (total) {
+		frm->type |= QUIC_STREAM_FRAME_TYPE_LEN_BIT;
+		frm->stream.len = total;
+	}
+
+	MT_LIST_APPEND(&qel->pktns->tx.frms, &frm->mt_list);
+	fprintf(stderr, "%s: total=%d fin=%d offset=%lu\n", __func__, total, fin, offset);
+	return total;
+
+ err:
+	return -1;
+}
+
 /* Try to send data if possible.
  * The function returns 1 if data have been sent, otherwise zero.
  */
 static int qc_send(struct qcc *qcc)
 {
+	struct qcs *qcs;
+	struct eb64_node *node;
+
 	TRACE_ENTER(QC_EV_QCC_SEND, qcc->conn);
-	/* XXX TO DO XXX */
+	/* TODO simple loop through all streams and check if there is frames to
+	 * send
+	 */
+	node = eb64_first(&qcc->streams_by_id);
+	while (node) {
+		struct buffer *buf;
+		qcs = container_of(node, struct qcs, by_id);
+		for (buf = br_head(qcs->tx.mbuf); b_data(buf); buf = br_del_head(qcs->tx.mbuf)) {
+			if (b_data(buf)) {
+				int ret;
+				char fin = 0;
+
+				/* if FIN is activated, ensure the buffer to
+				 * send is the last
+				 */
+				if (qcs->flags & QC_SF_FIN_STREAM) {
+					BUG_ON(qcs->tx.left < b_data(buf));
+					fin = !(qcs->tx.left - b_data(buf));
+				}
+
+				ret = qcs_push_frame(qcs, buf, fin, qcs->tx.offset);
+				if (ret <= 0)
+					ABORT_NOW();
+
+				qcs->tx.left -= ret;
+				qcs->tx.offset += ret;
+				qcs->qcc->wait_event.events &= ~SUB_RETRY_SEND;
+			}
+			b_free(buf);
+		}
+		node = eb64_next(node);
+	}
+
 	TRACE_LEAVE(QC_EV_QCC_SEND, qcc->conn);
 	return 0;
 }
@@ -1394,42 +1465,6 @@ leave:
 	return NULL;
 }
 
-static int qcs_push_frame(struct qcs *qcs, struct buffer *payload, int fin, uint64_t offset)
-{
-	struct quic_frame *frm;
-	struct buffer *buf = &qcs->tx.buf;
-	struct quic_enc_level *qel = &qcs->qcc->conn->qc->els[QUIC_TLS_ENC_LEVEL_APP];
-	int total = 0;
-
-	qc_get_buf(qcs->qcc, buf);
-	total = b_force_xfer(buf, payload, QUIC_MIN(b_data(payload), b_room(buf)));
-	frm = pool_zalloc(pool_head_quic_frame);
-	if (!frm)
-		goto err;
-
-	frm->type = QUIC_FT_STREAM_8;
-	if (fin)
-		frm->type |= QUIC_STREAM_FRAME_TYPE_FIN_BIT;
-	if (offset) {
-		frm->type |= QUIC_STREAM_FRAME_TYPE_OFF_BIT;
-		frm->stream.offset.key = offset;
-	}
-	frm->stream.qcs = qcs;
-	frm->stream.buf = buf;
-	frm->stream.id = qcs->by_id.key;
-	if (total) {
-		frm->type |= QUIC_STREAM_FRAME_TYPE_LEN_BIT;
-		frm->stream.len = total;
-	}
-
-	MT_LIST_APPEND(&qel->pktns->tx.frms, &frm->mt_list);
-	fprintf(stderr, "%s: total=%d fin=%d offset=%lu\n", __func__, total, fin, offset);
-	return total;
-
- err:
-	return -1;
-}
-
 /* callback called on any event by the connection handler.
  * It applies changes and returns zero, or < 0 if it wants immediate
  * destruction of the connection (which normally doesn not happen in quic).
@@ -1437,44 +1472,8 @@ static int qcs_push_frame(struct qcs *qcs, struct buffer *payload, int fin, uint
 static int qc_process(struct qcc *qcc)
 {
 	struct connection *conn = qcc->conn;
-	struct qcs *qcs;
-	struct eb64_node *node;
 
 	TRACE_ENTER(QC_EV_QCC_WAKE, conn);
-
-	/* TODO simple loop through all streams and check if there is frames to
-	 * send
-	 */
-	node = eb64_first(&qcc->streams_by_id);
-	while (node) {
-		struct buffer *buf;
-		qcs = container_of(node, struct qcs, by_id);
-		for (buf = br_head(qcs->tx.mbuf); b_data(buf); buf = br_del_head(qcs->tx.mbuf)) {
-			if (b_data(buf)) {
-				int ret;
-				char fin = 0;
-
-				/* if FIN is activated, ensure the buffer to
-				 * send is the last
-				 */
-				if (qcs->flags & QC_SF_FIN_STREAM) {
-					BUG_ON(qcs->tx.left < b_data(buf));
-					fin = !(qcs->tx.left - b_data(buf));
-				}
-
-				ret = qcs_push_frame(qcs, buf, fin, qcs->tx.offset);
-				if (ret <= 0)
-					ABORT_NOW();
-
-				qcs->tx.left -= ret;
-				qcs->tx.offset += ret;
-				qcs->qcc->wait_event.events &= ~SUB_RETRY_SEND;
-			}
-			b_free(buf);
-		}
-		node = eb64_next(node);
-	}
-
 	TRACE_LEAVE(QC_EV_QCC_WAKE, conn);
 	return 0;
 }
