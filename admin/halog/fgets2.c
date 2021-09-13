@@ -35,7 +35,7 @@
 #endif
 
 /* memchr() is faster in glibc with SSE since commit 093ecf92998de2 */
-#if defined(__x86_64__) &&  (__GLIBC__ > 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ >= 15))
+#if defined(__x86_64__) && defined(__GLIBC__) && (__GLIBC__ > 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ >= 15))
 #define USE_MEMCHR
 #endif
 
