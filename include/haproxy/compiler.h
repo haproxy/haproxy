@@ -102,7 +102,7 @@
 #ifdef DEBUG_USE_ABORT
 #define my_unreachable() abort()
 #else
-#if __GNUC__ >= 5 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 5)
+#if defined(__GNUC__) && (__GNUC__ >= 5 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 5))
 #define my_unreachable() __builtin_unreachable()
 #else
 #define my_unreachable()
