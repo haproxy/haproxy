@@ -156,7 +156,7 @@ void ha_thread_dump(struct buffer *buf, int thr, int calling_tid)
 
 	chunk_appendf(buf,
 	              "%c%cThread %-2u: id=0x%llx act=%d glob=%d wq=%d rq=%d tl=%d tlsz=%d rqsz=%d\n"
-	              "             stuck=%d prof=%d",
+	              "     %2u/%-2u   stuck=%d prof=%d",
 	              (thr == calling_tid) ? '*' : ' ', stuck ? '>' : ' ', thr + 1,
 		      ha_get_pthread_id(thr),
 		      thread_has_tasks(),
@@ -169,6 +169,7 @@ void ha_thread_dump(struct buffer *buf, int thr, int calling_tid)
 			MT_LIST_ISEMPTY(&ha_thread_ctx[thr].shared_tasklet_list)),
 	              ha_thread_ctx[thr].tasks_in_list,
 	              ha_thread_ctx[thr].rq_total,
+		      ha_thread_info[thr].tg->tgid, ha_thread_info[thr].ltid + 1,
 	              stuck,
 	              !!(task_profiling_mask & thr_bit));
 
@@ -180,7 +181,7 @@ void ha_thread_dump(struct buffer *buf, int thr, int calling_tid)
 	chunk_appendf(buf, "\n");
 	chunk_appendf(buf, "             cpu_ns: poll=%llu now=%llu diff=%llu\n", p, n, n-p);
 
-	/* this is the end of what we can dump from outside the thread */
+	/* this is the end of what we can dump from outside the current thread */
 
 	if (thr != tid)
 		return;
