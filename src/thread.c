@@ -50,6 +50,9 @@
 #include <haproxy/thread.h>
 #include <haproxy/tools.h>
 
+struct tgroup_info ha_tgroup_info[MAX_TGROUPS] = { };
+THREAD_LOCAL const struct tgroup_info *tg = &ha_tgroup_info[0];
+
 struct thread_info ha_thread_info[MAX_THREADS] = { };
 THREAD_LOCAL const struct thread_info *ti = &ha_thread_info[0];
 

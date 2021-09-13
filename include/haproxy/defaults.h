@@ -27,9 +27,12 @@
  * but may be lowered to save resources on embedded systems.
 */
 #ifndef USE_THREAD
-/* threads disabled, 1 thread max */
+/* threads disabled, 1 thread max, 1 group max (note: group ids start at 1) */
 #define MAX_THREADS 1
 #define MAX_THREADS_MASK 1
+
+#define MAX_TGROUPS 1
+#define MAX_THREADS_PER_GROUP 1
 
 #else
 /* threads enabled, max_threads defaults to long bits */
@@ -37,6 +40,12 @@
 #define MAX_THREADS LONGBITS
 #endif
 #define MAX_THREADS_MASK (~0UL >> (LONGBITS - MAX_THREADS))
+
+/* still limited to 1 group for now by default (note: group ids start at 1) */
+#ifndef MAX_TGROUPS
+#define MAX_TGROUPS 1
+#endif
+#define MAX_THREADS_PER_GROUP LONGBITS
 #endif
 
 /*

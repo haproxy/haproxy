@@ -38,6 +38,20 @@ enum {
 /* thread_ctx flags, for ha_thread_ctx[].flags */
 #define TH_FL_STUCK             0x00000001
 
+/* Thread group information. This defines a base and a count of global thread
+ * IDs which belong to it, and which can be looked up into thread_info/ctx. It
+ * is set up during parsing and is stable during operation. Thread groups start
+ * at 1 so tgroup[0] describes thread group 1.
+ */
+struct tgroup_info {
+	uint base;                 /* first thread in this group */
+	uint count;                /* number of threads in this group */
+
+	/* pad to cache line (64B) */
+	char __pad[0];            /* unused except to check remaining room */
+	char __end[0] __attribute__((aligned(64)));
+};
+
 /* This structure describes all the per-thread info we need. When threads are
  * disabled, it contains the same info for the single running thread. This is
  * stable across all of a thread's life, and is being pointed to by the
