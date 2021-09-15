@@ -3010,7 +3010,7 @@ static enum act_parse_ret stream_parse_switch_mode(const char **args, int *cur_a
 			return ACT_RET_PRS_ERR;
 		}
 
-		proto = ist2(args[*cur_arg+2], strlen(args[*cur_arg+2]));
+		proto = ist(args[*cur_arg + 2]);
 		mux_proto = get_mux_proto(proto);
 		if (!mux_proto) {
 			memprintf(err, "'%s %s': '%s' expects a valid MUX protocol, if specified (got '%s')",

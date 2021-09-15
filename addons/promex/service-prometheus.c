@@ -1006,7 +1006,7 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 							val = mkf_u32(FO_STATUS, sv->check.status == appctx->ctx.stats.st_code);
 							check_state = get_check_status_info(appctx->ctx.stats.st_code);
 							labels[2].name = ist("state");
-							labels[2].value = ist2(check_state, strlen(check_state));
+							labels[2].value = ist(check_state);
 							if (!promex_dump_metric(appctx, htx, prefix, &promex_st_metrics[appctx->st2],
 										&val, labels, &out, max))
 								goto full;

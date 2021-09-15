@@ -220,12 +220,10 @@ int flt_ot_http_header_set(struct channel *chn, const char *prefix, const char *
 	}
 
 	if (!FLT_OT_STR_ISVALID(prefix)) {
-		ist_name.ptr = (char *)name;
-		ist_name.len = strlen(name);
+		ist_name = ist2((char *)name, strlen(name));
 	}
 	else if (!FLT_OT_STR_ISVALID(name)) {
-		ist_name.ptr = (char *)prefix;
-		ist_name.len = strlen(prefix);
+		ist_name = ist2((char *)prefix, strlen(prefix));
 	}
 	else {
 		buffer = flt_ot_trash_alloc(0, err);
@@ -234,8 +232,7 @@ int flt_ot_http_header_set(struct channel *chn, const char *prefix, const char *
 
 		(void)chunk_printf(buffer, "%s-%s", prefix, name);
 
-		ist_name.ptr = buffer->area;
-		ist_name.len = buffer->data;
+		ist_name = ist2(buffer->area, buffer->data);
 	}
 
 	/* Remove all occurrences of the header. */

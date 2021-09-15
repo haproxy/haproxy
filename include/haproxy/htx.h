@@ -385,8 +385,8 @@ static inline struct ist htx_get_blk_name(const struct htx *htx, const struct ht
 	switch (type) {
 		case HTX_BLK_HDR:
 		case HTX_BLK_TLR:
-			ret.ptr = htx_get_blk_ptr(htx, blk);
-			ret.len = blk->info & 0xff;
+			ret = ist2(htx_get_blk_ptr(htx, blk),
+				   blk->info & 0xff);
 			break;
 
 		default:
@@ -407,15 +407,15 @@ static inline struct ist htx_get_blk_value(const struct htx *htx, const struct h
 	switch (type) {
 		case HTX_BLK_HDR:
 		case HTX_BLK_TLR:
-			ret.ptr = htx_get_blk_ptr(htx, blk) + (blk->info & 0xff);
-			ret.len = (blk->info >> 8) & 0xfffff;
+			ret = ist2(htx_get_blk_ptr(htx, blk) + (blk->info & 0xff),
+				   (blk->info >> 8) & 0xfffff);
 			break;
 
 		case HTX_BLK_REQ_SL:
 		case HTX_BLK_RES_SL:
 		case HTX_BLK_DATA:
-			ret.ptr = htx_get_blk_ptr(htx, blk);
-			ret.len = blk->info & 0xfffffff;
+			ret = ist2(htx_get_blk_ptr(htx, blk),
+				   blk->info & 0xfffffff);
 			break;
 
 		default:
