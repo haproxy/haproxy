@@ -103,7 +103,7 @@ static inline unsigned long long ha_get_pthread_id(unsigned int thr)
 
 static inline void ha_thread_relax(void)
 {
-#if _POSIX_PRIORITY_SCHEDULING
+#ifdef _POSIX_PRIORITY_SCHEDULING
 	sched_yield();
 #endif
 }
@@ -253,7 +253,7 @@ static inline unsigned long long ha_get_pthread_id(unsigned int thr)
 
 static inline void ha_thread_relax(void)
 {
-#if _POSIX_PRIORITY_SCHEDULING
+#ifdef _POSIX_PRIORITY_SCHEDULING
 	sched_yield();
 #else
 	pl_cpu_relax();
