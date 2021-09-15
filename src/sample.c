@@ -2070,7 +2070,7 @@ static int sample_conv_be2dec_check(struct arg *args, struct sample_conv *conv,
                                     const char *file, int line, char **err)
 {
 	if (args[1].data.sint <= 0 || args[1].data.sint > sizeof(unsigned long long)) {
-		memprintf(err, "chunk_size out of [1..%ld] range (%lld)", sizeof(unsigned long long), args[1].data.sint);
+		memprintf(err, "chunk_size out of [1..%u] range (%lld)", (uint)sizeof(unsigned long long), args[1].data.sint);
 		return 0;
 	}
 
