@@ -68,6 +68,11 @@ static void detect_allocator(void)
 
 	using_libc_allocator = !!memcmp(&mi1, &mi2, sizeof(mi1));
 }
+
+static int is_trim_enabled(void)
+{
+	return using_libc_allocator;
+}
 #else
 
 static void trim_all_pools(void)
@@ -76,6 +81,11 @@ static void trim_all_pools(void)
 
 static void detect_allocator(void)
 {
+}
+
+static int is_trim_enabled(void)
+{
+	return 0;
 }
 #endif
 
@@ -539,6 +549,17 @@ static void init_pools()
 }
 
 INITCALL0(STG_PREPARE, init_pools);
+
+/* Report in build options if trim is supported */
+static void pools_register_build_options(void)
+{
+	if (is_trim_enabled()) {
+		char *ptr = NULL;
+		memprintf(&ptr, "Support for malloc_trim() is enabled.");
+		hap_register_build_opts(ptr, 1);
+	}
+}
+INITCALL0(STG_REGISTER, pools_register_build_options);
 
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
