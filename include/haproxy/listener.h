@@ -179,7 +179,7 @@ unsigned int bind_map_thread_id(const struct bind_conf *conf, unsigned int r);
 static inline struct bind_conf *bind_conf_alloc(struct proxy *fe, const char *file,
                                  int line, const char *arg, struct xprt_ops *xprt)
 {
-	struct bind_conf *bind_conf = calloc(1, sizeof(struct bind_conf));
+	struct bind_conf *bind_conf = calloc(1, sizeof(*bind_conf));
 
 	if (!bind_conf)
 		goto err;
