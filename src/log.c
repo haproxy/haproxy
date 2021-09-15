@@ -3497,8 +3497,7 @@ void syslog_fd_handler(int fd)
 	struct listener *l = objt_listener(fdtab[fd].owner);
 	int max_accept;
 
-	if(!l)
-		ABORT_NOW();
+	BUG_ON(!l);
 
 	if (fdtab[fd].state & FD_POLL_IN) {
 

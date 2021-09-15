@@ -201,8 +201,7 @@ void quic_sock_fd_iocb(int fd)
 	struct sockaddr_storage saddr = {0};
 	socklen_t saddrlen;
 
-	if (!l)
-		ABORT_NOW();
+	BUG_ON(!l);
 
 	if (!(fdtab[fd].state & FD_POLL_IN) || !fd_recv_ready(fd))
 		return;
