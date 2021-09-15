@@ -41,6 +41,8 @@ static int mem_fail_rate = 0;
 #endif
 
 #if defined(HA_HAVE_MALLOC_TRIM)
+static int using_libc_allocator = 0;
+
 /* ask the allocator to trim memory pools */
 static void trim_all_pools(void)
 {
@@ -48,9 +50,31 @@ static void trim_all_pools(void)
 		malloc_trim(0);
 }
 
+/* check if we're using the same allocator as the one that provides
+ * malloc_trim() and mallinfo(). The principle is that on glibc, both
+ * malloc_trim() and mallinfo() are provided, and using mallinfo() we
+ * can check if malloc() is performed through glibc or any other one
+ * the executable was linked against (e.g. jemalloc).
+ */
+static void detect_allocator(void)
+{
+	struct mallinfo mi1, mi2;
+	void *ptr;
+
+	mi1 = mallinfo();
+	ptr = DISGUISE(malloc(1));
+	mi2 = mallinfo();
+	free(DISGUISE(ptr));
+
+	using_libc_allocator = !!memcmp(&mi1, &mi2, sizeof(mi1));
+}
 #else
 
 static void trim_all_pools(void)
+{
+}
+
+static void detect_allocator(void)
 {
 }
 #endif
@@ -511,6 +535,7 @@ static void init_pools()
 		LIST_INIT(&ha_thread_info[thr].pool_lru_head);
 	}
 #endif
+	detect_allocator();
 }
 
 INITCALL0(STG_PREPARE, init_pools);
