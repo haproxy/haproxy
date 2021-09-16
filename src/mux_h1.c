@@ -2635,8 +2635,8 @@ static int h1_process(struct h1c * h1c)
 
 	/* Try to parse now the first block of a request, creating the H1 stream if necessary */
 	if (b_data(&h1c->ibuf) &&                                                /* Input data to be processed */
-	    (h1c->flags & H1C_F_ST_ALIVE) && !(h1c->flags & H1C_F_ST_READY) &&   /* ST_IDLE/ST_EMBRYONIC or ST_ATTACH but not ST_READY  */
-	    !(h1c->flags & H1C_F_IN_SALLOC)) {                                   /* No allocation failure on the stream rxbuf */
+	    (h1c->flags & H1C_F_ST_ALIVE) && !(h1c->flags & H1C_F_ST_READY) &&   /* ST_IDLE/ST_EMBRYONIC or ST_ATTACH but not ST_READY */
+	    !(h1c->flags & (H1C_F_IN_SALLOC|H1C_F_ST_ERROR))) {                  /* No allocation failure on the stream rxbuf and no ERROR on the H1C */
 		struct buffer *buf;
 		size_t count;
 
