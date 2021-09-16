@@ -48,6 +48,7 @@
 #include <haproxy/istbuf.h>
 #include <haproxy/list.h>
 #include <haproxy/log.h>
+#include <haproxy/net_helper.h>
 #include <haproxy/protocol.h>
 #include <haproxy/proxy-t.h>
 #include <haproxy/regex.h>
@@ -656,7 +657,9 @@ enum tcpcheck_eval_ret tcpcheck_ldap_expect_bindrsp(struct check *check, struct 
 	enum healthcheck_status status;
 	struct buffer *msg = NULL;
 	struct ist desc = IST_NULL;
-	unsigned short msglen = 0;
+	char *ptr;
+	unsigned short nbytes = 0;
+	size_t msglen = 0;
 
 	TRACE_ENTER(CHK_EV_TCPCHK_EXP, check);
 
@@ -664,35 +667,65 @@ enum tcpcheck_eval_ret tcpcheck_ldap_expect_bindrsp(struct check *check, struct 
 	 * http://en.wikipedia.org/wiki/Basic_Encoding_Rules
 	 * http://tools.ietf.org/html/rfc4511
 	 */
+	ptr = b_head(&check->bi) + 1;
+
 	/* size of LDAPMessage */
-	msglen = (*(b_head(&check->bi) + 1) & 0x80) ? (*(b_head(&check->bi) + 1) & 0x7f) : 0;
+	if (*ptr & 0x80) {
+		/* For message size encoded on several bytes, we only handle
+		 * size encoded on 2 or 4 bytes. There is no reason to make this
+		 * part to complex because only Active Directory is known to
+		 * encode BindReponse length on 4 bytes.
+		 */
+		nbytes = (*ptr & 0x7f);
+		if (b_data(&check->bi) < 1 + nbytes)
+			goto too_short;
+		switch (nbytes) {
+			case 4: msglen = read_n32(ptr+1); break;
+			case 2: msglen = read_n16(ptr+1); break;
+			default:
+				status = HCHK_STATUS_L7RSP;
+				desc = ist("Not LDAPv3 protocol");
+				goto error;
+		}
+	}
+	else
+		msglen = *ptr;
+	ptr += 1 + nbytes;
+
+	if (b_data(&check->bi) < 2 + nbytes + msglen)
+		goto too_short;
 
 	/* http://tools.ietf.org/html/rfc4511#section-4.2.2
 	 *   messageID: 0x02 0x01 0x01: INTEGER 1
 	 *   protocolOp: 0x61: bindResponse
 	 */
-	if ((msglen > 2) || (memcmp(b_head(&check->bi) + 2 + msglen, "\x02\x01\x01\x61", 4) != 0)) {
+	if (memcmp(ptr, "\x02\x01\x01\x61", 4) != 0) {
 		status = HCHK_STATUS_L7RSP;
 		desc = ist("Not LDAPv3 protocol");
 		goto error;
 	}
+	ptr += 4;
 
-	/* size of bindResponse */
-	msglen += (*(b_head(&check->bi) + msglen + 6) & 0x80) ? (*(b_head(&check->bi) + msglen + 6) & 0x7f) : 0;
+	/* skip size of bindResponse */
+	nbytes = 0;
+	if (*ptr & 0x80)
+		nbytes = (*ptr & 0x7f);
+	ptr += 1 + nbytes;
 
 	/* http://tools.ietf.org/html/rfc4511#section-4.1.9
 	 *   ldapResult: 0x0a 0x01: ENUMERATION
 	 */
-	if ((msglen > 4) || (memcmp(b_head(&check->bi) + 7 + msglen, "\x0a\x01", 2) != 0)) {
+	if (memcmp(ptr, "\x0a\x01", 2) != 0) {
 		status = HCHK_STATUS_L7RSP;
 		desc = ist("Not LDAPv3 protocol");
 		goto error;
 	}
+	ptr += 2;
 
 	/* http://tools.ietf.org/html/rfc4511#section-4.1.9
 	 *   resultCode
 	 */
-	check->code = *(b_head(&check->bi) + msglen + 9);
+	check->code = *ptr;
 	if (check->code) {
 		status = HCHK_STATUS_L7STS;
 		desc = ist("See RFC: http://tools.ietf.org/html/rfc4511#section-4.1.9");
@@ -713,6 +746,18 @@ enum tcpcheck_eval_ret tcpcheck_ldap_expect_bindrsp(struct check *check, struct 
 	if (msg)
 		tcpcheck_expect_onerror_message(msg, check, rule, 0, desc);
 	set_server_check_status(check, status, (msg ? b_head(msg) : NULL));
+	goto out;
+
+  too_short:
+	if (!last_read)
+		goto wait_more_data;
+	/* invalid length or truncated response */
+	status = HCHK_STATUS_L7RSP;
+	goto error;
+
+  wait_more_data:
+	TRACE_DEVEL("waiting for more data", CHK_EV_TCPCHK_EXP, check);
+	ret = TCPCHK_EVAL_WAIT;
 	goto out;
 }
 

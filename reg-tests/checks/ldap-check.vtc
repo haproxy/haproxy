@@ -23,6 +23,13 @@ server s3 {
   sendhex "300C020101 61 070A01 01 04000400"
 } -start
 
+server s4 {
+  recv 14
+  sendhex "308400000010020101 61 84000000070A01"
+  delay 0.1
+  sendhex "00 04000400"
+} -start
+
 syslog S1 -level notice {
     recv
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be1/srv succeeded, reason: Layer7 check passed.+info: \"Success\".+check duration: [[:digit:]]+ms, status: 1/1 UP."
@@ -36,6 +43,11 @@ syslog S2 -level notice {
 syslog S3 -level notice {
     recv
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be3/srv failed, reason: Layer7 wrong status.+code: 1.+info: \"See RFC: http://tools.ietf.org/html/rfc4511#section-4.1.9\".+check duration: [[:digit:]]+ms, status: 0/1 DOWN."
+} -start
+
+syslog S4 -level notice {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be4/srv succeeded, reason: Layer7 check passed.+info: \"Success\".+check duration: [[:digit:]]+ms, status: 1/1 UP."
 } -start
 
 haproxy h1 -conf {
@@ -63,6 +75,12 @@ haproxy h1 -conf {
         option ldap-check
         server srv ${s3_addr}:${s3_port} check inter 1s rise 1 fall 1
 
+    backend be4
+        log ${S4_addr}:${S4_port} daemon
+        option log-health-checks
+        option ldap-check
+        server srv ${s4_addr}:${s4_port} check inter 1s rise 1 fall 1
+
     listen ldap1
         bind "fd@${ldap1}"
         tcp-request inspect-delay 100ms
@@ -75,3 +93,4 @@ haproxy h1 -conf {
 syslog S1 -wait
 syslog S2 -wait
 syslog S3 -wait
+syslog S4 -wait
