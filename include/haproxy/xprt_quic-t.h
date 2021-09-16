@@ -41,6 +41,8 @@
 #include <import/eb64tree.h>
 #include <import/ebmbtree.h>
 
+typedef unsigned long long ull;
+
 #define QUIC_PROTOCOL_VERSION_DRAFT_28   0xff00001c /* draft-28 */
 #define QUIC_PROTOCOL_VERSION_DRAFT_29   0xff00001d /* draft-29 */
 #define QUIC_PROTOCOL_VERSION_1          0x00000001 /* V1 */
