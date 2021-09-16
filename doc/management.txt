@@ -2189,7 +2189,19 @@ set ssl cert <filename> <payload>
   Once the modification are done, you have to "commit ssl cert" the
   transaction.
 
+  Injection of files over the CLI must be done with caution since an empty line
+  is used to notify the end of the payload. It is recommended to inject a PEM
+  file which has been sanitized. A simple method would be to remove every empty
+  line and only leave what are in the PEM sections. It could be achieved with a
+  sed command.
+
   Example:
+
+   # With some simple sanitizing
+    echo -e "set ssl cert localhost.pem <<\n$(sed -n '/^$/d;/-BEGIN/,/-END/p' 127.0.0.1.pem)\n" | \
+    socat /var/run/haproxy.stat -
+
+    # Complete example with commit
     echo -e "set ssl cert localhost.pem <<\n$(cat 127.0.0.1.pem)\n" | \
     socat /var/run/haproxy.stat -
     echo -e \
