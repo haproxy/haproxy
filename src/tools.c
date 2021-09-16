@@ -2432,7 +2432,6 @@ const char *parse_time_err(const char *text, unsigned *ret, unsigned unit_flags)
 		break;
 	default:
 		return text;
-		break;
 	}
 	if (*(++text) != '\0') {
 		ha_warning("unexpected character '%c' after the timer value '%s', only "
