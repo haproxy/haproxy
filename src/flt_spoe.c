@@ -17,6 +17,7 @@
 #include <haproxy/api.h>
 #include <haproxy/arg.h>
 #include <haproxy/cfgparse.h>
+#include <haproxy/check.h>
 #include <haproxy/filters.h>
 #include <haproxy/freq_ctr.h>
 #include <haproxy/frontend.h>
