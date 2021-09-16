@@ -58,12 +58,24 @@ static void trim_all_pools(void)
  */
 static void detect_allocator(void)
 {
+#ifdef HA_HAVE_MALLINFO2
+	struct mallinfo2 mi1, mi2;
+#else
 	struct mallinfo mi1, mi2;
+#endif
 	void *ptr;
 
+#ifdef HA_HAVE_MALLINFO2
+	mi1 = mallinfo2();
+#else
 	mi1 = mallinfo();
+#endif
 	ptr = DISGUISE(malloc(1));
+#ifdef HA_HAVE_MALLINFO2
+	mi2 = mallinfo2();
+#else
 	mi2 = mallinfo();
+#endif
 	free(DISGUISE(ptr));
 
 	using_libc_allocator = !!memcmp(&mi1, &mi2, sizeof(mi1));

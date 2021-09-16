@@ -282,6 +282,12 @@ typedef struct { } empty_t;
 #define HA_HAVE_FAST_MALLOC
 #endif
 
+/* glibc 2.33 provides mallinfo2() that overcomes mallinfo()'s type limitations */
+#if (defined(__GNU_LIBRARY__) && (__GLIBC__ > 2 || __GLIBC__ == 2 && __GLIBC_MINOR__ >= 33))
+#include <malloc.h>
+#define HA_HAVE_MALLINFO2
+#endif
+
 /* FreeBSD also has malloc_usable_size() but it requires malloc_np.h */
 #if defined(USE_MEMORY_PROFILING) && defined(__FreeBSD__) && (__FreeBSD_version >= 700002)
 #include <malloc_np.h>
