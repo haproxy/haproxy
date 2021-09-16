@@ -1667,3 +1667,41 @@ XXH64_hash_t conn_calculate_hash(const struct conn_hash_params *params)
 	hash = conn_hash_digest(buf, idx, hash_flags);
 	return hash;
 }
+
+/* Handler of the task of mux_stopping_data.
+ * Called on soft-stop.
+ */
+static struct task *mux_stopping_process(struct task *t, void *ctx, unsigned int state)
+{
+	struct connection *conn, *back;
+
+	list_for_each_entry_safe(conn, back, &mux_stopping_data[tid].list, stopping_list) {
+		if (conn->mux && conn->mux->wake)
+			conn->mux->wake(conn);
+	}
+
+	return t;
+}
+
+static int allocate_mux_cleanup(void)
+{
+	/* allocates the thread bound mux_stopping_data task */
+	mux_stopping_data[tid].task = task_new(tid_bit);
+	if (!mux_stopping_data[tid].task) {
+		ha_alert("Failed to allocate the task for connection cleanup on thread %d.\n", tid);
+		return 0;
+	}
+
+	mux_stopping_data[tid].task->process = mux_stopping_process;
+	LIST_INIT(&mux_stopping_data[tid].list);
+
+	return 1;
+}
+REGISTER_PER_THREAD_ALLOC(allocate_mux_cleanup);
+
+static int deallocate_mux_cleanup(void)
+{
+	task_destroy(mux_stopping_data[tid].task);
+	return 1;
+}
+REGISTER_PER_THREAD_FREE(deallocate_mux_cleanup);
