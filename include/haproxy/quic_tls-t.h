@@ -70,8 +70,8 @@ enum quic_tls_enc_level {
 /* QUIC packet number spaces */
 enum quic_tls_pktns {
 	QUIC_TLS_PKTNS_INITIAL,
-	QUIC_TLS_PKTNS_01RTT,
 	QUIC_TLS_PKTNS_HANDSHAKE,
+	QUIC_TLS_PKTNS_01RTT,
 	/* Please do not insert any value after this following one */
 	QUIC_TLS_PKTNS_MAX,
 };
