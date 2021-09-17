@@ -678,22 +678,6 @@ static int cli_parse_request(struct appctx *appctx)
 	end = p + appctx->chunk->data;
 
 	/*
-	 * Get the payload start if there is one.
-	 * For the sake of simplicity, the payload pattern is looked up
-	 * everywhere from the start of the input but it can only be found
-	 * at the end of the first line if APPCTX_CLI_ST1_PAYLOAD is set.
-	 *
-	 * The input string was zero terminated so it is safe to use
-	 * the str*() functions throughout the parsing
-	 */
-	if (appctx->st1 & APPCTX_CLI_ST1_PAYLOAD) {
-		payload = strstr(p, PAYLOAD_PATTERN);
-		end = payload;
-		/* skip the pattern */
-		payload += strlen(PAYLOAD_PATTERN);
-	}
-
-	/*
 	 * Get pointers on words.
 	 * One extra slot is reserved to store a pointer on a null byte.
 	 */
@@ -704,6 +688,15 @@ static int cli_parse_request(struct appctx *appctx)
 		p += strspn(p, " \t");
 		if (!*p)
 			break;
+
+		if (strcmp(p, PAYLOAD_PATTERN) == 0) {
+			/* payload pattern recognized here, this is not an arg anymore,
+			 * the payload starts at the first byte that follows the zero
+			 * after the pattern.
+			 */
+			payload = p + strlen(PAYLOAD_PATTERN) + 1;
+			break;
+		}
 
 		args[i] = p;
 		while (1) {
@@ -955,8 +948,10 @@ static void cli_io_handler(struct appctx *appctx)
 				 * Its location is not remembered here, this is just to switch
 				 * to a gathering mode.
 				 */
-				if (strcmp(appctx->chunk->area + appctx->chunk->data - strlen(PAYLOAD_PATTERN), PAYLOAD_PATTERN) == 0)
+				if (strcmp(appctx->chunk->area + appctx->chunk->data - strlen(PAYLOAD_PATTERN), PAYLOAD_PATTERN) == 0) {
 					appctx->st1 |= APPCTX_CLI_ST1_PAYLOAD;
+					appctx->chunk->data++; // keep the trailing \0 after '<<'
+				}
 				else {
 					/* no payload, the command is complete: parse the request */
 					cli_parse_request(appctx);
