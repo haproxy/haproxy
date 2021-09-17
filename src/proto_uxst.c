@@ -285,10 +285,6 @@ static int uxst_connect_server(struct connection *conn, int flags)
 		return SF_ERR_INTERNAL;
 	}
 
-	/* if a send_proxy is there, there are data */
-	if (conn->send_proxy_ofs)
-		flags |= CONNECT_HAS_DATA;
-
 	if (global.tune.server_sndbuf)
                 setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &global.tune.server_sndbuf, sizeof(global.tune.server_sndbuf));
 
