@@ -876,7 +876,7 @@ struct quic_frame_builder {
 	unsigned char mask;
 };
 
-struct quic_frame_builder quic_frame_builders[] = {
+const struct quic_frame_builder quic_frame_builders[] = {
 	[QUIC_FT_PADDING]              = { .func = quic_build_padding_frame,              .flags = QUIC_FL_TX_PACKET_PADDING,       .mask = QUIC_FT_PKT_TYPE_IH01_BITMASK, },
 	[QUIC_FT_PING]                 = { .func = quic_build_ping_frame,                 .flags = QUIC_FL_TX_PACKET_ACK_ELICITING, .mask = QUIC_FT_PKT_TYPE_IH01_BITMASK, },
 	[QUIC_FT_ACK]                  = { .func = quic_build_ack_frame,                  .flags = 0,                               .mask = QUIC_FT_PKT_TYPE_IH_1_BITMASK, },
@@ -917,7 +917,7 @@ struct quic_frame_parser {
 	unsigned char mask;
 };
 
-struct quic_frame_parser quic_frame_parsers[] = {
+const struct quic_frame_parser quic_frame_parsers[] = {
 	[QUIC_FT_PADDING]              = { .func = quic_parse_padding_frame,              .flags = 0,                               .mask = QUIC_FT_PKT_TYPE_IH01_BITMASK, },
 	[QUIC_FT_PING]                 = { .func = quic_parse_ping_frame,                 .flags = QUIC_FL_RX_PACKET_ACK_ELICITING, .mask = QUIC_FT_PKT_TYPE_IH01_BITMASK, },
 	[QUIC_FT_ACK]                  = { .func = quic_parse_ack_frame_header,           .flags = 0,                               .mask = QUIC_FT_PKT_TYPE_IH_1_BITMASK, },
@@ -958,7 +958,7 @@ int qc_parse_frm(struct quic_frame *frm, struct quic_rx_packet *pkt,
                  const unsigned char **buf, const unsigned char *end,
                  struct quic_conn *conn)
 {
-	struct quic_frame_parser *parser;
+	const struct quic_frame_parser *parser;
 
 	if (end <= *buf) {
 		TRACE_DEVEL("wrong frame", QUIC_EV_CONN_PRSFRM, conn->conn);
@@ -995,7 +995,7 @@ int qc_build_frm(unsigned char **buf, const unsigned char *end,
                  struct quic_frame *frm, struct quic_tx_packet *pkt,
                  struct quic_conn *conn)
 {
-	struct quic_frame_builder *builder;
+	const struct quic_frame_builder *builder;
 
 	builder = &quic_frame_builders[frm->type];
 	if (!(builder->mask & (1 << pkt->type))) {
