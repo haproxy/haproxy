@@ -1016,7 +1016,7 @@ int qc_build_frm(unsigned char **buf, const unsigned char *end,
 		return 0;
 	}
 
-	pkt->flags |= builder[frm->type].flags;
+	pkt->flags |= builder->flags;
 
 	return 1;
 }
