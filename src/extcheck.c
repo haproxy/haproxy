@@ -282,7 +282,7 @@ int prepare_external_check(struct check *check)
 
 	check->argv = calloc(6, sizeof(*check->argv));
 	if (!check->argv) {
-		ha_alert("Starting [%s:%s] check: out of memory.\n", px->id, s->id);
+		ha_alert("Starting [%s:%s] check: OOM.\n", px->id, s->id);
 		goto err;
 	}
 
@@ -312,14 +312,14 @@ int prepare_external_check(struct check *check)
 	}
 
 	if (!check->argv[1] || !check->argv[2]) {
-		ha_alert("Starting [%s:%s] check: out of memory.\n", px->id, s->id);
+		ha_alert("Starting [%s:%s] check: OOM.\n", px->id, s->id);
 		goto err;
 	}
 
 	check->argv[3] = calloc(EXTCHK_SIZE_ADDR, sizeof(*check->argv[3]));
 	check->argv[4] = calloc(EXTCHK_SIZE_UINT, sizeof(*check->argv[4]));
 	if (!check->argv[3] || !check->argv[4]) {
-		ha_alert("Starting [%s:%s] check: out of memory.\n", px->id, s->id);
+		ha_alert("Starting [%s:%s] check: OOM.\n", px->id, s->id);
 		goto err;
 	}
 
@@ -329,7 +329,7 @@ int prepare_external_check(struct check *check)
 
 	for (i = 0; i < 5; i++) {
 		if (!check->argv[i]) {
-			ha_alert("Starting [%s:%s] check: out of memory.\n", px->id, s->id);
+			ha_alert("Starting [%s:%s] check: OOM.\n", px->id, s->id);
 			goto err;
 		}
 	}

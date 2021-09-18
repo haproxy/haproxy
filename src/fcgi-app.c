@@ -253,7 +253,7 @@ static int fcgi_flt_check(struct proxy *px, struct flt_conf *fconf)
 	list_for_each_entry_safe(crule, back, &fcgi_conf->app->conf.rules, list) {
 		rule = calloc(1, sizeof(*rule));
 		if (!rule) {
-			ha_alert("proxy '%s' : out of memory.\n", px->id);
+			ha_alert("proxy '%s' : OOM.\n", px->id);
 			goto err;
 		}
 		rule->type = crule->type;
@@ -533,7 +533,7 @@ parse_fcgi_flt(char **args, int *cur_arg, struct proxy *px,
 	}
 	name = strdup(args[pos + 1]);
 	if (!name) {
-		memprintf(err, "%s '%s' : out of memory", args[pos], args[pos + 1]);
+		memprintf(err, "%s '%s' : OOM", args[pos], args[pos + 1]);
 		goto err;
 	}
 	pos += 2;
@@ -559,7 +559,7 @@ parse_fcgi_flt(char **args, int *cur_arg, struct proxy *px,
 	if (!fcgi_conf) {
 		fcgi_conf = calloc(1, sizeof(*fcgi_conf));
 		if (!fcgi_conf) {
-			memprintf(err, "%s: out of memory", args[*cur_arg]);
+			memprintf(err, "%s: OOM", args[*cur_arg]);
 			goto err;
 		}
 		fcgi_conf->name = name;
@@ -636,7 +636,7 @@ static int proxy_parse_use_fcgi_app(char **args, int section, struct proxy *curp
 		free(fcgi_conf->name);
 		free(fcgi_conf);
 	}
-	memprintf(err, "out of memory");
+	memprintf(err, "OOM");
 	retval = -1;
 	goto end;
 }
@@ -756,7 +756,7 @@ static int fcgi_app_add_rule(struct fcgi_app *curapp, enum fcgi_rule_type type, 
 		prune_acl_cond(cond);
 		free(cond);
 	}
-	memprintf(err, "out of memory");
+	memprintf(err, "OOM");
 	return 0;
 }
 
@@ -799,7 +799,7 @@ static int cfg_parse_fcgi_app(const char *file, int linenum, char **args, int kw
 
 		curapp = calloc(1, sizeof(*curapp));
 		if (!curapp) {
-			ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+			ha_alert("parsing [%s:%d] : OOM.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
 		}
@@ -855,7 +855,7 @@ static int cfg_parse_fcgi_app(const char *file, int linenum, char **args, int kw
 		istfree(&curapp->docroot);
 		curapp->docroot = ist(strdup(args[1]));
 		if (!isttest(curapp->docroot)) {
-			ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+			ha_alert("parsing [%s:%d] : OOM.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
 		}
 	}
@@ -888,7 +888,7 @@ static int cfg_parse_fcgi_app(const char *file, int linenum, char **args, int kw
 		istfree(&curapp->index);
 		curapp->index = ist(strdup(args[1]));
 		if (!isttest(curapp->index)) {
-			ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+			ha_alert("parsing [%s:%d] : OOM.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
 		}
 	}

@@ -2338,7 +2338,7 @@ struct tcpcheck_rule *parse_tcpcheck_action(char **args, int cur_arg, struct pro
 
 	actrule = calloc(1, sizeof(*actrule));
 	if (!actrule) {
-		memprintf(errmsg, "out of memory");
+		memprintf(errmsg, "OOM");
 		goto error;
 	}
 	actrule->kw = kw;
@@ -2352,7 +2352,7 @@ struct tcpcheck_rule *parse_tcpcheck_action(char **args, int cur_arg, struct pro
 
 	chk = calloc(1, sizeof(*chk));
 	if (!chk) {
-		memprintf(errmsg, "out of memory");
+		memprintf(errmsg, "OOM");
 		goto error;
 	}
 	chk->action = TCPCHK_ACT_ACTION_KW;
@@ -2484,7 +2484,7 @@ struct tcpcheck_rule *parse_tcpcheck_connect(char **args, int cur_arg, struct pr
 			free(comment);
 			comment = strdup(args[cur_arg]);
 			if (!comment) {
-				memprintf(errmsg, "out of memory");
+				memprintf(errmsg, "OOM");
 				goto error;
 			}
 		}
@@ -2508,7 +2508,7 @@ struct tcpcheck_rule *parse_tcpcheck_connect(char **args, int cur_arg, struct pr
 			free(sni);
 			sni = strdup(args[cur_arg]);
 			if (!sni) {
-				memprintf(errmsg, "out of memory");
+				memprintf(errmsg, "OOM");
 				goto error;
 			}
 		}
@@ -2541,7 +2541,7 @@ struct tcpcheck_rule *parse_tcpcheck_connect(char **args, int cur_arg, struct pr
 
 	chk = calloc(1, sizeof(*chk));
 	if (!chk) {
-		memprintf(errmsg, "out of memory");
+		memprintf(errmsg, "OOM");
 		goto error;
 	}
 	chk->action  = TCPCHK_ACT_CONNECT;
@@ -2601,7 +2601,7 @@ struct tcpcheck_rule *parse_tcpcheck_send(char **args, int cur_arg, struct proxy
 			free(comment);
 			comment = strdup(args[cur_arg]);
 			if (!comment) {
-				memprintf(errmsg, "out of memory");
+				memprintf(errmsg, "OOM");
 				goto error;
 			}
 		}
@@ -2615,7 +2615,7 @@ struct tcpcheck_rule *parse_tcpcheck_send(char **args, int cur_arg, struct proxy
 
 	chk = calloc(1, sizeof(*chk));
 	if (!chk) {
-		memprintf(errmsg, "out of memory");
+		memprintf(errmsg, "OOM");
 		goto error;
 	}
 	chk->action      = TCPCHK_ACT_SEND;
@@ -2626,7 +2626,7 @@ struct tcpcheck_rule *parse_tcpcheck_send(char **args, int cur_arg, struct proxy
 	case TCPCHK_SEND_STRING:
 		chk->send.data = ist(strdup(data));
 		if (!isttest(chk->send.data)) {
-			memprintf(errmsg, "out of memory");
+			memprintf(errmsg, "OOM");
 			goto error;
 		}
 		break;
@@ -2746,7 +2746,7 @@ struct tcpcheck_rule *parse_tcpcheck_send_http(char **args, int cur_arg, struct 
 			free(comment);
 			comment = strdup(args[cur_arg]);
 			if (!comment) {
-				memprintf(errmsg, "out of memory");
+				memprintf(errmsg, "OOM");
 				goto error;
 			}
 		}
@@ -2762,7 +2762,7 @@ struct tcpcheck_rule *parse_tcpcheck_send_http(char **args, int cur_arg, struct 
 
 	chk = calloc(1, sizeof(*chk));
 	if (!chk) {
-		memprintf(errmsg, "out of memory");
+		memprintf(errmsg, "OOM");
 		goto error;
 	}
 	chk->action    = TCPCHK_ACT_SEND;
@@ -2776,7 +2776,7 @@ struct tcpcheck_rule *parse_tcpcheck_send_http(char **args, int cur_arg, struct 
 		chk->send.http.meth.str.area = strdup(meth);
 		chk->send.http.meth.str.data = strlen(meth);
 		if (!chk->send.http.meth.str.area) {
-			memprintf(errmsg, "out of memory");
+			memprintf(errmsg, "OOM");
 			goto error;
 		}
 	}
@@ -2792,7 +2792,7 @@ struct tcpcheck_rule *parse_tcpcheck_send_http(char **args, int cur_arg, struct 
 		else {
 			chk->send.http.uri = ist(strdup(uri));
 			if (!isttest(chk->send.http.uri)) {
-				memprintf(errmsg, "out of memory");
+				memprintf(errmsg, "OOM");
 				goto error;
 			}
 		}
@@ -2800,20 +2800,20 @@ struct tcpcheck_rule *parse_tcpcheck_send_http(char **args, int cur_arg, struct 
 	if (vsn) {
 		chk->send.http.vsn = ist(strdup(vsn));
 		if (!isttest(chk->send.http.vsn)) {
-			memprintf(errmsg, "out of memory");
+			memprintf(errmsg, "OOM");
 			goto error;
 		}
 	}
 	for (i = 0; istlen(hdrs[i].n); i++) {
 		hdr = calloc(1, sizeof(*hdr));
 		if (!hdr) {
-			memprintf(errmsg, "out of memory");
+			memprintf(errmsg, "OOM");
 			goto error;
 		}
 		LIST_INIT(&hdr->value);
 		hdr->name = istdup(hdrs[i].n);
 		if (!isttest(hdr->name)) {
-			memprintf(errmsg, "out of memory");
+			memprintf(errmsg, "OOM");
 			goto error;
 		}
 
@@ -2836,7 +2836,7 @@ struct tcpcheck_rule *parse_tcpcheck_send_http(char **args, int cur_arg, struct 
 		else {
 			chk->send.http.body = ist(strdup(body));
 			if (!isttest(chk->send.http.body)) {
-				memprintf(errmsg, "out of memory");
+				memprintf(errmsg, "OOM");
 				goto error;
 			}
 		}
@@ -2865,13 +2865,13 @@ struct tcpcheck_rule *parse_tcpcheck_comment(char **args, int cur_arg, struct pr
 	cur_arg++;
 	comment = strdup(args[cur_arg]);
 	if (!comment) {
-		memprintf(errmsg, "out of memory");
+		memprintf(errmsg, "OOM");
 		goto error;
 	}
 
 	chk = calloc(1, sizeof(*chk));
 	if (!chk) {
-		memprintf(errmsg, "out of memory");
+		memprintf(errmsg, "OOM");
 		goto error;
 	}
 	chk->action  = TCPCHK_ACT_COMMENT;
@@ -3140,7 +3140,7 @@ struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, struct pro
 			free(comment);
 			comment = strdup(args[cur_arg]);
 			if (!comment) {
-				memprintf(errmsg, "out of memory");
+				memprintf(errmsg, "OOM");
 				goto error;
 			}
 		}
@@ -3289,7 +3289,7 @@ struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, struct pro
 
 	chk = calloc(1, sizeof(*chk));
 	if (!chk) {
-		memprintf(errmsg, "out of memory");
+		memprintf(errmsg, "OOM");
 		goto error;
 	}
 	chk->action  = TCPCHK_ACT_EXPECT;
@@ -3341,7 +3341,7 @@ struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, struct pro
 			chk->expect.codes.codes = my_realloc2(chk->expect.codes.codes,
 							      chk->expect.codes.num * sizeof(*chk->expect.codes.codes));
 			if (!chk->expect.codes.codes) {
-				memprintf(errmsg, "out of memory");
+				memprintf(errmsg, "OOM");
 				goto error;
 			}
 			chk->expect.codes.codes[chk->expect.codes.num-1][0] = c1;
@@ -3361,7 +3361,7 @@ struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, struct pro
 	case TCPCHK_EXPECT_HTTP_BODY:
 		chk->expect.data = ist(strdup(pattern));
 		if (!isttest(chk->expect.data)) {
-			memprintf(errmsg, "out of memory");
+			memprintf(errmsg, "OOM");
 			goto error;
 		}
 		break;
@@ -3416,7 +3416,7 @@ struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, struct pro
 		else {
 			chk->expect.hdr.name = ist(strdup(npat));
 			if (!isttest(chk->expect.hdr.name)) {
-				memprintf(errmsg, "out of memory");
+				memprintf(errmsg, "OOM");
 				goto error;
 			}
 		}
@@ -3446,7 +3446,7 @@ struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, struct pro
 		else {
 			chk->expect.hdr.value = ist(strdup(vpat));
 			if (!isttest(chk->expect.hdr.value)) {
-				memprintf(errmsg, "out of memory");
+				memprintf(errmsg, "OOM");
 				goto error;
 			}
 		}
@@ -3717,7 +3717,7 @@ static int check_proxy_tcpcheck(struct proxy *px)
 		chk = calloc(1, sizeof(*chk));
 		if (!chk) {
 			ha_alert("proxy '%s': unable to add implicit tcp-check connect rule "
-				 "(out of memory).\n", px->id);
+				 "(OOM).\n", px->id);
 			ret |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
@@ -3882,7 +3882,7 @@ static int proxy_parse_tcpcheck(char **args, int section, struct proxy *curpx,
 	if (rs == NULL) {
 		rs = create_tcpcheck_ruleset(b_orig(&trash));
 		if (rs == NULL) {
-			memprintf(errmsg, "out of memory.\n");
+			memprintf(errmsg, "OOM.\n");
 			goto error;
 		}
 	}
@@ -3983,7 +3983,7 @@ static int proxy_parse_httpcheck(char **args, int section, struct proxy *curpx,
 	if (rs == NULL) {
 		rs = create_tcpcheck_ruleset(b_orig(&trash));
 		if (rs == NULL) {
-			memprintf(errmsg, "out of memory.\n");
+			memprintf(errmsg, "OOM.\n");
 			goto error;
 		}
 	}
@@ -4083,7 +4083,7 @@ int proxy_parse_redis_check_opt(char **args, int cur_arg, struct proxy *curpx, c
 
 	rs = create_tcpcheck_ruleset("*redis-check");
 	if (rs == NULL) {
-		ha_alert("parsing [%s:%d] : out of memory.\n", file, line);
+		ha_alert("parsing [%s:%d] : OOM.\n", file, line);
 		goto error;
 	}
 
@@ -4184,7 +4184,7 @@ int proxy_parse_ssl_hello_chk_opt(char **args, int cur_arg, struct proxy *curpx,
 
 	rs = create_tcpcheck_ruleset("*ssl-hello-check");
 	if (rs == NULL) {
-		ha_alert("parsing [%s:%d] : out of memory.\n", file, line);
+		ha_alert("parsing [%s:%d] : OOM.\n", file, line);
 		goto error;
 	}
 
@@ -4266,7 +4266,7 @@ int proxy_parse_smtpchk_opt(char **args, int cur_arg, struct proxy *curpx, const
 
 	var = create_tcpcheck_var(ist("check.smtp_cmd"));
 	if (cmd == NULL || var == NULL) {
-		ha_alert("parsing [%s:%d] : out of memory.\n", file, line);
+		ha_alert("parsing [%s:%d] : OOM.\n", file, line);
 		goto error;
 	}
 	var->data.type = SMP_T_STR;
@@ -4283,7 +4283,7 @@ int proxy_parse_smtpchk_opt(char **args, int cur_arg, struct proxy *curpx, const
 
 	rs = create_tcpcheck_ruleset("*smtp-check");
 	if (rs == NULL) {
-		ha_alert("parsing [%s:%d] : out of memory.\n", file, line);
+		ha_alert("parsing [%s:%d] : OOM.\n", file, line);
 		goto error;
 	}
 
@@ -4410,7 +4410,7 @@ int proxy_parse_pgsql_check_opt(char **args, int cur_arg, struct proxy *curpx, c
 
 		var = create_tcpcheck_var(ist("check.username"));
 		if (user == NULL || var == NULL) {
-			ha_alert("parsing [%s:%d] : out of memory.\n", file, line);
+			ha_alert("parsing [%s:%d] : OOM.\n", file, line);
 			goto error;
 		}
 		var->data.type = SMP_T_STR;
@@ -4423,7 +4423,7 @@ int proxy_parse_pgsql_check_opt(char **args, int cur_arg, struct proxy *curpx, c
 
 		var = create_tcpcheck_var(ist("check.plen"));
 		if (var == NULL) {
-			ha_alert("parsing [%s:%d] : out of memory.\n", file, line);
+			ha_alert("parsing [%s:%d] : OOM.\n", file, line);
 			goto error;
 		}
 		var->data.type = SMP_T_SINT;
@@ -4444,7 +4444,7 @@ int proxy_parse_pgsql_check_opt(char **args, int cur_arg, struct proxy *curpx, c
 
 	rs = create_tcpcheck_ruleset("*pgsql-check");
 	if (rs == NULL) {
-		ha_alert("parsing [%s:%d] : out of memory.\n", file, line);
+		ha_alert("parsing [%s:%d] : OOM.\n", file, line);
 		goto error;
 	}
 
@@ -4613,7 +4613,7 @@ int proxy_parse_mysql_check_opt(char **args, int cur_arg, struct proxy *curpx, c
 		userlen = strlen(args[cur_arg+1]);
 
 		if (hdr == NULL || user == NULL) {
-			ha_alert("parsing [%s:%d] : out of memory.\n", file, line);
+			ha_alert("parsing [%s:%d] : OOM.\n", file, line);
 			goto error;
 		}
 
@@ -4640,7 +4640,7 @@ int proxy_parse_mysql_check_opt(char **args, int cur_arg, struct proxy *curpx, c
 
 		var = create_tcpcheck_var(ist("check.header"));
 		if (var == NULL) {
-			ha_alert("parsing [%s:%d] : out of memory.\n", file, line);
+			ha_alert("parsing [%s:%d] : OOM.\n", file, line);
 			goto error;
 		}
 		var->data.type = SMP_T_STR;
@@ -4653,7 +4653,7 @@ int proxy_parse_mysql_check_opt(char **args, int cur_arg, struct proxy *curpx, c
 
 		var = create_tcpcheck_var(ist("check.username"));
 		if (var == NULL) {
-			ha_alert("parsing [%s:%d] : out of memory.\n", file, line);
+			ha_alert("parsing [%s:%d] : OOM.\n", file, line);
 			goto error;
 		}
 		var->data.type = SMP_T_STR;
@@ -4671,7 +4671,7 @@ int proxy_parse_mysql_check_opt(char **args, int cur_arg, struct proxy *curpx, c
 
 	rs = create_tcpcheck_ruleset(mysql_rsname);
 	if (rs == NULL) {
-		ha_alert("parsing [%s:%d] : out of memory.\n", file, line);
+		ha_alert("parsing [%s:%d] : OOM.\n", file, line);
 		goto error;
 	}
 
@@ -4766,7 +4766,7 @@ int proxy_parse_ldap_check_opt(char **args, int cur_arg, struct proxy *curpx, co
 
 	rs = create_tcpcheck_ruleset("*ldap-check");
 	if (rs == NULL) {
-		ha_alert("parsing [%s:%d] : out of memory.\n", file, line);
+		ha_alert("parsing [%s:%d] : OOM.\n", file, line);
 		goto error;
 	}
 
@@ -4846,12 +4846,12 @@ int proxy_parse_spop_check_opt(char **args, int cur_arg, struct proxy *curpx, co
 
 	rs = create_tcpcheck_ruleset("*spop-check");
 	if (rs == NULL) {
-		ha_alert("parsing [%s:%d] : out of memory.\n", file, line);
+		ha_alert("parsing [%s:%d] : OOM.\n", file, line);
 		goto error;
 	}
 
 	if (spoe_prepare_healthcheck_request(&spop_req, &spop_len) == -1) {
-		ha_alert("parsing [%s:%d] : out of memory.\n", file, line);
+		ha_alert("parsing [%s:%d] : OOM.\n", file, line);
 		goto error;
 	}
 	chunk_reset(&trash);
@@ -4920,7 +4920,7 @@ static struct tcpcheck_rule *proxy_parse_httpchk_req(char **args, int cur_arg, s
 
 	chk = calloc(1, sizeof(*chk));
 	if (!chk) {
-		memprintf(errmsg, "out of memory");
+		memprintf(errmsg, "OOM");
 		goto error;
 	}
 	chk->action    = TCPCHK_ACT_SEND;
@@ -4946,21 +4946,21 @@ static struct tcpcheck_rule *proxy_parse_httpchk_req(char **args, int cur_arg, s
 		chk->send.http.meth.str.area = strdup(meth);
 		chk->send.http.meth.str.data = strlen(meth);
 		if (!chk->send.http.meth.str.area) {
-			memprintf(errmsg, "out of memory");
+			memprintf(errmsg, "OOM");
 			goto error;
 		}
 	}
 	if (uri) {
 		chk->send.http.uri = ist(strdup(uri));
 		if (!isttest(chk->send.http.uri)) {
-			memprintf(errmsg, "out of memory");
+			memprintf(errmsg, "OOM");
 			goto error;
 		}
 	}
 	if (vsn) {
 		chk->send.http.vsn = ist(strdup(vsn));
 		if (!isttest(chk->send.http.vsn)) {
-			memprintf(errmsg, "out of memory");
+			memprintf(errmsg, "OOM");
 			goto error;
 		}
 	}
@@ -4986,13 +4986,13 @@ static struct tcpcheck_rule *proxy_parse_httpchk_req(char **args, int cur_arg, s
 		for (i = 0; istlen(tmp_hdrs[i].n); i++) {
 			hdr = calloc(1, sizeof(*hdr));
 			if (!hdr) {
-				memprintf(errmsg, "out of memory");
+				memprintf(errmsg, "OOM");
 				goto error;
 			}
 			LIST_INIT(&hdr->value);
 			hdr->name = istdup(tmp_hdrs[i].n);
 			if (!hdr->name.ptr) {
-				memprintf(errmsg, "out of memory");
+				memprintf(errmsg, "OOM");
 				goto error;
 			}
 
@@ -5007,7 +5007,7 @@ static struct tcpcheck_rule *proxy_parse_httpchk_req(char **args, int cur_arg, s
 	if (body) {
 		chk->send.http.body = ist(strdup(body));
 		if (!isttest(chk->send.http.body)) {
-			memprintf(errmsg, "out of memory");
+			memprintf(errmsg, "OOM");
 			goto error;
 		}
 	}
@@ -5064,7 +5064,7 @@ int proxy_parse_httpchk_opt(char **args, int cur_arg, struct proxy *curpx, const
 	if (rs == NULL) {
 		rs = create_tcpcheck_ruleset(b_orig(&trash));
 		if (rs == NULL) {
-			ha_alert("parsing [%s:%d] : out of memory.\n", file, line);
+			ha_alert("parsing [%s:%d] : OOM.\n", file, line);
 			goto error;
 		}
 	}
@@ -5134,7 +5134,7 @@ int proxy_parse_tcp_check_opt(char **args, int cur_arg, struct proxy *curpx, con
 	if (rs == NULL) {
 		rs = create_tcpcheck_ruleset(b_orig(&trash));
 		if (rs == NULL) {
-			ha_alert("parsing [%s:%d] : out of memory.\n", file, line);
+			ha_alert("parsing [%s:%d] : OOM.\n", file, line);
 			goto error;
 		}
 	}

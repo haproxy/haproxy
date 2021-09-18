@@ -944,7 +944,7 @@ static enum act_parse_ret parse_http_req_capture(const char **args, int *orig_ar
 
 		hdr = calloc(1, sizeof(*hdr));
 		if (!hdr) {
-			memprintf(err, "out of memory");
+			memprintf(err, "OOM");
 			release_sample_expr(expr);
 			return ACT_RET_PRS_ERR;
 		}

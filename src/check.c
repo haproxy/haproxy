@@ -1323,7 +1323,7 @@ const char *init_check(struct check *check, int type)
 
 	check->wait_list.tasklet = tasklet_new();
 	if (!check->wait_list.tasklet)
-		return "out of memory while allocating check tasklet";
+		return "OOM while allocating check tasklet";
 	check->wait_list.events = 0;
 	check->wait_list.tasklet->process = event_srv_chk_io;
 	check->wait_list.tasklet->context = check;
@@ -1395,7 +1395,7 @@ int start_check_task(struct check *check, int mininter,
 
 	/* task for the check */
 	if ((t = task_new(thread_mask)) == NULL) {
-		ha_alert("Starting [%s:%s] check: out of memory.\n",
+		ha_alert("Starting [%s:%s] check: OOM.\n",
 			 check->server->proxy->id, check->server->id);
 		return 0;
 	}
@@ -1483,7 +1483,7 @@ static int start_checks()
 		for (s = px->srv; s; s = s->next) {
 			if (s->slowstart) {
 				if ((t = task_new(MAX_THREADS_MASK)) == NULL) {
-					ha_alert("Starting [%s:%s] check: out of memory.\n", px->id, s->id);
+					ha_alert("Starting [%s:%s] check: OOM.\n", px->id, s->id);
 					return ERR_ALERT | ERR_FATAL;
 				}
 				/* We need a warmup task that will be called when the server
@@ -1526,7 +1526,7 @@ static int start_checks()
 	for (px = proxies_list; px; px = px->next) {
 		if ((px->options2 & PR_O2_CHK_ANY) == PR_O2_EXT_CHK) {
 			if (init_pid_list()) {
-				ha_alert("Starting [%s] check: out of memory.\n", px->id);
+				ha_alert("Starting [%s] check: OOM.\n", px->id);
 				return ERR_ALERT | ERR_FATAL;
 			}
 		}
@@ -1721,7 +1721,7 @@ int init_srv_agent_check(struct server *srv)
 		chk = calloc(1, sizeof(*chk));
 		if (!chk) {
 			ha_alert("%s '%s': unable to add implicit tcp-check connect rule"
-				 " to agent-check for server '%s' (out of memory).\n",
+				 " to agent-check for server '%s' (OOM).\n",
 				 proxy_type_str(srv->proxy), srv->proxy->id, srv->id);
 			ret |= ERR_ALERT | ERR_FATAL;
 			goto out;
@@ -1877,7 +1877,7 @@ static int srv_parse_agent_check(char **args, int *cur_arg, struct proxy *curpx,
 	if (!rules) {
 		rules = calloc(1, sizeof(*rules));
 		if (!rules) {
-			memprintf(errmsg, "out of memory.");
+			memprintf(errmsg, "OOM.");
 			goto error;
 		}
 		LIST_INIT(&rules->preset_vars);
@@ -1892,7 +1892,7 @@ static int srv_parse_agent_check(char **args, int *cur_arg, struct proxy *curpx,
 
 	rs = create_tcpcheck_ruleset("*agent-check");
 	if (rs == NULL) {
-		memprintf(errmsg, "out of memory.");
+		memprintf(errmsg, "OOM.");
 		goto error;
 	}
 
@@ -2060,7 +2060,7 @@ static int srv_parse_agent_send(char **args, int *cur_arg, struct proxy *curpx, 
 	if (!rules) {
 		rules = calloc(1, sizeof(*rules));
 		if (!rules) {
-			memprintf(errmsg, "out of memory.");
+			memprintf(errmsg, "OOM.");
 			goto error;
 		}
 		LIST_INIT(&rules->preset_vars);
@@ -2068,7 +2068,7 @@ static int srv_parse_agent_send(char **args, int *cur_arg, struct proxy *curpx, 
 	}
 
 	if (!set_srv_agent_send(srv, args[*cur_arg+1])) {
-		memprintf(errmsg, "out of memory.");
+		memprintf(errmsg, "OOM.");
 		goto error;
 	}
 

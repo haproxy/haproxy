@@ -317,7 +317,7 @@ static int ssl_parse_global_capture_buffer(char **args, int section_type, struct
 
 	pool_head_ssl_capture = create_pool("ssl-capture", sizeof(struct ssl_capture) + global_ssl.capture_buffer_size, MEM_F_SHARED);
 	if (!pool_head_ssl_capture) {
-		memprintf(err, "Out of memory error.");
+		memprintf(err, "OOM error.");
 		return -1;
 	}
 	return 0;
@@ -347,13 +347,13 @@ static int ssl_parse_global_keylog(char **args, int section_type, struct proxy *
 
 	pool_head_ssl_keylog = create_pool("ssl-keylogfile", sizeof(struct ssl_keylog), MEM_F_SHARED);
 	if (!pool_head_ssl_keylog) {
-		memprintf(err, "Out of memory error.");
+		memprintf(err, "OOM error.");
 		return -1;
 	}
 
 	pool_head_ssl_keylog_str = create_pool("ssl-keylogfile-str", sizeof(char) * SSL_KEYLOG_MAX_SECRET_SIZE, MEM_F_SHARED);
 	if (!pool_head_ssl_keylog_str) {
-		memprintf(err, "Out of memory error.");
+		memprintf(err, "OOM error.");
 		return -1;
 	}
 
@@ -988,7 +988,7 @@ int ssl_sock_parse_alpn(char *arg, char **alpn_str, int *alpn_len, char **err)
 	len  = strlen(arg) + 1;
 	alpn = calloc(1, len+1);
 	if (!alpn) {
-		memprintf(err, "'%s' : out of memory", arg);
+		memprintf(err, "'%s' : OOM", arg);
 		goto error;
 	}
 	memcpy(alpn+1, arg, len);
@@ -1276,7 +1276,7 @@ static int srv_parse_npn(char **args, int *cur_arg, struct proxy *px, struct ser
 	newsrv->ssl_ctx.npn_len = strlen(args[*cur_arg + 1]) + 1;
 	newsrv->ssl_ctx.npn_str = calloc(1, newsrv->ssl_ctx.npn_len + 1);
 	if (!newsrv->ssl_ctx.npn_str) {
-		memprintf(err, "out of memory");
+		memprintf(err, "OOM");
 		return ERR_ALERT | ERR_FATAL;
 	}
 
@@ -1619,7 +1619,7 @@ static int srv_parse_sni(char **args, int *cur_arg, struct proxy *px, struct ser
 	free(newsrv->sni_expr);
 	newsrv->sni_expr = strdup(arg);
 	if (!newsrv->sni_expr) {
-		memprintf(err, "out of memory");
+		memprintf(err, "OOM");
 		return ERR_ALERT | ERR_FATAL;
 	}
 

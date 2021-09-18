@@ -827,7 +827,7 @@ static int tcp_parse_request_rule(char **args, int arg, int section_type,
 
 		hdr = calloc(1, sizeof(*hdr));
 		if (!hdr) {
-			memprintf(err, "parsing [%s:%d] : out of memory", file, line);
+			memprintf(err, "parsing [%s:%d] : OOM", file, line);
 			release_sample_expr(expr);
 			return -1;
 		}
@@ -1061,7 +1061,7 @@ static int tcp_parse_tcp_rep(char **args, int section_type, struct proxy *curpx,
 
 	rule = calloc(1, sizeof(*rule));
 	if (!rule) {
-		memprintf(err, "parsing [%s:%d] : out of memory", file, line);
+		memprintf(err, "parsing [%s:%d] : OOM", file, line);
 		return -1;
 	}
 	LIST_INIT(&rule->list);
@@ -1179,7 +1179,7 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 
 	rule = calloc(1, sizeof(*rule));
 	if (!rule) {
-		memprintf(err, "parsing [%s:%d] : out of memory", file, line);
+		memprintf(err, "parsing [%s:%d] : OOM", file, line);
 		return -1;
 	}
 	LIST_INIT(&rule->list);

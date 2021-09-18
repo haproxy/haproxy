@@ -617,7 +617,7 @@ parse_trace_flt(char **args, int *cur_arg, struct proxy *px,
 
 	conf = calloc(1, sizeof(*conf));
 	if (!conf) {
-		memprintf(err, "%s: out of memory", args[*cur_arg]);
+		memprintf(err, "%s: OOM", args[*cur_arg]);
 		return -1;
 	}
 	conf->proxy = px;
@@ -634,7 +634,7 @@ parse_trace_flt(char **args, int *cur_arg, struct proxy *px,
 				}
 				conf->name = strdup(args[pos + 1]);
 				if (!conf->name) {
-					memprintf(err, "%s: out of memory", args[*cur_arg]);
+					memprintf(err, "%s: OOM", args[*cur_arg]);
 					goto error;
 				}
 				pos++;

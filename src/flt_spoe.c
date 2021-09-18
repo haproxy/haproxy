@@ -3099,7 +3099,7 @@ spoe_check(struct proxy *px, struct flt_conf *fconf)
 	}
 
 	if ((conf->agent->rt = calloc(global.nbthread, sizeof(*conf->agent->rt))) == NULL) {
-		ha_alert("Proxy %s : out of memory initializing SPOE agent '%s' declared at %s:%d.\n",
+		ha_alert("Proxy %s : OOM initializing SPOE agent '%s' declared at %s:%d.\n",
 			 px->id, conf->agent->id, conf->agent->conf.file, conf->agent->conf.line);
 		return 1;
 	}
@@ -3397,7 +3397,7 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 		if ((curagent = calloc(1, sizeof(*curagent))) == NULL) {
-			ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+			ha_alert("parsing [%s:%d] : OOM.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
 		}
@@ -3453,7 +3453,7 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 			}
 
 			if ((ph = calloc(1, sizeof(*ph))) == NULL) {
-				ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+				ha_alert("parsing [%s:%d] : OOM.\n", file, linenum);
 				err_code |= ERR_ALERT | ERR_ABORT;
 				goto out;
 			}
@@ -3477,7 +3477,7 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 			}
 
 			if ((ph = calloc(1, sizeof(*ph))) == NULL) {
-				ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+				ha_alert("parsing [%s:%d] : OOM.\n", file, linenum);
 				err_code |= ERR_ALERT | ERR_ABORT;
 				goto out;
 			}
@@ -3775,13 +3775,13 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 			struct spoe_var_placeholder *vph;
 
 			if ((vph = calloc(1, sizeof(*vph))) == NULL) {
-				ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+				ha_alert("parsing [%s:%d] : OOM.\n", file, linenum);
 				err_code |= ERR_ALERT | ERR_ABORT;
 				goto out;
 			}
 			if ((vph->name  = strdup(args[cur_arg])) == NULL) {
 				free(vph);
-				ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+				ha_alert("parsing [%s:%d] : OOM.\n", file, linenum);
 				err_code |= ERR_ALERT | ERR_ABORT;
 				goto out;
 			}
@@ -3850,7 +3850,7 @@ cfg_parse_spoe_group(const char *file, int linenum, char **args, int kwm)
 		}
 
 		if ((curgrp = calloc(1, sizeof(*curgrp))) == NULL) {
-			ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+			ha_alert("parsing [%s:%d] : OOM.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
 		}
@@ -3877,7 +3877,7 @@ cfg_parse_spoe_group(const char *file, int linenum, char **args, int kwm)
 			}
 
 			if ((ph = calloc(1, sizeof(*ph))) == NULL) {
-				ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+				ha_alert("parsing [%s:%d] : OOM.\n", file, linenum);
 				err_code |= ERR_ALERT | ERR_ABORT;
 				goto out;
 			}
@@ -3941,7 +3941,7 @@ cfg_parse_spoe_message(const char *file, int linenum, char **args, int kwm)
 		}
 
 		if ((curmsg = calloc(1, sizeof(*curmsg))) == NULL) {
-			ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+			ha_alert("parsing [%s:%d] : OOM.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
 		}
@@ -3969,7 +3969,7 @@ cfg_parse_spoe_message(const char *file, int linenum, char **args, int kwm)
 			int   idx = 0;
 
 			if ((arg = calloc(1, sizeof(*arg))) == NULL) {
-				ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+				ha_alert("parsing [%s:%d] : OOM.\n", file, linenum);
 				err_code |= ERR_ALERT | ERR_ABORT;
 				goto out;
 			}
@@ -4117,7 +4117,7 @@ parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 
 	conf = calloc(1, sizeof(*conf));
 	if (conf == NULL) {
-		memprintf(err, "%s: out of memory", args[*cur_arg]);
+		memprintf(err, "%s: OOM", args[*cur_arg]);
 		goto error;
 	}
 	conf->proxy = px;

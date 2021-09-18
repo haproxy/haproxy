@@ -73,7 +73,7 @@ int map_parse_int(const char *text, struct sample_data *data)
 }
 
 /* This crete and initialize map descriptor.
- * Return NULL if out of memory error
+ * Return NULL if OOM error
  */
 static struct map_descriptor *map_create_descriptor(struct sample_conv *conv)
 {
@@ -107,7 +107,7 @@ int sample_load_map(struct arg *arg, struct sample_conv *conv,
 	/* create new map descriptor */
 	desc = map_create_descriptor(conv);
 	if (!desc) {
-		memprintf(err, "out of memory");
+		memprintf(err, "OOM");
 		return 0;
 	}
 
@@ -626,7 +626,7 @@ static int cli_parse_get_map(char **args, char *payload, struct appctx *appctx, 
 		appctx->ctx.map.chunk.size = appctx->ctx.map.chunk.data + 1;
 		appctx->ctx.map.chunk.area = strdup(args[3]);
 		if (!appctx->ctx.map.chunk.area)
-			return cli_err(appctx,  "Out of memory error.\n");
+			return cli_err(appctx,  "OOM error.\n");
 
 		return 0;
 	}

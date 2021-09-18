@@ -3583,7 +3583,7 @@ static int add_hdr_case_adjust(const char *from, const char *to, char **err)
 	/* Create the entry and insert it in the tree */
 	entry = malloc(sizeof(*entry));
 	if (!entry) {
-		memprintf(err, "out of memory");
+		memprintf(err, "OOM");
 		return -1;
 	}
 
@@ -3593,7 +3593,7 @@ static int add_hdr_case_adjust(const char *from, const char *to, char **err)
 		free(entry->node.key);
 		istfree(&entry->name);
 		free(entry);
-		memprintf(err, "out of memory");
+		memprintf(err, "OOM");
 		return -1;
 	}
 	ebis_insert(&hdrs_map.map, &entry->node);

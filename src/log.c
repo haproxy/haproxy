@@ -312,7 +312,7 @@ int parse_logformat_var(char *arg, int arg_len, char *var, int var_len, struct p
 			if (logformat_keywords[j].mode != PR_MODE_HTTP || curproxy->mode == PR_MODE_HTTP) {
 				node = calloc(1, sizeof(*node));
 				if (!node) {
-					memprintf(err, "out of memory error");
+					memprintf(err, "OOM error");
 					goto error_free;
 				}
 				node->type = logformat_keywords[j].type;
@@ -374,7 +374,7 @@ int add_to_logformat_list(char *start, char *end, int type, struct list *list_fo
 	if (type == LF_TEXT) { /* type text */
 		struct logformat_node *node = calloc(1, sizeof(*node));
 		if (!node) {
-			memprintf(err, "out of memory error");
+			memprintf(err, "OOM error");
 			return 0;
 		}
 		str = calloc(1, end - start + 1);
@@ -386,7 +386,7 @@ int add_to_logformat_list(char *start, char *end, int type, struct list *list_fo
 	} else if (type == LF_SEPARATOR) {
 		struct logformat_node *node = calloc(1, sizeof(*node));
 		if (!node) {
-			memprintf(err, "out of memory error");
+			memprintf(err, "OOM error");
 			return 0;
 		}
 		node->type = LOG_FMT_SEPARATOR;
@@ -423,7 +423,7 @@ int add_sample_to_logformat_list(char *text, char *arg, int arg_len, struct prox
 
 	node = calloc(1, sizeof(*node));
 	if (!node) {
-		memprintf(err, "out of memory error");
+		memprintf(err, "OOM error");
 		goto error_free;
 	}
 	node->type = LOG_FMT_EXPR;
@@ -502,7 +502,7 @@ int parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list 
 
 	sp = str = backfmt = strdup(fmt);
 	if (!str) {
-		memprintf(err, "out of memory error");
+		memprintf(err, "OOM error");
 		return 0;
 	}
 	curproxy->to_log |= LW_INIT;
@@ -820,7 +820,7 @@ int parse_logsrv(char **args, struct list *logsrvs, int do_del, const char *file
 
 	logsrv = calloc(1, sizeof(*logsrv));
 	if (!logsrv) {
-		memprintf(err, "out of memory");
+		memprintf(err, "OOM");
 		goto error;
 	}
 
@@ -880,7 +880,7 @@ int parse_logsrv(char **args, struct list *logsrvs, int do_del, const char *file
 
 			smp_rgs = my_realloc2(smp_rgs, (smp_rgs_sz + 1) * sizeof *smp_rgs);
 			if (!smp_rgs) {
-				memprintf(err, "out of memory error");
+				memprintf(err, "OOM error");
 				goto error;
 			}
 
@@ -3785,7 +3785,7 @@ int cfg_parse_log_forward(const char *file, int linenum, char **args, int kwm)
 		bind_conf = bind_conf_alloc(cfg_log_forward, file, linenum,
 					    NULL, xprt_get(XPRT_RAW));
 		if (!bind_conf) {
-			ha_alert("parsing [%s:%d] : out of memory error.", file, linenum);
+			ha_alert("parsing [%s:%d] : OOM error.", file, linenum);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
@@ -3852,7 +3852,7 @@ int cfg_parse_log_forward(const char *file, int linenum, char **args, int kwm)
 		bind_conf = bind_conf_alloc(cfg_log_forward, file, linenum,
 		                            NULL, xprt_get(XPRT_RAW));
 		if (!bind_conf) {
-			ha_alert("parsing [%s:%d] : out of memory error.", file, linenum);
+			ha_alert("parsing [%s:%d] : OOM error.", file, linenum);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}

@@ -109,7 +109,7 @@ int init_email_alert(struct mailers *mls, struct proxy *p, char **err)
 	int                  i = 0;
 
 	if ((queues = calloc(mls->count, sizeof(*queues))) == NULL) {
-		memprintf(err, "out of memory while allocating mailer alerts queues");
+		memprintf(err, "OOM while allocating mailer alerts queues");
 		goto fail_no_queue;
 	}
 
@@ -134,7 +134,7 @@ int init_email_alert(struct mailers *mls, struct proxy *p, char **err)
 		check->port = get_host_port(&mailer->addr);
 
 		if ((t = task_new(MAX_THREADS_MASK)) == NULL) {
-			memprintf(err, "out of memory while allocating mailer alerts task");
+			memprintf(err, "OOM while allocating mailer alerts task");
 			goto error;
 		}
 
@@ -286,7 +286,7 @@ static void enqueue_email_alert(struct proxy *p, struct server *s, const char *m
 	for (i = 0, mailer = p->email_alert.mailers.m->mailer_list;
 	     i < p->email_alert.mailers.m->count; i++, mailer = mailer->next) {
 		if (!enqueue_one_email_alert(p, s, &p->email_alert.queues[i], msg)) {
-			ha_alert("Email alert [%s] could not be enqueued: out of memory\n", p->id);
+			ha_alert("Email alert [%s] could not be enqueued: OOM\n", p->id);
 			return;
 		}
 	}

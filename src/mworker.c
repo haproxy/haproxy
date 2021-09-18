@@ -148,7 +148,7 @@ int mworker_env_to_proc_list()
 
 		child = calloc(1, sizeof(*child));
 		if (!child) {
-			ha_alert("Out of memory while trying to allocate a worker process structure.");
+			ha_alert("OOM while trying to allocate a worker process structure.");
 			return -1;
 		}
 

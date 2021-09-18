@@ -199,7 +199,7 @@ struct resolv_srvrq *new_resolv_srvrq(struct server *srv, char *fqdn)
 	}
 
 	if ((srvrq = calloc(1, sizeof(*srvrq))) == NULL) {
-		ha_alert("%s '%s', server '%s': out of memory\n",
+		ha_alert("%s '%s', server '%s': OOM\n",
 			 proxy_type_str(px), px->id, srv->id);
 		goto err;
 	}
@@ -209,7 +209,7 @@ struct resolv_srvrq *new_resolv_srvrq(struct server *srv, char *fqdn)
 	srvrq->hostname_dn     = strdup(trash.area);
 	srvrq->hostname_dn_len = hostname_dn_len;
 	if (!srvrq->name || !srvrq->hostname_dn) {
-		ha_alert("%s '%s', server '%s': out of memory\n",
+		ha_alert("%s '%s', server '%s': OOM\n",
 			 proxy_type_str(px), px->id, srv->id);
 		goto err;
 	}
@@ -2413,7 +2413,7 @@ static int resolvers_finalize_config(void)
 
 		/* Create the task associated to the resolvers section */
 		if ((t = task_new(MAX_THREADS_MASK)) == NULL) {
-			ha_alert("resolvers '%s' : out of memory.\n", resolvers->id);
+			ha_alert("resolvers '%s' : OOM.\n", resolvers->id);
 			err_code |= (ERR_ALERT|ERR_ABORT);
 			goto err;
 		}
@@ -3088,7 +3088,7 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 		}
 
 		if ((curr_resolvers = calloc(1, sizeof(*curr_resolvers))) == NULL) {
-			ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+			ha_alert("parsing [%s:%d] : OOM.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
 		}
@@ -3096,7 +3096,7 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
                 /* allocate new proxy to tcp servers */
                 p = calloc(1, sizeof *p);
                 if (!p) {
-                        ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+                        ha_alert("parsing [%s:%d] : OOM.\n", file, linenum);
                         err_code |= ERR_ALERT | ERR_FATAL;
                         goto out;
                 }
@@ -3172,7 +3172,7 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 		}
 
 		if ((newnameserver = calloc(1, sizeof(*newnameserver))) == NULL) {
-			ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+			ha_alert("parsing [%s:%d] : OOM.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
 		}
@@ -3186,25 +3186,25 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 			}
 
 			if (dns_stream_init(newnameserver, curr_resolvers->px->srv) < 0) {
-				ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+				ha_alert("parsing [%s:%d] : OOM.\n", file, linenum);
 				err_code |= ERR_ALERT|ERR_ABORT;
 				goto out;
 			}
 		}
 		else if (dns_dgram_init(newnameserver, sk) < 0) {
-			ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+			ha_alert("parsing [%s:%d] : OOM.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
 		}
 
 		if ((newnameserver->conf.file = strdup(file)) == NULL) {
-			ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+			ha_alert("parsing [%s:%d] : OOM.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
 		}
 
 		if ((newnameserver->id = strdup(args[1])) == NULL) {
-			ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+			ha_alert("parsing [%s:%d] : OOM.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
 		}
@@ -3227,7 +3227,7 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 		int duplicate_name = 0;
 
 		if ((resolv_line = malloc(sizeof(*resolv_line) * LINESIZE)) == NULL) {
-			ha_alert("parsing [%s:%d] : out of memory.\n",
+			ha_alert("parsing [%s:%d] : OOM.\n",
 				 file, linenum);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto resolv_out;
@@ -3242,7 +3242,7 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 
 		sk = calloc(1, sizeof(*sk));
 		if (sk == NULL) {
-			ha_alert("parsing [/etc/resolv.conf:%d] : out of memory.\n",
+			ha_alert("parsing [/etc/resolv.conf:%d] : OOM.\n",
 				 resolv_linenum);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto resolv_out;
@@ -3296,13 +3296,13 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 			}
 
 			if ((newnameserver = calloc(1, sizeof(*newnameserver))) == NULL) {
-				ha_alert("parsing [/etc/resolv.conf:%d] : out of memory.\n", resolv_linenum);
+				ha_alert("parsing [/etc/resolv.conf:%d] : OOM.\n", resolv_linenum);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto resolv_out;
 			}
 
 			if (dns_dgram_init(newnameserver, sk) < 0) {
-				ha_alert("parsing [/etc/resolv.conf:%d] : out of memory.\n", resolv_linenum);
+				ha_alert("parsing [/etc/resolv.conf:%d] : OOM.\n", resolv_linenum);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				free(newnameserver);
 				goto resolv_out;
@@ -3310,7 +3310,7 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 
 			newnameserver->conf.file = strdup("/etc/resolv.conf");
 			if (newnameserver->conf.file == NULL) {
-				ha_alert("parsing [/etc/resolv.conf:%d] : out of memory.\n", resolv_linenum);
+				ha_alert("parsing [/etc/resolv.conf:%d] : OOM.\n", resolv_linenum);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				free(newnameserver);
 				goto resolv_out;
@@ -3318,7 +3318,7 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 
 			newnameserver->id = strdup(address);
 			if (newnameserver->id == NULL) {
-				ha_alert("parsing [/etc/resolv.conf:%d] : out of memory.\n", resolv_linenum);
+				ha_alert("parsing [/etc/resolv.conf:%d] : OOM.\n", resolv_linenum);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				free((char *)newnameserver->conf.file);
 				free(newnameserver);

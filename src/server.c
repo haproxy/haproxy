@@ -1064,7 +1064,7 @@ static int srv_parse_source(char **args, int *cur_arg,
 
 		newsrv->conn_src.sport_range = port_range_alloc_range(port_high - port_low + 1);
 		if (!newsrv->conn_src.sport_range) {
-			ha_alert("Server '%s': Out of memory (sport_range)\n", args[0]);
+			ha_alert("Server '%s': OOM (sport_range)\n", args[0]);
 			goto err;
 		}
 		for (i = 0; i < newsrv->conn_src.sport_range->size; i++)
@@ -1104,7 +1104,7 @@ static int srv_parse_source(char **args, int *cur_arg,
 				free(newsrv->conn_src.bind_hdr_name);
 				newsrv->conn_src.bind_hdr_name = calloc(1, end - name + 1);
 				if (!newsrv->conn_src.bind_hdr_name) {
-					ha_alert("Server '%s': Out of memory (bind_hdr_name)\n", args[0]);
+					ha_alert("Server '%s': OOM (bind_hdr_name)\n", args[0]);
 					goto err;
 				}
 				newsrv->conn_src.bind_hdr_len = end - name;
@@ -2469,7 +2469,7 @@ static int _srv_parse_init(struct server **srv, char **args, int *cur_arg,
 
 		*srv = newsrv = new_server(curproxy);
 		if (!newsrv) {
-			ha_alert("out of memory.\n");
+			ha_alert("OOM.\n");
 			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
 		}

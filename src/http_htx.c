@@ -1161,7 +1161,7 @@ struct buffer *http_load_errorfile(const char *file, char **errmsg)
 
 	err = malloc(errlen);
 	if (!err) {
-		memprintf(errmsg, "out of memory.");
+		memprintf(errmsg, "OOM.");
 		goto out;
 	}
 
@@ -1174,12 +1174,12 @@ struct buffer *http_load_errorfile(const char *file, char **errmsg)
 	/* Create the node corresponding to the error file */
 	http_errmsg = calloc(1, sizeof(*http_errmsg));
 	if (!http_errmsg) {
-		memprintf(errmsg, "out of memory.");
+		memprintf(errmsg, "OOM.");
 		goto out;
 	}
 	http_errmsg->node.key = strdup(file);
 	if (!http_errmsg->node.key) {
-		memprintf(errmsg, "out of memory.");
+		memprintf(errmsg, "OOM.");
 		free(http_errmsg);
 		goto out;
 	}
@@ -1225,12 +1225,12 @@ struct buffer *http_load_errormsg(const char *key, const struct ist msg, char **
 	/* Create the node corresponding to the error file */
 	http_errmsg = calloc(1, sizeof(*http_errmsg));
 	if (!http_errmsg) {
-		memprintf(errmsg, "out of memory.");
+		memprintf(errmsg, "OOM.");
 		goto out;
 	}
 	http_errmsg->node.key = strdup(key);
 	if (!http_errmsg->node.key) {
-		memprintf(errmsg, "out of memory.");
+		memprintf(errmsg, "OOM.");
 		free(http_errmsg);
 		goto out;
 	}
@@ -1300,7 +1300,7 @@ struct buffer *http_parse_errorloc(int errloc, int status, const char *url, char
 		if (http_err_codes[rc] == status) {
 			/*  Create the error key */
 			if (!memprintf(&key, "errorloc%d %s", errloc, url)) {
-				memprintf(errmsg, "out of memory.");
+				memprintf(errmsg, "OOM.");
 				goto out;
 			}
 			/* Create the error message */
@@ -1308,7 +1308,7 @@ struct buffer *http_parse_errorloc(int errloc, int status, const char *url, char
 			errlen = strlen(msg) + strlen(url) + 5;
 			err = malloc(errlen);
 			if (!err) {
-				memprintf(errmsg, "out of memory.");
+				memprintf(errmsg, "OOM.");
 				goto out;
 			}
 			errlen = snprintf(err, errlen, "%s%s\r\n\r\n", msg, url);
@@ -1397,7 +1397,7 @@ struct http_reply *http_parse_http_reply(const char **args, int *orig_arg, struc
 
 	reply = calloc(1, sizeof(*reply));
 	if (!reply) {
-		memprintf(errmsg, "out of memory");
+		memprintf(errmsg, "OOM");
 		goto error;
 	}
 	LIST_INIT(&reply->hdrs);
@@ -1449,7 +1449,7 @@ struct http_reply *http_parse_http_reply(const char **args, int *orig_arg, struc
 			}
 			reply->body.http_errors = strdup(args[cur_arg]);
 			if (!reply->body.http_errors) {
-				memprintf(errmsg, "out of memory");
+				memprintf(errmsg, "OOM");
 				goto error;
 			}
 			reply->type = HTTP_REPLY_ERRFILES;
@@ -1530,7 +1530,7 @@ struct http_reply *http_parse_http_reply(const char **args, int *orig_arg, struc
 			obj = strdup(args[cur_arg]);
 			objlen = strlen(args[cur_arg]);
 			if (!obj) {
-				memprintf(errmsg, "out of memory");
+				memprintf(errmsg, "OOM");
 				goto error;
 			}
 			reply->type = HTTP_REPLY_RAW;
@@ -1603,14 +1603,14 @@ struct http_reply *http_parse_http_reply(const char **args, int *orig_arg, struc
 			}
 			hdr = calloc(1, sizeof(*hdr));
 			if (!hdr) {
-				memprintf(errmsg, "'%s' : out of memory", args[cur_arg-1]);
+				memprintf(errmsg, "'%s' : OOM", args[cur_arg-1]);
 				goto error;
 			}
 			LIST_APPEND(&reply->hdrs, &hdr->list);
 			LIST_INIT(&hdr->value);
 			hdr->name = ist(strdup(args[cur_arg]));
 			if (!isttest(hdr->name)) {
-				memprintf(errmsg, "out of memory");
+				memprintf(errmsg, "OOM");
 				goto error;
 			}
 			if (!parse_logformat_string(args[cur_arg+1], px, &hdr->value, LOG_OPT_HTTP, cap, errmsg))
@@ -1849,7 +1849,7 @@ static int proxy_parse_errorloc(char **args, int section, struct proxy *curpx,
 
 	reply = calloc(1, sizeof(*reply));
 	if (!reply) {
-		memprintf(errmsg, "%s : out of memory.", args[0]);
+		memprintf(errmsg, "%s : OOM.", args[0]);
 		ret = -1;
 		goto out;
 	}
@@ -1862,7 +1862,7 @@ static int proxy_parse_errorloc(char **args, int section, struct proxy *curpx,
 
 	conf_err = calloc(1, sizeof(*conf_err));
 	if (!conf_err) {
-		memprintf(errmsg, "%s : out of memory.", args[0]);
+		memprintf(errmsg, "%s : OOM.", args[0]);
 		free(reply);
 		ret = -1;
 		goto out;
@@ -1915,7 +1915,7 @@ static int proxy_parse_errorfile(char **args, int section, struct proxy *curpx,
 
 	reply = calloc(1, sizeof(*reply));
 	if (!reply) {
-		memprintf(errmsg, "%s : out of memory.", args[0]);
+		memprintf(errmsg, "%s : OOM.", args[0]);
 		ret = -1;
 		goto out;
 	}
@@ -1928,7 +1928,7 @@ static int proxy_parse_errorfile(char **args, int section, struct proxy *curpx,
 
 	conf_err = calloc(1, sizeof(*conf_err));
 	if (!conf_err) {
-		memprintf(errmsg, "%s : out of memory.", args[0]);
+		memprintf(errmsg, "%s : OOM.", args[0]);
 		free(reply);
 		ret = -1;
 		goto out;
@@ -1971,7 +1971,7 @@ static int proxy_parse_errorfiles(char **args, int section, struct proxy *curpx,
 	name = strdup(args[1]);
 	conf_err = calloc(1, sizeof(*conf_err));
 	if (!name || !conf_err) {
-		memprintf(err, "%s : out of memory.", args[0]);
+		memprintf(err, "%s : OOM.", args[0]);
 		goto error;
 	}
 	conf_err->type = 0;
@@ -2053,7 +2053,7 @@ static int proxy_parse_http_error(char **args, int section, struct proxy *curpx,
 
 	conf_err = calloc(1, sizeof(*conf_err));
 	if (!conf_err) {
-		memprintf(errmsg, "%s : out of memory.", args[0]);
+		memprintf(errmsg, "%s : OOM.", args[0]);
 		goto error;
 	}
 	if (reply->type == HTTP_REPLY_ERRFILES) {
@@ -2179,7 +2179,7 @@ int proxy_dup_default_conf_errors(struct proxy *curpx, const struct proxy *defpx
 	list_for_each_entry(conf_err, &defpx->conf.errors, list) {
 		new_conf_err = calloc(1, sizeof(*new_conf_err));
 		if (!new_conf_err) {
-			memprintf(errmsg, "unable to duplicate default errors (out of memory).");
+			memprintf(errmsg, "unable to duplicate default errors (OOM).");
 			goto out;
 		}
 		new_conf_err->type = conf_err->type;
@@ -2190,7 +2190,7 @@ int proxy_dup_default_conf_errors(struct proxy *curpx, const struct proxy *defpx
 		else {
 			new_conf_err->info.errorfiles.name = strdup(conf_err->info.errorfiles.name);
 			if (!new_conf_err->info.errorfiles.name) {
-				memprintf(errmsg, "unable to duplicate default errors (out of memory).");
+				memprintf(errmsg, "unable to duplicate default errors (OOM).");
 				goto out;
 			}
 			memcpy(&new_conf_err->info.errorfiles.status, &conf_err->info.errorfiles.status,
@@ -2262,7 +2262,7 @@ static int cfg_parse_http_errors(const char *file, int linenum, char **args, int
 		}
 
 		if ((curr_errs = calloc(1, sizeof(*curr_errs))) == NULL) {
-			ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+			ha_alert("parsing [%s:%d] : OOM.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
 		}
@@ -2298,7 +2298,7 @@ static int cfg_parse_http_errors(const char *file, int linenum, char **args, int
 
 		reply = calloc(1, sizeof(*reply));
 		if (!reply) {
-			ha_alert("parsing [%s:%d] : %s : out of memory.\n", file, linenum, args[0]);
+			ha_alert("parsing [%s:%d] : %s : OOM.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}

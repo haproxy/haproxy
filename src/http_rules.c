@@ -82,7 +82,7 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 
 	rule = calloc(1, sizeof(*rule));
 	if (!rule) {
-		ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+		ha_alert("parsing [%s:%d]: OOM.\n", file, linenum);
 		goto out_err;
 	}
 	rule->from = ACT_F_HTTP_REQ;
@@ -161,7 +161,7 @@ struct act_rule *parse_http_res_cond(const char **args, const char *file, int li
 
 	rule = calloc(1, sizeof(*rule));
 	if (!rule) {
-		ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+		ha_alert("parsing [%s:%d]: OOM.\n", file, linenum);
 		goto out_err;
 	}
 	rule->from = ACT_F_HTTP_RES;
@@ -241,7 +241,7 @@ struct act_rule *parse_http_after_res_cond(const char **args, const char *file, 
 
 	rule = calloc(1, sizeof(*rule));
 	if (!rule) {
-		ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+		ha_alert("parsing [%s:%d]: OOM.\n", file, linenum);
 		goto out_err;
 	}
 	rule->from = ACT_F_HTTP_RES;
@@ -412,7 +412,7 @@ struct redirect_rule *http_parse_redirect_rule(const char *file, int linenum, st
 
 	rule = calloc(1, sizeof(*rule));
 	if (!rule) {
-		memprintf(errmsg, "parsing [%s:%d]: out of memory.", file, linenum);
+		memprintf(errmsg, "parsing [%s:%d]: OOM.", file, linenum);
 		return NULL;
 	}
 	rule->cond = cond;

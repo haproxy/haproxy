@@ -584,7 +584,7 @@ static int init_peers_frontend(const char *file, int linenum,
 
 	p = calloc(1, sizeof *p);
 	if (!p) {
-		ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+		ha_alert("parsing [%s:%d] : OOM.\n", file, linenum);
 		return -1;
 	}
 
@@ -644,7 +644,7 @@ static struct peer *cfg_peers_add_peer(struct peers *peers,
 
 	p = calloc(1, sizeof *p);
 	if (!p) {
-		ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+		ha_alert("parsing [%s:%d] : OOM.\n", file, linenum);
 		return NULL;
 	}
 
@@ -833,7 +833,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 		}
 
 		if ((curpeers = calloc(1, sizeof(*curpeers))) == NULL) {
-			ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+			ha_alert("parsing [%s:%d] : OOM.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
 		}
@@ -1081,7 +1081,7 @@ int cfg_parse_mailers(const char *file, int linenum, char **args, int kwm)
 		}
 
 		if ((curmailers = calloc(1, sizeof(*curmailers))) == NULL) {
-			ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+			ha_alert("parsing [%s:%d] : OOM.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
 		}
@@ -1116,7 +1116,7 @@ int cfg_parse_mailers(const char *file, int linenum, char **args, int kwm)
 		}
 
 		if ((newmailer = calloc(1, sizeof(*newmailer))) == NULL) {
-			ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+			ha_alert("parsing [%s:%d] : OOM.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
 		}
@@ -1294,14 +1294,14 @@ cfg_parse_users(const char *file, int linenum, char **args, int kwm)
 
 		newul = calloc(1, sizeof(*newul));
 		if (!newul) {
-			ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+			ha_alert("parsing [%s:%d]: OOM.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
 		}
 
 		newul->name = strdup(args[1]);
 		if (!newul->name) {
-			ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+			ha_alert("parsing [%s:%d]: OOM.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
 			free(newul);
 			goto out;
@@ -1343,14 +1343,14 @@ cfg_parse_users(const char *file, int linenum, char **args, int kwm)
 
 		ag = calloc(1, sizeof(*ag));
 		if (!ag) {
-			ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+			ha_alert("parsing [%s:%d]: OOM.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
 		}
 
 		ag->name = strdup(args[1]);
 		if (!ag->name) {
-			ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+			ha_alert("parsing [%s:%d]: OOM.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
 			free(ag);
 			goto out;
@@ -1400,7 +1400,7 @@ cfg_parse_users(const char *file, int linenum, char **args, int kwm)
 
 		newuser = calloc(1, sizeof(*newuser));
 		if (!newuser) {
-			ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+			ha_alert("parsing [%s:%d]: OOM.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
 		}
@@ -1705,7 +1705,7 @@ int readcfgfile(const char *file)
 	global.cfg_curr_file = file;
 
 	if ((thisline = malloc(sizeof(*thisline) * linesize)) == NULL) {
-		ha_alert("Out of memory trying to allocate a buffer for a configuration line.\n");
+		ha_alert("OOM trying to allocate a buffer for a configuration line.\n");
 		err_code = -1;
 		goto err;
 	}
@@ -3640,7 +3640,7 @@ out_uri_auth_compat:
 				if (!rs) {
 					rs = create_tcpcheck_ruleset("*tcp-check");
 					if (rs == NULL) {
-						ha_alert("config: %s '%s': out of memory.\n",
+						ha_alert("config: %s '%s': OOM.\n",
 							 proxy_type_str(curproxy), curproxy->id);
 						cfgerr++;
 					}
@@ -3848,7 +3848,7 @@ out_uri_auth_compat:
 						cfgerr++;
 				}
 				if (!peers_init_sync(curpeers) || !peers_alloc_dcache(curpeers)) {
-					ha_alert("Peers section '%s': out of memory, giving up on peers.\n",
+					ha_alert("Peers section '%s': OOM, giving up on peers.\n",
 						 curpeers->id);
 					cfgerr++;
 					break;
@@ -4006,7 +4006,7 @@ int cfg_register_section(char *section_name,
 
 	cs = calloc(1, sizeof(*cs));
 	if (!cs) {
-		ha_alert("register section '%s': out of memory.\n", section_name);
+		ha_alert("register section '%s': OOM.\n", section_name);
 		return 0;
 	}
 
@@ -4029,7 +4029,7 @@ int cfg_register_postparser(char *name, int (*func)())
 
 	cp = calloc(1, sizeof(*cp));
 	if (!cp) {
-		ha_alert("register postparser '%s': out of memory.\n", name);
+		ha_alert("register postparser '%s': OOM.\n", name);
 		return 0;
 	}
 	cp->name = name;

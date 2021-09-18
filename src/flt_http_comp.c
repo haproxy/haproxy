@@ -655,7 +655,7 @@ parse_compression_options(char **args, int section, struct proxy *proxy,
 					memprintf(err, "'%s' : '%s' is not a supported algorithm.\n",
 						  args[0], args[cur_arg]);
 				else
-					memprintf(err, "'%s' : out of memory while parsing algo '%s'.\n",
+					memprintf(err, "'%s' : OOM while parsing algo '%s'.\n",
 						  args[0], args[cur_arg]);
 				return -1;
 			}
@@ -682,7 +682,7 @@ parse_compression_options(char **args, int section, struct proxy *proxy,
 		}
 		while (*(args[cur_arg])) {
 			if (comp_append_type(comp, args[cur_arg])) {
-				memprintf(err, "'%s': out of memory.", args[0]);
+				memprintf(err, "'%s': OOM.", args[0]);
 				return -1;
 			}
 			cur_arg++;
@@ -762,7 +762,7 @@ check_implicit_http_comp_flt(struct proxy *proxy)
 	 * one */
 	fconf = calloc(1, sizeof(*fconf));
 	if (!fconf) {
-		ha_alert("config: %s '%s': out of memory\n",
+		ha_alert("config: %s '%s': OOM\n",
 			 proxy_type_str(proxy), proxy->id);
 		err++;
 		goto end;

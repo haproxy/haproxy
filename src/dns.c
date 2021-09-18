@@ -881,7 +881,7 @@ static struct appctx *dns_session_create(struct dns_session *ds)
 
 	sess = session_new(ds->dss->srv->proxy, NULL, &appctx->obj_type);
 	if (!sess) {
-		ha_alert("out of memory in peer_session_create().\n");
+		ha_alert("OOM in peer_session_create().\n");
 		goto out_free_appctx;
 	}
 

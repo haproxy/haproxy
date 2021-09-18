@@ -965,7 +965,7 @@ static int vars_parse_global_set_var(char **args, int section_type, struct proxy
 
 	if (use_fmt && !(sess = session_new(&px, NULL, &objt))) {
 		release_sample_expr(rule.arg.vars.expr);
-		memprintf(err, "'%s': out of memory when trying to set variable '%s' in the global section.", args[0], args[1]);
+		memprintf(err, "'%s': OOM when trying to set variable '%s' in the global section.", args[0], args[1]);
 		goto end;
 	}
 

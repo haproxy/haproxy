@@ -445,7 +445,7 @@ int make_arg_list(const char *in, int len, uint64_t mask, struct arg **argp,
 	goto err;
 
 alloc_err:
-	memprintf(err_msg, "out of memory");
+	memprintf(err_msg, "OOM");
 	goto err;
 }
 

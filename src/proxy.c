@@ -767,7 +767,7 @@ static int proxy_parse_declare(char **args, int section, struct proxy *curpx,
 		/* register the capture. */
 		hdr = calloc(1, sizeof(*hdr));
 		if (!hdr) {
-			memprintf(err, "proxy '%s': out of memory while registering a capture", curpx->id);
+			memprintf(err, "proxy '%s': OOM while registering a capture", curpx->id);
 			return -1;
 		}
 		hdr->name = NULL; /* not a header capture */
@@ -1495,7 +1495,7 @@ struct proxy *alloc_new_proxy(const char *name, unsigned int cap, char **errmsg)
 	struct proxy *curproxy;
 
 	if ((curproxy = calloc(1, sizeof(*curproxy))) == NULL) {
-		memprintf(errmsg, "proxy '%s': out of memory", name);
+		memprintf(errmsg, "proxy '%s': OOM", name);
 		goto fail;
 	}
 
@@ -1713,7 +1713,7 @@ static int proxy_defproxy_cpy(struct proxy *curproxy, const struct proxy *defpro
 		struct logsrv *node = malloc(sizeof(*node));
 
 		if (!node) {
-			memprintf(errmsg, "proxy '%s': out of memory", curproxy->id);
+			memprintf(errmsg, "proxy '%s': OOM", curproxy->id);
 			return 1;
 		}
 		memcpy(node, tmplogsrv, sizeof(struct logsrv));
@@ -1738,7 +1738,7 @@ static int proxy_defproxy_cpy(struct proxy *curproxy, const struct proxy *defpro
 		const struct ist copy = istdup(defproxy->header_unique_id);
 
 		if (!isttest(copy)) {
-			memprintf(errmsg, "proxy '%s': out of memory for unique-id-header", curproxy->id);
+			memprintf(errmsg, "proxy '%s': OOM for unique-id-header", curproxy->id);
 			return 1;
 		}
 		curproxy->header_unique_id = copy;
@@ -1748,7 +1748,7 @@ static int proxy_defproxy_cpy(struct proxy *curproxy, const struct proxy *defpro
 	if (defproxy->comp != NULL) {
 		curproxy->comp = calloc(1, sizeof(*curproxy->comp));
 		if (!curproxy->comp) {
-			memprintf(errmsg, "proxy '%s': out of memory for default compression options", curproxy->id);
+			memprintf(errmsg, "proxy '%s': OOM for default compression options", curproxy->id);
 			return 1;
 		}
 		curproxy->comp->algos = defproxy->comp->algos;
@@ -2045,7 +2045,7 @@ static void do_soft_stop_now()
 			task_schedule(task, tick_add(now_ms, global.hard_stop_after));
 		}
 		else {
-			ha_alert("out of memory trying to allocate the hard-stop task.\n");
+			ha_alert("OOM when trying to allocate the hard-stop task.\n");
 		}
 	}
 
@@ -2086,7 +2086,7 @@ void soft_stop(void)
 			return;
 		}
 		else {
-			ha_alert("out of memory trying to allocate the stop-stop task, stopping now.\n");
+			ha_alert("OOM when trying to allocate the stop-stop task, stopping now.\n");
 		}
 	}
 

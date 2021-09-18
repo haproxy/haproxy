@@ -1160,7 +1160,7 @@ __LJMP void hlua_yieldk(lua_State *L, int nresults, int ctx,
  * an LUA coroutine. It can not be use to crete the main LUA context.
  *
  * This function is particular. it initialises a new Lua thread. If the
- * initialisation fails (example: out of memory error), the lua function
+ * initialisation fails (example: OOM error), the lua function
  * throws an error (longjmp).
  *
  * In some case (at least one), this function can be called from safe
@@ -2204,7 +2204,7 @@ connection_empty:
 
 	if (!notification_new(&hlua->com, &appctx->ctx.hlua_cosocket.wake_on_read, hlua->task)) {
 		xref_unlock(&socket->xref, peer);
-		WILL_LJMP(luaL_error(L, "out of memory"));
+		WILL_LJMP(luaL_error(L, "OOM"));
 	}
 	xref_unlock(&socket->xref, peer);
 	MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_socket_receive_yield, TICK_ETERNITY, 0));
@@ -2411,7 +2411,7 @@ static int hlua_socket_write_yield(struct lua_State *L,int status, lua_KContext 
 hlua_socket_write_yield_return:
 	if (!notification_new(&hlua->com, &appctx->ctx.hlua_cosocket.wake_on_write, hlua->task)) {
 		xref_unlock(&socket->xref, peer);
-		WILL_LJMP(luaL_error(L, "out of memory"));
+		WILL_LJMP(luaL_error(L, "OOM"));
 	}
 	xref_unlock(&socket->xref, peer);
 	MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_socket_write_yield, TICK_ETERNITY, 0));
@@ -2693,7 +2693,7 @@ __LJMP static int hlua_socket_connect_yield(struct lua_State *L, int status, lua
 
 	if (!notification_new(&hlua->com, &appctx->ctx.hlua_cosocket.wake_on_write, hlua->task)) {
 		xref_unlock(&socket->xref, peer);
-		WILL_LJMP(luaL_error(L, "out of memory error"));
+		WILL_LJMP(luaL_error(L, "OOM error"));
 	}
 	xref_unlock(&socket->xref, peer);
 	MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_socket_connect_yield, TICK_ETERNITY, 0));
@@ -2800,7 +2800,7 @@ __LJMP static int hlua_socket_connect(struct lua_State *L)
 
 	if (!notification_new(&hlua->com, &appctx->ctx.hlua_cosocket.wake_on_write, hlua->task)) {
 		xref_unlock(&socket->xref, peer);
-		WILL_LJMP(luaL_error(L, "out of memory"));
+		WILL_LJMP(luaL_error(L, "OOM"));
 	}
 	xref_unlock(&socket->xref, peer);
 
@@ -2942,7 +2942,7 @@ __LJMP static int hlua_socket_new(lua_State *L)
 	/* Create the applet context */
 	appctx = appctx_new(&update_applet);
 	if (!appctx) {
-		hlua_pusherror(L, "socket: out of memory");
+		hlua_pusherror(L, "socket: OOM");
 		goto out_fail_conf;
 	}
 
@@ -2954,13 +2954,13 @@ __LJMP static int hlua_socket_new(lua_State *L)
 	/* Now create a session, task and stream for this applet */
 	sess = session_new(socket_proxy, NULL, &appctx->obj_type);
 	if (!sess) {
-		hlua_pusherror(L, "socket: out of memory");
+		hlua_pusherror(L, "socket: OOM");
 		goto out_fail_sess;
 	}
 
 	strm = stream_new(sess, &appctx->obj_type, &BUF_NULL);
 	if (!strm) {
-		hlua_pusherror(L, "socket: out of memory");
+		hlua_pusherror(L, "socket: OOM");
 		goto out_fail_stream;
 	}
 
@@ -7973,7 +7973,7 @@ __LJMP static int hlua_register_init(lua_State *L)
 
 	init = calloc(1, sizeof(*init));
 	if (!init)
-		WILL_LJMP(luaL_error(L, "Lua out of memory error."));
+		WILL_LJMP(luaL_error(L, "Lua OOM error."));
 
 	init->function_ref = ref;
 	LIST_APPEND(&hlua_init_functions[hlua_state_id], &init->l);
@@ -8044,7 +8044,7 @@ static int hlua_register_task(lua_State *L)
   alloc_error:
 	task_destroy(task);
 	hlua_ctx_destroy(hlua);
-	WILL_LJMP(luaL_error(L, "Lua out of memory error."));
+	WILL_LJMP(luaL_error(L, "Lua OOM error."));
 	return 0; /* Never reached */
 }
 
@@ -8165,7 +8165,7 @@ static int hlua_sample_conv_wrapper(const struct arg *arg_p, struct sample *smp,
 		return 0;
 
 	case HLUA_E_NOMEM:
-		SEND_ERR(stream->be, "Lua converter '%s': out of memory error.\n", fcn->name);
+		SEND_ERR(stream->be, "Lua converter '%s': OOM error.\n", fcn->name);
 		return 0;
 
 	case HLUA_E_YIELD:
@@ -8303,7 +8303,7 @@ static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp
 		return 0;
 
 	case HLUA_E_NOMEM:
-		SEND_ERR(smp->px, "Lua sample-fetch '%s': out of memory error.\n", fcn->name);
+		SEND_ERR(smp->px, "Lua sample-fetch '%s': OOM error.\n", fcn->name);
 		return 0;
 
 	case HLUA_E_YIELD:
@@ -8395,7 +8395,7 @@ __LJMP static int hlua_register_converters(lua_State *L)
   alloc_error:
 	release_hlua_function(fcn);
 	ha_free(&sck);
-	WILL_LJMP(luaL_error(L, "Lua out of memory error."));
+	WILL_LJMP(luaL_error(L, "Lua OOM error."));
 	return 0; /* Never reached */
 }
 
@@ -8475,7 +8475,7 @@ __LJMP static int hlua_register_fetches(lua_State *L)
   alloc_error:
 	release_hlua_function(fcn);
 	ha_free(&sfk);
-	WILL_LJMP(luaL_error(L, "Lua out of memory error."));
+	WILL_LJMP(luaL_error(L, "Lua OOM error."));
 	return 0; /* Never reached */
 }
 
@@ -8657,7 +8657,7 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 		goto end;
 
 	case HLUA_E_NOMEM:
-		SEND_ERR(px, "Lua function '%s': out of memory error.\n", rule->arg.hlua_rule->fcn->name);
+		SEND_ERR(px, "Lua function '%s': OOM error.\n", rule->arg.hlua_rule->fcn->name);
 		goto end;
 
 	case HLUA_E_YIELD:
@@ -8701,7 +8701,7 @@ static int hlua_applet_tcp_init(struct appctx *ctx, struct proxy *px, struct str
 
 	hlua = pool_alloc(pool_head_hlua);
 	if (!hlua) {
-		SEND_ERR(px, "Lua applet tcp '%s': out of memory.\n",
+		SEND_ERR(px, "Lua applet tcp '%s': OOM.\n",
 		         ctx->rule->arg.hlua_rule->fcn->name);
 		return 0;
 	}
@@ -8712,7 +8712,7 @@ static int hlua_applet_tcp_init(struct appctx *ctx, struct proxy *px, struct str
 	/* Create task used by signal to wakeup applets. */
 	task = task_new(tid_bit);
 	if (!task) {
-		SEND_ERR(px, "Lua applet tcp '%s': out of memory.\n",
+		SEND_ERR(px, "Lua applet tcp '%s': OOM.\n",
 		         ctx->rule->arg.hlua_rule->fcn->name);
 		return 0;
 	}
@@ -8839,7 +8839,7 @@ void hlua_applet_tcp_fct(struct appctx *ctx)
 		goto error;
 
 	case HLUA_E_NOMEM:
-		SEND_ERR(px, "Lua applet tcp '%s': out of memory error.\n",
+		SEND_ERR(px, "Lua applet tcp '%s': OOM error.\n",
 		         rule->arg.hlua_rule->fcn->name);
 		goto error;
 
@@ -8890,7 +8890,7 @@ static int hlua_applet_http_init(struct appctx *ctx, struct proxy *px, struct st
 	txn = strm->txn;
 	hlua = pool_alloc(pool_head_hlua);
 	if (!hlua) {
-		SEND_ERR(px, "Lua applet http '%s': out of memory.\n",
+		SEND_ERR(px, "Lua applet http '%s': OOM.\n",
 		         ctx->rule->arg.hlua_rule->fcn->name);
 		return 0;
 	}
@@ -8905,7 +8905,7 @@ static int hlua_applet_http_init(struct appctx *ctx, struct proxy *px, struct st
 	/* Create task used by signal to wakeup applets. */
 	task = task_new(tid_bit);
 	if (!task) {
-		SEND_ERR(px, "Lua applet http '%s': out of memory.\n",
+		SEND_ERR(px, "Lua applet http '%s': OOM.\n",
 		         ctx->rule->arg.hlua_rule->fcn->name);
 		return 0;
 	}
@@ -9044,7 +9044,7 @@ void hlua_applet_http_fct(struct appctx *ctx)
 			goto error;
 
 		case HLUA_E_NOMEM:
-			SEND_ERR(px, "Lua applet http '%s': out of memory error.\n",
+			SEND_ERR(px, "Lua applet http '%s': OOM error.\n",
 			         rule->arg.hlua_rule->fcn->name);
 			goto error;
 
@@ -9142,7 +9142,7 @@ static enum act_parse_ret action_register_lua(const char **args, int *cur_arg, s
 	/* Memory for the rule. */
 	rule->arg.hlua_rule = calloc(1, sizeof(*rule->arg.hlua_rule));
 	if (!rule->arg.hlua_rule) {
-		memprintf(err, "out of memory error");
+		memprintf(err, "OOM error");
 		goto error;
 	}
 
@@ -9150,7 +9150,7 @@ static enum act_parse_ret action_register_lua(const char **args, int *cur_arg, s
 	rule->arg.hlua_rule->args = calloc(fcn->nargs + 1,
 					   sizeof(*rule->arg.hlua_rule->args));
 	if (!rule->arg.hlua_rule->args) {
-		memprintf(err, "out of memory error");
+		memprintf(err, "OOM error");
 		goto error;
 	}
 
@@ -9165,7 +9165,7 @@ static enum act_parse_ret action_register_lua(const char **args, int *cur_arg, s
 		}
 		rule->arg.hlua_rule->args[i] = strdup(args[*cur_arg]);
 		if (!rule->arg.hlua_rule->args[i]) {
-			memprintf(err, "out of memory error");
+			memprintf(err, "OOM error");
 			goto error;
 		}
 		(*cur_arg)++;
@@ -9207,7 +9207,7 @@ static enum act_parse_ret action_register_service_http(const char **args, int *c
 	/* Memory for the rule. */
 	rule->arg.hlua_rule = calloc(1, sizeof(*rule->arg.hlua_rule));
 	if (!rule->arg.hlua_rule) {
-		memprintf(err, "out of memory error");
+		memprintf(err, "OOM error");
 		return ACT_RET_PRS_ERR;
 	}
 
@@ -9360,7 +9360,7 @@ __LJMP static int hlua_register_action(lua_State *L)
   alloc_error:
 	release_hlua_function(fcn);
 	ha_free(&akl);
-	WILL_LJMP(luaL_error(L, "Lua out of memory error."));
+	WILL_LJMP(luaL_error(L, "Lua OOM error."));
 	return 0; /* Never reached */
 }
 
@@ -9377,7 +9377,7 @@ static enum act_parse_ret action_register_service_tcp(const char **args, int *cu
 	/* Memory for the rule. */
 	rule->arg.hlua_rule = calloc(1, sizeof(*rule->arg.hlua_rule));
 	if (!rule->arg.hlua_rule) {
-		memprintf(err, "out of memory error");
+		memprintf(err, "OOM error");
 		return ACT_RET_PRS_ERR;
 	}
 
@@ -9493,7 +9493,7 @@ __LJMP static int hlua_register_service(lua_State *L)
   alloc_error:
 	release_hlua_function(fcn);
 	ha_free(&akl);
-	WILL_LJMP(luaL_error(L, "Lua out of memory error."));
+	WILL_LJMP(luaL_error(L, "Lua OOM error."));
 	return 0; /* Never reached */
 }
 
@@ -9512,7 +9512,7 @@ static int hlua_cli_parse_fct(char **args, char *payload, struct appctx *appctx,
 
 	hlua = pool_alloc(pool_head_hlua);
 	if (!hlua) {
-		SEND_ERR(NULL, "Lua cli '%s': out of memory.\n", fcn->name);
+		SEND_ERR(NULL, "Lua cli '%s': OOM.\n", fcn->name);
 		return 1;
 	}
 	HLUA_INIT(hlua);
@@ -9524,7 +9524,7 @@ static int hlua_cli_parse_fct(char **args, char *payload, struct appctx *appctx,
 	 */
 	appctx->ctx.hlua_cli.task = task_new(tid_bit);
 	if (!appctx->ctx.hlua_cli.task) {
-		SEND_ERR(NULL, "Lua cli '%s': out of memory.\n", fcn->name);
+		SEND_ERR(NULL, "Lua cli '%s': OOM.\n", fcn->name);
 		goto error;
 	}
 	appctx->ctx.hlua_cli.task->nice = 0;
@@ -9638,7 +9638,7 @@ static int hlua_cli_io_handler_fct(struct appctx *appctx)
 		return 1;
 
 	case HLUA_E_NOMEM:
-		SEND_ERR(NULL, "Lua converter '%s': out of memory error.\n",
+		SEND_ERR(NULL, "Lua converter '%s': OOM error.\n",
 		         fcn->name);
 		return 1;
 
@@ -9730,12 +9730,12 @@ __LJMP static int hlua_register_cli(lua_State *L)
 	/* Allocate and fill the sample fetch keyword struct. */
 	cli_kws = calloc(1, sizeof(*cli_kws) + sizeof(struct cli_kw) * 2);
 	if (!cli_kws) {
-		errmsg = "Lua out of memory error.";
+		errmsg = "Lua OOM error.";
 		goto error;
 	}
 	fcn = new_hlua_function();
 	if (!fcn) {
-		errmsg = "Lua out of memory error.";
+		errmsg = "Lua OOM error.";
 		goto error;
 	}
 
@@ -9753,7 +9753,7 @@ __LJMP static int hlua_register_cli(lua_State *L)
 		}
 		cli_kws->kw[0].str_kw[index] = strdup(lua_tostring(L, -1));
 		if (!cli_kws->kw[0].str_kw[index]) {
-			errmsg = "Lua out of memory error.";
+			errmsg = "Lua OOM error.";
 			goto error;
 		}
 		index++;
@@ -9763,7 +9763,7 @@ __LJMP static int hlua_register_cli(lua_State *L)
 	/* Copy help message. */
 	cli_kws->kw[0].usage = strdup(message);
 	if (!cli_kws->kw[0].usage) {
-		errmsg = "Lua out of memory error.";
+		errmsg = "Lua OOM error.";
 		goto error;
 	}
 
@@ -9773,7 +9773,7 @@ __LJMP static int hlua_register_cli(lua_State *L)
 		len += strlen(cli_kws->kw[0].str_kw[i]) + 1;
 	fcn->name = calloc(1, len);
 	if (!fcn->name) {
-		errmsg = "Lua out of memory error.";
+		errmsg = "Lua OOM error.";
 		goto error;
 	}
 	strncat((char *)fcn->name, "<lua.cli", len);
@@ -9862,7 +9862,7 @@ static int hlua_filter_init_per_thread(struct proxy *px, struct flt_conf *fconf)
 		ha_alert("Lua filter '%s' : runtime error : %s", conf->reg->name, lua_tostring(L, -1));
 		goto error;
 	case LUA_ERRMEM:
-		ha_alert("Lua filter '%s' : out of memory error", conf->reg->name);
+		ha_alert("Lua filter '%s' : OOM error", conf->reg->name);
 		goto error;
 	case LUA_ERRERR:
 		ha_alert("Lua filter '%s' : message handler error : %s", conf->reg->name, lua_tostring(L, -1));
@@ -10056,7 +10056,7 @@ static int hlua_filter_new(struct stream *s, struct filter *filter)
 		ret = 0;
 		goto end;
 	case HLUA_E_NOMEM:
-		SEND_ERR(s->be, "Lua filter '%s' : out of memory error.\n", conf->reg->name);
+		SEND_ERR(s->be, "Lua filter '%s' : OOM error.\n", conf->reg->name);
 		ret = 0;
 		goto end;
 	case HLUA_E_AGAIN:
@@ -10241,7 +10241,7 @@ static int hlua_filter_callback(struct stream *s, struct filter *filter, const c
 		SEND_ERR(s->be, "Lua filter '%s' : '%s' callback execution timeout.\n", conf->reg->name, fun);
 		goto end;
 	case HLUA_E_NOMEM:
-		SEND_ERR(s->be, "Lua filter '%s' : out of memory error.\n", conf->reg->name);
+		SEND_ERR(s->be, "Lua filter '%s' : OOM error.\n", conf->reg->name);
 		goto end;
 	case HLUA_E_YIELD:
 		SEND_ERR(s->be, "Lua filter '%s': yield functions like core.tcp() or core.sleep()"
@@ -10440,7 +10440,7 @@ static int hlua_filter_parse_fct(char **args, int *cur_arg, struct proxy *px,
 	return 0;
 
   error:
-	memprintf(err, "Lua filter '%s' : Lua out of memory error", reg_flt->name);
+	memprintf(err, "Lua filter '%s' : Lua OOM error", reg_flt->name);
 	free(hlua_flt_ops);
 	if (conf && conf->args) {
 		for (pos = 0; conf->args[pos]; pos++)
@@ -10560,7 +10560,7 @@ __LJMP static int hlua_register_filter(lua_State *L)
   alloc_error:
 	release_hlua_reg_filter(reg_flt);
 	ha_free(&fkl);
-	WILL_LJMP(luaL_error(L, "Lua out of memory error."));
+	WILL_LJMP(luaL_error(L, "Lua OOM error."));
 	return 0; /* Never reached */
 }
 
@@ -10681,7 +10681,7 @@ static int hlua_load_state(char *filename, lua_State *L, char **err)
 		lua_pop(L, 1);
 		return -1;
 	case LUA_ERRMEM:
-		memprintf(err, "Lua out of memory error\n");
+		memprintf(err, "Lua OOM error\n");
 		return -1;
 	case LUA_ERRERR:
 		memprintf(err, "Lua message handler error: %s\n", lua_tostring(L, -1));
@@ -10732,7 +10732,7 @@ static int hlua_load_per_thread(char **args, int section_type, struct proxy *cur
 		/* allocate the first entry large enough to store the final NULL */
 		per_thread_load = calloc(1, sizeof(*per_thread_load));
 		if (per_thread_load == NULL) {
-			memprintf(err, "out of memory error");
+			memprintf(err, "OOM error");
 			return -1;
 		}
 	}
@@ -10743,7 +10743,7 @@ static int hlua_load_per_thread(char **args, int section_type, struct proxy *cur
 
 	per_thread_load = realloc(per_thread_load, (len + 2) * sizeof(*per_thread_load));
 	if (per_thread_load == NULL) {
-		memprintf(err, "out of memory error");
+		memprintf(err, "OOM error");
 		return -1;
 	}
 
@@ -10751,7 +10751,7 @@ static int hlua_load_per_thread(char **args, int section_type, struct proxy *cur
 	per_thread_load[len + 1] = NULL;
 
 	if (per_thread_load[len] == NULL) {
-		memprintf(err, "out of memory error");
+		memprintf(err, "OOM error");
 		return -1;
 	}
 
@@ -10927,7 +10927,7 @@ int hlua_post_init_state(lua_State *L)
 			/* Fall through */
 		case LUA_ERRMEM:
 			if (!kind)
-				kind = "out of memory error";
+				kind = "OOM error";
 			lua_settop(L, 0);
 			lua_pop(L, 1);
 			trace = hlua_traceback(L, ", ");

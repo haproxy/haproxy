@@ -62,7 +62,7 @@ static int flt_ot_parse_strdup(char **ptr, const char *str, char **err, const ch
 
 	*ptr = FLT_OT_STRDUP(str);
 	if (*ptr == NULL) {
-		FLT_OT_PARSE_ERR(err, "'%s' : out of memory", err_msg);
+		FLT_OT_PARSE_ERR(err, "'%s' : OOM", err_msg);
 
 		retval |= ERR_ABORT | ERR_ALERT;
 	}
@@ -316,7 +316,7 @@ static int flt_ot_parse_cfg_sample(const char *file, int linenum, char **args, s
 
 	sample = flt_ot_conf_sample_init(args, linenum, head, err);
 	if (sample == NULL)
-		FLT_OT_PARSE_ERR(err, "'%s' : out of memory", args[0]);
+		FLT_OT_PARSE_ERR(err, "'%s' : OOM", args[0]);
 
 	if (!(retval & ERR_CODE)) {
 		flt_ot_current_config->proxy->conf.args.ctx  = ARGC_OT;
@@ -1157,7 +1157,7 @@ static int flt_ot_parse(char **args, int *cur_arg, struct proxy *px, struct flt_
 
 	conf = flt_ot_conf_init(px);
 	if (conf == NULL) {
-		FLT_OT_PARSE_ERR(err, "'%s' : out of memory", args[*cur_arg]);
+		FLT_OT_PARSE_ERR(err, "'%s' : OOM", args[*cur_arg]);
 
 		FLT_OT_RETURN(retval);
 	}

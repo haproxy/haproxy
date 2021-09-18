@@ -1193,7 +1193,7 @@ int pat_idx_list_val(struct pattern_expr *expr, struct pattern *pat, char **err)
 	/* allocate pattern */
 	patl = calloc(1, sizeof(*patl));
 	if (!patl) {
-		memprintf(err, "out of memory while indexing pattern");
+		memprintf(err, "OOM while indexing pattern");
 		return 0;
 	}
 
@@ -1219,7 +1219,7 @@ int pat_idx_list_ptr(struct pattern_expr *expr, struct pattern *pat, char **err)
 	/* allocate pattern */
 	patl = calloc(1, sizeof(*patl));
 	if (!patl) {
-		memprintf(err, "out of memory while indexing pattern");
+		memprintf(err, "OOM while indexing pattern");
 		return 0;
 	}
 
@@ -1228,7 +1228,7 @@ int pat_idx_list_ptr(struct pattern_expr *expr, struct pattern *pat, char **err)
 	patl->pat.ptr.ptr = malloc(patl->pat.len);
 	if (!patl->pat.ptr.ptr) {
 		free(patl);
-		memprintf(err, "out of memory while indexing pattern");
+		memprintf(err, "OOM while indexing pattern");
 		return 0;
 	}
 	memcpy(patl->pat.ptr.ptr, pat->ptr.ptr, pat->len);
@@ -1252,7 +1252,7 @@ int pat_idx_list_str(struct pattern_expr *expr, struct pattern *pat, char **err)
 	/* allocate pattern */
 	patl = calloc(1, sizeof(*patl));
 	if (!patl) {
-		memprintf(err, "out of memory while indexing pattern");
+		memprintf(err, "OOM while indexing pattern");
 		return 0;
 	}
 
@@ -1261,7 +1261,7 @@ int pat_idx_list_str(struct pattern_expr *expr, struct pattern *pat, char **err)
 	patl->pat.ptr.str = malloc(patl->pat.len + 1);
 	if (!patl->pat.ptr.str) {
 		free(patl);
-		memprintf(err, "out of memory while indexing pattern");
+		memprintf(err, "OOM while indexing pattern");
 		return 0;
 	}
 	memcpy(patl->pat.ptr.ptr, pat->ptr.ptr, pat->len);
@@ -1286,7 +1286,7 @@ int pat_idx_list_reg_cap(struct pattern_expr *expr, struct pattern *pat, int cap
 	/* allocate pattern */
 	patl = calloc(1, sizeof(*patl));
 	if (!patl) {
-		memprintf(err, "out of memory while indexing pattern");
+		memprintf(err, "OOM while indexing pattern");
 		return 0;
 	}
 
@@ -1342,7 +1342,7 @@ int pat_idx_tree_ip(struct pattern_expr *expr, struct pattern *pat, char **err)
 			/* node memory allocation */
 			node = calloc(1, sizeof(*node) + 4);
 			if (!node) {
-				memprintf(err, "out of memory while loading pattern");
+				memprintf(err, "OOM while loading pattern");
 				return 0;
 			}
 
@@ -1373,7 +1373,7 @@ int pat_idx_tree_ip(struct pattern_expr *expr, struct pattern *pat, char **err)
 		/* IPv6 also can be indexed */
 		node = calloc(1, sizeof(*node) + 16);
 		if (!node) {
-			memprintf(err, "out of memory while loading pattern");
+			memprintf(err, "OOM while loading pattern");
 			return 0;
 		}
 
@@ -1421,7 +1421,7 @@ int pat_idx_tree_str(struct pattern_expr *expr, struct pattern *pat, char **err)
 	/* node memory allocation */
 	node = calloc(1, sizeof(*node) + len);
 	if (!node) {
-		memprintf(err, "out of memory while loading pattern");
+		memprintf(err, "OOM while loading pattern");
 		return 0;
 	}
 
@@ -1465,7 +1465,7 @@ int pat_idx_tree_pfx(struct pattern_expr *expr, struct pattern *pat, char **err)
 	/* node memory allocation */
 	node = calloc(1, sizeof(*node) + len + 1);
 	if (!node) {
-		memprintf(err, "out of memory while loading pattern");
+		memprintf(err, "OOM while loading pattern");
 		return 0;
 	}
 
@@ -1710,7 +1710,7 @@ static inline int pat_ref_set_elt(struct pat_ref *ref, struct pat_ref_elt *elt,
 	/* Modify pattern from reference. */
 	sample = strdup(value);
 	if (!sample) {
-		memprintf(err, "out of memory error");
+		memprintf(err, "OOM error");
 		return 0;
 	}
 	/* Load sample in each reference. All the conversions are tested
@@ -2009,7 +2009,7 @@ struct pat_ref_elt *pat_ref_load(struct pat_ref *ref, unsigned int gen,
 		if (!pat_ref_commit_elt(ref, elt, err))
 			elt = NULL;
 	} else
-		memprintf(err, "out of memory error");
+		memprintf(err, "OOM error");
 
 	return elt;
 }
@@ -2136,7 +2136,7 @@ struct pattern_expr *pattern_new_expr(struct pattern_head *head, struct pat_ref 
 	/* Memory and initialization of the chain element. */
 	list = calloc(1, sizeof(*list));
 	if (!list) {
-		memprintf(err, "out of memory");
+		memprintf(err, "OOM");
 		return NULL;
 	}
 
@@ -2163,7 +2163,7 @@ struct pattern_expr *pattern_new_expr(struct pattern_head *head, struct pat_ref 
 		expr = calloc(1, sizeof(*expr));
 		if (!expr) {
 			free(list);
-			memprintf(err, "out of memory");
+			memprintf(err, "OOM");
 			return NULL;
 		}
 
@@ -2292,7 +2292,7 @@ int pat_ref_read_from_file_smp(struct pat_ref *ref, const char *filename, char *
 
 		/* insert values */
 		if (!pat_ref_append(ref, key_beg, value_beg, line)) {
-			memprintf(err, "out of memory");
+			memprintf(err, "OOM");
 			goto out_close;
 		}
 	}
@@ -2354,7 +2354,7 @@ int pat_ref_read_from_file(struct pat_ref *ref, const char *filename, char **err
 			continue;
 
 		if (!pat_ref_append(ref, arg, NULL, line)) {
-			memprintf(err, "out of memory when loading patterns from file <%s>", filename);
+			memprintf(err, "OOM when loading patterns from file <%s>", filename);
 			goto out_close;
 		}
 	}
@@ -2391,7 +2391,7 @@ int pattern_read_from_file(struct pattern_head *head, unsigned int refflags,
 
 		ref = pat_ref_new(filename, trash.area, refflags);
 		if (!ref) {
-			memprintf(err, "out of memory");
+			memprintf(err, "OOM");
 			return 0;
 		}
 
@@ -2438,7 +2438,7 @@ int pattern_read_from_file(struct pattern_head *head, unsigned int refflags,
 		free(ref->display);
 		ref->display = strdup(trash.area);
 		if (!ref->display) {
-			memprintf(err, "out of memory");
+			memprintf(err, "OOM");
 			return 0;
 		}
 
@@ -2645,7 +2645,7 @@ int pattern_finalize_config(void)
 
 	arr = calloc(len, sizeof(*arr));
 	if (arr == NULL) {
-		ha_alert("Out of memory error.\n");
+		ha_alert("OOM error.\n");
 		return ERR_ALERT | ERR_FATAL;
 	}
 

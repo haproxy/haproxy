@@ -306,7 +306,7 @@ void hap_register_build_opts(const char *str, int must_free)
 
 	b = calloc(1, sizeof(*b));
 	if (!b) {
-		fprintf(stderr, "out of memory\n");
+		fprintf(stderr, "OOM\n");
 		exit(1);
 	}
 	b->str = str;
@@ -1030,7 +1030,7 @@ static void cfgfiles_expand_directories(void)
 				goto next_dir_entry;
 
 			if (!memprintf(&filename, "%s/%s", wl->s, dir_entry->d_name)) {
-				ha_alert("Cannot load configuration files %s : out of memory.\n",
+				ha_alert("Cannot load configuration files %s : OOM.\n",
 					 filename);
 				exit(1);
 			}
@@ -1691,7 +1691,7 @@ static void init(int argc, char **argv)
 					char * endptr = NULL;
 					oldpids = realloc(oldpids, (nb_oldpids + 1) * sizeof(int));
 					if (!oldpids) {
-						ha_alert("Cannot allocate old pid : out of memory.\n");
+						ha_alert("Cannot allocate old pid : OOM.\n");
 						exit(1);
 					}
 					argc--; argv++;

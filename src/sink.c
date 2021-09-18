@@ -650,7 +650,7 @@ static struct appctx *sink_forward_session_create(struct sink *sink, struct sink
 
 	sess = session_new(p, NULL, &appctx->obj_type);
 	if (!sess) {
-		ha_alert("out of memory in peer_session_create().\n");
+		ha_alert("OOM in peer_session_create().\n");
 		goto out_free_appctx;
 	}
 
@@ -784,7 +784,7 @@ int cfg_parse_ring(const char *file, int linenum, char **args, int kwm)
 		/* allocate new proxy to handle forwards */
 		p = calloc(1, sizeof *p);
 		if (!p) {
-			ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+			ha_alert("parsing [%s:%d] : OOM.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto err;
 		}

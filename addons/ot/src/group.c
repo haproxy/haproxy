@@ -278,7 +278,7 @@ static enum act_parse_ret flt_ot_group_parse(const char **args, int *cur_arg, st
 	/* Copy the OpenTracing filter id. */
 	rule->arg.act.p[FLT_OT_ARG_FILTER_ID] = FLT_OT_STRDUP(args[*cur_arg]);
 	if (rule->arg.act.p[FLT_OT_ARG_FILTER_ID] == NULL) {
-		FLT_OT_ERR("%s : out of memory", args[*cur_arg]);
+		FLT_OT_ERR("%s : OOM", args[*cur_arg]);
 
 		FLT_OT_RETURN(ACT_RET_PRS_ERR);
 	}
@@ -286,7 +286,7 @@ static enum act_parse_ret flt_ot_group_parse(const char **args, int *cur_arg, st
 	/* Copy the OpenTracing group id. */
 	rule->arg.act.p[FLT_OT_ARG_GROUP_ID] = FLT_OT_STRDUP(args[*cur_arg + 1]);
 	if (rule->arg.act.p[FLT_OT_ARG_GROUP_ID] == NULL) {
-		FLT_OT_ERR("%s : out of memory", args[*cur_arg + 1]);
+		FLT_OT_ERR("%s : OOM", args[*cur_arg + 1]);
 
 		FLT_OT_FREE_CLEAR(rule->arg.act.p[FLT_OT_ARG_FILTER_ID]);
 

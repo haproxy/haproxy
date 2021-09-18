@@ -954,7 +954,7 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 
 	str2 = back = env_expand(strdup(str));
 	if (str2 == NULL) {
-		memprintf(err, "out of memory in '%s'\n", __FUNCTION__);
+		memprintf(err, "OOM in '%s'\n", __FUNCTION__);
 		goto out;
 	}
 
@@ -2536,7 +2536,7 @@ int parse_binary(const char *source, char **binstr, int *binstrlen, char **err)
 	if (!*binstr) {
 		*binstr = calloc(len, sizeof(**binstr));
 		if (!*binstr) {
-			memprintf(err, "out of memory while loading string pattern");
+			memprintf(err, "OOM while loading string pattern");
 			return 0;
 		}
 		alloc = 1;
@@ -4473,13 +4473,13 @@ int list_append_word(struct list *li, const char *str, char **err)
 
 	wl = calloc(1, sizeof(*wl));
 	if (!wl) {
-		memprintf(err, "out of memory");
+		memprintf(err, "OOM");
 		goto fail_wl;
 	}
 
 	wl->s = strdup(str);
 	if (!wl->s) {
-		memprintf(err, "out of memory");
+		memprintf(err, "OOM");
 		goto fail_wl_s;
 	}
 

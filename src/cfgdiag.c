@@ -30,7 +30,7 @@ static inline void *diag_alloc(size_t size)
 	void *out = NULL;
 
 	if (!(out = malloc(size))) {
-		fprintf(stderr, "out of memory\n");
+		fprintf(stderr, "OOM\n");
 		exit(1);
 	}
 

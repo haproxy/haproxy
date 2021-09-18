@@ -260,7 +260,7 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 			if (!(s->logs.logwait &= ~(LW_REQ|LW_INIT)))
 				s->do_log(s);
 		} else {
-			ha_alert("HTTP logging : out of memory.\n");
+			ha_alert("HTTP logging : OOM.\n");
 		}
 	}
 
@@ -3140,7 +3140,7 @@ static void http_manage_client_side_cookies(struct stream *s, struct channel *re
 				int log_len = val_end - att_beg;
 
 				if ((txn->cli_cookie = pool_alloc(pool_head_capture)) == NULL) {
-					ha_alert("HTTP logging : out of memory.\n");
+					ha_alert("HTTP logging : OOM.\n");
 				} else {
 					if (log_len > sess->fe->capture_len)
 						log_len = sess->fe->capture_len;
@@ -3545,7 +3545,7 @@ static void http_manage_server_side_cookies(struct stream *s, struct channel *re
 			    memcmp(att_beg, sess->fe->capture_name, sess->fe->capture_namelen) == 0) {
 				int log_len = val_end - att_beg;
 				if ((txn->srv_cookie = pool_alloc(pool_head_capture)) == NULL) {
-					ha_alert("HTTP logging : out of memory.\n");
+					ha_alert("HTTP logging : OOM.\n");
 				}
 				else {
 					if (log_len > sess->fe->capture_len)
@@ -4864,7 +4864,7 @@ static void http_capture_headers(struct htx *htx, char **cap, struct cap_hdr *ca
 						pool_alloc(h->pool);
 
 				if (cap[h->index] == NULL) {
-					ha_alert("HTTP capture : out of memory.\n");
+					ha_alert("HTTP capture : OOM.\n");
 					break;
 				}
 

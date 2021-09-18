@@ -148,7 +148,7 @@ int cfg_parse_program(const char *file, int linenum, char **args, int kwm)
 
 		ext_child = calloc(1, sizeof(*ext_child));
 		if (!ext_child) {
-			ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+			ha_alert("parsing [%s:%d] : OOM.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
 			goto error;
 		}
@@ -179,7 +179,7 @@ int cfg_parse_program(const char *file, int linenum, char **args, int kwm)
 
 		ext_child->id = strdup(args[1]);
 		if (!ext_child->id) {
-			ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+			ha_alert("parsing [%s:%d] : OOM.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
 			goto error;
 		}
@@ -202,7 +202,7 @@ int cfg_parse_program(const char *file, int linenum, char **args, int kwm)
 		ext_child->command = calloc(arg_nb+1, sizeof(*ext_child->command));
 
 		if (!ext_child->command) {
-			ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+			ha_alert("parsing [%s:%d] : OOM.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
 			goto error;
 		}
@@ -210,7 +210,7 @@ int cfg_parse_program(const char *file, int linenum, char **args, int kwm)
 		while (i < arg_nb) {
 			ext_child->command[i] = strdup(args[i+1]);
 			if (!ext_child->command[i]) {
-				ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+				ha_alert("parsing [%s:%d] : OOM.\n", file, linenum);
 				err_code |= ERR_ALERT | ERR_ABORT;
 				goto error;
 			}

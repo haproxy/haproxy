@@ -333,7 +333,7 @@ ssize_t flt_ot_chunk_add(struct buffer *chk, const void *src, size_t n, char **e
 		chunk_init(chk, FLT_OT_CALLOC(1, global.tune.bufsize), global.tune.bufsize);
 
 	if (chk->area == NULL) {
-		FLT_OT_ERR("out of memory");
+		FLT_OT_ERR("OOM");
 
 		FLT_OT_RETURN(-1);
 	}
@@ -669,7 +669,7 @@ int flt_ot_sample_to_value(const char *key, const struct sample_data *data, stru
 		value->value.string_value = FLT_OT_MALLOC(global.tune.bufsize);
 
 		if (value->value.string_value == NULL)
-			FLT_OT_ERR("out of memory");
+			FLT_OT_ERR("OOM");
 		else
 			retval = flt_ot_sample_to_str(data, (char *)value->value.string_value, global.tune.bufsize, err);
 	}
@@ -747,7 +747,7 @@ int flt_ot_sample_add(struct stream *s, uint dir, struct flt_ot_conf_sample *sam
 			if (buffer.area == NULL) {
 				chunk_init(&buffer, FLT_OT_CALLOC(1, global.tune.bufsize), global.tune.bufsize);
 				if (buffer.area == NULL) {
-					FLT_OT_ERR("out of memory");
+					FLT_OT_ERR("OOM");
 
 					retval = FLT_OT_RET_ERROR;
 
@@ -789,12 +789,12 @@ int flt_ot_sample_add(struct stream *s, uint dir, struct flt_ot_conf_sample *sam
 			data->baggage = otc_text_map_new(NULL, FLT_OT_MAXBAGGAGES);
 
 		if (data->baggage == NULL) {
-			FLT_OT_ERR("out of memory");
+			FLT_OT_ERR("OOM");
 
 			retval = FLT_OT_RET_ERROR;
 		}
 		else if (otc_text_map_add(data->baggage, sample->key, 0, value.value.string_value, 0, 0) == -1) {
-			FLT_OT_ERR("out of memory");
+			FLT_OT_ERR("OOM");
 
 			retval = FLT_OT_RET_ERROR;
 		}

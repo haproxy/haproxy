@@ -197,7 +197,7 @@ parse_filter(char **args, int section_type, struct proxy *curpx,
 		}
 		fconf = calloc(1, sizeof(*fconf));
 		if (!fconf) {
-			memprintf(err, "'%s' : out of memory", args[0]);
+			memprintf(err, "'%s' : OOM", args[0]);
 			goto error;
 		}
 

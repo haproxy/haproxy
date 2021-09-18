@@ -347,7 +347,7 @@ struct appctx *httpclient_start(struct httpclient *hc)
 
 	sess = session_new(httpclient_proxy, NULL, &appctx->obj_type);
 	if (!sess) {
-		ha_alert("httpclient: out of memory in %s:%d.\n", __FUNCTION__, __LINE__);
+		ha_alert("httpclient: OOM in %s:%d.\n", __FUNCTION__, __LINE__);
 		goto out_free_appctx;
 	}
 	if ((s = stream_new(sess, &appctx->obj_type, &BUF_NULL)) == NULL) {
@@ -689,7 +689,7 @@ static int httpclient_init()
 	httpclient_srv_raw = new_server(httpclient_proxy);
 	if (!httpclient_srv_raw) {
 		err_code |= ERR_ALERT | ERR_FATAL;
-		memprintf(&errmsg, "out of memory.");
+		memprintf(&errmsg, "OOM.");
 		goto err;
 	}
 
@@ -704,7 +704,7 @@ static int httpclient_init()
 	/* SSL HTTP server */
 	httpclient_srv_ssl = new_server(httpclient_proxy);
 	if (!httpclient_srv_ssl) {
-		memprintf(&errmsg, "out of memory.");
+		memprintf(&errmsg, "OOM.");
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto err;
 	}

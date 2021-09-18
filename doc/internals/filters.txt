@@ -391,7 +391,7 @@ filter line :
         /* Allocate the internal configuration used by the filter */
         my_conf = calloc(1, sizeof(*my_conf));
         if (!my_conf) {
-            memprintf(err, "%s : out of memory", args[*cur_arg]);
+            memprintf(err, "%s : OOM", args[*cur_arg]);
             return -1;
         }
         my_conf->proxy = px;
@@ -410,7 +410,7 @@ filter line :
                 }
                 my_conf->name = strdup(args[pos + 1]);
                 if (!my_conf->name) {
-                    memprintf(err, "%s : out of memory", args[*cur_arg]);
+                    memprintf(err, "%s : OOM", args[*cur_arg]);
                     goto error;
                 }
                 pos += 2;

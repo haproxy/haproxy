@@ -417,14 +417,14 @@ static int cli_parse_global(char **args, int section_type, struct proxy *curpx,
 
 		if (!global.cli_fe) {
 			if ((global.cli_fe = cli_alloc_fe("GLOBAL", file, line)) == NULL) {
-				memprintf(err, "'%s %s' : out of memory trying to allocate a frontend", args[0], args[1]);
+				memprintf(err, "'%s %s' : OOM when trying to allocate a frontend", args[0], args[1]);
 				return -1;
 			}
 		}
 
 		bind_conf = bind_conf_alloc(global.cli_fe, file, line, args[2], xprt_get(XPRT_RAW));
 		if (!bind_conf) {
-			memprintf(err, "'%s %s' : out of memory trying to allocate a bind_conf", args[0], args[1]);
+			memprintf(err, "'%s %s' : OOM when trying to allocate a bind_conf", args[0], args[1]);
 			return -1;
 		}
 		bind_conf->level &= ~ACCESS_LVL_MASK;
@@ -505,7 +505,7 @@ static int cli_parse_global(char **args, int section_type, struct proxy *curpx,
 		}
 		if (!global.cli_fe) {
 			if ((global.cli_fe = cli_alloc_fe("GLOBAL", file, line)) == NULL) {
-				memprintf(err, "'%s %s' : out of memory trying to allocate a frontend", args[0], args[1]);
+				memprintf(err, "'%s %s' : OOM when trying to allocate a frontend", args[0], args[1]);
 				return -1;
 			}
 		}
@@ -521,7 +521,7 @@ static int cli_parse_global(char **args, int section_type, struct proxy *curpx,
 
 		if (!global.cli_fe) {
 			if ((global.cli_fe = cli_alloc_fe("GLOBAL", file, line)) == NULL) {
-				memprintf(err, "'%s %s' : out of memory trying to allocate a frontend", args[0], args[1]);
+				memprintf(err, "'%s %s' : OOM when trying to allocate a frontend", args[0], args[1]);
 				return -1;
 			}
 		}
@@ -533,7 +533,7 @@ static int cli_parse_global(char **args, int section_type, struct proxy *curpx,
 
 		if (!global.cli_fe) {
 			if ((global.cli_fe = cli_alloc_fe("GLOBAL", file, line)) == NULL) {
-				memprintf(err, "'%s %s' : out of memory trying to allocate a frontend", args[0], args[1]);
+				memprintf(err, "'%s %s' : OOM when trying to allocate a frontend", args[0], args[1]);
 				return -1;
 			}
 		}
@@ -985,7 +985,7 @@ static void cli_io_handler(struct appctx *appctx)
 					msg = appctx->ctx.cli.err;
 					if (!msg) {
 						sev = LOG_ERR;
-						msg = "Out of memory.\n";
+						msg = "OOM.\n";
 					}
 				}
 				else {
@@ -2877,7 +2877,7 @@ int mworker_cli_sockpair_new(struct mworker_proc *mworker_proc, int proc)
 	/* XXX: we might want to use a separate frontend at some point */
 	if (!global.cli_fe) {
 		if ((global.cli_fe = cli_alloc_fe("GLOBAL", "master-socket", 0)) == NULL) {
-			ha_alert("out of memory trying to allocate the stats frontend");
+			ha_alert("OOM when trying to allocate the stats frontend");
 			goto error;
 		}
 	}

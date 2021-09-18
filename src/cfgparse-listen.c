@@ -3126,7 +3126,7 @@ stats_error_parsing:
 	return err_code;
 
  alloc_error:
-	ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+	ha_alert("parsing [%s:%d]: OOM.\n", file, linenum);
 	err_code |= ERR_ALERT | ERR_ABORT;
 	goto out;
 }

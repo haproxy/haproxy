@@ -51,7 +51,7 @@ void *flt_ot_pool_alloc(struct pool_head *pool, size_t size, bool flag_clear, ch
 	}
 
 	if (retptr == NULL)
-		FLT_OT_ERR("out of memory");
+		FLT_OT_ERR("OOM");
 	else if (flag_clear)
 		(void)memset(retptr, 0, size);
 
@@ -95,7 +95,7 @@ void *flt_ot_pool_strndup(struct pool_head *pool, const char *s, size_t size, ch
 	if (retptr != NULL)
 		FLT_OT_DBG(2, "POOL_STRNDUP: %s:%d(%p %zu)", __func__, __LINE__, retptr, FLT_OT_DEREF(pool, size, size));
 	else
-		FLT_OT_ERR("out of memory");
+		FLT_OT_ERR("OOM");
 
 	FLT_OT_RETURN(retptr);
 }
@@ -171,7 +171,7 @@ struct buffer *flt_ot_trash_alloc(bool flag_clear, char **err)
 #endif
 
 	if (retptr == NULL)
-		FLT_OT_ERR("out of memory");
+		FLT_OT_ERR("OOM");
 	else if (flag_clear)
 		(void)memset(retptr->area, 0, retptr->size);
 

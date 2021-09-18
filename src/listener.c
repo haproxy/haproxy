@@ -174,7 +174,7 @@ static int accept_queue_init()
 	for (i = 0; i < global.nbthread; i++) {
 		t = tasklet_new();
 		if (!t) {
-			ha_alert("Out of memory while initializing accept queue for thread %d\n", i);
+			ha_alert("OOM while initializing accept queue for thread %d\n", i);
 			return ERR_FATAL|ERR_ABORT;
 		}
 		t->tid = i;
@@ -628,7 +628,7 @@ int create_listeners(struct bind_conf *bc, const struct sockaddr_storage *ss,
 	for (port = portl; port <= porth; port++) {
 		l = calloc(1, sizeof(*l));
 		if (!l) {
-			memprintf(err, "out of memory");
+			memprintf(err, "OOM");
 			return 0;
 		}
 		l->obj_type = OBJ_TYPE_LISTENER;
@@ -1136,7 +1136,7 @@ static int listener_queue_init()
 {
 	global_listener_queue_task = task_new(MAX_THREADS_MASK);
 	if (!global_listener_queue_task) {
-		ha_alert("Out of memory when initializing global listener queue\n");
+		ha_alert("OOM when initializing global listener queue\n");
 		return ERR_FATAL|ERR_ABORT;
 	}
 	/* very simple initialization, users will queue the task if needed */

@@ -537,7 +537,7 @@ int ssl_sock_register_msg_callback(ssl_sock_msg_callback_func func)
 
 	cbk = calloc(1, sizeof(*cbk));
 	if (!cbk) {
-		ha_alert("out of memory in ssl_sock_register_msg_callback().\n");
+		ha_alert("OOM in ssl_sock_register_msg_callback().\n");
 		return 0;
 	}
 
@@ -4803,7 +4803,7 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 	/* Initiate SSL context for current server */
 	if (!srv->ssl_ctx.reused_sess) {
 		if ((srv->ssl_ctx.reused_sess = calloc(1, global.nbthread*sizeof(*srv->ssl_ctx.reused_sess))) == NULL) {
-			ha_alert("out of memory.\n");
+			ha_alert("OOM.\n");
 			cfgerr++;
 			return cfgerr;
 		}

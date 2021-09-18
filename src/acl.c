@@ -173,7 +173,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 		/* build new sample expression for this ACL */
 		smp = calloc(1, sizeof(*smp));
 		if (!smp) {
-			memprintf(err, "out of memory when parsing ACL expression");
+			memprintf(err, "OOM when parsing ACL expression");
 			goto out_return;
 		}
 		LIST_INIT(&(smp->conv_exprs));
@@ -321,7 +321,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 
 	expr = calloc(1, sizeof(*expr));
 	if (!expr) {
-		memprintf(err, "out of memory when parsing ACL expression");
+		memprintf(err, "OOM when parsing ACL expression");
 		goto out_free_smp;
 	}
 
@@ -709,12 +709,12 @@ struct acl *parse_acl(const char **args, struct list *known_acl, char **err, str
 	if (!cur_acl) {
 		name = strdup(args[0]);
 		if (!name) {
-			memprintf(err, "out of memory when parsing ACL");
+			memprintf(err, "OOM when parsing ACL");
 			goto out_free_acl_expr;
 		}
 		cur_acl = calloc(1, sizeof(*cur_acl));
 		if (cur_acl == NULL) {
-			memprintf(err, "out of memory when parsing ACL");
+			memprintf(err, "OOM when parsing ACL");
 			goto out_free_name;
 		}
 
@@ -808,13 +808,13 @@ static struct acl *find_acl_default(const char *acl_name, struct list *known_acl
 
 	name = strdup(acl_name);
 	if (!name) {
-		memprintf(err, "out of memory when building default ACL '%s'", acl_name);
+		memprintf(err, "OOM when building default ACL '%s'", acl_name);
 		goto out_free_acl_expr;
 	}
 
 	cur_acl = calloc(1, sizeof(*cur_acl));
 	if (cur_acl == NULL) {
-		memprintf(err, "out of memory when building default ACL '%s'", acl_name);
+		memprintf(err, "OOM when building default ACL '%s'", acl_name);
 		goto out_free_name;
 	}
 
@@ -875,7 +875,7 @@ struct acl_cond *parse_acl_cond(const char **args, struct list *known_acl,
 
 	cond = calloc(1, sizeof(*cond));
 	if (cond == NULL) {
-		memprintf(err, "out of memory when parsing condition");
+		memprintf(err, "OOM when parsing condition");
 		goto out_return;
 	}
 
@@ -928,7 +928,7 @@ struct acl_cond *parse_acl_cond(const char **args, struct list *known_acl,
 
 			args_new = calloc(1, (arg_end - arg + 1) * sizeof(*args_new));
 			if (!args_new) {
-				memprintf(err, "out of memory when parsing condition");
+				memprintf(err, "OOM when parsing condition");
 				goto out_free_suite;
 			}
 
@@ -962,7 +962,7 @@ struct acl_cond *parse_acl_cond(const char **args, struct list *known_acl,
 
 		cur_term = calloc(1, sizeof(*cur_term));
 		if (cur_term == NULL) {
-			memprintf(err, "out of memory when parsing condition");
+			memprintf(err, "OOM when parsing condition");
 			goto out_free_suite;
 		}
 
@@ -984,7 +984,7 @@ struct acl_cond *parse_acl_cond(const char **args, struct list *known_acl,
 		if (!cur_suite) {
 			cur_suite = calloc(1, sizeof(*cur_suite));
 			if (cur_suite == NULL) {
-				memprintf(err, "out of memory when parsing condition");
+				memprintf(err, "OOM when parsing condition");
 				goto out_free_term;
 			}
 			LIST_INIT(&cur_suite->terms);

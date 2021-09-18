@@ -80,7 +80,7 @@ void hap_register_post_check(int (*fct)())
 
 	b = calloc(1, sizeof(*b));
 	if (!b) {
-		fprintf(stderr, "out of memory\n");
+		fprintf(stderr, "OOM\n");
 		exit(1);
 	}
 	b->fct = fct;
@@ -96,7 +96,7 @@ void hap_register_post_proxy_check(int (*fct)(struct proxy *))
 
 	b = calloc(1, sizeof(*b));
 	if (!b) {
-		fprintf(stderr, "out of memory\n");
+		fprintf(stderr, "OOM\n");
 		exit(1);
 	}
 	b->fct = fct;
@@ -112,7 +112,7 @@ void hap_register_post_server_check(int (*fct)(struct server *))
 
 	b = calloc(1, sizeof(*b));
 	if (!b) {
-		fprintf(stderr, "out of memory\n");
+		fprintf(stderr, "OOM\n");
 		exit(1);
 	}
 	b->fct = fct;
@@ -128,7 +128,7 @@ void hap_register_post_deinit(void (*fct)())
 
 	b = calloc(1, sizeof(*b));
 	if (!b) {
-		fprintf(stderr, "out of memory\n");
+		fprintf(stderr, "OOM\n");
 		exit(1);
 	}
 	b->fct = fct;
@@ -144,7 +144,7 @@ void hap_register_proxy_deinit(void (*fct)(struct proxy *))
 
 	b = calloc(1, sizeof(*b));
 	if (!b) {
-		fprintf(stderr, "out of memory\n");
+		fprintf(stderr, "OOM\n");
 		exit(1);
 	}
 	b->fct = fct;
@@ -160,7 +160,7 @@ void hap_register_server_deinit(void (*fct)(struct server *))
 
 	b = calloc(1, sizeof(*b));
 	if (!b) {
-		fprintf(stderr, "out of memory\n");
+		fprintf(stderr, "OOM\n");
 		exit(1);
 	}
 	b->fct = fct;
@@ -174,7 +174,7 @@ void hap_register_per_thread_alloc(int (*fct)())
 
 	b = calloc(1, sizeof(*b));
 	if (!b) {
-		fprintf(stderr, "out of memory\n");
+		fprintf(stderr, "OOM\n");
 		exit(1);
 	}
 	b->fct = fct;
@@ -188,7 +188,7 @@ void hap_register_per_thread_init(int (*fct)())
 
 	b = calloc(1, sizeof(*b));
 	if (!b) {
-		fprintf(stderr, "out of memory\n");
+		fprintf(stderr, "OOM\n");
 		exit(1);
 	}
 	b->fct = fct;
@@ -202,7 +202,7 @@ void hap_register_per_thread_deinit(void (*fct)())
 
 	b = calloc(1, sizeof(*b));
 	if (!b) {
-		fprintf(stderr, "out of memory\n");
+		fprintf(stderr, "OOM\n");
 		exit(1);
 	}
 	b->fct = fct;
@@ -216,7 +216,7 @@ void hap_register_per_thread_free(void (*fct)())
 
 	b = calloc(1, sizeof(*b));
 	if (!b) {
-		fprintf(stderr, "out of memory\n");
+		fprintf(stderr, "OOM\n");
 		exit(1);
 	}
 	b->fct = fct;

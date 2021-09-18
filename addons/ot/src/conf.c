@@ -69,7 +69,7 @@ static void *flt_ot_conf_hdr_init(size_t size, const char *id, int linenum, stru
 		if (head != NULL)
 			LIST_APPEND(head, &(retptr->list));
 	} else {
-		FLT_OT_ERR("out of memory");
+		FLT_OT_ERR("OOM");
 	}
 
 	FLT_OT_RETURN(retptr);

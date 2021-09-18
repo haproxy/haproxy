@@ -1563,20 +1563,20 @@ static int parse_cache_rule(struct proxy *proxy, const char *name, struct act_ru
 	/* Create the filter cache config  */
 	cconf = calloc(1, sizeof(*cconf));
 	if (!cconf) {
-		memprintf(err, "out of memory\n");
+		memprintf(err, "OOM\n");
 		goto err;
 	}
 	cconf->flags = CACHE_FLT_F_IMPLICIT_DECL;
 	cconf->c.name = strdup(name);
 	if (!cconf->c.name) {
-		memprintf(err, "out of memory\n");
+		memprintf(err, "OOM\n");
 		goto err;
 	}
 
 	/* register a filter to fill the cache buffer */
 	fconf = calloc(1, sizeof(*fconf));
 	if (!fconf) {
-		memprintf(err, "out of memory\n");
+		memprintf(err, "OOM\n");
 		goto err;
 	}
 	fconf->id = cache_store_flt_id;
@@ -1883,7 +1883,7 @@ int cfg_parse_cache(const char *file, int linenum, char **args, int kwm)
 
 			tmp_cache_config = calloc(1, sizeof(*tmp_cache_config));
 			if (!tmp_cache_config) {
-				ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+				ha_alert("parsing [%s:%d]: OOM.\n", file, linenum);
 				err_code |= ERR_ALERT | ERR_ABORT;
 				goto out;
 			}
@@ -2498,7 +2498,7 @@ parse_cache_flt(char **args, int *cur_arg, struct proxy *px,
 	}
 	name = strdup(args[pos + 1]);
 	if (!name) {
-		memprintf(err, "%s '%s' : out of memory", args[pos], args[pos + 1]);
+		memprintf(err, "%s '%s' : OOM", args[pos], args[pos + 1]);
 		goto error;
 	}
 	pos += 2;
@@ -2533,7 +2533,7 @@ parse_cache_flt(char **args, int *cur_arg, struct proxy *px,
 	if (!cconf) {
 		cconf = calloc(1, sizeof(*cconf));
 		if (!cconf) {
-			memprintf(err, "%s: out of memory", args[*cur_arg]);
+			memprintf(err, "%s: OOM", args[*cur_arg]);
 			goto error;
 		}
 		cconf->c.name = name;
