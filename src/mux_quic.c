@@ -1346,8 +1346,14 @@ static int qc_send(struct qcc *qcc)
 {
 	struct qcs *qcs;
 	struct eb64_node *node;
+	int ret, done;
 
 	TRACE_ENTER(QC_EV_QCC_SEND, qcc->conn);
+	ret = done = 0;
+	/* fill as much as we can into the current buffer */
+	while (((qcc->flags & (QC_CF_MUX_MFULL|QC_CF_MUX_MALLOC)) == 0) && !done)
+		done = qc_process_mux(qcc);
+
 	/* TODO simple loop through all streams and check if there is frames to
 	 * send
 	 */
@@ -1355,9 +1361,8 @@ static int qc_send(struct qcc *qcc)
 	while (node) {
 		struct buffer *buf;
 		qcs = container_of(node, struct qcs, by_id);
-		for (buf = br_head(qcs->tx.mbuf); b_data(buf); buf = br_del_head(qcs->tx.mbuf)) {
+		for (buf = br_head(qcs->tx.mbuf); b_size(buf); buf = br_del_head(qcs->tx.mbuf)) {
 			if (b_data(buf)) {
-				int ret;
 				char fin = 0;
 
 				/* if FIN is activated, ensure the buffer to
@@ -1369,17 +1374,24 @@ static int qc_send(struct qcc *qcc)
 				}
 
 				ret = qcs_push_frame(qcs, buf, fin, qcs->tx.offset);
-				if (ret <= 0)
+				if (ret < 0)
 					ABORT_NOW();
 
 				qcs->tx.left -= ret;
 				qcs->tx.offset += ret;
-				qcs->qcc->wait_event.events &= ~SUB_RETRY_SEND;
+				if (b_data(buf)) {
+					qcc->conn->xprt->subscribe(qcc->conn, qcc->conn->xprt_ctx,
+											   SUB_RETRY_SEND, &qcc->wait_event);
+					break;
+				}
 			}
 			b_free(buf);
 		}
 		node = eb64_next(node);
 	}
+	if (ret > 0)
+		tasklet_wakeup(((struct ssl_sock_ctx *)(qcc->conn->xprt_ctx))->wait_event.tasklet);
+
 
 	TRACE_LEAVE(QC_EV_QCC_SEND, qcc->conn);
 	return 0;
