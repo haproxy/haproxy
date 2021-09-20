@@ -12,6 +12,12 @@ server s1 {
 	rxreq
 	expect req.bodylen == 257
 	txresp
+
+	accept
+
+	rxreq
+	expect req.bodylen == 2
+	txresp
 } -start
 
 syslog S -level info {
@@ -19,6 +25,10 @@ syslog S -level info {
 	expect ~ "[^:\\[ ]*\\[[0-9]*\\]: .* .* fe1 fe1/<NOSRV> .* 408 .* - - cD-- .* .* \"GET /this-is-a-long-url-this-is-a-long-url-this-is-a-long-url-this-is-a-long-url-this-is-a-long-url-this-is-a-long-url-this-is-a-long-url HTTP/1\\.1\""
 	recv
 	expect ~ "[^:\\[ ]*\\[[0-9]*\\]: .* .* fe1 be1/srv1 [0-9]*/[0-9]*/[0-9]*/[0-9]*/[0-9]* 200 .* - - ---- .* .* \"GET / HTTP/1\\.1\""
+	recv
+	expect ~ "[^:\\[ ]*\\[[0-9]*\\]: .* .* fe1 be1/srv1 [0-9]*/[0-9]*/[0-9]*/[0-9]*/[0-9]* 200 .* - - ---- .* .* \"POST /1 HTTP/1\\.1\""
+	recv
+	expect ~ "[^:\\[ ]*\\[[0-9]*\\]: .* .* fe1 be1/<NOSRV> [0-9]*/-1/-1/-1/[0-9]* -1 .* - - CR-- .* .* \"POST /2 HTTP/1\\.1\""
 } -start
 
 haproxy h1 -conf {
@@ -39,6 +49,8 @@ haproxy h1 -conf {
 		use_backend be1
 } -start
 
+# 1 byte of the payload is missing.
+#   ==> The request must timed out with a 408 response
 client c1 -connect ${h1_fe1_sock} {
 	send "GET"
 	send " "
@@ -66,11 +78,33 @@ client c1 -connect ${h1_fe1_sock} {
 	expect resp.status == 408
 } -run
 
+# Payload is fully sent
+#   ==> Request must be sent to the server. A 200 must be received
 client c2 -connect ${h1_fe1_sock} {
 	txreq -bodylen 257
 	rxresp
 	expect resp.status == 200
 } -run
 
-syslog S -wait
+# Payload is fully sent in 2 steps (with a small delay, smaller than the client
+# timeout) and splitted on a chunk size.
+#   ==> Request must be sent to the server. A 200 must be received
+client c3 -connect ${h1_fe1_sock} {
+	send "POST /1  HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n1\r\n1\r\n1"
+	delay 0.01
+	send "\r\n1\r\n0\r\n\r\n"
+	rxresp
+	expect resp.status == 200
+} -run
 
+# Last CRLF of the request payload is missing but payload is sent in 2 steps
+# (with a small delay, smaller than the client timeout) and splitted on a chunk
+# size. The client aborts before sending the last CRLF.
+#   ==> Request must be handled as an error with 'CR--' termination state.
+client c4 -connect ${h1_fe1_sock} {
+	send "POST /2  HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n1\r\n1\r\n1"
+	delay 0.01
+	send "\r\n1\r\n0\r\n"
+} -run
+
+syslog S -wait

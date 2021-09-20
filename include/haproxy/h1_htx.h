@@ -29,13 +29,13 @@
 #include <haproxy/h1.h>
 #include <haproxy/htx.h>
 
-size_t h1_parse_msg_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx *dsthtx,
-			 struct buffer *srcbuf, size_t ofs, size_t max);
+int h1_parse_msg_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx *dsthtx,
+		      struct buffer *srcbuf, size_t ofs, size_t max);
 size_t h1_parse_msg_data(struct h1m *h1m, struct htx **dsthtx,
 			 struct buffer *srcbuf, size_t ofs, size_t max,
 			 struct buffer *htxbuf);
-size_t h1_parse_msg_tlrs(struct h1m *h1m, struct htx *dsthtx,
-			 struct buffer *srcbuf, size_t ofs, size_t max);
+int h1_parse_msg_tlrs(struct h1m *h1m, struct htx *dsthtx,
+		      struct buffer *srcbuf, size_t ofs, size_t max);
 
 /* Returns the URI of an HTX message in the most common format for a H1 peer. It
  * is the path part of an absolute URI when the URI was normalized, ortherwise

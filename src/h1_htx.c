@@ -165,9 +165,7 @@ static int h1_postparse_req_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx 
 	if (h1_eval_htx_size(meth, uri, vsn, hdrs) > max) {
 		if (htx_is_empty(htx))
 			goto error;
-		h1m_init_req(h1m);
-		h1m->flags |= (H1_MF_NO_PHDR|H1_MF_CLEAN_CONN_HDR);
-		return 0;
+		goto output_full;
 	}
 
 	/* By default, request have always a known length */
@@ -216,11 +214,15 @@ static int h1_postparse_req_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx 
 
   end:
 	return 1;
+  output_full:
+	h1m_init_req(h1m);
+	h1m->flags |= (H1_MF_NO_PHDR|H1_MF_CLEAN_CONN_HDR);
+	return -2;
   error:
 	h1m->err_pos = h1m->next;
 	h1m->err_state = h1m->state;
 	htx->flags |= HTX_FL_PARSING_ERROR;
-	return 0;
+	return -1;
 }
 
 /* Postprocess the parsed headers for a response and convert them into an htx
@@ -274,9 +276,7 @@ static int h1_postparse_res_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx 
 	if (h1_eval_htx_size(vsn, status, reason, hdrs) > max) {
 		if (htx_is_empty(htx))
 			goto error;
-		h1m_init_res(h1m);
-		h1m->flags |= (H1_MF_NO_PHDR|H1_MF_CLEAN_CONN_HDR);
-		return 0;
+		goto output_full;
 	}
 
 	if (((h1m->flags & H1_MF_METH_CONNECT) && code >= 200 && code < 300) || code == 101) {
@@ -309,26 +309,31 @@ static int h1_postparse_res_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx 
 
   end:
 	return 1;
+  output_full:
+	h1m_init_res(h1m);
+	h1m->flags |= (H1_MF_NO_PHDR|H1_MF_CLEAN_CONN_HDR);
+	return -2;
   error:
 	h1m->err_pos = h1m->next;
 	h1m->err_state = h1m->state;
 	htx->flags |= HTX_FL_PARSING_ERROR;
-	return 0;
+	return -1;
 }
 
-/* Parse HTTP/1 headers. It returns the number of bytes parsed if > 0, or 0 if
- * it couldn't proceed. Parsing errors are reported by setting the htx flag
- * HTX_FL_PARSING_ERROR and filling h1m->err_pos and h1m->err_state fields. This
- * functions is responsible to update the parser state <h1m> and the start-line
- * <h1sl> if not NULL.
- * For the requests, <h1sl> must always be provided. For responses, <h1sl> may
- * be NULL and <h1m> flags HTTP_METH_CONNECT of HTTP_METH_HEAD may be set.
+/* Parse HTTP/1 headers. It returns the number of bytes parsed on success, 0 if
+ * headers are incomplete, -1 if an error occurred or -2 if it needs more space
+ * to proceed while the output buffer is not empty. Parsing errors are reported
+ * by setting the htx flag HTX_FL_PARSING_ERROR and filling h1m->err_pos and
+ * h1m->err_state fields. This functions is responsible to update the parser
+ * state <h1m> and the start-line <h1sl> if not NULL.  For the requests, <h1sl>
+ * must always be provided. For responses, <h1sl> may be NULL and <h1m> flags
+ * HTTP_METH_CONNECT of HTTP_METH_HEAD may be set.
  */
-size_t h1_parse_msg_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx *dsthtx,
-			 struct buffer *srcbuf, size_t ofs, size_t max)
+int h1_parse_msg_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx *dsthtx,
+		      struct buffer *srcbuf, size_t ofs, size_t max)
 {
 	struct http_hdr hdrs[global.tune.max_http_hdr];
-	int ret = 0;
+	int total = 0, ret = 0;
 
 	if (!max || !b_data(srcbuf))
 		goto end;
@@ -352,6 +357,7 @@ size_t h1_parse_msg_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx *dsthtx,
 			goto error;
 		goto end;
 	}
+	total = ret;
 
 	/* messages headers fully parsed, do some checks to prepare the body
 	 * parsing.
@@ -363,8 +369,9 @@ size_t h1_parse_msg_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx *dsthtx,
 			h1m->err_state = h1m->state;
 			goto vsn_error;
 		}
-		if (!h1_postparse_req_hdrs(h1m, h1sl, dsthtx, hdrs, max))
-			ret = 0;
+		ret = h1_postparse_req_hdrs(h1m, h1sl, dsthtx, hdrs, max);
+		if (ret < 0)
+			return ret;
 	}
 	else {
 		if (h1sl && !h1_process_res_vsn(h1m, h1sl)) {
@@ -372,8 +379,9 @@ size_t h1_parse_msg_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx *dsthtx,
 			h1m->err_state = h1m->state;
 			goto vsn_error;
 		}
-		if (!h1_postparse_res_hdrs(h1m, h1sl, dsthtx, hdrs, max))
-			ret = 0;
+		ret = h1_postparse_res_hdrs(h1m, h1sl, dsthtx, hdrs, max);
+		if (ret < 0)
+			return ret;
 	}
 
 	/* Switch messages without any payload to DONE state */
@@ -384,13 +392,13 @@ size_t h1_parse_msg_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx *dsthtx,
 	}
 
   end:
-	return ret;
+	return total;
   error:
 	h1m->err_pos = h1m->next;
 	h1m->err_state = h1m->state;
   vsn_error:
 	dsthtx->flags |= HTX_FL_PARSING_ERROR;
-	return 0;
+	return -1;
 
 }
 
@@ -856,13 +864,15 @@ size_t h1_parse_msg_data(struct h1m *h1m, struct htx **dsthtx,
 	return total;
 }
 
-/* Parse HTTP/1 trailers. It returns the number of bytes parsed if > 0, or 0 if
- * it couldn't proceed. Parsing errors are reported by setting the htx flags
- * HTX_FL_PARSING_ERROR and filling h1m->err_pos and h1m->err_state fields. This
- * functions is responsible to update the parser state <h1m>.
+/* Parse HTTP/1 trailers. It returns the number of bytes parsed on success, 0 if
+ * trailers are incomplete, -1 if an error occurred or -2 if it needs more space
+ * to proceed while the output buffer is not empty. Parsing errors are reported
+ * by setting the htx flags HTX_FL_PARSING_ERROR and filling h1m->err_pos and
+ * h1m->err_state fields. This functions is responsible to update the parser
+ * state <h1m>.
  */
-size_t h1_parse_msg_tlrs(struct h1m *h1m, struct htx *dsthtx,
-			 struct buffer *srcbuf, size_t ofs, size_t max)
+int h1_parse_msg_tlrs(struct h1m *h1m, struct htx *dsthtx,
+		      struct buffer *srcbuf, size_t ofs, size_t max)
 {
 	struct http_hdr hdrs[global.tune.max_http_hdr];
 	struct h1m tlr_h1m;
@@ -892,8 +902,7 @@ size_t h1_parse_msg_tlrs(struct h1m *h1m, struct htx *dsthtx,
 	if (h1_eval_htx_hdrs_size(hdrs) > max) {
 		if (htx_is_empty(dsthtx))
 			goto error;
-		ret = 0;
-		goto end;
+		goto output_full;
 	}
 
 	if (!htx_add_all_trailers(dsthtx, hdrs))
@@ -904,11 +913,13 @@ size_t h1_parse_msg_tlrs(struct h1m *h1m, struct htx *dsthtx,
 
   end:
 	return ret;
+  output_full:
+	return -2;
   error:
 	h1m->err_state = h1m->state;
 	h1m->err_pos = h1m->next;
 	dsthtx->flags |= HTX_FL_PARSING_ERROR;
-	return 0;
+	return -1;
 }
 
 /* Appends the H1 representation of the request line <sl> to the chunk <chk>. It

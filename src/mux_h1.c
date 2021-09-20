@@ -42,7 +42,6 @@
 #define H1C_F_IN_ALLOC       0x00000010 /* mux is blocked on lack of input buffer */
 #define H1C_F_IN_FULL        0x00000020 /* mux is blocked on input buffer full */
 #define H1C_F_IN_SALLOC      0x00000040 /* mux is blocked on lack of stream's request buffer */
-/* 0x00000080 unused */
 
 /* Flags indicating the connection state */
 #define H1C_F_ST_EMBRYONIC   0x00000100 /* Set when a H1 stream with no conn-stream is attached to the connection */
@@ -73,7 +72,8 @@
 
 #define H1S_F_RX_BLK         0x00100000 /* Don't process more input data, waiting sync with output side */
 #define H1S_F_TX_BLK         0x00200000 /* Don't process more output data, waiting sync with input side */
-/* 0x00000004 unused */
+#define H1S_F_RX_CONGESTED   0x00000004 /* Cannot process input data RX path is congested (waiting for more space in channel's buffer) */
+
 #define H1S_F_REOS           0x00000008 /* End of input stream seen even if not delivered yet */
 #define H1S_F_WANT_KAL       0x00000010
 #define H1S_F_WANT_TUN       0x00000020
@@ -1370,13 +1370,14 @@ static int h1_search_websocket_key(struct h1s *h1s, struct h1m *h1m, struct htx 
 /*
  * Parse HTTP/1 headers. It returns the number of bytes parsed if > 0, or 0 if
  * it couldn't proceed. Parsing errors are reported by setting H1S_F_*_ERROR
- * flag. If relies on the function http_parse_msg_hdrs() to do the parsing.
+ * flag. If more room is requested, H1S_F_RX_CONGESTED flag is set. If relies on
+ * the function http_parse_msg_hdrs() to do the parsing.
  */
 static size_t h1_handle_headers(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
 				struct buffer *buf, size_t *ofs, size_t max)
 {
 	union h1_sl h1sl;
-	size_t ret = 0;
+	int ret = 0;
 
 	TRACE_ENTER(H1_EV_RX_DATA|H1_EV_RX_HDRS, h1s->h1c->conn, h1s, 0, (size_t[]){max});
 
@@ -1386,13 +1387,18 @@ static size_t h1_handle_headers(struct h1s *h1s, struct h1m *h1m, struct htx *ht
 		h1m->flags |= H1_MF_METH_HEAD;
 
 	ret = h1_parse_msg_hdrs(h1m, &h1sl, htx, buf, *ofs, max);
-	if (!ret) {
+	if (ret <= 0) {
 		TRACE_DEVEL("leaving on missing data or error", H1_EV_RX_DATA|H1_EV_RX_HDRS, h1s->h1c->conn, h1s);
-		if (htx->flags & HTX_FL_PARSING_ERROR) {
+		if (ret == -1) {
 			h1s->flags |= H1S_F_PARSING_ERROR;
 			TRACE_ERROR("parsing error, reject H1 message", H1_EV_RX_DATA|H1_EV_RX_HDRS|H1_EV_H1S_ERR, h1s->h1c->conn, h1s);
 			h1_capture_bad_message(h1s->h1c, h1s, h1m, buf);
 		}
+		else if (ret == -2) {
+			TRACE_STATE("RX path congested, waiting for more space", H1_EV_RX_DATA|H1_EV_RX_HDRS|H1_EV_H1S_BLK, h1s->h1c->conn, h1s);
+			h1s->flags |= H1S_F_RX_CONGESTED;
+		}
+		ret = 0;
 		goto end;
 	}
 
@@ -1463,6 +1469,11 @@ static size_t h1_handle_data(struct h1s *h1s, struct h1m *h1m, struct htx **htx,
 	*ofs += ret;
 
   end:
+	if (b_data(buf) != *ofs && (h1m->state == H1_MSG_DATA || h1m->state == H1_MSG_TUNNEL)) {
+		TRACE_STATE("RX path congested, waiting for more space", H1_EV_RX_DATA|H1_EV_RX_BODY|H1_EV_H1S_BLK, h1s->h1c->conn, h1s);
+		h1s->flags |= H1S_F_RX_CONGESTED;
+	}
+
 	TRACE_LEAVE(H1_EV_RX_DATA|H1_EV_RX_BODY, h1s->h1c->conn, h1s, 0, (size_t[]){ret});
 	return ret;
 }
@@ -1471,22 +1482,28 @@ static size_t h1_handle_data(struct h1s *h1s, struct h1m *h1m, struct htx **htx,
  * Parse HTTP/1 trailers. It returns the number of bytes parsed if > 0, or 0 if
  * it couldn't proceed. Parsing errors are reported by setting H1S_F_*_ERROR
  * flag and filling h1s->err_pos and h1s->err_state fields. This functions is
- * responsible to update the parser state <h1m>.
+ * responsible to update the parser state <h1m>. If more room is requested,
+ * H1S_F_RX_CONGESTED flag is set.
  */
 static size_t h1_handle_trailers(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
 				 struct buffer *buf, size_t *ofs, size_t max)
 {
-	size_t ret;
+	int ret;
 
 	TRACE_ENTER(H1_EV_RX_DATA|H1_EV_RX_TLRS, h1s->h1c->conn, h1s, 0, (size_t[]){max});
 	ret = h1_parse_msg_tlrs(h1m, htx, buf, *ofs, max);
-	if (!ret) {
+	if (ret <= 0) {
 		TRACE_DEVEL("leaving on missing data or error", H1_EV_RX_DATA|H1_EV_RX_BODY, h1s->h1c->conn, h1s);
-		if (htx->flags & HTX_FL_PARSING_ERROR) {
+		if (ret == -1) {
 			h1s->flags |= H1S_F_PARSING_ERROR;
 			TRACE_ERROR("parsing error, reject H1 message", H1_EV_RX_DATA|H1_EV_RX_TLRS|H1_EV_H1S_ERR, h1s->h1c->conn, h1s);
 			h1_capture_bad_message(h1s->h1c, h1s, h1m, buf);
 		}
+		else if (ret == -2) {
+			TRACE_STATE("RX path congested, waiting for more space", H1_EV_RX_DATA|H1_EV_RX_TLRS|H1_EV_H1S_BLK, h1s->h1c->conn, h1s);
+			h1s->flags |= H1S_F_RX_CONGESTED;
+		}
+		ret = 0;
 		goto end;
 	}
 
@@ -1501,6 +1518,8 @@ static size_t h1_handle_trailers(struct h1s *h1s, struct h1m *h1m, struct htx *h
  * Process incoming data. It parses data and transfer them from h1c->ibuf into
  * <buf>. It returns the number of bytes parsed and transferred if > 0, or 0 if
  * it couldn't proceed.
+ *
+ * WARNING: H1S_F_RX_CONGESTED flag must be removed before processing input data.
  */
 static size_t h1_process_demux(struct h1c *h1c, struct buffer *buf, size_t count)
 {
@@ -1522,6 +1541,9 @@ static size_t h1_process_demux(struct h1c *h1c, struct buffer *buf, size_t count
 
 	if (h1s->flags & H1S_F_RX_BLK)
 		goto out;
+
+	/* Always remove congestion flags and try to process more input data */
+	h1s->flags &= ~H1S_F_RX_CONGESTED;
 
 	do {
 		size_t used = htx_used_space(htx);
@@ -1596,7 +1618,7 @@ static size_t h1_process_demux(struct h1c *h1c, struct buffer *buf, size_t count
 		}
 
 		count -= htx_used_space(htx) - used;
-	} while (!(h1s->flags & (H1S_F_PARSING_ERROR|H1S_F_NOT_IMPL_ERROR|H1S_F_RX_BLK)));
+	} while (!(h1s->flags & (H1S_F_PARSING_ERROR|H1S_F_NOT_IMPL_ERROR|H1S_F_RX_BLK|H1S_F_RX_CONGESTED)));
 
 
 	if (h1s->flags & (H1S_F_PARSING_ERROR|H1S_F_NOT_IMPL_ERROR)) {
@@ -1674,8 +1696,16 @@ static size_t h1_process_demux(struct h1c *h1c, struct buffer *buf, size_t count
 		h1s->cs->flags |= CS_FL_EOI;
 
   out:
-	if (h1s_data_pending(h1s) && !htx_is_empty(htx))
+	/* When Input data are pending for this message, notify upper layer that
+	 * the mux need more space in the HTX buffer to continue if :
+	 *
+	 *   - The parser is blocked in MSG_DATA or MSG_TUNNEL state
+	 *   - Headers or trailers are pending to be copied.
+	 */
+	if (h1s->flags & (H1S_F_RX_CONGESTED)) {
 		h1s->cs->flags |= CS_FL_RCV_MORE | CS_FL_WANT_ROOM;
+		TRACE_STATE("waiting for more room", H1_EV_RX_DATA|H1_EV_H1S_BLK, h1c->conn, h1s);
+	}
 	else {
 		h1s->cs->flags &= ~(CS_FL_RCV_MORE | CS_FL_WANT_ROOM);
 		if (h1s->flags & H1S_F_REOS) {
