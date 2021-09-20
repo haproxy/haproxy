@@ -642,7 +642,7 @@ parse_trace_flt(char **args, int *cur_arg, struct proxy *px,
 			else if (strcmp(args[pos], "quiet") == 0)
 				conf->flags |= TRACE_F_QUIET;
 			else if (strcmp(args[pos], "random-parsing") == 0)
-				continue; // ignore
+				; // ignore
 			else if (strcmp(args[pos], "random-forwarding") == 0)
 				conf->flags |= TRACE_F_RAND_FWD;
 			else if (strcmp(args[pos], "hexdump") == 0)
