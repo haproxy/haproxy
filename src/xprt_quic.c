@@ -2003,12 +2003,17 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct ssl_sock_ctx *ct
 	 * has successfully parse a Handshake packet. The Initial encryption must also
 	 * be discarded.
 	 */
-	if (HA_ATOMIC_LOAD(&conn->state) == QUIC_HS_ST_SERVER_INITIAL &&
-	    pkt->type == QUIC_PACKET_TYPE_HANDSHAKE) {
-		quic_tls_discard_keys(&conn->els[QUIC_TLS_ENC_LEVEL_INITIAL]);
-		quic_pktns_discard(conn->els[QUIC_TLS_ENC_LEVEL_INITIAL].pktns, conn);
-		qc_set_timer(ctx);
-		HA_ATOMIC_STORE(&conn->state, QUIC_HS_ST_SERVER_HANDSHAKE);
+	if (pkt->type == QUIC_PACKET_TYPE_HANDSHAKE && objt_listener(ctx->conn->target)) {
+	    int state = HA_ATOMIC_LOAD(&conn->state);
+
+	    if (state >= QUIC_HS_ST_SERVER_INITIAL) {
+		    quic_tls_discard_keys(&conn->els[QUIC_TLS_ENC_LEVEL_INITIAL]);
+		    TRACE_PROTO("discarding Initial pktns", QUIC_EV_CONN_PRSHPKT, ctx->conn);
+		    quic_pktns_discard(conn->els[QUIC_TLS_ENC_LEVEL_INITIAL].pktns, conn);
+		    qc_set_timer(ctx);
+		    if (state < QUIC_HS_ST_SERVER_HANDSHAKE)
+			    HA_ATOMIC_STORE(&conn->state, QUIC_HS_ST_SERVER_HANDSHAKE);
+	    }
 	}
 
 	TRACE_LEAVE(QUIC_EV_CONN_PRSHPKT, ctx->conn);
