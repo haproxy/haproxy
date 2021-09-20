@@ -1643,7 +1643,7 @@ static struct srv_kw_list srv_kws = { "ALL", { }, {
 	{ "cookie",              srv_parse_cookie,              1,  1,  0 }, /* Assign a cookie to the server */
 	{ "disabled",            srv_parse_disabled,            0,  1,  1 }, /* Start the server in 'disabled' state */
 	{ "enabled",             srv_parse_enabled,             0,  1,  1 }, /* Start the server in 'enabled' state */
-	{ "error-limit",         srv_parse_error_limit,         1,  1,  0 }, /* Configure the consecutive count of check failures to consider a server on error */
+	{ "error-limit",         srv_parse_error_limit,         1,  1,  1 }, /* Configure the consecutive count of check failures to consider a server on error */
 	{ "id",                  srv_parse_id,                  1,  0,  1 }, /* set id# of server */
 	{ "init-addr",           srv_parse_init_addr,           1,  1,  0 }, /* */
 	{ "log-proto",           srv_parse_log_proto,           1,  1,  0 }, /* Set the protocol for event messages, only relevant in a ring section */
@@ -1657,10 +1657,10 @@ static struct srv_kw_list srv_kws = { "ALL", { }, {
 	{ "no-send-proxy-v2",    srv_parse_no_send_proxy_v2,    0,  1,  1 }, /* Disable use of PROXY V2 protocol */
 	{ "no-tfo",              srv_parse_no_tfo,              0,  1,  1 }, /* Disable use of TCP Fast Open */
 	{ "non-stick",           srv_parse_non_stick,           0,  1,  0 }, /* Disable stick-table persistence */
-	{ "observe",             srv_parse_observe,             1,  1,  0 }, /* Enables health adjusting based on observing communication with the server */
-	{ "on-error",            srv_parse_on_error,            1,  1,  0 }, /* Configure the action on check failure */
-	{ "on-marked-down",      srv_parse_on_marked_down,      1,  1,  0 }, /* Configure the action when a server is marked down */
-	{ "on-marked-up",        srv_parse_on_marked_up,        1,  1,  0 }, /* Configure the action when a server is marked up */
+	{ "observe",             srv_parse_observe,             1,  1,  1 }, /* Enables health adjusting based on observing communication with the server */
+	{ "on-error",            srv_parse_on_error,            1,  1,  1 }, /* Configure the action on check failure */
+	{ "on-marked-down",      srv_parse_on_marked_down,      1,  1,  1 }, /* Configure the action when a server is marked down */
+	{ "on-marked-up",        srv_parse_on_marked_up,        1,  1,  1 }, /* Configure the action when a server is marked up */
 	{ "pool-low-conn",       srv_parse_pool_low_conn,       1,  1,  1 }, /* Set the min number of orphan idle connecbefore being allowed to pick from other threads */
 	{ "pool-max-conn",       srv_parse_pool_max_conn,       1,  1,  1 }, /* Set the max number of orphan idle connections, -1 means unlimited */
 	{ "pool-purge-delay",    srv_parse_pool_purge_delay,    1,  1,  1 }, /* Set the time before we destroy orphan idle connections, defaults to 1s */

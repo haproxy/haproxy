@@ -1520,6 +1520,7 @@ add server <backend>/<server> [args]*
   - disabled
   - downinter
   - enabled
+  - error-limit
   - fall
   - fastinter
   - force-sslv3/tlsv10/tlsv11/tlsv12/tlsv13
@@ -1532,6 +1533,10 @@ add server <backend>/<server> [args]*
   - no-sslv3/tlsv10/tlsv11/tlsv12/tlsv13
   - no-tls-tickets
   - npn
+  - observe
+  - on-error
+  - on-marked-down
+  - on-marked-up
   - pool-low-conn
   - pool-max-conn
   - pool-purge-delay
