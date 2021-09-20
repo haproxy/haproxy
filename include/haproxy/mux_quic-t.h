@@ -52,6 +52,31 @@
 #define OUQS_SF_TXBUF_MALLOC 0x00000001
 #define OUQS_SF_TXBUF_FULL   0x00000002
 
+/* Connection flags (32 bit), in qcc->flags */
+#define QC_CF_NONE              0x00000000
+
+/* Flags indicating why writing to the mux is blocked. */
+#define QC_CF_MUX_MALLOC        0x00000001  // mux blocked on lack of connection's mux buffer
+#define QC_CF_MUX_MFULL         0x00000002  // mux blocked on connection's mux buffer full
+#define QC_CF_MUX_BLOCK_ANY     0x00000003  // aggregate of the mux flags above
+
+/* Flags indicating why writing to the demux is blocked.
+ * The first two ones directly affect the ability for the mux to receive data
+ * from the connection. The other ones affect the mux's ability to demux
+ * received data.
+ */
+#define QC_CF_DEM_DFULL         0x00000004  // demux blocked on connection's demux buffer full
+
+#define QC_CF_DEM_MBUSY         0x00000008  // demux blocked on connection's mux side busy
+#define QC_CF_DEM_MROOM         0x00000010  // demux blocked on lack of room in mux buffer
+#define QC_CF_DEM_SALLOC        0x00000020  // demux blocked on lack of stream's request buffer
+#define QC_CF_DEM_SFULL         0x00000040  // demux blocked on stream request buffer full
+#define QC_CF_DEM_TOOMANY       0x00000100  // demux blocked waiting for some conn_streams to leave
+#define QC_CF_DEM_BLOCK_ANY     0x00000170  // aggregate of the demux flags above except DFULL
+
+/* other flags */
+#define QC_CF_IS_BACK           0x00008000  // this is an outgoing connection
+
 extern struct pool_head *pool_head_qcs;
 
 /* Stream types */
