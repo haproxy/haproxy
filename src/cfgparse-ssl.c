@@ -1887,9 +1887,9 @@ static struct srv_kw_list srv_kws = { "SSL", { }, {
 	{ "allow-0rtt",              srv_parse_allow_0rtt,         0, 1, 1 }, /* Allow using early data on this server */
 	{ "alpn",                    srv_parse_alpn,               1, 1, 1 }, /* Set ALPN supported protocols */
 	{ "ca-file",                 srv_parse_ca_file,            1, 1, 1 }, /* set CAfile to process verify server cert */
-	{ "check-alpn",              srv_parse_check_alpn,         1, 1, 0 }, /* Set ALPN used for checks */
-	{ "check-sni",               srv_parse_check_sni,          1, 1, 0 }, /* set SNI */
-	{ "check-ssl",               srv_parse_check_ssl,          0, 1, 0 }, /* enable SSL for health checks */
+	{ "check-alpn",              srv_parse_check_alpn,         1, 1, 1 }, /* Set ALPN used for checks */
+	{ "check-sni",               srv_parse_check_sni,          1, 1, 1 }, /* set SNI */
+	{ "check-ssl",               srv_parse_check_ssl,          0, 1, 1 }, /* enable SSL for health checks */
 	{ "ciphers",                 srv_parse_ciphers,            1, 1, 1 }, /* select the cipher suite */
 #ifdef HAVE_SSL_CTX_SET_CIPHERSUITES
 	{ "ciphersuites",            srv_parse_ciphersuites,       1, 1, 1 }, /* select the cipher suite */

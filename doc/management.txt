@@ -1507,8 +1507,11 @@ add server <backend>/<server> [args]*
   - backup
   - ca-file
   - check
+  - check-alpn
   - check-proto
   - check-send-proxy
+  - check-sni
+  - check-ssl
   - check-via-socks4
   - ciphers
   - ciphersuites
