@@ -283,8 +283,13 @@ int httpclient_req_gen(struct httpclient *hc, const struct ist url, enum http_me
 		goto error;
 
 	/* add the headers and EOH */
-	if (hdrs && !htx_add_all_headers(htx, hdrs))
-		goto error;
+	if (hdrs) {
+		if (!htx_add_all_headers(htx, hdrs))
+			goto error;
+	} else {
+		if (!htx_add_endof(htx, HTX_BLK_EOH))
+			goto error;
+	}
 
 	htx->flags |= HTX_FL_EOM;
 
