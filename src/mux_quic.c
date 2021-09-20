@@ -1295,14 +1295,19 @@ static int qcs_push_frame(struct qcs *qcs, struct buffer *payload, int fin, uint
 	struct quic_frame *frm;
 	struct buffer *buf = &qcs->tx.buf;
 	struct quic_enc_level *qel = &qcs->qcc->conn->qc->els[QUIC_TLS_ENC_LEVEL_APP];
-	int total = 0;
+	int total = 0, to_xfer;
 
 	qc_get_buf(qcs->qcc, buf);
-	total = b_force_xfer(buf, payload, QUIC_MIN(b_data(payload), b_room(buf)));
+	to_xfer = QUIC_MIN(b_data(payload), b_room(buf));
+	if (!to_xfer)
+		goto out;
+
 	frm = pool_zalloc(pool_head_quic_frame);
 	if (!frm)
 		goto err;
 
+	total = b_force_xfer(buf, payload, to_xfer);
+	fin = fin && !b_data(payload);
 	frm->type = QUIC_FT_STREAM_8;
 	if (fin)
 		frm->type |= QUIC_STREAM_FRAME_TYPE_FIN_BIT;
@@ -1319,6 +1324,7 @@ static int qcs_push_frame(struct qcs *qcs, struct buffer *payload, int fin, uint
 	}
 
 	MT_LIST_APPEND(&qel->pktns->tx.frms, &frm->mt_list);
+ out:
 	fprintf(stderr, "%s: total=%d fin=%d offset=%lu\n", __func__, total, fin, offset);
 	return total;
 
