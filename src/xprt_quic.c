@@ -1154,10 +1154,12 @@ static int qc_pkt_decrypt(struct quic_rx_packet *pkt, struct quic_tls_ctx *tls_c
 /* Remove from <qcs> stream the acknowledged frames.
  * Never fails.
  */
-static void qcs_try_to_consume(struct qcs *qcs)
+static int qcs_try_to_consume(struct qcs *qcs)
 {
+	int ret;
 	struct eb64_node *frm_node;
 
+	ret = 0;
 	frm_node = eb64_first(&qcs->tx.acked_frms);
 	while (frm_node) {
 		struct quic_stream *strm;
@@ -1170,15 +1172,21 @@ static void qcs_try_to_consume(struct qcs *qcs)
 		qcs->tx.ack_offset += strm->len;
 		frm_node = eb64_next(frm_node);
 		eb64_delete(&strm->offset);
+		ret = 1;
 	}
+
+	return ret;
 }
 
 /* Treat <frm> frame whose packet it is attached to has just been acknowledged. */
 static inline void qc_treat_acked_tx_frm(struct quic_frame *frm,
                                          struct ssl_sock_ctx *ctx)
 {
+	int stream_acked;
+	struct quic_conn *qc = ctx->conn->qc;
 
 	TRACE_PROTO("Removing frame", QUIC_EV_CONN_PRSAFRM, ctx->conn, frm);
+	stream_acked = 0;
 	switch (frm->type) {
 	case QUIC_FT_STREAM_8 ... QUIC_FT_STREAM_F:
 	{
@@ -1190,16 +1198,29 @@ static inline void qc_treat_acked_tx_frm(struct quic_frame *frm,
 			qcs->tx.ack_offset += strm->len;
 			LIST_DELETE(&frm->list);
 			pool_free(pool_head_quic_frame, frm);
+			qc->qcc->flags &= ~QC_CF_MUX_MFULL;
+			stream_acked = 1;
 		}
 		else {
 			eb64_insert(&qcs->tx.acked_frms, &strm->offset);
 		}
-		qcs_try_to_consume(qcs);
+		stream_acked |= qcs_try_to_consume(qcs);
 	}
 	break;
 	default:
 		LIST_DELETE(&frm->list);
 		pool_free(pool_head_quic_frame, frm);
+	}
+
+	if (stream_acked) {
+		struct qcc *qcc = qc->qcc;
+
+		if (qcc->subs && qcc->subs->events & SUB_RETRY_SEND) {
+			tasklet_wakeup(qcc->subs->tasklet);
+			qcc->subs->events &= ~SUB_RETRY_SEND;
+			if (!qcc->subs->events)
+				qcc->subs = NULL;
+		}
 	}
 }
 
