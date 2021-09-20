@@ -2160,6 +2160,7 @@ static int qc_prep_hdshk_pkts(struct qring *qr, struct ssl_sock_ctx *ctx)
 			if (HA_ATOMIC_LOAD(&qc->state) == QUIC_HS_ST_CLIENT_INITIAL &&
 			    pkt_type == QUIC_PACKET_TYPE_HANDSHAKE) {
 				quic_tls_discard_keys(&qc->els[QUIC_TLS_ENC_LEVEL_INITIAL]);
+				TRACE_PROTO("discarding Initial pktns", QUIC_EV_CONN_PHPKTS, ctx->conn);
 				quic_pktns_discard(qc->els[QUIC_TLS_ENC_LEVEL_INITIAL].pktns, qc);
 				qc_set_timer(ctx);
 				HA_ATOMIC_STORE(&qc->state, QUIC_HS_ST_CLIENT_HANDSHAKE);
@@ -2739,6 +2740,7 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 	    (prev_st == QUIC_HS_ST_SERVER_INITIAL || prev_st == QUIC_HS_ST_SERVER_HANDSHAKE)) {
 		/* Discard the Handshake keys. */
 		quic_tls_discard_keys(&qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE]);
+		TRACE_PROTO("discarding Handshake pktns", QUIC_EV_CONN_PHPKTS, ctx->conn);
 		quic_pktns_discard(qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE].pktns, qc);
 		qc_set_timer(ctx);
 		if (!quic_build_post_handshake_frames(qc))
