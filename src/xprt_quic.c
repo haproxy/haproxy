@@ -102,6 +102,8 @@ static const struct trace_event quic_trace_events[] = {
 	{ .mask = QUIC_EV_CONN_PTIMER,   .name = "ptimer",           .desc = "process timer" },
 	{ .mask = QUIC_EV_CONN_SPTO,     .name = "spto",             .desc = "set PTO" },
 	{ .mask = QUIC_EV_CONN_BCFRMS,   .name = "bcfrms",           .desc = "build CRYPTO data frames" },
+	{ .mask = QUIC_EV_CONN_XPRTSEND, .name = "xprt_send",        .desc = "sending XRPT subscription" },
+	{ .mask = QUIC_EV_CONN_XPRTRECV, .name = "xprt_recv",        .desc = "receiving XRPT subscription" },
 	{ /* end */ }
 };
 
@@ -4357,7 +4359,21 @@ static size_t quic_conn_from_buf(struct connection *conn, void *xprt_ctx, const 
  */
 static int quic_conn_subscribe(struct connection *conn, void *xprt_ctx, int event_type, struct wait_event *es)
 {
-	return conn_subscribe(conn, xprt_ctx, event_type, es);
+	struct qcc *qcc = conn->qc->qcc;
+
+	BUG_ON(event_type & ~(SUB_RETRY_SEND|SUB_RETRY_RECV));
+	BUG_ON(qcc->subs && qcc->subs != es);
+
+	es->events |= event_type;
+	qcc->subs = es;
+
+	if (event_type & SUB_RETRY_RECV)
+		TRACE_DEVEL("subscribe(recv)", QUIC_EV_CONN_XPRTRECV, conn, qcc);
+
+	if (event_type & SUB_RETRY_SEND)
+		TRACE_DEVEL("subscribe(send)", QUIC_EV_CONN_XPRTSEND, conn, qcc);
+
+	return 0;
 }
 
 /* Called from the upper layer, to unsubscribe <es> from events <event_type>.

@@ -215,6 +215,8 @@ enum quic_pkt_type {
 #define           QUIC_EV_CONN_PTIMER    (1ULL << 34)
 #define           QUIC_EV_CONN_SPTO      (1ULL << 35)
 #define           QUIC_EV_CONN_BCFRMS    (1ULL << 36)
+#define           QUIC_EV_CONN_XPRTSEND  (1ULL << 37)
+#define           QUIC_EV_CONN_XPRTRECV  (1ULL << 38)
 
 /* Similar to kernel min()/max() definitions. */
 #define QUIC_MIN(a, b) ({ \

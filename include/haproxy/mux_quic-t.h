@@ -154,6 +154,7 @@ struct qcc {
 	struct list blocked_list; /* list of streams blocked for other reasons (e.g. sfctl, dep) */
 	struct buffer_wait buf_wait; /* wait list for buffer allocations */
 	struct wait_event wait_event;  /* To be used if we're waiting for I/Os */
+	struct wait_event *subs;      /* recv wait_event the mux associated is waiting on (via quic_conn_subscribe) */
 	struct mt_list qcs_rxbuf_wlist; /* list of streams waiting for their rxbuf */
 	void *ctx; /* Application layer context */
 	const struct qcc_app_ops *app_ops;
