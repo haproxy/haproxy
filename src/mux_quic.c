@@ -1272,9 +1272,16 @@ __maybe_unused
 static int qc_process_mux(struct qcc *qcc)
 {
 	TRACE_ENTER(QC_EV_QCC_WAKE, qcc->conn);
-	/* XXX TO DO XXX */
+
+	/* First we always process the flow control list because the streams
+	 * waiting there were already elected for immediate emission but were
+	 * blocked just on this.
+	 */
+	qc_resume_each_sending_qcs(qcc, &qcc->fctl_list);
+	qc_resume_each_sending_qcs(qcc, &qcc->send_list);
+
 	TRACE_LEAVE(QC_EV_QCC_WAKE, qcc->conn);
-	return 0;
+	return 1;
 }
 
 
