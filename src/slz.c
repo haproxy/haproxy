@@ -466,7 +466,7 @@ static inline long memmatch(const unsigned char *a, const unsigned char *b, long
  * be applied to 64-bit aligned data exclusively, which makes it slightly
  * faster than the regular memset() since no alignment check is performed.
  */
-void reset_refs(union ref *refs, long count)
+static void reset_refs(union ref *refs, long count)
 {
 	/* avoid a shift/mask by casting to void* */
 	union ref *end = (void *)refs + count;
