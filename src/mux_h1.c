@@ -2428,10 +2428,12 @@ static int h1_handle_internal_err(struct h1c *h1c)
 	return ret;
 }
 
-/* Try to send a 400 bad request error. It relies on h1_send_error to send the
- * error. This function takes care of incrementing stats and tracked counters.
+/* Try to send an error because of a parsing error. By default a 400 bad request
+ * error is returned. But the status code may be specified by setting
+ * h1c->errcode. It relies on h1_send_error to send the error. This function
+ * takes care of incrementing stats and tracked counters.
  */
-static int h1_handle_bad_req(struct h1c *h1c)
+static int h1_handle_parsing_error(struct h1c *h1c)
 {
 	struct session *sess = h1c->conn->owner;
 	int ret = 1;
@@ -2447,7 +2449,8 @@ static int h1_handle_bad_req(struct h1c *h1c)
 	if (sess->listener && sess->listener->counters)
 		_HA_ATOMIC_INC(&sess->listener->counters->failed_req);
 
-	h1c->errcode = 400;
+	if (!h1c->errcode)
+		h1c->errcode = 400;
 	ret = h1_send_error(h1c);
 	if (b_data(&h1c->ibuf) || !(sess->fe->options & PR_O_NULLNOLOG))
 		sess_log(sess);
@@ -2726,7 +2729,7 @@ static int h1_process(struct h1c * h1c)
 			TRACE_ERROR("internal error detected", H1_EV_H1C_WAKE|H1_EV_H1C_ERR);
 		}
 		else if (h1s->flags & H1S_F_PARSING_ERROR) {
-			h1_handle_bad_req(h1c);
+			h1_handle_parsing_error(h1c);
 			h1c->flags = (h1c->flags & ~(H1C_F_ST_IDLE|H1C_F_WAIT_NEXT_REQ)) | H1C_F_ST_ERROR;
 			TRACE_ERROR("parsing error detected", H1_EV_H1C_WAKE|H1_EV_H1C_ERR);
 		}
@@ -2743,7 +2746,7 @@ static int h1_process(struct h1c * h1c)
 			/* No conn-stream or not ready */
 			/* shutdown for reads and error on the frontend connection: Send an error */
 			if (!(h1c->flags & (H1C_F_IS_BACK|H1C_F_ST_ERROR))) {
-				if (h1_handle_bad_req(h1c))
+				if (h1_handle_parsing_error(h1c))
 					h1_send(h1c);
 				h1c->flags = (h1c->flags & ~(H1C_F_ST_IDLE|H1C_F_WAIT_NEXT_REQ)) | H1C_F_ST_ERROR;
 			}
