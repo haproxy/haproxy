@@ -1336,6 +1336,10 @@ int si_cs_recv(struct conn_stream *cs)
 	if (!si_alloc_ibuf(si, &(si_strm(si)->buffer_wait)))
 		goto end_recv;
 
+
+	/* Instruct the mux it must subscribed for read events */
+	flags |= ((!conn_is_back(conn) && (si_strm(si)->be->options & PR_O_ABRT_CLOSE)) ? CO_RFL_KEEP_RECV : 0);
+
 	/* Important note : if we're called with POLL_IN|POLL_HUP, it means the read polling
 	 * was enabled, which implies that the recv buffer was not full. So we have a guarantee
 	 * that if such an event is not handled above in splice, it will be handled here by
@@ -1344,12 +1348,17 @@ int si_cs_recv(struct conn_stream *cs)
 	while ((cs->flags & CS_FL_RCV_MORE) ||
 	    (!(conn->flags & (CO_FL_ERROR | CO_FL_HANDSHAKE)) &&
 	       (!(cs->flags & (CS_FL_ERROR|CS_FL_EOS))) && !(ic->flags & CF_SHUTR))) {
+		int cur_flags = flags;
+
+		/* Compute transient CO_RFL_* flags */
+		if (co_data(ic))
+			cur_flags |= CO_RFL_BUF_WET;
+
 		/* <max> may be null. This is the mux responsibility to set
 		 * CS_FL_RCV_MORE on the CS if more space is needed.
 		 */
 		max = channel_recv_max(ic);
-		flags |= ((!conn_is_back(conn) && (si_strm(si)->be->options & PR_O_ABRT_CLOSE)) ? CO_RFL_KEEP_RECV : 0);
-		ret = cs->conn->mux->rcv_buf(cs, &ic->buf, max, flags | (co_data(ic) ? CO_RFL_BUF_WET : 0));
+		ret = cs->conn->mux->rcv_buf(cs, &ic->buf, max, cur_flags);
 
 		if (cs->flags & CS_FL_WANT_ROOM) {
 			si_rx_room_blk(si);
