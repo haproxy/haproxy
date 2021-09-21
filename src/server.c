@@ -4371,6 +4371,9 @@ static int cli_parse_enable_health(char **args, char *payload, struct appctx *ap
 	if (!sv)
 		return 1;
 
+	if (!(sv->check.state & CHK_ST_CONFIGURED))
+		return cli_err(appctx, "Health check was not configured on this server, cannot enable.\n");
+
 	HA_SPIN_LOCK(SERVER_LOCK, &sv->lock);
 	sv->check.state |= CHK_ST_ENABLED;
 	HA_SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
