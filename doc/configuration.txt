@@ -14011,12 +14011,15 @@ process <process-set>[/<thread-set>]
 
       all | odd | even | number[-[number]]
 
-  Ranges can be partially defined. The higher bound can be omitted. In such
+  Ranges can be partially defined. The higher bound can be omitted. In such a
   case, it is replaced by the corresponding maximum value. The main purpose is
   to have multiple bind lines sharing the same IP:port but not the same thread
   in a listener, so that the system can distribute the incoming connections
   into multiple queues, bypassing haproxy's internal queue load balancing.
   Currently Linux 3.9 and above is known for supporting this.
+
+  This directive is deprecated in favor of the more suited "thread" directive
+  below, and will be removed in 2.7.
 
 proto <name>
   Forces the multiplexer's protocol to use for the incoming connections. It
@@ -14094,6 +14097,22 @@ tfo
   is only supported on TCPv4/TCPv6 sockets and ignored by other ones. You may
   need to build HAProxy with USE_TFO=1 if your libc doesn't define
   TCP_FASTOPEN.
+
+thread <thread-set>
+  This restricts the list of threads on which this listener is allowed to run.
+  It does not enforce any of them but eliminates those which do not match. It
+  limits the threads allowed to process incoming connections for this listener.
+  For the unlikely case where several ranges are needed, this directive may be
+  repeated. <thread-set> must use the format:
+
+      all | odd | even | number[-[number]]
+
+  Ranges can be partially defined. The higher bound can be omitted. In such a
+  case, it is replaced by the corresponding maximum value. The main purpose is
+  to have multiple bind lines sharing the same IP:port but not the same thread
+  in a listener, so that the system can distribute the incoming connections
+  into multiple queues, bypassing haproxy's internal queue load balancing.
+  Currently Linux 3.9 and above is known for supporting this.
 
 tls-ticket-keys <keyfile>
   Sets the TLS ticket keys file to load the keys from. The keys need to be 48

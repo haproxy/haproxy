@@ -1504,7 +1504,11 @@ static int bind_parse_process(char **args, int cur_arg, struct proxy *px, struct
 	}
 
 	conf->settings.bind_thread |= thread;
-	return 0;
+
+	memprintf(err, "'process %s' on 'bind' lines is deprecated and will be removed in 2.7.", args[cur_arg+1]);
+	if (slash)
+		memprintf(err, "%s Please use 'thread %s' instead.", *err, slash + 1);
+	return ERR_WARN;
 }
 
 /* parse the "proto" bind keyword */
@@ -1523,6 +1527,30 @@ static int bind_parse_proto(char **args, int cur_arg, struct proxy *px, struct b
 		memprintf(err, "'%s' :  unknown MUX protocol '%s'", args[cur_arg], args[cur_arg+1]);
 		return ERR_ALERT | ERR_FATAL;
 	}
+	return 0;
+}
+
+/* parse the "thread" bind keyword */
+static int bind_parse_thread(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
+{
+	char *slash;
+	unsigned long thread = 0;
+
+	if ((slash = strchr(args[cur_arg + 1], '/')) != NULL)
+		*slash = 0;
+
+	if (slash) {
+		*slash = '/';
+		memprintf(err, "'%s': thread groups not supported", args[cur_arg+1]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	if (parse_process_number(args[cur_arg+1], &thread, MAX_THREADS, NULL, err)) {
+		memprintf(err, "'%s' : %s", args[cur_arg+1], *err);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	conf->settings.bind_thread |= thread;
 	return 0;
 }
 
@@ -1583,6 +1611,7 @@ static struct bind_kw_list bind_kws = { "ALL", { }, {
 	{ "nice",         bind_parse_nice,         1 }, /* set nice of listening socket */
 	{ "process",      bind_parse_process,      1 }, /* set list of allowed process for this socket */
 	{ "proto",        bind_parse_proto,        1 }, /* set the proto to use for all incoming connections */
+	{ "thread",       bind_parse_thread,       1 }, /* set list of allowed threads for this socket */
 	{ /* END */ },
 }};
 
