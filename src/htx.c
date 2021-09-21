@@ -79,6 +79,7 @@ struct htx_blk *htx_defrag(struct htx *htx, struct htx_blk *blk, uint32_t blkinf
 	htx->tail = new - 1;
 	htx->head_addr = htx->end_addr = 0;
 	htx->tail_addr = addr;
+	htx->flags &= ~HTX_FL_FRAGMENTED;
 	memcpy((void *)htx->blocks, (void *)tmp->blocks, htx->size);
 
 	return ((blkpos == -1) ? NULL : htx_get_blk(htx, blkpos));
@@ -339,10 +340,10 @@ struct htx_blk *htx_remove_blk(struct htx *htx, struct htx_blk *blk)
 
 	/* This is the last block in use */
 	if (htx->head == htx->tail) {
-		uint32_t flags = htx->flags; /* Preserve flags */
+		uint32_t flags = (htx->flags & ~HTX_FL_FRAGMENTED); /* Preserve flags except FRAGMENTED */
 
 		htx_reset(htx);
-		htx->flags |= flags;
+		htx->flags = flags; /* restore flags */
 		return NULL;
 	}
 
@@ -368,6 +369,9 @@ struct htx_blk *htx_remove_blk(struct htx *htx, struct htx_blk *blk)
 		blk = NULL;
 		goto end;
 	}
+	else
+		htx->flags |= HTX_FL_FRAGMENTED;
+
 	blk = htx_get_blk(htx, pos+1);
 
   end:
@@ -459,7 +463,7 @@ struct htx_ret htx_drain(struct htx *htx, uint32_t count)
 	struct htx_ret htxret = { .blk = NULL, .ret = 0 };
 
 	if (count == htx->data) {
-		uint32_t flags = htx->flags;
+		uint32_t flags = (htx->flags & ~HTX_FL_FRAGMENTED); /* Preserve flags except FRAGMENTED */
 
 		htx_reset(htx);
 		htx->flags = flags; /* restore flags */
