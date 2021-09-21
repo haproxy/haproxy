@@ -4438,6 +4438,72 @@ static int srv_alloc_lb(struct server *sv, struct proxy *be)
 	return 1;
 }
 
+/* updates the server's weight during a warmup stage. Once the final weight is
+ * reached, the task automatically stops. Note that any server status change
+ * must have updated s->last_change accordingly.
+ */
+static struct task *server_warmup(struct task *t, void *context, unsigned int state)
+{
+	struct server *s = context;
+
+	/* by default, plan on stopping the task */
+	t->expire = TICK_ETERNITY;
+	if ((s->next_admin & SRV_ADMF_MAINT) ||
+	    (s->next_state != SRV_ST_STARTING))
+		return t;
+
+	HA_SPIN_LOCK(SERVER_LOCK, &s->lock);
+
+	/* recalculate the weights and update the state */
+	server_recalc_eweight(s, 1);
+
+	/* probably that we can refill this server with a bit more connections */
+	pendconn_grab_from_px(s);
+
+	HA_SPIN_UNLOCK(SERVER_LOCK, &s->lock);
+
+	/* get back there in 1 second or 1/20th of the slowstart interval,
+	 * whichever is greater, resulting in small 5% steps.
+	 */
+	if (s->next_state == SRV_ST_STARTING)
+		t->expire = tick_add(now_ms, MS_TO_TICKS(MAX(1000, s->slowstart / 20)));
+	return t;
+}
+
+/* Allocate the slowstart task if the server is configured with a slowstart
+ * timer. If server next_state is SRV_ST_STARTING, the task is scheduled.
+ *
+ * Returns 0 on success else non-zero.
+ */
+static int init_srv_slowstart(struct server *srv)
+{
+	struct task *t;
+
+	if (srv->slowstart) {
+		if ((t = task_new(MAX_THREADS_MASK)) == NULL) {
+			ha_alert("Cannot activate slowstart for server %s/%s: out of memory.\n", srv->proxy->id, srv->id);
+			return ERR_ALERT | ERR_FATAL;
+		}
+
+		/* We need a warmup task that will be called when the server
+		 * state switches from down to up.
+		 */
+		srv->warmup = t;
+		t->process = server_warmup;
+		t->context = srv;
+
+		/* server can be in this state only because of */
+		if (srv->next_state == SRV_ST_STARTING) {
+			task_schedule(srv->warmup,
+			              tick_add(now_ms,
+			                       MS_TO_TICKS(MAX(1000, (now.tv_sec - srv->last_change)) / 20)));
+		}
+	}
+
+	return ERR_NONE;
+}
+REGISTER_POST_SERVER_CHECK(init_srv_slowstart);
+
 /* Memory allocation and initialization of the per_thr field.
  * Returns 0 if the field has been successfully initialized, -1 on failure.
  */
