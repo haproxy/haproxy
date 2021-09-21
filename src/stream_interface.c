@@ -1336,6 +1336,21 @@ int si_cs_recv(struct conn_stream *cs)
 	if (!si_alloc_ibuf(si, &(si_strm(si)->buffer_wait)))
 		goto end_recv;
 
+	/* For an HTX stream, if the buffer is stuck (no output data with some
+	 * input data) and if the HTX message is fragmented or if its free space
+	 * wraps, we force an HTX deframentation. It is a way to have a
+	 * contiguous free space nad to let the mux to copy as much data as
+	 * possible.
+	 *
+	 * NOTE: A possible optim may be to let the mux decides if defrag is
+	 *       required or not, depending on amount of data to be xferred.
+	 */
+	if (IS_HTX_STRM(si_strm(si)) && !co_data(ic)) {
+		struct htx *htx = htxbuf(&ic->buf);
+
+		if (htx_is_not_empty(htx) && ((htx->flags & HTX_FL_FRAGMENTED) || htx_space_wraps(htx)))
+			htx_defrag(htxbuf(&ic->buf), NULL, 0);
+	}
 
 	/* Instruct the mux it must subscribed for read events */
 	flags |= ((!conn_is_back(conn) && (si_strm(si)->be->options & PR_O_ABRT_CLOSE)) ? CO_RFL_KEEP_RECV : 0);
