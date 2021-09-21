@@ -38,6 +38,7 @@
 #include <haproxy/hlua.h>
 #include <haproxy/hlua_fcn.h>
 #include <haproxy/http_ana.h>
+#include <haproxy/http_client.h>
 #include <haproxy/http_fetch.h>
 #include <haproxy/http_htx.h>
 #include <haproxy/http_rules.h>
@@ -273,6 +274,7 @@ static int class_fetches_ref;
 static int class_converters_ref;
 static int class_http_ref;
 static int class_http_msg_ref;
+static int class_httpclient_ref;
 static int class_map_ref;
 static int class_applet_tcp_ref;
 static int class_applet_http_ref;
@@ -6884,6 +6886,164 @@ __LJMP static int hlua_http_msg_unset_eom(lua_State *L)
 /*
  *
  *
+ * Class HTTPClient
+ *
+ *
+ */
+__LJMP static struct hlua_httpclient *hlua_checkhttpclient(lua_State *L, int ud)
+{
+	return MAY_LJMP(hlua_checkudata(L, ud, class_httpclient_ref));
+}
+
+__LJMP static int hlua_httpclient_new(lua_State *L)
+{
+	struct hlua_httpclient *hlua_hc;
+	struct hlua *hlua;
+
+	/* Get hlua struct, or NULL if we execute from main lua state */
+	hlua = hlua_gethlua(L);
+	if (!hlua)
+		return 0;
+
+	/* Check stack size. */
+	if (!lua_checkstack(L, 3)) {
+		hlua_pusherror(L, "httpclient: full stack");
+		goto err;
+	}
+	/* Create the object: obj[0] = userdata. */
+	lua_newtable(L);
+	hlua_hc = MAY_LJMP(lua_newuserdata(L, sizeof(*hlua_hc)));
+	lua_rawseti(L, -2, 0);
+	memset(hlua_hc, 0, sizeof(*hlua_hc));
+
+	hlua_hc->hc = httpclient_new(hlua, 0, IST_NULL);
+	if (!hlua_hc->hc)
+		goto err;
+
+	/* Pop a class stream metatable and affect it to the userdata. */
+	lua_rawgeti(L, LUA_REGISTRYINDEX, class_httpclient_ref);
+	lua_setmetatable(L, -2);
+
+	return 1;
+
+ err:
+	WILL_LJMP(lua_error(L));
+	return 0;
+}
+
+
+/*
+ * Callback of the httpclient, this callback wakes the lua task up, once the
+ * httpclient receives some data
+ *
+ */
+
+static void hlua_httpclient_res_cb(struct httpclient *hc)
+{
+	struct hlua *hlua = hc->caller;
+
+	if (!hlua || !hlua->task)
+		return;
+
+	task_wakeup(hlua->task, TASK_WOKEN_MSG);
+}
+
+/*
+ * For each yield, checks if there is some data in the httpclient and push them
+ * in the lua buffer, once the httpclient finished its job, push the result on
+ * the stack
+ */
+__LJMP static int hlua_httpclient_get_yield(lua_State *L, int status, lua_KContext ctx)
+{
+	struct buffer *tr;
+	int res;
+	struct hlua *hlua = hlua_gethlua(L);
+	struct hlua_httpclient *hlua_hc = hlua_checkhttpclient(L, 1);
+
+
+	tr = get_trash_chunk();
+
+	res = httpclient_res_xfer(hlua_hc->hc, tr);
+	luaL_addlstring(&hlua_hc->b, b_orig(tr), res);
+
+	if (!httpclient_data(hlua_hc->hc) && httpclient_ended(hlua_hc->hc)) {
+
+		luaL_pushresult(&hlua_hc->b);
+		lua_settable(L, -3);
+
+		lua_pushstring(L, "status");
+		lua_pushinteger(L, hlua_hc->hc->res.status);
+		lua_settable(L, -3);
+
+
+		lua_pushstring(L, "reason");
+		lua_pushlstring(L, hlua_hc->hc->res.reason.ptr, hlua_hc->hc->res.reason.len);
+		lua_settable(L, -3);
+
+		return 1;
+	}
+
+	if (httpclient_data(hlua_hc->hc))
+		task_wakeup(hlua->task, TASK_WOKEN_MSG);
+
+
+	MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_httpclient_get_yield, TICK_ETERNITY, 0));
+	return 0;
+}
+
+/*
+ * Sends and receive an HTTP request
+ *
+ * httpclient.get(url, headers)
+ */
+
+__LJMP static int hlua_httpclient_get(lua_State *L)
+{
+	struct hlua_httpclient *hlua_hc;
+	struct hlua *hlua;
+	const char *url_str;
+
+	hlua = hlua_gethlua(L);
+
+	if (!hlua || !hlua->task)
+		WILL_LJMP(luaL_error(L, "The 'get' function is only allowed in "
+		                     "'frontend', 'backend' or 'task'"));
+
+	if (lua_gettop(L) < 1 || lua_gettop(L) > 2)
+		WILL_LJMP(luaL_error(L, "'get' needs between 1 or 2 arguments"));
+
+	/* arg 1: URL */
+	if (lua_type(L, -1) == LUA_TSTRING)
+		url_str = lua_tostring(L, -1);
+
+	hlua_hc = hlua_checkhttpclient(L, 1);
+
+	hlua_hc->hc->req.url = istdup(ist(url_str));
+	hlua_hc->hc->req.meth = HTTP_METH_GET;
+
+	/* update the httpclient callbacks */
+	hlua_hc->hc->ops.res_stline = hlua_httpclient_res_cb;
+	hlua_hc->hc->ops.res_headers = hlua_httpclient_res_cb;
+	hlua_hc->hc->ops.res_payload = hlua_httpclient_res_cb;
+	hlua_hc->hc->ops.res_end = hlua_httpclient_res_cb;
+
+
+	httpclient_req_gen(hlua_hc->hc, hlua_hc->hc->req.url, HTTP_METH_GET, NULL);
+	httpclient_start(hlua_hc->hc);
+
+	/* we return a "res" object */
+	lua_newtable(L);
+
+	luaL_buffinit(L, &hlua_hc->b);
+	lua_pushstring(L, "body");
+
+	MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_httpclient_get_yield, TICK_ETERNITY, 0));
+	return 0;
+}
+
+/*
+ *
+ *
  * Class TXN
  *
  *
@@ -11209,6 +11369,7 @@ lua_State *hlua_init_state(int thread_num)
 	hlua_class_function(L, "set_map", hlua_set_map);
 	hlua_class_function(L, "del_map", hlua_del_map);
 	hlua_class_function(L, "tcp", hlua_socket_new);
+	hlua_class_function(L, "httpclient", hlua_httpclient_new);
 	hlua_class_function(L, "log", hlua_log);
 	hlua_class_function(L, "Debug", hlua_log_debug);
 	hlua_class_function(L, "Info", hlua_log_info);
@@ -11514,6 +11675,22 @@ lua_State *hlua_init_state(int thread_num)
 
 	/* Register previous table in the registry with reference and named entry. */
 	class_http_msg_ref = hlua_register_metatable(L, CLASS_HTTP_MSG);
+
+	/*
+	 *
+	 * Register class HTTPClient
+	 *
+	 */
+
+	/* Create and fill the metatable. */
+	lua_newtable(L);
+	lua_pushstring(L, "__index");
+	lua_newtable(L);
+	hlua_class_function(L, "get",         hlua_httpclient_get);
+	lua_settable(L, -3); /* Sets the __index entry. */
+
+
+	class_httpclient_ref = hlua_register_metatable(L, CLASS_HTTPCLIENT);
 	/*
 	 *
 	 * Register class AppletTCP

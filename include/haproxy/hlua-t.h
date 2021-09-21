@@ -43,6 +43,7 @@
 #define CLASS_CHANNEL      "Channel"
 #define CLASS_HTTP         "HTTP"
 #define CLASS_HTTP_MSG     "HTTPMessage"
+#define CLASS_HTTPCLIENT   "HTTPClient"
 #define CLASS_MAP          "Map"
 #define CLASS_APPLET_TCP   "AppletTCP"
 #define CLASS_APPLET_HTTP  "AppletHTTP"
@@ -182,6 +183,12 @@ struct hlua_socket {
 struct hlua_concat {
 	int size;
 	int len;
+};
+
+/* This struct is used to store the httpclient */
+struct hlua_httpclient {
+	struct httpclient *hc; /* ptr to the httpclient instance */
+	luaL_Buffer b; /* buffer used to prepare strings. */
 };
 
 #else /* USE_LUA */
