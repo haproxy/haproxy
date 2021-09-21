@@ -1366,8 +1366,9 @@ int si_cs_recv(struct conn_stream *cs)
 		int cur_flags = flags;
 
 		/* Compute transient CO_RFL_* flags */
-		if (co_data(ic))
-			cur_flags |= CO_RFL_BUF_WET;
+		if (co_data(ic)) {
+			cur_flags |= (CO_RFL_BUF_WET | CO_RFL_BUF_NOT_STUCK);
+		}
 
 		/* <max> may be null. This is the mux responsibility to set
 		 * CS_FL_RCV_MORE on the CS if more space is needed.

@@ -3910,7 +3910,18 @@ static int fcgi_unsubscribe(struct conn_stream *cs, int event_type, struct wait_
 	return 0;
 }
 
-/* Called from the upper layer, to receive data */
+/* Called from the upper layer, to receive data
+ *
+ * The caller is responsible for defragmenting <buf> if necessary. But <flags>
+ * must be tested to know the calling context. If CO_RFL_BUF_FLUSH is set, it
+ * means the caller wants to flush input data (from the mux buffer and the
+ * channel buffer) to be able to use kernel splicing or any kind of mux-to-mux
+ * xfer. If CO_RFL_KEEP_RECV is set, the mux must always subscribe for read
+ * events before giving back. CO_RFL_BUF_WET is set if <buf> is congested with
+ * data scheduled for leaving soon. CO_RFL_BUF_NOT_STUCK is set to instruct the
+ * mux it may optimize the data copy to <buf> if necessary. Otherwise, it should
+ * copy as much data as possible.
+ */
 static size_t fcgi_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t count, int flags)
 {
 	struct fcgi_strm *fstrm = cs->ctx;
