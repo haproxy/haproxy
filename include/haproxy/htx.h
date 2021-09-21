@@ -606,6 +606,17 @@ static inline uint32_t htx_free_data_space(const struct htx *htx)
 	return (free - sizeof(struct htx_blk));
 }
 
+/* Returns non-zero only if the HTX message free space wraps */
+static inline int htx_space_wraps(const struct htx *htx)
+{
+	uint32_t headroom, tailroom;
+
+	headroom = (htx->end_addr - htx->head_addr);
+	tailroom = (htx_pos_to_addr(htx, htx->tail) - htx->tail_addr);
+
+	return (headroom && tailroom);
+}
+
 /* Returns the maximum size for a block, not exceeding <max> bytes. <max> may be
  * set to -1 to have no limit.
  */
