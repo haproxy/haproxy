@@ -1548,6 +1548,7 @@ add server <backend>/<server> [args]*
   - send-proxy-v2
   - send-proxy-v2-ssl
   - send-proxy-v2-ssl-cn
+  - slowstart
   - sni
   - source
   - ssl

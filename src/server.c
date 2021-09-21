@@ -1673,7 +1673,7 @@ static struct srv_kw_list srv_kws = { "ALL", { }, {
 	{ "resolvers",           srv_parse_resolvers,           1,  1,  0 }, /* Configure the resolver to use for name resolution */
 	{ "send-proxy",          srv_parse_send_proxy,          0,  1,  1 }, /* Enforce use of PROXY V1 protocol */
 	{ "send-proxy-v2",       srv_parse_send_proxy_v2,       0,  1,  1 }, /* Enforce use of PROXY V2 protocol */
-	{ "slowstart",           srv_parse_slowstart,           1,  1,  0 }, /* Set the warm-up timer for a previously failed server */
+	{ "slowstart",           srv_parse_slowstart,           1,  1,  1 }, /* Set the warm-up timer for a previously failed server */
 	{ "source",              srv_parse_source,             -1,  1,  1 }, /* Set the source address to be used to connect to the server */
 	{ "stick",               srv_parse_stick,               0,  1,  0 }, /* Enable stick-table persistence */
 	{ "tfo",                 srv_parse_tfo,                 0,  1,  1 }, /* enable TCP Fast Open of server */
@@ -4659,6 +4659,10 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 
 		srv->agent.state &= ~CHK_ST_ENABLED;
 	}
+
+	/* Init slowstart if needed. */
+	if (init_srv_slowstart(srv))
+		goto out;
 
 	/* Attach the server to the end of the proxy linked list. Note that this
 	 * operation is not thread-safe so this is executed under thread
