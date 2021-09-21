@@ -200,7 +200,7 @@ static int hc_cli_io_handler(struct appctx *appctx)
 		ret = httpclient_res_xfer(hc, &si_ic(si)->buf);
 		channel_add_input(si_ic(si), ret); /* forward what we put in the buffer channel */
 
-		if (!b_data(&hc->res.buf)) {/* remove the flag if the buffer was emptied */
+		if (!httpclient_data(hc)) {/* remove the flag if the buffer was emptied */
 			appctx->ctx.cli.i0 &= ~HC_CLI_F_RES_BODY;
 		}
 		goto out;
