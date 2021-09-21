@@ -27,7 +27,10 @@ struct httpclient {
 	struct sockaddr_storage dst;          /* destination address */
 	struct appctx *appctx;                /* HTTPclient appctx */
 	void *caller;                         /* ptr of the caller */
+	unsigned int flags;                   /* other flags */
 };
+
+#define    HTTPCLIENT_F_ENDED        0x00000001
 
 /* States of the HTTP Client Appctx */
 enum {

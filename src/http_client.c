@@ -559,10 +559,12 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 
 					/* if there is no HTX data anymore and the EOM flag is
 					 * set, leave (no body) */
-					if (htx_is_empty(htx) && htx->flags & HTX_FL_EOM)
+					if (htx_is_empty(htx) && htx->flags & HTX_FL_EOM) {
 						appctx->st0 = HTTPCLIENT_S_RES_END;
-					else
+						hc->flags |= HTTPCLIENT_F_ENDED;
+					} else {
 						appctx->st0 = HTTPCLIENT_S_RES_BODY;
+					}
 				}
 			break;
 
@@ -648,6 +650,8 @@ static void httpclient_applet_release(struct appctx *appctx)
 {
 	struct httpclient *hc = appctx->ctx.httpclient.ptr;
 
+	/* mark the httpclient as ended */
+	hc->flags |= HTTPCLIENT_F_ENDED;
 	/* the applet is leaving, remove the ptr so we don't try to call it
 	 * again from the caller */
 	hc->appctx = NULL;

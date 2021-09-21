@@ -17,4 +17,10 @@ static inline int httpclient_data(struct httpclient *hc)
 	return b_data(&hc->res.buf);
 }
 
+/* Return 1 if the httpclient ended and won't receive any new data */
+static inline int httpclient_ended(struct httpclient *hc)
+{
+	return !!(hc->flags & HTTPCLIENT_F_ENDED);
+}
+
 #endif /* ! _HAPROXY_HTTCLIENT_H */
