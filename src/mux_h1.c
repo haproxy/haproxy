@@ -1402,6 +1402,24 @@ static size_t h1_handle_headers(struct h1s *h1s, struct h1m *h1m, struct htx *ht
 		goto end;
 	}
 
+
+	/* Reject HTTP/1.0 GET/HEAD/DELETE requests with a payload. There is a
+	 * payload if the c-l is not null or the the payload is chunk-encoded.
+	 * A parsing error is reported but a A 413-Payload-Too-Large is returned
+	 * instead of a 400-Bad-Request.
+	 */
+	if (!(h1m->flags & (H1_MF_RESP|H1_MF_VER_11)) &&
+	    (((h1m->flags & H1_MF_CLEN) && h1m->body_len) || (h1m->flags & H1_MF_CHNK)) &&
+	    (h1sl.rq.meth == HTTP_METH_GET || h1sl.rq.meth == HTTP_METH_HEAD || h1sl.rq.meth == HTTP_METH_DELETE)) {
+		h1s->flags |= H1S_F_PARSING_ERROR;
+		htx->flags |= HTX_FL_PARSING_ERROR;
+		h1s->h1c->errcode = 413;
+		TRACE_ERROR("HTTP/1.0 GET/HEAD/DELETE request with a payload forbidden", H1_EV_RX_DATA|H1_EV_RX_HDRS|H1_EV_H1S_ERR, h1s->h1c->conn, h1s);
+		h1_capture_bad_message(h1s->h1c, h1s, h1m, buf);
+		ret = 0;
+		goto end;
+	}
+
 	/* If websocket handshake, search for the websocket key */
 	if ((h1m->flags & (H1_MF_CONN_UPG|H1_MF_UPG_WEBSOCKET)) ==
 	    (H1_MF_CONN_UPG|H1_MF_UPG_WEBSOCKET)) {
