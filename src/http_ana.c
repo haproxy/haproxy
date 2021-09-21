@@ -2009,8 +2009,8 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 		s->flags |= SF_ERR_INTERNAL;
 	_HA_ATOMIC_INC(&sess->fe->fe_counters.internal_errors);
 	_HA_ATOMIC_INC(&s->be->be_counters.internal_errors);
-	if (objt_server(s->target))
-		_HA_ATOMIC_INC(&__objt_server(s->target)->counters.internal_errors);
+	if (sess->listener && sess->listener->counters)
+		_HA_ATOMIC_INC(&sess->listener->counters->internal_errors);
 	if (objt_server(s->target))
 		_HA_ATOMIC_INC(&__objt_server(s->target)->counters.internal_errors);
 	goto return_prx_err;
