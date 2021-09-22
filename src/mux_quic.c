@@ -1029,7 +1029,9 @@ struct qcs *luqs_new(struct qcc *qcc)
 
 	qcs->subs = NULL;
 	LIST_INIT(&qcs->list);
-	eb64_insert(&qcc->streams_by_id, &qcs->by_id);
+	// TODO do not insert luqs into streams_by_id as it prevent to detect
+	// that the connection is dead
+	//eb64_insert(&qcc->streams_by_id, &qcs->by_id);
 
 	TRACE_LEAVE(QC_EV_QCS_NEW, qcc->conn);
 	return qcs;
@@ -1071,7 +1073,9 @@ struct qcs *ruqs_new(struct qcc *qcc, uint64_t id)
 
 	qcs->subs = NULL;
 	LIST_INIT(&qcs->list);
-	eb64_insert(&qcc->streams_by_id, &qcs->by_id);
+	// TODO do not insert ruqs into streams_by_id as it prevent to detect
+	// that the connection is dead
+	//eb64_insert(&qcc->streams_by_id, &qcs->by_id);
 
 	TRACE_LEAVE(QC_EV_QCS_NEW, qcc->conn);
 	return qcs;
@@ -1595,9 +1599,12 @@ static void qc_destroy(void *ctx)
 static void qc_detach(struct conn_stream *cs)
 {
 	struct qcs *qcs = cs->ctx;
+	struct qcc *qcc = qcs->qcc;
 
 	TRACE_ENTER(QC_EV_STRM_END, qcs ? qcs->qcc->conn : NULL, qcs);
-	/* XXX TO DO XXX */
+	qcs_destroy(qcs);
+	if (eb_is_empty(&qcc->streams_by_id))
+		qc_release(qcc);
 	TRACE_LEAVE(QC_EV_STRM_END, qcs ? qcs->qcc->conn : NULL);
 }
 
