@@ -71,12 +71,13 @@ static inline void fwlc_queue_srv(struct server *s, unsigned int eweight)
 static void fwlc_srv_reposition(struct server *s)
 {
 	unsigned int inflight = _HA_ATOMIC_LOAD(&s->served) + _HA_ATOMIC_LOAD(&s->queue.length);
-	unsigned int new_key = inflight ? (inflight + 1) * SRV_EWGHT_MAX / s->cur_eweight : 0;
+	unsigned int eweight = _HA_ATOMIC_LOAD(&s->cur_eweight);
+	unsigned int new_key = inflight ? (inflight + 1) * SRV_EWGHT_MAX / (eweight ? eweight : 1) : 0;
 
 	/* some calls will be made for no change (e.g connect_server() after
 	 * assign_server(). Let's check that first.
 	 */
-	if (s->lb_node.node.leaf_p && s->lb_node.key == new_key)
+	if (s->lb_node.node.leaf_p && eweight && s->lb_node.key == new_key)
 		return;
 
 	HA_RWLOCK_WRLOCK(LBPRM_LOCK, &s->proxy->lbprm.lock);
@@ -87,7 +88,8 @@ static void fwlc_srv_reposition(struct server *s)
 		 * to our target value (50% of the case in measurements).
 		 */
 		inflight = _HA_ATOMIC_LOAD(&s->served) + _HA_ATOMIC_LOAD(&s->queue.length);
-		new_key = inflight ? (inflight + 1) * SRV_EWGHT_MAX / s->cur_eweight : 0;
+		eweight = _HA_ATOMIC_LOAD(&s->cur_eweight);
+		new_key = inflight ? (inflight + 1) * SRV_EWGHT_MAX / (eweight ? eweight : 1) : 0;
 		if (!s->lb_node.node.leaf_p || s->lb_node.key != new_key) {
 			eb32_delete(&s->lb_node);
 			s->lb_node.key = new_key;
