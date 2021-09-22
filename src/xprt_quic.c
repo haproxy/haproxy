@@ -4610,6 +4610,7 @@ static ssize_t quic_dgram_read(char *buf, size_t len, void *owner,
 			if (!pkt_len)
 				break;
 		}
+		quic_rx_packet_refdec(pkt);
 	} while (pos < end);
 
 	/* Increasing the received bytes counter by the UDP datagram length
