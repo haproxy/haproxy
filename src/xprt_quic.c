@@ -2643,7 +2643,9 @@ static inline int qc_treat_rx_crypto_frms(struct quic_enc_level *el,
 	return 0;
 }
 
-/* Process all the packets at <el> encryption level.
+/* Process all the packets at <el> and <next_el> encryption level.
+ * This is the caller responsability to check that <cur_el> is different of <next_el>
+ * as pointer value.
  * Return 1 if succeeded, 0 if not.
  */
 int qc_treat_rx_pkts(struct quic_enc_level *cur_el, struct quic_enc_level *next_el,
@@ -2706,6 +2708,7 @@ int qc_treat_rx_pkts(struct quic_enc_level *cur_el, struct quic_enc_level *next_
 		goto err;
 
 	if (qel == cur_el) {
+		BUG_ON(qel == next_el);
 		qel = next_el;
 		goto next_tel;
 	}
@@ -2787,9 +2790,11 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
  skip_send:
 	/* Check if there is something to do for the next level.
 	 */
-	if (next_qel && (next_qel->tls_ctx.rx.flags & QUIC_FL_TLS_SECRETS_SET) &&
+	if (next_qel && next_qel != qel &&
+	    (next_qel->tls_ctx.rx.flags & QUIC_FL_TLS_SECRETS_SET) &&
 	    (!MT_LIST_ISEMPTY(&next_qel->rx.pqpkts) || !eb_is_empty(&next_qel->rx.pkts))) {
 		qel = next_qel;
+		next_qel = NULL;
 		goto next_level;
 	}
 
