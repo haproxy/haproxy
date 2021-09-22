@@ -301,33 +301,51 @@ REGISTER_BUILD_OPTS("Built without multi-threading support (USE_THREAD not set).
 #endif // USE_THREAD
 
 
-/* Parse the number of threads in argument <arg>, returns it and adjusts a few
- * internal variables accordingly, or fails and returns zero with an error
- * reason in <errmsg>. May be called multiple times while parsing.
+/* Parse the "nbthread" global directive, which takes an integer argument that
+ * contains the desired number of threads.
  */
-int parse_nbthread(const char *arg, char **err)
+static int cfg_parse_nbthread(char **args, int section_type, struct proxy *curpx,
+                              const struct proxy *defpx, const char *file, int line,
+                              char **err)
 {
 	long nbthread;
 	char *errptr;
 
-	nbthread = strtol(arg, &errptr, 10);
-	if (!*arg || *errptr) {
-		memprintf(err, "passed a missing or unparsable integer value in '%s'", arg);
-		return 0;
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	nbthread = strtol(args[1], &errptr, 10);
+	if (!*args[1] || *errptr) {
+		memprintf(err, "'%s' passed a missing or unparsable integer value in '%s'", args[0], args[1]);
+		return -1;
 	}
 
 #ifndef USE_THREAD
 	if (nbthread != 1) {
-		memprintf(err, "specified with a value other than 1 while HAProxy is not compiled with threads support. Please check build options for USE_THREAD");
-		return 0;
+		memprintf(err, "'%s' specified with a value other than 1 while HAProxy is not compiled with threads support. Please check build options for USE_THREAD", args[0]);
+		return -1;
 	}
 #else
 	if (nbthread < 1 || nbthread > MAX_THREADS) {
-		memprintf(err, "value must be between 1 and %d (was %ld)", MAX_THREADS, nbthread);
-		return 0;
+		memprintf(err, "'%s' value must be between 1 and %d (was %ld)", args[0], MAX_THREADS, nbthread);
+		return -1;
 	}
 
 	all_threads_mask = nbits(nbthread);
 #endif
-	return nbthread;
+
+	HA_DIAG_WARNING_COND(global.nbthread,
+	                     "parsing [%s:%d] : nbthread is already defined and will be overridden.\n",
+	                     file, line);
+
+	global.nbthread = nbthread;
+	return 0;
 }
+
+/* config keyword parsers */
+static struct cfg_kw_list cfg_kws = {ILH, {
+	{ CFG_GLOBAL, "nbthread",       cfg_parse_nbthread, 0 },
+	{ 0, NULL, NULL }
+}};
+
+INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);

@@ -38,7 +38,7 @@ static const char *common_kw_list[] = {
 	"tune.sndbuf.client", "tune.sndbuf.server", "tune.pipesize",
 	"tune.http.cookielen", "tune.http.logurilen", "tune.http.maxhdr",
 	"tune.comp.maxlevel", "tune.pattern.cache-size", "uid", "gid",
-	"external-check", "user", "group", "nbproc", "nbthread", "maxconn",
+	"external-check", "user", "group", "nbproc", "maxconn",
 	"ssl-server-verify", "maxconnrate", "maxsessrate", "maxsslrate",
 	"maxcomprate", "maxpipes", "maxzlibmem", "maxcompcpuusage", "ulimit-n",
 	"chroot", "description", "node", "pidfile", "unix-bind", "log",
@@ -575,27 +575,6 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		ha_alert("parsing [%s:%d] : nbproc is not supported any more since HAProxy 2.5. Threads will automatically be used on multi-processor machines if available.\n", file, linenum);
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto out;
-	}
-	else if (strcmp(args[0], "nbthread") == 0) {
-		if (alertif_too_many_args(1, file, linenum, args, &err_code))
-			goto out;
-		if (*(args[1]) == 0) {
-			ha_alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		HA_DIAG_WARNING_COND(global.nbthread,
-		                     "parsing [%s:%d] : nbthread is already defined and will be overridden.\n",
-		                     file, linenum);
-
-		global.nbthread = parse_nbthread(args[1], &errmsg);
-		if (!global.nbthread) {
-			ha_alert("parsing [%s:%d] : '%s' %s.\n",
-				 file, linenum, args[0], errmsg);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
 	}
 	else if (strcmp(args[0], "maxconn") == 0) {
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
