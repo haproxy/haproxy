@@ -612,6 +612,7 @@ static int qc_init(struct connection *conn, struct proxy *prx,
 		t->expire = tick_add(now_ms, qcc->timeout);
 	}
 
+	qcc->subs = NULL;
 	qcc->wait_event.tasklet = tasklet_new();
 	if (!qcc->wait_event.tasklet)
 		goto fail;
