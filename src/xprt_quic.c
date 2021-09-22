@@ -2888,6 +2888,13 @@ static void quic_conn_free(struct quic_conn *conn)
 	pool_free(pool_head_quic_conn, conn);
 }
 
+void quic_close(struct connection *conn, void *xprt_ctx)
+{
+	struct ssl_sock_ctx *conn_ctx = xprt_ctx;
+	struct quic_conn *qc = conn_ctx->conn->qc;
+	quic_conn_free(qc);
+}
+
 /* Callback called upon loss detection and PTO timer expirations. */
 static struct task *process_timer(struct task *task, void *ctx, unsigned int state)
 {
@@ -4557,6 +4564,7 @@ static int qc_xprt_start(struct connection *conn, void *ctx)
 
 /* transport-layer operations for QUIC connections. */
 static struct xprt_ops ssl_quic = {
+	.close    = quic_close,
 	.snd_buf  = quic_conn_from_buf,
 	.rcv_buf  = quic_conn_to_buf,
 	.subscribe = quic_conn_subscribe,
