@@ -1038,42 +1038,6 @@ static inline void quic_rx_packet_refdec(struct quic_rx_packet *pkt)
 		pool_free(pool_head_quic_rx_packet, pkt);
 }
 
-/* Add <pkt> RX packet to <list>, incrementing its reference counter. */
-static inline void quic_rx_packet_list_addq(struct mt_list *list,
-                                            struct quic_rx_packet *pkt)
-{
-	MT_LIST_APPEND(list, &pkt->list);
-	quic_rx_packet_refinc(pkt);
-}
-
-/* Remove <pkt> RX packet from <list>, decrementing its reference counter. */
-static inline void quic_rx_packet_list_del(struct quic_rx_packet *pkt)
-{
-	MT_LIST_DELETE(&pkt->list);
-	quic_rx_packet_refdec(pkt);
-}
-
-/* Add <pkt> RX packet to <root> tree, incrementing its reference counter. */
-static inline void quic_rx_packet_eb64_insert(struct eb_root *root,
-                                              struct eb64_node *node)
-{
-	eb64_insert(root, node);
-	quic_rx_packet_refinc(eb64_entry(node, struct quic_rx_packet, pn_node));
-}
-
-/* Delete <pkt> RX packet from <root> tree, decrementing its reference counter. */
-static inline void quic_rx_packet_eb64_delete(struct eb64_node *node)
-{
-	eb64_delete(node);
-	quic_rx_packet_refdec(eb64_entry(node, struct quic_rx_packet, pn_node));
-}
-
-/* Release the memory allocated for <pkt> RX packet. */
-static inline void free_quic_rx_packet(struct quic_rx_packet *pkt)
-{
-	quic_rx_packet_refdec(pkt);
-}
-
 /* Increment the reference counter of <pkt> */
 static inline void quic_tx_packet_refinc(struct quic_tx_packet *pkt)
 {

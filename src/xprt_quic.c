@@ -2594,7 +2594,8 @@ static inline void qc_rm_hp_pkts(struct quic_enc_level *el, struct ssl_sock_ctx 
 			/* Store the packet into the tree of packets to decrypt. */
 			pqpkt->pn_node.key = pqpkt->pn;
 			HA_RWLOCK_WRLOCK(QUIC_LOCK, &el->rx.pkts_rwlock);
-			quic_rx_packet_eb64_insert(&el->rx.pkts, &pqpkt->pn_node);
+			eb64_insert(&el->rx.pkts, &pqpkt->pn_node);
+			quic_rx_packet_refinc(pqpkt);
 			HA_RWLOCK_WRUNLOCK(QUIC_LOCK, &el->rx.pkts_rwlock);
 			TRACE_PROTO("hp removed", QUIC_EV_CONN_ELRMHP, ctx->conn, pqpkt);
 		}
@@ -2693,7 +2694,8 @@ int qc_treat_rx_pkts(struct quic_enc_level *cur_el, struct quic_enc_level *next_
 			}
 		}
 		node = eb64_next(node);
-		quic_rx_packet_eb64_delete(&pkt->pn_node);
+		eb64_delete(&pkt->pn_node);
+		quic_rx_packet_refdec(pkt);
 	}
 	HA_RWLOCK_WRUNLOCK(QUIC_LOCK, &qel->rx.pkts_rwlock);
 
@@ -3166,13 +3168,15 @@ static inline int qc_try_rm_hp(struct quic_rx_packet *pkt,
 		/* Store the packet */
 		pkt->pn_node.key = pkt->pn;
 		HA_RWLOCK_WRLOCK(QUIC_LOCK, &qel->rx.pkts_rwlock);
-		quic_rx_packet_eb64_insert(&qel->rx.pkts, &pkt->pn_node);
+		eb64_insert(&qel->rx.pkts, &pkt->pn_node);
+		quic_rx_packet_refinc(pkt);
 		HA_RWLOCK_WRUNLOCK(QUIC_LOCK, &qel->rx.pkts_rwlock);
 	}
 	else if (qel) {
 		TRACE_PROTO("hp not removed", QUIC_EV_CONN_TRMHP, ctx ? ctx->conn : NULL, pkt);
 		pkt->pn_offset = pn - beg;
-		quic_rx_packet_list_addq(&qel->rx.pqpkts, pkt);
+		MT_LIST_APPEND(&qel->rx.pqpkts, &pkt->list);
+		quic_rx_packet_refinc(pkt);
 	}
 
 	memcpy(pkt->data, beg, pkt->len);
@@ -4601,7 +4605,7 @@ static ssize_t quic_dgram_read(char *buf, size_t len, void *owner,
 			size_t pkt_len;
 
 			pkt_len = pkt->len;
-			free_quic_rx_packet(pkt);
+			quic_rx_packet_refdec(pkt);
 			/* If the packet length could not be found, we cannot continue. */
 			if (!pkt_len)
 				break;
