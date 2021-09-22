@@ -111,7 +111,7 @@ struct global {
 	int rlimit_memmax_all;	/* default all-process memory limit in megs ; 0=unset */
 	int rlimit_memmax;	/* default per-process memory limit in megs ; 0=unset */
 	long maxzlibmem;        /* max RAM for zlib in bytes */
-
+	int nbtgroups;          /* number of thread groups (IDs start at 1) */
 	int spread_checks;
 	int max_spread_checks;
 	int max_syslog_len;

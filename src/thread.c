@@ -1035,16 +1035,56 @@ static int cfg_parse_nbthread(char **args, int section_type, struct proxy *curpx
 #endif
 
 	HA_DIAG_WARNING_COND(global.nbthread,
-	                     "parsing [%s:%d] : nbthread is already defined and will be overridden.\n",
-	                     file, line);
+	                     "parsing [%s:%d] : '%s' is already defined and will be overridden.\n",
+	                     file, line, args[0]);
 
 	global.nbthread = nbthread;
+	return 0;
+}
+
+/* Parse the "thread-groups" global directive, which takes an integer argument
+ * that contains the desired number of thread groups.
+ */
+static int cfg_parse_thread_groups(char **args, int section_type, struct proxy *curpx,
+                                   const struct proxy *defpx, const char *file, int line,
+                                   char **err)
+{
+	long nbtgroups;
+	char *errptr;
+
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	nbtgroups = strtol(args[1], &errptr, 10);
+	if (!*args[1] || *errptr) {
+		memprintf(err, "'%s' passed a missing or unparsable integer value in '%s'", args[0], args[1]);
+		return -1;
+	}
+
+#ifndef USE_THREAD
+	if (nbtgroups != 1) {
+		memprintf(err, "'%s' specified with a value other than 1 while HAProxy is not compiled with threads support. Please check build options for USE_THREAD", args[0]);
+		return -1;
+	}
+#else
+	if (nbtgroups < 1 || nbtgroups > MAX_TGROUPS) {
+		memprintf(err, "'%s' value must be between 1 and %d (was %ld)", args[0], MAX_TGROUPS, nbtgroups);
+		return -1;
+	}
+#endif
+
+	HA_DIAG_WARNING_COND(global.nbtgroups,
+	                     "parsing [%s:%d] : '%s' is already defined and will be overridden.\n",
+	                     file, line, args[0]);
+
+	global.nbtgroups = nbtgroups;
 	return 0;
 }
 
 /* config keyword parsers */
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "nbthread",       cfg_parse_nbthread, 0 },
+	{ CFG_GLOBAL, "thread-groups",  cfg_parse_thread_groups, 0 },
 	{ 0, NULL, NULL }
 }};
 

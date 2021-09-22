@@ -2436,6 +2436,9 @@ int check_config_validity()
 #endif
 	}
 
+	if (!global.nbtgroups)
+		global.nbtgroups = 1;
+
 	pool_head_requri = create_pool("requri", global.tune.requri_len , MEM_F_SHARED);
 
 	pool_head_capture = create_pool("capture", global.tune.cookie_len, MEM_F_SHARED);

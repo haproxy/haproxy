@@ -2070,6 +2070,11 @@ stats maxconn <connections>
   By default, the stats socket is limited to 10 concurrent connections. It is
   possible to change this value with "stats maxconn".
 
+thread-groups <number>
+  This setting is only available when support for threads was built in. It
+  makes HAProxy split its threads into <number> independent groups. At the
+  moment, the limit is 1 and is also the default value. See also "nbthread".
+
 uid <number>
   Changes the process's user ID to <number>. It is recommended that the user ID
   is dedicated to HAProxy or to a small set of similar daemons. HAProxy must
