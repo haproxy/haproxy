@@ -52,7 +52,7 @@
  */
 
 #define CF_READ_NULL      0x00000001  /* last read detected on producer side */
-#define CF_READ_PARTIAL   0x00000002  /* some data were read from producer */
+#define CF_READ_PARTIAL   0x00000002  /* some data were read from producer or a read exception occurred */
 #define CF_READ_TIMEOUT   0x00000004  /* timeout while waiting for producer */
 #define CF_READ_ERROR     0x00000008  /* unrecoverable error on producer side */
 #define CF_READ_ACTIVITY  (CF_READ_NULL|CF_READ_PARTIAL|CF_READ_ERROR)
