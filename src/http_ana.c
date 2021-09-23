@@ -4060,8 +4060,10 @@ enum rule_result http_wait_for_msg_body(struct stream *s, struct channel *chn,
 	/* Now we're in HTTP_MSG_DATA. We just need to know if all data have
 	 * been received or if the buffer is full.
 	 */
-	if ((htx->flags & HTX_FL_EOM) || htx_get_tail_type(htx) > HTX_BLK_DATA ||
-	    channel_htx_full(chn, htx, global.tune.maxrewrite))
+	if ((htx->flags & HTX_FL_EOM) ||
+	    htx_get_tail_type(htx) > HTX_BLK_DATA ||
+	    channel_htx_full(chn, htx, global.tune.maxrewrite) ||
+	    si_rx_blocked_room(chn_prod(chn)))
 		goto end;
 
 	if (bytes) {

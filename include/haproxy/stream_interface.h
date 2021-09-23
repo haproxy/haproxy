@@ -242,6 +242,15 @@ static inline int si_rx_blocked(const struct stream_interface *si)
 	return !!(si->flags & SI_FL_RXBLK_ANY);
 }
 
+
+/* Returns non-zero if the stream interface's Rx path is blocked because of lack
+ * of room in the input buffer.
+ */
+static inline int si_rx_blocked_room(const struct stream_interface *si)
+{
+	return !!(si->flags & SI_FL_RXBLK_ROOM);
+}
+
 /* Returns non-zero if the stream interface's endpoint is ready to receive */
 static inline int si_rx_endp_ready(const struct stream_interface *si)
 {
