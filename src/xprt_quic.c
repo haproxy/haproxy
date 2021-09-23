@@ -371,7 +371,7 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 				              (unsigned long long)cf->len);
 			if (ssl) {
 				enum ssl_encryption_level_t level = SSL_quic_read_level(ssl);
-				chunk_appendf(&trace_buf, " el=%c",
+				chunk_appendf(&trace_buf, " rel=%c",
 				              quic_enc_level_char(ssl_to_quic_enc_level(level)));
 			}
 		}
