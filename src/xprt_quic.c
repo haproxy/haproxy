@@ -580,12 +580,15 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 	}
 	if (mask & QUIC_EV_CONN_LPKT) {
 		const struct quic_rx_packet *pkt = a2;
+		const uint64_t *len = a3;
 
 		if (conn)
 			chunk_appendf(&trace_buf, " xprt_ctx@%p qc@%p", conn->xprt_ctx, conn->qc);
 		if (pkt)
 			chunk_appendf(&trace_buf, " pkt@%p type=0x%02x %s pkt->qc@%p",
 			              pkt, pkt->type, qc_pkt_long(pkt) ? "long" : "short", pkt->qc);
+		if (len)
+			chunk_appendf(&trace_buf, " len=%llu", (ull)*len);
 	}
 
 }
@@ -4599,6 +4602,7 @@ static ssize_t quic_dgram_read(char *buf, size_t len, void *owner,
 	do {
 		int ret;
 		struct quic_rx_packet *pkt;
+		size_t pkt_len;
 
 		pkt = pool_zalloc(pool_head_quic_rx_packet);
 		if (!pkt)
@@ -4606,16 +4610,12 @@ static ssize_t quic_dgram_read(char *buf, size_t len, void *owner,
 
 		quic_rx_packet_refinc(pkt);
 		ret = func(&pos, end, pkt, &dgram_ctx, saddr);
-		if (ret == -1) {
-			size_t pkt_len;
-
-			pkt_len = pkt->len;
-			quic_rx_packet_refdec(pkt);
-			/* If the packet length could not be found, we cannot continue. */
-			if (!pkt_len)
-				break;
-		}
+		pkt_len = pkt->len;
 		quic_rx_packet_refdec(pkt);
+		if (ret == -1 && !pkt_len)
+			/* If the packet length could not be found, we cannot continue. */
+			break;
+
 	} while (pos < end);
 
 	/* Increasing the received bytes counter by the UDP datagram length
