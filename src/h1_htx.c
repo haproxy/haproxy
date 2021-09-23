@@ -165,7 +165,7 @@ static int h1_postparse_req_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx 
 	if (h1_eval_htx_size(meth, uri, vsn, hdrs) > max) {
 		if (htx_is_empty(htx))
 			goto error;
-		h1m_init_res(h1m);
+		h1m_init_req(h1m);
 		h1m->flags |= (H1_MF_NO_PHDR|H1_MF_CLEAN_CONN_HDR);
 		return 0;
 	}
