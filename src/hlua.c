@@ -6949,6 +6949,60 @@ static void hlua_httpclient_res_cb(struct httpclient *hc)
 }
 
 /*
+ * Fill the lua stack with headers from the httpclient response
+ * This works the same way as the hlua_http_get_headers() function
+ */
+__LJMP static int hlua_httpclient_get_headers(lua_State *L, struct hlua_httpclient *hlua_hc)
+{
+	struct http_hdr *hdr;
+
+	lua_newtable(L);
+
+	for (hdr = hlua_hc->hc->res.hdrs; isttest(hdr->n); hdr++) {
+		struct ist n, v;
+		int len;
+
+		n = hdr->n;
+		v = hdr->v;
+
+		/* Check for existing entry:
+		 * assume that the table is on the top of the stack, and
+		 * push the key in the stack, the function lua_gettable()
+		 * perform the lookup.
+		 */
+
+		lua_pushlstring(L, n.ptr, n.len);
+		lua_gettable(L, -2);
+
+		switch (lua_type(L, -1)) {
+			case LUA_TNIL:
+				/* Table not found, create it. */
+				lua_pop(L, 1); /* remove the nil value. */
+				lua_pushlstring(L, n.ptr, n.len);  /* push the header name as key. */
+				lua_newtable(L); /* create and push empty table. */
+				lua_pushlstring(L, v.ptr, v.len); /* push header value. */
+				lua_rawseti(L, -2, 0); /* index header value (pop it). */
+				lua_rawset(L, -3); /* index new table with header name (pop the values). */
+				break;
+
+			case LUA_TTABLE:
+				/* Entry found: push the value in the table. */
+				len = lua_rawlen(L, -1);
+				lua_pushlstring(L, v.ptr, v.len); /* push header value. */
+				lua_rawseti(L, -2, len+1); /* index header value (pop it). */
+				lua_pop(L, 1); /* remove the table (it is stored in the main table). */
+				break;
+
+			default:
+				/* Other cases are errors. */
+				hlua_pusherror(L, "internal error during the parsing of headers.");
+				WILL_LJMP(lua_error(L));
+		}
+	}
+	return 1;
+}
+
+/*
  * For each yield, checks if there is some data in the httpclient and push them
  * in the lua buffer, once the httpclient finished its job, push the result on
  * the stack
@@ -6978,6 +7032,10 @@ __LJMP static int hlua_httpclient_get_yield(lua_State *L, int status, lua_KConte
 
 		lua_pushstring(L, "reason");
 		lua_pushlstring(L, hlua_hc->hc->res.reason.ptr, hlua_hc->hc->res.reason.len);
+		lua_settable(L, -3);
+
+		lua_pushstring(L, "headers");
+		hlua_httpclient_get_headers(L, hlua_hc);
 		lua_settable(L, -3);
 
 		return 1;
