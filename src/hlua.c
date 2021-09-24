@@ -7070,9 +7070,11 @@ __LJMP static int hlua_httpclient_get(lua_State *L)
 	if (lua_gettop(L) < 1 || lua_gettop(L) > 2)
 		WILL_LJMP(luaL_error(L, "'get' needs between 1 or 2 arguments"));
 
+	 if (lua_type(L, -1) != LUA_TSTRING)
+		WILL_LJMP(luaL_error(L, "'get' takes an URL as a string arugment"));
+
 	/* arg 1: URL */
-	if (lua_type(L, -1) == LUA_TSTRING)
-		url_str = lua_tostring(L, -1);
+	url_str = lua_tostring(L, -1);
 
 	hlua_hc = hlua_checkhttpclient(L, 1);
 
