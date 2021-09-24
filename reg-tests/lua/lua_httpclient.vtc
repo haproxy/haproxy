@@ -1,0 +1,34 @@
+varnishtest "Lua: check httpclient functionality from a lua-task"
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.5-dev7)'"
+feature ignore_unknown_macro
+
+#REQUIRE_OPTIONS=LUA
+
+server s1 {
+    rxreq
+    txresp -bodylen 20
+} -start
+
+haproxy h1 -conf {
+    global
+        lua-load ${testdir}/lua_httpclient.lua
+
+    frontend fe1
+        mode http
+        bind "fd@${fe1}"
+        default_backend b1
+
+    backend b1
+        mode http
+        http-request use-service lua.fakeserv
+
+} -start
+
+client c0 -connect ${h1_fe1_sock} {
+    txreq -url "/" -hdr "vtcport: ${s1_port}"
+    rxresp
+    expect resp.status == 200
+} -run
+
+
+server s1 -wait
