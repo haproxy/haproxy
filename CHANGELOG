@@ -1,6 +1,208 @@
 ChangeLog :
 ===========
 
+2021/09/24 : 2.5-dev8
+    - BUILD: compiler: fixed a missing test on  defined(__GNUC__)
+    - BUILD: halog: fix a -Wundef warning on non-glibc systems
+    - BUILD: threads: fix -Wundef for _POSIX_PRIORITY_SCHEDULING on libmusl
+    - BUG/MINOR: compat: make sure __WORDSIZE is always defined
+    - BUILD: sample: fix format warning on 32-bit archs in sample_conv_be2dec_check()
+    - CLEANUP: pools: factor all malloc_trim() calls into trim_all_pools()
+    - MINOR: pools: automatically disable malloc_trim() with external allocators
+    - MINOR: pools: report it when malloc_trim() is enabled
+    - DOC: Add .mailmap
+    - CLEANUP: tree-wide: fix prototypes for functions taking no arguments.
+    - CLEANUP: Remove prototype for non-existent thread_get_default_count()
+    - CLEANUP: acl: Remove unused variable when releasing an acl expression
+    - BUG/MAJOR: mux-h1: Don't eval input data if an error was reported
+    - DOC: update Tim's address in .mailmap
+    - MINOR: pools: use mallinfo2() when available instead of mallinfo()
+    - BUG/MINOR: tcpcheck: Improve LDAP response parsing to fix LDAP check
+    - DOC: management: certificate files must be sanitized before injection
+    - BUG/MINOR: connection: prevent null deref on mux cleanup task allocation
+    - BUILD: ist: prevent gcc11 maybe-uninitialized warning on istalloc
+    - BUG/MINOR: cli/payload: do not search for args inside payload
+    - BUILD: sockpair: do not set unused flag
+    - BUILD: proto_uxst: do not set unused flag
+    - BUILD: fd: remove unused variable totlen in fd_write_frag_line()
+    - MINOR: applet: remove the thread mask from appctx_new()
+    - REORG: threads: move ha_get_pthread_id() to tinfo.h
+    - CLEANUP: Apply ist.cocci
+    - DEV: coccinelle: Add ist.cocci
+    - CLEANUP: Apply bug_on.cocci
+    - DEV: coccinelle: Add xalloc_size.cocci
+    - DEV: coccinelle: Add bug_on.cocci
+    - CLEANUP: Apply xalloc_size.cocci
+    - DEV: coccinelle: Add xalloc_cast.cocci
+    - BUG/MINOR: flt-trace: fix an infinite loop when random-parsing is set
+    - MINOR: httpclient: add the EOH when no headers where provided
+    - CLEANUP: Include check.h in flt_spoe.c
+    - CLEANUP: Remove unreachable `break` from parse_time_err()
+    - BUG/MINOR: server: allow 'enable health' only if check configured
+    - BUG/MINOR: server: alloc dynamic srv ssl ctx if proxy uses ssl chk rule
+    - MINOR: server: enable more keywords for ssl checks for dynamic servers
+    - MINOR: server: enable more check related keywords for dynamic servers
+    - REORG: server: move slowstart init outside of checks
+    - MINOR: server: enable slowstart for dynamic server
+    - MEDIUM: listener: deprecate "process" in favor of "thread" on bind lines
+    - BUG/MEDIUM: leastconn: fix rare possibility of divide by zero
+    - BUG/MINOR: quic: Possible NULL pointer dereferencing when dumping streams.
+    - MINOR: quic: Move transport parmaters to anynomous struct.
+    - MINOR: mux_quic: Add QUIC mux layer.
+    - MINOR: connection: Add callbacks definitions for QUIC.
+    - MINOR: quic: Attach QUIC mux connection objet to QUIC connection.
+    - MINOR: quic: Add a new definition to store STREAM frames.
+    - MINOR: h3: Add HTTP/3 definitions.
+    - MINOR: qpack: Add QPACK compression.
+    - MINOR: quic_sock: Finalize the QUIC connections.
+    - MINOR: quic: Disable the action of ->rcv_buf() xprt callback
+    - MINOR: quic: Add callbacks for (un)scribing to QUIC xprt.
+    - MINOR: quic: Variable-length integer encoding/decoding into/from buffer struct.
+    - BUG/MINOR: quic: Wrong ->accept() error handling
+    - MINOR: quic: Add a wrapper function to update transport parameters.
+    - MINOR: quic: Update the streams transport parameters.
+    - MINOR: quic: Avoid header collisions
+    - MINOR: quic: Replace max_packet_size by max_udp_payload size.
+    - MINOR: quic: Enable some quic, h3 and qpack modules compilation.
+    - MINOR: quic: Move an SSL func call from QUIC I/O handler to the xprt init.
+    - MINOR: quic: Initialize the session before starting the xprt.
+    - BUG/MINOR: quic: Do not check the acception of a new conn from I/O handler.
+    - MINOR: quic: QUIC conn initialization from I/O handler
+    - MINOR: quic: Remove header protection for conn with context
+    - MINOR: quic: Derive the initial secrets asap
+    - MINOR: quic: Remove header protection also for Initial packets
+    - BUG/MINOR: quic: Wrong memory free in quic_update_ack_ranges_list()
+    - MINOR: quic: quic_update_ack_ranges_list() code factorization
+    - MINOR: quic: Useless test in quic_update_ack_ranges_list()
+    - MINOR: quic: Remove a useless variable in quic_update_ack_ranges_list()
+    - BUG/MINOR: quic: Missing cases treatement when updating ACK ranges
+    - CLEAUNUP: quic: Usage of a useless variable in qc_treat_rx_pkts()
+    - BUG/MINOR: quic: Wrong RX packet reference counter usage
+    - MINOR: quic: Do not stop the packet parsing too early in qc_treat_rx_packets()
+    - MINOR: quic: Add a lock for RX packets
+    - MINOR: quic: Move the connection state
+    - MINOR: quic: Replace quic_conn_ctx struct by ssl_sock_ctx struct
+    - MINOR: quic: Replace the RX list of packet by a thread safety one.
+    - MINOR: quic: Replace the RX unprotected packet list by a thread safety one.
+    - MINOR: quic: Add useful traces for I/O dgram handler
+    - MINOR: quic: Do not wakeup the xprt task on ACK receipt
+    - MINOR: quic: Connection allocations rework
+    - MINOR: quic: Move conn_prepare() to ->accept_conn() callback
+    - MINOR: quic: Make qc_lstnr_pkt_rcv() be thread safe.
+    - MINOR: quic: Add a ring buffer implementation for QUIC
+    - MINOR: quic: Prefer x25519 as ECDH preferred parametes.
+    - MINOR: quic: Add the QUIC v1 initial salt.
+    - BUG/MINOR: quic: Too much reduced computed space to build handshake packets
+    - MINOR: net_helper: add functions for pointers
+    - MINOR: quic: Add ring buffer definition (struct qring) for QUIC
+    - MINOR: proto_quic: Allocate TX ring buffers for listeners
+    - MINOR: quic: Initialize pointers to TX ring buffer list
+    - MINOR: quic: Make use of TX ring buffers to send QUIC packets
+    - MINOR: quic_tls: Make use of the QUIC V1 salt.
+    - MINOR: quic: Remove old TX buffer implementation
+    - MINOR: Add function for TX packets reference counting
+    - MINOR: quic: Add TX packets at the very last time to their tree.
+    - MINOR: quic: Unitialized mux context upon Client Hello message receipt.
+    - MINOR: quic: Missing encryption level rx.crypto member initialization and lock.
+    - MINOR: quic: Rename ->rx.rwlock of quic_enc_level struct to ->rx.pkts_rwlock
+    - MINOR: quic: Make qc_treat_rx_pkts() be thread safe.
+    - MINOR: quic: Make ->tx.frms quic_pktns struct member be thread safe
+    - MINOR: quic: Replace quic_tx_frm struct by quic_frame struct
+    - MINOR: quic: Add a mask for TX frame builders and their authorized packet types
+    - MINOR: quic: Add a useful function to compute any frame length.
+    - MINOR: quic: Add the QUIC connection state to traces
+    - MINOR: quic: Store post handshake frame in ->pktns.tx.frms MT_LIST
+    - MINOR: quic: Add the packet type to quic_tx_packet struct
+    - MINOR: quic: Modify qc_do_build_hdshk_pkt() to accept any packet type
+    - MINOR: quic: Atomically handle packet number space ->largest_acked_pn variable
+    - MINOR: quic: Modify qc_build_cfrms() to support any frame
+    - MINOR: quic: quic_conn_io_cb() task rework
+    - MINOR: quic: Make qc_build_hdshk_pkt() atomically consume a packet number
+    - MINOR: quic: qc_do_build_hdshk_pkt() does not  need to pass a copy of CRYPTO frame
+    - MINOR: quic: Remove Application level related functions
+    - MINOR: quic: Rename functions which do not build only Handshake packets
+    - MINOR: quic: Make circular buffer internal buffers be variable-sized.
+    - MINOR: quic: Add a pool for TX ring buffer internal buffer
+    - MINOR: quic: Make use of the last cbuf API when initializing TX ring buffers
+    - MINOR: quic: Missing acks encoded size updates.
+    - MINOR: quic: Evaluate the packet lengths in advance
+    - MINOR: quic: Update the TLS extension for QUIC transport parameters
+    - MINOR: quic: Fix handshake state debug strings
+    - MINOR: quic: Atomically get/set the connection state
+    - MINOR: quic: Missing QUIC encryption level for qc_build_pkt()
+    - MINOR: quic: Coalesce Application level packets with Handshake packets.
+    - MINOR: quic: Wrong flags handling for acks
+    - MINOR: quic: Missing case when discarding HANDSHAKE secrets
+    - MINOR: quic: Post handshake packet building improvements
+    - MINOR: quic: Prepare Application level packet asap.
+    - MINOR: h3: Send h3 settings asap
+    - MINOR: quic: Wrong STREAM frame length computing
+    - MINOR: quic: Wrong short packet minimum length
+    - MINOR: quic: Prepare STREAM frames to fill QUIC packets
+    - MINOR: h3: change default settings
+    - MINOR: quic-enc: fix varint encoding
+    - MINOR: qpack: fix wrong comment
+    - MINOR: qpack: generate headers list on decoder
+    - MINOR: h3: parse headers to htx
+    - MINOR: h3: allocate stream on headers
+    - MEDIUM: mux-quic: implement ring buffer on stream tx
+    - MINOR: mux-quic: send SETTINGS on uni stream
+    - MINOR: h3: define snd_buf callback and divert mux ops
+    - MINOR: mux-quic: define FIN stream flag
+    - MINOR: qpack: create qpack-enc module
+    - MINOR: qpack: encode headers functions
+    - MINOR: h3: encode htx headers to QPACK
+    - MINOR: h3: send htx data
+    - MINOR: h3/mux: detect fin on last h3 frame of the stream
+    - MINOR: quic: Shorten some handshakes
+    - MINOR: quic: Make QUIC-TLS support at least two initial salts
+    - MINOR: quic: Attach the QUIC connection to a thread.
+    - MINOR: quic: Missing active_connection_id_limit default value
+    - MINOR: quic_sock: Do not flag QUIC connections as being set
+    - MINOR: buf: Add b_force_xfer() function
+    - MINOR: quic: Make use of buffer structs to handle STREAM frames
+    - MINOR: mux_quic: move qc_process() code to qc_send()
+    - MINOR: quic: Add a typedef for unsigned long long
+    - MINOR: quic: Confusion between TX/RX for the frame builders
+    - MINOR: quic: Wrong packet flags settings during frame building
+    - MINOR: quic: Constantness fixes for frame builders/parsers.
+    - MINOR: quic_tls: Client/serveur state reordering
+    - MINOR: quic: Wrong packet loss detection due to wrong pktns order
+    - MINOR: quic: Wrong packet number space selection in quic_loss_pktns()
+    - MINOR: quic: Initial packet number spaced not discarded
+    - MINOR: quic: Add useful trace about pktns discarding
+    - MINOR: mux_quic: Export the mux related flags
+    - MINOR: quic: Implement quic_conn_subscribe()
+    - MINOR: quic: Wake up the mux upon ACK receipt
+    - MINOR: quic: Stream FIN bit fix in qcs_push_frame()
+    - MINOR: quic: Implement qc_process_mux()
+    - MINOR: quic: Wake up the xprt from mux
+    - CLEANUP: quic: Remove useless inline functions
+    - MINOR: quic: RX packets memory leak
+    - MINOR: quic: Possible endless loop in qc_treat_rx_pkts()
+    - MINOR: quic: Crash upon too big packets receipt
+    - MINOR: quic: define close handler
+    - MEDIUM: quic: implement mux release/conn free
+    - MINOR: quic: fix qcc subs initialization
+    - BUG/MINOR: h1-htx: Fix a typo when request parser is reset
+    - BUG/MEDIUM: mux-h1: Adjust conditions to ask more space in the channel buffer
+    - BUG/MEDIUM: stream-int: Notify stream that the mux wants more room to xfer data
+    - BUG/MEDIUM: stream: Stop waiting for more data if SI is blocked on RXBLK_ROOM
+    - MINOR: stream-int: Set CO_RFL transient/persistent flags apart in si_cs_rcv()
+    - MINOR: htx: Add an HTX flag to know when a message is fragmented
+    - MINOR: htx: Add a function to know if the free space wraps
+    - BUG/MEDIUM: stream-int: Defrag HTX message in si_cs_recv() if necessary
+    - MINOR: stream-int: Notify mux when the buffer is not stuck when calling rcv_buf
+    - BUG/MINOR: http-ana: increment internal_errors counter on response error
+    - MINOR: stats: Enable dark mode on stat web page
+    - CLEANUP: stats: Fix some alignment mistakes
+    - MINOR: httpclient: httpclient_data() returns the available data
+    - MINOR: httpclient: httpclient_ended() returns 1 if the client ended
+    - MINOR: httpclient/lua: httpclient:get() API in lua
+    - MINOR: httpclient/lua: implement the headers in the response object
+    - BUG/MINOR: httpclient/lua: return an error on argument check
+    - CLEANUP: slz: Mark `reset_refs` as static
+
 2021/09/12 : 2.5-dev7
     - BUG/MINOR: config: reject configs using HTTP with bufsize >= 256 MB
     - CLEANUP: htx: remove comments about "must be < 256 MB"
