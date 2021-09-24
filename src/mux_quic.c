@@ -911,6 +911,7 @@ static void qcs_destroy(struct qcs *qcs)
 	 * we're in it, we're getting out anyway
 	 */
 	LIST_DEL_INIT(&qcs->list);
+	--qcs->qcc->strms[qcs_id_type(qcs->id)].nb_streams;
 
 	/* ditto, calling tasklet_free() here should be ok */
 	tasklet_free(qcs->shut_tl);
@@ -1600,7 +1601,7 @@ static void qc_detach(struct conn_stream *cs)
 
 	TRACE_ENTER(QC_EV_STRM_END, qcs ? qcs->qcc->conn : NULL, qcs);
 	qcs_destroy(qcs);
-	if (eb_is_empty(&qcc->streams_by_id))
+	if (!qcc->strms[QCS_CLT_BIDI].nb_streams)
 		qc_release(qcc);
 	TRACE_LEAVE(QC_EV_STRM_END, qcs ? qcs->qcc->conn : NULL);
 }
