@@ -173,7 +173,7 @@ static int hc_cli_io_handler(struct appctx *appctx)
 	if (!trash)
 		goto out;
 	if (appctx->ctx.cli.i0 & HC_CLI_F_RES_STLINE) {
-		chunk_appendf(trash, "%s %d %s\n",ist0(hc->res.vsn), hc->res.status, ist0(hc->res.reason));
+		chunk_appendf(trash, "%s %d %s\n",istptr(hc->res.vsn), hc->res.status, istptr(hc->res.reason));
 		if (ci_putchk(si_ic(si), trash) == -1)
 			si_rx_room_blk(si);
 		appctx->ctx.cli.i0 &= ~HC_CLI_F_RES_STLINE;
@@ -338,9 +338,9 @@ struct appctx *httpclient_start(struct httpclient *hc)
 
 	/* parse URI and fill sockaddr_storage */
 	/* FIXME: use a resolver */
-	len = url2sa(ist0(hc->req.url), istlen(hc->req.url), &hc->dst, &out);
+	len = url2sa(istptr(hc->req.url), istlen(hc->req.url), &hc->dst, &out);
 	if (len == -1) {
-		ha_alert("httpclient: cannot parse uri '%s'.\n", ist0(hc->req.url));
+		ha_alert("httpclient: cannot parse uri '%s'.\n", istptr(hc->req.url));
 		goto out;
 	}
 
