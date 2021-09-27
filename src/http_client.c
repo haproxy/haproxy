@@ -410,10 +410,27 @@ out:
 /* Free the httpclient */
 void httpclient_destroy(struct httpclient *hc)
 {
+	struct http_hdr *hdrs;
+
+
 	if (!hc)
 		return;
+	/* request */
+	istfree(&hc->req.url);
 	b_free(&hc->req.buf);
+	/* response */
+	istfree(&hc->res.vsn);
+	istfree(&hc->res.reason);
+	hdrs = hc->res.hdrs;
+	while (hdrs && isttest(hdrs->n)) {
+		istfree(&hdrs->n);
+		istfree(&hdrs->v);
+		hdrs++;
+	}
+	ha_free(&hc->res.hdrs);
 	b_free(&hc->res.buf);
+
+
 	free(hc);
 
 	return;
