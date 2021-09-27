@@ -2070,6 +2070,17 @@ stats maxconn <connections>
   By default, the stats socket is limited to 10 concurrent connections. It is
   possible to change this value with "stats maxconn".
 
+thread-group <group> [<thread-range>...]
+  This setting is only available when support for threads was built in. It
+  enumerates the list of threads that will compose thread group <group>.
+  Thread numbers and group numbers start at 1. Thread ranges are defined either
+  using a single thread number at once, or by specifying the lower and upper
+  bounds delimited by a dash '-' (e.g. "1-16"). Unassigned threads will be
+  automatically assigned to unassigned thread groups, and thread groups
+  defined with this directive will never receive more threads than those
+  defined. Defining the same group multiple times overrides previous
+  definitions with the new one. See also "nbthread" and "thread-groups".
+
 thread-groups <number>
   This setting is only available when support for threads was built in. It
   makes HAProxy split its threads into <number> independent groups. At the

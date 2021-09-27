@@ -1042,6 +1042,96 @@ static int cfg_parse_nbthread(char **args, int section_type, struct proxy *curpx
 	return 0;
 }
 
+/* Parse the "thread-group" global directive, which takes an integer argument
+ * that designates a thread group, and a list of threads to put into that group.
+ */
+static int cfg_parse_thread_group(char **args, int section_type, struct proxy *curpx,
+                                  const struct proxy *defpx, const char *file, int line,
+                                  char **err)
+{
+	char *errptr;
+	long tnum, tend, tgroup;
+	int arg, tot;
+
+	tgroup = strtol(args[1], &errptr, 10);
+	if (!*args[1] || *errptr) {
+		memprintf(err, "'%s' passed a missing or unparsable integer value in '%s'", args[0], args[1]);
+		return -1;
+	}
+
+	if (tgroup < 1 || tgroup > MAX_TGROUPS) {
+		memprintf(err, "'%s' thread-group number must be between 1 and %d (was %ld)", args[0], MAX_TGROUPS, tgroup);
+		return -1;
+	}
+
+	/* look for a preliminary definition of any thread pointing to this
+	 * group, and remove them.
+	 */
+	if (ha_tgroup_info[tgroup-1].count) {
+		ha_warning("parsing [%s:%d] : '%s %ld' was already defined and will be overridden.\n",
+		           file, line, args[0], tgroup);
+
+		for (tnum = ha_tgroup_info[tgroup-1].base;
+		     tnum < ha_tgroup_info[tgroup-1].base + ha_tgroup_info[tgroup-1].count;
+		     tnum++) {
+			if (ha_thread_info[tnum-1].tg == &ha_tgroup_info[tgroup-1])
+				ha_thread_info[tnum-1].tg = NULL;
+		}
+		ha_tgroup_info[tgroup-1].count = ha_tgroup_info[tgroup-1].base = 0;
+	}
+
+	tot = 0;
+	for (arg = 2; args[arg] && *args[arg]; arg++) {
+		tend = tnum = strtol(args[arg], &errptr, 10);
+
+		if (*errptr == '-')
+			tend = strtol(errptr + 1, &errptr, 10);
+
+		if (*errptr || tnum < 1 || tend < 1 || tnum > MAX_THREADS || tend > MAX_THREADS) {
+			memprintf(err, "'%s %ld' passed an unparsable or invalid thread number '%s' (valid range is 1 to %d)", args[0], tgroup, args[arg], MAX_THREADS);
+			return -1;
+		}
+
+		for(; tnum <= tend; tnum++) {
+			if (ha_thread_info[tnum-1].tg == &ha_tgroup_info[tgroup-1]) {
+				ha_warning("parsing [%s:%d] : '%s %ld': thread %ld assigned more than once on the same line.\n",
+				           file, line, args[0], tgroup, tnum);
+			} else if (ha_thread_info[tnum-1].tg) {
+				ha_warning("parsing [%s:%d] : '%s %ld': thread %ld was previously assigned to thread group %ld and will be overridden.\n",
+				           file, line, args[0], tgroup, tnum,
+				           (long)(ha_thread_info[tnum-1].tg - &ha_tgroup_info[0] + 1));
+			}
+
+			if (!ha_tgroup_info[tgroup-1].count) {
+				ha_tgroup_info[tgroup-1].base = tnum-1;
+				ha_tgroup_info[tgroup-1].count = 1;
+			}
+			else if (tnum >= ha_tgroup_info[tgroup-1].base + ha_tgroup_info[tgroup-1].count) {
+				ha_tgroup_info[tgroup-1].count = tnum - ha_tgroup_info[tgroup-1].base;
+			}
+			else if (tnum < ha_tgroup_info[tgroup-1].base) {
+				ha_tgroup_info[tgroup-1].count += ha_tgroup_info[tgroup-1].base - tnum-1;
+				ha_tgroup_info[tgroup-1].base = tnum - 1;
+			}
+
+			ha_thread_info[tnum-1].tg = &ha_tgroup_info[tgroup-1];
+			tot++;
+		}
+	}
+
+	if (ha_tgroup_info[tgroup-1].count > tot) {
+		memprintf(err, "'%s %ld' assigned sparse threads, only contiguous supported", args[0], tgroup);
+		return -1;
+	}
+
+	if (ha_tgroup_info[tgroup-1].count > MAX_THREADS_PER_GROUP) {
+		memprintf(err, "'%s %ld' assigned too many threads (%d, max=%d)", args[0], tgroup, tot, MAX_THREADS_PER_GROUP);
+		return -1;
+	}
+
+	return 0;
+}
+
 /* Parse the "thread-groups" global directive, which takes an integer argument
  * that contains the desired number of thread groups.
  */
@@ -1084,6 +1174,7 @@ static int cfg_parse_thread_groups(char **args, int section_type, struct proxy *
 /* config keyword parsers */
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "nbthread",       cfg_parse_nbthread, 0 },
+	{ CFG_GLOBAL, "thread-group",   cfg_parse_thread_group, 0 },
 	{ CFG_GLOBAL, "thread-groups",  cfg_parse_thread_groups, 0 },
 	{ 0, NULL, NULL }
 }};

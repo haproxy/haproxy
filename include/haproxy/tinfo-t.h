@@ -58,6 +58,8 @@ struct tgroup_info {
  * thread-local "ti" pointer.
  */
 struct thread_info {
+	const struct tgroup_info *tg;     /* config of the thread-group this thread belongs to */
+
 	/* pad to cache line (64B) */
 	char __pad[0];                    /* unused except to check remaining room */
 	char __end[0] __attribute__((aligned(64)));
