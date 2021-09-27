@@ -26,23 +26,6 @@
 #include <haproxy/list-t.h>
 #include <haproxy/thread-t.h>
 
-/* Pools are always enabled unless explicitly disabled. When disabled, the
- * calls are directly passed to the underlying OS functions.
- */
-#if !defined(DEBUG_NO_POOLS) && !defined(DEBUG_UAF) && !defined(DEBUG_FAIL_ALLOC)
-#define CONFIG_HAP_POOLS
-#endif
-
-/* On modern architectures with many threads, a fast memory allocator, and
- * local pools, the global pools with their single list can be way slower than
- * the standard allocator which already has its own per-thread arenas. In this
- * case we disable global pools. The global pools may still be enforced
- * using CONFIG_HAP_GLOBAL_POOLS though.
- */
-#if defined(USE_THREAD) && defined(HA_HAVE_FAST_MALLOC) && !defined(CONFIG_HAP_GLOBAL_POOLS)
-#define CONFIG_HAP_NO_GLOBAL_POOLS
-#endif
-
 #define MEM_F_SHARED	0x1
 #define MEM_F_EXACT	0x2
 

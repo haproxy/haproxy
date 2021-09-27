@@ -359,6 +359,23 @@
 #define MEM_USABLE_RATIO 0.97
 #endif
 
+/* Pools are always enabled unless explicitly disabled. When disabled, the
+ * calls are directly passed to the underlying OS functions.
+ */
+#if !defined(DEBUG_NO_POOLS) && !defined(DEBUG_UAF) && !defined(DEBUG_FAIL_ALLOC)
+#define CONFIG_HAP_POOLS
+#endif
+
+/* On modern architectures with many threads, a fast memory allocator, and
+ * local pools, the global pools with their single list can be way slower than
+ * the standard allocator which already has its own per-thread arenas. In this
+ * case we disable global pools. The global pools may still be enforced
+ * using CONFIG_HAP_GLOBAL_POOLS though.
+ */
+#if defined(USE_THREAD) && defined(HA_HAVE_FAST_MALLOC) && !defined(CONFIG_HAP_GLOBAL_POOLS)
+#define CONFIG_HAP_NO_GLOBAL_POOLS
+#endif
+
 /* default per-thread pool cache size when enabled */
 #ifndef CONFIG_HAP_POOL_CACHE_SIZE
 #define CONFIG_HAP_POOL_CACHE_SIZE 1048576

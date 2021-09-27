@@ -24,7 +24,6 @@
 
 #include <time.h>
 #include <haproxy/api-t.h>
-#include <haproxy/pool-t.h>
 
 /* thread info flags, for ha_thread_info[].flags */
 #define TI_FL_STUCK             0x00000001
