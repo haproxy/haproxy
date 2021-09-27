@@ -938,8 +938,14 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 		state = H1_MSG_DATA;
 		if (h1m->flags & H1_MF_XFER_ENC) {
 			if (h1m->flags & H1_MF_CLEN) {
+				/* T-E + C-L: force close and remove C-L */
+				h1m->flags |= H1_MF_CONN_CLO;
 				h1m->flags &= ~H1_MF_CLEN;
 				hdr_count = http_del_hdr(hdr, ist("content-length"));
+			}
+			else if (!(h1m->flags & H1_MF_VER_11)) {
+				/* T-E + HTTP/1.0: force close */
+				h1m->flags |= H1_MF_CONN_CLO;
 			}
 
 			if (h1m->flags & H1_MF_CHNK)
