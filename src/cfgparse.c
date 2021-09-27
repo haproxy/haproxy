@@ -2439,6 +2439,11 @@ int check_config_validity()
 	if (!global.nbtgroups)
 		global.nbtgroups = 1;
 
+	if (thread_map_to_groups() < 0) {
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
+	}
+
 	pool_head_requri = create_pool("requri", global.tune.requri_len , MEM_F_SHARED);
 
 	pool_head_capture = create_pool("capture", global.tune.cookie_len, MEM_F_SHARED);

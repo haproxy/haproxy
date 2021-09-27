@@ -43,6 +43,7 @@ int parse_nbthread(const char *arg, char **err);
 void ha_tkill(unsigned int thr, int sig);
 void ha_tkillall(int sig);
 void ha_thread_relax(void);
+int thread_map_to_groups();
 extern int thread_cpus_enabled_at_boot;
 
 

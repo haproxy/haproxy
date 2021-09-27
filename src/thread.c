@@ -1001,6 +1001,82 @@ REGISTER_BUILD_OPTS("Built without multi-threading support (USE_THREAD not set).
 #endif // USE_THREAD
 
 
+/* scans the configured thread mapping and establishes the final one. Returns <0
+ * on failure, >=0 on success.
+ */
+int thread_map_to_groups()
+{
+	int t, g, ut, ug;
+	int q, r;
+
+	ut = ug = 0; // unassigned threads & groups
+
+	for (t = 0; t < global.nbthread; t++) {
+		if (!ha_thread_info[t].tg)
+			ut++;
+	}
+
+	for (g = 0; g < global.nbtgroups; g++) {
+		if (!ha_tgroup_info[g].count)
+			ug++;
+	}
+
+	if (ug > ut) {
+		ha_alert("More unassigned thread-groups (%d) than threads (%d). Please reduce thread-groups\n", ug, ut);
+		return -1;
+	}
+
+	/* look for first unassigned thread */
+	for (t = 0; t < global.nbthread && ha_thread_info[t].tg; t++)
+		;
+
+	/* assign threads to empty groups */
+	for (g = 0; ug && ut; ) {
+		/* due to sparse thread assignment we can end up with more threads
+		 * per group on last assigned groups than former ones, so we must
+		 * always try to pack the maximum remaining ones together first.
+		 */
+		q = ut / ug;
+		r = ut % ug;
+		if ((q + !!r) > MAX_THREADS_PER_GROUP) {
+			ha_alert("Too many remaining unassigned threads (%d) for thread groups (%d). Please increase thread-groups or make sure to keep thread numbers contiguous\n", ug, ut);
+			return -1;
+		}
+
+		/* thread <t> is the next unassigned one. Let's look for next
+		 * unassigned group, we know there are some left
+		 */
+		while (ut >= ug && ha_tgroup_info[g].count)
+			g++;
+
+		/* group g is unassigned, try to fill it with consecutive threads */
+		while (ut && ut >= ug && ha_tgroup_info[g].count < q + !!r &&
+		       (!ha_tgroup_info[g].count || t == ha_tgroup_info[g].base + ha_tgroup_info[g].count)) {
+
+			if (!ha_tgroup_info[g].count) {
+				/* assign new group */
+				ha_tgroup_info[g].base = t;
+				ug--;
+			}
+
+			ha_tgroup_info[g].count++;
+			ha_thread_info[t].tg = &ha_tgroup_info[g];
+
+			ut--;
+			/* switch to next unassigned thread */
+			while (++t < global.nbthread && ha_thread_info[t].tg)
+				;
+		}
+	}
+
+	if (ut) {
+		ha_alert("Remaining unassigned threads found (%d) because all groups are in use. Please increase 'thread-groups', reduce 'nbthreads' or remove or extend 'thread-group' enumerations.\n", ut);
+		return -1;
+	}
+
+	return 0;
+}
+
 /* Parse the "nbthread" global directive, which takes an integer argument that
  * contains the desired number of threads.
  */
