@@ -217,7 +217,7 @@ void setup_extra_threads(void *(*handler)(void *))
 	/* Create nbthread-1 thread. The first thread is the current process */
 	ha_pthread[0] = pthread_self();
 	for (i = 1; i < global.nbthread; i++)
-		pthread_create(&ha_pthread[i], NULL, handler, (void *)(long)i);
+		pthread_create(&ha_pthread[i], NULL, handler, &ha_thread_info[i]);
 }
 
 /* waits for all threads to terminate. Does nothing when threads are

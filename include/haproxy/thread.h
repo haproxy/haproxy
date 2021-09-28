@@ -88,11 +88,21 @@ enum { tid = 0 };
 
 #define ha_sigmask(how, set, oldset)  sigprocmask(how, set, oldset)
 
-static inline void ha_set_tid(unsigned int tid)
+/* Sets the current thread to a valid one described by <thr>, or to any thread
+ * and any group if NULL (e.g. for use during boot where they're not totally
+ * initialized).
+ */
+static inline void ha_set_thread(const struct thread_info *thr)
 {
-	ti = &ha_thread_info[tid];
-	tg = ti->tg ? ti->tg : &ha_tgroup_info[0];
-	th_ctx = &ha_thread_ctx[tid];
+	if (thr) {
+		ti = thr;
+		tg = ti->tg;
+		th_ctx = &ha_thread_ctx[ti->tid];
+	} else {
+		ti = &ha_thread_info[0];
+		tg = &ha_tgroup_info[0];
+		th_ctx = &ha_thread_ctx[0];
+	}
 }
 
 static inline void thread_idle_now()
@@ -203,18 +213,28 @@ extern THREAD_LOCAL unsigned int tid;      /* The thread id */
 
 #define ha_sigmask(how, set, oldset)  pthread_sigmask(how, set, oldset)
 
-/* sets the thread ID, TID bit and thread cfg/ctx pointers for the current
- * thread. Since it may be called during early boot even before threads are
- * initialized, we have to be extra careful about some fields which may still
- * be null. For example tg may be null during a part of the boot.
+/* Sets the current thread to a valid one described by <thr>, or to any thread
+ * and any group if NULL (e.g. for use during boot where they're not totally
+ * initialized).
  */
-static inline void ha_set_tid(unsigned int data)
+static inline void ha_set_thread(const struct thread_info *thr)
 {
-	tid     = data;
-	tid_bit = (1UL << tid);
-	ti      = &ha_thread_info[tid];
-	tg      = ti->tg ? ti->tg : &ha_tgroup_info[0];
-	th_ctx  = &ha_thread_ctx[tid];
+	if (thr) {
+		BUG_ON(!thr->tid_bit);
+		BUG_ON(!thr->tg);
+
+		ti      = thr;
+		tg      = thr->tg;
+		tid     = thr->tid;
+		tid_bit = thr->tid_bit;
+		th_ctx  = &ha_thread_ctx[tid];
+	} else {
+		tid     = 0;
+		tid_bit = 1;
+		ti      = &ha_thread_info[0];
+		tg      = &ha_tgroup_info[0];
+		th_ctx  = &ha_thread_ctx[0];
+	}
 }
 
 /* Marks the thread as idle, which means that not only it's not doing anything

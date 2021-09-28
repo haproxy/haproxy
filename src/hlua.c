@@ -11060,7 +11060,7 @@ static int hlua_load(char **args, int section_type, struct proxy *curpx,
 
 	/* loading for global state */
 	hlua_state_id = 0;
-	ha_set_tid(0);
+	ha_set_thread(NULL);
 	return hlua_load_state(args[1], hlua_states[0], err);
 }
 
@@ -11104,7 +11104,7 @@ static int hlua_load_per_thread(char **args, int section_type, struct proxy *cur
 
 	/* loading for thread 1 only */
 	hlua_state_id = 1;
-	ha_set_tid(0);
+	ha_set_thread(NULL);
 	return hlua_load_state(args[1], hlua_states[1], err);
 }
 
@@ -11311,7 +11311,7 @@ int hlua_post_init()
 
 	/* Perform post init of common thread */
 	hlua_state_id = 0;
-	ha_set_tid(0);
+	ha_set_thread(&ha_thread_info[0]);
 	ret = hlua_post_init_state(hlua_states[hlua_state_id]);
 	if (ret == 0)
 		return 0;
@@ -11320,7 +11320,7 @@ int hlua_post_init()
 	for (hlua_state_id = 2; hlua_state_id < global.nbthread + 1; hlua_state_id++) {
 
 		/* set thread context */
-		ha_set_tid(hlua_state_id - 1);
+		ha_set_thread(&ha_thread_info[hlua_state_id - 1]);
 
 		/* Init lua state */
 		hlua_states[hlua_state_id] = hlua_init_state(hlua_state_id);
@@ -11336,13 +11336,13 @@ int hlua_post_init()
 	}
 
 	/* Reset thread context */
-	ha_set_tid(0);
+	ha_set_thread(NULL);
 
 	/* Execute post init for all states */
 	for (hlua_state_id = 1; hlua_state_id < global.nbthread + 1; hlua_state_id++) {
 
 		/* set thread context */
-		ha_set_tid(hlua_state_id - 1);
+		ha_set_thread(&ha_thread_info[hlua_state_id - 1]);
 
 		/* run post init */
 		ret = hlua_post_init_state(hlua_states[hlua_state_id]);
@@ -11351,7 +11351,7 @@ int hlua_post_init()
 	}
 
 	/* Reset thread context */
-	ha_set_tid(0);
+	ha_set_thread(NULL);
 
 	/* control functions registering. Each function must have:
 	 *  - only the function_ref[0] set positive and all other to -1
@@ -12057,12 +12057,12 @@ void hlua_init(void) {
 
 	/* Init state for common/shared lua parts */
 	hlua_state_id = 0;
-	ha_set_tid(0);
+	ha_set_thread(NULL);
 	hlua_states[0] = hlua_init_state(0);
 
 	/* Init state 1 for thread 0. We have at least one thread. */
 	hlua_state_id = 1;
-	ha_set_tid(0);
+	ha_set_thread(NULL);
 	hlua_states[1] = hlua_init_state(1);
 
 	/* Proxy and server configuration initialisation. */

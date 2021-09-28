@@ -253,6 +253,7 @@ unsigned int rlim_fd_max_at_boot = 0;
 /* per-boot randomness */
 unsigned char boot_seed[20];        /* per-boot random seed (160 bits initially) */
 
+/* takes the thread config in argument or NULL for any thread */
 static void *run_thread_poll_loop(void *data);
 
 /* bitfield of a few warnings to emit just once (WARN_*) */
@@ -836,7 +837,7 @@ static void mworker_loop()
 		leave */
 
 	fork_poller();
-	run_thread_poll_loop(0);
+	run_thread_poll_loop(NULL);
 }
 
 /*
@@ -2697,7 +2698,7 @@ static void *run_thread_poll_loop(void *data)
 	__decl_thread(static pthread_mutex_t init_mutex = PTHREAD_MUTEX_INITIALIZER);
 	__decl_thread(static pthread_cond_t  init_cond  = PTHREAD_COND_INITIALIZER);
 
-	ha_set_tid((unsigned long)data);
+	ha_set_thread(data);
 	set_thread_cpu_affinity();
 	clock_set_local_source();
 
@@ -3397,7 +3398,7 @@ int main(int argc, char **argv)
 	haproxy_unblock_signals();
 
 	/* Finally, start the poll loop for the first thread */
-	run_thread_poll_loop(0);
+	run_thread_poll_loop(&ha_thread_info[0]);
 
 	/* wait for all threads to terminate */
 	wait_for_threads_completion();
