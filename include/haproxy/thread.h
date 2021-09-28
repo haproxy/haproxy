@@ -90,6 +90,7 @@ enum { tid = 0 };
 static inline void ha_set_tid(unsigned int tid)
 {
 	ti = &ha_thread_info[tid];
+	tg = ti->tg ? ti->tg : &ha_tgroup_info[0];
 	th_ctx = &ha_thread_ctx[tid];
 }
 
@@ -201,12 +202,17 @@ extern THREAD_LOCAL unsigned int tid;      /* The thread id */
 
 #define ha_sigmask(how, set, oldset)  pthread_sigmask(how, set, oldset)
 
-/* sets the thread ID and the TID bit for the current thread */
+/* sets the thread ID, TID bit and thread cfg/ctx pointers for the current
+ * thread. Since it may be called during early boot even before threads are
+ * initialized, we have to be extra careful about some fields which may still
+ * be null. For example tg may be null during a part of the boot.
+ */
 static inline void ha_set_tid(unsigned int data)
 {
 	tid     = data;
 	tid_bit = (1UL << tid);
 	ti      = &ha_thread_info[tid];
+	tg      = ti->tg ? ti->tg : &ha_tgroup_info[0];
 	th_ctx  = &ha_thread_ctx[tid];
 }
 
