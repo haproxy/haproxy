@@ -35,7 +35,8 @@ struct httpclient {
 #define    HTTPCLIENT_FA_AUTOKILL     0x00000002   /* sets the applet to destroy the httpclient struct itself */
 
 /* status (FS) */
-#define    HTTPCLIENT_FS_ENDED        0x00010000 /* the httpclient is stopped */
+#define    HTTPCLIENT_FS_STARTED      0x00010000 /* the httpclient was started */
+#define    HTTPCLIENT_FS_ENDED        0x00020000 /* the httpclient is stopped */
 
 /* States of the HTTP Client Appctx */
 enum {

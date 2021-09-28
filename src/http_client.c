@@ -390,6 +390,7 @@ struct appctx *httpclient_start(struct httpclient *hc)
 
 	task_wakeup(s->task, TASK_WOKEN_INIT);
 	hc->appctx = appctx;
+	hc->flags |= HTTPCLIENT_FS_STARTED;
 	appctx->ctx.httpclient.ptr = hc;
 	appctx->st0 = HTTPCLIENT_S_REQ;
 
@@ -417,8 +418,8 @@ out:
 void httpclient_stop_and_destroy(struct httpclient *hc)
 {
 
-	/* The httpclient was already stopped, we can safely destroy it */
-	if (hc->flags & HTTPCLIENT_FS_ENDED) {
+	/* The httpclient was already stopped or never started, we can safely destroy it */
+	if (hc->flags & HTTPCLIENT_FS_ENDED || !(hc->flags & HTTPCLIENT_FS_STARTED)) {
 		httpclient_destroy(hc);
 	} else {
 	/* if the client wasn't stopped, ask for a stop and destroy */
