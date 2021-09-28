@@ -2008,28 +2008,28 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 		logs = &tmp_strm_log;
 
 		if ((fe->mode == PR_MODE_HTTP) && fe_conn && fe_conn->mux && fe_conn->mux->ctl) {
-			enum mux_exit_status es = fe_conn->mux->ctl(fe_conn, MUX_EXIT_STATUS, NULL);
+			enum mux_exit_status es = fe_conn->mux->ctl(fe_conn, MUX_EXIT_STATUS, &status);
 
 			switch (es) {
 			case MUX_ES_SUCCESS:
 				break;
 			case MUX_ES_INVALID_ERR:
-				status = 400;
+				status = (status ? status : 400);
 				if ((fe_conn->flags & CO_FL_ERROR) || conn_xprt_read0_pending(fe_conn))
 					s_flags = SF_ERR_CLICL | SF_FINST_R;
 				else
 					s_flags = SF_ERR_PRXCOND | SF_FINST_R;
 				break;
 			case MUX_ES_TOUT_ERR:
-				status = 408;
+				status = (status ? status : 408);
 				s_flags = SF_ERR_CLITO | SF_FINST_R;
 				break;
 			case MUX_ES_NOTIMPL_ERR:
-				status = 501;
+				status = (status ? status : 501);
 				s_flags = SF_ERR_PRXCOND | SF_FINST_R;
 				break;
 			case MUX_ES_INTERNAL_ERR:
-				status = 500;
+				status = (status ? status : 500);
 				s_flags = SF_ERR_INTERNAL | SF_FINST_R;
 				break;
 			default:
