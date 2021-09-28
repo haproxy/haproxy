@@ -46,6 +46,7 @@ enum {
 struct tgroup_info {
 	uint base;                 /* first thread in this group */
 	uint count;                /* number of threads in this group */
+	uint tgid;                 /* group ID (starts at 1, 0=unspecified) */
 
 	/* pad to cache line (64B) */
 	char __pad[0];            /* unused except to check remaining room */
