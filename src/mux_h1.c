@@ -3541,10 +3541,12 @@ static int h1_ctl(struct connection *conn, enum mux_ctl_type mux_ctl, void *outp
 			ret |= MUX_STATUS_READY;
 		return ret;
 	case MUX_EXIT_STATUS:
-		ret = (h1c->errcode == 400 ? MUX_ES_INVALID_ERR :
-		       (h1c->errcode == 408 ? MUX_ES_TOUT_ERR :
-			(h1c->errcode == 501 ? MUX_ES_NOTIMPL_ERR :
-			 (h1c->errcode == 500 ? MUX_ES_INTERNAL_ERR :
+		if (output)
+			*((int *)output) = h1c->errcode;
+		ret = (h1c->errcode == 408 ? MUX_ES_TOUT_ERR :
+		       (h1c->errcode == 501 ? MUX_ES_NOTIMPL_ERR :
+			(h1c->errcode == 500 ? MUX_ES_INTERNAL_ERR :
+			 ((h1c->errcode >= 400 && h1c->errcode <= 499) ? MUX_ES_INVALID_ERR :
 			  MUX_ES_SUCCESS))));
 		return ret;
 	default:
