@@ -4,6 +4,7 @@
 #include <haproxy/http_client-t.h>
 
 void httpclient_destroy(struct httpclient *hc);
+void httpclient_stop_and_destroy(struct httpclient *hc);
 struct httpclient *httpclient_new(void *caller, enum http_meth_t meth, struct ist url);
 
 struct appctx *httpclient_start(struct httpclient *hc);
@@ -20,7 +21,7 @@ static inline int httpclient_data(struct httpclient *hc)
 /* Return 1 if the httpclient ended and won't receive any new data */
 static inline int httpclient_ended(struct httpclient *hc)
 {
-	return !!(hc->flags & HTTPCLIENT_F_ENDED);
+	return !!(hc->flags & HTTPCLIENT_FS_ENDED);
 }
 
 #endif /* ! _HAPROXY_HTTCLIENT_H */

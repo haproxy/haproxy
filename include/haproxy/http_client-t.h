@@ -30,7 +30,12 @@ struct httpclient {
 	unsigned int flags;                   /* other flags */
 };
 
-#define    HTTPCLIENT_F_ENDED        0x00000001
+/* Action (FA) to do */
+#define    HTTPCLIENT_FA_STOP         0x00000001   /* stops the httpclient at the next IO handler call */
+#define    HTTPCLIENT_FA_AUTOKILL     0x00000002   /* sets the applet to destroy the httpclient struct itself */
+
+/* status (FS) */
+#define    HTTPCLIENT_FS_ENDED        0x00010000 /* the httpclient is stopped */
 
 /* States of the HTTP Client Appctx */
 enum {

@@ -228,7 +228,7 @@ static void hc_cli_release(struct appctx *appctx)
 	struct httpclient *hc = appctx->ctx.cli.p0;
 
 	/* Everything possible was printed on the CLI, we can destroy the client */
-	httpclient_destroy(hc);
+	httpclient_stop_and_destroy(hc);
 
 	return;
 }
@@ -407,6 +407,27 @@ out:
 	return NULL;
 }
 
+/*
+ * This function tries to destroy the httpclient if it wasn't running.
+ * If it was running, stop the client and ask it to autodestroy itself.
+ *
+ * Once this fonction is used, all pointer sto the client must be removed
+ *
+ */
+void httpclient_stop_and_destroy(struct httpclient *hc)
+{
+
+	/* The httpclient was already stopped, we can safely destroy it */
+	if (hc->flags & HTTPCLIENT_FS_ENDED) {
+		httpclient_destroy(hc);
+	} else {
+	/* if the client wasn't stopped, ask for a stop and destroy */
+		hc->flags |= (HTTPCLIENT_FA_AUTOKILL | HTTPCLIENT_FA_STOP);
+		if (hc->appctx)
+			appctx_wakeup(hc->appctx);
+	}
+}
+
 /* Free the httpclient */
 void httpclient_destroy(struct httpclient *hc)
 {
@@ -415,6 +436,10 @@ void httpclient_destroy(struct httpclient *hc)
 
 	if (!hc)
 		return;
+
+	/* we should never destroy a client which was not stopped */
+	BUG_ON(!httpclient_ended(hc));
+
 	/* request */
 	istfree(&hc->req.url);
 	b_free(&hc->req.buf);
@@ -480,6 +505,11 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 
 
 	while (1) {
+
+		/* required to stop */
+		if (hc->flags & HTTPCLIENT_FA_STOP)
+			goto end;
+
 		switch(appctx->st0) {
 
 			case HTTPCLIENT_S_REQ:
@@ -667,10 +697,16 @@ static void httpclient_applet_release(struct appctx *appctx)
 	struct httpclient *hc = appctx->ctx.httpclient.ptr;
 
 	/* mark the httpclient as ended */
-	hc->flags |= HTTPCLIENT_F_ENDED;
+	hc->flags |= HTTPCLIENT_FS_ENDED;
 	/* the applet is leaving, remove the ptr so we don't try to call it
 	 * again from the caller */
 	hc->appctx = NULL;
+
+
+	/* destroy the httpclient when set to autotokill */
+	if (hc->flags & HTTPCLIENT_FA_AUTOKILL) {
+		httpclient_destroy(hc);
+	}
 
 	return;
 }
