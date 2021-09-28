@@ -1974,6 +1974,15 @@ static size_t h1_process_mux(struct h1c *h1c, struct buffer *buf, size_t count)
 				          !(h1m->flags & H1_MF_RESP))) {
 					ws_key_found = 1;
 				}
+				else if (isteq(n, ist("te"))) {
+					/* "te" may only be sent with "trailers" if this value
+					 * is present, otherwise it must be deleted.
+					 */
+					v = istist(v, ist("trailers"));
+					if (!isttest(v) || (v.len > 8 && v.ptr[8] != ','))
+						goto skip_hdr;
+					v = ist("trailers");
+				}
 
 				/* Skip header if same name is used to add the server name */
 				if (!(h1m->flags & H1_MF_RESP) && h1c->px->server_id_hdr_name &&

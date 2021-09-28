@@ -2028,6 +2028,15 @@ static size_t fcgi_strm_send_params(struct fcgi_conn *fconn, struct fcgi_strm *f
 				else {
 					if (isteq(p.n, ist("host")))
 						params.srv_name = p.v;
+					else if (isteq(p.n, ist("te"))) {
+						/* "te" may only be sent with "trailers" if this value
+						 * is present, otherwise it must be deleted.
+						 */
+						p.v = istist(p.v, ist("trailers"));
+						if (!isttest(p.v) || (p.v.len > 8 && p.v.ptr[8] != ','))
+							break;
+						p.v = ist("trailers");
+					}
 
 					/* Skip header if same name is used to add the server name */
 					if (fconn->proxy->server_id_hdr_name &&
