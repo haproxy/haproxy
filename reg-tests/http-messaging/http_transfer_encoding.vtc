@@ -1,0 +1,202 @@
+varnishtest "A test to validate Transfer-Encoding header conformance to the spec"
+feature ignore_unknown_macro
+
+#REQUIRE_VERSION=2.5
+
+server s1 {
+    rxreq
+    expect req.http.content-length == <undef>
+    expect req.http.transfer-encoding == "chunked"
+    expect req.bodylen == 0
+    expect req.body == ""
+    txresp -status 200
+
+    accept
+    rxreq
+    expect req.http.content-length == <undef>
+    expect req.http.transfer-encoding == "chunked"
+    expect req.bodylen == 0
+    expect req.body == ""
+    txresp -status 200
+
+    accept
+    rxreq
+    send "HTTP/1.0 200 Ok\r\n"
+    send "Transfer-Encoding: chunked\r\n\r\n"
+    send "0\r\n\r\n"
+
+    accept
+    rxreq
+    send "HTTP/1.1 200 Ok\r\n"
+    send "Transfer-Encoding: chunked\r\n"
+    send "Content-Length: 30\r\n\r\n"
+    send "0\r\n\r\nResponse splitting attach"
+
+    accept
+    rxreq
+    expect req.url == "/1"
+    expect req.http.transfer-encoding == "chunked"
+    expect req.http.te == "trailers"
+    txresp
+
+    rxreq
+    expect req.url == "/2"
+    expect req.http.transfer-encoding == "chunked"
+    expect req.http.te == <undef>
+    txresp
+
+    rxreq
+    expect req.url == "/3"
+    expect req.http.transfer-encoding == "chunked"
+    expect req.http.te == <undef>
+    txresp
+} -start
+
+server s2 {
+    rxreq
+    txresp -nolen \
+        -hdr "Transfer-Encoding: chunked, chunked" \
+        -body "0\r\n\r\n"
+
+    accept
+    rxreq
+    txresp -nolen \
+        -hdr "Transfer-Encoding: chunked, gzip, chunked" \
+        -body "0\r\n\r\n"
+
+    accept
+    rxreq
+    txresp -nolen \
+        -hdr "Transfer-Encoding: chunked, gzip" \
+        -body "0\r\n\r\n"
+
+    accept
+    rxreq
+    txresp \
+        -hdr "Transfer-Encoding: gzip"
+} -start
+
+haproxy h1 -conf {
+    defaults
+        mode http
+        timeout connect 1s
+        timeout client  1s
+        timeout server  1s
+
+    listen fe1
+        bind "fd@${fe1}"
+        server s1 ${s1_addr}:${s1_port}
+
+    listen fe2
+        bind "fd@${fe2}"
+        server s2 ${s2_addr}:${s2_port}
+} -start
+
+client c1 -connect ${h1_fe1_sock} {
+    txreq -method POST -nolen \
+        -hdr "Transfer-Encoding: chunked" \
+        -hdr "Content-Length: 31" \
+        -body "0\r\n\r\nGET /smuggled HTTP/1.1\r\n\r\n"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.connection == "close"
+    expect_close
+} -run
+
+client c2 -connect ${h1_fe1_sock} {
+    send "POST / HTTP/1.0\r\n"
+    send "Transfer-Encoding: chunked\r\n\r\n"
+    send "0\r\n\r\n"
+    rxresp
+    expect resp.status == 200
+    expect_close
+} -run
+
+client c3 -connect ${h1_fe1_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.content-length == <undef>
+    expect resp.http.transfer-encoding == "chunked"
+    expect resp.bodylen == 0
+    expect resp.body == ""
+    expect_close
+} -run
+
+client c4 -connect ${h1_fe1_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.content-length == <undef>
+    expect resp.http.transfer-encoding == "chunked"
+    expect resp.bodylen == 0
+    expect resp.body == ""
+} -run
+
+client c5 -connect ${h1_fe1_sock} {
+    txreq -method POST -url "/1" -nolen \
+        -hdr "Transfer-Encoding: chunked" \
+        -hdr "TE: trailers, gzip" \
+        -body "0\r\n\r\n"
+    rxresp
+    expect resp.status == 200
+
+    txreq -method POST -url "/2" -nolen \
+        -hdr "Transfer-Encoding: chunked" \
+        -hdr "TE: gzip" \
+        -body "0\r\n\r\n"
+    rxresp
+    expect resp.status == 200
+
+    txreq -method POST -url "/3" -nolen \
+        -hdr "Transfer-Encoding: chunked" \
+        -hdr "TE: trailers;q=0.5" \
+        -body "0\r\n\r\n"
+    rxresp
+    expect resp.status == 200
+} -run
+
+client c6 -connect ${h1_fe1_sock} {
+    txreq -nolen \
+        -hdr "Transfer-Encoding: chunked, chunked" \
+        -body "0\r\n\r\n"
+    rxresp
+    expect resp.status == 400
+} -run
+
+client c7 -connect ${h1_fe1_sock} {
+    txreq -nolen \
+        -hdr "Transfer-Encoding: chunked, gzip, chunked" \
+        -body "0\r\n\r\n"
+    rxresp
+    expect resp.status == 400
+} -run
+
+client c8 -connect ${h1_fe1_sock} {
+    txreq -nolen \
+        -hdr "Transfer-Encoding: chunked, gzip" \
+        -body "0\r\n\r\n"
+    rxresp
+    expect resp.status == 400
+} -run
+
+client c9 -connect ${h1_fe1_sock} {
+    txreq \
+        -hdr "Transfer-Encoding: gzip"
+    rxresp
+    expect resp.status == 400
+} -run
+
+client c10 -connect ${h1_fe1_sock} {
+    txreq -nolen \
+        -hdr "Transfer-Encoding: gzip, chunked" \
+        -body "0\r\n\r\n"
+    rxresp
+    expect resp.status == 422
+} -run
+
+client c11 -connect ${h1_fe2_sock} {
+    txreq
+    rxresp
+    expect resp.status == 502
+} -run -repeat 4
