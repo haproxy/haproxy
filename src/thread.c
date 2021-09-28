@@ -1075,6 +1075,14 @@ int thread_map_to_groups()
 		return -1;
 	}
 
+	for (t = 0; t < global.nbthread; t++) {
+		ha_thread_info[t].tid      = t;
+		ha_thread_info[t].ltid     = t - ha_thread_info[t].tg->base;
+
+		ha_thread_info[t].tid_bit  = 1UL << ha_thread_info[t].tid;
+		ha_thread_info[t].ltid_bit = 1UL << ha_thread_info[t].ltid;
+	}
+
 	return 0;
 }
 

@@ -60,6 +60,8 @@ struct tgroup_info {
  */
 struct thread_info {
 	const struct tgroup_info *tg;     /* config of the thread-group this thread belongs to */
+	uint tid, ltid;                   /* process-wide and group-wide thread ID (start at 0) */
+	ulong tid_bit, ltid_bit;          /* bit masks for the tid/ltid */
 
 	/* pad to cache line (64B) */
 	char __pad[0];                    /* unused except to check remaining room */
