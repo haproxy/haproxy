@@ -167,6 +167,7 @@ const int http_err_codes[HTTP_ERR_SIZE] = {
 	[HTTP_ERR_410] = 410,
 	[HTTP_ERR_413] = 413,
 	[HTTP_ERR_421] = 421,
+	[HTTP_ERR_422] = 422,
 	[HTTP_ERR_425] = 425,
 	[HTTP_ERR_429] = 429,
 	[HTTP_ERR_500] = 500,
@@ -266,6 +267,14 @@ const char *http_err_msgs[HTTP_ERR_SIZE] = {
 	"Content-Type: text/html\r\n"
 	"\r\n"
 	"<html><body><h1>421 Misdirected Request</h1>\nRequest sent to a non-authoritative server.\n</body></html>\n",
+
+	[HTTP_ERR_422] =
+	"HTTP/1.1 422 Unprocessable Content\r\n"
+	"Content-length: 116\r\n"
+	"Cache-Control: no-cache\r\n"
+	"Content-Type: text/html\r\n"
+	"\r\n"
+	"<html><body><h1>422 Unprocessable Content</h1>\nThe server cannot process the contained instructions.\n</body></html>\n",
 
 	[HTTP_ERR_425] =
 	"HTTP/1.1 425 Too Early\r\n"
@@ -371,6 +380,7 @@ int http_get_status_idx(unsigned int status)
 	case 410: return HTTP_ERR_410;
 	case 413: return HTTP_ERR_413;
 	case 421: return HTTP_ERR_421;
+	case 422: return HTTP_ERR_422;
 	case 425: return HTTP_ERR_425;
 	case 429: return HTTP_ERR_429;
 	case 500: return HTTP_ERR_500;
@@ -430,7 +440,7 @@ const char *http_get_reason(unsigned int status)
 	case 417: return "Expectation failed";
 	case 418: return "I'm a teapot";
 	case 421: return "Misdirected Request";
-	case 422: return "Unprocessable entity";
+	case 422: return "Unprocessable Content";
 	case 423: return "Locked";
 	case 424: return "Method failure";
 	case 425: return "Too Early";
