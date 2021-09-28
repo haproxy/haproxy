@@ -3423,8 +3423,7 @@ int main(int argc, char **argv)
 			if (ha_cpuset_count(&cpu_map.proc))
 				ha_cpuset_and(&cpu_map.thread[i], &cpu_map.proc);
 
-			if (i < MAX_THREADS &&       /* only the first 32/64 threads may be pinned */
-			    ha_cpuset_count(&cpu_map.thread[i])) {/* only do this if the thread has a THREAD map */
+			if (ha_cpuset_count(&cpu_map.thread[i])) {/* only do this if the thread has a THREAD map */
 #if defined(__APPLE__)
 				int j;
 				unsigned long set = cpu_map.thread[i].cpuset;
