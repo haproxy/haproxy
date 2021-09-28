@@ -5355,8 +5355,19 @@ __LJMP static int hlua_applet_http_send_response(lua_State *L)
 			value = lua_tolstring(L, -1, &vlen);
 
 			/* Simple Protocol checks. */
-			if (isteqi(ist2(name, nlen), ist("transfer-encoding")))
-				h1_parse_xfer_enc_header(&h1m, ist2(value, vlen));
+			if (isteqi(ist2(name, nlen), ist("transfer-encoding"))) {
+				int ret;
+
+				ret = h1_parse_xfer_enc_header(&h1m, ist2(value, vlen));
+				if (ret < 0) {
+					hlua_pusherror(L, "Lua applet http '%s': Invalid '%s' header.\n",
+						       luactx->appctx->rule->arg.hlua_rule->fcn->name,
+						       name);
+					WILL_LJMP(lua_error(L));
+				}
+				else if (ret == 0)
+					goto next; /* Skip it */
+			}
 			else if (isteqi(ist2(name, nlen), ist("content-length"))) {
 				struct ist v = ist2(value, vlen);
 				int ret;

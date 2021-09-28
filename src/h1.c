@@ -93,19 +93,21 @@ int h1_parse_cont_len_header(struct h1m *h1m, struct ist *value)
 }
 
 /* Parse the Transfer-Encoding: header field of an HTTP/1 request, looking for
- * "chunked" being the last value, and setting H1_MF_CHNK in h1m->flags only in
- * this case. Any other token found or any empty header field found will reset
- * this flag, so that it accurately represents the token's presence at the last
- * position. The H1_MF_XFER_ENC flag is always set. Note that transfer codings
- * are case-insensitive (cf RFC7230#4).
+ * "chunked" encoding to perform some checks (it must be the last encoding for
+ * the request and must not be performed twice for any message). The
+ * H1_MF_TE_CHUNKED is set if a valid "chunked" encoding is found. The
+ * H1_MF_TE_OTHER flag is set if any other encoding is found. The H1_MF_XFER_ENC
+ * flag is always set. The H1_MF_CHNK is set when "chunked" encoding is the last
+ * one. Note that transfer codings are case-insensitive (cf RFC7230#4). This
+ * function returns <0 if a error is found, 0 if the whole header can be dropped
+ * (not used yet), or >0 if the value can be indexed.
  */
-void h1_parse_xfer_enc_header(struct h1m *h1m, struct ist value)
+int h1_parse_xfer_enc_header(struct h1m *h1m, struct ist value)
 {
 	char *e, *n;
 	struct ist word;
 
 	h1m->flags |= H1_MF_XFER_ENC;
-	h1m->flags &= ~H1_MF_CHNK;
 
 	word.ptr = value.ptr - 1; // -1 for next loop's pre-increment
 	e = value.ptr + value.len;
@@ -123,11 +125,36 @@ void h1_parse_xfer_enc_header(struct h1m *h1m, struct ist value)
 			word.len--;
 
 		h1m->flags &= ~H1_MF_CHNK;
-		if (isteqi(word, ist("chunked")))
-			h1m->flags |= H1_MF_CHNK;
+		if (isteqi(word, ist("chunked"))) {
+			if (h1m->flags & H1_MF_TE_CHUNKED) {
+				/* cf RFC7230#3.3.1 : A sender MUST NOT apply
+				 * chunked more than once to a message body
+				 * (i.e., chunking an already chunked message is
+				 * not allowed)
+				 */
+				goto fail;
+			}
+			h1m->flags |= (H1_MF_TE_CHUNKED|H1_MF_CHNK);
+		}
+		else {
+			if ((h1m->flags & (H1_MF_RESP|H1_MF_TE_CHUNKED)) == H1_MF_TE_CHUNKED) {
+				/* cf RFC7230#3.3.1 : If any transfer coding
+				 * other than chunked is applied to a request
+				 * payload body, the sender MUST apply chunked
+				 * as the final transfer coding to ensure that
+				 * the message is properly framed.
+				 */
+				goto fail;
+			}
+			h1m->flags |= H1_MF_TE_OTHER;
+		}
 
 		word.ptr = n;
 	}
+
+	return 1;
+  fail:
+	return -1;
 }
 
 /* Parse the Connection: header of an HTTP/1 request, looking for "close",
@@ -843,7 +870,16 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 				}
 
 				if (isteqi(n, ist("transfer-encoding"))) {
-					h1_parse_xfer_enc_header(h1m, v);
+					ret = h1_parse_xfer_enc_header(h1m, v);
+					if (ret < 0) {
+						state = H1_MSG_HDR_L2_LWS;
+						ptr = v.ptr; /* Set ptr on the error */
+						goto http_msg_invalid;
+					}
+					else if (ret == 0) {
+						/* skip it */
+						break;
+					}
 				}
 				else if (isteqi(n, ist("content-length"))) {
 					ret = h1_parse_cont_len_header(h1m, &v);

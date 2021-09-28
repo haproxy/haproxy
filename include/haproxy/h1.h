@@ -81,7 +81,7 @@ enum h1m_state {
 /* HTTP/1 message flags (32 bit), for use in h1m->flags only */
 #define H1_MF_NONE              0x00000000
 #define H1_MF_CLEN              0x00000001 // content-length present
-#define H1_MF_CHNK              0x00000002 // chunk present, exclusive with c-l
+#define H1_MF_CHNK              0x00000002 // chunk present (as last encoding), exclusive with c-l
 #define H1_MF_RESP              0x00000004 // this message is the response message
 #define H1_MF_TOLOWER           0x00000008 // turn the header names to lower case
 #define H1_MF_VER_11            0x00000010 // message indicates version 1.1 or above
@@ -96,6 +96,8 @@ enum h1m_state {
 #define H1_MF_METH_CONNECT      0x00002000 // Set for a response to a CONNECT request
 #define H1_MF_METH_HEAD         0x00004000 // Set for a response to a HEAD request
 #define H1_MF_UPG_WEBSOCKET     0x00008000 // Set for a Websocket upgrade handshake
+#define H1_MF_TE_CHUNKED        0x00010000 // T-E "chunked"
+#define H1_MF_TE_OTHER          0x00020000 // T-E other than supported ones found (only "chunked" is supported for now)
 
 /* Note: for a connection to be persistent, we need this for the request :
  *   - one of CLEN or CHNK
@@ -146,7 +148,7 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 int h1_measure_trailers(const struct buffer *buf, unsigned int ofs, unsigned int max);
 
 int h1_parse_cont_len_header(struct h1m *h1m, struct ist *value);
-void h1_parse_xfer_enc_header(struct h1m *h1m, struct ist value);
+int h1_parse_xfer_enc_header(struct h1m *h1m, struct ist value);
 void h1_parse_connection_header(struct h1m *h1m, struct ist *value);
 void h1_parse_upgrade_header(struct h1m *h1m, struct ist value);
 
