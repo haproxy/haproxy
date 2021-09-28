@@ -1562,6 +1562,26 @@ static inline int qc_parse_ack_frm(struct quic_frame *frm, struct ssl_sock_ctx *
 	return 0;
 }
 
+/* This function gives the detail of the SSL error. It is used only
+ * if the debug mode and the verbose mode are activated. It dump all
+ * the SSL error until the stack was empty.
+ */
+static forceinline void qc_ssl_dump_errors(struct connection *conn)
+{
+	if (unlikely(global.mode & MODE_DEBUG)) {
+		while (1) {
+			unsigned long ret;
+
+			ret = ERR_get_error();
+			if (!ret)
+				return;
+
+			fprintf(stderr, "conn. @%p OpenSSL error[0x%lx] %s: %s\n", conn, ret,
+			        ERR_func_error_string(ret), ERR_reason_error_string(ret));
+		}
+	}
+}
+
 /* Provide CRYPTO data to the TLS stack found at <data> with <len> as length
  * from <qel> encryption level with <ctx> as QUIC connection context.
  * Remaining parameter are there for debugging purposes.
