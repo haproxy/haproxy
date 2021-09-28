@@ -6906,6 +6906,25 @@ __LJMP static struct hlua_httpclient *hlua_checkhttpclient(lua_State *L, int ud)
 	return MAY_LJMP(hlua_checkudata(L, ud, class_httpclient_ref));
 }
 
+
+/* stops the httpclient and ask it to kill itself */
+__LJMP static int hlua_httpclient_gc(lua_State *L)
+{
+	struct hlua_httpclient *hlua_hc;
+
+	MAY_LJMP(check_args(L, 1, "__gc"));
+
+	hlua_hc = MAY_LJMP(hlua_checkhttpclient(L, 1));
+
+	httpclient_stop_and_destroy(hlua_hc->hc);
+
+	hlua_hc->hc = NULL;
+
+
+	return 0;
+}
+
+
 __LJMP static int hlua_httpclient_new(lua_State *L)
 {
 	struct hlua_httpclient *hlua_hc;
@@ -11759,6 +11778,11 @@ lua_State *hlua_init_state(int thread_num)
 	lua_newtable(L);
 	hlua_class_function(L, "get",         hlua_httpclient_get);
 	lua_settable(L, -3); /* Sets the __index entry. */
+	/* Register the garbage collector entry. */
+	lua_pushstring(L, "__gc");
+	lua_pushcclosure(L, hlua_httpclient_gc, 0);
+	lua_settable(L, -3); /* Push the last 2 entries in the table at index -3 */
+
 
 
 	class_httpclient_ref = hlua_register_metatable(L, CLASS_HTTPCLIENT);
