@@ -2857,6 +2857,49 @@ static void *run_thread_poll_loop(void *data)
 	return NULL;
 }
 
+/* Sets up threads, signals and masks, and starts threads 2 and above.
+ * Does nothing when threads are disabled.
+ */
+static void setup_extra_threads()
+{
+#ifdef USE_THREAD
+	sigset_t     blocked_sig, old_sig;
+	int          i;
+
+	/* ensure the signals will be blocked in every thread */
+	sigfillset(&blocked_sig);
+	sigdelset(&blocked_sig, SIGPROF);
+	sigdelset(&blocked_sig, SIGBUS);
+	sigdelset(&blocked_sig, SIGFPE);
+	sigdelset(&blocked_sig, SIGILL);
+	sigdelset(&blocked_sig, SIGSEGV);
+	pthread_sigmask(SIG_SETMASK, &blocked_sig, &old_sig);
+
+	/* Create nbthread-1 thread. The first thread is the current process */
+	ha_thread_info[0].pthread = pthread_self();
+	for (i = 1; i < global.nbthread; i++)
+		pthread_create(&ha_thread_info[i].pthread, NULL, &run_thread_poll_loop, (void *)(long)i);
+#endif
+}
+
+/* waits for all threads to terminate. Does nothing when threads are
+ * disabled.
+ */
+static void wait_for_threads_completion()
+{
+#ifdef USE_THREAD
+	int i;
+
+	/* Wait the end of other threads */
+	for (i = 1; i < global.nbthread; i++)
+		pthread_join(ha_thread_info[i].pthread, NULL);
+
+#  if defined(DEBUG_THREAD) || defined(DEBUG_FULL)
+	show_lock_stats();
+#  endif
+#endif
+}
+
 /* set uid/gid depending on global settings */
 static void set_identity(const char *program_name)
 {
@@ -3430,46 +3473,17 @@ int main(int argc, char **argv)
 	global.mode &= ~MODE_STARTING;
 	reset_usermsgs_ctx();
 
-	/*
-	 * That's it : the central polling loop. Run until we stop.
-	 */
-#ifdef USE_THREAD
-	{
-		sigset_t     blocked_sig, old_sig;
-		int          i;
+	/* start threads 2 and above */
+	setup_extra_threads();
 
-		/* ensure the signals will be blocked in every thread */
-		sigfillset(&blocked_sig);
-		sigdelset(&blocked_sig, SIGPROF);
-		sigdelset(&blocked_sig, SIGBUS);
-		sigdelset(&blocked_sig, SIGFPE);
-		sigdelset(&blocked_sig, SIGILL);
-		sigdelset(&blocked_sig, SIGSEGV);
-		pthread_sigmask(SIG_SETMASK, &blocked_sig, &old_sig);
-
-		/* Create nbthread-1 thread. The first thread is the current process */
-		ha_thread_info[0].pthread = pthread_self();
-		for (i = 1; i < global.nbthread; i++)
-			pthread_create(&ha_thread_info[i].pthread, NULL, &run_thread_poll_loop, (void *)(long)i);
-
-		/* when multithreading we need to let only the thread 0 handle the signals */
-		haproxy_unblock_signals();
-
-		/* Finally, start the poll loop for the first thread */
-		run_thread_poll_loop(0);
-
-		/* Wait the end of other threads */
-		for (i = 1; i < global.nbthread; i++)
-			pthread_join(ha_thread_info[i].pthread, NULL);
-
-#if defined(DEBUG_THREAD) || defined(DEBUG_FULL)
-		show_lock_stats();
-#endif
-	}
-#else /* ! USE_THREAD */
+	/* when multithreading we need to let only the thread 0 handle the signals */
 	haproxy_unblock_signals();
+
+	/* Finally, start the poll loop for the first thread */
 	run_thread_poll_loop(0);
-#endif
+
+	/* wait for all threads to terminate */
+	wait_for_threads_completion();
 
 	deinit_and_exit(0);
 }
