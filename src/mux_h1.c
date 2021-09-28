@@ -1420,6 +1420,22 @@ static size_t h1_handle_headers(struct h1s *h1s, struct h1m *h1m, struct htx *ht
 		goto end;
 	}
 
+	/* Reject any message with an unknown transfer-encoding. In fact if any
+	 * encoding other than "chunked". A 422-Unprocessable-Content is
+	 * returned for an invalid request, a 502-Bad-Gateway for an invalid
+	 * response.
+	 */
+	if (h1m->flags & H1_MF_TE_OTHER) {
+		h1s->flags |= H1S_F_PARSING_ERROR;
+		htx->flags |= HTX_FL_PARSING_ERROR;
+		if (!(h1m->flags & H1_MF_RESP))
+			h1s->h1c->errcode = 422;
+		TRACE_ERROR("Unknown transfer-encoding", H1_EV_RX_DATA|H1_EV_RX_HDRS|H1_EV_H1S_ERR, h1s->h1c->conn, h1s);
+		h1_capture_bad_message(h1s->h1c, h1s, h1m, buf);
+		ret = 0;
+		goto end;
+	}
+
 	/* If websocket handshake, search for the websocket key */
 	if ((h1m->flags & (H1_MF_CONN_UPG|H1_MF_UPG_WEBSOCKET)) ==
 	    (H1_MF_CONN_UPG|H1_MF_UPG_WEBSOCKET)) {

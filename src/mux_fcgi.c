@@ -3347,6 +3347,20 @@ static size_t fcgi_strm_parse_headers(struct fcgi_strm *fstrm, struct h1m *h1m, 
 		goto end;
 	}
 
+	/* Reject any message with an unknown transfer-encoding. In fact if any
+	 * encoding other than "chunked". A 422-Unprocessable-Content is
+	 * returned for an invalid request, a 502-Bad-Gateway for an invalid
+	 * response.
+	 */
+	if (h1m->flags & H1_MF_TE_OTHER) {
+		htx->flags |= HTX_FL_PARSING_ERROR;
+		TRACE_ERROR("Unknown transfer-encoding", FCGI_EV_RSP_DATA|FCGI_EV_RSP_HDRS|FCGI_EV_FSTRM_ERR, fstrm->fconn->conn, fstrm);
+		fcgi_strm_error(fstrm);
+		fcgi_strm_capture_bad_message(fstrm->fconn, fstrm, h1m, buf);
+		ret = 0;
+		goto end;
+	}
+
 	*ofs += ret;
   end:
 	TRACE_LEAVE(FCGI_EV_RSP_DATA|FCGI_EV_RSP_HDRS, fstrm->fconn->conn, fstrm, 0, (size_t[]){ret});
