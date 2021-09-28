@@ -2611,6 +2611,41 @@ __attribute__((noreturn)) void deinit_and_exit(int status)
 	exit(status);
 }
 
+/* Tries to set the current thread's CPU affinity according to the cpu_map */
+static void set_thread_cpu_affinity()
+{
+#if defined(USE_THREAD) && defined(USE_CPU_AFFINITY)
+	/* no affinity setting for the master process */
+	if (master)
+		return;
+
+	/* Now the CPU affinity for all threads */
+	if (ha_cpuset_count(&cpu_map.proc))
+		ha_cpuset_and(&cpu_map.thread[tid], &cpu_map.proc);
+
+	if (ha_cpuset_count(&cpu_map.thread[tid])) {/* only do this if the thread has a THREAD map */
+#  if defined(__APPLE__)
+		/* Note: this API is limited to the first 32/64 CPUs */
+		unsigned long set = cpu_map.thread[tid].cpuset;
+		int j;
+
+		while ((j = ffsl(set)) > 0) {
+			thread_affinity_policy_data_t cpu_set = { j - 1 };
+			thread_port_t mthread;
+
+			mthread = pthread_mach_thread_np(ha_thread_info[tid].pthread);
+			thread_policy_set(mthread, THREAD_AFFINITY_POLICY, (thread_policy_t)&cpu_set, 1);
+			set &= ~(1UL << (j - 1));
+		}
+#  else
+		struct hap_cpuset *set = &cpu_map.thread[tid];
+
+		pthread_setaffinity_np(ha_thread_info[tid].pthread, sizeof(set->cpuset), &set->cpuset);
+#  endif
+	}
+#endif /* USE_THREAD && USE_CPU_AFFINITY */
+}
+
 /* Runs the polling loop */
 void run_poll_loop()
 {
@@ -2698,6 +2733,7 @@ static void *run_thread_poll_loop(void *data)
 	__decl_thread(static pthread_cond_t  init_cond  = PTHREAD_COND_INITIALIZER);
 
 	ha_set_tid((unsigned long)data);
+	set_thread_cpu_affinity();
 	sched = &task_per_thread[tid];
 
 #if (_POSIX_TIMERS > 0) && defined(_POSIX_THREAD_CPUTIME)
@@ -3415,33 +3451,6 @@ int main(int argc, char **argv)
 		ha_thread_info[0].pthread = pthread_self();
 		for (i = 1; i < global.nbthread; i++)
 			pthread_create(&ha_thread_info[i].pthread, NULL, &run_thread_poll_loop, (void *)(long)i);
-
-#ifdef USE_CPU_AFFINITY
-		/* Now the CPU affinity for all threads */
-
-		for (i = 0; i < global.nbthread; i++) {
-			if (ha_cpuset_count(&cpu_map.proc))
-				ha_cpuset_and(&cpu_map.thread[i], &cpu_map.proc);
-
-			if (ha_cpuset_count(&cpu_map.thread[i])) {/* only do this if the thread has a THREAD map */
-#if defined(__APPLE__)
-				int j;
-				unsigned long set = cpu_map.thread[i].cpuset;
-
-				while ((j = ffsl(set)) > 0) {
-					thread_affinity_policy_data_t cpu_set = { j - 1 };
-					thread_port_t mthread = pthread_mach_thread_np(ha_thread_info[i].pthread);
-					thread_policy_set(mthread, THREAD_AFFINITY_POLICY, (thread_policy_t)&cpu_set, 1);
-					set &= ~(1UL << (j - 1));
-				}
-#else
-				struct hap_cpuset *set = &cpu_map.thread[i];
-				pthread_setaffinity_np(ha_thread_info[i].pthread,
-				                       sizeof(set->cpuset), &set->cpuset);
-#endif
-			}
-		}
-#endif /* !USE_CPU_AFFINITY */
 
 		/* when multithreading we need to let only the thread 0 handle the signals */
 		haproxy_unblock_signals();
