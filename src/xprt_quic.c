@@ -1622,6 +1622,8 @@ static inline int qc_provide_cdata(struct quic_enc_level *el,
 
 			TRACE_DEVEL("SSL handshake error",
 			            QUIC_EV_CONN_HDSHK, ctx->conn, &state, &ssl_err);
+			qc_ssl_dump_errors(ctx->conn);
+			BUG_ON(1);
 			goto err;
 		}
 
