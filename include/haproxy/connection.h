@@ -834,6 +834,8 @@ static inline const char *conn_err_code_str(struct connection *c)
 	case CO_ER_SOCKS4_RECV:    return "SOCKS4 Proxy read error during handshake";
 	case CO_ER_SOCKS4_DENY:    return "SOCKS4 Proxy deny the request";
 	case CO_ER_SOCKS4_ABORT:   return "SOCKS4 Proxy handshake aborted by server";
+
+	case CO_ERR_SSL_FATAL:     return "SSL fatal error";
 	}
 	return NULL;
 }

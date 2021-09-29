@@ -18030,6 +18030,7 @@ fc_conn_err_str : string
   | 40 | "SOCKS4 Proxy read error during handshake"                                |
   | 41 | "SOCKS4 Proxy deny the request"                                           |
   | 42 | "SOCKS4 Proxy handshake aborted by server"                                |
+  | 43 | "SSL fatal error"                                                         |
   +----+---------------------------------------------------------------------------+
 
 fc_http_major : integer

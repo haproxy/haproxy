@@ -6185,6 +6185,9 @@ static size_t ssl_sock_to_buf(struct connection *conn, void *xprt_ctx, struct bu
 				break;
 			} else if (ret == SSL_ERROR_ZERO_RETURN)
 				goto read0;
+			else if (ret == SSL_ERROR_SSL) {
+				conn->err_code = CO_ERR_SSL_FATAL;
+			}
 			/* For SSL_ERROR_SYSCALL, make sure to clear the error
 			 * stack before shutting down the connection for
 			 * reading. */
@@ -6345,6 +6348,9 @@ static size_t ssl_sock_from_buf(struct connection *conn, void *xprt_ctx, const s
 					SSL_set_mode(ctx->ssl, SSL_MODE_ASYNC);
 #endif
 				break;
+			}
+			else if (ret == SSL_ERROR_SSL || ret == SSL_ERROR_SYSCALL) {
+				conn->err_code = CO_ERR_SSL_FATAL;
 			}
 			goto out_error;
 		}
