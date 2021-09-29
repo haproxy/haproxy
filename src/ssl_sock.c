@@ -6186,6 +6186,9 @@ static size_t ssl_sock_to_buf(struct connection *conn, void *xprt_ctx, struct bu
 			} else if (ret == SSL_ERROR_ZERO_RETURN)
 				goto read0;
 			else if (ret == SSL_ERROR_SSL) {
+				struct ssl_sock_ctx *ctx = conn->xprt_ctx;
+				if (!ctx->error_code)
+					ctx->error_code = ERR_peek_error();
 				conn->err_code = CO_ERR_SSL_FATAL;
 			}
 			/* For SSL_ERROR_SYSCALL, make sure to clear the error
@@ -6350,6 +6353,9 @@ static size_t ssl_sock_from_buf(struct connection *conn, void *xprt_ctx, const s
 				break;
 			}
 			else if (ret == SSL_ERROR_SSL || ret == SSL_ERROR_SYSCALL) {
+				struct ssl_sock_ctx *ctx = conn->xprt_ctx;
+				if (!ctx->error_code)
+					ctx->error_code = ERR_peek_error();
 				conn->err_code = CO_ERR_SSL_FATAL;
 			}
 			goto out_error;
