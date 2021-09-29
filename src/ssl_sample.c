@@ -1207,7 +1207,7 @@ smp_fetch_ssl_fc_cl_xxh64(const struct arg *args, struct sample *smp, const char
 }
 
 static int
-smp_fetch_ssl_fc_hsk_err(const struct arg *args, struct sample *smp, const char *kw, void *private)
+smp_fetch_ssl_fc_err(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct connection *conn;
 	struct ssl_sock_ctx *ctx;
@@ -1232,7 +1232,7 @@ smp_fetch_ssl_fc_hsk_err(const struct arg *args, struct sample *smp, const char 
 
 	smp->flags = SMP_F_VOL_SESS;
 	smp->data.type = SMP_T_SINT;
-	smp->data.u.sint = ctx->hsk_error_code;
+	smp->data.u.sint = ctx->error_code;
 	return 1;
 }
 
@@ -1259,7 +1259,7 @@ smp_fetch_ssl_fc_protocol_hello_id(const struct arg *args, struct sample *smp, c
 }
 
 static int
-smp_fetch_ssl_fc_hsk_err_str(const struct arg *args, struct sample *smp, const char *kw, void *private)
+smp_fetch_ssl_fc_err_str(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct connection *conn;
 	struct ssl_sock_ctx *ctx;
@@ -1280,10 +1280,10 @@ smp_fetch_ssl_fc_hsk_err_str(const struct arg *args, struct sample *smp, const c
 		return 0;
 	}
 
-	if (!ctx || !ctx->hsk_error_code)
+	if (!ctx || !ctx->error_code)
 		return 0;
 
-	err_code_str = ERR_error_string(ctx->hsk_error_code, NULL);
+	err_code_str = ERR_error_string(ctx->error_code, NULL);
 
 	smp->flags = SMP_F_VOL_SESS;
 	smp->data.type = SMP_T_STR;
@@ -1679,8 +1679,8 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "ssl_bc_server_random",   smp_fetch_ssl_fc_random,      0,                   NULL,    SMP_T_BIN,  SMP_USE_L5SRV },
 	{ "ssl_bc_session_key",     smp_fetch_ssl_fc_session_key, 0,                   NULL,    SMP_T_BIN,  SMP_USE_L5SRV },
 #endif
-	{ "ssl_bc_hsk_err",         smp_fetch_ssl_fc_hsk_err,     0,                   NULL,    SMP_T_SINT, SMP_USE_L5SRV },
-	{ "ssl_bc_hsk_err_str",     smp_fetch_ssl_fc_hsk_err_str, 0,                   NULL,    SMP_T_STR,  SMP_USE_L5SRV },
+	{ "ssl_bc_err",             smp_fetch_ssl_fc_err,         0,                   NULL,    SMP_T_SINT, SMP_USE_L5SRV },
+	{ "ssl_bc_err_str",         smp_fetch_ssl_fc_err_str,     0,                   NULL,    SMP_T_STR,  SMP_USE_L5SRV },
 	{ "ssl_c_ca_err",           smp_fetch_ssl_c_ca_err,       0,                   NULL,    SMP_T_SINT, SMP_USE_L5CLI },
 	{ "ssl_c_ca_err_depth",     smp_fetch_ssl_c_ca_err_depth, 0,                   NULL,    SMP_T_SINT, SMP_USE_L5CLI },
 	{ "ssl_c_der",              smp_fetch_ssl_x_der,          0,                   NULL,    SMP_T_BIN,  SMP_USE_L5CLI },
@@ -1751,8 +1751,8 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "ssl_fc_cipherlist_hex",  smp_fetch_ssl_fc_cl_hex,      ARG1(0,SINT),        NULL,    SMP_T_BIN,  SMP_USE_L5CLI },
 	{ "ssl_fc_cipherlist_str",  smp_fetch_ssl_fc_cl_str,      ARG1(0,SINT),        NULL,    SMP_T_STR,  SMP_USE_L5CLI },
 	{ "ssl_fc_cipherlist_xxh",  smp_fetch_ssl_fc_cl_xxh64,    0,                   NULL,    SMP_T_SINT, SMP_USE_L5CLI },
-	{ "ssl_fc_hsk_err",         smp_fetch_ssl_fc_hsk_err,     0,                   NULL,    SMP_T_SINT, SMP_USE_L5CLI },
-	{ "ssl_fc_hsk_err_str",     smp_fetch_ssl_fc_hsk_err_str, 0,                   NULL,    SMP_T_STR, SMP_USE_L5CLI },
+	{ "ssl_fc_err",             smp_fetch_ssl_fc_err,         0,                   NULL,    SMP_T_SINT, SMP_USE_L5CLI },
+	{ "ssl_fc_err_str",         smp_fetch_ssl_fc_err_str,     0,                   NULL,    SMP_T_STR, SMP_USE_L5CLI },
 	{ "ssl_fc_protocol_hello_id",smp_fetch_ssl_fc_protocol_hello_id,0,             NULL,    SMP_T_SINT, SMP_USE_L5CLI },
 	{ "ssl_fc_extlist_bin",     smp_fetch_ssl_fc_ext_bin,     ARG1(0,SINT),        NULL,    SMP_T_STR,  SMP_USE_L5CLI },
 	{ "ssl_fc_eclist_bin",      smp_fetch_ssl_fc_ecl_bin,     ARG1(0,SINT),        NULL,    SMP_T_STR,  SMP_USE_L5CLI },

@@ -18790,19 +18790,21 @@ ssl_bc_client_random : binary
   sent using ephemeral ciphers. This requires OpenSSL >= 1.1.0, or BoringSSL.
   It can be used in a tcp-check or an http-check ruleset.
 
-ssl_bc_hsk_err : integer
+ssl_bc_err : integer
   When the outgoing connection was made over an SSL/TLS transport layer,
-  returns the ID of the latest error that happened during the handshake on the
-  backend side, or 0 if no error was encountered. In order to get a text
-  description of this error code, you can either use the "ssl_bc_hsk_err_str"
+  returns the ID of the last error of the first error stack raised on the
+  backend side. It can raise handshake errors as well as other read or write
+  errors occurring during the connection's lifetime. In order to get a text
+  description of this error code, you can either use the "ssl_bc_err_str"
   sample fetch or use the "openssl errstr" command (which takes an error code
   in hexadecimal representation as parameter). Please refer to your SSL
   library's documentation to find the exhaustive list of error codes.
 
-ssl_bc_hsk_err_str : string
+ssl_bc_err_str : string
   When the outgoing connection was made over an SSL/TLS transport layer,
-  returns a string representation of the latest error that happened during the
-  handshake on the backend side. See also "ssl_fc_hsk_err".
+  returns a string representation of the last error of the first error stack
+  that was raised on the connection from the backend's perspective. See also
+  "ssl_fc_err".
 
 ssl_bc_is_resumed : boolean
   Returns true when the back connection was made over an SSL/TLS transport
@@ -19213,6 +19215,28 @@ ssl_fc_early_exporter_secret : string
   activated with "tune.ssl.keylog on" in the global section. See also
   "tune.ssl.keylog"
 
+ssl_fc_err : integer
+  When the incoming connection was made over an SSL/TLS transport layer,
+  returns the ID of the last error of the first error stack raised on the
+  frontend side, or 0 if no error was encountered. It can be used to identify
+  handshake related errors other than verify ones (such as cipher mismatch), as
+  well as other read or write errors occurring during the connection's
+  lifetime.  Any error happening during the client's certificate verification
+  process will not be raised through this fetch but via the existing
+  "ssl_c_err", "ssl_c_ca_err" and "ssl_c_ca_err_depth" fetches. In order to get
+  a text description of this error code, you can either use the
+  "ssl_fc_err_str" sample fetch or use the "openssl errstr" command (which
+  takes an error code in hexadecimal representation as parameter). Please refer
+  to your SSL library's documentation to find the exhaustive list of error
+  codes.
+
+ssl_fc_err_str : string
+  When the incoming connection was made over an SSL/TLS transport layer,
+  returns a string representation of the last error of the first error stack
+  that was raised on the frontend side. Any error happening during the client's
+  certificate verification process will not be raised through this fetch. See
+  also "ssl_fc_err".
+
 ssl_fc_has_crt : boolean
   Returns true if a client certificate is present in an incoming connection over
   SSL/TLS transport layer. Useful if 'verify' statement is set to 'optional'.
@@ -19232,25 +19256,6 @@ ssl_fc_has_sni : boolean
   true when the incoming connection presents a TLS SNI field. This requires
   that the SSL library is built with support for TLS extensions enabled (check
   haproxy -vv).
-
-ssl_fc_hsk_err : integer
-  When the incoming connection was made over an SSL/TLS transport layer,
-  returns the ID of the latest error that happened during the handshake on the
-  frontend side, or 0 if no error was encountered. Any error happening during
-  the client's certificate verification process will not be raised through this
-  fetch but via the existing "ssl_c_err", "ssl_c_ca_err" and
-  "ssl_c_ca_err_depth" fetches. In order to get a text description of this
-  error code, you can either use the "ssl_fc_hsk_err_str" sample fetch or use
-  the "openssl errstr" command (which takes an error code in hexadecimal
-  representation as parameter). Please refer to your SSL library's
-  documentation to find the exhaustive list of error codes.
-
-ssl_fc_hsk_err_str : string
-  When the incoming connection was made over an SSL/TLS transport layer,
-  returns a string representation of the latest error that happened during the
-  handshake on the frontend side. Any error happening during the client's
-  certificate verification process will not be raised through this fetch. See
-  also "ssl_fc_hsk_err".
 
 ssl_fc_is_resumed : boolean
   Returns true if the SSL/TLS session has been resumed through the use of
@@ -21114,7 +21119,7 @@ HTTP ones, refer to the HTTP section.
      14   '{' captured_request_headers* '}'                     {haproxy.1wt.eu}
      15   '{' captured_response_headers* '}'                                  {}
      16   '"' http_request '"'                        "GET /index.html HTTP/1.1"
-     17   fc_conn_err '/' ssl_fc_hsk_err '/' ssl_c_err '/' ssl_c_ca_err  0/0/0/0
+     17   fc_conn_err '/' ssl_fc_err '/' ssl_c_err '/' ssl_c_ca_err      0/0/0/0
      18   ssl_version '/' ssl_ciphers             TLSv1.3/TLS_AES_256_GCM_SHA384
 
 Detailed fields description :
@@ -21122,9 +21127,11 @@ Detailed fields description :
     corresponds to the "fc_conn_err" sample fetch. See the "fc_conn_err" and
     "fc_conn_err_str" fetches for more information.
 
-  - "ssl_fc_hsk_err" is the status of the SSL handshake from the frontend's
-    point of view. It will be 0 if everything went well. See the
-    "ssl_fc_hsk_err" sample fetch's description for more information.
+  - "ssl_fc_err" is the last error of the first SSL error stack that was
+    raised on the connection from the frontend's perspective. It might be used
+    to detect SSL handshake errors for instance. It will be 0 if everything
+    went well. See the "ssl_fc_err" sample fetch's decription for more
+    information.
 
   - "ssl_c_err" is the status of the client's certificate verification process.
     The handshake might be successful while having a non-null verification
@@ -21199,7 +21206,7 @@ the default HTTPS format is defined this way :
 
     log-format "%ci:%cp [%tr] %ft %b/%s %TR/%Tw/%Tc/%Tr/%Ta %ST %B %CC \
                %CS %tsc %ac/%fc/%bc/%sc/%rc %sq/%bq %hr %hs %{+Q}r \
-               %[fc_conn_err]/%[ssl_fc_hsk_err,hex]/%[ssl_c_err]/%[ssl_c_ca_err] \
+               %[fc_conn_err]/%[ssl_fc_err,hex]/%[ssl_c_err]/%[ssl_c_ca_err] \
                %sslv/%sslc"
 
 and the default TCP format is defined this way :
