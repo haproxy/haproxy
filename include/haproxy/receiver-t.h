@@ -42,6 +42,7 @@
 /* All the settings that are used to configure a receiver */
 struct rx_settings {
 	unsigned long bind_thread;        /* bitmask of threads allowed to use these listeners */
+	uint bind_tgroup;                 /* thread group ID: 0=global IDs, non-zero=local IDs */
 	struct {                          /* UNIX socket permissions */
 		uid_t uid;                /* -1 to leave unchanged */
 		gid_t gid;                /* -1 to leave unchanged */

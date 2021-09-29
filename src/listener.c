@@ -1593,24 +1593,38 @@ static int bind_parse_proto(char **args, int cur_arg, struct proxy *px, struct b
 /* parse the "thread" bind keyword */
 static int bind_parse_thread(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
-	char *slash;
-	unsigned long thread = 0;
+	char *sep = NULL;
+	ulong thread = 0;
+	long tgroup = 0;
 
-	if ((slash = strchr(args[cur_arg + 1], '/')) != NULL)
-		*slash = 0;
-
-	if (slash) {
-		*slash = '/';
-		memprintf(err, "'%s': thread groups not supported", args[cur_arg+1]);
-		return ERR_ALERT | ERR_FATAL;
+	tgroup = strtol(args[cur_arg + 1], &sep, 10);
+	if (*sep == '/') {
+		/* a thread group was present */
+		if (tgroup < 1 || tgroup > MAX_TGROUPS) {
+			memprintf(err, "'%s' thread-group number must be between 1 and %d (was %ld)", args[cur_arg + 1], MAX_TGROUPS, tgroup);
+			return ERR_ALERT | ERR_FATAL;
+		}
+		sep++;
+	}
+	else {
+		/* no thread group */
+		tgroup = 0;
+		sep = args[cur_arg + 1];
 	}
 
-	if (parse_process_number(args[cur_arg+1], &thread, MAX_THREADS, NULL, err)) {
-		memprintf(err, "'%s' : %s", args[cur_arg+1], *err);
+	if ((conf->settings.bind_tgroup || conf->settings.bind_thread) &&
+	    conf->settings.bind_tgroup != tgroup) {
+		memprintf(err, "'%s' multiple thread-groups are not supported", args[cur_arg + 1]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+	
+	if (parse_process_number(sep, &thread, MAX_THREADS, NULL, err)) {
+		memprintf(err, "'%s' : %s", sep, *err);
 		return ERR_ALERT | ERR_FATAL;
 	}
 
 	conf->settings.bind_thread |= thread;
+	conf->settings.bind_tgroup  = tgroup;
 	return 0;
 }
 

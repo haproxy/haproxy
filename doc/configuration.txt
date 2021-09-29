@@ -14123,12 +14123,24 @@ tfo
   need to build HAProxy with USE_TFO=1 if your libc doesn't define
   TCP_FASTOPEN.
 
-thread <thread-set>
+thread [<thread-group>/]<thread-set>
   This restricts the list of threads on which this listener is allowed to run.
   It does not enforce any of them but eliminates those which do not match. It
   limits the threads allowed to process incoming connections for this listener.
+
+  There are two numbering schemes. By default, thread numbers are absolute in
+  the process, comprised between 1 and the value specified in global.nbthread.
+  When thread groups are enabled, the number of a single desired thread group
+  (starting at 1) may be specified before a slash ('/') before the thread
+  range. In this case, the thread numbers in the range are relative to the
+  thread group instead, and start at 1 for each thread group. Absolute and
+  relative thread numbers may be used interchangeably but they must not be
+  mixed on a single "bind" line, as those not set will be resolved at the end
+  of the parsing.
+
   For the unlikely case where several ranges are needed, this directive may be
-  repeated. <thread-set> must use the format:
+  repeated. It is not permitted to use different thread groups even when using
+  multiple directives. The <thread-set> specification must use the format:
 
       all | odd | even | number[-[number]]
 
