@@ -2543,8 +2543,14 @@ int check_config_validity()
 #endif
 
 			/* detect and address thread affinity inconsistencies */
-			mask = thread_mask(bind_conf->settings.bind_thread);
-			if (!(mask & all_threads_mask)) {
+			err = NULL;
+			if (thread_resolve_group_mask(bind_conf->settings.bind_tgroup, bind_conf->settings.bind_thread,
+			                              &bind_conf->settings.bind_tgroup, &bind_conf->settings.bind_thread, &err) < 0) {
+				ha_alert("Proxy '%s': %s in 'bind %s' at [%s:%d].\n",
+					   curproxy->id, err, bind_conf->arg, bind_conf->file, bind_conf->line);
+				free(err);
+				cfgerr++;
+			} else if (!((mask = bind_conf->settings.bind_thread) & all_threads_mask)) {
 				unsigned long new_mask = 0;
 
 				while (mask) {
@@ -2553,7 +2559,7 @@ int check_config_validity()
 				}
 
 				bind_conf->settings.bind_thread = new_mask;
-				ha_warning("Proxy '%s': the thread range specified on the 'process' directive of 'bind %s' at [%s:%d] only refers to thread numbers out of the range defined by the global 'nbthread' directive. The thread numbers were remapped to existing threads instead (mask 0x%lx).\n",
+				ha_warning("Proxy '%s': the thread range specified on the 'thread' directive of 'bind %s' at [%s:%d] only refers to thread numbers out of the range defined by the global 'nbthread' directive. The thread numbers were remapped to existing threads instead (mask 0x%lx).\n",
 					   curproxy->id, bind_conf->arg, bind_conf->file, bind_conf->line, new_mask);
 			}
 		}
