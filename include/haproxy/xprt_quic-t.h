@@ -657,6 +657,7 @@ struct quic_conn {
 	struct quic_path paths[1];
 	struct quic_path *path;
 
+	struct listener *li; /* only valid for frontend connections */
 	/* MUX */
 	struct qcc *qcc;
 	struct task *timer_task;

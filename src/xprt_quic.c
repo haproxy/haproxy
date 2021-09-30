@@ -2903,6 +2903,13 @@ static void quic_conn_free(struct quic_conn *conn)
 		return;
 
 	free_quic_conn_cids(conn);
+
+	/* remove the connection from receiver cids trees */
+	HA_RWLOCK_WRLOCK(OTHER_LOCK, &conn->li->rx.cids_lock);
+	ebmb_delete(&conn->odcid_node);
+	ebmb_delete(&conn->scid_node);
+	HA_RWLOCK_WRUNLOCK(OTHER_LOCK, &conn->li->rx.cids_lock);
+
 	for (i = 0; i < QUIC_TLS_ENC_LEVEL_MAX; i++)
 		quic_conn_enc_level_uninit(&conn->els[i]);
 	if (conn->timer_task)
@@ -3004,6 +3011,7 @@ static struct quic_conn *qc_new_conn(unsigned int version, int ipv4,
 			memcpy(qc->dcid.data, scid, scid_len);
 		qc->dcid.len = scid_len;
 		qc->tx.qring_list = &l->rx.tx_qrings;
+		qc->li = l;
 	}
 	/* QUIC Client (outgoing connection to servers) */
 	else {
