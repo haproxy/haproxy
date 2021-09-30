@@ -8052,7 +8052,7 @@ __LJMP static int hlua_log_alert(lua_State *L)
 __LJMP static int hlua_sleep_yield(lua_State *L, int status, lua_KContext ctx)
 {
 	int wakeup_ms = lua_tointeger(L, -1);
-	if (now_ms < wakeup_ms)
+	if (!tick_is_expired(wakeup_ms, now_ms))
 		MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_sleep_yield, wakeup_ms, 0));
 	return 0;
 }
