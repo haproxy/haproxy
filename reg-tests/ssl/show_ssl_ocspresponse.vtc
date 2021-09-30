@@ -22,7 +22,7 @@
 varnishtest "Test the 'show ssl ocsp-response' and 'show ssl cert foo.pem.ocsp' features of the CLI"
 feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.5-dev0)'"
 feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL)'"
-feature cmd "command -v socat"
+feature cmd "command -v socat openssl"
 feature ignore_unknown_macro
 
 haproxy h1 -conf {
@@ -83,7 +83,7 @@ haproxy h1 -cli {
 
 # Change the server certificate's OCSP response through "set ssl ocsp-response"
 shell {
-    printf "set ssl ocsp-response <<\n$(base64 ${testdir}/show_ocsp_server.pem.ocsp.revoked)\n\n" | socat "${tmpdir}/h1/stats" -
+    printf "set ssl ocsp-response <<\n$(cat ${testdir}/show_ocsp_server.pem.ocsp.revoked|openssl base64)\n\n" | socat "${tmpdir}/h1/stats" -
 }
 
 # Check that the change was taken into account
@@ -104,7 +104,7 @@ haproxy h1 -cli {
 # Change the server certificate's OCSP response through a transaction
 shell {
     printf "set ssl cert ${testdir}/show_ocsp_server.pem <<\n$(cat ${testdir}/show_ocsp_server.pem)\n\n" | socat  "${tmpdir}/h1/stats" -
-    printf "set ssl cert ${testdir}/show_ocsp_server.pem.ocsp <<\n$(base64 ${testdir}/show_ocsp_server.pem.ocsp)\n\n" | socat  "${tmpdir}/h1/stats" -
+    printf "set ssl cert ${testdir}/show_ocsp_server.pem.ocsp <<\n$(cat ${testdir}/show_ocsp_server.pem.ocsp|openssl base64)\n\n" | socat  "${tmpdir}/h1/stats" -
 }
 
 
