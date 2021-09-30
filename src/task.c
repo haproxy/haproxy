@@ -251,7 +251,7 @@ void __task_wakeup(struct task *t)
  *
  * Inserts a task into wait queue <wq> at the position given by its expiration
  * date. It does not matter if the task was already in the wait queue or not,
- * as it will be unlinked. The task must not have an infinite expiration timer.
+ * as it will be unlinked. The task MUST NOT have an infinite expiration timer.
  * Last, tasks must not be queued further than the end of the tree, which is
  * between <now_ms> and <now_ms> + 2^31 ms (now+24days in 32bit).
  *
@@ -268,6 +268,10 @@ void __task_queue(struct task *task, struct eb_root *wq)
 	       (wq == &sched->timers && (task->state & TASK_SHARED_WQ)) ||
 	       (wq != &timers && wq != &sched->timers));
 #endif
+	/* if this happens the process is doomed anyway, so better catch it now
+	 * so that we have the caller in the stack.
+	 */
+	BUG_ON(task->expire == TICK_ETERNITY);
 
 	if (likely(task_in_wq(task)))
 		__task_unlink_wq(task);
@@ -341,7 +345,8 @@ void wake_expired_tasks()
 				__task_queue(task, &tt->timers);
 		}
 		else {
-			/* task not expired and correctly placed */
+			/* task not expired and correctly placed. It may not be eternal. */
+			BUG_ON(task->expire == TICK_ETERNITY);
 			break;
 		}
 	}
@@ -411,7 +416,8 @@ void wake_expired_tasks()
 			goto lookup_next;
 		}
 		else {
-			/* task not expired and correctly placed */
+			/* task not expired and correctly placed. It may not be eternal. */
+			BUG_ON(task->expire == TICK_ETERNITY);
 			break;
 		}
 	}

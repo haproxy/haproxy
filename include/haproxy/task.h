@@ -553,6 +553,10 @@ static inline void tasklet_set_tid(struct tasklet *tl, int tid)
 /* Ensure <task> will be woken up at most at <when>. If the task is already in
  * the run queue (but not running), nothing is done. It may be used that way
  * with a delay :  task_schedule(task, tick_add(now_ms, delay));
+ * It MUST NOT be used with a timer in the past, and even less with
+ * TICK_ETERNITY (which would block all timers). Note that passing it directly
+ * now_ms without using tick_add() will definitely make this happen once every
+ * 49.7 days.
  */
 static inline void task_schedule(struct task *task, int when)
 {
