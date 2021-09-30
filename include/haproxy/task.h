@@ -614,6 +614,56 @@ static inline void task_schedule(struct task *task, int when)
 	}
 }
 
+/* Update the idle time value twice a second, to be called after
+ * tv_update_date() when called after poll(), and currently called only by
+ * sched_leaving_poll() below. It relies on <before_poll> to be updated to
+ * the system time before calling poll().
+ */
+static inline void sched_measure_idle()
+{
+	/* Let's compute the idle to work ratio. We worked between after_poll
+	 * and before_poll, and slept between before_poll and date. The idle_pct
+	 * is updated at most twice every second. Note that the current second
+	 * rarely changes so we avoid a multiply when not needed.
+	 */
+	int delta;
+
+	if ((delta = date.tv_sec - before_poll.tv_sec))
+		delta *= 1000000;
+	idle_time += delta + (date.tv_usec - before_poll.tv_usec);
+
+	if ((delta = date.tv_sec - after_poll.tv_sec))
+		delta *= 1000000;
+	samp_time += delta + (date.tv_usec - after_poll.tv_usec);
+
+	after_poll.tv_sec = date.tv_sec; after_poll.tv_usec = date.tv_usec;
+	if (samp_time < 500000)
+		return;
+
+	HA_ATOMIC_STORE(&ti->idle_pct, (100ULL * idle_time + samp_time / 2) / samp_time);
+	idle_time = samp_time = 0;
+}
+
+/* Collect date and time information after leaving poll(). <timeout> must be
+ * set to the maximum sleep time passed to poll (in milliseconds), and
+ * <interrupted> must be zero if the poller reached the timeout or non-zero
+ * otherwise, which generally is provided by the poller's return value.
+ */
+static inline void sched_leaving_poll(int timeout, int interrupted)
+{
+	sched_measure_idle();
+	ti->prev_cpu_time  = now_cpu_time();
+	ti->prev_mono_time = now_mono_time();
+}
+
+/* Collect date and time information before calling poll(). This will be used
+ * to count the run time of the past loop and the sleep time of the next poll.
+ */
+static inline void sched_entering_poll()
+{
+	gettimeofday(&before_poll, NULL);
+}
+
 /* This function register a new signal. "lua" is the current lua
  * execution context. It contains a pointer to the associated task.
  * "link" is a list head attached to an other task that must be wake

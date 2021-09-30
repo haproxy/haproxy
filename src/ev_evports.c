@@ -23,6 +23,7 @@
 #include <haproxy/fd.h>
 #include <haproxy/global.h>
 #include <haproxy/signal.h>
+#include <haproxy/task.h>
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>
 
@@ -158,7 +159,7 @@ static void _do_poll(struct poller *p, int exp, int wake)
 	 * Determine how long to wait for events to materialise on the port.
 	 */
 	wait_time = wake ? 0 : compute_poll_timeout(exp);
-	tv_entering_poll();
+	sched_entering_poll();
 	activity_count_runtime();
 
 	do {
@@ -202,7 +203,7 @@ static void _do_poll(struct poller *p, int exp, int wake)
 			break;
 	} while(1);
 
-	tv_leaving_poll(wait_time, nevlist);
+	sched_leaving_poll(wait_time, nevlist);
 
 	thread_harmless_end();
 	thread_idle_end();

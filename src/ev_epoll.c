@@ -20,6 +20,7 @@
 #include <haproxy/global.h>
 #include <haproxy/signal.h>
 #include <haproxy/ticks.h>
+#include <haproxy/task.h>
 #include <haproxy/time.h>
 #include <haproxy/tools.h>
 
@@ -188,7 +189,7 @@ static void _do_poll(struct poller *p, int exp, int wake)
 
 	/* now let's wait for polled events */
 	wait_time = wake ? 0 : compute_poll_timeout(exp);
-	tv_entering_poll();
+	sched_entering_poll();
 	activity_count_runtime();
 	do {
 		int timeout = (global.tune.options & GTUNE_BUSY_POLLING) ? 0 : wait_time;
@@ -208,7 +209,7 @@ static void _do_poll(struct poller *p, int exp, int wake)
 			break;
 	} while (1);
 
-	tv_leaving_poll(wait_time, status);
+	sched_leaving_poll(wait_time, status);
 
 	thread_harmless_end();
 	thread_idle_end();
