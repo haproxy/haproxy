@@ -110,6 +110,9 @@ void task_kill(struct task *t);
 void tasklet_kill(struct tasklet *t);
 void __task_wakeup(struct task *t);
 void __task_queue(struct task *task, struct eb_root *wq);
+
+uint sched_report_idle();
+
 unsigned int run_tasks_from_lists(unsigned int budgets[]);
 
 /*

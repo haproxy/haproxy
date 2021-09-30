@@ -581,22 +581,6 @@ static inline void measure_idle()
 	idle_time = samp_time = 0;
 }
 
-/* report the average CPU idle percentage over all running threads, between 0 and 100 */
-static inline uint report_idle()
-{
-	uint total = 0;
-	uint rthr = 0;
-	uint thr;
-
-	for (thr = 0; thr < MAX_THREADS; thr++) {
-		if (!(all_threads_mask & (1UL << thr)))
-			continue;
-		total += HA_ATOMIC_LOAD(&ha_thread_info[thr].idle_pct);
-		rthr++;
-	}
-	return rthr ? total / rthr : 0;
-}
-
 /* Collect date and time information before calling poll(). This will be used
  * to count the run time of the past loop and the sleep time of the next poll.
  */

@@ -859,6 +859,22 @@ void process_runnable_tasks()
 		activity[tid].long_rq++;
 }
 
+/* report the average CPU idle percentage over all running threads, between 0 and 100 */
+uint sched_report_idle()
+{
+	uint total = 0;
+	uint rthr = 0;
+	uint thr;
+
+	for (thr = 0; thr < MAX_THREADS; thr++) {
+		if (!(all_threads_mask & (1UL << thr)))
+			continue;
+		total += HA_ATOMIC_LOAD(&ha_thread_info[thr].idle_pct);
+		rthr++;
+	}
+	return rthr ? total / rthr : 0;
+}
+
 /*
  * Delete every tasks before running the master polling loop
  */
