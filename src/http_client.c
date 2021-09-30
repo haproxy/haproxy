@@ -311,7 +311,7 @@ int httpclient_res_xfer(struct httpclient *hc, struct buffer *dst)
 {
 	int ret;
 
-	ret = b_xfer(dst, &hc->res.buf, MIN(1024, b_data(&hc->res.buf)));
+	ret = b_force_xfer(dst, &hc->res.buf, MIN(1024, b_data(&hc->res.buf)));
 	/* call the client once we consumed all data */
 	if (!b_data(&hc->res.buf) && hc->appctx)
 		appctx_wakeup(hc->appctx);
