@@ -54,6 +54,9 @@ int qpack_encode_int_status(struct buffer *out, unsigned int status)
 {
 	int status_size, idx = 0;
 
+	if (status < 100 || status > 599)
+		return 1;
+
 	switch (status) {
 	case 103: idx = 24; break;
 	case 200: idx = 25; break;
