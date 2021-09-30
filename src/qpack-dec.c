@@ -311,7 +311,9 @@ int qpack_decode_fs(const unsigned char *raw, size_t len, struct buffer *tmp,
 				}
 
 				qpack_debug_printf(stderr, " [name huff %d->%d '%s']", (int)length, (int)nlen, trash);
-				list[hdr_idx].v = ist(strdup(trash));
+				/* makes an ist from tmp storage */
+				b_add(tmp, nlen);
+				list[hdr_idx].v = ist2(trash, nlen);
 			}
 			/* XXX Value string XXX */
 			raw += length;
