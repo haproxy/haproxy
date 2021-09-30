@@ -289,7 +289,7 @@ void pool_evict_from_local_caches()
 	struct pool_head *pool;
 
 	do {
-		item = LIST_PREV(&ti->pool_lru_head, struct pool_cache_item *, by_lru);
+		item = LIST_PREV(&th_ctx->pool_lru_head, struct pool_cache_item *, by_lru);
 		/* note: by definition we remove oldest objects so they also are the
 		 * oldest in their own pools, thus their next is the pool's head.
 		 */
@@ -315,7 +315,7 @@ void pool_put_to_cache(struct pool_head *pool, void *ptr)
 	struct pool_cache_head *ph = &pool->cache[tid];
 
 	LIST_INSERT(&ph->list, &item->by_pool);
-	LIST_INSERT(&ti->pool_lru_head, &item->by_lru);
+	LIST_INSERT(&th_ctx->pool_lru_head, &item->by_lru);
 	ph->count++;
 	pool_cache_count++;
 	pool_cache_bytes += pool->size;
@@ -640,7 +640,7 @@ static void init_pools()
 	int thr;
 
 	for (thr = 0; thr < MAX_THREADS; thr++) {
-		LIST_INIT(&ha_thread_info[thr].pool_lru_head);
+		LIST_INIT(&ha_thread_ctx[thr].pool_lru_head);
 	}
 #endif
 	detect_allocator();

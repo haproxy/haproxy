@@ -2017,7 +2017,7 @@ struct task *hard_stop(struct task *t, void *context, unsigned int state)
 	thread_isolate();
 
 	for (thr = 0; thr < global.nbthread; thr++) {
-		list_for_each_entry(s, &ha_thread_info[thr].streams, list) {
+		list_for_each_entry(s, &ha_thread_ctx[thr].streams, list) {
 			stream_shutdown(s, SF_ERR_KILLED);
 		}
 	}

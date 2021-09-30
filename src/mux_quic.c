@@ -442,7 +442,7 @@ struct buffer *qc_get_buf(struct qcc *qcc, struct buffer *bptr)
 	    unlikely((buf = b_alloc(bptr)) == NULL)) {
 		qcc->buf_wait.target = qcc;
 		qcc->buf_wait.wakeup_cb = qc_buf_available;
-		LIST_APPEND(&ti->buffer_wq, &qcc->buf_wait.list);
+		LIST_APPEND(&th_ctx->buffer_wq, &qcc->buf_wait.list);
 	}
 
 	return buf;

@@ -2867,7 +2867,7 @@ spoe_acquire_buffer(struct buffer *buf, struct buffer_wait *buffer_wait)
 	if (b_alloc(buf))
 		return 1;
 
-	LIST_APPEND(&ti->buffer_wq, &buffer_wait->list);
+	LIST_APPEND(&th_ctx->buffer_wq, &buffer_wait->list);
 	return 0;
 }
 

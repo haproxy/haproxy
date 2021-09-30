@@ -34,7 +34,7 @@ int init_buffer()
 		return 0;
 
 	for (thr = 0; thr < MAX_THREADS; thr++)
-		LIST_INIT(&ha_thread_info[thr].buffer_wq);
+		LIST_INIT(&ha_thread_ctx[thr].buffer_wq);
 
 
 	/* The reserved buffer is what we leave behind us. Thus we always need
@@ -109,7 +109,7 @@ void __offer_buffers(void *from, unsigned int count)
 	 * other tasks, but that's a rough estimate. Similarly, for each cached
 	 * event we'll need 1 buffer.
 	 */
-	list_for_each_entry_safe(wait, wait_back, &ti->buffer_wq, list) {
+	list_for_each_entry_safe(wait, wait_back, &th_ctx->buffer_wq, list) {
 		if (!count)
 			break;
 

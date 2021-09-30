@@ -548,7 +548,7 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin, struct bu
 
 	s->tunnel_timeout = TICK_ETERNITY;
 
-	LIST_APPEND(&ti->streams, &s->list);
+	LIST_APPEND(&th_ctx->streams, &s->list);
 
 	if (flt_stream_init(s) < 0 || flt_stream_start(s) < 0)
 		goto out_fail_accept;
@@ -720,7 +720,7 @@ static void stream_free(struct stream *s)
 		 * only touch their node under thread isolation.
 		 */
 		LIST_DEL_INIT(&bref->users);
-		if (s->list.n != &ti->streams)
+		if (s->list.n != &th_ctx->streams)
 			LIST_APPEND(&LIST_ELEM(s->list.n, struct stream *, list)->back_refs, &bref->users);
 		bref->ref = s->list.n;
 		__ha_barrier_store();
@@ -778,7 +778,7 @@ static int stream_alloc_work_buffer(struct stream *s)
 	if (b_alloc(&s->res.buf))
 		return 1;
 
-	LIST_APPEND(&ti->buffer_wq, &s->buffer_wait.list);
+	LIST_APPEND(&th_ctx->buffer_wq, &s->buffer_wait.list);
 	return 0;
 }
 
@@ -2818,7 +2818,7 @@ static void init_stream()
 	int thr;
 
 	for (thr = 0; thr < MAX_THREADS; thr++)
-		LIST_INIT(&ha_thread_info[thr].streams);
+		LIST_INIT(&ha_thread_ctx[thr].streams);
 }
 INITCALL0(STG_INIT, init_stream);
 
@@ -3495,7 +3495,7 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 		 * pointer points back to the head of the streams list.
 		 */
 		LIST_INIT(&appctx->ctx.sess.bref.users);
-		appctx->ctx.sess.bref.ref = ha_thread_info[appctx->ctx.sess.thr].streams.n;
+		appctx->ctx.sess.bref.ref = ha_thread_ctx[appctx->ctx.sess.thr].streams.n;
 		appctx->st2 = STAT_ST_LIST;
 		/* fall through */
 
@@ -3512,7 +3512,7 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 			struct stream *curr_strm;
 			int done= 0;
 
-			if (appctx->ctx.sess.bref.ref == &ha_thread_info[appctx->ctx.sess.thr].streams)
+			if (appctx->ctx.sess.bref.ref == &ha_thread_ctx[appctx->ctx.sess.thr].streams)
 				done = 1;
 			else {
 				/* check if we've found a stream created after issuing the "show sess" */
@@ -3525,7 +3525,7 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 				appctx->ctx.sess.thr++;
 				if (appctx->ctx.sess.thr >= global.nbthread)
 					break;
-				appctx->ctx.sess.bref.ref = ha_thread_info[appctx->ctx.sess.thr].streams.n;
+				appctx->ctx.sess.bref.ref = ha_thread_ctx[appctx->ctx.sess.thr].streams.n;
 				continue;
 			}
 
@@ -3732,7 +3732,7 @@ static int cli_parse_shutdown_session(char **args, char *payload, struct appctx 
 
 	/* first, look for the requested stream in the stream table */
 	for (thr = 0; !strm && thr < global.nbthread; thr++) {
-		list_for_each_entry(strm, &ha_thread_info[thr].streams, list) {
+		list_for_each_entry(strm, &ha_thread_ctx[thr].streams, list) {
 			if (strm == ptr) {
 				stream_shutdown(strm, SF_ERR_KILLED);
 				break;

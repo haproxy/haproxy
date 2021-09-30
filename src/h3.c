@@ -99,7 +99,7 @@ static struct buffer *h3_uqs_get_buf(struct h3_uqs *h3_uqs)
 	    unlikely((buf = b_alloc(&h3_uqs->qcs->tx.buf)) == NULL)) {
 		h3->buf_wait.target = h3_uqs;
 		h3->buf_wait.wakeup_cb = qcs_buf_available;
-		LIST_APPEND(&ti->buffer_wq, &h3->buf_wait.list);
+		LIST_APPEND(&th_ctx->buffer_wq, &h3->buf_wait.list);
 	}
 
 	return buf;

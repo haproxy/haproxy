@@ -1296,7 +1296,7 @@ struct buffer *check_get_buf(struct check *check, struct buffer *bptr)
 	    unlikely((buf = b_alloc(bptr)) == NULL)) {
 		check->buf_wait.target = check;
 		check->buf_wait.wakeup_cb = check_buf_available;
-		LIST_APPEND(&ti->buffer_wq, &check->buf_wait.list);
+		LIST_APPEND(&th_ctx->buffer_wq, &check->buf_wait.list);
 	}
 	return buf;
 }

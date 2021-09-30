@@ -112,7 +112,7 @@ void __offer_buffers(void *from, unsigned int count);
 
 static inline void offer_buffers(void *from, unsigned int count)
 {
-	if (!LIST_ISEMPTY(&ti->buffer_wq))
+	if (!LIST_ISEMPTY(&th_ctx->buffer_wq))
 		__offer_buffers(from, count);
 }
 

@@ -42,12 +42,6 @@ enum {
  * disabled, it contains the same info for the single running thread.
  */
 struct thread_info {
-#ifdef CONFIG_HAP_POOLS
-	struct list pool_lru_head;                         /* oldest objects   */
-#endif
-	struct list buffer_wq;     /* buffer waiters */
-	struct list streams;       /* list of streams attached to this thread */
-
 	/* pad to cache line (64B) */
 	char __pad[0];            /* unused except to check remaining room */
 	char __end[0] __attribute__((aligned(64)));
@@ -70,6 +64,12 @@ struct thread_ctx {
 	uint8_t tl_class_mask;              /* bit mask of non-empty tasklets classes */
 
 	// 7 bytes hole here
+#ifdef CONFIG_HAP_POOLS
+	struct list pool_lru_head;          /* oldest objects   */
+#endif
+	struct list buffer_wq;              /* buffer waiters */
+	struct list streams;                /* list of streams attached to this thread */
+
 	ALWAYS_ALIGN(2*sizeof(void*));
 	struct list tasklets[TL_CLASSES];   /* tasklets (and/or tasks) to run, by class */
 

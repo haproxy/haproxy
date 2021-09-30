@@ -817,7 +817,7 @@ static inline struct buffer *h2_get_buf(struct h2c *h2c, struct buffer *bptr)
 	    unlikely((buf = b_alloc(bptr)) == NULL)) {
 		h2c->buf_wait.target = h2c;
 		h2c->buf_wait.wakeup_cb = h2_buf_available;
-		LIST_APPEND(&ti->buffer_wq, &h2c->buf_wait.list);
+		LIST_APPEND(&th_ctx->buffer_wq, &h2c->buf_wait.list);
 	}
 	return buf;
 }
