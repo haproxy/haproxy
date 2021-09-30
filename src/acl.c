@@ -121,7 +121,8 @@ static struct acl_expr *prune_acl_expr(struct acl_expr *expr)
 /* Parse an ACL expression starting at <args>[0], and return it. If <err> is
  * not NULL, it will be filled with a pointer to an error message in case of
  * error. This pointer must be freeable or NULL. <al> is an arg_list serving
- * as a list head to report missing dependencies.
+ * as a list head to report missing dependencies. It may be NULL if such
+ * dependencies are not allowed.
  *
  * Right now, the only accepted syntax is :
  * <subject> [<value>...]
@@ -162,9 +163,11 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 	 * keyword.
 	 */
 
-	al->ctx  = ARGC_ACL;   // to report errors while resolving args late
-	al->kw   = *args;
-	al->conv = NULL;
+	if (al) {
+		al->ctx  = ARGC_ACL;   // to report errors while resolving args late
+		al->kw   = *args;
+		al->conv = NULL;
+	}
 
 	aclkw = find_acl_kw(args[0]);
 	if (aclkw) {
@@ -280,8 +283,10 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 			conv_expr->conv = conv;
 			acl_conv_found = 1;
 
-			al->kw = smp->fetch->kw;
-			al->conv = conv_expr->conv->kw;
+			if (al) {
+				al->kw = smp->fetch->kw;
+				al->conv = conv_expr->conv->kw;
+			}
 			argcnt = make_arg_list(endw, -1, conv->arg_mask, &conv_expr->arg_p, err, &arg, &err_arg, al);
 			if (argcnt < 0) {
 				memprintf(err, "ACL keyword '%s' : invalid arg %d in converter '%s' : %s.",
@@ -665,7 +670,7 @@ struct acl *prune_acl(struct acl *acl) {
  * an anonymous one and it won't be merged with any other one. If <err> is not
  * NULL, it will be filled with an appropriate error. This pointer must be
  * freeable or NULL. <al> is the arg_list serving as a head for unresolved
- * dependencies.
+ * dependencies. It may be NULL if such dependencies are not allowed.
  *
  * args syntax: <aclname> <acl_expr>
  */
@@ -778,7 +783,8 @@ const struct {
  * If <known_acl> is not NULL, the ACL will be queued at its tail. If <err> is
  * not NULL, it will be filled with an error message if an error occurs. This
  * pointer must be freeable or NULL. <al> is an arg_list serving as a list head
- * to report missing dependencies.
+ * to report missing dependencies. It may be NULL if such dependencies are not
+ * allowed.
  */
 static struct acl *find_acl_default(const char *acl_name, struct list *known_acl,
                                     char **err, struct arg_list *al,
@@ -858,7 +864,8 @@ struct acl_cond *prune_acl_cond(struct acl_cond *cond)
  * <err> is not NULL, it will be filled with a pointer to an error message in
  * case of error, that the caller is responsible for freeing. The initial
  * location must either be freeable or NULL. The list <al> serves as a list head
- * for unresolved dependencies.
+ * for unresolved dependencies. It may be NULL if such dependencies are not
+ * allowed.
  */
 struct acl_cond *parse_acl_cond(const char **args, struct list *known_acl,
                                 enum acl_cond_pol pol, char **err, struct arg_list *al,

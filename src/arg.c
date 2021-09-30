@@ -97,14 +97,15 @@ struct arg_list *arg_list_add(struct arg_list *orig, struct arg *arg, int pos)
  * The returned array is always terminated by an arg of type ARGT_STOP (0),
  * unless the mask indicates that no argument is supported. Unresolved arguments
  * are appended to arg list <al>, which also serves as a template to create new
- * entries. The mask is composed of a number of mandatory arguments in its lower
- * ARGM_BITS bits, and a concatenation of each argument type in each subsequent
- * ARGT_BITS-bit sblock. If <err_msg> is not NULL, it must point to a freeable
- * or NULL pointer. The caller is expected to restart the parsing from the new
- * pointer set in <end_ptr>, which is the first character considered as not
- * being part of the arg list. The input string ends on the first between <len>
- * characters (when len is positive) or the first NUL character. Placing -1 in
- * <len> will make it virtually unbounded (~2GB long strings).
+ * entries. <al> may be NULL if unresolved arguments are not allowed. The mask
+ * is composed of a number of mandatory arguments in its lower ARGM_BITS bits,
+ * and a concatenation of each argument type in each subsequent ARGT_BITS-bit
+ * sblock. If <err_msg> is not NULL, it must point to a freeable or NULL
+ * pointer. The caller is expected to restart the parsing from the new pointer
+ * set in <end_ptr>, which is the first character considered as not being part
+ * of the arg list. The input string ends on the first between <len> characters
+ * (when len is positive) or the first NUL character. Placing -1 in <len> will
+ * make it virtually unbounded (~2GB long strings).
  */
 int make_arg_list(const char *in, int len, uint64_t mask, struct arg **argp,
                   char **err_msg, const char **end_ptr, int *err_arg,
@@ -245,6 +246,8 @@ int make_arg_list(const char *in, int len, uint64_t mask, struct arg **argp,
 			/* These argument types need to be stored as strings during
 			 * parsing then resolved later.
 			 */
+			if (!al)
+				goto resolve_err;
 			arg->unresolved = 1;
 			new_al = arg_list_add(al, arg, pos);
 
@@ -446,6 +449,11 @@ int make_arg_list(const char *in, int len, uint64_t mask, struct arg **argp,
 
 alloc_err:
 	memprintf(err_msg, "out of memory");
+	goto err;
+
+ resolve_err:
+	memprintf(err_msg, "unresolved argument of type '%s' at position %d not allowed",
+	          arg_type_names[(mask >> (pos * ARGT_BITS)) & ARGT_MASK], pos + 1);
 	goto err;
 }
 

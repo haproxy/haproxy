@@ -861,7 +861,9 @@ sample_cast_fct sample_casts[SMP_TYPES][SMP_TYPES] = {
  * Parse a sample expression configuration:
  *        fetch keyword followed by format conversion keywords.
  * Returns a pointer on allocated sample expression structure.
- * The caller must have set al->ctx.
+ * <al> is an arg_list serving as a list head to report missing dependencies.
+ * It may be NULL if such dependencies are not allowed. Otherwise, the caller
+ * must have set al->ctx if al is set.
  * If <endptr> is non-nul, it will be set to the first unparsed character
  * (which may be the final '\0') on success. If it is nul, the expression
  * must be properly terminated by a '\0' otherwise an error is reported.
@@ -920,8 +922,10 @@ struct sample_expr *sample_parse_expr(char **str, int *idx, const char *file, in
 	 * this allows it to automatically create entries for mandatory
 	 * implicit arguments (eg: local proxy name).
 	 */
-	al->kw = expr->fetch->kw;
-	al->conv = NULL;
+	if (al) {
+		al->kw = expr->fetch->kw;
+		al->conv = NULL;
+	}
 	if (make_arg_list(endw, -1, fetch->arg_mask, &expr->arg_p, err_msg, &endt, &err_arg, al) < 0) {
 		memprintf(err_msg, "fetch method '%s' : %s", fkw, *err_msg);
 		goto out_error;
@@ -1021,8 +1025,10 @@ struct sample_expr *sample_parse_expr(char **str, int *idx, const char *file, in
 		LIST_APPEND(&(expr->conv_exprs), &(conv_expr->list));
 		conv_expr->conv = conv;
 
-		al->kw = expr->fetch->kw;
-		al->conv = conv_expr->conv->kw;
+		if (al) {
+			al->kw = expr->fetch->kw;
+			al->conv = conv_expr->conv->kw;
+		}
 		argcnt = make_arg_list(endw, -1, conv->arg_mask, &conv_expr->arg_p, err_msg, &endt, &err_arg, al);
 		if (argcnt < 0) {
 			memprintf(err_msg, "invalid arg %d in converter '%s' : %s", err_arg+1, ckw, *err_msg);
