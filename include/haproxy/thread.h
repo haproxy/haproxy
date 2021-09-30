@@ -61,6 +61,7 @@ enum { threads_sync_mask = 0 };
 enum { threads_want_rdv_mask = 0 };
 enum { tid_bit = 1UL };
 enum { tid = 0 };
+enum { tgid = 1 };
 
 #define HA_SPIN_INIT(l)               do { /* do nothing */ } while(0)
 #define HA_SPIN_DESTROY(l)            do { /* do nothing */ } while(0)
@@ -184,6 +185,7 @@ extern volatile unsigned long threads_sync_mask;
 extern volatile unsigned long threads_want_rdv_mask;
 extern THREAD_LOCAL unsigned long tid_bit; /* The bit corresponding to the thread id */
 extern THREAD_LOCAL unsigned int tid;      /* The thread id */
+extern THREAD_LOCAL unsigned int tgid;     /* The thread group id (starts at 1) */
 
 /* explanation for threads_want_rdv_mask, threads_harmless_mask, and
  * threads_sync_mask :
@@ -222,13 +224,16 @@ static inline void ha_set_thread(const struct thread_info *thr)
 	if (thr) {
 		BUG_ON(!thr->tid_bit);
 		BUG_ON(!thr->tg);
+		BUG_ON(!thr->tg->tgid);
 
 		ti      = thr;
 		tg      = thr->tg;
 		tid     = thr->tid;
 		tid_bit = thr->tid_bit;
 		th_ctx  = &ha_thread_ctx[tid];
+		tgid    = tg->tgid;
 	} else {
+		tgid    = 1;
 		tid     = 0;
 		tid_bit = 1;
 		ti      = &ha_thread_info[0];
