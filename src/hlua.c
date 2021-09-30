@@ -8268,7 +8268,7 @@ static int hlua_register_task(lua_State *L)
 	hlua->nargs = 0;
 
 	/* Schedule task. */
-	task_schedule(task, now_ms);
+	task_wakeup(task, TASK_WOKEN_INIT);
 
 	return 0;
 
