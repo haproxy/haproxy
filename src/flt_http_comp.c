@@ -564,7 +564,7 @@ select_compression_response_header(struct comp_state *st, struct stream *s, stru
 			goto fail;
 
 	/* limit cpu usage */
-	if (ti->idle_pct < compress_min_idle)
+	if (th_ctx->idle_pct < compress_min_idle)
 		goto fail;
 
 	/* initialize compression */

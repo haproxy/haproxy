@@ -247,7 +247,7 @@ void clock_init_process_date(void)
 	now = after_poll = before_poll = date;
 	global_now = ((ullong)date.tv_sec << 32) + (uint)date.tv_usec;
 	global_now_ms = now.tv_sec * 1000 + now.tv_usec / 1000;
-	ti->idle_pct = 100;
+	th_ctx->idle_pct = 100;
 	clock_update_date(0, 1);
 }
 
@@ -264,7 +264,7 @@ void clock_init_thread_date(void)
 	old_now = _HA_ATOMIC_LOAD(&global_now);
 	now.tv_sec = old_now >> 32;
 	now.tv_usec = (uint)old_now;
-	ti->idle_pct = 100;
+	th_ctx->idle_pct = 100;
 	clock_update_date(0, 1);
 }
 
@@ -278,7 +278,7 @@ uint clock_report_idle(void)
 	for (thr = 0; thr < MAX_THREADS; thr++) {
 		if (!(all_threads_mask & (1UL << thr)))
 			continue;
-		total += HA_ATOMIC_LOAD(&ha_thread_info[thr].idle_pct);
+		total += HA_ATOMIC_LOAD(&ha_thread_ctx[thr].idle_pct);
 		rthr++;
 	}
 	return rthr ? total / rthr : 0;
@@ -310,7 +310,7 @@ static inline void clock_measure_idle(void)
 	if (samp_time < 500000)
 		return;
 
-	HA_ATOMIC_STORE(&ti->idle_pct, (100ULL * idle_time + samp_time / 2) / samp_time);
+	HA_ATOMIC_STORE(&th_ctx->idle_pct, (100ULL * idle_time + samp_time / 2) / samp_time);
 	idle_time = samp_time = 0;
 }
 
@@ -322,8 +322,8 @@ static inline void clock_measure_idle(void)
 void clock_leaving_poll(int timeout, int interrupted)
 {
 	clock_measure_idle();
-	ti->prev_cpu_time  = now_cpu_time();
-	ti->prev_mono_time = now_mono_time();
+	th_ctx->prev_cpu_time  = now_cpu_time();
+	th_ctx->prev_mono_time = now_mono_time();
 }
 
 /* Collect date and time information before calling poll(). This will be used
@@ -346,9 +346,9 @@ void clock_entering_poll(void)
 	new_cpu_time   = now_cpu_time();
 	new_mono_time  = now_mono_time();
 
-	if (ti->prev_cpu_time && ti->prev_mono_time) {
-		new_cpu_time  -= ti->prev_cpu_time;
-		new_mono_time -= ti->prev_mono_time;
+	if (th_ctx->prev_cpu_time && th_ctx->prev_mono_time) {
+		new_cpu_time  -= th_ctx->prev_cpu_time;
+		new_mono_time -= th_ctx->prev_mono_time;
 		stolen = new_mono_time - new_cpu_time;
 		if (unlikely(stolen >= 500000)) {
 			stolen /= 500000;

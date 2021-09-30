@@ -360,7 +360,7 @@ static int rfc195x_flush_or_finish(struct comp_ctx *comp_ctx, struct buffer *out
 
 	/* Verify compression rate limiting and CPU usage */
 	if ((global.comp_rate_lim > 0 && (read_freq_ctr(&global.comp_bps_out) > global.comp_rate_lim)) ||    /* rate */
-	   (ti->idle_pct < compress_min_idle)) {                                                                 /* idle */
+	   (th_ctx->idle_pct < compress_min_idle)) {                                                         /* idle */
 		if (comp_ctx->cur_lvl > 0)
 			strm->level = --comp_ctx->cur_lvl;
 	}
@@ -618,7 +618,7 @@ static int deflate_flush_or_finish(struct comp_ctx *comp_ctx, struct buffer *out
 
 	/* compression limit */
 	if ((global.comp_rate_lim > 0 && (read_freq_ctr(&global.comp_bps_out) > global.comp_rate_lim)) ||    /* rate */
-	   (ti->idle_pct < compress_min_idle)) {                                                                     /* idle */
+	   (th_ctx->idle_pct < compress_min_idle)) {                                                         /* idle */
 		/* decrease level */
 		if (comp_ctx->cur_lvl > 0) {
 			comp_ctx->cur_lvl--;

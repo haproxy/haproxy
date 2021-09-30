@@ -42,9 +42,6 @@ enum {
  * disabled, it contains the same info for the single running thread.
  */
 struct thread_info {
-	uint64_t prev_cpu_time;    /* previous per thread CPU time */
-	uint64_t prev_mono_time;   /* previous system wide monotonic time  */
-	unsigned int idle_pct;     /* idle to total ratio over last sample (percent) */
 	unsigned int flags;        /* thread info flags, TI_FL_* */
 
 #ifdef CONFIG_HAP_POOLS
@@ -82,6 +79,9 @@ struct thread_ctx {
 	struct mt_list shared_tasklet_list; /* Tasklet to be run, woken up by other threads */
 	unsigned int rq_total;              /* total size of the run queue, prio_tree + tasklets */
 	int tasks_in_list;                  /* Number of tasks in the per-thread tasklets list */
+	uint64_t prev_cpu_time;             /* previous per thread CPU time */
+	uint64_t prev_mono_time;            /* previous system wide monotonic time  */
+	uint idle_pct;                      /* idle to total ratio over last sample (percent) */
 	ALWAYS_ALIGN(128);
 };
 

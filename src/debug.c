@@ -150,7 +150,7 @@ void ha_backtrace_to_stderr()
 void ha_thread_dump(struct buffer *buf, int thr, int calling_tid)
 {
 	unsigned long thr_bit = 1UL << thr;
-	unsigned long long p = ha_thread_info[thr].prev_cpu_time;
+	unsigned long long p = ha_thread_ctx[thr].prev_cpu_time;
 	unsigned long long n = now_cpu_time_thread(thr);
 	int stuck = !!(ha_thread_info[thr].flags & TI_FL_STUCK);
 
