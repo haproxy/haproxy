@@ -1019,7 +1019,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 		stktables_list = t;
 	}
 	else if (strcmp(args[0], "disabled") == 0) {  /* disables this peers section */
-		curpeers->disabled = PR_DISABLED;
+		curpeers->disabled |= PR_DISABLED;
 	}
 	else if (strcmp(args[0], "enabled") == 0) {  /* enables this peers section (used to revert a disabled default) */
 		curpeers->disabled = 0;

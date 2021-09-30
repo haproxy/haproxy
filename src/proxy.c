@@ -1823,7 +1823,7 @@ void proxy_cond_disable(struct proxy *p)
 	if (p->li_ready + p->li_paused > 0)
 		return;
 
-	p->disabled = PR_STOPPED;
+	p->disabled |= PR_STOPPED;
 
 	/* Note: syslog proxies use their own loggers so while it's somewhat OK
 	 * to report them being stopped as a warning, we must not spam their log
