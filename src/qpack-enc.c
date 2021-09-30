@@ -73,17 +73,47 @@ int qpack_encode_int_status(struct buffer *out, unsigned int status)
 	case 425: idx = 70; break;
 	case 500: idx = 71; break;
 
-	default:
-		BUG_ON(1);
-		break;
+	/* status code not in QPACK static table, idx is null. */
+	default: break;
 	}
 
-	status_size = qpack_get_prefix_int_size(idx, 6);
-	if (b_room(out) < status_size)
-		return 1;
+	if (idx) {
+		/* status code present in QPACK static table
+		 * -> indexed field line
+		 */
+		status_size = qpack_get_prefix_int_size(idx, 6);
+		if (b_room(out) < status_size)
+			return 1;
 
-	//b_quic_enc_int(out, idx);
-	qpack_encode_prefix_integer(out, idx, 6, 0xc0);
+		qpack_encode_prefix_integer(out, idx, 6, 0xc0);
+	}
+	else {
+		/* status code not present in QPACK static table
+		 * -> literal field line with name reference
+		 */
+		char a, b, c;
+		a = '0' + status / 100;
+		status -= (status / 100 * 100);
+		b = '0' + status / 10;
+		status -= (status / 10 * 10);
+		c = '0' + status;
+
+		/* field name */
+		if (qpack_encode_prefix_integer(out, 24, 4, 0x50))
+			return 1;
+
+		/* field value length */
+		if (qpack_encode_prefix_integer(out, 3, 7, 0x00))
+			return 1;
+
+		if (b_room(out) < 3)
+			return 1;
+
+		b_putchr(out, a);
+		b_putchr(out, b);
+		b_putchr(out, c);
+	}
+
 	return 0;
 }
 
