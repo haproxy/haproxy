@@ -878,7 +878,7 @@ static enum act_parse_ret parse_store(const char **args, int *arg, struct proxy 
 	} else {
 		/* set-var */
 		rule->arg.vars.expr = sample_parse_expr((char **)args, arg, px->conf.args.file,
-	                                                px->conf.args.line, err, &px->conf.args, NULL);
+	                                                px->conf.args.line, err, (px->cap & PR_CAP_DEF) ? NULL: &px->conf.args, NULL);
 		if (!rule->arg.vars.expr)
 			return ACT_RET_PRS_ERR;
 

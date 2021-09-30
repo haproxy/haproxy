@@ -2432,7 +2432,7 @@ struct tcpcheck_rule *parse_tcpcheck_connect(char **args, int cur_arg, struct pr
 
 				px->conf.args.ctx = ARGC_SRV;
 				port_expr = sample_parse_expr((char *[]){args[cur_arg], NULL}, &idx,
-							      file, line, errmsg, &px->conf.args, NULL);
+							      file, line, errmsg, (px->cap & PR_CAP_DEF) ? NULL: &px->conf.args, NULL);
 
 				if (!port_expr) {
 					memprintf(errmsg, "error detected while parsing port expression : %s", *errmsg);
@@ -3234,7 +3234,7 @@ struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, struct pro
 			release_sample_expr(status_expr);
 			px->conf.args.ctx = ARGC_SRV;
 			status_expr = sample_parse_expr((char *[]){args[cur_arg], NULL}, &idx,
-							file, line, errmsg, &px->conf.args, NULL);
+							file, line, errmsg, (px->cap & PR_CAP_DEF) ? NULL: &px->conf.args, NULL);
 			if (!status_expr) {
 				memprintf(errmsg, "error detected while parsing status-code expression : %s", *errmsg);
 				goto error;
