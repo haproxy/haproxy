@@ -42,9 +42,6 @@ void report_stolen_time(uint64_t stolen);
  */
 static inline void activity_count_runtime()
 {
-	uint64_t new_mono_time;
-	uint64_t new_cpu_time;
-	int64_t stolen;
 	uint32_t run_time;
 	uint32_t up, down;
 
@@ -53,22 +50,6 @@ static inline void activity_count_runtime()
 	 */
 	up = 1000;
 	down = up * 99 / 100;
-
-	new_cpu_time   = now_cpu_time();
-	new_mono_time  = now_mono_time();
-
-	if (ti->prev_cpu_time && ti->prev_mono_time) {
-		new_cpu_time  -= ti->prev_cpu_time;
-		new_mono_time -= ti->prev_mono_time;
-		stolen = new_mono_time - new_cpu_time;
-		if (unlikely(stolen >= 500000)) {
-			stolen /= 500000;
-			/* more than half a millisecond difference might
-			 * indicate an undesired preemption.
-			 */
-			report_stolen_time(stolen);
-		}
-	}
 
 	run_time = (before_poll.tv_sec - after_poll.tv_sec) * 1000000U + (before_poll.tv_usec - after_poll.tv_usec);
 	run_time = swrate_add(&activity[tid].avg_loop_us, TIME_STATS_SAMPLES, run_time);

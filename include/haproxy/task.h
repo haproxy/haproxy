@@ -658,10 +658,33 @@ static inline void sched_leaving_poll(int timeout, int interrupted)
 
 /* Collect date and time information before calling poll(). This will be used
  * to count the run time of the past loop and the sleep time of the next poll.
+ * It also compares the elasped and cpu times during the activity period to
+ * estimate the amount of stolen time, which is reported if higher than half
+ * a millisecond.
  */
 static inline void sched_entering_poll()
 {
+	uint64_t new_mono_time;
+	uint64_t new_cpu_time;
+	int64_t stolen;
+
 	gettimeofday(&before_poll, NULL);
+
+	new_cpu_time   = now_cpu_time();
+	new_mono_time  = now_mono_time();
+
+	if (ti->prev_cpu_time && ti->prev_mono_time) {
+		new_cpu_time  -= ti->prev_cpu_time;
+		new_mono_time -= ti->prev_mono_time;
+		stolen = new_mono_time - new_cpu_time;
+		if (unlikely(stolen >= 500000)) {
+			stolen /= 500000;
+			/* more than half a millisecond difference might
+			 * indicate an undesired preemption.
+			 */
+			report_stolen_time(stolen);
+		}
+	}
 }
 
 /* This function register a new signal. "lua" is the current lua
