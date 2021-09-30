@@ -92,13 +92,13 @@ void wdt_handler(int sig, siginfo_t *si, void *arg)
 		 * certain that we're not witnessing an exceptional spike of
 		 * CPU usage due to a configuration issue (like running tens
 		 * of thousands of tasks in a single loop), we'll check if the
-		 * scheduler is still alive by setting the TI_FL_STUCK flag
+		 * scheduler is still alive by setting the TH_FL_STUCK flag
 		 * that the scheduler clears when switching to the next task.
 		 * If it's already set, then it's our second call with no
 		 * progress and the thread is dead.
 		 */
-		if (!(ha_thread_info[thr].flags & TI_FL_STUCK)) {
-			_HA_ATOMIC_OR(&ha_thread_info[thr].flags, TI_FL_STUCK);
+		if (!(ha_thread_ctx[thr].flags & TH_FL_STUCK)) {
+			_HA_ATOMIC_OR(&ha_thread_ctx[thr].flags, TH_FL_STUCK);
 			goto update_and_leave;
 		}
 

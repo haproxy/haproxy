@@ -152,7 +152,7 @@ void ha_thread_dump(struct buffer *buf, int thr, int calling_tid)
 	unsigned long thr_bit = 1UL << thr;
 	unsigned long long p = ha_thread_ctx[thr].prev_cpu_time;
 	unsigned long long n = now_cpu_time_thread(thr);
-	int stuck = !!(ha_thread_info[thr].flags & TI_FL_STUCK);
+	int stuck = !!(ha_thread_ctx[thr].flags & TH_FL_STUCK);
 
 	chunk_appendf(buf,
 	              "%c%cThread %-2u: id=0x%llx act=%d glob=%d wq=%d rq=%d tl=%d tlsz=%d rqsz=%d\n"
@@ -1145,7 +1145,7 @@ void debug_handler(int sig, siginfo_t *si, void *arg)
 	 * if it didn't move.
 	 */
 	if (!((threads_harmless_mask|sleeping_thread_mask) & tid_bit))
-		ti->flags |= TI_FL_STUCK;
+		th_ctx->flags |= TH_FL_STUCK;
 }
 
 static int init_debug_per_thread()

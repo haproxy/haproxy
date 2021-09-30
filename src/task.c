@@ -529,7 +529,7 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 		t = (struct task *)LIST_ELEM(tl_queues[queue].n, struct tasklet *, list);
 		state = t->state & (TASK_SHARED_WQ|TASK_SELF_WAKING|TASK_HEAVY|TASK_F_TASKLET|TASK_KILLED|TASK_F_USR1|TASK_KILLED);
 
-		ti->flags &= ~TI_FL_STUCK; // this thread is still running
+		th_ctx->flags &= ~TH_FL_STUCK; // this thread is still running
 		activity[tid].ctxsw++;
 		ctx = t->context;
 		process = t->process;
@@ -685,7 +685,7 @@ void process_runnable_tasks()
 	int heavy_queued = 0;
 	int budget;
 
-	ti->flags &= ~TI_FL_STUCK; // this thread is still running
+	th_ctx->flags &= ~TH_FL_STUCK; // this thread is still running
 
 	if (!thread_has_tasks()) {
 		activity[tid].empty_rq++;

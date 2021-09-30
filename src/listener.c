@@ -1047,7 +1047,7 @@ void listener_accept(struct listener *l)
 		}
 #endif
 
-		ti->flags &= ~TI_FL_STUCK; // this thread is still running
+		th_ctx->flags &= ~TH_FL_STUCK; // this thread is still running
 	} /* end of for (max_accept--) */
 
  end:

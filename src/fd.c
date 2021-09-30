@@ -437,7 +437,7 @@ int fd_update_events(int fd, uint evts)
 	uint new_flags, must_stop;
 	ulong rmask, tmask;
 
-	ti->flags &= ~TI_FL_STUCK; // this thread is still running
+	th_ctx->flags &= ~TH_FL_STUCK; // this thread is still running
 
 	/* do nothing if the FD was taken over under us */
 	do {

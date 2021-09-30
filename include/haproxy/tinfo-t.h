@@ -35,15 +35,13 @@ enum {
 	TL_CLASSES       /* must be last */
 };
 
-/* thread info flags, for ha_thread_info[].flags */
-#define TI_FL_STUCK             0x00000001
+/* thread_ctx flags, for ha_thread_ctx[].flags */
+#define TH_FL_STUCK             0x00000001
 
 /* This structure describes all the per-thread info we need. When threads are
  * disabled, it contains the same info for the single running thread.
  */
 struct thread_info {
-	unsigned int flags;        /* thread info flags, TI_FL_* */
-
 #ifdef CONFIG_HAP_POOLS
 	struct list pool_lru_head;                         /* oldest objects   */
 #endif
@@ -68,9 +66,10 @@ struct thread_ctx {
 	unsigned int rqueue_ticks;          /* Insertion counter for the run queue */
 	int current_queue;                  /* points to current tasklet list being run, -1 if none */
 	unsigned int nb_tasks;              /* number of tasks allocated on this thread */
+	uint flags;                         /* thread flags, TH_FL_* */
 	uint8_t tl_class_mask;              /* bit mask of non-empty tasklets classes */
 
-	// 11 bytes hole here
+	// 7 bytes hole here
 	ALWAYS_ALIGN(2*sizeof(void*));
 	struct list tasklets[TL_CLASSES];   /* tasklets (and/or tasks) to run, by class */
 
