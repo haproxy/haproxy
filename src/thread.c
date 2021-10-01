@@ -51,7 +51,7 @@
 #include <haproxy/tools.h>
 
 struct thread_info ha_thread_info[MAX_THREADS] = { };
-THREAD_LOCAL struct thread_info *ti = &ha_thread_info[0];
+THREAD_LOCAL const struct thread_info *ti = &ha_thread_info[0];
 
 struct thread_ctx ha_thread_ctx[MAX_THREADS] = { };
 THREAD_LOCAL struct thread_ctx *th_ctx = &ha_thread_ctx[0];

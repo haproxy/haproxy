@@ -39,11 +39,13 @@ enum {
 #define TH_FL_STUCK             0x00000001
 
 /* This structure describes all the per-thread info we need. When threads are
- * disabled, it contains the same info for the single running thread.
+ * disabled, it contains the same info for the single running thread. This is
+ * stable across all of a thread's life, and is being pointed to by the
+ * thread-local "ti" pointer.
  */
 struct thread_info {
 	/* pad to cache line (64B) */
-	char __pad[0];            /* unused except to check remaining room */
+	char __pad[0];                    /* unused except to check remaining room */
 	char __end[0] __attribute__((aligned(64)));
 };
 

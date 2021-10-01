@@ -27,7 +27,7 @@
 
 /* the structs are in thread.c */
 extern struct thread_info ha_thread_info[MAX_THREADS];
-extern THREAD_LOCAL struct thread_info *ti; /* thread_info for the current thread */
+extern THREAD_LOCAL const struct thread_info *ti;   /* thread_info for the current thread */
 
 extern struct thread_ctx ha_thread_ctx[MAX_THREADS];
 extern THREAD_LOCAL struct thread_ctx *th_ctx; /* ha_thread_ctx for the current thread */
