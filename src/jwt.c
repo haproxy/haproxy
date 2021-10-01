@@ -77,4 +77,47 @@ enum jwt_alg jwt_parse_alg(const char *alg_str, unsigned int alg_len)
 
 	return alg;
 }
+
+
+/*
+ * Split a JWT into its separate dot-separated parts.
+ * Since only JWS following the Compact Serialization format are managed for
+ * now, we don't need to manage more than three subparts in the tokens.
+ * See section 3.1 of RFC7515 for more information about JWS Compact
+ * Serialization.
+ * Returns 0 in case of success.
+ */
+int jwt_tokenize(const struct buffer *jwt, struct jwt_item *items, unsigned int *item_num)
+{
+	char *ptr = jwt->area;
+	char *jwt_end = jwt->area + jwt->data;
+	unsigned int index = 0;
+	unsigned int length = 0;
+
+	if (index < *item_num) {
+		items[index].start = ptr;
+		items[index].length = 0;
+	}
+
+	while (index < *item_num && ptr < jwt_end) {
+		if (*ptr++ == '.') {
+			items[index++].length = length;
+
+			if (index == *item_num)
+				return -1;
+			items[index].start = ptr;
+			items[index].length = 0;
+			length = 0;
+		} else
+			++length;
+	}
+
+	if (index < *item_num)
+		items[index].length = length;
+
+	*item_num = (index+1);
+
+	return (ptr != jwt_end);
+}
+
 #endif /* USE_OPENSSL */

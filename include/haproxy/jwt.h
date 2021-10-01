@@ -27,6 +27,7 @@
 
 #ifdef USE_OPENSSL
 enum jwt_alg jwt_parse_alg(const char *alg_str, unsigned int alg_len);
+int jwt_tokenize(const struct buffer *jwt, struct jwt_item *items, unsigned int *item_num);
 #endif /* USE_OPENSSL */
 
 #endif /* _HAPROXY_JWT_H */

@@ -40,6 +40,27 @@ enum jwt_alg {
 	JWS_ALG_PS384,
 	JWS_ALG_PS512,
 };
+
+struct jwt_item {
+	char *start;
+	size_t length;
+};
+
+struct jwt_ctx {
+	enum jwt_alg alg;
+	struct jwt_item jose;
+	struct jwt_item claims;
+	struct jwt_item signature;
+	char *key;
+	unsigned int key_length;
+};
+
+enum jwt_elt {
+	JWT_ELT_JOSE = 0,
+	JWT_ELT_CLAIMS,
+	JWT_ELT_SIG,
+	JWT_ELT_MAX
+};
 #endif /* USE_OPENSSL */
 
 
