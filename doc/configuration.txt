@@ -20038,6 +20038,13 @@ http_auth(<userlist>) : boolean
   fetch function is not really useful outside of ACLs. Currently only http
   basic auth is supported.
 
+http_auth_bearer([<header>]) : string
+  Returns the client-provided token found in the authorization data when the
+  Bearer scheme is used (to send JSON Web Tokens for instance). No check is
+  performed on the data sent by the client.
+  If a specific <header> is supplied, it will parse this header instead of the
+  Authorization one.
+
 http_auth_group(<userlist>) : string
   Returns a string corresponding to the user name found in the authentication
   data received from the client if both the user name and password are valid

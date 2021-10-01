@@ -77,6 +77,7 @@ enum ht_auth_m {
 	HTTP_AUTH_UNKNOWN	= 0,
 	HTTP_AUTH_BASIC,
 	HTTP_AUTH_DIGEST,
+	HTTP_AUTH_BEARER,
 } __attribute__((packed));
 
 /* All implemented HTTP status codes */

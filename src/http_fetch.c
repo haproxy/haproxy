@@ -146,6 +146,9 @@ static int get_http_auth(struct sample *smp, struct htx *htx)
 
 		txn->auth.method = HTTP_AUTH_BASIC;
 		return 1;
+	} else if (!strncasecmp("Bearer", auth_method.area, auth_method.data)) {
+		txn->auth.method = HTTP_AUTH_BEARER;
+		return 1;
 	}
 
 	return 0;
@@ -1291,6 +1294,10 @@ static int smp_fetch_http_auth_type(const struct arg *args, struct sample *smp, 
 			smp->data.u.str.area = "Digest";
 			smp->data.u.str.data = 6;
 			break;
+		case HTTP_AUTH_BEARER:
+			smp->data.u.str.area = "Bearer";
+			smp->data.u.str.data = 6;
+			break;
 		default:
 			return 0;
 	}
@@ -1313,7 +1320,7 @@ static int smp_fetch_http_auth_user(const struct arg *args, struct sample *smp, 
 		return 0;
 
 	txn = smp->strm->txn;
-	if (!get_http_auth(smp, htx))
+	if (!get_http_auth(smp, htx) || txn->auth.method != HTTP_AUTH_BASIC)
 		return 0;
 
 	smp->data.type = SMP_T_STR;
@@ -1336,12 +1343,49 @@ static int smp_fetch_http_auth_pass(const struct arg *args, struct sample *smp, 
 		return 0;
 
 	txn = smp->strm->txn;
-	if (!get_http_auth(smp, htx))
+	if (!get_http_auth(smp, htx) || txn->auth.method != HTTP_AUTH_BASIC)
 		return 0;
 
 	smp->data.type = SMP_T_STR;
 	smp->data.u.str.area = txn->auth.pass;
 	smp->data.u.str.data = strlen(txn->auth.pass);
+	smp->flags = SMP_F_CONST;
+	return 1;
+}
+
+static int smp_fetch_http_auth_bearer(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	struct channel *chn = SMP_REQ_CHN(smp);
+	struct htx *htx = smp_prefetch_htx(smp, chn, NULL, 1);
+	struct http_txn *txn;
+	struct buffer bearer_val = {};
+
+	if (!htx)
+		return 0;
+
+	if (args->type == ARGT_STR) {
+		struct http_hdr_ctx ctx;
+		struct ist hdr_name = ist2(args->data.str.area, args->data.str.data);
+
+		ctx.blk = NULL;
+		if (http_find_header(htx, hdr_name, &ctx, 0)) {
+			char *space = NULL;
+			space = memchr(ctx.value.ptr, ' ', ctx.value.len);
+			if (space && strncasecmp("Bearer", ctx.value.ptr, ctx.value.len) == 0) {
+				chunk_initlen(&bearer_val, space+1, 0, ctx.value.len - (space - ctx.value.ptr) - 1);
+			}
+		}
+	}
+	else {
+		txn = smp->strm->txn;
+		if (!get_http_auth(smp, htx) || txn->auth.method != HTTP_AUTH_BEARER)
+			return 0;
+
+		bearer_val = txn->auth.method_data;
+	}
+
+	smp->data.type = SMP_T_STR;
+	smp->data.u.str = bearer_val;
 	smp->flags = SMP_F_CONST;
 	return 1;
 }
@@ -1357,7 +1401,7 @@ static int smp_fetch_http_auth(const struct arg *args, struct sample *smp, const
 
 	if (!htx)
 		return 0;
-	if (!get_http_auth(smp, htx))
+	if (!get_http_auth(smp, htx) || smp->strm->txn->auth.method != HTTP_AUTH_BASIC)
 		return 0;
 
 	smp->data.type = SMP_T_BOOL;
@@ -1377,7 +1421,7 @@ static int smp_fetch_http_auth_grp(const struct arg *args, struct sample *smp, c
 
 	if (!htx)
 		return 0;
-	if (!get_http_auth(smp, htx))
+	if (!get_http_auth(smp, htx) || smp->strm->txn->auth.method != HTTP_AUTH_BASIC)
 		return 0;
 
 	/* if the user does not belong to the userlist or has a wrong password,
@@ -2097,6 +2141,7 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "http_auth_type",     smp_fetch_http_auth_type,     0,                NULL,    SMP_T_STR,  SMP_USE_HRQHV },
 	{ "http_auth_user",     smp_fetch_http_auth_user,     0,                NULL,    SMP_T_STR,  SMP_USE_HRQHV },
 	{ "http_auth_pass",     smp_fetch_http_auth_pass,     0,                NULL,    SMP_T_STR,  SMP_USE_HRQHV },
+	{ "http_auth_bearer",   smp_fetch_http_auth_bearer,   ARG1(0,STR),      NULL,    SMP_T_STR,  SMP_USE_HRQHV },
 	{ "http_auth",          smp_fetch_http_auth,          ARG1(1,USR),      NULL,    SMP_T_BOOL, SMP_USE_HRQHV },
 	{ "http_auth_group",    smp_fetch_http_auth_grp,      ARG1(1,USR),      NULL,    SMP_T_STR,  SMP_USE_HRQHV },
 	{ "http_first_req",     smp_fetch_http_first_req,     0,                NULL,    SMP_T_BOOL, SMP_USE_HRQHP },
