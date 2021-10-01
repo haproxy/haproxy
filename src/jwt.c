@@ -81,7 +81,6 @@ enum jwt_alg jwt_parse_alg(const char *alg_str, unsigned int alg_len)
 	return alg;
 }
 
-
 /*
  * Split a JWT into its separate dot-separated parts.
  * Since only JWS following the Compact Serialization format are managed for

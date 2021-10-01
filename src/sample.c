@@ -44,6 +44,7 @@
 #include <haproxy/uri_auth-t.h>
 #include <haproxy/vars.h>
 #include <haproxy/xxhash.h>
+#include <haproxy/jwt.h>
 
 /* sample type names */
 const char *smp_to_type[SMP_TYPES] = {
@@ -3493,6 +3494,91 @@ static int sample_conv_json_query(const struct arg *args, struct sample *smp, vo
 	return 0;
 }
 
+#ifdef USE_OPENSSL
+/*
+ * Returns the decoded header or payload of a JWT if no parameter is given, or
+ * the value of the specified field of the corresponding JWT subpart if a
+ * parameter is given.
+ */
+static int sample_conv_jwt_member_query(const struct arg *args, struct sample *smp,
+					void *private, enum jwt_elt member)
+{
+	struct jwt_item items[JWT_ELT_MAX] = { { 0 } };
+	unsigned int item_num = member + 1; /* We don't need to tokenize the full token */
+	struct buffer *decoded_header = get_trash_chunk();
+	int retval = 0;
+
+	jwt_tokenize(&smp->data.u.str, items, &item_num);
+
+	if (item_num < member + 1)
+		goto end;
+
+	decoded_header = alloc_trash_chunk();
+	if (!decoded_header)
+		goto end;
+
+	decoded_header->data = base64urldec(items[member].start, items[member].length,
+					    decoded_header->area, decoded_header->size);
+
+	if (decoded_header->data == (unsigned int)-1)
+		goto end;
+
+	if (args[0].type != ARGT_STR) {
+		smp->data.u.str = *decoded_header;
+		smp->data.type = SMP_T_STR;
+		goto end;
+	}
+
+	/* We look for a specific field of the header or payload part of the JWT */
+	smp->data.u.str = *decoded_header;
+
+	retval = sample_conv_json_query(args, smp, private);
+
+end:
+	return retval;
+}
+
+/* This function checks the "jwt_header_query" and "jwt_payload_query" converters' arguments.
+ * It is based on the "json_query" converter's check with the only difference
+ * being that the jwt converters can take 0 parameters as well.
+ */
+static int sample_conv_jwt_query_check(struct arg *arg, struct sample_conv *conv,
+				       const char *file, int line, char **err)
+{
+	if (arg[1].data.str.data != 0) {
+		if (strcmp(arg[1].data.str.area, "int") != 0) {
+			memprintf(err, "output_type only supports \"int\" as argument");
+			return 0;
+		} else {
+			arg[1].type = ARGT_SINT;
+			arg[1].data.sint = 0;
+		}
+	}
+	return 1;
+}
+
+/*
+ * If no parameter is given, return the decoded header part of a JWT (the first
+ * base64 encoded part, corresponding to the JOSE header).
+ * If a parameter is given, this converter acts as a "json_query" on this
+ * decoded JSON.
+ */
+static int sample_conv_jwt_header_query(const struct arg *args, struct sample *smp, void *private)
+{
+	return sample_conv_jwt_member_query(args, smp, private, JWT_ELT_JOSE);
+}
+
+/*
+ * If no parameter is given, return the decoded payload part of a JWT (the
+ * second base64 encoded part, which contains all the claims).  If a parameter
+ * is given, this converter acts as a "json_query" on this decoded JSON.
+ */
+static int sample_conv_jwt_payload_query(const struct arg *args, struct sample *smp, void *private)
+{
+	return sample_conv_jwt_member_query(args, smp, private, JWT_ELT_CLAIMS);
+}
+
+#endif /* USE_OPENSSL */
 
 /************************************************************************/
 /*       All supported sample fetch functions must be declared here     */
@@ -4000,6 +4086,12 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "ltrim",    sample_conv_ltrim,    ARG1(1,STR), NULL, SMP_T_STR,  SMP_T_STR  },
 	{ "rtrim",    sample_conv_rtrim,    ARG1(1,STR), NULL, SMP_T_STR,  SMP_T_STR  },
 	{ "json_query", sample_conv_json_query, ARG2(1,STR,STR),  sample_check_json_query , SMP_T_STR, SMP_T_ANY },
+
+#ifdef USE_OPENSSL
+	/* JSON Web Token converters */
+	{ "jwt_header_query",  sample_conv_jwt_header_query,  ARG2(0,STR,STR), sample_conv_jwt_query_check,   SMP_T_BIN, SMP_T_ANY },
+	{ "jwt_payload_query", sample_conv_jwt_payload_query, ARG2(0,STR,STR), sample_conv_jwt_query_check,   SMP_T_BIN, SMP_T_ANY },
+#endif
 	{ NULL, NULL, 0, 0, 0 },
 }};
 

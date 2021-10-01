@@ -16617,6 +16617,26 @@ json_query(<json_path>,[<output_type>])
      # get the value of the key 'iss' from a JWT Bearer token
      http-request set-var(txn.token_payload) req.hdr(Authorization),word(2,.),ub64dec,json_query('$.iss')
 
+jwt_header_query([<json_path>],[<output_type>])
+  When given a JSON Web Token (JWT) in input, either returns the decoded header
+  part of the token (the first base64-url encoded part of the JWT) if no
+  parameter is given, or performs a json_query on the decoded header part of
+  the token. See "json_query" converter for details about the accepted
+  json_path and output_type parameters.
+
+  Please note that this converter is only available when HAProxy has been
+  compiled with USE_OPENSSL.
+
+jwt_payload_query([<json_path>],[<output_type>])
+  When given a JSON Web Token (JWT) in input, either returns the decoded
+  payload part of the token (the second base64-url encoded part of the JWT) if
+  no parameter is given, or performs a json_query on the decoded payload part
+  of the token. See "json_query" converter for details about the accepted
+  json_path and output_type parameters.
+
+  Please note that this converter is only available when HAProxy has been
+  compiled with USE_OPENSSL.
+
 language(<value>[,<default>])
   Returns the value with the highest q-factor from a list as extracted from the
   "accept-language" header using "req.fhdr". Values with no q-factor have a
