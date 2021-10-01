@@ -859,51 +859,6 @@ void process_runnable_tasks()
 		activity[tid].long_rq++;
 }
 
-/* create a work list array for <nbthread> threads, using tasks made of
- * function <fct>. The context passed to the function will be the pointer to
- * the thread's work list, which will contain a copy of argument <arg>. The
- * wake up reason will be TASK_WOKEN_OTHER. The pointer to the work_list array
- * is returned on success, otherwise NULL on failure.
- */
-struct work_list *work_list_create(int nbthread,
-                                   struct task *(*fct)(struct task *, void *, unsigned int),
-                                   void *arg)
-{
-	struct work_list *wl;
-	int i;
-
-	wl = calloc(nbthread, sizeof(*wl));
-	if (!wl)
-		goto fail;
-
-	for (i = 0; i < nbthread; i++) {
-		MT_LIST_INIT(&wl[i].head);
-		wl[i].task = task_new(1UL << i);
-		if (!wl[i].task)
-			goto fail;
-		wl[i].task->process = fct;
-		wl[i].task->context = &wl[i];
-		wl[i].arg = arg;
-	}
-	return wl;
-
- fail:
-	work_list_destroy(wl, nbthread);
-	return NULL;
-}
-
-/* destroy work list <work> */
-void work_list_destroy(struct work_list *work, int nbthread)
-{
-	int t;
-
-	if (!work)
-		return;
-	for (t = 0; t < nbthread; t++)
-		task_destroy(work[t].task);
-	free(work);
-}
-
 /*
  * Delete every tasks before running the master polling loop
  */

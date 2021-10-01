@@ -110,11 +110,6 @@ void task_kill(struct task *t);
 void tasklet_kill(struct tasklet *t);
 void __task_wakeup(struct task *t);
 void __task_queue(struct task *task, struct eb_root *wq);
-
-struct work_list *work_list_create(int nbthread,
-                                   struct task *(*fct)(struct task *, void *, unsigned int),
-                                   void *arg);
-void work_list_destroy(struct work_list *work, int nbthread);
 unsigned int run_tasks_from_lists(unsigned int budgets[]);
 
 /*
@@ -682,13 +677,6 @@ static inline void notification_wake(struct list *wake)
 static inline int notification_registered(struct list *wake)
 {
 	return !LIST_ISEMPTY(wake);
-}
-
-/* adds list item <item> to work list <work> and wake up the associated task */
-static inline void work_list_add(struct work_list *work, struct mt_list *item)
-{
-	MT_LIST_TRY_APPEND(&work->head, item);
-	task_wakeup(work->task, TASK_WOKEN_OTHER);
 }
 
 #endif /* _HAPROXY_TASK_H */

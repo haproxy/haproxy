@@ -162,22 +162,6 @@ struct tasklet {
  */
 
 
-/* A work_list is a thread-safe way to enqueue some work to be run on another
- * thread. It consists of a list, a task and a general-purpose argument.
- * A work is appended to the list by atomically adding a list element to the
- * list and waking up the associated task, which is done using work_add(). The
- * caller must be careful about how operations are run as it will definitely
- * happen that the element being enqueued is processed by the other thread
- * before the call returns. Some locking conventions between the caller and the
- * callee might sometimes be necessary. The task is always woken up with reason
- * TASK_WOKEN_OTHER and a context pointing to the work_list entry.
- */
-struct work_list {
-	struct mt_list head;
-	struct task *task;
-	void *arg;
-};
-
 #endif /* _HAPROXY_TASK_T_H */
 
 /*
