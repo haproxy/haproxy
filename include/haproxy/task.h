@@ -96,14 +96,11 @@ extern unsigned int niced_tasks;  /* number of niced tasks in the run queue */
 extern struct pool_head *pool_head_task;
 extern struct pool_head *pool_head_tasklet;
 extern struct pool_head *pool_head_notification;
-extern THREAD_LOCAL struct task_per_thread *sched; /* current's thread scheduler context */
 
 #ifdef USE_THREAD
 extern struct eb_root timers;      /* sorted timers tree, global */
 extern struct eb_root rqueue;      /* tree constituting the run queue */
 #endif
-
-extern struct task_per_thread task_per_thread[MAX_THREADS];
 
 __decl_thread(extern HA_SPINLOCK_T rq_lock);  /* spin lock related to run queue */
 __decl_thread(extern HA_RWLOCK_T wq_lock);    /* RW lock related to the wait queue */
@@ -155,7 +152,7 @@ static inline int total_run_queues()
 	ret = _HA_ATOMIC_LOAD(&grq_total);
 #endif
 	for (thr = 0; thr < global.nbthread; thr++)
-		ret += _HA_ATOMIC_LOAD(&task_per_thread[thr].rq_total);
+		ret += _HA_ATOMIC_LOAD(&ha_thread_ctx[thr].rq_total);
 	return ret;
 }
 
@@ -168,7 +165,7 @@ static inline int total_allocated_tasks()
 	int thr, ret;
 
 	for (thr = ret = 0; thr < global.nbthread; thr++)
-		ret += _HA_ATOMIC_LOAD(&task_per_thread[thr].nb_tasks);
+		ret += _HA_ATOMIC_LOAD(&ha_thread_ctx[thr].nb_tasks);
 	return ret;
 }
 
@@ -191,9 +188,9 @@ static inline int task_in_wq(struct task *t)
 static inline int thread_has_tasks(void)
 {
 	return (!!(global_tasks_mask & tid_bit) |
-		!eb_is_empty(&sched->rqueue) |
-	        !!sched->tl_class_mask |
-		!MT_LIST_ISEMPTY(&sched->shared_tasklet_list));
+		!eb_is_empty(&th_ctx->rqueue) |
+	        !!th_ctx->tl_class_mask |
+		!MT_LIST_ISEMPTY(&th_ctx->shared_tasklet_list));
 }
 
 /* puts the task <t> in run queue with reason flags <f>, and returns <t> */
@@ -286,7 +283,7 @@ static inline void task_queue(struct task *task)
 	{
 		BUG_ON(task->thread_mask != tid_bit); // should have TASK_SHARED_WQ
 		if (!task_in_wq(task) || tick_is_lt(task->expire, task->wq.key))
-			__task_queue(task, &sched->timers);
+			__task_queue(task, &th_ctx->timers);
 	}
 }
 
@@ -336,7 +333,7 @@ static inline struct task *task_unlink_rq(struct task *t)
 			_HA_ATOMIC_DEC(&grq_total);
 		}
 		else
-			_HA_ATOMIC_DEC(&sched->rq_total);
+			_HA_ATOMIC_DEC(&th_ctx->rq_total);
 		if (t->nice)
 			_HA_ATOMIC_DEC(&niced_tasks);
 	}
@@ -405,7 +402,7 @@ static inline void tasklet_remove_from_tasklet_list(struct tasklet *t)
 {
 	if (MT_LIST_DELETE((struct mt_list *)&t->list)) {
 		_HA_ATOMIC_AND(&t->state, ~TASK_IN_LIST);
-		_HA_ATOMIC_DEC(&task_per_thread[t->tid >= 0 ? t->tid : tid].rq_total);
+		_HA_ATOMIC_DEC(&ha_thread_ctx[t->tid >= 0 ? t->tid : tid].rq_total);
 	}
 }
 
@@ -474,7 +471,7 @@ static inline struct task *task_new(unsigned long thread_mask)
 {
 	struct task *t = pool_alloc(pool_head_task);
 	if (t) {
-		sched->nb_tasks++;
+		th_ctx->nb_tasks++;
 		task_init(t, thread_mask);
 	}
 	return t;
@@ -513,8 +510,8 @@ static inline struct task *task_new_anywhere()
  */
 static inline void __task_free(struct task *t)
 {
-	if (t == sched->current) {
-		sched->current = NULL;
+	if (t == th_ctx->current) {
+		th_ctx->current = NULL;
 		__ha_barrier_store();
 	}
 	BUG_ON(task_in_wq(t) || task_in_rq(t));
@@ -526,7 +523,7 @@ static inline void __task_free(struct task *t)
 #endif
 
 	pool_free(pool_head_task, t);
-	sched->nb_tasks--;
+	th_ctx->nb_tasks--;
 	if (unlikely(stopping))
 		pool_flush(pool_head_task);
 }
@@ -550,7 +547,7 @@ static inline void task_destroy(struct task *t)
 	/* There's no need to protect t->state with a lock, as the task
 	 * has to run on the current thread.
 	 */
-	if (t == sched->current || !(t->state & (TASK_QUEUED | TASK_RUNNING)))
+	if (t == th_ctx->current || !(t->state & (TASK_QUEUED | TASK_RUNNING)))
 		__task_free(t);
 	else
 		t->process = NULL;
@@ -560,7 +557,7 @@ static inline void task_destroy(struct task *t)
 static inline void tasklet_free(struct tasklet *tl)
 {
 	if (MT_LIST_DELETE((struct mt_list *)&tl->list))
-		_HA_ATOMIC_DEC(&task_per_thread[tl->tid >= 0 ? tl->tid : tid].rq_total);
+		_HA_ATOMIC_DEC(&ha_thread_ctx[tl->tid >= 0 ? tl->tid : tid].rq_total);
 
 #ifdef DEBUG_TASK
 	if ((unsigned int)tl->debug.caller_idx > 1)
@@ -611,7 +608,7 @@ static inline void task_schedule(struct task *task, int when)
 
 		task->expire = when;
 		if (!task_in_wq(task) || tick_is_lt(task->expire, task->wq.key))
-			__task_queue(task, &sched->timers);
+			__task_queue(task, &th_ctx->timers);
 	}
 }
 

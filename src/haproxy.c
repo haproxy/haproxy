@@ -2699,7 +2699,6 @@ static void *run_thread_poll_loop(void *data)
 
 	ha_set_tid((unsigned long)data);
 	set_thread_cpu_affinity();
-	sched = &task_per_thread[tid];
 	clock_set_local_source();
 
 	/* Now, initialize one thread init at a time. This is better since

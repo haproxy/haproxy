@@ -876,7 +876,7 @@ static int cli_io_handler_show_tasks(struct appctx *appctx)
 	/* 2. all threads's local run queues */
 	for (thr = 0; thr < global.nbthread; thr++) {
 		/* task run queue */
-		rqnode = eb32sc_first(&task_per_thread[thr].rqueue, ~0UL);
+		rqnode = eb32sc_first(&ha_thread_ctx[thr].rqueue, ~0UL);
 		while (rqnode) {
 			t = eb32sc_entry(rqnode, struct task, rq);
 			entry = sched_activity_entry(tmp_activity, t->process);
@@ -890,7 +890,7 @@ static int cli_io_handler_show_tasks(struct appctx *appctx)
 		}
 
 		/* shared tasklet list */
-		list_for_each_entry(tl, mt_list_to_list(&task_per_thread[thr].shared_tasklet_list), list) {
+		list_for_each_entry(tl, mt_list_to_list(&ha_thread_ctx[thr].shared_tasklet_list), list) {
 			t = (const struct task *)tl;
 			entry = sched_activity_entry(tmp_activity, t->process);
 			if (!TASK_IS_TASKLET(t) && t->call_date) {
@@ -903,7 +903,7 @@ static int cli_io_handler_show_tasks(struct appctx *appctx)
 
 		/* classful tasklets */
 		for (queue = 0; queue < TL_CLASSES; queue++) {
-			list_for_each_entry(tl, &task_per_thread[thr].tasklets[queue], list) {
+			list_for_each_entry(tl, &ha_thread_ctx[thr].tasklets[queue], list) {
 				t = (const struct task *)tl;
 				entry = sched_activity_entry(tmp_activity, t->process);
 				if (!TASK_IS_TASKLET(t) && t->call_date) {

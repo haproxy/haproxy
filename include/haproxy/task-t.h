@@ -59,14 +59,6 @@
 /* unused: 0x20000..0x80000000 */
 
 
-enum {
-	TL_URGENT = 0,   /* urgent tasklets (I/O callbacks) */
-	TL_NORMAL = 1,   /* normal tasks */
-	TL_BULK   = 2,   /* bulk task/tasklets, streaming I/Os */
-	TL_HEAVY  = 3,   /* heavy computational tasklets (e.g. TLS handshakes) */
-	TL_CLASSES       /* must be last */
-};
-
 struct notification {
 	struct list purge_me; /* Part of the list of signals to be purged in the
 	                         case of the LUA execution stack crash. */
@@ -75,30 +67,6 @@ struct notification {
 	struct task *task; /* The task to be wake if an event occurs. */
 	__decl_thread(HA_SPINLOCK_T lock);
 };
-
-/* force to split per-thread stuff into separate cache lines */
-struct task_per_thread {
-	// first and second cache lines on 64 bits: thread-local operations only.
-	struct eb_root timers;  /* tree constituting the per-thread wait queue */
-	struct eb_root rqueue;  /* tree constituting the per-thread run queue */
-	struct task *current;   /* current task (not tasklet) */
-	unsigned int rqueue_ticks; /* Insertion counter for the run queue */
-	int current_queue;      /* points to current tasklet list being run, -1 if none */
-	unsigned int nb_tasks;  /* number of tasks allocated on this thread */
-	uint8_t tl_class_mask;  /* bit mask of non-empty tasklets classes */
-
-	// 11 bytes hole here
-	ALWAYS_ALIGN(2*sizeof(void*));
-	struct list tasklets[TL_CLASSES]; /* tasklets (and/or tasks) to run, by class */
-
-	// third cache line here on 64 bits: accessed mostly using atomic ops
-	ALWAYS_ALIGN(64);
-	struct mt_list shared_tasklet_list; /* Tasklet to be run, woken up by other threads */
-	unsigned int rq_total;  /* total size of the run queue, prio_tree + tasklets */
-	int tasks_in_list;      /* Number of tasks in the per-thread tasklets list */
-	ALWAYS_ALIGN(128);
-};
-
 
 #ifdef DEBUG_TASK
 #define TASK_DEBUG_STORAGE                   \

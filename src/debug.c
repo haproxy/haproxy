@@ -161,14 +161,14 @@ void ha_thread_dump(struct buffer *buf, int thr, int calling_tid)
 		      ha_get_pthread_id(thr),
 		      thread_has_tasks(),
 	              !!(global_tasks_mask & thr_bit),
-	              !eb_is_empty(&task_per_thread[thr].timers),
-	              !eb_is_empty(&task_per_thread[thr].rqueue),
-	              !(LIST_ISEMPTY(&task_per_thread[thr].tasklets[TL_URGENT]) &&
-			LIST_ISEMPTY(&task_per_thread[thr].tasklets[TL_NORMAL]) &&
-			LIST_ISEMPTY(&task_per_thread[thr].tasklets[TL_BULK]) &&
-			MT_LIST_ISEMPTY(&task_per_thread[thr].shared_tasklet_list)),
-	              task_per_thread[thr].tasks_in_list,
-	              task_per_thread[thr].rq_total,
+	              !eb_is_empty(&ha_thread_ctx[thr].timers),
+	              !eb_is_empty(&ha_thread_ctx[thr].rqueue),
+	              !(LIST_ISEMPTY(&ha_thread_ctx[thr].tasklets[TL_URGENT]) &&
+			LIST_ISEMPTY(&ha_thread_ctx[thr].tasklets[TL_NORMAL]) &&
+			LIST_ISEMPTY(&ha_thread_ctx[thr].tasklets[TL_BULK]) &&
+			MT_LIST_ISEMPTY(&ha_thread_ctx[thr].shared_tasklet_list)),
+	              ha_thread_ctx[thr].tasks_in_list,
+	              ha_thread_ctx[thr].rq_total,
 	              stuck,
 	              !!(task_profiling_mask & thr_bit));
 
@@ -186,7 +186,7 @@ void ha_thread_dump(struct buffer *buf, int thr, int calling_tid)
 		return;
 
 	chunk_appendf(buf, "             curr_task=");
-	ha_task_dump(buf, sched->current, "             ");
+	ha_task_dump(buf, th_ctx->current, "             ");
 
 	if (stuck) {
 		/* We only emit the backtrace for stuck threads in order not to

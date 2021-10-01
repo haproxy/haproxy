@@ -90,6 +90,7 @@ enum { tid = 0 };
 static inline void ha_set_tid(unsigned int tid)
 {
 	ti = &ha_thread_info[tid];
+	th_ctx = &ha_thread_ctx[tid];
 }
 
 static inline void thread_idle_now()
@@ -206,6 +207,7 @@ static inline void ha_set_tid(unsigned int data)
 	tid     = data;
 	tid_bit = (1UL << tid);
 	ti      = &ha_thread_info[tid];
+	th_ctx  = &ha_thread_ctx[tid];
 }
 
 /* Marks the thread as idle, which means that not only it's not doing anything
