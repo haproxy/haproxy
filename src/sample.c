@@ -3495,6 +3495,60 @@ static int sample_conv_json_query(const struct arg *args, struct sample *smp, vo
 }
 
 #ifdef USE_OPENSSL
+static int sample_conv_jwt_verify_check(struct arg *args, struct sample_conv *conv,
+					const char *file, int line, char **err)
+{
+	vars_check_arg(&args[0], NULL);
+	vars_check_arg(&args[1], NULL);
+
+	if (args[0].type == ARGT_STR) {
+		enum jwt_alg alg = jwt_parse_alg(args[0].data.str.area, args[0].data.str.data);
+
+		switch(alg) {
+		case JWT_ALG_DEFAULT:
+			memprintf(err, "unknown JWT algorithm : %s", *err);
+			break;
+
+		case JWS_ALG_PS256:
+		case JWS_ALG_PS384:
+		case JWS_ALG_PS512:
+			memprintf(err, "RSASSA-PSS JWS signing not managed yet");
+			break;
+
+		default:
+			break;
+		}
+	}
+
+	if (args[1].type == ARGT_STR) {
+		jwt_tree_load_cert(args[1].data.str.area, args[1].data.str.data, err);
+	}
+
+	return 1;
+}
+
+/* Check that a JWT's signature is correct */
+static int sample_conv_jwt_verify(const struct arg *args, struct sample *smp, void *private)
+{
+	struct sample alg_smp, key_smp;
+
+	smp->data.type = SMP_T_SINT;
+	smp->data.u.sint = 0;
+
+	smp_set_owner(&alg_smp, smp->px, smp->sess, smp->strm, smp->opt);
+	smp_set_owner(&key_smp, smp->px, smp->sess, smp->strm, smp->opt);
+	if (!sample_conv_var2smp_str(&args[0], &alg_smp))
+		return 0;
+	if (!sample_conv_var2smp_str(&args[1], &key_smp))
+		return 0;
+
+	smp->data.u.sint = jwt_verify(&smp->data.u.str,  &alg_smp.data.u.str,
+				      &key_smp.data.u.str);
+
+	return 1;
+}
+
+
 /*
  * Returns the decoded header or payload of a JWT if no parameter is given, or
  * the value of the specified field of the corresponding JWT subpart if a
@@ -4091,6 +4145,7 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	/* JSON Web Token converters */
 	{ "jwt_header_query",  sample_conv_jwt_header_query,  ARG2(0,STR,STR), sample_conv_jwt_query_check,   SMP_T_BIN, SMP_T_ANY },
 	{ "jwt_payload_query", sample_conv_jwt_payload_query, ARG2(0,STR,STR), sample_conv_jwt_query_check,   SMP_T_BIN, SMP_T_ANY },
+	{ "jwt_verify",        sample_conv_jwt_verify,        ARG2(2,STR,STR), sample_conv_jwt_verify_check,  SMP_T_BIN, SMP_T_SINT },
 #endif
 	{ NULL, NULL, 0, 0, 0 },
 }};

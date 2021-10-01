@@ -67,6 +67,17 @@ struct jwt_cert_tree_entry {
 	struct ebmb_node node;
 	char path[VAR_ARRAY];
 };
+
+enum jwt_vrfy_status {
+	JWT_VRFY_KO = 0,
+	JWT_VRFY_OK = 1,
+	JWT_VRFY_UNKNOWN_ALG,
+	JWT_VRFY_UNMANAGED_ALG,
+	JWT_VRFY_INVALID_TOKEN,
+	JWT_VRFY_OUT_OF_MEMORY,
+	JWT_VRFY_UNKNOWN_CERT
+};
+
 #endif /* USE_OPENSSL */
 
 

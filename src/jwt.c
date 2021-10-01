@@ -165,4 +165,196 @@ end:
 	BIO_free(bio);
 	return retval;
 }
+
+/*
+ * Calculate the HMAC signature of a specific JWT and check that it matches the
+ * one included in the token.
+ * Returns 1 in case of success.
+ */
+static enum jwt_vrfy_status
+jwt_jwsverify_hmac(const struct jwt_ctx *ctx, const struct buffer *decoded_signature)
+{
+	const EVP_MD *evp = NULL;
+	unsigned char *signature = NULL;
+	unsigned int signature_length = 0;
+	struct buffer *trash = NULL;
+	unsigned char *hmac_res = NULL;
+	enum jwt_vrfy_status retval = JWT_VRFY_KO;
+
+	trash = alloc_trash_chunk();
+	if (!trash)
+		return JWT_VRFY_OUT_OF_MEMORY;
+
+	signature = (unsigned char*)trash->area;
+	signature_length = trash->size;
+
+	switch(ctx->alg) {
+	case JWS_ALG_HS256:
+		evp = EVP_sha256();
+		break;
+	case JWS_ALG_HS384:
+		evp = EVP_sha384();
+		break;
+	case JWS_ALG_HS512:
+		evp = EVP_sha512();
+		break;
+	default: break;
+	}
+
+	hmac_res = HMAC(evp, ctx->key, ctx->key_length, (const unsigned char*)ctx->jose.start,
+			ctx->jose.length + ctx->claims.length + 1, signature, &signature_length);
+
+	if (hmac_res && signature_length == decoded_signature->data &&
+		  (memcmp(decoded_signature->area, signature, signature_length) == 0))
+		retval = JWT_VRFY_OK;
+
+	free_trash_chunk(trash);
+
+	return retval;
+}
+
+/*
+ * Check that the signature included in a JWT signed via RSA or ECDSA is valid
+ * and can be verified thanks to a given public certificate.
+ * Returns 1 in case of success.
+ */
+static enum jwt_vrfy_status
+jwt_jwsverify_rsa_ecdsa(const struct jwt_ctx *ctx, const struct buffer *decoded_signature)
+{
+	const EVP_MD *evp = NULL;
+	EVP_MD_CTX *evp_md_ctx;
+	enum jwt_vrfy_status retval = JWT_VRFY_KO;
+	struct buffer *trash = NULL;
+	struct ebmb_node *eb;
+	struct jwt_cert_tree_entry *entry = NULL;
+
+	trash = alloc_trash_chunk();
+	if (!trash)
+		return JWT_VRFY_OUT_OF_MEMORY;
+
+	switch(ctx->alg) {
+	case JWS_ALG_RS256:
+	case JWS_ALG_ES256:
+		evp = EVP_sha256();
+		break;
+	case JWS_ALG_RS384:
+	case JWS_ALG_ES384:
+		evp = EVP_sha384();
+		break;
+	case JWS_ALG_RS512:
+	case JWS_ALG_ES512:
+		evp = EVP_sha512();
+		break;
+	default: break;
+	}
+
+	evp_md_ctx = EVP_MD_CTX_new();
+	if (!evp_md_ctx) {
+		free_trash_chunk(trash);
+		return JWT_VRFY_OUT_OF_MEMORY;
+	}
+
+	eb = ebst_lookup(&jwt_cert_tree, ctx->key);
+
+	if (!eb) {
+		retval = JWT_VRFY_UNKNOWN_CERT;
+		goto end;
+	}
+
+	entry = ebmb_entry(eb, struct jwt_cert_tree_entry, node);
+
+	if (!entry->pkey) {
+		retval = JWT_VRFY_UNKNOWN_CERT;
+		goto end;
+	}
+
+	if (EVP_DigestVerifyInit(evp_md_ctx, NULL, evp, NULL,entry-> pkey) == 1 &&
+	    EVP_DigestVerifyUpdate(evp_md_ctx, (const unsigned char*)ctx->jose.start,
+				   ctx->jose.length + ctx->claims.length + 1) == 1 &&
+	    EVP_DigestVerifyFinal(evp_md_ctx, (const unsigned char*)decoded_signature->area, decoded_signature->data) == 1) {
+		retval = JWT_VRFY_OK;
+	}
+
+end:
+	EVP_MD_CTX_free(evp_md_ctx);
+	free_trash_chunk(trash);
+	return retval;
+}
+
+/*
+ * Check that the <token> that was signed via algorithm <alg> using the <key>
+ * (either an HMAC secret or the path to a public certificate) has a valid
+ * signature.
+ * Returns 1 in case of success.
+ */
+enum jwt_vrfy_status jwt_verify(const struct buffer *token, const struct buffer *alg,
+				const struct buffer *key)
+{
+	struct jwt_item items[JWT_ELT_MAX] = { { 0 } };
+	unsigned int item_num = JWT_ELT_MAX;
+
+	struct buffer *decoded_sig = NULL;
+	struct jwt_ctx ctx = {};
+	enum jwt_vrfy_status retval = JWT_VRFY_KO;
+
+	ctx.alg = jwt_parse_alg(alg->area, alg->data);
+
+	if (ctx.alg == JWT_ALG_DEFAULT)
+		return JWT_VRFY_UNKNOWN_ALG;
+
+	if (jwt_tokenize(token, items, &item_num))
+		return JWT_VRFY_INVALID_TOKEN;
+
+	if (item_num != JWT_ELT_MAX)
+		if (ctx.alg != JWS_ALG_NONE || item_num != JWT_ELT_SIG)
+			return JWT_VRFY_INVALID_TOKEN;
+
+	ctx.jose = items[JWT_ELT_JOSE];
+	ctx.claims = items[JWT_ELT_CLAIMS];
+	ctx.signature = items[JWT_ELT_SIG];
+
+	/* "alg" is "none", the signature must be empty for the JWS to be valid. */
+	if (ctx.alg == JWS_ALG_NONE) {
+		return (ctx.signature.length == 0) ? JWT_VRFY_OK : JWT_VRFY_KO;
+	}
+
+	if (ctx.signature.length == 0)
+		return JWT_VRFY_INVALID_TOKEN;
+
+	decoded_sig = alloc_trash_chunk();
+	if (!decoded_sig)
+		return JWT_VRFY_OUT_OF_MEMORY;
+
+	decoded_sig->data = base64urldec(ctx.signature.start, ctx.signature.length,
+					 decoded_sig->area, decoded_sig->size);
+	if (decoded_sig->data == (unsigned int)-1) {
+		retval = JWT_VRFY_INVALID_TOKEN;
+		goto end;
+	}
+
+	ctx.key = key->area;
+	ctx.key_length = key->data;
+
+	/* We have all three sections, signature calculation can begin. */
+
+	if (ctx.alg <= JWS_ALG_HS512) {
+		/* HMAC + SHA-XXX */
+		retval = jwt_jwsverify_hmac(&ctx, decoded_sig);
+	} else if (ctx.alg <= JWS_ALG_ES512) {
+		/* RSASSA-PKCS1-v1_5 + SHA-XXX */
+		/* ECDSA using P-XXX and SHA-XXX */
+		retval = jwt_jwsverify_rsa_ecdsa(&ctx, decoded_sig);
+	} else if (ctx.alg <= JWS_ALG_PS512) {
+		/* RSASSA-PSS using SHA-XXX and MGF1 with SHA-XXX */
+
+		/* Not managed yet */
+		retval = JWT_VRFY_UNMANAGED_ALG;
+	}
+
+end:
+	free_trash_chunk(decoded_sig);
+
+	return retval;
+}
+
 #endif /* USE_OPENSSL */
