@@ -21,6 +21,9 @@
 
 
 #ifdef USE_OPENSSL
+/* Tree into which the public certificates used to validate JWTs will be stored. */
+static struct eb_root jwt_cert_tree = EB_ROOT_UNIQUE;
+
 /*
  * The possible algorithm strings that can be found in a JWS's JOSE header are
  * defined in section 3.1 of RFC7518.
@@ -120,4 +123,47 @@ int jwt_tokenize(const struct buffer *jwt, struct jwt_item *items, unsigned int 
 	return (ptr != jwt_end);
 }
 
+/*
+ * Parse a public certificate and insert it into the jwt_cert_tree.
+ * Returns 0 in case of success.
+ */
+int jwt_tree_load_cert(char *path, int pathlen, char **err)
+{
+	int retval = -1;
+	struct jwt_cert_tree_entry *entry = NULL;
+	EVP_PKEY *pkey = NULL;
+	BIO *bio = NULL;
+
+	bio = BIO_new(BIO_s_file());
+	if (!bio) {
+		memprintf(err, "%sunable to allocate memory (BIO).\n", err && *err ? *err : "");
+		goto end;
+	}
+
+	if (BIO_read_filename(bio, path) == 1) {
+
+		pkey = PEM_read_bio_PUBKEY(bio, NULL, NULL, NULL);
+
+		if (!pkey) {
+			memprintf(err, "%sfile not found (%s)\n", err && *err ? *err : "", path);
+			goto end;
+		}
+
+		entry = calloc(1, sizeof(*entry) + pathlen + 1);
+		if (!entry) {
+			memprintf(err, "%sunable to allocate memory (jwt_cert_tree_entry).\n", err && *err ? *err : "");
+			goto end;
+		}
+
+		memcpy(entry->path, path, pathlen + 1);
+		entry->pkey = pkey;
+
+		ebst_insert(&jwt_cert_tree, &entry->node);
+		retval = 0;
+	}
+
+end:
+	BIO_free(bio);
+	return retval;
+}
 #endif /* USE_OPENSSL */

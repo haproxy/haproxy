@@ -61,6 +61,12 @@ enum jwt_elt {
 	JWT_ELT_SIG,
 	JWT_ELT_MAX
 };
+
+struct jwt_cert_tree_entry {
+	EVP_PKEY *pkey;
+	struct ebmb_node node;
+	char path[VAR_ARRAY];
+};
 #endif /* USE_OPENSSL */
 
 
