@@ -133,7 +133,7 @@ int init_email_alert(struct mailers *mls, struct proxy *p, char **err)
 		check->addr = mailer->addr;
 		check->port = get_host_port(&mailer->addr);
 
-		if ((t = task_new(MAX_THREADS_MASK)) == NULL) {
+		if ((t = task_new_anywhere()) == NULL) {
 			memprintf(err, "out of memory while allocating mailer alerts task");
 			goto error;
 		}

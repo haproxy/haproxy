@@ -2039,7 +2039,7 @@ static void do_soft_stop_now()
 
 	/* schedule a hard-stop after a delay if needed */
 	if (tick_isset(global.hard_stop_after)) {
-		task = task_new(MAX_THREADS_MASK);
+		task = task_new_anywhere();
 		if (task) {
 			task->process = hard_stop;
 			task_schedule(task, tick_add(now_ms, global.hard_stop_after));
@@ -2077,7 +2077,7 @@ void soft_stop(void)
 	stopping = 1;
 
 	if (tick_isset(global.grace_delay)) {
-		task = task_new(MAX_THREADS_MASK);
+		task = task_new_anywhere();
 		if (task) {
 			ha_notice("Scheduling a soft-stop in %u ms.\n", global.grace_delay);
 			send_log(NULL, LOG_WARNING, "Scheduling a soft-stop in %u ms.\n", global.grace_delay);

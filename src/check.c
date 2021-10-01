@@ -1388,13 +1388,14 @@ int start_check_task(struct check *check, int mininter,
 			    int nbcheck, int srvpos)
 {
 	struct task *t;
-	unsigned long thread_mask = MAX_THREADS_MASK;
 
+	/* task for the check. Process-based checks exclusively run on thread 1. */
 	if (check->type == PR_O2_EXT_CHK)
-		thread_mask = 1;
+		t = task_new_on(1);
+	else
+		t = task_new_anywhere();
 
-	/* task for the check */
-	if ((t = task_new(thread_mask)) == NULL) {
+	if (!t) {
 		ha_alert("Starting [%s:%s] check: out of memory.\n",
 			 check->server->proxy->id, check->server->id);
 		return 0;

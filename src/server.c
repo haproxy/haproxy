@@ -4480,7 +4480,7 @@ static int init_srv_slowstart(struct server *srv)
 	struct task *t;
 
 	if (srv->slowstart) {
-		if ((t = task_new(MAX_THREADS_MASK)) == NULL) {
+		if ((t = task_new_anywhere()) == NULL) {
 			ha_alert("Cannot activate slowstart for server %s/%s: out of memory.\n", srv->proxy->id, srv->id);
 			return ERR_ALERT | ERR_FATAL;
 		}

@@ -248,7 +248,7 @@ int session_accept_fd(struct connection *cli_conn)
 	 *          conn -- owner ---> task <-----+
 	 */
 	if (cli_conn->flags & (CO_FL_WAIT_XPRT | CO_FL_EARLY_SSL_HS)) {
-		if (unlikely((sess->task = task_new(tid_bit)) == NULL))
+		if (unlikely((sess->task = task_new_here()) == NULL))
 			goto out_free_sess;
 
 		sess->task->context = sess;

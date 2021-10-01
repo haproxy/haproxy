@@ -602,7 +602,7 @@ static int qc_init(struct connection *conn, struct proxy *prx,
 	qcc->proxy = prx;
 	qcc->task = NULL;
 	if (tick_isset(qcc->timeout)) {
-		t = task_new(tid_bit);
+		t = task_new_here();
 		if (!t)
 			goto fail;
 
@@ -2107,7 +2107,7 @@ static int qc_takeover(struct connection *conn, int orig_tid)
 		__ha_barrier_store();
 		task_kill(task);
 
-		qcc->task = task_new(tid_bit);
+		qcc->task = task_new_here();
 		if (!qcc->task) {
 			qc_release(qcc);
 			return -1;

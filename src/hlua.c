@@ -8251,9 +8251,9 @@ static int hlua_register_task(lua_State *L)
 	 * otherwise, inherit the current thread identifier
 	 */
 	if (state_id == 0)
-		task = task_new(MAX_THREADS_MASK);
+		task = task_new_anywhere();
 	else
-		task = task_new(tid_bit);
+		task = task_new_here();
 	if (!task)
 		goto alloc_error;
 
@@ -8941,7 +8941,7 @@ static int hlua_applet_tcp_init(struct appctx *ctx, struct proxy *px, struct str
 	ctx->ctx.hlua_apptcp.flags = 0;
 
 	/* Create task used by signal to wakeup applets. */
-	task = task_new(tid_bit);
+	task = task_new_here();
 	if (!task) {
 		SEND_ERR(px, "Lua applet tcp '%s': out of memory.\n",
 		         ctx->rule->arg.hlua_rule->fcn->name);
@@ -9134,7 +9134,7 @@ static int hlua_applet_http_init(struct appctx *ctx, struct proxy *px, struct st
 		ctx->ctx.hlua_apphttp.flags |= APPLET_HTTP11;
 
 	/* Create task used by signal to wakeup applets. */
-	task = task_new(tid_bit);
+	task = task_new_here();
 	if (!task) {
 		SEND_ERR(px, "Lua applet http '%s': out of memory.\n",
 		         ctx->rule->arg.hlua_rule->fcn->name);
@@ -9753,7 +9753,7 @@ static int hlua_cli_parse_fct(char **args, char *payload, struct appctx *appctx,
 	 * We use the same wakeup function than the Lua applet_tcp and
 	 * applet_http. It is absolutely compatible.
 	 */
-	appctx->ctx.hlua_cli.task = task_new(tid_bit);
+	appctx->ctx.hlua_cli.task = task_new_here();
 	if (!appctx->ctx.hlua_cli.task) {
 		SEND_ERR(NULL, "Lua cli '%s': out of memory.\n", fcn->name);
 		goto error;

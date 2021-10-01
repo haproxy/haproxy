@@ -429,7 +429,7 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin, struct bu
 	s->pcli_flags = 0;
 	s->unique_id = IST_NULL;
 
-	if ((t = task_new(tid_bit)) == NULL)
+	if ((t = task_new_here()) == NULL)
 		goto out_fail_alloc;
 
 	s->task = t;

@@ -731,7 +731,7 @@ static struct task *process_sink_forward(struct task * task, void *context, unsi
  */
 int sink_init_forward(struct sink *sink)
 {
-	sink->forward_task = task_new(MAX_THREADS_MASK);
+	sink->forward_task = task_new_anywhere();
 	if (!sink->forward_task)
 		return 0;
 

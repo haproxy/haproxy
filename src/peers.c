@@ -3503,7 +3503,7 @@ int peers_init_sync(struct peers *peers)
 		peers->peers_fe->maxconn += 3;
 	}
 
-	peers->sync_task = task_new(MAX_THREADS_MASK);
+	peers->sync_task = task_new_anywhere();
 	if (!peers->sync_task)
 		return 0;
 

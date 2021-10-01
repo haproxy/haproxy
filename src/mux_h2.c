@@ -945,7 +945,7 @@ static int h2_init(struct connection *conn, struct proxy *prx, struct session *s
 	h2c->proxy = prx;
 	h2c->task = NULL;
 	if (tick_isset(h2c->timeout)) {
-		t = task_new(tid_bit);
+		t = task_new_here();
 		if (!t)
 			goto fail;
 
@@ -6636,7 +6636,7 @@ static int h2_takeover(struct connection *conn, int orig_tid)
 		__ha_barrier_store();
 		task_kill(task);
 
-		h2c->task = task_new(tid_bit);
+		h2c->task = task_new_here();
 		if (!h2c->task) {
 			h2_release(h2c);
 			return -1;

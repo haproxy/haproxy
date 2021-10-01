@@ -808,7 +808,7 @@ static int h1_init(struct connection *conn, struct proxy *proxy, struct session 
 		            &h1c->conn->stopping_list);
 	}
 	if (tick_isset(h1c->timeout)) {
-		t = task_new(tid_bit);
+		t = task_new_here();
 		if (!t) {
 			TRACE_ERROR("H1C task allocation failure", H1_EV_H1C_NEW|H1_EV_H1C_END|H1_EV_H1C_ERR);
 			goto fail;
@@ -3738,7 +3738,7 @@ static int h1_takeover(struct connection *conn, int orig_tid)
 		__ha_barrier_store();
 		task_kill(task);
 
-		h1c->task = task_new(tid_bit);
+		h1c->task = task_new_here();
 		if (!h1c->task) {
 			h1_release(h1c);
 			return -1;

@@ -1686,7 +1686,7 @@ static struct task *mux_stopping_process(struct task *t, void *ctx, unsigned int
 static int allocate_mux_cleanup(void)
 {
 	/* allocates the thread bound mux_stopping_data task */
-	mux_stopping_data[tid].task = task_new(tid_bit);
+	mux_stopping_data[tid].task = task_new_here();
 	if (!mux_stopping_data[tid].task) {
 		ha_alert("Failed to allocate the task for connection cleanup on thread %d.\n", tid);
 		return 0;

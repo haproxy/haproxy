@@ -1134,7 +1134,7 @@ void listener_release(struct listener *l)
 /* Initializes the listener queues. Returns 0 on success, otherwise ERR_* flags */
 static int listener_queue_init()
 {
-	global_listener_queue_task = task_new(MAX_THREADS_MASK);
+	global_listener_queue_task = task_new_anywhere();
 	if (!global_listener_queue_task) {
 		ha_alert("Out of memory when initializing global listener queue\n");
 		return ERR_FATAL|ERR_ABORT;

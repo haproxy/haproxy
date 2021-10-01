@@ -3046,7 +3046,7 @@ static struct quic_conn *qc_new_conn(unsigned int version, int ipv4,
  */
 static int quic_conn_init_timer(struct quic_conn *qc)
 {
-	qc->timer_task = task_new(MAX_THREADS_MASK);
+	qc->timer_task = task_new_anywhere();
 	if (!qc->timer_task)
 		return 0;
 

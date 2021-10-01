@@ -462,8 +462,9 @@ static inline struct tasklet *tasklet_new(void)
 
 /*
  * Allocate and initialise a new task. The new task is returned, or NULL in
- * case of lack of memory. The task count is incremented. Tasks should only
- * be allocated this way, and must be freed using task_free().
+ * case of lack of memory. The task count is incremented. This API might change
+ * in the near future, so prefer one of the task_new_*() wrappers below which
+ * are usually more suitable. Tasks must be freed using task_free().
  */
 static inline struct task *task_new(unsigned long thread_mask)
 {
@@ -473,6 +474,33 @@ static inline struct task *task_new(unsigned long thread_mask)
 		task_init(t, thread_mask);
 	}
 	return t;
+}
+
+/* Allocate and initialize a new task, to run on global thread <thr>. The new
+ * task is returned, or NULL in case of lack of memory. It's up to the caller
+ * to pass a valid thread number (in tid space, 0 to nbthread-1). The task
+ * count is incremented.
+ */
+static inline struct task *task_new_on(uint thr)
+{
+	return task_new(1UL << thr);
+}
+
+/* Allocate and initialize a new task, to run on the calling thread. The new
+ * task is returned, or NULL in case of lack of memory. The task count is
+ * incremented.
+ */
+static inline struct task *task_new_here()
+{
+	return task_new(tid_bit);
+}
+
+/* Allocate and initialize a new task, to run on any thread. The new task is
+ * returned, or NULL in case of lack of memory. The task count is incremented.
+ */
+static inline struct task *task_new_anywhere()
+{
+	return task_new(MAX_THREADS_MASK);
 }
 
 /*

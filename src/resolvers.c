@@ -2412,7 +2412,7 @@ static int resolvers_finalize_config(void)
 		}
 
 		/* Create the task associated to the resolvers section */
-		if ((t = task_new(MAX_THREADS_MASK)) == NULL) {
+		if ((t = task_new_anywhere()) == NULL) {
 			ha_alert("resolvers '%s' : out of memory.\n", resolvers->id);
 			err_code |= (ERR_ALERT|ERR_ABORT);
 			goto err;
@@ -2453,7 +2453,7 @@ static int resolvers_finalize_config(void)
 					}
 				}
 
-				srv->srvrq_check = task_new(MAX_THREADS_MASK);
+				srv->srvrq_check = task_new_anywhere();
 				if (!srv->srvrq_check) {
 					ha_alert("%s '%s' : unable to create SRVRQ task for server '%s'.\n",
 						 proxy_type_str(px), px->id, srv->id);

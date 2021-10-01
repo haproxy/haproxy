@@ -68,7 +68,7 @@ static inline struct appctx *appctx_new(struct applet *applet)
 		appctx->obj_type = OBJ_TYPE_APPCTX;
 		appctx->applet = applet;
 		appctx_init(appctx);
-		appctx->t = task_new(tid_bit);
+		appctx->t = task_new_here();
 		if (unlikely(appctx->t == NULL)) {
 			pool_free(pool_head_appctx, appctx);
 			return NULL;

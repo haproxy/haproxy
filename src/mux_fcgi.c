@@ -734,7 +734,7 @@ static int fcgi_init(struct connection *conn, struct proxy *px, struct session *
 	fconn->app = app;
 	fconn->task = NULL;
 	if (tick_isset(fconn->timeout)) {
-		t = task_new(tid_bit);
+		t = task_new_here();
 		if (!t) {
 			TRACE_ERROR("fconn task allocation failure", FCGI_EV_FCONN_NEW|FCGI_EV_FCONN_END|FCGI_EV_FCONN_ERR);
 			goto fail;
@@ -4247,7 +4247,7 @@ static int fcgi_takeover(struct connection *conn, int orig_tid)
 		__ha_barrier_store();
 		task_kill(task);
 
-		fcgi->task = task_new(tid_bit);
+		fcgi->task = task_new_here();
 		if (!fcgi->task) {
 			fcgi_release(fcgi);
 			return -1;

@@ -3680,7 +3680,7 @@ out_uri_auth_compat:
 		}
 	}
 
-	idle_conn_task = task_new(MAX_THREADS_MASK);
+	idle_conn_task = task_new_anywhere();
 	if (!idle_conn_task) {
 		ha_alert("parsing : failed to allocate global idle connection task.\n");
 		cfgerr++;
@@ -3690,7 +3690,7 @@ out_uri_auth_compat:
 		idle_conn_task->context = NULL;
 
 		for (i = 0; i < global.nbthread; i++) {
-			idle_conns[i].cleanup_task = task_new(1UL << i);
+			idle_conns[i].cleanup_task = task_new_on(i);
 			if (!idle_conns[i].cleanup_task) {
 				ha_alert("parsing : failed to allocate idle connection tasks for thread '%d'.\n", i);
 				cfgerr++;
@@ -3769,7 +3769,7 @@ out_uri_auth_compat:
 		}
 
 		/* create the task associated with the proxy */
-		curproxy->task = task_new(MAX_THREADS_MASK);
+		curproxy->task = task_new_anywhere();
 		if (curproxy->task) {
 			curproxy->task->context = curproxy;
 			curproxy->task->process = manage_proxy;

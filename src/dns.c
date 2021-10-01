@@ -1027,7 +1027,7 @@ struct dns_session *dns_session_new(struct dns_stream_server *dss)
 	/* never fail because it is the first watcher attached to the ring */
 	DISGUISE(ring_attach(&ds->ring));
 
-	if ((ds->task_exp = task_new(tid_bit)) == NULL)
+	if ((ds->task_exp = task_new_here()) == NULL)
 		goto error;
 
 	ds->task_exp->process = dns_process_query_exp;
@@ -1223,7 +1223,7 @@ int dns_stream_init(struct dns_nameserver *ns, struct server *srv)
 		goto out;
 	}
 	/* Create the task associated to the resolver target handling conns */
-	if ((dss->task_req = task_new(MAX_THREADS_MASK)) == NULL) {
+	if ((dss->task_req = task_new_anywhere()) == NULL) {
 		ha_alert("memory allocation error initializing the ring for dns tcp server '%s'.\n", srv->id);
 		goto out;
 	}
@@ -1240,7 +1240,7 @@ int dns_stream_init(struct dns_nameserver *ns, struct server *srv)
 	}
 
 	/* Create the task associated to the resolver target handling conns */
-	if ((dss->task_rsp = task_new(MAX_THREADS_MASK)) == NULL) {
+	if ((dss->task_rsp = task_new_anywhere()) == NULL) {
 		ha_alert("memory allocation error initializing the ring for dns tcp server '%s'.\n", srv->id);
 		goto out;
 	}
@@ -1250,7 +1250,7 @@ int dns_stream_init(struct dns_nameserver *ns, struct server *srv)
 	dss->task_rsp->context = ns;
 
 	/* Create the task associated to the resolver target handling conns */
-	if ((dss->task_idle = task_new(MAX_THREADS_MASK)) == NULL) {
+	if ((dss->task_idle = task_new_anywhere()) == NULL) {
 		ha_alert("memory allocation error initializing the ring for dns tcp server '%s'.\n", srv->id);
 		goto out;
 	}
