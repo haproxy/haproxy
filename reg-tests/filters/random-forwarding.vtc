@@ -37,6 +37,16 @@ server s1 {
         rxreq
         expect req.url == "/"
         txresp -nolen
+        close
+
+        accept
+        rxreq
+        expect req.url == "/"
+        expect req.bodylen == 20480
+        txresp -nolen \
+          -hdr "Content-Type: text/plain" \
+          -bodylen 20480
+
 } -start
 
 haproxy h1 -conf {
@@ -59,6 +69,14 @@ haproxy h1 -conf {
 
     backend be1
         server www ${s1_addr}:${s1_port}
+
+    listen li1
+        mode tcp
+        bind "fd@${li1}"
+        # Validate nothing is blocked in TCP mode
+        filter compression
+        server www ${s1_addr}:${s1_port}
+
 
 } -start
 
@@ -104,4 +122,18 @@ client c3 -connect ${h1_fe1_sock} {
         expect resp.http.transfer-encoding == "<undef>"
         expect resp.http.content-length == "<undef>"
         expect resp.bodylen == 0
+} -run
+
+client c4 -connect ${h1_li1_sock} {
+        txreq -url "/" \
+          -hdr "Accept-Encoding: gzip" \
+          -hdr "Content-Type: text/plain" \
+          -bodylen 20480
+        rxresp
+        expect resp.status == 200
+        expect resp.http.content-encoding == "<undef>"
+        expect resp.http.transfer-encoding == "<undef>"
+        expect resp.http.content-length == "<undef>"
+        expect resp.bodylen == 20480
+        expect_close
 } -run
