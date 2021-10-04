@@ -613,7 +613,7 @@ if a closing parenthesis is needed inside, this one will require to have its
 own quotes.
 
 The keyword argument parser is exactly the same as the top-level one regarding
-quotes, except that is will not make special cases of backslashes. But what is
+quotes, except that the \#, \$, and \xNN escapes are not processed. But what is
 not always obvious is that the delimiters used inside must first be escaped or
 quoted so that they are not resolved at the top level.
 
@@ -692,14 +692,22 @@ thus single quotes are preferred (or double escaping). Example:
                                           arg3 ______________________/
 
 Remember that backslashes are not escape characters within single quotes and
-that the whole word3 above is already protected against them using the single
+that the whole word above is already protected against them using the single
 quotes. Conversely, if double quotes had been used around the whole expression,
 single the dollar character and the backslashes would have been resolved at top
 level, breaking the argument contents at the second level.
 
+Unfortunately, since single quotes can't be escaped inside of strong quoting,
+if you need to include single quotes in your argument, you will need to escape
+or quote them twice. There are a few ways to do this:
+
+    http-request set-var(txn.foo) str("\\'foo\\'")
+    http-request set-var(txn.foo) str(\"\'foo\'\")
+    http-request set-var(txn.foo) str(\\\'foo\\\')
+
 When in doubt, simply do not use quotes anywhere, and start to place single or
 double quotes around arguments that require a comma or a closing parenthesis,
-and think about escaping these quotes using a backslash of the string contains
+and think about escaping these quotes using a backslash if the string contains
 a dollar or a backslash. Again, this is pretty similar to what is used under
 a Bourne shell when double-escaping a command passed to "eval". For API writers
 the best is probably to place escaped quotes around each and every argument,
