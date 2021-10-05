@@ -438,8 +438,8 @@ void httpclient_destroy(struct httpclient *hc)
 	if (!hc)
 		return;
 
-	/* we should never destroy a client which was not stopped */
-	BUG_ON(!httpclient_ended(hc));
+	/* we should never destroy a client which was started but not stopped  */
+	BUG_ON(httpclient_started(hc) && !httpclient_ended(hc));
 
 	/* request */
 	istfree(&hc->req.url);

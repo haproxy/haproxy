@@ -24,4 +24,11 @@ static inline int httpclient_ended(struct httpclient *hc)
 	return !!(hc->flags & HTTPCLIENT_FS_ENDED);
 }
 
+/* Return 1 if the httpclient started */
+static inline int httpclient_started(struct httpclient *hc)
+{
+
+	return !!(hc->flags & HTTPCLIENT_FS_STARTED);
+}
+
 #endif /* ! _HAPROXY_HTTCLIENT_H */
