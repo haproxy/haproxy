@@ -1402,37 +1402,9 @@ static int qc_send(struct qcc *qcc)
 /* this is the tasklet referenced in qcc->wait_event.tasklet */
 static struct task *qc_io_cb(struct task *t, void *ctx, unsigned int status)
 {
-	struct connection *conn;
-	struct tasklet *tl = (struct tasklet *)t;
-	int conn_in_list;
-	struct qcc *qcc;
+	struct qcc *qcc = ctx;
 	int ret = 0;
 
-
-	HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
-	if (t->context == NULL) {
-		/* The connection has been taken over by another thread,
-		 * we're no longer responsible for it, so just free the
-		 * tasklet, and do nothing.
-		 */
-		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
-		tasklet_free(tl);
-		goto leave;
-	}
-	qcc = ctx;
-	conn = qcc->conn;
-
-	TRACE_ENTER(QC_EV_QCC_WAKE, conn);
-
-	conn_in_list = conn->flags & CO_FL_LIST_MASK;
-
-	/* Remove the connection from the list, to be sure nobody attempts
-	 * to use it while we handle the I/O events
-	 */
-	if (conn_in_list)
-		conn_delete_from_tree(&conn->hash_node->node);
-
-	HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 
 	if (!(qcc->wait_event.events & SUB_RETRY_SEND))
 		ret = qc_send(qcc);
@@ -1443,24 +1415,6 @@ static struct task *qc_io_cb(struct task *t, void *ctx, unsigned int status)
 	// TODO redefine the proper condition here
 	//if (ret || qcc->rx.inmux)
 		ret = qc_process(qcc);
-
-	/* If we were in an idle list, we want to add it back into it,
-	 * unless qc_process() returned -1, which mean it has destroyed
-	 * the connection (testing !ret is enough, if qc_process() wasn't
-	 * called then ret will be 0 anyway.
-	 */
-	if (!ret && conn_in_list) {
-		struct server *srv = objt_server(conn->target);
-
-		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
-		if (conn_in_list == CO_FL_SAFE_LIST)
-			ebmb_insert(&srv->per_thr[tid].safe_conns,
-			            &conn->hash_node->node, sizeof(conn->hash_node->hash));
-		else
-			ebmb_insert(&srv->per_thr[tid].idle_conns,
-			            &conn->hash_node->node, sizeof(conn->hash_node->hash));
-		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
-	}
 
 leave:
 	TRACE_LEAVE(QC_EV_QCC_WAKE);
@@ -1903,64 +1857,6 @@ size_t qc_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t count, int 
 
 /* Called from the upper layer, to send data from buffer <buf> for no more than
  * <count> bytes. Returns the number of bytes effectively sent. Some status
- * flags may be updated on the outgoing uni-stream.
- */
-__maybe_unused
-static size_t _qcs_snd_buf(struct qcs *qcs, struct buffer *buf, size_t count, int flags)
-{
-	size_t total = 0;
-	struct qcc *qcc = qcs->qcc;
-	struct buffer *res;
-	struct quic_tx_frm *frm;
-
-	TRACE_ENTER(QC_EV_QCS_SEND|QC_EV_STRM_SEND, qcs->qcc->conn);
-
-	if (!count)
-		goto out;
-
-	res = br_tail(qcc->mbuf);
-	if (!qc_get_buf(qcc, res)) {
-		qcc->flags |= QC_CF_MUX_MALLOC;
-		goto out;
-	}
-
-	while (count) {
-		size_t try, room;
-
-		room = b_room(res);
-		if (!room) {
-			if ((res = br_tail_add(qcc->mbuf)) != NULL)
-				continue;
-
-			qcc->flags |= QC_CF_MUX_MALLOC;
-			break;
-		}
-
-		try = count;
-		if (try > room)
-			try = room;
-
-		total += b_xfer(res, buf, try);
-		count -= try;
-	}
-
-	if (total) {
-
-		frm = pool_alloc(pool_head_quic_frame);
-		if (!frm) { /* XXX XXX */ }
-	}
-
- out:
-	TRACE_LEAVE(QC_EV_QCS_SEND|QC_EV_STRM_SEND, qcs->qcc->conn);
-	return total;
-
- err:
-	TRACE_DEVEL("leaving on stream error", QC_EV_QCS_SEND|QC_EV_STRM_SEND, qcs->qcc->conn);
-	return total;
-}
-
-/* Called from the upper layer, to send data from buffer <buf> for no more than
- * <count> bytes. Returns the number of bytes effectively sent. Some status
  * flags may be updated on the mux.
  */
 size_t luqs_snd_buf(struct qcs *qcs, struct buffer *buf, size_t count, int flags)
@@ -2065,69 +1961,6 @@ static int qc_show_fd(struct buffer *msg, struct connection *conn)
 	return 0;
 }
 
-/* Migrate the the connection to the current thread.
- * Return 0 if successful, non-zero otherwise.
- * Expected to be called with the old thread lock held.
- */
-static int qc_takeover(struct connection *conn, int orig_tid)
-{
-	struct qcc *qcc = conn->ctx;
-	struct task *task;
-
-	if (fd_takeover(conn->handle.fd, conn) != 0)
-		return -1;
-
-	if (conn->xprt->takeover && conn->xprt->takeover(conn, conn->xprt_ctx, orig_tid) != 0) {
-		/* We failed to takeover the xprt, even if the connection may
-		 * still be valid, flag it as error'd, as we have already
-		 * taken over the fd, and wake the tasklet, so that it will
-		 * destroy it.
-		 */
-		conn->flags |= CO_FL_ERROR;
-		tasklet_wakeup_on(qcc->wait_event.tasklet, orig_tid);
-		return -1;
-	}
-
-	if (qcc->wait_event.events)
-		qcc->conn->xprt->unsubscribe(qcc->conn, qcc->conn->xprt_ctx,
-		    qcc->wait_event.events, &qcc->wait_event);
-	/* To let the tasklet know it should free itself, and do nothing else,
-	 * set its context to NULL.
-	 */
-	qcc->wait_event.tasklet->context = NULL;
-	tasklet_wakeup_on(qcc->wait_event.tasklet, orig_tid);
-
-	task = qcc->task;
-	if (task) {
-		task->context = NULL;
-		qcc->task = NULL;
-		__ha_barrier_store();
-		task_kill(task);
-
-		qcc->task = task_new_here();
-		if (!qcc->task) {
-			qc_release(qcc);
-			return -1;
-		}
-
-		qcc->task->process = qc_timeout_task;
-		qcc->task->context = qcc;
-	}
-
-	qcc->wait_event.tasklet = tasklet_new();
-	if (!qcc->wait_event.tasklet) {
-		qc_release(qcc);
-		return -1;
-	}
-
-	qcc->wait_event.tasklet->process = qc_io_cb;
-	qcc->wait_event.tasklet->context = qcc;
-	qcc->conn->xprt->subscribe(qcc->conn, qcc->conn->xprt_ctx,
-		                   SUB_RETRY_RECV, &qcc->wait_event);
-
-	return 0;
-}
-
 /****************************************/
 /* MUX initialization and instantiation */
 /***************************************/
@@ -2156,7 +1989,6 @@ static const struct mux_ops qc_ops = {
 	.shutw = qc_shutw,
 	.ctl = qc_ctl,
 	.show_fd = qc_show_fd,
-	.takeover = qc_takeover,
 	.flags = MX_FL_CLEAN_ABRT|MX_FL_HTX|MX_FL_HOL_RISK,
 	.name = "QUIC",
 };
