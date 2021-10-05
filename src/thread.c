@@ -44,11 +44,6 @@ THREAD_LOCAL unsigned int  tid           = 0;
 THREAD_LOCAL unsigned long tid_bit       = (1UL << 0);
 int thread_cpus_enabled_at_boot          = 1;
 
-
-#if defined(DEBUG_THREAD) || defined(DEBUG_FULL)
-struct lock_stat lock_stats[LOCK_LABELS];
-#endif
-
 /* Marks the thread as harmless until the last thread using the rendez-vous
  * point quits, excluding the current one. Thus an isolated thread may be safely
  * marked as harmless. Given that we can wait for a long time, sched_yield() is
@@ -247,6 +242,561 @@ int thread_cpu_mask_forced()
 	return 0;
 #endif
 }
+
+/* Below come the lock-debugging functions */
+
+#if defined(DEBUG_THREAD) || defined(DEBUG_FULL)
+
+struct lock_stat lock_stats[LOCK_LABELS];
+
+/* this is only used below */
+static const char *lock_label(enum lock_label label)
+{
+	switch (label) {
+	case TASK_RQ_LOCK:         return "TASK_RQ";
+	case TASK_WQ_LOCK:         return "TASK_WQ";
+	case LISTENER_LOCK:        return "LISTENER";
+	case PROXY_LOCK:           return "PROXY";
+	case SERVER_LOCK:          return "SERVER";
+	case LBPRM_LOCK:           return "LBPRM";
+	case SIGNALS_LOCK:         return "SIGNALS";
+	case STK_TABLE_LOCK:       return "STK_TABLE";
+	case STK_SESS_LOCK:        return "STK_SESS";
+	case APPLETS_LOCK:         return "APPLETS";
+	case PEER_LOCK:            return "PEER";
+	case SHCTX_LOCK:           return "SHCTX";
+	case SSL_LOCK:             return "SSL";
+	case SSL_GEN_CERTS_LOCK:   return "SSL_GEN_CERTS";
+	case PATREF_LOCK:          return "PATREF";
+	case PATEXP_LOCK:          return "PATEXP";
+	case VARS_LOCK:            return "VARS";
+	case COMP_POOL_LOCK:       return "COMP_POOL";
+	case LUA_LOCK:             return "LUA";
+	case NOTIF_LOCK:           return "NOTIF";
+	case SPOE_APPLET_LOCK:     return "SPOE_APPLET";
+	case DNS_LOCK:             return "DNS";
+	case PID_LIST_LOCK:        return "PID_LIST";
+	case EMAIL_ALERTS_LOCK:    return "EMAIL_ALERTS";
+	case PIPES_LOCK:           return "PIPES";
+	case TLSKEYS_REF_LOCK:     return "TLSKEYS_REF";
+	case AUTH_LOCK:            return "AUTH";
+	case LOGSRV_LOCK:          return "LOGSRV";
+	case DICT_LOCK:            return "DICT";
+	case PROTO_LOCK:           return "PROTO";
+	case QUEUE_LOCK:           return "QUEUE";
+	case CKCH_LOCK:            return "CKCH";
+	case SNI_LOCK:             return "SNI";
+	case SSL_SERVER_LOCK:      return "SSL_SERVER";
+	case SFT_LOCK:             return "SFT";
+	case IDLE_CONNS_LOCK:      return "IDLE_CONNS";
+	case QUIC_LOCK:            return "QUIC";
+	case OTHER_LOCK:           return "OTHER";
+	case DEBUG1_LOCK:          return "DEBUG1";
+	case DEBUG2_LOCK:          return "DEBUG2";
+	case DEBUG3_LOCK:          return "DEBUG3";
+	case DEBUG4_LOCK:          return "DEBUG4";
+	case DEBUG5_LOCK:          return "DEBUG5";
+	case LOCK_LABELS:          break; /* keep compiler happy */
+	};
+	/* only way to come here is consecutive to an internal bug */
+	abort();
+}
+
+void show_lock_stats()
+{
+	int lbl;
+
+	for (lbl = 0; lbl < LOCK_LABELS; lbl++) {
+		if (!lock_stats[lbl].num_write_locked &&
+		    !lock_stats[lbl].num_seek_locked &&
+		    !lock_stats[lbl].num_read_locked) {
+			fprintf(stderr,
+			        "Stats about Lock %s: not used\n",
+			        lock_label(lbl));
+			continue;
+		}
+
+		fprintf(stderr,
+			"Stats about Lock %s: \n",
+			lock_label(lbl));
+
+		if (lock_stats[lbl].num_write_locked)
+			fprintf(stderr,
+			        "\t # write lock  : %lu\n"
+			        "\t # write unlock: %lu (%ld)\n"
+			        "\t # wait time for write     : %.3f msec\n"
+			        "\t # wait time for write/lock: %.3f nsec\n",
+			        lock_stats[lbl].num_write_locked,
+			        lock_stats[lbl].num_write_unlocked,
+			        lock_stats[lbl].num_write_unlocked - lock_stats[lbl].num_write_locked,
+			        (double)lock_stats[lbl].nsec_wait_for_write / 1000000.0,
+			        lock_stats[lbl].num_write_locked ? ((double)lock_stats[lbl].nsec_wait_for_write / (double)lock_stats[lbl].num_write_locked) : 0);
+
+		if (lock_stats[lbl].num_seek_locked)
+			fprintf(stderr,
+			        "\t # seek lock   : %lu\n"
+			        "\t # seek unlock : %lu (%ld)\n"
+			        "\t # wait time for seek      : %.3f msec\n"
+			        "\t # wait time for seek/lock : %.3f nsec\n",
+			        lock_stats[lbl].num_seek_locked,
+			        lock_stats[lbl].num_seek_unlocked,
+			        lock_stats[lbl].num_seek_unlocked - lock_stats[lbl].num_seek_locked,
+			        (double)lock_stats[lbl].nsec_wait_for_seek / 1000000.0,
+			        lock_stats[lbl].num_seek_locked ? ((double)lock_stats[lbl].nsec_wait_for_seek / (double)lock_stats[lbl].num_seek_locked) : 0);
+
+		if (lock_stats[lbl].num_read_locked)
+			fprintf(stderr,
+			        "\t # read lock   : %lu\n"
+			        "\t # read unlock : %lu (%ld)\n"
+			        "\t # wait time for read      : %.3f msec\n"
+			        "\t # wait time for read/lock : %.3f nsec\n",
+			        lock_stats[lbl].num_read_locked,
+			        lock_stats[lbl].num_read_unlocked,
+			        lock_stats[lbl].num_read_unlocked - lock_stats[lbl].num_read_locked,
+			        (double)lock_stats[lbl].nsec_wait_for_read / 1000000.0,
+			        lock_stats[lbl].num_read_locked ? ((double)lock_stats[lbl].nsec_wait_for_read / (double)lock_stats[lbl].num_read_locked) : 0);
+	}
+}
+
+static uint64_t nsec_now(void)
+{
+        struct timespec ts;
+
+        clock_gettime(CLOCK_MONOTONIC, &ts);
+        return ((uint64_t) ts.tv_sec * 1000000000ULL +
+                (uint64_t) ts.tv_nsec);
+}
+
+void __ha_rwlock_init(struct ha_rwlock *l)
+{
+	memset(l, 0, sizeof(struct ha_rwlock));
+	__RWLOCK_INIT(&l->lock);
+}
+
+void __ha_rwlock_destroy(struct ha_rwlock *l)
+{
+	__RWLOCK_DESTROY(&l->lock);
+	memset(l, 0, sizeof(struct ha_rwlock));
+}
+
+
+void __ha_rwlock_wrlock(enum lock_label lbl, struct ha_rwlock *l,
+                        const char *func, const char *file, int line)
+{
+	uint64_t start_time;
+
+	if ((l->info.cur_readers | l->info.cur_seeker | l->info.cur_writer) & tid_bit)
+		abort();
+
+	HA_ATOMIC_OR(&l->info.wait_writers, tid_bit);
+
+	start_time = nsec_now();
+	__RWLOCK_WRLOCK(&l->lock);
+	HA_ATOMIC_ADD(&lock_stats[lbl].nsec_wait_for_write, (nsec_now() - start_time));
+
+	HA_ATOMIC_INC(&lock_stats[lbl].num_write_locked);
+
+	l->info.cur_writer             = tid_bit;
+	l->info.last_location.function = func;
+	l->info.last_location.file     = file;
+	l->info.last_location.line     = line;
+
+	HA_ATOMIC_AND(&l->info.wait_writers, ~tid_bit);
+}
+
+int __ha_rwlock_trywrlock(enum lock_label lbl, struct ha_rwlock *l,
+                          const char *func, const char *file, int line)
+{
+	uint64_t start_time;
+	int r;
+
+	if ((l->info.cur_readers | l->info.cur_seeker | l->info.cur_writer) & tid_bit)
+		abort();
+
+	/* We set waiting writer because trywrlock could wait for readers to quit */
+	HA_ATOMIC_OR(&l->info.wait_writers, tid_bit);
+
+	start_time = nsec_now();
+	r = __RWLOCK_TRYWRLOCK(&l->lock);
+	HA_ATOMIC_ADD(&lock_stats[lbl].nsec_wait_for_write, (nsec_now() - start_time));
+	if (unlikely(r)) {
+		HA_ATOMIC_AND(&l->info.wait_writers, ~tid_bit);
+		return r;
+	}
+	HA_ATOMIC_INC(&lock_stats[lbl].num_write_locked);
+
+	l->info.cur_writer             = tid_bit;
+	l->info.last_location.function = func;
+	l->info.last_location.file     = file;
+	l->info.last_location.line     = line;
+
+	HA_ATOMIC_AND(&l->info.wait_writers, ~tid_bit);
+
+	return 0;
+}
+
+void __ha_rwlock_wrunlock(enum lock_label lbl,struct ha_rwlock *l,
+                          const char *func, const char *file, int line)
+{
+	if (unlikely(!(l->info.cur_writer & tid_bit))) {
+		/* the thread is not owning the lock for write */
+		abort();
+	}
+
+	l->info.cur_writer             = 0;
+	l->info.last_location.function = func;
+	l->info.last_location.file     = file;
+	l->info.last_location.line     = line;
+
+	__RWLOCK_WRUNLOCK(&l->lock);
+
+	HA_ATOMIC_INC(&lock_stats[lbl].num_write_unlocked);
+}
+
+void __ha_rwlock_rdlock(enum lock_label lbl,struct ha_rwlock *l)
+{
+	uint64_t start_time;
+
+	if ((l->info.cur_readers | l->info.cur_seeker | l->info.cur_writer) & tid_bit)
+		abort();
+
+	HA_ATOMIC_OR(&l->info.wait_readers, tid_bit);
+
+	start_time = nsec_now();
+	__RWLOCK_RDLOCK(&l->lock);
+	HA_ATOMIC_ADD(&lock_stats[lbl].nsec_wait_for_read, (nsec_now() - start_time));
+	HA_ATOMIC_INC(&lock_stats[lbl].num_read_locked);
+
+	HA_ATOMIC_OR(&l->info.cur_readers, tid_bit);
+
+	HA_ATOMIC_AND(&l->info.wait_readers, ~tid_bit);
+}
+
+int __ha_rwlock_tryrdlock(enum lock_label lbl,struct ha_rwlock *l)
+{
+	int r;
+
+	if ((l->info.cur_readers | l->info.cur_seeker | l->info.cur_writer) & tid_bit)
+		abort();
+
+	/* try read should never wait */
+	r = __RWLOCK_TRYRDLOCK(&l->lock);
+	if (unlikely(r))
+		return r;
+	HA_ATOMIC_INC(&lock_stats[lbl].num_read_locked);
+
+	HA_ATOMIC_OR(&l->info.cur_readers, tid_bit);
+
+	return 0;
+}
+
+void __ha_rwlock_rdunlock(enum lock_label lbl,struct ha_rwlock *l)
+{
+	if (unlikely(!(l->info.cur_readers & tid_bit))) {
+		/* the thread is not owning the lock for read */
+		abort();
+	}
+
+	HA_ATOMIC_AND(&l->info.cur_readers, ~tid_bit);
+
+	__RWLOCK_RDUNLOCK(&l->lock);
+
+	HA_ATOMIC_INC(&lock_stats[lbl].num_read_unlocked);
+}
+
+void __ha_rwlock_wrtord(enum lock_label lbl, struct ha_rwlock *l,
+                        const char *func, const char *file, int line)
+{
+	uint64_t start_time;
+
+	if ((l->info.cur_readers | l->info.cur_seeker) & tid_bit)
+		abort();
+
+	if (!(l->info.cur_writer & tid_bit))
+		abort();
+
+	HA_ATOMIC_OR(&l->info.wait_readers, tid_bit);
+
+	start_time = nsec_now();
+	__RWLOCK_WRTORD(&l->lock);
+	HA_ATOMIC_ADD(&lock_stats[lbl].nsec_wait_for_read, (nsec_now() - start_time));
+
+	HA_ATOMIC_INC(&lock_stats[lbl].num_read_locked);
+
+	HA_ATOMIC_OR(&l->info.cur_readers, tid_bit);
+	HA_ATOMIC_AND(&l->info.cur_writer, ~tid_bit);
+	l->info.last_location.function = func;
+	l->info.last_location.file     = file;
+	l->info.last_location.line     = line;
+
+	HA_ATOMIC_AND(&l->info.wait_readers, ~tid_bit);
+}
+
+void __ha_rwlock_wrtosk(enum lock_label lbl, struct ha_rwlock *l,
+                        const char *func, const char *file, int line)
+{
+	uint64_t start_time;
+
+	if ((l->info.cur_readers | l->info.cur_seeker) & tid_bit)
+		abort();
+
+	if (!(l->info.cur_writer & tid_bit))
+		abort();
+
+	HA_ATOMIC_OR(&l->info.wait_seekers, tid_bit);
+
+	start_time = nsec_now();
+	__RWLOCK_WRTOSK(&l->lock);
+	HA_ATOMIC_ADD(&lock_stats[lbl].nsec_wait_for_seek, (nsec_now() - start_time));
+
+	HA_ATOMIC_INC(&lock_stats[lbl].num_seek_locked);
+
+	HA_ATOMIC_OR(&l->info.cur_seeker, tid_bit);
+	HA_ATOMIC_AND(&l->info.cur_writer, ~tid_bit);
+	l->info.last_location.function = func;
+	l->info.last_location.file     = file;
+	l->info.last_location.line     = line;
+
+	HA_ATOMIC_AND(&l->info.wait_seekers, ~tid_bit);
+}
+
+void __ha_rwlock_sklock(enum lock_label lbl, struct ha_rwlock *l,
+                        const char *func, const char *file, int line)
+{
+	uint64_t start_time;
+
+	if ((l->info.cur_readers | l->info.cur_seeker | l->info.cur_writer) & tid_bit)
+		abort();
+
+	HA_ATOMIC_OR(&l->info.wait_seekers, tid_bit);
+
+	start_time = nsec_now();
+	__RWLOCK_SKLOCK(&l->lock);
+	HA_ATOMIC_ADD(&lock_stats[lbl].nsec_wait_for_seek, (nsec_now() - start_time));
+
+	HA_ATOMIC_INC(&lock_stats[lbl].num_seek_locked);
+
+	HA_ATOMIC_OR(&l->info.cur_seeker, tid_bit);
+	l->info.last_location.function = func;
+	l->info.last_location.file     = file;
+	l->info.last_location.line     = line;
+
+	HA_ATOMIC_AND(&l->info.wait_seekers, ~tid_bit);
+}
+
+void __ha_rwlock_sktowr(enum lock_label lbl, struct ha_rwlock *l,
+                        const char *func, const char *file, int line)
+{
+	uint64_t start_time;
+
+	if ((l->info.cur_readers | l->info.cur_writer) & tid_bit)
+		abort();
+
+	if (!(l->info.cur_seeker & tid_bit))
+		abort();
+
+	HA_ATOMIC_OR(&l->info.wait_writers, tid_bit);
+
+	start_time = nsec_now();
+	__RWLOCK_SKTOWR(&l->lock);
+	HA_ATOMIC_ADD(&lock_stats[lbl].nsec_wait_for_write, (nsec_now() - start_time));
+
+	HA_ATOMIC_INC(&lock_stats[lbl].num_write_locked);
+
+	HA_ATOMIC_OR(&l->info.cur_writer, tid_bit);
+	HA_ATOMIC_AND(&l->info.cur_seeker, ~tid_bit);
+	l->info.last_location.function = func;
+	l->info.last_location.file     = file;
+	l->info.last_location.line     = line;
+
+	HA_ATOMIC_AND(&l->info.wait_writers, ~tid_bit);
+}
+
+void __ha_rwlock_sktord(enum lock_label lbl, struct ha_rwlock *l,
+                        const char *func, const char *file, int line)
+{
+	uint64_t start_time;
+
+	if ((l->info.cur_readers | l->info.cur_writer) & tid_bit)
+		abort();
+
+	if (!(l->info.cur_seeker & tid_bit))
+		abort();
+
+	HA_ATOMIC_OR(&l->info.wait_readers, tid_bit);
+
+	start_time = nsec_now();
+	__RWLOCK_SKTORD(&l->lock);
+	HA_ATOMIC_ADD(&lock_stats[lbl].nsec_wait_for_read, (nsec_now() - start_time));
+
+	HA_ATOMIC_INC(&lock_stats[lbl].num_read_locked);
+
+	HA_ATOMIC_OR(&l->info.cur_readers, tid_bit);
+	HA_ATOMIC_AND(&l->info.cur_seeker, ~tid_bit);
+	l->info.last_location.function = func;
+	l->info.last_location.file     = file;
+	l->info.last_location.line     = line;
+
+	HA_ATOMIC_AND(&l->info.wait_readers, ~tid_bit);
+}
+
+void __ha_rwlock_skunlock(enum lock_label lbl,struct ha_rwlock *l,
+                          const char *func, const char *file, int line)
+{
+	if (!(l->info.cur_seeker & tid_bit))
+		abort();
+
+	HA_ATOMIC_AND(&l->info.cur_seeker, ~tid_bit);
+	l->info.last_location.function = func;
+	l->info.last_location.file     = file;
+	l->info.last_location.line     = line;
+
+	__RWLOCK_SKUNLOCK(&l->lock);
+
+	HA_ATOMIC_INC(&lock_stats[lbl].num_seek_unlocked);
+}
+
+int __ha_rwlock_trysklock(enum lock_label lbl, struct ha_rwlock *l,
+                          const char *func, const char *file, int line)
+{
+	uint64_t start_time;
+	int r;
+
+	if ((l->info.cur_readers | l->info.cur_seeker | l->info.cur_writer) & tid_bit)
+		abort();
+
+	HA_ATOMIC_OR(&l->info.wait_seekers, tid_bit);
+
+	start_time = nsec_now();
+	r = __RWLOCK_TRYSKLOCK(&l->lock);
+	HA_ATOMIC_ADD(&lock_stats[lbl].nsec_wait_for_seek, (nsec_now() - start_time));
+
+	if (likely(!r)) {
+		/* got the lock ! */
+		HA_ATOMIC_INC(&lock_stats[lbl].num_seek_locked);
+		HA_ATOMIC_OR(&l->info.cur_seeker, tid_bit);
+		l->info.last_location.function = func;
+		l->info.last_location.file     = file;
+		l->info.last_location.line     = line;
+	}
+
+	HA_ATOMIC_AND(&l->info.wait_seekers, ~tid_bit);
+	return r;
+}
+
+int __ha_rwlock_tryrdtosk(enum lock_label lbl, struct ha_rwlock *l,
+                          const char *func, const char *file, int line)
+{
+	uint64_t start_time;
+	int r;
+
+	if ((l->info.cur_writer | l->info.cur_seeker) & tid_bit)
+		abort();
+
+	if (!(l->info.cur_readers & tid_bit))
+		abort();
+
+	HA_ATOMIC_OR(&l->info.wait_seekers, tid_bit);
+
+	start_time = nsec_now();
+	r = __RWLOCK_TRYRDTOSK(&l->lock);
+	HA_ATOMIC_ADD(&lock_stats[lbl].nsec_wait_for_seek, (nsec_now() - start_time));
+
+	if (likely(!r)) {
+		/* got the lock ! */
+		HA_ATOMIC_INC(&lock_stats[lbl].num_seek_locked);
+		HA_ATOMIC_OR(&l->info.cur_seeker, tid_bit);
+		HA_ATOMIC_AND(&l->info.cur_readers, ~tid_bit);
+		l->info.last_location.function = func;
+		l->info.last_location.file     = file;
+		l->info.last_location.line     = line;
+	}
+
+	HA_ATOMIC_AND(&l->info.wait_seekers, ~tid_bit);
+	return r;
+}
+
+void __spin_init(struct ha_spinlock *l)
+{
+	memset(l, 0, sizeof(struct ha_spinlock));
+	__SPIN_INIT(&l->lock);
+}
+
+void __spin_destroy(struct ha_spinlock *l)
+{
+	__SPIN_DESTROY(&l->lock);
+	memset(l, 0, sizeof(struct ha_spinlock));
+}
+
+void __spin_lock(enum lock_label lbl, struct ha_spinlock *l,
+                 const char *func, const char *file, int line)
+{
+	uint64_t start_time;
+
+	if (unlikely(l->info.owner & tid_bit)) {
+		/* the thread is already owning the lock */
+		abort();
+	}
+
+	HA_ATOMIC_OR(&l->info.waiters, tid_bit);
+
+	start_time = nsec_now();
+	__SPIN_LOCK(&l->lock);
+	HA_ATOMIC_ADD(&lock_stats[lbl].nsec_wait_for_write, (nsec_now() - start_time));
+
+	HA_ATOMIC_INC(&lock_stats[lbl].num_write_locked);
+
+
+	l->info.owner                  = tid_bit;
+	l->info.last_location.function = func;
+	l->info.last_location.file     = file;
+	l->info.last_location.line     = line;
+
+	HA_ATOMIC_AND(&l->info.waiters, ~tid_bit);
+}
+
+int __spin_trylock(enum lock_label lbl, struct ha_spinlock *l,
+                   const char *func, const char *file, int line)
+{
+	int r;
+
+	if (unlikely(l->info.owner & tid_bit)) {
+		/* the thread is already owning the lock */
+		abort();
+	}
+
+	/* try read should never wait */
+	r = __SPIN_TRYLOCK(&l->lock);
+	if (unlikely(r))
+		return r;
+	HA_ATOMIC_INC(&lock_stats[lbl].num_write_locked);
+
+	l->info.owner                  = tid_bit;
+	l->info.last_location.function = func;
+	l->info.last_location.file     = file;
+	l->info.last_location.line     = line;
+
+	return 0;
+}
+
+void __spin_unlock(enum lock_label lbl, struct ha_spinlock *l,
+                   const char *func, const char *file, int line)
+{
+	if (unlikely(!(l->info.owner & tid_bit))) {
+		/* the thread is not owning the lock */
+		abort();
+	}
+
+	l->info.owner                  = 0;
+	l->info.last_location.function = func;
+	l->info.last_location.file     = file;
+	l->info.last_location.line     = line;
+
+	__SPIN_UNLOCK(&l->lock);
+	HA_ATOMIC_INC(&lock_stats[lbl].num_write_unlocked);
+}
+
+#endif // defined(DEBUG_THREAD) || defined(DEBUG_FULL)
 
 /* Depending on the platform and how libpthread was built, pthread_exit() may
  * involve some code in libgcc_s that would be loaded on exit for the first
