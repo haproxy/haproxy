@@ -647,7 +647,8 @@ static inline void qc_set_timer(struct ssl_sock_ctx *ctx)
 	if (tick_isset(pto))
 		qc->timer = pto;
  out:
-	task_schedule(qc->timer_task, qc->timer);
+	if (qc->timer != TICK_ETERNITY)
+		task_schedule(qc->timer_task, qc->timer);
 	TRACE_LEAVE(QUIC_EV_CONN_STIMER, ctx->conn, pktns);
 }
 
