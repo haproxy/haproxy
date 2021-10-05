@@ -6988,7 +6988,7 @@ __LJMP static int hlua_httpclient_get_headers(lua_State *L, struct hlua_httpclie
 
 	lua_newtable(L);
 
-	for (hdr = hlua_hc->hc->res.hdrs; isttest(hdr->n); hdr++) {
+	for (hdr = hlua_hc->hc->res.hdrs; hdr && isttest(hdr->n); hdr++) {
 		struct ist n, v;
 		int len;
 
