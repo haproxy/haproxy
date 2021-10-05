@@ -416,25 +416,15 @@ static int h3_control_send(struct h3_uqs *h3_uqs, void *ctx)
 	return ret;
 }
 
-/* Return next empty buffer of mux.
- * TODO to optimize memory consumption, a non-full buffer should be used before
- * allocating a new one.
- * TODO put this in mux ??
+/* Returns buffer for data sending.
+ * May be NULL if the allocation failed.
  */
-static struct buffer *get_mux_next_tx_buf(struct qcs *qcs)
+static struct buffer *mux_get_buf(struct qcs *qcs)
 {
-	struct buffer *buf = br_tail(qcs->tx.mbuf);
+	if (!b_size(&qcs->tx.buf))
+		b_alloc(&qcs->tx.buf);
 
-	if (b_data(buf))
-		buf = br_tail_add(qcs->tx.mbuf);
-
-	if (!b_size(buf))
-		qc_get_buf(qcs->qcc, buf);
-
-	if (!buf)
-		ABORT_NOW();
-
-	return buf;
+	return &qcs->tx.buf;
 }
 
 static int h3_resp_headers_send(struct qcs *qcs, struct htx *htx)
@@ -484,7 +474,7 @@ static int h3_resp_headers_send(struct qcs *qcs, struct htx *htx)
 
 	list[hdr].n = ist("");
 
-	res = get_mux_next_tx_buf(qcs);
+	res = mux_get_buf(qcs);
 
 	/* At least 5 bytes to store frame type + length as a varint max size */
 	if (b_room(res) < 5)
@@ -517,7 +507,6 @@ static int h3_resp_headers_send(struct qcs *qcs, struct htx *htx)
 	if (!b_quic_enc_int(res, b_data(&headers_buf)))
 		ABORT_NOW();
 	b_add(res, b_data(&headers_buf));
-	qcs->tx.left += 1 + frame_length_size + b_data(&headers_buf);
 
 	ret = 0;
 	blk = htx_get_head_blk(htx);
@@ -563,7 +552,7 @@ static int h3_resp_data_send(struct qcs *qcs, struct buffer *buf, size_t count)
 	if (type != HTX_BLK_DATA)
 		goto end;
 
-	res = get_mux_next_tx_buf(qcs);
+	res = mux_get_buf(qcs);
 
 	if (fsize > count)
 		fsize = count;
@@ -589,7 +578,6 @@ static int h3_resp_data_send(struct qcs *qcs, struct buffer *buf, size_t count)
 		htx_cut_data_blk(htx, blk, fsize);
 
 	b_add(res, b_data(&outbuf));
-	qcs->tx.left += b_data(&outbuf);
 	goto new_frame;
 
  end:

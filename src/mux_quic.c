@@ -905,6 +905,9 @@ static void qcs_destroy(struct qcs *qcs)
 		offer_buffers(NULL, 1);
 	}
 
+	b_free(&qcs->tx.buf);
+	b_free(&qcs->tx.xprt_buf);
+
 	if (qcs->subs)
 		qcs->subs->events = 0;
 
@@ -963,8 +966,7 @@ struct qcs *bidi_qcs_new(struct qcc *qcc, uint64_t id)
 	qcs->tx.acked_frms = EB_ROOT_UNIQUE;
 	qcs->tx.max_data = qcc->strms[qcs_type].tx.max_data;
 	qcs->tx.buf      = BUF_NULL;
-	br_init(qcs->tx.mbuf, sizeof(qcs->tx.mbuf) / sizeof(qcs->tx.mbuf[0]));
-	qcs->tx.left     = 0;
+	qcs->tx.xprt_buf = BUF_NULL;
 
 	eb64_insert(&qcc->streams_by_id, &qcs->by_id);
 	qcc->strms[qcs_type].nb_streams++;
@@ -1028,8 +1030,7 @@ struct qcs *luqs_new(struct qcc *qcc)
 	qcs->tx.offset     = qcs->tx.bytes = qcs->tx.ack_offset = 0;
 	qcs->tx.acked_frms = EB_ROOT_UNIQUE;
 	qcs->tx.buf        = BUF_NULL;
-	br_init(qcs->tx.mbuf, sizeof(qcs->tx.mbuf) / sizeof(qcs->tx.mbuf[0]));
-	qcs->tx.left = 0;
+	qcs->tx.xprt_buf   = BUF_NULL;
 
 	qcs->subs = NULL;
 	LIST_INIT(&qcs->list);
@@ -1070,8 +1071,8 @@ struct qcs *ruqs_new(struct qcc *qcc, uint64_t id)
 	qcs->rx.offset = qcs->rx.bytes = 0;
 	qcs->rx.buf = BUF_NULL;
 	qcs->rx.frms = EB_ROOT_UNIQUE;
-	br_init(qcs->tx.mbuf, sizeof(qcs->tx.mbuf) / sizeof(qcs->tx.mbuf[0]));
-	qcs->tx.left = 0;
+	qcs->tx.buf      = BUF_NULL;
+	qcs->tx.xprt_buf = BUF_NULL;
 
 	qcs->subs = NULL;
 	LIST_INIT(&qcs->list);
@@ -1304,7 +1305,7 @@ static int qc_recv(struct qcc *qcc)
 static int qcs_push_frame(struct qcs *qcs, struct buffer *payload, int fin, uint64_t offset)
 {
 	struct quic_frame *frm;
-	struct buffer *buf = &qcs->tx.buf;
+	struct buffer *buf = &qcs->tx.xprt_buf;
 	struct quic_enc_level *qel = &qcs->qcc->conn->qc->els[QUIC_TLS_ENC_LEVEL_APP];
 	int total = 0, to_xfer;
 
@@ -1348,7 +1349,6 @@ static int qcs_push_frame(struct qcs *qcs, struct buffer *payload, int fin, uint
  */
 static int qc_send(struct qcc *qcc)
 {
-	struct qcs *qcs;
 	struct eb64_node *node;
 	int ret, done;
 
@@ -1363,33 +1363,29 @@ static int qc_send(struct qcc *qcc)
 	 */
 	node = eb64_first(&qcc->streams_by_id);
 	while (node) {
-		struct buffer *buf;
-		qcs = container_of(node, struct qcs, by_id);
-		for (buf = br_head(qcs->tx.mbuf); b_size(buf); buf = br_del_head(qcs->tx.mbuf)) {
-			if (b_data(buf)) {
-				char fin = 0;
+		struct qcs *qcs = container_of(node, struct qcs, by_id);
+		struct buffer *buf = &qcs->tx.buf;
+		if (b_data(buf)) {
+			char fin = 0;
 
-				/* if FIN is activated, ensure the buffer to
-				 * send is the last
-				 */
-				if (qcs->flags & QC_SF_FIN_STREAM) {
-					BUG_ON(qcs->tx.left < b_data(buf));
-					fin = !(qcs->tx.left - b_data(buf));
-				}
-
-				ret = qcs_push_frame(qcs, buf, fin, qcs->tx.offset);
-				if (ret < 0)
-					ABORT_NOW();
-
-				qcs->tx.left -= ret;
-				qcs->tx.offset += ret;
-				if (b_data(buf)) {
-					qcc->conn->xprt->subscribe(qcc->conn, qcc->conn->xprt_ctx,
-											   SUB_RETRY_SEND, &qcc->wait_event);
-					break;
-				}
+			/* if FIN is activated, ensure the buffer to
+			 * send is the last
+			 */
+			if (qcs->flags & QC_SF_FIN_STREAM) {
+				BUG_ON(b_data(&qcs->tx.buf) < b_data(buf));
+				fin = (b_data(&qcs->tx.buf) - b_data(buf) == 0);
 			}
-			b_free(buf);
+
+			ret = qcs_push_frame(qcs, buf, fin, qcs->tx.offset);
+			if (ret < 0)
+				ABORT_NOW();
+
+			qcs->tx.offset += ret;
+			if (b_data(buf)) {
+				qcc->conn->xprt->subscribe(qcc->conn, qcc->conn->xprt_ctx,
+				                           SUB_RETRY_SEND, &qcc->wait_event);
+				break;
+			}
 		}
 		node = eb64_next(node);
 	}

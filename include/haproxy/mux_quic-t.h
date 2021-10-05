@@ -228,9 +228,8 @@ struct qcs {
 		uint64_t bytes;    /* number of bytes sent */
 		uint64_t ack_offset; /* last acked ordered byte offset */
 		struct eb_root acked_frms; /* acked frames ordered by their offsets */
-		struct buffer buf; /* transmit buffer, always valid (buf_empty or real buffer) */
-		struct buffer mbuf[QCC_MBUF_CNT];
-		uint64_t left;     /* data currently stored in mbuf waiting for send */
+		struct buffer buf;      /* transmit buffer before sending via xprt */
+		struct buffer xprt_buf; /* buffer for xprt sending, cleared on ACK. */
 	} tx;
 	struct wait_event *subs;  /* recv wait_event the conn_stream associated is waiting on (via qc_subscribe) */
 	struct list list; /* To be used when adding in qcc->send_list or qcc->fctl_lsit */
