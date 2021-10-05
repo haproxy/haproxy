@@ -24,7 +24,6 @@
 
 #include <haproxy/api-t.h>
 #include <haproxy/list-t.h>
-#include <haproxy/thread-t.h>
 
 #define MEM_F_SHARED	0x1
 #define MEM_F_EXACT	0x2
