@@ -16,6 +16,8 @@
 #include <ctype.h>
 #include <errno.h>
 
+#include <import/ebmbtree.h>
+
 #include <haproxy/api.h>
 #include <haproxy/applet-t.h>
 #include <haproxy/backend.h>
@@ -5618,6 +5620,133 @@ static void srv_cleanup_connections(struct server *srv)
 		if ((i = ((i + 1 == global.nbthread) ? 0 : i + 1)) == tid)
 			break;
 	}
+}
+
+/* removes an idle conn after updating the server idle conns counters */
+void srv_release_conn(struct server *srv, struct connection *conn)
+{
+	if (conn->flags & CO_FL_LIST_MASK) {
+		/* The connection is currently in the server's idle list, so tell it
+		 * there's one less connection available in that list.
+		 */
+		_HA_ATOMIC_DEC(&srv->curr_idle_conns);
+		_HA_ATOMIC_DEC(conn->flags & CO_FL_SAFE_LIST ? &srv->curr_safe_nb : &srv->curr_idle_nb);
+		_HA_ATOMIC_DEC(&srv->curr_idle_thr[tid]);
+	}
+	else {
+		/* The connection is not private and not in any server's idle
+		 * list, so decrement the current number of used connections
+		 */
+		_HA_ATOMIC_DEC(&srv->curr_used_conns);
+	}
+
+	/* Remove the connection from any tree (safe, idle or available) */
+	HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+	conn_delete_from_tree(&conn->hash_node->node);
+	HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+}
+
+/* retrieve a connection from its <hash> in <tree>
+ * returns NULL if no connection found
+ */
+struct connection *srv_lookup_conn(struct eb_root *tree, uint64_t hash)
+{
+	struct ebmb_node *node = NULL;
+	struct connection *conn = NULL;
+	struct conn_hash_node *hash_node = NULL;
+
+	node = ebmb_lookup(tree, &hash, sizeof(hash_node->hash));
+	if (node) {
+		hash_node = ebmb_entry(node, struct conn_hash_node, node);
+		conn = hash_node->conn;
+	}
+
+	return conn;
+}
+
+/* retrieve the next connection sharing the same hash as <conn>
+ * returns NULL if no connection found
+ */
+struct connection *srv_lookup_conn_next(struct connection *conn)
+{
+	struct ebmb_node *node = NULL;
+	struct connection *next_conn = NULL;
+	struct conn_hash_node *hash_node = NULL;
+
+	node = ebmb_next_dup(&conn->hash_node->node);
+	if (node) {
+		hash_node = ebmb_entry(node, struct conn_hash_node, node);
+		next_conn = hash_node->conn;
+	}
+
+	return next_conn;
+}
+
+/* This adds an idle connection to the server's list if the connection is
+ * reusable, not held by any owner anymore, but still has available streams.
+ */
+int srv_add_to_idle_list(struct server *srv, struct connection *conn, int is_safe)
+{
+	/* we try to keep the connection in the server's idle list
+	 * if we don't have too many FD in use, and if the number of
+	 * idle+current conns is lower than what was observed before
+	 * last purge, or if we already don't have idle conns for the
+	 * current thread and we don't exceed last count by global.nbthread.
+	 */
+	if (!(conn->flags & CO_FL_PRIVATE) &&
+	    srv && srv->pool_purge_delay > 0 &&
+	    ((srv->proxy->options & PR_O_REUSE_MASK) != PR_O_REUSE_NEVR) &&
+	    ha_used_fds < global.tune.pool_high_count &&
+	    (srv->max_idle_conns == -1 || srv->max_idle_conns > srv->curr_idle_conns) &&
+	    ((eb_is_empty(&srv->per_thr[tid].safe_conns) &&
+	      (is_safe || eb_is_empty(&srv->per_thr[tid].idle_conns))) ||
+	     (ha_used_fds < global.tune.pool_low_count &&
+	      (srv->curr_used_conns + srv->curr_idle_conns <=
+	       MAX(srv->curr_used_conns, srv->est_need_conns) + srv->low_idle_conns))) &&
+	    !conn->mux->used_streams(conn) && conn->mux->avail_streams(conn)) {
+		int retadd;
+
+		retadd = _HA_ATOMIC_ADD_FETCH(&srv->curr_idle_conns, 1);
+		if (retadd > srv->max_idle_conns) {
+			_HA_ATOMIC_DEC(&srv->curr_idle_conns);
+			return 0;
+		}
+		_HA_ATOMIC_DEC(&srv->curr_used_conns);
+
+		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+		conn_delete_from_tree(&conn->hash_node->node);
+
+		if (is_safe) {
+			conn->flags = (conn->flags & ~CO_FL_LIST_MASK) | CO_FL_SAFE_LIST;
+			ebmb_insert(&srv->per_thr[tid].safe_conns, &conn->hash_node->node, sizeof(conn->hash_node->hash));
+			_HA_ATOMIC_INC(&srv->curr_safe_nb);
+		} else {
+			conn->flags = (conn->flags & ~CO_FL_LIST_MASK) | CO_FL_IDLE_LIST;
+			ebmb_insert(&srv->per_thr[tid].idle_conns, &conn->hash_node->node, sizeof(conn->hash_node->hash));
+			_HA_ATOMIC_INC(&srv->curr_idle_nb);
+		}
+		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+		_HA_ATOMIC_INC(&srv->curr_idle_thr[tid]);
+
+		__ha_barrier_full();
+		if ((volatile void *)srv->idle_node.node.leaf_p == NULL) {
+			HA_SPIN_LOCK(OTHER_LOCK, &idle_conn_srv_lock);
+			if ((volatile void *)srv->idle_node.node.leaf_p == NULL) {
+				srv->idle_node.key = tick_add(srv->pool_purge_delay,
+				                              now_ms);
+				eb32_insert(&idle_conn_srv, &srv->idle_node);
+				if (!task_in_wq(idle_conn_task) && !
+				    task_in_rq(idle_conn_task)) {
+					task_schedule(idle_conn_task,
+					              srv->idle_node.key);
+				}
+
+			}
+			HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conn_srv_lock);
+		}
+		return 1;
+	}
+	return 0;
 }
 
 struct task *srv_cleanup_idle_conns(struct task *task, void *context, unsigned int state)
