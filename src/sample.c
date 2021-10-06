@@ -33,6 +33,7 @@
 #include <haproxy/istbuf.h>
 #include <haproxy/mqtt.h>
 #include <haproxy/net_helper.h>
+#include <haproxy/openssl-compat.h>
 #include <haproxy/protobuf.h>
 #include <haproxy/proxy.h>
 #include <haproxy/regex.h>
