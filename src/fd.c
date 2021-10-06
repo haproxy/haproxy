@@ -94,6 +94,7 @@
 #include <haproxy/global.h>
 #include <haproxy/log.h>
 #include <haproxy/port_range.h>
+#include <haproxy/ticks.h>
 #include <haproxy/tools.h>
 
 
@@ -698,6 +699,30 @@ void my_closefrom(int start)
 		close(start++);
 }
 #endif // defined(USE_POLL)
+
+/* Computes the bounded poll() timeout based on the next expiration timer <next>
+ * by bounding it to MAX_DELAY_MS. <next> may equal TICK_ETERNITY. The pollers
+ * just needs to call this function right before polling to get their timeout
+ * value. Timeouts that are already expired (possibly due to a pending event)
+ * are accounted for in activity.poll_exp.
+ */
+int compute_poll_timeout(int next)
+{
+	int wait_time;
+
+	if (!tick_isset(next))
+		wait_time = MAX_DELAY_MS;
+	else if (tick_is_expired(next, now_ms)) {
+		activity[tid].poll_exp++;
+		wait_time = 0;
+	}
+	else {
+		wait_time = TICKS_TO_MS(tick_remain(now_ms, next)) + 1;
+		if (wait_time > MAX_DELAY_MS)
+			wait_time = MAX_DELAY_MS;
+	}
+	return wait_time;
+}
 
 /* disable the specified poller */
 void disable_poller(const char *poller_name)
