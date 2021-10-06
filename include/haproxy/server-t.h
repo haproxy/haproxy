@@ -35,10 +35,8 @@
 #include <haproxy/freq_ctr-t.h>
 #include <haproxy/listener-t.h>
 #include <haproxy/obj_type-t.h>
-#include <haproxy/openssl-compat.h>
 #include <haproxy/queue-t.h>
 #include <haproxy/resolvers-t.h>
-#include <haproxy/ssl_sock-t.h>
 #include <haproxy/stats-t.h>
 #include <haproxy/task-t.h>
 #include <haproxy/thread-t.h>
@@ -330,7 +328,7 @@ struct server {
 
 	char *sni_expr;             /* Temporary variable to store a sample expression for SNI */
 	struct {
-		SSL_CTX *ctx;
+		void *ctx;
 		struct {
 			unsigned char *ptr;
 			int size;
@@ -341,9 +339,7 @@ struct server {
 		__decl_thread(HA_RWLOCK_T lock); /* lock the cache and SSL_CTX during commit operations */
 
 		char *ciphers;			/* cipher suite to use if non-null */
-#ifdef HAVE_SSL_CTX_SET_CIPHERSUITES
 		char *ciphersuites;			/* TLS 1.3 cipher suite to use if non-null */
-#endif
 		int options;			/* ssl options */
 		int verify;			/* verify method (set of SSL_VERIFY_* flags) */
 		struct tls_version_filter methods;	/* ssl methods */
@@ -351,14 +347,10 @@ struct server {
 		char *ca_file;			/* CAfile to use on verify */
 		char *crl_file;			/* CRLfile to use on verify */
 		struct sample_expr *sni;        /* sample expression for SNI */
-#ifdef OPENSSL_NPN_NEGOTIATED
 		char *npn_str;                  /* NPN protocol string */
 		int npn_len;                    /* NPN protocol string length */
-#endif
-#ifdef TLSEXT_TYPE_application_layer_protocol_negotiation
 		char *alpn_str;                 /* ALPN protocol string */
 		int alpn_len;                   /* ALPN protocol string length */
-#endif
 	} ssl_ctx;
 #ifdef USE_QUIC
 	struct quic_transport_params quic_params; /* QUIC transport parameters */
