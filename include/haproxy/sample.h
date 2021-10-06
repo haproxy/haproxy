@@ -40,6 +40,7 @@ struct sample *sample_process(struct proxy *px, struct session *sess,
 struct sample *sample_fetch_as_type(struct proxy *px, struct session *sess,
                                    struct stream *strm, unsigned int opt,
                                    struct sample_expr *expr, int smp_type);
+int sample_conv_var2smp(const struct var_desc *var, struct sample *smp, int type);
 int sample_conv_var2smp_sint(const struct arg *arg, struct sample *smp);
 int sample_conv_var2smp_str(const struct arg *arg, struct sample *smp);
 void release_sample_expr(struct sample_expr *expr);
