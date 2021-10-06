@@ -1350,7 +1350,7 @@ static int qcs_push_frame(struct qcs *qcs, struct buffer *payload, int fin, uint
 static int qc_send(struct qcc *qcc)
 {
 	struct eb64_node *node;
-	int ret, done;
+	int ret, done, xprt_wake = 0;
 
 	TRACE_ENTER(QC_EV_QCC_SEND, qcc->conn);
 	ret = done = 0;
@@ -1380,18 +1380,26 @@ static int qc_send(struct qcc *qcc)
 			if (ret < 0)
 				ABORT_NOW();
 
+			if (ret > 0) {
+				xprt_wake = 1;
+				if (qcs->flags & QC_SF_BLK_MROOM) {
+					qcs->flags &= ~QC_SF_BLK_MROOM;
+					qcs_notify_send(qcs);
+				}
+			}
+
 			qcs->tx.offset += ret;
+
 			if (b_data(buf)) {
 				qcc->conn->xprt->subscribe(qcc->conn, qcc->conn->xprt_ctx,
 				                           SUB_RETRY_SEND, &qcc->wait_event);
-				break;
 			}
 		}
 		node = eb64_next(node);
 	}
-	if (ret > 0)
-		tasklet_wakeup(((struct ssl_sock_ctx *)(qcc->conn->xprt_ctx))->wait_event.tasklet);
 
+	if (xprt_wake)
+		tasklet_wakeup(((struct ssl_sock_ctx *)(qcc->conn->xprt_ctx))->wait_event.tasklet);
 
 	TRACE_LEAVE(QC_EV_QCC_SEND, qcc->conn);
 	return 0;
@@ -1832,25 +1840,6 @@ static size_t qc_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 	/* XXX TO DO XXX */
 	TRACE_LEAVE(QC_EV_STRM_RECV, qcc->conn, qcs);
 	return ret;
-}
-
-/* Called from the upper layer, to send data from buffer <buf> for no more than
- * <count> bytes. Returns the number of bytes effectively sent. Some status
- * flags may be updated on the conn_stream.
- */
-size_t qc_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t count, int flags)
-{
-	struct qcs *qcs = cs->ctx;
-
-	TRACE_ENTER(QC_EV_QCS_SEND|QC_EV_STRM_SEND, qcs->qcc->conn, qcs);
-
-	if (count) {
-		if (!(qcs->qcc->wait_event.events & SUB_RETRY_SEND))
-			tasklet_wakeup(qcs->qcc->wait_event.tasklet);
-	}
-
-	TRACE_LEAVE(QC_EV_QCS_SEND|QC_EV_STRM_SEND, qcs->qcc->conn, qcs);
-	return count;
 }
 
 /* Called from the upper layer, to send data from buffer <buf> for no more than
