@@ -28,7 +28,6 @@
 #include <haproxy/buf.h>
 #include <haproxy/connection-t.h>
 #include <haproxy/fd.h>
-#include <haproxy/http_ana.h>
 #include <haproxy/list.h>
 #include <haproxy/listener-t.h>
 #include <haproxy/obj_type.h>
