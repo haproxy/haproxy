@@ -26,9 +26,10 @@
 #include <string.h>
 
 #include <haproxy/api.h>
-#include <haproxy/cli-t.h>
-#include <haproxy/list.h>
 #include <haproxy/listener-t.h>
+
+struct proxy;
+struct task;
 
 /* adjust the listener's state and its proxy's listener counters if needed */
 void listener_set_state(struct listener *l, enum li_state st);
@@ -171,65 +172,9 @@ const char *bind_find_best_kw(const char *word);
 
 void bind_recount_thread_bits(struct bind_conf *conf);
 unsigned int bind_map_thread_id(const struct bind_conf *conf, unsigned int r);
-
-/* allocate an bind_conf struct for a bind line, and chain it to the frontend <fe>.
- * If <arg> is not NULL, it is duplicated into ->arg to store useful config
- * information for error reporting. NULL is returned on error.
- */
-static inline struct bind_conf *bind_conf_alloc(struct proxy *fe, const char *file,
-                                 int line, const char *arg, struct xprt_ops *xprt)
-{
-	struct bind_conf *bind_conf = calloc(1, sizeof(*bind_conf));
-
-	if (!bind_conf)
-		goto err;
-
-	bind_conf->file = strdup(file);
-	if (!bind_conf->file)
-		goto err;
-	bind_conf->line = line;
-	if (arg) {
-		bind_conf->arg = strdup(arg);
-		if (!bind_conf->arg)
-			goto err;
-	}
-
-	LIST_APPEND(&fe->conf.bind, &bind_conf->by_fe);
-	bind_conf->settings.ux.uid = -1;
-	bind_conf->settings.ux.gid = -1;
-	bind_conf->settings.ux.mode = 0;
-	bind_conf->xprt = xprt;
-	bind_conf->frontend = fe;
-	bind_conf->severity_output = CLI_SEVERITY_NONE;
-#ifdef USE_OPENSSL
-	HA_RWLOCK_INIT(&bind_conf->sni_lock);
-	bind_conf->sni_ctx = EB_ROOT;
-	bind_conf->sni_w_ctx = EB_ROOT;
-#endif
-	LIST_INIT(&bind_conf->listeners);
-	return bind_conf;
-
-  err:
-	if (bind_conf) {
-		ha_free(&bind_conf->file);
-		ha_free(&bind_conf->arg);
-	}
-	ha_free(&bind_conf);
-	return NULL;
-}
-
-static inline const char *listener_state_str(const struct listener *l)
-{
-	static const char *states[8] = {
-		"NEW", "INI", "ASS", "PAU", "LIS", "RDY", "FUL", "LIM",
-	};
-	unsigned int st = l->state;
-
-	if (st >= sizeof(states) / sizeof(*states))
-		return "INVALID";
-	return states[st];
-}
-
+struct bind_conf *bind_conf_alloc(struct proxy *fe, const char *file,
+                                  int line, const char *arg, struct xprt_ops *xprt);
+const char *listener_state_str(const struct listener *l);
 struct task *accept_queue_process(struct task *t, void *context, unsigned int state);
 struct task *manage_global_listener_queue(struct task *t, void *context, unsigned int state);
 

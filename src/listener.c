@@ -21,6 +21,7 @@
 #include <haproxy/api.h>
 #include <haproxy/activity.h>
 #include <haproxy/cfgparse.h>
+#include <haproxy/cli-t.h>
 #include <haproxy/connection.h>
 #include <haproxy/errors.h>
 #include <haproxy/fd.h>
@@ -1282,6 +1283,64 @@ const char *bind_find_best_kw(const char *word)
 		best_ptr = NULL;
 
 	return best_ptr;
+}
+
+/* allocate an bind_conf struct for a bind line, and chain it to the frontend <fe>.
+ * If <arg> is not NULL, it is duplicated into ->arg to store useful config
+ * information for error reporting. NULL is returned on error.
+ */
+struct bind_conf *bind_conf_alloc(struct proxy *fe, const char *file,
+                                  int line, const char *arg, struct xprt_ops *xprt)
+{
+	struct bind_conf *bind_conf = calloc(1, sizeof(*bind_conf));
+
+	if (!bind_conf)
+		goto err;
+
+	bind_conf->file = strdup(file);
+	if (!bind_conf->file)
+		goto err;
+	bind_conf->line = line;
+	if (arg) {
+		bind_conf->arg = strdup(arg);
+		if (!bind_conf->arg)
+			goto err;
+	}
+
+	LIST_APPEND(&fe->conf.bind, &bind_conf->by_fe);
+	bind_conf->settings.ux.uid = -1;
+	bind_conf->settings.ux.gid = -1;
+	bind_conf->settings.ux.mode = 0;
+	bind_conf->xprt = xprt;
+	bind_conf->frontend = fe;
+	bind_conf->severity_output = CLI_SEVERITY_NONE;
+#ifdef USE_OPENSSL
+	HA_RWLOCK_INIT(&bind_conf->sni_lock);
+	bind_conf->sni_ctx = EB_ROOT;
+	bind_conf->sni_w_ctx = EB_ROOT;
+#endif
+	LIST_INIT(&bind_conf->listeners);
+	return bind_conf;
+
+  err:
+	if (bind_conf) {
+		ha_free(&bind_conf->file);
+		ha_free(&bind_conf->arg);
+	}
+	ha_free(&bind_conf);
+	return NULL;
+}
+
+const char *listener_state_str(const struct listener *l)
+{
+	static const char *states[8] = {
+		"NEW", "INI", "ASS", "PAU", "LIS", "RDY", "FUL", "LIM",
+	};
+	unsigned int st = l->state;
+
+	if (st >= sizeof(states) / sizeof(*states))
+		return "INVALID";
+	return states[st];
 }
 
 /************************************************************************/
