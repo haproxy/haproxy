@@ -92,8 +92,6 @@
  * to conditionally define it in openssl-compat.h than using lots of ifdefs.
  */
 
-int sslconns = 0;
-int totalsslconns = 0;
 int nb_engines = 0;
 
 static struct eb_root cert_issuer_tree = EB_ROOT; /* issuers tree from "issuers-chain-path" */
@@ -708,7 +706,7 @@ void ssl_async_fd_free(int fd)
 
 	/* Now we can safely call SSL_free, no more pending job in engines */
 	SSL_free(ssl);
-	_HA_ATOMIC_DEC(&sslconns);
+	_HA_ATOMIC_DEC(&global.sslconns);
 	_HA_ATOMIC_DEC(&jobs);
 }
 /*
@@ -5438,7 +5436,7 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 			goto err;
 	}
 
-	if (global.maxsslconn && sslconns >= global.maxsslconn) {
+	if (global.maxsslconn && global.sslconns >= global.maxsslconn) {
 		conn->err_code = CO_ER_SSL_TOO_MANY;
 		goto err;
 	}
@@ -5467,8 +5465,8 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 		/* leave init state and start handshake */
 		conn->flags |= CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN;
 
-		_HA_ATOMIC_INC(&sslconns);
-		_HA_ATOMIC_INC(&totalsslconns);
+		_HA_ATOMIC_INC(&global.sslconns);
+		_HA_ATOMIC_INC(&global.totalsslconns);
 		*xprt_ctx = ctx;
 		return 0;
 	}
@@ -5500,8 +5498,8 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 			conn->flags |= CO_FL_EARLY_SSL_HS;
 #endif
 
-		_HA_ATOMIC_INC(&sslconns);
-		_HA_ATOMIC_INC(&totalsslconns);
+		_HA_ATOMIC_INC(&global.sslconns);
+		_HA_ATOMIC_INC(&global.totalsslconns);
 		*xprt_ctx = ctx;
 		return 0;
 	}
@@ -6440,7 +6438,7 @@ void ssl_sock_close(struct connection *conn, void *xprt_ctx) {
 		b_free(&ctx->early_buf);
 		tasklet_free(ctx->wait_event.tasklet);
 		pool_free(ssl_sock_ctx_pool, ctx);
-		_HA_ATOMIC_DEC(&sslconns);
+		_HA_ATOMIC_DEC(&global.sslconns);
 	}
 }
 

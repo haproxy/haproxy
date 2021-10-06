@@ -55,7 +55,6 @@
 #include <haproxy/resolvers.h>
 #include <haproxy/server.h>
 #include <haproxy/session.h>
-#include <haproxy/ssl_sock.h>
 #include <haproxy/stats.h>
 #include <haproxy/stream.h>
 #include <haproxy/stream_interface.h>
@@ -4447,8 +4446,8 @@ int stats_fill_info(struct field *info, int len, uint flags)
 	info[INF_CUM_REQ]                        = mkf_u32(FN_COUNTER, global.req_count);
 #ifdef USE_OPENSSL
 	info[INF_MAX_SSL_CONNS]                  = mkf_u32(FN_MAX, global.maxsslconn);
-	info[INF_CURR_SSL_CONNS]                 = mkf_u32(0, sslconns);
-	info[INF_CUM_SSL_CONNS]                  = mkf_u32(FN_COUNTER, totalsslconns);
+	info[INF_CURR_SSL_CONNS]                 = mkf_u32(0, global.sslconns);
+	info[INF_CUM_SSL_CONNS]                  = mkf_u32(FN_COUNTER, global.totalsslconns);
 #endif
 	info[INF_MAXPIPES]                       = mkf_u32(FO_CONFIG|FN_LIMIT, global.maxpipes);
 	info[INF_PIPES_USED]                     = mkf_u32(0, pipes_used);
