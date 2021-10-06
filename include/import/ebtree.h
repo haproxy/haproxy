@@ -247,6 +247,7 @@
 #define _EBTREE_H
 
 #include <stdlib.h>
+#include <import/ebtree-t.h>
 #include <haproxy/api.h>
 
 static inline int flsnz8_generic(unsigned int x)
@@ -331,76 +332,8 @@ static inline int fls64(unsigned long long x)
 	})
 #endif
 
-/* Number of bits per node, and number of leaves per node */
-#define EB_NODE_BITS          1
-#define EB_NODE_BRANCHES      (1 << EB_NODE_BITS)
-#define EB_NODE_BRANCH_MASK   (EB_NODE_BRANCHES - 1)
-
-/* Be careful not to tweak those values. The walking code is optimized for NULL
- * detection on the assumption that the following values are intact.
- */
-#define EB_LEFT     0
-#define EB_RGHT     1
-#define EB_LEAF     0
-#define EB_NODE     1
-
-/* Tags to set in root->b[EB_RGHT] :
- * - EB_NORMAL is a normal tree which stores duplicate keys.
- * - EB_UNIQUE is a tree which stores unique keys.
- */
-#define EB_NORMAL   0
-#define EB_UNIQUE   1
-
-/* This is the same as an eb_node pointer, except that the lower bit embeds
- * a tag. See eb_dotag()/eb_untag()/eb_gettag(). This tag has two meanings :
- *  - 0=left, 1=right to designate the parent's branch for leaf_p/node_p
- *  - 0=link, 1=leaf  to designate the branch's type for branch[]
- */
-typedef void eb_troot_t;
-
-/* The eb_root connects the node which contains it, to two nodes below it, one
- * of which may be the same node. At the top of the tree, we use an eb_root
- * too, which always has its right branch NULL (+/1 low-order bits).
- */
-struct eb_root {
-	eb_troot_t    *b[EB_NODE_BRANCHES]; /* left and right branches */
-};
-
-/* The eb_node contains the two parts, one for the leaf, which always exists,
- * and one for the node, which remains unused in the very first node inserted
- * into the tree. This structure is 20 bytes per node on 32-bit machines. Do
- * not change the order, benchmarks have shown that it's optimal this way.
- * Note: be careful about this struct's alignment if it gets included into
- * another struct and some atomic ops are expected on the keys or the node.
- */
-struct eb_node {
-	struct eb_root branches; /* branches, must be at the beginning */
-	eb_troot_t    *node_p;  /* link node's parent */
-	eb_troot_t    *leaf_p;  /* leaf node's parent */
-	short int      bit;     /* link's bit position. */
-	short unsigned int pfx; /* data prefix length, always related to leaf */
-} __attribute__((packed));
-
 /* Return the structure of type <type> whose member <member> points to <ptr> */
 #define eb_entry(ptr, type, member) container_of(ptr, type, member)
-
-/* The root of a tree is an eb_root initialized with both pointers NULL.
- * During its life, only the left pointer will change. The right one will
- * always remain NULL, which is the way we detect it.
- */
-#define EB_ROOT						\
-	(struct eb_root) {				\
-		.b = {[0] = NULL, [1] = NULL },		\
-	}
-
-#define EB_ROOT_UNIQUE					\
-	(struct eb_root) {				\
-		.b = {[0] = NULL, [1] = (void *)1 },	\
-	}
-
-#define EB_TREE_HEAD(name)				\
-	struct eb_root name = EB_ROOT
-
 
 /***************************************\
  * Private functions. Not for end-user *

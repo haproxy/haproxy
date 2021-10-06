@@ -27,26 +27,6 @@
 /* Return the structure of type <type> whose member <member> points to <ptr> */
 #define ebmb_entry(ptr, type, member) container_of(ptr, type, member)
 
-#define EBMB_ROOT	EB_ROOT
-#define EBMB_TREE_HEAD	EB_TREE_HEAD
-
-/* This structure carries a node, a leaf, and a key. It must start with the
- * eb_node so that it can be cast into an eb_node. We could also have put some
- * sort of transparent union here to reduce the indirection level, but the fact
- * is, the end user is not meant to manipulate internals, so this is pointless.
- * The 'node.bit' value here works differently from scalar types, as it contains
- * the number of identical bits between the two branches.
- * Note that we take a great care of making sure the key is located exactly at
- * the end of the struct even if that involves holes before it, so that it
- * always aliases any external key a user would append after. This is why the
- * key uses the same alignment as the struct.
- */
-struct ebmb_node {
-	struct eb_node node; /* the tree node, must be at the beginning */
-	ALWAYS_ALIGN(sizeof(void*));
-	unsigned char key[0]; /* the key, its size depends on the application */
-} ALIGNED(sizeof(void*));
-
 /*
  * Exported functions and macros.
  * Many of them are always inlined because they are extremely small, and

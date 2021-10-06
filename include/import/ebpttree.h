@@ -29,30 +29,6 @@
 /* Return the structure of type <type> whose member <member> points to <ptr> */
 #define ebpt_entry(ptr, type, member) container_of(ptr, type, member)
 
-#define EBPT_ROOT	EB_ROOT
-#define EBPT_TREE_HEAD	EB_TREE_HEAD
-
-/* on *almost* all platforms, a pointer can be cast into a size_t which is unsigned */
-#ifndef PTR_INT_TYPE
-#define PTR_INT_TYPE	size_t
-#endif
-
-typedef PTR_INT_TYPE ptr_t;
-
-/* This structure carries a node, a leaf, and a key. It must start with the
- * eb_node so that it can be cast into an eb_node. We could also have put some
- * sort of transparent union here to reduce the indirection level, but the fact
- * is, the end user is not meant to manipulate internals, so this is pointless.
- * Internally, it is automatically cast as an eb32_node or eb64_node.
- * We always align the key since the struct itself will be padded to the same
- * size anyway.
- */
-struct ebpt_node {
-	struct eb_node node; /* the tree node, must be at the beginning */
-	ALWAYS_ALIGN(sizeof(void*));
-	void *key;
-} ALIGNED(sizeof(void*));
-
 /*
  * Exported functions and macros.
  * Many of them are always inlined because they are extremely small, and

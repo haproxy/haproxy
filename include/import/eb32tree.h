@@ -27,26 +27,6 @@
 /* Return the structure of type <type> whose member <member> points to <ptr> */
 #define eb32_entry(ptr, type, member) container_of(ptr, type, member)
 
-#define EB32_ROOT	EB_ROOT
-#define EB32_TREE_HEAD	EB_TREE_HEAD
-
-/* These types may sometimes already be defined */
-#ifndef _EB32SCTREE_H
-typedef unsigned int u32;
-typedef   signed int s32;
-#endif
-
-/* This structure carries a node, a leaf, and a key. It must start with the
- * eb_node so that it can be cast into an eb_node. We could also have put some
- * sort of transparent union here to reduce the indirection level, but the fact
- * is, the end user is not meant to manipulate internals, so this is pointless.
- */
-struct eb32_node {
-	struct eb_node node; /* the tree node, must be at the beginning */
-	MAYBE_ALIGN(sizeof(u32));
-	u32 key;
-} ALIGNED(sizeof(void*));
-
 /*
  * Exported functions and macros.
  * Many of them are always inlined because they are extremely small, and
