@@ -20,6 +20,10 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#include <import/eb32tree.h>
+#include <import/ebmbtree.h>
+#include <import/ebpttree.h>
+
 #include <haproxy/api.h>
 #include <haproxy/applet.h>
 #include <haproxy/channel.h>
