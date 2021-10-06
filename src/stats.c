@@ -25,6 +25,7 @@
 #include <sys/types.h>
 
 #include <haproxy/api.h>
+#include <haproxy/activity.h>
 #include <haproxy/applet-t.h>
 #include <haproxy/backend.h>
 #include <haproxy/base64.h>

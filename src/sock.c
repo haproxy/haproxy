@@ -26,6 +26,7 @@
 #include <net/if.h>
 
 #include <haproxy/api.h>
+#include <haproxy/activity.h>
 #include <haproxy/connection.h>
 #include <haproxy/listener.h>
 #include <haproxy/log.h>

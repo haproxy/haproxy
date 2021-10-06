@@ -16,6 +16,7 @@
 #include <import/eb32tree.h>
 
 #include <haproxy/api.h>
+#include <haproxy/activity.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/fd.h>
 #include <haproxy/list.h>

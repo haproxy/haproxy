@@ -11,7 +11,7 @@
  */
 #include <errno.h>
 
-#include <haproxy/activity-t.h>
+#include <haproxy/activity.h>
 #include <haproxy/api.h>
 #include <haproxy/applet-t.h>
 #include <haproxy/cfgparse.h>
