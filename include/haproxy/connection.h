@@ -31,7 +31,7 @@
 #include <haproxy/list.h>
 #include <haproxy/listener-t.h>
 #include <haproxy/obj_type.h>
-#include <haproxy/pool.h>
+#include <haproxy/pool-t.h>
 #include <haproxy/server.h>
 #include <haproxy/session-t.h>
 #include <haproxy/task-t.h>
@@ -86,6 +86,12 @@ void conn_delete_from_tree(struct ebmb_node *node);
 void conn_init(struct connection *conn, void *target);
 struct connection *conn_new(void *target);
 void conn_free(struct connection *conn);
+struct conn_hash_node *conn_alloc_hash_node(struct connection *conn);
+struct sockaddr_storage *sockaddr_alloc(struct sockaddr_storage **sap, const struct sockaddr_storage *orig, socklen_t len);
+void sockaddr_free(struct sockaddr_storage **sap);
+void cs_free(struct conn_stream *cs);
+struct conn_stream *cs_new(struct connection *conn, void *target);
+
 
 /* connection hash stuff */
 uint64_t conn_calculate_hash(const struct conn_hash_params *params);
@@ -332,19 +338,6 @@ static inline int conn_is_back(const struct connection *conn)
 	return !objt_listener(conn->target);
 }
 
-static inline struct conn_hash_node *conn_alloc_hash_node(struct connection *conn)
-{
-	struct conn_hash_node *hash_node = NULL;
-
-	hash_node = pool_zalloc(pool_head_conn_hash_node);
-	if (unlikely(!hash_node))
-		return NULL;
-
-	hash_node->conn = conn;
-
-	return hash_node;
-}
-
 /* sets <owner> as the connection's owner */
 static inline void conn_set_owner(struct connection *conn, void *owner, void (*cb)(struct connection *))
 {
@@ -362,77 +355,6 @@ static inline void conn_set_private(struct connection *conn)
 		if (obj_type(conn->target) == OBJ_TYPE_SERVER)
 			srv_release_conn(__objt_server(conn->target), conn);
 	}
-}
-
-/* Allocates a struct sockaddr from the pool if needed, assigns it to *sap and
- * returns it. If <sap> is NULL, the address is always allocated and returned.
- * if <sap> is non-null, an address will only be allocated if it points to a
- * non-null pointer. In this case the allocated address will be assigned there.
- * If <orig> is non-null and <len> positive, the address in <sa> will be copied
- * into the allocated address. In both situations the new pointer is returned.
- */
-static inline struct sockaddr_storage *
-sockaddr_alloc(struct sockaddr_storage **sap, const struct sockaddr_storage *orig, socklen_t len)
-{
-	struct sockaddr_storage *sa;
-
-	if (sap && *sap)
-		return *sap;
-
-	sa = pool_alloc(pool_head_sockaddr);
-	if (sa && orig && len > 0)
-		memcpy(sa, orig, len);
-	if (sap)
-		*sap = sa;
-	return sa;
-}
-
-/* Releases the struct sockaddr potentially pointed to by <sap> to the pool. It
- * may be NULL or may point to NULL. If <sap> is not NULL, a NULL is placed
- * there.
- */
-static inline void sockaddr_free(struct sockaddr_storage **sap)
-{
-	if (!sap)
-		return;
-	pool_free(pool_head_sockaddr, *sap);
-	*sap = NULL;
-}
-
-/* Releases a conn_stream previously allocated by cs_new(), as well as any
- * buffer it would still hold.
- */
-static inline void cs_free(struct conn_stream *cs)
-{
-
-	pool_free(pool_head_connstream, cs);
-}
-
-/* Tries to allocate a new conn_stream and initialize its main fields. If
- * <conn> is NULL, then a new connection is allocated on the fly, initialized,
- * and assigned to cs->conn ; this connection will then have to be released
- * using pool_free() or conn_free(). The conn_stream is initialized and added
- * to the mux's stream list on success, then returned. On failure, nothing is
- * allocated and NULL is returned.
- */
-static inline struct conn_stream *cs_new(struct connection *conn, void *target)
-{
-	struct conn_stream *cs;
-
-	cs = pool_alloc(pool_head_connstream);
-	if (unlikely(!cs))
-		return NULL;
-
-	if (!conn) {
-		conn = conn_new(target);
-		if (unlikely(!conn)) {
-			cs_free(cs);
-			return NULL;
-		}
-	}
-
-	cs_init(cs, conn);
-	return cs;
 }
 
 /* Retrieves any valid conn_stream from this connection, preferably the first

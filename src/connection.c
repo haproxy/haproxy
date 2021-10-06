@@ -437,6 +437,89 @@ void conn_free(struct connection *conn)
 	pool_free(pool_head_connection, conn);
 }
 
+struct conn_hash_node *conn_alloc_hash_node(struct connection *conn)
+{
+	struct conn_hash_node *hash_node = NULL;
+
+	hash_node = pool_zalloc(pool_head_conn_hash_node);
+	if (unlikely(!hash_node))
+		return NULL;
+
+	hash_node->conn = conn;
+
+	return hash_node;
+}
+
+/* Allocates a struct sockaddr from the pool if needed, assigns it to *sap and
+ * returns it. If <sap> is NULL, the address is always allocated and returned.
+ * if <sap> is non-null, an address will only be allocated if it points to a
+ * non-null pointer. In this case the allocated address will be assigned there.
+ * If <orig> is non-null and <len> positive, the address in <sa> will be copied
+ * into the allocated address. In both situations the new pointer is returned.
+ */
+struct sockaddr_storage *sockaddr_alloc(struct sockaddr_storage **sap, const struct sockaddr_storage *orig, socklen_t len)
+{
+	struct sockaddr_storage *sa;
+
+	if (sap && *sap)
+		return *sap;
+
+	sa = pool_alloc(pool_head_sockaddr);
+	if (sa && orig && len > 0)
+		memcpy(sa, orig, len);
+	if (sap)
+		*sap = sa;
+	return sa;
+}
+
+/* Releases the struct sockaddr potentially pointed to by <sap> to the pool. It
+ * may be NULL or may point to NULL. If <sap> is not NULL, a NULL is placed
+ * there.
+ */
+void sockaddr_free(struct sockaddr_storage **sap)
+{
+	if (!sap)
+		return;
+	pool_free(pool_head_sockaddr, *sap);
+	*sap = NULL;
+}
+
+/* Releases a conn_stream previously allocated by cs_new(), as well as any
+ * buffer it would still hold.
+ */
+void cs_free(struct conn_stream *cs)
+{
+
+	pool_free(pool_head_connstream, cs);
+}
+
+/* Tries to allocate a new conn_stream and initialize its main fields. If
+ * <conn> is NULL, then a new connection is allocated on the fly, initialized,
+ * and assigned to cs->conn ; this connection will then have to be released
+ * using pool_free() or conn_free(). The conn_stream is initialized and added
+ * to the mux's stream list on success, then returned. On failure, nothing is
+ * allocated and NULL is returned.
+ */
+struct conn_stream *cs_new(struct connection *conn, void *target)
+{
+	struct conn_stream *cs;
+
+	cs = pool_alloc(pool_head_connstream);
+	if (unlikely(!cs))
+		return NULL;
+
+	if (!conn) {
+		conn = conn_new(target);
+		if (unlikely(!conn)) {
+			cs_free(cs);
+			return NULL;
+		}
+	}
+
+	cs_init(cs, conn);
+	return cs;
+}
+
 /* Try to add a handshake pseudo-XPRT. If the connection's first XPRT is
  * raw_sock, then just use the new XPRT as the connection XPRT, otherwise
  * call the xprt's add_xprt() method.
