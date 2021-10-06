@@ -78,7 +78,17 @@ int conn_recv_socks4_proxy_response(struct connection *conn);
 /* If we delayed the mux creation because we were waiting for the handshake, do it now */
 int conn_create_mux(struct connection *conn);
 int conn_notify_mux(struct connection *conn, int old_flags, int forced_wake);
+int conn_upgrade_mux_fe(struct connection *conn, void *ctx, struct buffer *buf,
+                        struct ist mux_proto, int mode);
+int conn_install_mux_fe(struct connection *conn, void *ctx);
+int conn_install_mux_be(struct connection *conn, void *ctx, struct session *sess);
+int conn_install_mux_chk(struct connection *conn, void *ctx, struct session *sess);
+
 void conn_delete_from_tree(struct ebmb_node *node);
+
+void conn_init(struct connection *conn, void *target);
+struct connection *conn_new(void *target);
+void conn_free(struct connection *conn);
 
 /* connection hash stuff */
 uint64_t conn_calculate_hash(const struct conn_hash_params *params);
@@ -89,7 +99,8 @@ void conn_hash_update(char *buf, size_t *idx,
                       enum conn_hash_params_t type);
 uint64_t conn_hash_digest(char *buf, size_t bufsize,
                           enum conn_hash_params_t flags);
-
+const char *conn_err_code_str(struct connection *c);
+int xprt_add_hs(struct connection *conn);
 
 extern struct idle_conns idle_conns[MAX_THREADS];
 
@@ -324,39 +335,6 @@ static inline int conn_is_back(const struct connection *conn)
 	return !objt_listener(conn->target);
 }
 
-/* Initializes all required fields for a new connection. Note that it does the
- * minimum acceptable initialization for a connection that already exists and
- * is about to be reused. It also leaves the addresses untouched, which makes
- * it usable across connection retries to reset a connection to a known state.
- */
-static inline void conn_init(struct connection *conn, void *target)
-{
-	conn->obj_type = OBJ_TYPE_CONN;
-	conn->flags = CO_FL_NONE;
-	conn->mux = NULL;
-	conn->ctx = NULL;
-	conn->owner = NULL;
-	conn->send_proxy_ofs = 0;
-	conn->handle.fd = DEAD_FD_MAGIC;
-	conn->err_code = CO_ER_NONE;
-	conn->target = target;
-	conn->destroy_cb = NULL;
-	conn->proxy_netns = NULL;
-	MT_LIST_INIT(&conn->toremove_list);
-	if (conn_is_back(conn))
-		LIST_INIT(&conn->session_list);
-	else
-		LIST_INIT(&conn->stopping_list);
-	conn->subs = NULL;
-	conn->src = NULL;
-	conn->dst = NULL;
-	conn->proxy_authority = IST_NULL;
-	conn->proxy_unique_id = IST_NULL;
-	conn->qc = NULL;
-	conn->hash_node = NULL;
-	conn->xprt = NULL;
-}
-
 static inline struct conn_hash_node *conn_alloc_hash_node(struct connection *conn)
 {
 	struct conn_hash_node *hash_node = NULL;
@@ -424,37 +402,6 @@ static inline void sockaddr_free(struct sockaddr_storage **sap)
 	*sap = NULL;
 }
 
-/* Tries to allocate a new connection and initialized its main fields. The
- * connection is returned on success, NULL on failure. The connection must
- * be released using pool_free() or conn_free().
- */
-static inline struct connection *conn_new(void *target)
-{
-	struct connection *conn;
-	struct conn_hash_node *hash_node;
-
-	conn = pool_alloc(pool_head_connection);
-	if (unlikely(!conn))
-		return NULL;
-
-	conn_init(conn, target);
-
-	if (conn_is_back(conn)) {
-		if (obj_type(target) == OBJ_TYPE_SERVER)
-			srv_use_conn(__objt_server(target), conn);
-
-		hash_node = conn_alloc_hash_node(conn);
-		if (unlikely(!hash_node)) {
-			pool_free(pool_head_connection, conn);
-			return NULL;
-		}
-
-		conn->hash_node = hash_node;
-	}
-
-	return conn;
-}
-
 /* Releases a conn_stream previously allocated by cs_new(), as well as any
  * buffer it would still hold.
  */
@@ -513,50 +460,6 @@ static inline void conn_force_unsubscribe(struct connection *conn)
 		return;
 	conn->subs->events = 0;
 	conn->subs = NULL;
-}
-
-/* Releases a connection previously allocated by conn_new() */
-static inline void conn_free(struct connection *conn)
-{
-	/* If the connection is owned by the session, remove it from its list
-	 */
-	if (conn_is_back(conn) && LIST_INLIST(&conn->session_list)) {
-		session_unown_conn(conn->owner, conn);
-	}
-	else if (!(conn->flags & CO_FL_PRIVATE)) {
-		if (obj_type(conn->target) == OBJ_TYPE_SERVER)
-			srv_release_conn(__objt_server(conn->target), conn);
-	}
-
-	/* Remove the conn from toremove_list.
-	 *
-	 * This is needed to prevent a double-free in case the connection was
-	 * already scheduled from cleaning but is freed before via another
-	 * call.
-	 */
-	MT_LIST_DELETE(&conn->toremove_list);
-
-	sockaddr_free(&conn->src);
-	sockaddr_free(&conn->dst);
-
-	pool_free(pool_head_authority, istptr(conn->proxy_authority));
-	conn->proxy_authority = IST_NULL;
-
-	pool_free(pool_head_uniqueid, istptr(conn->proxy_unique_id));
-	conn->proxy_unique_id = IST_NULL;
-
-	pool_free(pool_head_conn_hash_node, conn->hash_node);
-	conn->hash_node = NULL;
-
-	/* By convention we always place a NULL where the ctx points to if the
-	 * mux is null. It may have been used to store the connection as a
-	 * stream_interface's end point for example.
-	 */
-	if (conn->ctx != NULL && conn->mux == NULL)
-		*(void **)conn->ctx = NULL;
-
-	conn_force_unsubscribe(conn);
-	pool_free(pool_head_connection, conn);
 }
 
 /* Release a conn_stream */
@@ -720,66 +623,6 @@ static inline int conn_install_mux(struct connection *conn, const struct mux_ops
 	return ret;
 }
 
-/* returns a human-readable error code for conn->err_code, or NULL if the code
- * is unknown.
- */
-static inline const char *conn_err_code_str(struct connection *c)
-{
-	switch (c->err_code) {
-	case CO_ER_NONE:          return "Success";
-
-	case CO_ER_CONF_FDLIM:    return "Reached configured maxconn value";
-	case CO_ER_PROC_FDLIM:    return "Too many sockets on the process";
-	case CO_ER_SYS_FDLIM:     return "Too many sockets on the system";
-	case CO_ER_SYS_MEMLIM:    return "Out of system buffers";
-	case CO_ER_NOPROTO:       return "Protocol or address family not supported";
-	case CO_ER_SOCK_ERR:      return "General socket error";
-	case CO_ER_PORT_RANGE:    return "Source port range exhausted";
-	case CO_ER_CANT_BIND:     return "Can't bind to source address";
-	case CO_ER_FREE_PORTS:    return "Out of local source ports on the system";
-	case CO_ER_ADDR_INUSE:    return "Local source address already in use";
-
-	case CO_ER_PRX_EMPTY:     return "Connection closed while waiting for PROXY protocol header";
-	case CO_ER_PRX_ABORT:     return "Connection error while waiting for PROXY protocol header";
-	case CO_ER_PRX_TIMEOUT:   return "Timeout while waiting for PROXY protocol header";
-	case CO_ER_PRX_TRUNCATED: return "Truncated PROXY protocol header received";
-	case CO_ER_PRX_NOT_HDR:   return "Received something which does not look like a PROXY protocol header";
-	case CO_ER_PRX_BAD_HDR:   return "Received an invalid PROXY protocol header";
-	case CO_ER_PRX_BAD_PROTO: return "Received an unhandled protocol in the PROXY protocol header";
-
-	case CO_ER_CIP_EMPTY:     return "Connection closed while waiting for NetScaler Client IP header";
-	case CO_ER_CIP_ABORT:     return "Connection error while waiting for NetScaler Client IP header";
-	case CO_ER_CIP_TIMEOUT:   return "Timeout while waiting for a NetScaler Client IP header";
-	case CO_ER_CIP_TRUNCATED: return "Truncated NetScaler Client IP header received";
-	case CO_ER_CIP_BAD_MAGIC: return "Received an invalid NetScaler Client IP magic number";
-	case CO_ER_CIP_BAD_PROTO: return "Received an unhandled protocol in the NetScaler Client IP header";
-
-	case CO_ER_SSL_EMPTY:     return "Connection closed during SSL handshake";
-	case CO_ER_SSL_ABORT:     return "Connection error during SSL handshake";
-	case CO_ER_SSL_TIMEOUT:   return "Timeout during SSL handshake";
-	case CO_ER_SSL_TOO_MANY:  return "Too many SSL connections";
-	case CO_ER_SSL_NO_MEM:    return "Out of memory when initializing an SSL connection";
-	case CO_ER_SSL_RENEG:     return "Rejected a client-initiated SSL renegotiation attempt";
-	case CO_ER_SSL_CA_FAIL:   return "SSL client CA chain cannot be verified";
-	case CO_ER_SSL_CRT_FAIL:  return "SSL client certificate not trusted";
-	case CO_ER_SSL_MISMATCH:  return "Server presented an SSL certificate different from the configured one";
-	case CO_ER_SSL_MISMATCH_SNI: return "Server presented an SSL certificate different from the expected one";
-	case CO_ER_SSL_HANDSHAKE: return "SSL handshake failure";
-	case CO_ER_SSL_HANDSHAKE_HB: return "SSL handshake failure after heartbeat";
-	case CO_ER_SSL_KILLED_HB: return "Stopped a TLSv1 heartbeat attack (CVE-2014-0160)";
-	case CO_ER_SSL_NO_TARGET: return "Attempt to use SSL on an unknown target (internal error)";
-	case CO_ER_SSL_EARLY_FAILED: return "Server refused early data";
-
-	case CO_ER_SOCKS4_SEND:    return "SOCKS4 Proxy write error during handshake";
-	case CO_ER_SOCKS4_RECV:    return "SOCKS4 Proxy read error during handshake";
-	case CO_ER_SOCKS4_DENY:    return "SOCKS4 Proxy deny the request";
-	case CO_ER_SOCKS4_ABORT:   return "SOCKS4 Proxy handshake aborted by server";
-
-	case CO_ERR_SSL_FATAL:     return "SSL fatal error";
-	}
-	return NULL;
-}
-
 static inline const char *conn_get_ctrl_name(const struct connection *conn)
 {
 	if (!conn || !conn_ctrl_ready(conn))
@@ -822,41 +665,6 @@ static inline struct xprt_ops *xprt_get(int id)
 	if (id >= XPRT_ENTRIES)
 		return NULL;
 	return registered_xprt[id];
-}
-
-/* Try to add a handshake pseudo-XPRT. If the connection's first XPRT is
- * raw_sock, then just use the new XPRT as the connection XPRT, otherwise
- * call the xprt's add_xprt() method.
- * Returns 0 on success, or non-zero on failure.
- */
-static inline int xprt_add_hs(struct connection *conn)
-{
-	void *xprt_ctx = NULL;
-	const struct xprt_ops *ops = xprt_get(XPRT_HANDSHAKE);
-	void *nextxprt_ctx = NULL;
-	const struct xprt_ops *nextxprt_ops = NULL;
-
-	if (conn->flags & CO_FL_ERROR)
-		return -1;
-	if (ops->init(conn, &xprt_ctx) < 0)
-		return -1;
-	if (conn->xprt == xprt_get(XPRT_RAW)) {
-		nextxprt_ctx = conn->xprt_ctx;
-		nextxprt_ops = conn->xprt;
-		conn->xprt_ctx = xprt_ctx;
-		conn->xprt = ops;
-	} else {
-		if (conn->xprt->add_xprt(conn, conn->xprt_ctx, xprt_ctx, ops,
-		                         &nextxprt_ctx, &nextxprt_ops) != 0) {
-			ops->close(conn, xprt_ctx);
-			return -1;
-		}
-	}
-	if (ops->add_xprt(conn, xprt_ctx, nextxprt_ctx, nextxprt_ops, NULL, NULL) != 0) {
-		ops->close(conn, xprt_ctx);
-		return -1;
-	}
-	return 0;
 }
 
 /* notify the next xprt that the connection is about to become idle and that it
@@ -976,161 +784,6 @@ static inline struct proxy *conn_get_proxy(const struct connection *conn)
 	return objt_proxy(conn->target);
 }
 
-/* installs the best mux for incoming connection <conn> using the upper context
- * <ctx>. If the mux protocol is forced, we use it to find the best
- * mux. Otherwise we use the ALPN name, if any. Returns < 0 on error.
- */
-static inline int conn_install_mux_fe(struct connection *conn, void *ctx)
-{
-	struct bind_conf     *bind_conf = __objt_listener(conn->target)->bind_conf;
-	const struct mux_ops *mux_ops;
-
-	if (bind_conf->mux_proto)
-		mux_ops = bind_conf->mux_proto->mux;
-	else {
-		struct ist mux_proto;
-		const char *alpn_str = NULL;
-		int alpn_len = 0;
-		int mode;
-
-		if (bind_conf->frontend->mode == PR_MODE_HTTP)
-			mode = PROTO_MODE_HTTP;
-		else
-			mode = PROTO_MODE_TCP;
-
-		conn_get_alpn(conn, &alpn_str, &alpn_len);
-		mux_proto = ist2(alpn_str, alpn_len);
-		mux_ops = conn_get_best_mux(conn, mux_proto, PROTO_SIDE_FE, mode);
-		if (!mux_ops)
-			return -1;
-	}
-	return conn_install_mux(conn, mux_ops, ctx, bind_conf->frontend, conn->owner);
-}
-
-/* installs the best mux for outgoing connection <conn> using the upper context
- * <ctx>. If the mux protocol is forced, we use it to find the best mux. Returns
- * < 0 on error.
- */
-static inline int conn_install_mux_be(struct connection *conn, void *ctx, struct session *sess)
-{
-	struct server *srv = objt_server(conn->target);
-	struct proxy  *prx = objt_proxy(conn->target);
-	const struct mux_ops *mux_ops;
-
-	if (srv)
-		prx = srv->proxy;
-
-	if (!prx) // target must be either proxy or server
-		return -1;
-
-	if (srv && srv->mux_proto)
-		mux_ops = srv->mux_proto->mux;
-	else {
-		struct ist mux_proto;
-		const char *alpn_str = NULL;
-		int alpn_len = 0;
-		int mode;
-
-		if (prx->mode == PR_MODE_HTTP)
-			mode = PROTO_MODE_HTTP;
-		else
-			mode = PROTO_MODE_TCP;
-
-		conn_get_alpn(conn, &alpn_str, &alpn_len);
-		mux_proto = ist2(alpn_str, alpn_len);
-
-		mux_ops = conn_get_best_mux(conn, mux_proto, PROTO_SIDE_BE, mode);
-		if (!mux_ops)
-			return -1;
-	}
-	return conn_install_mux(conn, mux_ops, ctx, prx, sess);
-}
-
-/* installs the best mux for outgoing connection <conn> for a check using the
- * upper context <ctx>. If the mux protocol is forced by the check, we use it to
- * find the best mux. Returns < 0 on error.
- */
-static inline int conn_install_mux_chk(struct connection *conn, void *ctx, struct session *sess)
-{
-	struct check *check = objt_check(sess->origin);
-	struct server *srv = objt_server(conn->target);
-	struct proxy *prx = objt_proxy(conn->target);
-	const struct mux_ops *mux_ops;
-
-	if (!check) // Check must be defined
-		return -1;
-
-	if (srv)
-		prx = srv->proxy;
-
-	if (!prx) // target must be either proxy or server
-		return -1;
-
-	if (check->mux_proto)
-		mux_ops = check->mux_proto->mux;
-	else {
-		struct ist mux_proto;
-		const char *alpn_str = NULL;
-		int alpn_len = 0;
-		int mode;
-
-		if ((check->tcpcheck_rules->flags & TCPCHK_RULES_PROTO_CHK) == TCPCHK_RULES_HTTP_CHK)
-			mode = PROTO_MODE_HTTP;
-		else
-			mode = PROTO_MODE_TCP;
-
-		conn_get_alpn(conn, &alpn_str, &alpn_len);
-		mux_proto = ist2(alpn_str, alpn_len);
-
-		mux_ops = conn_get_best_mux(conn, mux_proto, PROTO_SIDE_BE, mode);
-		if (!mux_ops)
-			return -1;
-	}
-	return conn_install_mux(conn, mux_ops, ctx, prx, sess);
-}
-
-/* Change the mux for the connection.
- * The caller should make sure he's not subscribed to the underlying XPRT.
- */
-static inline int conn_upgrade_mux_fe(struct connection *conn, void *ctx, struct buffer *buf,
-				      struct ist mux_proto, int mode)
-{
-	struct bind_conf *bind_conf = __objt_listener(conn->target)->bind_conf;
-	const struct mux_ops *old_mux, *new_mux;
-	void *old_mux_ctx;
-	const char *alpn_str = NULL;
-	int alpn_len = 0;
-
-	if (!mux_proto.len) {
-		conn_get_alpn(conn, &alpn_str, &alpn_len);
-		mux_proto = ist2(alpn_str, alpn_len);
-	}
-	new_mux = conn_get_best_mux(conn, mux_proto, PROTO_SIDE_FE, mode);
-	old_mux = conn->mux;
-
-	/* No mux found */
-	if (!new_mux)
-		return -1;
-
-	/* Same mux, nothing to do */
-	if (old_mux == new_mux)
-		return 0;
-
-	old_mux_ctx = conn->ctx;
-	conn->mux = new_mux;
-	conn->ctx = ctx;
-	if (new_mux->init(conn, bind_conf->frontend, conn->owner, buf) == -1) {
-		/* The mux upgrade failed, so restore the old mux */
-		conn->ctx = old_mux_ctx;
-		conn->mux = old_mux;
-		return -1;
-	}
-
-	/* The mux was upgraded, destroy the old one */
-	*buf = BUF_NULL;
-	old_mux->destroy(old_mux_ctx);
-	return 0;
-}
 
 /* boolean, returns true if connection is over SSL */
 static inline
