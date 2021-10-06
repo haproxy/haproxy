@@ -36,7 +36,6 @@
 #include <haproxy/resolvers.h>
 #include <haproxy/sample.h>
 #include <haproxy/server.h>
-#include <haproxy/ssl_sock.h>
 #include <haproxy/stats.h>
 #include <haproxy/stream.h>
 #include <haproxy/stream_interface.h>
@@ -1977,7 +1976,25 @@ static void srv_ssl_settings_cpy(struct server *srv, struct server *src)
 		}
 	}
 }
-#endif
+
+/* Activate ssl on server <s>.
+ * do nothing if there is no change to apply
+ *
+ * Must be called with the server lock held.
+ */
+void srv_set_ssl(struct server *s, int use_ssl)
+{
+	if (s->use_ssl == use_ssl)
+		return;
+
+	s->use_ssl = use_ssl;
+	if (s->use_ssl)
+		s->xprt = xprt_get(XPRT_SSL);
+	else
+		s->xprt = s->check.xprt = s->agent.xprt = xprt_get(XPRT_RAW);
+}
+
+#endif /* USE_OPENSSL */
 
 /*
  * Prepare <srv> for hostname resolution.
@@ -4144,9 +4161,9 @@ static int cli_parse_set_server(char **args, char *payload, struct appctx *appct
 
 		HA_SPIN_LOCK(SERVER_LOCK, &sv->lock);
 		if (strcmp(args[4], "on") == 0) {
-			ssl_sock_set_srv(sv, 1);
+			srv_set_ssl(sv, 1);
 		} else if (strcmp(args[4], "off") == 0) {
-			ssl_sock_set_srv(sv, 0);
+			srv_set_ssl(sv, 0);
 		} else {
 			HA_SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
 			cli_err(appctx, "'set server <srv> ssl' expects 'on' or 'off'.\n");

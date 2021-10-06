@@ -7696,22 +7696,6 @@ static void __ssl_sock_deinit(void)
 	BIO_meth_free(ha_meth);
 }
 
-/* Activate ssl on server <s>.
- * do nothing if there is no change to apply
- *
- * Must be called with the server lock held.
- */
-void ssl_sock_set_srv(struct server *s, signed char use_ssl)
-{
-	if (s->use_ssl == use_ssl)
-		return;
-
-	s->use_ssl = use_ssl;
-	if (s->use_ssl == 1)
-		s->xprt = &ssl_sock;
-	else
-		s->xprt = s->check.xprt = s->agent.xprt = xprt_get(XPRT_RAW);
-}
 
 /*
  * Local variables:

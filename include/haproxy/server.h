@@ -62,6 +62,7 @@ struct server *new_server(struct proxy *proxy);
 void srv_take(struct server *srv);
 struct server *srv_drop(struct server *srv);
 int srv_init_per_thr(struct server *srv);
+void srv_set_ssl(struct server *s, int use_ssl);
 
 /* functions related to server name resolution */
 int srv_prepare_for_resolution(struct server *srv, const char *hostname);

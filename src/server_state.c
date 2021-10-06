@@ -26,7 +26,6 @@
 #include <haproxy/proxy.h>
 #include <haproxy/resolvers.h>
 #include <haproxy/server.h>
-#include <haproxy/ssl_sock.h>
 #include <haproxy/tools.h>
 #include <haproxy/xxhash.h>
 
@@ -447,7 +446,7 @@ static void srv_state_srv_update(struct server *srv, int version, char **params)
 
 		/* configure ssl if connection has been initiated at startup */
 		if (srv->ssl_ctx.ctx != NULL)
-			ssl_sock_set_srv(srv, use_ssl);
+			srv_set_ssl(srv, use_ssl);
 #endif
 	}
 
