@@ -19,6 +19,8 @@
 #include <ctype.h>
 #include <sys/types.h>
 
+#include <import/ebmbtree.h>
+
 #include <haproxy/acl.h>
 #include <haproxy/api.h>
 #include <haproxy/arg.h>
