@@ -115,7 +115,7 @@ void wdt_handler(int sig, siginfo_t *si, void *arg)
 	 */
 #ifdef USE_THREAD
 	if (thr != tid)
-		pthread_kill(ha_thread_info[thr].pthread, sig);
+		ha_tkill(thr, sig);
 	else
 #endif
 		ha_panic();
