@@ -49,14 +49,12 @@
 #define MINTIME(old, new)	(((new)<0)?(old):(((old)<0||(new)<(old))?(new):(old)))
 #define SETNOW(a)		(*a=now)
 
-extern THREAD_LOCAL unsigned int   now_ms;           /* internal date in milliseconds (may wrap) */
 extern THREAD_LOCAL struct timeval now;              /* internal date is a monotonic function of real clock */
 extern THREAD_LOCAL struct timeval date;             /* the real current date */
 extern struct timeval start_date;       /* the process's start date */
 extern THREAD_LOCAL struct timeval before_poll;      /* system date before calling poll() */
 extern THREAD_LOCAL struct timeval after_poll;       /* system date after leaving poll() */
 extern volatile unsigned long long global_now;
-extern volatile unsigned int global_now_ms;
 
 
 /**** exported functions *************************************************/
