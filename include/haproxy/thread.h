@@ -23,12 +23,6 @@
 #ifndef _HAPROXY_THREAD_H
 #define _HAPROXY_THREAD_H
 
-#include <signal.h>
-#include <unistd.h>
-#ifdef _POSIX_PRIORITY_SCHEDULING
-#include <sched.h>
-#endif
-
 #include <haproxy/api.h>
 #include <haproxy/thread-t.h>
 #include <haproxy/tinfo.h>
@@ -46,6 +40,9 @@
 
 /* Generic exports */
 int parse_nbthread(const char *arg, char **err);
+void ha_tkill(unsigned int thr, int sig);
+void ha_tkillall(int sig);
+void ha_thread_relax(void);
 extern int thread_cpus_enabled_at_boot;
 
 
@@ -93,25 +90,6 @@ enum { tid = 0 };
 static inline void ha_set_tid(unsigned int tid)
 {
 	ti = &ha_thread_info[tid];
-}
-
-static inline void ha_thread_relax(void)
-{
-#ifdef _POSIX_PRIORITY_SCHEDULING
-	sched_yield();
-#endif
-}
-
-/* send signal <sig> to thread <thr> */
-static inline void ha_tkill(unsigned int thr, int sig)
-{
-	raise(sig);
-}
-
-/* send signal <sig> to all threads */
-static inline void ha_tkillall(int sig)
-{
-	raise(sig);
 }
 
 static inline void thread_idle_now()
@@ -179,8 +157,6 @@ void thread_isolate(void);
 void thread_isolate_full(void);
 void thread_release(void);
 void thread_sync_release(void);
-void ha_tkill(unsigned int thr, int sig);
-void ha_tkillall(int sig);
 void ha_spin_init(HA_SPINLOCK_T *l);
 void ha_rwlock_init(HA_RWLOCK_T *l);
 void setup_extra_threads(void *(*handler)(void *));
@@ -230,15 +206,6 @@ static inline void ha_set_tid(unsigned int data)
 	tid     = data;
 	tid_bit = (1UL << tid);
 	ti      = &ha_thread_info[tid];
-}
-
-static inline void ha_thread_relax(void)
-{
-#ifdef _POSIX_PRIORITY_SCHEDULING
-	sched_yield();
-#else
-	pl_cpu_relax();
-#endif
 }
 
 /* Marks the thread as idle, which means that not only it's not doing anything

@@ -15,6 +15,12 @@
 #include <stdlib.h>
 #include <fcntl.h>
 
+#include <signal.h>
+#include <unistd.h>
+#ifdef _POSIX_PRIORITY_SCHEDULING
+#include <sched.h>
+#endif
+
 #ifdef USE_THREAD
 #  include <pthread.h>
 #endif
@@ -310,6 +316,15 @@ void ha_tkillall(int sig)
 		pthread_kill(ha_pthread[thr], sig);
 	}
 	raise(sig);
+}
+
+void ha_thread_relax(void)
+{
+#ifdef _POSIX_PRIORITY_SCHEDULING
+	sched_yield();
+#else
+	pl_cpu_relax();
+#endif
 }
 
 /* these calls are used as callbacks at init time when debugging is on */
@@ -955,6 +970,25 @@ static void __thread_init(void)
 }
 
 #else
+
+/* send signal <sig> to thread <thr> (send to process in fact) */
+void ha_tkill(unsigned int thr, int sig)
+{
+	raise(sig);
+}
+
+/* send signal <sig> to all threads (send to process in fact) */
+void ha_tkillall(int sig)
+{
+	raise(sig);
+}
+
+void ha_thread_relax(void)
+{
+#ifdef _POSIX_PRIORITY_SCHEDULING
+	sched_yield();
+#endif
+}
 
 REGISTER_BUILD_OPTS("Built without multi-threading support (USE_THREAD not set).");
 
