@@ -171,6 +171,23 @@
 #endif
 #endif
 
+/* Linux-like "container_of". It returns a pointer to the structure of type
+ * <type> which has its member <name> stored at address <ptr>.
+ */
+#ifndef container_of
+#define container_of(ptr, type, name) ((type *)(((void *)(ptr)) - ((long)&((type *)0)->name)))
+#endif
+
+/* returns a pointer to the structure of type <type> which has its member <name>
+ * stored at address <ptr>, unless <ptr> is 0, in which case 0 is returned.
+ */
+#ifndef container_of_safe
+#define container_of_safe(ptr, type, name) \
+	({ void *__p = (ptr); \
+		__p ? (type *)(__p - ((long)&((type *)0)->name)) : (type *)0; \
+	})
+#endif
+
 /* Some architectures have a double-word CAS, sometimes even dual-8 bytes.
  * Some architectures support unaligned accesses, others are fine with them
  * but only for non-atomic operations. Also mention those supporting unaligned
