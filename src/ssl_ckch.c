@@ -22,6 +22,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#include <import/ebpttree.h>
 #include <import/ebsttree.h>
 
 #include <haproxy/base64.h>
