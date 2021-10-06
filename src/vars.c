@@ -18,6 +18,7 @@
 #include <haproxy/tcpcheck.h>
 #include <haproxy/tools.h>
 #include <haproxy/vars.h>
+#include <haproxy/xxhash.h>
 
 
 /* This contains a pool of struct vars */
