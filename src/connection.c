@@ -26,6 +26,7 @@
 #include <haproxy/ssl_sock.h>
 #include <haproxy/stream_interface.h>
 #include <haproxy/tools.h>
+#include <haproxy/xxhash.h>
 
 
 DECLARE_POOL(pool_head_connection,     "connection",     sizeof(struct connection));
@@ -1625,6 +1626,37 @@ static void conn_calculate_hash_sockaddr(const struct sockaddr_storage *ss,
 
 		break;
 	}
+}
+
+/* Generate the hash of a connection with params as input
+ * Each non-null field of params is taken into account for the hash calcul.
+ */
+uint64_t conn_hash_prehash(char *buf, size_t size)
+{
+	return XXH64(buf, size, 0);
+}
+
+/* Append <data> into <buf> at <idx> offset in preparation for connection hash
+ * calcul. <idx> is incremented beyond data <size>. In the same time, <flags>
+ * are updated with <type> for the hash header.
+ */
+void conn_hash_update(char *buf, size_t *idx,
+                      const void *data, size_t size,
+                      enum conn_hash_params_t *flags,
+                      enum conn_hash_params_t type)
+{
+	memcpy(&buf[*idx], data, size);
+	*idx += size;
+	*flags |= type;
+}
+
+uint64_t conn_hash_digest(char *buf, size_t bufsize,
+                          enum conn_hash_params_t flags)
+{
+	const uint64_t flags_u64 = (uint64_t)flags;
+	const uint64_t hash = XXH64(buf, bufsize, 0);
+
+	return (flags_u64 << CONN_HASH_PAYLOAD_LEN) | CONN_HASH_GET_PAYLOAD(hash);
 }
 
 uint64_t conn_calculate_hash(const struct conn_hash_params *params)

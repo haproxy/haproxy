@@ -37,7 +37,6 @@
 #include <haproxy/session.h>
 #include <haproxy/task-t.h>
 #include <haproxy/tcpcheck-t.h>
-#include <haproxy/xxhash.h>
 
 
 extern struct pool_head *pool_head_connection;
@@ -78,6 +77,17 @@ int conn_recv_socks4_proxy_response(struct connection *conn);
 
 /* If we delayed the mux creation because we were waiting for the handshake, do it now */
 int conn_create_mux(struct connection *conn);
+
+/* connection hash stuff */
+uint64_t conn_calculate_hash(const struct conn_hash_params *params);
+uint64_t conn_hash_prehash(char *buf, size_t size);
+void conn_hash_update(char *buf, size_t *idx,
+                      const void *data, size_t size,
+                      enum conn_hash_params_t *flags,
+                      enum conn_hash_params_t type);
+uint64_t conn_hash_digest(char *buf, size_t bufsize,
+                          enum conn_hash_params_t flags);
+
 
 extern struct idle_conns idle_conns[MAX_THREADS];
 
@@ -1193,39 +1203,6 @@ static inline int conn_upgrade_mux_fe(struct connection *conn, void *ctx, struct
 	*buf = BUF_NULL;
 	old_mux->destroy(old_mux_ctx);
 	return 0;
-}
-
-/* Generate the hash of a connection with params as input
- * Each non-null field of params is taken into account for the hash calcul.
- */
-uint64_t conn_calculate_hash(const struct conn_hash_params *params);
-
-static inline uint64_t conn_hash_prehash(char *buf, size_t size)
-{
-	return XXH64(buf, size, 0);
-}
-
-/* Append <data> into <buf> at <idx> offset in preparation for connection hash
- * calcul. <idx> is incremented beyond data <size>. In the same time, <flags>
- * are updated with <type> for the hash header.
- */
-static inline void conn_hash_update(char *buf, size_t *idx,
-                                    const void *data, size_t size,
-                                    enum conn_hash_params_t *flags,
-                                    enum conn_hash_params_t type)
-{
-	memcpy(&buf[*idx], data, size);
-	*idx += size;
-	*flags |= type;
-}
-
-static inline uint64_t conn_hash_digest(char *buf, size_t bufsize,
-                                        enum conn_hash_params_t flags)
-{
-	const uint64_t flags_u64 = (uint64_t)flags;
-	const uint64_t hash = XXH64(buf, bufsize, 0);
-
-	return (flags_u64 << CONN_HASH_PAYLOAD_LEN) | CONN_HASH_GET_PAYLOAD(hash);
 }
 
 /* boolean, returns true if connection is over SSL */
