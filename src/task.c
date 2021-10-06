@@ -22,6 +22,7 @@
 #include <haproxy/list.h>
 #include <haproxy/pool.h>
 #include <haproxy/task.h>
+#include <haproxy/time.h>
 #include <haproxy/tools.h>
 
 extern struct task *process_stream(struct task *t, void *context, unsigned int state);
@@ -878,6 +879,79 @@ uint sched_report_idle()
 		rthr++;
 	}
 	return rthr ? total / rthr : 0;
+}
+
+/* Update the idle time value twice a second, to be called after
+ * tv_update_date() when called after poll(), and currently called only by
+ * sched_leaving_poll() below. It relies on <before_poll> to be updated to
+ * the system time before calling poll().
+ */
+static inline void sched_measure_idle()
+{
+	/* Let's compute the idle to work ratio. We worked between after_poll
+	 * and before_poll, and slept between before_poll and date. The idle_pct
+	 * is updated at most twice every second. Note that the current second
+	 * rarely changes so we avoid a multiply when not needed.
+	 */
+	int delta;
+
+	if ((delta = date.tv_sec - before_poll.tv_sec))
+		delta *= 1000000;
+	idle_time += delta + (date.tv_usec - before_poll.tv_usec);
+
+	if ((delta = date.tv_sec - after_poll.tv_sec))
+		delta *= 1000000;
+	samp_time += delta + (date.tv_usec - after_poll.tv_usec);
+
+	after_poll.tv_sec = date.tv_sec; after_poll.tv_usec = date.tv_usec;
+	if (samp_time < 500000)
+		return;
+
+	HA_ATOMIC_STORE(&ti->idle_pct, (100ULL * idle_time + samp_time / 2) / samp_time);
+	idle_time = samp_time = 0;
+}
+
+/* Collect date and time information after leaving poll(). <timeout> must be
+ * set to the maximum sleep time passed to poll (in milliseconds), and
+ * <interrupted> must be zero if the poller reached the timeout or non-zero
+ * otherwise, which generally is provided by the poller's return value.
+ */
+void sched_leaving_poll(int timeout, int interrupted)
+{
+	sched_measure_idle();
+	ti->prev_cpu_time  = now_cpu_time();
+	ti->prev_mono_time = now_mono_time();
+}
+
+/* Collect date and time information before calling poll(). This will be used
+ * to count the run time of the past loop and the sleep time of the next poll.
+ * It also compares the elasped and cpu times during the activity period to
+ * estimate the amount of stolen time, which is reported if higher than half
+ * a millisecond.
+ */
+void sched_entering_poll()
+{
+	uint64_t new_mono_time;
+	uint64_t new_cpu_time;
+	int64_t stolen;
+
+	gettimeofday(&before_poll, NULL);
+
+	new_cpu_time   = now_cpu_time();
+	new_mono_time  = now_mono_time();
+
+	if (ti->prev_cpu_time && ti->prev_mono_time) {
+		new_cpu_time  -= ti->prev_cpu_time;
+		new_mono_time -= ti->prev_mono_time;
+		stolen = new_mono_time - new_cpu_time;
+		if (unlikely(stolen >= 500000)) {
+			stolen /= 500000;
+			/* more than half a millisecond difference might
+			 * indicate an undesired preemption.
+			 */
+			report_stolen_time(stolen);
+		}
+	}
 }
 
 /*
