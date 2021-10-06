@@ -50,8 +50,6 @@
 #define SETNOW(a)		(*a=now)
 
 extern THREAD_LOCAL unsigned int   now_ms;           /* internal date in milliseconds (may wrap) */
-extern THREAD_LOCAL unsigned int   samp_time;        /* total elapsed time over current sample */
-extern THREAD_LOCAL unsigned int   idle_time;        /* total idle time over current sample */
 extern THREAD_LOCAL struct timeval now;              /* internal date is a monotonic function of real clock */
 extern THREAD_LOCAL struct timeval date;             /* the real current date */
 extern struct timeval start_date;       /* the process's start date */

@@ -19,8 +19,6 @@
 #include <haproxy/tools.h>
 
 THREAD_LOCAL unsigned int   now_ms;          /* internal date in milliseconds (may wrap) */
-THREAD_LOCAL unsigned int   samp_time;       /* total elapsed time over current sample */
-THREAD_LOCAL unsigned int   idle_time;       /* total idle time over current sample */
 THREAD_LOCAL struct timeval now;             /* internal date is a monotonic function of real clock */
 THREAD_LOCAL struct timeval date;            /* the real current date */
 struct timeval start_date;      /* the process's start date */
@@ -278,7 +276,6 @@ void tv_init_process_date()
 	now = after_poll = before_poll = date;
 	global_now = ((ullong)date.tv_sec << 32) + (uint)date.tv_usec;
 	global_now_ms = now.tv_sec * 1000 + now.tv_usec / 1000;
-	samp_time = idle_time = 0;
 	ti->idle_pct = 100;
 	tv_update_date(0, 1);
 }
@@ -296,7 +293,6 @@ void tv_init_thread_date()
 	old_now = _HA_ATOMIC_LOAD(&global_now);
 	now.tv_sec = old_now >> 32;
 	now.tv_usec = (uint)old_now;
-	samp_time = idle_time = 0;
 	ti->idle_pct = 100;
 	tv_update_date(0, 1);
 }

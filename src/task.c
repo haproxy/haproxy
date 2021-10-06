@@ -37,6 +37,10 @@ DECLARE_POOL(pool_head_notification, "notification", sizeof(struct notification)
 volatile unsigned long global_tasks_mask = 0; /* Mask of threads with tasks in the global runqueue */
 unsigned int niced_tasks = 0;      /* number of niced tasks in the run queue */
 
+/* used for idle time calculation */
+THREAD_LOCAL unsigned int   samp_time = 0;     /* total elapsed time over current sample */
+THREAD_LOCAL unsigned int   idle_time = 0;     /* total idle time over current sample */
+
 THREAD_LOCAL struct task_per_thread *sched = &task_per_thread[0]; /* scheduler context for the current thread */
 
 __decl_aligned_spinlock(rq_lock); /* spin lock related to run queue */
