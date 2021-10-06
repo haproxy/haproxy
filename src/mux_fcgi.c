@@ -30,7 +30,6 @@
 #include <haproxy/proxy.h>
 #include <haproxy/regex.h>
 #include <haproxy/session-t.h>
-#include <haproxy/ssl_sock.h>
 #include <haproxy/stream.h>
 #include <haproxy/stream_interface.h>
 #include <haproxy/trace.h>
@@ -1321,12 +1320,12 @@ static int fcgi_set_default_param(struct fcgi_conn *fconn, struct fcgi_strm *fst
 		params->cont_len = ist2(b_tail(params->p), end - b_tail(params->p));
 		params->p->data += params->cont_len.len;
 	}
-#ifdef USE_OPENSSL
+
 	if (!(params->mask & FCGI_SP_HTTPS)) {
 		if (cli_conn)
 			params->https = conn_is_ssl(cli_conn);
 	}
-#endif
+
 	if ((params->mask & FCGI_SP_URI_MASK) != FCGI_SP_URI_MASK) {
 		/* one of scriptname, pathinfo or query_string is no set */
 		struct http_uri_parser parser = http_uri_parser_init(params->uri);
