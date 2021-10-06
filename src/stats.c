@@ -1695,7 +1695,7 @@ int stats_fill_fe_stats(struct proxy *px, struct field *stats, int len,
 				metric = mkf_u64(FN_COUNTER, px->fe_counters.denied_sess);
 				break;
 			case ST_F_STATUS:
-				metric = mkf_str(FO_STATUS, px->disabled ? "STOP" : "OPEN");
+				metric = mkf_str(FO_STATUS, (px->flags & (PR_FL_DISABLED|PR_FL_STOPPED)) ? "STOP" : "OPEN");
 				break;
 			case ST_F_PID:
 				metric = mkf_u32(FO_KEY, 1);
@@ -3678,7 +3678,7 @@ static int stats_dump_proxies(struct stream_interface *si,
 		 * Also skip proxies that were disabled in the configuration
 		 * This change allows retrieving stats from "old" proxies after a reload.
 		 */
-		if (!(px->disabled & PR_DISABLED) && px->uuid > 0 &&
+		if (!(px->flags & PR_FL_DISABLED) && px->uuid > 0 &&
 		    (px->cap & (PR_CAP_FE | PR_CAP_BE)) && !(px->cap & PR_CAP_INT)) {
 			if (stats_dump_proxy_to_buffer(si, htx, px, uri) == 0)
 				return 0;
@@ -4091,7 +4091,7 @@ static int stats_process_http_post(struct stream_interface *si)
 						total_servers++;
 						break;
 					case ST_ADM_ACTION_SHUTDOWN:
-						if (!px->disabled) {
+						if (!(px->flags & (PR_FL_DISABLED|PR_FL_STOPPED))) {
 							srv_shutdown_streams(sv, SF_ERR_KILLED);
 							altered_servers++;
 							total_servers++;

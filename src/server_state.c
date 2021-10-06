@@ -830,7 +830,7 @@ void apply_server_state(void)
 		struct eb_root local_state_tree = EB_ROOT_UNIQUE;
 
 		/* Must be an enabled backend with at least a server */
-		if (!(curproxy->cap & PR_CAP_BE) || curproxy->disabled || !curproxy->srv)
+		if (!(curproxy->cap & PR_CAP_BE) || (curproxy->flags & (PR_FL_DISABLED|PR_FL_STOPPED)) || !curproxy->srv)
 			continue; /* next proxy */
 
 		/* Mode must be specified */

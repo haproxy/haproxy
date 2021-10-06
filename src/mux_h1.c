@@ -1023,7 +1023,7 @@ static void h1_set_cli_conn_mode(struct h1s *h1s, struct h1m *h1m)
 	}
 
 	/* If KAL, check if the frontend is stopping. If yes, switch in CLO mode */
-	if (h1s->flags & H1S_F_WANT_KAL && fe->disabled) {
+	if (h1s->flags & H1S_F_WANT_KAL && (fe->flags & (PR_FL_DISABLED|PR_FL_STOPPED))) {
 		h1s->flags = (h1s->flags & ~H1S_F_WANT_MSK) | H1S_F_WANT_CLO;
 		TRACE_STATE("stopping, set close mode", H1_EV_RX_DATA|H1_EV_RX_HDRS|H1_EV_TX_DATA|H1_EV_TX_HDRS, h1s->h1c->conn, h1s);
 	}
@@ -1087,7 +1087,7 @@ static void h1_set_srv_conn_mode(struct h1s *h1s, struct h1m *h1m)
 	}
 
 	/* If KAL, check if the backend is stopping. If yes, switch in CLO mode */
-	if (h1s->flags & H1S_F_WANT_KAL && be->disabled) {
+	if (h1s->flags & H1S_F_WANT_KAL && (be->flags & (PR_FL_DISABLED|PR_FL_STOPPED))) {
 		h1s->flags = (h1s->flags & ~H1S_F_WANT_MSK) | H1S_F_WANT_CLO;
 		TRACE_STATE("stopping, set close mode", H1_EV_RX_DATA|H1_EV_RX_HDRS|H1_EV_TX_DATA|H1_EV_TX_HDRS, h1s->h1c->conn, h1s);
 	}
@@ -2841,7 +2841,7 @@ static int h1_process(struct h1c * h1c)
 	 * Release idling front connection if this is the case.
 	 */
 	if (!(h1c->flags & H1C_F_IS_BACK)) {
-		if (unlikely(h1c->px->disabled)) {
+		if (unlikely(h1c->px->flags & (PR_FL_DISABLED|PR_FL_STOPPED))) {
 			if (h1c->flags & H1C_F_WAIT_NEXT_REQ)
 				goto release;
 		}

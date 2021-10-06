@@ -1364,7 +1364,7 @@ void init_new_proxy(struct proxy *p)
 void proxy_preset_defaults(struct proxy *defproxy)
 {
 	defproxy->mode = PR_MODE_TCP;
-	defproxy->disabled = 0;
+	defproxy->flags = 0;
 	if (!(defproxy->cap & PR_CAP_INT)) {
 		defproxy->maxconn = cfg_maxpconn;
 		defproxy->conn_retries = CONN_RETRIES;
@@ -1532,7 +1532,7 @@ static int proxy_defproxy_cpy(struct proxy *curproxy, const struct proxy *defpro
 	/* set default values from the specified default proxy */
 	memcpy(&curproxy->defsrv, &defproxy->defsrv, sizeof(curproxy->defsrv));
 
-	curproxy->disabled = defproxy->disabled;
+	curproxy->flags = defproxy->flags;
 	curproxy->options = defproxy->options;
 	curproxy->options2 = defproxy->options2;
 	curproxy->no_options = defproxy->no_options;
@@ -1811,19 +1811,19 @@ struct proxy *parse_new_proxy(const char *name, unsigned int cap,
 }
 
 /* to be called under the proxy lock after stopping some listeners. This will
- * automatically update the p->disabled flag after stopping the last one, and
+ * automatically update the p->flags flag after stopping the last one, and
  * will emit a log indicating the proxy's condition. The function is idempotent
  * so that it will not emit multiple logs; a proxy will be disabled only once.
  */
 void proxy_cond_disable(struct proxy *p)
 {
-	if (p->disabled)
+	if (p->flags & (PR_FL_DISABLED|PR_FL_STOPPED))
 		return;
 
 	if (p->li_ready + p->li_paused > 0)
 		return;
 
-	p->disabled |= PR_STOPPED;
+	p->flags |= PR_FL_STOPPED;
 
 	/* Note: syslog proxies use their own loggers so while it's somewhat OK
 	 * to report them being stopped as a warning, we must not spam their log
@@ -1863,7 +1863,7 @@ struct task *manage_proxy(struct task *t, void *context, unsigned int state)
 	 */
 
 	/* first, let's check if we need to stop the proxy */
-	if (unlikely(stopping && !p->disabled)) {
+	if (unlikely(stopping && !(p->flags & (PR_FL_DISABLED|PR_FL_STOPPED)))) {
 		int t;
 		t = tick_remain(now_ms, p->stop_time);
 		if (t == 0) {
@@ -1883,7 +1883,7 @@ struct task *manage_proxy(struct task *t, void *context, unsigned int state)
 	 * be in neither list. Any entry being dumped will have ref_cnt > 0.
 	 * However we protect tables that are being synced to peers.
 	 */
-	if (unlikely(stopping && p->disabled && p->table && p->table->current)) {
+	if (unlikely(stopping && (p->flags & (PR_FL_DISABLED|PR_FL_STOPPED)) && p->table && p->table->current)) {
 
 		if (!p->table->refcnt) {
 			/* !table->refcnt means there
@@ -2103,7 +2103,7 @@ int pause_proxy(struct proxy *p)
 {
 	struct listener *l;
 
-	if (!(p->cap & PR_CAP_FE) || p->disabled || !p->li_ready)
+	if (!(p->cap & PR_CAP_FE) || (p->flags & (PR_FL_DISABLED|PR_FL_STOPPED)) || !p->li_ready)
 		return 1;
 
 	list_for_each_entry(l, &p->conf.listeners, by_fe)
@@ -2122,7 +2122,7 @@ int pause_proxy(struct proxy *p)
  * to be called when going down in order to release the ports so that another
  * process may bind to them. It must also be called on disabled proxies at the
  * end of start-up. If all listeners are closed, the proxy is set to the
- * PR_STSTOPPED state. The function takes the proxy's lock so it's safe to
+ * PR_STOPPED state. The function takes the proxy's lock so it's safe to
  * call from multiple places.
  */
 void stop_proxy(struct proxy *p)
@@ -2134,9 +2134,9 @@ void stop_proxy(struct proxy *p)
 	list_for_each_entry(l, &p->conf.listeners, by_fe)
 		stop_listener(l, 1, 0, 0);
 
-	if (!p->disabled && !p->li_ready) {
+	if (!(p->flags & (PR_FL_DISABLED|PR_FL_STOPPED)) && !p->li_ready) {
 		/* might be just a backend */
-		p->disabled |= PR_STOPPED;
+		p->flags |= PR_FL_STOPPED;
 	}
 
 	HA_RWLOCK_WRUNLOCK(PROXY_LOCK, &p->lock);
@@ -2152,7 +2152,7 @@ int resume_proxy(struct proxy *p)
 	struct listener *l;
 	int fail;
 
-	if (p->disabled || !p->li_paused)
+	if ((p->flags & (PR_FL_DISABLED|PR_FL_STOPPED)) || !p->li_paused)
 		return 1;
 
 	fail = 0;
@@ -2372,7 +2372,7 @@ void proxy_adjust_all_maxconn()
 	struct switching_rule *swrule1, *swrule2;
 
 	for (curproxy = proxies_list; curproxy; curproxy = curproxy->next) {
-		if (curproxy->disabled)
+		if (curproxy->flags & (PR_FL_DISABLED|PR_FL_STOPPED))
 			continue;
 
 		if (!(curproxy->cap & PR_CAP_FE))
@@ -2416,7 +2416,7 @@ void proxy_adjust_all_maxconn()
 	 * loop above because cross-references are not yet fully resolved.
 	 */
 	for (curproxy = proxies_list; curproxy; curproxy = curproxy->next) {
-		if (curproxy->disabled)
+		if (curproxy->flags & (PR_FL_DISABLED|PR_FL_STOPPED))
 			continue;
 
 		/* If <fullconn> is not set, let's set it to 10% of the sum of
@@ -2875,7 +2875,7 @@ static int cli_parse_shutdown_frontend(char **args, char *payload, struct appctx
 	if (!px)
 		return 1;
 
-	if (px->disabled)
+	if (px->flags & (PR_FL_DISABLED|PR_FL_STOPPED))
 		return cli_msg(appctx, LOG_NOTICE, "Frontend was already shut down.\n");
 
 	stop_proxy(px);
@@ -2898,7 +2898,7 @@ static int cli_parse_disable_frontend(char **args, char *payload, struct appctx 
 	if (!px)
 		return 1;
 
-	if (px->disabled)
+	if (px->flags & (PR_FL_DISABLED|PR_FL_STOPPED))
 		return cli_msg(appctx, LOG_NOTICE, "Frontend was previously shut down, cannot disable.\n");
 
 	if (!px->li_ready)
@@ -2930,7 +2930,7 @@ static int cli_parse_enable_frontend(char **args, char *payload, struct appctx *
 	if (!px)
 		return 1;
 
-	if (px->disabled)
+	if (px->flags & (PR_FL_DISABLED|PR_FL_STOPPED))
 		return cli_err(appctx, "Frontend was previously shut down, cannot enable.\n");
 
 	if (px->li_ready == px->li_all)

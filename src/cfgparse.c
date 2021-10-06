@@ -1019,7 +1019,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 		stktables_list = t;
 	}
 	else if (strcmp(args[0], "disabled") == 0) {  /* disables this peers section */
-		curpeers->disabled |= PR_DISABLED;
+		curpeers->disabled |= PR_FL_DISABLED;
 	}
 	else if (strcmp(args[0], "enabled") == 0) {  /* enables this peers section (used to revert a disabled default) */
 		curpeers->disabled = 0;
@@ -2502,7 +2502,7 @@ int check_config_validity()
 		if (curproxy->uuid >= 0)
 			next_pxid++;
 
-		if (curproxy->disabled) {
+		if (curproxy->flags & PR_FL_DISABLED) {
 			/* ensure we don't keep listeners uselessly bound. We
 			 * can't disable their listeners yet (fdtab not
 			 * allocated yet) but let's skip them.
@@ -3962,7 +3962,7 @@ out_uri_auth_compat:
 	 * other proxies.
 	 */
 	for (curproxy = proxies_list; curproxy; curproxy = curproxy->next) {
-		if (curproxy->disabled || !curproxy->table)
+		if ((curproxy->flags & PR_FL_DISABLED) || !curproxy->table)
 			continue;
 
 		if (!stktable_init(curproxy->table)) {

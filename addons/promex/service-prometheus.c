@@ -613,7 +613,7 @@ static int promex_dump_front_metrics(struct appctx *appctx, struct htx *htx)
 			labels[0].value = ist2(px->id, strlen(px->id));
 
 			/* skip the disabled proxies, global frontend and non-networked ones */
-			if (px->disabled || px->uuid <= 0 || !(px->cap & PR_CAP_FE))
+			if ((px->flags & PR_FL_DISABLED) || px->uuid <= 0 || !(px->cap & PR_CAP_FE))
 				goto next_px;
 
 			if (!stats_fill_fe_stats(px, stats, ST_F_TOTAL_FIELDS, &(appctx->st2)))
@@ -621,7 +621,7 @@ static int promex_dump_front_metrics(struct appctx *appctx, struct htx *htx)
 
 			switch (appctx->st2) {
 				case ST_F_STATUS:
-					state = !px->disabled;
+					state = !(px->flags & PR_FL_STOPPED);
 					for (; appctx->ctx.stats.st_code < PROMEX_FRONT_STATE_COUNT; appctx->ctx.stats.st_code++) {
 						labels[1].name = ist("state");
 						labels[1].value = promex_front_st[appctx->ctx.stats.st_code];
@@ -714,7 +714,7 @@ static int promex_dump_listener_metrics(struct appctx *appctx, struct htx *htx)
 			labels[0].value = ist2(px->id, strlen(px->id));
 
 			/* skip the disabled proxies, global frontend and non-networked ones */
-			if (px->disabled || px->uuid <= 0 || !(px->cap & PR_CAP_FE))
+			if ((px->flags & PR_FL_DISABLED) || px->uuid <= 0 || !(px->cap & PR_CAP_FE))
 				goto next_px;
 
 			li = appctx->ctx.stats.obj2;
@@ -804,7 +804,7 @@ static int promex_dump_back_metrics(struct appctx *appctx, struct htx *htx)
 			labels[0].value = ist2(px->id, strlen(px->id));
 
 			/* skip the disabled proxies, global frontend and non-networked ones */
-			if (px->disabled || px->uuid <= 0 || !(px->cap & PR_CAP_BE))
+			if ((px->flags & PR_FL_DISABLED) || px->uuid <= 0 || !(px->cap & PR_CAP_BE))
 				goto next_px;
 
 			if (!stats_fill_be_stats(px, 0, stats, ST_F_TOTAL_FIELDS, &(appctx->st2)))
@@ -937,7 +937,7 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 			labels[0].value = ist2(px->id, strlen(px->id));
 
 			/* skip the disabled proxies, global frontend and non-networked ones */
-			if (px->disabled || px->uuid <= 0 || !(px->cap & PR_CAP_BE))
+			if ((px->flags & PR_FL_DISABLED) || px->uuid <= 0 || !(px->cap & PR_CAP_BE))
 				goto next_px;
 
 			while (appctx->ctx.stats.obj2) {

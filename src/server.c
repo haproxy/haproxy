@@ -3865,7 +3865,7 @@ int srv_init_addr(void)
 		struct server *srv;
 
 		/* servers are in backend only */
-		if (!(curproxy->cap & PR_CAP_BE) || curproxy->disabled)
+		if (!(curproxy->cap & PR_CAP_BE) || (curproxy->flags & (PR_FL_DISABLED|PR_FL_STOPPED)))
 			goto srv_init_addr_next;
 
 		for (srv = curproxy->srv; srv; srv = srv->next) {
@@ -3954,7 +3954,7 @@ struct server *cli_find_server(struct appctx *appctx, char *arg)
 		return NULL;
 	}
 
-	if (px->disabled) {
+	if (px->flags & (PR_FL_DISABLED|PR_FL_STOPPED)) {
 		cli_err(appctx, "Proxy is disabled.\n");
 		return NULL;
 	}

@@ -292,7 +292,7 @@ flt_init_all()
 	int err_code = ERR_NONE;
 
 	for (px = proxies_list; px; px = px->next) {
-		if (px->disabled) {
+		if (px->flags & (PR_FL_DISABLED|PR_FL_STOPPED)) {
 			flt_deinit(px);
 			continue;
 		}
@@ -315,7 +315,7 @@ flt_init_all_per_thread()
 	int err_code = 0;
 
 	for (px = proxies_list; px; px = px->next) {
-		if (px->disabled)
+		if (px->flags & (PR_FL_DISABLED|PR_FL_STOPPED))
 			continue;
 
 		err_code = flt_init_per_thread(px);

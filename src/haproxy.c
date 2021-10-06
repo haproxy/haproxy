@@ -1999,7 +1999,7 @@ static void init(int argc, char **argv)
 		struct post_proxy_check_fct *ppcf;
 		struct post_server_check_fct *pscf;
 
-		if (px->disabled)
+		if (px->flags & (PR_FL_DISABLED|PR_FL_STOPPED))
 			continue;
 
 		list_for_each_entry(pscf, &post_server_check_list, list) {
@@ -2061,13 +2061,13 @@ static void init(int argc, char **argv)
 				break;
 
 		for (px = proxies_list; px; px = px->next)
-			if (!px->disabled && px->li_all)
+			if (!(px->flags & (PR_FL_DISABLED|PR_FL_STOPPED)) && px->li_all)
 				break;
 
 		if (!px) {
 			/* We may only have log-forward section */
 			for (px = cfg_log_forward; px; px = px->next)
-				if (!px->disabled && px->li_all)
+				if (!(px->flags & (PR_FL_DISABLED|PR_FL_STOPPED)) && px->li_all)
 					break;
 		}
 
@@ -2401,7 +2401,7 @@ static void init(int argc, char **argv)
 
 	/* stop disabled proxies */
 	for (px = proxies_list; px; px = px->next) {
-		if (px->disabled)
+		if (px->flags & (PR_FL_DISABLED|PR_FL_STOPPED))
 			stop_proxy(px);
 	}
 

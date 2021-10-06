@@ -443,7 +443,7 @@ void mworker_cleanlisteners()
 		}
 		/* if the proxy shouldn't be in the master, we stop it */
 		if (!listen_in_master)
-			curproxy->disabled |= PR_DISABLED;
+			curproxy->flags |= PR_FL_DISABLED;
 	}
 }
 

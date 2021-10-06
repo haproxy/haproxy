@@ -1117,7 +1117,7 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 		 * is disabled.
 		 */
 		if (((check->state & (CHK_ST_ENABLED | CHK_ST_PAUSED)) != CHK_ST_ENABLED) ||
-		    proxy->disabled) {
+		    (proxy->flags & (PR_FL_DISABLED|PR_FL_STOPPED))) {
 			TRACE_STATE("health-check paused or disabled", CHK_EV_TASK_WAKE, check);
 			goto reschedule;
 		}

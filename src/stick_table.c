@@ -654,7 +654,7 @@ int stktable_init(struct stktable *t)
 			t->exp_task->process = process_table_expire;
 			t->exp_task->context = (void *)t;
 		}
-		if (t->peers.p && t->peers.p->peers_fe && !t->peers.p->peers_fe->disabled) {
+		if (t->peers.p && t->peers.p->peers_fe && !(t->peers.p->peers_fe->flags & (PR_FL_DISABLED|PR_FL_STOPPED))) {
 			peers_retval = peers_register_table(t->peers.p, t);
 		}
 

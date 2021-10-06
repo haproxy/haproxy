@@ -200,9 +200,9 @@ enum PR_SRV_STATE_FILE {
 #define PR_RE_EARLY_ERROR         0x00010000 /* Retry if we failed at sending early data */
 #define PR_RE_JUNK_REQUEST        0x00020000 /* We received an incomplete or garbage response */
 
-/* disabled state */
-#define PR_DISABLED               0x1  /* The proxy was disabled in the configuration (not at runtime) */
-#define PR_STOPPED                0x2  /* The proxy was stopped */
+/* Proxy flags */
+#define PR_FL_DISABLED           0x01  /* The proxy was disabled in the configuration (not at runtime) */
+#define PR_FL_STOPPED            0x02  /* The proxy was stopped */
 
 struct stream;
 
@@ -258,7 +258,7 @@ struct error_snapshot {
 
 struct proxy {
 	enum obj_type obj_type;                 /* object type == OBJ_TYPE_PROXY */
-	char disabled;                          /* bit field PR_DISABLED | PR_STOPPED */
+	char flags;                             /* bit field PR_FL_* */
 	enum pr_mode mode;                      /* mode = PR_MODE_TCP, PR_MODE_HTTP, ... */
 	char cap;                               /* supported capabilities (PR_CAP_*) */
 	unsigned int maxconn;                   /* max # of active streams on the frontend */
