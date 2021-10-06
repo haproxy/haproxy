@@ -1771,13 +1771,7 @@ int sample_conv_var2smp_str(const struct arg *arg, struct sample *smp)
 		smp->flags = SMP_F_CONST;
 		return 1;
 	case ARGT_VAR:
-		if (!vars_get_by_desc(&arg->data.var, smp, NULL))
-				return 0;
-		if (!sample_casts[smp->data.type][SMP_T_STR])
-				return 0;
-		if (!sample_casts[smp->data.type][SMP_T_STR](smp))
-				return 0;
-		return 1;
+		return sample_conv_var2smp(&arg->data.var, smp, SMP_T_STR);
 	default:
 		return 0;
 	}
@@ -3014,13 +3008,7 @@ int sample_conv_var2smp_sint(const struct arg *arg, struct sample *smp)
 		smp->data.u.sint = arg->data.sint;
 		return 1;
 	case ARGT_VAR:
-		if (!vars_get_by_desc(&arg->data.var, smp, NULL))
-			return 0;
-		if (!sample_casts[smp->data.type][SMP_T_SINT])
-			return 0;
-		if (!sample_casts[smp->data.type][SMP_T_SINT](smp))
-			return 0;
-		return 1;
+		return sample_conv_var2smp(&arg->data.var, smp, SMP_T_SINT);
 	default:
 		return 0;
 	}
@@ -3401,9 +3389,8 @@ static int sample_conv_strcmp(const struct arg *arg_p, struct sample *smp, void 
 	smp_set_owner(&tmp, smp->px, smp->sess, smp->strm, smp->opt);
 	if (arg_p[0].type != ARGT_VAR)
 		return 0;
-	if (!vars_get_by_desc(&arg_p[0].data.var, &tmp, NULL))
-		return 0;
-	if (!sample_casts[tmp.data.type][SMP_T_STR](&tmp))
+
+	if (!sample_conv_var2smp(&arg_p[0].data.var, &tmp, SMP_T_STR))
 		return 0;
 
 	max = MIN(smp->data.u.str.data, tmp.data.u.str.data);
@@ -3439,9 +3426,8 @@ static int sample_conv_secure_memcmp(const struct arg *arg_p, struct sample *smp
 	smp_set_owner(&tmp, smp->px, smp->sess, smp->strm, smp->opt);
 	if (arg_p[0].type != ARGT_VAR)
 		return 0;
-	if (!vars_get_by_desc(&arg_p[0].data.var, &tmp, NULL))
-		return 0;
-	if (!sample_casts[tmp.data.type][SMP_T_BIN](&tmp))
+
+	if (!sample_conv_var2smp(&arg_p[0].data.var, &tmp, SMP_T_BIN))
 		return 0;
 
 	if (smp->data.u.str.data != tmp.data.u.str.data) {
