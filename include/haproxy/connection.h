@@ -77,6 +77,8 @@ int conn_recv_socks4_proxy_response(struct connection *conn);
 
 /* If we delayed the mux creation because we were waiting for the handshake, do it now */
 int conn_create_mux(struct connection *conn);
+int conn_notify_mux(struct connection *conn, int old_flags, int forced_wake);
+void conn_delete_from_tree(struct ebmb_node *node);
 
 /* connection hash stuff */
 uint64_t conn_calculate_hash(const struct conn_hash_params *params);
@@ -227,81 +229,6 @@ static inline void conn_xprt_shutw_hard(struct connection *c)
 	/* unclean data-layer shutdown */
 	if (c->xprt && c->xprt->shutw)
 		c->xprt->shutw(c, c->xprt_ctx, 0);
-}
-
-/* This is used at the end of the socket IOCB to possibly create the mux if it
- * was not done yet, or wake it up if flags changed compared to old_flags or if
- * need_wake insists on this. It returns <0 if the connection was destroyed and
- * must not be used, >=0 otherwise.
- */
-static inline int conn_notify_mux(struct connection *conn, int old_flags, int forced_wake)
-{
-	int ret = 0;
-
-	/* If we don't yet have a mux, that means we were waiting for
-	 * information to create one, typically from the ALPN. If we're
-	 * done with the handshake, attempt to create one.
-	 */
-	if (unlikely(!conn->mux) && !(conn->flags & CO_FL_WAIT_XPRT)) {
-		ret = conn_create_mux(conn);
-		if (ret < 0)
-			goto done;
-	}
-
-	/* The wake callback is normally used to notify the data layer about
-	 * data layer activity (successful send/recv), connection establishment,
-	 * shutdown and fatal errors. We need to consider the following
-	 * situations to wake up the data layer :
-	 *  - change among the CO_FL_NOTIFY_DONE flags :
-	 *      SOCK_{RD,WR}_SH, ERROR,
-	 *  - absence of any of {L4,L6}_CONN and CONNECTED, indicating the
-	 *    end of handshake and transition to CONNECTED
-	 *  - raise of CONNECTED with HANDSHAKE down
-	 *  - end of HANDSHAKE with CONNECTED set
-	 *  - regular data layer activity
-	 *
-	 * One tricky case is the wake up on read0 or error on an idle
-	 * backend connection, that can happen on a connection that is still
-	 * polled while at the same moment another thread is about to perform a
-	 * takeover. The solution against this is to remove the connection from
-	 * the idle list if it was in it, and possibly reinsert it at the end
-	 * if the connection remains valid. The cost is non-null (locked tree
-	 * removal) but remains low given that this is extremely rarely called.
-	 * In any case it's guaranteed by the FD's thread_mask that we're
-	 * called from the same thread the connection is queued in.
-	 *
-	 * Note that the wake callback is allowed to release the connection and
-	 * the fd (and return < 0 in this case).
-	 */
-	if ((forced_wake ||
-	     ((conn->flags ^ old_flags) & CO_FL_NOTIFY_DONE) ||
-	     ((old_flags & CO_FL_WAIT_XPRT) && !(conn->flags & CO_FL_WAIT_XPRT))) &&
-	    conn->mux && conn->mux->wake) {
-		uint conn_in_list = conn->flags & CO_FL_LIST_MASK;
-		struct server *srv = objt_server(conn->target);
-
-		if (conn_in_list) {
-			HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
-			conn_delete_from_tree(&conn->hash_node->node);
-			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
-		}
-
-		ret = conn->mux->wake(conn);
-		if (ret < 0)
-			goto done;
-
-		if (conn_in_list) {
-			struct eb_root *root = (conn_in_list == CO_FL_SAFE_LIST) ?
-				&srv->per_thr[tid].safe_conns :
-				&srv->per_thr[tid].idle_conns;
-
-			HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
-			ebmb_insert(root, &conn->hash_node->node, sizeof(conn->hash_node->hash));
-			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
-		}
-	}
- done:
-	return ret;
 }
 
 /* shut read */

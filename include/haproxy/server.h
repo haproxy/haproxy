@@ -37,7 +37,6 @@
 
 __decl_thread(extern HA_SPINLOCK_T idle_conn_srv_lock);
 extern struct idle_conns idle_conns[MAX_THREADS];
-extern struct eb_root idle_conn_srv;
 extern struct task *idle_conn_task;
 extern struct list servers_list;
 extern struct dict server_key_dict;
@@ -269,11 +268,6 @@ static inline void srv_use_conn(struct server *srv, struct connection *conn)
 		srv->est_need_conns = curr;
 }
 
-static inline void conn_delete_from_tree(struct ebmb_node *node)
-{
-	ebmb_delete(node);
-	memset(node, 0, sizeof(*node));
-}
 
 /* removes an idle conn after updating the server idle conns counters */
 static inline void srv_release_conn(struct server *srv, struct connection *conn)
