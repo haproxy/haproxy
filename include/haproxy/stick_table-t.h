@@ -23,9 +23,6 @@
 #ifndef _HAPROXY_STICK_TABLE_T_H
 #define _HAPROXY_STICK_TABLE_T_H
 
-#include <sys/socket.h>
-#include <netinet/in.h>
-
 #include <import/eb32tree.h>
 #include <import/ebmbtree.h>
 #include <import/ebpttree.h>
