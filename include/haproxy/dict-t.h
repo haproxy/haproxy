@@ -27,7 +27,7 @@
 #ifndef _HAPROXY_DICT_T_H
 #define _HAPROXY_DICT_T_H
 
-#include <import/ebpttree.h>
+#include <import/ebtree-t.h>
 #include <haproxy/api-t.h>
 #include <haproxy/thread-t.h>
 

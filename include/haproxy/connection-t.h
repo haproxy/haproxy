@@ -28,7 +28,7 @@
 #include <netinet/ip.h>
 #include <netinet/ip6.h>
 
-#include <import/ebmbtree.h>
+#include <import/ebtree-t.h>
 #include <import/ist.h>
 
 #include <haproxy/api-t.h>

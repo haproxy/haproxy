@@ -22,7 +22,7 @@
 #ifndef _HAPROXY_LB_FWRR_T_H
 #define _HAPROXY_LB_FWRR_T_H
 
-#include <import/ebtree.h>
+#include <import/ebtree-t.h>
 
 /* This structure is used to apply fast weighted round robin on a server group */
 struct fwrr_group {

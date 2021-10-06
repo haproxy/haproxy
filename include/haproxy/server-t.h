@@ -25,8 +25,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-#include <import/eb32tree.h>
-#include <import/ebmbtree.h>
+#include <import/ebtree-t.h>
 
 #include <haproxy/api-t.h>
 #include <haproxy/check-t.h>

@@ -23,9 +23,7 @@
 #define _HAPROXY_SSL_SOCK_T_H
 #ifdef USE_OPENSSL
 
-#include <import/eb64tree.h>
-#include <import/ebmbtree.h>
-#include <import/ebpttree.h>
+#include <import/ebtree-t.h>
 
 #include <haproxy/buf-t.h>
 #include <haproxy/connection-t.h> /* struct wait_event */

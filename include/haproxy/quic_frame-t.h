@@ -31,7 +31,7 @@
 
 #include <haproxy/list.h>
 
-#include <import/eb64tree.h>
+#include <import/ebtree-t.h>
 
 /* QUIC frame types. */
 enum quic_frame_type {

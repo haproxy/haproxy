@@ -38,8 +38,7 @@
 #include <haproxy/quic_loss-t.h>
 #include <haproxy/task.h>
 
-#include <import/eb64tree.h>
-#include <import/ebmbtree.h>
+#include <import/ebtree-t.h>
 
 typedef unsigned long long ull;
 

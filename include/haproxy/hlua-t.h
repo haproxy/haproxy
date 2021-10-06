@@ -27,7 +27,7 @@
 #include <lua.h>
 #include <lauxlib.h>
 
-#include <import/ebpttree.h>
+#include <import/ebtree-t.h>
 
 #include <haproxy/proxy-t.h>
 #include <haproxy/regex-t.h>

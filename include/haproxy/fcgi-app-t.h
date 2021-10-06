@@ -22,7 +22,7 @@
 #ifndef _HAPROXY_HTTP_FCGI_T_H
 #define _HAPROXY_HTTP_FCGI_T_H
 
-#include <import/ebpttree.h>
+#include <import/ebtree-t.h>
 #include <import/ist.h>
 
 #include <haproxy/acl-t.h>

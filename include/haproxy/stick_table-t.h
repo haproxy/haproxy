@@ -23,9 +23,7 @@
 #ifndef _HAPROXY_STICK_TABLE_T_H
 #define _HAPROXY_STICK_TABLE_T_H
 
-#include <import/eb32tree.h>
-#include <import/ebmbtree.h>
-#include <import/ebpttree.h>
+#include <import/ebtree-t.h>
 
 #include <haproxy/api-t.h>
 #include <haproxy/freq_ctr-t.h>

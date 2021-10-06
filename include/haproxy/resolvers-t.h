@@ -22,7 +22,7 @@
 #ifndef _HAPROXY_RESOLVERS_T_H
 #define _HAPROXY_RESOLVERS_T_H
 
-#include <import/eb32tree.h>
+#include <import/ebtree-t.h>
 
 #include <haproxy/connection-t.h>
 #include <haproxy/dns-t.h>

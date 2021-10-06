@@ -23,7 +23,7 @@
 #ifndef _HAPROXY_NAMESPACE_T_H
 #define _HAPROXY_NAMESPACE_T_H
 
-#include <import/ebpttree.h>
+#include <import/ebtree-t.h>
 #include <haproxy/api-t.h>
 
 /* the struct is just empty if namespaces are not supported */

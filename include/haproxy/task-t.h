@@ -24,8 +24,7 @@
 
 #include <sys/time.h>
 
-#include <import/eb32sctree.h>
-#include <import/eb32tree.h>
+#include <import/ebtree-t.h>
 
 #include <haproxy/api-t.h>
 #include <haproxy/thread-t.h>

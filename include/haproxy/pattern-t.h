@@ -22,7 +22,7 @@
 #ifndef _HAPROXY_PATTERN_T_H
 #define _HAPROXY_PATTERN_T_H
 
-#include <import/ebmbtree.h>
+#include <import/ebtree-t.h>
 
 #include <haproxy/api-t.h>
 #include <haproxy/regex-t.h>

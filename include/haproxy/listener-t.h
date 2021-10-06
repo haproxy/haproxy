@@ -25,7 +25,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 
-#include <import/eb32tree.h>
+#include <import/ebtree-t.h>
 
 #include <haproxy/api-t.h>
 #include <haproxy/obj_type-t.h>

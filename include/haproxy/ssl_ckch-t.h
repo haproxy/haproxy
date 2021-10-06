@@ -33,7 +33,7 @@
 #define _HAPROXY_SSL_CKCH_T_H
 #ifdef USE_OPENSSL
 
-#include <import/ebmbtree.h>
+#include <import/ebtree-t.h>
 #include <haproxy/buf-t.h>
 #include <haproxy/openssl-compat.h>
 

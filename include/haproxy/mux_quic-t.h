@@ -32,7 +32,7 @@
 #include <haproxy/connection-t.h>
 #include <haproxy/dynbuf-t.h>
 
-#include <import/eb64tree.h>
+#include <import/ebtree-t.h>
 
 /* Bit shift to get the stream sub ID for internal use which is obtained
  * shifting the stream IDs by this value, knowing that the

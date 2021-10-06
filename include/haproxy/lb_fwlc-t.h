@@ -22,7 +22,7 @@
 #ifndef _HAPROXY_LB_FWLC_T_H
 #define _HAPROXY_LB_FWLC_T_H
 
-#include <import/ebtree.h>
+#include <import/ebtree-t.h>
 
 struct lb_fwlc {
 	struct eb_root act;	/* weighted least conns on the active servers */
