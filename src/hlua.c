@@ -7079,6 +7079,77 @@ __LJMP static int hlua_httpclient_get_yield(lua_State *L, int status, lua_KConte
 	return 0;
 }
 
+
+/*
+ * Allocate and return an array of http_hdr ist extracted from the <headers> lua table
+ *
+ * Caller must free the result
+ */
+struct http_hdr *hlua_httpclient_table_to_hdrs(lua_State *L)
+{
+	struct http_hdr hdrs[global.tune.max_http_hdr];
+	struct http_hdr *result = NULL;
+	uint32_t hdr_num = 0;
+
+	lua_pushnil(L);
+	while (lua_next(L, -2) != 0) {
+		struct ist name, value;
+		const char *n, *v;
+		size_t nlen, vlen;
+
+		if (!lua_isstring(L, -2) || !lua_istable(L, -1)) {
+			/* Skip element if the key is not a string or if the value is not a table */
+			goto next_hdr;
+		}
+
+		n = lua_tolstring(L, -2, &nlen);
+		name = ist2(n, nlen);
+
+		/* Loop on header's values */
+		lua_pushnil(L);
+		while (lua_next(L, -2)) {
+			if (!lua_isstring(L, -1)) {
+				/* Skip the value if it is not a string */
+				goto next_value;
+			}
+
+			v = lua_tolstring(L, -1, &vlen);
+			value = ist2(v, vlen);
+			name = ist2(n, nlen);
+
+			hdrs[hdr_num].n = istdup(name);
+			hdrs[hdr_num].v = istdup(value);
+
+			hdr_num++;
+
+		  next_value:
+			lua_pop(L, 1);
+		}
+
+	  next_hdr:
+		lua_pop(L, 1);
+
+	}
+
+	if (hdr_num) {
+		/* alloc and copy the headers in the httpclient struct */
+		result = calloc((hdr_num + 1), sizeof(*hdrs));
+		if (!result)
+			goto skip_headers;
+		memcpy(result, hdrs, sizeof(struct http_hdr) * (hdr_num + 1));
+
+		result[hdr_num].n = IST_NULL;
+		result[hdr_num].v = IST_NULL;
+	}
+
+skip_headers:
+	lua_pop(L, 1);
+
+	return result;
+}
+
+
+
 /*
  * Sends and receive an HTTP request
  *
@@ -7088,8 +7159,11 @@ __LJMP static int hlua_httpclient_get_yield(lua_State *L, int status, lua_KConte
 __LJMP static int hlua_httpclient_get(lua_State *L)
 {
 	struct hlua_httpclient *hlua_hc;
+	struct http_hdr *hdrs = NULL;
+	struct http_hdr *hdrs_i = NULL;
 	struct hlua *hlua;
-	const char *url_str;
+	const char *url_str = NULL;
+	int ret;
 
 	hlua = hlua_gethlua(L);
 
@@ -7097,14 +7171,25 @@ __LJMP static int hlua_httpclient_get(lua_State *L)
 		WILL_LJMP(luaL_error(L, "The 'get' function is only allowed in "
 		                     "'frontend', 'backend' or 'task'"));
 
-	if (lua_gettop(L) < 1 || lua_gettop(L) > 2)
-		WILL_LJMP(luaL_error(L, "'get' needs between 1 or 2 arguments"));
+	if (lua_gettop(L) != 2 || lua_type(L, -1) != LUA_TTABLE)
+		WILL_LJMP(luaL_error(L, "'get' needs a table as argument"));
 
-	 if (lua_type(L, -1) != LUA_TSTRING)
-		WILL_LJMP(luaL_error(L, "'get' takes an URL as a string arugment"));
+	ret = lua_getfield(L, -1, "url");
+	if (ret == LUA_TSTRING) {
+		url_str = lua_tostring(L, -1);
+	}
+	lua_pop(L, 1);
 
-	/* arg 1: URL */
-	url_str = lua_tostring(L, -1);
+	ret = lua_getfield(L, -1, "headers");
+	if (ret == LUA_TTABLE) {
+		hdrs = hlua_httpclient_table_to_hdrs(L);
+	}
+	lua_pop(L, 1);
+
+	if (!url_str) {
+		WILL_LJMP(luaL_error(L, "'get' need a 'url' argument"));
+		return 0;
+	}
 
 	hlua_hc = hlua_checkhttpclient(L, 1);
 
@@ -7118,8 +7203,19 @@ __LJMP static int hlua_httpclient_get(lua_State *L)
 	hlua_hc->hc->ops.res_end = hlua_httpclient_res_cb;
 
 
-	httpclient_req_gen(hlua_hc->hc, hlua_hc->hc->req.url, HTTP_METH_GET, NULL);
+	httpclient_req_gen(hlua_hc->hc, hlua_hc->hc->req.url, HTTP_METH_GET, hdrs);
 	httpclient_start(hlua_hc->hc);
+
+	/* free the temporary headers array */
+	hdrs_i = hdrs;
+	while (hdrs_i && isttest(hdrs_i->n)) {
+		istfree(&hdrs_i->n);
+		istfree(&hdrs_i->v);
+		hdrs_i++;
+	}
+	ha_free(&hdrs);
+
+
 
 	/* we return a "res" object */
 	lua_newtable(L);

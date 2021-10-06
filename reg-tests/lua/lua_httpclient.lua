@@ -21,7 +21,7 @@ local function cron()
 	core.Debug('CRON port:' .. vtc_port)
 
 	local httpclient = core.httpclient()
-	local response = httpclient:get("http://127.0.0.1:" .. vtc_port)
+	local response = httpclient:get{url="http://127.0.0.1:" .. vtc_port}
 
 	core.Info("Received: " .. response.body)
 end
