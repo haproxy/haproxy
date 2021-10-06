@@ -29,6 +29,7 @@
 #include <haproxy/obj_type.h>
 #include <haproxy/pool-t.h>
 #include <haproxy/queue.h>
+#include <haproxy/session.h>
 #include <haproxy/stick_table.h>
 #include <haproxy/stream-t.h>
 #include <haproxy/task-t.h>

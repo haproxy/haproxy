@@ -22,24 +22,13 @@
 #ifndef _HAPROXY_STREAM_T_H
 #define _HAPROXY_STREAM_T_H
 
-#include <sys/time.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-
 #include <haproxy/api-t.h>
 #include <haproxy/channel-t.h>
 #include <haproxy/dynbuf-t.h>
 #include <haproxy/filters-t.h>
-#include <haproxy/hlua-t.h>
-#include <haproxy/http_ana-t.h>
 #include <haproxy/obj_type-t.h>
-#include <haproxy/proxy-t.h>
-#include <haproxy/queue-t.h>
-#include <haproxy/server-t.h>
-#include <haproxy/session-t.h>
 #include <haproxy/stick_table-t.h>
 #include <haproxy/stream_interface-t.h>
-#include <haproxy/task-t.h>
 #include <haproxy/vars-t.h>
 
 
@@ -96,6 +85,14 @@
 
 #define PCLI_F_PROMPT          0x4
 #define PCLI_F_PAYLOAD         0x8
+
+struct hlua;
+struct proxy;
+struct pendconn;
+struct session;
+struct server;
+struct task;
+struct sockaddr_storage;
 
 /* some external definitions */
 struct strm_logs {
