@@ -27,6 +27,7 @@
 #include <haproxy/log.h>
 #include <haproxy/proxy.h>
 #include <haproxy/server.h>
+#include <haproxy/ssl_sock-t.h>
 #include <haproxy/stream_interface.h>
 #include <haproxy/tools.h>
 
