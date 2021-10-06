@@ -25,6 +25,7 @@
 #include <haproxy/chunk.h>
 #include <haproxy/global.h>
 #include <haproxy/http.h>
+#include <haproxy/http_ana-t.h>
 #include <haproxy/http_rules.h>
 #include <haproxy/log.h>
 #include <haproxy/pool.h>
