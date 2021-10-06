@@ -29,11 +29,11 @@
 #include <import/ist.h>
 #include <haproxy/activity.h>
 #include <haproxy/api.h>
+#include <haproxy/atomic.h>
 #include <haproxy/fd-t.h>
 #include <haproxy/global.h>
 #include <haproxy/thread.h>
 #include <haproxy/ticks.h>
-#include <haproxy/time.h>
 
 /* public variables */
 
