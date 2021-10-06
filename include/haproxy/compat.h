@@ -207,9 +207,9 @@ typedef struct { } empty_t;
  * USE_NETFILTER define.
  */
 #if !defined(SO_REUSEPORT) && defined(USE_NETFILTER)
-#if    (SO_REUSEADDR == 2)
+#if defined(SO_REUSEADDR) && (SO_REUSEADDR == 2)
 #define SO_REUSEPORT 15
-#elif  (SO_REUSEADDR == 0x0004)
+#elif defined(SO_REUSEADDR) && (SO_REUSEADDR == 0x0004)
 #define SO_REUSEPORT 0x0200
 #endif /* SO_REUSEADDR */
 #endif /* SO_REUSEPORT */
