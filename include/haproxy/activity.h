@@ -25,7 +25,6 @@
 #include <haproxy/activity-t.h>
 #include <haproxy/api.h>
 #include <haproxy/freq_ctr.h>
-#include <haproxy/time.h>
 #include <haproxy/xxhash.h>
 
 extern unsigned int profiling;
@@ -34,42 +33,7 @@ extern struct activity activity[MAX_THREADS];
 extern struct sched_activity sched_activity[256];
 
 void report_stolen_time(uint64_t stolen);
-
-/* Collect date and time information before calling poll(). This will be used
- * to count the run time of the past loop and the sleep time of the next poll.
- * It also makes use of the just updated before_poll timer to count the loop's
- * run time and feed the average loop time metric (in microseconds).
- */
-static inline void activity_count_runtime()
-{
-	uint32_t run_time;
-	uint32_t up, down;
-
-	/* 1 millisecond per loop on average over last 1024 iterations is
-	 * enough to turn on profiling.
-	 */
-	up = 1000;
-	down = up * 99 / 100;
-
-	run_time = (before_poll.tv_sec - after_poll.tv_sec) * 1000000U + (before_poll.tv_usec - after_poll.tv_usec);
-	run_time = swrate_add(&activity[tid].avg_loop_us, TIME_STATS_SAMPLES, run_time);
-
-	/* In automatic mode, reaching the "up" threshold on average switches
-	 * profiling to "on" when automatic, and going back below the "down"
-	 * threshold switches to off. The forced modes don't check the load.
-	 */
-	if (!(task_profiling_mask & tid_bit)) {
-		if (unlikely((profiling & HA_PROF_TASKS_MASK) == HA_PROF_TASKS_ON ||
-		             ((profiling & HA_PROF_TASKS_MASK) == HA_PROF_TASKS_AON &&
-		             swrate_avg(run_time, TIME_STATS_SAMPLES) >= up)))
-			_HA_ATOMIC_OR(&task_profiling_mask, tid_bit);
-	} else {
-		if (unlikely((profiling & HA_PROF_TASKS_MASK) == HA_PROF_TASKS_OFF ||
-		             ((profiling & HA_PROF_TASKS_MASK) == HA_PROF_TASKS_AOFF &&
-		             swrate_avg(run_time, TIME_STATS_SAMPLES) <= down)))
-			_HA_ATOMIC_AND(&task_profiling_mask, ~tid_bit);
-	}
-}
+void activity_count_runtime();
 
 /* Computes the index of function pointer <func> for use with sched_activity[]
  * or any other similar array passed in <array>, and returns a pointer to the
