@@ -1823,7 +1823,6 @@ const char *server_parse_maxconn_change_request(struct server *sv,
 	return NULL;
 }
 
-#ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
 static struct sample_expr *srv_sni_sample_parse_expr(struct server *srv, struct proxy *px,
                                                      const char *file, int linenum, char **err)
 {
@@ -1863,7 +1862,6 @@ static int server_parse_sni_expr(struct server *newsrv, struct proxy *px, char *
 
 	return 0;
 }
-#endif
 
 static void display_parser_err(const char *file, int linenum, char **args, int cur_arg, int err_code, char **err)
 {
@@ -1956,14 +1954,11 @@ static void srv_ssl_settings_cpy(struct server *srv, struct server *src)
 	if (src->ssl_ctx.methods.max)
 		srv->ssl_ctx.methods.max = src->ssl_ctx.methods.max;
 
-#ifdef HAVE_SSL_CTX_SET_CIPHERSUITES
 	if (src->ssl_ctx.ciphersuites != NULL)
 		srv->ssl_ctx.ciphersuites = strdup(src->ssl_ctx.ciphersuites);
-#endif
 	if (src->sni_expr != NULL)
 		srv->sni_expr = strdup(src->sni_expr);
 
-#ifdef TLSEXT_TYPE_application_layer_protocol_negotiation
 	if (src->ssl_ctx.alpn_str) {
 		srv->ssl_ctx.alpn_str = malloc(src->ssl_ctx.alpn_len);
 		if (srv->ssl_ctx.alpn_str) {
@@ -1972,8 +1967,7 @@ static void srv_ssl_settings_cpy(struct server *srv, struct server *src)
 			srv->ssl_ctx.alpn_len = src->ssl_ctx.alpn_len;
 		}
 	}
-#endif
-#ifdef OPENSSL_NPN_NEGOTIATED
+
 	if (src->ssl_ctx.npn_str) {
 		srv->ssl_ctx.npn_str = malloc(src->ssl_ctx.npn_len);
 		if (srv->ssl_ctx.npn_str) {
@@ -1982,7 +1976,6 @@ static void srv_ssl_settings_cpy(struct server *srv, struct server *src)
 			srv->ssl_ctx.npn_len = src->ssl_ctx.npn_len;
 		}
 	}
-#endif
 }
 #endif
 
@@ -2358,13 +2351,13 @@ static int _srv_parse_tmpl_init(struct server *srv, struct proxy *px)
 
 		srv_settings_cpy(newsrv, srv, 1);
 		srv_prepare_for_resolution(newsrv, srv->hostname);
-#ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
+
 		if (newsrv->sni_expr) {
 			newsrv->ssl_ctx.sni = srv_sni_sample_parse_expr(newsrv, px, NULL, 0, NULL);
 			if (!newsrv->ssl_ctx.sni)
 				goto err;
 		}
-#endif
+
 		/* append to list of servers available to receive an hostname */
 		if (newsrv->srvrq)
 			LIST_APPEND(&newsrv->srvrq->attached_servers, &newsrv->srv_rec_item);
@@ -2383,9 +2376,7 @@ static int _srv_parse_tmpl_init(struct server *srv, struct proxy *px)
  err:
 	_srv_parse_set_id_from_prefix(srv, srv->tmpl_info.prefix, srv->tmpl_info.nb_low);
 	if (newsrv)  {
-#ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
 		release_sample_expr(newsrv->ssl_ctx.sni);
-#endif
 		free_check(&newsrv->agent);
 		free_check(&newsrv->check);
 		LIST_DELETE(&newsrv->global_list);
@@ -2659,7 +2650,6 @@ out:
 	return err_code;
 }
 
-#ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
 /* This function is first intended to be used through parse_server to
  * initialize a new server on startup.
  */
@@ -2678,7 +2668,6 @@ static int _srv_parse_sni_expr_init(char **args, int cur_arg,
 
 	return ret;
 }
-#endif
 
 /* Server initializations finalization.
  * Initialize health check, agent check and SNI expression if enabled.
@@ -2691,10 +2680,8 @@ static int _srv_parse_finalize(char **args, int cur_arg,
                                struct server *srv, struct proxy *px,
                                int parse_flags)
 {
-#ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
 	int ret;
 	char *errmsg = NULL;
-#endif
 
 	if (srv->do_check && srv->trackit) {
 		ha_alert("unable to enable checks and tracking at the same time!\n");
@@ -2707,7 +2694,6 @@ static int _srv_parse_finalize(char **args, int cur_arg,
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-#ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
 	if ((ret = _srv_parse_sni_expr_init(args, cur_arg, srv, px, &errmsg)) != 0) {
 		if (errmsg) {
 			ha_alert("%s\n", errmsg);
@@ -2715,7 +2701,6 @@ static int _srv_parse_finalize(char **args, int cur_arg,
 		}
 		return ret;
 	}
-#endif
 
 	/* A dynamic server is disabled on startup. It must not be counted as
 	 * an active backend entry.

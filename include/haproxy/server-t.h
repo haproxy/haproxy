@@ -328,7 +328,6 @@ struct server {
 	unsigned int init_addr_methods;		/* initial address setting, 3-bit per method, ends at 0, enough to store 10 entries */
 	enum srv_log_proto log_proto;		/* used proto to emit messages on server lines from ring section */
 
-#ifdef USE_OPENSSL
 	char *sni_expr;             /* Temporary variable to store a sample expression for SNI */
 	struct {
 		SSL_CTX *ctx;
@@ -364,7 +363,6 @@ struct server {
 #ifdef USE_QUIC
 	struct quic_transport_params quic_params; /* QUIC transport parameters */
 	struct eb_root cids;        /* QUIC connections IDs. */
-#endif
 #endif
 	struct resolv_srvrq *srvrq;		/* Pointer representing the DNS SRV requeest, if any */
 	struct list srv_rec_item;		/* to attach server to a srv record item */
