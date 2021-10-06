@@ -26,7 +26,6 @@
 #include <haproxy/freq_ctr-t.h>
 #include <haproxy/intops.h>
 #include <haproxy/ticks.h>
-#include <haproxy/time.h>
 
 /* exported functions from freq_ctr.c */
 ullong freq_ctr_total(const struct freq_ctr *ctr, uint period, int pend);

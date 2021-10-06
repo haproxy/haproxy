@@ -28,7 +28,6 @@
 #include <haproxy/debug.h>
 #include <haproxy/tools.h>
 #include <haproxy/ticks.h>
-#include <haproxy/time.h>
 
 #include <haproxy/connection.h>
 #include <haproxy/fd.h>

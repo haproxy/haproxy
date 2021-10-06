@@ -30,7 +30,6 @@
 #include <haproxy/sample-t.h>
 #include <haproxy/stick_table-t.h>
 #include <haproxy/ticks.h>
-#include <haproxy/time.h>
 
 extern struct stktable *stktables_list;
 extern struct stktable_type stktable_types[];

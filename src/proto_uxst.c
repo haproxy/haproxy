@@ -36,7 +36,6 @@
 #include <haproxy/proto_uxst.h>
 #include <haproxy/sock.h>
 #include <haproxy/sock_unix.h>
-#include <haproxy/time.h>
 #include <haproxy/tools.h>
 #include <haproxy/version.h>
 

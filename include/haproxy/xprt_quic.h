@@ -33,7 +33,6 @@
 #include <haproxy/net_helper.h>
 #include <haproxy/openssl-compat.h>
 #include <haproxy/ticks.h>
-#include <haproxy/time.h>
 
 #include <haproxy/listener.h>
 #include <haproxy/quic_cc.h>

@@ -27,7 +27,6 @@
 #endif
 
 #include <haproxy/ticks.h>
-#include <haproxy/time.h>
 #include <haproxy/xprt_quic-t.h>
 
 #include <haproxy/trace.h>

@@ -39,6 +39,7 @@
 #include <haproxy/sample.h>
 #include <haproxy/sink.h>
 #include <haproxy/stick_table.h>
+#include <haproxy/time.h>
 #include <haproxy/tools.h>
 #include <haproxy/uri_auth-t.h>
 #include <haproxy/vars.h>

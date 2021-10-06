@@ -12,7 +12,6 @@
 
 #include <haproxy/api.h>
 #include <haproxy/freq_ctr.h>
-#include <haproxy/time.h>
 #include <haproxy/tools.h>
 
 /* Returns the total number of events over the current + last period, including

@@ -30,7 +30,6 @@
 #include <haproxy/proxy-t.h>
 #include <haproxy/server-t.h>
 #include <haproxy/ticks.h>
-#include <haproxy/time.h>
 
 extern struct proxy *proxies_list;
 extern struct eb_root used_proxy_id;	/* list of proxy IDs in use */

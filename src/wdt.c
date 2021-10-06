@@ -18,6 +18,7 @@
 #include <haproxy/global.h>
 #include <haproxy/signal-t.h>
 #include <haproxy/thread.h>
+#include <haproxy/time.h>
 #include <haproxy/tools.h>
 
 

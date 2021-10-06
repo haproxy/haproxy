@@ -37,6 +37,7 @@
 #include <haproxy/task-t.h>
 #include <haproxy/thread.h>
 #include <haproxy/ticks.h>
+#include <haproxy/time.h>
 
 
 /* Principle of the wait queue.

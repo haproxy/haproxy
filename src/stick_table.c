@@ -40,7 +40,7 @@
 #include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
 #include <haproxy/tcp_rules.h>
-#include <haproxy/time.h>
+#include <haproxy/ticks.h>
 #include <haproxy/tools.h>
 
 

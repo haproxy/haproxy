@@ -31,7 +31,6 @@
 #include <haproxy/stream_interface-t.h>
 #include <haproxy/task.h>
 #include <haproxy/ticks.h>
-#include <haproxy/time.h>
 #include <haproxy/tools-t.h>
 
 
