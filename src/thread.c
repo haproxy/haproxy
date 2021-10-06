@@ -254,6 +254,36 @@ void set_thread_cpu_affinity()
 #endif /* USE_CPU_AFFINITY */
 }
 
+/* Retrieves the opaque pthread_t of thread <thr> cast to an unsigned long long
+ * since POSIX took great care of not specifying its representation, making it
+ * hard to export for post-mortem analysis. For this reason we copy it into a
+ * union and will use the smallest scalar type at least as large as its size,
+ * which will keep endianness and alignment for all regular sizes. As a last
+ * resort we end up with a long long ligned to the first bytes in memory, which
+ * will be endian-dependent if pthread_t is larger than a long long (not seen
+ * yet).
+ */
+unsigned long long ha_get_pthread_id(unsigned int thr)
+{
+	union {
+		pthread_t t;
+		unsigned long long ll;
+		unsigned int i;
+		unsigned short s;
+		unsigned char c;
+	} u = { 0 };
+
+	u.t = ha_thread_info[thr].pthread;
+
+	if (sizeof(u.t) <= sizeof(u.c))
+		return u.c;
+	else if (sizeof(u.t) <= sizeof(u.s))
+		return u.s;
+	else if (sizeof(u.t) <= sizeof(u.i))
+		return u.i;
+	return u.ll;
+}
+
 /* send signal <sig> to thread <thr> */
 void ha_tkill(unsigned int thr, int sig)
 {

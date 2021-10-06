@@ -163,6 +163,11 @@ static inline void set_thread_cpu_affinity()
 {
 }
 
+static inline unsigned long long ha_get_pthread_id(unsigned int thr)
+{
+	return 0;
+}
+
 #else /* !USE_THREAD */
 
 /********************** THREADS ENABLED ************************/
@@ -181,6 +186,7 @@ void ha_rwlock_init(HA_RWLOCK_T *l);
 void setup_extra_threads(void *(*handler)(void *));
 void wait_for_threads_completion();
 void set_thread_cpu_affinity();
+unsigned long long ha_get_pthread_id(unsigned int thr);
 
 extern volatile unsigned long all_threads_mask;
 extern volatile unsigned long threads_harmless_mask;
