@@ -37,6 +37,7 @@
 #include <haproxy/session.h>
 #include <haproxy/task-t.h>
 #include <haproxy/tcpcheck-t.h>
+#include <haproxy/xxhash.h>
 
 
 extern struct pool_head *pool_head_connection;
@@ -1197,9 +1198,9 @@ static inline int conn_upgrade_mux_fe(struct connection *conn, void *ctx, struct
 /* Generate the hash of a connection with params as input
  * Each non-null field of params is taken into account for the hash calcul.
  */
-XXH64_hash_t conn_calculate_hash(const struct conn_hash_params *params);
+uint64_t conn_calculate_hash(const struct conn_hash_params *params);
 
-static inline XXH64_hash_t conn_hash_prehash(char *buf, size_t size)
+static inline uint64_t conn_hash_prehash(char *buf, size_t size)
 {
 	return XXH64(buf, size, 0);
 }
@@ -1218,11 +1219,11 @@ static inline void conn_hash_update(char *buf, size_t *idx,
 	*flags |= type;
 }
 
-static inline XXH64_hash_t conn_hash_digest(char *buf, size_t bufsize,
-                                            enum conn_hash_params_t flags)
+static inline uint64_t conn_hash_digest(char *buf, size_t bufsize,
+                                        enum conn_hash_params_t flags)
 {
 	const uint64_t flags_u64 = (uint64_t)flags;
-	const XXH64_hash_t hash = XXH64(buf, bufsize, 0);
+	const uint64_t hash = XXH64(buf, bufsize, 0);
 
 	return (flags_u64 << CONN_HASH_PAYLOAD_LEN) | CONN_HASH_GET_PAYLOAD(hash);
 }

@@ -37,7 +37,6 @@
 #include <haproxy/port_range-t.h>
 #include <haproxy/protocol-t.h>
 #include <haproxy/thread-t.h>
-#include <haproxy/xxhash.h>
 
 /* referenced below */
 struct connection;
@@ -519,11 +518,11 @@ enum conn_hash_params_t {
  * connection hash.
  */
 struct conn_hash_params {
+	uint64_t sni_prehash;
+	uint64_t proxy_prehash;
 	void *target;
-	XXH64_hash_t sni_prehash;
 	struct sockaddr_storage *src_addr;
 	struct sockaddr_storage *dst_addr;
-	XXH64_hash_t proxy_prehash;
 };
 
 /* This structure describes a connection with its methods and data.

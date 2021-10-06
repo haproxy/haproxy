@@ -1627,11 +1627,11 @@ static void conn_calculate_hash_sockaddr(const struct sockaddr_storage *ss,
 	}
 }
 
-XXH64_hash_t conn_calculate_hash(const struct conn_hash_params *params)
+uint64_t conn_calculate_hash(const struct conn_hash_params *params)
 {
 	char *buf;
 	size_t idx = 0;
-	XXH64_hash_t hash = 0;
+	uint64_t hash = 0;
 	enum conn_hash_params_t hash_flags = 0;
 
 	buf = trash.area;
