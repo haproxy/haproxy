@@ -23,6 +23,7 @@
 #include <haproxy/acl.h>
 #include <haproxy/api.h>
 #include <haproxy/arg.h>
+#include <haproxy/base64.h>
 #include <haproxy/buf-t.h>
 #include <haproxy/obj_type.h>
 #include <haproxy/openssl-compat.h>
@@ -30,9 +31,454 @@
 #include <haproxy/ssl_sock.h>
 #include <haproxy/ssl_utils.h>
 #include <haproxy/tools.h>
+#include <haproxy/vars.h>
 
 
 /***** Below are some sample fetching functions for ACL/patterns *****/
+
+#if defined(HAVE_CRYPTO_memcmp)
+/* Compares bytestring with a variable containing a bytestring. Return value
+ * is `true` if both bytestrings are bytewise identical and `false` otherwise.
+ *
+ * Comparison will be performed in constant time if both bytestrings are of
+ * the same length. If the lengths differ execution time will not be constant.
+ */
+static int sample_conv_secure_memcmp(const struct arg *arg_p, struct sample *smp, void *private)
+{
+	struct sample tmp;
+	int result;
+
+	smp_set_owner(&tmp, smp->px, smp->sess, smp->strm, smp->opt);
+	if (arg_p[0].type != ARGT_VAR)
+		return 0;
+
+	if (!sample_conv_var2smp(&arg_p[0].data.var, &tmp, SMP_T_BIN))
+		return 0;
+
+	if (smp->data.u.str.data != tmp.data.u.str.data) {
+		smp->data.u.sint = 0;
+		smp->data.type = SMP_T_BOOL;
+		return 1;
+	}
+
+	/* The following comparison is performed in constant time. */
+	result = CRYPTO_memcmp(smp->data.u.str.area, tmp.data.u.str.area, smp->data.u.str.data);
+
+	smp->data.u.sint = result == 0;
+	smp->data.type = SMP_T_BOOL;
+	return 1;
+}
+
+/* This function checks the "secure_memcmp" converter's arguments and extracts the
+ * variable name and its scope.
+ */
+static int smp_check_secure_memcmp(struct arg *args, struct sample_conv *conv,
+                           const char *file, int line, char **err)
+{
+	if (!args[0].data.str.data) {
+		memprintf(err, "missing variable name");
+		return 0;
+	}
+
+	/* Try to decode a variable. */
+	if (vars_check_arg(&args[0], NULL))
+		return 1;
+
+	memprintf(err, "failed to register variable name '%s'",
+		  args[0].data.str.area);
+	return 0;
+}
+#endif // HAVE_secure_memcmp()
+
+static int smp_check_sha2(struct arg *args, struct sample_conv *conv,
+                          const char *file, int line, char **err)
+{
+	if (args[0].type == ARGT_STOP)
+		return 1;
+	if (args[0].type != ARGT_SINT) {
+		memprintf(err, "Invalid type '%s'", arg_type_names[args[0].type]);
+		return 0;
+	}
+
+	switch (args[0].data.sint) {
+		case 224:
+		case 256:
+		case 384:
+		case 512:
+			/* this is okay */
+			return 1;
+		default:
+			memprintf(err, "Unsupported number of bits: '%lld'", args[0].data.sint);
+			return 0;
+	}
+}
+
+static int sample_conv_sha2(const struct arg *arg_p, struct sample *smp, void *private)
+{
+	struct buffer *trash = get_trash_chunk();
+	int bits = 256;
+	if (arg_p->data.sint)
+		bits = arg_p->data.sint;
+
+	switch (bits) {
+	case 224: {
+		SHA256_CTX ctx;
+
+		memset(&ctx, 0, sizeof(ctx));
+
+		SHA224_Init(&ctx);
+		SHA224_Update(&ctx, smp->data.u.str.area, smp->data.u.str.data);
+		SHA224_Final((unsigned char *) trash->area, &ctx);
+		trash->data = SHA224_DIGEST_LENGTH;
+		break;
+	}
+	case 256: {
+		SHA256_CTX ctx;
+
+		memset(&ctx, 0, sizeof(ctx));
+
+		SHA256_Init(&ctx);
+		SHA256_Update(&ctx, smp->data.u.str.area, smp->data.u.str.data);
+		SHA256_Final((unsigned char *) trash->area, &ctx);
+		trash->data = SHA256_DIGEST_LENGTH;
+		break;
+	}
+	case 384: {
+		SHA512_CTX ctx;
+
+		memset(&ctx, 0, sizeof(ctx));
+
+		SHA384_Init(&ctx);
+		SHA384_Update(&ctx, smp->data.u.str.area, smp->data.u.str.data);
+		SHA384_Final((unsigned char *) trash->area, &ctx);
+		trash->data = SHA384_DIGEST_LENGTH;
+		break;
+	}
+	case 512: {
+		SHA512_CTX ctx;
+
+		memset(&ctx, 0, sizeof(ctx));
+
+		SHA512_Init(&ctx);
+		SHA512_Update(&ctx, smp->data.u.str.area, smp->data.u.str.data);
+		SHA512_Final((unsigned char *) trash->area, &ctx);
+		trash->data = SHA512_DIGEST_LENGTH;
+		break;
+	}
+	default:
+		return 0;
+	}
+
+	smp->data.u.str = *trash;
+	smp->data.type = SMP_T_BIN;
+	smp->flags &= ~SMP_F_CONST;
+	return 1;
+}
+
+/* This function checks an <arg> and fills it with a variable type if the
+ * <arg> string contains a valid variable name. If failed, the function
+ * tries to perform a base64 decode operation on the same string, and
+ * fills the <arg> with the decoded content.
+ *
+ * Validation is skipped if the <arg> string is empty.
+ *
+ * This function returns 0 if the variable lookup fails and the specified
+ * <arg> string is not a valid base64 encoded string, as well if
+ * unexpected argument type is specified or memory allocation error
+ * occurs. Otherwise it returns 1.
+ */
+static inline int sample_check_arg_base64(struct arg *arg, char **err)
+{
+	char *dec = NULL;
+	int dec_size;
+
+	if (arg->type != ARGT_STR) {
+		memprintf(err, "unexpected argument type");
+		return 0;
+	}
+
+	if (arg->data.str.data == 0) /* empty */
+		return 1;
+
+	if (vars_check_arg(arg, NULL))
+		return 1;
+
+	if (arg->data.str.data % 4) {
+		memprintf(err, "argument needs to be base64 encoded, and "
+		               "can either be a string or a variable");
+		return 0;
+	}
+
+	dec_size = (arg->data.str.data / 4 * 3)
+	           - (arg->data.str.area[arg->data.str.data-1] == '=' ? 1 : 0)
+	           - (arg->data.str.area[arg->data.str.data-2] == '=' ? 1 : 0);
+
+	if ((dec = malloc(dec_size)) == NULL) {
+		memprintf(err, "memory allocation error");
+		return 0;
+	}
+
+	dec_size = base64dec(arg->data.str.area, arg->data.str.data, dec, dec_size);
+	if (dec_size < 0) {
+		memprintf(err, "argument needs to be base64 encoded, and "
+		               "can either be a string or a variable");
+		free(dec);
+		return 0;
+	}
+
+	/* base64 decoded */
+	chunk_destroy(&arg->data.str);
+	arg->data.str.area = dec;
+	arg->data.str.data = dec_size;
+	return 1;
+}
+
+#ifdef EVP_CIPH_GCM_MODE
+static int check_aes_gcm(struct arg *args, struct sample_conv *conv,
+						  const char *file, int line, char **err)
+{
+	switch(args[0].data.sint) {
+	case 128:
+	case 192:
+	case 256:
+		break;
+	default:
+		memprintf(err, "key size must be 128, 192 or 256 (bits).");
+		return 0;
+	}
+
+	/* Try to decode variables. */
+	if (!sample_check_arg_base64(&args[1], err)) {
+		memprintf(err, "failed to parse nonce : %s", *err);
+		return 0;
+	}
+	if (!sample_check_arg_base64(&args[2], err)) {
+		memprintf(err, "failed to parse key : %s", *err);
+		return 0;
+	}
+	if (!sample_check_arg_base64(&args[3], err)) {
+		memprintf(err, "failed to parse aead_tag : %s", *err);
+		return 0;
+	}
+
+	return 1;
+}
+
+/* Arguments: AES size in bits, nonce, key, tag. The last three arguments are base64 encoded */
+static int sample_conv_aes_gcm_dec(const struct arg *arg_p, struct sample *smp, void *private)
+{
+	struct sample nonce, key, aead_tag;
+	struct buffer *smp_trash = NULL, *smp_trash_alloc = NULL;
+	EVP_CIPHER_CTX *ctx;
+	int dec_size, ret;
+
+	smp_trash_alloc = alloc_trash_chunk();
+	if (!smp_trash_alloc)
+		return 0;
+
+	/* smp copy */
+	smp_trash_alloc->data = smp->data.u.str.data;
+	if (unlikely(smp_trash_alloc->data > smp_trash_alloc->size))
+		smp_trash_alloc->data = smp_trash_alloc->size;
+	memcpy(smp_trash_alloc->area, smp->data.u.str.area, smp_trash_alloc->data);
+
+	ctx = EVP_CIPHER_CTX_new();
+
+	if (!ctx)
+		goto err;
+
+	smp_trash = alloc_trash_chunk();
+	if (!smp_trash)
+		goto err;
+
+	smp_set_owner(&nonce, smp->px, smp->sess, smp->strm, smp->opt);
+	if (!sample_conv_var2smp_str(&arg_p[1], &nonce))
+		goto err;
+
+	if (arg_p[1].type == ARGT_VAR) {
+		dec_size = base64dec(nonce.data.u.str.area, nonce.data.u.str.data, smp_trash->area, smp_trash->size);
+		if (dec_size < 0)
+			goto err;
+		smp_trash->data = dec_size;
+		nonce.data.u.str = *smp_trash;
+	}
+
+	/* Set cipher type and mode */
+	switch(arg_p[0].data.sint) {
+	case 128:
+		EVP_DecryptInit_ex(ctx, EVP_aes_128_gcm(), NULL, NULL, NULL);
+		break;
+	case 192:
+		EVP_DecryptInit_ex(ctx, EVP_aes_192_gcm(), NULL, NULL, NULL);
+		break;
+	case 256:
+		EVP_DecryptInit_ex(ctx, EVP_aes_256_gcm(), NULL, NULL, NULL);
+		break;
+	}
+
+	EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, nonce.data.u.str.data, NULL);
+
+	/* Initialise IV */
+	if(!EVP_DecryptInit_ex(ctx, NULL, NULL, NULL, (unsigned char *) nonce.data.u.str.area))
+		goto err;
+
+	smp_set_owner(&key, smp->px, smp->sess, smp->strm, smp->opt);
+	if (!sample_conv_var2smp_str(&arg_p[2], &key))
+		goto err;
+
+	if (arg_p[2].type == ARGT_VAR) {
+		dec_size = base64dec(key.data.u.str.area, key.data.u.str.data, smp_trash->area, smp_trash->size);
+		if (dec_size < 0)
+			goto err;
+		smp_trash->data = dec_size;
+		key.data.u.str = *smp_trash;
+	}
+
+	/* Initialise key */
+	if (!EVP_DecryptInit_ex(ctx, NULL, NULL, (unsigned char *) key.data.u.str.area, NULL))
+		goto err;
+
+	if (!EVP_DecryptUpdate(ctx, (unsigned char *) smp_trash->area, (int *) &smp_trash->data,
+	                       (unsigned char *) smp_trash_alloc->area, (int) smp_trash_alloc->data))
+		goto err;
+
+	smp_set_owner(&aead_tag, smp->px, smp->sess, smp->strm, smp->opt);
+	if (!sample_conv_var2smp_str(&arg_p[3], &aead_tag))
+		goto err;
+
+	if (arg_p[3].type == ARGT_VAR) {
+		dec_size = base64dec(aead_tag.data.u.str.area, aead_tag.data.u.str.data, smp_trash_alloc->area, smp_trash_alloc->size);
+		if (dec_size < 0)
+			goto err;
+		smp_trash_alloc->data = dec_size;
+		aead_tag.data.u.str = *smp_trash_alloc;
+	}
+
+	dec_size = smp_trash->data;
+
+	EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_TAG, aead_tag.data.u.str.data, (void *) aead_tag.data.u.str.area);
+	ret = EVP_DecryptFinal_ex(ctx, (unsigned char *) smp_trash->area + smp_trash->data, (int *) &smp_trash->data);
+
+	if (ret <= 0)
+		goto err;
+
+	smp->data.u.str.data = dec_size + smp_trash->data;
+	smp->data.u.str.area = smp_trash->area;
+	smp->data.type = SMP_T_BIN;
+	smp_dup(smp);
+	free_trash_chunk(smp_trash_alloc);
+	free_trash_chunk(smp_trash);
+	return 1;
+
+err:
+	free_trash_chunk(smp_trash_alloc);
+	free_trash_chunk(smp_trash);
+	return 0;
+}
+#endif
+
+static int check_crypto_digest(struct arg *args, struct sample_conv *conv,
+						  const char *file, int line, char **err)
+{
+	const EVP_MD *evp = EVP_get_digestbyname(args[0].data.str.area);
+
+	if (evp)
+		return 1;
+
+	memprintf(err, "algorithm must be a valid OpenSSL message digest name.");
+	return 0;
+}
+
+static int sample_conv_crypto_digest(const struct arg *args, struct sample *smp, void *private)
+{
+	struct buffer *trash = get_trash_chunk();
+	unsigned char *md = (unsigned char*) trash->area;
+	unsigned int md_len = trash->size;
+	EVP_MD_CTX *ctx = EVP_MD_CTX_new();
+	const EVP_MD *evp = EVP_get_digestbyname(args[0].data.str.area);
+
+	if (!ctx)
+		return 0;
+
+	if (!EVP_DigestInit_ex(ctx, evp, NULL) ||
+	    !EVP_DigestUpdate(ctx, smp->data.u.str.area, smp->data.u.str.data) ||
+	    !EVP_DigestFinal_ex(ctx, md, &md_len)) {
+		EVP_MD_CTX_free(ctx);
+		return 0;
+	}
+
+	EVP_MD_CTX_free(ctx);
+
+	trash->data = md_len;
+	smp->data.u.str = *trash;
+	smp->data.type = SMP_T_BIN;
+	smp->flags &= ~SMP_F_CONST;
+	return 1;
+}
+
+static int check_crypto_hmac(struct arg *args, struct sample_conv *conv,
+						  const char *file, int line, char **err)
+{
+	if (!check_crypto_digest(args, conv, file, line, err))
+		return 0;
+
+	if (!sample_check_arg_base64(&args[1], err)) {
+		memprintf(err, "failed to parse key : %s", *err);
+		return 0;
+	}
+
+	return 1;
+}
+
+static int sample_conv_crypto_hmac(const struct arg *args, struct sample *smp, void *private)
+{
+	struct sample key;
+	struct buffer *trash = NULL, *key_trash = NULL;
+	unsigned char *md;
+	unsigned int md_len;
+	const EVP_MD *evp = EVP_get_digestbyname(args[0].data.str.area);
+	int dec_size;
+
+	smp_set_owner(&key, smp->px, smp->sess, smp->strm, smp->opt);
+	if (!sample_conv_var2smp_str(&args[1], &key))
+		return 0;
+
+	if (args[1].type == ARGT_VAR) {
+		key_trash = alloc_trash_chunk();
+		if (!key_trash)
+			goto err;
+
+		dec_size = base64dec(key.data.u.str.area, key.data.u.str.data, key_trash->area, key_trash->size);
+		if (dec_size < 0)
+			goto err;
+		key_trash->data = dec_size;
+		key.data.u.str = *key_trash;
+	}
+
+	trash = alloc_trash_chunk();
+	if (!trash)
+		goto err;
+
+	md = (unsigned char*) trash->area;
+	md_len = trash->size;
+	if (!HMAC(evp, key.data.u.str.area, key.data.u.str.data, (const unsigned char*) smp->data.u.str.area,
+	          smp->data.u.str.data, md, &md_len))
+		goto err;
+
+	free_trash_chunk(key_trash);
+
+	trash->data = md_len;
+	smp->data.u.str = *trash;
+	smp->data.type = SMP_T_BIN;
+	smp_dup(smp);
+	free_trash_chunk(trash);
+	return 1;
+
+err:
+	free_trash_chunk(key_trash);
+	free_trash_chunk(trash);
+	return 0;
+}
 
 static int
 smp_fetch_ssl_fc_has_early(const struct arg *args, struct sample *smp, const char *kw, void *private)
@@ -1774,6 +2220,23 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 }};
 
 INITCALL1(STG_REGISTER, sample_register_fetches, &sample_fetch_keywords);
+
+/* Note: must not be declared <const> as its list will be overwritten */
+static struct sample_conv_kw_list sample_conv_kws = {ILH, {
+	{ "sha2",               sample_conv_sha2,             ARG1(0, SINT),            smp_check_sha2,          SMP_T_BIN,  SMP_T_BIN  },
+#ifdef EVP_CIPH_GCM_MODE
+	{ "aes_gcm_dec",        sample_conv_aes_gcm_dec,      ARG4(4,SINT,STR,STR,STR), check_aes_gcm,           SMP_T_BIN,  SMP_T_BIN  },
+#endif
+	{ "digest",             sample_conv_crypto_digest,    ARG1(1,STR),              check_crypto_digest,     SMP_T_BIN,  SMP_T_BIN  },
+	{ "hmac",               sample_conv_crypto_hmac,      ARG2(2,STR,STR),          check_crypto_hmac,       SMP_T_BIN,  SMP_T_BIN  },
+#if defined(HAVE_CRYPTO_memcmp)
+	{ "secure_memcmp",      sample_conv_secure_memcmp,    ARG1(1,STR),              smp_check_secure_memcmp, SMP_T_BIN,  SMP_T_BOOL },
+#endif
+	{ NULL, NULL, 0, 0, 0 },
+}};
+
+INITCALL1(STG_REGISTER, sample_register_convs, &sample_conv_kws);
+
 
 /* Note: must not be declared <const> as its list will be overwritten.
  * Please take care of keeping this list alphabetically sorted.
