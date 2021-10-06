@@ -50,6 +50,7 @@
 #include <time.h>
 #include <syslog.h>
 #include <grp.h>
+
 #ifdef USE_CPU_AFFINITY
 #include <sched.h>
 #if defined(__FreeBSD__) || defined(__DragonFly__)
@@ -57,12 +58,6 @@
 #ifdef __FreeBSD__
 #include <sys/cpuset.h>
 #endif
-#include <pthread_np.h>
-#endif
-#ifdef __APPLE__
-#include <mach/mach_types.h>
-#include <mach/thread_act.h>
-#include <mach/thread_policy.h>
 #endif
 #endif
 
@@ -2611,41 +2606,6 @@ __attribute__((noreturn)) void deinit_and_exit(int status)
 	exit(status);
 }
 
-/* Tries to set the current thread's CPU affinity according to the cpu_map */
-static void set_thread_cpu_affinity()
-{
-#if defined(USE_THREAD) && defined(USE_CPU_AFFINITY)
-	/* no affinity setting for the master process */
-	if (master)
-		return;
-
-	/* Now the CPU affinity for all threads */
-	if (ha_cpuset_count(&cpu_map.proc))
-		ha_cpuset_and(&cpu_map.thread[tid], &cpu_map.proc);
-
-	if (ha_cpuset_count(&cpu_map.thread[tid])) {/* only do this if the thread has a THREAD map */
-#  if defined(__APPLE__)
-		/* Note: this API is limited to the first 32/64 CPUs */
-		unsigned long set = cpu_map.thread[tid].cpuset;
-		int j;
-
-		while ((j = ffsl(set)) > 0) {
-			thread_affinity_policy_data_t cpu_set = { j - 1 };
-			thread_port_t mthread;
-
-			mthread = pthread_mach_thread_np(ha_thread_info[tid].pthread);
-			thread_policy_set(mthread, THREAD_AFFINITY_POLICY, (thread_policy_t)&cpu_set, 1);
-			set &= ~(1UL << (j - 1));
-		}
-#  else
-		struct hap_cpuset *set = &cpu_map.thread[tid];
-
-		pthread_setaffinity_np(ha_thread_info[tid].pthread, sizeof(set->cpuset), &set->cpuset);
-#  endif
-	}
-#endif /* USE_THREAD && USE_CPU_AFFINITY */
-}
-
 /* Runs the polling loop */
 void run_poll_loop()
 {
@@ -2855,49 +2815,6 @@ static void *run_thread_poll_loop(void *data)
 		pthread_exit(NULL);
 #endif
 	return NULL;
-}
-
-/* Sets up threads, signals and masks, and starts threads 2 and above.
- * Does nothing when threads are disabled.
- */
-static void setup_extra_threads()
-{
-#ifdef USE_THREAD
-	sigset_t     blocked_sig, old_sig;
-	int          i;
-
-	/* ensure the signals will be blocked in every thread */
-	sigfillset(&blocked_sig);
-	sigdelset(&blocked_sig, SIGPROF);
-	sigdelset(&blocked_sig, SIGBUS);
-	sigdelset(&blocked_sig, SIGFPE);
-	sigdelset(&blocked_sig, SIGILL);
-	sigdelset(&blocked_sig, SIGSEGV);
-	pthread_sigmask(SIG_SETMASK, &blocked_sig, &old_sig);
-
-	/* Create nbthread-1 thread. The first thread is the current process */
-	ha_thread_info[0].pthread = pthread_self();
-	for (i = 1; i < global.nbthread; i++)
-		pthread_create(&ha_thread_info[i].pthread, NULL, &run_thread_poll_loop, (void *)(long)i);
-#endif
-}
-
-/* waits for all threads to terminate. Does nothing when threads are
- * disabled.
- */
-static void wait_for_threads_completion()
-{
-#ifdef USE_THREAD
-	int i;
-
-	/* Wait the end of other threads */
-	for (i = 1; i < global.nbthread; i++)
-		pthread_join(ha_thread_info[i].pthread, NULL);
-
-#  if defined(DEBUG_THREAD) || defined(DEBUG_FULL)
-	show_lock_stats();
-#  endif
-#endif
 }
 
 /* set uid/gid depending on global settings */
@@ -3474,7 +3391,7 @@ int main(int argc, char **argv)
 	reset_usermsgs_ctx();
 
 	/* start threads 2 and above */
-	setup_extra_threads();
+	setup_extra_threads(&run_thread_poll_loop);
 
 	/* when multithreading we need to let only the thread 0 handle the signals */
 	haproxy_unblock_signals();

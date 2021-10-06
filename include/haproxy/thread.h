@@ -151,6 +151,18 @@ static inline unsigned long thread_isolated()
 	return 1;
 }
 
+static inline void setup_extra_threads(void *(*handler)(void *))
+{
+}
+
+static inline void wait_for_threads_completion()
+{
+}
+
+static inline void set_thread_cpu_affinity()
+{
+}
+
 #else /* !USE_THREAD */
 
 /********************** THREADS ENABLED ************************/
@@ -166,6 +178,9 @@ void ha_tkill(unsigned int thr, int sig);
 void ha_tkillall(int sig);
 void ha_spin_init(HA_SPINLOCK_T *l);
 void ha_rwlock_init(HA_RWLOCK_T *l);
+void setup_extra_threads(void *(*handler)(void *));
+void wait_for_threads_completion();
+void set_thread_cpu_affinity();
 
 extern volatile unsigned long all_threads_mask;
 extern volatile unsigned long threads_harmless_mask;

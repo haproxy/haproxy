@@ -16,11 +16,20 @@
 #include <fcntl.h>
 
 #ifdef USE_CPU_AFFINITY
-#include <sched.h>
-#endif
-
-#ifdef __FreeBSD__
-#include <sys/cpuset.h>
+#  include <sched.h>
+#  if defined(__FreeBSD__) || defined(__DragonFly__)
+#    include <sys/param.h>
+#    ifdef __FreeBSD__
+#      include <sys/cpuset.h>
+#    endif
+#    include <pthread_np.h>
+#  endif
+#  ifdef __APPLE__
+#    include <mach/mach_types.h>
+#    include <mach/thread_act.h>
+#    include <mach/thread_policy.h>
+#  endif
+#  include <haproxy/cpuset.h>
 #endif
 
 #include <haproxy/cfgparse.h>
@@ -169,6 +178,80 @@ void thread_sync_release()
 	_HA_ATOMIC_AND(&threads_sync_mask, ~tid_bit);
 	while (threads_sync_mask & all_threads_mask)
 		ha_thread_relax();
+}
+
+/* Sets up threads, signals and masks, and starts threads 2 and above.
+ * Does nothing when threads are disabled.
+ */
+void setup_extra_threads(void *(*handler)(void *))
+{
+	sigset_t blocked_sig, old_sig;
+	int i;
+
+	/* ensure the signals will be blocked in every thread */
+	sigfillset(&blocked_sig);
+	sigdelset(&blocked_sig, SIGPROF);
+	sigdelset(&blocked_sig, SIGBUS);
+	sigdelset(&blocked_sig, SIGFPE);
+	sigdelset(&blocked_sig, SIGILL);
+	sigdelset(&blocked_sig, SIGSEGV);
+	pthread_sigmask(SIG_SETMASK, &blocked_sig, &old_sig);
+
+	/* Create nbthread-1 thread. The first thread is the current process */
+	ha_thread_info[0].pthread = pthread_self();
+	for (i = 1; i < global.nbthread; i++)
+		pthread_create(&ha_thread_info[i].pthread, NULL, handler, (void *)(long)i);
+}
+
+/* waits for all threads to terminate. Does nothing when threads are
+ * disabled.
+ */
+void wait_for_threads_completion()
+{
+	int i;
+
+	/* Wait the end of other threads */
+	for (i = 1; i < global.nbthread; i++)
+		pthread_join(ha_thread_info[i].pthread, NULL);
+
+#if defined(DEBUG_THREAD) || defined(DEBUG_FULL)
+	show_lock_stats();
+#endif
+}
+
+/* Tries to set the current thread's CPU affinity according to the cpu_map */
+void set_thread_cpu_affinity()
+{
+#if defined(USE_CPU_AFFINITY)
+	/* no affinity setting for the master process */
+	if (master)
+		return;
+
+	/* Now the CPU affinity for all threads */
+	if (ha_cpuset_count(&cpu_map.proc))
+		ha_cpuset_and(&cpu_map.thread[tid], &cpu_map.proc);
+
+	if (ha_cpuset_count(&cpu_map.thread[tid])) {/* only do this if the thread has a THREAD map */
+#  if defined(__APPLE__)
+		/* Note: this API is limited to the first 32/64 CPUs */
+		unsigned long set = cpu_map.thread[tid].cpuset;
+		int j;
+
+		while ((j = ffsl(set)) > 0) {
+			thread_affinity_policy_data_t cpu_set = { j - 1 };
+			thread_port_t mthread;
+
+			mthread = pthread_mach_thread_np(ha_thread_info[tid].pthread);
+			thread_policy_set(mthread, THREAD_AFFINITY_POLICY, (thread_policy_t)&cpu_set, 1);
+			set &= ~(1UL << (j - 1));
+		}
+#  else
+		struct hap_cpuset *set = &cpu_map.thread[tid];
+
+		pthread_setaffinity_np(ha_thread_info[tid].pthread, sizeof(set->cpuset), &set->cpuset);
+#  endif
+	}
+#endif /* USE_CPU_AFFINITY */
 }
 
 /* send signal <sig> to thread <thr> */
