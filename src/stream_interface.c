@@ -24,6 +24,7 @@
 #include <haproxy/channel.h>
 #include <haproxy/connection.h>
 #include <haproxy/dynbuf.h>
+#include <haproxy/http_ana.h>
 #include <haproxy/http_htx.h>
 #include <haproxy/pipe-t.h>
 #include <haproxy/pipe.h>
