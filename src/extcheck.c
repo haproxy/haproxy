@@ -36,6 +36,7 @@
 #include <haproxy/proxy.h>
 #include <haproxy/server.h>
 #include <haproxy/signal.h>
+#include <haproxy/stream-t.h>
 #include <haproxy/task.h>
 #include <haproxy/thread.h>
 #include <haproxy/time.h>
