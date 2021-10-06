@@ -26,16 +26,15 @@
 #include <haproxy/buf-t.h>
 #include <haproxy/dynbuf-t.h>
 #include <haproxy/freq_ctr-t.h>
-#include <haproxy/hlua-t.h>
 #include <haproxy/obj_type-t.h>
-#include <haproxy/proxy-t.h>
-#include <haproxy/stream-t.h>
 #include <haproxy/xref-t.h>
 
 /* flags for appctx->state */
 #define APPLET_WANT_DIE     0x01  /* applet was running and requested to die */
 
 struct appctx;
+struct stream;
+struct proxy;
 
 /* Applet descriptor */
 struct applet {
