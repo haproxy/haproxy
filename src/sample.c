@@ -1744,7 +1744,7 @@ static int sample_conv_sha2(const struct arg *arg_p, struct sample *smp, void *p
  *
  * This function returns 0 if an error occurs, otherwise it returns 1.
  */
-static inline int sample_conv_var2smp_str(const struct arg *arg, struct sample *smp)
+int sample_conv_var2smp_str(const struct arg *arg, struct sample *smp)
 {
 	switch (arg->type) {
 	case ARGT_STR:
