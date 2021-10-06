@@ -22,8 +22,13 @@
 #ifndef _HAPROXY_RESOLVERS_H
 #define _HAPROXY_RESOLVERS_H
 
-#include <haproxy/action-t.h>
 #include <haproxy/resolvers-t.h>
+
+struct proxy;
+struct server;
+struct stream_interface;
+struct act_rule;
+struct list;
 
 extern struct list sec_resolvers;
 extern unsigned int resolv_failed_resolutions;
