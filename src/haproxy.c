@@ -51,6 +51,10 @@
 #include <syslog.h>
 #include <grp.h>
 
+#ifdef USE_THREAD
+#include <pthread.h>
+#endif
+
 #ifdef USE_CPU_AFFINITY
 #include <sched.h>
 #if defined(__FreeBSD__) || defined(__DragonFly__)

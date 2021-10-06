@@ -33,7 +33,6 @@
  * the pthread identifier which does not exist).
  */
 struct thread_info {
-	__decl_thread(pthread_t pthread);
 	clockid_t clock_id;
 	timer_t wd_timer;          /* valid timer or TIMER_INVALID if not set */
 	uint64_t prev_cpu_time;    /* previous per thread CPU time */

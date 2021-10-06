@@ -15,6 +15,10 @@
 #include <stdlib.h>
 #include <fcntl.h>
 
+#ifdef USE_THREAD
+#  include <pthread.h>
+#endif
+
 #ifdef USE_CPU_AFFINITY
 #  include <sched.h>
 #  if defined(__FreeBSD__) || defined(__DragonFly__)
@@ -53,6 +57,7 @@ volatile unsigned long all_threads_mask __read_mostly  = 1; // nbthread 1 assume
 THREAD_LOCAL unsigned int  tid           = 0;
 THREAD_LOCAL unsigned long tid_bit       = (1UL << 0);
 int thread_cpus_enabled_at_boot          = 1;
+static pthread_t ha_pthread[MAX_THREADS] = { };
 
 /* Marks the thread as harmless until the last thread using the rendez-vous
  * point quits, excluding the current one. Thus an isolated thread may be safely
@@ -198,9 +203,9 @@ void setup_extra_threads(void *(*handler)(void *))
 	pthread_sigmask(SIG_SETMASK, &blocked_sig, &old_sig);
 
 	/* Create nbthread-1 thread. The first thread is the current process */
-	ha_thread_info[0].pthread = pthread_self();
+	ha_pthread[0] = pthread_self();
 	for (i = 1; i < global.nbthread; i++)
-		pthread_create(&ha_thread_info[i].pthread, NULL, handler, (void *)(long)i);
+		pthread_create(&ha_pthread[i], NULL, handler, (void *)(long)i);
 }
 
 /* waits for all threads to terminate. Does nothing when threads are
@@ -212,7 +217,7 @@ void wait_for_threads_completion()
 
 	/* Wait the end of other threads */
 	for (i = 1; i < global.nbthread; i++)
-		pthread_join(ha_thread_info[i].pthread, NULL);
+		pthread_join(ha_pthread[i], NULL);
 
 #if defined(DEBUG_THREAD) || defined(DEBUG_FULL)
 	show_lock_stats();
@@ -241,14 +246,14 @@ void set_thread_cpu_affinity()
 			thread_affinity_policy_data_t cpu_set = { j - 1 };
 			thread_port_t mthread;
 
-			mthread = pthread_mach_thread_np(ha_thread_info[tid].pthread);
+			mthread = pthread_mach_thread_np(ha_pthread[tid]);
 			thread_policy_set(mthread, THREAD_AFFINITY_POLICY, (thread_policy_t)&cpu_set, 1);
 			set &= ~(1UL << (j - 1));
 		}
 #  else
 		struct hap_cpuset *set = &cpu_map.thread[tid];
 
-		pthread_setaffinity_np(ha_thread_info[tid].pthread, sizeof(set->cpuset), &set->cpuset);
+		pthread_setaffinity_np(ha_pthread[tid], sizeof(set->cpuset), &set->cpuset);
 #  endif
 	}
 #endif /* USE_CPU_AFFINITY */
@@ -273,7 +278,7 @@ unsigned long long ha_get_pthread_id(unsigned int thr)
 		unsigned char c;
 	} u = { 0 };
 
-	u.t = ha_thread_info[thr].pthread;
+	u.t = ha_pthread[thr];
 
 	if (sizeof(u.t) <= sizeof(u.c))
 		return u.c;
@@ -287,7 +292,7 @@ unsigned long long ha_get_pthread_id(unsigned int thr)
 /* send signal <sig> to thread <thr> */
 void ha_tkill(unsigned int thr, int sig)
 {
-	pthread_kill(ha_thread_info[thr].pthread, sig);
+	pthread_kill(ha_pthread[thr], sig);
 }
 
 /* send signal <sig> to all threads. The calling thread is signaled last in
@@ -302,7 +307,7 @@ void ha_tkillall(int sig)
 			continue;
 		if (thr == tid)
 			continue;
-		pthread_kill(ha_thread_info[thr].pthread, sig);
+		pthread_kill(ha_pthread[thr], sig);
 	}
 	raise(sig);
 }
