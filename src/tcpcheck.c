@@ -2290,7 +2290,7 @@ int tcpcheck_main(struct check *check)
 			const char *msg = ((rule->connect.options & TCPCHK_OPT_IMPLICIT) ? NULL : "(tcp-check)");
 			enum healthcheck_status status = HCHK_STATUS_L4OK;
 #ifdef USE_OPENSSL
-			if (ssl_sock_is_ssl(conn))
+			if (conn_is_ssl(conn))
 				status = HCHK_STATUS_L6OK;
 #endif
 			set_server_check_status(check, status, msg);

@@ -145,16 +145,6 @@ int ssl_sock_register_msg_callback(ssl_sock_msg_callback_func func);
 
 SSL *ssl_sock_get_ssl_object(struct connection *conn);
 
-/* boolean, returns true if connection is over SSL */
-static inline
-int ssl_sock_is_ssl(struct connection *conn)
-{
-	if (!conn || conn->xprt != xprt_get(XPRT_SSL) || !conn->xprt_ctx)
-		return 0;
-	else
-		return 1;
-}
-
 
 #endif /* USE_OPENSSL */
 #endif /* _HAPROXY_SSL_SOCK_H */

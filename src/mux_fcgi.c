@@ -1324,7 +1324,7 @@ static int fcgi_set_default_param(struct fcgi_conn *fconn, struct fcgi_strm *fst
 #ifdef USE_OPENSSL
 	if (!(params->mask & FCGI_SP_HTTPS)) {
 		if (cli_conn)
-			params->https = ssl_sock_is_ssl(cli_conn);
+			params->https = conn_is_ssl(cli_conn);
 	}
 #endif
 	if ((params->mask & FCGI_SP_URI_MASK) != FCGI_SP_URI_MASK) {

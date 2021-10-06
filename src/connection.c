@@ -1282,7 +1282,7 @@ int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connec
 		memset(tlv, 0, sizeof(struct tlv_ssl));
 		ssl_tlv_len += sizeof(struct tlv_ssl);
 		tlv->tlv.type = PP2_TYPE_SSL;
-		if (ssl_sock_is_ssl(remote)) {
+		if (conn_is_ssl(remote)) {
 			tlv->client |= PP2_CLIENT_SSL;
 			value = ssl_sock_get_proto_version(remote);
 			if (value) {

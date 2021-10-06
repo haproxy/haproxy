@@ -1227,6 +1227,16 @@ static inline XXH64_hash_t conn_hash_digest(char *buf, size_t bufsize,
 	return (flags_u64 << CONN_HASH_PAYLOAD_LEN) | CONN_HASH_GET_PAYLOAD(hash);
 }
 
+/* boolean, returns true if connection is over SSL */
+static inline
+int conn_is_ssl(struct connection *conn)
+{
+	if (!conn || conn->xprt != xprt_get(XPRT_SSL) || !conn->xprt_ctx)
+		return 0;
+	else
+		return 1;
+}
+
 #endif /* _HAPROXY_CONNECTION_H */
 
 /*
