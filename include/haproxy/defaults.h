@@ -167,6 +167,23 @@
 #define MAX_POLL_EVENTS 200
 #endif
 
+/* eternity when exprimed in timeval */
+#ifndef TV_ETERNITY
+#define TV_ETERNITY     (~0UL)
+#endif
+
+/* eternity when exprimed in ms */
+#ifndef TV_ETERNITY_MS
+#define TV_ETERNITY_MS  (-1)
+#endif
+
+/* we want to be able to detect time jumps. Fix the maximum wait time to a low
+ * value so that we know the time has changed if we wait longer.
+ */
+#ifndef MAX_DELAY_MS
+#define MAX_DELAY_MS    60000
+#endif
+
 // The maximum number of connections accepted at once by a thread for a single
 // listener. It used to default to 64 divided by the number of processes but
 // the tasklet-based model is much more scalable and benefits from smaller

@@ -27,23 +27,7 @@
 #include <haproxy/api.h>
 #include <haproxy/thread.h>
 
-/* eternity when exprimed in timeval */
-#ifndef TV_ETERNITY
-#define TV_ETERNITY     (~0UL)
-#endif
-
-/* eternity when exprimed in ms */
-#ifndef TV_ETERNITY_MS
-#define TV_ETERNITY_MS  (-1)
-#endif
-
 #define TIME_ETERNITY   (TV_ETERNITY_MS)
-
-/* we want to be able to detect time jumps. Fix the maximum wait time to a low
- * value so that we know the time has changed if we wait longer.
- */
-#define MAX_DELAY_MS    60000
-
 
 /* returns the lowest delay amongst <old> and <new>, and respects TIME_ETERNITY */
 #define MINTIME(old, new)	(((new)<0)?(old):(((old)<0||(new)<(old))?(new):(old)))
