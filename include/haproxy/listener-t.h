@@ -33,9 +33,6 @@
 #include <haproxy/stats-t.h>
 #include <haproxy/thread.h>
 
-#ifdef USE_OPENSSL
-#include <haproxy/openssl-compat.h>
-#endif
 #include <haproxy/xprt_quic-t.h>
 
 /* Some pointer types reference below */
@@ -131,14 +128,10 @@ struct tls_version_filter {
 /* ssl "bind" settings */
 struct ssl_bind_conf {
 #ifdef USE_OPENSSL
-#ifdef OPENSSL_NPN_NEGOTIATED
 	char *npn_str;             /* NPN protocol string */
 	int npn_len;               /* NPN protocol string length */
-#endif
-#ifdef TLSEXT_TYPE_application_layer_protocol_negotiation
 	char *alpn_str;            /* ALPN protocol string */
 	int alpn_len;              /* ALPN protocol string length */
-#endif
 	unsigned int verify:3;     /* verify method (set of SSL_VERIFY_* flags) */
 	unsigned int no_ca_names:1;/* do not send ca names to clients (ca_file related) */
 	unsigned int early_data:1; /* early data allowed */
@@ -146,9 +139,7 @@ struct ssl_bind_conf {
 	char *ca_verify_file;      /* CAverify file to use on verify only */
 	char *crl_file;            /* CRLfile to use on verify */
 	char *ciphers;             /* cipher suite to use if non-null */
-#ifdef HAVE_SSL_CTX_SET_CIPHERSUITES
 	char *ciphersuites;        /* TLS 1.3 cipher suite to use if non-null */
-#endif
 	char *curves;	           /* curves suite to use for ECDHE */
 	char *ecdhe;               /* named curve to use for ECDHE */
 	struct tls_version_filter ssl_methods_cfg; /* original ssl methods found in configuration */
@@ -162,8 +153,8 @@ struct bind_conf {
 	struct ssl_bind_conf ssl_conf; /* ssl conf for ctx setting */
 	unsigned long long ca_ignerr;  /* ignored verify errors in handshake if depth > 0 */
 	unsigned long long crt_ignerr; /* ignored verify errors in handshake if depth == 0 */
-	SSL_CTX *initial_ctx;      /* SSL context for initial negotiation */
-	SSL_CTX *default_ctx;      /* SSL context of first/default certificate */
+	void *initial_ctx;             /* SSL context for initial negotiation */
+	void *default_ctx;             /* SSL context of first/default certificate */
 	struct ckch_inst *default_inst;
 	struct ssl_bind_conf *default_ssl_conf; /* custom SSL conf of default_ctx */
 	int strict_sni;            /* refuse negotiation if sni doesn't match a certificate */
