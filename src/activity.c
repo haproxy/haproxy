@@ -19,6 +19,7 @@
 #include <haproxy/stream_interface.h>
 #include <haproxy/time.h>
 #include <haproxy/tools.h>
+#include <haproxy/xxhash.h>
 
 #if defined(DEBUG_MEM_STATS)
 /* these ones are macros in bug.h when DEBUG_MEM_STATS is set, and will
@@ -557,6 +558,32 @@ static int cmp_memprof_addr(const void *a, const void *b)
 		return 0;
 }
 #endif // USE_MEMORY_PROFILING
+
+/* Computes the index of function pointer <func> for use with sched_activity[]
+ * or any other similar array passed in <array>, and returns a pointer to the
+ * entry after having atomically assigned it to this function pointer. Note
+ * that in case of collision, the first entry is returned instead ("other").
+ */
+struct sched_activity *sched_activity_entry(struct sched_activity *array, const void *func)
+{
+	uint64_t hash = XXH64_avalanche(XXH64_mergeRound((size_t)func, (size_t)func));
+	struct sched_activity *ret;
+	const void *old = NULL;
+
+	hash ^= (hash >> 32);
+	hash ^= (hash >> 16);
+	hash ^= (hash >> 8);
+	hash &= 0xff;
+	ret = &array[hash];
+
+	if (likely(ret->func == func))
+		return ret;
+
+	if (HA_ATOMIC_CAS(&ret->func, &old, func))
+		return ret;
+
+	return array;
+}
 
 /* This function dumps all profiling settings. It returns 0 if the output
  * buffer is full and it needs to be called again, otherwise non-zero.

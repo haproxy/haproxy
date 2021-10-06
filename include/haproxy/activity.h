@@ -24,8 +24,6 @@
 
 #include <haproxy/activity-t.h>
 #include <haproxy/api.h>
-#include <haproxy/freq_ctr.h>
-#include <haproxy/xxhash.h>
 
 extern unsigned int profiling;
 extern unsigned long task_profiling_mask;
@@ -34,32 +32,7 @@ extern struct sched_activity sched_activity[256];
 
 void report_stolen_time(uint64_t stolen);
 void activity_count_runtime();
-
-/* Computes the index of function pointer <func> for use with sched_activity[]
- * or any other similar array passed in <array>, and returns a pointer to the
- * entry after having atomically assigned it to this function pointer. Note
- * that in case of collision, the first entry is returned instead ("other").
- */
-static inline struct sched_activity *sched_activity_entry(struct sched_activity *array, const void *func)
-{
-	uint64_t hash = XXH64_avalanche(XXH64_mergeRound((size_t)func, (size_t)func));
-	struct sched_activity *ret;
-	const void *old = NULL;
-
-	hash ^= (hash >> 32);
-	hash ^= (hash >> 16);
-	hash ^= (hash >> 8);
-	hash &= 0xff;
-	ret = &array[hash];
-
-	if (likely(ret->func == func))
-		return ret;
-
-	if (HA_ATOMIC_CAS(&ret->func, &old, func))
-		return ret;
-
-	return array;
-}
+struct sched_activity *sched_activity_entry(struct sched_activity *array, const void *func);
 
 #endif /* _HAPROXY_ACTIVITY_H */
 
