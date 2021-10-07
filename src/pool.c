@@ -519,23 +519,48 @@ void dump_pools_to_trash()
 	struct pool_head *entry;
 	unsigned long allocated, used;
 	int nbpools;
+#ifdef CONFIG_HAP_POOLS
+	unsigned long cached_bytes = 0;
+	uint cached = 0;
+#endif
 
 	allocated = used = nbpools = 0;
 	chunk_printf(&trash, "Dumping pools usage. Use SIGQUIT to flush them.\n");
 	list_for_each_entry(entry, &pools, list) {
-		chunk_appendf(&trash, "  - Pool %s (%u bytes) : %u allocated (%u bytes), %u used, needed_avg %u, %u failures, %u users, @%p%s\n",
-			 entry->name, entry->size, entry->allocated,
-		         entry->size * entry->allocated, entry->used,
-		         swrate_avg(entry->needed_avg, POOL_AVG_SAMPLES), entry->failed,
-			 entry->users, entry,
-			 (entry->flags & MEM_F_SHARED) ? " [SHARED]" : "");
+#ifdef CONFIG_HAP_POOLS
+		int i;
+		for (cached = i = 0; i < global.nbthread; i++)
+			cached += entry->cache[i].count;
+		cached_bytes += cached * entry->size;
+#endif
+		chunk_appendf(&trash, "  - Pool %s (%u bytes) : %u allocated (%u bytes), %u used"
+#ifdef CONFIG_HAP_POOLS
+			      " (~%u by thread caches)"
+#endif
+			      ", needed_avg %u, %u failures, %u users, @%p%s\n",
+		              entry->name, entry->size, entry->allocated,
+		              entry->size * entry->allocated, entry->used,
+#ifdef CONFIG_HAP_POOLS
+		              cached,
+#endif
+		              swrate_avg(entry->needed_avg, POOL_AVG_SAMPLES), entry->failed,
+		              entry->users, entry,
+		              (entry->flags & MEM_F_SHARED) ? " [SHARED]" : "");
 
 		allocated += entry->allocated * entry->size;
 		used += entry->used * entry->size;
 		nbpools++;
 	}
-	chunk_appendf(&trash, "Total: %d pools, %lu bytes allocated, %lu used.\n",
-		 nbpools, allocated, used);
+	chunk_appendf(&trash, "Total: %d pools, %lu bytes allocated, %lu used"
+#ifdef CONFIG_HAP_POOLS
+		      " (~%lu by thread caches)"
+#endif
+		      ".\n",
+	              nbpools, allocated, used
+#ifdef CONFIG_HAP_POOLS
+	              , cached_bytes
+#endif
+		      );
 }
 
 /* Dump statistics on pools usage. */
