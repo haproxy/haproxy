@@ -22,6 +22,8 @@
 
 #include <netinet/tcp.h>
 
+#include <import/ebmbtree.h>
+
 #include <haproxy/buf-t.h>
 #include <haproxy/compat.h>
 #include <haproxy/api.h>

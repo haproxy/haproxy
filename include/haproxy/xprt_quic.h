@@ -28,6 +28,8 @@
 
 #include <stdint.h>
 
+#include <import/eb64tree.h>
+
 #include <haproxy/buf.h>
 #include <haproxy/chunk.h>
 #include <haproxy/net_helper.h>

@@ -10,7 +10,8 @@
  *
  */
 
-#include <import/eb32tree.h>
+#include <import/eb64tree.h>
+
 #include <haproxy/api.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/connection.h>
@@ -21,6 +22,7 @@
 #include <haproxy/net_helper.h>
 #include <haproxy/quic_frame.h>
 #include <haproxy/session-t.h>
+#include <haproxy/ssl_sock-t.h>
 #include <haproxy/stats.h>
 #include <haproxy/stream.h>
 #include <haproxy/stream_interface.h>
