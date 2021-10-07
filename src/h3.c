@@ -76,35 +76,6 @@ static inline struct buffer h3_b_dup(struct buffer *b)
 	return b_make(b->area, b->size, b->head, b->data);
 }
 
-static int qcs_buf_available(void *target)
-{
-	struct h3_uqs *h3_uqs = target;
-	struct qcs *qcs = h3_uqs->qcs;
-
-	if ((qcs->flags & OUQS_SF_TXBUF_MALLOC) && b_alloc(&qcs->tx.buf)) {
-		qcs->flags &= ~OUQS_SF_TXBUF_MALLOC;
-		tasklet_wakeup(h3_uqs->wait_event.tasklet);
-		return 1;
-	}
-
-	return 0;
-}
-
-static struct buffer *h3_uqs_get_buf(struct h3_uqs *h3_uqs)
-{
-	struct buffer *buf = NULL;
-	struct h3 *h3 = h3_uqs->qcs->qcc->ctx;
-
-	if (likely(!LIST_INLIST(&h3->buf_wait.list)) &&
-	    unlikely((buf = b_alloc(&h3_uqs->qcs->tx.buf)) == NULL)) {
-		h3->buf_wait.target = h3_uqs;
-		h3->buf_wait.wakeup_cb = qcs_buf_available;
-		LIST_APPEND(&th_ctx->buffer_wq, &h3->buf_wait.list);
-	}
-
-	return buf;
-}
-
 /* Decode a h3 frame header made of two QUIC varints from <b> buffer.
  * Returns the number of bytes consumed if there was enough data in <b>, 0 if not.
  * Note that this function update <b> buffer to reflect the number of bytes consumed
@@ -342,24 +313,15 @@ static int h3_control_recv(struct h3_uqs *h3_uqs, void *ctx)
 	return 1;
 }
 
-int h3_txbuf_cpy(struct h3_uqs *h3_uqs, unsigned char *buf, size_t len)
+/* Returns buffer for data sending.
+ * May be NULL if the allocation failed.
+ */
+static struct buffer *mux_get_buf(struct qcs *qcs)
 {
-	struct buffer *res = &h3_uqs->qcs->tx.buf;
-	struct qcc *qcc = h3_uqs->qcs->qcc;
-	int ret;
+	if (!b_size(&qcs->tx.buf))
+		b_alloc(&qcs->tx.buf);
 
-	ret = 0;
-	if (!h3_uqs_get_buf(h3_uqs)) {
-		qcc->flags |= OUQS_SF_TXBUF_MALLOC;
-		goto out;
-	}
-
-	ret = b_istput(res, ist2((char *)buf, len));
-	if (unlikely(!ret))
-		qcc->flags |= OUQS_SF_TXBUF_FULL;
-
- out:
-	return ret;
+	return &qcs->tx.buf;
 }
 
 /* Function used to emit stream data from <h3_uqs> control uni-stream */
@@ -368,14 +330,12 @@ static int h3_control_send(struct h3_uqs *h3_uqs, void *ctx)
 	int ret;
 	struct h3 *h3 = ctx;
 	unsigned char data[(2 + 3) * 2 * QUIC_VARINT_MAX_SIZE]; /* enough for 3 settings */
-	unsigned char *pos, *end;
+	struct buffer pos, *res;
 
 	ret = 0;
-	pos = data;
-	end = pos + sizeof data;
+	pos = b_make((char *)data, sizeof(data), 0, 0);
 	if (!(h3->flags & H3_CF_SETTINGS_SENT)) {
 		struct qcs *qcs = h3_uqs->qcs;
-		struct buffer *txbuf = &qcs->tx.buf;
 		size_t frm_len;
 
 		frm_len = quic_int_getsize(H3_SETTINGS_QPACK_MAX_TABLE_CAPACITY) +
@@ -387,44 +347,35 @@ static int h3_control_send(struct h3_uqs *h3_uqs, void *ctx)
 			quic_int_getsize(h3_settings_max_field_section_size);
 		}
 
-		quic_enc_int(&pos, end, H3_UNI_STRM_TP_CONTROL_STREAM);
+		b_quic_enc_int(&pos, H3_UNI_STRM_TP_CONTROL_STREAM);
 		/* Build a SETTINGS frame */
-		quic_enc_int(&pos, end, H3_FT_SETTINGS);
-		quic_enc_int(&pos, end, frm_len);
-		quic_enc_int(&pos, end, H3_SETTINGS_QPACK_MAX_TABLE_CAPACITY);
-		quic_enc_int(&pos, end, h3_settings_qpack_max_table_capacity);
-		quic_enc_int(&pos, end, H3_SETTINGS_QPACK_BLOCKED_STREAMS);
-		quic_enc_int(&pos, end, h3_settings_qpack_blocked_streams);
+		b_quic_enc_int(&pos, H3_FT_SETTINGS);
+		b_quic_enc_int(&pos, frm_len);
+		b_quic_enc_int(&pos, H3_SETTINGS_QPACK_MAX_TABLE_CAPACITY);
+		b_quic_enc_int(&pos, h3_settings_qpack_max_table_capacity);
+		b_quic_enc_int(&pos, H3_SETTINGS_QPACK_BLOCKED_STREAMS);
+		b_quic_enc_int(&pos, h3_settings_qpack_blocked_streams);
 		if (h3_settings_max_field_section_size) {
-			quic_enc_int(&pos, end, H3_SETTINGS_MAX_FIELD_SECTION_SIZE);
-			quic_enc_int(&pos, end, h3_settings_max_field_section_size);
-		}
-		ret = h3_txbuf_cpy(h3_uqs, data, pos - data);
-		if (ret < 0) {
-			qc_error(qcs->qcc, H3_INTERNAL_ERROR);
-			return ret;
+			b_quic_enc_int(&pos, H3_SETTINGS_MAX_FIELD_SECTION_SIZE);
+			b_quic_enc_int(&pos, h3_settings_max_field_section_size);
 		}
 
+		res = mux_get_buf(qcs);
+		if (b_room(res) < b_data(&pos)) {
+			// TODO the mux should be put in blocked state, with
+			// the stream in state waiting for settings to be sent
+			ABORT_NOW();
+		}
+
+		ret = b_force_xfer(res, &pos, b_data(&pos));
 		if (ret > 0) {
 			h3->flags |= H3_CF_SETTINGS_SENT;
-			luqs_snd_buf(h3_uqs->qcs, txbuf, b_data(&qcs->tx.buf), 0);
+			if (!(qcs->qcc->wait_event.events & SUB_RETRY_SEND))
+				tasklet_wakeup(qcs->qcc->wait_event.tasklet);
 		}
-		if (b_data(&qcs->tx.buf))
-			qcs->qcc->conn->mux->luqs_subscribe(qcs, SUB_RETRY_SEND, &h3->lctrl.wait_event);
 	}
 
 	return ret;
-}
-
-/* Returns buffer for data sending.
- * May be NULL if the allocation failed.
- */
-static struct buffer *mux_get_buf(struct qcs *qcs)
-{
-	if (!b_size(&qcs->tx.buf))
-		b_alloc(&qcs->tx.buf);
-
-	return &qcs->tx.buf;
 }
 
 static int h3_resp_headers_send(struct qcs *qcs, struct htx *htx)
