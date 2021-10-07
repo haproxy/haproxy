@@ -1842,45 +1842,6 @@ static size_t qc_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 	return ret;
 }
 
-/* Called from the upper layer, to send data from buffer <buf> for no more than
- * <count> bytes. Returns the number of bytes effectively sent. Some status
- * flags may be updated on the mux.
- */
-size_t luqs_snd_buf(struct qcs *qcs, struct buffer *buf, size_t count, int flags)
-{
-	size_t room, total = 0;
-	struct qcc *qcc = qcs->qcc;
-	struct buffer *res;
-
-	TRACE_ENTER(QC_EV_QCS_SEND|QC_EV_STRM_SEND, qcs->qcc->conn);
-	if (!count)
-		goto out;
-
-	res = &qcs->tx.buf;
-	if (!qc_get_buf(qcc, res)) {
-		qcc->flags |= QC_CF_MUX_MALLOC;
-		goto out;
-	}
-
-	room = b_room(res);
-	if (!room)
-		goto out;
-
-	if (count > room)
-		count = room;
-
-	total += b_xfer(res, buf, count);
-	qcs_push_frame(qcs, res, 0, 0);
-
- out:
-	TRACE_LEAVE(QC_EV_QCS_SEND|QC_EV_STRM_SEND, qcs->qcc->conn);
-	return total;
-
- err:
-	TRACE_DEVEL("leaving on stream error", QC_EV_QCS_SEND|QC_EV_STRM_SEND, qcs->qcc->conn);
-	return total;
-}
-
 /* for debugging with CLI's "show fd" command */
 static int qc_show_fd(struct buffer *msg, struct connection *conn)
 {

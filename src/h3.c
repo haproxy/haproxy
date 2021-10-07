@@ -703,23 +703,6 @@ static struct task *h3_uqs_task(struct task *t, void *ctx, unsigned int state)
 	return NULL;
 }
 
-#if 0
-/* Initialiaze <h3_uqs> uni-stream with <t> as tasklet */
-static int h3_uqs_init(struct h3_uqs *h3_uqs,
-                         struct task *(*t)(struct task *, void *, unsigned int))
-{
-	h3_uqs->qcs = NULL;
-	h3_uqs->cb = NULL;
-	h3_uqs->wait_event.tasklet = tasklet_new();
-	if (!h3_uqs->wait_event.tasklet)
-		return 0;
-
-	h3_uqs->wait_event.tasklet->process = t;
-	h3_uqs->wait_event.tasklet->context = h3_uqs;
-	return 1;
-}
-#endif
-
 /* Release all the tasklet attached to <h3_uqs> uni-stream */
 static inline void h3_uqs_tasklet_release(struct h3_uqs *h3_uqs)
 {
