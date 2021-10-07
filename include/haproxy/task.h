@@ -28,6 +28,7 @@
 #include <import/eb32sctree.h>
 #include <import/eb32tree.h>
 
+#include <haproxy/activity.h>
 #include <haproxy/api.h>
 #include <haproxy/fd.h>
 #include <haproxy/global.h>
@@ -37,6 +38,7 @@
 #include <haproxy/task-t.h>
 #include <haproxy/thread.h>
 #include <haproxy/ticks.h>
+#include <haproxy/time.h>
 
 
 /* Principle of the wait queue.
