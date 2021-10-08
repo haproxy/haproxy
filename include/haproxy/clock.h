@@ -39,6 +39,7 @@ void clock_set_local_source(void);
 void clock_update_date(int max_wait, int interrupted);
 void clock_init_process_date(void);
 void clock_init_thread_date(void);
+int clock_setup_signal_timer(void *timer, int sig, int val);
 char *timeofday_as_iso_us(int pad);
 uint clock_report_idle(void);
 void clock_leaving_poll(int timeout, int interrupted);

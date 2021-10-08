@@ -127,22 +127,7 @@ void wdt_handler(int sig, siginfo_t *si, void *arg)
 
 int init_wdt_per_thread()
 {
-	struct sigevent sev = { };
-	sigset_t set;
-
-	/* unblock the WDTSIG signal we intend to use */
-	sigemptyset(&set);
-	sigaddset(&set, WDTSIG);
-	ha_sigmask(SIG_UNBLOCK, &set, NULL);
-
-	/* this timer will signal WDTSIG when it fires, with tid in the si_int
-	 * field (important since any thread will receive the signal).
-	 */
-	sev.sigev_notify          = SIGEV_SIGNAL;
-	sev.sigev_signo           = WDTSIG;
-	sev.sigev_value.sival_int = tid;
-	if (timer_create(ti->clock_id, &sev, &ti->wd_timer) == -1 &&
-	    timer_create(CLOCK_REALTIME, &sev, &ti->wd_timer) == -1)
+	if (!clock_setup_signal_timer(&ti->wd_timer, WDTSIG, tid))
 		goto fail1;
 
 	if (!wdt_ping(tid))

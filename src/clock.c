@@ -11,6 +11,7 @@
  */
 
 #include <sys/time.h>
+#include <signal.h>
 #include <time.h>
 
 #ifdef USE_THREAD
@@ -20,6 +21,7 @@
 #include <haproxy/api.h>
 #include <haproxy/activity.h>
 #include <haproxy/clock.h>
+#include <haproxy/signal-t.h>
 #include <haproxy/time.h>
 #include <haproxy/tinfo-t.h>
 #include <haproxy/tools.h>
@@ -45,7 +47,7 @@ static THREAD_LOCAL char         iso_time_str[34]; /* ISO time representation of
 uint64_t now_mono_time(void)
 {
 	uint64_t ret = 0;
-#if defined(_POSIX_TIMERS) && (_POSIX_TIMERS > 0) && defined(_POSIX_MONOTONIC_CLOCK)
+#if defined(_POSIX_TIMERS) && defined(_POSIX_TIMERS) && (_POSIX_TIMERS > 0) && defined(_POSIX_MONOTONIC_CLOCK)
 	struct timespec ts;
 	clock_gettime(CLOCK_MONOTONIC, &ts);
 	ret = ts.tv_sec * 1000000000ULL + ts.tv_nsec;
@@ -87,6 +89,37 @@ void clock_set_local_source(void)
 	ti->clock_id = CLOCK_THREAD_CPUTIME_ID;
 #endif
 #endif
+}
+
+/* registers a timer <tmr> of type timer_t delivering signal <sig> with value
+ * <val>. It tries on the current thread's clock ID first and falls back to
+ * CLOCK_REALTIME. Returns non-zero on success, 1 on failure.
+ */
+int clock_setup_signal_timer(void *tmr, int sig, int val)
+{
+	int ret = 0;
+
+#if defined(USE_RT) && (_POSIX_TIMERS > 0) && defined(_POSIX_THREAD_CPUTIME)
+	struct sigevent sev = { };
+	timer_t *timer = tmr;
+	sigset_t set;
+
+	/* unblock the WDTSIG signal we intend to use */
+	sigemptyset(&set);
+	sigaddset(&set, WDTSIG);
+	ha_sigmask(SIG_UNBLOCK, &set, NULL);
+
+	/* this timer will signal WDTSIG when it fires, with tid in the si_int
+	 * field (important since any thread will receive the signal).
+	 */
+	sev.sigev_notify          = SIGEV_SIGNAL;
+	sev.sigev_signo           = sig;
+	sev.sigev_value.sival_int = val;
+	if (timer_create(ti->clock_id, &sev, timer) != -1 ||
+	    timer_create(CLOCK_REALTIME, &sev, timer) != -1)
+		ret = 1;
+#endif
+	return ret;
 }
 
 /* clock_update_date: sets <date> to system time, and sets <now> to something as
