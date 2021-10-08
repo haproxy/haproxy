@@ -344,12 +344,16 @@ static inline int qcc_may_expire(const struct qcc *qcc)
 static __inline int
 qcc_is_dead(const struct qcc *qcc)
 {
+#if 0
 	if (eb_is_empty(&qcc->streams_by_id) &&     /* don't close if streams exist */
 	    ((qcc->conn->flags & CO_FL_ERROR) ||    /* errors close immediately */
 	     (qcc->st0 >= QC_CS_ERROR && !qcc->task) || /* a timeout stroke earlier */
 	     (!(qcc->conn->owner)) || /* Nobody's left to take care of the connection, drop it now */
 	     (!br_data(qcc->mbuf) &&  /* mux buffer empty, also process clean events below */
 	      conn_xprt_read0_pending(qcc->conn))))
+		return 1;
+#endif
+	if (!qcc->strms[QCS_CLT_BIDI].nb_streams)
 		return 1;
 
 	return 0;
@@ -1561,7 +1565,7 @@ static void qc_detach(struct conn_stream *cs)
 
 	TRACE_ENTER(QC_EV_STRM_END, qcs ? qcs->qcc->conn : NULL, qcs);
 	qcs_destroy(qcs);
-	if (!qcc->strms[QCS_CLT_BIDI].nb_streams)
+	if (qcc_is_dead(qcc))
 		qc_release(qcc);
 	TRACE_LEAVE(QC_EV_STRM_END, qcs ? qcs->qcc->conn : NULL);
 }
