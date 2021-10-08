@@ -2668,8 +2668,12 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 			if (h2c->st0 >= H2_CS_ERROR)
 				goto out;
 
-			if (error == 0)
+			if (error == 0) {
+				/* Demux not blocked because of the stream, it is an incomplete frame */
+				if (!(h2c->flags &H2_CF_DEM_BLOCK_ANY))
+					h2c->flags |= H2_CF_DEM_SHORT_READ;
 				goto out; // missing data
+			}
 
 			if (error < 0) {
 				/* Failed to decode this frame (e.g. too large request)
@@ -2706,8 +2710,12 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 		goto out;
 
 	if (error <= 0) {
-		if (error == 0)
+		if (error == 0) {
+			/* Demux not blocked because of the stream, it is an incomplete frame */
+			if (!(h2c->flags &H2_CF_DEM_BLOCK_ANY))
+				h2c->flags |= H2_CF_DEM_SHORT_READ;
 			goto out; // missing data
+		}
 
 		/* Failed to decode this stream (e.g. too large request)
 		 * but the HPACK decompressor is still synchronized.
@@ -2825,8 +2833,12 @@ static struct h2s *h2c_bck_handle_headers(struct h2c *h2c, struct h2s *h2s)
 	}
 
 	if (error <= 0) {
-		if (error == 0)
+		if (error == 0) {
+			/* Demux not blocked because of the stream, it is an incomplete frame */
+			if (!(h2c->flags &H2_CF_DEM_BLOCK_ANY))
+				h2c->flags |= H2_CF_DEM_SHORT_READ;
 			goto fail; // missing data
+		}
 
 		/* stream error : send RST_STREAM */
 		TRACE_ERROR("couldn't decode response HEADERS", H2_EV_RX_FRAME|H2_EV_RX_HDR, h2c->conn, h2s);
