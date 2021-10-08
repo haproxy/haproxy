@@ -43,6 +43,10 @@ static THREAD_LOCAL unsigned int idle_time;       /* total idle time over curren
 static THREAD_LOCAL unsigned int iso_time_sec;     /* last iso time value for this thread */
 static THREAD_LOCAL char         iso_time_str[34]; /* ISO time representation of gettimeofday() */
 
+#if defined(_POSIX_TIMERS) && (_POSIX_TIMERS > 0) && defined(_POSIX_THREAD_CPUTIME)
+static clockid_t per_thread_clock_id[MAX_THREADS];
+#endif
+
 /* returns the system's monotonic time in nanoseconds if supported, otherwise zero */
 uint64_t now_mono_time(void)
 {
@@ -68,12 +72,12 @@ uint64_t now_cpu_time(void)
 }
 
 /* returns another thread's cumulated CPU time in nanoseconds if supported, otherwise zero */
-uint64_t now_cpu_time_thread(const struct thread_info *thr)
+uint64_t now_cpu_time_thread(int thr)
 {
 	uint64_t ret = 0;
 #if defined(_POSIX_TIMERS) && (_POSIX_TIMERS > 0) && defined(_POSIX_THREAD_CPUTIME)
 	struct timespec ts;
-	clock_gettime(thr->clock_id, &ts);
+	clock_gettime(per_thread_clock_id[thr], &ts);
 	ret = ts.tv_sec * 1000000000ULL + ts.tv_nsec;
 #endif
 	return ret;
@@ -84,9 +88,9 @@ void clock_set_local_source(void)
 {
 #if defined(_POSIX_TIMERS) && (_POSIX_TIMERS > 0) && defined(_POSIX_THREAD_CPUTIME)
 #ifdef USE_THREAD
-	pthread_getcpuclockid(pthread_self(), &ti->clock_id);
+	pthread_getcpuclockid(pthread_self(), &per_thread_clock_id[tid]);
 #else
-	ti->clock_id = CLOCK_THREAD_CPUTIME_ID;
+	per_thread_clock_id[tid] = CLOCK_THREAD_CPUTIME_ID;
 #endif
 #endif
 }
@@ -115,7 +119,7 @@ int clock_setup_signal_timer(void *tmr, int sig, int val)
 	sev.sigev_notify          = SIGEV_SIGNAL;
 	sev.sigev_signo           = sig;
 	sev.sigev_value.sival_int = val;
-	if (timer_create(ti->clock_id, &sev, timer) != -1 ||
+	if (timer_create(per_thread_clock_id[tid], &sev, timer) != -1 ||
 	    timer_create(CLOCK_REALTIME, &sev, timer) != -1)
 		ret = 1;
 #endif

@@ -65,7 +65,7 @@ void wdt_handler(int sig, siginfo_t *si, void *arg)
 			break;
 
 		p = ha_thread_info[thr].prev_cpu_time;
-		n = now_cpu_time_thread(&ha_thread_info[thr]);
+		n = now_cpu_time_thread(thr);
 
 		/* not yet reached the deadline of 1 sec */
 		if (n - p < 1000000000UL)

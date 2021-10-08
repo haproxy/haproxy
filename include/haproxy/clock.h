@@ -24,7 +24,6 @@
 
 #include <sys/time.h>
 #include <haproxy/api.h>
-#include <haproxy/tinfo-t.h>
 
 extern struct timeval              start_date;    /* the process's start date in wall-clock time */
 extern volatile ullong             global_now;    /* common monotonic date between all threads (32:32) */
@@ -32,7 +31,7 @@ extern volatile ullong             global_now;    /* common monotonic date betwe
 extern THREAD_LOCAL struct timeval now;           /* internal monotonic date derived from real clock */
 extern THREAD_LOCAL struct timeval date;          /* the real current date (wall-clock time) */
 
-uint64_t now_cpu_time_thread(const struct thread_info *thr);
+uint64_t now_cpu_time_thread(int thr);
 uint64_t now_mono_time(void);
 uint64_t now_cpu_time(void);
 void clock_set_local_source(void);
