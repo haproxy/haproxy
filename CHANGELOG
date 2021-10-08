@@ -1,6 +1,170 @@
 ChangeLog :
 ===========
 
+2021/10/08 : 2.5-dev9
+    - head-truc
+    - REGTESTS: lua: test the httpclient:get() feature
+    - Revert "head-truc"
+    - BUG/MEDIUM: httpclient: replace ist0 by istptr
+    - MINOR: config: use a standard parser for the "nbthread" keyword
+    - CLEANUP: init: remove useless test against MAX_THREADS in affinity loop
+    - MEDIUM: init: de-uglify the per-thread affinity setting
+    - MINOR: init: extract the setup and end of threads to their own functions
+    - MINOR: log: Try to get the status code when MUX_EXIT_STATUS is retrieved
+    - MINOR: mux-h1: Set error code if possible when MUX_EXIT_STATUS is returned
+    - MINOR: mux-h1: Be able to set custom status code on parsing error
+    - MEDIUM: mux-h1: Reject HTTP/1.0 GET/HEAD/DELETE requests with a payload
+    - MEDIUM: h1: Force close mode for invalid uses of T-E header
+    - BUG/MINOR: mux-h1/mux-fcgi: Sanitize TE header to only send "trailers"
+    - MINOR: http: Add 422-Unprocessable-Content error message
+    - MINOR: h1: Change T-E header parsing to fail if chunked encoding is found twice
+    - BUG/MEDIUM: mux-h1/mux-fcgi: Reject messages with unknown transfer encoding
+    - REGTESTS: Add script to validate T-E header parsing
+    - REORG: pools: move default settings to defaults.h
+    - DOC: peers: fix doc "enable" statement on "peers" sections
+    - MINOR: Makefile: add MEMORY_POOLS to the list of DEBUG_xxx options
+    - MINOR: ssl: Set connection error code in case of SSL read or write fatal failure
+    - MINOR: ssl: Rename ssl_bc_hsk_err to ssl_bc_err
+    - MINOR: ssl: Store the last SSL error code in case of read or write failure
+    - REGTESTS: ssl: enable show_ssl_ocspresponse.vtc again
+    - REGTESTS: ssl: enable ssl_crt-list_filters.vtc again
+    - BUG/MEDIUM: lua: fix wakeup condition from sleep()
+    - BUG/MAJOR: lua: use task_wakeup() to properly run a task once
+    - MINOR: arg: Be able to forbid unresolved args when building an argument list
+    - BUG/MINOR: tcpcheck: Don't use arg list for default proxies during parsing
+    - BUG/MINOR: tcp-rules: Stop content rules eval on read error and end-of-input
+    - MINOR: tasks: catch TICK_ETERNITY with BUG_ON() in __task_queue()
+    - REGTESTS: ssl: show_ssl_ocspresponse w/ freebsd won't use base64
+    - REGTESTS: ssl: wrong feature cmd in show_ssl_ocspresponse.vtc
+    - CLEANUP: tasks: remove the long-unused work_lists
+    - MINOR: task: provide 3 task_new_* wrappers to simplify the API
+    - MINOR: time: uninline report_idle() and move it to task.c
+    - REORG: sched: move idle time calculation from time.h to task.h
+    - REORG: sched: move the stolen CPU time detection to sched_entering_poll()
+    - BUG/MEDIUM: filters: Fix a typo when a filter is attached blocking the release
+    - BUG/MEDIUM: http-ana: Clear request analyzers when applying redirect rule
+    - MINOR: httpclient: destroy() must free the headers and the ists
+    - MINOR: httpclient: set HTTPCLIENT_F_ENDED only in release
+    - MINOR: httpclient: stop_and_destroy() ask the applet to autokill
+    - MINOR: httpclient: test if started during stop_and_destroy()
+    - MINOR: httpclient/lua: implement garbage collection
+    - BUG/MEDIUM: httpclient/lua: crash because of b_xfer and get_trash_chunk()
+    - MINOR: httpclient: destroy checks if a client was started but not stopped
+    - BUG/MINOR: httpclient/lua: does not process headers when failed
+    - MINOR: httpclient/lua: supports headers via named arguments
+    - CLEANUP: server: always include the storage for SSL settings
+    - CLEANUP: sample: rename sample_conv_var2smp() to *_sint
+    - CLEANUP: sample: uninline sample_conv_var2smp_str()
+    - MINOR: sample: provide a generic var-to-sample conversion function
+    - BUG/MEDIUM: sample: properly verify that variables cast to sample
+    - BUILD: action: add the relevant structures for function arguments
+    - BUILD: extcheck: needs to include stream-t.h
+    - BUILD: hlua: needs to include stream-t.h
+    - BUILD: stats: define several missing structures in stats.h
+    - BUILD: resolvers: define missing types in resolvers.h
+    - BUILD: httpclient: include missing ssl_sock-t
+    - BUILD: sample: include openssl-compat
+    - BUILD: http_ana: need to include proxy-t to get redirect_rule
+    - BUILD: http_rules: requires http_ana-t.h for REDIRECT_*
+    - BUILD: vars: need to include xxhash
+    - BUILD: peers: need to include eb{32/mb/pt}tree.h
+    - BUILD: ssl_ckch: include ebpttree.h in ssl_ckch.c
+    - BUILD: compiler: add the container_of() and container_of_safe() macros
+    - BUILD: idleconns: include missing ebmbtree.h at several places
+    - BUILD: connection: connection.h needs list.h and server.h
+    - BUILD: tree-wide: add missing http_ana.h from many places
+    - BUILD: cfgparse-ssl: add missing errors.h
+    - BUILD: tcp_sample: include missing errors.h and session-t.h
+    - BUILD: mworker: mworker-prog needs time.h for the 'now' variable
+    - BUILD: tree-wide: add several missing activity.h
+    - BUILD: compat: fix -Wundef on SO_REUSEADDR
+    - CLEANUP: pools: pools-t.h doesn't need to include thread-t.h
+    - REORG: pools: uninline the UAF allocator and force-inline the rest
+    - REORG: thread: uninline the lock-debugging code
+    - MINOR: thread/debug: replace nsec_now() with now_mono_time()
+    - CLEANUP: remove some unneeded includes from applet-t.h
+    - REORG: listener: move bind_conf_alloc() and listener_state_str() to listener.c
+    - CLEANUP: listeners: do not include openssl-compat
+    - CLEANUP: servers: do not include openssl-compat
+    - REORG: ssl: move ssl_sock_is_ssl() to connection.h and rename it
+    - CLEANUP: mux_fcgi: remove dependency on ssl_sock
+    - CLEANUP: ssl/server: move ssl_sock_set_srv() to srv_set_ssl() in server.c
+    - REORG: ssl-sock: move the sslconns/totalsslconns counters to global
+    - REORG: sample: move the crypto samples to ssl_sample.c
+    - REORG: sched: moved samp_time and idle_time to task.c as well
+    - REORG: time/ticks: move now_ms and global_now_ms definitions to ticks.h
+    - CLEANUP: tree-wide: remove unneeded include time.h in ~20 files
+    - REORG: activity: uninline activity_count_runtime()
+    - REORG: acitvity: uninline sched_activity_entry()
+    - CLEANUP: stream: remove many unneeded includes from stream-t.h
+    - CLEANUP: stick-table: no need to include socket nor in.h
+    - MINOR: connection: use uint64_t for the hashes
+    - REORG: connection: move the hash-related stuff to connection.c
+    - REORG: connection: uninline conn_notify_mux() and conn_delete_from_tree()
+    - REORG: server: uninline the idle conns management functions
+    - REORG: ebtree: split structures into their own file ebtree-t.h
+    - CLEANUP: tree-wide: only include ebtree-t from type files
+    - REORG: connection: move the largest inlines from connection.h to connection.c
+    - CLEANUP: connection: do not include http_ana!
+    - CLEANUP: connection: remove unneeded tcpcheck-t.h and use only session-t.h
+    - REORG: connection: uninline the rest of the alloc/free stuff
+    - REORG: task: uninline the loop time measurement code
+    - CLEANUP: time: move a few configurable defines to defaults.h
+    - CLEANUP: fd: do not include time.h
+    - REORG: fd: uninline compute_poll_timeout()
+    - CLENAUP: wdt: use ha_tkill() instead of accessing pthread directly
+    - REORG: thread: move the thread init/affinity/stop to thread.c
+    - REORG: thread: move ha_get_pthread_id() to thread.c
+    - MINOR: thread: use a dedicated static pthread_t array in thread.c
+    - CLEANUP: thread: uninline ha_tkill/ha_tkillall/ha_cpu_relax()
+    - DOC: configuration: add clarification on escaping in keyword arguments
+    - BUG/MINOR: task: fix missing include with DEBUG_TASK
+    - MINOR: pools: report the amount used by thread caches in "show pools"
+    - MINOR: quic: Distinguish packet and SSL read enc. level in traces
+    - MINOR: quic: Add a function to dump SSL stack errors
+    - MINOR: quic: BUG_ON() SSL errors.
+    - MINOR: quic: Fix SSL error issues (do not use ssl_bio_and_sess_init())
+    - BUG/MEDIUM: mux-quic: reinsert all streams in by_id tree
+    - BUG/MAJOR: xprt-quic: do not queue qc timer if not set
+    - MINOR: mux-quic: release connection if no more bidir streams
+    - BUG/MAJOR: quic: remove qc from receiver cids tree on free
+    - BUG/MEDIUM: mux_h2: Handle others remaining read0 cases on partial frames
+    - MINOR: qpack: do not encode invalid http status code
+    - MINOR: qpack: support non-indexed http status code encoding
+    - MINOR: qpack: fix memory leak on huffman decoding
+    - CLEANUP: mux-quic: remove unused code
+    - BUG/MINOR: quic: fix includes for compilation
+    - BUILD: connection: avoid a build warning on FreeBSD with SO_USER_COOKIE
+    - BUILD: init: avoid a build warning on FreeBSD with USE_PROCCTL
+    - REORG: time: move time-keeping code and variables to clock.c
+    - REORG: clock: move the updates of cpu/mono time to clock.c
+    - MINOR: activity: get the run_time from the clock updates
+    - CLEANUP: clock: stop exporting before_poll and after_poll
+    - REORG: clock: move the clock_id initialization to clock.c
+    - REORG: clock/wdt: move wdt timer initialization to clock.c
+    - MINOR: clock: move the clock_ids to clock.c
+    - MINOR: wdt: move wd_timer to wdt.c
+    - CLEANUP: wdt: do not remap SI_TKILL to SI_LWP, test the values directly
+    - REORG: thread/sched: move the task_per_thread stuff to thread_ctx
+    - REORG: thread/clock: move the clock parts of thread_info to thread_ctx
+    - REORG: thread/sched: move the thread_info flags to the thread_ctx
+    - REORG: thread/sched: move the last dynamic thread_info to thread_ctx
+    - MINOR: thread: make "ti" a const pointer and clean up thread_info a bit
+    - MINOR: threads: introduce a minimalistic notion of thread-group
+    - MINOR: global: add a new "thread-groups" directive
+    - MINOR: global: add a new "thread-group" directive
+    - MINOR: threads: make tg point to the current thread's group
+    - MEDIUM: threads: automatically assign threads to groups
+    - MINOR: threads: set the group ID and its bit in the thread group
+    - MINOR: threads: set the tid, ltid and their bit in thread_cfg
+    - MEDIUM: threads: replace ha_set_tid() with ha_set_thread()
+    - MINOR: threads: add the current group ID in thread-local "tgid" variable
+    - MINOR: debug: report the group and thread ID in the thread dumps
+    - MEDIUM: listeners: support the definition of thread groups on bind lines
+    - MINOR: threads: add a new function to resolve config groups and masks
+    - MEDIUM: config: resolve relative threads on bind lines to absolute ones
+    - MEDIUM: stick-table: never learn the "conn_cur" value from peers
+
 2021/09/24 : 2.5-dev8
     - BUILD: compiler: fixed a missing test on  defined(__GNUC__)
     - BUILD: halog: fix a -Wundef warning on non-glibc systems
