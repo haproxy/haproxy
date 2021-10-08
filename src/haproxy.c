@@ -3384,10 +3384,12 @@ int main(int argc, char **argv)
 			ha_warning("[%s.main()] Failed to set the dumpable flag, "
 				   "no core will be dumped.\n", argv[0]);
 #elif defined(USE_PROCCTL)
-		int traceable = PROC_TRACE_CTL_ENABLE;
-		if (procctl(P_PID, getpid(), PROC_TRACE_CTL, &traceable) == -1)
-			ha_warning("[%s.main()] Failed to set the traceable flag, "
-				   "no core will be dumped.\n", argv[0]);
+		{
+			int traceable = PROC_TRACE_CTL_ENABLE;
+			if (procctl(P_PID, getpid(), PROC_TRACE_CTL, &traceable) == -1)
+				ha_warning("[%s.main()] Failed to set the traceable flag, "
+					   "no core will be dumped.\n", argv[0]);
+		}
 #endif
 	}
 
