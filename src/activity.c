@@ -349,14 +349,13 @@ void report_stolen_time(uint64_t stolen)
 	update_freq_ctr_period(&activity[tid].cpust_15s, 15000, stolen);
 }
 
-/* Collect date and time information before calling poll(). This will be used
- * to count the run time of the past loop and the sleep time of the next poll.
- * It also makes use of the just updated before_poll timer to count the loop's
- * run time and feed the average loop time metric (in microseconds).
+/* Update avg_loop value for the current thread and possibly decide to enable
+ * task-level profiling on the current thread based on its average run time.
+ * The <run_time> argument is the number of microseconds elapsed since the
+ * last time poll() returned.
  */
-void activity_count_runtime()
+void activity_count_runtime(uint32_t run_time)
 {
-	uint32_t run_time;
 	uint32_t up, down;
 
 	/* 1 millisecond per loop on average over last 1024 iterations is
@@ -365,7 +364,6 @@ void activity_count_runtime()
 	up = 1000;
 	down = up * 99 / 100;
 
-	run_time = (before_poll.tv_sec - after_poll.tv_sec) * 1000000U + (before_poll.tv_usec - after_poll.tv_usec);
 	run_time = swrate_add(&activity[tid].avg_loop_us, TIME_STATS_SAMPLES, run_time);
 
 	/* In automatic mode, reaching the "up" threshold on average switches

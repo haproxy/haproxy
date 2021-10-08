@@ -283,9 +283,12 @@ void clock_entering_poll(void)
 {
 	uint64_t new_mono_time;
 	uint64_t new_cpu_time;
+	uint32_t run_time;
 	int64_t stolen;
 
 	gettimeofday(&before_poll, NULL);
+
+	run_time = (before_poll.tv_sec - after_poll.tv_sec) * 1000000U + (before_poll.tv_usec - after_poll.tv_usec);
 
 	new_cpu_time   = now_cpu_time();
 	new_mono_time  = now_mono_time();
@@ -302,6 +305,9 @@ void clock_entering_poll(void)
 			report_stolen_time(stolen);
 		}
 	}
+
+	/* update the average runtime */
+	activity_count_runtime(run_time);
 }
 
 /* returns the current date as returned by gettimeofday() in ISO+microsecond

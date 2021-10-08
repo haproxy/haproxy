@@ -174,7 +174,6 @@ static void _do_poll(struct poller *p, int exp, int wake)
 	delta.tv_sec  = (delta_ms / 1000);
 	delta.tv_usec = (delta_ms % 1000) * 1000;
 	clock_entering_poll();
-	activity_count_runtime();
 	status = select(maxfd,
 			readnotnull ? tmp_evts[DIR_RD] : NULL,
 			writenotnull ? tmp_evts[DIR_WR] : NULL,

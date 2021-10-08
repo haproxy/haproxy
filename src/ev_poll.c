@@ -203,7 +203,6 @@ static void _do_poll(struct poller *p, int exp, int wake)
 	/* now let's wait for events */
 	wait_time = wake ? 0 : compute_poll_timeout(exp);
 	clock_entering_poll();
-	activity_count_runtime();
 	status = poll(poll_events, nbfd, wait_time);
 	clock_update_date(wait_time, status);
 	clock_leaving_poll(wait_time, status);

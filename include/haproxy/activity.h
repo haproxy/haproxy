@@ -31,7 +31,7 @@ extern struct activity activity[MAX_THREADS];
 extern struct sched_activity sched_activity[256];
 
 void report_stolen_time(uint64_t stolen);
-void activity_count_runtime();
+void activity_count_runtime(uint32_t run_time);
 struct sched_activity *sched_activity_entry(struct sched_activity *array, const void *func);
 
 #endif /* _HAPROXY_ACTIVITY_H */
