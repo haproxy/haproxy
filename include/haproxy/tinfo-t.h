@@ -22,18 +22,15 @@
 #ifndef _HAPROXY_TINFO_T_H
 #define _HAPROXY_TINFO_T_H
 
-#include <time.h>
 #include <haproxy/api-t.h>
 
 /* thread info flags, for ha_thread_info[].flags */
 #define TI_FL_STUCK             0x00000001
 
 /* This structure describes all the per-thread info we need. When threads are
- * disabled, it contains the same info for the single running thread (except
- * the pthread identifier which does not exist).
+ * disabled, it contains the same info for the single running thread.
  */
 struct thread_info {
-	timer_t wd_timer;          /* valid timer or TIMER_INVALID if not set */
 	uint64_t prev_cpu_time;    /* previous per thread CPU time */
 	uint64_t prev_mono_time;   /* previous system wide monotonic time  */
 	unsigned int idle_pct;     /* idle to total ratio over last sample (percent) */

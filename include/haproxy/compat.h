@@ -24,7 +24,6 @@
 
 #include <limits.h>
 #include <signal.h>
-#include <time.h>
 #include <unistd.h>
 /* This is needed on Linux for Netfilter includes */
 #include <sys/param.h>
@@ -158,17 +157,6 @@ typedef struct { } empty_t;
 /* On FreeBSD we don't have SI_TKILL but SI_LWP instead */
 #if !defined(SI_TKILL) && defined(SI_LWP)
 #define SI_TKILL SI_LWP
-#endif
-
-/* systems without such defines do not know clockid_t or timer_t */
-#if !(_POSIX_TIMERS > 0)
-#undef timer_t
-#define timer_t empty_t
-#endif
-
-/* define a dummy value to designate "no timer". Use only 32 bits. */
-#ifndef TIMER_INVALID
-#define TIMER_INVALID ((timer_t)(unsigned long)(0xfffffffful))
 #endif
 
 #if defined(USE_TPROXY) && defined(USE_NETFILTER)
