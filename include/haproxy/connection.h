@@ -488,8 +488,7 @@ static inline void conn_set_mark(const struct connection *conn, int mark)
 #if defined(SO_MARK)
 	setsockopt(conn->handle.fd, SOL_SOCKET, SO_MARK, &mark, sizeof(mark));
 #elif defined(SO_USER_COOKIE)
-	uint32_t mval = (uint32_t)mark;
-	setsockopt(conn->handle.fd, SOL_SOCKET, SO_USER_COOKIE, &mval, sizeof(mval));
+	setsockopt(conn->handle.fd, SOL_SOCKET, SO_USER_COOKIE, &mark, sizeof(mark));
 #elif defined(SO_RTABLE)
 	setsockopt(conn->handle.fd, SOL_SOCKET, SO_RTABLE, &mark, sizeof(mark));
 #endif
