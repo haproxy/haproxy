@@ -104,11 +104,21 @@ void wdt_handler(int sig, siginfo_t *si, void *arg)
 
 		/* No doubt now, there's no hop to recover, die loudly! */
 		break;
-#ifdef USE_THREAD
+
+#if defined(USE_THREAD) && defined(SI_TKILL) /* Linux uses this */
+
 	case SI_TKILL:
 		/* we got a pthread_kill, stop on it */
 		thr = tid;
 		break;
+
+#elif defined(USE_THREAD) && defined(SI_LWP) /* FreeBSD uses this */
+
+	case SI_LWP:
+		/* we got a pthread_kill, stop on it */
+		thr = tid;
+		break;
+
 #endif
 	default:
 		/* unhandled other conditions */
