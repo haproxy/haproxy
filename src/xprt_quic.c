@@ -1210,6 +1210,9 @@ static inline void qc_treat_acked_tx_frm(struct quic_frame *frm,
 			eb64_insert(&qcs->tx.acked_frms, &strm->offset);
 		}
 		stream_acked |= qcs_try_to_consume(qcs);
+
+		if (qcs->flags & QC_SF_DETACH)
+			tasklet_wakeup(qcs->shut_tl);
 	}
 	break;
 	default:

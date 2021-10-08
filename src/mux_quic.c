@@ -1564,9 +1564,16 @@ static void qc_detach(struct conn_stream *cs)
 	struct qcc *qcc = qcs->qcc;
 
 	TRACE_ENTER(QC_EV_STRM_END, qcs ? qcs->qcc->conn : NULL, qcs);
+	if (b_data(&qcs->tx.buf) || b_data(&qcs->tx.xprt_buf)) {
+		qcs->flags |= QC_SF_DETACH;
+		goto out;
+	}
+
 	qcs_destroy(qcs);
 	if (qcc_is_dead(qcc))
 		qc_release(qcc);
+
+ out:
 	TRACE_LEAVE(QC_EV_STRM_END, qcs ? qcs->qcc->conn : NULL);
 }
 
@@ -1603,7 +1610,8 @@ static struct task *qc_deferred_shut(struct task *t, void *ctx, unsigned int sta
 
 	TRACE_ENTER(QC_EV_STRM_SHUT, qcc->conn, qcs);
 
-	if (qcs->flags & QC_SF_NOTIFIED) {
+	if (qcs->flags & QC_SF_NOTIFIED ||
+	    (b_data(&qcs->tx.buf) || b_data(&qcs->tx.xprt_buf))) {
 		/* some data processing remains to be done first */
 		goto end;
 	}

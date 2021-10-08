@@ -202,6 +202,7 @@ enum qcs_tx_st {
 #define QC_SF_KILL_CONN         0x00020000  // kill the whole connection with this stream
 
 #define QC_SF_FIN_STREAM        0x00040000  // FIN bit must be set for last frame of the stream
+#define QC_SF_DETACH            0x00080000
 
 /* QUIC stream descriptor, describing the stream as it appears in the QUIC_CONN, and as
  * it is being processed in the internal HTTP representation (HTX).
