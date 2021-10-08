@@ -2700,14 +2700,8 @@ static void *run_thread_poll_loop(void *data)
 	ha_set_tid((unsigned long)data);
 	set_thread_cpu_affinity();
 	sched = &task_per_thread[tid];
+	clock_set_local_source();
 
-#if (_POSIX_TIMERS > 0) && defined(_POSIX_THREAD_CPUTIME)
-#ifdef USE_THREAD
-	pthread_getcpuclockid(pthread_self(), &ti->clock_id);
-#else
-	ti->clock_id = CLOCK_THREAD_CPUTIME_ID;
-#endif
-#endif
 	/* Now, initialize one thread init at a time. This is better since
 	 * some init code is a bit tricky and may release global resources
 	 * after reallocating them locally. This will also ensure there is

@@ -35,6 +35,7 @@ extern THREAD_LOCAL struct timeval date;          /* the real current date (wall
 uint64_t now_cpu_time_thread(const struct thread_info *thr);
 uint64_t now_mono_time(void);
 uint64_t now_cpu_time(void);
+void clock_set_local_source(void);
 void clock_update_date(int max_wait, int interrupted);
 void clock_init_process_date(void);
 void clock_init_thread_date(void);

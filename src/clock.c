@@ -13,6 +13,10 @@
 #include <sys/time.h>
 #include <time.h>
 
+#ifdef USE_THREAD
+#include <pthread.h>
+#endif
+
 #include <haproxy/api.h>
 #include <haproxy/activity.h>
 #include <haproxy/clock.h>
@@ -71,6 +75,18 @@ uint64_t now_cpu_time_thread(const struct thread_info *thr)
 	ret = ts.tv_sec * 1000000000ULL + ts.tv_nsec;
 #endif
 	return ret;
+}
+
+/* set the clock source for the local thread */
+void clock_set_local_source(void)
+{
+#if defined(_POSIX_TIMERS) && (_POSIX_TIMERS > 0) && defined(_POSIX_THREAD_CPUTIME)
+#ifdef USE_THREAD
+	pthread_getcpuclockid(pthread_self(), &ti->clock_id);
+#else
+	ti->clock_id = CLOCK_THREAD_CPUTIME_ID;
+#endif
+#endif
 }
 
 /* clock_update_date: sets <date> to system time, and sets <now> to something as
