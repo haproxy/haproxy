@@ -3013,12 +3013,21 @@ user <username> [password|insecure-password <password>]
 It is possible to propagate entries of any data-types in stick-tables between
 several HAProxy instances over TCP connections in a multi-master fashion. Each
 instance pushes its local updates and insertions to remote peers. The pushed
-values overwrite remote ones without aggregation. Interrupted exchanges are
-automatically detected and recovered from the last known point.
-In addition, during a soft restart, the old process connects to the new one
-using such a TCP connection to push all its entries before the new process
-tries to connect to other peers. That ensures very fast replication during a
-reload, it typically takes a fraction of a second even for large tables.
+values overwrite remote ones without aggregation. As an exception, the data
+type "conn_cur" is never learned from peers, as it is supposed to reflect local
+values. Earlier versions used to synchronize it and to cause negative values in
+active-active setups, and always-growing values upon reloads or active-passive
+switches because the local value would reflect more connections than locally
+present. This information, however, is pushed so that monitoring systems can
+watch it.
+
+Interrupted exchanges are automatically detected and recovered from the last
+known point. In addition, during a soft restart, the old process connects to
+the new one using such a TCP connection to push all its entries before the new
+process tries to connect to other peers. That ensures very fast replication
+during a reload, it typically takes a fraction of a second even for large
+tables.
+
 Note that Server IDs are used to identify servers remotely, so it is important
 that configurations look similar or at least that the same IDs are forced on
 each server on all participants.

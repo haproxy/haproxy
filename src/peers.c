@@ -1778,6 +1778,10 @@ static int peer_treat_updatemsg(struct appctx *appctx, struct peer *p, int updt,
 
 		if (!((1ULL << data_type) & st->remote_data))
 			continue;
+
+		if (stktable_data_types[data_type].is_local)
+			continue;
+
 		if (stktable_data_types[data_type].is_array) {
 			/* in case of array all elements
 			 * use the same std_type and they
