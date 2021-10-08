@@ -1,6 +1,6 @@
 /*
  * include/haproxy/time.h
- * Time calculation functions and macros.
+ * timeval-based time calculation functions and macros.
  *
  * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
  *
@@ -23,22 +23,10 @@
 #define _HAPROXY_TIME_H
 
 #include <sys/time.h>
-#include <time.h>
 #include <haproxy/api.h>
-#include <haproxy/thread.h>
 
 #define TIME_ETERNITY   (TV_ETERNITY_MS)
 
-/* returns the lowest delay amongst <old> and <new>, and respects TIME_ETERNITY */
-#define MINTIME(old, new)	(((new)<0)?(old):(((old)<0||(new)<(old))?(new):(old)))
-#define SETNOW(a)		(*a=now)
-
-extern THREAD_LOCAL struct timeval now;              /* internal date is a monotonic function of real clock */
-extern THREAD_LOCAL struct timeval date;             /* the real current date */
-extern struct timeval start_date;       /* the process's start date */
-extern THREAD_LOCAL struct timeval before_poll;      /* system date before calling poll() */
-extern THREAD_LOCAL struct timeval after_poll;       /* system date after leaving poll() */
-extern volatile unsigned long long global_now;
 
 
 /**** exported functions *************************************************/
@@ -59,29 +47,9 @@ int tv_ms_cmp(const struct timeval *tv1, const struct timeval *tv2);
  */
 int tv_ms_cmp2(const struct timeval *tv1, const struct timeval *tv2);
 
-/* tv_udpate_date: sets <date> to system time, and sets <now> to something as
- * close as possible to real time, following a monotonic function. The main
- * principle consists in detecting backwards and forwards time jumps and adjust
- * an offset to correct them. This function should be called only once after
- * each poll. The poll's timeout should be passed in <max_wait>, and the return
- * value in <interrupted> (a non-zero value means that we have not expired the
- * timeout).
- */
-void tv_update_date(int max_wait, int interrupted);
-void tv_init_process_date(void);
-void tv_init_thread_date(void);
-
-char *timeofday_as_iso_us(int pad);
 
 /**** general purpose functions and macros *******************************/
 
-
-/* tv_now: sets <tv> to the current time */
-static inline struct timeval *tv_now(struct timeval *tv)
-{
-	gettimeofday(tv, NULL);
-	return tv;
-}
 
 /*
  * sets a struct timeval to its highest value so that it can never happen
@@ -495,42 +463,6 @@ static inline struct timeval *__tv_ms_add(struct timeval *tv, const struct timev
                   *tv1 = *tv2;     \
         tv1;                       \
 })
-
-/* returns the system's monotonic time in nanoseconds if supported, otherwise zero */
-static inline uint64_t now_mono_time()
-{
-#if (_POSIX_TIMERS > 0) && defined(_POSIX_MONOTONIC_CLOCK)
-	struct timespec ts;
-	clock_gettime(CLOCK_MONOTONIC, &ts);
-	return ts.tv_sec * 1000000000ULL + ts.tv_nsec;
-#else
-	return 0;
-#endif
-}
-
-/* returns the current thread's cumulated CPU time in nanoseconds if supported, otherwise zero */
-static inline uint64_t now_cpu_time()
-{
-#if (_POSIX_TIMERS > 0) && defined(_POSIX_THREAD_CPUTIME)
-	struct timespec ts;
-	clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts);
-	return ts.tv_sec * 1000000000ULL + ts.tv_nsec;
-#else
-	return 0;
-#endif
-}
-
-/* returns another thread's cumulated CPU time in nanoseconds if supported, otherwise zero */
-static inline uint64_t now_cpu_time_thread(const struct thread_info *thr)
-{
-#if (_POSIX_TIMERS > 0) && defined(_POSIX_THREAD_CPUTIME)
-	struct timespec ts;
-	clock_gettime(thr->clock_id, &ts);
-	return ts.tv_sec * 1000000000ULL + ts.tv_nsec;
-#else
-	return 0;
-#endif
-}
 
 #endif /* _HAPROXY_TIME_H */
 

@@ -16,11 +16,11 @@
 
 #include <haproxy/activity.h>
 #include <haproxy/api.h>
+#include <haproxy/clock.h>
 #include <haproxy/fd.h>
 #include <haproxy/global.h>
 #include <haproxy/task.h>
 #include <haproxy/ticks.h>
-#include <haproxy/time.h>
 
 
 /* private data */
@@ -180,7 +180,7 @@ static void _do_poll(struct poller *p, int exp, int wake)
 			writenotnull ? tmp_evts[DIR_WR] : NULL,
 			NULL,
 			&delta);
-	tv_update_date(delta_ms, status);
+	clock_update_date(delta_ms, status);
 	sched_leaving_poll(delta_ms, status);
 
 	thread_harmless_end();

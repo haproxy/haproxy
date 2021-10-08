@@ -46,6 +46,7 @@
 #include <haproxy/channel.h>
 #include <haproxy/check.h>
 #include <haproxy/chunk.h>
+#include <haproxy/clock.h>
 #ifdef USE_CPU_AFFINITY
 #include <haproxy/cpuset.h>
 #endif
@@ -82,7 +83,6 @@
 #include <haproxy/tcp_rules.h>
 #include <haproxy/tcpcheck.h>
 #include <haproxy/thread.h>
-#include <haproxy/time.h>
 #include <haproxy/tools.h>
 #include <haproxy/uri_auth-t.h>
 #include <haproxy/xprt_quic.h>
@@ -2403,7 +2403,7 @@ int check_config_validity()
 	 */
 
 	/* will be needed further to delay some tasks */
-	tv_update_date(0,1);
+	clock_update_date(0,1);
 
 	if (!global.tune.max_http_hdr)
 		global.tune.max_http_hdr = MAX_HTTP_HDR;

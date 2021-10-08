@@ -95,6 +95,7 @@
 #include <haproxy/cfgparse.h>
 #include <haproxy/chunk.h>
 #include <haproxy/cli.h>
+#include <haproxy/clock.h>
 #include <haproxy/connection.h>
 #ifdef USE_CPU_AFFINITY
 #include <haproxy/cpuset.h>
@@ -1506,7 +1507,7 @@ static void init(int argc, char **argv)
 #endif
 
 	tzset();
-	tv_init_process_date();
+	clock_init_process_date();
 	start_date = now;
 
 	ha_random_boot(argv);
@@ -2615,7 +2616,7 @@ void run_poll_loop()
 {
 	int next, wake;
 
-	tv_update_date(0,1);
+	clock_update_date(0,1);
 	while (1) {
 		wake_expired_tasks();
 
@@ -2720,7 +2721,7 @@ static void *run_thread_poll_loop(void *data)
 		init_left = global.nbthread;
 	init_left--;
 
-	tv_init_thread_date();
+	clock_init_thread_date();
 
 	/* per-thread alloc calls performed here are not allowed to snoop on
 	 * other threads, so they are free to initialize at their own rhythm

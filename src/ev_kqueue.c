@@ -19,12 +19,12 @@
 
 #include <haproxy/activity.h>
 #include <haproxy/api.h>
+#include <haproxy/clock.h>
 #include <haproxy/fd.h>
 #include <haproxy/global.h>
 #include <haproxy/signal.h>
 #include <haproxy/task.h>
 #include <haproxy/ticks.h>
-#include <haproxy/time.h>
 
 
 /* private data */
@@ -161,7 +161,7 @@ static void _do_poll(struct poller *p, int exp, int wake)
 		                kev,       // struct kevent *eventlist
 		                fd,        // int nevents
 		                &timeout_ts); // const struct timespec *timeout
-		tv_update_date(timeout, status);
+		clock_update_date(timeout, status);
 
 		if (status) {
 			activity[tid].poll_io++;

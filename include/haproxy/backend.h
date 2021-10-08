@@ -24,10 +24,10 @@
 
 #include <haproxy/api.h>
 #include <haproxy/backend-t.h>
+#include <haproxy/clock.h>
 #include <haproxy/proxy-t.h>
 #include <haproxy/server-t.h>
 #include <haproxy/stream-t.h>
-#include <haproxy/time.h>
 
 int assign_server(struct stream *s);
 int assign_server_address(struct stream *s);

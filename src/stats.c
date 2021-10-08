@@ -33,6 +33,7 @@
 #include <haproxy/channel.h>
 #include <haproxy/check.h>
 #include <haproxy/cli.h>
+#include <haproxy/clock.h>
 #include <haproxy/compression.h>
 #include <haproxy/debug.h>
 #include <haproxy/errors.h>

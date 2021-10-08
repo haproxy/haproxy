@@ -27,6 +27,7 @@
 #include <haproxy/api.h>
 #include <haproxy/applet-t.h>
 #include <haproxy/cfgparse.h>
+#include <haproxy/clock.h>
 #include <haproxy/fd.h>
 #include <haproxy/frontend.h>
 #include <haproxy/global.h>

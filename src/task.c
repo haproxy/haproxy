@@ -18,11 +18,11 @@
 #include <haproxy/api.h>
 #include <haproxy/activity.h>
 #include <haproxy/cfgparse.h>
+#include <haproxy/clock.h>
 #include <haproxy/fd.h>
 #include <haproxy/list.h>
 #include <haproxy/pool.h>
 #include <haproxy/task.h>
-#include <haproxy/time.h>
 #include <haproxy/tools.h>
 
 extern struct task *process_stream(struct task *t, void *context, unsigned int state);
@@ -882,7 +882,7 @@ uint sched_report_idle()
 }
 
 /* Update the idle time value twice a second, to be called after
- * tv_update_date() when called after poll(), and currently called only by
+ * clock_update_date() when called after poll(), and currently called only by
  * sched_leaving_poll() below. It relies on <before_poll> to be updated to
  * the system time before calling poll().
  */

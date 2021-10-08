@@ -23,6 +23,7 @@
 #include <haproxy/api.h>
 #include <haproxy/buf.h>
 #include <haproxy/cli.h>
+#include <haproxy/clock.h>
 #include <haproxy/debug.h>
 #include <haproxy/fd.h>
 #include <haproxy/global.h>
@@ -33,6 +34,7 @@
 #include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
 #include <haproxy/thread.h>
+#include <haproxy/time.h>
 #include <haproxy/tools.h>
 #include <import/ist.h>
 

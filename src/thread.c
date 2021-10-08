@@ -43,11 +43,11 @@
 #endif
 
 #include <haproxy/cfgparse.h>
+#include <haproxy/clock.h>
 #include <haproxy/fd.h>
 #include <haproxy/global.h>
 #include <haproxy/log.h>
 #include <haproxy/thread.h>
-#include <haproxy/time.h>
 #include <haproxy/tools.h>
 
 struct thread_info ha_thread_info[MAX_THREADS] = { };

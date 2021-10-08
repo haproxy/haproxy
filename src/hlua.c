@@ -32,6 +32,7 @@
 #include <haproxy/cfgparse.h>
 #include <haproxy/channel.h>
 #include <haproxy/cli.h>
+#include <haproxy/clock.h>
 #include <haproxy/connection.h>
 #include <haproxy/filters.h>
 #include <haproxy/h1.h>
@@ -1325,7 +1326,7 @@ void hlua_hook(lua_State *L, lua_Debug *ar)
 		MAY_LJMP(hlua_yieldk(L, 0, 0, NULL, TICK_ETERNITY, HLUA_CTRLYIELD));
 
 	/* If we cannot yield, update the clock and check the timeout. */
-	tv_update_date(0, 1);
+	clock_update_date(0, 1);
 	hlua->run_time += now_ms - hlua->start_time;
 	if (hlua->max_time && hlua->run_time >= hlua->max_time) {
 		lua_pushfstring(L, "execution timeout");
@@ -1411,7 +1412,7 @@ resume_execution:
 		/* Check if the execution timeout is expired. It it is the case, we
 		 * break the Lua execution.
 		 */
-		tv_update_date(0, 1);
+		clock_update_date(0, 1);
 		lua->run_time += now_ms - lua->start_time;
 		if (lua->max_time && lua->run_time > lua->max_time) {
 			lua_settop(lua->T, 0); /* Empty the stack. */

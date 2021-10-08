@@ -20,12 +20,12 @@
 
 #include <haproxy/activity.h>
 #include <haproxy/api.h>
+#include <haproxy/clock.h>
 #include <haproxy/fd.h>
 #include <haproxy/global.h>
 #include <haproxy/signal.h>
 #include <haproxy/task.h>
 #include <haproxy/ticks.h>
-#include <haproxy/time.h>
 
 /*
  * Private data:
@@ -191,7 +191,7 @@ static void _do_poll(struct poller *p, int exp, int wake)
 				break;
 			}
 		}
-		tv_update_date(timeout, nevlist);
+		clock_update_date(timeout, nevlist);
 
 		if (nevlist || interrupted)
 			break;

@@ -13,11 +13,11 @@
 #include <haproxy/activity-t.h>
 #include <haproxy/api.h>
 #include <haproxy/cfgparse.h>
+#include <haproxy/clock.h>
 #include <haproxy/channel.h>
 #include <haproxy/cli.h>
 #include <haproxy/freq_ctr.h>
 #include <haproxy/stream_interface.h>
-#include <haproxy/time.h>
 #include <haproxy/tools.h>
 #include <haproxy/xxhash.h>
 
