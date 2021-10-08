@@ -29,9 +29,9 @@ THREAD_ALIGNED(64) static ullong now_offset;      /* global offset between syste
 THREAD_LOCAL uint                now_ms;          /* internal monotonic date in milliseconds (may wrap) */
 THREAD_LOCAL struct timeval      now;             /* internal monotonic date derived from real clock */
 THREAD_LOCAL struct timeval      date;            /* the real current date (wall-clock time) */
-THREAD_LOCAL struct timeval      before_poll;     /* system date before calling poll() */
-THREAD_LOCAL struct timeval      after_poll;      /* system date after leaving poll() */
 
+static THREAD_LOCAL struct timeval before_poll;   /* system date before calling poll() */
+static THREAD_LOCAL struct timeval after_poll;    /* system date after leaving poll() */
 static THREAD_LOCAL unsigned int samp_time;       /* total elapsed time over current sample */
 static THREAD_LOCAL unsigned int idle_time;       /* total idle time over current sample */
 static THREAD_LOCAL unsigned int iso_time_sec;     /* last iso time value for this thread */

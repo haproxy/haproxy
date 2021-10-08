@@ -31,8 +31,6 @@ extern volatile ullong             global_now;    /* common monotonic date betwe
 
 extern THREAD_LOCAL struct timeval now;           /* internal monotonic date derived from real clock */
 extern THREAD_LOCAL struct timeval date;          /* the real current date (wall-clock time) */
-extern THREAD_LOCAL struct timeval before_poll;   /* system date before calling poll() */
-extern THREAD_LOCAL struct timeval after_poll;    /* system date after leaving poll() */
 
 uint64_t now_cpu_time_thread(const struct thread_info *thr);
 uint64_t now_mono_time(void);
