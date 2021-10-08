@@ -189,7 +189,7 @@ static void _do_poll(struct poller *p, int exp, int wake)
 
 	/* now let's wait for polled events */
 	wait_time = wake ? 0 : compute_poll_timeout(exp);
-	sched_entering_poll();
+	clock_entering_poll();
 	activity_count_runtime();
 	do {
 		int timeout = (global.tune.options & GTUNE_BUSY_POLLING) ? 0 : wait_time;
@@ -209,7 +209,7 @@ static void _do_poll(struct poller *p, int exp, int wake)
 			break;
 	} while (1);
 
-	sched_leaving_poll(wait_time, status);
+	clock_leaving_poll(wait_time, status);
 
 	thread_harmless_end();
 	thread_idle_end();

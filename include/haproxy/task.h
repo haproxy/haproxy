@@ -93,9 +93,6 @@ extern volatile unsigned long global_tasks_mask; /* Mask of threads with tasks i
 extern unsigned int grq_total;    /* total number of entries in the global run queue, atomic */
 extern unsigned int niced_tasks;  /* number of niced tasks in the run queue */
 
-extern THREAD_LOCAL unsigned int   samp_time;        /* total elapsed time over current sample */
-extern THREAD_LOCAL unsigned int   idle_time;        /* total idle time over current sample */
-
 extern struct pool_head *pool_head_task;
 extern struct pool_head *pool_head_tasklet;
 extern struct pool_head *pool_head_notification;
@@ -116,10 +113,6 @@ void task_kill(struct task *t);
 void tasklet_kill(struct tasklet *t);
 void __task_wakeup(struct task *t);
 void __task_queue(struct task *task, struct eb_root *wq);
-
-uint sched_report_idle();
-void sched_leaving_poll(int timeout, int interrupted);
-void sched_entering_poll();
 
 unsigned int run_tasks_from_lists(unsigned int budgets[]);
 

@@ -41,5 +41,8 @@ void clock_update_date(int max_wait, int interrupted);
 void clock_init_process_date(void);
 void clock_init_thread_date(void);
 char *timeofday_as_iso_us(int pad);
+uint clock_report_idle(void);
+void clock_leaving_poll(int timeout, int interrupted);
+void clock_entering_poll(void);
 
 #endif

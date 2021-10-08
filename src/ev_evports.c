@@ -159,7 +159,7 @@ static void _do_poll(struct poller *p, int exp, int wake)
 	 * Determine how long to wait for events to materialise on the port.
 	 */
 	wait_time = wake ? 0 : compute_poll_timeout(exp);
-	sched_entering_poll();
+	clock_entering_poll();
 	activity_count_runtime();
 
 	do {
@@ -203,7 +203,7 @@ static void _do_poll(struct poller *p, int exp, int wake)
 			break;
 	} while(1);
 
-	sched_leaving_poll(wait_time, nevlist);
+	clock_leaving_poll(wait_time, nevlist);
 
 	thread_harmless_end();
 	thread_idle_end();
