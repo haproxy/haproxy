@@ -45,12 +45,12 @@ syslog Slg_cust_fmt -level info {
     barrier b1 sync
 
     recv
-    expect ~ "ERROR.*conn_status:\"30:SSL client CA chain cannot be verified\" hsk_err:\"337100934:error:1417C086:SSL routines:tls_process_client_certificate:certificate verify failed\" CN=\"/C=FR/O=HAProxy Technologies/CN=Client\",serial=1007,hash=063DCC2E6A9159E66994B325D6D2EF3D17A75B6F"
+    expect ~ "ERROR.*conn_status:\"30:SSL client CA chain cannot be verified\" hsk_err:\"134:.*:certificate verify failed\" CN=\"/C=FR/O=HAProxy Technologies/CN=Client\",serial=1007,hash=063DCC2E6A9159E66994B325D6D2EF3D17A75B6F"
 
     barrier b1 sync
 
     recv
-    expect ~ "ERROR.*conn_status:\"31:SSL client certificate not trusted\" hsk_err:\"337100934:error:1417C086:SSL routines:tls_process_client_certificate:certificate verify failed\" CN=\"/C=FR/O=HAProxy Technologies/CN=Client\",serial=1007,hash=063DCC2E6A9159E66994B325D6D2EF3D17A75B6F"
+    expect ~ "ERROR.*conn_status:\"31:SSL client certificate not trusted\" hsk_err:\"134:.*:certificate verify failed\" CN=\"/C=FR/O=HAProxy Technologies/CN=Client\",serial=1007,hash=063DCC2E6A9159E66994B325D6D2EF3D17A75B6F"
 
     barrier b1 sync
 
@@ -58,7 +58,7 @@ syslog Slg_cust_fmt -level info {
     # the client certificate chain is never parsed and verified so we can't
     # have information about the client's certificate.
     recv
-    expect ~ "ERROR.*conn_status:\"34:SSL handshake failure\" hsk_err:\"337678529:error:142090C1:SSL routines:tls_early_post_process_client_hello:no shared cipher\" CN=\"\",serial=-,hash=-"
+    expect ~ "ERROR.*conn_status:\"34:SSL handshake failure\" hsk_err:\"193:.*:no shared cipher\" CN=\"\",serial=-,hash=-"
 } -start
 
 syslog Slg_https_fmt -level info {
@@ -70,17 +70,17 @@ syslog Slg_https_fmt -level info {
 
 syslog Slg_https_fmt_err -level info {
     recv
-    expect ~ "ERROR.*https_logfmt_ssl_lst~ https_logfmt_ssl_lst/<NOSRV>.*30/000000001417C086/0/2 TLSv1.3/TLS_AES_256_GCM_SHA384"
+    expect ~ "ERROR.*https_logfmt_ssl_lst~ https_logfmt_ssl_lst/<NOSRV>.*30/0000000000000086/0/2 TLSv1.3/TLS_AES_256_GCM_SHA384"
 
     barrier b1 sync
 
     recv
-    expect ~ "ERROR.*https_logfmt_ssl_lst~ https_logfmt_ssl_lst/<NOSRV>.*31/000000001417C086/20/0 TLSv1.3/TLS_AES_256_GCM_SHA384"
+    expect ~ "ERROR.*https_logfmt_ssl_lst~ https_logfmt_ssl_lst/<NOSRV>.*31/0000000000000086/20/0 TLSv1.3/TLS_AES_256_GCM_SHA384"
 
     barrier b1 sync
 
     recv
-    expect ~ "ERROR.*https_logfmt_ssl_lst~ https_logfmt_ssl_lst/<NOSRV>.*34/00000000142090C1/0/0 TLSv1.3/\\(NONE\\)"
+    expect ~ "ERROR.*https_logfmt_ssl_lst~ https_logfmt_ssl_lst/<NOSRV>.*34/00000000000000C1/0/0 TLSv1.3/\\(NONE\\)"
 } -start
 
 syslog Slg_logconnerror -level info {
@@ -105,33 +105,33 @@ syslog Slg_logconnerror -level info {
 
 syslog Slg_bcknd -level info {
     recv
-    expect ~ ".*bc_conn_err:0:\"Success\" ssl_bc_err:0:\"\""
+    expect ~ ".*bc_conn_err:0:\"Success\" ssl_bc_err:0:"
 
     barrier b2 sync
 
     recv
-    expect ~ ".*bc_conn_err:34:\"SSL handshake failure\" ssl_bc_err:337047686:\"error:1416F086:SSL routines:tls_process_server_certificate:certificate verify failed\""
+    expect ~ ".*bc_conn_err:34:\"SSL handshake failure\" ssl_bc_err:134:.*:certificate verify failed"
 
     barrier b2 sync
 
     recv
-    expect ~ ".*bc_conn_err:32:\"Server presented an SSL certificate different from the configured one\" ssl_bc_err:337047686:\"error:1416F086:SSL routines:tls_process_server_certificate:certificate verify failed\""
+    expect ~ ".*bc_conn_err:32:\"Server presented an SSL certificate different from the configured one\" ssl_bc_err:134:.*:certificate verify failed"
 
     barrier b2 sync
 
     # Verify errors on the server side cannot be caught through those backend fetches yet
     recv
-    expect ~ ".*bc_conn_err:0:\"Success\" ssl_bc_err:0:\"\""
+    expect ~ ".*bc_conn_err:0:\"Success\" ssl_bc_err:0:"
 
     barrier b2 sync
 
     recv
-    expect ~ ".*bc_conn_err:34:\"SSL handshake failure\" ssl_bc_err:336151568:\"error:14094410:SSL routines:ssl3_read_bytes:sslv3 alert handshake failure\""
+    expect ~ ".*bc_conn_err:34:\"SSL handshake failure\" ssl_bc_err:1040:.*:sslv3 alert handshake failure"
 
     barrier b2 sync
 
     recv
-    expect ~ ".*bc_conn_err:34:\"SSL handshake failure\" ssl_bc_err:336151568:\"error:14094410:SSL routines:ssl3_read_bytes:sslv3 alert handshake failure\""
+    expect ~ ".*bc_conn_err:34:\"SSL handshake failure\" ssl_bc_err:1040:.*:sslv3 alert handshake failure"
 } -start
 
 
@@ -140,6 +140,11 @@ haproxy h1 -conf {
         tune.ssl.default-dh-param 2048
         tune.ssl.capture-buffer-size 1
         stats socket "${tmpdir}/h1/stats" level admin
+    .if openssl_version_atleast(3.0.0)
+        set-var proc.ssl_error_mask str(7FFFFF),hex2i
+    .else
+        set-var proc.ssl_error_mask str(FFF),hex2i
+    .endif
 
     defaults
         timeout connect 100ms
@@ -171,8 +176,8 @@ haproxy h1 -conf {
     listen clear_backend_errors_lst
         bind "fd@${backenderrorslst}"
         log ${Slg_bcknd_addr}:${Slg_bcknd_port} local0
-        log-format "bc_conn_err:%[bc_conn_err]:%{+Q}[bc_conn_err_str]\ ssl_bc_err:%[ssl_bc_err]:%{+Q}[ssl_bc_err_str]"
-        error-log-format "ERROR bc_conn_err:%[bc_conn_err]:%{+Q}[bc_conn_err_str]\ ssl_bc_err:%[ssl_bc_err]:%{+Q}[ssl_bc_err_str]"
+        log-format "bc_conn_err:%[bc_conn_err]:%{+Q}[bc_conn_err_str]\ ssl_bc_err:%[ssl_bc_err,and(proc.ssl_error_mask)]:%{+Q}[ssl_bc_err_str]"
+        error-log-format "ERROR bc_conn_err:%[bc_conn_err]:%{+Q}[bc_conn_err_str]\ ssl_bc_err:%[ssl_bc_err,and(proc.ssl_error_mask)]:%[ssl_bc_err_str]"
 
         balance roundrobin
         server no_err "${tmpdir}/no_err_ssl.sock" ssl crt ${testdir}/set_cafile_client.pem ca-file ${testdir}/set_cafile_interCA2.crt verify required
@@ -189,7 +194,7 @@ haproxy h1 -conf {
         log ${Slg_cust_fmt_addr}:${Slg_cust_fmt_port} local0
         mode http
         log-format "conn_status:\"%[fc_conn_err]:%[fc_conn_err_str]\" hsk_err:\"%[ssl_fc_err]:%[ssl_fc_err_str]\" CN=%{+Q}[ssl_c_s_dn],serial=%[ssl_c_serial,hex],hash=%[ssl_c_sha1,hex]"
-        error-log-format "ERROR conn_status:\"%[fc_conn_err]:%[fc_conn_err_str]\" hsk_err:\"%[ssl_fc_err]:%[ssl_fc_err_str]\" CN=%{+Q}[ssl_c_s_dn],serial=%[ssl_c_serial,hex],hash=%[ssl_c_sha1,hex]"
+        error-log-format "ERROR conn_status:\"%[fc_conn_err]:%[fc_conn_err_str]\" hsk_err:\"%[ssl_fc_err,and(proc.ssl_error_mask)]:%[ssl_fc_err_str]\" CN=%{+Q}[ssl_c_s_dn],serial=%[ssl_c_serial,hex],hash=%[ssl_c_sha1,hex]"
         bind "${tmpdir}/cust_logfmt_ssl.sock" ssl crt ${testdir}/set_cafile_server.pem ca-verify-file ${testdir}/set_cafile_rootCA.crt ca-file ${testdir}/set_cafile_interCA1.crt verify required ciphersuites "TLS_AES_256_GCM_SHA384"
         server s1 ${s1_addr}:${s1_port}
 
@@ -199,7 +204,7 @@ haproxy h1 -conf {
         option log-separate-errors
         mode http
         option httpslog
-        error-log-format "ERROR %ci:%cp [%tr] %ft %b/%s %TR/%Tw/%Tc/%Tr/%Ta %ST %B %CC %CS %tsc %ac/%fc/%bc/%sc/%rc %sq/%bq %hr %hs %{+Q}r %[fc_conn_err]/%[ssl_fc_err,hex]/%[ssl_c_err]/%[ssl_c_ca_err] %sslv/%sslc"
+        error-log-format "ERROR %ci:%cp [%tr] %ft %b/%s %TR/%Tw/%Tc/%Tr/%Ta %ST %B %CC %CS %tsc %ac/%fc/%bc/%sc/%rc %sq/%bq %hr %hs %{+Q}r %[fc_conn_err]/%[ssl_fc_err,and(proc.ssl_error_mask),hex]/%[ssl_c_err]/%[ssl_c_ca_err] %sslv/%sslc"
         bind "${tmpdir}/https_logfmt_ssl.sock" ssl crt ${testdir}/set_cafile_server.pem ca-verify-file ${testdir}/set_cafile_rootCA.crt ca-file ${testdir}/set_cafile_interCA1.crt verify required ciphersuites "TLS_AES_256_GCM_SHA384"
         server s1 ${s1_addr}:${s1_port}
 
