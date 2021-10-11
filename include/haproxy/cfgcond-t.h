@@ -43,15 +43,16 @@ enum nested_cond_state {
 
 /* supported conditional predicates for .if/.elif */
 enum cond_predicate {
-	CFG_PRED_NONE,            // none
-	CFG_PRED_DEFINED,         // "defined"
-	CFG_PRED_FEATURE,         // "feature"
-	CFG_PRED_STREQ,           // "streq"
-	CFG_PRED_STRNEQ,          // "strneq"
-	CFG_PRED_VERSION_ATLEAST, // "version_atleast"
-	CFG_PRED_VERSION_BEFORE,  // "version_before"
-	CFG_PRED_OSSL_VERSION_ATLEAST, // "openssl_version_atleast"
-	CFG_PRED_OSSL_VERSION_BEFORE,  // "openssl_version_before"
+	CFG_PRED_NONE,                   // none
+	CFG_PRED_DEFINED,                // "defined"
+	CFG_PRED_FEATURE,                // "feature"
+	CFG_PRED_STREQ,                  // "streq"
+	CFG_PRED_STRNEQ,                 // "strneq"
+	CFG_PRED_VERSION_ATLEAST,        // "version_atleast"
+	CFG_PRED_VERSION_BEFORE,         // "version_before"
+	CFG_PRED_OSSL_VERSION_ATLEAST,   // "openssl_version_atleast"
+	CFG_PRED_OSSL_VERSION_BEFORE,    // "openssl_version_before"
+	CFG_PRED_SSLLIB_NAME_STARTSWITH, // "ssllib_name_startswith"
 };
 
 /* types for condition terms */

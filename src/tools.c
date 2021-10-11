@@ -5624,6 +5624,26 @@ int openssl_compare_current_version(const char *version)
 #endif
 }
 
+/*
+ * This function compares the loaded openssl name with a string <name>
+ * This function returns 0 if the OpenSSL name starts like the passed parameter,
+ * 1 otherwise.
+ */
+int openssl_compare_current_name(const char *name)
+{
+#ifdef USE_OPENSSL
+	int name_len = 0;
+	const char *openssl_version = OpenSSL_version(OPENSSL_VERSION);
+
+	if (name) {
+		name_len = strlen(name);
+		if (strlen(name) <= strlen(openssl_version))
+			return strncmp(openssl_version, name, name_len);
+	}
+#endif
+	return 1;
+}
+
 static int init_tools_per_thread()
 {
 	/* Let's make each thread start from a different position */
