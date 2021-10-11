@@ -297,6 +297,8 @@ struct act_rule *new_act_rule(enum act_from from, const char *file, int linenum)
 	if (!rule)
 		return NULL;
 	rule->from = from;
+	rule->conf.file = file ? strdup(file) : NULL;
+	rule->conf.line = linenum;
 	return rule;
 }
 
@@ -309,6 +311,7 @@ void free_act_rules(struct list *rules)
 		free_acl_cond(rule->cond);
 		if (rule->release_ptr)
 			rule->release_ptr(rule);
+		free(rule->conf.file);
 		free(rule);
 	}
 }

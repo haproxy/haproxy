@@ -919,6 +919,8 @@ static int vars_parse_global_set_var(char **args, int section_type, struct proxy
 	struct act_rule rule = {
 		.arg.vars.scope = SCOPE_PROC,
 		.from = ACT_F_CFG_PARSER,
+		.conf.file = (char *)file,
+		.conf.line = line,
 	};
 	enum obj_type objt = OBJ_TYPE_NONE;
 	struct session *sess = NULL;
@@ -1038,6 +1040,8 @@ static int vars_parse_cli_set_var(char **args, char *payload, struct appctx *app
 	struct act_rule rule = {
 		.arg.vars.scope = SCOPE_PROC,
 		.from = ACT_F_CLI_PARSER,
+		.conf.file = "CLI",
+		.conf.line = 0,
 	};
 	enum obj_type objt = OBJ_TYPE_NONE;
 	struct session *sess = NULL;

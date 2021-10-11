@@ -186,6 +186,10 @@ struct act_rule {
 			void *p[4];
 		} act;                         /* generic pointers to be used by custom actions */
 	} arg;                                 /* arguments used by some actions */
+	struct {
+		char *file;                    /* file name where the rule appears (or NULL) */
+		int line;                      /* line number where the rule appears */
+	} conf;
 };
 
 struct action_kw {
