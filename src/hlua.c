@@ -11167,8 +11167,31 @@ static int hlua_config_prepend_path(char **args, int section_type, struct proxy 
 	}
 	LIST_APPEND(&prepend_path_list, &p->l);
 
-	hlua_prepend_path(hlua_states[0], type, path);
-	hlua_prepend_path(hlua_states[1], type, path);
+	/* Handle the global state and the per-thread state for the first
+	 * thread. The remaining threads will be initialized based on
+	 * prepend_path_list.
+	 */
+	for (size_t i = 0; i < 2; i++) {
+		lua_State *L = hlua_states[i];
+		const char *error;
+
+		if (setjmp(safe_ljmp_env) != 0) {
+			lua_atpanic(L, hlua_panic_safe);
+			if (lua_type(L, -1) == LUA_TSTRING)
+				error = lua_tostring(L, -1);
+			else
+				error = "critical error";
+			fprintf(stderr, "lua-prepend-path: %s.\n", error);
+			exit(1);
+		} else {
+			lua_atpanic(L, hlua_panic_ljmp);
+		}
+
+		hlua_prepend_path(L, type, path);
+
+		lua_atpanic(L, hlua_panic_safe);
+	}
+
 	return 0;
 
 err2:
