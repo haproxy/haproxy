@@ -1,4 +1,4 @@
-#REGTEST_TYPE=broken
+#REGTEST_TYPE=devel
 
 # This reg-test checks that the connection and SSL sample fetches related to
 # errors are functioning properly. It also tests the proper behaviour of the
@@ -25,7 +25,7 @@
 
 varnishtest "Test the connection and SSL error fetches."
 feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.5-dev2)'"
-feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL)'"
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL) && ssllib_name_startswith(OpenSSL)'"
 feature cmd "command -v socat"
 feature ignore_unknown_macro
 
