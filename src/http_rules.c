@@ -81,12 +81,11 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 	const struct action_kw *custom = NULL;
 	int cur_arg;
 
-	rule = calloc(1, sizeof(*rule));
+	rule = new_act_rule(ACT_F_HTTP_REQ, file, linenum);
 	if (!rule) {
 		ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
 		goto out_err;
 	}
-	rule->from = ACT_F_HTTP_REQ;
 
 	if (((custom = action_http_req_custom(args[0])) != NULL)) {
 		char *errmsg = NULL;
@@ -160,12 +159,11 @@ struct act_rule *parse_http_res_cond(const char **args, const char *file, int li
 	const struct action_kw *custom = NULL;
 	int cur_arg;
 
-	rule = calloc(1, sizeof(*rule));
+	rule = new_act_rule(ACT_F_HTTP_RES, file, linenum);
 	if (!rule) {
 		ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
 		goto out_err;
 	}
-	rule->from = ACT_F_HTTP_RES;
 
 	if (((custom = action_http_res_custom(args[0])) != NULL)) {
 		char *errmsg = NULL;
@@ -240,12 +238,11 @@ struct act_rule *parse_http_after_res_cond(const char **args, const char *file, 
 	const struct action_kw *custom = NULL;
 	int cur_arg;
 
-	rule = calloc(1, sizeof(*rule));
+	rule = new_act_rule(ACT_F_HTTP_RES, file, linenum);
 	if (!rule) {
 		ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
 		goto out_err;
 	}
-	rule->from = ACT_F_HTTP_RES;
 
 	if (((custom = action_http_after_res_custom(args[0])) != NULL)) {
 		char *errmsg = NULL;

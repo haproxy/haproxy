@@ -2336,13 +2336,12 @@ struct tcpcheck_rule *parse_tcpcheck_action(char **args, int cur_arg, struct pro
 	struct tcpcheck_rule *chk = NULL;
 	struct act_rule *actrule = NULL;
 
-	actrule = calloc(1, sizeof(*actrule));
+	actrule = new_act_rule(ACT_F_TCP_CHK, file, line);
 	if (!actrule) {
 		memprintf(errmsg, "out of memory");
 		goto error;
 	}
 	actrule->kw = kw;
-	actrule->from = ACT_F_TCP_CHK;
 
 	cur_arg++;
 	if (kw->parse((const char **)args, &cur_arg, px, actrule, errmsg) == ACT_RET_PRS_ERR) {

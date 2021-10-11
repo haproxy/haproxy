@@ -1060,7 +1060,7 @@ static int tcp_parse_tcp_rep(char **args, int section_type, struct proxy *curpx,
 		return 0;
 	}
 
-	rule = calloc(1, sizeof(*rule));
+	rule = new_act_rule(ACT_F_TCP_RES_CNT, file, line);
 	if (!rule) {
 		memprintf(err, "parsing [%s:%d] : out of memory", file, line);
 		return -1;
@@ -1076,7 +1076,6 @@ static int tcp_parse_tcp_rep(char **args, int section_type, struct proxy *curpx,
 			where |= SMP_VAL_FE_RES_CNT;
 		if (curpx->cap & PR_CAP_BE)
 			where |= SMP_VAL_BE_RES_CNT;
-		rule->from = ACT_F_TCP_RES_CNT;
 		if (tcp_parse_response_rule(args, arg, section_type, curpx, defpx, rule, err, where, file, line) < 0)
 			goto error;
 
@@ -1178,7 +1177,7 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 		return 0;
 	}
 
-	rule = calloc(1, sizeof(*rule));
+	rule = new_act_rule(0, file, line);
 	if (!rule) {
 		memprintf(err, "parsing [%s:%d] : out of memory", file, line);
 		return -1;

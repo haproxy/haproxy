@@ -285,6 +285,21 @@ const char *action_suggest(const char *word, const struct list *keywords, const 
 	return best_ptr;
 }
 
+/* allocates a rule for ruleset <from> (ACT_F_*), from file name <file> and
+ * line <linenum>. <file> and <linenum> may be zero if unknown. Returns the
+ * rule, otherwise NULL in case of memory allocation error.
+ */
+struct act_rule *new_act_rule(enum act_from from, const char *file, int linenum)
+{
+	struct act_rule *rule;
+
+	rule = calloc(1, sizeof(*rule));
+	if (!rule)
+		return NULL;
+	rule->from = from;
+	return rule;
+}
+
 void free_act_rules(struct list *rules)
 {
 	struct act_rule *rule, *ruleb;

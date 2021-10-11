@@ -111,6 +111,7 @@ static inline void release_timeout_action(struct act_rule *rule)
 	release_sample_expr(rule->arg.timeout.expr);
 }
 
+struct act_rule *new_act_rule(enum act_from from, const char *file, int linenum);
 void free_act_rules(struct list *rules);
 
 #endif /* _HAPROXY_ACTION_H */
