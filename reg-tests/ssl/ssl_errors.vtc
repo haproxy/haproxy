@@ -2,9 +2,9 @@
 
 # This reg-test checks that the connection and SSL sample fetches related to
 # errors are functioning properly. It also tests the proper behaviour of the
-# default HTTPS log format and of the log-error-via-logformat option which enables
-# or disables the output of a special error message in case of connection
-# failure (otherwise a line following the configured log-format is output).
+# default HTTPS log format and of the error-log-format  option which allows to
+# define a specific log format used only in case of connection error (otherwise
+# a line following the configured log-format is output).
 #
 # It works by sending request through three different paths, one using a custom
 # log-format line that contains the connection error and SSL handshake error
@@ -17,10 +17,10 @@
 # servers, synchronization is achieved through barriers, which ensure that
 # syslog messages arrive in the right order.
 #
-# In order to ensure that the log line raised in case of connection error if
-# the log-error-via-logformat option is disabled still follows the
-# log-separate-error option, the log lines raised by the https_fmt_lst listener
-# will be sent to two separate syslog servers.
+# In order to ensure that the log line raised in case of connection error if an
+# error-log-format is defined still follows the log-separate-error option, the
+# log lines raised by the https_fmt_lst listener will be sent to two separate
+# syslog servers.
 #
 
 varnishtest "Test the connection and SSL error fetches."
