@@ -2669,11 +2669,15 @@ int backend_parse_balance(const char **args, char **err, struct proxy *curproxy)
 static int
 smp_fetch_nbsrv(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct proxy *px;
+	struct proxy *px = args->data.prx;
+
+	if (px == NULL)
+		return 0;
+	if (px->cap & PR_CAP_DEF)
+		px = smp->px;
 
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
-	px = args->data.prx;
 
 	smp->data.u.sint = be_usable_srv(px);
 
@@ -2708,12 +2712,18 @@ static int
 smp_fetch_connslots(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct server *iterator;
+	struct proxy *px = args->data.prx;
+
+	if (px == NULL)
+		return 0;
+	if (px->cap & PR_CAP_DEF)
+		px = smp->px;
 
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = 0;
 
-	for (iterator = args->data.prx->srv; iterator; iterator = iterator->next) {
+	for (iterator = px->srv; iterator; iterator = iterator->next) {
 		if (iterator->cur_state == SRV_ST_STOPPED)
 			continue;
 
@@ -2822,9 +2832,16 @@ smp_fetch_srv_name(const struct arg *args, struct sample *smp, const char *kw, v
 static int
 smp_fetch_be_sess_rate(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
+	struct proxy *px = args->data.prx;
+
+	if (px == NULL)
+		return 0;
+	if (px->cap & PR_CAP_DEF)
+		px = smp->px;
+
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
-	smp->data.u.sint = read_freq_ctr(&args->data.prx->be_sess_per_sec);
+	smp->data.u.sint = read_freq_ctr(&px->be_sess_per_sec);
 	return 1;
 }
 
@@ -2835,9 +2852,16 @@ smp_fetch_be_sess_rate(const struct arg *args, struct sample *smp, const char *k
 static int
 smp_fetch_be_conn(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
+	struct proxy *px = args->data.prx;
+
+	if (px == NULL)
+		return 0;
+	if (px->cap & PR_CAP_DEF)
+		px = smp->px;
+
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
-	smp->data.u.sint = args->data.prx->beconn;
+	smp->data.u.sint = px->beconn;
 	return 1;
 }
 
@@ -2850,14 +2874,19 @@ static int
 smp_fetch_be_conn_free(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct server *iterator;
-	struct proxy *px;
+	struct proxy *px = args->data.prx;
 	unsigned int maxconn;
+
+	if (px == NULL)
+		return 0;
+	if (px->cap & PR_CAP_DEF)
+		px = smp->px;
 
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = 0;
 
-	for (iterator = args->data.prx->srv; iterator; iterator = iterator->next) {
+	for (iterator = px->srv; iterator; iterator = iterator->next) {
 		if (iterator->cur_state == SRV_ST_STOPPED)
 			continue;
 
@@ -2888,9 +2917,16 @@ smp_fetch_be_conn_free(const struct arg *args, struct sample *smp, const char *k
 static int
 smp_fetch_queue_size(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
+	struct proxy *px = args->data.prx;
+
+	if (px == NULL)
+		return 0;
+	if (px->cap & PR_CAP_DEF)
+		px = smp->px;
+
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
-	smp->data.u.sint = args->data.prx->totpend;
+	smp->data.u.sint = px->totpend;
 	return 1;
 }
 
@@ -2905,12 +2941,16 @@ smp_fetch_queue_size(const struct arg *args, struct sample *smp, const char *kw,
 static int
 smp_fetch_avg_queue_size(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
+	struct proxy *px = args->data.prx;
 	int nbsrv;
-	struct proxy *px;
+
+	if (px == NULL)
+		return 0;
+	if (px->cap & PR_CAP_DEF)
+		px = smp->px;
 
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
-	px = args->data.prx;
 
 	nbsrv = be_usable_srv(px);
 

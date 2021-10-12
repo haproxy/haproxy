@@ -1217,8 +1217,16 @@ int smp_resolve_args(struct proxy *p, char **err)
 					break;
 				}
 			}
-			else
+			else {
+				if (px->cap & PR_CAP_DEF) {
+					memprintf(err, "%sparsing [%s:%d]: backend name must be set in arg %d of %s%s%s%s '%s' %s proxy '%s'.\n",
+						  *err ? *err : "", cur->file, cur->line,
+						  cur->arg_pos + 1, conv_pre, conv_ctx, conv_pos, ctx, cur->kw, where, p->id);
+					cfgerr++;
+					break;
+				}
 				sname = arg->data.str.area;
+			}
 
 			srv = findserver(px, sname);
 			if (!srv) {
@@ -1293,8 +1301,16 @@ int smp_resolve_args(struct proxy *p, char **err)
 		case ARGT_TAB:
 			if (arg->data.str.data)
 				stktname = arg->data.str.area;
-			else
+			else {
+				if (px->cap & PR_CAP_DEF) {
+					memprintf(err, "%sparsing [%s:%d]: table name must be set in arg %d of %s%s%s%s '%s' %s proxy '%s'.\n",
+						  *err ? *err : "", cur->file, cur->line,
+						  cur->arg_pos + 1, conv_pre, conv_ctx, conv_pos, ctx, cur->kw, where, p->id);
+					cfgerr++;
+					break;
+				}
 				stktname = px->id;
+			}
 
 			t = stktable_find_by_name(stktname);
 			if (!t) {

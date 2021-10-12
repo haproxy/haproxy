@@ -211,9 +211,16 @@ smp_fetch_fe_defbe(const struct arg *args, struct sample *smp, const char *kw, v
 static int
 smp_fetch_fe_req_rate(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
+	struct proxy *px = args->data.prx;
+
+	if (px == NULL)
+		return 0;
+	if (px->cap & PR_CAP_DEF)
+		px = smp->px;
+
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
-	smp->data.u.sint = read_freq_ctr(&args->data.prx->fe_req_per_sec);
+	smp->data.u.sint = read_freq_ctr(&px->fe_req_per_sec);
 	return 1;
 }
 
@@ -224,9 +231,16 @@ smp_fetch_fe_req_rate(const struct arg *args, struct sample *smp, const char *kw
 static int
 smp_fetch_fe_sess_rate(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
+	struct proxy *px = args->data.prx;
+
+	if (px == NULL)
+		return 0;
+	if (px->cap & PR_CAP_DEF)
+		px = smp->px;
+
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
-	smp->data.u.sint = read_freq_ctr(&args->data.prx->fe_sess_per_sec);
+	smp->data.u.sint = read_freq_ctr(&px->fe_sess_per_sec);
 	return 1;
 }
 
@@ -237,9 +251,16 @@ smp_fetch_fe_sess_rate(const struct arg *args, struct sample *smp, const char *k
 static int
 smp_fetch_fe_conn(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
+	struct proxy *px = args->data.prx;
+
+	if (px == NULL)
+		return 0;
+	if (px->cap & PR_CAP_DEF)
+		px = smp->px;
+
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
-	smp->data.u.sint = args->data.prx->feconn;
+	smp->data.u.sint = px->feconn;
 	return 1;
 }
 
