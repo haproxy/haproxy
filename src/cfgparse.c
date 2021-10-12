@@ -2517,6 +2517,7 @@ int check_config_validity()
 		/* check and reduce the bind-proc of each listener */
 		list_for_each_entry(bind_conf, &curproxy->conf.bind, by_fe) {
 			unsigned long mask;
+			struct listener *li;
 
 			/* HTTP frontends with "h2" as ALPN/NPN will work in
 			 * HTTP/2 and absolutely require buffers 16kB or larger.
@@ -2544,13 +2545,13 @@ int check_config_validity()
 
 			/* detect and address thread affinity inconsistencies */
 			err = NULL;
-			if (thread_resolve_group_mask(bind_conf->settings.bind_tgroup, bind_conf->settings.bind_thread,
-			                              &bind_conf->settings.bind_tgroup, &bind_conf->settings.bind_thread, &err) < 0) {
+			if (thread_resolve_group_mask(bind_conf->bind_tgroup, bind_conf->bind_thread,
+			                              &bind_conf->bind_tgroup, &bind_conf->bind_thread, &err) < 0) {
 				ha_alert("Proxy '%s': %s in 'bind %s' at [%s:%d].\n",
 					   curproxy->id, err, bind_conf->arg, bind_conf->file, bind_conf->line);
 				free(err);
 				cfgerr++;
-			} else if (!((mask = bind_conf->settings.bind_thread) & all_threads_mask)) {
+			} else if (!((mask = bind_conf->bind_thread) & all_threads_mask)) {
 				unsigned long new_mask = 0;
 
 				while (mask) {
@@ -2558,9 +2559,15 @@ int check_config_validity()
 					mask >>= global.nbthread;
 				}
 
-				bind_conf->settings.bind_thread = new_mask;
+				bind_conf->bind_thread = new_mask;
 				ha_warning("Proxy '%s': the thread range specified on the 'thread' directive of 'bind %s' at [%s:%d] only refers to thread numbers out of the range defined by the global 'nbthread' directive. The thread numbers were remapped to existing threads instead (mask 0x%lx).\n",
 					   curproxy->id, bind_conf->arg, bind_conf->file, bind_conf->line, new_mask);
+			}
+
+			/* apply thread masks and groups to all receivers */
+			list_for_each_entry(li, &bind_conf->listeners, by_bind) {
+				li->rx.bind_thread = bind_conf->bind_thread;
+				li->rx.bind_tgroup = bind_conf->bind_tgroup;
 			}
 		}
 

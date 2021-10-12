@@ -906,7 +906,7 @@ void listener_accept(struct listener *l)
 
 
 #if defined(USE_THREAD)
-		mask = thread_mask(l->rx.settings->bind_thread) & all_threads_mask;
+		mask = thread_mask(l->rx.bind_thread) & all_threads_mask;
 		if (atleast2(mask) && (global.tune.options & GTUNE_LISTENER_MQ) && !stopping) {
 			struct accept_queue_ring *ring;
 			unsigned int t, t0, t1, t2;
@@ -1563,7 +1563,7 @@ static int bind_parse_process(char **args, int cur_arg, struct proxy *px, struct
 		*slash = '/';
 	}
 
-	conf->settings.bind_thread |= thread;
+	conf->bind_thread |= thread;
 
 	memprintf(err, "'process %s' on 'bind' lines is deprecated and will be removed in 2.7.", args[cur_arg+1]);
 	if (slash)
@@ -1612,8 +1612,8 @@ static int bind_parse_thread(char **args, int cur_arg, struct proxy *px, struct 
 		sep = args[cur_arg + 1];
 	}
 
-	if ((conf->settings.bind_tgroup || conf->settings.bind_thread) &&
-	    conf->settings.bind_tgroup != tgroup) {
+	if ((conf->bind_tgroup || conf->bind_thread) &&
+	    conf->bind_tgroup != tgroup) {
 		memprintf(err, "'%s' multiple thread-groups are not supported", args[cur_arg + 1]);
 		return ERR_ALERT | ERR_FATAL;
 	}
@@ -1623,8 +1623,8 @@ static int bind_parse_thread(char **args, int cur_arg, struct proxy *px, struct 
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	conf->settings.bind_thread |= thread;
-	conf->settings.bind_tgroup  = tgroup;
+	conf->bind_thread |= thread;
+	conf->bind_tgroup  = tgroup;
 	return 0;
 }
 

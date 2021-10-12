@@ -185,6 +185,8 @@ struct bind_conf {
 	char *file;                /* file where the section appears */
 	int line;                  /* line where the section appears */
 	__decl_thread(HA_RWLOCK_T sni_lock); /* lock the SNI trees during add/del operations */
+	unsigned long bind_thread; /* bitmask of threads allowed on this bind_conf */
+	uint bind_tgroup;          /* thread group ID: 0=global IDs, non-zero=local IDs */
 	struct rx_settings settings; /* all the settings needed for the listening socket */
 };
 

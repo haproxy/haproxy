@@ -391,7 +391,7 @@ int sock_inet_bind_receiver(struct receiver *rx, char **errmsg)
 	rx->fd = fd;
 	rx->flags |= RX_F_BOUND;
 
-	fd_insert(fd, rx->owner, rx->iocb, thread_mask(rx->settings->bind_thread) & all_threads_mask);
+	fd_insert(fd, rx->owner, rx->iocb, thread_mask(rx->bind_thread) & all_threads_mask);
 
 	/* for now, all regularly bound TCP listeners are exportable */
 	if (!(rx->flags & RX_F_INHERITED))

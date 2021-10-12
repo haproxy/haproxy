@@ -41,8 +41,6 @@
 
 /* All the settings that are used to configure a receiver */
 struct rx_settings {
-	unsigned long bind_thread;        /* bitmask of threads allowed to use these listeners */
-	uint bind_tgroup;                 /* thread group ID: 0=global IDs, non-zero=local IDs */
 	struct {                          /* UNIX socket permissions */
 		uid_t uid;                /* -1 to leave unchanged */
 		gid_t gid;                /* -1 to leave unchanged */
@@ -60,6 +58,8 @@ struct receiver {
 	struct protocol *proto;          /* protocol this receiver belongs to */
 	void *owner;                     /* receiver's owner (usually a listener) */
 	void (*iocb)(int fd);            /* generic I/O handler (typically accept callback) */
+	unsigned long bind_thread;       /* bitmask of threads allowed on this receiver */
+	uint bind_tgroup;                /* thread group ID: 0=global IDs, non-zero=local IDs */
 	struct rx_settings *settings;    /* points to the settings used by this receiver */
 	struct list proto_list;          /* list in the protocol header */
 #ifdef USE_QUIC
