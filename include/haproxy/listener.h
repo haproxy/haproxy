@@ -98,6 +98,7 @@ void unbind_listener(struct listener *listener);
  */
 int create_listeners(struct bind_conf *bc, const struct sockaddr_storage *ss,
                      int portl, int porth, int fd, struct protocol *proto, char **err);
+struct listener *clone_listener(struct listener *src);
 
 /* Delete a listener from its protocol's list of listeners. The listener's
  * state is automatically updated from LI_ASSIGNED to LI_INIT. The protocol's

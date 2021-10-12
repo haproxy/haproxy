@@ -663,6 +663,55 @@ int create_listeners(struct bind_conf *bc, const struct sockaddr_storage *ss,
 	return 1;
 }
 
+/* clones listener <src> and returns the new one. All dynamically allocated
+ * fields are reallocated (name for now). The new listener is inserted before
+ * the original one in the bind_conf and frontend lists. This allows it to be
+ * duplicated while iterating over the current list. The original listener must
+ * only be in the INIT or ASSIGNED states, and the new listener will only be
+ * placed into the INIT state. The counters are always set to NULL. Maxsock is
+ * updated. Returns NULL on allocation error.
+ */
+struct listener *clone_listener(struct listener *src)
+{
+	struct listener *l;
+
+	l = calloc(1, sizeof(*l));
+	if (!l)
+		goto oom1;
+	memcpy(l, src, sizeof(*l));
+
+	if (l->name) {
+		l->name = strdup(l->name);
+		if (!l->name)
+			goto oom2;
+	}
+
+	l->rx.owner = l;
+	l->state = LI_INIT;
+	l->counters = NULL;
+	l->extra_counters = NULL;
+
+	LIST_APPEND(&src->by_fe,   &l->by_fe);
+	LIST_APPEND(&src->by_bind, &l->by_bind);
+
+	MT_LIST_INIT(&l->wait_queue);
+
+	l->rx.proto->add(l->rx.proto, l);
+
+	HA_SPIN_INIT(&l->lock);
+	_HA_ATOMIC_INC(&jobs);
+	_HA_ATOMIC_INC(&listeners);
+	global.maxsock++;
+	return l;
+
+ oom3:
+	free(l->name);
+ oom2:
+	free(l);
+ oom1:
+	return l;
+}
+
 /* Delete a listener from its protocol's list of listeners. The listener's
  * state is automatically updated from LI_ASSIGNED to LI_INIT. The protocol's
  * number of listeners is updated, as well as the global number of listeners
