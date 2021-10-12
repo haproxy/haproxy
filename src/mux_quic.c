@@ -321,26 +321,6 @@ static int qcc_read0_pending(struct qcc *qcc)
 	return 0;
 }
 
-/* returns true if the connection is allowed to expire, false otherwise. A
- * connection may expire when:
- *   - it has no stream
- *   - it has data in the mux buffer
- *   - it has streams in the blocked list
- *   - it has streams in the fctl list
- *   - it has streams in the send list
- * Otherwise it means some streams are waiting in the data layer and it should
- * not expire.
- */
-__maybe_unused
-static inline int qcc_may_expire(const struct qcc *qcc)
-{
-	return eb_is_empty(&qcc->streams_by_id) ||
-	       br_data(qcc->mbuf) ||
-	       !LIST_ISEMPTY(&qcc->blocked_list) ||
-	       !LIST_ISEMPTY(&qcc->fctl_list) ||
-	       !LIST_ISEMPTY(&qcc->send_list);
-}
-
 static __inline int
 qcc_is_dead(const struct qcc *qcc)
 {
@@ -406,72 +386,29 @@ static inline void qcc_restart_reading(const struct qcc *qcc, int consider_buffe
 	tasklet_wakeup(qcc->wait_event.tasklet);
 }
 
-/* Tries to grab a buffer and to re-enable processing on mux <target>. The qcc
- * flags are used to figure what buffer was requested. It returns 1 if the
- * allocation succeeds, in which case the connection is woken up, or 0 if it's
- * impossible to wake up and we prefer to be woken up later.
- */
 static int qc_buf_available(void *target)
 {
-	struct qcc *qcc = target;
+	struct qcs *qcs = target;
+	if (!b_alloc(&qcs->tx.buf))
+		return 0;
 
-	if ((qcc->flags & QC_CF_MUX_MALLOC) && b_alloc(br_tail(qcc->mbuf))) {
-		qcc->flags &= ~QC_CF_MUX_MALLOC;
-
-		if (qcc->flags & QC_CF_DEM_MROOM) {
-			qcc->flags &= ~QC_CF_DEM_MROOM;
-			qcc_restart_reading(qcc, 1);
-		}
-		return 1;
-	}
-
-#if 0
-	if ((qcc->flags & QC_CF_DEM_SALLOC) &&
-	    (qcs = qcc_st_by_id(qcc, qcc->dsi)) && qcs->cs &&
-	    b_alloc_margin(&qcs->rxbuf, 0)) {
-		qcc->flags &= ~QC_CF_DEM_SALLOC;
-		qcc_restart_reading(qcc, 1);
-		return 1;
-	}
-#endif
-
-	return 0;
+	qcc_restart_reading(qcs->qcc, 1);
+	return 1;
 }
 
-struct buffer *qc_get_buf(struct qcc *qcc, struct buffer *bptr)
+struct buffer *qc_get_buf(struct qcs *qcs, struct buffer *bptr)
 {
 	struct buffer *buf = NULL;
+	struct qcc *qcc = qcs->qcc;
 
 	if (likely(!LIST_INLIST(&qcc->buf_wait.list)) &&
 	    unlikely((buf = b_alloc(bptr)) == NULL)) {
-		qcc->buf_wait.target = qcc;
+		qcc->buf_wait.target = qcs;
 		qcc->buf_wait.wakeup_cb = qc_buf_available;
 		LIST_APPEND(&th_ctx->buffer_wq, &qcc->buf_wait.list);
 	}
 
 	return buf;
-}
-
-__maybe_unused
-static inline void qc_release_buf(struct qcc *qcc, struct buffer *bptr)
-{
-	if (bptr->size) {
-		b_free(bptr);
-		offer_buffers(NULL, 1);
-	}
-}
-
-static inline void qc_release_mbuf(struct qcc *qcc)
-{
-	struct buffer *buf;
-	unsigned int count = 0;
-
-	while (b_size(buf = br_head_pick(qcc->mbuf))) {
-		b_free(buf);
-		count++;
-	}
-	if (count)
-		offer_buffers(NULL, count);
 }
 
 /* returns the number of streams in use on a connection to figure if it's
@@ -715,7 +652,6 @@ static int qc_init(struct connection *conn, struct proxy *prx,
 	qcc->nb_cs = 0;
 	qcc->stream_cnt = 0;
 
-	br_init(qcc->mbuf, sizeof(qcc->mbuf) / sizeof(qcc->mbuf[0]));
 	qcc->streams_by_id = EB_ROOT_UNIQUE;
 	LIST_INIT(&qcc->send_list);
 	LIST_INIT(&qcc->fctl_list);
@@ -784,8 +720,6 @@ static void qc_release(struct qcc *qcc)
 
 		if (LIST_INLIST(&qcc->buf_wait.list))
 			LIST_DELETE(&qcc->buf_wait.list);
-
-		qc_release_mbuf(qcc);
 
 		if (qcc->task) {
 			qcc->task->context = NULL;
@@ -1313,7 +1247,7 @@ static int qcs_push_frame(struct qcs *qcs, struct buffer *payload, int fin, uint
 	struct quic_enc_level *qel = &qcs->qcc->conn->qc->els[QUIC_TLS_ENC_LEVEL_APP];
 	int total = 0, to_xfer;
 
-	qc_get_buf(qcs->qcc, buf);
+	qc_get_buf(qcs, buf);
 	to_xfer = QUIC_MIN(b_data(payload), b_room(buf));
 	if (!to_xfer)
 		goto out;
@@ -1864,7 +1798,6 @@ static int qc_show_fd(struct buffer *msg, struct connection *conn)
 	int send_cnt = 0;
 	int tree_cnt = 0;
 	int orph_cnt = 0;
-	struct buffer *hmbuf, *tmbuf;
 
 	if (!qcc)
 		return 0;
@@ -1885,26 +1818,18 @@ static int qc_show_fd(struct buffer *msg, struct connection *conn)
 		node = eb64_next(node);
 	}
 
-	hmbuf = br_head(qcc->mbuf);
-	tmbuf = br_tail(qcc->mbuf);
 	chunk_appendf(msg, " qcc.st0=%s .flg=0x%04x"
 	              " clt.nb_streams_bidi=%llu srv.nb_streams_bidi=%llu"
 	              " clt.nb_streams_uni=%llu srv.nb_streams_uni=%llu"
 	              " .nbcs=%u .fctl_cnt=%d .send_cnt=%d .tree_cnt=%d"
-	              " .orph_cnt=%d .sub=%d"
-	              " .mbuf=[%u..%u|%u],h=[%u@%p+%u/%u],t=[%u@%p+%u/%u]",
+	              " .orph_cnt=%d .sub=%d",
 		      qcc_st_to_str(qcc->st0), qcc->flags,
 		      (unsigned long long)qcc->strms[QCS_CLT_BIDI].nb_streams,
 		      (unsigned long long)qcc->strms[QCS_SRV_BIDI].nb_streams,
 		      (unsigned long long)qcc->strms[QCS_CLT_UNI].nb_streams,
 		      (unsigned long long)qcc->strms[QCS_SRV_UNI].nb_streams,
 		      qcc->nb_cs, fctl_cnt, send_cnt, tree_cnt, orph_cnt,
-		      qcc->wait_event.events,
-		      br_head_idx(qcc->mbuf), br_tail_idx(qcc->mbuf), br_size(qcc->mbuf),
-		      (unsigned int)b_data(hmbuf), b_orig(hmbuf),
-		      (unsigned int)b_head_ofs(hmbuf), (unsigned int)b_size(hmbuf),
-		      (unsigned int)b_data(tmbuf), b_orig(tmbuf),
-		      (unsigned int)b_head_ofs(tmbuf), (unsigned int)b_size(tmbuf));
+		      qcc->wait_event.events);
 
 	if (qcs) {
 		chunk_appendf(msg, " last_qcs=%p .id=%llu rx.st=%s tx.st=%s .flg=0x%04x .rxbuf=%u@%p+%u/%u .cs=%p",

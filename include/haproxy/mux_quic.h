@@ -31,9 +31,8 @@
 #include <haproxy/obj_type.h>
 
 void quic_mux_transport_params_update(struct qcc *qcc);
-struct buffer *qc_get_buf(struct qcc *qcc, struct buffer *bptr);
-int qc_cpy_mbuf(struct qcs *qcs, unsigned char *buf, size_t len);
 void qc_error(struct qcc *qcc, int err);
+struct buffer *qc_get_buf(struct qcs *qcs, struct buffer *bptr);
 struct qcs *qcc_get_stream(struct qcc *qcc, uint64_t id);
 struct qcs *bidi_qcs_new(struct qcc *qcc, uint64_t id);
 struct qcs *luqs_new(struct qcc *qcc);

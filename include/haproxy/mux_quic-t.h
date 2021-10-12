@@ -89,9 +89,6 @@ enum qcs_type {
 	QCS_MAX_TYPES,
 };
 
-/* 32 buffers: one for the ring's root, rest for the mbuf itself */
-#define QCC_MBUF_CNT 32
-
 /* Stream direction types */
 enum qcs_dir {
 	QCS_BIDI    = 0,
@@ -138,9 +135,6 @@ struct qcc {
 	} tx;
 
 	struct eb_root streams_by_id; /* all active streams by their ID */
-
-	/* states for the mux direction */
-	struct buffer mbuf[QCC_MBUF_CNT];   /* mux buffers (ring) */
 
 	int timeout;        /* idle timeout duration in ticks */
 	int shut_timeout;   /* idle timeout duration in ticks after GOAWAY was sent */
