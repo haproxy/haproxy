@@ -3435,7 +3435,7 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 
 		if (strm->current_rule_list && strm->current_rule) {
 			const struct act_rule *rule = strm->current_rule;
-			chunk_appendf(&trash, "      current_rule=\"%s\" [%s:%d]\n", rule->kw->kw, rule->conf.file, rule->conf.line);
+			chunk_appendf(&trash, "  current_rule=\"%s\" [%s:%d]\n", rule->kw->kw, rule->conf.file, rule->conf.line);
 		}
 
 		if (ci_putchk(si_ic(si), &trash) == -1)
