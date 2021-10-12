@@ -316,6 +316,16 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 					 file, linenum, *err, args[arg+1], curr_defproxy->conf.file, curr_defproxy->conf.line);
 				err_code |= ERR_ALERT | ERR_FATAL;
 			}
+			curr_defproxy->flags |= PR_FL_EXPLICIT_REF;
+		}
+		else if (curr_defproxy)
+			curr_defproxy->flags |= PR_FL_IMPLICIT_REF;
+
+		if (curr_defproxy && (curr_defproxy->flags & (PR_FL_EXPLICIT_REF|PR_FL_IMPLICIT_REF)) == (PR_FL_EXPLICIT_REF|PR_FL_IMPLICIT_REF)) {
+			ha_alert("parsing [%s:%d] : defaults section '%s' (declared at %s:%d) is explicitly referenced by another proxy and implicitly used here."
+				 " To avoid any ambiguity don't mix both usage. Add a last defaults section not explicitly used or always use explicit references.\n",
+				 file, linenum, curr_defproxy->id, curr_defproxy->conf.file, curr_defproxy->conf.line);
+			err_code |= ERR_WARN;
 		}
 
 		curproxy = parse_new_proxy(name, rc, file, linenum, curr_defproxy);

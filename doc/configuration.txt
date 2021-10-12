@@ -3509,7 +3509,11 @@ any other section, its name must comply with the syntax imposed on all proxy
 names, and this name must be unique among the defaults sections. Please note
 that regardless of what is currently permitted, it is recommended to avoid
 duplicate section names in general and to respect the same syntax as for proxy
-names. This rule might be enforced in a future version.
+names. This rule might be enforced in a future version. In addition, a warning
+is emitted if a defaults section is explicitly used by a proxy while it is also
+implicitly used by another one because it is the last one defined. It is highly
+encouraged to not mix both usages by always using explicit references or by
+adding a last common defaults section reserved for all implicit uses.
 
 Note that it is even possible for a defaults section to take its initial
 settings from another one, and as such, inherit settings across multiple levels
