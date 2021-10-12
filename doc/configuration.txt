@@ -14079,6 +14079,24 @@ proto <name>
   instance, it is possible to force the http/2 on clear TCP by specifying "proto
   h2" on the bind line.
 
+shards <number> | by-thread
+  In multi-threaded mode, on operating systems supporting multiple listeners on
+  the same IP:port, this will automatically create this number of multiple
+  identical listeners for the same line, all bound to a fair share of the number
+  of the threads attached to this listener. This can sometimes be useful when
+  using very large thread counts where the in-kernel locking on a single socket
+  starts to cause a significant overhead. In this case the incoming traffic is
+  distributed over multiple sockets and the contention is reduced. Note that
+  doing this can easily increase the CPU usage by making more threads work a
+  little bit.
+
+  If the number of shards is higher than the number of available threads, it
+  will automatically be trimmed to the number of threads (i.e. one shard per
+  thread). The special "by-thread" value also creates as many shards as there
+  are threads on the "bind" line. Since the system will evenly distribute the
+  incoming traffic between all these shards, it is important that this number
+  is an integral divisor of the number of threads.
+
 ssl
   This setting is only available when support for OpenSSL was built in. It
   enables SSL deciphering on connections instantiated from this listener. A

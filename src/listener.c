@@ -1360,6 +1360,7 @@ struct bind_conf *bind_conf_alloc(struct proxy *fe, const char *file,
 	bind_conf->settings.ux.uid = -1;
 	bind_conf->settings.ux.gid = -1;
 	bind_conf->settings.ux.mode = 0;
+	bind_conf->settings.shards = 1;
 	bind_conf->xprt = xprt;
 	bind_conf->frontend = fe;
 	bind_conf->severity_output = CLI_SEVERITY_NONE;
@@ -1639,6 +1640,30 @@ static int bind_parse_proto(char **args, int cur_arg, struct proxy *px, struct b
 	return 0;
 }
 
+/* parse the "shards" bind keyword. Takes an integer or "by-thread" */
+static int bind_parse_shards(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
+{
+	int val;
+
+	if (!*args[cur_arg + 1]) {
+		memprintf(err, "'%s' : missing value", args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	if (strcmp(args[cur_arg + 1], "by-thread") == 0) {
+		val = MAX_THREADS; /* will be trimmed later anyway */
+	} else {
+		val = atol(args[cur_arg + 1]);
+		if (val < 1 || val > MAX_THREADS) {
+			memprintf(err, "'%s' : invalid value %d, allowed range is %d..%d or 'by-thread'", args[cur_arg], val, 1, MAX_THREADS);
+			return ERR_ALERT | ERR_FATAL;
+		}
+	}
+
+	conf->settings.shards = val;
+	return 0;
+}
+
 /* parse the "thread" bind keyword */
 static int bind_parse_thread(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
@@ -1734,6 +1759,7 @@ static struct bind_kw_list bind_kws = { "ALL", { }, {
 	{ "nice",         bind_parse_nice,         1 }, /* set nice of listening socket */
 	{ "process",      bind_parse_process,      1 }, /* set list of allowed process for this socket */
 	{ "proto",        bind_parse_proto,        1 }, /* set the proto to use for all incoming connections */
+	{ "shards",       bind_parse_shards,       1 }, /* set number of shards */
 	{ "thread",       bind_parse_thread,       1 }, /* set list of allowed threads for this socket */
 	{ /* END */ },
 }};
