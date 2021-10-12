@@ -3382,6 +3382,12 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 				      (htx->tail >= htx->head) ? "NO" : "YES",
 				      (unsigned long long)htx->extra);
 		}
+		if (HAS_FILTERS(strm) && strm_flt(strm)->current[0]) {
+			struct filter *flt = strm_flt(strm)->current[0];
+
+			chunk_appendf(&trash, "      current_filter=%p (id=\"%s\" flags=0x%x pre=0x%x post=0x%x) \n",
+				      flt, flt->config->id, flt->flags, flt->pre_analyzers, flt->post_analyzers);
+		}
 
 		chunk_appendf(&trash,
 			     "  res=%p (f=0x%06x an=0x%x pipe=%d tofwd=%d total=%lld)\n"
@@ -3419,6 +3425,12 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 				      htx, htx->flags, htx->size, htx->data, htx_nbblks(htx),
 				      (htx->tail >= htx->head) ? "NO" : "YES",
 				      (unsigned long long)htx->extra);
+		}
+		if (HAS_FILTERS(strm) && strm_flt(strm)->current[1]) {
+			struct filter *flt = strm_flt(strm)->current[1];
+
+			chunk_appendf(&trash, "      current_filter=%p (id=\"%s\" flags=0x%x pre=0x%x post=0x%x) \n",
+				      flt, flt->config->id, flt->flags, flt->pre_analyzers, flt->post_analyzers);
 		}
 
 		if (strm->current_rule_list && strm->current_rule) {
