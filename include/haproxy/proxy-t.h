@@ -203,6 +203,7 @@ enum PR_SRV_STATE_FILE {
 /* Proxy flags */
 #define PR_FL_DISABLED           0x01  /* The proxy was disabled in the configuration (not at runtime) */
 #define PR_FL_STOPPED            0x02  /* The proxy was stopped */
+#define PR_FL_READY              0x04  /* The proxy is ready to be used (initialized and configured) */
 #define PR_FL_EXPLICIT_REF       0x08  /* The default proxy is explicitly referenced by another proxy */
 #define PR_FL_IMPLICIT_REF       0x10  /* The default proxy is implicitly referenced by another proxy */
 

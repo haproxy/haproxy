@@ -3840,6 +3840,7 @@ out_uri_auth_compat:
 		if (curproxy->task) {
 			curproxy->task->context = curproxy;
 			curproxy->task->process = manage_proxy;
+			curproxy->flags |= PR_FL_READY;
 		} else {
 			ha_alert("Proxy '%s': no more memory when trying to allocate the management task\n",
 				 curproxy->id);
@@ -3895,6 +3896,7 @@ out_uri_auth_compat:
 				 * Note that ->srv is used by the local peer of a new process to connect to the local peer
 				 * of an old process.
 				 */
+				curpeers->peers_fe->flags |= PR_FL_READY;
 				p = curpeers->remote;
 				while (p) {
 					if (p->srv) {

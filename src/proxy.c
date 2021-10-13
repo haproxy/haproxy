@@ -1568,7 +1568,7 @@ static int proxy_defproxy_cpy(struct proxy *curproxy, const struct proxy *defpro
 	/* set default values from the specified default proxy */
 	memcpy(&curproxy->defsrv, &defproxy->defsrv, sizeof(curproxy->defsrv));
 
-	curproxy->flags = defproxy->flags;
+	curproxy->flags = (defproxy->flags & PR_FL_DISABLED); /* Only inherit from disabled flag */
 	curproxy->options = defproxy->options;
 	curproxy->options2 = defproxy->options2;
 	curproxy->no_options = defproxy->no_options;
