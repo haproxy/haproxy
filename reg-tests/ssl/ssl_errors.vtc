@@ -63,24 +63,24 @@ syslog Slg_cust_fmt -level info {
 
 syslog Slg_https_fmt -level info {
     recv
-    expect ~ ".*https_logfmt_ssl_lst~ https_logfmt_ssl_lst/s1.*0/0000000000000000/0/0 TLSv1.3/TLS_AES_256_GCM_SHA384"
+    expect ~ ".*https_logfmt_ssl_lst~ https_logfmt_ssl_lst/s1.*0/0000000000000000/0/0 TLSv1.2/AES256-GCM-SHA384"
 
     barrier b1 sync
 } -start
 
 syslog Slg_https_fmt_err -level info {
     recv
-    expect ~ "ERROR.*https_logfmt_ssl_lst~ https_logfmt_ssl_lst/<NOSRV>.*30/0000000000000086/0/2 TLSv1.3/TLS_AES_256_GCM_SHA384"
+    expect ~ "ERROR.*https_logfmt_ssl_lst~ https_logfmt_ssl_lst/<NOSRV>.*30/0000000000000086/0/2 TLSv1.2/\\(NONE\\)"
 
     barrier b1 sync
 
     recv
-    expect ~ "ERROR.*https_logfmt_ssl_lst~ https_logfmt_ssl_lst/<NOSRV>.*31/0000000000000086/20/0 TLSv1.3/TLS_AES_256_GCM_SHA384"
+    expect ~ "ERROR.*https_logfmt_ssl_lst~ https_logfmt_ssl_lst/<NOSRV>.*31/0000000000000086/20/0 TLSv1.2/\\(NONE\\)"
 
     barrier b1 sync
 
     recv
-    expect ~ "ERROR.*https_logfmt_ssl_lst~ https_logfmt_ssl_lst/<NOSRV>.*34/00000000000000C1/0/0 TLSv1.3/\\(NONE\\)"
+    expect ~ "ERROR.*https_logfmt_ssl_lst~ https_logfmt_ssl_lst/<NOSRV>.*34/00000000000000C1/0/0 TLSv1.2/\\(NONE\\)"
 } -start
 
 syslog Slg_logconnerror -level info {
@@ -119,9 +119,9 @@ syslog Slg_bcknd -level info {
 
     barrier b2 sync
 
-    # Verify errors on the server side cannot be caught through those backend fetches yet
+    # Verify errors on the server side cannot be caught when using TLSv1.3 but it works for TLSv1.2
     recv
-    expect ~ ".*bc_conn_err:0:\"Success\" ssl_bc_err:0:"
+    expect ~ ".*bc_conn_err:34:\"SSL handshake failure\" ssl_bc_err:1048:.*:tlsv1 alert unknown ca"
 
     barrier b2 sync
 
@@ -154,7 +154,7 @@ haproxy h1 -conf {
 
     listen clear_lst
         bind "fd@${clearlst}"
-        default-server ssl crt ${testdir}/set_cafile_client.pem ca-file ${testdir}/set_cafile_interCA2.crt verify none no-ssl-reuse
+        default-server ssl crt ${testdir}/set_cafile_client.pem ca-file ${testdir}/set_cafile_interCA2.crt verify none no-ssl-reuse force-tlsv12
 
         balance roundrobin
         server cust_fmt "${tmpdir}/cust_logfmt_ssl.sock"
@@ -164,7 +164,7 @@ haproxy h1 -conf {
 
     listen clear_wrong_ciphers_lst
         bind "fd@${wrongcipherslst}"
-        default-server ssl crt ${testdir}/set_cafile_client.pem ca-file ${testdir}/set_cafile_interCA2.crt verify none no-ssl-reuse ciphersuites "TLS_AES_128_GCM_SHA256"
+        default-server ssl crt ${testdir}/set_cafile_client.pem ca-file ${testdir}/set_cafile_interCA2.crt verify none no-ssl-reuse force-tlsv12 ciphers "aECDSA"
 
         balance roundrobin
         server cust_fmt "${tmpdir}/cust_logfmt_ssl.sock"
@@ -183,9 +183,19 @@ haproxy h1 -conf {
         server no_err "${tmpdir}/no_err_ssl.sock" ssl crt ${testdir}/set_cafile_client.pem ca-file ${testdir}/set_cafile_interCA2.crt verify required
         server srv_cert_rejected "${tmpdir}/srv_rejected_ssl.sock" ssl crt ${testdir}/set_cafile_client.pem ca-file ${testdir}/set_cafile_interCA1.crt verify required
         server mismatch_frontend "${tmpdir}/mismatch_fe_ssl.sock" ssl crt ${testdir}/set_cafile_client.pem ca-file ${testdir}/set_cafile_interCA2.crt verify required verifyhost str(toto)
-        server clt_cert_rejected "${tmpdir}/rejected_ssl.sock" ssl crt ${testdir}/set_cafile_client.pem ca-file ${testdir}/set_cafile_interCA2.crt verify none
+        # We force TLSv1.2 for this specific case because server-side
+        # verification errors cannot be caught by the backend fetches when
+        # using TLSv1.3
+        server clt_cert_rejected "${tmpdir}/rejected_ssl.sock" ssl crt ${testdir}/set_cafile_client.pem ca-file ${testdir}/set_cafile_interCA2.crt verify none force-tlsv12
         server wrong_ciphers "${tmpdir}/wrong_ciphers_ssl.sock" ssl verify none crt ${testdir}/client1.pem ca-file ${testdir}/ca-auth.crt force-tlsv12 ciphers "aECDSA"
+
+        # No TLSv1.3 support with OpenSSL 1.0.2 so we duplicate the previous
+        # wrong cipher test in this case so that the error log remains the same
+.if openssl_version_before(1.1.1)
+        server wrong_ciphers2 "${tmpdir}/wrong_ciphers_ssl.sock" ssl verify none crt ${testdir}/client1.pem ca-file ${testdir}/ca-auth.crt force-tlsv12 ciphers "aECDSA"
+.else
         server wrong_ciphers_tls13 "${tmpdir}/wrong_ciphers_tls13_ssl.sock" ssl verify none crt ${testdir}/client1.pem ca-file ${testdir}/ca-auth.crt ciphersuites "TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256" force-tlsv13
+.endif
 
 
 
@@ -195,7 +205,7 @@ haproxy h1 -conf {
         mode http
         log-format "conn_status:\"%[fc_conn_err]:%[fc_conn_err_str]\" hsk_err:\"%[ssl_fc_err]:%[ssl_fc_err_str]\" CN=%{+Q}[ssl_c_s_dn],serial=%[ssl_c_serial,hex],hash=%[ssl_c_sha1,hex]"
         error-log-format "ERROR conn_status:\"%[fc_conn_err]:%[fc_conn_err_str]\" hsk_err:\"%[ssl_fc_err,and(proc.ssl_error_mask)]:%[ssl_fc_err_str]\" CN=%{+Q}[ssl_c_s_dn],serial=%[ssl_c_serial,hex],hash=%[ssl_c_sha1,hex]"
-        bind "${tmpdir}/cust_logfmt_ssl.sock" ssl crt ${testdir}/set_cafile_server.pem ca-verify-file ${testdir}/set_cafile_rootCA.crt ca-file ${testdir}/set_cafile_interCA1.crt verify required ciphersuites "TLS_AES_256_GCM_SHA384"
+        bind "${tmpdir}/cust_logfmt_ssl.sock" ssl crt ${testdir}/set_cafile_server.pem ca-verify-file ${testdir}/set_cafile_rootCA.crt ca-file ${testdir}/set_cafile_interCA1.crt verify required ciphers "kRSA"
         server s1 ${s1_addr}:${s1_port}
 
     listen https_logfmt_ssl_lst
@@ -205,14 +215,14 @@ haproxy h1 -conf {
         mode http
         option httpslog
         error-log-format "ERROR %ci:%cp [%tr] %ft %b/%s %TR/%Tw/%Tc/%Tr/%Ta %ST %B %CC %CS %tsc %ac/%fc/%bc/%sc/%rc %sq/%bq %hr %hs %{+Q}r %[fc_conn_err]/%[ssl_fc_err,and(proc.ssl_error_mask),hex]/%[ssl_c_err]/%[ssl_c_ca_err] %sslv/%sslc"
-        bind "${tmpdir}/https_logfmt_ssl.sock" ssl crt ${testdir}/set_cafile_server.pem ca-verify-file ${testdir}/set_cafile_rootCA.crt ca-file ${testdir}/set_cafile_interCA1.crt verify required ciphersuites "TLS_AES_256_GCM_SHA384"
+        bind "${tmpdir}/https_logfmt_ssl.sock" ssl crt ${testdir}/set_cafile_server.pem ca-verify-file ${testdir}/set_cafile_rootCA.crt ca-file ${testdir}/set_cafile_interCA1.crt verify required ciphers "kRSA"
         server s1 ${s1_addr}:${s1_port}
 
     listen logconnerror_ssl_lst
         log ${Slg_logconnerror_addr}:${Slg_logconnerror_port} local0 info
         mode http
         option httplog
-        bind "${tmpdir}/logconnerror_ssl.sock" ssl crt ${testdir}/set_cafile_server.pem ca-verify-file ${testdir}/set_cafile_rootCA.crt ca-file ${testdir}/set_cafile_interCA1.crt verify required ciphersuites "TLS_AES_256_GCM_SHA384"
+        bind "${tmpdir}/logconnerror_ssl.sock" ssl crt ${testdir}/set_cafile_server.pem ca-verify-file ${testdir}/set_cafile_rootCA.crt ca-file ${testdir}/set_cafile_interCA1.crt verify required ciphers "kRSA"
         server s1 ${s1_addr}:${s1_port}
 
 
@@ -237,9 +247,11 @@ haproxy h1 -conf {
         bind "${tmpdir}/wrong_ciphers_ssl.sock" ssl crt ${testdir}/common.pem ca-file ${testdir}/ca-auth.crt verify none force-tlsv12 ciphers "kRSA"
         server s1 ${s1_addr}:${s1_port}
 
+.if openssl_version_atleast(1.1.1)
     listen wrong_ciphers_tls13_ssl_lst
         bind "${tmpdir}/wrong_ciphers_tls13_ssl.sock" ssl crt ${testdir}/common.pem ca-file ${testdir}/ca-auth.crt verify none force-tlsv13 ciphersuites "TLS_AES_128_GCM_SHA256"
         server s1 ${s1_addr}:${s1_port}
+.endif
 
 } -start
 
