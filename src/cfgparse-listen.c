@@ -333,6 +333,15 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
+		if (curr_defproxy && (curr_defproxy->tcpcheck_rules.flags & TCPCHK_RULES_PROTO_CHK) &&
+		    (curproxy->cap & PR_CAP_LISTEN) == PR_CAP_BE) {
+			/* If the current default proxy defines tcpcheck rules, the
+			 * current proxy will keep a reference on it. but only if the
+			 * current proxy has the backend capability.
+			 */
+			proxy_ref_defaults(curproxy, curr_defproxy);
+		}
+
 		if (rc & PR_CAP_DEF) {
 			/* last and current proxies must be updated to this one */
 			curr_defproxy = last_defproxy = curproxy;
