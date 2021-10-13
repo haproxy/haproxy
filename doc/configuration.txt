@@ -12654,6 +12654,100 @@ tcp-request inspect-delay <timeout>
              "timeout client".
 
 
+tcp-request session <action> [{if | unless} <condition>]
+  Perform an action on a validated session depending on a layer 5 condition
+  May be used in sections :   defaults | frontend | listen | backend
+                                 no    |    yes   |   yes  |   no
+  Arguments :
+    <action>    defines the action to perform if the condition applies. See
+                below.
+
+    <condition> is a standard layer5-only ACL-based condition (see section 7).
+
+  Once a session is validated, (i.e. after all handshakes have been completed),
+  it is possible to evaluate some conditions to decide whether this session
+  must be accepted or dropped or have its counters tracked. Those conditions
+  cannot make use of any data contents because no buffers are allocated yet and
+  the processing cannot wait at this stage. The main use case it to copy some
+  early information into variables (since variables are accessible in the
+  session), or to keep track of some information collected after the handshake,
+  such as SSL-level elements (SNI, ciphers, client cert's CN) or information
+  from the PROXY protocol header (e.g. track a source forwarded this way). The
+  extracted information can thus be copied to a variable or tracked using
+  "track-sc" rules. Of course it is also possible to decide to accept/reject as
+  with other rulesets. Most operations performed here could also be performed
+  in "tcp-request content" rules, except that in HTTP these rules are evaluated
+  for each new request, and that might not always be acceptable. For example a
+  rule might increment a counter on each evaluation. It would also be possible
+  that a country is resolved by geolocation from the source IP address,
+  assigned to a session-wide variable, then the source address rewritten from
+  an HTTP header for all requests. If some contents need to be inspected in
+  order to take the decision, the "tcp-request content" statements must be used
+  instead.
+
+  The "tcp-request session" rules are evaluated in their exact declaration
+  order. If no rule matches or if there is no rule, the default action is to
+  accept the incoming session. There is no specific limit to the number of
+  rules which may be inserted.
+
+  Several types of actions are supported :
+    - accept : the request is accepted
+    - reject : the request is rejected and the connection is closed
+    - { track-sc0 | track-sc1 | track-sc2 } <key> [table <table>]
+    - sc-inc-gpc(<idx>,<sc-id>)
+    - sc-inc-gpc0(<sc-id>)
+    - sc-inc-gpc1(<sc-id>)
+    - sc-set-gpt(<idx>,<sc-id>) { <int> | <expr> }
+    - sc-set-gpt0(<sc-id>) { <int> | <expr> }
+    - set-mark <mark>
+    - set-dst <expr>
+    - set-dst-port <expr>
+    - set-src <expr>
+    - set-src-port <expr>
+    - set-tos <tos>
+    - set-var(<var-name>) <expr>
+    - set-var-fmt(<var-name>) <fmt>
+    - unset-var(<var-name>)
+    - silent-drop
+
+  These actions have the same meaning as their respective counter-parts in
+  "tcp-request connection" and "tcp-request content", so please refer to these
+  sections for a complete description.
+
+  Note that the "if/unless" condition is optional. If no condition is set on
+  the action, it is simply performed unconditionally. That can be useful for
+  "track-sc*" actions as well as for changing the default action to a reject.
+
+  Example: track the original source address by default, or the one advertised
+           in the PROXY protocol header for connection coming from the local
+           proxies. The first connection-level rule enables receipt of the
+           PROXY protocol for these ones, the second rule tracks whatever
+           address we decide to keep after optional decoding.
+
+        tcp-request connection expect-proxy layer4 if { src -f proxies.lst }
+        tcp-request session track-sc0 src
+
+  Example: accept all sessions from white-listed hosts, reject too fast
+           sessions without counting them, and track accepted sessions.
+           This results in session rate being capped from abusive sources.
+
+        tcp-request session accept if { src -f /etc/haproxy/whitelist.lst }
+        tcp-request session reject if { src_sess_rate gt 10 }
+        tcp-request session track-sc0 src
+
+  Example: accept all sessions from white-listed hosts, count all other
+           sessions and reject too fast ones. This results in abusive ones
+           being blocked as long as they don't slow down.
+
+        tcp-request session accept if { src -f /etc/haproxy/whitelist.lst }
+        tcp-request session track-sc0 src
+        tcp-request session reject if { sc0_sess_rate gt 10 }
+
+  See section 7 about ACL usage.
+
+  See also : "tcp-request connection", "tcp-request content", "stick-table"
+
+
 tcp-response content <action> [{if | unless} <condition>]
   Perform an action on a session response depending on a layer 4-7 condition
   May be used in sections :   defaults | frontend | listen | backend
@@ -12835,100 +12929,6 @@ tcp-response content <action> [{if | unless} <condition>]
   See section 7 about ACL usage.
 
   See also : "tcp-request content", "tcp-response inspect-delay"
-
-
-tcp-request session <action> [{if | unless} <condition>]
-  Perform an action on a validated session depending on a layer 5 condition
-  May be used in sections :   defaults | frontend | listen | backend
-                                 no    |    yes   |   yes  |   no
-  Arguments :
-    <action>    defines the action to perform if the condition applies. See
-                below.
-
-    <condition> is a standard layer5-only ACL-based condition (see section 7).
-
-  Once a session is validated, (i.e. after all handshakes have been completed),
-  it is possible to evaluate some conditions to decide whether this session
-  must be accepted or dropped or have its counters tracked. Those conditions
-  cannot make use of any data contents because no buffers are allocated yet and
-  the processing cannot wait at this stage. The main use case it to copy some
-  early information into variables (since variables are accessible in the
-  session), or to keep track of some information collected after the handshake,
-  such as SSL-level elements (SNI, ciphers, client cert's CN) or information
-  from the PROXY protocol header (e.g. track a source forwarded this way). The
-  extracted information can thus be copied to a variable or tracked using
-  "track-sc" rules. Of course it is also possible to decide to accept/reject as
-  with other rulesets. Most operations performed here could also be performed
-  in "tcp-request content" rules, except that in HTTP these rules are evaluated
-  for each new request, and that might not always be acceptable. For example a
-  rule might increment a counter on each evaluation. It would also be possible
-  that a country is resolved by geolocation from the source IP address,
-  assigned to a session-wide variable, then the source address rewritten from
-  an HTTP header for all requests. If some contents need to be inspected in
-  order to take the decision, the "tcp-request content" statements must be used
-  instead.
-
-  The "tcp-request session" rules are evaluated in their exact declaration
-  order. If no rule matches or if there is no rule, the default action is to
-  accept the incoming session. There is no specific limit to the number of
-  rules which may be inserted.
-
-  Several types of actions are supported :
-    - accept : the request is accepted
-    - reject : the request is rejected and the connection is closed
-    - { track-sc0 | track-sc1 | track-sc2 } <key> [table <table>]
-    - sc-inc-gpc(<idx>,<sc-id>)
-    - sc-inc-gpc0(<sc-id>)
-    - sc-inc-gpc1(<sc-id>)
-    - sc-set-gpt(<idx>,<sc-id>) { <int> | <expr> }
-    - sc-set-gpt0(<sc-id>) { <int> | <expr> }
-    - set-mark <mark>
-    - set-dst <expr>
-    - set-dst-port <expr>
-    - set-src <expr>
-    - set-src-port <expr>
-    - set-tos <tos>
-    - set-var(<var-name>) <expr>
-    - set-var-fmt(<var-name>) <fmt>
-    - unset-var(<var-name>)
-    - silent-drop
-
-  These actions have the same meaning as their respective counter-parts in
-  "tcp-request connection" and "tcp-request content", so please refer to these
-  sections for a complete description.
-
-  Note that the "if/unless" condition is optional. If no condition is set on
-  the action, it is simply performed unconditionally. That can be useful for
-  "track-sc*" actions as well as for changing the default action to a reject.
-
-  Example: track the original source address by default, or the one advertised
-           in the PROXY protocol header for connection coming from the local
-           proxies. The first connection-level rule enables receipt of the
-           PROXY protocol for these ones, the second rule tracks whatever
-           address we decide to keep after optional decoding.
-
-        tcp-request connection expect-proxy layer4 if { src -f proxies.lst }
-        tcp-request session track-sc0 src
-
-  Example: accept all sessions from white-listed hosts, reject too fast
-           sessions without counting them, and track accepted sessions.
-           This results in session rate being capped from abusive sources.
-
-        tcp-request session accept if { src -f /etc/haproxy/whitelist.lst }
-        tcp-request session reject if { src_sess_rate gt 10 }
-        tcp-request session track-sc0 src
-
-  Example: accept all sessions from white-listed hosts, count all other
-           sessions and reject too fast ones. This results in abusive ones
-           being blocked as long as they don't slow down.
-
-        tcp-request session accept if { src -f /etc/haproxy/whitelist.lst }
-        tcp-request session track-sc0 src
-        tcp-request session reject if { sc0_sess_rate gt 10 }
-
-  See section 7 about ACL usage.
-
-  See also : "tcp-request connection", "tcp-request content", "stick-table"
 
 
 tcp-response inspect-delay <timeout>
