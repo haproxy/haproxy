@@ -146,6 +146,7 @@ void free_proxy(struct proxy *p)
 	if (!p)
 		return;
 
+	proxy_unref_defaults(p);
 	free(p->conf.file);
 	free(p->id);
 	free(p->cookie_name);
@@ -1471,20 +1472,55 @@ void proxy_destroy_defaults(struct proxy *px)
 		return;
 	if (!(px->cap & PR_CAP_DEF))
 		return;
+	BUG_ON(px->conf.refcount != 0);
 	ebpt_delete(&px->conf.by_name);
 	proxy_free_defaults(px);
 	free(px);
 }
 
-void proxy_destroy_all_defaults()
+/* delete all unreferenced default proxies. A default proxy is unreferenced if
+ * its refcount is equal to zero.
+ */
+void proxy_destroy_all_unref_defaults()
 {
 	struct ebpt_node *n;
 
-	while ((n = ebpt_first(&defproxy_by_name))) {
+	n = ebpt_first(&defproxy_by_name);
+	while (n) {
 		struct proxy *px = container_of(n, struct proxy, conf.by_name);
 		BUG_ON(!(px->cap & PR_CAP_DEF));
-		proxy_destroy_defaults(px);
+		n = ebpt_next(n);
+		if (!px->conf.refcount)
+			proxy_destroy_defaults(px);
 	}
+}
+
+/* Add a reference on the default proxy <defpx> for the proxy <px> Nothing is
+ * done if <px> already references <defpx>. Otherwise, the default proxy
+ * refcount is incremented by one. For now, this operation is not thread safe
+ * and is perform during init stage only.
+ */
+void proxy_ref_defaults(struct proxy *px, struct proxy *defpx)
+{
+	if (px->defpx == defpx)
+		return;
+	BUG_ON(px->defpx != NULL);
+	px->defpx = defpx;
+	defpx->conf.refcount++;
+}
+
+/* proxy <px> removes its reference on its default proxy. The default proxy
+ * refcount is decremented by one. If it was the last reference, the
+ * corresponding default proxy is destroyed. For now this operation is not
+ * thread safe and is performed during deinit staged only.
+*/
+void proxy_unref_defaults(struct proxy *px)
+{
+	if (px->defpx == NULL)
+		return;
+	if (!--px->defpx->conf.refcount)
+		proxy_destroy_defaults(px->defpx);
+	px->defpx = NULL;
 }
 
 /* Allocates a new proxy <name> of type <cap>.

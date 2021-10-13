@@ -1990,8 +1990,9 @@ static void init(int argc, char **argv)
 		ha_warning("a master CLI socket was defined, but master-worker mode (-W) is not enabled.\n");
 	}
 
-	/* defaults sections are not needed anymore */
-	proxy_destroy_all_defaults();
+	/* destroy unreferenced defaults proxies  */
+	proxy_destroy_all_unref_defaults();
+
 
 	err_code |= check_config_validity();
 	for (px = proxies_list; px; px = px->next) {
@@ -2482,6 +2483,9 @@ void deinit(void)
 		p = p->next;
 		free_proxy(p0);
 	}/* end while(p) */
+
+	/* destroy all referenced defaults proxies  */
+	proxy_destroy_all_unref_defaults();
 
 	while (ua) {
 		struct stat_scope *scope, *scopep;

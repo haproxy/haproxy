@@ -275,6 +275,7 @@ struct proxy {
 		struct proxy *be;		/* default backend, or NULL if none set */
 		char *name;			/* default backend name during config parse */
 	} defbe;
+	struct proxy *defpx;                    /* default proxy used to init this one (may be NULL) */
 	struct list acl;                        /* ACL declared on this proxy */
 	struct list http_req_rules;		/* HTTP request rules: allow/deny/... */
 	struct list http_res_rules;		/* HTTP response rules: allow/deny/... */
@@ -421,6 +422,7 @@ struct proxy {
 		struct list listeners;		/* list of listeners belonging to this frontend */
 		struct list errors;             /* list of all custom error files */
 		struct arg_list args;           /* sample arg list that need to be resolved */
+		unsigned int refcount;          /* refcount on this proxy (only used for default proxy for now) */
 		struct ebpt_node by_name;       /* proxies are stored sorted by name here */
 		char *logformat_string;		/* log format string */
 		char *lfs_file;                 /* file name where the logformat string appears (strdup) */
