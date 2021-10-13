@@ -232,7 +232,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		rc = PR_CAP_BE | PR_CAP_LB;
 	else if (strcmp(args[0], "defaults") == 0) {
 		/* "defaults" must first delete the last no-name defaults if any */
-		proxy_destroy_defaults(proxy_find_by_name("", PR_CAP_DEF, 0));
 		curr_defproxy = NULL;
 		rc = PR_CAP_DEF | PR_CAP_LISTEN;
 	}
