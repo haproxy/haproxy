@@ -94,12 +94,16 @@ struct action_kw *tcp_res_cont_action(const char *kw)
  */
 int tcp_inspect_request(struct stream *s, struct channel *req, int an_bit)
 {
+	struct list *def_rules, *rules;
 	struct session *sess = s->sess;
 	struct act_rule *rule;
 	int partial;
 	int act_opts = 0;
 
 	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_TCP_ANA, s);
+
+	def_rules = ((s->be->defpx && (an_bit == AN_REQ_INSPECT_FE || s->be->defpx != sess->fe->defpx)) ? &s->be->defpx->tcp_req.inspect_rules : NULL);
+	rules = &s->be->tcp_req.inspect_rules;
 
 	/* We don't know whether we have enough data, so must proceed
 	 * this way :
@@ -126,12 +130,13 @@ int tcp_inspect_request(struct stream *s, struct channel *req, int an_bit)
 	if (s->current_rule) {
 		rule = s->current_rule;
 		s->current_rule = NULL;
-		if (s->current_rule_list == &s->be->tcp_req.inspect_rules)
+		if ((def_rules && s->current_rule_list == def_rules) || s->current_rule_list == rules)
 			goto resume_execution;
 	}
-	s->current_rule_list = &s->be->tcp_req.inspect_rules;
+	s->current_rule_list = ((!def_rules || s->current_rule_list == def_rules) ? rules : def_rules);
 
-	list_for_each_entry(rule, &s->be->tcp_req.inspect_rules, list) {
+  restart:
+	list_for_each_entry(rule, s->current_rule_list, list) {
 		enum acl_test_res ret = ACL_TEST_PASS;
 
 		if (rule->cond) {
@@ -190,11 +195,17 @@ resume_execution:
 		}
 	}
 
+	if (def_rules && s->current_rule_list == def_rules) {
+		s->current_rule_list = rules;
+		goto restart;
+	}
+
  end:
 	/* if we get there, it means we have no rule which matches, or
 	 * we have an explicit accept, so we apply the default accept.
 	 */
 	req->analysers &= ~an_bit;
+	s->current_rule = s->current_rule_list = NULL;
 	req->analyse_exp = s->rules_exp = TICK_ETERNITY;
 	DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_TCP_ANA, s);
 	return 1;
@@ -234,6 +245,8 @@ resume_execution:
 
  abort:
 	req->analysers &= AN_REQ_FLT_END;
+	s->current_rule = s->current_rule_list = NULL;
+	req->analyse_exp = s->rules_exp = TICK_ETERNITY;
 
 	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= SF_ERR_PRXCOND;
@@ -251,12 +264,16 @@ resume_execution:
  */
 int tcp_inspect_response(struct stream *s, struct channel *rep, int an_bit)
 {
+	struct list *def_rules, *rules;
 	struct session *sess = s->sess;
 	struct act_rule *rule;
 	int partial;
 	int act_opts = 0;
 
 	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_TCP_ANA, s);
+
+	def_rules = (s->be->defpx ? &s->be->defpx->tcp_rep.inspect_rules : NULL);
+	rules = &s->be->tcp_rep.inspect_rules;
 
 	/* We don't know whether we have enough data, so must proceed
 	 * this way :
@@ -282,13 +299,13 @@ int tcp_inspect_response(struct stream *s, struct channel *rep, int an_bit)
 	if (s->current_rule) {
 		rule = s->current_rule;
 		s->current_rule = NULL;
-		if (s->current_rule_list == &s->be->tcp_rep.inspect_rules)
+		if ((def_rules && s->current_rule_list == def_rules) || s->current_rule_list == rules)
 			goto resume_execution;
 	}
-	s->current_rule_list = &s->be->tcp_rep.inspect_rules;
-	s->rules_exp = TICK_ETERNITY;
+	s->current_rule_list = ((!def_rules || s->current_rule_list == def_rules) ? rules : def_rules);
 
-	list_for_each_entry(rule, &s->be->tcp_rep.inspect_rules, list) {
+  restart:
+	list_for_each_entry(rule, s->current_rule_list, list) {
 		enum acl_test_res ret = ACL_TEST_PASS;
 
 		if (rule->cond) {
@@ -354,11 +371,17 @@ resume_execution:
 		}
 	}
 
+	if (def_rules && s->current_rule_list == def_rules) {
+		s->current_rule_list = rules;
+		goto restart;
+	}
+
  end:
 	/* if we get there, it means we have no rule which matches, or
 	 * we have an explicit accept, so we apply the default accept.
 	 */
 	rep->analysers &= ~an_bit;
+	s->current_rule = s->current_rule_list = NULL;
 	rep->analyse_exp = s->rules_exp = TICK_ETERNITY;
 	DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_TCP_ANA, s);
 	return 1;
@@ -403,6 +426,8 @@ resume_execution:
 
   abort:
 	rep->analysers &= AN_RES_FLT_END;
+	s->current_rule = s->current_rule_list = NULL;
+	rep->analyse_exp = s->rules_exp = TICK_ETERNITY;
 
 	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= SF_ERR_PRXCOND;
@@ -420,6 +445,7 @@ resume_execution:
  */
 int tcp_exec_l4_rules(struct session *sess)
 {
+	struct proxy *px = sess->fe;
 	struct act_rule *rule;
 	struct connection *conn = objt_conn(sess->origin);
 	int result = 1;
@@ -428,7 +454,11 @@ int tcp_exec_l4_rules(struct session *sess)
 	if (!conn)
 		return result;
 
-	list_for_each_entry(rule, &sess->fe->tcp_req.l4_rules, list) {
+	if  (sess->fe->defpx)
+		px = sess->fe->defpx;
+
+  restart:
+	list_for_each_entry(rule, &px->tcp_req.l4_rules, list) {
 		ret = ACL_TEST_PASS;
 
 		if (rule->cond) {
@@ -496,6 +526,11 @@ int tcp_exec_l4_rules(struct session *sess)
 			}
 		}
 	}
+
+	if (px != sess->fe) {
+		px = sess->fe;
+		goto restart;
+	}
  end:
 	return result;
 }
@@ -509,11 +544,16 @@ int tcp_exec_l4_rules(struct session *sess)
  */
 int tcp_exec_l5_rules(struct session *sess)
 {
+	struct proxy *px = sess->fe;
 	struct act_rule *rule;
 	int result = 1;
 	enum acl_test_res ret;
 
-	list_for_each_entry(rule, &sess->fe->tcp_req.l5_rules, list) {
+	if  (sess->fe->defpx)
+		px = sess->fe->defpx;
+
+  restart:
+	list_for_each_entry(rule, &px->tcp_req.l5_rules, list) {
 		ret = ACL_TEST_PASS;
 
 		if (rule->cond) {
@@ -562,6 +602,11 @@ int tcp_exec_l5_rules(struct session *sess)
 				goto end;
 			}
 		}
+	}
+
+	if (px != sess->fe) {
+		px = sess->fe;
+		goto restart;
 	}
   end:
 	return result;
