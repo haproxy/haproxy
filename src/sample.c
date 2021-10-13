@@ -3126,7 +3126,7 @@ static int sample_conv_fix_tag_value(const struct arg *arg_p, struct sample *smp
 	value = fix_tag_value(ist2(smp->data.u.str.area, smp->data.u.str.data),
 			      arg_p[0].data.sint);
 	if (!istlen(value)) {
-		if (!isttest(value)) {
+		if (isttest(value)) {
 			/* value != IST_NULL, need more data */
 			smp->flags |= SMP_F_MAY_CHANGE;
 		}
