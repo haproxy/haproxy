@@ -3629,12 +3629,14 @@ marked with "(*)" can be optionally inverted using the "no" prefix, e.g. "no
 option contstats". This makes sense when the option has been enabled by default
 and must be disabled for a specific instance. Such options may also be prefixed
 with "default" in order to restore default settings regardless of what has been
-specified in a previous "defaults" section.
+specified in a previous "defaults" section. Keywords supported in defaults
+sections marked with "(!)" are only supported in named defaults sections, not
+anonymous ones.
 
 
  keyword                              defaults   frontend   listen    backend
 ------------------------------------+----------+----------+---------+---------
-acl                                       -          X         X         X
+acl                                       X (!)      X         X         X
 backlog                                   X          X         X         -
 balance                                   X          -         X         X
 bind                                      -          X         X         -
@@ -3670,7 +3672,7 @@ force-persist                             -          -         X         X
 filter                                    -          X         X         X
 fullconn                                  X          -         X         X
 hash-type                                 X          -         X         X
-http-after-response                       -          X         X         X
+http-after-response                       X (!)      X         X         X
 http-check comment                        X          -         X         X
 http-check connect                        X          -         X         X
 http-check disable-on-404                 X          -         X         X
@@ -3680,8 +3682,8 @@ http-check send-state                     X          -         X         X
 http-check set-var                        X          -         X         X
 http-check unset-var                      X          -         X         X
 http-error                                X          X         X         X
-http-request                              -          X         X         X
-http-response                             -          X         X         X
+http-request                              X (!)      X         X         X
+http-response                             X (!)      X         X         X
 http-reuse                                X          -         X         X
 http-send-name-header                     -          -         X         X
 id                                        -          X         X         X
@@ -3792,12 +3794,12 @@ tcp-check send-binary                     X          -         X         X
 tcp-check send-binary-lf                  X          -         X         X
 tcp-check set-var                         X          -         X         X
 tcp-check unset-var                       X          -         X         X
-tcp-request connection                    -          X         X         -
-tcp-request content                       -          X         X         X
-tcp-request inspect-delay                 -          X         X         X
-tcp-request session                       -          X         X         -
-tcp-response content                      -          -         X         X
-tcp-response inspect-delay                -          -         X         X
+tcp-request connection                    X (!)      X         X         -
+tcp-request content                       X (!)      X         X         X
+tcp-request inspect-delay                 X (!)      X         X         X
+tcp-request session                       X (!)      X         X         -
+tcp-response content                      X (!)      -         X         X
+tcp-response inspect-delay                X (!)      -         X         X
 timeout check                             X          -         X         X
 timeout client                            X          X         X         -
 timeout client-fin                        X          X         X         -
@@ -3828,7 +3830,12 @@ This section provides a description of each keyword and its usage.
 acl <aclname> <criterion> [flags] [operator] <value> ...
   Declare or complete an access list.
   May be used in sections :   defaults | frontend | listen | backend
-                                 no    |    yes   |   yes  |   yes
+                                yes(!) |    yes   |   yes  |   yes
+
+  This directive is only available from named defaults sections, not anonymous
+  ones. ACLs defined in a defaults section are not visible from other sections
+  using it.
+
   Example:
         acl invalid_src  src          0.0.0.0/7 224.0.0.0/3
         acl invalid_src  src_port     0:1023
@@ -5284,7 +5291,7 @@ http-after-response <action> <options...> [ { if | unless } <condition> ]
   ones).
 
   May be used in sections:   defaults | frontend | listen | backend
-                                no    |    yes   |   yes  |   yes
+                               yes(!) |    yes   |   yes  |   yes
 
   The http-after-response statement defines a set of rules which apply to layer
   7 processing. The rules are evaluated in their declaration order when they
@@ -5302,6 +5309,13 @@ http-after-response <action> <options...> [ { if | unless } <condition> ]
 
   There is no limit to the number of http-after-response statements per
   instance.
+
+  This directive is only available from named defaults sections, not anonymous
+  ones. Rules defined in the defaults section are evaluated before ones in the
+  associated proxy section. To avoid ambiguities, in this case the same
+  defaults section cannot be used by proxies with the frontend capability and
+  by proxies with the backend capability. It means a listen section cannot use
+  a defaults section defining such rules.
 
   Note: Errors emitted in early stage of the request parsing are handled by the
         multiplexer at a lower level, before any http analysis. Thus no
@@ -5992,7 +6006,7 @@ http-request <action> [options...] [ { if | unless } <condition> ]
   Access control for Layer 7 requests
 
   May be used in sections:   defaults | frontend | listen | backend
-                                no    |    yes   |   yes  |   yes
+                               yes(!) |    yes   |   yes  |   yes
 
   The http-request statement defines a set of rules which apply to layer 7
   processing. The rules are evaluated in their declaration order when they are
@@ -6004,6 +6018,13 @@ http-request <action> [options...] [ { if | unless } <condition> ]
   below.
 
   There is no limit to the number of http-request statements per instance.
+
+  This directive is only available from named defaults sections, not anonymous
+  ones. Rules defined in the defaults section are evaluated before ones in the
+  associated proxy section. To avoid ambiguities, in this case the same
+  defaults section cannot be used by proxies with the frontend capability and
+  by proxies with the backend capability. It means a listen section cannot use
+  a defaults section defining such rules.
 
   Example:
         acl nagios src 192.168.129.3
@@ -7067,7 +7088,7 @@ http-response <action> <options...> [ { if | unless } <condition> ]
   Access control for Layer 7 responses
 
   May be used in sections:   defaults | frontend | listen | backend
-                                no    |    yes   |   yes  |   yes
+                               yes(!) |    yes   |   yes  |   yes
 
   The http-response statement defines a set of rules which apply to layer 7
   processing. The rules are evaluated in their declaration order when they are
@@ -7080,6 +7101,13 @@ http-response <action> <options...> [ { if | unless } <condition> ]
   below.
 
   There is no limit to the number of http-response statements per instance.
+
+  This directive is only available from named defaults sections, not anonymous
+  ones. Rules defined in the defaults section are evaluated before ones in the
+  associated proxy section. To avoid ambiguities, in this case the same
+  defaults section cannot be used by proxies with the frontend capability and
+  by proxies with the backend capability. It means a listen section cannot use
+  a defaults section defining such rules.
 
   Example:
     acl key_acl res.hdr(X-Acl-Key) -m found
@@ -12054,7 +12082,7 @@ tcp-check unset-var(<var-name>)
 tcp-request connection <action> [{if | unless} <condition>]
   Perform an action on an incoming connection depending on a layer 4 condition
   May be used in sections :   defaults | frontend | listen | backend
-                                 no    |    yes   |   yes  |   no
+                                yes(!) |    yes   |   yes  |   no
   Arguments :
     <action>    defines the action to perform if the condition applies. See
                 below.
@@ -12074,6 +12102,13 @@ tcp-request connection <action> [{if | unless} <condition>]
   order. If no rule matches or if there is no rule, the default action is to
   accept the incoming connection. There is no specific limit to the number of
   rules which may be inserted.
+
+  This directive is only available from named defaults sections, not anonymous
+  ones. Rules defined in the defaults section are evaluated before ones in the
+  associated proxy section. To avoid ambiguities, in this case the same
+  defaults section cannot be used by proxies with the frontend capability and
+  by proxies with the backend capability. It means a listen section cannot use
+  a defaults section defining such rules.
 
   Four types of actions are supported :
     - accept :
@@ -12345,7 +12380,7 @@ tcp-request connection <action> [{if | unless} <condition>]
 tcp-request content <action> [{if | unless} <condition>]
   Perform an action on a new session depending on a layer 4-7 condition
   May be used in sections :   defaults | frontend | listen | backend
-                                 no    |    yes   |   yes  |   yes
+                                yes(!) |    yes   |   yes  |   yes
   Arguments :
     <action>    defines the action to perform if the condition applies. See
                 below.
@@ -12375,6 +12410,13 @@ tcp-request content <action> [{if | unless} <condition>]
   rule matches or if there is no rule, the default action is to accept the
   contents. There is no specific limit to the number of rules which may be
   inserted.
+
+  This directive is only available from named defaults sections, not anonymous
+  ones. Rules defined in the defaults section are evaluated before ones in the
+  associated proxy section. To avoid ambiguities, in this case the same
+  defaults section cannot be used by proxies with the frontend capability and
+  by proxies with the backend capability. It means a listen section cannot use
+  a defaults section defining such rules.
 
   Several types of actions are supported :
     - accept : the request is accepted
@@ -12614,7 +12656,7 @@ tcp-request content <action> [{if | unless} <condition>]
 tcp-request inspect-delay <timeout>
   Set the maximum allowed time to wait for data during content inspection
   May be used in sections :   defaults | frontend | listen | backend
-                                 no    |    yes   |   yes  |   yes
+                                yes(!) |    yes   |   yes  |   yes
   Arguments :
     <timeout> is the timeout value specified in milliseconds by default, but
               can be in any other unit if the number is suffixed by the unit,
@@ -12654,6 +12696,9 @@ tcp-request inspect-delay <timeout>
   closes the connection or if the buffer is full, the delay immediately expires
   since the contents will not be able to change anymore.
 
+  This directive is only available from named defaults sections, not anonymous
+  ones. Proxies inherit this value from their defaults section.
+
   See also : "tcp-request content accept", "tcp-request content reject",
              "timeout client".
 
@@ -12661,7 +12706,7 @@ tcp-request inspect-delay <timeout>
 tcp-request session <action> [{if | unless} <condition>]
   Perform an action on a validated session depending on a layer 5 condition
   May be used in sections :   defaults | frontend | listen | backend
-                                 no    |    yes   |   yes  |   no
+                                yes(!) |    yes   |   yes  |   no
   Arguments :
     <action>    defines the action to perform if the condition applies. See
                 below.
@@ -12693,6 +12738,13 @@ tcp-request session <action> [{if | unless} <condition>]
   order. If no rule matches or if there is no rule, the default action is to
   accept the incoming session. There is no specific limit to the number of
   rules which may be inserted.
+
+  This directive is only available from named defaults sections, not anonymous
+  ones. Rules defined in the defaults section are evaluated before ones in the
+  associated proxy section. To avoid ambiguities, in this case the same
+  defaults section cannot be used by proxies with the frontend capability and
+  by proxies with the backend capability. It means a listen section cannot use
+  a defaults section defining such rules.
 
   Several types of actions are supported :
     - accept : the request is accepted
@@ -12755,7 +12807,7 @@ tcp-request session <action> [{if | unless} <condition>]
 tcp-response content <action> [{if | unless} <condition>]
   Perform an action on a session response depending on a layer 4-7 condition
   May be used in sections :   defaults | frontend | listen | backend
-                                 no    |    no    |   yes  |   yes
+                                yes(!) |    no    |   yes  |   yes
   Arguments :
     <action>    defines the action to perform if the condition applies. See
                 below.
@@ -12774,6 +12826,13 @@ tcp-response content <action> [{if | unless} <condition>]
   rule matches or if there is no rule, the default action is to accept the
   contents. There is no specific limit to the number of rules which may be
   inserted.
+
+  This directive is only available from named defaults sections, not anonymous
+  ones. Rules defined in the defaults section are evaluated before ones in the
+  associated proxy section. To avoid ambiguities, in this case the same
+  defaults section cannot be used by proxies with the frontend capability and
+  by proxies with the backend capability. It means a listen section cannot use
+  a defaults section defining such rules.
 
   Several types of actions are supported :
     - accept :
@@ -12938,11 +12997,14 @@ tcp-response content <action> [{if | unless} <condition>]
 tcp-response inspect-delay <timeout>
   Set the maximum allowed time to wait for a response during content inspection
   May be used in sections :   defaults | frontend | listen | backend
-                                 no    |    no    |   yes  |   yes
+                               yes(!)  |    no    |   yes  |   yes
   Arguments :
     <timeout> is the timeout value specified in milliseconds by default, but
               can be in any other unit if the number is suffixed by the unit,
               as explained at the top of this document.
+
+  Note: this directive is only available from named defaults sections, not
+        anonymous ones.
 
   See also : "tcp-response content", "tcp-request inspect-delay".
 
@@ -12976,6 +13038,9 @@ timeout check <timeout>
   This parameter is specific to backends, but can be specified once for all in
   "defaults" sections. This is in fact one of the easiest solutions not to
   forget about it.
+
+  This directive is only available from named defaults sections, not anonymous
+  ones. Proxies inherit this value from their defaults section.
 
   See also: "timeout connect", "timeout queue", "timeout server",
             "timeout tarpit".
