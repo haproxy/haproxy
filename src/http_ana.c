@@ -56,8 +56,8 @@ static size_t http_fmt_req_line(const struct htx_sl *sl, char *str, size_t len);
 static void http_debug_stline(const char *dir, struct stream *s, const struct htx_sl *sl);
 static void http_debug_hdr(const char *dir, struct stream *s, const struct ist n, const struct ist v);
 
-static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct list *rules, struct stream *s);
-static enum rule_result http_res_get_intercept_rule(struct proxy *px, struct list *rules, struct stream *s);
+static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct list *def_rules, struct list *rules, struct stream *s);
+static enum rule_result http_res_get_intercept_rule(struct proxy *px, struct list *def_rules, struct list *rules, struct stream *s);
 
 static void http_manage_client_side_cookies(struct stream *s, struct channel *req);
 static void http_manage_server_side_cookies(struct stream *s, struct channel *res);
@@ -351,6 +351,7 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
  */
 int http_process_req_common(struct stream *s, struct channel *req, int an_bit, struct proxy *px)
 {
+	struct list *def_rules, *rules;
 	struct session *sess = s->sess;
 	struct http_txn *txn = s->txn;
 	struct http_msg *msg = &txn->req;
@@ -365,12 +366,15 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 
 	/* just in case we have some per-backend tracking. Only called the first
 	 * execution of the analyser. */
-	if (!s->current_rule || s->current_rule_list != &px->http_req_rules)
+	if (!s->current_rule && !s->current_rule_list)
 		stream_inc_be_http_req_ctr(s);
 
+	def_rules = ((px->defpx && (an_bit == AN_REQ_HTTP_PROCESS_FE || px != sess->fe)) ? &px->defpx->http_req_rules : NULL);
+	rules = &px->http_req_rules;
+
 	/* evaluate http-request rules */
-	if (!LIST_ISEMPTY(&px->http_req_rules)) {
-		verdict = http_req_get_intercept_rule(px, &px->http_req_rules, s);
+	if ((def_rules && !LIST_ISEMPTY(def_rules)) || !LIST_ISEMPTY(rules)) {
+		verdict = http_req_get_intercept_rule(px, def_rules, rules, s);
 
 		switch (verdict) {
 		case HTTP_RULE_RES_YIELD: /* some data miss, call the function later. */
@@ -427,7 +431,7 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 
 		/* parse the whole stats request and extract the relevant information */
 		http_handle_stats(s, req);
-		verdict = http_req_get_intercept_rule(px, &px->uri_auth->http_req_rules, s);
+		verdict = http_req_get_intercept_rule(px, NULL, &px->uri_auth->http_req_rules, s);
 		/* not all actions implemented: deny, allow, auth */
 
 		if (verdict == HTTP_RULE_RES_DENY) /* stats http-request deny */
@@ -501,6 +505,7 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 	req->analyse_exp = TICK_ETERNITY;
  done_without_exp: /* done with this analyser, but don't reset the analyse_exp. */
 	req->analysers &= ~an_bit;
+	s->current_rule = s->current_rule_list = NULL;
 	DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
 	return 1;
 
@@ -581,6 +586,7 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 
 	req->analysers &= AN_REQ_FLT_END;
 	req->analyse_exp = TICK_ETERNITY;
+	s->current_rule = s->current_rule_list = NULL;
 	DBG_TRACE_DEVEL("leaving on error",
 			STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_HTTP_ERR, s, txn);
 	return 0;
@@ -1797,14 +1803,21 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 	 * pointer and the ->fe rule list. If it doesn't match, I initialize
 	 * the loop with the ->be.
 	 */
-	if (s->current_rule_list == &sess->fe->http_res_rules)
+	if (s->current_rule_list == &sess->fe->http_res_rules ||
+	    (sess->fe->defpx && s->current_rule_list == &sess->fe->defpx->http_res_rules))
 		cur_proxy = sess->fe;
 	else
 		cur_proxy = s->be;
+
 	while (1) {
 		/* evaluate http-response rules */
 		if (ret == HTTP_RULE_RES_CONT) {
-			ret = http_res_get_intercept_rule(cur_proxy, &cur_proxy->http_res_rules, s);
+			struct list *def_rules, *rules;
+
+			def_rules = ((cur_proxy->defpx && (cur_proxy == s->be || cur_proxy->defpx != s->be->defpx)) ? &cur_proxy->defpx->http_res_rules : NULL);
+			rules = &cur_proxy->http_res_rules;
+
+			ret = http_res_get_intercept_rule(cur_proxy, def_rules, rules, s);
 
 			switch (ret) {
 			case HTTP_RULE_RES_YIELD: /* some data miss, call the function later. */
@@ -1992,6 +2005,7 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 	DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
 	rep->analysers &= ~an_bit;
 	rep->analyse_exp = TICK_ETERNITY;
+	s->current_rule = s->current_rule_list = NULL;
 	return 1;
 
  deny:
@@ -2041,6 +2055,7 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 	rep->analysers &= AN_RES_FLT_END;
 	s->req.analysers &= AN_REQ_FLT_END;
 	rep->analyse_exp = TICK_ETERNITY;
+	s->current_rule = s->current_rule_list = NULL;
 	DBG_TRACE_DEVEL("leaving on error",
 			STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_HTTP_ERR, s, txn);
 	return 0;
@@ -2673,8 +2688,8 @@ int http_res_set_status(unsigned int status, struct ist reason, struct stream *s
  * and a deny/tarpit rule is matched, it will be filled with this rule's deny
  * status.
  */
-static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct list *rules,
-						    struct stream *s)
+static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct list *def_rules,
+						    struct list *rules, struct stream *s)
 {
 	struct session *sess = strm_sess(s);
 	struct http_txn *txn = s->txn;
@@ -2690,15 +2705,16 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 	if (s->current_rule) {
 		rule = s->current_rule;
 		s->current_rule = NULL;
-		if (s->current_rule_list == rules)
+		if (s->current_rule_list == rules || (def_rules && s->current_rule_list == def_rules))
 			goto resume_execution;
 	}
-	s->current_rule_list = rules;
+	s->current_rule_list = ((!def_rules || s->current_rule_list == def_rules) ? rules : def_rules);
 
+  restart:
 	/* start the ruleset evaluation in strict mode */
 	txn->req.flags &= ~HTTP_MSGF_SOFT_RW;
 
-	list_for_each_entry(rule, rules, list) {
+	list_for_each_entry(rule, s->current_rule_list, list) {
 		/* check optional condition */
 		if (rule->cond) {
 			int ret;
@@ -2791,6 +2807,11 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 		}
 	}
 
+	if (def_rules && s->current_rule_list == def_rules) {
+		s->current_rule_list = rules;
+		goto restart;
+	}
+
   end:
 	/* if the ruleset evaluation is finished reset the strict mode */
 	if (rule_ret != HTTP_RULE_RES_YIELD)
@@ -2809,8 +2830,8 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
  * must be returned. If *YIELD is returned, the caller must call again the
  * function with the same context.
  */
-static enum rule_result http_res_get_intercept_rule(struct proxy *px, struct list *rules,
-						    struct stream *s)
+static enum rule_result http_res_get_intercept_rule(struct proxy *px, struct list *def_rules,
+						    struct list *rules, struct stream *s)
 {
 	struct session *sess = strm_sess(s);
 	struct http_txn *txn = s->txn;
@@ -2826,15 +2847,17 @@ static enum rule_result http_res_get_intercept_rule(struct proxy *px, struct lis
 	if (s->current_rule) {
 		rule = s->current_rule;
 		s->current_rule = NULL;
-		if (s->current_rule_list == rules)
+		if (s->current_rule_list == rules || (def_rules && s->current_rule_list == def_rules))
 			goto resume_execution;
 	}
-	s->current_rule_list = rules;
+	s->current_rule_list = ((!def_rules || s->current_rule_list == def_rules) ? rules : def_rules);
+
+  restart:
 
 	/* start the ruleset evaluation in strict mode */
 	txn->rsp.flags &= ~HTTP_MSGF_SOFT_RW;
 
-	list_for_each_entry(rule, rules, list) {
+	list_for_each_entry(rule, s->current_rule_list, list) {
 		/* check optional condition */
 		if (rule->cond) {
 			int ret;
@@ -2919,6 +2942,11 @@ resume_execution:
 		}
 	}
 
+	if (def_rules && s->current_rule_list == def_rules) {
+		s->current_rule_list = rules;
+		goto restart;
+	}
+
   end:
 	/* if the ruleset evaluation is finished reset the strict mode */
 	if (rule_ret != HTTP_RULE_RES_YIELD)
@@ -2935,6 +2963,7 @@ resume_execution:
  */
 int http_eval_after_res_rules(struct stream *s)
 {
+	struct list *def_rules, *rules;
 	struct session *sess = s->sess;
 	enum rule_result ret = HTTP_RULE_RES_CONT;
 
@@ -2949,9 +2978,16 @@ int http_eval_after_res_rules(struct stream *s)
 		vars_init_head(&s->vars_reqres, SCOPE_RES);
 	}
 
-	ret = http_res_get_intercept_rule(s->be, &s->be->http_after_res_rules, s);
-	if (ret == HTTP_RULE_RES_CONT && sess->fe != s->be)
-		ret = http_res_get_intercept_rule(sess->fe, &sess->fe->http_after_res_rules, s);
+
+	def_rules = (s->be->defpx ? &s->be->defpx->http_after_res_rules : NULL);
+	rules = &s->be->http_after_res_rules;
+
+	ret = http_res_get_intercept_rule(s->be, def_rules, rules, s);
+	if (ret == HTTP_RULE_RES_CONT && sess->fe != s->be) {
+		def_rules = ((sess->fe->defpx && sess->fe->defpx != s->be->defpx) ? &sess->fe->defpx->http_after_res_rules : NULL);
+		rules = &sess->fe->http_after_res_rules;
+		ret = http_res_get_intercept_rule(sess->fe, def_rules, rules, s);
+	}
 
   end:
 	/* All other codes than CONTINUE, STOP or DONE are forbidden */
