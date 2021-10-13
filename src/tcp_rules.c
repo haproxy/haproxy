@@ -574,8 +574,8 @@ static int tcp_parse_response_rule(char **args, int arg, int section_type,
                                    unsigned int where,
                                    const char *file, int line)
 {
-	if (curpx == defpx || !(curpx->cap & PR_CAP_BE)) {
-		memprintf(err, "%s %s is only allowed in 'backend' sections",
+	if ((curpx == defpx && strlen(defpx->id) == 0) || !(curpx->cap & PR_CAP_BE)) {
+		memprintf(err, "%s %s is only allowed in 'backend' sections or 'defaults' section with a name",
 		          args[0], args[1]);
 		return -1;
 	}
@@ -742,9 +742,9 @@ static int tcp_parse_request_rule(char **args, int arg, int section_type,
                                   struct act_rule *rule, char **err,
                                   unsigned int where, const char *file, int line)
 {
-	if (curpx == defpx) {
-		memprintf(err, "%s %s is not allowed in 'defaults' sections",
-		          args[0], args[1]);
+	if (curpx == defpx && strlen(defpx->id) == 0) {
+		memprintf(err, "%s %s is not allowed in anonymous 'defaults' sections",
+			  args[0], args[1]);
 		return -1;
 	}
 
@@ -1031,8 +1031,8 @@ static int tcp_parse_tcp_rep(char **args, int section_type, struct proxy *curpx,
 	}
 
 	if (strcmp(args[1], "inspect-delay") == 0) {
-		if (curpx == defpx || !(curpx->cap & PR_CAP_BE)) {
-			memprintf(err, "%s %s is only allowed in 'backend' sections",
+		if ((curpx == defpx && strlen(defpx->id) == 0) || !(curpx->cap & PR_CAP_BE)) {
+			memprintf(err, "%s %s is only allowed in 'backend' sections or 'defaults' section with a name",
 			          args[0], args[1]);
 			return -1;
 		}
@@ -1148,9 +1148,9 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 	}
 
 	if (strcmp(args[1], "inspect-delay") == 0) {
-		if (curpx == defpx) {
-			memprintf(err, "%s %s is not allowed in 'defaults' sections",
-			          args[0], args[1]);
+		if (curpx == defpx && strlen(defpx->id) == 0) {
+			memprintf(err, "%s %s is not allowed in anonymous 'defaults' sections",
+				  args[0], args[1]);
 			return -1;
 		}
 

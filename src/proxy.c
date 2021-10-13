@@ -1576,6 +1576,8 @@ static int proxy_defproxy_cpy(struct proxy *curproxy, const struct proxy *defpro
 	curproxy->except_xff_net = defproxy->except_xff_net;
 	curproxy->except_xot_net = defproxy->except_xot_net;
 	curproxy->retry_type = defproxy->retry_type;
+	curproxy->tcp_req.inspect_delay = defproxy->tcp_req.inspect_delay;
+	curproxy->tcp_rep.inspect_delay = defproxy->tcp_rep.inspect_delay;
 
 	if (defproxy->fwdfor_hdr_len) {
 		curproxy->fwdfor_hdr_len  = defproxy->fwdfor_hdr_len;

@@ -2520,6 +2520,15 @@ int check_config_validity()
 		 */
 		if (curproxy->defpx) {
 			if (!(curproxy->defpx->flags & PR_FL_READY)) {
+				/* check validity for 'tcp-request' layer 4/5/6/7 rules */
+				cfgerr += check_action_rules(&curproxy->defpx->tcp_req.l4_rules, curproxy->defpx, &err_code);
+				cfgerr += check_action_rules(&curproxy->defpx->tcp_req.l5_rules, curproxy->defpx, &err_code);
+				cfgerr += check_action_rules(&curproxy->defpx->tcp_req.inspect_rules, curproxy->defpx, &err_code);
+				cfgerr += check_action_rules(&curproxy->defpx->tcp_rep.inspect_rules, curproxy->defpx, &err_code);
+				cfgerr += check_action_rules(&curproxy->defpx->http_req_rules, curproxy->defpx, &err_code);
+				cfgerr += check_action_rules(&curproxy->defpx->http_res_rules, curproxy->defpx, &err_code);
+				cfgerr += check_action_rules(&curproxy->defpx->http_after_res_rules, curproxy->defpx, &err_code);
+
 				err = NULL;
 				i = smp_resolve_args(curproxy->defpx, &err);
 				cfgerr += i;
@@ -3612,8 +3621,8 @@ out_uri_auth_compat:
 			if (!curproxy->accept)
 				curproxy->accept = frontend_accept;
 
-			if (curproxy->tcp_req.inspect_delay ||
-			    !LIST_ISEMPTY(&curproxy->tcp_req.inspect_rules))
+			if (!LIST_ISEMPTY(&curproxy->tcp_req.inspect_rules) ||
+			    (curproxy->defpx && !LIST_ISEMPTY(&curproxy->defpx->tcp_req.inspect_rules)))
 				curproxy->fe_req_ana |= AN_REQ_INSPECT_FE;
 
 			if (curproxy->mode == PR_MODE_HTTP) {
@@ -3637,11 +3646,12 @@ out_uri_auth_compat:
 		}
 
 		if (curproxy->cap & PR_CAP_BE) {
-			if (curproxy->tcp_req.inspect_delay ||
-			    !LIST_ISEMPTY(&curproxy->tcp_req.inspect_rules))
+			if (!LIST_ISEMPTY(&curproxy->tcp_req.inspect_rules) ||
+			    (curproxy->defpx && !LIST_ISEMPTY(&curproxy->defpx->tcp_req.inspect_rules)))
 				curproxy->be_req_ana |= AN_REQ_INSPECT_BE;
 
-			if (!LIST_ISEMPTY(&curproxy->tcp_rep.inspect_rules))
+			if (!LIST_ISEMPTY(&curproxy->tcp_rep.inspect_rules) ||
+			    (curproxy->defpx && !LIST_ISEMPTY(&curproxy->defpx->tcp_rep.inspect_rules)))
                                 curproxy->be_rsp_ana |= AN_RES_INSPECT;
 
 			if (curproxy->mode == PR_MODE_HTTP) {

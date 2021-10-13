@@ -333,6 +333,70 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
+		if (curr_defproxy && (!LIST_ISEMPTY(&curr_defproxy->http_req_rules)        ||
+				      !LIST_ISEMPTY(&curr_defproxy->http_res_rules)        ||
+				      !LIST_ISEMPTY(&curr_defproxy->http_after_res_rules)  ||
+				      !LIST_ISEMPTY(&curr_defproxy->tcp_req.l4_rules)      ||
+				      !LIST_ISEMPTY(&curr_defproxy->tcp_req.l5_rules)      ||
+				      !LIST_ISEMPTY(&curr_defproxy->tcp_req.inspect_rules) ||
+				      !LIST_ISEMPTY(&curr_defproxy->tcp_rep.inspect_rules))) {
+			/* If the current default proxy defines TCP/HTTP rules, the
+			 * current proxy will keep a reference on it. But some sanity
+			 * checks are performed first:
+			 *
+			 * - It cannot be used to init a defaults section
+			 * - It cannot be used to init a listen section
+			 * - It cannot be used to init backend and frontend sections at
+			 *   same time. It can be used to init several sections of the
+			 *   same type only.
+			 * - It cannot define L4/L5 TCP rules if it is used to init
+			 *   backend sections.
+			 * - It cannot define 'tcp-response content' rules if it
+			 *   is used to init frontend sections.
+			 *
+			 * If no error is found, refcount of the default proxy is incremented.
+			 */
+
+			/* Note: Add tcpcheck_rules too if unresolve args become allowed in defaults section */
+			if (rc & PR_CAP_DEF) {
+				ha_alert("parsing [%s:%d]: a defaults section cannot inherit from a defaults section defining TCP/HTTP rules (defaults section at %s:%d).\n",
+					 file, linenum, curr_defproxy->conf.file, curr_defproxy->conf.line);
+				err_code |= ERR_ALERT | ERR_ABORT;
+			}
+			else if ((rc & PR_CAP_LISTEN) == PR_CAP_LISTEN) {
+				ha_alert("parsing [%s:%d]: a listen section cannot inherit from a defaults section defining TCP/HTTP rules.\n",
+					 file, linenum);
+				err_code |= ERR_ALERT | ERR_ABORT;
+			}
+			else {
+				char defcap = (curr_defproxy->cap & PR_CAP_LISTEN);
+
+				if ((defcap == PR_CAP_BE || defcap == PR_CAP_FE) && (rc & PR_CAP_LISTEN) != defcap) {
+					ha_alert("parsing [%s:%d]: frontends and backends cannot inherit from the same defaults section"
+						 " if it defines TCP/HTTP rules (defaults section at %s:%d).\n",
+						 file, linenum, curr_defproxy->conf.file, curr_defproxy->conf.line);
+					err_code |= ERR_ALERT | ERR_ABORT;
+				}
+				else if (!(rc & PR_CAP_FE) && (!LIST_ISEMPTY(&curr_defproxy->tcp_req.l4_rules) ||
+							       !LIST_ISEMPTY(&curr_defproxy->tcp_req.l5_rules))) {
+					ha_alert("parsing [%s:%d]: a backend section cannot inherit from a defaults section defining"
+						 " 'tcp-request connection' or 'tcp-request session' rules (defaults section at %s:%d).\n",
+						 file, linenum, curr_defproxy->conf.file, curr_defproxy->conf.line);
+					err_code |= ERR_ALERT | ERR_ABORT;
+				}
+				else if (!(rc & PR_CAP_BE) && !LIST_ISEMPTY(&curr_defproxy->tcp_rep.inspect_rules)) {
+					ha_alert("parsing [%s:%d]: a frontend section cannot inherit from a defaults section defining"
+						 " 'tcp-response content' rules (defaults section at %s:%d).\n",
+						 file, linenum, curr_defproxy->conf.file, curr_defproxy->conf.line);
+					err_code |= ERR_ALERT | ERR_ABORT;
+				}
+				else {
+					curr_defproxy->cap = (curr_defproxy->cap & ~PR_CAP_LISTEN) | (rc & PR_CAP_LISTEN);
+					proxy_ref_defaults(curproxy, curr_defproxy);
+				}
+			}
+		}
+
 		if (curr_defproxy && (curr_defproxy->tcpcheck_rules.flags & TCPCHK_RULES_PROTO_CHK) &&
 		    (curproxy->cap & PR_CAP_LISTEN) == PR_CAP_BE) {
 			/* If the current default proxy defines tcpcheck rules, the
@@ -641,8 +705,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		err_code |= ERR_WARN;
 	}
 	else if (strcmp(args[0], "acl") == 0) {  /* add an ACL */
-		if (curproxy->cap & PR_CAP_DEF) {
-			ha_alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
+		if ((curproxy->cap & PR_CAP_DEF) && strlen(curproxy->id) == 0) {
+			ha_alert("parsing [%s:%d] : '%s' not allowed in anonymous 'defaults' section.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
@@ -1212,8 +1276,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 	else if (strcmp(args[0], "http-request") == 0) {	/* request access control: allow/deny/auth */
 		struct act_rule *rule;
 
-		if (curproxy->cap & PR_CAP_DEF) {
-			ha_alert("parsing [%s:%d]: '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
+		if ((curproxy->cap & PR_CAP_DEF) && strlen(curproxy->id) == 0) {
+			ha_alert("parsing [%s:%d] : '%s' not allowed in anonymous 'defaults' section.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
@@ -1243,8 +1307,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 	else if (strcmp(args[0], "http-response") == 0) {	/* response access control */
 		struct act_rule *rule;
 
-		if (curproxy->cap & PR_CAP_DEF) {
-			ha_alert("parsing [%s:%d]: '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
+		if ((curproxy->cap & PR_CAP_DEF) && strlen(curproxy->id) == 0) {
+			ha_alert("parsing [%s:%d] : '%s' not allowed in anonymous 'defaults' section.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
@@ -1273,8 +1337,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 	else if (strcmp(args[0], "http-after-response") == 0) {
 		struct act_rule *rule;
 
-		if (curproxy->cap & PR_CAP_DEF) {
-			ha_alert("parsing [%s:%d]: '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
+		if ((curproxy->cap & PR_CAP_DEF) && strlen(curproxy->id) == 0) {
+			ha_alert("parsing [%s:%d] : '%s' not allowed in anonymous 'defaults' section.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
