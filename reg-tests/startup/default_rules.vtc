@@ -1,0 +1,186 @@
+varnishtest "Misuses of defaults section defining TCP/HTTP rules"
+
+#REQUIRE_VERSION=2.5
+
+feature ignore_unknown_macro
+
+#
+# anonymous defaults section cannot define TCP/HTTP rules
+#
+haproxy h1 -conf-BAD {} {
+    defaults
+        http-request set-header X-Hdr 1
+}
+
+haproxy h2 -conf-BAD {} {
+    defaults
+        http-response set-header X-Hdr 1
+}
+
+haproxy h3 -conf-BAD {} {
+    defaults
+        http-after-request set-header X-Hdr 1
+}
+
+haproxy h4 -conf-BAD {} {
+    defaults
+        tcp-request connection accept
+}
+
+haproxy h5 -conf-BAD {} {
+    defaults
+        tcp-request session accept
+}
+
+haproxy h6 -conf-BAD {} {
+    defaults
+        tcp-request inspect-delay 5s
+        tcp-request content accept
+}
+
+haproxy h7 -conf-BAD {} {
+    defaults
+        tcp-response inspect-delay 5s
+        tcp-response content accept
+}
+
+#
+# defaults section defining TCP/HTTP rules cannot be used to init another
+# defaults section
+#
+haproxy h8 -conf-BAD {} {
+    defaults invalid
+        tcp-response inspect-delay 5s
+        tcp-response content accept
+
+    defaults from invalid
+        mode tcp
+}
+
+#
+# defaults section defining TCP/HTTP rules cannot be used to init a listen
+# section
+#
+haproxy h9 -conf-BAD {} {
+    defaults invalid
+        tcp-request inspect-delay 5s
+        tcp-request content accept
+
+    listen li from invalid
+        mode tcp
+        bind "fd@${lih9}"
+        server www 127.0.0.1:80
+}
+
+#
+# defaults section defining TCP/HTTP rules cannot be used to init frontend and
+# backend sections at the same time
+#
+#
+haproxy h10 -conf-BAD {} {
+    defaults invalid
+        tcp-request inspect-delay 5s
+        tcp-request content accept
+
+    frontend fe from invalid
+        mode tcp
+        bind "fd@${feh10}"
+        default_backend be1
+
+    backend be from invalid
+        mode tcp
+        server www 127.0.0.1:80
+}
+
+#
+# defaults section defining 'tcp-request connection' or 'tcp-request session'
+# rules cannot be used to init backend sections
+#
+haproxy h11 -conf-BAD {} {
+    defaults invalid
+        tcp-request connection accept
+
+    backend be from invalid
+        mode tcp
+        server www 127.0.0.1:80
+}
+
+haproxy h12 -conf-BAD {} {
+    defaults invalid
+        tcp-request session accept
+
+    backend be from invalid
+        mode tcp
+        server www 127.0.0.1:80
+}
+
+#
+# defaults section defining 'tcp-response content' rules cannot be used to init
+# a frontend section
+#
+haproxy h13 -conf-BAD {} {
+    defaults invalid
+        tcp-response inspect-delay 5s
+        tcp-response content accept
+
+    frontend fe from invalid
+        mode tcp
+        bind "fd@${feh10}"
+}
+
+haproxy h14 -conf-OK {
+    defaults tcp
+        tcp-response inspect-delay 5s
+        tcp-response content accept
+
+    backend be from tcp
+        mode tcp
+        server www 127.0.0.1:80
+}
+
+#
+# Check arguments resolutions in rules. FE/BE arguments must be resolved, but
+# SRV/TAB arguments without an explicit proxy name are not allowed.
+#
+
+haproxy h15 -conf-BAD {} {
+    defaults invalid
+        mode http
+        http-request set-header x-test "%[srv_conn(www)]"
+
+    backend be from invalid
+        server www 127.0.0.1:80
+}
+
+haproxy h16 -conf-BAD {} {
+    defaults invalid
+        mode http
+        http-request track-sc0 src
+        http-request deny deny_status 429 if { sc_http_req_rate(0) gt 20 }
+
+    backend be
+        stick-table type ip size 100k expire 30s store http_req_rate(10s)
+        server www 127.0.0.1:80
+}
+
+haproxy h17 -conf-OK {
+    defaults common
+        mode http
+
+    defaults def_front from common
+        http-request set-header x-test1 "%[fe_conn]"
+
+    defaults def_back from common
+        http-request track-sc0 src table be
+        http-request deny deny_status 429 if { sc_http_req_rate(0,be) gt 20 }
+        http-request set-header x-test2 "%[be_conn]"
+        http-request set-header x-test3 "%[srv_conn(be/www)]"
+
+    frontend fe from def_front
+        bind "fd@${feh15}"
+        default_backend be
+
+    backend be from def_back
+        stick-table type ip size 100k expire 30s store http_req_rate(10s)
+        server www 127.0.0.1:80
+}

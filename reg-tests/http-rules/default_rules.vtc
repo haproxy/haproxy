@@ -1,0 +1,112 @@
+varnishtest "Test declaration of HTTP rules in default sections"
+
+#REQUIRE_VERSION=2.5
+
+feature ignore_unknown_macro
+
+server s1 {
+        rxreq
+        expect req.http.x-frontend == "fe"
+        expect req.http.x-backend == "be"
+        expect req.http.x-test1-frt == "def_front"
+        expect req.http.x-test1-bck == "def_back"
+        txresp
+}  -start
+
+server s2 {
+        rxreq
+        txresp
+}  -start
+
+haproxy h1 -conf {
+  defaults common
+      mode http
+      timeout connect 1s
+      timeout client  1s
+      timeout server  1s
+
+  defaults def_front from common
+      http-request set-header x-frontend "%[fe_name]"
+      http-request set-var(txn.test1) "str(def_front)"
+      http-response set-header x-frontend "%[fe_name]"
+      http-response set-var(txn.test2) "str(def_front)"
+      http-after-response set-var(txn.test3) "str(def_front)"
+
+  defaults def_back from common
+      http-request set-header x-backend "%[be_name]"
+      http-request set-var(txn.test1) "str(def_back)"
+      http-response set-header x-backend "%[be_name]"
+      http-response set-var(txn.test2) "str(def_back)"
+      http-after-response set-var(txn.test3) "str(def_back)"
+
+  frontend fe from def_front
+      bind "fd@${feh1}"
+
+      http-request set-header x-test1-frt "%[var(txn.test1)]"
+      http-response set-header x-test2-frt "%[var(txn.test2)]"
+      http-after-response set-header x-test3-frt "%[var(txn.test3)]"
+
+      default_backend be
+
+  backend be from def_back
+      http-request set-header x-test1-bck "%[var(txn.test1)]"
+      http-response set-header x-test2-bck "%[var(txn.test2)]"
+      http-after-response set-header x-test3-bck "%[var(txn.test3)]"
+
+      server s1 ${s1_addr}:${s1_port}
+
+} -start
+
+
+haproxy h2 -conf {
+  defaults common
+      mode http
+      timeout connect 1s
+      timeout client  1s
+      timeout server  1s
+
+  defaults def_front from common
+      http-request allow
+      http-response allow
+      http-after-response allow
+
+  defaults def_back from common
+      http-request allow
+      http-response allow
+      http-after-response allow
+
+  frontend fe from def_front
+      bind "fd@${feh2}"
+
+      http-request deny status 403
+      http-response deny status 502
+      http-after-response set-status 502
+
+      default_backend be
+
+  backend be from def_back
+      http-request deny status 403
+      http-response deny status 502
+      http-after-response set-status 502
+
+      server s2 ${s2_addr}:${s2_port}
+
+} -start
+
+client c1 -connect ${h1_feh1_sock} {
+        txreq -req GET -url /
+        rxresp
+        expect resp.status == 200
+        expect resp.http.x-frontend == "fe"
+        expect resp.http.x-backend == "be"
+        expect resp.http.x-test2-bck == "def_back"
+        expect resp.http.x-test2-frt == "def_front"
+        expect resp.http.x-test3-bck == "def_back"
+        expect resp.http.x-test3-frt == "def_front"
+} -run
+
+client c2 -connect ${h2_feh2_sock} {
+        txreq -req GET -url /
+        rxresp
+        expect resp.status == 200
+} -run

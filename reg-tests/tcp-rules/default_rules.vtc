@@ -1,0 +1,62 @@
+varnishtest "Test declaration of TCP rules in default sections"
+
+#REQUIRE_VERSION=2.5
+
+feature ignore_unknown_macro
+
+server s1 {
+        rxreq
+        txresp
+        expect req.http.x-test1-frt == "def_front"
+        expect req.http.x-test1-bck == "def_back"
+}  -start
+
+haproxy h1 -conf {
+  defaults common
+      mode http
+      timeout connect 1s
+      timeout client  1s
+      timeout server  1s
+
+  defaults def_front from common
+      tcp-request connection accept
+      tcp-request session accept
+      tcp-request inspect-delay 5s
+      tcp-request content set-var(txn.test1) "str(def_front)"
+      tcp-request content accept
+
+  defaults def_back from common
+      tcp-request inspect-delay 5s
+      tcp-request content set-var(txn.test1) "str(def_back)"
+      tcp-request content accept
+
+      tcp-response inspect-delay 5s
+      tcp-response content set-var(txn.test2) "str(def_back)"
+      tcp-response content accept
+
+  frontend fe from def_front
+      bind "fd@${feh1}"
+      tcp-request connection reject
+      tcp-request session reject
+      tcp-request content reject
+
+      http-request set-header x-test1-frt "%[var(txn.test1)]"
+
+      default_backend be
+
+  backend be from def_back
+      tcp-response content reject
+
+      http-request set-header x-test1-bck "%[var(txn.test1)]"
+      http-response set-header x-test2 "%[var(txn.test2)]"
+
+      server s1 ${s1_addr}:${s1_port}
+
+} -start
+
+client c1 -connect ${h1_feh1_sock} {
+        txreq -req GET -url /
+        rxresp
+        expect resp.status == 200
+        expect resp.http.x-test2 == "def_back"
+} -run
