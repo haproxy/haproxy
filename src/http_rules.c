@@ -423,17 +423,19 @@ struct redirect_rule *http_parse_redirect_rule(const char *file, int linenum, st
 	}
 	else {
 		/* log-format based redirect rule */
+		int cap = 0;
 
 		/* Parse destination. Note that in the REDIRECT_TYPE_PREFIX case,
 		 * if prefix == "/", we don't want to add anything, otherwise it
 		 * makes it hard for the user to configure a self-redirection.
 		 */
 		curproxy->conf.args.ctx = ARGC_RDR;
+		if (curproxy->cap & PR_CAP_FE)
+			cap |= (dir ? SMP_VAL_FE_HRS_HDR : SMP_VAL_FE_HRQ_HDR);
+		if (curproxy->cap & PR_CAP_BE)
+			cap |= (dir ? SMP_VAL_BE_HRS_HDR : SMP_VAL_BE_HRQ_HDR);
 		if (!(type == REDIRECT_TYPE_PREFIX && destination[0] == '/' && destination[1] == '\0')) {
-			if (!parse_logformat_string(destination, curproxy, &rule->rdr_fmt, LOG_OPT_HTTP,
-			                            dir ? (curproxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRS_HDR : SMP_VAL_BE_HRS_HDR
-			                                : (curproxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR,
-			                            errmsg)) {
+			if (!parse_logformat_string(destination, curproxy, &rule->rdr_fmt, LOG_OPT_HTTP, cap, errmsg)) {
 				return  NULL;
 			}
 			free(curproxy->conf.lfs_file);

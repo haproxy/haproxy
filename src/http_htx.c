@@ -1392,7 +1392,7 @@ struct http_reply *http_parse_http_reply(const char **args, int *orig_arg, struc
 	struct stat stat;
 	const char *act_arg = NULL;
 	char *obj = NULL;
-	int cur_arg, cap, objlen = 0, fd = -1;
+	int cur_arg, cap = 0, objlen = 0, fd = -1;
 
 
 	reply = calloc(1, sizeof(*reply));
@@ -1406,10 +1406,12 @@ struct http_reply *http_parse_http_reply(const char **args, int *orig_arg, struc
 
 	if (px->conf.args.ctx == ARGC_HERR)
 		cap = (SMP_VAL_REQUEST | SMP_VAL_RESPONSE);
-	else
-		cap = ((px->conf.args.ctx == ARGC_HRQ)
-		       ? ((px->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR)
-		       : ((px->cap & PR_CAP_BE) ? SMP_VAL_BE_HRS_HDR : SMP_VAL_FE_HRS_HDR));
+	else {
+		if (px->cap & PR_CAP_FE)
+			cap |= ((px->conf.args.ctx == ARGC_HRQ) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_FE_HRS_HDR);
+		if (px->cap & PR_CAP_BE)
+			cap |= ((px->conf.args.ctx == ARGC_HRQ) ? SMP_VAL_BE_HRS_HDR : SMP_VAL_BE_HRS_HDR);
+	}
 
 	cur_arg = *orig_arg;
 	while (*args[cur_arg]) {

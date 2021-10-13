@@ -3201,15 +3201,18 @@ out_uri_auth_compat:
 		}
 
 		if (curproxy->conf.uniqueid_format_string) {
+			int where = 0;
+
 			curproxy->conf.args.ctx = ARGC_UIF;
 			curproxy->conf.args.file = curproxy->conf.uif_file;
 			curproxy->conf.args.line = curproxy->conf.uif_line;
 			err = NULL;
+			if (curproxy->cap & PR_CAP_FE)
+				where |= SMP_VAL_FE_HRQ_HDR;
+			if (curproxy->cap & PR_CAP_BE)
+				where |= SMP_VAL_BE_HRQ_HDR;
 			if (!parse_logformat_string(curproxy->conf.uniqueid_format_string, curproxy, &curproxy->format_unique_id,
-			                            LOG_OPT_HTTP|LOG_OPT_MERGE_SPACES,
-			                            (curproxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR
-			                                                        : SMP_VAL_BE_HRQ_HDR,
-			                            &err)) {
+			                            LOG_OPT_HTTP|LOG_OPT_MERGE_SPACES, where, &err)) {
 				ha_alert("Parsing [%s:%d]: failed to parse unique-id : %s.\n",
 					 curproxy->conf.uif_file, curproxy->conf.uif_line, err);
 				free(err);

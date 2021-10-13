@@ -777,7 +777,7 @@ static enum act_parse_ret parse_store(const char **args, int *arg, struct proxy 
 	const char *var_name = args[*arg-1];
 	int var_len;
 	const char *kw_name;
-	int flags, set_var = 0; /* 0=unset-var, 1=set-var, 2=set-var-fmt */
+	int flags = 0, set_var = 0; /* 0=unset-var, 1=set-var, 2=set-var-fmt */
 	struct sample empty_smp = { };
 
 	if (strncmp(var_name, "set-var-fmt", 11) == 0) {
@@ -832,19 +832,31 @@ static enum act_parse_ret parse_store(const char **args, int *arg, struct proxy 
 		px->conf.args.ctx = ARGC_TSE;
 		break;
 	case ACT_F_TCP_REQ_CNT:
-		flags = (px->cap & PR_CAP_FE) ? SMP_VAL_FE_REQ_CNT : SMP_VAL_BE_REQ_CNT;
+		if (px->cap & PR_CAP_FE)
+			flags |= SMP_VAL_FE_REQ_CNT;
+		if (px->cap & PR_CAP_BE)
+			flags |= SMP_VAL_BE_REQ_CNT;
 		px->conf.args.ctx = ARGC_TRQ;
 		break;
 	case ACT_F_TCP_RES_CNT:
-		flags = (px->cap & PR_CAP_FE) ? SMP_VAL_FE_RES_CNT : SMP_VAL_BE_RES_CNT;
+		if (px->cap & PR_CAP_FE)
+			flags |= SMP_VAL_FE_RES_CNT;
+		if (px->cap & PR_CAP_BE)
+			flags |= SMP_VAL_BE_RES_CNT;
 		px->conf.args.ctx = ARGC_TRS;
 		break;
 	case ACT_F_HTTP_REQ:
-		flags = (px->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR;
+		if (px->cap & PR_CAP_FE)
+			flags |= SMP_VAL_FE_HRQ_HDR;
+		if (px->cap & PR_CAP_BE)
+			flags |= SMP_VAL_BE_HRQ_HDR;
 		px->conf.args.ctx = ARGC_HRQ;
 		break;
 	case ACT_F_HTTP_RES:
-		flags = (px->cap & PR_CAP_BE) ? SMP_VAL_BE_HRS_HDR : SMP_VAL_FE_HRS_HDR;
+		if (px->cap & PR_CAP_FE)
+			flags |= SMP_VAL_FE_HRS_HDR;
+		if (px->cap & PR_CAP_BE)
+			flags |= SMP_VAL_BE_HRS_HDR;
 		px->conf.args.ctx =  ARGC_HRS;
 		break;
 	case ACT_F_TCP_CHK:
