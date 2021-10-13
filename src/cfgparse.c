@@ -2514,6 +2514,28 @@ int check_config_validity()
 			continue;
 		}
 
+		/* The current proxy is referencing a default proxy. We must
+		 * finalize its config, but only once. If the default proxy is
+		 * ready (PR_FL_READY) it means it was already fully configured.
+		 */
+		if (curproxy->defpx) {
+			if (!(curproxy->defpx->flags & PR_FL_READY)) {
+				err = NULL;
+				i = smp_resolve_args(curproxy->defpx, &err);
+				cfgerr += i;
+				if (i) {
+					indent_msg(&err, 8);
+					ha_alert("%s%s\n", i > 1 ? "multiple argument resolution errors:" : "", err);
+					ha_free(&err);
+				}
+				else
+					cfgerr += acl_find_targets(curproxy->defpx);
+
+				/* default proxy is now ready. Set the right FE/BE capabilities */
+				curproxy->defpx->flags |= PR_FL_READY;
+			}
+		}
+
 		/* check and reduce the bind-proc of each listener */
 		list_for_each_entry(bind_conf, &curproxy->conf.bind, by_fe) {
 			unsigned long mask;
