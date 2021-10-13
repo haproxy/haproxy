@@ -1498,14 +1498,18 @@ static void qc_detach(struct conn_stream *cs)
 	struct qcc *qcc = qcs->qcc;
 
 	TRACE_ENTER(QC_EV_STRM_END, qcs ? qcs->qcc->conn : NULL, qcs);
-	if (b_data(&qcs->tx.buf) || b_data(&qcs->tx.xprt_buf)) {
+	if (b_data(&qcs->tx.buf) ||
+	    (b_data(&qcs->tx.xprt_buf) && !(qcc->flags & QC_CF_CC_RECV))) {
 		qcs->flags |= QC_SF_DETACH;
 		goto out;
 	}
 
 	qcs_destroy(qcs);
-	if (qcc_is_dead(qcc))
+	if (qcc_is_dead(qcc)) {
 		qc_release(qcc);
+		TRACE_LEAVE(QC_EV_STRM_END, NULL);
+		return;
+	}
 
  out:
 	TRACE_LEAVE(QC_EV_STRM_END, qcs ? qcs->qcc->conn : NULL);

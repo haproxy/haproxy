@@ -77,6 +77,8 @@
 /* other flags */
 #define QC_CF_IS_BACK           0x00008000  // this is an outgoing connection
 
+#define QC_CF_CC_RECV           0x00010000  // CONNECTION_CLOSE received
+
 extern struct pool_head *pool_head_qcs;
 
 /* Stream types */
