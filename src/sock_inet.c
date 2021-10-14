@@ -362,7 +362,7 @@ int sock_inet_bind_receiver(struct receiver *rx, char **errmsg)
 		if (setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE,
 		               rx->settings->interface,
 		               strlen(rx->settings->interface) + 1) == -1) {
-			memprintf(errmsg, "cannot bind receiver to device (%s)", strerror(errno));
+			memprintf(errmsg, "cannot bind receiver to device '%s' (%s)", rx->settings->interface, strerror(errno));
 			err |= ERR_WARN;
 		}
 	}
