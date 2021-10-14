@@ -2724,16 +2724,15 @@ INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);
  * Returns -1 in case of any allocation failure, 0 if not.
  * On error, a global failure counter is also incremented.
  */
-static int action_prepare_for_resolution(struct stream *stream, const char *hostname)
+static int action_prepare_for_resolution(struct stream *stream, const char *hostname, int hostname_len)
 {
 	char *hostname_dn;
-	int   hostname_len, hostname_dn_len;
+	int   hostname_dn_len;
 	struct buffer *tmp = get_trash_chunk();
 
 	if (!hostname)
 		return 0;
 
-	hostname_len    = strlen(hostname);
 	hostname_dn     = tmp->area;
 	hostname_dn_len = resolv_str_to_dn_label(hostname, hostname_len,
 	                                         hostname_dn, tmp->size);
@@ -2763,7 +2762,6 @@ enum act_return resolv_action_do_resolve(struct act_rule *rule, struct proxy *px
 {
 	struct resolv_resolution *resolution;
 	struct sample *smp;
-	char *fqdn;
 	struct resolv_requester *req;
 	struct resolvers  *resolvers;
 	struct resolv_resolution *res;
@@ -2824,8 +2822,7 @@ enum act_return resolv_action_do_resolve(struct act_rule *rule, struct proxy *px
 	if (smp == NULL)
 		goto end;
 
-	fqdn = smp->data.u.str.area;
-	if (action_prepare_for_resolution(s, fqdn) == -1)
+	if (action_prepare_for_resolution(s, smp->data.u.str.area, smp->data.u.str.data) == -1)
 		goto end; /* on error, ignore the action */
 
 	s->resolv_ctx.parent = rule;
