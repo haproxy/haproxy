@@ -1,4 +1,4 @@
-#REGTEST_TYPE=broken
+#REGTEST_TYPE=devel
 
 # This reg-test uses the "set ssl cert" command to update a multi-certificate
 # bundle over the CLI.
@@ -12,11 +12,12 @@
 #
 # If this test does not work anymore:
 # - Check that you have socat
-# - Check that you have at least OpenSSL 1.1.0
+# - Check that you have at least OpenSSL 1.1.1
 
 varnishtest "Test the 'set ssl cert' feature of the CLI with bundles"
-#REQUIRE_VERSION=2.3
-#REQUIRE_OPTIONS=OPENSSL
+# could work with haproxy 2.3 but the -cc is not available
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.5-dev9)'"
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL) && ssllib_name_startswith(OpenSSL) && openssl_version_atleast(1.1.1)'"
 feature cmd "command -v socat"
 feature ignore_unknown_macro
 
