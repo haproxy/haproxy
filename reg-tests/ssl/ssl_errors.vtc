@@ -63,24 +63,24 @@ syslog Slg_cust_fmt -level info {
 
 syslog Slg_https_fmt -level info {
     recv
-    expect ~ ".*https_logfmt_ssl_lst~ https_logfmt_ssl_lst/s1.*0/0000000000000000/0/0 TLSv1.2/AES256-GCM-SHA384"
+    expect ~ ".*https_logfmt_ssl_lst~ https_logfmt_ssl_lst/s1.*0/0000000000000000/0/0/.? TLSv1.2/AES256-GCM-SHA384"
 
     barrier b1 sync
 } -start
 
 syslog Slg_https_fmt_err -level info {
     recv
-    expect ~ "ERROR.*https_logfmt_ssl_lst~ https_logfmt_ssl_lst/<NOSRV>.*30/0000000000000086/0/2 TLSv1.2/\\(NONE\\)"
+    expect ~ "ERROR.*https_logfmt_ssl_lst~ https_logfmt_ssl_lst/<NOSRV>.*30/0000000000000086/0/2/.? TLSv1.2/\\(NONE\\)"
 
     barrier b1 sync
 
     recv
-    expect ~ "ERROR.*https_logfmt_ssl_lst~ https_logfmt_ssl_lst/<NOSRV>.*31/0000000000000086/20/0 TLSv1.2/\\(NONE\\)"
+    expect ~ "ERROR.*https_logfmt_ssl_lst~ https_logfmt_ssl_lst/<NOSRV>.*31/0000000000000086/20/0/.? TLSv1.2/\\(NONE\\)"
 
     barrier b1 sync
 
     recv
-    expect ~ "ERROR.*https_logfmt_ssl_lst~ https_logfmt_ssl_lst/<NOSRV>.*34/00000000000000C1/0/0 TLSv1.2/\\(NONE\\)"
+    expect ~ "ERROR.*https_logfmt_ssl_lst~ https_logfmt_ssl_lst/<NOSRV>.*34/00000000000000C1/0/0/.? TLSv1.2/\\(NONE\\)"
 } -start
 
 syslog Slg_logconnerror -level info {
@@ -214,7 +214,7 @@ haproxy h1 -conf {
         option log-separate-errors
         mode http
         option httpslog
-        error-log-format "ERROR %ci:%cp [%tr] %ft %b/%s %TR/%Tw/%Tc/%Tr/%Ta %ST %B %CC %CS %tsc %ac/%fc/%bc/%sc/%rc %sq/%bq %hr %hs %{+Q}r %[fc_conn_err]/%[ssl_fc_err,and(proc.ssl_error_mask),hex]/%[ssl_c_err]/%[ssl_c_ca_err] %sslv/%sslc"
+        error-log-format "ERROR %ci:%cp [%tr] %ft %b/%s %TR/%Tw/%Tc/%Tr/%Ta %ST %B %CC %CS %tsc %ac/%fc/%bc/%sc/%rc %sq/%bq %hr %hs %{+Q}r %[fc_conn_err]/%[ssl_fc_err,and(proc.ssl_error_mask),hex]/%[ssl_c_err]/%[ssl_c_ca_err]/%[ssl_fc_is_resumed] %sslv/%sslc"
         bind "${tmpdir}/https_logfmt_ssl.sock" ssl crt ${testdir}/set_cafile_server.pem ca-verify-file ${testdir}/set_cafile_rootCA.crt ca-file ${testdir}/set_cafile_interCA1.crt verify required ciphers "kRSA"
         server s1 ${s1_addr}:${s1_port}
 

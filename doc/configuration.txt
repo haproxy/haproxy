@@ -21145,7 +21145,7 @@ HTTP ones, refer to the HTTP section.
     >>> Feb  6 12:14:14 localhost \
           haproxy[14389]: 10.0.1.2:33317 [06/Feb/2009:12:14:14.655] https-in \
           static/srv1 10/0/30/69/109 200 2750 - - ---- 1/1/1/1/0 0/0 {1wt.eu} \
-          {} "GET /index.html HTTP/1.1" 0/0/0/0 TLSv1.3/TLS_AES_256_GCM_SHA384
+          {} "GET /index.html HTTP/1.1" 0/0/0/0/0 TLSv1.3/TLS_AES_256_GCM_SHA384
 
   Field   Format                                  Extract from the example above
       1   process_name '[' pid ']:'                              haproxy[14389]:
@@ -21164,7 +21164,8 @@ HTTP ones, refer to the HTTP section.
      14   '{' captured_request_headers* '}'                     {haproxy.1wt.eu}
      15   '{' captured_response_headers* '}'                                  {}
      16   '"' http_request '"'                        "GET /index.html HTTP/1.1"
-     17   fc_conn_err '/' ssl_fc_err '/' ssl_c_err '/' ssl_c_ca_err      0/0/0/0
+     17   fc_conn_err '/' ssl_fc_err '/' ssl_c_err
+          '/' ssl_c_ca_err '/' ssl_fc_is_resumed                       0/0/0/0/0
      18   ssl_version '/' ssl_ciphers             TLSv1.3/TLS_AES_256_GCM_SHA384
 
 Detailed fields description :
@@ -21187,6 +21188,10 @@ Detailed fields description :
     process.  The handshake might be successful while having a non-null
     verification error code if it is an ignored one. See the "ssl_c_ca_err"
     sample fetch and the "ca-ignore-err" option.
+
+  - "ssl_fc_is_resumed" is true if the incoming TLS session was resumed with
+    the stateful cache or a stateless ticket. Don't forgot that a TLS session
+    can be shared by multiple requests.
 
   - "ssl_version" is the SSL version of the frontend.
 
@@ -21251,8 +21256,8 @@ the default HTTPS format is defined this way :
 
     log-format "%ci:%cp [%tr] %ft %b/%s %TR/%Tw/%Tc/%Tr/%Ta %ST %B %CC \
                %CS %tsc %ac/%fc/%bc/%sc/%rc %sq/%bq %hr %hs %{+Q}r \
-               %[fc_conn_err]/%[ssl_fc_err,hex]/%[ssl_c_err]/%[ssl_c_ca_err] \
-               %sslv/%sslc"
+               %[fc_conn_err]/%[ssl_fc_err,hex]/%[ssl_c_err]/\
+               %[ssl_c_ca_err]/%[ssl_fc_is_resumed] %sslv/%sslc"
 
 and the default TCP format is defined this way :
 
