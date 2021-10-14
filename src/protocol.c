@@ -81,10 +81,12 @@ int protocol_bind_all(int verbose)
 				struct proxy *px = listener->bind_conf->frontend;
 
 				if (lerr & ERR_ALERT)
-					ha_alert("Starting %s %s: %s\n",
+					ha_alert("Binding [%s:%d] for %s %s: %s\n",
+					         listener->bind_conf->file, listener->bind_conf->line,
 						 proxy_type_str(px), px->id, errmsg);
 				else if (lerr & ERR_WARN)
-					ha_warning("Starting %s %s: %s\n",
+					ha_warning("Binding [%s:%d] for %s %s: %s\n",
+					           listener->bind_conf->file, listener->bind_conf->line,
 						   proxy_type_str(px), px->id, errmsg);
 				ha_free(&errmsg);
 			}
@@ -103,10 +105,12 @@ int protocol_bind_all(int verbose)
 				struct proxy *px = listener->bind_conf->frontend;
 
 				if (lerr & ERR_ALERT)
-					ha_alert("Starting %s %s: %s\n",
+					ha_alert("Starting [%s:%d] for %s %s: %s\n",
+					         listener->bind_conf->file, listener->bind_conf->line,
 						 proxy_type_str(px), px->id, msg);
 				else if (lerr & ERR_WARN)
-					ha_warning("Starting %s %s: %s\n",
+					ha_warning("Starting [%s:%d] for %s %s: %s\n",
+					           listener->bind_conf->file, listener->bind_conf->line,
 						   proxy_type_str(px), px->id, msg);
 			}
 			if (lerr & ERR_ABORT)
