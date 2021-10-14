@@ -12851,7 +12851,7 @@ tcp-request session <action> [{if | unless} <condition>]
   it is possible to evaluate some conditions to decide whether this session
   must be accepted or dropped or have its counters tracked. Those conditions
   cannot make use of any data contents because no buffers are allocated yet and
-  the processing cannot wait at this stage. The main use case it to copy some
+  the processing cannot wait at this stage. The main use case is to copy some
   early information into variables (since variables are accessible in the
   session), or to keep track of some information collected after the handshake,
   such as SSL-level elements (SNI, ciphers, client cert's CN) or information
