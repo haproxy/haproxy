@@ -2013,7 +2013,7 @@ int srv_prepare_for_resolution(struct server *srv, const char *hostname)
 
 	hostname_len    = strlen(hostname);
 	hostname_dn     = trash.area;
-	hostname_dn_len = resolv_str_to_dn_label(hostname, hostname_len + 1,
+	hostname_dn_len = resolv_str_to_dn_label(hostname, hostname_len,
 	                                         hostname_dn, trash.size);
 	if (hostname_dn_len == -1)
 		goto err;
@@ -3710,7 +3710,7 @@ int srv_set_fqdn(struct server *srv, const char *hostname, int resolv_locked)
 	chunk_reset(&trash);
 	hostname_len    = strlen(hostname);
 	hostname_dn     = trash.area;
-	hostname_dn_len = resolv_str_to_dn_label(hostname, hostname_len + 1,
+	hostname_dn_len = resolv_str_to_dn_label(hostname, hostname_len,
 	                                         hostname_dn, trash.size);
 	if (hostname_dn_len == -1)
 		goto err;

@@ -190,7 +190,7 @@ struct resolv_srvrq *new_resolv_srvrq(struct server *srv, char *fqdn)
 	int fqdn_len, hostname_dn_len;
 
 	fqdn_len = strlen(fqdn);
-	hostname_dn_len = resolv_str_to_dn_label(fqdn, fqdn_len + 1, trash.area,
+	hostname_dn_len = resolv_str_to_dn_label(fqdn, fqdn_len, trash.area,
 					      trash.size);
 	if (hostname_dn_len == -1) {
 		ha_alert("%s '%s', server '%s': failed to parse FQDN '%s'\n",
@@ -1651,18 +1651,19 @@ int resolv_dn_label_to_str(const char *dn, int dn_len, char *str, int str_len)
 
 /* Turns a string into domain name label: www.haproxy.org into 3www7haproxy3org
  *
- * <str> must be a null-terminated string. <str_len> must include the
- * terminating null byte. <dn> buffer must be allocated and its size must be
- * passed in <dn_len>.
+ * <str> contains the input string that is <str_len> bytes long (trailing zero
+ * not needed). <dn> buffer must be allocated large enough to contain the
+ * encoded string and a trailing zero, so it must be at least str_len+2, and
+ * this allocated buffer size must be passed in <dn_len>.
  *
- *  In case of error, -1 is returned, otherwise, the number of bytes copied in
+ * In case of error, -1 is returned, otherwise, the number of bytes copied in
  * <dn> (excluding the terminating null byte).
  */
 int resolv_str_to_dn_label(const char *str, int str_len, char *dn, int dn_len)
 {
 	int i, offset;
 
-	if (dn_len < str_len + 1)
+	if (dn_len < str_len + 2)
 		return -1;
 
 	/* First byte of dn will be used to store the length of the first
@@ -1675,7 +1676,7 @@ int resolv_str_to_dn_label(const char *str, int str_len, char *dn, int dn_len)
 				return -1;
 
 			/* ignore trailing dot */
-			if (i + 2 == str_len) {
+			if (i + 1 == str_len) {
 				i++;
 				break;
 			}
@@ -1686,7 +1687,7 @@ int resolv_str_to_dn_label(const char *str, int str_len, char *dn, int dn_len)
 		}
 		dn[i+1] = str[i];
 	}
-	dn[offset] = (i - offset - 1);
+	dn[offset] = i - offset;
 	dn[i] = '\0';
 	return i;
 }
@@ -2734,7 +2735,7 @@ static int action_prepare_for_resolution(struct stream *stream, const char *host
 
 	hostname_len    = strlen(hostname);
 	hostname_dn     = tmp->area;
-	hostname_dn_len = resolv_str_to_dn_label(hostname, hostname_len + 1,
+	hostname_dn_len = resolv_str_to_dn_label(hostname, hostname_len,
 	                                         hostname_dn, tmp->size);
 	if (hostname_dn_len == -1)
 		goto err;
