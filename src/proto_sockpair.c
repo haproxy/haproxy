@@ -162,7 +162,7 @@ int sockpair_bind_receiver(struct receiver *rx, char **errmsg)
 
  bind_return:
 	if (errmsg && *errmsg)
-		memprintf(errmsg, "%s [fd %d]", *errmsg, rx->fd);
+		memprintf(errmsg, "%s for [fd %d]", *errmsg, rx->fd);
 
 	return err;
 

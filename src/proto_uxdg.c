@@ -103,7 +103,7 @@ int uxdg_bind_listener(struct listener *listener, char *errmsg, int errlen)
  uxdg_return:
 	if (msg && errlen) {
 		const char *path = ((struct sockaddr_un *)&listener->rx.addr)->sun_path;
-                snprintf(errmsg, errlen, "%s [%s]", msg, path);
+                snprintf(errmsg, errlen, "%s for [%s]", msg, path);
 	}
 	return err;
 }

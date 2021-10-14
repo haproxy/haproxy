@@ -402,7 +402,7 @@ int sock_inet_bind_receiver(struct receiver *rx, char **errmsg)
 		char pn[INET6_ADDRSTRLEN];
 
 		addr_to_str(&addr_inet, pn, sizeof(pn));
-		memprintf(errmsg, "%s [%s:%d]", *errmsg, pn, get_host_port(&addr_inet));
+		memprintf(errmsg, "%s for [%s:%d]", *errmsg, pn, get_host_port(&addr_inet));
 	}
 	return err;
 

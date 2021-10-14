@@ -734,7 +734,7 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 		char pn[INET6_ADDRSTRLEN];
 
 		addr_to_str(&listener->rx.addr, pn, sizeof(pn));
-		snprintf(errmsg, errlen, "[%s:%d]: %s", pn, get_host_port(&listener->rx.addr), msg->area);
+		snprintf(errmsg, errlen, "%s for [%s:%d]", msg->area, pn, get_host_port(&listener->rx.addr));
 	}
 	free_trash_chunk(msg);
 	msg = NULL;

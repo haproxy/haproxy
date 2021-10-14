@@ -607,7 +607,7 @@ static int quic_bind_listener(struct listener *listener, char *errmsg, int errle
 		char pn[INET6_ADDRSTRLEN];
 
 		addr_to_str(&listener->rx.addr, pn, sizeof(pn));
-		snprintf(errmsg, errlen, "%s [%s:%d]", msg, pn, get_host_port(&listener->rx.addr));
+		snprintf(errmsg, errlen, "%s for [%s:%d]", msg, pn, get_host_port(&listener->rx.addr));
 	}
 	return err;
 }
