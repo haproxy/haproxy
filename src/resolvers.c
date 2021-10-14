@@ -778,10 +778,10 @@ srv_found:
 
 				if (!srv->hostname_dn) {
 					const char *msg = NULL;
-					char hostname[DNS_MAX_NAME_SIZE];
+					char hostname[DNS_MAX_NAME_SIZE+1];
 
 					if (resolv_dn_label_to_str(item->target, item->data_len+1,
-								hostname, DNS_MAX_NAME_SIZE) == -1) {
+					                           hostname, sizeof(hostname)) == -1) {
 						HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 						continue;
 					}
