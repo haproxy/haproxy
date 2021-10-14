@@ -251,7 +251,7 @@ struct resolv_answer_item *find_srvrq_answer_record(const struct resolv_requeste
 	/* search an ANSWER record whose target points to the server's hostname and whose port is
 	 * the same as server's svc_port */
 	list_for_each_entry(item, &res->response.answer_list, list) {
-		if (resolv_hostname_cmp(srv->hostname_dn, item->target, srv->hostname_dn_len) == 0 &&
+		if (resolv_hostname_cmp(srv->hostname_dn, item->data.target, srv->hostname_dn_len) == 0 &&
 		    (srv->svc_port == item->port))
 			return item;
 	}
@@ -692,8 +692,8 @@ static void resolv_check_response(struct resolv_resolution *res)
 				srv = NULL;
 
 				/* convert the key to lookup in lower case */
-				for (i = 0 ; item->target[i] ; i++)
-					target[i] = tolower(item->target[i]);
+				for (i = 0 ; item->data.target[i] ; i++)
+					target[i] = tolower(item->data.target[i]);
 				target[i] = 0;
 
 				node = ebis_lookup(&srvrq->named_servers, target);
@@ -724,7 +724,7 @@ static void resolv_check_response(struct resolv_resolution *res)
 						HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
 
 						if ((item->data_len != srv->hostname_dn_len)
-						    || resolv_hostname_cmp(srv->hostname_dn, item->target, item->data_len)) {
+						    || resolv_hostname_cmp(srv->hostname_dn, item->data.target, item->data_len)) {
 							HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 							break;
 						}
@@ -761,10 +761,10 @@ srv_found:
 
 					switch (item->ar_item->type) {
 						case DNS_RTYPE_A:
-							srv_update_addr(srv, &item->ar_item->address.in4.sin_addr, AF_INET, "DNS additional record");
+							srv_update_addr(srv, &item->ar_item->data.in4.sin_addr, AF_INET, "DNS additional record");
 						break;
 						case DNS_RTYPE_AAAA:
-							srv_update_addr(srv, &item->ar_item->address.in6.sin6_addr, AF_INET6, "DNS additional record");
+							srv_update_addr(srv, &item->ar_item->data.in6.sin6_addr, AF_INET6, "DNS additional record");
 						break;
 					}
 
@@ -780,7 +780,7 @@ srv_found:
 					const char *msg = NULL;
 					char hostname[DNS_MAX_NAME_SIZE+1];
 
-					if (resolv_dn_label_to_str(item->target, item->data_len,
+					if (resolv_dn_label_to_str(item->data.target, item->data_len,
 					                           hostname, sizeof(hostname)) == -1) {
 						HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 						continue;
@@ -1069,8 +1069,8 @@ static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufe
 				if (answer_record->data_len != 4)
 					goto invalid_resp;
 
-				answer_record->address.in4.sin_family = AF_INET;
-				memcpy(&answer_record->address.in4.sin_addr, reader, answer_record->data_len);
+				answer_record->data.in4.sin_family = AF_INET;
+				memcpy(&answer_record->data.in4.sin_addr, reader, answer_record->data_len);
 				break;
 
 			case DNS_RTYPE_CNAME:
@@ -1092,9 +1092,9 @@ static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufe
 				if (len == 0)
 					goto invalid_resp;
 
-				memcpy(answer_record->target, tmpname, len);
-				answer_record->target[len] = 0;
-				previous_dname = answer_record->target;
+				memcpy(answer_record->data.target, tmpname, len);
+				answer_record->data.target[len] = 0;
+				previous_dname = answer_record->data.target;
 				break;
 
 
@@ -1120,8 +1120,8 @@ static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufe
 					goto invalid_resp;
 
 				answer_record->data_len = len;
-				memcpy(answer_record->target, tmpname, len);
-				answer_record->target[len] = 0;
+				memcpy(answer_record->data.target, tmpname, len);
+				answer_record->data.target[len] = 0;
 				if (answer_record->ar_item != NULL) {
 					pool_free(resolv_answer_item_pool, answer_record->ar_item);
 					answer_record->ar_item = NULL;
@@ -1133,8 +1133,8 @@ static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufe
 				if (answer_record->data_len != 16)
 					goto invalid_resp;
 
-				answer_record->address.in6.sin6_family = AF_INET6;
-				memcpy(&answer_record->address.in6.sin6_addr, reader, answer_record->data_len);
+				answer_record->data.in6.sin6_family = AF_INET6;
+				memcpy(&answer_record->data.in6.sin6_addr, reader, answer_record->data_len);
 				break;
 
 		} /* switch (record type) */
@@ -1157,22 +1157,22 @@ static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufe
 
 			switch(tmp_record->type) {
 				case DNS_RTYPE_A:
-					if (!memcmp(&answer_record->address.in4.sin_addr,
-						    &tmp_record->address.in4.sin_addr,
-						    sizeof(answer_record->address.in4.sin_addr)))
+					if (!memcmp(&answer_record->data.in4.sin_addr,
+						    &tmp_record->data.in4.sin_addr,
+						    sizeof(answer_record->data.in4.sin_addr)))
 						found = 1;
 					break;
 
 				case DNS_RTYPE_AAAA:
-					if (!memcmp(&answer_record->address.in6.sin6_addr,
-						    &tmp_record->address.in6.sin6_addr,
-						    sizeof(answer_record->address.in6.sin6_addr)))
+					if (!memcmp(&answer_record->data.in6.sin6_addr,
+						    &tmp_record->data.in6.sin6_addr,
+						    sizeof(answer_record->data.in6.sin6_addr)))
 						found = 1;
 					break;
 
 			case DNS_RTYPE_SRV:
                                 if (answer_record->data_len == tmp_record->data_len &&
-				    !resolv_hostname_cmp(answer_record->target, tmp_record->target, answer_record->data_len) &&
+				    !resolv_hostname_cmp(answer_record->data.target, tmp_record->data.target, answer_record->data_len) &&
 				    answer_record->port == tmp_record->port) {
 					tmp_record->weight = answer_record->weight;
                                         found = 1;
@@ -1303,8 +1303,8 @@ static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufe
 				if (answer_record->data_len != 4)
 					goto invalid_resp;
 
-				answer_record->address.in4.sin_family = AF_INET;
-				memcpy(&answer_record->address.in4.sin_addr, reader, answer_record->data_len);
+				answer_record->data.in4.sin_family = AF_INET;
+				memcpy(&answer_record->data.in4.sin_addr, reader, answer_record->data_len);
 				break;
 
 			case DNS_RTYPE_AAAA:
@@ -1312,8 +1312,8 @@ static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufe
 				if (answer_record->data_len != 16)
 					goto invalid_resp;
 
-				answer_record->address.in6.sin6_family = AF_INET6;
-				memcpy(&answer_record->address.in6.sin6_addr, reader, answer_record->data_len);
+				answer_record->data.in6.sin6_family = AF_INET6;
+				memcpy(&answer_record->data.in6.sin6_addr, reader, answer_record->data_len);
 				break;
 
 			default:
@@ -1342,21 +1342,21 @@ static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufe
 			ar_item = tmp_record->ar_item;
 			if (ar_item->type != answer_record->type || ar_item->last_seen == now_ms ||
 			    len != tmp_record->data_len ||
-			    resolv_hostname_cmp(answer_record->name, tmp_record->target, tmp_record->data_len))
+			    resolv_hostname_cmp(answer_record->name, tmp_record->data.target, tmp_record->data_len))
 				continue;
 
 			switch(ar_item->type) {
 				case DNS_RTYPE_A:
-					if (!memcmp(&answer_record->address.in4.sin_addr,
-						    &ar_item->address.in4.sin_addr,
-						    sizeof(answer_record->address.in4.sin_addr)))
+					if (!memcmp(&answer_record->data.in4.sin_addr,
+						    &ar_item->data.in4.sin_addr,
+						    sizeof(answer_record->data.in4.sin_addr)))
 						found = 1;
 					break;
 
 				case DNS_RTYPE_AAAA:
-					if (!memcmp(&answer_record->address.in6.sin6_addr,
-						    &ar_item->address.in6.sin6_addr,
-						    sizeof(answer_record->address.in6.sin6_addr)))
+					if (!memcmp(&answer_record->data.in6.sin6_addr,
+						    &ar_item->data.in6.sin6_addr,
+						    sizeof(answer_record->data.in6.sin6_addr)))
 						found = 1;
 					break;
 
@@ -1381,7 +1381,7 @@ static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufe
 			list_for_each_entry(tmp_record, &r_res->answer_list, list) {
 				if (tmp_record->type == DNS_RTYPE_SRV &&
 				    tmp_record->ar_item == NULL &&
-				    !resolv_hostname_cmp(tmp_record->target, answer_record->name, tmp_record->data_len)) {
+				    !resolv_hostname_cmp(tmp_record->data.target, answer_record->name, tmp_record->data_len)) {
 					/* Always use the received additional record to refresh info */
 					if (tmp_record->ar_item)
 						pool_free(resolv_answer_item_pool, tmp_record->ar_item);
@@ -1466,11 +1466,11 @@ int resolv_get_ip_from_response(struct resolv_response *r_res,
 
 		if (record->type == DNS_RTYPE_A) {
 			ip_type = AF_INET;
-			ip = &record->address.in4.sin_addr;
+			ip = &record->data.in4.sin_addr;
 		}
 		else if (record->type == DNS_RTYPE_AAAA) {
 			ip_type = AF_INET6;
-			ip = &record->address.in6.sin6_addr;
+			ip = &record->data.in6.sin6_addr;
 		}
 		else
 			continue;

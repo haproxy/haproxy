@@ -110,12 +110,12 @@ struct resolv_answer_item {
 	int16_t         priority;                    /* SRV type priority */
 	uint16_t        weight;                      /* SRV type weight */
 	uint16_t        port;                        /* SRV type port */
-	uint16_t        data_len;                    /* number of bytes in target below */
+	uint16_t        data_len;                    /* number of bytes in the <data> field below */
 	union {
 		struct sockaddr_in in4;              /* IPv4 address for RTYPE_A */
 		struct sockaddr_in6 in6;             /* IPv6 address for RTYPE_AAAA */
-	} address;
-	char            target[DNS_MAX_NAME_SIZE+1]; /* Response data: SRV or CNAME type target */
+		char target[DNS_MAX_NAME_SIZE+1];    /* Response data: SRV or CNAME type target */
+	} data;
 	unsigned int    last_seen;                   /* When was the answer was last seen */
 	struct resolv_answer_item *ar_item;          /* pointer to a RRset from the additional section, if exists */
 	struct list	attached_servers;            /* attached server head */
