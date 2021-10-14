@@ -761,10 +761,10 @@ srv_found:
 
 					switch (item->ar_item->type) {
 						case DNS_RTYPE_A:
-							srv_update_addr(srv, &(((struct sockaddr_in*)&item->ar_item->address)->sin_addr), AF_INET, "DNS additional record");
+							srv_update_addr(srv, &item->ar_item->address.in4.sin_addr, AF_INET, "DNS additional record");
 						break;
 						case DNS_RTYPE_AAAA:
-							srv_update_addr(srv, &(((struct sockaddr_in6*)&item->ar_item->address)->sin6_addr), AF_INET6, "DNS additional record");
+							srv_update_addr(srv, &item->ar_item->address.in6.sin6_addr, AF_INET6, "DNS additional record");
 						break;
 					}
 
@@ -1069,9 +1069,8 @@ static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufe
 				if (answer_record->data_len != 4)
 					goto invalid_resp;
 
-				answer_record->address.sa_family = AF_INET;
-				memcpy(&(((struct sockaddr_in *)&answer_record->address)->sin_addr),
-						reader, answer_record->data_len);
+				answer_record->address.in4.sin_family = AF_INET;
+				memcpy(&answer_record->address.in4.sin_addr, reader, answer_record->data_len);
 				break;
 
 			case DNS_RTYPE_CNAME:
@@ -1134,9 +1133,8 @@ static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufe
 				if (answer_record->data_len != 16)
 					goto invalid_resp;
 
-				answer_record->address.sa_family = AF_INET6;
-				memcpy(&(((struct sockaddr_in6 *)&answer_record->address)->sin6_addr),
-						reader, answer_record->data_len);
+				answer_record->address.in6.sin6_family = AF_INET6;
+				memcpy(&answer_record->address.in6.sin6_addr, reader, answer_record->data_len);
 				break;
 
 		} /* switch (record type) */
@@ -1159,16 +1157,16 @@ static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufe
 
 			switch(tmp_record->type) {
 				case DNS_RTYPE_A:
-					if (!memcmp(&((struct sockaddr_in *)&answer_record->address)->sin_addr,
-						    &((struct sockaddr_in *)&tmp_record->address)->sin_addr,
-						    sizeof(in_addr_t)))
+					if (!memcmp(&answer_record->address.in4.sin_addr,
+						    &tmp_record->address.in4.sin_addr,
+						    sizeof(answer_record->address.in4.sin_addr)))
 						found = 1;
 					break;
 
 				case DNS_RTYPE_AAAA:
-					if (!memcmp(&((struct sockaddr_in6 *)&answer_record->address)->sin6_addr,
-						    &((struct sockaddr_in6 *)&tmp_record->address)->sin6_addr,
-						    sizeof(struct in6_addr)))
+					if (!memcmp(&answer_record->address.in6.sin6_addr,
+						    &tmp_record->address.in6.sin6_addr,
+						    sizeof(answer_record->address.in6.sin6_addr)))
 						found = 1;
 					break;
 
@@ -1305,9 +1303,8 @@ static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufe
 				if (answer_record->data_len != 4)
 					goto invalid_resp;
 
-				answer_record->address.sa_family = AF_INET;
-				memcpy(&(((struct sockaddr_in *)&answer_record->address)->sin_addr),
-						reader, answer_record->data_len);
+				answer_record->address.in4.sin_family = AF_INET;
+				memcpy(&answer_record->address.in4.sin_addr, reader, answer_record->data_len);
 				break;
 
 			case DNS_RTYPE_AAAA:
@@ -1315,9 +1312,8 @@ static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufe
 				if (answer_record->data_len != 16)
 					goto invalid_resp;
 
-				answer_record->address.sa_family = AF_INET6;
-				memcpy(&(((struct sockaddr_in6 *)&answer_record->address)->sin6_addr),
-						reader, answer_record->data_len);
+				answer_record->address.in6.sin6_family = AF_INET6;
+				memcpy(&answer_record->address.in6.sin6_addr, reader, answer_record->data_len);
 				break;
 
 			default:
@@ -1351,16 +1347,16 @@ static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufe
 
 			switch(ar_item->type) {
 				case DNS_RTYPE_A:
-					if (!memcmp(&((struct sockaddr_in *)&answer_record->address)->sin_addr,
-						    &((struct sockaddr_in *)&ar_item->address)->sin_addr,
-						    sizeof(in_addr_t)))
+					if (!memcmp(&answer_record->address.in4.sin_addr,
+						    &ar_item->address.in4.sin_addr,
+						    sizeof(answer_record->address.in4.sin_addr)))
 						found = 1;
 					break;
 
 				case DNS_RTYPE_AAAA:
-					if (!memcmp(&((struct sockaddr_in6 *)&answer_record->address)->sin6_addr,
-						    &((struct sockaddr_in6 *)&ar_item->address)->sin6_addr,
-						    sizeof(struct in6_addr)))
+					if (!memcmp(&answer_record->address.in6.sin6_addr,
+						    &ar_item->address.in6.sin6_addr,
+						    sizeof(answer_record->address.in6.sin6_addr)))
 						found = 1;
 					break;
 
@@ -1469,12 +1465,12 @@ int resolv_get_ip_from_response(struct resolv_response *r_res,
 		unsigned char ip_type;
 
 		if (record->type == DNS_RTYPE_A) {
-			ip = &(((struct sockaddr_in *)&record->address)->sin_addr);
 			ip_type = AF_INET;
+			ip = &record->address.in4.sin_addr;
 		}
 		else if (record->type == DNS_RTYPE_AAAA) {
 			ip_type = AF_INET6;
-			ip = &(((struct sockaddr_in6 *)&record->address)->sin6_addr);
+			ip = &record->address.in6.sin6_addr;
 		}
 		else
 			continue;
