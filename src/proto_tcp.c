@@ -621,7 +621,7 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	if (listener->maxseg > 0) {
 		if (setsockopt(fd, IPPROTO_TCP, TCP_MAXSEG,
 			       &listener->maxseg, sizeof(listener->maxseg)) == -1) {
-			chunk_appendf(msg, "%scannot set MSS", msg->data ? ", " : "");
+			chunk_appendf(msg, "%scannot set MSS to %d", msg->data ? ", " : "", listener->maxseg);
 			err |= ERR_WARN;
 		}
 	} else {
@@ -639,7 +639,7 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 		if (defaultmss > 0 &&
 		    tmpmaxseg != defaultmss &&
 		    setsockopt(fd, IPPROTO_TCP, TCP_MAXSEG, &defaultmss, sizeof(defaultmss)) == -1) {
-			chunk_appendf(msg, "%scannot set MSS", msg->data ? ", " : "");
+			chunk_appendf(msg, "%scannot set MSS to %d", msg->data ? ", " : "", defaultmss);
 			err |= ERR_WARN;
 		}
 	}
