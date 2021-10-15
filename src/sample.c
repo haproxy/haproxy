@@ -3561,6 +3561,7 @@ static int sample_conv_jwt_member_query(const struct arg *args, struct sample *s
 	unsigned int item_num = member + 1; /* We don't need to tokenize the full token */
 	struct buffer *decoded_header = get_trash_chunk();
 	int retval = 0;
+	int ret;
 
 	jwt_tokenize(&smp->data.u.str, items, &item_num);
 
@@ -3571,12 +3572,12 @@ static int sample_conv_jwt_member_query(const struct arg *args, struct sample *s
 	if (!decoded_header)
 		goto end;
 
-	decoded_header->data = base64urldec(items[member].start, items[member].length,
-					    decoded_header->area, decoded_header->size);
-
-	if (decoded_header->data == (unsigned int)-1)
+	ret = base64urldec(items[member].start, items[member].length,
+	                   decoded_header->area, decoded_header->size);
+	if (ret == -1)
 		goto end;
 
+	decoded_header->data = ret;
 	if (args[0].type != ARGT_STR) {
 		smp->data.u.str = *decoded_header;
 		smp->data.type = SMP_T_STR;
