@@ -2950,7 +2950,7 @@ int http_eval_after_res_rules(struct stream *s)
 	}
 
 	ret = http_res_get_intercept_rule(s->be, &s->be->http_after_res_rules, s);
-	if ((ret == HTTP_RULE_RES_CONT || ret == HTTP_RULE_RES_STOP) && sess->fe != s->be)
+	if (ret == HTTP_RULE_RES_CONT && sess->fe != s->be)
 		ret = http_res_get_intercept_rule(sess->fe, &sess->fe->http_after_res_rules, s);
 
   end:
