@@ -1686,8 +1686,8 @@ int resolv_str_to_dn_label(const char *str, int str_len, char *dn, int dn_len)
 		dn[i+1] = str[i];
 	}
 	dn[offset] = i - offset;
-	dn[i] = '\0';
-	return i;
+	dn[i+1] = '\0';
+	return i+1;
 }
 
 /* Validates host name:
