@@ -16658,13 +16658,15 @@ jwt_payload_query([<json_path>],[<output_type>])
 jwt_verify(<alg>,<key>)
   Performs a signature verification for the JSON Web Token (JWT) given in input
   by using the <alg> algorithm and the <key> parameter, which should either
-  hold a secret or a path to a public certificate. Returns 1 in cae of
+  hold a secret or a path to a public certificate. Returns 1 in case of
   verification success. See below for a full list of the possible return
   values.
+
   For now, only JWS tokens using the Compact Serialization format can be
   processed (three dot-separated base64-url encoded strings). Among the
   accepted algorithms for a JWS (see section 3.1 of RFC7518), the PSXXX ones
   are not managed yet.
+
   If the used algorithm is of the HMAC family, <key> should be the secret used
   in the HMAC signature calculation. Otherwise, <key> should be the path to the
   public certificate that can be used to validate the token's signature. All
@@ -16682,17 +16684,17 @@ jwt_verify(<alg>,<key>)
 
   The possible return values are the following :
 
-  +----+---------------------------------------------------------------------------+
-  | ID | message                                                                   |
-  +----+---------------------------------------------------------------------------+
-  | 0  | "Verification failure"                                                    |
-  | 1  | "Verification sucess"                                                     |
-  | 2  | "Unknown algorithm (not mentioned in RFC7518)"                            |
-  | 3  | "Unmanaged algorithm (PSXXX algorithm family)"                            |
-  | 4  | "Invalid token"                                                           |
-  | 5  | "Out of memory"                                                           |
-  | 6  | "Unknown certificate"                                                     |
-  +----+---------------------------------------------------------------------------+
+  +----+----------------------------------------------------------------------+
+  | ID | message                                                              |
+  +----+----------------------------------------------------------------------+
+  | 0  | "Verification failure"                                               |
+  | 1  | "Verification sucess"                                                |
+  | 2  | "Unknown algorithm (not mentioned in RFC7518)"                       |
+  | 3  | "Unmanaged algorithm (PSXXX algorithm family)"                       |
+  | 4  | "Invalid token"                                                      |
+  | 5  | "Out of memory"                                                      |
+  | 6  | "Unknown certificate"                                                |
+  +----+----------------------------------------------------------------------+
 
   Please note that this converter is only available when HAProxy has been
   compiled with USE_OPENSSL.
