@@ -154,19 +154,6 @@ struct resolvers *find_resolvers_by_id(const char *id)
 	return NULL;
 }
 
-/* Compare hostnames in a case-insensitive way .
- * Returns 0 if they are the same, non-zero otherwise
- */
-static __inline int resolv_hostname_cmp(const char *name1, const char *name2, int len)
-{
-	int i;
-
-	for (i = 0; i < len; i++)
-		if (tolower((unsigned char)name1[i]) != tolower((unsigned char)name2[i]))
-			return -1;
-	return 0;
-}
-
 /* Returns a pointer on the SRV request matching the name <name> for the proxy
  * <px>. NULL is returned if no match is found.
  */
@@ -251,7 +238,7 @@ struct resolv_answer_item *find_srvrq_answer_record(const struct resolv_requeste
 	/* search an ANSWER record whose target points to the server's hostname and whose port is
 	 * the same as server's svc_port */
 	list_for_each_entry(item, &res->response.answer_list, list) {
-		if (resolv_hostname_cmp(srv->hostname_dn, item->data.target, srv->hostname_dn_len) == 0 &&
+		if (memcmp(srv->hostname_dn, item->data.target, srv->hostname_dn_len) == 0 &&
 		    (srv->svc_port == item->port))
 			return item;
 	}
@@ -724,7 +711,7 @@ static void resolv_check_response(struct resolv_resolution *res)
 						HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
 
 						if ((item->data_len != srv->hostname_dn_len)
-						    || resolv_hostname_cmp(srv->hostname_dn, item->data.target, item->data_len)) {
+						    || memcmp(srv->hostname_dn, item->data.target, item->data_len) != 0) {
 							HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 							break;
 						}
@@ -1004,7 +991,7 @@ static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufe
 
 		/* Check if the current record dname is valid.  previous_dname
 		 * points either to queried dname or last CNAME target */
-		if (query->type != DNS_RTYPE_SRV && resolv_hostname_cmp(previous_dname, tmpname, len) != 0) {
+		if (query->type != DNS_RTYPE_SRV && memcmp(previous_dname, tmpname, len) != 0) {
 			if (i == 0) {
 				/* First record, means a mismatch issue between
 				 * queried dname and dname found in the first
@@ -1172,7 +1159,7 @@ static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufe
 
 			case DNS_RTYPE_SRV:
                                 if (answer_record->data_len == tmp_record->data_len &&
-				    !resolv_hostname_cmp(answer_record->data.target, tmp_record->data.target, answer_record->data_len) &&
+				    memcmp(answer_record->data.target, tmp_record->data.target, answer_record->data_len) == 0 &&
 				    answer_record->port == tmp_record->port) {
 					tmp_record->weight = answer_record->weight;
                                         found = 1;
@@ -1342,7 +1329,7 @@ static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufe
 			ar_item = tmp_record->ar_item;
 			if (ar_item->type != answer_record->type || ar_item->last_seen == now_ms ||
 			    len != tmp_record->data_len ||
-			    resolv_hostname_cmp(answer_record->name, tmp_record->data.target, tmp_record->data_len))
+			    memcmp(answer_record->name, tmp_record->data.target, tmp_record->data_len) != 0)
 				continue;
 
 			switch(ar_item->type) {
@@ -1381,7 +1368,7 @@ static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufe
 			list_for_each_entry(tmp_record, &r_res->answer_list, list) {
 				if (tmp_record->type == DNS_RTYPE_SRV &&
 				    tmp_record->ar_item == NULL &&
-				    !resolv_hostname_cmp(tmp_record->data.target, answer_record->name, tmp_record->data_len)) {
+				    memcmp(tmp_record->data.target, answer_record->name, tmp_record->data_len) == 0) {
 					/* Always use the received additional record to refresh info */
 					if (tmp_record->ar_item)
 						pool_free(resolv_answer_item_pool, tmp_record->ar_item);
@@ -1759,7 +1746,7 @@ static struct resolv_resolution *resolv_pick_resolution(struct resolvers *resolv
 			continue;
 		if ((query_type == res->prefered_query_type) &&
 		    hostname_dn_len == res->hostname_dn_len  &&
-		    !resolv_hostname_cmp(*hostname_dn, res->hostname_dn, hostname_dn_len))
+		    memcmp(*hostname_dn, res->hostname_dn, hostname_dn_len) == 0)
 			return res;
 	}
 
@@ -1769,7 +1756,7 @@ static struct resolv_resolution *resolv_pick_resolution(struct resolvers *resolv
 			continue;
 		if ((query_type == res->prefered_query_type) &&
 		    hostname_dn_len == res->hostname_dn_len  &&
-		    !resolv_hostname_cmp(*hostname_dn, res->hostname_dn, hostname_dn_len))
+		    memcmp(*hostname_dn, res->hostname_dn, hostname_dn_len) == 0)
 			return res;
 	}
 
@@ -2165,7 +2152,7 @@ static int resolv_process_responses(struct dns_nameserver *ns)
 		 * sent. We can check only the first query of the list. We send
 		 * one query at a time so we get one query in the response */
 		query = LIST_NEXT(&res->response.query_list, struct resolv_query_item *, list);
-		if (query && resolv_hostname_cmp(query->name, res->hostname_dn, res->hostname_dn_len) != 0) {
+		if (query && memcmp(query->name, res->hostname_dn, res->hostname_dn_len) != 0) {
 			dns_resp = RSLV_RESP_WRONG_NAME;
 			ns->counters->other++;
 			goto report_res_error;
