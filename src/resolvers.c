@@ -1639,9 +1639,9 @@ int resolv_dn_label_to_str(const char *dn, int dn_len, char *str, int str_len)
 		sz = dn[i];
 		if (i)
 			*ptr++ = '.';
-		memcpy(ptr, dn+i+1, sz);
-		ptr += sz;
-		i   += sz;
+		/* copy the string at i+1 to lower case */
+		for (; sz > 0; sz--)
+			*(ptr++) = tolower(dn[++i]);
 	}
 	*ptr++ = '\0';
 	return (ptr - str);
@@ -1683,7 +1683,7 @@ int resolv_str_to_dn_label(const char *str, int str_len, char *dn, int dn_len)
 			offset = i+1;
 			continue;
 		}
-		dn[i+1] = str[i];
+		dn[i+1] = tolower(str[i]);
 	}
 	dn[offset] = i - offset;
 	dn[i+1] = '\0';
