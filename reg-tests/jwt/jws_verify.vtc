@@ -152,7 +152,7 @@ client c4 -connect ${h1_mainfe_sock} {
     rxresp
     expect resp.status == 200
     expect resp.http.x-jwt-alg == "HS512"
-    expect resp.http.x-jwt-verify-HS512 == "0"
+    expect resp.http.x-jwt-verify-HS512 == "4"
 } -run
 
 

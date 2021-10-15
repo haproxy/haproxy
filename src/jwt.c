@@ -292,10 +292,10 @@ enum jwt_vrfy_status jwt_verify(const struct buffer *token, const struct buffer 
 {
 	struct jwt_item items[JWT_ELT_MAX] = { { 0 } };
 	unsigned int item_num = JWT_ELT_MAX;
-
 	struct buffer *decoded_sig = NULL;
 	struct jwt_ctx ctx = {};
 	enum jwt_vrfy_status retval = JWT_VRFY_KO;
+	int ret;
 
 	ctx.alg = jwt_parse_alg(alg->area, alg->data);
 
@@ -325,13 +325,14 @@ enum jwt_vrfy_status jwt_verify(const struct buffer *token, const struct buffer 
 	if (!decoded_sig)
 		return JWT_VRFY_OUT_OF_MEMORY;
 
-	decoded_sig->data = base64urldec(ctx.signature.start, ctx.signature.length,
-					 decoded_sig->area, decoded_sig->size);
-	if (decoded_sig->data == (unsigned int)-1) {
+	ret = base64urldec(ctx.signature.start, ctx.signature.length,
+	                   decoded_sig->area, decoded_sig->size);
+	if (ret == -1) {
 		retval = JWT_VRFY_INVALID_TOKEN;
 		goto end;
 	}
 
+	decoded_sig->data = ret;
 	ctx.key = key->area;
 	ctx.key_length = key->data;
 
