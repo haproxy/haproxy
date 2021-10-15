@@ -205,7 +205,7 @@ jwt_jwsverify_hmac(const struct jwt_ctx *ctx, const struct buffer *decoded_signa
 			ctx->jose.length + ctx->claims.length + 1, signature, &signature_length);
 
 	if (hmac_res && signature_length == decoded_signature->data &&
-		  (memcmp(decoded_signature->area, signature, signature_length) == 0))
+		  (CRYPTO_memcmp(decoded_signature->area, signature, signature_length) == 0))
 		retval = JWT_VRFY_OK;
 
 	free_trash_chunk(trash);
