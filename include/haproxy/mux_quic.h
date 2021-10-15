@@ -1,6 +1,6 @@
 /*
  * include/haproxy/mux_quic-t.h
- * This file containts prototypes for QUIC mux-demux.
+ * This file contains prototypes for QUIC mux-demux.
  *
  * Copyright 2021 HAProxy Technologies, Frédéric Lécaille <flecaille@haproxy.com>
  *

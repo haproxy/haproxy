@@ -1,6 +1,6 @@
 /*
  * include/haproxy/qpack-t.h
- * This file containts types for QPACK
+ * This file contains types for QPACK
  *
  * Copyright 2021 HAProxy Technologies, Frédéric Lécaille <flecaille@haproxy.com>
  *

@@ -6077,7 +6077,7 @@ __LJMP static int hlua_http_msg_rep_hdr(lua_State *L)
 	return hlua_http_rep_hdr(L, msg, 1);
 }
 
-/* Matches all comma-separated values of all occurences of an header in the HTTP
+/* Matches all comma-separated values of all occurrences of an header in the HTTP
  * message given its name against a regex and replaces it if it matches. It
  * relies on hlua_http_rep_hdr().
  */

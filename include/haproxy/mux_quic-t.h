@@ -1,6 +1,6 @@
 /*
  * include/haproxy/mux_quic-t.h
- * This file containts types for QUIC mux-demux.
+ * This file contains types for QUIC mux-demux.
  *
  * Copyright 2021 HAProxy Technologies, Frédéric Lécaille <flecaille@haproxy.com>
  *

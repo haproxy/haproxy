@@ -196,7 +196,7 @@ static int h3_decode_qcs(struct qcs *qcs, void *ctx)
 			cs->ctx = qcs;
 			stream_create_from_cs(cs, &htx_buf);
 
-			/* buffer is transfered to conn_stream and set to NULL
+			/* buffer is transferred to conn_stream and set to NULL
 			 * except on stream creation error.
 			 */
 			b_free(&htx_buf);
@@ -731,7 +731,7 @@ static struct task *h3_uqs_send_task(struct task *t, void *ctx, unsigned int sta
 	return NULL;
 }
 
-/* Initialiaze <h3_uqs> uni-stream with <t> as tasklet */
+/* Initialize <h3_uqs> uni-stream with <t> as tasklet */
 static int h3_uqs_init(struct h3_uqs *h3_uqs, struct h3 *h3,
                        int (*cb)(struct h3_uqs *h3_uqs, void *ctx),
                        struct task *(*t)(struct task *, void *, unsigned int))

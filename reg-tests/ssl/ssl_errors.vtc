@@ -54,7 +54,7 @@ syslog Slg_cust_fmt -level info {
 
     barrier b1 sync
 
-    # In case of an error occuring before the certificate verification process,
+    # In case of an error occurring before the certificate verification process,
     # the client certificate chain is never parsed and verified so we can't
     # have information about the client's certificate.
     recv

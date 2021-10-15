@@ -306,7 +306,7 @@ error:
  * transfer the response to the destination buffer and wakeup the HTTP client
  * applet so it could fill again its buffer.
  *
- * Return the number of bytes transfered.
+ * Return the number of bytes transferred.
  */
 int httpclient_res_xfer(struct httpclient *hc, struct buffer *dst)
 {
@@ -413,7 +413,7 @@ out:
  * This function tries to destroy the httpclient if it wasn't running.
  * If it was running, stop the client and ask it to autodestroy itself.
  *
- * Once this fonction is used, all pointer sto the client must be removed
+ * Once this function is used, all pointer sto the client must be removed
  *
  */
 void httpclient_stop_and_destroy(struct httpclient *hc)
@@ -782,7 +782,7 @@ static int httpclient_init()
 	httpclient_srv_ssl->ssl_ctx.verify = SSL_SOCK_VERIFY_NONE;
 #endif
 
-	/* add the proxy in the proxy list only if everything successed */
+	/* add the proxy in the proxy list only if everything is successful */
 	httpclient_proxy->next = proxies_list;
 	proxies_list = httpclient_proxy;
 

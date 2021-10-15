@@ -1,6 +1,6 @@
 /*
  * include/haproxy/h3.h
- * This file containts types for H3
+ * This file contains types for H3
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public

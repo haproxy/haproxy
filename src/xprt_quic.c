@@ -1688,7 +1688,7 @@ struct quic_rx_strm_frm *new_quic_rx_strm_frm(struct quic_stream *stream_frm,
 }
 
 /* Retrieve as an ebtree node the stream with <id> as ID, possibly allocates
- * several streams, depending on the already open onces.
+ * several streams, depending on the already open ones.
  * Return this node if succeeded, NULL if not.
  */
 static struct eb64_node *qcc_get_qcs(struct qcc *qcc, uint64_t id)
@@ -1907,7 +1907,7 @@ static int qc_handle_uni_strm_frm(struct quic_rx_packet *pkt,
 	/* Take this frame into an account for the stream flow control */
 	strm->rx.offset += strm_frm_len;
 	/* It all the data were provided to the application, there is no need to
-	 * store any more inforamtion for it.
+	 * store any more information for it.
 	 */
 	if (!strm_frm->len)
 		goto out;
@@ -2079,7 +2079,7 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct ssl_sock_ctx *ct
 }
 
 /* Write <dglen> datagram length and <pkt> first packet address into <cbuf> ring
- * buffer. This is the responsability of the caller to check there is enough
+ * buffer. This is the responsibility of the caller to check there is enough
  * room in <cbuf>. Also increase the <cbuf> write index consequently.
  * This function must be called only after having built a correct datagram.
  * Always succeeds.
@@ -2675,7 +2675,7 @@ static inline int qc_treat_rx_crypto_frms(struct quic_enc_level *el,
 }
 
 /* Process all the packets at <el> and <next_el> encryption level.
- * This is the caller responsability to check that <cur_el> is different of <next_el>
+ * This is the caller responsibility to check that <cur_el> is different of <next_el>
  * as pointer value.
  * Return 1 if succeeded, 0 if not.
  */
@@ -3152,7 +3152,7 @@ static int qc_pkt_may_rm_hp(struct quic_rx_packet *pkt,
 {
 	enum quic_tls_enc_level tel;
 
-	/* Special case without connection context (firt Initial packets) */
+	/* Special case without connection context (first Initial packets) */
 	if (!ctx) {
 		*qel = &qc->els[QUIC_TLS_ENC_LEVEL_INITIAL];
 		return 1;
@@ -4024,7 +4024,7 @@ static int qc_eval_pkt(ssize_t room, struct quic_tx_packet *pkt,
  * number field in this packet. <pn_len> will also have the packet number
  * length as value.
  *
- * Always succeeds: this is the responsability of the caller to ensure there is
+ * Always succeeds: this is the responsibility of the caller to ensure there is
  * enough room to build a packet.
  */
 static void qc_do_build_pkt(unsigned char *pos, const unsigned char *end,

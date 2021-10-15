@@ -21190,7 +21190,7 @@ Detailed fields description :
   - "ssl_fc_err" is the last error of the first SSL error stack that was
     raised on the connection from the frontend's perspective. It might be used
     to detect SSL handshake errors for instance. It will be 0 if everything
-    went well. See the "ssl_fc_err" sample fetch's decription for more
+    went well. See the "ssl_fc_err" sample fetch's description for more
     information.
 
   - "ssl_c_err" is the status of the client's certificate verification process.
