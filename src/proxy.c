@@ -1417,6 +1417,8 @@ void proxy_preset_defaults(struct proxy *defproxy)
  */
 void proxy_free_defaults(struct proxy *defproxy)
 {
+	struct acl *acl, *aclb;
+
 	ha_free(&defproxy->id);
 	ha_free(&defproxy->conf.file);
 	ha_free(&defproxy->check_command);
@@ -1434,6 +1436,20 @@ void proxy_free_defaults(struct proxy *defproxy)
 	ha_free(&defproxy->fwdfor_hdr_name); defproxy->fwdfor_hdr_len = 0;
 	ha_free(&defproxy->orgto_hdr_name); defproxy->orgto_hdr_len = 0;
 	ha_free(&defproxy->server_id_hdr_name); defproxy->server_id_hdr_len = 0;
+
+	list_for_each_entry_safe(acl, aclb, &defproxy->acl, list) {
+		LIST_DELETE(&acl->list);
+		prune_acl(acl);
+		free(acl);
+	}
+
+	free_act_rules(&defproxy->tcp_req.inspect_rules);
+	free_act_rules(&defproxy->tcp_rep.inspect_rules);
+	free_act_rules(&defproxy->tcp_req.l4_rules);
+	free_act_rules(&defproxy->tcp_req.l5_rules);
+	free_act_rules(&defproxy->http_req_rules);
+	free_act_rules(&defproxy->http_res_rules);
+	free_act_rules(&defproxy->http_after_res_rules);
 
 	if (defproxy->conf.logformat_string != default_http_log_format &&
 	    defproxy->conf.logformat_string != default_tcp_log_format &&
