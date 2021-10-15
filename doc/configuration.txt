@@ -20557,7 +20557,7 @@ HTTP_CONTENT     req.hdr_val(content-length) gt 0   match an existing content-le
 HTTP_URL_ABS     url_reg ^[^/:]*://                 match absolute URL with scheme
 HTTP_URL_SLASH   url_beg /                          match URL beginning with "/"
 HTTP_URL_STAR    url     *                          match URL equal to "*"
-LOCALHOST        src 127.0.0.1/8                    match connection from local host
+LOCALHOST        src 127.0.0.1/8 ::1                match connection from local host
 METH_CONNECT     method  CONNECT                    match HTTP CONNECT method
 METH_DELETE      method  DELETE                     match HTTP DELETE method
 METH_GET         method  GET HEAD                   match HTTP GET or HEAD method

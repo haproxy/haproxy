@@ -754,7 +754,7 @@ const struct {
 } default_acl_list[] = {
 	{ .name = "TRUE",           .expr = {"always_true",""}},
 	{ .name = "FALSE",          .expr = {"always_false",""}},
-	{ .name = "LOCALHOST",      .expr = {"src","127.0.0.1/8",""}},
+	{ .name = "LOCALHOST",      .expr = {"src","127.0.0.1/8","::1",""}},
 	{ .name = "HTTP",           .expr = {"req.proto_http",""}},
 	{ .name = "HTTP_1.0",       .expr = {"req.ver","1.0",""}},
 	{ .name = "HTTP_1.1",       .expr = {"req.ver","1.1",""}},
