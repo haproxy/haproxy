@@ -1,6 +1,83 @@
 ChangeLog :
 ===========
 
+2021/10/16 : 2.5-dev10
+    - MINOR: initcall: Rename __GLOBL and __GLOBL1.
+    - MINOR: rules: add a new function new_act_rule() to allocate act_rules
+    - MINOR: rules: add a file name and line number to act_rules
+    - MINOR: stream: report the current rule in "show sess all" when known
+    - MINOR: stream: report the current filter in "show sess all" when known
+    - CLEANUP: stream: Properly indent current_rule line in "show sess all"
+    - BUG/MINOR: lua: Fix lua error handling in `hlua_config_prepend_path()`
+    - CI: github: switch to OpenSSL 3.0.0
+    - REGTESTS: ssl: Fix references to removed option in test description
+    - MINOR: ssl: Add ssllib_name_startswith precondition
+    - REGTESTS: ssl: Fix ssl_errors test for OpenSSL v3
+    - REGTESTS: ssl: Reenable ssl_errors test for OpenSSL only
+    - REGTESTS: ssl: Use mostly TLSv1.2 in ssl_errors test
+    - MEDIUM: mux-quic: rationalize tx buffers between qcc/qcs
+    - MEDIUM: h3: properly manage tx buffers for large data
+    - MINOR: mux-quic: standardize h3 settings sending
+    - CLEANUP: h3: remove dead code
+    - MINOR: mux-quic: implement standard method to detect if qcc is dead
+    - MEDIUM: mux-quic: defer stream shut if remaining tx data
+    - MINOR: mux: remove last occurences of qcc ring buffer
+    - MINOR: quic: handle CONNECTION_CLOSE frame
+    - REGTESTS: ssl: re-enable set_ssl_cert_bundle.vtc
+    - MINOR: ssl: add ssl_fc_is_resumed to "option httpslog"
+    - MINOR: http: Add http_auth_bearer sample fetch
+    - MINOR: jwt: Parse JWT alg field
+    - MINOR: jwt: JWT tokenizing helper function
+    - MINOR: jwt: Insert public certificates into dedicated JWT tree
+    - MINOR: jwt: jwt_header_query and jwt_payload_query converters
+    - MEDIUM: jwt: Add jwt_verify converter to verify JWT integrity
+    - REGTESTS: jwt: Add tests for the jwt_verify converter
+    - BUILD: jwt: fix declaration of EVP_KEY in jwt-h.h
+    - MINOR: proto_tcp: use chunk_appendf() to ouput socket setup errors
+    - MINOR: proto_tcp: also report the attempted MSS values in error message
+    - MINOR: inet: report the faulty interface name in "bind" errors
+    - MINOR: protocol: report the file and line number for binding/listening errors
+    - MINOR: protocol: uniformize protocol errors
+    - MINOR: resolvers: fix the resolv_str_to_dn_label() API about trailing zero
+    - BUG/MEDIUM: resolver: make sure to always use the correct hostname length
+    - BUG/MINOR: resolvers: do not reject host names of length 255 in SRV records
+    - MINOR: resolvers: fix the resolv_dn_label_to_str() API about trailing zero
+    - MEDIUM: listeners: split the thread mask between receiver and bind_conf
+    - MINOR: listeners: add clone_listener() to duplicate listeners at boot time
+    - MEDIUM: listener: add the "shards" bind keyword
+    - BUG/MEDIUM: resolvers: use correct storage for the target address
+    - MINOR: resolvers: merge address and target into a union "data"
+    - BUG/MEDIUM: resolvers: fix truncated TLD consecutive to the API fix
+    - BUG/MEDIUM: jwt: fix base64 decoding error detection
+    - BUG/MINOR: jwt: use CRYPTO_memcmp() to compare HMACs
+    - DOC: jwt: fix a typo in the jwt_verify() keyword description
+    - BUG/MEDIUM: sample/jwt: fix another instance of base64 error detection
+    - BUG/MINOR: http-ana: Don't eval front after-response rules if stopped on back
+    - BUG/MINOR: sample: Fix 'fix_tag_value' sample when waiting for more data
+    - DOC: config: Move 'tcp-response content' at the right place
+    - BUG/MINOR: proxy: Use .disabled field as a bitfield as documented
+    - MINOR: proxy: Introduce proxy flags to replace disabled bitfield
+    - MINOR: sample/arg: Be able to resolve args found in defaults sections
+    - MEDIUM: proxy: Warn about ambiguous use of named defaults sections
+    - MINOR: proxy: Be able to reference the defaults section used by a proxy
+    - MINOR: proxy: Add PR_FL_READY flag on fully configured and usable proxies
+    - MINOR: config: Finish configuration for referenced default proxies
+    - MINOR: config: No longer remove previous anonymous defaults section
+    - MINOR: tcpcheck: Support 2-steps args resolution in defaults sections
+    - MEDIUM: rules/acl: Parse TCP/HTTP rules and acls defined in defaults sections
+    - MEDIUM: tcp-rules: Eval TCP rules defined in defaults sections
+    - MEDIUM: http-ana: Eval HTTP rules defined in defaults sections
+    - BUG/MEDIUM: sample: Cumulate frontend and backend sample validity flags
+    - REGTESTS: Add scripts to test support of TCP/HTTP rules in defaults sections
+    - DOC: config: Add documentation about TCP/HTTP rules in defaults section
+    - DOC: config: Rework and uniformize how TCP/HTTP rules are documented
+    - BUG/MINOR: proxy: Release ACLs and TCP/HTTP rules of default proxies
+    - BUG/MEDIUM: cpuset: fix cpuset size for FreeBSD
+    - BUG/MINOR: sample: fix backend direction flags consecutive to last fix
+    - BUG/MINOR: listener: fix incorrect return on out-of-memory
+    - BUG/MINOR: listener: add an error check for unallocatable trash
+    - CLEANUP: listeners: remove unreachable code in clone_listener()
+
 2021/10/08 : 2.5-dev9
     - head-truc
     - REGTESTS: lua: test the httpclient:get() feature
