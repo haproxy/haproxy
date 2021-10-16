@@ -2,6 +2,9 @@ name: alpine/musl
 
 on: [push]
 
+permissions:
+  contents: read
+
 jobs:
   musl:
       name: gcc

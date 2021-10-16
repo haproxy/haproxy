@@ -3,6 +3,9 @@ name: Contrib
 on:
   push:
 
+permissions:
+  contents: read
+
 jobs:
   build:
 

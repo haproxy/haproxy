@@ -5,6 +5,9 @@ on:
   schedule:
     - cron: "0 0 * * 3"
 
+permissions:
+  contents: read
+
 jobs:
   h2spec:
     name: h2spec
