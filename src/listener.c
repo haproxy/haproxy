@@ -704,8 +704,6 @@ struct listener *clone_listener(struct listener *src)
 	global.maxsock++;
 	return l;
 
- oom3:
-	free(l->name);
  oom2:
 	free(l);
  oom1:
