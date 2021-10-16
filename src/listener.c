@@ -709,7 +709,7 @@ struct listener *clone_listener(struct listener *src)
  oom2:
 	free(l);
  oom1:
-	return l;
+	return NULL;
 }
 
 /* Delete a listener from its protocol's list of listeners. The listener's
