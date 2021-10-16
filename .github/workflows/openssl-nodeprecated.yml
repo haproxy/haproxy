@@ -12,24 +12,22 @@ name: openssl no-deprecated
 
 on:
   schedule:
-    - cron: "0 0 * * 4"
+  - cron: "0 0 * * 4"
 
 permissions:
   contents: read
 
 jobs:
   test:
-
     runs-on: ubuntu-latest
-
     steps:
     - uses: actions/checkout@v1
-    - name: prepare VTest
+    - name: Install VTest
       run: |
         scripts/build-vtest.sh
-    - name: build haproxy
+    - name: Compile HAProxy
       run: |
         make DEFINE="-DOPENSSL_API_COMPAT=0x10100000L -DOPENSSL_NO_DEPRECATED" -j3 CC=gcc ERR=1 TARGET=linux-glibc USE_OPENSSL=1
-    - name: run reg-tests
+    - name: Run VTest
       run: |
         make reg-tests VTEST_PROGRAM=../vtest/vtest REGTESTS_TYPES=default,bug,devel
