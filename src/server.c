@@ -4681,7 +4681,7 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 
 		while (1) {
 			/* check for duplicate server */
-			if (!strcmp(srv->id, next->id)) {
+			if (strcmp(srv->id, next->id) == 0) {
 				ha_alert("Already exists a server with the same name in backend.\n");
 				goto out;
 			}

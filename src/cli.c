@@ -1714,11 +1714,11 @@ static int cli_parse_expert_experimental_mode(char **args, char *payload, struct
 	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
 		return 1;
 
-	if (!strcmp(args[0], "expert-mode")) {
+	if (strcmp(args[0], "expert-mode") == 0) {
 		level = ACCESS_EXPERT;
 		level_str = "expert-mode";
 	}
-	else if (!strcmp(args[0], "experimental-mode")) {
+	else if (strcmp(args[0], "experimental-mode") == 0) {
 		level = ACCESS_EXPERIMENTAL;
 		level_str = "experimental-mode";
 	}

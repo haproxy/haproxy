@@ -1536,7 +1536,7 @@ static void check_section_position(char *section_name,
                                    const char *file, int linenum,
                                    int *non_global_parsed)
 {
-	if (!strcmp(section_name, "global")) {
+	if (strcmp(section_name, "global") == 0) {
 		if (*non_global_parsed == 1)
 		        _ha_diag_warning("parsing [%s:%d] : global section detected after a non-global one, the prevalence of their statements is unspecified\n", file, linenum);
 	}
