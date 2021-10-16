@@ -1410,7 +1410,7 @@ struct http_reply *http_parse_http_reply(const char **args, int *orig_arg, struc
 		if (px->cap & PR_CAP_FE)
 			cap |= ((px->conf.args.ctx == ARGC_HRQ) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_FE_HRS_HDR);
 		if (px->cap & PR_CAP_BE)
-			cap |= ((px->conf.args.ctx == ARGC_HRQ) ? SMP_VAL_BE_HRS_HDR : SMP_VAL_BE_HRS_HDR);
+			cap |= ((px->conf.args.ctx == ARGC_HRQ) ? SMP_VAL_BE_HRQ_HDR : SMP_VAL_BE_HRS_HDR);
 	}
 
 	cur_arg = *orig_arg;
