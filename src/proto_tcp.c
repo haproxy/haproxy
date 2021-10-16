@@ -589,6 +589,12 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 
 	err = ERR_NONE;
 
+	if (!msg) {
+		if (errlen)
+			snprintf(errmsg, errlen, "out of memory");
+		return ERR_ALERT | ERR_FATAL;
+	}
+
 	/* ensure we never return garbage */
 	if (errlen)
 		*errmsg = 0;
