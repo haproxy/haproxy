@@ -125,8 +125,8 @@ struct stktable_data_type {
 	const char *name; /* name of the data type */
 	int std_type;     /* standard type we can use for this data, STD_T_* */
 	int arg_type;     /* type of optional argument, ARG_T_* */
-	int is_array:1;   /* this is an array of gpc/gpt */
-	int is_local:1;   /* this is local only and never learned */
+	uint is_array:1;  /* this is an array of gpc/gpt */
+	uint is_local:1;  /* this is local only and never learned */
 };
 
 /* stick table keyword type */
