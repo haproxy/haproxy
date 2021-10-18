@@ -2008,7 +2008,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	if (unlikely(!(s->flags & SF_ERR_MASK))) {
 		if (req->flags & (CF_READ_ERROR|CF_READ_TIMEOUT|CF_WRITE_ERROR|CF_WRITE_TIMEOUT)) {
 			/* Report it if the client got an error or a read timeout expired */
-			req->analysers = 0;
+			req->analysers &= AN_REQ_FLT_END;
 			if (req->flags & CF_READ_ERROR) {
 				_HA_ATOMIC_INC(&s->be->be_counters.cli_aborts);
 				_HA_ATOMIC_INC(&sess->fe->fe_counters.cli_aborts);
@@ -2062,7 +2062,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		}
 		else if (res->flags & (CF_READ_ERROR|CF_READ_TIMEOUT|CF_WRITE_ERROR|CF_WRITE_TIMEOUT)) {
 			/* Report it if the server got an error or a read timeout expired */
-			res->analysers = 0;
+			res->analysers &= AN_RES_FLT_END;
 			if (res->flags & CF_READ_ERROR) {
 				_HA_ATOMIC_INC(&s->be->be_counters.srv_aborts);
 				_HA_ATOMIC_INC(&sess->fe->fe_counters.srv_aborts);
