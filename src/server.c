@@ -197,6 +197,94 @@ void srv_set_dyncookie(struct server *s)
 	HA_RWLOCK_RDUNLOCK(PROXY_LOCK, &p->lock);
 }
 
+/* Returns true if it's possible to reuse an idle connection from server <srv>
+ * for a websocket stream. This is the case if server is configured to use the
+ * same protocol for both HTTP and websocket streams. This depends on the value
+ * of "proto", "alpn" and "ws" keywords.
+ */
+int srv_check_reuse_ws(struct server *srv)
+{
+	if (srv->mux_proto || srv->use_ssl != 1 || !srv->ssl_ctx.alpn_str) {
+		/* explicit srv.mux_proto or no ALPN : srv.mux_proto is used
+		 * for mux selection.
+		 */
+		const struct ist srv_mux = srv->mux_proto ?
+		                           srv->mux_proto->token : IST_NULL;
+
+		switch (srv->ws) {
+		/* "auto" means use the same protocol : reuse is possible. */
+		case SRV_WS_AUTO:
+			return 1;
+
+		/* "h2" means use h2 for websocket : reuse is possible if
+		 * server mux is h2.
+		 */
+		case SRV_WS_H2:
+			if (srv->mux_proto && isteq(srv_mux, ist("h2")))
+				return 1;
+			break;
+
+		/* "h1" means use h1 for websocket : reuse is possible if
+		 * server mux is h1.
+		 */
+		case SRV_WS_H1:
+			if (!srv->mux_proto || isteq(srv_mux, ist("h1")))
+				return 1;
+			break;
+		}
+	}
+	else {
+		/* ALPN selection.
+		 * Based on the assumption that only "h2" and "http/1.1" token
+		 * are used on server ALPN.
+		 */
+		const struct ist alpn = ist2(srv->ssl_ctx.alpn_str,
+		                             srv->ssl_ctx.alpn_len);
+
+		switch (srv->ws) {
+		case SRV_WS_AUTO:
+			/* for auto mode, consider reuse as possible if the
+			 * server uses a single protocol ALPN
+			 */
+			if (!istchr(alpn, ','))
+				return 1;
+			break;
+
+		case SRV_WS_H2:
+			return isteq(alpn, ist("\x02h2"));
+
+		case SRV_WS_H1:
+			return isteq(alpn, ist("\x08http/1.1"));
+		}
+	}
+
+	return 0;
+}
+
+/* Return the proto to used for a websocket stream on <srv> without ALPN. NULL
+ * is a valid value indicating to use the fallback mux.
+ */
+const struct mux_ops *srv_get_ws_proto(struct server *srv)
+{
+	const struct mux_proto_list *mux = NULL;
+
+	switch (srv->ws) {
+	case SRV_WS_AUTO:
+		mux = srv->mux_proto;
+		break;
+
+	case SRV_WS_H1:
+		mux = get_mux_proto(ist("h1"));
+		break;
+
+	case SRV_WS_H2:
+		mux = get_mux_proto(ist("h2"));
+		break;
+	}
+
+	return mux ? mux->mux : NULL;
+}
+
 /*
  * Must be called with the server lock held. The server is first removed from
  * the proxy tree if it was already attached. If <reattach> is true, the server
@@ -2098,6 +2186,7 @@ static void srv_settings_cpy(struct server *srv, struct server *src, int srv_tmp
 	srv->agent.fastinter          = src->agent.fastinter;
 	srv->agent.downinter          = src->agent.downinter;
 	srv->maxqueue                 = src->maxqueue;
+	srv->ws                       = src->ws;
 	srv->minconn                  = src->minconn;
 	srv->maxconn                  = src->maxconn;
 	srv->slowstart                = src->slowstart;

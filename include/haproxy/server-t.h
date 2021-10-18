@@ -211,6 +211,13 @@ struct srv_per_thread {
 	struct eb_root avail_conns;             /* Connections in use, but with still new streams available */
 };
 
+/* Configure the protocol selection for websocket */
+enum __attribute__((__packed__)) srv_ws_mode {
+	SRV_WS_AUTO = 0,
+	SRV_WS_H1,
+	SRV_WS_H2,
+};
+
 struct proxy;
 struct server {
 	/* mostly config or admin stuff, doesn't change often */
@@ -256,6 +263,9 @@ struct server {
 	unsigned rweight;			/* remainder of weight in the current LB tree */
 	unsigned cumulative_weight;		/* weight of servers prior to this one in the same group, for chash balancing */
 	int maxqueue;				/* maximum number of pending connections allowed */
+
+	enum srv_ws_mode ws;                    /* configure the protocol selection for websocket */
+	/* 3 bytes hole here */
 
 	uint refcount;                          /* refcount used to remove a server at runtime */
 
