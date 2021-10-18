@@ -557,6 +557,8 @@ static inline int conn_install_mux(struct connection *conn, const struct mux_ops
 	return ret;
 }
 
+int conn_update_alpn(struct connection *conn, const struct ist alpn, int force);
+
 static inline const char *conn_get_ctrl_name(const struct connection *conn)
 {
 	if (!conn || !conn_ctrl_ready(conn))

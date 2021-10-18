@@ -328,6 +328,74 @@ int conn_install_mux_chk(struct connection *conn, void *ctx, struct session *ses
 	return conn_install_mux(conn, mux_ops, ctx, prx, sess);
 }
 
+/* Set the ALPN of connection <conn> to <alpn>. If force is false, <alpn> must
+ * be a subset or identical to the registered protos for the parent SSL_CTX.
+ * In this case <alpn> must be a single protocol value, not a list.
+ *
+ * Returns 0 if ALPN is updated else -1.
+ */
+int conn_update_alpn(struct connection *conn, const struct ist alpn, int force)
+{
+#ifdef TLSEXT_TYPE_application_layer_protocol_negotiation
+	size_t alpn_len = istlen(alpn);
+	char *ctx_alpn_str = NULL;
+	int ctx_alpn_len = 0, found = 0;
+
+	/* if not force, first search if alpn is a subset or identical to the
+	 * parent SSL_CTX.
+	 */
+	if (!force) {
+		/* retrieve the SSL_CTX according to the connection side. */
+		if (conn_is_back(conn)) {
+			if (obj_type(conn->target) == OBJ_TYPE_SERVER) {
+				struct server *srv = __objt_server(conn->target);
+				ctx_alpn_str = srv->ssl_ctx.alpn_str;
+				ctx_alpn_len = srv->ssl_ctx.alpn_len;
+			}
+		}
+		else {
+			struct session *sess = conn->owner;
+			struct listener *li = sess->listener;
+
+			if (li->bind_conf && li->bind_conf->is_ssl) {
+				ctx_alpn_str = li->bind_conf->ssl_conf.alpn_str;
+				ctx_alpn_len = li->bind_conf->ssl_conf.alpn_len;
+			}
+		}
+
+		if (ctx_alpn_str) {
+			/* search if ALPN is present in SSL_CTX ALPN before
+			 * using it.
+			 */
+			while (ctx_alpn_len) {
+				/* skip ALPN whose size is not 8 */
+				if (*ctx_alpn_str != alpn_len - 1) {
+					ctx_alpn_len -= *ctx_alpn_str + 1;
+				}
+				else {
+					if (isteqi(ist2(ctx_alpn_str, alpn_len), alpn)) {
+						found = 1;
+						break;
+					}
+				}
+				ctx_alpn_str += *ctx_alpn_str + 1;
+
+				/* This indicates an invalid ALPN formatted
+				 * string and should never happen. */
+				BUG_ON(ctx_alpn_len < 0);
+			}
+		}
+	}
+
+	if (found || force) {
+		ssl_sock_set_alpn(conn, (const uchar *)istptr(alpn), istlen(alpn));
+		return 0;
+	}
+
+#endif
+	return -1;
+}
+
 /* Initializes all required fields for a new connection. Note that it does the
  * minimum acceptable initialization for a connection that already exists and
  * is about to be reused. It also leaves the addresses untouched, which makes
