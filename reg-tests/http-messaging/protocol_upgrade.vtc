@@ -28,7 +28,8 @@ server srv_h2 {
 	rxpri
 
 	stream 0 {
-		txsettings
+		# manually send RFC8441 SETTINGS_ENABLE_CONNECT_PROTOCOL
+		sendhex "00 00 06 04   00    00 00 00 00    00 08   00 00 00 01"
 		rxsettings
 		txsettings -ack
 		rxsettings
@@ -47,6 +48,42 @@ server srv_h2 {
 		  -status 200
 	} -run
 } -repeat 2 -start
+
+# http2 server without support for RFC8441
+server srv_h2_no_ws {
+	rxpri
+
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		rxrst
+	} -run
+} -start
+
+# http2 server without support for RFC8441 : settings announced with value 0
+server srv_h2_no_ws2 {
+	rxpri
+
+	stream 0 {
+		# manually send RFC8441 SETTINGS_ENABLE_CONNECT_PROTOCOL with a value of 0
+		sendhex "00 00 06 04   00    00 00 00 00    00 08   00 00 00 00"
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		rxrst
+	} -run
+} -start
 
 haproxy hap -conf {
 	defaults
@@ -69,6 +106,16 @@ haproxy hap -conf {
 	listen frt_h1
 	bind "fd@${frt_h1}"
 	server srv_h2 ${srv_h2_addr}:${srv_h2_port} proto h2
+
+	# h1 frontend connected to srv_h2_no_ws
+	listen frt_h1_no_ws
+	bind "fd@${frt_h1_no_ws}"
+	server srv_h2_no_ws ${srv_h2_no_ws_addr}:${srv_h2_no_ws_port} proto h2
+
+	# h1 frontend connected to srv_h2_no_ws2
+	listen frt_h1_no_ws2
+	bind "fd@${frt_h1_no_ws2}"
+	server srv_h2_no_ws2 ${srv_h2_no_ws2_addr}:${srv_h2_no_ws2_port} proto h2
 
 	# h2 frontend connected to h1 frontend
 	listen frt_h2_h1
@@ -152,4 +199,30 @@ client c4_h1 -connect ${hap_frt_h1_sock} {
 	expect resp.status == 101
 	expect resp.http.connection == "upgrade"
 	expect resp.http.upgrade == "custom_protocol"
+} -run
+
+# connect via h1 server frontend to h2 server without RFC8441 support
+client c5 -connect ${hap_frt_h1_no_ws_sock} {
+	txreq \
+	  -req "GET" \
+	  -url "/" \
+	  -hdr "host: 127.0.0.1" \
+	  -hdr "connection: upgrade" \
+	  -hdr "upgrade: custom_protocol"
+
+	rxresp
+	expect resp.status == 502
+} -run
+
+# connect via h1 server frontend to h2 server without RFC8441 support
+client c6 -connect ${hap_frt_h1_no_ws2_sock} {
+	txreq \
+	  -req "GET" \
+	  -url "/" \
+	  -hdr "host: 127.0.0.1" \
+	  -hdr "connection: upgrade" \
+	  -hdr "upgrade: custom_protocol"
+
+	rxresp
+	expect resp.status == 502
 } -run

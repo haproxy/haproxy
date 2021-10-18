@@ -72,6 +72,8 @@ static const struct h2s *h2_idle_stream;
 #define H2_CF_RCVD_SHUT         0x00020000  // a recv() attempt already failed on a shutdown
 #define H2_CF_END_REACHED       0x00040000  // pending data too short with RCVD_SHUT present
 
+#define H2_CF_RCVD_RFC8441      0x00100000  // settings from RFC8441 has been received indicating support for Extended CONNECT
+
 /* H2 connection state, in h2c->st0 */
 enum h2_cs {
 	H2_CS_PREFACE,   // init done, waiting for connection preface
@@ -2239,8 +2241,8 @@ static int h2c_handle_settings(struct h2c *h2c)
 			}
 			break;
 		case H2_SETTINGS_ENABLE_CONNECT_PROTOCOL:
-			/* nothing to do here as this settings is automatically
-			 * transmits to the client */
+			if (arg == 1)
+				h2c->flags |= H2_CF_RCVD_RFC8441;
 			break;
 		}
 	}
@@ -5319,6 +5321,11 @@ static size_t h2s_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 				do {
 					if (isteqi(iststop(connection_ist, ','),
 					           ist("upgrade"))) {
+						if (!(h2c->flags & H2_CF_RCVD_RFC8441)) {
+							TRACE_STATE("reject upgrade because of no RFC8441 support", H2_EV_TX_FRAME|H2_EV_TX_HDR, h2c->conn, h2s);
+							goto fail;
+						}
+
 						TRACE_STATE("convert upgrade to extended connect method", H2_EV_TX_FRAME|H2_EV_TX_HDR, h2c->conn, h2s);
 						h2s->flags |= (H2_SF_BODY_TUNNEL|H2_SF_EXT_CONNECT_SENT);
 						sl->info.req.meth = HTTP_METH_CONNECT;
