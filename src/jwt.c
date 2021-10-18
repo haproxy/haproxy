@@ -214,13 +214,8 @@ jwt_jwsverify_rsa_ecdsa(const struct jwt_ctx *ctx, const struct buffer *decoded_
 	const EVP_MD *evp = NULL;
 	EVP_MD_CTX *evp_md_ctx;
 	enum jwt_vrfy_status retval = JWT_VRFY_KO;
-	struct buffer *trash = NULL;
 	struct ebmb_node *eb;
 	struct jwt_cert_tree_entry *entry = NULL;
-
-	trash = alloc_trash_chunk();
-	if (!trash)
-		return JWT_VRFY_OUT_OF_MEMORY;
 
 	switch(ctx->alg) {
 	case JWS_ALG_RS256:
@@ -239,10 +234,8 @@ jwt_jwsverify_rsa_ecdsa(const struct jwt_ctx *ctx, const struct buffer *decoded_
 	}
 
 	evp_md_ctx = EVP_MD_CTX_new();
-	if (!evp_md_ctx) {
-		free_trash_chunk(trash);
+	if (!evp_md_ctx)
 		return JWT_VRFY_OUT_OF_MEMORY;
-	}
 
 	eb = ebst_lookup(&jwt_cert_tree, ctx->key);
 
@@ -267,7 +260,6 @@ jwt_jwsverify_rsa_ecdsa(const struct jwt_ctx *ctx, const struct buffer *decoded_
 
 end:
 	EVP_MD_CTX_free(evp_md_ctx);
-	free_trash_chunk(trash);
 	return retval;
 }
 
