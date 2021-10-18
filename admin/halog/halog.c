@@ -117,7 +117,8 @@ struct url_stat {
 #define FILT_COUNT_COOK_CODES 0x40000000
 #define FILT_COUNT_IP_COUNT   0x80000000
 
-#define FILT2_TIMESTAMP	0x01
+#define FILT2_TIMESTAMP         0x01
+#define FILT2_PRESERVE_QUERY    0x02
 
 unsigned int filter = 0;
 unsigned int filter2 = 0;
@@ -147,7 +148,7 @@ void usage(FILE *output, const char *msg)
 		"Usage: halog [-h|--help] for long help\n"
 		"       halog [-q] [-c] [-m <lines>]\n"
 		"       {-cc|-gt|-pct|-st|-tc|-srv|-u|-uc|-ue|-ua|-ut|-uao|-uto|-uba|-ubt|-ic}\n"
-		"       [-s <skip>] [-e|-E] [-H] [-rt|-RT <time>] [-ad <delay>] [-ac <count>]\n"
+		"       [-s <skip>] [-e|-E] [-H] [-rt|-RT <time>] [-ad <delay>] [-ac <count>] [-qry]\n"
 		"       [-v] [-Q|-QS] [-tcn|-TCN <termcode>] [ -hs|-HS [min][:[max]] ] [ -time [min][:[max]] ] < log\n"
 		"\n",
 		msg ? msg : ""
@@ -196,7 +197,8 @@ void help()
 	       "       -u : by URL, -uc : request count, -ue : error count\n"
 	       "       -ua : average response time, -ut : average total time\n"
 	       "       -uao, -uto: average times computed on valid ('OK') requests\n"
-	       "       -uba, -ubt: average bytes returned, total bytes returned\n",
+	       "       -uba, -ubt: average bytes returned, total bytes returned\n"
+	       " -qry  preserve the query string for per-URL statistics\n",
                SOURCE_FIELD,SOURCE_FIELD
 	       );
 	exit(0);
@@ -831,6 +833,8 @@ int main(int argc, char **argv)
 			filter |= FILT_COUNT_URL_BAVG;
 		else if (strcmp(argv[0], "-ubt") == 0)
 			filter |= FILT_COUNT_URL_BTOT;
+		else if (strcmp(argv[0], "-qry") == 0)
+			filter2 |= FILT2_PRESERVE_QUERY;
 		else if (strcmp(argv[0], "-ic") == 0)
 			filter |= FILT_COUNT_IP_COUNT;
 		else if (strcmp(argv[0], "-o") == 0) {
@@ -1576,7 +1580,8 @@ void filter_count_url(const char *accept_field, const char *time_field, struct t
 	/* stop at end of field or first ';' or '?', takes avg 64 ns per line */
 	e = b;
 	do {
-		if (*e == ' ' || *e == '?' || *e == ';') {
+		if (*e == ' '||
+		    (!(filter2 & FILT2_PRESERVE_QUERY) && (*e == '?' || *e == ';'))) {
 			*(char *)e = 0;
 			break;
 		}
