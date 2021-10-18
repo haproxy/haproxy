@@ -589,6 +589,9 @@ static struct conn_stream *h1s_new_cs(struct h1s *h1s, struct buffer *input)
 	if (h1s->flags & H1S_F_NOT_FIRST)
 		cs->flags |= CS_FL_NOT_FIRST;
 
+	if (h1s->req.flags & H1_MF_UPG_WEBSOCKET)
+		cs->flags |= CS_FL_WEBSOCKET;
+
 	if (stream_create_from_cs(cs, input) < 0) {
 		TRACE_DEVEL("leaving on stream creation failure", H1_EV_STRM_NEW|H1_EV_STRM_END|H1_EV_STRM_ERR, h1s->h1c->conn, h1s);
 		goto err;

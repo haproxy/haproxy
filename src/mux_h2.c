@@ -1509,7 +1509,7 @@ static struct h2s *h2s_new(struct h2c *h2c, int id)
  * responsible of it. On error, <input> is unchanged, thus the mux must still
  * take care of it.
  */
-static struct h2s *h2c_frt_stream_new(struct h2c *h2c, int id, struct buffer *input)
+static struct h2s *h2c_frt_stream_new(struct h2c *h2c, int id, struct buffer *input, uint32_t flags)
 {
 	struct session *sess = h2c->conn->owner;
 	struct conn_stream *cs;
@@ -1532,6 +1532,12 @@ static struct h2s *h2c_frt_stream_new(struct h2c *h2c, int id, struct buffer *in
 	h2s->cs = cs;
 	cs->ctx = h2s;
 	h2c->nb_cs++;
+
+	/* FIXME wrong analogy between ext-connect and websocket, this need to
+	 * be refine.
+	 */
+	if (flags & H2_SF_EXT_CONNECT_RCVD)
+		cs->flags |= CS_FL_WEBSOCKET;
 
 	if (stream_create_from_cs(cs, input) < 0)
 		goto out_free_cs;
@@ -2747,7 +2753,7 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 	 * Xfer the rxbuf to the stream. On success, the new stream owns the
 	 * rxbuf. On error, it is released here.
 	 */
-	h2s = h2c_frt_stream_new(h2c, h2c->dsi, &rxbuf);
+	h2s = h2c_frt_stream_new(h2c, h2c->dsi, &rxbuf, flags);
 	if (!h2s) {
 		h2s = (struct h2s*)h2_refused_stream;
 		goto send_rst;

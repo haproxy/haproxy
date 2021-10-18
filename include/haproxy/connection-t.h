@@ -86,6 +86,9 @@ enum {
 	 * the stream-interface :
 	 */
 	CS_FL_NOT_FIRST     = 0x00100000,  /* this stream is not the first one */
+
+	/* flags set by the mux relayed to the stream */
+	CS_FL_WEBSOCKET     = 0x00200000,  /* websocket stream */
 };
 
 /* cs_shutr() modes */

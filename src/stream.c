@@ -465,6 +465,9 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin, struct bu
 			s->si[0].flags |= SI_FL_CLEAN_ABRT;
 		if (cs->conn->mux->flags & MX_FL_HTX)
 			s->flags |= SF_HTX;
+
+		if (cs->flags & CS_FL_WEBSOCKET)
+			s->flags |= SF_WEBSOCKET;
 	}
         /* Set SF_HTX flag for HTTP frontends. */
 	if (sess->fe->mode == PR_MODE_HTTP)
