@@ -175,18 +175,10 @@ static enum jwt_vrfy_status
 jwt_jwsverify_hmac(const struct jwt_ctx *ctx, const struct buffer *decoded_signature)
 {
 	const EVP_MD *evp = NULL;
-	unsigned char *signature = NULL;
+	unsigned char signature[EVP_MAX_MD_SIZE];
 	unsigned int signature_length = 0;
-	struct buffer *trash = NULL;
 	unsigned char *hmac_res = NULL;
 	enum jwt_vrfy_status retval = JWT_VRFY_KO;
-
-	trash = alloc_trash_chunk();
-	if (!trash)
-		return JWT_VRFY_OUT_OF_MEMORY;
-
-	signature = (unsigned char*)trash->area;
-	signature_length = trash->size;
 
 	switch(ctx->alg) {
 	case JWS_ALG_HS256:
@@ -207,8 +199,6 @@ jwt_jwsverify_hmac(const struct jwt_ctx *ctx, const struct buffer *decoded_signa
 	if (hmac_res && signature_length == decoded_signature->data &&
 		  (CRYPTO_memcmp(decoded_signature->area, signature, signature_length) == 0))
 		retval = JWT_VRFY_OK;
-
-	free_trash_chunk(trash);
 
 	return retval;
 }
