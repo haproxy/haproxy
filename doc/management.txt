@@ -1561,6 +1561,7 @@ add server <backend>/<server> [args]*
   - verify
   - verifyhost
   - weight
+  - ws
 
   Their syntax is similar to the server line from the configuration file,
   please refer to their individual documentation for details.

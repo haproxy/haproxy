@@ -505,6 +505,33 @@ static int srv_parse_error_limit(char **args, int *cur_arg,
 	return 0;
 }
 
+/* Parse the "ws" keyword */
+static int srv_parse_ws(char **args, int *cur_arg,
+                        struct proxy *curproxy, struct server *newsrv, char **err)
+{
+	if (!args[*cur_arg + 1]) {
+		memprintf(err, "'%s' expects 'auto', 'h1' or 'h2' value", args[*cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	if (strcmp(args[*cur_arg + 1], "h1") == 0) {
+		newsrv->ws = SRV_WS_H1;
+	}
+	else if (strcmp(args[*cur_arg + 1], "h2") == 0) {
+		newsrv->ws = SRV_WS_H2;
+	}
+	else if (strcmp(args[*cur_arg + 1], "auto") == 0) {
+		newsrv->ws = SRV_WS_AUTO;
+	}
+	else {
+		memprintf(err, "'%s' has to be 'auto', 'h1' or 'h2'", args[*cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+
+	return 0;
+}
+
 /* Parse the "init-addr" server keyword */
 static int srv_parse_init_addr(char **args, int *cur_arg,
                                struct proxy *curproxy, struct server *newsrv, char **err)
@@ -1733,6 +1760,7 @@ static struct srv_kw_list srv_kws = { "ALL", { }, {
 	{ "disabled",            srv_parse_disabled,            0,  1,  1 }, /* Start the server in 'disabled' state */
 	{ "enabled",             srv_parse_enabled,             0,  1,  1 }, /* Start the server in 'enabled' state */
 	{ "error-limit",         srv_parse_error_limit,         1,  1,  1 }, /* Configure the consecutive count of check failures to consider a server on error */
+	{ "ws",                  srv_parse_ws,                  1,  1,  1 }, /* websocket protocol */
 	{ "id",                  srv_parse_id,                  1,  0,  1 }, /* set id# of server */
 	{ "init-addr",           srv_parse_init_addr,           1,  1,  0 }, /* */
 	{ "log-proto",           srv_parse_log_proto,           1,  1,  0 }, /* Set the protocol for event messages, only relevant in a ring section */

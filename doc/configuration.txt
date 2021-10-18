@@ -14329,6 +14329,8 @@ alpn <protocols>
 
        server 127.0.0.1:443 ssl crt pub.pem alpn h2,http/1.1
 
+  See also "ws" to use an alternative ALPN for websocket streams.
+
 backup
   When "backup" is present on a server line, the server is only used in load
   balancing when all other non-backup servers are unavailable. Requests coming
@@ -14942,6 +14944,8 @@ proto <name>
   Idea behind this option is to bypass the selection of the best multiplexer's
   protocol for all connections established to this server.
 
+  See also "ws" to use an alternative protocol for websocket streams.
+
 redir <prefix>
   The "redir" parameter enables the redirection mode for all GET and HEAD
   requests addressing this server. This means that instead of having HAProxy
@@ -15273,6 +15277,26 @@ weight <weight>
   according to server's capacity, it is recommended to start with values which
   can both grow and shrink, for instance between 10 and 100 to leave enough
   room above and below for later adjustments.
+
+ws { auto | h1 | h2 }
+  This option allows to configure the protocol used when relaying websocket
+  streams. This is most notably useful when using an HTTP/2 backend without the
+  support for H2 websockets through the RFC8441.
+
+  The default mode is "auto". This will reuse the same protocol as the main
+  one. The only difference is when using ALPN. In this case, it can try to
+  downgrade the ALPN to "http/1.1" only for websocket streams if the configured
+  server ALPN contains it.
+
+  The value "h1" is used to force HTTP/1.1 for websockets streams, through ALPN
+  if SSL ALPN is activated for the server. Similarly, "h2" can be used to
+  force HTTP/2.0 websockets. Use this value with care : the server must support
+  RFC8441 or an error will be reported by haproxy when relaying websockets.
+
+  Note that NPN is not taken into account as its usage has been deprecated in
+  favor of the ALPN extension.
+
+  See also "alpn" and "proto".
 
 
 5.3. Server IP address resolution using DNS

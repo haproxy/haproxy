@@ -1,0 +1,181 @@
+# This reg-test checks websocket support in regards with the server keyword
+# 'ws'
+
+varnishtest "h2 backend websocket management via server keyword"
+
+feature ignore_unknown_macro
+
+#REQUIRE_VERSION=2.5
+#REQUIRE_OPTION=OPENSSL
+
+# haproxy server
+haproxy hapsrv -conf {
+	defaults
+		mode http
+		timeout connect 5s
+		timeout client  5s
+		timeout server  5s
+
+	frontend fe
+		bind "fd@${fe}"
+		bind "fd@${fessl}" ssl crt ${testdir}/common.pem alpn h2,http/1.1
+		capture request header sec-websocket-key len 128
+		http-request set-var(txn.ver) req.ver
+		use_backend be
+
+	backend be
+		# define websocket ACL
+		acl ws_handshake hdr(upgrade) -m str websocket
+
+		# handle non-ws streams
+		http-request return status 200 if !ws_handshake
+
+		# handle ws streams
+		#capture request header sec-websocket-key len 128
+		http-request return status 200 hdr connection upgrade hdr upgrade websocket hdr sec-websocket-accept "%[capture.req.hdr(0),concat(258EAFA5-E914-47DA-95CA-C5AB0DC85B11,,),sha1,base64]" if ws_handshake
+		http-after-response set-status 101 if { status eq 200 } { res.hdr(upgrade) -m str websocket }
+		http-after-response set-header x-backend-protocol "%[var(txn.ver)]"
+} -start
+
+# haproxy LB
+haproxy hap -conf {
+	defaults
+		mode http
+		timeout connect 1s
+		timeout client  1s
+		timeout server  1s
+
+	# proto X ws h1 -> websocket on h1
+	listen li
+		bind "fd@${li}"
+		server hap_srv ${hapsrv_fe_addr}:${hapsrv_fe_port} proto h2 ws h1
+
+	# proto X ws h2 -> websocket on h2
+	listen lih2
+		bind "fd@${lih2}"
+		server hap_srv ${hapsrv_fe_addr}:${hapsrv_fe_port} proto h2 ws h2
+
+	# alpn h2,http/1.1 ws h2 -> websocket on h2
+	listen lisslh2
+		bind "fd@${lisslh2}"
+		server hap_srv ${hapsrv_fessl_addr}:${hapsrv_fessl_port} ssl verify none alpn h2,http/1.1 ws h2
+		http-response set-header x-alpn "%[ssl_bc_alpn]"
+
+	# ws auto -> websocket on h1
+	listen liauto
+		bind "fd@${liauto}"
+		server hap_srv ${hapsrv_fe_addr}:${hapsrv_fe_port}
+
+	# alpn h2,http/1.1 ws auto -> websocket on h1
+	listen lissl
+		bind "fd@${lissl}"
+		server hap_srv ${hapsrv_fessl_addr}:${hapsrv_fessl_port} ssl verify none alpn h2,http/1.1 ws auto
+		http-response set-header x-alpn "%[ssl_bc_alpn]"
+	# alpn h2,http/1.1 ws auto -> websocket on h1
+	listen lisslauto
+		bind "fd@${lisslauto}"
+		server hap_srv ${hapsrv_fessl_addr}:${hapsrv_fessl_port} ssl verify none alpn h2,http/1.1
+		http-response set-header x-alpn "%[ssl_bc_alpn]"
+
+	# proto h2 ws auto -> websocket on h2
+	listen liauto2
+		bind "fd@${liauto2}"
+		server hap_srv ${hapsrv_fe_addr}:${hapsrv_fe_port} proto h2
+
+	# alpn h2 ws auto -> websocket on h2
+	listen lisslauto2
+		bind "fd@${lisslauto2}"
+		server hap_srv ${hapsrv_fessl_addr}:${hapsrv_fessl_port} ssl verify none alpn h2 ws auto
+		http-response set-header x-alpn "%[ssl_bc_alpn]"
+} -start
+
+client c1 -connect ${hap_li_sock} {
+	txreq \
+	  -req "GET" \
+	  -url "/" \
+	  -hdr "host: 127.0.0.1" \
+	  -hdr "connection: upgrade" \
+	  -hdr "upgrade: websocket" \
+	  -hdr "sec-websocket-key: dGhlIHNhbXBsZSBub25jZQ=="
+	rxresp
+	expect resp.status == 101
+	expect resp.http.x-backend-protocol == "1.1"
+} -run
+
+client c1.2 -connect ${hap_lih2_sock} {
+	txreq \
+	  -req "GET" \
+	  -url "/" \
+	  -hdr "host: 127.0.0.1" \
+	  -hdr "connection: upgrade" \
+	  -hdr "upgrade: websocket" \
+	  -hdr "sec-websocket-key: dGhlIHNhbXBsZSBub25jZQ=="
+	rxresp
+	expect resp.status == 101
+	expect resp.http.x-backend-protocol == "2.0"
+} -run
+
+client c1.3 -connect ${hap_liauto_sock} {
+	txreq \
+	  -req "GET" \
+	  -url "/" \
+	  -hdr "host: 127.0.0.1" \
+	  -hdr "connection: upgrade" \
+	  -hdr "upgrade: websocket" \
+	  -hdr "sec-websocket-key: dGhlIHNhbXBsZSBub25jZQ=="
+	rxresp
+	expect resp.status == 101
+	expect resp.http.x-backend-protocol == "1.1"
+} -run
+
+client c1.4 -connect ${hap_liauto2_sock} {
+	txreq \
+	  -req "GET" \
+	  -url "/" \
+	  -hdr "host: 127.0.0.1" \
+	  -hdr "connection: upgrade" \
+	  -hdr "upgrade: websocket" \
+	  -hdr "sec-websocket-key: dGhlIHNhbXBsZSBub25jZQ=="
+	rxresp
+	expect resp.status == 101
+	expect resp.http.x-backend-protocol == "2.0"
+} -run
+
+client c2 -connect ${hap_lisslauto_sock} {
+	txreq \
+	  -req "GET" \
+	  -url "/" \
+	  -hdr "host: 127.0.0.1" \
+	  -hdr "connection: upgrade" \
+	  -hdr "upgrade: websocket" \
+	  -hdr "sec-websocket-key: dGhlIHNhbXBsZSBub25jZQ=="
+	rxresp
+	expect resp.status == 101
+	expect resp.http.x-alpn == "http/1.1"
+} -run
+
+client c2.2 -connect ${hap_lisslauto2_sock} {
+	txreq \
+	  -req "GET" \
+	  -url "/" \
+	  -hdr "host: 127.0.0.1" \
+	  -hdr "connection: upgrade" \
+	  -hdr "upgrade: websocket" \
+	  -hdr "sec-websocket-key: dGhlIHNhbXBsZSBub25jZQ=="
+	rxresp
+	expect resp.status == 101
+	expect resp.http.x-alpn == "h2"
+} -run
+
+client c2.3 -connect ${hap_lisslh2_sock} {
+	txreq \
+	  -req "GET" \
+	  -url "/" \
+	  -hdr "host: 127.0.0.1" \
+	  -hdr "connection: upgrade" \
+	  -hdr "upgrade: websocket" \
+	  -hdr "sec-websocket-key: dGhlIHNhbXBsZSBub25jZQ=="
+	rxresp
+	expect resp.status == 101
+	expect resp.http.x-alpn == "h2"
+} -run
