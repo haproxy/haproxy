@@ -5319,6 +5319,7 @@ static size_t h2s_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 				do {
 					if (isteqi(iststop(connection_ist, ','),
 					           ist("upgrade"))) {
+						TRACE_STATE("convert upgrade to extended connect method", H2_EV_TX_FRAME|H2_EV_TX_HDR, h2c->conn, h2s);
 						h2s->flags |= (H2_SF_BODY_TUNNEL|H2_SF_EXT_CONNECT_SENT);
 						sl->info.req.meth = HTTP_METH_CONNECT;
 						meth = ist("CONNECT");
