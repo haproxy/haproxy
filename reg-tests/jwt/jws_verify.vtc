@@ -152,7 +152,7 @@ client c4 -connect ${h1_mainfe_sock} {
     rxresp
     expect resp.status == 200
     expect resp.http.x-jwt-alg == "HS512"
-    expect resp.http.x-jwt-verify-HS512 == "4"
+    expect resp.http.x-jwt-verify-HS512 == "-3"
 } -run
 
 
@@ -269,7 +269,7 @@ client c13 -connect ${h1_mainfe_sock} {
     expect resp.status == 200
     expect resp.http.x-jwt-alg == "PS512"
     # Unmanaged algorithm
-    expect resp.http.x-jwt-verify == "3"
+    expect resp.http.x-jwt-verify == "-2"
 } -run
 
 # Unknown algorithm
@@ -281,7 +281,7 @@ client c14 -connect ${h1_mainfe_sock} {
     expect resp.status == 200
     expect resp.http.x-jwt-alg == "UNKNOWN_ALG"
     # Unmanaged algorithm
-    expect resp.http.x-jwt-verify == "2"
+    expect resp.http.x-jwt-verify == "-1"
 } -run
 
 # Invalid token (not enough fields)
@@ -293,7 +293,7 @@ client c15 -connect ${h1_mainfe_sock} {
     expect resp.status == 200
     expect resp.http.x-jwt-alg == "ES512"
     # Unmanaged algorithm
-    expect resp.http.x-jwt-verify == "4"
+    expect resp.http.x-jwt-verify == "-3"
 } -run
 
 # Invalid token (too many fields)
@@ -305,7 +305,7 @@ client c16 -connect ${h1_mainfe_sock} {
     expect resp.status == 200
     expect resp.http.x-jwt-alg == "ES512"
     # Unmanaged algorithm
-    expect resp.http.x-jwt-verify == "4"
+    expect resp.http.x-jwt-verify == "-3"
 } -run
 
 # Invalid token (empty signature)
@@ -317,7 +317,7 @@ client c17 -connect ${h1_mainfe_sock} {
     expect resp.status == 200
     expect resp.http.x-jwt-alg == "ES512"
     # Unmanaged algorithm
-    expect resp.http.x-jwt-verify == "4"
+    expect resp.http.x-jwt-verify == "-3"
 } -run
 
 # Unknown certificate
@@ -332,5 +332,5 @@ client c18 -connect ${h1_mainfe_sock} {
     expect resp.status == 200
     expect resp.http.x-jwt-alg == "ES512"
     # Unmanaged algorithm
-    expect resp.http.x-jwt-verify == "6"
+    expect resp.http.x-jwt-verify == "-5"
 } -run

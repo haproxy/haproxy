@@ -16576,8 +16576,10 @@ jwt_verify(<alg>,<key>)
   Performs a signature verification for the JSON Web Token (JWT) given in input
   by using the <alg> algorithm and the <key> parameter, which should either
   hold a secret or a path to a public certificate. Returns 1 in case of
-  verification success. See below for a full list of the possible return
-  values.
+  verification success, 0 in case of verification error and a strictly negative
+  value for any other error. Because of all those non-null error return values,
+  the result of this converter should never be converted to a boolean. See
+  below for a full list of the possible return values.
 
   For now, only JWS tokens using the Compact Serialization format can be
   processed (three dot-separated base64-url encoded strings). Among the
@@ -16604,13 +16606,13 @@ jwt_verify(<alg>,<key>)
   +----+----------------------------------------------------------------------+
   | ID | message                                                              |
   +----+----------------------------------------------------------------------+
-  | 0  | "Verification failure"                                               |
-  | 1  | "Verification sucess"                                                |
-  | 2  | "Unknown algorithm (not mentioned in RFC7518)"                       |
-  | 3  | "Unmanaged algorithm (PSXXX algorithm family)"                       |
-  | 4  | "Invalid token"                                                      |
-  | 5  | "Out of memory"                                                      |
-  | 6  | "Unknown certificate"                                                |
+  |  0 | "Verification failure"                                               |
+  |  1 | "Verification sucess"                                                |
+  | -1 | "Unknown algorithm (not mentioned in RFC7518)"                       |
+  | -2 | "Unmanaged algorithm (PSXXX algorithm family)"                       |
+  | -3 | "Invalid token"                                                      |
+  | -4 | "Out of memory"                                                      |
+  | -5 | "Unknown certificate"                                                |
   +----+----------------------------------------------------------------------+
 
   Please note that this converter is only available when HAProxy has been
