@@ -358,4 +358,19 @@ end:
 	return retval;
 }
 
+static void jwt_deinit(void)
+{
+	struct ebmb_node *node = NULL;
+	struct jwt_cert_tree_entry *entry = NULL;
+
+	node = ebmb_first(&jwt_cert_tree);
+	while (node) {
+		entry = ebmb_entry(node, struct jwt_cert_tree_entry, node);
+		ha_free(&entry);
+		node = ebmb_first(&jwt_cert_tree);
+	}
+}
+REGISTER_POST_DEINIT(jwt_deinit);
+
+
 #endif /* USE_OPENSSL */
