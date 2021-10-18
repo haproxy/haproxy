@@ -2392,6 +2392,13 @@ int pcli_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	int to_forward;
 	char *errmsg = NULL;
 
+	/* Don't read the next command if still processing the reponse of the
+	 * current one. Just wait. At this stage, errors should be handled by
+	 * the response analyzer.
+	 */
+	if (s->res.analysers & AN_RES_WAIT_CLI)
+		return 0;
+
 	if ((s->pcli_flags & ACCESS_LVL_MASK) == ACCESS_LVL_NONE)
 		s->pcli_flags |= strm_li(s)->bind_conf->level & ACCESS_LVL_MASK;
 
@@ -2439,13 +2446,6 @@ read_again:
 		}
 
 		s->res.flags |= CF_WAKE_ONCE; /* need to be called again */
-
-		/* remove the XFER_DATA analysers, which forwards all
-		 * the data, we don't want to forward the next requests
-		 * We need to add CF_FLT_ANALYZE to abort the forward too.
-		 */
-		req->analysers &= ~(AN_REQ_FLT_XFER_DATA|AN_REQ_WAIT_CLI);
-		req->analysers |= AN_REQ_FLT_END|CF_FLT_ANALYZE;
 		s->res.analysers |= AN_RES_WAIT_CLI;
 
 		if (!(s->flags & SF_ASSIGNED)) {
@@ -2467,6 +2467,7 @@ read_again:
 	} else if (to_forward == -1 && errmsg) {
 		/* there was an error during the parsing */
 			pcli_reply_and_close(s, errmsg);
+			s->req.analysers &= ~AN_REQ_WAIT_CLI;
 			return 0;
 	} else if (to_forward == -1 && channel_full(req, global.tune.maxrewrite)) {
 		/* buffer is full and we didn't catch the end of a command */
@@ -2488,6 +2489,7 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 
 	if (rep->flags & CF_READ_ERROR) {
 		pcli_reply_and_close(s, "Can't connect to the target CLI!\n");
+		s->req.analysers &= ~AN_REQ_WAIT_CLI;
 		s->res.analysers &= ~AN_RES_WAIT_CLI;
 		return 0;
 	}
@@ -2499,7 +2501,6 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	channel_dont_close(&s->req);
 
 	if (s->pcli_flags & PCLI_F_PAYLOAD) {
-		s->req.analysers |= AN_REQ_WAIT_CLI;
 		s->res.analysers &= ~AN_RES_WAIT_CLI;
 		s->req.flags |= CF_WAKE_ONCE; /* need to be called again if there is some command left in the request */
 		return 0;
@@ -2620,7 +2621,6 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 
 		s->req.flags |= CF_WAKE_ONCE; /* need to be called again if there is some command left in the request */
 
-		s->req.analysers |= AN_REQ_WAIT_CLI;
 		s->res.analysers &= ~AN_RES_WAIT_CLI;
 
 		/* We must trim any excess data from the response buffer, because we
