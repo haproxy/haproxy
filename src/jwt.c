@@ -338,18 +338,33 @@ enum jwt_vrfy_status jwt_verify(const struct buffer *token, const struct buffer 
 
 	/* We have all three sections, signature calculation can begin. */
 
-	if (ctx.alg <= JWS_ALG_HS512) {
+	switch(ctx.alg) {
+
+	case JWS_ALG_HS256:
+	case JWS_ALG_HS384:
+	case JWS_ALG_HS512:
 		/* HMAC + SHA-XXX */
 		retval = jwt_jwsverify_hmac(&ctx, decoded_sig);
-	} else if (ctx.alg <= JWS_ALG_ES512) {
+		break;
+	case JWS_ALG_RS256:
+	case JWS_ALG_RS384:
+	case JWS_ALG_RS512:
+	case JWS_ALG_ES256:
+	case JWS_ALG_ES384:
+	case JWS_ALG_ES512:
 		/* RSASSA-PKCS1-v1_5 + SHA-XXX */
 		/* ECDSA using P-XXX and SHA-XXX */
 		retval = jwt_jwsverify_rsa_ecdsa(&ctx, decoded_sig);
-	} else if (ctx.alg <= JWS_ALG_PS512) {
+		break;
+	case JWS_ALG_PS256:
+	case JWS_ALG_PS384:
+	case JWS_ALG_PS512:
+	default:
 		/* RSASSA-PSS using SHA-XXX and MGF1 with SHA-XXX */
 
 		/* Not managed yet */
 		retval = JWT_VRFY_UNMANAGED_ALG;
+		break;
 	}
 
 end:
