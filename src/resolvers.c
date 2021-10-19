@@ -1786,7 +1786,8 @@ static struct resolv_resolution *resolv_pick_resolution(struct resolvers *resolv
 	return res;
 }
 
-void resolv_purge_resolution_answer_records(struct resolv_resolution *resolution)
+/* deletes and frees all answer_items from the resolution's answer_list */
+static void resolv_purge_resolution_answer_records(struct resolv_resolution *resolution)
 {
 	struct resolv_answer_item *item, *itemback;
 
