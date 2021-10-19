@@ -758,6 +758,13 @@ void dns_session_free(struct dns_session *ds)
 
 	dns_queries_flush(ds);
 
+	/* Ensure to remove this session from external lists
+	 * Note: we are under the lock of dns_stream_server
+	 * which own the heads of those lists.
+	 */
+	LIST_DEL_INIT(&ds->waiter);
+	LIST_DEL_INIT(&ds->list);
+
 	ds->dss->cur_conns--;
 	/* Note: this is useless to update
 	 * max_active_conns here because
