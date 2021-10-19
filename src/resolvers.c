@@ -1844,6 +1844,35 @@ static void resolv_free_resolution(struct resolv_resolution *resolution)
 	pool_free(resolv_resolution_pool, resolution);
 }
 
+/* If *<req> is not NULL, returns it, otherwise tries to allocate a requester
+ * and makes it owned by this obj_type, with the proposed callback and error
+ * callback. On success, *req is assigned the allocated requester. Returns
+ * NULL on allocation failure.
+ */
+static struct resolv_requester *
+resolv_get_requester(struct resolv_requester **req, enum obj_type *owner,
+                     int (*cb)(struct resolv_requester *, struct dns_counters *),
+                     int (*err_cb)(struct resolv_requester *, int))
+{
+	struct resolv_requester *tmp;
+
+	if (*req)
+		return *req;
+
+	tmp = pool_alloc(resolv_requester_pool);
+	if (!tmp)
+		goto end;
+
+	LIST_INIT(&tmp->list);
+	tmp->owner              = owner;
+	tmp->resolution         = NULL;
+	tmp->requester_cb       = cb;
+	tmp->requester_error_cb = err_cb;
+	*req = tmp;
+ end:
+	return tmp;
+}
+
 /* Links a requester (a server or a resolv_srvrq) with a resolution. It returns 0
  * on success, -1 otherwise.
  */
@@ -1861,6 +1890,21 @@ int resolv_link_resolution(void *requester, int requester_type, int requester_lo
 	switch (requester_type) {
 		case OBJ_TYPE_SERVER:
 			srv             = (struct server *)requester;
+
+			if (!requester_locked)
+				HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
+
+			req = resolv_get_requester(&srv->resolv_requester,
+			                           &srv->obj_type,
+				                   snr_resolution_cb,
+				                   snr_resolution_error_cb);
+
+			if (!requester_locked)
+				HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
+
+			if (!req)
+				goto err;
+
 			hostname_dn     = &srv->hostname_dn;
 			hostname_dn_len = srv->hostname_dn_len;
 			resolvers       = srv->resolvers;
@@ -1871,6 +1915,14 @@ int resolv_link_resolution(void *requester, int requester_type, int requester_lo
 
 		case OBJ_TYPE_SRVRQ:
 			srvrq           = (struct resolv_srvrq *)requester;
+
+			req = resolv_get_requester(&srvrq->requester,
+			                           &srvrq->obj_type,
+			                           snr_resolution_cb,
+			                           srvrq_resolution_error_cb);
+			if (!req)
+				goto err;
+
 			hostname_dn     = &srvrq->hostname_dn;
 			hostname_dn_len = srvrq->hostname_dn_len;
 			resolvers       = srvrq->resolvers;
@@ -1879,6 +1931,14 @@ int resolv_link_resolution(void *requester, int requester_type, int requester_lo
 
 		case OBJ_TYPE_STREAM:
 			stream          = (struct stream *)requester;
+
+			req = resolv_get_requester(&stream->resolv_ctx.requester,
+			                           &stream->obj_type,
+			                           act_resolution_cb,
+			                           act_resolution_error_cb);
+			if (!req)
+				goto err;
+
 			hostname_dn     = &stream->resolv_ctx.hostname_dn;
 			hostname_dn_len = stream->resolv_ctx.hostname_dn_len;
 			resolvers       = stream->resolv_ctx.parent->arg.resolv.resolvers;
@@ -1894,56 +1954,7 @@ int resolv_link_resolution(void *requester, int requester_type, int requester_lo
 	if ((res = resolv_pick_resolution(resolvers, hostname_dn, hostname_dn_len, query_type)) == NULL)
 		goto err;
 
-	if (srv) {
-		if (!requester_locked)
-			HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
-		if (srv->resolv_requester == NULL) {
-			if ((req = pool_alloc(resolv_requester_pool)) == NULL) {
-				if (!requester_locked)
-					HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
-				goto err;
-			}
-			req->owner         = &srv->obj_type;
-			srv->resolv_requester = req;
-		}
-		else
-			req = srv->resolv_requester;
-		if (!requester_locked)
-			HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
-
-		req->requester_cb       = snr_resolution_cb;
-		req->requester_error_cb = snr_resolution_error_cb;
-	}
-	else if (srvrq) {
-		if (srvrq->requester == NULL) {
-			if ((req = pool_alloc(resolv_requester_pool)) == NULL)
-				goto err;
-			req->owner           = &srvrq->obj_type;
-			srvrq->requester = req;
-		}
-		else
-			req = srvrq->requester;
-
-		req->requester_cb       = snr_resolution_cb;
-		req->requester_error_cb = srvrq_resolution_error_cb;
-	}
-	else if (stream) {
-		if (stream->resolv_ctx.requester == NULL) {
-			if ((req = pool_alloc(resolv_requester_pool)) == NULL)
-				goto err;
-			req->owner           = &stream->obj_type;
-			stream->resolv_ctx.requester = req;
-		}
-		else
-			req = stream->resolv_ctx.requester;
-
-		req->requester_cb       = act_resolution_cb;
-		req->requester_error_cb = act_resolution_error_cb;
-	}
-	else
-		goto err;
-
-	req->resolution         = res;
+	req->resolution = res;
 
 	LIST_APPEND(&res->requesters, &req->list);
 	return 0;
