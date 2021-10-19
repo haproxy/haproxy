@@ -926,7 +926,7 @@ static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufe
 	reader += 2;
 
 	/* Parsing dns queries */
-	LIST_INIT(&r_res->query_list);
+	BUG_ON(!LIST_ISEMPTY(&r_res->query_list));
 	for (query_record_id = 0; query_record_id < r_res->header.qdcount; query_record_id++) {
 		/* Use next pre-allocated resolv_query_item after ensuring there is
 		 * still one available.
@@ -1773,6 +1773,8 @@ static struct resolv_resolution *resolv_pick_resolution(struct resolvers *resolv
 	/* No resolution could be found, so let's allocate a new one */
 	res = pool_zalloc(resolv_resolution_pool);
 	if (res) {
+		int i;
+
 		res->resolvers  = resolvers;
 		res->uuid       = resolution_uuid;
 		res->status     = RSLV_STATUS_NONE;
@@ -1780,7 +1782,11 @@ static struct resolv_resolution *resolv_pick_resolution(struct resolvers *resolv
 		res->last_valid = now_ms;
 
 		LIST_INIT(&res->requesters);
+		LIST_INIT(&res->response.query_list);
 		LIST_INIT(&res->response.answer_list);
+
+		for (i = 0; i < DNS_MAX_QUERY_RECORDS; i++)
+			LIST_INIT(&res->response_query_records[i].list);
 
 		res->prefered_query_type = query_type;
 		res->query_type          = query_type;
@@ -1807,6 +1813,15 @@ static void resolv_purge_resolution_answer_records(struct resolv_resolution *res
 	}
 }
 
+/* deletes all query_items from the resolution's query_list */
+static void resolv_purge_resolution_query_items(struct resolv_resolution *resolution)
+{
+	struct resolv_query_item *item, *itemback;
+
+	list_for_each_entry_safe(item, itemback, &resolution->response.query_list, list)
+		LIST_DEL_INIT(&item->list);
+}
+
 /* Releases a resolution from its requester(s) and move it back to the pool */
 static void resolv_free_resolution(struct resolv_resolution *resolution)
 {
@@ -1822,6 +1837,8 @@ static void resolv_free_resolution(struct resolv_resolution *resolution)
 		req->resolution = NULL;
 	}
 	resolv_purge_resolution_answer_records(resolution);
+	resolv_purge_resolution_query_items(resolution);
+
 	LIST_DELETE(&resolution->list);
 	pool_free(resolv_resolution_pool, resolution);
 }
@@ -2160,12 +2177,16 @@ static int resolv_process_responses(struct dns_nameserver *ns)
 
 		/* Now let's check the query's dname corresponds to the one we
 		 * sent. We can check only the first query of the list. We send
-		 * one query at a time so we get one query in the response */
-		query = LIST_NEXT(&res->response.query_list, struct resolv_query_item *, list);
-		if (query && memcmp(query->name, res->hostname_dn, res->hostname_dn_len) != 0) {
-			dns_resp = RSLV_RESP_WRONG_NAME;
-			ns->counters->other++;
-			goto report_res_error;
+		 * one query at a time so we get one query in the response.
+		 */
+		if (!LIST_ISEMPTY(&res->response.query_list)) {
+			query = LIST_NEXT(&res->response.query_list, struct resolv_query_item *, list);
+			LIST_DEL_INIT(&query->list);
+			if (memcmp(query->name, res->hostname_dn, res->hostname_dn_len) != 0) {
+				dns_resp = RSLV_RESP_WRONG_NAME;
+				ns->counters->other++;
+				goto report_res_error;
+			}
 		}
 
 		/* So the resolution succeeded */
