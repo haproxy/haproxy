@@ -1990,6 +1990,12 @@ help [<command>]
   the requested one. The same help screen is also displayed for unknown
   commands.
 
+httpclient <method> <URI>
+  Launch an HTTP client request and print the response on the CLI. Only
+  supported on a CLI connection running in expert mode (see "expert-mode on").
+  It's only meant for debugging. It currently can't resolve FQDN so your URI must
+  contains an IP.
+
 new ssl ca-file <cafile>
   Create a new empty CA file tree entry to be filled with a set of CA
   certificates and added to a crt-list. This command should be used in
