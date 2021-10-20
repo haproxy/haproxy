@@ -64,7 +64,7 @@ static unsigned int resolution_uuid = 1;
 unsigned int resolv_failed_resolutions = 0;
 static struct task *process_resolvers(struct task *t, void *context, unsigned int state);
 static void resolv_free_resolution(struct resolv_resolution *resolution);
-static void _resolv_unlink_resolution(struct resolv_requester *requester, int safe);
+static void _resolv_unlink_resolution(struct resolv_requester *requester);
 
 enum {
 	DNS_STAT_ID,
@@ -606,7 +606,7 @@ static void free_aborted_resolutions()
  */
 static void resolv_srvrq_cleanup_srv(struct server *srv)
 {
-	_resolv_unlink_resolution(srv->resolv_requester, 0);
+	_resolv_unlink_resolution(srv->resolv_requester);
 	HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
 	srvrq_update_srv_status(srv, 1);
 	ha_free(&srv->hostname);
@@ -803,7 +803,7 @@ srv_found:
 					/* Unlink A/AAAA resolution for this server if there is an AR item.
 					 * It is usless to perform an extra resolution
 					 */
-					_resolv_unlink_resolution(srv->resolv_requester, 0);
+					_resolv_unlink_resolution(srv->resolv_requester);
 				}
 
 				if (!srv->hostname_dn) {
@@ -2014,7 +2014,7 @@ int resolv_link_resolution(void *requester, int requester_type, int requester_lo
  * is called using safe == 1 to make it usable into callbacks. Must be called
  * with the death_row already initialized via init_aborted_resolutions().
  */
-void resolv_detach_from_resolution_answer_items(struct resolv_resolution *res,  struct resolv_requester *req, int safe)
+void resolv_detach_from_resolution_answer_items(struct resolv_resolution *res,  struct resolv_requester *req)
 {
 	struct resolv_answer_item *item, *itemback;
 	struct server *srv, *srvback;
@@ -2040,7 +2040,7 @@ void resolv_detach_from_resolution_answer_items(struct resolv_resolution *res,  
  * if <safe> is set to 1, the corresponding resolution is not released. Must be
  * called with the death_row already initialized via init_aborted_resolutions().
  */
-static void _resolv_unlink_resolution(struct resolv_requester *requester, int safe)
+static void _resolv_unlink_resolution(struct resolv_requester *requester)
 {
 	struct resolv_resolution *res;
 	struct resolv_requester  *req;
@@ -2051,7 +2051,7 @@ static void _resolv_unlink_resolution(struct resolv_requester *requester, int sa
 	res = requester->resolution;
 
 	/* remove ref from the resolution answer item list to the requester */
-	resolv_detach_from_resolution_answer_items(res,  requester, safe);
+	resolv_detach_from_resolution_answer_items(res,  requester);
 
 	/* Clean up the requester */
 	LIST_DEL_INIT(&requester->list);
@@ -2061,15 +2061,6 @@ static void _resolv_unlink_resolution(struct resolv_requester *requester, int sa
 	if (!LIST_ISEMPTY(&res->requesters))
 		req = LIST_NEXT(&res->requesters, struct resolv_requester *, list);
 	else {
-		if (safe) {
-			/* Don't release it yet. */
-			resolv_reset_resolution(res);
-			res->hostname_dn = NULL;
-			res->hostname_dn_len = 0;
-			resolv_purge_resolution_answer_records(res);
-			return;
-		}
-
 		abort_resolution(res);
 		return;
 	}
@@ -2096,10 +2087,10 @@ static void _resolv_unlink_resolution(struct resolv_requester *requester, int sa
 }
 
 /* The public version of the function above that deals with the death row. */
-void resolv_unlink_resolution(struct resolv_requester *requester, int safe)
+void resolv_unlink_resolution(struct resolv_requester *requester)
 {
 	init_aborted_resolutions();
-	_resolv_unlink_resolution(requester, safe);
+	_resolv_unlink_resolution(requester);
 	free_aborted_resolutions();
 }
 
@@ -2972,7 +2963,7 @@ enum act_return resolv_action_do_resolve(struct act_rule *rule, struct proxy *px
 	ha_free(&s->resolv_ctx.hostname_dn);
 	s->resolv_ctx.hostname_dn_len = 0;
 	if (s->resolv_ctx.requester) {
-		_resolv_unlink_resolution(s->resolv_ctx.requester, 0);
+		_resolv_unlink_resolution(s->resolv_ctx.requester);
 		pool_free(resolv_requester_pool, s->resolv_ctx.requester);
 		s->resolv_ctx.requester = NULL;
 	}

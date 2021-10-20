@@ -680,7 +680,7 @@ static void stream_free(struct stream *s)
 		HA_SPIN_LOCK(DNS_LOCK, &resolvers->lock);
 		ha_free(&s->resolv_ctx.hostname_dn);
 		s->resolv_ctx.hostname_dn_len = 0;
-		resolv_unlink_resolution(s->resolv_ctx.requester, 0);
+		resolv_unlink_resolution(s->resolv_ctx.requester);
 		HA_SPIN_UNLOCK(DNS_LOCK, &resolvers->lock);
 
 		pool_free(resolv_requester_pool, s->resolv_ctx.requester);

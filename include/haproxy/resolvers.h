@@ -49,8 +49,8 @@ int resolv_get_ip_from_response(struct resolv_response *r_res,
                              struct server *owner);
 
 int resolv_link_resolution(void *requester, int requester_type, int requester_locked);
-void resolv_unlink_resolution(struct resolv_requester *requester, int safe);
-void resolv_detach_from_resolution_answer_items(struct resolv_resolution *res,  struct resolv_requester *req, int safe);
+void resolv_unlink_resolution(struct resolv_requester *requester);
+void resolv_detach_from_resolution_answer_items(struct resolv_resolution *res,  struct resolv_requester *req);
 void resolv_trigger_resolution(struct resolv_requester *requester);
 enum act_parse_ret resolv_parse_do_resolve(const char **args, int *orig_arg, struct proxy *px, struct act_rule *rule, char **err);
 int check_action_do_resolve(struct act_rule *rule, struct proxy *px, char **err);

@@ -3574,7 +3574,7 @@ int srvrq_resolution_error_cb(struct resolv_requester *requester, int error_code
 	}
 
 	/* Remove any associated server ref */
-	resolv_detach_from_resolution_answer_items(res,  requester, 1);
+	resolv_detach_from_resolution_answer_items(res,  requester);
 
 	return 0;
 }
@@ -3599,7 +3599,7 @@ int snr_resolution_error_cb(struct resolv_requester *requester, int error_code)
 	if (!snr_update_srv_status(s, 1)) {
 		memset(&s->addr, 0, sizeof(s->addr));
 		HA_SPIN_UNLOCK(SERVER_LOCK, &s->lock);
-		resolv_detach_from_resolution_answer_items(requester->resolution, requester, 1);
+		resolv_detach_from_resolution_answer_items(requester->resolution, requester);
 		return 0;
 	}
 	HA_SPIN_UNLOCK(SERVER_LOCK, &s->lock);
@@ -3722,7 +3722,7 @@ int srv_set_fqdn(struct server *srv, const char *hostname, int resolv_locked)
 	    strcasecmp(resolution->hostname_dn, hostname_dn) == 0)
 		goto end;
 
-	resolv_unlink_resolution(srv->resolv_requester, 0);
+	resolv_unlink_resolution(srv->resolv_requester);
 
 	free(srv->hostname);
 	free(srv->hostname_dn);
