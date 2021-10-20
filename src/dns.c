@@ -775,6 +775,14 @@ static void dns_session_release(struct appctx *appctx)
 	if (!ds)
 		return;
 
+	/* We do not call ring_appctx_detach here
+	 * because we want to keep readers counters
+	 * to retry a conn with a different appctx.
+	 */
+	HA_RWLOCK_WRLOCK(DNS_LOCK, &ds->ring.lock);
+	LIST_DEL_INIT(&appctx->wait_entry);
+	HA_RWLOCK_WRUNLOCK(DNS_LOCK, &ds->ring.lock);
+
 	dss = ds->dss;
 
 	HA_SPIN_LOCK(DNS_LOCK, &dss->lock);
@@ -807,13 +815,6 @@ static void dns_session_release(struct appctx *appctx)
 		HA_SPIN_UNLOCK(DNS_LOCK, &dss->lock);
 		return;
 	}
-
-	/* We do not call ring_appctx_detach here
-	 * because we want to keep readers counters
-	 * to retry a con with a different appctx*/
-	HA_RWLOCK_WRLOCK(DNS_LOCK, &ds->ring.lock);
-	LIST_DEL_INIT(&appctx->wait_entry);
-	HA_RWLOCK_WRUNLOCK(DNS_LOCK, &ds->ring.lock);
 
 	/* if there is no pending complete response
 	 * message, ensure to reset
