@@ -3260,6 +3260,7 @@ static inline void qc_parse_hd_form(struct quic_rx_packet *pkt,
 	}
 }
 
+__attribute__((unused))
 static ssize_t qc_srv_pkt_rcv(unsigned char **buf, const unsigned char *end,
                               struct quic_rx_packet *pkt,
                               struct quic_dgram_ctx *dgram_ctx,
@@ -4723,65 +4724,6 @@ ssize_t quic_lstnr_dgram_read(char *buf, size_t len, void *owner,
                               struct sockaddr_storage *saddr)
 {
 	return quic_dgram_read(buf, len, owner, saddr, qc_lstnr_pkt_rcv);
-}
-
-ssize_t quic_srv_dgram_read(char *buf, size_t len, void *owner,
-                            struct sockaddr_storage *saddr)
-{
-	return quic_dgram_read(buf, len, owner, saddr, qc_srv_pkt_rcv);
-}
-
-/* QUIC I/O handler for connection to local listeners or remove servers
- * depending on <listener> boolean value, with <fd> as socket file
- * descriptor and <ctx> as context.
- */
-static size_t quic_conn_handler(int fd, void *ctx, qpkt_read_func *func)
-{
-	ssize_t ret;
-	size_t done = 0;
-	struct buffer *buf = get_trash_chunk();
-	/* Source address */
-	struct sockaddr_storage saddr = {0};
-	socklen_t saddrlen = sizeof saddr;
-
-	if (!fd_recv_ready(fd))
-		return 0;
-
-	do {
-		ret = recvfrom(fd, buf->area, buf->size, 0,
-		               (struct sockaddr *)&saddr, &saddrlen);
-		if (ret < 0) {
-			if (errno == EINTR)
-				continue;
-			if (errno == EAGAIN)
-				fd_cant_recv(fd);
-			goto out;
-		}
-	} while (0);
-
-	done = buf->data = ret;
-	quic_dgram_read(buf->area, buf->data, ctx, &saddr, func);
-
- out:
-	return done;
-}
-
-/* QUIC I/O handler for connections to local listeners with <fd> as socket
- * file descriptor.
- */
-void quic_fd_handler(int fd)
-{
-	if (fdtab[fd].state & FD_POLL_IN)
-		quic_conn_handler(fd, fdtab[fd].owner, &qc_lstnr_pkt_rcv);
-}
-
-/* QUIC I/O handler for connections to remote servers with <fd> as socket
- * file descriptor.
- */
-void quic_conn_fd_handler(int fd)
-{
-	if (fdtab[fd].state & FD_POLL_IN)
-		quic_conn_handler(fd, fdtab[fd].owner, &qc_srv_pkt_rcv);
 }
 
 /*

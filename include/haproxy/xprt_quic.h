@@ -1054,7 +1054,5 @@ static inline void quic_tx_packet_refdec(struct quic_tx_packet *pkt)
 
 ssize_t quic_lstnr_dgram_read(char *buf, size_t len, void *owner,
                               struct sockaddr_storage *saddr);
-ssize_t quic_srv_dgram_read(char *buf, size_t len, void *owner,
-                            struct sockaddr_storage *saddr);
 #endif /* USE_QUIC */
 #endif /* _HAPROXY_XPRT_QUIC_H */
