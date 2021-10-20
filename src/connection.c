@@ -54,7 +54,6 @@ static int pp2_never_send_local;
 void conn_delete_from_tree(struct ebmb_node *node)
 {
 	ebmb_delete(node);
-	memset(node, 0, sizeof(*node));
 }
 
 int conn_create_mux(struct connection *conn)
