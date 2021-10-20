@@ -1325,13 +1325,17 @@ int connect_server(struct stream *s)
 	hash = conn_calculate_hash(&hash_params);
 
 	/* do not reuse if mode is not http */
-	if (!IS_HTX_STRM(s))
+	if (!IS_HTX_STRM(s)) {
+		DBG_TRACE_STATE("skip idle connections reuse: no htx", STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
 		goto skip_reuse;
+	}
 
 	/* first, search for a matching connection in the session's idle conns */
 	srv_conn = session_get_conn(s->sess, s->target, hash);
-	if (srv_conn)
+	if (srv_conn) {
+		DBG_TRACE_STATE("reuse connection from session", STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
 		reuse = 1;
+	}
 
 	if (srv && !reuse && reuse_mode != PR_O_REUSE_NEVR) {
 		/* Below we pick connections from the safe, idle  or
@@ -1354,8 +1358,10 @@ int connect_server(struct stream *s)
 		 */
 		if (!eb_is_empty(&srv->per_thr[tid].avail_conns)) {
 			srv_conn = srv_lookup_conn(&srv->per_thr[tid].avail_conns, hash);
-			if (srv_conn)
+			if (srv_conn) {
+				DBG_TRACE_STATE("reuse connection from avail", STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
 				reuse = 1;
+			}
 		}
 
 		/* if no available connections found, search for an idle/safe */
@@ -1386,8 +1392,10 @@ int connect_server(struct stream *s)
 				}
 			}
 
-			if (srv_conn)
+			if (srv_conn) {
+				DBG_TRACE_STATE("reuse connection from idle/safe", STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
 				reuse = 1;
+			}
 		}
 	}
 
@@ -1498,6 +1506,7 @@ skip_reuse:
 		srv_cs = NULL;
 
 		if (srv_conn) {
+			DBG_TRACE_STATE("alloc new be connection", STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
 			srv_conn->owner = s->sess;
 
 			/* connection will be attached to the session if
