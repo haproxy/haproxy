@@ -1269,32 +1269,6 @@ int connect_server(struct stream *s)
 	 * it can be NULL for dispatch mode or transparent backend */
 	srv = objt_server(s->target);
 
-	/* first, set unique connection parameters and then calculate hash */
-	memset(&hash_params, 0, sizeof(hash_params));
-
-	/* 1. target */
-	hash_params.target = s->target;
-
-#ifdef USE_OPENSSL
-	/* 2. sni */
-	if (srv && srv->ssl_ctx.sni) {
-		sni_smp = sample_fetch_as_type(s->be, s->sess, s,
-		                               SMP_OPT_DIR_REQ | SMP_OPT_FINAL,
-		                               srv->ssl_ctx.sni, SMP_T_STR);
-
-		/* only test if the sample is not null as smp_make_safe (called
-		 * before ssl_sock_set_servername) can only fails if this is
-		 * not the case
-		 */
-		if (sni_smp) {
-			hash_params.sni_prehash =
-			  conn_hash_prehash(sni_smp->data.u.str.area,
-			                    sni_smp->data.u.str.data);
-		}
-	}
-#endif /* USE_OPENSSL */
-
-	/* 3. destination address */
 	if (!(s->flags & SF_ADDR_SET)) {
 		err = alloc_dst_address(&s->target_addr, srv, s);
 		if (err != SRV_STATUS_OK)
@@ -1303,14 +1277,47 @@ int connect_server(struct stream *s)
 		s->flags |= SF_ADDR_SET;
 	}
 
-	if (srv && (!is_addr(&srv->addr) || srv->flags & SRV_F_MAPPORTS))
-		hash_params.dst_addr = s->target_addr;
-
-	/* 4. source address */
 	err = alloc_bind_address(&bind_addr, srv, s);
 	if (err != SRV_STATUS_OK)
 		return SF_ERR_INTERNAL;
 
+#ifdef USE_OPENSSL
+	if (srv && srv->ssl_ctx.sni) {
+		sni_smp = sample_fetch_as_type(s->be, s->sess, s,
+		                               SMP_OPT_DIR_REQ | SMP_OPT_FINAL,
+		                               srv->ssl_ctx.sni, SMP_T_STR);
+	}
+#endif
+
+	/* do not reuse if mode is not http */
+	if (!IS_HTX_STRM(s)) {
+		DBG_TRACE_STATE("skip idle connections reuse: no htx", STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
+		goto skip_reuse;
+	}
+
+	/* first, set unique connection parameters and then calculate hash */
+	memset(&hash_params, 0, sizeof(hash_params));
+
+	/* 1. target */
+	hash_params.target = s->target;
+
+#ifdef USE_OPENSSL
+	/* 2. sni
+	 * only test if the sample is not null as smp_make_safe (called before
+	 * ssl_sock_set_servername) can only fails if this is not the case
+	 */
+	if (sni_smp) {
+		hash_params.sni_prehash =
+		  conn_hash_prehash(sni_smp->data.u.str.area,
+		                    sni_smp->data.u.str.data);
+	}
+#endif /* USE_OPENSSL */
+
+	/* 3. destination address */
+	if (srv && (!is_addr(&srv->addr) || srv->flags & SRV_F_MAPPORTS))
+		hash_params.dst_addr = s->target_addr;
+
+	/* 4. source address */
 	hash_params.src_addr = bind_addr;
 
 	/* 5. proxy protocol */
@@ -1323,12 +1330,6 @@ int connect_server(struct stream *s)
 	}
 
 	hash = conn_calculate_hash(&hash_params);
-
-	/* do not reuse if mode is not http */
-	if (!IS_HTX_STRM(s)) {
-		DBG_TRACE_STATE("skip idle connections reuse: no htx", STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
-		goto skip_reuse;
-	}
 
 	/* first, search for a matching connection in the session's idle conns */
 	srv_conn = session_get_conn(s->sess, s->target, hash);
