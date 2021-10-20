@@ -961,8 +961,17 @@ static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufe
 		reader += 2;
 	}
 
+	/* Let's just make gcc happy. The tests above make it clear that
+	 * qdcount==1 hence that we necessarily enter into the loop at least
+	 * once, but gcc seems to be having difficulties following it and
+	 * warns about the risk of NULL dereference at the next line, even
+	 * if a BUG_ON(!query) is used.
+	 */
+	ALREADY_CHECKED(query);
+
 	/* TRUNCATED flag must be checked after we could read the query type
-	 * because a TRUNCATED SRV query type response can still be exploited */
+	 * because a TRUNCATED SRV query type response can still be exploited
+	 */
 	if (query->type != DNS_RTYPE_SRV && flags & DNS_FLAG_TRUNCATED) {
 		cause = RSLV_RESP_TRUNCATED;
 		goto return_error;
