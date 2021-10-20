@@ -1523,6 +1523,8 @@ skip_reuse:
 				conn_free(srv_conn);
 				return SF_ERR_RESOURCE;
 			}
+
+			srv_conn->hash_node->hash = hash;
 		}
 	}
 
@@ -1745,8 +1747,6 @@ skip_reuse:
 			return SF_ERR_INTERNAL;
 		}
 	}
-
-	srv_conn->hash_node->hash = hash;
 
 	return SF_ERR_NONE;  /* connection is OK */
 }
