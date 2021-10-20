@@ -604,6 +604,7 @@ static void dns_session_io_handler(struct appctx *appctx)
 	if (ret) {
 		/* let's be woken up once new request to write arrived */
 		HA_RWLOCK_WRLOCK(DNS_LOCK, &ring->lock);
+		BUG_ON(LIST_INLIST(&appctx->wait_entry));
 		LIST_APPEND(&ring->waiters, &appctx->wait_entry);
 		HA_RWLOCK_WRUNLOCK(DNS_LOCK, &ring->lock);
 		si_rx_endp_done(si);
@@ -699,6 +700,7 @@ read:
 			 * wait_sess list where the task processing
 			 * response will pop available responses
 			 */
+			BUG_ON(LIST_INLIST(&ds->waiter));
 			LIST_APPEND(&ds->dss->wait_sess, &ds->waiter);
 
 			/* awake the task processing the responses */
@@ -759,6 +761,12 @@ void dns_session_free(struct dns_session *ds)
 	 * max_active_conns here because
 	 * we decrease the value
 	 */
+
+	BUG_ON(!LIST_ISEMPTY(&ds->list));
+	BUG_ON(!LIST_ISEMPTY(&ds->waiter));
+	BUG_ON(!LIST_ISEMPTY(&ds->queries));
+	BUG_ON(!LIST_ISEMPTY(&ds->ring.waiters));
+	BUG_ON(!eb_is_empty(&ds->query_ids));
 	pool_free(dns_session_pool, ds);
 }
 
