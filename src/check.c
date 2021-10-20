@@ -1391,7 +1391,7 @@ int start_check_task(struct check *check, int mininter,
 
 	/* task for the check. Process-based checks exclusively run on thread 1. */
 	if (check->type == PR_O2_EXT_CHK)
-		t = task_new_on(1);
+		t = task_new_on(0);
 	else
 		t = task_new_anywhere();
 
