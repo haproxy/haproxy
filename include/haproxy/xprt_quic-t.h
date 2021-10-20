@@ -232,9 +232,12 @@ enum quic_pkt_type {
 
 /* Size of the internal buffer of QUIC TX ring buffers (must be a power of 2) */
 #define QUIC_TX_RING_BUFSZ  (1UL << 12)
+/* Size of the internal buffer of QUIC RX buffer. */
+#define QUIC_RX_BUFSZ  (1UL << 18)
 
 extern struct trace_source trace_quic;
 extern struct pool_head *pool_head_quic_tx_ring;
+extern struct pool_head *pool_head_quic_rxbuf;
 extern struct pool_head *pool_head_quic_rx_packet;
 extern struct pool_head *pool_head_quic_tx_packet;
 extern struct pool_head *pool_head_quic_frame;
@@ -584,6 +587,12 @@ struct quic_path {
 /* QUIC ring buffer */
 struct qring {
 	struct cbuf *cbuf;
+	struct mt_list mt_list;
+};
+
+/* QUIC RX buffer */
+struct rxbuf {
+	struct buffer buf;
 	struct mt_list mt_list;
 };
 
