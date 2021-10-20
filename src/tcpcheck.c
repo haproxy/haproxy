@@ -1594,6 +1594,10 @@ enum tcpcheck_eval_ret tcpcheck_eval_recv(struct check *check, struct tcpcheck_r
 		goto stop;
 	}
 	if (!cur_read) {
+		if (cs->flags & CS_FL_EOI) {
+			/* If EOI is set, it means there is a response or an error */
+			goto out;
+		}
 		if (!(cs->flags & (CS_FL_WANT_ROOM|CS_FL_ERROR|CS_FL_EOS))) {
 			conn->mux->subscribe(cs, SUB_RETRY_RECV, &check->wait_list);
 			TRACE_DEVEL("waiting for response", CHK_EV_RX_DATA, check);
