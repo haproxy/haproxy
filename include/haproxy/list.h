@@ -101,6 +101,18 @@
  */
 #define LIST_INLIST(el) ((el)->n != (el))
 
+/* atomically checks if the list element's next pointer points to anything
+ * different from itself, implying the element should be part of a list. This
+ * usually is similar to LIST_INLIST() except that while that one might be
+ * instrumented using debugging code to perform further consistency checks,
+ * the macro below guarantees to always perform a single atomic test and is
+ * safe to use with barriers.
+ */
+#define LIST_INLIST_ATOMIC(el) ({                       \
+	typeof(el) __ptr = (el);                        \
+	HA_ATOMIC_LOAD(&(__ptr)->n) != __ptr;           \
+})
+
 /* returns a pointer of type <pt> to a structure following the element
  * which contains list head <lh>, which is known as element <el> in
  * struct pt.
