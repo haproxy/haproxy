@@ -3771,7 +3771,7 @@ static int h2_send(struct h2c *h2c)
 			done = 1; // we won't go further without extra buffers
 
 		if ((conn->flags & (CO_FL_SOCK_WR_SH|CO_FL_ERROR)) ||
-		    (h2c->st0 == H2_CS_ERROR2) || (h2c->flags & H2_CF_GOAWAY_FAILED))
+		    (h2c->flags & H2_CF_GOAWAY_FAILED))
 			break;
 
 		if (h2c->flags & (H2_CF_MUX_MFULL | H2_CF_DEM_MBUSY | H2_CF_DEM_MROOM))
