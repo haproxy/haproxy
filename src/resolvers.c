@@ -226,8 +226,8 @@ struct resolv_srvrq *new_resolv_srvrq(struct server *srv, char *fqdn)
 struct resolv_answer_item *find_srvrq_answer_record(const struct resolv_requester *requester)
 {
 	struct resolv_resolution *res;
-	struct resolv_answer_item *item;
-	struct server          *srv;
+	struct eb32_node *eb32;
+	struct server *srv;
 
 	if (!requester)
 		return NULL;
@@ -239,9 +239,12 @@ struct resolv_answer_item *find_srvrq_answer_record(const struct resolv_requeste
 		return NULL;
 
 	res = srv->srvrq->requester->resolution;
+
 	/* search an ANSWER record whose target points to the server's hostname and whose port is
 	 * the same as server's svc_port */
-	list_for_each_entry(item, &res->response.answer_list, list) {
+	for (eb32 = eb32_first(&res->response.answer_tree); eb32 != NULL;  eb32 = eb32_next(eb32)) {
+		struct resolv_answer_item *item = eb32_entry(eb32, typeof(*item), link);
+
 		if (memcmp(srv->hostname_dn, item->data.target, srv->hostname_dn_len) == 0 &&
 		    (srv->svc_port == item->port))
 			return item;
@@ -654,11 +657,12 @@ static void resolv_check_response(struct resolv_resolution *res)
 {
 	struct resolvers   *resolvers = res->resolvers;
 	struct resolv_requester   *req;
-	struct resolv_answer_item *item, *itemback;
+	struct eb32_node          *eb32, *eb32_back;
 	struct server          *srv, *srvback;
 	struct resolv_srvrq       *srvrq;
 
-	list_for_each_entry_safe(item, itemback, &res->response.answer_list, list) {
+	for (eb32 = eb32_first(&res->response.answer_tree); eb32 && (eb32_back = eb32_next(eb32), 1); eb32 = eb32_back) {
+		struct resolv_answer_item *item = eb32_entry(eb32, typeof(*item), link);
 		struct resolv_answer_item *ar_item = item->ar_item;
 
 		/* clean up obsolete Additional record */
@@ -684,7 +688,7 @@ static void resolv_check_response(struct resolv_resolution *res)
 					resolv_srvrq_cleanup_srv(srv);
 			}
 
-			LIST_DEL_INIT(&item->list);
+			eb32_delete(&item->link);
 			if (item->ar_item) {
 				pool_free(resolv_answer_item_pool, item->ar_item);
 				item->ar_item = NULL;
@@ -877,6 +881,7 @@ static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufe
 	struct resolv_query_item *query;
 	struct resolv_answer_item *answer_record, *tmp_record;
 	struct resolv_response *r_res;
+	struct eb32_node *eb32;
 	int i, found = 0;
 	int cause = RSLV_RESP_ERROR;
 
@@ -1034,7 +1039,7 @@ static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufe
 		answer_record->ar_item = NULL;
 		answer_record->last_seen = TICK_ETERNITY;
 		LIST_INIT(&answer_record->attached_servers);
-		LIST_INIT(&answer_record->list);
+		answer_record->link.node.leaf_p = NULL;
 
 		offset = 0;
 		len = resolv_read_name(resp, bufend, reader, tmpname, DNS_MAX_NAME_SIZE, &offset, 0);
@@ -1191,7 +1196,9 @@ static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufe
 
 		/* Lookup to see if we already had this entry */
 		found = 0;
-		list_for_each_entry(tmp_record, &r_res->answer_list, list) {
+
+		for (eb32 = eb32_first(&r_res->answer_tree); eb32 != NULL;  eb32 = eb32_next(eb32)) {
+			tmp_record = eb32_entry(eb32, typeof(*tmp_record), link);
 			if (tmp_record->type != answer_record->type)
 				continue;
 
@@ -1235,7 +1242,8 @@ static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufe
 		else {
 			answer_record->last_seen = now_ms;
 			answer_record->ar_item = NULL;
-			LIST_APPEND(&r_res->answer_list, &answer_record->list);
+			answer_record->link.key = 0; // will be set later
+			eb32_insert(&r_res->answer_tree, &answer_record->link);
 			answer_record = NULL;
 		}
 	} /* for i 0 to ancount */
@@ -1373,9 +1381,11 @@ static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufe
 
 		/* Lookup to see if we already had this entry */
 		found = 0;
-		list_for_each_entry(tmp_record, &r_res->answer_list, list) {
+
+		for (eb32 = eb32_first(&r_res->answer_tree); eb32 != NULL;  eb32 = eb32_next(eb32)) {
 			struct resolv_answer_item *ar_item;
 
+			tmp_record = eb32_entry(eb32, typeof(*tmp_record), link);
 			if (tmp_record->type != DNS_RTYPE_SRV || !tmp_record->ar_item)
 				continue;
 
@@ -1418,7 +1428,9 @@ static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufe
 			answer_record->ar_item = NULL;
 
 			// looking for the SRV record in the response list linked to this additional record
-			list_for_each_entry(tmp_record, &r_res->answer_list, list) {
+			for (eb32 = eb32_first(&r_res->answer_tree); eb32 != NULL;  eb32 = eb32_next(eb32)) {
+				tmp_record = eb32_entry(eb32, typeof(*tmp_record), link);
+
 				if (tmp_record->type == DNS_RTYPE_SRV &&
 				    tmp_record->ar_item == NULL &&
 				    memcmp(tmp_record->data.target, answer_record->name, tmp_record->data_len) == 0) {
@@ -1467,6 +1479,7 @@ int resolv_get_ip_from_response(struct resolv_response *r_res,
                              struct server *owner)
 {
 	struct resolv_answer_item *record, *found_record = NULL;
+	struct eb32_node *eb32;
 	int family_priority;
 	int currentip_found;
 	unsigned char *newip4, *newip6;
@@ -1500,10 +1513,11 @@ int resolv_get_ip_from_response(struct resolv_response *r_res,
 	 * The result with the biggest score is returned.
 	 */
 
-	list_for_each_entry(record, &r_res->answer_list, list) {
+	for (eb32 = eb32_first(&r_res->answer_tree); eb32 != NULL;  eb32 = eb32_next(eb32)) {
 		void *ip;
 		unsigned char ip_type;
 
+		record = eb32_entry(eb32, typeof(*record), link);
 		if (record->type == DNS_RTYPE_A) {
 			ip_type = AF_INET;
 			ip = &record->data.in4.sin_addr;
@@ -1645,11 +1659,13 @@ int resolv_get_ip_from_response(struct resolv_response *r_res,
 		LIST_APPEND(&found_record->attached_servers, &owner->ip_rec_item);
 	}
 
-	list_for_each_entry(record, &r_res->answer_list, list) {
+	for (eb32 = eb32_first(&r_res->answer_tree); eb32 != NULL;  eb32 = eb32_next(eb32)) {
+		record = eb32_entry(eb32, typeof(*record), link);
 		/* Move the first record to the end of the list, for internal
-		 * round robin */
-		LIST_DEL_INIT(&record->list);
-		LIST_APPEND(&r_res->answer_list, &record->list);
+		 * round robin.
+		 */
+		eb32_delete(&record->link);
+		eb32_insert(&r_res->answer_tree, &record->link);
 		break;
 	}
 
@@ -1827,7 +1843,7 @@ static struct resolv_resolution *resolv_pick_resolution(struct resolvers *resolv
 
 		LIST_INIT(&res->requesters);
 		LIST_INIT(&res->response.query_list);
-		LIST_INIT(&res->response.answer_list);
+		res->response.answer_tree = EB_ROOT;
 
 		for (i = 0; i < DNS_MAX_QUERY_RECORDS; i++)
 			LIST_INIT(&res->response_query_records[i].list);
@@ -1848,10 +1864,14 @@ static struct resolv_resolution *resolv_pick_resolution(struct resolvers *resolv
 /* deletes and frees all answer_items from the resolution's answer_list */
 static void resolv_purge_resolution_answer_records(struct resolv_resolution *resolution)
 {
-	struct resolv_answer_item *item, *itemback;
+	struct eb32_node *eb32, *eb32_back;
+	struct resolv_answer_item *item;
 
-	list_for_each_entry_safe(item, itemback, &resolution->response.answer_list, list) {
-		LIST_DEL_INIT(&item->list);
+	for (eb32 = eb32_first(&resolution->response.answer_tree);
+	     eb32 && (eb32_back = eb32_next(eb32), 1);
+	     eb32 = eb32_back) {
+		item = eb32_entry(eb32, typeof(*item), link);
+		eb32_delete(&item->link);
 		pool_free(resolv_answer_item_pool, item->ar_item);
 		pool_free(resolv_answer_item_pool, item);
 	}
@@ -2016,7 +2036,8 @@ int resolv_link_resolution(void *requester, int requester_type, int requester_lo
  */
 void resolv_detach_from_resolution_answer_items(struct resolv_resolution *res,  struct resolv_requester *req)
 {
-	struct resolv_answer_item *item, *itemback;
+	struct eb32_node *eb32, *eb32_back;
+	struct resolv_answer_item *item;
 	struct server *srv, *srvback;
 	struct resolv_srvrq    *srvrq;
 
@@ -2024,7 +2045,10 @@ void resolv_detach_from_resolution_answer_items(struct resolv_resolution *res,  
 		LIST_DEL_INIT(&srv->ip_rec_item);
 	}
 	else if ((srvrq = objt_resolv_srvrq(req->owner)) != NULL) {
-		list_for_each_entry_safe(item, itemback, &res->response.answer_list, list) {
+		for (eb32 = eb32_first(&res->response.answer_tree);
+		     eb32 && (eb32_back = eb32_next(eb32), 1);
+		     eb32 = eb32_back) {
+			item = eb32_entry(eb32, typeof(*item), link);
 			if (item->type == DNS_RTYPE_SRV) {
 				list_for_each_entry_safe(srv, srvback, &item->attached_servers, srv_rec_item) {
 					if (srv->srvrq == srvrq)

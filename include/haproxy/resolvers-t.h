@@ -119,13 +119,13 @@ struct resolv_answer_item {
 	unsigned int    last_seen;                   /* When was the answer was last seen */
 	struct resolv_answer_item *ar_item;          /* pointer to a RRset from the additional section, if exists */
 	struct list	attached_servers;            /* attached server head */
-	struct list     list;
+	struct eb32_node link;                       /* linking node */
 };
 
 struct resolv_response {
 	struct dns_header header;
 	struct list       query_list;
-	struct list       answer_list;
+	struct eb_root    answer_tree;
 	/* authority ignored for now */
 };
 
