@@ -1123,7 +1123,19 @@ static void h2_release(struct h2c *h2c)
 		TRACE_DEVEL("freeing conn", H2_EV_H2C_END, conn);
 
 		conn_stop_tracking(conn);
-		conn_full_close(conn);
+
+		/* there might be a GOAWAY frame still pending in the TCP
+		 * stack, and if the peer continues to send (i.e. window
+		 * updates etc), this can result in losing the GOAWAY. For
+		 * this reason we try to drain anything received in between.
+		 */
+		conn->flags |= CO_FL_WANT_DRAIN;
+
+		conn_xprt_shutw(conn);
+		conn_xprt_close(conn);
+		conn_sock_shutw(conn, !conn_is_back(conn));
+		conn_ctrl_close(conn);
+
 		if (conn->destroy_cb)
 			conn->destroy_cb(conn);
 		conn_free(conn);
