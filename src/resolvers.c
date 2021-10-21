@@ -47,6 +47,7 @@
 #include <haproxy/time.h>
 #include <haproxy/tools.h>
 #include <haproxy/vars.h>
+#include <haproxy/xxhash.h>
 
 
 struct list sec_resolvers  = LIST_HEAD_INIT(sec_resolvers);
@@ -882,6 +883,7 @@ static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufe
 	struct resolv_answer_item *answer_record, *tmp_record;
 	struct resolv_response *r_res;
 	struct eb32_node *eb32;
+	uint32_t key = 0;
 	int i, found = 0;
 	int cause = RSLV_RESP_ERROR;
 
@@ -1116,6 +1118,7 @@ static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufe
 
 				answer_record->data.in4.sin_family = AF_INET;
 				memcpy(&answer_record->data.in4.sin_addr, reader, answer_record->data_len);
+				key = XXH32(reader, answer_record->data_len, answer_record->type);
 				break;
 
 			case DNS_RTYPE_CNAME:
@@ -1139,6 +1142,7 @@ static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufe
 
 				memcpy(answer_record->data.target, tmpname, len);
 				answer_record->data.target[len] = 0;
+				key = XXH32(tmpname, len, answer_record->type);
 				previous_dname = answer_record->data.target;
 				break;
 
@@ -1167,6 +1171,7 @@ static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufe
 				answer_record->data_len = len;
 				memcpy(answer_record->data.target, tmpname, len);
 				answer_record->data.target[len] = 0;
+				key = XXH32(tmpname, len, answer_record->type);
 				if (answer_record->ar_item != NULL) {
 					pool_free(resolv_answer_item_pool, answer_record->ar_item);
 					answer_record->ar_item = NULL;
@@ -1180,6 +1185,7 @@ static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufe
 
 				answer_record->data.in6.sin6_family = AF_INET6;
 				memcpy(&answer_record->data.in6.sin6_addr, reader, answer_record->data_len);
+				key = XXH32(reader, answer_record->data_len, answer_record->type);
 				break;
 
 		} /* switch (record type) */
@@ -1197,7 +1203,7 @@ static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufe
 		/* Lookup to see if we already had this entry */
 		found = 0;
 
-		for (eb32 = eb32_first(&r_res->answer_tree); eb32 != NULL;  eb32 = eb32_next(eb32)) {
+		for (eb32 = eb32_lookup(&r_res->answer_tree, key); eb32 != NULL;  eb32 = eb32_next(eb32)) {
 			tmp_record = eb32_entry(eb32, typeof(*tmp_record), link);
 			if (tmp_record->type != answer_record->type)
 				continue;
@@ -1242,7 +1248,7 @@ static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufe
 		else {
 			answer_record->last_seen = now_ms;
 			answer_record->ar_item = NULL;
-			answer_record->link.key = 0; // will be set later
+			answer_record->link.key = key;
 			eb32_insert(&r_res->answer_tree, &answer_record->link);
 			answer_record = NULL;
 		}
