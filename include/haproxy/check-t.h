@@ -15,6 +15,8 @@
 #ifndef _HAPROXY_CHECKS_T_H
 #define _HAPROXY_CHECKS_T_H
 
+#include <sys/time.h>
+
 #include <import/ebtree-t.h>
 #include <import/ist.h>
 #include <haproxy/api-t.h>

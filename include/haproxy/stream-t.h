@@ -22,6 +22,8 @@
 #ifndef _HAPROXY_STREAM_T_H
 #define _HAPROXY_STREAM_T_H
 
+#include <sys/time.h>
+
 #include <haproxy/api-t.h>
 #include <haproxy/channel-t.h>
 #include <haproxy/dynbuf-t.h>
