@@ -175,9 +175,21 @@ ssize_t dns_recv_nameserver(struct dns_nameserver *ns, void *data, size_t size)
 
 			ds->rx_msg.len = 0;
 
+			/* This barrier is here to ensure that all data is
+			 * stored if the appctx detect the elem is out of the
+			 * list.
+			 */
+			__ha_barrier_store();
+
 			LIST_DEL_INIT(&ds->waiter);
 
 			if (ds->appctx) {
+				/* This second barrier is here to ensure that
+				 * the waked up appctx won't miss that the elem
+				 * is removed from the list.
+				 */
+				__ha_barrier_store();
+
 				/* awake appctx because it may have other
 				 * message to receive
 				 */
@@ -618,10 +630,8 @@ read:
 	 * delete from the list
 	 */
 
-	/* lock the dns_stream_server containing lists heads */
-	HA_SPIN_LOCK(DNS_LOCK, &ds->dss->lock);
-
-	if (!LIST_INLIST(&ds->waiter)) {
+	__ha_barrier_load();
+	if (!LIST_INLIST_ATOMIC(&ds->waiter)) {
 		while (1) {
 			uint16_t query_id;
 			struct eb32_node *eb;
@@ -700,8 +710,12 @@ read:
 			 * wait_sess list where the task processing
 			 * response will pop available responses
 			 */
+			HA_SPIN_LOCK(DNS_LOCK, &ds->dss->lock);
+
 			BUG_ON(LIST_INLIST(&ds->waiter));
 			LIST_APPEND(&ds->dss->wait_sess, &ds->waiter);
+
+			HA_SPIN_UNLOCK(DNS_LOCK, &ds->dss->lock);
 
 			/* awake the task processing the responses */
 			task_wakeup(ds->dss->task_rsp, TASK_WOKEN_INIT);
@@ -712,14 +726,12 @@ read:
 		if (!LIST_INLIST(&ds->waiter)) {
 			/* there is no more pending data to read and the con was closed by the server side */
 			if (!co_data(si_oc(si)) && (si_oc(si)->flags & CF_SHUTW)) {
-				HA_SPIN_UNLOCK(DNS_LOCK, &ds->dss->lock);
 				goto close;
 			}
 		}
 
 	}
 
-	HA_SPIN_UNLOCK(DNS_LOCK, &ds->dss->lock);
 	return;
 close:
 	si_shutw(si);
