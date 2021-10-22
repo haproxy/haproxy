@@ -407,6 +407,22 @@ static inline struct connection *cs_conn(const struct conn_stream *cs)
 	return cs ? cs->conn : NULL;
 }
 
+/* Returns the source address of the connection or NULL if not set */
+static inline const struct sockaddr_storage *conn_src(struct connection *conn)
+{
+	if (conn->flags & CO_FL_ADDR_FROM_SET)
+		return conn->src;
+	return NULL;
+}
+
+/* Returns the destination address of the connection or NULL if not set */
+static inline const struct sockaddr_storage *conn_dst(struct connection *conn)
+{
+	if (conn->flags & CO_FL_ADDR_TO_SET)
+		return conn->dst;
+	return NULL;
+}
+
 /* Retrieves the connection's original source address. Returns non-zero on
  * success or zero on failure. The operation is only performed once and the
  * address is stored in the connection for future use.
