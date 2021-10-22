@@ -47,6 +47,7 @@
  */
 int frontend_accept(struct stream *s)
 {
+	const struct sockaddr_storage *src, *dst;
 	struct session *sess = s->sess;
 	struct connection *conn = objt_conn(sess->origin);
 	struct listener *l = sess->listener;
@@ -60,35 +61,38 @@ int frontend_accept(struct stream *s)
 				if (!(s->logs.logwait &= ~(LW_CLIP|LW_INIT)))
 					s->do_log(s);
 		}
-		else if (conn && !conn_get_src(conn)) {
-			send_log(fe, LOG_INFO, "Connect from unknown source to listener %d (%s/%s)\n",
-				 l->luid, fe->id, (fe->mode == PR_MODE_HTTP) ? "HTTP" : "TCP");
-		}
 		else if (conn) {
-			char pn[INET6_ADDRSTRLEN], sn[INET6_ADDRSTRLEN];
-			int port;
+			src = si_src(&s->si[0]);
+			if (!src)
+				send_log(fe, LOG_INFO, "Connect from unknown source to listener %d (%s/%s)\n",
+					 l->luid, fe->id, (fe->mode == PR_MODE_HTTP) ? "HTTP" : "TCP");
+			else {
+				char pn[INET6_ADDRSTRLEN], sn[INET6_ADDRSTRLEN];
+				int port;
 
-			switch (addr_to_str(conn->src, pn, sizeof(pn))) {
-			case AF_INET:
-			case AF_INET6:
-				if (conn_get_dst(conn)) {
-					addr_to_str(conn->dst, sn, sizeof(sn));
-					port = get_host_port(conn->dst);
-				} else {
-					strcpy(sn, "undetermined address");
-					port = 0;
+				switch (addr_to_str(src, pn, sizeof(pn))) {
+				case AF_INET:
+				case AF_INET6:
+					dst = si_dst(&s->si[0]);
+					if (dst) {
+						addr_to_str(dst, sn, sizeof(sn));
+						port = get_host_port(dst);
+					} else {
+						strcpy(sn, "undetermined address");
+						port = 0;
+					}
+					send_log(fe, LOG_INFO, "Connect from %s:%d to %s:%d (%s/%s)\n",
+						 pn, get_host_port(src),
+						 sn, port,
+						 fe->id, (fe->mode == PR_MODE_HTTP) ? "HTTP" : "TCP");
+					break;
+				case AF_UNIX:
+					/* UNIX socket, only the destination is known */
+					send_log(fe, LOG_INFO, "Connect to unix:%d (%s/%s)\n",
+						 l->luid,
+						 fe->id, (fe->mode == PR_MODE_HTTP) ? "HTTP" : "TCP");
+					break;
 				}
-				send_log(fe, LOG_INFO, "Connect from %s:%d to %s:%d (%s/%s)\n",
-					 pn, get_host_port(conn->src),
-					 sn, port,
-					 fe->id, (fe->mode == PR_MODE_HTTP) ? "HTTP" : "TCP");
-				break;
-			case AF_UNIX:
-				/* UNIX socket, only the destination is known */
-				send_log(fe, LOG_INFO, "Connect to unix:%d (%s/%s)\n",
-					 l->luid,
-					 fe->id, (fe->mode == PR_MODE_HTTP) ? "HTTP" : "TCP");
-				break;
 			}
 		}
 	}
@@ -109,17 +113,18 @@ int frontend_accept(struct stream *s)
 			}
 		}
 
-		if (!conn_get_src(conn)) {
+		src = si_src(&s->si[0]);
+		if (!src) {
 			chunk_printf(&trash, "%08x:%s.accept(%04x)=%04x from [listener:%d] ALPN=%s\n",
 			             s->uniq_id, fe->id, (unsigned short)l->rx.fd, (unsigned short)conn->handle.fd,
 			             l->luid, alpn);
 		}
-		else switch (addr_to_str(conn->src, pn, sizeof(pn))) {
+		else switch (addr_to_str(src, pn, sizeof(pn))) {
 		case AF_INET:
 		case AF_INET6:
 			chunk_printf(&trash, "%08x:%s.accept(%04x)=%04x from [%s:%d] ALPN=%s\n",
 			             s->uniq_id, fe->id, (unsigned short)l->rx.fd, (unsigned short)conn->handle.fd,
-			             pn, get_host_port(conn->src), alpn);
+			             pn, get_host_port(src), alpn);
 			break;
 		case AF_UNIX:
 			/* UNIX socket, only the destination is known */
