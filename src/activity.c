@@ -241,7 +241,7 @@ void *malloc(size_t size)
 		return memprof_malloc_handler(size);
 
 	ret = memprof_malloc_handler(size);
-	size = malloc_usable_size(ret);
+	size = malloc_usable_size(ret) + sizeof(void *);
 
 	bin = memprof_get_bin(__builtin_return_address(0), MEMPROF_METH_MALLOC);
 	_HA_ATOMIC_ADD(&bin->alloc_calls, 1);
@@ -266,7 +266,7 @@ void *calloc(size_t nmemb, size_t size)
 		return memprof_calloc_handler(nmemb, size);
 
 	ret = memprof_calloc_handler(nmemb, size);
-	size = malloc_usable_size(ret);
+	size = malloc_usable_size(ret) + sizeof(void *);
 
 	bin = memprof_get_bin(__builtin_return_address(0), MEMPROF_METH_CALLOC);
 	_HA_ATOMIC_ADD(&bin->alloc_calls, 1);
@@ -296,6 +296,10 @@ void *realloc(void *ptr, size_t size)
 	size_before = malloc_usable_size(ptr);
 	ret = memprof_realloc_handler(ptr, size);
 	size = malloc_usable_size(ret);
+
+	/* only count the extra link for new allocations */
+	if (!ptr)
+		size += sizeof(void *);
 
 	bin = memprof_get_bin(__builtin_return_address(0), MEMPROF_METH_REALLOC);
 	if (size > size_before) {
@@ -329,7 +333,7 @@ void free(void *ptr)
 		return;
 	}
 
-	size_before = malloc_usable_size(ptr);
+	size_before = malloc_usable_size(ptr) + sizeof(void *);
 	memprof_free_handler(ptr);
 
 	bin = memprof_get_bin(__builtin_return_address(0), MEMPROF_METH_FREE);
