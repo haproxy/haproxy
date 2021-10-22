@@ -1,6 +1,58 @@
 ChangeLog :
 ===========
 
+2021/10/22 : 2.5-dev11
+    - DEV: coccinelle: Add strcmp.cocci
+    - CLEANUP: Apply strcmp.cocci
+    - CI: Add `permissions` to GitHub Actions
+    - CI: Clean up formatting in GitHub Action definitions
+    - MINOR: add ::1 to predefined LOCALHOST acl
+    - CLEANUP: assorted typo fixes in the code and comments
+    - CLEANUP: Consistently `unsigned int` for bitfields
+    - MEDIUM: resolvers: lower-case labels when converting from/to DNS names
+    - MEDIUM: resolvers: replace bogus resolv_hostname_cmp() with memcmp()
+    - MINOR: jwt: Empty the certificate tree during deinit
+    - MINOR: jwt: jwt_verify returns negative values in case of error
+    - MINOR: jwt: Do not rely on enum order anymore
+    - BUG/MEDIUM: stream: Keep FLT_END analyzers if a stream detects a channel error
+    - MINOR: httpclient/cli: access should be only done from expert mode
+    - DOC: management: doc about the CLI httpclient
+    - BUG/MEDIUM: tcpcheck: Properly catch early HTTP parsing errors
+    - BUG/MAJOR: dns: tcp session can remain attached to a list after a free
+    - BUG/MAJOR: dns: attempt to lock globaly for msg waiter list instead of use barrier
+    - CLEANUP: dns: always detach the appctx from the dns session on release
+    - DEBUG: dns: add a few more BUG_ON at sensitive places
+    - BUG/MAJOR: resolvers: add other missing references during resolution removal
+    - CLEANUP: resolvers: do not export resolv_purge_resolution_answer_records()
+    - BUILD: resolvers: avoid a possible warning on null-deref
+    - BUG/MEDIUM: resolvers: always check a valid item in query_list
+    - CLEANUP: always initialize the answer_list
+    - CLEANUP: resolvers: simplify resolv_link_resolution() regarding requesters
+    - CLEANUP: resolvers: replace all LIST_DELETE with LIST_DEL_INIT
+    - MEDIUM: resolvers: use a kill list to preserve the list consistency
+    - MEDIUM: resolvers: remove the last occurrences of the "safe" argument
+    - BUG/MEDIUM: checks: fix the starting thread for external checks
+    - MEDIUM: resolvers: replace the answer_list with a (flat) tree
+    - MEDIUM: resolvers: hash the records before inserting them into the tree
+    - BUG/MAJOR: buf: fix varint API post- vs pre- increment
+    - OPTIM: resolvers: move the eb32 node before the data in the answer_item
+    - MINOR: list: add new macro LIST_INLIST_ATOMIC()
+    - OPTIM: dns: use an atomic check for the list membership
+    - BUG/MINOR: task: do not set TASK_F_USR1 for no reason
+    - BUG/MINOR: mux-h2: do not prevent from sending a final GOAWAY frame
+    - MINOR: connection: add a new CO_FL_WANT_DRAIN flag to force drain on close
+    - MINOR: mux-h2: perform a full cycle shutdown+drain on close
+    - CLEANUP: resolvers: get rid of single-iteration loop in resolv_get_ip_from_response()
+    - MINOR: quic: Increase the size of handshake RX UDP datagrams
+    - BUG/MEDIUM: lua: fix memory leaks with realloc() on non-glibc systems
+    - MINOR: memprof: report the delta between alloc and free on realloc()
+    - MINOR: memprof: add one pointer size to the size of allocations
+    - BUILD: fix compilation on NetBSD
+    - MINOR: backend: add traces for idle connections reuse
+    - BUG/MINOR: backend: fix improper insert in avail tree for always reuse
+    - MINOR: backend: improve perf with tcp proxies skipping idle conns
+    - MINOR: connection: remove unneeded memset 0 for idle conns
+
 2021/10/16 : 2.5-dev10
     - MINOR: initcall: Rename __GLOBL and __GLOBL1.
     - MINOR: rules: add a new function new_act_rule() to allocate act_rules
