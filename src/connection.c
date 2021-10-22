@@ -1560,24 +1560,6 @@ void list_mux_proto(FILE *out)
 	}
 }
 
-/* Note: <remote> is explicitly allowed to be NULL */
-int make_proxy_line(char *buf, int buf_len, struct server *srv, struct connection *remote, struct stream *strm)
-{
-	int ret = 0;
-
-	if (srv && (srv->pp_opts & SRV_PP_V2)) {
-		ret = make_proxy_line_v2(buf, buf_len, srv, remote, strm);
-	}
-	else {
-		if (remote && conn_get_src(remote) && conn_get_dst(remote))
-			ret = make_proxy_line_v1(buf, buf_len, remote->src, remote->dst);
-		else
-			ret = make_proxy_line_v1(buf, buf_len, NULL, NULL);
-	}
-
-	return ret;
-}
-
 /* Makes a PROXY protocol line from the two addresses. The output is sent to
  * buffer <buf> for a maximum size of <buf_len> (including the trailing zero).
  * It returns the number of bytes composing this line (including the trailing
@@ -1585,7 +1567,7 @@ int make_proxy_line(char *buf, int buf_len, struct server *srv, struct connectio
  * TCP6 and "UNKNOWN" formats. If any of <src> or <dst> is null, UNKNOWN is
  * emitted as well.
  */
-int make_proxy_line_v1(char *buf, int buf_len, struct sockaddr_storage *src, struct sockaddr_storage *dst)
+static int make_proxy_line_v1(char *buf, int buf_len, struct sockaddr_storage *src, struct sockaddr_storage *dst)
 {
 	int ret = 0;
 	char * protocol;
@@ -1673,7 +1655,7 @@ static int make_tlv(char *dest, int dest_len, char type, uint16_t length, const 
 }
 
 /* Note: <remote> is explicitly allowed to be NULL */
-int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connection *remote, struct stream *strm)
+static int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connection *remote, struct stream *strm)
 {
 	const char pp2_signature[] = PP2_SIGNATURE;
 	void *tlv_crc32c_p = NULL;
@@ -1867,6 +1849,24 @@ int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connec
 
 	if (tlv_crc32c_p) {
 		write_u32(tlv_crc32c_p, htonl(hash_crc32c(buf, ret)));
+	}
+
+	return ret;
+}
+
+/* Note: <remote> is explicitly allowed to be NULL */
+int make_proxy_line(char *buf, int buf_len, struct server *srv, struct connection *remote, struct stream *strm)
+{
+	int ret = 0;
+
+	if (srv && (srv->pp_opts & SRV_PP_V2)) {
+		ret = make_proxy_line_v2(buf, buf_len, srv, remote, strm);
+	}
+	else {
+		if (remote && conn_get_src(remote) && conn_get_dst(remote))
+			ret = make_proxy_line_v1(buf, buf_len, remote->src, remote->dst);
+		else
+			ret = make_proxy_line_v1(buf, buf_len, NULL, NULL);
 	}
 
 	return ret;
