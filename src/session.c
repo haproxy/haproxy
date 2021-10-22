@@ -302,19 +302,20 @@ int session_accept_fd(struct connection *cli_conn)
  */
 static void session_prepare_log_prefix(struct session *sess)
 {
+	const struct sockaddr_storage *src;
 	struct tm tm;
 	char pn[INET6_ADDRSTRLEN];
 	int ret;
 	char *end;
-	struct connection *cli_conn = __objt_conn(sess->origin);
 
-	ret = conn_get_src(cli_conn) ? addr_to_str(cli_conn->src, pn, sizeof(pn)) : 0;
+	src = sess_src(sess);
+	ret = (src ? addr_to_str(src, pn, sizeof(pn)) : 0);
 	if (ret <= 0)
 		chunk_printf(&trash, "unknown [");
 	else if (ret == AF_UNIX)
 		chunk_printf(&trash, "%s:%d [", pn, sess->listener->luid);
 	else
-		chunk_printf(&trash, "%s:%d [", pn, get_host_port(cli_conn->src));
+		chunk_printf(&trash, "%s:%d [", pn, get_host_port(src));
 
 	get_localtime(sess->accept_date.tv_sec, &tm);
 	end = date2str_log(trash.area + trash.data, &tm, &(sess->accept_date),
