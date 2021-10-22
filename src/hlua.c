@@ -2500,7 +2500,7 @@ static int hlua_socket_send(struct lua_State *L)
 }
 
 #define SOCKET_INFO_MAX_LEN sizeof("[0000:0000:0000:0000:0000:0000:0000:0000]:12345")
-__LJMP static inline int hlua_socket_info(struct lua_State *L, struct sockaddr_storage *addr)
+__LJMP static inline int hlua_socket_info(struct lua_State *L, const struct sockaddr_storage *addr)
 {
 	static char buffer[SOCKET_INFO_MAX_LEN];
 	int ret;
