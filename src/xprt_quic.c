@@ -56,7 +56,7 @@
  * before updating them with customized values.
  */
 struct quic_transport_params quic_dflt_transport_params = {
-	.max_udp_payload_size = QUIC_DFLT_MAX_UDP_PAYLOAD_SIZE,
+	.max_udp_payload_size = QUIC_PACKET_MAXLEN,
 	.ack_delay_exponent   = QUIC_DFLT_ACK_DELAY_COMPONENT,
 	.max_ack_delay        = QUIC_DFLT_MAX_ACK_DELAY,
 	.active_connection_id_limit = QUIC_ACTIVE_CONNECTION_ID_LIMIT,

@@ -50,7 +50,7 @@ typedef unsigned long long ull;
 #define QUIC_INITIAL_IPV6_MTU      1232
 /* XXX TO DO XXX */
 /* Maximum packet length during handshake */
-#define QUIC_PACKET_MAXLEN     QUIC_INITIAL_IPV4_MTU
+#define QUIC_PACKET_MAXLEN     2048
 
 /* The minimum length of Initial packets. */
 #define QUIC_INITIAL_PACKET_MINLEN 1200
