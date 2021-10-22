@@ -737,8 +737,15 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 		else
 			chunk_appendf(&trash, "[other]");
 
-		chunk_appendf(&trash," %s(%lld)\n", memprof_methods[entry->method],
+		chunk_appendf(&trash," %s(%lld)", memprof_methods[entry->method],
 			      (long long)(entry->alloc_tot - entry->free_tot) / (long long)(entry->alloc_calls + entry->free_calls));
+
+		if (entry->alloc_tot && entry->free_tot) {
+			/* that's a realloc, show the total diff to help spot leaks */
+			chunk_appendf(&trash," [delta=%lld]", (long long)(entry->alloc_tot - entry->free_tot));
+		}
+
+		chunk_appendf(&trash, "\n");
 
 		if (ci_putchk(si_ic(si), &trash) == -1) {
 			si_rx_room_blk(si);
