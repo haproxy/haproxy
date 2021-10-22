@@ -744,6 +744,10 @@ static void stream_free(struct stream *s)
 	}
 
 	sockaddr_free(&s->target_addr);
+	sockaddr_free(&s->si[0].src);
+	sockaddr_free(&s->si[0].dst);
+	sockaddr_free(&s->si[1].src);
+	sockaddr_free(&s->si[1].dst);
 	pool_free(pool_head_stream, s);
 
 	/* We may want to free the maximum amount of pools if the proxy is stopping */

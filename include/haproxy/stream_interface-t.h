@@ -105,6 +105,9 @@ enum {
 	SI_FL_RX_WAIT_EP = 0x00200000,  /* stream-int waits for more data from the end point */
 	SI_FL_L7_RETRY   = 0x01000000,  /* The stream interface may attempt L7 retries */
 	SI_FL_D_L7_RETRY = 0x02000000,  /* Disable L7 retries on this stream interface, even if configured to do it */
+
+	SI_FL_ADDR_FROM_SET = 0x04000000, /* source address is set */
+	SI_FL_ADDR_TO_SET   = 0x08000000  /* destination address is set */
 };
 
 /* A stream interface has 3 parts :
@@ -126,11 +129,14 @@ struct stream_interface {
 	unsigned int flags;     /* SI_FL_* */
 	enum obj_type *end;     /* points to the end point (connection or appctx) */
 	struct si_ops *ops;     /* general operations at the stream interface layer */
+	struct sockaddr_storage *src; /* source address (pool), when known, otherwise NULL */
+	struct sockaddr_storage *dst; /* destination address (pool), when known, otherwise NULL */
 	unsigned int exp;       /* wake up time for connect, queue, turn-around, ... */
 
 	/* struct members below are the "remote" part, as seen from the buffer side */
 	unsigned int err_type;  /* first error detected, one of SI_ET_* */
 	int conn_retries;	/* number of connect retries left */
+
 	unsigned int hcto;      /* half-closed timeout (0 = unset) */
 	struct wait_event wait_event; /* We're in a wait list */
 	struct buffer l7_buffer; /* To store the data, in case we have to retry */

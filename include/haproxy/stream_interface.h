@@ -112,6 +112,8 @@ static inline struct stream_interface *si_opposite(struct stream_interface *si)
  */
 static inline int si_reset(struct stream_interface *si)
 {
+	si->src            = NULL;
+	si->dst            = NULL;
 	si->err_type       = SI_ET_NONE;
 	si->conn_retries   = 0;  /* used for logging too */
 	si->exp            = TICK_ETERNITY;
@@ -560,6 +562,108 @@ static inline const char *si_state_str(int state)
 	case SI_ST_CLO: return "CLO";
 	default:        return "???";
 	}
+}
+
+
+/* Returns the source address of the stream-int and, if not set, fallbacks on
+ * the session for frontend SI and the server connection for the backend SI. It
+ * returns a const address on succes or NULL on failure.
+ */
+static inline const struct sockaddr_storage *si_src(struct stream_interface *si)
+{
+	if (si->flags & SI_FL_ADDR_FROM_SET)
+		return si->src;
+	if (!(si->flags & SI_FL_ISBACK))
+		return sess_src(strm_sess(si_strm(si)));
+	else {
+		struct conn_stream *cs = objt_cs(si->end);
+
+		if (cs && cs->conn)
+			return conn_src(cs->conn);
+	}
+	return NULL;
+}
+
+
+/* Returns the destination address of the stream-int and, if not set, fallbacks
+ * on the session for frontend SI and the server connection for the backend
+ * SI. It returns a const address on succes or NULL on failure.
+ */
+static inline const struct sockaddr_storage *si_dst(struct stream_interface *si)
+{
+	if (si->flags & SI_FL_ADDR_TO_SET)
+		return si->dst;
+	if (!(si->flags & SI_FL_ISBACK))
+		return sess_dst(strm_sess(si_strm(si)));
+	else {
+		struct conn_stream *cs = objt_cs(si->end);
+
+		if (cs && cs->conn)
+			return conn_dst(cs->conn);
+	}
+	return NULL;
+}
+
+/* Retrieves the source address of the stream-int. Returns non-zero on success
+ * or zero on failure. The operation is only performed once and the address is
+ * stored in the stream-int for future use. On the first call, the stream-int
+ * source address is copied from the session one for frontend SI and the server
+ * connection for the backend SI.
+ */
+static inline int si_get_src(struct stream_interface *si)
+{
+	const struct sockaddr_storage *src = NULL;
+
+	if (si->flags & SI_FL_ADDR_FROM_SET)
+		return 1;
+
+	if (!(si->flags & SI_FL_ISBACK))
+		src = sess_src(strm_sess(si_strm(si)));
+	else {
+		struct conn_stream *cs = objt_cs(si->end);
+
+		if (cs && cs->conn)
+			src = conn_src(cs->conn);
+	}
+	if (!src)
+		return 0;
+
+	if (!sockaddr_alloc(&si->src, src, sizeof(*src)))
+		return 0;
+
+	si->flags |= SI_FL_ADDR_FROM_SET;
+	return 1;
+}
+
+/* Retrieves the destination address of the stream-int. Returns non-zero on
+ * success or zero on failure. The operation is only performed once and the
+ * address is stored in the stream-int for future use. On the first call, the
+ * stream-int destination address is copied from the session one for frontend SI
+ * and the server connection for the backend SI.
+ */
+static inline int si_get_dst(struct stream_interface *si)
+{
+	const struct sockaddr_storage *dst = NULL;
+
+	if (si->flags & SI_FL_ADDR_TO_SET)
+		return 1;
+
+	if (!(si->flags & SI_FL_ISBACK))
+		dst = sess_dst(strm_sess(si_strm(si)));
+	else {
+		struct conn_stream *cs = objt_cs(si->end);
+
+		if (cs && cs->conn)
+			dst = conn_dst(cs->conn);
+	}
+	if (!dst)
+		return 0;
+
+	if (!sockaddr_alloc(&si->dst, dst, sizeof(*dst)))
+		return 0;
+
+	si->flags |= SI_FL_ADDR_TO_SET;
+	return 1;
 }
 
 #endif /* _HAPROXY_STREAM_INTERFACE_H */
