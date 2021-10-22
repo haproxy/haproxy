@@ -11451,6 +11451,12 @@ int hlua_post_init()
  * indicated by <ptr> being NULL. A free is indicated by <nsize> being
  * zero. This one verifies that the limits are respected but is optimized
  * for the fast case where limits are not used, hence stats are not updated.
+ *
+ * Warning: while this API ressembles glibc's realloc() a lot, glibc surpasses
+ * POSIX by making realloc(ptr,0) an effective free(), but others do not do
+ * that and will simply allocate zero as if it were the result of malloc(0),
+ * so mapping this onto realloc() will lead to memory leaks on non-glibc
+ * systems.
  */
 static void *hlua_alloc(void *ud, void *ptr, size_t osize, size_t nsize)
 {
@@ -11463,8 +11469,13 @@ static void *hlua_alloc(void *ud, void *ptr, size_t osize, size_t nsize)
 	/* a limit of ~0 means unlimited and boot complete, so there's no need
 	 * for accounting anymore.
 	 */
-	if (likely(~zone->limit == 0))
-		return realloc(ptr, nsize);
+	if (likely(~zone->limit == 0)) {
+		if (!nsize)
+			ha_free(&ptr);
+		else
+			ptr = realloc(ptr, nsize);
+		return ptr;
+	}
 
 	if (!ptr)
 		osize = 0;
@@ -11478,7 +11489,10 @@ static void *hlua_alloc(void *ud, void *ptr, size_t osize, size_t nsize)
 			return NULL;
 	} while (!_HA_ATOMIC_CAS(&zone->allocated, &old, new));
 
-	ptr = realloc(ptr, nsize);
+	if (!nsize)
+		ha_free(&ptr);
+	else
+		ptr = realloc(ptr, nsize);
 
 	if (unlikely(!ptr && nsize)) // failed
 		_HA_ATOMIC_SUB(&zone->allocated, nsize - osize);
