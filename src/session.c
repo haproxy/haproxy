@@ -56,6 +56,8 @@ struct session *session_new(struct proxy *fe, struct listener *li, enum obj_type
 		LIST_INIT(&sess->srv_list);
 		sess->idle_conns = 0;
 		sess->flags = SESS_FL_NONE;
+		sess->src = NULL;
+		sess->dst = NULL;
 	}
 	return sess;
 }
@@ -90,6 +92,8 @@ void session_free(struct session *sess)
 		}
 		pool_free(pool_head_sess_srv_list, srv_list);
 	}
+	sockaddr_free(&sess->src);
+	sockaddr_free(&sess->dst);
 	pool_free(pool_head_session, sess);
 	_HA_ATOMIC_DEC(&jobs);
 }

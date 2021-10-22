@@ -23,6 +23,7 @@
 #define _HAPROXY_SESSION_H
 
 #include <haproxy/api.h>
+#include <haproxy/connection.h>
 #include <haproxy/global-t.h>
 #include <haproxy/obj_type-t.h>
 #include <haproxy/pool.h>
@@ -230,6 +231,88 @@ static inline struct connection *session_get_conn(struct session *sess, void *ta
 
   end:
 	return srv_conn;
+}
+
+/* Returns the source address of the session and fallbacks on the client
+ * connection if not set. It returns a const address on succes or NULL on
+ * failure.
+ */
+static inline const struct sockaddr_storage *sess_src(struct session *sess)
+{
+	struct connection *cli_conn = objt_conn(sess->origin);
+
+	if (sess->flags & SESS_FL_ADDR_FROM_SET)
+		return sess->src;
+	if (cli_conn && conn_get_src(cli_conn))
+		return conn_src(cli_conn);
+	return NULL;
+}
+
+/* Returns the destination address of the session and fallbacks on the client
+ * connection if not set. It returns a const address on succes or NULL on
+ * failure.
+ */
+static inline const struct sockaddr_storage *sess_dst(struct session *sess)
+{
+	struct connection *cli_conn = objt_conn(sess->origin);
+
+	if (sess->flags & SESS_FL_ADDR_TO_SET)
+		return sess->dst;
+	if (cli_conn && conn_get_dst(cli_conn))
+		return conn_dst(cli_conn);
+	return NULL;
+}
+
+
+/* Retrieves the source address of the session <sess>. Returns non-zero on
+ * success or zero on failure. The operation is only performed once and the
+ * address is stored in the session for future use. On the first call, the
+ * session source address is copied from the client connection one.
+ */
+static inline int sess_get_src(struct session *sess)
+{
+	struct connection *cli_conn = objt_conn(sess->origin);
+	const struct sockaddr_storage *src = NULL;
+
+	if (sess->flags & SESS_FL_ADDR_FROM_SET)
+		return 1;
+
+	if (cli_conn && conn_get_src(cli_conn))
+		src = conn_src(cli_conn);
+	if (!src)
+		return 0;
+
+	if (!sockaddr_alloc(&sess->src, src, sizeof(*src)))
+		return 0;
+
+	sess->flags |= SESS_FL_ADDR_FROM_SET;
+	return 1;
+}
+
+
+/* Retrieves the destination address of the session <sess>. Returns non-zero on
+ * success or zero on failure. The operation is only performed once and the
+ * address is stored in the session for future use. On the first call, the
+ * session destination address is copied from the client connection one.
+ */
+static inline int sess_get_dst(struct session *sess)
+{
+	struct connection *cli_conn = objt_conn(sess->origin);
+	const struct sockaddr_storage *dst = NULL;
+
+	if (sess->flags & SESS_FL_ADDR_TO_SET)
+		return 1;
+
+	if (cli_conn && conn_get_dst(cli_conn))
+		dst = conn_dst(cli_conn);
+	if (!dst)
+		return 0;
+
+	if (!sockaddr_alloc(&sess->dst, dst, sizeof(*dst)))
+		return 0;
+
+	sess->flags |= SESS_FL_ADDR_TO_SET;
+	return 1;
 }
 
 #endif /* _HAPROXY_SESSION_H */

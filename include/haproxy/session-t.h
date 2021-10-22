@@ -39,6 +39,8 @@
 enum {
 	SESS_FL_NONE          = 0x00000000, /* nothing */
 	SESS_FL_PREFER_LAST   = 0x00000001, /* NTML authent, we should reuse last conn */
+	SESS_FL_ADDR_FROM_SET = 0x00000002,
+	SESS_FL_ADDR_TO_SET   = 0x00000004,
 };
 
 /* max number of idle server connections kept attached to a session */
@@ -58,6 +60,8 @@ struct session {
 	int idle_conns;                 /* Number of connections we're currently responsible for that we are not using */
 	unsigned int flags;             /* session flags, SESS_FL_* */
 	struct list srv_list;           /* List of servers and the connections the session is currently responsible for */
+	struct sockaddr_storage *src; /* source address (pool), when known, otherwise NULL */
+	struct sockaddr_storage *dst; /* destination address (pool), when known, otherwise NULL */
 };
 
 struct sess_srv_list {
