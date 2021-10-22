@@ -673,7 +673,7 @@ static inline int is_addr(const struct sockaddr_storage *addr)
 }
 
 /* returns port in network byte order */
-static inline int get_net_port(struct sockaddr_storage *addr)
+static inline int get_net_port(const struct sockaddr_storage *addr)
 {
 	switch (addr->ss_family) {
 	case AF_INET:
@@ -685,7 +685,7 @@ static inline int get_net_port(struct sockaddr_storage *addr)
 }
 
 /* returns port in host byte order */
-static inline int get_host_port(struct sockaddr_storage *addr)
+static inline int get_host_port(const struct sockaddr_storage *addr)
 {
 	switch (addr->ss_family) {
 	case AF_INET:
