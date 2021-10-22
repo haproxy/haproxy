@@ -1665,14 +1665,13 @@ int resolv_get_ip_from_response(struct resolv_response *r_res,
 		LIST_APPEND(&found_record->attached_servers, &owner->ip_rec_item);
 	}
 
-	for (eb32 = eb32_first(&r_res->answer_tree); eb32 != NULL;  eb32 = eb32_next(eb32)) {
-		record = eb32_entry(eb32, typeof(*record), link);
+	eb32 = eb32_first(&r_res->answer_tree);
+	if (eb32) {
 		/* Move the first record to the end of the list, for internal
 		 * round robin.
 		 */
-		eb32_delete(&record->link);
-		eb32_insert(&r_res->answer_tree, &record->link);
-		break;
+		eb32_delete(eb32);
+		eb32_insert(&r_res->answer_tree, eb32);
 	}
 
 	return (currentip_found ? RSLV_UPD_NO : RSLV_UPD_SRVIP_NOT_FOUND);
