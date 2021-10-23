@@ -11529,9 +11529,6 @@ static void *hlua_alloc(void *ud, void *ptr, size_t osize, size_t nsize)
 	struct hlua_mem_allocator *zone = ud;
 	size_t limit, old, new;
 
-	if (unlikely(!ptr && !nsize))
-		return NULL;
-
 	/* a limit of ~0 means unlimited and boot complete, so there's no need
 	 * for accounting anymore.
 	 */
