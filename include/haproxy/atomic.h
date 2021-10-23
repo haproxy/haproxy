@@ -698,7 +698,7 @@ __ha_barrier_atomic_full(void)
  */
 #define __ha_cpu_relax() ({ asm volatile("isb" ::: "memory"); 1; })
 
-#if defined(__ARM_FEATURE_ATOMICS) // ARMv8.1-A atomics
+#if defined(__ARM_FEATURE_ATOMICS) && !defined(__clang__) // ARMv8.1-A atomics
 
 /* returns 0 on failure, non-zero on success */
 static forceinline int __ha_cas_dw(void *target, void *compare, const void *set)
@@ -738,7 +738,7 @@ static forceinline int __ha_cas_dw(void *target, void *compare, const void *set)
 	return ret;
 }
 
-#elif defined(__SIZEOF_INT128__) && defined(__GCC_HAVE_SYNC_COMPARE_AND_SWAP_16) // no ARMv8.1-A atomics but 128-bit atomics
+#elif defined(__SIZEOF_INT128__) && defined(_ARM_FEATURE_ATOMICS) // 128-bit and ARMv8.1-A will work
 
 /* According to https://gcc.gnu.org/onlinedocs/gcc/_005f_005fatomic-Builtins.html
  * we can use atomics on __int128. The availability of CAS is defined there:
