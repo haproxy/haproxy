@@ -6338,20 +6338,24 @@ static int _hlua_http_msg_dup(struct http_msg *msg, lua_State *L, size_t offset,
 				break;
 
 			default:
-				if (!ret) {
-					/* Remove the empty string and push nil on the stack */
-					lua_pop(L, 1);
-					lua_pushnil(L);
-				}
+				if (!ret)
+					goto no_data;
 				goto end;
 		}
 		offset = 0;
 	}
 
-	luaL_pushresult(&b);
-
 end:
+	if (!ret && (htx->flags & HTX_FL_EOM))
+		goto no_data;
+	luaL_pushresult(&b);
 	return ret;
+
+  no_data:
+	/* Remove the empty string and push nil on the stack */
+	lua_pop(L, 1);
+	lua_pushnil(L);
+	return 0;
 }
 
 /* Copies the string <str> to the HTTP message <msg> at the offset
