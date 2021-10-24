@@ -6343,6 +6343,10 @@ static int _hlua_http_msg_dup(struct http_msg *msg, lua_State *L, size_t offset,
 					lua_pop(L, 1);
 					lua_pushnil(L);
 				}
+				else
+				{
+					luaL_pushresult(&b);
+				}
 				goto end;
 		}
 		offset = 0;
