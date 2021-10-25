@@ -35,7 +35,8 @@
 #include <haproxy/proto_tcp.h>
 #include <haproxy/proxy-t.h>
 #include <haproxy/sample.h>
-#include <haproxy/stream-t.h>
+#include <haproxy/session.h>
+#include <haproxy/stream_interface.h>
 #include <haproxy/tcp_rules.h>
 #include <haproxy/tools.h>
 
@@ -48,26 +49,50 @@ static enum act_return tcp_action_req_set_src(struct act_rule *rule, struct prox
                                               struct session *sess, struct stream *s, int flags)
 {
 	struct connection *cli_conn;
+	struct sockaddr_storage *src;
+	struct sample *smp;
 
-	if ((cli_conn = objt_conn(sess->origin)) && conn_get_src(cli_conn)) {
-		struct sample *smp;
+	switch (rule->from) {
+	case ACT_F_TCP_REQ_CON:
+		cli_conn = objt_conn(sess->origin);
+		if (!cli_conn || !conn_get_src(cli_conn))
+			goto end;
+		src = cli_conn->src;
+		break;
 
-		smp = sample_fetch_as_type(px, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->arg.expr, SMP_T_ADDR);
-		if (smp) {
-			int port = get_net_port(cli_conn->src);
+	case ACT_F_TCP_REQ_SES:
+		if (!sess_get_src(sess))
+			goto end;
+		src = sess->src;
+		break;
 
-			if (smp->data.type == SMP_T_IPV4) {
-				((struct sockaddr_in *)cli_conn->src)->sin_family = AF_INET;
-				((struct sockaddr_in *)cli_conn->src)->sin_addr.s_addr = smp->data.u.ipv4.s_addr;
-				((struct sockaddr_in *)cli_conn->src)->sin_port = port;
-			} else if (smp->data.type == SMP_T_IPV6) {
-				((struct sockaddr_in6 *)cli_conn->src)->sin6_family = AF_INET6;
-				memcpy(&((struct sockaddr_in6 *)cli_conn->src)->sin6_addr, &smp->data.u.ipv6, sizeof(struct in6_addr));
-				((struct sockaddr_in6 *)cli_conn->src)->sin6_port = port;
-			}
-		}
-		cli_conn->flags |= CO_FL_ADDR_FROM_SET;
+	case ACT_F_TCP_REQ_CNT:
+	case ACT_F_HTTP_REQ:
+		if (!si_get_src(&s->si[0]))
+			goto end;
+		src = s->si[0].src;
+		break;
+
+	default:
+		goto end;
 	}
+
+	smp = sample_fetch_as_type(px, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->arg.expr, SMP_T_ADDR);
+	if (smp) {
+		int port = get_net_port(src);
+
+		if (smp->data.type == SMP_T_IPV4) {
+			((struct sockaddr_in *)src)->sin_family = AF_INET;
+			((struct sockaddr_in *)src)->sin_addr.s_addr = smp->data.u.ipv4.s_addr;
+			((struct sockaddr_in *)src)->sin_port = port;
+		} else if (smp->data.type == SMP_T_IPV6) {
+			((struct sockaddr_in6 *)src)->sin6_family = AF_INET6;
+			memcpy(&((struct sockaddr_in6 *)src)->sin6_addr, &smp->data.u.ipv6, sizeof(struct in6_addr));
+			((struct sockaddr_in6 *)src)->sin6_port = port;
+		}
+	}
+
+  end:
 	return ACT_RET_CONT;
 }
 
@@ -80,26 +105,50 @@ static enum act_return tcp_action_req_set_dst(struct act_rule *rule, struct prox
                                               struct session *sess, struct stream *s, int flags)
 {
 	struct connection *cli_conn;
+	struct sockaddr_storage *dst;
+	struct sample *smp;
 
-	if ((cli_conn = objt_conn(sess->origin)) && conn_get_dst(cli_conn)) {
-		struct sample *smp;
+	switch (rule->from) {
+	case ACT_F_TCP_REQ_CON:
+		cli_conn = objt_conn(sess->origin);
+		if (!cli_conn || !conn_get_dst(cli_conn))
+			goto end;
+		dst = cli_conn->dst;
+		break;
 
-		smp = sample_fetch_as_type(px, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->arg.expr, SMP_T_ADDR);
-		if (smp) {
-			int port = get_net_port(cli_conn->dst);
+	case ACT_F_TCP_REQ_SES:
+		if (!sess_get_dst(sess))
+			goto end;
+		dst = sess->dst;
+		break;
 
-			if (smp->data.type == SMP_T_IPV4) {
-				((struct sockaddr_in *)cli_conn->dst)->sin_family = AF_INET;
-				((struct sockaddr_in *)cli_conn->dst)->sin_addr.s_addr = smp->data.u.ipv4.s_addr;
-				((struct sockaddr_in *)cli_conn->dst)->sin_port = port;
-			} else if (smp->data.type == SMP_T_IPV6) {
-				((struct sockaddr_in6 *)cli_conn->dst)->sin6_family = AF_INET6;
-				memcpy(&((struct sockaddr_in6 *)cli_conn->dst)->sin6_addr, &smp->data.u.ipv6, sizeof(struct in6_addr));
-				((struct sockaddr_in6 *)cli_conn->dst)->sin6_port = port;
-			}
-			cli_conn->flags |= CO_FL_ADDR_TO_SET;
+	case ACT_F_TCP_REQ_CNT:
+	case ACT_F_HTTP_REQ:
+		if (!si_get_dst(&s->si[0]))
+			goto end;
+		dst = s->si[0].dst;
+		break;
+
+	default:
+		goto end;
+	}
+
+	smp = sample_fetch_as_type(px, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->arg.expr, SMP_T_ADDR);
+	if (smp) {
+		int port = get_net_port(dst);
+
+		if (smp->data.type == SMP_T_IPV4) {
+			((struct sockaddr_in *)dst)->sin_family = AF_INET;
+			((struct sockaddr_in *)dst)->sin_addr.s_addr = smp->data.u.ipv4.s_addr;
+			((struct sockaddr_in *)dst)->sin_port = port;
+		} else if (smp->data.type == SMP_T_IPV6) {
+			((struct sockaddr_in6 *)dst)->sin6_family = AF_INET6;
+			memcpy(&((struct sockaddr_in6 *)dst)->sin6_addr, &smp->data.u.ipv6, sizeof(struct in6_addr));
+			((struct sockaddr_in6 *)dst)->sin6_port = port;
 		}
 	}
+
+  end:
 	return ACT_RET_CONT;
 }
 
@@ -113,23 +162,48 @@ static enum act_return tcp_action_req_set_src_port(struct act_rule *rule, struct
                                                    struct session *sess, struct stream *s, int flags)
 {
 	struct connection *cli_conn;
+	struct sockaddr_storage *src;
+	struct sample *smp;
 
-	if ((cli_conn = objt_conn(sess->origin)) && conn_get_src(cli_conn)) {
-		struct sample *smp;
+	switch (rule->from) {
+	case ACT_F_TCP_REQ_CON:
+		cli_conn = objt_conn(sess->origin);
+		if (!cli_conn || !conn_get_src(cli_conn))
+			goto end;
+		src = cli_conn->src;
+		break;
 
-		smp = sample_fetch_as_type(px, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->arg.expr, SMP_T_SINT);
-		if (smp) {
-			if (cli_conn->src->ss_family == AF_INET6) {
-				((struct sockaddr_in6 *)cli_conn->src)->sin6_port = htons(smp->data.u.sint);
-			} else {
-				if (cli_conn->src->ss_family != AF_INET) {
-					cli_conn->src->ss_family = AF_INET;
-					((struct sockaddr_in *)cli_conn->src)->sin_addr.s_addr = 0;
-				}
-				((struct sockaddr_in *)cli_conn->src)->sin_port = htons(smp->data.u.sint);
+	case ACT_F_TCP_REQ_SES:
+		if (!sess_get_src(sess))
+			goto end;
+		src = sess->src;
+		break;
+
+	case ACT_F_TCP_REQ_CNT:
+	case ACT_F_HTTP_REQ:
+		if (!si_get_src(&s->si[0]))
+			goto end;
+		src = s->si[0].src;
+		break;
+
+	default:
+		goto end;
+	}
+
+	smp = sample_fetch_as_type(px, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->arg.expr, SMP_T_SINT);
+	if (smp) {
+		if (src->ss_family == AF_INET6) {
+			((struct sockaddr_in6 *)src)->sin6_port = htons(smp->data.u.sint);
+		} else {
+			if (src->ss_family != AF_INET) {
+				src->ss_family = AF_INET;
+				((struct sockaddr_in *)src)->sin_addr.s_addr = 0;
 			}
+			((struct sockaddr_in *)src)->sin_port = htons(smp->data.u.sint);
 		}
 	}
+
+  end:
 	return ACT_RET_CONT;
 }
 
@@ -143,23 +217,48 @@ static enum act_return tcp_action_req_set_dst_port(struct act_rule *rule, struct
                                                    struct session *sess, struct stream *s, int flags)
 {
 	struct connection *cli_conn;
+	struct sockaddr_storage *dst;
+	struct sample *smp;
 
-	if ((cli_conn = objt_conn(sess->origin)) && conn_get_dst(cli_conn)) {
-		struct sample *smp;
+	switch (rule->from) {
+	case ACT_F_TCP_REQ_CON:
+		cli_conn = objt_conn(sess->origin);
+		if (!cli_conn || !conn_get_dst(cli_conn))
+			goto end;
+		dst = cli_conn->dst;
+		break;
 
-		smp = sample_fetch_as_type(px, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->arg.expr, SMP_T_SINT);
-		if (smp) {
-			if (cli_conn->dst->ss_family == AF_INET6) {
-				((struct sockaddr_in6 *)cli_conn->dst)->sin6_port = htons(smp->data.u.sint);
-			} else {
-				if (cli_conn->dst->ss_family != AF_INET) {
-					cli_conn->dst->ss_family = AF_INET;
-					((struct sockaddr_in *)cli_conn->dst)->sin_addr.s_addr = 0;
-				}
-				((struct sockaddr_in *)cli_conn->dst)->sin_port = htons(smp->data.u.sint);
+	case ACT_F_TCP_REQ_SES:
+		if (!sess_get_dst(sess))
+			goto end;
+		dst = sess->dst;
+		break;
+
+	case ACT_F_TCP_REQ_CNT:
+	case ACT_F_HTTP_REQ:
+		if (!si_get_dst(&s->si[0]))
+			goto end;
+		dst = s->si[0].dst;
+		break;
+
+	default:
+		goto end;
+	}
+
+	smp = sample_fetch_as_type(px, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->arg.expr, SMP_T_SINT);
+	if (smp) {
+		if (dst->ss_family == AF_INET6) {
+			((struct sockaddr_in6 *)dst)->sin6_port = htons(smp->data.u.sint);
+		} else {
+			if (dst->ss_family != AF_INET) {
+				dst->ss_family = AF_INET;
+				((struct sockaddr_in *)dst)->sin_addr.s_addr = 0;
 			}
+			((struct sockaddr_in *)dst)->sin_port = htons(smp->data.u.sint);
 		}
 	}
+
+  end:
 	return ACT_RET_CONT;
 }
 
