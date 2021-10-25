@@ -1229,6 +1229,8 @@ static int fcgi_set_default_param(struct fcgi_conn *fconn, struct fcgi_strm *fst
 				  struct fcgi_strm_params *params)
 {
 	struct connection *cli_conn = objt_conn(fstrm->sess->origin);
+	const struct sockaddr_storage *src = si_src(si_opposite(fstrm->cs->data));
+	const struct sockaddr_storage *dst = si_dst(si_opposite(fstrm->cs->data));
 	struct ist p;
 
 	if (!sl)
@@ -1255,8 +1257,8 @@ static int fcgi_set_default_param(struct fcgi_conn *fconn, struct fcgi_strm *fst
 	if (!(params->mask & FCGI_SP_SRV_PORT)) {
 		char *end;
 		int port = 0;
-		if (cli_conn && conn_get_dst(cli_conn))
-			port = get_host_port(cli_conn->dst);
+		if (dst)
+			port = get_host_port(dst);
 		end = ultoa_o(port, b_tail(params->p), b_room(params->p));
 		if (!end)
 			goto error;
@@ -1269,8 +1271,8 @@ static int fcgi_set_default_param(struct fcgi_conn *fconn, struct fcgi_strm *fst
 		if (!istlen(params->srv_name)) {
 			char *ptr = NULL;
 
-			if (cli_conn && conn_get_dst(cli_conn))
-				if (addr_to_str(cli_conn->dst, b_tail(params->p), b_room(params->p)) != -1)
+			if (dst)
+				if (addr_to_str(dst, b_tail(params->p), b_room(params->p)) != -1)
 					ptr = b_tail(params->p);
 			if (ptr) {
 				params->srv_name = ist(ptr);
@@ -1281,8 +1283,8 @@ static int fcgi_set_default_param(struct fcgi_conn *fconn, struct fcgi_strm *fst
 	if (!(params->mask & FCGI_SP_REM_ADDR)) {
 		char *ptr = NULL;
 
-		if (cli_conn && conn_get_src(cli_conn))
-			if (addr_to_str(cli_conn->src, b_tail(params->p), b_room(params->p)) != -1)
+		if (src)
+			if (addr_to_str(src, b_tail(params->p), b_room(params->p)) != -1)
 				ptr = b_tail(params->p);
 		if (ptr) {
 			params->rem_addr = ist(ptr);
@@ -1292,8 +1294,8 @@ static int fcgi_set_default_param(struct fcgi_conn *fconn, struct fcgi_strm *fst
 	if (!(params->mask & FCGI_SP_REM_PORT)) {
 		char *end;
 		int port = 0;
-		if (cli_conn && conn_get_src(cli_conn))
-			port = get_host_port(cli_conn->src);
+		if (src)
+			port = get_host_port(src);
 		end = ultoa_o(port, b_tail(params->p), b_room(params->p));
 		if (!end)
 			goto error;
