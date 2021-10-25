@@ -1567,7 +1567,7 @@ void list_mux_proto(FILE *out)
  * TCP6 and "UNKNOWN" formats. If any of <src> or <dst> is null, UNKNOWN is
  * emitted as well.
  */
-static int make_proxy_line_v1(char *buf, int buf_len, struct sockaddr_storage *src, struct sockaddr_storage *dst)
+static int make_proxy_line_v1(char *buf, int buf_len, const struct sockaddr_storage *src, const struct sockaddr_storage *dst)
 {
 	int ret = 0;
 	char * protocol;
@@ -1662,8 +1662,8 @@ static int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct
 	int ret = 0;
 	struct proxy_hdr_v2 *hdr = (struct proxy_hdr_v2 *)buf;
 	struct sockaddr_storage null_addr = { .ss_family = 0 };
-	struct sockaddr_storage *src = &null_addr;
-	struct sockaddr_storage *dst = &null_addr;
+	const struct sockaddr_storage *src = &null_addr;
+	const struct sockaddr_storage *dst = &null_addr;
 	const char *value;
 	int value_len;
 
@@ -1671,9 +1671,13 @@ static int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct
 		return 0;
 	memcpy(hdr->sig, pp2_signature, PP2_SIGNATURE_LEN);
 
-	if (remote && conn_get_src(remote) && conn_get_dst(remote)) {
-		src = remote->src;
-		dst = remote->dst;
+	if (strm) {
+		src = si_src(&strm->si[0]);
+		dst = si_dst(&strm->si[0]);
+	}
+	else if (remote && conn_get_src(remote) && conn_get_dst(remote)) {
+		src = conn_src(remote);
+		dst = conn_dst(remote);
 	}
 
 	/* At least one of src or dst is not of AF_INET or AF_INET6 */
@@ -1863,8 +1867,20 @@ int make_proxy_line(char *buf, int buf_len, struct server *srv, struct connectio
 		ret = make_proxy_line_v2(buf, buf_len, srv, remote, strm);
 	}
 	else {
-		if (remote && conn_get_src(remote) && conn_get_dst(remote))
-			ret = make_proxy_line_v1(buf, buf_len, remote->src, remote->dst);
+		const struct sockaddr_storage *src = NULL;
+		const struct sockaddr_storage *dst = NULL;
+
+		if (strm) {
+			src = si_src(&strm->si[0]);
+			dst = si_dst(&strm->si[0]);
+		}
+		else if (remote && conn_get_src(remote) && conn_get_dst(remote)) {
+			src = conn_src(remote);
+			dst = conn_dst(remote);
+		}
+
+		if (src && dst)
+			ret = make_proxy_line_v1(buf, buf_len, src, dst);
 		else
 			ret = make_proxy_line_v1(buf, buf_len, NULL, NULL);
 	}
