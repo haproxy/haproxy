@@ -696,16 +696,18 @@ int assign_server(struct stream *s)
 			}
 
 			switch (s->be->lbprm.algo & BE_LB_PARM) {
+				const struct sockaddr_storage *src;
+
 			case BE_LB_HASH_SRC:
-				conn = objt_conn(strm_orig(s));
-				if (conn && conn_get_src(conn) && conn->src->ss_family == AF_INET) {
+				src = si_src(&s->si[0]);
+				if (src && src->ss_family == AF_INET) {
 					srv = get_server_sh(s->be,
-							    (void *)&((struct sockaddr_in *)conn->src)->sin_addr,
+							    (void *)&((struct sockaddr_in *)src)->sin_addr,
 							    4, prev_srv);
 				}
-				else if (conn && conn_get_src(conn) && conn->src->ss_family == AF_INET6) {
+				else if (src && src->ss_family == AF_INET6) {
 					srv = get_server_sh(s->be,
-							    (void *)&((struct sockaddr_in6 *)conn->src)->sin6_addr,
+							    (void *)&((struct sockaddr_in6 *)src)->sin6_addr,
 							    16, prev_srv);
 				}
 				else {
@@ -831,10 +833,9 @@ out_ok:
 static int alloc_dst_address(struct sockaddr_storage **ss,
                              struct server *srv, struct stream *s)
 {
-	struct connection *cli_conn = objt_conn(strm_orig(s));
+	const struct sockaddr_storage *dst;
 
 	*ss = NULL;
-
 	if ((s->flags & SF_DIRECT) || (s->be->lbprm.algo & BE_LB_KIND)) {
 		/* A server is necessarily known for this stream */
 		if (!(s->flags & SF_ASSIGNED))
@@ -845,39 +846,35 @@ static int alloc_dst_address(struct sockaddr_storage **ss,
 
 		**ss = srv->addr;
 		set_host_port(*ss, srv->svc_port);
-
-		if (!is_addr(*ss) && cli_conn) {
+		dst = si_dst(&s->si[0]);
+		if (!is_addr(*ss) && dst) {
 			/* if the server has no address, we use the same address
 			 * the client asked, which is handy for remapping ports
 			 * locally on multiple addresses at once. Nothing is done
 			 * for AF_UNIX addresses.
 			 */
-			if (!conn_get_dst(cli_conn)) {
-				/* do nothing if we can't retrieve the address */
-			} else if (cli_conn->dst->ss_family == AF_INET) {
+			if (dst->ss_family == AF_INET) {
 				((struct sockaddr_in *)*ss)->sin_family = AF_INET;
 				((struct sockaddr_in *)*ss)->sin_addr =
-				  ((struct sockaddr_in *)cli_conn->dst)->sin_addr;
-			} else if (cli_conn->dst->ss_family == AF_INET6) {
+				  ((struct sockaddr_in *)dst)->sin_addr;
+			} else if (dst->ss_family == AF_INET6) {
 				((struct sockaddr_in6 *)*ss)->sin6_family = AF_INET6;
 				((struct sockaddr_in6 *)*ss)->sin6_addr =
-				  ((struct sockaddr_in6 *)cli_conn->dst)->sin6_addr;
+				  ((struct sockaddr_in6 *)dst)->sin6_addr;
 			}
 		}
 
 		/* if this server remaps proxied ports, we'll use
 		 * the port the client connected to with an offset. */
-		if ((srv->flags & SRV_F_MAPPORTS) && cli_conn) {
+		if ((srv->flags & SRV_F_MAPPORTS) && dst) {
 			int base_port;
 
-			if (conn_get_dst(cli_conn)) {
-				/* First, retrieve the port from the incoming connection */
-				base_port = get_host_port(cli_conn->dst);
+			/* First, retrieve the port from the incoming connection */
+			base_port = get_host_port(dst);
 
-				/* Second, assign the outgoing connection's port */
-				base_port += get_host_port(*ss);
-				set_host_port(*ss, base_port);
-			}
+			/* Second, assign the outgoing connection's port */
+			base_port += get_host_port(*ss);
+			set_host_port(*ss, base_port);
 		}
 	}
 	else if (s->be->options & PR_O_DISPATCH) {
@@ -887,14 +884,14 @@ static int alloc_dst_address(struct sockaddr_storage **ss,
 		/* connect to the defined dispatch addr */
 		**ss = s->be->dispatch_addr;
 	}
-	else if ((s->be->options & PR_O_TRANSP) && cli_conn) {
-		if (!sockaddr_alloc(ss, NULL, 0))
+	else if ((s->be->options & PR_O_TRANSP)) {
+		dst = si_dst(&s->si[0]);
+		if (!dst || !sockaddr_alloc(ss, NULL, 0))
 			return SRV_STATUS_INTERNAL;
 
 		/* in transparent mode, use the original dest addr if no dispatch specified */
-		if (conn_get_dst(cli_conn) &&
-		    (cli_conn->dst->ss_family == AF_INET || cli_conn->dst->ss_family == AF_INET6))
-			**ss = *cli_conn->dst;
+		if ((dst->ss_family == AF_INET || dst->ss_family == AF_INET6))
+			**ss = *dst;
 	}
 	else {
 		/* no server and no LB algorithm ! */
@@ -1037,8 +1034,8 @@ static int alloc_bind_address(struct sockaddr_storage **ss,
                               struct server *srv, struct stream *s)
 {
 #if defined(CONFIG_HAP_TRANSPARENT)
+	const struct sockaddr_storage *addr;
 	struct conn_src *src = NULL;
-	struct connection *cli_conn;
 	struct sockaddr_in *sin;
 	char *vptr;
 	size_t vlen;
@@ -1067,14 +1064,14 @@ static int alloc_bind_address(struct sockaddr_storage **ss,
 	case CO_SRC_TPROXY_CLI:
 	case CO_SRC_TPROXY_CIP:
 		/* FIXME: what can we do if the client connects in IPv6 or unix socket ? */
-		cli_conn = objt_conn(strm_orig(s));
-		if (!cli_conn || !conn_get_src(cli_conn))
+		addr = si_src(&s->si[0]);
+		if (!addr)
 			return SRV_STATUS_INTERNAL;
 
 		if (!sockaddr_alloc(ss, NULL, 0))
 			return SRV_STATUS_INTERNAL;
 
-		**ss = *cli_conn->src;
+		**ss = *addr;
 		break;
 
 	case CO_SRC_TPROXY_DYN:
@@ -1583,8 +1580,6 @@ skip_reuse:
 		if (srv && srv->pp_opts) {
 			srv_conn->flags |= CO_FL_SEND_PROXY;
 			srv_conn->send_proxy_ofs = 1; /* must compute size */
-			if (cli_conn)
-				conn_get_dst(cli_conn);
 		}
 
 		if (srv && (srv->flags & SRV_F_SOCKS4_PROXY)) {
