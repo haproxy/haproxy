@@ -1141,15 +1141,13 @@ int conn_recv_proxy(struct connection *conn, int flag)
  */
 int conn_recv_netscaler_cip(struct connection *conn, int flag)
 {
+	struct session *sess = conn->owner;
 	char *line;
 	uint32_t hdr_len;
 	uint8_t ip_ver;
 	int ret;
 
 	if (!conn_ctrl_ready(conn))
-		goto fail;
-
-	if (!sockaddr_alloc(&conn->src, NULL, 0) || !sockaddr_alloc(&conn->dst, NULL, 0))
 		goto fail;
 
 	if (!fd_recv_ready(conn->handle.fd))
@@ -1234,16 +1232,19 @@ int conn_recv_netscaler_cip(struct connection *conn, int flag)
 
 		hdr_tcp = (struct my_tcphdr *)(line + (hdr_ip4->ip_hl * 4));
 
+		if (!sess || !sockaddr_alloc(&sess->src, NULL, 0) || !sockaddr_alloc(&sess->dst, NULL, 0))
+			goto fail;
+
 		/* update the session's addresses and mark them set */
-		((struct sockaddr_in *)conn->src)->sin_family = AF_INET;
-		((struct sockaddr_in *)conn->src)->sin_addr.s_addr = hdr_ip4->ip_src.s_addr;
-		((struct sockaddr_in *)conn->src)->sin_port = hdr_tcp->source;
+		((struct sockaddr_in *)sess->src)->sin_family = AF_INET;
+		((struct sockaddr_in *)sess->src)->sin_addr.s_addr = hdr_ip4->ip_src.s_addr;
+		((struct sockaddr_in *)sess->src)->sin_port = hdr_tcp->source;
 
-		((struct sockaddr_in *)conn->dst)->sin_family = AF_INET;
-		((struct sockaddr_in *)conn->dst)->sin_addr.s_addr = hdr_ip4->ip_dst.s_addr;
-		((struct sockaddr_in *)conn->dst)->sin_port = hdr_tcp->dest;
+		((struct sockaddr_in *)sess->dst)->sin_family = AF_INET;
+		((struct sockaddr_in *)sess->dst)->sin_addr.s_addr = hdr_ip4->ip_dst.s_addr;
+		((struct sockaddr_in *)sess->dst)->sin_port = hdr_tcp->dest;
 
-		conn->flags |= CO_FL_ADDR_FROM_SET | CO_FL_ADDR_TO_SET;
+		sess->flags |= SESS_FL_ADDR_FROM_SET | SESS_FL_ADDR_TO_SET;
 	}
 	else if (ip_ver == 6) {
 		struct ip6_hdr *hdr_ip6;
@@ -1264,16 +1265,19 @@ int conn_recv_netscaler_cip(struct connection *conn, int flag)
 
 		hdr_tcp = (struct my_tcphdr *)(line + sizeof(struct ip6_hdr));
 
+		if (!sess || !sockaddr_alloc(&sess->src, NULL, 0) || !sockaddr_alloc(&sess->dst, NULL, 0))
+			goto fail;
+
 		/* update the session's addresses and mark them set */
-		((struct sockaddr_in6 *)conn->src)->sin6_family = AF_INET6;
-		((struct sockaddr_in6 *)conn->src)->sin6_addr = hdr_ip6->ip6_src;
-		((struct sockaddr_in6 *)conn->src)->sin6_port = hdr_tcp->source;
+		((struct sockaddr_in6 *)sess->src)->sin6_family = AF_INET6;
+		((struct sockaddr_in6 *)sess->src)->sin6_addr = hdr_ip6->ip6_src;
+		((struct sockaddr_in6 *)sess->src)->sin6_port = hdr_tcp->source;
 
-		((struct sockaddr_in6 *)conn->dst)->sin6_family = AF_INET6;
-		((struct sockaddr_in6 *)conn->dst)->sin6_addr = hdr_ip6->ip6_dst;
-		((struct sockaddr_in6 *)conn->dst)->sin6_port = hdr_tcp->dest;
+		((struct sockaddr_in6 *)sess->dst)->sin6_family = AF_INET6;
+		((struct sockaddr_in6 *)sess->dst)->sin6_addr = hdr_ip6->ip6_dst;
+		((struct sockaddr_in6 *)sess->dst)->sin6_port = hdr_tcp->dest;
 
-		conn->flags |= CO_FL_ADDR_FROM_SET | CO_FL_ADDR_TO_SET;
+		sess->flags |= SESS_FL_ADDR_FROM_SET | SESS_FL_ADDR_TO_SET;
 	}
 	else {
 		/* The protocol does not match something known (IPv4/IPv6) */
