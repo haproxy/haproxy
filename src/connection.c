@@ -757,6 +757,7 @@ static inline size_t get_tlv_length(const struct tlv *src)
  */
 int conn_recv_proxy(struct connection *conn, int flag)
 {
+	struct session *sess = conn->owner;
 	char *line, *end;
 	struct proxy_hdr_v2 *hdr_v2;
 	const char v2sig[] = PP2_SIGNATURE;
@@ -765,9 +766,6 @@ int conn_recv_proxy(struct connection *conn, int flag)
 	int ret;
 
 	if (!conn_ctrl_ready(conn))
-		goto fail;
-
-	if (!sockaddr_alloc(&conn->src, NULL, 0) || !sockaddr_alloc(&conn->dst, NULL, 0))
 		goto fail;
 
 	if (!fd_recv_ready(conn->handle.fd))
@@ -841,15 +839,18 @@ int conn_recv_proxy(struct connection *conn, int flag)
 		if (*line++ != '\n')
 			goto bad_header;
 
-		/* update the session's addresses and mark them set */
-		((struct sockaddr_in *)conn->src)->sin_family      = AF_INET;
-		((struct sockaddr_in *)conn->src)->sin_addr.s_addr = htonl(src3);
-		((struct sockaddr_in *)conn->src)->sin_port        = htons(sport);
+		if (!sess || !sockaddr_alloc(&sess->src, NULL, 0) || !sockaddr_alloc(&sess->dst, NULL, 0))
+			goto fail;
 
-		((struct sockaddr_in *)conn->dst)->sin_family        = AF_INET;
-		((struct sockaddr_in *)conn->dst)->sin_addr.s_addr   = htonl(dst3);
-		((struct sockaddr_in *)conn->dst)->sin_port          = htons(dport);
-		conn->flags |= CO_FL_ADDR_FROM_SET | CO_FL_ADDR_TO_SET;
+		/* update the session's addresses and mark them set */
+		((struct sockaddr_in *)sess->src)->sin_family      = AF_INET;
+		((struct sockaddr_in *)sess->src)->sin_addr.s_addr = htonl(src3);
+		((struct sockaddr_in *)sess->src)->sin_port        = htons(sport);
+
+		((struct sockaddr_in *)sess->dst)->sin_family        = AF_INET;
+		((struct sockaddr_in *)sess->dst)->sin_addr.s_addr   = htonl(dst3);
+		((struct sockaddr_in *)sess->dst)->sin_port          = htons(dport);
+		sess->flags |= SESS_FL_ADDR_FROM_SET | SESS_FL_ADDR_TO_SET;
 	}
 	else if (memcmp(line, "TCP6 ", 5) == 0) {
 		u32 sport, dport;
@@ -902,15 +903,18 @@ int conn_recv_proxy(struct connection *conn, int flag)
 		if (inet_pton(AF_INET6, dst_s, (void *)&dst3) != 1)
 			goto bad_header;
 
-		/* update the session's addresses and mark them set */
-		((struct sockaddr_in6 *)conn->src)->sin6_family      = AF_INET6;
-		memcpy(&((struct sockaddr_in6 *)conn->src)->sin6_addr, &src3, sizeof(struct in6_addr));
-		((struct sockaddr_in6 *)conn->src)->sin6_port        = htons(sport);
+		if (!sess || !sockaddr_alloc(&sess->src, NULL, 0) || !sockaddr_alloc(&sess->dst, NULL, 0))
+			goto fail;
 
-		((struct sockaddr_in6 *)conn->dst)->sin6_family        = AF_INET6;
-		memcpy(&((struct sockaddr_in6 *)conn->dst)->sin6_addr, &dst3, sizeof(struct in6_addr));
-		((struct sockaddr_in6 *)conn->dst)->sin6_port          = htons(dport);
-		conn->flags |= CO_FL_ADDR_FROM_SET | CO_FL_ADDR_TO_SET;
+		/* update the session's addresses and mark them set */
+		((struct sockaddr_in6 *)sess->src)->sin6_family      = AF_INET6;
+		memcpy(&((struct sockaddr_in6 *)sess->src)->sin6_addr, &src3, sizeof(struct in6_addr));
+		((struct sockaddr_in6 *)sess->src)->sin6_port        = htons(sport);
+
+		((struct sockaddr_in6 *)sess->dst)->sin6_family        = AF_INET6;
+		memcpy(&((struct sockaddr_in6 *)sess->dst)->sin6_addr, &dst3, sizeof(struct in6_addr));
+		((struct sockaddr_in6 *)sess->dst)->sin6_port          = htons(dport);
+		sess->flags |= SESS_FL_ADDR_FROM_SET | SESS_FL_ADDR_TO_SET;
 	}
 	else if (memcmp(line, "UNKNOWN\r\n", 9) == 0) {
 		/* This can be a UNIX socket forwarded by an haproxy upstream */
@@ -949,26 +953,32 @@ int conn_recv_proxy(struct connection *conn, int flag)
 			if (ntohs(hdr_v2->len) < PP2_ADDR_LEN_INET)
 				goto bad_header;
 
-			((struct sockaddr_in *)conn->src)->sin_family = AF_INET;
-			((struct sockaddr_in *)conn->src)->sin_addr.s_addr = hdr_v2->addr.ip4.src_addr;
-			((struct sockaddr_in *)conn->src)->sin_port = hdr_v2->addr.ip4.src_port;
-			((struct sockaddr_in *)conn->dst)->sin_family = AF_INET;
-			((struct sockaddr_in *)conn->dst)->sin_addr.s_addr = hdr_v2->addr.ip4.dst_addr;
-			((struct sockaddr_in *)conn->dst)->sin_port = hdr_v2->addr.ip4.dst_port;
-			conn->flags |= CO_FL_ADDR_FROM_SET | CO_FL_ADDR_TO_SET;
+			if (!sess || !sockaddr_alloc(&sess->src, NULL, 0) || !sockaddr_alloc(&sess->dst, NULL, 0))
+				goto fail;
+
+			((struct sockaddr_in *)sess->src)->sin_family = AF_INET;
+			((struct sockaddr_in *)sess->src)->sin_addr.s_addr = hdr_v2->addr.ip4.src_addr;
+			((struct sockaddr_in *)sess->src)->sin_port = hdr_v2->addr.ip4.src_port;
+			((struct sockaddr_in *)sess->dst)->sin_family = AF_INET;
+			((struct sockaddr_in *)sess->dst)->sin_addr.s_addr = hdr_v2->addr.ip4.dst_addr;
+			((struct sockaddr_in *)sess->dst)->sin_port = hdr_v2->addr.ip4.dst_port;
+			sess->flags |= SESS_FL_ADDR_FROM_SET | SESS_FL_ADDR_TO_SET;
 			tlv_offset = PP2_HEADER_LEN + PP2_ADDR_LEN_INET;
 			break;
 		case 0x21:  /* TCPv6 */
 			if (ntohs(hdr_v2->len) < PP2_ADDR_LEN_INET6)
 				goto bad_header;
 
-			((struct sockaddr_in6 *)conn->src)->sin6_family = AF_INET6;
-			memcpy(&((struct sockaddr_in6 *)conn->src)->sin6_addr, hdr_v2->addr.ip6.src_addr, 16);
-			((struct sockaddr_in6 *)conn->src)->sin6_port = hdr_v2->addr.ip6.src_port;
-			((struct sockaddr_in6 *)conn->dst)->sin6_family = AF_INET6;
-			memcpy(&((struct sockaddr_in6 *)conn->dst)->sin6_addr, hdr_v2->addr.ip6.dst_addr, 16);
-			((struct sockaddr_in6 *)conn->dst)->sin6_port = hdr_v2->addr.ip6.dst_port;
-			conn->flags |= CO_FL_ADDR_FROM_SET | CO_FL_ADDR_TO_SET;
+			if (!sess || !sockaddr_alloc(&sess->src, NULL, 0) || !sockaddr_alloc(&sess->dst, NULL, 0))
+				goto fail;
+
+			((struct sockaddr_in6 *)sess->src)->sin6_family = AF_INET6;
+			memcpy(&((struct sockaddr_in6 *)sess->src)->sin6_addr, hdr_v2->addr.ip6.src_addr, 16);
+			((struct sockaddr_in6 *)sess->src)->sin6_port = hdr_v2->addr.ip6.src_port;
+			((struct sockaddr_in6 *)sess->dst)->sin6_family = AF_INET6;
+			memcpy(&((struct sockaddr_in6 *)sess->dst)->sin6_addr, hdr_v2->addr.ip6.dst_addr, 16);
+			((struct sockaddr_in6 *)sess->dst)->sin6_port = hdr_v2->addr.ip6.dst_port;
+			sess->flags |= SESS_FL_ADDR_FROM_SET | SESS_FL_ADDR_TO_SET;
 			tlv_offset = PP2_HEADER_LEN + PP2_ADDR_LEN_INET6;
 			break;
 		}
