@@ -7164,6 +7164,7 @@ __LJMP static int hlua_httpclient_get(lua_State *L)
 	struct http_hdr *hdrs_i = NULL;
 	struct hlua *hlua;
 	const char *url_str = NULL;
+	const char *body_str = NULL;
 	int ret;
 
 	hlua = hlua_gethlua(L);
@@ -7187,6 +7188,12 @@ __LJMP static int hlua_httpclient_get(lua_State *L)
 	}
 	lua_pop(L, 1);
 
+	ret = lua_getfield(L, -1, "body");
+	if (ret == LUA_TSTRING) {
+		body_str = lua_tostring(L, -1);
+	}
+	lua_pop(L, 1);
+
 	if (!url_str) {
 		WILL_LJMP(luaL_error(L, "'get' need a 'url' argument"));
 		return 0;
@@ -7204,7 +7211,7 @@ __LJMP static int hlua_httpclient_get(lua_State *L)
 	hlua_hc->hc->ops.res_end = hlua_httpclient_res_cb;
 
 
-	httpclient_req_gen(hlua_hc->hc, hlua_hc->hc->req.url, HTTP_METH_GET, hdrs);
+	httpclient_req_gen(hlua_hc->hc, hlua_hc->hc->req.url, HTTP_METH_GET, hdrs, ist(body_str));
 	httpclient_start(hlua_hc->hc);
 
 	/* free the temporary headers array */

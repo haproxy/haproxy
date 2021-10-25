@@ -116,6 +116,7 @@ static int hc_cli_parse(char **args, char *payload, struct appctx *appctx, void 
 	enum http_meth_t meth;
 	char *meth_str;
 	struct ist uri;
+	struct ist body = IST_NULL;
 
 	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
 		return 1;
@@ -127,6 +128,9 @@ static int hc_cli_parse(char **args, char *payload, struct appctx *appctx, void 
 
 	meth_str = args[1];
 	uri = ist(args[2]);
+
+	if (payload)
+		body = ist(payload);
 
 	meth = find_http_meth(meth_str, strlen(meth_str));
 
@@ -144,7 +148,7 @@ static int hc_cli_parse(char **args, char *payload, struct appctx *appctx, void 
 	appctx->ctx.cli.p0 = hc; /* store the httpclient ptr in the applet */
 	appctx->ctx.cli.i0 = 0;
 
-	if (httpclient_req_gen(hc, hc->req.url, hc->req.meth, default_httpclient_hdrs) != ERR_NONE)
+	if (httpclient_req_gen(hc, hc->req.url, hc->req.meth, default_httpclient_hdrs, body) != ERR_NONE)
 		goto err;
 
 
@@ -253,13 +257,13 @@ INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);
  * If the buffer was filled correctly the function returns 0, if not it returns
  * an error_code but there is no guarantee that the buffer wasn't modified.
  */
-int httpclient_req_gen(struct httpclient *hc, const struct ist url, enum http_meth_t meth, const struct http_hdr *hdrs)
+int httpclient_req_gen(struct httpclient *hc, const struct ist url, enum http_meth_t meth, const struct http_hdr *hdrs, const struct ist payload)
 {
 	struct htx_sl *sl;
 	struct htx *htx;
 	int err_code = 0;
 	struct ist meth_ist, vsn;
-	unsigned int flags = HTX_SL_F_VER_11 | HTX_SL_F_BODYLESS | HTX_SL_F_XFER_LEN | HTX_SL_F_NORMALIZED_URI | HTX_SL_F_HAS_SCHM;
+	unsigned int flags = HTX_SL_F_VER_11 | HTX_SL_F_NORMALIZED_URI | HTX_SL_F_HAS_SCHM;
 
 	if (meth >= HTTP_METH_OTHER)
 		goto error;
@@ -289,6 +293,13 @@ int httpclient_req_gen(struct httpclient *hc, const struct ist url, enum http_me
 			goto error;
 	} else {
 		if (!htx_add_endof(htx, HTX_BLK_EOH))
+			goto error;
+	}
+
+	if (isttest(payload)) {
+		/* add the payload if it can feat in the buffer, no need to set
+		 * the Content-Length, the data will be sent chunked */
+		if (!htx_add_data_atonce(htx, payload))
 			goto error;
 	}
 
