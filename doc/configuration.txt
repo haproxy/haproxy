@@ -17995,16 +17995,17 @@ cur_tunnel_timeout : integer
   "set-timeout" rule has been applied. See also "be_tunnel_timeout".
 
 dst : ip
-  This is the destination IPv4 address of the connection on the client side,
-  which is the address the client connected to. It can be useful when running
-  in transparent mode. It is of type IP and works on both IPv4 and IPv6 tables.
-  On IPv6 tables, IPv4 address is mapped to its IPv6 equivalent, according to
-  RFC 4291. When the incoming connection passed through address translation or
-  redirection involving connection tracking, the original destination address
-  before the redirection will be reported. On Linux systems, the source and
-  destination may seldom appear reversed if the nf_conntrack_tcp_loose sysctl
-  is set, because a late response may reopen a timed out connection and switch
-  what is believed to be the source and the destination.
+  This is the destination IP address of the connection on the client side,
+  which is the address the client connected to. Any tcp/http rules may alter
+  this address. It can be useful when running in transparent mode. It is of
+  type IP and works on both IPv4 and IPv6 tables.  On IPv6 tables, IPv4 address
+  is mapped to its IPv6 equivalent, according to RFC 4291. When the incoming
+  connection passed through address translation or redirection involving
+  connection tracking, the original destination address before the redirection
+  will be reported. On Linux systems, the source and destination may seldom
+  appear reversed if the nf_conntrack_tcp_loose sysctl is set, because a late
+  response may reopen a timed out connection and switch what is believed to be
+  the source and the destination.
 
 dst_conn : integer
   Returns an integer value corresponding to the number of currently established
@@ -18029,10 +18030,10 @@ dst_is_local : boolean
 dst_port : integer
   Returns an integer value corresponding to the destination TCP port of the
   connection on the client side, which is the port the client connected to.
-  This might be used when running in transparent mode, when assigning dynamic
-  ports to some clients for a whole application session, to stick all users to
-  a same server, or to pass the destination port information to a server using
-  an HTTP header.
+  Any tcp/http rules may alter this address. This might be used when running in
+  transparent mode, when assigning dynamic ports to some clients for a whole
+  application session, to stick all users to a same server, or to pass the
+  destination port information to a server using an HTTP header.
 
 fc_conn_err : integer
   Returns the ID of the error that might have occurred on the current
@@ -18096,6 +18097,21 @@ fc_conn_err_str : string
   | 43 | "SSL fatal error"                                                         |
   +----+---------------------------------------------------------------------------+
 
+fc_dst : ip
+  This is the original destination IP address of the connection on the client
+  side. Only "tcp-request connection" rules may alter this address. See "dst"
+  for details.
+
+fc_dst_is_local : boolean
+  Returns true if the original destination address of the incoming connection
+  is local to the system, or false if the address doesn't exist on the
+  system. See "dst_is_local" for details.
+
+fc_dst_port : integer
+  Returns an integer value corresponding to the original destination TCP port
+  of the connection on the client side. Only "tcp-request connection" rules may
+  alter this address. See "dst-port" for details.
+
 fc_fackets : integer
   Returns the fack counter measured by the kernel for the client
   connection. If the server connection is not established, if the connection is
@@ -18158,6 +18174,22 @@ fc_sacked : integer
   If the server connection is not established, if the connection is not TCP or
   if the operating system does not support TCP_INFO, for example Linux kernels
   before 2.4, the sample fetch fails.
+
+fc_src : ip
+  This is the original destination IP address of the connection on the client
+  side. Only "tcp-request connection" rules may alter this address. See "src"
+  for details.
+
+fc_src_is_local : boolean
+  Returns true if the source address of incoming connection is local to the
+  system, or false if the address doesn't exist on the system. See
+  "src_is_local" for details.
+
+fc_src_port : integer
+
+  Returns an integer value corresponding to the TCP source port of the
+  connection on the client side. Only "tcp-request connection" rules may alter
+  this address. See "src-port" for details.
 
 
 fc_unacked : integer
@@ -18495,20 +18527,21 @@ so_name : string
   strings instead of integers.
 
 src : ip
-  This is the source IPv4 address of the client of the session. It is of type
-  IP and works on both IPv4 and IPv6 tables. On IPv6 tables, IPv4 addresses are
-  mapped to their IPv6 equivalent, according to RFC 4291. Note that it is the
-  TCP-level source address which is used, and not the address of a client
-  behind a proxy. However if the "accept-proxy" or "accept-netscaler-cip" bind
-  directive is used, it can be the address of a client behind another
-  PROXY-protocol compatible component for all rule sets except
-  "tcp-request connection" which sees the real address. When the incoming
-  connection passed through address translation or redirection involving
-  connection tracking, the original destination address before the redirection
-  will be reported. On Linux systems, the source and destination may seldom
-  appear reversed if the nf_conntrack_tcp_loose sysctl is set, because a late
-  response may reopen a timed out connection and switch what is believed to be
-  the source and the destination.
+  This is the source IP address of the client of the session. Any tcp/http
+  rules may alter this address. It is of type IP and works on both IPv4 and
+  IPv6 tables. On IPv6 tables, IPv4 addresses are mapped to their IPv6
+  equivalent, according to RFC 4291. Note that it is the TCP-level source
+  address which is used, and not the address of a client behind a
+  proxy. However if the "accept-proxy" or "accept-netscaler-cip" bind directive
+  is used, it can be the address of a client behind another PROXY-protocol
+  compatible component for all rule sets except "tcp-request connection" which
+  sees the real address. When the incoming connection passed through address
+  translation or redirection involving connection tracking, the original
+  destination address before the redirection will be reported. On Linux
+  systems, the source and destination may seldom appear reversed if the
+  nf_conntrack_tcp_loose sysctl is set, because a late response may reopen a
+  timed out connection and switch what is believed to be the source and the
+  destination.
 
   Example:
        # add an HTTP header in requests with the originating address' country
@@ -18744,9 +18777,10 @@ src_kbytes_out([<table>]) : integer
 
 src_port : integer
   Returns an integer value corresponding to the TCP source port of the
-  connection on the client side, which is the port the client connected from.
-  Usage of this function is very limited as modern protocols do not care much
-  about source ports nowadays.
+  connection on the client side, which is the port the client connected
+  from. Any tcp/http rules may alter this address. Usage of this function is
+  very limited as modern protocols do not care much about source ports
+  nowadays.
 
 src_sess_cnt([<table>]) : integer
   Returns the cumulative number of connections initiated from the incoming

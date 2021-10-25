@@ -51,14 +51,20 @@ smp_fetch_src(const struct arg *args, struct sample *smp, const char *kw, void *
 {
 	const struct sockaddr_storage *src = NULL;
 
-	if (kw[0] == 'b') {
+	if (kw[0] == 'b') { /* bc_src */
 		struct connection *conn = ((obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
 					   ? cs_conn(__objt_check(smp->sess->origin)->cs)
 					   : (smp->strm ? cs_conn(objt_cs(smp->strm->si[1].end)): NULL));
 		if (conn && conn_get_src(conn))
 			src = conn_src(conn);
 	}
-        else
+	else if (kw[0] == 'f') { /* fc_src */
+		struct connection *conn = objt_conn(smp->sess->origin);
+
+		if (conn && conn_get_src(conn))
+			src = conn_src(conn);
+	}
+        else /* src */
 		src = (smp->strm ? si_src(&smp->strm->si[0]) : sess_src(smp->sess));
 
 	if (!src)
@@ -89,14 +95,20 @@ smp_fetch_sport(const struct arg *args, struct sample *smp, const char *kw, void
 {
 	const struct sockaddr_storage *src = NULL;
 
-	if (kw[0] == 'b') {
+	if (kw[0] == 'b') { /* bc_src_port */
 		struct connection *conn = ((obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
 					   ? cs_conn(__objt_check(smp->sess->origin)->cs)
 					   : (smp->strm ? cs_conn(objt_cs(smp->strm->si[1].end)): NULL));
 		if (conn && conn_get_src(conn))
 			src = conn_src(conn);
 	}
-        else
+	else if (kw[0] == 'f') { /* fc_src_port */
+		struct connection *conn = objt_conn(smp->sess->origin);
+
+		if (conn && conn_get_src(conn))
+			src = conn_src(conn);
+	}
+        else /* src_port */
 		src = (smp->strm ? si_src(&smp->strm->si[0]) : sess_src(smp->sess));
 
 	if (!src)
@@ -118,14 +130,20 @@ smp_fetch_dst(const struct arg *args, struct sample *smp, const char *kw, void *
 {
 	const struct sockaddr_storage *dst = NULL;
 
-	if (kw[0] == 'b') {
+	if (kw[0] == 'b') { /* bc_dst */
 		struct connection *conn = ((obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
 					   ? cs_conn(__objt_check(smp->sess->origin)->cs)
 					   : (smp->strm ? cs_conn(objt_cs(smp->strm->si[1].end)): NULL));
 		if (conn && conn_get_dst(conn))
 			dst = conn_dst(conn);
 	}
-        else
+	else if (kw[0] == 'f') { /* fc_dst */
+		struct connection *conn = objt_conn(smp->sess->origin);
+
+		if (conn && conn_get_dst(conn))
+			dst = conn_dst(conn);
+	}
+        else /* dst */
 		dst = (smp->strm ? si_dst(&smp->strm->si[0]) : sess_dst(smp->sess));
 
 	if (!dst)
@@ -154,7 +172,16 @@ smp_fetch_dst(const struct arg *args, struct sample *smp, const char *kw, void *
 int smp_fetch_dst_is_local(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct listener *li = smp->sess->listener;
-	const struct sockaddr_storage *dst = (smp->strm ? si_dst(&smp->strm->si[0]) : sess_dst(smp->sess));
+	const struct sockaddr_storage *dst = NULL;
+
+	if (kw[0] == 'f') { /* fc_dst_is_local */
+		struct connection *conn = objt_conn(smp->sess->origin);
+
+		if (conn && conn_get_src(conn))
+			dst = conn_dst(conn);
+	}
+	else /* dst_is_local */
+		dst = (smp->strm ? si_dst(&smp->strm->si[0]) : sess_dst(smp->sess));
 
 	if (!dst)
 		return 0;
@@ -171,7 +198,16 @@ int smp_fetch_dst_is_local(const struct arg *args, struct sample *smp, const cha
 int smp_fetch_src_is_local(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct listener *li = smp->sess->listener;
-	const struct sockaddr_storage *src = (smp->strm ? si_src(&smp->strm->si[0]) : sess_src(smp->sess));
+	const struct sockaddr_storage *src = NULL;
+
+	if (kw[0] == 'f') { /* fc_src_is_local */
+		struct connection *conn = objt_conn(smp->sess->origin);
+
+		if (conn && conn_get_src(conn))
+			src = conn_src(conn);
+	}
+	else /* src_is_local */
+		src = (smp->strm ? si_src(&smp->strm->si[0]) : sess_src(smp->sess));
 
 	if (!src)
 		return 0;
@@ -190,14 +226,20 @@ smp_fetch_dport(const struct arg *args, struct sample *smp, const char *kw, void
 {
 	const struct sockaddr_storage *dst = NULL;
 
-	if (kw[0] == 'b') {
+	if (kw[0] == 'b') { /* bc_dst_port */
 		struct connection *conn = ((obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
 					   ? cs_conn(__objt_check(smp->sess->origin)->cs)
 					   : (smp->strm ? cs_conn(objt_cs(smp->strm->si[1].end)): NULL));
 		if (conn && conn_get_dst(conn))
 			dst = conn_dst(conn);
 	}
-        else
+	else if (kw[0] == 'f') { /* fc_dst_post */
+		struct connection *conn = objt_conn(smp->sess->origin);
+
+		if (conn && conn_get_src(conn))
+			dst = conn_dst(conn);
+	}
+        else /* dst_port */
 		dst = (smp->strm ? si_dst(&smp->strm->si[0]) : sess_dst(smp->sess));
 
 	if (!dst)
@@ -421,6 +463,15 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "dst",      smp_fetch_dst,   0, NULL, SMP_T_IPV4, SMP_USE_L4CLI },
 	{ "dst_is_local", smp_fetch_dst_is_local, 0, NULL, SMP_T_BOOL, SMP_USE_L4CLI },
 	{ "dst_port", smp_fetch_dport, 0, NULL, SMP_T_SINT, SMP_USE_L4CLI },
+
+	{ "fc_dst",      smp_fetch_dst,   0, NULL, SMP_T_IPV4, SMP_USE_L4CLI },
+	{ "fc_dst_is_local", smp_fetch_dst_is_local, 0, NULL, SMP_T_BOOL, SMP_USE_L4CLI },
+	{ "fc_dst_port", smp_fetch_dport, 0, NULL, SMP_T_SINT, SMP_USE_L4CLI },
+
+	{ "fc_src",      smp_fetch_src,   0, NULL, SMP_T_IPV4, SMP_USE_L4CLI },
+	{ "fc_src_is_local", smp_fetch_src_is_local, 0, NULL, SMP_T_BOOL, SMP_USE_L4CLI },
+	{ "fc_src_port", smp_fetch_sport, 0, NULL, SMP_T_SINT, SMP_USE_L4CLI },
+
 	{ "src",      smp_fetch_src,   0, NULL, SMP_T_IPV4, SMP_USE_L4CLI },
 	{ "src_is_local", smp_fetch_src_is_local, 0, NULL, SMP_T_BOOL, SMP_USE_L4CLI },
 	{ "src_port", smp_fetch_sport, 0, NULL, SMP_T_SINT, SMP_USE_L4CLI },
