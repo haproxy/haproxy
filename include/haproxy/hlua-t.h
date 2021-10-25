@@ -65,8 +65,15 @@ struct stream;
 #define HLUA_F_AS_STRING    0x01
 #define HLUA_F_MAY_USE_HTTP 0x02
 
+/* HLUA TXN flags */
 #define HLUA_TXN_NOTERM   0x00000001
 /* 0x00000002 .. 0x00000008 unused */
+
+/* The execution context (enum), bits values from 0x00000010 to
+ * 0x00000030. These flags are mutually exclusives. Only one must be set at a
+ * time.
+ */
+#define HLUA_TXN_SMP_NONE 0x00000000 /* No specific execution context */
 #define HLUA_TXN_SMP_CTX  0x00000010 /* Executed from a sample fecth context */
 #define HLUA_TXN_ACT_CTX  0x00000020 /* Executed from a action context */
 #define HLUA_TXN_FLT_CTX  0x00000030 /* Executed from a filter context */
