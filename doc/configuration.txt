@@ -18096,10 +18096,22 @@ fc_conn_err_str : string
   | 43 | "SSL fatal error"                                                         |
   +----+---------------------------------------------------------------------------+
 
+fc_fackets : integer
+  Returns the fack counter measured by the kernel for the client
+  connection. If the server connection is not established, if the connection is
+  not TCP or if the operating system does not support TCP_INFO, for example
+  Linux kernels before 2.4, the sample fetch fails.
+
 fc_http_major : integer
   Reports the front connection's HTTP major version encoding, which may be 1
   for HTTP/0.9 to HTTP/1.1 or 2 for HTTP/2. Note, this is based on the on-wire
   encoding and not on the version present in the request header.
+
+fc_lost : integer
+  Returns the lost counter measured by the kernel for the client
+  connection. If the server connection is not established, if the connection is
+  not TCP or if the operating system does not support TCP_INFO, for example
+  Linux kernels before 2.4, the sample fetch fails.
 
 fc_pp_authority : string
   Returns the authority TLV sent by the client in the PROXY protocol header,
@@ -18112,6 +18124,18 @@ fc_pp_unique_id : string
 fc_rcvd_proxy : boolean
   Returns true if the client initiated the connection with a PROXY protocol
   header.
+
+fc_reordering : integer
+  Returns the reordering counter measured by the kernel for the client
+  connection. If the server connection is not established, if the connection is
+  not TCP or if the operating system does not support TCP_INFO, for example
+  Linux kernels before 2.4, the sample fetch fails.
+
+fc_retrans : integer
+  Returns the retransmits counter measured by the kernel for the client
+  connection. If the server connection is not established, if the connection is
+  not TCP or if the operating system does not support TCP_INFO, for example
+  Linux kernels before 2.4, the sample fetch fails.
 
 fc_rtt(<unit>) : integer
   Returns the Round Trip Time (RTT) measured by the kernel for the client
@@ -18129,41 +18153,18 @@ fc_rttvar(<unit>) : integer
   operating system does not support TCP_INFO, for example Linux kernels before
   2.4, the sample fetch fails.
 
-fc_unacked : integer
-  Returns the unacked counter measured by the kernel for the client connection.
-  If the server connection is not established, if the connection is not TCP or
-  if the operating system does not support TCP_INFO, for example Linux kernels
-  before 2.4, the sample fetch fails.
-
 fc_sacked : integer
   Returns the sacked counter measured by the kernel for the client connection.
   If the server connection is not established, if the connection is not TCP or
   if the operating system does not support TCP_INFO, for example Linux kernels
   before 2.4, the sample fetch fails.
 
-fc_retrans : integer
-  Returns the retransmits counter measured by the kernel for the client
-  connection. If the server connection is not established, if the connection is
-  not TCP or if the operating system does not support TCP_INFO, for example
-  Linux kernels before 2.4, the sample fetch fails.
 
-fc_fackets : integer
-  Returns the fack counter measured by the kernel for the client
-  connection. If the server connection is not established, if the connection is
-  not TCP or if the operating system does not support TCP_INFO, for example
-  Linux kernels before 2.4, the sample fetch fails.
-
-fc_lost : integer
-  Returns the lost counter measured by the kernel for the client
-  connection. If the server connection is not established, if the connection is
-  not TCP or if the operating system does not support TCP_INFO, for example
-  Linux kernels before 2.4, the sample fetch fails.
-
-fc_reordering : integer
-  Returns the reordering counter measured by the kernel for the client
-  connection. If the server connection is not established, if the connection is
-  not TCP or if the operating system does not support TCP_INFO, for example
-  Linux kernels before 2.4, the sample fetch fails.
+fc_unacked : integer
+  Returns the unacked counter measured by the kernel for the client connection.
+  If the server connection is not established, if the connection is not TCP or
+  if the operating system does not support TCP_INFO, for example Linux kernels
+  before 2.4, the sample fetch fails.
 
 fe_defbe : string
   Returns a string containing the frontend's default backend name. It can be
