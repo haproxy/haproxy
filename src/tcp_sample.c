@@ -39,9 +39,9 @@
 #include <haproxy/namespace.h>
 #include <haproxy/proxy-t.h>
 #include <haproxy/sample.h>
-#include <haproxy/session-t.h>
+#include <haproxy/session.h>
+#include <haproxy/stream_interface.h>
 #include <haproxy/tools.h>
-
 
 /* Fetch the connection's source IPv4/IPv6 address. Depending on the keyword, it
  * may be the frontend or the backend connection.
@@ -49,27 +49,28 @@
 static int
 smp_fetch_src(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct connection *conn;
+	const struct sockaddr_storage *src = NULL;
 
-	if (obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
-                conn = (kw[0] == 'b') ? cs_conn(__objt_check(smp->sess->origin)->cs) : NULL;
+	if (kw[0] == 'b') {
+		struct connection *conn = ((obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
+					   ? cs_conn(__objt_check(smp->sess->origin)->cs)
+					   : (smp->strm ? cs_conn(objt_cs(smp->strm->si[1].end)): NULL));
+		if (conn && conn_get_src(conn))
+			src = conn_src(conn);
+	}
         else
-                conn = (kw[0] != 'b') ? objt_conn(smp->sess->origin) :
-			smp->strm ? cs_conn(objt_cs(smp->strm->si[1].end)) : NULL;
+		src = (smp->strm ? si_src(&smp->strm->si[0]) : sess_src(smp->sess));
 
-	if (!conn)
+	if (!src)
 		return 0;
 
-	if (!conn_get_src(conn))
-		return 0;
-
-	switch (conn->src->ss_family) {
+	switch (src->ss_family) {
 	case AF_INET:
-		smp->data.u.ipv4 = ((struct sockaddr_in *)conn->src)->sin_addr;
+		smp->data.u.ipv4 = ((struct sockaddr_in *)src)->sin_addr;
 		smp->data.type = SMP_T_IPV4;
 		break;
 	case AF_INET6:
-		smp->data.u.ipv6 = ((struct sockaddr_in6 *)conn->src)->sin6_addr;
+		smp->data.u.ipv6 = ((struct sockaddr_in6 *)src)->sin6_addr;
 		smp->data.type = SMP_T_IPV6;
 		break;
 	default:
@@ -86,22 +87,23 @@ smp_fetch_src(const struct arg *args, struct sample *smp, const char *kw, void *
 static int
 smp_fetch_sport(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct connection *conn;
+	const struct sockaddr_storage *src = NULL;
 
-	if (obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
-                conn = (kw[0] == 'b') ? cs_conn(__objt_check(smp->sess->origin)->cs) : NULL;
+	if (kw[0] == 'b') {
+		struct connection *conn = ((obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
+					   ? cs_conn(__objt_check(smp->sess->origin)->cs)
+					   : (smp->strm ? cs_conn(objt_cs(smp->strm->si[1].end)): NULL));
+		if (conn && conn_get_src(conn))
+			src = conn_src(conn);
+	}
         else
-                conn = (kw[0] != 'b') ? objt_conn(smp->sess->origin) :
-			smp->strm ? cs_conn(objt_cs(smp->strm->si[1].end)) : NULL;
+		src = (smp->strm ? si_src(&smp->strm->si[0]) : sess_src(smp->sess));
 
-	if (!conn)
-		return 0;
-
-	if (!conn_get_src(conn))
+	if (!src)
 		return 0;
 
 	smp->data.type = SMP_T_SINT;
-	if (!(smp->data.u.sint = get_host_port(conn->src)))
+	if (!(smp->data.u.sint = get_host_port(src)))
 		return 0;
 
 	smp->flags = 0;
@@ -114,27 +116,28 @@ smp_fetch_sport(const struct arg *args, struct sample *smp, const char *kw, void
 static int
 smp_fetch_dst(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct connection *conn;
+	const struct sockaddr_storage *dst = NULL;
 
-	if (obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
-                conn = (kw[0] == 'b') ? cs_conn(__objt_check(smp->sess->origin)->cs) : NULL;
+	if (kw[0] == 'b') {
+		struct connection *conn = ((obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
+					   ? cs_conn(__objt_check(smp->sess->origin)->cs)
+					   : (smp->strm ? cs_conn(objt_cs(smp->strm->si[1].end)): NULL));
+		if (conn && conn_get_dst(conn))
+			dst = conn_dst(conn);
+	}
         else
-                conn = (kw[0] != 'b') ? objt_conn(smp->sess->origin) :
-			smp->strm ? cs_conn(objt_cs(smp->strm->si[1].end)) : NULL;
+		dst = (smp->strm ? si_dst(&smp->strm->si[0]) : sess_dst(smp->sess));
 
-	if (!conn)
+	if (!dst)
 		return 0;
 
-	if (!conn_get_dst(conn))
-		return 0;
-
-	switch (conn->dst->ss_family) {
+	switch (dst->ss_family) {
 	case AF_INET:
-		smp->data.u.ipv4 = ((struct sockaddr_in *)conn->dst)->sin_addr;
+		smp->data.u.ipv4 = ((struct sockaddr_in *)dst)->sin_addr;
 		smp->data.type = SMP_T_IPV4;
 		break;
 	case AF_INET6:
-		smp->data.u.ipv6 = ((struct sockaddr_in6 *)conn->dst)->sin6_addr;
+		smp->data.u.ipv6 = ((struct sockaddr_in6 *)dst)->sin6_addr;
 		smp->data.type = SMP_T_IPV6;
 		break;
 	default:
@@ -150,18 +153,15 @@ smp_fetch_dst(const struct arg *args, struct sample *smp, const char *kw, void *
  */
 int smp_fetch_dst_is_local(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct connection *conn = objt_conn(smp->sess->origin);
 	struct listener *li = smp->sess->listener;
+	const struct sockaddr_storage *dst = (smp->strm ? si_dst(&smp->strm->si[0]) : sess_dst(smp->sess));
 
-	if (!conn)
-		return 0;
-
-	if (!conn_get_dst(conn))
+	if (!dst)
 		return 0;
 
 	smp->data.type = SMP_T_BOOL;
 	smp->flags = 0;
-	smp->data.u.sint = addr_is_local(li->rx.settings->netns, conn->dst);
+	smp->data.u.sint = addr_is_local(li->rx.settings->netns, dst);
 	return smp->data.u.sint >= 0;
 }
 
@@ -170,18 +170,15 @@ int smp_fetch_dst_is_local(const struct arg *args, struct sample *smp, const cha
  */
 int smp_fetch_src_is_local(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct connection *conn = objt_conn(smp->sess->origin);
 	struct listener *li = smp->sess->listener;
+	const struct sockaddr_storage *src = (smp->strm ? si_src(&smp->strm->si[0]) : sess_src(smp->sess));
 
-	if (!conn)
-		return 0;
-
-	if (!conn_get_src(conn))
+	if (!src)
 		return 0;
 
 	smp->data.type = SMP_T_BOOL;
 	smp->flags = 0;
-	smp->data.u.sint = addr_is_local(li->rx.settings->netns, conn->src);
+	smp->data.u.sint = addr_is_local(li->rx.settings->netns, src);
 	return smp->data.u.sint >= 0;
 }
 
@@ -191,22 +188,23 @@ int smp_fetch_src_is_local(const struct arg *args, struct sample *smp, const cha
 static int
 smp_fetch_dport(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct connection *conn;
+	const struct sockaddr_storage *dst = NULL;
 
-	if (obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
-                conn = (kw[0] == 'b') ? cs_conn(__objt_check(smp->sess->origin)->cs) : NULL;
+	if (kw[0] == 'b') {
+		struct connection *conn = ((obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
+					   ? cs_conn(__objt_check(smp->sess->origin)->cs)
+					   : (smp->strm ? cs_conn(objt_cs(smp->strm->si[1].end)): NULL));
+		if (conn && conn_get_dst(conn))
+			dst = conn_dst(conn);
+	}
         else
-                conn = (kw[0] != 'b') ? objt_conn(smp->sess->origin) :
-			smp->strm ? cs_conn(objt_cs(smp->strm->si[1].end)) : NULL;
+		dst = (smp->strm ? si_dst(&smp->strm->si[0]) : sess_dst(smp->sess));
 
-	if (!conn)
-		return 0;
-
-	if (!conn_get_dst(conn))
+	if (!dst)
 		return 0;
 
 	smp->data.type = SMP_T_SINT;
-	if (!(smp->data.u.sint = get_host_port(conn->dst)))
+	if (!(smp->data.u.sint = get_host_port(dst)))
 		return 0;
 
 	smp->flags = 0;
