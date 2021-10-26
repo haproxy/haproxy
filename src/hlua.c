@@ -7209,8 +7209,7 @@ __LJMP static int hlua_httpclient_send(lua_State *L, enum http_meth_t meth)
 	hlua_hc->hc->ops.res_end = hlua_httpclient_res_cb;
 
 
-	httpclient_req_gen(hlua_hc->hc, hlua_hc->hc->req.url, meth, hdrs, ist(body_str));
-	httpclient_start(hlua_hc->hc);
+	ret = httpclient_req_gen(hlua_hc->hc, hlua_hc->hc->req.url, meth, hdrs, ist(body_str));
 
 	/* free the temporary headers array */
 	hdrs_i = hdrs;
@@ -7222,6 +7221,13 @@ __LJMP static int hlua_httpclient_send(lua_State *L, enum http_meth_t meth)
 	ha_free(&hdrs);
 
 
+	if (ret != ERR_NONE) {
+		WILL_LJMP(luaL_error(L, "Can't generate the HTTP request"));
+		return 0;
+	}
+
+
+	httpclient_start(hlua_hc->hc);
 
 	/* we return a "res" object */
 	lua_newtable(L);
