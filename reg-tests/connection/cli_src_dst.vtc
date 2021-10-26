@@ -1,0 +1,291 @@
+varnishtest "Test multi-level client source and destination addresses"
+
+#REQUIRE_VERSION=2.5
+
+feature ignore_unknown_macro
+
+haproxy h1 -conf {
+    defaults
+        mode http
+        timeout connect 1s
+        timeout client  1s
+        timeout server  1s
+
+    frontend fe1
+        bind "fd@${fe1}"
+        tcp-request connection set-src ipv4(10.0.0.1)
+        tcp-request connection set-dst ipv4(10.0.0.2)
+
+        tcp-request session set-var(sess.sess_fc_src) fc_src
+        tcp-request session set-var(sess.sess_fc_dst) fc_dst
+        tcp-request session set-var(sess.sess_src) src
+        tcp-request session set-var(sess.sess_dst) dst
+
+        tcp-request inspect-delay 100ms
+        tcp-request content set-var(txn.strm_fc_src) fc_src
+        tcp-request content set-var(txn.strm_fc_dst) fc_dst
+        tcp-request content set-var(txn.strm_src) src
+        tcp-request content set-var(txn.strm_dst) dst
+
+        http-after-response set-header sess-fc-src %[var(sess.sess_fc_src)]
+        http-after-response set-header sess-src %[var(sess.sess_src)]
+        http-after-response set-header sess-fc-dst %[var(sess.sess_fc_dst)]
+        http-after-response set-header sess-dst %[var(sess.sess_dst)]
+        http-after-response set-header strm-fc-src %[var(txn.strm_fc_src)]
+        http-after-response set-header strm-src %[var(txn.strm_src)]
+        http-after-response set-header strm-fc-dst %[var(txn.strm_fc_dst)]
+        http-after-response set-header strm-dst %[var(txn.strm_dst)]
+
+        default_backend be
+
+    frontend fe2
+        bind "fd@${fe2}"
+        tcp-request connection set-src ipv4(10.0.0.1)
+        tcp-request connection set-dst ipv4(10.0.0.2)
+
+        tcp-request session set-src ipv4(10.1.0.1)
+        tcp-request session set-dst ipv4(10.1.0.2)
+        tcp-request session set-var(sess.sess_fc_src) fc_src
+        tcp-request session set-var(sess.sess_fc_dst) fc_dst
+        tcp-request session set-var(sess.sess_src) src
+        tcp-request session set-var(sess.sess_dst) dst
+
+        tcp-request inspect-delay 100ms
+        tcp-request content set-var(txn.strm_fc_src) fc_src
+        tcp-request content set-var(txn.strm_fc_dst) fc_dst
+        tcp-request content set-var(txn.strm_src) src
+        tcp-request content set-var(txn.strm_dst) dst
+
+        http-after-response set-header sess-fc-src %[var(sess.sess_fc_src)]
+        http-after-response set-header sess-src %[var(sess.sess_src)]
+        http-after-response set-header sess-fc-dst %[var(sess.sess_fc_dst)]
+        http-after-response set-header sess-dst %[var(sess.sess_dst)]
+        http-after-response set-header strm-fc-src %[var(txn.strm_fc_src)]
+        http-after-response set-header strm-src %[var(txn.strm_src)]
+        http-after-response set-header strm-fc-dst %[var(txn.strm_fc_dst)]
+        http-after-response set-header strm-dst %[var(txn.strm_dst)]
+
+        default_backend be
+
+    frontend fe3
+        bind "fd@${fe3}"
+        tcp-request connection set-src ipv4(10.0.0.1)
+        tcp-request connection set-dst ipv4(10.0.0.2)
+
+        tcp-request session set-src ipv4(10.1.0.1)
+        tcp-request session set-dst ipv4(10.1.0.2)
+        tcp-request session set-var(sess.sess_fc_src) fc_src
+        tcp-request session set-var(sess.sess_fc_dst) fc_dst
+        tcp-request session set-var(sess.sess_src) src
+        tcp-request session set-var(sess.sess_dst) dst
+
+        tcp-request inspect-delay 100ms
+        tcp-request content set-src ipv4(10.2.0.1)
+        tcp-request content set-dst ipv4(10.2.0.2)
+        tcp-request content set-var(txn.strm_fc_src) fc_src
+        tcp-request content set-var(txn.strm_fc_dst) fc_dst
+        tcp-request content set-var(txn.strm_src) src
+        tcp-request content set-var(txn.strm_dst) dst
+
+        http-after-response set-header sess-fc-src %[var(sess.sess_fc_src)]
+        http-after-response set-header sess-src %[var(sess.sess_src)]
+        http-after-response set-header sess-fc-dst %[var(sess.sess_fc_dst)]
+        http-after-response set-header sess-dst %[var(sess.sess_dst)]
+        http-after-response set-header strm-fc-src %[var(txn.strm_fc_src)]
+        http-after-response set-header strm-src %[var(txn.strm_src)]
+        http-after-response set-header strm-fc-dst %[var(txn.strm_fc_dst)]
+        http-after-response set-header strm-dst %[var(txn.strm_dst)]
+
+
+    frontend fe4
+        bind "fd@${fe4}"
+
+        tcp-request connection set-src ipv4(10.0.0.1)
+        tcp-request connection set-dst ipv4(10.0.0.2)
+
+        tcp-request session set-var(sess.sess_fc_src) fc_src
+        tcp-request session set-var(sess.sess_fc_dst) fc_dst
+        tcp-request session set-var(sess.sess_src) src
+        tcp-request session set-var(sess.sess_dst) dst
+
+        http-request set-src hdr(x-forwarded-for)
+        http-request set-dst hdr(x-original-to)
+        http-request set-var(txn.strm_fc_src) fc_src
+        http-request set-var(txn.strm_fc_dst) fc_dst
+        http-request set-var(txn.strm_src) src
+        http-request set-var(txn.strm_dst) dst
+
+        http-after-response set-header sess-fc-src %[var(sess.sess_fc_src)]
+        http-after-response set-header sess-src %[var(sess.sess_src)]
+        http-after-response set-header sess-fc-dst %[var(sess.sess_fc_dst)]
+        http-after-response set-header sess-dst %[var(sess.sess_dst)]
+        http-after-response set-header strm-fc-src %[var(txn.strm_fc_src)]
+        http-after-response set-header strm-src %[var(txn.strm_src)]
+        http-after-response set-header strm-fc-dst %[var(txn.strm_fc_dst)]
+        http-after-response set-header strm-dst %[var(txn.strm_dst)]
+
+        default_backend be
+
+    backend be
+        http-request return status 200
+
+    listen li1
+        bind "fd@${li1}"
+
+        tcp-request connection set-src ipv4(10.0.0.1)
+        tcp-request connection set-dst ipv4(10.0.0.2)
+
+        http-request set-src ipv4(192.168.0.1)
+        http-request set-dst ipv4(192.168.0.2)
+
+        http-after-response set-header li1-fc-src %[fc_src]
+        http-after-response set-header li1-src %[src]
+        http-after-response set-header li1-fc-dst %[fc_dst]
+        http-after-response set-header li1-dst %[dst]
+
+
+        server srv ${h1_li3_addr}:${h1_li3_port} send-proxy
+
+    listen li2
+        bind "fd@${li2}"
+
+        tcp-request connection set-src ipv4(10.0.0.1)
+        tcp-request connection set-dst ipv4(10.0.0.2)
+
+        http-request set-src ipv4(192.168.0.1)
+        http-request set-dst ipv4(192.168.0.2)
+
+        http-after-response set-header li2-fc-src %[fc_src]
+        http-after-response set-header li2-src %[src]
+        http-after-response set-header li2-fc-dst %[fc_dst]
+        http-after-response set-header li2-dst %[dst]
+
+        server srv ${h1_li3_addr}:${h1_li3_port} send-proxy-v2
+
+    listen li3
+        bind "fd@${li3}" accept-proxy
+
+        tcp-request connection set-src ipv4(10.1.0.1)
+        tcp-request connection set-dst ipv4(10.1.0.2)
+
+        http-after-response set-header li3-fc-src %[fc_src]
+        http-after-response set-header li3-src %[src]
+        http-after-response set-header li3-fc-dst %[fc_dst]
+        http-after-response set-header li3-dst %[dst]
+
+        http-request return status 200
+
+} -start
+
+
+client c1 -connect ${h1_fe1_sock} {
+    txreq
+    rxresp
+    expect resp.http.sess-fc-src == 10.0.0.1
+    expect resp.http.sess-src    == 10.0.0.1
+    expect resp.http.strm-fc-src == 10.0.0.1
+    expect resp.http.strm-src    == 10.0.0.1
+
+    expect resp.http.sess-fc-dst == 10.0.0.2
+    expect resp.http.sess-dst    == 10.0.0.2
+    expect resp.http.strm-fc-dst == 10.0.0.2
+    expect resp.http.strm-dst    == 10.0.0.2
+} -run
+
+client c2 -connect ${h1_fe2_sock} {
+    txreq
+    rxresp
+    expect resp.http.sess-fc-src == 10.0.0.1
+    expect resp.http.sess-src    == 10.1.0.1
+    expect resp.http.strm-fc-src == 10.0.0.1
+    expect resp.http.strm-src    == 10.1.0.1
+
+    expect resp.http.sess-fc-dst == 10.0.0.2
+    expect resp.http.sess-dst    == 10.1.0.2
+    expect resp.http.strm-fc-dst == 10.0.0.2
+    expect resp.http.strm-dst    == 10.1.0.2
+} -run
+
+client c3 -connect ${h1_fe3_sock} {
+    txreq
+    rxresp
+    expect resp.http.sess-fc-src == 10.0.0.1
+    expect resp.http.sess-src    == 10.1.0.1
+    expect resp.http.strm-fc-src == 10.0.0.1
+    expect resp.http.strm-src    == 10.2.0.1
+
+    expect resp.http.sess-fc-dst == 10.0.0.2
+    expect resp.http.sess-dst    == 10.1.0.2
+    expect resp.http.strm-fc-dst == 10.0.0.2
+    expect resp.http.strm-dst    == 10.2.0.2
+} -run
+
+client c4 -connect ${h1_fe4_sock} {
+    txreq  \
+      -hdr "x-forwarded-for: 192.168.0.1" \
+      -hdr "x-original-to: 192.168.0.2"
+    rxresp
+    expect resp.http.sess-fc-src == 10.0.0.1
+    expect resp.http.sess-src    == 10.0.0.1
+    expect resp.http.strm-fc-src == 10.0.0.1
+    expect resp.http.strm-src    == 192.168.0.1
+
+    expect resp.http.sess-fc-dst == 10.0.0.2
+    expect resp.http.sess-dst    == 10.0.0.2
+    expect resp.http.strm-fc-dst == 10.0.0.2
+    expect resp.http.strm-dst    == 192.168.0.2
+
+    txreq  \
+      -hdr "x-forwarded-for: 192.168.1.1" \
+      -hdr "x-original-to: 192.168.1.2"
+    rxresp
+    expect resp.http.sess-fc-src == 10.0.0.1
+    expect resp.http.sess-src    == 10.0.0.1
+    expect resp.http.strm-fc-src == 10.0.0.1
+    expect resp.http.strm-src    == 192.168.1.1
+
+    expect resp.http.sess-fc-dst == 10.0.0.2
+    expect resp.http.sess-dst    == 10.0.0.2
+    expect resp.http.strm-fc-dst == 10.0.0.2
+    expect resp.http.strm-dst    == 192.168.1.2
+
+    txreq
+    rxresp
+    expect resp.http.sess-fc-src == 10.0.0.1
+    expect resp.http.sess-src    == 10.0.0.1
+    expect resp.http.strm-fc-src == 10.0.0.1
+    expect resp.http.strm-src    == 10.0.0.1
+
+    expect resp.http.sess-fc-dst == 10.0.0.2
+    expect resp.http.sess-dst    == 10.0.0.2
+    expect resp.http.strm-fc-dst == 10.0.0.2
+    expect resp.http.strm-dst    == 10.0.0.2
+} -run
+
+client c5 -connect ${h1_li1_sock} {
+    txreq
+    rxresp
+    expect resp.http.li1-fc-src == 10.0.0.1
+    expect resp.http.li1-src    == 192.168.0.1
+    expect resp.http.li1-fc-dst == 10.0.0.2
+    expect resp.http.li1-dst    == 192.168.0.2
+
+    expect resp.http.li3-fc-src == 10.1.0.1
+    expect resp.http.li3-src    == 192.168.0.1
+    expect resp.http.li3-fc-dst == 10.1.0.2
+    expect resp.http.li3-dst    == 192.168.0.2
+} -run
+
+client c6 -connect ${h1_li2_sock} {
+    txreq
+    rxresp
+    expect resp.http.li2-fc-src == 10.0.0.1
+    expect resp.http.li2-src    == 192.168.0.1
+    expect resp.http.li2-fc-dst == 10.0.0.2
+    expect resp.http.li2-dst    == 192.168.0.2
+
+    expect resp.http.li3-fc-src == 10.1.0.1
+    expect resp.http.li3-src    == 192.168.0.1
+    expect resp.http.li3-fc-dst == 10.1.0.2
+    expect resp.http.li3-dst    == 192.168.0.2
+} -run
