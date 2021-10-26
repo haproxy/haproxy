@@ -20,8 +20,14 @@ local function cron()
 	end
 	core.Debug('CRON port:' .. vtc_port)
 
+	local body = ""
+
+	for i = 0, 200 do
+	   body = body .. i .. ' ABCDEFGHIJKLMNOPQRSTUVWXYZ\n'
+        end
+
 	local httpclient = core.httpclient()
-	local response = httpclient:get{url="http://127.0.0.1:" .. vtc_port, body="foobar-is-the-new-toto"}
+	local response = httpclient:post{url="http://127.0.0.1:" .. vtc_port, body=body}
 
 	core.Info("Received: " .. response.body)
 end

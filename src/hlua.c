@@ -7038,7 +7038,7 @@ __LJMP static int hlua_httpclient_get_headers(lua_State *L, struct hlua_httpclie
  * in the lua buffer, once the httpclient finished its job, push the result on
  * the stack
  */
-__LJMP static int hlua_httpclient_get_yield(lua_State *L, int status, lua_KContext ctx)
+__LJMP static int hlua_httpclient_send_yield(lua_State *L, int status, lua_KContext ctx)
 {
 	struct buffer *tr;
 	int res;
@@ -7076,7 +7076,7 @@ __LJMP static int hlua_httpclient_get_yield(lua_State *L, int status, lua_KConte
 		task_wakeup(hlua->task, TASK_WOKEN_MSG);
 
 
-	MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_httpclient_get_yield, TICK_ETERNITY, 0));
+	MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_httpclient_send_yield, TICK_ETERNITY, 0));
 	return 0;
 }
 
@@ -7152,12 +7152,10 @@ skip_headers:
 
 
 /*
- * Sends and receive an HTTP request
- *
- * httpclient.get(url, headers)
+ * Send an HTTP request and wait for a response
  */
 
-__LJMP static int hlua_httpclient_get(lua_State *L)
+__LJMP static int hlua_httpclient_send(lua_State *L, enum http_meth_t meth)
 {
 	struct hlua_httpclient *hlua_hc;
 	struct http_hdr *hdrs = NULL;
@@ -7202,7 +7200,7 @@ __LJMP static int hlua_httpclient_get(lua_State *L)
 	hlua_hc = hlua_checkhttpclient(L, 1);
 
 	hlua_hc->hc->req.url = istdup(ist(url_str));
-	hlua_hc->hc->req.meth = HTTP_METH_GET;
+	hlua_hc->hc->req.meth = meth;
 
 	/* update the httpclient callbacks */
 	hlua_hc->hc->ops.res_stline = hlua_httpclient_res_cb;
@@ -7211,7 +7209,7 @@ __LJMP static int hlua_httpclient_get(lua_State *L)
 	hlua_hc->hc->ops.res_end = hlua_httpclient_res_cb;
 
 
-	httpclient_req_gen(hlua_hc->hc, hlua_hc->hc->req.url, HTTP_METH_GET, hdrs, ist(body_str));
+	httpclient_req_gen(hlua_hc->hc, hlua_hc->hc->req.url, meth, hdrs, ist(body_str));
 	httpclient_start(hlua_hc->hc);
 
 	/* free the temporary headers array */
@@ -7231,8 +7229,60 @@ __LJMP static int hlua_httpclient_get(lua_State *L)
 	luaL_buffinit(L, &hlua_hc->b);
 	lua_pushstring(L, "body");
 
-	MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_httpclient_get_yield, TICK_ETERNITY, 0));
+	MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_httpclient_send_yield, TICK_ETERNITY, 0));
 	return 0;
+}
+
+/*
+ * Sends an HTTP HEAD request and wait for a response
+ *
+ * httpclient:head(url, headers, payload)
+ */
+__LJMP static int hlua_httpclient_head(lua_State *L)
+{
+	return hlua_httpclient_send(L, HTTP_METH_HEAD);
+}
+
+/*
+ * Send an HTTP GET request and wait for a response
+ *
+ * httpclient:get(url, headers, payload)
+ */
+__LJMP static int hlua_httpclient_get(lua_State *L)
+{
+	return hlua_httpclient_send(L, HTTP_METH_GET);
+
+}
+
+/*
+ * Sends an HTTP PUT request and wait for a response
+ *
+ * httpclient:put(url, headers, payload)
+ */
+__LJMP static int hlua_httpclient_put(lua_State *L)
+{
+	return hlua_httpclient_send(L, HTTP_METH_PUT);
+}
+
+/*
+ * Send an HTTP POST request and wait for a response
+ *
+ * httpclient:post(url, headers, payload)
+ */
+__LJMP static int hlua_httpclient_post(lua_State *L)
+{
+	return hlua_httpclient_send(L, HTTP_METH_POST);
+}
+
+
+/*
+ * Sends an HTTP DELETE request and wait for a response
+ *
+ * httpclient:delete(url, headers, payload)
+ */
+__LJMP static int hlua_httpclient_delete(lua_State *L)
+{
+	return hlua_httpclient_send(L, HTTP_METH_DELETE);
 }
 
 /*
@@ -11918,6 +11968,10 @@ lua_State *hlua_init_state(int thread_num)
 	lua_pushstring(L, "__index");
 	lua_newtable(L);
 	hlua_class_function(L, "get",         hlua_httpclient_get);
+	hlua_class_function(L, "head",        hlua_httpclient_head);
+	hlua_class_function(L, "put",         hlua_httpclient_put);
+	hlua_class_function(L, "post",        hlua_httpclient_post);
+	hlua_class_function(L, "delete",      hlua_httpclient_delete);
 	lua_settable(L, -3); /* Sets the __index entry. */
 	/* Register the garbage collector entry. */
 	lua_pushstring(L, "__gc");
