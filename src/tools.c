@@ -946,7 +946,8 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 	int portl, porth, porta;
 	int abstract = 0;
 	int new_fd = -1;
-	int sock_type, ctrl_type;
+	enum proto_type proto_type;
+	int ctrl_type;
 
 	portl = porth = porta = 0;
 	if (fqdn)
@@ -967,18 +968,23 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 
 	/* prepare the default socket types */
 	if ((opts & (PA_O_STREAM|PA_O_DGRAM)) == PA_O_DGRAM ||
-	    ((opts & (PA_O_STREAM|PA_O_DGRAM)) == (PA_O_DGRAM|PA_O_STREAM) && (opts & PA_O_DEFAULT_DGRAM)))
-		sock_type = ctrl_type = SOCK_DGRAM;
-	else
-		sock_type = ctrl_type = SOCK_STREAM;
+	    ((opts & (PA_O_STREAM|PA_O_DGRAM)) == (PA_O_DGRAM|PA_O_STREAM) && (opts & PA_O_DEFAULT_DGRAM))) {
+		proto_type = PROTO_TYPE_DGRAM;
+		ctrl_type = SOCK_DGRAM;
+	} else {
+		proto_type = PROTO_TYPE_STREAM;
+		ctrl_type = SOCK_STREAM;
+	}
 
 	if (strncmp(str2, "stream+", 7) == 0) {
 		str2 += 7;
-		sock_type = ctrl_type = SOCK_STREAM;
+		proto_type = PROTO_TYPE_STREAM;
+		ctrl_type = SOCK_STREAM;
 	}
 	else if (strncmp(str2, "dgram+", 6) == 0) {
 		str2 += 6;
-		sock_type = ctrl_type = SOCK_DGRAM;
+		proto_type = PROTO_TYPE_DGRAM;
+		ctrl_type = SOCK_DGRAM;
 	}
 
 	if (strncmp(str2, "unix@", 5) == 0) {
@@ -990,13 +996,15 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 		str2 += 5;
 		abstract = 0;
 		ss.ss_family = AF_UNIX;
-		sock_type = ctrl_type = SOCK_DGRAM;
+		proto_type = PROTO_TYPE_DGRAM;
+		ctrl_type = SOCK_DGRAM;
 	}
 	else if (strncmp(str2, "uxst@", 5) == 0) {
 		str2 += 5;
 		abstract = 0;
 		ss.ss_family = AF_UNIX;
-		sock_type = ctrl_type = SOCK_STREAM;
+		proto_type = PROTO_TYPE_STREAM;
+		ctrl_type = SOCK_STREAM;
 	}
 	else if (strncmp(str2, "abns@", 5) == 0) {
 		str2 += 5;
@@ -1018,43 +1026,49 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 	else if (strncmp(str2, "tcp4@", 5) == 0) {
 		str2 += 5;
 		ss.ss_family = AF_INET;
-		sock_type = ctrl_type = SOCK_STREAM;
+		proto_type = PROTO_TYPE_STREAM;
+		ctrl_type = SOCK_STREAM;
 	}
 	else if (strncmp(str2, "udp4@", 5) == 0) {
 		str2 += 5;
 		ss.ss_family = AF_INET;
-		sock_type = ctrl_type = SOCK_DGRAM;
+		proto_type = PROTO_TYPE_DGRAM;
+		ctrl_type = SOCK_DGRAM;
 	}
 	else if (strncmp(str2, "tcp6@", 5) == 0) {
 		str2 += 5;
 		ss.ss_family = AF_INET6;
-		sock_type = ctrl_type = SOCK_STREAM;
+		proto_type = PROTO_TYPE_STREAM;
+		ctrl_type = SOCK_STREAM;
 	}
 	else if (strncmp(str2, "udp6@", 5) == 0) {
 		str2 += 5;
 		ss.ss_family = AF_INET6;
-		sock_type = ctrl_type = SOCK_DGRAM;
+		proto_type = PROTO_TYPE_DGRAM;
+		ctrl_type = SOCK_DGRAM;
 	}
 	else if (strncmp(str2, "tcp@", 4) == 0) {
 		str2 += 4;
 		ss.ss_family = AF_UNSPEC;
-		sock_type = ctrl_type = SOCK_STREAM;
+		proto_type = PROTO_TYPE_STREAM;
+		ctrl_type = SOCK_STREAM;
 	}
 	else if (strncmp(str2, "udp@", 4) == 0) {
 		str2 += 4;
 		ss.ss_family = AF_UNSPEC;
-		sock_type = ctrl_type = SOCK_DGRAM;
+		proto_type = PROTO_TYPE_DGRAM;
+		ctrl_type = SOCK_DGRAM;
 	}
 	else if (strncmp(str2, "quic4@", 6) == 0) {
 		str2 += 6;
 		ss.ss_family = AF_INET;
-		sock_type = SOCK_DGRAM;
+		proto_type = PROTO_TYPE_DGRAM;
 		ctrl_type = SOCK_STREAM;
 	}
 	else if (strncmp(str2, "quic6@", 6) == 0) {
 		str2 += 6;
 		ss.ss_family = AF_INET6;
-		sock_type = SOCK_DGRAM;
+		proto_type = PROTO_TYPE_DGRAM;
 		ctrl_type = SOCK_STREAM;
 	}
 	else if (strncmp(str2, "fd@", 3) == 0) {
@@ -1113,7 +1127,7 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 
 			addr_len = sizeof(type);
 			if (getsockopt(new_fd, SOL_SOCKET, SO_TYPE, &type, &addr_len) != 0 ||
-			    (type == SOCK_STREAM) != (sock_type == SOCK_STREAM)) {
+			    (type == SOCK_STREAM) != (proto_type == PROTO_TYPE_STREAM)) {
 				memprintf(err, "socket on file descriptor '%d' is of the wrong type.\n", new_fd);
 				goto out;
 			}
@@ -1280,7 +1294,7 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 		 * for servers actually).
 		 */
 		new_proto = protocol_lookup(ss.ss_family,
-					    sock_type == SOCK_DGRAM,
+					    proto_type,
 					    ctrl_type == SOCK_DGRAM);
 
 		if (!new_proto && (!fqdn || !*fqdn) && (ss.ss_family != AF_CUST_EXISTING_FD)) {

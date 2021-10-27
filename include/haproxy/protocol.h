@@ -27,7 +27,7 @@
 #include <haproxy/thread.h>
 
 /* [AF][sock_dgram][ctrl_dgram] */
-extern struct protocol *__protocol_by_family[AF_CUST_MAX][2][2];
+extern struct protocol *__protocol_by_family[AF_CUST_MAX][PROTO_NUM_TYPES][2];
 __decl_thread(extern HA_SPINLOCK_T proto_lock);
 
 /* Registers the protocol <proto> */
@@ -86,14 +86,14 @@ static inline struct protocol *protocol_by_family(int family)
 	return NULL;
 }
 
-/* returns the protocol associated to family <family> with sock_type and
- * ctrl_type of either SOCK_STREAM or SOCK_DGRAM depending on the requested
- * values, or NULL if not found.
+/* returns the protocol associated to family <family> with proto_type among the
+ * supported protocol types, and ctrl_type of either SOCK_STREAM or SOCK_DGRAM
+ * depending on the requested values, or NULL if not found.
  */
-static inline struct protocol *protocol_lookup(int family, int sock_dgram, int ctrl_dgram)
+static inline struct protocol *protocol_lookup(int family, enum proto_type proto_type, int ctrl_dgram)
 {
 	if (family >= 0 && family < AF_CUST_MAX)
-		return __protocol_by_family[family][!!sock_dgram][!!ctrl_dgram];
+		return __protocol_by_family[family][proto_type][!!ctrl_dgram];
 	return NULL;
 }
 

@@ -545,7 +545,7 @@ int sock_find_compatible_fd(const struct receiver *rx)
 	if (!rx->proto->fam->addrcmp)
 		return -1;
 
-	if (rx->proto->sock_type == SOCK_DGRAM)
+	if (rx->proto->proto_type == PROTO_TYPE_DGRAM)
 		options |= SOCK_XFER_OPT_DGRAM;
 
 	if (rx->settings->options & RX_O_FOREIGN)
