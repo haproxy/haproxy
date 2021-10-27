@@ -2052,7 +2052,9 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 		return 0;
 
 	list_for_each_entry(tmp, list_format, list) {
+#ifdef USE_OPENSSL
 		struct connection *conn;
+#endif
 		const struct sockaddr_storage *addr;
 		const char *src = NULL;
 		struct sample *key;
