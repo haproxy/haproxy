@@ -76,16 +76,6 @@ int protocol_resume_all(void);
  */
 int protocol_enable_all(void);
 
-/* returns the protocol associated to family <family> with sock_type and
- * ctrl_type of SOCK_STREAM, or NULL if not found
- */
-static inline struct protocol *protocol_by_family(int family)
-{
-	if (family >= 0 && family < AF_CUST_MAX)
-		return __protocol_by_family[family][0][0];
-	return NULL;
-}
-
 /* returns the protocol associated to family <family> with proto_type among the
  * supported protocol types, and ctrl_type of either SOCK_STREAM or SOCK_DGRAM
  * depending on the requested values, or NULL if not found.

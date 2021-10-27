@@ -918,7 +918,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 		 */
 		if (peer || !local_peer) {
 			newpeer->addr = curpeers->peers_fe->srv->addr;
-			newpeer->proto = protocol_by_family(newpeer->addr.ss_family);
+			newpeer->proto = protocol_lookup(newpeer->addr.ss_family, PROTO_TYPE_STREAM, 0);
 		}
 
 		newpeer->xprt  = xprt_get(XPRT_RAW);

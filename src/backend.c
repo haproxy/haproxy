@@ -1542,7 +1542,7 @@ skip_reuse:
 	if (!srv_conn->xprt) {
 		/* set the correct protocol on the output stream interface */
 		if (srv) {
-			if (conn_prepare(srv_conn, protocol_by_family(srv_conn->dst->ss_family), srv->xprt)) {
+			if (conn_prepare(srv_conn, protocol_lookup(srv_conn->dst->ss_family, PROTO_TYPE_STREAM, 0), srv->xprt)) {
 				conn_free(srv_conn);
 				return SF_ERR_INTERNAL;
 			}
@@ -1550,7 +1550,7 @@ skip_reuse:
 			int ret;
 
 			/* proxies exclusively run on raw_sock right now */
-			ret = conn_prepare(srv_conn, protocol_by_family(srv_conn->dst->ss_family), xprt_get(XPRT_RAW));
+			ret = conn_prepare(srv_conn, protocol_lookup(srv_conn->dst->ss_family, PROTO_TYPE_STREAM, 0), xprt_get(XPRT_RAW));
 			if (ret < 0 || !(srv_conn->ctrl)) {
 				conn_free(srv_conn);
 				return SF_ERR_INTERNAL;

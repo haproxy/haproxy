@@ -1125,7 +1125,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 	*conn->dst = (is_addr(&connect->addr)
 		      ? connect->addr
 		      : (is_addr(&check->addr) ? check->addr : s->addr));
-	proto = protocol_by_family(conn->dst->ss_family);
+	proto = protocol_lookup(conn->dst->ss_family, PROTO_TYPE_STREAM, 0);
 
 	port = 0;
 	if (connect->port)

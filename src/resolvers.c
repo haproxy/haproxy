@@ -3417,7 +3417,7 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 
 			set_host_port(sk, 53);
 
-			proto = protocol_by_family(sk->ss_family);
+			proto = protocol_lookup(sk->ss_family, PROTO_TYPE_STREAM, 0);
 			if (!proto || !proto->connect) {
 				ha_warning("parsing [/etc/resolv.conf:%d] : '%s' : connect() not supported for this address family.\n",
 					   resolv_linenum, address);

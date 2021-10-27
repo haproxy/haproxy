@@ -2558,7 +2558,8 @@ static int _srv_parse_init(struct server **srv, char **args, int *cur_arg,
 		 */
 		srv_set_addr_desc(newsrv, !(parse_flags & SRV_PARSE_DYNAMIC));
 
-		if (!newsrv->srvrq && !newsrv->hostname && !protocol_by_family(newsrv->addr.ss_family)) {
+		if (!newsrv->srvrq && !newsrv->hostname &&
+		    !protocol_lookup(newsrv->addr.ss_family, PROTO_TYPE_STREAM, 0)) {
 			ha_alert("Unknown protocol family %d '%s'\n",
 			         newsrv->addr.ss_family, args[*cur_arg]);
 			err_code |= ERR_ALERT | ERR_FATAL;
