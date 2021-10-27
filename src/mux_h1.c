@@ -54,7 +54,8 @@
 #define H1C_F_ST_READY       0x00002000 /* Set in ATTACHED state with a READY conn-stream. A conn-stream is not ready when
 					 * a TCP>H1 upgrade is in progress Thus this flag is only set if ATTACHED is also set */
 #define H1C_F_ST_ALIVE       (H1C_F_ST_IDLE|H1C_F_ST_EMBRYONIC|H1C_F_ST_ATTACHED)
-/* 0x00004000 - 0x00008000 unused */
+#define H1C_F_ST_SILENT_SHUT 0x00004000 /* silent (or dirty) shutdown must be performed */
+/* 0x00008000 unused */
 
 #define H1C_F_WANT_SPLICE    0x00010000 /* Don't read into a buffer because we want to use or we are using splicing */
 #define H1C_F_ERR_PENDING    0x00020000 /* Send an error and close the connection ASAP (implies H1C_F_ST_ERROR) */
@@ -270,7 +271,7 @@ static int h1_process(struct h1c *h1c);
 /* h1_io_cb is exported to see it resolved in "show fd" */
 struct task *h1_io_cb(struct task *t, void *ctx, unsigned int state);
 struct task *h1_timeout_task(struct task *t, void *context, unsigned int state);
-static void h1_shutw_conn(struct connection *conn, enum cs_shw_mode mode);
+static void h1_shutw_conn(struct connection *conn);
 static void h1_wake_stream_for_recv(struct h1s *h1s);
 static void h1_wake_stream_for_send(struct h1s *h1s);
 
@@ -2697,7 +2698,7 @@ static int h1_send(struct h1c *h1c)
 		h1_release_buf(h1c, &h1c->obuf);
 		if (h1c->flags & H1C_F_ST_SHUTDOWN) {
 			TRACE_STATE("process pending shutdown for writes", H1_EV_H1C_SEND, h1c->conn);
-			h1_shutw_conn(conn, CS_SHW_NORMAL);
+			h1_shutw_conn(conn);
 		}
 	}
 	else if (!(h1c->wait_event.events & SUB_RETRY_SEND)) {
@@ -3306,23 +3307,26 @@ static void h1_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
 
   do_shutw:
 	h1c->flags |= H1C_F_ST_SHUTDOWN;
+	if (mode != CS_SHW_NORMAL)
+		h1c->flags |= H1C_F_ST_SILENT_SHUT;
+
 	if (!b_data(&h1c->obuf))
-		h1_shutw_conn(cs->conn, mode);
+		h1_shutw_conn(cs->conn);
   end:
 	TRACE_LEAVE(H1_EV_STRM_SHUT, h1c->conn, h1s);
 }
 
-static void h1_shutw_conn(struct connection *conn, enum cs_shw_mode mode)
+static void h1_shutw_conn(struct connection *conn)
 {
 	struct h1c *h1c = conn->ctx;
 
 	if (conn->flags & CO_FL_SOCK_WR_SH)
 		return;
 
-	TRACE_ENTER(H1_EV_STRM_SHUT, conn, h1c->h1s);
+	TRACE_ENTER(H1_EV_H1C_END, conn);
 	conn_xprt_shutw(conn);
-	conn_sock_shutw(conn, (mode == CS_SHW_NORMAL));
-	TRACE_LEAVE(H1_EV_STRM_SHUT, conn, h1c->h1s);
+	conn_sock_shutw(conn, (h1c && !(h1c->flags & H1C_F_ST_SILENT_SHUT)));
+	TRACE_LEAVE(H1_EV_H1C_END, conn);
 }
 
 /* Called from the upper layer, to unsubscribe <es> from events <event_type>
