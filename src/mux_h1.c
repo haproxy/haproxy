@@ -921,9 +921,12 @@ static void h1_release(struct h1c *h1c)
 			tasklet_free(h1c->wait_event.tasklet);
 
 		h1s_destroy(h1c->h1s);
-		if (conn && h1c->wait_event.events != 0)
-			conn->xprt->unsubscribe(conn, conn->xprt_ctx, h1c->wait_event.events,
-			    &h1c->wait_event);
+		if (conn) {
+			if (h1c->wait_event.events != 0)
+				conn->xprt->unsubscribe(conn, conn->xprt_ctx, h1c->wait_event.events,
+							&h1c->wait_event);
+			h1_shutw_conn(conn);
+		}
 		pool_free(pool_head_h1c, h1c);
 	}
 
