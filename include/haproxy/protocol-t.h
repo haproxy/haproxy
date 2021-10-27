@@ -48,6 +48,13 @@ struct connection;
 # error "Can't build on the target system, AF_CUST_MAX overflow"
 #endif
 
+/* socket-level protocol types, used for protocol selection */
+enum proto_type {
+	PROTO_TYPE_STREAM,      /* streaming protocol (like TCP) */
+	PROTO_TYPE_DGRAM,       /* datagram protocol (like UDP) */
+	PROTO_NUM_TYPES         /* must be the last one */
+};
+
 /* max length of a protocol name, including trailing zero */
 #define PROTO_NAME_LEN 16
 
@@ -83,6 +90,7 @@ struct protocol {
 	char name[PROTO_NAME_LEN];			/* protocol name, zero-terminated */
 	struct proto_fam *fam;                          /* protocol family */
 	int ctrl_type;                                  /* control layer type (SOCK_STREAM/SOCK_DGRAM) */
+	enum proto_type proto_type;                     /* protocol type (PROTO_TYPE_*) */
 	int sock_type;					/* socket type, as passed to socket()     */
 	int sock_prot;					/* socket protocol, as passed to socket() */
 

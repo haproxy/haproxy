@@ -57,6 +57,7 @@ struct protocol proto_uxdg = {
 	.fam            = &proto_fam_unix,
 
 	/* socket layer */
+	.proto_type     = PROTO_TYPE_DGRAM,
 	.sock_type      = SOCK_DGRAM,
 	.sock_prot      = 0,
 	.rx_enable      = sock_enable,

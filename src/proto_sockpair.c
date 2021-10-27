@@ -87,6 +87,7 @@ struct protocol proto_sockpair = {
 	.fam            = &proto_fam_sockpair,
 
 	/* socket layer */
+	.proto_type     = PROTO_TYPE_STREAM,
 	.sock_type      = SOCK_STREAM,
 	.sock_prot      = 0,
 	.rx_enable      = sock_enable,

@@ -79,6 +79,7 @@ struct protocol proto_tcpv4 = {
 	.fam            = &proto_fam_inet4,
 
 	/* socket layer */
+	.proto_type     = PROTO_TYPE_STREAM,
 	.sock_type      = SOCK_STREAM,
 	.sock_prot      = IPPROTO_TCP,
 	.rx_enable      = sock_enable,
@@ -121,6 +122,7 @@ struct protocol proto_tcpv6 = {
 	.fam            = &proto_fam_inet6,
 
 	/* socket layer */
+	.proto_type     = PROTO_TYPE_STREAM,
 	.sock_type      = SOCK_STREAM,
 	.sock_prot      = IPPROTO_TCP,
 	.rx_enable      = sock_enable,

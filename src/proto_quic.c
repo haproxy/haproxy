@@ -78,6 +78,7 @@ struct protocol proto_quic4 = {
 	.fam            = &proto_fam_inet4,
 
 	/* socket layer */
+	.proto_type     = PROTO_TYPE_DGRAM,
 	.sock_type      = SOCK_DGRAM,
 	.sock_prot      = IPPROTO_UDP,
 	.rx_enable      = sock_enable,
@@ -115,6 +116,7 @@ struct protocol proto_quic6 = {
 	.fam            = &proto_fam_inet6,
 
 	/* socket layer */
+	.proto_type     = PROTO_TYPE_DGRAM,
 	.sock_type      = SOCK_DGRAM,
 	.sock_prot      = IPPROTO_UDP,
 	.rx_enable      = sock_enable,
