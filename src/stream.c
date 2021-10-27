@@ -491,7 +491,6 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin, struct bu
 
 	stream_init_srv_conn(s);
 	s->target = sess->listener ? sess->listener->default_target : NULL;
-	s->target_addr = NULL;
 
 	s->pend_pos = NULL;
 	s->priority_class = 0;
@@ -743,7 +742,6 @@ static void stream_free(struct stream *s)
 		session_free(sess);
 	}
 
-	sockaddr_free(&s->target_addr);
 	sockaddr_free(&s->si[0].src);
 	sockaddr_free(&s->si[0].dst);
 	sockaddr_free(&s->si[1].src);

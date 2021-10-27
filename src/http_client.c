@@ -372,7 +372,7 @@ struct appctx *httpclient_start(struct httpclient *hc)
 		goto out_free_appctx;
 	}
 
-	if (!sockaddr_alloc(&s->target_addr, &hc->dst, sizeof(hc->dst))) {
+	if (!sockaddr_alloc(&s->si[1].dst, &hc->dst, sizeof(hc->dst))) {
 		ha_alert("httpclient: Failed to initialize stream in %s:%d.\n", __FUNCTION__, __LINE__);
 		goto out_free_stream;
 	}

@@ -1267,7 +1267,7 @@ int connect_server(struct stream *s)
 	srv = objt_server(s->target);
 
 	if (!(s->flags & SF_ADDR_SET)) {
-		err = alloc_dst_address(&s->target_addr, srv, s);
+		err = alloc_dst_address(&s->si[1].dst, srv, s);
 		if (err != SRV_STATUS_OK)
 			return SF_ERR_INTERNAL;
 
@@ -1312,7 +1312,7 @@ int connect_server(struct stream *s)
 
 	/* 3. destination address */
 	if (srv && (!is_addr(&srv->addr) || srv->flags & SRV_F_MAPPORTS))
-		hash_params.dst_addr = s->target_addr;
+		hash_params.dst_addr = s->si[1].dst;
 
 	/* 4. source address */
 	hash_params.src_addr = bind_addr;
@@ -1534,7 +1534,7 @@ skip_reuse:
 		return SF_ERR_RESOURCE;
 
 	/* copy the target address into the connection */
-	*srv_conn->dst = *s->target_addr;
+	*srv_conn->dst = *s->si[1].dst;
 
 	/* Copy network namespace from client connection */
 	srv_conn->proxy_netns = cli_conn ? cli_conn->proxy_netns : NULL;
@@ -1783,7 +1783,7 @@ int srv_redispatch_connect(struct stream *s)
 		if (((s->flags & (SF_DIRECT|SF_FORCE_PRST)) == SF_DIRECT) &&
 		    (s->be->options & PR_O_REDISP)) {
 			s->flags &= ~(SF_DIRECT | SF_ASSIGNED | SF_ADDR_SET);
-			sockaddr_free(&s->target_addr);
+			sockaddr_free(&s->si[1].dst);
 			goto redispatch;
 		}
 

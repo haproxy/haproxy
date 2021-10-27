@@ -153,7 +153,6 @@ struct stream {
 		struct stktable *table;
 	} store[8];                     /* tracked stickiness values to store */
 
-	struct sockaddr_storage *target_addr;   /* the address to join if not null */
 	struct stkctr stkctr[MAX_SESS_STKCTR];  /* content-aware stick counters */
 
 	struct strm_flt strm_flt;               /* current state of filters active on this stream */

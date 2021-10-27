@@ -2553,7 +2553,7 @@ __LJMP static int hlua_socket_getpeername(struct lua_State *L)
 	struct xref *peer;
 	struct appctx *appctx;
 	struct stream_interface *si;
-	struct stream *s;
+	const struct sockaddr_storage *dst;
 	int ret;
 
 	MAY_LJMP(check_args(L, 1, "getpeername"));
@@ -2574,15 +2574,14 @@ __LJMP static int hlua_socket_getpeername(struct lua_State *L)
 	}
 	appctx = container_of(peer, struct appctx, ctx.hlua_cosocket.xref);
 	si = appctx->owner;
-	s = si_strm(si);
-
-	if (!s->target_addr) {
+	dst = si_dst(si_opposite(si));
+	if (!dst) {
 		xref_unlock(&socket->xref, peer);
 		lua_pushnil(L);
 		return 1;
 	}
 
-	ret = MAY_LJMP(hlua_socket_info(L, s->target_addr));
+	ret = MAY_LJMP(hlua_socket_info(L, dst));
 	xref_unlock(&socket->xref, peer);
 	return ret;
 }
@@ -2781,7 +2780,7 @@ __LJMP static int hlua_socket_connect(struct lua_State *L)
 	si = appctx->owner;
 	s = si_strm(si);
 
-	if (!sockaddr_alloc(&s->target_addr, addr, sizeof(*addr))) {
+	if (!sockaddr_alloc(&si_opposite(si)->dst, addr, sizeof(*addr))) {
 		xref_unlock(&socket->xref, peer);
 		WILL_LJMP(luaL_error(L, "connect: internal error"));
 	}

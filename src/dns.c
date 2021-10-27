@@ -909,7 +909,7 @@ static struct appctx *dns_session_create(struct dns_session *ds)
 
 
 	s->target = &ds->dss->srv->obj_type;
-	if (!sockaddr_alloc(&s->target_addr, &ds->dss->srv->addr, sizeof(ds->dss->srv->addr)))
+	if (!sockaddr_alloc(&s->si[1].dst, &ds->dss->srv->addr, sizeof(ds->dss->srv->addr)))
 		goto out_free_strm;
 	s->flags = SF_ASSIGNED|SF_ADDR_SET;
 	s->si[1].flags |= SI_FL_NOLINGER;
