@@ -752,8 +752,8 @@ static forceinline int __ha_cas_dw(void *target, void *compare, const void *set)
 /* returns 0 on failure, non-zero on success */
 static __inline int __ha_cas_dw(void *target, void *compare, const void *set)
 {
-	return __atomic_compare_exchange((__int128*)target, (__int128*)compare, (const __int128*)set,
-	                                 0, __ATOMIC_RELAXED, __ATOMIC_RELAXED);
+	return __atomic_compare_exchange_n((__int128*)target, (__int128*)compare, *(const __int128*)set,
+	                                   0, __ATOMIC_RELAXED, __ATOMIC_RELAXED);
 }
 
 #else // neither ARMv8.1-A atomics nor 128-bit atomics
