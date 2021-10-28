@@ -119,6 +119,7 @@ struct url_stat {
 
 #define FILT2_TIMESTAMP         0x01
 #define FILT2_PRESERVE_QUERY    0x02
+#define FILT2_EXTRACT_CAPTURE   0x04
 
 unsigned int filter = 0;
 unsigned int filter2 = 0;
@@ -139,6 +140,7 @@ void filter_count_term_codes(const char *accept_field, const char *time_field, s
 void filter_count_status(const char *accept_field, const char *time_field, struct timer **tptr);
 void filter_graphs(const char *accept_field, const char *time_field, struct timer **tptr);
 void filter_output_line(const char *accept_field, const char *time_field, struct timer **tptr);
+void filter_extract_capture(const char *accept_field, const char *time_field, unsigned int, unsigned int);
 void filter_accept_holes(const char *accept_field, const char *time_field, struct timer **tptr);
 
 void usage(FILE *output, const char *msg)
@@ -147,9 +149,11 @@ void usage(FILE *output, const char *msg)
 		"%s"
 		"Usage: halog [-h|--help] for long help\n"
 		"       halog [-q] [-c] [-m <lines>]\n"
-		"       {-cc|-gt|-pct|-st|-tc|-srv|-u|-uc|-ue|-ua|-ut|-uao|-uto|-uba|-ubt|-ic}\n"
+		"       {-cc|-gt|-pct|-st|-tc|-srv|-u|-uc|-ue|-ua|-ut|-uao|-uto|-uba|-ubt|-ic\n"
+		"           |-hdr <block>:<field>\n"
+		"       }\n"
 		"       [-s <skip>] [-e|-E] [-H] [-rt|-RT <time>] [-ad <delay>] [-ac <count>] [-query]\n"
-		"       [-v] [-Q|-QS] [-tcn|-TCN <termcode>] [ -hs|-HS [min][:[max]] ] [ -time [min][:[max]] ] < log\n"
+		"       [-v] [-Q|-QS] [-tcn|-TCN <termcode>] [ -hs|-HS [min][:[max]] ] [ -time [min][:[max]] <log\n"
 		"\n",
 		msg ? msg : ""
 		);
@@ -198,7 +202,8 @@ void help()
 	       "       -u : by URL, -uc : request count, -ue : error count\n"
 	       "       -ua : average response time, -ut : average total time\n"
 	       "       -uao, -uto: average times computed on valid ('OK') requests\n"
-	       "       -uba, -ubt: average bytes returned, total bytes returned\n",
+	       "       -uba, -ubt: average bytes returned, total bytes returned\n"
+	       " -hdr  output captured header at the given <block>:<field>\n",
 	       SOURCE_FIELD,SOURCE_FIELD
 	       );
 	exit(0);
@@ -699,6 +704,7 @@ int main(int argc, char **argv)
 	int filter_time_resp = 0;
 	int filt_http_status_low = 0, filt_http_status_high = 0;
 	unsigned int filt2_timestamp_low = 0, filt2_timestamp_high = 0;
+	unsigned int filt2_capture_block = 0, filt2_capture_field = 0;
 	int skip_fields = 1;
 
 	void (*line_filter)(const char *accept_field, const char *time_field, struct timer **tptr) = NULL;
@@ -837,6 +843,26 @@ int main(int argc, char **argv)
 			filter2 |= FILT2_PRESERVE_QUERY;
 		else if (strcmp(argv[0], "-ic") == 0)
 			filter |= FILT_COUNT_IP_COUNT;
+		else if (strcmp(argv[0], "-hdr") == 0) {
+			char *sep, *str;
+
+			if (argc < 2) die("missing option for -hdr (<block>:<field>)\n");
+			filter2 |= FILT2_EXTRACT_CAPTURE;
+
+			argc--; argv++;
+			str = *argv;
+			sep = strchr(str, ':');
+			if (!sep)
+				die("missing colon in -hdr (<block>:<field>)\n");
+			else
+				*sep++ = 0;
+
+			filt2_capture_block = *str ? atol(str) : 1;
+			filt2_capture_field = *sep ? atol(sep) : 1;
+
+			if (filt2_capture_block < 1 || filt2_capture_field < 1)
+				die("block and field must be at least 1 for -hdr (<block>:<field>)\n");
+		}
 		else if (strcmp(argv[0], "-o") == 0) {
 			if (output_file)
 				die("Fatal: output file name already specified.\n");
@@ -850,7 +876,7 @@ int main(int argc, char **argv)
 		argv++;
 	}
 
-	if (!filter)
+	if (!filter && !filter2)
 		die("No action specified.\n");
 
 	if (filter & FILT_ACC_COUNT && !filter_acc_count)
@@ -1064,6 +1090,8 @@ int main(int argc, char **argv)
 		if (line_filter) {
 			if (filter & FILT_COUNT_IP_COUNT)
 				filter_count_ip(source_field, accept_field, time_field, &t);
+			else if (filter2 & FILT2_EXTRACT_CAPTURE)
+				filter_extract_capture(accept_field, time_field, filt2_capture_block, filt2_capture_field);
 			else
 				line_filter(accept_field, time_field, &t);
 		}
@@ -1320,6 +1348,79 @@ int main(int argc, char **argv)
 void filter_output_line(const char *accept_field, const char *time_field, struct timer **tptr)
 {
 	puts(line);
+	lines_out++;
+}
+
+void filter_extract_capture(const char *accept_field, const char *time_field, unsigned int block, unsigned int field)
+{
+	const char *e, *f;
+
+	if (time_field)
+		e = field_start(time_field, METH_FIELD - TIME_FIELD + 1);
+	else
+		e = field_start(accept_field, METH_FIELD - ACCEPT_FIELD + 1);
+
+	while (block-- > 0) {
+		/* Scan until the start of a capture block ('{') until the URL ('"'). */
+		while ((*e != '"' && *e != '{') && *e) {
+			/* Note: some syslog servers escape quotes ! */
+			if (*e == '\\' && e[1] == '"')
+				break;
+
+			e = field_start(e, 2);
+		}
+
+		if (unlikely(!*e)) {
+			truncated_line(linenum, line);
+			return;
+		}
+
+		/* We reached the URL, no more captures will follow. */
+		if (*e != '{') {
+			puts("");
+			lines_out++;
+			return;
+		}
+
+		/* e points the the opening brace of the capture block. */
+
+		e++;
+	}
+
+	/* We are in the first field of the selected capture block. */
+
+	while (--field > 0) {
+		while ((*e != '|' && *e != '}') && *e)
+			e++;
+
+		if (unlikely(!*e)) {
+			truncated_line(linenum, line);
+			return;
+		}
+
+		if (*e != '|') {
+			puts("");
+			lines_out++;
+			return;
+		}
+
+		/* e points to the pipe. */
+
+		e++;
+	}
+
+	f = e;
+
+	while ((*f != '|' && *f != '}') && *f)
+		f++;
+
+	if (unlikely(!*f)) {
+		truncated_line(linenum, line);
+		return;
+	}
+
+	fwrite(e, f - e, 1, stdout);
+	putchar('\n');
 	lines_out++;
 }
 
