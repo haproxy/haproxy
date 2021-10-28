@@ -23,8 +23,6 @@
 #ifndef _HAPROXY_ATOMIC_H
 #define _HAPROXY_ATOMIC_H
 
-#include <string.h>
-
 /* A few notes for the macros and functions here:
  *  - this file is painful to edit, most operations exist in 3 variants,
  *    no-thread, threads with gcc<4.7, threads with gcc>=4.7. Be careful when
@@ -781,7 +779,8 @@ static __inline int __ha_cas_dw(void *target, void *compare, void *set)
                              : "r" (target), "r" (((void **)(compare))[0]), "r" (((void **)(compare))[1]), "r" (((void **)(set))[0]), "r" (((void **)(set))[1])
                              : "cc", "memory");
 
-	memcpy(compare, &value, sizeof(value));
+	((void **)(compare))[0] = value[0];
+	((void **)(compare))[1] = value[1];
         return (tmp1);
 }
 #endif // ARMv8.1-A atomics
