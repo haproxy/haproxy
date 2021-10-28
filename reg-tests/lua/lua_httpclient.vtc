@@ -1,4 +1,12 @@
 varnishtest "Lua: check httpclient functionality from a lua-task"
+
+# A request if first made with c0 with the port of s1 and s2 so the httpclient
+# can generate its URI with it.
+#
+# This reg-test sends a payload with the httpclient to s1, s1 returns another
+# payload. The 2nd lua httpclient sends back the payload from s1 to s2.
+#
+
 feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.5-dev7)'"
 feature ignore_unknown_macro
 
@@ -6,7 +14,14 @@ feature ignore_unknown_macro
 
 server s1 {
     rxreq
-    txresp -bodylen 20
+    txresp -bodylen 200
+    expect req.body ~ ".*2000 ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+} -start
+
+server s2 {
+   rxreq
+   txresp
+   expect req.bodylen == 200
 } -start
 
 haproxy h1 -conf {
@@ -25,10 +40,11 @@ haproxy h1 -conf {
 } -start
 
 client c0 -connect ${h1_fe1_sock} {
-    txreq -url "/" -hdr "vtcport: ${s1_port}"
+    txreq -url "/" -hdr "vtcport: ${s1_port}" -hdr "vtcport2: ${s2_port}"
     rxresp
     expect resp.status == 200
 } -run
 
 
 server s1 -wait
+server s2 -wait

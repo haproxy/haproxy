@@ -1,8 +1,10 @@
 
 local vtc_port = 0
+local vtc_port2 = 0
 
 core.register_service("fakeserv", "http", function(applet)
 	vtc_port = applet.headers["vtcport"][0]
+	vtc_port2 = applet.headers["vtcport2"][0]
 	core.Info("APPLET START")
 	local response = "OK"
 	applet:add_header("Server", "haproxy/webstats")
@@ -22,14 +24,20 @@ local function cron()
 
 	local body = ""
 
-	for i = 0, 200 do
+	for i = 0, 2000 do
 	   body = body .. i .. ' ABCDEFGHIJKLMNOPQRSTUVWXYZ\n'
         end
-
+	core.Info("First httpclient request")
 	local httpclient = core.httpclient()
 	local response = httpclient:post{url="http://127.0.0.1:" .. vtc_port, body=body}
-
 	core.Info("Received: " .. response.body)
+
+	body = response.body
+
+	core.Info("Second httpclient request")
+	local httpclient2 = core.httpclient()
+	local response2 = httpclient2:post{url="http://127.0.0.1:" .. vtc_port2, body=body}
+
 end
 
 core.register_task(cron)
