@@ -181,10 +181,10 @@ void help()
 	       " -v                      invert the input filtering condition\n"
 	       " -q                      don't report errors/warnings\n"
 	       " -m <lines>              limit output to the first <lines> lines\n"
-               " -s <skip_n_fields>      skip n fields from the beginning of a line (default %d)\n"
-               "                         you can also use -n to start from earlier then field %d\n"
+	       " -s <skip_n_fields>      skip n fields from the beginning of a line (default %d)\n"
+	       "                         you can also use -n to start from earlier then field %d\n"
 	       " -query                  preserve the query string for per-URL (-u*) statistics\n"
-               "\n"
+	       "\n"
 	       "Output filters - only one may be used at a time\n"
 	       " -c    only report the number of lines that would have been printed\n"
 	       " -pct  output connect and response times percentiles\n"
@@ -199,7 +199,7 @@ void help()
 	       "       -ua : average response time, -ut : average total time\n"
 	       "       -uao, -uto: average times computed on valid ('OK') requests\n"
 	       "       -uba, -ubt: average bytes returned, total bytes returned\n",
-               SOURCE_FIELD,SOURCE_FIELD
+	       SOURCE_FIELD,SOURCE_FIELD
 	       );
 	exit(0);
 }
