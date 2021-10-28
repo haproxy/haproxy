@@ -709,36 +709,36 @@ int main(int argc, char **argv)
 			break;
 
 		if (strcmp(argv[0], "-ad") == 0) {
-			if (argc < 2) die("missing option for -ad");
+			if (argc < 2) die("missing option for -ad\n");
 			argc--; argv++;
 			filter |= FILT_ACC_DELAY;
 			filter_acc_delay = atol(*argv);
 		}
 		else if (strcmp(argv[0], "-ac") == 0) {
-			if (argc < 2) die("missing option for -ac");
+			if (argc < 2) die("missing option for -ac\n");
 			argc--; argv++;
 			filter |= FILT_ACC_COUNT;
 			filter_acc_count = atol(*argv);
 		}
 		else if (strcmp(argv[0], "-rt") == 0) {
-			if (argc < 2) die("missing option for -rt");
+			if (argc < 2) die("missing option for -rt\n");
 			argc--; argv++;
 			filter |= FILT_TIME_RESP;
 			filter_time_resp = atol(*argv);
 		}
 		else if (strcmp(argv[0], "-RT") == 0) {
-			if (argc < 2) die("missing option for -RT");
+			if (argc < 2) die("missing option for -RT\n");
 			argc--; argv++;
 			filter |= FILT_TIME_RESP | FILT_INVERT_TIME_RESP;
 			filter_time_resp = atol(*argv);
 		}
 		else if (strcmp(argv[0], "-s") == 0) {
-			if (argc < 2) die("missing option for -s");
+			if (argc < 2) die("missing option for -s\n");
 			argc--; argv++;
 			skip_fields = atol(*argv);
 		}
 		else if (strcmp(argv[0], "-m") == 0) {
-			if (argc < 2) die("missing option for -m");
+			if (argc < 2) die("missing option for -m\n");
 			argc--; argv++;
 			lines_max = atol(*argv);
 		}
@@ -771,13 +771,13 @@ int main(int argc, char **argv)
 		else if (strcmp(argv[0], "-tc") == 0)
 			filter |= FILT_COUNT_TERM_CODES;
 		else if (strcmp(argv[0], "-tcn") == 0) {
-			if (argc < 2) die("missing option for -tcn");
+			if (argc < 2) die("missing option for -tcn\n");
 			argc--; argv++;
 			filter |= FILT_TERM_CODE_NAME;
 			filter_term_code_name = *argv;
 		}
 		else if (strcmp(argv[0], "-TCN") == 0) {
-			if (argc < 2) die("missing option for -TCN");
+			if (argc < 2) die("missing option for -TCN\n");
 			argc--; argv++;
 			filter |= FILT_TERM_CODE_NAME | FILT_INVERT_TERM_CODE_NAME;
 			filter_term_code_name = *argv;
@@ -785,7 +785,7 @@ int main(int argc, char **argv)
 		else if (strcmp(argv[0], "-hs") == 0 || strcmp(argv[0], "-HS") == 0) {
 			char *sep, *str;
 
-			if (argc < 2) die("missing option for -hs/-HS ([min]:[max])");
+			if (argc < 2) die("missing option for -hs/-HS ([min]:[max])\n");
 			filter |= FILT_HTTP_STATUS;
 			if (argv[0][1] == 'H')
 				filter |= FILT_INVERT_HTTP_STATUS;
@@ -803,7 +803,7 @@ int main(int argc, char **argv)
 		else if (strcmp(argv[0], "-time") == 0) {
 			char *sep, *str;
 
-			if (argc < 2) die("missing option for -time ([min]:[max])");
+			if (argc < 2) die("missing option for -time ([min]:[max])\n");
 			filter2 |= FILT2_TIMESTAMP;
 
 			argc--; argv++;
