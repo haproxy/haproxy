@@ -19,6 +19,7 @@
 #include <haproxy/cfgparse.h>
 #include <haproxy/connection.h>
 #include <haproxy/global.h>
+#include <haproxy/istbuf.h>
 #include <haproxy/h1_htx.h>
 #include <haproxy/http.h>
 #include <haproxy/http_client.h>
@@ -303,7 +304,10 @@ int httpclient_req_gen(struct httpclient *hc, const struct ist url, enum http_me
 			goto error;
 	}
 
-	htx->flags |= HTX_FL_EOM;
+	/* If req.payload was set, does not set the end of stream which *MUST*
+	 * be set in the callback */
+	if (!hc->ops.req_payload)
+		htx->flags |= HTX_FL_EOM;
 
 	htx_to_buf(htx, &hc->req.buf);
 
@@ -329,6 +333,44 @@ int httpclient_res_xfer(struct httpclient *hc, struct buffer *dst)
 		appctx_wakeup(hc->appctx);
 	return ret;
 }
+
+/*
+ * Transfer raw HTTP payload from src, and insert it into HTX format in the
+ * httpclient.
+ *
+ * Must be used to transfer the request body.
+ * Then wakeup the httpclient so it can transfer it.
+ *
+ * <end> tries to add the ending data flag if it succeed to copy all data.
+ *
+ * Return the number of bytes copied from src.
+ */
+int httpclient_req_xfer(struct httpclient *hc, struct ist src, int end)
+{
+	int ret = 0;
+	struct htx *htx;
+
+	htx = htx_from_buf(&hc->req.buf);
+	if (!htx)
+		goto error;
+
+	if (hc->appctx)
+		appctx_wakeup(hc->appctx);
+
+	ret += htx_add_data(htx, src);
+
+
+	/* if we copied all the data and the end flag is set */
+	if ((istlen(src) == ret) && end) {
+		htx->flags |= HTX_FL_EOM;
+	}
+	htx_to_buf(htx, &hc->req.buf);
+
+error:
+
+	return ret;
+}
+
 
 /*
  * Start the HTTP client
@@ -532,8 +574,33 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 				 * just push this entirely */
 				b_xfer(&req->buf, &hc->req.buf, b_data(&hc->req.buf));
 				channel_add_input(req, b_data(&req->buf));
-				appctx->st0 = HTTPCLIENT_S_RES_STLINE;
+				appctx->st0 = HTTPCLIENT_S_REQ_BODY;
 				goto more; /* we need to leave the IO handler once we wrote the request */
+			break;
+			case HTTPCLIENT_S_REQ_BODY:
+				/* call the payload callback */
+				{
+					if (hc->ops.req_payload) {
+						int ret;
+
+						ret = b_xfer(&req->buf, &hc->req.buf, b_data(&hc->req.buf));
+						if (ret)
+							channel_add_input(req, b_data(&req->buf));
+
+						/* call the request callback */
+						hc->ops.req_payload(hc);
+					}
+
+					htx = htxbuf(&req->buf);
+					if (!htx)
+						goto more;
+
+					/* if the request contains the HTX_FL_EOM, we finished the request part. */
+					if (htx->flags & HTX_FL_EOM)
+						appctx->st0 = HTTPCLIENT_S_RES_STLINE;
+
+					goto more; /* we need to leave the IO handler once we wrote the request */
+				}
 			break;
 
 			case HTTPCLIENT_S_RES_STLINE:

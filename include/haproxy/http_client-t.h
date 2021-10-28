@@ -7,16 +7,19 @@ struct httpclient {
 	struct {
 		struct ist url;                /* URL of the request */
 		enum http_meth_t meth;       /* method of the request */
-		struct buffer buf;             /* output buffer */
+		struct buffer buf;             /* output buffer, HTX */
 	} req;
 	struct {
 		struct ist vsn;
 		uint16_t status;
 		struct ist reason;
 		struct http_hdr *hdrs;         /* headers */
-		struct buffer buf;             /* input buffer */
+		struct buffer buf;             /* input buffer, raw HTTP */
 	} res;
 	struct {
+               /* callbacks used to send the request, */
+		void (*req_payload)(struct httpclient *hc);          /* send a payload */
+
 		/* callbacks used to receive the response, if not set, the IO
 		 * handler will consume the data without doing anything */
 		void (*res_stline)(struct httpclient *hc);          /* start line received */
@@ -41,6 +44,7 @@ struct httpclient {
 /* States of the HTTP Client Appctx */
 enum {
 	HTTPCLIENT_S_REQ = 0,
+	HTTPCLIENT_S_REQ_BODY,
 	HTTPCLIENT_S_RES_STLINE,
 	HTTPCLIENT_S_RES_HDR,
 	HTTPCLIENT_S_RES_BODY,
