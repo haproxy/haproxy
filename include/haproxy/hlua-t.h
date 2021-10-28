@@ -195,6 +195,7 @@ struct hlua_concat {
 /* This struct is used to store the httpclient */
 struct hlua_httpclient {
 	struct httpclient *hc; /* ptr to the httpclient instance */
+	size_t sent; /* payload sent */
 	luaL_Buffer b; /* buffer used to prepare strings. */
 };
 

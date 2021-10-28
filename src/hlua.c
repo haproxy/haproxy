@@ -6972,7 +6972,7 @@ __LJMP static int hlua_httpclient_new(lua_State *L)
  *
  */
 
-static void hlua_httpclient_res_cb(struct httpclient *hc)
+static void hlua_httpclient_cb(struct httpclient *hc)
 {
 	struct hlua *hlua = hc->caller;
 
@@ -7035,54 +7035,6 @@ __LJMP static int hlua_httpclient_get_headers(lua_State *L, struct hlua_httpclie
 	}
 	return 1;
 }
-
-/*
- * For each yield, checks if there is some data in the httpclient and push them
- * in the lua buffer, once the httpclient finished its job, push the result on
- * the stack
- */
-__LJMP static int hlua_httpclient_send_yield(lua_State *L, int status, lua_KContext ctx)
-{
-	struct buffer *tr;
-	int res;
-	struct hlua *hlua = hlua_gethlua(L);
-	struct hlua_httpclient *hlua_hc = hlua_checkhttpclient(L, 1);
-
-
-	tr = get_trash_chunk();
-
-	res = httpclient_res_xfer(hlua_hc->hc, tr);
-	luaL_addlstring(&hlua_hc->b, b_orig(tr), res);
-
-	if (!httpclient_data(hlua_hc->hc) && httpclient_ended(hlua_hc->hc)) {
-
-		luaL_pushresult(&hlua_hc->b);
-		lua_settable(L, -3);
-
-		lua_pushstring(L, "status");
-		lua_pushinteger(L, hlua_hc->hc->res.status);
-		lua_settable(L, -3);
-
-
-		lua_pushstring(L, "reason");
-		lua_pushlstring(L, hlua_hc->hc->res.reason.ptr, hlua_hc->hc->res.reason.len);
-		lua_settable(L, -3);
-
-		lua_pushstring(L, "headers");
-		hlua_httpclient_get_headers(L, hlua_hc);
-		lua_settable(L, -3);
-
-		return 1;
-	}
-
-	if (httpclient_data(hlua_hc->hc))
-		task_wakeup(hlua->task, TASK_WOKEN_MSG);
-
-
-	MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_httpclient_send_yield, TICK_ETERNITY, 0));
-	return 0;
-}
-
 
 /*
  * Allocate and return an array of http_hdr ist extracted from the <headers> lua table
@@ -7153,6 +7105,108 @@ skip_headers:
 }
 
 
+/*
+ * For each yield, checks if there is some data in the httpclient and push them
+ * in the lua buffer, once the httpclient finished its job, push the result on
+ * the stack
+ */
+__LJMP static int hlua_httpclient_rcv_yield(lua_State *L, int status, lua_KContext ctx)
+{
+	struct buffer *tr;
+	int res;
+	struct hlua *hlua = hlua_gethlua(L);
+	struct hlua_httpclient *hlua_hc = hlua_checkhttpclient(L, 1);
+
+
+	tr = get_trash_chunk();
+
+	res = httpclient_res_xfer(hlua_hc->hc, tr);
+	luaL_addlstring(&hlua_hc->b, b_orig(tr), res);
+
+	if (!httpclient_data(hlua_hc->hc) && httpclient_ended(hlua_hc->hc)) {
+
+		luaL_pushresult(&hlua_hc->b);
+		lua_settable(L, -3);
+
+		lua_pushstring(L, "status");
+		lua_pushinteger(L, hlua_hc->hc->res.status);
+		lua_settable(L, -3);
+
+
+		lua_pushstring(L, "reason");
+		lua_pushlstring(L, hlua_hc->hc->res.reason.ptr, hlua_hc->hc->res.reason.len);
+		lua_settable(L, -3);
+
+		lua_pushstring(L, "headers");
+		hlua_httpclient_get_headers(L, hlua_hc);
+		lua_settable(L, -3);
+
+		return 1;
+	}
+
+	if (httpclient_data(hlua_hc->hc))
+		task_wakeup(hlua->task, TASK_WOKEN_MSG);
+
+	MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_httpclient_rcv_yield, TICK_ETERNITY, 0));
+
+	return 0;
+}
+
+/*
+ * Call this when trying to stream a body during a request
+ */
+__LJMP static int hlua_httpclient_snd_yield(lua_State *L, int status, lua_KContext ctx)
+{
+	struct hlua *hlua;
+	struct hlua_httpclient *hlua_hc = hlua_checkhttpclient(L, 1);
+	const char *body_str = NULL;
+	int ret;
+	int end = 0;
+	size_t buf_len;
+	size_t to_send = 0;
+
+	hlua = hlua_gethlua(L);
+
+	if (!hlua || !hlua->task)
+		WILL_LJMP(luaL_error(L, "The 'get' function is only allowed in "
+		                     "'frontend', 'backend' or 'task'"));
+
+	ret = lua_getfield(L, -1, "body");
+	if (ret != LUA_TSTRING)
+		goto rcv;
+
+	body_str = lua_tolstring(L, -1, &buf_len);
+	lua_pop(L, 1);
+
+	to_send = MIN(buf_len - hlua_hc->sent, 1024);
+
+	if ((hlua_hc->sent + to_send) >= buf_len)
+		end = 1;
+
+	/* the end flag is always set since we are using the whole remaining size */
+	hlua_hc->sent += httpclient_req_xfer(hlua_hc->hc, ist2(body_str + hlua_hc->sent, to_send), end);
+
+	if (buf_len > hlua_hc->sent) {
+		/* still need to process the buffer */
+		MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_httpclient_snd_yield, TICK_ETERNITY, 0));
+	} else {
+		goto rcv;
+		/* we sent the whole request buffer we can recv */
+	}
+	return 0;
+
+rcv:
+
+	/* we return a "res" object */
+	lua_newtable(L);
+
+	luaL_buffinit(L, &hlua_hc->b);
+	lua_pushstring(L, "body");
+
+	MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_httpclient_rcv_yield, TICK_ETERNITY, 0));
+
+	return 1;
+}
 
 /*
  * Send an HTTP request and wait for a response
@@ -7166,6 +7220,7 @@ __LJMP static int hlua_httpclient_send(lua_State *L, enum http_meth_t meth)
 	struct hlua *hlua;
 	const char *url_str = NULL;
 	const char *body_str = NULL;
+	size_t buf_len;
 	int ret;
 
 	hlua = hlua_gethlua(L);
@@ -7191,8 +7246,9 @@ __LJMP static int hlua_httpclient_send(lua_State *L, enum http_meth_t meth)
 
 	ret = lua_getfield(L, -1, "body");
 	if (ret == LUA_TSTRING) {
-		body_str = lua_tostring(L, -1);
+		body_str = lua_tolstring(L, -1, &buf_len);
 	}
+
 	lua_pop(L, 1);
 
 	if (!url_str) {
@@ -7206,13 +7262,16 @@ __LJMP static int hlua_httpclient_send(lua_State *L, enum http_meth_t meth)
 	hlua_hc->hc->req.meth = meth;
 
 	/* update the httpclient callbacks */
-	hlua_hc->hc->ops.res_stline = hlua_httpclient_res_cb;
-	hlua_hc->hc->ops.res_headers = hlua_httpclient_res_cb;
-	hlua_hc->hc->ops.res_payload = hlua_httpclient_res_cb;
-	hlua_hc->hc->ops.res_end = hlua_httpclient_res_cb;
+	hlua_hc->hc->ops.res_stline = hlua_httpclient_cb;
+	hlua_hc->hc->ops.res_headers = hlua_httpclient_cb;
+	hlua_hc->hc->ops.res_payload = hlua_httpclient_cb;
 
+	/* a body is available, it will use the request callback */
+	if (body_str) {
+		hlua_hc->hc->ops.req_payload = hlua_httpclient_cb;
+	}
 
-	ret = httpclient_req_gen(hlua_hc->hc, hlua_hc->hc->req.url, meth, hdrs, ist(body_str));
+	ret = httpclient_req_gen(hlua_hc->hc, hlua_hc->hc->req.url, meth, hdrs, IST_NULL);
 
 	/* free the temporary headers array */
 	hdrs_i = hdrs;
@@ -7229,16 +7288,10 @@ __LJMP static int hlua_httpclient_send(lua_State *L, enum http_meth_t meth)
 		return 0;
 	}
 
-
 	httpclient_start(hlua_hc->hc);
 
-	/* we return a "res" object */
-	lua_newtable(L);
+	MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_httpclient_snd_yield, TICK_ETERNITY, 0));
 
-	luaL_buffinit(L, &hlua_hc->b);
-	lua_pushstring(L, "body");
-
-	MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_httpclient_send_yield, TICK_ETERNITY, 0));
 	return 0;
 }
 
