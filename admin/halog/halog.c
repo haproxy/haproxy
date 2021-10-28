@@ -183,6 +183,7 @@ void help()
 	       " -m <lines>              limit output to the first <lines> lines\n"
                " -s <skip_n_fields>      skip n fields from the beginning of a line (default %d)\n"
                "                         you can also use -n to start from earlier then field %d\n"
+	       " -qry                    preserve the query string for per-URL (-u*) statistics\n"
                "\n"
 	       "Output filters - only one may be used at a time\n"
 	       " -c    only report the number of lines that would have been printed\n"
@@ -197,8 +198,7 @@ void help()
 	       "       -u : by URL, -uc : request count, -ue : error count\n"
 	       "       -ua : average response time, -ut : average total time\n"
 	       "       -uao, -uto: average times computed on valid ('OK') requests\n"
-	       "       -uba, -ubt: average bytes returned, total bytes returned\n"
-	       " -qry  preserve the query string for per-URL statistics\n",
+	       "       -uba, -ubt: average bytes returned, total bytes returned\n",
                SOURCE_FIELD,SOURCE_FIELD
 	       );
 	exit(0);
