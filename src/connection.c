@@ -70,7 +70,7 @@ int conn_create_mux(struct connection *conn)
 			if (conn_install_mux_chk(conn, conn->ctx, sess) < 0)
 				goto fail;
 		}
-		else if (conn_install_mux_be(conn, conn->ctx, sess) < 0)
+		else if (conn_install_mux_be(conn, conn->ctx, sess, NULL) < 0)
 			goto fail;
 		srv = objt_server(conn->target);
 
@@ -247,10 +247,14 @@ int conn_install_mux_fe(struct connection *conn, void *ctx)
 }
 
 /* installs the best mux for outgoing connection <conn> using the upper context
- * <ctx>. If the mux protocol is forced, we use it to find the best mux. Returns
- * < 0 on error.
+ * <ctx>. If the server mux protocol is forced, we use it to find the best mux.
+ * It's also possible to specify an alternative mux protocol <force_mux_ops>,
+ * in which case it will be used instead of the default server mux protocol.
+ *
+ * Returns < 0 on error.
  */
-int conn_install_mux_be(struct connection *conn, void *ctx, struct session *sess)
+int conn_install_mux_be(struct connection *conn, void *ctx, struct session *sess,
+                        const struct mux_ops *force_mux_ops)
 {
 	struct server *srv = objt_server(conn->target);
 	struct proxy  *prx = objt_proxy(conn->target);
@@ -262,8 +266,12 @@ int conn_install_mux_be(struct connection *conn, void *ctx, struct session *sess
 	if (!prx) // target must be either proxy or server
 		return -1;
 
-	if (srv && srv->mux_proto)
+	if (srv && srv->mux_proto && likely(!force_mux_ops)) {
 		mux_ops = srv->mux_proto->mux;
+	}
+	else if (srv && unlikely(force_mux_ops)) {
+		mux_ops = force_mux_ops;
+	}
 	else {
 		struct ist mux_proto;
 		const char *alpn_str = NULL;

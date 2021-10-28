@@ -1645,7 +1645,7 @@ skip_reuse:
 	 * fail, and flag the connection as CO_FL_ERROR.
 	 */
 	if (init_mux) {
-		if (conn_install_mux_be(srv_conn, srv_cs, s->sess) < 0) {
+		if (conn_install_mux_be(srv_conn, srv_cs, s->sess, NULL) < 0) {
 			conn_full_close(srv_conn);
 			return SF_ERR_INTERNAL;
 		}
