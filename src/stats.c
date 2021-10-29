@@ -274,7 +274,7 @@ THREAD_LOCAL struct field *stat_l[STATS_DOMAIN_COUNT];
 /* list of all registered stats module */
 static struct list stats_module_list[STATS_DOMAIN_COUNT] = {
 	LIST_HEAD_INIT(stats_module_list[STATS_DOMAIN_PROXY]),
-	LIST_HEAD_INIT(stats_module_list[STATS_DOMAIN_DNS]),
+	LIST_HEAD_INIT(stats_module_list[STATS_DOMAIN_RESOLVERS]),
 };
 
 THREAD_LOCAL void *trash_counters;
@@ -625,8 +625,8 @@ static int stats_dump_fields_typed(struct buffer *out,
 			              stats[ST_F_PID].u.u32);
 			break;
 
-		case STATS_DOMAIN_DNS:
-			chunk_appendf(out, "D.%d.%s:", field,
+		case STATS_DOMAIN_RESOLVERS:
+			chunk_appendf(out, "N.%d.%s:", field,
 			              stat_f[domain][field].name);
 			break;
 
@@ -727,10 +727,10 @@ static void stats_print_proxy_field_json(struct buffer *out,
 	              obj_type, iid, sid, pos, name, pid);
 }
 
-static void stats_print_dns_field_json(struct buffer *out,
-                                       const struct field *stat,
-                                       const char *name,
-                                       int pos)
+static void stats_print_rslv_field_json(struct buffer *out,
+                                        const struct field *stat,
+                                        const char *name,
+                                        int pos)
 {
 	chunk_appendf(out,
 	              "{"
@@ -772,10 +772,10 @@ static int stats_dump_fields_json(struct buffer *out,
 			                             stats[ST_F_IID].u.u32,
 			                             stats[ST_F_SID].u.u32,
 			                             stats[ST_F_PID].u.u32);
-		} else if (domain == STATS_DOMAIN_DNS) {
-			stats_print_dns_field_json(out, &stats[field],
-			                           stat_f[domain][field].name,
-			                           field);
+		} else if (domain == STATS_DOMAIN_RESOLVERS) {
+			stats_print_rslv_field_json(out, &stats[field],
+			                            stat_f[domain][field].name,
+			                            field);
 		}
 
 		if (old_len == out->data)
@@ -3752,7 +3752,7 @@ static int stats_dump_stat_to_buffer(struct stream_interface *si, struct htx *ht
 
 	case STAT_ST_LIST:
 		switch (domain) {
-		case STATS_DOMAIN_DNS:
+		case STATS_DOMAIN_RESOLVERS:
 			if (!stats_dump_resolvers(si, stat_l[domain],
 			                          stat_count[domain],
 			                          &stats_module_list[domain])) {
@@ -4869,7 +4869,7 @@ static int cli_parse_clear_counters(char **args, char *payload, struct appctx *a
 		}
 	}
 
-	resolv_stats_clear_counters(clrall, &stats_module_list[STATS_DOMAIN_DNS]);
+	resolv_stats_clear_counters(clrall, &stats_module_list[STATS_DOMAIN_RESOLVERS]);
 
 	memset(activity, 0, sizeof(activity));
 	return 1;
@@ -4917,8 +4917,8 @@ static int cli_parse_show_stat(char **args, char *payload, struct appctx *appctx
 
 		if (strcmp(args[arg], "proxy") == 0) {
 			++args;
-		} else if (strcmp(args[arg], "dns") == 0) {
-			appctx->ctx.stats.domain = STATS_DOMAIN_DNS;
+		} else if (strcmp(args[arg], "resolvers") == 0) {
+			appctx->ctx.stats.domain = STATS_DOMAIN_RESOLVERS;
 			++args;
 		} else {
 			return cli_err(appctx, "Invalid statistics domain.\n");
@@ -5100,28 +5100,28 @@ static int allocate_stats_px_postcheck(void)
 
 REGISTER_CONFIG_POSTPARSER("allocate-stats-px", allocate_stats_px_postcheck);
 
-static int allocate_stats_dns_postcheck(void)
+static int allocate_stats_rslv_postcheck(void)
 {
 	struct stats_module *mod;
 	size_t i = 0;
 	int err_code = 0;
 
-	stat_f[STATS_DOMAIN_DNS] = malloc(stat_count[STATS_DOMAIN_DNS] * sizeof(struct name_desc));
-	if (!stat_f[STATS_DOMAIN_DNS]) {
-		ha_alert("stats: cannot allocate all fields for dns statistics\n");
+	stat_f[STATS_DOMAIN_RESOLVERS] = malloc(stat_count[STATS_DOMAIN_RESOLVERS] * sizeof(struct name_desc));
+	if (!stat_f[STATS_DOMAIN_RESOLVERS]) {
+		ha_alert("stats: cannot allocate all fields for resolver statistics\n");
 		err_code |= ERR_ALERT | ERR_FATAL;
 		return err_code;
 	}
 
-	list_for_each_entry(mod, &stats_module_list[STATS_DOMAIN_DNS], list) {
-		memcpy(stat_f[STATS_DOMAIN_DNS] + i,
+	list_for_each_entry(mod, &stats_module_list[STATS_DOMAIN_RESOLVERS], list) {
+		memcpy(stat_f[STATS_DOMAIN_RESOLVERS] + i,
 		       mod->stats,
 		       mod->stats_count * sizeof(struct name_desc));
 		i += mod->stats_count;
 	}
 
-	if (!resolv_allocate_counters(&stats_module_list[STATS_DOMAIN_DNS])) {
-		ha_alert("stats: cannot allocate all counters for dns statistics\n");
+	if (!resolv_allocate_counters(&stats_module_list[STATS_DOMAIN_RESOLVERS])) {
+		ha_alert("stats: cannot allocate all counters for resolver statistics\n");
 		err_code |= ERR_ALERT | ERR_FATAL;
 		return err_code;
 	}
@@ -5131,11 +5131,11 @@ static int allocate_stats_dns_postcheck(void)
 	return err_code;
 }
 
-REGISTER_CONFIG_POSTPARSER("allocate-stats-dns", allocate_stats_dns_postcheck);
+REGISTER_CONFIG_POSTPARSER("allocate-stats-resolver", allocate_stats_rslv_postcheck);
 
 static int allocate_stat_lines_per_thread(void)
 {
-	int domains[] = { STATS_DOMAIN_PROXY, STATS_DOMAIN_DNS }, i;
+	int domains[] = { STATS_DOMAIN_PROXY, STATS_DOMAIN_RESOLVERS }, i;
 
 	for (i = 0; i < STATS_DOMAIN_COUNT; ++i) {
 		const int domain = domains[i];
@@ -5152,7 +5152,7 @@ REGISTER_PER_THREAD_ALLOC(allocate_stat_lines_per_thread);
 static int allocate_trash_counters(void)
 {
 	struct stats_module *mod;
-	int domains[] = { STATS_DOMAIN_PROXY, STATS_DOMAIN_DNS }, i;
+	int domains[] = { STATS_DOMAIN_PROXY, STATS_DOMAIN_RESOLVERS }, i;
 	size_t max_counters_size = 0;
 
 	/* calculate the greatest counters used by any stats modules */
@@ -5179,7 +5179,7 @@ REGISTER_PER_THREAD_ALLOC(allocate_trash_counters);
 
 static void deinit_stat_lines_per_thread(void)
 {
-	int domains[] = { STATS_DOMAIN_PROXY, STATS_DOMAIN_DNS }, i;
+	int domains[] = { STATS_DOMAIN_PROXY, STATS_DOMAIN_RESOLVERS }, i;
 
 	for (i = 0; i < STATS_DOMAIN_COUNT; ++i) {
 		const int domain = domains[i];
@@ -5193,7 +5193,7 @@ REGISTER_PER_THREAD_FREE(deinit_stat_lines_per_thread);
 
 static void deinit_stats(void)
 {
-	int domains[] = { STATS_DOMAIN_PROXY, STATS_DOMAIN_DNS }, i;
+	int domains[] = { STATS_DOMAIN_PROXY, STATS_DOMAIN_RESOLVERS }, i;
 
 	for (i = 0; i < STATS_DOMAIN_COUNT; ++i) {
 		const int domain = domains[i];

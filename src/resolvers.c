@@ -71,82 +71,82 @@ static void enter_resolver_code();
 static void leave_resolver_code();
 
 enum {
-	DNS_STAT_ID,
-	DNS_STAT_PID,
-	DNS_STAT_SENT,
-	DNS_STAT_SND_ERROR,
-	DNS_STAT_VALID,
-	DNS_STAT_UPDATE,
-	DNS_STAT_CNAME,
-	DNS_STAT_CNAME_ERROR,
-	DNS_STAT_ANY_ERR,
-	DNS_STAT_NX,
-	DNS_STAT_TIMEOUT,
-	DNS_STAT_REFUSED,
-	DNS_STAT_OTHER,
-	DNS_STAT_INVALID,
-	DNS_STAT_TOO_BIG,
-	DNS_STAT_TRUNCATED,
-	DNS_STAT_OUTDATED,
-	DNS_STAT_END,
+	RSLV_STAT_ID,
+	RSLV_STAT_PID,
+	RSLV_STAT_SENT,
+	RSLV_STAT_SND_ERROR,
+	RSLV_STAT_VALID,
+	RSLV_STAT_UPDATE,
+	RSLV_STAT_CNAME,
+	RSLV_STAT_CNAME_ERROR,
+	RSLV_STAT_ANY_ERR,
+	RSLV_STAT_NX,
+	RSLV_STAT_TIMEOUT,
+	RSLV_STAT_REFUSED,
+	RSLV_STAT_OTHER,
+	RSLV_STAT_INVALID,
+	RSLV_STAT_TOO_BIG,
+	RSLV_STAT_TRUNCATED,
+	RSLV_STAT_OUTDATED,
+	RSLV_STAT_END,
 };
 
-static struct name_desc dns_stats[] = {
-	[DNS_STAT_ID]          = { .name = "id",          .desc = "ID" },
-	[DNS_STAT_PID]         = { .name = "pid",         .desc = "Parent ID" },
-	[DNS_STAT_SENT]        = { .name = "sent",        .desc = "Sent" },
-	[DNS_STAT_SND_ERROR]   = { .name = "send_error",  .desc = "Send error" },
-	[DNS_STAT_VALID]       = { .name = "valid",       .desc = "Valid" },
-	[DNS_STAT_UPDATE]      = { .name = "update",      .desc = "Update" },
-	[DNS_STAT_CNAME]       = { .name = "cname",       .desc = "CNAME" },
-	[DNS_STAT_CNAME_ERROR] = { .name = "cname_error", .desc = "CNAME error" },
-	[DNS_STAT_ANY_ERR]     = { .name = "any_err",     .desc = "Any errors" },
-	[DNS_STAT_NX]          = { .name = "nx",          .desc = "NX" },
-	[DNS_STAT_TIMEOUT]     = { .name = "timeout",     .desc = "Timeout" },
-	[DNS_STAT_REFUSED]     = { .name = "refused",     .desc = "Refused" },
-	[DNS_STAT_OTHER]       = { .name = "other",       .desc = "Other" },
-	[DNS_STAT_INVALID]     = { .name = "invalid",     .desc = "Invalid" },
-	[DNS_STAT_TOO_BIG]     = { .name = "too_big",     .desc = "Too big" },
-	[DNS_STAT_TRUNCATED]   = { .name = "truncated",   .desc = "Truncated" },
-	[DNS_STAT_OUTDATED]    = { .name = "outdated",    .desc = "Outdated" },
+static struct name_desc resolv_stats[] = {
+	[RSLV_STAT_ID]          = { .name = "id",          .desc = "ID" },
+	[RSLV_STAT_PID]         = { .name = "pid",         .desc = "Parent ID" },
+	[RSLV_STAT_SENT]        = { .name = "sent",        .desc = "Sent" },
+	[RSLV_STAT_SND_ERROR]   = { .name = "send_error",  .desc = "Send error" },
+	[RSLV_STAT_VALID]       = { .name = "valid",       .desc = "Valid" },
+	[RSLV_STAT_UPDATE]      = { .name = "update",      .desc = "Update" },
+	[RSLV_STAT_CNAME]       = { .name = "cname",       .desc = "CNAME" },
+	[RSLV_STAT_CNAME_ERROR] = { .name = "cname_error", .desc = "CNAME error" },
+	[RSLV_STAT_ANY_ERR]     = { .name = "any_err",     .desc = "Any errors" },
+	[RSLV_STAT_NX]          = { .name = "nx",          .desc = "NX" },
+	[RSLV_STAT_TIMEOUT]     = { .name = "timeout",     .desc = "Timeout" },
+	[RSLV_STAT_REFUSED]     = { .name = "refused",     .desc = "Refused" },
+	[RSLV_STAT_OTHER]       = { .name = "other",       .desc = "Other" },
+	[RSLV_STAT_INVALID]     = { .name = "invalid",     .desc = "Invalid" },
+	[RSLV_STAT_TOO_BIG]     = { .name = "too_big",     .desc = "Too big" },
+	[RSLV_STAT_TRUNCATED]   = { .name = "truncated",   .desc = "Truncated" },
+	[RSLV_STAT_OUTDATED]    = { .name = "outdated",    .desc = "Outdated" },
 };
 
 static struct dns_counters dns_counters;
 
-static void dns_fill_stats(void *d, struct field *stats)
+static void resolv_fill_stats(void *d, struct field *stats)
 {
 	struct dns_counters *counters = d;
-	stats[DNS_STAT_ID]          = mkf_str(FO_CONFIG, counters->id);
-	stats[DNS_STAT_PID]         = mkf_str(FO_CONFIG, counters->pid);
-	stats[DNS_STAT_SENT]        = mkf_u64(FN_GAUGE, counters->sent);
-	stats[DNS_STAT_SND_ERROR]   = mkf_u64(FN_GAUGE, counters->snd_error);
-	stats[DNS_STAT_VALID]       = mkf_u64(FN_GAUGE, counters->app.resolver.valid);
-	stats[DNS_STAT_UPDATE]      = mkf_u64(FN_GAUGE, counters->app.resolver.update);
-	stats[DNS_STAT_CNAME]       = mkf_u64(FN_GAUGE, counters->app.resolver.cname);
-	stats[DNS_STAT_CNAME_ERROR] = mkf_u64(FN_GAUGE, counters->app.resolver.cname_error);
-	stats[DNS_STAT_ANY_ERR]     = mkf_u64(FN_GAUGE, counters->app.resolver.any_err);
-	stats[DNS_STAT_NX]          = mkf_u64(FN_GAUGE, counters->app.resolver.nx);
-	stats[DNS_STAT_TIMEOUT]     = mkf_u64(FN_GAUGE, counters->app.resolver.timeout);
-	stats[DNS_STAT_REFUSED]     = mkf_u64(FN_GAUGE, counters->app.resolver.refused);
-	stats[DNS_STAT_OTHER]       = mkf_u64(FN_GAUGE, counters->app.resolver.other);
-	stats[DNS_STAT_INVALID]     = mkf_u64(FN_GAUGE, counters->app.resolver.invalid);
-	stats[DNS_STAT_TOO_BIG]     = mkf_u64(FN_GAUGE, counters->app.resolver.too_big);
-	stats[DNS_STAT_TRUNCATED]   = mkf_u64(FN_GAUGE, counters->app.resolver.truncated);
-	stats[DNS_STAT_OUTDATED]    = mkf_u64(FN_GAUGE, counters->app.resolver.outdated);
+	stats[RSLV_STAT_ID]          = mkf_str(FO_CONFIG, counters->id);
+	stats[RSLV_STAT_PID]         = mkf_str(FO_CONFIG, counters->pid);
+	stats[RSLV_STAT_SENT]        = mkf_u64(FN_GAUGE, counters->sent);
+	stats[RSLV_STAT_SND_ERROR]   = mkf_u64(FN_GAUGE, counters->snd_error);
+	stats[RSLV_STAT_VALID]       = mkf_u64(FN_GAUGE, counters->app.resolver.valid);
+	stats[RSLV_STAT_UPDATE]      = mkf_u64(FN_GAUGE, counters->app.resolver.update);
+	stats[RSLV_STAT_CNAME]       = mkf_u64(FN_GAUGE, counters->app.resolver.cname);
+	stats[RSLV_STAT_CNAME_ERROR] = mkf_u64(FN_GAUGE, counters->app.resolver.cname_error);
+	stats[RSLV_STAT_ANY_ERR]     = mkf_u64(FN_GAUGE, counters->app.resolver.any_err);
+	stats[RSLV_STAT_NX]          = mkf_u64(FN_GAUGE, counters->app.resolver.nx);
+	stats[RSLV_STAT_TIMEOUT]     = mkf_u64(FN_GAUGE, counters->app.resolver.timeout);
+	stats[RSLV_STAT_REFUSED]     = mkf_u64(FN_GAUGE, counters->app.resolver.refused);
+	stats[RSLV_STAT_OTHER]       = mkf_u64(FN_GAUGE, counters->app.resolver.other);
+	stats[RSLV_STAT_INVALID]     = mkf_u64(FN_GAUGE, counters->app.resolver.invalid);
+	stats[RSLV_STAT_TOO_BIG]     = mkf_u64(FN_GAUGE, counters->app.resolver.too_big);
+	stats[RSLV_STAT_TRUNCATED]   = mkf_u64(FN_GAUGE, counters->app.resolver.truncated);
+	stats[RSLV_STAT_OUTDATED]    = mkf_u64(FN_GAUGE, counters->app.resolver.outdated);
 }
 
-static struct stats_module dns_stats_module = {
-	.name          = "dns",
-	.domain_flags  = STATS_DOMAIN_DNS << STATS_DOMAIN,
-	.fill_stats    = dns_fill_stats,
-	.stats         = dns_stats,
-	.stats_count   = DNS_STAT_END,
+static struct stats_module rslv_stats_module = {
+	.name          = "resolvers",
+	.domain_flags  = STATS_DOMAIN_RESOLVERS << STATS_DOMAIN,
+	.fill_stats    = resolv_fill_stats,
+	.stats         = resolv_stats,
+	.stats_count   = RSLV_STAT_END,
 	.counters      = &dns_counters,
 	.counters_size = sizeof(dns_counters),
 	.clearable     = 0,
 };
 
-INITCALL1(STG_REGISTER, stats_register_module, &dns_stats_module);
+INITCALL1(STG_REGISTER, stats_register_module, &rslv_stats_module);
 
 /* Returns a pointer to the resolvers matching the id <id>. NULL is returned if
  * no match is found.
@@ -2730,7 +2730,7 @@ int resolv_allocate_counters(struct list *stat_modules)
 
 	list_for_each_entry(resolvers, &sec_resolvers, list) {
 		list_for_each_entry(ns, &resolvers->nameservers, list) {
-			EXTRA_COUNTERS_REGISTER(&ns->extra_counters, COUNTERS_DNS,
+			EXTRA_COUNTERS_REGISTER(&ns->extra_counters, COUNTERS_RSLV,
 			                        alloc_failed);
 
 			list_for_each_entry(mod, stat_modules, list) {
@@ -2747,8 +2747,8 @@ int resolv_allocate_counters(struct list *stat_modules)
 				       mod->counters, mod->counters_size);
 
 				/* Store the ns counters pointer */
-				if (strcmp(mod->name, "dns") == 0) {
-					ns->counters = (struct dns_counters *)ns->extra_counters->data + mod->counters_off[COUNTERS_DNS];
+				if (strcmp(mod->name, "resolvers") == 0) {
+					ns->counters = (struct dns_counters *)ns->extra_counters->data + mod->counters_off[COUNTERS_RSLV];
 					ns->counters->id = ns->id;
 					ns->counters->pid = resolvers->id;
 				}

@@ -469,7 +469,7 @@ enum counters_type {
 	COUNTERS_BE,
 	COUNTERS_SV,
 	COUNTERS_LI,
-	COUNTERS_DNS,
+	COUNTERS_RSLV,
 
 	COUNTERS_OFF_END
 };
@@ -501,7 +501,7 @@ struct extra_counters {
 /* stats_domain is used in a flag as a 1 byte field */
 enum stats_domain {
 	STATS_DOMAIN_PROXY = 0,
-	STATS_DOMAIN_DNS,
+	STATS_DOMAIN_RESOLVERS,
 	STATS_DOMAIN_COUNT,
 
 	STATS_DOMAIN_MASK  = 0xff
