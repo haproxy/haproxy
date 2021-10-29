@@ -374,9 +374,7 @@ static int resolv_send_query(struct resolv_resolution *resolution)
 			continue;
 		}
 
-		if (dns_send_nameserver(ns, trash.area, len) < 0)
-			ns->counters->snd_error++;
-		else
+		if (dns_send_nameserver(ns, trash.area, len) >= 0)
 			resolution->nb_queries++;
 	}
 
