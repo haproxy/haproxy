@@ -121,7 +121,13 @@ static int get_http_auth(struct sample *smp, struct htx *htx)
 	if (chunk_initlen(&auth_method, ctx.value.ptr, 0, len) != 1)
 		return 0;
 
-	chunk_initlen(&txn->auth.method_data, p + 1, 0, ctx.value.len - len - 1);
+	/* According to RFC7235, there could be multiple spaces between the
+	 * scheme and its value, we must skip all of them.
+	 */
+	while (p < istend(ctx.value) && *p == ' ')
+		++p;
+
+	chunk_initlen(&txn->auth.method_data, p, 0, istend(ctx.value) - p);
 
 	if (!strncasecmp("Basic", auth_method.area, auth_method.data)) {
 		struct buffer *http_auth = get_trash_chunk();
