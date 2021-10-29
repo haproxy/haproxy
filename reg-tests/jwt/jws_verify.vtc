@@ -16,7 +16,7 @@ feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL)'"
 feature cmd "command -v socat"
 feature ignore_unknown_macro
 
-server s1 -repeat 18 {
+server s1 -repeat 22 {
   rxreq
   txresp
 } -start
@@ -36,11 +36,10 @@ haproxy h1 -conf {
     listen main-fe
         bind "fd@${mainfe}"
 
-        http-request deny unless { req.hdr(authorization) -m found }
-
         use_backend hsXXX_be if { path_beg /hs }
         use_backend rsXXX_be if { path_beg /rs }
         use_backend esXXX_be if { path_beg /es }
+        use_backend auth_bearer_be if { path /auth_bearer }
         default_backend dflt_be
 
 
@@ -84,6 +83,16 @@ haproxy h1 -conf {
         http-response set-header x-jwt-verify-ES256 %[var(txn.bearer),jwt_verify(txn.jwt_alg,"${testdir}/es256-public.pem")] if { var(txn.jwt_alg) "ES256" }
         http-response set-header x-jwt-verify-ES384 %[var(txn.bearer),jwt_verify(txn.jwt_alg,"${testdir}/es384-public.pem")] if { var(txn.jwt_alg) "ES384" }
         http-response set-header x-jwt-verify-ES512 %[var(txn.bearer),jwt_verify(txn.jwt_alg,"${testdir}/es512-public.pem")] if { var(txn.jwt_alg) "ES512" }
+        server s1 ${s1_addr}:${s1_port}
+
+
+    # This backend will only be used to test the http_auth_bearer sample fetch.
+    # No jwt_verify will then be performed.
+    backend auth_bearer_be
+        http-request set-var(txn.bearer) http_auth_bearer("Custom-Authorization")
+
+        http-response set-header x-jwt-token %[var(txn.bearer)]
+
         server s1 ${s1_addr}:${s1_port}
 
     # This backend will mostly be used to test error cases (invalid tokens, algorithm and so on)
@@ -333,4 +342,37 @@ client c18 -connect ${h1_mainfe_sock} {
     expect resp.http.x-jwt-alg == "ES512"
     # Unmanaged algorithm
     expect resp.http.x-jwt-verify == "-5"
+} -run
+
+
+# Test the http_auth_bearer special cases (other header than the default "Authorization" one)
+client c19 -connect ${h1_mainfe_sock} {
+    txreq -url "/auth_bearer" -hdr "Custom-Authorization: Bearer random_value"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-jwt-token == "random_value"
+} -run
+
+# Test the http_auth_bearer special cases (multiple spaces after the scheme)
+client c20 -connect ${h1_mainfe_sock} {
+    txreq -url "/auth_bearer" -hdr "Custom-Authorization: Bearer    random_value"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-jwt-token == "random_value"
+} -run
+
+# Test the http_auth_bearer special cases (no value after the scheme)
+client c21 -connect ${h1_mainfe_sock} {
+    txreq -url "/auth_bearer" -hdr "Custom-Authorization: Bearer    "
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-jwt-token == ""
+} -run
+
+# Test the http_auth_bearer special cases (no value after the scheme)
+client c22 -connect ${h1_mainfe_sock} {
+    txreq -url "/errors" -hdr "Authorization: Bearer    "
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-jwt-token == ""
 } -run
