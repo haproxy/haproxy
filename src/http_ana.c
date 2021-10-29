@@ -837,6 +837,8 @@ int http_process_tarpit(struct stream *s, struct channel *req, int an_bit)
 	channel_dont_connect(req);
 	if ((req->flags & (CF_SHUTR|CF_READ_ERROR)) == 0 &&
 	    !tick_is_expired(req->analyse_exp, now_ms)) {
+		/* Be sure to drain all data from the request channel */
+		channel_htx_erase(req, htxbuf(&req->buf));
 		DBG_TRACE_DEVEL("waiting for tarpit timeout expiry",
 				STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
 		return 0;
