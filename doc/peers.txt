@@ -7,7 +7,7 @@
     stick-table entries information between several haproxy processes.
 
     This protocol is symmetrical. This means that at any time, each peer
-    may connect to other peers they have been configured for, so that to send
+    may connect to other peers they have been configured for, to send
     their last stick-table updates. There is no role of client or server in this
     protocol. As peers may connect to each others at the same time, the protocol
     ensures that only one peer session may stay opened between a couple of peers
@@ -18,7 +18,7 @@
     Handshake
     +++++++++
 
-    Just after having connected to another one, a peer must identified itself
+    Just after having connected to another one, a peer must identify itself
     and identify the remote peer, sending a "hello" message. The remote peer
     replies with a "status" message.
 
@@ -59,10 +59,10 @@
                  |     504     | Remote peer identifier mismatch |
                  +-------------+---------------------------------+
 
-    As the protocol is symmetrical, some peers may connect to each others at the
+    As the protocol is symmetrical, some peers may connect to each other at the
     same time. For efficiency reasons, the protocol ensures there may be only
     one TCP session opened after the handshake succeeded and before transmitting
-    any stick-table data information. In fact for each couple of peer, this is
+    any stick-table data information. In fact, for each couple of peers, this is
     the last connected peer which wins. Each time a peer A receives a "hello"
     message from a peer B, peer A checks if it already managed to open a peer
     session with peer B, so with a successful handshake. If it is the case,
