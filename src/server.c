@@ -3615,7 +3615,7 @@ int snr_resolution_cb(struct resolv_requester *requester, struct dns_counters *c
 
  save_ip:
 	if (counters) {
-		counters->update++;
+		counters->app.resolver.update++;
 		/* save the first ip we found */
 		chunk_printf(chk, "%s/%s", counters->pid, counters->id);
 	}
@@ -3630,7 +3630,7 @@ int snr_resolution_cb(struct resolv_requester *requester, struct dns_counters *c
 
  invalid:
 	if (counters) {
-		counters->invalid++;
+		counters->app.resolver.invalid++;
 		goto update_status;
 	}
 	if (!snr_update_srv_status(s, has_no_ip) && has_no_ip)

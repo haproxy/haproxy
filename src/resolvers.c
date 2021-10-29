@@ -120,19 +120,19 @@ static void dns_fill_stats(void *d, struct field *stats)
 	stats[DNS_STAT_PID]         = mkf_str(FO_CONFIG, counters->pid);
 	stats[DNS_STAT_SENT]        = mkf_u64(FN_GAUGE, counters->sent);
 	stats[DNS_STAT_SND_ERROR]   = mkf_u64(FN_GAUGE, counters->snd_error);
-	stats[DNS_STAT_VALID]       = mkf_u64(FN_GAUGE, counters->valid);
-	stats[DNS_STAT_UPDATE]      = mkf_u64(FN_GAUGE, counters->update);
-	stats[DNS_STAT_CNAME]       = mkf_u64(FN_GAUGE, counters->cname);
-	stats[DNS_STAT_CNAME_ERROR] = mkf_u64(FN_GAUGE, counters->cname_error);
-	stats[DNS_STAT_ANY_ERR]     = mkf_u64(FN_GAUGE, counters->any_err);
-	stats[DNS_STAT_NX]          = mkf_u64(FN_GAUGE, counters->nx);
-	stats[DNS_STAT_TIMEOUT]     = mkf_u64(FN_GAUGE, counters->timeout);
-	stats[DNS_STAT_REFUSED]     = mkf_u64(FN_GAUGE, counters->refused);
-	stats[DNS_STAT_OTHER]       = mkf_u64(FN_GAUGE, counters->other);
-	stats[DNS_STAT_INVALID]     = mkf_u64(FN_GAUGE, counters->invalid);
-	stats[DNS_STAT_TOO_BIG]     = mkf_u64(FN_GAUGE, counters->too_big);
-	stats[DNS_STAT_TRUNCATED]   = mkf_u64(FN_GAUGE, counters->truncated);
-	stats[DNS_STAT_OUTDATED]    = mkf_u64(FN_GAUGE, counters->outdated);
+	stats[DNS_STAT_VALID]       = mkf_u64(FN_GAUGE, counters->app.resolver.valid);
+	stats[DNS_STAT_UPDATE]      = mkf_u64(FN_GAUGE, counters->app.resolver.update);
+	stats[DNS_STAT_CNAME]       = mkf_u64(FN_GAUGE, counters->app.resolver.cname);
+	stats[DNS_STAT_CNAME_ERROR] = mkf_u64(FN_GAUGE, counters->app.resolver.cname_error);
+	stats[DNS_STAT_ANY_ERR]     = mkf_u64(FN_GAUGE, counters->app.resolver.any_err);
+	stats[DNS_STAT_NX]          = mkf_u64(FN_GAUGE, counters->app.resolver.nx);
+	stats[DNS_STAT_TIMEOUT]     = mkf_u64(FN_GAUGE, counters->app.resolver.timeout);
+	stats[DNS_STAT_REFUSED]     = mkf_u64(FN_GAUGE, counters->app.resolver.refused);
+	stats[DNS_STAT_OTHER]       = mkf_u64(FN_GAUGE, counters->app.resolver.other);
+	stats[DNS_STAT_INVALID]     = mkf_u64(FN_GAUGE, counters->app.resolver.invalid);
+	stats[DNS_STAT_TOO_BIG]     = mkf_u64(FN_GAUGE, counters->app.resolver.too_big);
+	stats[DNS_STAT_TRUNCATED]   = mkf_u64(FN_GAUGE, counters->app.resolver.truncated);
+	stats[DNS_STAT_OUTDATED]    = mkf_u64(FN_GAUGE, counters->app.resolver.outdated);
 }
 
 static struct stats_module dns_stats_module = {
@@ -2169,7 +2169,7 @@ static int resolv_process_responses(struct dns_nameserver *ns)
 
 		/* message too big */
 		if (buflen > resolvers->accepted_payload_size) {
-			ns->counters->too_big++;
+			ns->counters->app.resolver.too_big++;
 			continue;
 		}
 
@@ -2178,7 +2178,7 @@ static int resolv_process_responses(struct dns_nameserver *ns)
 
 		/* read the query id from the packet (16 bits) */
 		if (buf + 2 > bufend) {
-			ns->counters->invalid++;
+			ns->counters->app.resolver.invalid++;
 			continue;
 		}
 		query_id = resolv_response_get_query_id(buf);
@@ -2187,7 +2187,7 @@ static int resolv_process_responses(struct dns_nameserver *ns)
 		eb = eb32_lookup(&resolvers->query_ids, query_id);
 		if (eb == NULL) {
 			/* unknown query id means an outdated response and can be safely ignored */
-			ns->counters->outdated++;
+			ns->counters->app.resolver.outdated++;
 			continue;
 		}
 
@@ -2207,39 +2207,39 @@ static int resolv_process_responses(struct dns_nameserver *ns)
 			case RSLV_RESP_QUERY_COUNT_ERROR:
 			case RSLV_RESP_WRONG_NAME:
 				res->status = RSLV_STATUS_INVALID;
-				ns->counters->invalid++;
+				ns->counters->app.resolver.invalid++;
 				break;
 
 			case RSLV_RESP_NX_DOMAIN:
 				res->status = RSLV_STATUS_NX;
-				ns->counters->nx++;
+				ns->counters->app.resolver.nx++;
 				break;
 
 			case RSLV_RESP_REFUSED:
 				res->status = RSLV_STATUS_REFUSED;
-				ns->counters->refused++;
+				ns->counters->app.resolver.refused++;
 				break;
 
 			case RSLV_RESP_ANCOUNT_ZERO:
 				res->status = RSLV_STATUS_OTHER;
-				ns->counters->any_err++;
+				ns->counters->app.resolver.any_err++;
 				break;
 
 			case RSLV_RESP_CNAME_ERROR:
 				res->status = RSLV_STATUS_OTHER;
-				ns->counters->cname_error++;
+				ns->counters->app.resolver.cname_error++;
 				break;
 
 			case RSLV_RESP_TRUNCATED:
 				res->status = RSLV_STATUS_OTHER;
-				ns->counters->truncated++;
+				ns->counters->app.resolver.truncated++;
 				break;
 
 			case RSLV_RESP_NO_EXPECTED_RECORD:
 			case RSLV_RESP_ERROR:
 			case RSLV_RESP_INTERNAL:
 				res->status = RSLV_STATUS_OTHER;
-				ns->counters->other++;
+				ns->counters->app.resolver.other++;
 				break;
 		}
 
@@ -2281,7 +2281,7 @@ static int resolv_process_responses(struct dns_nameserver *ns)
 			LIST_DEL_INIT(&query->list);
 			if (memcmp(query->name, res->hostname_dn, res->hostname_dn_len) != 0) {
 				dns_resp = RSLV_RESP_WRONG_NAME;
-				ns->counters->other++;
+				ns->counters->app.resolver.other++;
 				goto report_res_error;
 			}
 		}
@@ -2289,7 +2289,7 @@ static int resolv_process_responses(struct dns_nameserver *ns)
 		/* So the resolution succeeded */
 		res->status     = RSLV_STATUS_VALID;
 		res->last_valid = now_ms;
-		ns->counters->valid++;
+		ns->counters->app.resolver.valid++;
 		goto report_res_success;
 
 	report_res_error:
@@ -2812,19 +2812,19 @@ static int cli_io_handler_dump_resolvers_to_buffer(struct appctx *appctx)
 					chunk_appendf(&trash, " nameserver %s:\n", ns->id);
 					chunk_appendf(&trash, "  sent:        %lld\n", ns->counters->sent);
 					chunk_appendf(&trash, "  snd_error:   %lld\n", ns->counters->snd_error);
-					chunk_appendf(&trash, "  valid:       %lld\n", ns->counters->valid);
-					chunk_appendf(&trash, "  update:      %lld\n", ns->counters->update);
-					chunk_appendf(&trash, "  cname:       %lld\n", ns->counters->cname);
-					chunk_appendf(&trash, "  cname_error: %lld\n", ns->counters->cname_error);
-					chunk_appendf(&trash, "  any_err:     %lld\n", ns->counters->any_err);
-					chunk_appendf(&trash, "  nx:          %lld\n", ns->counters->nx);
-					chunk_appendf(&trash, "  timeout:     %lld\n", ns->counters->timeout);
-					chunk_appendf(&trash, "  refused:     %lld\n", ns->counters->refused);
-					chunk_appendf(&trash, "  other:       %lld\n", ns->counters->other);
-					chunk_appendf(&trash, "  invalid:     %lld\n", ns->counters->invalid);
-					chunk_appendf(&trash, "  too_big:     %lld\n", ns->counters->too_big);
-					chunk_appendf(&trash, "  truncated:   %lld\n", ns->counters->truncated);
-					chunk_appendf(&trash, "  outdated:    %lld\n",  ns->counters->outdated);
+					chunk_appendf(&trash, "  valid:       %lld\n", ns->counters->app.resolver.valid);
+					chunk_appendf(&trash, "  update:      %lld\n", ns->counters->app.resolver.update);
+					chunk_appendf(&trash, "  cname:       %lld\n", ns->counters->app.resolver.cname);
+					chunk_appendf(&trash, "  cname_error: %lld\n", ns->counters->app.resolver.cname_error);
+					chunk_appendf(&trash, "  any_err:     %lld\n", ns->counters->app.resolver.any_err);
+					chunk_appendf(&trash, "  nx:          %lld\n", ns->counters->app.resolver.nx);
+					chunk_appendf(&trash, "  timeout:     %lld\n", ns->counters->app.resolver.timeout);
+					chunk_appendf(&trash, "  refused:     %lld\n", ns->counters->app.resolver.refused);
+					chunk_appendf(&trash, "  other:       %lld\n", ns->counters->app.resolver.other);
+					chunk_appendf(&trash, "  invalid:     %lld\n", ns->counters->app.resolver.invalid);
+					chunk_appendf(&trash, "  too_big:     %lld\n", ns->counters->app.resolver.too_big);
+					chunk_appendf(&trash, "  truncated:   %lld\n", ns->counters->app.resolver.truncated);
+					chunk_appendf(&trash, "  outdated:    %lld\n",  ns->counters->app.resolver.outdated);
 				}
 				chunk_appendf(&trash, "\n");
 			}
