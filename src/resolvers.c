@@ -350,7 +350,7 @@ static int resolv_build_query(int query_id, int query_type, unsigned int accepte
 }
 
 /* Sends a DNS query to resolvers associated to a resolution. It returns 0 on
- * success, -1 otherwise.
+ * success or -1 if trash buffer is not large enough to build a valid query.
  */
 static int resolv_send_query(struct resolv_resolution *resolution)
 {
@@ -367,13 +367,14 @@ static int resolv_send_query(struct resolv_resolution *resolution)
 	                      resolvers->accepted_payload_size,
 	                      resolution->hostname_dn, resolution->hostname_dn_len,
 	                      trash.area, trash.size);
+	if (len < 0) {
+		send_log(NULL, LOG_NOTICE,
+			 "can not build the query message for %s, in resolvers %s.\n",
+			 resolution->hostname_dn, resolvers->id);
+		return -1;
+	}
 
 	list_for_each_entry(ns, &resolvers->nameservers, list) {
-		if (len < 0) {
-			ns->counters->snd_error++;
-			continue;
-		}
-
 		if (dns_send_nameserver(ns, trash.area, len) >= 0)
 			resolution->nb_queries++;
 	}
