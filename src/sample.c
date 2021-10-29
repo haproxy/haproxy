@@ -3522,14 +3522,14 @@ static int sample_conv_jwt_verify_check(struct arg *args, struct sample_conv *co
 
 		switch(alg) {
 		case JWT_ALG_DEFAULT:
-			memprintf(err, "unknown JWT algorithm : %s", *err);
-			break;
+			memprintf(err, "unknown JWT algorithm: %s", args[0].data.str.area);
+			return 0;
 
 		case JWS_ALG_PS256:
 		case JWS_ALG_PS384:
 		case JWS_ALG_PS512:
 			memprintf(err, "RSASSA-PSS JWS signing not managed yet");
-			break;
+			return 0;
 
 		default:
 			break;
