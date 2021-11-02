@@ -2749,14 +2749,18 @@ void stream_dump(struct buffer *buf, const struct stream *s, const char *pfx, ch
 		dst = acb->applet->name;
 
 	chunk_appendf(buf,
-	              "%sstrm=%p src=%s fe=%s be=%s dst=%s%c"
+	              "%sstrm=%p,%x src=%s fe=%s be=%s dst=%s%c"
+		      "%stxn=%p,%x txn.req=%s,%x txn.rsp=%s,%x%c"
 	              "%srqf=%x rqa=%x rpf=%x rpa=%x sif=%s,%x sib=%s,%x%c"
 	              "%saf=%p,%u csf=%p,%x%c"
 	              "%sab=%p,%u csb=%p,%x%c"
 	              "%scof=%p,%x:%s(%p)/%s(%p)/%s(%d)%c"
 	              "%scob=%p,%x:%s(%p)/%s(%p)/%s(%d)%c"
 	              "",
-	              pfx, s, src, s->sess->fe->id, s->be->id, dst, eol,
+	              pfx, s, s->flags, src, s->sess->fe->id, s->be->id, dst, eol,
+		      pfx, s->txn, (s->txn ? s->txn->flags : 0),
+		           (s->txn ? h1_msg_state_str(s->txn->req.msg_state): "-"), (s->txn ? s->txn->req.flags : 0),
+		           (s->txn ? h1_msg_state_str(s->txn->rsp.msg_state): "-"), (s->txn ? s->txn->rsp.flags : 0), eol,
 	              pfx, req->flags, req->analysers, res->flags, res->analysers,
 	                   si_state_str(si_f->state), si_f->flags,
 	                   si_state_str(si_b->state), si_b->flags, eol,
