@@ -1026,6 +1026,27 @@ static inline int qc_pkt_long(const struct quic_rx_packet *pkt)
 	return pkt->type != QUIC_PACKET_TYPE_SHORT;
 }
 
+/* Release the memory for the RX packets which are no more referenced
+ * and consume their payloads which have been copied to the RX buffer
+ * for the connection.
+ * Always succeeds.
+ */
+static inline void quic_rx_packet_pool_purge(struct quic_conn *qc)
+{
+	struct quic_rx_packet *pkt, *pktback;
+
+	list_for_each_entry_safe(pkt, pktback, &qc->rx.pkt_list, qc_rx_pkt_list) {
+		if (pkt->data != (unsigned char *)b_head(&qc->rx.buf))
+			break;
+
+		if (!HA_ATOMIC_LOAD(&pkt->refcnt)) {
+			b_del(&qc->rx.buf, pkt->raw_len);
+			LIST_DELETE(&pkt->qc_rx_pkt_list);
+			pool_free(pool_head_quic_rx_packet, pkt);
+		}
+	}
+}
+
 /* Increment the reference counter of <pkt> */
 static inline void quic_rx_packet_refinc(struct quic_rx_packet *pkt)
 {
@@ -1035,8 +1056,27 @@ static inline void quic_rx_packet_refinc(struct quic_rx_packet *pkt)
 /* Decrement the reference counter of <pkt> */
 static inline void quic_rx_packet_refdec(struct quic_rx_packet *pkt)
 {
-	if (!HA_ATOMIC_SUB_FETCH(&pkt->refcnt, 1))
+	if (HA_ATOMIC_SUB_FETCH(&pkt->refcnt, 1))
+		return;
+
+	if (!pkt->qc) {
+		/* It is possible the connection for this packet has not already been
+		 * identified. In such a case, we only need to free this packet.
+		 */
 		pool_free(pool_head_quic_rx_packet, pkt);
+	}
+	else {
+		struct quic_conn *qc = pkt->qc;
+
+		HA_RWLOCK_WRLOCK(QUIC_LOCK, &qc->rx.buf_rwlock);
+		if (pkt->data == (unsigned char *)b_head(&qc->rx.buf)) {
+			b_del(&qc->rx.buf, pkt->raw_len);
+			LIST_DELETE(&pkt->qc_rx_pkt_list);
+			pool_free(pool_head_quic_rx_packet, pkt);
+			quic_rx_packet_pool_purge(qc);
+		}
+		HA_RWLOCK_WRUNLOCK(QUIC_LOCK, &qc->rx.buf_rwlock);
+	}
 }
 
 /* Increment the reference counter of <pkt> */
@@ -1052,7 +1092,7 @@ static inline void quic_tx_packet_refdec(struct quic_tx_packet *pkt)
 		pool_free(pool_head_quic_tx_packet, pkt);
 }
 
-ssize_t quic_lstnr_dgram_read(char *buf, size_t len, void *owner,
+ssize_t quic_lstnr_dgram_read(struct buffer *buf, size_t len, void *owner,
                               struct sockaddr_storage *saddr);
 #endif /* USE_QUIC */
 #endif /* _HAPROXY_XPRT_QUIC_H */

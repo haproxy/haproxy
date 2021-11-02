@@ -234,6 +234,8 @@ enum quic_pkt_type {
 #define QUIC_TX_RING_BUFSZ  (1UL << 12)
 /* Size of the internal buffer of QUIC RX buffer. */
 #define QUIC_RX_BUFSZ  (1UL << 18)
+/* Size of the QUIC RX buffer for the connections */
+#define QUIC_CONN_RX_BUFSZ (1UL << 13)
 
 extern struct trace_source trace_quic;
 extern struct pool_head *pool_head_quic_tx_ring;
@@ -408,6 +410,7 @@ extern struct quic_transport_params quic_dflt_transport_params;
 struct quic_rx_packet {
 	struct mt_list list;
 	struct mt_list rx_list;
+	struct list qc_rx_pkt_list;
 	struct quic_conn *qc;
 	unsigned char type;
 	uint32_t version;
@@ -423,9 +426,11 @@ struct quic_rx_packet {
 	uint64_t token_len;
 	/* Packet length */
 	uint64_t len;
+	/* Packet length before decryption */
+	uint64_t raw_len;
 	/* Additional authenticated data length */
 	size_t aad_len;
-	unsigned char data[QUIC_PACKET_MAXLEN];
+	unsigned char *data;
 	struct eb64_node pn_node;
 	volatile unsigned int refcnt;
 	/* Source address of this packet. */
@@ -661,6 +666,11 @@ struct quic_conn {
 		size_t nb_ack_eliciting;
 		/* Transport parameters the peer will receive */
 		struct quic_transport_params params;
+		/* RX buffer */
+		struct buffer buf;
+		/* RX buffer read/write lock */
+		__decl_thread(HA_RWLOCK_T buf_rwlock);
+		struct list pkt_list;
 	} rx;
 	unsigned int max_ack_delay;
 	struct quic_path paths[1];

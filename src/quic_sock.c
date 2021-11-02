@@ -175,10 +175,13 @@ struct connection *quic_sock_accept_conn(struct listener *l, int *status)
 void quic_sock_fd_iocb(int fd)
 {
 	ssize_t ret;
+	struct rxbuf *rxbuf;
 	struct buffer *buf;
 	struct listener *l = objt_listener(fdtab[fd].owner);
+	struct quic_transport_params *params = &l->bind_conf->quic_params;
 	/* Source address */
 	struct sockaddr_storage saddr = {0};
+	size_t max_sz;
 	socklen_t saddrlen;
 
 	BUG_ON(!l);
@@ -186,20 +189,32 @@ void quic_sock_fd_iocb(int fd)
 	if (!(fdtab[fd].state & FD_POLL_IN) || !fd_recv_ready(fd))
 		return;
 
-	buf = get_trash_chunk();
+	rxbuf = MT_LIST_POP(&l->rx.rxbuf_list, typeof(rxbuf), mt_list);
+	buf = &rxbuf->buf;
+	max_sz = params->max_udp_payload_size;
+	if (b_contig_space(buf) < max_sz) {
+		/* Note that when we enter this function, <buf> is always empty */
+		b_reset(buf);
+		if (b_contig_space(buf) < max_sz)
+			goto out;
+	}
+
 	saddrlen = sizeof saddr;
 	do {
-		ret = recvfrom(fd, buf->area, buf->size, 0,
+		ret = recvfrom(fd, b_tail(buf), max_sz, 0,
 		               (struct sockaddr *)&saddr, &saddrlen);
 		if (ret < 0) {
 			if (errno == EINTR)
 				continue;
 			if (errno == EAGAIN)
 				fd_cant_recv(fd);
-			return;
+			goto out;
 		}
 	} while (0);
 
-	buf->data = ret;
-	quic_lstnr_dgram_read(buf->area, buf->data, l, &saddr);
+	b_add(buf, ret);
+	quic_lstnr_dgram_read(buf, ret, l, &saddr);
+	b_del(buf, ret);
+ out:
+	MT_LIST_APPEND(&l->rx.rxbuf_list, &rxbuf->mt_list);
 }
