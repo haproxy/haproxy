@@ -7200,8 +7200,8 @@ rcv:
 	/* we return a "res" object */
 	lua_newtable(L);
 
-	luaL_buffinit(L, &hlua_hc->b);
 	lua_pushstring(L, "body");
+	luaL_buffinit(L, &hlua_hc->b);
 
 	MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_httpclient_rcv_yield, TICK_ETERNITY, 0));
 
