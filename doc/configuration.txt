@@ -11982,10 +11982,13 @@ tcp-request connection <action> <options...> [ { if | unless } <condition> ]
     - set-src <expr>
     - set-src-port <expr>
     - set-tos <tos>
+    - set-var(<var-name>) <expr>
+    - set-var-fmt(<var-name>) <fmt>
     - silent-drop
     - track-sc0 <key> [table <table>]
     - track-sc1 <key> [table <table>]
     - track-sc2 <key> [table <table>]
+    - unset-var(<var-name>)
 
   The supported actions are described below.
 
@@ -12110,6 +12113,14 @@ tcp-request connection set-tos <tos> [ { if | unless } <condition> ]
   to the value passed in <tos> on platforms which support this. Please refer to
   "http-request set-tos" for a complete description.
 
+tcp-request connection set-var(<var-name>) <expr> [ { if | unless } <condition> ]
+tcp-request connection set-var-fmt(<var-name>) <fmt> [ { if | unless } <condition> ]
+
+  This is used to set the contents of a variable. The variable is declared
+  inline. "tcp-request connection" can set variables in the "proc" and "sess"
+  scopes. Please refer to "http-request set-var" and "http-request set-var-fmt"
+  for a complete description.
+
 tcp-request connection silent-drop [ { if | unless } <condition> ]
 
   This stops the evaluation of the rules and makes the client-facing connection
@@ -12124,6 +12135,11 @@ tcp-request connection track-sc2  <key> [table <table>] [ { if | unless } <condi
   This enables tracking of sticky counters from current connection. Please
   refer to "http-request track-sc0", "http-request track-sc1" and "http-request
   track-sc2" for a complete description.
+
+tcp-request connection unset-var(<var-name>) [ { if | unless } <condition> ]
+
+  This is used to unset a variable. Please refer to "http-request set-var" for
+  details about variables.
 
 
 tcp-request content <action> [{if | unless} <condition>]

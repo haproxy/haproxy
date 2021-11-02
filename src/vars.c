@@ -659,6 +659,7 @@ static enum act_return action_store(struct act_rule *rule, struct proxy *px,
 	int dir;
 
 	switch (rule->from) {
+	case ACT_F_TCP_REQ_CON: dir = SMP_OPT_DIR_REQ; break;
 	case ACT_F_TCP_REQ_SES: dir = SMP_OPT_DIR_REQ; break;
 	case ACT_F_TCP_REQ_CNT: dir = SMP_OPT_DIR_REQ; break;
 	case ACT_F_TCP_RES_CNT: dir = SMP_OPT_DIR_RES; break;
@@ -827,6 +828,10 @@ static enum act_parse_ret parse_store(const char **args, int *arg, struct proxy 
 	kw_name = args[*arg-1];
 
 	switch (rule->from) {
+	case ACT_F_TCP_REQ_CON:
+		flags = SMP_VAL_FE_CON_ACC;
+		px->conf.args.ctx = ARGC_TCO;
+		break;
 	case ACT_F_TCP_REQ_SES:
 		flags = SMP_VAL_FE_SES_ACC;
 		px->conf.args.ctx = ARGC_TSE;
@@ -1212,6 +1217,15 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 }};
 
 INITCALL1(STG_REGISTER, sample_register_convs, &sample_conv_kws);
+
+static struct action_kw_list tcp_req_conn_kws = { { }, {
+	{ "set-var-fmt", parse_store, KWF_MATCH_PREFIX },
+	{ "set-var",   parse_store, KWF_MATCH_PREFIX },
+	{ "unset-var", parse_store, KWF_MATCH_PREFIX },
+	{ /* END */ }
+}};
+
+INITCALL1(STG_REGISTER, tcp_req_conn_keywords_register, &tcp_req_conn_kws);
 
 static struct action_kw_list tcp_req_sess_kws = { { }, {
 	{ "set-var-fmt", parse_store, KWF_MATCH_PREFIX },
