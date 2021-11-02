@@ -79,12 +79,12 @@ haproxy h1 -conf {
         tcp-request content set-var(req.reqpbinfo)    req.payload(0,0),mqtt_field_value(connect,23)
         tcp-request content set-var(req.ctype)        req.payload(0,0),mqtt_field_value(connect,3)
         tcp-request content set-var(req.willrsptopic) req.payload(0,0),mqtt_field_value(connect,8)
-        tcp-request content reject if ! { var(req.protoname) "MQTT" }      || ! { var(req.protovsn) "5" }
-        tcp-request content reject if ! { var(req.flags) "238" }           || ! { var(req.clientid) "test_sub" }
-        tcp-request content reject if ! { var(req.user) "test" }           || ! { var(req.pass) "passwd" }
-        tcp-request content reject if ! { var(req.willtopic) "willtopic" } || ! { var(req.willbody) "willpayload" }
-        tcp-request content reject if ! { var(req.maxpktsz) "20" }         || ! { var(req.reqpbinfo) "1" }
-        tcp-request content reject if ! { var(req.ctype) "text/plain" }    || ! { var(req.willrsptopic) "willrsptopic" }
+        tcp-request content reject if ! { var(req.protoname) -m str "MQTT" }      || ! { var(req.protovsn) -m str "5" }
+        tcp-request content reject if ! { var(req.flags) -m str "238" }           || ! { var(req.clientid) -m str "test_sub" }
+        tcp-request content reject if ! { var(req.user) -m str "test" }           || ! { var(req.pass) -m str "passwd" }
+        tcp-request content reject if ! { var(req.willtopic) -m str "willtopic" } || ! { var(req.willbody) -m str "willpayload" }
+        tcp-request content reject if ! { var(req.maxpktsz) -m str "20" }         || ! { var(req.reqpbinfo) -m str "1" }
+        tcp-request content reject if ! { var(req.ctype) -m str "text/plain" }    || ! { var(req.willrsptopic) -m str "willrsptopic" }
         default_backend be2
 
     backend be1
@@ -105,11 +105,11 @@ haproxy h1 -conf {
         tcp-response content set-var(res.retainavail)   res.payload(0,0),mqtt_field_value(connack,37)
         tcp-response content set-var(res.maxpktsz)      res.payload(0,0),mqtt_field_value(connack,39)
         tcp-response content set-var(res.topicaliasmax) res.payload(0,0),mqtt_field_value(connack,34)
-        tcp-response content reject if ! { var(res.protovsn) "5" }    || ! { var(res.flags) "0" }
-        tcp-response content reject if ! { var(res.rcode) "0" }       || ! { var(res.sessexpint) "120" }
-        tcp-response content reject if ! { var(res.recvmax) "32767" } || ! { var(res.maxqos) "1" }
-        tcp-response content reject if ! { var(res.retainavail) "1" } || ! { var(res.maxpktsz) "65535" }
-        tcp-response content reject if ! { var(res.topicaliasmax) "10" }
+        tcp-response content reject if ! { var(res.protovsn) -m str "5" }    || ! { var(res.flags) -m str "0" }
+        tcp-response content reject if ! { var(res.rcode) -m str "0" }       || ! { var(res.sessexpint) -m str "120" }
+        tcp-response content reject if ! { var(res.recvmax) -m str "32767" } || ! { var(res.maxqos) -m str "1" }
+        tcp-response content reject if ! { var(res.retainavail) -m str "1" } || ! { var(res.maxpktsz) -m str "65535" }
+        tcp-response content reject if ! { var(res.topicaliasmax) -m str "10" }
 } -start
 
 client c1_311_1 -connect ${h1_fe1_sock} {

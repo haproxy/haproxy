@@ -76,9 +76,9 @@ haproxy h1 -conf {
         tcp-request content set-var(req.fix_sender) req.payload(0,0),fix_tag_value(SenderCompID)
         tcp-request content set-var(req.fix_target) req.payload(0,0),fix_tag_value(TargetCompID)
         tcp-request content set-var(req.fix_chksum) req.payload(0,0),fix_tag_value(CheckSum)
-        tcp-request content reject if ! { var(req.fix_vsn) "FIX.4.4" } || ! { var(req.fix_len) "102" }
-        tcp-request content reject if ! { var(req.fix_type) "A" } || ! { var(req.fix_sender) "CLIENT1" }
-        tcp-request content reject if ! { var(req.fix_target) "EXECUTOR" } || ! { var(req.fix_chksum) "252" }
+        tcp-request content reject if ! { var(req.fix_vsn) -m str "FIX.4.4" }     || ! { var(req.fix_len) -m str "102" }
+        tcp-request content reject if ! { var(req.fix_type) -m str "A" }          || ! { var(req.fix_sender) -m str "CLIENT1" }
+        tcp-request content reject if ! { var(req.fix_target) -m str "EXECUTOR" } || ! { var(req.fix_chksum) -m str "252" }
         default_backend be2
 
     backend be1
@@ -96,9 +96,9 @@ haproxy h1 -conf {
         tcp-response content set-var(res.fix_sender) res.payload(0,0),fix_tag_value(49)
         tcp-response content set-var(res.fix_target) res.payload(0,0),fix_tag_value(56)
         tcp-response content set-var(res.fix_chksum) res.payload(0,0),fix_tag_value(10)
-        tcp-response content reject if ! { var(res.fix_vsn) "FIX.4.4" } || ! { var(res.fix_len) "79" }
-        tcp-response content reject if ! { var(res.fix_type) "A" } || ! { var(res.fix_sender) "EXECUTOR" }
-        tcp-response content reject if ! { var(res.fix_target) "CLIENT1" } || ! { var(res.fix_chksum) eq "038" }
+        tcp-response content reject if ! { var(res.fix_vsn) -m str "FIX.4.4" }    || ! { var(res.fix_len) -m str "79" }
+        tcp-response content reject if ! { var(res.fix_type) -m str "A" }         || ! { var(res.fix_sender) -m str "EXECUTOR" }
+        tcp-response content reject if ! { var(res.fix_target) -m str "CLIENT1" } || ! { var(res.fix_chksum) -m str "038" }
 } -start
 
 client c1_4_0 -connect ${h1_fe1_sock} {

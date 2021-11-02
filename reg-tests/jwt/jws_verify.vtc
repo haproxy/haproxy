@@ -52,9 +52,9 @@ haproxy h1 -conf {
         http-response set-header x-jwt-token %[var(txn.bearer)]
         http-response set-header x-jwt-alg %[var(txn.jwt_alg)]
 
-        http-response set-header x-jwt-verify-HS256 %[var(txn.bearer),jwt_verify(txn.jwt_alg,"hmac key hs256")] if { var(txn.jwt_alg) "HS256" }
-        http-response set-header x-jwt-verify-HS384 %[var(txn.bearer),jwt_verify(txn.jwt_alg,"hmac key hs384")] if { var(txn.jwt_alg) "HS384" }
-        http-response set-header x-jwt-verify-HS512 %[var(txn.bearer),jwt_verify(txn.jwt_alg,"hmac key hs512")] if { var(txn.jwt_alg) "HS512" }
+        http-response set-header x-jwt-verify-HS256 %[var(txn.bearer),jwt_verify(txn.jwt_alg,"hmac key hs256")] if { var(txn.jwt_alg) -m str "HS256" }
+        http-response set-header x-jwt-verify-HS384 %[var(txn.bearer),jwt_verify(txn.jwt_alg,"hmac key hs384")] if { var(txn.jwt_alg) -m str "HS384" }
+        http-response set-header x-jwt-verify-HS512 %[var(txn.bearer),jwt_verify(txn.jwt_alg,"hmac key hs512")] if { var(txn.jwt_alg) -m str "HS512" }
         server s1 ${s1_addr}:${s1_port}
 
     backend rsXXX_be
@@ -66,9 +66,9 @@ haproxy h1 -conf {
         http-response set-header x-jwt-token %[var(txn.bearer)]
         http-response set-header x-jwt-alg %[var(txn.jwt_alg)]
 
-        http-response set-header x-jwt-verify-RS256 %[var(txn.bearer),jwt_verify(txn.jwt_alg,"${testdir}/rsa-public.pem")] if { var(txn.jwt_alg) "RS256" }
-        http-response set-header x-jwt-verify-RS384 %[var(txn.bearer),jwt_verify(txn.jwt_alg,"${testdir}/rsa-public.pem")] if { var(txn.jwt_alg) "RS384" }
-        http-response set-header x-jwt-verify-RS512 %[var(txn.bearer),jwt_verify(txn.jwt_alg,"${testdir}/rsa-public.pem")] if { var(txn.jwt_alg) "RS512" }
+        http-response set-header x-jwt-verify-RS256 %[var(txn.bearer),jwt_verify(txn.jwt_alg,"${testdir}/rsa-public.pem")] if { var(txn.jwt_alg) -m str "RS256" }
+        http-response set-header x-jwt-verify-RS384 %[var(txn.bearer),jwt_verify(txn.jwt_alg,"${testdir}/rsa-public.pem")] if { var(txn.jwt_alg) -m str "RS384" }
+        http-response set-header x-jwt-verify-RS512 %[var(txn.bearer),jwt_verify(txn.jwt_alg,"${testdir}/rsa-public.pem")] if { var(txn.jwt_alg) -m str "RS512" }
         server s1 ${s1_addr}:${s1_port}
 
     backend esXXX_be
@@ -80,9 +80,9 @@ haproxy h1 -conf {
         http-response set-header x-jwt-token %[var(txn.bearer)]
         http-response set-header x-jwt-alg %[var(txn.jwt_alg)]
 
-        http-response set-header x-jwt-verify-ES256 %[var(txn.bearer),jwt_verify(txn.jwt_alg,"${testdir}/es256-public.pem")] if { var(txn.jwt_alg) "ES256" }
-        http-response set-header x-jwt-verify-ES384 %[var(txn.bearer),jwt_verify(txn.jwt_alg,"${testdir}/es384-public.pem")] if { var(txn.jwt_alg) "ES384" }
-        http-response set-header x-jwt-verify-ES512 %[var(txn.bearer),jwt_verify(txn.jwt_alg,"${testdir}/es512-public.pem")] if { var(txn.jwt_alg) "ES512" }
+        http-response set-header x-jwt-verify-ES256 %[var(txn.bearer),jwt_verify(txn.jwt_alg,"${testdir}/es256-public.pem")] if { var(txn.jwt_alg) -m str "ES256" }
+        http-response set-header x-jwt-verify-ES384 %[var(txn.bearer),jwt_verify(txn.jwt_alg,"${testdir}/es384-public.pem")] if { var(txn.jwt_alg) -m str "ES384" }
+        http-response set-header x-jwt-verify-ES512 %[var(txn.bearer),jwt_verify(txn.jwt_alg,"${testdir}/es512-public.pem")] if { var(txn.jwt_alg) -m str "ES512" }
         server s1 ${s1_addr}:${s1_port}
 
 

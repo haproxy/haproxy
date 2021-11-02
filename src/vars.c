@@ -1199,7 +1199,7 @@ INITCALL0(STG_PREPARE, vars_init);
 
 static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 
-	{ "var", smp_fetch_var, ARG2(1,STR,STR), smp_check_var, SMP_T_STR, SMP_USE_CONST },
+	{ "var", smp_fetch_var, ARG2(1,STR,STR), smp_check_var, SMP_T_ANY, SMP_USE_CONST },
 	{ /* END */ },
 }};
 
