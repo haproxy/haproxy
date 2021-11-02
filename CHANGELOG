@@ -1,6 +1,73 @@
 ChangeLog :
 ===========
 
+2021/11/02 : 2.5-dev12
+    - MINOR: httpclient: support payload within a buffer
+    - MINOR: httpclient/lua: support more HTTP methods
+    - MINOR: httpclient/lua: return an error when it can't generate the request
+    - CLEANUP: lua: Remove any ambiguities about lua txn execution context flags
+    - BUG/MEDIUM: lua: fix invalid return types in hlua_http_msg_get_body
+    - CLEANUP: connection: No longer export make_proxy_line_v1/v2 functions
+    - CLEANUP: tools: Use const address for get_net_port() and get_host_port()
+    - CLEANUP: lua: Use a const address to retrieve info about a connection
+    - MINOR: connection: Add function to get src/dst without updating the connection
+    - MINOR: session: Add src and dst addresses to the session
+    - MINOR: stream-int: Add src and dst addresses to the stream-interface
+    - MINOR: frontend: Rely on client src and dst addresses at stream level
+    - MINOR: log: Rely on client addresses at the appropriate level to log messages
+    - MINOR: session: Rely on client source address at session level to log error
+    - MINOR: http-ana: Rely on addresses at stream level to set xff and xot headers
+    - MINOR: http-fetch: Rely on addresses at stream level in HTTP sample fetches
+    - MINOR: mux-fcgi: Rely on client addresses at stream level to set default params
+    - MEDIUM: tcp-sample: Rely on addresses at the appropriate level in tcp samples
+    - MEDIUM: connection: Rely on addresses at stream level to make proxy line
+    - MEDIUM: backend: Rely on addresses at stream level to init server connection
+    - MEDIUM: connection: Assign session addresses when PROXY line is received
+    - MEDIUM: connection: Assign session addresses when NetScaler CIP proto is parsed
+    - MEDIUM: tcp-act: Set addresses at the apprioriate level in set-(src/dst) actions
+    - MINOR: tcp-act: Add set-src/set-src-port for "tcp-request content" rules
+    - DOC: config: Fix alphabetical order of fc_* samples
+    - MINOR: tcp-sample: Add samples to get original info about client connection
+    - REGTESTS: Add script to test client src/dst manipulation at different levels
+    - MINOR: stream: Use backend stream-interface dst address instead of target_addr
+    - BUILD: log: Fix compilation without SSL support
+    - DEBUG: protocol: yell loudly during registration of invalid sock_domain
+    - MINOR: protocols: add a new protocol type selector
+    - MINOR: protocols: make use of the protocol type to select the protocol
+    - MINOR: protocols: replace protocol_by_family() with protocol_lookup()
+    - MINOR: halog: Add -qry parameter allowing to preserve the query string in -uX
+    - CLEANUP: jwt: Remove the use of a trash buffer in jwt_jwsverify_hmac()
+    - CLEANUP: jwt: Remove the use of a trash buffer in jwt_jwsverify_rsa_ecdsa()
+    - DEV: coccinelle: Add realloc_leak.cocci
+    - CLEANUP: hlua: Remove obsolete branch in `hlua_alloc()`
+    - BUILD: atomic: prefer __atomic_compare_exchange_n() for __ha_cas_dw()
+    - BUILD: atomic: fix build on mac/arm64
+    - MINOR: atomic: remove the memcpy() call and dependency on string.h
+    - MINOR: httpclient: request streaming with a callback
+    - MINOR: httpclient/lua: handle the streaming into the lua applet
+    - REGTESTS: lua: test httpclient with body streaming
+    - DOC: halog: Move the `-qry` parameter into the correct section in help text
+    - MINOR: halog: Rename -qry to -query
+    - CLEANUP: halog: Use consistent indentation in help()
+    - BUG/MINOR: halog: Add missing newlines in die() messages
+    - MINOR: halog: Add support for extracting captures using -hdr
+    - DOC: Typo fixed "it" should be "is"
+    - BUG/MINOR: mux-h1: Save shutdown mode if the shutdown is delayed
+    - BUG/MEDIUM: mux-h1: Perform a connection shutdown when the h1c is released
+    - BUG/MEDIUM: resolvers: Don't recursively perform requester unlink
+    - BUG/MEDIUM: http-ana: Drain request data waiting the tarpit timeout expiration
+    - BUG/MINOR: http: Authorization value can have multiple spaces after the scheme
+    - BUG/MINOR: http: http_auth_bearer fetch does not work on custom header name
+    - BUG/MINOR: httpclient/lua: misplaced luaL_buffinit()
+    - BUILD/MINOR: cpuset freebsd build fix
+    - BUG/MINOR: httpclient: use a placeholder value for Host header
+    - BUG/MEDIUM: stream-int: Block reads if channel cannot receive more data
+    - BUG/MEDIUM: resolvers: Track api calls with a counter to free resolutions
+    - MINOR: stream: Improve dump of bogus streams
+    - DOC/peers: some grammar fixes for peers 2.1 spec
+    - MEDIUM: vars: make the var() sample fetch function really return type ANY
+    - MINOR: vars: add "set-var" for "tcp-request connection" rules.
+
 2021/10/22 : 2.5-dev11
     - DEV: coccinelle: Add strcmp.cocci
     - CLEANUP: Apply strcmp.cocci
