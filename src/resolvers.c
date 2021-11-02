@@ -54,6 +54,7 @@ struct list sec_resolvers  = LIST_HEAD_INIT(sec_resolvers);
 struct list resolv_srvrq_list = LIST_HEAD_INIT(resolv_srvrq_list);
 
 static THREAD_LOCAL struct list death_row; /* list of deferred resolutions to kill, local validity only */
+static THREAD_LOCAL unsigned int recurse = 0; /* counter to track calls to public functions */
 static THREAD_LOCAL uint64_t resolv_query_id_seed = 0; /* random seed */
 struct resolvers *curr_resolvers = NULL;
 
@@ -66,6 +67,8 @@ unsigned int resolv_failed_resolutions = 0;
 static struct task *process_resolvers(struct task *t, void *context, unsigned int state);
 static void resolv_free_resolution(struct resolv_resolution *resolution);
 static void _resolv_unlink_resolution(struct resolv_requester *requester);
+static void enter_resolver_code();
+static void leave_resolver_code();
 
 enum {
 	DNS_STAT_ID,
@@ -444,12 +447,16 @@ void resolv_trigger_resolution(struct resolv_requester *req)
 	res       = req->resolution;
 	resolvers = res->resolvers;
 
+	enter_resolver_code();
+
 	/* The resolution must not be triggered yet. Use the cached response, if
 	 * valid */
 	exp = tick_add(res->last_resolution, resolvers->hold.valid);
 	if (resolvers->t && (res->status != RSLV_STATUS_VALID ||
 	    !tick_isset(res->last_resolution) || tick_is_expired(exp, now_ms)))
 		task_wakeup(resolvers->t, TASK_WOKEN_OTHER);
+
+	leave_resolver_code();
 }
 
 
@@ -568,13 +575,16 @@ int resolv_read_name(unsigned char *buffer, unsigned char *bufend,
 
 /* Reinitialize the list of aborted resolutions before calling certain
  * functions relying on it. The list must be processed by calling
- * free_aborted_resolutions() after operations.
+ * leave_resolver_code() after operations.
  */
-static void init_aborted_resolutions()
+static void enter_resolver_code()
 {
-	LIST_INIT(&death_row);
+	if (!recurse)
+		LIST_INIT(&death_row);
+	recurse++;
 }
 
+/* Add a resolution to the death_row. */
 static void abort_resolution(struct resolv_resolution *res)
 {
 	LIST_DEL_INIT(&res->list);
@@ -582,15 +592,19 @@ static void abort_resolution(struct resolv_resolution *res)
 }
 
 /* This releases any aborted resolution found in the death row. It is mandatory
- * to call init_aborted_resolutions() first before the function (or loop) that
+ * to call enter_resolver_code() first before the function (or loop) that
  * needs to defer deletions. Note that some of them are in relation via internal
  * objects and might cause the deletion of other ones from the same list, so we
  * must absolutely not use a list_for_each_entry_safe() nor any such thing here,
  * and solely rely on each call to remove the first remaining list element.
  */
-static void free_aborted_resolutions()
+static void leave_resolver_code()
 {
 	struct resolv_resolution *res;
+
+	recurse--;
+	if (recurse)
+		return;
 
 	while (!LIST_ISEMPTY(&death_row)) {
 		res = LIST_NEXT(&death_row, struct resolv_resolution *, list);
@@ -606,7 +620,7 @@ static void free_aborted_resolutions()
  * obsolete.
  *
  * Must be called with the DNS lock held, and with the death_row already
- * initialized via init_aborted_resolutions().
+ * initialized via enter_resolver_code().
  */
 static void resolv_srvrq_cleanup_srv(struct server *srv)
 {
@@ -640,19 +654,18 @@ static struct task *resolv_srvrq_expire_task(struct task *t, void *context, unsi
 	if (!tick_is_expired(t->expire, now_ms))
 		goto end;
 
+	enter_resolver_code();
 	HA_SPIN_LOCK(DNS_LOCK, &srv->srvrq->resolvers->lock);
-	init_aborted_resolutions();
 	resolv_srvrq_cleanup_srv(srv);
-	free_aborted_resolutions();
 	HA_SPIN_UNLOCK(DNS_LOCK, &srv->srvrq->resolvers->lock);
+	leave_resolver_code();
 
   end:
 	return t;
 }
 
 /* Checks for any obsolete record, also identify any SRV request, and try to
- * find a corresponding server. Must be called with the death_row already
- * initialized via init_aborted_resolutions().
+ * find a corresponding server.
  */
 static void resolv_check_response(struct resolv_resolution *res)
 {
@@ -1942,8 +1955,7 @@ resolv_get_requester(struct resolv_requester **req, enum obj_type *owner,
 }
 
 /* Links a requester (a server or a resolv_srvrq) with a resolution. It returns 0
- * on success, -1 otherwise. Must be called with the death_row already initialized
- * via init_aborted_resolutions().
+ * on success, -1 otherwise.
  */
 int resolv_link_resolution(void *requester, int requester_type, int requester_locked)
 {
@@ -1956,6 +1968,7 @@ int resolv_link_resolution(void *requester, int requester_type, int requester_lo
 	char **hostname_dn;
 	int   hostname_dn_len, query_type;
 
+	enter_resolver_code();
 	switch (requester_type) {
 		case OBJ_TYPE_SERVER:
 			srv             = (struct server *)requester;
@@ -2026,19 +2039,17 @@ int resolv_link_resolution(void *requester, int requester_type, int requester_lo
 	req->resolution = res;
 
 	LIST_APPEND(&res->requesters, &req->list);
+	leave_resolver_code();
 	return 0;
 
   err:
 	if (res && LIST_ISEMPTY(&res->requesters))
 		resolv_free_resolution(res);
+	leave_resolver_code();
 	return -1;
 }
 
-/* This function removes all server/srvrq references on answer items
- * if <safe> is set to 1, in case of srvrq, sub server resquesters unlink
- * is called using safe == 1 to make it usable into callbacks. Must be called
- * with the death_row already initialized via init_aborted_resolutions().
- */
+/* This function removes all server/srvrq references on answer items. */
 void resolv_detach_from_resolution_answer_items(struct resolv_resolution *res,  struct resolv_requester *req)
 {
 	struct eb32_node *eb32, *eb32_back;
@@ -2046,6 +2057,7 @@ void resolv_detach_from_resolution_answer_items(struct resolv_resolution *res,  
 	struct server *srv, *srvback;
 	struct resolv_srvrq    *srvrq;
 
+	enter_resolver_code();
 	if ((srv = objt_server(req->owner)) != NULL) {
 		LIST_DEL_INIT(&srv->ip_rec_item);
 	}
@@ -2062,12 +2074,11 @@ void resolv_detach_from_resolution_answer_items(struct resolv_resolution *res,  
 			}
 		}
 	}
+	leave_resolver_code();
 }
 
 /* Removes a requester from a DNS resolution. It takes takes care of all the
  * consequences. It also cleans up some parameters from the requester.
- * if <safe> is set to 1, the corresponding resolution is not released. Must be
- * called with the death_row already initialized via init_aborted_resolutions().
  */
 static void _resolv_unlink_resolution(struct resolv_requester *requester)
 {
@@ -2118,9 +2129,9 @@ static void _resolv_unlink_resolution(struct resolv_requester *requester)
 /* The public version of the function above that deals with the death row. */
 void resolv_unlink_resolution(struct resolv_requester *requester)
 {
-	init_aborted_resolutions();
+	enter_resolver_code();
 	_resolv_unlink_resolution(requester);
-	free_aborted_resolutions();
+	leave_resolver_code();
 }
 
 /* Called when a network IO is generated on a name server socket for an incoming
@@ -2129,8 +2140,6 @@ void resolv_unlink_resolution(struct resolv_requester *requester)
  *  - ensure the DNS packet received is valid and call requester's callback
  *  - call requester's error callback if invalid response
  *  - check the dn_name in the packet against the one sent
- *
- * Must be called with the death_row already initialized via init_aborted_resolutions().
  */
 static int resolv_process_responses(struct dns_nameserver *ns)
 {
@@ -2148,6 +2157,7 @@ static int resolv_process_responses(struct dns_nameserver *ns)
 	int keep_answer_items;
 
 	resolvers = ns->parent;
+	enter_resolver_code();
 	HA_SPIN_LOCK(DNS_LOCK, &resolvers->lock);
 
 	/* process all pending input messages */
@@ -2316,7 +2326,7 @@ static int resolv_process_responses(struct dns_nameserver *ns)
 	}
 	resolv_update_resolvers_timeout(resolvers);
 	HA_SPIN_UNLOCK(DNS_LOCK, &resolvers->lock);
-
+	leave_resolver_code();
 	return buflen;
 }
 
@@ -2330,6 +2340,7 @@ static struct task *process_resolvers(struct task *t, void *context, unsigned in
 	struct resolv_resolution *res, *resback;
 	int exp;
 
+	enter_resolver_code();
 	HA_SPIN_LOCK(DNS_LOCK, &resolvers->lock);
 
 	/* Handle all expired resolutions from the active list. Elements that
@@ -2337,7 +2348,6 @@ static struct task *process_resolvers(struct task *t, void *context, unsigned in
 	 * ones will be handled normally.
 	 */
 
-	init_aborted_resolutions();
 	res  = LIST_NEXT(&resolvers->resolutions.curr, struct resolv_resolution *, list);
 	while (&res->list != &resolvers->resolutions.curr) {
 		resback = LIST_NEXT(&res->list, struct resolv_resolution *, list);
@@ -2420,12 +2430,11 @@ static struct task *process_resolvers(struct task *t, void *context, unsigned in
 			LIST_APPEND(&resolvers->resolutions.wait, &res->list);
 		}
 	}
-
-	/* now we can purge all queued deletions */
-	free_aborted_resolutions();
-
 	resolv_update_resolvers_timeout(resolvers);
 	HA_SPIN_UNLOCK(DNS_LOCK, &resolvers->lock);
+
+	/* now we can purge all queued deletions */
+	leave_resolver_code();
 	return t;
 }
 
@@ -2438,7 +2447,7 @@ static void resolvers_deinit(void)
 	struct resolv_requester  *req, *reqback;
 	struct resolv_srvrq    *srvrq, *srvrqback;
 
-	init_aborted_resolutions();
+	enter_resolver_code();
 	list_for_each_entry_safe(resolvers, resolversback, &sec_resolvers, list) {
 		list_for_each_entry_safe(ns, nsback, &resolvers->nameservers, list) {
 			free(ns->id);
@@ -2496,7 +2505,7 @@ static void resolvers_deinit(void)
 		free(srvrq);
 	}
 
-	free_aborted_resolutions();
+	leave_resolver_code();
 }
 
 /* Finalizes the DNS configuration by allocating required resources and checking
@@ -2509,7 +2518,7 @@ static int resolvers_finalize_config(void)
 	struct proxy	     *px;
 	int err_code = 0;
 
-	init_aborted_resolutions();
+	enter_resolver_code();
 
 	/* allocate pool of resolution per resolvers */
 	list_for_each_entry(resolvers, &sec_resolvers, list) {
@@ -2606,10 +2615,10 @@ static int resolvers_finalize_config(void)
 	if (err_code & (ERR_ALERT|ERR_ABORT))
 		goto err;
 
-	free_aborted_resolutions();
+	leave_resolver_code();
 	return err_code;
   err:
-	free_aborted_resolutions();
+	leave_resolver_code();
 	resolvers_deinit();
 	return err_code;
 
@@ -2899,7 +2908,7 @@ enum act_return resolv_action_do_resolve(struct act_rule *rule, struct proxy *px
 
 	resolvers = rule->arg.resolv.resolvers;
 
-	init_aborted_resolutions();
+	enter_resolver_code();
 
 	/* we have a response to our DNS resolution */
  use_cache:
@@ -2983,7 +2992,7 @@ enum act_return resolv_action_do_resolve(struct act_rule *rule, struct proxy *px
 	ret = ACT_RET_YIELD;
 
   end:
-	free_aborted_resolutions();
+	leave_resolver_code();
 	if (locked)
 		HA_SPIN_UNLOCK(DNS_LOCK, &resolvers->lock);
 	return ret;
