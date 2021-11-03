@@ -233,10 +233,13 @@ is always a small risk of regression when jumping from one branch to another
 one, especially when it's very new, so it's preferable to observe for a while
 if you use a different version than your system's defaults.
 
-Two OpenSSL derivatives called LibreSSL and BoringSSL are reported to work as
-well. While there are some efforts from the community to ensure they work well,
-OpenSSL remains the primary target and this means that in case of conflicting
-choices, OpenSSL support will be favored over other options.
+Three OpenSSL derivatives called LibreSSL, BoringSSL and QUICTLS are reported
+to work as well. While there are some efforts from the community to ensure they
+work well, OpenSSL remains the primary target and this means that in case of
+conflicting choices, OpenSSL support will be favored over other options. Note
+that OpenSSL is not compatible when building haproxy with QUIC support. In this
+case, QUICTLS is the preferred alternative.  See the section about QUIC in this
+document.
 
 In order to enable SSL/TLS support, simply pass "USE_OPENSSL=1" on the command
 line and the default library present on your system will be used :
@@ -385,6 +388,30 @@ target. Common issues may include:
   - many openssl errors
     => your OpenSSL version really is too old, do not enable OpenSSL
 
+
+4.11) QUIC
+----------
+QUIC is the new transport layer protocol and is required for HTTP/3. This
+protocol stack is currently supported as an experimental feature in haproxy on
+the frontend side. In order to enable it, use "USE_QUIC=1 USE_OPENSSL=1".
+
+Note that the OpenSSL library is not compatible with QUIC. The preferred option
+is to use QUICTLS. This is a fork of OpenSSL with a QUIC-compatible API. Its
+repository is available at https://github.com/quictls/openssl. You can use the
+following instruction to build a functional QUICTLS.
+
+  $ ./config enable-tls1_3 [--prefix=/opt/quictls]
+  $ make
+  $ make install
+
+On a development environment, use SSL_INC and SSL_LIB when building haproxy to
+point to the correct cryptographic library. It may be useful to specify QUICTLS
+location via rpath for haproxy execution. Example :
+
+  $ make TARGET=generic \
+    USE_QUIC=1 \
+    USE_OPENSSL=1 SSL_INC=/opt/quictls/include SSL_LIB=/opt/quictls/lib \
+    LDFLAGS="-Wl,-rpath,/opt/quictls/lib"
 
 5) How to build HAProxy
 =======================
