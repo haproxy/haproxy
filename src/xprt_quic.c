@@ -2649,7 +2649,6 @@ static inline int qc_treat_rx_crypto_frms(struct quic_enc_level *el,
 	struct eb64_node *node;
 
 	TRACE_ENTER(QUIC_EV_CONN_RXCDATA, ctx->conn);
-	HA_RWLOCK_WRLOCK(QUIC_LOCK, &el->rx.crypto.frms_rwlock);
 	node = eb64_first(&el->rx.crypto.frms);
 	while (node) {
 		struct quic_rx_crypto_frm *cf;
@@ -2666,12 +2665,10 @@ static inline int qc_treat_rx_crypto_frms(struct quic_enc_level *el,
 		eb64_delete(&cf->offset_node);
 		pool_free(pool_head_quic_rx_crypto_frm, cf);
 	}
-	HA_RWLOCK_WRUNLOCK(QUIC_LOCK, &el->rx.crypto.frms_rwlock);
 	TRACE_LEAVE(QUIC_EV_CONN_RXCDATA, ctx->conn);
 	return 1;
 
  err:
-	HA_RWLOCK_WRUNLOCK(QUIC_LOCK, &el->rx.crypto.frms_rwlock);
 	TRACE_DEVEL("leaving in error", QUIC_EV_CONN_RXCDATA, ctx->conn);
 	return 0;
 }
@@ -2878,7 +2875,6 @@ static int quic_conn_enc_level_init(struct quic_conn *qc,
 	MT_LIST_INIT(&qel->rx.pqpkts);
 	qel->rx.crypto.offset = 0;
 	qel->rx.crypto.frms = EB_ROOT_UNIQUE;
-	HA_RWLOCK_INIT(&qel->rx.crypto.frms_rwlock);
 
 	/* Allocate only one buffer. */
 	qel->tx.crypto.bufs = malloc(sizeof *qel->tx.crypto.bufs);
