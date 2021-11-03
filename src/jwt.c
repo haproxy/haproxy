@@ -34,7 +34,7 @@ enum jwt_alg jwt_parse_alg(const char *alg_str, unsigned int alg_len)
 
 	/* Algorithms are all 5 characters long apart from "none". */
 	if (alg_len < sizeof("HS256")-1) {
-		if (strncmp("none", alg_str, alg_len) == 0)
+		if (alg_len == sizeof("none")-1 && strcmp("none", alg_str) == 0)
 			alg = JWS_ALG_NONE;
 		return alg;
 	}
