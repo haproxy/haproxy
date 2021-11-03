@@ -2909,10 +2909,10 @@ static void quic_conn_free(struct quic_conn *conn)
 	free_quic_conn_cids(conn);
 
 	/* remove the connection from receiver cids trees */
-	HA_RWLOCK_WRLOCK(OTHER_LOCK, &conn->li->rx.cids_lock);
+	HA_RWLOCK_WRLOCK(QUIC_LOCK, &conn->li->rx.cids_lock);
 	ebmb_delete(&conn->odcid_node);
 	ebmb_delete(&conn->scid_node);
-	HA_RWLOCK_WRUNLOCK(OTHER_LOCK, &conn->li->rx.cids_lock);
+	HA_RWLOCK_WRUNLOCK(QUIC_LOCK, &conn->li->rx.cids_lock);
 
 	for (i = 0; i < QUIC_TLS_ENC_LEVEL_MAX; i++)
 		quic_conn_enc_level_uninit(&conn->els[i]);
@@ -3609,12 +3609,12 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 			/* Try to accept a new connection. */
 			listener_accept(l);
 
-			HA_RWLOCK_WRLOCK(OTHER_LOCK, &l->rx.cids_lock);
+			HA_RWLOCK_WRLOCK(QUIC_LOCK, &l->rx.cids_lock);
 			/* Insert the DCID the QUIC client has chosen (only for listeners) */
 			ebmb_insert(&l->rx.odcids, &qc->odcid_node, qc->odcid.len);
 			/* Insert our SCID, the connection ID for the QUIC client. */
 			n = ebmb_insert(&l->rx.cids, &qc->scid_node, qc->scid.len);
-			HA_RWLOCK_WRUNLOCK(OTHER_LOCK, &l->rx.cids_lock);
+			HA_RWLOCK_WRUNLOCK(QUIC_LOCK, &l->rx.cids_lock);
 			if (n != &qc->scid_node) {
 				quic_conn_free(qc);
 				qc = ebmb_entry(n, struct quic_conn, scid_node);
