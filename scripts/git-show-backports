@@ -28,7 +28,7 @@
 #   show-backports -q -m -r hapee-r2 hapee-r1
 
 
-USAGE="Usage: ${0##*/} [-q] [-H] [-m] [-u] [-r reference] [-l logexpr] [-s subject] [-b base] {branch|range} [...]"
+USAGE="Usage: ${0##*/} [-q] [-H] [-m] [-u] [-r reference] [-l logexpr] [-s subject] [-b base] {branch|range} [...] [-- file*]"
 BASES=( )
 BRANCHES=( )
 REF=master
@@ -163,6 +163,10 @@ done
 BRANCHES=( )
 BASES=( )
 while [ $# -gt 0 ]; do
+        if [ "$1" = "--" ]; then
+                shift
+                break
+        fi
 	branch="${1##*..}"
 	if [ "$branch" == "$1" ]; then
 		base=""
@@ -173,6 +177,9 @@ while [ $# -gt 0 ]; do
 	BRANCHES[${#BRANCHES[@]}]="$branch"
 	shift
 done
+
+# args left for git-log
+ARGS=( "$@" )
 
 if [ ${#BRANCHES[@]} = 0 ]; then
 	die "$USAGE"
@@ -200,7 +207,7 @@ mkdir -p .git/.show-backports #|| die "Can't create .git/.show-backports"
 WORK=.git/.show-backports
 
 rm -f "$WORK/${REF//\//_}"
-git log --reverse ${LOGEXPR:+--grep $LOGEXPR} --pretty="%H %s" "$BASE".."$REF" | grep "${SUBJECT}" > "$WORK/${REF//\//_}"
+git log --reverse ${LOGEXPR:+--grep $LOGEXPR} --pretty="%H %s" "$BASE".."$REF" -- "${ARGS[@]}" | grep "${SUBJECT}" > "$WORK/${REF//\//_}"
 
 # for each branch, enumerate all commits and their ancestry
 
@@ -210,7 +217,7 @@ while [ $branch_num -lt "${#BRANCHES[@]}" ]; do
 	base="${BASES[$branch_num]}"
 	base="${base:-$BASE}"
 	rm -f "$WORK/${branch//\//_}"
-	git log --reverse --pretty="%H %s" "$base".."$branch" | grep "${SUBJECT}" | while read h subject; do
+	git log --reverse --pretty="%H %s" "$base".."$branch" -- "${ARGS[@]}" | grep "${SUBJECT}" | while read h subject; do
 		echo -n "$h" $(git log -1 --pretty --format=%B "$h" | \
 			sed -n 's/^commit \([^)]*\) upstream\.$/\1/p;s/^(cherry picked from commit \([^)]*\))/\1/p')
 		if [ -n "$BODYHASH" ]; then
