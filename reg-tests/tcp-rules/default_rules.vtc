@@ -1,7 +1,6 @@
 varnishtest "Test declaration of TCP rules in default sections"
 
-#REQUIRE_VERSION=2.5
-
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.5-dev0)'"
 feature ignore_unknown_macro
 
 server s1 {
