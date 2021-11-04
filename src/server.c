@@ -2380,8 +2380,7 @@ struct server *srv_drop(struct server *srv)
 
 	EXTRA_COUNTERS_FREE(srv->extra_counters);
 
-	free(srv);
-	srv = NULL;
+	ha_free(&srv);
 
  end:
 	return next;

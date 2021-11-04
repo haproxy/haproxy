@@ -39,8 +39,7 @@ int check_action_rules(struct list *rules, struct proxy *px, int *err_code)
 			err++;
 		}
 		*err_code |= warnif_tcp_http_cond(px, rule->cond);
-		free(errmsg);
-		errmsg = NULL;
+		ha_free(&errmsg);
 	}
 
 	return err;

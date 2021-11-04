@@ -2506,8 +2506,7 @@ end:
 		appctx->ctx.ssl.new_cafile_entry = NULL;
 		appctx->ctx.ssl.old_cafile_entry = NULL;
 
-		free(appctx->ctx.ssl.path);
-		appctx->ctx.ssl.path = NULL;
+		ha_free(&appctx->ctx.ssl.path);
 
 		HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
 		return cli_dynerr(appctx, memprintf(&err, "%sCan't update %s!\n", err ? err : "", args[3]));
@@ -3225,8 +3224,7 @@ end:
 		appctx->ctx.ssl.new_crlfile_entry = NULL;
 		appctx->ctx.ssl.old_crlfile_entry = NULL;
 
-		free(appctx->ctx.ssl.path);
-		appctx->ctx.ssl.path = NULL;
+		ha_free(&appctx->ctx.ssl.path);
 
 		HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
 		return cli_dynerr(appctx, memprintf(&err, "%sCan't update %s!\n", err ? err : "", args[3]));
