@@ -146,8 +146,7 @@ static int __http_find_header(const struct htx *htx, const void *pattern, struct
 			goto next_blk;
 		/* Skip comma */
 		if (*(v.ptr) == ',') {
-			v.ptr++;
-			v.len--;
+			v = istnext(v);
 		}
 
 		goto return_hdr;
@@ -216,8 +215,7 @@ static int __http_find_header(const struct htx *htx, const void *pattern, struct
 		ctx->lws_before = 0;
 		ctx->lws_after = 0;
 		while (v.len && HTTP_IS_LWS(*v.ptr)) {
-			v.ptr++;
-			v.len--;
+			v = istnext(v);
 			ctx->lws_before++;
 		}
 		if (!(flags & HTTP_FIND_FL_FULL))
@@ -457,16 +455,14 @@ int http_replace_req_query(struct htx *htx, const struct ist query)
 	uri = htx_sl_req_uri(sl);
 	q = uri;
 	while (q.len > 0 && *(q.ptr) != '?') {
-		q.ptr++;
-		q.len--;
+		q = istnext(q);
 	}
 
 	/* skip the question mark or indicate that we must insert it
 	 * (but only if the format string is not empty then).
 	 */
 	if (q.len) {
-		q.ptr++;
-		q.len--;
+		q = istnext(q);
 	}
 	else if (query.len > 1)
 		offset = 0;

@@ -2180,49 +2180,49 @@ static int parse_encoding_value(struct ist encoding, unsigned int *encoding_valu
 
 	switch (*encoding.ptr) {
 	case 'a':
-		encoding = istadv(encoding, 1);
+		encoding = istnext(encoding);
 		*encoding_value = CHECK_ENCODING(encoding, "aes128gcm", VARY_ENCODING_AES128GCM);
 		break;
 	case 'b':
-		encoding = istadv(encoding, 1);
+		encoding = istnext(encoding);
 		*encoding_value = CHECK_ENCODING(encoding, "br", VARY_ENCODING_BR);
 		break;
 	case 'c':
-		encoding = istadv(encoding, 1);
+		encoding = istnext(encoding);
 		*encoding_value = CHECK_ENCODING(encoding, "compress", VARY_ENCODING_COMPRESS);
 		break;
 	case 'd':
-		encoding = istadv(encoding, 1);
+		encoding = istnext(encoding);
 		*encoding_value = CHECK_ENCODING(encoding, "deflate", VARY_ENCODING_DEFLATE);
 		break;
 	case 'e':
-		encoding = istadv(encoding, 1);
+		encoding = istnext(encoding);
 		*encoding_value = CHECK_ENCODING(encoding, "exi", VARY_ENCODING_EXI);
 		break;
 	case 'g':
-		encoding = istadv(encoding, 1);
+		encoding = istnext(encoding);
 		*encoding_value = CHECK_ENCODING(encoding, "gzip", VARY_ENCODING_GZIP);
 		break;
 	case 'i':
-		encoding = istadv(encoding, 1);
+		encoding = istnext(encoding);
 		*encoding_value = CHECK_ENCODING(encoding, "identity", VARY_ENCODING_IDENTITY);
 		break;
 	case 'p':
-		encoding = istadv(encoding, 1);
+		encoding = istnext(encoding);
 		*encoding_value = CHECK_ENCODING(encoding, "pack200-gzip", VARY_ENCODING_PACK200_GZIP);
 		break;
 	case 'x':
-		encoding = istadv(encoding, 1);
+		encoding = istnext(encoding);
 		*encoding_value = CHECK_ENCODING(encoding, "x-gzip", VARY_ENCODING_GZIP);
 		if (!*encoding_value)
 			*encoding_value = CHECK_ENCODING(encoding, "x-compress", VARY_ENCODING_COMPRESS);
 		break;
 	case 'z':
-		encoding = istadv(encoding, 1);
+		encoding = istnext(encoding);
 		*encoding_value = CHECK_ENCODING(encoding, "zstd", VARY_ENCODING_ZSTD);
 		break;
 	case '*':
-		encoding = istadv(encoding, 1);
+		encoding = istnext(encoding);
 		*encoding_value = VARY_ENCODING_STAR;
 		break;
 	default:
@@ -2238,7 +2238,7 @@ static int parse_encoding_value(struct ist encoding, unsigned int *encoding_valu
 				return -1;
 
 			if (has_null_weight) {
-				encoding = istadv(encoding, 1);
+				encoding = istnext(encoding);
 
 				encoding = http_trim_leading_spht(encoding);
 

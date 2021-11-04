@@ -183,7 +183,7 @@ static inline struct ist mqtt_read_1byte_int(struct ist parser, uint8_t *i)
 		return IST_NULL;
 	if (i)
 		*i = (uint8_t)*istptr(parser);
-	parser = istadv(parser, 1);
+	parser = istnext(parser);
 	return parser;
 }
 
