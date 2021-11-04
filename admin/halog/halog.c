@@ -551,7 +551,8 @@ int convert_date_to_timestamp(const char *field)
 	d = mo = y = h = m = s = 0;
 	e = field;
 
-	c = *(e++); // remove '['
+	e++; // remove '['
+
 	/* day + '/' */
 	while (1) {
 		c = *(e++) - '0';
@@ -1148,13 +1149,12 @@ int main(int argc, char **argv)
 		/* sort all timers */
 		for (f = 0; f < 5; f++) {
 			struct eb32_node *n;
-			int val;
 
-			val = 0;
 			n = eb32_first(&timers[f]);
 			while (n) {
 				int i;
 				double d;
+				int val;
 
 				t = container_of(n, struct timer, node);
 				last = n->key;
