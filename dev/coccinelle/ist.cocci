@@ -26,6 +26,22 @@ expression e;
 struct ist i;
 @@
 
+- i = istadv(i, 1);
++ i = istnext(i);
+
+@@
+struct ist i;
+expression e;
+@@
+
+- i.ptr++;
+- i.len--;
++ i = istnext(i);
+
+@@
+struct ist i;
+@@
+
 - i.ptr != NULL
 + isttest(i)
 
