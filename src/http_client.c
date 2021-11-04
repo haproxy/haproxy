@@ -557,6 +557,7 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 	struct htx_sl *sl = NULL;
 	int32_t pos;
 	uint32_t hdr_num;
+	int ret;
 
 
 	while (1) {
@@ -569,19 +570,27 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 
 			case HTTPCLIENT_S_REQ:
 				/* copy the request from the hc->req.buf buffer */
-				htx = htx_from_buf(&req->buf);
 				/* We now that it fits the content of a buffer so can
 				 * just push this entirely */
-				b_xfer(&req->buf, &hc->req.buf, b_data(&hc->req.buf));
-				channel_add_input(req, b_data(&req->buf));
-				appctx->st0 = HTTPCLIENT_S_REQ_BODY;
+				ret = b_xfer(&req->buf, &hc->req.buf, b_data(&hc->req.buf));
+				if (ret)
+					channel_add_input(req, b_data(&req->buf));
+
+				htx = htxbuf(&req->buf);
+				if (!htx)
+					goto more;
+
+				if (htx->flags & HTX_FL_EOM) /* check if a body need to be added */
+					appctx->st0 = HTTPCLIENT_S_RES_STLINE;
+				else
+					appctx->st0 = HTTPCLIENT_S_REQ_BODY;
+
 				goto more; /* we need to leave the IO handler once we wrote the request */
 			break;
 			case HTTPCLIENT_S_REQ_BODY:
 				/* call the payload callback */
 				{
 					if (hc->ops.req_payload) {
-						int ret;
 
 						ret = b_xfer(&req->buf, &hc->req.buf, b_data(&hc->req.buf));
 						if (ret)
