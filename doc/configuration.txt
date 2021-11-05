@@ -21268,7 +21268,7 @@ if required. Refer to section 8.2.5 "Custom log format" to see how to use this:
     log-format "%ci:%cp [%tr] %ft %b/%s %TR/%Tw/%Tc/%Tr/%Ta %ST %B %CC \
                %CS %tsc %ac/%fc/%bc/%sc/%rc %sq/%bq %hr %hs %{+Q}r \
                %[fc_err]/%[ssl_fc_err,hex]/%[ssl_c_err]/\
-               %[ssl_c_ca_err]/%[ssl_fc_is_resumed] %sslv/%sslc"
+               %[ssl_c_ca_err]/%[ssl_fc_is_resumed] %[ssl_fc_sni]/%sslv/%sslc"
 
 This format is basically the HTTP one (see section 8.2.3) with new fields
 appended to it. The new fields (lines 17 and 18) will be detailed here. For the
@@ -21288,7 +21288,8 @@ HTTP ones, refer to the HTTP section.
     >>> Feb  6 12:14:14 localhost \
           haproxy[14389]: 10.0.1.2:33317 [06/Feb/2009:12:14:14.655] https-in \
           static/srv1 10/0/30/69/109 200 2750 - - ---- 1/1/1/1/0 0/0 {1wt.eu} \
-          {} "GET /index.html HTTP/1.1" 0/0/0/0/0 TLSv1.3/TLS_AES_256_GCM_SHA384
+          {} "GET /index.html HTTP/1.1" 0/0/0/0/0 \
+          1wt.eu/TLSv1.3/TLS_AES_256_GCM_SHA384
 
   Field   Format                                  Extract from the example above
       1   process_name '[' pid ']:'                              haproxy[14389]:
@@ -21309,7 +21310,8 @@ HTTP ones, refer to the HTTP section.
      16   '"' http_request '"'                        "GET /index.html HTTP/1.1"
      17   fc_err '/' ssl_fc_err '/' ssl_c_err
           '/' ssl_c_ca_err '/' ssl_fc_is_resumed                       0/0/0/0/0
-     18   ssl_version '/' ssl_ciphers             TLSv1.3/TLS_AES_256_GCM_SHA384
+     18   ssl_fc_sni '/' ssl_version
+          '/' ssl_ciphers                  1wt.eu/TLSv1.3/TLS_AES_256_GCM_SHA384
 
 Detailed fields description :
   - "fc_err" is the status of the connection on the frontend's side. It
@@ -21335,6 +21337,12 @@ Detailed fields description :
   - "ssl_fc_is_resumed" is true if the incoming TLS session was resumed with
     the stateful cache or a stateless ticket. Don't forgot that a TLS session
     can be shared by multiple requests.
+
+  - "ssl_fc_sni" is the SNI (Server Name Indication) presented by the client
+    to select the certificate to be used. It usually matches the host name for
+    the first request of a connection. An absence of this field may indicate
+    that the SNI was not sent by the client, and will lead haproxy to use the
+    default certificate, or to reject the connection in case of strict-sni.
 
   - "ssl_version" is the SSL version of the frontend.
 
