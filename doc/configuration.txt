@@ -4424,14 +4424,12 @@ clitcpka-intvl <timeout>
 
 compression algo <algorithm> ...
 compression type <mime type> ...
-compression offload
   Enable HTTP compression.
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   yes
   Arguments :
     algo     is followed by the list of supported compression algorithms.
     type     is followed by the list of MIME types that will be compressed.
-    offload  makes HAProxy work as a compression offloader only (see notes).
 
   The currently supported algorithms are :
     identity     this is mostly for debugging, and it was useful for developing
@@ -4465,19 +4463,6 @@ compression offload
   there is Accept-Encoding header in request, HAProxy will compress the
   matching response.
 
-  The "offload" setting makes HAProxy remove the Accept-Encoding header to
-  prevent backend servers from compressing responses. It is strongly
-  recommended not to do this because this means that all the compression work
-  will be done on the single point where HAProxy is located. However in some
-  deployment scenarios, HAProxy may be installed in front of a buggy gateway
-  with broken HTTP compression implementation which can't be turned off.
-  In that case HAProxy can be used to prevent that gateway from emitting
-  invalid payloads. In this case, simply removing the header in the
-  configuration does not work because it applies before the header is parsed,
-  so that prevents HAProxy from compressing. The "offload" setting should
-  then be used for such scenarios. Note: for now, the "offload" setting is
-  ignored when set in a defaults section.
-
   Compression is disabled when:
     * the request does not advertise a supported compression algorithm in the
       "Accept-Encoding" header
@@ -4501,6 +4486,29 @@ compression offload
         compression algo gzip
         compression type text/html text/plain
 
+  See also : "compression offload"
+
+compression offload
+  Makes HAProxy work as a compression offloader only.
+  May be used in sections :   defaults | frontend | listen | backend
+                                 no    |    yes   |   yes  |   yes
+
+  The "offload" setting makes HAProxy remove the Accept-Encoding header to
+  prevent backend servers from compressing responses. It is strongly
+  recommended not to do this because this means that all the compression work
+  will be done on the single point where HAProxy is located. However in some
+  deployment scenarios, HAProxy may be installed in front of a buggy gateway
+  with broken HTTP compression implementation which can't be turned off.
+  In that case HAProxy can be used to prevent that gateway from emitting
+  invalid payloads. In this case, simply removing the header in the
+  configuration does not work because it applies before the header is parsed,
+  so that prevents HAProxy from compressing. The "offload" setting should
+  then be used for such scenarios.
+
+  If this setting is used in a defaults section, a warning is emitted and the
+  option is ignored.
+
+  See also : "compression type", "compression algo"
 
 cookie <name> [ rewrite | insert | prefix ] [ indirect ] [ nocache ]
               [ postonly ] [ preserve ] [ httponly ] [ secure ]
