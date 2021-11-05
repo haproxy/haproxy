@@ -92,19 +92,17 @@ static int new_quic_cli_conn(struct quic_conn *qc, struct listener *l,
                              struct sockaddr_storage *saddr)
 {
 	struct connection *cli_conn;
-	struct sockaddr_storage *dst;
 
-	dst = NULL;
 	if (unlikely((cli_conn = conn_new(&l->obj_type)) == NULL))
 		goto out;
 
-	if (!sockaddr_alloc(&dst, saddr, sizeof *saddr))
+	if (!sockaddr_alloc(&cli_conn->dst, saddr, sizeof *saddr))
 		goto out_free_conn;
 
+	cli_conn->flags |= CO_FL_ADDR_TO_SET;
 	qc->conn = cli_conn;
 	cli_conn->qc = qc;
 
-	cli_conn->dst = dst;
 	cli_conn->handle.fd = l->rx.fd;
 	cli_conn->target = &l->obj_type;
 
