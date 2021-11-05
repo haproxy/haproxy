@@ -1549,10 +1549,10 @@ smp_fetch_ssl_fc_session_key(const struct arg *args, struct sample *smp, const c
 }
 #endif
 
-#ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
 static int
 smp_fetch_ssl_fc_sni(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
+#ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
 	struct connection *conn;
 	SSL *ssl;
 
@@ -1570,8 +1570,11 @@ smp_fetch_ssl_fc_sni(const struct arg *args, struct sample *smp, const char *kw,
 
 	smp->data.u.str.data = strlen(smp->data.u.str.area);
 	return 1;
-}
+#else
+	/* SNI not supported */
+	return 0;
 #endif
+}
 
 /* binary, returns tls client hello cipher list.
  * Arguments: filter_option (0,1)
@@ -2190,9 +2193,7 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "ssl_fc_early_exporter_secret",           smp_fetch_ssl_x_keylog,       0,   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
 #endif
 
-#ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
 	{ "ssl_fc_sni",             smp_fetch_ssl_fc_sni,         0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
-#endif
 	{ "ssl_fc_cipherlist_bin",  smp_fetch_ssl_fc_cl_bin,      ARG1(0,SINT),        NULL,    SMP_T_STR,  SMP_USE_L5CLI },
 	{ "ssl_fc_cipherlist_hex",  smp_fetch_ssl_fc_cl_hex,      ARG1(0,SINT),        NULL,    SMP_T_BIN,  SMP_USE_L5CLI },
 	{ "ssl_fc_cipherlist_str",  smp_fetch_ssl_fc_cl_str,      ARG1(0,SINT),        NULL,    SMP_T_STR,  SMP_USE_L5CLI },
