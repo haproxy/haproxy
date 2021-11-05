@@ -105,33 +105,33 @@ syslog Slg_logconnerror -level info {
 
 syslog Slg_bcknd -level info {
     recv
-    expect ~ ".*bc_conn_err:0:\"Success\" ssl_bc_err:0:"
+    expect ~ ".*bc_err:0:\"Success\" ssl_bc_err:0:"
 
     barrier b2 sync
 
     recv
-    expect ~ ".*bc_conn_err:34:\"SSL handshake failure\" ssl_bc_err:134:.*:certificate verify failed"
+    expect ~ ".*bc_err:34:\"SSL handshake failure\" ssl_bc_err:134:.*:certificate verify failed"
 
     barrier b2 sync
 
     recv
-    expect ~ ".*bc_conn_err:32:\"Server presented an SSL certificate different from the configured one\" ssl_bc_err:134:.*:certificate verify failed"
+    expect ~ ".*bc_err:32:\"Server presented an SSL certificate different from the configured one\" ssl_bc_err:134:.*:certificate verify failed"
 
     barrier b2 sync
 
     # Verify errors on the server side cannot be caught when using TLSv1.3 but it works for TLSv1.2
     recv
-    expect ~ ".*bc_conn_err:34:\"SSL handshake failure\" ssl_bc_err:1048:.*:tlsv1 alert unknown ca"
+    expect ~ ".*bc_err:34:\"SSL handshake failure\" ssl_bc_err:1048:.*:tlsv1 alert unknown ca"
 
     barrier b2 sync
 
     recv
-    expect ~ ".*bc_conn_err:34:\"SSL handshake failure\" ssl_bc_err:1040:.*:sslv3 alert handshake failure"
+    expect ~ ".*bc_err:34:\"SSL handshake failure\" ssl_bc_err:1040:.*:sslv3 alert handshake failure"
 
     barrier b2 sync
 
     recv
-    expect ~ ".*bc_conn_err:34:\"SSL handshake failure\" ssl_bc_err:1040:.*:sslv3 alert handshake failure"
+    expect ~ ".*bc_err:34:\"SSL handshake failure\" ssl_bc_err:1040:.*:sslv3 alert handshake failure"
 } -start
 
 
@@ -172,12 +172,12 @@ haproxy h1 -conf {
         server logconnerror "${tmpdir}/logconnerror_ssl.sock"
 
 
-    # This listener will be used to test backend fetches (bc_conn_err and ssl_bc_err)
+    # This listener will be used to test backend fetches (bc_err and ssl_bc_err)
     listen clear_backend_errors_lst
         bind "fd@${backenderrorslst}"
         log ${Slg_bcknd_addr}:${Slg_bcknd_port} local0
-        log-format "bc_conn_err:%[bc_conn_err]:%{+Q}[bc_conn_err_str]\ ssl_bc_err:%[ssl_bc_err,and(proc.ssl_error_mask)]:%{+Q}[ssl_bc_err_str]"
-        error-log-format "ERROR bc_conn_err:%[bc_conn_err]:%{+Q}[bc_conn_err_str]\ ssl_bc_err:%[ssl_bc_err,and(proc.ssl_error_mask)]:%[ssl_bc_err_str]"
+        log-format "bc_err:%[bc_err]:%{+Q}[bc_err_str]\ ssl_bc_err:%[ssl_bc_err,and(proc.ssl_error_mask)]:%{+Q}[ssl_bc_err_str]"
+        error-log-format "ERROR bc_err:%[bc_err]:%{+Q}[bc_err_str]\ ssl_bc_err:%[ssl_bc_err,and(proc.ssl_error_mask)]:%[ssl_bc_err_str]"
 
         balance roundrobin
         server no_err "${tmpdir}/no_err_ssl.sock" ssl crt ${testdir}/set_cafile_client.pem ca-file ${testdir}/set_cafile_interCA2.crt verify required
@@ -203,8 +203,8 @@ haproxy h1 -conf {
     listen cust_logfmt_ssl_lst
         log ${Slg_cust_fmt_addr}:${Slg_cust_fmt_port} local0
         mode http
-        log-format "conn_status:\"%[fc_conn_err]:%[fc_conn_err_str]\" hsk_err:\"%[ssl_fc_err]:%[ssl_fc_err_str]\" CN=%{+Q}[ssl_c_s_dn],serial=%[ssl_c_serial,hex],hash=%[ssl_c_sha1,hex]"
-        error-log-format "ERROR conn_status:\"%[fc_conn_err]:%[fc_conn_err_str]\" hsk_err:\"%[ssl_fc_err,and(proc.ssl_error_mask)]:%[ssl_fc_err_str]\" CN=%{+Q}[ssl_c_s_dn],serial=%[ssl_c_serial,hex],hash=%[ssl_c_sha1,hex]"
+        log-format "conn_status:\"%[fc_err]:%[fc_err_str]\" hsk_err:\"%[ssl_fc_err]:%[ssl_fc_err_str]\" CN=%{+Q}[ssl_c_s_dn],serial=%[ssl_c_serial,hex],hash=%[ssl_c_sha1,hex]"
+        error-log-format "ERROR conn_status:\"%[fc_err]:%[fc_err_str]\" hsk_err:\"%[ssl_fc_err,and(proc.ssl_error_mask)]:%[ssl_fc_err_str]\" CN=%{+Q}[ssl_c_s_dn],serial=%[ssl_c_serial,hex],hash=%[ssl_c_sha1,hex]"
         bind "${tmpdir}/cust_logfmt_ssl.sock" ssl crt ${testdir}/set_cafile_server.pem ca-verify-file ${testdir}/set_cafile_rootCA.crt ca-file ${testdir}/set_cafile_interCA1.crt verify required ciphers "kRSA"
         server s1 ${s1_addr}:${s1_port}
 
@@ -214,7 +214,7 @@ haproxy h1 -conf {
         option log-separate-errors
         mode http
         option httpslog
-        error-log-format "ERROR %ci:%cp [%tr] %ft %b/%s %TR/%Tw/%Tc/%Tr/%Ta %ST %B %CC %CS %tsc %ac/%fc/%bc/%sc/%rc %sq/%bq %hr %hs %{+Q}r %[fc_conn_err]/%[ssl_fc_err,and(proc.ssl_error_mask),hex]/%[ssl_c_err]/%[ssl_c_ca_err]/%[ssl_fc_is_resumed] %sslv/%sslc"
+        error-log-format "ERROR %ci:%cp [%tr] %ft %b/%s %TR/%Tw/%Tc/%Tr/%Ta %ST %B %CC %CS %tsc %ac/%fc/%bc/%sc/%rc %sq/%bq %hr %hs %{+Q}r %[fc_err]/%[ssl_fc_err,and(proc.ssl_error_mask),hex]/%[ssl_c_err]/%[ssl_c_ca_err]/%[ssl_fc_is_resumed] %sslv/%sslc"
         bind "${tmpdir}/https_logfmt_ssl.sock" ssl crt ${testdir}/set_cafile_server.pem ca-verify-file ${testdir}/set_cafile_rootCA.crt ca-file ${testdir}/set_cafile_interCA1.crt verify required ciphers "kRSA"
         server s1 ${s1_addr}:${s1_port}
 

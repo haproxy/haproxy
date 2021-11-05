@@ -17976,17 +17976,6 @@ table may be specified with the "sc*" form, in which case the currently
 tracked key will be looked up into this alternate table instead of the table
 currently being tracked.
 
-bc_conn_err : integer
-  Returns the ID of the error that might have occurred on the current backend
-  connection. See the "fc_conn_err_str" fetch for a full list of error codes
-  and their corresponding error message.
-
-bc_conn_err_str : string
-  Returns an error message describing what problem happened on the current
-  backend connection, resulting in a connection failure. See the
-  "fc_conn_err_str" fetch for a full list of error codes and their
-  corresponding error message.
-
 bc_dst : ip
   This is the destination ip address of the connection on the server side,
   which is the server address HAProxy connected to. It is of type IP and works
@@ -17996,6 +17985,17 @@ bc_dst : ip
 bc_dst_port : integer
   Returns an integer value corresponding to the destination TCP port of the
   connection on the server side, which is the port HAProxy connected to.
+
+bc_err : integer
+  Returns the ID of the error that might have occurred on the current backend
+  connection. See the "fc_err_str" fetch for a full list of error codes
+  and their corresponding error message.
+
+bc_err_str : string
+  Returns an error message describing what problem happened on the current
+  backend connection, resulting in a connection failure. See the
+  "fc_err_str" fetch for a full list of error codes and their
+  corresponding error message.
 
 bc_http_major : integer
   Returns the backend connection's HTTP major version encoding, which may be 1
@@ -18083,14 +18083,29 @@ dst_port : integer
   application session, to stick all users to a same server, or to pass the
   destination port information to a server using an HTTP header.
 
-fc_conn_err : integer
+fc_dst : ip
+  This is the original destination IP address of the connection on the client
+  side. Only "tcp-request connection" rules may alter this address. See "dst"
+  for details.
+
+fc_dst_is_local : boolean
+  Returns true if the original destination address of the incoming connection
+  is local to the system, or false if the address doesn't exist on the
+  system. See "dst_is_local" for details.
+
+fc_dst_port : integer
+  Returns an integer value corresponding to the original destination TCP port
+  of the connection on the client side. Only "tcp-request connection" rules may
+  alter this address. See "dst-port" for details.
+
+fc_err : integer
   Returns the ID of the error that might have occurred on the current
   connection. Any strictly positive value of this fetch indicates that the
   connection did not succeed and would result in an error log being output (as
-  described in section 8.2.5). See the "fc_conn_err_str" fetch for a full list of
+  described in section 8.2.5). See the "fc_err_str" fetch for a full list of
   error codes and their corresponding error message.
 
-fc_conn_err_str : string
+fc_err_str : string
   Returns an error message describing what problem happened on the current
   connection, resulting in a connection failure. This string corresponds to the
   "message" part of the error log format (see section 8.2.5). See below for a
@@ -18144,21 +18159,6 @@ fc_conn_err_str : string
   | 42 | "SOCKS4 Proxy handshake aborted by server"                                |
   | 43 | "SSL fatal error"                                                         |
   +----+---------------------------------------------------------------------------+
-
-fc_dst : ip
-  This is the original destination IP address of the connection on the client
-  side. Only "tcp-request connection" rules may alter this address. See "dst"
-  for details.
-
-fc_dst_is_local : boolean
-  Returns true if the original destination address of the incoming connection
-  is local to the system, or false if the address doesn't exist on the
-  system. See "dst_is_local" for details.
-
-fc_dst_port : integer
-  Returns an integer value corresponding to the original destination TCP port
-  of the connection on the client side. Only "tcp-request connection" rules may
-  alter this address. See "dst-port" for details.
 
 fc_fackets : integer
   Returns the fack counter measured by the kernel for the client
@@ -21272,14 +21272,14 @@ HTTP ones, refer to the HTTP section.
      14   '{' captured_request_headers* '}'                     {haproxy.1wt.eu}
      15   '{' captured_response_headers* '}'                                  {}
      16   '"' http_request '"'                        "GET /index.html HTTP/1.1"
-     17   fc_conn_err '/' ssl_fc_err '/' ssl_c_err
+     17   fc_err '/' ssl_fc_err '/' ssl_c_err
           '/' ssl_c_ca_err '/' ssl_fc_is_resumed                       0/0/0/0/0
      18   ssl_version '/' ssl_ciphers             TLSv1.3/TLS_AES_256_GCM_SHA384
 
 Detailed fields description :
-  - "fc_conn_err" is the status of the connection on the frontend's side. It
-    corresponds to the "fc_conn_err" sample fetch. See the "fc_conn_err" and
-    "fc_conn_err_str" fetches for more information.
+  - "fc_err" is the status of the connection on the frontend's side. It
+    corresponds to the "fc_err" sample fetch. See the "fc_err" and "fc_err_str"
+    sample fetch functions for more information.
 
   - "ssl_fc_err" is the last error of the first SSL error stack that was
     raised on the connection from the frontend's perspective. It might be used
@@ -21364,7 +21364,7 @@ the default HTTPS format is defined this way :
 
     log-format "%ci:%cp [%tr] %ft %b/%s %TR/%Tw/%Tc/%Tr/%Ta %ST %B %CC \
                %CS %tsc %ac/%fc/%bc/%sc/%rc %sq/%bq %hr %hs %{+Q}r \
-               %[fc_conn_err]/%[ssl_fc_err,hex]/%[ssl_c_err]/\
+               %[fc_err]/%[ssl_fc_err,hex]/%[ssl_c_err]/\
                %[ssl_c_ca_err]/%[ssl_fc_is_resumed] %sslv/%sslc"
 
 and the default TCP format is defined this way :

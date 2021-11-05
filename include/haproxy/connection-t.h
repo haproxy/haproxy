@@ -199,8 +199,8 @@ enum {
 
 /* Possible connection error codes.
  * Warning: Do not reorder the codes, they are fetchable through the
- * "fc_conn_err" sample fetch. If a new code is added, please add an error label
- * in conn_err_code_str and in the "fc_conn_err_str" sample fetch documentation.
+ * "fc_err" sample fetch. If a new code is added, please add an error label
+ * in conn_err_code_str and in the "fc_err_str" sample fetch documentation.
  */
 enum {
 	CO_ER_NONE,             /* no error */

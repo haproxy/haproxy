@@ -2131,7 +2131,7 @@ int smp_fetch_fc_pp_unique_id(const struct arg *args, struct sample *smp, const 
 }
 
 /* fetch the error code of a connection */
-int smp_fetch_fc_conn_err(const struct arg *args, struct sample *smp, const char *kw, void *private)
+int smp_fetch_fc_err(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct connection *conn;
 
@@ -2157,7 +2157,7 @@ int smp_fetch_fc_conn_err(const struct arg *args, struct sample *smp, const char
 }
 
 /* fetch a string representation of the error code of a connection */
-int smp_fetch_fc_conn_err_str(const struct arg *args, struct sample *smp, const char *kw, void *private)
+int smp_fetch_fc_err_str(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct connection *conn;
 	const char *err_code_str;
@@ -2195,15 +2195,15 @@ int smp_fetch_fc_conn_err_str(const struct arg *args, struct sample *smp, const 
  * instance v4/v6 must be declared v4.
  */
 static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
-	{ "fc_http_major", smp_fetch_fc_http_major, 0, NULL, SMP_T_SINT, SMP_USE_L4CLI },
+	{ "bc_err", smp_fetch_fc_err, 0, NULL, SMP_T_SINT, SMP_USE_L4SRV },
+	{ "bc_err_str", smp_fetch_fc_err_str, 0, NULL, SMP_T_STR, SMP_USE_L4SRV },
 	{ "bc_http_major", smp_fetch_fc_http_major, 0, NULL, SMP_T_SINT, SMP_USE_L4SRV },
+	{ "fc_err", smp_fetch_fc_err, 0, NULL, SMP_T_SINT, SMP_USE_L4CLI },
+	{ "fc_err_str", smp_fetch_fc_err_str, 0, NULL, SMP_T_STR, SMP_USE_L4CLI },
+	{ "fc_http_major", smp_fetch_fc_http_major, 0, NULL, SMP_T_SINT, SMP_USE_L4CLI },
 	{ "fc_rcvd_proxy", smp_fetch_fc_rcvd_proxy, 0, NULL, SMP_T_BOOL, SMP_USE_L4CLI },
 	{ "fc_pp_authority", smp_fetch_fc_pp_authority, 0, NULL, SMP_T_STR, SMP_USE_L4CLI },
 	{ "fc_pp_unique_id", smp_fetch_fc_pp_unique_id, 0, NULL, SMP_T_STR, SMP_USE_L4CLI },
-	{ "fc_conn_err", smp_fetch_fc_conn_err, 0, NULL, SMP_T_SINT, SMP_USE_L4CLI },
-	{ "fc_conn_err_str", smp_fetch_fc_conn_err_str, 0, NULL, SMP_T_STR, SMP_USE_L4CLI },
-	{ "bc_conn_err", smp_fetch_fc_conn_err, 0, NULL, SMP_T_SINT, SMP_USE_L4SRV },
-	{ "bc_conn_err_str", smp_fetch_fc_conn_err_str, 0, NULL, SMP_T_STR, SMP_USE_L4SRV },
 	{ /* END */ },
 }};
 
