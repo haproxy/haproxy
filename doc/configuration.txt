@@ -20811,9 +20811,18 @@ environments with long sessions such as remote terminals. Sessions which match
 the "monitor" rules are never logged. It is also possible not to emit logs for
 sessions for which no data were exchanged between the client and the server, by
 specifying "option dontlognull" in the frontend. Successful connections will
-not be logged if "option dontlog-normal" is specified in the frontend. A few
-fields may slightly vary depending on some configuration options, those are
-marked with a star ('*') after the field name below.
+not be logged if "option dontlog-normal" is specified in the frontend.
+
+The TCP log format is internally declared as a custom log format based on the
+exact following string, which may also be used as a basis to extend the format
+if required. Refer to section 8.2.5 "Custom log format" to see how to use this:
+
+    # strict equivalent of "option tcplog"
+    log-format "%ci:%cp [%t] %ft %b/%s %Tw/%Tc/%Tt %B %ts \
+                %ac/%fc/%bc/%sc/%rc %sq/%bq"
+
+A few fields may slightly vary depending on some configuration options, those
+are marked with a star ('*') after the field name below.
 
   Example :
         frontend fnt
@@ -20986,6 +20995,22 @@ generally only makes sense for download sites. A session which matches the
 which no data were sent by the client by specifying "option dontlognull" in the
 frontend. Successful connections will not be logged if "option dontlog-normal"
 is specified in the frontend.
+
+The HTTP log format is internally declared as a custom log format based on the
+exact following string, which may also be used as a basis to extend the format
+if required. Refer to section 8.2.5 "Custom log format" to see how to use this:
+
+    # strict equivalent of "option httplog"
+    log-format "%ci:%cp [%tr] %ft %b/%s %TR/%Tw/%Tc/%Tr/%Ta %ST %B %CC \
+                %CS %tsc %ac/%fc/%bc/%sc/%rc %sq/%bq %hr %hs %{+Q}r"
+
+And the CLF log format is internally declared as a custom log format based on
+this exact string:
+
+    # strict equivalent of "option httplog clf"
+    log-format "%{+Q}o %{-Q}ci - - [%trg] %r %ST %B \"\" \"\" %cp \
+                %ms %ft %b %s %TR %Tw %Tc %Tr %Ta %tsc %ac %fc \
+                %bc %sc %rc %sq %bq %CC %CS %hrl %hsl"
 
 Most fields are shared with the TCP log, some being different. A few fields may
 slightly vary depending on some configuration options. Those ones are marked
@@ -21235,6 +21260,16 @@ sessions for which no data were sent by the client by specifying "option
 dontlognull" in the frontend. Successful connections will not be logged if
 "option dontlog-normal" is specified in the frontend.
 
+The HTTPS log format is internally declared as a custom log format based on the
+exact following string, which may also be used as a basis to extend the format
+if required. Refer to section 8.2.5 "Custom log format" to see how to use this:
+
+    # strict equivalent of "option httpslog"
+    log-format "%ci:%cp [%tr] %ft %b/%s %TR/%Tw/%Tc/%Tr/%Ta %ST %B %CC \
+               %CS %tsc %ac/%fc/%bc/%sc/%rc %sq/%bq %hr %hs %{+Q}r \
+               %[fc_err]/%[ssl_fc_err,hex]/%[ssl_c_err]/\
+               %[ssl_c_ca_err]/%[ssl_fc_is_resumed] %sslv/%sslc"
+
 This format is basically the HTTP one (see section 8.2.3) with new fields
 appended to it. The new fields (lines 17 and 18) will be detailed here. For the
 HTTP ones, refer to the HTTP section.
@@ -21309,8 +21344,12 @@ Detailed fields description :
 8.2.5. Custom log format
 ------------------------
 
-The directive log-format allows you to customize the logs in http mode and tcp
-mode. It takes a string as argument.
+When the default log formats are not sufficient, it is possible to define new
+ones in very fine details. As creating a log-format from scratch is not always
+a trivial task, it is strongly recommended to first have a look at the existing
+formats ("option tcplog", "option httplog", "option httpslog"), pick the one
+looking the closest to the expectation, copy its "log-format" equivalent string
+and adjust it.
 
 HAProxy understands some log format variables. % precedes log format variables.
 Variables can take arguments using braces ('{}'), and multiple arguments are
@@ -21348,29 +21387,6 @@ Flags are :
     log-format %{+Q}o\ %t\ %s\ %{-Q}r
 
     log-format-sd %{+Q,+E}o\ [exampleSDID@1234\ header=%[capture.req.hdr(0)]]
-
-At the moment, the default HTTP format is defined this way :
-
-    log-format "%ci:%cp [%tr] %ft %b/%s %TR/%Tw/%Tc/%Tr/%Ta %ST %B %CC \
-                %CS %tsc %ac/%fc/%bc/%sc/%rc %sq/%bq %hr %hs %{+Q}r"
-
-the default CLF format is defined this way :
-
-    log-format "%{+Q}o %{-Q}ci - - [%trg] %r %ST %B \"\" \"\" %cp \
-                %ms %ft %b %s %TR %Tw %Tc %Tr %Ta %tsc %ac %fc \
-                %bc %sc %rc %sq %bq %CC %CS %hrl %hsl"
-
-the default HTTPS format is defined this way :
-
-    log-format "%ci:%cp [%tr] %ft %b/%s %TR/%Tw/%Tc/%Tr/%Ta %ST %B %CC \
-               %CS %tsc %ac/%fc/%bc/%sc/%rc %sq/%bq %hr %hs %{+Q}r \
-               %[fc_err]/%[ssl_fc_err,hex]/%[ssl_c_err]/\
-               %[ssl_c_ca_err]/%[ssl_fc_is_resumed] %sslv/%sslc"
-
-and the default TCP format is defined this way :
-
-    log-format "%ci:%cp [%t] %ft %b/%s %Tw/%Tc/%Tt %B %ts \
-                %ac/%fc/%bc/%sc/%rc %sq/%bq"
 
 Please refer to the table below for currently defined variables :
 
