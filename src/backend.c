@@ -846,18 +846,18 @@ static int alloc_dst_address(struct sockaddr_storage **ss,
 
 		**ss = srv->addr;
 		set_host_port(*ss, srv->svc_port);
-		dst = si_dst(&s->si[0]);
-		if (!is_addr(*ss) && dst) {
+		if (!is_addr(*ss)) {
 			/* if the server has no address, we use the same address
 			 * the client asked, which is handy for remapping ports
 			 * locally on multiple addresses at once. Nothing is done
 			 * for AF_UNIX addresses.
 			 */
-			if (dst->ss_family == AF_INET) {
+			dst = si_dst(&s->si[0]);
+			if (dst && dst->ss_family == AF_INET) {
 				((struct sockaddr_in *)*ss)->sin_family = AF_INET;
 				((struct sockaddr_in *)*ss)->sin_addr =
 				  ((struct sockaddr_in *)dst)->sin_addr;
-			} else if (dst->ss_family == AF_INET6) {
+			} else if (dst && dst->ss_family == AF_INET6) {
 				((struct sockaddr_in6 *)*ss)->sin6_family = AF_INET6;
 				((struct sockaddr_in6 *)*ss)->sin6_addr =
 				  ((struct sockaddr_in6 *)dst)->sin6_addr;
@@ -866,15 +866,18 @@ static int alloc_dst_address(struct sockaddr_storage **ss,
 
 		/* if this server remaps proxied ports, we'll use
 		 * the port the client connected to with an offset. */
-		if ((srv->flags & SRV_F_MAPPORTS) && dst) {
+		if ((srv->flags & SRV_F_MAPPORTS)) {
 			int base_port;
 
-			/* First, retrieve the port from the incoming connection */
-			base_port = get_host_port(dst);
+			dst = si_dst(&s->si[0]);
+			if (dst) {
+				/* First, retrieve the port from the incoming connection */
+				base_port = get_host_port(dst);
 
-			/* Second, assign the outgoing connection's port */
-			base_port += get_host_port(*ss);
-			set_host_port(*ss, base_port);
+				/* Second, assign the outgoing connection's port */
+				base_port += get_host_port(*ss);
+				set_host_port(*ss, base_port);
+			}
 		}
 	}
 	else if (s->be->options & PR_O_DISPATCH) {
@@ -885,12 +888,12 @@ static int alloc_dst_address(struct sockaddr_storage **ss,
 		**ss = s->be->dispatch_addr;
 	}
 	else if ((s->be->options & PR_O_TRANSP)) {
-		dst = si_dst(&s->si[0]);
-		if (!dst || !sockaddr_alloc(ss, NULL, 0))
+		if (!sockaddr_alloc(ss, NULL, 0))
 			return SRV_STATUS_INTERNAL;
 
 		/* in transparent mode, use the original dest addr if no dispatch specified */
-		if ((dst->ss_family == AF_INET || dst->ss_family == AF_INET6))
+		dst = si_dst(&s->si[0]);
+		if (dst && (dst->ss_family == AF_INET || dst->ss_family == AF_INET6))
 			**ss = *dst;
 	}
 	else {
