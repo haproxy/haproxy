@@ -21477,14 +21477,12 @@ Please refer to the table below for currently defined variables :
 When an incoming connection fails due to an SSL handshake or an invalid PROXY
 protocol header, HAProxy will log the event using a shorter, fixed line format,
 unless a dedicated error log format is defined through an "error-log-format"
-line. In the latter case, the legacy log format described below will not be
-used anymore, and all error log lines will follow the defined format.
-By default, logs are emitted at the LOG_INFO level, unless the option
+line. By default, logs are emitted at the LOG_INFO level, unless the option
 "log-separate-errors" is set in the backend, in which case the LOG_ERR level
 will be used. Connections on which no data are exchanged (e.g. probes) are not
 logged if the "dontlognull" option is set.
 
-The format looks like this :
+The default format looks like this :
 
     >>> Dec  3 18:27:14 localhost \
           haproxy[6103]: 127.0.0.1:56059 [03/Dec/2012:17:35:10.380] frt/f1: \
@@ -21499,6 +21497,29 @@ The format looks like this :
 
 These fields just provide minimal information to help debugging connection
 failures.
+
+By using the "error-log-format" directive, the legacy log format described
+above will not be used anymore, and all error log lines will follow the
+defined format.
+
+An example of reasonably complete error-log-format follows, it will report the
+source address and port, the connection accept() date, the frontend name, the
+number of active connections on the process and on thit frontend, haproxy's
+internal error identifier on the front connection, the hexadecimal OpenSSL
+error number (that can be copy-pasted to "openssl errstr" for full decoding),
+the client certificate extraction status (0 indicates no error), the client
+certificate validation status using the CA (0 indicates no error), a boolean
+indicating if the connection is new or was resumed, the optional server name
+indication (SNI) provided by the client, the SSL version name and the SSL
+ciphers used on the connection, if any. Note that backend connection errors
+are never reported here since in order for a backend connection to fail, it
+would have passed through a successful stream, hence will be available as
+regular traffic log (see option httplog or option httpslog).
+
+   # detailed frontend connection error log
+   error-log-format "%ci:%cp [%tr] %ft %ac/%fc %[fc_conn_err]/\
+         %[ssl_fc_err,hex]/%[ssl_c_err]/%[ssl_c_ca_err]/%[ssl_fc_is_resumed] \
+         %[ssl_fc_sni]/%sslv/%sslc"
 
 
 8.3. Advanced logging options
