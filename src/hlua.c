@@ -7089,7 +7089,7 @@ struct http_hdr *hlua_httpclient_table_to_hdrs(lua_State *L)
 
 	if (hdr_num) {
 		/* alloc and copy the headers in the httpclient struct */
-		result = calloc((hdr_num + 1), sizeof(*hdrs));
+		result = calloc((hdr_num + 1), sizeof(*result));
 		if (!result)
 			goto skip_headers;
 		memcpy(result, hdrs, sizeof(struct http_hdr) * (hdr_num + 1));

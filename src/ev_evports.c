@@ -293,7 +293,7 @@ static int init_evports_per_thread()
 	int fd;
 
 	evports_evlist_max = global.tune.maxpollevents;
-	evports_evlist = calloc(evports_evlist_max, sizeof (port_event_t));
+	evports_evlist = calloc(evports_evlist_max, sizeof(*evports_evlist));
 	if (evports_evlist == NULL) {
 		goto fail_alloc;
 	}
