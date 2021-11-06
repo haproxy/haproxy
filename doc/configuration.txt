@@ -100,8 +100,8 @@ Summary
 8.2.2.        TCP log format
 8.2.3.        HTTP log format
 8.2.4.        HTTPS log format
-8.2.5.        Custom log format
-8.2.6.        Error log format
+8.2.5.        Error log format
+8.2.6.        Custom log format
 8.3.      Advanced logging options
 8.3.1.        Disabling logging of external tests
 8.3.2.        Logging before waiting for the session to terminate
@@ -5072,7 +5072,8 @@ error-log-format <string>
   containing information related to errors, timeouts, retries redispatches or
   HTTP status code 5xx. This format will in short be used for every log line
   that would be concerned by the "log-separate-errors" option, including
-  connection errors described in section 8.2.6..
+  connection errors described in section 8.2.5.
+
   If the directive is used in a defaults section, all subsequent frontends will
   use the same log format. Please see section 8.2.4 which covers the log format
   string in depth.
@@ -18102,13 +18103,13 @@ fc_err : integer
   Returns the ID of the error that might have occurred on the current
   connection. Any strictly positive value of this fetch indicates that the
   connection did not succeed and would result in an error log being output (as
-  described in section 8.2.5). See the "fc_err_str" fetch for a full list of
+  described in section 8.2.6). See the "fc_err_str" fetch for a full list of
   error codes and their corresponding error message.
 
 fc_err_str : string
   Returns an error message describing what problem happened on the current
   connection, resulting in a connection failure. This string corresponds to the
-  "message" part of the error log format (see section 8.2.5). See below for a
+  "message" part of the error log format (see section 8.2.6). See below for a
   full list of error codes and their corresponding error messages :
 
   +----+---------------------------------------------------------------------------+
@@ -20815,7 +20816,7 @@ not be logged if "option dontlog-normal" is specified in the frontend.
 
 The TCP log format is internally declared as a custom log format based on the
 exact following string, which may also be used as a basis to extend the format
-if required. Refer to section 8.2.5 "Custom log format" to see how to use this:
+if required. Refer to section 8.2.6 "Custom log format" to see how to use this:
 
     # strict equivalent of "option tcplog"
     log-format "%ci:%cp [%t] %ft %b/%s %Tw/%Tc/%Tt %B %ts \
@@ -20998,7 +20999,7 @@ is specified in the frontend.
 
 The HTTP log format is internally declared as a custom log format based on the
 exact following string, which may also be used as a basis to extend the format
-if required. Refer to section 8.2.5 "Custom log format" to see how to use this:
+if required. Refer to section 8.2.6 "Custom log format" to see how to use this:
 
     # strict equivalent of "option httplog"
     log-format "%ci:%cp [%tr] %ft %b/%s %TR/%Tw/%Tc/%Tr/%Ta %ST %B %CC \
@@ -21262,7 +21263,7 @@ dontlognull" in the frontend. Successful connections will not be logged if
 
 The HTTPS log format is internally declared as a custom log format based on the
 exact following string, which may also be used as a basis to extend the format
-if required. Refer to section 8.2.5 "Custom log format" to see how to use this:
+if required. Refer to section 8.2.6 "Custom log format" to see how to use this:
 
     # strict equivalent of "option httpslog"
     log-format "%ci:%cp [%tr] %ft %b/%s %TR/%Tw/%Tc/%Tr/%Ta %ST %B %CC \
@@ -21349,7 +21350,58 @@ Detailed fields description :
   - "ssl_ciphers" is the SSL cipher used for the connection.
 
 
-8.2.5. Custom log format
+8.2.5. Error log format
+-----------------------
+
+When an incoming connection fails due to an SSL handshake or an invalid PROXY
+protocol header, HAProxy will log the event using a shorter, fixed line format,
+unless a dedicated error log format is defined through an "error-log-format"
+line. By default, logs are emitted at the LOG_INFO level, unless the option
+"log-separate-errors" is set in the backend, in which case the LOG_ERR level
+will be used. Connections on which no data are exchanged (e.g. probes) are not
+logged if the "dontlognull" option is set.
+
+The default format looks like this :
+
+    >>> Dec  3 18:27:14 localhost \
+          haproxy[6103]: 127.0.0.1:56059 [03/Dec/2012:17:35:10.380] frt/f1: \
+          Connection error during SSL handshake
+
+  Field   Format                                Extract from the example above
+      1   process_name '[' pid ']:'                             haproxy[6103]:
+      2   client_ip ':' client_port                            127.0.0.1:56059
+      3   '[' accept_date ']'                       [03/Dec/2012:17:35:10.380]
+      4   frontend_name "/" bind_name ":"                              frt/f1:
+      5   message                        Connection error during SSL handshake
+
+These fields just provide minimal information to help debugging connection
+failures.
+
+By using the "error-log-format" directive, the legacy log format described
+above will not be used anymore, and all error log lines will follow the
+defined format.
+
+An example of reasonably complete error-log-format follows, it will report the
+source address and port, the connection accept() date, the frontend name, the
+number of active connections on the process and on thit frontend, haproxy's
+internal error identifier on the front connection, the hexadecimal OpenSSL
+error number (that can be copy-pasted to "openssl errstr" for full decoding),
+the client certificate extraction status (0 indicates no error), the client
+certificate validation status using the CA (0 indicates no error), a boolean
+indicating if the connection is new or was resumed, the optional server name
+indication (SNI) provided by the client, the SSL version name and the SSL
+ciphers used on the connection, if any. Note that backend connection errors
+are never reported here since in order for a backend connection to fail, it
+would have passed through a successful stream, hence will be available as
+regular traffic log (see option httplog or option httpslog).
+
+   # detailed frontend connection error log
+   error-log-format "%ci:%cp [%tr] %ft %ac/%fc %[fc_conn_err]/\
+         %[ssl_fc_err,hex]/%[ssl_c_err]/%[ssl_c_ca_err]/%[ssl_fc_is_resumed] \
+         %[ssl_fc_sni]/%sslv/%sslc"
+
+
+8.2.6. Custom log format
 ------------------------
 
 When the default log formats are not sufficient, it is possible to define new
@@ -21469,57 +21521,6 @@ Please refer to the table below for currently defined variables :
   +---+------+-----------------------------------------------+-------------+
 
     R = Restrictions : H = mode http only ; S = SSL only
-
-
-8.2.6. Error log format
------------------------
-
-When an incoming connection fails due to an SSL handshake or an invalid PROXY
-protocol header, HAProxy will log the event using a shorter, fixed line format,
-unless a dedicated error log format is defined through an "error-log-format"
-line. By default, logs are emitted at the LOG_INFO level, unless the option
-"log-separate-errors" is set in the backend, in which case the LOG_ERR level
-will be used. Connections on which no data are exchanged (e.g. probes) are not
-logged if the "dontlognull" option is set.
-
-The default format looks like this :
-
-    >>> Dec  3 18:27:14 localhost \
-          haproxy[6103]: 127.0.0.1:56059 [03/Dec/2012:17:35:10.380] frt/f1: \
-          Connection error during SSL handshake
-
-  Field   Format                                Extract from the example above
-      1   process_name '[' pid ']:'                             haproxy[6103]:
-      2   client_ip ':' client_port                            127.0.0.1:56059
-      3   '[' accept_date ']'                       [03/Dec/2012:17:35:10.380]
-      4   frontend_name "/" bind_name ":"                              frt/f1:
-      5   message                        Connection error during SSL handshake
-
-These fields just provide minimal information to help debugging connection
-failures.
-
-By using the "error-log-format" directive, the legacy log format described
-above will not be used anymore, and all error log lines will follow the
-defined format.
-
-An example of reasonably complete error-log-format follows, it will report the
-source address and port, the connection accept() date, the frontend name, the
-number of active connections on the process and on thit frontend, haproxy's
-internal error identifier on the front connection, the hexadecimal OpenSSL
-error number (that can be copy-pasted to "openssl errstr" for full decoding),
-the client certificate extraction status (0 indicates no error), the client
-certificate validation status using the CA (0 indicates no error), a boolean
-indicating if the connection is new or was resumed, the optional server name
-indication (SNI) provided by the client, the SSL version name and the SSL
-ciphers used on the connection, if any. Note that backend connection errors
-are never reported here since in order for a backend connection to fail, it
-would have passed through a successful stream, hence will be available as
-regular traffic log (see option httplog or option httpslog).
-
-   # detailed frontend connection error log
-   error-log-format "%ci:%cp [%tr] %ft %ac/%fc %[fc_conn_err]/\
-         %[ssl_fc_err,hex]/%[ssl_c_err]/%[ssl_c_ca_err]/%[ssl_fc_is_resumed] \
-         %[ssl_fc_sni]/%sslv/%sslc"
 
 
 8.3. Advanced logging options
