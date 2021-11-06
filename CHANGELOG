@@ -1,6 +1,43 @@
 ChangeLog :
 ===========
 
+2021/11/06 : 2.5-dev13
+    - SCRIPTS: git-show-backports: re-enable file-based filtering
+    - MINOR: jwt: Make invalid static JWT algorithms an error in `jwt_verify` converter
+    - MINOR: mux-h2: add trace on extended connect usage
+    - BUG/MEDIUM: mux-h2: reject upgrade if no RFC8441 support
+    - MINOR: stream/mux: implement websocket stream flag
+    - MINOR: connection: implement function to update ALPN
+    - MINOR: connection: add alternative mux_ops param for conn_install_mux_be
+    - MEDIUM: server/backend: implement websocket protocol selection
+    - MINOR: server: add ws keyword
+    - BUG/MINOR: resolvers: fix sent messages were counted twice
+    - BUG/MINOR: resolvers: throw log message if trash not large enough for query
+    - MINOR: resolvers/dns: split dns and resolver counters in dns_counter struct
+    - MEDIUM: resolvers: rename dns extra counters to resolvers extra counters
+    - BUG/MINOR: jwt: Fix jwt_parse_alg incorrectly returning JWS_ALG_NONE
+    - DOC: add QUIC instruction in INSTALL
+    - CLEANUP: halog: Remove dead stores
+    - DEV: coccinelle: Add ha_free.cocci
+    - CLEANUP: Apply ha_free.cocci
+    - DEV: coccinelle: Add rule to use `istnext()` where possible
+    - CLEANUP: Apply ist.cocci
+    - REGTESTS: Use `feature cmd` for 2.5+ tests (2)
+    - DOC: internals: move some API definitions to an "api" subdirectory
+    - MINOR: quic: Allocate listener RX buffers
+    - CLEANUP: quic: Remove useless code
+    - MINOR: quic: Enhance the listener RX buffering part
+    - MINOR: quic: Remove a useless lock for CRYPTO frames
+    - MINOR: quic: Use QUIC_LOCK QUIC specific lock label.
+    - MINOR: backend: Get client dst address to set the server's one only if needful
+    - MINOR: compression: Warn for 'compression offload' in defaults sections
+    - MEDIUM: connection: rename fc_conn_err and bc_conn_err to fc_err and bc_err
+    - DOC: configuration: move the default log formats to their own section
+    - MINOR: ssl: make the ssl_fc_sni() sample-fetch function always available
+    - MEDIUM: log: add the client's SNI to the default HTTPS log format
+    - DOC: config: add an example of reasonably complete error-log-format
+    - DOC: config: move error-log-format before custom log format
+
 2021/11/02 : 2.5-dev12
     - MINOR: httpclient: support payload within a buffer
     - MINOR: httpclient/lua: support more HTTP methods
