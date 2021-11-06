@@ -31,7 +31,6 @@ struct ist i;
 
 @@
 struct ist i;
-expression e;
 @@
 
 - i.ptr++;
