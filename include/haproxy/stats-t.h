@@ -253,8 +253,8 @@ enum field_scope {
 	FS_MASK     = 0xFF000000,
 };
 
-/* Show Info fields for CLI output. For any field added here, please add the text
- * representation in the info_field_names array below. Please only append at the end,
+/* Show info fields for CLI output. For any field added here, please add the
+ * text representation in the info_fields array. Please only append at the end,
  * before the INF_TOTAL_FIELDS entry, and never insert anything in the middle
  * nor at the beginning.
  */
@@ -338,7 +338,7 @@ enum info_field {
 
 
 /* Stats fields for CSV output. For any field added here, please add the text
- * representation in the stat_field_names array below. Please only append at the end,
+ * representation in the stat_fields array. Please only append at the end,
  * before the ST_F_TOTAL_FIELDS entry, and never insert anything in the middle
  * nor at the beginning.
  */
