@@ -41,6 +41,13 @@ struct ist i;
 struct ist i;
 @@
 
+- (\(i.ptr\|istptr(i)\) + \(i.len\|istlen(i)\))
++ istend(i)
+
+@@
+struct ist i;
+@@
+
 - i.ptr != NULL
 + isttest(i)
 
