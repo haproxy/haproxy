@@ -1818,7 +1818,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_expect_http(struct check *check, struct tcp
 			case TCPCHK_EXPT_FL_HTTP_HVAL_END:
 				if (istlen(value) < istlen(vpat))
 					break;
-				value = ist2(istptr(value) + istlen(value) - istlen(vpat), istlen(vpat));
+				value = ist2(istend(value) - istlen(vpat), istlen(vpat));
 				if (isteq(value, vpat)) {
 					match = 1;
 					goto end_of_match;

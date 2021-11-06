@@ -110,7 +110,7 @@ int h1_parse_xfer_enc_header(struct h1m *h1m, struct ist value)
 	h1m->flags |= H1_MF_XFER_ENC;
 
 	word.ptr = value.ptr - 1; // -1 for next loop's pre-increment
-	e = value.ptr + value.len;
+	e = istend(value);
 
 	while (++word.ptr < e) {
 		/* skip leading delimiter and blanks */
@@ -229,7 +229,7 @@ void h1_parse_upgrade_header(struct h1m *h1m, struct ist value)
 	h1m->flags &= ~H1_MF_UPG_WEBSOCKET;
 
 	word.ptr = value.ptr - 1; // -1 for next loop's pre-increment
-	e = value.ptr + value.len;
+	e = istend(value);
 
 	while (++word.ptr < e) {
 		/* skip leading delimiter and blanks */

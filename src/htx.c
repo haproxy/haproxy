@@ -601,11 +601,13 @@ struct htx_blk *htx_replace_blk_value(struct htx *htx, struct htx_blk *blk,
 		if (delta <= 0) {
 			/* compression: copy new data first then move the end */
 			memcpy(old.ptr, new.ptr, new.len);
-			memmove(old.ptr + new.len, old.ptr + old.len, (v.ptr + v.len) - (old.ptr + old.len));
+			memmove(old.ptr + new.len, istend(old),
+				istend(v) - istend(old));
 		}
 		else {
 			/* expansion: move the end first then copy new data */
-			memmove(old.ptr + new.len, old.ptr + old.len, (v.ptr + v.len) - (old.ptr + old.len));
+			memmove(old.ptr + new.len, istend(old),
+				istend(v) - istend(old));
 			memcpy(old.ptr, new.ptr, new.len);
 		}
 
@@ -629,7 +631,7 @@ struct htx_blk *htx_replace_blk_value(struct htx *htx, struct htx_blk *blk,
 		ptr += new.len;
 
 		/* Copy value after old part, if any */
-		memcpy(ptr, old.ptr + old.len, (v.ptr + v.len) - (old.ptr + old.len));
+		memcpy(ptr, istend(old), istend(v) - istend(old));
 
 		/* set the new block size and update HTX message */
 		htx_set_blk_value_len(blk, v.len + delta);
@@ -654,7 +656,8 @@ struct htx_blk *htx_replace_blk_value(struct htx *htx, struct htx_blk *blk,
 
 		/* move the end first and copy new data
 		 */
-		memmove(old.ptr + offset + new.len, old.ptr + offset + old.len, (v.ptr + v.len) - (old.ptr + old.len));
+		memmove(old.ptr + offset + new.len, old.ptr + offset + old.len,
+			istend(v) - istend(old));
 		memcpy(old.ptr + offset, new.ptr, new.len);
 	}
 	return blk;

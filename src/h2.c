@@ -62,7 +62,7 @@ static int has_forbidden_char(const struct ist ist, const char *start)
 		    (1U << (uint8_t)*start) & ((1<<13) | (1<<10) | (1<<0)))
 			return 1;
 		start++;
-	} while (start < ist.ptr + ist.len);
+	} while (start < istend(ist));
 	return 0;
 }
 

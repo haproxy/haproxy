@@ -195,7 +195,8 @@ static int __http_find_header(const struct htx *htx, const void *pattern, struct
 				if (istlen(n) < istlen(name))
 					goto next_blk;
 
-				n = ist2(istptr(n) + istlen(n) - istlen(name), istlen(name));
+				n = ist2(istend(n) - istlen(name),
+					 istlen(name));
 				if (!isteqi(n, name))
 					goto next_blk;
 				break;
@@ -219,8 +220,9 @@ static int __http_find_header(const struct htx *htx, const void *pattern, struct
 			ctx->lws_before++;
 		}
 		if (!(flags & HTTP_FIND_FL_FULL))
-			v.len = http_find_hdr_value_end(v.ptr, v.ptr + v.len) - v.ptr;
-		while (v.len && HTTP_IS_LWS(*(v.ptr + v.len - 1))) {
+			v.len = http_find_hdr_value_end(v.ptr, istend(v)) - v.ptr;
+
+		while (v.len && HTTP_IS_LWS(*(istend(v) - 1))) {
 			v.len--;
 			ctx->lws_after++;
 		}
@@ -710,7 +712,7 @@ int http_update_authority(struct htx *htx, struct htx_sl *sl, const struct ist h
 
 	chunk_memcat(temp, uri.ptr, authority.ptr - uri.ptr);
 	chunk_memcat(temp, host.ptr, host.len);
-	chunk_memcat(temp, authority.ptr + authority.len, uri.ptr + uri.len - (authority.ptr + authority.len));
+	chunk_memcat(temp, istend(authority), istend(uri) - istend(authority));
 	uri = ist2(temp->area + meth.len + vsn.len, host.len + uri.len - authority.len); /* uri */
 
 	return http_replace_stline(htx, meth, uri, vsn);
@@ -917,7 +919,7 @@ int http_str_to_htx(struct buffer *buf, struct ist raw, char **errmsg)
 
 	h1m_init_res(&h1m);
 	h1m.flags |= H1_MF_NO_PHDR;
-	ret = h1_headers_to_hdr_list(raw.ptr, raw.ptr + raw.len,
+	ret = h1_headers_to_hdr_list(raw.ptr, istend(raw),
 				     hdrs, sizeof(hdrs)/sizeof(hdrs[0]), &h1m, &h1sl);
 	if (ret <= 0) {
 		memprintf(errmsg, "unabled to parse headers (error offset: %d)", h1m.err_pos);

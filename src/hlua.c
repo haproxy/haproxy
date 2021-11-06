@@ -4750,7 +4750,7 @@ static int hlua_applet_http_new(lua_State *L, struct appctx *ctx)
 		char *p, *q, *end;
 
 		p = path.ptr;
-		end = path.ptr + path.len;
+		end = istend(path);
 		q = p;
 		while (q < end && *q != '?')
 			q++;
