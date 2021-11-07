@@ -443,6 +443,7 @@ enum stat_field {
 	ST_F_USED_CONN_CUR,
 	ST_F_NEED_CONN_EST,
 	ST_F_UWEIGHT,
+	ST_F_AGG_SRV_CHECK_STATUS,
 
 	/* must always be the last one */
 	ST_F_TOTAL_FIELDS
