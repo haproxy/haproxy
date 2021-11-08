@@ -451,22 +451,6 @@ int str2ic(const char *s)
 }
 
 
-/* Equivalent to strtoul with a length. */
-static inline unsigned int __strl2ui(const char *s, int len)
-{
-	unsigned int i = 0;
-	while (len-- > 0) {
-		i = i * 10 - '0';
-		i += (unsigned char)*s++;
-	}
-	return i;
-}
-
-unsigned int strl2ui(const char *s, int len)
-{
-	return __strl2ui(s, len);
-}
-
 /* Convert "[04/Dec/2008:09:49:40.555]" to an integer equivalent to the time of
  * the day in milliseconds. It returns -1 for all unparsable values. The parser
  * looks ugly but gcc emits far better code that way.
