@@ -46,6 +46,14 @@ struct ist i;
 
 @@
 struct ist i;
+expression e;
+@@
+
+- if (\(i.len\|istlen(i)\) > e) { i.len = e; }
++ i = isttrim(i, e);
+
+@@
+struct ist i;
 @@
 
 - i.ptr != NULL
