@@ -62,14 +62,6 @@ struct buffer *b;
 
 @@
 struct ist i;
-struct buffer *b;
-@@
-
-- chunk_strncat(b, \(i.ptr\|istptr(i)\) , \(i.len\|istlen(i)\));
-+ chunk_istcat(b, i);
-
-@@
-struct ist i;
 @@
 
 - i.ptr != NULL
