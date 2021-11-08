@@ -1,0 +1,167 @@
+2021-11-08 - Indirect Strings (IST) API
+
+
+1. Background
+-------------
+
+When parsing traffic, most of the standard C string functions are unusable
+since they rely on a trailing zero. In addition, for the rare ones that support
+a length, we have to constantly maintain both the pointer and the length. But
+then, it's easy to come up with complex lengths and offsets calculations all
+over the place, rendering the code hard to read and bugs hard to avoid or spot.
+
+IST provides a solution to this by defining a structure made of exactly two
+word size elements, that most C ABIs know how to handle as a register when
+used as a function argument or a function's return value. The functions are
+inlined to leave a maximum set of opportunities to the compiler or optimization
+and expression reduction, and as a result they are often inexpensive to use. It
+is important however to keep in mind that all of these are designed for minimal
+code size when dealing with short strings (i.e. parsing tokens in protocols),
+and they are not optimal for processing large blocks.
+
+
+2. API description
+------------------
+
+IST are defined like this:
+
+  struct ist {
+          char  *ptr;  // pointer to the string's first byte
+          size_t len;  // number of valid bytes starting from ptr
+  };
+
+A string is not set if its ->ptr member is NULL. In this case .len is undefined
+and is recommended to be zero.
+
+Declaring a function returning an IST:
+
+  struct ist produce_ist(int ok)
+  {
+      return ok ? IST("OK") : IST("KO");
+  }
+
+Declaring a function consuming an IST:
+
+  void say_ist(struct ist i)
+  {
+      write(1, istptr(i), istlen(i));
+  }
+
+Chaining the two:
+
+  void say_ok(int ok)
+  {
+      say_ist(produce_ist(ok));
+  }
+
+Notes:
+  - the arguments are passed as value, not reference, so there's no need for
+    any "const" in their declaration (except to catch coding mistakes).
+    Pointers to ist may benefit from being marked "const" however.
+
+  - similarly for the return value, there's no point is marking it "const" as
+    this would protect the pointer and length, not the data.
+
+  - use ist0() to append a trailing zero to a variable string for use with
+    printf()'s "%s" format, or for use with functions that work on NUL-
+    terminated strings, but beware of not doing this with constants.
+
+  - the API provides a starting pointer and current length, but does not
+    provide an allocated size. It remains up to the caller to know how large
+    the allocated area is when adding data, though most functions make this
+    easy.
+
+The following macros and functions are defined. Those whose name starts with
+underscores require special care and must not be used without being certain
+they are properly used (typically subject to buffer overflows if misused). Note
+that most functions were added over time depending on instant needs, and some
+are very close to each other. Many useful functions are still missing and would
+deserve being added.
+
+Below, arguments "i1","i2" are all of type "ist". Arguments "s" are
+NUL-terminated strings of type "char*", and "cs" are of type "const char *".
+Arguments "c" are of type "char", and "n" are of type size_t.
+
+  IST(cs):ist            make constant IST from a NUL-terminated const string
+  IST_NULL:ist           return an unset IST = ist2(NULL,0)
+  __istappend(i1,c):ist  append character <c> at the end of ist <i1>
+  ist(s):ist             return an IST from a nul-terminated string
+  ist0(i1):char*         write a \0 at the end of an IST, return the string
+  ist2(cs,l):ist         return a variable IST from a const string and length
+  ist2bin(s,i1):ist      copy IST into a buffer, return the result
+  ist2bin_lc(s,i1):ist   like ist2bin() but turning turning to lower case
+  ist2bin_uc(s,i1):ist   like ist2bin() but turning turning to upper case
+  ist2str(s,i1):ist      copy IST into a buffer, add NUL and return the result
+  ist2str_lc(s,i1):ist   like ist2str() but turning turning to lower case
+  ist2str_uc(s,i1):ist   like ist2str() but turning turning to upper case
+  ist_find(i1,c):ist     return first occurrence of char <c> in <i1>
+  ist_find_ctl(i1):char* return pointer to first CTL char in <i1> or NULL
+  ist_skip(i1,c):ist     return first occurrence of char not <c> in <i1>
+  istadv(i1,n):ist       advance the string by <n> characters
+  istalloc(n):ist        return allocated string of zero initial length
+  istcat(d,s,n):ssize_t  copy <s> after <d> for <n> chars max, return len or -1
+  istchr(i1,c):char*     return pointer to first occurrence of <c> in <i1>
+  istclear(i1*):size_t   return previous size and set size to zero
+  istcpy(d,s,n):ssize_t  copy <s> over <d> for <n> chars max, return len or -1
+  istdiff(i1,i2):int     return the ordinal difference, like strcmp()
+  istdup(i1):ist         allocate new ist and copy original one into it
+  istend(i1):char*       return pointer to first character after the IST
+  isteq(i1,i2):int       return non-zero if strings are equal
+  isteqi(i1,i2):int      like isteq() but case-insensitive
+  istfree(i1*)           free of allocated <i1>/IST_NULL and set it to IST_NULL
+  istissame(i1,i2):int   return true if pointers and lengths are equal
+  istist(i1,i2):ist      return first occurrence of <i2> in <i1>
+  istlen(i1):size_t      return the length of the IST (number of characters)
+  istmatch(i1,i2):int    return non-zero if i1 starts like i2 (empty OK)
+  istmatchi(i1,i2):int   like istmatch() but case insensitive
+  istneq(i1,i2,n):int    like isteq() but limited to the first <n> chars
+  istnext(i1):ist        return the IST advanced by one character
+  istnmatch(i1,i2,n):int like istmatch() but limited to the first <n> chars
+  istpad(s,i1):ist       copy IST into a buffer, add a NUL, return the result
+  istptr(i1):char*       return the starting pointer of the IST
+  istscat(d,s,n):ssize_t same as istcat() but always place a NUL at the end
+  istscpy(d,s,n):ssize_t same as istcpy() but always place a NUL at the end
+  istshift(i1*):char     return the first character and advance the IST by one
+  istsplit(i1*,c):ist    return part before <c>, make ist start from <c>
+  iststop(i1,c):ist      truncate ist before first occurrence of <c>
+  isttest(i1):int        return true if ist is not NULL, false otherwise
+  isttrim(i1,n):ist      return ist trimmed to no more than <n> characters
+  istzero(i1,n):ist      trim to <n> chars, trailing zero included.
+
+
+3. Quick index by typical C construct or function
+-------------------------------------------------
+
+Some common C constructs may be adjusted to use ist instead. The mapping is not
+always one-to-one, but usually the computations on the length part tends to
+disappear in the refactoring, allowing to directly chain function calls. The
+entries below are hints to figure what function to look for in order to rewrite
+some common use cases.
+
+  char*                  IST equivalent
+
+  strchr()               istchr(), ist_find(), iststop()
+  strstr()               istist()
+  strcpy()               istcpy()
+  strscpy()              istscpy()
+  strlcpy()              istscpy()
+  strcat()               istcat()
+  strscat()              istscat()
+  strlcat()              istscat()
+  strcmp()               istdiff()
+  strdup()               istdup()
+  !strcmp()              isteq()
+  !strncmp()             istneq(), istmatch(), istnmatch()
+  !strcasecmp()          isteqi()
+  !strncasecmp()         istneqi(), istmatchi()
+  strtok()               istsplit()
+  return NULL            return IST_NULL
+  s = malloc()           s = istalloc()
+  free(s); s = NULL      istfree(&s)
+  p != NULL              isttest(p)
+  c = *(p++)             c = istshift(p)
+  *(p++) = c             __istappend(p, c)
+  p += n                 istadv(p, n)
+  p + strlen(p)          istend(p)
+  p[max] = 0             isttrim(p, max)
+  p[max+1] = 0           istzero(p, max)
