@@ -1242,17 +1242,17 @@ static int fcgi_set_default_param(struct fcgi_conn *fconn, struct fcgi_strm *fst
 	if (!(params->mask & FCGI_SP_REQ_METH)) {
 		p  = htx_sl_req_meth(sl);
 		params->meth = ist2(b_tail(params->p), p.len);
-		chunk_memcat(params->p, p.ptr, p.len);
+		chunk_istcat(params->p, p);
 	}
 	if (!(params->mask & FCGI_SP_REQ_URI)) {
 		p = h1_get_uri(sl);
 		params->uri = ist2(b_tail(params->p), p.len);
-		chunk_memcat(params->p, p.ptr, p.len);
+		chunk_istcat(params->p, p);
 	}
 	if (!(params->mask & FCGI_SP_SRV_PROTO)) {
 		p  = htx_sl_req_vsn(sl);
 		params->vsn = ist2(b_tail(params->p), p.len);
-		chunk_memcat(params->p, p.ptr, p.len);
+		chunk_istcat(params->p, p);
 	}
 	if (!(params->mask & FCGI_SP_SRV_PORT)) {
 		char *end;
@@ -1361,7 +1361,7 @@ static int fcgi_set_default_param(struct fcgi_conn *fconn, struct fcgi_strm *fst
 		/* Decode the path. it must first be copied to keep the URI
 		 * untouched.
 		 */
-		chunk_memcat(params->p, path.ptr, path.len);
+		chunk_istcat(params->p, path);
 		path.ptr = b_tail(params->p) - path.len;
 		len = url_decode(ist0(path), 0);
 		if (len < 0)
@@ -1415,7 +1415,7 @@ static int fcgi_set_default_param(struct fcgi_conn *fconn, struct fcgi_strm *fst
 			struct ist sn = params->scriptname;
 
 			params->scriptname = ist2(b_tail(params->p), len+fconn->app->index.len);
-			chunk_memcat(params->p, sn.ptr, sn.len);
+			chunk_istcat(params->p, sn);
 			chunk_memcat(params->p, fconn->app->index.ptr, fconn->app->index.len);
 		}
 	}

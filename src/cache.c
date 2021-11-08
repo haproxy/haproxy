@@ -1644,7 +1644,7 @@ int sha1_hosturi(struct stream *s)
 		chunk_istcat(trash, ctx.value);
 	}
 
-	chunk_memcat(trash, uri.ptr, uri.len);
+	chunk_istcat(trash, uri);
 
 	/* hash everything */
 	blk_SHA1_Init(&sha1_ctx);

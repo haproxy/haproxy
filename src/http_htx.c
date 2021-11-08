@@ -432,7 +432,7 @@ int http_replace_req_path(struct htx *htx, const struct ist path, int with_qs)
 	vsn = ist2(temp->area + meth.len, HTX_SL_REQ_VLEN(sl));
 
 	chunk_memcat(temp, uri.ptr, p.ptr - uri.ptr);         /* uri: host part */
-	chunk_memcat(temp, path.ptr, path.len);               /* uri: new path */
+	chunk_istcat(temp, path);                             /* uri: new path */
 	chunk_memcat(temp, p.ptr + plen, p.len - plen);       /* uri: QS part */
 	uri = ist2(temp->area + meth.len + vsn.len, uri.len - plen + path.len);
 
@@ -711,7 +711,7 @@ int http_update_authority(struct htx *htx, struct htx_sl *sl, const struct ist h
 	vsn = ist2(temp->area + meth.len, HTX_SL_REQ_VLEN(sl));
 
 	chunk_memcat(temp, uri.ptr, authority.ptr - uri.ptr);
-	chunk_memcat(temp, host.ptr, host.len);
+	chunk_istcat(temp, host);
 	chunk_memcat(temp, istend(authority), istend(uri) - istend(authority));
 	uri = ist2(temp->area + meth.len + vsn.len, host.len + uri.len - authority.len); /* uri */
 

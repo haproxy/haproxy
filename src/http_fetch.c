@@ -874,7 +874,7 @@ static int smp_fetch_hdr_names(const struct arg *args, struct sample *smp, const
 
 		if (temp->data)
 			temp->area[temp->data++] = del;
-		chunk_memcat(temp, n.ptr, n.len);
+		chunk_istcat(temp, n);
 	}
 
 	smp->data.type = SMP_T_STR;

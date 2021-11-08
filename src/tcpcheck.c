@@ -429,7 +429,7 @@ static void tcpcheck_expect_onerror_message(struct buffer *msg, struct check *ch
 	 *     4. Otherwise produce the generic tcp-check info message
 	 */
 	if (istlen(info)) {
-		chunk_strncat(msg, istptr(info), istlen(info));
+		chunk_istcat(msg, info);
 		goto comment;
 	}
 	else if (!LIST_ISEMPTY(&rule->expect.onerror_fmt)) {
@@ -517,7 +517,7 @@ static void tcpcheck_expect_onsuccess_message(struct buffer *msg, struct check *
 	 *     4. Otherwise produce the generic tcp-check info message
 	 */
 	if (istlen(info))
-		chunk_strncat(msg, istptr(info), istlen(info));
+		chunk_istcat(msg, info);
 	if (!LIST_ISEMPTY(&rule->expect.onsuccess_fmt))
 		msg->data += sess_build_logline(check->sess, NULL, b_tail(msg), b_room(msg),
 						&rule->expect.onsuccess_fmt);
