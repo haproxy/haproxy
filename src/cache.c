@@ -622,8 +622,7 @@ cache_store_http_payload(struct stream *s, struct filter *filter, struct http_ms
 			case HTX_BLK_DATA:
 				v = htx_get_blk_value(htx, blk);
 				v = istadv(v, offset);
-				if (v.len > len)
-					v.len = len;
+				v = isttrim(v, len);
 
 				info = (type << 28) + v.len;
 				chunk_memcat(&trash, (char *)&info, sizeof(info));

@@ -6329,8 +6329,7 @@ static int _hlua_http_msg_dup(struct http_msg *msg, lua_State *L, size_t offset,
 			case HTX_BLK_DATA:
 				v = htx_get_blk_value(htx, blk);
 				v = istadv(v, offset);
-				if (v.len > len)
-					v.len = len;
+				v = isttrim(v, len);
 
 				luaL_addlstring(&b, v.ptr, v.len);
 				ret += v.len;
@@ -6431,8 +6430,7 @@ static void _hlua_http_msg_delete(struct http_msg *msg, struct filter *filter, s
 			goto end;
 		v = htx_get_blk_value(htx, blk);
 		v.ptr += htxret.ret;
-		if (v.len > len)
-			v.len  = len;
+		v = isttrim(v, len);
 		blk = htx_replace_blk_value(htx, blk, v, IST_NULL);
 		len -= v.len;
 		ret += v.len;

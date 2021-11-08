@@ -1665,8 +1665,7 @@ static inline void __do_send_log(struct logsrv *logsrv, int nblogger, int level,
 		struct ist msg;
 
 		msg = ist2(message, size);
-		if (msg.len > logsrv->maxlen)
-			msg.len = logsrv->maxlen;
+		msg = isttrim(msg, logsrv->maxlen);
 
 		sent = sink_write(logsrv->sink, &msg, 1, level, logsrv->facility, metadata);
 	}
@@ -1674,8 +1673,7 @@ static inline void __do_send_log(struct logsrv *logsrv, int nblogger, int level,
 		struct ist msg;
 
 		msg = ist2(message, size);
-		if (msg.len > logsrv->maxlen)
-			msg.len = logsrv->maxlen;
+		msg = isttrim(msg, logsrv->maxlen);
 
 		sent = fd_write_frag_line(*plogfd, logsrv->maxlen, msg_header, nbelem, &msg, 1, 1);
 	}

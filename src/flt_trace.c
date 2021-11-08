@@ -146,8 +146,7 @@ trace_htx_hexdump(struct htx *htx, unsigned int offset, unsigned int len)
 		v = istadv(v, offset);
 		offset = 0;
 
-		if (v.len > len)
-			v.len = len;
+		v = isttrim(v, len);
 		len -= v.len;
 		if (type == HTX_BLK_DATA)
 			trace_hexdump(v);

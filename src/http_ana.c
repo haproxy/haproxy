@@ -4912,8 +4912,7 @@ static void http_capture_headers(struct htx *htx, char **cap, struct cap_hdr *ca
 				}
 
 				v = htx_get_blk_value(htx, blk);
-				if (v.len > h->len)
-					v.len = h->len;
+				v = isttrim(v, h->len);
 
 				memcpy(cap[h->index], v.ptr, v.len);
 				cap[h->index][v.len]=0;
