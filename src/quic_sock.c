@@ -178,7 +178,7 @@ void quic_sock_fd_iocb(int fd)
 	struct rxbuf *rxbuf;
 	struct buffer *buf;
 	struct listener *l = objt_listener(fdtab[fd].owner);
-	struct quic_transport_params *params = &l->bind_conf->quic_params;
+	struct quic_transport_params *params;
 	/* Source address */
 	struct sockaddr_storage saddr = {0};
 	size_t max_sz;
@@ -186,11 +186,18 @@ void quic_sock_fd_iocb(int fd)
 
 	BUG_ON(!l);
 
+	if (!l)
+		return;
+
 	if (!(fdtab[fd].state & FD_POLL_IN) || !fd_recv_ready(fd))
 		return;
 
 	rxbuf = MT_LIST_POP(&l->rx.rxbuf_list, typeof(rxbuf), mt_list);
 	buf = &rxbuf->buf;
+	if (!buf)
+		goto out;
+
+	params = &l->bind_conf->quic_params;
 	max_sz = params->max_udp_payload_size;
 	if (b_contig_space(buf) < max_sz) {
 		/* Note that when we enter this function, <buf> is always empty */

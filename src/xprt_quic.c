@@ -3309,6 +3309,7 @@ static ssize_t qc_srv_pkt_rcv(unsigned char **buf, const unsigned char *end,
 	struct quic_enc_level *qel;
 
 	qc = NULL;
+	qel = NULL;
 	TRACE_ENTER(QUIC_EV_CONN_SPKT);
 	if (end <= *buf)
 		goto err;
@@ -3461,6 +3462,7 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 
 	qc = NULL;
 	conn_ctx = NULL;
+	qel = NULL;
 	TRACE_ENTER(QUIC_EV_CONN_LPKT, NULL, pkt);
 	if (end <= *buf)
 		goto err;
