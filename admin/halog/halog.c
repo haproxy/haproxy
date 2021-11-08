@@ -20,6 +20,8 @@
 #include <ctype.h>
 #include <time.h>
 
+#include <haproxy/compiler.h>
+
 #include <import/eb32tree.h>
 #include <import/eb64tree.h>
 #include <import/ebistree.h>
@@ -253,6 +255,16 @@ const char *field_stop(const char *p)
 }
 #endif
 
+/* return non-zero if the argument contains at least one zero byte. See principle above. */
+static inline __attribute__((unused)) unsigned long long has_zero64(unsigned long long x)
+{
+	unsigned long long y;
+
+	y = x - 0x0101010101010101ULL; /* generate a carry */
+	y &= ~x;                       /* clear the bits that were already set */
+	return y & 0x8080808080808080ULL;
+}
+
 /* return field <field> (starting from 1) in string <p>. Only consider
  * contiguous spaces (or tabs) as one delimiter. May return pointer to
  * last char if field is not found. Equivalent to awk '{print $field}'.
@@ -280,6 +292,26 @@ const char *field_start(const char *p, int field)
 
 		/* skip this field */
 		while (1) {
+#if defined(HA_UNALIGNED_LE64)
+			unsigned long long l = *(unsigned long long *)p;
+			if (!has_zero64(l)) {
+				l ^= 0x2020202020202020;
+				l = has_zero64(l);
+				if (!l) {
+					p += 8;
+					continue;
+				}
+				/* there is at least one space, find it and
+				 * skip it now. The lowest byte in <l> with
+				 * a 0x80 is the right one, but checking for
+				 * it remains slower than testing each byte,
+				 * probably due to the numerous short fields.
+				 */
+				while (*(p++) != ' ')
+					;
+				break;
+			}
+#endif
 			c = *(p++);
 			if (c == '\0')
 				return p - 1;
