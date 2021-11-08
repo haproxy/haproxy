@@ -3729,30 +3729,36 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 				goto err;
 			}
 
-			pkt->qc = qc;
-			/* This is the DCID node sent in this packet by the client. */
-			node = &qc->odcid_node;
-			/* Enqueue this packet. */
-			MT_LIST_APPEND(&l->rx.pkts, &pkt->rx_list);
-			/* Try to accept a new connection. */
-			listener_accept(l);
-
 			HA_RWLOCK_WRLOCK(QUIC_LOCK, &l->rx.cids_lock);
 			/* Insert the DCID the QUIC client has chosen (only for listeners) */
-			ebmb_insert(&l->rx.odcids, &qc->odcid_node, qc->odcid.len);
-			/* Insert our SCID, the connection ID for the QUIC client. */
-			n = ebmb_insert(&l->rx.cids, &qc->scid_node, qc->scid.len);
-			HA_RWLOCK_WRUNLOCK(QUIC_LOCK, &l->rx.cids_lock);
-			if (n != &qc->scid_node) {
-				quic_conn_free(qc);
-				qc = ebmb_entry(n, struct quic_conn, scid_node);
+			n = ebmb_insert(&l->rx.odcids, &qc->odcid_node, qc->odcid.len);
+			if (n == &qc->odcid_node) {
+				/* Insert our SCID, the connection ID for the QUIC client. */
+				ebmb_insert(&l->rx.cids, &qc->scid_node, qc->scid.len);
 			}
+			HA_RWLOCK_WRUNLOCK(QUIC_LOCK, &l->rx.cids_lock);
+
+			pkt->qc = qc;
+			if (n == &qc->odcid_node) {
+				/* Enqueue this packet. */
+				MT_LIST_APPEND(&l->rx.pkts, &pkt->rx_list);
+				/* Try to accept a new connection. */
+				listener_accept(l);
+			}
+			else {
+				quic_conn_free(qc);
+				qc = ebmb_entry(n, struct quic_conn, odcid_node);
+			}
+
+			/* This is the DCID node sent in this packet by the client. */
+			node = &qc->odcid_node;
 		}
 		else {
 			if (pkt->type == QUIC_PACKET_TYPE_INITIAL && cids == &l->rx.odcids)
 				qc = ebmb_entry(node, struct quic_conn, odcid_node);
 			else
 				qc = ebmb_entry(node, struct quic_conn, scid_node);
+			pkt->qc = qc;
 			conn_ctx = qc->conn->xprt_ctx;
 		}
 	}
@@ -3772,11 +3778,10 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 		qc = ebmb_entry(node, struct quic_conn, scid_node);
 		conn_ctx = qc->conn->xprt_ctx;
 		*buf += QUIC_CID_LEN;
+		pkt->qc = qc;
 		/* A short packet is the last one of an UDP datagram. */
 		pkt->len = end - *buf;
 	}
-
-	pkt->qc = qc;
 
 	/* Store the DCID used for this packet to check the packet which
 	 * come in this UDP datagram match with it.
