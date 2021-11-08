@@ -1347,18 +1347,20 @@ static int qc_send(struct qcc *qcc)
 static struct task *qc_io_cb(struct task *t, void *ctx, unsigned int status)
 {
 	struct qcc *qcc = ctx;
-	int ret = 0;
+	//int ret = 0;
 
 
 	if (!(qcc->wait_event.events & SUB_RETRY_SEND))
-		ret = qc_send(qcc);
+		//ret = qc_send(qcc);
+		qc_send(qcc);
 #if 0
 	if (!(qcc->wait_event.events & SUB_RETRY_RECV))
 		ret |= qc_recv(qcc);
 #endif
 	// TODO redefine the proper condition here
 	//if (ret || qcc->rx.inmux)
-		ret = qc_process(qcc);
+		//ret = qc_process(qcc);
+		qc_process(qcc);
 
 leave:
 	TRACE_LEAVE(QC_EV_QCC_WAKE);
