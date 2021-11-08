@@ -93,7 +93,9 @@ static inline size_t h3_decode_frm_header(uint64_t *ftype, uint64_t *flen,
 	return hlen;
 }
 
-/* Decode <qcs> remotely initiated bidi-stream */
+/* Decode <qcs> remotely initiated bidi-stream.
+ * Returns <0 on error else 0.
+ */
 static int h3_decode_qcs(struct qcs *qcs, void *ctx)
 {
 	struct buffer *rxbuf = &qcs->rx.buf;
@@ -171,6 +173,8 @@ static int h3_decode_qcs(struct qcs *qcs, void *ctx)
 			flags |= HTX_SL_F_VER_11;
 
 			sl = htx_add_stline(htx, HTX_BLK_REQ_SL, flags, meth, path, ist("HTTP/3.0"));
+			if (!sl)
+				goto fail;
 			sl->flags |= HTX_SL_F_BODYLESS;
 			sl->info.req.meth = find_http_meth(meth.ptr, meth.len);
 			BUG_ON(sl->info.req.meth == HTTP_METH_OTHER);
@@ -215,7 +219,10 @@ static int h3_decode_qcs(struct qcs *qcs, void *ctx)
 		b_del(rxbuf, flen);
 	}
 
-	return 1;
+	return 0;
+
+ fail:
+	return -1;
 }
 
 /* Parse a SETTINGS frame which must not be truncated with <flen> as length from
