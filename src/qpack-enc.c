@@ -120,13 +120,14 @@ int qpack_encode_int_status(struct buffer *out, unsigned int status)
 /* Returns 0 on success else non-zero. */
 int qpack_encode_field_section_line(struct buffer *out)
 {
-	if (b_room(out) < 2)
-		return 1;
-
 	char qpack_field_section[] = {
 	  '\x00',   /* required insert count */
 	  '\x00',   /* S + delta base */
 	};
+
+	if (b_room(out) < 2)
+		return 1;
+
 	b_putblk(out, qpack_field_section, 2);
 
 	return 0;

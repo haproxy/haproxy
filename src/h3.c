@@ -133,16 +133,17 @@ static int h3_decode_qcs(struct qcs *qcs, void *ctx)
 		{
 			const unsigned char *buf = (const unsigned char *)b_head(rxbuf);
 			size_t len = b_data(rxbuf);
+			struct buffer htx_buf = BUF_NULL;
 			struct buffer *tmp = get_trash_chunk();
 			struct ist meth = IST_NULL, path = IST_NULL;
-			struct ist scheme = IST_NULL, authority = IST_NULL;
+			//struct ist scheme = IST_NULL, authority = IST_NULL;
+			struct ist authority = IST_NULL;
 
 			if (qpack_decode_fs(buf, len, tmp, list) < 0) {
 				h3->err = QPACK_DECOMPRESSION_FAILED;
 				return -1;
 			}
 
-			struct buffer htx_buf = BUF_NULL;
 			b_alloc(&htx_buf);
 			htx = htx_from_buf(&htx_buf);
 
@@ -158,8 +159,8 @@ static int h3_decode_qcs(struct qcs *qcs, void *ctx)
 						meth = list[hdr_idx].v;
 					else if (isteq(list[hdr_idx].n, ist(":path")))
 						path = list[hdr_idx].v;
-					else if (isteq(list[hdr_idx].n, ist(":scheme")))
-						scheme = list[hdr_idx].v;
+					//else if (isteq(list[hdr_idx].n, ist(":scheme")))
+					//	scheme = list[hdr_idx].v;
 					else if (isteq(list[hdr_idx].n, ist(":authority")))
 						authority = list[hdr_idx].v;
 				}
