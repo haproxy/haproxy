@@ -783,7 +783,7 @@ int http_calc_maxage(struct stream *s, struct cache *cache, int *true_maxage)
 			chunk_memcat(chk, "", 1);
 			offset = (*chk->area == '"') ? 1 : 0;
 			smaxage = strtol(chk->area + offset, &endptr, 10);
-			if (unlikely(smaxage < 0 || endptr == chk->area))
+			if (unlikely(smaxage < 0 || endptr == chk->area + offset))
 				return -1;
 		}
 
@@ -795,7 +795,7 @@ int http_calc_maxage(struct stream *s, struct cache *cache, int *true_maxage)
 			chunk_memcat(chk, "", 1);
 			offset = (*chk->area == '"') ? 1 : 0;
 			maxage = strtol(chk->area + offset, &endptr, 10);
-			if (unlikely(maxage < 0 || endptr == chk->area))
+			if (unlikely(maxage < 0 || endptr == chk->area + offset))
 				return -1;
 		}
 	}
