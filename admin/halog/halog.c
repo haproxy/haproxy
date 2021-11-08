@@ -147,13 +147,14 @@ void usage(FILE *output, const char *msg)
 {
 	fprintf(output,
 		"%s"
-		"Usage: halog [-h|--help] for long help\n"
-		"       halog [-q] [-c] [-m <lines>]\n"
-		"       {-cc|-gt|-pct|-st|-tc|-srv|-u|-uc|-ue|-ua|-ut|-uao|-uto|-uba|-ubt|-ic\n"
-		"           |-hdr <block>:<field>\n"
-		"       }\n"
-		"       [-s <skip>] [-e|-E] [-H] [-rt|-RT <time>] [-ad <delay>] [-ac <count>] [-query]\n"
-		"       [-v] [-Q|-QS] [-tcn|-TCN <termcode>] [ -hs|-HS [min][:[max]] ] [ -time [min][:[max]] <log\n"
+		"Usage:\n"
+		"  halog [-h|--help] for long help\n"
+		"  halog [input_filters]* [modifiers]* [output_format] < log\n"
+		"    inp = [-e|-E] [-H] [-Q|-QS] [-rt|-RT <time>] [-ad <delay>] [-ac <count>]\n"
+		"          [-hs|-HS [min][:[max]]] [-tcn|-TCN <termcode>] [-time [min][:[max]]]\n"
+		"    mod = [-q] [-v] [-m <lines>] [-s <skipflds>] [-query]\n"
+		"    out = {-c|-u|-uc|-ue|-ua|-ut|-uao|-uto|-uba|-ubt|-hdr <block>:<field>|\n"
+		"           -cc|-gt|-pct|-st|-tc|-srv|-ic}\n"
 		"\n",
 		msg ? msg : ""
 		);
@@ -169,7 +170,7 @@ void help()
 {
 	usage(stdout, NULL);
 	printf(
-	       "Input filters (several filters may be combined) :\n"
+	       "Input filters - several filters may be combined\n"
 	       " -H                      only match lines containing HTTP logs (ignore TCP)\n"
 	       " -E                      only match lines without any error (no 5xx status)\n"
 	       " -e                      only match lines with errors (status 5xx or negative)\n"
@@ -189,7 +190,7 @@ void help()
 	       "                         you can also use -n to start from earlier then field %d\n"
 	       " -query                  preserve the query string for per-URL (-u*) statistics\n"
 	       "\n"
-	       "Output filters - only one may be used at a time\n"
+	       "Output format - only one may be used at a time\n"
 	       " -c    only report the number of lines that would have been printed\n"
 	       " -pct  output connect and response times percentiles\n"
 	       " -st   output number of requests per HTTP status code\n"
