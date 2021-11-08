@@ -265,12 +265,10 @@ const char *field_start(const char *p, int field)
 		/* skip spaces */
 		while (1) {
 			c = *(p++);
-			if (c > ' ')
-				break;
-			if (c == ' ')
-				continue;
 			if (!c) /* end of line */
 				return p-1;
+			if (c == ' ')
+				continue;
 			/* other char => new field */
 			break;
 		}
@@ -283,12 +281,10 @@ const char *field_start(const char *p, int field)
 		/* skip this field */
 		while (1) {
 			c = *(p++);
-			if (c == ' ')
-				break;
-			if (c > ' ')
-				continue;
 			if (c == '\0')
 				return p - 1;
+			if (c == ' ')
+				break;
 		}
 	}
 #else
