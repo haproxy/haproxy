@@ -569,16 +569,18 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 		switch(appctx->st0) {
 
 			case HTTPCLIENT_S_REQ:
-				/* copy the request from the hc->req.buf buffer */
-				/* We now that it fits the content of a buffer so can
-				 * just push this entirely */
+				/* we know that the buffer is empty here, since
+				 * it's the first call, we can freely copy the
+				 * request from the httpclient buffer */
 				ret = b_xfer(&req->buf, &hc->req.buf, b_data(&hc->req.buf));
-				if (ret)
-					channel_add_input(req, b_data(&req->buf));
+				if (!ret)
+					goto more;
 
-				htx = htxbuf(&req->buf);
+				htx = htx_from_buf(&req->buf);
 				if (!htx)
 					goto more;
+
+				channel_add_input(req, htx->data);
 
 				if (htx->flags & HTX_FL_EOM) /* check if a body need to be added */
 					appctx->st0 = HTTPCLIENT_S_RES_STLINE;
@@ -592,15 +594,29 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 				{
 					if (hc->ops.req_payload) {
 
-						ret = b_xfer(&req->buf, &hc->req.buf, b_data(&hc->req.buf));
-						if (ret)
-							channel_add_input(req, b_data(&req->buf));
-
 						/* call the request callback */
 						hc->ops.req_payload(hc);
+						/* check if the request buffer is empty */
+
+						htx = htx_from_buf(&req->buf);
+						if (!htx_is_empty(htx))
+							goto more;
+						/* Here htx_to_buf() will set buffer data to 0 because
+						 * the HTX is empty, and allow us to do an xfer.
+						 */
+						htx_to_buf(htx, &req->buf);
+
+						ret = b_xfer(&req->buf, &hc->req.buf, b_data(&hc->req.buf));
+						if (!ret)
+							goto more;
+						htx = htx_from_buf(&req->buf);
+						if (!htx)
+							goto more;
+
+						channel_add_input(req, htx->data);
 					}
 
-					htx = htxbuf(&req->buf);
+					htx = htx_from_buf(&req->buf);
 					if (!htx)
 						goto more;
 
