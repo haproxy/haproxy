@@ -182,11 +182,11 @@ client c4 -connect ${h1_feh1_sock} {
 client c5 -connect ${h1_feh1_sock} {
         txreq -req GET -url /deny-srv
         rxresp
-        expect resp.status == 502
-        expect resp.http.be-sl1 == <undef>
-        expect resp.http.be-sl2 == <undef>
-        expect resp.http.be-hdr == <undef>
-        expect resp.http.sl1 == <undef>
-        expect resp.http.sl2 == <undef>
-        expect resp.http.hdr == <undef>
+        expect resp.status == 200
+        expect resp.http.be-sl1 == ""
+        expect resp.http.be-sl2 == ""
+        expect resp.http.be-hdr == ""
+        expect resp.http.fe-sl1-crc == 3104968915
+        expect resp.http.fe-sl2-crc == 561949791
+        expect resp.http.fe-hdr-crc == 623352154
 } -run
