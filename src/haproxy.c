@@ -799,7 +799,15 @@ static void mworker_reexec_waitmode()
 /* reload haproxy and emit a warning */
 void mworker_reload()
 {
+	struct mworker_proc *child;
+
 	ha_notice("Reloading HAProxy\n");
+
+	/* increment the number of reloads */
+	list_for_each_entry(child, &proc_list, list) {
+		child->reloads++;
+	}
+
 	mworker_reexec();
 }
 

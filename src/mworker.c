@@ -174,8 +174,8 @@ int mworker_env_to_proc_list()
 			} else if (strncmp(subtoken, "pid=", 4) == 0) {
 				child->pid = atoi(subtoken+4);
 			} else if (strncmp(subtoken, "reloads=", 8) == 0) {
-				/* we reloaded this process once more */
-				child->reloads = atoi(subtoken+8) + 1;
+				/* we only increment the number of asked reload */
+				child->reloads = atoi(subtoken+8);
 			} else if (strncmp(subtoken, "timestamp=", 10) == 0) {
 				child->timestamp = atoi(subtoken+10);
 			} else if (strncmp(subtoken, "id=", 3) == 0) {
