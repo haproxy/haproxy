@@ -690,7 +690,7 @@ static void get_cur_unixsocket()
  * When called, this function reexec haproxy with -sf followed by current
  * children PIDs and possibly old children PIDs if they didn't leave yet.
  */
-void mworker_reload()
+static void mworker_reexec()
 {
 	char **next_argv = NULL;
 	int old_argc = 0; /* previous number of argument */
@@ -791,6 +791,19 @@ alloc_error:
 	return;
 }
 
+/* reexec haproxy in waitmode */
+static void mworker_reexec_waitmode()
+{
+	setenv("HAPROXY_MWORKER_WAIT_ONLY", "1", 1);
+	mworker_reexec();
+}
+
+/* reload haproxy and emit a warning */
+void mworker_reload()
+{
+	mworker_reexec();
+}
+
 static void mworker_loop()
 {
 
@@ -801,7 +814,6 @@ static void mworker_loop()
 	/* Busy polling makes no sense in the master :-) */
 	global.tune.options &= ~GTUNE_BUSY_POLLING;
 
-	master = 1;
 
 	signal_unregister(SIGTTIN);
 	signal_unregister(SIGTTOU);
@@ -847,11 +859,9 @@ void reexec_on_failure()
 {
 	if (!atexit_flag)
 		return;
-
-	setenv("HAPROXY_MWORKER_WAIT_ONLY", "1", 1);
-
 	ha_warning("Reexecuting Master process in waitpid mode\n");
-	mworker_reload();
+	usermsgs_clr(NULL);
+	mworker_reexec_waitmode();
 }
 
 
@@ -3232,6 +3242,7 @@ int main(int argc, char **argv)
 
 		if (in_parent) {
 			if (global.mode & (MODE_MWORKER|MODE_MWORKER_WAIT)) {
+				master = 1;
 
 				if ((!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)) &&
 					(global.mode & MODE_DAEMON)) {
@@ -3243,7 +3254,14 @@ int main(int argc, char **argv)
 					global.mode |= MODE_QUIET; /* ensure that we won't say anything from now */
 				}
 
-				mworker_loop();
+				if (global.mode & MODE_MWORKER_WAIT) {
+					/* only the wait mode handles the master CLI */
+					mworker_loop();
+				} else {
+
+					/* if not in wait mode, reload in wait mode to free the memory */
+					mworker_reexec_waitmode();
+				}
 				/* should never get there */
 				exit(EXIT_FAILURE);
 			}
