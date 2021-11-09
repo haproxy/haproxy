@@ -160,6 +160,8 @@ haproxy h1 -conf {
 	http-response set-header     sl1-crc "%[res.fhdr(sl1),crc32]"
 	http-response set-header     sl2-crc "%[res.fhdr(sl2),crc32]"
 	http-response set-header     hdr-crc "%[res.fhdr(hdr),crc32]"
+	http-response allow
+	http-response deny # must not be evaluated
 
 	server s1 ${s1_addr}:${s1_port}
 } -start
