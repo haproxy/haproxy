@@ -5357,7 +5357,7 @@ http-after-response add-header <name> <fmt> [ { if | unless } <condition> ]
 http-after-response allow [ { if | unless } <condition> ]
 
   This stops the evaluation of the rules and lets the response pass the check.
-  No further "http-after-response" rules are evaluated.
+  No further "http-after-response" rules are evaluated for the current section.
 
 http-after-response del-header <name> [ -m <meth> ] [ { if | unless } <condition> ]
 
@@ -6118,8 +6118,7 @@ http-request add-header <name> <fmt> [ { if | unless } <condition> ]
 http-request allow [ { if | unless } <condition> ]
 
   This stops the evaluation of the rules and lets the request pass the check.
-  No further "http-request" rules are evaluated.
-
+  No further "http-request" rules are evaluated for the current section.
 
 http-request auth [realm <realm>] [ { if | unless } <condition> ]
 
@@ -12340,7 +12339,7 @@ tcp-request content <action> [{if | unless} <condition>]
 tcp-request content accept [ { if | unless } <condition> ]
 
   This is used to accept the connection. No further "tcp-request content"
-  rules are evaluated.
+  rules are evaluated for the current section.
 
 tcp-request content capture <sample> len <length>
                     [ { if | unless } <condition> ]
