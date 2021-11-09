@@ -777,10 +777,8 @@ static void mworker_reexec()
 	for (i = 1; i < old_argc; i++)
 		next_argv[next_argc++] = old_argv[i];
 
-	ha_warning("Reexecuting Master process\n");
 	signal(SIGPROF, SIG_IGN);
 	execvp(next_argv[0], next_argv);
-
 	ha_warning("Failed to reexecute the master process [%d]: %s\n", pid, strerror(errno));
 	ha_free(&next_argv);
 	return;
@@ -801,6 +799,7 @@ static void mworker_reexec_waitmode()
 /* reload haproxy and emit a warning */
 void mworker_reload()
 {
+	ha_notice("Reloading HAProxy\n");
 	mworker_reexec();
 }
 
@@ -859,8 +858,8 @@ void reexec_on_failure()
 {
 	if (!atexit_flag)
 		return;
-	ha_warning("Reexecuting Master process in waitpid mode\n");
 	usermsgs_clr(NULL);
+	ha_warning("Loading failure!\n");
 	mworker_reexec_waitmode();
 }
 
@@ -3260,6 +3259,7 @@ int main(int argc, char **argv)
 				} else {
 
 					/* if not in wait mode, reload in wait mode to free the memory */
+					ha_notice("Loading success.\n");
 					mworker_reexec_waitmode();
 				}
 				/* should never get there */
