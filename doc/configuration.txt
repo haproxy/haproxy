@@ -19443,7 +19443,7 @@ ssl_fc_protocol_hello_id : integer
 ssl_fc_unique_id : binary
   When the incoming connection was made over an SSL/TLS transport layer,
   returns the TLS unique ID as defined in RFC5929 section 3. The unique id
-  can be encoded to base64 using the converter: "ssl_bc_unique_id,base64".
+  can be encoded to base64 using the converter: "ssl_fc_unique_id,base64".
 
 ssl_fc_server_handshake_traffic_secret : string
   Return the SERVER_HANDSHAKE_TRAFFIC_SECRET as an hexadecimal string for the
