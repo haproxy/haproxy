@@ -3191,7 +3191,7 @@ int main(int argc, char **argv)
 				if (global.mode & MODE_MWORKER) {
 					struct mworker_proc *child;
 
-					ha_notice("New worker #%d (%d) forked\n", 1, ret);
+					ha_notice("New worker (%d) forked\n", ret);
 					/* find the right mworker_proc */
 					list_for_each_entry(child, &proc_list, list) {
 						if (child->reloads == 0 && child->options & PROC_O_TYPE_WORKER) {
