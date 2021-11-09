@@ -165,8 +165,8 @@ DECLARE_STATIC_POOL(pool_head_quic_arng, "quic_arng_pool", sizeof(struct quic_ar
 
 static struct quic_tx_packet *qc_build_pkt(unsigned char **pos, const unsigned char *buf_end,
                                            struct quic_enc_level *qel,
-                                           struct quic_conn *qc, int pkt_type,
-                                           int ack, int nb_pto_dgrams, int *err);
+                                           struct quic_conn *qc, size_t dglen, int pkt_type,
+                                           int padding, int ack, int nb_pto_dgrams, int *err);
 
 /* Add traces to <buf> depending on <frm> TX frame type. */
 static inline void chunk_tx_frm_appendf(struct buffer *buf,
@@ -2142,6 +2142,7 @@ static int qc_prep_hdshk_pkts(struct qring *qr, struct ssl_sock_ctx *ctx)
 	/* length of datagrams */
 	uint16_t dglen;
 	size_t total;
+	int padding;
 	/* Each datagram is prepended with its length followed by the
 	 * address of the first packet in the datagram.
 	 */
@@ -2155,8 +2156,9 @@ static int qc_prep_hdshk_pkts(struct qring *qr, struct ssl_sock_ctx *ctx)
 	}
 
  start:
-	total = 0;
 	dglen = 0;
+	total = 0;
+	padding = 0;
 	qel = &qc->els[tel];
 	cbuf = qr->cbuf;
 	spos = pos = cb_wr(cbuf);
@@ -2205,7 +2207,8 @@ static int qc_prep_hdshk_pkts(struct qring *qr, struct ssl_sock_ctx *ctx)
 			end = pos + qc->path->mtu;
 		}
 
-		cur_pkt = qc_build_pkt(&pos, end, qel, qc, pkt_type, ack, nb_ptos, &err);
+		cur_pkt = qc_build_pkt(&pos, end, qel, qc, dglen, padding,
+		                       pkt_type, ack, nb_ptos, &err);
 		/* Restore the PTO dgrams counter if a packet could not be built */
 		if (err < 0) {
 			if (!prv_pkt && nb_ptos)
@@ -2251,8 +2254,8 @@ static int qc_prep_hdshk_pkts(struct qring *qr, struct ssl_sock_ctx *ctx)
 				qc_set_timer(ctx);
 				HA_ATOMIC_STORE(&qc->state, QUIC_HS_ST_CLIENT_HANDSHAKE);
 			}
-			/* Special case for Initial packets: when they have all
-			 * been sent, select the next level.
+			/* If the data for the current encryption level have all been sent,
+			 * select the next level.
 			 */
 			if ((tel == QUIC_TLS_ENC_LEVEL_INITIAL || tel == QUIC_TLS_ENC_LEVEL_HANDSHAKE) &&
 			    (MT_LIST_ISEMPTY(&qel->pktns->tx.frms) ||
@@ -2264,10 +2267,7 @@ static int qc_prep_hdshk_pkts(struct qring *qr, struct ssl_sock_ctx *ctx)
 				qel = &qc->els[tel];
 				if (!MT_LIST_ISEMPTY(&qel->pktns->tx.frms)) {
 					/* If there is data for the next level, do not
-					 * consume a datagram. This is the case for a client
-					 * which sends only one Initial packet, then wait
-					 * for additional CRYPTO data from the server to enter the
-					 * next level.
+					 * consume a datagram.
 					 */
 					prv_pkt = cur_pkt;
 				}
@@ -2281,6 +2281,12 @@ static int qc_prep_hdshk_pkts(struct qring *qr, struct ssl_sock_ctx *ctx)
 			qc_set_dg(cbuf, dglen, first_pkt);
 			first_pkt = NULL;
 			dglen = 0;
+			padding = 0;
+		}
+		else if (prv_pkt->type == QUIC_TLS_ENC_LEVEL_INITIAL &&
+		         (objt_server(qc->conn->target) ||
+		         prv_pkt->flags & QUIC_FL_TX_PACKET_ACK_ELICITING)) {
+			padding = 1;
 		}
 	}
 
@@ -4223,16 +4229,16 @@ static int qc_eval_pkt(ssize_t room, struct quic_tx_packet *pkt,
  * Always succeeds: this is the responsibility of the caller to ensure there is
  * enough room to build a packet.
  */
-static void qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
-                            struct quic_tx_packet *pkt, int ack, int nb_pto_dgrams,
+static void qc_do_build_pkt(unsigned char *pos, const unsigned char *end, int padding,
+                            size_t dglen, struct quic_tx_packet *pkt, int ack, int nb_pto_dgrams,
                             int64_t pn, size_t *pn_len, unsigned char **buf_pn,
                             struct quic_enc_level *qel, struct quic_conn *conn)
 {
 	unsigned char *beg;
-	size_t len, len_frms, padding_len;
+	size_t len, len_sz, len_frms, padding_len;
 	struct quic_frame frm = { .type = QUIC_FT_CRYPTO, };
 	struct quic_frame ack_frm = { .type = QUIC_FT_ACK, };
-	size_t ack_frm_len;
+	size_t ack_frm_len, head_len;
 	int64_t largest_acked_pn;
 	int add_ping_frm;
 
@@ -4264,6 +4270,7 @@ static void qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 	/* XXX FIXME XXX Encode the token length (0) for an Initial packet. */
 	if (pkt->type == QUIC_PACKET_TYPE_INITIAL)
 		*pos++ = 0;
+	head_len = pos - beg;
 	/* Ensure there is enough room for the TLS encryption tag */
 	end -= QUIC_TLS_TAG_LEN;
 	/* Build an ACK frame if required. */
@@ -4301,12 +4308,31 @@ static void qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 						conn->conn, NULL, NULL, &room);
 	}
 
+	/* Length (of the remaining data). Must not fail because, the buffer size
+	 * has been checked above. Note that we have reserved QUIC_TLS_TAG_LEN bytes
+	 * for the encryption tag. It must be taken into an account for the length
+	 * of this packet.
+	 */
+	if (len_frms)
+		len = len_frms + QUIC_TLS_TAG_LEN;
+	else
+		len += QUIC_TLS_TAG_LEN;
+
 	add_ping_frm = 0;
 	padding_len = 0;
-	if (objt_server(conn->conn->target) &&
-	    pkt->type == QUIC_PACKET_TYPE_INITIAL &&
-	    len < QUIC_INITIAL_PACKET_MINLEN) {
-		len += padding_len = QUIC_INITIAL_PACKET_MINLEN - len;
+	len_sz = quic_int_getsize(len);
+	/* Add this packet size to <dglen> */
+	dglen += head_len + len_sz + len;
+	if (padding && dglen < QUIC_INITIAL_PACKET_MINLEN) {
+		/* This is a maximum padding size */
+		padding_len = QUIC_INITIAL_PACKET_MINLEN - dglen;
+		/* The length field value is of this packet is <len> + <padding_len>
+		 * the size of which may be greater than the initial computed size
+		 * <len_sz>. So, let's deduce the difference betwen these to packet
+		 * sizes from <padding_len>.
+		 */
+		padding_len -= quic_int_getsize(len + padding_len) - len_sz;
+		len += padding_len;
 	}
 	else if (LIST_ISEMPTY(&pkt->frms) || len_frms == len) {
 		if (qel->pktns->tx.pto_probe) {
@@ -4319,15 +4345,6 @@ static void qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 			len += padding_len = QUIC_PACKET_PN_MAXLEN - *pn_len;
 	}
 
-	/* Length (of the remaining data). Must not fail because, the buffer size
-	 * has been checked above. Note that we have reserved QUIC_TLS_TAG_LEN bytes
-	 * for the encryption tag. It must be taken into an account for the length
-	 * of this packet.
-	 */
-	if (len_frms)
-		len = len_frms + QUIC_TLS_TAG_LEN;
-	else
-		len += QUIC_TLS_TAG_LEN;
 	if (pkt->type != QUIC_PACKET_TYPE_SHORT)
 		quic_enc_int(&pos, end, len);
 
@@ -4422,8 +4439,8 @@ static inline void free_quic_tx_packet(struct quic_tx_packet *pkt)
 static struct quic_tx_packet *qc_build_pkt(unsigned char **pos,
                                            const unsigned char *buf_end,
                                            struct quic_enc_level *qel,
-                                           struct quic_conn *qc, int pkt_type,
-                                           int ack, int nb_pto_dgrams, int *err)
+                                           struct quic_conn *qc, size_t dglen, int padding,
+                                           int pkt_type, int ack, int nb_pto_dgrams, int *err)
 {
 	/* The pointer to the packet number field. */
 	unsigned char *buf_pn;
@@ -4453,7 +4470,8 @@ static struct quic_tx_packet *qc_build_pkt(unsigned char **pos,
 
 	/* Consume a packet number. */
 	pn = HA_ATOMIC_ADD_FETCH(&qel->pktns->tx.next_pn, 1);
-	qc_do_build_pkt(*pos, buf_end, pkt, ack, nb_pto_dgrams, pn, &pn_len, &buf_pn, qel, qc);
+	qc_do_build_pkt(*pos, buf_end, padding, dglen, pkt, ack, nb_pto_dgrams,
+	                pn, &pn_len, &buf_pn, qel, qc);
 
 	end = beg + pkt->len;
 	payload = buf_pn + pn_len;
