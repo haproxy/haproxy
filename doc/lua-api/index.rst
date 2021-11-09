@@ -2083,10 +2083,13 @@ TXN class
   processing after some data have been returned to the client (eg: a redirect).
   To do so, a reply may be provided. This object is optional and may contain a
   status code, a reason, a header list and a body. All these fields are
-  optional. When not provided, the default values are used. By default, with
-  an empty reply object, an empty HTTP 200 response is returned to the
-  client. If no reply object is provided, the transaction is terminated without
-  any reply.
+  optional. When not provided, the default values are used. By default, with an
+  empty reply object, an empty HTTP 200 response is returned to the client. If
+  no reply object is provided, the transaction is terminated without any
+  reply. If a reply object is provided, it must not exceed the buffer size once
+  converted into the internal HTTP representing. Because for now there is no
+  easy way to be sure it fits, it is probably better to keep it reasonably
+  small.
 
   The reply object may be fully created in lua or the class Reply may be used to
   create it.
@@ -2178,7 +2181,12 @@ Reply class
   **context**: action
 
   This class represents an HTTP response message. It provides some methods to
-  enrich it.
+  enrich it. Once converted into the internal HTTP representation, the response
+  message must not exceed the buffer size. Because for now there is no
+  easy way to be sure it fits, it is probably better to keep it reasonably
+  small.
+
+  See tune.bufsize in the configuration manual for dettails.
 
 .. code-block:: lua
 
