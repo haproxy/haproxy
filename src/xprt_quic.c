@@ -644,9 +644,14 @@ static inline void qc_set_timer(struct ssl_sock_ctx *ctx)
 		goto out;
 	}
 
-	/* XXX TODO: anti-amplification: the timer must be
+	/* anti-amplification: the timer must be
 	 * cancelled for a server which reached the anti-amplification limit.
 	 */
+	if (qc->flags & QUIC_FL_CONN_ANTI_AMPLIFICATION_REACHED) {
+		TRACE_PROTO("anti-amplification reached", QUIC_EV_CONN_STIMER, ctx->conn);
+		qc->timer = TICK_ETERNITY;
+		goto out;
+	}
 
 	if (!qc->path->ifae_pkts && quic_peer_validated_addr(ctx)) {
 		TRACE_PROTO("timer cancellation", QUIC_EV_CONN_STIMER, ctx->conn);
@@ -2204,7 +2209,14 @@ static int qc_prep_hdshk_pkts(struct qring *qr, struct ssl_sock_ctx *ctx)
 		if (!prv_pkt) {
 			/* Leave room for the datagram header */
 			pos += dg_headlen;
-			end = pos + qc->path->mtu;
+			if (!quic_peer_validated_addr(ctx) && objt_listener(ctx->conn->target)) {
+				if (qc->tx.prep_bytes >= 3 * qc->rx.bytes)
+					qc->flags |= QUIC_FL_CONN_ANTI_AMPLIFICATION_REACHED;
+				end = pos + QUIC_MIN(qc->path->mtu, 3 * qc->rx.bytes - qc->tx.prep_bytes);
+			}
+			else {
+				end = pos + qc->path->mtu;
+			}
 		}
 
 		cur_pkt = qc_build_pkt(&pos, end, qel, qc, dglen, padding,
@@ -4496,6 +4508,7 @@ static struct quic_tx_packet *qc_build_pkt(unsigned char **pos,
 		goto err;
 	}
 
+	qc->tx.prep_bytes += pkt->len;
 	/* Now that a correct packet is built, let us consume <*pos> buffer. */
 	*pos = end;
 	/* Attach the built packet to its tree. */

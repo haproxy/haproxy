@@ -606,6 +606,8 @@ struct rxbuf {
 /* Flag the packet number space as requiring an ACK frame to be sent. */
 #define QUIC_FL_PKTNS_ACK_REQUIRED_BIT 0
 #define QUIC_FL_PKTNS_ACK_REQUIRED  (1UL << QUIC_FL_PKTNS_ACK_REQUIRED_BIT)
+
+#define QUIC_FL_CONN_ANTI_AMPLIFICATION_REACHED (1UL << 1)
 struct quic_conn {
 	uint32_t version;
 	/* QUIC transport parameters TLS extension */
@@ -650,6 +652,8 @@ struct quic_conn {
 		int rbuf;
 		/* Number of sent bytes. */
 		uint64_t bytes;
+		/* Number of bytes for prepared packets */
+		uint64_t prep_bytes;
 		/* The number of datagrams which may be sent
 		 * when sending probe packets.
 		 */
