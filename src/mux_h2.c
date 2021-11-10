@@ -61,7 +61,7 @@ static const struct h2s *h2_idle_stream;
 #define H2_CF_DEM_BLOCK_ANY     0x000001F0  // aggregate of the demux flags above except DALLOC/DFULL
                                             // (SHORT_READ is also excluded)
 
-#define H2_CF_DEM_SHORT_READ    0x00080200  // demux blocked on incomplete frame
+#define H2_CF_DEM_SHORT_READ    0x00000200  // demux blocked on incomplete frame
 
 /* other flags */
 #define H2_CF_GOAWAY_SENT       0x00001000  // a GOAWAY frame was successfully sent
