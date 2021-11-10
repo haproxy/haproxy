@@ -44,6 +44,7 @@
 #include <haproxy/list.h>
 #include <haproxy/listener.h>
 #include <haproxy/log.h>
+#include <haproxy/mworker.h>
 #include <haproxy/mworker-t.h>
 #include <haproxy/pattern-t.h>
 #include <haproxy/peers.h>
@@ -2067,7 +2068,7 @@ void pcli_write_prompt(struct stream *s)
 	} else {
 		if (s->pcli_next_pid == 0)
 			chunk_appendf(msg, "master%s> ",
-			              (global.mode & MODE_MWORKER_WAIT) ? "[ReloadFailed]" : "");
+			              (proc_self->failedreloads > 0) ? "[ReloadFailed]" : "");
 		else
 			chunk_appendf(msg, "%d> ", s->pcli_next_pid);
 	}
