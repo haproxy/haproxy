@@ -3565,19 +3565,21 @@ Example:
    # haproxy -Ws -S /tmp/master-socket,uid,1000,gid,1000,mode,600 -f test1.cfg
    # haproxy -W -S /tmp/master-socket,level,user -f test1.cfg
 
-The master CLI introduces a new 'show proc' command to surpervise the
+The master CLI introduces a 'show proc' command to surpervise the
 processes:
 
 Example:
 
   $ echo 'show proc' | socat /var/run/haproxy-master.sock -
-  #<PID>          <type>          <relative PID>  <reloads>       <uptime>        <version>
-  1162            master          0               5               0d00h02m07s     2.0-dev7-0124c9-7
+  #<PID>          <type>          <reloads>       <uptime>        <version>
+  1162            master          5 [failed: 0]   0d00h02m07s     2.5-dev13
   # workers
-  1271            worker          1               0               0d00h00m00s     2.0-dev7-0124c9-7
-  1272            worker          2               0               0d00h00m00s     2.0-dev7-0124c9-7
+  1271            worker          1               0d00h00m00s     2.5-dev13
   # old workers
-  1233            worker          [was: 1]        3               0d00h00m43s     2.0-dev3-6019f6-289
+  1233            worker          3               0d00h00m43s     2.0-dev3-6019f6-289
+  # programs
+  1244            foo             0               0d00h00m00s     -
+  1255            bar             0               0d00h00m00s     -
 
 
 In this example, the master has been reloaded 5 times but one of the old
