@@ -14,14 +14,18 @@ feature ignore_unknown_macro
 
 server s1 {
     rxreq
-    txresp -bodylen 200
+    txresp -bodylen 54000
+    expect req.body ~ ".*0 ABCDEFGHIJKLMNOPQRSTUVWXYZ.*"
+    expect req.body ~ ".*500 ABCDEFGHIJKLMNOPQRSTUVWXYZ.*"
+    expect req.body ~ ".*1000 ABCDEFGHIJKLMNOPQRSTUVWXYZ.*"
+    expect req.body ~ ".*1500 ABCDEFGHIJKLMNOPQRSTUVWXYZ.*"
     expect req.body ~ ".*2000 ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 } -start
 
 server s2 {
    rxreq
    txresp
-   expect req.bodylen == 200
+   expect req.bodylen == 54000
 } -start
 
 haproxy h1 -conf {
