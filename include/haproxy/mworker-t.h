@@ -40,6 +40,7 @@ struct mworker_proc {
 	char *version;
 	int ipc_fd[2]; /* 0 is master side, 1 is worker side */
 	int reloads;
+	int failedreloads; /* number of failed reloads since the last successful one */
 	int timestamp;
 	struct server *srv; /* the server entry in the master proxy */
 	struct list list;

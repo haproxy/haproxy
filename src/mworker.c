@@ -122,7 +122,7 @@ void mworker_proc_list_to_env()
 			type = 'w';
 
 		if (child->pid > -1)
-			memprintf(&msg, "%s|type=%c;fd=%d;pid=%d;reloads=%d;timestamp=%d;id=%s;version=%s", msg ? msg : "", type, child->ipc_fd[0], child->pid, child->reloads, child->timestamp, child->id ? child->id : "", child->version);
+			memprintf(&msg, "%s|type=%c;fd=%d;pid=%d;reloads=%d;failedreloads=%d;timestamp=%d;id=%s;version=%s", msg ? msg : "", type, child->ipc_fd[0], child->pid, child->reloads, child->failedreloads, child->timestamp, child->id ? child->id : "", child->version);
 	}
 	if (msg)
 		setenv("HAPROXY_PROCESSES", msg, 1);
@@ -176,6 +176,8 @@ int mworker_env_to_proc_list()
 			} else if (strncmp(subtoken, "reloads=", 8) == 0) {
 				/* we only increment the number of asked reload */
 				child->reloads = atoi(subtoken+8);
+			} else if (strncmp(subtoken, "failedreloads=", 14) == 0) {
+				child->failedreloads = atoi(subtoken+14);
 			} else if (strncmp(subtoken, "timestamp=", 10) == 0) {
 				child->timestamp = atoi(subtoken+10);
 			} else if (strncmp(subtoken, "id=", 3) == 0) {
@@ -455,15 +457,18 @@ static int cli_io_handler_show_proc(struct appctx *appctx)
 	int old = 0;
 	int up = now.tv_sec - proc_self->timestamp;
 	char *uptime = NULL;
+	char *reloadtxt = NULL;
 
 	if (unlikely(si_ic(si)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
 		return 1;
 
 	chunk_reset(&trash);
 
+	memprintf(&reloadtxt, "%d [failed: %d]", proc_self->reloads, proc_self->failedreloads);
 	chunk_printf(&trash, "#%-14s %-15s %-15s %-15s %-15s\n", "<PID>", "<type>", "<reloads>", "<uptime>", "<version>");
 	memprintf(&uptime, "%dd%02dh%02dm%02ds", up / 86400, (up % 86400) / 3600, (up % 3600) / 60, (up % 60));
-	chunk_appendf(&trash, "%-15u %-15s %-15d %-15s %-15s\n", (unsigned int)getpid(), "master", proc_self->reloads, uptime, haproxy_version);
+	chunk_appendf(&trash, "%-15u %-15s %-15s %-15s %-15s\n", (unsigned int)getpid(), "master", reloadtxt, uptime, haproxy_version);
+	ha_free(&reloadtxt);
 	ha_free(&uptime);
 
 	/* displays current processes */

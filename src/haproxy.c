@@ -864,8 +864,21 @@ static void mworker_loop()
  */
 void reexec_on_failure()
 {
+	struct mworker_proc *child;
+
 	if (!atexit_flag)
 		return;
+
+	/* get the info of the children in the env */
+	if (mworker_env_to_proc_list() < 0) {
+		exit(EXIT_FAILURE);
+	}
+
+	/* increment the number of failed reloads */
+	list_for_each_entry(child, &proc_list, list) {
+		child->failedreloads++;
+	}
+
 	usermsgs_clr(NULL);
 	ha_warning("Loading failure!\n");
 	mworker_reexec_waitmode();
@@ -1945,6 +1958,7 @@ static void init(int argc, char **argv)
 				exit(EXIT_FAILURE);
 			}
 			tmproc->options |= PROC_O_TYPE_MASTER; /* master */
+			tmproc->failedreloads = 0;
 			tmproc->reloads = 0;
 			tmproc->pid = pid;
 			tmproc->timestamp = start_date.tv_sec;
@@ -1964,6 +1978,7 @@ static void init(int argc, char **argv)
 
 		tmproc->options |= PROC_O_TYPE_WORKER; /* worker */
 		tmproc->pid = -1;
+		tmproc->failedreloads = 0;
 		tmproc->reloads = 0;
 		tmproc->timestamp = -1;
 		tmproc->ipc_fd[0] = -1;
@@ -3268,6 +3283,7 @@ int main(int argc, char **argv)
 
 					/* if not in wait mode, reload in wait mode to free the memory */
 					ha_notice("Loading success.\n");
+					proc_self->failedreloads = 0; /* reset the number of failure */
 					mworker_reexec_waitmode();
 				}
 				/* should never get there */
