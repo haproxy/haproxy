@@ -325,8 +325,13 @@ static void h1_trace(enum trace_level level, uint64_t mask, const struct trace_s
 
 	/* Display h1c info and, if defined, h1s info (pointer + flags) */
 	chunk_appendf(&trace_buf, " - h1c=%p(0x%08x)", h1c, h1c->flags);
-	if (h1s)
+	if (h1c->conn)
+		chunk_appendf(&trace_buf, " conn=%p(0x%08x)", h1c->conn, h1c->conn->flags);
+	if (h1s) {
 		chunk_appendf(&trace_buf, " h1s=%p(0x%08x)", h1s, h1s->flags);
+		if (h1s->cs)
+			chunk_appendf(&trace_buf, " cs=%p(0x%08x)", h1s->cs, h1s->cs->flags);
+	}
 
 	if (src->verbosity == H1_VERB_MINIMAL)
 		return;
@@ -3245,7 +3250,7 @@ static void h1_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
 		return;
 	h1c = h1s->h1c;
 
-	TRACE_ENTER(H1_EV_STRM_SHUT, h1c->conn, h1s);
+	TRACE_ENTER(H1_EV_STRM_SHUT, h1c->conn, h1s, 0, (size_t[]){mode});
 
 	if (cs->flags & CS_FL_SHR)
 		goto end;
@@ -3288,7 +3293,7 @@ static void h1_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
 		return;
 	h1c = h1s->h1c;
 
-	TRACE_ENTER(H1_EV_STRM_SHUT, h1c->conn, h1s);
+	TRACE_ENTER(H1_EV_STRM_SHUT, h1c->conn, h1s, 0, (size_t[]){mode});
 
 	if (cs->flags & CS_FL_SHW)
 		goto end;
