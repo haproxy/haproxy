@@ -134,13 +134,14 @@ void mworker_proc_list_to_env()
 int mworker_env_to_proc_list()
 {
 	char *msg, *token = NULL, *s1;
+	struct mworker_proc *child;
+	int minreloads = INT_MAX; /* minimum number of reloads to chose which processes are "current" ones */
 
 	msg = getenv("HAPROXY_PROCESSES");
 	if (!msg)
 		return 0;
 
 	while ((token = strtok_r(msg, "|", &s1))) {
-		struct mworker_proc *child;
 		char *subtoken = NULL;
 		char *s2;
 
@@ -176,6 +177,9 @@ int mworker_env_to_proc_list()
 			} else if (strncmp(subtoken, "reloads=", 8) == 0) {
 				/* we only increment the number of asked reload */
 				child->reloads = atoi(subtoken+8);
+
+				if (child->reloads < minreloads)
+					minreloads = child->reloads;
 			} else if (strncmp(subtoken, "failedreloads=", 14) == 0) {
 				child->failedreloads = atoi(subtoken+14);
 			} else if (strncmp(subtoken, "timestamp=", 10) == 0) {
@@ -187,13 +191,17 @@ int mworker_env_to_proc_list()
 			}
 		}
 		if (child->pid) {
-			/* this is a process inherited from a reload that should be leaving */
-			child->options |= PROC_O_LEAVING;
-
 			LIST_APPEND(&proc_list, &child->list);
 		} else {
 			mworker_free_child(child);
 		}
+	}
+
+	/* set the leaving processes once we know which number of reloads are the current processes */
+
+	list_for_each_entry(child, &proc_list, list) {
+		if (child->reloads > minreloads)
+			child->options |= PROC_O_LEAVING;
 	}
 
 	unsetenv("HAPROXY_PROCESSES");
