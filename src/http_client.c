@@ -535,7 +535,7 @@ struct httpclient *httpclient_new(void *caller, enum http_meth_t meth, struct is
 		goto err;
 
 	hc->caller = caller;
-	hc->req.url = url;
+	hc->req.url = istdup(url);
 	hc->req.meth = meth;
 
 	return hc;
