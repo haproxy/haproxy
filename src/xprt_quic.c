@@ -52,6 +52,14 @@
 #include <haproxy/trace.h>
 #include <haproxy/xprt_quic.h>
 
+/* list of supported QUIC versions by this implementation */
+static int quic_supported_version[] = {
+	0x00000001,
+
+	/* placeholder, do not add entry after this */
+	0x0
+};
+
 /* This is the values of some QUIC transport parameters when absent.
  * Should be used to initialize any transport parameters (local or remote)
  * before updating them with customized values.
@@ -3136,8 +3144,6 @@ static inline int quic_packet_read_long_header(unsigned char **buf, const unsign
 	if (!quic_read_uint32(&pkt->version, (const unsigned char **)buf, end))
 		return 0;
 
-	if (!pkt->version) { /* XXX TO DO XXX Version negotiation packet */ };
-
 	/* Destination Connection ID Length */
 	dcid_len = *(*buf)++;
 	/* We want to be sure we can read <dcid_len> bytes and one more for <scid_len> value */
@@ -3313,6 +3319,24 @@ static inline void qc_parse_hd_form(struct quic_rx_packet *pkt,
 	}
 }
 
+/*
+ * Check if the QUIC version in packet <pkt> is supported. Returns a boolean.
+ */
+static inline int qc_pkt_is_supported_version(struct quic_rx_packet *pkt)
+{
+	int j = 0, version;
+
+	do {
+		version = quic_supported_version[j];
+		if (version == pkt->version)
+			return 1;
+
+		version = quic_supported_version[++j];
+	} while(version);
+
+	return 0;
+}
+
 __attribute__((unused))
 static ssize_t qc_srv_pkt_rcv(unsigned char **buf, const unsigned char *end,
                               struct quic_rx_packet *pkt,
@@ -3350,6 +3374,12 @@ static ssize_t qc_srv_pkt_rcv(unsigned char **buf, const unsigned char *end,
 
 		if (!quic_packet_read_long_header(buf, end, pkt))
 			goto err;
+
+		/* unsupported QUIC version */
+		if (!qc_pkt_is_supported_version(pkt)) {
+			TRACE_PROTO("Null QUIC version, packet dropped", QUIC_EV_CONN_LPKT);
+			goto err;
+		}
 
 		/* For Initial packets, and for servers (QUIC clients connections),
 		 * there is no Initial connection IDs storage.
@@ -3467,6 +3497,60 @@ static ssize_t qc_srv_pkt_rcv(unsigned char **buf, const unsigned char *end,
 	return -1;
 }
 
+/*
+ * Send a Version Negotiation packet on response to <pkt> on socket <fd> to
+ * address <addr>.
+ * Implementation of RFC9000 6. Version Negotiation
+ *
+ * TODO implement a rate-limiting sending of Version Negotiation packets
+ *
+ * Returns 0 on success else non-zero
+ */
+static int qc_send_version_negotiation(int fd, struct sockaddr_storage *addr,
+                                       struct quic_rx_packet *pkt)
+{
+	char buf[256];
+	int i = 0, j, version;
+	const socklen_t addrlen = get_addr_len(addr);
+
+	/*
+	 * header form
+	 * long header, fixed bit to 0 for Version Negotiation
+	 */
+	buf[i++] = '\x80';
+
+	/* null version for Version Negotiation */
+	buf[i++] = '\x00';
+	buf[i++] = '\x00';
+	buf[i++] = '\x00';
+	buf[i++] = '\x00';
+
+	/* source connection id */
+	buf[i++] = pkt->scid.len;
+	memcpy(buf, pkt->scid.data, pkt->scid.len);
+	i += pkt->scid.len;
+
+	/* destination connection id */
+	buf[i++] = pkt->dcid.len;
+	memcpy(buf, pkt->dcid.data, pkt->dcid.len);
+	i += pkt->dcid.len;
+
+	/* supported version */
+	j = 0;
+	do {
+		version = htonl(quic_supported_version[j]);
+		memcpy(&buf[i], &version, sizeof(version));
+		i += sizeof(version);
+
+		version = quic_supported_version[++j];
+	} while (version);
+
+	if (sendto(fd, buf, i, 0, (struct sockaddr *)addr, addrlen) < 0)
+		return 1;
+
+	return 0;
+}
+
 static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
                                 struct quic_rx_packet *pkt,
                                 struct quic_dgram_ctx *dgram_ctx,
@@ -3506,6 +3590,26 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 		if (!quic_packet_read_long_header(buf, end, pkt)) {
 			TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT);
 			goto err;
+		}
+
+		/* RFC9000 6. Version Negotiation */
+		if (!qc_pkt_is_supported_version(pkt)) {
+			/* do not send Version Negotiation in response to a
+			 * Version Negotiation packet.
+			 */
+			if (!pkt->version) {
+				TRACE_PROTO("Null QUIC version, packet dropped", QUIC_EV_CONN_LPKT);
+				goto err;
+			}
+
+			 /* unsupported version, send Negotiation packet */
+			if (qc_send_version_negotiation(l->rx.fd, saddr, pkt)) {
+				TRACE_PROTO("Error on Version Negotiation sending", QUIC_EV_CONN_LPKT);
+				goto err;
+			}
+
+			TRACE_PROTO("Unsupported QUIC version, send Version Negotiation packet", QUIC_EV_CONN_LPKT);
+			goto out;
 		}
 
 		dcid_len = pkt->dcid.len;
@@ -3721,6 +3825,7 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 	if (conn_ctx && HA_ATOMIC_LOAD(&conn_ctx->conn->ctx))
 		tasklet_wakeup(conn_ctx->wait_event.tasklet);
 
+ out:
 	TRACE_LEAVE(QUIC_EV_CONN_LPKT, qc->conn, pkt);
 
 	return pkt->len;
