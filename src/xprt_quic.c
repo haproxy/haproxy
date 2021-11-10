@@ -3095,6 +3095,9 @@ static struct quic_conn *qc_new_conn(unsigned int version, int ipv4,
 	}
 
 	qc->version = version;
+	qc->tps_tls_ext = qc->version & 0xff000000 ?
+		TLS_EXTENSION_QUIC_TRANSPORT_PARAMETERS_DRAFT:
+		TLS_EXTENSION_QUIC_TRANSPORT_PARAMETERS;
 	/* TX part. */
 	LIST_INIT(&qc->tx.frms_to_send);
 	qc->tx.nb_buf = QUIC_CONN_TX_BUFS_NB;

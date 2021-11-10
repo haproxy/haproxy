@@ -37,8 +37,9 @@
 #endif
 #endif
 
-/* The TLS extension (enum) for QUIC transport parameters */
-#define TLS_EXTENSION_QUIC_TRANSPORT_PARAMETERS 0x0039
+/* The TLS extensions for QUIC transport parameters */
+#define TLS_EXTENSION_QUIC_TRANSPORT_PARAMETERS       0x0039
+#define TLS_EXTENSION_QUIC_TRANSPORT_PARAMETERS_DRAFT 0xffa5
 
 /* QUIC handshake states for both clients and servers. */
 enum quic_handshake_state {
