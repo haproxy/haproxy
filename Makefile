@@ -930,7 +930,7 @@ else
 endif
 
 haproxy: $(OPTIONS_OBJS) $(OBJS)
-	$(cmd_LD) $(LDFLAGS) -o $@ $^ $(LDOPTS)
+	$(cmd_LD) $(LDFLAGS) -o $@ $^ $(LDOPTS) -latomic 
 
 objsize: haproxy
 	$(Q)objdump -t $^|grep ' g '|grep -F '.text'|awk '{print $$5 FS $$6}'|sort
@@ -945,7 +945,7 @@ admin/dyncookie/dyncookie: admin/dyncookie/dyncookie.o
 	$(cmd_LD) $(LDFLAGS) -o $@ $^ $(LDOPTS)
 
 dev/flags/flags: dev/flags/flags.o
-	$(cmd_LD) $(LDFLAGS) -o $@ $^ $(LDOPTS)
+	$(cmd_LD) $(LDFLAGS) -o $@ $^ $(LDOPTS) -latomic 
 
 dev/hpack/%: dev/hpack/%.o
 	$(cmd_LD) $(LDFLAGS) -o $@ $^ $(LDOPTS)
