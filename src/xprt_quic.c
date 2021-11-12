@@ -36,6 +36,7 @@
 #include <haproxy/freq_ctr.h>
 #include <haproxy/global.h>
 #include <haproxy/h3.h>
+#include <haproxy/hq_interop.h>
 #include <haproxy/log.h>
 #include <haproxy/mux_quic.h>
 #include <haproxy/pipe.h>
@@ -1669,6 +1670,9 @@ static inline int qc_provide_cdata(struct quic_enc_level *el,
 		qc->qcc->app_ops = &h3_ops;
 		if (!qc->qcc->app_ops->init(qc->qcc))
 			goto err;
+	}
+	else if (alpn_len >= 10 && memcmp(alpn, "hq-interop", 10) == 0) {
+		qc->qcc->app_ops = &hq_interop_ops;
 	}
 	else {
 		/* TODO RFC9001 8.1. Protocol Negotiation
