@@ -1852,6 +1852,12 @@ static int qc_show_fd(struct buffer *msg, struct connection *conn)
 	return 0;
 }
 
+static size_t qc_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t count, int flags)
+{
+	struct qcs *qcs = cs->ctx;
+	return qcs->qcc->app_ops->snd_buf(cs, buf, count, flags);
+}
+
 /****************************************/
 /* MUX initialization and instantiation */
 /***************************************/
@@ -1860,8 +1866,7 @@ static int qc_show_fd(struct buffer *msg, struct connection *conn)
 static const struct mux_ops qc_ops = {
 	.init = qc_init,
 	.wake = qc_wake,
-	//.snd_buf = qc_snd_buf,
-	.snd_buf = h3_snd_buf,
+	.snd_buf = qc_snd_buf,
 	.rcv_buf = qc_rcv_buf,
 	.subscribe = qc_subscribe,
 	.unsubscribe = qc_unsubscribe,

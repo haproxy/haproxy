@@ -820,5 +820,6 @@ const struct qcc_app_ops h3_ops = {
 	.init        = h3_init,
 	.attach_ruqs = h3_attach_ruqs,
 	.decode_qcs  = h3_decode_qcs,
+	.snd_buf     = h3_snd_buf,
 	.finalize    = h3_finalize,
 };
