@@ -502,7 +502,8 @@ void quic_mux_transport_params_update(struct qcc *qcc)
 	/* Now that we have all the flow control information, we can finalize the application
 	 * context.
 	 */
-	qcc->app_ops->finalize(qcc->ctx);
+	if (qcc->app_ops)
+		qcc->app_ops->finalize(qcc->ctx);
 }
 
 /* Initialize the mux once it's attached. For outgoing connections, the context
@@ -570,9 +571,7 @@ static int qc_init(struct connection *conn, struct proxy *prx,
 	qcc->conn->qc->qcc = qcc;
 
 	/* Application layer initialization. */
-	qcc->app_ops = &h3_ops;
-	if (!qcc->app_ops->init(qcc))
-		goto fail;
+	qcc->app_ops = NULL;
 
 	/* The transports parameters which control the data sent have been stored
 	 * in ->tx.params. The ones which control the received data are stored in

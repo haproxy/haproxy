@@ -1590,6 +1590,9 @@ static forceinline void qc_ssl_dump_errors(struct connection *conn)
 	}
 }
 
+int ssl_sock_get_alpn(const struct connection *conn, void *xprt_ctx,
+                      const char **str, int *len);
+
 /* Provide CRYPTO data to the TLS stack found at <data> with <len> as length
  * from <qel> encryption level with <ctx> as QUIC connection context.
  * Remaining parameter are there for debugging purposes.
@@ -1603,6 +1606,8 @@ static inline int qc_provide_cdata(struct quic_enc_level *el,
 {
 	int ssl_err, state;
 	struct quic_conn *qc;
+	const char *alpn;
+	int alpn_len;
 
 	TRACE_ENTER(QUIC_EV_CONN_SSLDATA, ctx->conn);
 	ssl_err = SSL_ERROR_NONE;
@@ -1657,6 +1662,19 @@ static inline int qc_provide_cdata(struct quic_enc_level *el,
 
 		TRACE_PROTO("SSL post handshake succeeded",
 		            QUIC_EV_CONN_HDSHK, ctx->conn, &state);
+	}
+
+	conn_get_alpn(ctx->conn, &alpn, &alpn_len);
+	if (alpn_len >= 2 && memcmp(alpn, "h3", 2) == 0) {
+		qc->qcc->app_ops = &h3_ops;
+		if (!qc->qcc->app_ops->init(qc->qcc))
+			goto err;
+	}
+	else {
+		/* TODO RFC9001 8.1. Protocol Negotiation
+		 * must return no_application_protocol TLS alert
+		 */
+		ABORT_NOW();
 	}
 
  out:
@@ -4717,6 +4735,7 @@ static struct xprt_ops ssl_quic = {
 	.start    = qc_xprt_start,
 	.prepare_bind_conf = ssl_sock_prepare_bind_conf,
 	.destroy_bind_conf = ssl_sock_destroy_bind_conf,
+	.get_alpn = ssl_sock_get_alpn,
 	.name     = "QUIC",
 };
 

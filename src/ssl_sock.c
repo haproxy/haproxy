@@ -6663,7 +6663,7 @@ unsigned int ssl_sock_get_verify_result(struct connection *conn)
  * freed by the caller. NPN is also checked if available since older versions
  * of openssl (1.0.1) which are more common in field only support this one.
  */
-static int ssl_sock_get_alpn(const struct connection *conn, void *xprt_ctx, const char **str, int *len)
+int ssl_sock_get_alpn(const struct connection *conn, void *xprt_ctx, const char **str, int *len)
 {
 #if defined(TLSEXT_TYPE_application_layer_protocol_negotiation) || \
 	defined(OPENSSL_NPN_NEGOTIATED) && !defined(OPENSSL_NO_NEXTPROTONEG)
