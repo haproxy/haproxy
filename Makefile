@@ -54,6 +54,7 @@
 #   USE_THREAD_DUMP      : use the more advanced thread state dump system. Automatic.
 #   USE_OT               : enable the OpenTracing filter
 #   USE_MEMORY_PROFILING : enable the memory profiler. Linux-glibc only.
+#   USE_LIBATOMIC        : force to link with/without libatomic. Automatic.
 #
 # Options can be forced by specifying "USE_xxx=1" or can be disabled by using
 # "USE_xxx=" (empty string). The list of enabled and disabled options for a
@@ -334,9 +335,6 @@ ifeq ($(USE_ZLIB),)
 USE_SLZ    = default
 endif
 
-# Always enable threads support by default and let the Makefile detect if
-# HAProxy can be compiled with threads or not.
-
 # generic system target has nothing specific
 ifeq ($(TARGET),generic)
   set_target_defaults = $(call default_opts,USE_POLL USE_TPROXY)
@@ -355,9 +353,6 @@ ifeq ($(TARGET),linux-glibc)
     USE_CPU_AFFINITY USE_THREAD USE_EPOLL USE_LINUX_TPROXY                    \
     USE_ACCEPT4 USE_LINUX_SPLICE USE_PRCTL USE_THREAD_DUMP USE_NS USE_TFO     \
     USE_GETADDRINFO USE_BACKTRACE)
-ifneq ($(shell echo __arm__/__aarch64__ | $(CC) -E -xc - | grep '^[^\#]'),__arm__/__aarch64__)
-  TARGET_LDFLAGS=-latomic
-endif
 endif
 
 # For linux >= 2.6.28, glibc without new features
@@ -375,9 +370,6 @@ ifeq ($(TARGET),linux-musl)
     USE_CPU_AFFINITY USE_THREAD USE_EPOLL USE_LINUX_TPROXY                    \
     USE_ACCEPT4 USE_LINUX_SPLICE USE_PRCTL USE_THREAD_DUMP USE_NS USE_TFO     \
     USE_GETADDRINFO)
-ifneq ($(shell echo __arm__/__aarch64__ | $(CC) -E -xc - | grep '^[^\#]'),__arm__/__aarch64__)
-  TARGET_LDFLAGS=-latomic
-endif
 endif
 
 # Solaris 10 and above
@@ -459,6 +451,18 @@ endif
 
 # set the default settings according to the target above
 $(set_target_defaults)
+
+# Some architectures require to link with libatomic for atomics of certain
+# sizes. These ones are reported as value 1 in the *_LOCK_FREE macros. Value
+# 2 indicates that the builtin is native thus doesn't require libatomic. Hence
+# any occurrence of 1 indicates libatomic is necessary. It's better to avoid
+# linking with it by default as it's not always available nor deployed
+# (especially on archs which do not need it).
+ifneq ($(USE_THREAD),)
+ifneq ($(shell $(CC) $(CFLAGS) -dM -E -xc - </dev/null 2>/dev/null | grep -c 'LOCK_FREE.*1'),0)
+  USE_LIBATOMIC=1
+endif
+endif
 
 #### Determine version, sub-version and release date.
 # If GIT is found, and IGNOREGIT is not set, VERSION, SUBVERS and VERDATE are
@@ -792,6 +796,10 @@ endif
 
 ifneq ($(USE_OT),)
 include addons/ot/Makefile
+endif
+
+ifneq ($(USE_LIBATOMIC),)
+  TARGET_LDFLAGS += -latomic
 endif
 
 #### Global link options
