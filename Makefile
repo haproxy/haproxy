@@ -794,6 +794,10 @@ ifneq ($(USE_OT),)
 include addons/ot/Makefile
 endif
 
+ifneq ($(USE_DYNATRACE),)
+include addons/dynatrace/Makefile
+endif
+
 #### Global link options
 # These options are added at the end of the "ld" command line. Use LDFLAGS to
 # add options at the beginning of the "ld" command line if needed.
