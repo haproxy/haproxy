@@ -1,6 +1,56 @@
 ChangeLog :
 ===========
 
+2021/11/14 : 2.5-dev14
+    - DEV: coccinelle: Remove unused `expression e`
+    - DEV: coccinelle: Add rule to use `istend()` where possible
+    - CLEANUP: Apply ist.cocci
+    - CLEANUP: Re-apply xalloc_size.cocci
+    - CLEANUP: halog: make the default usage message fit in small screens
+    - MINOR: h3/qpack: fix gcc11 warnings
+    - MINOR: mux-quic: fix gcc11 warning
+    - MINOR: h3: fix potential NULL dereference
+    - MINOR: quic: Fix potential null pointer dereference
+    - CLEANUP: halog: remove unused strl2ui()
+    - OPTIM: halog: improve field parser speed for modern compilers
+    - OPTIM: halog: skip fields 64 bits at a time when supported
+    - DEV: coccinelle: Add rule to use `isttrim()` where possible
+    - CLEANUP: Apply ist.cocci
+    - DEV: coccinelle: Add rule to use `chunk_istcat()` instead of `chunk_memcat()`
+    - DEV: coccinelle: Add rule to use `chunk_istcat()` instead of `chunk_strncat()`
+    - CLEANUP: Apply ist.cocci
+    - CLEANUP: chunk: Remove duplicated chunk_Xcat implementation
+    - CLEANUP: chunk: remove misleading chunk_strncat() function
+    - BUG/MINOR: cache: properly ignore unparsable max-age in quotes
+    - Revert "DEV: coccinelle: Add rule to use `chunk_istcat()` instead of `chunk_strncat()`"
+    - DOC: stats: fix location of the text representation
+    - DOC: internals: document the IST API
+    - BUG/MINOR: httpclient/lua: rcv freeze when no request payload
+    - BUG/MEDIUM: httpclient: channel_add_input() must use htx->data
+    - MINOR: promex: backend aggregated server check status
+    - DOC: config: Fix typo in ssl_fc_unique_id description
+    - BUG/MINOR: http-ana: Apply stop to the current section for http-response rules
+    - Revert "BUG/MINOR: http-ana: Don't eval front after-response rules if stopped on back"
+    - DOC: config: Be more explicit in "allow" actions description
+    - DOC: lua: Be explicit with the Reply object limits
+    - MINOR: mux-h1: Slightly Improve H1 traces
+    - BUG/MEDIUM: conn-stream: Don't reset CS flags on close
+    - CLEANUP: mworker: remove any relative PID reference
+    - MEDIUM: mworker: reexec in waitpid mode after successful loading
+    - MINOR: mworker: clarify starting/failure messages
+    - MINOR: mworker: only increment the number of reload in wait mode
+    - MINOR: mworker: implement a reload failure counter
+    - MINOR: mworker: ReloadFailed shown depending on failedreload
+    - MINOR: mworker: change the way we set PROC_O_LEAVING
+    - BUG/MINOR: mworker: doesn't launch the program postparser
+    - DOC: management: edit the "show proc" example to show the current output
+    - BUG/MEDIUM: httpclient/cli: free of unallocated hc->req.uri
+    - REGTESTS: httpclient/lua: add greater body values
+    - BUG/MINOR: mux-h2: Fix H2_CF_DEM_SHORT_READ value
+    - BUG/MINOR: pools: don't mark ourselves as harmless in DEBUG_UAF mode
+    - BUG/MEDIUM: connection: make cs_shutr/cs_shutw//cs_close() idempotent
+    - BUILD: makefile: simplify detection of libatomic
+
 2021/11/06 : 2.5-dev13
     - SCRIPTS: git-show-backports: re-enable file-based filtering
     - MINOR: jwt: Make invalid static JWT algorithms an error in `jwt_verify` converter
