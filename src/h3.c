@@ -212,9 +212,10 @@ static int h3_decode_qcs(struct qcs *qcs, void *ctx)
 			/* Not supported */
 			break;
 		default:
-			/* Error */
-			h3->err = H3_FRAME_UNEXPECTED;
-			return -1;
+			/* draft-ietf-quic-http34 9. Extensions to HTTP/3
+			 * unknown frame types MUST be ignored
+			 */
+			h3_debug_printf(stderr, "ignore unknown frame type 0x%lx\n", ftype);
 		}
 		b_del(rxbuf, flen);
 	}
