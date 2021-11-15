@@ -4411,7 +4411,8 @@ static int table_process_entry_per_key(struct appctx *appctx, char **args)
 		static_table_key.key = &uint32_key;
 		break;
 	case SMP_T_IPV6:
-		inet_pton(AF_INET6, args[4], ip6_key);
+		if (inet_pton(AF_INET6, args[4], ip6_key) <= 0)
+			return cli_err(appctx, "Invalid key\n");
 		static_table_key.key = &ip6_key;
 		break;
 	case SMP_T_SINT:
