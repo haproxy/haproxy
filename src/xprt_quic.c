@@ -3759,9 +3759,9 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 			}
 			HA_RWLOCK_WRUNLOCK(QUIC_LOCK, &l->rx.cids_lock);
 
-			pkt->qc = qc;
 			if (n == &qc->odcid_node) {
 				/* Enqueue this packet. */
+				pkt->qc = qc;
 				MT_LIST_APPEND(&l->rx.pkts, &pkt->rx_list);
 				/* Try to accept a new connection. */
 				listener_accept(l);
@@ -3769,6 +3769,7 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 			else {
 				quic_conn_free(qc);
 				qc = ebmb_entry(n, struct quic_conn, odcid_node);
+				pkt->qc = qc;
 			}
 
 			/* This is the DCID node sent in this packet by the client. */
