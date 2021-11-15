@@ -2117,6 +2117,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 			case LOG_FMT_CLIENTPORT:  // %cp
 				addr = (s ? si_src(&s->si[0]) : sess_src(sess));
 				if (addr) {
+					/* sess->listener is always defined when the session's owner is an inbound connections */
 					if (addr->ss_family == AF_UNIX)
 						ret = ltoa_o(sess->listener->luid, tmplog, dst + maxsize - tmplog);
 					else
@@ -2147,6 +2148,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 			case  LOG_FMT_FRONTENDPORT: // %fp
 				addr = (s ? si_dst(&s->si[0]) : sess_dst(sess));
 				if (addr) {
+					/* sess->listener is always defined when the session's owner is an inbound connections */
 					if (addr->ss_family == AF_UNIX)
 						ret = ltoa_o(sess->listener->luid, tmplog, dst + maxsize - tmplog);
 					else
@@ -2319,6 +2321,8 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				if (iret == 0)
 					goto out;
 				tmplog += iret;
+
+				/* sess->listener may be undefined if the session's owner is a health-check */
 				if (sess->listener && sess->listener->bind_conf->xprt == xprt_get(XPRT_SSL))
 					LOGCHAR('~');
 				if (tmp->options & LOG_OPT_QUOTE)
