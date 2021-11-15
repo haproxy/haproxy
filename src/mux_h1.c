@@ -54,7 +54,7 @@
 #define H1C_F_ST_READY       0x00002000 /* Set in ATTACHED state with a READY conn-stream. A conn-stream is not ready when
 					 * a TCP>H1 upgrade is in progress Thus this flag is only set if ATTACHED is also set */
 #define H1C_F_ST_ALIVE       (H1C_F_ST_IDLE|H1C_F_ST_EMBRYONIC|H1C_F_ST_ATTACHED)
-#define H1C_F_ST_SILENT_SHUT 0x00004000 /* silent (or dirty) shutdown must be performed */
+#define H1C_F_ST_SILENT_SHUT 0x00004000 /* silent (or dirty) shutdown must be performed (implied ST_SHUTDOWN) */
 /* 0x00008000 unused */
 
 #define H1C_F_WANT_SPLICE    0x00010000 /* Don't read into a buffer because we want to use or we are using splicing */
@@ -2807,11 +2807,19 @@ static int h1_process(struct h1c * h1c)
 	}
 	h1_send(h1c);
 
-	if ((conn->flags & CO_FL_ERROR) || conn_xprt_read0_pending(conn) || (h1c->flags & H1C_F_ST_ERROR)) {
+	/* H1 connection must be released ASAP if:
+	 *  - an error occurred on the connection or the H1C or
+	 *  - a read0 was received or
+	 *  - a silent shutdown was emitted and all outgoing data sent
+	 */
+	if ((conn->flags & CO_FL_ERROR) ||
+	    conn_xprt_read0_pending(conn) ||
+	    (h1c->flags & H1C_F_ST_ERROR) ||
+	    ((h1c->flags & H1C_F_ST_SILENT_SHUT) && !b_data(&h1c->obuf))) {
 		if (!(h1c->flags & H1C_F_ST_READY)) {
 			/* No conn-stream or not ready */
 			/* shutdown for reads and error on the frontend connection: Send an error */
-			if (!(h1c->flags & (H1C_F_IS_BACK|H1C_F_ST_ERROR))) {
+			if (!(h1c->flags & (H1C_F_IS_BACK|H1C_F_ST_ERROR|H1C_F_ST_SHUTDOWN))) {
 				if (h1_handle_parsing_error(h1c))
 					h1_send(h1c);
 				h1c->flags = (h1c->flags & ~(H1C_F_ST_IDLE|H1C_F_WAIT_NEXT_REQ)) | H1C_F_ST_ERROR;
