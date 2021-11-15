@@ -443,7 +443,7 @@ static void peers_trace(enum trace_level level, uint64_t mask,
 			const struct peer *peer = a2;
 			struct peers *peers = NULL;
 
-			if (peer && peer->appctx) {
+			if (peer->appctx) {
 				struct stream_interface *si;
 
 				si = peer->appctx->owner;
@@ -456,8 +456,7 @@ static void peers_trace(enum trace_level level, uint64_t mask,
 
 			if (peers)
 				chunk_appendf(&trace_buf, " %s", peers->local->id);
-			if (peer)
-				chunk_appendf(&trace_buf, " -> %s", peer->id);
+			chunk_appendf(&trace_buf, " -> %s", peer->id);
 		}
 
 		if (a3) {
