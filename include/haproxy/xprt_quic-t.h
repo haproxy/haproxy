@@ -152,23 +152,25 @@ enum quic_pkt_type {
 /*
  * Transport level error codes.
  */
-#define NO_ERROR                     0x00
-#define INTERNAL_ERROR               0x01
-#define CONNECTION_REFUSED_ERROR     0x02
-#define FLOW_CONTROL_ERROR           0x03
-#define STREAM_LIMIT_ERROR           0x04
-#define STREAM_STATE_ERROR           0x05
-#define FINAL_SIZE_ERROR             0x06
-#define FRAME_ENCODING_ERROR         0x07
-#define TRANSPORT_PARAMETER_ERROR    0x08
-#define CONNECTION_ID_LIMIT_ERROR    0x09
-#define PROTOCOL_VIOLATION           0x0a
-#define INVALID_TOKEN                0x0b
-#define APPLICATION_ERROR            0x0c
-#define CRYPTO_BUFFER_EXCEEDED       0x0d
-
-/* XXX TODO: check/complete this remaining part (256 crypto reserved errors). */
-#define CRYPTO_ERROR                0x100
+#define QC_ERR_NO_ERROR                     0x00
+#define QC_ERR_INTERNAL_ERROR               0x01
+#define QC_ERR_CONNECTION_REFUSED           0x02
+#define QC_ERR_FLOW_CONTROL_ERROR           0x03
+#define QC_ERR_STREAM_LIMIT_ERROR           0x04
+#define QC_ERR_STREAM_STATE_ERROR           0x05
+#define QC_ERR_FINAL_SIZE_ERROR             0x06
+#define QC_ERR_FRAME_ENCODING_ERROR         0x07
+#define QC_ERR_TRANSPORT_PARAMETER_ERROR    0x08
+#define QC_ERR_CONNECTION_ID_LIMIT_ERROR    0x09
+#define QC_ERR_PROTOCOL_VIOLATION           0x0a
+#define QC_ERR_INVALID_TOKEN                0x0b
+#define QC_ERR_APPLICATION_ERROR            0x0c
+#define QC_ERR_CRYPTO_BUFFER_EXCEEDED       0x0d
+#define QC_ERR_KEY_UPDATE_ERROR             0x0e
+#define QC_ERR_AEAD_LIMIT_REACHED           0x0f
+#define QC_ERR_NO_VIABLE_PATH               0x10
+/* 256 TLS reserved errors 0x100-0x1ff. */
+#define QC_ERR_CRYPTO_ERROR                0x100
 
 /* The maximum number of QUIC packets stored by the fd I/O handler by QUIC
  * connection. Must be a power of two.
