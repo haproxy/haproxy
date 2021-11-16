@@ -2592,6 +2592,8 @@ int quic_update_ack_ranges_list(struct quic_arngs *arngs,
 		new_node = quic_insert_new_range(arngs, ar);
 		if (!new_node)
 			return 0;
+
+		new = &new_node->first;
 	}
 	else {
 		struct quic_arng_node *le_ar =
