@@ -342,6 +342,7 @@ struct server {
 			unsigned char *ptr;
 			int size;
 			int allocated_size;
+			char *sni; /* SNI used for the session */
 		} * reused_sess;
 
 		struct ckch_inst *inst; /* Instance of the ckch_store in which the certificate was loaded (might be null if server has no certificate) */
