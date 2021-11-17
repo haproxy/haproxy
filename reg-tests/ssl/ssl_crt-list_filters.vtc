@@ -1,6 +1,6 @@
 #REGTEST_TYPE=bug
 varnishtest "Test for the bug #810 and #818"
-feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL)' && 'openssl_version_atleast(1.1.1)'"
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL) && ssllib_name_startswith(OpenSSL) && openssl_version_atleast(1.1.1)'"
 # This test checks if the multiple certificate types works correctly with the
 # SNI, and that the negative filters are correctly excluded
 
