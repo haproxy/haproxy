@@ -1511,11 +1511,11 @@ static inline int qc_parse_ack_frm(struct quic_frame *frm, struct ssl_sock_ctx *
 		if (!largest_node) {
 			TRACE_DEVEL("Largest acked packet not found",
 			            QUIC_EV_CONN_PRSAFRM, ctx->conn);
-			goto err;
 		}
-
-		time_sent = eb64_entry(&largest_node->node,
-		                       struct quic_tx_packet, pn_node)->time_sent;
+		else {
+			time_sent = eb64_entry(&largest_node->node,
+			                       struct quic_tx_packet, pn_node)->time_sent;
+		}
 	}
 
 	TRACE_PROTO("ack range", QUIC_EV_CONN_PRSAFRM,
