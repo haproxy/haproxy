@@ -1,0 +1,141 @@
+#REGTEST_TYPE=devel
+
+# This reg-test tests 4 scenarios with and without resumption tickets, with TLSv1.3 and TLSv1.2
+# Each client will try to established a connection, then try to reconnect 20 times resuming.
+
+
+varnishtest "Test if the SSL session/ticket reuse work correctly"
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL) && ssllib_name_startswith(OpenSSL) && openssl_version_atleast(1.1.1)'"
+feature ignore_unknown_macro
+
+server s1 -repeat 84 {
+    rxreq
+    txresp
+} -start
+
+haproxy h1 -conf {
+   global
+      # forced to 1 here, because there is a cached session per thread
+      nbthread 1
+
+
+    defaults
+        mode http
+        option httplog
+        option logasap
+        log stderr local0 debug err
+        option httpclose
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    listen clst1
+        bind "fd@${clst1}"
+        server s1 "${h1_fe1_addr}:${h1_fe1_port}" ssl verify none   sni str(www.test1.com)
+        http-response add-header x-ssl-bc-resumed %[ssl_bc_is_resumed]
+
+    listen clst2
+        bind "fd@${clst2}"
+        server s1 "${h1_fe2_addr}:${h1_fe2_port}" ssl verify none  sni str(www.test1.com)
+        http-response add-header x-ssl-bc-resumed %[ssl_bc_is_resumed]
+
+    listen clst3
+        bind "fd@${clst3}"
+        server s1 "${h1_fe3_addr}:${h1_fe3_port}" ssl verify none  sni str(www.test1.com)
+        http-response add-header x-ssl-bc-resumed %[ssl_bc_is_resumed]
+
+    listen clst4
+        bind "fd@${clst4}"
+        server s1 "${h1_fe4_addr}:${h1_fe4_port}" ssl verify none  sni str(www.test1.com)
+        http-response add-header x-ssl-bc-resumed %[ssl_bc_is_resumed]
+
+    listen ssl
+        bind "fd@${fe1}" ssl crt ${testdir}/common.pem ssl-max-ver TLSv1.2
+        bind "fd@${fe2}" ssl crt ${testdir}/common.pem ssl-max-ver TLSv1.2 no-tls-tickets
+        bind "fd@${fe3}" ssl crt ${testdir}/common.pem ssl-min-ver TLSv1.3
+        bind "fd@${fe4}" ssl crt ${testdir}/common.pem ssl-min-ver TLSv1.3 no-tls-tickets
+
+        http-response add-header x-ssl-resumed %[ssl_fc_is_resumed]
+        server s1 ${s1_addr}:${s1_port}
+} -start
+
+
+# first bind
+# the first connection is not resumed
+client c1 -connect ${h1_clst1_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ssl-resumed == 0
+} -run
+# the next 20 connections are resumed
+client c1 -connect ${h1_clst1_sock} -repeat 20 {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ssl-resumed == 1
+} -run
+
+# second bind
+client c2 -connect ${h1_clst2_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ssl-resumed == 0
+} -run
+
+client c2 -connect ${h1_clst2_sock} -repeat 20 {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ssl-resumed == 1
+} -run
+
+# third bind
+client c3 -connect ${h1_clst3_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ssl-resumed == 0
+} -run
+
+client c3 -connect ${h1_clst3_sock} -repeat 20 {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ssl-resumed == 1
+} -run
+
+# fourth bind
+client c4 -connect ${h1_clst4_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ssl-resumed == 0
+} -run
+
+client c4 -connect ${h1_clst4_sock} -repeat 20 {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ssl-resumed == 1
+} -run
+
+
+# Could be useful to debug the result, the ssl_fc_is_resumed field in the log must be 1 after the 2nd command
+#shell {
+#
+#   HOST=${h1_fe4_addr}
+#    if [ "${h1_fe4_addr}" = "::1" ] ; then
+#        HOST="\[::1\]"
+#    fi
+#
+# rm sess.pem; (echo -e -n "GET / HTTP/1.1\r\n\r\n"; sleep 1) | openssl s_client -connect $HOST:${h1_fe4_port} -tls1_3 -sess_out sess.pem -keylogfile keys1.txt -servername www.test1.com > /tmp/ssl_debug1; echo | openssl s_client -connect ${HOST}:${h1_fe4_port} -tls1_3 -sess_in sess.pem -keylogfile keys2.txt -servername www.test1.com >> /tmp/ssl_debug1
+#    echo "GET / HTTP/1.1" | openssl s_client -connect $HOST:${h1_fe4_port} -tls1_3 -servername www.test1.com
+#}
+
+haproxy h1 -cli {
+    send "show info"
+    expect ~ ".*SslFrontendSessionReuse_pct: 95.*"
+}
+
