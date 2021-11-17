@@ -166,7 +166,7 @@ DECLARE_STATIC_POOL(pool_head_quic_arng, "quic_arng_pool", sizeof(struct quic_ar
 static struct quic_tx_packet *qc_build_pkt(unsigned char **pos, const unsigned char *buf_end,
                                            struct quic_enc_level *qel,
                                            struct quic_conn *qc, size_t dglen, int pkt_type,
-                                           int padding, int ack, int nb_pto_dgrams, int *err);
+                                           int padding, int ack, int nb_pto_dgrams, int cc, int *err);
 
 /* Add traces to <buf> depending on <frm> TX frame type. */
 static inline void chunk_tx_frm_appendf(struct buffer *buf,
@@ -935,6 +935,7 @@ int ha_quic_send_alert(SSL *ssl, enum ssl_encryption_level_t level, uint8_t aler
 	struct connection *conn = SSL_get_ex_data(ssl, ssl_app_data_index);
 
 	TRACE_DEVEL("SSL alert", QUIC_EV_CONN_SSLALERT, conn, &alert, &level);
+	HA_ATOMIC_STORE(&conn->qc->err, QC_ERR_CRYPTO_ERROR | alert);
 	return 1;
 }
 
@@ -1650,7 +1651,7 @@ static inline int qc_provide_cdata(struct quic_enc_level *el,
 			TRACE_DEVEL("SSL handshake error",
 			            QUIC_EV_CONN_HDSHK, ctx->conn, &state, &ssl_err);
 			qc_ssl_dump_errors(ctx->conn);
-			BUG_ON(1);
+			ERR_clear_error();
 			goto err;
 		}
 
@@ -2174,7 +2175,7 @@ static int qc_prep_hdshk_pkts(struct qring *qr, struct ssl_sock_ctx *ctx)
 	end_buf = pos + cb_contig_space(cbuf) - sizeof dglen;
 	first_pkt = prv_pkt = NULL;
 	while (end_buf - pos >= (int)qc->path->mtu + dg_headlen || prv_pkt) {
-		int err, nb_ptos, ack;
+		int err, nb_ptos, ack, cc;
 		enum quic_pkt_type pkt_type;
 
 		TRACE_POINT(QUIC_EV_CONN_PHPKTS, ctx->conn, qel);
@@ -2186,14 +2187,15 @@ static int qc_prep_hdshk_pkts(struct qring *qr, struct ssl_sock_ctx *ctx)
 			} while (nb_ptos && !HA_ATOMIC_CAS(&qc->tx.nb_pto_dgrams, &nb_ptos, nb_ptos - 1));
 		}
 		ack = HA_ATOMIC_BTR(&qc->flags, QUIC_FL_PKTNS_ACK_REQUIRED_BIT);
+		cc = HA_ATOMIC_LOAD(&qc->err);
 		/* Do not build any more packet if the TX secrets are not available or
-		 * if there is nothing to send, i.e. if no ACK are required
+		 * if there is nothing to send, i.e. if no CONNECTION_CLOSE or ACK are required
 		 * and if there is no more packets to send upon PTO expiration
 		 * and if there is no more CRYPTO data available or in flight
 		 * congestion control limit is reached for prepared data
 		 */
 		if (!(qel->tls_ctx.tx.flags & QUIC_FL_TLS_SECRETS_SET) ||
-		    (!ack && !nb_ptos &&
+		    (!cc && !ack && !nb_ptos &&
 		     (MT_LIST_ISEMPTY(&qel->pktns->tx.frms) ||
 		      qc->path->prep_in_flight >= qc->path->cwnd))) {
 			TRACE_DEVEL("nothing more to do", QUIC_EV_CONN_PHPKTS, ctx->conn);
@@ -2220,7 +2222,7 @@ static int qc_prep_hdshk_pkts(struct qring *qr, struct ssl_sock_ctx *ctx)
 		}
 
 		cur_pkt = qc_build_pkt(&pos, end, qel, qc, dglen, padding,
-		                       pkt_type, ack, nb_ptos, &err);
+		                       pkt_type, ack, nb_ptos, cc, &err);
 		/* Restore the PTO dgrams counter if a packet could not be built */
 		if (err < 0) {
 			if (!prv_pkt && nb_ptos)
@@ -3823,6 +3825,11 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 		goto err;
 	}
 
+	if (HA_ATOMIC_LOAD(&qc->err)) {
+		TRACE_PROTO("Connection error", QUIC_EV_CONN_LPKT, qc->conn);
+		goto out;
+	}
+
 	HA_RWLOCK_WRLOCK(QUIC_LOCK, &qc->rx.buf_rwlock);
 	b_cspace = b_contig_space(&qc->rx.buf);
 	if (b_cspace < pkt->len) {
@@ -3845,6 +3852,7 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 	TRACE_PROTO("New packet", QUIC_EV_CONN_LPKT, qc->conn, pkt);
 	if (pkt->aad_len)
 		qc_pkt_insert(pkt, qel);
+ out:
 	/* Wake up the connection packet handler task from here only if all
 	 * the contexts have been initialized, especially the mux context
 	 * conn_ctx->conn->ctx. Note that this is ->start xprt callback which
@@ -3854,7 +3862,6 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 	if (conn_ctx && HA_ATOMIC_LOAD(&conn_ctx->conn->ctx))
 		tasklet_wakeup(conn_ctx->wait_event.tasklet);
 
- out:
 	TRACE_LEAVE(QUIC_EV_CONN_LPKT, qc->conn, pkt);
 
 	return pkt->len;
@@ -4247,15 +4254,17 @@ static int qc_eval_pkt(ssize_t room, struct quic_tx_packet *pkt,
  * Always succeeds: this is the responsibility of the caller to ensure there is
  * enough room to build a packet.
  */
-static void qc_do_build_pkt(unsigned char *pos, const unsigned char *end, int padding,
-                            size_t dglen, struct quic_tx_packet *pkt, int ack, int nb_pto_dgrams,
+static void qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
+                            size_t dglen, struct quic_tx_packet *pkt,
                             int64_t pn, size_t *pn_len, unsigned char **buf_pn,
+                            int ack, int padding, int cc, int nb_pto_dgrams,
                             struct quic_enc_level *qel, struct quic_conn *conn)
 {
 	unsigned char *beg;
 	size_t len, len_sz, len_frms, padding_len;
 	struct quic_frame frm = { .type = QUIC_FT_CRYPTO, };
 	struct quic_frame ack_frm = { .type = QUIC_FT_ACK, };
+	struct quic_frame cc_frm = { . type = QUIC_FT_CONNECTION_CLOSE, };
 	size_t ack_frm_len, head_len;
 	int64_t largest_acked_pn;
 	int add_ping_frm;
@@ -4313,6 +4322,7 @@ static void qc_do_build_pkt(unsigned char *pos, const unsigned char *end, int pa
 
 	/* Length field value without the ack-eliciting frames. */
 	len = ack_frm_len + *pn_len;
+
 	if (!MT_LIST_ISEMPTY(&qel->pktns->tx.frms)) {
 		ssize_t room = end - pos;
 
@@ -4335,7 +4345,13 @@ static void qc_do_build_pkt(unsigned char *pos, const unsigned char *end, int pa
 		len = len_frms + QUIC_TLS_TAG_LEN;
 	else
 		len += QUIC_TLS_TAG_LEN;
+	/* CONNECTION_CLOSE frame */
+	if (cc) {
+		struct quic_connection_close *cc = &cc_frm.connection_close;
 
+		cc->error_code = conn->err;
+		len += qc_frm_len(&cc_frm);
+	}
 	add_ping_frm = 0;
 	padding_len = 0;
 	len_sz = quic_int_getsize(len);
@@ -4359,7 +4375,7 @@ static void qc_do_build_pkt(unsigned char *pos, const unsigned char *end, int pa
 			len += 1;
 		}
 		/* If there is no frame at all to follow, add at least a PADDING frame. */
-		if (!ack_frm_len)
+		if (!ack_frm_len && !cc)
 			len += padding_len = QUIC_PACKET_PN_MAXLEN - *pn_len;
 	}
 
@@ -4402,6 +4418,13 @@ static void qc_do_build_pkt(unsigned char *pos, const unsigned char *end, int pa
 			            conn->conn, NULL, NULL, &room);
 			BUG_ON(1);
 		}
+	}
+
+	/* Build a CONNECTION_CLOSE frame if needed. */
+	if (cc && !qc_build_frm(&pos, end, &cc_frm, pkt, conn)) {
+		ssize_t room = end - pos;
+		TRACE_PROTO("Not enough room", QUIC_EV_CONN_HPKT,
+		            conn->conn, NULL, NULL, &room);
 	}
 
 	/* Build a PADDING frame if needed. */
@@ -4458,7 +4481,7 @@ static struct quic_tx_packet *qc_build_pkt(unsigned char **pos,
                                            const unsigned char *buf_end,
                                            struct quic_enc_level *qel,
                                            struct quic_conn *qc, size_t dglen, int padding,
-                                           int pkt_type, int ack, int nb_pto_dgrams, int *err)
+                                           int pkt_type, int ack, int nb_pto_dgrams, int cc, int *err)
 {
 	/* The pointer to the packet number field. */
 	unsigned char *buf_pn;
@@ -4488,8 +4511,8 @@ static struct quic_tx_packet *qc_build_pkt(unsigned char **pos,
 
 	/* Consume a packet number. */
 	pn = HA_ATOMIC_ADD_FETCH(&qel->pktns->tx.next_pn, 1);
-	qc_do_build_pkt(*pos, buf_end, padding, dglen, pkt, ack, nb_pto_dgrams,
-	                pn, &pn_len, &buf_pn, qel, qc);
+	qc_do_build_pkt(*pos, buf_end, dglen, pkt, pn, &pn_len, &buf_pn,
+	                ack, padding, cc, nb_pto_dgrams, qel, qc);
 
 	end = beg + pkt->len;
 	payload = buf_pn + pn_len;
