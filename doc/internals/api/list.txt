@@ -1,0 +1,195 @@
+2021-11-09 - List API
+
+
+1. Background
+-------------
+
+HAProxy's lists are almost all doubly-linked and circular so that it is always
+possible to insert at the beginning, append at the end, scan them in any order
+and delete any element without having to scan to search the predecessor nor the
+successor.
+
+A list's head is just a regular list element, and an element always points to
+another list element. Such elements only have two pointers, the next and the
+previous elements. The object being pointed to is retrieved by subtracting the
+list element's offset in its structure from the list element's pointer. This
+way there is no need for any separate allocation for the list element, for a
+pointer to the object in the list, nor for a pointer to the list element from
+the object, as the list is embedded into the object.
+
+All basic operations are provided, as well as some iterators. Some iterators
+are safe for removal of the current element within the loop, others not. In any
+case a list cannot be freely modified while iterating over it (e.g. the current
+element's successor cannot not be freed if it's saved as the restart point).
+
+Extreme care is taken nowadays in HAProxy to make sure that no dangling
+pointers are left in elements, so it is important to always initialize list
+heads and list elements, as well as elements that are removed from a list if
+they are not immediately freed, so that their deletion is idempotent. A rule of
+thumb is that a list pointer's validity never has to be checked, it is always
+valid to dereference it. A lot of complex bugs have been caused in the past by
+incorrect list manipulation, such as an element being deleted twice, resulting
+in damaging previously adjacent elements' neighbours. This usually has serious
+consequences at locations that are totally different from the one of the bug,
+and that are only detected much later, so it is required to be particularly
+strict on using lists safely.
+
+The lists are not thread-safe, but mt_lists may be used instead.
+
+
+2. API description
+------------------
+
+A list is defined like this, both for the list's head, and for any other
+element:
+
+    struct list {
+        struct list *n;    /* next */
+        struct list *p;    /* prev */
+    };
+
+An empty list points to itself for both pointers. I.e. a list's head is both
+its own successor and its own predecessor. This guarantees that insertions
+and deletions can be done without any check and that deletion is idempotent.
+For this reason and by convention, a detached element ought to be represented
+like an empty head.
+
+Lists are manipulated using a set of macros which are used to initialize, add,
+remove, or iterate over elements. Most of these macros are extremely simple and
+are not even protected against multiple evaluation, so it is fundamentally
+important that the expressions used in the arguments are idempotent and that
+the result does not depend on the evaluation order of the arguments.
+
+Macro   Description
+
+ILH
+        Initialized List Head : this is a non-NULL, non-empty list element used
+        to prevent the compiler from moving an empty list head declaration to
+        BSS, typically when it appears in an array of keywords Without this,
+        some older versions of gcc tend to trim all the array and cause
+        corruption.
+
+LIST_INIT(l)
+        Initialize the list as an empty list head
+
+LIST_HEAD_INIT(l)
+        Return a valid initialized empty list head pointing to this
+        element. Essentially used with assignments in declarations.
+
+LIST_INSERT(l, e)
+        Add an element at the beginning of a list and return it
+
+LIST_APPEND(l, e)
+        Add an element at the end of a list and return it
+
+LIST_SPLICE(n, o)
+        Add the contents of a list <o> at the beginning of another list <n>.
+        The old list head remains untouched.
+
+LIST_SPLICE_END_DETACHED(n, o)
+        Add the contents of a list whose first element is is <o> and last one
+        is <o->p> at the end of another list <n>. The old list DOES NOT have
+        any head here.
+
+LIST_DELETE(e)
+        Remove an element from a list and return it. Safe to call on
+        initialized elements, but will not change the element itself so it is
+        not idempotent. Consider using LIST_DEL_INIT() instead unless called
+        immediately after a free().
+
+LIST_DEL_INIT(e)
+        Remove an element from a list, initialize it and return it so that a
+        subsequent LIST_DELETE() is safe. This is faster than performing a
+        LIST_DELETE() followed by a LIST_INIT() as pointers are not reloaded.
+
+LIST_ELEM(l, t, m)
+        Return a pointer of type <t> to a structure containing a list head
+        member called <m> at address <l>. Note that <l> can be the result of a
+        function or macro since it's used only once.
+
+LIST_ISEMPTY(l)
+        Check if the list head <l> is empty (=initialied) or not, and return
+        non-zero only if so.
+
+LIST_INLIST(e)
+        Check if the list element <e> was added to a list or not, thus return
+        true unless the element was initialized.
+
+LIST_INLIST_ATOMIC(e)
+        Atomically check if the list element's next pointer points to anything
+        different from itself, implying the element should be part of a
+        list. This usually is similar to LIST_INLIST() except that while that
+        one might be instrumented using debugging code to perform further
+        consistency checks, the macro below guarantees to always perform a
+        single atomic test and is safe to use with barriers.
+
+LIST_NEXT(l, t, m)
+        Return a pointer of type <t> to a structure following the element which
+	contains list head <l>, which is known as member <m> in struct <t>.
+
+LIST_PREV(l, t, m)
+        Return a pointer of type <t> to a structure preceding the element which
+        contains list head <l>, which is known as member <m> in struct <t>.
+        Note that this macro is first undefined as it happened to already exist
+        on some old OSes.
+
+list_for_each_entry(i, l, m)
+        Iterate local variable <i> through a list of items of type "typeof(*i)"
+        which are linked via a "struct list" member named <m>. A pointer to the
+        head of the list is passed in <l>. No temporary variable is needed.
+        Note that <i> must not be modified during the loop.
+
+list_for_each_entry_from(i, l, m)
+        Same as list_for_each_entry() but starting from current value of <i>
+        instead of the list's head.
+
+list_for_each_entry_from_rev(i, l, m)
+        Same as list_for_each_entry_rev() but starting from current value of <i>
+        instead of the list's head.
+
+list_for_each_entry_rev(i, l, m)
+       Iterate backwards local variable <i> through a list of items of type
+        "typeof(*i)" which are linked via a "struct list" member named <m>. A
+        pointer to the head of the list is passed in <l>. No temporary variable
+        is needed. Note that <i> must not be modified during the loop.
+
+list_for_each_entry_safe(i, b, l, m)
+        Iterate variable <i> through a list of items of type "typeof(*i)" which
+        are linked via a "struct list" member named <m>. A pointer to the head
+        of the list is passed in <l>. A temporary backup variable <b> of same
+        type as <i> is needed so that <i> may safely be deleted if needed. Note
+        that it is only permitted to delete <i> and no other element during
+        this operation!
+
+list_for_each_entry_safe_from(i, b, l, m)
+        Same as list_for_each_entry_safe() but starting from current value of
+        <i> instead of the list's head.
+
+list_for_each_entry_safe_from_rev(i, b, l, m)
+        Same as list_for_each_entry_safe_rev() but starting from current value
+        of <i> instead of the list's head.
+
+list_for_each_entry_safe_rev(i, b, l, m)
+        Iterate backwards local variable <i> through a list of items of type
+        "typeof(*i)" which are linked via a "struct list" member named <m>. A
+        pointer to the head of the list is passed in <l>. A temporary variable
+        <b> of same type as <i> is needed so that <i> may safely be deleted if
+        needed. Note that it is only permitted to delete <i> and no other
+        element during this operation!
+
+3. Notes
+--------
+
+- This API is quite old and some macros are missing. For example there's still
+  no list_first() so it's common to use LIST_ELEM(head->n, ...) instead. Some
+  older parts of the code also used to rely on list_for_each() followed by a
+  break to stop on the first element.
+
+- Some parts were recently renamed because LIST_ADD() used to do what
+  LIST_INSERT() currently does and was often mistaken with LIST_ADDQ() which is
+  what LIST_APPEND() now is. As such it is not totally impossible that some
+  places use a LIST_INSERT() where a LIST_APPEND() would be desired.
+
+- The structure must not be modified at all (even to add debug info). Some
+  parts of the code assume that its layout is exactly this one, particularly
+  the parts ensuring the casting between MT lists and lists.
