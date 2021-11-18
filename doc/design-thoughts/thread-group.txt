@@ -1,0 +1,528 @@
+Thread groups
+#############
+
+2021-07-13 - first draft
+==========
+
+Objective
+---------
+- support multi-socket systems with limited cache-line bouncing between
+  physical CPUs and/or L3 caches
+
+- overcome the 64-thread limitation
+
+- Support a reasonable number of groups. I.e. if modern CPUs arrive with
+  core complexes made of 8 cores, with 8 CC per chip and 2 chips in a
+  system, it makes sense to support 16 groups.
+
+
+Non-objective
+-------------
+- no need to optimize to the last possible cycle. I.e. some algos like
+  leastconn will remain shared across all threads, servers will keep a
+  single queue, etc. Global information remains global.
+
+- no stubborn enforcement of FD sharing. Per-server idle connection lists
+  can become per-group; listeners can (and should probably) be per-group.
+  Other mechanisms (like SO_REUSEADDR) can already overcome this.
+
+- no need to go beyond 64 threads per group.
+
+
+Identified tasks
+================
+
+General
+-------
+Everywhere tid_bit is used we absolutely need to find a complement using
+either the current group or a specific one. Thread debugging will need to
+be extended as masks are extensively used.
+
+
+Scheduler
+---------
+The global run queue and global wait queue must become per-group. This
+means that a task may only be queued into one of them at a time. It
+sounds like tasks may only belong to a given group, but doing so would
+bring back the original issue that it's impossible to perform remote wake
+ups.
+
+We could probably ignore the group if we don't need to set the thread mask
+in the task. the task's thread_mask is never manipulated using atomics so
+it's safe to complement it with a group.
+
+The sleeping_thread_mask should become per-group. Thus possibly that a
+wakeup may only be performed on the assigned group, meaning that either
+a task is not assigned, in which case it be self-assigned (like today),
+otherwise the tg to be woken up will be retrieved from the task itself.
+
+Task creation currently takes a thread mask of either tid_bit, a specific
+mask, or MAX_THREADS_MASK. How to create a task able to run anywhere
+(checks, Lua, ...) ?
+
+Profiling
+---------
+There should be one task_profiling_mask per thread group. Enabling or
+disabling profiling should be made per group (possibly by iterating).
+
+Thread isolation
+----------------
+Thread isolation is difficult as we solely rely on atomic ops to figure
+who can complete. Such operation is rare, maybe we could have a global
+read_mostly flag containing a mask of the groups that require isolation.
+Then the threads_want_rdv_mask etc can become per-group. However setting
+and clearing the bits will become problematic as this will happen in two
+steps hence will require careful ordering.
+
+FD
+--
+Tidbit is used in a number of atomic ops on the running_mask. If we have
+one fdtab[] per group, the mask implies that it's within the group.
+Theoretically we should never face a situation where an FD is reported nor
+manipulated for a remote group.
+
+There will still be one poller per thread, except that this time all
+operations will be related to the current thread_group. No fd may appear
+in two thread_groups at once, but we can probably not prevent that (e.g.
+delayed close and reopen). Should we instead have a single shared fdtab[]
+(less memory usage also) ? Maybe adding the group in the fdtab entry would
+work, but when does a thread know it can leave it ? Currently this is
+solved by running_mask and by update_mask. Having two tables could help
+with this (each table sees the FD in a different group with a different
+mask) but this looks overkill.
+
+There's polled_mask[] which needs to be decided upon. Probably that it
+should be doubled as well. Note, polled_mask left fdtab[] for cacheline
+alignment reasons in commit cb92f5cae4.
+
+If we have one fdtab[] per group, what *really* prevents from using the
+same FD in multiple groups ? _fd_delete_orphan() and fd_update_events()
+need to check for no-thread usage before closing the FD. This could be
+a limiting factor. Enabling could require to wake every poller.
+
+Shouldn't we remerge fdinfo[] with fdtab[] (one pointer + one int/short,
+used only during creation and close) ?
+
+Other problem, if we have one fdtab[] per TG, disabling/enabling an FD
+(e.g. pause/resume on listener) can become a problem if it's not necessarily
+on the current TG. We'll then need a way to figure that one. It sounds like
+FDs from listeners and receivers are very specific and suffer from problems
+all other ones under high load do not suffer from. Maybe something specific
+ought to be done for them, if we can guarantee there is no risk of accidental
+reuse (e.g. locate the TG info in the receiver and have a "MT" bit in the
+FD's flags). The risk is always that a close() can result in instant pop-up
+of the same FD on any other thread of the same process.
+
+Observations: right now fdtab[].thread_mask more or less corresponds to a
+declaration of interest, it's very close to meaning "active per thread". It is
+in fact located in the FD while it ought to do nothing there, as it should be
+where the FD is used as it rules accesses to a shared resource that is not
+the FD but what uses it. Indeed, if neither polled_mask nor running_mask have
+a thread's bit, the FD is unknown to that thread and the element using it may
+only be reached from above and not from the FD. As such we ought to have a
+thread_mask on a listener and another one on connections. These ones will
+indicate who uses them. A takeover could then be simplified (atomically set
+exclusivity on the FD's running_mask, upon success, takeover the connection,
+clear the running mask). Probably that the change ought to be performed on
+the connection level first, not the FD level by the way. But running and
+polled are the two relevant elements, one indicates userland knowledge,
+the other one kernel knowledge. For listeners there's no exclusivity so it's
+a bit different but the rule remains the same that we don't have to know
+what threads are *interested* in the FD, only its holder.
+
+Not exact in fact, see FD notes below.
+
+activity
+--------
+There should be one activity array per thread group. The dump should
+simply scan them all since the cumuled values are not very important
+anyway.
+
+applets
+-------
+They use tid_bit only for the task. It looks like the appctx's thread_mask
+is never used (now removed). Furthermore, it looks like the argument is
+*always* tid_bit.
+
+CPU binding
+-----------
+This is going to be tough. It will be needed to detect that threads overlap
+and are not bound (i.e. all threads on same mask). In this case, if the number
+of threads is higher than the number of threads per physical socket, one must
+try hard to evenly spread them among physical sockets (e.g. one thread group
+per physical socket) and start as many threads as needed on each, bound to
+all threads/cores of each socket. If there is a single socket, the same job
+may be done based on L3 caches. Maybe it could always be done based on L3
+caches. The difficulty behind this is the number of sockets to be bound: it
+is not possible to bind several FDs per listener. Maybe with a new bind
+keyword we can imagine to automatically duplicate listeners ? In any case,
+the initially bound cpumap (via taskset) must always be respected, and
+everything should probably start from there.
+
+Frontend binding
+----------------
+We'll have to define a list of threads and thread-groups per frontend.
+Probably that having a group mask and a same thread-mask for each group
+would suffice.
+
+Threads should have two numbers:
+  - the per-process number (e.g. 1..256)
+  - the per-group number (1..64)
+
+The "bind-thread" lines ought to use the following syntax:
+  - bind 45      ## bind to process' thread 45
+  - bind 1/45    ## bind to group 1's thread 45
+  - bind all/45  ## bind to thread 45 in each group
+  - bind 1/all   ## bind to all threads in group 1
+  - bind all     ## bind to all threads
+  - bind all/all ## bind to all threads in all groups (=all)
+  - bind 1/65    ## rejected
+  - bind 65      ## OK if there are enough
+  - bind 35-45   ## depends. Rejected if it crosses a group boundary.
+
+The global directive "nbthread 28" means 28 total threads for the process. The
+number of groups will sub-divide this. E.g. 4 groups will very likely imply 7
+threads per group. At the beginning, the nbgroup should be manual since it
+implies config adjustments to bind lines.
+
+There should be a trivial way to map a global thread to a group and local ID
+and to do the opposite.
+
+
+Panic handler + watchdog
+------------------------
+Will probably depend on what's done for thread_isolate
+
+Per-thread arrays inside structures
+-----------------------------------
+- listeners have a thr_conn[] array, currently limited to MAX_THREADS. Should
+  we simply bump the limit ?
+- same for servers with idle connections.
+=> doesn't seem very practical.
+- another solution might be to point to dynamically allocated arrays of
+  arrays (e.g. nbthread * nbgroup) or a first level per group and a second
+  per thread.
+=> dynamic allocation based on the global number
+
+Other
+-----
+- what about dynamic thread start/stop (e.g. for containers/VMs) ?
+  E.g. if we decide to start $MANY threads in 4 groups, and only use
+  one, in the end it will not be possible to use less than one thread
+  per group, and at most 64 will be present in each group.
+
+
+FD Notes
+--------
+  - updt_fd_polling() uses thread_mask to figure where to send the update,
+    the local list or a shared list, and which bits to set in update_mask.
+    This could be changed so that it takes the update mask in argument. The
+    call from the poller's fork would just have to broadcast everywhere.
+
+  - pollers use it to figure whether they're concerned or not by the activity
+    update. This looks important as otherwise we could re-enable polling on
+    an FD that changed to another thread.
+
+  - thread_mask being a per-thread active mask looks more exact and is
+    precisely used this way by _update_fd(). In this case using it instead
+    of running_mask to gauge a change or temporarily lock it during a
+    removal could make sense.
+
+  - running should be conditionned by thread. Polled not (since deferred
+    or migrated). In this case testing thread_mask can be enough most of
+    the time, but this requires synchronization that will have to be
+    extended to tgid.. But migration seems a different beast that we shouldn't
+    care about here: if first performed at the higher level it ought to
+    be safe.
+
+In practice the update_mask can be dropped to zero by the first fd_delete()
+as the only authority allowed to fd_delete() is *the* owner, and as soon as
+all running_mask are gone, the FD will be closed, hence removed from all
+pollers. This will be the only way to make sure that update_mask always
+refers to the current tgid.
+
+However, it may happen that a takeover within the same group causes a thread
+to read the update_mask late, while the FD is being wiped by another thread.
+That other thread may close it, causing another thread in another group to
+catch it, and change the tgid and start to update the update_mask. This means
+that it would be possible for a thread entering do_poll() to see the correct
+tgid, then the fd would be closed, reopened and reassigned to another tgid,
+and the thread would see its bit in the update_mask, being confused. Right
+now this should already happen when the update_mask is not cleared, except
+that upon wakeup a migration would be detected and that would be all.
+
+Thus we might need to set the running bit to prevent the FD from migrating
+before reading update_mask, which also implies closing on fd_clr_running() == 0 :-(
+
+Also even fd_update_events() leaves a risk of updating update_mask after
+clearing running, thus affecting the wrong one. Probably that update_mask
+should be updated before clearing running_mask there. Also, how about not
+creating an update on a close ? Not trivial if done before running, unless
+thread_mask==0.
+
+###########################################################
+
+Current state:
+
+
+Mux / takeover / fd_delete() code                |||  poller code
+-------------------------------------------------|||---------------------------------------------------
+                                                 \|/
+mux_takeover():                                   | fd_set_running():
+   if (fd_takeover()<0)                           |    old = {running, thread};
+     return fail;                                 |    new = {tid_bit, tid_bit};
+   ...                                            |
+fd_takeover():                                    |    do {
+   atomic_or(runnning, tid_bit);                  |       if (!(old.thread & tid_bit))
+   old = {running, thread};                       |          return -1;
+   new = {tid_bit, tid_bit};                      |       new = { running | tid_bit, old.thread }	 
+   if (owner != expected) {                       |    } while (!dwcas({running, thread}, &old, &new));
+      atomic_and(runnning, ~tid_bit);             |
+      return -1; // fail                          | fd_clr_running():
+   }                                              |    return atomic_and_fetch(running, ~tid_bit);
+                                                  |
+   while (old == {tid_bit, !=0 })                 | poll():
+      if (dwcas({running, thread}, &old, &new)) { |    if (!owner)
+         atomic_and(runnning, ~tid_bit);          |       continue;
+         return 0; // success                     |
+      }                                           |    if (!(thread_mask & tid_bit)) {
+   }                                              |       epoll_ctl_del();
+                                                  |       continue;
+   atomic_and(runnning, ~tid_bit);                |    }
+   return -1; // fail                             |
+                                                  |    // via fd_update_events()
+fd_delete():                                      |    if (fd_set_running() != -1) {
+   atomic_or(running, tid_bit);                   |       iocb();
+   atomic_store(thread, 0);                       |       if (fd_clr_running() == 0 && !thread_mask)
+   if (fd_clr_running(fd) = 0)                    |         fd_delete_orphan();
+        fd_delete_orphan();                       |    }
+
+
+The idle_conns_lock prevents the connection from being *picked* and released
+while someone else is reading it. What it does is guarantee that on idle
+connections, the caller of the IOCB will not dereference the task's context
+while the connection is still in the idle list, since it might be picked then
+freed at the same instant by another thread. As soon as the IOCB manages to
+get that lock, it removes the connection from the list so that it cannot be
+taken over anymore. Conversely, the mux's takeover() code runs under that
+lock so that if it frees the connection and task, this will appear atomic
+to the IOCB. The timeout task (which is another entry point for connection
+deletion) does the same. Thus, when coming from the low-level (I/O or timeout):
+  - task always exists, but ctx checked under lock validates; conn removal
+    from list prevents takeover().
+  - t->context is stable, except during changes under takeover lock. So
+    h2_timeout_task may well run on a different thread than h2_io_cb().
+
+Coming from the top:
+  - takeover() done under lock() clears task's ctx and possibly closes the FD
+    (unless some running remains present).
+
+Unlikely but currently possible situations:
+  - multiple pollers (up to N) may have an idle connection's FD being
+    polled, if the connection was passed from thread to thread. The first
+    event on the connection would wake all of them. Most of them would
+    see fdtab[].owner set (the late ones might miss it). All but one would
+    see that their bit is missing from fdtab[].thread_mask and give up.
+    However, just after this test, others might take over the connection,
+    so in practice if terribly unlucky, all but 1 could see their bit in
+    thread_mask just before it gets removed, all of them set their bit
+    in running_mask, and all of them call iocb() (sock_conn_iocb()).
+    Thus all of them dereference the connection and touch the subscriber
+    with no protection, then end up in conn_notify_mux() that will call
+    the mux's wake().
+
+  - multiple pollers (up to N-1) might still be in fd_update_events()
+    manipulating fdtab[].state. The cause is that the "locked" variable
+    is determined by atleast2(thread_mask) but that thread_mask is read
+    at a random instant (i.e. it may be stolen by another one during a
+    takeover) since we don't yet hold running to prevent this from being
+    done. Thus we can arrive here with thread_mask==something_else (1bit),
+    locked==0 and fdtab[].state assigned non-atomically.
+
+  - it looks like nothing prevents h2_release() from being called on a
+    thread (e.g. from the top or task timeout) while sock_conn_iocb()
+    dereferences the connection on another thread. Those killing the
+    connection don't yet consider the fact that it's an FD that others
+    might currently be waking up on.
+
+###################
+
+pb with counter:
+
+users count doesn't say who's using the FD and two users can do the same
+close in turn. The thread_mask should define who's responsible for closing
+the FD, and all those with a bit in it ought to do it.
+
+
+2021-08-25 - update with minimal locking on tgid value
+==========
+
+  - tgid + refcount at once using CAS
+  - idle_conns lock during updates
+  - update:
+    if tgid differs => close happened, thus drop update
+    otherwise normal stuff. Lock tgid until running if needed.
+  - poll report:
+    if tgid differs => closed
+    if thread differs => stop polling (migrated)
+    keep tgid lock until running
+  - test on thread_id:
+    if (xadd(&tgid,65536) != my_tgid) {
+      // was closed
+      sub(&tgid, 65536)
+      return -1
+    }
+    if !(thread_id & tidbit) => migrated/closed
+    set_running()
+    sub(tgid,65536)
+  - note: either fd_insert() or the final close() ought to set
+    polled and update to 0.
+
+2021-09-13 - tid / tgroups etc.
+==========
+
+  - tid currently is the thread's global ID. It's essentially used as an index
+    for arrays. It must be clearly stated that it works this way.
+
+  - tid_bit makes no sense process-wide, so it must be redefined to represent
+    the thread's tid within its group. The name is not much welcome though, but
+    there are 286 of it that are not going to be changed that fast.
+
+  - just like "ti" is the thread_info, we need to have "tg" pointing to the
+    thread_group.
+
+  - other less commonly used elements should be retrieved from ti->xxx. E.g.
+    the thread's local ID.
+
+  - lock debugging must reproduce tgid
+
+  - an offset might be placed in the tgroup so that even with 64 threads max
+    we could have completely separate tid_bits over several groups.
+
+2021-09-15 - bind + listen() + rx
+==========
+
+  - thread_mask (in bind_conf->rx_settings) should become an array of
+    MAX_TGROUP longs.
+  - when parsing "thread 123" or "thread 2/37", the proper bit is set,
+    assuming the array is either a contigous bitfield or a tgroup array.
+    An option RX_O_THR_PER_GRP or RX_O_THR_PER_PROC is set depending on
+    how the thread num was parsed, so that we reject mixes.
+  - end of parsing: entries translated to the cleanest form (to be determined)
+  - binding: for each socket()/bind()/listen()... just perform one extra dup()
+    for each tgroup and store the multiple FDs into an FD array indexed on
+    MAX_TGROUP. => allows to use one FD per tgroup for the same socket, hence
+    to have multiple entries in all tgroup pollers without requiring the user
+    to duplicate the bind line.
+
+2021-09-15 - global thread masks
+==========
+
+Some global variables currently expect to know about thread IDs and it's
+uncertain what must be done with them:
+  - global_tasks_mask  /* Mask of threads with tasks in the global runqueue */
+    => touched under the rq lock. Change it per-group ? What exact use is made ?
+
+  - sleeping_thread_mask /* Threads that are about to sleep in poll() */
+    => seems that it can be made per group
+
+  - all_threads_mask: a bit complicated, derived from nbthread and used with
+    masks and with my_ffsl() to wake threads up. Should probably be per-group
+    but we might miss something for global.
+
+  - stopping_thread_mask: used in combination with all_threads_mask, should
+    move per-group.
+
+  - threads_harmless_mask: indicates all threads that are currently harmless in
+    that they promise not to access a shared resource. Must be made per-group
+    but then we'll likely need a second stage to have the harmless groups mask.
+    threads_idle_mask, threads_sync_mask, threads_want_rdv_mask go with the one
+    above. Maybe the right approach will be to request harmless on a group mask
+    so that we can detect collisions and arbiter them like today, but on top of
+    this it becomes possible to request harmless only on the local group if
+    desired. The subtlety is that requesting harmless at the group level does
+    not mean it's achieved since the requester cannot vouch for the other ones
+    in the same group.
+
+In addition, some variables are related to the global runqueue:
+  __decl_aligned_spinlock(rq_lock); /* spin lock related to run queue */
+  struct eb_root rqueue;      /* tree constituting the global run queue, accessed under rq_lock */
+  unsigned int grq_total;     /* total number of entries in the global run queue, atomic */
+  static unsigned int global_rqueue_ticks;  /* insertion count in the grq, use rq_lock */
+
+And others to the global wait queue:
+  struct eb_root timers;      /* sorted timers tree, global, accessed under wq_lock */
+  __decl_aligned_rwlock(wq_lock);   /* RW lock related to the wait queue */
+  struct eb_root timers;      /* sorted timers tree, global, accessed under wq_lock */
+
+
+2021-09-29 - group designation and masks
+==========
+
+Neither FDs nor tasks will belong to incomplete subsets of threads spanning
+over multiple thread groups. In addition there may be a difference between
+configuration and operation (for FDs). This allows to fix the following rules:
+
+  group  mask   description
+    0     0     bind_conf: groups & thread not set. bind to any/all
+                task: it would be nice to mean "run on the same as the caller".
+
+    0    xxx    bind_conf: thread set but not group: thread IDs are global
+                FD/task: group 0, mask xxx
+
+    G>0   0     bind_conf: only group is set: bind to all threads of group G
+                FD/task: mask 0 not permitted (= not owned). May be used to
+                mention "any thread of this group", though already covered by
+                G/xxx like today.
+
+    G>0  xxx    bind_conf: Bind to these threads of this group
+                FD/task: group G, mask xxx
+
+It looks like keeping groups starting at zero internally complicates everything
+though. But forcing it to start at 1 might also require that we rescan all tasks
+to replace 0 with 1 upon startup. This would also allow group 0 to be special and
+be used as the default group for any new thread creation, so that group0.count
+would keep the number of unassigned threads. Let's try:
+
+  group  mask   description
+    0     0     bind_conf: groups & thread not set. bind to any/all
+                task: "run on the same group & thread as the caller".
+
+    0    xxx    bind_conf: thread set but not group: thread IDs are global
+                FD/task: invalid. Or maybe for a task we could use this to
+                mean "run on current group, thread XXX", which would cover
+                the need for health checks (g/t 0/0 while sleeping, 0/xxx
+                while running) and have wake_expired_tasks() detect 0/0 and
+                wake them up to a random group.
+
+    G>0   0     bind_conf: only group is set: bind to all threads of group G
+                FD/task: mask 0 not permitted (= not owned). May be used to
+                mention "any thread of this group", though already covered by
+                G/xxx like today.
+
+    G>0  xxx    bind_conf: Bind to these threads of this group
+                FD/task: group G, mask xxx
+
+With a single group declared in the config, group 0 would implicitly find the
+first one.
+
+
+The problem with the approach above is that a task queued in one group+thread's
+wait queue could very well receive a signal from another thread and/or group,
+and that there is no indication about where the task is queued, nor how to
+dequeue it. Thus it seems that it's up to the application itself to unbind/
+rebind a task. This contradicts the principle of leaving a task waiting in a
+wait queue and waking it anywhere.
+
+Another possibility might be to decide that a task having a defined group but
+a mask of zero is shared and will always be queued into its group's wait queue.
+However, upon expiry, the scheduler would notice the thread-mask 0 and would
+broadcast it to any group.
+
+Right now in the code we have:
+  - 18 calls of task_new(tid_bit)
+  - 18 calls of task_new(MAX_THREADS_MASK)
+  - 2 calls with a single bit
+
+Thus it looks like "task_new_anywhere()", "task_new_on()" and
+"task_new_here()" would be sufficient.
