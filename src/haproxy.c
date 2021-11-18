@@ -709,6 +709,9 @@ static void mworker_reexec()
 
 	mworker_proc_list_to_env(); /* put the children description in the env */
 
+	/* ensure that we close correctly every listeners before reexecuting */
+	mworker_cleanlisteners();
+
 	/* during the reload we must ensure that every FDs that can't be
 	 * reuse (ie those that are not referenced in the proc_list)
 	 * are closed or they will leak. */
@@ -838,7 +841,6 @@ static void mworker_loop()
 	signal_register_fct(SIGCHLD, mworker_catch_sigchld, SIGCHLD);
 
 	mworker_unblock_signals();
-	mworker_cleanlisteners();
 	mworker_cleantasks();
 
 	mworker_catch_sigchld(NULL); /* ensure we clean the children in case
