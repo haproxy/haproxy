@@ -38,6 +38,9 @@ static int hq_interop_decode_qcs(struct qcs *qcs, void *ctx)
 	path.len = ptr - path.ptr;
 
 	sl = htx_add_stline(htx, HTX_BLK_REQ_SL, 0, ist("GET"), path, ist("HTTP/1.0"));
+	if (!sl)
+		return -1;
+
 	sl->flags |= HTX_SL_F_BODYLESS;
 	sl->info.req.meth = find_http_meth("GET", 3);
 
