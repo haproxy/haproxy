@@ -301,8 +301,13 @@ _process() {
   done
 }
 
+# compute a version from up to 4 sub-version components, each multiplied
+# by a power of 1000, and padded left with 0, 1 or 2 zeroes.
 _version() {
-  echo "$@" | awk -F. '{ printf("%d%03d%03d%03d\012", $1,$2,$3,$4); }';
+  OLDIFS="$IFS"; IFS="."; set -- $*; IFS="$OLDIFS"
+  set -- ${1%%[!0-9]*} 000${2%%[!0-9]*} 000${3%%[!0-9]*} 000${4%%[!0-9]*}
+  prf2=${2%???}; prf3=${3%???}; prf4=${4%???}
+  echo ${1}${2#$prf2}${3#$prf3}${4#$prf4}
 }
 
 
