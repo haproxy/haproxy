@@ -5440,13 +5440,27 @@ uint32_t parse_line(char *in, char *out, size_t *outlen, char **args, int *nbarg
 			}
 
 			if (brace) {
-				if (*in != '}') {
+				if (*in == '-') {
+					/* default value starts just after the '-' */
+					if (!value)
+						value = in + 1;
+
+					while (*in && *in != '}')
+						in++;
+					if (!*in)
+						goto no_brace;
+					*in = 0; // terminate the default value
+				}
+				else if (*in != '}') {
+				no_brace:
 					/* unmatched brace */
 					err |= PARSE_ERR_BRACE;
 					if (errptr)
 						*errptr = brace;
 					goto leave;
 				}
+
+				/* brace found, skip it */
 				in++;
 				brace = NULL;
 			}

@@ -727,13 +727,16 @@ shell. Variable names can contain alphanumerical characters or the character
 underscore ("_") but should not start with a digit. If the variable contains a
 list of several values separated by spaces, it can be expanded as individual
 arguments by enclosing the variable with braces and appending the suffix '[*]'
-before the closing brace.
+before the closing brace. It is also possible to specify a default value to
+use when the variable is not set, by appending that value after a dash '-'
+next to the variable name. Note that the default value only replaces non
+existing variables, not empty ones.
 
   Example:
 
       bind "fd@${FD_APP1}"
 
-      log "${LOCAL_SYSLOG}:514" local0 notice   # send to local server
+      log "${LOCAL_SYSLOG-127.0.0.1}:514" local0 notice  # send to local server
 
       user "$HAPROXY_USER"
 
