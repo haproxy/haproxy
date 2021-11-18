@@ -197,7 +197,7 @@ _findtests() {
       IFS="|"; set -- $requiredoption;  IFS=$OLDIFS; alternatives="$*"
       found=
       for alt in $alternatives; do
-        if echo "$FEATURES" | grep -qw "\+$alt"; then
+        if [ -z "${FEATURES_PATTERN##* +$alt *}" ]; then
           found=1;
 	fi
       done
@@ -211,7 +211,7 @@ _findtests() {
       IFS="|"; set -- $requiredservice;  IFS=$OLDIFS; alternatives="$*"
       found=
       for alt in $alternatives; do
-        if echo "$SERVICES" | grep -qw "$alt"; then
+        if [ -z "${SERVICES_PATTERN##* $alt *}" ]; then
           found=1;
 	fi
       done
@@ -344,6 +344,9 @@ EOF
 
 HAPROXY_VERSION=$(echo $HAPROXY_VERSION | cut -d " " -f 3)
 echo "Testing with haproxy version: $HAPROXY_VERSION"
+
+FEATURES_PATTERN=" $FEATURES "
+SERVICES_PATTERN=" $SERVICES "
 
 TESTRUNDATETIME="$(date '+%Y-%m-%d_%H-%M-%S')"
 
