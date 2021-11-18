@@ -2074,6 +2074,15 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct ssl_sock_ctx *ct
 
 			break;
 		}
+		case QUIC_FT_MAX_DATA:
+		case QUIC_FT_MAX_STREAM_DATA:
+		case QUIC_FT_MAX_STREAMS_BIDI:
+		case QUIC_FT_MAX_STREAMS_UNI:
+		case QUIC_FT_DATA_BLOCKED:
+		case QUIC_FT_STREAM_DATA_BLOCKED:
+		case QUIC_FT_STREAMS_BLOCKED_BIDI:
+		case QUIC_FT_STREAMS_BLOCKED_UNI:
+			break;
 		case QUIC_FT_NEW_CONNECTION_ID:
 			break;
 		case QUIC_FT_CONNECTION_CLOSE:
