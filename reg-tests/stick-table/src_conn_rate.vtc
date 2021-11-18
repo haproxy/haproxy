@@ -4,9 +4,9 @@ feature ignore_unknown_macro
 haproxy h0 -conf {
 	defaults
 		mode http
-		timeout connect 5s
-		timeout client 5s
-		timeout server 5s
+		timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+		timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+		timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
 
 		listen li
 			bind "fd@${fe1}"

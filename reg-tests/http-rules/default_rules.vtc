@@ -20,9 +20,9 @@ server s2 {
 haproxy h1 -conf {
   defaults common
       mode http
-      timeout connect 1s
-      timeout client  1s
-      timeout server  1s
+      timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+      timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+      timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
 
   defaults def_front from common
       http-request set-header x-frontend "%[fe_name]"
@@ -60,9 +60,9 @@ haproxy h1 -conf {
 haproxy h2 -conf {
   defaults common
       mode http
-      timeout connect 1s
-      timeout client  1s
-      timeout server  1s
+      timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+      timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+      timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
 
   defaults def_front from common
       http-request allow

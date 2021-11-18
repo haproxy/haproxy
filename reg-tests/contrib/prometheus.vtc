@@ -18,9 +18,9 @@ server s2 {
 haproxy h1 -conf {
     defaults
 	mode http
-	timeout connect 1s
-	timeout client  1s
-	timeout server  1s
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
 	option socket-stats
 
     listen stats

@@ -41,9 +41,9 @@ server s {
 haproxy h -conf {
     defaults
         mode http
-        timeout client 1s
-        timeout server 1s
-        timeout connect 1s
+        timeout client "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
 
     backend be
         server srv ${s_addr}:${s_port}

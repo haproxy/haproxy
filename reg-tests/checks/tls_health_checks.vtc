@@ -38,9 +38,9 @@ haproxy h1 -conf {
 
     defaults
         mode http
-        timeout client 20
-        timeout server 20
-        timeout connect 20
+        timeout client "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
 
     backend be1
         server srv1 ${s1_addr}:${s1_port}
@@ -88,9 +88,9 @@ haproxy h2 -conf {
         tune.ssl.default-dh-param 2048
 
     defaults
-        timeout client 20
-        timeout server 20
-        timeout connect 20
+        timeout client "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
         default-server downinter 1s inter 500 rise 1 fall 1
 
     backend be2

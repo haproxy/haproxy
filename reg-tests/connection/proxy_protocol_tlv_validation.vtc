@@ -10,9 +10,9 @@ feature ignore_unknown_macro
 haproxy h1 -conf {
     defaults
         mode http
-        timeout connect 1s
-        timeout client  1s
-        timeout server  1s
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
 
     frontend a
         bind "fd@${fe1}" accept-proxy
@@ -43,9 +43,9 @@ client c1 -connect ${h1_fe1_sock} {
 haproxy h2 -conf {
     defaults
         mode http
-        timeout connect 1s
-        timeout client  1s
-        timeout server  1s
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
 
     frontend a
         bind "fd@${fe1}" accept-proxy
@@ -80,9 +80,9 @@ client c2 -connect ${h2_fe1_sock} {
 haproxy h3 -conf {
     defaults
         mode http
-        timeout connect 1s
-        timeout client  1s
-        timeout server  1s
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
 
     frontend a
         bind "fd@${fe1}" accept-proxy
@@ -112,9 +112,9 @@ client c3 -connect ${h3_fe1_sock} {
 haproxy h4 -conf {
     defaults
         mode http
-        timeout connect 1s
-        timeout client  1s
-        timeout server  1s
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
 
     frontend a
         bind "fd@${fe1}" accept-proxy

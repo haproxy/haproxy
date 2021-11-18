@@ -6,9 +6,9 @@ feature ignore_unknown_macro
 
 haproxy h1 -arg "-L A" -conf {
     defaults
-        timeout client  1s
-        timeout connect 1s
-        timeout server  1s
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
 
 
     peers peers
@@ -28,9 +28,9 @@ haproxy h1 -arg "-L A" -conf {
 haproxy h2 -arg "-L B" -conf {
     defaults
         mode http
-        timeout client  1s
-        timeout connect 1s
-        timeout server  1s
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
 
     peers peers
         bind "fd@${B}"
@@ -48,9 +48,9 @@ haproxy h2 -arg "-L B" -conf {
 haproxy h3 -arg "-L C" -conf {
     defaults
         mode http
-        timeout client  1s
-        timeout connect 1s
-        timeout server  1s
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
 
     peers peers
         bind "fd@${C}"

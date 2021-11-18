@@ -34,9 +34,9 @@ haproxy htst -conf {
 
     defaults
         mode tcp
-        timeout client 1s
-        timeout server 1s
-        timeout connect 100ms
+        timeout client "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
 
     listen li1
         bind "fd@${li1}"
@@ -64,9 +64,9 @@ haproxy htst -conf {
 haproxy h1 -conf {
     defaults
         mode tcp
-        timeout client 1s
-        timeout server 1s
-        timeout connect 100ms
+        timeout client "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
 
     backend be1
         log ${S_ok_addr}:${S_ok_port} daemon

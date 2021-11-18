@@ -51,9 +51,9 @@ server s2 {
 
 haproxy h1 -conf {
     defaults
-        timeout client 1s
-        timeout server 1s
-        timeout connect 1s
+        timeout client "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
         option log-health-checks
         default-server inter 200ms downinter 100ms rise 1 fall 1
 

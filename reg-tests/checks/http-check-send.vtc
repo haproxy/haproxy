@@ -114,9 +114,9 @@ syslog S6 -level notice {
 haproxy h1 -conf {
     defaults
         mode http
-        timeout client 1s
-        timeout server 1s
-        timeout connect 200ms
+        timeout client "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
         option httpchk
         option log-health-checks
 
@@ -131,9 +131,9 @@ haproxy h1 -conf {
 
     defaults
         mode http
-        timeout client 1s
-        timeout server 1s
-        timeout connect 200ms
+        timeout client "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
         option httpchk GET /status HTTP/1.1\r\nHdr:\ must-be-removed
         option log-health-checks
         http-check send hdr Host "my-www-host" hdr X-test true body "test"

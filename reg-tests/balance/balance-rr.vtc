@@ -24,9 +24,9 @@ server s4 {
 haproxy h1 -arg "-L A" -conf {
     defaults
         mode http
-        timeout server 1s
-        timeout connect 1s
-        timeout client 1s
+        timeout server "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client "${HAPROXY_TEST_TIMEOUT-5s}"
 
     listen px
         bind "fd@${px}"

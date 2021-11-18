@@ -9,9 +9,9 @@ feature ignore_unknown_macro
 haproxy h1 -conf {
     defaults
         mode http
-        timeout connect 1s
-        timeout client  1s
-        timeout server  1s
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
         errorfile 400  ${testdir}/errors/400.http
         errorfile 403  ${testdir}/errors/403.http
         errorfile 408  /dev/null

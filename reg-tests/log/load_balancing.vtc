@@ -42,9 +42,9 @@ haproxy h1 -conf {
 	defaults
 		mode http
 		option httplog
-		timeout connect 1000
-		timeout client  1000
-		timeout server  1000
+		timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+		timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+		timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
 
 	frontend fe1
 		bind "fd@${fe_1}"

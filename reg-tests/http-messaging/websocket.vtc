@@ -47,9 +47,9 @@ server s2 {
 haproxy hap_srv -conf {
 	defaults
 	mode http
-	timeout connect 1s
-	timeout client  1s
-	timeout server  1s
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
 
 	listen fe1
 	bind "fd@${fe1}"
@@ -69,9 +69,9 @@ haproxy hap_srv -conf {
 haproxy hap_srv_bad_key -conf {
 	defaults
 	mode http
-	timeout connect 1s
-	timeout client  1s
-	timeout server  1s
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
 
 	listen fe1
 	bind "fd@${fe1}"
@@ -89,9 +89,9 @@ haproxy hap_srv_bad_key -conf {
 haproxy hap -conf {
 	defaults
 	mode http
-	timeout connect 1s
-	timeout client  1s
-	timeout server  1s
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
 
 	listen fe1
 	bind "fd@${fe1}"

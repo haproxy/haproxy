@@ -38,9 +38,9 @@ haproxy h1 -conf {
         lua-load ${testdir}/bad_http_clt_req_duration.lua
 
     defaults
-        timeout client 1s
-        timeout server 1s
-        timeout connect 1s
+        timeout client "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
 
     frontend f1
         mode http

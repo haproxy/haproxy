@@ -88,9 +88,9 @@ server srv_h2_no_ws2 {
 haproxy hap -conf {
 	defaults
 	mode http
-	timeout connect 1s
-	timeout client  1s
-	timeout server  1s
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
 
 	# h1 frontend connected to h2 frontend
 	listen frt_h1_h2

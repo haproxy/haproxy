@@ -11,24 +11,24 @@ server srv_h1 -repeat 3 {
 
 syslog Slog1 -level info {
     recv
-    expect ~ "^.*timeout: 1000 1000.*$"
+    expect ~ "^.*timeout: 5000 5000.*$"
 } -start
 
 syslog Slog2 -level info {
     recv
-    expect ~ "^.*timeout: 1000 5000.*$"
+    expect ~ "^.*timeout: 5000 5000.*$"
 } -start
 
 syslog Slog3 -level info {
     recv
-    expect ~ "^.*timeout: 1000 3000.*$"
+    expect ~ "^.*timeout: 5000 3000.*$"
 } -start
 
 haproxy hap -conf {
     defaults
-        timeout connect 1s
-        timeout client 1s
-        timeout server 1s
+        timeout connect 5s
+        timeout client 5s
+        timeout server 5s
         log global
 
     listen li1

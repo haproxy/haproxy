@@ -34,9 +34,9 @@ syslog S -level info {
 haproxy h1 -conf {
 	defaults
 		mode http
-		timeout client  100ms
-		timeout server  1s
-		timeout connect 1s
+		timeout client  100
+		timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+		timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
 
 	backend be1
 		server srv1 ${s1_addr}:${s1_port}

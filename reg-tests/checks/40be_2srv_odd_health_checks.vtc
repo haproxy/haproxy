@@ -238,9 +238,9 @@ server s39 {
 
 haproxy h1 -conf {
     defaults
-        timeout client 1s
-        timeout server 1s
-        timeout connect 1s
+        timeout client "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
         balance first
         default-server no-check inter 5ms downinter 1s rise 1 fall 1
 

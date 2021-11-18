@@ -30,9 +30,9 @@ haproxy h1 -conf {
     # Configuration file of 'h1' haproxy instance.
     defaults
         mode   http
-        timeout connect         5s
-        timeout server          30s
-        timeout client          30s
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
 
     frontend http1
         bind "fd@${my_frontend_fd}"

@@ -44,9 +44,9 @@ haproxy h1 -conf {
 	#log stdout format raw daemon
 	mode http
 	option http-buffer-request
-	timeout connect 1s
-	timeout client  1s
-	timeout server  1s
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
 
     listen feh1
 	bind "fd@${feh1}"

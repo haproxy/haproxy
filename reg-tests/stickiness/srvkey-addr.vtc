@@ -35,9 +35,9 @@ server s2 {
 haproxy h1 -arg "-L A" -conf {
     defaults
         mode http
-        timeout server 1s
-        timeout connect 1s
-        timeout client 1s
+        timeout server "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client "${HAPROXY_TEST_TIMEOUT-5s}"
         log stdout format raw local0  debug
 
     peers mypeers
@@ -76,9 +76,9 @@ haproxy h1 -arg "-L A" -conf {
 haproxy h2 -arg "-L B" -conf {
     defaults
         mode http
-        timeout server 1s
-        timeout connect 1s
-        timeout client 1s
+        timeout server "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client "${HAPROXY_TEST_TIMEOUT-5s}"
 
     peers mypeers
         bind "fd@${B}"

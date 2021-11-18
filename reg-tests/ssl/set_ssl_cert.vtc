@@ -40,12 +40,12 @@ haproxy h1 -conf {
     defaults
         mode http
         option httplog
-        retries 0
+	retries 0
         log stderr local0 debug err
         option logasap
-        timeout connect 100ms
-        timeout client  1s
-        timeout server  1s
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
 
     listen clear-lst
         bind "fd@${clearlst}"

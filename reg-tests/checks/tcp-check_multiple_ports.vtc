@@ -21,10 +21,10 @@ server s1 {
 haproxy h1 -conf {
   defaults
     mode tcp
-    timeout connect 200ms
-    timeout check 500ms
-    timeout server 5s
-    timeout client 5s
+    timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+    timeout check "${HAPROXY_TEST_TIMEOUT-5s}"
+    timeout server "${HAPROXY_TEST_TIMEOUT-5s}"
+    timeout client "${HAPROXY_TEST_TIMEOUT-5s}"
     #default-server check inter 200ms rise 1 fall 1
 
   backend be1

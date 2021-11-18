@@ -94,9 +94,9 @@ syslog S4 -level notice {
 
 haproxy h1 -conf {
     defaults
-        timeout client  1s
-        timeout server  1s
-        timeout connect 1s
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
         default-server check inter 200ms downinter 100s rise 1 fall 1
 
     frontend fe1

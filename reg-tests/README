@@ -63,3 +63,9 @@ See also: doc/regression-testing.txt
       of the VTC file,
     - Put these files in a directory with the same name as the code area concerned
       by the bug ('peers', 'lua', 'acl' etc).
+
+Please note that most tests use a common set of timeouts defined by the
+environment variable HAPROXY_TEST_TIMEOUT. As much as possible, for regular I/O
+(i.e. not errors), please try to reuse that setting so that the value may
+easily be adjusted when running in some particularly slow environments, or be
+shortened to fail faster on developers' machines.

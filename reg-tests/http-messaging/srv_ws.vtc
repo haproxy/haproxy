@@ -11,9 +11,9 @@ feature ignore_unknown_macro
 haproxy hapsrv -conf {
 	defaults
 		mode http
-		timeout connect 5s
-		timeout client  5s
-		timeout server  5s
+		timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+		timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+		timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
 
 	frontend fe
 		bind "fd@${fe}"
@@ -40,9 +40,9 @@ haproxy hapsrv -conf {
 haproxy hap -conf {
 	defaults
 		mode http
-		timeout connect 1s
-		timeout client  1s
-		timeout server  1s
+		timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+		timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+		timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
 
 	# proto X ws h1 -> websocket on h1
 	listen li

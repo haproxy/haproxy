@@ -74,9 +74,9 @@ haproxy h1 -conf {
     mode http
     log global
     option httplog
-    timeout connect         1s
-    timeout client          1s
-    timeout server          1s
+    timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+    timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+    timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
 
   frontend fe1
     # accept-proxy so test client can send src ip
@@ -129,9 +129,9 @@ haproxy h2 -conf {
     mode http
     log global
     option httplog
-    timeout connect         1s
-    timeout client          1s
-    timeout server          1s
+    timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+    timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+    timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
 
   frontend fe2
     bind "fd@${fe2}"

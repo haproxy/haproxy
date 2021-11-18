@@ -26,8 +26,8 @@ syslog Slog -level info -repeat 100 {
 
 haproxy h1 -conf {
     defaults
-        timeout client  1s
-        timeout connect 1s
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
 
     global
         lua-load ${testdir}/close_wait_lf.lua

@@ -13,9 +13,9 @@ feature ignore_unknown_macro
 
 haproxy h1 -conf-BAD {} {
 	defaults
-        timeout connect 5000ms
-        timeout client 50000ms
-        timeout server 50000ms
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
 
 	frontend my-front
 		filter spoe
