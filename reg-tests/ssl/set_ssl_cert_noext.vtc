@@ -32,6 +32,7 @@ haproxy h1 -conf {
     defaults
         mode http
         option httplog
+        retries 0
         log stderr local0 debug err
         option logasap
         timeout connect 100ms
