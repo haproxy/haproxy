@@ -120,13 +120,32 @@ _findtests() {
   any_test=$(echo $REGTESTS_TYPES | grep -cw "any")
   for i in $( find "$1" -name *.vtc ); do
     skiptest=
-    require_version="$(sed -ne 's/^#REQUIRE_VERSION=//p' "$i")"
-    require_version_below="$(sed -ne 's/^#REQUIRE_VERSION_BELOW=//p' "$i")"
-    require_options="$(sed -ne 's/^#REQUIRE_OPTIONS=//p' "$i" | sed  -e 's/,/ /g')"
-    require_services="$(sed -ne 's/^#REQUIRE_SERVICES=//p' "$i" | sed  -e 's/,/ /g')"
-    exclude_targets="$(sed -ne 's/^#EXCLUDE_TARGETS=//p' "$i" | sed  -e 's/,/ /g')"
+    OLDIFS="$IFS"; IFS="$LINEFEED"
+    set -- $(grep '^#[0-9A-Z_]*=' "$i")
+    IFS="$OLDIFS"
+
+    require_version=""; require_version_below=""; require_options="";
+    require_services=""; exclude_targets=""; regtest_type=""
+    requiredoption=""; requiredservice=""; excludedtarget="";
+
+    while [ $# -gt 0 ]; do
+      v="$1"; v="${v#*=}"
+      case "$1" in
+        "#REQUIRE_VERSION="*)       require_version="$v" ;;
+        "#REQUIRE_VERSION_BELOW="*) require_version_below="$v" ;;
+        "#REQUIRE_OPTIONS="*)       require_options="$v" ;;
+        "#REQUIRE_SERVICES="*)      require_services="$v" ;;
+        "#EXCLUDE_TARGETS="*)       exclude_targets="$v" ;;
+        "#REGTEST_TYPE="*)          regtest_type="$v" ;;
+        "#REQUIRE_OPTION="*)        requiredoption="${v%,*}" ;;
+        "#REQUIRE_SERVICE="*)       required_service="${v%,*}" ;;
+        "#EXCLUDE_TARGET="*)        excludedtarget="${v%,*}" ;;
+        # Note: any new variable declared here must be initialized above.
+      esac
+      shift
+    done
+
     if [ $any_test -ne 1 ] ; then
-        regtest_type="$(sed -ne 's/^#REGTEST_TYPE=//p' "$i")"
         if [ -z $regtest_type ] ; then
             regtest_type=default
         fi
@@ -136,20 +155,21 @@ _findtests() {
         fi
     fi
 
-    requiredoption="$(sed -ne 's/^#REQUIRE_OPTION=//p' "$i" | sed  -e 's/,.*//')"
     if [ -n "$requiredoption" ]; then
-      require_options="$require_options $requiredoption"
+      require_options="$require_options,$requiredoption"
     fi
 
-    requiredservice="$(sed -ne 's/^#REQUIRE_SERVICE=//p' "$i" | sed  -e 's/,.*//')"
     if [ -n "$requiredservice" ]; then
-      require_services="$require_services $requiredservice"
+      require_services="$require_services,$requiredservice"
     fi
 
-    excludedtarget="$(sed -ne 's/^#EXCLUDE_TARGET=//p' "$i" | sed  -e 's/,.*//')"
     if [ -n "$excludedtarget" ]; then
-      exclude_targets="$exclude_targets $excludedtarget"
+      exclude_targets="$exclude_targets,$excludedtarget"
     fi
+
+    IFS=","; set -- $require_options;  IFS=$OLDIFS; require_options="$*"
+    IFS=","; set -- $require_services; IFS=$OLDIFS; require_services="$*"
+    IFS=","; set -- $exclude_targets;  IFS=$OLDIFS; exclude_targets="$*"
 
     if [ -n "$require_version" ]; then
       if [ $(_version "$HAPROXY_VERSION") -lt $(_version "$require_version") ]; then
@@ -174,7 +194,7 @@ _findtests() {
     done
 
     for requiredoption in $require_options; do
-      alternatives=$(echo "$requiredoption" | sed -e 's/|/ /g')
+      IFS="|"; set -- $requiredoption;  IFS=$OLDIFS; alternatives="$*"
       found=
       for alt in $alternatives; do
         if echo "$FEATURES" | grep -qw "\+$alt"; then
@@ -188,7 +208,7 @@ _findtests() {
     done
 
     for requiredservice in $require_services; do
-      alternatives=$(echo "$requiredservice" | sed -e 's/|/ /g')
+      IFS="|"; set -- $requiredservice;  IFS=$OLDIFS; alternatives="$*"
       found=
       for alt in $alternatives; do
         if echo "$SERVICES" | grep -qw "$alt"; then
@@ -291,6 +311,8 @@ HAPROXY_ARGS="${HAPROXY_ARGS--dM}"
 VTEST_PROGRAM="${VTEST_PROGRAM:-vtest}"
 TESTDIR="${TMPDIR:-/tmp}"
 REGTESTS=""
+LINEFEED="
+"
 
 jobcount=""
 verbose="-q"
