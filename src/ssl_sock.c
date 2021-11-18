@@ -2700,7 +2700,7 @@ allow_early:
 #endif
 }
 
-#else /* OPENSSL_IS_BORINGSSL */
+#else /* ! HAVE_SSL_CLIENT_HELLO_CB  */
 
 /* Sets the SSL ctx of <ssl> to match the advertised server name. Returns a
  * warning when no match is found, which implies the default (first) cert
