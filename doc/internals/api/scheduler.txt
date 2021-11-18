@@ -1,0 +1,226 @@
+2021-11-17 - Scheduler API
+
+
+1. Background
+-------------
+
+The scheduler relies on two major parts:
+  - the wait queue or timers queue, which contains an ordered tree of the next
+    timers to expire
+
+  - the run queue, which contains tasks that were already woken up and are
+    waiting for a CPU slot to execute.
+
+There are two types of schedulable objects in HAProxy:
+  - tasks: they contain one timer and can be in the run queue without leaving
+    their place in the timers queue.
+
+  - tasklets: they do not have the timers part and are either sleeping or
+    running.
+
+Both the timers queue and run queue in fact exist both shared between all
+threads and per-thread. A task or tasklet may only be queued in a single of
+each at a time. The thread-local queues are not thread-safe while the shared
+ones are. This means that it is only permitted to manipulate an object which
+is in the local queue or in a shared queue, but then after locking it. As such
+tasks and tasklets are usually pinned to threads and do not move, or only in
+very specific ways not detailed here.
+
+In case of doubt, keep in mind that it's not permitted to manipulate another
+thread's private task or tasklet, and that any task held by another thread
+might vanish while it's being looked at.
+
+Internally a large part of the task and tasklet struct is shared between
+the two types, which reduces code duplication and eases the preservation
+of fairness in the run queue by interleaving all of them. As such, some
+fields or flags may not always be relevant to tasklets and may be ignored.
+
+
+Tasklets do not use a thread mask but use a thread ID instead, to which they
+are bound. If the thread ID is negative, the tasklet is not bound but may only
+be run on the calling thread.
+
+
+2. API
+------
+
+There are few functions exposed by the scheduler. A few more ones are in fact
+accessible but if not documented there they'd rather be avoided or used only
+when absolutely certain they're suitable, as some have delicate corner cases.
+In doubt, checking the sched.pdf diagram may help.
+
+int total_run_queues()
+        Return the approximate number of tasks in run queues. This is racy
+        and a bit inaccurate as it iterates over all queues, but it is
+        sufficient for stats reporting.
+
+int task_in_rq(t)
+        Return non-zero if the designated task is in the run queue (i.e. it was
+        already woken up).
+
+int task_in_wq(t)
+        Return non-zero if the designated task is in the timers queue (i.e. it
+        has a valid timeout and will eventually expire).
+
+int thread_has_tasks()
+        Return non-zero if the current thread has some work to be done in the
+        run queue. This is used to decide whether or not to sleep in poll().
+
+void task_wakeup(t, f)
+        Will make sure task <t> will wake up, that is, will execute at least
+        once after the start of the function is called. The task flags <f> will
+        be ORed on the task's state, among TASK_WOKEN_* flags exclusively. In
+        multi-threaded environments it is safe to wake up another thread's task
+        and even if the thread is sleeping it will be woken up. Users have to
+        keep in mind that a task running on another thread might very well
+        finish and go back to sleep before the function returns. It is
+        permitted to wake the current task up, in which case it will be
+        scheduled to run another time after it returns to the scheduler.
+
+struct task *task_unlink_wq(t)
+        Remove the task from the timers queue if it was in it, and return it.
+        It may only be done for the local thread, or for a shared thread that
+        might be in the shared queue. It must not be done for another thread's
+        task.
+
+void task_queue(t)
+        Place or update task <t> into the timers queue, where it may already
+        be, scheduling it for an expiration at date t->expire. If t->expire is
+        infinite, nothing is done, so it's safe to call this function without
+        prior checking the expiration date. It is only valid to call this
+        function for local tasks or for shared tasks who have the calling
+        thread in their thread mask.
+
+void task_set_affinity(t, m)
+        Change task <t>'s thread_mask to new value <m>. This may only be
+        performed by the task itself while running. This is only used to let a
+        task voluntarily migrate to another thread.
+
+void tasklet_wakeup(tl)
+        Make sure that tasklet <tl> will wake up, that is, will execute at
+        least once. The tasklet will run on its assigned thread, or on any
+        thread if its TID is negative.
+
+void tasklet_wakeup_on(tl, thr)
+        Make sure that tasklet <tl> will wake up on thread <thr>, that is, will
+        execute at least once. The designated thread may only differ from the
+        calling one if the tasklet is already configured to run on another
+        thread, and it is not permitted to self-assign a tasklet if its tid is
+        negative, as it may already be scheduled to run somewhere else. Just in
+        case, only use tasklet_wakeup() which will pick the tasklet's assigned
+        thread ID.
+
+struct tasklet *tasklet_new()
+        Allocate a new tasklet and set it to run by default on the calling
+        thread. The caller may change its tid to another one before using it.
+        The new tasklet is returned.
+
+struct task *task_new_anywhere()
+        Allocate a new task to run on any thread, and return the task, or NULL
+        in case of allocation issue. Note that such tasks will be marked as
+        shared and will go through the locked queues, thus their activity will
+        be heavier than for other ones. See also task_new_here().
+
+struct task *task_new_here()
+        Allocate a new task to run on the calling thread, and return the task,
+        or NULL in case of allocation issue.
+
+struct task *task_new_on(t)
+        Allocate a new task to run on thread <t>, and return the task, or NULL
+        in case of allocation issue.
+
+void task_destroy(t)
+        Destroy this task. The task will be unlinked from any timers queue,
+        and either immediately freed, or asynchronously killed if currently
+        running. This may only be done by one of the threads this task is
+        allowed to run on. Developers must not forget that the task's memory
+        area is not always immediately freed, and that certain misuses could
+        only have effect later down the chain (e.g. use-after-free).
+
+void tasklet_free()
+        Free this tasklet, which must not be running, so that may only be
+        called by the thread responsible for the tasklet, typically the
+        tasklet's process() function itself.
+
+void task_schedule(t, d)
+        Schedule task <t> to run no later than date <d>. If the task is already
+        running, or scheduled for an earlier instant, nothing is done. If the
+        task was not in queued or was scheduled to run later, its timer entry
+        will be updated. This function assumes that it will never be called
+        with a timer in the past nor with TICK_ETERNITY. Only one of the
+        threads assigned to the task may call this function.
+
+The task's ->process() function receives the following arguments:
+
+  - struct task *t: a pointer to the task itself. It is always valid.
+
+  - void *ctx     : a copy of the task's ->context pointer at the moment
+                    the ->process() function was called by the scheduler. A
+                    function must use this and not task->context, because
+                    task->context might possibly be changed by another thread.
+                    For instance, the muxes' takeover() function do this.
+
+  - uint state    : a copy of the task's ->state field at the moment the
+                    ->process() function was executed. A function must use
+                    this and not task->state as the latter misses the wakeup
+                    reasons and may constantly change during execution along
+                    concurrent wakeups (threads or signals).
+
+The possible state flags to use during a call to task_wakeup() or seen by the
+task being called are the following; they're automatically cleaned from the
+state field before the call to ->process()
+
+  - TASK_WOKEN_INIT    each creation of a task causes a first wakeup with this
+                       flag set. Applications should not set it themselves.
+
+  - TASK_WOKEN_TIMER   this indicates the task's expire date was reached in the
+                       timers queue. Applications should not set it themselves.
+
+  - TASK_WOKEN_IO      indicates the wake-up happened due to I/O activity. Now
+                       that all low-level I/O processing happens on tasklets,
+                       this notion of I/O is now application-defined (for
+                       example stream-interfaces use it to notify the stream).
+
+  - TASK_WOKEN_SIGNAL  indicates that a signal the task was subscribed to was
+                       received. Applications should not set it themselves.
+
+  - TASK_WOKEN_MSG     any application-defined wake-up reason, usually for
+                       inter-task communication (e.g filters vs streams).
+
+  - TASK_WOKEN_RES     a resource the task was waiting for was finally made
+                       available, allowing the task to continue its work. This
+                       is essentially used by buffers and queues. Applcations
+                       may carefully use it for their own purpose if they're
+                       certain not to rely on existing ones.
+
+  - TASK_WOKEN_OTHER   any other application-defined wake-up reason.
+
+
+In addition, a few persistent flags may be observed or manipulated by the
+application, both for tasks and tasklets:
+
+  - TASK_SELF_WAKING   when set, indicates that this task was found waking
+                       itself up, and its class will change to bulk processing.
+                       If this behavior is under control temporarily expected,
+                       and it is not expected to happen again, it may make
+                       sense to reset this flag from the ->process() function
+                       itself.
+
+  - TASK_HEAVY         when set, indicates that this task does so heavy
+                       processing that it will become mandatory to give back
+                       control to I/Os otherwise big latencies might occur. It
+                       may be set by an application that expects something
+                       heavy to happen (tens to hundreds of microseconds), and
+                       reset once finished. An example of user is the TLS stack
+                       which sets it when an imminent crypto operation is
+                       expected.
+
+  - TASK_F_USR1        This is the first application-defined persistent flag.
+                       It is always zero unless the application changes it. An
+                       example of use cases is the I/O handler for backend
+                       connections, to mention whether the connection is safe
+                       to use or might have recently been migrated.
+
+Finally, when built with -DDEBUG_TASK, an extra sub-structure "debug" is added
+to both tasks and tasklets to note the code locations of the last two calls to
+task_wakeup() and tasklet_wakeup().
