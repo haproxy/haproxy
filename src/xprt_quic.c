@@ -3527,12 +3527,12 @@ static int qc_send_version_negotiation(int fd, struct sockaddr_storage *addr,
 
 	/* source connection id */
 	buf[i++] = pkt->scid.len;
-	memcpy(buf, pkt->scid.data, pkt->scid.len);
+	memcpy(&buf[i], pkt->scid.data, pkt->scid.len);
 	i += pkt->scid.len;
 
 	/* destination connection id */
 	buf[i++] = pkt->dcid.len;
-	memcpy(buf, pkt->dcid.data, pkt->dcid.len);
+	memcpy(&buf[i], pkt->dcid.data, pkt->dcid.len);
 	i += pkt->dcid.len;
 
 	/* supported version */
