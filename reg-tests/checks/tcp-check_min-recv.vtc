@@ -39,6 +39,9 @@ haproxy h1 -conf {
     timeout client 5s
 
   backend be1
+    # must fail fast
+    timeout check 1
+    timeout server 1
     log ${S1_addr}:${S1_port} len 2048 local0
     option tcp-check
     option log-health-checks
