@@ -3551,8 +3551,10 @@ static int qc_send_version_negotiation(int fd, struct sockaddr_storage *addr,
 	 * header form
 	 * long header, fixed bit to 0 for Version Negotiation
 	 */
-	buf[i++] = '\x80';
+	if (RAND_bytes((unsigned char *)buf, 1) != 1)
+		return 1;
 
+	buf[i++] |= '\x80';
 	/* null version for Version Negotiation */
 	buf[i++] = '\x00';
 	buf[i++] = '\x00';
