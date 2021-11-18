@@ -3874,7 +3874,7 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 	if (conn_ctx && HA_ATOMIC_LOAD(&conn_ctx->conn->ctx))
 		tasklet_wakeup(conn_ctx->wait_event.tasklet);
 
-	TRACE_LEAVE(QUIC_EV_CONN_LPKT, qc->conn, pkt);
+	TRACE_LEAVE(QUIC_EV_CONN_LPKT, qc ? qc->conn : NULL, pkt);
 
 	return pkt->len;
 
