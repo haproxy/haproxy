@@ -1,6 +1,57 @@
 ChangeLog :
 ===========
 
+2021/11/19 : 2.5-dev15
+    - BUG/MINOR: stick-table/cli: Check for invalid ipv6 key
+    - CLEANUP: peers: Remove useless test on peer variable in peer_trace()
+    - DOC: log: Add comments to specify when session's listener is defined or not
+    - BUG/MEDIUM: mux-h1: Handle delayed silent shut in h1_process() to release H1C
+    - REGTESTS: ssl_crt-list_filters: feature cmd incorrectly set
+    - DOC: internals: document the list API
+    - BUG/MINOR: h3: ignore unknown frame types
+    - MINOR: quic: redirect app_ops snd_buf through mux
+    - MEDIUM: quic: inspect ALPN to install app_ops
+    - MINOR: quic: support hq-interop
+    - MEDIUM: quic: send version negotiation packet on unknown version
+    - BUG/MEDIUM: mworker: cleanup the listeners when reexecuting
+    - DOC: internals: document the scheduler API
+    - BUG/MINOR: quic: fix version negotiation packet generation
+    - CLEANUP: ssl: fix wrong #else commentary
+    - MINOR: config: support default values for environment variables
+    - SCRIPTS: run-regtests: reduce the number of processes needed to check options
+    - SCRIPT: run-regtests: avoid several calls to grep to test for features
+    - SCRIPT: run-regtests: avoid calling awk to compute the version
+    - REGTEST: set retries count to zero for all tests that expect at 503
+    - REGTESTS: make tcp-check_min-recv fail fast
+    - REGTESTS: extend the default I/O timeouts and make them overridable
+    - BUG/MEDIUM: ssl: backend TLS resumption with sni and TLSv1.3
+    - BUG/MEDIUM: ssl: abort with the correct SSL error when SNI not found
+    - REGTESTS: ssl: test the TLS resumption
+    - BUILD: makefile: stop opening sub-shells for each and every command
+    - BUILD: makefile: reorder objects by build time
+    - BUG/MEDIUM: mux-h2: always process a pending shut read
+    - MINOR: quic_sock: missing CO_FL_ADDR_TO_SET flag
+    - MINOR: quic: Possible wrong connection identification
+    - MINOR: quic: Correctly pad UDP datagrams
+    - MINOR: quic: Support transport parameters draft TLS extension
+    - MINOR: quic: Anti-amplification implementation
+    - MINOR: quic: Wrong Initial packet connection initialization
+    - MINOR: quic: Wrong ACK range building
+    - MINOR: quic: Update some QUIC protocol errors
+    - MINOR: quic: Send CONNECTION_CLOSE frame upon TLS alert
+    - MINOR: quic: Wrong largest acked packet number parsing
+    - MINOR: quic: Add minimalistic support for stream flow control frames
+    - MINOR: quic: Wrong value for version negotiation packet 'Unused' field
+    - MINOR: quic: Support draft-29 QUIC version
+    - BUG/MINOR: quic: fix segfault on trace for version negotiation
+    - BUG/MINOR: hq-interop: fix potential NULL dereference
+    - BUILD: quic: fix potential NULL dereference on xprt_quic
+    - DOC: lua: documentation about the httpclient API
+    - BUG/MEDIUM: cache/cli: make "show cache" thread-safe
+    - BUG/MEDIUM: shctx: leave the block allocator when enough blocks are found
+    - BUG/MINOR: shctx: do not look for available blocks when the first one is enough
+    - MINOR: shctx: add a few BUG_ON() for consistency checks
+
 2021/11/14 : 2.5-dev14
     - DEV: coccinelle: Remove unused `expression e`
     - DEV: coccinelle: Add rule to use `istend()` where possible
