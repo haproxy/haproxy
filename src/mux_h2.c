@@ -3689,7 +3689,7 @@ static int h2_recv(struct h2c *h2c)
 
 	if (h2c->flags & H2_CF_RCVD_SHUT) {
 		TRACE_DEVEL("leaving on rcvd_shut", H2_EV_H2C_RECV, h2c->conn);
-		return 0;
+		return 1;
 	}
 
 	if (!b_data(buf)) {
