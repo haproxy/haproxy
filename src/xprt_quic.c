@@ -55,6 +55,7 @@
 /* list of supported QUIC versions by this implementation */
 static int quic_supported_version[] = {
 	0x00000001,
+	0xff00001d, /* draft-29 */
 
 	/* placeholder, do not add entry after this */
 	0x0
