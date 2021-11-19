@@ -618,7 +618,8 @@ struct rxbuf {
 #define QUIC_FL_PKTNS_ACK_REQUIRED_BIT 0
 #define QUIC_FL_PKTNS_ACK_REQUIRED  (1UL << QUIC_FL_PKTNS_ACK_REQUIRED_BIT)
 
-#define QUIC_FL_CONN_ANTI_AMPLIFICATION_REACHED (1UL << 1)
+#define QUIC_FL_CONN_ANTI_AMPLIFICATION_REACHED (1U << 1)
+#define QUIC_FL_CONN_IMMEDIATE_CLOSE            (1U << 31)
 struct quic_conn {
 	uint32_t version;
 	/* QUIC transport parameters TLS extension */

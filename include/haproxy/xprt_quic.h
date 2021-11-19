@@ -1104,7 +1104,9 @@ static inline void quic_tx_packet_refdec(struct quic_tx_packet *pkt)
 		pool_free(pool_head_quic_tx_packet, pkt);
 }
 
+void quic_set_tls_alert(struct quic_conn *qc, int alert);
 ssize_t quic_lstnr_dgram_read(struct buffer *buf, size_t len, void *owner,
                               struct sockaddr_storage *saddr);
+
 #endif /* USE_QUIC */
 #endif /* _HAPROXY_XPRT_QUIC_H */

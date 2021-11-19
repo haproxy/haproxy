@@ -885,6 +885,14 @@ static int quic_crypto_data_cpy(struct quic_enc_level *qel,
 }
 
 
+/* Set <alert> TLS alert as QUIC CRYPTO_ERROR error */
+void quic_set_tls_alert(struct quic_conn *qc, int alert)
+{
+	HA_ATOMIC_STORE(&qc->err, QC_ERR_CRYPTO_ERROR | alert);
+	HA_ATOMIC_OR(&qc->flags, QUIC_FL_CONN_IMMEDIATE_CLOSE);
+	TRACE_PROTO("Alert set", QUIC_EV_CONN_SSLDATA, qc->conn);
+}
+
 /* ->add_handshake_data QUIC TLS callback used by the QUIC TLS stack when it
  * wants to provide the QUIC layer with CRYPTO data.
  * Returns 1 if succeeded, 0 if not.
@@ -937,7 +945,7 @@ int ha_quic_send_alert(SSL *ssl, enum ssl_encryption_level_t level, uint8_t aler
 	struct connection *conn = SSL_get_ex_data(ssl, ssl_app_data_index);
 
 	TRACE_DEVEL("SSL alert", QUIC_EV_CONN_SSLALERT, conn, &alert, &level);
-	HA_ATOMIC_STORE(&conn->qc->err, QC_ERR_CRYPTO_ERROR | alert);
+	quic_set_tls_alert(conn->qc, alert);
 	return 1;
 }
 
@@ -1694,7 +1702,8 @@ static inline int qc_provide_cdata(struct quic_enc_level *el,
 		/* TODO RFC9001 8.1. Protocol Negotiation
 		 * must return no_application_protocol TLS alert
 		 */
-		ABORT_NOW();
+		TRACE_PROTO("No matching ALPN", QUIC_EV_CONN_SSLDATA, ctx->conn);
+		goto err;
 	}
 
  out:

@@ -1977,6 +1977,12 @@ static int ssl_sock_advertise_alpn_protos(SSL *s, const unsigned char **out,
 
 	if (SSL_select_next_proto((unsigned char**) out, outlen, (const unsigned char *)conf->alpn_str,
 	                          conf->alpn_len, server, server_len) != OPENSSL_NPN_NEGOTIATED) {
+#ifdef USE_QUIC
+		struct connection *conn = SSL_get_ex_data(s, ssl_app_data_index);
+
+		if (conn->qc)
+			quic_set_tls_alert(conn->qc, SSL_AD_NO_APPLICATION_PROTOCOL);
+#endif
 		return SSL_TLSEXT_ERR_NOACK;
 	}
 	return SSL_TLSEXT_ERR_OK;
