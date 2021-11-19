@@ -61,7 +61,7 @@ struct shared_block *shctx_row_reserve_hot(struct shared_context *shctx,
 				return last ? last : first;
 			} else {
 				data_len -= remain;
-				if (!data_len)
+				if (data_len <= 0)
 					return last ? last : first;
 			}
 		}
