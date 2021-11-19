@@ -813,9 +813,17 @@ cmd_CC = $(CC)
 cmd_LD = $(LD)
 cmd_AR = $(AR)
 else
+ifeq (3.81,$(firstword $(sort $(MAKE_VERSION) 3.81)))
+# 3.81 or above
+cmd_CC = $(info $   CC      $@) $(Q)$(CC)
+cmd_LD = $(info $   LD      $@) $(Q)$(LD)
+cmd_AR = $(info $   AR      $@) $(Q)$(AR)
+else
+# 3.80 or older
 cmd_CC = $(Q)echo "  CC      $@";$(CC)
 cmd_LD = $(Q)echo "  LD      $@";$(LD)
 cmd_AR = $(Q)echo "  AR      $@";$(AR)
+endif
 endif
 
 ifeq ($(TARGET),)
