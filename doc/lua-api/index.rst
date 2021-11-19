@@ -819,6 +819,14 @@ Core class
 
   :returns: A :ref:`socket_class` object.
 
+.. js:function:: core.httpclient()
+
+  **context**: init, task, action
+
+  This function returns a new object of a *httpclient* class.
+
+  :returns: A :ref:`httpclient_class` object.
+
 .. js:function:: core.concat()
 
   **context**: body, init, task, action, sample-fetch, converter
@@ -1835,6 +1843,55 @@ HTTP class
   :param class_http http: The related http object.
   :param integer status: The new response status code.
   :param string reason: The new response reason (optional).
+
+.. _httpclient_class:
+
+HTTPClient class
+================
+
+.. js:class:: HTTPClient
+
+   The httpclient class allows issue of outbound HTTP requests through a simple
+   API without the knowledge of HAProxy internals.
+
+.. js:function:: HTTPClient.get(httpclient, request)
+.. js:function:: HTTPClient.head(httpclient, request)
+.. js:function:: HTTPClient.put(httpclient, request)
+.. js:function:: HTTPClient.post(httpclient, request)
+.. js:function:: HTTPClient.delete(httpclient, request)
+
+  Send an HTTP request and wait for a response. GET, HEAD PUT, POST and DELETE methods can be used.
+  The HTTPClient will send asynchronously the data and is able to send and receive more than an HAProxy bufsize.
+
+
+  :param class httpclient: Is the manipulated HTTPClient.
+  :param table request: Is a table containing the parameters of the request that will be send.
+  :param string request.url: Is a mandatory parameter for the request that contains the URL.
+  :param string request.body: Is an optional parameter for the request that contains the body to send.
+  :param table request.headers: Is an optional parameter for the request that contains the headers to send.
+  :returns: Lua table containing the response
+
+
+.. code-block:: lua
+
+  local httpclient = core.httpclient()
+  local response = httpclient:post{url="http://127.0.0.1", body=body}
+
+..
+
+.. code-block:: lua
+
+ response = {
+    status  = 400,
+    reason  = "Bad request",
+    headers = {
+        ["content-type"]  = { "text/html" },
+        ["cache-control"] = { "no-cache", "no-store" },
+    },
+    body = "<html><body><h1>invalid request<h1></body></html>"
+  }
+..
+
 
 .. _txn_class:
 
