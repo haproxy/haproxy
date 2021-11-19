@@ -191,9 +191,9 @@ void quic_sock_fd_iocb(int fd)
 		return;
 
 	rxbuf = MT_LIST_POP(&l->rx.rxbuf_list, typeof(rxbuf), mt_list);
-	buf = &rxbuf->buf;
-	if (!buf)
+	if (!rxbuf)
 		goto out;
+	buf = &rxbuf->buf;
 
 	params = &l->bind_conf->quic_params;
 	max_sz = params->max_udp_payload_size;
