@@ -1368,8 +1368,10 @@ static int cli_io_handler_show_activity(struct appctx *appctx)
 		unsigned int _v[MAX_THREADS];				\
 		unsigned int _tot;					\
 		const unsigned int _nbt = global.nbthread;		\
-		for (_tot = t = 0; t < _nbt; t++)			\
+		_tot = t = 0;						\
+		do {							\
 			_tot += _v[t] = (x);				\
+		} while (++t < _nbt);					\
 		if (_nbt == 1) {					\
 			chunk_appendf(&trash, " %u\n", _tot);		\
 			break;						\
@@ -1386,8 +1388,10 @@ static int cli_io_handler_show_activity(struct appctx *appctx)
 		unsigned int _v[MAX_THREADS];				\
 		unsigned int _tot;					\
 		const unsigned int _nbt = global.nbthread;		\
-		for (_tot = t = 0; t < _nbt; t++)			\
+		_tot = t = 0;						\
+		do {							\
 			_tot += _v[t] = (x);				\
+		} while (++t < _nbt);					\
 		if (_nbt == 1) {					\
 			chunk_appendf(&trash, " %u\n", _tot);		\
 			break;						\
