@@ -441,6 +441,7 @@ static int cli_parse_global(char **args, int section_type, struct proxy *curpx,
 		while (*args[cur_arg]) {
 			struct bind_kw *kw;
 			const char *best;
+			int code;
 
 			kw = bind_find_kw(args[cur_arg]);
 			if (kw) {
@@ -450,7 +451,19 @@ static int cli_parse_global(char **args, int section_type, struct proxy *curpx,
 					return -1;
 				}
 
-				if (kw->parse(args, cur_arg, global.cli_fe, bind_conf, err) != 0) {
+				code = kw->parse(args, cur_arg, global.cli_fe, bind_conf, err);
+
+				/* FIXME: this is ugly, we don't have a way to collect warnings,
+				 * yet some important bind keywords may report warnings that we
+				 * must display.
+				 */
+				if (((code & (ERR_WARN|ERR_FATAL|ERR_ALERT)) == ERR_WARN) && err && *err) {
+					indent_msg(err, 2);
+					ha_warning("parsing [%s:%d] : '%s %s' : %s\n", file, line, args[0], args[1], *err);
+					ha_free(err);
+				}
+
+				if (code & ~ERR_WARN) {
 					if (err && *err)
 						memprintf(err, "'%s %s' : '%s'", args[0], args[1], *err);
 					else
