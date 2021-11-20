@@ -567,7 +567,7 @@ static inline const char *si_state_str(int state)
 
 /* Returns the source address of the stream-int and, if not set, fallbacks on
  * the session for frontend SI and the server connection for the backend SI. It
- * returns a const address on succes or NULL on failure.
+ * returns a const address on success or NULL on failure.
  */
 static inline const struct sockaddr_storage *si_src(struct stream_interface *si)
 {
@@ -587,7 +587,7 @@ static inline const struct sockaddr_storage *si_src(struct stream_interface *si)
 
 /* Returns the destination address of the stream-int and, if not set, fallbacks
  * on the session for frontend SI and the server connection for the backend
- * SI. It returns a const address on succes or NULL on failure.
+ * SI. It returns a const address on success or NULL on failure.
  */
 static inline const struct sockaddr_storage *si_dst(struct stream_interface *si)
 {

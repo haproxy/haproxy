@@ -5408,7 +5408,7 @@ http-after-response set-status <status> [reason <str>]
                                [ { if | unless } <condition> ]
 
   This replaces the response status code with <status> which must be an integer
-  between 100 and 999. Plese refer to "http-response set-status" for a complete
+  between 100 and 999. Please refer to "http-response set-status" for a complete
   description.
 
 http-after-response set-var(<var-name>) <expr> [ { if | unless } <condition> ]
@@ -16652,7 +16652,7 @@ jwt_verify(<alg>,<key>)
   the certificates that might be used to verify JWTs must be known during init
   in order to be added into a dedicated certificate cache so that no disk
   access is required during runtime. For this reason, any used certificate must
-  be mentioned explicitely at least once in a jwt_verify call. Passing an
+  be mentioned explicitly at least once in a jwt_verify call. Passing an
   intermediate variable as second parameter is then not advised.
 
   This converter only verifies the signature of the token and does not perform
@@ -16667,7 +16667,7 @@ jwt_verify(<alg>,<key>)
   | ID | message                                                              |
   +----+----------------------------------------------------------------------+
   |  0 | "Verification failure"                                               |
-  |  1 | "Verification sucess"                                                |
+  |  1 | "Verification success"                                               |
   | -1 | "Unknown algorithm (not mentioned in RFC7518)"                       |
   | -2 | "Unmanaged algorithm (PSXXX algorithm family)"                       |
   | -3 | "Invalid token"                                                      |

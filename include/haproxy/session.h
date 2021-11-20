@@ -234,7 +234,7 @@ static inline struct connection *session_get_conn(struct session *sess, void *ta
 }
 
 /* Returns the source address of the session and fallbacks on the client
- * connection if not set. It returns a const address on succes or NULL on
+ * connection if not set. It returns a const address on success or NULL on
  * failure.
  */
 static inline const struct sockaddr_storage *sess_src(struct session *sess)
@@ -249,7 +249,7 @@ static inline const struct sockaddr_storage *sess_src(struct session *sess)
 }
 
 /* Returns the destination address of the session and fallbacks on the client
- * connection if not set. It returns a const address on succes or NULL on
+ * connection if not set. It returns a const address on success or NULL on
  * failure.
  */
 static inline const struct sockaddr_storage *sess_dst(struct session *sess)
