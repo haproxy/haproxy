@@ -74,7 +74,7 @@ struct connection *sock_accept_conn(struct listener *l, int *status)
 	    (((cfd = accept4(l->rx.fd, (struct sockaddr*)addr, &laddr,
 	                     SOCK_NONBLOCK | (master ? SOCK_CLOEXEC : 0))) == -1) &&
 	     (errno == ENOSYS || errno == EINVAL || errno == EBADF) &&
-	     (accept4_broken = 1)))
+	     ((accept4_broken = 1))))
 #endif
 	{
 		laddr = sizeof(*conn->src);
