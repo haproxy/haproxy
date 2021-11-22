@@ -1998,10 +1998,6 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct ssl_sock_ctx *ct
 
 		switch (frm.type) {
 		case QUIC_FT_PADDING:
-			if (pos != end) {
-				TRACE_DEVEL("wrong frame", QUIC_EV_CONN_PRSHPKT, ctx->conn, pkt);
-				goto err;
-			}
 			break;
 		case QUIC_FT_PING:
 			break;
