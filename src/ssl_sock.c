@@ -5844,13 +5844,13 @@ reneg_ok:
 		}
 
 		if (counters) {
-			++counters->sess;
-			++counters_px->sess;
+			HA_ATOMIC_INC(&counters->sess);
+			HA_ATOMIC_INC(&counters_px->sess);
 		}
 	}
 	else if (counters) {
-		++counters->reused_sess;
-		++counters_px->reused_sess;
+		HA_ATOMIC_INC(&counters->reused_sess);
+		HA_ATOMIC_INC(&counters_px->reused_sess);
 	}
 
 	/* The connection is now established at both layers, it's time to leave */
@@ -5876,8 +5876,8 @@ reneg_ok:
 	}
 
 	if (counters) {
-		++counters->failed_handshake;
-		++counters_px->failed_handshake;
+		HA_ATOMIC_INC(&counters->failed_handshake);
+		HA_ATOMIC_INC(&counters_px->failed_handshake);
 	}
 
 	/* Fail on all other handshake errors */
