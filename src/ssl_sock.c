@@ -2463,7 +2463,15 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 		if (!SSL_client_hello_get0_ext(ssl, conn->qc->tps_tls_ext,
 		                               &extension_data, &extension_len))
 #endif
-			goto abort;
+		{
+			/* This is not redundant. It we only return 0 without setting
+			 * <*al>, this has as side effect to generate another TLS alert
+			 * which would be set after calling quic_set_tls_alert().
+			 */
+			*al = SSL_AD_MISSING_EXTENSION;
+			quic_set_tls_alert(conn->qc, SSL_AD_MISSING_EXTENSION);
+			return 0;
+		}
 
 		if (!quic_transport_params_store(conn->qc, 0, extension_data,
 		                                 extension_data + extension_len))
