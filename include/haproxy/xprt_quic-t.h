@@ -626,7 +626,7 @@ struct quic_conn {
 	int tps_tls_ext;
 
 	int state;
-	uint64_t err;
+	uint64_t err_code;
 	unsigned char enc_params[QUIC_TP_MAX_ENCLEN]; /* encoded QUIC transport parameters */
 	size_t enc_params_len;
 
