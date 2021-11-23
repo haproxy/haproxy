@@ -1,6 +1,17 @@
 ChangeLog :
 ===========
 
+2021/11/23 : 2.5.0
+    - BUILD: SSL: add quictls build to scripts/build-ssl.sh
+    - BUILD: SSL: add QUICTLS to build matrix
+    - CLEANUP: sock: Wrap `accept4_broken = 1` into additional parenthesis
+    - BUILD: cli: clear a maybe-unused  warning on some older compilers
+    - BUG/MEDIUM: cli: make sure we can report a warning from a bind keyword
+    - BUG/MINOR: ssl: make SSL counters atomic
+    - CLEANUP: assorted typo fixes in the code and comments
+    - BUG/MINOR: ssl: free correctly the sni in the backend SSL cache
+    - MINOR: version: mention that it's stable now
+
 2021/11/19 : 2.5-dev15
     - BUG/MINOR: stick-table/cli: Check for invalid ipv6 key
     - CLEANUP: peers: Remove useless test on peer variable in peer_trace()
