@@ -2589,8 +2589,7 @@ static int cli_io_handler_show_cache(struct appctx *appctx)
 		while (1) {
 
 			shctx_lock(shctx_ptr(cache));
-			if (!node)
-				node = eb32_lookup_ge(&cache->entries, next_key);
+			node = eb32_lookup_ge(&cache->entries, next_key);
 			if (!node) {
 				shctx_unlock(shctx_ptr(cache));
 				appctx->ctx.cli.i0 = 0;
