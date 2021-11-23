@@ -3852,7 +3852,8 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 				qc = cid->qc;
 			}
 			pkt->qc = qc;
-			conn_ctx = qc->conn->xprt_ctx;
+			if (HA_ATOMIC_LOAD(&qc->conn))
+				conn_ctx = HA_ATOMIC_LOAD(&qc->conn->xprt_ctx);
 		}
 	}
 	else {
@@ -3872,7 +3873,8 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 
 		cid = ebmb_entry(node, struct quic_connection_id, node);
 		qc = cid->qc;
-		conn_ctx = qc->conn->xprt_ctx;
+		if (HA_ATOMIC_LOAD(&qc->conn))
+			conn_ctx = HA_ATOMIC_LOAD(&qc->conn->xprt_ctx);
 		*buf += QUIC_CID_LEN;
 		pkt->qc = qc;
 		/* A short packet is the last one of an UDP datagram. */
@@ -4855,7 +4857,7 @@ static int qc_conn_init(struct connection *conn, void **xprt_ctx)
 	if (*xprt_ctx)
 		goto out;
 
-	ctx = pool_alloc(pool_head_quic_conn_ctx);
+	ctx = pool_zalloc(pool_head_quic_conn_ctx);
 	if (!ctx) {
 		conn->err_code = CO_ER_SYS_MEMLIM;
 		goto err;
@@ -4870,7 +4872,7 @@ static int qc_conn_init(struct connection *conn, void **xprt_ctx)
 	ctx->wait_event.tasklet->process = quic_conn_io_cb;
 	ctx->wait_event.tasklet->context = ctx;
 	ctx->wait_event.events = 0;
-	ctx->conn = conn;
+	HA_ATOMIC_STORE(&ctx->conn, conn);
 	ctx->subs = NULL;
 	ctx->xprt_ctx = NULL;
 
@@ -4944,7 +4946,7 @@ static int qc_conn_init(struct connection *conn, void **xprt_ctx)
 		SSL_set_accept_state(ctx->ssl);
 	}
 
-	*xprt_ctx = ctx;
+	HA_ATOMIC_STORE(xprt_ctx, ctx);
 
 	/* Leave init state and start handshake */
 	conn->flags |= CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN;
