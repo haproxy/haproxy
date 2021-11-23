@@ -1,6 +1,9 @@
 ChangeLog :
 ===========
 
+2021/11/23 : 2.6-dev0
+    - MINOR: version: it's development again
+
 2021/11/23 : 2.5.0
     - BUILD: SSL: add quictls build to scripts/build-ssl.sh
     - BUILD: SSL: add QUICTLS to build matrix

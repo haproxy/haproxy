@@ -1,7 +1,7 @@
                              -----------------------
                               HAProxy Starter Guide
                              -----------------------
-                                   version 2.5
+                                   version 2.6
 
 
 This document is an introduction to HAProxy for all those who don't know it, as
