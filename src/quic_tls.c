@@ -15,6 +15,10 @@
 #include <haproxy/xprt_quic.h>
 
 
+DECLARE_POOL(pool_head_quic_tls_secret, "quic_tls_secret", QUIC_TLS_SECRET_LEN);
+DECLARE_POOL(pool_head_quic_tls_iv,     "quic_tls_iv",     QUIC_TLS_IV_LEN);
+DECLARE_POOL(pool_head_quic_tls_key,    "quic_tls_key",    QUIC_TLS_KEY_LEN);
+
 __attribute__((format (printf, 3, 4)))
 void hexdump(const void *buf, size_t buflen, const char *title_fmt, ...);
 

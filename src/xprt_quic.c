@@ -684,51 +684,61 @@ int ha_quic_set_encryption_secrets(SSL *ssl, enum ssl_encryption_level_t level,
 	struct quic_tls_ctx *tls_ctx =
 		&conn->qc->els[ssl_to_quic_enc_level(level)].tls_ctx;
 	const SSL_CIPHER *cipher = SSL_get_current_cipher(ssl);
+	struct quic_tls_secrets *rx, *tx;
 
 	TRACE_ENTER(QUIC_EV_CONN_RWSEC, conn);
+	BUG_ON(secret_len > QUIC_TLS_SECRET_LEN);
 	if (HA_ATOMIC_LOAD(&conn->qc->flags) & QUIC_FL_CONN_IMMEDIATE_CLOSE) {
 		TRACE_PROTO("CC required", QUIC_EV_CONN_RWSEC, conn);
 		goto out;
 	}
-	tls_ctx->rx.aead = tls_ctx->tx.aead = tls_aead(cipher);
-	tls_ctx->rx.md   = tls_ctx->tx.md   = tls_md(cipher);
-	tls_ctx->rx.hp   = tls_ctx->tx.hp   = tls_hp(cipher);
 
-	if (!quic_tls_derive_keys(tls_ctx->rx.aead, tls_ctx->rx.hp, tls_ctx->rx.md,
-	                          tls_ctx->rx.key, sizeof tls_ctx->rx.key,
-	                          tls_ctx->rx.iv, sizeof tls_ctx->rx.iv,
-	                          tls_ctx->rx.hp_key, sizeof tls_ctx->rx.hp_key,
+	if (!quic_tls_ctx_keys_alloc(tls_ctx)) {
+		TRACE_DEVEL("keys allocation failed", QUIC_EV_CONN_RWSEC, conn);
+		goto err;
+	}
+
+	rx = &tls_ctx->rx;
+	tx = &tls_ctx->tx;
+
+	rx->aead = tx->aead = tls_aead(cipher);
+	rx->md   = tx->md   = tls_md(cipher);
+	rx->hp   = tx->hp   = tls_hp(cipher);
+
+	if (!quic_tls_derive_keys(rx->aead, rx->hp, rx->md, rx->key, rx->keylen,
+	                          rx->iv, rx->ivlen, rx->hp_key, sizeof rx->hp_key,
 	                          read_secret, secret_len)) {
 		TRACE_DEVEL("RX key derivation failed", QUIC_EV_CONN_RWSEC, conn);
-		return 0;
+		goto err;
 	}
 
-	tls_ctx->rx.flags |= QUIC_FL_TLS_SECRETS_SET;
-	if (!quic_tls_derive_keys(tls_ctx->tx.aead, tls_ctx->tx.hp, tls_ctx->tx.md,
-	                          tls_ctx->tx.key, sizeof tls_ctx->tx.key,
-	                          tls_ctx->tx.iv, sizeof tls_ctx->tx.iv,
-	                          tls_ctx->tx.hp_key, sizeof tls_ctx->tx.hp_key,
+	rx->flags |= QUIC_FL_TLS_SECRETS_SET;
+	if (!quic_tls_derive_keys(tx->aead, tx->hp, tx->md, tx->key, tx->keylen,
+	                          tx->iv, tx->ivlen, tx->hp_key, sizeof tx->hp_key,
 	                          write_secret, secret_len)) {
 		TRACE_DEVEL("TX key derivation failed", QUIC_EV_CONN_RWSEC, conn);
-		return 0;
+		goto err;
 	}
 
-	tls_ctx->tx.flags |= QUIC_FL_TLS_SECRETS_SET;
+	tx->flags |= QUIC_FL_TLS_SECRETS_SET;
 	if (objt_server(conn->target) && level == ssl_encryption_application) {
 		const unsigned char *buf;
 		size_t buflen;
 
 		SSL_get_peer_quic_transport_params(ssl, &buf, &buflen);
 		if (!buflen)
-			return 0;
+			goto err;
 
 		if (!quic_transport_params_store(conn->qc, 1, buf, buf + buflen))
-			return 0;
+			goto err;
 	}
  out:
 	TRACE_LEAVE(QUIC_EV_CONN_RWSEC, conn, &level);
-
 	return 1;
+
+ err:
+	TRACE_DEVEL("leaving in error", QUIC_EV_CONN_RWSEC, conn);
+	return 0;
 }
 #else
 /* ->set_read_secret callback to derive the RX secrets at <level> encryption
@@ -753,9 +763,12 @@ int ha_set_rsec(SSL *ssl, enum ssl_encryption_level_t level,
 	tls_ctx->rx.md = tls_md(cipher);
 	tls_ctx->rx.hp = tls_hp(cipher);
 
+	if (!(ctx->rx.key = pool_alloc(pool_head_quic_tls_key)))
+		goto err;
+
 	if (!quic_tls_derive_keys(tls_ctx->rx.aead, tls_ctx->rx.hp, tls_ctx->rx.md,
-	                          tls_ctx->rx.key, sizeof tls_ctx->rx.key,
-	                          tls_ctx->rx.iv, sizeof tls_ctx->rx.iv,
+	                          tls_ctx->rx.key, tls_ctx->rx.keylen,
+	                          tls_ctx->rx.iv, tls_ctx->rx.ivlen,
 	                          tls_ctx->rx.hp_key, sizeof tls_ctx->rx.hp_key,
 	                          secret, secret_len)) {
 		TRACE_DEVEL("RX key derivation failed", QUIC_EV_CONN_RSEC, conn);
@@ -803,13 +816,16 @@ int ha_set_wsec(SSL *ssl, enum ssl_encryption_level_t level,
 		goto out;
 	}
 
+	if (!(ctx->tx.key = pool_alloc(pool_head_quic_tls_key)))
+		goto err;
+
 	tls_ctx->tx.aead = tls_aead(cipher);
 	tls_ctx->tx.md = tls_md(cipher);
 	tls_ctx->tx.hp = tls_hp(cipher);
 
 	if (!quic_tls_derive_keys(tls_ctx->tx.aead, tls_ctx->tx.hp, tls_ctx->tx.md,
-	                          tls_ctx->tx.key, sizeof tls_ctx->tx.key,
-	                          tls_ctx->tx.iv, sizeof tls_ctx->tx.iv,
+	                          tls_ctx->tx.key, tls_ctx->tx.keylen,
+	                          tls_ctx->tx.iv, tls_ctx->tx.ivlen,
 	                          tls_ctx->tx.hp_key, sizeof tls_ctx->tx.hp_key,
 	                          secret, secret_len)) {
 		TRACE_DEVEL("TX key derivation failed", QUIC_EV_CONN_WSEC, conn);
@@ -1162,7 +1178,7 @@ static int quic_packet_encrypt(unsigned char *payload, size_t payload_len,
 {
 	unsigned char iv[12];
 	unsigned char *tx_iv = tls_ctx->tx.iv;
-	size_t tx_iv_sz = sizeof tls_ctx->tx.iv;
+	size_t tx_iv_sz = tls_ctx->tx.ivlen;
 	struct enc_debug_info edi;
 
 	if (!quic_aead_iv_build(iv, sizeof iv, tx_iv, tx_iv_sz, pn)) {
@@ -2974,6 +2990,7 @@ static int quic_conn_enc_level_init(struct quic_conn *qc,
 	qel->tls_ctx.rx.hp   = qel->tls_ctx.tx.hp = NULL;
 	qel->tls_ctx.rx.flags = 0;
 	qel->tls_ctx.tx.flags = 0;
+	qel->tls_ctx.flags = 0;
 
 	qel->rx.pkts = EB_ROOT;
 	HA_RWLOCK_INIT(&qel->rx.pkts_rwlock);
