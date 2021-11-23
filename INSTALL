@@ -1,15 +1,15 @@
 Installation instructions for HAProxy
 =====================================
 
-This is a development version, so it is expected to break from time to time,
-to add and remove features without prior notification and it should not be used
-in production. If you are not used to build from sources or if you are not used
-to follow updates then it is recommended that instead you use the packages
-provided by your software vendor or Linux distribution. Most of them are taking
-this task seriously and are doing a good job at backporting important fixes. If
-for any reason you'd prefer to use a different version than the one packaged
-for your system, you want to be certain to have all the fixes or to get some
-commercial support, other choices are available at http://www.haproxy.com/.
+HAProxy 2.5 is a stable version, which means that it will get fixes for bugs as
+they are discovered till around Q1 2023 and should not receive new features.
+This version is mostly suited at experienced users who are willing to quickly
+follow updates. New users are encouraged to use long term supported versions
+such as the ones provided by their software vendor or Linux distribution, as
+such versions require far less common updates. If for any reason you'd prefer
+a different version than the one packaged for your system, you want to be
+certain to have all the fixes or to get some commercial support, other choices
+are available at https://www.haproxy.com/.
 
 
 Areas covered in this document
