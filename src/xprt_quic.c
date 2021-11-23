@@ -2172,14 +2172,14 @@ static inline void qc_set_dg(struct cbuf *cbuf,
 	cb_add(cbuf, dglen + sizeof dglen + sizeof pkt);
 }
 
-/* Prepare as much as possible handshake packets into <qr> ring buffer for
+/* Prepare as much as possible packets into <qr> ring buffer for
  * the QUIC connection with <ctx> as I/O handler context, possibly concatenating
  * several packets in the same datagram. A header made of two fields is added
  * to each datagram: the datagram length followed by the address of the first
  * packet in this datagram.
  * Returns 1 if succeeded, or 0 if something wrong happened.
  */
-static int qc_prep_hdshk_pkts(struct qring *qr, struct ssl_sock_ctx *ctx)
+static int qc_prep_pkts(struct qring *qr, struct ssl_sock_ctx *ctx)
 {
 	struct quic_conn *qc;
 	enum quic_tls_enc_level tel, next_tel;
@@ -2913,7 +2913,7 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 
 	if (!qr)
 		qr = MT_LIST_POP(qc->tx.qring_list, typeof(qr), mt_list);
-	ret = qc_prep_hdshk_pkts(qr, ctx);
+	ret = qc_prep_pkts(qr, ctx);
 	if (ret == -1)
 		goto err;
 	else if (ret == 0)
