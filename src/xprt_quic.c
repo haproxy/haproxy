@@ -2439,11 +2439,20 @@ static int quic_build_post_handshake_frames(struct quic_conn *qc)
 
 	for (i = 1; i < qc->tx.params.active_connection_id_limit; i++) {
 		struct quic_connection_id *cid;
+		struct listener *l = __objt_listener(qc->conn->target);
 
 		frm = pool_alloc(pool_head_quic_frame);
-		cid = new_quic_cid(&qc->cids, i);
-		if (!frm || !cid)
+		if (!frm)
 			goto err;
+
+		cid = new_quic_cid(&qc->cids, qc, i);
+		if (!cid)
+			goto err;
+
+		/* insert the allocated CID in the receiver tree */
+		HA_RWLOCK_WRLOCK(QUIC_LOCK, &l->rx.cids_lock);
+		ebmb_insert(&l->rx.cids, &cid->node, cid->cid.len);
+		HA_RWLOCK_WRUNLOCK(QUIC_LOCK, &l->rx.cids_lock);
 
 		quic_connection_id_to_frm_cpy(frm, cid);
 		MT_LIST_APPEND(&qel->pktns->tx.frms, &frm->mt_list);
@@ -2970,6 +2979,7 @@ static void quic_conn_free(struct quic_conn *conn)
 	HA_RWLOCK_WRLOCK(QUIC_LOCK, &conn->li->rx.cids_lock);
 	ebmb_delete(&conn->odcid_node);
 	ebmb_delete(&conn->scid_node);
+
 	HA_RWLOCK_WRUNLOCK(QUIC_LOCK, &conn->li->rx.cids_lock);
 
 	for (i = 0; i < QUIC_TLS_ENC_LEVEL_MAX; i++)
@@ -3051,6 +3061,7 @@ static struct quic_conn *qc_new_conn(unsigned int version, int ipv4,
 	/* Initial CID. */
 	struct quic_connection_id *icid;
 	char *buf_area;
+	struct listener *l = NULL;
 
 	TRACE_ENTER(QUIC_EV_CONN_INIT);
 	qc = pool_zalloc(pool_head_quic_conn);
@@ -3068,7 +3079,7 @@ static struct quic_conn *qc_new_conn(unsigned int version, int ipv4,
 	qc->cids = EB_ROOT;
 	/* QUIC Server (or listener). */
 	if (server) {
-		struct listener *l = owner;
+		l = owner;
 
 		HA_ATOMIC_STORE(&qc->state, QUIC_HS_ST_SERVER_INITIAL);
 		/* Copy the initial DCID. */
@@ -3094,10 +3105,17 @@ static struct quic_conn *qc_new_conn(unsigned int version, int ipv4,
 	/* Initialize the output buffer */
 	qc->obuf.pos = qc->obuf.data;
 
-	icid = new_quic_cid(&qc->cids, 0);
+	icid = new_quic_cid(&qc->cids, qc, 0);
 	if (!icid) {
 		TRACE_PROTO("Could not allocate a new connection ID", QUIC_EV_CONN_INIT);
 		goto err;
+	}
+
+	/* insert the allocated CID in the receiver tree */
+	if (server) {
+		HA_RWLOCK_WRLOCK(QUIC_LOCK, &l->rx.cids_lock);
+		ebmb_insert(&l->rx.cids, &icid->node, icid->cid.len);
+		HA_RWLOCK_WRUNLOCK(QUIC_LOCK, &l->rx.cids_lock);
 	}
 
 	/* Select our SCID which is the first CID with 0 as sequence number. */
@@ -3765,10 +3783,6 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 			HA_RWLOCK_WRLOCK(QUIC_LOCK, &l->rx.cids_lock);
 			/* Insert the DCID the QUIC client has chosen (only for listeners) */
 			n = ebmb_insert(&l->rx.odcids, &qc->odcid_node, qc->odcid.len);
-			if (n == &qc->odcid_node) {
-				/* Insert our SCID, the connection ID for the QUIC client. */
-				ebmb_insert(&l->rx.cids, &qc->scid_node, qc->scid.len);
-			}
 			HA_RWLOCK_WRUNLOCK(QUIC_LOCK, &l->rx.cids_lock);
 
 			/* If the insertion failed, it means that another
@@ -3792,15 +3806,20 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 			node = &qc->odcid_node;
 		}
 		else {
-			if (pkt->type == QUIC_PACKET_TYPE_INITIAL && cids == &l->rx.odcids)
+			if (pkt->type == QUIC_PACKET_TYPE_INITIAL && cids == &l->rx.odcids) {
 				qc = ebmb_entry(node, struct quic_conn, odcid_node);
-			else
-				qc = ebmb_entry(node, struct quic_conn, scid_node);
+			}
+			else {
+				struct quic_connection_id *cid = ebmb_entry(node, struct quic_connection_id, node);
+				qc = cid->qc;
+			}
 			pkt->qc = qc;
 			conn_ctx = qc->conn->xprt_ctx;
 		}
 	}
 	else {
+		struct quic_connection_id *cid;
+
 		if (end - *buf < QUIC_CID_LEN) {
 			TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT);
 			goto err;
@@ -3813,7 +3832,8 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 			goto err;
 		}
 
-		qc = ebmb_entry(node, struct quic_conn, scid_node);
+		cid = ebmb_entry(node, struct quic_connection_id, node);
+		qc = cid->qc;
 		conn_ctx = qc->conn->xprt_ctx;
 		*buf += QUIC_CID_LEN;
 		pkt->qc = qc;

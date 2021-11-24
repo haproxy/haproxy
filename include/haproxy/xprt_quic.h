@@ -29,6 +29,7 @@
 #include <stdint.h>
 
 #include <import/eb64tree.h>
+#include <import/ebmbtree.h>
 
 #include <haproxy/buf.h>
 #include <haproxy/chunk.h>
@@ -136,6 +137,13 @@ static inline void free_quic_conn_cids(struct quic_conn *conn)
 		struct quic_connection_id *cid;
 
 		cid = eb64_entry(&node->node, struct quic_connection_id, seq_num);
+
+		/* remove the CID from the receiver tree */
+		HA_RWLOCK_WRLOCK(QUIC_LOCK, &conn->li->rx.cids_lock);
+		ebmb_delete(&cid->node);
+		HA_RWLOCK_WRUNLOCK(QUIC_LOCK, &conn->li->rx.cids_lock);
+
+		/* remove the CID from the quic_conn tree */
 		node = eb64_next(node);
 		eb64_delete(&cid->seq_num);
 		pool_free(pool_head_quic_connection_id, cid);
@@ -163,6 +171,7 @@ static inline void quic_connection_id_to_frm_cpy(struct quic_frame *dst,
  * Returns the new CID if succeeded, NULL if not.
  */
 static inline struct quic_connection_id *new_quic_cid(struct eb_root *root,
+                                                      struct quic_conn *qc,
                                                       int seq_num)
 {
 	struct quic_connection_id *cid;
@@ -178,6 +187,8 @@ static inline struct quic_connection_id *new_quic_cid(struct eb_root *root,
 		fprintf(stderr, "Could not generate %d random bytes\n", cid->cid.len);
 		goto err;
 	}
+
+	cid->qc = qc;
 
 	cid->seq_num.key = seq_num;
 	cid->retire_prior_to = 0;

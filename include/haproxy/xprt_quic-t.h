@@ -257,12 +257,20 @@ struct quic_cid {
 	unsigned char len;
 };
 
-/* The data structure used to build a set of connection IDs for each connection. */
+/* QUIC connection id attached to a QUIC connection.
+ *
+ * This structure is used to match received packets DCIDs with the
+ * corresponding QUIC connection.
+ */
 struct quic_connection_id {
 	struct eb64_node seq_num;
 	uint64_t retire_prior_to;
-	struct quic_cid cid;
 	unsigned char stateless_reset_token[QUIC_STATELESS_RESET_TOKEN_LEN];
+
+	struct ebmb_node node; /* node for receiver tree, cid.data as key */
+	struct quic_cid cid;   /* CID data */
+
+	struct quic_conn *qc;  /* QUIC connection using this CID */
 };
 
 struct preferred_address {
@@ -629,7 +637,7 @@ struct quic_conn {
 	struct quic_cid odcid;
 
 	struct quic_cid dcid; /* DCID of our endpoint - not updated whan a new DCID is used */
-	struct ebmb_node scid_node;
+	struct ebmb_node scid_node; /* used only for client side (backend) */
 	struct quic_cid scid; /* first SCID of our endpoint - not updated when a new SCID is used */
 	struct eb_root cids; /* tree of quic_connection_id - used to match a received packet DCID with a connection */
 
