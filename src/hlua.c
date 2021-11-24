@@ -11249,6 +11249,7 @@ static int hlua_config_prepend_path(char **args, int section_type, struct proxy 
 	char *path;
 	char *type = "path";
 	struct prepend_path *p = NULL;
+	size_t i;
 
 	if (too_many_args(2, args, err, NULL)) {
 		goto err;
@@ -11289,7 +11290,7 @@ static int hlua_config_prepend_path(char **args, int section_type, struct proxy 
 	 * thread. The remaining threads will be initialized based on
 	 * prepend_path_list.
 	 */
-	for (size_t i = 0; i < 2; i++) {
+	for (i = 0; i < 2; i++) {
 		lua_State *L = hlua_states[i];
 		const char *error;
 
