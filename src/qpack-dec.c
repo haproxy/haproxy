@@ -315,7 +315,10 @@ int qpack_decode_fs(const unsigned char *raw, size_t len, struct buffer *tmp,
 				b_add(tmp, nlen);
 				list[hdr_idx].v = ist2(trash, nlen);
 			}
-			/* XXX Value string XXX */
+			else {
+				list[hdr_idx].v = ist2(raw, length);
+			}
+
 			raw += length;
 			len -= length;
 			++hdr_idx;
