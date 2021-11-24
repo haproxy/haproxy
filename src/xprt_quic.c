@@ -3771,17 +3771,21 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 			}
 			HA_RWLOCK_WRUNLOCK(QUIC_LOCK, &l->rx.cids_lock);
 
-			if (n == &qc->odcid_node) {
+			/* If the insertion failed, it means that another
+			 * thread has already allocated a QUIC connection for
+			 * the same CID. Liberate our allocated connection.
+			 */
+			if (unlikely(n != &qc->odcid_node)) {
+				quic_conn_free(qc);
+				qc = ebmb_entry(n, struct quic_conn, odcid_node);
+				pkt->qc = qc;
+			}
+			else {
 				/* Enqueue this packet. */
 				pkt->qc = qc;
 				MT_LIST_APPEND(&l->rx.pkts, &pkt->rx_list);
 				/* Try to accept a new connection. */
 				listener_accept(l);
-			}
-			else {
-				quic_conn_free(qc);
-				qc = ebmb_entry(n, struct quic_conn, odcid_node);
-				pkt->qc = qc;
 			}
 
 			/* This is the DCID node sent in this packet by the client. */
