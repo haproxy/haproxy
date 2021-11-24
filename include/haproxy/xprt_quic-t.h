@@ -246,7 +246,8 @@ extern struct pool_head *pool_head_quic_rx_packet;
 extern struct pool_head *pool_head_quic_tx_packet;
 extern struct pool_head *pool_head_quic_frame;
 
-/*
+/* QUIC connection id data.
+ *
  * This struct is used by ebmb_node structs as last member of flexible arrays.
  * So do not change the order of the member of quic_cid struct.
  * <data> member must be the first one.
@@ -627,10 +628,10 @@ struct quic_conn {
 	struct ebmb_node odcid_node;
 	struct quic_cid odcid;
 
-	struct quic_cid dcid;
+	struct quic_cid dcid; /* DCID of our endpoint - not updated whan a new DCID is used */
 	struct ebmb_node scid_node;
-	struct quic_cid scid;
-	struct eb_root cids;
+	struct quic_cid scid; /* first SCID of our endpoint - not updated when a new SCID is used */
+	struct eb_root cids; /* tree of quic_connection_id - used to match a received packet DCID with a connection */
 
 	struct quic_enc_level els[QUIC_TLS_ENC_LEVEL_MAX];
 	struct quic_pktns pktns[QUIC_TLS_PKTNS_MAX];

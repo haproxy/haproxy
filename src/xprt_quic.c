@@ -3076,7 +3076,7 @@ static struct quic_conn *qc_new_conn(unsigned int version, int ipv4,
 		if (qc->odcid.len)
 			memcpy(qc->odcid.data, dcid, dcid_len);
 
-		/* Copy the SCID as our DCID for this connection. */
+		/* copy the packet SCID to reuse it as DCID for sending */
 		if (scid_len)
 			memcpy(qc->dcid.data, scid, scid_len);
 		qc->dcid.len = scid_len;

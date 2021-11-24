@@ -181,6 +181,7 @@ static inline struct quic_connection_id *new_quic_cid(struct eb_root *root,
 
 	cid->seq_num.key = seq_num;
 	cid->retire_prior_to = 0;
+	/* insert the allocated CID in the quic_conn tree */
 	eb64_insert(root, &cid->seq_num);
 
 	return cid;
