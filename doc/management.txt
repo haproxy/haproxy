@@ -327,6 +327,9 @@ list of options is :
     bind new ones. This is useful to avoid missing any new connection when
     reloading the configuration on Linux. The capability must be enable on the
     stats socket using "expose-fd listeners" in your configuration.
+    In master-worker mode, the master will use this option upon a reload with
+    the "sockpair@" syntax, which allows the master to connect directly to a
+    worker without using stats socket declared in the configuration.
 
 A safe way to start HAProxy from an init file consists in forcing the daemon
 mode, storing existing pids to a pid file and using this pid file to notify

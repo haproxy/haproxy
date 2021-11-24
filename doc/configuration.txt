@@ -13755,8 +13755,8 @@ defer-accept
 expose-fd listeners
   This option is only usable with the stats socket. It gives your stats socket
   the capability to pass listeners FD to another HAProxy process.
-  During a reload with the master-worker mode, the process is automatically
-  reexecuted adding -x and one of the stats socket with this option.
+  In master-worker mode, this is not required anymore, the listeners will be
+  passed using the internal socketpairs between the master and the workers.
   See also "-x" in the management guide.
 
 force-sslv3

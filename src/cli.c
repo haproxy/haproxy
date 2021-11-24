@@ -2906,6 +2906,7 @@ int mworker_cli_sockpair_new(struct mworker_proc *mworker_proc, int proc)
 
 	bind_conf->level &= ~ACCESS_LVL_MASK;
 	bind_conf->level |= ACCESS_LVL_ADMIN; /* TODO: need to lower the rights with a CLI keyword*/
+	bind_conf->level |= ACCESS_FD_LISTENERS;
 
 	if (!memprintf(&path, "sockpair@%d", mworker_proc->ipc_fd[1])) {
 		ha_alert("Cannot allocate listener.\n");

@@ -230,8 +230,6 @@ static int oldpids_sig; /* use USR1 or TERM */
 /* Path to the unix socket we use to retrieve listener sockets from the old process */
 static const char *old_unixsocket;
 
-static char *cur_unixsocket = NULL;
-
 int atexit_flag = 0;
 
 int nb_oldpids = 0;
@@ -651,41 +649,6 @@ int delete_oldpid(int pid)
 }
 
 
-static void get_cur_unixsocket()
-{
-	/* if -x was used, try to update the stat socket if not available anymore */
-	if (global.cli_fe) {
-		struct bind_conf *bind_conf;
-
-		/* pass through all stats socket */
-		list_for_each_entry(bind_conf, &global.cli_fe->conf.bind, by_fe) {
-			struct listener *l;
-
-			list_for_each_entry(l, &bind_conf->listeners, by_bind) {
-
-				if (l->rx.addr.ss_family == AF_UNIX &&
-				    (bind_conf->level & ACCESS_FD_LISTENERS)) {
-					const struct sockaddr_un *un;
-
-					un = (struct sockaddr_un *)&l->rx.addr;
-					/* priority to old_unixsocket */
-					if (!cur_unixsocket) {
-						cur_unixsocket = strdup(un->sun_path);
-					} else {
-						if (old_unixsocket && strcmp(un->sun_path, old_unixsocket) == 0) {
-							free(cur_unixsocket);
-							cur_unixsocket = strdup(old_unixsocket);
-							return;
-						}
-					}
-				}
-			}
-		}
-	}
-	if (!cur_unixsocket && old_unixsocket)
-		cur_unixsocket = strdup(old_unixsocket);
-}
-
 /*
  * When called, this function reexec haproxy with -sf followed by current
  * children PIDs and possibly old children PIDs if they didn't leave yet.
@@ -699,6 +662,7 @@ static void mworker_reexec()
 	char *msg = NULL;
 	struct rlimit limit;
 	struct per_thread_deinit_fct *ptdf;
+	struct mworker_proc *current_child = NULL;
 
 	mworker_block_signals();
 #if defined(USE_SYSTEMD)
@@ -763,6 +727,9 @@ static void mworker_reexec()
 		next_argv[next_argc++] = "-sf";
 
 		list_for_each_entry(child, &proc_list, list) {
+			if (!(child->options & PROC_O_LEAVING) && (child->options & PROC_O_TYPE_WORKER))
+				current_child = child;
+
 			if (!(child->options & (PROC_O_TYPE_WORKER|PROC_O_TYPE_PROG)) || child->pid <= -1 )
 				continue;
 			if ((next_argv[next_argc++] = memprintf(&msg, "%d", child->pid)) == NULL)
@@ -770,10 +737,17 @@ static void mworker_reexec()
 			msg = NULL;
 		}
 	}
-	/* add the -x option with the stat socket */
-	if (cur_unixsocket) {
-		next_argv[next_argc++] = "-x";
-		next_argv[next_argc++] = (char *)cur_unixsocket;
+
+
+	if (getenv("HAPROXY_MWORKER_WAIT_ONLY") == NULL) {
+
+		if (current_child) {
+			/* add the -x option with the socketpair of the current worker */
+			next_argv[next_argc++] = "-x";
+			if ((next_argv[next_argc++] = memprintf(&msg, "sockpair@%d", current_child->ipc_fd[0])) == NULL)
+				goto alloc_error;
+			msg = NULL;
+		}
 	}
 
 	/* copy the previous options */
@@ -3009,7 +2983,6 @@ int main(int argc, char **argv)
 			}
 		}
 	}
-	get_cur_unixsocket();
 
 	/* We will loop at most 100 times with 10 ms delay each time.
 	 * That's at most 1 second. We only send a signal to old pids

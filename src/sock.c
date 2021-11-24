@@ -31,6 +31,7 @@
 #include <haproxy/listener.h>
 #include <haproxy/log.h>
 #include <haproxy/namespace.h>
+#include <haproxy/proto_sockpair.h>
 #include <haproxy/sock.h>
 #include <haproxy/sock_inet.h>
 #include <haproxy/tools.h>
@@ -285,26 +286,51 @@ int sock_get_old_sockets(const char *unixsocket)
 	int cur_fd = 0;
 	size_t maxoff = 0, curoff = 0;
 
+	if (strncmp("sockpair@", unixsocket, strlen("sockpair@")) == 0) {
+		/* sockpair for master-worker usage */
+		int sv[2];
+		int dst_fd;
+
+		dst_fd = strtoll(unixsocket + strlen("sockpair@"), NULL, 0);
+
+		if (socketpair(PF_UNIX, SOCK_STREAM, 0, sv) == -1) {
+			ha_warning("socketpair(): Cannot create socketpair. Giving up.\n");
+		}
+
+		if (send_fd_uxst(dst_fd, sv[0]) == -1) {
+			ha_alert("socketpair: cannot transfer socket.\n");
+			close(sv[0]);
+			close(sv[1]);
+			goto out;
+		}
+
+		close(sv[0]); /* we don't need this side anymore */
+		sock = sv[1];
+
+	} else {
+		/* Unix socket */
+
+		sock = socket(PF_UNIX, SOCK_STREAM, 0);
+		if (sock < 0) {
+			ha_warning("Failed to connect to the old process socket '%s'\n", unixsocket);
+			goto out;
+		}
+
+		strncpy(addr.sun_path, unixsocket, sizeof(addr.sun_path) - 1);
+		addr.sun_path[sizeof(addr.sun_path) - 1] = 0;
+		addr.sun_family = PF_UNIX;
+
+		ret = connect(sock, (struct sockaddr *)&addr, sizeof(addr));
+		if (ret < 0) {
+			ha_warning("Failed to connect to the old process socket '%s'\n", unixsocket);
+			goto out;
+		}
+
+	}
 	memset(&msghdr, 0, sizeof(msghdr));
 	cmsgbuf = malloc(CMSG_SPACE(sizeof(int)) * MAX_SEND_FD);
 	if (!cmsgbuf) {
 		ha_warning("Failed to allocate memory to send sockets\n");
-		goto out;
-	}
-
-	sock = socket(PF_UNIX, SOCK_STREAM, 0);
-	if (sock < 0) {
-		ha_warning("Failed to connect to the old process socket '%s'\n", unixsocket);
-		goto out;
-	}
-
-	strncpy(addr.sun_path, unixsocket, sizeof(addr.sun_path) - 1);
-	addr.sun_path[sizeof(addr.sun_path) - 1] = 0;
-	addr.sun_family = PF_UNIX;
-
-	ret = connect(sock, (struct sockaddr *)&addr, sizeof(addr));
-	if (ret < 0) {
-		ha_warning("Failed to connect to the old process socket '%s'\n", unixsocket);
 		goto out;
 	}
 
