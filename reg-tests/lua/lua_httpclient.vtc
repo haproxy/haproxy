@@ -28,6 +28,14 @@ server s2 {
    expect req.bodylen == 54000
 } -start
 
+server s3 {
+   rxreq
+   txresp -bodylen 54000
+   expect req.method == "GET"
+   expect req.http.host == "foobar.haproxy.local"
+} -start
+
+
 haproxy h1 -conf {
     global
         lua-load ${testdir}/lua_httpclient.lua
@@ -44,7 +52,7 @@ haproxy h1 -conf {
 } -start
 
 client c0 -connect ${h1_fe1_sock} {
-    txreq -url "/" -hdr "vtcport: ${s1_port}" -hdr "vtcport2: ${s2_port}"
+    txreq -url "/" -hdr "vtcport: ${s1_port}" -hdr "vtcport2: ${s2_port}" -hdr "vtcport3: ${s3_port}"
     rxresp
     expect resp.status == 200
 } -run
@@ -52,3 +60,4 @@ client c0 -connect ${h1_fe1_sock} {
 
 server s1 -wait
 server s2 -wait
+server s3 -wait

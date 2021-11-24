@@ -265,6 +265,8 @@ int httpclient_req_gen(struct httpclient *hc, const struct ist url, enum http_me
 	int err_code = 0;
 	struct ist meth_ist, vsn;
 	unsigned int flags = HTX_SL_F_VER_11 | HTX_SL_F_NORMALIZED_URI | HTX_SL_F_HAS_SCHM;
+	int i;
+	int foundhost = 0;
 
 	if (meth >= HTTP_METH_OTHER)
 		goto error;
@@ -282,20 +284,28 @@ int httpclient_req_gen(struct httpclient *hc, const struct ist url, enum http_me
 	}
 	sl->info.req.meth = meth;
 
-	/* Add Host Header from URL */
-	if (!htx_add_header(htx, ist("Host"), ist("h")))
-		goto error;
-	if (!http_update_host(htx, sl, url))
-		goto error;
+	for (i = 0; hdrs && hdrs[i].n.len; i++) {
+		/* Don't check the value length because a header value may be empty */
+		if (isttest(hdrs[i].v) == 0)
+			continue;
 
-	/* add the headers and EOH */
-	if (hdrs) {
-		if (!htx_add_all_headers(htx, hdrs))
-			goto error;
-	} else {
-		if (!htx_add_endof(htx, HTX_BLK_EOH))
+		if (isteqi(hdrs[i].n, ist("host")))
+			foundhost = 1;
+
+		if (!htx_add_header(htx, hdrs[i].n, hdrs[i].v))
 			goto error;
 	}
+
+	if (!foundhost) {
+		/* Add Host Header from URL */
+		if (!htx_add_header(htx, ist("Host"), ist("h")))
+			goto error;
+		if (!http_update_host(htx, sl, url))
+			goto error;
+	}
+
+	if (!htx_add_endof(htx, HTX_BLK_EOH))
+		goto error;
 
 	if (isttest(payload)) {
 		/* add the payload if it can feat in the buffer, no need to set
