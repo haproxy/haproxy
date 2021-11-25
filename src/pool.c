@@ -42,66 +42,68 @@ int mem_poison_byte = -1;
 static int mem_fail_rate = 0;
 #endif
 
-#if defined(HA_HAVE_MALLOC_TRIM)
-static int using_libc_allocator = 0;
+static int using_default_allocator = 1;
+static int(*my_mallctl)(const char *, void *, size_t *, void *, size_t) = NULL;
 
 /* ask the allocator to trim memory pools */
 static void trim_all_pools(void)
 {
-	if (using_libc_allocator)
+#if defined(HA_HAVE_MALLOC_TRIM)
+	if (using_default_allocator)
 		malloc_trim(0);
+#endif
 }
 
 /* check if we're using the same allocator as the one that provides
  * malloc_trim() and mallinfo(). The principle is that on glibc, both
  * malloc_trim() and mallinfo() are provided, and using mallinfo() we
  * can check if malloc() is performed through glibc or any other one
- * the executable was linked against (e.g. jemalloc).
+ * the executable was linked against (e.g. jemalloc). Prior to this we
+ * have to check whether we're running on jemalloc by verifying if the
+ * mallctl() function is provided. Its pointer will be used later.
  */
 static void detect_allocator(void)
 {
+	extern int mallctl(const char *, void *, size_t *, void *, size_t) __attribute__((weak));
+
+	my_mallctl = mallctl;
+
+	if (!my_mallctl) {
+		my_mallctl = get_sym_curr_addr("mallctl");
+		using_default_allocator = (my_mallctl == NULL);
+	}
+
+	if (!my_mallctl) {
+#if defined(HA_HAVE_MALLOC_TRIM)
 #ifdef HA_HAVE_MALLINFO2
-	struct mallinfo2 mi1, mi2;
+		struct mallinfo2 mi1, mi2;
 #else
-	struct mallinfo mi1, mi2;
+		struct mallinfo mi1, mi2;
 #endif
-	void *ptr;
+		void *ptr;
 
 #ifdef HA_HAVE_MALLINFO2
-	mi1 = mallinfo2();
+		mi1 = mallinfo2();
 #else
-	mi1 = mallinfo();
+		mi1 = mallinfo();
 #endif
-	ptr = DISGUISE(malloc(1));
+		ptr = DISGUISE(malloc(1));
 #ifdef HA_HAVE_MALLINFO2
-	mi2 = mallinfo2();
+		mi2 = mallinfo2();
 #else
-	mi2 = mallinfo();
+		mi2 = mallinfo();
 #endif
-	free(DISGUISE(ptr));
+		free(DISGUISE(ptr));
 
-	using_libc_allocator = !!memcmp(&mi1, &mi2, sizeof(mi1));
+		using_default_allocator = !!memcmp(&mi1, &mi2, sizeof(mi1));
+#endif
+	}
 }
 
 static int is_trim_enabled(void)
 {
-	return using_libc_allocator;
+	return using_default_allocator;
 }
-#else
-
-static void trim_all_pools(void)
-{
-}
-
-static void detect_allocator(void)
-{
-}
-
-static int is_trim_enabled(void)
-{
-	return 0;
-}
-#endif
 
 /* Try to find an existing shared pool with the same characteristics and
  * returns it, otherwise creates this one. NULL is returned if no memory
