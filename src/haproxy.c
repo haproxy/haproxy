@@ -683,13 +683,11 @@ static void mworker_reexec()
 	/* close the listeners FD */
 	mworker_cli_proxy_stop();
 
-	if (getenv("HAPROXY_MWORKER_WAIT_ONLY") == NULL) {
-		/* close the poller FD and the thread waker pipe FD */
-		list_for_each_entry(ptdf, &per_thread_deinit_list, list)
-			ptdf->fct();
-		if (fdtab)
-			deinit_pollers();
-	}
+	/* close the poller FD and the thread waker pipe FD */
+	list_for_each_entry(ptdf, &per_thread_deinit_list, list)
+		ptdf->fct();
+	if (fdtab)
+		deinit_pollers();
 #ifdef HAVE_SSL_RAND_KEEP_RANDOM_DEVICES_OPEN
 	/* close random device FDs */
 	RAND_keep_random_devices_open(0);
