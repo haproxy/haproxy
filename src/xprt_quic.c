@@ -46,6 +46,7 @@
 #include <haproxy/quic_loss.h>
 #include <haproxy/cbuf.h>
 #include <haproxy/quic_tls.h>
+#include <haproxy/sink.h>
 #include <haproxy/ssl_sock.h>
 #include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
@@ -5010,6 +5011,21 @@ ssize_t quic_lstnr_dgram_read(struct buffer *buf, size_t len, void *owner,
 {
 	return quic_dgram_read(buf, len, owner, saddr, qc_lstnr_pkt_rcv);
 }
+
+/* Function to automatically activate QUIC traces on stdout.
+ * Activated via the compilation flag -DENABLE_QUIC_STDOUT_TRACES.
+ * Main use for now is in the docker image for QUIC interop testing.
+ */
+static void quic_init_stdout_traces(void)
+{
+#ifdef ENABLE_QUIC_STDOUT_TRACES
+	trace_quic.sink = sink_find("stdout");
+	trace_quic.level = TRACE_LEVEL_DEVELOPER;
+	trace_quic.verbosity = 0;
+	trace_quic.state = TRACE_STATE_RUNNING;
+#endif
+}
+INITCALL0(STG_INIT, quic_init_stdout_traces);
 
 /*
  * Local variables:
