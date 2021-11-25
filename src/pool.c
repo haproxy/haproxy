@@ -48,10 +48,23 @@ static int(*my_mallctl)(const char *, void *, size_t *, void *, size_t) = NULL;
 /* ask the allocator to trim memory pools */
 static void trim_all_pools(void)
 {
+	if (my_mallctl) {
+		unsigned int i, narenas = 0;
+		size_t len = sizeof(narenas);
+
+		if (my_mallctl("arenas.narenas", &narenas, &len, NULL, 0) == 0) {
+			for (i = 0; i < narenas; i ++) {
+				char mib[32] = {0};
+				snprintf(mib, sizeof(mib), "arena.%u.purge", i);
+				(void)my_mallctl(mib, NULL, NULL, NULL, 0);
+			}
+		}
+	} else {
 #if defined(HA_HAVE_MALLOC_TRIM)
-	if (using_default_allocator)
-		malloc_trim(0);
+		if (using_default_allocator)
+			malloc_trim(0);
 #endif
+	}
 }
 
 /* check if we're using the same allocator as the one that provides
