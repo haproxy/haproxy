@@ -5021,7 +5021,6 @@ static void quic_init_stdout_traces(void)
 #ifdef ENABLE_QUIC_STDOUT_TRACES
 	trace_quic.sink = sink_find("stdout");
 	trace_quic.level = TRACE_LEVEL_DEVELOPER;
-	trace_quic.verbosity = 0;
 	trace_quic.state = TRACE_STATE_RUNNING;
 #endif
 }
