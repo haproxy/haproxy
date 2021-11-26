@@ -77,9 +77,11 @@ static void trim_all_pools(void)
  */
 static void detect_allocator(void)
 {
+#if defined(__ELF__)
 	extern int mallctl(const char *, void *, size_t *, void *, size_t) __attribute__((weak));
 
 	my_mallctl = mallctl;
+#endif
 
 	if (!my_mallctl) {
 		my_mallctl = get_sym_curr_addr("mallctl");
