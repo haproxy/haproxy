@@ -1848,9 +1848,19 @@ static size_t h1_process_mux(struct h1c *h1c, struct buffer *buf, size_t count)
 			void *old_area;
 
 			TRACE_PROTO("sending message data (zero-copy)", H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, chn_htx, (size_t[]){count});
-			if (h1m->state == H1_MSG_DATA && chn_htx->flags & HTX_FL_EOM) {
-				TRACE_DEVEL("last message block", H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s);
-				last_data = 1;
+			if (h1m->state == H1_MSG_DATA) {
+				if (h1m->flags & H1_MF_CLEN) {
+					if (count > h1m->curr_len) {
+						TRACE_ERROR("too much payload, more than announced",
+							    H1_EV_TX_DATA|H1_EV_STRM_ERR|H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
+						goto error;
+					}
+					h1m->curr_len -= count;
+				}
+				if (chn_htx->flags & HTX_FL_EOM) {
+					TRACE_DEVEL("last message block", H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s);
+					last_data = 1;
+				}
 			}
 
 			old_area = h1c->obuf.area;
@@ -2200,9 +2210,19 @@ static size_t h1_process_mux(struct h1c *h1c, struct buffer *buf, size_t count)
 					last_data = 0;
 				}
 
-				if (h1m->state == H1_MSG_DATA && (h1m->flags & H1_MF_RESP) && (h1s->flags & H1S_F_BODYLESS_RESP)) {
-					TRACE_PROTO("Skip data for bodyless response", H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, chn_htx);
-					goto skip_data;
+				if (h1m->state == H1_MSG_DATA) {
+					if (h1m->flags & H1_MF_CLEN) {
+						if (vlen > h1m->curr_len) {
+							TRACE_ERROR("too much payload, more than announced",
+								    H1_EV_TX_DATA|H1_EV_STRM_ERR|H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
+							goto error;
+						}
+						h1m->curr_len -= vlen;
+					}
+					if ((h1m->flags & H1_MF_RESP) && (h1s->flags & H1S_F_BODYLESS_RESP)) {
+						TRACE_PROTO("Skip data for bodyless response", H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, chn_htx);
+						goto skip_data;
+					}
 				}
 
 				chklen = 0;
@@ -2329,7 +2349,7 @@ static size_t h1_process_mux(struct h1c *h1c, struct buffer *buf, size_t count)
 				h1c->flags |= H1C_F_ST_ERROR;
 				TRACE_ERROR("processing output error, set error on h1c/h1s",
 					    H1_EV_TX_DATA|H1_EV_STRM_ERR|H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
-				break;
+				goto end;
 		}
 
 	  nextblk:
@@ -3559,11 +3579,22 @@ static int h1_rcv_pipe(struct conn_stream *cs, struct pipe *pipe, unsigned int c
 	if (h1m->state == H1_MSG_DATA && count > h1m->curr_len)
 		count = h1m->curr_len;
 	ret = cs->conn->xprt->rcv_pipe(cs->conn, cs->conn->xprt_ctx, pipe, count);
-	if (h1m->state == H1_MSG_DATA && ret >= 0) {
-		h1m->curr_len -= ret;
-		if (!h1m->curr_len) {
-			h1c->flags &= ~H1C_F_WANT_SPLICE;
-			TRACE_STATE("Allow xprt rcv_buf on !curr_len", H1_EV_STRM_RECV, cs->conn, h1s);
+	if (ret >= 0) {
+		if (h1m->state == H1_MSG_DATA) {
+			if (ret > h1m->curr_len) {
+				h1s->flags |= H1S_F_PARSING_ERROR;
+				h1c->flags |= H1C_F_ST_ERROR;
+				cs->flags  |= CS_FL_ERROR;
+				TRACE_ERROR("too much payload, more than announced",
+					    H1_EV_RX_DATA|H1_EV_STRM_ERR|H1_EV_H1C_ERR|H1_EV_H1S_ERR, cs->conn, h1s);
+				goto end;
+			}
+			h1m->curr_len -= ret;
+			if (!h1m->curr_len) {
+				h1m->state = H1_MSG_DONE;
+				h1c->flags &= ~H1C_F_WANT_SPLICE;
+				TRACE_STATE("payload fully received", H1_EV_STRM_RECV, cs->conn, h1s);
+			}
 		}
 	}
 
@@ -3590,19 +3621,36 @@ static int h1_rcv_pipe(struct conn_stream *cs, struct pipe *pipe, unsigned int c
 static int h1_snd_pipe(struct conn_stream *cs, struct pipe *pipe)
 {
 	struct h1s *h1s = cs->ctx;
+	struct h1c *h1c = h1s->h1c;
+	struct h1m *h1m = (!(h1c->flags & H1C_F_IS_BACK) ? &h1s->res : &h1s->req);
 	int ret = 0;
 
 	TRACE_ENTER(H1_EV_STRM_SEND, cs->conn, h1s, 0, (size_t[]){pipe->data});
 
-	if (b_data(&h1s->h1c->obuf)) {
-		if (!(h1s->h1c->wait_event.events & SUB_RETRY_SEND)) {
+	if (b_data(&h1c->obuf)) {
+		if (!(h1c->wait_event.events & SUB_RETRY_SEND)) {
 			TRACE_STATE("more data to send, subscribing", H1_EV_STRM_SEND, cs->conn, h1s);
-			cs->conn->xprt->subscribe(cs->conn, cs->conn->xprt_ctx, SUB_RETRY_SEND, &h1s->h1c->wait_event);
+			cs->conn->xprt->subscribe(cs->conn, cs->conn->xprt_ctx, SUB_RETRY_SEND, &h1c->wait_event);
 		}
 		goto end;
 	}
 
 	ret = cs->conn->xprt->snd_pipe(cs->conn, cs->conn->xprt_ctx, pipe);
+	if (h1m->state == H1_MSG_DATA) {
+		if (ret > h1m->curr_len) {
+			h1s->flags |= H1S_F_PROCESSING_ERROR;
+			h1c->flags |= H1C_F_ST_ERROR;
+			cs->flags  |= CS_FL_ERROR;
+			TRACE_ERROR("too much payload, more than announced",
+				    H1_EV_TX_DATA|H1_EV_STRM_ERR|H1_EV_H1C_ERR|H1_EV_H1S_ERR, cs->conn, h1s);
+			goto end;
+		}
+		h1m->curr_len -= ret;
+		if (!h1m->curr_len) {
+			h1m->state = H1_MSG_DONE;
+			TRACE_STATE("payload fully xferred", H1_EV_TX_DATA|H1_EV_TX_BODY, cs->conn, h1s);
+		}
+	}
 
   end:
 	TRACE_LEAVE(H1_EV_STRM_SEND, cs->conn, h1s, 0, (size_t[]){ret});
