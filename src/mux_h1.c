@@ -1721,8 +1721,7 @@ static size_t h1_process_demux(struct h1c *h1c, struct buffer *buf, size_t count
 	}
 
 	/* Here h1s->cs is always defined */
-	if (!(h1m->flags & H1_MF_CHNK) &&
-	    ((h1m->state == H1_MSG_DATA && h1m->curr_len) || (h1m->state == H1_MSG_TUNNEL))) {
+	if (!(h1m->flags & H1_MF_CHNK) && (h1m->state == H1_MSG_DATA || (h1m->state == H1_MSG_TUNNEL))) {
 		TRACE_STATE("notify the mux can use splicing", H1_EV_RX_DATA|H1_EV_RX_BODY, h1c->conn, h1s);
 		h1s->cs->flags |= CS_FL_MAY_SPLICE;
 	}
@@ -3576,11 +3575,11 @@ static int h1_rcv_pipe(struct conn_stream *cs, struct pipe *pipe, unsigned int c
 		goto end;
 	}
 
-	if (h1m->state == H1_MSG_DATA && count > h1m->curr_len)
+	if (h1m->state == H1_MSG_DATA && (h1m->flags & H1_MF_CLEN) && count > h1m->curr_len)
 		count = h1m->curr_len;
 	ret = cs->conn->xprt->rcv_pipe(cs->conn, cs->conn->xprt_ctx, pipe, count);
 	if (ret >= 0) {
-		if (h1m->state == H1_MSG_DATA) {
+		if (h1m->state == H1_MSG_DATA && (h1m->flags & H1_MF_CLEN)) {
 			if (ret > h1m->curr_len) {
 				h1s->flags |= H1S_F_PARSING_ERROR;
 				h1c->flags |= H1C_F_ST_ERROR;
@@ -3636,7 +3635,7 @@ static int h1_snd_pipe(struct conn_stream *cs, struct pipe *pipe)
 	}
 
 	ret = cs->conn->xprt->snd_pipe(cs->conn, cs->conn->xprt_ctx, pipe);
-	if (h1m->state == H1_MSG_DATA) {
+	if (h1m->state == H1_MSG_DATA && (h1m->flags & H1_MF_CLEN)) {
 		if (ret > h1m->curr_len) {
 			h1s->flags |= H1S_F_PROCESSING_ERROR;
 			h1c->flags |= H1C_F_ST_ERROR;
