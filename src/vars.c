@@ -460,19 +460,13 @@ static int var_unset(uint64_t name_hash, enum vars_scope scope, struct sample *s
 /* Returns 0 if fails, else returns 1. */
 static int smp_conv_store(const struct arg *args, struct sample *smp, void *private)
 {
-	uint64_t seed = var_name_hash_seed;
-	uint64_t name_hash = XXH3(smp->data.u.str.area, smp->data.u.str.data, seed);
-
-	return var_set(name_hash, args[0].data.var.scope, smp, 0);
+	return var_set(args[0].data.var.name_hash, args[0].data.var.scope, smp, 0);
 }
 
 /* Returns 0 if fails, else returns 1. */
 static int smp_conv_clear(const struct arg *args, struct sample *smp, void *private)
 {
-	uint64_t seed = var_name_hash_seed;
-	uint64_t name_hash = XXH3(smp->data.u.str.area, smp->data.u.str.data, seed);
-
-	return var_unset(name_hash, args[0].data.var.scope, smp);
+	return var_unset(args[0].data.var.name_hash, args[0].data.var.scope, smp);
 }
 
 /* This functions check an argument entry and fill it with a variable
