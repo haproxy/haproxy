@@ -299,9 +299,18 @@ static void h1_trace(enum trace_level level, uint64_t mask, const struct trace_s
 	chunk_appendf(&trace_buf, " : [%c]", ((h1c->flags & H1C_F_IS_BACK) ? 'B' : 'F'));
 
 	/* Display request and response states if h1s is defined */
-	if (h1s)
+	if (h1s) {
 		chunk_appendf(&trace_buf, " [%s, %s]",
 			      h1m_state_str(h1s->req.state), h1m_state_str(h1s->res.state));
+
+		if (src->verbosity > H1_VERB_SIMPLE) {
+			chunk_appendf(&trace_buf, " - req=(.fl=0x%08x .curr_len=%lu .body_len=%lu)",
+				      h1s->req.flags, (unsigned long)h1s->req.curr_len, (unsigned long)h1s->req.body_len);
+			chunk_appendf(&trace_buf, "  res=(.fl=0x%08x .curr_len=%lu .body_len=%lu)",
+				      h1s->res.flags, (unsigned long)h1s->res.curr_len, (unsigned long)h1s->res.body_len);
+		}
+
+	}
 
 	if (src->verbosity == H1_VERB_CLEAN)
 		return;
