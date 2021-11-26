@@ -266,18 +266,30 @@ INITCALL1(STG_REGISTER, trace_register_source, TRACE_SOURCE);
 
 /* h1 stats module */
 enum {
+	H1_ST_OPEN_CONN,
+	H1_ST_OPEN_STREAM,
 	H1_STATS_COUNT /* must be the last member of the enum */
 };
 
 
 static struct name_desc h1_stats[] = {
+	[H1_ST_OPEN_CONN]            = { .name = "h1_open_connections",
+	                                 .desc = "Count of currently open connections" },
+	[H1_ST_OPEN_STREAM]          = { .name = "h1_open_streams",
+	                                 .desc = "Count of currently open streams" },
 };
 
 static struct h1_counters {
+	long long open_conns;          /* count of currently open connections */
+	long long open_streams;       /* count of currently open streams */
 } h1_counters;
 
 static void h1_fill_stats(void *data, struct field *stats)
 {
+	struct h1_counters *counters = data;
+
+	stats[H1_ST_OPEN_CONN]        = mkf_u64(FN_GAUGE,   counters->open_conns);
+	stats[H1_ST_OPEN_STREAM]      = mkf_u64(FN_GAUGE,   counters->open_streams);
 }
 
 static struct stats_module h1_stats_module = {
@@ -644,6 +656,8 @@ static struct conn_stream *h1s_new_cs(struct h1s *h1s, struct buffer *input)
 		goto err;
 	}
 
+	HA_ATOMIC_INC(&h1s->h1c->px_counters->open_streams);
+
 	h1s->h1c->flags = (h1s->h1c->flags & ~H1C_F_ST_EMBRYONIC) | H1C_F_ST_ATTACHED | H1C_F_ST_READY;
 	TRACE_LEAVE(H1_EV_STRM_NEW, h1s->h1c->conn, h1s);
 	return cs;
@@ -760,6 +774,8 @@ static struct h1s *h1c_bck_stream_new(struct h1c *h1c, struct conn_stream *cs, s
 	if (h1c->px->options2 & PR_O2_RSPBUG_OK)
 		h1s->res.err_pos = -1;
 
+	HA_ATOMIC_INC(&h1c->px_counters->open_streams);
+
 	TRACE_LEAVE(H1_EV_H1S_NEW, h1c->conn, h1s);
 	return h1s;
 
@@ -801,6 +817,8 @@ static void h1s_destroy(struct h1s *h1s)
 			TRACE_STATE("set shudown on h1c", H1_EV_H1S_END, h1c->conn, h1s);
 			h1c->flags |= H1C_F_ST_SHUTDOWN;
 		}
+
+		HA_ATOMIC_DEC(&h1c->px_counters->open_streams);
 		pool_free(pool_head_h1s, h1s);
 	}
 }
@@ -914,6 +932,8 @@ static int h1_init(struct connection *conn, struct proxy *proxy, struct session 
 	else if (h1_recv_allowed(h1c))
 		h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
 
+	HA_ATOMIC_INC(&h1c->px_counters->open_conns);
+
 	/* mux->wake will be called soon to complete the operation */
 	TRACE_LEAVE(H1_EV_H1C_NEW, conn, h1c->h1s);
 	return 0;
@@ -983,6 +1003,8 @@ static void h1_release(struct h1c *h1c)
 							&h1c->wait_event);
 			h1_shutw_conn(conn);
 		}
+
+		HA_ATOMIC_DEC(&h1c->px_counters->open_conns);
 		pool_free(pool_head_h1c, h1c);
 	}
 
