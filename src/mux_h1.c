@@ -271,6 +271,12 @@ enum {
 	H1_ST_TOTAL_CONN,
 	H1_ST_TOTAL_STREAM,
 
+	H1_ST_BYTES_IN,
+	H1_ST_BYTES_OUT,
+#if defined(USE_LINUX_SPLICE)
+	H1_ST_SPLICED_BYTES_IN,
+	H1_ST_SPLICED_BYTES_OUT,
+#endif
 	H1_STATS_COUNT /* must be the last member of the enum */
 };
 
@@ -283,6 +289,18 @@ static struct name_desc h1_stats[] = {
 	[H1_ST_TOTAL_CONN]           = { .name = "h1_total_connections",
 	                                 .desc = "Total number of connections" },
 	[H1_ST_TOTAL_STREAM]         = { .name = "h1_total_streams",
+	                                 .desc = "Total number of streams" },
+
+	[H1_ST_BYTES_IN]             = { .name = "h1_bytes_in",
+	                                 .desc = "Total number of bytes received" },
+	[H1_ST_BYTES_OUT]            = { .name = "h1_bytes_out",
+	                                 .desc = "Total number of bytes send" },
+#if defined(USE_LINUX_SPLICE)
+	[H1_ST_SPLICED_BYTES_IN]     = { .name = "h1_spliced_bytes_in",
+		                         .desc = "Total number of bytes received using kernel splicing" },
+	[H1_ST_SPLICED_BYTES_OUT]    = { .name = "h1_spliced_bytes_out",
+		                         .desc = "Total number of bytes sendusing kernel splicing" },
+#endif
 
 };
 
@@ -292,6 +310,12 @@ static struct h1_counters {
 	long long total_conns;        /* total number of connections */
 	long long total_streams;      /* total number of streams */
 
+	long long bytes_in;           /* number of bytes received */
+	long long bytes_out;          /* number of bytes sent */
+#if defined(USE_LINUX_SPLICE)
+	long long spliced_bytes_in;   /* number of bytes received using kernel splicing */
+	long long spliced_bytes_out;  /* number of bytes sent using kernel splicing */
+#endif
 } h1_counters;
 
 static void h1_fill_stats(void *data, struct field *stats)
@@ -302,6 +326,13 @@ static void h1_fill_stats(void *data, struct field *stats)
 	stats[H1_ST_OPEN_STREAM]      = mkf_u64(FN_GAUGE,   counters->open_streams);
 	stats[H1_ST_TOTAL_CONN]       = mkf_u64(FN_COUNTER, counters->total_conns);
 	stats[H1_ST_TOTAL_STREAM]     = mkf_u64(FN_COUNTER, counters->total_streams);
+
+	stats[H1_ST_BYTES_IN]          = mkf_u64(FN_COUNTER, counters->bytes_in);
+	stats[H1_ST_BYTES_OUT]         = mkf_u64(FN_COUNTER, counters->bytes_out);
+#if defined(USE_LINUX_SPLICE)
+	stats[H1_ST_SPLICED_BYTES_IN]  = mkf_u64(FN_COUNTER, counters->spliced_bytes_in);
+	stats[H1_ST_SPLICED_BYTES_OUT] = mkf_u64(FN_COUNTER, counters->spliced_bytes_out);
+#endif
 }
 
 static struct stats_module h1_stats_module = {
@@ -2738,6 +2769,7 @@ static int h1_recv(struct h1c *h1c)
 			h1c->ibuf.head  = sizeof(struct htx);
 		}
 		ret = conn->xprt->rcv_buf(conn, conn->xprt_ctx, &h1c->ibuf, max, flags);
+		HA_ATOMIC_ADD(&h1c->px_counters->bytes_in, ret);
 	}
 	if (max && !ret && h1_recv_allowed(h1c)) {
 		TRACE_STATE("failed to receive data, subscribing", H1_EV_H1C_RECV, h1c->conn);
@@ -2793,6 +2825,7 @@ static int h1_send(struct h1c *h1c)
 			h1c->flags &= ~H1C_F_OUT_FULL;
 			TRACE_STATE("h1c obuf not full anymore", H1_EV_STRM_SEND|H1_EV_H1S_BLK, h1c->conn);
 		}
+		HA_ATOMIC_ADD(&h1c->px_counters->bytes_out, ret);
 		b_del(&h1c->obuf, ret);
 		sent = 1;
 	}
@@ -3680,6 +3713,8 @@ static int h1_rcv_pipe(struct conn_stream *cs, struct pipe *pipe, unsigned int c
 				TRACE_STATE("payload fully received", H1_EV_STRM_RECV, cs->conn, h1s);
 			}
 		}
+		HA_ATOMIC_ADD(&h1c->px_counters->bytes_in, ret);
+		HA_ATOMIC_ADD(&h1c->px_counters->spliced_bytes_in, ret);
 	}
 
   end:
@@ -3735,6 +3770,8 @@ static int h1_snd_pipe(struct conn_stream *cs, struct pipe *pipe)
 			TRACE_STATE("payload fully xferred", H1_EV_TX_DATA|H1_EV_TX_BODY, cs->conn, h1s);
 		}
 	}
+	HA_ATOMIC_ADD(&h1c->px_counters->bytes_out, ret);
+	HA_ATOMIC_ADD(&h1c->px_counters->spliced_bytes_out, ret);
 
   end:
 	TRACE_LEAVE(H1_EV_STRM_SEND, cs->conn, h1s, 0, (size_t[]){ret});
