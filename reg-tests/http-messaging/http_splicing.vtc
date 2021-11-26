@@ -1,0 +1,75 @@
+# This reg-test checks splicing support for the H1 multiplexer
+
+varnishtest "A test to validate h1 splicing support"
+
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.6-dev0)'"
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(LINUX_SPLICE)'"
+feature ignore_unknown_macro
+
+#REGTEST_TYPE=slow
+
+server s1 {
+    rxreq
+    expect req.http.content-length == "1048576"
+    expect req.bodylen == 1048576
+    txresp -status 200 -bodylen 1048576
+} -start
+
+server s2 {
+    rxreq
+    txresp -status 200 -nolen -bodylen 1048576
+} -start
+
+haproxy h1 -conf {
+    global
+        log stderr len 4096 local0 debug
+
+    defaults
+        mode http
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        option splice-request
+        option splice-response
+	log global
+	option httplog
+
+    listen li1
+        bind "fd@${li1}"
+	id 10
+        server srv1 ${s1_addr}:${s1_port}
+
+    listen li2
+        bind "fd@${li2}"
+	id 20
+        server srv2 ${s2_addr}:${s2_port}
+} -start
+
+
+client c1 -connect ${h1_li1_sock} {
+    txreq -method POST -url "/" -bodylen 1048576
+    rxresp
+    expect resp.status == 200
+    expect resp.http.content-length == "1048576"
+    expect resp.bodylen == 1048576
+} -run
+
+client c2 -connect ${h1_li2_sock} {
+    txreq  -url "/"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.content-length == <undef>
+    expect resp.bodylen == 1048576
+} -run
+
+haproxy h1 -cli {
+    send "show stat typed"
+    expect ~ "F.10.0.[[:digit:]]+.h1_spliced_bytes_in.1:MCP:u64:[1-9][[:digit:]]+\nF.10.0.[[:digit:]]+.h1_spliced_bytes_out.1:MCP:u64:[1-9][[:digit:]]+"
+    send "show stat typed"
+    expect ~ "B.10.0.[[:digit:]]+.h1_spliced_bytes_in.1:MCP:u64:[1-9][[:digit:]]+\nB.10.0.[[:digit:]]+.h1_spliced_bytes_out.1:MCP:u64:[1-9][[:digit:]]+"
+
+    send "show stat typed"
+    expect ~ "F.20.0.[[:digit:]]+.h1_spliced_bytes_in.1:MCP:u64:0\nF.20.0.[[:digit:]]+.h1_spliced_bytes_out.1:MCP:u64:[1-9][[:digit:]]+"
+    send "show stat typed"
+    expect ~ "B.20.0.[[:digit:]]+.h1_spliced_bytes_in.1:MCP:u64:[1-9][[:digit:]]+\nB.20.0.[[:digit:]]+.h1_spliced_bytes_out.1:MCP:u64:0"
+}
