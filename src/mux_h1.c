@@ -108,6 +108,7 @@ struct h1c {
 
 	struct h1s *h1s;                 /* H1 stream descriptor */
 	struct task *task;               /* timeout management task */
+	struct h1_counters *px_counters; /* h1 counters attached to proxy */
 	int idle_exp;                    /* idle expiration date (http-keep-alive or http-request timeout) */
 	int timeout;                     /* client/server timeout duration */
 	int shut_timeout;                /* client-fin/server-fin timeout duration */
@@ -850,10 +851,16 @@ static int h1_init(struct connection *conn, struct proxy *proxy, struct session 
 		h1c->shut_timeout = h1c->timeout = proxy->timeout.server;
 		if (tick_isset(proxy->timeout.serverfin))
 			h1c->shut_timeout = proxy->timeout.serverfin;
+
+		h1c->px_counters = EXTRA_COUNTERS_GET(proxy->extra_counters_be,
+		                                      &h1_stats_module);
 	} else {
 		h1c->shut_timeout = h1c->timeout = proxy->timeout.client;
 		if (tick_isset(proxy->timeout.clientfin))
 			h1c->shut_timeout = proxy->timeout.clientfin;
+
+		h1c->px_counters = EXTRA_COUNTERS_GET(proxy->extra_counters_fe,
+		                                      &h1_stats_module);
 
 		LIST_APPEND(&mux_stopping_data[tid].list,
 		            &h1c->conn->stopping_list);
