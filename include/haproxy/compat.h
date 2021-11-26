@@ -274,9 +274,10 @@ typedef struct { } empty_t;
 #endif
 
 /* macOS has a call similar to malloc_usable_size */
-#if defined(USE_MEMORY_PROFILING) && defined(__APPLE__)
+#if defined(__APPLE__)
 #include <malloc/malloc.h>
 #define malloc_usable_size malloc_size
+#define HA_HAVE_MALLOC_ZONE
 #endif
 
 /* Max number of file descriptors we send in one sendmsg(). Linux seems to be

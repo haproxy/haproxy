@@ -63,6 +63,21 @@ static void trim_all_pools(void)
 #if defined(HA_HAVE_MALLOC_TRIM)
 		if (using_default_allocator)
 			malloc_trim(0);
+#elif defined(HA_HAVE_MALLOC_ZONE)
+		if (using_default_allocator) {
+			vm_address_t *zones;
+			unsigned int i, nzones;
+
+			if (malloc_get_all_zones(0, NULL, &zones, &nzones) == KERN_SUCCESS) {
+				for (i = 0; i < nzones; i ++) {
+					malloc_zone_t *zone = (malloc_zone_t *)zones[i];
+
+					/* we cannot purge anonymous zones */
+					if (zone->zone_name)
+						malloc_zone_pressure_relief(zone, 0);
+				}
+			}
+		}
 #endif
 	}
 }
@@ -111,6 +126,8 @@ static void detect_allocator(void)
 		free(DISGUISE(ptr));
 
 		using_default_allocator = !!memcmp(&mi1, &mi2, sizeof(mi1));
+#elif defined(HA_HAVE_MALLOC_ZONE)
+		using_default_allocator = (malloc_default_zone() != NULL);
 #endif
 	}
 }
