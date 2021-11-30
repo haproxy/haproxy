@@ -2076,7 +2076,7 @@ static int qc_handle_bidi_strm_frm(struct quic_rx_packet *pkt,
 		    goto store_frm;
 
 		ret = qc_strm_cpy(&strm->rx.buf, strm_frm);
-		if (ret && qc->qcc->app_ops->decode_qcs(strm, qc->qcc->ctx) < 0) {
+		if (ret && qc->qcc->app_ops->decode_qcs(strm, strm_frm->fin, qc->qcc->ctx) < 0) {
 			TRACE_PROTO("Decoding error", QUIC_EV_CONN_PSTRM);
 			return 0;
 		}

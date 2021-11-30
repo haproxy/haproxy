@@ -96,7 +96,7 @@ static inline size_t h3_decode_frm_header(uint64_t *ftype, uint64_t *flen,
 /* Decode <qcs> remotely initiated bidi-stream.
  * Returns <0 on error else 0.
  */
-static int h3_decode_qcs(struct qcs *qcs, void *ctx)
+static int h3_decode_qcs(struct qcs *qcs, int fin, void *ctx)
 {
 	struct buffer *rxbuf = &qcs->rx.buf;
 	struct h3 *h3 = ctx;
@@ -219,6 +219,9 @@ static int h3_decode_qcs(struct qcs *qcs, void *ctx)
 		}
 		b_del(rxbuf, flen);
 	}
+
+	if (fin && !b_data(rxbuf))
+		htx->flags |= HTX_FL_EOM;
 
 	return 0;
 

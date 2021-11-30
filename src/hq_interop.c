@@ -9,7 +9,7 @@
 #include <haproxy/mux_quic-t.h>
 #include <haproxy/stream.h>
 
-static int hq_interop_decode_qcs(struct qcs *qcs, void *ctx)
+static int hq_interop_decode_qcs(struct qcs *qcs, int fin, void *ctx)
 {
 	struct buffer *rxbuf = &qcs->rx.buf;
 	struct htx *htx;
@@ -53,6 +53,9 @@ static int hq_interop_decode_qcs(struct qcs *qcs, void *ctx)
 
 	b_del(rxbuf, b_data(rxbuf));
 	b_free(&htx_buf);
+
+	if (fin)
+		htx->flags |= HTX_FL_EOM;
 
 	return 0;
 }

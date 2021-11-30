@@ -149,6 +149,7 @@ struct quic_stream {
 	struct buffer *buf;
 	struct eb64_node offset;
 	uint64_t len;
+	int fin;
 	const unsigned char *data;
 };
 

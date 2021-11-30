@@ -85,7 +85,7 @@ struct qcs {
 struct qcc_app_ops {
 	int (*init)(struct qcc *qcc);
 	int (*attach_ruqs)(struct qcs *qcs, void *ctx);
-	int (*decode_qcs)(struct qcs *qcs, void *ctx);
+	int (*decode_qcs)(struct qcs *qcs, int fin, void *ctx);
 	size_t (*snd_buf)(struct conn_stream *cs, struct buffer *buf, size_t count, int flags);
 	int (*finalize)(void *ctx);
 };

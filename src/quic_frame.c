@@ -427,6 +427,8 @@ static int quic_parse_stream_frame(struct quic_frame *frm, struct quic_conn *qc,
 	else if (!quic_dec_int(&stream->len, buf, end) || end - *buf < stream->len)
 		return 0;
 
+	stream->fin = (frm->type & QUIC_STREAM_FRAME_TYPE_FIN_BIT);
+
 	stream->data = *buf;
 	*buf += stream->len;
 
