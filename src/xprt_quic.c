@@ -675,6 +675,97 @@ static inline void qc_set_timer(struct ssl_sock_ctx *ctx)
 	TRACE_LEAVE(QUIC_EV_CONN_STIMER, ctx->conn, pktns);
 }
 
+/* Derive new keys and ivs required for Key Update feature for <qc> QUIC
+ * connection.
+ * Return 1 if succeeded, 0 if not.
+ */
+static int quic_tls_key_update(struct quic_conn *qc)
+{
+	struct quic_tls_ctx *tls_ctx = &qc->els[QUIC_TLS_ENC_LEVEL_APP].tls_ctx;
+	struct quic_tls_secrets *rx, *tx;
+	struct quic_tls_kp *nxt_rx = &qc->ku.nxt_rx;
+	struct quic_tls_kp *nxt_tx = &qc->ku.nxt_tx;
+
+	tls_ctx = &qc->els[QUIC_TLS_ENC_LEVEL_APP].tls_ctx;
+	rx = &tls_ctx->rx;
+	tx = &tls_ctx->tx;
+	nxt_rx = &qc->ku.nxt_rx;
+	nxt_tx = &qc->ku.nxt_tx;
+
+	/* Prepare new RX secrets */
+	if (!quic_tls_sec_update(rx->md, nxt_rx->secret, nxt_rx->secretlen,
+	                         rx->secret, rx->secretlen)) {
+		TRACE_DEVEL("New RX secret update failed", QUIC_EV_CONN_RWSEC, qc->conn);
+		return 0;
+	}
+
+	if (!quic_tls_derive_keys(rx->aead, NULL, rx->md,
+	                          nxt_rx->key, nxt_rx->keylen,
+	                          nxt_rx->iv, nxt_rx->ivlen, NULL, 0,
+	                          nxt_rx->secret, nxt_rx->secretlen)) {
+		TRACE_DEVEL("New RX key derivation failed", QUIC_EV_CONN_RWSEC, qc->conn);
+		return 0;
+	}
+
+	/* Prepare new TX secrets */
+	if (!quic_tls_sec_update(tx->md, nxt_tx->secret, nxt_tx->secretlen,
+	                         tx->secret, tx->secretlen)) {
+		TRACE_DEVEL("New TX secret update failed", QUIC_EV_CONN_RWSEC, qc->conn);
+		return 0;
+	}
+
+	if (!quic_tls_derive_keys(tx->aead, NULL, tx->md,
+	                          nxt_tx->key, nxt_tx->keylen,
+	                          nxt_tx->iv, nxt_tx->ivlen, NULL, 0,
+	                          nxt_tx->secret, nxt_tx->secretlen)) {
+		TRACE_DEVEL("New TX key derivation failed", QUIC_EV_CONN_RWSEC, qc->conn);
+		return 0;
+	}
+
+	return 1;
+}
+
+/* Rotate the Key Update information for <qc> QUIC connection.
+ * Must be used after having updated them.
+ * Always succeeds.
+ */
+static void quic_tls_rotate_keys(struct quic_conn *qc)
+{
+	struct quic_tls_ctx *tls_ctx = &qc->els[QUIC_TLS_ENC_LEVEL_APP].tls_ctx;
+	unsigned char *curr_secret, *curr_iv, *curr_key;
+
+	/* Rotate the RX secrets */
+	curr_secret = tls_ctx->rx.secret;
+	curr_iv = tls_ctx->rx.iv;
+	curr_key = tls_ctx->rx.key;
+
+	tls_ctx->rx.secret  = qc->ku.nxt_rx.secret;
+	tls_ctx->rx.iv      = qc->ku.nxt_rx.iv;
+	tls_ctx->rx.key     = qc->ku.nxt_rx.key;
+
+	qc->ku.nxt_rx.secret = qc->ku.prv_rx.secret;
+	qc->ku.nxt_rx.iv     = qc->ku.prv_rx.iv;
+	qc->ku.nxt_rx.key    = qc->ku.prv_rx.key;
+
+	qc->ku.prv_rx.secret = curr_secret;
+	qc->ku.prv_rx.iv     = curr_iv;
+	qc->ku.prv_rx.key    = curr_key;
+	qc->ku.prv_rx.pn     = tls_ctx->rx.pn;
+
+	/* Update the TX secrets */
+	curr_secret = tls_ctx->tx.secret;
+	curr_iv = tls_ctx->tx.iv;
+	curr_key = tls_ctx->tx.key;
+
+	tls_ctx->tx.secret = qc->ku.nxt_tx.secret;
+	tls_ctx->tx.iv     = qc->ku.nxt_tx.iv;
+	tls_ctx->tx.key    = qc->ku.nxt_tx.key;
+
+	qc->ku.nxt_tx.secret = curr_secret;
+	qc->ku.nxt_tx.iv     = curr_iv;
+	qc->ku.nxt_tx.key    = curr_key;
+}
+
 #ifndef OPENSSL_IS_BORINGSSL
 int ha_quic_set_encryption_secrets(SSL *ssl, enum ssl_encryption_level_t level,
                                    const uint8_t *read_secret,
