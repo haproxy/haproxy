@@ -189,7 +189,7 @@ int quic_tls_derive_keys(const EVP_CIPHER *aead, const EVP_CIPHER *hp,
 {
 	size_t aead_keylen = (size_t)EVP_CIPHER_key_length(aead);
 	size_t aead_ivlen = (size_t)EVP_CIPHER_iv_length(aead);
-	size_t hp_len = (size_t)EVP_CIPHER_key_length(hp);
+	size_t hp_len = hp ? (size_t)EVP_CIPHER_key_length(hp) : 0;
 	const unsigned char    key_label[] = "quic key";
 	const unsigned char     iv_label[] = "quic iv";
 	const unsigned char hp_key_label[] = "quic hp";
@@ -201,8 +201,8 @@ int quic_tls_derive_keys(const EVP_CIPHER *aead, const EVP_CIPHER *hp,
 	                            key_label, sizeof key_label - 1) ||
 	    !quic_hkdf_expand_label(md, iv, aead_ivlen, secret, secretlen,
 	                            iv_label, sizeof iv_label - 1) ||
-	    !quic_hkdf_expand_label(md, hp_key, hp_len, secret, secretlen,
-	                            hp_key_label, sizeof hp_key_label - 1))
+	    (hp_key && !quic_hkdf_expand_label(md, hp_key, hp_len, secret, secretlen,
+	                                       hp_key_label, sizeof hp_key_label - 1)))
 		return 0;
 
 	return 1;
