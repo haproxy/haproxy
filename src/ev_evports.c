@@ -250,10 +250,6 @@ static void _do_poll(struct poller *p, int exp, int wake)
 		 */
 		ret = fd_update_events(fd, n);
 
-		/* If the FD was already dead , skip it */
-		if (ret == FD_UPDT_DEAD)
-			continue;
-
 		/* disable polling on this instance if the FD was migrated */
 		if (ret == FD_UPDT_MIGRATED) {
 			if (!HA_ATOMIC_BTS(&fdtab[fd].update_mask, tid))
