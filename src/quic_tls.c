@@ -261,6 +261,19 @@ int quic_tls_derive_initial_secrets(const EVP_MD *md,
 	return 1;
 }
 
+/* Update <sec> secret key into <new_sec> according to RFC 9001 6.1.
+ * Always succeeds.
+ */
+int quic_tls_sec_update(const EVP_MD *md,
+                        unsigned char *new_sec, size_t new_seclen,
+                        const unsigned char *sec, size_t seclen)
+{
+	const unsigned char ku_label[] = "quic ku";
+
+	return quic_hkdf_expand_label(md, new_sec, new_seclen, sec, seclen,
+	                              ku_label, sizeof ku_label - 1);
+}
+
 /*
  * Build an IV into <iv> buffer with <ivlen> as size from <aead_iv> with
  * <aead_ivlen> as size depending on <pn> packet number.

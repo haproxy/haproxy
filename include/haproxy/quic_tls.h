@@ -75,6 +75,10 @@ int quic_tls_derive_keys(const EVP_CIPHER *aead, const EVP_CIPHER *hp,
                          unsigned char *hp_key, size_t hp_keylen,
                          const unsigned char *secret, size_t secretlen);
 
+int quic_tls_sec_update(const EVP_MD *md,
+                        unsigned char *new_sec, size_t new_seclen,
+                        const unsigned char *sec, size_t seclen);
+
 int quic_aead_iv_build(unsigned char *iv, size_t ivlen,
                        unsigned char *aead_iv, size_t aead_ivlen, uint64_t pn);
 
