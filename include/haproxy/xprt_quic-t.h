@@ -689,6 +689,11 @@ struct quic_conn {
 		__decl_thread(HA_RWLOCK_T buf_rwlock);
 		struct list pkt_list;
 	} rx;
+	struct {
+		struct quic_tls_kp prv_rx;
+		struct quic_tls_kp nxt_rx;
+		struct quic_tls_kp nxt_tx;
+	} ku;
 	unsigned int max_ack_delay;
 	struct quic_path paths[1];
 	struct quic_path *path;

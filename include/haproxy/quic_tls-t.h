@@ -91,6 +91,20 @@ enum quic_tls_pktns {
 
 extern unsigned char initial_salt[20];
 
+#define QUIC_FL_TLS_KP_BIT_SET (1 << 0)
+/* Key phase used for Key Update */
+struct quic_tls_kp {
+	unsigned char *secret;
+	size_t secretlen;
+	unsigned char *iv;
+	size_t ivlen;
+	unsigned char *key;
+	size_t keylen;
+	uint64_t count;
+	int64_t pn;
+	unsigned char flags;
+};
+
 /* Flag to be used when TLS secrets have been set. */
 #define QUIC_FL_TLS_SECRETS_SET  (1 << 0)
 /* Flag to be used when TLS secrets have been discarded. */

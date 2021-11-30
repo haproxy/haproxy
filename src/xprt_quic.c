@@ -3205,6 +3205,10 @@ static struct quic_conn *qc_new_conn(unsigned int version, int ipv4,
 	qc->rx.buf = b_make(buf_area, QUIC_CONN_RX_BUFSZ, 0, 0);
 	HA_RWLOCK_INIT(&qc->rx.buf_rwlock);
 	LIST_INIT(&qc->rx.pkt_list);
+	if (!quic_tls_ku_init(qc)) {
+		TRACE_PROTO("Key update initialization failed", QUIC_EV_CONN_INIT);
+		goto err;
+	}
 
 	/* XXX TO DO: Only one path at this time. */
 	qc->path = &qc->paths[0];

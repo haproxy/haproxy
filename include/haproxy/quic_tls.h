@@ -520,6 +520,65 @@ static inline int qc_new_isecs(struct quic_conn *qc,
 	return 0;
 }
 
+/* Release the memory allocated for all the key update key phase
+ * structures for <qc> QUIC connection.
+ * Always succeeds.
+ */
+static inline void quic_tls_ku_free(struct quic_conn *qc)
+{
+	pool_free(pool_head_quic_tls_secret, qc->ku.prv_rx.secret);
+	pool_free(pool_head_quic_tls_iv,     qc->ku.prv_rx.iv);
+	pool_free(pool_head_quic_tls_key,    qc->ku.prv_rx.key);
+	pool_free(pool_head_quic_tls_secret, qc->ku.nxt_rx.secret);
+	pool_free(pool_head_quic_tls_iv,     qc->ku.nxt_rx.iv);
+	pool_free(pool_head_quic_tls_key,    qc->ku.nxt_rx.key);
+	pool_free(pool_head_quic_tls_secret, qc->ku.nxt_tx.secret);
+	pool_free(pool_head_quic_tls_iv,     qc->ku.nxt_tx.iv);
+	pool_free(pool_head_quic_tls_key,    qc->ku.nxt_tx.key);
+}
+
+/* Initialize <kp> key update secrets, allocating the required memory.
+ * Return 1 if all the secrets could be allocated, 0 if not.
+ * This is the responsability of the caller to release the memory
+ * allocated by this function in case of failure.
+ */
+static inline int quic_tls_kp_init(struct quic_tls_kp *kp)
+{
+	kp->count = 0;
+	kp->pn = 0;
+	kp->flags = 0;
+	kp->secret = pool_alloc(pool_head_quic_tls_secret);
+	kp->secretlen = QUIC_TLS_SECRET_LEN;
+	kp->iv = pool_alloc(pool_head_quic_tls_iv);
+	kp->ivlen = QUIC_TLS_IV_LEN;
+	kp->key = pool_alloc(pool_head_quic_tls_key);
+	kp->keylen = QUIC_TLS_KEY_LEN;
+
+	return kp->secret && kp->iv && kp->key;
+}
+
+/* Initialize all the key update key phase structures for <qc>
+ * QUIC connection, allocating the required memory.
+ * Returns 1 if succeeded, 0 if not.
+ */
+static inline int quic_tls_ku_init(struct quic_conn *qc)
+{
+	struct quic_tls_kp *prv_rx = &qc->ku.prv_rx;
+	struct quic_tls_kp *nxt_rx = &qc->ku.nxt_rx;
+	struct quic_tls_kp *nxt_tx = &qc->ku.nxt_tx;
+
+	if (!quic_tls_kp_init(prv_rx) ||
+	    !quic_tls_kp_init(nxt_rx) ||
+	    !quic_tls_kp_init(nxt_tx))
+		goto err;
+
+	return 1;
+
+ err:
+	quic_tls_ku_free(qc);
+	return 0;
+}
+
 #endif /* USE_QUIC */
 #endif /* _PROTO_QUIC_TLS_H */
 
