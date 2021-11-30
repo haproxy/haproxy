@@ -823,6 +823,29 @@ int ha_quic_set_encryption_secrets(SSL *ssl, enum ssl_encryption_level_t level,
 		if (!quic_transport_params_store(conn->qc, 1, buf, buf + buflen))
 			goto err;
 	}
+
+	if (level == ssl_encryption_application) {
+		struct quic_conn *qc = conn->qc;
+		struct quic_tls_kp *prv_rx = &qc->ku.prv_rx;
+		struct quic_tls_kp *nxt_rx = &qc->ku.nxt_rx;
+		struct quic_tls_kp *nxt_tx = &qc->ku.nxt_tx;
+
+		if (!(rx->secret = pool_alloc(pool_head_quic_tls_secret)) ||
+		    !(tx->secret = pool_alloc(pool_head_quic_tls_secret))) {
+			TRACE_DEVEL("Could not allocate secrete keys", QUIC_EV_CONN_RWSEC, conn);
+			goto err;
+		}
+
+		memcpy(rx->secret, read_secret, secret_len);
+		rx->secretlen = secret_len;
+		memcpy(tx->secret, write_secret, secret_len);
+		tx->secretlen = secret_len;
+		/* Initialize all the secret keys lengths */
+		prv_rx->secretlen = nxt_rx->secretlen = nxt_tx->secretlen = secret_len;
+		/* Prepare the next key update */
+		if (!quic_tls_key_update(qc))
+			goto err;
+	}
  out:
 	TRACE_LEAVE(QUIC_EV_CONN_RWSEC, conn, &level);
 	return 1;
@@ -1294,21 +1317,61 @@ static int quic_packet_encrypt(unsigned char *payload, size_t payload_len,
 /* Decrypt <pkt> QUIC packet with <tls_ctx> as QUIC TLS cryptographic context.
  * Returns 1 if succeeded, 0 if not.
  */
-static int qc_pkt_decrypt(struct quic_rx_packet *pkt, struct quic_tls_ctx *tls_ctx)
+static int qc_pkt_decrypt(struct quic_rx_packet *pkt, struct quic_enc_level *qel)
 {
-	int ret;
+	int ret, kp_changed;
 	unsigned char iv[12];
+	struct quic_tls_ctx *tls_ctx = &qel->tls_ctx;
 	unsigned char *rx_iv = tls_ctx->rx.iv;
-	size_t rx_iv_sz = sizeof tls_ctx->rx.iv;
+	size_t rx_iv_sz = tls_ctx->rx.ivlen;
+	unsigned char *rx_key = tls_ctx->rx.key;
+
+	kp_changed = 0;
+	if (pkt->type == QUIC_PACKET_TYPE_SHORT) {
+		/* The two tested bits are not at the same position,
+		 * this is why they are first both inversed.
+		 */
+		if (!(*pkt->data & QUIC_PACKET_KEY_PHASE_BIT) ^ !(tls_ctx->flags & QUIC_FL_TLS_KP_BIT_SET)) {
+			if (pkt->pn < tls_ctx->rx.pn) {
+				/* The lowest packet number of a previous key phase
+				 * cannot be null if it really stores previous key phase
+				 * secrets.
+				 */
+				if (!pkt->qc->ku.prv_rx.pn)
+					return 0;
+
+				rx_iv = pkt->qc->ku.prv_rx.iv;
+				rx_key = pkt->qc->ku.prv_rx.key;
+			}
+			else if (pkt->pn > qel->pktns->rx.largest_pn) {
+				/* Next key phase */
+				kp_changed = 1;
+				rx_iv = pkt->qc->ku.nxt_rx.iv;
+				rx_key = pkt->qc->ku.nxt_rx.key;
+			}
+		}
+	}
 
 	if (!quic_aead_iv_build(iv, sizeof iv, rx_iv, rx_iv_sz, pkt->pn))
 		return 0;
 
 	ret = quic_tls_decrypt(pkt->data + pkt->aad_len, pkt->len - pkt->aad_len,
 	                       pkt->data, pkt->aad_len,
-	                       tls_ctx->rx.aead, tls_ctx->rx.key, iv);
+	                       tls_ctx->rx.aead, rx_key, iv);
 	if (!ret)
 		return 0;
+
+	/* Update the keys only if the packet decryption succeeded. */
+	if (kp_changed) {
+		quic_tls_rotate_keys(pkt->qc);
+		/* Toggle the Key Phase bit */
+		tls_ctx->flags ^= QUIC_FL_TLS_KP_BIT_SET;
+		/* Store the lowest packet number received for the current key phase */
+		tls_ctx->rx.pn = pkt->pn;
+		/* Prepare the next key update */
+		if (!quic_tls_key_update(pkt->qc))
+		    return 0;
+	}
 
 	/* Update the packet length (required to parse the frames). */
 	pkt->len = pkt->aad_len + ret;
@@ -2912,7 +2975,7 @@ int qc_treat_rx_pkts(struct quic_enc_level *cur_el, struct quic_enc_level *next_
 		pkt = eb64_entry(&node->node, struct quic_rx_packet, pn_node);
 		TRACE_PROTO("new packet", QUIC_EV_CONN_ELRXPKTS,
 		            ctx->conn, pkt, NULL, ctx->ssl);
-		if (!qc_pkt_decrypt(pkt, &qel->tls_ctx)) {
+		if (!qc_pkt_decrypt(pkt, qel)) {
 			/* Drop the packet */
 			TRACE_PROTO("packet decryption failed -> dropped",
 			            QUIC_EV_CONN_ELRXPKTS, ctx->conn, pkt);
@@ -4088,23 +4151,22 @@ static int quic_build_packet_long_header(unsigned char **buf, const unsigned cha
 	return 1;
 }
 
-/* This function builds into <buf> buffer a QUIC long packet header whose size may be computed
+/* This function builds into <buf> buffer a QUIC short packet header whose size may be computed
  * in advance. This is the reponsability of the caller to check there is enough room in this
- * buffer to build a long header.
- * Returns 0 if <type> QUIC packet type is not supported by long header, or 1 if succeeded.
+ * buffer to build a short header.
  */
-static int quic_build_packet_short_header(unsigned char **buf, const unsigned char *end,
-                                          size_t pn_len, struct quic_conn *conn)
+static void quic_build_packet_short_header(unsigned char **buf, const unsigned char *end,
+                                           size_t pn_len, struct quic_conn *conn,
+                                           unsigned char tls_flags)
 {
 	/* #0 byte flags */
-	*(*buf)++ = QUIC_PACKET_FIXED_BIT | (pn_len - 1);
+	*(*buf)++ = QUIC_PACKET_FIXED_BIT |
+		((tls_flags & QUIC_FL_TLS_KP_BIT_SET) ? QUIC_PACKET_KEY_PHASE_BIT : 0) | (pn_len - 1);
 	/* Destination connection ID */
 	if (conn->dcid.len) {
 		memcpy(*buf, conn->dcid.data, conn->dcid.len);
 		*buf += conn->dcid.len;
 	}
-
-	return 1;
 }
 
 /* Apply QUIC header protection to the packet with <buf> as first byte address,
@@ -4485,7 +4547,7 @@ static void qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 	*pn_len = quic_packet_number_length(pn, largest_acked_pn);
 	/* Build the header */
 	if (pkt->type == QUIC_PACKET_TYPE_SHORT)
-		quic_build_packet_short_header(&pos, end, *pn_len, conn);
+		quic_build_packet_short_header(&pos, end, *pn_len, conn, qel->tls_ctx.flags);
 	else
 		quic_build_packet_long_header(&pos, end, pkt->type, *pn_len, conn);
 	/* XXX FIXME XXX Encode the token length (0) for an Initial packet. */
