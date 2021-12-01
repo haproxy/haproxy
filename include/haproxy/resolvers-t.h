@@ -97,7 +97,6 @@ struct resolv_query_item {
 	char           name[DNS_MAX_NAME_SIZE+1]; /* query name */
 	unsigned short type;                      /* question type */
 	unsigned short class;                     /* query class */
-	struct list    list;
 };
 
 /* NOTE: big endian structure */
@@ -124,7 +123,6 @@ struct resolv_answer_item {
 
 struct resolv_response {
 	struct dns_header header;
-	struct list       query_list;
 	struct eb_root    answer_tree;
 	/* authority ignored for now */
 };

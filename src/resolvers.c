@@ -889,7 +889,6 @@ static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufe
 	unsigned char *reader;
 	char *previous_dname, tmpname[DNS_MAX_NAME_SIZE];
 	int len, flags, offset;
-	int query_record_id;
 	int nb_saved_records;
 	struct resolv_query_item *query;
 	struct resolv_answer_item *answer_record, *tmp_record;
@@ -987,49 +986,41 @@ static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufe
 	r_res->header.arcount = reader[0] * 256 + reader[1];
 	reader += 2;
 
-	/* Parsing dns queries */
-	BUG_ON(!LIST_ISEMPTY(&r_res->query_list));
-	for (query_record_id = 0; query_record_id < r_res->header.qdcount; query_record_id++) {
-		/* Use next pre-allocated resolv_query_item after ensuring there is
-		 * still one available.
-		 * It's then added to our packet query list. */
-		if (query_record_id > DNS_MAX_QUERY_RECORDS)
-			goto invalid_resp;
-		query = &resolution->response_query_records[query_record_id];
-		LIST_APPEND(&r_res->query_list, &query->list);
+	/* Parsing dns queries. For now there is only one query and it exists
+	 * because (qdcount == 1).
+	 */
+	query = &resolution->response_query_records[0];
 
-		/* Name is a NULL terminated string in our case, since we have
-		 * one query per response and the first one can't be compressed
-		 * (using the 0x0c format) */
-		offset = 0;
-		len = resolv_read_name(resp, bufend, reader, query->name, DNS_MAX_NAME_SIZE, &offset, 0);
+	/* Name is a NULL terminated string in our case, since we have
+	 * one query per response and the first one can't be compressed
+	 * (using the 0x0c format) */
+	offset = 0;
+	len = resolv_read_name(resp, bufend, reader, query->name, DNS_MAX_NAME_SIZE, &offset, 0);
 
-		if (len == 0)
-			goto invalid_resp;
+	if (len == 0)
+		goto invalid_resp;
 
-		reader += offset;
-		previous_dname = query->name;
-
-		/* move forward 2 bytes for question type */
-		if (reader + 2 >= bufend)
-			goto invalid_resp;
-		query->type = reader[0] * 256 + reader[1];
-		reader += 2;
-
-		/* move forward 2 bytes for question class */
-		if (reader + 2 >= bufend)
-			goto invalid_resp;
-		query->class = reader[0] * 256 + reader[1];
-		reader += 2;
+	/* Now let's check the query's dname corresponds to the one we sent. */
+	if (len != resolution->hostname_dn_len ||
+	    memcmp(query->name, resolution->hostname_dn, resolution->hostname_dn_len) != 0) {
+		cause = RSLV_RESP_WRONG_NAME;
+		goto invalid_resp;
 	}
 
-	/* Let's just make gcc happy. The tests above make it clear that
-	 * qdcount==1 hence that we necessarily enter into the loop at least
-	 * once, but gcc seems to be having difficulties following it and
-	 * warns about the risk of NULL dereference at the next line, even
-	 * if a BUG_ON(!query) is used.
-	 */
-	ALREADY_CHECKED(query);
+	reader += offset;
+	previous_dname = query->name;
+
+	/* move forward 2 bytes for question type */
+	if (reader + 2 >= bufend)
+		goto invalid_resp;
+	query->type = reader[0] * 256 + reader[1];
+	reader += 2;
+
+	/* move forward 2 bytes for question class */
+	if (reader + 2 >= bufend)
+		goto invalid_resp;
+	query->class = reader[0] * 256 + reader[1];
+	reader += 2;
 
 	/* TRUNCATED flag must be checked after we could read the query type
 	 * because a TRUNCATED SRV query type response can still be exploited
@@ -1478,8 +1469,6 @@ static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufe
 	cause = RSLV_RESP_INVALID;
 
  return_error:
-	if (query)
-		LIST_DEL_INIT(&query->list);
 	pool_free(resolv_answer_item_pool, answer_record);
 	return cause;
 }
@@ -1852,8 +1841,6 @@ static struct resolv_resolution *resolv_pick_resolution(struct resolvers *resolv
 	/* No resolution could be found, so let's allocate a new one */
 	res = pool_zalloc(resolv_resolution_pool);
 	if (res) {
-		int i;
-
 		res->resolvers  = resolvers;
 		res->uuid       = resolution_uuid;
 		res->status     = RSLV_STATUS_NONE;
@@ -1861,11 +1848,7 @@ static struct resolv_resolution *resolv_pick_resolution(struct resolvers *resolv
 		res->last_valid = now_ms;
 
 		LIST_INIT(&res->requesters);
-		LIST_INIT(&res->response.query_list);
 		res->response.answer_tree = EB_ROOT;
-
-		for (i = 0; i < DNS_MAX_QUERY_RECORDS; i++)
-			LIST_INIT(&res->response_query_records[i].list);
 
 		res->prefered_query_type = query_type;
 		res->query_type          = query_type;
@@ -1896,15 +1879,6 @@ static void resolv_purge_resolution_answer_records(struct resolv_resolution *res
 	}
 }
 
-/* deletes all query_items from the resolution's query_list */
-static void resolv_purge_resolution_query_items(struct resolv_resolution *resolution)
-{
-	struct resolv_query_item *item, *itemback;
-
-	list_for_each_entry_safe(item, itemback, &resolution->response.query_list, list)
-		LIST_DEL_INIT(&item->list);
-}
-
 /* Releases a resolution from its requester(s) and move it back to the pool */
 static void resolv_free_resolution(struct resolv_resolution *resolution)
 {
@@ -1920,7 +1894,6 @@ static void resolv_free_resolution(struct resolv_resolution *resolution)
 		req->resolution = NULL;
 	}
 	resolv_purge_resolution_answer_records(resolution);
-	resolv_purge_resolution_query_items(resolution);
 
 	LIST_DEL_INIT(&resolution->list);
 	pool_free(resolv_resolution_pool, resolution);
@@ -2147,7 +2120,6 @@ static int resolv_process_responses(struct dns_nameserver *ns)
 	struct dns_counters   *tmpcounters;
 	struct resolvers  *resolvers;
 	struct resolv_resolution *res;
-	struct resolv_query_item *query;
 	unsigned char  buf[DNS_MAX_UDP_MESSAGE + 1];
 	unsigned char *bufend;
 	int buflen, dns_resp;
@@ -2272,20 +2244,6 @@ static int resolv_process_responses(struct dns_nameserver *ns)
 				}
 			}
 			continue;
-		}
-
-		/* Now let's check the query's dname corresponds to the one we
-		 * sent. We can check only the first query of the list. We send
-		 * one query at a time so we get one query in the response.
-		 */
-		if (!LIST_ISEMPTY(&res->response.query_list)) {
-			query = LIST_NEXT(&res->response.query_list, struct resolv_query_item *, list);
-			LIST_DEL_INIT(&query->list);
-			if (memcmp(query->name, res->hostname_dn, res->hostname_dn_len) != 0) {
-				dns_resp = RSLV_RESP_WRONG_NAME;
-				ns->counters->app.resolver.other++;
-				goto report_res_error;
-			}
 		}
 
 		/* So the resolution succeeded */
