@@ -99,6 +99,14 @@ enum h1m_state {
 #define H1_MF_TE_CHUNKED        0x00010000 // T-E "chunked"
 #define H1_MF_TE_OTHER          0x00020000 // T-E other than supported ones found (only "chunked" is supported for now)
 
+/* Mask to use to reset H1M flags when we restart headers parsing.
+ *
+ * WARNING: Don't forget to update it if a new flag must be preserved when
+ *          headers parsing is restarted.
+ */
+#define H1_MF_RESTART_MASK    (H1_MF_RESP|H1_MF_TOLOWER|H1_MF_NO_PHDR|H1_MF_HDRS_ONLY| \
+			       H1_MF_CLEAN_CONN_HDR|H1_MF_METH_CONNECT|H1_MF_METH_HEAD)
+
 /* Note: for a connection to be persistent, we need this for the request :
  *   - one of CLEN or CHNK
  *   - version 1.0 and KAL and not CLO

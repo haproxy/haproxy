@@ -1040,7 +1040,7 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 	return -2;
 
  restart:
-	h1m->flags &= ~(H1_MF_VER_11|H1_MF_CLEN|H1_MF_XFER_ENC|H1_MF_CHNK|H1_MF_CONN_KAL|H1_MF_CONN_CLO|H1_MF_CONN_UPG);
+	h1m->flags &= H1_MF_RESTART_MASK;
 	h1m->curr_len = h1m->body_len = h1m->next  = 0;
 	if (h1m->flags & H1_MF_RESP)
 		h1m->state = H1_MSG_RPBEFORE;
