@@ -3584,10 +3584,6 @@ static int sample_conv_jwt_member_query(const struct arg *args, struct sample *s
 	if (item_num < member + 1)
 		goto end;
 
-	decoded_header = alloc_trash_chunk();
-	if (!decoded_header)
-		goto end;
-
 	ret = base64urldec(items[member].start, items[member].length,
 	                   decoded_header->area, decoded_header->size);
 	if (ret == -1)
