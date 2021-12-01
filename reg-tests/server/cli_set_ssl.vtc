@@ -26,8 +26,9 @@ haproxy h1 -conf {
         default_backend test0
 
     backend test0
-        default-server ssl
         server www0 ${s1_addr}:${s1_port} no-ssl
+        default-server ssl
+        server www1 ${s1_addr}:${s1_port} no-ssl
 
     backend test1
         server www0 ${s1_addr}:${s1_port} no-ssl
@@ -36,17 +37,22 @@ haproxy h1 -conf {
 haproxy h1 -cli {
     # supported case
     send "show servers state test0"
+    expect ~ "test0 2 www1 ${s1_addr} .* - ${s1_port} - -1"
+    send "set server test0/www1 ssl on"
+    expect ~ "server ssl setting updated"
+    send "show servers state test0"
+    expect ~ "test0 2 www1 ${s1_addr} .* - ${s1_port} - 1"
+    send "set server test0/www1 ssl off"
+    expect ~ "server ssl setting updated"
+    send "show servers state test0"
+    expect ~ "test0 2 www1 ${s1_addr} .* - ${s1_port} - 0"
+
+    # unsupported cases
+    send "show servers state test0"
     expect ~ "test0 1 www0 ${s1_addr} .* - ${s1_port} - -1"
     send "set server test0/www0 ssl on"
-    expect ~ "server ssl setting updated"
-    send "show servers state test0"
-    expect ~ "test0 1 www0 ${s1_addr} .* - ${s1_port} - 1"
-    send "set server test0/www0 ssl off"
-    expect ~ "server ssl setting updated"
-    send "show servers state test0"
-    expect ~ "test0 1 www0 ${s1_addr} .* - ${s1_port} - 0"
+    expect ~ "'set server <srv> ssl' cannot be set"
 
-    # unsupported case
     send "show servers state test1"
     expect ~ "test1 1 www0 ${s1_addr} .* - ${s1_port} - -1"
     send "set server test1/www0 ssl on"

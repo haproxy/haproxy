@@ -3399,8 +3399,8 @@ out_uri_auth_compat:
 			 * if default-server have use_ssl, prerare ssl init
 			 * without activating it */
 			if (newsrv->use_ssl == 1 || newsrv->check.use_ssl == 1 ||
-				(newsrv->proxy->options & PR_O_TCPCHK_SSL) ||
-				(newsrv->use_ssl != 1 && curproxy->defsrv.use_ssl == 1)) {
+			    (newsrv->proxy->options & PR_O_TCPCHK_SSL) ||
+			    ((newsrv->flags & SRV_F_DEFSRV_USE_SSL) && newsrv->use_ssl != 1)) {
 				if (xprt_get(XPRT_SSL) && xprt_get(XPRT_SSL)->prepare_srv)
 					cfgerr += xprt_get(XPRT_SSL)->prepare_srv(newsrv);
 			}

@@ -148,6 +148,7 @@ enum srv_initaddr {
 #define SRV_F_NO_RESOLUTION 0x0800       /* disable runtime DNS resolution on this server */
 #define SRV_F_DYNAMIC      0x1000        /* dynamic server instantiated at runtime */
 #define SRV_F_NON_PURGEABLE 0x2000       /* this server cannot be removed at runtime */
+#define SRV_F_DEFSRV_USE_SSL 0x4000      /* default-server uses SSL */
 
 /* configured server options for send-proxy (server->pp_opts) */
 #define SRV_PP_V1               0x0001   /* proxy protocol version 1 */

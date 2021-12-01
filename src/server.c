@@ -2049,6 +2049,10 @@ static void srv_conn_src_cpy(struct server *srv, struct server *src)
 #if defined(USE_OPENSSL)
 static void srv_ssl_settings_cpy(struct server *srv, struct server *src)
 {
+	/* <src> is the current proxy's default server and SSL is enabled */
+	if (src == &srv->proxy->defsrv && src->use_ssl == 1)
+		srv->flags |= SRV_F_DEFSRV_USE_SSL;
+
 	if (src->ssl_ctx.ca_file != NULL)
 		srv->ssl_ctx.ca_file = strdup(src->ssl_ctx.ca_file);
 	if (src->ssl_ctx.crl_file != NULL)
