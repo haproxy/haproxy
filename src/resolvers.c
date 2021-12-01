@@ -1478,6 +1478,8 @@ static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufe
 	cause = RSLV_RESP_INVALID;
 
  return_error:
+	if (query)
+		LIST_DEL_INIT(&query->list);
 	pool_free(resolv_answer_item_pool, answer_record);
 	return cause;
 }
