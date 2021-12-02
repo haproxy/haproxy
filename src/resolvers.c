@@ -1004,7 +1004,7 @@ static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufe
 	if (len != resolution->hostname_dn_len ||
 	    memcmp(query->name, resolution->hostname_dn, resolution->hostname_dn_len) != 0) {
 		cause = RSLV_RESP_WRONG_NAME;
-		goto invalid_resp;
+		goto return_error;
 	}
 
 	reader += offset;
