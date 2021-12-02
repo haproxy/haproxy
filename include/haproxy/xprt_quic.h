@@ -1043,13 +1043,21 @@ static inline int qc_pkt_long(const struct quic_rx_packet *pkt)
  * for the connection.
  * Always succeeds.
  */
-static inline void quic_rx_packet_pool_purge(struct quic_conn *qc)
+static inline void quic_rx_pkts_del(struct quic_conn *qc)
 {
 	struct quic_rx_packet *pkt, *pktback;
 
 	list_for_each_entry_safe(pkt, pktback, &qc->rx.pkt_list, qc_rx_pkt_list) {
-		if (pkt->data != (unsigned char *)b_head(&qc->rx.buf))
+		if (pkt->data != (unsigned char *)b_head(&qc->rx.buf)) {
+			size_t cdata;
+
+			cdata = b_contig_data(&qc->rx.buf, 0);
+			if (cdata && !*b_head(&qc->rx.buf)) {
+				/* Consume the remaining data */
+				b_del(&qc->rx.buf, cdata);
+			}
 			break;
+		}
 
 		if (!HA_ATOMIC_LOAD(&pkt->refcnt)) {
 			b_del(&qc->rx.buf, pkt->raw_len);
@@ -1065,30 +1073,14 @@ static inline void quic_rx_packet_refinc(struct quic_rx_packet *pkt)
 	HA_ATOMIC_ADD(&pkt->refcnt, 1);
 }
 
-/* Decrement the reference counter of <pkt> */
+/* Decrement the reference counter of <pkt> while remaining positive */
 static inline void quic_rx_packet_refdec(struct quic_rx_packet *pkt)
 {
-	if (HA_ATOMIC_SUB_FETCH(&pkt->refcnt, 1))
-		return;
+	int refcnt;
 
-	if (!pkt->qc) {
-		/* It is possible the connection for this packet has not already been
-		 * identified. In such a case, we only need to free this packet.
-		 */
-		pool_free(pool_head_quic_rx_packet, pkt);
-	}
-	else {
-		struct quic_conn *qc = pkt->qc;
-
-		HA_RWLOCK_WRLOCK(QUIC_LOCK, &qc->rx.buf_rwlock);
-		if (pkt->data == (unsigned char *)b_head(&qc->rx.buf)) {
-			b_del(&qc->rx.buf, pkt->raw_len);
-			LIST_DELETE(&pkt->qc_rx_pkt_list);
-			pool_free(pool_head_quic_rx_packet, pkt);
-			quic_rx_packet_pool_purge(qc);
-		}
-		HA_RWLOCK_WRUNLOCK(QUIC_LOCK, &qc->rx.buf_rwlock);
-	}
+	do {
+		refcnt = HA_ATOMIC_LOAD(&pkt->refcnt);
+	} while (refcnt && !HA_ATOMIC_CAS(&pkt->refcnt, &refcnt, refcnt - 1));
 }
 
 /* Increment the reference counter of <pkt> */

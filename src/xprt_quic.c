@@ -4121,9 +4121,14 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 	}
 
 	HA_RWLOCK_WRLOCK(QUIC_LOCK, &qc->rx.buf_rwlock);
+	quic_rx_pkts_del(qc);
 	b_cspace = b_contig_space(&qc->rx.buf);
 	if (b_cspace < pkt->len) {
 		/* Let us consume the remaining contiguous space. */
+		if (b_cspace) {
+			b_putchr(&qc->rx.buf, 0x00);
+			b_cspace--;
+		}
 		b_add(&qc->rx.buf, b_cspace);
 		if (b_contig_space(&qc->rx.buf) < pkt->len) {
 			HA_RWLOCK_WRUNLOCK(QUIC_LOCK, &qc->rx.buf_rwlock);
