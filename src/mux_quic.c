@@ -197,6 +197,11 @@ static int qc_send(struct qcc *qcc)
 
 			fprintf(stderr, "%s ret=%d\n", __func__, ret);
 			qcs->tx.offset += ret;
+
+			if (b_data(buf)) {
+				qcc->conn->xprt->subscribe(qcc->conn, qcc->conn->xprt_ctx,
+				                           SUB_RETRY_SEND, &qcc->wait_event);
+			}
 		}
 		node = eb64_next(node);
 	}
