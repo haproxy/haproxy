@@ -116,6 +116,9 @@ static size_t hq_interop_snd_buf(struct conn_stream *cs, struct buffer *buf,
 		}
 	}
 
+	if ((htx->flags & HTX_FL_EOM) && htx_is_empty(htx))
+		qcs->flags |= QC_SF_FIN_STREAM;
+
 	b_add(res, b_data(&outbuf));
 
 	if (total) {

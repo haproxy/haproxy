@@ -54,6 +54,7 @@ struct qcc {
 };
 
 #define QC_SF_NONE              0x00000000
+#define QC_SF_FIN_STREAM        0x00000001  // FIN bit must be set for last frame of the stream
 
 struct qcs {
 	struct qcc *qcc;

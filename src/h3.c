@@ -620,6 +620,9 @@ size_t h3_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t count, int 
 		}
 	}
 
+	if ((htx->flags & HTX_FL_EOM) && htx_is_empty(htx))
+		qcs->flags |= QC_SF_FIN_STREAM;
+
  out:
 	if (total) {
 		if (!(qcs->qcc->wait_event.events & SUB_RETRY_SEND))

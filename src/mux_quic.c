@@ -143,8 +143,17 @@ static int qc_send(struct qcc *qcc)
 		struct qcs *qcs = container_of(node, struct qcs, by_id);
 		struct buffer *buf = &qcs->tx.buf;
 		if (b_data(buf)) {
-			/* TODO handle the FIN parameter */
-			ret = qcs_push_frame(qcs, buf, 0, qcs->tx.offset);
+			char fin = 0;
+
+			/* if FIN is activated, ensure the buffer to
+			 * send is the last
+			 */
+			if (qcs->flags & QC_SF_FIN_STREAM) {
+				BUG_ON(b_data(&qcs->tx.buf) < b_data(buf));
+				fin = (b_data(&qcs->tx.buf) - b_data(buf) == 0);
+			}
+
+			ret = qcs_push_frame(qcs, buf, fin, qcs->tx.offset);
 			if (ret < 0)
 				ABORT_NOW();
 
