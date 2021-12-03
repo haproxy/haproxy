@@ -23,7 +23,7 @@
 #include <haproxy/http.h>
 #include <haproxy/htx.h>
 #include <haproxy/istbuf.h>
-#include <haproxy/mux_quic.h>
+#include <haproxy/mux_quic-t.h>
 #include <haproxy/pool.h>
 #include <haproxy/qpack-dec.h>
 #include <haproxy/qpack-enc.h>
@@ -322,8 +322,9 @@ static int h3_control_recv(struct h3_uqs *h3_uqs, void *ctx)
 		b_del(rxbuf, flen);
 	}
 
-	if (b_data(rxbuf))
-		h3->qcc->conn->mux->ruqs_subscribe(h3_uqs->qcs, SUB_RETRY_RECV, &h3->rctrl.wait_event);
+	/* TODO handle the case when the buffer is not empty. This can happens
+	 * if there is an incomplete frame.
+	 */
 
 	return 1;
 }
@@ -533,10 +534,8 @@ static int h3_resp_data_send(struct qcs *qcs, struct buffer *buf, size_t count)
 	/* not enough room for headers and at least one data byte, block the
 	 * stream
 	 */
-	if (b_size(&outbuf) <= hsize) {
-		qcs->flags |= QC_SF_BLK_MROOM;
-		goto end;
-	}
+	if (b_size(&outbuf) <= hsize)
+		ABORT_NOW();
 
 	if (b_size(&outbuf) < hsize + fsize)
 		fsize = b_size(&outbuf) - hsize;
@@ -573,9 +572,11 @@ size_t h3_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t count, int 
 	int32_t idx;
 	int ret;
 
+	fprintf(stderr, "%s\n", __func__);
+
 	htx = htx_from_buf(buf);
 
-	while (count && !htx_is_empty(htx) && !(qcs->flags & QC_SF_BLK_MROOM)) {
+	while (count && !htx_is_empty(htx)) {
 		idx = htx_get_head(htx);
 		blk = htx_get_blk(htx, idx);
 		btype = htx_get_blk_type(blk);
@@ -619,9 +620,6 @@ size_t h3_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t count, int 
 		}
 	}
 
-	if ((htx->flags & HTX_FL_EOM) && htx_is_empty(htx))
-		qcs->flags |= QC_SF_FIN_STREAM;
-
  out:
 	if (total) {
 		if (!(qcs->qcc->wait_event.events & SUB_RETRY_SEND))
@@ -657,7 +655,7 @@ static int h3_attach_ruqs(struct qcs *qcs, void *ctx)
 
 		h3->rctrl.qcs = qcs;
 		h3->rctrl.cb = h3_control_recv;
-		h3->qcc->conn->mux->ruqs_subscribe(qcs, SUB_RETRY_RECV, &h3->rctrl.wait_event);
+		// TODO wake-up rctrl tasklet on reception
 		break;
 	case H3_UNI_STRM_TP_PUSH_STREAM:
 		/* NOT SUPPORTED */
@@ -670,7 +668,7 @@ static int h3_attach_ruqs(struct qcs *qcs, void *ctx)
 
 		h3->rqpack_enc.qcs = qcs;
 		h3->rqpack_enc.cb = qpack_decode_enc;
-		h3->qcc->conn->mux->ruqs_subscribe(qcs, SUB_RETRY_RECV, &h3->rqpack_enc.wait_event);
+		// TODO wake-up rqpack_enc tasklet on reception
 		break;
 	case H3_UNI_STRM_TP_QPACK_DECODER:
 		if (h3->rqpack_dec.qcs) {
@@ -680,7 +678,7 @@ static int h3_attach_ruqs(struct qcs *qcs, void *ctx)
 
 		h3->rqpack_dec.qcs = qcs;
 		h3->rqpack_dec.cb = qpack_decode_dec;
-		h3->qcc->conn->mux->ruqs_subscribe(qcs, SUB_RETRY_RECV, &h3->rqpack_dec.wait_event);
+		// TODO wake-up rqpack_dec tasklet on reception
 		break;
 	default:
 		/* Error */
@@ -694,8 +692,10 @@ static int h3_attach_ruqs(struct qcs *qcs, void *ctx)
 static int h3_finalize(void *ctx)
 {
 	struct h3 *h3 = ctx;
+	int lctrl_id;
 
-	h3->lctrl.qcs = luqs_new(h3->qcc);
+	lctrl_id = qcs_get_next_id(h3->qcc, QCS_SRV_UNI);
+	h3->lctrl.qcs = qcs_new(h3->qcc, lctrl_id, QCS_SRV_UNI);
 	if (!h3->lctrl.qcs)
 		return 0;
 
@@ -766,7 +766,7 @@ static int h3_uqs_init(struct h3_uqs *h3_uqs, struct h3 *h3,
 static inline void h3_uqs_release(struct h3_uqs *h3_uqs)
 {
 	if (h3_uqs->qcs)
-		qcs_release(h3_uqs->qcs);
+		uni_qcs_free(h3_uqs->qcs);
 }
 
 static inline void h3_uqs_release_all(struct h3 *h3)

@@ -81,7 +81,7 @@ static size_t hq_interop_snd_buf(struct conn_stream *cs, struct buffer *buf,
 	res = mux_get_buf(qcs);
 	outbuf = b_make(b_tail(res), b_contig_space(res), 0, 0);
 
-	while (count && !htx_is_empty(htx) && !(qcs->flags & QC_SF_BLK_MROOM)) {
+	while (count && !htx_is_empty(htx)) {
 		/* Not implemented : QUIC on backend side */
 		idx = htx_get_head(htx);
 		blk = htx_get_blk(htx, idx);
@@ -115,9 +115,6 @@ static size_t hq_interop_snd_buf(struct conn_stream *cs, struct buffer *buf,
 			break;
 		}
 	}
-
-	if ((htx->flags & HTX_FL_EOM) && htx_is_empty(htx))
-		qcs->flags |= QC_SF_FIN_STREAM;
 
 	b_add(res, b_data(&outbuf));
 

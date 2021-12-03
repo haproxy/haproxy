@@ -32,6 +32,7 @@
 #include <haproxy/cbuf-t.h>
 #include <haproxy/list.h>
 
+#include <haproxy/mux_quic-t.h>
 #include <haproxy/quic_cc-t.h>
 #include <haproxy/quic_frame-t.h>
 #include <haproxy/quic_tls-t.h>

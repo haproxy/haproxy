@@ -1,125 +1,53 @@
-/*
- * include/haproxy/mux_quic-t.h
- * This file contains prototypes for QUIC mux-demux.
- *
- * Copyright 2021 HAProxy Technologies, Frédéric Lécaille <flecaille@haproxy.com>
- *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation, version 2.1
- * exclusively.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
- */
-
 #ifndef _HAPROXY_MUX_QUIC_H
 #define _HAPROXY_MUX_QUIC_H
+
 #ifdef USE_QUIC
 #ifndef USE_OPENSSL
 #error "Must define USE_OPENSSL"
 #endif
 
-#include <haproxy/buf-t.h>
+#include <haproxy/bug.h>
 #include <haproxy/mux_quic-t.h>
-#include <haproxy/obj_type.h>
 
 void quic_mux_transport_params_update(struct qcc *qcc);
-void qc_error(struct qcc *qcc, int err);
+struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type);
+void uni_qcs_free(struct qcs *qcs);
+
 struct buffer *qc_get_buf(struct qcs *qcs, struct buffer *bptr);
-struct qcs *qcc_get_stream(struct qcc *qcc, uint64_t id);
-struct qcs *bidi_qcs_new(struct qcc *qcc, uint64_t id);
-struct qcs *luqs_new(struct qcc *qcc);
-struct qcs *ruqs_new(struct qcc *qcc, uint64_t id);
-size_t luqs_snd_buf(struct qcs *qcs, struct buffer *buf, size_t count, int flags);
-void qcs_release(struct qcs *qcs);
 
-void ruqs_notify_recv(struct qcs *qcs);
-
-/* Return 1 if the stream with <id> as ID attached to <qcc> connection
- * has been locally initiated, 0 if not.
+/* Bit shift to get the stream sub ID for internal use which is obtained
+ * shifting the stream IDs by this value, knowing that the
+ * QCS_ID_TYPE_SHIFT less significant bits identify the stream ID
+ * types (client initiated bidirectional, server initiated bidirectional,
+ * client initiated unidirectional, server initiated bidirectional).
+ * Note that there is no reference to such stream sub IDs in the RFC.
  */
-static inline int qc_local_stream_id(struct qcc *qcc, uint64_t id)
-{
-	if ((objt_listener(qcc->conn->target) && (id & QCS_ID_SRV_INTIATOR_BIT)) ||
-	    (objt_server(qcc->conn->target) && !(id & QCS_ID_SRV_INTIATOR_BIT)))
-		return 1;
-
-	return 0;
-}
-
-/* Return 1 if <qcs> stream  has been locally initiated, 0 if not. */
-static inline int qcs_local(struct qcs *qcs)
-{
-	if ((objt_listener(qcs->qcc->conn->target) && (qcs->id & QCS_ID_SRV_INTIATOR_BIT)) ||
-	    (objt_server(qcs->qcc->conn->target) && !(qcs->id & QCS_ID_SRV_INTIATOR_BIT)))
-		return 1;
-
-	return 0;
-}
-
-/* Return the direction of a stream with <id> as ID. */
-static inline enum qcs_dir qcs_id_dir(uint64_t id)
-{
-	return (id & QCS_ID_DIR_BIT) >> QCS_ID_DIR_BIT_SHIFT;
-}
-
-/* Return the direction of <qcs> QUIC stream. */
-static inline enum qcs_dir qcs_dir(struct qcs *qcs)
-{
-	return (qcs->id & QCS_ID_DIR_BIT) >> QCS_ID_DIR_BIT_SHIFT;
-}
+#define QCS_ID_TYPE_MASK         0x3
+#define QCS_ID_TYPE_SHIFT          2
+/* The less significant bit of a stream ID is set for a server initiated stream */
+#define QCS_ID_SRV_INTIATOR_BIT  0x1
+/* This bit is set for unidirectional streams */
+#define QCS_ID_DIR_BIT           0x2
 
 static inline enum qcs_type qcs_id_type(uint64_t id)
 {
 	return id & QCS_ID_TYPE_MASK;
 }
 
-static inline enum qcs_type qcs_type_from_dir(struct qcc *qcc, enum qcs_dir dir)
+/* Return 1 if the stream with <id> as ID attached to <qcc> connection
+ * has been locally initiated, 0 if not.
+ */
+static inline int qc_local_stream_id(struct qcc *qcc, uint64_t id)
 {
-	return (dir << QCS_ID_DIR_BIT_SHIFT) |
-		(!!objt_listener(qcc->conn->target) ? QCS_ID_SRV_INTIATOR_BIT : 0);
+	return id & QCS_ID_SRV_INTIATOR_BIT;
 }
 
-static inline int64_t qcc_wnd(struct qcc *qcc)
+static inline int qcs_get_next_id(struct qcc *qcc, enum qcs_type type)
 {
-	return qcc->tx.max_data - qcc->tx.bytes;
-}
-
-/* Return 1 if <qcs> is unidirectional, 0 if not. */
-static inline int qcs_uni(struct qcs *qcs)
-{
-	return qcs->id & QCS_ID_DIR_BIT;
-}
-
-/* Return 1 if <qcs> is bidirectional, 0 if not. */
-static inline int qcs_bidi(struct qcs *qcs)
-{
-	return !qcs_uni(qcs);
-}
-
-/* Return the next stream ID with <qcs_type> as type if succeeded, (uint64_t)-1 if not. */
-static inline uint64_t qcs_next_id(struct qcc *qcc, enum qcs_type qcs_type)
-{
-	if (qcc->strms[qcs_type].nb_streams + 1 > qcc->strms[qcs_type].max_streams)
-		return (uint64_t)-1;
-
-	return (qcc->strms[qcs_type].nb_streams++ << QCS_ID_TYPE_SHIFT) | qcs_type;
-}
-
-static inline void *qcs_new(struct qcc *qcc, uint64_t id)
-{
-	if (id & QCS_ID_DIR_BIT)
-		return ruqs_new(qcc, id);
-	else
-		return bidi_qcs_new(qcc, id);
+	BUG_ON(qcc->strms[type].nb_streams + 1 > qcc->strms[type].max_streams);
+	return (qcc->strms[type].nb_streams++ << QCS_ID_TYPE_SHIFT) | type;
 }
 
 #endif /* USE_QUIC */
+
 #endif /* _HAPROXY_MUX_QUIC_H */

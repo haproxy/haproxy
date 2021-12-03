@@ -1426,16 +1426,12 @@ static inline void qc_treat_acked_tx_frm(struct quic_frame *frm,
 			qcs->tx.ack_offset += strm->len;
 			LIST_DELETE(&frm->list);
 			pool_free(pool_head_quic_frame, frm);
-			qc->qcc->flags &= ~QC_CF_MUX_MFULL;
 			stream_acked = 1;
 		}
 		else {
 			eb64_insert(&qcs->tx.acked_frms, &strm->offset);
 		}
 		stream_acked |= qcs_try_to_consume(qcs);
-
-		if (qcs->flags & QC_SF_DETACH)
-			tasklet_wakeup(qcs->shut_tl);
 	}
 	break;
 	default:
@@ -1989,7 +1985,9 @@ static struct eb64_node *qcc_get_qcs(struct qcc *qcc, uint64_t id)
 
 			qcs = NULL;
 			for (i = largest_id + 1; i <= sub_id; i++) {
-				qcs = qcs_new(qcc, (i << QCS_ID_TYPE_SHIFT) | strm_type);
+				uint64_t id = (i << QCS_ID_TYPE_SHIFT) | strm_type;
+				enum qcs_type type = id & QCS_ID_DIR_BIT ? QCS_CLT_UNI : QCS_CLT_BIDI;
+				qcs = qcs_new(qcc, id, type);
 				if (!qcs) {
 					TRACE_PROTO("Could not allocate a new stream",
 								QUIC_EV_CONN_PSTRM, qcc->conn);
@@ -2151,9 +2149,6 @@ static int qc_handle_uni_strm_frm(struct quic_rx_packet *pkt,
 			return 0;
 		}
 
-		if (ret)
-			ruqs_notify_recv(strm);
-
 		strm_frm->offset.key += ret;
 	}
 	/* Take this frame into an account for the stream flow control */
@@ -2297,7 +2292,7 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct ssl_sock_ctx *ct
 			break;
 		case QUIC_FT_CONNECTION_CLOSE:
 		case QUIC_FT_CONNECTION_CLOSE_APP:
-			conn->qcc->flags |= QC_CF_CC_RECV;
+			/* TODO warn the mux to close the connection */
 			break;
 		case QUIC_FT_HANDSHAKE_DONE:
 			if (objt_listener(ctx->conn->target))

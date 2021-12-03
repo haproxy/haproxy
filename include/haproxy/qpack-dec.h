@@ -21,8 +21,6 @@
 #ifndef _HAPROXY_QPACK_DEC_H
 #define _HAPROXY_QPACK_DEC_H
 
-#include <haproxy/mux_quic-t.h>
-
 struct h3_uqs;
 struct http_hdr;
 

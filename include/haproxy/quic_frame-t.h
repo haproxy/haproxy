@@ -33,6 +33,8 @@
 
 #include <import/ebtree-t.h>
 
+#include <haproxy/mux_quic-t.h>
+
 /* QUIC frame types. */
 enum quic_frame_type {
 	QUIC_FT_PADDING      = 0x00,
