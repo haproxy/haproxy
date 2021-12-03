@@ -55,7 +55,7 @@
 #if defined(DEBUG_STRICT)
 #define CRASH_NOW() ABORT_NOW()
 #else
-#define CRASH_NOW() do { ha_backtrace_to_stderr(); } while (0)
+#define CRASH_NOW() do { extern void ha_backtrace_to_stderr(void); ha_backtrace_to_stderr(); } while (0)
 #endif
 
 #define BUG_ON(cond) _BUG_ON(cond, __FILE__, __LINE__)
