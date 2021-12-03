@@ -1827,6 +1827,7 @@ static inline int qc_provide_cdata(struct quic_enc_level *el,
 {
 	int ssl_err, state;
 	struct quic_conn *qc;
+	const struct qcc_app_ops *app_ops;
 	const char *alpn;
 	int alpn_len;
 
@@ -1887,12 +1888,10 @@ static inline int qc_provide_cdata(struct quic_enc_level *el,
 
 	conn_get_alpn(ctx->conn, &alpn, &alpn_len);
 	if (alpn_len >= 2 && memcmp(alpn, "h3", 2) == 0) {
-		qc->qcc->app_ops = &h3_ops;
-		if (!qc->qcc->app_ops->init(qc->qcc))
-			goto err;
+		app_ops = qc->qcc->app_ops = &h3_ops;
 	}
 	else if (alpn_len >= 10 && memcmp(alpn, "hq-interop", 10) == 0) {
-		qc->qcc->app_ops = &hq_interop_ops;
+		app_ops = qc->qcc->app_ops = &hq_interop_ops;
 	}
 	else {
 		/* TODO RFC9001 8.1. Protocol Negotiation
@@ -1901,6 +1900,14 @@ static inline int qc_provide_cdata(struct quic_enc_level *el,
 		TRACE_PROTO("No matching ALPN", QUIC_EV_CONN_SSLDATA, ctx->conn);
 		goto err;
 	}
+
+	if (app_ops->init) {
+		if (!app_ops->init(qc->qcc))
+			goto err;
+	}
+
+	if (app_ops->finalize)
+		app_ops->finalize(qc->qcc->ctx);
 
  out:
 	TRACE_LEAVE(QUIC_EV_CONN_SSLDATA, ctx->conn);

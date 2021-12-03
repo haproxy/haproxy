@@ -498,12 +498,6 @@ void quic_mux_transport_params_update(struct qcc *qcc)
 		qcc->strms[QCS_SRV_BIDI].rx.max_data = srv_params->initial_max_stream_data_bidi_local;
 		qcc->strms[QCS_SRV_UNI].rx.max_data = srv_params->initial_max_stream_data_uni;
 	}
-
-	/* Now that we have all the flow control information, we can finalize the application
-	 * context.
-	 */
-	if (qcc->app_ops)
-		qcc->app_ops->finalize(qcc->ctx);
 }
 
 /* Initialize the mux once it's attached. For outgoing connections, the context
