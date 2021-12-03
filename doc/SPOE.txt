@@ -514,7 +514,8 @@ args [name=]<sample> ...
 event <name> [ { if | unless } <condition> ]
   Set the event that triggers sending of the message. It may optionally be
   followed by an ACL-based condition, in which case it will only be evaluated
-  if the condition is true.
+  if the condition is true. A SPOE message can only be sent on one event. If
+  several events are defined, only the last one is considered.
 
   ACL-based conditions are executed in the context of the stream that handle
   the client and the server connections.
