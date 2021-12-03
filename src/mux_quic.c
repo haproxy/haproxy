@@ -164,6 +164,7 @@ static int qcs_push_frame(struct qcs *qcs, struct buffer *payload, int fin, uint
 static int qc_send(struct qcc *qcc)
 {
 	struct eb64_node *node;
+	int xprt_wake = 0;
 	int ret;
 
 	fprintf(stderr, "%s\n", __func__);
@@ -190,10 +191,10 @@ static int qc_send(struct qcc *qcc)
 			if (ret < 0)
 				ABORT_NOW();
 
-			if (ret > 0)
+			if (ret > 0) {
 				qcs_notify_send(qcs);
-
-			/* TODO wake-up xprt if data were transfered */
+				xprt_wake = 1;
+			}
 
 			fprintf(stderr, "%s ret=%d\n", __func__, ret);
 			qcs->tx.offset += ret;
@@ -205,6 +206,9 @@ static int qc_send(struct qcc *qcc)
 		}
 		node = eb64_next(node);
 	}
+
+	if (xprt_wake)
+		tasklet_wakeup(((struct ssl_sock_ctx *)(qcc->conn->xprt_ctx))->wait_event.tasklet);
 
 	return ret;
 }
