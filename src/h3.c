@@ -534,11 +534,14 @@ static int h3_resp_data_send(struct qcs *qcs, struct buffer *buf, size_t count)
 		b_slow_realign(res, trash.area, b_data(res));
 	}
 
-	/* not enough room for headers and at least one data byte, block the
-	 * stream
+	/* Not enough room for headers and at least one data byte, block the
+	 * stream. It is expected that the conn-stream layer will subscribe on
+	 * SEND.
 	 */
-	if (b_size(&outbuf) <= hsize)
-		ABORT_NOW();
+	if (b_size(&outbuf) <= hsize) {
+		qcs->flags |= QC_SF_BLK_MROOM;
+		goto end;
+	}
 
 	if (b_size(&outbuf) < hsize + fsize)
 		fsize = b_size(&outbuf) - hsize;
@@ -579,7 +582,7 @@ size_t h3_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t count, int 
 
 	htx = htx_from_buf(buf);
 
-	while (count && !htx_is_empty(htx)) {
+	while (count && !htx_is_empty(htx) && !(qcs->flags & QC_SF_BLK_MROOM)) {
 		idx = htx_get_head(htx);
 		blk = htx_get_blk(htx, idx);
 		btype = htx_get_blk_type(blk);

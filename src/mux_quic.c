@@ -193,6 +193,9 @@ static int qc_send(struct qcc *qcc)
 
 			if (ret > 0) {
 				qcs_notify_send(qcs);
+				if (qcs->flags & QC_SF_BLK_MROOM)
+					qcs->flags &= ~QC_SF_BLK_MROOM;
+
 				xprt_wake = 1;
 			}
 

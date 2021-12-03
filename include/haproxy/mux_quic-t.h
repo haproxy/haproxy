@@ -55,6 +55,7 @@ struct qcc {
 
 #define QC_SF_NONE              0x00000000
 #define QC_SF_FIN_STREAM        0x00000001  // FIN bit must be set for last frame of the stream
+#define QC_SF_BLK_MROOM         0x00000002  // app layer is blocked waiting for room in the qcs.tx.buf
 
 struct qcs {
 	struct qcc *qcc;
