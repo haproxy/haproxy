@@ -374,7 +374,13 @@ static void copy_lit_huff(struct slz_stream *strm, const unsigned char *buf, uin
 static inline uint32_t slz_hash(uint32_t a)
 {
 #if defined(__ARM_FEATURE_CRC32)
+#  if defined(__ARM_ARCH_ISA_A64)
+	// 64 bit mode
 	__asm__ volatile("crc32w %w0,%w0,%w1" : "+r"(a) : "r"(0));
+#  else
+	// 32 bit mode (e.g. armv7 compiler building for armv8
+	__asm__ volatile("crc32w %0,%0,%1" : "+r"(a) : "r"(0));
+#  endif
 	return a >> (32 - HASH_BITS);
 #else
 	return ((a << 19) + (a << 6) - a) >> (32 - HASH_BITS);
@@ -870,7 +876,13 @@ static inline uint32_t crc32_char(uint32_t crc, uint8_t x)
 {
 #if defined(__ARM_FEATURE_CRC32)
 	crc = ~crc;
+#  if defined(__ARM_ARCH_ISA_A64)
+	// 64 bit mode
 	__asm__ volatile("crc32b %w0,%w0,%w1" : "+r"(crc) : "r"(x));
+#  else
+	// 32 bit mode (e.g. armv7 compiler building for armv8
+	__asm__ volatile("crc32b %0,%0,%1" : "+r"(crc) : "r"(x));
+#  endif
 	crc = ~crc;
 #else
 	crc = crc32_fast[0][(crc ^ x) & 0xff] ^ (crc >> 8);
@@ -881,7 +893,13 @@ static inline uint32_t crc32_char(uint32_t crc, uint8_t x)
 static inline uint32_t crc32_uint32(uint32_t data)
 {
 #if defined(__ARM_FEATURE_CRC32)
+#  if defined(__ARM_ARCH_ISA_A64)
+	// 64 bit mode
 	__asm__ volatile("crc32w %w0,%w0,%w1" : "+r"(data) : "r"(~0UL));
+#  else
+	// 32 bit mode (e.g. armv7 compiler building for armv8
+	__asm__ volatile("crc32w %0,%0,%1" : "+r"(data) : "r"(~0UL));
+#  endif
 	data = ~data;
 #else
 	data = crc32_fast[3][(data >>  0) & 0xff] ^
@@ -913,10 +931,19 @@ uint32_t slz_crc32_by4(uint32_t crc, const unsigned char *buf, int len)
 #ifdef UNALIGNED_LE_OK
 #if defined(__ARM_FEATURE_CRC32)
 		crc = ~crc;
+#  if defined(__ARM_ARCH_ISA_A64)
+	// 64 bit mode
 		__asm__ volatile("crc32w %w0,%w0,%w1" : "+r"(crc) : "r"(*(uint32_t*)(buf)));
 		__asm__ volatile("crc32w %w0,%w0,%w1" : "+r"(crc) : "r"(*(uint32_t*)(buf + 4)));
 		__asm__ volatile("crc32w %w0,%w0,%w1" : "+r"(crc) : "r"(*(uint32_t*)(buf + 8)));
 		__asm__ volatile("crc32w %w0,%w0,%w1" : "+r"(crc) : "r"(*(uint32_t*)(buf + 12)));
+#  else
+	// 32 bit mode (e.g. armv7 compiler building for armv8
+		__asm__ volatile("crc32w %0,%0,%1" : "+r"(crc) : "r"(*(uint32_t*)(buf)));
+		__asm__ volatile("crc32w %0,%0,%1" : "+r"(crc) : "r"(*(uint32_t*)(buf + 4)));
+		__asm__ volatile("crc32w %0,%0,%1" : "+r"(crc) : "r"(*(uint32_t*)(buf + 8)));
+		__asm__ volatile("crc32w %0,%0,%1" : "+r"(crc) : "r"(*(uint32_t*)(buf + 12)));
+#  endif
 		crc = ~crc;
 #else
 		crc ^= *(uint32_t *)buf;
