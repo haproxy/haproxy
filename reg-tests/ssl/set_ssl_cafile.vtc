@@ -77,7 +77,7 @@ client c1 -connect ${h1_clearlst_sock} {
     rxresp
     expect resp.status == 200
     # unable to verify the client certificate
-    expect resp.http.X-SSL-Client-Verify == 21
+    expect resp.http.X-SSL-Client-Verify ~ "20|21"
 } -run
 
 # Set a new ca-file without committing it and check that the new ca-file is not taken into account
@@ -106,7 +106,7 @@ client c1 -connect ${h1_clearlst_sock} {
     rxresp
     expect resp.status == 200
     # unable to verify the client certificate
-    expect resp.http.X-SSL-Client-Verify == 21
+    expect resp.http.X-SSL-Client-Verify ~ "20|21"
 } -run
 
 haproxy h1 -cli {

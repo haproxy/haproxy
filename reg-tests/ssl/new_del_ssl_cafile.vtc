@@ -60,7 +60,7 @@ client c1 -connect ${h1_clearlst_sock} {
     rxresp
     expect resp.status == 200
     # The CA file known by the frontend does not allow to verify the client's certificate
-    expect resp.http.X-SSL-Client-Verify == 21
+    expect resp.http.X-SSL-Client-Verify ~ "20|21"
 } -run
 
 # This connection should fail because the with-ca.com sni is not mentioned in the crt-list yet.
