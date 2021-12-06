@@ -215,9 +215,75 @@ static int qc_init(struct connection *conn, struct proxy *prx,
 	return -1;
 }
 
+/* detachs the QUIC stream from its QCC and releases it to the QCS pool. */
+static void qcs_destroy(struct qcs *qcs)
+{
+	fprintf(stderr, "%s: release stream %llu\n", __func__, qcs->by_id.key);
+
+	eb64_delete(&qcs->by_id);
+
+	b_free(&qcs->rx.buf);
+	b_free(&qcs->tx.buf);
+	b_free(&qcs->tx.xprt_buf);
+
+	--qcs->qcc->strms[qcs_id_type(qcs->by_id.key)].nb_streams;
+
+	pool_free(pool_head_qcs, qcs);
+}
+
+static inline int qcc_is_dead(const struct qcc *qcc)
+{
+	fprintf(stderr, "%s: %lu\n", __func__, qcc->strms[QCS_CLT_BIDI].nb_streams);
+
+	if (!qcc->strms[QCS_CLT_BIDI].nb_streams)
+		return 1;
+
+	return 0;
+}
+
+/* release function. This one should be called to free all resources allocated
+ * to the mux.
+ */
+static void qc_release(struct qcc *qcc)
+{
+	struct connection *conn = NULL;
+
+	if (qcc) {
+		/* The connection must be aattached to this mux to be released */
+		if (qcc->conn && qcc->conn->ctx == qcc)
+			conn = qcc->conn;
+
+		if (qcc->wait_event.tasklet)
+			tasklet_free(qcc->wait_event.tasklet);
+
+		pool_free(pool_head_qcc, qcc);
+	}
+
+	if (conn) {
+		conn->mux = NULL;
+		conn->ctx = NULL;
+
+		conn_stop_tracking(conn);
+		conn_full_close(conn);
+		if (conn->destroy_cb)
+			conn->destroy_cb(conn);
+		conn_free(conn);
+	}
+}
+
 static void qc_detach(struct conn_stream *cs)
 {
-	/* XXX TO DO XXX */
+	struct qcs *qcs = cs->ctx;
+	struct qcc *qcc = qcs->qcc;
+
+	fprintf(stderr, "%s: leaving with tx.buf.data=%lu, tx.xprt_buf.data=%lu\n",
+	        __func__, b_data(&qcs->tx.buf), b_data(&qcs->tx.xprt_buf));
+
+	qcs_destroy(qcs);
+	if (qcc_is_dead(qcc)) {
+		qc_release(qcc);
+		return;
+	}
 }
 
 /* Called from the upper layer, to receive data */
