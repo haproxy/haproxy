@@ -3114,6 +3114,9 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 		qc_set_timer(ctx);
 		if (!quic_build_post_handshake_frames(qc))
 			goto err;
+
+		qc_el_rx_pkts_del(&qc->els[QUIC_TLS_ENC_LEVEL_INITIAL]);
+		qc_el_rx_pkts_del(&qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE]);
 		goto start;
 	}
 

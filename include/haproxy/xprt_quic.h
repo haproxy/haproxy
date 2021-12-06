@@ -1108,6 +1108,24 @@ static inline void quic_tx_packet_refdec(struct quic_tx_packet *pkt)
 		pool_free(pool_head_quic_tx_packet, pkt);
 }
 
+/* Delete all RX packets for <qel> QUIC encryption level */
+static inline void qc_el_rx_pkts_del(struct quic_enc_level *qel)
+{
+	struct eb64_node *node;
+
+	HA_RWLOCK_WRLOCK(QUIC_LOCK, &qel->rx.pkts_rwlock);
+	node = eb64_first(&qel->rx.pkts);
+	while (node) {
+		struct quic_rx_packet *pkt =
+			eb64_entry(&node->node, struct quic_rx_packet, pn_node);
+
+		node = eb64_next(node);
+		eb64_delete(&pkt->pn_node);
+		quic_rx_packet_refdec(pkt);
+	}
+	HA_RWLOCK_WRUNLOCK(QUIC_LOCK, &qel->rx.pkts_rwlock);
+}
+
 void quic_set_tls_alert(struct quic_conn *qc, int alert);
 ssize_t quic_lstnr_dgram_read(struct buffer *buf, size_t len, void *owner,
                               struct sockaddr_storage *saddr);
