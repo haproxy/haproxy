@@ -5320,6 +5320,7 @@ http-after-response <action> <options...> [ { if | unless } <condition> ]
   supported:
     - add-header <name> <fmt>
     - allow
+    - capture <sample> id <id>
     - del-header <name> [ -m <meth> ]
     - replace-header <name> <regex-match> <replace-fmt>
     - replace-value <name> <regex-match> <replace-fmt>
@@ -5355,6 +5356,12 @@ http-after-response add-header <name> <fmt> [ { if | unless } <condition> ]
 
   This appends an HTTP header field whose name is specified in <name> and whose
   value is defined by <fmt>. Please refer to "http-request add-header" for a
+  complete description.
+
+http-after-response capture <sample> id <id> [ { if | unless } <condition> ]
+
+  This captures sample expression <sample> from the response buffer, and
+  converts it to a string. Please refer to "http-response capture" for a
   complete description.
 
 http-after-response allow [ { if | unless } <condition> ]

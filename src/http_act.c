@@ -2478,6 +2478,7 @@ static struct action_kw_list http_after_res_actions = {
 	.kw = {
 		{ "add-header",      parse_http_set_header,     0 },
 		{ "allow",           parse_http_allow,          0 },
+		{ "capture",         parse_http_res_capture,    0 },
 		{ "del-header",      parse_http_del_header,     0 },
 		{ "replace-header",  parse_http_replace_header, 0 },
 		{ "replace-value",   parse_http_replace_header, 0 },
