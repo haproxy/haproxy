@@ -2149,6 +2149,9 @@ static int qc_handle_uni_strm_frm(struct quic_rx_packet *pkt,
 			return 0;
 		}
 
+		if (ret)
+			qcs_notify_recv(strm);
+
 		strm_frm->offset.key += ret;
 	}
 	/* Take this frame into an account for the stream flow control */

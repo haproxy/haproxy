@@ -322,9 +322,12 @@ static int h3_control_recv(struct h3_uqs *h3_uqs, void *ctx)
 		b_del(rxbuf, flen);
 	}
 
-	/* TODO handle the case when the buffer is not empty. This can happens
-	 * if there is an incomplete frame.
+	/* Handle the case where remaining data are present in the buffer. This
+	 * can happen if there is an incomplete frame. In this case, subscribe
+	 * on the lower layer to restart receive operation.
 	 */
+	if (b_data(rxbuf))
+		qcs_subscribe(h3_uqs->qcs, SUB_RETRY_RECV, &h3_uqs->wait_event);
 
 	return 1;
 }
@@ -658,7 +661,7 @@ static int h3_attach_ruqs(struct qcs *qcs, void *ctx)
 
 		h3->rctrl.qcs = qcs;
 		h3->rctrl.cb = h3_control_recv;
-		// TODO wake-up rctrl tasklet on reception
+		qcs_subscribe(qcs, SUB_RETRY_RECV, &h3->rctrl.wait_event);
 		break;
 	case H3_UNI_STRM_TP_PUSH_STREAM:
 		/* NOT SUPPORTED */
@@ -671,7 +674,7 @@ static int h3_attach_ruqs(struct qcs *qcs, void *ctx)
 
 		h3->rqpack_enc.qcs = qcs;
 		h3->rqpack_enc.cb = qpack_decode_enc;
-		// TODO wake-up rqpack_enc tasklet on reception
+		qcs_subscribe(qcs, SUB_RETRY_RECV, &h3->rqpack_enc.wait_event);
 		break;
 	case H3_UNI_STRM_TP_QPACK_DECODER:
 		if (h3->rqpack_dec.qcs) {
@@ -681,7 +684,7 @@ static int h3_attach_ruqs(struct qcs *qcs, void *ctx)
 
 		h3->rqpack_dec.qcs = qcs;
 		h3->rqpack_dec.cb = qpack_decode_dec;
-		// TODO wake-up rqpack_dec tasklet on reception
+		qcs_subscribe(qcs, SUB_RETRY_RECV, &h3->rqpack_dec.wait_event);
 		break;
 	default:
 		/* Error */

@@ -15,6 +15,10 @@ void uni_qcs_free(struct qcs *qcs);
 
 struct buffer *qc_get_buf(struct qcs *qcs, struct buffer *bptr);
 
+int qcs_subscribe(struct qcs *qcs, int event_type, struct wait_event *es);
+void qcs_notify_recv(struct qcs *qcs);
+void qcs_notify_send(struct qcs *qcs);
+
 /* Bit shift to get the stream sub ID for internal use which is obtained
  * shifting the stream IDs by this value, knowing that the
  * QCS_ID_TYPE_SHIFT less significant bits identify the stream ID

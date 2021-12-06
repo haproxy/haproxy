@@ -84,6 +84,39 @@ struct buffer *qc_get_buf(struct qcs *qcs, struct buffer *bptr)
 	return buf;
 }
 
+int qcs_subscribe(struct qcs *qcs, int event_type, struct wait_event *es)
+{
+	fprintf(stderr, "%s\n", __func__);
+
+	BUG_ON(event_type & ~(SUB_RETRY_SEND|SUB_RETRY_RECV));
+	BUG_ON(qcs->subs && qcs->subs != es);
+
+	es->events |= event_type;
+	qcs->subs = es;
+
+	return 0;
+}
+
+void qcs_notify_recv(struct qcs *qcs)
+{
+	if (qcs->subs && qcs->subs->events & SUB_RETRY_RECV) {
+		tasklet_wakeup(qcs->subs->tasklet);
+		qcs->subs->events &= ~SUB_RETRY_RECV;
+		if (!qcs->subs->events)
+			qcs->subs = NULL;
+	}
+}
+
+void qcs_notify_send(struct qcs *qcs)
+{
+	if (qcs->subs && qcs->subs->events & SUB_RETRY_SEND) {
+		tasklet_wakeup(qcs->subs->tasklet);
+		qcs->subs->events &= ~SUB_RETRY_SEND;
+		if (!qcs->subs->events)
+			qcs->subs = NULL;
+	}
+}
+
 static int qcs_push_frame(struct qcs *qcs, struct buffer *payload, int fin, uint64_t offset)
 {
 	struct quic_frame *frm;
@@ -156,6 +189,9 @@ static int qc_send(struct qcc *qcc)
 			ret = qcs_push_frame(qcs, buf, fin, qcs->tx.offset);
 			if (ret < 0)
 				ABORT_NOW();
+
+			if (ret > 0)
+				qcs_notify_send(qcs);
 
 			/* TODO wake-up xprt if data were transfered */
 
@@ -323,8 +359,7 @@ static size_t qc_snd_buf(struct conn_stream *cs, struct buffer *buf,
 static int qc_subscribe(struct conn_stream *cs, int event_type,
                         struct wait_event *es)
 {
-	/* XXX TODO XXX */
-	return 0;
+	return qcs_subscribe(cs->ctx, event_type, es);
 }
 
 /* Called from the upper layer, to unsubscribe <es> from events <event_type>.
