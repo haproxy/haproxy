@@ -3133,7 +3133,7 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 	 */
 	if (next_qel && next_qel != qel &&
 	    (next_qel->tls_ctx.rx.flags & QUIC_FL_TLS_SECRETS_SET) &&
-	    (!MT_LIST_ISEMPTY(&next_qel->rx.pqpkts) || !eb_is_empty(&next_qel->rx.pkts))) {
+	    (!MT_LIST_ISEMPTY(&next_qel->rx.pqpkts) || qc_el_rx_pkts(next_qel))) {
 		qel = next_qel;
 		next_qel = NULL;
 		goto next_level;

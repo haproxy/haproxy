@@ -1038,6 +1038,18 @@ static inline int qc_pkt_long(const struct quic_rx_packet *pkt)
 	return pkt->type != QUIC_PACKET_TYPE_SHORT;
 }
 
+/* Return 1 if there is RX packets for <qel> QUIC encryption level, 0 if not */
+static inline int qc_el_rx_pkts(struct quic_enc_level *qel)
+{
+	int ret;
+
+	HA_RWLOCK_RDLOCK(QUIC_LOCK, &qel->rx.pkts_rwlock);
+	ret = !eb_is_empty(&qel->rx.pkts);
+	HA_RWLOCK_RDUNLOCK(QUIC_LOCK, &qel->rx.pkts_rwlock);
+
+	return ret;
+}
+
 /* Release the memory for the RX packets which are no more referenced
  * and consume their payloads which have been copied to the RX buffer
  * for the connection.
