@@ -484,9 +484,6 @@ static int h3_resp_headers_send(struct qcs *qcs, struct htx *htx)
 			break;
 	}
 
-	if ((htx->flags & HTX_FL_EOM) && htx_is_empty(htx) && status >= 200)
-		qcs->flags |= QC_SF_FIN_STREAM;
-
 	return ret;
 
  err:
