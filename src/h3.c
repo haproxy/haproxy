@@ -299,14 +299,20 @@ static int h3_control_recv(struct h3_uqs *h3_uqs, void *ctx)
 		/* From here, a frame must not be truncated */
 		switch (ftype) {
 		case H3_FT_CANCEL_PUSH:
+			/* XXX TODO XXX */
+			ABORT_NOW();
 			break;
 		case H3_FT_SETTINGS:
 			if (!h3_parse_settings_frm(h3, rxbuf, flen))
 				return 0;
 			break;
 		case H3_FT_GOAWAY:
+			/* XXX TODO XXX */
+			ABORT_NOW();
 			break;
 		case H3_FT_MAX_PUSH_ID:
+			/* XXX TODO XXX */
+			ABORT_NOW();
 			break;
 		default:
 			/* Error */
