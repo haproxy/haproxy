@@ -2230,7 +2230,7 @@ void back_handle_st_cer(struct stream *s)
 
 	/* we probably have to release last stream from the server */
 	if (objt_server(s->target)) {
-		health_adjust(objt_server(s->target), HANA_STATUS_L4_ERR);
+		health_adjust(__objt_server(s->target), HANA_STATUS_L4_ERR);
 
 		if (s->flags & SF_CURR_SESS) {
 			s->flags &= ~SF_CURR_SESS;

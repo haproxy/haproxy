@@ -624,8 +624,8 @@ static void stream_free(struct stream *s)
 			s->flags &= ~SF_CURR_SESS;
 			_HA_ATOMIC_DEC(&__objt_server(s->target)->cur_sess);
 		}
-		if (may_dequeue_tasks(objt_server(s->target), s->be))
-			process_srv_queue(objt_server(s->target));
+		if (may_dequeue_tasks(__objt_server(s->target), s->be))
+			process_srv_queue(__objt_server(s->target));
 	}
 
 	if (unlikely(s->srv_conn)) {
@@ -826,7 +826,7 @@ void stream_process_counters(struct stream *s)
 		_HA_ATOMIC_ADD(&s->be->be_counters.bytes_in,    bytes);
 
 		if (objt_server(s->target))
-			_HA_ATOMIC_ADD(&objt_server(s->target)->counters.bytes_in, bytes);
+			_HA_ATOMIC_ADD(&__objt_server(s->target)->counters.bytes_in, bytes);
 
 		if (sess->listener && sess->listener->counters)
 			_HA_ATOMIC_ADD(&sess->listener->counters->bytes_in, bytes);
@@ -844,7 +844,7 @@ void stream_process_counters(struct stream *s)
 		_HA_ATOMIC_ADD(&s->be->be_counters.bytes_out,    bytes);
 
 		if (objt_server(s->target))
-			_HA_ATOMIC_ADD(&objt_server(s->target)->counters.bytes_out, bytes);
+			_HA_ATOMIC_ADD(&__objt_server(s->target)->counters.bytes_out, bytes);
 
 		if (sess->listener && sess->listener->counters)
 			_HA_ATOMIC_ADD(&sess->listener->counters->bytes_out, bytes);
@@ -916,7 +916,7 @@ static void back_establish(struct stream *s)
 	}
 
 	if (objt_server(s->target))
-		health_adjust(objt_server(s->target), HANA_STATUS_L4_OK);
+		health_adjust(__objt_server(s->target), HANA_STATUS_L4_OK);
 
 	if (!IS_HTX_STRM(s)) { /* let's allow immediate data connection in this case */
 		/* if the user wants to log as soon as possible, without counting
@@ -1439,7 +1439,7 @@ static int process_store_rules(struct stream *s, struct channel *rep, int an_bit
 		struct dict_entry *de;
 		struct stktable *t = s->store[i].table;
 
-		if (objt_server(s->target) && objt_server(s->target)->flags & SRV_F_NON_STICK) {
+		if (objt_server(s->target) && __objt_server(s->target)->flags & SRV_F_NON_STICK) {
 			stksess_free(s->store[i].table, s->store[i].ts);
 			s->store[i].ts = NULL;
 			continue;
@@ -2428,8 +2428,8 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		    si_b->prev_state == SI_ST_EST) {
 			chunk_printf(&trash, "%08x:%s.srvcls[%04x:%04x]\n",
 				      s->uniq_id, s->be->id,
-			              objt_cs(si_f->end) ? (unsigned short)objt_cs(si_f->end)->conn->handle.fd : -1,
-			              objt_cs(si_b->end) ? (unsigned short)objt_cs(si_b->end)->conn->handle.fd : -1);
+			              objt_cs(si_f->end) ? (unsigned short)__objt_cs(si_f->end)->conn->handle.fd : -1,
+			              objt_cs(si_b->end) ? (unsigned short)__objt_cs(si_b->end)->conn->handle.fd : -1);
 			DISGUISE(write(1, trash.area, trash.data));
 		}
 
@@ -2437,8 +2437,8 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		    si_f->prev_state == SI_ST_EST) {
 			chunk_printf(&trash, "%08x:%s.clicls[%04x:%04x]\n",
 				      s->uniq_id, s->be->id,
-			              objt_cs(si_f->end) ? (unsigned short)objt_cs(si_f->end)->conn->handle.fd : -1,
-			              objt_cs(si_b->end) ? (unsigned short)objt_cs(si_b->end)->conn->handle.fd : -1);
+			              objt_cs(si_f->end) ? (unsigned short)__objt_cs(si_f->end)->conn->handle.fd : -1,
+			              objt_cs(si_b->end) ? (unsigned short)__objt_cs(si_b->end)->conn->handle.fd : -1);
 			DISGUISE(write(1, trash.area, trash.data));
 		}
 	}
@@ -2505,8 +2505,8 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		     (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)))) {
 		chunk_printf(&trash, "%08x:%s.closed[%04x:%04x]\n",
 			      s->uniq_id, s->be->id,
-		              objt_cs(si_f->end) ? (unsigned short)objt_cs(si_f->end)->conn->handle.fd : -1,
-		              objt_cs(si_b->end) ? (unsigned short)objt_cs(si_b->end)->conn->handle.fd : -1);
+		              objt_cs(si_f->end) ? (unsigned short)__objt_cs(si_f->end)->conn->handle.fd : -1,
+		              objt_cs(si_b->end) ? (unsigned short)__objt_cs(si_b->end)->conn->handle.fd : -1);
 		DISGUISE(write(1, trash.area, trash.data));
 	}
 
@@ -3213,8 +3213,8 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 		if (strm->be->cap & PR_CAP_BE)
 			chunk_appendf(&trash,
 				     "  server=%s (id=%u)",
-				     objt_server(strm->target) ? objt_server(strm->target)->id : "<none>",
-				     objt_server(strm->target) ? objt_server(strm->target)->puid : 0);
+				     objt_server(strm->target) ? __objt_server(strm->target)->id : "<none>",
+				     objt_server(strm->target) ? __objt_server(strm->target)->puid : 0);
 		else
 			chunk_appendf(&trash, "  server=<NONE> (id=-1)");
 
@@ -3590,7 +3590,7 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 					     get_host_port(conn->src),
 					     strm_fe(curr_strm)->id,
 					     (curr_strm->be->cap & PR_CAP_BE) ? curr_strm->be->id : "<NONE>",
-					     objt_server(curr_strm->target) ? objt_server(curr_strm->target)->id : "<none>"
+					     objt_server(curr_strm->target) ? __objt_server(curr_strm->target)->id : "<none>"
 					     );
 				break;
 			case AF_UNIX:
@@ -3599,7 +3599,7 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 					     strm_li(curr_strm)->luid,
 					     strm_fe(curr_strm)->id,
 					     (curr_strm->be->cap & PR_CAP_BE) ? curr_strm->be->id : "<NONE>",
-					     objt_server(curr_strm->target) ? objt_server(curr_strm->target)->id : "<none>"
+					     objt_server(curr_strm->target) ? __objt_server(curr_strm->target)->id : "<none>"
 					     );
 				break;
 			}
