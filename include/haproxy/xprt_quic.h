@@ -403,10 +403,13 @@ static inline size_t quic_packet_number_length(int64_t pn,
  * enough room in the buffer to copy <pn_len> bytes.
  * Never fails.
  */
-static inline void quic_packet_number_encode(unsigned char **buf,
-                                             const unsigned char *end,
-                                             uint64_t pn, size_t pn_len)
+static inline int quic_packet_number_encode(unsigned char **buf,
+                                            const unsigned char *end,
+                                            uint64_t pn, size_t pn_len)
 {
+	if (end - *buf < pn_len)
+		return 0;
+
 	/* Encode the packet number. */
 	switch (pn_len) {
 	case 1:
@@ -425,6 +428,8 @@ static inline void quic_packet_number_encode(unsigned char **buf,
 		break;
 	}
 	*buf += pn_len;
+
+	return 1;
 }
 
 /* Returns the <ack_delay> field value from <ack_frm> ACK frame for
