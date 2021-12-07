@@ -4829,8 +4829,8 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 		}
 
 		srv->conf.id.key = srv->puid = next_id;
-		srv->conf.name.key = srv->id;
 	}
+	srv->conf.name.key = srv->id;
 
 	/* insert the server in the backend trees */
 	eb32_insert(&be->conf.used_server_id, &srv->conf.id);
