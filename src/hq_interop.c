@@ -94,6 +94,15 @@ static size_t hq_interop_snd_buf(struct conn_stream *cs, struct buffer *buf,
 		case HTX_BLK_DATA:
 			if (fsize > count)
 				fsize = count;
+
+			if (b_size(&outbuf) < fsize)
+				fsize = b_size(&outbuf);
+
+			if (!fsize) {
+				qcs->flags |= QC_SF_BLK_MROOM;
+				goto end;
+			}
+
 			b_putblk(&outbuf, htx_get_blk_ptr(htx, blk), fsize);
 			total += fsize;
 			count -= fsize;
@@ -116,6 +125,7 @@ static size_t hq_interop_snd_buf(struct conn_stream *cs, struct buffer *buf,
 		}
 	}
 
+ end:
 	if ((htx->flags & HTX_FL_EOM) && htx_is_empty(htx))
 		qcs->flags |= QC_SF_FIN_STREAM;
 
