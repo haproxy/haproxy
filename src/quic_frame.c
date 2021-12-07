@@ -821,7 +821,8 @@ static int quic_build_connection_close_app_frame(unsigned char **buf, const unsi
 		return 0;
 
 	if (connection_close_app->reason_phrase_len) {
-		memcpy(*buf, connection_close_app->reason_phrase, connection_close_app->reason_phrase_len);
+		// TODO reason_phrase is not allocated
+		//memcpy(*buf, connection_close_app->reason_phrase, connection_close_app->reason_phrase_len);
 		*buf += connection_close_app->reason_phrase_len;
 	}
 
@@ -843,7 +844,8 @@ static int quic_parse_connection_close_app_frame(struct quic_frame *frm, struct 
 	    end - *buf < connection_close_app->reason_phrase_len)
 		return 0;
 
-	memcpy(connection_close_app->reason_phrase, *buf, connection_close_app->reason_phrase_len);
+	// TODO reason_phrase is not allocated
+	//memcpy(connection_close_app->reason_phrase, *buf, connection_close_app->reason_phrase_len);
 	*buf += connection_close_app->reason_phrase_len;
 
 	return 1;
