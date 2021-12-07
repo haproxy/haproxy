@@ -6,7 +6,7 @@
 #error "Must define USE_OPENSSL"
 #endif
 
-#include <haproxy/bug.h>
+#include <haproxy/api.h>
 #include <haproxy/mux_quic-t.h>
 
 void quic_mux_transport_params_update(struct qcc *qcc);
