@@ -22,9 +22,11 @@ enum qcs_type {
 	QCS_MAX_TYPES
 };
 
+#define QC_CF_CC_RECV 0x00000001
+
 struct qcc {
 	struct connection *conn;
-	uint32_t flags;
+	uint32_t flags; /* QC_CF_* */
 
 	struct {
 		uint64_t max_streams; /* maximum number of concurrent streams */
