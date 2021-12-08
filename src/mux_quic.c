@@ -117,6 +117,62 @@ void qcs_notify_send(struct qcs *qcs)
 	}
 }
 
+/* detachs the QUIC stream from its QCC and releases it to the QCS pool. */
+static void qcs_destroy(struct qcs *qcs)
+{
+	fprintf(stderr, "%s: release stream %llu\n", __func__, qcs->by_id.key);
+
+	eb64_delete(&qcs->by_id);
+
+	b_free(&qcs->rx.buf);
+	b_free(&qcs->tx.buf);
+	b_free(&qcs->tx.xprt_buf);
+
+	--qcs->qcc->strms[qcs_id_type(qcs->by_id.key)].nb_streams;
+
+	pool_free(pool_head_qcs, qcs);
+}
+
+static inline int qcc_is_dead(const struct qcc *qcc)
+{
+	fprintf(stderr, "%s: %lu\n", __func__, qcc->strms[QCS_CLT_BIDI].nb_streams);
+
+	if (!qcc->strms[QCS_CLT_BIDI].nb_streams)
+		return 1;
+
+	return 0;
+}
+
+/* release function. This one should be called to free all resources allocated
+ * to the mux.
+ */
+static void qc_release(struct qcc *qcc)
+{
+	struct connection *conn = NULL;
+
+	if (qcc) {
+		/* The connection must be aattached to this mux to be released */
+		if (qcc->conn && qcc->conn->ctx == qcc)
+			conn = qcc->conn;
+
+		if (qcc->wait_event.tasklet)
+			tasklet_free(qcc->wait_event.tasklet);
+
+		pool_free(pool_head_qcc, qcc);
+	}
+
+	if (conn) {
+		conn->mux = NULL;
+		conn->ctx = NULL;
+
+		conn_stop_tracking(conn);
+		conn_full_close(conn);
+		if (conn->destroy_cb)
+			conn->destroy_cb(conn);
+		conn_free(conn);
+	}
+}
+
 static int qcs_push_frame(struct qcs *qcs, struct buffer *payload, int fin, uint64_t offset)
 {
 	struct quic_frame *frm;
@@ -208,6 +264,31 @@ static int qc_send(struct qcc *qcc)
 	return ret;
 }
 
+static int qc_release_detached_streams(struct qcc *qcc)
+{
+	struct eb64_node *node;
+	int release = 0;
+
+	node = eb64_first(&qcc->streams_by_id);
+	while (node) {
+		struct qcs *qcs = container_of(node, struct qcs, by_id);
+		node = eb64_next(node);
+
+		if (qcs->flags & QC_SF_DETACH) {
+			if (!b_data(&qcs->tx.buf) && !b_data(&qcs->tx.xprt_buf)) {
+				qcs_destroy(qcs);
+				release = 1;
+			}
+			else {
+				qcc->conn->xprt->subscribe(qcc->conn, qcc->conn->xprt_ctx,
+				                           SUB_RETRY_SEND, &qcc->wait_event);
+			}
+		}
+	}
+
+	return release;
+}
+
 static struct task *qc_io_cb(struct task *t, void *ctx, unsigned int status)
 {
 	struct qcc *qcc = ctx;
@@ -215,6 +296,13 @@ static struct task *qc_io_cb(struct task *t, void *ctx, unsigned int status)
 	fprintf(stderr, "%s\n", __func__);
 
 	qc_send(qcc);
+
+	if (qc_release_detached_streams(qcc)) {
+		if (qcc_is_dead(qcc)) {
+			qc_release(qcc);
+			return NULL;
+		}
+	}
 
 	return NULL;
 }
@@ -264,62 +352,6 @@ static int qc_init(struct connection *conn, struct proxy *prx,
 	return -1;
 }
 
-/* detachs the QUIC stream from its QCC and releases it to the QCS pool. */
-static void qcs_destroy(struct qcs *qcs)
-{
-	fprintf(stderr, "%s: release stream %llu\n", __func__, qcs->by_id.key);
-
-	eb64_delete(&qcs->by_id);
-
-	b_free(&qcs->rx.buf);
-	b_free(&qcs->tx.buf);
-	b_free(&qcs->tx.xprt_buf);
-
-	--qcs->qcc->strms[qcs_id_type(qcs->by_id.key)].nb_streams;
-
-	pool_free(pool_head_qcs, qcs);
-}
-
-static inline int qcc_is_dead(const struct qcc *qcc)
-{
-	fprintf(stderr, "%s: %lu\n", __func__, qcc->strms[QCS_CLT_BIDI].nb_streams);
-
-	if (!qcc->strms[QCS_CLT_BIDI].nb_streams)
-		return 1;
-
-	return 0;
-}
-
-/* release function. This one should be called to free all resources allocated
- * to the mux.
- */
-static void qc_release(struct qcc *qcc)
-{
-	struct connection *conn = NULL;
-
-	if (qcc) {
-		/* The connection must be aattached to this mux to be released */
-		if (qcc->conn && qcc->conn->ctx == qcc)
-			conn = qcc->conn;
-
-		if (qcc->wait_event.tasklet)
-			tasklet_free(qcc->wait_event.tasklet);
-
-		pool_free(pool_head_qcc, qcc);
-	}
-
-	if (conn) {
-		conn->mux = NULL;
-		conn->ctx = NULL;
-
-		conn_stop_tracking(conn);
-		conn_full_close(conn);
-		if (conn->destroy_cb)
-			conn->destroy_cb(conn);
-		conn_free(conn);
-	}
-}
-
 static void qc_detach(struct conn_stream *cs)
 {
 	struct qcs *qcs = cs->ctx;
@@ -327,6 +359,11 @@ static void qc_detach(struct conn_stream *cs)
 
 	fprintf(stderr, "%s: leaving with tx.buf.data=%lu, tx.xprt_buf.data=%lu\n",
 	        __func__, b_data(&qcs->tx.buf), b_data(&qcs->tx.xprt_buf));
+
+	if (b_data(&qcs->tx.buf) || b_data(&qcs->tx.xprt_buf)) {
+		qcs->flags |= QC_SF_DETACH;
+		return;
+	}
 
 	qcs_destroy(qcs);
 	if (qcc_is_dead(qcc)) {
