@@ -10124,17 +10124,18 @@ retries <value>
   See also : "option redispatch"
 
 
-retry-on [list of keywords]
+retry-on [space-delimited list of keywords]
   Specify when to attempt to automatically retry a failed request.
   This setting is only valid when "mode" is set to http and is silently ignored
   otherwise.
   May be used in sections:    defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
   Arguments :
-    <keywords>  is a list of keywords or HTTP status codes, each representing a
-                type of failure event on which an attempt to retry the request
-                is desired. Please read the notes at the bottom before changing
-                this setting. The following keywords are supported :
+    <keywords>  is a space-delimited list of keywords or HTTP status codes, each
+                representing a type of failure event on which an attempt to
+                retry the request is desired. Please read the notes at the
+                bottom before changing this setting. The following keywords are
+                supported :
 
       none              never retry
 
@@ -10206,6 +10207,9 @@ retry-on [list of keywords]
   should not use this directive.
 
   The default is "conn-failure".
+
+  Example:
+    retry-on 503 504
 
   See also: "retries", "option redispatch", "tune.bufsize"
 
