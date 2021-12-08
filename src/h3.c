@@ -100,7 +100,7 @@ static int h3_decode_qcs(struct qcs *qcs, int fin, void *ctx)
 {
 	struct buffer *rxbuf = &qcs->rx.buf;
 	struct h3 *h3 = ctx;
-	struct htx *htx;
+	struct htx *htx = NULL;
 	struct htx_sl *sl;
 	struct conn_stream *cs;
 	struct http_hdr list[global.tune.max_http_hdr];
@@ -220,8 +220,10 @@ static int h3_decode_qcs(struct qcs *qcs, int fin, void *ctx)
 		b_del(rxbuf, flen);
 	}
 
-	if (fin && !b_data(rxbuf))
-		htx->flags |= HTX_FL_EOM;
+	if (htx) {
+		if (fin && !b_data(rxbuf))
+			htx->flags |= HTX_FL_EOM;
+	}
 
 	return 0;
 
