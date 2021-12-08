@@ -1093,7 +1093,7 @@ static inline void quic_rx_packet_refinc(struct quic_rx_packet *pkt)
 /* Decrement the reference counter of <pkt> while remaining positive */
 static inline void quic_rx_packet_refdec(struct quic_rx_packet *pkt)
 {
-	int refcnt;
+	unsigned int refcnt;
 
 	do {
 		refcnt = HA_ATOMIC_LOAD(&pkt->refcnt);
