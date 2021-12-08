@@ -43,6 +43,9 @@ struct qcc {
 	} strms[QCS_MAX_TYPES];
 
 	struct {
+		uint64_t max_data; /* Maximum number of bytes which may be received */
+	} rx;
+	struct {
 		uint64_t max_data; /* Maximum number of bytes which may be sent */
 	} tx;
 
