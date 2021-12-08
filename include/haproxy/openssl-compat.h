@@ -417,7 +417,7 @@ static inline X509 *X509_STORE_CTX_get0_cert(X509_STORE_CTX *ctx)
 #define SSL_CTX_get_extra_chain_certs(ctx, chain) do { *(chain) = (ctx)->extra_certs; } while (0)
 #endif
 
-#if HA_OPENSSL_VERSION_NUMBER < 0x10100000L
+#if HA_OPENSSL_VERSION_NUMBER < 0x10100000L && (!defined(LIBRESSL_VERSION_NUMBER) || LIBRESSL_VERSION_NUMBER < 0x2070000fL)
 #define BIO_get_data(b)            (b)->ptr
 #define BIO_set_data(b, v)         do { (b)->ptr  = (v); } while (0)
 #define BIO_set_init(b, v)         do { (b)->init = (v); } while (0)
