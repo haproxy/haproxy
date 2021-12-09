@@ -3424,7 +3424,8 @@ static struct quic_conn *qc_new_conn(unsigned int version, int ipv4,
  */
 static int quic_conn_init_timer(struct quic_conn *qc)
 {
-	qc->timer_task = task_new_anywhere();
+	/* Attach this task to the same thread ID used for the connection */
+	qc->timer_task = task_new(1UL << qc->tid);
 	if (!qc->timer_task)
 		return 0;
 
@@ -5066,7 +5067,7 @@ static int qc_conn_init(struct connection *conn, void **xprt_ctx)
 		struct bind_conf *bc = __objt_listener(conn->target)->bind_conf;
 		struct quic_conn *qc = ctx->conn->qc;
 
-		ctx->wait_event.tasklet->tid = quic_get_cid_tid(&qc->scid);
+		qc->tid = ctx->wait_event.tasklet->tid = quic_get_cid_tid(&qc->scid);
 		if (qc_ssl_sess_init(qc, bc->initial_ctx, &ctx->ssl,
 		                     qc->enc_params, qc->enc_params_len) == -1)
 			goto err;

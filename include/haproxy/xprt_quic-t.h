@@ -627,7 +627,8 @@ struct quic_conn {
 	uint32_t version;
 	/* QUIC transport parameters TLS extension */
 	int tps_tls_ext;
-
+	/* Thread ID this connection is attached to */
+	int tid;
 	int state;
 	uint64_t err_code;
 	unsigned char enc_params[QUIC_TP_MAX_ENCLEN]; /* encoded QUIC transport parameters */
