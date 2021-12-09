@@ -21409,7 +21409,7 @@ would have passed through a successful stream, hence will be available as
 regular traffic log (see option httplog or option httpslog).
 
    # detailed frontend connection error log
-   error-log-format "%ci:%cp [%tr] %ft %ac/%fc %[fc_conn_err]/\
+   error-log-format "%ci:%cp [%tr] %ft %ac/%fc %[fc_err]/\
          %[ssl_fc_err,hex]/%[ssl_c_err]/%[ssl_c_ca_err]/%[ssl_fc_is_resumed] \
          %[ssl_fc_sni]/%sslv/%sslc"
 
