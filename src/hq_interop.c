@@ -98,8 +98,8 @@ static size_t hq_interop_snd_buf(struct conn_stream *cs, struct buffer *buf,
 			if (fsize > count)
 				fsize = count;
 
-			if (b_size(&outbuf) < fsize)
-				fsize = b_size(&outbuf);
+			if (b_room(&outbuf) < fsize)
+				fsize = b_room(&outbuf);
 
 			if (!fsize) {
 				qcs->flags |= QC_SF_BLK_MROOM;
