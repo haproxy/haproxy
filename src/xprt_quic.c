@@ -174,14 +174,31 @@ static struct quic_tx_packet *qc_build_pkt(unsigned char **pos, const unsigned c
 static inline void chunk_tx_frm_appendf(struct buffer *buf,
                                         const struct quic_frame *frm)
 {
+	chunk_appendf(buf, " %s", quic_frame_type_string(frm->type));
 	switch (frm->type) {
 	case QUIC_FT_CRYPTO:
+	{
+		const struct quic_crypto *cf = &frm->crypto;
 		chunk_appendf(buf, " cfoff=%llu cflen=%llu",
-		              (unsigned long long)frm->crypto.offset,
-		              (unsigned long long)frm->crypto.len);
+		              (ull)cf->offset, (ull)cf->len);
 		break;
-	default:
-		chunk_appendf(buf, " %s", quic_frame_type_string(frm->type));
+	}
+	case QUIC_FT_STOP_SENDING:
+	{
+		const struct quic_stop_sending *s = &frm->stop_sending;
+		chunk_appendf(&trace_buf, " id=%llu app_error_code=%llu",
+		              (ull)s->id, (ull)s->app_error_code);
+		break;
+	}
+	case QUIC_FT_STREAM_8 ... QUIC_FT_STREAM_F:
+	{
+		const struct quic_stream *s = &frm->stream;
+		chunk_appendf(&trace_buf, " uni=%d fin=%d id=%llu off=%llu len=%llu",
+		              !!(s->id & QUIC_STREAM_FRAME_ID_DIR_BIT),
+		              !!(frm->type & QUIC_STREAM_FRAME_TYPE_FIN_BIT),
+		              (ull)s->id, (ull)s->offset.key, (ull)s->len);
+		break;
+	}
 	}
 }
 
@@ -583,16 +600,8 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 		if (mask & QUIC_EV_CONN_PSTRM) {
 			const struct quic_frame *frm = a2;
 
-			if (a2) {
-				const struct quic_stream *s = &frm->stream;
-
-				chunk_appendf(&trace_buf, " uni=%d fin=%d id=%llu off=%llu len=%llu",
-							  !!(s->id & QUIC_STREAM_FRAME_ID_DIR_BIT),
-							  !!(frm->type & QUIC_STREAM_FRAME_TYPE_FIN_BIT),
-							  (unsigned long long)s->id,
-							  (unsigned long long)s->offset.key,
-							  (unsigned long long)s->len);
-			}
+			if (frm)
+				chunk_tx_frm_appendf(&trace_buf, frm);
 		}
 	}
 	if (mask & QUIC_EV_CONN_LPKT) {
@@ -2072,8 +2081,9 @@ static int qc_handle_bidi_strm_frm(struct quic_rx_packet *pkt,
 	if (strm_frm->offset.key == strm->rx.offset) {
 		int ret;
 
-		if (!qc_get_buf(strm, &strm->rx.buf))
+		if (!qc_get_buf(strm, &strm->rx.buf)) {
 		    goto store_frm;
+		}
 
 		ret = qc_strm_cpy(&strm->rx.buf, strm_frm);
 		if (ret && qc->qcc->app_ops->decode_qcs(strm, strm_frm->fin, qc->qcc->ctx) < 0) {
@@ -2229,6 +2239,9 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct ssl_sock_ctx *ct
 			}
 			break;
 		}
+		case QUIC_FT_STOP_SENDING:
+			TRACE_PROTO("RX frame", QUIC_EV_CONN_PSTRM, ctx->conn, &frm);
+			break;
 		case QUIC_FT_CRYPTO:
 		{
 			struct quic_rx_crypto_frm *cf;
@@ -2290,18 +2303,11 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct ssl_sock_ctx *ct
 			quic_rx_packet_refinc(pkt);
 			break;
 		}
-		case QUIC_FT_STREAM_8:
-		case QUIC_FT_STREAM_9:
-		case QUIC_FT_STREAM_A:
-		case QUIC_FT_STREAM_B:
-		case QUIC_FT_STREAM_C:
-		case QUIC_FT_STREAM_D:
-		case QUIC_FT_STREAM_E:
-		case QUIC_FT_STREAM_F:
+		case QUIC_FT_STREAM_8 ... QUIC_FT_STREAM_F:
 		{
 			struct quic_stream *stream = &frm.stream;
 
-			TRACE_PROTO("STREAM frame", QUIC_EV_CONN_PSTRM, ctx->conn, &frm);
+			TRACE_PROTO("RX frame", QUIC_EV_CONN_PSTRM, ctx->conn, &frm);
 			if (objt_listener(ctx->conn->target)) {
 				if (stream->id & QUIC_STREAM_FRAME_ID_INITIATOR_BIT)
 					goto err;
@@ -2961,7 +2967,6 @@ static inline int qc_treat_rx_crypto_frms(struct quic_enc_level *el,
 {
 	struct eb64_node *node;
 
-	TRACE_ENTER(QUIC_EV_CONN_RXCDATA, ctx->conn);
 	node = eb64_first(&el->rx.crypto.frms);
 	while (node) {
 		struct quic_rx_crypto_frm *cf;
@@ -2978,7 +2983,6 @@ static inline int qc_treat_rx_crypto_frms(struct quic_enc_level *el,
 		eb64_delete(&cf->offset_node);
 		pool_free(pool_head_quic_rx_crypto_frm, cf);
 	}
-	TRACE_LEAVE(QUIC_EV_CONN_RXCDATA, ctx->conn);
 	return 1;
 
  err:
@@ -4369,10 +4373,8 @@ static inline int qc_build_frms(struct quic_tx_packet *pkt,
 			/* Note that these frames are accepted in short packets only without
 			 * "Length" packet field. Here, <*len> is used only to compute the
 			 * sum of the lengths of the already built frames for this packet.
-			 */
-			TRACE_PROTO("          New STREAM frame build (room, len)",
-						QUIC_EV_CONN_BCFRMS, conn->conn, &room, len);
-			/* Compute the length of this STREAM frame "header" made a all the field
+			 *
+			 * Compute the length of this STREAM frame "header" made a all the field
 			 * excepting the variable ones. Note that +1 is for the type of this frame.
 			 */
 			hlen = 1 + quic_int_getsize(cf->stream.id) +
@@ -4382,6 +4384,8 @@ static inline int qc_build_frms(struct quic_tx_packet *pkt,
 			if ((ssize_t)avail_room <= 0)
 				break;
 
+			TRACE_PROTO("          New STREAM frame build (room, len)",
+						QUIC_EV_CONN_BCFRMS, conn->conn, &room, len);
 			if (cf->type & QUIC_STREAM_FRAME_TYPE_LEN_BIT) {
 				dlen = max_available_room(avail_room, &dlen_sz);
 				if (dlen > cf->stream.len) {
@@ -4615,6 +4619,7 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 	if (!LIST_ISEMPTY(&pkt->frms)) {
 		struct quic_frame *cf;
 
+		TRACE_PROTO("Ack eliciting frame", QUIC_EV_CONN_HPKT, conn->conn, pkt);
 		list_for_each_entry(cf, &pkt->frms, list) {
 			if (!qc_build_frm(&pos, end, cf, pkt, conn)) {
 				ssize_t room = end - pos;
