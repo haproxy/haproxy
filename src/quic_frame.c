@@ -264,10 +264,10 @@ static int quic_parse_reset_stream_frame(struct quic_frame *frm, struct quic_con
 static int quic_build_stop_sending_frame(unsigned char **buf, const unsigned char *end,
                                          struct quic_frame *frm, struct quic_conn *conn)
 {
-	struct quic_stop_sending_frame *stop_sending_frame = &frm->stop_sending_frame;
+	struct quic_stop_sending *stop_sending = &frm->stop_sending;
 
-	return quic_enc_int(buf, end, stop_sending_frame->id) &&
-		quic_enc_int(buf, end, stop_sending_frame->app_error_code);
+	return quic_enc_int(buf, end, stop_sending->id) &&
+		quic_enc_int(buf, end, stop_sending->app_error_code);
 }
 
 /* Parse a STOP_SENDING frame from <buf> buffer with <end> as end into <frm> frame.
@@ -276,10 +276,10 @@ static int quic_build_stop_sending_frame(unsigned char **buf, const unsigned cha
 static int quic_parse_stop_sending_frame(struct quic_frame *frm, struct quic_conn *qc,
                                          const unsigned char **buf, const unsigned char *end)
 {
-	struct quic_stop_sending_frame *stop_sending_frame = &frm->stop_sending_frame;
+	struct quic_stop_sending *stop_sending = &frm->stop_sending;
 
-	return quic_dec_int(&stop_sending_frame->id, buf, end) &&
-		quic_dec_int(&stop_sending_frame->app_error_code, buf, end);
+	return quic_dec_int(&stop_sending->id, buf, end) &&
+		quic_dec_int(&stop_sending->app_error_code, buf, end);
 }
 
 /* Encode a CRYPTO frame into <buf> buffer.

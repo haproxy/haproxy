@@ -126,7 +126,7 @@ struct quic_reset_stream {
 	uint64_t final_size;
 };
 
-struct quic_stop_sending_frame {
+struct quic_stop_sending {
 	uint64_t id;
 	uint64_t app_error_code;
 };
@@ -224,7 +224,7 @@ struct quic_frame {
 		struct quic_tx_ack tx_ack;
 		struct quic_crypto crypto;
 		struct quic_reset_stream reset_stream;
-		struct quic_stop_sending_frame stop_sending_frame;
+		struct quic_stop_sending stop_sending;
 		struct quic_new_token new_token;
 		struct quic_stream stream;
 		struct quic_max_data max_data;

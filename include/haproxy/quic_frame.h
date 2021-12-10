@@ -55,7 +55,7 @@ static inline size_t qc_frm_len(struct quic_frame *frm)
 		break;
 	}
 	case QUIC_FT_STOP_SENDING: {
-		struct quic_stop_sending_frame *f = &frm->stop_sending_frame;
+		struct quic_stop_sending *f = &frm->stop_sending;
 		len += 1 + quic_int_getsize(f->id) + quic_int_getsize(f->app_error_code);
 		break;
 	}
