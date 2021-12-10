@@ -2456,6 +2456,9 @@ read_again:
 			/* we can connect now */
 			s->target = pcli_pid_to_server(target_pid);
 
+			if (!s->target)
+				goto server_disconnect;
+
 			s->flags |= (SF_DIRECT | SF_ASSIGNED);
 			channel_auto_connect(req);
 		}
@@ -2480,6 +2483,10 @@ send_help:
 	b_reset(&req->buf);
 	b_putblk(&req->buf, "help\n", 5);
 	goto read_again;
+
+server_disconnect:
+	pcli_reply_and_close(s, "Can't connect to the target CLI!\n");
+	return 0;
 }
 
 int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
