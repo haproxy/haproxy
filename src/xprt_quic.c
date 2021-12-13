@@ -4115,14 +4115,19 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 		}
 
 		cids = &l->rx.cids;
+
+		HA_RWLOCK_RDLOCK(QUIC_LOCK, &l->rx.cids_lock);
 		node = ebmb_lookup(cids, *buf, QUIC_CID_LEN);
 		if (!node) {
+			HA_RWLOCK_RDUNLOCK(QUIC_LOCK, &l->rx.cids_lock);
 			TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT);
 			goto err;
 		}
 
 		cid = ebmb_entry(node, struct quic_connection_id, node);
 		qc = cid->qc;
+		HA_RWLOCK_RDUNLOCK(QUIC_LOCK, &l->rx.cids_lock);
+
 		if (HA_ATOMIC_LOAD(&qc->conn))
 			conn_ctx = HA_ATOMIC_LOAD(&qc->conn->xprt_ctx);
 		*buf += QUIC_CID_LEN;
