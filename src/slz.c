@@ -578,6 +578,8 @@ long slz_rfc1951_encode(struct slz_stream *strm, unsigned char *out, const unsig
 		int max_lookup = 2; // 0 = no limit
 
 		for (scan = pos - 1; scan < pos && (unsigned long)(pos - scan - 1) < 32768; scan--) {
+			int len;
+
 			if (*(uint32_t *)(in + scan) != word)
 				continue;
 
