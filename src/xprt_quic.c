@@ -3232,28 +3232,28 @@ static int quic_conn_enc_level_init(struct quic_conn *qc,
 }
 
 /* Release all the memory allocated for <conn> QUIC connection. */
-static void quic_conn_free(struct quic_conn *conn)
+static void quic_conn_free(struct quic_conn *qc)
 {
 	int i;
 
-	if (!conn)
+	if (!qc)
 		return;
 
-	free_quic_conn_cids(conn);
+	free_quic_conn_cids(qc);
 
 	/* remove the connection from receiver cids trees */
-	HA_RWLOCK_WRLOCK(QUIC_LOCK, &conn->li->rx.cids_lock);
-	ebmb_delete(&conn->odcid_node);
-	ebmb_delete(&conn->scid_node);
+	HA_RWLOCK_WRLOCK(QUIC_LOCK, &qc->li->rx.cids_lock);
+	ebmb_delete(&qc->odcid_node);
+	ebmb_delete(&qc->scid_node);
 
-	HA_RWLOCK_WRUNLOCK(QUIC_LOCK, &conn->li->rx.cids_lock);
+	HA_RWLOCK_WRUNLOCK(QUIC_LOCK, &qc->li->rx.cids_lock);
 
 	for (i = 0; i < QUIC_TLS_ENC_LEVEL_MAX; i++)
-		quic_conn_enc_level_uninit(&conn->els[i]);
-	if (conn->timer_task)
-		task_destroy(conn->timer_task);
-	pool_free(pool_head_quic_conn_rxbuf, conn->rx.buf.area);
-	pool_free(pool_head_quic_conn, conn);
+		quic_conn_enc_level_uninit(&qc->els[i]);
+	if (qc->timer_task)
+		task_destroy(qc->timer_task);
+	pool_free(pool_head_quic_conn_rxbuf, qc->rx.buf.area);
+	pool_free(pool_head_quic_conn, qc);
 }
 
 void quic_close(struct connection *conn, void *xprt_ctx)
