@@ -500,8 +500,6 @@ struct quic_tx_packet {
 	 */
 	size_t in_flight_len;
 	struct eb64_node pn_node;
-	/* The number of bytes of CRYPTO data in this packet. */
-	unsigned int cdata_len;
 	/* The list of frames of this packet. */
 	struct list frms;
 	/* The time this packet was sent (usec). */

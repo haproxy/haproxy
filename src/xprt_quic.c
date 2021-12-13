@@ -335,8 +335,8 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 			}
 			if (pkt) {
 				const struct quic_frame *frm;
-				chunk_appendf(&trace_buf, " pn=%llu cdlen=%u",
-				              (unsigned long long)pkt->pn_node.key, pkt->cdata_len);
+				if (pkt->pn_node.key != (uint64_t)-1)
+					chunk_appendf(&trace_buf, " pn=%llu",(ull)pkt->pn_node.key);
 				list_for_each_entry(frm, &pkt->frms, list)
 					chunk_tx_frm_appendf(&trace_buf, frm);
 				chunk_appendf(&trace_buf, " tx.bytes=%llu", (unsigned long long)qc->tx.bytes);
@@ -564,12 +564,11 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 			             (unsigned long long)qc->path->prep_in_flight,
 			             (unsigned long long)qc->path->in_flight);
 			if (pkt) {
-				chunk_appendf(&trace_buf, " pn=%lu(%s) iflen=%llu cdlen=%llu",
+				chunk_appendf(&trace_buf, " pn=%lu(%s) iflen=%llu",
 				              (unsigned long)pkt->pn_node.key,
 				              pkt->pktns == &qc->pktns[QUIC_TLS_PKTNS_INITIAL] ? "I" :
 				              pkt->pktns == &qc->pktns[QUIC_TLS_PKTNS_01RTT] ? "01RTT": "H",
-				              (unsigned long long)pkt->in_flight_len,
-				              (unsigned long long)pkt->cdata_len);
+				              (unsigned long long)pkt->in_flight_len);
 			}
 		}
 
@@ -4334,7 +4333,6 @@ static inline int qc_build_frms(struct quic_tx_packet *pkt,
 			if (!dlen)
 				break;
 
-			pkt->cdata_len += dlen;
 			/* CRYPTO frame length. */
 			flen = hlen + quic_int_getsize(dlen) + dlen;
 			TRACE_PROTO("                 CRYPTO frame length (flen)",
@@ -4666,8 +4664,8 @@ static inline void quic_tx_packet_init(struct quic_tx_packet *pkt, int type)
 {
 	pkt->type = type;
 	pkt->len = 0;
-	pkt->cdata_len = 0;
 	pkt->in_flight_len = 0;
+	pkt->pn_node.key = (uint64_t)-1;
 	LIST_INIT(&pkt->frms);
 	pkt->next = NULL;
 	pkt->refcnt = 1;
