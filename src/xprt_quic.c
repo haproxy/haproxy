@@ -3756,11 +3756,7 @@ static ssize_t qc_srv_pkt_rcv(unsigned char **buf, const unsigned char *end,
 		qc = ebmb_entry(node, struct quic_conn, scid_node);
 		*buf += QUIC_HAP_CID_LEN;
 	}
-	/* Store the DCID used for this packet to check the packet which
-	 * come in this UDP datagram match with it.
-	 */
-	if (!dgram_ctx->dcid_node)
-		dgram_ctx->dcid_node = node;
+
 	/* Only packets packets with long headers and not RETRY or VERSION as type
 	 * have a length field.
 	 */
@@ -3779,11 +3775,21 @@ static ssize_t qc_srv_pkt_rcv(unsigned char **buf, const unsigned char *end,
 
 	/* Increase the total length of this packet by the header length. */
 	pkt->len += *buf - beg;
-	/* Do not check the DCID node before the length. */
-	if (dgram_ctx->dcid_node != node) {
+
+	/* When multiple QUIC packets are coalesced on the same UDP datagram,
+	 * they must have the same DCID.
+	 *
+	 * This check must be done after the final update to pkt.len to
+	 * properly drop the packet on failure.
+	 */
+	if (!dgram_ctx->dcid.len) {
+		memcpy(dgram_ctx->dcid.data, pkt->dcid.data, pkt->dcid.len);
+	}
+	else if (memcmp(dgram_ctx->dcid.data, pkt->dcid.data, pkt->dcid.len)) {
 		TRACE_PROTO("Packet dropped", QUIC_EV_CONN_SPKT, qc->conn);
 		goto err;
 	}
+	dgram_ctx->qc = qc;
 
 	HA_RWLOCK_WRLOCK(QUIC_LOCK, &qc->rx.buf_rwlock);
 	b_cspace = b_contig_space(&qc->rx.buf);
@@ -4125,29 +4131,36 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 		qc = cid->qc;
 		HA_RWLOCK_RDUNLOCK(QUIC_LOCK, &l->rx.cids_lock);
 
+		memcpy(pkt->dcid.data, *buf, QUIC_HAP_CID_LEN);
+		pkt->dcid.len = QUIC_HAP_CID_LEN;
+		*buf += QUIC_HAP_CID_LEN;
+
 		if (HA_ATOMIC_LOAD(&qc->conn))
 			conn_ctx = HA_ATOMIC_LOAD(&qc->conn->xprt_ctx);
-		*buf += QUIC_HAP_CID_LEN;
+
 		pkt->qc = qc;
 		/* A short packet is the last one of an UDP datagram. */
 		pkt->len = end - *buf;
 	}
 
-	/* Store the DCID used for this packet to check the packet which
-	 * come in this UDP datagram match with it.
-	 */
-	if (!dgram_ctx->dcid_node) {
-		dgram_ctx->dcid_node = node;
-		dgram_ctx->qc = qc;
-	}
-
 	/* Increase the total length of this packet by the header length. */
 	pkt->raw_len = pkt->len += *buf - beg;
-	/* Do not check the DCID node before the length. */
-	if (dgram_ctx->dcid_node != node) {
+
+	/* When multiple QUIC packets are coalesced on the same UDP datagram,
+	 * they must have the same DCID.
+	 *
+	 * This check must be done after the final update to pkt.len to
+	 * properly drop the packet on failure.
+	 */
+	if (!dgram_ctx->dcid.len) {
+		memcpy(dgram_ctx->dcid.data, pkt->dcid.data, pkt->dcid.len);
+	}
+	else if (memcmp(dgram_ctx->dcid.data, pkt->dcid.data, pkt->dcid.len)) {
 		TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT, qc->conn);
 		goto err;
 	}
+	dgram_ctx->qc = qc;
+
 
 	if (HA_ATOMIC_LOAD(&qc->err_code)) {
 		TRACE_PROTO("Connection error", QUIC_EV_CONN_LPKT, qc->conn);
@@ -5179,7 +5192,8 @@ static ssize_t quic_dgram_read(struct buffer *buf, size_t len, void *owner,
 	unsigned char *pos;
 	const unsigned char *end;
 	struct quic_dgram_ctx dgram_ctx = {
-		.dcid_node = NULL,
+		.qc = NULL,
+		.dcid.len = 0,
 		.owner = owner,
 	};
 

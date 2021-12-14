@@ -452,7 +452,7 @@ struct quic_rx_packet {
  */
 struct quic_dgram_ctx {
 	struct quic_conn *qc;
-	struct ebmb_node *dcid_node;
+	struct quic_cid dcid;
 	void *owner;
 };
 
