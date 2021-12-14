@@ -252,7 +252,8 @@ extern struct pool_head *pool_head_quic_frame;
  */
 struct quic_cid {
 	unsigned char data[QUIC_CID_MAXLEN + sizeof(in_port_t) + sizeof(struct in6_addr)];
-	unsigned char len;
+	unsigned char len; /* size of QUIC CID, excluding possible concatenated address */
+	unsigned char addrlen; /* size of port + IP if present in data*/
 };
 
 /* QUIC connection id attached to a QUIC connection.
@@ -426,7 +427,6 @@ struct quic_rx_packet {
 	/* Initial desctination connection ID. */
 	struct quic_cid dcid;
 	struct quic_cid scid;
-	size_t odcid_len;
 	size_t pn_offset;
 	/* Packet number */
 	int64_t pn;

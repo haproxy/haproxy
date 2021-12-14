@@ -74,13 +74,19 @@ static inline void quic_cid_cpy(struct quic_cid *dst, const struct quic_cid *src
 	dst->len = src->len;
 }
 
-/* Concatenate the port and address of <saddr> to <cid> QUIC connection ID.
+/* Concatenate the port and address of <saddr> to <cid> QUIC connection ID. The
+ * <addrlen> field of <cid> will be updated with the size of the concatenated
+ * address.
+ *
  * Returns the number of bytes concatenated to <cid>.
  */
-static inline size_t quic_cid_saddr_cat(struct quic_cid *cid, struct sockaddr_storage *saddr)
+static inline size_t quic_cid_saddr_cat(struct quic_cid *cid,
+                                        struct sockaddr_storage *saddr)
 {
 	void *port, *addr;
 	size_t port_len, addr_len;
+
+	cid->addrlen = 0;
 
 	if (saddr->ss_family == AF_INET6) {
 		port = &((struct sockaddr_in6 *)saddr)->sin6_port;
@@ -94,10 +100,11 @@ static inline size_t quic_cid_saddr_cat(struct quic_cid *cid, struct sockaddr_st
 		port_len = sizeof ((struct sockaddr_in *)saddr)->sin_port;
 		addr_len = sizeof ((struct sockaddr_in *)saddr)->sin_addr;
 	}
+
 	memcpy(cid->data + cid->len, port, port_len);
-	cid->len += port_len;
-	memcpy(cid->data + cid->len, addr, addr_len);
-	cid->len += addr_len;
+	cid->addrlen += port_len;
+	memcpy(cid->data + cid->len + port_len, addr, addr_len);
+	cid->addrlen += addr_len;
 
 	return port_len + addr_len;
 }

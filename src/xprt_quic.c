@@ -3319,7 +3319,7 @@ static struct task *process_timer(struct task *task, void *ctx, unsigned int sta
  * Returns 1 if succeeded, 0 if not.
  */
 static struct quic_conn *qc_new_conn(unsigned int version, int ipv4,
-                                    unsigned char *dcid, size_t dcid_len,
+                                    unsigned char *dcid, size_t dcid_len, size_t dcid_addr_len,
                                     unsigned char *scid, size_t scid_len, int server, void *owner)
 {
 	int i;
@@ -3348,10 +3348,10 @@ static struct quic_conn *qc_new_conn(unsigned int version, int ipv4,
 		l = owner;
 
 		HA_ATOMIC_STORE(&qc->state, QUIC_HS_ST_SERVER_INITIAL);
-		/* Copy the initial DCID. */
+		/* Copy the initial DCID with the address. */
 		qc->odcid.len = dcid_len;
-		if (qc->odcid.len)
-			memcpy(qc->odcid.data, dcid, dcid_len);
+		qc->odcid.addrlen = dcid_addr_len;
+		memcpy(qc->odcid.data, dcid, dcid_len + dcid_addr_len);
 
 		/* copy the packet SCID to reuse it as DCID for sending */
 		if (scid_len)
@@ -3883,6 +3883,7 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 	unsigned char *beg;
 	struct quic_conn *qc;
 	struct eb_root *cids;
+	unsigned char dcid_lookup_len;
 	struct ebmb_node *node;
 	struct listener *l;
 	struct ssl_sock_ctx *conn_ctx;
@@ -3913,8 +3914,6 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 	/* Header form */
 	qc_parse_hd_form(pkt, *(*buf)++, &long_header);
 	if (long_header) {
-		unsigned char dcid_len;
-
 		if (!quic_packet_read_long_header(buf, end, pkt)) {
 			TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT);
 			goto err;
@@ -3940,7 +3939,6 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 			goto out;
 		}
 
-		dcid_len = pkt->dcid.len;
 		/* For Initial packets, and for servers (QUIC clients connections),
 		 * there is no Initial connection IDs storage.
 		 */
@@ -3952,6 +3950,7 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 			 */
 			quic_cid_saddr_cat(&pkt->dcid, saddr);
 			cids = &l->rx.odcids;
+			dcid_lookup_len = pkt->dcid.len + pkt->dcid.addrlen;
 
 			if (pkt->type == QUIC_PACKET_TYPE_INITIAL) {
 				if (!quic_dec_int(&token_len, (const unsigned char **)buf, end) ||
@@ -3977,6 +3976,7 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 			}
 
 			cids = &l->rx.cids;
+			dcid_lookup_len = pkt->dcid.len;
 		}
 
 		/* Only packets packets with long headers and not RETRY or VERSION as type
@@ -3996,14 +3996,13 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 
 
 		HA_RWLOCK_RDLOCK(OTHER_LOCK, &l->rx.cids_lock);
-		node = ebmb_lookup(cids, pkt->dcid.data, pkt->dcid.len);
+		node = ebmb_lookup(cids, pkt->dcid.data, dcid_lookup_len);
 		if (!node && pkt->type == QUIC_PACKET_TYPE_INITIAL &&
-		    dcid_len == QUIC_HAP_CID_LEN && cids == &l->rx.odcids) {
+		    pkt->dcid.len == QUIC_HAP_CID_LEN && cids == &l->rx.odcids) {
 			/* Switch to the definitive tree ->cids containing the final CIDs. */
-			node = ebmb_lookup(&l->rx.cids, pkt->dcid.data, dcid_len);
+			node = ebmb_lookup(&l->rx.cids, pkt->dcid.data, pkt->dcid.len);
 			if (node) {
 				/* If found, signal this with NULL as special value for <cids>. */
-				pkt->dcid.len = dcid_len;
 				cids = NULL;
 			}
 		}
@@ -4022,12 +4021,9 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 			}
 
 			pkt->saddr = *saddr;
-			/* Note that here, odcid_len equals to pkt->dcid.len minus the length
-			 * of <saddr>.
-			 */
-			pkt->odcid_len = dcid_len;
 			ipv4 = saddr->ss_family == AF_INET;
-			qc = qc_new_conn(pkt->version, ipv4, pkt->dcid.data, pkt->dcid.len,
+			qc = qc_new_conn(pkt->version, ipv4,
+			                 pkt->dcid.data, pkt->dcid.len, pkt->dcid.addrlen,
 			                 pkt->scid.data, pkt->scid.len, 1, l);
 			if (qc == NULL)
 				goto err;
@@ -4036,8 +4032,8 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 			/* Copy the transport parameters. */
 			qc->rx.params = l->bind_conf->quic_params;
 			/* Copy original_destination_connection_id transport parameter. */
-			memcpy(odcid->data, &pkt->dcid, pkt->odcid_len);
-			odcid->len = pkt->odcid_len;
+			memcpy(odcid->data, &pkt->dcid.data, pkt->dcid.len);
+			odcid->len = pkt->dcid.len;
 			/* Copy the initial source connection ID. */
 			quic_cid_cpy(&qc->rx.params.initial_source_connection_id, &qc->scid);
 			qc->enc_params_len =
@@ -4055,14 +4051,15 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 				salt_len = sizeof initial_salt_draft_29;
 			}
 			if (!qc_new_isecs(qc, salt, salt_len,
-			                  pkt->dcid.data, pkt->odcid_len, 1)) {
+			                  pkt->dcid.data, pkt->dcid.len, 1)) {
 				TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT, qc->conn);
 				goto err;
 			}
 
 			HA_RWLOCK_WRLOCK(QUIC_LOCK, &l->rx.cids_lock);
 			/* Insert the DCID the QUIC client has chosen (only for listeners) */
-			n = ebmb_insert(&l->rx.odcids, &qc->odcid_node, qc->odcid.len);
+			n = ebmb_insert(&l->rx.odcids, &qc->odcid_node,
+			                qc->odcid.len + qc->odcid.addrlen);
 			HA_ATOMIC_OR(&qc->flags, QUIC_FL_CONN_ODCID_NODE_TO_DELETE);
 			HA_RWLOCK_WRUNLOCK(QUIC_LOCK, &l->rx.cids_lock);
 
@@ -5050,7 +5047,7 @@ static int qc_conn_init(struct connection *conn, void **xprt_ctx)
 
 		ipv4 = conn->dst->ss_family == AF_INET;
 		qc = qc_new_conn(QUIC_PROTOCOL_VERSION_DRAFT_28, ipv4,
-		                 dcid, sizeof dcid, NULL, 0, 0, srv);
+		                 dcid, sizeof dcid, 0, NULL, 0, 0, srv);
 		if (qc == NULL)
 			goto err;
 
