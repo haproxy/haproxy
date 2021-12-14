@@ -3477,7 +3477,7 @@ static inline int quic_packet_read_long_header(unsigned char **buf, const unsign
 		 */
 		if (pkt->type != QUIC_PACKET_TYPE_INITIAL &&
 		    pkt->type != QUIC_PACKET_TYPE_0RTT &&
-		    dcid_len != QUIC_CID_LEN)
+		    dcid_len != QUIC_HAP_CID_LEN)
 			return 0;
 
 		memcpy(pkt->dcid.data, *buf, dcid_len);
@@ -3712,7 +3712,7 @@ static ssize_t qc_srv_pkt_rcv(unsigned char **buf, const unsigned char *end,
 		}
 		else {
 			cids = &((struct server *)__objt_server(srv_conn->target))->cids;
-			cid_lookup_len = QUIC_CID_LEN;
+			cid_lookup_len = QUIC_HAP_CID_LEN;
 		}
 
 		node = ebmb_lookup(cids, pkt->dcid.data, cid_lookup_len);
@@ -3745,16 +3745,16 @@ static ssize_t qc_srv_pkt_rcv(unsigned char **buf, const unsigned char *end,
 	}
 	else {
 		/* XXX TO DO: Short header XXX */
-		if (end - *buf < QUIC_CID_LEN)
+		if (end - *buf < QUIC_HAP_CID_LEN)
 			goto err;
 
 		cids = &((struct server *)__objt_server(srv_conn->target))->cids;
-		node = ebmb_lookup(cids, *buf, QUIC_CID_LEN);
+		node = ebmb_lookup(cids, *buf, QUIC_HAP_CID_LEN);
 		if (!node)
 			goto err;
 
 		qc = ebmb_entry(node, struct quic_conn, scid_node);
-		*buf += QUIC_CID_LEN;
+		*buf += QUIC_HAP_CID_LEN;
 	}
 	/* Store the DCID used for this packet to check the packet which
 	 * come in this UDP datagram match with it.
@@ -3971,7 +3971,7 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 			}
 		}
 		else {
-			if (pkt->dcid.len != QUIC_CID_LEN) {
+			if (pkt->dcid.len != QUIC_HAP_CID_LEN) {
 				TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT);
 				goto err;
 			}
@@ -3997,8 +3997,8 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 
 		HA_RWLOCK_RDLOCK(OTHER_LOCK, &l->rx.cids_lock);
 		node = ebmb_lookup(cids, pkt->dcid.data, pkt->dcid.len);
-		if (!node && pkt->type == QUIC_PACKET_TYPE_INITIAL && dcid_len == QUIC_CID_LEN &&
-		    cids == &l->rx.odcids) {
+		if (!node && pkt->type == QUIC_PACKET_TYPE_INITIAL &&
+		    dcid_len == QUIC_HAP_CID_LEN && cids == &l->rx.odcids) {
 			/* Switch to the definitive tree ->cids containing the final CIDs. */
 			node = ebmb_lookup(&l->rx.cids, pkt->dcid.data, dcid_len);
 			if (node) {
@@ -4109,7 +4109,7 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 	else {
 		struct quic_connection_id *cid;
 
-		if (end - *buf < QUIC_CID_LEN) {
+		if (end - *buf < QUIC_HAP_CID_LEN) {
 			TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT);
 			goto err;
 		}
@@ -4117,7 +4117,7 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 		cids = &l->rx.cids;
 
 		HA_RWLOCK_RDLOCK(QUIC_LOCK, &l->rx.cids_lock);
-		node = ebmb_lookup(cids, *buf, QUIC_CID_LEN);
+		node = ebmb_lookup(cids, *buf, QUIC_HAP_CID_LEN);
 		if (!node) {
 			HA_RWLOCK_RDUNLOCK(QUIC_LOCK, &l->rx.cids_lock);
 			TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT);
@@ -4130,7 +4130,7 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 
 		if (HA_ATOMIC_LOAD(&qc->conn))
 			conn_ctx = HA_ATOMIC_LOAD(&qc->conn->xprt_ctx);
-		*buf += QUIC_CID_LEN;
+		*buf += QUIC_HAP_CID_LEN;
 		pkt->qc = qc;
 		/* A short packet is the last one of an UDP datagram. */
 		pkt->len = end - *buf;
@@ -5040,7 +5040,7 @@ static int qc_conn_init(struct connection *conn, void **xprt_ctx)
 	if (objt_server(conn->target)) {
 		/* Server */
 		struct server *srv = __objt_server(conn->target);
-		unsigned char dcid[QUIC_CID_LEN];
+		unsigned char dcid[QUIC_HAP_CID_LEN];
 		struct quic_conn *qc;
 		int ssl_err, ipv4;
 

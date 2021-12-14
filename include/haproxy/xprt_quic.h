@@ -180,7 +180,7 @@ static inline struct quic_connection_id *new_quic_cid(struct eb_root *root,
 	if (!cid)
 		return NULL;
 
-	cid->cid.len = QUIC_CID_LEN;
+	cid->cid.len = QUIC_HAP_CID_LEN;
 	if (RAND_bytes(cid->cid.data, cid->cid.len) != 1 ||
 	    RAND_bytes(cid->stateless_reset_token,
 	               sizeof cid->stateless_reset_token) != 1) {
