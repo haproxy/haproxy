@@ -812,6 +812,10 @@ int ha_quic_set_encryption_secrets(SSL *ssl, enum ssl_encryption_level_t level,
 	}
 
 	rx->flags |= QUIC_FL_TLS_SECRETS_SET;
+
+	if (!write_secret)
+		goto tp;
+
 	if (!quic_tls_derive_keys(tx->aead, tx->hp, tx->md, tx->key, tx->keylen,
 	                          tx->iv, tx->ivlen, tx->hp_key, sizeof tx->hp_key,
 	                          write_secret, secret_len)) {
@@ -820,6 +824,7 @@ int ha_quic_set_encryption_secrets(SSL *ssl, enum ssl_encryption_level_t level,
 	}
 
 	tx->flags |= QUIC_FL_TLS_SECRETS_SET;
+ tp:
 	if (objt_server(conn->target) && level == ssl_encryption_application) {
 		const unsigned char *buf;
 		size_t buflen;
