@@ -1184,7 +1184,7 @@ int ssl_quic_initial_ctx(struct bind_conf *bind_conf)
 #elif (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
 	if (bind_conf->ssl_conf.early_data) {
 		SSL_CTX_set_options(ctx, SSL_OP_NO_ANTI_REPLAY);
-		SSL_CTX_set_max_early_data(ctx, global.tune.bufsize - global.tune.maxrewrite);
+		SSL_CTX_set_max_early_data(ctx, 0xffffffff);
 	}
 	SSL_CTX_set_client_hello_cb(ctx, ssl_sock_switchctx_cbk, NULL);
 	SSL_CTX_set_tlsext_servername_callback(ctx, ssl_sock_switchctx_err_cbk);
@@ -5074,6 +5074,10 @@ static int qc_conn_init(struct connection *conn, void **xprt_ctx)
 		if (qc_ssl_sess_init(qc, bc->initial_ctx, &ctx->ssl,
 		                     qc->enc_params, qc->enc_params_len) == -1)
 			goto err;
+
+		/* Enabling 0-RTT */
+		if (bc->ssl_conf.early_data)
+			SSL_set_quic_early_data_enabled(ctx->ssl, 1);
 
 		SSL_set_accept_state(ctx->ssl);
 	}
