@@ -3359,6 +3359,17 @@ show trace [<source>]
   "-" otherwise. All these events are independent and an event might trigger
   a start without being reported and conversely.
 
+show version
+  Show the version of the current HAProxy process. This is available from
+  master and workers CLI.
+  Example:
+
+      $ echo "show version" | socat /var/run/haproxy.sock stdio
+      2.4.9
+
+      $ echo "show version" | socat /var/run/haproxy-master.sock stdio
+      2.5.0
+
 shutdown frontend <frontend>
   Completely delete the specified frontend. All the ports it was bound to will
   be released. It will not be possible to enable the frontend anymore after
