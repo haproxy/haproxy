@@ -2415,7 +2415,7 @@ static int qc_prep_pkts(struct qring *qr, struct ssl_sock_ctx *ctx)
 
 	TRACE_ENTER(QUIC_EV_CONN_PHPKTS, ctx->conn);
 	qc = ctx->conn->qc;
-	if (!quic_get_tls_enc_levels(&tel, &next_tel, HA_ATOMIC_LOAD(&qc->state))) {
+	if (!quic_get_tls_enc_levels(&tel, &next_tel, HA_ATOMIC_LOAD(&qc->state), 0)) {
 		TRACE_DEVEL("unknown enc. levels", QUIC_EV_CONN_PHPKTS, ctx->conn);
 		goto err;
 	}
@@ -3082,7 +3082,7 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 	struct quic_enc_level *qel, *next_qel;
 	struct quic_tls_ctx *tls_ctx;
 	struct qring *qr; // Tx ring
-	int prev_st, st, force_ack;
+	int prev_st, st, force_ack, zero_rtt;
 
 	ctx = context;
 	qc = ctx->conn->qc;
@@ -3090,8 +3090,9 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 	st = HA_ATOMIC_LOAD(&qc->state);
 	TRACE_ENTER(QUIC_EV_CONN_HDSHK, ctx->conn, &st);
 	ssl_err = SSL_ERROR_NONE;
+	zero_rtt = !MT_LIST_ISEMPTY(&qc->els[QUIC_TLS_ENC_LEVEL_EARLY_DATA].rx.pqpkts);
  start:
-	if (!quic_get_tls_enc_levels(&tel, &next_tel, st))
+	if (!quic_get_tls_enc_levels(&tel, &next_tel, st, zero_rtt))
 		goto err;
 
 	qel = &qc->els[tel];
@@ -3112,6 +3113,13 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 		qel == &qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE];
 	if (!qc_treat_rx_pkts(qel, next_qel, ctx, force_ack))
 		goto err;
+
+	if (zero_rtt && next_qel && !MT_LIST_ISEMPTY(&next_qel->rx.pqpkts) &&
+	    (next_qel->tls_ctx.rx.flags & QUIC_FL_TLS_SECRETS_SET)) {
+		qel = next_qel;
+		next_qel = NULL;
+		goto next_level;
+	}
 
 	st = HA_ATOMIC_LOAD(&qc->state);
 	if (st >= QUIC_HS_ST_COMPLETE &&
@@ -3466,7 +3474,9 @@ static inline int quic_packet_read_long_header(unsigned char **buf, const unsign
 		/* Check that the length of this received DCID matches the CID lengths
 		 * of our implementation for non Initials packets only.
 		 */
-		if (pkt->type != QUIC_PACKET_TYPE_INITIAL && dcid_len != QUIC_CID_LEN)
+		if (pkt->type != QUIC_PACKET_TYPE_INITIAL &&
+		    pkt->type != QUIC_PACKET_TYPE_0RTT &&
+		    dcid_len != QUIC_CID_LEN)
 			return 0;
 
 		memcpy(pkt->dcid.data, *buf, dcid_len);
@@ -3929,7 +3939,8 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 		/* For Initial packets, and for servers (QUIC clients connections),
 		 * there is no Initial connection IDs storage.
 		 */
-		if (pkt->type == QUIC_PACKET_TYPE_INITIAL) {
+		if (pkt->type == QUIC_PACKET_TYPE_INITIAL ||
+		    pkt->type == QUIC_PACKET_TYPE_0RTT) {
 			uint64_t token_len;
 			/* DCIDs of first packets coming from clients may have the same values.
 			 * Let's distinguish them concatenating the socket addresses to the DCIDs.
@@ -3937,20 +3948,22 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 			quic_cid_saddr_cat(&pkt->dcid, saddr);
 			cids = &l->rx.odcids;
 
-			if (!quic_dec_int(&token_len, (const unsigned char **)buf, end) ||
-			    end - *buf < token_len) {
-				TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT);
-				goto err;
-			}
+			if (pkt->type == QUIC_PACKET_TYPE_INITIAL) {
+				if (!quic_dec_int(&token_len, (const unsigned char **)buf, end) ||
+					end - *buf < token_len) {
+					TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT);
+					goto err;
+				}
 
-			/* XXX TO DO XXX 0 value means "the token is not present".
-			 * A server which sends an Initial packet must not set the token.
-			 * So, a client which receives an Initial packet with a token
-			 * MUST discard the packet or generate a connection error with
-			 * PROTOCOL_VIOLATION as type.
-			 * The token must be provided in a Retry packet or NEW_TOKEN frame.
-			 */
-			pkt->token_len = token_len;
+				/* XXX TO DO XXX 0 value means "the token is not present".
+				 * A server which sends an Initial packet must not set the token.
+				 * So, a client which receives an Initial packet with a token
+				 * MUST discard the packet or generate a connection error with
+				 * PROTOCOL_VIOLATION as type.
+				 * The token must be provided in a Retry packet or NEW_TOKEN frame.
+				 */
+				pkt->token_len = token_len;
+			}
 		}
 		else {
 			if (pkt->dcid.len != QUIC_CID_LEN) {
@@ -4069,7 +4082,8 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 			node = &qc->odcid_node;
 		}
 		else {
-			if (pkt->type == QUIC_PACKET_TYPE_INITIAL && cids == &l->rx.odcids) {
+			if ((pkt->type == QUIC_PACKET_TYPE_INITIAL ||
+			     pkt->type == QUIC_PACKET_TYPE_0RTT) && cids == &l->rx.odcids) {
 				qc = ebmb_entry(node, struct quic_conn, odcid_node);
 			}
 			else {
