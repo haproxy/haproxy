@@ -1132,6 +1132,7 @@ static inline void qc_el_rx_pkts_del(struct quic_enc_level *qel)
 }
 
 void quic_set_tls_alert(struct quic_conn *qc, int alert);
+int quic_set_app_ops(struct quic_conn *qc, const unsigned char *alpn, size_t alpn_len);
 ssize_t quic_lstnr_dgram_read(struct buffer *buf, size_t len, void *owner,
                               struct sockaddr_storage *saddr);
 

@@ -1055,6 +1055,31 @@ void quic_set_tls_alert(struct quic_conn *qc, int alert)
 	TRACE_PROTO("Alert set", QUIC_EV_CONN_SSLDATA, qc->conn);
 }
 
+/* Set the application for <qc> QUIC connection.
+ * Return 1 if succeeded, 0 if not.
+ */
+int quic_set_app_ops(struct quic_conn *qc, const unsigned char *alpn, size_t alpn_len)
+{
+	const struct qcc_app_ops *app_ops;
+
+	if (alpn_len >= 2 && memcmp(alpn, "h3", 2) == 0) {
+		app_ops = qc->qcc->app_ops = &h3_ops;
+	}
+	else if (alpn_len >= 10 && memcmp(alpn, "hq-interop", 10) == 0) {
+		app_ops = qc->qcc->app_ops = &hq_interop_ops;
+	}
+	else
+		return 0;
+
+	if (app_ops->init && !app_ops->init(qc->qcc))
+		return 0;
+
+	if (app_ops->finalize)
+		app_ops->finalize(qc->qcc->ctx);
+
+	return 1;
+}
+
 /* ->add_handshake_data QUIC TLS callback used by the QUIC TLS stack when it
  * wants to provide the QUIC layer with CRYPTO data.
  * Returns 1 if succeeded, 0 if not.
@@ -1836,9 +1861,6 @@ static inline int qc_provide_cdata(struct quic_enc_level *el,
 {
 	int ssl_err, state;
 	struct quic_conn *qc;
-	const struct qcc_app_ops *app_ops;
-	const char *alpn;
-	int alpn_len;
 
 	TRACE_ENTER(QUIC_EV_CONN_SSLDATA, ctx->conn);
 	ssl_err = SSL_ERROR_NONE;
@@ -1894,29 +1916,6 @@ static inline int qc_provide_cdata(struct quic_enc_level *el,
 		TRACE_PROTO("SSL post handshake succeeded",
 		            QUIC_EV_CONN_HDSHK, ctx->conn, &state);
 	}
-
-	conn_get_alpn(ctx->conn, &alpn, &alpn_len);
-	if (alpn_len >= 2 && memcmp(alpn, "h3", 2) == 0) {
-		app_ops = qc->qcc->app_ops = &h3_ops;
-	}
-	else if (alpn_len >= 10 && memcmp(alpn, "hq-interop", 10) == 0) {
-		app_ops = qc->qcc->app_ops = &hq_interop_ops;
-	}
-	else {
-		/* TODO RFC9001 8.1. Protocol Negotiation
-		 * must return no_application_protocol TLS alert
-		 */
-		TRACE_PROTO("No matching ALPN", QUIC_EV_CONN_SSLDATA, ctx->conn);
-		goto err;
-	}
-
-	if (app_ops->init) {
-		if (!app_ops->init(qc->qcc))
-			goto err;
-	}
-
-	if (app_ops->finalize)
-		app_ops->finalize(qc->qcc->ctx);
 
  out:
 	TRACE_LEAVE(QUIC_EV_CONN_SSLDATA, ctx->conn);
