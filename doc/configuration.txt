@@ -15407,7 +15407,7 @@ used by HAProxy. The following processing is applied on this error:
   2. When the fallback on the query type was done (or not applicable), HAProxy
      retries the original DNS query, with the preferred query type.
 
-  3. HAProxy retries previous steps <resolve_retires> times. If no valid
+  3. HAProxy retries previous steps <resolve_retries> times. If no valid
      response is received after that, it stops the DNS resolution and reports
      the error.
 
