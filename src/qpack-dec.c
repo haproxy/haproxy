@@ -228,6 +228,13 @@ int qpack_decode_fs(const unsigned char *raw, size_t len, struct buffer *tmp,
 			}
 
 			qpack_debug_printf(stderr, " h=%d length=%llu", !!h, (unsigned long long)length);
+
+			if (len < length) {
+				qpack_debug_printf(stderr, "##ERR@%d\n", __LINE__);
+				ret = -QPACK_ERR_TRUNCATED;
+				goto out;
+			}
+
 			/* XXX Value string XXX */
 			raw += length;
 			len -= length;
@@ -319,6 +326,12 @@ int qpack_decode_fs(const unsigned char *raw, size_t len, struct buffer *tmp,
 				list[hdr_idx].v = ist2(raw, length);
 			}
 
+			if (len < length) {
+				qpack_debug_printf(stderr, "##ERR@%d\n", __LINE__);
+				ret = -QPACK_ERR_TRUNCATED;
+				goto out;
+			}
+
 			raw += length;
 			len -= length;
 			++hdr_idx;
@@ -340,6 +353,13 @@ int qpack_decode_fs(const unsigned char *raw, size_t len, struct buffer *tmp,
 
 			qpack_debug_printf(stderr, " n=%d hanme=%d name_len=%llu", !!n, !!hname, (unsigned long long)name_len);
 			/* Name string */
+
+			if (len < name_len) {
+				qpack_debug_printf(stderr, "##ERR@%d\n", __LINE__);
+				ret = -QPACK_ERR_TRUNCATED;
+				goto out;
+			}
+
 			raw += name_len;
 			len -= name_len;
 			hvalue = *raw & 0x80;
@@ -351,6 +371,12 @@ int qpack_decode_fs(const unsigned char *raw, size_t len, struct buffer *tmp,
 			}
 
 			qpack_debug_printf(stderr, " hvalue=%d value_len=%llu", !!hvalue, (unsigned long long)value_len);
+
+			if (len < value_len) {
+				qpack_debug_printf(stderr, "##ERR@%d\n", __LINE__);
+				ret = -QPACK_ERR_TRUNCATED;
+				goto out;
+			}
 
 			/* XXX Value string XXX */
 			raw += value_len;
