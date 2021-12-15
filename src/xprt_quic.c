@@ -3881,6 +3881,61 @@ static int qc_send_version_negotiation(int fd, struct sockaddr_storage *addr,
 	return 0;
 }
 
+/* Retrieve a quic_conn instance from the <pkt> DCID field. If the packet is of
+ * type INITIAL, the ODCID tree is first used. In this case, <saddr> is
+ * concatenated to the <pkt> DCID field.
+ *
+ * Returns the instance or NULL if not found.
+ */
+static struct quic_conn *qc_retrieve_conn_from_cid(struct quic_rx_packet *pkt,
+                                                   struct listener *l,
+                                                   struct sockaddr_storage *saddr)
+{
+	struct quic_conn *qc = NULL;
+	struct ebmb_node *node;
+	struct quic_connection_id *id;
+
+	HA_RWLOCK_RDLOCK(QUIC_LOCK, &l->rx.cids_lock);
+
+	/* Look first into ODCIDs tree for INITIAL/0-RTT packets. */
+	if (pkt->type == QUIC_PACKET_TYPE_INITIAL ||
+	    pkt->type == QUIC_PACKET_TYPE_0RTT) {
+		/* DCIDs of first packets coming from multiple clients may have
+		 * the same values. Let's distinguish them by concatenating the
+		 * socket addresses.
+		 */
+		quic_cid_saddr_cat(&pkt->dcid, saddr);
+		node = ebmb_lookup(&l->rx.odcids, pkt->dcid.data,
+		                   pkt->dcid.len + pkt->dcid.addrlen);
+		if (node) {
+			qc = ebmb_entry(node, struct quic_conn, odcid_node);
+			goto end;
+		}
+	}
+
+	/* Look into DCIDs tree for non-INITIAL/0-RTT packets. This may be used
+	 * also for INITIAL/0-RTT non-first packets with the final DCID in
+	 * used.
+	 */
+	node = ebmb_lookup(&l->rx.cids, pkt->dcid.data, pkt->dcid.len);
+	if (!node)
+		goto end;
+
+	id = ebmb_entry(node, struct quic_connection_id, node);
+	qc = id->qc;
+
+	/* If found in DCIDs tree, remove the quic_conn from the ODCIDs tree.
+	 * If already done, this is a noop.
+	 */
+	if (HA_ATOMIC_BTR(&qc->flags, QUIC_FL_CONN_ODCID_NODE_TO_DELETE_BIT))
+		ebmb_delete(&qc->odcid_node);
+
+ end:
+	HA_RWLOCK_RDUNLOCK(QUIC_LOCK, &l->rx.cids_lock);
+
+	return qc;
+}
+
 static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
                                 struct quic_rx_packet *pkt,
                                 struct quic_dgram_ctx *dgram_ctx,
@@ -3888,9 +3943,6 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 {
 	unsigned char *beg;
 	struct quic_conn *qc;
-	struct eb_root *cids;
-	unsigned char dcid_lookup_len;
-	struct ebmb_node *node;
 	struct listener *l;
 	struct ssl_sock_ctx *conn_ctx;
 	int long_header = 0;
@@ -3948,41 +4000,29 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 		/* For Initial packets, and for servers (QUIC clients connections),
 		 * there is no Initial connection IDs storage.
 		 */
-		if (pkt->type == QUIC_PACKET_TYPE_INITIAL ||
-		    pkt->type == QUIC_PACKET_TYPE_0RTT) {
+		if (pkt->type == QUIC_PACKET_TYPE_INITIAL) {
 			uint64_t token_len;
-			/* DCIDs of first packets coming from clients may have the same values.
-			 * Let's distinguish them concatenating the socket addresses to the DCIDs.
-			 */
-			quic_cid_saddr_cat(&pkt->dcid, saddr);
-			cids = &l->rx.odcids;
-			dcid_lookup_len = pkt->dcid.len + pkt->dcid.addrlen;
 
-			if (pkt->type == QUIC_PACKET_TYPE_INITIAL) {
-				if (!quic_dec_int(&token_len, (const unsigned char **)buf, end) ||
-					end - *buf < token_len) {
-					TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT);
-					goto err;
-				}
-
-				/* XXX TO DO XXX 0 value means "the token is not present".
-				 * A server which sends an Initial packet must not set the token.
-				 * So, a client which receives an Initial packet with a token
-				 * MUST discard the packet or generate a connection error with
-				 * PROTOCOL_VIOLATION as type.
-				 * The token must be provided in a Retry packet or NEW_TOKEN frame.
-				 */
-				pkt->token_len = token_len;
-			}
-		}
-		else {
-			if (pkt->dcid.len != QUIC_HAP_CID_LEN) {
+			if (!quic_dec_int(&token_len, (const unsigned char **)buf, end) ||
+				end - *buf < token_len) {
 				TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT);
 				goto err;
 			}
 
-			cids = &l->rx.cids;
-			dcid_lookup_len = pkt->dcid.len;
+			/* XXX TO DO XXX 0 value means "the token is not present".
+			 * A server which sends an Initial packet must not set the token.
+			 * So, a client which receives an Initial packet with a token
+			 * MUST discard the packet or generate a connection error with
+			 * PROTOCOL_VIOLATION as type.
+			 * The token must be provided in a Retry packet or NEW_TOKEN frame.
+			 */
+			pkt->token_len = token_len;
+		}
+		else if (pkt->type != QUIC_PACKET_TYPE_0RTT) {
+			if (pkt->dcid.len != QUIC_HAP_CID_LEN) {
+				TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT);
+				goto err;
+			}
 		}
 
 		/* Only packets packets with long headers and not RETRY or VERSION as type
@@ -4000,21 +4040,8 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 			pkt->len = len;
 		}
 
-
-		HA_RWLOCK_RDLOCK(OTHER_LOCK, &l->rx.cids_lock);
-		node = ebmb_lookup(cids, pkt->dcid.data, dcid_lookup_len);
-		if (!node && pkt->type == QUIC_PACKET_TYPE_INITIAL &&
-		    pkt->dcid.len == QUIC_HAP_CID_LEN && cids == &l->rx.odcids) {
-			/* Switch to the definitive tree ->cids containing the final CIDs. */
-			node = ebmb_lookup(&l->rx.cids, pkt->dcid.data, pkt->dcid.len);
-			if (node) {
-				/* If found, signal this with NULL as special value for <cids>. */
-				cids = NULL;
-			}
-		}
-		HA_RWLOCK_RDUNLOCK(OTHER_LOCK, &l->rx.cids_lock);
-
-		if (!node) {
+		qc = qc_retrieve_conn_from_cid(pkt, l, saddr);
+		if (!qc) {
 			int ipv4;
 			struct quic_cid *odcid;
 			struct ebmb_node *n = NULL;
@@ -4085,56 +4112,24 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 				/* Try to accept a new connection. */
 				listener_accept(l);
 			}
-
-			/* This is the DCID node sent in this packet by the client. */
-			node = &qc->odcid_node;
 		}
 		else {
-			if ((pkt->type == QUIC_PACKET_TYPE_INITIAL ||
-			     pkt->type == QUIC_PACKET_TYPE_0RTT) && cids == &l->rx.odcids) {
-				qc = ebmb_entry(node, struct quic_conn, odcid_node);
-			}
-			else {
-				struct quic_connection_id *cid = ebmb_entry(node, struct quic_connection_id, node);
-				qc = cid->qc;
-				if (HA_ATOMIC_BTR(&qc->flags, QUIC_FL_CONN_ODCID_NODE_TO_DELETE_BIT)) {
-					/* Delete the ODCID from its tree */
-					HA_RWLOCK_WRLOCK(QUIC_LOCK, &l->rx.cids_lock);
-					ebmb_delete(&qc->odcid_node);
-					HA_RWLOCK_WRUNLOCK(QUIC_LOCK, &l->rx.cids_lock);
-				}
-			}
 			pkt->qc = qc;
 			if (HA_ATOMIC_LOAD(&qc->conn))
 				conn_ctx = HA_ATOMIC_LOAD(&qc->conn->xprt_ctx);
 		}
 	}
 	else {
-		struct quic_connection_id *cid;
-
 		if (end - *buf < QUIC_HAP_CID_LEN) {
 			TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT);
 			goto err;
 		}
 
-		cids = &l->rx.cids;
-
-		HA_RWLOCK_RDLOCK(QUIC_LOCK, &l->rx.cids_lock);
-		node = ebmb_lookup(cids, *buf, QUIC_HAP_CID_LEN);
-		if (!node) {
-			HA_RWLOCK_RDUNLOCK(QUIC_LOCK, &l->rx.cids_lock);
-			TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT);
-			goto err;
-		}
-
-		cid = ebmb_entry(node, struct quic_connection_id, node);
-		qc = cid->qc;
-		HA_RWLOCK_RDUNLOCK(QUIC_LOCK, &l->rx.cids_lock);
-
 		memcpy(pkt->dcid.data, *buf, QUIC_HAP_CID_LEN);
 		pkt->dcid.len = QUIC_HAP_CID_LEN;
 		*buf += QUIC_HAP_CID_LEN;
 
+		qc = qc_retrieve_conn_from_cid(pkt, l, saddr);
 		if (HA_ATOMIC_LOAD(&qc->conn))
 			conn_ctx = HA_ATOMIC_LOAD(&qc->conn->xprt_ctx);
 

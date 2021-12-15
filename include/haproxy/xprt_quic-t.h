@@ -631,8 +631,8 @@ struct quic_conn {
 	size_t enc_params_len;
 
 	/*
-	 * Original Destination Connection ID  (coming with first client Initial packets).
-	 * Used only by servers.
+	 * Original DCID used by clients on first Initial packets.
+	 * <odcid> is concatenated with the socket src address.
 	 */
 	struct ebmb_node odcid_node;
 	struct quic_cid odcid;
