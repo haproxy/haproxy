@@ -2212,7 +2212,9 @@ err:
 	return err_code;
 }
 
-#if defined(USE_THREAD) && defined(__linux__) && defined USE_CPU_AFFINITY
+#if defined(USE_THREAD) && defined USE_CPU_AFFINITY
+#if defined(__linux__)
+
 /* filter directory name of the pattern node<X> */
 static int numa_filter(const struct dirent *dir)
 {
@@ -2372,7 +2374,15 @@ static int numa_detect_topology()
 
 	return ha_cpuset_count(&node_cpu_set);
 }
-#endif /* __linux__ && USE_CPU_AFFINITY */
+
+#else
+static int numa_detect_topology()
+{
+	return 0;
+}
+
+#endif
+#endif /* USE_THREAD && USE_CPU_AFFINITY */
 
 /*
  * Returns the error code, 0 if OK, or any combination of :
@@ -2425,7 +2435,7 @@ int check_config_validity()
 #if defined(USE_THREAD)
 		{
 			int numa_cores = 0;
-#if defined(__linux__) && defined USE_CPU_AFFINITY
+#if defined(USE_CPU_AFFINITY)
 			if (global.numa_cpu_mapping && !thread_cpu_mask_forced())
 				numa_cores = numa_detect_topology();
 #endif

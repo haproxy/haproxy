@@ -1736,15 +1736,16 @@ nbthread <number>
   output of "haproxy -vv".
 
 numa-cpu-mapping
-  By default, if running on Linux, HAProxy inspects on startup the CPU topology
-  of the machine. If a multi-socket machine is detected, the affinity is
-  automatically calculated to run on the CPUs of a single node. This is done in
-  order to not suffer from the performance penalties caused by the inter-socket
-  bus latency. However, if the applied binding is non optimal on a particular
-  architecture, it can be disabled with the statement 'no numa-cpu-mapping'.
-  This automatic binding is also not applied if a nbthread statement is present
-  in the configuration, or the affinity of the process is already specified,
-  for example via the 'cpu-map' directive or the taskset utility.
+  If running on a NUMA-aware platform, HAProxy inspects on startup the CPU
+  topology of the machine. If a multi-socket machine is detected, the affinity
+  is automatically calculated to run on the CPUs of a single node. This is done
+  in order to not suffer from the performance penalties caused by the
+  inter-socket bus latency. However, if the applied binding is non optimal on a
+  particular architecture, it can be disabled with the statement 'no
+  numa-cpu-mapping'. This automatic binding is also not applied if a nbthread
+  statement is present in the configuration, or the affinity of the process is
+  already specified, for example via the 'cpu-map' directive or the taskset
+  utility.
 
 pidfile <pidfile>
   Writes PIDs of all daemons into file <pidfile> when daemon mode or writes PID
