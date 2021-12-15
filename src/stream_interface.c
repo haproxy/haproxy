@@ -354,12 +354,11 @@ int conn_si_send_proxy(struct connection *conn, unsigned int flag)
 
 		if (cs && cs->data_cb == &si_conn_cb) {
 			struct stream_interface *si = cs->data;
-			struct conn_stream *remote_cs = objt_cs(si_opposite(si)->end);
 			struct stream *strm = si_strm(si);
 
 			ret = make_proxy_line(trash.area, trash.size,
 					      objt_server(conn->target),
-					      remote_cs ? remote_cs->conn : NULL,
+					      cs_conn(objt_cs(si_opposite(si)->end)),
 					      strm);
 		}
 		else {
@@ -434,7 +433,7 @@ static void stream_int_notify(struct stream_interface *si)
 
 	/* process consumer side */
 	if (channel_is_empty(oc)) {
-		struct connection *conn = objt_cs(si->end) ? __objt_cs(si->end)->conn : NULL;
+		struct connection *conn = cs_conn(objt_cs(si->end));
 
 		if (((oc->flags & (CF_SHUTW|CF_SHUTW_NOW)) == CF_SHUTW_NOW) &&
 		    (si->state == SI_ST_EST) && (!conn || !(conn->flags & (CO_FL_WAIT_XPRT | CO_FL_EARLY_SSL_HS))))
@@ -800,7 +799,7 @@ struct task *si_cs_io_cb(struct task *t, void *ctx, unsigned int state)
 	struct conn_stream *cs = objt_cs(si->end);
 	int ret = 0;
 
-	if (!cs)
+	if (!cs_conn(cs))
 		return t;
 
 	if (!(si->wait_event.events & SUB_RETRY_SEND) && !channel_is_empty(si_oc(si)))
@@ -927,7 +926,7 @@ void si_sync_send(struct stream_interface *si)
 		return;
 
 	cs = objt_cs(si->end);
-	if (!cs || !cs->conn->mux)
+	if (!cs_conn(cs) || !cs->conn->mux)
 		return;
 
 	si_cs_send(cs);

@@ -233,7 +233,9 @@ static void check_trace(enum trace_level level, uint64_t mask,
 
 
 	if (check->cs) {
-		chunk_appendf(&trace_buf, " - conn=%p(0x%08x)", check->cs->conn, check->cs->conn->flags);
+		struct connection *conn = cs_conn(check->cs);
+
+		chunk_appendf(&trace_buf, " - conn=%p(0x%08x)", conn, conn ? conn->flags : 0);
 		chunk_appendf(&trace_buf, " cs=%p(0x%08x)", check->cs, check->cs->flags);
 	}
 
@@ -791,7 +793,7 @@ void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 		retrieve_errno_from_socket(conn);
 
 	if (conn && !(conn->flags & CO_FL_ERROR) &&
-	    !(cs->flags & CS_FL_ERROR) && !expired)
+	    cs && !(cs->flags & CS_FL_ERROR) && !expired)
 		return;
 
 	TRACE_ENTER(CHK_EV_HCHK_END|CHK_EV_HCHK_ERR, check, 0, 0, (size_t[]){expired});
@@ -904,7 +906,7 @@ void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 		set_server_check_status(check, HCHK_STATUS_SOCKERR, err_msg);
 	}
 
-	if (!conn || !conn->ctrl) {
+	if (!cs || !conn || !conn->ctrl) {
 		/* error before any connection attempt (connection allocation error or no control layer) */
 		set_server_check_status(check, HCHK_STATUS_SOCKERR, err_msg);
 	}
@@ -1016,7 +1018,7 @@ int httpchk_build_status_header(struct server *s, struct buffer *buf)
  */
 static int wake_srv_chk(struct conn_stream *cs)
 {
-	struct connection *conn = cs->conn;
+	struct connection *conn;
 	struct check *check = cs->data;
 	struct email_alertq *q = container_of(check, typeof(*q), check);
 	int ret = 0;
@@ -1031,9 +1033,9 @@ static int wake_srv_chk(struct conn_stream *cs)
 	ret = tcpcheck_main(check);
 
 	cs = check->cs;
-	conn = cs->conn;
+	conn = cs_conn(cs);
 
-	if (unlikely(conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR)) {
+	if (unlikely(!conn || !cs || conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR)) {
 		/* We may get error reports bypassing the I/O handlers, typically
 		 * the case when sending a pure TCP check which fails, then the I/O
 		 * handlers above are not called. This is completely handled by the
@@ -1053,7 +1055,7 @@ static int wake_srv_chk(struct conn_stream *cs)
 		ret = -1;
 
 		if (check->wait_list.events)
-			cs->conn->mux->unsubscribe(cs, check->wait_list.events, &check->wait_list);
+			conn->mux->unsubscribe(cs, check->wait_list.events, &check->wait_list);
 
 		/* We may have been scheduled to run, and the
 		 * I/O handler expects to have a cs, so remove
@@ -1171,6 +1173,8 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 	TRACE_STATE("health-check complete or aborted", CHK_EV_TASK_WAKE|CHK_EV_HCHK_END, check);
 
 	check->current_step = NULL;
+	cs = check->cs;
+	conn = cs_conn(cs);
 
 	if (conn && conn->xprt) {
 		/* The check was aborted and the connection was not yet closed.
@@ -1182,8 +1186,8 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 	}
 
 	if (cs) {
-		if (check->wait_list.events)
-			cs->conn->mux->unsubscribe(cs, check->wait_list.events, &check->wait_list);
+		if (conn && check->wait_list.events)
+			conn->mux->unsubscribe(cs, check->wait_list.events, &check->wait_list);
 		/* We may have been scheduled to run, and the
 		 * I/O handler expects to have a cs, so remove
 		 * the tasklet
@@ -1352,7 +1356,10 @@ void free_check(struct check *check)
 	check_release_buf(check, &check->bi);
 	check_release_buf(check, &check->bo);
 	if (check->cs) {
-		ha_free(&check->cs->conn);
+		struct connection *conn = cs_conn(check->cs);
+
+		if (conn)
+			conn_free(conn);
 		cs_free(check->cs);
 		check->cs = NULL;
 	}

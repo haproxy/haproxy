@@ -246,10 +246,16 @@ static inline void conn_xprt_shutw_hard(struct connection *c)
 		c->xprt->shutw(c, c->xprt_ctx, 0);
 }
 
+/* Returns the conn from a cs. If cs is NULL, returns NULL */
+static inline struct connection *cs_conn(const struct conn_stream *cs)
+{
+	return cs ? cs->conn : NULL;
+}
+
 /* shut read */
 static inline void cs_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
 {
-	if (cs->flags & CS_FL_SHR)
+	if (!cs_conn(cs) || cs->flags & CS_FL_SHR)
 		return;
 
 	/* clean data-layer shutdown */
@@ -261,7 +267,7 @@ static inline void cs_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
 /* shut write */
 static inline void cs_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
 {
-	if (cs->flags & CS_FL_SHW)
+	if (!cs_conn(cs) || cs->flags & CS_FL_SHW)
 		return;
 
 	/* clean data-layer shutdown */
@@ -387,27 +393,23 @@ static inline void conn_force_unsubscribe(struct connection *conn)
 /* Release a conn_stream */
 static inline void cs_destroy(struct conn_stream *cs)
 {
-	if (cs->conn->mux)
-		cs->conn->mux->detach(cs);
-	else {
-		/* It's too early to have a mux, let's just destroy
-		 * the connection
-		 */
-		struct connection *conn = cs->conn;
+	if (cs_conn(cs)) {
+		if (cs->conn->mux)
+			cs->conn->mux->detach(cs);
+		else {
+			/* It's too early to have a mux, let's just destroy
+			 * the connection
+			 */
+			struct connection *conn = cs->conn;
 
-		conn_stop_tracking(conn);
-		conn_full_close(conn);
-		if (conn->destroy_cb)
-			conn->destroy_cb(conn);
-		conn_free(conn);
+			conn_stop_tracking(conn);
+			conn_full_close(conn);
+			if (conn->destroy_cb)
+				conn->destroy_cb(conn);
+			conn_free(conn);
+		}
 	}
 	cs_free(cs);
-}
-
-/* Returns the conn from a cs. If cs is NULL, returns NULL */
-static inline struct connection *cs_conn(const struct conn_stream *cs)
-{
-	return cs ? cs->conn : NULL;
 }
 
 /* Returns the source address of the connection or NULL if not set */

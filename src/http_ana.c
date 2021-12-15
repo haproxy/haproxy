@@ -1325,10 +1325,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	if (unlikely(htx_is_empty(htx) || htx->first == -1)) {
 		/* 1: have we encountered a read error ? */
 		if (rep->flags & CF_READ_ERROR) {
-			struct connection *conn = NULL;
-
-			if (objt_cs(s->si[1].end))
-				conn = __objt_cs(s->si[1].end)->conn;
+			struct connection *conn = cs_conn(objt_cs(s->si[1].end));
 
 			/* Perform a L7 retry because server refuses the early data. */
 			if ((si_b->flags & SI_FL_L7_RETRY) &&
@@ -5007,7 +5004,7 @@ static void http_debug_stline(const char *dir, struct stream *s, const struct ht
         chunk_printf(&trash, "%08x:%s.%s[%04x:%04x]: ", s->uniq_id, s->be->id,
                      dir,
                      objt_conn(sess->origin) ? (unsigned short)__objt_conn(sess->origin)->handle.fd : -1,
-                     objt_cs(s->si[1].end) ? (unsigned short)__objt_cs(s->si[1].end)->conn->handle.fd : -1);
+                     cs_conn(objt_cs(s->si[1].end)) ? (unsigned short)(cs_conn(__objt_cs(s->si[1].end)))->handle.fd : -1);
 
         max = HTX_SL_P1_LEN(sl);
         UBOUND(max, trash.size - trash.data - 3);
@@ -5038,7 +5035,7 @@ static void http_debug_hdr(const char *dir, struct stream *s, const struct ist n
         chunk_printf(&trash, "%08x:%s.%s[%04x:%04x]: ", s->uniq_id, s->be->id,
                      dir,
                      objt_conn(sess->origin) ? (unsigned short)__objt_conn(sess->origin)->handle.fd : -1,
-                     objt_cs(s->si[1].end) ? (unsigned short)__objt_cs(s->si[1].end)->conn->handle.fd : -1);
+                     cs_conn(objt_cs(s->si[1].end)) ? (unsigned short)(cs_conn(__objt_cs(s->si[1].end)))->handle.fd : -1);
 
         max = n.len;
         UBOUND(max, trash.size - trash.data - 3);

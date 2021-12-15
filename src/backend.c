@@ -2220,8 +2220,6 @@ void back_handle_st_con(struct stream *s)
 void back_handle_st_cer(struct stream *s)
 {
 	struct stream_interface *si = &s->si[1];
-	struct conn_stream *cs = objt_cs(si->end);
-	struct connection *conn = cs_conn(cs);
 
 	DBG_TRACE_ENTER(STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
 
@@ -2230,6 +2228,8 @@ void back_handle_st_cer(struct stream *s)
 
 	/* we probably have to release last stream from the server */
 	if (objt_server(s->target)) {
+		struct connection *conn = cs_conn(objt_cs(si->end));
+
 		health_adjust(__objt_server(s->target), HANA_STATUS_L4_ERR);
 
 		if (s->flags & SF_CURR_SESS) {
