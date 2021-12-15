@@ -17,23 +17,48 @@ static int hq_interop_decode_qcs(struct qcs *qcs, int fin, void *ctx)
 	struct conn_stream *cs;
 	struct buffer htx_buf = BUF_NULL;
 	struct ist path;
-	char *ptr;
+	char *ptr = b_head(rxbuf);
+	char *end = b_wrap(rxbuf);
+	size_t size = b_size(rxbuf);
+	size_t data = b_data(rxbuf);
 
 	b_alloc(&htx_buf);
 	htx = htx_from_buf(&htx_buf);
 
 	/* skip method */
-	ptr = b_orig(rxbuf);
-	while (HTTP_IS_TOKEN(*ptr))
-		++ptr;
-	BUG_ON(!HTTP_IS_SPHT(*ptr));
-	++ptr;
+	while (data && HTTP_IS_TOKEN(*ptr)) {
+		if (++ptr == end)
+			ptr -= size;
+		data--;
+	}
+
+	if (!data || !HTTP_IS_SPHT(*ptr)) {
+		fprintf(stderr, "truncated stream\n");
+		return 0;
+	}
+
+	if (++ptr == end)
+		ptr -= size;
+
+	if (!--data) {
+		fprintf(stderr, "truncated stream\n");
+		return 0;
+	}
 
 	/* extract path */
 	BUG_ON(HTTP_IS_LWS(*ptr));
 	path.ptr = ptr;
-	while (!HTTP_IS_LWS(*ptr))
-		++ptr;
+	while (data && !HTTP_IS_LWS(*ptr)) {
+		if (++ptr == end)
+			ptr -= size;
+		data--;
+	}
+
+	if (!data) {
+		fprintf(stderr, "truncated stream\n");
+		return 0;
+	}
+
 	BUG_ON(!HTTP_IS_LWS(*ptr));
 	path.len = ptr - path.ptr;
 
