@@ -177,16 +177,16 @@ static inline void si_release_endpoint(struct stream_interface *si)
 	if (!si->end)
 		return;
 
-	if ((cs = objt_cs(si->end))) {
+	if ((appctx = objt_appctx(si->end))) {
+		if (appctx->applet->release && !si_state_in(si->state, SI_SB_DIS|SI_SB_CLO))
+			appctx->applet->release(appctx);
+		appctx_free(appctx);
+	}
+	else if ((cs = objt_cs(si->end))) {
 		if (si->wait_event.events != 0)
 			cs->conn->mux->unsubscribe(cs, si->wait_event.events,
 			    &si->wait_event);
 		cs_destroy(cs);
-	}
-	else if ((appctx = objt_appctx(si->end))) {
-		if (appctx->applet->release && !si_state_in(si->state, SI_SB_DIS|SI_SB_CLO))
-			appctx->applet->release(appctx);
-		appctx_free(appctx);
 	}
 	si_detach_endpoint(si);
 }
