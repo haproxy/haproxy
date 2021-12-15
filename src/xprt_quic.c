@@ -2025,8 +2025,7 @@ static struct eb64_node *qcc_get_qcs(struct qcc *qcc, uint64_t id)
 }
 
 /* Copy as most as possible STREAM data from <strm_frm> into <strm> stream.
- * Returns the number of bytes copied or -1 if failed. Also update <strm_frm> frame
- * to reflect the data which have been consumed.
+ * Also update <strm_frm> frame to reflect the data which have been consumed.
  */
 static size_t qc_strm_cpy(struct buffer *buf, struct quic_stream *strm_frm)
 {
