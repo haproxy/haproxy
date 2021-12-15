@@ -460,24 +460,26 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin, struct bu
 	si_set_state(&s->si[0], SI_ST_EST);
 	s->si[0].hcto = sess->fe->timeout.clientfin;
 
-	if (cs_conn(cs) && cs->conn->mux) {
-		if (cs->conn->mux->flags & MX_FL_CLEAN_ABRT)
-			s->si[0].flags |= SI_FL_CLEAN_ABRT;
-		if (cs->conn->mux->flags & MX_FL_HTX)
-			s->flags |= SF_HTX;
-
-		if (cs->flags & CS_FL_WEBSOCKET)
-			s->flags |= SF_WEBSOCKET;
-	}
         /* Set SF_HTX flag for HTTP frontends. */
 	if (sess->fe->mode == PR_MODE_HTTP)
 		s->flags |= SF_HTX;
 
-	/* attach the incoming connection to the stream interface now. */
-	if (cs)
-		si_attach_cs(&s->si[0], cs);
-	else if (appctx)
+	if (appctx)
 		si_attach_appctx(&s->si[0], appctx);
+	else if (cs) {
+		if (cs_conn(cs) && cs->conn->mux) {
+			if (cs->conn->mux->flags & MX_FL_CLEAN_ABRT)
+				s->si[0].flags |= SI_FL_CLEAN_ABRT;
+			if (cs->conn->mux->flags & MX_FL_HTX)
+				s->flags |= SF_HTX;
+
+			if (cs->flags & CS_FL_WEBSOCKET)
+				s->flags |= SF_WEBSOCKET;
+		}
+		/* attach the incoming connection to the stream interface now. */
+		si_attach_cs(&s->si[0], cs);
+	}
+
 
 	if (likely(sess->fe->options2 & PR_O2_INDEPSTR))
 		s->si[0].flags |= SI_FL_INDEP_STR;
