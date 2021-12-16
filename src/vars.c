@@ -310,8 +310,7 @@ static int smp_fetch_var(const struct arg *args, struct sample *smp, const char 
  * a bool (which is memory-less).
  *
  * Flags is a bitfield that may contain one of the following flags:
- *   - VF_UPDATEONLY: if the scope is SCOPE_PROC, the variable may only be
- *     updated but not created.
+ *   - VF_UPDATEONLY: the variable may only be updated but not created.
  *   - VF_CREATEONLY: do nothing if the variable already exists (success).
  *   - VF_PERMANENT: this flag will be passed to the variable upon creation
  *
@@ -351,8 +350,7 @@ static int var_set(uint64_t name_hash, enum vars_scope scope, struct sample *smp
 					    -var->data.u.meth.str.data);
 		}
 	} else {
-		/* creation permitted for proc ? */
-		if (flags & VF_UPDATEONLY && scope == SCOPE_PROC)
+		if (flags & VF_UPDATEONLY)
 			goto unlock;
 
 		/* Check memory available. */
@@ -502,7 +500,8 @@ int vars_check_arg(struct arg *arg, char **err)
 	return 1;
 }
 
-/* This function stores a sample in a variable if it was already defined.
+/* This function stores a sample in a variable unless it is of type "proc" and
+ * not defined yet.
  * Returns zero on failure and non-zero otherwise. The variable not being
  * defined is treated as a failure.
  */
@@ -515,7 +514,8 @@ int vars_set_by_name_ifexist(const char *name, size_t len, struct sample *smp)
 	if (!vars_hash_name(name, len, &scope, &hash, NULL))
 		return 0;
 
-	return var_set(hash, scope, smp, VF_UPDATEONLY);
+	/* Variable creation is allowed for all scopes apart from the PROC one. */
+	return var_set(hash, scope, smp, (scope == SCOPE_PROC) ? VF_UPDATEONLY : 0);
 }
 
 
