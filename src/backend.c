@@ -1496,9 +1496,13 @@ int connect_server(struct stream *s)
 			}
 
 			if (avail >= 1) {
-				srv_cs = srv_conn->mux->attach(srv_conn, s->sess);
-				if (srv_cs)
-					si_attach_cs(&s->si[1], srv_cs);
+				srv_cs = si_attach_conn(&s->si[1], srv_conn);
+				if (srv_cs) {
+					if (srv_conn->mux->attach(srv_conn, srv_cs, s->sess) == -1) {
+						srv_conn = NULL;
+						cs_init(srv_cs, NULL);
+					}
+				}
 				else
 					srv_conn = NULL;
 			}
@@ -1574,12 +1578,11 @@ skip_reuse:
 			return SF_ERR_INTERNAL;  /* how did we get there ? */
 		}
 
-		srv_cs = si_alloc_cs(&s->si[1], srv_conn);
+		srv_cs = si_attach_conn(&s->si[1], srv_conn);
 		if (!srv_cs) {
 			conn_free(srv_conn);
 			return SF_ERR_RESOURCE;
 		}
-		srv_conn->ctx = srv_cs;
 #if defined(USE_OPENSSL) && defined(TLSEXT_TYPE_application_layer_protocol_negotiation)
 		if (!srv ||
 		    (srv->use_ssl != 1 || (!(srv->ssl_ctx.alpn_str) && !(srv->ssl_ctx.npn_str)) ||
@@ -2288,7 +2291,7 @@ void back_handle_st_cer(struct stream *s)
 	}
 
 	/* At this stage, we will trigger a connection retry (with or without
-	 * redispatch). Thus we must release the SI endpoint on the server side
+	 * redispatch). Thus we must reset the SI endpoint on the server side
 	 * an close the attached connection. It is especially important to do it
 	 * now if the retry is not immediately performed, to be sure to release
 	 * resources as soon as possible and to not catch errors from the lower
@@ -2297,7 +2300,7 @@ void back_handle_st_cer(struct stream *s)
 	 * Note: the stream-interface will be switched to ST_REQ, ST_ASS or
 	 * ST_TAR and SI_FL_ERR and SI_FL_EXP flags will be unset.
 	 */
-	si_release_endpoint(&s->si[1]);
+	si_reset_endpoint(&s->si[1]);
 
 	stream_choose_redispatch(s);
 

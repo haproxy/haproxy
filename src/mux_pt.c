@@ -363,28 +363,18 @@ static int mux_pt_wake(struct connection *conn)
  * Attach a new stream to a connection
  * (Used for outgoing connections)
  */
-static struct conn_stream *mux_pt_attach(struct connection *conn, struct session *sess)
+static int mux_pt_attach(struct connection *conn, struct conn_stream *cs, struct session *sess)
 {
-	struct conn_stream *cs;
 	struct mux_pt_ctx *ctx = conn->ctx;
 
 	TRACE_ENTER(PT_EV_STRM_NEW, conn);
 	if (ctx->wait_event.events)
 		conn->xprt->unsubscribe(ctx->conn, conn->xprt_ctx, SUB_RETRY_RECV, &ctx->wait_event);
-	cs = cs_new(conn, conn->target);
-	if (!cs) {
-		TRACE_ERROR("CS allocation failure", PT_EV_STRM_NEW|PT_EV_STRM_END|PT_EV_STRM_ERR, conn);
-		goto fail;
-	}
-
 	ctx->cs = cs;
 	cs->flags |= CS_FL_RCV_MORE;
 
 	TRACE_LEAVE(PT_EV_STRM_NEW, conn, cs);
-	return (cs);
-fail:
-	TRACE_DEVEL("leaving on error", PT_EV_STRM_NEW|PT_EV_STRM_END|PT_EV_STRM_ERR, conn);
-	return NULL;
+	return 0;
 }
 
 /* Retrieves a valid conn_stream from this connection, or returns NULL. For

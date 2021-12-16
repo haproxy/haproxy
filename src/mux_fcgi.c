@@ -3515,34 +3515,26 @@ static size_t fcgi_strm_parse_response(struct fcgi_strm *fstrm, struct buffer *b
  * Attach a new stream to a connection
  * (Used for outgoing connections)
  */
-static struct conn_stream *fcgi_attach(struct connection *conn, struct session *sess)
+static int fcgi_attach(struct connection *conn, struct conn_stream *cs, struct session *sess)
 {
-	struct conn_stream *cs;
 	struct fcgi_strm *fstrm;
 	struct fcgi_conn *fconn = conn->ctx;
 
 	TRACE_ENTER(FCGI_EV_FSTRM_NEW, conn);
-	cs = cs_new(conn, conn->target);
-	if (!cs) {
-		TRACE_ERROR("CS allocation failure", FCGI_EV_FSTRM_NEW|FCGI_EV_FSTRM_ERR, conn);
-		goto err;
-	}
 	fstrm = fcgi_conn_stream_new(fconn, cs, sess);
-	if (!fstrm) {
-		cs_free(cs);
+	if (!fstrm)
 		goto err;
-	}
 
 	/* the connection is not idle anymore, let's mark this */
 	HA_ATOMIC_AND(&fconn->wait_event.tasklet->state, ~TASK_F_USR1);
 	xprt_set_used(conn, conn->xprt, conn->xprt_ctx);
 
 	TRACE_LEAVE(FCGI_EV_FSTRM_NEW, conn, fstrm);
-	return cs;
+	return 0;
 
   err:
 	TRACE_DEVEL("leaving on error", FCGI_EV_FSTRM_NEW|FCGI_EV_FSTRM_ERR, conn);
-	return NULL;
+	return -1;
 }
 
 /* Retrieves the first valid conn_stream from this connection, or returns NULL.

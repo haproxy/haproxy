@@ -4180,23 +4180,16 @@ do_leave:
  * Attach a new stream to a connection
  * (Used for outgoing connections)
  */
-static struct conn_stream *h2_attach(struct connection *conn, struct session *sess)
+static int h2_attach(struct connection *conn, struct conn_stream *cs, struct session *sess)
 {
-	struct conn_stream *cs;
 	struct h2s *h2s;
 	struct h2c *h2c = conn->ctx;
 
 	TRACE_ENTER(H2_EV_H2S_NEW, conn);
-	cs = cs_new(conn, conn->target);
-	if (!cs) {
-		TRACE_DEVEL("leaving on CS allocation failure", H2_EV_H2S_NEW|H2_EV_H2S_ERR, conn);
-		return NULL;
-	}
 	h2s = h2c_bck_stream_new(h2c, cs, sess);
 	if (!h2s) {
 		TRACE_DEVEL("leaving on stream creation failure", H2_EV_H2S_NEW|H2_EV_H2S_ERR, conn);
-		cs_free(cs);
-		return NULL;
+		return -1;
 	}
 
 	/* the connection is not idle anymore, let's mark this */
@@ -4204,7 +4197,7 @@ static struct conn_stream *h2_attach(struct connection *conn, struct session *se
 	xprt_set_used(h2c->conn, h2c->conn->xprt, h2c->conn->xprt_ctx);
 
 	TRACE_LEAVE(H2_EV_H2S_NEW, conn, h2s);
-	return cs;
+	return 0;
 }
 
 /* Retrieves the first valid conn_stream from this connection, or returns NULL.

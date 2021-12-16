@@ -1257,7 +1257,7 @@ static __inline int do_l7_retry(struct stream *s, struct stream_interface *si)
 	res->to_forward = 0;
 	res->analyse_exp = TICK_ETERNITY;
 	res->total = 0;
-	si_release_endpoint(&s->si[1]);
+	si_reset_endpoint(&s->si[1]);
 
 	b_free(&req->buf);
 	/* Swap the L7 buffer with the channel buffer */

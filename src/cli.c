@@ -2715,7 +2715,7 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		 * connection.
 		 */
 		if (!si_conn_ready(&s->si[1])) {
-			si_release_endpoint(&s->si[1]);
+			si_reset_endpoint(&s->si[1]);
 			s->srv_conn = NULL;
 		}
 

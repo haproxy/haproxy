@@ -421,7 +421,7 @@ struct mux_ops {
 	void (*shutr)(struct conn_stream *cs, enum cs_shr_mode);     /* shutr function */
 	void (*shutw)(struct conn_stream *cs, enum cs_shw_mode);     /* shutw function */
 
-	struct conn_stream *(*attach)(struct connection *, struct session *sess); /* Create and attach a conn_stream to an outgoing connection */
+	int (*attach)(struct connection *conn, struct conn_stream *, struct session *sess); /* attach a conn_stream to an outgoing connection */
 	const struct conn_stream *(*get_first_cs)(const struct connection *); /* retrieves any valid conn_stream from this connection */
 	void (*detach)(struct conn_stream *); /* Detach a conn_stream from an outgoing connection, when the request is done */
 	int (*show_fd)(struct buffer *, struct connection *); /* append some data about connection into chunk for "show fd"; returns non-zero if suspicious */

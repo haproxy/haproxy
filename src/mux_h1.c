@@ -3219,21 +3219,14 @@ struct task *h1_timeout_task(struct task *t, void *context, unsigned int state)
  * Attach a new stream to a connection
  * (Used for outgoing connections)
  */
-static struct conn_stream *h1_attach(struct connection *conn, struct session *sess)
+static int h1_attach(struct connection *conn, struct conn_stream *cs, struct session *sess)
 {
 	struct h1c *h1c = conn->ctx;
-	struct conn_stream *cs = NULL;
 	struct h1s *h1s;
 
 	TRACE_ENTER(H1_EV_STRM_NEW, conn);
 	if (h1c->flags & H1C_F_ST_ERROR) {
 		TRACE_ERROR("h1c on error", H1_EV_STRM_NEW|H1_EV_STRM_END|H1_EV_STRM_ERR, conn);
-		goto err;
-	}
-
-	cs = cs_new(h1c->conn, h1c->conn->target);
-	if (!cs) {
-		TRACE_ERROR("CS allocation failure", H1_EV_STRM_NEW|H1_EV_STRM_END|H1_EV_STRM_ERR, conn);
 		goto err;
 	}
 
@@ -3248,11 +3241,10 @@ static struct conn_stream *h1_attach(struct connection *conn, struct session *se
 	xprt_set_used(conn, conn->xprt, conn->xprt_ctx);
 
 	TRACE_LEAVE(H1_EV_STRM_NEW, conn, h1s);
-	return cs;
+	return 0;
   err:
-	cs_free(cs);
 	TRACE_DEVEL("leaving on error", H1_EV_STRM_NEW|H1_EV_STRM_END|H1_EV_STRM_ERR, conn);
-	return NULL;
+	return -1;
 }
 
 /* Retrieves a valid conn_stream from this connection, or returns NULL. For
