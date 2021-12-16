@@ -840,8 +840,8 @@ static int conv_check_var(struct arg *args, struct sample_conv *conv,
 /* This function is a common parser for using variables. It understands
  * the format:
  *
- *   set-var-fmt(<variable-name>) <format-string>
- *   set-var(<variable-name>) <expression>
+ *   set-var-fmt(<variable-name>[,<cond> ...]) <format-string>
+ *   set-var(<variable-name>[,<cond> ...]) <expression>
  *   unset-var(<variable-name>)
  *
  * It returns ACT_RET_PRS_ERR if fails and <err> is filled with an error
@@ -857,6 +857,9 @@ static enum act_parse_ret parse_store(const char **args, int *arg, struct proxy 
 	const char *kw_name;
 	int flags = 0, set_var = 0; /* 0=unset-var, 1=set-var, 2=set-var-fmt */
 	struct sample empty_smp = { };
+	struct ist condition = IST_NULL;
+	struct ist var = IST_NULL;
+	struct ist varname_ist = IST_NULL;
 
 	if (strncmp(var_name, "set-var-fmt", 11) == 0) {
 		var_name += 11;
@@ -883,6 +886,28 @@ static enum act_parse_ret parse_store(const char **args, int *arg, struct proxy 
 		memprintf(err, "incomplete argument after action '%s'. Expects 'set-var(<var-name>)', 'set-var-fmt(<var-name>)' or 'unset-var(<var-name>)'",
 			  args[*arg-1]);
 		return ACT_RET_PRS_ERR;
+	}
+
+	/* Parse the optional conditions. */
+	var = ist2(var_name, var_len);
+	varname_ist = istsplit(&var, ',');
+	var_len = istlen(varname_ist);
+
+	condition = istsplit(&var, ',');
+
+	if (istlen(condition) && set_var == 0) {
+		memprintf(err, "unset-var does not expect parameters after the variable name. Only \"set-var\" and \"set-var-fmt\" manage conditions");
+		return ACT_RET_PRS_ERR;
+	}
+
+	while (istlen(condition)) {
+		struct buffer cond = {};
+
+		chunk_initlen(&cond, istptr(condition), 0, istlen(condition));
+		if (vars_parse_cond_param(&cond, &rule->arg.vars.conditions, err) == 0)
+			return ACT_RET_PRS_ERR;
+
+		condition = istsplit(&var, ',');
 	}
 
 	LIST_INIT(&rule->arg.vars.fmt);

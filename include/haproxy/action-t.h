@@ -170,6 +170,7 @@ struct act_rule {
 			struct sample_expr *expr;
 			uint64_t name_hash;
 			enum vars_scope scope;
+			uint conditions;            /* Bitfield of the conditions passed to this set-var call */
 		} vars;
 		struct {
 			int sc;
