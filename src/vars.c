@@ -364,6 +364,7 @@ static int var_set(uint64_t name_hash, enum vars_scope scope, struct sample *smp
 		LIST_APPEND(&vars->head, &var->l);
 		var->name_hash = name_hash;
 		var->flags = flags & VF_PERMANENT;
+		var->data.type = SMP_T_ANY;
 	}
 
 	/* Set type. */
