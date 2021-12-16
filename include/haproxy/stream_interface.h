@@ -166,6 +166,33 @@ static inline enum obj_type *si_detach_endpoint(struct stream_interface *si)
 	return prev;
 }
 
+/* Reset the endpoint if it's a connection or an applet, For an applet, it is
+ * for now the same than si_release_endpoint(), the appctx is freed. But for a
+ * connection, the conn-stream is only detached.
+ */
+static inline void si_reset_endpoint(struct stream_interface *si)
+{
+	struct conn_stream *cs;
+	struct appctx *appctx;
+
+	if (!si->end)
+		return;
+
+	if ((appctx = objt_appctx(si->end))) {
+		if (appctx->applet->release && !si_state_in(si->state, SI_SB_DIS|SI_SB_CLO))
+			appctx->applet->release(appctx);
+		appctx_free(appctx);
+		si_detach_endpoint(si);
+	}
+	else if ((cs = objt_cs(si->end))) {
+		if (cs_conn(cs) && si->wait_event.events != 0)
+			cs->conn->mux->unsubscribe(cs, si->wait_event.events,
+						   &si->wait_event);
+		cs_detach(cs);
+		si->ops = &si_embedded_ops;
+	}
+}
+
 /* Release the endpoint if it's a connection or an applet, then nullify it.
  * Note: released connections are closed then freed.
  */
