@@ -5327,8 +5327,8 @@ http-after-response <action> <options...> [ { if | unless } <condition> ]
     - replace-value <name> <regex-match> <replace-fmt>
     - set-header <name> <fmt>
     - set-status <status> [reason <str>]
-    - set-var(<var-name>) <expr>
-    - set-var-fmt(<var-name>) <fmt>
+    - set-var(<var-name>[,<cond> ...]) <expr>
+    - set-var-fmt(<var-name>[,<cond> ...]) <fmt>
     - strict-mode { on | off }
     - unset-var(<var-name>)
 
@@ -5419,8 +5419,8 @@ http-after-response set-status <status> [reason <str>]
   between 100 and 999. Please refer to "http-response set-status" for a complete
   description.
 
-http-after-response set-var(<var-name>) <expr> [ { if | unless } <condition> ]
-http-after-response set-var-fmt(<var-name>) <fmt> [ { if | unless } <condition> ]
+http-after-response set-var(<var-name>[,<cond> ...]) <expr> [ { if | unless } <condition> ]
+http-after-response set-var-fmt(<var-name>[,<cond> ...]) <fmt> [ { if | unless } <condition> ]
 
   This is used to set the contents of a variable. The variable is declared
   inline. Please refer to "http-request set-var" and "http-request set-var-fmt"
@@ -5858,8 +5858,8 @@ http-check send-state
              "http-check send".
 
 
-http-check set-var(<var-name>) <expr>
-http-check set-var-fmt(<var-name>) <fmt>
+http-check set-var(<var-name>[,<cond> ...]) <expr>
+http-check set-var-fmt(<var-name>[,<cond> ...]) <fmt>
   This operation sets the content of a variable. The variable is declared inline.
   May be used in sections:   defaults | frontend | listen | backend
                                yes    |    no    |   yes  |   yes
@@ -5873,6 +5873,11 @@ http-check set-var-fmt(<var-name>) <fmt>
                 This prefix is followed by a name. The separator is a '.'.
                 The name may only contain characters 'a-z', 'A-Z', '0-9', '.',
                 and '-'.
+
+    <cond>      A set of conditions that must all be true for the variable to
+                actually be set (such as "ifnotempty", "ifgt" ...). See the
+                set-var converter's decription for a full list of possible
+                conditions.
 
     <expr>      Is a sample-fetch expression potentially followed by converters.
 
@@ -6045,8 +6050,8 @@ http-request <action> [options...] [ { if | unless } <condition> ]
     - set-timeout { server | tunnel } { <timeout> | <expr> }
     - set-tos <tos>
     - set-uri <fmt>
-    - set-var(<var-name>) <expr>
-    - set-var-fmt(<var-name>) <fmt>
+    - set-var(<var-name>[,<cond> ...]) <expr>
+    - set-var-fmt(<var-name>[,<cond> ...]) <fmt>
     - send-spoe-group <engine-name> <group-name>
     - silent-drop
     - strict-mode { on | off }
@@ -6939,8 +6944,8 @@ http-request set-uri <fmt> [ { if | unless } <condition> ]
   path and the query string.
   See also "http-request set-path" and "http-request set-query".
 
-http-request set-var(<var-name>) <expr> [ { if | unless } <condition> ]
-http-request set-var-fmt(<var-name>) <fmt> [ { if | unless } <condition> ]
+http-request set-var(<var-name>[,<cond> ...]) <expr> [ { if | unless } <condition> ]
+http-request set-var-fmt(<var-name>[,<cond> ...]) <fmt> [ { if | unless } <condition> ]
 
   This is used to set the contents of a variable. The variable is declared
   inline.
@@ -6959,6 +6964,11 @@ http-request set-var-fmt(<var-name>) <fmt> [ { if | unless } <condition> ]
                 This prefix is followed by a name. The separator is a '.'.
                 The name may only contain characters 'a-z', 'A-Z', '0-9'
                 and '_'.
+
+    <cond>      A set of conditions that must all be true for the variable to
+                actually be set (such as "ifnotempty", "ifgt" ...). See the
+                set-var converter's decription for a full list of possible
+                conditions.
 
     <expr>      Is a standard HAProxy expression formed by a sample-fetch
                 followed by some converters.
@@ -7169,8 +7179,8 @@ http-response <action> <options...> [ { if | unless } <condition> ]
     - set-nice <nice>
     - set-status <status> [reason <str>]
     - set-tos <tos>
-    - set-var(<var-name>) <expr>
-    - set-var-fmt(<var-name>) <fmt>
+    - set-var(<var-name>[,<cond> ...]) <expr>
+    - set-var-fmt(<var-name>[,<cond> ...]) <fmt>
     - silent-drop
     - strict-mode { on | off }
     - track-sc0 <key> [table <table>]
@@ -7407,8 +7417,8 @@ http-response set-tos <tos> [ { if | unless } <condition> ]
   to the value passed in <tos> on platforms which support this. Please refer to
   "http-request set-tos" for a complete description.
 
-http-response set-var(<var-name>) <expr> [ { if | unless } <condition> ]
-http-response set-var-fmt(<var-name>) <fmt> [ { if | unless } <condition> ]
+http-response set-var(<var-name>[,<cond> ...]) <expr> [ { if | unless } <condition> ]
+http-response set-var-fmt(<var-name>[,<cond> ...]) <fmt> [ { if | unless } <condition> ]
 
   This is used to set the contents of a variable. The variable is declared
   inline. Please refer to "http-request set-var" and "http-request set-var-fmt"
@@ -11917,8 +11927,8 @@ tcp-check send-binary-lf <hexfmt> [comment <msg>]
              "tcp-check send", tune.bufsize
 
 
-tcp-check set-var(<var-name>) <expr>
-tcp-check set-var-fmt(<var-name>) <fmt>
+tcp-check set-var(<var-name>[,<cond> ...]) <expr>
+tcp-check set-var-fmt(<var-name>[,<cond> ...]) <fmt>
   This operation sets the content of a variable. The variable is declared inline.
   May be used in sections:   defaults | frontend | listen | backend
                                yes    |    no    |   yes  |   yes
@@ -11932,6 +11942,11 @@ tcp-check set-var-fmt(<var-name>) <fmt>
                 This prefix is followed by a name. The separator is a '.'.
                 The name may only contain characters 'a-z', 'A-Z', '0-9', '.',
                 and '-'.
+
+    <cond>      A set of conditions that must all be true for the variable to
+                actually be set (such as "ifnotempty", "ifgt" ...). See the
+                set-var converter's decription for a full list of possible
+                conditions.
 
     <expr>      Is a sample-fetch expression potentially followed by converters.
 
@@ -12005,8 +12020,8 @@ tcp-request connection <action> <options...> [ { if | unless } <condition> ]
     - set-src <expr>
     - set-src-port <expr>
     - set-tos <tos>
-    - set-var(<var-name>) <expr>
-    - set-var-fmt(<var-name>) <fmt>
+    - set-var(<var-name>[,<cond> ...]) <expr>
+    - set-var-fmt(<var-name>[,<cond> ...]) <fmt>
     - silent-drop
     - track-sc0 <key> [table <table>]
     - track-sc1 <key> [table <table>]
@@ -12136,8 +12151,8 @@ tcp-request connection set-tos <tos> [ { if | unless } <condition> ]
   to the value passed in <tos> on platforms which support this. Please refer to
   "http-request set-tos" for a complete description.
 
-tcp-request connection set-var(<var-name>) <expr> [ { if | unless } <condition> ]
-tcp-request connection set-var-fmt(<var-name>) <fmt> [ { if | unless } <condition> ]
+tcp-request connection set-var(<var-name>[,<cond> ...]) <expr> [ { if | unless } <condition> ]
+tcp-request connection set-var-fmt(<var-name>[,<cond> ...]) <fmt> [ { if | unless } <condition> ]
 
   This is used to set the contents of a variable. The variable is declared
   inline. "tcp-request connection" can set variables in the "proc" and "sess"
@@ -12221,8 +12236,8 @@ tcp-request content <action> [{if | unless} <condition>]
     - set-src <expr>
     - set-src-port <expr>
     - set-tos <tos>
-    - set-var(<var-name>) <expr>
-    - set-var-fmt(<var-name>) <fmt>
+    - set-var(<var-name>[,<cond> ...]) <expr>
+    - set-var-fmt(<var-name>[,<cond> ...]) <fmt>
     - silent-drop
     - switch-mode http [ proto <name> ]
     - track-sc0 <key> [table <table>]
@@ -12451,8 +12466,8 @@ tcp-request content set-tos <tos> [ { if | unless } <condition> ]
   to the value passed in <tos> on platforms which support this. Please refer to
   "http-request set-tos" for a complete description.
 
-tcp-request content set-var(<var-name>) <expr> [ { if | unless } <condition> ]
-tcp-request content set-var-fmt(<var-name>) <fmt> [ { if | unless } <condition> ]
+tcp-request content set-var(<var-name>[,<cond> ...]) <expr> [ { if | unless } <condition> ]
+tcp-request content set-var-fmt(<var-name>[,<cond> ...]) <fmt> [ { if | unless } <condition> ]
 
   This is used to set the contents of a variable. The variable is declared
   inline. Please refer to "http-request set-var" and "http-request set-var-fmt"
@@ -12604,8 +12619,8 @@ tcp-request session <action> [{if | unless} <condition>]
     - set-src <expr>
     - set-src-port <expr>
     - set-tos <tos>
-    - set-var(<var-name>) <expr>
-    - set-var-fmt(<var-name>) <fmt>
+    - set-var(<var-name>[,<cond> ...]) <expr>
+    - set-var-fmt(<var-name>[,<cond> ...]) <fmt>
     - silent-drop
     - track-sc0 <key> [table <table>]
     - track-sc1 <key> [table <table>]
@@ -12709,8 +12724,8 @@ tcp-request session set-tos <tos> [ { if | unless } <condition> ]
   to the value passed in <tos> on platforms which support this. Please refer to
   "http-request set-tos" for a complete description.
 
-tcp-request session set-var(<var-name>) <expr> [ { if | unless } <condition> ]
-tcp-request session set-var-fmt(<var-name>) <fmt> [ { if | unless } <condition> ]
+tcp-request session set-var(<var-name>[,<cond> ...]) <expr> [ { if | unless } <condition> ]
+tcp-request session set-var-fmt(<var-name>[,<cond> ...]) <fmt> [ { if | unless } <condition> ]
 
   This is used to set the contents of a variable. The variable is declared
   inline. Please refer to "http-request set-var" and "http-request set-var-fmt"
@@ -12775,8 +12790,8 @@ tcp-response content <action> [{if | unless} <condition>]
     - set-mark <mark>
     - set-nice <nice>
     - set-tos <tos>
-    - set-var(<var-name>) <expr>
-    - set-var-fmt(<var-name>) <fmt>
+    - set-var(<var-name>[,<cond> ...]) <expr>
+    - set-var-fmt(<var-name>[,<cond> ...]) <fmt>
     - silent-drop
     - unset-var(<var-name>)
 
@@ -12870,8 +12885,8 @@ tcp-response content set-tos <tos> [ { if | unless } <condition> ]
   to the value passed in <tos> on platforms which support this. Please refer to
   "http-request set-tos" for a complete description.
 
-tcp-response content set-var(<var-name>) <expr> [ { if | unless } <condition> ]
-tcp-response content set-var-fmt(<var-name>) <fmt> [ { if | unless } <condition> ]
+tcp-response content set-var(<var-name>[,<cond> ...]) <expr> [ { if | unless } <condition> ]
+tcp-response content set-var-fmt(<var-name>[,<cond> ...]) <fmt> [ { if | unless } <condition> ]
 
   This is used to set the contents of a variable. The variable is declared
   inline. Please refer to "http-request set-var" and "http-request set-var-fmt"
@@ -17062,10 +17077,12 @@ secure_memcmp(<var>)
      # value, without leaking the contents using a timing attack.
      acl token_given str(my_secret_token),secure_memcmp(txn.token)
 
-set-var(<var>)
+set-var(<var>[,<cond> ...])
   Sets a variable with the input content and returns the content on the output
-  as-is. The variable keeps the value and the associated input type. The name of
-  the variable starts with an indication about its scope. The scopes allowed are:
+  as-is if all of the specified conditions are true (see below for a list of
+  possible conditions). The variable keeps the value and the associated input
+  type. The name of the variable starts with an indication about its scope. The
+  scopes allowed are:
     "proc" : the variable is shared with the whole process
     "sess" : the variable is shared with the whole session
     "txn"  : the variable is shared with the transaction (request and
@@ -17074,6 +17091,29 @@ set-var(<var>)
     "res"  : the variable is shared only during response processing.
   This prefix is followed by a name. The separator is a '.'. The name may only
   contain characters 'a-z', 'A-Z', '0-9', '.' and '_'.
+
+  You can pass at most four conditions to the converter among the following
+  possible conditions :
+   - "ifexists"/"ifnotexists":
+        Checks if the variable already existed before the current set-var call.
+        A variable is usually created through a successful set-var call.
+        Note that variables of scope "proc" are created during configuration
+        parsing so the "ifexists" condition will always be true for them.
+   - "ifempty"/"ifnotempty":
+        Checks if the input is empty or not.
+        Scalar types are never empty so the ifempty condition will be false for
+        them regardless of the input's contents (integers, booleans, IPs ...).
+   - "ifset"/"ifnotset":
+        Checks if the variable was previously set or not, or if unset-var was
+        called on the variable.
+        A variable that does not exist yet is considered as not set. A "proc"
+        variable can exist while not being set since they are created during
+        configuration parsing.
+   - "ifgt"/"iflt":
+        Checks if the content of the variable is "greater than" or "less than"
+        the input. This check can only be performed if both the input and
+        the variable are of type integer. Otherwise, the check is considered as
+        true by default.
 
 sha1
   Converts a binary input sample to a SHA-1 digest. The result is a binary
