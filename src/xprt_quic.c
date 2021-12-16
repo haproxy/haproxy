@@ -607,11 +607,13 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 		const struct quic_rx_packet *pkt = a2;
 		const uint64_t *len = a3;
 
-		if (conn)
-			chunk_appendf(&trace_buf, " xprt_ctx@%p qc@%p", conn->xprt_ctx, conn->qc);
-		if (pkt)
-			chunk_appendf(&trace_buf, " pkt@%p type=0x%02x %s pkt->qc@%p",
-			              pkt, pkt->type, qc_pkt_long(pkt) ? "long" : "short", pkt->qc);
+		if (pkt) {
+			chunk_appendf(&trace_buf, " pkt@%p type=0x%02x %s",
+			              pkt, pkt->type, qc_pkt_long(pkt) ? "long" : "short");
+			if (pkt->pn_node.key != (uint64_t)-1)
+				chunk_appendf(&trace_buf, " pn=%llu", pkt->pn_node.key);
+		}
+
 		if (len)
 			chunk_appendf(&trace_buf, " len=%llu", (ull)*len);
 	}
@@ -3891,7 +3893,11 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 	qc = NULL;
 	conn_ctx = NULL;
 	qel = NULL;
-	TRACE_ENTER(QUIC_EV_CONN_LPKT, NULL, pkt);
+	TRACE_ENTER(QUIC_EV_CONN_LPKT);
+	/* This ist only to please to traces and distinguish the
+	 * packet with parsed packet number from others.
+	 */
+	pkt->pn_node.key = (uint64_t)-1;
 	if (end <= *buf)
 		goto err;
 
