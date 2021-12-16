@@ -3927,8 +3927,7 @@ static struct quic_conn *qc_retrieve_conn_from_cid(struct quic_rx_packet *pkt,
 	/* If found in DCIDs tree, remove the quic_conn from the ODCIDs tree.
 	 * If already done, this is a noop.
 	 */
-	if (HA_ATOMIC_BTR(&qc->flags, QUIC_FL_CONN_ODCID_NODE_TO_DELETE_BIT))
-		ebmb_delete(&qc->odcid_node);
+	ebmb_delete(&qc->odcid_node);
 
  end:
 	HA_RWLOCK_RDUNLOCK(QUIC_LOCK, &l->rx.cids_lock);
@@ -4093,7 +4092,6 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 			/* Insert the DCID the QUIC client has chosen (only for listeners) */
 			n = ebmb_insert(&l->rx.odcids, &qc->odcid_node,
 			                qc->odcid.len + qc->odcid.addrlen);
-			HA_ATOMIC_OR(&qc->flags, QUIC_FL_CONN_ODCID_NODE_TO_DELETE);
 			HA_RWLOCK_WRUNLOCK(QUIC_LOCK, &l->rx.cids_lock);
 
 			/* If the insertion failed, it means that another

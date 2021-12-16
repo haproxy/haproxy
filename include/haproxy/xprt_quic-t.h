@@ -616,8 +616,6 @@ struct rxbuf {
 
 /* Flags at connection level */
 #define QUIC_FL_CONN_ANTI_AMPLIFICATION_REACHED (1U << 0)
-#define QUIC_FL_CONN_ODCID_NODE_TO_DELETE_BIT 1
-#define QUIC_FL_CONN_ODCID_NODE_TO_DELETE       (1U << QUIC_FL_CONN_ODCID_NODE_TO_DELETE_BIT)
 #define QUIC_FL_CONN_IMMEDIATE_CLOSE            (1U << 31)
 struct quic_conn {
 	uint32_t version;
