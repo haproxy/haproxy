@@ -384,6 +384,9 @@ static int var_set(uint64_t name_hash, enum vars_scope scope, struct sample *smp
 			ret = 1;
 			goto unlock;
 		}
+
+		if (flags & VF_COND_IFNOTEXISTS)
+			goto unlock;
 	} else {
 		if (flags & VF_COND_IFEXISTS)
 			goto unlock;
@@ -402,14 +405,45 @@ static int var_set(uint64_t name_hash, enum vars_scope scope, struct sample *smp
 		var->data.type = SMP_T_ANY;
 	}
 
+	/* A variable of type SMP_T_ANY is considered as unset (either created
+	 * and never set or unset-var was called on it).
+	 */
+	if ((flags & VF_COND_IFSET && var->data.type == SMP_T_ANY) ||
+	    (flags & VF_COND_IFNOTSET && var->data.type != SMP_T_ANY))
+		goto unlock;
+
 	/* Set type. */
 	previous_type = var->data.type;
 	var->data.type = smp->data.type;
 
+	if (flags & VF_COND_IFEMPTY) {
+		switch(smp->data.type) {
+		case SMP_T_ANY:
+		case SMP_T_STR:
+		case SMP_T_BIN:
+			/* The actual test on the contents of the sample will be
+			 * performed later.
+			 */
+			break;
+		default:
+			/* The sample cannot be empty since it has a scalar type. */
+			var->data.type = previous_type;
+			goto unlock;
+		}
+	}
+
 	/* Copy data. If the data needs memory, the function can fail. */
 	switch (var->data.type) {
 	case SMP_T_BOOL:
+		var_clear_buffer(smp, vars, var, previous_type);
+		var->data.u.sint = smp->data.u.sint;
+		break;
 	case SMP_T_SINT:
+		if (previous_type == var->data.type) {
+			if (((flags & VF_COND_IFGT) && !(var->data.u.sint > smp->data.u.sint)) ||
+			    ((flags & VF_COND_IFLT) && !(var->data.u.sint < smp->data.u.sint)))
+				goto unlock;
+		}
 		var_clear_buffer(smp, vars, var, previous_type);
 		var->data.u.sint = smp->data.u.sint;
 		break;
@@ -423,6 +457,11 @@ static int var_set(uint64_t name_hash, enum vars_scope scope, struct sample *smp
 		break;
 	case SMP_T_STR:
 	case SMP_T_BIN:
+		if ((flags & VF_COND_IFNOTEMPTY && !smp->data.u.str.data) ||
+		    (flags & VF_COND_IFEMPTY && smp->data.u.str.data)) {
+			var->data.type = previous_type;
+			goto unlock;
+		}
 		var_clear_buffer(smp, vars, var, previous_type);
 		if (!var_accounting_add(vars, smp->sess, smp->strm, smp->data.u.str.data)) {
 			var->data.type = SMP_T_BOOL; /* This type doesn't use additional memory. */
@@ -768,7 +807,7 @@ static enum act_return action_store(struct act_rule *rule, struct proxy *px,
 		smp_set_owner(&smp, px, sess, s, 0);
 		smp.data.type = SMP_T_STR;
 		smp.data.u.str = *fmtstr;
-		var_set(rule->arg.vars.name_hash, rule->arg.vars.scope, &smp, 0);
+		var_set(rule->arg.vars.name_hash, rule->arg.vars.scope, &smp, rule->arg.vars.conditions);
 	}
 	else {
 		/* an expression is used */
@@ -778,7 +817,7 @@ static enum act_return action_store(struct act_rule *rule, struct proxy *px,
 	}
 
 	/* Store the sample, and ignore errors. */
-	var_set(rule->arg.vars.name_hash, rule->arg.vars.scope, &smp, 0);
+	var_set(rule->arg.vars.name_hash, rule->arg.vars.scope, &smp, rule->arg.vars.conditions);
 	free_trash_chunk(fmtstr);
 	return ACT_RET_CONT;
 }
