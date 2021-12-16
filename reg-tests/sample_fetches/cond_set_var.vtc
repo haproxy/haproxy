@@ -1,0 +1,364 @@
+#REGTEST_TYPE=devel
+
+# This regtest checks the multiple conditions that can be specified to a
+# set-var call (be it a converter or HTTP or TCP action). It mainly uses the
+# actions but since the "var_set" function is used for the converter and for
+# the actions, it should be enough to focus on one type of set-var.
+# Among the variables that can be defined and the multiple scopes they can
+# have, the proc scope is the only one having a specific behaviour. Proc scoped
+# variables are created during init when a variable of any other scope is
+# created during the first successful set-var.
+# Since this test uses variables of different scopes, the validation cannot be
+# based on the "show var" command of the CLI because it only displays process
+# variables. It then always follows the same logic, for every sub test case :
+# an HTTP header is added to the response in which we add a concatenation of
+# all the tested variables (which exist in the request/response scope). These
+# HTTP headers are then tested upon an expected result (which changes for every
+# test case).
+#
+
+varnishtest "Test the conditional set-var converter and action"
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.5-dev0)'"
+feature cmd "command -v socat"
+feature ignore_unknown_macro
+
+server s1 -repeat 10 {
+  rxreq
+  txresp
+} -start
+
+haproxy h1 -conf {
+    global
+        tune.ssl.default-dh-param 2048
+        tune.ssl.capture-buffer-size 1
+        set-var proc.int12 int(12)
+        set-var proc.int5  var(proc.str60,60),div(proc.int12)
+
+    defaults
+        mode http
+        timeout connect 100ms
+        timeout client  1s
+        timeout server  1s
+
+    listen main-fe
+        bind "fd@${mainfe}"
+
+        use_backend ifexists_be if { path_beg /ifexists }
+        use_backend ifnotexists_be if { path_beg /ifnotexists }
+        use_backend ifempty_be if { path_beg /ifempty }
+        use_backend ifnotempty_be if { path_beg /ifnotempty }
+        use_backend ifset_be if { path_beg /ifset }
+        use_backend ifnotset_be if { path_beg /ifnotset }
+        use_backend ifgt_be if { path_beg /ifgt }
+        use_backend iflt_be if { path_beg /iflt }
+        use_backend combined_be if { path_beg /combined }
+        use_backend converter_be if { path_beg /converter }
+
+
+    backend ifexists_be
+        server s1 ${s1_addr}:${s1_port}
+
+        # proc scope variables are created during configuration parsing so the
+        # ifexists condition will always be true for those variables
+        http-response set-var(proc.ifexists_proc,ifexists) var(proc.int12)
+        http-response set-var(sess.ifexists_sess,ifexists) var(proc.int5)
+        http-response set-var(res.ifexists_res,ifexists) str(toto)
+
+        http-response set-header x-var "proc.ifexists=%[var(proc.ifexists_proc)] sess.ifexists=%[var(sess.ifexists_sess)] res.ifexists=%[var(res.ifexists_res)]"
+
+
+    backend ifnotexists_be
+        server s1 ${s1_addr}:${s1_port}
+
+        http-response set-header x-var-init "proc.ifnotexists=%[var(proc.ifnotexists_proc)] sess.ifnotexists=%[var(sess.ifnotexists_sess)] res.ifnotexists=%[var(res.ifnotexists_res)]"
+
+        http-response set-var(proc.ifnotexists_proc,ifnotexists) var(proc.int12)
+        http-response set-var(sess.ifnotexists_sess,ifnotexists) var(proc.int5)
+        http-response set-var(res.ifnotexists_res,ifnotexists) str(toto)
+
+        http-response set-header x-var "proc.ifnotexists=%[var(proc.ifnotexists_proc)] sess.ifnotexists=%[var(sess.ifnotexists_sess)] res.ifnotexists=%[var(res.ifnotexists_res)]"
+
+
+    backend ifempty_be
+        server s1 ${s1_addr}:${s1_port}
+        # init
+        http-response set-var(proc.ifempty_proc) str(ifempty_proc)
+        http-response set-var(sess.ifempty_sess) bin(6966656d7074795f73657373) #ifempty_sess
+        http-response set-var(res.ifempty_res) str(ifempty_res)
+        http-response set-var(res.ifempty_res_int) int(5)
+
+        http-response set-header x-var-init "proc.ifempty=%[var(proc.ifempty_proc)] sess.ifempty=%[var(sess.ifempty_sess)] res.ifempty=%[var(res.ifempty_res)] res.ifempty_res_int=%[var(res.ifempty_res_int)]"
+
+        # None of those set-var calls should actually change their respective variables
+        # since none of the samples is empty
+        http-response set-var(proc.ifempty_proc,ifempty) int(12)
+        http-response set-var(sess.ifempty_sess,ifempty) bool(false)
+        http-response set-var(res.ifempty_res,ifempty) bin(746F746F) # "toto"
+        http-response set-var(res.ifempty_res_int,ifempty) str(toto)
+
+        http-response set-header x-var1 "proc.ifempty=%[var(proc.ifempty_proc)] sess.ifempty=%[var(sess.ifempty_sess)] res.ifempty=%[var(res.ifempty_res)] res.ifempty_res_int=%[var(res.ifempty_res_int)]"
+
+        http-response set-var(proc.ifempty_proc,ifempty) str()
+        http-response set-var(sess.ifempty_sess,ifempty) str()
+        http-response set-var(res.ifempty_res,ifempty) str()
+        http-response set-var(res.ifempty_res_int,ifempty) int(7) # should not work, scalar types are never empty
+
+        http-response set-header x-var2 "proc.ifempty=%[var(proc.ifempty_proc)] sess.ifempty=%[var(sess.ifempty_sess)] res.ifempty=%[var(res.ifempty_res)] res.ifempty_res_int=%[var(res.ifempty_res_int)]"
+
+
+    backend ifnotempty_be
+        server s1 ${s1_addr}:${s1_port}
+        # init
+        http-response set-var(proc.ifnotempty_proc) str(ifnotempty_proc)
+        http-response set-var(sess.ifnotempty_sess) bin(69666e6f74656d7074795f73657373) # "ifnotempty_sess"
+        http-response set-var(res.ifnotempty_res) str(ifnotempty_res)
+        http-response set-var(res.ifnotempty_res_int) int(5)
+
+        http-response set-header x-var-init "proc.ifnotempty=%[var(proc.ifnotempty_proc)] sess.ifnotempty=%[var(sess.ifnotempty_sess)] res.ifnotempty=%[var(res.ifnotempty_res)] res.ifnotempty_res_int=%[var(res.ifnotempty_res_int)]"
+
+        # None of those set-var calls should actually change their respective variables
+        # since none of the samples is not empty
+        http-response set-var(proc.ifnotempty_proc,ifnotempty) str(toto)
+        http-response set-var(sess.ifnotempty_sess,ifnotempty) bin(746F746F) # "toto"
+        http-response set-var(res.ifnotempty_res,ifnotempty) str(tata)
+        http-response set-var(res.ifnotempty_res_int,ifnotempty) int(6)
+
+        http-response set-header x-var1 "proc.ifnotempty=%[var(proc.ifnotempty_proc)] sess.ifnotempty=%[var(sess.ifnotempty_sess)] res.ifnotempty=%[var(res.ifnotempty_res)] res.ifnotempty_res_int=%[var(res.ifnotempty_res_int)]"
+
+        # The first three variables should remain unchanged.
+        http-response set-var(proc.ifnotempty_proc,ifnotempty) str()
+        http-response set-var(sess.ifnotempty_sess,ifnotempty) str()
+        http-response set-var(res.ifnotempty_res,ifnotempty) str()
+        http-response set-var(res.ifnotempty_res_int,ifnotempty) int(7) # should not work
+
+        http-response set-header x-var2 "proc.ifnotempty=%[var(proc.ifnotempty_proc)] sess.ifnotempty=%[var(sess.ifnotempty_sess)] res.ifnotempty=%[var(res.ifnotempty_res)] res.ifnotempty_res_int=%[var(res.ifnotempty_res_int)]"
+
+
+    backend ifset_be
+        server s1 ${s1_addr}:${s1_port}
+        # init
+        http-response set-var(proc.ifset_proc) str(ifset_proc)
+        http-response set-var(sess.ifset_sess) bin(69667365745f73657373) # "ifset_sess"
+        http-response set-var(res.ifset_res) str(ifset_res)
+        http-response set-var(res.ifset_res_int) int(5)
+
+        http-response set-header x-var-init "proc.ifset=%[var(proc.ifset_proc)] sess.ifset=%[var(sess.ifset_sess)] res.ifset=%[var(res.ifset_res)] res.ifset_res_int=%[var(res.ifset_res_int)]"
+
+        # All those set-var calls should succeed
+        http-response set-var(proc.ifset_proc,ifset) str(toto)
+        http-response set-var(sess.ifset_sess,ifset) bin(746F746F) # "toto"
+        http-response set-var(res.ifset_res,ifset) int(123)
+        http-response set-var(res.ifset_res_int,ifset) str(azerty)
+
+        http-response set-header x-var1 "proc.ifset=%[var(proc.ifset_proc)] sess.ifset=%[var(sess.ifset_sess)] res.ifset=%[var(res.ifset_res)] res.ifset_res_int=%[var(res.ifset_res_int)]"
+
+        http-response unset-var(proc.ifset_proc)
+        http-response unset-var(sess.ifset_sess)
+        http-response unset-var(res.ifset_res)
+        http-response unset-var(res.ifset_res_int)
+
+        http-response set-header x-var2 "proc.ifset=%[var(proc.ifset_proc)] sess.ifset=%[var(sess.ifset_sess)] res.ifset=%[var(res.ifset_res)] res.ifset_res_int=%[var(res.ifset_res_int)]"
+
+        # None of those set-var calls should succeed
+        http-response set-var(proc.ifset_proc,ifset) str(toto)
+        http-response set-var(sess.ifset_sess,ifset) bin(746F746F) # "toto"
+        http-response set-var(res.ifset_res,ifset) int(123)
+        http-response set-var(res.ifset_res_int,ifset) str(azerty)
+
+        http-response set-header x-var3 "proc.ifset=%[var(proc.ifset_proc)] sess.ifset=%[var(sess.ifset_sess)] res.ifset=%[var(res.ifset_res)] res.ifset_res_int=%[var(res.ifset_res_int)]"
+
+
+    backend ifnotset_be
+        server s1 ${s1_addr}:${s1_port}
+        # init
+        http-response set-var(proc.ifnotset_proc) str(ifnotset_proc)
+        http-response set-var(sess.ifnotset_sess) bin(69666e6f747365745f73657373) # "ifnotset_sess"
+        http-response set-var(res.ifnotset_res) str(ifnotset_res)
+        http-response set-var(res.ifnotset_res_int) int(5)
+
+        http-response set-header x-var-init "proc.ifnotset=%[var(proc.ifnotset_proc)] sess.ifnotset=%[var(sess.ifnotset_sess)] res.ifnotset=%[var(res.ifnotset_res)] res.ifnotset_res_int=%[var(res.ifnotset_res_int)]"
+
+        # None of those set-var calls should succeed
+        http-response set-var(proc.ifnotset_proc,ifnotset) str(toto)
+        http-response set-var(sess.ifnotset_sess,ifnotset) bin(746F746F) # "toto"
+        http-response set-var(res.ifnotset_res,ifnotset) int(123)
+        http-response set-var(res.ifnotset_res_int,ifnotset) str(azerty)
+
+        http-response set-header x-var1 "proc.ifnotset=%[var(proc.ifnotset_proc)] sess.ifnotset=%[var(sess.ifnotset_sess)] res.ifnotset=%[var(res.ifnotset_res)] res.ifnotset_res_int=%[var(res.ifnotset_res_int)]"
+
+        http-response unset-var(proc.ifnotset_proc)
+        http-response unset-var(sess.ifnotset_sess)
+        http-response unset-var(res.ifnotset_res)
+        http-response unset-var(res.ifnotset_res_int)
+
+        http-response set-header x-var2 "proc.ifnotset=%[var(proc.ifnotset_proc)] sess.ifnotset=%[var(sess.ifnotset_sess)] res.ifnotset=%[var(res.ifnotset_res)] res.ifnotset_res_int=%[var(res.ifnotset_res_int)]"
+
+        # All of those set-var calls should succeed
+        http-response set-var(proc.ifnotset_proc,ifnotset) str(toto)
+        http-response set-var(sess.ifnotset_sess,ifnotset) bin(746F746F) # "toto"
+        http-response set-var(res.ifnotset_res,ifnotset) int(123)
+        http-response set-var(res.ifnotset_res_int,ifnotset) str(azerty)
+
+        http-response set-header x-var3 "proc.ifnotset=%[var(proc.ifnotset_proc)] sess.ifnotset=%[var(sess.ifnotset_sess)] res.ifnotset=%[var(res.ifnotset_res)] res.ifnotset_res_int=%[var(res.ifnotset_res_int)]"
+
+    backend ifgt_be
+        server s1 ${s1_addr}:${s1_port}
+        # init
+        http-response set-var(proc.ifgt_proc) str(ifgt_proc)
+        http-response set-var(sess.ifgt_sess) bin(696667745f73657373) # "ifgt_sess"
+        http-response set-var(res.ifgt_res1) str(ifgt_res)
+        http-response set-var(res.ifgt_res2) int(5)
+        http-response set-var(res.ifgt_res_int1) int(5)
+        http-response set-var(res.ifgt_res_int2) int(5)
+
+        http-response set-header x-var-init "proc.ifgt=%[var(proc.ifgt_proc)] sess.ifgt=%[var(sess.ifgt_sess)] res.ifgt1=%[var(res.ifgt_res1)] res.ifgt2=%[var(res.ifgt_res2)] res.ifgt_res_int1=%[var(res.ifgt_res_int1)] res.ifgt_res_int2=%[var(res.ifgt_res_int2)]"
+
+        # ifgt does not apply on non scalar type so the two following set-var will ignore the condition
+        http-response set-var(proc.ifgt_proc,ifgt) str(toto)
+        http-response set-var(sess.ifgt_sess,ifgt) bin(746F746F) # "toto"
+        # ifgt can only apply when the variable and the sample are both scalar. In this case, the variable was a string so the condition is ignored
+        http-response set-var(res.ifgt_res1,ifgt) int(55)
+        # ifgt can only apply when the variable and the sample are both scalar. In this case, the sample is a string so the condition is ignored
+        http-response set-var(res.ifgt_res2,ifgt) str(text)
+        http-response set-var(res.ifgt_res_int1,ifgt) int(55) # should not work
+        http-response set-var(res.ifgt_res_int2,ifgt) int(2)  # should work
+
+        http-response set-header x-var1 "proc.ifgt=%[var(proc.ifgt_proc)] sess.ifgt=%[var(sess.ifgt_sess)] res.ifgt1=%[var(res.ifgt_res1)] res.ifgt2=%[var(res.ifgt_res2)] res.ifgt_res_int1=%[var(res.ifgt_res_int1)] res.ifgt_res_int2=%[var(res.ifgt_res_int2)]"
+
+
+    backend iflt_be
+        server s1 ${s1_addr}:${s1_port}
+        # init
+        http-response set-var(proc.iflt_proc) str(iflt_proc)
+        http-response set-var(sess.iflt_sess) bin(69666c745f73657373) # "iflt_sess"
+        http-response set-var(res.iflt_res1) str(iflt_res)
+        http-response set-var(res.iflt_res2) int(5)
+        http-response set-var(res.iflt_res_int1) int(5)
+        http-response set-var(res.iflt_res_int2) int(5)
+
+        http-response set-header x-var-init "proc.iflt=%[var(proc.iflt_proc)] sess.iflt=%[var(sess.iflt_sess)] res.iflt1=%[var(res.iflt_res1)] res.iflt2=%[var(res.iflt_res2)] res.iflt_res_int1=%[var(res.iflt_res_int1)] res.iflt_res_int2=%[var(res.iflt_res_int2)]"
+
+        # iflt does not apply on non scalar type so the two following set-var will ignore the condition
+        http-response set-var(proc.iflt_proc,iflt) str(toto)
+        http-response set-var(sess.iflt_sess,iflt) bin(746F746F) # "toto"
+        # iflt can only apply when the variable and the sample are both scalar. In this case, the variable was a string so the condition is ignored
+        http-response set-var(res.iflt_res1,iflt) int(55)
+        # iflt can only apply when the variable and the sample are both scalar. In this case, the sample is a string so the condition is ignored
+        http-response set-var(res.iflt_res2,iflt) str(text)
+        http-response set-var(res.iflt_res_int1,iflt) int(55) # should work
+        http-response set-var(res.iflt_res_int2,iflt) int(2)  # should not work
+
+        http-response set-header x-var1 "proc.iflt=%[var(proc.iflt_proc)] sess.iflt=%[var(sess.iflt_sess)] res.iflt1=%[var(res.iflt_res1)] res.iflt2=%[var(res.iflt_res2)] res.iflt_res_int1=%[var(res.iflt_res_int1)] res.iflt_res_int2=%[var(res.iflt_res_int2)]"
+
+
+    # Test multiple conditions at once
+    backend combined_be
+        server s1 ${s1_addr}:${s1_port}
+        # init
+        http-response set-var(proc.combined_proc) str(combined_proc)
+        http-response set-var(res.combined_res) int(5)
+        http-response unset-var(proc.combined_proc)
+
+        http-response set-header x-var-init "proc.combined=%[var(proc.combined_proc)] res.combined=%[var(res.combined_res)]"
+
+        http-response set-var(proc.combined_proc,ifnotset,ifnotempty) str(toto)
+        http-response set-var(res.combined_res,ifset,iflt) int(55)
+
+        http-response set-header x-var1 "proc.combined=%[var(proc.combined_proc)] res.combined=%[var(res.combined_res)]"
+
+
+    # Test the set-var converter
+    backend converter_be
+        server s1 ${s1_addr}:${s1_port}
+
+        http-request deny if { req.len,set-var(proc.req_len,ifexists) -m int 0 }
+        http-request deny if { req.hdr("X-Cust"),set-var(sess.x_cust,ifnotempty,ifnotset),length -m int 0 }
+
+        http-response set-header x-var "proc.req_len=%[var(proc.req_len)] sess.x_cust=%[var(sess.x_cust)]"
+
+} -start
+
+
+client c1 -connect ${h1_mainfe_sock} {
+    txreq -url "/ifexists"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-var == "proc.ifexists=12 sess.ifexists= res.ifexists="
+} -run
+
+client c2 -connect ${h1_mainfe_sock} {
+    txreq -url "/ifnotexists"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-var-init == "proc.ifnotexists= sess.ifnotexists= res.ifnotexists="
+    expect resp.http.x-var == "proc.ifnotexists= sess.ifnotexists=5 res.ifnotexists=toto"
+} -run
+
+client c3 -connect ${h1_mainfe_sock} {
+    txreq -url "/ifempty"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-var-init == "proc.ifempty=ifempty_proc sess.ifempty=ifempty_sess res.ifempty=ifempty_res res.ifempty_res_int=5"
+    expect resp.http.x-var1 == "proc.ifempty=ifempty_proc sess.ifempty=ifempty_sess res.ifempty=ifempty_res res.ifempty_res_int=5"
+    expect resp.http.x-var2 == "proc.ifempty= sess.ifempty= res.ifempty= res.ifempty_res_int=5"
+} -run
+
+client c4 -connect ${h1_mainfe_sock} {
+    txreq -url "/ifnotempty"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-var-init == "proc.ifnotempty=ifnotempty_proc sess.ifnotempty=ifnotempty_sess res.ifnotempty=ifnotempty_res res.ifnotempty_res_int=5"
+    expect resp.http.x-var1 == "proc.ifnotempty=toto sess.ifnotempty=toto res.ifnotempty=tata res.ifnotempty_res_int=6"
+    expect resp.http.x-var2 == "proc.ifnotempty=toto sess.ifnotempty=toto res.ifnotempty=tata res.ifnotempty_res_int=7"
+} -run
+
+client c5 -connect ${h1_mainfe_sock} {
+    txreq -url "/ifset"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-var-init == "proc.ifset=ifset_proc sess.ifset=ifset_sess res.ifset=ifset_res res.ifset_res_int=5"
+    expect resp.http.x-var1 == "proc.ifset=toto sess.ifset=toto res.ifset=123 res.ifset_res_int=azerty"
+    expect resp.http.x-var2 == "proc.ifset= sess.ifset= res.ifset= res.ifset_res_int="
+    expect resp.http.x-var3 == "proc.ifset= sess.ifset= res.ifset= res.ifset_res_int="
+} -run
+
+client c6 -connect ${h1_mainfe_sock} {
+    txreq -url "/ifnotset"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-var-init == "proc.ifnotset=ifnotset_proc sess.ifnotset=ifnotset_sess res.ifnotset=ifnotset_res res.ifnotset_res_int=5"
+    expect resp.http.x-var1 == "proc.ifnotset=ifnotset_proc sess.ifnotset=ifnotset_sess res.ifnotset=ifnotset_res res.ifnotset_res_int=5"
+    expect resp.http.x-var2 == "proc.ifnotset= sess.ifnotset= res.ifnotset= res.ifnotset_res_int="
+    expect resp.http.x-var3 == "proc.ifnotset=toto sess.ifnotset=toto res.ifnotset=123 res.ifnotset_res_int=azerty"
+} -run
+
+client c7 -connect ${h1_mainfe_sock} {
+    txreq -url "/ifgt"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-var-init == "proc.ifgt=ifgt_proc sess.ifgt=ifgt_sess res.ifgt1=ifgt_res res.ifgt2=5 res.ifgt_res_int1=5 res.ifgt_res_int2=5"
+    expect resp.http.x-var1 == "proc.ifgt=toto sess.ifgt=toto res.ifgt1=55 res.ifgt2=text res.ifgt_res_int1=5 res.ifgt_res_int2=2"
+} -run
+
+client c8 -connect ${h1_mainfe_sock} {
+    txreq -url "/iflt"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-var-init == "proc.iflt=iflt_proc sess.iflt=iflt_sess res.iflt1=iflt_res res.iflt2=5 res.iflt_res_int1=5 res.iflt_res_int2=5"
+    expect resp.http.x-var1 == "proc.iflt=toto sess.iflt=toto res.iflt1=55 res.iflt2=text res.iflt_res_int1=55 res.iflt_res_int2=5"
+} -run
+
+client c9 -connect ${h1_mainfe_sock} {
+    txreq -url "/combined"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-var-init == "proc.combined= res.combined=5"
+    expect resp.http.x-var1 == "proc.combined=toto res.combined=55"
+} -run
+
+client c10 -connect ${h1_mainfe_sock} {
+    txreq -url "/converter" -hdr "X-Cust: foobar"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-var == "proc.req_len=67 sess.x_cust=foobar"
+} -run
