@@ -40,7 +40,7 @@ struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
 	if (!qcs)
 		goto out;
 
-	fprintf(stderr, "%s: stream ID %llu\n", __func__, qcs->by_id.key);
+	fprintf(stderr, "%s: stream ID %lu\n", __func__, id);
 
 	qcs->qcc = qcc;
 	qcs->cs = NULL;
