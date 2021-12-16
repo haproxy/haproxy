@@ -336,6 +336,7 @@ static inline void cs_init(struct conn_stream *cs, struct connection *conn)
 	cs->obj_type = OBJ_TYPE_CS;
 	cs->flags = CS_FL_NONE;
 	cs->conn = conn;
+	cs->ctx = conn;
 }
 
 /* returns 0 if the connection is valid and is a frontend connection, otherwise
@@ -390,8 +391,12 @@ static inline void conn_force_unsubscribe(struct connection *conn)
 	conn->subs = NULL;
 }
 
-/* Release a conn_stream */
-static inline void cs_destroy(struct conn_stream *cs)
+/* Detach the conn_stream from the connection, if any. If a mux owns the
+ * connection ->detach() callback is called. Otherwise, it means the conn-stream
+ * owns the connection. In this case the connection is closed and released. The
+ * conn-stream is not released.
+ */
+static inline void cs_detach(struct conn_stream *cs)
 {
 	if (cs_conn(cs)) {
 		if (cs->conn->mux)
@@ -409,6 +414,13 @@ static inline void cs_destroy(struct conn_stream *cs)
 			conn_free(conn);
 		}
 	}
+	cs_init(cs, NULL);
+}
+
+/* Release a conn_stream */
+static inline void cs_destroy(struct conn_stream *cs)
+{
+	cs_detach(cs);
 	cs_free(cs);
 }
 
