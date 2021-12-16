@@ -494,6 +494,9 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin, struct bu
 	if (likely(sess->fe->options2 & PR_O2_INDEPSTR))
 		s->si[1].flags |= SI_FL_INDEP_STR;
 
+	if (!si_alloc_cs(&s->si[1], NULL))
+		goto out_fail_alloc_cs;
+
 	stream_init_srv_conn(s);
 	s->target = sess->listener ? sess->listener->default_target : NULL;
 
@@ -591,7 +594,9 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin, struct bu
 	task_destroy(t);
 	tasklet_free(s->si[1].wait_event.tasklet);
 	LIST_DELETE(&s->list);
-out_fail_alloc_si1:
+ out_fail_alloc_cs:
+	si_release_endpoint(&s->si[1]);
+ out_fail_alloc_si1:
 	tasklet_free(s->si[0].wait_event.tasklet);
  out_fail_alloc:
 	pool_free(pool_head_stream, s);
