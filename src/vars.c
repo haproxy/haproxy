@@ -301,6 +301,25 @@ static int smp_fetch_var(const struct arg *args, struct sample *smp, const char 
 	return vars_get_by_desc(var_desc, smp, def);
 }
 
+/*
+ * Clear the contents of a variable so that it can be reset directly.
+ * This function is used just before a variable is filled out of a sample's
+ * content.
+ */
+static inline void var_clear_buffer(struct sample *smp, struct vars *vars, struct var *var, int var_type)
+{
+       if (var_type == SMP_T_STR || var_type == SMP_T_BIN) {
+               ha_free(&var->data.u.str.area);
+               var_accounting_diff(vars, smp->sess, smp->strm,
+                                   -var->data.u.str.data);
+       }
+       else if (var_type == SMP_T_METH && var->data.u.meth.meth == HTTP_METH_OTHER) {
+               ha_free(&var->data.u.meth.str.area);
+               var_accounting_diff(vars, smp->sess, smp->strm,
+                                   -var->data.u.meth.str.data);
+       }
+}
+
 /* This function tries to create a variable whose name hash is <name_hash> in
  * scope <scope> and store sample <smp> as its value.
  *
@@ -321,6 +340,7 @@ static int var_set(uint64_t name_hash, enum vars_scope scope, struct sample *smp
 	struct vars *vars;
 	struct var *var;
 	int ret = 0;
+	int previous_type = SMP_T_ANY;
 
 	vars = get_vars(smp->sess, smp->strm, scope);
 	if (!vars || vars->scope != scope)
@@ -335,19 +355,6 @@ static int var_set(uint64_t name_hash, enum vars_scope scope, struct sample *smp
 		if (flags & VF_CREATEONLY) {
 			ret = 1;
 			goto unlock;
-		}
-
-		/* free its used memory. */
-		if (var->data.type == SMP_T_STR ||
-		    var->data.type == SMP_T_BIN) {
-			ha_free(&var->data.u.str.area);
-			var_accounting_diff(vars, smp->sess, smp->strm,
-					    -var->data.u.str.data);
-		}
-		else if (var->data.type == SMP_T_METH && var->data.u.meth.meth == HTTP_METH_OTHER) {
-			ha_free(&var->data.u.meth.str.area);
-			var_accounting_diff(vars, smp->sess, smp->strm,
-					    -var->data.u.meth.str.data);
 		}
 	} else {
 		if (flags & VF_UPDATEONLY)
@@ -368,22 +375,27 @@ static int var_set(uint64_t name_hash, enum vars_scope scope, struct sample *smp
 	}
 
 	/* Set type. */
+	previous_type = var->data.type;
 	var->data.type = smp->data.type;
 
 	/* Copy data. If the data needs memory, the function can fail. */
 	switch (var->data.type) {
 	case SMP_T_BOOL:
 	case SMP_T_SINT:
+		var_clear_buffer(smp, vars, var, previous_type);
 		var->data.u.sint = smp->data.u.sint;
 		break;
 	case SMP_T_IPV4:
+		var_clear_buffer(smp, vars, var, previous_type);
 		var->data.u.ipv4 = smp->data.u.ipv4;
 		break;
 	case SMP_T_IPV6:
+		var_clear_buffer(smp, vars, var, previous_type);
 		var->data.u.ipv6 = smp->data.u.ipv6;
 		break;
 	case SMP_T_STR:
 	case SMP_T_BIN:
+		var_clear_buffer(smp, vars, var, previous_type);
 		if (!var_accounting_add(vars, smp->sess, smp->strm, smp->data.u.str.data)) {
 			var->data.type = SMP_T_BOOL; /* This type doesn't use additional memory. */
 			goto unlock;
@@ -401,6 +413,7 @@ static int var_set(uint64_t name_hash, enum vars_scope scope, struct sample *smp
 		       var->data.u.str.data);
 		break;
 	case SMP_T_METH:
+		var_clear_buffer(smp, vars, var, previous_type);
 		var->data.u.meth.meth = smp->data.u.meth.meth;
 		if (smp->data.u.meth.meth != HTTP_METH_OTHER)
 			break;
