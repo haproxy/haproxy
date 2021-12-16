@@ -36,6 +36,26 @@ static unsigned int var_reqres_limit = 0;
 static unsigned int var_check_limit = 0;
 static uint64_t var_name_hash_seed = 0;
 
+/* Structure and array matching set-var conditions to their respective flag
+ * value.
+ */
+struct var_set_condition {
+       const char *cond_str;
+       uint flag;
+};
+
+static struct var_set_condition conditions_array[] = {
+       { "ifexists", VF_COND_IFEXISTS },
+       { "ifnotexists", VF_COND_IFNOTEXISTS },
+       { "ifempty", VF_COND_IFEMPTY },
+       { "ifnotempty", VF_COND_IFNOTEMPTY },
+       { "ifset", VF_COND_IFSET },
+       { "ifnotset", VF_COND_IFNOTSET },
+       { "ifgt", VF_COND_IFGT },
+       { "iflt", VF_COND_IFLT },
+       { NULL, 0 }
+};
+
 /* returns the struct vars pointer for a session, stream and scope, or NULL if
  * it does not exist.
  */
@@ -329,9 +349,17 @@ static inline void var_clear_buffer(struct sample *smp, struct vars *vars, struc
  * a bool (which is memory-less).
  *
  * Flags is a bitfield that may contain one of the following flags:
- *   - VF_UPDATEONLY: the variable may only be updated but not created.
  *   - VF_CREATEONLY: do nothing if the variable already exists (success).
  *   - VF_PERMANENT: this flag will be passed to the variable upon creation
+ *
+ *   - VF_COND_IFEXISTS: only set variable if it already exists
+ *   - VF_COND_IFNOTEXISTS: only set variable if it did not exist yet
+ *   - VF_COND_IFEMPTY: only set variable if sample is empty
+ *   - VF_COND_IFNOTEMPTY: only set variable if sample is not empty
+ *   - VF_COND_IFSET: only set variable if its type is not SMP_TYPE_ANY
+ *   - VF_COND_IFNOTSET: only set variable if its type is ANY
+ *   - VF_COND_IFGT: only set variable if its value is greater than the sample's
+ *   - VF_COND_IFLT: ony set variable if its value is less than the sample's
  *
  * It returns 0 on failure, non-zero on success.
  */
@@ -357,7 +385,7 @@ static int var_set(uint64_t name_hash, enum vars_scope scope, struct sample *smp
 			goto unlock;
 		}
 	} else {
-		if (flags & VF_UPDATEONLY)
+		if (flags & VF_COND_IFEXISTS)
 			goto unlock;
 
 		/* Check memory available. */
@@ -469,10 +497,44 @@ static int var_unset(uint64_t name_hash, enum vars_scope scope, struct sample *s
 	return 1;
 }
 
+
+/*
+ * Convert a string set-var condition into its numerical value.
+ * The corresponding bit is set in the <cond_bitmap> parameter if the
+ * <cond> is known.
+ * Returns 1 in case of success.
+ */
+static int vars_parse_cond_param(const struct buffer *cond, uint *cond_bitmap, char **err)
+{
+	struct var_set_condition *cond_elt = &conditions_array[0];
+
+	/* The conditions array is NULL terminated. */
+	while (cond_elt->cond_str) {
+		if (chunk_strcmp(cond, cond_elt->cond_str) == 0) {
+			*cond_bitmap |= cond_elt->flag;
+			break;
+		}
+		++cond_elt;
+	}
+
+	if (cond_elt->cond_str == NULL && err)
+		memprintf(err, "unknown condition \"%.*s\"", (int)cond->data, cond->area);
+
+	return cond_elt->cond_str != NULL;
+}
+
 /* Returns 0 if fails, else returns 1. */
 static int smp_conv_store(const struct arg *args, struct sample *smp, void *private)
 {
-	return var_set(args[0].data.var.name_hash, args[0].data.var.scope, smp, 0);
+	uint conditions = 0;
+	int cond_idx = 1;
+
+	while (args[cond_idx].type == ARGT_STR) {
+		if (vars_parse_cond_param(&args[cond_idx++].data.str, &conditions, NULL) == 0)
+			break;
+	}
+
+	return var_set(args[0].data.var.name_hash, args[0].data.var.scope, smp, conditions);
 }
 
 /* Returns 0 if fails, else returns 1. */
@@ -529,7 +591,7 @@ int vars_set_by_name_ifexist(const char *name, size_t len, struct sample *smp)
 		return 0;
 
 	/* Variable creation is allowed for all scopes apart from the PROC one. */
-	return var_set(hash, scope, smp, (scope == SCOPE_PROC) ? VF_UPDATEONLY : 0);
+	return var_set(hash, scope, smp, (scope == SCOPE_PROC) ? VF_COND_IFEXISTS : 0);
 }
 
 
@@ -765,7 +827,14 @@ static int smp_check_var(struct arg *args, char **err)
 static int conv_check_var(struct arg *args, struct sample_conv *conv,
                           const char *file, int line, char **err_msg)
 {
-	return vars_check_arg(&args[0], err_msg);
+	int cond_idx = 1;
+	uint conditions = 0;
+	int retval = vars_check_arg(&args[0], err_msg);
+
+	while (retval && args[cond_idx].type == ARGT_STR)
+		retval = vars_parse_cond_param(&args[cond_idx++].data.str, &conditions, err_msg);
+
+	return retval;
 }
 
 /* This function is a common parser for using variables. It understands
@@ -1219,7 +1288,7 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 INITCALL1(STG_REGISTER, sample_register_fetches, &sample_fetch_keywords);
 
 static struct sample_conv_kw_list sample_conv_kws = {ILH, {
-	{ "set-var",   smp_conv_store, ARG1(1,STR), conv_check_var, SMP_T_ANY, SMP_T_ANY },
+	{ "set-var",   smp_conv_store, ARG5(1,STR,STR,STR,STR,STR), conv_check_var, SMP_T_ANY, SMP_T_ANY },
 	{ "unset-var", smp_conv_clear, ARG1(1,STR), conv_check_var, SMP_T_ANY, SMP_T_ANY },
 	{ /* END */ },
 }};
