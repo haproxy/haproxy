@@ -429,7 +429,7 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 				              " qel=%c state=%s ack?%d cwnd=%llu ppif=%lld pif=%llu if=%llu pp=%u pdg=%llu",
 				              quic_enc_level_char_from_qel(qel, qc),
 				              quic_hdshk_state_str(HA_ATOMIC_LOAD(&qc->state)),
-				              !!(HA_ATOMIC_LOAD(&qc->flags) & QUIC_FL_PKTNS_ACK_REQUIRED),
+				              !!(HA_ATOMIC_LOAD(&qel->pktns->flags) & QUIC_FL_PKTNS_ACK_REQUIRED),
 				              (unsigned long long)qc->path->cwnd,
 				              (unsigned long long)qc->path->prep_in_flight,
 				              (unsigned long long)qc->path->in_flight,
@@ -2446,7 +2446,7 @@ static int qc_prep_pkts(struct qring *qr, struct ssl_sock_ctx *ctx)
 					nb_ptos = HA_ATOMIC_LOAD(&qc->tx.nb_pto_dgrams);
 				} while (nb_ptos && !HA_ATOMIC_CAS(&qc->tx.nb_pto_dgrams, &nb_ptos, nb_ptos - 1));
 			}
-			ack = HA_ATOMIC_BTR(&qc->flags, QUIC_FL_PKTNS_ACK_REQUIRED_BIT);
+			ack = HA_ATOMIC_BTR(&qel->pktns->flags, QUIC_FL_PKTNS_ACK_REQUIRED_BIT);
 		}
 		/* Do not build any more packet if the TX secrets are not available or
 		 * if there is nothing to send, i.e. if no CONNECTION_CLOSE or ACK are required
@@ -2488,7 +2488,7 @@ static int qc_prep_pkts(struct qring *qr, struct ssl_sock_ctx *ctx)
 			if (!prv_pkt && nb_ptos)
 				HA_ATOMIC_ADD(&qc->tx.nb_pto_dgrams, 1);
 			if (ack)
-				HA_ATOMIC_BTS(&qc->flags, QUIC_FL_PKTNS_ACK_REQUIRED_BIT);
+				HA_ATOMIC_BTS(&qel->pktns->flags, QUIC_FL_PKTNS_ACK_REQUIRED_BIT);
 		}
 		switch (err) {
 		case -2:
@@ -3035,7 +3035,7 @@ int qc_treat_rx_pkts(struct quic_enc_level *cur_el, struct quic_enc_level *next_
 
 				if (pkt->flags & QUIC_FL_RX_PACKET_ACK_ELICITING &&
 				    (!(HA_ATOMIC_ADD_FETCH(&qc->rx.nb_ack_eliciting, 1) & 1) || force_ack))
-					HA_ATOMIC_BTS(&qc->flags, QUIC_FL_PKTNS_ACK_REQUIRED_BIT);
+					HA_ATOMIC_BTS(&qel->pktns->flags, QUIC_FL_PKTNS_ACK_REQUIRED_BIT);
 				if (pkt->pn > largest_pn)
 					largest_pn = pkt->pn;
 				/* Update the list of ranges to acknowledge. */
