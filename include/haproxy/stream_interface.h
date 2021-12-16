@@ -229,6 +229,23 @@ static inline void si_attach_cs(struct stream_interface *si, struct conn_stream 
 	cs_attach(cs, si, &si_conn_cb);
 }
 
+static inline struct conn_stream *si_attach_conn(struct stream_interface *si, struct connection *conn)
+{
+	struct conn_stream *cs;
+
+	si_reset_endpoint(si);
+	cs = objt_cs(si->end);
+	if (!cs)
+		cs = cs_new(conn, conn->target);
+	if (cs) {
+		cs_init(cs, conn);
+		if (!conn->ctx)
+			conn->ctx = cs;
+		si_attach_cs(si, cs);
+	}
+	return cs;
+}
+
 /* Returns true if a connection is attached to the stream interface <si> and
  * if this connection is ready.
  */
