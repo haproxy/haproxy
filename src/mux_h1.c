@@ -15,6 +15,7 @@
 #include <haproxy/api.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/connection.h>
+#include <haproxy/conn_stream.h>
 #include <haproxy/h1.h>
 #include <haproxy/h1_htx.h>
 #include <haproxy/h2.h>

@@ -25,6 +25,7 @@
 #include <haproxy/arg.h>
 #include <haproxy/base64.h>
 #include <haproxy/buf-t.h>
+#include <haproxy/conn_stream.h>
 #include <haproxy/obj_type.h>
 #include <haproxy/openssl-compat.h>
 #include <haproxy/sample.h>

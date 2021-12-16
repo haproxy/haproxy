@@ -18,6 +18,7 @@
 #include <haproxy/arg.h>
 #include <haproxy/channel.h>
 #include <haproxy/connection.h>
+#include <haproxy/conn_stream.h>
 #include <haproxy/htx.h>
 #include <haproxy/net_helper.h>
 #include <haproxy/pattern.h>

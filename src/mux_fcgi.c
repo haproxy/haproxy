@@ -17,6 +17,7 @@
 #include <haproxy/api.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/connection.h>
+#include <haproxy/conn_stream.h>
 #include <haproxy/errors.h>
 #include <haproxy/fcgi-app.h>
 #include <haproxy/fcgi.h>

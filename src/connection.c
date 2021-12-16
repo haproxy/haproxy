@@ -17,6 +17,7 @@
 #include <haproxy/api.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/connection.h>
+#include <haproxy/conn_stream.h>
 #include <haproxy/fd.h>
 #include <haproxy/frontend.h>
 #include <haproxy/hash.h>
@@ -26,14 +27,14 @@
 #include <haproxy/net_helper.h>
 #include <haproxy/proto_tcp.h>
 #include <haproxy/sample.h>
-#include <haproxy/ssl_sock.h>
+#include <haproxy/session.h>
 #include <haproxy/stream_interface.h>
+#include <haproxy/ssl_sock.h>
 #include <haproxy/tools.h>
 #include <haproxy/xxhash.h>
 
 
 DECLARE_POOL(pool_head_connection,     "connection",     sizeof(struct connection));
-DECLARE_POOL(pool_head_connstream,     "conn_stream",    sizeof(struct conn_stream));
 DECLARE_POOL(pool_head_conn_hash_node, "conn_hash_node", sizeof(struct conn_hash_node));
 DECLARE_POOL(pool_head_sockaddr,       "sockaddr",       sizeof(struct sockaddr_storage));
 DECLARE_POOL(pool_head_authority,      "authority",      PP2_AUTHORITY_MAX);
@@ -557,42 +558,6 @@ void sockaddr_free(struct sockaddr_storage **sap)
 		return;
 	pool_free(pool_head_sockaddr, *sap);
 	*sap = NULL;
-}
-
-/* Releases a conn_stream previously allocated by cs_new(), as well as any
- * buffer it would still hold.
- */
-void cs_free(struct conn_stream *cs)
-{
-
-	pool_free(pool_head_connstream, cs);
-}
-
-/* Tries to allocate a new conn_stream and initialize its main fields. If
- * <conn> is NULL, then a new connection is allocated on the fly, initialized,
- * and assigned to cs->conn ; this connection will then have to be released
- * using pool_free() or conn_free(). The conn_stream is initialized and added
- * to the mux's stream list on success, then returned. On failure, nothing is
- * allocated and NULL is returned.
- */
-struct conn_stream *cs_new(struct connection *conn, void *target)
-{
-	struct conn_stream *cs;
-
-	cs = pool_alloc(pool_head_connstream);
-	if (unlikely(!cs))
-		return NULL;
-
-	if (!conn) {
-		conn = conn_new(target);
-		if (unlikely(!conn)) {
-			cs_free(cs);
-			return NULL;
-		}
-	}
-
-	cs_init(cs, conn);
-	return cs;
 }
 
 /* Try to add a handshake pseudo-XPRT. If the connection's first XPRT is

@@ -18,6 +18,7 @@
 
 #include <haproxy/buf.h>
 #include <haproxy/connection.h>
+#include <haproxy/conn_stream.h>
 #include <haproxy/dynbuf.h>
 #include <haproxy/h3.h>
 #include <haproxy/http.h>

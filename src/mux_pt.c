@@ -13,6 +13,7 @@
 #include <haproxy/api.h>
 #include <haproxy/buf.h>
 #include <haproxy/connection.h>
+#include <haproxy/conn_stream.h>
 #include <haproxy/pipe-t.h>
 #include <haproxy/stream.h>
 #include <haproxy/task.h>
