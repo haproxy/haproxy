@@ -4017,7 +4017,7 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 			size_t salt_len = sizeof initial_salt_v1;
 
 			if (pkt->type != QUIC_PACKET_TYPE_INITIAL) {
-				TRACE_PROTO("Non Initiial packet", QUIC_EV_CONN_LPKT);
+				TRACE_PROTO("Non Initial packet", QUIC_EV_CONN_LPKT);
 				goto err;
 			}
 
