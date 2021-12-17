@@ -275,9 +275,13 @@ static void strm_trace(enum trace_level level, uint64_t mask, const struct trace
  */
 int stream_create_from_cs(struct conn_stream *cs, struct buffer *input)
 {
+	struct connection *conn = cs_conn(cs);
 	struct stream *strm;
 
-	strm = stream_new(cs->conn->owner, &cs->obj_type, input);
+	if (!conn)
+		return -1;
+
+	strm = stream_new(conn->owner, &cs->obj_type, input);
 	if (strm == NULL)
 		return -1;
 
@@ -294,10 +298,14 @@ int stream_create_from_cs(struct conn_stream *cs, struct buffer *input)
  */
 int stream_upgrade_from_cs(struct conn_stream *cs, struct buffer *input)
 {
+	struct connection *conn = cs_conn(cs);
 	struct stream_interface *si = cs->data;
 	struct stream *s = si_strm(si);
 
-	if (cs->conn->mux->flags & MX_FL_HTX)
+	if (!conn)
+		return -1;
+
+	if (conn->mux->flags & MX_FL_HTX)
 		s->flags |= SF_HTX;
 
 	if (!b_is_null(input)) {
@@ -467,10 +475,12 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin, struct bu
 	if (appctx)
 		si_attach_appctx(&s->si[0], appctx);
 	else if (cs) {
-		if (cs_conn(cs) && cs->conn->mux) {
-			if (cs->conn->mux->flags & MX_FL_CLEAN_ABRT)
+		const struct mux_ops *mux = cs_conn_mux(cs);
+
+		if (mux) {
+			if (mux->flags & MX_FL_CLEAN_ABRT)
 				s->si[0].flags |= SI_FL_CLEAN_ABRT;
-			if (cs->conn->mux->flags & MX_FL_HTX)
+			if (mux->flags & MX_FL_HTX)
 				s->flags |= SF_HTX;
 
 			if (cs->flags & CS_FL_WEBSOCKET)
@@ -2170,10 +2180,10 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	if (!(req->flags & (CF_KERN_SPLICING|CF_SHUTR)) &&
 	    req->to_forward &&
 	    (global.tune.options & GTUNE_USE_SPLICE) &&
-	    (cs_conn(objt_cs(si_f->end)) && __objt_cs(si_f->end)->conn->xprt && __objt_cs(si_f->end)->conn->xprt->rcv_pipe &&
-	     __objt_cs(si_f->end)->conn->mux && __objt_cs(si_f->end)->conn->mux->rcv_pipe) &&
-	    (cs_conn(objt_cs(si_b->end)) && __objt_cs(si_b->end)->conn->xprt && __objt_cs(si_b->end)->conn->xprt->snd_pipe &&
-	     __objt_cs(si_b->end)->conn->mux && __objt_cs(si_b->end)->conn->mux->snd_pipe) &&
+	    (cs_conn(objt_cs(si_f->end)) && cs_conn(__objt_cs(si_f->end))->xprt && cs_conn(__objt_cs(si_f->end))->xprt->rcv_pipe &&
+	     cs_conn(__objt_cs(si_f->end))->mux && cs_conn(__objt_cs(si_f->end))->mux->rcv_pipe) &&
+	    (cs_conn(objt_cs(si_b->end)) && cs_conn(__objt_cs(si_b->end))->xprt && cs_conn(__objt_cs(si_b->end))->xprt->snd_pipe &&
+	     cs_conn(__objt_cs(si_b->end))->mux && cs_conn(__objt_cs(si_b->end))->mux->snd_pipe) &&
 	    (pipes_used < global.maxpipes) &&
 	    (((sess->fe->options2|s->be->options2) & PR_O2_SPLIC_REQ) ||
 	     (((sess->fe->options2|s->be->options2) & PR_O2_SPLIC_AUT) &&
@@ -2363,10 +2373,10 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	if (!(res->flags & (CF_KERN_SPLICING|CF_SHUTR)) &&
 	    res->to_forward &&
 	    (global.tune.options & GTUNE_USE_SPLICE) &&
-	    (cs_conn(objt_cs(si_f->end)) && __objt_cs(si_f->end)->conn->xprt && __objt_cs(si_f->end)->conn->xprt->snd_pipe &&
-	     __objt_cs(si_f->end)->conn->mux && __objt_cs(si_f->end)->conn->mux->snd_pipe) &&
-	    (cs_conn(objt_cs(si_b->end)) && __objt_cs(si_b->end)->conn->xprt && __objt_cs(si_b->end)->conn->xprt->rcv_pipe &&
-	     __objt_cs(si_b->end)->conn->mux && __objt_cs(si_b->end)->conn->mux->rcv_pipe) &&
+	    (cs_conn(objt_cs(si_f->end)) && cs_conn(__objt_cs(si_f->end))->xprt && cs_conn(__objt_cs(si_f->end))->xprt->snd_pipe &&
+	     cs_conn(__objt_cs(si_f->end))->mux && cs_conn(__objt_cs(si_f->end))->mux->snd_pipe) &&
+	    (cs_conn(objt_cs(si_b->end)) && cs_conn(__objt_cs(si_b->end))->xprt && cs_conn(__objt_cs(si_b->end))->xprt->rcv_pipe &&
+	     cs_conn(__objt_cs(si_b->end))->mux && cs_conn(__objt_cs(si_b->end))->mux->rcv_pipe) &&
 	    (pipes_used < global.maxpipes) &&
 	    (((sess->fe->options2|s->be->options2) & PR_O2_SPLIC_RTR) ||
 	     (((sess->fe->options2|s->be->options2) & PR_O2_SPLIC_AUT) &&
@@ -2443,8 +2453,8 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		    si_b->prev_state == SI_ST_EST) {
 			chunk_printf(&trash, "%08x:%s.srvcls[%04x:%04x]\n",
 				     s->uniq_id, s->be->id,
-				     cs_conn(objt_cs(si_f->end)) ? (unsigned short)__objt_cs(si_f->end)->conn->handle.fd : -1,
-				     cs_conn(objt_cs(si_b->end)) ? (unsigned short)__objt_cs(si_b->end)->conn->handle.fd : -1);
+				     cs_conn(objt_cs(si_f->end)) ? (unsigned short)cs_conn(__objt_cs(si_f->end))->handle.fd : -1,
+				     cs_conn(objt_cs(si_b->end)) ? (unsigned short)cs_conn(__objt_cs(si_b->end))->handle.fd : -1);
 			DISGUISE(write(1, trash.area, trash.data));
 		}
 
@@ -2452,8 +2462,8 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		    si_f->prev_state == SI_ST_EST) {
 			chunk_printf(&trash, "%08x:%s.clicls[%04x:%04x]\n",
 				     s->uniq_id, s->be->id,
-				     cs_conn(objt_cs(si_f->end)) ? (unsigned short)__objt_cs(si_f->end)->conn->handle.fd : -1,
-				     cs_conn(objt_cs(si_b->end)) ? (unsigned short)__objt_cs(si_b->end)->conn->handle.fd : -1);
+				     cs_conn(objt_cs(si_f->end)) ? (unsigned short)cs_conn(__objt_cs(si_f->end))->handle.fd : -1,
+				     cs_conn(objt_cs(si_b->end)) ? (unsigned short)cs_conn(__objt_cs(si_b->end))->handle.fd : -1);
 			DISGUISE(write(1, trash.area, trash.data));
 		}
 	}
@@ -2520,8 +2530,8 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		     (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)))) {
 		chunk_printf(&trash, "%08x:%s.closed[%04x:%04x]\n",
 			     s->uniq_id, s->be->id,
-			     cs_conn(objt_cs(si_f->end)) ? (unsigned short)__objt_cs(si_f->end)->conn->handle.fd : -1,
-			     cs_conn(objt_cs(si_b->end)) ? (unsigned short)__objt_cs(si_b->end)->conn->handle.fd : -1);
+			     cs_conn(objt_cs(si_f->end)) ? (unsigned short)cs_conn(__objt_cs(si_f->end))->handle.fd : -1,
+			     cs_conn(objt_cs(si_b->end)) ? (unsigned short)cs_conn(__objt_cs(si_b->end))->handle.fd : -1);
 		DISGUISE(write(1, trash.area, trash.data));
 	}
 
@@ -3299,7 +3309,7 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 
 		if (cs_conn(objt_cs(strm->si[0].end)) != NULL) {
 			cs = __objt_cs(strm->si[0].end);
-			conn = cs->conn;
+			conn = cs_conn(cs);
 
 			chunk_appendf(&trash,
 			              "  co0=%p ctrl=%s xprt=%s mux=%s data=%s target=%s:%p\n",
@@ -3336,7 +3346,7 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 
 		if (cs_conn(objt_cs(strm->si[1].end)) != NULL) {
 			cs = __objt_cs(strm->si[1].end);
-			conn = cs->conn;
+			conn = cs_conn(cs);
 
 			chunk_appendf(&trash,
 			              "  co1=%p ctrl=%s xprt=%s mux=%s data=%s target=%s:%p\n",

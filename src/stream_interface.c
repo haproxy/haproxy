@@ -562,10 +562,12 @@ static void stream_int_notify(struct stream_interface *si)
  */
 static int si_cs_process(struct conn_stream *cs)
 {
-	struct connection *conn = cs->conn;
+	struct connection *conn = cs_conn(cs);
 	struct stream_interface *si = cs->data;
 	struct channel *ic = si_ic(si);
 	struct channel *oc = si_oc(si);
+
+	BUG_ON(!conn);
 
 	/* If we have data to send, try it now */
 	if (!channel_is_empty(oc) && !(si->wait_event.events & SUB_RETRY_SEND))
@@ -648,11 +650,13 @@ static int si_cs_process(struct conn_stream *cs)
  */
 int si_cs_send(struct conn_stream *cs)
 {
-	struct connection *conn = cs->conn;
+	struct connection *conn = cs_conn(cs);
 	struct stream_interface *si = cs->data;
 	struct channel *oc = si_oc(si);
 	int ret;
 	int did_send = 0;
+
+	BUG_ON(!conn);
 
 	if (conn->flags & CO_FL_ERROR || cs->flags & (CS_FL_ERROR|CS_FL_ERR_PENDING)) {
 		/* We're probably there because the tasklet was woken up,
@@ -752,7 +756,7 @@ int si_cs_send(struct conn_stream *cs)
 			}
 		}
 
-		ret = cs->conn->mux->snd_buf(cs, &oc->buf, co_data(oc), send_flag);
+		ret = conn->mux->snd_buf(cs, &oc->buf, co_data(oc), send_flag);
 		if (ret > 0) {
 			did_send = 1;
 			co_set_data(oc, co_data(oc) - ret);
@@ -926,7 +930,7 @@ void si_sync_send(struct stream_interface *si)
 		return;
 
 	cs = objt_cs(si->end);
-	if (!cs_conn(cs) || !cs->conn->mux)
+	if (!cs_conn_mux(cs))
 		return;
 
 	si_cs_send(cs);
@@ -1117,6 +1121,9 @@ static void stream_int_chk_snd_conn(struct stream_interface *si)
 {
 	struct channel *oc = si_oc(si);
 	struct conn_stream *cs = __objt_cs(si->end);
+	struct connection *conn = cs_conn(cs);
+
+	BUG_ON(!conn);
 
 	if (unlikely(!si_state_in(si->state, SI_SB_CON|SI_SB_RDY|SI_SB_EST) ||
 	    (oc->flags & CF_SHUTW)))
@@ -1132,7 +1139,7 @@ static void stream_int_chk_snd_conn(struct stream_interface *si)
 	if (!(si->wait_event.events & SUB_RETRY_SEND) && !channel_is_empty(si_oc(si)))
 		si_cs_send(cs);
 
-	if (cs->flags & (CS_FL_ERROR|CS_FL_ERR_PENDING) || cs->conn->flags & CO_FL_ERROR) {
+	if (cs->flags & (CS_FL_ERROR|CS_FL_ERR_PENDING) || conn->flags & CO_FL_ERROR) {
 		/* Write error on the file descriptor */
 		if (si->state >= SI_ST_CON)
 			si->flags |= SI_FL_ERR;
@@ -1209,12 +1216,14 @@ static void stream_int_chk_snd_conn(struct stream_interface *si)
  */
 int si_cs_recv(struct conn_stream *cs)
 {
-	struct connection *conn = cs->conn;
+	struct connection *conn = cs_conn(cs);
 	struct stream_interface *si = cs->data;
 	struct channel *ic = si_ic(si);
 	int ret, max, cur_read = 0;
 	int read_poll = MAX_READ_POLL_LOOPS;
 	int flags = 0;
+
+	BUG_ON(!conn);
 
 	/* If not established yet, do nothing. */
 	if (si->state != SI_ST_EST)
@@ -1373,7 +1382,7 @@ int si_cs_recv(struct conn_stream *cs)
 		 * CS_FL_RCV_MORE on the CS if more space is needed.
 		 */
 		max = channel_recv_max(ic);
-		ret = cs->conn->mux->rcv_buf(cs, &ic->buf, max, cur_flags);
+		ret = conn->mux->rcv_buf(cs, &ic->buf, max, cur_flags);
 
 		if (cs->flags & CS_FL_WANT_ROOM) {
 			/* CS_FL_WANT_ROOM must not be reported if the channel's

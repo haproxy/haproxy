@@ -3609,7 +3609,7 @@ static void fcgi_detach(struct conn_stream *cs)
 	/* this stream may be blocked waiting for some data to leave, so orphan
 	 * it in this case.
 	 */
-	if (!(cs->conn->flags & CO_FL_ERROR) &&
+	if (!(fconn->conn->flags & CO_FL_ERROR) &&
 	    (fconn->state != FCGI_CS_CLOSED) &&
 	    (fstrm->flags & (FCGI_SF_BLK_MBUSY|FCGI_SF_BLK_MROOM)) &&
 	    (fstrm->subs || (fstrm->flags & (FCGI_SF_WANT_SHUTR|FCGI_SF_WANT_SHUTW)))) {

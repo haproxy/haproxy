@@ -175,6 +175,7 @@ static inline enum obj_type *si_detach_endpoint(struct stream_interface *si)
 static inline void si_reset_endpoint(struct stream_interface *si)
 {
 	struct conn_stream *cs;
+	struct connection *conn;
 	struct appctx *appctx;
 
 	if (!si->end)
@@ -187,9 +188,9 @@ static inline void si_reset_endpoint(struct stream_interface *si)
 		si_detach_endpoint(si);
 	}
 	else if ((cs = objt_cs(si->end))) {
-		if (cs_conn(cs) && si->wait_event.events != 0)
-			cs->conn->mux->unsubscribe(cs, si->wait_event.events,
-						   &si->wait_event);
+		if ((conn = cs_conn(cs)) && si->wait_event.events != 0)
+			conn->mux->unsubscribe(cs, si->wait_event.events,
+					       &si->wait_event);
 		cs_detach(cs);
 		si->ops = &si_embedded_ops;
 	}
@@ -201,6 +202,7 @@ static inline void si_reset_endpoint(struct stream_interface *si)
 static inline void si_release_endpoint(struct stream_interface *si)
 {
 	struct conn_stream *cs;
+	struct connection *conn;
 	struct appctx *appctx;
 
 	if (!si->end)
@@ -212,9 +214,9 @@ static inline void si_release_endpoint(struct stream_interface *si)
 		appctx_free(appctx);
 	}
 	else if ((cs = objt_cs(si->end))) {
-		if (cs_conn(cs) && si->wait_event.events != 0)
-			cs->conn->mux->unsubscribe(cs, si->wait_event.events,
-						   &si->wait_event);
+		if ((conn = cs_conn(cs)) && si->wait_event.events != 0)
+			conn->mux->unsubscribe(cs, si->wait_event.events,
+					       &si->wait_event);
 		cs_destroy(cs);
 	}
 	si_detach_endpoint(si);
@@ -527,7 +529,7 @@ static inline int si_sync_recv(struct stream_interface *si)
 		return 0;
 
 	cs = objt_cs(si->end);
-	if (!cs_conn(cs) || !cs->conn->mux)
+	if (!cs_conn_mux(cs))
 		return 0; // only conn_streams are supported
 
 	if (si->wait_event.events & SUB_RETRY_RECV)
@@ -622,10 +624,10 @@ static inline const struct sockaddr_storage *si_src(struct stream_interface *si)
 	if (!(si->flags & SI_FL_ISBACK))
 		return sess_src(strm_sess(si_strm(si)));
 	else {
-		struct conn_stream *cs = objt_cs(si->end);
+		struct connection *conn = cs_conn(objt_cs(si->end));
 
-		if (cs_conn(cs))
-			return conn_src(cs->conn);
+		if (conn)
+			return conn_src(conn);
 	}
 	return NULL;
 }
@@ -642,10 +644,10 @@ static inline const struct sockaddr_storage *si_dst(struct stream_interface *si)
 	if (!(si->flags & SI_FL_ISBACK))
 		return sess_dst(strm_sess(si_strm(si)));
 	else {
-		struct conn_stream *cs = objt_cs(si->end);
+		struct connection *conn = cs_conn(objt_cs(si->end));
 
-		if (cs_conn(cs))
-			return conn_dst(cs->conn);
+		if (conn)
+			return conn_dst(conn);
 	}
 	return NULL;
 }
@@ -666,10 +668,10 @@ static inline int si_get_src(struct stream_interface *si)
 	if (!(si->flags & SI_FL_ISBACK))
 		src = sess_src(strm_sess(si_strm(si)));
 	else {
-		struct conn_stream *cs = objt_cs(si->end);
+		struct connection *conn = cs_conn(objt_cs(si->end));
 
-		if (cs_conn(cs))
-			src = conn_src(cs->conn);
+		if (conn)
+			src = conn_src(conn);
 	}
 	if (!src)
 		return 0;
@@ -697,10 +699,10 @@ static inline int si_get_dst(struct stream_interface *si)
 	if (!(si->flags & SI_FL_ISBACK))
 		dst = sess_dst(strm_sess(si_strm(si)));
 	else {
-		struct conn_stream *cs = objt_cs(si->end);
+		struct connection *conn = cs_conn(objt_cs(si->end));
 
-		if (cs_conn(cs))
-			dst = conn_dst(cs->conn);
+		if (conn)
+			dst = conn_dst(conn);
 	}
 	if (!dst)
 		return 0;
