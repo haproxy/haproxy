@@ -3091,7 +3091,9 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 	st = HA_ATOMIC_LOAD(&qc->state);
 	TRACE_ENTER(QUIC_EV_CONN_HDSHK, ctx->conn, &st);
 	ssl_err = SSL_ERROR_NONE;
-	zero_rtt = !MT_LIST_ISEMPTY(&qc->els[QUIC_TLS_ENC_LEVEL_EARLY_DATA].rx.pqpkts);
+	zero_rtt = st < QUIC_HS_ST_COMPLETE &&
+		(!MT_LIST_ISEMPTY(&qc->els[QUIC_TLS_ENC_LEVEL_EARLY_DATA].rx.pqpkts) ||
+		qc_el_rx_pkts(&qc->els[QUIC_TLS_ENC_LEVEL_EARLY_DATA]));
  start:
 	if (!quic_get_tls_enc_levels(&tel, &next_tel, st, zero_rtt))
 		goto err;
