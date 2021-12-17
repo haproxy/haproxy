@@ -4173,6 +4173,7 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 		if (b_contig_space(&qc->rx.buf) < pkt->len) {
 			HA_RWLOCK_WRUNLOCK(QUIC_LOCK, &qc->rx.buf_rwlock);
 			TRACE_PROTO("Too big packet", QUIC_EV_CONN_LPKT, qc->conn, pkt, &pkt->len);
+			qc_list_all_rx_pkts(qc);
 			goto err;
 		}
 	}

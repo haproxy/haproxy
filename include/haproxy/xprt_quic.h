@@ -1138,6 +1138,32 @@ static inline void qc_el_rx_pkts_del(struct quic_enc_level *qel)
 	HA_RWLOCK_WRUNLOCK(QUIC_LOCK, &qel->rx.pkts_rwlock);
 }
 
+static inline void qc_list_qel_rx_pkts(struct quic_enc_level *qel)
+{
+	struct eb64_node *node;
+
+	HA_RWLOCK_RDLOCK(QUIC_LOCK, &qel->rx.pkts_rwlock);
+	node = eb64_first(&qel->rx.pkts);
+	while (node) {
+		struct quic_rx_packet *pkt;
+
+		pkt = eb64_entry(&node->node, struct quic_rx_packet, pn_node);
+		fprintf(stderr, "pkt@%p type=%d pn=%llu\n",
+		        pkt, pkt->type, (ull)pkt->pn_node.key);
+		node = eb64_next(node);
+	}
+	HA_RWLOCK_RDUNLOCK(QUIC_LOCK, &qel->rx.pkts_rwlock);
+}
+
+static inline void qc_list_all_rx_pkts(struct quic_conn *qc)
+{
+	fprintf(stderr, "REMAINING QEL RX PKTS:\n");
+	qc_list_qel_rx_pkts(&qc->els[QUIC_TLS_ENC_LEVEL_INITIAL]);
+	qc_list_qel_rx_pkts(&qc->els[QUIC_TLS_ENC_LEVEL_EARLY_DATA]);
+	qc_list_qel_rx_pkts(&qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE]);
+	qc_list_qel_rx_pkts(&qc->els[QUIC_TLS_ENC_LEVEL_APP]);
+}
+
 void quic_set_tls_alert(struct quic_conn *qc, int alert);
 int quic_set_app_ops(struct quic_conn *qc, const unsigned char *alpn, size_t alpn_len);
 ssize_t quic_lstnr_dgram_read(struct buffer *buf, size_t len, void *owner,
