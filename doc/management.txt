@@ -3197,7 +3197,6 @@ show ssl ocsp-response [<id>]
     # Certificate IDs
       Certificate ID key : 303b300906052b0e03021a050004148a83e0060faff709ca7e9b95522a2e81635fda0a0414f652b0e435d5ea923851508f0adbe92d85de007a0202100a
         Certificate ID:
-
           Issuer Name Hash: 8A83E0060FAFF709CA7E9B95522A2E81635FDA0A
           Issuer Key Hash: F652B0E435D5EA923851508F0ADBE92D85DE007A
           Serial Number: 100A

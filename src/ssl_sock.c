@@ -7210,13 +7210,12 @@ static inline int ocsp_certid_print(BIO *bp, OCSP_CERTID *certid, int indent)
 
 		BIO_printf(bp, "%*sCertificate ID:\n", indent, "");
 		indent += 2;
-		BIO_printf(bp, "\n%*sIssuer Name Hash: ", indent, "");
+		BIO_printf(bp, "%*sIssuer Name Hash: ", indent, "");
 		i2a_ASN1_STRING(bp, piNameHash, 0);
 		BIO_printf(bp, "\n%*sIssuer Key Hash: ", indent, "");
 		i2a_ASN1_STRING(bp, piKeyHash, 0);
 		BIO_printf(bp, "\n%*sSerial Number: ", indent, "");
 		i2a_ASN1_INTEGER(bp, pSerial);
-		BIO_printf(bp, "\n");
 	}
 	return 1;
 }
@@ -7276,6 +7275,9 @@ static int cli_io_handler_show_ocspresponse(struct appctx *appctx)
 		/* Dump the CERTID info */
 		ocsp_certid_print(bio, certid, 1);
 		write = BIO_read(bio, tmp->area, tmp->size-1);
+		/* strip trailing LFs */
+		while (write > 0 && tmp->area[write-1] == '\n')
+			write--;
 		tmp->area[write] = '\0';
 
 		chunk_appendf(trash, "%s\n", tmp->area);
