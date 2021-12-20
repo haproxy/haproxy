@@ -3610,10 +3610,10 @@ static int qc_pkt_may_rm_hp(struct quic_rx_packet *pkt,
 static void qc_pkt_insert(struct quic_rx_packet *pkt, struct quic_enc_level *qel)
 {
 	pkt->pn_node.key = pkt->pn;
+	quic_rx_packet_refinc(pkt);
 	HA_RWLOCK_WRLOCK(QUIC_LOCK, &qel->rx.pkts_rwlock);
 	eb64_insert(&qel->rx.pkts, &pkt->pn_node);
 	HA_RWLOCK_WRUNLOCK(QUIC_LOCK, &qel->rx.pkts_rwlock);
-	quic_rx_packet_refinc(pkt);
 }
 
 /* Try to remove the header protection of <pkt> QUIC packet attached to <qc>
