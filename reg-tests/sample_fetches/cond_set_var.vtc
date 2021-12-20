@@ -29,8 +29,6 @@ server s1 -repeat 10 {
 
 haproxy h1 -conf {
     global
-        tune.ssl.default-dh-param 2048
-        tune.ssl.capture-buffer-size 1
         set-var proc.int12 int(12)
         set-var proc.int5  var(proc.str60,60),div(proc.int12)
 
