@@ -24,6 +24,7 @@
 
 #include <haproxy/action-t.h>
 #include <haproxy/api.h>
+#include <haproxy/conn_stream-t.h>
 #include <haproxy/fd.h>
 #include <haproxy/freq_ctr.h>
 #include <haproxy/obj_type.h>
@@ -58,8 +59,7 @@ extern struct pool_head *pool_head_uniqueid;
 
 extern struct data_cb sess_conn_cb;
 
-struct stream *stream_new(struct session *sess, enum obj_type *origin, struct buffer *input);
-int stream_create_from_cs(struct conn_stream *cs, struct buffer *input);
+struct stream *stream_new(struct session *sess, struct conn_stream *cs, struct buffer *input);
 int stream_upgrade_from_cs(struct conn_stream *cs, struct buffer *input);
 int stream_set_http_mode(struct stream *s, const struct mux_proto_list *mux_proto);
 

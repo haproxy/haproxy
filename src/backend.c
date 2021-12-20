@@ -1251,7 +1251,6 @@ int connect_server(struct stream *s)
 {
 	struct connection *cli_conn = objt_conn(strm_orig(s));
 	struct connection *srv_conn = NULL;
-	struct conn_stream *srv_cs = NULL;
 	struct server *srv;
 	const int reuse_mode = s->be->options & PR_O_REUSE_MASK;
 	int reuse = 0;
@@ -1496,15 +1495,11 @@ int connect_server(struct stream *s)
 			}
 
 			if (avail >= 1) {
-				srv_cs = si_attach_conn(&s->si[1], srv_conn);
-				if (srv_cs) {
-					if (srv_conn->mux->attach(srv_conn, srv_cs, s->sess) == -1) {
-						srv_conn = NULL;
-						cs_init(srv_cs, NULL);
-					}
-				}
-				else
+				si_attach_conn(&s->si[1], srv_conn);
+				if (srv_conn->mux->attach(srv_conn, s->si[1].cs, s->sess) == -1) {
+					si_reset_endpoint(&s->si[1]);
 					srv_conn = NULL;
+				}
 			}
 			else
 				srv_conn = NULL;
@@ -1518,8 +1513,6 @@ skip_reuse:
 	/* no reuse or failed to reuse the connection above, pick a new one */
 	if (!srv_conn) {
 		srv_conn = conn_new(s->target);
-		srv_cs = NULL;
-
 		if (srv_conn) {
 			DBG_TRACE_STATE("alloc new be connection", STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
 			srv_conn->owner = s->sess;
@@ -1578,11 +1571,7 @@ skip_reuse:
 			return SF_ERR_INTERNAL;  /* how did we get there ? */
 		}
 
-		srv_cs = si_attach_conn(&s->si[1], srv_conn);
-		if (!srv_cs) {
-			conn_free(srv_conn);
-			return SF_ERR_RESOURCE;
-		}
+		si_attach_conn(&s->si[1], srv_conn);
 #if defined(USE_OPENSSL) && defined(TLSEXT_TYPE_application_layer_protocol_negotiation)
 		if (!srv ||
 		    (srv->use_ssl != 1 || (!(srv->ssl_ctx.alpn_str) && !(srv->ssl_ctx.npn_str)) ||
@@ -1690,7 +1679,7 @@ skip_reuse:
 	if (init_mux) {
 		const struct mux_ops *alt_mux =
 		  likely(!(s->flags & SF_WEBSOCKET)) ? NULL : srv_get_ws_proto(srv);
-		if (conn_install_mux_be(srv_conn, srv_cs, s->sess, alt_mux) < 0) {
+		if (conn_install_mux_be(srv_conn, s->si[1].cs, s->sess, alt_mux) < 0) {
 			conn_full_close(srv_conn);
 			return SF_ERR_INTERNAL;
 		}
@@ -1752,7 +1741,7 @@ skip_reuse:
 	 * sockets, socket pairs, and occasionally TCP connections on the
 	 * loopback on a heavily loaded system.
 	 */
-	if ((srv_conn->flags & CO_FL_ERROR || srv_cs->flags & CS_FL_ERROR))
+	if ((srv_conn->flags & CO_FL_ERROR || (s->si[1].cs)->flags & CS_FL_ERROR))
 		s->si[1].flags |= SI_FL_ERR;
 
 	/* If we had early data, and the handshake ended, then
@@ -1761,7 +1750,7 @@ skip_reuse:
 	 * the handshake.
 	 */
 	if (!(srv_conn->flags & (CO_FL_WAIT_XPRT | CO_FL_EARLY_SSL_HS)))
-		srv_cs->flags &= ~CS_FL_WAIT_FOR_HS;
+		(s->si[1].cs)->flags &= ~CS_FL_WAIT_FOR_HS;
 
 	if (!si_state_in(s->si[1].state, SI_SB_EST|SI_SB_DIS|SI_SB_CLO) &&
 	    (srv_conn->flags & CO_FL_WAIT_XPRT) == 0) {
@@ -1778,7 +1767,7 @@ skip_reuse:
 	 *       wake callback. Otherwise si_cs_recv()/si_cs_send() already take
 	 *       care of it.
 	 */
-	if ((srv_cs->flags & CS_FL_EOI) && !(si_ic(&s->si[1])->flags & CF_EOI))
+	if (((s->si[1].cs)->flags & CS_FL_EOI) && !(si_ic(&s->si[1])->flags & CF_EOI))
 		si_ic(&s->si[1])->flags |= (CF_EOI|CF_READ_PARTIAL);
 
 	/* catch all sync connect while the mux is not already installed */
@@ -2096,7 +2085,7 @@ void back_handle_st_req(struct stream *s)
 
 	if (unlikely(obj_type(s->target) == OBJ_TYPE_APPLET)) {
 		/* the applet directly goes to the EST state */
-		struct appctx *appctx = objt_appctx(si->end);
+		struct appctx *appctx = cs_appctx(si->cs);
 
 		if (!appctx || appctx->applet != __objt_applet(s->target))
 			appctx = si_register_handler(si, objt_applet(s->target));
@@ -2231,7 +2220,7 @@ void back_handle_st_cer(struct stream *s)
 
 	/* we probably have to release last stream from the server */
 	if (objt_server(s->target)) {
-		struct connection *conn = cs_conn(objt_cs(si->end));
+		struct connection *conn = cs_conn(si->cs);
 
 		health_adjust(__objt_server(s->target), HANA_STATUS_L4_ERR);
 

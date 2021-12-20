@@ -25,7 +25,8 @@
 #include <haproxy/api-t.h>
 #include <haproxy/buf-t.h>
 #include <haproxy/connection-t.h>
-#include <haproxy/obj_type-t.h>
+
+struct conn_stream;
 
 /* A stream interface must have its own errors independently of the buffer's,
  * so that applications can rely on what the buffer reports while the stream
@@ -127,7 +128,7 @@ struct stream_interface {
 	enum si_state prev_state;/* SI_ST*, copy of previous state */
 	/* 16-bit hole here */
 	unsigned int flags;     /* SI_FL_* */
-	enum obj_type *end;     /* points to the end point (connection or appctx) */
+	struct conn_stream *cs; /* points to the conn-streams that owns the endpoint (connection or applet) */
 	struct si_ops *ops;     /* general operations at the stream interface layer */
 	struct sockaddr_storage *src; /* source address (pool), when known, otherwise NULL */
 	struct sockaddr_storage *dst; /* destination address (pool), when known, otherwise NULL */

@@ -3181,6 +3181,7 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 	struct proxy *p = peers->peers_fe; /* attached frontend */
 	struct appctx *appctx;
 	struct session *sess;
+	struct conn_stream *cs;
 	struct stream *s;
 
 	peer->new_conn++;
@@ -3203,9 +3204,15 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 		goto out_free_appctx;
 	}
 
-	if ((s = stream_new(sess, &appctx->obj_type, &BUF_NULL)) == NULL) {
-		ha_alert("Failed to initialize stream in peer_session_create().\n");
+	cs = cs_new(&appctx->obj_type);
+	if (!cs) {
+		ha_alert("out of memory in peer_session_create().\n");
 		goto out_free_sess;
+	}
+
+	if ((s = stream_new(sess, cs, &BUF_NULL)) == NULL) {
+		ha_alert("Failed to initialize stream in peer_session_create().\n");
+		goto out_free_cs;
 	}
 
 	/* applet is waiting for data */
@@ -3225,7 +3232,6 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 	s->res.flags |= CF_READ_DONTWAIT;
 
 	peer->appctx = appctx;
-	task_wakeup(s->task, TASK_WOKEN_INIT);
 	_HA_ATOMIC_INC(&active_peers);
 	return appctx;
 
@@ -3233,6 +3239,8 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
  out_free_strm:
 	LIST_DELETE(&s->list);
 	pool_free(pool_head_stream, s);
+ out_free_cs:
+	cs_free(cs);
  out_free_sess:
 	session_free(sess);
  out_free_appctx:
@@ -4019,4 +4027,3 @@ static struct cli_kw_list cli_kws = {{ }, {
 
 /* Register cli keywords */
 INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);
-

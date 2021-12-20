@@ -2617,7 +2617,7 @@ static int hlua_socket_getsockname(struct lua_State *L)
 	si = appctx->owner;
 	s = si_strm(si);
 
-	conn = cs_conn(objt_cs(s->si[1].end));
+	conn = cs_conn(s->si[1].cs);
 	if (!conn || !conn_get_src(conn)) {
 		xref_unlock(&socket->xref, peer);
 		lua_pushnil(L);
@@ -2684,7 +2684,7 @@ __LJMP static int hlua_socket_connect_yield(struct lua_State *L, int status, lua
 		return 2;
 	}
 
-	appctx = __objt_appctx(s->si[0].end);
+	appctx = cs_appctx(s->si[0].cs);
 
 	/* Check for connection established. */
 	if (appctx->ctx.hlua_cosocket.connected) {
@@ -2916,6 +2916,7 @@ __LJMP static int hlua_socket_new(lua_State *L)
 	struct hlua_socket *socket;
 	struct appctx *appctx;
 	struct session *sess;
+	struct conn_stream *cs;
 	struct stream *strm;
 
 	/* Check stack size. */
@@ -2957,13 +2958,19 @@ __LJMP static int hlua_socket_new(lua_State *L)
 	sess = session_new(socket_proxy, NULL, &appctx->obj_type);
 	if (!sess) {
 		hlua_pusherror(L, "socket: out of memory");
+		goto out_fail_appctx;
+	}
+
+	cs = cs_new(&appctx->obj_type);
+	if (!cs) {
+		hlua_pusherror(L, "socket: out of memory");
 		goto out_fail_sess;
 	}
 
-	strm = stream_new(sess, &appctx->obj_type, &BUF_NULL);
+	strm = stream_new(sess, cs, &BUF_NULL);
 	if (!strm) {
 		hlua_pusherror(L, "socket: out of memory");
-		goto out_fail_stream;
+		goto out_fail_cs;
 	}
 
 	/* Initialise cross reference between stream and Lua socket object. */
@@ -2981,9 +2988,11 @@ __LJMP static int hlua_socket_new(lua_State *L)
 
 	return 1;
 
- out_fail_stream:
-	session_free(sess);
+ out_fail_cs:
+	cs_free(cs);
  out_fail_sess:
+	session_free(sess);
+ out_fail_appctx:
 	appctx_free(appctx);
  out_fail_conf:
 	WILL_LJMP(lua_error(L));

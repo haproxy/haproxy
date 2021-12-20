@@ -297,7 +297,7 @@ static int mux_pt_init(struct connection *conn, struct proxy *prx, struct sessio
 			goto fail_free_ctx;
 		}
 
-		if (stream_create_from_cs(cs, &BUF_NULL) < 0) {
+		if (!stream_new(conn->owner, cs, &BUF_NULL)) {
 			TRACE_ERROR("stream creation failure", PT_EV_STRM_NEW|PT_EV_STRM_END|PT_EV_STRM_ERR, conn, cs);
 			goto fail_free;
 		}

@@ -41,11 +41,21 @@ void cs_free(struct conn_stream *cs);
  */
 static inline void cs_init(struct conn_stream *cs, enum obj_type *endp)
 {
+	struct connection *conn = objt_conn(endp);
+	struct appctx *appctx = objt_appctx(endp);
+
 	cs->obj_type = OBJ_TYPE_CS;
 	cs->flags = CS_FL_NONE;
 	cs->end = endp;
-	if (objt_conn(endp))
-		cs->ctx = endp;
+	if (conn) {
+		cs->ctx = conn;
+		if (!conn->ctx)
+			conn->ctx = cs;
+	}
+	else if (appctx) {
+		cs->ctx = appctx;
+		/* appctx->owner must be set by the caller for now */
+	}
 	cs->data = NULL;
 	cs->data_cb = NULL;
 }

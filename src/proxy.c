@@ -2612,7 +2612,7 @@ static void dump_server_addr(const struct sockaddr_storage *addr, char *addr_str
  */
 static int dump_servers_state(struct stream_interface *si)
 {
-	struct appctx *appctx = __objt_appctx(si->end);
+	struct appctx *appctx = cs_appctx(si->cs);
 	struct proxy *px = appctx->ctx.cli.p0;
 	struct server *srv;
 	char srv_addr[INET6_ADDRSTRLEN + 1];

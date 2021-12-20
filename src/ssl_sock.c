@@ -7735,7 +7735,7 @@ enum act_return ssl_action_wait_for_hs(struct act_rule *rule, struct proxy *px,
 	struct conn_stream *cs;
 
 	conn = objt_conn(sess->origin);
-	cs = objt_cs(s->si[0].end);
+	cs = s->si[0].cs;
 
 	if (conn && cs) {
 		if (conn->flags & (CO_FL_EARLY_SSL_HS | CO_FL_SSL_WAIT_HS)) {

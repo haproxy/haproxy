@@ -2018,7 +2018,7 @@ smp_fetch_fc_http_major(const struct arg *args, struct sample *smp, const char *
                 conn = (kw[0] == 'b') ? cs_conn(__objt_check(smp->sess->origin)->cs) : NULL;
         else
                 conn = (kw[0] != 'b') ? objt_conn(smp->sess->origin) :
-			smp->strm ? cs_conn(objt_cs(smp->strm->si[1].end)) : NULL;
+			smp->strm ? cs_conn(smp->strm->si[1].cs) : NULL;
 
 	/* No connection or a connection with a RAW muxx */
 	if (!conn || (conn->mux && !(conn->mux->flags & MX_FL_HTX)))
@@ -2115,7 +2115,7 @@ int smp_fetch_fc_err(const struct arg *args, struct sample *smp, const char *kw,
                 conn = (kw[0] == 'b') ? cs_conn(__objt_check(smp->sess->origin)->cs) : NULL;
         else
                 conn = (kw[0] != 'b') ? objt_conn(smp->sess->origin) :
-			smp->strm ? cs_conn(objt_cs(smp->strm->si[1].end)) : NULL;
+			smp->strm ? cs_conn(smp->strm->si[1].cs) : NULL;
 
 	if (!conn)
 		return 0;
@@ -2142,7 +2142,7 @@ int smp_fetch_fc_err_str(const struct arg *args, struct sample *smp, const char 
                 conn = (kw[0] == 'b') ? cs_conn(__objt_check(smp->sess->origin)->cs) : NULL;
         else
                 conn = (kw[0] != 'b') ? objt_conn(smp->sess->origin) :
-			smp->strm ? cs_conn(objt_cs(smp->strm->si[1].end)) : NULL;
+			smp->strm ? cs_conn(smp->strm->si[1].cs) : NULL;
 
 	if (!conn)
 		return 0;

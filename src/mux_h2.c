@@ -1550,7 +1550,7 @@ static struct h2s *h2c_frt_stream_new(struct h2c *h2c, int id, struct buffer *in
 	 * request. We can set the value now, it will be copied by stream_new().
 	 */
 	sess->t_idle = tv_ms_elapsed(&sess->tv_accept, &now) - sess->t_handshake;
-	if (stream_create_from_cs(cs, input) < 0)
+	if (!stream_new(h2c->conn->owner, cs, input))
 		goto out_free_cs;
 
 	/* We want the accept date presented to the next stream to be the one

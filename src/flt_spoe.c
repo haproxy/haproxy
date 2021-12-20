@@ -1988,6 +1988,7 @@ spoe_create_appctx(struct spoe_config *conf)
 {
 	struct appctx      *appctx;
 	struct session     *sess;
+	struct conn_stream *cs;
 	struct stream      *strm;
 
 	if ((appctx = appctx_new(&spoe_applet)) == NULL)
@@ -2023,8 +2024,12 @@ spoe_create_appctx(struct spoe_config *conf)
 	if (!sess)
 		goto out_free_spoe;
 
-	if ((strm = stream_new(sess, &appctx->obj_type, &BUF_NULL)) == NULL)
+	cs = cs_new(&appctx->obj_type);
+	if (!cs)
 		goto out_free_sess;
+
+	if ((strm = stream_new(sess, cs, &BUF_NULL)) == NULL)
+		goto out_free_cs;
 
 	stream_set_backend(strm, conf->agent->b.be);
 
@@ -2041,10 +2046,11 @@ spoe_create_appctx(struct spoe_config *conf)
 	_HA_ATOMIC_INC(&conf->agent->counters.applets);
 
 	task_wakeup(SPOE_APPCTX(appctx)->task, TASK_WOKEN_INIT);
-	task_wakeup(strm->task, TASK_WOKEN_INIT);
 	return appctx;
 
 	/* Error unrolling */
+ out_free_cs:
+	cs_free(cs);
  out_free_sess:
 	session_free(sess);
  out_free_spoe:

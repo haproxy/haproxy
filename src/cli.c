@@ -1920,7 +1920,7 @@ static int _getsocks(char **args, char *payload, struct appctx *appctx, void *pr
 	struct cmsghdr *cmsg;
 	struct stream_interface *si = appctx->owner;
 	struct stream *s = si_strm(si);
-	struct connection *remote = cs_conn(objt_cs(si_opposite(si)->end));
+	struct connection *remote = cs_conn(si_opposite(si)->cs);
 	struct msghdr msghdr;
 	struct iovec iov;
 	struct timeval tv = { .tv_sec = 1, .tv_usec = 0 };

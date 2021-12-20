@@ -887,6 +887,7 @@ static struct appctx *dns_session_create(struct dns_session *ds)
 {
 	struct appctx *appctx;
 	struct session *sess;
+	struct conn_stream *cs;
 	struct stream *s;
 	struct applet *applet = &dns_session_applet;
 
@@ -898,13 +899,19 @@ static struct appctx *dns_session_create(struct dns_session *ds)
 
 	sess = session_new(ds->dss->srv->proxy, NULL, &appctx->obj_type);
 	if (!sess) {
-		ha_alert("out of memory in peer_session_create().\n");
+		ha_alert("out of memory in dns_session_create().\n");
 		goto out_free_appctx;
 	}
 
-	if ((s = stream_new(sess, &appctx->obj_type, &BUF_NULL)) == NULL) {
-		ha_alert("Failed to initialize stream in peer_session_create().\n");
+	cs = cs_new(&appctx->obj_type);
+	if (!cs) {
+		ha_alert("out of memory in dns_session_create().\n");
 		goto out_free_sess;
+	}
+
+	if ((s = stream_new(sess, cs, &BUF_NULL)) == NULL) {
+		ha_alert("Failed to initialize stream in dns_session_create().\n");
+		goto out_free_cs;
 	}
 
 
@@ -924,13 +931,14 @@ static struct appctx *dns_session_create(struct dns_session *ds)
 	s->res.rto = TICK_ETERNITY;
 	s->res.rex = TICK_ETERNITY;
 	ds->appctx = appctx;
-	task_wakeup(s->task, TASK_WOKEN_INIT);
 	return appctx;
 
 	/* Error unrolling */
  out_free_strm:
 	LIST_DELETE(&s->list);
 	pool_free(pool_head_stream, s);
+ out_free_cs:
+	cs_free(cs);
  out_free_sess:
 	session_free(sess);
  out_free_appctx:

@@ -28,9 +28,6 @@
 #include <haproxy/connection.h>
 #include <haproxy/conn_stream.h>
 #include <haproxy/obj_type.h>
-#include <haproxy/stream-t.h>
-#include <haproxy/stream_interface-t.h>
-
 
 extern struct si_ops si_embedded_ops;
 extern struct si_ops si_conn_ops;
@@ -120,7 +117,7 @@ static inline int si_reset(struct stream_interface *si)
 	si->conn_retries   = 0;  /* used for logging too */
 	si->exp            = TICK_ETERNITY;
 	si->flags         &= SI_FL_ISBACK;
-	si->end            = NULL;
+	si->cs             = NULL;
 	si->state          = si->prev_state = SI_ST_INI;
 	si->ops            = &si_embedded_ops;
 	si->wait_event.tasklet = tasklet_new();
@@ -155,45 +152,19 @@ static inline int si_state_in(enum si_state state, enum si_state_bit mask)
 	return !!(si_state_bit(state) & mask);
 }
 
-/* only detaches the endpoint from the SI, which means that it's set to
- * NULL and that ->ops is mapped to si_embedded_ops. The previous endpoint
- * is returned.
- */
-static inline enum obj_type *si_detach_endpoint(struct stream_interface *si)
-{
-	enum obj_type *prev = si->end;
-
-	si->end = NULL;
-	si->ops = &si_embedded_ops;
-	return prev;
-}
-
-/* Reset the endpoint if it's a connection or an applet, For an applet, it is
- * for now the same than si_release_endpoint(), the appctx is freed. But for a
- * connection, the conn-stream is only detached.
+/* Reset the endpoint detaching it from the conn-stream. For a connection
+ * attached to a mux, it is unsubscribe from any event.
  */
 static inline void si_reset_endpoint(struct stream_interface *si)
 {
-	struct conn_stream *cs;
-	struct connection *conn;
-	struct appctx *appctx;
-
-	if (!si->end)
+	if (!si->cs)
 		return;
 
-	if ((appctx = objt_appctx(si->end))) {
-		if (appctx->applet->release && !si_state_in(si->state, SI_SB_DIS|SI_SB_CLO))
-			appctx->applet->release(appctx);
-		appctx_free(appctx);
-		si_detach_endpoint(si);
-	}
-	else if ((cs = objt_cs(si->end))) {
-		if ((conn = cs_conn(cs)) && si->wait_event.events != 0)
-			conn->mux->unsubscribe(cs, si->wait_event.events,
-					       &si->wait_event);
-		cs_detach(cs);
-		si->ops = &si_embedded_ops;
-	}
+	if (cs_conn_mux(si->cs) && si->wait_event.events != 0)
+		(cs_conn_mux(si->cs))->unsubscribe(si->cs, si->wait_event.events, &si->wait_event);
+
+	cs_detach(si->cs);
+	si->ops = &si_embedded_ops;
 }
 
 /* Release the endpoint if it's a connection or an applet, then nullify it.
@@ -201,63 +172,46 @@ static inline void si_reset_endpoint(struct stream_interface *si)
  */
 static inline void si_release_endpoint(struct stream_interface *si)
 {
-	struct conn_stream *cs;
-	struct connection *conn;
-	struct appctx *appctx;
-
-	if (!si->end)
+	if (!si->cs)
 		return;
+	si_reset_endpoint(si);
+	cs_free(si->cs);
+	si->cs = NULL;
+	si->ops = &si_embedded_ops;
 
-	if ((appctx = objt_appctx(si->end))) {
-		if (appctx->applet->release && !si_state_in(si->state, SI_SB_DIS|SI_SB_CLO))
-			appctx->applet->release(appctx);
-		appctx_free(appctx);
-	}
-	else if ((cs = objt_cs(si->end))) {
-		if ((conn = cs_conn(cs)) && si->wait_event.events != 0)
-			conn->mux->unsubscribe(cs, si->wait_event.events,
-					       &si->wait_event);
-		cs_destroy(cs);
-	}
-	si_detach_endpoint(si);
 }
 
-/* Attach conn_stream <cs> to the stream interface <si>. The stream interface
- * is configured to work with a connection and the connection it configured
- * with a stream interface data layer.
- */
+/* Attach conn_stream <cs> to the stream interface <si>. */
 static inline void si_attach_cs(struct stream_interface *si, struct conn_stream *cs)
 {
-	si->ops = &si_conn_ops;
-	si->end = &cs->obj_type;
-	cs_attach(cs, si, &si_conn_cb);
-}
-
-static inline struct conn_stream *si_attach_conn(struct stream_interface *si, struct connection *conn)
-{
-	struct conn_stream *cs;
-
-	si_reset_endpoint(si);
-	cs = objt_cs(si->end);
-	if (!cs)
-		cs = cs_new(&conn->obj_type);
-	if (cs) {
-		cs_init(cs, &conn->obj_type);
-		if (!conn->ctx)
-			conn->ctx = cs;
-		si_attach_cs(si, cs);
+	si->cs = cs;
+	if (cs_conn(cs)) {
+		si->ops = &si_conn_ops;
+		cs_attach(cs, si, &si_conn_cb);
 	}
-	return cs;
+	else if (cs_appctx(cs)) {
+		struct appctx *appctx = cs_appctx(cs);
+
+		si->ops = &si_applet_ops;
+		appctx->owner = si;
+		cs_attach(cs, si, NULL);
+	}
+	else {
+		si->ops = &si_embedded_ops;
+		cs_attach(cs, si, NULL);
+	}
 }
 
-/* Returns true if a connection is attached to the stream interface <si> and
- * if this connection is ready.
+/* Attach connection <conn> to the stream interface <si>. The stream interface
+ * is configured to work with a connection context.
  */
-static inline int si_conn_ready(struct stream_interface *si)
+static inline void si_attach_conn(struct stream_interface *si, struct connection *conn)
 {
-	struct connection *conn = cs_conn(objt_cs(si->end));
-
-	return conn && conn_ctrl_ready(conn) && conn_xprt_ready(conn);
+	si_reset_endpoint(si);
+	cs_init(si->cs, &conn->obj_type);
+	if (!conn->ctx)
+		conn->ctx = si->cs;
+	si_attach_cs(si, si->cs);
 }
 
 /* Attach appctx <appctx> to the stream interface <si>. The stream interface
@@ -265,15 +219,10 @@ static inline int si_conn_ready(struct stream_interface *si)
  */
 static inline void si_attach_appctx(struct stream_interface *si, struct appctx *appctx)
 {
-	si->ops = &si_applet_ops;
-	si->end = &appctx->obj_type;
+	si_reset_endpoint(si);
+	cs_init(si->cs, &appctx->obj_type);
 	appctx->owner = si;
-}
-
-/* returns a pointer to the appctx being run in the SI, which must be valid */
-static inline struct appctx *si_appctx(struct stream_interface *si)
-{
-	return __objt_appctx(si->end);
+	si_attach_cs(si, si->cs);
 }
 
 /* call the applet's release function if any. Needs to be called upon close() */
@@ -281,9 +230,19 @@ static inline void si_applet_release(struct stream_interface *si)
 {
 	struct appctx *appctx;
 
-	appctx = objt_appctx(si->end);
+	appctx = cs_appctx(si->cs);
 	if (appctx && appctx->applet->release && !si_state_in(si->state, SI_SB_DIS|SI_SB_CLO))
 		appctx->applet->release(appctx);
+}
+
+/* Returns true if a connection is attached to the stream interface <si> and
+ * if this connection is ready.
+ */
+static inline int si_conn_ready(struct stream_interface *si)
+{
+	struct connection *conn = cs_conn(si->cs);
+
+	return conn && conn_ctrl_ready(conn) && conn_xprt_ready(conn);
 }
 
 /* Returns non-zero if the stream interface's Rx path is blocked */
@@ -420,24 +379,6 @@ static inline void si_done_get(struct stream_interface *si)
 	si->flags &= ~(SI_FL_WANT_GET | SI_FL_WAIT_DATA);
 }
 
-/* Try to allocate a new conn_stream and assign it to the interface. If
- * an endpoint was previously allocated, it is released first. The newly
- * allocated conn_stream is initialized, assigned to the stream interface,
- * and returned.
- */
-static inline struct conn_stream *si_alloc_cs(struct stream_interface *si, struct connection *conn)
-{
-	struct conn_stream *cs;
-
-	si_release_endpoint(si);
-
-	cs = cs_new(&conn->obj_type);
-	if (cs)
-		si_attach_cs(si, cs);
-
-	return cs;
-}
-
 /* Try to allocate a buffer for the stream-int's input channel. It relies on
  * channel_alloc_buffer() for this so it abides by its rules. It returns 0 on
  * failure, non-zero otherwise. If no buffer is available, the requester,
@@ -454,25 +395,6 @@ static inline int si_alloc_ibuf(struct stream_interface *si, struct buffer_wait 
 	if (!ret)
 		si_rx_buff_blk(si);
 	return ret;
-}
-
-/* Release the interface's existing endpoint (connection or appctx) and
- * allocate then initialize a new appctx which is assigned to the interface
- * and returned. NULL may be returned upon memory shortage. Applet <applet>
- * is assigned to the appctx, but it may be NULL.
- */
-static inline struct appctx *si_alloc_appctx(struct stream_interface *si, struct applet *applet)
-{
-	struct appctx *appctx;
-
-	si_release_endpoint(si);
-	appctx = appctx_new(applet);
-	if (appctx) {
-		si_attach_appctx(si, appctx);
-		appctx->t->nice = si_strm(si)->task->nice;
-	}
-
-	return appctx;
 }
 
 /* Sends a shutr to the connection using the data layer */
@@ -523,13 +445,10 @@ static inline void si_chk_rcv(struct stream_interface *si)
  */
 static inline int si_sync_recv(struct stream_interface *si)
 {
-	struct conn_stream *cs;
-
 	if (!si_state_in(si->state, SI_SB_RDY|SI_SB_EST))
 		return 0;
 
-	cs = objt_cs(si->end);
-	if (!cs_conn_mux(cs))
+	if (!cs_conn_mux(si->cs))
 		return 0; // only conn_streams are supported
 
 	if (si->wait_event.events & SUB_RETRY_RECV)
@@ -538,7 +457,7 @@ static inline int si_sync_recv(struct stream_interface *si)
 	if (!si_rx_endp_ready(si) || si_rx_blocked(si))
 		return 0; // already failed
 
-	return si_cs_recv(cs);
+	return si_cs_recv(si->cs);
 }
 
 /* Calls chk_snd on the connection using the data layer */
@@ -624,7 +543,7 @@ static inline const struct sockaddr_storage *si_src(struct stream_interface *si)
 	if (!(si->flags & SI_FL_ISBACK))
 		return sess_src(strm_sess(si_strm(si)));
 	else {
-		struct connection *conn = cs_conn(objt_cs(si->end));
+		struct connection *conn = cs_conn(si->cs);
 
 		if (conn)
 			return conn_src(conn);
@@ -644,7 +563,7 @@ static inline const struct sockaddr_storage *si_dst(struct stream_interface *si)
 	if (!(si->flags & SI_FL_ISBACK))
 		return sess_dst(strm_sess(si_strm(si)));
 	else {
-		struct connection *conn = cs_conn(objt_cs(si->end));
+		struct connection *conn = cs_conn(si->cs);
 
 		if (conn)
 			return conn_dst(conn);
@@ -668,7 +587,7 @@ static inline int si_get_src(struct stream_interface *si)
 	if (!(si->flags & SI_FL_ISBACK))
 		src = sess_src(strm_sess(si_strm(si)));
 	else {
-		struct connection *conn = cs_conn(objt_cs(si->end));
+		struct connection *conn = cs_conn(si->cs);
 
 		if (conn)
 			src = conn_src(conn);
@@ -699,7 +618,7 @@ static inline int si_get_dst(struct stream_interface *si)
 	if (!(si->flags & SI_FL_ISBACK))
 		dst = sess_dst(strm_sess(si_strm(si)));
 	else {
-		struct connection *conn = cs_conn(objt_cs(si->end));
+		struct connection *conn = cs_conn(si->cs);
 
 		if (conn)
 			dst = conn_dst(conn);
