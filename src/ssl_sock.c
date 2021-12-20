@@ -7195,7 +7195,7 @@ static inline int cli_io_handler_tlskeys_entries(struct appctx *appctx) {
  */
 static int cli_io_handler_tlskeys_files(struct appctx *appctx) {
 
-	struct stream_interface *si = appctx->owner;
+	struct stream_interface *si = cs_si(appctx->owner);
 
 	switch (appctx->st2) {
 	case STAT_ST_INIT:
@@ -7471,7 +7471,7 @@ static int cli_io_handler_show_ocspresponse(struct appctx *appctx)
 	struct buffer *trash = alloc_trash_chunk();
 	struct buffer *tmp = NULL;
 	struct ebmb_node *node;
-	struct stream_interface *si = appctx->owner;
+	struct stream_interface *si = cs_si(appctx->owner);
 	struct certificate_ocsp *ocsp = NULL;
 	BIO *bio = NULL;
 	int write = -1;
@@ -7658,7 +7658,7 @@ static int cli_io_handler_show_ocspresponse_detail(struct appctx *appctx)
 {
 	struct buffer *trash = alloc_trash_chunk();
 	struct certificate_ocsp *ocsp = NULL;
-	struct stream_interface *si = appctx->owner;
+	struct stream_interface *si = cs_si(appctx->owner);
 
 	ocsp = appctx->ctx.cli.p0;
 

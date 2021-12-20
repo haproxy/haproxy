@@ -4314,7 +4314,7 @@ static int cli_parse_set_server(char **args, char *payload, struct appctx *appct
 
 static int cli_parse_get_weight(char **args, char *payload, struct appctx *appctx, void *private)
 {
-	struct stream_interface *si = appctx->owner;
+	struct stream_interface *si = cs_si(appctx->owner);
 	struct proxy *px;
 	struct server *sv;
 	char *line;

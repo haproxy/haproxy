@@ -193,7 +193,7 @@ static inline void si_attach_cs(struct stream_interface *si, struct conn_stream 
 		struct appctx *appctx = cs_appctx(cs);
 
 		si->ops = &si_applet_ops;
-		appctx->owner = si;
+		appctx->owner = cs;
 		cs_attach(cs, si, NULL);
 	}
 	else {
@@ -221,7 +221,7 @@ static inline void si_attach_appctx(struct stream_interface *si, struct appctx *
 {
 	si_reset_endpoint(si);
 	cs_init(si->cs, &appctx->obj_type);
-	appctx->owner = si;
+	appctx->owner = si->cs;
 	si_attach_cs(si, si->cs);
 }
 

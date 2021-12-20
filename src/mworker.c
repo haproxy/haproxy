@@ -509,7 +509,7 @@ void mworker_cleanup_proc()
 /*  Displays workers and processes  */
 static int cli_io_handler_show_proc(struct appctx *appctx)
 {
-	struct stream_interface *si = appctx->owner;
+	struct stream_interface *si = cs_si(appctx->owner);
 	struct mworker_proc *child;
 	int old = 0;
 	int up = now.tv_sec - proc_self->timestamp;

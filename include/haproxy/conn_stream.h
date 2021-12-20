@@ -86,6 +86,11 @@ static inline struct appctx *cs_appctx(const struct conn_stream *cs)
 	return (cs ? objt_appctx(cs->end) : NULL);
 }
 
+static inline struct stream_interface *cs_si(const struct conn_stream *cs)
+{
+	return ((cs_conn(cs) || cs_appctx(cs)) ? cs->data : NULL);
+}
+
 /* Attaches a conn_stream to a data layer and sets the relevant callbacks */
 static inline void cs_attach(struct conn_stream *cs, void *data, const struct data_cb *data_cb)
 {

@@ -4391,7 +4391,7 @@ static int table_dump_entry_to_buffer(struct buffer *msg,
  */
 static int table_process_entry_per_key(struct appctx *appctx, char **args)
 {
-	struct stream_interface *si = appctx->owner;
+	struct stream_interface *si = cs_si(appctx->owner);
 	struct stktable *t = appctx->ctx.table.target;
 	struct stksess *ts;
 	uint32_t uint32_key;
@@ -4646,7 +4646,7 @@ err_args:
  */
 static int cli_io_handler_table(struct appctx *appctx)
 {
-	struct stream_interface *si = appctx->owner;
+	struct stream_interface *si = cs_si(appctx->owner);
 	struct stream *s = si_strm(si);
 	struct ebmb_node *eb;
 	int skip_entry;

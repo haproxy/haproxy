@@ -276,7 +276,7 @@ int ring_attach_cli(struct ring *ring, struct appctx *appctx)
  */
 int cli_io_handler_show_ring(struct appctx *appctx)
 {
-	struct stream_interface *si = appctx->owner;
+	struct stream_interface *si = cs_si(appctx->owner);
 	struct ring *ring = appctx->ctx.cli.p0;
 	struct buffer *buf = &ring->buf;
 	size_t ofs = appctx->ctx.cli.o0;

@@ -1905,7 +1905,7 @@ __LJMP static struct hlua_socket *hlua_checksocket(lua_State *L, int ud)
  */
 static void hlua_socket_handler(struct appctx *appctx)
 {
-	struct stream_interface *si = appctx->owner;
+	struct stream_interface *si = cs_si(appctx->owner);
 
 	if (appctx->ctx.hlua_cosocket.die) {
 		si_shutw(si);
@@ -2101,7 +2101,7 @@ __LJMP static int hlua_socket_receive_yield(struct lua_State *L, int status, lua
 	if (!peer)
 		goto no_peer;
 	appctx = container_of(peer, struct appctx, ctx.hlua_cosocket.xref);
-	si = appctx->owner;
+	si = cs_si(appctx->owner);
 	s = si_strm(si);
 
 	oc = &s->res;
@@ -2340,7 +2340,7 @@ static int hlua_socket_write_yield(struct lua_State *L,int status, lua_KContext 
 		return 1;
 	}
 	appctx = container_of(peer, struct appctx, ctx.hlua_cosocket.xref);
-	si = appctx->owner;
+	si = cs_si(appctx->owner);
 	s = si_strm(si);
 
 	/* Check for connection close. */
@@ -2573,7 +2573,7 @@ __LJMP static int hlua_socket_getpeername(struct lua_State *L)
 		return 1;
 	}
 	appctx = container_of(peer, struct appctx, ctx.hlua_cosocket.xref);
-	si = appctx->owner;
+	si = cs_si(appctx->owner);
 	dst = si_dst(si_opposite(si));
 	if (!dst) {
 		xref_unlock(&socket->xref, peer);
@@ -2614,7 +2614,7 @@ static int hlua_socket_getsockname(struct lua_State *L)
 		return 1;
 	}
 	appctx = container_of(peer, struct appctx, ctx.hlua_cosocket.xref);
-	si = appctx->owner;
+	si = cs_si(appctx->owner);
 	s = si_strm(si);
 
 	conn = cs_conn(s->si[1].cs);
@@ -2665,7 +2665,7 @@ __LJMP static int hlua_socket_connect_yield(struct lua_State *L, int status, lua
 		return 2;
 	}
 	appctx = container_of(peer, struct appctx, ctx.hlua_cosocket.xref);
-	si = appctx->owner;
+	si = cs_si(appctx->owner);
 	s = si_strm(si);
 
 	/* Check if we run on the same thread than the xreator thread.
@@ -2777,7 +2777,7 @@ __LJMP static int hlua_socket_connect(struct lua_State *L)
 	}
 
 	appctx = container_of(peer, struct appctx, ctx.hlua_cosocket.xref);
-	si = appctx->owner;
+	si = cs_si(appctx->owner);
 	s = si_strm(si);
 
 	if (!sockaddr_alloc(&si_opposite(si)->dst, addr, sizeof(*addr))) {
@@ -2833,7 +2833,7 @@ __LJMP static int hlua_socket_connect_ssl(struct lua_State *L)
 		return 1;
 	}
 	appctx = container_of(peer, struct appctx, ctx.hlua_cosocket.xref);
-	si = appctx->owner;
+	si = cs_si(appctx->owner);
 	s = si_strm(si);
 
 	s->target = &socket_ssl->obj_type;
@@ -2889,7 +2889,7 @@ __LJMP static int hlua_socket_settimeout(struct lua_State *L)
 		return 0;
 	}
 	appctx = container_of(peer, struct appctx, ctx.hlua_cosocket.xref);
-	si = appctx->owner;
+	si = cs_si(appctx->owner);
 	s = si_strm(si);
 
 	s->sess->fe->timeout.connect = tmout;
@@ -4269,7 +4269,7 @@ __LJMP static struct hlua_appctx *hlua_checkapplet_tcp(lua_State *L, int ud)
 static int hlua_applet_tcp_new(lua_State *L, struct appctx *ctx)
 {
 	struct hlua_appctx *luactx;
-	struct stream_interface *si = ctx->owner;
+	struct stream_interface *si = cs_si(ctx->owner);
 	struct stream *s = si_strm(si);
 	struct proxy *p = s->be;
 
@@ -4450,7 +4450,7 @@ __LJMP static int hlua_applet_tcp_get_priv(lua_State *L)
 __LJMP static int hlua_applet_tcp_getline_yield(lua_State *L, int status, lua_KContext ctx)
 {
 	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_tcp(L, 1));
-	struct stream_interface *si = luactx->appctx->owner;
+	struct stream_interface *si = cs_si(luactx->appctx->owner);
 	int ret;
 	const char *blk1;
 	size_t len1;
@@ -4504,7 +4504,7 @@ __LJMP static int hlua_applet_tcp_getline(lua_State *L)
 __LJMP static int hlua_applet_tcp_recv_yield(lua_State *L, int status, lua_KContext ctx)
 {
 	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_tcp(L, 1));
-	struct stream_interface *si = luactx->appctx->owner;
+	struct stream_interface *si = cs_si(luactx->appctx->owner);
 	size_t len = MAY_LJMP(luaL_checkinteger(L, 2));
 	int ret;
 	const char *blk1;
@@ -4612,7 +4612,7 @@ __LJMP static int hlua_applet_tcp_send_yield(lua_State *L, int status, lua_KCont
 	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_tcp(L, 1));
 	const char *str = MAY_LJMP(luaL_checklstring(L, 2, &len));
 	int l = MAY_LJMP(luaL_checkinteger(L, 3));
-	struct stream_interface *si = luactx->appctx->owner;
+	struct stream_interface *si = cs_si(luactx->appctx->owner);
 	struct channel *chn = si_ic(si);
 	int max;
 
@@ -4675,7 +4675,7 @@ static int hlua_applet_http_new(lua_State *L, struct appctx *ctx)
 {
 	struct hlua_appctx *luactx;
 	struct hlua_txn htxn;
-	struct stream_interface *si = ctx->owner;
+	struct stream_interface *si = cs_si(ctx->owner);
 	struct stream *s = si_strm(si);
 	struct proxy *px = s->be;
 	struct htx *htx;
@@ -4937,7 +4937,7 @@ __LJMP static int hlua_applet_http_get_priv(lua_State *L)
 __LJMP static int hlua_applet_http_getline_yield(lua_State *L, int status, lua_KContext ctx)
 {
 	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_http(L, 1));
-	struct stream_interface *si = luactx->appctx->owner;
+	struct stream_interface *si = cs_si(luactx->appctx->owner);
 	struct channel *req = si_oc(si);
 	struct htx *htx;
 	struct htx_blk *blk;
@@ -5032,7 +5032,7 @@ __LJMP static int hlua_applet_http_getline(lua_State *L)
 __LJMP static int hlua_applet_http_recv_yield(lua_State *L, int status, lua_KContext ctx)
 {
 	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_http(L, 1));
-	struct stream_interface *si = luactx->appctx->owner;
+	struct stream_interface *si = cs_si(luactx->appctx->owner);
 	struct channel *req = si_oc(si);
 	struct htx *htx;
 	struct htx_blk *blk;
@@ -5141,7 +5141,7 @@ __LJMP static int hlua_applet_http_recv(lua_State *L)
 __LJMP static int hlua_applet_http_send_yield(lua_State *L, int status, lua_KContext ctx)
 {
 	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_http(L, 1));
-	struct stream_interface *si = luactx->appctx->owner;
+	struct stream_interface *si = cs_si(luactx->appctx->owner);
 	struct channel *res = si_ic(si);
 	struct htx *htx = htx_from_buf(&res->buf);
 	const char *data;
@@ -5275,7 +5275,7 @@ __LJMP static int hlua_applet_http_status(lua_State *L)
 __LJMP static int hlua_applet_http_send_response(lua_State *L)
 {
 	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_http(L, 1));
-	struct stream_interface *si = luactx->appctx->owner;
+	struct stream_interface *si = cs_si(luactx->appctx->owner);
 	struct channel *res = si_ic(si);
 	struct htx *htx;
 	struct htx_sl *sl;
@@ -5474,7 +5474,7 @@ __LJMP static int hlua_applet_http_send_response(lua_State *L)
 __LJMP static int hlua_applet_http_start_response_yield(lua_State *L, int status, lua_KContext ctx)
 {
 	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_http(L, 1));
-	struct stream_interface *si = luactx->appctx->owner;
+	struct stream_interface *si = cs_si(luactx->appctx->owner);
 	struct channel *res = si_ic(si);
 
 	if (co_data(res)) {
@@ -9182,7 +9182,7 @@ struct task *hlua_applet_wakeup(struct task *t, void *context, unsigned int stat
 
 static int hlua_applet_tcp_init(struct appctx *ctx, struct proxy *px, struct stream *strm)
 {
-	struct stream_interface *si = ctx->owner;
+	struct stream_interface *si = cs_si(ctx->owner);
 	struct hlua *hlua;
 	struct task *task;
 	char **arg;
@@ -9278,7 +9278,7 @@ static int hlua_applet_tcp_init(struct appctx *ctx, struct proxy *px, struct str
 
 void hlua_applet_tcp_fct(struct appctx *ctx)
 {
-	struct stream_interface *si = ctx->owner;
+	struct stream_interface *si = cs_si(ctx->owner);
 	struct stream *strm = si_strm(si);
 	struct channel *res = si_ic(si);
 	struct act_rule *rule = ctx->rule;
@@ -9369,7 +9369,7 @@ static void hlua_applet_tcp_release(struct appctx *ctx)
  */
 static int hlua_applet_http_init(struct appctx *ctx, struct proxy *px, struct stream *strm)
 {
-	struct stream_interface *si = ctx->owner;
+	struct stream_interface *si = cs_si(ctx->owner);
 	struct http_txn *txn;
 	struct hlua *hlua;
 	char **arg;
@@ -9470,7 +9470,7 @@ static int hlua_applet_http_init(struct appctx *ctx, struct proxy *px, struct st
 
 void hlua_applet_http_fct(struct appctx *ctx)
 {
-	struct stream_interface *si = ctx->owner;
+	struct stream_interface *si = cs_si(ctx->owner);
 	struct stream *strm = si_strm(si);
 	struct channel *req = si_oc(si);
 	struct channel *res = si_ic(si);
@@ -10089,7 +10089,7 @@ static int hlua_cli_io_handler_fct(struct appctx *appctx)
 	struct hlua_function *fcn;
 
 	hlua = appctx->ctx.hlua_cli.hlua;
-	si = appctx->owner;
+	si = cs_si(appctx->owner);
 	fcn = appctx->ctx.hlua_cli.fcn;
 
 	/* If the stream is disconnect or closed, ldo nothing. */

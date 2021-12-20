@@ -35,7 +35,7 @@ DECLARE_POOL(pool_head_appctx,  "appctx",  sizeof(struct appctx));
 int appctx_buf_available(void *arg)
 {
 	struct appctx *appctx = arg;
-	struct stream_interface *si = appctx->owner;
+	struct stream_interface *si = cs_si(appctx->owner);
 
 	/* allocation requested ? */
 	if (!(si->flags & SI_FL_RXBLK_BUFF))
@@ -61,7 +61,7 @@ int appctx_buf_available(void *arg)
 struct task *task_run_applet(struct task *t, void *context, unsigned int state)
 {
 	struct appctx *app = context;
-	struct stream_interface *si = app->owner;
+	struct stream_interface *si;
 	unsigned int rate;
 	size_t count;
 
@@ -69,6 +69,8 @@ struct task *task_run_applet(struct task *t, void *context, unsigned int state)
 		__appctx_free(app);
 		return NULL;
 	}
+
+	si = cs_si(app->owner);
 
 	/* We always pretend the applet can't get and doesn't want to
 	 * put, it's up to it to change this if needed. This ensures
@@ -112,4 +114,3 @@ struct task *task_run_applet(struct task *t, void *context, unsigned int state)
 	channel_release_buffer(si_ic(si), &app->buffer_wait);
 	return t;
 }
-

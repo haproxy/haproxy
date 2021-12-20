@@ -323,7 +323,7 @@ struct pattern_expr *pat_expr_get_next(struct pattern_expr *getnext, struct list
 /* expects the current generation ID in appctx->cli.cli.i0 */
 static int cli_io_handler_pat_list(struct appctx *appctx)
 {
-	struct stream_interface *si = appctx->owner;
+	struct stream_interface *si = cs_si(appctx->owner);
 	struct pat_ref_elt *elt;
 
 	if (unlikely(si_ic(si)->flags & (CF_WRITE_ERROR|CF_SHUTW))) {
@@ -406,7 +406,7 @@ static int cli_io_handler_pat_list(struct appctx *appctx)
 
 static int cli_io_handler_pats_list(struct appctx *appctx)
 {
-	struct stream_interface *si = appctx->owner;
+	struct stream_interface *si = cs_si(appctx->owner);
 
 	switch (appctx->st2) {
 	case STAT_ST_INIT:
@@ -468,7 +468,7 @@ static int cli_io_handler_pats_list(struct appctx *appctx)
 
 static int cli_io_handler_map_lookup(struct appctx *appctx)
 {
-	struct stream_interface *si = appctx->owner;
+	struct stream_interface *si = cs_si(appctx->owner);
 	struct sample sample;
 	struct pattern *pat;
 	int match_method;
@@ -993,7 +993,7 @@ static int cli_parse_del_map(char **args, char *payload, struct appctx *appctx, 
  */
 static int cli_io_handler_clear_map(struct appctx *appctx)
 {
-	struct stream_interface *si = appctx->owner;
+	struct stream_interface *si = cs_si(appctx->owner);
 	int finished;
 
 	HA_SPIN_LOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);

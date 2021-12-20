@@ -407,7 +407,7 @@ out:
  */
 static void dns_session_io_handler(struct appctx *appctx)
 {
-	struct stream_interface *si = appctx->owner;
+	struct stream_interface *si = cs_si(appctx->owner);
 	struct dns_session *ds = appctx->ctx.sft.ptr;
 	struct ring *ring = &ds->ring;
 	struct buffer *buf = &ring->buf;

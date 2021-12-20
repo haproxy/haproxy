@@ -3550,7 +3550,7 @@ out:
 static void syslog_io_handler(struct appctx *appctx)
 {
 	static THREAD_LOCAL struct ist metadata[LOG_META_FIELDS];
-	struct stream_interface *si = appctx->owner;
+	struct stream_interface *si = cs_si(appctx->owner);
 	struct stream *s = si_strm(si);
 	struct proxy *frontend = strm_fe(s);
 	struct listener *l = strm_li(s);

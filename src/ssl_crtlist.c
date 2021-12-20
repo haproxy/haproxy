@@ -887,7 +887,7 @@ static void dump_crtlist_filters(struct buffer *buf, struct crtlist_entry *entry
 static int cli_io_handler_dump_crtlist(struct appctx *appctx)
 {
 	struct buffer *trash = alloc_trash_chunk();
-	struct stream_interface *si = appctx->owner;
+	struct stream_interface *si = cs_si(appctx->owner);
 	struct ebmb_node *lnode;
 
 	if (trash == NULL)
@@ -918,7 +918,7 @@ static int cli_io_handler_dump_crtlist_entries(struct appctx *appctx)
 {
 	struct buffer *trash = alloc_trash_chunk();
 	struct crtlist *crtlist;
-	struct stream_interface *si = appctx->owner;
+	struct stream_interface *si = cs_si(appctx->owner);
 	struct crtlist_entry *entry;
 
 	if (trash == NULL)
@@ -1041,7 +1041,7 @@ static void cli_release_add_crtlist(struct appctx *appctx)
 static int cli_io_handler_add_crtlist(struct appctx *appctx)
 {
 	struct bind_conf_list *bind_conf_node;
-	struct stream_interface *si = appctx->owner;
+	struct stream_interface *si = cs_si(appctx->owner);
 	struct crtlist *crtlist = appctx->ctx.cli.p0;
 	struct crtlist_entry *entry = appctx->ctx.cli.p1;
 	struct ckch_store *store = entry->node.key;

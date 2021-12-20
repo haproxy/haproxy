@@ -446,7 +446,7 @@ static void peers_trace(enum trace_level level, uint64_t mask,
 			if (peer->appctx) {
 				struct stream_interface *si;
 
-				si = peer->appctx->owner;
+				si = cs_si(peer->appctx->owner);
 				if (si) {
 					struct stream *s = si_strm(si);
 
@@ -1049,7 +1049,7 @@ void __peer_session_deinit(struct peer *peer)
 	if (!peer->appctx)
 		return;
 
-	si = peer->appctx->owner;
+	si = cs_si(peer->appctx->owner);
 	if (!si)
 		return;
 
@@ -1149,7 +1149,7 @@ static int peer_get_version(const char *str,
 static inline int peer_getline(struct appctx  *appctx)
 {
 	int n;
-	struct stream_interface *si = appctx->owner;
+	struct stream_interface *si = cs_si(appctx->owner);
 
 	n = co_getline(si_oc(si), trash.area, trash.size);
 	if (!n)
@@ -1182,7 +1182,7 @@ static inline int peer_send_msg(struct appctx *appctx,
                                 struct peer_prep_params *params)
 {
 	int ret, msglen;
-	struct stream_interface *si = appctx->owner;
+	struct stream_interface *si = cs_si(appctx->owner);
 
 	msglen = peer_prepare_msg(trash.area, trash.size, params);
 	if (!msglen) {
@@ -1662,7 +1662,7 @@ static inline int peer_send_teach_stage2_msgs(struct appctx *appctx, struct peer
 static int peer_treat_updatemsg(struct appctx *appctx, struct peer *p, int updt, int exp,
                                 char **msg_cur, char *msg_end, int msg_len, int totl)
 {
-	struct stream_interface *si = appctx->owner;
+	struct stream_interface *si = cs_si(appctx->owner);
 	struct shared_table *st = p->remote_table;
 	struct stksess *ts, *newts;
 	uint32_t update;
@@ -2114,7 +2114,7 @@ static inline int peer_treat_switchmsg(struct appctx *appctx, struct peer *p,
 static inline int peer_treat_definemsg(struct appctx *appctx, struct peer *p,
                                       char **msg_cur, char *msg_end, int totl)
 {
-	struct stream_interface *si = appctx->owner;
+	struct stream_interface *si = cs_si(appctx->owner);
 	int table_id_len;
 	struct shared_table *st;
 	int table_type;
@@ -2313,7 +2313,7 @@ static inline int peer_recv_msg(struct appctx *appctx, char *msg_head, size_t ms
                                 uint32_t *msg_len, int *totl)
 {
 	int reql;
-	struct stream_interface *si = appctx->owner;
+	struct stream_interface *si = cs_si(appctx->owner);
 	char *cur;
 
 	reql = co_getblk(si_oc(si), msg_head, 2 * sizeof(char), *totl);
@@ -2385,7 +2385,7 @@ static inline int peer_recv_msg(struct appctx *appctx, char *msg_head, size_t ms
 static inline int peer_treat_awaited_msg(struct appctx *appctx, struct peer *peer, unsigned char *msg_head,
                                          char **msg_cur, char *msg_end, int msg_len, int totl)
 {
-	struct stream_interface *si = appctx->owner;
+	struct stream_interface *si = cs_si(appctx->owner);
 	struct stream *s = si_strm(si);
 	struct peers *peers = strm_fe(s)->parent;
 
@@ -2673,7 +2673,7 @@ static inline int peer_getline_last(struct appctx *appctx, struct peer **curpeer
 	char *p;
 	int reql;
 	struct peer *peer;
-	struct stream_interface *si = appctx->owner;
+	struct stream_interface *si = cs_si(appctx->owner);
 	struct stream *s = si_strm(si);
 	struct peers *peers = strm_fe(s)->parent;
 
@@ -2834,7 +2834,7 @@ static inline void init_connected_peer(struct peer *peer, struct peers *peers)
  */
 static void peer_io_handler(struct appctx *appctx)
 {
-	struct stream_interface *si = appctx->owner;
+	struct stream_interface *si = cs_si(appctx->owner);
 	struct stream *s = si_strm(si);
 	struct peers *curpeers = strm_fe(s)->parent;
 	struct peer *curpeer = NULL;
@@ -3829,7 +3829,7 @@ static int peers_dump_peer(struct buffer *msg, struct stream_interface *si, stru
 	chunk_appendf(&trash, " appctx:%p st0=%d st1=%d task_calls=%u", appctx, appctx->st0, appctx->st1,
 	                                                                appctx->t ? appctx->t->calls : 0);
 
-	peer_si = peer->appctx->owner;
+	peer_si = cs_si(peer->appctx->owner);
 	if (!peer_si)
 		goto table_info;
 
@@ -3952,7 +3952,7 @@ static int cli_io_handler_show_peers(struct appctx *appctx)
 {
 	int show_all;
 	int ret = 0, first_peers = 1;
-	struct stream_interface *si = appctx->owner;
+	struct stream_interface *si = cs_si(appctx->owner);
 
 	thread_isolate();
 

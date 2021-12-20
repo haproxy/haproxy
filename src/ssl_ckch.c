@@ -1159,7 +1159,7 @@ static int cli_io_handler_show_cert(struct appctx *appctx)
 {
 	struct buffer *trash = alloc_trash_chunk();
 	struct ebmb_node *node;
-	struct stream_interface *si = appctx->owner;
+	struct stream_interface *si = cs_si(appctx->owner);
 	struct ckch_store *ckchs;
 
 	if (trash == NULL)
@@ -1558,7 +1558,7 @@ static int ckch_store_show_ocsp_certid(struct ckch_store *ckch_store, struct buf
 /* IO handler of the details "show ssl cert <filename>" */
 static int cli_io_handler_show_cert_detail(struct appctx *appctx)
 {
-	struct stream_interface *si = appctx->owner;
+	struct stream_interface *si = cs_si(appctx->owner);
 	struct ckch_store *ckchs = appctx->ctx.cli.p0;
 	struct buffer *out = alloc_trash_chunk();
 	int retval = 0;
@@ -1606,7 +1606,7 @@ yield:
 static int cli_io_handler_show_cert_ocsp_detail(struct appctx *appctx)
 {
 #if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) && !defined OPENSSL_IS_BORINGSSL)
-	struct stream_interface *si = appctx->owner;
+	struct stream_interface *si = cs_si(appctx->owner);
 	struct ckch_store *ckchs = appctx->ctx.cli.p0;
 	struct buffer *out = alloc_trash_chunk();
 	int from_transaction = appctx->ctx.cli.i0;
@@ -1837,7 +1837,7 @@ static void __ckch_inst_free_locked(struct ckch_inst *ckchi)
  */
 static int cli_io_handler_commit_cert(struct appctx *appctx)
 {
-	struct stream_interface *si = appctx->owner;
+	struct stream_interface *si = cs_si(appctx->owner);
 	int y = 0;
 	char *err = NULL;
 	struct ckch_store *old_ckchs, *new_ckchs = NULL;
@@ -2603,7 +2603,7 @@ static inline int __create_new_instance(struct appctx *appctx, struct ckch_inst 
  */
 static int cli_io_handler_commit_cafile_crlfile(struct appctx *appctx)
 {
-	struct stream_interface *si = appctx->owner;
+	struct stream_interface *si = cs_si(appctx->owner);
 	int y = 0;
 	char *err = NULL;
 	struct cafile_entry *old_cafile_entry = NULL, *new_cafile_entry = NULL;
@@ -2827,7 +2827,7 @@ static void cli_release_commit_cafile(struct appctx *appctx)
 /* IO handler of details "show ssl ca-file <filename[:index]>" */
 static int cli_io_handler_show_cafile_detail(struct appctx *appctx)
 {
-	struct stream_interface *si = appctx->owner;
+	struct stream_interface *si = cs_si(appctx->owner);
 	struct cafile_entry *cafile_entry = appctx->ctx.cli.p0;
 	struct buffer *out = alloc_trash_chunk();
 	int i;
@@ -2980,7 +2980,7 @@ static int cli_io_handler_show_cafile(struct appctx *appctx)
 {
 	struct buffer *trash = alloc_trash_chunk();
 	struct ebmb_node *node;
-	struct stream_interface *si = appctx->owner;
+	struct stream_interface *si = cs_si(appctx->owner);
 	struct cafile_entry *cafile_entry;
 
 	if (trash == NULL)
@@ -3486,7 +3486,7 @@ end:
 /* IO handler of details "show ssl crl-file <filename[:index]>" */
 static int cli_io_handler_show_crlfile_detail(struct appctx *appctx)
 {
-	struct stream_interface *si = appctx->owner;
+	struct stream_interface *si = cs_si(appctx->owner);
 	struct cafile_entry *cafile_entry = appctx->ctx.cli.p0;
 	struct buffer *out = alloc_trash_chunk();
 	int i;
@@ -3616,7 +3616,7 @@ static int cli_io_handler_show_crlfile(struct appctx *appctx)
 {
 	struct buffer *trash = alloc_trash_chunk();
 	struct ebmb_node *node;
-	struct stream_interface *si = appctx->owner;
+	struct stream_interface *si = cs_si(appctx->owner);
 	struct cafile_entry *cafile_entry;
 
 	if (trash == NULL)
