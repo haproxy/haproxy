@@ -1083,11 +1083,12 @@ static inline void quic_rx_pkts_del(struct quic_conn *qc)
 			break;
 		}
 
-		if (!HA_ATOMIC_LOAD(&pkt->refcnt)) {
-			b_del(&qc->rx.buf, pkt->raw_len);
-			LIST_DELETE(&pkt->qc_rx_pkt_list);
-			pool_free(pool_head_quic_rx_packet, pkt);
-		}
+		if (HA_ATOMIC_LOAD(&pkt->refcnt))
+			break;
+
+		b_del(&qc->rx.buf, pkt->raw_len);
+		LIST_DELETE(&pkt->qc_rx_pkt_list);
+		pool_free(pool_head_quic_rx_packet, pkt);
 	}
 }
 
