@@ -2053,6 +2053,69 @@ static size_t qc_strm_cpy(struct buffer *buf, struct quic_stream *strm_frm)
 	return ret;
 }
 
+/* Copy as most as possible STREAM data from <strm_frm> into <buf> buffer.
+ * Also update <strm_frm> frame to reflect the data which have been consumed.
+ */
+static size_t qc_rx_strm_frm_cpy(struct buffer *buf,
+                                 struct quic_rx_strm_frm *strm_frm)
+{
+	size_t ret;
+
+	ret = 0;
+	while (strm_frm->len) {
+		size_t try;
+
+		try = b_contig_space(buf);
+		if (!try)
+			break;
+
+		if (try > strm_frm->len)
+			try = strm_frm->len;
+		memcpy(b_tail(buf), strm_frm->data, try);
+		strm_frm->len -= try;
+		strm_frm->offset_node.key += try;
+		b_add(buf, try);
+		ret += try;
+	}
+
+	return ret;
+}
+
+/* Process as much as possible RX STREAM frames received for <qcs> */
+static size_t qc_treat_rx_strm_frms(struct qcs *qcs)
+{
+	int total;
+	struct eb64_node *frm_node;
+
+	total = 0;
+	frm_node = eb64_first(&qcs->rx.frms);
+	while (frm_node) {
+		int ret;
+		struct quic_rx_strm_frm *frm;
+
+		frm = eb64_entry(&frm_node->node, struct quic_rx_strm_frm, offset_node);
+		if (frm->offset_node.key != qcs->rx.offset)
+			break;
+
+		ret = qc_rx_strm_frm_cpy(&qcs->rx.buf, frm);
+		qcs->rx.offset += ret;
+		total += ret;
+		if (frm->len) {
+			/* If there is remaining data in this frame
+			 * this is because the destination buffer is full.
+			 */
+			break;
+		}
+
+		frm_node = eb64_next(frm_node);
+		quic_rx_packet_refdec(frm->pkt);
+		eb64_delete(&frm->offset_node);
+		pool_free(pool_head_quic_rx_strm_frm, frm);
+	}
+
+	return total;
+}
+
 /* Handle <strm_frm> bidirectional STREAM frame. Depending on its ID, several
  * streams may be open. The data are copied to the stream RX buffer if possible.
  * If not, the STREAM frame is stored to be treated again later.
@@ -2063,6 +2126,7 @@ static int qc_handle_bidi_strm_frm(struct quic_rx_packet *pkt,
                                    struct quic_stream *strm_frm,
                                    struct quic_conn *qc)
 {
+	int total;
 	struct qcs *strm;
 	struct eb64_node *strm_node, *frm_node;
 	struct quic_rx_strm_frm *frm;
@@ -2082,6 +2146,7 @@ static int qc_handle_bidi_strm_frm(struct quic_rx_packet *pkt,
 		goto out;
 	}
 
+	total = 0;
 	if (strm_frm->offset.key == strm->rx.offset) {
 		int ret;
 
@@ -2090,12 +2155,14 @@ static int qc_handle_bidi_strm_frm(struct quic_rx_packet *pkt,
 		}
 
 		ret = qc_strm_cpy(&strm->rx.buf, strm_frm);
-		if (ret && qc->qcc->app_ops->decode_qcs(strm, strm_frm->fin, qc->qcc->ctx) < 0) {
-			TRACE_PROTO("Decoding error", QUIC_EV_CONN_PSTRM);
-			return 0;
-		}
-
+		total += ret;
 		strm->rx.offset += ret;
+	}
+
+	total += qc_treat_rx_strm_frms(strm);
+	if (total && qc->qcc->app_ops->decode_qcs(strm, strm_frm->fin, qc->qcc->ctx) < 0) {
+		TRACE_PROTO("Decoding error", QUIC_EV_CONN_PSTRM);
+		return 0;
 	}
 
 	if (!strm_frm->len)
