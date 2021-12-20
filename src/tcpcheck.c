@@ -1091,8 +1091,10 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 	check_release_buf(check, &check->bo);
 
 	/* No connection, prepare a new one */
-	cs = cs_new(NULL, (s ? &s->obj_type : &proxy->obj_type));
-	if (!cs) {
+	conn = conn_new((s ? &s->obj_type : &proxy->obj_type));
+	if (conn)
+		cs = cs_new(&conn->obj_type);
+	if (!conn || !cs) {
 		chunk_printf(&trash, "TCPCHK error allocating connection at step %d",
 			     tcpcheck_get_step_id(check, rule));
 		if (rule->comment)
@@ -1100,13 +1102,14 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 		set_server_check_status(check, HCHK_STATUS_SOCKERR, trash.area);
 		ret = TCPCHK_EVAL_STOP;
 		TRACE_ERROR("conn-stream allocation error", CHK_EV_TCPCHK_CONN|CHK_EV_TCPCHK_ERR, check);
+		if (conn)
+			conn_free(conn);
 		goto out;
 	}
 
 	tasklet_set_tid(check->wait_list.tasklet, tid);
 
 	check->cs = cs;
-	conn = cs->conn;
 	conn_set_owner(conn, check->sess, NULL);
 
 	/* Maybe there were an older connection we were waiting on */

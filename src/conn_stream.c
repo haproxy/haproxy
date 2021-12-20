@@ -19,30 +19,17 @@
 DECLARE_POOL(pool_head_connstream, "conn_stream", sizeof(struct conn_stream));
 
 
-/* Tries to allocate a new conn_stream and initialize its main fields. If
- * <conn> is NULL, then a new connection is allocated on the fly, initialized,
- * and assigned to cs->conn ; this connection will then have to be released
- * using pool_free() or conn_free(). The conn_stream is initialized and added
- * to the mux's stream list on success, then returned. On failure, nothing is
- * allocated and NULL is returned.
+/* Tries to allocate a new conn_stream and initialize its main fields. On
+ * failure, nothing is allocated and NULL is returned.
  */
-struct conn_stream *cs_new(struct connection *conn, void *target)
+struct conn_stream *cs_new(enum obj_type *endp)
 {
 	struct conn_stream *cs;
 
 	cs = pool_alloc(pool_head_connstream);
 	if (unlikely(!cs))
 		return NULL;
-
-	if (!conn) {
-		conn = conn_new(target);
-		if (unlikely(!conn)) {
-			cs_free(cs);
-			return NULL;
-		}
-	}
-
-	cs_init(cs, conn);
+	cs_init(cs, endp);
 	return cs;
 }
 

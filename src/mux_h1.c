@@ -678,12 +678,13 @@ static inline size_t h1s_data_pending(const struct h1s *h1s)
  * success or NULL on error. */
 static struct conn_stream *h1s_new_cs(struct h1s *h1s, struct buffer *input)
 {
+	struct h1c *h1c = h1s->h1c;
 	struct conn_stream *cs;
 
-	TRACE_ENTER(H1_EV_STRM_NEW, h1s->h1c->conn, h1s);
-	cs = cs_new(h1s->h1c->conn, h1s->h1c->conn->target);
+	TRACE_ENTER(H1_EV_STRM_NEW, h1c->conn, h1s);
+	cs = cs_new(&h1c->conn->obj_type);
 	if (!cs) {
-		TRACE_ERROR("CS allocation failure", H1_EV_STRM_NEW|H1_EV_STRM_END|H1_EV_STRM_ERR, h1s->h1c->conn, h1s);
+		TRACE_ERROR("CS allocation failure", H1_EV_STRM_NEW|H1_EV_STRM_END|H1_EV_STRM_ERR, h1c->conn, h1s);
 		goto err;
 	}
 	h1s->cs = cs;
@@ -696,21 +697,21 @@ static struct conn_stream *h1s_new_cs(struct h1s *h1s, struct buffer *input)
 		cs->flags |= CS_FL_WEBSOCKET;
 
 	if (stream_create_from_cs(cs, input) < 0) {
-		TRACE_DEVEL("leaving on stream creation failure", H1_EV_STRM_NEW|H1_EV_STRM_END|H1_EV_STRM_ERR, h1s->h1c->conn, h1s);
+		TRACE_DEVEL("leaving on stream creation failure", H1_EV_STRM_NEW|H1_EV_STRM_END|H1_EV_STRM_ERR, h1c->conn, h1s);
 		goto err;
 	}
 
-	HA_ATOMIC_INC(&h1s->h1c->px_counters->open_streams);
-	HA_ATOMIC_INC(&h1s->h1c->px_counters->total_streams);
+	HA_ATOMIC_INC(&h1c->px_counters->open_streams);
+	HA_ATOMIC_INC(&h1c->px_counters->total_streams);
 
-	h1s->h1c->flags = (h1s->h1c->flags & ~H1C_F_ST_EMBRYONIC) | H1C_F_ST_ATTACHED | H1C_F_ST_READY;
-	TRACE_LEAVE(H1_EV_STRM_NEW, h1s->h1c->conn, h1s);
+	h1c->flags = (h1c->flags & ~H1C_F_ST_EMBRYONIC) | H1C_F_ST_ATTACHED | H1C_F_ST_READY;
+	TRACE_LEAVE(H1_EV_STRM_NEW, h1c->conn, h1s);
 	return cs;
 
   err:
 	cs_free(cs);
 	h1s->cs = NULL;
-	TRACE_DEVEL("leaving on error", H1_EV_STRM_NEW|H1_EV_STRM_ERR, h1s->h1c->conn, h1s);
+	TRACE_DEVEL("leaving on error", H1_EV_STRM_NEW|H1_EV_STRM_ERR, h1c->conn, h1s);
 	return NULL;
 }
 

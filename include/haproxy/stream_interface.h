@@ -240,9 +240,9 @@ static inline struct conn_stream *si_attach_conn(struct stream_interface *si, st
 	si_reset_endpoint(si);
 	cs = objt_cs(si->end);
 	if (!cs)
-		cs = cs_new(conn, conn->target);
+		cs = cs_new(&conn->obj_type);
 	if (cs) {
-		cs_init(cs, conn);
+		cs_init(cs, &conn->obj_type);
 		if (!conn->ctx)
 			conn->ctx = cs;
 		si_attach_cs(si, cs);
@@ -431,7 +431,7 @@ static inline struct conn_stream *si_alloc_cs(struct stream_interface *si, struc
 
 	si_release_endpoint(si);
 
-	cs = cs_new(conn, (conn ? conn->target : NULL));
+	cs = cs_new(&conn->obj_type);
 	if (cs)
 		si_attach_cs(si, cs);
 

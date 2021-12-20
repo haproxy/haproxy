@@ -23,6 +23,7 @@
 #define _HAPROXY_CONN_STREAM_H
 
 #include <haproxy/api.h>
+#include <haproxy/applet.h>
 #include <haproxy/connection.h>
 #include <haproxy/conn_stream-t.h>
 #include <haproxy/obj_type.h>
@@ -32,24 +33,29 @@ extern struct pool_head *pool_head_connstream;
 
 #define IS_HTX_CS(cs)     (cs_conn(cs) && IS_HTX_CONN(cs_conn(cs)))
 
-struct conn_stream *cs_new(struct connection *conn, void *target);
+struct conn_stream *cs_new(enum obj_type *endp);
 void cs_free(struct conn_stream *cs);
 
 /*
  * Initializes all required fields for a new conn_strema.
  */
-static inline void cs_init(struct conn_stream *cs, struct connection *conn)
+static inline void cs_init(struct conn_stream *cs, enum obj_type *endp)
 {
 	cs->obj_type = OBJ_TYPE_CS;
 	cs->flags = CS_FL_NONE;
-	cs->conn = conn;
-	cs->ctx = conn;
+	cs->end = endp;
+	if (objt_conn(endp))
+		cs->ctx = endp;
+	cs->data = NULL;
+	cs->data_cb = NULL;
 }
 
-/* Returns the conn from a cs. If cs is NULL, returns NULL */
+/* Returns the connection from a cs if the endpoint is a connection. Otherwise
+ * NULL is returned.
+ */
 static inline struct connection *cs_conn(const struct conn_stream *cs)
 {
-	return cs ? cs->conn : NULL;
+	return (cs ? objt_conn(cs->end) : NULL);
 }
 
 /* Returns the mux of the connection from a cs if the endpoint is a
@@ -60,6 +66,14 @@ static inline const struct mux_ops *cs_conn_mux(const struct conn_stream *cs)
 	const struct connection *conn = cs_conn(cs);
 
 	return (conn ? conn->mux : NULL);
+}
+
+/* Returns the appctx from a cs if the endpoint is an appctx. Otherwise NULL is
+ * returned.
+ */
+static inline struct appctx *cs_appctx(const struct conn_stream *cs)
+{
+	return (cs ? objt_appctx(cs->end) : NULL);
 }
 
 /* Attaches a conn_stream to a data layer and sets the relevant callbacks */
@@ -77,6 +91,7 @@ static inline void cs_attach(struct conn_stream *cs, void *data, const struct da
 static inline void cs_detach(struct conn_stream *cs)
 {
 	struct connection *conn;
+	struct appctx *appctx;
 
 	if ((conn = cs_conn(cs))) {
 		if (conn->mux)
@@ -91,6 +106,11 @@ static inline void cs_detach(struct conn_stream *cs)
 				conn->destroy_cb(conn);
 			conn_free(conn);
 		}
+	}
+	else if ((appctx = cs_appctx(cs))) {
+		if (appctx->applet->release)
+			appctx->applet->release(appctx);
+		appctx_free(appctx);
 	}
 	cs_init(cs, NULL);
 }
