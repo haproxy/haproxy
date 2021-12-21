@@ -3327,7 +3327,7 @@ static struct quic_conn *qc_new_conn(unsigned int version, int ipv4,
 
 	buf_area = pool_alloc(pool_head_quic_conn_rxbuf);
 	if (!buf_area) {
-		TRACE_PROTO("Could not allocate a new RX buffer", QUIC_EV_CONN_INIT);
+		TRACE_PROTO("Could not allocate a new RX buffer", QUIC_EV_CONN_INIT, qc);
 		goto err;
 	}
 
@@ -3362,7 +3362,7 @@ static struct quic_conn *qc_new_conn(unsigned int version, int ipv4,
 
 	icid = new_quic_cid(&qc->cids, qc, 0);
 	if (!icid) {
-		TRACE_PROTO("Could not allocate a new connection ID", QUIC_EV_CONN_INIT);
+		TRACE_PROTO("Could not allocate a new connection ID", QUIC_EV_CONN_INIT, qc);
 		goto err;
 	}
 
@@ -3382,7 +3382,7 @@ static struct quic_conn *qc_new_conn(unsigned int version, int ipv4,
 	/* QUIC encryption level context initialization. */
 	for (i = 0; i < QUIC_TLS_ENC_LEVEL_MAX; i++) {
 		if (!quic_conn_enc_level_init(qc, i)) {
-			TRACE_PROTO("Could not initialize an encryption level", QUIC_EV_CONN_INIT);
+			TRACE_PROTO("Could not initialize an encryption level", QUIC_EV_CONN_INIT, qc);
 			goto err;
 		}
 		/* Initialize the packet number space. */
@@ -3406,7 +3406,7 @@ static struct quic_conn *qc_new_conn(unsigned int version, int ipv4,
 	HA_RWLOCK_INIT(&qc->rx.buf_rwlock);
 	LIST_INIT(&qc->rx.pkt_list);
 	if (!quic_tls_ku_init(qc)) {
-		TRACE_PROTO("Key update initialization failed", QUIC_EV_CONN_INIT);
+		TRACE_PROTO("Key update initialization failed", QUIC_EV_CONN_INIT, qc);
 		goto err;
 	}
 
@@ -3414,12 +3414,12 @@ static struct quic_conn *qc_new_conn(unsigned int version, int ipv4,
 	qc->path = &qc->paths[0];
 	quic_path_init(qc->path, ipv4, default_quic_cc_algo, qc);
 
-	TRACE_LEAVE(QUIC_EV_CONN_INIT);
+	TRACE_LEAVE(QUIC_EV_CONN_INIT, qc);
 
 	return qc;
 
  err:
-	TRACE_DEVEL("leaving in error", QUIC_EV_CONN_INIT);
+	TRACE_DEVEL("leaving in error", QUIC_EV_CONN_INIT, qc ? qc : NULL);
 	quic_conn_free(qc);
 	return NULL;
 }
