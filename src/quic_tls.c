@@ -23,7 +23,8 @@ __attribute__((format (printf, 3, 4)))
 void hexdump(const void *buf, size_t buflen, const char *title_fmt, ...);
 
 /* Dump the RX/TX secrets of <secs> QUIC TLS secrets. */
-void quic_tls_keys_hexdump(struct buffer *buf, struct quic_tls_secrets *secs)
+void quic_tls_keys_hexdump(struct buffer *buf,
+                           const struct quic_tls_secrets *secs)
 {
 	int i;
 	size_t aead_keylen = (size_t)EVP_CIPHER_key_length(secs->aead);

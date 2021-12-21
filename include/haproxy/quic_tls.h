@@ -42,7 +42,8 @@ unsigned char initial_salt_v1[20] = {
 	0xcc, 0xbb, 0x7f, 0x0a
 };
 
-void quic_tls_keys_hexdump(struct buffer *buf, struct quic_tls_secrets *secs);
+void quic_tls_keys_hexdump(struct buffer *buf,
+                           const struct quic_tls_secrets *secs);
 
 void quic_tls_secret_hexdump(struct buffer *buf,
                              const unsigned char *secret, size_t secret_len);

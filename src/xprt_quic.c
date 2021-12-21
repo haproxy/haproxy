@@ -321,9 +321,7 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 			const ssize_t *room = a4;
 
 			if (qel) {
-				struct quic_pktns *pktns;
-
-				pktns = qc->pktns;
+				const struct quic_pktns *pktns = qc->pktns;
 				chunk_appendf(&trace_buf, " qel=%c cwnd=%llu ppif=%lld pif=%llu "
 				              "if=%llu pp=%u pdg=%d",
 				              quic_enc_level_char_from_qel(qel, qc),
@@ -422,9 +420,7 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 			const struct quic_enc_level *qel = a2;
 
 			if (qel) {
-				struct quic_pktns *pktns;
-
-				pktns = qc->pktns;
+				const struct quic_pktns *pktns = qc->pktns;
 				chunk_appendf(&trace_buf,
 				              " qel=%c state=%s ack?%d cwnd=%llu ppif=%lld pif=%llu if=%llu pp=%u pdg=%llu",
 				              quic_enc_level_char_from_qel(qel, qc),

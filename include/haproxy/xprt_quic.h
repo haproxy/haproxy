@@ -114,7 +114,8 @@ static inline size_t quic_cid_saddr_cat(struct quic_cid *cid,
  * debugging purposes.
  * Always succeeds.
  */
-static inline void quic_cid_dump(struct buffer *buf, struct quic_cid *cid)
+static inline void quic_cid_dump(struct buffer *buf,
+                                 const struct quic_cid *cid)
 {
 	int i;
 
