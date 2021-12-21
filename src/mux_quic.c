@@ -283,7 +283,8 @@ static int qcs_push_frame(struct qcs *qcs, struct buffer *payload, int fin, uint
 
 	MT_LIST_APPEND(&qel->pktns->tx.frms, &frm->mt_list);
  out:
-	fprintf(stderr, "%s: total=%d fin=%d offset=%lu\n", __func__, total, fin, offset);
+	fprintf(stderr, "%s: total=%d fin=%d id=%llu offset=%lu\n",
+	        __func__, total, fin, (ull)qcs->by_id.key, offset);
 	return total;
 
  err:
