@@ -4117,6 +4117,12 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 		*buf += QUIC_HAP_CID_LEN;
 
 		qc = qc_retrieve_conn_from_cid(pkt, l, saddr);
+		if (!qc) {
+			size_t pktlen = end - *buf;
+			TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT, NULL, pkt, &pktlen);
+			goto err;
+		}
+
 		if (HA_ATOMIC_LOAD(&qc->conn))
 			conn_ctx = HA_ATOMIC_LOAD(&qc->conn->xprt_ctx);
 
