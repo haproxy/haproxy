@@ -354,12 +354,11 @@ int conn_si_send_proxy(struct connection *conn, unsigned int flag)
 		 */
 
 		if (cs && cs->data_cb == &si_conn_cb) {
-			struct stream_interface *si = cs->data;
-			struct stream *strm = si_strm(si);
+			struct stream *strm = cs_strm(cs);
 
 			ret = make_proxy_line(trash.area, trash.size,
 					      objt_server(conn->target),
-					      cs_conn(si_opposite(si)->cs),
+					      cs_conn(si_opposite(cs_si(cs))->cs),
 					      strm);
 		}
 		else {
@@ -564,7 +563,7 @@ static void stream_int_notify(struct stream_interface *si)
 static int si_cs_process(struct conn_stream *cs)
 {
 	struct connection *conn = cs_conn(cs);
-	struct stream_interface *si = cs->data;
+	struct stream_interface *si = cs_si(cs);
 	struct channel *ic = si_ic(si);
 	struct channel *oc = si_oc(si);
 
@@ -652,7 +651,7 @@ static int si_cs_process(struct conn_stream *cs)
 int si_cs_send(struct conn_stream *cs)
 {
 	struct connection *conn = cs_conn(cs);
-	struct stream_interface *si = cs->data;
+	struct stream_interface *si = cs_si(cs);
 	struct channel *oc = si_oc(si);
 	int ret;
 	int did_send = 0;
@@ -1220,7 +1219,7 @@ static void stream_int_chk_snd_conn(struct stream_interface *si)
 int si_cs_recv(struct conn_stream *cs)
 {
 	struct connection *conn = cs_conn(cs);
-	struct stream_interface *si = cs->data;
+	struct stream_interface *si = cs_si(cs);
 	struct channel *ic = si_ic(si);
 	int ret, max, cur_read = 0;
 	int read_poll = MAX_READ_POLL_LOOPS;

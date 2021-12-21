@@ -1230,8 +1230,8 @@ static int fcgi_set_default_param(struct fcgi_conn *fconn, struct fcgi_strm *fst
 				  struct fcgi_strm_params *params)
 {
 	struct connection *cli_conn = objt_conn(fstrm->sess->origin);
-	const struct sockaddr_storage *src = si_src(si_opposite(fstrm->cs->data));
-	const struct sockaddr_storage *dst = si_dst(si_opposite(fstrm->cs->data));
+	const struct sockaddr_storage *src = si_src(si_opposite(cs_si(fstrm->cs)));
+	const struct sockaddr_storage *dst = si_dst(si_opposite(cs_si(fstrm->cs)));
 	struct ist p;
 
 	if (!sl)
@@ -3312,11 +3312,11 @@ static void fcgi_strm_capture_bad_message(struct fcgi_conn *fconn, struct fcgi_s
 	struct proxy *other_end;
 	union error_snapshot_ctx ctx;
 
-	if (fstrm->cs && fstrm->cs->data) {
+	if (fstrm->cs && cs_strm(fstrm->cs)) {
 		if (sess == NULL)
-			sess = si_strm(fstrm->cs->data)->sess;
+			sess = cs_strm(fstrm->cs)->sess;
 		if (!(h1m->flags & H1_MF_RESP))
-			other_end = si_strm(fstrm->cs->data)->be;
+			other_end = cs_strm(fstrm->cs)->be;
 		else
 			other_end = sess->fe;
 	} else
@@ -4189,8 +4189,8 @@ static int fcgi_show_fd(struct buffer *msg, struct connection *conn)
 			      (unsigned int)b_head_ofs(&fstrm->rxbuf), (unsigned int)b_size(&fstrm->rxbuf),
 			      fstrm->cs);
 		if (fstrm->cs)
-			chunk_appendf(msg, " .cs.flg=0x%08x .cs.data=%p",
-				      fstrm->cs->flags, fstrm->cs->data);
+			chunk_appendf(msg, " .cs.flg=0x%08x .cs.app=%p",
+				      fstrm->cs->flags, fstrm->cs->app);
 		chunk_appendf(&trash, " .subs=%p", fstrm->subs);
 		if (fstrm->subs) {
 			chunk_appendf(&trash, "(ev=%d tl=%p", fstrm->subs->events, fstrm->subs->tasklet);

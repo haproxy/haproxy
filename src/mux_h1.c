@@ -682,13 +682,12 @@ static struct conn_stream *h1s_new_cs(struct h1s *h1s, struct buffer *input)
 	struct conn_stream *cs;
 
 	TRACE_ENTER(H1_EV_STRM_NEW, h1c->conn, h1s);
-	cs = cs_new(&h1c->conn->obj_type);
+	cs = cs_new(&h1c->conn->obj_type, h1s, NULL, NULL, NULL);
 	if (!cs) {
 		TRACE_ERROR("CS allocation failure", H1_EV_STRM_NEW|H1_EV_STRM_END|H1_EV_STRM_ERR, h1c->conn, h1s);
 		goto err;
 	}
 	h1s->cs = cs;
-	cs->ctx = h1s;
 
 	if (h1s->flags & H1S_F_NOT_FIRST)
 		cs->flags |= CS_FL_NOT_FIRST;
@@ -1351,11 +1350,11 @@ static void h1_capture_bad_message(struct h1c *h1c, struct h1s *h1s,
 	struct proxy *other_end;
 	union error_snapshot_ctx ctx;
 
-	if ((h1c->flags & H1C_F_ST_ATTACHED) && h1s->cs->data) {
+	if ((h1c->flags & H1C_F_ST_ATTACHED) && cs_strm(h1s->cs)) {
 		if (sess == NULL)
-			sess = si_strm(h1s->cs->data)->sess;
+			sess = cs_strm(h1s->cs)->sess;
 		if (!(h1m->flags & H1_MF_RESP))
-			other_end = si_strm(h1s->cs->data)->be;
+			other_end = cs_strm(h1s->cs)->be;
 		else
 			other_end = sess->fe;
 	} else
@@ -3828,8 +3827,8 @@ static int h1_show_fd(struct buffer *msg, struct connection *conn)
 			      h1m_state_str(h1s->req.state),
 			      h1m_state_str(h1s->res.state), method, h1s->status);
 		if (h1s->cs)
-			chunk_appendf(msg, " .cs.flg=0x%08x .cs.data=%p",
-				      h1s->cs->flags, h1s->cs->data);
+			chunk_appendf(msg, " .cs.flg=0x%08x .cs.app=%p",
+				      h1s->cs->flags, h1s->cs->app);
 
 		chunk_appendf(&trash, " .subs=%p", h1s->subs);
 		if (h1s->subs) {

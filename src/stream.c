@@ -275,8 +275,7 @@ static void strm_trace(enum trace_level level, uint64_t mask, const struct trace
  */
 int stream_upgrade_from_cs(struct conn_stream *cs, struct buffer *input)
 {
-	struct stream_interface *si = cs->data;
-	struct stream *s = si_strm(si);
+	struct stream *s = cs_strm(cs);
 
 	if (cs_conn_mux(cs)) {
 		const struct mux_ops *mux = cs_conn_mux(cs);
@@ -475,7 +474,7 @@ struct stream *stream_new(struct session *sess, struct conn_stream *cs, struct b
 	if (likely(sess->fe->options2 & PR_O2_INDEPSTR))
 		s->si[1].flags |= SI_FL_INDEP_STR;
 
-	s->si[1].cs = cs_new(NULL);
+	s->si[1].cs = cs_new(NULL, NULL, &s->obj_type, &s->si[1], NULL);
 	if (!s->si[1].cs)
 		goto out_fail_alloc_cs;
 

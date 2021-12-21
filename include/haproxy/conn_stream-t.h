@@ -91,6 +91,7 @@ struct conn_stream {
 	/* 3 bytes hole here */
 	unsigned int flags;                  /* CS_FL_* */
 	enum obj_type *end;                  /* points to the end point (connection or appctx) */
+	enum obj_type *app;                  /* points to the applicative point (stream or check) */
 	void *data;                          /* pointer to upper layer's entity (eg: stream interface) */
 	const struct data_cb *data_cb;       /* data layer callbacks. Must be set before xprt->init() */
 	void *ctx;                           /* mux-specific context */

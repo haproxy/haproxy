@@ -655,7 +655,7 @@ static struct appctx *sink_forward_session_create(struct sink *sink, struct sink
 		goto out_free_appctx;
 	}
 
-	cs = cs_new(&appctx->obj_type);
+	cs = cs_new(&appctx->obj_type, appctx, NULL, NULL, NULL);
 	if (!cs) {
 		ha_alert("out of memory in sink_forward_session_create");
 		goto out_free_sess;

@@ -1529,13 +1529,12 @@ static struct h2s *h2c_frt_stream_new(struct h2c *h2c, int id, struct buffer *in
 	if (!h2s)
 		goto out;
 
-	cs = cs_new(&h2c->conn->obj_type);
+	cs = cs_new(&h2c->conn->obj_type, h2s, NULL, NULL, NULL);
 	if (!cs)
 		goto out_close;
 
 	cs->flags |= CS_FL_NOT_FIRST;
 	h2s->cs = cs;
-	cs->ctx = h2s;
 	h2c->nb_cs++;
 
 	/* FIXME wrong analogy between ext-connect and websocket, this need to
@@ -6652,8 +6651,8 @@ static int h2_show_fd(struct buffer *msg, struct connection *conn)
 			      (unsigned int)b_head_ofs(&h2s->rxbuf), (unsigned int)b_size(&h2s->rxbuf),
 			      h2s->cs);
 		if (h2s->cs)
-			chunk_appendf(msg, "(.flg=0x%08x .data=%p)",
-				      h2s->cs->flags, h2s->cs->data);
+			chunk_appendf(msg, "(.flg=0x%08x .app=%p)",
+				      h2s->cs->flags, h2s->cs->app);
 
 		chunk_appendf(&trash, " .subs=%p", h2s->subs);
 		if (h2s->subs) {

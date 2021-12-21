@@ -22,14 +22,16 @@ DECLARE_POOL(pool_head_connstream, "conn_stream", sizeof(struct conn_stream));
 /* Tries to allocate a new conn_stream and initialize its main fields. On
  * failure, nothing is allocated and NULL is returned.
  */
-struct conn_stream *cs_new(enum obj_type *endp)
+struct conn_stream *cs_new(enum obj_type *endp, void *ctx, enum obj_type *app, void *data, const struct data_cb *data_cb)
 {
 	struct conn_stream *cs;
 
 	cs = pool_alloc(pool_head_connstream);
 	if (unlikely(!cs))
 		return NULL;
-	cs_init(cs, endp);
+	cs_init(cs);
+	cs_attach_endp(cs, endp, ctx);
+	cs_attach_app(cs, app, data, data_cb);
 	return cs;
 }
 

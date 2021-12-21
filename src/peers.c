@@ -3204,7 +3204,7 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 		goto out_free_appctx;
 	}
 
-	cs = cs_new(&appctx->obj_type);
+	cs = cs_new(&appctx->obj_type, appctx, NULL, NULL, NULL);
 	if (!cs) {
 		ha_alert("out of memory in peer_session_create().\n");
 		goto out_free_sess;

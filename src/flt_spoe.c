@@ -2024,7 +2024,7 @@ spoe_create_appctx(struct spoe_config *conf)
 	if (!sess)
 		goto out_free_spoe;
 
-	cs = cs_new(&appctx->obj_type);
+	cs = cs_new(&appctx->obj_type, appctx, NULL, NULL, NULL);
 	if (!cs)
 		goto out_free_sess;
 

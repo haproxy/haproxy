@@ -1093,7 +1093,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 	/* No connection, prepare a new one */
 	conn = conn_new((s ? &s->obj_type : &proxy->obj_type));
 	if (conn)
-		cs = cs_new(&conn->obj_type);
+		cs = cs_new(&conn->obj_type, conn, &check->obj_type, NULL, &check_conn_cb);
 	if (!conn || !cs) {
 		chunk_printf(&trash, "TCPCHK error allocating connection at step %d",
 			     tcpcheck_get_step_id(check, rule));
@@ -1165,8 +1165,6 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 		status = SF_ERR_RESOURCE;
 		goto fail_check;
 	}
-
-	cs_attach(cs, check, &check_conn_cb);
 
 	if ((connect->options & TCPCHK_OPT_SOCKS4) && s && (s->flags & SRV_F_SOCKS4_PROXY)) {
 		conn->send_proxy_ofs = 1;

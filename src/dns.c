@@ -903,7 +903,7 @@ static struct appctx *dns_session_create(struct dns_session *ds)
 		goto out_free_appctx;
 	}
 
-	cs = cs_new(&appctx->obj_type);
+	cs = cs_new(&appctx->obj_type, appctx, NULL, NULL, NULL);
 	if (!cs) {
 		ha_alert("out of memory in dns_session_create().\n");
 		goto out_free_sess;

@@ -187,18 +187,18 @@ static inline void si_attach_cs(struct stream_interface *si, struct conn_stream 
 	si->cs = cs;
 	if (cs_conn(cs)) {
 		si->ops = &si_conn_ops;
-		cs_attach(cs, si, &si_conn_cb);
+		cs_attach_app(cs, &si_strm(si)->obj_type, si, &si_conn_cb);
 	}
 	else if (cs_appctx(cs)) {
 		struct appctx *appctx = cs_appctx(cs);
 
 		si->ops = &si_applet_ops;
 		appctx->owner = cs;
-		cs_attach(cs, si, NULL);
+		cs_attach_app(cs, &si_strm(si)->obj_type, si, NULL);
 	}
 	else {
 		si->ops = &si_embedded_ops;
-		cs_attach(cs, si, NULL);
+		cs_attach_app(cs, &si_strm(si)->obj_type, si, NULL);
 	}
 }
 
@@ -208,10 +208,11 @@ static inline void si_attach_cs(struct stream_interface *si, struct conn_stream 
 static inline void si_attach_conn(struct stream_interface *si, struct connection *conn)
 {
 	si_reset_endpoint(si);
-	cs_init(si->cs, &conn->obj_type);
 	if (!conn->ctx)
 		conn->ctx = si->cs;
-	si_attach_cs(si, si->cs);
+	si->ops = &si_conn_ops;
+	cs_attach_endp(si->cs, &conn->obj_type, conn);
+	cs_attach_app(si->cs, &si_strm(si)->obj_type, si, &si_conn_cb);
 }
 
 /* Attach appctx <appctx> to the stream interface <si>. The stream interface
@@ -220,9 +221,10 @@ static inline void si_attach_conn(struct stream_interface *si, struct connection
 static inline void si_attach_appctx(struct stream_interface *si, struct appctx *appctx)
 {
 	si_reset_endpoint(si);
-	cs_init(si->cs, &appctx->obj_type);
 	appctx->owner = si->cs;
-	si_attach_cs(si, si->cs);
+	si->ops = &si_applet_ops;
+	cs_attach_endp(si->cs, &appctx->obj_type, appctx);
+	cs_attach_app(si->cs, &si_strm(si)->obj_type, si, NULL);
 }
 
 /* call the applet's release function if any. Needs to be called upon close() */

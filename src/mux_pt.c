@@ -291,7 +291,7 @@ static int mux_pt_init(struct connection *conn, struct proxy *prx, struct sessio
 	ctx->conn = conn;
 
 	if (!cs) {
-		cs = cs_new(&conn->obj_type);
+		cs = cs_new(&conn->obj_type, NULL, NULL, NULL, NULL);
 		if (!cs) {
 			TRACE_ERROR("CS allocation failure", PT_EV_STRM_NEW|PT_EV_STRM_END|PT_EV_STRM_ERR, conn);
 			goto fail_free_ctx;

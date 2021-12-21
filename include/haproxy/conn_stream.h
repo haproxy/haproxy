@@ -29,33 +29,27 @@
 #include <haproxy/obj_type.h>
 #include <haproxy/pool-t.h>
 
+struct stream;
+struct check;
+
 extern struct pool_head *pool_head_connstream;
 
 #define IS_HTX_CS(cs)     (cs_conn(cs) && IS_HTX_CONN(cs_conn(cs)))
 
-struct conn_stream *cs_new(enum obj_type *endp);
+struct conn_stream *cs_new(enum obj_type *endp, void *ctx, enum obj_type *app, void *data, const struct data_cb *data_cb);
 void cs_free(struct conn_stream *cs);
+
 
 /*
  * Initializes all required fields for a new conn_strema.
  */
-static inline void cs_init(struct conn_stream *cs, enum obj_type *endp)
+static inline void cs_init(struct conn_stream *cs)
 {
-	struct connection *conn = objt_conn(endp);
-	struct appctx *appctx = objt_appctx(endp);
-
 	cs->obj_type = OBJ_TYPE_CS;
 	cs->flags = CS_FL_NONE;
-	cs->end = endp;
-	if (conn) {
-		cs->ctx = conn;
-		if (!conn->ctx)
-			conn->ctx = cs;
-	}
-	else if (appctx) {
-		cs->ctx = appctx;
-		/* appctx->owner must be set by the caller for now */
-	}
+	cs->end = NULL;
+	cs->app = NULL;
+	cs->ctx = NULL;
 	cs->data = NULL;
 	cs->data_cb = NULL;
 }
@@ -88,14 +82,32 @@ static inline struct appctx *cs_appctx(const struct conn_stream *cs)
 
 static inline struct stream_interface *cs_si(const struct conn_stream *cs)
 {
-	return ((cs_conn(cs) || cs_appctx(cs)) ? cs->data : NULL);
+	return (cs ? cs->data : NULL);
 }
 
-/* Attaches a conn_stream to a data layer and sets the relevant callbacks */
-static inline void cs_attach(struct conn_stream *cs, void *data, const struct data_cb *data_cb)
+static inline struct stream *cs_strm(const struct conn_stream *cs)
 {
-	cs->data_cb = data_cb;
+	return (cs ? objt_stream(cs->app) : NULL);
+}
+
+static inline struct check *cs_check(const struct conn_stream *cs)
+{
+	return (cs ? objt_check(cs->app) : NULL);
+}
+
+/* Attaches a conn_stream to an endpoint and sets the endpoint ctx */
+static inline void cs_attach_endp(struct conn_stream *cs, enum obj_type *endp, void *ctx)
+{
+	cs->end = endp;
+	cs->ctx = ctx;
+}
+
+/* Attaches a conn_stream to a app layer and sets the relevant callbacks */
+static inline void cs_attach_app(struct conn_stream *cs, enum obj_type *app, void *data, const struct data_cb *data_cb)
+{
+	cs->app = app;
 	cs->data = data;
+	cs->data_cb = data_cb;
 }
 
 /* Detach the conn_stream from the connection, if any. If a mux owns the
@@ -127,7 +139,7 @@ static inline void cs_detach(struct conn_stream *cs)
 			appctx->applet->release(appctx);
 		appctx_free(appctx);
 	}
-	cs_init(cs, NULL);
+	cs_init(cs);
 }
 
 /* Release a conn_stream */
