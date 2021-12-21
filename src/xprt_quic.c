@@ -652,7 +652,7 @@ static inline void qc_set_timer(struct ssl_sock_ctx *ctx)
 
 	TRACE_ENTER(QUIC_EV_CONN_STIMER, ctx->conn,
 	            NULL, NULL, &ctx->conn->qc->path->ifae_pkts);
-	qc = ctx->conn->qc;
+	qc = ctx->qc;
 	pktns = quic_loss_pktns(qc);
 	if (tick_isset(pktns->tx.loss_time)) {
 		qc->timer = pktns->tx.loss_time;
@@ -1451,7 +1451,7 @@ static inline void qc_treat_acked_tx_frm(struct quic_frame *frm,
                                          struct ssl_sock_ctx *ctx)
 {
 	int stream_acked;
-	struct quic_conn *qc = ctx->conn->qc;
+	struct quic_conn *qc = ctx->qc;
 
 	TRACE_PROTO("Removing frame", QUIC_EV_CONN_PRSAFRM, ctx->conn, frm);
 	stream_acked = 0;
@@ -1866,7 +1866,8 @@ static inline int qc_provide_cdata(struct quic_enc_level *el,
 
 	TRACE_ENTER(QUIC_EV_CONN_SSLDATA, ctx->conn);
 	ssl_err = SSL_ERROR_NONE;
-	qc = ctx->conn->qc;
+	qc = ctx->qc;
+
 	if (SSL_provide_quic_data(ctx->ssl, el->level, data, len) != 1) {
 		TRACE_PROTO("SSL_provide_quic_data() error",
 		            QUIC_EV_CONN_SSLDATA, ctx->conn, pkt, cf, ctx->ssl);
@@ -2200,7 +2201,7 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct ssl_sock_ctx *ct
 {
 	struct quic_frame frm;
 	const unsigned char *pos, *end;
-	struct quic_conn *qc = ctx->conn->qc;
+	struct quic_conn *qc = ctx->qc;
 
 	TRACE_ENTER(QUIC_EV_CONN_PRSHPKT, ctx->conn);
 	/* Skip the AAD */
@@ -2405,7 +2406,8 @@ static int qc_prep_pkts(struct qring *qr, struct ssl_sock_ctx *ctx)
 	size_t dg_headlen = sizeof dglen + sizeof first_pkt;
 
 	TRACE_ENTER(QUIC_EV_CONN_PHPKTS, ctx->conn);
-	qc = ctx->conn->qc;
+	qc = ctx->qc;
+
 	if (!quic_get_tls_enc_levels(&tel, &next_tel, HA_ATOMIC_LOAD(&qc->state), 0)) {
 		TRACE_DEVEL("unknown enc. levels", QUIC_EV_CONN_PHPKTS, ctx->conn);
 		goto err;
@@ -2596,7 +2598,7 @@ int qc_send_ppkts(struct qring *qr, struct ssl_sock_ctx *ctx)
 	struct quic_conn *qc;
 	struct cbuf *cbuf;
 
-	qc = ctx->conn->qc;
+	qc = ctx->qc;
 	cbuf = qr->cbuf;
 	while (cb_contig_data(cbuf)) {
 		unsigned char *pos;
@@ -3076,7 +3078,7 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 	int prev_st, st, force_ack, zero_rtt;
 
 	ctx = context;
-	qc = ctx->conn->qc;
+	qc = ctx->qc;
 	qr = NULL;
 	st = HA_ATOMIC_LOAD(&qc->state);
 	TRACE_ENTER(QUIC_EV_CONN_HDSHK, ctx->conn, &st);
@@ -3264,7 +3266,7 @@ static struct task *process_timer(struct task *task, void *ctx, unsigned int sta
 	int st;
 
 	conn_ctx = task->context;
-	qc = conn_ctx->conn->qc;
+	qc = conn_ctx->qc;
 	TRACE_ENTER(QUIC_EV_CONN_PTIMER, conn_ctx->conn,
 	            NULL, NULL, &qc->path->ifae_pkts);
 	task->expire = TICK_ETERNITY;
@@ -5051,6 +5053,8 @@ static int qc_conn_init(struct connection *conn, void **xprt_ctx)
 		if (qc == NULL)
 			goto err;
 
+		ctx->qc = qc;
+
 		/* Insert our SCID, the connection ID for the QUIC client. */
 		ebmb_insert(&srv->cids, &qc->scid_node, qc->scid.len);
 
@@ -5094,6 +5098,8 @@ static int qc_conn_init(struct connection *conn, void **xprt_ctx)
 		/* Listener */
 		struct bind_conf *bc = __objt_listener(conn->target)->bind_conf;
 		struct quic_conn *qc = ctx->conn->qc;
+
+		ctx->qc = qc;
 
 		qc->tid = ctx->wait_event.tasklet->tid = quic_get_cid_tid(&qc->scid);
 		if (qc_ssl_sess_init(qc, bc->initial_ctx, &ctx->ssl,

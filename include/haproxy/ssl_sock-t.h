@@ -245,6 +245,9 @@ struct ssl_sock_ctx {
 	struct buffer early_buf;      /* buffer to store the early data received */
 	int sent_early_data;          /* Amount of early data we sent so far */
 
+#ifdef USE_QUIC
+	struct quic_conn *qc;
+#endif
 };
 
 struct global_ssl {
