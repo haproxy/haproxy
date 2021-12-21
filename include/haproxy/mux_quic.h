@@ -52,6 +52,8 @@ static inline int qcs_get_next_id(struct qcc *qcc, enum qcs_type type)
 	return (qcc->strms[type].nb_streams++ << QCS_ID_TYPE_SHIFT) | type;
 }
 
+struct eb64_node *qcc_get_qcs(struct qcc *qcc, uint64_t id);
+
 #endif /* USE_QUIC */
 
 #endif /* _HAPROXY_MUX_QUIC_H */

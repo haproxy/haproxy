@@ -117,6 +117,78 @@ void qcs_notify_send(struct qcs *qcs)
 	}
 }
 
+/* Retrieve as an ebtree node the stream with <id> as ID, possibly allocates
+ * several streams, depending on the already open ones.
+ * Return this node if succeeded, NULL if not.
+ */
+struct eb64_node *qcc_get_qcs(struct qcc *qcc, uint64_t id)
+{
+	unsigned int strm_type;
+	int64_t sub_id;
+	struct eb64_node *strm_node;
+
+	strm_type = id & QCS_ID_TYPE_MASK;
+	sub_id = id >> QCS_ID_TYPE_SHIFT;
+	strm_node = NULL;
+	if (qc_local_stream_id(qcc, id)) {
+		/* Local streams: this stream must be already opened. */
+		strm_node = eb64_lookup(&qcc->streams_by_id, id);
+		if (!strm_node) {
+			/* unknown stream id */
+			goto out;
+		}
+	}
+	else {
+		/* Remote streams. */
+		struct eb_root *strms;
+		uint64_t largest_id;
+		enum qcs_type qcs_type;
+
+		strms = &qcc->streams_by_id;
+		qcs_type = qcs_id_type(id);
+		if (sub_id + 1 > qcc->strms[qcs_type].max_streams) {
+			/* streams limit reached */
+			goto out;
+		}
+
+		/* Note: ->largest_id was initialized with (uint64_t)-1 as value, 0 being a
+		 * correct value.
+		 */
+		largest_id = qcc->strms[qcs_type].largest_id;
+		if (sub_id > (int64_t)largest_id) {
+			/* RFC: "A stream ID that is used out of order results in all streams
+			 * of that type with lower-numbered stream IDs also being opened".
+			 * So, let's "open" these streams.
+			 */
+			int64_t i;
+			struct qcs *qcs;
+
+			qcs = NULL;
+			for (i = largest_id + 1; i <= sub_id; i++) {
+				uint64_t id = (i << QCS_ID_TYPE_SHIFT) | strm_type;
+				enum qcs_type type = id & QCS_ID_DIR_BIT ? QCS_CLT_UNI : QCS_CLT_BIDI;
+				qcs = qcs_new(qcc, id, type);
+				if (!qcs) {
+					/* allocation failure */
+					goto out;
+				}
+
+				qcc->strms[qcs_type].largest_id = i;
+			}
+			if (qcs)
+				strm_node = &qcs->by_id;
+		}
+		else {
+			strm_node = eb64_lookup(strms, id);
+		}
+	}
+
+	return strm_node;
+
+ out:
+	return NULL;
+}
+
 /* detachs the QUIC stream from its QCC and releases it to the QCS pool. */
 static void qcs_destroy(struct qcs *qcs)
 {
