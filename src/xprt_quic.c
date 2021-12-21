@@ -2277,7 +2277,7 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct ssl_sock_ctx *ct
 {
 	struct quic_frame frm;
 	const unsigned char *pos, *end;
-	struct quic_conn *conn = ctx->conn->qc;
+	struct quic_conn *qc = ctx->conn->qc;
 
 	TRACE_ENTER(QUIC_EV_CONN_PRSHPKT, ctx->conn);
 	/* Skip the AAD */
@@ -2285,7 +2285,7 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct ssl_sock_ctx *ct
 	end = pkt->data + pkt->len;
 
 	while (pos < end) {
-		if (!qc_parse_frm(&frm, pkt, &pos, end, conn))
+		if (!qc_parse_frm(&frm, pkt, &pos, end, qc))
 			goto err;
 
 		switch (frm.type) {
@@ -2304,9 +2304,9 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct ssl_sock_ctx *ct
 			if (rtt_sample) {
 				unsigned int ack_delay;
 
-				ack_delay = !quic_application_pktns(qel->pktns, conn) ? 0 :
-					MS_TO_TICKS(QUIC_MIN(quic_ack_delay_ms(&frm.ack, conn), conn->max_ack_delay));
-				quic_loss_srtt_update(&conn->path->loss, rtt_sample, ack_delay, conn);
+				ack_delay = !quic_application_pktns(qel->pktns, qc) ? 0 :
+					MS_TO_TICKS(QUIC_MIN(quic_ack_delay_ms(&frm.ack, qc), qc->max_ack_delay));
+				quic_loss_srtt_update(&qc->path->loss, rtt_sample, ack_delay, qc);
 			}
 			break;
 		}
@@ -2385,7 +2385,7 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct ssl_sock_ctx *ct
 			} else if (!(stream->id & QUIC_STREAM_FRAME_ID_INITIATOR_BIT))
 				goto err;
 
-			if (!qc_handle_strm_frm(pkt, stream, ctx->conn->qc))
+			if (!qc_handle_strm_frm(pkt, stream, qc))
 				goto err;
 
 			break;
@@ -2404,14 +2404,14 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct ssl_sock_ctx *ct
 		case QUIC_FT_CONNECTION_CLOSE:
 		case QUIC_FT_CONNECTION_CLOSE_APP:
 			/* warn the mux to close the connection */
-			conn->qcc->flags |= QC_CF_CC_RECV;
-			tasklet_wakeup(conn->qcc->wait_event.tasklet);
+			qc->qcc->flags |= QC_CF_CC_RECV;
+			tasklet_wakeup(qc->qcc->wait_event.tasklet);
 			break;
 		case QUIC_FT_HANDSHAKE_DONE:
 			if (objt_listener(ctx->conn->target))
 				goto err;
 
-			HA_ATOMIC_STORE(&conn->state, QUIC_HS_ST_CONFIRMED);
+			HA_ATOMIC_STORE(&qc->state, QUIC_HS_ST_CONFIRMED);
 			break;
 		default:
 			goto err;
@@ -2423,15 +2423,15 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct ssl_sock_ctx *ct
 	 * be discarded.
 	 */
 	if (pkt->type == QUIC_PACKET_TYPE_HANDSHAKE && objt_listener(ctx->conn->target)) {
-	    int state = HA_ATOMIC_LOAD(&conn->state);
+	    int state = HA_ATOMIC_LOAD(&qc->state);
 
 	    if (state >= QUIC_HS_ST_SERVER_INITIAL) {
-		    quic_tls_discard_keys(&conn->els[QUIC_TLS_ENC_LEVEL_INITIAL]);
+		    quic_tls_discard_keys(&qc->els[QUIC_TLS_ENC_LEVEL_INITIAL]);
 		    TRACE_PROTO("discarding Initial pktns", QUIC_EV_CONN_PRSHPKT, ctx->conn);
-		    quic_pktns_discard(conn->els[QUIC_TLS_ENC_LEVEL_INITIAL].pktns, conn);
+		    quic_pktns_discard(qc->els[QUIC_TLS_ENC_LEVEL_INITIAL].pktns, qc);
 		    qc_set_timer(ctx);
 		    if (state < QUIC_HS_ST_SERVER_HANDSHAKE)
-			    HA_ATOMIC_STORE(&conn->state, QUIC_HS_ST_SERVER_HANDSHAKE);
+			    HA_ATOMIC_STORE(&qc->state, QUIC_HS_ST_SERVER_HANDSHAKE);
 	    }
 	}
 
@@ -4396,12 +4396,12 @@ static int quic_ack_frm_reduce_sz(struct quic_frame *ack_frm, size_t limit)
 static inline int qc_build_frms(struct quic_tx_packet *pkt,
                                 size_t room, size_t *len, size_t headlen,
                                 struct quic_enc_level *qel,
-                                struct quic_conn *conn)
+                                struct quic_conn *qc)
 {
 	int ret;
 	struct quic_frame *cf;
 	struct mt_list *tmp1, tmp2;
-	size_t remain = quic_path_prep_data(conn->path);
+	size_t remain = quic_path_prep_data(qc->path);
 
 	ret = 0;
 	if (*len > room || headlen > remain)
@@ -4410,10 +4410,10 @@ static inline int qc_build_frms(struct quic_tx_packet *pkt,
 	/* If we are not probing we must take into an account the congestion
 	 * control window.
 	 */
-	if (!conn->tx.nb_pto_dgrams)
-		room = QUIC_MIN(room, quic_path_prep_data(conn->path) - headlen);
+	if (!qc->tx.nb_pto_dgrams)
+		room = QUIC_MIN(room, quic_path_prep_data(qc->path) - headlen);
 	TRACE_PROTO("************** frames build (headlen)",
-	            QUIC_EV_CONN_BCFRMS, conn->conn, &headlen);
+	            QUIC_EV_CONN_BCFRMS, qc->conn, &headlen);
 	mt_list_for_each_entry_safe(cf, &qel->pktns->tx.frms, mt_list, tmp1, tmp2) {
 		/* header length, data length, frame length. */
 		size_t hlen, dlen, dlen_sz, avail_room, flen;
@@ -4424,20 +4424,20 @@ static inline int qc_build_frms(struct quic_tx_packet *pkt,
 		switch (cf->type) {
 		case QUIC_FT_CRYPTO:
 			TRACE_PROTO("          New CRYPTO frame build (room, len)",
-						QUIC_EV_CONN_BCFRMS, conn->conn, &room, len);
+						QUIC_EV_CONN_BCFRMS, qc->conn, &room, len);
 			/* Compute the length of this CRYPTO frame header */
 			hlen = 1 + quic_int_getsize(cf->crypto.offset);
 			/* Compute the data length of this CRyPTO frame. */
 			dlen = max_stream_data_size(room, *len + hlen, cf->crypto.len);
 			TRACE_PROTO(" CRYPTO data length (hlen, crypto.len, dlen)",
-						QUIC_EV_CONN_BCFRMS, conn->conn, &hlen, &cf->crypto.len, &dlen);
+						QUIC_EV_CONN_BCFRMS, qc->conn, &hlen, &cf->crypto.len, &dlen);
 			if (!dlen)
 				break;
 
 			/* CRYPTO frame length. */
 			flen = hlen + quic_int_getsize(dlen) + dlen;
 			TRACE_PROTO("                 CRYPTO frame length (flen)",
-						QUIC_EV_CONN_BCFRMS, conn->conn, &flen);
+						QUIC_EV_CONN_BCFRMS, qc->conn, &flen);
 			/* Add the CRYPTO data length and its encoded length to the packet
 			 * length and the length of this length.
 			 */
@@ -4453,7 +4453,7 @@ static inline int qc_build_frms(struct quic_tx_packet *pkt,
 
 				new_cf = pool_alloc(pool_head_quic_frame);
 				if (!new_cf) {
-					TRACE_PROTO("No memory for new crypto frame", QUIC_EV_CONN_BCFRMS, conn->conn);
+					TRACE_PROTO("No memory for new crypto frame", QUIC_EV_CONN_BCFRMS, qc->conn);
 					return 0;
 				}
 
@@ -4484,7 +4484,7 @@ static inline int qc_build_frms(struct quic_tx_packet *pkt,
 				break;
 
 			TRACE_PROTO("          New STREAM frame build (room, len)",
-						QUIC_EV_CONN_BCFRMS, conn->conn, &room, len);
+						QUIC_EV_CONN_BCFRMS, qc->conn, &room, len);
 			if (cf->type & QUIC_STREAM_FRAME_TYPE_LEN_BIT) {
 				dlen = max_available_room(avail_room, &dlen_sz);
 				if (dlen > cf->stream.len) {
@@ -4498,9 +4498,9 @@ static inline int qc_build_frms(struct quic_tx_packet *pkt,
 				flen = hlen + dlen;
 			}
 			TRACE_PROTO(" STREAM data length (hlen, stream.len, dlen)",
-						QUIC_EV_CONN_BCFRMS, conn->conn, &hlen, &cf->stream.len, &dlen);
+						QUIC_EV_CONN_BCFRMS, qc->conn, &hlen, &cf->stream.len, &dlen);
 			TRACE_PROTO("                 STREAM frame length (flen)",
-						QUIC_EV_CONN_BCFRMS, conn->conn, &flen);
+						QUIC_EV_CONN_BCFRMS, qc->conn, &flen);
 			/* Add the STREAM data length and its encoded length to the packet
 			 * length and the length of this length.
 			 */
@@ -4516,7 +4516,7 @@ static inline int qc_build_frms(struct quic_tx_packet *pkt,
 
 				new_cf = pool_zalloc(pool_head_quic_frame);
 				if (!new_cf) {
-					TRACE_PROTO("No memory for new STREAM frame", QUIC_EV_CONN_BCFRMS, conn->conn);
+					TRACE_PROTO("No memory for new STREAM frame", QUIC_EV_CONN_BCFRMS, qc->conn);
 					return 0;
 				}
 
@@ -4575,7 +4575,7 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
                            size_t dglen, struct quic_tx_packet *pkt,
                            int64_t pn, size_t *pn_len, unsigned char **buf_pn,
                            int ack, int padding, int cc, int nb_pto_dgrams,
-                           struct quic_enc_level *qel, struct quic_conn *conn)
+                           struct quic_enc_level *qel, struct quic_conn *qc)
 {
 	unsigned char *beg;
 	size_t len, len_sz, len_frms, padding_len;
@@ -4599,7 +4599,7 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 	if (!nb_pto_dgrams && !ack && !cc) {
 		size_t path_room;
 
-		path_room = quic_path_prep_data(conn->path);
+		path_room = quic_path_prep_data(qc->path);
 		if (end - beg > path_room)
 			end = beg + path_room;
 	}
@@ -4617,9 +4617,9 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 	*pn_len = quic_packet_number_length(pn, largest_acked_pn);
 	/* Build the header */
 	if ((pkt->type == QUIC_PACKET_TYPE_SHORT &&
-	    !quic_build_packet_short_header(&pos, end, *pn_len, conn, qel->tls_ctx.flags)) ||
+	    !quic_build_packet_short_header(&pos, end, *pn_len, qc, qel->tls_ctx.flags)) ||
 	    (pkt->type != QUIC_PACKET_TYPE_SHORT &&
-		!quic_build_packet_long_header(&pos, end, pkt->type, *pn_len, conn)))
+		!quic_build_packet_long_header(&pos, end, pkt->type, *pn_len, qc)))
 		goto no_room;
 
 	/* XXX FIXME XXX Encode the token length (0) for an Initial packet. */
@@ -4653,9 +4653,10 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 		 * we will have len_frms > len.
 		 */
 		len_frms = len;
-		if (!qc_build_frms(pkt, end - pos, &len_frms, pos - beg, qel, conn))
+		if (!qc_build_frms(pkt, end - pos, &len_frms, pos - beg, qel, qc)) {
 			TRACE_PROTO("Not enough room", QUIC_EV_CONN_HPKT,
-						conn->conn, NULL, NULL, &room);
+						qc->conn, NULL, NULL, &room);
+		}
 	}
 
 	/* Length (of the remaining data). Must not fail because, the buffer size
@@ -4671,7 +4672,7 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 	if (cc) {
 		struct quic_connection_close *cc = &cc_frm.connection_close;
 
-		cc->error_code = conn->err_code;
+		cc->error_code = qc->err_code;
 		len += qc_frm_len(&cc_frm);
 	}
 	add_ping_frm = 0;
@@ -4711,19 +4712,19 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 	if (!quic_packet_number_encode(&pos, end, pn, *pn_len))
 		goto no_room;
 
-	if (ack_frm_len && !qc_build_frm(&pos, end, &ack_frm, pkt, conn))
+	if (ack_frm_len && !qc_build_frm(&pos, end, &ack_frm, pkt, qc))
 		goto no_room;
 
 	/* Ack-eliciting frames */
 	if (!LIST_ISEMPTY(&pkt->frms)) {
 		struct quic_frame *cf;
 
-		TRACE_PROTO("Ack eliciting frame", QUIC_EV_CONN_HPKT, conn->conn, pkt);
+		TRACE_PROTO("Ack eliciting frame", QUIC_EV_CONN_HPKT, qc->conn, pkt);
 		list_for_each_entry(cf, &pkt->frms, list) {
-			if (!qc_build_frm(&pos, end, cf, pkt, conn)) {
+			if (!qc_build_frm(&pos, end, cf, pkt, qc)) {
 				ssize_t room = end - pos;
 				TRACE_PROTO("Not enough room", QUIC_EV_CONN_HPKT,
-							conn->conn, NULL, NULL, &room);
+							qc->conn, NULL, NULL, &room);
 				break;
 			}
 		}
@@ -4732,19 +4733,19 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 	/* Build a PING frame if needed. */
 	if (add_ping_frm) {
 		frm.type = QUIC_FT_PING;
-		if (!qc_build_frm(&pos, end, &frm, pkt, conn))
+		if (!qc_build_frm(&pos, end, &frm, pkt, qc))
 			goto no_room;
 	}
 
 	/* Build a CONNECTION_CLOSE frame if needed. */
-	if (cc && !qc_build_frm(&pos, end, &cc_frm, pkt, conn))
+	if (cc && !qc_build_frm(&pos, end, &cc_frm, pkt, qc))
 		goto no_room;
 
 	/* Build a PADDING frame if needed. */
 	if (padding_len) {
 		frm.type = QUIC_FT_PADDING;
 		frm.padding.len = padding_len;
-		if (!qc_build_frm(&pos, end, &frm, pkt, conn))
+		if (!qc_build_frm(&pos, end, &frm, pkt, qc))
 			goto no_room;
 	}
 
@@ -4757,7 +4758,7 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 	return 1;
 
  no_room:
-	TRACE_PROTO("Not enough room", QUIC_EV_CONN_HPKT, conn->conn);
+	TRACE_PROTO("Not enough room", QUIC_EV_CONN_HPKT, qc->conn);
 	return 0;
 }
 
