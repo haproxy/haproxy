@@ -3863,6 +3863,8 @@ static struct quic_conn *retrieve_qc_conn_from_cid(struct quic_rx_packet *pkt,
 	struct quic_conn *qc = NULL;
 	struct ebmb_node *node;
 	struct quic_connection_id *id;
+	/* set if the quic_conn is found in the second DCID tree */
+	int found_in_dcid = 0;
 
 	HA_RWLOCK_RDLOCK(QUIC_LOCK, &l->rx.cids_lock);
 
@@ -3892,14 +3894,21 @@ static struct quic_conn *retrieve_qc_conn_from_cid(struct quic_rx_packet *pkt,
 
 	id = ebmb_entry(node, struct quic_connection_id, node);
 	qc = id->qc;
-
-	/* If found in DCIDs tree, remove the quic_conn from the ODCIDs tree.
-	 * If already done, this is a noop.
-	 */
-	ebmb_delete(&qc->odcid_node);
+	found_in_dcid = 1;
 
  end:
 	HA_RWLOCK_RDUNLOCK(QUIC_LOCK, &l->rx.cids_lock);
+
+	/* If found in DCIDs tree, remove the quic_conn from the ODCIDs tree.
+	 * If already done, this is a noop.
+	 *
+	 * node.leaf_p is first checked to avoid unnecessary locking.
+	 */
+	if (found_in_dcid && qc->odcid_node.node.leaf_p) {
+		HA_RWLOCK_WRLOCK(QUIC_LOCK, &l->rx.cids_lock);
+		ebmb_delete(&qc->odcid_node);
+		HA_RWLOCK_WRUNLOCK(QUIC_LOCK, &l->rx.cids_lock);
+	}
 
 	return qc;
 }
