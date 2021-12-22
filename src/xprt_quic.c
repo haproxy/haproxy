@@ -3973,21 +3973,21 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 	/* Header form */
 	qc_parse_hd_form(pkt, *buf++, &long_header);
 	if (long_header) {
+		uint64_t len;
+
 		if (!quic_packet_read_long_header(&buf, end, pkt)) {
+			TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT);
+			goto err;
+		}
+
+		/* Retry of Version Negotiation packets are only sent by servers */
+		if (pkt->type == QUIC_PACKET_TYPE_RETRY || !pkt->version) {
 			TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT);
 			goto err;
 		}
 
 		/* RFC9000 6. Version Negotiation */
 		if (!qc_pkt_is_supported_version(pkt)) {
-			/* do not send Version Negotiation in response to a
-			 * Version Negotiation packet.
-			 */
-			if (!pkt->version) {
-				TRACE_PROTO("Null QUIC version, packet dropped", QUIC_EV_CONN_LPKT);
-				goto err;
-			}
-
 			 /* unsupported version, send Negotiation packet */
 			if (qc_send_version_negotiation(l->rx.fd, saddr, pkt)) {
 				TRACE_PROTO("Error on Version Negotiation sending", QUIC_EV_CONN_LPKT);
@@ -4026,21 +4026,14 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 			}
 		}
 
-		/* Only packets packets with long headers and not RETRY or VERSION as type
-		 * have a length field.
-		 */
-		if (pkt->type != QUIC_PACKET_TYPE_RETRY && pkt->version) {
-			uint64_t len;
-
-			if (!quic_dec_int(&len, (const unsigned char **)&buf, end) ||
-				end - buf < len) {
-				TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT);
-				goto err;
-			}
-
-			payload = buf;
-			pkt->len = len + payload - beg;
+		if (!quic_dec_int(&len, (const unsigned char **)&buf, end) ||
+			end - buf < len) {
+			TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT);
+			goto err;
 		}
+
+		payload = buf;
+		pkt->len = len + payload - beg;
 
 		qc = qc_retrieve_conn_from_cid(pkt, l, saddr);
 		if (!qc) {
