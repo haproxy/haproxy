@@ -2046,7 +2046,7 @@ static int qc_handle_bidi_strm_frm(struct quic_rx_packet *pkt,
 {
 	int total;
 	struct qcs *strm;
-	struct eb64_node *strm_node, *frm_node;
+	struct eb64_node *strm_node;
 	struct quic_rx_strm_frm *frm;
 
 	strm_node = qcc_get_qcs(qc->qcc, strm_frm->id);
@@ -2056,12 +2056,20 @@ static int qc_handle_bidi_strm_frm(struct quic_rx_packet *pkt,
 	}
 
 	strm = eb64_entry(&strm_node->node, struct qcs, by_id);
-	frm_node = eb64_lookup(&strm->rx.frms, strm_frm->offset.key);
-	/* FIXME: handle the case where this frame overlap others */
-	if (frm_node) {
-		TRACE_PROTO("Already existing stream data",
-		            QUIC_EV_CONN_PSTRM, qc);
-		goto out;
+	if (strm_frm->offset.key < strm->rx.offset) {
+		size_t diff;
+
+		if (strm_frm->offset.key + strm_frm->len <= strm->rx.offset) {
+			TRACE_PROTO("Already received STREAM data",
+			            QUIC_EV_CONN_PSTRM, qc);
+			goto out;
+		}
+
+		TRACE_PROTO("Partially already received STREAM data", QUIC_EV_CONN_PSTRM, qc);
+		diff = strm->rx.offset - strm_frm->offset.key;
+		strm_frm->offset.key = strm->rx.offset;
+		strm_frm->len -= diff;
+		strm_frm->data += diff;
 	}
 
 	total = 0;
@@ -2112,7 +2120,7 @@ static int qc_handle_uni_strm_frm(struct quic_rx_packet *pkt,
                                   struct quic_conn *qc)
 {
 	struct qcs *strm;
-	struct eb64_node *strm_node, *frm_node;
+	struct eb64_node *strm_node;
 	struct quic_rx_strm_frm *frm;
 	size_t strm_frm_len;
 
@@ -2123,12 +2131,20 @@ static int qc_handle_uni_strm_frm(struct quic_rx_packet *pkt,
 	}
 
 	strm = eb64_entry(&strm_node->node, struct qcs, by_id);
-	frm_node = eb64_lookup(&strm->rx.frms, strm_frm->offset.key);
-	/* FIXME: handle the case where this frame overlap others */
-	if (frm_node) {
-		TRACE_PROTO("Already existing stream data",
-		            QUIC_EV_CONN_PSTRM, qc);
-		goto out;
+	if (strm_frm->offset.key < strm->rx.offset) {
+		size_t diff;
+
+		if (strm_frm->offset.key + strm_frm->len <= strm->rx.offset) {
+			TRACE_PROTO("Already received STREAM data",
+			            QUIC_EV_CONN_PSTRM, qc);
+			goto out;
+		}
+
+		TRACE_PROTO("Partially already received STREAM data", QUIC_EV_CONN_PSTRM, qc);
+		diff = strm->rx.offset - strm_frm->offset.key;
+		strm_frm->offset.key = strm->rx.offset;
+		strm_frm->len -= diff;
+		strm_frm->data += diff;
 	}
 
 	strm_frm_len = strm_frm->len;
