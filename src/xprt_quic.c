@@ -1513,7 +1513,7 @@ static inline struct eb64_node *qc_ackrng_pkts(struct eb_root *pkts, unsigned in
 		pkt = eb64_entry(&node->node, struct quic_tx_packet, pn_node);
 		*pkt_flags |= pkt->flags;
 		LIST_INSERT(newly_acked_pkts, &pkt->list);
-		TRACE_PROTO("Removing packet #", QUIC_EV_CONN_PRSAFRM, ctx->qc, &pkt->pn_node.key);
+		TRACE_PROTO("Removing packet #", QUIC_EV_CONN_PRSAFRM, ctx->qc, NULL, &pkt->pn_node.key);
 		list_for_each_entry_safe(frm, frmbak, &pkt->frms, list)
 			qc_treat_acked_tx_frm(frm, ctx);
 		node = eb64_prev(node);
@@ -1724,13 +1724,13 @@ static inline int qc_parse_ack_frm(struct quic_frame *frm, struct ssl_sock_ctx *
 
 	if (ack->largest_ack > qel->pktns->tx.next_pn) {
 		TRACE_DEVEL("ACK for not sent packet", QUIC_EV_CONN_PRSAFRM,
-		            ctx->qc, &ack->largest_ack);
+		            ctx->qc, NULL, &ack->largest_ack);
 		goto err;
 	}
 
 	if (ack->first_ack_range > ack->largest_ack) {
 		TRACE_DEVEL("too big first ACK range", QUIC_EV_CONN_PRSAFRM,
-		            ctx->qc, &ack->first_ack_range);
+		            ctx->qc, NULL, &ack->first_ack_range);
 		goto err;
 	}
 
@@ -1754,7 +1754,7 @@ static inline int qc_parse_ack_frm(struct quic_frame *frm, struct ssl_sock_ctx *
 	}
 
 	TRACE_PROTO("ack range", QUIC_EV_CONN_PRSAFRM,
-	            ctx->qc, &largest, &smallest);
+	            ctx->qc, NULL, &largest, &smallest);
 	do {
 		uint64_t gap, ack_range;
 
@@ -1768,7 +1768,7 @@ static inline int qc_parse_ack_frm(struct quic_frame *frm, struct ssl_sock_ctx *
 
 		if (smallest < gap + 2) {
 			TRACE_DEVEL("wrong gap value", QUIC_EV_CONN_PRSAFRM,
-			            ctx->qc, &gap, &smallest);
+			            ctx->qc, NULL, &gap, &smallest);
 			goto err;
 		}
 
@@ -1778,7 +1778,7 @@ static inline int qc_parse_ack_frm(struct quic_frame *frm, struct ssl_sock_ctx *
 
 		if (largest < ack_range) {
 			TRACE_DEVEL("wrong ack range value", QUIC_EV_CONN_PRSAFRM,
-			            ctx->qc, &largest, &ack_range);
+			            ctx->qc, NULL, &largest, &ack_range);
 			goto err;
 		}
 
@@ -1788,7 +1788,7 @@ static inline int qc_parse_ack_frm(struct quic_frame *frm, struct ssl_sock_ctx *
 		smallest = largest - ack_range;
 
 		TRACE_PROTO("ack range", QUIC_EV_CONN_PRSAFRM,
-		            ctx->qc, &largest, &smallest);
+		            ctx->qc, NULL, &largest, &smallest);
 	} while (1);
 
 	/* Flag this packet number space as having received an ACK. */
@@ -1870,7 +1870,7 @@ static inline int qc_provide_cdata(struct quic_enc_level *el,
 
 	el->rx.crypto.offset += len;
 	TRACE_PROTO("in order CRYPTO data",
-	            QUIC_EV_CONN_SSLDATA, qc, cf, ctx->ssl);
+	            QUIC_EV_CONN_SSLDATA, qc, NULL, cf, ctx->ssl);
 
 	state = HA_ATOMIC_LOAD(&qc->state);
 	if (state < QUIC_HS_ST_COMPLETE) {
