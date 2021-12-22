@@ -2617,7 +2617,7 @@ static int hlua_socket_getsockname(struct lua_State *L)
 	si = cs_si(appctx->owner);
 	s = si_strm(si);
 
-	conn = cs_conn(s->si[1].cs);
+	conn = cs_conn(s->csb);
 	if (!conn || !conn_get_src(conn)) {
 		xref_unlock(&socket->xref, peer);
 		lua_pushnil(L);
@@ -2684,7 +2684,7 @@ __LJMP static int hlua_socket_connect_yield(struct lua_State *L, int status, lua
 		return 2;
 	}
 
-	appctx = cs_appctx(s->si[0].cs);
+	appctx = cs_appctx(s->csf);
 
 	/* Check for connection established. */
 	if (appctx->ctx.hlua_cosocket.connected) {

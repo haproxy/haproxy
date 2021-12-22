@@ -436,6 +436,8 @@ struct stream *stream_new(struct session *sess, struct conn_stream *cs, struct b
 	vars_init_head(&s->vars_txn,    SCOPE_TXN);
 	vars_init_head(&s->vars_reqres, SCOPE_REQ);
 
+	s->csf = cs;
+
 	/* this part should be common with other protocols */
 	if (si_reset(&s->si[0]) < 0)
 		goto out_fail_alloc;
@@ -474,9 +476,10 @@ struct stream *stream_new(struct session *sess, struct conn_stream *cs, struct b
 	if (likely(sess->fe->options2 & PR_O2_INDEPSTR))
 		s->si[1].flags |= SI_FL_INDEP_STR;
 
-	s->si[1].cs = cs_new(NULL, NULL, &s->obj_type, &s->si[1], NULL);
-	if (!s->si[1].cs)
+	s->csb = cs_new(NULL, NULL, &s->obj_type, &s->si[1], NULL);
+	if (!s->csb)
 		goto out_fail_alloc_cs;
+	s->si[1].cs = s->csb;
 
 	stream_init_srv_conn(s);
 	s->target = sess->listener ? sess->listener->default_target : NULL;
@@ -721,7 +724,7 @@ static void stream_free(struct stream *s)
 
 	/* applets do not release session yet */
 	/* FIXME: Handle it in appctx_free ??? */
-	must_free_sess = objt_appctx(sess->origin) && sess->origin == s->si[0].cs->end;
+	must_free_sess = objt_appctx(sess->origin) && sess->origin == s->csf->end;
 
 
 	si_release_endpoint(&s->si[1]);
@@ -873,8 +876,8 @@ int stream_set_timeout(struct stream *s, enum act_timeout_name name, int timeout
  */
 static void back_establish(struct stream *s)
 {
-	struct stream_interface *si = &s->si[1];
-	struct connection *conn = cs_conn(si->cs);
+	struct connection *conn = cs_conn(s->csb);
+	struct stream_interface *si = cs_si(s->csb);
 	struct channel *req = &s->req;
 	struct channel *rep = &s->res;
 
@@ -997,12 +1000,12 @@ enum act_return process_use_service(struct act_rule *rule, struct proxy *px,
 			return ACT_RET_ERR;
 
 		/* Initialise the context. */
-		appctx = cs_appctx(s->si[1].cs);
+		appctx = cs_appctx(s->csb);
 		memset(&appctx->ctx, 0, sizeof(appctx->ctx));
 		appctx->rule = rule;
 	}
 	else
-		appctx = cs_appctx(s->si[1].cs);
+		appctx = cs_appctx(s->csb);
 
 	/* Stops the applet scheduling, in case of the init function miss
 	 * some data.
@@ -1475,7 +1478,7 @@ static int process_store_rules(struct stream *s, struct channel *rep, int an_bit
  */
 int stream_set_http_mode(struct stream *s, const struct mux_proto_list *mux_proto)
 {
-	struct conn_stream *cs = s->si[0].cs;
+	struct conn_stream *cs = s->csf;
 	struct connection  *conn;
 
 	/* Already an HTTP stream */
@@ -3190,7 +3193,7 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 		else
 			chunk_appendf(&trash, "  backend=<NONE> (id=-1 mode=-)");
 
-		conn = cs_conn(strm->si[1].cs);
+		conn = cs_conn(strm->csb);
 		switch (conn && conn_get_src(conn) ? addr_to_str(conn->src, pn, sizeof(pn)) : AF_UNSPEC) {
 		case AF_INET:
 		case AF_INET6:
@@ -3257,8 +3260,8 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 			     &strm->si[0],
 			     si_state_str(strm->si[0].state),
 			     strm->si[0].flags,
-			     obj_type_name(strm->si[0].cs->end),
-			     obj_base_ptr(strm->si[0].cs->end),
+			     obj_type_name(strm->csf->end),
+			     obj_base_ptr(strm->csf->end),
 			     strm->si[0].exp ?
 			             tick_is_expired(strm->si[0].exp, now_ms) ? "<PAST>" :
 			                     human_time(TICKS_TO_MS(strm->si[0].exp - now_ms),
@@ -3270,15 +3273,15 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 			     &strm->si[1],
 			     si_state_str(strm->si[1].state),
 			     strm->si[1].flags,
-			     obj_type_name(strm->si[1].cs->end),
-			     obj_base_ptr(strm->si[1].cs->end),
+			     obj_type_name(strm->csb->end),
+			     obj_base_ptr(strm->csb->end),
 			     strm->si[1].exp ?
 			             tick_is_expired(strm->si[1].exp, now_ms) ? "<PAST>" :
 			                     human_time(TICKS_TO_MS(strm->si[1].exp - now_ms),
 			                     TICKS_TO_MS(1000)) : "<NEVER>",
 			     strm->si[1].err_type, strm->si[1].wait_event.events);
 
-		cs = strm->si[0].cs;
+		cs = strm->csf;
 		chunk_appendf(&trash, "  cs=%p csf=0x%08x ctx=%p\n", cs, cs->flags, cs->ctx);
 
 		if ((conn = cs_conn(cs)) != NULL) {
@@ -3314,7 +3317,7 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 			              (unsigned long long)tmpctx->t->cpu_time, (unsigned long long)tmpctx->t->lat_time);
 		}
 
-		cs = strm->si[1].cs;
+		cs = strm->csb;
 		chunk_appendf(&trash, "  cs=%p csf=0x%08x ctx=%p\n", cs, cs->flags, cs->ctx);
 		if ((conn = cs_conn(cs)) != NULL) {
 			chunk_appendf(&trash,
@@ -3648,7 +3651,7 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 				     human_time(TICKS_TO_MS(curr_strm->res.analyse_exp - now_ms),
 						TICKS_TO_MS(1000)) : "");
 
-			conn = cs_conn(curr_strm->si[0].cs);
+			conn = cs_conn(curr_strm->csf);
 			chunk_appendf(&trash,
 				     " s0=[%d,%1xh,fd=%d,ex=%s]",
 				     curr_strm->si[0].state,
@@ -3658,7 +3661,7 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 				     human_time(TICKS_TO_MS(curr_strm->si[0].exp - now_ms),
 						TICKS_TO_MS(1000)) : "");
 
-			conn = cs_conn(curr_strm->si[1].cs);
+			conn = cs_conn(curr_strm->csb);
 			chunk_appendf(&trash,
 				     " s1=[%d,%1xh,fd=%d,ex=%s]",
 				     curr_strm->si[1].state,

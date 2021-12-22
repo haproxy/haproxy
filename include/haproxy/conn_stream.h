@@ -139,7 +139,12 @@ static inline void cs_detach(struct conn_stream *cs)
 			appctx->applet->release(appctx);
 		appctx_free(appctx);
 	}
-	cs_init(cs);
+
+	/* Rest CS */
+	cs->flags = CS_FL_NONE;
+	cs->end = NULL;
+	cs->ctx = NULL;
+	cs->data_cb = NULL;
 }
 
 /* Release a conn_stream */

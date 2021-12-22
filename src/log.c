@@ -1970,7 +1970,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 	if (likely(s)) {
 		be = s->be;
 		txn = s->txn;
-		be_conn = cs_conn(s->si[1].cs);
+		be_conn = cs_conn(s->csb);
 		status = (txn ? txn->status : 0);
 		s_flags = s->flags;
 		uniq_id = s->uniq_id;

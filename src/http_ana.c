@@ -1325,7 +1325,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	if (unlikely(htx_is_empty(htx) || htx->first == -1)) {
 		/* 1: have we encountered a read error ? */
 		if (rep->flags & CF_READ_ERROR) {
-			struct connection *conn = cs_conn(s->si[1].cs);
+			struct connection *conn = cs_conn(s->csb);
 
 			/* Perform a L7 retry because server refuses the early data. */
 			if ((si_b->flags & SI_FL_L7_RETRY) &&
@@ -1656,7 +1656,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	/* check for NTML authentication headers in 401 (WWW-Authenticate) and
 	 * 407 (Proxy-Authenticate) responses and set the connection to private
 	 */
-	srv_conn = cs_conn(s->si[1].cs);
+	srv_conn = cs_conn(s->csb);
 	if (srv_conn) {
 		struct ist hdr;
 		struct http_hdr_ctx ctx;
@@ -3873,7 +3873,6 @@ static int http_stats_check_uri(struct stream *s, struct http_txn *txn, struct p
 static int http_handle_stats(struct stream *s, struct channel *req)
 {
 	struct stats_admin_rule *stats_admin_rule;
-	struct stream_interface *si = &s->si[1];
 	struct session *sess = s->sess;
 	struct http_txn *txn = s->txn;
 	struct http_msg *msg = &txn->req;
@@ -3883,7 +3882,7 @@ static int http_handle_stats(struct stream *s, struct channel *req)
 	struct htx *htx;
 	struct htx_sl *sl;
 
-	appctx = cs_appctx(si->cs);
+	appctx = cs_appctx(s->csb);
 	memset(&appctx->ctx.stats, 0, sizeof(appctx->ctx.stats));
 	appctx->st1 = appctx->st2 = 0;
 	appctx->ctx.stats.st_code = STAT_STATUS_INIT;
@@ -5004,7 +5003,7 @@ static void http_debug_stline(const char *dir, struct stream *s, const struct ht
         chunk_printf(&trash, "%08x:%s.%s[%04x:%04x]: ", s->uniq_id, s->be->id,
                      dir,
                      objt_conn(sess->origin) ? (unsigned short)__objt_conn(sess->origin)->handle.fd : -1,
-                     cs_conn(s->si[1].cs) ? (unsigned short)(cs_conn(s->si[1].cs))->handle.fd : -1);
+                     cs_conn(s->csb) ? (unsigned short)(cs_conn(s->csb))->handle.fd : -1);
 
         max = HTX_SL_P1_LEN(sl);
         UBOUND(max, trash.size - trash.data - 3);
@@ -5035,7 +5034,7 @@ static void http_debug_hdr(const char *dir, struct stream *s, const struct ist n
         chunk_printf(&trash, "%08x:%s.%s[%04x:%04x]: ", s->uniq_id, s->be->id,
                      dir,
                      objt_conn(sess->origin) ? (unsigned short)__objt_conn(sess->origin)->handle.fd : -1,
-                     cs_conn(s->si[1].cs) ? (unsigned short)(cs_conn(s->si[1].cs))->handle.fd : -1);
+                     cs_conn(s->csb) ? (unsigned short)(cs_conn(s->csb))->handle.fd : -1);
 
         max = n.len;
         UBOUND(max, trash.size - trash.data - 3);
@@ -5091,7 +5090,7 @@ void http_txn_reset_res(struct http_txn *txn)
 struct http_txn *http_create_txn(struct stream *s)
 {
 	struct http_txn *txn;
-	struct conn_stream *cs = s->si[0].cs;
+	struct conn_stream *cs = s->csf;
 
 	txn = pool_alloc(pool_head_http_txn);
 	if (!txn)

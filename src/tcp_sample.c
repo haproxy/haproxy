@@ -54,7 +54,7 @@ smp_fetch_src(const struct arg *args, struct sample *smp, const char *kw, void *
 	if (kw[0] == 'b') { /* bc_src */
 		struct connection *conn = ((obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
 					   ? cs_conn(__objt_check(smp->sess->origin)->cs)
-					   : (smp->strm ? cs_conn(smp->strm->si[1].cs): NULL));
+					   : (smp->strm ? cs_conn(smp->strm->csb): NULL));
 		if (conn && conn_get_src(conn))
 			src = conn_src(conn);
 	}
@@ -98,7 +98,7 @@ smp_fetch_sport(const struct arg *args, struct sample *smp, const char *kw, void
 	if (kw[0] == 'b') { /* bc_src_port */
 		struct connection *conn = ((obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
 					   ? cs_conn(__objt_check(smp->sess->origin)->cs)
-					   : (smp->strm ? cs_conn(smp->strm->si[1].cs): NULL));
+					   : (smp->strm ? cs_conn(smp->strm->csb): NULL));
 		if (conn && conn_get_src(conn))
 			src = conn_src(conn);
 	}
@@ -133,7 +133,7 @@ smp_fetch_dst(const struct arg *args, struct sample *smp, const char *kw, void *
 	if (kw[0] == 'b') { /* bc_dst */
 		struct connection *conn = ((obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
 					   ? cs_conn(__objt_check(smp->sess->origin)->cs)
-					   : (smp->strm ? cs_conn(smp->strm->si[1].cs): NULL));
+					   : (smp->strm ? cs_conn(smp->strm->csb): NULL));
 		if (conn && conn_get_dst(conn))
 			dst = conn_dst(conn);
 	}
@@ -229,7 +229,7 @@ smp_fetch_dport(const struct arg *args, struct sample *smp, const char *kw, void
 	if (kw[0] == 'b') { /* bc_dst_port */
 		struct connection *conn = ((obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
 					   ? cs_conn(__objt_check(smp->sess->origin)->cs)
-					   : (smp->strm ? cs_conn(smp->strm->si[1].cs): NULL));
+					   : (smp->strm ? cs_conn(smp->strm->csb): NULL));
 		if (conn && conn_get_dst(conn))
 			dst = conn_dst(conn);
 	}
@@ -325,7 +325,7 @@ static inline int get_tcp_info(const struct arg *args, struct sample *smp,
 	/* get the object associated with the stream interface.The
 	 * object can be other thing than a connection. For example,
 	 * it be a appctx. */
-	conn = cs_conn(smp->strm->si[dir].cs);
+	conn = (dir == 0 ? cs_conn(smp->strm->csf) : cs_conn(smp->strm->csb));
 	if (!conn)
 		return 0;
 
