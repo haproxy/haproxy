@@ -457,7 +457,7 @@ struct quic_dgram_ctx {
 };
 
 /* QUIC packet reader. */
-typedef ssize_t qpkt_read_func(unsigned char **buf,
+typedef ssize_t qpkt_read_func(unsigned char *buf,
                                const unsigned char *end,
                                struct quic_rx_packet *qpkt,
                                struct quic_dgram_ctx *dgram_ctx,

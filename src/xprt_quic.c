@@ -3544,7 +3544,7 @@ static void qc_pkt_insert(struct quic_rx_packet *pkt, struct quic_enc_level *qel
  * Returns 1 if succeeded, 0 if not.
  */
 static inline int qc_try_rm_hp(struct quic_rx_packet *pkt,
-                               unsigned char **buf, unsigned char *beg,
+                               unsigned char *buf, unsigned char *beg,
                                const unsigned char *end,
                                struct quic_conn *qc, struct quic_enc_level **el,
                                struct ssl_sock_ctx *ctx)
@@ -3560,7 +3560,7 @@ static inline int qc_try_rm_hp(struct quic_rx_packet *pkt,
 	 * QUIC_PACKET_PN_MAXLEN of the sample used to add/remove the header
 	 * protection.
 	 */
-	pn = *buf;
+	pn = buf;
 	if (qc_pkt_may_rm_hp(pkt, qc, ctx, &qel)) {
 		 /* Note that the following function enables us to unprotect the packet
 		 * number and its length subsequently used to decrypt the entire
@@ -3602,9 +3602,6 @@ static inline int qc_try_rm_hp(struct quic_rx_packet *pkt,
 	pkt->data = (unsigned char *)b_tail(&qc->rx.buf);
 	b_add(&qc->rx.buf, pkt->len);
  out:
-	/* Updtate the offset of <*buf> for the next QUIC packet. */
-	*buf = beg + pkt->len;
-
 	TRACE_LEAVE(QUIC_EV_CONN_TRMHP, ctx ? ctx->qc : NULL, qpkt_trace);
 	return 1;
 
@@ -3792,7 +3789,7 @@ static ssize_t qc_srv_pkt_rcv(unsigned char **buf, const unsigned char *end,
 		}
 	}
 
-	if (!qc_try_rm_hp(pkt, buf, beg, end, qc, &qel, conn_ctx)) {
+	if (!qc_try_rm_hp(pkt, *buf, beg, end, qc, &qel, conn_ctx)) {
 		HA_RWLOCK_WRUNLOCK(QUIC_LOCK, &qc->rx.buf_rwlock);
 		TRACE_PROTO("Packet dropped", QUIC_EV_CONN_SPKT, qc);
 		goto err;
@@ -3924,12 +3921,12 @@ static struct quic_conn *qc_retrieve_conn_from_cid(struct quic_rx_packet *pkt,
 	return qc;
 }
 
-static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
+static ssize_t qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
                                 struct quic_rx_packet *pkt,
                                 struct quic_dgram_ctx *dgram_ctx,
                                 struct sockaddr_storage *saddr)
 {
-	unsigned char *beg;
+	unsigned char *beg, *payload;
 	struct quic_conn *qc;
 	struct listener *l;
 	struct ssl_sock_ctx *conn_ctx;
@@ -3937,6 +3934,7 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 	size_t b_cspace;
 	struct quic_enc_level *qel;
 
+	beg = buf;
 	qc = NULL;
 	conn_ctx = NULL;
 	qel = NULL;
@@ -3945,22 +3943,21 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 	 * packet with parsed packet number from others.
 	 */
 	pkt->pn_node.key = (uint64_t)-1;
-	if (end <= *buf)
+	if (end <= buf)
 		goto err;
 
 	/* Fixed bit */
-	if (!(**buf & QUIC_PACKET_FIXED_BIT)) {
+	if (!(*buf & QUIC_PACKET_FIXED_BIT)) {
 		/* XXX TO BE DISCARDED */
 		TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT);
 		goto err;
 	}
 
 	l = dgram_ctx->owner;
-	beg = *buf;
 	/* Header form */
-	qc_parse_hd_form(pkt, *(*buf)++, &long_header);
+	qc_parse_hd_form(pkt, *buf++, &long_header);
 	if (long_header) {
-		if (!quic_packet_read_long_header(buf, end, pkt)) {
+		if (!quic_packet_read_long_header(&buf, end, pkt)) {
 			TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT);
 			goto err;
 		}
@@ -3982,7 +3979,7 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 			}
 
 			TRACE_PROTO("Unsupported QUIC version, send Version Negotiation packet", QUIC_EV_CONN_LPKT);
-			goto out;
+			goto err;
 		}
 
 		/* For Initial packets, and for servers (QUIC clients connections),
@@ -3991,8 +3988,8 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 		if (pkt->type == QUIC_PACKET_TYPE_INITIAL) {
 			uint64_t token_len;
 
-			if (!quic_dec_int(&token_len, (const unsigned char **)buf, end) ||
-				end - *buf < token_len) {
+			if (!quic_dec_int(&token_len, (const unsigned char **)&buf, end) ||
+				end - buf < token_len) {
 				TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT);
 				goto err;
 			}
@@ -4019,13 +4016,14 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 		if (pkt->type != QUIC_PACKET_TYPE_RETRY && pkt->version) {
 			uint64_t len;
 
-			if (!quic_dec_int(&len, (const unsigned char **)buf, end) ||
-				end - *buf < len) {
+			if (!quic_dec_int(&len, (const unsigned char **)&buf, end) ||
+				end - buf < len) {
 				TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT);
 				goto err;
 			}
 
-			pkt->len = len;
+			payload = buf;
+			pkt->len = len + payload - beg;
 		}
 
 		qc = qc_retrieve_conn_from_cid(pkt, l, saddr);
@@ -4107,18 +4105,22 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 		}
 	}
 	else {
-		if (end - *buf < QUIC_HAP_CID_LEN) {
+		if (end - buf < QUIC_HAP_CID_LEN) {
 			TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT);
 			goto err;
 		}
 
-		memcpy(pkt->dcid.data, *buf, QUIC_HAP_CID_LEN);
+		memcpy(pkt->dcid.data, buf, QUIC_HAP_CID_LEN);
 		pkt->dcid.len = QUIC_HAP_CID_LEN;
-		*buf += QUIC_HAP_CID_LEN;
+		buf += QUIC_HAP_CID_LEN;
+
+		/* A short packet is the last one of a UDP datagram. */
+		payload = buf;
+		pkt->len = end - beg;
 
 		qc = qc_retrieve_conn_from_cid(pkt, l, saddr);
 		if (!qc) {
-			size_t pktlen = end - *buf;
+			size_t pktlen = end - buf;
 			TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT, NULL, pkt, &pktlen);
 			goto err;
 		}
@@ -4127,12 +4129,8 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 			conn_ctx = HA_ATOMIC_LOAD(&qc->conn->xprt_ctx);
 
 		pkt->qc = qc;
-		/* A short packet is the last one of an UDP datagram. */
-		pkt->len = end - *buf;
 	}
 
-	/* Increase the total length of this packet by the header length. */
-	pkt->raw_len = pkt->len += *buf - beg;
 
 	/* When multiple QUIC packets are coalesced on the same UDP datagram,
 	 * they must have the same DCID.
@@ -4155,6 +4153,7 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 		goto out;
 	}
 
+	pkt->raw_len = pkt->len;
 	HA_RWLOCK_WRLOCK(QUIC_LOCK, &qc->rx.buf_rwlock);
 	quic_rx_pkts_del(qc);
 	b_cspace = b_contig_space(&qc->rx.buf);
@@ -4173,7 +4172,7 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 		}
 	}
 
-	if (!qc_try_rm_hp(pkt, buf, beg, end, qc, &qel, conn_ctx)) {
+	if (!qc_try_rm_hp(pkt, payload, beg, end, qc, &qel, conn_ctx)) {
 		HA_RWLOCK_WRUNLOCK(QUIC_LOCK, &qc->rx.buf_rwlock);
 		TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT, qc);
 		goto err;
@@ -4198,6 +4197,9 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 	return pkt->len;
 
  err:
+	/* If length not found, consume the entire packet */
+	if (!pkt->len)
+		pkt->len = end - beg;
 	TRACE_DEVEL("Leaving in error", QUIC_EV_CONN_LPKT,
 	            qc ? qc : NULL, pkt);
 	return -1;
@@ -5196,20 +5198,18 @@ static ssize_t quic_dgram_read(struct buffer *buf, size_t len, void *owner,
 	do {
 		int ret;
 		struct quic_rx_packet *pkt;
-		size_t pkt_len;
 
 		pkt = pool_zalloc(pool_head_quic_rx_packet);
 		if (!pkt)
 			goto err;
 
 		quic_rx_packet_refinc(pkt);
-		ret = func(&pos, end, pkt, &dgram_ctx, saddr);
-		pkt_len = pkt->len;
+		ret = func(pos, end, pkt, &dgram_ctx, saddr);
+		pos += pkt->len;
 		quic_rx_packet_refdec(pkt);
-		if (ret == -1 && !pkt_len)
+		if (ret == -1)
 			/* If the packet length could not be found, we cannot continue. */
 			break;
-
 	} while (pos < end);
 
 	/* Increasing the received bytes counter by the UDP datagram length
