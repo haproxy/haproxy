@@ -4084,8 +4084,6 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 		}
 		else {
 			pkt->qc = qc;
-			if (HA_ATOMIC_LOAD(&qc->conn))
-				conn_ctx = HA_ATOMIC_LOAD(&qc->conn->xprt_ctx);
 		}
 	}
 	else {
@@ -4108,9 +4106,6 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 			TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT, NULL, pkt, &pktlen);
 			goto err;
 		}
-
-		if (HA_ATOMIC_LOAD(&qc->conn))
-			conn_ctx = HA_ATOMIC_LOAD(&qc->conn->xprt_ctx);
 
 		pkt->qc = qc;
 	}
@@ -4173,7 +4168,8 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 	 * will start it if these contexts for the connection are not already
 	 * initialized.
 	 */
-	if (conn_ctx && HA_ATOMIC_LOAD(&conn_ctx->conn->ctx))
+	conn_ctx = HA_ATOMIC_LOAD(&qc->xprt_ctx);
+	if (conn_ctx && conn_ctx->wait_event.tasklet)
 		tasklet_wakeup(conn_ctx->wait_event.tasklet);
 
 	TRACE_LEAVE(QUIC_EV_CONN_LPKT, qc ? qc : NULL, pkt);
@@ -4997,6 +4993,7 @@ static int qc_ssl_sess_init(struct quic_conn *qc, SSL_CTX *ssl_ctx, SSL **ssl,
 static int qc_conn_init(struct connection *conn, void **xprt_ctx)
 {
 	struct ssl_sock_ctx *ctx;
+	struct quic_conn *qc = NULL;
 
 	TRACE_ENTER(QUIC_EV_CONN_NEW, conn);
 
@@ -5027,7 +5024,6 @@ static int qc_conn_init(struct connection *conn, void **xprt_ctx)
 		/* Server */
 		struct server *srv = __objt_server(conn->target);
 		unsigned char dcid[QUIC_HAP_CID_LEN];
-		struct quic_conn *qc;
 		int ssl_err, ipv4;
 
 		ssl_err = SSL_ERROR_NONE;
@@ -5084,8 +5080,8 @@ static int qc_conn_init(struct connection *conn, void **xprt_ctx)
 	else if (objt_listener(conn->target)) {
 		/* Listener */
 		struct bind_conf *bc = __objt_listener(conn->target)->bind_conf;
-		struct quic_conn *qc = ctx->conn->qc;
 
+		qc = ctx->conn->qc;
 		ctx->qc = qc;
 
 		qc->tid = ctx->wait_event.tasklet->tid = quic_get_cid_tid(&qc->scid);
@@ -5106,6 +5102,7 @@ static int qc_conn_init(struct connection *conn, void **xprt_ctx)
 	conn->flags |= CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN;
 
  out:
+	HA_ATOMIC_STORE(&qc->xprt_ctx, ctx);
 	TRACE_LEAVE(QUIC_EV_CONN_NEW, conn);
 
 	return 0;

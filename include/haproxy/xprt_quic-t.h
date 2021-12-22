@@ -643,6 +643,7 @@ struct quic_conn {
 	struct quic_enc_level els[QUIC_TLS_ENC_LEVEL_MAX];
 	struct quic_pktns pktns[QUIC_TLS_PKTNS_MAX];
 
+	struct ssl_sock_ctx *xprt_ctx;
 	/* Used only to reach the tasklet for the I/O handler from this quic_conn object. */
 	struct connection *conn;
 	/* Output buffer used during the handshakes. */
