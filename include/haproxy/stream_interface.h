@@ -33,6 +33,10 @@ extern struct si_ops si_embedded_ops;
 extern struct si_ops si_conn_ops;
 extern struct si_ops si_applet_ops;
 extern struct data_cb si_conn_cb;
+extern struct data_cb check_conn_cb;
+
+struct stream_interface *si_new(struct conn_stream *cs);
+void si_free(struct stream_interface *si);
 
 /* main event functions used to move data between sockets and buffers */
 int si_check_timeouts(struct stream_interface *si);
@@ -87,7 +91,7 @@ static inline struct task *si_task(struct stream_interface *si)
 /* returns the stream interface on the other side. Used during forwarding. */
 static inline struct stream_interface *si_opposite(struct stream_interface *si)
 {
-	return ((si->flags & SI_FL_ISBACK) ? &(cs_strm(si->cs)->si[0]) : &(cs_strm(si->cs)->si[1]));
+	return ((si->flags & SI_FL_ISBACK) ? cs_strm(si->cs)->csf->si : cs_strm(si->cs)->csb->si);
 }
 
 /* initializes a stream interface in the SI_ST_INI state. It's detached from
@@ -105,6 +109,7 @@ static inline int si_reset(struct stream_interface *si)
 	si->cs             = NULL;
 	si->state          = si->prev_state = SI_ST_INI;
 	si->ops            = &si_embedded_ops;
+	si->l7_buffer      = BUF_NULL;
 	si->wait_event.tasklet = tasklet_new();
 	if (!si->wait_event.tasklet)
 		return -1;
@@ -135,81 +140,6 @@ static inline int si_state_in(enum si_state state, enum si_state_bit mask)
 {
 	BUG_ON(mask & ~SI_SB_ALL);
 	return !!(si_state_bit(state) & mask);
-}
-
-/* Reset the endpoint detaching it from the conn-stream. For a connection
- * attached to a mux, it is unsubscribe from any event.
- */
-static inline void si_reset_endpoint(struct stream_interface *si)
-{
-	if (!si->cs)
-		return;
-
-	if (cs_conn_mux(si->cs) && si->wait_event.events != 0)
-		(cs_conn_mux(si->cs))->unsubscribe(si->cs, si->wait_event.events, &si->wait_event);
-
-	cs_detach_endp(si->cs);
-	si->ops = &si_embedded_ops;
-}
-
-/* Release the endpoint if it's a connection or an applet, then nullify it.
- * Note: released connections are closed then freed.
- */
-static inline void si_release_endpoint(struct stream_interface *si)
-{
-	if (!si->cs)
-		return;
-	si_reset_endpoint(si);
-	cs_free(si->cs);
-	si->cs = NULL;
-	si->ops = &si_embedded_ops;
-
-}
-
-/* Attach conn_stream <cs> to the stream interface <si>. */
-static inline void si_attach_cs(struct stream_interface *si, struct conn_stream *cs)
-{
-	si->cs = cs;
-	if (cs_conn(cs)) {
-		si->ops = &si_conn_ops;
-		cs_attach_app(cs, &si_strm(si)->obj_type, si, &si_conn_cb);
-	}
-	else if (cs_appctx(cs)) {
-		struct appctx *appctx = cs_appctx(cs);
-
-		si->ops = &si_applet_ops;
-		appctx->owner = cs;
-		cs_attach_app(cs, &si_strm(si)->obj_type, si, NULL);
-	}
-	else {
-		si->ops = &si_embedded_ops;
-		cs_attach_app(cs, &si_strm(si)->obj_type, si, NULL);
-	}
-}
-
-/* Attach connection <conn> to the stream interface <si>. The stream interface
- * is configured to work with a connection context.
- */
-static inline void si_attach_conn(struct stream_interface *si, struct connection *conn)
-{
-	si_reset_endpoint(si);
-	if (!conn->ctx)
-		conn->ctx = si->cs;
-	si->ops = &si_conn_ops;
-	cs_attach_endp(si->cs, &conn->obj_type, conn);
-	cs_attach_app(si->cs, &si_strm(si)->obj_type, si, &si_conn_cb);
-}
-
-/* Attach appctx <appctx> to the stream interface <si>. The stream interface
- * is configured to work with an applet context.
- */
-static inline void si_attach_appctx(struct stream_interface *si, struct appctx *appctx)
-{
-	si_reset_endpoint(si);
-	appctx->owner = si->cs;
-	si->ops = &si_applet_ops;
-	cs_attach_endp(si->cs, &appctx->obj_type, appctx);
-	cs_attach_app(si->cs, &si_strm(si)->obj_type, si, NULL);
 }
 
 /* call the applet's release function if any. Needs to be called upon close() */

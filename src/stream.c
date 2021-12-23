@@ -438,30 +438,26 @@ struct stream *stream_new(struct session *sess, struct conn_stream *cs, struct b
 	if (sess->fe->mode == PR_MODE_HTTP)
 		s->flags |= SF_HTX;
 
-	cs->app = &s->obj_type;
 	s->csf = cs;
-	s->csb = cs_new(NULL, NULL, &s->obj_type, &s->si[1], NULL);
+	s->csb = cs_new();
 	if (!s->csb)
-		goto out_fail_alloc_cs;
+		goto out_fail_alloc_csb;
 
-	s->si[0].flags = SI_FL_NONE;
-	if (si_reset(&s->si[0]) < 0)
-		goto out_fail_reset_si0;
-	si_attach_cs(&s->si[0], s->csf);
-	si_set_state(&s->si[0], SI_ST_EST);
-	s->si[0].hcto = sess->fe->timeout.clientfin;
+	if (cs_attach_app(s->csf, &s->obj_type) < 0)
+		goto out_fail_attach_csf;
+	if (cs_attach_app(s->csb, &s->obj_type) < 0)
+		goto out_fail_attach_csb;
 
-	if (likely(sess->fe->options2 & PR_O2_INDEPSTR))
-		s->si[0].flags |= SI_FL_INDEP_STR;
-
-	s->si[1].flags = SI_FL_ISBACK;
-	if (si_reset(&s->si[1]) < 0)
-		goto out_fail_reset_si1;
-	si_attach_cs(&s->si[1], s->csb);
-	s->si[1].hcto = TICK_ETERNITY;
+	si_set_state(cs_si(s->csf), SI_ST_EST);
+	cs_si(s->csf)->hcto = sess->fe->timeout.clientfin;
 
 	if (likely(sess->fe->options2 & PR_O2_INDEPSTR))
-		s->si[1].flags |= SI_FL_INDEP_STR;
+		cs_si(s->csf)->flags |= SI_FL_INDEP_STR;
+
+	cs_si(s->csb)->flags = SI_FL_ISBACK;
+	cs_si(s->csb)->hcto = TICK_ETERNITY;
+	if (likely(sess->fe->options2 & PR_O2_INDEPSTR))
+		cs_si(s->csb)->flags |= SI_FL_INDEP_STR;
 
 	if (cs->flags & CS_FL_WEBSOCKET)
 		s->flags |= SF_WEBSOCKET;
@@ -470,7 +466,7 @@ struct stream *stream_new(struct session *sess, struct conn_stream *cs, struct b
 
 		if (mux) {
 			if (mux->flags & MX_FL_CLEAN_ABRT)
-				s->si[0].flags |= SI_FL_CLEAN_ABRT;
+				cs_si(s->csf)->flags |= SI_FL_CLEAN_ABRT;
 			if (mux->flags & MX_FL_HTX)
 				s->flags |= SF_HTX;
 		}
@@ -539,10 +535,9 @@ struct stream *stream_new(struct session *sess, struct conn_stream *cs, struct b
 	if (flt_stream_init(s) < 0 || flt_stream_start(s) < 0)
 		goto out_fail_accept;
 
-	s->si[1].l7_buffer = BUF_NULL;
 	/* finish initialization of the accepted file descriptor */
 	if (cs_appctx(cs))
-		si_want_get(&s->si[0]);
+		si_want_get(cs_si(s->csf));
 
 	if (sess->fe->accept && sess->fe->accept(s) < 0)
 		goto out_fail_accept;
@@ -571,13 +566,12 @@ struct stream *stream_new(struct session *sess, struct conn_stream *cs, struct b
 	/* Error unrolling */
  out_fail_accept:
 	flt_stream_release(s, 0);
-	tasklet_free(s->si[1].wait_event.tasklet);
 	LIST_DELETE(&s->list);
- out_fail_reset_si1:
-	tasklet_free(s->si[0].wait_event.tasklet);
- out_fail_reset_si0:
-	si_release_endpoint(&s->si[1]);
- out_fail_alloc_cs:
+ out_fail_attach_csb:
+	si_free(cs_si(s->csf));
+ out_fail_attach_csf:
+	cs_free(s->csb);
+ out_fail_alloc_csb:
 	task_destroy(t);
  out_fail_alloc:
 	pool_free(pool_head_stream, s);
@@ -722,23 +716,15 @@ static void stream_free(struct stream *s)
 	/* FIXME: Handle it in appctx_free ??? */
 	must_free_sess = objt_appctx(sess->origin) && sess->origin == s->csf->end;
 
+	/* FIXME: ATTENTION, si CSF est librérer avant, ça plante !!!! */
+	cs_destroy(s->csb);
+	cs_destroy(s->csf);
 
-	si_release_endpoint(cs_si(s->csb));
-	si_release_endpoint(cs_si(s->csf));
-
-	tasklet_free(s->si[0].wait_event.tasklet);
-	tasklet_free(s->si[1].wait_event.tasklet);
-
-	b_free(&s->si[1].l7_buffer);
 	if (must_free_sess) {
 		sess->origin = NULL;
 		session_free(sess);
 	}
 
-	sockaddr_free(&s->si[0].src);
-	sockaddr_free(&s->si[0].dst);
-	sockaddr_free(&s->si[1].src);
-	sockaddr_free(&s->si[1].dst);
 	pool_free(pool_head_stream, s);
 
 	/* We may want to free the maximum amount of pools if the proxy is stopping */
@@ -2187,7 +2173,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 			}
 		}
 		else {
-			si_reset_endpoint(si_b);
+			cs_detach_endp(s->csb);
 			si_b->state = SI_ST_CLO; /* shutw+ini = abort */
 			channel_shutw_now(req);        /* fix buffer flags upon abort */
 			channel_shutr_now(res);
@@ -3157,7 +3143,7 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 
 		chunk_appendf(&trash,
 			     "  flags=0x%x, conn_retries=%d, srv_conn=%p, pend_pos=%p waiting=%d epoch=%#x\n",
-			     strm->flags, strm->si[1].conn_retries, strm->srv_conn, strm->pend_pos,
+			     strm->flags, strm->csb->si->conn_retries, strm->srv_conn, strm->pend_pos,
 			     LIST_INLIST(&strm->buffer_wait.list), strm->stream_epoch);
 
 		chunk_appendf(&trash,
@@ -3253,29 +3239,29 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 
 		chunk_appendf(&trash,
 			     "  si[0]=%p (state=%s flags=0x%02x endp0=%s:%p exp=%s et=0x%03x sub=%d)\n",
-			     &strm->si[0],
-			     si_state_str(strm->si[0].state),
-			     strm->si[0].flags,
+			     strm->csf->si,
+			     si_state_str(strm->csf->si->state),
+			     strm->csf->si->flags,
 			     obj_type_name(strm->csf->end),
 			     obj_base_ptr(strm->csf->end),
-			     strm->si[0].exp ?
-			             tick_is_expired(strm->si[0].exp, now_ms) ? "<PAST>" :
-			                     human_time(TICKS_TO_MS(strm->si[0].exp - now_ms),
+			     strm->csf->si->exp ?
+			             tick_is_expired(strm->csf->si->exp, now_ms) ? "<PAST>" :
+			                     human_time(TICKS_TO_MS(strm->csf->si->exp - now_ms),
 			                     TICKS_TO_MS(1000)) : "<NEVER>",
-			      strm->si[0].err_type, strm->si[0].wait_event.events);
+			      strm->csf->si->err_type, strm->csf->si->wait_event.events);
 
 		chunk_appendf(&trash,
 			     "  si[1]=%p (state=%s flags=0x%02x endp1=%s:%p exp=%s et=0x%03x sub=%d)\n",
-			     &strm->si[1],
-			     si_state_str(strm->si[1].state),
-			     strm->si[1].flags,
+			     strm->csb->si,
+			     si_state_str(strm->csb->si->state),
+			     strm->csb->si->flags,
 			     obj_type_name(strm->csb->end),
 			     obj_base_ptr(strm->csb->end),
-			     strm->si[1].exp ?
-			             tick_is_expired(strm->si[1].exp, now_ms) ? "<PAST>" :
-			                     human_time(TICKS_TO_MS(strm->si[1].exp - now_ms),
+			     strm->csb->si->exp ?
+			             tick_is_expired(strm->csb->si->exp, now_ms) ? "<PAST>" :
+			                     human_time(TICKS_TO_MS(strm->csb->si->exp - now_ms),
 			                     TICKS_TO_MS(1000)) : "<NEVER>",
-			     strm->si[1].err_type, strm->si[1].wait_event.events);
+			     strm->csb->si->err_type, strm->csb->si->wait_event.events);
 
 		cs = strm->csf;
 		chunk_appendf(&trash, "  cs=%p csf=0x%08x ctx=%p\n", cs, cs->flags, cs->ctx);
@@ -3650,21 +3636,21 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 			conn = cs_conn(curr_strm->csf);
 			chunk_appendf(&trash,
 				     " s0=[%d,%1xh,fd=%d,ex=%s]",
-				     curr_strm->si[0].state,
-				     curr_strm->si[0].flags,
+				     curr_strm->csf->si->state,
+				     curr_strm->csf->si->flags,
 				     conn ? conn->handle.fd : -1,
-				     curr_strm->si[0].exp ?
-				     human_time(TICKS_TO_MS(curr_strm->si[0].exp - now_ms),
+				     curr_strm->csf->si->exp ?
+				     human_time(TICKS_TO_MS(curr_strm->csf->si->exp - now_ms),
 						TICKS_TO_MS(1000)) : "");
 
 			conn = cs_conn(curr_strm->csb);
 			chunk_appendf(&trash,
 				     " s1=[%d,%1xh,fd=%d,ex=%s]",
-				     curr_strm->si[1].state,
-				     curr_strm->si[1].flags,
+				     curr_strm->csb->si->state,
+				     curr_strm->csb->si->flags,
 				     conn ? conn->handle.fd : -1,
-				     curr_strm->si[1].exp ?
-				     human_time(TICKS_TO_MS(curr_strm->si[1].exp - now_ms),
+				     curr_strm->csb->si->exp ?
+				     human_time(TICKS_TO_MS(curr_strm->csb->si->exp - now_ms),
 						TICKS_TO_MS(1000)) : "");
 
 			chunk_appendf(&trash,

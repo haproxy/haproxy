@@ -291,11 +291,12 @@ static int mux_pt_init(struct connection *conn, struct proxy *prx, struct sessio
 	ctx->conn = conn;
 
 	if (!cs) {
-		cs = cs_new(&conn->obj_type, NULL, NULL, NULL, NULL);
+		cs = cs_new();
 		if (!cs) {
 			TRACE_ERROR("CS allocation failure", PT_EV_STRM_NEW|PT_EV_STRM_END|PT_EV_STRM_ERR, conn);
 			goto fail_free_ctx;
 		}
+		cs_attach_endp(cs, &conn->obj_type, NULL);
 
 		if (!stream_new(conn->owner, cs, &BUF_NULL)) {
 			TRACE_ERROR("stream creation failure", PT_EV_STRM_NEW|PT_EV_STRM_END|PT_EV_STRM_ERR, conn, cs);

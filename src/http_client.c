@@ -486,11 +486,12 @@ struct appctx *httpclient_start(struct httpclient *hc)
 		ha_alert("httpclient: out of memory in %s:%d.\n", __FUNCTION__, __LINE__);
 		goto out_free_appctx;
 	}
-	cs = cs_new(&appctx->obj_type, appctx, NULL, NULL, NULL);
+	cs = cs_new();
 	if (!cs) {
 		ha_alert("httpclient: out of memory in %s:%d.\n", __FUNCTION__, __LINE__);
 		goto out_free_sess;
 	}
+	cs_attach_endp(cs, &appctx->obj_type, appctx);
 	if ((s = stream_new(sess, cs, &hc->req.buf)) == NULL) {
 		ha_alert("httpclient: Failed to initialize stream %s:%d.\n", __FUNCTION__, __LINE__);
 		goto out_free_cs;

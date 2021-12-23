@@ -29,13 +29,16 @@
 #include <haproxy/obj_type.h>
 
 struct stream;
+struct stream_interface;
 struct check;
 
 #define IS_HTX_CS(cs)     (cs_conn(cs) && IS_HTX_CONN(cs_conn(cs)))
 
-struct conn_stream *cs_new(enum obj_type *endp, void *ctx, enum obj_type *app, void *data, const struct data_cb *data_cb);
+struct conn_stream *cs_new();
 void cs_free(struct conn_stream *cs);
-
+void cs_attach_endp(struct conn_stream *cs, enum obj_type *endp, void *ctx);
+int cs_attach_app(struct conn_stream *cs, enum obj_type *app);
+void cs_detach_endp(struct conn_stream *cs);
 
 /*
  * Initializes all required fields for a new conn_strema.
@@ -47,7 +50,7 @@ static inline void cs_init(struct conn_stream *cs)
 	cs->end = NULL;
 	cs->app = NULL;
 	cs->ctx = NULL;
-	cs->data = NULL;
+	cs->si = NULL;
 	cs->data_cb = NULL;
 }
 
@@ -77,11 +80,6 @@ static inline struct appctx *cs_appctx(const struct conn_stream *cs)
 	return (cs ? objt_appctx(cs->end) : NULL);
 }
 
-static inline struct stream_interface *cs_si(const struct conn_stream *cs)
-{
-	return (cs ? cs->data : NULL);
-}
-
 static inline struct stream *cs_strm(const struct conn_stream *cs)
 {
 	return (cs ? objt_stream(cs->app) : NULL);
@@ -92,57 +90,9 @@ static inline struct check *cs_check(const struct conn_stream *cs)
 	return (cs ? objt_check(cs->app) : NULL);
 }
 
-/* Attaches a conn_stream to an endpoint and sets the endpoint ctx */
-static inline void cs_attach_endp(struct conn_stream *cs, enum obj_type *endp, void *ctx)
+static inline struct stream_interface *cs_si(const struct conn_stream *cs)
 {
-	cs->end = endp;
-	cs->ctx = ctx;
-}
-
-/* Attaches a conn_stream to a app layer and sets the relevant callbacks */
-static inline void cs_attach_app(struct conn_stream *cs, enum obj_type *app, void *data, const struct data_cb *data_cb)
-{
-	cs->app = app;
-	cs->data = data;
-	cs->data_cb = data_cb;
-}
-
-/* Detach the conn_stream from the endpoint, if any. For a connecrion, if a mux
- * owns the connection ->detach() callback is called. Otherwise, it means the
- * conn-stream owns the connection. In this case the connection is closed and
- * released. For an applet, the appctx is released. At the end, the conn-stream
- * is not released but some fields a reset.
- */
-static inline void cs_detach_endp(struct conn_stream *cs)
-{
-	struct connection *conn;
-	struct appctx *appctx;
-
-	if ((conn = cs_conn(cs))) {
-		if (conn->mux)
-			conn->mux->detach(cs);
-		else {
-			/* It's too early to have a mux, let's just destroy
-			 * the connection
-			 */
-			conn_stop_tracking(conn);
-			conn_full_close(conn);
-			if (conn->destroy_cb)
-				conn->destroy_cb(conn);
-			conn_free(conn);
-		}
-	}
-	else if ((appctx = cs_appctx(cs))) {
-		if (appctx->applet->release)
-			appctx->applet->release(appctx);
-		appctx_free(appctx);
-	}
-
-	/* Rest CS */
-	cs->flags = CS_FL_NONE;
-	cs->end = NULL;
-	cs->ctx = NULL;
-	cs->data_cb = NULL;
+	return (cs_strm(cs) ? cs->si : NULL);
 }
 
 /* Release a conn_stream */

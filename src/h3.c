@@ -176,9 +176,10 @@ static int h3_headers_to_htx(struct qcs *qcs, struct buffer *buf, uint64_t len,
 	if (fin)
 		htx->flags |= HTX_FL_EOM;
 
-	cs = cs_new(qcs->qcc->conn->obj_type);
+	cs = cs_new();
 	if (!cs)
 		return 1;
+	cs_attach_endp(&qcs->qcc->conn->obj_type, qcs);
 
 	cs->flags |= CS_FL_NOT_FIRST;
 	cs->ctx = qcs;

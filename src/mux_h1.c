@@ -682,11 +682,12 @@ static struct conn_stream *h1s_new_cs(struct h1s *h1s, struct buffer *input)
 	struct conn_stream *cs;
 
 	TRACE_ENTER(H1_EV_STRM_NEW, h1c->conn, h1s);
-	cs = cs_new(&h1c->conn->obj_type, h1s, NULL, NULL, NULL);
+	cs = cs_new();
 	if (!cs) {
 		TRACE_ERROR("CS allocation failure", H1_EV_STRM_NEW|H1_EV_STRM_END|H1_EV_STRM_ERR, h1c->conn, h1s);
 		goto err;
 	}
+	cs_attach_endp(cs, &h1c->conn->obj_type, h1s);
 	h1s->cs = cs;
 
 	if (h1s->flags & H1S_F_NOT_FIRST)

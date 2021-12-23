@@ -167,7 +167,6 @@ struct stream {
 	struct conn_stream *csf;                /* frontend conn-stream */
 	struct conn_stream *csb;                /* backend conn-stream */
 
-	struct stream_interface si[2];          /* client and server stream interfaces */
 	struct strm_logs logs;                  /* logs for this stream */
 
 	void (*do_log)(struct stream *s);       /* the function to call in order to log (or NULL) */

@@ -1529,11 +1529,11 @@ static struct h2s *h2c_frt_stream_new(struct h2c *h2c, int id, struct buffer *in
 	if (!h2s)
 		goto out;
 
-	cs = cs_new(&h2c->conn->obj_type, h2s, NULL, NULL, NULL);
+	cs = cs_new();
 	if (!cs)
 		goto out_close;
-
 	cs->flags |= CS_FL_NOT_FIRST;
+	cs_attach_endp(cs, &h2c->conn->obj_type, h2s);
 	h2s->cs = cs;
 	h2c->nb_cs++;
 

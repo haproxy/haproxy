@@ -65,7 +65,7 @@ smp_fetch_src(const struct arg *args, struct sample *smp, const char *kw, void *
 			src = conn_src(conn);
 	}
         else /* src */
-		src = (smp->strm ? si_src(&smp->strm->si[0]) : sess_src(smp->sess));
+		src = (smp->strm ? si_src(smp->strm->csf->si) : sess_src(smp->sess));
 
 	if (!src)
 		return 0;
@@ -109,7 +109,7 @@ smp_fetch_sport(const struct arg *args, struct sample *smp, const char *kw, void
 			src = conn_src(conn);
 	}
         else /* src_port */
-		src = (smp->strm ? si_src(&smp->strm->si[0]) : sess_src(smp->sess));
+		src = (smp->strm ? si_src(smp->strm->csf->si) : sess_src(smp->sess));
 
 	if (!src)
 		return 0;
@@ -144,7 +144,7 @@ smp_fetch_dst(const struct arg *args, struct sample *smp, const char *kw, void *
 			dst = conn_dst(conn);
 	}
         else /* dst */
-		dst = (smp->strm ? si_dst(&smp->strm->si[0]) : sess_dst(smp->sess));
+		dst = (smp->strm ? si_dst(smp->strm->csf->si) : sess_dst(smp->sess));
 
 	if (!dst)
 		return 0;
@@ -181,7 +181,7 @@ int smp_fetch_dst_is_local(const struct arg *args, struct sample *smp, const cha
 			dst = conn_dst(conn);
 	}
 	else /* dst_is_local */
-		dst = (smp->strm ? si_dst(&smp->strm->si[0]) : sess_dst(smp->sess));
+		dst = (smp->strm ? si_dst(smp->strm->csf->si) : sess_dst(smp->sess));
 
 	if (!dst)
 		return 0;
@@ -207,7 +207,7 @@ int smp_fetch_src_is_local(const struct arg *args, struct sample *smp, const cha
 			src = conn_src(conn);
 	}
 	else /* src_is_local */
-		src = (smp->strm ? si_src(&smp->strm->si[0]) : sess_src(smp->sess));
+		src = (smp->strm ? si_src(smp->strm->csf->si) : sess_src(smp->sess));
 
 	if (!src)
 		return 0;
@@ -240,7 +240,7 @@ smp_fetch_dport(const struct arg *args, struct sample *smp, const char *kw, void
 			dst = conn_dst(conn);
 	}
         else /* dst_port */
-		dst = (smp->strm ? si_dst(&smp->strm->si[0]) : sess_dst(smp->sess));
+		dst = (smp->strm ? si_dst(smp->strm->csf->si) : sess_dst(smp->sess));
 
 	if (!dst)
 		return 0;

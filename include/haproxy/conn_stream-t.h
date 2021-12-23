@@ -25,6 +25,8 @@
 
 #include <haproxy/obj_type-t.h>
 
+struct stream_interface;
+
 /* conn_stream flags */
 enum {
 	CS_FL_NONE          = 0x00000000,  /* Just for initialization purposes */
@@ -92,7 +94,7 @@ struct conn_stream {
 	unsigned int flags;                  /* CS_FL_* */
 	enum obj_type *end;                  /* points to the end point (connection or appctx) */
 	enum obj_type *app;                  /* points to the applicative point (stream or check) */
-	void *data;                          /* pointer to upper layer's entity (eg: stream interface) */
+	struct stream_interface *si;
 	const struct data_cb *data_cb;       /* data layer callbacks. Must be set before xprt->init() */
 	void *ctx;                           /* mux-specific context */
 };

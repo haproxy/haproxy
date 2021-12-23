@@ -1495,9 +1495,9 @@ int connect_server(struct stream *s)
 			}
 
 			if (avail >= 1) {
-				si_attach_conn(cs_si(s->csb), srv_conn);
+				cs_attach_endp(s->csb, &srv_conn->obj_type, srv_conn);
 				if (srv_conn->mux->attach(srv_conn, s->csb, s->sess) == -1) {
-					si_reset_endpoint(cs_si(s->csb));
+					cs_detach_endp(s->csb);
 					srv_conn = NULL;
 				}
 			}
@@ -1571,7 +1571,7 @@ skip_reuse:
 			return SF_ERR_INTERNAL;  /* how did we get there ? */
 		}
 
-		si_attach_conn(cs_si(s->csb), srv_conn);
+		cs_attach_endp(s->csb, &srv_conn->obj_type, srv_conn);
 #if defined(USE_OPENSSL) && defined(TLSEXT_TYPE_application_layer_protocol_negotiation)
 		if (!srv ||
 		    (srv->use_ssl != 1 || (!(srv->ssl_ctx.alpn_str) && !(srv->ssl_ctx.npn_str)) ||
@@ -2289,7 +2289,7 @@ void back_handle_st_cer(struct stream *s)
 	 * Note: the stream-interface will be switched to ST_REQ, ST_ASS or
 	 * ST_TAR and SI_FL_ERR and SI_FL_EXP flags will be unset.
 	 */
-	si_reset_endpoint(cs_si(s->csb));
+	cs_detach_endp(s->csb);
 
 	stream_choose_redispatch(s);
 

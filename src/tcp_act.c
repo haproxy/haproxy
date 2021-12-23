@@ -288,7 +288,7 @@ static enum act_return tcp_exec_action_silent_drop(struct act_rule *rule, struct
 	 * is present, returning with ERR will cause lingering to be disabled.
 	 */
 	if (strm)
-		strm->si[0].flags |= SI_FL_NOLINGER;
+		strm->csf->si->flags |= SI_FL_NOLINGER;
 
 	/* We're on the client-facing side, we must force to disable lingering to
 	 * ensure we will use an RST exclusively and kill any pending data.

@@ -2961,11 +2961,12 @@ __LJMP static int hlua_socket_new(lua_State *L)
 		goto out_fail_appctx;
 	}
 
-	cs = cs_new(&appctx->obj_type, appctx, NULL, NULL, NULL);
+	cs = cs_new();
 	if (!cs) {
 		hlua_pusherror(L, "socket: out of memory");
 		goto out_fail_sess;
 	}
+	cs_attach_endp(cs, &appctx->obj_type, appctx);
 
 	strm = stream_new(sess, cs, &BUF_NULL);
 	if (!strm) {
@@ -2980,7 +2981,7 @@ __LJMP static int hlua_socket_new(lua_State *L)
 	 * and retrieve data from the server. The connection is initialized
 	 * with the "struct server".
 	 */
-	si_set_state(&strm->si[1], SI_ST_ASS);
+	si_set_state(strm->csb->si, SI_ST_ASS);
 
 	/* Force destination server. */
 	strm->flags |= SF_DIRECT | SF_ASSIGNED | SF_BE_ASSIGNED;

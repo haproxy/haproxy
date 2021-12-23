@@ -2024,9 +2024,10 @@ spoe_create_appctx(struct spoe_config *conf)
 	if (!sess)
 		goto out_free_spoe;
 
-	cs = cs_new(&appctx->obj_type, appctx, NULL, NULL, NULL);
+	cs = cs_new();
 	if (!cs)
 		goto out_free_sess;
+	cs_attach_endp(cs, &appctx->obj_type, appctx);
 
 	if ((strm = stream_new(sess, cs, &BUF_NULL)) == NULL)
 		goto out_free_cs;
@@ -2034,7 +2035,7 @@ spoe_create_appctx(struct spoe_config *conf)
 	stream_set_backend(strm, conf->agent->b.be);
 
 	/* applet is waiting for data */
-	si_cant_get(&strm->si[0]);
+	si_cant_get(strm->csf->si);
 	appctx_wakeup(appctx);
 
 	strm->do_log = NULL;

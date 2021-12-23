@@ -28,12 +28,16 @@
 #include <haproxy/http_htx.h>
 #include <haproxy/pipe-t.h>
 #include <haproxy/pipe.h>
+#include <haproxy/pool.h>
 #include <haproxy/proxy.h>
 #include <haproxy/stream-t.h>
 #include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
 #include <haproxy/ticks.h>
 #include <haproxy/tools.h>
+
+
+DECLARE_POOL(pool_head_streaminterface, "stream_interface", sizeof(struct stream_interface));
 
 
 /* functions used by default on a detached stream-interface */
@@ -97,6 +101,35 @@ struct data_cb si_conn_cb = {
 	.wake    = si_cs_process,
 	.name    = "STRM",
 };
+
+
+struct stream_interface *si_new(struct conn_stream *cs)
+{
+	struct stream_interface *si;
+
+	si = pool_alloc(pool_head_streaminterface);
+	if (unlikely(!si))
+		return NULL;
+	si->flags = SI_FL_NONE;
+	if (si_reset(si) < 0) {
+		pool_free(pool_head_streaminterface, si);
+		return NULL;
+	}
+	si->cs = cs;
+	return si;
+}
+
+void si_free(struct stream_interface *si)
+{
+	if (!si)
+		return;
+
+	b_free(&si->l7_buffer);
+	tasklet_free(si->wait_event.tasklet);
+	sockaddr_free(&si->src);
+	sockaddr_free(&si->dst);
+	pool_free(pool_head_streaminterface, si);
+}
 
 /*
  * This function only has to be called once after a wakeup event in case of
@@ -309,7 +342,7 @@ struct appctx *si_register_handler(struct stream_interface *si, struct applet *a
 	appctx = appctx_new(app);
 	if (!appctx)
 		return NULL;
-	si_attach_appctx(si, appctx);
+	cs_attach_endp(si->cs, &appctx->obj_type, appctx);
 	appctx->t->nice = si_strm(si)->task->nice;
 	si_cant_get(si);
 	appctx_wakeup(appctx);

@@ -903,11 +903,12 @@ static struct appctx *dns_session_create(struct dns_session *ds)
 		goto out_free_appctx;
 	}
 
-	cs = cs_new(&appctx->obj_type, appctx, NULL, NULL, NULL);
+	cs = cs_new();
 	if (!cs) {
 		ha_alert("out of memory in dns_session_create().\n");
 		goto out_free_sess;
 	}
+	cs_attach_endp(cs, &appctx->obj_type, appctx);
 
 	if ((s = stream_new(sess, cs, &BUF_NULL)) == NULL) {
 		ha_alert("Failed to initialize stream in dns_session_create().\n");
