@@ -62,7 +62,7 @@ int frontend_accept(struct stream *s)
 					s->do_log(s);
 		}
 		else if (conn) {
-			src = si_src(&s->si[0]);
+			src = si_src(cs_si(s->csf));
 			if (!src)
 				send_log(fe, LOG_INFO, "Connect from unknown source to listener %d (%s/%s)\n",
 					 l->luid, fe->id, (fe->mode == PR_MODE_HTTP) ? "HTTP" : "TCP");
@@ -73,7 +73,7 @@ int frontend_accept(struct stream *s)
 				switch (addr_to_str(src, pn, sizeof(pn))) {
 				case AF_INET:
 				case AF_INET6:
-					dst = si_dst(&s->si[0]);
+					dst = si_dst(cs_si(s->csf));
 					if (dst) {
 						addr_to_str(dst, sn, sizeof(sn));
 						port = get_host_port(dst);
@@ -113,7 +113,7 @@ int frontend_accept(struct stream *s)
 			}
 		}
 
-		src = si_src(&s->si[0]);
+		src = si_src(cs_si(s->csf));
 		if (!src) {
 			chunk_printf(&trash, "%08x:%s.accept(%04x)=%04x from [listener:%d] ALPN=%s\n",
 			             s->uniq_id, fe->id, (unsigned short)l->rx.fd, (unsigned short)conn->handle.fd,
