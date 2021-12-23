@@ -27,12 +27,9 @@
 #include <haproxy/connection.h>
 #include <haproxy/conn_stream-t.h>
 #include <haproxy/obj_type.h>
-#include <haproxy/pool-t.h>
 
 struct stream;
 struct check;
-
-extern struct pool_head *pool_head_connstream;
 
 #define IS_HTX_CS(cs)     (cs_conn(cs) && IS_HTX_CONN(cs_conn(cs)))
 
