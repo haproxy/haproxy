@@ -2118,7 +2118,7 @@ static int cli_parse_simple(char **args, char *payload, struct appctx *appctx, v
 void pcli_write_prompt(struct stream *s)
 {
 	struct buffer *msg = get_trash_chunk();
-	struct channel *oc = si_oc(&s->si[0]);
+	struct channel *oc = si_oc(cs_si(s->csf));
 
 	if (!(s->pcli_flags & PCLI_F_PROMPT))
 		return;
@@ -2162,7 +2162,7 @@ void pcli_reply_and_close(struct stream *s, const char *msg)
 	struct buffer *buf = get_trash_chunk();
 
 	chunk_initstr(buf, msg);
-	si_retnclose(&s->si[0], buf);
+	si_retnclose(cs_si(s->csf), buf);
 }
 
 static enum obj_type *pcli_pid_to_server(int proc_pid)
@@ -2645,9 +2645,9 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 
 		pcli_write_prompt(s);
 
-		s->si[1].flags |= SI_FL_NOLINGER | SI_FL_NOHALF;
-		si_shutr(&s->si[1]);
-		si_shutw(&s->si[1]);
+		cs_si(s->csb)->flags |= SI_FL_NOLINGER | SI_FL_NOHALF;
+		si_shutr(cs_si(s->csb));
+		si_shutw(cs_si(s->csb));
 
 		/*
 		 * starting from there this the same code as
@@ -2714,18 +2714,18 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		/* only release our endpoint if we don't intend to reuse the
 		 * connection.
 		 */
-		if (!si_conn_ready(&s->si[1])) {
-			si_reset_endpoint(&s->si[1]);
+		if (!si_conn_ready(cs_si(s->csb))) {
+			si_reset_endpoint(cs_si(s->csb));
 			s->srv_conn = NULL;
 		}
 
-		sockaddr_free(&s->si[1].dst);
+		sockaddr_free(&(cs_si(s->csb)->dst));
 
-		s->si[1].state     = s->si[1].prev_state = SI_ST_INI;
-		s->si[1].err_type  = SI_ET_NONE;
-		s->si[1].conn_retries = 0;  /* used for logging too */
-		s->si[1].exp       = TICK_ETERNITY;
-		s->si[1].flags    &= SI_FL_ISBACK | SI_FL_DONT_WAKE; /* we're in the context of process_stream */
+		cs_si(s->csb)->state = cs_si(s->csb)->prev_state = SI_ST_INI;
+		cs_si(s->csb)->err_type = SI_ET_NONE;
+		cs_si(s->csb)->conn_retries = 0;  /* used for logging too */
+		cs_si(s->csb)->exp = TICK_ETERNITY;
+		cs_si(s->csb)->flags &= SI_FL_ISBACK | SI_FL_DONT_WAKE; /* we're in the context of process_stream */
 		s->req.flags &= ~(CF_SHUTW|CF_SHUTW_NOW|CF_AUTO_CONNECT|CF_WRITE_ERROR|CF_STREAMER|CF_STREAMER_FAST|CF_NEVER_WAIT|CF_WROTE_DATA);
 		s->res.flags &= ~(CF_SHUTR|CF_SHUTR_NOW|CF_READ_ATTACHED|CF_READ_ERROR|CF_READ_NOEXP|CF_STREAMER|CF_STREAMER_FAST|CF_WRITE_PARTIAL|CF_NEVER_WAIT|CF_WROTE_DATA|CF_READ_NULL);
 		s->flags &= ~(SF_DIRECT|SF_ASSIGNED|SF_ADDR_SET|SF_BE_ASSIGNED|SF_FORCE_PRST|SF_IGNORE_PRST);
@@ -2777,7 +2777,7 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		s->res.rex = TICK_ETERNITY;
 		s->res.wex = TICK_ETERNITY;
 		s->res.analyse_exp = TICK_ETERNITY;
-		s->si[1].hcto = TICK_ETERNITY;
+		cs_si(s->csb)->hcto = TICK_ETERNITY;
 
 		/* we're removing the analysers, we MUST re-enable events detection.
 		 * We don't enable close on the response channel since it's either
