@@ -170,38 +170,6 @@ static struct quic_tx_packet *qc_build_pkt(unsigned char **pos, const unsigned c
                                            struct quic_conn *qc, size_t dglen, int pkt_type,
                                            int padding, int ack, int nb_pto_dgrams, int cc, int *err);
 
-/* Add traces to <buf> depending on <frm> TX frame type. */
-static inline void chunk_tx_frm_appendf(struct buffer *buf,
-                                        const struct quic_frame *frm)
-{
-	chunk_appendf(buf, " %s", quic_frame_type_string(frm->type));
-	switch (frm->type) {
-	case QUIC_FT_CRYPTO:
-	{
-		const struct quic_crypto *cf = &frm->crypto;
-		chunk_appendf(buf, " cfoff=%llu cflen=%llu",
-		              (ull)cf->offset, (ull)cf->len);
-		break;
-	}
-	case QUIC_FT_STOP_SENDING:
-	{
-		const struct quic_stop_sending *s = &frm->stop_sending;
-		chunk_appendf(&trace_buf, " id=%llu app_error_code=%llu",
-		              (ull)s->id, (ull)s->app_error_code);
-		break;
-	}
-	case QUIC_FT_STREAM_8 ... QUIC_FT_STREAM_F:
-	{
-		const struct quic_stream *s = &frm->stream;
-		chunk_appendf(&trace_buf, " uni=%d fin=%d id=%llu off=%llu len=%llu",
-		              !!(s->id & QUIC_STREAM_FRAME_ID_DIR_BIT),
-		              !!(frm->type & QUIC_STREAM_FRAME_TYPE_FIN_BIT),
-		              (ull)s->id, (ull)s->offset.key, (ull)s->len);
-		break;
-	}
-	}
-}
-
 /* Only for debug purpose */
 struct enc_debug_info {
 	unsigned char *payload;
@@ -334,7 +302,7 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 				if (pkt->pn_node.key != (uint64_t)-1)
 					chunk_appendf(&trace_buf, " pn=%llu",(ull)pkt->pn_node.key);
 				list_for_each_entry(frm, &pkt->frms, list)
-					chunk_tx_frm_appendf(&trace_buf, frm);
+					chunk_frm_appendf(&trace_buf, frm);
 				chunk_appendf(&trace_buf, " tx.bytes=%llu", (unsigned long long)qc->tx.bytes);
 			}
 
@@ -463,7 +431,7 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 			const unsigned long *val2 = a4;
 
 			if (frm)
-				chunk_tx_frm_appendf(&trace_buf, frm);
+				chunk_frm_appendf(&trace_buf, frm);
 			if (val1)
 				chunk_appendf(&trace_buf, " %lu", *val1);
 			if (val2)
@@ -592,7 +560,7 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 			const struct quic_frame *frm = a2;
 
 			if (frm)
-				chunk_tx_frm_appendf(&trace_buf, frm);
+				chunk_frm_appendf(&trace_buf, frm);
 		}
 	}
 	if (mask & QUIC_EV_CONN_LPKT) {
@@ -2222,6 +2190,7 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct ssl_sock_ctx *ct
 		if (!qc_parse_frm(&frm, pkt, &pos, end, qc))
 			goto err;
 
+		TRACE_PROTO("RX frame", QUIC_EV_CONN_PSTRM, qc, &frm);
 		switch (frm.type) {
 		case QUIC_FT_PADDING:
 			break;
@@ -2245,7 +2214,6 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct ssl_sock_ctx *ct
 			break;
 		}
 		case QUIC_FT_STOP_SENDING:
-			TRACE_PROTO("RX frame", QUIC_EV_CONN_PSTRM, qc, &frm);
 			break;
 		case QUIC_FT_CRYPTO:
 		{
@@ -2312,7 +2280,6 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct ssl_sock_ctx *ct
 		{
 			struct quic_stream *stream = &frm.stream;
 
-			TRACE_PROTO("RX frame", QUIC_EV_CONN_PSTRM, ctx->conn, &frm);
 			if (objt_listener(ctx->conn->target)) {
 				if (stream->id & QUIC_STREAM_FRAME_ID_INITIATOR_BIT)
 					goto err;

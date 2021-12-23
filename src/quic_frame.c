@@ -86,6 +86,117 @@ const char *quic_frame_type_string(enum quic_frame_type ft)
 	}
 }
 
+/* Add traces to <buf> depending on <frm> frame type. */
+void chunk_frm_appendf(struct buffer *buf, const struct quic_frame *frm)
+{
+	chunk_appendf(buf, " %s", quic_frame_type_string(frm->type));
+	switch (frm->type) {
+	case QUIC_FT_CRYPTO:
+	{
+		const struct quic_crypto *cf = &frm->crypto;
+		chunk_appendf(buf, " cfoff=%llu cflen=%llu",
+		              (ull)cf->offset, (ull)cf->len);
+		break;
+	}
+	case QUIC_FT_RESET_STREAM:
+	{
+		const struct quic_reset_stream *rs = &frm->reset_stream;
+		chunk_appendf(buf, " id=%llu app_error_code=%llu final_size=%llu",
+		              (ull)rs->id, (ull)rs->app_error_code, (ull)rs->final_size);
+		break;
+	}
+	case QUIC_FT_STOP_SENDING:
+	{
+		const struct quic_stop_sending *s = &frm->stop_sending;
+		chunk_appendf(&trace_buf, " id=%llu app_error_code=%llu",
+		              (ull)s->id, (ull)s->app_error_code);
+		break;
+	}
+	case QUIC_FT_STREAM_8 ... QUIC_FT_STREAM_F:
+	{
+		const struct quic_stream *s = &frm->stream;
+		chunk_appendf(&trace_buf, " uni=%d fin=%d id=%llu off=%llu len=%llu",
+		              !!(s->id & QUIC_STREAM_FRAME_ID_DIR_BIT),
+		              !!(frm->type & QUIC_STREAM_FRAME_TYPE_FIN_BIT),
+		              (ull)s->id, (ull)s->offset.key, (ull)s->len);
+		break;
+	}
+	case QUIC_FT_MAX_DATA:
+	{
+		const struct quic_max_data *s = &frm->max_data;
+		chunk_appendf(&trace_buf, " max_data=%llu", (ull)s->max_data);
+		break;
+	}
+	case QUIC_FT_MAX_STREAM_DATA:
+	{
+		const struct quic_max_stream_data *s = &frm->max_stream_data;
+		chunk_appendf(&trace_buf, " id=%llu max_stream_data=%llu",
+		              (ull)s->id, (ull)s->max_stream_data);
+		break;
+	}
+	case QUIC_FT_MAX_STREAMS_BIDI:
+	{
+		const struct quic_max_streams *s = &frm->max_streams_bidi;
+		chunk_appendf(&trace_buf, " max_streams=%llu", (ull)s->max_streams);
+		break;
+	}
+	case QUIC_FT_MAX_STREAMS_UNI:
+	{
+		const struct quic_max_streams *s = &frm->max_streams_uni;
+		chunk_appendf(&trace_buf, " max_streams=%llu", (ull)s->max_streams);
+		break;
+	}
+	case QUIC_FT_DATA_BLOCKED:
+	{
+		const struct quic_data_blocked *s = &frm->data_blocked;
+		chunk_appendf(&trace_buf, " limit=%llu", (ull)s->limit);
+		break;
+	}
+	case QUIC_FT_STREAM_DATA_BLOCKED:
+	{
+		const struct quic_stream_data_blocked *s = &frm->stream_data_blocked;
+		chunk_appendf(&trace_buf, " id=%llu limit=%llu",
+		              (ull)s->id, (ull)s->limit);
+		break;
+	}
+	case QUIC_FT_STREAMS_BLOCKED_BIDI:
+	{
+		const struct quic_streams_blocked *s = &frm->streams_blocked_bidi;
+		chunk_appendf(&trace_buf, " limit=%llu", (ull)s->limit);
+		break;
+	}
+	case QUIC_FT_STREAMS_BLOCKED_UNI:
+	{
+		const struct quic_streams_blocked *s = &frm->streams_blocked_uni;
+		chunk_appendf(&trace_buf, " limit=%llu", (ull)s->limit);
+		break;
+	}
+	case QUIC_FT_RETIRE_CONNECTION_ID:
+	{
+		const struct quic_retire_connection_id *rci = &frm->retire_connection_id;
+		chunk_appendf(&trace_buf, " seq_num=%llu", (ull)rci->seq_num);
+		break;
+	}
+	case QUIC_FT_CONNECTION_CLOSE:
+	{
+		const struct quic_connection_close *cc = &frm->connection_close;
+		chunk_appendf(&trace_buf,
+		              " error_code=%llu frame_type=%llu reason_phrase_len=%llu",
+		              (ull)cc->error_code, (ull)cc->frame_type,
+		              (ull)cc->reason_phrase_len);
+		break;
+	}
+	case QUIC_FT_CONNECTION_CLOSE_APP:
+	{
+		const struct quic_connection_close_app *cc = &frm->connection_close_app;
+		chunk_appendf(&trace_buf,
+		              " error_code=%llu reason_phrase_len=%llu",
+		              (ull)cc->error_code, (ull)cc->reason_phrase_len);
+		break;
+	}
+	}
+}
+
 /* Encode <frm> PADDING frame into <buf> buffer.
  * Returns 1 if succeeded (enough room in <buf> to encode the frame), 0 if not.
  */
