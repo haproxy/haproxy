@@ -3216,15 +3216,15 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 	}
 
 	/* applet is waiting for data */
-	si_cant_get(&s->si[0]);
+	si_cant_get(cs_si(s->csf));
 	appctx_wakeup(appctx);
 
 	/* initiate an outgoing connection */
 	s->target = peer_session_target(peer, s);
-	if (!sockaddr_alloc(&s->si[1].dst, &peer->addr, sizeof(peer->addr)))
+	if (!sockaddr_alloc(&(cs_si(s->csb)->dst), &peer->addr, sizeof(peer->addr)))
 		goto out_free_strm;
 	s->flags = SF_ASSIGNED|SF_ADDR_SET;
-	s->si[1].flags |= SI_FL_NOLINGER;
+	cs_si(s->csb)->flags |= SI_FL_NOLINGER;
 
 	s->do_log = NULL;
 	s->uniq_id = 0;
