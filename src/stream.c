@@ -393,8 +393,6 @@ struct stream *stream_new(struct session *sess, struct conn_stream *cs, struct b
 	memcpy(s->stkctr, sess->stkctr, sizeof(s->stkctr));
 
 	s->sess = sess;
-	s->si[0].flags = SI_FL_NONE;
-	s->si[1].flags = SI_FL_ISBACK;
 
 	s->stream_epoch = _HA_ATOMIC_LOAD(&stream_epoch);
 	s->uniq_id = _HA_ATOMIC_FETCH_ADD(&global.req_count, 1);
@@ -436,19 +434,35 @@ struct stream *stream_new(struct session *sess, struct conn_stream *cs, struct b
 	vars_init_head(&s->vars_txn,    SCOPE_TXN);
 	vars_init_head(&s->vars_reqres, SCOPE_REQ);
 
-	s->csf = cs;
-
-	/* this part should be common with other protocols */
-	if (si_reset(&s->si[0]) < 0)
-		goto out_fail_alloc;
-	si_set_state(&s->si[0], SI_ST_EST);
-	s->si[0].hcto = sess->fe->timeout.clientfin;
-
         /* Set SF_HTX flag for HTTP frontends. */
 	if (sess->fe->mode == PR_MODE_HTTP)
 		s->flags |= SF_HTX;
 
-	si_attach_cs(&s->si[0], cs);
+	cs->app = &s->obj_type;
+	s->csf = cs;
+	s->csb = cs_new(NULL, NULL, &s->obj_type, &s->si[1], NULL);
+	if (!s->csb)
+		goto out_fail_alloc_cs;
+
+	s->si[0].flags = SI_FL_NONE;
+	if (si_reset(&s->si[0]) < 0)
+		goto out_fail_reset_si0;
+	si_attach_cs(&s->si[0], s->csf);
+	si_set_state(&s->si[0], SI_ST_EST);
+	s->si[0].hcto = sess->fe->timeout.clientfin;
+
+	if (likely(sess->fe->options2 & PR_O2_INDEPSTR))
+		s->si[0].flags |= SI_FL_INDEP_STR;
+
+	s->si[1].flags = SI_FL_ISBACK;
+	if (si_reset(&s->si[1]) < 0)
+		goto out_fail_reset_si1;
+	si_attach_cs(&s->si[1], s->csb);
+	s->si[1].hcto = TICK_ETERNITY;
+
+	if (likely(sess->fe->options2 & PR_O2_INDEPSTR))
+		s->si[1].flags |= SI_FL_INDEP_STR;
+
 	if (cs->flags & CS_FL_WEBSOCKET)
 		s->flags |= SF_WEBSOCKET;
 	if (cs_conn(cs)) {
@@ -461,25 +475,6 @@ struct stream *stream_new(struct session *sess, struct conn_stream *cs, struct b
 				s->flags |= SF_HTX;
 		}
 	}
-
-
-	if (likely(sess->fe->options2 & PR_O2_INDEPSTR))
-		s->si[0].flags |= SI_FL_INDEP_STR;
-
-	/* pre-initialize the other side's stream interface to an INIT state. The
-	 * callbacks will be initialized before attempting to connect.
-	 */
-	if (si_reset(&s->si[1]) < 0)
-		goto out_fail_alloc_si1;
-	s->si[1].hcto = TICK_ETERNITY;
-
-	if (likely(sess->fe->options2 & PR_O2_INDEPSTR))
-		s->si[1].flags |= SI_FL_INDEP_STR;
-
-	s->csb = cs_new(NULL, NULL, &s->obj_type, &s->si[1], NULL);
-	if (!s->csb)
-		goto out_fail_alloc_cs;
-	s->si[1].cs = s->csb;
 
 	stream_init_srv_conn(s);
 	s->target = sess->listener ? sess->listener->default_target : NULL;
@@ -576,13 +571,14 @@ struct stream *stream_new(struct session *sess, struct conn_stream *cs, struct b
 	/* Error unrolling */
  out_fail_accept:
 	flt_stream_release(s, 0);
-	task_destroy(t);
 	tasklet_free(s->si[1].wait_event.tasklet);
 	LIST_DELETE(&s->list);
- out_fail_alloc_cs:
-	si_release_endpoint(&s->si[1]);
- out_fail_alloc_si1:
+ out_fail_reset_si1:
 	tasklet_free(s->si[0].wait_event.tasklet);
+ out_fail_reset_si0:
+	si_release_endpoint(&s->si[1]);
+ out_fail_alloc_cs:
+	task_destroy(t);
  out_fail_alloc:
 	pool_free(pool_head_stream, s);
 	DBG_TRACE_DEVEL("leaving on error", STRM_EV_STRM_NEW|STRM_EV_STRM_ERR);
