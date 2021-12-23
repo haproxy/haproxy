@@ -3482,12 +3482,6 @@ static int qc_pkt_may_rm_hp(struct quic_rx_packet *pkt,
 {
 	enum quic_tls_enc_level tel;
 
-	/* Special case without connection context (first Initial packets) */
-	if (!ctx) {
-		*qel = &qc->els[QUIC_TLS_ENC_LEVEL_INITIAL];
-		return 1;
-	}
-
 	tel = quic_packet_type_enc_level(pkt->type);
 	if (tel == QUIC_TLS_ENC_LEVEL_NONE) {
 		*qel = NULL;
