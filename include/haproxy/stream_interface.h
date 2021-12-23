@@ -51,19 +51,13 @@ void si_sync_send(struct stream_interface *si);
 /* returns the channel which receives data from this stream interface (input channel) */
 static inline struct channel *si_ic(struct stream_interface *si)
 {
-	if (si->flags & SI_FL_ISBACK)
-		return &LIST_ELEM(si, struct stream *, si[1])->res;
-	else
-		return &LIST_ELEM(si, struct stream *, si[0])->req;
+	return ((si->flags & SI_FL_ISBACK) ? &(cs_strm(si->cs)->res) : &(cs_strm(si->cs)->req));
 }
 
 /* returns the channel which feeds data to this stream interface (output channel) */
 static inline struct channel *si_oc(struct stream_interface *si)
 {
-	if (si->flags & SI_FL_ISBACK)
-		return &LIST_ELEM(si, struct stream *, si[1])->req;
-	else
-		return &LIST_ELEM(si, struct stream *, si[0])->res;
+	return ((si->flags & SI_FL_ISBACK) ? &(cs_strm(si->cs)->req) : &(cs_strm(si->cs)->res));
 }
 
 /* returns the buffer which receives data from this stream interface (input channel's buffer) */
@@ -81,28 +75,19 @@ static inline struct buffer *si_ob(struct stream_interface *si)
 /* returns the stream associated to a stream interface */
 static inline struct stream *si_strm(struct stream_interface *si)
 {
-	if (si->flags & SI_FL_ISBACK)
-		return LIST_ELEM(si, struct stream *, si[1]);
-	else
-		return LIST_ELEM(si, struct stream *, si[0]);
+	return cs_strm(si->cs);
 }
 
 /* returns the task associated to this stream interface */
 static inline struct task *si_task(struct stream_interface *si)
 {
-	if (si->flags & SI_FL_ISBACK)
-		return LIST_ELEM(si, struct stream *, si[1])->task;
-	else
-		return LIST_ELEM(si, struct stream *, si[0])->task;
+	return cs_strm(si->cs)->task;
 }
 
 /* returns the stream interface on the other side. Used during forwarding. */
 static inline struct stream_interface *si_opposite(struct stream_interface *si)
 {
-	if (si->flags & SI_FL_ISBACK)
-		return &LIST_ELEM(si, struct stream *, si[1])->si[0];
-	else
-		return &LIST_ELEM(si, struct stream *, si[0])->si[1];
+	return ((si->flags & SI_FL_ISBACK) ? &(cs_strm(si->cs)->si[0]) : &(cs_strm(si->cs)->si[1]));
 }
 
 /* initializes a stream interface in the SI_ST_INI state. It's detached from
