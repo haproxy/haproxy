@@ -2687,7 +2687,6 @@ static int quic_build_post_handshake_frames(struct quic_conn *qc)
     return 1;
 
  err:
-	free_quic_conn_cids(qc);
 	return 0;
 }
 
