@@ -618,6 +618,13 @@ struct rxbuf {
 #define QUIC_FL_CONN_ANTI_AMPLIFICATION_REACHED (1U << 0)
 #define QUIC_FL_CONN_IMMEDIATE_CLOSE            (1U << 31)
 struct quic_conn {
+	/* The quic_conn instance is refcounted as it can be used by threads
+	 * outside of the connection pinned thread.
+	 *
+	 * By default it is initialized to 0.
+	 */
+	uint refcount;
+
 	uint32_t version;
 	/* QUIC transport parameters TLS extension */
 	int tps_tls_ext;
@@ -644,6 +651,7 @@ struct quic_conn {
 	struct quic_pktns pktns[QUIC_TLS_PKTNS_MAX];
 
 	struct ssl_sock_ctx *xprt_ctx;
+
 	/* Used only to reach the tasklet for the I/O handler from this quic_conn object. */
 	struct connection *conn;
 	/* Output buffer used during the handshakes. */

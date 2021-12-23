@@ -3194,22 +3194,47 @@ static int quic_conn_enc_level_init(struct quic_conn *qc,
 	return 0;
 }
 
-/* Release all the memory allocated for <conn> QUIC connection. */
-static void quic_conn_free(struct quic_conn *qc)
+/* Increment the <qc> refcount.
+ *
+ * This operation must be conducted when manipulating the quic_conn outside of
+ * the connection pinned thread. These threads can only retrieve the connection
+ * in the CID tree, so this function must be conducted under the CID lock.
+ */
+static inline void quic_conn_take(struct quic_conn *qc)
 {
+	HA_ATOMIC_INC(&qc->refcount);
+}
+
+/* Decrement the <qc> refcount. If the refcount is zero *BEFORE* the
+ * substraction, the quic_conn is freed.
+ */
+static void quic_conn_drop(struct quic_conn *qc)
+{
+	struct ssl_sock_ctx *conn_ctx;
 	int i;
 
 	if (!qc)
 		return;
 
-	free_quic_conn_cids(qc);
+	HA_RWLOCK_WRLOCK(QUIC_LOCK, &qc->li->rx.cids_lock);
+	if (HA_ATOMIC_FETCH_SUB(&qc->refcount, 1)) {
+		HA_RWLOCK_WRUNLOCK(QUIC_LOCK, &qc->li->rx.cids_lock);
+		return;
+	}
 
 	/* remove the connection from receiver cids trees */
-	HA_RWLOCK_WRLOCK(QUIC_LOCK, &qc->li->rx.cids_lock);
 	ebmb_delete(&qc->odcid_node);
 	ebmb_delete(&qc->scid_node);
-
+	free_quic_conn_cids(qc);
 	HA_RWLOCK_WRUNLOCK(QUIC_LOCK, &qc->li->rx.cids_lock);
+
+	conn_ctx = HA_ATOMIC_LOAD(&qc->xprt_ctx);
+	if (conn_ctx) {
+		tasklet_free(conn_ctx->wait_event.tasklet);
+		conn_ctx->wait_event.tasklet = NULL;
+
+		pool_free(pool_head_quic_conn_ctx, conn_ctx);
+	}
 
 	for (i = 0; i < QUIC_TLS_ENC_LEVEL_MAX; i++)
 		quic_conn_enc_level_uninit(&qc->els[i]);
@@ -3229,7 +3254,7 @@ void quic_close(struct connection *conn, void *xprt_ctx)
 		qc->timer_task = NULL;
 	}
 
-	quic_conn_free(qc);
+	quic_conn_drop(qc);
 }
 
 /* Callback called upon loss detection and PTO timer expirations. */
@@ -3304,6 +3329,8 @@ static struct quic_conn *qc_new_conn(unsigned int version, int ipv4,
 		TRACE_PROTO("Could not allocate a new connection", QUIC_EV_CONN_INIT);
 		goto err;
 	}
+
+	HA_ATOMIC_STORE(&qc->refcount, 0);
 
 	buf_area = pool_alloc(pool_head_quic_conn_rxbuf);
 	if (!buf_area) {
@@ -3400,7 +3427,7 @@ static struct quic_conn *qc_new_conn(unsigned int version, int ipv4,
 
  err:
 	TRACE_DEVEL("leaving in error", QUIC_EV_CONN_INIT, qc ? qc : NULL);
-	quic_conn_free(qc);
+	quic_conn_drop(qc);
 	return NULL;
 }
 
@@ -3887,6 +3914,8 @@ static struct quic_conn *retrieve_qc_conn_from_cid(struct quic_rx_packet *pkt,
 	found_in_dcid = 1;
 
  end:
+	if (qc)
+		quic_conn_take(qc);
 	HA_RWLOCK_RDUNLOCK(QUIC_LOCK, &l->rx.cids_lock);
 
 	/* If found in DCIDs tree, remove the quic_conn from the ODCIDs tree.
@@ -3909,7 +3938,7 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
                                 struct sockaddr_storage *saddr)
 {
 	unsigned char *beg, *payload;
-	struct quic_conn *qc;
+	struct quic_conn *qc, *qc_to_purge = NULL;
 	struct listener *l;
 	struct ssl_sock_ctx *conn_ctx;
 	int long_header = 0;
@@ -4054,23 +4083,30 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 			/* Insert the DCID the QUIC client has chosen (only for listeners) */
 			n = ebmb_insert(&l->rx.odcids, &qc->odcid_node,
 			                qc->odcid.len + qc->odcid.addrlen);
-			HA_RWLOCK_WRUNLOCK(QUIC_LOCK, &l->rx.cids_lock);
 
 			/* If the insertion failed, it means that another
 			 * thread has already allocated a QUIC connection for
 			 * the same CID. Liberate our allocated connection.
 			 */
 			if (unlikely(n != &qc->odcid_node)) {
-				quic_conn_free(qc);
+				qc_to_purge = qc;
+
 				qc = ebmb_entry(n, struct quic_conn, odcid_node);
 				pkt->qc = qc;
 			}
-			else {
+
+			quic_conn_take(qc);
+			HA_RWLOCK_WRUNLOCK(QUIC_LOCK, &l->rx.cids_lock);
+
+			if (likely(!qc_to_purge)) {
 				/* Enqueue this packet. */
 				pkt->qc = qc;
 				MT_LIST_APPEND(&l->rx.pkts, &pkt->rx_list);
 				/* Try to accept a new connection. */
 				listener_accept(l);
+			}
+			else {
+				quic_conn_drop(qc_to_purge);
 			}
 		}
 		else {
@@ -4165,6 +4201,9 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 
 	TRACE_LEAVE(QUIC_EV_CONN_LPKT, qc ? qc : NULL, pkt);
 
+	if (qc)
+		quic_conn_drop(qc);
+
 	return pkt->len;
 
  err:
@@ -4173,6 +4212,10 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 		pkt->len = end - beg;
 	TRACE_DEVEL("Leaving in error", QUIC_EV_CONN_LPKT,
 	            qc ? qc : NULL, pkt);
+
+	if (qc)
+		quic_conn_drop(qc);
+
 	return -1;
 }
 

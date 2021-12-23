@@ -133,8 +133,8 @@ static inline unsigned long quic_get_cid_tid(const struct quic_cid *cid)
 	return cid->data[0] % global.nbthread;
 }
 
-/* Free the CIDs attached to <conn> QUIC connection.
- * Always succeeds.
+/* Free the CIDs attached to <conn> QUIC connection. This must be called under
+ * the CID lock.
  */
 static inline void free_quic_conn_cids(struct quic_conn *conn)
 {
@@ -147,9 +147,7 @@ static inline void free_quic_conn_cids(struct quic_conn *conn)
 		cid = eb64_entry(&node->node, struct quic_connection_id, seq_num);
 
 		/* remove the CID from the receiver tree */
-		HA_RWLOCK_WRLOCK(QUIC_LOCK, &conn->li->rx.cids_lock);
 		ebmb_delete(&cid->node);
-		HA_RWLOCK_WRUNLOCK(QUIC_LOCK, &conn->li->rx.cids_lock);
 
 		/* remove the CID from the quic_conn tree */
 		node = eb64_next(node);
