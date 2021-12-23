@@ -157,8 +157,8 @@ static void strm_trace(enum trace_level level, uint64_t mask, const struct trace
 		return;
 
 	task = s->task;
-	si_f = &s->si[0];
-	si_b = &s->si[1];
+	si_f = cs_si(s->csf);
+	si_b = cs_si(s->csb);
 	req  = &s->req;
 	res  = &s->res;
 	htx  = (msg ? htxbuf(&msg->chn->buf) : NULL);
@@ -312,12 +312,12 @@ int stream_buf_available(void *arg)
 {
 	struct stream *s = arg;
 
-	if (!s->req.buf.size && !s->req.pipe && (s->si[0].flags & SI_FL_RXBLK_BUFF) &&
+	if (!s->req.buf.size && !s->req.pipe && (cs_si(s->csf)->flags & SI_FL_RXBLK_BUFF) &&
 	    b_alloc(&s->req.buf))
-		si_rx_buff_rdy(&s->si[0]);
-	else if (!s->res.buf.size && !s->res.pipe && (s->si[1].flags & SI_FL_RXBLK_BUFF) &&
+		si_rx_buff_rdy(cs_si(s->csf));
+	else if (!s->res.buf.size && !s->res.pipe && (cs_si(s->csb)->flags & SI_FL_RXBLK_BUFF) &&
 		 b_alloc(&s->res.buf))
-		si_rx_buff_rdy(&s->si[1]);
+		si_rx_buff_rdy(cs_si(s->csb));
 	else
 		return 0;
 
@@ -723,8 +723,8 @@ static void stream_free(struct stream *s)
 	must_free_sess = objt_appctx(sess->origin) && sess->origin == s->csf->end;
 
 
-	si_release_endpoint(&s->si[1]);
-	si_release_endpoint(&s->si[0]);
+	si_release_endpoint(cs_si(s->csb));
+	si_release_endpoint(cs_si(s->csf));
 
 	tasklet_free(s->si[0].wait_event.tasklet);
 	tasklet_free(s->si[1].wait_event.tasklet);
@@ -956,7 +956,7 @@ static void back_establish(struct stream *s)
 static void sess_set_term_flags(struct stream *s)
 {
 	if (!(s->flags & SF_FINST_MASK)) {
-		if (s->si[1].state == SI_ST_INI) {
+		if (cs_si(s->csb)->state == SI_ST_INI) {
 			/* anything before REQ in fact */
 			_HA_ATOMIC_INC(&strm_fe(s)->fe_counters.failed_req);
 			if (strm_li(s) && strm_li(s)->counters)
@@ -964,11 +964,11 @@ static void sess_set_term_flags(struct stream *s)
 
 			s->flags |= SF_FINST_R;
 		}
-		else if (s->si[1].state == SI_ST_QUE)
+		else if (cs_si(s->csb)->state == SI_ST_QUE)
 			s->flags |= SF_FINST_Q;
-		else if (si_state_in(s->si[1].state, SI_SB_REQ|SI_SB_TAR|SI_SB_ASS|SI_SB_CON|SI_SB_CER|SI_SB_RDY))
+		else if (si_state_in(cs_si(s->csb)->state, SI_SB_REQ|SI_SB_TAR|SI_SB_ASS|SI_SB_CON|SI_SB_CER|SI_SB_RDY))
 			s->flags |= SF_FINST_C;
-		else if (s->si[1].state == SI_ST_EST || s->si[1].prev_state == SI_ST_EST)
+		else if (cs_si(s->csb)->state == SI_ST_EST || cs_si(s->csb)->prev_state == SI_ST_EST)
 			s->flags |= SF_FINST_D;
 		else
 			s->flags |= SF_FINST_L;
@@ -992,7 +992,7 @@ enum act_return process_use_service(struct act_rule *rule, struct proxy *px,
 	if (flags & ACT_OPT_FIRST) {
 		/* Register applet. this function schedules the applet. */
 		s->target = &rule->applet.obj_type;
-		if (unlikely(!si_register_handler(&s->si[1], objt_applet(s->target))))
+		if (unlikely(!si_register_handler(cs_si(s->csb), objt_applet(s->target))))
 			return ACT_RET_ERR;
 
 		/* Initialise the context. */
@@ -1006,7 +1006,7 @@ enum act_return process_use_service(struct act_rule *rule, struct proxy *px,
 	/* Stops the applet scheduling, in case of the init function miss
 	 * some data.
 	 */
-	si_stop_get(&s->si[1]);
+	si_stop_get(cs_si(s->csb));
 
 	/* Call initialisation. */
 	if (rule->applet.init)
@@ -1025,7 +1025,7 @@ enum act_return process_use_service(struct act_rule *rule, struct proxy *px,
 	}
 
 	/* Now we can schedule the applet. */
-	si_cant_get(&s->si[1]);
+	si_cant_get(cs_si(s->csb));
 	appctx_wakeup(appctx);
 	return ACT_RET_STOP;
 }
@@ -1488,14 +1488,14 @@ int stream_set_http_mode(struct stream *s, const struct mux_proto_list *mux_prot
 
 	conn = cs_conn(cs);
 	if (conn) {
-		si_rx_endp_more(&s->si[0]);
+		si_rx_endp_more(cs_si(s->csf));
 		/* Make sure we're unsubscribed, the the new
 		 * mux will probably want to subscribe to
 		 * the underlying XPRT
 		 */
-		if (s->si[0].wait_event.events)
-			conn->mux->unsubscribe(cs, s->si[0].wait_event.events,
-					       &s->si[0].wait_event);
+		if (cs_si(s->csf)->wait_event.events)
+			conn->mux->unsubscribe(cs, cs_si(s->csf)->wait_event.events,
+					       &(cs_si(s->csf)->wait_event));
 
 		if (conn->mux->flags & MX_FL_NO_UPG)
 			return 0;
@@ -1514,7 +1514,7 @@ int stream_set_http_mode(struct stream *s, const struct mux_proto_list *mux_prot
 			 * streams.
 			 */
 			/* FIXME: must be tested */
-			/* si_release_endpoint(&s->si[0]); */
+			/* si_release_endpoint(cs_si(s->csf)); */
 			s->logs.logwait = 0;
 			s->logs.level = 0;
 			channel_abort(&s->req);
@@ -1604,8 +1604,8 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	req = &s->req;
 	res = &s->res;
 
-	si_f = &s->si[0];
-	si_b = &s->si[1];
+	si_f = cs_si(s->csf);
+	si_b = cs_si(s->csb);
 
 	/* First, attempt to receive pending data from I/O layers */
 	si_sync_recv(si_f);
@@ -2726,8 +2726,8 @@ void stream_dump(struct buffer *buf, const struct stream *s, const char *pfx, ch
 		return;
 	}
 
-	si_f = &s->si[0];
-	si_b = &s->si[1];
+	si_f = cs_si(s->csf);
+	si_b = cs_si(s->csb);
 	req = &s->req;
 	res = &s->res;
 
