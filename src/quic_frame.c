@@ -86,6 +86,15 @@ const char *quic_frame_type_string(enum quic_frame_type ft)
 	}
 }
 
+static void chunk_cc_phrase_appendf(struct buffer *buf,
+                                    const unsigned char *phr, size_t phrlen)
+{
+	chunk_appendf(buf, " reason_phrase: '");
+	while (phrlen--)
+		chunk_appendf(buf, "%c", *phr++);
+	chunk_appendf(buf, "'");
+}
+
 /* Add traces to <buf> depending on <frm> frame type. */
 void chunk_frm_appendf(struct buffer *buf, const struct quic_frame *frm)
 {
@@ -180,18 +189,24 @@ void chunk_frm_appendf(struct buffer *buf, const struct quic_frame *frm)
 	case QUIC_FT_CONNECTION_CLOSE:
 	{
 		const struct quic_connection_close *cc = &frm->connection_close;
+		size_t plen = QUIC_MIN(cc->reason_phrase_len, sizeof cc->reason_phrase);
 		chunk_appendf(&trace_buf,
 		              " error_code=%llu frame_type=%llu reason_phrase_len=%llu",
 		              (ull)cc->error_code, (ull)cc->frame_type,
 		              (ull)cc->reason_phrase_len);
+		if (plen)
+			chunk_cc_phrase_appendf(&trace_buf, cc->reason_phrase, plen);
 		break;
 	}
 	case QUIC_FT_CONNECTION_CLOSE_APP:
 	{
 		const struct quic_connection_close_app *cc = &frm->connection_close_app;
+		size_t plen = QUIC_MIN(cc->reason_phrase_len, sizeof cc->reason_phrase);
 		chunk_appendf(&trace_buf,
 		              " error_code=%llu reason_phrase_len=%llu",
 		              (ull)cc->error_code, (ull)cc->reason_phrase_len);
+		if (plen)
+			chunk_cc_phrase_appendf(&trace_buf, cc->reason_phrase, plen);
 		break;
 	}
 	}
@@ -880,16 +895,16 @@ static int quic_parse_path_response_frame(struct quic_frame *frm, struct quic_co
 static int quic_build_connection_close_frame(unsigned char **buf, const unsigned char *end,
                                              struct quic_frame *frm, struct quic_conn *conn)
 {
-	struct quic_connection_close *connection_close = &frm->connection_close;
+	struct quic_connection_close *cc = &frm->connection_close;
 
-	if (!quic_enc_int(buf, end, connection_close->error_code) ||
-	    !quic_enc_int(buf, end, connection_close->frame_type) ||
-	    !quic_enc_int(buf, end, connection_close->reason_phrase_len) ||
-	    end - *buf < connection_close->reason_phrase_len)
+	if (!quic_enc_int(buf, end, cc->error_code) ||
+	    !quic_enc_int(buf, end, cc->frame_type) ||
+	    !quic_enc_int(buf, end, cc->reason_phrase_len) ||
+	    end - *buf < cc->reason_phrase_len)
 		return 0;
 
-	memcpy(*buf, connection_close->reason_phrase, connection_close->reason_phrase_len);
-	*buf += connection_close->reason_phrase_len;
+	memcpy(*buf, cc->reason_phrase, cc->reason_phrase_len);
+	*buf += cc->reason_phrase_len;
 
 	return 1;
 }
@@ -902,18 +917,18 @@ static int quic_build_connection_close_frame(unsigned char **buf, const unsigned
 static int quic_parse_connection_close_frame(struct quic_frame *frm, struct quic_conn *qc,
                                              const unsigned char **buf, const unsigned char *end)
 {
-	struct quic_connection_close *connection_close = &frm->connection_close;
+	size_t plen;
+	struct quic_connection_close *cc = &frm->connection_close;
 
-	if (!quic_dec_int(&connection_close->error_code, buf, end) ||
-	    !quic_dec_int(&connection_close->frame_type, buf, end) ||
-	    !quic_dec_int(&connection_close->reason_phrase_len, buf, end) ||
-	    end - *buf < connection_close->reason_phrase_len)
+	if (!quic_dec_int(&cc->error_code, buf, end) ||
+	    !quic_dec_int(&cc->frame_type, buf, end) ||
+	    !quic_dec_int(&cc->reason_phrase_len, buf, end) ||
+	    end - *buf < cc->reason_phrase_len)
 		return 0;
 
-	if (connection_close->reason_phrase_len) {
-		memcpy(connection_close->reason_phrase, *buf, connection_close->reason_phrase_len);
-		*buf += connection_close->reason_phrase_len;
-	}
+	plen = QUIC_MIN(cc->reason_phrase_len, sizeof cc->reason_phrase);
+	memcpy(cc->reason_phrase, *buf, plen);
+	*buf += cc->reason_phrase_len;
 
 	return 1;
 }
@@ -926,18 +941,15 @@ static int quic_parse_connection_close_frame(struct quic_frame *frm, struct quic
 static int quic_build_connection_close_app_frame(unsigned char **buf, const unsigned char *end,
                                                  struct quic_frame *frm, struct quic_conn *conn)
 {
-	struct quic_connection_close_app *connection_close_app = &frm->connection_close_app;
+	struct quic_connection_close_app *cc = &frm->connection_close_app;
 
-	if (!quic_enc_int(buf, end, connection_close_app->error_code) ||
-	    !quic_enc_int(buf, end, connection_close_app->reason_phrase_len) ||
-	    end - *buf < connection_close_app->reason_phrase_len)
+	if (!quic_enc_int(buf, end, cc->error_code) ||
+	    !quic_enc_int(buf, end, cc->reason_phrase_len) ||
+	    end - *buf < cc->reason_phrase_len)
 		return 0;
 
-	if (connection_close_app->reason_phrase_len) {
-		// TODO reason_phrase is not allocated
-		//memcpy(*buf, connection_close_app->reason_phrase, connection_close_app->reason_phrase_len);
-		*buf += connection_close_app->reason_phrase_len;
-	}
+	memcpy(*buf, cc->reason_phrase, cc->reason_phrase_len);
+	*buf += cc->reason_phrase_len;
 
 	return 1;
 }
@@ -950,16 +962,17 @@ static int quic_build_connection_close_app_frame(unsigned char **buf, const unsi
 static int quic_parse_connection_close_app_frame(struct quic_frame *frm, struct quic_conn *qc,
                                                  const unsigned char **buf, const unsigned char *end)
 {
-	struct quic_connection_close_app *connection_close_app = &frm->connection_close_app;
+	size_t plen;
+	struct quic_connection_close_app *cc = &frm->connection_close_app;
 
-	if (!quic_dec_int(&connection_close_app->error_code, buf, end) ||
-	    !quic_dec_int(&connection_close_app->reason_phrase_len, buf, end) ||
-	    end - *buf < connection_close_app->reason_phrase_len)
+	if (!quic_dec_int(&cc->error_code, buf, end) ||
+	    !quic_dec_int(&cc->reason_phrase_len, buf, end) ||
+	    end - *buf < cc->reason_phrase_len)
 		return 0;
 
-	// TODO reason_phrase is not allocated
-	//memcpy(connection_close_app->reason_phrase, *buf, connection_close_app->reason_phrase_len);
-	*buf += connection_close_app->reason_phrase_len;
+	plen = QUIC_MIN(cc->reason_phrase_len, sizeof cc->reason_phrase);
+	memcpy(cc->reason_phrase, *buf, plen);
+	*buf += cc->reason_phrase_len;
 
 	return 1;
 }
