@@ -916,10 +916,10 @@ static struct appctx *dns_session_create(struct dns_session *ds)
 
 
 	s->target = &ds->dss->srv->obj_type;
-	if (!sockaddr_alloc(&s->si[1].dst, &ds->dss->srv->addr, sizeof(ds->dss->srv->addr)))
+	if (!sockaddr_alloc(&cs_si(s->csb)->dst, &ds->dss->srv->addr, sizeof(ds->dss->srv->addr)))
 		goto out_free_strm;
 	s->flags = SF_ASSIGNED|SF_ADDR_SET;
-	s->si[1].flags |= SI_FL_NOLINGER;
+	cs_si(s->csb)->flags |= SI_FL_NOLINGER;
 
 	s->do_log = NULL;
 	s->uniq_id = 0;
