@@ -637,7 +637,7 @@ static inline void qc_set_timer(struct quic_conn *qc)
 	if (tick_isset(pto))
 		qc->timer = pto;
  out:
-	if (qc->timer != TICK_ETERNITY)
+	if (qc->timer_task && qc->timer != TICK_ETERNITY)
 		task_schedule(qc->timer_task, qc->timer);
 	TRACE_LEAVE(QUIC_EV_CONN_STIMER, qc, pktns);
 }
@@ -3213,8 +3213,7 @@ static void quic_conn_free(struct quic_conn *qc)
 
 	for (i = 0; i < QUIC_TLS_ENC_LEVEL_MAX; i++)
 		quic_conn_enc_level_uninit(&qc->els[i]);
-	if (qc->timer_task)
-		task_destroy(qc->timer_task);
+
 	pool_free(pool_head_quic_conn_rxbuf, qc->rx.buf.area);
 	pool_free(pool_head_quic_conn, qc);
 }
@@ -3223,6 +3222,13 @@ void quic_close(struct connection *conn, void *xprt_ctx)
 {
 	struct ssl_sock_ctx *conn_ctx = xprt_ctx;
 	struct quic_conn *qc = conn_ctx->conn->qc;
+
+	/* This task must be deleted by the connection-pinned thread. */
+	if (qc->timer_task) {
+		task_destroy(qc->timer_task);
+		qc->timer_task = NULL;
+	}
+
 	quic_conn_free(qc);
 }
 
