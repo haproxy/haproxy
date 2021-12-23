@@ -2265,12 +2265,12 @@ int stream_set_backend(struct stream *s, struct proxy *be)
 	proxy_inc_be_ctr(be);
 
 	/* assign new parameters to the stream from the new backend */
-	s->si[1].flags &= ~SI_FL_INDEP_STR;
+	cs_si(s->csb)->flags &= ~SI_FL_INDEP_STR;
 	if (be->options2 & PR_O2_INDEPSTR)
-		s->si[1].flags |= SI_FL_INDEP_STR;
+		cs_si(s->csb)->flags |= SI_FL_INDEP_STR;
 
 	if (tick_isset(be->timeout.serverfin))
-		s->si[1].hcto = be->timeout.serverfin;
+		cs_si(s->csb)->hcto = be->timeout.serverfin;
 
 	/* We want to enable the backend-specific analysers except those which
 	 * were already run as part of the frontend/listener. Note that it would
