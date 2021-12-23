@@ -2794,8 +2794,8 @@ __LJMP static int hlua_socket_connect(struct lua_State *L)
 	/* inform the stream that we want to be notified whenever the
 	 * connection completes.
 	 */
-	si_cant_get(&s->si[0]);
-	si_rx_endp_more(&s->si[0]);
+	si_cant_get(cs_si(s->csf));
+	si_rx_endp_more(cs_si(s->csf));
 	appctx_wakeup(appctx);
 
 	hlua->gc_count++;
