@@ -148,7 +148,7 @@ static inline void si_reset_endpoint(struct stream_interface *si)
 	if (cs_conn_mux(si->cs) && si->wait_event.events != 0)
 		(cs_conn_mux(si->cs))->unsubscribe(si->cs, si->wait_event.events, &si->wait_event);
 
-	cs_detach(si->cs);
+	cs_detach_endp(si->cs);
 	si->ops = &si_embedded_ops;
 }
 

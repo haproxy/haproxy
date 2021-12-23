@@ -110,12 +110,13 @@ static inline void cs_attach_app(struct conn_stream *cs, enum obj_type *app, voi
 	cs->data_cb = data_cb;
 }
 
-/* Detach the conn_stream from the connection, if any. If a mux owns the
- * connection ->detach() callback is called. Otherwise, it means the conn-stream
- * owns the connection. In this case the connection is closed and released. The
- * conn-stream is not released.
+/* Detach the conn_stream from the endpoint, if any. For a connecrion, if a mux
+ * owns the connection ->detach() callback is called. Otherwise, it means the
+ * conn-stream owns the connection. In this case the connection is closed and
+ * released. For an applet, the appctx is released. At the end, the conn-stream
+ * is not released but some fields a reset.
  */
-static inline void cs_detach(struct conn_stream *cs)
+static inline void cs_detach_endp(struct conn_stream *cs)
 {
 	struct connection *conn;
 	struct appctx *appctx;
@@ -150,7 +151,7 @@ static inline void cs_detach(struct conn_stream *cs)
 /* Release a conn_stream */
 static inline void cs_destroy(struct conn_stream *cs)
 {
-	cs_detach(cs);
+	cs_detach_endp(cs);
 	cs_free(cs);
 }
 
