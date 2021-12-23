@@ -3803,8 +3803,8 @@ static ssize_t qc_srv_pkt_rcv(unsigned char **buf, const unsigned char *end,
  *
  * Returns 0 on success else non-zero
  */
-static int qc_send_version_negotiation(int fd, struct sockaddr_storage *addr,
-                                       struct quic_rx_packet *pkt)
+static int send_version_negotiation(int fd, struct sockaddr_storage *addr,
+                                    struct quic_rx_packet *pkt)
 {
 	char buf[256];
 	int i = 0, j, version;
@@ -3856,7 +3856,7 @@ static int qc_send_version_negotiation(int fd, struct sockaddr_storage *addr,
  *
  * Returns the instance or NULL if not found.
  */
-static struct quic_conn *qc_retrieve_conn_from_cid(struct quic_rx_packet *pkt,
+static struct quic_conn *retrieve_qc_conn_from_cid(struct quic_rx_packet *pkt,
                                                    struct listener *l,
                                                    struct sockaddr_storage *saddr)
 {
@@ -3956,7 +3956,7 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 		/* RFC9000 6. Version Negotiation */
 		if (!qc_pkt_is_supported_version(pkt)) {
 			 /* unsupported version, send Negotiation packet */
-			if (qc_send_version_negotiation(l->rx.fd, saddr, pkt)) {
+			if (send_version_negotiation(l->rx.fd, saddr, pkt)) {
 				TRACE_PROTO("Error on Version Negotiation sending", QUIC_EV_CONN_LPKT);
 				goto err;
 			}
@@ -4002,7 +4002,7 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 		payload = buf;
 		pkt->len = len + payload - beg;
 
-		qc = qc_retrieve_conn_from_cid(pkt, l, saddr);
+		qc = retrieve_qc_conn_from_cid(pkt, l, saddr);
 		if (!qc) {
 			int ipv4;
 			struct quic_cid *odcid;
@@ -4094,7 +4094,7 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 		payload = buf;
 		pkt->len = end - beg;
 
-		qc = qc_retrieve_conn_from_cid(pkt, l, saddr);
+		qc = retrieve_qc_conn_from_cid(pkt, l, saddr);
 		if (!qc) {
 			size_t pktlen = end - buf;
 			TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT, NULL, pkt, &pktlen);
