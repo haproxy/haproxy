@@ -45,9 +45,19 @@ static int mem_fail_rate = 0;
 static int using_default_allocator = 1;
 static int(*my_mallctl)(const char *, void *, size_t *, void *, size_t) = NULL;
 
-/* ask the allocator to trim memory pools */
+/* ask the allocator to trim memory pools.
+ * This must run under thread isolation so that competing threads trying to
+ * allocate or release memory do not prevent the allocator from completing
+ * its job. We just have to be careful as callers might already be isolated
+ * themselves.
+ */
 static void trim_all_pools(void)
 {
+	int isolated = thread_isolated();
+
+	if (!isolated)
+		thread_isolate();
+
 	if (my_mallctl) {
 		unsigned int i, narenas = 0;
 		size_t len = sizeof(narenas);
@@ -80,6 +90,9 @@ static void trim_all_pools(void)
 		}
 #endif
 	}
+
+	if (!isolated)
+		thread_release();
 }
 
 /* check if we're using the same allocator as the one that provides
