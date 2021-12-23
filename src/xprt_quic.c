@@ -3923,7 +3923,7 @@ static struct quic_conn *retrieve_qc_conn_from_cid(struct quic_rx_packet *pkt,
 	 *
 	 * node.leaf_p is first checked to avoid unnecessary locking.
 	 */
-	if (found_in_dcid && qc->odcid_node.node.leaf_p) {
+	if (qc && found_in_dcid && qc->odcid_node.node.leaf_p) {
 		HA_RWLOCK_WRLOCK(QUIC_LOCK, &l->rx.cids_lock);
 		ebmb_delete(&qc->odcid_node);
 		HA_RWLOCK_WRUNLOCK(QUIC_LOCK, &l->rx.cids_lock);
