@@ -756,7 +756,7 @@ static enum act_parse_ret parse_http_action_reject(const char **args, int *orig_
 static enum act_return http_req_disable_l7_retry(struct act_rule *rule, struct proxy *px,
                                           struct session *sess, struct stream *s, int flags)
 {
-	struct stream_interface *si = &s->si[1];
+	struct stream_interface *si = cs_si(s->csb);
 
 	/* In theory, the SI_FL_L7_RETRY flags isn't set at this point, but
 	 * let's be future-proof and remove it anyway.
