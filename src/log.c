@@ -2102,7 +2102,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				break;
 
 			case LOG_FMT_CLIENTIP:  // %ci
-				addr = (s ? si_src(&s->si[0]) : sess_src(sess));
+				addr = (s ? si_src(cs_si(s->csf)) : sess_src(sess));
 				if (addr)
 					ret = lf_ip(tmplog, (struct sockaddr *)addr, dst + maxsize - tmplog, tmp);
 				else
@@ -2115,7 +2115,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				break;
 
 			case LOG_FMT_CLIENTPORT:  // %cp
-				addr = (s ? si_src(&s->si[0]) : sess_src(sess));
+				addr = (s ? si_src(cs_si(s->csf)) : sess_src(sess));
 				if (addr) {
 					/* sess->listener is always defined when the session's owner is an inbound connections */
 					if (addr->ss_family == AF_UNIX)
@@ -2133,7 +2133,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				break;
 
 			case LOG_FMT_FRONTENDIP: // %fi
-				addr = (s ? si_dst(&s->si[0]) : sess_dst(sess));
+				addr = (s ? si_dst(cs_si(s->csf)) : sess_dst(sess));
 				if (addr)
 					ret = lf_ip(tmplog, (struct sockaddr *)addr, dst + maxsize - tmplog, tmp);
 				else
@@ -2146,7 +2146,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				break;
 
 			case  LOG_FMT_FRONTENDPORT: // %fp
-				addr = (s ? si_dst(&s->si[0]) : sess_dst(sess));
+				addr = (s ? si_dst(cs_si(s->csf)) : sess_dst(sess));
 				if (addr) {
 					/* sess->listener is always defined when the session's owner is an inbound connections */
 					if (addr->ss_family == AF_UNIX)
@@ -2602,9 +2602,9 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 			case LOG_FMT_RETRIES:  // %rq
 				if (s_flags & SF_REDISP)
 					LOGCHAR('+');
-				ret = ltoa_o(((s && s->si[1].conn_retries > 0)
-					      ? (be->conn_retries - s->si[1].conn_retries)
-					      : ((s && s->si[1].state != SI_ST_INI) ? be->conn_retries : 0)),
+				ret = ltoa_o(((s && cs_si(s->csb)->conn_retries > 0)
+					      ? (be->conn_retries - cs_si(s->csb)->conn_retries)
+					      : ((s && cs_si(s->csb)->state != SI_ST_INI) ? be->conn_retries : 0)),
 					     tmplog, dst + maxsize - tmplog);
 				if (ret == NULL)
 					goto out;
@@ -3066,7 +3066,7 @@ void strm_log(struct stream *s)
 	err = (s->flags & SF_REDISP) ||
               ((s->flags & SF_ERR_MASK) > SF_ERR_LOCAL) ||
 	      (((s->flags & SF_ERR_MASK) == SF_ERR_NONE) &&
-	       (s->si[1].conn_retries != s->be->conn_retries)) ||
+	       (cs_si(s->csb)->conn_retries != s->be->conn_retries)) ||
 	      ((sess->fe->mode == PR_MODE_HTTP) && s->txn && s->txn->status >= 500);
 
 	if (!err && (sess->fe->options2 & PR_O2_NOLOGNORM))
