@@ -699,7 +699,7 @@ int assign_server(struct stream *s)
 				const struct sockaddr_storage *src;
 
 			case BE_LB_HASH_SRC:
-				src = si_src(&s->si[0]);
+				src = si_src(cs_si(s->csf));
 				if (src && src->ss_family == AF_INET) {
 					srv = get_server_sh(s->be,
 							    (void *)&((struct sockaddr_in *)src)->sin_addr,
@@ -852,7 +852,7 @@ static int alloc_dst_address(struct sockaddr_storage **ss,
 			 * locally on multiple addresses at once. Nothing is done
 			 * for AF_UNIX addresses.
 			 */
-			dst = si_dst(&s->si[0]);
+			dst = si_dst(cs_si(s->csf));
 			if (dst && dst->ss_family == AF_INET) {
 				((struct sockaddr_in *)*ss)->sin_family = AF_INET;
 				((struct sockaddr_in *)*ss)->sin_addr =
@@ -869,7 +869,7 @@ static int alloc_dst_address(struct sockaddr_storage **ss,
 		if ((srv->flags & SRV_F_MAPPORTS)) {
 			int base_port;
 
-			dst = si_dst(&s->si[0]);
+			dst = si_dst(cs_si(s->csf));
 			if (dst) {
 				/* First, retrieve the port from the incoming connection */
 				base_port = get_host_port(dst);
@@ -892,7 +892,7 @@ static int alloc_dst_address(struct sockaddr_storage **ss,
 			return SRV_STATUS_INTERNAL;
 
 		/* in transparent mode, use the original dest addr if no dispatch specified */
-		dst = si_dst(&s->si[0]);
+		dst = si_dst(cs_si(s->csf));
 		if (dst && (dst->ss_family == AF_INET || dst->ss_family == AF_INET6))
 			**ss = *dst;
 	}
@@ -1067,7 +1067,7 @@ static int alloc_bind_address(struct sockaddr_storage **ss,
 	case CO_SRC_TPROXY_CLI:
 	case CO_SRC_TPROXY_CIP:
 		/* FIXME: what can we do if the client connects in IPv6 or unix socket ? */
-		addr = si_src(&s->si[0]);
+		addr = si_src(cs_si(s->csf));
 		if (!addr)
 			return SRV_STATUS_INTERNAL;
 
@@ -1234,7 +1234,7 @@ static struct connection *conn_backend_get(struct stream *s, struct server *srv,
 
 /*
  * This function initiates a connection to the server assigned to this stream
- * (s->target, s->si[1].addr.to). It will assign a server if none
+ * (s->target, (s->csb->si)->addr.to). It will assign a server if none
  * is assigned yet.
  * It can return one of :
  *  - SF_ERR_NONE if everything's OK
@@ -1245,7 +1245,7 @@ static struct connection *conn_backend_get(struct stream *s, struct server *srv,
  *  - SF_ERR_INTERNAL for any other purely internal errors
  * Additionally, in the case of SF_ERR_RESOURCE, an emergency log will be emitted.
  * The server-facing stream interface is expected to hold a pre-allocated connection
- * in s->si[1].conn.
+ * in s->csb->si->conn.
  */
 int connect_server(struct stream *s)
 {
@@ -1269,7 +1269,7 @@ int connect_server(struct stream *s)
 	srv = objt_server(s->target);
 
 	if (!(s->flags & SF_ADDR_SET)) {
-		err = alloc_dst_address(&s->si[1].dst, srv, s);
+		err = alloc_dst_address(&(cs_si(s->csb)->dst), srv, s);
 		if (err != SRV_STATUS_OK)
 			return SF_ERR_INTERNAL;
 
@@ -1324,7 +1324,7 @@ int connect_server(struct stream *s)
 
 	/* 3. destination address */
 	if (srv && (!is_addr(&srv->addr) || srv->flags & SRV_F_MAPPORTS))
-		hash_params.dst_addr = s->si[1].dst;
+		hash_params.dst_addr = cs_si(s->csb)->dst;
 
 	/* 4. source address */
 	hash_params.src_addr = bind_addr;
@@ -1495,9 +1495,9 @@ int connect_server(struct stream *s)
 			}
 
 			if (avail >= 1) {
-				si_attach_conn(&s->si[1], srv_conn);
+				si_attach_conn(cs_si(s->csb), srv_conn);
 				if (srv_conn->mux->attach(srv_conn, s->csb, s->sess) == -1) {
-					si_reset_endpoint(&s->si[1]);
+					si_reset_endpoint(cs_si(s->csb));
 					srv_conn = NULL;
 				}
 			}
@@ -1544,7 +1544,7 @@ skip_reuse:
 		return SF_ERR_RESOURCE;
 
 	/* copy the target address into the connection */
-	*srv_conn->dst = *s->si[1].dst;
+	*srv_conn->dst = *(cs_si(s->csb))->dst;
 
 	/* Copy network namespace from client connection */
 	srv_conn->proxy_netns = cli_conn ? cli_conn->proxy_netns : NULL;
@@ -1571,7 +1571,7 @@ skip_reuse:
 			return SF_ERR_INTERNAL;  /* how did we get there ? */
 		}
 
-		si_attach_conn(&s->si[1], srv_conn);
+		si_attach_conn(cs_si(s->csb), srv_conn);
 #if defined(USE_OPENSSL) && defined(TLSEXT_TYPE_application_layer_protocol_negotiation)
 		if (!srv ||
 		    (srv->use_ssl != 1 || (!(srv->ssl_ctx.alpn_str) && !(srv->ssl_ctx.npn_str)) ||
@@ -1633,11 +1633,11 @@ skip_reuse:
 
 	/* flag for logging source ip/port */
 	if (strm_fe(s)->options2 & PR_O2_SRC_ADDR)
-		s->si[1].flags |= SI_FL_SRC_ADDR;
+		cs_si(s->csb)->flags |= SI_FL_SRC_ADDR;
 
 	/* disable lingering */
 	if (s->be->options & PR_O_TCP_NOLING)
-		s->si[1].flags |= SI_FL_NOLINGER;
+		cs_si(s->csb)->flags |= SI_FL_NOLINGER;
 
 	if (s->flags & SF_SRV_REUSED) {
 		_HA_ATOMIC_INC(&s->be->be_counters.reuse);
@@ -1649,7 +1649,7 @@ skip_reuse:
 			_HA_ATOMIC_INC(&srv->counters.connect);
 	}
 
-	err = si_connect(&s->si[1], srv_conn);
+	err = si_connect(cs_si(s->csb), srv_conn);
 	if (err != SF_ERR_NONE)
 		return err;
 
@@ -1717,14 +1717,14 @@ skip_reuse:
 	     */
 	    ((cli_conn->flags & CO_FL_EARLY_DATA) ||
 	     ((s->be->retry_type & PR_RE_EARLY_ERROR) &&
-	      s->si[1].conn_retries == s->be->conn_retries)) &&
-	    !channel_is_empty(si_oc(&s->si[1])) &&
+	      cs_si(s->csb)->conn_retries == s->be->conn_retries)) &&
+	    !channel_is_empty(si_oc(cs_si(s->csb))) &&
 	    srv_conn->flags & CO_FL_SSL_WAIT_HS)
 		srv_conn->flags &= ~(CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN);
 #endif
 
 	/* set connect timeout */
-	s->si[1].exp = tick_add_ifset(now_ms, s->be->timeout.connect);
+	cs_si(s->csb)->exp = tick_add_ifset(now_ms, s->be->timeout.connect);
 
 	if (srv) {
 		int count;
@@ -1742,7 +1742,7 @@ skip_reuse:
 	 * loopback on a heavily loaded system.
 	 */
 	if ((srv_conn->flags & CO_FL_ERROR || s->csb->flags & CS_FL_ERROR))
-		s->si[1].flags |= SI_FL_ERR;
+		cs_si(s->csb)->flags |= SI_FL_ERR;
 
 	/* If we had early data, and the handshake ended, then
 	 * we can remove the flag, and attempt to wake the task up,
@@ -1752,12 +1752,12 @@ skip_reuse:
 	if (!(srv_conn->flags & (CO_FL_WAIT_XPRT | CO_FL_EARLY_SSL_HS)))
 		s->csb->flags &= ~CS_FL_WAIT_FOR_HS;
 
-	if (!si_state_in(s->si[1].state, SI_SB_EST|SI_SB_DIS|SI_SB_CLO) &&
+	if (!si_state_in(cs_si(s->csb)->state, SI_SB_EST|SI_SB_DIS|SI_SB_CLO) &&
 	    (srv_conn->flags & CO_FL_WAIT_XPRT) == 0) {
-		s->si[1].exp = TICK_ETERNITY;
-		si_oc(&s->si[1])->flags |= CF_WRITE_NULL;
-		if (s->si[1].state == SI_ST_CON)
-			s->si[1].state = SI_ST_RDY;
+		cs_si(s->csb)->exp = TICK_ETERNITY;
+		si_oc(cs_si(s->csb))->flags |= CF_WRITE_NULL;
+		if (cs_si(s->csb)->state == SI_ST_CON)
+			cs_si(s->csb)->state = SI_ST_RDY;
 	}
 
 	/* Report EOI on the channel if it was reached from the mux point of
@@ -1767,8 +1767,8 @@ skip_reuse:
 	 *       wake callback. Otherwise si_cs_recv()/si_cs_send() already take
 	 *       care of it.
 	 */
-	if ((s->csb->flags & CS_FL_EOI) && !(si_ic(&s->si[1])->flags & CF_EOI))
-		si_ic(&s->si[1])->flags |= (CF_EOI|CF_READ_PARTIAL);
+	if ((s->csb->flags & CS_FL_EOI) && !(si_ic(cs_si(s->csb))->flags & CF_EOI))
+		si_ic(cs_si(s->csb))->flags |= (CF_EOI|CF_READ_PARTIAL);
 
 	/* catch all sync connect while the mux is not already installed */
 	if (!srv_conn->mux && !(srv_conn->flags & CO_FL_WAIT_XPRT)) {
@@ -1817,12 +1817,12 @@ int srv_redispatch_connect(struct stream *s)
 		if (((s->flags & (SF_DIRECT|SF_FORCE_PRST)) == SF_DIRECT) &&
 		    (s->be->options & PR_O_REDISP)) {
 			s->flags &= ~(SF_DIRECT | SF_ASSIGNED | SF_ADDR_SET);
-			sockaddr_free(&s->si[1].dst);
+			sockaddr_free(&(cs_si(s->csb)->dst));
 			goto redispatch;
 		}
 
-		if (!s->si[1].err_type) {
-			s->si[1].err_type = SI_ET_QUEUE_ERR;
+		if (!cs_si(s->csb)->err_type) {
+			cs_si(s->csb)->err_type = SI_ET_QUEUE_ERR;
 		}
 
 		_HA_ATOMIC_INC(&srv->counters.failed_conns);
@@ -1831,23 +1831,23 @@ int srv_redispatch_connect(struct stream *s)
 
 	case SRV_STATUS_NOSRV:
 		/* note: it is guaranteed that srv == NULL here */
-		if (!s->si[1].err_type) {
-			s->si[1].err_type = SI_ET_CONN_ERR;
+		if (!cs_si(s->csb)->err_type) {
+			cs_si(s->csb)->err_type = SI_ET_CONN_ERR;
 		}
 
 		_HA_ATOMIC_INC(&s->be->be_counters.failed_conns);
 		return 1;
 
 	case SRV_STATUS_QUEUED:
-		s->si[1].exp = tick_add_ifset(now_ms, s->be->timeout.queue);
-		s->si[1].state = SI_ST_QUE;
+		cs_si(s->csb)->exp = tick_add_ifset(now_ms, s->be->timeout.queue);
+		cs_si(s->csb)->state = SI_ST_QUE;
 		/* do nothing else and do not wake any other stream up */
 		return 1;
 
 	case SRV_STATUS_INTERNAL:
 	default:
-		if (!s->si[1].err_type) {
-			s->si[1].err_type = SI_ET_CONN_OTHER;
+		if (!cs_si(s->csb)->err_type) {
+			cs_si(s->csb)->err_type = SI_ET_CONN_OTHER;
 		}
 
 		if (srv)
@@ -1886,7 +1886,7 @@ static int back_may_abort_req(struct channel *req, struct stream *s)
 void back_try_conn_req(struct stream *s)
 {
 	struct server *srv = objt_server(s->target);
-	struct stream_interface *si = &s->si[1];
+	struct stream_interface *si = cs_si(s->csb);
 	struct channel *req = &s->req;
 
 	DBG_TRACE_ENTER(STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
@@ -2162,7 +2162,7 @@ void back_handle_st_req(struct stream *s)
  */
 void back_handle_st_con(struct stream *s)
 {
-	struct stream_interface *si = &s->si[1];
+	struct stream_interface *si = cs_si(s->csb);
 	struct channel *req = &s->req;
 	struct channel *rep = &s->res;
 
@@ -2289,7 +2289,7 @@ void back_handle_st_cer(struct stream *s)
 	 * Note: the stream-interface will be switched to ST_REQ, ST_ASS or
 	 * ST_TAR and SI_FL_ERR and SI_FL_EXP flags will be unset.
 	 */
-	si_reset_endpoint(&s->si[1]);
+	si_reset_endpoint(cs_si(s->csb));
 
 	stream_choose_redispatch(s);
 
@@ -2336,7 +2336,7 @@ void back_handle_st_cer(struct stream *s)
  */
 void back_handle_st_rdy(struct stream *s)
 {
-	struct stream_interface *si = &s->si[1];
+	struct stream_interface *si = cs_si(s->csb);
 	struct channel *req = &s->req;
 	struct channel *rep = &s->res;
 

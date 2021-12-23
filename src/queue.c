@@ -602,7 +602,7 @@ int pendconn_dequeue(struct stream *strm)
 
 	/* the entry might have been redistributed to another server */
 	if (!(strm->flags & SF_ADDR_SET))
-		sockaddr_free(&strm->si[1].dst);
+		sockaddr_free(&cs_si(strm->csb)->dst);
 
 	if (p->target) {
 		/* a server picked this pendconn, it must skip LB */
