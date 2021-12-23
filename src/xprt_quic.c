@@ -5026,7 +5026,7 @@ static int qc_ssl_sess_init(struct quic_conn *qc, SSL_CTX *ssl_ctx, SSL **ssl,
  */
 static int qc_conn_init(struct connection *conn, void **xprt_ctx)
 {
-	struct ssl_sock_ctx *ctx;
+	struct ssl_sock_ctx *ctx = NULL;
 	struct quic_conn *qc = NULL;
 
 	TRACE_ENTER(QUIC_EV_CONN_NEW, conn);
