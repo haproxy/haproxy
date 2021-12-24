@@ -600,6 +600,10 @@ int pendconn_dequeue(struct stream *strm)
 	strm->flags &= ~(SF_DIRECT | SF_ASSIGNED | SF_ADDR_SET);
 	strm->flags |= p->strm_flags & (SF_DIRECT | SF_ASSIGNED | SF_ADDR_SET);
 
+	/* the entry might have been redistributed to another server */
+	if (!(strm->flags & SF_ADDR_SET))
+		sockaddr_free(&strm->si[1].dst);
+
 	if (p->target) {
 		/* a server picked this pendconn, it must skip LB */
 		strm->target = &p->target->obj_type;
