@@ -1774,12 +1774,12 @@ static int peer_treat_updatemsg(struct appctx *appctx, struct peer *p, int updt,
 	for (data_type = 0 ; data_type < STKTABLE_DATA_TYPES ; data_type++) {
 		uint64_t decoded_int;
 		unsigned int idx;
+		int ignore;
 
 		if (!((1ULL << data_type) & st->remote_data))
 			continue;
 
-		if (stktable_data_types[data_type].is_local)
-			continue;
+		ignore = stktable_data_types[data_type].is_local;
 
 		if (stktable_data_types[data_type].is_array) {
 			/* in case of array all elements
@@ -1798,7 +1798,7 @@ static int peer_treat_updatemsg(struct appctx *appctx, struct peer *p, int updt,
 					}
 
 					data_ptr = stktable_data_ptr_idx(st->table, ts, data_type, idx);
-					if (data_ptr)
+					if (data_ptr && !ignore)
 						stktable_data_cast(data_ptr, std_t_sint) = decoded_int;
 				}
 				break;
@@ -1811,7 +1811,7 @@ static int peer_treat_updatemsg(struct appctx *appctx, struct peer *p, int updt,
 					}
 
 					data_ptr = stktable_data_ptr_idx(st->table, ts, data_type, idx);
-					if (data_ptr)
+					if (data_ptr && !ignore)
 						stktable_data_cast(data_ptr, std_t_uint) = decoded_int;
 				}
 				break;
@@ -1824,7 +1824,7 @@ static int peer_treat_updatemsg(struct appctx *appctx, struct peer *p, int updt,
 					}
 
 					data_ptr = stktable_data_ptr_idx(st->table, ts, data_type, idx);
-					if (data_ptr)
+					if (data_ptr && !ignore)
 						stktable_data_cast(data_ptr, std_t_ull) = decoded_int;
 				}
 				break;
@@ -1858,7 +1858,7 @@ static int peer_treat_updatemsg(struct appctx *appctx, struct peer *p, int updt,
 					}
 
 					data_ptr = stktable_data_ptr_idx(st->table, ts, data_type, idx);
-					if (data_ptr)
+					if (data_ptr && !ignore)
 						stktable_data_cast(data_ptr, std_t_frqp) = data;
 				}
 				break;
@@ -1878,19 +1878,19 @@ static int peer_treat_updatemsg(struct appctx *appctx, struct peer *p, int updt,
 		switch (stktable_data_types[data_type].std_type) {
 		case STD_T_SINT:
 			data_ptr = stktable_data_ptr(st->table, ts, data_type);
-			if (data_ptr)
+			if (data_ptr && !ignore)
 				stktable_data_cast(data_ptr, std_t_sint) = decoded_int;
 			break;
 
 		case STD_T_UINT:
 			data_ptr = stktable_data_ptr(st->table, ts, data_type);
-			if (data_ptr)
+			if (data_ptr && !ignore)
 				stktable_data_cast(data_ptr, std_t_uint) = decoded_int;
 			break;
 
 		case STD_T_ULL:
 			data_ptr = stktable_data_ptr(st->table, ts, data_type);
-			if (data_ptr)
+			if (data_ptr && !ignore)
 				stktable_data_cast(data_ptr, std_t_ull) = decoded_int;
 			break;
 
@@ -1917,7 +1917,7 @@ static int peer_treat_updatemsg(struct appctx *appctx, struct peer *p, int updt,
 			}
 
 			data_ptr = stktable_data_ptr(st->table, ts, data_type);
-			if (data_ptr)
+			if (data_ptr && !ignore)
 				stktable_data_cast(data_ptr, std_t_frqp) = data;
 			break;
 		}
@@ -1986,7 +1986,7 @@ static int peer_treat_updatemsg(struct appctx *appctx, struct peer *p, int updt,
 			}
 			if (de) {
 				data_ptr = stktable_data_ptr(st->table, ts, data_type);
-				if (data_ptr) {
+				if (data_ptr && !ignore) {
 					HA_ATOMIC_INC(&de->refcount);
 					stktable_data_cast(data_ptr, std_t_dict) = de;
 				}
