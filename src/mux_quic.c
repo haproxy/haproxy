@@ -189,7 +189,7 @@ struct eb64_node *qcc_get_qcs(struct qcc *qcc, uint64_t id)
 	return NULL;
 }
 
-/* detachs the QUIC stream from its QCC and releases it to the QCS pool. */
+/* detaches the QUIC stream from its QCC and releases it to the QCS pool. */
 static void qcs_destroy(struct qcs *qcs)
 {
 	fprintf(stderr, "%s: release stream %llu\n", __func__, qcs->by_id.key);

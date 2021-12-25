@@ -4627,7 +4627,7 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 		padding_len = QUIC_INITIAL_PACKET_MINLEN - dglen;
 		/* The length field value is of this packet is <len> + <padding_len>
 		 * the size of which may be greater than the initial computed size
-		 * <len_sz>. So, let's deduce the difference betwen these to packet
+		 * <len_sz>. So, let's deduce the difference between these to packet
 		 * sizes from <padding_len>.
 		 */
 		padding_len -= quic_int_getsize(len + padding_len) - len_sz;

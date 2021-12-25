@@ -108,7 +108,7 @@ LIST_ELEM(l, t, m)
         function or macro since it's used only once.
 
 LIST_ISEMPTY(l)
-        Check if the list head <l> is empty (=initialied) or not, and return
+        Check if the list head <l> is empty (=initialized) or not, and return
         non-zero only if so.
 
 LIST_INLIST(e)

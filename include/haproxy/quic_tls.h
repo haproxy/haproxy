@@ -543,7 +543,7 @@ static inline void quic_tls_ku_free(struct quic_conn *qc)
 
 /* Initialize <kp> key update secrets, allocating the required memory.
  * Return 1 if all the secrets could be allocated, 0 if not.
- * This is the responsability of the caller to release the memory
+ * This is the responsibility of the caller to release the memory
  * allocated by this function in case of failure.
  */
 static inline int quic_tls_kp_init(struct quic_tls_kp *kp)

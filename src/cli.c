@@ -2400,7 +2400,7 @@ int pcli_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	int to_forward;
 	char *errmsg = NULL;
 
-	/* Don't read the next command if still processing the reponse of the
+	/* Don't read the next command if still processing the response of the
 	 * current one. Just wait. At this stage, errors should be handled by
 	 * the response analyzer.
 	 */

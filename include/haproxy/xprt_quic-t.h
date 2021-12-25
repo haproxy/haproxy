@@ -642,7 +642,7 @@ struct quic_conn {
 	struct ebmb_node odcid_node;
 	struct quic_cid odcid;
 
-	struct quic_cid dcid; /* DCID of our endpoint - not updated whan a new DCID is used */
+	struct quic_cid dcid; /* DCID of our endpoint - not updated when a new DCID is used */
 	struct ebmb_node scid_node; /* used only for client side (backend) */
 	struct quic_cid scid; /* first SCID of our endpoint - not updated when a new SCID is used */
 	struct eb_root cids; /* tree of quic_connection_id - used to match a received packet DCID with a connection */

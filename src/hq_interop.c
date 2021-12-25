@@ -141,7 +141,7 @@ static size_t hq_interop_snd_buf(struct conn_stream *cs, struct buffer *buf,
 				htx_cut_data_blk(htx, blk, fsize);
 			break;
 
-		/* only body is transfered on HTTP/0.9 */
+		/* only body is transferred on HTTP/0.9 */
 		case HTX_BLK_RES_SL:
 		case HTX_BLK_TLR:
 		case HTX_BLK_EOT:

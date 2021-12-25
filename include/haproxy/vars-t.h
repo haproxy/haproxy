@@ -36,7 +36,7 @@
 #define VF_COND_IFSET       0x00000040   // only set variable if its type is not SMP_TYPE_ANY
 #define VF_COND_IFNOTSET    0x00000080   // only set variable if its type is ANY
 #define VF_COND_IFGT        0x00000100   // only set variable if its value is greater than the sample's
-#define VF_COND_IFLT        0x00000200   // ony set variable if its value is less than the sample's
+#define VF_COND_IFLT        0x00000200   // only set variable if its value is less than the sample's
 
 enum vars_scope {
 	SCOPE_SESS = 0,

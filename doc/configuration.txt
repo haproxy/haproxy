@@ -5876,7 +5876,7 @@ http-check set-var-fmt(<var-name>[,<cond> ...]) <fmt>
 
     <cond>      A set of conditions that must all be true for the variable to
                 actually be set (such as "ifnotempty", "ifgt" ...). See the
-                set-var converter's decription for a full list of possible
+                set-var converter's description for a full list of possible
                 conditions.
 
     <expr>      Is a sample-fetch expression potentially followed by converters.
@@ -6967,7 +6967,7 @@ http-request set-var-fmt(<var-name>[,<cond> ...]) <fmt> [ { if | unless } <condi
 
     <cond>      A set of conditions that must all be true for the variable to
                 actually be set (such as "ifnotempty", "ifgt" ...). See the
-                set-var converter's decription for a full list of possible
+                set-var converter's description for a full list of possible
                 conditions.
 
     <expr>      Is a standard HAProxy expression formed by a sample-fetch
@@ -11945,7 +11945,7 @@ tcp-check set-var-fmt(<var-name>[,<cond> ...]) <fmt>
 
     <cond>      A set of conditions that must all be true for the variable to
                 actually be set (such as "ifnotempty", "ifgt" ...). See the
-                set-var converter's decription for a full list of possible
+                set-var converter's description for a full list of possible
                 conditions.
 
     <expr>      Is a sample-fetch expression potentially followed by converters.

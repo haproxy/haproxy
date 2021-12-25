@@ -359,7 +359,7 @@ static inline void var_clear_buffer(struct sample *smp, struct vars *vars, struc
  *   - VF_COND_IFSET: only set variable if its type is not SMP_TYPE_ANY
  *   - VF_COND_IFNOTSET: only set variable if its type is ANY
  *   - VF_COND_IFGT: only set variable if its value is greater than the sample's
- *   - VF_COND_IFLT: ony set variable if its value is less than the sample's
+ *   - VF_COND_IFLT: only set variable if its value is less than the sample's
  *
  * It returns 0 on failure, non-zero on success.
  */

@@ -189,7 +189,7 @@ state field before the call to ->process()
 
   - TASK_WOKEN_RES     a resource the task was waiting for was finally made
                        available, allowing the task to continue its work. This
-                       is essentially used by buffers and queues. Applcations
+                       is essentially used by buffers and queues. Applications
                        may carefully use it for their own purpose if they're
                        certain not to rely on existing ones.
 
