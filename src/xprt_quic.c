@@ -496,7 +496,9 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 				              pktns == &qc->pktns[QUIC_TLS_PKTNS_INITIAL] ? "I" :
 				              pktns == &qc->pktns[QUIC_TLS_PKTNS_01RTT] ? "01RTT": "H",
 				              pktns->tx.pto_probe);
-				if (mask & QUIC_EV_CONN_STIMER) {
+				if (mask & (QUIC_EV_CONN_STIMER|QUIC_EV_CONN_SPTO)) {
+					if (pktns->tx.in_flight)
+						chunk_appendf(&trace_buf, " if=%llu", (ull)pktns->tx.in_flight);
 					if (pktns->tx.loss_time)
 						chunk_appendf(&trace_buf, " loss_time=%dms",
 						              TICKS_TO_MS(pktns->tx.loss_time - now_ms));
