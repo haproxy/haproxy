@@ -130,7 +130,7 @@ static inline struct quic_pktns *quic_pto_pktns(struct quic_conn *qc,
 	int i;
 	unsigned int duration, lpto, time_of_last_eliciting;
 	struct quic_loss *ql = &qc->path->loss;
-	struct quic_pktns *pktns;
+	struct quic_pktns *pktns, *p;
 
 	TRACE_ENTER(QUIC_EV_CONN_SPTO, qc);
 	duration =
@@ -152,14 +152,12 @@ static inline struct quic_pktns *quic_pto_pktns(struct quic_conn *qc,
 	}
 
 	lpto = TICK_ETERNITY;
-	pktns = &qc->pktns[QUIC_TLS_PKTNS_INITIAL];
+	pktns = p = &qc->pktns[QUIC_TLS_PKTNS_INITIAL];
 
 	for (i = QUIC_TLS_PKTNS_INITIAL; i < QUIC_TLS_PKTNS_MAX; i++) {
 		unsigned int tmp_pto;
-		struct quic_pktns *p;
 
-		p = &qc->pktns[i];
-		if (!p->tx.in_flight)
+		if (!qc->pktns[i].tx.in_flight)
 			continue;
 
 		if (i == QUIC_TLS_PKTNS_01RTT) {
@@ -171,6 +169,7 @@ static inline struct quic_pktns *quic_pto_pktns(struct quic_conn *qc,
 			duration += qc->max_ack_delay << ql->pto_count;
 		}
 
+		p = &qc->pktns[i];
 		time_of_last_eliciting = p->tx.time_of_last_eliciting;
 		tmp_pto =
 			tick_first(lpto, tick_add(time_of_last_eliciting, duration));
