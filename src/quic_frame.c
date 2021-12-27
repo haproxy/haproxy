@@ -271,7 +271,7 @@ static int quic_parse_ping_frame(struct quic_frame *frm, struct quic_conn *qc,
  * Returns 1 if succeeded (enough room in <buf> to encode the frame), 0 if not.
  */
 static int quic_build_ack_frame(unsigned char **buf, const unsigned char *end,
-                                struct quic_frame *frm, struct quic_conn *conn)
+                                struct quic_frame *frm, struct quic_conn *qc)
 {
 	struct quic_tx_ack *tx_ack = &frm->tx_ack;
 	struct eb64_node *ar, *prev_ar;
@@ -280,7 +280,7 @@ static int quic_build_ack_frame(unsigned char **buf, const unsigned char *end,
 	ar = eb64_last(&tx_ack->arngs->root);
 	ar_node = eb64_entry(&ar->node, struct quic_arng_node, first);
 	TRACE_PROTO("ack range", QUIC_EV_CONN_PRSAFRM,
-	            conn->conn,, &ar_node->last, &ar_node->first.key);
+	            qc,, &ar_node->last, &ar_node->first.key);
 	if (!quic_enc_int(buf, end, ar_node->last) ||
 	    !quic_enc_int(buf, end, tx_ack->ack_delay) ||
 	    !quic_enc_int(buf, end, tx_ack->arngs->sz - 1) ||
@@ -289,7 +289,7 @@ static int quic_build_ack_frame(unsigned char **buf, const unsigned char *end,
 
 	while ((prev_ar = eb64_prev(ar))) {
 		prev_ar_node = eb64_entry(&prev_ar->node, struct quic_arng_node, first);
-		TRACE_PROTO("ack range", QUIC_EV_CONN_PRSAFRM, conn->conn,,
+		TRACE_PROTO("ack range", QUIC_EV_CONN_PRSAFRM, qc,,
 		            &prev_ar_node->last, &prev_ar_node->first.key);
 		if (!quic_enc_int(buf, end, ar_node->first.key - prev_ar_node->last - 2) ||
 		    !quic_enc_int(buf, end, prev_ar_node->last - prev_ar_node->first.key))
@@ -1084,30 +1084,30 @@ const struct quic_frame_parser quic_frame_parsers[] = {
  */
 int qc_parse_frm(struct quic_frame *frm, struct quic_rx_packet *pkt,
                  const unsigned char **buf, const unsigned char *end,
-                 struct quic_conn *conn)
+                 struct quic_conn *qc)
 {
 	const struct quic_frame_parser *parser;
 
 	if (end <= *buf) {
-		TRACE_DEVEL("wrong frame", QUIC_EV_CONN_PRSFRM, conn->conn);
+		TRACE_DEVEL("wrong frame", QUIC_EV_CONN_PRSFRM, qc);
 		return 0;
 	}
 
 	frm->type = *(*buf)++;
 	if (frm->type > QUIC_FT_MAX) {
-		TRACE_DEVEL("wrong frame type", QUIC_EV_CONN_PRSFRM, conn->conn, frm);
+		TRACE_DEVEL("wrong frame type", QUIC_EV_CONN_PRSFRM, qc, frm);
 		return 0;
 	}
 
 	parser = &quic_frame_parsers[frm->type];
 	if (!(parser->mask & (1 << pkt->type))) {
-		TRACE_DEVEL("unauthorized frame", QUIC_EV_CONN_PRSFRM, conn->conn, frm);
+		TRACE_DEVEL("unauthorized frame", QUIC_EV_CONN_PRSFRM, qc, frm);
 		return 0;
 	}
 
-	TRACE_PROTO("frame", QUIC_EV_CONN_PRSFRM, conn->conn, frm);
-	if (!parser->func(frm, conn, buf, end)) {
-		TRACE_DEVEL("parsing error", QUIC_EV_CONN_PRSFRM, conn->conn, frm);
+	TRACE_PROTO("frame", QUIC_EV_CONN_PRSFRM, qc, frm);
+	if (!parser->func(frm, qc, buf, end)) {
+		TRACE_DEVEL("parsing error", QUIC_EV_CONN_PRSFRM, qc, frm);
 		return 0;
 	}
 
@@ -1121,26 +1121,26 @@ int qc_parse_frm(struct quic_frame *frm, struct quic_rx_packet *pkt,
  */
 int qc_build_frm(unsigned char **buf, const unsigned char *end,
                  struct quic_frame *frm, struct quic_tx_packet *pkt,
-                 struct quic_conn *conn)
+                 struct quic_conn *qc)
 {
 	const struct quic_frame_builder *builder;
 
 	builder = &quic_frame_builders[frm->type];
 	if (!(builder->mask & (1 << pkt->type))) {
 		/* XXX This it a bug to send an unauthorized frame with such a packet type XXX */
-		TRACE_DEVEL("frame skipped", QUIC_EV_CONN_BFRM, conn->conn, frm);
+		TRACE_DEVEL("frame skipped", QUIC_EV_CONN_BFRM, qc, frm);
 		BUG_ON(!(builder->mask & (1 << pkt->type)));
 	}
 
 	if (end <= *buf) {
-		TRACE_DEVEL("not enough room", QUIC_EV_CONN_BFRM, conn->conn, frm);
+		TRACE_DEVEL("not enough room", QUIC_EV_CONN_BFRM, qc, frm);
 		return 0;
 	}
 
-	TRACE_PROTO("frame", QUIC_EV_CONN_BFRM, conn->conn, frm);
+	TRACE_PROTO("frame", QUIC_EV_CONN_BFRM, qc, frm);
 	*(*buf)++ = frm->type;
-	if (!quic_frame_builders[frm->type].func(buf, end, frm, conn)) {
-		TRACE_DEVEL("frame building error", QUIC_EV_CONN_BFRM, conn->conn, frm);
+	if (!quic_frame_builders[frm->type].func(buf, end, frm, qc)) {
+		TRACE_DEVEL("frame building error", QUIC_EV_CONN_BFRM, qc, frm);
 		return 0;
 	}
 

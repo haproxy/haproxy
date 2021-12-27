@@ -1827,7 +1827,7 @@ static inline int qc_provide_cdata(struct quic_enc_level *el,
 
 	if (SSL_provide_quic_data(ctx->ssl, el->level, data, len) != 1) {
 		TRACE_PROTO("SSL_provide_quic_data() error",
-		            QUIC_EV_CONN_SSLDATA, ctx->conn, pkt, cf, ctx->ssl);
+		            QUIC_EV_CONN_SSLDATA, qc, pkt, cf, ctx->ssl);
 		goto err;
 	}
 
@@ -2050,7 +2050,7 @@ static int qc_handle_bidi_strm_frm(struct quic_rx_packet *pkt,
 
 	total += qc_treat_rx_strm_frms(strm);
 	if (total && qc->qcc->app_ops->decode_qcs(strm, strm_frm->fin, qc->qcc->ctx) < 0) {
-		TRACE_PROTO("Decoding error", QUIC_EV_CONN_PSTRM);
+		TRACE_PROTO("Decoding error", QUIC_EV_CONN_PSTRM, qc);
 		return 0;
 	}
 
@@ -2323,7 +2323,7 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct ssl_sock_ctx *ct
 
 	    if (state >= QUIC_HS_ST_SERVER_INITIAL) {
 		    quic_tls_discard_keys(&qc->els[QUIC_TLS_ENC_LEVEL_INITIAL]);
-		    TRACE_PROTO("discarding Initial pktns", QUIC_EV_CONN_PRSHPKT, ctx->conn);
+		    TRACE_PROTO("discarding Initial pktns", QUIC_EV_CONN_PRSHPKT, qc);
 		    quic_pktns_discard(qc->els[QUIC_TLS_ENC_LEVEL_INITIAL].pktns, qc);
 		    qc_set_timer(ctx->qc);
 		    if (state < QUIC_HS_ST_SERVER_HANDSHAKE)
@@ -5103,10 +5103,10 @@ static int qc_conn_init(struct connection *conn, void **xprt_ctx)
 			st = HA_ATOMIC_LOAD(&qc->state);
 			ssl_err = SSL_get_error(ctx->ssl, ssl_err);
 			if (ssl_err == SSL_ERROR_WANT_READ || ssl_err == SSL_ERROR_WANT_WRITE) {
-				TRACE_PROTO("SSL handshake", QUIC_EV_CONN_HDSHK, ctx->conn, &st, &ssl_err);
+				TRACE_PROTO("SSL handshake", QUIC_EV_CONN_HDSHK, qc, &st, &ssl_err);
 			}
 			else {
-				TRACE_DEVEL("SSL handshake error", QUIC_EV_CONN_HDSHK, ctx->conn, &st, &ssl_err);
+				TRACE_DEVEL("SSL handshake error", QUIC_EV_CONN_HDSHK, qc, &st, &ssl_err);
 				goto err;
 			}
 		}
@@ -5137,7 +5137,7 @@ static int qc_conn_init(struct connection *conn, void **xprt_ctx)
 
  out:
 	HA_ATOMIC_STORE(&qc->xprt_ctx, ctx);
-	TRACE_LEAVE(QUIC_EV_CONN_NEW, conn);
+	TRACE_LEAVE(QUIC_EV_CONN_NEW, qc);
 
 	return 0;
 
@@ -5157,7 +5157,7 @@ static int qc_xprt_start(struct connection *conn, void *ctx)
 
 	qc = conn->qc;
 	if (!quic_conn_init_timer(qc)) {
-		TRACE_PROTO("Non initialized timer", QUIC_EV_CONN_LPKT, conn);
+		TRACE_PROTO("Non initialized timer", QUIC_EV_CONN_LPKT, qc);
 		return 0;
 	}
 
