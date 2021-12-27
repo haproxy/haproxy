@@ -1659,7 +1659,10 @@ static void qc_packet_loss_lookup(struct quic_pktns *pktns,
 			LIST_APPEND(lost_pkts, &pkt->list);
 		}
 		else {
-			pktns->tx.loss_time = tick_first(pktns->tx.loss_time, loss_time_limit);
+			if (tick_isset(pktns->tx.loss_time))
+				pktns->tx.loss_time = tick_first(pktns->tx.loss_time, loss_time_limit);
+			else
+				pktns->tx.loss_time = loss_time_limit;
 		}
 	}
 
