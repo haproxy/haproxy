@@ -65,6 +65,8 @@ OPTIONS_OBJS += \
 	addons/ot/src/util.o
 
 ifneq ($(OT_USE_VARS),)
+$(warning Please do not set the OT_USE_VARS configuration variable, as the source will probably not be able to compile!  For now, this variable can only be used for experimental purposes, and is not intended for wider use.)
+
 OT_DEFINE     = -DUSE_OT_VARS
 OPTIONS_OBJS += \
 	addons/ot/src/vars.o
