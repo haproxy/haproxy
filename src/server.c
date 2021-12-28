@@ -2050,6 +2050,8 @@ static void srv_conn_src_cpy(struct server *srv, struct server *src)
 static void srv_ssl_settings_cpy(struct server *srv, struct server *src)
 {
 	/* <src> is the current proxy's default server and SSL is enabled */
+	BUG_ON(src->ssl_ctx.ctx != NULL); /* the SSL_CTX must never be initialized in a default-server */
+
 	if (src == &srv->proxy->defsrv && src->use_ssl == 1)
 		srv->flags |= SRV_F_DEFSRV_USE_SSL;
 
@@ -2057,10 +2059,11 @@ static void srv_ssl_settings_cpy(struct server *srv, struct server *src)
 		srv->ssl_ctx.ca_file = strdup(src->ssl_ctx.ca_file);
 	if (src->ssl_ctx.crl_file != NULL)
 		srv->ssl_ctx.crl_file = strdup(src->ssl_ctx.crl_file);
+	if (src->ssl_ctx.client_crt != NULL)
+		srv->ssl_ctx.client_crt = strdup(src->ssl_ctx.client_crt);
 
 	srv->ssl_ctx.verify = src->ssl_ctx.verify;
 
-	srv->ssl_ctx.ctx = src->ssl_ctx.ctx;
 
 	if (src->ssl_ctx.verify_host != NULL)
 		srv->ssl_ctx.verify_host = strdup(src->ssl_ctx.verify_host);

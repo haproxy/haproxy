@@ -4837,8 +4837,7 @@ static int ssl_sock_srv_verifycbk(int ok, X509_STORE_CTX *ctx)
 int ssl_sock_prepare_srv_ctx(struct server *srv)
 {
 	int cfgerr = 0;
-	SSL_CTX *ctx = srv->ssl_ctx.ctx;
-
+	SSL_CTX *ctx;
 	/* Automatic memory computations need to know we use SSL there */
 	global.ssl_used_backend = 1;
 
@@ -4852,6 +4851,27 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 	}
 	if (srv->use_ssl == 1)
 		srv->xprt = &ssl_sock;
+
+	if (srv->ssl_ctx.client_crt) {
+		const int create_if_none = srv->flags & SRV_F_DYNAMIC ? 0 : 1;
+		char *err = NULL;
+		int err_code = 0;
+
+		/* If there is a crt keyword there, the SSL_CTX will be created here. */
+		err_code = ssl_sock_load_srv_cert(srv->ssl_ctx.client_crt, srv, create_if_none, &err);
+		if (err_code != ERR_NONE) {
+			if ((err_code & ERR_WARN) && !(err_code & ERR_ALERT))
+				ha_warning("%s", err);
+			else
+				ha_alert("%s", err);
+
+			if (err_code & (ERR_FATAL|ERR_ABORT))
+				cfgerr++;
+		}
+		ha_free(&err);
+	}
+
+	ctx = srv->ssl_ctx.ctx;
 
 	/* The context will be uninitialized if there wasn't any "cert" option
 	 * in the server line. */
