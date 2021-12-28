@@ -247,6 +247,11 @@ typedef struct { } empty_t;
 #endif
 #endif
 
+/* dl_iterate_phdr() is available in GLIBC 2.2.4 and up. Let's round up to 2.3.x */
+#if defined(USE_DL) && defined(__GNU_LIBRARY__) && (__GLIBC__ > 2 || __GLIBC__ == 2 && __GLIBC_MINOR__ >= 3)
+#define HA_HAVE_DL_ITERATE_PHDR
+#endif
+
 /* malloc_trim() can be very convenient to reclaim unused memory especially
  * from huge pattern files. It's available (and really usable) in glibc 2.8 and
  * above.
