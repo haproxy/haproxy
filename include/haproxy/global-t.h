@@ -40,6 +40,7 @@
 #define	MODE_DIAG	0x400   /* extra warnings */
 #define	MODE_CHECK_CONDITION	0x800    /* -cc mode */
 #define	MODE_STOPPING   0x1000  /* the process is in the deinit phase, the event loop is not running anymore. */
+#define	MODE_DUMP_LIBS  0x2000  /* dump loaded libraries at the end of init phase */
 
 /* list of last checks to perform, depending on config options */
 #define LSTCHK_CAP_BIND	0x00000001	/* check that we can bind to any port */

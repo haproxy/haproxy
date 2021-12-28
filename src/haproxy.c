@@ -597,6 +597,9 @@ static void usage(char *name)
 #if defined(SO_REUSEPORT)
 		"        -dR disables SO_REUSEPORT usage\n"
 #endif
+#if defined(HA_HAVE_DUMP_LIBS)
+		"        -dL dumps loaded object files after config checks\n"
+#endif
 		"        -dr ignores server address resolution failures\n"
 		"        -dV disables SSL verify on servers side\n"
 		"        -dW fails if any warning is emitted\n"
@@ -1632,6 +1635,10 @@ static void init(int argc, char **argv)
 				mem_poison_byte = flag[2] ? strtol(flag + 2, NULL, 0) : 'P';
 			else if (*flag == 'd' && flag[1] == 'r')
 				global.tune.options |= GTUNE_RESOLVE_DONTFAIL;
+#if defined(HA_HAVE_DUMP_LIBS)
+			else if (*flag == 'd' && flag[1] == 'L')
+				arg_mode |= MODE_DUMP_LIBS;
+#endif
 			else if (*flag == 'd')
 				arg_mode |= MODE_DEBUG;
 			else if (*flag == 'c' && flag[1] == 'c') {
@@ -1773,7 +1780,7 @@ static void init(int argc, char **argv)
 
 	global.mode |= (arg_mode & (MODE_DAEMON | MODE_MWORKER | MODE_FOREGROUND | MODE_VERBOSE
 				    | MODE_QUIET | MODE_CHECK | MODE_DEBUG | MODE_ZERO_WARNING
-				    | MODE_DIAG | MODE_CHECK_CONDITION));
+				    | MODE_DIAG | MODE_CHECK_CONDITION | MODE_DUMP_LIBS));
 
 	if (getenv("HAPROXY_MWORKER_WAIT_ONLY")) {
 		unsetenv("HAPROXY_MWORKER_WAIT_ONLY");
@@ -2055,6 +2062,15 @@ static void init(int argc, char **argv)
 		ha_alert("Some warnings were found and 'zero-warning' is set. Aborting.\n");
 		exit(1);
 	}
+
+#if defined(HA_HAVE_DUMP_LIBS)
+	if (global.mode & MODE_DUMP_LIBS) {
+		qfprintf(stdout, "List of loaded object files:\n");
+		chunk_reset(&trash);
+		if (dump_libs(&trash, 0))
+			printf("%s", trash.area);
+	}
+#endif
 
 	if (global.mode & MODE_CHECK) {
 		struct peers *pr;

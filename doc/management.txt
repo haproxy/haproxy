@@ -213,6 +213,19 @@ list of options is :
     getaddrinfo() exist on various systems and cause anomalies that are
     difficult to troubleshoot.
 
+  -dL : dumps the list of dynamic shared libraries that are loaded at the end
+   of the config processing. This will generally also include deep dependencies
+   such as anything loaded from Lua code for example, as well as the executable
+   itself. The list is printed in a format that ought to be easy enough to
+   sanitize to directly produce a tarball of all dependencies. Since it doesn't
+   stop the program's startup, it is recommended to only use it in combination
+   with "-c" and "-q" where only the list of loaded objects will be displayed
+   (or nothing in case of error). In addition, keep in mind that when providing
+   such a package to help with a core file analysis, most libraries are in fact
+   symbolic links that need to be dereferenced when creating the archive:
+
+       ./haproxy -W -q -c -dL -f foo.cfg | tar -T - -hzcf archive.tgz
+
   -dM[<byte>] : forces memory poisoning, which means that each and every
     memory region allocated with malloc() or pool_alloc() will be filled with
     <byte> before being passed to the caller. When <byte> is not specified, it
