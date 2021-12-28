@@ -2208,7 +2208,9 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct ssl_sock_ctx *ct
 				unsigned int ack_delay;
 
 				ack_delay = !quic_application_pktns(qel->pktns, qc) ? 0 :
-					MS_TO_TICKS(QUIC_MIN(quic_ack_delay_ms(&frm.ack, qc), qc->max_ack_delay));
+					HA_ATOMIC_LOAD(&qc->state) >= QUIC_HS_ST_CONFIRMED ?
+					MS_TO_TICKS(QUIC_MIN(quic_ack_delay_ms(&frm.ack, qc), qc->max_ack_delay)) :
+					MS_TO_TICKS(quic_ack_delay_ms(&frm.ack, qc));
 				quic_loss_srtt_update(&qc->path->loss, rtt_sample, ack_delay, qc);
 			}
 			break;

@@ -42,8 +42,8 @@ static inline void quic_loss_init(struct quic_loss *ql)
 }
 
 /* Update <ql> QUIC loss information with new <rtt> measurement and <ack_delay>
- * on ACK frame receipt which MUST be min(ack->ack_delay, max_ack_delay) for
- * non handshake packets.
+ * on ACK frame receipt which MUST be min(ack->ack_delay, max_ack_delay)
+ * before the handshake is confirmed.
  */
 static inline void quic_loss_srtt_update(struct quic_loss *ql,
                                          unsigned int rtt, unsigned int ack_delay,
