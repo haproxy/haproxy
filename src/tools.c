@@ -4983,6 +4983,96 @@ const void *resolve_sym_name(struct buffer *buf, const char *pfx, const void *ad
 	return NULL;
 }
 
+/* On systems where this is supported, let's provide a possibility to enumerate
+ * the list of object files. The output is appended to a buffer initialized by
+ * the caller, with one name per line. A trailing zero is always emitted if data
+ * are written. Only real objects are dumped (executable and .so libs). The
+ * function returns non-zero if it dumps anything. These functions do not make
+ * use of the trash so that it is possible for the caller to call them with the
+ * trash on input. The output format may be platform-specific but at least one
+ * version must emit raw object file names when argument is zero.
+ */
+#if defined(HA_HAVE_DUMP_LIBS)
+# if defined(HA_HAVE_DL_ITERATE_PHDR)
+/* the private <data> we pass below is a dump context initialized like this */
+struct dl_dump_ctx {
+	struct buffer *buf;
+	int with_addr;
+};
+
+static int dl_dump_libs_cb(struct dl_phdr_info *info, size_t size, void *data)
+{
+	struct dl_dump_ctx *ctx = data;
+	const char *fname;
+	size_t p1, p2, beg, end;
+	int idx;
+
+	if (!info || !info->dlpi_name)
+		goto leave;
+
+	if (!*info->dlpi_name)
+		fname = get_exec_path();
+	else if (strchr(info->dlpi_name, '/'))
+		fname = info->dlpi_name;
+	else
+		/* else it's a VDSO or similar and we're not interested */
+		goto leave;
+
+	if (!ctx->with_addr)
+		goto dump_name;
+
+	/* virtual addresses are relative to the load address and are per
+	 * pseudo-header, so we have to scan them all to find the furthest
+	 * one from the beginning. In this case we only dump entries if
+	 * they have at least one section.
+	 */
+	beg = ~0; end = 0;
+	for (idx = 0; idx < info->dlpi_phnum; idx++) {
+		if (!info->dlpi_phdr[idx].p_memsz)
+			continue;
+		p1 = info->dlpi_phdr[idx].p_vaddr;
+		if (p1 < beg)
+			beg = p1;
+		p2 = p1 + info->dlpi_phdr[idx].p_memsz - 1;
+		if (p2 > end)
+			end = p2;
+	}
+
+	if (!idx)
+		goto leave;
+
+	chunk_appendf(ctx->buf, "0x%012llx-0x%012llx (0x%07llx) ",
+		      (ullong)info->dlpi_addr + beg,
+		      (ullong)info->dlpi_addr + end,
+		      (ullong)(end - beg + 1));
+ dump_name:
+	chunk_appendf(ctx->buf, "%s\n", fname);
+ leave:
+	return 0;
+}
+
+/* dumps lib names and optionally address ranges */
+int dump_libs(struct buffer *output, int with_addr)
+{
+	struct dl_dump_ctx ctx = { .buf = output, .with_addr = with_addr };
+	size_t old_data = output->data;
+
+	dl_iterate_phdr(dl_dump_libs_cb, &ctx);
+	return output->data != old_data;
+}
+# else // no DL_ITERATE_PHDR
+#  error "No dump_libs() function for this platform"
+# endif
+#else // no HA_HAVE_DUMP_LIBS
+
+/* unsupported platform: do not dump anything */
+int dump_libs(struct buffer *output, int with_addr)
+{
+	return 0;
+}
+
+#endif // HA_HAVE_DUMP_LIBS
+
 /*
  * Allocate an array of unsigned int with <nums> as address from <str> string
  * made of integer separated by dot characters.

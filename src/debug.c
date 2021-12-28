@@ -305,6 +305,21 @@ static int cli_io_handler_show_threads(struct appctx *appctx)
 	return 1;
 }
 
+#if defined(HA_HAVE_DUMP_LIBS)
+/* parse a "show libs" command. It returns 1 if it emits anything otherwise zero. */
+static int debug_parse_cli_show_libs(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	if (!cli_has_level(appctx, ACCESS_LVL_OPER))
+		return 1;
+
+	chunk_reset(&trash);
+	if (dump_libs(&trash, 1))
+		return cli_msg(appctx, LOG_INFO, trash.area);
+	else
+		return 0;
+}
+#endif
+
 /* dumps a state of all threads into the trash and on fd #2, then aborts. */
 void ha_panic()
 {
@@ -1204,6 +1219,9 @@ static struct cli_kw_list cli_kws = {{ },{
 	{{ "debug", "dev", "sym",   NULL },    "debug dev sym    <addr>                 : resolve symbol address",                  debug_parse_cli_sym,   NULL, NULL, NULL, ACCESS_EXPERT },
 	{{ "debug", "dev", "tkill", NULL },    "debug dev tkill  [thr] [sig]            : send signal to thread",                   debug_parse_cli_tkill, NULL, NULL, NULL, ACCESS_EXPERT },
 	{{ "debug", "dev", "write", NULL },    "debug dev write  [size]                 : write that many bytes in return",         debug_parse_cli_write, NULL, NULL, NULL, ACCESS_EXPERT },
+#if defined(HA_HAVE_DUMP_LIBS)
+	{{ "show", "libs", NULL, NULL },       "show libs                               : show loaded object files and libraries", debug_parse_cli_show_libs, NULL, NULL },
+#endif
 	{{ "show", "threads", NULL, NULL },    "show threads                            : show some threads debugging information", NULL, cli_io_handler_show_threads, NULL },
 	{{},}
 }};

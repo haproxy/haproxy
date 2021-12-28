@@ -2623,6 +2623,19 @@ show info [typed|json] [desc] [float]
   $ echo "show info json" | socat /var/run/haproxy.sock stdio | \
     python -m json.tool
 
+show libs
+  Dump the list of loaded shared dynamic libraries and object files, on systems
+  that support it. When available, for each shared object the range of virtual
+  addresses will be indicated, the size and the path to the object. This can be
+  used for example to try to estimate what library provides a function that
+  appears in a dump. Note that on many systems, addresses will change upon each
+  restart (address space randomization), so that this list would need to be
+  retrieved upon startup if it is expected to be used to analyse a core file.
+  This command may only be issued on sockets configured for levels "operator"
+  or "admin". Note that the output format may vary between operating systems,
+  architectures and even haproxy versions, and ought not to be relied on in
+  scripts.
+
 show map [[@<ver>] <map>]
   Dump info about map converters. Without argument, the list of all available
   maps is returned. If a <map> is specified, its contents are dumped. <map> is

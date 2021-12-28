@@ -250,6 +250,7 @@ typedef struct { } empty_t;
 /* dl_iterate_phdr() is available in GLIBC 2.2.4 and up. Let's round up to 2.3.x */
 #if defined(USE_DL) && defined(__GNU_LIBRARY__) && (__GLIBC__ > 2 || __GLIBC__ == 2 && __GLIBC_MINOR__ >= 3)
 #define HA_HAVE_DL_ITERATE_PHDR
+#define HA_HAVE_DUMP_LIBS
 #endif
 
 /* malloc_trim() can be very convenient to reclaim unused memory especially

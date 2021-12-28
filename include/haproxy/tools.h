@@ -984,6 +984,7 @@ const void *resolve_sym_name(struct buffer *buf, const char *pfx, const void *ad
 const char *get_exec_path(void);
 void *get_sym_curr_addr(const char *name);
 void *get_sym_next_addr(const char *name);
+int dump_libs(struct buffer *output, int with_addr);
 
 /* Note that this may result in opening libgcc() on first call, so it may need
  * to have been called once before chrooting.
