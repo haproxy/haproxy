@@ -289,13 +289,13 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 			if (qel) {
 				const struct quic_pktns *pktns = qc->pktns;
 				chunk_appendf(&trace_buf, " qel=%c cwnd=%llu ppif=%lld pif=%llu "
-				              "if=%llu pp=%u pdg=%d",
+				              "if=%llu pp=%u",
 				              quic_enc_level_char_from_qel(qel, qc),
 				              (unsigned long long)qc->path->cwnd,
 				              (unsigned long long)qc->path->prep_in_flight,
 				              (unsigned long long)qc->path->in_flight,
 				              (unsigned long long)pktns->tx.in_flight,
-				              pktns->tx.pto_probe, qc->tx.nb_pto_dgrams);
+				              pktns->tx.pto_probe);
 			}
 			if (pkt) {
 				const struct quic_frame *frm;
@@ -388,15 +388,15 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 			if (qel) {
 				const struct quic_pktns *pktns = qc->pktns;
 				chunk_appendf(&trace_buf,
-				              " qel=%c state=%s ack?%d cwnd=%llu ppif=%lld pif=%llu if=%llu pp=%u pdg=%llu",
+				              " qel=%c state=%s ack?%d cwnd=%llu ppif=%lld pif=%llu if=%llu pp=%u",
 				              quic_enc_level_char_from_qel(qel, qc),
 				              quic_hdshk_state_str(HA_ATOMIC_LOAD(&qc->state)),
 				              !!(HA_ATOMIC_LOAD(&qel->pktns->flags) & QUIC_FL_PKTNS_ACK_REQUIRED),
 				              (unsigned long long)qc->path->cwnd,
 				              (unsigned long long)qc->path->prep_in_flight,
 				              (unsigned long long)qc->path->in_flight,
-				              (unsigned long long)pktns->tx.in_flight, pktns->tx.pto_probe,
-				              (unsigned long long)qc->tx.nb_pto_dgrams);
+				              (unsigned long long)pktns->tx.in_flight,
+				              pktns->tx.pto_probe);
 			}
 		}
 
@@ -2404,19 +2404,15 @@ static int qc_prep_pkts(struct quic_conn *qc, struct qring *qr)
 	end_buf = pos + cb_contig_space(cbuf) - sizeof dglen;
 	first_pkt = prv_pkt = NULL;
 	while (end_buf - pos >= (int)qc->path->mtu + dg_headlen || prv_pkt) {
-		int err, nb_ptos, ack, cc;
+		int err, probe, ack, cc;
 		enum quic_pkt_type pkt_type;
 
 		TRACE_POINT(QUIC_EV_CONN_PHPKTS, qc, qel);
-		nb_ptos = ack = 0;
+		probe = ack = 0;
 		cc =  HA_ATOMIC_LOAD(&qc->flags) & QUIC_FL_CONN_IMMEDIATE_CLOSE;
 		if (!cc) {
-			if (!prv_pkt) {
-				/* Consume a PTO dgram only if building a new dgrams (!prv_pkt) */
-				do {
-					nb_ptos = HA_ATOMIC_LOAD(&qc->tx.nb_pto_dgrams);
-				} while (nb_ptos && !HA_ATOMIC_CAS(&qc->tx.nb_pto_dgrams, &nb_ptos, nb_ptos - 1));
-			}
+			if (!prv_pkt)
+				probe = qel->pktns->tx.pto_probe;
 			ack = HA_ATOMIC_BTR(&qel->pktns->flags, QUIC_FL_PKTNS_ACK_REQUIRED_BIT);
 		}
 		/* Do not build any more packet if the TX secrets are not available or
@@ -2426,7 +2422,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct qring *qr)
 		 * congestion control limit is reached for prepared data
 		 */
 		if (!(qel->tls_ctx.tx.flags & QUIC_FL_TLS_SECRETS_SET) ||
-		    (!cc && !ack && !nb_ptos &&
+		    (!cc && !ack && !probe &&
 		     (MT_LIST_ISEMPTY(&qel->pktns->tx.frms) ||
 		      qc->path->prep_in_flight >= qc->path->cwnd))) {
 			TRACE_DEVEL("nothing more to do", QUIC_EV_CONN_PHPKTS, qc);
@@ -2453,11 +2449,9 @@ static int qc_prep_pkts(struct quic_conn *qc, struct qring *qr)
 		}
 
 		cur_pkt = qc_build_pkt(&pos, end, qel, qc, dglen, padding,
-		                       pkt_type, ack, nb_ptos, cc, &err);
+		                       pkt_type, ack, probe, cc, &err);
 		/* Restore the PTO dgrams counter if a packet could not be built */
 		if (err < 0) {
-			if (!prv_pkt && nb_ptos)
-				HA_ATOMIC_ADD(&qc->tx.nb_pto_dgrams, 1);
 			if (ack)
 				HA_ATOMIC_BTS(&qel->pktns->flags, QUIC_FL_PKTNS_ACK_REQUIRED_BIT);
 		}
@@ -3302,7 +3296,6 @@ static struct task *process_timer(struct task *task, void *ctx, unsigned int sta
 		if (iel->tls_ctx.rx.flags == QUIC_FL_TLS_SECRETS_SET)
 			iel->pktns->tx.pto_probe = 1;
 	}
-	HA_ATOMIC_STORE(&qc->tx.nb_pto_dgrams, QUIC_MAX_NB_PTO_DGRAMS);
 	tasklet_wakeup(conn_ctx->wait_event.tasklet);
 	qc->path->loss.pto_count++;
 
@@ -3412,7 +3405,6 @@ static struct quic_conn *qc_new_conn(unsigned int version, int ipv4,
 	qc->tx.nb_buf = QUIC_CONN_TX_BUFS_NB;
 	qc->tx.wbuf = qc->tx.rbuf = 0;
 	qc->tx.bytes = 0;
-	qc->tx.nb_pto_dgrams = 0;
 	/* RX part. */
 	qc->rx.bytes = 0;
 	qc->rx.nb_ack_eliciting = 0;
@@ -4359,7 +4351,7 @@ static inline int qc_build_frms(struct quic_tx_packet *pkt,
 	/* If we are not probing we must take into an account the congestion
 	 * control window.
 	 */
-	if (!qc->tx.nb_pto_dgrams)
+	if (!qel->pktns->tx.pto_probe)
 		room = QUIC_MIN(room, quic_path_prep_data(qc->path) - headlen);
 	TRACE_PROTO("************** frames build (headlen)",
 	            QUIC_EV_CONN_BCFRMS, qc, &headlen);
@@ -4698,10 +4690,13 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 			goto no_room;
 	}
 
-	/* Always reset this variable as this function has no idea
-	 * if it was set. It is handle by the loss detection timer.
+	/* If this packet is ack-eliciting and we are probing let's
+	 * decrement the PTO probe counter.
 	 */
-	qel->pktns->tx.pto_probe = 0;
+	if (pkt->flags & QUIC_FL_TX_PACKET_ACK_ELICITING &&
+	    qel->pktns->tx.pto_probe)
+		qel->pktns->tx.pto_probe--;
+
 	pkt->len = pos - beg;
 
 	return 1;

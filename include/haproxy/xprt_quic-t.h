@@ -674,10 +674,6 @@ struct quic_conn {
 		uint64_t bytes;
 		/* Number of bytes for prepared packets */
 		uint64_t prep_bytes;
-		/* The number of datagrams which may be sent
-		 * when sending probe packets.
-		 */
-		int nb_pto_dgrams;
 		/* Transport parameters sent by the peer */
 		struct quic_transport_params params;
 		/* A pointer to a list of TX ring buffers */
