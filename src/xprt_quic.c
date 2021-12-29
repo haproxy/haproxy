@@ -386,7 +386,7 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 			const struct quic_enc_level *qel = a2;
 
 			if (qel) {
-				const struct quic_pktns *pktns = qc->pktns;
+				const struct quic_pktns *pktns = qel->pktns;
 				chunk_appendf(&trace_buf,
 				              " qel=%c state=%s ack?%d cwnd=%llu ppif=%lld pif=%llu if=%llu pp=%u",
 				              quic_enc_level_char_from_qel(qel, qc),
