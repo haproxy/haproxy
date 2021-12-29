@@ -2468,50 +2468,51 @@ static int qc_prep_pkts(struct quic_conn *qc, struct qring *qr)
 			}
 			goto out;
 		default:
-			/* This is to please to GCC. We cannot have (err >= 0 && !cur_pkt) */
-			if (!cur_pkt)
-				goto err;
-
-			total += cur_pkt->len;
-			/* keep trace of the first packet in the datagram */
-			if (!first_pkt)
-				first_pkt = cur_pkt;
-			/* Attach the current one to the previous one */
-			if (prv_pkt)
-				prv_pkt->next = cur_pkt;
-			/* Let's say we have to build a new dgram */
-			prv_pkt = NULL;
-			dglen += cur_pkt->len;
-			/* Discard the Initial encryption keys as soon as
-			 * a handshake packet could be built.
-			 */
-			if (HA_ATOMIC_LOAD(&qc->state) == QUIC_HS_ST_CLIENT_INITIAL &&
-			    pkt_type == QUIC_PACKET_TYPE_HANDSHAKE) {
-				quic_tls_discard_keys(&qc->els[QUIC_TLS_ENC_LEVEL_INITIAL]);
-				TRACE_PROTO("discarding Initial pktns", QUIC_EV_CONN_PHPKTS, qc);
-				quic_pktns_discard(qc->els[QUIC_TLS_ENC_LEVEL_INITIAL].pktns, qc);
-				qc_set_timer(qc);
-				HA_ATOMIC_STORE(&qc->state, QUIC_HS_ST_CLIENT_HANDSHAKE);
-			}
-			/* If the data for the current encryption level have all been sent,
-			 * select the next level.
-			 */
-			if ((tel == QUIC_TLS_ENC_LEVEL_INITIAL || tel == QUIC_TLS_ENC_LEVEL_HANDSHAKE) &&
-			    (MT_LIST_ISEMPTY(&qel->pktns->tx.frms))) {
-				/* If QUIC_TLS_ENC_LEVEL_HANDSHAKE was already reached let's try QUIC_TLS_ENC_LEVEL_APP */
-				if (tel == QUIC_TLS_ENC_LEVEL_HANDSHAKE && next_tel == tel)
-					next_tel = QUIC_TLS_ENC_LEVEL_APP;
-				tel = next_tel;
-				qel = &qc->els[tel];
-				if (!MT_LIST_ISEMPTY(&qel->pktns->tx.frms)) {
-					/* If there is data for the next level, do not
-					 * consume a datagram.
-					 */
-					prv_pkt = cur_pkt;
-				}
-			}
+			break;
 		}
 
+		/* This is to please to GCC. We cannot have (err >= 0 && !cur_pkt) */
+		if (!cur_pkt)
+			goto err;
+
+		total += cur_pkt->len;
+		/* keep trace of the first packet in the datagram */
+		if (!first_pkt)
+			first_pkt = cur_pkt;
+		/* Attach the current one to the previous one */
+		if (prv_pkt)
+			prv_pkt->next = cur_pkt;
+		/* Let's say we have to build a new dgram */
+		prv_pkt = NULL;
+		dglen += cur_pkt->len;
+		/* Client: discard the Initial encryption keys as soon as
+		 * a handshake packet could be built.
+		 */
+		if (HA_ATOMIC_LOAD(&qc->state) == QUIC_HS_ST_CLIENT_INITIAL &&
+		    pkt_type == QUIC_PACKET_TYPE_HANDSHAKE) {
+			quic_tls_discard_keys(&qc->els[QUIC_TLS_ENC_LEVEL_INITIAL]);
+			TRACE_PROTO("discarding Initial pktns", QUIC_EV_CONN_PHPKTS, qc);
+			quic_pktns_discard(qc->els[QUIC_TLS_ENC_LEVEL_INITIAL].pktns, qc);
+			qc_set_timer(qc);
+			HA_ATOMIC_STORE(&qc->state, QUIC_HS_ST_CLIENT_HANDSHAKE);
+		}
+		/* If the data for the current encryption level have all been sent,
+		 * select the next level.
+		 */
+		if ((tel == QUIC_TLS_ENC_LEVEL_INITIAL || tel == QUIC_TLS_ENC_LEVEL_HANDSHAKE) &&
+		    (MT_LIST_ISEMPTY(&qel->pktns->tx.frms))) {
+			/* If QUIC_TLS_ENC_LEVEL_HANDSHAKE was already reached let's try QUIC_TLS_ENC_LEVEL_APP */
+			if (tel == QUIC_TLS_ENC_LEVEL_HANDSHAKE && next_tel == tel)
+				next_tel = QUIC_TLS_ENC_LEVEL_APP;
+			tel = next_tel;
+			qel = &qc->els[tel];
+			if (!MT_LIST_ISEMPTY(&qel->pktns->tx.frms)) {
+				/* If there is data for the next level, do not
+				 * consume a datagram.
+				 */
+				prv_pkt = cur_pkt;
+			}
+		}
 		/* If we have to build a new datagram, set the current datagram as
 		 * prepared into <cbuf>.
 		 */
