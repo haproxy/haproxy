@@ -15,7 +15,7 @@ feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.5-dev0)'"
 feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL)'"
 feature ignore_unknown_macro
 
-server s1 -repeat 10 {
+server s1 -repeat 7 {
   rxreq
   txresp
 } -start
@@ -56,10 +56,7 @@ haproxy h1 -conf {
 
     backend third_be
         default-server ssl crt client1.pem ca-file ca-auth.crt verify none
-        server s1 "${tmpdir}/ssl.sock"
-        server s2 "${tmpdir}/ssl.sock" crt client2_expired.pem
-        server s3 "${tmpdir}/ssl.sock"
-        server s4 "${tmpdir}/ssl.sock"
+        server s1 "${tmpdir}/ssl.sock" crt client2_expired.pem
 
     backend fourth_be
         default-server ssl crt client1.pem verify none
@@ -109,23 +106,7 @@ client c1 -connect ${h1_clearlst_sock} {
     txreq
     rxresp
     expect resp.status == 200
-    expect resp.http.x-ssl == "Ok"
-} -run
-
-client c1 -connect ${h1_clearlst_sock} {
-    txreq -url "/third"
-    txreq
-    rxresp
-    expect resp.status == 200
     expect resp.http.x-ssl == "Expired"
-} -run
-
-client c1 -connect ${h1_clearlst_sock} -repeat 2 {
-    txreq -url "/third"
-    txreq
-    rxresp
-    expect resp.status == 200
-    expect resp.http.x-ssl == "Ok"
 } -run
 
 client c1 -connect ${h1_clearlst_sock} {
