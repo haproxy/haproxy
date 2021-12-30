@@ -320,7 +320,11 @@ void pool_evict_from_local_cache(struct pool_head *pool)
 		pool_cache_count--;
 		LIST_DELETE(&item->by_pool);
 		LIST_DELETE(&item->by_lru);
-		pool_put_to_shared_cache(pool, item);
+
+		if (unlikely(pool_is_crowded(pool)))
+			pool_free_nocache(pool, item);
+		else
+			pool_put_to_shared_cache(pool, item);
 	}
 }
 
@@ -345,7 +349,10 @@ void pool_evict_from_local_caches()
 		ph->count--;
 		pool_cache_count--;
 		pool_cache_bytes -= pool->size;
-		pool_put_to_shared_cache(pool, item);
+		if (unlikely(pool_is_crowded(pool)))
+			pool_free_nocache(pool, item);
+		else
+			pool_put_to_shared_cache(pool, item);
 	} while (pool_cache_bytes > CONFIG_HAP_POOL_CACHE_SIZE * 7 / 8);
 }
 
@@ -432,6 +439,29 @@ void pool_refill_local_from_shared(struct pool_head *pool, struct pool_cache_hea
 	pch->count++;
 	pool_cache_count++;
 	pool_cache_bytes += pool->size;
+}
+
+/* Adds cache item entry <item> to the shared cache. The caller is advised to
+ * first check using pool_is_crowded() if it's wise to add this object there.
+ * Both the pool and the item must be valid. Use pool_free() for normal
+ * operations.
+ */
+void pool_put_to_shared_cache(struct pool_head *pool, void *item)
+{
+	void **free_list;
+
+	_HA_ATOMIC_DEC(&pool->used);
+	free_list = _HA_ATOMIC_LOAD(&pool->free_list);
+	do {
+		while (unlikely(free_list == POOL_BUSY)) {
+			__ha_cpu_relax();
+			free_list = _HA_ATOMIC_LOAD(&pool->free_list);
+		}
+		_HA_ATOMIC_STORE((void **)item, (void *)free_list);
+		__ha_barrier_atomic_store();
+	} while (!_HA_ATOMIC_CAS(&pool->free_list, &free_list, item));
+	__ha_barrier_atomic_store();
+	swrate_add(&pool->needed_avg, POOL_AVG_SAMPLES, pool->used);
 }
 
 /*
