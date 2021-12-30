@@ -56,16 +56,30 @@
 #define POOL_F_NO_FAIL      0x00000004  // do not randomly fail
 
 
+/* This is the head of a thread-local cache */
 struct pool_cache_head {
 	struct list list;    /* head of objects in this pool */
 	unsigned int count;  /* number of objects in this pool */
 } THREAD_ALIGNED(64);
 
+/* This represents one item stored in the thread-local cache. <by_pool> links
+ * the object to the list of objects in the pool, and <by_lru> links the object
+ * to the local thread's list of hottest objects. This way it's possible to
+ * allocate a fresh object from the cache, or to release cold objects from any
+ * pool (no bookkeeping is needed since shared pools do not know how many
+ * objects they store).
+ */
 struct pool_cache_item {
 	struct list by_pool; /* link to objects in this pool */
 	struct list by_lru;  /* link to objects by LRU order */
 };
 
+/* This describes a complete pool, with its status, usage statistics and the
+ * thread-local caches if any. Even if pools are disabled, these descriptors
+ * are valid and are used at least to get names and sizes. For small builds
+ * using neither threads nor pools, this structure might be reduced, and
+ * alignment could be removed.
+ */
 struct pool_head {
 	void **free_list;
 	unsigned int used;	/* how many chunks are currently in use */
