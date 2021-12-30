@@ -5247,6 +5247,8 @@ void ssl_sock_free_srv_ctx(struct server *srv)
 #ifdef HAVE_SSL_CTX_SET_CIPHERSUITES
 	ha_free(&srv->ssl_ctx.ciphersuites);
 #endif
+	/* If there is a certificate we must unlink the ckch instance */
+	ckch_inst_free(srv->ssl_ctx.inst);
 }
 
 /* Walks down the two trees in bind_conf and frees all the certs. The pointer may
