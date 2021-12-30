@@ -2170,6 +2170,34 @@ static inline int qc_handle_strm_frm(struct quic_rx_packet *pkt,
 		return qc_handle_bidi_strm_frm(pkt, strm_frm, qc);
 }
 
+/* Prepare a fast retransmission from <qel> encryption level
+ * which must be Initial encryption level.
+ */
+static void qc_prep_fast_retrans(struct quic_enc_level *qel,
+                                 struct quic_conn *qc)
+{
+	struct eb_root *pkts = &qel->pktns->tx.pkts;
+	struct eb64_node *node = eb64_first(pkts);
+	struct quic_tx_packet *pkt;
+	struct quic_frame *frm, *frmbak;
+
+ start:
+	pkts = &qel->pktns->tx.pkts;
+	node = eb64_first(pkts);
+	if (!node)
+		return;
+
+	pkt = eb64_entry(&node->node, struct quic_tx_packet, pn_node);
+	list_for_each_entry_safe(frm, frmbak, &pkt->frms, list)
+		qc_treat_nacked_tx_frm(qc, frm, qel->pktns);
+	if (qel == &qc->els[QUIC_TLS_ENC_LEVEL_INITIAL] &&
+	    qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE].pktns->tx.in_flight) {
+		qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE].pktns->tx.pto_probe = 1;
+		qel = &qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE];
+		goto start;
+	}
+}
+
 /* Parse all the frames of <pkt> QUIC packet for QUIC connection with <ctx>
  * as I/O handler context and <qel> as encryption level.
  * Returns 1 if succeeded, 0 if failed.
@@ -2180,6 +2208,7 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct ssl_sock_ctx *ct
 	struct quic_frame frm;
 	const unsigned char *pos, *end;
 	struct quic_conn *qc = ctx->qc;
+	int fast_retrans = 0;
 
 	TRACE_ENTER(QUIC_EV_CONN_PRSHPKT, qc);
 	/* Skip the AAD */
@@ -2231,6 +2260,9 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct ssl_sock_ctx *ct
 					/* Nothing to do */
 					TRACE_PROTO("Already received CRYPTO data",
 					            QUIC_EV_CONN_ELRXPKTS, qc, pkt, &cfdebug);
+					if (objt_listener(ctx->conn->target) &&
+					    qel == &qc->els[QUIC_TLS_ENC_LEVEL_INITIAL])
+						fast_retrans = 1;
 					break;
 				}
 				else {
@@ -2319,6 +2351,12 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct ssl_sock_ctx *ct
 		default:
 			goto err;
 		}
+	}
+
+	if (fast_retrans) {
+		qc_prep_fast_retrans(qel, qc);
+		if (qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE].pktns->tx.in_flight)
+			qc_prep_fast_retrans(&qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE], qc);
 	}
 
 	/* The server must switch from INITIAL to HANDSHAKE handshake state when it
