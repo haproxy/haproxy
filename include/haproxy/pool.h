@@ -120,13 +120,9 @@ static inline int pool_is_crowded(const struct pool_head *pool)
 
 #if defined(CONFIG_HAP_NO_GLOBAL_POOLS)
 
-/* this is essentially used with local caches and a fast malloc library,
- * which may sometimes be faster than the local shared pools because it
- * will maintain its own per-thread arenas.
- */
-static inline void *pool_get_from_shared_cache(struct pool_head *pool)
+static inline void pool_refill_local_from_shared(struct pool_head *pool, struct pool_cache_head *pch)
 {
-	return NULL;
+	/* ignored without shared pools */
 }
 
 static inline void pool_put_to_shared_cache(struct pool_head *pool, void *ptr)
@@ -136,44 +132,7 @@ static inline void pool_put_to_shared_cache(struct pool_head *pool, void *ptr)
 
 #else /* CONFIG_HAP_NO_GLOBAL_POOLS */
 
-/*
- * Returns a pointer to type <type> taken from the pool <pool_type> if
- * available, otherwise returns NULL. No malloc() is attempted, and poisonning
- * is never performed. The purpose is to get the fastest possible allocation.
- */
-static inline void *pool_get_from_shared_cache(struct pool_head *pool)
-{
-	void *ret;
-
-	/* we'll need to reference the first element to figure the next one. We
-	 * must temporarily lock it so that nobody allocates then releases it,
-	 * or the dereference could fail.
-	 */
-	ret = pool->free_list;
-	do {
-		while (unlikely(ret == POOL_BUSY)) {
-			__ha_cpu_relax();
-			ret = _HA_ATOMIC_LOAD(&pool->free_list);
-		}
-		if (ret == NULL)
-			return ret;
-	} while (unlikely((ret = _HA_ATOMIC_XCHG(&pool->free_list, POOL_BUSY)) == POOL_BUSY));
-
-	if (unlikely(ret == NULL)) {
-		_HA_ATOMIC_STORE(&pool->free_list, NULL);
-		goto out;
-	}
-
-	/* this releases the lock */
-	_HA_ATOMIC_STORE(&pool->free_list, *(void **)ret);
-	_HA_ATOMIC_INC(&pool->used);
-
-	/* keep track of where the element was allocated from */
-	POOL_DEBUG_SET_MARK(pool, ret);
- out:
-	__ha_barrier_atomic_store();
-	return ret;
-}
+void pool_refill_local_from_shared(struct pool_head *pool, struct pool_cache_head *pch);
 
 /* Locklessly add item <ptr> to pool <pool>, then update the pool used count.
  * Both the pool and the pointer must be valid. Use pool_free() for normal
@@ -218,8 +177,11 @@ static inline void *pool_get_from_cache(struct pool_head *pool)
 	struct pool_cache_head *ph;
 
 	ph = &pool->cache[tid];
-	if (LIST_ISEMPTY(&ph->list))
-		return pool_get_from_shared_cache(pool);
+	if (unlikely(LIST_ISEMPTY(&ph->list))) {
+		pool_refill_local_from_shared(pool, ph);
+		if (LIST_ISEMPTY(&ph->list))
+			return NULL;
+	}
 
 	item = LIST_NEXT(&ph->list, typeof(item), by_pool);
 	ph->count--;

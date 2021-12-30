@@ -388,6 +388,52 @@ void pool_gc(struct pool_head *pool_ctx)
 
 #else /* CONFIG_HAP_NO_GLOBAL_POOLS */
 
+/* Tries to refill the local cache <pch> from the shared one for pool <pool>.
+ * This is only used when pools are in use and shared pools are enabled. No
+ * malloc() is attempted, and poisonning is never performed. The purpose is to
+ * get the fastest possible refilling so that the caller can easily check if
+ * the cache has enough objects for its use.
+ */
+void pool_refill_local_from_shared(struct pool_head *pool, struct pool_cache_head *pch)
+{
+	struct pool_cache_item *item;
+	void *ret;
+
+	/* we'll need to reference the first element to figure the next one. We
+	 * must temporarily lock it so that nobody allocates then releases it,
+	 * or the dereference could fail.
+	 */
+	ret = _HA_ATOMIC_LOAD(&pool->free_list);
+	do {
+		while (unlikely(ret == POOL_BUSY)) {
+			__ha_cpu_relax();
+			ret = _HA_ATOMIC_LOAD(&pool->free_list);
+		}
+		if (ret == NULL)
+			return;
+	} while (unlikely((ret = _HA_ATOMIC_XCHG(&pool->free_list, POOL_BUSY)) == POOL_BUSY));
+
+	if (unlikely(ret == NULL)) {
+		HA_ATOMIC_STORE(&pool->free_list, NULL);
+		return;
+	}
+
+	/* this releases the lock */
+	HA_ATOMIC_STORE(&pool->free_list, *(void **)ret);
+	HA_ATOMIC_INC(&pool->used);
+
+	/* keep track of where the element was allocated from */
+	POOL_DEBUG_SET_MARK(pool, ret);
+
+	/* now store the retrieved object into the local cache */
+	item = ret;
+	LIST_INSERT(&pch->list, &item->by_pool);
+	LIST_INSERT(&th_ctx->pool_lru_head, &item->by_lru);
+	pch->count++;
+	pool_cache_count++;
+	pool_cache_bytes += pool->size;
+}
+
 /*
  * This function frees whatever can be freed in pool <pool>.
  */
