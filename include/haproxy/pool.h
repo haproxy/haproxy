@@ -142,22 +142,22 @@ static inline void pool_put_to_shared_cache(struct pool_head *pool, void *ptr)
 {
 	void **free_list;
 
-	_HA_ATOMIC_DEC(&pool->used);
-
 	if (unlikely(pool_is_crowded(pool))) {
-		pool_put_to_os(pool, ptr);
-	} else {
-		free_list = _HA_ATOMIC_LOAD(&pool->free_list);
-		do {
-			while (unlikely(free_list == POOL_BUSY)) {
-				__ha_cpu_relax();
-				free_list = _HA_ATOMIC_LOAD(&pool->free_list);
-			}
-			_HA_ATOMIC_STORE((void **)ptr, (void *)free_list);
-			__ha_barrier_atomic_store();
-		} while (!_HA_ATOMIC_CAS(&pool->free_list, &free_list, ptr));
-		__ha_barrier_atomic_store();
+		pool_free_nocache(pool, ptr);
+		return;
 	}
+
+	_HA_ATOMIC_DEC(&pool->used);
+	free_list = _HA_ATOMIC_LOAD(&pool->free_list);
+	do {
+		while (unlikely(free_list == POOL_BUSY)) {
+			__ha_cpu_relax();
+			free_list = _HA_ATOMIC_LOAD(&pool->free_list);
+		}
+		_HA_ATOMIC_STORE((void **)ptr, (void *)free_list);
+		__ha_barrier_atomic_store();
+	} while (!_HA_ATOMIC_CAS(&pool->free_list, &free_list, ptr));
+	__ha_barrier_atomic_store();
 	swrate_add(&pool->needed_avg, POOL_AVG_SAMPLES, pool->used);
 }
 
