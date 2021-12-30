@@ -3323,6 +3323,10 @@ static struct task *process_timer(struct task *task, void *ctx, unsigned int sta
 	st = HA_ATOMIC_LOAD(&qc->state);
 	if (qc->path->in_flight) {
 		pktns = quic_pto_pktns(qc, st >= QUIC_HS_ST_COMPLETE, NULL);
+		if (objt_listener(qc->conn->target) &&
+		    pktns == &qc->pktns[QUIC_TLS_PKTNS_HANDSHAKE] &&
+		    qc->pktns[QUIC_TLS_PKTNS_INITIAL].tx.in_flight)
+		    qc->pktns[QUIC_TLS_PKTNS_INITIAL].tx.pto_probe = 1;
 		pktns->tx.pto_probe = 1;
 	}
 	else if (objt_server(qc->conn->target) && st <= QUIC_HS_ST_COMPLETE) {
