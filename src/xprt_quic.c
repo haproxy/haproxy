@@ -4259,7 +4259,7 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 	return pkt->len;
 
  err:
-	/* If length not found, consume the entire packet */
+	/* If length not found, consume the entire datagram */
 	if (!pkt->len)
 		pkt->len = end - beg;
 	TRACE_DEVEL("Leaving in error", QUIC_EV_CONN_LPKT,
