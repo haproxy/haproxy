@@ -4820,7 +4820,11 @@ static int dladdr_and_size(const void *addr, Dl_info *dli, size_t *size)
 	if (ret)
 		*size = sym ? sym->st_size : 0;
 #else
+#if defined(__sun)
+	ret = dladdr((void *)addr, dli);
+#else
 	ret = dladdr(addr, dli);
+#endif
 	*size = 0;
 #endif
 	return ret;
