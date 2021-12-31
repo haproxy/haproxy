@@ -3302,7 +3302,7 @@ static struct task *process_timer(struct task *task, void *ctx, unsigned int sta
 	struct ssl_sock_ctx *conn_ctx;
 	struct quic_conn *qc;
 	struct quic_pktns *pktns;
-	int st;
+	int i, st;
 
 	conn_ctx = task->context;
 	qc = conn_ctx->qc;
@@ -3338,6 +3338,17 @@ static struct task *process_timer(struct task *task, void *ctx, unsigned int sta
 		if (iel->tls_ctx.rx.flags == QUIC_FL_TLS_SECRETS_SET)
 			iel->pktns->tx.pto_probe = 1;
 	}
+
+	for (i = QUIC_TLS_ENC_LEVEL_INITIAL; i < QUIC_TLS_ENC_LEVEL_MAX; i++) {
+		int j;
+
+		if (i == QUIC_TLS_ENC_LEVEL_APP && !quic_peer_validated_addr(qc))
+		    continue;
+
+		for (j = 0; j < qc->els[i].pktns->tx.pto_probe; j++)
+			qc_prep_fast_retrans(&qc->els[i], qc);
+	}
+
 	tasklet_wakeup(conn_ctx->wait_event.tasklet);
 	qc->path->loss.pto_count++;
 
