@@ -24,7 +24,12 @@
 #elif defined(__FreeBSD__) || defined(__NetBSD__)
 
 # define CPUSET_REPR cpuset_t
-# define CPUSET_USE_FREEBSD_CPUSET
+
+# if defined(__FreeBSD__) && __FreeBSD_version >= 1400046
+#  define CPUSET_USE_CPUSET
+# else
+#  define CPUSET_USE_FREEBSD_CPUSET
+# endif
 
 #elif defined(__APPLE__)
 
