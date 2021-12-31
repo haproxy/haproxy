@@ -40,7 +40,6 @@
 #define POOL_LINK(pool, item) (void **)(((char *)(item)) + ((pool)->size))
 #else
 #define POOL_EXTRA (0)
-#define POOL_LINK(pool, item) ((void **)(item))
 #endif
 
 /* A special pointer for the pool's free_list that indicates someone is

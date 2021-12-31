@@ -417,7 +417,7 @@ void pool_flush(struct pool_head *pool)
 
 	while (next) {
 		temp = next;
-		next = *POOL_LINK(pool, temp);
+		next = *(void **)temp;
 		pool_put_to_os(pool, temp);
 	}
 	/* here, we should have pool->allocated == pool->used */
@@ -442,7 +442,7 @@ void pool_gc(struct pool_head *pool_ctx)
 		while (entry->free_list &&
 		       (int)(entry->allocated - entry->used) > (int)entry->minavail) {
 			temp = entry->free_list;
-			entry->free_list = *POOL_LINK(entry, temp);
+			entry->free_list = *(void **)temp;
 			pool_put_to_os(entry, temp);
 		}
 	}

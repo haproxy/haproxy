@@ -132,7 +132,7 @@ static inline void *pool_get_from_shared_cache(struct pool_head *pool)
 	}
 
 	/* this releases the lock */
-	_HA_ATOMIC_STORE(&pool->free_list, *POOL_LINK(pool, ret));
+	_HA_ATOMIC_STORE(&pool->free_list, *(void **)ret);
 	_HA_ATOMIC_INC(&pool->used);
 
 #ifdef DEBUG_MEMORY_POOLS
@@ -164,7 +164,7 @@ static inline void pool_put_to_shared_cache(struct pool_head *pool, void *ptr)
 				__ha_cpu_relax();
 				free_list = _HA_ATOMIC_LOAD(&pool->free_list);
 			}
-			_HA_ATOMIC_STORE(POOL_LINK(pool, ptr), (void *)free_list);
+			_HA_ATOMIC_STORE((void **)ptr, (void *)free_list);
 			__ha_barrier_atomic_store();
 		} while (!_HA_ATOMIC_CAS(&pool->free_list, &free_list, ptr));
 		__ha_barrier_atomic_store();
