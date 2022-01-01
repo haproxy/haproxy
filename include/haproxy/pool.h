@@ -110,15 +110,13 @@ void pool_evict_from_local_cache(struct pool_head *pool);
 void pool_evict_from_local_caches(void);
 void pool_put_to_cache(struct pool_head *pool, void *ptr);
 
-/* returns true if the pool is considered to have too many free objects */
+#if defined(CONFIG_HAP_NO_GLOBAL_POOLS)
+
 static inline int pool_is_crowded(const struct pool_head *pool)
 {
-	return pool->allocated >= swrate_avg(pool->needed_avg + pool->needed_avg / 4, POOL_AVG_SAMPLES) &&
-	       (int)(pool->allocated - pool->used) >= pool->minavail;
+	/* no shared pools, hence they're always full */
+	return 1;
 }
-
-
-#if defined(CONFIG_HAP_NO_GLOBAL_POOLS)
 
 static inline void pool_refill_local_from_shared(struct pool_head *pool, struct pool_cache_head *pch)
 {
@@ -133,6 +131,13 @@ static inline void pool_put_to_shared_cache(struct pool_head *pool, void *ptr)
 #else /* CONFIG_HAP_NO_GLOBAL_POOLS */
 
 void pool_refill_local_from_shared(struct pool_head *pool, struct pool_cache_head *pch);
+
+/* returns true if the pool is considered to have too many free objects */
+static inline int pool_is_crowded(const struct pool_head *pool)
+{
+	return pool->allocated >= swrate_avg(pool->needed_avg + pool->needed_avg / 4, POOL_AVG_SAMPLES) &&
+	       (int)(pool->allocated - pool->used) >= pool->minavail;
+}
 
 /* Locklessly add item <ptr> to pool <pool>, then update the pool used count.
  * Both the pool and the pointer must be valid. Use pool_free() for normal
