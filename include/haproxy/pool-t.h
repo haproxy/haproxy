@@ -59,6 +59,13 @@ struct pool_cache_item {
 	struct list by_lru;  /* link to objects by LRU order */
 };
 
+/* This structure is used to represent an element in the pool's shared
+ * free_list.
+ */
+struct pool_item {
+	struct pool_item *next;
+};
+
 /* This describes a complete pool, with its status, usage statistics and the
  * thread-local caches if any. Even if pools are disabled, these descriptors
  * are valid and are used at least to get names and sizes. For small builds
@@ -66,7 +73,7 @@ struct pool_cache_item {
  * alignment could be removed.
  */
 struct pool_head {
-	void **free_list;
+	struct pool_item *free_list; /* list of free shared objects */
 	unsigned int used;	/* how many chunks are currently in use */
 	unsigned int needed_avg;/* floating indicator between used and allocated */
 	unsigned int allocated;	/* how many chunks have been allocated */

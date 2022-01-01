@@ -324,7 +324,7 @@ void pool_evict_from_local_cache(struct pool_head *pool)
 		if (unlikely(pool_is_crowded(pool)))
 			pool_free_nocache(pool, item);
 		else
-			pool_put_to_shared_cache(pool, item);
+			pool_put_to_shared_cache(pool, (struct pool_item *)item);
 	}
 }
 
@@ -352,7 +352,7 @@ void pool_evict_from_local_caches()
 		if (unlikely(pool_is_crowded(pool)))
 			pool_free_nocache(pool, item);
 		else
-			pool_put_to_shared_cache(pool, item);
+			pool_put_to_shared_cache(pool, (struct pool_item *)item);
 	} while (pool_cache_bytes > CONFIG_HAP_POOL_CACHE_SIZE * 7 / 8);
 }
 
@@ -404,7 +404,7 @@ void pool_gc(struct pool_head *pool_ctx)
 void pool_refill_local_from_shared(struct pool_head *pool, struct pool_cache_head *pch)
 {
 	struct pool_cache_item *item;
-	void *ret;
+	struct pool_item *ret;
 
 	/* we'll need to reference the first element to figure the next one. We
 	 * must temporarily lock it so that nobody allocates then releases it,
@@ -426,14 +426,14 @@ void pool_refill_local_from_shared(struct pool_head *pool, struct pool_cache_hea
 	}
 
 	/* this releases the lock */
-	HA_ATOMIC_STORE(&pool->free_list, *(void **)ret);
+	HA_ATOMIC_STORE(&pool->free_list, ret->next);
 	HA_ATOMIC_INC(&pool->used);
 
 	/* keep track of where the element was allocated from */
 	POOL_DEBUG_SET_MARK(pool, ret);
 
 	/* now store the retrieved object into the local cache */
-	item = ret;
+	item = (struct pool_cache_item *)ret;
 	LIST_INSERT(&pch->list, &item->by_pool);
 	LIST_INSERT(&th_ctx->pool_lru_head, &item->by_lru);
 	pch->count++;
@@ -446,9 +446,9 @@ void pool_refill_local_from_shared(struct pool_head *pool, struct pool_cache_hea
  * Both the pool and the item must be valid. Use pool_free() for normal
  * operations.
  */
-void pool_put_to_shared_cache(struct pool_head *pool, void *item)
+void pool_put_to_shared_cache(struct pool_head *pool, struct pool_item *item)
 {
-	void **free_list;
+	struct pool_item *free_list;
 
 	_HA_ATOMIC_DEC(&pool->used);
 	free_list = _HA_ATOMIC_LOAD(&pool->free_list);
@@ -457,7 +457,7 @@ void pool_put_to_shared_cache(struct pool_head *pool, void *item)
 			__ha_cpu_relax();
 			free_list = _HA_ATOMIC_LOAD(&pool->free_list);
 		}
-		_HA_ATOMIC_STORE((void **)item, (void *)free_list);
+		_HA_ATOMIC_STORE(&item->next, free_list);
 		__ha_barrier_atomic_store();
 	} while (!_HA_ATOMIC_CAS(&pool->free_list, &free_list, item));
 	__ha_barrier_atomic_store();
@@ -469,7 +469,7 @@ void pool_put_to_shared_cache(struct pool_head *pool, void *item)
  */
 void pool_flush(struct pool_head *pool)
 {
-	void *next, *temp;
+	struct pool_item *next, *temp;
 
 	if (!pool)
 		return;
@@ -491,7 +491,7 @@ void pool_flush(struct pool_head *pool)
 
 	while (next) {
 		temp = next;
-		next = *(void **)temp;
+		next = temp->next;
 		pool_put_to_os(pool, temp);
 	}
 	/* here, we should have pool->allocated == pool->used */
@@ -511,12 +511,12 @@ void pool_gc(struct pool_head *pool_ctx)
 		thread_isolate();
 
 	list_for_each_entry(entry, &pools, list) {
-		void *temp;
-		//qfprintf(stderr, "Flushing pool %s\n", entry->name);
+		struct pool_item *temp;
+
 		while (entry->free_list &&
 		       (int)(entry->allocated - entry->used) > (int)entry->minavail) {
 			temp = entry->free_list;
-			entry->free_list = *(void **)temp;
+			entry->free_list = temp->next;
 			pool_put_to_os(entry, temp);
 		}
 	}
