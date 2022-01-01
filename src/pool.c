@@ -310,7 +310,11 @@ void pool_free_nocache(struct pool_head *pool, void *ptr)
 void pool_evict_from_local_cache(struct pool_head *pool)
 {
 	struct pool_cache_head *ph = &pool->cache[tid];
+	struct pool_item *pi, *to_free = NULL;
 	struct pool_cache_item *item;
+	uint to_free_max;
+
+	to_free_max = pool_releasable(pool);
 
 	while (ph->count >= 16 + pool_cache_count / 8 &&
 	       pool_cache_bytes > CONFIG_HAP_POOL_CACHE_SIZE * 3 / 4) {
@@ -321,10 +325,19 @@ void pool_evict_from_local_cache(struct pool_head *pool)
 		LIST_DELETE(&item->by_pool);
 		LIST_DELETE(&item->by_lru);
 
-		if (unlikely(pool_is_crowded(pool)))
+		if (to_free_max) {
+			pi = (struct pool_item *)item;
+			pi->next = to_free;
+			to_free = pi;
+			to_free_max--;
+		} else
 			pool_free_nocache(pool, item);
-		else
-			pool_put_to_shared_cache(pool, (struct pool_item *)item);
+	}
+
+	while (to_free) {
+		pi = to_free;
+		to_free = pi->next;
+		pool_put_to_shared_cache(pool, pi);
 	}
 }
 
