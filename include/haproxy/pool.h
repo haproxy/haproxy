@@ -118,6 +118,12 @@ static inline int pool_is_crowded(const struct pool_head *pool)
 	return 1;
 }
 
+static inline uint pool_releasable(const struct pool_head *pool)
+{
+	/* no room left */
+	return 0;
+}
+
 static inline void pool_refill_local_from_shared(struct pool_head *pool, struct pool_cache_head *pch)
 {
 	/* ignored without shared pools */
@@ -138,6 +144,33 @@ static inline int pool_is_crowded(const struct pool_head *pool)
 {
 	return pool->allocated >= swrate_avg(pool->needed_avg + pool->needed_avg / 4, POOL_AVG_SAMPLES) &&
 	       (int)(pool->allocated - pool->used) >= pool->minavail;
+}
+
+/* Returns the max number of entries that may be brought back to the pool
+ * before it's considered as full. Note that it is only usable for releasing
+ * objects, hence the function assumes that no more than ->used entries will
+ * be released in the worst case, and that this value is always lower than or
+ * equal to ->allocated. It's important to understand that under thread
+ * contention these values may not always be accurate but the principle is that
+ * any deviation remains contained.
+ */
+static inline uint pool_releasable(const struct pool_head *pool)
+{
+	uint alloc, used;
+
+	alloc = HA_ATOMIC_LOAD(&pool->allocated);
+	used = HA_ATOMIC_LOAD(&pool->used);
+	if (used < alloc)
+		used = alloc;
+
+	if (alloc < swrate_avg(pool->needed_avg + pool->needed_avg / 4, POOL_AVG_SAMPLES))
+		return used; // less than needed is allocated, can release everything
+
+	if ((uint)(alloc - used) < pool->minavail)
+		return pool->minavail - (alloc - used); // less than minimum available
+
+	/* there are enough objects in this pool */
+	return 0;
 }
 
 
