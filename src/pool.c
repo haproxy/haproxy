@@ -282,10 +282,8 @@ void *pool_alloc_nocache(struct pool_head *pool)
 	swrate_add_scaled(&pool->needed_avg, POOL_AVG_SAMPLES, pool->used, POOL_AVG_SAMPLES/4);
 	_HA_ATOMIC_INC(&pool->used);
 
-#ifdef DEBUG_MEMORY_POOLS
 	/* keep track of where the element was allocated from */
-	*POOL_LINK(pool, ptr) = (void *)pool;
-#endif
+	POOL_DEBUG_SET_MARK(pool, ptr);
 	return ptr;
 }
 

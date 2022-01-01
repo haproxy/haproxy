@@ -28,20 +28,6 @@
 #define MEM_F_SHARED	0x1
 #define MEM_F_EXACT	0x2
 
-/* By default, free objects are linked by a pointer stored at the beginning of
- * the memory area. When DEBUG_MEMORY_POOLS is set, the allocated area is
- * inflated by the size of a pointer so that the link is placed at the end
- * of the objects. Hence free objects in pools remain intact. In addition,
- * this location is used to keep a pointer to the pool the object was
- * allocated from, and verify it's freed into the appropriate one.
- */
-#ifdef DEBUG_MEMORY_POOLS
-#define POOL_EXTRA (sizeof(void *))
-#define POOL_LINK(pool, item) (void **)(((char *)(item)) + ((pool)->size))
-#else
-#define POOL_EXTRA (0)
-#endif
-
 /* A special pointer for the pool's free_list that indicates someone is
  * currently manipulating it. Serves as a short-lived lock.
  */

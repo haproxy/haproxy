@@ -45,6 +45,39 @@
 	static struct pool_head *(ptr) __read_mostly; \
 	REGISTER_POOL(&ptr, name, size)
 
+/* By default, free objects are linked by a pointer stored at the beginning of
+ * the memory area. When DEBUG_MEMORY_POOLS is set, the allocated area is
+ * inflated by the size of a pointer so that the link is placed at the end
+ * of the objects. Hence free objects in pools remain intact. In addition,
+ * this location is used to keep a pointer to the pool the object was
+ * allocated from, and verify it's freed into the appropriate one.
+ */
+#ifdef DEBUG_MEMORY_POOLS
+
+# define POOL_EXTRA (sizeof(void *))
+# define POOL_DEBUG_SET_MARK(pool, item)				\
+	do {								\
+		typeof(pool) __p = (pool);				\
+		typeof(item) __i = (item);				\
+		*(typeof(pool)*)(((char *)__i) + __p->size) = __p;	\
+	} while (0)
+
+# define POOL_DEBUG_CHECK_MARK(pool, item)				\
+	do {								\
+		typeof(pool) __p = (pool);				\
+		typeof(item) __i = (item);				\
+		if (*(typeof(pool)*)(((char *)__i) + __p->size) != __p)	\
+			ABORT_NOW();					\
+	} while (0)
+
+#else // DEBUG_MEMORY_POOLS
+
+# define POOL_EXTRA (0)
+# define POOL_DEBUG_SET_MARK(pool, item)   do { } while (0)
+# define POOL_DEBUG_CHECK_MARK(pool, item) do { } while (0)
+
+#endif // DEBUG_MEMORY_POOLS
+
 /* poison each newly allocated area with this byte if >= 0 */
 extern int mem_poison_byte;
 
@@ -135,11 +168,8 @@ static inline void *pool_get_from_shared_cache(struct pool_head *pool)
 	_HA_ATOMIC_STORE(&pool->free_list, *(void **)ret);
 	_HA_ATOMIC_INC(&pool->used);
 
-#ifdef DEBUG_MEMORY_POOLS
 	/* keep track of where the element was allocated from */
-	*POOL_LINK(pool, ret) = (void *)pool;
-#endif
-
+	POOL_DEBUG_SET_MARK(pool, ret);
  out:
 	__ha_barrier_atomic_store();
 	return ret;
@@ -197,10 +227,9 @@ static inline void *pool_get_from_cache(struct pool_head *pool)
 	pool_cache_count--;
 	LIST_DELETE(&item->by_pool);
 	LIST_DELETE(&item->by_lru);
-#ifdef DEBUG_MEMORY_POOLS
+
 	/* keep track of where the element was allocated from */
-	*POOL_LINK(pool, item) = (void *)pool;
-#endif
+	POOL_DEBUG_SET_MARK(pool, item);
 	return item;
 }
 
@@ -282,11 +311,9 @@ static inline void *pool_zalloc(struct pool_head *pool)
 static inline void pool_free(struct pool_head *pool, void *ptr)
 {
         if (likely(ptr != NULL)) {
-#ifdef DEBUG_MEMORY_POOLS
 		/* we'll get late corruption if we refill to the wrong pool or double-free */
-		if (*POOL_LINK(pool, ptr) != (void *)pool)
-			ABORT_NOW();
-#endif
+		POOL_DEBUG_CHECK_MARK(pool, ptr);
+
 		if (unlikely(mem_poison_byte >= 0))
 			memset(ptr, mem_poison_byte, pool->size);
 
