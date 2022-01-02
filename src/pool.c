@@ -316,7 +316,7 @@ void pool_evict_from_local_cache(struct pool_head *pool)
 
 	while (ph->count >= 16 + pool_cache_count / 8 &&
 	       pool_cache_bytes > CONFIG_HAP_POOL_CACHE_SIZE * 3 / 4) {
-		item = LIST_NEXT(&ph->list, typeof(item), by_pool);
+		item = LIST_PREV(&ph->list, typeof(item), by_pool);
 		ph->count--;
 		pool_cache_bytes -= pool->size;
 		pool_cache_count--;
