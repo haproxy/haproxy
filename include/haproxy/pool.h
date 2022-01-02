@@ -184,14 +184,16 @@ static inline void *pool_get_from_cache(struct pool_head *pool)
 	}
 
 	item = LIST_NEXT(&ph->list, typeof(item), by_pool);
-	ph->count--;
-	pool_cache_bytes -= pool->size;
-	pool_cache_count--;
 	LIST_DELETE(&item->by_pool);
 	LIST_DELETE(&item->by_lru);
 
 	/* keep track of where the element was allocated from */
 	POOL_DEBUG_SET_MARK(pool, item);
+
+	ph->count--;
+	pool_cache_bytes -= pool->size;
+	pool_cache_count--;
+
 	return item;
 }
 
