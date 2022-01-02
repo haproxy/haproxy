@@ -301,6 +301,41 @@ void pool_free_nocache(struct pool_head *pool, void *ptr)
 
 #ifdef CONFIG_HAP_POOLS
 
+/* removes up to <count> items from the end of the local pool cache <ph> for
+ * pool <pool>. The shared pool is refilled with these objects in the limit
+ * of the number of acceptable objects, and the rest will be released to the
+ * OS. It is not a problem is <count> is larger than the number of objects in
+ * the local cache. The counters are automatically updated.
+ */
+static void pool_evict_last_items(struct pool_head *pool, struct pool_cache_head *ph, uint count)
+{
+	struct pool_cache_item *item;
+	struct pool_item *pi;
+	uint released = 0;
+	uint to_free_max;
+
+	to_free_max = pool_releasable(pool);
+
+	while (released < count && !LIST_ISEMPTY(&ph->list)) {
+		item = LIST_PREV(&ph->list, typeof(item), by_pool);
+		LIST_DELETE(&item->by_pool);
+		LIST_DELETE(&item->by_lru);
+		released++;
+
+		if (to_free_max) {
+			pi = (struct pool_item *)item;
+			pi->down = NULL;
+			pool_put_to_shared_cache(pool, pi, 1);
+			to_free_max--;
+		} else
+			pool_free_nocache(pool, item);
+	}
+
+	ph->count -= released;
+	pool_cache_count -= released;
+	pool_cache_bytes -= released * pool->size;
+}
+
 /* Evicts some of the oldest objects from one local cache, until its number of
  * objects is no more than 16+1/8 of the total number of locally cached objects
  * or the total size of the local cache is no more than 75% of its maximum (i.e.
@@ -310,35 +345,10 @@ void pool_free_nocache(struct pool_head *pool, void *ptr)
 void pool_evict_from_local_cache(struct pool_head *pool)
 {
 	struct pool_cache_head *ph = &pool->cache[tid];
-	struct pool_item *pi, *to_free = NULL;
-	struct pool_cache_item *item;
-	uint to_free_max;
-
-	to_free_max = pool_releasable(pool);
 
 	while (ph->count >= 16 + pool_cache_count / 8 &&
 	       pool_cache_bytes > CONFIG_HAP_POOL_CACHE_SIZE * 3 / 4) {
-		item = LIST_PREV(&ph->list, typeof(item), by_pool);
-		ph->count--;
-		pool_cache_bytes -= pool->size;
-		pool_cache_count--;
-		LIST_DELETE(&item->by_pool);
-		LIST_DELETE(&item->by_lru);
-
-		if (to_free_max) {
-			pi = (struct pool_item *)item;
-			pi->next = to_free;
-			to_free = pi;
-			to_free_max--;
-		} else
-			pool_free_nocache(pool, item);
-	}
-
-	while (to_free) {
-		pi = to_free;
-		pi->down = NULL;
-		to_free = pi->next;
-		pool_put_to_shared_cache(pool, pi, 1);
+		pool_evict_last_items(pool, ph, 1);
 	}
 }
 
@@ -358,19 +368,7 @@ void pool_evict_from_local_caches()
 		 */
 		ph = LIST_NEXT(&item->by_pool, struct pool_cache_head *, list);
 		pool = container_of(ph - tid, struct pool_head, cache);
-		LIST_DELETE(&item->by_pool);
-		LIST_DELETE(&item->by_lru);
-		ph->count--;
-		pool_cache_count--;
-		pool_cache_bytes -= pool->size;
-		if (unlikely(pool_is_crowded(pool)))
-			pool_free_nocache(pool, item);
-		else {
-			struct pool_item *pi = (struct pool_item *)item;
-
-			pi->down = NULL;
-			pool_put_to_shared_cache(pool, pi, 1);
-		}
+		pool_evict_last_items(pool, ph, 1);
 	} while (pool_cache_bytes > CONFIG_HAP_POOL_CACHE_SIZE * 7 / 8);
 }
 
