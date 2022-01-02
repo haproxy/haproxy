@@ -310,8 +310,9 @@ void pool_free_nocache(struct pool_head *pool, void *ptr)
 static void pool_evict_last_items(struct pool_head *pool, struct pool_cache_head *ph, uint count)
 {
 	struct pool_cache_item *item;
-	struct pool_item *pi;
+	struct pool_item *pi, *head = NULL;
 	uint released = 0;
+	uint cluster = 0;
 	uint to_free_max;
 
 	to_free_max = pool_releasable(pool);
@@ -320,16 +321,28 @@ static void pool_evict_last_items(struct pool_head *pool, struct pool_cache_head
 		item = LIST_PREV(&ph->list, typeof(item), by_pool);
 		LIST_DELETE(&item->by_pool);
 		LIST_DELETE(&item->by_lru);
-		released++;
 
-		if (to_free_max) {
+		if (to_free_max > released || cluster) {
 			pi = (struct pool_item *)item;
-			pi->down = NULL;
-			pool_put_to_shared_cache(pool, pi, 1);
-			to_free_max--;
+			pi->next = NULL;
+			pi->down = head;
+			head = pi;
+			cluster++;
+			if (cluster >= CONFIG_HAP_POOL_CLUSTER_SIZE) {
+				/* enough to make a cluster */
+				pool_put_to_shared_cache(pool, head, cluster);
+				cluster = 0;
+				head = NULL;
+			}
 		} else
 			pool_free_nocache(pool, item);
+
+		released++;
 	}
+
+	/* incomplete cluster left */
+	if (cluster)
+		pool_put_to_shared_cache(pool, head, cluster);
 
 	ph->count -= released;
 	pool_cache_count -= released;
