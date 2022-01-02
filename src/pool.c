@@ -338,7 +338,7 @@ void pool_evict_from_local_cache(struct pool_head *pool)
 		pi = to_free;
 		pi->down = NULL;
 		to_free = pi->next;
-		pool_put_to_shared_cache(pool, pi);
+		pool_put_to_shared_cache(pool, pi, 1);
 	}
 }
 
@@ -369,7 +369,7 @@ void pool_evict_from_local_caches()
 			struct pool_item *pi = (struct pool_item *)item;
 
 			pi->down = NULL;
-			pool_put_to_shared_cache(pool, pi);
+			pool_put_to_shared_cache(pool, pi, 1);
 		}
 	} while (pool_cache_bytes > CONFIG_HAP_POOL_CACHE_SIZE * 7 / 8);
 }
@@ -465,16 +465,16 @@ void pool_refill_local_from_shared(struct pool_head *pool, struct pool_cache_hea
 	pool_cache_bytes += count * pool->size;
 }
 
-/* Adds cache item entry <item> to the shared cache. The caller is advised to
- * first check using pool_is_crowded() if it's wise to add this object there.
- * Both the pool and the item must be valid. Use pool_free() for normal
- * operations.
+/* Adds pool item cluster <item> to the shared cache, which contains <count>
+ * elements. The caller is advised to first check using pool_releasable() if
+ * it's wise to add this series of objects there. Both the pool and the item's
+ * head must be valid.
  */
-void pool_put_to_shared_cache(struct pool_head *pool, struct pool_item *item)
+void pool_put_to_shared_cache(struct pool_head *pool, struct pool_item *item, uint count)
 {
 	struct pool_item *free_list;
 
-	_HA_ATOMIC_DEC(&pool->used);
+	_HA_ATOMIC_SUB(&pool->used, count);
 	free_list = _HA_ATOMIC_LOAD(&pool->free_list);
 	do {
 		while (unlikely(free_list == POOL_BUSY)) {

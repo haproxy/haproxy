@@ -129,7 +129,7 @@ static inline void pool_refill_local_from_shared(struct pool_head *pool, struct 
 	/* ignored without shared pools */
 }
 
-static inline void pool_put_to_shared_cache(struct pool_head *pool, struct pool_item *item)
+static inline void pool_put_to_shared_cache(struct pool_head *pool, struct pool_item *item, uint count)
 {
 	/* ignored without shared pools */
 }
@@ -137,7 +137,7 @@ static inline void pool_put_to_shared_cache(struct pool_head *pool, struct pool_
 #else /* CONFIG_HAP_NO_GLOBAL_POOLS */
 
 void pool_refill_local_from_shared(struct pool_head *pool, struct pool_cache_head *pch);
-void pool_put_to_shared_cache(struct pool_head *pool, struct pool_item *item);
+void pool_put_to_shared_cache(struct pool_head *pool, struct pool_item *item, uint count);
 
 /* returns true if the pool is considered to have too many free objects */
 static inline int pool_is_crowded(const struct pool_head *pool)
