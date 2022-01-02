@@ -407,6 +407,10 @@
 #define CONFIG_HAP_POOL_CACHE_SIZE 1048576
 #endif
 
+#ifndef CONFIG_HAP_POOL_CLUSTER_SIZE
+#define CONFIG_HAP_POOL_CLUSTER_SIZE 8
+#endif
+
 /* Number of samples used to compute the times reported in stats. A power of
  * two is highly recommended, and this value multiplied by the largest response
  * time must not overflow and unsigned int. See freq_ctr.h for more information.

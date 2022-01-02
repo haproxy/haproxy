@@ -346,9 +346,10 @@ void pool_evict_from_local_cache(struct pool_head *pool)
 {
 	struct pool_cache_head *ph = &pool->cache[tid];
 
-	while (ph->count >= 16 + pool_cache_count / 8 &&
+	while (ph->count >= CONFIG_HAP_POOL_CLUSTER_SIZE &&
+	       ph->count >= 16 + pool_cache_count / 8 &&
 	       pool_cache_bytes > CONFIG_HAP_POOL_CACHE_SIZE * 3 / 4) {
-		pool_evict_last_items(pool, ph, 1);
+		pool_evict_last_items(pool, ph, CONFIG_HAP_POOL_CLUSTER_SIZE);
 	}
 }
 
@@ -368,7 +369,7 @@ void pool_evict_from_local_caches()
 		 */
 		ph = LIST_NEXT(&item->by_pool, struct pool_cache_head *, list);
 		pool = container_of(ph - tid, struct pool_head, cache);
-		pool_evict_last_items(pool, ph, 1);
+		pool_evict_last_items(pool, ph, CONFIG_HAP_POOL_CLUSTER_SIZE);
 	} while (pool_cache_bytes > CONFIG_HAP_POOL_CACHE_SIZE * 7 / 8);
 }
 
@@ -389,7 +390,7 @@ void pool_put_to_cache(struct pool_head *pool, void *ptr)
 	pool_cache_bytes += pool->size;
 
 	if (unlikely(pool_cache_bytes > CONFIG_HAP_POOL_CACHE_SIZE * 3 / 4)) {
-		if (ph->count >= 16 + pool_cache_count / 8)
+		if (ph->count >= 16 + pool_cache_count / 8 + CONFIG_HAP_POOL_CLUSTER_SIZE)
 			pool_evict_from_local_cache(pool);
 		if (pool_cache_bytes > CONFIG_HAP_POOL_CACHE_SIZE)
 			pool_evict_from_local_caches();
