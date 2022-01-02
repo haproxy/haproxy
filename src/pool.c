@@ -336,6 +336,7 @@ void pool_evict_from_local_cache(struct pool_head *pool)
 
 	while (to_free) {
 		pi = to_free;
+		pi->down = NULL;
 		to_free = pi->next;
 		pool_put_to_shared_cache(pool, pi);
 	}
@@ -364,8 +365,12 @@ void pool_evict_from_local_caches()
 		pool_cache_bytes -= pool->size;
 		if (unlikely(pool_is_crowded(pool)))
 			pool_free_nocache(pool, item);
-		else
-			pool_put_to_shared_cache(pool, (struct pool_item *)item);
+		else {
+			struct pool_item *pi = (struct pool_item *)item;
+
+			pi->down = NULL;
+			pool_put_to_shared_cache(pool, pi);
+		}
 	} while (pool_cache_bytes > CONFIG_HAP_POOL_CACHE_SIZE * 7 / 8);
 }
 
@@ -417,7 +422,8 @@ void pool_gc(struct pool_head *pool_ctx)
 void pool_refill_local_from_shared(struct pool_head *pool, struct pool_cache_head *pch)
 {
 	struct pool_cache_item *item;
-	struct pool_item *ret;
+	struct pool_item *ret, *down;
+	uint count;
 
 	/* we'll need to reference the first element to figure the next one. We
 	 * must temporarily lock it so that nobody allocates then releases it,
@@ -440,18 +446,23 @@ void pool_refill_local_from_shared(struct pool_head *pool, struct pool_cache_hea
 
 	/* this releases the lock */
 	HA_ATOMIC_STORE(&pool->free_list, ret->next);
-	HA_ATOMIC_INC(&pool->used);
 
-	/* keep track of where the element was allocated from */
-	POOL_DEBUG_SET_MARK(pool, ret);
+	/* now store the retrieved object(s) into the local cache */
+	count = 0;
+	for (; ret; ret = down) {
+		down = ret->down;
+		/* keep track of where the element was allocated from */
+		POOL_DEBUG_SET_MARK(pool, ret);
 
-	/* now store the retrieved object into the local cache */
-	item = (struct pool_cache_item *)ret;
-	LIST_INSERT(&pch->list, &item->by_pool);
-	LIST_INSERT(&th_ctx->pool_lru_head, &item->by_lru);
-	pch->count++;
-	pool_cache_count++;
-	pool_cache_bytes += pool->size;
+		item = (struct pool_cache_item *)ret;
+		LIST_INSERT(&pch->list, &item->by_pool);
+		LIST_INSERT(&th_ctx->pool_lru_head, &item->by_lru);
+		count++;
+	}
+	HA_ATOMIC_ADD(&pool->used, count);
+	pch->count += count;
+	pool_cache_count += count;
+	pool_cache_bytes += count * pool->size;
 }
 
 /* Adds cache item entry <item> to the shared cache. The caller is advised to
@@ -482,7 +493,7 @@ void pool_put_to_shared_cache(struct pool_head *pool, struct pool_item *item)
  */
 void pool_flush(struct pool_head *pool)
 {
-	struct pool_item *next, *temp;
+	struct pool_item *next, *temp, *down;
 
 	if (!pool)
 		return;
@@ -505,7 +516,10 @@ void pool_flush(struct pool_head *pool)
 	while (next) {
 		temp = next;
 		next = temp->next;
-		pool_put_to_os(pool, temp);
+		for (; temp; temp = down) {
+			down = temp->down;
+			pool_put_to_os(pool, temp);
+		}
 	}
 	/* here, we should have pool->allocated == pool->used */
 }
@@ -524,13 +538,16 @@ void pool_gc(struct pool_head *pool_ctx)
 		thread_isolate();
 
 	list_for_each_entry(entry, &pools, list) {
-		struct pool_item *temp;
+		struct pool_item *temp, *down;
 
 		while (entry->free_list &&
 		       (int)(entry->allocated - entry->used) > (int)entry->minavail) {
 			temp = entry->free_list;
 			entry->free_list = temp->next;
-			pool_put_to_os(entry, temp);
+			for (; temp; temp = down) {
+				down = temp->down;
+				pool_put_to_os(entry, temp);
+			}
 		}
 	}
 

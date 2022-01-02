@@ -60,10 +60,29 @@ struct pool_cache_item {
 };
 
 /* This structure is used to represent an element in the pool's shared
- * free_list.
+ * free_list. An item may carry a series of other items allocated or released
+ * as a same cluster. The storage then looks like this:
+ *     +------+   +------+   +------+
+ *  -->| next |-->| next |-->| NULL |
+ *     +------+   +------+   +------+
+ *     | NULL |   | down |   | down |
+ *     +------+   +--|---+   +--|---+
+ *                   V	        V
+ *                +------+   +------+
+ *                | NULL |   | NULL |
+ *                +------+   +------+
+ *                | down |   | NULL |
+ *                +--|---+   +------+
+ *                   V
+ *                +------+
+ *                | NULL |
+ *                +------+
+ *                | NULL |
+ *                +------+
  */
 struct pool_item {
 	struct pool_item *next;
+	struct pool_item *down; // link to other items of the same cluster
 };
 
 /* This describes a complete pool, with its status, usage statistics and the
