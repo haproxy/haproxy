@@ -2405,9 +2405,10 @@ static inline void qc_set_dg(struct cbuf *cbuf,
  * packet in this datagram.
  * Returns 1 if succeeded, or 0 if something wrong happened.
  */
-static int qc_prep_pkts(struct quic_conn *qc, struct qring *qr)
+static int qc_prep_pkts(struct quic_conn *qc, struct qring *qr,
+                        enum quic_tls_enc_level tel,
+                        enum quic_tls_enc_level next_tel)
 {
-	enum quic_tls_enc_level tel, next_tel;
 	struct quic_enc_level *qel;
 	struct cbuf *cbuf;
 	unsigned char *end_buf, *end, *pos, *spos;
@@ -2422,11 +2423,6 @@ static int qc_prep_pkts(struct quic_conn *qc, struct qring *qr)
 	size_t dg_headlen = sizeof dglen + sizeof first_pkt;
 
 	TRACE_ENTER(QUIC_EV_CONN_PHPKTS, qc);
-
-	if (!quic_get_tls_enc_levels(&tel, &next_tel, HA_ATOMIC_LOAD(&qc->state), 0)) {
-		TRACE_DEVEL("unknown enc. levels", QUIC_EV_CONN_PHPKTS, qc);
-		goto err;
-	}
 
  start:
 	dglen = 0;
@@ -3142,7 +3138,9 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 
 	if (!qr)
 		qr = MT_LIST_POP(qc->tx.qring_list, typeof(qr), mt_list);
-	ret = qc_prep_pkts(qc, qr);
+	if (!quic_get_tls_enc_levels(&tel, &next_tel, st, zero_rtt))
+		goto err;
+	ret = qc_prep_pkts(qc, qr, tel, next_tel);
 	if (ret == -1)
 		goto err;
 	else if (ret == 0)
