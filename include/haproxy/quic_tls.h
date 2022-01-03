@@ -459,7 +459,6 @@ static inline void quic_tls_discard_keys(struct quic_enc_level *qel)
 {
 	qel->tls_ctx.rx.flags |= QUIC_FL_TLS_SECRETS_DCD;
 	qel->tls_ctx.tx.flags |= QUIC_FL_TLS_SECRETS_DCD;
-	quic_tls_ctx_secs_free(&qel->tls_ctx);
 }
 
 /* Derive the initial secrets with <ctx> as QUIC TLS context which is the

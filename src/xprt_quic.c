@@ -2250,6 +2250,17 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct ssl_sock_ctx *ct
 		{
 			struct quic_rx_crypto_frm *cf;
 
+			if (unlikely(qel->tls_ctx.rx.flags & QUIC_FL_TLS_SECRETS_DCD)) {
+				/* XXX TO DO: <cfdebug> is used only for the traces. */
+				struct quic_rx_crypto_frm cfdebug = { };
+
+				cfdebug.offset_node.key = frm.crypto.offset;
+				cfdebug.len = frm.crypto.len;
+				TRACE_PROTO("CRYPTO data discarded",
+				            QUIC_EV_CONN_ELRXPKTS, qc, pkt, &cfdebug);
+				break;
+			}
+
 			if (unlikely(frm.crypto.offset < qel->rx.crypto.offset)) {
 				if (frm.crypto.offset + frm.crypto.len <= qel->rx.crypto.offset) {
 					/* XXX TO DO: <cfdebug> is used only for the traces. */
@@ -3091,7 +3102,14 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 		(!MT_LIST_ISEMPTY(&qc->els[QUIC_TLS_ENC_LEVEL_EARLY_DATA].rx.pqpkts) ||
 		qc_el_rx_pkts(&qc->els[QUIC_TLS_ENC_LEVEL_EARLY_DATA]));
  start:
-	if (!quic_get_tls_enc_levels(&tel, &next_tel, st, zero_rtt))
+	if (st >= QUIC_HS_ST_COMPLETE &&
+	    qc_el_rx_pkts(&qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE])) {
+		TRACE_PROTO("remaining Handshake packets", QUIC_EV_CONN_PHPKTS, qc);
+		/* There may be remaining Handshake packets to treat and acknowledge. */
+		tel = QUIC_TLS_ENC_LEVEL_HANDSHAKE;
+		next_tel = QUIC_TLS_ENC_LEVEL_APP;
+	}
+	else if (!quic_get_tls_enc_levels(&tel, &next_tel, st, zero_rtt))
 		goto err;
 
 	qel = &qc->els[tel];
@@ -3563,10 +3581,8 @@ static int qc_pkt_may_rm_hp(struct quic_conn *qc, struct quic_rx_packet *pkt,
 	}
 
 	*qel = &qc->els[tel];
-	if ((*qel)->tls_ctx.rx.flags & QUIC_FL_TLS_SECRETS_DCD) {
+	if ((*qel)->tls_ctx.rx.flags & QUIC_FL_TLS_SECRETS_DCD)
 		TRACE_DEVEL("Discarded keys", QUIC_EV_CONN_TRMHP, qc);
-		return 0;
-	}
 
 	if (((*qel)->tls_ctx.rx.flags & QUIC_FL_TLS_SECRETS_SET) &&
 	    (tel != QUIC_TLS_ENC_LEVEL_APP ||
