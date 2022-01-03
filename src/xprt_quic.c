@@ -2721,6 +2721,7 @@ static int quic_build_post_handshake_frames(struct quic_conn *qc)
 		quic_connection_id_to_frm_cpy(frm, cid);
 		MT_LIST_APPEND(&qel->pktns->tx.frms, &frm->mt_list);
 	}
+	HA_ATOMIC_OR(&qc->flags, QUIC_FL_POST_HANDSHAKE_FRAMES_BUILT);
 
     return 1;
 
@@ -3090,7 +3091,7 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 	struct quic_enc_level *qel, *next_qel;
 	struct quic_tls_ctx *tls_ctx;
 	struct qring *qr; // Tx ring
-	int prev_st, st, force_ack, zero_rtt;
+	int st, force_ack, zero_rtt;
 
 	ctx = context;
 	qc = ctx->qc;
@@ -3125,7 +3126,6 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 	    (tls_ctx->rx.flags & QUIC_FL_TLS_SECRETS_SET))
 		qc_rm_hp_pkts(qc, qel);
 
-	prev_st = HA_ATOMIC_LOAD(&qc->state);
 	force_ack = qel == &qc->els[QUIC_TLS_ENC_LEVEL_INITIAL] ||
 		qel == &qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE];
 	if (!qc_treat_rx_pkts(qel, next_qel, ctx, force_ack))
@@ -3139,19 +3139,26 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 	}
 
 	st = HA_ATOMIC_LOAD(&qc->state);
-	if (st >= QUIC_HS_ST_COMPLETE &&
-	    (prev_st == QUIC_HS_ST_SERVER_INITIAL || prev_st == QUIC_HS_ST_SERVER_HANDSHAKE)) {
-		/* Discard the Handshake keys. */
-		quic_tls_discard_keys(&qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE]);
-		TRACE_PROTO("discarding Handshake pktns", QUIC_EV_CONN_PHPKTS, qc);
-		quic_pktns_discard(qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE].pktns, qc);
-		qc_set_timer(qc);
-		if (!quic_build_post_handshake_frames(qc))
+	if (st >= QUIC_HS_ST_COMPLETE) {
+		if (!(HA_ATOMIC_LOAD(&qc->flags) & QUIC_FL_POST_HANDSHAKE_FRAMES_BUILT) &&
+		    !quic_build_post_handshake_frames(qc))
 			goto err;
 
-		qc_el_rx_pkts_del(&qc->els[QUIC_TLS_ENC_LEVEL_INITIAL]);
-		qc_el_rx_pkts_del(&qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE]);
-		goto start;
+		if (!(qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE].tls_ctx.rx.flags &
+		           QUIC_FL_TLS_SECRETS_DCD)) {
+			/* Discard the Handshake keys. */
+			quic_tls_discard_keys(&qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE]);
+			TRACE_PROTO("discarding Handshake pktns", QUIC_EV_CONN_PHPKTS, qc);
+			quic_pktns_discard(qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE].pktns, qc);
+			qc_set_timer(qc);
+			qc_el_rx_pkts_del(&qc->els[QUIC_TLS_ENC_LEVEL_INITIAL]);
+			qc_el_rx_pkts_del(&qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE]);
+		}
+
+		if (qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE].pktns->flags & QUIC_FL_PKTNS_ACK_REQUIRED) {
+			/* There may be remaining handshake to build (acks) */
+			st = QUIC_HS_ST_SERVER_HANDSHAKE;
+		}
 	}
 
 	if (!qr)

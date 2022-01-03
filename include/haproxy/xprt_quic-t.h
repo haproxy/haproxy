@@ -616,6 +616,7 @@ struct rxbuf {
 
 /* Flags at connection level */
 #define QUIC_FL_CONN_ANTI_AMPLIFICATION_REACHED (1U << 0)
+#define QUIC_FL_POST_HANDSHAKE_FRAMES_BUILT     (1U << 1)
 #define QUIC_FL_CONN_IMMEDIATE_CLOSE            (1U << 31)
 struct quic_conn {
 	/* The quic_conn instance is refcounted as it can be used by threads
