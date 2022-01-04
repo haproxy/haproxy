@@ -2484,8 +2484,6 @@ static int qc_prep_pkts(struct quic_conn *qc, struct qring *qr,
 			/* Leave room for the datagram header */
 			pos += dg_headlen;
 			if (!quic_peer_validated_addr(qc) && objt_listener(qc->conn->target)) {
-				if (qc->tx.prep_bytes >= 3 * qc->rx.bytes)
-					qc->flags |= QUIC_FL_CONN_ANTI_AMPLIFICATION_REACHED;
 				end = pos + QUIC_MIN(qc->path->mtu, 3 * qc->rx.bytes - qc->tx.prep_bytes);
 			}
 			else {
@@ -4869,6 +4867,8 @@ static struct quic_tx_packet *qc_build_pkt(unsigned char **pos,
 	/* Consume a packet number */
 	qel->pktns->tx.next_pn++;
 	qc->tx.prep_bytes += pkt->len;
+	if (qc->tx.prep_bytes >= 3 * qc->rx.bytes)
+		HA_ATOMIC_OR(&qc->flags, QUIC_FL_CONN_ANTI_AMPLIFICATION_REACHED);
 	/* Now that a correct packet is built, let us consume <*pos> buffer. */
 	*pos = end;
 	/* Attach the built packet to its tree. */
