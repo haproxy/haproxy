@@ -621,7 +621,8 @@ static inline void qc_set_timer(struct quic_conn *qc)
 	/* anti-amplification: the timer must be
 	 * cancelled for a server which reached the anti-amplification limit.
 	 */
-	if (qc->flags & QUIC_FL_CONN_ANTI_AMPLIFICATION_REACHED) {
+	if (!quic_peer_validated_addr(qc) &&
+	    (HA_ATOMIC_LOAD(&qc->flags) & QUIC_FL_CONN_ANTI_AMPLIFICATION_REACHED)) {
 		TRACE_PROTO("anti-amplification reached", QUIC_EV_CONN_STIMER, qc);
 		qc->timer = TICK_ETERNITY;
 		goto out;
