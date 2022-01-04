@@ -3097,6 +3097,15 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 	qr = NULL;
 	st = HA_ATOMIC_LOAD(&qc->state);
 	TRACE_ENTER(QUIC_EV_CONN_HDSHK, qc, &st);
+	if (HA_ATOMIC_LOAD(&qc->flags) & QUIC_FL_CONN_IO_CB_WAKEUP) {
+		HA_ATOMIC_BTR(&qc->flags, QUIC_FL_CONN_IO_CB_WAKEUP_BIT);
+		/* The I/O handler has been woken up by the dgram listener
+		 * after the anti-amplification was reached.
+		 */
+		qc_set_timer(qc);
+		if (tick_isset(qc->timer) && tick_is_lt(qc->timer, now_ms))
+			task_wakeup(qc->timer_task, TASK_WOKEN_MSG);
+	}
 	ssl_err = SSL_ERROR_NONE;
 	zero_rtt = st < QUIC_HS_ST_COMPLETE &&
 		(!MT_LIST_ISEMPTY(&qc->els[QUIC_TLS_ENC_LEVEL_EARLY_DATA].rx.pqpkts) ||
@@ -4013,7 +4022,7 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 	struct quic_conn *qc, *qc_to_purge = NULL;
 	struct listener *l;
 	struct ssl_sock_ctx *conn_ctx;
-	int long_header = 0;
+	int long_header = 0, io_cb_wakeup = 0;
 	size_t b_cspace;
 	struct quic_enc_level *qel;
 
@@ -4218,6 +4227,17 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 	 */
 	if (!dgram_ctx->dcid.len) {
 		memcpy(dgram_ctx->dcid.data, pkt->dcid.data, pkt->dcid.len);
+		if (!quic_peer_validated_addr(qc) &&
+		    HA_ATOMIC_LOAD(&qc->flags) & QUIC_FL_CONN_ANTI_AMPLIFICATION_REACHED) {
+			TRACE_PROTO("PTO timer must be armed after anti-amplication was reached",
+			            QUIC_EV_CONN_LPKT, qc);
+			/* Reset the anti-amplification bit. It will be set again
+			 * when sending the next packet if reached again.
+			 */
+			HA_ATOMIC_BTR(&qc->flags, QUIC_FL_CONN_ANTI_AMPLIFICATION_REACHED_BIT);
+			HA_ATOMIC_OR(&qc->flags, QUIC_FL_CONN_IO_CB_WAKEUP_BIT);
+			io_cb_wakeup = 1;
+		}
 	}
 	else if (memcmp(dgram_ctx->dcid.data, pkt->dcid.data, pkt->dcid.len)) {
 		TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT, qc);
@@ -4279,6 +4299,14 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 	return pkt->len;
 
  err:
+	/* Wakeup the I/O handler callback if the PTO timer must be armed.
+	 * This cannot be done by this thread.
+	 */
+	if (io_cb_wakeup) {
+		conn_ctx = HA_ATOMIC_LOAD(&qc->xprt_ctx);
+		if (conn_ctx && conn_ctx->wait_event.tasklet)
+			tasklet_wakeup(conn_ctx->wait_event.tasklet);
+	}
 	/* If length not found, consume the entire datagram */
 	if (!pkt->len)
 		pkt->len = end - beg;

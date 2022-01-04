@@ -615,8 +615,14 @@ struct rxbuf {
 #define QUIC_FL_PKTNS_ACK_REQUIRED  (1UL << QUIC_FL_PKTNS_ACK_REQUIRED_BIT)
 
 /* Flags at connection level */
-#define QUIC_FL_CONN_ANTI_AMPLIFICATION_REACHED (1U << 0)
-#define QUIC_FL_POST_HANDSHAKE_FRAMES_BUILT     (1U << 1)
+#define QUIC_FL_CONN_ANTI_AMPLIFICATION_REACHED_BIT 0
+#define QUIC_FL_CONN_ANTI_AMPLIFICATION_REACHED \
+	(1U << QUIC_FL_CONN_ANTI_AMPLIFICATION_REACHED_BIT)
+
+#define QUIC_FL_CONN_IO_CB_WAKEUP_BIT               1
+#define QUIC_FL_CONN_IO_CB_WAKEUP (1U << QUIC_FL_CONN_IO_CB_WAKEUP_BIT)
+
+#define QUIC_FL_POST_HANDSHAKE_FRAMES_BUILT     (1U << 2)
 #define QUIC_FL_CONN_IMMEDIATE_CLOSE            (1U << 31)
 struct quic_conn {
 	/* The quic_conn instance is refcounted as it can be used by threads
