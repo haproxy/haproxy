@@ -994,15 +994,21 @@ static int quic_crypto_data_cpy(struct quic_enc_level *qel,
 	if (!len) {
 		struct quic_frame *frm;
 
-		frm = pool_alloc(pool_head_quic_frame);
-		if (!frm)
-			return 0;
+		if (MT_LIST_ISEMPTY(&qel->pktns->tx.frms)) {
+			frm = pool_alloc(pool_head_quic_frame);
+			if (!frm)
+				return 0;
 
-		frm->type = QUIC_FT_CRYPTO;
-		frm->crypto.offset = cf_offset;
-		frm->crypto.len = cf_len;
-		frm->crypto.qel = qel;
-		MT_LIST_APPEND(&qel->pktns->tx.frms, &frm->mt_list);
+			frm->type = QUIC_FT_CRYPTO;
+			frm->crypto.offset = cf_offset;
+			frm->crypto.len = cf_len;
+			frm->crypto.qel = qel;
+			MT_LIST_APPEND(&qel->pktns->tx.frms, &frm->mt_list);
+		}
+		else {
+			frm = MT_LIST_NEXT(&qel->pktns->tx.frms, struct quic_frame *, mt_list);
+			frm->crypto.len += cf_len;
+		}
 	}
 
 	return len == 0;
