@@ -2999,7 +2999,8 @@ static int h1_process(struct h1c * h1c)
 	 */
 	if (!(h1c->flags & H1C_F_IS_BACK)) {
 		if (unlikely(h1c->px->flags & (PR_FL_DISABLED|PR_FL_STOPPED))) {
-			if (h1c->flags & H1C_F_WAIT_NEXT_REQ)
+			if (!(h1c->px->options & PR_O_IDLE_CLOSE_RESP) &&
+				h1c->flags & H1C_F_WAIT_NEXT_REQ)
 				goto release;
 		}
 	}

@@ -82,7 +82,7 @@ enum PR_SRV_STATE_FILE {
 #define PR_O_REUSE_ALWS 0x0000000C      /* always reuse a shared connection */
 #define PR_O_REUSE_MASK 0x0000000C      /* mask to retrieve shared connection preferences */
 
-/* unused: 0x10 */
+#define PR_O_IDLE_CLOSE_RESP 0x00000010 /* avoid closing idle connections during a soft stop */
 #define PR_O_PREF_LAST  0x00000020      /* prefer last server */
 #define PR_O_DISPATCH   0x00000040      /* use dispatch mode */
 #define PR_O_FORCED_ID  0x00000080      /* proxy's ID was forced in the configuration */
