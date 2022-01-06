@@ -2189,12 +2189,20 @@ static void qc_prep_fast_retrans(struct quic_enc_level *qel,
 	struct quic_frame *frm, *frmbak;
 
  start:
+	pkt = NULL;
 	pkts = &qel->pktns->tx.pkts;
 	node = eb64_first(pkts);
-	if (!node)
+	/* Skip the empty packet (they have already been retransmitted) */
+	while (node) {
+		pkt = eb64_entry(&node->node, struct quic_tx_packet, pn_node);
+		if (!LIST_ISEMPTY(&pkt->frms))
+			break;
+		node = eb64_next(node);
+	}
+
+	if (!pkt)
 		return;
 
-	pkt = eb64_entry(&node->node, struct quic_tx_packet, pn_node);
 	list_for_each_entry_safe(frm, frmbak, &pkt->frms, list)
 		qc_treat_nacked_tx_frm(qc, frm, qel->pktns);
 	if (qel == &qc->els[QUIC_TLS_ENC_LEVEL_INITIAL] &&
