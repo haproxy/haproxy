@@ -717,8 +717,10 @@ static void stream_free(struct stream *s)
 	must_free_sess = objt_appctx(sess->origin) && sess->origin == s->csf->end;
 
 	/* FIXME: ATTENTION, si CSF est librérer avant, ça plante !!!! */
-	cs_destroy(s->csb);
-	cs_destroy(s->csf);
+	cs_detach_endp(s->csb);
+	cs_detach_endp(s->csf);
+	cs_detach_app(s->csb);
+	cs_detach_app(s->csf);
 
 	if (must_free_sess) {
 		sess->origin = NULL;
