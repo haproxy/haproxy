@@ -111,7 +111,7 @@ struct stream_interface *si_new(struct conn_stream *cs)
 	if (unlikely(!si))
 		return NULL;
 	si->flags = SI_FL_NONE;
-	if (si_reset(si) < 0) {
+	if (si_init(si) < 0) {
 		pool_free(pool_head_streaminterface, si);
 		return NULL;
 	}

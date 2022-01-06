@@ -94,11 +94,10 @@ static inline struct stream_interface *si_opposite(struct stream_interface *si)
 	return ((si->flags & SI_FL_ISBACK) ? cs_strm(si->cs)->csf->si : cs_strm(si->cs)->csb->si);
 }
 
-/* initializes a stream interface in the SI_ST_INI state. It's detached from
- * any endpoint and only keeps its side which is expected to have already been
- * set.
+/* initializes a stream interface in the SI_ST_INI state and create the event
+ * tasklet.
  */
-static inline int si_reset(struct stream_interface *si)
+static inline int si_init(struct stream_interface *si)
 {
 	si->src            = NULL;
 	si->dst            = NULL;
