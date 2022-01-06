@@ -2116,7 +2116,7 @@ void srv_set_ssl(struct server *s, int use_ssl)
 	if (s->use_ssl)
 		s->xprt = xprt_get(XPRT_SSL);
 	else
-		s->xprt = s->check.xprt = s->agent.xprt = xprt_get(XPRT_RAW);
+		s->xprt = xprt_get(XPRT_RAW);
 }
 
 #endif /* USE_OPENSSL */

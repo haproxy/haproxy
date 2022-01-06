@@ -2187,6 +2187,8 @@ set server <backend>/<server> fqdn <FQDN>
 
 set server <backend>/<server> ssl [ on | off ]
   This option configures SSL ciphering on outgoing connections to the server.
+  When switch off, all traffic becomes plain text; health check path is not
+  changed.
 
 set severity-output [ none | number | string ]
   Change the severity output format of the stats socket connected to for the
