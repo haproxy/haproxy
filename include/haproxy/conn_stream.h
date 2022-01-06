@@ -39,6 +39,7 @@ void cs_free(struct conn_stream *cs);
 void cs_attach_endp(struct conn_stream *cs, enum obj_type *endp, void *ctx);
 int cs_attach_app(struct conn_stream *cs, enum obj_type *app);
 void cs_detach_endp(struct conn_stream *cs);
+void cs_detach_app(struct conn_stream *cs);
 
 /*
  * Initializes all required fields for a new conn_strema.

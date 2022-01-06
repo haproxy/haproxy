@@ -133,11 +133,27 @@ void cs_detach_endp(struct conn_stream *cs)
 		appctx_free(appctx);
 	}
 
-	/* Rest CS */
+	/* FIXME: Rest CS for now but must be reviewed. CS flags are only
+	 *        connection related for now but this will evolved
+	 */
 	cs->flags = CS_FL_NONE;
 	cs->end = NULL;
 	cs->ctx = NULL;
 	if (cs->si)
 		cs->si->ops = &si_embedded_ops;
 	cs->data_cb = NULL;
+
+	if (cs->app == NULL)
+		cs_free(cs);
+}
+
+void cs_detach_app(struct conn_stream *cs)
+{
+	si_free(cs->si);
+	cs->app = NULL;
+	cs->si  = NULL;
+	cs->data_cb = NULL;
+
+	if (cs->end == NULL)
+		cs_free(cs);
 }
