@@ -96,13 +96,6 @@ static inline struct stream_interface *cs_si(const struct conn_stream *cs)
 	return (cs_strm(cs) ? cs->si : NULL);
 }
 
-/* Release a conn_stream */
-static inline void cs_destroy(struct conn_stream *cs)
-{
-	cs_detach_endp(cs);
-	cs_free(cs);
-}
-
 static inline const char *cs_get_data_name(const struct conn_stream *cs)
 {
 	if (!cs || !cs->data_cb)
