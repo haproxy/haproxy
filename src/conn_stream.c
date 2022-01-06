@@ -112,6 +112,7 @@ void cs_detach_endp(struct conn_stream *cs)
 
 	if ((conn = cs_conn(cs))) {
 		if (conn->mux) {
+			/* TODO: handle unsubscribe for healthchecks too */
 			if (cs->si && cs->si->wait_event.events != 0)
 				conn->mux->unsubscribe(cs, cs->si->wait_event.events, &cs->si->wait_event);
 			conn->mux->detach(cs);

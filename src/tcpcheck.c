@@ -1057,8 +1057,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 	struct proxy *proxy = check->proxy;
 	struct server *s = check->server;
 	struct task *t = check->task;
-	struct conn_stream *cs = check->cs;
-	struct connection *conn = cs_conn(cs);
+	struct connection *conn = cs_conn(check->cs);
 	struct protocol *proto;
 	struct xprt_ops *xprt;
 	struct tcpcheck_rule *next;
@@ -1074,7 +1073,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 			/* We are still waiting for the connection establishment */
 			if (next && next->action == TCPCHK_ACT_SEND) {
 				if (!(check->wait_list.events & SUB_RETRY_SEND))
-					conn->mux->subscribe(cs, SUB_RETRY_SEND, &check->wait_list);
+					conn->mux->subscribe(check->cs, SUB_RETRY_SEND, &check->wait_list);
 				ret = TCPCHK_EVAL_WAIT;
 				TRACE_DEVEL("not connected yet", CHK_EV_TCPCHK_CONN, check);
 			}
@@ -1092,9 +1091,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 
 	/* No connection, prepare a new one */
 	conn = conn_new((s ? &s->obj_type : &proxy->obj_type));
-	if (conn)
-		cs = cs_new();
-	if (!conn || !cs) {
+	if (!conn) {
 		chunk_printf(&trash, "TCPCHK error allocating connection at step %d",
 			     tcpcheck_get_step_id(check, rule));
 		if (rule->comment)
@@ -1102,25 +1099,10 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 		set_server_check_status(check, HCHK_STATUS_SOCKERR, trash.area);
 		ret = TCPCHK_EVAL_STOP;
 		TRACE_ERROR("conn-stream allocation error", CHK_EV_TCPCHK_CONN|CHK_EV_TCPCHK_ERR, check);
-		if (conn)
-			conn_free(conn);
 		goto out;
 	}
-	cs_attach_endp(cs, &conn->obj_type, conn);
-	if (cs_attach_app(cs, &check->obj_type) < 0) {
-		chunk_printf(&trash, "TCPCHK error allocating connection at step %d",
-			     tcpcheck_get_step_id(check, rule));
-		if (rule->comment)
-			chunk_appendf(&trash, " comment: '%s'", rule->comment);
-		set_server_check_status(check, HCHK_STATUS_SOCKERR, trash.area);
-		ret = TCPCHK_EVAL_STOP;
-		TRACE_ERROR("conn-stream allocation error", CHK_EV_TCPCHK_CONN|CHK_EV_TCPCHK_ERR, check);
-		cs_destroy(cs);
-		goto out;
-	}
+	cs_attach_endp(check->cs, &conn->obj_type, conn);
 	tasklet_set_tid(check->wait_list.tasklet, tid);
-
-	check->cs = cs;
 	conn_set_owner(conn, check->sess, NULL);
 
 	/* Maybe there were an older connection we were waiting on */
@@ -1214,7 +1196,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 		goto fail_check;
 
 	conn_set_private(conn);
-	conn->ctx = cs;
+	conn->ctx = check->cs;
 
 #ifdef USE_OPENSSL
 	if (connect->sni)
@@ -1263,7 +1245,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 
 			mux_ops = conn_get_best_mux(conn, IST_NULL, PROTO_SIDE_BE, mode);
 		}
-		if (mux_ops && conn_install_mux(conn, mux_ops, cs, proxy, check->sess) < 0) {
+		if (mux_ops && conn_install_mux(conn, mux_ops, check->cs, proxy, check->sess) < 0) {
 			TRACE_ERROR("failed to install mux", CHK_EV_TCPCHK_CONN|CHK_EV_TCPCHK_ERR, check);
 			status = SF_ERR_INTERNAL;
 			goto fail_check;
@@ -1310,9 +1292,9 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 	if (conn->flags & CO_FL_WAIT_XPRT) {
 		if (conn->mux) {
 			if (next && next->action == TCPCHK_ACT_SEND)
-				conn->mux->subscribe(cs, SUB_RETRY_SEND, &check->wait_list);
+				conn->mux->subscribe(check->cs, SUB_RETRY_SEND, &check->wait_list);
 			else
-				conn->mux->subscribe(cs, SUB_RETRY_RECV, &check->wait_list);
+				conn->mux->subscribe(check->cs, SUB_RETRY_RECV, &check->wait_list);
 		}
 		ret = TCPCHK_EVAL_WAIT;
 		TRACE_DEVEL("not connected yet", CHK_EV_TCPCHK_CONN, check);
@@ -2157,7 +2139,7 @@ int tcpcheck_main(struct check *check)
 	 */
 
 	/* 1- check for connection error, if any */
-	if ((conn && conn->flags & CO_FL_ERROR) || (cs && cs->flags & CS_FL_ERROR))
+	if ((conn && conn->flags & CO_FL_ERROR) || (cs->flags & CS_FL_ERROR))
 		goto out_end_tcpcheck;
 
 	/* 2- check if a rule must be resume. It happens if check->current_step
@@ -2202,7 +2184,7 @@ int tcpcheck_main(struct check *check)
 		switch (rule->action) {
 		case TCPCHK_ACT_CONNECT:
 			/* Not the first connection, release it first */
-			if (cs && check->current_step != rule) {
+			if (cs_conn(cs) && check->current_step != rule) {
 				check->state |= CHK_ST_CLOSE_CONN;
 				retcode = -1;
 			}
@@ -2219,11 +2201,10 @@ int tcpcheck_main(struct check *check)
 			TRACE_PROTO("eval connect rule", CHK_EV_TCPCHK_EVAL|CHK_EV_TCPCHK_CONN, check);
 			eval_ret = tcpcheck_eval_connect(check, rule);
 
-			/* Refresh conn-stream and connection */
-			cs = check->cs;
+			/* Refresh connection */
 			conn = cs_conn(cs);
 			last_read = 0;
-			must_read = ((cs && IS_HTX_CS(cs)) ? htx_is_empty(htxbuf(&check->bi)) : !b_data(&check->bi));
+			must_read = (IS_HTX_CS(cs) ? htx_is_empty(htxbuf(&check->bi)) : !b_data(&check->bi));
 			break;
 		case TCPCHK_ACT_SEND:
 			check->current_step = rule;
@@ -2321,7 +2302,7 @@ int tcpcheck_main(struct check *check)
 	TRACE_PROTO("tcp-check passed", CHK_EV_TCPCHK_EVAL, check);
 
   out_end_tcpcheck:
-	if ((conn && conn->flags & CO_FL_ERROR) || (cs && cs->flags & CS_FL_ERROR)) {
+	if ((conn && conn->flags & CO_FL_ERROR) || (cs->flags & CS_FL_ERROR)) {
 		TRACE_ERROR("report connection error", CHK_EV_TCPCHK_EVAL|CHK_EV_TCPCHK_ERR, check);
 		chk_report_conn_err(check, errno, 0);
 	}
