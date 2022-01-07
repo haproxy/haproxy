@@ -134,6 +134,8 @@ static BIO_METHOD *ha_meth;
 
 DECLARE_STATIC_POOL(ssl_sock_ctx_pool, "ssl_sock_ctx_pool", sizeof(struct ssl_sock_ctx));
 
+DECLARE_STATIC_POOL(ssl_sock_client_sni_pool, "ssl_sock_client_sni_pool", TLSEXT_MAXLEN_host_name + 1);
+
 /* ssl stats module */
 enum {
 	SSL_ST_SESS,
@@ -442,6 +444,9 @@ struct pool_head *pool_head_ssl_keylog_str __read_mostly = NULL;
 #endif
 
 int ssl_client_crt_ref_index = -1;
+
+/* Used to store the client's SNI in case of ClientHello callback error */
+int ssl_client_sni_index = -1;
 
 #if (defined SSL_CTRL_SET_TLSEXT_TICKET_KEY_CB && TLS_TICKETS_NO > 0)
 struct list tlskeys_reference = LIST_HEAD_INIT(tlskeys_reference);
@@ -2703,6 +2708,21 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 		ssl_sock_switchctx_set(ssl, s->default_ctx);
 		HA_RWLOCK_RDUNLOCK(SNI_LOCK, &s->sni_lock);
 		goto allow_early;
+	}
+
+	/* We are about to raise an handshake error so the servername extension
+	 * callback will never be called and the SNI will never be stored in the
+	 * SSL context. In order for the ssl_fc_sni sample fetch to still work
+	 * in such a case, we store the SNI ourselves as an ex_data information
+	 * in the SSL context.
+	 */
+	{
+		char *client_sni = pool_alloc(ssl_sock_client_sni_pool);
+		if (client_sni) {
+			strncpy(client_sni, trash.area, TLSEXT_MAXLEN_host_name);
+			client_sni[TLSEXT_MAXLEN_host_name] = '\0';
+			SSL_set_ex_data(ssl, ssl_client_sni_index, client_sni);
+		}
 	}
 
 	/* other cases fallback on abort, if strict-sni is set but no node was found */
@@ -7584,6 +7604,11 @@ static void ssl_sock_clt_crt_free_func(void *parent, void *ptr, CRYPTO_EX_DATA *
 	X509_free((X509*)ptr);
 }
 
+static void ssl_sock_clt_sni_free_func(void *parent, void *ptr, CRYPTO_EX_DATA *ad, int idx, long argl, void *argp)
+{
+	pool_free(ssl_sock_client_sni_pool, ptr);
+}
+
 __attribute__((constructor))
 static void __ssl_sock_init(void)
 {
@@ -7632,6 +7657,7 @@ static void __ssl_sock_init(void)
 	ssl_keylog_index = SSL_get_ex_new_index(0, NULL, NULL, NULL, ssl_sock_keylog_free_func);
 #endif
 	ssl_client_crt_ref_index = SSL_get_ex_new_index(0, NULL, NULL, NULL, ssl_sock_clt_crt_free_func);
+	ssl_client_sni_index = SSL_get_ex_new_index(0, NULL, NULL, NULL, ssl_sock_clt_sni_free_func);
 #ifndef OPENSSL_NO_ENGINE
 	ENGINE_load_builtin_engines();
 	hap_register_post_check(ssl_check_async_engine_count);

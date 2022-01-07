@@ -1565,10 +1565,18 @@ smp_fetch_ssl_fc_sni(const struct arg *args, struct sample *smp, const char *kw,
 		return 0;
 
 	smp->data.u.str.area = (char *)SSL_get_servername(ssl, TLSEXT_NAMETYPE_host_name);
-	if (!smp->data.u.str.area)
-		return 0;
+	if (!smp->data.u.str.area) {
+		/* We might have stored the SNI ourselves, look for it in the
+		 * context's ex_data.
+		 */
+		smp->data.u.str.area = SSL_get_ex_data(ssl, ssl_client_sni_index);
+
+		if (!smp->data.u.str.area)
+			return 0;
+	}
 
 	smp->data.u.str.data = strlen(smp->data.u.str.area);
+
 	return 1;
 #else
 	/* SNI not supported */

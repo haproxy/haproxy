@@ -63,24 +63,24 @@ syslog Slg_cust_fmt -level info {
 
 syslog Slg_https_fmt -level info {
     recv
-    expect ~ ".*https_logfmt_ssl_lst~ https_logfmt_ssl_lst/s1.*0/0000000000000000/0/0/.? -/TLSv1.2/AES256-GCM-SHA384"
+    expect ~ ".*https_logfmt_ssl_lst~ https_logfmt_ssl_lst/s1.*0/0000000000000000/0/0/.? foo.com/TLSv1.2/AES256-GCM-SHA384"
 
     barrier b1 sync
 } -start
 
 syslog Slg_https_fmt_err -level info {
     recv
-    expect ~ "ERROR.*https_logfmt_ssl_lst~ https_logfmt_ssl_lst/<NOSRV>.*30/0000000000000086/0/2/.? -/TLSv1.2/\\(NONE\\)"
+    expect ~ "ERROR.*https_logfmt_ssl_lst~ https_logfmt_ssl_lst/<NOSRV>.*30/0000000000000086/0/2/.? foo.com/TLSv1.2/\\(NONE\\)"
 
     barrier b1 sync
 
     recv
-    expect ~ "ERROR.*https_logfmt_ssl_lst~ https_logfmt_ssl_lst/<NOSRV>.*31/0000000000000086/20/0/.? -/TLSv1.2/\\(NONE\\)"
+    expect ~ "ERROR.*https_logfmt_ssl_lst~ https_logfmt_ssl_lst/<NOSRV>.*31/0000000000000086/20/0/.? foo.com/TLSv1.2/\\(NONE\\)"
 
     barrier b1 sync
 
     recv
-    expect ~ "ERROR.*https_logfmt_ssl_lst~ https_logfmt_ssl_lst/<NOSRV>.*34/00000000000000C1/0/0/.? -/TLSv1.2/\\(NONE\\)"
+    expect ~ "ERROR.*https_logfmt_ssl_lst~ https_logfmt_ssl_lst/<NOSRV>.*34/00000000000000C1/0/0/.? foo.com/TLSv1.2/\\(NONE\\)"
 } -start
 
 syslog Slg_logconnerror -level info {
@@ -115,7 +115,7 @@ syslog Slg_bcknd -level info {
     barrier b2 sync
 
     recv
-    expect ~ ".*bc_err:32:\"Server presented an SSL certificate different from the configured one\" ssl_bc_err:134:.*:certificate verify failed"
+    expect ~ ".*bc_err:33:\"Server presented an SSL certificate different from the expected one\" ssl_bc_err:134:.*:certificate verify failed"
 
     barrier b2 sync
 
@@ -132,6 +132,32 @@ syslog Slg_bcknd -level info {
 
     recv
     expect ~ ".*bc_err:34:\"SSL handshake failure\" ssl_bc_err:1040:.*:sslv3 alert handshake failure"
+} -start
+
+syslog Slg_bcknd_fe -level info {
+    # Client c13 - No error
+    recv
+    expect ~ ".* Server/TLSv1.3/TLS_AES_256_GCM_SHA384"
+
+    # Client c14 - Server certificate rejected
+    recv
+    expect ~ ".* foo.com/TLSv1.3/TLS_AES_256_GCM_SHA384"
+
+    # Client c15 - Server certificate mismatch (verifyhost option on backend)
+    recv
+    expect ~ ".* foo.com/TLSv1.3/TLS_AES_256_GCM_SHA384"
+
+    # Client c16 - Client certificate rejected
+    recv
+    expect ~ ".* foo.com/TLSv1.2/\\(NONE\\)"
+
+    # Client c17 - Wrong ciphers TLSv1.2
+    recv
+    expect ~ ".* foo.com/TLSv1.2/\\(NONE\\)"
+
+    # Client c18 - Wrong ciphers TLSv1.3 - the client does not get to send its certificate because the error happens before
+    recv
+    expect ~ ".* -/TLSv1.3/\\(NONE\\)"
 } -start
 
 
@@ -154,7 +180,7 @@ haproxy h1 -conf {
 
     listen clear_lst
         bind "fd@${clearlst}"
-        default-server ssl crt ${testdir}/set_cafile_client.pem ca-file ${testdir}/set_cafile_interCA2.crt verify none no-ssl-reuse force-tlsv12
+        default-server ssl crt ${testdir}/set_cafile_client.pem ca-file ${testdir}/set_cafile_interCA2.crt verify none no-ssl-reuse force-tlsv12 sni str(foo.com)
 
         balance roundrobin
         server cust_fmt "${tmpdir}/cust_logfmt_ssl.sock"
@@ -164,7 +190,7 @@ haproxy h1 -conf {
 
     listen clear_wrong_ciphers_lst
         bind "fd@${wrongcipherslst}"
-        default-server ssl crt ${testdir}/set_cafile_client.pem ca-file ${testdir}/set_cafile_interCA2.crt verify none no-ssl-reuse force-tlsv12 ciphers "aECDSA"
+        default-server ssl crt ${testdir}/set_cafile_client.pem ca-file ${testdir}/set_cafile_interCA2.crt verify none no-ssl-reuse force-tlsv12 ciphers "aECDSA" sni str(foo.com)
 
         balance roundrobin
         server cust_fmt "${tmpdir}/cust_logfmt_ssl.sock"
@@ -180,21 +206,20 @@ haproxy h1 -conf {
         error-log-format "ERROR bc_err:%[bc_err]:%{+Q}[bc_err_str]\ ssl_bc_err:%[ssl_bc_err,and(proc.ssl_error_mask)]:%[ssl_bc_err_str]"
 
         balance roundrobin
-        server no_err "${tmpdir}/no_err_ssl.sock" ssl crt ${testdir}/set_cafile_client.pem ca-file ${testdir}/set_cafile_interCA2.crt verify required
-        server srv_cert_rejected "${tmpdir}/srv_rejected_ssl.sock" ssl crt ${testdir}/set_cafile_client.pem ca-file ${testdir}/set_cafile_interCA1.crt verify required
-        server mismatch_frontend "${tmpdir}/mismatch_fe_ssl.sock" ssl crt ${testdir}/set_cafile_client.pem ca-file ${testdir}/set_cafile_interCA2.crt verify required verifyhost str(toto)
-        # We force TLSv1.2 for this specific case because server-side
+        server no_err "${tmpdir}/no_err_ssl.sock" ssl crt ${testdir}/set_cafile_client.pem ca-file ${testdir}/set_cafile_interCA2.crt verify required sni str(Server)
+        server srv_cert_rejected "${tmpdir}/srv_rejected_ssl.sock" ssl crt ${testdir}/set_cafile_client.pem ca-file ${testdir}/set_cafile_interCA1.crt verify required sni str(foo.com)
+        server mismatch_frontend "${tmpdir}/mismatch_fe_ssl.sock" ssl crt ${testdir}/set_cafile_client.pem ca-file ${testdir}/set_cafile_interCA2.crt verify required sni str(foo.com) verifyhost str(toto)         # We force TLSv1.2 for this specific case because server-side
         # verification errors cannot be caught by the backend fetches when
         # using TLSv1.3
-        server clt_cert_rejected "${tmpdir}/rejected_ssl.sock" ssl crt ${testdir}/set_cafile_client.pem ca-file ${testdir}/set_cafile_interCA2.crt verify none force-tlsv12
-        server wrong_ciphers "${tmpdir}/wrong_ciphers_ssl.sock" ssl verify none crt ${testdir}/client1.pem ca-file ${testdir}/ca-auth.crt force-tlsv12 ciphers "aECDSA"
+        server clt_cert_rejected "${tmpdir}/rejected_ssl.sock" ssl crt ${testdir}/set_cafile_client.pem ca-file ${testdir}/set_cafile_interCA2.crt verify none force-tlsv12 sni str(foo.com)
+        server wrong_ciphers "${tmpdir}/wrong_ciphers_ssl.sock" ssl verify none crt ${testdir}/client1.pem ca-file ${testdir}/ca-auth.crt force-tlsv12 ciphers "aECDSA" sni str(foo.com)
 
         # No TLSv1.3 support with OpenSSL 1.0.2 so we duplicate the previous
         # wrong cipher test in this case so that the error log remains the same
 .if openssl_version_before(1.1.1)
-        server wrong_ciphers2 "${tmpdir}/wrong_ciphers_ssl.sock" ssl verify none crt ${testdir}/client1.pem ca-file ${testdir}/ca-auth.crt force-tlsv12 ciphers "aECDSA"
+        server wrong_ciphers2 "${tmpdir}/wrong_ciphers_ssl.sock" ssl verify none crt ${testdir}/client1.pem ca-file ${testdir}/ca-auth.crt force-tlsv12 ciphers "aECDSA" sni str(foo.com)
 .else
-        server wrong_ciphers_tls13 "${tmpdir}/wrong_ciphers_tls13_ssl.sock" ssl verify none crt ${testdir}/client1.pem ca-file ${testdir}/ca-auth.crt ciphersuites "TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256" force-tlsv13
+        server wrong_ciphers_tls13 "${tmpdir}/wrong_ciphers_tls13_ssl.sock" ssl verify none crt ${testdir}/client1.pem ca-file ${testdir}/ca-auth.crt ciphersuites "TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256" force-tlsv13 sni str(foo.com)
 .endif
 
 
@@ -226,29 +251,39 @@ haproxy h1 -conf {
         server s1 ${s1_addr}:${s1_port}
 
 
+
+    defaults bknd_err_dflt
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+        retries 0
+        log ${Slg_bcknd_fe_addr}:${Slg_bcknd_fe_port} local0
+        log-format "%ci:%cp %[ssl_fc_sni]/%sslv/%sslc"
+        error-log-format "ERROR %ci:%cp %[ssl_fc_sni]/%sslv/%sslc"
+
     # The following listeners allow to test backend error fetches
-    listen no_backend_err_ssl_lst
+    listen no_backend_err_ssl_lst from bknd_err_dflt
         bind "${tmpdir}/no_err_ssl.sock" ssl crt ${testdir}/set_cafile_server.pem ca-file ${testdir}/set_cafile_interCA2.crt verify none
         server s1 ${s1_addr}:${s1_port}
 
-    listen srv_rejected_ssl_lst
+    listen srv_rejected_ssl_lst from bknd_err_dflt
         bind "${tmpdir}/srv_rejected_ssl.sock" ssl crt ${testdir}/set_cafile_server.pem ca-file ${testdir}/set_cafile_interCA2.crt verify none
         server s1 ${s1_addr}:${s1_port}
 
-    listen mismatch_fe_ssl_lst
+    listen mismatch_fe_ssl_lst from bknd_err_dflt
         bind "${tmpdir}/mismatch_fe_ssl.sock" ssl crt ${testdir}/set_cafile_server.pem ca-file ${testdir}/set_cafile_interCA2.crt verify none
         server s1 ${s1_addr}:${s1_port}
 
-    listen rejected_clt_ssl_lst
+    listen rejected_clt_ssl_lst from bknd_err_dflt
         bind "${tmpdir}/rejected_ssl.sock" ssl crt ${testdir}/set_cafile_server.pem ca-file ${testdir}/set_cafile_interCA2.crt verify required
         server s1 ${s1_addr}:${s1_port}
 
-    listen wrong_ciphers_ssl_lst
+    listen wrong_ciphers_ssl_lst from bknd_err_dflt
         bind "${tmpdir}/wrong_ciphers_ssl.sock" ssl crt ${testdir}/common.pem ca-file ${testdir}/ca-auth.crt verify none force-tlsv12 ciphers "kRSA"
         server s1 ${s1_addr}:${s1_port}
 
 .if openssl_version_atleast(1.1.1)
-    listen wrong_ciphers_tls13_ssl_lst
+    listen wrong_ciphers_tls13_ssl_lst from bknd_err_dflt
         bind "${tmpdir}/wrong_ciphers_tls13_ssl.sock" ssl crt ${testdir}/common.pem ca-file ${testdir}/ca-auth.crt verify none force-tlsv13 ciphersuites "TLS_AES_128_GCM_SHA256"
         server s1 ${s1_addr}:${s1_port}
 .endif
@@ -382,3 +417,4 @@ syslog Slg_https_fmt -wait
 syslog Slg_https_fmt_err -wait
 syslog Slg_logconnerror -wait
 syslog Slg_bcknd -wait
+syslog Slg_bcknd_fe -wait
