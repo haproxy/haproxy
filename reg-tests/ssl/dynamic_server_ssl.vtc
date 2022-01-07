@@ -1,5 +1,5 @@
 #REGTEST_TYPE=bug
-# Test if a certicate can be dynamically updated once a server which used it
+# Test if a certificate can be dynamically updated once a server which used it
 # was removed.
 #
 varnishtest "Delete server via cli and update certificates"

@@ -3276,7 +3276,7 @@ static inline void quic_conn_take(struct quic_conn *qc)
 }
 
 /* Decrement the <qc> refcount. If the refcount is zero *BEFORE* the
- * substraction, the quic_conn is freed.
+ * subtraction, the quic_conn is freed.
  */
 static void quic_conn_drop(struct quic_conn *qc)
 {
