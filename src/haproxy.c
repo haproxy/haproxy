@@ -2988,7 +2988,12 @@ int main(int argc, char **argv)
 #endif
 	}
 
-	if (old_unixsocket) {
+	/* Try to get the listeners FD from the previous process using
+	 * _getsocks on the stat socket, it must never been done in wait mode
+	 * and check mode
+	 */
+	if (old_unixsocket &&
+	    !(global.mode & (MODE_MWORKER_WAIT|MODE_CHECK|MODE_CHECK_CONDITION))) {
 		if (strcmp("/dev/null", old_unixsocket) != 0) {
 			if (sock_get_old_sockets(old_unixsocket) != 0) {
 				ha_alert("Failed to get the sockets from the old process!\n");
