@@ -12,12 +12,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-    - name: Install codespell
-      run: sudo pip install codespell
-    - name: Run codespell
-      run: |
-        codespell \
-          -c \
-          -q 2 \
-          --ignore-words-list ist,ists,hist,wan,ca,cas,que,ans,te,nd,referer,ot,uint,iif,fo,keep-alives,dosen \
-          --skip="CHANGELOG,Makefile,*.fig,*.pem"
+    - uses: codespell-project/codespell-problem-matcher@v1
+    - uses: codespell-project/actions-codespell@master
+      with:
+        skip: CHANGELOG,Makefile,*.fig,*.pem
+        ignore_words_list: ist,ists,hist,wan,ca,cas,que,ans,te,nd,referer,ot,uint,iif,fo,keep-alives,dosen,ifset,thrid,strack,ba,chck,hel,unx,mor
