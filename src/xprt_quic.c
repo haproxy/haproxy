@@ -2450,9 +2450,9 @@ static int qc_prep_pkts(struct quic_conn *qc, struct qring *qr,
 
 	TRACE_ENTER(QUIC_EV_CONN_PHPKTS, qc);
 
+	total = 0;
  start:
 	dglen = 0;
-	total = 0;
 	padding = 0;
 	qel = &qc->els[tel];
 	cbuf = qr->cbuf;
@@ -2603,10 +2603,8 @@ static int qc_prep_pkts(struct quic_conn *qc, struct qring *qr,
 
 	    if (rd && rd <= cbuf->wr) {
 			cb_wr_reset(cbuf);
-			if (pos == spos) {
-				/* Reuse the same buffer if nothing was built. */
-				goto start;
-			}
+			/* Let's try to reuse this buffer */
+			goto start;
 		}
 	}
 
