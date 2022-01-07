@@ -87,7 +87,6 @@ jobs:
           ADDLIB="-Wl,-rpath,/usr/local/lib/ -Wl,-rpath,$HOME/opt/lib/"
         sudo make install
     - name: Show HAProxy version
-      if: ${{ !failure() }}
       id: show-version
       run: |
         echo "::group::Show dynamic libraries."
@@ -102,11 +101,9 @@ jobs:
         haproxy -vv
         echo "::set-output name=version::$(haproxy -v |awk 'NR==1{print $3}')"
     - name: Install problem matcher for VTest
-      if: ${{ !failure() }}
       # This allows one to more easily see which tests fail.
       run: echo "::add-matcher::.github/vtest.json"
     - name: Run VTest for HAProxy ${{ steps.show-version.outputs.version }}
-      if: ${{ !failure() }}
       id: vtest
       run: |
         # This is required for macOS which does not actually allow to increase
