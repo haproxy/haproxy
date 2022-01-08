@@ -3238,10 +3238,11 @@ int main(int argc, char **argv)
 #ifdef USE_CPU_AFFINITY
 		if (!in_parent && ha_cpuset_count(&cpu_map.proc)) {   /* only do this if the process has a CPU map */
 
-			struct hap_cpuset *set = &cpu_map.proc;
 #if defined(CPUSET_USE_CPUSET) || defined(__DragonFly__)
+			struct hap_cpuset *set = &cpu_map.proc;
 			sched_setaffinity(0, sizeof(set->cpuset), &set->cpuset);
 #elif defined(__FreeBSD__)
+			struct hap_cpuset *set = &cpu_map.proc;
 			ret = cpuset_setaffinity(CPU_LEVEL_WHICH, CPU_WHICH_PID, -1, sizeof(set->cpuset), &set->cpuset);
 #endif
 		}
