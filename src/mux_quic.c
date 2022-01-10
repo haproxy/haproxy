@@ -234,6 +234,7 @@ static void qc_release(struct qcc *qcc)
 	}
 
 	if (conn) {
+		conn->qc->conn = NULL;
 		conn->mux = NULL;
 		conn->ctx = NULL;
 
@@ -242,6 +243,7 @@ static void qc_release(struct qcc *qcc)
 		if (conn->destroy_cb)
 			conn->destroy_cb(conn);
 		conn_free(conn);
+		fprintf(stderr, "conn@%p released\n", conn);
 	}
 }
 
