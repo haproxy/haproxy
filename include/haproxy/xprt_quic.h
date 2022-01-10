@@ -51,6 +51,11 @@ extern struct pool_head *pool_head_quic_connection_id;
 
 int ssl_quic_initial_ctx(struct bind_conf *bind_conf);
 
+static inline int qc_is_listener(struct quic_conn *qc)
+{
+	return qc->flags & QUIC_FL_CONN_LISTENER;
+}
+
 /* Update the mux stream-related transport parameters from <qc> connection */
 static inline void quic_transport_params_update(struct quic_conn *qc)
 {

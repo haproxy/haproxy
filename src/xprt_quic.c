@@ -1866,7 +1866,7 @@ static inline int qc_provide_cdata(struct quic_enc_level *el,
 		}
 
 		TRACE_PROTO("SSL handshake OK", QUIC_EV_CONN_HDSHK, qc, &state);
-		if (objt_listener(ctx->conn->target))
+		if (qc_is_listener(ctx->qc))
 			HA_ATOMIC_STORE(&qc->state, QUIC_HS_ST_CONFIRMED);
 		else
 			HA_ATOMIC_STORE(&qc->state, QUIC_HS_ST_COMPLETE);
@@ -2286,7 +2286,7 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct ssl_sock_ctx *ct
 					/* Nothing to do */
 					TRACE_PROTO("Already received CRYPTO data",
 					            QUIC_EV_CONN_ELRXPKTS, qc, pkt, &cfdebug);
-					if (objt_listener(ctx->conn->target) &&
+					if (qc_is_listener(ctx->qc) &&
 					    qel == &qc->els[QUIC_TLS_ENC_LEVEL_INITIAL])
 						fast_retrans = 1;
 					break;
@@ -2340,7 +2340,7 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct ssl_sock_ctx *ct
 		{
 			struct quic_stream *stream = &frm.stream;
 
-			if (objt_listener(ctx->conn->target)) {
+			if (qc_is_listener(ctx->qc)) {
 				if (stream->id & QUIC_STREAM_FRAME_ID_INITIATOR_BIT)
 					goto err;
 			} else if (!(stream->id & QUIC_STREAM_FRAME_ID_INITIATOR_BIT))
@@ -2369,7 +2369,7 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct ssl_sock_ctx *ct
 			tasklet_wakeup(qc->qcc->wait_event.tasklet);
 			break;
 		case QUIC_FT_HANDSHAKE_DONE:
-			if (objt_listener(ctx->conn->target))
+			if (qc_is_listener(ctx->qc))
 				goto err;
 
 			HA_ATOMIC_STORE(&qc->state, QUIC_HS_ST_CONFIRMED);
@@ -2389,7 +2389,7 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct ssl_sock_ctx *ct
 	 * has successfully parse a Handshake packet. The Initial encryption must also
 	 * be discarded.
 	 */
-	if (pkt->type == QUIC_PACKET_TYPE_HANDSHAKE && objt_listener(ctx->conn->target)) {
+	if (pkt->type == QUIC_PACKET_TYPE_HANDSHAKE && qc_is_listener(ctx->qc)) {
 	    int state = HA_ATOMIC_LOAD(&qc->state);
 
 	    if (state >= QUIC_HS_ST_SERVER_INITIAL) {
@@ -2498,7 +2498,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct qring *qr,
 		if (!prv_pkt) {
 			/* Leave room for the datagram header */
 			pos += dg_headlen;
-			if (!quic_peer_validated_addr(qc) && objt_listener(qc->conn->target)) {
+			if (!quic_peer_validated_addr(qc) && qc_is_listener(qc)) {
 				end = pos + QUIC_MIN(qc->path->mtu, 3 * qc->rx.bytes - qc->tx.prep_bytes);
 			}
 			else {
@@ -2949,7 +2949,7 @@ static inline void qc_rm_hp_pkts(struct quic_conn *qc, struct quic_enc_level *el
 	TRACE_ENTER(QUIC_EV_CONN_ELRMHP, qc);
 	app_qel = &qc->els[QUIC_TLS_ENC_LEVEL_APP];
 	/* A server must not process incoming 1-RTT packets before the handshake is complete. */
-	if (el == app_qel && objt_listener(qc->conn->target) &&
+	if (el == app_qel && qc_is_listener(qc) &&
 	    HA_ATOMIC_LOAD(&qc->state) < QUIC_HS_ST_COMPLETE) {
 		TRACE_PROTO("hp not removed (handshake not completed)",
 		            QUIC_EV_CONN_ELRMHP, qc);
@@ -3366,7 +3366,7 @@ static struct task *process_timer(struct task *task, void *ctx, unsigned int sta
 	st = HA_ATOMIC_LOAD(&qc->state);
 	if (qc->path->in_flight) {
 		pktns = quic_pto_pktns(qc, st >= QUIC_HS_ST_COMPLETE, NULL);
-		if (objt_listener(qc->conn->target) &&
+		if (qc_is_listener(qc) &&
 		    pktns == &qc->pktns[QUIC_TLS_PKTNS_HANDSHAKE] &&
 		    qc->pktns[QUIC_TLS_PKTNS_INITIAL].tx.in_flight)
 		    qc->pktns[QUIC_TLS_PKTNS_INITIAL].tx.pto_probe = 1;
@@ -3439,6 +3439,7 @@ static struct quic_conn *qc_new_conn(unsigned int version, int ipv4,
 	if (server) {
 		l = owner;
 
+		qc->flags |= QUIC_FL_CONN_LISTENER;
 		HA_ATOMIC_STORE(&qc->state, QUIC_HS_ST_SERVER_INITIAL);
 		/* Copy the initial DCID with the address. */
 		qc->odcid.len = dcid_len;

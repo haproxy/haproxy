@@ -623,6 +623,7 @@ struct rxbuf {
 #define QUIC_FL_CONN_IO_CB_WAKEUP (1U << QUIC_FL_CONN_IO_CB_WAKEUP_BIT)
 
 #define QUIC_FL_POST_HANDSHAKE_FRAMES_BUILT     (1U << 2)
+#define QUIC_FL_CONN_LISTENER                   (1U << 3)
 #define QUIC_FL_CONN_IMMEDIATE_CLOSE            (1U << 31)
 struct quic_conn {
 	/* The quic_conn instance is refcounted as it can be used by threads
