@@ -2332,7 +2332,6 @@ static size_t h1_process_mux(struct h1c *h1c, struct buffer *buf, size_t count)
 								    H1_EV_TX_DATA|H1_EV_STRM_ERR|H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
 							goto error;
 						}
-						h1m->curr_len -= vlen;
 					}
 					if ((h1m->flags & H1_MF_RESP) && (h1s->flags & H1S_F_BODYLESS_RESP)) {
 						TRACE_PROTO("Skip data for bodyless response", H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, chn_htx);
@@ -2378,6 +2377,8 @@ static size_t h1_process_mux(struct h1c *h1c, struct buffer *buf, size_t count)
 						    H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, 0, (size_t[]){v.len});
 
 			  skip_data:
+				if (h1m->state == H1_MSG_DATA && (h1m->flags & H1_MF_CLEN))
+					h1m->curr_len -= vlen;
 				if (last_data)
 					goto done;
 				break;
