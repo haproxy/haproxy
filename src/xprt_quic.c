@@ -993,8 +993,26 @@ static int quic_crypto_data_cpy(struct quic_enc_level *qel,
 	 */
 	if (!len) {
 		struct quic_frame *frm;
+		struct quic_frame *found = NULL;
+		struct mt_list *tmp1, tmp2;
 
-		if (MT_LIST_ISEMPTY(&qel->pktns->tx.frms)) {
+		/* There is at most one CRYPTO frame in this packet number
+		 * space. Let's look for it.
+		 */
+		mt_list_for_each_entry_safe(frm, &qel->pktns->tx.frms,
+		                            mt_list, tmp1, tmp2) {
+			if (frm->type != QUIC_FT_CRYPTO)
+				continue;
+
+			/* Found */
+			found = frm;
+			break;
+		}
+
+		if (found) {
+			found->crypto.len += cf_len;
+		}
+		else {
 			frm = pool_alloc(pool_head_quic_frame);
 			if (!frm)
 				return 0;
@@ -1004,10 +1022,6 @@ static int quic_crypto_data_cpy(struct quic_enc_level *qel,
 			frm->crypto.len = cf_len;
 			frm->crypto.qel = qel;
 			MT_LIST_APPEND(&qel->pktns->tx.frms, &frm->mt_list);
-		}
-		else {
-			frm = MT_LIST_NEXT(&qel->pktns->tx.frms, struct quic_frame *, mt_list);
-			frm->crypto.len += cf_len;
 		}
 	}
 
