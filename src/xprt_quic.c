@@ -1294,7 +1294,7 @@ static int qc_do_rm_hp(struct quic_conn *qc,
  */
 static int quic_packet_encrypt(unsigned char *payload, size_t payload_len,
                                unsigned char *aad, size_t aad_len, uint64_t pn,
-                               struct quic_tls_ctx *tls_ctx, struct connection *conn)
+                               struct quic_tls_ctx *tls_ctx, struct quic_conn *qc)
 {
 	unsigned char iv[12];
 	unsigned char *tx_iv = tls_ctx->tx.iv;
@@ -1302,13 +1302,13 @@ static int quic_packet_encrypt(unsigned char *payload, size_t payload_len,
 	struct enc_debug_info edi;
 
 	if (!quic_aead_iv_build(iv, sizeof iv, tx_iv, tx_iv_sz, pn)) {
-		TRACE_DEVEL("AEAD IV building for encryption failed", QUIC_EV_CONN_HPKT, conn->qc);
+		TRACE_DEVEL("AEAD IV building for encryption failed", QUIC_EV_CONN_HPKT, qc);
 		goto err;
 	}
 
 	if (!quic_tls_encrypt(payload, payload_len, aad, aad_len,
 	                      tls_ctx->tx.aead, tls_ctx->tx.key, iv)) {
-		TRACE_DEVEL("QUIC packet encryption failed", QUIC_EV_CONN_HPKT, conn->qc);
+		TRACE_DEVEL("QUIC packet encryption failed", QUIC_EV_CONN_HPKT, qc);
 		goto err;
 	}
 
@@ -1316,7 +1316,7 @@ static int quic_packet_encrypt(unsigned char *payload, size_t payload_len,
 
  err:
 	enc_debug_info_init(&edi, payload, payload_len, aad, aad_len, pn);
-	TRACE_DEVEL("leaving in error", QUIC_EV_CONN_ENCPKT, conn->qc, &edi);
+	TRACE_DEVEL("leaving in error", QUIC_EV_CONN_ENCPKT, qc, &edi);
 	return 0;
 }
 
@@ -4891,7 +4891,7 @@ static struct quic_tx_packet *qc_build_pkt(unsigned char **pos,
 	aad_len = payload - beg;
 
 	tls_ctx = &qel->tls_ctx;
-	if (!quic_packet_encrypt(payload, payload_len, beg, aad_len, pn, tls_ctx, qc->conn)) {
+	if (!quic_packet_encrypt(payload, payload_len, beg, aad_len, pn, tls_ctx, qc)) {
 		*err = -2;
 		goto err;
 	}
