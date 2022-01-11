@@ -3981,6 +3981,88 @@ static int send_version_negotiation(int fd, struct sockaddr_storage *addr,
 	return 0;
 }
 
+/* Generate the token to be used in Retry packets. The token is written to
+ * <buf> which is expected to be <len> bytes.
+ *
+ * Various parameters are expected to be encoded in the token. For now, only
+ * the DCID from <pkt> is stored. This is useful to implement a stateless Retry
+ * as this CID must be repeated by the server in the transport parameters.
+ *
+ * TODO add the client address to validate the token origin.
+ *
+ * Returns the length of the encoded token or 0 on error.
+ */
+static int generate_retry_token(unsigned char *buf, unsigned char len,
+                                struct quic_rx_packet *pkt)
+{
+	const size_t token_len = 1 + pkt->dcid.len;
+	unsigned char i = 0;
+
+	if (token_len > len)
+		return 0;
+
+	buf[i++] = pkt->dcid.len;
+	memcpy(&buf[i], pkt->dcid.data, pkt->dcid.len);
+	i += pkt->dcid.len;
+
+	return i;
+}
+
+/* Generate a Retry packet and send it on <fd> socket to <addr> in response to
+ * the Initial <pkt> packet.
+ *
+ * Returns 0 on success else non-zero.
+ */
+static int send_retry(int fd, struct sockaddr_storage *addr,
+                      struct quic_rx_packet *pkt)
+{
+	unsigned char buf[128];
+	int i = 0, token_len;
+	const socklen_t addrlen = get_addr_len(addr);
+	struct quic_cid scid;
+
+	/* long header + fixed bit + packet type 0x3 */
+	buf[i++] = 0xf0;
+	/* version */
+	buf[i++] = 0x00;
+	buf[i++] = 0x00;
+	buf[i++] = 0x00;
+	buf[i++] = 0x01;
+
+	/* Use the SCID from <pkt> for Retry DCID. */
+	buf[i++] = pkt->scid.len;
+	memcpy(&buf[i], pkt->scid.data, pkt->scid.len);
+	i += pkt->scid.len;
+
+	/* Generate a new CID to be used as SCID for the Retry packet. */
+	scid.len = QUIC_HAP_CID_LEN;
+	if (RAND_bytes(scid.data, scid.len) != 1)
+		return 1;
+
+	buf[i++] = scid.len;
+	memcpy(&buf[i], scid.data, scid.len);
+	i += scid.len;
+
+	/* token */
+	if (!(token_len = generate_retry_token(&buf[i], &buf[i] - buf, pkt)))
+		return 1;
+	i += token_len;
+
+	/* token integrity tag */
+	if ((&buf[i] - buf < QUIC_TLS_TAG_LEN) ||
+	    !quic_tls_generate_retry_integrity_tag(pkt->dcid.data,
+	                                           pkt->dcid.len, buf, i)) {
+		return 1;
+	}
+
+	i += QUIC_TLS_TAG_LEN;
+
+	if (sendto(fd, buf, i, 0, (struct sockaddr *)addr, addrlen) < 0)
+		return 1;
+
+	return 0;
+}
+
 /* Retrieve a quic_conn instance from the <pkt> DCID field. If the packet is of
  * type INITIAL, the ODCID tree is first used. In this case, <saddr> is
  * concatenated to the <pkt> DCID field.
@@ -4146,7 +4228,20 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 			 * The token must be provided in a Retry packet or NEW_TOKEN frame.
 			 */
 			pkt->token_len = token_len;
-			if (pkt->token_len) {
+
+			/* TODO Retry should be automatically activated if
+			 * suspect network usage is detected.
+			 */
+			if (!token_len && l->bind_conf->quic_force_retry) {
+				TRACE_PROTO("Initial without token, sending retry", QUIC_EV_CONN_LPKT);
+				if (send_retry(l->rx.fd, saddr, pkt)) {
+					TRACE_PROTO("Error during Retry generation", QUIC_EV_CONN_LPKT);
+					goto err;
+				}
+
+				goto err;
+			}
+			else {
 				pkt->token = buf;
 				buf += pkt->token_len;
 			}
