@@ -4046,6 +4046,25 @@ static struct quic_conn *retrieve_qc_conn_from_cid(struct quic_rx_packet *pkt,
 	return qc;
 }
 
+/* Parse the Retry token from buffer <token> whose size is <token_len>. This
+ * will extract the parameters stored in the token : <odcid>.
+ *
+ * Returns 0 on success else non-zero.
+ */
+static int parse_retry_token(const unsigned char *token, uint64_t token_len,
+                             struct quic_cid *odcid)
+{
+	uint64_t odcid_len;
+
+	if (!quic_dec_int(&odcid_len, &token, token + token_len))
+		return 1;
+
+	memcpy(odcid->data, token, odcid_len);
+	odcid->len = odcid_len;
+
+	return 0;
+}
+
 static ssize_t qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
                                 struct quic_rx_packet *pkt,
                                 struct quic_dgram_ctx *dgram_ctx,
@@ -4127,6 +4146,10 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 			 * The token must be provided in a Retry packet or NEW_TOKEN frame.
 			 */
 			pkt->token_len = token_len;
+			if (pkt->token_len) {
+				pkt->token = buf;
+				buf += pkt->token_len;
+			}
 		}
 		else if (pkt->type != QUIC_PACKET_TYPE_0RTT) {
 			if (pkt->dcid.len != QUIC_HAP_CID_LEN) {
@@ -4168,9 +4191,19 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 			odcid = &qc->rx.params.original_destination_connection_id;
 			/* Copy the transport parameters. */
 			qc->rx.params = l->bind_conf->quic_params;
+
 			/* Copy original_destination_connection_id transport parameter. */
-			memcpy(odcid->data, &pkt->dcid.data, pkt->dcid.len);
-			odcid->len = pkt->dcid.len;
+			if (pkt->token_len) {
+				if (parse_retry_token(pkt->token, pkt->token_len, odcid)) {
+					TRACE_PROTO("Error during Initial token parsing", QUIC_EV_CONN_LPKT, qc);
+					goto err;
+				}
+			}
+			else {
+				memcpy(odcid->data, &pkt->dcid.data, pkt->dcid.len);
+				odcid->len = pkt->dcid.len;
+			}
+
 			/* Copy the initial source connection ID. */
 			quic_cid_cpy(&qc->rx.params.initial_source_connection_id, &qc->scid);
 			qc->enc_params_len =

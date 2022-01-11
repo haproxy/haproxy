@@ -435,6 +435,7 @@ struct quic_rx_packet {
 	/* Packet number length */
 	uint32_t pnl;
 	uint64_t token_len;
+	const unsigned char *token;
 	/* Packet length */
 	uint64_t len;
 	/* Packet length before decryption */
