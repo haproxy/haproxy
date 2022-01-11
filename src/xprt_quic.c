@@ -116,6 +116,8 @@ static const struct trace_event quic_trace_events[] = {
 	{ .mask = QUIC_EV_CONN_BCFRMS,   .name = "bcfrms",           .desc = "build CRYPTO data frames" },
 	{ .mask = QUIC_EV_CONN_XPRTSEND, .name = "xprt_send",        .desc = "sending XRPT subscription" },
 	{ .mask = QUIC_EV_CONN_XPRTRECV, .name = "xprt_recv",        .desc = "receiving XRPT subscription" },
+	{ .mask = QUIC_EV_CONN_FREED,    .name = "conn_freed",       .desc = "releasing conn. memory" },
+	{ .mask = QUIC_EV_CONN_CLOSE,    .name = "conn_close",       .desc = "closing conn." },
 	{ /* end */ }
 };
 
@@ -3120,9 +3122,10 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 
 	ctx = context;
 	qc = ctx->qc;
+	TRACE_ENTER(QUIC_EV_CONN_HDSHK, qc);
 	qr = NULL;
 	st = HA_ATOMIC_LOAD(&qc->state);
-	TRACE_ENTER(QUIC_EV_CONN_HDSHK, qc, &st);
+	TRACE_PROTO("state", QUIC_EV_CONN_HDSHK, qc, &st);
 	if (HA_ATOMIC_LOAD(&qc->flags) & QUIC_FL_CONN_IO_CB_WAKEUP) {
 		HA_ATOMIC_BTR(&qc->flags, QUIC_FL_CONN_IO_CB_WAKEUP_BIT);
 		/* The I/O handler has been woken up by the dgram listener
@@ -3337,6 +3340,7 @@ static void quic_conn_drop(struct quic_conn *qc)
 
 	pool_free(pool_head_quic_conn_rxbuf, qc->rx.buf.area);
 	pool_free(pool_head_quic_conn, qc);
+	TRACE_PROTO("QUIC conn. freed", QUIC_EV_CONN_FREED, qc);
 }
 
 void quic_close(struct connection *conn, void *xprt_ctx)
@@ -3344,6 +3348,7 @@ void quic_close(struct connection *conn, void *xprt_ctx)
 	struct ssl_sock_ctx *conn_ctx = xprt_ctx;
 	struct quic_conn *qc = conn_ctx->conn->qc;
 
+	TRACE_ENTER(QUIC_EV_CONN_CLOSE, qc);
 	/* This task must be deleted by the connection-pinned thread. */
 	if (qc->timer_task) {
 		task_destroy(qc->timer_task);
@@ -3351,6 +3356,7 @@ void quic_close(struct connection *conn, void *xprt_ctx)
 	}
 
 	quic_conn_drop(qc);
+	TRACE_LEAVE(QUIC_EV_CONN_CLOSE, qc);
 }
 
 /* Callback called upon loss detection and PTO timer expirations. */
