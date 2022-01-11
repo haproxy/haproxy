@@ -5371,7 +5371,7 @@ static ssize_t quic_dgram_read(struct buffer *buf, size_t len, void *owner,
 	if (dgram_ctx.qc)
 		dgram_ctx.qc->rx.bytes += len;
 
-	return pos - (unsigned char *)buf;
+	return pos - (unsigned char *)b_head(buf);
 
  err:
 	return -1;
