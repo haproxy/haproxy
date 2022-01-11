@@ -69,6 +69,9 @@ int quic_tls_decrypt(unsigned char *buf, size_t len,
                      const EVP_CIPHER *aead,
                      const unsigned char *key, const unsigned char *iv);
 
+int quic_tls_generate_retry_integrity_tag(unsigned char *odcid, size_t odcid_len,
+                                          unsigned char *buf, size_t len);
+
 int quic_tls_derive_keys(const EVP_CIPHER *aead, const EVP_CIPHER *hp,
                          const EVP_MD *md,
                          unsigned char *key, size_t keylen,

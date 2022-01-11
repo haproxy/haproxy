@@ -396,3 +396,59 @@ int quic_tls_decrypt(unsigned char *buf, size_t len,
 	EVP_CIPHER_CTX_free(ctx);
 	return ret;
 }
+
+/* Generate the AEAD tag for the Retry packet <pkt> of <pkt_len> bytes and
+ * write it to <tag>. The tag is written just after the <pkt> area. It should
+ * be at least 16 bytes longs. <odcid> is the CID of the Initial packet
+ * received which triggers the Retry.
+ *
+ * Returns non-zero on success else zero.
+ */
+int quic_tls_generate_retry_integrity_tag(unsigned char *odcid,
+                                          unsigned char odcid_len,
+                                          unsigned char *pkt, size_t pkt_len)
+{
+	const EVP_CIPHER *evp = EVP_aes_128_gcm();
+	EVP_CIPHER_CTX *ctx;
+
+	/* key/nonce from rfc9001 5.8. Retry Packet Integrity */
+	const unsigned char key[] = {
+	  0xbe, 0x0c, 0x69, 0x0b, 0x9f, 0x66, 0x57, 0x5a,
+	  0x1d, 0x76, 0x6b, 0x54, 0xe3, 0x68, 0xc8, 0x4e,
+	};
+	const unsigned char nonce[] = {
+	  0x46, 0x15, 0x99, 0xd3, 0x5d, 0x63, 0x2b, 0xf2, 0x23, 0x98, 0x25, 0xbb,
+	};
+
+	/* encryption buffer - not used as only AEAD tag generation is proceed */
+	unsigned char *out = NULL;
+	/* address to store the AEAD tag */
+	unsigned char *tag = pkt + pkt_len;
+	int outlen, ret = 0;
+
+	ctx = EVP_CIPHER_CTX_new();
+	if (!ctx)
+		return 0;
+
+	/* rfc9001 5.8. Retry Packet Integrity
+	 *
+	 * AEAD is proceed over a pseudo-Retry packet used as AAD. It contains
+	 * the ODCID len + data and the Retry packet itself.
+	 */
+	if (!EVP_EncryptInit_ex(ctx, evp, NULL, key, nonce) ||
+	    /* specify pseudo-Retry as AAD */
+	    !EVP_EncryptUpdate(ctx, NULL, &outlen, &odcid_len, sizeof(odcid_len)) ||
+	    !EVP_EncryptUpdate(ctx, NULL, &outlen, odcid, odcid_len) ||
+	    !EVP_EncryptUpdate(ctx, NULL, &outlen, pkt, pkt_len) ||
+	    /* finalize */
+	    !EVP_EncryptFinal_ex(ctx, out, &outlen) ||
+	    /* store the tag */
+	    !EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_GET_TAG, QUIC_TLS_TAG_LEN, tag)) {
+		goto out;
+	}
+	ret = 1;
+
+ out:
+	EVP_CIPHER_CTX_free(ctx);
+	return ret;
+}
