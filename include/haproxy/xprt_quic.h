@@ -488,6 +488,8 @@ static inline void quic_transport_params_init(struct quic_transport_params *p,
 		p->with_stateless_reset_token      = 1;
 	p->active_connection_id_limit          = 8;
 
+	p->retry_source_connection_id.len = 0;
+
 }
 
 /* Encode <addr> preferred address transport parameter in <buf> without its
@@ -779,6 +781,15 @@ static inline int quic_transport_params_encode(unsigned char *buf,
 		                                  p->original_destination_connection_id.data,
 		                                  p->original_destination_connection_id.len))
 			return 0;
+
+		if (p->retry_source_connection_id.len) {
+			if (!quic_transport_param_enc_mem(&pos, end,
+			                                  QUIC_TP_RETRY_SOURCE_CONNECTION_ID,
+			                                  p->retry_source_connection_id.data,
+			                                  p->retry_source_connection_id.len))
+				return 0;
+		}
+
 		if (p->with_stateless_reset_token &&
 			!quic_transport_param_enc_mem(&pos, end, QUIC_TP_STATELESS_RESET_TOKEN,
 			                              p->stateless_reset_token,

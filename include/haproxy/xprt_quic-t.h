@@ -306,6 +306,7 @@ struct preferred_address {
 #define QUIC_TP_PREFERRED_ADDRESS                   13
 #define QUIC_TP_ACTIVE_CONNECTION_ID_LIMIT          14
 #define QUIC_TP_INITIAL_SOURCE_CONNECTION_ID        15
+#define QUIC_TP_RETRY_SOURCE_CONNECTION_ID          16
 
 /*
  * These defines are not for transport parameter type, but the maximum accepted value for
@@ -346,6 +347,10 @@ struct quic_transport_params {
 	 * When received by clients, must be set to 1 if present.
 	 */
 	struct quic_cid original_destination_connection_id;            /* Forbidden for clients */
+	/*
+	 * MUST be sent by servers after Retry.
+	 */
+	struct quic_cid retry_source_connection_id;                    /* Forbidden for clients */
 	/* MUST be present both for servers and clients. */
 	struct quic_cid initial_source_connection_id;
 	struct preferred_address preferred_address;                    /* Forbidden for clients */

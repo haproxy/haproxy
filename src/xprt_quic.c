@@ -4198,6 +4198,9 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 					TRACE_PROTO("Error during Initial token parsing", QUIC_EV_CONN_LPKT, qc);
 					goto err;
 				}
+				/* Copy retry_source_connection_id transport parameter. */
+				quic_cid_cpy(&qc->rx.params.retry_source_connection_id,
+				             &pkt->dcid);
 			}
 			else {
 				memcpy(odcid->data, &pkt->dcid.data, pkt->dcid.len);
