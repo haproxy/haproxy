@@ -79,6 +79,7 @@
 #include <haproxy/vars.h>
 #include <haproxy/xprt_quic.h>
 #include <haproxy/xxhash.h>
+#include <haproxy/istbuf.h>
 
 
 /* ***** READ THIS before adding code here! *****
@@ -7432,9 +7433,43 @@ int ssl_ocsp_response_print(struct buffer *ocsp_response, struct buffer *out)
 	}
 
 	if (OCSP_RESPONSE_print(bio, resp, 0) != 0) {
-		write = BIO_read(bio, out->area, out->size - 1);
-		out->area[write] = '\0';
-		out->data = write;
+		struct buffer *trash = get_trash_chunk();
+		struct ist ist_block = IST_NULL;
+		struct ist ist_double_lf = IST_NULL;
+		static struct ist double_lf = IST("\n\n");
+
+		write = BIO_read(bio, trash->area, trash->size - 1);
+		trash->data = write;
+
+		/* Look for empty lines in the 'trash' buffer and add a space to
+		 * the beginning to avoid having empty lines in the output
+		 * (without changing the appearance of the information
+		 * displayed).
+		 */
+		ist_block = ist2(b_orig(trash), b_data(trash));
+
+		ist_double_lf = istist(ist_block, double_lf);
+
+		while (istlen(ist_double_lf)) {
+			/* istptr(ist_double_lf) points to the first \n of a
+			 * \n\n pattern.
+			 */
+			uint empty_line_offset = istptr(ist_double_lf) + 1 - istptr(ist_block);
+
+			/* Write up to the first '\n' of the "\n\n" pattern into
+			 * the output buffer.
+			 */
+			b_putblk(out, istptr(ist_block), empty_line_offset);
+			/* Add an extra space. */
+			b_putchr(out, ' ');
+
+			/* Keep looking for empty lines in the rest of the data. */
+			ist_block = istadv(ist_block, empty_line_offset);
+
+			ist_double_lf = istist(ist_block, double_lf);
+		}
+
+		b_istput(out, ist_block);
 	}
 
 	if (bio)
