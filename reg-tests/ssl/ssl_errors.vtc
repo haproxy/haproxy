@@ -136,16 +136,19 @@ syslog Slg_bcknd -level info {
 
 syslog Slg_bcknd_fe -level info {
     # Client c13 - No error
+    # Depending on the version of OpenSSL, the TLS version and ciphersuite will change
     recv
-    expect ~ ".* Server/TLSv1.3/TLS_AES_256_GCM_SHA384"
+    expect ~ ".* Server/(TLSv1.3/TLS_AES_256_GCM_SHA384|TLSv1.2/ECDHE-RSA-AES256-GCM-SHA384)"
 
     # Client c14 - Server certificate rejected
+    # Depending on the version of OpenSSL, the TLS version and ciphersuite will change
     recv
-    expect ~ ".* foo.com/TLSv1.3/TLS_AES_256_GCM_SHA384"
+    expect ~ ".* foo.com/(TLSv1.3/TLS_AES_256_GCM_SHA384|TLSv1.2/\\(NONE\\))"
 
     # Client c15 - Server certificate mismatch (verifyhost option on backend)
+    # Depending on the version of OpenSSL, the TLS version and ciphersuite will change
     recv
-    expect ~ ".* foo.com/TLSv1.3/TLS_AES_256_GCM_SHA384"
+    expect ~ ".* foo.com/(TLSv1.3/TLS_AES_256_GCM_SHA384|TLSv1.2/\\(NONE\\))"
 
     # Client c16 - Client certificate rejected
     recv
@@ -155,9 +158,11 @@ syslog Slg_bcknd_fe -level info {
     recv
     expect ~ ".* foo.com/TLSv1.2/\\(NONE\\)"
 
-    # Client c18 - Wrong ciphers TLSv1.3 - the client does not get to send its certificate because the error happens before
+    # Client c18
+    # With OpenSSL1.0.2 -Wrong ciphers TLSv1.2 (same as c17)
+    # With newer versions - Wrong ciphers TLSv1.3 - the client does not get to send its certificate because the error happens before
     recv
-    expect ~ ".* -/TLSv1.3/\\(NONE\\)"
+    expect ~ ".* (foo.com/TLSv1.2|-/TLSv1.3)/\\(NONE\\)"
 } -start
 
 
