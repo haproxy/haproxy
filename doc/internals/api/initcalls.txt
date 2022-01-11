@@ -310,8 +310,7 @@ alphanumerically ordered:
 
   Used internally to declare a new pool. This is made by calling function
   create_pool_callback() with these arguments at stage STG_POOL. Do not use it
-  directly, use either DECLARE_POOL() or DECLARE_STATIC_POOL() instead (see
-  below).
+  directly, use either DECLARE_POOL() or DECLARE_STATIC_POOL() instead.
 
 - REGISTER_POST_CHECK(fct)
 
@@ -337,30 +336,3 @@ alphanumerically ordered:
 
   Registers a call to register_server_deinit(fct) at stage STG_REGISTER.
 
-
-6. Other initialization macros
-
-On top of the INITCALL family of macros, a few other convenient macros were
-created in order to simplify declarations or allocations:
-
-- DECLARE_POOL(ptr, name, size)
-
-  Placed at the top level of a file, this declares a global memory pool as
-  variable <ptr>, name <name> and size <size> bytes per element. This is made
-  via a call to REGISTER_POOL() and by assigning the resulting pointer to
-  variable <ptr>. <ptr> will be created of type "struct pool_head *". If the
-  pool needs to be visible outside of the function (which is likely), it will
-  also need to be declared somewhere as "extern struct pool_head *<ptr>;". It
-  is recommended to place such declarations very early in the source file so
-  that the variable is already known to all subsequent functions which may use
-  it.
-
-- DECLARE_STATIC_POOL(ptr, name, size)
-
-  Placed at the top level of a file, this declares a static memory pool as
-  variable <ptr>, name <name> and size <size> bytes per element. This is made
-  via a call to REGISTER_POOL() and by assigning the resulting pointer to local
-  variable <ptr>. <ptr> will be created of type "static struct pool_head *". It
-  is recommended to place such declarations very early in the source file so
-  that the variable is already known to all subsequent functions which may use
-  it.

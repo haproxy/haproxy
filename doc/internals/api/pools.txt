@@ -1,0 +1,525 @@
+2022-01-04 - Pools structure and API
+
+1. Background
+-------------
+
+Memory allocation is a complex problem covered by a massive amount of
+literature. Memory allocators found in field cover a broad spectrum of
+capabilities, performance, fragmentation, efficiency etc.
+
+The main difficulty of memory allocation comes from finding the optimal chunks
+for arbitrary sized requests, that will still preserve a low fragmentation
+level. Doing this well is often expensive in CPU usage and/or memory usage.
+
+In programs like HAProxy that deal with a large number of fixed size objects,
+there is no point having to endure all this risk of fragmentation, and the
+associated costs (sometimes up to several milliseconds with certain minimalist
+allocators) are simply not acceptable. A better approach consists in grouping
+frequently used objects by size, knowing that due to the high repetitiveness of
+operations, a freed object will immediately be needed for another operation.
+
+This grouping of objects by size is what is called a pool. Pools are created
+for certain frequently allocated objects, are usually merged together when they
+are of the same size (or almost the same size), and significantly reduce the
+number of calls to the memory allocator.
+
+With the arrival of threads, pools started to become a bottleneck so they now
+implement an optional thread-local lockless cache. Finally with the arrival of
+really efficient memory allocator in modern operating systems, the shared part
+has also become optional so that it doesn't consume memory if it does not bring
+any value.
+
+
+2. Principles
+-------------
+
+The pools architecture is selected at build time. The main options are:
+
+  - thread-local caches and process-wide shared pool enabled (1)
+
+    This is the default situation on most operating systems. Each thread has
+    its own local cache, and when depleted it refills from the process-wide
+    pool that avoids calling the standard allocator too often. It is possible
+    to force this mode at build time by setting CONFIG_HAP_GLOBAL_POOLS.
+
+  - thread-local caches only are enabled (2)
+
+    This is the situation on operating systems where a fast and modern memory
+    allocator is detected and when it is estimated that the process-wide shared
+    pool will not bring any benefit. This detection is automatic at build time,
+    but may also be forced at build tmie by setting CONFIG_HAP_NO_GLOBAL_POOLS.
+
+  - pass-through to the standard allocator (3)
+
+    This is used when one absolutely wants to disable pools and rely on regular
+    malloc() and free() calls, essentially in order to trace memory allocations
+    by call points, either internally via DEBUG_MEM_STATS, or externally via
+    tools such as Valgrind. This mode of operation may be forced at build time
+    by setting DEBUG_NO_POOLS.
+
+  - pass-through to an mmap-based allocator for debugging (4)
+
+    This is used only during deep debugging when trying to detect various
+    conditions such as use-after-free. In this case each allocated object's
+    size is rounded up to a multiple of a page size (4096 bytes) and an
+    integral number of pages is allocated for each object using mmap(),
+    surrounded by two unaccessible holes that aim to detect some out-of-bounds
+    accesses. Released objects are instantly freed using munmap() so that any
+    immediate subsequent access to the memory area crashes the process if the
+    area had not been reallocated yet. This mode can be enabled at build time
+    by setting DEBUG_UAF. It tends to consume a lot of memory and not to scale
+    at all with concurrent calls, that tends to make the system stall. The
+    watchdog may even trigger on some slow allocations.
+
+There are no more provisions for running with a shared pool but no thread-local
+cache: the shared pool's main goal is to compensate for the expensive calls to
+the memory allocator. This gain may be huge on tiny systems using basic
+allocators, but the thread-local cache will already achieve this. And on larger
+threaded systems, the shared pool's benefit is visible when the underlying
+allocator scales poorly, but in this case the shared pool would suffer from
+the same limitations without its thread-local cache and wouldn't provide any
+benefit.
+
+Summary of the various operation modes:
+
+                  (1)            (2)            (3)            (4)
+
+                  User           User           User           User
+                   |              |              |              |
+      pool_alloc() V              V              |              |
+              +---------+    +---------+         |              |
+              | Thread  |    | Thread  |         |              |
+              |  Local  |    |  Local  |         |              |
+              |  Cache  |    |  Cache  |         |              |
+              +---------+    +---------+         |              |
+                   |              |              |              |
+    pool_refill*() V              |              |              |
+              +---------+         |              |              |
+              | Shared  |         |              |              |
+              |  Pool   |         |              |              |
+              +---------+         |              |              |
+                   |              |              |              |
+          malloc() V              V              V              |
+              +---------+    +---------+    +---------+         |
+              | Library |    | Library |    | Library |         |
+              +---------+    +---------+    +---------+         |
+                   |              |              |              |
+            mmap() V              V              V              V
+              +---------+    +---------+    +---------+    +---------+
+              |   OS    |    |   OS    |    |   OS    |    |   OS    |
+              +---------+    +---------+    +---------+    +---------+
+
+One extra build define, DEBUG_FAIL_ALLOC, is used to enforce random allocation
+failure in pool_alloc() by randomly returning NULL, to test that callers
+properly handle allocation failures. In this case the desired average rate of
+allocation failures can be fixed by global setting "tune.fail-alloc" expressed
+in percent.
+
+The thread-local caches contain the freshest objects whose total size amounts
+to CONFIG_HAP_POOL_CACHE_SIZE bytes, which is typically was 1MB before 2.6 and
+is 512kB after. The aim is to keep hot objects that still fit in the CPU core's
+private L2 cache. Once these objects do not fit into the cache anymore, there's
+no benefit keeping them local to the thread, so they'd rather be returned to
+the shared pool or the main allocator so that any other thread may make use of
+them.
+
+
+3. Storage in thread-local caches
+---------------------------------
+
+This section describes how objects are linked in thread local caches. This is
+not meant to be a concern for users of the pools API but it can be useful when
+inspecting post-mortem dumps or when trying to figure certain size constraints.
+
+Objects are stored in the local cache using a doubly-linked list. This ensures
+that they can be visited by freshness order like a stack, while at the same
+time being able to access them from oldest to newest when it is needed to
+evict coldest ones first:
+
+  - releasing an object to the cache always puts it on the top.
+
+  - allocating an object from the cache always takes the topmost one, hence the
+    freshest one.
+
+  - scanning for older objects to evict starts from the bottom, where the
+    oldest ones are located
+
+To that end, each thread-local cache keeps a list head in the "list" member of
+its "pool_cache_head" descriptor, that links all objects cast to type
+"pool_cache_item" via their "by_pool" member.
+
+Note that the mechanism described above only works for a single pool. When
+trying to limit the total cache size to a certain value, all pools included,
+there is also a need to arrange all objects from all pools together in the
+local caches. For this, each thread_ctx maintains a list head of recently
+released objects, all pools included, in its member "pool_lru_head". All items
+in a thread-local cache are linked there via their "by_lru" member.
+
+This means that releasing an object using pool_free() consists in inserting
+it at the beginning of two lists:
+  - the local pool_cache_head's "list" list head
+  - the thread context's "pool_lru_head" list head
+
+Allocating an object consists in picking the first entry from the pool's "list"
+and deleting its "by_pool" and "by_lru" links.
+
+Evicting an object consists in scanning the thread context's "pool_lru_head"
+backwards and deleting the object's "by_pool" and "by_lru" links.
+
+Given that entries are both inserted and removed synchronously, we have the
+guarantee that the oldest object in the thread's LRU list is always the oldest
+object in its pool, and that the next element is the cache's list head. This is
+what allows the LRU eviction mechanism to figure what pool an object belongs to
+when releasing it.
+
+Note:
+ | Since a pool_cache_item has two list entries, on 64-bit systems it will be
+ | 32-bytes long. This is the smallest size that a pool may be, and any smaller
+ | size will automatically be rounded up to this size.
+
+When build option DEBUG_MEMORY_POOLS is set, pool objects and allocated with
+one extra pointer compared to the requested size, so that the bytes that follow
+the memory area point to the pool descriptor itself as long as the object is
+allocated via pool_alloc(). Upon releasing via pool_free(), the pointer is
+compared and the code will crash in if it differs. This allows to detect both
+memory overflows and object released to the wrong pool (code bug resulting from
+a copy-paste error typically).
+
+Thus an object will look like this depending whether it's in the cache or is
+currently in use:
+
+             in cache                 in use
+          +------------+          +------------+
+       <--+  by_pool.p |          |   N bytes  |
+          |  by_pool.n +-->       |            |
+          +------------+          |N=16 min on |
+       <--+  by_lru.p  |          |  32-bit,   |
+          |  by_lru.n  +-->       |  32 min on |
+          +------------+          |  64-bit    |
+          :            :          :            :
+          |   N bytes  |          |            |
+          +------------+          +------------+ \   optional, only if
+          :  (unused)  :          :  pool ptr  :  >  DEBUG_MEMORY_POOLS
+          +------------+          +------------+ /   is set at build time
+
+Right now no provisions are made to return objects aligned on larger boundaries
+than those currently covered by malloc() (i.e. two pointers). This need appears
+from time to time and the layout above might evolve a little bit if needed.
+
+
+4. Storage in the process-wide shared pool
+------------------------------------------
+
+In order for the shared pool not to be a contention point in a multi-threaded
+environment, objects are allocated from or released to shared pools by clusters
+of a few objects at once. The maximum number of objects that may be moved to or
+from a shared pool at once is defined by CONFIG_HAP_POOL_CLUSTER_SIZE at build
+time, and currently defaults to 8.
+
+In order to remain scalable, the shared pool has to make some tradeoffs to
+limit the number of atomic operations and the duration of any locked operation.
+As such, it's composed of a single-linked list of clusters, themselves made of
+a single-linked list of objects.
+
+Clusters and objects are of the same type "pool_item" and are accessed from the
+pool's "free_list" member. This member points to the latest pool_item inserted
+into the pool by a release operation. And the pool_item's "next" member points
+to the next pool_item, which was the one present in the pool's free_list just
+before the pool_item was inserted, and the last pool_item in the list simply
+has a NULL "next" field.
+
+The pool_item's "down" pointer points down to the next objects part of the same
+cluster, that will be released or allocated at the same time as the first one.
+Each of these items also has a NULL "next" field, and are chained by their
+respective "down" pointers until the last one is detected by a NULL value.
+
+This results in the following layout:
+
+      pool           pool_item   pool_item   pool_item
+    +-----------+    +------+    +------+    +------+
+    | free_list +--> | next +--> | next +--> | NULL |
+    +-----------+    +------+    +------+    +------+
+                     | down |    | NULL |    | down |
+                     +--+---+    +------+    +--+---+
+                        |                       |
+                        V                       V
+                     +------+                +------+
+                     | NULL |                | NULL |
+                     +------+                +------+
+                     | down |                | NULL |
+                     +--+---+                +------+
+                        |
+                        V
+                     +------+
+                     | NULL |
+                     +------+
+                     | NULL |
+                     +------+
+
+Allocating an entry is only a matter of performing two atomic allocations on
+the free_list and reading the pool's "next" value:
+
+  - atomically mark the free_list as being updated by writing a "magic" pointer
+  - read the first pool_item's "next" field
+  - atomically replace the free_list with this value
+
+This results in a fast operation that instantly retrieves a cluster at once.
+Then outside of the critical section entries are walked over and inserted into
+the local cache one at a time. In order to keep the code simple and efficient,
+objects allocated from the shared pool are all placed into the local cache, and
+only then the first one is allocated from the cache. This operation is
+performed by the dedicated function pool_refill_local_from_shared() which is
+called from pool_get_from_cache() when the cache is empty. It means there is an
+overhead of two list insert/delete operations for the first object and that
+could be avoided at the expense of more complex code in the fast path, but this
+is negligible since it only concerns objects that need to be visited anyway.
+
+Freeing a group of objects consists in performing the operation the other way
+around:
+
+  - atomically mark the free_list as being updated by writing a "magic" pointer
+  - write the free_list value to the to-be-released item's "next" entry
+  - atomically replace the free_list with the pool_item's pointer
+
+The cluster will simply have to be prepared before being sent to the shared
+pool. The operation of releasing a cluster at once is performed by function
+pool_put_to_shared_cache() which is called from pool_evict_last_items() which
+itself is responsible for building the clusters.
+
+Due to the way objects are stored, it is important to try to group objects as
+much as possible when releasing them because this is what will condition their
+retrieval as groups as well. This is the reason why pool_evict_last_items()
+uses the LRU to find a first entry but tries to pick several items at once from
+a single cache. Tests have shown that CONFIG_HAP_POOL_CLUSTER_SIZE set to 8
+achieves up to 6-6.5 objects on average per operation, which effectively
+divides by as much the average time spent per object by each thread and pushes
+the contention point further.
+
+Also, grouping items in clusters is a property of the process-wide shared pool
+and not of the thread-local caches. This means that there is no grouped
+operation when not using the shared pool (mode "2" in the diagram above).
+
+
+5. API
+------
+
+The following functions are public and available for user code:
+
+struct pool_head *create_pool(char *name, uint size, uint flags)
+        Create a new pool named <name> for objects of size <size> bytes. Pool
+        names are truncated to their first 11 characters. Pools of very similar
+        size will usually be merged if both have set the flag MEM_F_SHARED in
+        <flags>. When DEBUG_DONT_SHARE_POOLS was set at build time, the pools
+        also need to have the exact same name to be merged. In addition, unless
+        MEM_F_EXACT is set in <flags>, the object size will usually be rounded
+        up to the size of pointers (16 or 32 bytes). The name that will appear
+        in the pool upon merging is the name of the first created pool. The
+        returned pointer is the new (or reused) pool head, or NULL upon error.
+        Pools created this way must be destroyed using pool_destroy().
+
+void *pool_destroy(struct pool_head *pool)
+        Destroy pool <pool>, that is, all of its unused objects are freed and
+        the structure is freed as well if the pool didn't have any used objects
+        anymore. In this case NULL is returned. If some objects remain in use,
+        the pool is preserved and its pointer is returned. This ought to be
+        used essentially on exit or in rare situations where some internal
+        entities that hold pools have to be destroyed.
+
+void pool_destroy_all(void)
+        Destroy all pools, without checking which ones still have used entries.
+        This is only meant for use on exit.
+
+void *__pool_alloc(struct pool_head *pool, uint flags)
+        Allocate an entry from the pool <pool>. The allocator will first look
+        for an object in the thread-local cache if enabled, then in the shared
+        pool if enabled, then will fall back to the operating system's default
+        allocator. NULL is returned if the object couldn't be allocated (due to
+        configured limits or lack of memory). Object allocated this way have to
+        be released using pool_free(). Like with malloc(), by default the
+        contents of the returned object are undefined. If memory poisonning is
+        enabled, the object will be filled with the poisonning byte. If the
+        global "pool.fail-alloc" setting is non-zero and DEBUG_FAIL_ALLOC is
+        enabled, a random number generator will be called to randomly return a
+        NULL. The allocator's behavior may be adjusted using a few flags passed
+        in <flags>:
+           - POOL_F_NO_POISON : when set, disables memory poisonning (e.g. when
+             pointless and expensive, like for buffers)
+           - POOL_F_MUST_ZERO : when set, the memory area will be zeroed before
+             being returned, similar to what calloc() does
+           - POOL_F_NO_FAIL : when set, disables the random allocation failure,
+             e.g. for use during early init code or critical sections.
+
+void *pool_alloc(struct pool_head *pool)
+        This is an exact equivalent of __pool_alloc(pool, 0). It is the regular
+        way to allocate entries from a pool.
+
+void *pool_alloc_nocache(struct pool_head *pool)
+        Allocate an entry from the pool <pool>, bypassing the cache. If shared
+        pools are enabled, they will be consulted first. Otherwise the object
+        is allocated using the operating system's default allocator. This is
+        essentially used during early boot to pre-allocate a number of objects
+        for pools which require a minimum number of entries to exist.
+
+void *pool_zalloc(struct pool_head *pool)
+        This is an exact equivalent of __pool_alloc(pool, POOL_F_MUST_ZERO).
+
+void pool_free(struct pool_head *pool, void *ptr)
+        Free an entry allocate from one of the pool_alloc() functions above
+        from pool <pool>. The object will be placed into the thread-local cache
+        if enabled, or in the shared pool if enabled, or will be released using
+        the operating system's default allocator. When memory poisonning is
+        enabled, the area will be overwritten before being released. This can
+        sometimes help detect use-after-free conditions. When a local cache is
+        enabled, if the local cache size becomes larger than 75% of the maximum
+        size configured at build time, some objects will be evicted to the
+        shared pool. Such objects are taken first from the same pool, but if
+        the total size is really huge, other pools might be checked as well.
+        Some extra checks enabled at build time may enforce extra checks so
+        that the process will immediately crash if the object was not allocated
+        from this pool or experienced an overflow or some memory corruption.
+
+void pool_flush(struct pool_head *pool)
+        Free all unused objects from shared pool <pool>. Thread-local caches
+        are not affected. This is essentially used when running low on memory
+        or when stopping, in order to release a maximum amount of memory for
+        the new process.
+
+void pool_gc(struct pool_head *pool)
+        Free all unused objects from all pools, but respecting the minimum
+        number of spare objects required for each of them. Then, for operating
+        systems which support it, indicate the system that all unused memory
+        can be released. Thread-local caches are not affected. This operation
+        differs from pool_flush() in that it is run locklessly, under thread
+        isolation, and on all pools in a row. It is called by the SIGQUIT
+        signal handler and upon exit. Note that the obsolete argument <pool> is
+        not used and the convention is to pass NULL there.
+
+void dump_pools_to_trash(void)
+        Dump the current status of all pools into the trash buffer. This is
+        essentially used by the "show pools" CLI command or the SIGQUIT signal
+        handler to dump them on stderr. The total report size may not exceed
+        the size of the trash buffer. If it does, some entries will be missing.
+
+void dump_pools(void)
+        Dump the current status of all pools to stderr. This just calls
+        dump_pools_to_trash() and writes the trash to stderr.
+
+int pool_total_failures(void)
+        Report the total number of failed allocations. This is solely used to
+        report the "PoolFailed" metrics of the "show info" output. The total
+        is calculated on the fly by summing the number of failures in all pools
+        and is only meant to be used as an indicator rather than a precise
+        measure.
+
+ulong pool_total_allocated(void)
+        Report the total number of bytes allocated in all pools, for reporting
+        in the "PoolAlloc_MB" field of the "show info" output. The total is
+        calculated on the fly by summing the number of allocated bytes in all
+        pools and is only meant to be used as an indicator rather than a
+        precise measure.
+
+ulong pool_total_used(void)
+        Report the total number of bytes used in all pools, for reporting in
+        the "PoolUsed_MB" field of the "show info" output. The total is
+        calculated on the fly by summing the number of used bytes in all pools
+        and is only meant to be used as an indicator rather than a precise
+        measure. Note that objects present in caches are accounted as used.
+
+Some other functions exist and are only used by the pools code itself. While
+not strictly forbidden to use outside of this code, it is generally recommended
+to avoid touching them in order not to create undesired dependencies that will
+complicate maintenance.
+
+A few macros exist to ease the declaration of pools:
+
+DECLARE_POOL(ptr, name, size)
+        Placed at the top level of a file, this declares a global memory pool
+        as variable <ptr>, name <name> and size <size> bytes per element. This
+        is made via a call to REGISTER_POOL() and by assigning the resulting
+        pointer to variable <ptr>. <ptr> will be created of type "struct
+        pool_head *". If the pool needs to be visible outside of the function
+        (which is likely), it will also need to be declared somewhere as
+        "extern struct pool_head *<ptr>;". It is recommended to place such
+        declarations very early in the source file so that the variable is
+        already known to all subsequent functions which may use it.
+
+DECLARE_STATIC_POOL(ptr, name, size)
+        Placed at the top level of a file, this declares a static memory pool
+        as variable <ptr>, name <name> and size <size> bytes per element. This
+        is made via a call to REGISTER_POOL() and by assigning the resulting
+        pointer to local variable <ptr>. <ptr> will be created of type "static
+        struct pool_head *". It is recommended to place such declarations very
+        early in the source file so that the variable is already known to all
+        subsequent functions which may use it.
+
+
+6. Build options
+----------------
+
+A number of build-time defines allow to tune the pools behavior. All of them
+have to be enabled using "-Dxxx" or "-Dxxx=yyy" in the makefile's DEBUG
+variable.
+
+DEBUG_NO_POOLS
+        When this is set, pools are entirely disabled, and allocations are made
+        using malloc() instead. This is not recommended for production but may
+        be useful for tracing allocations.
+
+DEBUG_MEMORY_POOLS
+        When this is set, an extra pointer is allocated at the end of each
+        object to reference the pool the object was allocated from and detect
+        buffer overflows. Then, pool_free() will provoke a crash in case it
+        detects an anomaly (pointer at the end not matching the pool).
+
+DEBUG_FAIL_ALLOC
+        When enabled, a global setting "tune.fail-alloc" may be set to a non-
+        zero value representing a percentage of memory allocations that will be
+        made to fail in order to stress the calling code.
+
+DEBUG_DONT_SHARE_POOLS
+        When enabled, pools of similar sizes are not merged unless the have the
+        exact same name.
+
+DEBUG_UAF
+        When enabled, pools are disabled and all allocations and releases pass
+        through mmap() and munmap(). The memory usage significantly inflates
+        and the performance degrades, but this allows to detect a lot of
+        use-after-free conditions by crashing the program at the first abnormal
+        access. This should not be used in production.
+
+DEBUG_MEM_STATS
+        When enabled, all malloc/calloc/realloc/strdup/free calls are accounted
+        for per call place (file+line number), and may be displayed or reset on
+        the CLI using "debug dev memstats". This is essentially used to detect
+        potential leaks or abnormal usages. When pools are enabled (default),
+        such calls are rare and the output will mostly contain calls induced by
+        libraries. When pools are disabled, about all calls to pool_alloc() and
+        pool_free() will also appear since they will be remapped to standard
+        functions.
+
+CONFIG_HAP_GLOBAL_POOLS
+        When enabled, process-wide shared pools will be forcefully enabled even
+        if not considered useful on the platform. The default is to let haproxy
+        decide based on the OS and C library.
+
+CONFIG_HAP_NO_GLOBAL_POOLS
+        When enabled, process-wide shared pools will be forcefully disabled
+        even if considered useful on the platform. The default is to let
+        haproxy decide based on the OS and C library.
+
+CONFIG_HAP_POOL_CACHE_SIZE
+        This allows one to define the size of the per-thread cache, in bytes.
+        The default value is 512 kB (524288). Smaller values will use less
+        memory at the expense of a possibly higher CPU usage when using many
+        threads. Higher values will give diminishing returns on performance
+        while using much more memory. Usually there is no benefit in using
+        more than a per-core L2 cache size. It would be better not to set this
+        value lower than a few times the size of a buffer (bufsize, defaults to
+        16 kB).
+
+CONFIG_HAP_POOL_CLUSTER_SIZE
+        This allows one to define the maximum number of objects that will be
+        groupped together in an allocation from the shared pool. Values 4 to 8
+        have experimentally shown good results with 16 threads. On systems with
+        more cores or losely coupled caches exhibiting slow atomic operations,
+        it could possibly make sense to slightly increase this value.
