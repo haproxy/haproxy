@@ -262,6 +262,9 @@ int httpclient_req_gen(struct httpclient *hc, const struct ist url, enum http_me
 	int i;
 	int foundhost = 0, foundaccept = 0, foundua = 0;
 
+	if (!b_alloc(&hc->req.buf))
+		goto error;
+
 	if (meth >= HTTP_METH_OTHER)
 		goto error;
 
@@ -352,8 +355,11 @@ int httpclient_res_xfer(struct httpclient *hc, struct buffer *dst)
 
 	ret = b_force_xfer(dst, &hc->res.buf, MIN(1024, b_data(&hc->res.buf)));
 	/* call the client once we consumed all data */
-	if (!b_data(&hc->res.buf) && hc->appctx)
-		appctx_wakeup(hc->appctx);
+	if (!b_data(&hc->res.buf)) {
+		b_free(&hc->res.buf);
+		if (hc->appctx)
+			appctx_wakeup(hc->appctx);
+	}
 	return ret;
 }
 
@@ -372,6 +378,9 @@ int httpclient_req_xfer(struct httpclient *hc, struct ist src, int end)
 {
 	int ret = 0;
 	struct htx *htx;
+
+	if (!b_alloc(&hc->req.buf))
+		goto error;
 
 	htx = htx_from_buf(&hc->req.buf);
 	if (!htx)
@@ -544,19 +553,13 @@ void httpclient_destroy(struct httpclient *hc)
 struct httpclient *httpclient_new(void *caller, enum http_meth_t meth, struct ist url)
 {
 	struct httpclient *hc;
-	struct buffer *b;
 
 	hc = calloc(1, sizeof(*hc));
 	if (!hc)
 		goto err;
 
-	b = b_alloc(&hc->req.buf);
-	if (!b)
-		goto err;
-	b = b_alloc(&hc->res.buf);
-	if (!b)
-		goto err;
-
+	hc->req.buf = BUF_NULL;
+	hc->res.buf = BUF_NULL;
 	hc->caller = caller;
 	hc->req.url = istdup(url);
 	hc->req.meth = meth;
@@ -599,6 +602,9 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 				if (!ret)
 					goto more;
 
+				if (!b_data(&hc->req.buf))
+					b_free(&hc->req.buf);
+
 				htx = htx_from_buf(&req->buf);
 				if (!htx)
 					goto more;
@@ -632,6 +638,10 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 						ret = b_xfer(&req->buf, &hc->req.buf, b_data(&hc->req.buf));
 						if (!ret)
 							goto more;
+
+						if (!b_data(&hc->req.buf))
+							b_free(&hc->req.buf);
+
 						htx = htx_from_buf(&req->buf);
 						if (!htx)
 							goto more;
@@ -751,8 +761,11 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 				if (!htx || htx_is_empty(htx))
 					goto more;
 
+				if (!b_alloc(&hc->res.buf))
+					goto more;
+
 				if (b_full(&hc->res.buf))
-				goto process_data;
+					goto process_data;
 
 				/* decapsule the htx data to raw data */
 				for (pos = htx_get_first(htx); pos != -1; pos = htx_get_next(htx, pos)) {
