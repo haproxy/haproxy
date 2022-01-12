@@ -939,15 +939,15 @@ size_t htx_add_data(struct htx *htx, const struct ist data)
 	uint32_t sz, room;
 	int32_t len = data.len;
 
-	if (htx->head == -1)
-		goto add_new_block;
-
 	/* Not enough space to store data */
 	if (len > htx_free_data_space(htx))
 		len = htx_free_data_space(htx);
 
 	if (!len)
 		return 0;
+
+	if (htx->head == -1)
+		goto add_new_block;
 
 	/* get the tail and head block */
 	tailblk = htx_get_tail_blk(htx);
