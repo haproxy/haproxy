@@ -7175,7 +7175,7 @@ __LJMP static int hlua_httpclient_snd_yield(lua_State *L, int status, lua_KConte
 	body_str = lua_tolstring(L, -1, &buf_len);
 	lua_pop(L, 1);
 
-	to_send = MIN(buf_len - hlua_hc->sent, 1024);
+	to_send = buf_len - hlua_hc->sent;
 
 	if ((hlua_hc->sent + to_send) >= buf_len)
 		end = 1;
