@@ -1042,6 +1042,8 @@ static int h2_init(struct connection *conn, struct proxy *prx, struct session *s
 		tasklet_free(h2c->wait_event.tasklet);
 	pool_free(pool_head_h2c, h2c);
   fail_no_h2c:
+	if (!conn_is_back(conn))
+		LIST_DEL_INIT(&conn->stopping_list);
 	conn->ctx = conn_ctx; /* restore saved ctx */
 	TRACE_DEVEL("leaving in error", H2_EV_H2C_NEW|H2_EV_H2C_END|H2_EV_H2C_ERR);
 	return -1;
