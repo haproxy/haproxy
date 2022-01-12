@@ -3328,12 +3328,8 @@ static void quic_conn_drop(struct quic_conn *qc)
 	HA_RWLOCK_WRUNLOCK(QUIC_LOCK, &qc->li->rx.cids_lock);
 
 	conn_ctx = HA_ATOMIC_LOAD(&qc->xprt_ctx);
-	if (conn_ctx) {
-		tasklet_free(conn_ctx->wait_event.tasklet);
-		conn_ctx->wait_event.tasklet = NULL;
-
+	if (conn_ctx)
 		pool_free(pool_head_quic_conn_ctx, conn_ctx);
-	}
 
 	for (i = 0; i < QUIC_TLS_ENC_LEVEL_MAX; i++)
 		quic_conn_enc_level_uninit(&qc->els[i]);
@@ -3353,6 +3349,11 @@ void quic_close(struct connection *conn, void *xprt_ctx)
 	if (qc->timer_task) {
 		task_destroy(qc->timer_task);
 		qc->timer_task = NULL;
+	}
+
+	if (conn_ctx->wait_event.tasklet) {
+		tasklet_free(conn_ctx->wait_event.tasklet);
+		conn_ctx->wait_event.tasklet = NULL;
 	}
 
 	quic_conn_drop(qc);
