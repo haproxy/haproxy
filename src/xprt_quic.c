@@ -3200,7 +3200,10 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 
 	if (!qr)
 		qr = MT_LIST_POP(qc->tx.qring_list, typeof(qr), mt_list);
-	if (!quic_get_tls_enc_levels(&tel, &next_tel, st, zero_rtt))
+	/* A listener does not send any O-RTT packet. O-RTT packet number space must not
+	 * be considered.
+	 */
+	if (!quic_get_tls_enc_levels(&tel, &next_tel, st, 0))
 		goto err;
 	ret = qc_prep_pkts(qc, qr, tel, next_tel);
 	if (ret == -1)
