@@ -395,7 +395,6 @@ static int qc_init(struct connection *conn, struct proxy *prx,
 
 	qcc->conn = conn;
 	conn->ctx = qcc;
-	conn->qc->qcc = qcc;
 
 	qcc->app_ops = NULL;
 
@@ -441,6 +440,7 @@ static int qc_init(struct connection *conn, struct proxy *prx,
 	qcc->wait_event.tasklet->process = qc_io_cb;
 	qcc->wait_event.tasklet->context = qcc;
 
+	HA_ATOMIC_STORE(&conn->qc->qcc, qcc);
 	/* init read cycle */
 	tasklet_wakeup(qcc->wait_event.tasklet);
 
