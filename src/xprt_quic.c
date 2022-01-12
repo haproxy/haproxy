@@ -589,7 +589,7 @@ static inline int quic_peer_validated_addr(struct quic_conn *qc)
 {
 	struct quic_pktns *hdshk_pktns, *app_pktns;
 
-	if (objt_server(qc->conn->target))
+	if (!qc_is_listener(qc))
 		return 1;
 
 	hdshk_pktns = qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE].pktns;
@@ -2597,7 +2597,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct qring *qr,
 			padding = 0;
 		}
 		else if (prv_pkt->type == QUIC_TLS_ENC_LEVEL_INITIAL &&
-		         (objt_server(qc->conn->target) ||
+		         (!qc_is_listener(qc) ||
 		         prv_pkt->flags & QUIC_FL_TX_PACKET_ACK_ELICITING)) {
 			padding = 1;
 		}
@@ -2719,7 +2719,7 @@ static int quic_build_post_handshake_frames(struct quic_conn *qc)
 
 	qel = &qc->els[QUIC_TLS_ENC_LEVEL_APP];
 	/* Only servers must send a HANDSHAKE_DONE frame. */
-	if (!objt_server(qc->conn->target)) {
+	if (qc_is_listener(qc)) {
 		frm = pool_alloc(pool_head_quic_frame);
 		if (!frm)
 			return 0;
@@ -3392,7 +3392,7 @@ static struct task *process_timer(struct task *task, void *ctx, unsigned int sta
 		    qc->pktns[QUIC_TLS_PKTNS_INITIAL].tx.pto_probe = 1;
 		pktns->tx.pto_probe = 1;
 	}
-	else if (objt_server(qc->conn->target) && st <= QUIC_HS_ST_COMPLETE) {
+	else if (!qc_is_listener(qc) && st <= QUIC_HS_ST_COMPLETE) {
 		struct quic_enc_level *iel = &qc->els[QUIC_TLS_ENC_LEVEL_INITIAL];
 		struct quic_enc_level *hel = &qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE];
 
