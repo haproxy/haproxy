@@ -441,7 +441,7 @@ struct appctx *httpclient_start(struct httpclient *hc)
 		ha_alert("httpclient: out of memory in %s:%d.\n", __FUNCTION__, __LINE__);
 		goto out_free_appctx;
 	}
-	if ((s = stream_new(sess, &appctx->obj_type, &BUF_NULL)) == NULL) {
+	if ((s = stream_new(sess, &appctx->obj_type, &hc->req.buf)) == NULL) {
 		ha_alert("httpclient: Failed to initialize stream %s:%d.\n", __FUNCTION__, __LINE__);
 		goto out_free_appctx;
 	}
@@ -478,7 +478,11 @@ struct appctx *httpclient_start(struct httpclient *hc)
 	hc->appctx = appctx;
 	hc->flags |= HTTPCLIENT_FS_STARTED;
 	appctx->ctx.httpclient.ptr = hc;
-	appctx->st0 = HTTPCLIENT_S_REQ;
+
+	/* The request was transferred when the stream was created. So switch
+	 * directly to REQ_BODY or RES_STLINE state
+	 */
+	appctx->st0 = (hc->ops.req_payload ? HTTPCLIENT_S_REQ_BODY : HTTPCLIENT_S_RES_STLINE);
 
 	return appctx;
 
