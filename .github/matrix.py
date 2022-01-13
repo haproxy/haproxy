@@ -74,8 +74,8 @@ for CC in ["gcc", "clang"]:
             "FLAGS": [
                 "USE_ZLIB=1",
                 "USE_OT=1",
-                "OT_INC=${HOME}/opt/include",
-                "OT_LIB=${HOME}/opt/lib",
+                "OT_INC=${HOME}/opt-ot/include",
+                "OT_LIB=${HOME}/opt-ot/lib",
                 "OT_RUNPATH=1",
                 "USE_PCRE=1",
                 "USE_PCRE_JIT=1",
@@ -150,8 +150,8 @@ matrix.append(
         + [
             "USE_ZLIB=1",
             "USE_OT=1",
-            "OT_INC=${HOME}/opt/include",
-            "OT_LIB=${HOME}/opt/lib",
+            "OT_INC=${HOME}/opt-ot/include",
+            "OT_LIB=${HOME}/opt-ot/lib",
             "OT_RUNPATH=1",
             "USE_PCRE=1",
             "USE_PCRE_JIT=1",

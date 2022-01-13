@@ -42,10 +42,18 @@ jobs:
       TMPDIR: /tmp
       # Force ASAN output into asan.log to make the output more readable.
       ASAN_OPTIONS: log_path=asan.log
+      OT_CPP_VERSION: 1.5.0
     steps:
     - uses: actions/checkout@v2
       with:
         fetch-depth: 100
+    - name: Cache OpenTracing
+      if: ${{ contains(matrix.FLAGS, 'USE_OT=1') }}
+      id: cache_ot
+      uses: actions/cache@v2
+      with:
+        path: '~/opt-ot/'
+        key: ot-${{ matrix.CC }}-${{ env.OT_CPP_VERSION }}-${{ contains(matrix.name, 'ASAN') }}
     - name: Install apt dependencies
       if: ${{ startsWith(matrix.os, 'ubuntu-') }}
       run: |
@@ -68,8 +76,22 @@ jobs:
       if: ${{ matrix.ssl && matrix.ssl != 'stock' }}
       run: env ${{ matrix.ssl }} scripts/build-ssl.sh
     - name: Install OpenTracing libs
-      if: ${{ contains(matrix.FLAGS, 'USE_OT=1') }}
-      run: scripts/build-ot.sh
+      if: ${{ contains(matrix.FLAGS, 'USE_OT=1') && steps.cache_ot.outputs.cache-hit != 'true'  }}
+      run: |
+        wget https://github.com/opentracing/opentracing-cpp/archive/v${OT_CPP_VERSION}.tar.gz
+        tar xf v${OT_CPP_VERSION}.tar.gz
+        cd opentracing-cpp-${OT_CPP_VERSION}
+        mkdir build
+        cd build
+        cmake -DCMAKE_INSTALL_PREFIX=${HOME}/opt-ot -DBUILD_STATIC_LIBS=OFF -DBUILD_MOCKTRACER=OFF -DBUILD_TESTING=OFF ..
+        make -j$(nproc)
+        make install
+        git clone https://github.com/haproxytech/opentracing-c-wrapper.git
+        cd opentracing-c-wrapper
+        ./scripts/bootstrap
+        ./configure --prefix=${HOME}/opt-ot --with-opentracing=${HOME}/opt-ot
+        make -j$(nproc)
+        make install
     - name: Build WURFL
       if: ${{ contains(matrix.FLAGS, 'USE_WURFL=1') }}
       run: make -C addons/wurfl/dummy
