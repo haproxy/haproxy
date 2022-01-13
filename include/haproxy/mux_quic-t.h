@@ -54,6 +54,10 @@ struct qcc {
 	struct wait_event wait_event;  /* To be used if we're waiting for I/Os */
 	struct wait_event *subs;
 
+	/* haproxy timeout management */
+	struct task *task;
+	int timeout;
+
 	const struct qcc_app_ops *app_ops;
 	void *ctx; /* Application layer context */
 };

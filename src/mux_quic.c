@@ -209,6 +209,19 @@ static inline int qcc_is_dead(const struct qcc *qcc)
 {
 	fprintf(stderr, "%s: %lu\n", __func__, qcc->strms[QCS_CLT_BIDI].nb_streams);
 
+	if (!qcc->strms[QCS_CLT_BIDI].nb_streams && !qcc->task)
+		return 1;
+
+	return 0;
+}
+
+/* Return true if the mux timeout should be armed. */
+static inline int qcc_may_expire(struct qcc *qcc)
+{
+
+	/* Consider that the timeout must be set if no bidirectional streams
+	 * are opened.
+	 */
 	if (!qcc->strms[QCS_CLT_BIDI].nb_streams)
 		return 1;
 
@@ -387,6 +400,36 @@ static struct task *qc_io_cb(struct task *t, void *ctx, unsigned int status)
 	return NULL;
 }
 
+static struct task *qc_timeout_task(struct task *t, void *ctx, unsigned int state)
+{
+	struct qcc *qcc = ctx;
+	int expired = tick_is_expired(t->expire, now_ms);
+
+	fprintf(stderr, "%s\n", __func__);
+
+	if (qcc) {
+		if (!expired) {
+			fprintf(stderr, "%s: not expired\n", __func__);
+			return t;
+		}
+
+		if (!qcc_may_expire(qcc)) {
+			fprintf(stderr, "%s: cannot expire\n", __func__);
+			t->expire = TICK_ETERNITY;
+			return t;
+		}
+	}
+
+	fprintf(stderr, "%s: timeout\n", __func__);
+	task_destroy(t);
+	qcc->task = NULL;
+
+	if (qcc_is_dead(qcc))
+		qc_release(qcc);
+
+	return NULL;
+}
+
 static int qc_init(struct connection *conn, struct proxy *prx,
                    struct session *sess, struct buffer *input)
 {
@@ -445,12 +488,23 @@ static int qc_init(struct connection *conn, struct proxy *prx,
 	qcc->wait_event.tasklet->process = qc_io_cb;
 	qcc->wait_event.tasklet->context = qcc;
 
+	/* haproxy timeouts */
+	qcc->timeout = prx->timeout.client;
+	qcc->task = task_new_here();
+	if (!qcc->task)
+		goto fail_no_timeout_task;
+	qcc->task->process = qc_timeout_task;
+	qcc->task->context = qcc;
+	qcc->task->expire = tick_add(now_ms, qcc->timeout);
+
 	HA_ATOMIC_STORE(&conn->qc->qcc, qcc);
 	/* init read cycle */
 	tasklet_wakeup(qcc->wait_event.tasklet);
 
 	return 0;
 
+ fail_no_timeout_task:
+	tasklet_free(qcc->wait_event.tasklet);
  fail_no_tasklet:
 	pool_free(pool_head_qcc, qcc);
  fail_no_qcc:
