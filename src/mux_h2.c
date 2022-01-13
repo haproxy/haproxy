@@ -73,6 +73,8 @@ static const struct h2s *h2_idle_stream;
 #define H2_CF_END_REACHED       0x00040000  // pending data too short with RCVD_SHUT present
 
 #define H2_CF_RCVD_RFC8441      0x00100000  // settings from RFC8441 has been received indicating support for Extended CONNECT
+#define H2_CF_SHTS_UPDATED      0x00200000  // SETTINGS_HEADER_TABLE_SIZE updated
+#define H2_CF_DTSU_EMITTED      0x00400000  // HPACK Dynamic Table Size Update opcode emitted
 
 /* H2 connection state, in h2c->st0 */
 enum h2_cs {
@@ -2231,6 +2233,9 @@ static int h2c_handle_settings(struct h2c *h2c)
 				goto fail;
 			}
 			h2c->mfs = arg;
+			break;
+		case H2_SETTINGS_HEADER_TABLE_SIZE:
+			h2c->flags |= H2_CF_SHTS_UPDATED;
 			break;
 		case H2_SETTINGS_ENABLE_PUSH:
 			if (arg < 0 || arg > 1) { // RFC7540#6.5.2
@@ -5147,6 +5152,26 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, struct htx *htx)
 	write_n32(outbuf.area + 5, h2s->id); // 4 bytes
 	outbuf.data = 9;
 
+	if ((h2c->flags & (H2_CF_SHTS_UPDATED|H2_CF_DTSU_EMITTED)) == H2_CF_SHTS_UPDATED) {
+		/* SETTINGS_HEADER_TABLE_SIZE changed, we must send an HPACK
+		 * dynamic table size update so that some clients are not
+		 * confused. In practice we only need to send the DTSU when the
+		 * advertised size is lower than the current one, and since we
+		 * don't use it and don't care about the default 4096 bytes,
+		 * we only ack it with a zero size thus we at most have to deal
+		 * with this once. See RFC7541#4.2 and #6.3 for the spec, and
+		 * below for the whole context and interoperability risks:
+		 * https://lists.w3.org/Archives/Public/ietf-http-wg/2021OctDec/0235.html
+		 */
+		if (b_room(&outbuf) < 1)
+			goto full;
+		outbuf.area[outbuf.data++] = 0x20; // HPACK DTSU 0 bytes
+
+		/* let's not update the flags now but only once the buffer is
+		 * really committed.
+		 */
+	}
+
 	/* encode status, which necessarily is the first one */
 	if (!hpack_encode_int_status(&outbuf, h2s->status)) {
 		if (b_space_wraps(mbuf))
@@ -5230,6 +5255,12 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, struct htx *htx)
 	 */
 	if (h2s->status >= 200)
 		h2s->flags |= H2_SF_HEADERS_SENT;
+
+	if (h2c->flags & H2_CF_SHTS_UPDATED) {
+		/* was sent above */
+		h2c->flags |= H2_CF_DTSU_EMITTED;
+		h2c->flags &= H2_CF_SHTS_UPDATED;
+	}
 
 	if (es_now) {
 		h2s->flags |= H2_SF_ES_SENT;
