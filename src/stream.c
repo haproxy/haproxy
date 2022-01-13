@@ -991,22 +991,11 @@ enum act_return process_use_service(struct act_rule *rule, struct proxy *px,
 		/* Initialise the context. */
 		memset(&appctx->ctx, 0, sizeof(appctx->ctx));
 		appctx->rule = rule;
+		if (appctx->applet->init && !appctx->applet->init(appctx))
+			return ACT_RET_ERR;
 	}
 	else
 		appctx = __cs_appctx(s->csb);
-
-	/* Stops the applet scheduling, in case of the init function miss
-	 * some data.
-	 */
-	si_stop_get(cs_si(s->csb));
-
-	/* Call initialisation. */
-	if (rule->applet.init)
-		switch (rule->applet.init(appctx, px, s)) {
-		case 0: return ACT_RET_ERR;
-		case 1: break;
-		default: return ACT_RET_YIELD;
-	}
 
 	if (rule->from != ACT_F_HTTP_REQ) {
 		if (sess->fe == s->be) /* report it if the request was intercepted by the frontend */

@@ -1454,7 +1454,7 @@ static int promex_send_headers(struct appctx *appctx, struct stream_interface *s
  * an errors occurs and -1 if more data are required for initializing
  * the applet.
  */
-static int promex_appctx_init(struct appctx *appctx, struct proxy *px, struct stream *strm)
+static int promex_appctx_init(struct appctx *appctx)
 {
 	appctx->st0 = PROMEX_ST_INIT;
 	return 1;

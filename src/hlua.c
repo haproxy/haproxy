@@ -9187,9 +9187,10 @@ struct task *hlua_applet_wakeup(struct task *t, void *context, unsigned int stat
 	return t;
 }
 
-static int hlua_applet_tcp_init(struct appctx *ctx, struct proxy *px, struct stream *strm)
+static int hlua_applet_tcp_init(struct appctx *ctx)
 {
 	struct stream_interface *si = cs_si(ctx->owner);
+	struct stream *strm = si_strm(si);
 	struct hlua *hlua;
 	struct task *task;
 	char **arg;
@@ -9197,7 +9198,7 @@ static int hlua_applet_tcp_init(struct appctx *ctx, struct proxy *px, struct str
 
 	hlua = pool_alloc(pool_head_hlua);
 	if (!hlua) {
-		SEND_ERR(px, "Lua applet tcp '%s': out of memory.\n",
+		SEND_ERR(strm->be, "Lua applet tcp '%s': out of memory.\n",
 		         ctx->rule->arg.hlua_rule->fcn->name);
 		return 0;
 	}
@@ -9208,7 +9209,7 @@ static int hlua_applet_tcp_init(struct appctx *ctx, struct proxy *px, struct str
 	/* Create task used by signal to wakeup applets. */
 	task = task_new_here();
 	if (!task) {
-		SEND_ERR(px, "Lua applet tcp '%s': out of memory.\n",
+		SEND_ERR(strm->be, "Lua applet tcp '%s': out of memory.\n",
 		         ctx->rule->arg.hlua_rule->fcn->name);
 		return 0;
 	}
@@ -9223,7 +9224,7 @@ static int hlua_applet_tcp_init(struct appctx *ctx, struct proxy *px, struct str
 	 * Lua initialization cause 5% performances loss.
 	 */
 	if (!hlua_ctx_init(hlua, fcn_ref_to_stack_id(ctx->rule->arg.hlua_rule->fcn), task, 0)) {
-		SEND_ERR(px, "Lua applet tcp '%s': can't initialize Lua context.\n",
+		SEND_ERR(strm->be, "Lua applet tcp '%s': can't initialize Lua context.\n",
 		         ctx->rule->arg.hlua_rule->fcn->name);
 		return 0;
 	}
@@ -9237,14 +9238,14 @@ static int hlua_applet_tcp_init(struct appctx *ctx, struct proxy *px, struct str
 			error = lua_tostring(hlua->T, -1);
 		else
 			error = "critical error";
-		SEND_ERR(px, "Lua applet tcp '%s': %s.\n",
+		SEND_ERR(strm->be, "Lua applet tcp '%s': %s.\n",
 		         ctx->rule->arg.hlua_rule->fcn->name, error);
 		return 0;
 	}
 
 	/* Check stack available size. */
 	if (!lua_checkstack(hlua->T, 1)) {
-		SEND_ERR(px, "Lua applet tcp '%s': full stack.\n",
+		SEND_ERR(strm->be, "Lua applet tcp '%s': full stack.\n",
 		         ctx->rule->arg.hlua_rule->fcn->name);
 		RESET_SAFE_LJMP(hlua);
 		return 0;
@@ -9255,7 +9256,7 @@ static int hlua_applet_tcp_init(struct appctx *ctx, struct proxy *px, struct str
 
 	/* Create and and push object stream in the stack. */
 	if (!hlua_applet_tcp_new(hlua->T, ctx)) {
-		SEND_ERR(px, "Lua applet tcp '%s': full stack.\n",
+		SEND_ERR(strm->be, "Lua applet tcp '%s': full stack.\n",
 		         ctx->rule->arg.hlua_rule->fcn->name);
 		RESET_SAFE_LJMP(hlua);
 		return 0;
@@ -9265,7 +9266,7 @@ static int hlua_applet_tcp_init(struct appctx *ctx, struct proxy *px, struct str
 	/* push keywords in the stack. */
 	for (arg = ctx->rule->arg.hlua_rule->args; arg && *arg; arg++) {
 		if (!lua_checkstack(hlua->T, 1)) {
-			SEND_ERR(px, "Lua applet tcp '%s': full stack.\n",
+			SEND_ERR(strm->be, "Lua applet tcp '%s': full stack.\n",
 			         ctx->rule->arg.hlua_rule->fcn->name);
 			RESET_SAFE_LJMP(hlua);
 			return 0;
@@ -9374,9 +9375,10 @@ static void hlua_applet_tcp_release(struct appctx *ctx)
  * an errors occurs and -1 if more data are required for initializing
  * the applet.
  */
-static int hlua_applet_http_init(struct appctx *ctx, struct proxy *px, struct stream *strm)
+static int hlua_applet_http_init(struct appctx *ctx)
 {
 	struct stream_interface *si = cs_si(ctx->owner);
+	struct stream *strm = si_strm(si);
 	struct http_txn *txn;
 	struct hlua *hlua;
 	char **arg;
@@ -9386,7 +9388,7 @@ static int hlua_applet_http_init(struct appctx *ctx, struct proxy *px, struct st
 	txn = strm->txn;
 	hlua = pool_alloc(pool_head_hlua);
 	if (!hlua) {
-		SEND_ERR(px, "Lua applet http '%s': out of memory.\n",
+		SEND_ERR(strm->be, "Lua applet http '%s': out of memory.\n",
 		         ctx->rule->arg.hlua_rule->fcn->name);
 		return 0;
 	}
@@ -9401,7 +9403,7 @@ static int hlua_applet_http_init(struct appctx *ctx, struct proxy *px, struct st
 	/* Create task used by signal to wakeup applets. */
 	task = task_new_here();
 	if (!task) {
-		SEND_ERR(px, "Lua applet http '%s': out of memory.\n",
+		SEND_ERR(strm->be, "Lua applet http '%s': out of memory.\n",
 		         ctx->rule->arg.hlua_rule->fcn->name);
 		return 0;
 	}
@@ -9416,7 +9418,7 @@ static int hlua_applet_http_init(struct appctx *ctx, struct proxy *px, struct st
 	 * Lua initialization cause 5% performances loss.
 	 */
 	if (!hlua_ctx_init(hlua, fcn_ref_to_stack_id(ctx->rule->arg.hlua_rule->fcn), task, 0)) {
-		SEND_ERR(px, "Lua applet http '%s': can't initialize Lua context.\n",
+		SEND_ERR(strm->be, "Lua applet http '%s': can't initialize Lua context.\n",
 		         ctx->rule->arg.hlua_rule->fcn->name);
 		return 0;
 	}
@@ -9430,14 +9432,14 @@ static int hlua_applet_http_init(struct appctx *ctx, struct proxy *px, struct st
 			error = lua_tostring(hlua->T, -1);
 		else
 			error = "critical error";
-		SEND_ERR(px, "Lua applet http '%s': %s.\n",
+		SEND_ERR(strm->be, "Lua applet http '%s': %s.\n",
 		         ctx->rule->arg.hlua_rule->fcn->name, error);
 		return 0;
 	}
 
 	/* Check stack available size. */
 	if (!lua_checkstack(hlua->T, 1)) {
-		SEND_ERR(px, "Lua applet http '%s': full stack.\n",
+		SEND_ERR(strm->be, "Lua applet http '%s': full stack.\n",
 		         ctx->rule->arg.hlua_rule->fcn->name);
 		RESET_SAFE_LJMP(hlua);
 		return 0;
@@ -9448,7 +9450,7 @@ static int hlua_applet_http_init(struct appctx *ctx, struct proxy *px, struct st
 
 	/* Create and and push object stream in the stack. */
 	if (!hlua_applet_http_new(hlua->T, ctx)) {
-		SEND_ERR(px, "Lua applet http '%s': full stack.\n",
+		SEND_ERR(strm->be, "Lua applet http '%s': full stack.\n",
 		         ctx->rule->arg.hlua_rule->fcn->name);
 		RESET_SAFE_LJMP(hlua);
 		return 0;
@@ -9458,7 +9460,7 @@ static int hlua_applet_http_init(struct appctx *ctx, struct proxy *px, struct st
 	/* push keywords in the stack. */
 	for (arg = ctx->rule->arg.hlua_rule->args; arg && *arg; arg++) {
 		if (!lua_checkstack(hlua->T, 1)) {
-			SEND_ERR(px, "Lua applet http '%s': full stack.\n",
+			SEND_ERR(strm->be, "Lua applet http '%s': full stack.\n",
 			         ctx->rule->arg.hlua_rule->fcn->name);
 			RESET_SAFE_LJMP(hlua);
 			return 0;

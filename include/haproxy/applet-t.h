@@ -41,7 +41,7 @@ struct applet {
 	enum obj_type obj_type;            /* object type = OBJ_TYPE_APPLET */
 	/* 3 unused bytes here */
 	char *name;                        /* applet's name to report in logs */
-	int (*init)(struct appctx *, struct proxy *px, struct stream *strm);   /* callback to init resources, may be NULL.
+	int (*init)(struct appctx *);   /* callback to init resources, may be NULL.
 	                                     expect 1 if ok, 0 if an error occurs, -1 if miss data. */
 	void (*fct)(struct appctx *);      /* internal I/O handler, may never be NULL */
 	void (*release)(struct appctx *);  /* callback to release resources, may be NULL */
