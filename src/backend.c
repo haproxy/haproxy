@@ -1247,7 +1247,7 @@ static struct connection *conn_backend_get(struct stream *s, struct server *srv,
  * The server-facing stream interface is expected to hold a pre-allocated connection
  * in s->csb->si->conn.
  */
-int connect_server(struct stream *s)
+static int connect_server(struct stream *s)
 {
 	struct connection *cli_conn = objt_conn(strm_orig(s));
 	struct connection *srv_conn = NULL;
