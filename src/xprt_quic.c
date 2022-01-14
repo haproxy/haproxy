@@ -1512,18 +1512,27 @@ static inline struct eb64_node *qc_ackrng_pkts(struct quic_conn *qc,
 	return node;
 }
 
-/* Treat <frm> frame whose packet it is attached to has just been detected as non
- * acknowledged.
+/* Remove all frames from <pkt_frm_list> and reinsert them in the
+ * same order they have been sent into <pktns_frm_list>.
  */
-static inline void qc_treat_nacked_tx_frm(struct quic_conn *qc,
-                                          struct quic_frame *frm,
-                                          struct quic_pktns *pktns)
+static inline void qc_requeue_nacked_pkt_tx_frms(struct quic_conn *qc,
+                                                 struct list *pkt_frm_list,
+                                                 struct mt_list *pktns_frm_list)
 {
-	TRACE_PROTO("to resend frame", QUIC_EV_CONN_PRSAFRM, qc, frm);
-	LIST_DELETE(&frm->list);
-	MT_LIST_INSERT(&pktns->tx.frms, &frm->mt_list);
-}
+	struct quic_frame *frm, *frmbak;
+	struct list tmp = LIST_HEAD_INIT(tmp);
 
+	list_for_each_entry_safe(frm, frmbak, pkt_frm_list, list) {
+		LIST_DELETE(&frm->list);
+		TRACE_PROTO("to resend frame", QUIC_EV_CONN_PRSAFRM, qc, frm);
+		LIST_INSERT(&tmp, &frm->list);
+	}
+
+	list_for_each_entry(frm, &tmp, list) {
+		LIST_DELETE(&frm->list);
+		MT_LIST_INSERT(pktns_frm_list, &frm->mt_list);
+	}
+}
 
 /* Free the TX packets of <pkts> list */
 static inline void free_quic_tx_pkts(struct list *pkts)
@@ -1599,20 +1608,20 @@ static inline void qc_release_lost_pkts(struct quic_conn *qc,
                                         uint64_t now_us)
 {
 	struct quic_tx_packet *pkt, *tmp, *oldest_lost, *newest_lost;
-	struct quic_frame *frm, *frmbak;
 	uint64_t lost_bytes;
 
 	lost_bytes = 0;
 	oldest_lost = newest_lost = NULL;
 	list_for_each_entry_safe(pkt, tmp, pkts, list) {
+		struct list tmp = LIST_HEAD_INIT(tmp);
+
 		lost_bytes += pkt->in_flight_len;
 		pkt->pktns->tx.in_flight -= pkt->in_flight_len;
 		qc->path->prep_in_flight -= pkt->in_flight_len;
 		if (pkt->flags & QUIC_FL_TX_PACKET_ACK_ELICITING)
 			qc->path->ifae_pkts--;
 		/* Treat the frames of this lost packet. */
-		list_for_each_entry_safe(frm, frmbak, &pkt->frms, list)
-			qc_treat_nacked_tx_frm(qc, frm, pktns);
+		qc_requeue_nacked_pkt_tx_frms(qc, &pkt->frms, &pktns->tx.frms);
 		LIST_DELETE(&pkt->list);
 		if (!oldest_lost) {
 			oldest_lost = newest_lost = pkt;
@@ -2202,7 +2211,6 @@ static void qc_prep_fast_retrans(struct quic_enc_level *qel,
 	struct eb_root *pkts = &qel->pktns->tx.pkts;
 	struct eb64_node *node = eb64_first(pkts);
 	struct quic_tx_packet *pkt;
-	struct quic_frame *frm, *frmbak;
 
  start:
 	pkt = NULL;
@@ -2219,8 +2227,7 @@ static void qc_prep_fast_retrans(struct quic_enc_level *qel,
 	if (!pkt)
 		return;
 
-	list_for_each_entry_safe(frm, frmbak, &pkt->frms, list)
-		qc_treat_nacked_tx_frm(qc, frm, qel->pktns);
+	qc_requeue_nacked_pkt_tx_frms(qc, &pkt->frms, &qel->pktns->tx.frms);
 	if (qel == &qc->els[QUIC_TLS_ENC_LEVEL_INITIAL] &&
 	    qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE].pktns->tx.in_flight) {
 		qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE].pktns->tx.pto_probe = 1;
