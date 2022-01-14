@@ -391,7 +391,7 @@ struct quic_arngs {
 struct quic_pktns {
 	struct {
 		/* List of frames to send. */
-		struct mt_list frms;
+		struct list frms;
 		/* Next packet number to use for transmissions. */
 		int64_t next_pn;
 		/* Largest acked sent packet. */

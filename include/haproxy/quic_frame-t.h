@@ -217,7 +217,6 @@ struct quic_connection_close_app {
 };
 
 struct quic_frame {
-	struct mt_list mt_list;
 	struct list list;
 	unsigned char type;
 	union {

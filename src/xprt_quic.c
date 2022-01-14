@@ -996,13 +996,11 @@ static int quic_crypto_data_cpy(struct quic_enc_level *qel,
 	if (!len) {
 		struct quic_frame *frm;
 		struct quic_frame *found = NULL;
-		struct mt_list *tmp1, tmp2;
 
 		/* There is at most one CRYPTO frame in this packet number
 		 * space. Let's look for it.
 		 */
-		mt_list_for_each_entry_safe(frm, &qel->pktns->tx.frms,
-		                            mt_list, tmp1, tmp2) {
+		list_for_each_entry(frm, &qel->pktns->tx.frms, list) {
 			if (frm->type != QUIC_FT_CRYPTO)
 				continue;
 
@@ -1023,7 +1021,7 @@ static int quic_crypto_data_cpy(struct quic_enc_level *qel,
 			frm->crypto.offset = cf_offset;
 			frm->crypto.len = cf_len;
 			frm->crypto.qel = qel;
-			MT_LIST_APPEND(&qel->pktns->tx.frms, &frm->mt_list);
+			LIST_APPEND(&qel->pktns->tx.frms, &frm->list);
 		}
 	}
 
@@ -1517,7 +1515,7 @@ static inline struct eb64_node *qc_ackrng_pkts(struct quic_conn *qc,
  */
 static inline void qc_requeue_nacked_pkt_tx_frms(struct quic_conn *qc,
                                                  struct list *pkt_frm_list,
-                                                 struct mt_list *pktns_frm_list)
+                                                 struct list *pktns_frm_list)
 {
 	struct quic_frame *frm, *frmbak;
 	struct list tmp = LIST_HEAD_INIT(tmp);
@@ -1525,13 +1523,10 @@ static inline void qc_requeue_nacked_pkt_tx_frms(struct quic_conn *qc,
 	list_for_each_entry_safe(frm, frmbak, pkt_frm_list, list) {
 		LIST_DELETE(&frm->list);
 		TRACE_PROTO("to resend frame", QUIC_EV_CONN_PRSAFRM, qc, frm);
-		LIST_INSERT(&tmp, &frm->list);
+		LIST_APPEND(&tmp, &frm->list);
 	}
 
-	list_for_each_entry(frm, &tmp, list) {
-		LIST_DELETE(&frm->list);
-		MT_LIST_INSERT(pktns_frm_list, &frm->mt_list);
-	}
+	LIST_SPLICE(pktns_frm_list, &tmp);
 }
 
 /* Free the TX packets of <pkts> list */
@@ -2506,7 +2501,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct qring *qr,
 		 */
 		if (!(qel->tls_ctx.tx.flags & QUIC_FL_TLS_SECRETS_SET) ||
 		    (!cc && !ack && !probe &&
-		     (MT_LIST_ISEMPTY(&qel->pktns->tx.frms) ||
+		     (LIST_ISEMPTY(&qel->pktns->tx.frms) ||
 		      qc->path->prep_in_flight >= qc->path->cwnd))) {
 			TRACE_DEVEL("nothing more to do", QUIC_EV_CONN_PHPKTS, qc);
 			/* Set the current datagram as prepared into <cbuf> if
@@ -2581,13 +2576,13 @@ static int qc_prep_pkts(struct quic_conn *qc, struct qring *qr,
 		 * select the next level.
 		 */
 		if ((tel == QUIC_TLS_ENC_LEVEL_INITIAL || tel == QUIC_TLS_ENC_LEVEL_HANDSHAKE) &&
-		    (MT_LIST_ISEMPTY(&qel->pktns->tx.frms))) {
+		    (LIST_ISEMPTY(&qel->pktns->tx.frms))) {
 			/* If QUIC_TLS_ENC_LEVEL_HANDSHAKE was already reached let's try QUIC_TLS_ENC_LEVEL_APP */
 			if (tel == QUIC_TLS_ENC_LEVEL_HANDSHAKE && next_tel == tel)
 				next_tel = QUIC_TLS_ENC_LEVEL_APP;
 			tel = next_tel;
 			qel = &qc->els[tel];
-			if (!MT_LIST_ISEMPTY(&qel->pktns->tx.frms)) {
+			if (!LIST_ISEMPTY(&qel->pktns->tx.frms)) {
 				/* If there is data for the next level, do not
 				 * consume a datagram.
 				 */
@@ -2732,7 +2727,7 @@ static int quic_build_post_handshake_frames(struct quic_conn *qc)
 			return 0;
 
 		frm->type = QUIC_FT_HANDSHAKE_DONE;
-		MT_LIST_APPEND(&qel->pktns->tx.frms, &frm->mt_list);
+		LIST_APPEND(&qel->pktns->tx.frms, &frm->list);
 	}
 
 	for (i = 1; i < qc->tx.params.active_connection_id_limit; i++) {
@@ -2753,7 +2748,7 @@ static int quic_build_post_handshake_frames(struct quic_conn *qc)
 		HA_RWLOCK_WRUNLOCK(QUIC_LOCK, &l->rx.cids_lock);
 
 		quic_connection_id_to_frm_cpy(frm, cid);
-		MT_LIST_APPEND(&qel->pktns->tx.frms, &frm->mt_list);
+		LIST_APPEND(&qel->pktns->tx.frms, &frm->list);
 	}
 	HA_ATOMIC_OR(&qc->flags, QUIC_FL_POST_HANDSHAKE_FRAMES_BUILT);
 
@@ -4616,8 +4611,7 @@ static inline int qc_build_frms(struct quic_tx_packet *pkt,
                                 struct quic_conn *qc)
 {
 	int ret;
-	struct quic_frame *cf;
-	struct mt_list *tmp1, tmp2;
+	struct quic_frame *cf, *cfbak;
 	size_t remain = quic_path_prep_data(qc->path);
 
 	ret = 0;
@@ -4631,7 +4625,7 @@ static inline int qc_build_frms(struct quic_tx_packet *pkt,
 		room = QUIC_MIN(room, quic_path_prep_data(qc->path) - headlen);
 	TRACE_PROTO("************** frames build (headlen)",
 	            QUIC_EV_CONN_BCFRMS, qc, &headlen);
-	mt_list_for_each_entry_safe(cf, &qel->pktns->tx.frms, mt_list, tmp1, tmp2) {
+	list_for_each_entry_safe(cf, cfbak, &qel->pktns->tx.frms, list) {
 		/* header length, data length, frame length. */
 		size_t hlen, dlen, dlen_sz, avail_room, flen;
 
@@ -4662,7 +4656,7 @@ static inline int qc_build_frms(struct quic_tx_packet *pkt,
 			room -= flen;
 			if (dlen == cf->crypto.len) {
 				/* <cf> CRYPTO data have been consumed. */
-				MT_LIST_DELETE_SAFE(tmp1);
+				LIST_DELETE(&cf->list);
 				LIST_APPEND(&pkt->frms, &cf->list);
 			}
 			else {
@@ -4725,7 +4719,7 @@ static inline int qc_build_frms(struct quic_tx_packet *pkt,
 			room -= flen;
 			if (dlen == cf->stream.len) {
 				/* <cf> STREAM data have been consumed. */
-				MT_LIST_DELETE_SAFE(tmp1);
+				LIST_DELETE(&cf->list);
 				LIST_APPEND(&pkt->frms, &cf->list);
 			}
 			else {
@@ -4765,7 +4759,7 @@ static inline int qc_build_frms(struct quic_tx_packet *pkt,
 
 			*len += flen;
 			room -= flen;
-			MT_LIST_DELETE_SAFE(tmp1);
+			LIST_DELETE(&cf->list);
 			LIST_APPEND(&pkt->frms, &cf->list);
 			break;
 		}
@@ -4862,7 +4856,7 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 	/* Length field value without the ack-eliciting frames. */
 	len = ack_frm_len + *pn_len;
 	len_frms = 0;
-	if (!cc && !MT_LIST_ISEMPTY(&qel->pktns->tx.frms)) {
+	if (!cc && !LIST_ISEMPTY(&qel->pktns->tx.frms)) {
 		ssize_t room = end - pos;
 
 		/* Initialize the length of the frames built below to <len>.
