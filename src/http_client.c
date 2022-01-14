@@ -278,6 +278,10 @@ int httpclient_req_gen(struct httpclient *hc, const struct ist url, enum http_me
 	htx = htx_from_buf(&hc->req.buf);
 	if (!htx)
 		goto error;
+
+	if (!hc->ops.req_payload && !isttest(payload))
+		flags |= HTX_SL_F_BODYLESS;
+
 	sl = htx_add_stline(htx, HTX_BLK_REQ_SL, flags, meth_ist, url, vsn);
 	if (!sl) {
 		goto error;
