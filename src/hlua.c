@@ -7097,7 +7097,6 @@ struct http_hdr *hlua_httpclient_table_to_hdrs(lua_State *L)
 	}
 
 skip_headers:
-	lua_pop(L, 1);
 
 	return result;
 }
