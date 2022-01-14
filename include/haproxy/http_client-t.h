@@ -51,5 +51,6 @@ enum {
 	HTTPCLIENT_S_RES_END,
 };
 
+#define HTTPCLIENT_USERAGENT "HAProxy"
 
 #endif /* ! _HAPROXY_HTTCLIENT__T_H */

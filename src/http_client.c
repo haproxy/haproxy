@@ -46,12 +46,6 @@ static struct applet httpclient_applet;
  * The functions will be  starting by "hc_cli" for "httpclient cli"
  */
 
-static struct http_hdr default_httpclient_hdrs[2] = {
-		{ .n = IST("User-Agent"), .v = IST("HAProxy") },
-		{ .n = IST_NULL, .v = IST_NULL },
-};
-
-
 /* What kind of data we need to read */
 #define HC_CLI_F_RES_STLINE     0x01
 #define HC_CLI_F_RES_HDR        0x02
@@ -149,7 +143,7 @@ static int hc_cli_parse(char **args, char *payload, struct appctx *appctx, void 
 	appctx->ctx.cli.p0 = hc; /* store the httpclient ptr in the applet */
 	appctx->ctx.cli.i0 = 0;
 
-	if (httpclient_req_gen(hc, hc->req.url, hc->req.meth, default_httpclient_hdrs, body) != ERR_NONE)
+	if (httpclient_req_gen(hc, hc->req.url, hc->req.meth, NULL, body) != ERR_NONE)
 		goto err;
 
 
@@ -266,7 +260,7 @@ int httpclient_req_gen(struct httpclient *hc, const struct ist url, enum http_me
 	struct ist meth_ist, vsn;
 	unsigned int flags = HTX_SL_F_VER_11 | HTX_SL_F_NORMALIZED_URI | HTX_SL_F_HAS_SCHM;
 	int i;
-	int foundhost = 0;
+	int foundhost = 0, foundaccept = 0, foundua = 0;
 
 	if (meth >= HTTP_METH_OTHER)
 		goto error;
@@ -295,6 +289,10 @@ int httpclient_req_gen(struct httpclient *hc, const struct ist url, enum http_me
 
 		if (isteqi(hdrs[i].n, ist("host")))
 			foundhost = 1;
+		else if (isteqi(hdrs[i].n, ist("accept")))
+			foundaccept = 1;
+		else if (isteqi(hdrs[i].n, ist("user-agent")))
+			foundua = 1;
 
 		if (!htx_add_header(htx, hdrs[i].n, hdrs[i].v))
 			goto error;
@@ -307,6 +305,17 @@ int httpclient_req_gen(struct httpclient *hc, const struct ist url, enum http_me
 		if (!http_update_host(htx, sl, url))
 			goto error;
 	}
+
+	if (!foundaccept) {
+		if (!htx_add_header(htx, ist("Accept"), ist("*/*")))
+			goto error;
+	}
+
+	if (!foundua) {
+		if (!htx_add_header(htx, ist("User-Agent"), ist(HTTPCLIENT_USERAGENT)))
+			goto error;
+	}
+
 
 	if (!htx_add_endof(htx, HTX_BLK_EOH))
 		goto error;
