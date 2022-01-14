@@ -4602,10 +4602,10 @@ static int quic_ack_frm_reduce_sz(struct quic_frame *ack_frm, size_t limit)
  * <headlen> is the number of bytes already present in this packet before building frames.
  *
  * Update consequently <*len> to reflect the size of these frames built
- * by this function. Also attach these frames to <pkt> QUIC packet.
+ * by this function. Also attach these frames to <l> frame list.
  * Return 1 if succeeded, 0 if not.
  */
-static inline int qc_build_frms(struct quic_tx_packet *pkt,
+static inline int qc_build_frms(struct list *l,
                                 size_t room, size_t *len, size_t headlen,
                                 struct quic_enc_level *qel,
                                 struct quic_conn *qc)
@@ -4657,7 +4657,7 @@ static inline int qc_build_frms(struct quic_tx_packet *pkt,
 			if (dlen == cf->crypto.len) {
 				/* <cf> CRYPTO data have been consumed. */
 				LIST_DELETE(&cf->list);
-				LIST_APPEND(&pkt->frms, &cf->list);
+				LIST_APPEND(l, &cf->list);
 			}
 			else {
 				struct quic_frame *new_cf;
@@ -4672,7 +4672,7 @@ static inline int qc_build_frms(struct quic_tx_packet *pkt,
 				new_cf->crypto.len = dlen;
 				new_cf->crypto.offset = cf->crypto.offset;
 				new_cf->crypto.qel = qel;
-				LIST_APPEND(&pkt->frms, &new_cf->list);
+				LIST_APPEND(l, &new_cf->list);
 				/* Consume <dlen> bytes of the current frame. */
 				cf->crypto.len -= dlen;
 				cf->crypto.offset += dlen;
@@ -4720,7 +4720,7 @@ static inline int qc_build_frms(struct quic_tx_packet *pkt,
 			if (dlen == cf->stream.len) {
 				/* <cf> STREAM data have been consumed. */
 				LIST_DELETE(&cf->list);
-				LIST_APPEND(&pkt->frms, &cf->list);
+				LIST_APPEND(l, &cf->list);
 			}
 			else {
 				struct quic_frame *new_cf;
@@ -4742,7 +4742,7 @@ static inline int qc_build_frms(struct quic_tx_packet *pkt,
 				/* FIN bit reset */
 				new_cf->type &= ~QUIC_STREAM_FRAME_TYPE_FIN_BIT;
 				new_cf->stream.data = cf->stream.data;
-				LIST_APPEND(&pkt->frms, &new_cf->list);
+				LIST_APPEND(l, &new_cf->list);
 				cf->type |= QUIC_STREAM_FRAME_TYPE_OFF_BIT;
 				/* Consume <dlen> bytes of the current frame. */
 				cf->stream.len -= dlen;
@@ -4760,7 +4760,7 @@ static inline int qc_build_frms(struct quic_tx_packet *pkt,
 			*len += flen;
 			room -= flen;
 			LIST_DELETE(&cf->list);
-			LIST_APPEND(&pkt->frms, &cf->list);
+			LIST_APPEND(l, &cf->list);
 			break;
 		}
 		ret = 1;
@@ -4796,6 +4796,7 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 	size_t ack_frm_len, head_len;
 	int64_t largest_acked_pn;
 	int add_ping_frm;
+	struct list frm_list = LIST_HEAD_INIT(frm_list);
 
 	/* Length field value with CRYPTO frames if present. */
 	len_frms = 0;
@@ -4864,7 +4865,7 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 		 * we will have len_frms > len.
 		 */
 		len_frms = len;
-		if (!qc_build_frms(pkt, end - pos, &len_frms, pos - beg, qel, qc)) {
+		if (!qc_build_frms(&frm_list, end - pos, &len_frms, pos - beg, qel, qc)) {
 			TRACE_PROTO("Not enough room", QUIC_EV_CONN_HPKT,
 			            qc, NULL, NULL, &room);
 		}
@@ -4902,7 +4903,7 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 		padding_len -= quic_int_getsize(len + padding_len) - len_sz;
 		len += padding_len;
 	}
-	else if (LIST_ISEMPTY(&pkt->frms) || len_frms == len) {
+	else if (LIST_ISEMPTY(&frm_list) || len_frms == len) {
 		if (qel->pktns->tx.pto_probe) {
 			/* If we cannot send a frame, we send a PING frame. */
 			add_ping_frm = 1;
@@ -4927,11 +4928,10 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 		goto no_room;
 
 	/* Ack-eliciting frames */
-	if (!LIST_ISEMPTY(&pkt->frms)) {
+	if (!LIST_ISEMPTY(&frm_list)) {
 		struct quic_frame *cf;
 
-		TRACE_PROTO("Ack eliciting frame", QUIC_EV_CONN_HPKT, qc, pkt);
-		list_for_each_entry(cf, &pkt->frms, list) {
+		list_for_each_entry(cf, &frm_list, list) {
 			if (!qc_build_frm(&pos, end, cf, pkt, qc)) {
 				ssize_t room = end - pos;
 				TRACE_PROTO("Not enough room", QUIC_EV_CONN_HPKT,
@@ -4968,10 +4968,14 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 		qel->pktns->tx.pto_probe--;
 
 	pkt->len = pos - beg;
+	LIST_SPLICE(&pkt->frms, &frm_list);
+	TRACE_PROTO("Ack eliciting frame", QUIC_EV_CONN_HPKT, qc, pkt);
 
 	return 1;
 
  no_room:
+	/* Replace the pre-built frames which could not be add to this packet */
+	LIST_SPLICE(&qel->pktns->tx.frms, &frm_list);
 	TRACE_PROTO("Not enough room", QUIC_EV_CONN_HPKT, qc);
 	return 0;
 }
