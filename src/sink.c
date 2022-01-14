@@ -603,7 +603,7 @@ void __sink_forward_session_deinit(struct sink_forward_target *sft)
 
 static void sink_forward_session_release(struct appctx *appctx)
 {
-	struct sink_forward_target *sft = appctx->ctx.peers.ptr;
+	struct sink_forward_target *sft = appctx->ctx.sft.ptr;
 
 	if (!sft)
 		return;
