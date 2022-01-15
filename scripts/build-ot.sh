@@ -6,29 +6,22 @@
 
 set -e
 
-export OT_CPP_VERSION=1.5.0
+OT_CPP_VERSION="${OT_CPP_VERSION:-1.6.0}"
+OT_PREFIX="${OT_PREFIX:-${HOME}/opt}"
 
-if [ ! -f "download-cache/v${OT_CPP_VERSION}.tar.gz" ]; then
-    wget -P download-cache/ \
-        "https://github.com/opentracing/opentracing-cpp/archive/v${OT_CPP_VERSION}.tar.gz"
-fi
+wget -P download-cache/ "https://github.com/opentracing/opentracing-cpp/archive/v${OT_CPP_VERSION}.tar.gz"
 
-if [ "$(cat ${HOME}/opt/.ot-cpp-version)" != "${OT_CPP_VERSION}" ]; then
-    tar xf download-cache/v${OT_CPP_VERSION}.tar.gz
-    cd opentracing-cpp-${OT_CPP_VERSION}
-    mkdir build
-    cd build
-    cmake -DCMAKE_INSTALL_PREFIX=${HOME}/opt -DBUILD_STATIC_LIBS=OFF -DBUILD_MOCKTRACER=OFF -DBUILD_TESTING=OFF ..
-    make -j$(nproc)
-    make install
-    echo "${OT_CPP_VERSION}" > "${HOME}/opt/.ot-cpp-version"
-fi
+tar xf download-cache/v${OT_CPP_VERSION}.tar.gz
+cd opentracing-cpp-${OT_CPP_VERSION}
+mkdir build
+cd build
+cmake -DCMAKE_INSTALL_PREFIX=${OT_PREFIX} -DBUILD_STATIC_LIBS=OFF -DBUILD_MOCKTRACER=OFF -DBUILD_TESTING=OFF ..
+make -j$(nproc)
+make install
 
 git clone https://github.com/haproxytech/opentracing-c-wrapper.git
 cd opentracing-c-wrapper
  ./scripts/bootstrap
- ./configure --prefix=${HOME}/opt --with-opentracing=${HOME}/opt
+ ./configure --prefix=${OT_PREFIX} --with-opentracing=${OT_PREFIX}
  make -j$(nproc)
  make install
-
-
