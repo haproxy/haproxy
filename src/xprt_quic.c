@@ -3394,11 +3394,14 @@ static struct task *process_timer(struct task *task, void *ctx, unsigned int sta
 	st = HA_ATOMIC_LOAD(&qc->state);
 	if (qc->path->in_flight) {
 		pktns = quic_pto_pktns(qc, st >= QUIC_HS_ST_COMPLETE, NULL);
-		if (qc_is_listener(qc) &&
-		    pktns == &qc->pktns[QUIC_TLS_PKTNS_HANDSHAKE] &&
-		    qc->pktns[QUIC_TLS_PKTNS_INITIAL].tx.in_flight)
-		    qc->pktns[QUIC_TLS_PKTNS_INITIAL].tx.pto_probe = 1;
-		pktns->tx.pto_probe = 1;
+		if (pktns == &qc->pktns[QUIC_TLS_PKTNS_INITIAL]) {
+			pktns->tx.pto_probe = 1;
+			if (qc->pktns[QUIC_TLS_PKTNS_HANDSHAKE].tx.in_flight)
+				qc->pktns[QUIC_TLS_PKTNS_HANDSHAKE].tx.pto_probe = 1;
+		}
+		else {
+			pktns->tx.pto_probe = 2;
+		}
 	}
 	else if (!qc_is_listener(qc) && st <= QUIC_HS_ST_COMPLETE) {
 		struct quic_enc_level *iel = &qc->els[QUIC_TLS_ENC_LEVEL_INITIAL];
