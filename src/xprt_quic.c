@@ -4617,17 +4617,23 @@ static inline int qc_build_frms(struct list *l,
 {
 	int ret;
 	struct quic_frame *cf, *cfbak;
-	size_t remain = quic_path_prep_data(qc->path);
 
 	ret = 0;
-	if (*len > room || headlen > remain)
+	if (*len > room)
 		return 0;
 
 	/* If we are not probing we must take into an account the congestion
 	 * control window.
 	 */
-	if (!qel->pktns->tx.pto_probe)
-		room = QUIC_MIN(room, quic_path_prep_data(qc->path) - headlen);
+	if (!qel->pktns->tx.pto_probe) {
+		size_t remain = quic_path_prep_data(qc->path);
+
+		if (headlen > remain)
+			return 0;
+
+		room = QUIC_MIN(room, remain - headlen);
+	}
+
 	TRACE_PROTO("************** frames build (headlen)",
 	            QUIC_EV_CONN_BCFRMS, qc, &headlen);
 	list_for_each_entry_safe(cf, cfbak, &qel->pktns->tx.frms, list) {
