@@ -2199,17 +2199,14 @@ static inline int qc_handle_strm_frm(struct quic_rx_packet *pkt,
 		return qc_handle_bidi_strm_frm(pkt, strm_frm, qc);
 }
 
-/* Prepare a fast retransmission from <qel> encryption level
- * which must be Initial encryption level.
- */
+/* Prepare a fast retransmission from <qel> encryption level */
 static void qc_prep_fast_retrans(struct quic_enc_level *qel,
                                  struct quic_conn *qc)
 {
 	struct eb_root *pkts = &qel->pktns->tx.pkts;
-	struct eb64_node *node = eb64_first(pkts);
+	struct eb64_node *node;
 	struct quic_tx_packet *pkt;
 
- start:
 	pkt = NULL;
 	pkts = &qel->pktns->tx.pkts;
 	node = eb64_first(pkts);
@@ -2225,12 +2222,67 @@ static void qc_prep_fast_retrans(struct quic_enc_level *qel,
 		return;
 
 	qc_requeue_nacked_pkt_tx_frms(qc, &pkt->frms, &qel->pktns->tx.frms);
-	if (qel == &qc->els[QUIC_TLS_ENC_LEVEL_INITIAL] &&
-	    qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE].pktns->tx.in_flight) {
-		qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE].pktns->tx.pto_probe = 1;
-		qel = &qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE];
+}
+
+/* Prepare a fast retransmission during handshake after a client
+ * has resent Initial packets. According to the RFC a server may retransmit
+ * up to two datagrams of Initial packets if did not receive all Initial packets
+ * and resend them coalescing with others (Handshake here).
+ * (Listener only).
+ */
+static void qc_prep_hdshk_fast_retrans(struct quic_conn *qc)
+{
+	struct list itmp = LIST_HEAD_INIT(itmp);
+	struct list htmp = LIST_HEAD_INIT(htmp);
+	struct quic_frame *frm, *frmbak;
+
+	struct quic_enc_level *iqel = &qc->els[QUIC_TLS_ENC_LEVEL_INITIAL];
+	struct quic_enc_level *hqel = &qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE];
+	struct quic_enc_level *qel = iqel;
+	struct eb_root *pkts;
+	struct eb64_node *node;
+	struct quic_tx_packet *pkt;
+	struct list *tmp = &itmp;
+
+ start:
+	pkt = NULL;
+	pkts = &qel->pktns->tx.pkts;
+	node = eb64_first(pkts);
+	/* Skip the empty packet (they have already been retransmitted) */
+	while (node) {
+		pkt = eb64_entry(&node->node, struct quic_tx_packet, pn_node);
+		if (!LIST_ISEMPTY(&pkt->frms))
+			break;
+		node = eb64_next(node);
+	}
+
+	if (!pkt)
+		goto end;
+
+	qel->pktns->tx.pto_probe += 1;
+ requeue:
+	list_for_each_entry_safe(frm, frmbak, &pkt->frms, list) {
+		TRACE_PROTO("to resend frame", QUIC_EV_CONN_PRSAFRM, qc, frm);
+		LIST_DELETE(&frm->list);
+		LIST_APPEND(tmp, &frm->list);
+	}
+
+	if (qel == iqel) {
+		if (pkt->next && pkt->next->type == QUIC_PACKET_TYPE_HANDSHAKE) {
+			pkt = pkt->next;
+			tmp = &htmp;
+			hqel->pktns->tx.pto_probe += 1;
+			goto requeue;
+		}
+
+		qel = hqel;
+		tmp = &htmp;
 		goto start;
 	}
+
+ end:
+	LIST_SPLICE(&iqel->pktns->tx.frms, &itmp);
+	LIST_SPLICE(&hqel->pktns->tx.frms, &htmp);
 }
 
 /* Parse all the frames of <pkt> QUIC packet for QUIC connection with <ctx>
@@ -2399,11 +2451,8 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct ssl_sock_ctx *ct
 		}
 	}
 
-	if (fast_retrans) {
-		qc_prep_fast_retrans(qel, qc);
-		if (qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE].pktns->tx.in_flight)
-			qc_prep_fast_retrans(&qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE], qc);
-	}
+	if (fast_retrans)
+		qc_prep_hdshk_fast_retrans(qc);
 
 	/* The server must switch from INITIAL to HANDSHAKE handshake state when it
 	 * has successfully parse a Handshake packet. The Initial encryption must also
