@@ -170,7 +170,7 @@ DECLARE_STATIC_POOL(pool_head_quic_arng, "quic_arng_pool", sizeof(struct quic_ar
 static struct quic_tx_packet *qc_build_pkt(unsigned char **pos, const unsigned char *buf_end,
                                            struct quic_enc_level *qel,
                                            struct quic_conn *qc, size_t dglen, int pkt_type,
-                                           int padding, int ack, int nb_pto_dgrams, int cc, int *err);
+                                           int padding, int ack, int probe, int cc, int *err);
 
 /* Only for debug purpose */
 struct enc_debug_info {
@@ -4787,7 +4787,7 @@ static inline int qc_build_frms(struct list *l,
 static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
                            size_t dglen, struct quic_tx_packet *pkt,
                            int64_t pn, size_t *pn_len, unsigned char **buf_pn,
-                           int ack, int padding, int cc, int nb_pto_dgrams,
+                           int ack, int padding, int cc, int probe,
                            struct quic_enc_level *qel, struct quic_conn *qc)
 {
 	unsigned char *beg;
@@ -4810,7 +4810,7 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 	 * ack-eliciting. This size will be limited if we have ack-eliciting
 	 * frames to send from qel->pktns->tx.frms.
 	 */
-	if (!nb_pto_dgrams && !ack && !cc) {
+	if (!probe && !ack && !cc) {
 		size_t path_room;
 
 		path_room = quic_path_prep_data(qc->path);
@@ -5017,7 +5017,7 @@ static struct quic_tx_packet *qc_build_pkt(unsigned char **pos,
                                            const unsigned char *buf_end,
                                            struct quic_enc_level *qel,
                                            struct quic_conn *qc, size_t dglen, int padding,
-                                           int pkt_type, int ack, int nb_pto_dgrams, int cc, int *err)
+                                           int pkt_type, int ack, int probe, int cc, int *err)
 {
 	/* The pointer to the packet number field. */
 	unsigned char *buf_pn;
@@ -5043,7 +5043,7 @@ static struct quic_tx_packet *qc_build_pkt(unsigned char **pos,
 
 	pn = qel->pktns->tx.next_pn + 1;
 	if (!qc_do_build_pkt(*pos, buf_end, dglen, pkt, pn, &pn_len, &buf_pn,
-	                     ack, padding, cc, nb_pto_dgrams, qel, qc)) {
+	                     ack, padding, cc, probe, qel, qc)) {
 		*err = -1;
 		goto err;
 	}
