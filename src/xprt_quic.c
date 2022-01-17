@@ -305,7 +305,9 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 					chunk_appendf(&trace_buf, " pn=%llu",(ull)pkt->pn_node.key);
 				list_for_each_entry(frm, &pkt->frms, list)
 					chunk_frm_appendf(&trace_buf, frm);
-				chunk_appendf(&trace_buf, " tx.bytes=%llu", (unsigned long long)qc->tx.bytes);
+				chunk_appendf(&trace_buf, " rx.bytes=%llu tx.bytes=%llu",
+				              (unsigned long long)qc->rx.bytes,
+				              (unsigned long long)qc->tx.bytes);
 			}
 
 			if (room) {
