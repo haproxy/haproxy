@@ -2752,7 +2752,7 @@ int qc_send_ppkts(struct qring *qr, struct ssl_sock_ctx *ctx)
 		TRACE_PROTO("to send", QUIC_EV_CONN_SPPKTS, qc);
 		for (pkt = first_pkt; pkt; pkt = pkt->next)
 			quic_tx_packet_refinc(pkt);
-		if (ctx->xprt->snd_buf(qc->conn, qc->conn->xprt_ctx,
+		if (ctx->xprt->snd_buf(qc->conn, qc->xprt_ctx,
 		                       &tmpbuf, tmpbuf.data, 0) <= 0) {
 			for (pkt = first_pkt; pkt; pkt = pkt->next)
 				quic_tx_packet_refdec(pkt);
@@ -2807,7 +2807,7 @@ static int quic_build_post_handshake_frames(struct quic_conn *qc)
 
 	for (i = 1; i < qc->tx.params.active_connection_id_limit; i++) {
 		struct quic_connection_id *cid;
-		struct listener *l = __objt_listener(qc->conn->target);
+		struct listener *l = qc->li;
 
 		frm = pool_alloc(pool_head_quic_frame);
 		if (!frm)
@@ -3116,7 +3116,7 @@ int qc_treat_rx_pkts(struct quic_enc_level *cur_el, struct quic_enc_level *next_
 {
 	struct eb64_node *node;
 	int64_t largest_pn = -1;
-	struct quic_conn *qc = ctx->conn->qc;
+	struct quic_conn *qc = ctx->qc;
 	struct quic_enc_level *qel = cur_el;
 
 	TRACE_ENTER(QUIC_EV_CONN_ELRXPKTS, ctx->qc);
@@ -3444,7 +3444,7 @@ static void quic_conn_release(struct quic_conn *qc)
 void quic_close(struct connection *conn, void *xprt_ctx)
 {
 	struct ssl_sock_ctx *conn_ctx = xprt_ctx;
-	struct quic_conn *qc = conn_ctx->conn->qc;
+	struct quic_conn *qc = conn_ctx->qc;
 
 	TRACE_ENTER(QUIC_EV_CONN_CLOSE, qc);
 	/* This task must be deleted by the connection-pinned thread. */
