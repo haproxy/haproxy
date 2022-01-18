@@ -2441,20 +2441,11 @@ read_again:
 	/* We don't know yet to which server we will connect */
 	channel_dont_connect(req);
 
-
-	/* we are not waiting for a response, there is no more request and we
-	 * receive a close from the client, we can leave */
-	if (!(ci_data(req)) && req->flags & CF_SHUTR) {
-		channel_shutw_now(&s->res);
-		s->req.analysers &= ~AN_REQ_WAIT_CLI;
-		return 1;
-	}
-
 	req->flags |= CF_READ_DONTWAIT;
 
 	/* need more data */
 	if (!ci_data(req))
-		return 0;
+		goto missing_data;
 
 	/* If there is data available for analysis, log the end of the idle time. */
 	if (c_data(req) && s->logs.t_idle == -1)
@@ -2497,14 +2488,14 @@ read_again:
 		/* we trimmed things but we might have other commands to consume */
 		pcli_write_prompt(s);
 		goto read_again;
-	} else if (to_forward == -1 && errmsg) {
-		/* there was an error during the parsing */
-			pcli_reply_and_close(s, errmsg);
-			s->req.analysers &= ~AN_REQ_WAIT_CLI;
-			return 0;
-	} else if (to_forward == -1 && channel_full(req, global.tune.maxrewrite)) {
-		/* buffer is full and we didn't catch the end of a command */
-		goto send_help;
+	} else if (to_forward == -1) {
+                if (errmsg) {
+                        /* there was an error during the parsing */
+                        pcli_reply_and_close(s, errmsg);
+                        s->req.analysers &= ~AN_REQ_WAIT_CLI;
+                        return 0;
+                }
+                goto missing_data;
 	}
 
 	return 0;
@@ -2513,6 +2504,20 @@ send_help:
 	b_reset(&req->buf);
 	b_putblk(&req->buf, "help\n", 5);
 	goto read_again;
+
+missing_data:
+        if (req->flags & CF_SHUTR) {
+                /* There is no more request or a only a partial one and we
+                 * receive a close from the client, we can leave */
+                channel_shutw_now(&s->res);
+                s->req.analysers &= ~AN_REQ_WAIT_CLI;
+                return 1;
+        }
+        else if (channel_full(req, global.tune.maxrewrite)) {
+                /* buffer is full and we didn't catch the end of a command */
+                goto send_help;
+        }
+        return 0;
 
 server_disconnect:
 	pcli_reply_and_close(s, "Can't connect to the target CLI!\n");
