@@ -2752,11 +2752,11 @@ int qc_send_ppkts(struct qring *qr, struct ssl_sock_ctx *ctx)
 		TRACE_PROTO("to send", QUIC_EV_CONN_SPPKTS, qc);
 		for (pkt = first_pkt; pkt; pkt = pkt->next)
 			quic_tx_packet_refinc(pkt);
-	    if (ctx->xprt->snd_buf(qc->conn, qc->conn->xprt_ctx,
-	                           &tmpbuf, tmpbuf.data, 0) <= 0) {
+		if (ctx->xprt->snd_buf(qc->conn, qc->conn->xprt_ctx,
+		                       &tmpbuf, tmpbuf.data, 0) <= 0) {
 			for (pkt = first_pkt; pkt; pkt = pkt->next)
 				quic_tx_packet_refdec(pkt);
-		    break;
+			break;
 		}
 
 		cb_del(cbuf, dglen + headlen);
