@@ -33,6 +33,7 @@
 #include <haproxy/connection-t.h>
 #include <haproxy/listener-t.h>
 
+int quic_session_accept(struct connection *cli_conn);
 int quic_sock_accepting_conn(const struct receiver *rx);
 struct connection *quic_sock_accept_conn(struct listener *l, int *status);
 void quic_sock_fd_iocb(int fd);

@@ -107,8 +107,6 @@ static int new_quic_cli_conn(struct quic_conn *qc, struct listener *l,
 	cli_conn->handle.fd = l->rx.fd;
 	cli_conn->target = &l->obj_type;
 
-	/* XXX Should not be there. */
-	l->accept = quic_session_accept;
 	/* We need the xprt context before accepting (->accept()) the connection:
 	 * we may receive packet before this connection acception.
 	 */

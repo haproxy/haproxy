@@ -3901,7 +3901,12 @@ out_uri_auth_compat:
 			if (!listener->maxaccept)
 				listener->maxaccept = global.tune.maxaccept ? global.tune.maxaccept : MAX_ACCEPT;
 
-			listener->accept = session_accept_fd;
+			/* listener->accept may already be initialized by some
+			 * protocols so do not overwrite it in this case.
+			 */
+			if (!listener->accept)
+				listener->accept = session_accept_fd;
+
 			listener->analysers |= curproxy->fe_req_ana;
 			listener->default_target = curproxy->default_target;
 
