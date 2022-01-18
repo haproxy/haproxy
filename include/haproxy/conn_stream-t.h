@@ -57,6 +57,9 @@ enum {
 
 	/* flags set by the mux relayed to the stream */
 	CS_FL_WEBSOCKET     = 0x00200000,  /* websocket stream */
+
+	CS_FL_ENDP_MUX      = 0x00400000,  /* Endpoint is a mux */
+	CS_FL_ENDP_APP      = 0x00800000,  /* Endpoint is an applet */
 };
 
 /* cs_shutr() modes */

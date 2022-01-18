@@ -60,6 +60,7 @@ void cs_attach_endp(struct conn_stream *cs, enum obj_type *endp, void *ctx)
 		}
 		else if (cs_check(cs))
 			cs->data_cb = &check_conn_cb;
+		cs->flags |= CS_FL_ENDP_MUX;
 	}
 	else if ((appctx = objt_appctx(endp)) != NULL) {
 		appctx->owner = cs;
@@ -67,6 +68,7 @@ void cs_attach_endp(struct conn_stream *cs, enum obj_type *endp, void *ctx)
 			cs->si->ops = &si_applet_ops;
 			cs->data_cb = NULL;
 		}
+		cs->flags |= CS_FL_ENDP_APP;
 	}
 }
 

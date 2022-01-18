@@ -65,7 +65,7 @@ static inline struct connection *__cs_conn(const struct conn_stream *cs)
 }
 static inline struct connection *cs_conn(const struct conn_stream *cs)
 {
-	if (obj_type(cs->end) == OBJ_TYPE_CONN)
+	if (cs->flags & CS_FL_ENDP_MUX)
 		return __cs_conn(cs);
 	return NULL;
 }
@@ -90,7 +90,7 @@ static inline struct appctx *__cs_appctx(const struct conn_stream *cs)
 }
 static inline struct appctx *cs_appctx(const struct conn_stream *cs)
 {
-	if (obj_type(cs->end) == OBJ_TYPE_APPCTX)
+	if (cs->flags & CS_FL_ENDP_APP)
 		return __cs_appctx(cs);
 	return NULL;
 }

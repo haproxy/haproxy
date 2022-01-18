@@ -184,6 +184,8 @@ void show_cs_flags(unsigned int f)
 		printf("0\n");
 		return;
 	}
+	SHOW_FLAG(f, CS_FL_ENDP_APP);
+	SHOW_FLAG(f, CS_FL_ENDP_MUX);
 	SHOW_FLAG(f, CS_FL_WEBSOCKET);
 	SHOW_FLAG(f, CS_FL_NOT_FIRST);
 	SHOW_FLAG(f, CS_FL_KILL_CONN);
