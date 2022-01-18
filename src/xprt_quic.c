@@ -4250,6 +4250,110 @@ static int parse_retry_token(const unsigned char *token, uint64_t token_len,
 	return 0;
 }
 
+/* Try to allocate the <*ssl> SSL session object for <qc> QUIC connection
+ * with <ssl_ctx> as SSL context inherited settings. Also set the transport
+ * parameters of this session.
+ * This is the responsibility of the caller to check the validity of all the
+ * pointers passed as parameter to this function.
+ * Return 0 if succeeded, -1 if not. If failed, sets the ->err_code member of <qc->conn> to
+ * CO_ER_SSL_NO_MEM.
+ */
+static int qc_ssl_sess_init(struct quic_conn *qc, SSL_CTX *ssl_ctx, SSL **ssl,
+                            unsigned char *params, size_t params_len)
+{
+	int retry;
+
+	retry = 1;
+ retry:
+	*ssl = SSL_new(ssl_ctx);
+	if (!*ssl) {
+		if (!retry--)
+			goto err;
+
+		pool_gc(NULL);
+		goto retry;
+	}
+
+	if (!SSL_set_quic_method(*ssl, &ha_quic_method) ||
+	    !SSL_set_ex_data(*ssl, ssl_qc_app_data_index, qc) ||
+	    !SSL_set_quic_transport_params(*ssl, qc->enc_params, qc->enc_params_len)) {
+			goto err;
+
+		SSL_free(*ssl);
+		*ssl = NULL;
+		if (!retry--)
+			goto err;
+
+		pool_gc(NULL);
+		goto retry;
+	}
+
+	return 0;
+
+ err:
+	qc->conn->err_code = CO_ER_SSL_NO_MEM;
+	return -1;
+}
+
+/* Allocate the ssl_sock_ctx from connection <qc>. This creates the tasklet
+ * used to process <qc> received packets. The allocated context is stored in
+ * <qc.xprt_ctx>.
+ *
+ * Returns 0 on success else non-zero.
+ */
+int qc_conn_alloc_ssl_ctx(struct quic_conn *qc)
+{
+	struct bind_conf *bc = qc->li->bind_conf;
+	struct ssl_sock_ctx *ctx = NULL;
+
+	ctx = pool_zalloc(pool_head_quic_conn_ctx);
+	if (!ctx)
+		goto err;
+
+	ctx->wait_event.tasklet = tasklet_new();
+	if (!ctx->wait_event.tasklet)
+		goto err;
+
+	ctx->wait_event.tasklet->process = quic_conn_io_cb;
+	ctx->wait_event.tasklet->context = ctx;
+	ctx->wait_event.events = 0;
+	ctx->subs = NULL;
+	ctx->xprt_ctx = NULL;
+	ctx->qc = qc;
+
+	/* Set tasklet tid based on the SCID selected by us for this
+	 * connection. The upper layer will also be binded on the same thread.
+	 */
+	qc->tid = ctx->wait_event.tasklet->tid = quic_get_cid_tid(&qc->scid);
+
+	if (qc_is_listener(qc)) {
+		if (qc_ssl_sess_init(qc, bc->initial_ctx, &ctx->ssl,
+		                     qc->enc_params, qc->enc_params_len) == -1) {
+		        goto err;
+		}
+
+		/* Enabling 0-RTT */
+		if (bc->ssl_conf.early_data)
+			SSL_set_quic_early_data_enabled(ctx->ssl, 1);
+
+		SSL_set_accept_state(ctx->ssl);
+	}
+
+	ctx->xprt = xprt_get(XPRT_QUIC);
+
+	/* Store the allocated context in <qc>. */
+	HA_ATOMIC_STORE(&qc->xprt_ctx, ctx);
+
+	return 0;
+
+ err:
+	if (ctx && ctx->wait_event.tasklet)
+		tasklet_free(ctx->wait_event.tasklet);
+	pool_free(pool_head_quic_conn_ctx, ctx);
+
+	return 1;
+}
+
 static ssize_t qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
                                 struct quic_rx_packet *pkt,
                                 struct quic_dgram_ctx *dgram_ctx,
@@ -4412,6 +4516,9 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 				                             qc->enc_params + sizeof qc->enc_params,
 				                             &qc->rx.params, 1);
 			if (!qc->enc_params_len)
+				goto err;
+
+			if (qc_conn_alloc_ssl_ctx(qc))
 				goto err;
 
 			/* NOTE: the socket address has been concatenated to the destination ID
@@ -5356,178 +5463,28 @@ static int quic_conn_unsubscribe(struct connection *conn, void *xprt_ctx, int ev
 	return conn_unsubscribe(conn, xprt_ctx, event_type, es);
 }
 
-/* Try to allocate the <*ssl> SSL session object for <qc> QUIC connection
- * with <ssl_ctx> as SSL context inherited settings. Also set the transport
- * parameters of this session.
- * This is the responsibility of the caller to check the validity of all the
- * pointers passed as parameter to this function.
- * Return 0 if succeeded, -1 if not. If failed, sets the ->err_code member of <qc->conn> to
- * CO_ER_SSL_NO_MEM.
- */
-static int qc_ssl_sess_init(struct quic_conn *qc, SSL_CTX *ssl_ctx, SSL **ssl,
-                            unsigned char *params, size_t params_len)
-{
-	int retry;
-
-	retry = 1;
- retry:
-	*ssl = SSL_new(ssl_ctx);
-	if (!*ssl) {
-		if (!retry--)
-			goto err;
-
-		pool_gc(NULL);
-		goto retry;
-	}
-
-	if (!SSL_set_quic_method(*ssl, &ha_quic_method) ||
-	    !SSL_set_ex_data(*ssl, ssl_qc_app_data_index, qc) ||
-	    !SSL_set_quic_transport_params(*ssl, qc->enc_params, qc->enc_params_len)) {
-			goto err;
-
-		SSL_free(*ssl);
-		*ssl = NULL;
-		if (!retry--)
-			goto err;
-
-		pool_gc(NULL);
-		goto retry;
-	}
-
-	return 0;
-
- err:
-	qc->conn->err_code = CO_ER_SSL_NO_MEM;
-	return -1;
-}
-
-/* Initialize a QUIC connection (quic_conn struct) to be attached to <conn>
- * connection with <xprt_ctx> as address of the xprt context.
- * Returns 1 if succeeded, 0 if not.
+/* Store in <xprt_ctx> the context attached to <conn>.
+ * Returns always 0.
  */
 static int qc_conn_init(struct connection *conn, void **xprt_ctx)
 {
-	struct ssl_sock_ctx *ctx = NULL;
 	struct quic_conn *qc = NULL;
 
 	TRACE_ENTER(QUIC_EV_CONN_NEW, conn);
 
+	/* do not store the context if already set */
 	if (*xprt_ctx)
 		goto out;
 
-	ctx = pool_zalloc(pool_head_quic_conn_ctx);
-	if (!ctx) {
-		conn->err_code = CO_ER_SYS_MEMLIM;
-		goto err;
-	}
-
-	ctx->wait_event.tasklet = tasklet_new();
-	if (!ctx->wait_event.tasklet) {
-		conn->err_code = CO_ER_SYS_MEMLIM;
-		goto err;
-	}
-
-	ctx->wait_event.tasklet->process = quic_conn_io_cb;
-	ctx->wait_event.tasklet->context = ctx;
-	ctx->wait_event.events = 0;
-	HA_ATOMIC_STORE(&ctx->conn, conn);
-	ctx->subs = NULL;
-	ctx->xprt_ctx = NULL;
-
-	ctx->xprt = xprt_get(XPRT_QUIC);
-	if (objt_server(conn->target)) {
-		/* Server */
-		struct server *srv = __objt_server(conn->target);
-		unsigned char dcid[QUIC_HAP_CID_LEN];
-		int ssl_err, ipv4;
-
-		ssl_err = SSL_ERROR_NONE;
-		if (RAND_bytes(dcid, sizeof dcid) != 1)
-			goto err;
-
-		ipv4 = conn->dst->ss_family == AF_INET;
-		qc = qc_new_conn(QUIC_PROTOCOL_VERSION_DRAFT_28, ipv4,
-		                 dcid, sizeof dcid, 0, NULL, 0, 0, srv);
-		if (qc == NULL)
-			goto err;
-
-		ctx->qc = qc;
-
-		/* Insert our SCID, the connection ID for the QUIC client. */
-		ebmb_insert(&srv->cids, &qc->scid_node, qc->scid.len);
-
-		conn->qc = qc;
-		qc->conn = conn;
-		if (!qc_new_isecs(qc, initial_salt_v1, sizeof initial_salt_v1,
-		                  dcid, sizeof dcid, 0))
-			goto err;
-
-		qc->rx.params = srv->quic_params;
-		/* Copy the initial source connection ID. */
-		quic_cid_cpy(&qc->rx.params.initial_source_connection_id, &qc->scid);
-		qc->enc_params_len =
-			quic_transport_params_encode(qc->enc_params, qc->enc_params + sizeof qc->enc_params,
-			                             &qc->rx.params, 0);
-		if (!qc->enc_params_len)
-			goto err;
-
-		if (qc_ssl_sess_init(qc, srv->ssl_ctx.ctx, &ctx->ssl,
-		                     qc->enc_params, qc->enc_params_len) == -1)
-			goto err;
-
-		SSL_set_quic_transport_params(ctx->ssl, qc->enc_params, qc->enc_params_len);
-		SSL_set_connect_state(ctx->ssl);
-		ssl_err = SSL_do_handshake(ctx->ssl);
-		if (ssl_err != 1) {
-			int st;
-
-			st = HA_ATOMIC_LOAD(&qc->state);
-			ssl_err = SSL_get_error(ctx->ssl, ssl_err);
-			if (ssl_err == SSL_ERROR_WANT_READ || ssl_err == SSL_ERROR_WANT_WRITE) {
-				TRACE_PROTO("SSL handshake", QUIC_EV_CONN_HDSHK, qc, &st, &ssl_err);
-			}
-			else {
-				TRACE_DEVEL("SSL handshake error", QUIC_EV_CONN_HDSHK, qc, &st, &ssl_err);
-				goto err;
-			}
-		}
-	}
-	else if (objt_listener(conn->target)) {
-		/* Listener */
-		struct bind_conf *bc = __objt_listener(conn->target)->bind_conf;
-
-		qc = ctx->conn->qc;
-		ctx->qc = qc;
-
-		qc->tid = ctx->wait_event.tasklet->tid = quic_get_cid_tid(&qc->scid);
-		if (qc_ssl_sess_init(qc, bc->initial_ctx, &ctx->ssl,
-		                     qc->enc_params, qc->enc_params_len) == -1)
-			goto err;
-
-		/* Enabling 0-RTT */
-		if (bc->ssl_conf.early_data)
-			SSL_set_quic_early_data_enabled(ctx->ssl, 1);
-
-		SSL_set_accept_state(ctx->ssl);
-	}
-
-	HA_ATOMIC_STORE(xprt_ctx, ctx);
+	HA_ATOMIC_STORE(xprt_ctx, conn->qc->xprt_ctx);
 
 	/* Leave init state and start handshake */
 	conn->flags |= CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN;
 
  out:
-	HA_ATOMIC_STORE(&qc->xprt_ctx, ctx);
 	TRACE_LEAVE(QUIC_EV_CONN_NEW, qc);
 
 	return 0;
-
- err:
-	if (ctx && ctx->wait_event.tasklet)
-		tasklet_free(ctx->wait_event.tasklet);
-	pool_free(pool_head_quic_conn_ctx, ctx);
-	TRACE_DEVEL("leaving in error", QUIC_EV_CONN_NEW, conn);
-	return -1;
 }
 
 /* Start the QUIC transport layer */
