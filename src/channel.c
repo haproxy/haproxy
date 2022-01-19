@@ -176,6 +176,90 @@ int ci_putblk(struct channel *chn, const char *blk, int len)
 	return len;
 }
 
+/* Locates the longest part of the channel's output buffer that is composed
+ * exclusively of characters not in the <delim> set, and delimited by one of
+ * these characters, and returns the initial part and the first of such
+ * delimiters. A single escape character in <escape> may be specified so that
+ * when not 0 and found, the character that follows it is never taken as a
+ * delimiter. Note that <delim> cannot contain the zero byte, hence this
+ * function is not usable with byte zero as a delimiter.
+ *
+ * Return values :
+ *   >0 : number of bytes read. Includes the sep if present before len or end.
+ *   =0 : no sep before end found. <str> is left undefined.
+ *   <0 : no more bytes readable because output is shut.
+ * The channel status is not changed. The caller must call co_skip() to
+ * update it. One of the delimiters is waited for as long as neither the buffer
+ * nor the output are full. If either of them is full, the string may be
+ * returned as is, without the delimiter.
+ */
+int co_getdelim(const struct channel *chn, char *str, int len, const char *delim, char escape)
+{
+	uchar delim_map[256 / 8];
+	int found, escaped;
+	uint pos, bit;
+	int ret, max;
+	uchar b;
+	char *p;
+
+	ret = 0;
+	max = len;
+
+	/* closed or empty + imminent close = -1; empty = 0 */
+	if (unlikely((chn->flags & CF_SHUTW) || channel_is_empty(chn))) {
+		if (chn->flags & (CF_SHUTW|CF_SHUTW_NOW))
+			ret = -1;
+		goto out;
+	}
+
+	p = co_head(chn);
+
+	if (max > co_data(chn)) {
+		max = co_data(chn);
+		str[max-1] = 0;
+	}
+
+	/* create the byte map */
+	memset(delim_map, 0, sizeof(delim_map));
+	while ((b = *delim)) {
+		pos = b >> 3;
+		bit = b &  7;
+		delim_map[pos] |= 1 << bit;
+		delim++;
+	}
+
+	found = escaped = 0;
+	while (max) {
+		*str++ = b = *p;
+		ret++;
+		max--;
+
+		if (escape && (escaped || *p == escape)) {
+			escaped = !escaped;
+			goto skip;
+		}
+
+		pos = b >> 3;
+		bit = b &  7;
+		if (delim_map[pos] & (1 << bit)) {
+			found = 1;
+			break;
+		}
+	skip:
+		p = b_next(&chn->buf, p);
+	}
+
+	if (ret > 0 && ret < len &&
+	    (ret < co_data(chn) || channel_may_recv(chn)) &&
+	    !found &&
+	    !(chn->flags & (CF_SHUTW|CF_SHUTW_NOW)))
+		ret = 0;
+ out:
+	if (max)
+		*str = 0;
+	return ret;
+}
+
 /* Gets one text word out of a channel's buffer from a stream interface.
  * Return values :
  *   >0 : number of bytes read. Includes the sep if present before len or end.

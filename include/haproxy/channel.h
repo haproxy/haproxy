@@ -48,6 +48,7 @@ int ci_insert_line2(struct channel *c, int pos, const char *str, int len);
 int co_inject(struct channel *chn, const char *msg, int len);
 int co_getchar(const struct channel *chn, char *c);
 int co_getline(const struct channel *chn, char *str, int len);
+int co_getdelim(const struct channel *chn, char *str, int len, const char *delim, char escape);
 int co_getword(const struct channel *chn, char *str, int len, char sep);
 int co_getblk(const struct channel *chn, char *blk, int len, int offset);
 int co_getline_nc(const struct channel *chn, const char **blk1, size_t *len1, const char **blk2, size_t *len2);
