@@ -476,26 +476,27 @@ struct appctx *httpclient_start(struct httpclient *hc)
 		goto out;
 	}
 
+	cs = cs_new();
+	if (!cs) {
+		ha_alert("httpclient: out of memory in %s:%d.\n", __FUNCTION__, __LINE__);
+		goto out;
+	}
+
 	/* The HTTP client will be created in the same thread as the caller,
 	 * avoiding threading issues */
-	appctx = appctx_new(applet);
+	appctx = appctx_new(applet, cs);
 	if (!appctx)
-		goto out;
+		goto out_free_cs;
 
 	sess = session_new(httpclient_proxy, NULL, &appctx->obj_type);
 	if (!sess) {
 		ha_alert("httpclient: out of memory in %s:%d.\n", __FUNCTION__, __LINE__);
 		goto out_free_appctx;
 	}
-	cs = cs_new();
-	if (!cs) {
-		ha_alert("httpclient: out of memory in %s:%d.\n", __FUNCTION__, __LINE__);
-		goto out_free_sess;
-	}
-	cs_attach_endp(cs, &appctx->obj_type, appctx);
+
 	if ((s = stream_new(sess, cs, &hc->req.buf)) == NULL) {
 		ha_alert("httpclient: Failed to initialize stream %s:%d.\n", __FUNCTION__, __LINE__);
-		goto out_free_cs;
+		goto out_free_sess;
 	}
 
 	/* set the "timeout server" */
@@ -528,6 +529,7 @@ struct appctx *httpclient_start(struct httpclient *hc)
 			break;
 	}
 
+	cs_attach_endp(cs, &appctx->obj_type, appctx);
 	s->flags |= SF_ASSIGNED|SF_ADDR_SET;
 	cs_si(s->csb)->flags |= SI_FL_NOLINGER;
 	s->res.flags |= CF_READ_DONTWAIT;
@@ -550,12 +552,12 @@ struct appctx *httpclient_start(struct httpclient *hc)
 out_free_stream:
 	LIST_DELETE(&s->list);
 	pool_free(pool_head_stream, s);
-out_free_cs:
-	cs_free(cs);
 out_free_sess:
 	session_free(sess);
 out_free_appctx:
 	appctx_free(appctx);
+out_free_cs:
+	cs_free(cs);
 out:
 
 	return NULL;

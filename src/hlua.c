@@ -2944,11 +2944,17 @@ __LJMP static int hlua_socket_new(lua_State *L)
 	lua_rawgeti(L, LUA_REGISTRYINDEX, class_socket_ref);
 	lua_setmetatable(L, -2);
 
-	/* Create the applet context */
-	appctx = appctx_new(&update_applet);
-	if (!appctx) {
+	cs = cs_new();
+	if (!cs) {
 		hlua_pusherror(L, "socket: out of memory");
 		goto out_fail_conf;
+	}
+
+	/* Create the applet context */
+	appctx = appctx_new(&update_applet, cs);
+	if (!appctx) {
+		hlua_pusherror(L, "socket: out of memory");
+		goto out_fail_cs;
 	}
 
 	appctx->ctx.hlua_cosocket.connected = 0;
@@ -2963,18 +2969,13 @@ __LJMP static int hlua_socket_new(lua_State *L)
 		goto out_fail_appctx;
 	}
 
-	cs = cs_new();
-	if (!cs) {
-		hlua_pusherror(L, "socket: out of memory");
-		goto out_fail_sess;
-	}
-	cs_attach_endp(cs, &appctx->obj_type, appctx);
-
 	strm = stream_new(sess, cs, &BUF_NULL);
 	if (!strm) {
 		hlua_pusherror(L, "socket: out of memory");
-		goto out_fail_cs;
+		goto out_fail_sess;
 	}
+
+	cs_attach_endp(cs, &appctx->obj_type, appctx);
 
 	/* Initialise cross reference between stream and Lua socket object. */
 	xref_create(&socket->xref, &appctx->ctx.hlua_cosocket.xref);
@@ -2991,12 +2992,12 @@ __LJMP static int hlua_socket_new(lua_State *L)
 
 	return 1;
 
- out_fail_cs:
-	cs_free(cs);
  out_fail_sess:
 	session_free(sess);
  out_fail_appctx:
 	appctx_free(appctx);
+ out_fail_cs:
+	cs_free(cs);
  out_fail_conf:
 	WILL_LJMP(lua_error(L));
 	return 0;

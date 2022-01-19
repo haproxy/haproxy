@@ -3191,9 +3191,15 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 	peer->last_hdshk = now_ms;
 	s = NULL;
 
-	appctx = appctx_new(&peer_applet);
-	if (!appctx)
+	cs = cs_new();
+	if (!cs) {
+		ha_alert("out of memory in peer_session_create().\n");
 		goto out_close;
+	}
+
+	appctx = appctx_new(&peer_applet, cs);
+	if (!appctx)
+		goto out_free_cs;
 
 	appctx->st0 = PEER_SESS_ST_CONNECT;
 	appctx->ctx.peers.ptr = (void *)peer;
@@ -3204,16 +3210,9 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 		goto out_free_appctx;
 	}
 
-	cs = cs_new();
-	if (!cs) {
-		ha_alert("out of memory in peer_session_create().\n");
-		goto out_free_sess;
-	}
-	cs_attach_endp(cs, &appctx->obj_type, appctx);
-
 	if ((s = stream_new(sess, cs, &BUF_NULL)) == NULL) {
 		ha_alert("Failed to initialize stream in peer_session_create().\n");
-		goto out_free_cs;
+		goto out_free_sess;
 	}
 
 	/* applet is waiting for data */
@@ -3224,6 +3223,8 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 	s->target = peer_session_target(peer, s);
 	if (!sockaddr_alloc(&(cs_si(s->csb)->dst), &peer->addr, sizeof(peer->addr)))
 		goto out_free_strm;
+
+	cs_attach_endp(cs, &appctx->obj_type, appctx);
 	s->flags = SF_ASSIGNED|SF_ADDR_SET;
 	cs_si(s->csb)->flags |= SI_FL_NOLINGER;
 
@@ -3240,12 +3241,12 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
  out_free_strm:
 	LIST_DELETE(&s->list);
 	pool_free(pool_head_stream, s);
- out_free_cs:
-	cs_free(cs);
  out_free_sess:
 	session_free(sess);
  out_free_appctx:
 	appctx_free(appctx);
+ out_free_cs:
+	cs_free(cs);
  out_close:
 	return NULL;
 }
