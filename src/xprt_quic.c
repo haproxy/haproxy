@@ -2466,6 +2466,7 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct ssl_sock_ctx *ct
 		    TRACE_PROTO("discarding Initial pktns", QUIC_EV_CONN_PRSHPKT, qc);
 		    quic_pktns_discard(qc->els[QUIC_TLS_ENC_LEVEL_INITIAL].pktns, qc);
 		    qc_set_timer(ctx->qc);
+		    qc_el_rx_pkts_del(&qc->els[QUIC_TLS_ENC_LEVEL_INITIAL]);
 		    if (state < QUIC_HS_ST_SERVER_HANDSHAKE)
 			    HA_ATOMIC_STORE(&qc->state, QUIC_HS_ST_SERVER_HANDSHAKE);
 	    }
@@ -2621,6 +2622,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct qring *qr,
 			TRACE_PROTO("discarding Initial pktns", QUIC_EV_CONN_PHPKTS, qc);
 			quic_pktns_discard(qc->els[QUIC_TLS_ENC_LEVEL_INITIAL].pktns, qc);
 			qc_set_timer(qc);
+			qc_el_rx_pkts_del(&qc->els[QUIC_TLS_ENC_LEVEL_INITIAL]);
 			HA_ATOMIC_STORE(&qc->state, QUIC_HS_ST_CLIENT_HANDSHAKE);
 		}
 		/* If the data for the current encryption level have all been sent,
@@ -3241,7 +3243,6 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 			TRACE_PROTO("discarding Handshake pktns", QUIC_EV_CONN_PHPKTS, qc);
 			quic_pktns_discard(qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE].pktns, qc);
 			qc_set_timer(qc);
-			qc_el_rx_pkts_del(&qc->els[QUIC_TLS_ENC_LEVEL_INITIAL]);
 			qc_el_rx_pkts_del(&qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE]);
 		}
 
