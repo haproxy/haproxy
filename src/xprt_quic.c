@@ -5466,9 +5466,6 @@ static int qc_conn_init(struct connection *conn, void **xprt_ctx)
 
 	HA_ATOMIC_STORE(xprt_ctx, conn->qc->xprt_ctx);
 
-	/* Leave init state and start handshake */
-	conn->flags |= CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN;
-
  out:
 	TRACE_LEAVE(QUIC_EV_CONN_NEW, qc);
 
