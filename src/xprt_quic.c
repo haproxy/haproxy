@@ -2553,8 +2553,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct qring *qr,
 		probe = ack = 0;
 		cc =  HA_ATOMIC_LOAD(&qc->flags) & QUIC_FL_CONN_IMMEDIATE_CLOSE;
 		if (!cc) {
-			if (!prv_pkt)
-				probe = qel->pktns->tx.pto_probe;
+			probe = qel->pktns->tx.pto_probe;
 			ack = HA_ATOMIC_BTR(&qel->pktns->flags, QUIC_FL_PKTNS_ACK_REQUIRED_BIT);
 		}
 		/* Do not build any more packet if the TX secrets are not available or
