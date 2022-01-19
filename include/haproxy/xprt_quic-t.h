@@ -735,6 +735,8 @@ struct quic_conn {
 	struct task *timer_task;
 	unsigned int timer;
 	unsigned int flags;
+
+	const struct qcc_app_ops *app_ops;
 };
 
 #endif /* USE_QUIC */

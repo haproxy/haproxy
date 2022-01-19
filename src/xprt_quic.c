@@ -1041,22 +1041,15 @@ void quic_set_tls_alert(struct quic_conn *qc, int alert)
  */
 int quic_set_app_ops(struct quic_conn *qc, const unsigned char *alpn, size_t alpn_len)
 {
-	const struct qcc_app_ops *app_ops;
-
-	if (alpn_len >= 2 && memcmp(alpn, "h3", 2) == 0) {
-		app_ops = qc->qcc->app_ops = &h3_ops;
-	}
-	else if (alpn_len >= 10 && memcmp(alpn, "hq-interop", 10) == 0) {
-		app_ops = qc->qcc->app_ops = &hq_interop_ops;
-	}
+	if (alpn_len >= 2 && memcmp(alpn, "h3", 2) == 0)
+		qc->app_ops = &h3_ops;
+	else if (alpn_len >= 10 && memcmp(alpn, "hq-interop", 10) == 0)
+		qc->app_ops = &hq_interop_ops;
 	else
 		return 0;
 
-	if (app_ops->init && !app_ops->init(qc->qcc))
+	if (qcc_install_app_ops(qc->qcc, qc->app_ops))
 		return 0;
-
-	if (app_ops->finalize)
-		app_ops->finalize(qc->qcc->ctx);
 
 	/* mux-quic can now be considered ready. */
 	qc->mux_state = QC_MUX_READY;

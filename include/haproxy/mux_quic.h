@@ -54,6 +54,22 @@ static inline int qcs_get_next_id(struct qcc *qcc, enum qcs_type type)
 
 struct eb64_node *qcc_get_qcs(struct qcc *qcc, uint64_t id);
 
+/* Install the <app_ops> applicative layer of a QUIC connection on mux <qcc>.
+ * Returns 0 on success else non-zero.
+ */
+static inline int qcc_install_app_ops(struct qcc *qcc,
+                                      const struct qcc_app_ops *app_ops)
+{
+	qcc->app_ops = app_ops;
+	if (qcc->app_ops->init && !qcc->app_ops->init(qcc))
+		return 1;
+
+	if (qcc->app_ops->finalize)
+		qcc->app_ops->finalize(qcc->ctx);
+
+	return 0;
+}
+
 #endif /* USE_QUIC */
 
 #endif /* _HAPROXY_MUX_QUIC_H */
