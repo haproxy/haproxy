@@ -890,9 +890,20 @@ static void cli_io_handler(struct appctx *appctx)
 				break;
 			}
 
-			/* '- 1' is to ensure a null byte can always be inserted at the end */
-			reql = co_getline(si_oc(si), str,
-					  appctx->chunk->size - appctx->chunk->data - 1);
+			/* payload doesn't take escapes nor does it end on semi-colons, so
+			 * we use the regular getline. Normal mode however must stop on
+			 * LFs and semi-colons that are not prefixed by a backslash. Note
+			 * that we reserve one byte at the end to insert a trailing nul byte.
+			 */
+
+			if (appctx->st1 & APPCTX_CLI_ST1_PAYLOAD)
+				reql = co_getline(si_oc(si), str,
+				                  appctx->chunk->size - appctx->chunk->data - 1);
+			else
+				reql = co_getdelim(si_oc(si), str,
+				                   appctx->chunk->size - appctx->chunk->data - 1,
+				                   "\n;", '\\');
+
 			if (reql <= 0) { /* closed or EOL not found */
 				if (reql == 0)
 					break;
