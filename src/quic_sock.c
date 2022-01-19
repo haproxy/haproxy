@@ -140,30 +140,25 @@ int quic_sock_accepting_conn(const struct receiver *rx)
 struct connection *quic_sock_accept_conn(struct listener *l, int *status)
 {
 	struct quic_conn *qc;
-	struct quic_rx_packet *pkt;
-	int ret;
+	struct li_per_thread *lthr = &l->per_thr[tid];
 
-	qc = NULL;
-	pkt = MT_LIST_POP(&l->rx.pkts, struct quic_rx_packet *, rx_list);
-	/* Should never happen. */
-	if (!pkt)
+	qc = MT_LIST_POP(&lthr->quic_accept.conns, struct quic_conn *, accept_list);
+	if (!qc)
+		goto done;
+
+	if (!new_quic_cli_conn(qc, l, &qc->peer_addr))
 		goto err;
-
-	qc = pkt->qc;
-	if (!new_quic_cli_conn(qc, l, &pkt->saddr))
-		goto err;
-
-	ret = CO_AC_DONE;
 
  done:
-	if (status)
-		*status = ret;
-
+	*status = CO_AC_DONE;
 	return qc ? qc->conn : NULL;
 
  err:
-	ret = CO_AC_PAUSE;
-	goto done;
+	/* in case of error reinsert the element to process it later. */
+	MT_LIST_INSERT(&lthr->quic_accept.conns, &qc->accept_list);
+
+	*status = CO_AC_PAUSE;
+	return NULL;
 }
 
 /* Function called on a read event from a listening socket. It tries
@@ -227,6 +222,32 @@ void quic_sock_fd_iocb(int fd)
 /*********************** QUIC accept queue management ***********************/
 /* per-thread accept queues */
 struct quic_accept_queue *quic_accept_queues;
+
+/* Install <qc> on the queue ready to be accepted. The queue task is then woken
+ * up.
+ */
+void quic_accept_push_qc(struct quic_conn *qc)
+{
+	struct quic_accept_queue *queue = &quic_accept_queues[qc->tid];
+	struct li_per_thread *lthr = &qc->li->per_thr[qc->tid];
+
+	BUG_ON(MT_LIST_INLIST(&qc->accept_list));
+
+	/* 1. insert the listener in the accept queue
+	 *
+	 * Use TRY_APPEND as there is a possible race even with INLIST if
+	 * multiple threads try to add the same listener instance from several
+	 * quic_conn.
+	 */
+	if (!MT_LIST_INLIST(&(lthr->quic_accept.list)))
+		MT_LIST_TRY_APPEND(&queue->listeners, &(lthr->quic_accept.list));
+
+	/* 2. insert the quic_conn in the listener per-thread queue. */
+	MT_LIST_APPEND(&lthr->quic_accept.conns, &qc->accept_list);
+
+	/* 3. wake up the queue tasklet */
+	tasklet_wakeup(quic_accept_queues[qc->tid].tasklet);
+}
 
 /* Tasklet handler to accept QUIC connections. Call listener_accept on every
  * listener instances registered in the accept queue.

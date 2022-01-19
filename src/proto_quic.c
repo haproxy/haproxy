@@ -520,7 +520,6 @@ static void quic_add_listener(struct protocol *proto, struct listener *listener)
 {
 	listener->flags |= LI_F_QUIC_LISTENER;
 
-	MT_LIST_INIT(&listener->rx.pkts);
 	listener->rx.odcids = EB_ROOT_UNIQUE;
 	listener->rx.cids = EB_ROOT_UNIQUE;
 	listener->rx.flags |= RX_F_LOCAL_ACCEPT;

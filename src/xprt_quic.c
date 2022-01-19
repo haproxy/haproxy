@@ -44,6 +44,7 @@
 #include <haproxy/quic_cc.h>
 #include <haproxy/quic_frame.h>
 #include <haproxy/quic_loss.h>
+#include <haproxy/quic_sock.h>
 #include <haproxy/cbuf.h>
 #include <haproxy/quic_tls.h>
 #include <haproxy/sink.h>
@@ -1048,12 +1049,6 @@ int quic_set_app_ops(struct quic_conn *qc, const unsigned char *alpn, size_t alp
 	else
 		return 0;
 
-	if (qcc_install_app_ops(qc->qcc, qc->app_ops))
-		return 0;
-
-	/* mux-quic can now be considered ready. */
-	qc->mux_state = QC_MUX_READY;
-
 	return 1;
 }
 
@@ -1892,10 +1887,14 @@ static inline int qc_provide_cdata(struct quic_enc_level *el,
 		}
 
 		TRACE_PROTO("SSL handshake OK", QUIC_EV_CONN_HDSHK, qc, &state);
-		if (qc_is_listener(ctx->qc))
+		if (qc_is_listener(ctx->qc)) {
 			HA_ATOMIC_STORE(&qc->state, QUIC_HS_ST_CONFIRMED);
-		else
+			/* The connection is ready to be accepted. */
+			quic_accept_push_qc(qc);
+		}
+		else {
 			HA_ATOMIC_STORE(&qc->state, QUIC_HS_ST_COMPLETE);
+		}
 	} else {
 		ssl_err = SSL_process_quic_post_handshake(ctx->ssl);
 		if (ssl_err != 1) {
@@ -3662,6 +3661,9 @@ static struct quic_conn *qc_new_conn(unsigned int version, int ipv4,
 	qc->path = &qc->paths[0];
 	quic_path_init(qc->path, ipv4, default_quic_cc_algo, qc);
 
+	/* required to use MTLIST_IN_LIST */
+	MT_LIST_INIT(&qc->accept_list);
+
 	TRACE_LEAVE(QUIC_EV_CONN_INIT, qc);
 
 	return qc;
@@ -4557,9 +4559,6 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 			if (likely(!qc_to_purge)) {
 				/* Enqueue this packet. */
 				pkt->qc = qc;
-				MT_LIST_APPEND(&l->rx.pkts, &pkt->rx_list);
-				/* Try to accept a new connection. */
-				listener_accept(l);
 			}
 			else {
 				quic_conn_drop(qc_to_purge);
@@ -4663,7 +4662,7 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 	 * initialized.
 	 */
 	conn_ctx = HA_ATOMIC_LOAD(&qc->xprt_ctx);
-	if (conn_ctx && HA_ATOMIC_LOAD(&qc->qcc))
+	if (conn_ctx)
 		tasklet_wakeup(conn_ctx->wait_event.tasklet);
 
 	TRACE_LEAVE(QUIC_EV_CONN_LPKT, qc ? qc : NULL, pkt);
@@ -5483,6 +5482,15 @@ static int qc_xprt_start(struct connection *conn, void *ctx)
 		TRACE_PROTO("Non initialized timer", QUIC_EV_CONN_LPKT, qc);
 		return 0;
 	}
+
+	quic_mux_transport_params_update(qc->qcc);
+	if (qcc_install_app_ops(qc->qcc, qc->app_ops)) {
+		TRACE_PROTO("Cannot install app layer", QUIC_EV_CONN_LPKT, qc);
+		return 0;
+	}
+
+	/* mux-quic can now be considered ready. */
+	qc->mux_state = QC_MUX_READY;
 
 	tasklet_wakeup(qctx->wait_event.tasklet);
 	return 1;

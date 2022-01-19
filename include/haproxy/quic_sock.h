@@ -39,6 +39,8 @@ int quic_sock_accepting_conn(const struct receiver *rx);
 struct connection *quic_sock_accept_conn(struct listener *l, int *status);
 void quic_sock_fd_iocb(int fd);
 
+void quic_accept_push_qc(struct quic_conn *qc);
+
 #endif /* USE_QUIC */
 #endif /* _HAPROXY_QUIC_SOCK_H */
 
