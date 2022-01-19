@@ -42,6 +42,9 @@ extern struct methodVersions methodVersions[];
 __decl_thread(extern HA_SPINLOCK_T ckch_lock);
 extern struct pool_head *pool_head_ssl_capture;
 extern int ssl_app_data_index;
+#ifdef USE_QUIC
+extern int ssl_qc_app_data_index;
+#endif /* USE_QUIC */
 extern unsigned int openssl_engines_initialized;
 extern int nb_engines;
 extern struct xprt_ops ssl_sock;

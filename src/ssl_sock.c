@@ -436,6 +436,9 @@ static STACK_OF(X509_NAME)* ssl_get_client_ca_file(char *path)
 struct pool_head *pool_head_ssl_capture __read_mostly = NULL;
 int ssl_capture_ptr_index = -1;
 int ssl_app_data_index = -1;
+#ifdef USE_QUIC
+int ssl_qc_app_data_index = -1;
+#endif /* USE_QUIC */
 
 #ifdef HAVE_SSL_KEYLOG
 int ssl_keylog_index = -1;
@@ -1520,9 +1523,21 @@ out:
 void ssl_sock_infocbk(const SSL *ssl, int where, int ret)
 {
 	struct connection *conn = SSL_get_ex_data(ssl, ssl_app_data_index);
-	struct ssl_sock_ctx *ctx = conn->xprt_ctx;
+#ifdef USE_QUIC
+	struct quic_conn *qc = SSL_get_ex_data(ssl, ssl_qc_app_data_index);
+#endif /* USE_QUIC */
+	struct ssl_sock_ctx *ctx = NULL;
+
 	BIO *write_bio;
 	(void)ret; /* shut gcc stupid warning */
+
+	if (conn)
+		ctx = conn->xprt_ctx;
+#ifdef USE_QUIC
+	else if (qc)
+		ctx = qc->xprt_ctx;
+#endif /* USE_QUIC */
+	BUG_ON(!ctx);
 
 #ifndef SSL_OP_NO_RENEGOTIATION
 	/* Please note that BoringSSL defines this macro to zero so don't
@@ -1530,7 +1545,7 @@ void ssl_sock_infocbk(const SSL *ssl, int where, int ret)
 	 */
 	if (where & SSL_CB_HANDSHAKE_START) {
 		/* Disable renegotiation (CVE-2009-3555) */
-		if ((conn->flags & (CO_FL_WAIT_L6_CONN | CO_FL_EARLY_SSL_HS | CO_FL_EARLY_DATA)) == 0) {
+		if (conn && (conn->flags & (CO_FL_WAIT_L6_CONN | CO_FL_EARLY_SSL_HS | CO_FL_EARLY_DATA)) == 0) {
 			conn->flags |= CO_FL_ERROR;
 			conn->err_code = CO_ER_SSL_RENEG;
 		}
@@ -1980,21 +1995,21 @@ static int ssl_sock_advertise_alpn_protos(SSL *s, const unsigned char **out,
 {
 	struct ssl_bind_conf *conf = arg;
 #ifdef USE_QUIC
-	struct connection *conn = SSL_get_ex_data(s, ssl_app_data_index);
+	struct quic_conn *qc = SSL_get_ex_data(s, ssl_qc_app_data_index);
 #endif
 
 	if (SSL_select_next_proto((unsigned char**) out, outlen, (const unsigned char *)conf->alpn_str,
 	                          conf->alpn_len, server, server_len) != OPENSSL_NPN_NEGOTIATED) {
 #ifdef USE_QUIC
-		if (conn->qc)
-			quic_set_tls_alert(conn->qc, SSL_AD_NO_APPLICATION_PROTOCOL);
+		if (qc)
+			quic_set_tls_alert(qc, SSL_AD_NO_APPLICATION_PROTOCOL);
 #endif
 		return SSL_TLSEXT_ERR_NOACK;
 	}
 
 #ifdef USE_QUIC
-	if (conn->qc && !quic_set_app_ops(conn->qc, *out, *outlen)) {
-		quic_set_tls_alert(conn->qc, SSL_AD_NO_APPLICATION_PROTOCOL);
+	if (qc && !quic_set_app_ops(qc, *out, *outlen)) {
+		quic_set_tls_alert(qc, SSL_AD_NO_APPLICATION_PROTOCOL);
 		return SSL_TLSEXT_ERR_NOACK;
 	}
 #endif
@@ -2451,8 +2466,11 @@ int ssl_sock_switchctx_cbk(const struct ssl_early_callback_ctx *ctx)
 int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 {
 #endif
-	struct connection *conn;
-	struct bind_conf *s;
+	struct connection *conn = SSL_get_ex_data(ssl, ssl_app_data_index);
+#ifdef USE_QUIC
+	struct quic_conn *qc = SSL_get_ex_data(ssl, ssl_qc_app_data_index);
+#endif /* USE_QUIC */
+	struct bind_conf *s = NULL;
 	const uint8_t *extension_data;
 	size_t extension_len;
 	int has_rsa_sig = 0, has_ecdsa_sig = 0;
@@ -2464,17 +2482,22 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 	int allow_early = 0;
 	int i;
 
-	conn = SSL_get_ex_data(ssl, ssl_app_data_index);
-	s = __objt_listener(conn->target)->bind_conf;
+	if (conn)
+		s = __objt_listener(conn->target)->bind_conf;
+#ifdef USE_QUIC
+	else if (qc)
+		s = qc->li->bind_conf;
+#endif /* USE_QUIC */
+	BUG_ON(!s);
 
 #ifdef USE_QUIC
-	if (conn->qc) {
+	if (qc) {
 		/* Look for the QUIC transport parameters. */
 #ifdef OPENSSL_IS_BORINGSSL
-		if (!SSL_early_callback_ctx_extension_get(ctx, con->qc->tps_tls_ext,
+		if (!SSL_early_callback_ctx_extension_get(ctx, qc->tps_tls_ext,
 		                                          &extension_data, &extension_len))
 #else
-		if (!SSL_client_hello_get0_ext(ssl, conn->qc->tps_tls_ext,
+		if (!SSL_client_hello_get0_ext(ssl, qc->tps_tls_ext,
 		                               &extension_data, &extension_len))
 #endif
 		{
@@ -2483,17 +2506,17 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 			 * which would be set after calling quic_set_tls_alert().
 			 */
 			*al = SSL_AD_MISSING_EXTENSION;
-			quic_set_tls_alert(conn->qc, SSL_AD_MISSING_EXTENSION);
+			quic_set_tls_alert(qc, SSL_AD_MISSING_EXTENSION);
 			return 0;
 		}
 
-		if (!quic_transport_params_store(conn->qc, 0, extension_data,
+		if (!quic_transport_params_store(qc, 0, extension_data,
 		                                 extension_data + extension_len))
 			goto abort;
 
-		quic_mux_transport_params_update(conn->qc->qcc);
+		quic_mux_transport_params_update(qc->qcc);
 	}
-#endif
+#endif /* USE_QUIC */
 
 	if (s->ssl_conf.early_data)
 		allow_early = 1;
@@ -2729,7 +2752,8 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 
  abort:
 	/* abort handshake (was SSL_TLSEXT_ERR_ALERT_FATAL) */
-	conn->err_code = CO_ER_SSL_HANDSHAKE;
+	if (conn)
+		conn->err_code = CO_ER_SSL_HANDSHAKE;
 #ifdef OPENSSL_IS_BORINGSSL
 	return ssl_select_cert_error;
 #else
@@ -7653,6 +7677,9 @@ static void __ssl_sock_init(void)
 
 	ssl_app_data_index = SSL_get_ex_new_index(0, NULL, NULL, NULL, NULL);
 	ssl_capture_ptr_index = SSL_get_ex_new_index(0, NULL, NULL, NULL, ssl_sock_capture_free_func);
+#ifdef USE_QUIC
+	ssl_qc_app_data_index = SSL_get_ex_new_index(0, NULL, NULL, NULL, NULL);
+#endif /* USE_QUIC */
 #ifdef HAVE_SSL_KEYLOG
 	ssl_keylog_index = SSL_get_ex_new_index(0, NULL, NULL, NULL, ssl_sock_keylog_free_func);
 #endif

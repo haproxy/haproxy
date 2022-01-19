@@ -745,21 +745,20 @@ int ha_quic_set_encryption_secrets(SSL *ssl, enum ssl_encryption_level_t level,
                                    const uint8_t *read_secret,
                                    const uint8_t *write_secret, size_t secret_len)
 {
-	struct connection *conn = SSL_get_ex_data(ssl, ssl_app_data_index);
-	struct quic_tls_ctx *tls_ctx =
-		&conn->qc->els[ssl_to_quic_enc_level(level)].tls_ctx;
+	struct quic_conn *qc = SSL_get_ex_data(ssl, ssl_qc_app_data_index);
+	struct quic_tls_ctx *tls_ctx = &qc->els[ssl_to_quic_enc_level(level)].tls_ctx;
 	const SSL_CIPHER *cipher = SSL_get_current_cipher(ssl);
 	struct quic_tls_secrets *rx, *tx;
 
-	TRACE_ENTER(QUIC_EV_CONN_RWSEC, conn->qc);
+	TRACE_ENTER(QUIC_EV_CONN_RWSEC, qc);
 	BUG_ON(secret_len > QUIC_TLS_SECRET_LEN);
-	if (HA_ATOMIC_LOAD(&conn->qc->flags) & QUIC_FL_CONN_IMMEDIATE_CLOSE) {
-		TRACE_PROTO("CC required", QUIC_EV_CONN_RWSEC, conn->qc);
+	if (HA_ATOMIC_LOAD(&qc->flags) & QUIC_FL_CONN_IMMEDIATE_CLOSE) {
+		TRACE_PROTO("CC required", QUIC_EV_CONN_RWSEC, qc);
 		goto out;
 	}
 
 	if (!quic_tls_ctx_keys_alloc(tls_ctx)) {
-		TRACE_DEVEL("keys allocation failed", QUIC_EV_CONN_RWSEC, conn->qc);
+		TRACE_DEVEL("keys allocation failed", QUIC_EV_CONN_RWSEC, qc);
 		goto err;
 	}
 
@@ -773,7 +772,7 @@ int ha_quic_set_encryption_secrets(SSL *ssl, enum ssl_encryption_level_t level,
 	if (!quic_tls_derive_keys(rx->aead, rx->hp, rx->md, rx->key, rx->keylen,
 	                          rx->iv, rx->ivlen, rx->hp_key, sizeof rx->hp_key,
 	                          read_secret, secret_len)) {
-		TRACE_DEVEL("RX key derivation failed", QUIC_EV_CONN_RWSEC, conn->qc);
+		TRACE_DEVEL("RX key derivation failed", QUIC_EV_CONN_RWSEC, qc);
 		goto err;
 	}
 
@@ -785,13 +784,13 @@ int ha_quic_set_encryption_secrets(SSL *ssl, enum ssl_encryption_level_t level,
 	if (!quic_tls_derive_keys(tx->aead, tx->hp, tx->md, tx->key, tx->keylen,
 	                          tx->iv, tx->ivlen, tx->hp_key, sizeof tx->hp_key,
 	                          write_secret, secret_len)) {
-		TRACE_DEVEL("TX key derivation failed", QUIC_EV_CONN_RWSEC, conn->qc);
+		TRACE_DEVEL("TX key derivation failed", QUIC_EV_CONN_RWSEC, qc);
 		goto err;
 	}
 
 	tx->flags |= QUIC_FL_TLS_SECRETS_SET;
  tp:
-	if (objt_server(conn->target) && level == ssl_encryption_application) {
+	if (!qc_is_listener(qc) && level == ssl_encryption_application) {
 		const unsigned char *buf;
 		size_t buflen;
 
@@ -799,19 +798,18 @@ int ha_quic_set_encryption_secrets(SSL *ssl, enum ssl_encryption_level_t level,
 		if (!buflen)
 			goto err;
 
-		if (!quic_transport_params_store(conn->qc, 1, buf, buf + buflen))
+		if (!quic_transport_params_store(qc, 1, buf, buf + buflen))
 			goto err;
 	}
 
 	if (level == ssl_encryption_application) {
-		struct quic_conn *qc = conn->qc;
 		struct quic_tls_kp *prv_rx = &qc->ku.prv_rx;
 		struct quic_tls_kp *nxt_rx = &qc->ku.nxt_rx;
 		struct quic_tls_kp *nxt_tx = &qc->ku.nxt_tx;
 
 		if (!(rx->secret = pool_alloc(pool_head_quic_tls_secret)) ||
 		    !(tx->secret = pool_alloc(pool_head_quic_tls_secret))) {
-			TRACE_DEVEL("Could not allocate secrete keys", QUIC_EV_CONN_RWSEC, conn->qc);
+			TRACE_DEVEL("Could not allocate secrete keys", QUIC_EV_CONN_RWSEC, qc);
 			goto err;
 		}
 
@@ -826,11 +824,11 @@ int ha_quic_set_encryption_secrets(SSL *ssl, enum ssl_encryption_level_t level,
 			goto err;
 	}
  out:
-	TRACE_LEAVE(QUIC_EV_CONN_RWSEC, conn->qc, &level);
+	TRACE_LEAVE(QUIC_EV_CONN_RWSEC, qc, &level);
 	return 1;
 
  err:
-	TRACE_DEVEL("leaving in error", QUIC_EV_CONN_RWSEC, conn->qc);
+	TRACE_DEVEL("leaving in error", QUIC_EV_CONN_RWSEC, qc);
 	return 0;
 }
 #else
@@ -842,13 +840,13 @@ int ha_set_rsec(SSL *ssl, enum ssl_encryption_level_t level,
                 const SSL_CIPHER *cipher,
                 const uint8_t *secret, size_t secret_len)
 {
-	struct connection *conn = SSL_get_ex_data(ssl, ssl_app_data_index);
+	struct quic_conn *qc = SSL_get_ex_data(ssl, ssl_qc_app_data_index);
 	struct quic_tls_ctx *tls_ctx =
-		&conn->qc->els[ssl_to_quic_enc_level(level)].tls_ctx;
+		&qc->els[ssl_to_quic_enc_level(level)].tls_ctx;
 
-	TRACE_ENTER(QUIC_EV_CONN_RSEC, conn->qc);
-	if (HA_ATOMIC_LOAD(&conn->qc->flags) & QUIC_FL_CONN_IMMEDIATE_CLOSE) {
-		TRACE_PROTO("CC required", QUIC_EV_CONN_RSEC, conn->qc);
+	TRACE_ENTER(QUIC_EV_CONN_RSEC, qc);
+	if (HA_ATOMIC_LOAD(&qc->flags) & QUIC_FL_CONN_IMMEDIATE_CLOSE) {
+		TRACE_PROTO("CC required", QUIC_EV_CONN_RSEC, qc);
 		goto out;
 	}
 
@@ -864,11 +862,11 @@ int ha_set_rsec(SSL *ssl, enum ssl_encryption_level_t level,
 	                          tls_ctx->rx.iv, tls_ctx->rx.ivlen,
 	                          tls_ctx->rx.hp_key, sizeof tls_ctx->rx.hp_key,
 	                          secret, secret_len)) {
-		TRACE_DEVEL("RX key derivation failed", QUIC_EV_CONN_RSEC, conn->qc);
+		TRACE_DEVEL("RX key derivation failed", QUIC_EV_CONN_RSEC, qc);
 		goto err;
 	}
 
-	if (objt_server(conn->target) && level == ssl_encryption_application) {
+	if (!qc_is_listener(qc) && level == ssl_encryption_application) {
 		const unsigned char *buf;
 		size_t buflen;
 
@@ -876,18 +874,18 @@ int ha_set_rsec(SSL *ssl, enum ssl_encryption_level_t level,
 		if (!buflen)
 			goto err;
 
-		if (!quic_transport_params_store(conn->qc, 1, buf, buf + buflen))
+		if (!quic_transport_params_store(qc, 1, buf, buf + buflen))
 			goto err;
 	}
 
 	tls_ctx->rx.flags |= QUIC_FL_TLS_SECRETS_SET;
  out:
-	TRACE_LEAVE(QUIC_EV_CONN_RSEC, conn->qc, &level, secret, &secret_len);
+	TRACE_LEAVE(QUIC_EV_CONN_RSEC, qc, &level, secret, &secret_len);
 
 	return 1;
 
  err:
-	TRACE_DEVEL("leaving in error", QUIC_EV_CONN_RSEC, conn->qc);
+	TRACE_DEVEL("leaving in error", QUIC_EV_CONN_RSEC, qc);
 	return 0;
 }
 
@@ -899,13 +897,12 @@ int ha_set_wsec(SSL *ssl, enum ssl_encryption_level_t level,
                 const SSL_CIPHER *cipher,
                 const uint8_t *secret, size_t secret_len)
 {
-	struct connection *conn = SSL_get_ex_data(ssl, ssl_app_data_index);
-	struct quic_tls_ctx *tls_ctx =
-		&conn->qc->els[ssl_to_quic_enc_level(level)].tls_ctx;
+	struct quic_conn *qc = SSL_get_ex_data(ssl, ssl_qc_app_data_index);
+	struct quic_tls_ctx *tls_ctx = &qc->els[ssl_to_quic_enc_level(level)].tls_ctx;
 
-	TRACE_ENTER(QUIC_EV_CONN_WSEC, conn->qc);
-	if (HA_ATOMIC_LOAD(&conn->qc->flags) & QUIC_FL_CONN_IMMEDIATE_CLOSE) {
-		TRACE_PROTO("CC required", QUIC_EV_CONN_WSEC, conn->qc);
+	TRACE_ENTER(QUIC_EV_CONN_WSEC, qc);
+	if (HA_ATOMIC_LOAD(&qc->flags) & QUIC_FL_CONN_IMMEDIATE_CLOSE) {
+		TRACE_PROTO("CC required", QUIC_EV_CONN_WSEC, qc);
 		goto out;
 	}
 
@@ -921,17 +918,17 @@ int ha_set_wsec(SSL *ssl, enum ssl_encryption_level_t level,
 	                          tls_ctx->tx.iv, tls_ctx->tx.ivlen,
 	                          tls_ctx->tx.hp_key, sizeof tls_ctx->tx.hp_key,
 	                          secret, secret_len)) {
-		TRACE_DEVEL("TX key derivation failed", QUIC_EV_CONN_WSEC, conn->qc);
+		TRACE_DEVEL("TX key derivation failed", QUIC_EV_CONN_WSEC, qc);
 		goto err;
 	}
 
 	tls_ctx->tx.flags |= QUIC_FL_TLS_SECRETS_SET;
-	TRACE_LEAVE(QUIC_EV_CONN_WSEC, conn->qc, &level, secret, &secret_len);
+	TRACE_LEAVE(QUIC_EV_CONN_WSEC, qc, &level, secret, &secret_len);
  out:
 	return 1;
 
  err:
-	TRACE_DEVEL("leaving in error", QUIC_EV_CONN_WSEC, conn->qc);
+	TRACE_DEVEL("leaving in error", QUIC_EV_CONN_WSEC, qc);
 	return 0;
 }
 #endif
@@ -1071,59 +1068,59 @@ int quic_set_app_ops(struct quic_conn *qc, const unsigned char *alpn, size_t alp
 int ha_quic_add_handshake_data(SSL *ssl, enum ssl_encryption_level_t level,
                                const uint8_t *data, size_t len)
 {
-	struct connection *conn;
+	struct quic_conn *qc;
 	enum quic_tls_enc_level tel;
 	struct quic_enc_level *qel;
 
-	conn = SSL_get_ex_data(ssl, ssl_app_data_index);
-	TRACE_ENTER(QUIC_EV_CONN_ADDDATA, conn->qc);
-	if (HA_ATOMIC_LOAD(&conn->qc->flags) & QUIC_FL_CONN_IMMEDIATE_CLOSE) {
-		TRACE_PROTO("CC required", QUIC_EV_CONN_ADDDATA, conn->qc);
+	qc = SSL_get_ex_data(ssl, ssl_qc_app_data_index);
+	TRACE_ENTER(QUIC_EV_CONN_ADDDATA, qc);
+	if (HA_ATOMIC_LOAD(&qc->flags) & QUIC_FL_CONN_IMMEDIATE_CLOSE) {
+		TRACE_PROTO("CC required", QUIC_EV_CONN_ADDDATA, qc);
 		goto out;
 	}
 
 	tel = ssl_to_quic_enc_level(level);
-	qel = &conn->qc->els[tel];
+	qel = &qc->els[tel];
 
 	if (tel == -1) {
-		TRACE_PROTO("Wrong encryption level", QUIC_EV_CONN_ADDDATA, conn->qc);
+		TRACE_PROTO("Wrong encryption level", QUIC_EV_CONN_ADDDATA, qc);
 		goto err;
 	}
 
 	if (!quic_crypto_data_cpy(qel, data, len)) {
-		TRACE_PROTO("Could not bufferize", QUIC_EV_CONN_ADDDATA, conn->qc);
+		TRACE_PROTO("Could not bufferize", QUIC_EV_CONN_ADDDATA, qc);
 		goto err;
 	}
 
 	TRACE_PROTO("CRYPTO data buffered", QUIC_EV_CONN_ADDDATA,
-	            conn->qc, &level, &len);
+	            qc, &level, &len);
 
  out:
-	TRACE_LEAVE(QUIC_EV_CONN_ADDDATA, conn->qc);
+	TRACE_LEAVE(QUIC_EV_CONN_ADDDATA, qc);
 	return 1;
 
  err:
-	TRACE_DEVEL("leaving in error", QUIC_EV_CONN_ADDDATA, conn->qc);
+	TRACE_DEVEL("leaving in error", QUIC_EV_CONN_ADDDATA, qc);
 	return 0;
 }
 
 int ha_quic_flush_flight(SSL *ssl)
 {
-	struct connection *conn = SSL_get_ex_data(ssl, ssl_app_data_index);
+	struct quic_conn *qc = SSL_get_ex_data(ssl, ssl_qc_app_data_index);
 
-	TRACE_ENTER(QUIC_EV_CONN_FFLIGHT, conn->qc);
-	TRACE_LEAVE(QUIC_EV_CONN_FFLIGHT, conn->qc);
+	TRACE_ENTER(QUIC_EV_CONN_FFLIGHT, qc);
+	TRACE_LEAVE(QUIC_EV_CONN_FFLIGHT, qc);
 
 	return 1;
 }
 
 int ha_quic_send_alert(SSL *ssl, enum ssl_encryption_level_t level, uint8_t alert)
 {
-	struct connection *conn = SSL_get_ex_data(ssl, ssl_app_data_index);
+	struct quic_conn *qc = SSL_get_ex_data(ssl, ssl_qc_app_data_index);
 
-	TRACE_DEVEL("SSL alert", QUIC_EV_CONN_SSLALERT, conn->qc, &alert, &level);
-	quic_set_tls_alert(conn->qc, alert);
-	HA_ATOMIC_STORE(&conn->qc->flags, QUIC_FL_CONN_IMMEDIATE_CLOSE);
+	TRACE_DEVEL("SSL alert", QUIC_EV_CONN_SSLALERT, qc, &alert, &level);
+	quic_set_tls_alert(qc, alert);
+	HA_ATOMIC_STORE(&qc->flags, QUIC_FL_CONN_IMMEDIATE_CLOSE);
 	return 1;
 }
 
@@ -5384,7 +5381,7 @@ static int qc_ssl_sess_init(struct quic_conn *qc, SSL_CTX *ssl_ctx, SSL **ssl,
 	}
 
 	if (!SSL_set_quic_method(*ssl, &ha_quic_method) ||
-	    !SSL_set_ex_data(*ssl, ssl_app_data_index, qc->conn) ||
+	    !SSL_set_ex_data(*ssl, ssl_qc_app_data_index, qc) ||
 	    !SSL_set_quic_transport_params(*ssl, qc->enc_params, qc->enc_params_len)) {
 			goto err;
 
