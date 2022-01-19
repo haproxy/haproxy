@@ -2745,7 +2745,7 @@ int qc_send_ppkts(struct qring *qr, struct ssl_sock_ctx *ctx)
 		TRACE_PROTO("to send", QUIC_EV_CONN_SPPKTS, qc);
 		for (pkt = first_pkt; pkt; pkt = pkt->next)
 			quic_tx_packet_refinc(pkt);
-		if (ctx->xprt->snd_buf(qc->conn, qc->xprt_ctx,
+		if (ctx->xprt->snd_buf(NULL, qc->xprt_ctx,
 		                       &tmpbuf, tmpbuf.data, 0) <= 0) {
 			for (pkt = first_pkt; pkt; pkt = pkt->next)
 				quic_tx_packet_refdec(pkt);
@@ -4489,6 +4489,8 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 			if (qc == NULL)
 				goto err;
 
+			memcpy(&qc->peer_addr, &pkt->saddr, sizeof(pkt->saddr));
+
 			odcid = &qc->rx.params.original_destination_connection_id;
 			/* Copy the transport parameters. */
 			qc->rx.params = l->bind_conf->quic_params;
@@ -5372,12 +5374,7 @@ static size_t quic_conn_from_buf(struct connection *conn, void *xprt_ctx, const 
 	ssize_t ret;
 	size_t try, done;
 	int send_flag;
-
-	if (!conn_ctrl_ready(conn))
-		return 0;
-
-	if (!fd_send_ready(conn->handle.fd))
-		return 0;
+	struct quic_conn *qc = ((struct ssl_sock_ctx *)xprt_ctx)->qc;
 
 	done = 0;
 	/* send the largest possible block. For this we perform only one call
@@ -5393,30 +5390,22 @@ static size_t quic_conn_from_buf(struct connection *conn, void *xprt_ctx, const 
 		if (try < count || flags & CO_SFL_MSG_MORE)
 			send_flag |= MSG_MORE;
 
-		ret = sendto(conn->handle.fd, b_peek(buf, done), try, send_flag,
-		             (struct sockaddr *)conn->dst, get_addr_len(conn->dst));
+		ret = sendto(qc->li->rx.fd, b_peek(buf, done), try, send_flag,
+		             (struct sockaddr *)&qc->peer_addr, get_addr_len(&qc->peer_addr));
 		if (ret > 0) {
 			count -= ret;
 			done += ret;
 
-			/* A send succeeded, so we can consider ourself connected */
-			conn->flags |= CO_FL_WAIT_L4L6;
-			/* if the system buffer is full, don't insist */
 			if (ret < try)
 				break;
 		}
 		else if (ret == 0 || errno == EAGAIN || errno == ENOTCONN || errno == EINPROGRESS) {
-			/* nothing written, we need to poll for write first */
-			fd_cant_send(conn->handle.fd);
-			break;
+			ABORT_NOW();
 		}
 		else if (errno != EINTR) {
-			conn->flags |= CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH;
-			break;
+			ABORT_NOW();
 		}
 	}
-	if (unlikely(conn->flags & CO_FL_WAIT_L4_CONN) && done)
-		conn->flags &= ~CO_FL_WAIT_L4_CONN;
 
 	if (done > 0) {
 		/* we count the total bytes sent, and the send rate for 32-byte

@@ -680,6 +680,8 @@ struct quic_conn {
 
 	struct ssl_sock_ctx *xprt_ctx;
 
+	struct sockaddr_storage peer_addr;
+
 	/* Used only to reach the tasklet for the I/O handler from this quic_conn object. */
 	struct connection *conn;
 	/* Output buffer used during the handshakes. */
