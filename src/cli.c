@@ -1077,6 +1077,17 @@ static void cli_io_handler(struct appctx *appctx)
 			appctx->st0 = CLI_ST_GETREQ;
 			/* reactivate the \n at the end of the response for the next command */
 			appctx->st1 &= ~APPCTX_CLI_ST1_NOLF;
+
+			/* this forces us to yield between pipelined commands and
+			 * avoid extremely long latencies (e.g. "del map" etc). In
+			 * addition this increases the likelihood that the stream
+			 * refills the buffer with new bytes in non-interactive
+			 * mode, avoiding to close on apparently empty commands.
+			 */
+			if (co_data(si_oc(si))) {
+				appctx_wakeup(appctx);
+				goto out;
+			}
 		}
 	}
 
