@@ -43,33 +43,37 @@ void cs_free(struct conn_stream *cs)
 }
 
 
-/* Attaches a conn_stream to an endpoint and sets the endpoint ctx */
-void cs_attach_endp(struct conn_stream *cs, enum obj_type *endp, void *ctx)
+/* Attaches a conn_stream to an mux endpoint and sets the endpoint ctx */
+void cs_attach_endp_mux(struct conn_stream *cs, void *endp, void *ctx)
 {
-	struct connection *conn;
-	struct appctx *appctx;
+	struct connection *conn = ctx;
 
 	cs->end = endp;
 	cs->ctx = ctx;
-	if ((conn = objt_conn(endp)) != NULL) {
-		if (!conn->ctx)
-			conn->ctx = cs;
-		if (cs_strm(cs)) {
-			cs->si->ops = &si_conn_ops;
-			cs->data_cb = &si_conn_cb;
-		}
-		else if (cs_check(cs))
-			cs->data_cb = &check_conn_cb;
-		cs->flags |= CS_FL_ENDP_MUX;
+	if (!conn->ctx)
+		conn->ctx = cs;
+	if (cs_strm(cs)) {
+		cs->si->ops = &si_conn_ops;
+		cs->data_cb = &si_conn_cb;
 	}
-	else if ((appctx = objt_appctx(endp)) != NULL) {
-		appctx->owner = cs;
-		if (cs->si) {
-			cs->si->ops = &si_applet_ops;
-			cs->data_cb = NULL;
-		}
-		cs->flags |= CS_FL_ENDP_APP;
+	else if (cs_check(cs))
+		cs->data_cb = &check_conn_cb;
+	cs->flags |= CS_FL_ENDP_MUX;
+}
+
+/* Attaches a conn_stream to an applet endpoint and sets the endpoint ctx */
+void cs_attach_endp_app(struct conn_stream *cs, void *endp, void *ctx)
+{
+	struct appctx *appctx = endp;
+
+	cs->end = endp;
+	cs->ctx = ctx;
+	appctx->owner = cs;
+	if (cs->si) {
+		cs->si->ops = &si_applet_ops;
+		cs->data_cb = NULL;
 	}
+	cs->flags |= CS_FL_ENDP_APP;
 }
 
 /* Attaches a conn_stream to a app layer and sets the relevant callbacks */

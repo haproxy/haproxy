@@ -988,7 +988,7 @@ enum act_return process_use_service(struct act_rule *rule, struct proxy *px,
 		if (unlikely(!appctx))
 			return ACT_RET_ERR;
 
-		/* Initialise the context. */
+		/* Finish initialisation of the context. */
 		memset(&appctx->ctx, 0, sizeof(appctx->ctx));
 		appctx->rule = rule;
 		if (appctx->applet->init && !appctx->applet->init(appctx))
@@ -3275,7 +3275,7 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 			     strm->csb->si->err_type, strm->csb->si->wait_event.events);
 
 		cs = strm->csf;
-		chunk_appendf(&trash, "  cs=%p csf=0x%08x ctx=%p\n", cs, cs->flags, cs->ctx);
+		chunk_appendf(&trash, "  cs=%p csf=0x%08x endp=%p\n", cs, cs->flags, cs->end);
 
 		if ((conn = cs_conn(cs)) != NULL) {
 			chunk_appendf(&trash,
@@ -3311,7 +3311,7 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 		}
 
 		cs = strm->csb;
-		chunk_appendf(&trash, "  cs=%p csf=0x%08x ctx=%p\n", cs, cs->flags, cs->ctx);
+		chunk_appendf(&trash, "  cs=%p csf=0x%08x end=%p\n", cs, cs->flags, cs->end);
 		if ((conn = cs_conn(cs)) != NULL) {
 			chunk_appendf(&trash,
 			              "      co1=%p ctrl=%s xprt=%s mux=%s data=%s target=%s:%p\n",

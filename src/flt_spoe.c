@@ -2031,7 +2031,7 @@ spoe_create_appctx(struct spoe_config *conf)
 	if ((strm = stream_new(sess, cs, &BUF_NULL)) == NULL)
 		goto out_free_sess;
 
-	cs_attach_endp(cs, &appctx->obj_type, appctx);
+	cs_attach_endp_app(cs, appctx, appctx);
 	stream_set_backend(strm, conf->agent->b.be);
 
 	/* applet is waiting for data */

@@ -1495,7 +1495,6 @@ static int connect_server(struct stream *s)
 			}
 
 			if (avail >= 1) {
-				cs_attach_endp(s->csb, &srv_conn->obj_type, srv_conn);
 				if (srv_conn->mux->attach(srv_conn, s->csb, s->sess) == -1) {
 					cs_detach_endp(s->csb);
 					srv_conn = NULL;
@@ -1571,7 +1570,7 @@ skip_reuse:
 			return SF_ERR_INTERNAL;  /* how did we get there ? */
 		}
 
-		cs_attach_endp(s->csb, &srv_conn->obj_type, srv_conn);
+		cs_attach_endp_mux(s->csb, NULL, srv_conn);
 #if defined(USE_OPENSSL) && defined(TLSEXT_TYPE_application_layer_protocol_negotiation)
 		if (!srv ||
 		    (srv->use_ssl != 1 || (!(srv->ssl_ctx.alpn_str) && !(srv->ssl_ctx.npn_str)) ||

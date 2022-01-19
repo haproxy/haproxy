@@ -296,7 +296,7 @@ static int mux_pt_init(struct connection *conn, struct proxy *prx, struct sessio
 			TRACE_ERROR("CS allocation failure", PT_EV_STRM_NEW|PT_EV_STRM_END|PT_EV_STRM_ERR, conn);
 			goto fail_free_ctx;
 		}
-		cs_attach_endp(cs, &conn->obj_type, NULL);
+		cs_attach_endp_mux(cs, ctx, conn);
 
 		if (!stream_new(conn->owner, cs, &BUF_NULL)) {
 			TRACE_ERROR("stream creation failure", PT_EV_STRM_NEW|PT_EV_STRM_END|PT_EV_STRM_ERR, conn, cs);
@@ -372,6 +372,7 @@ static int mux_pt_attach(struct connection *conn, struct conn_stream *cs, struct
 	TRACE_ENTER(PT_EV_STRM_NEW, conn);
 	if (ctx->wait_event.events)
 		conn->xprt->unsubscribe(ctx->conn, conn->xprt_ctx, SUB_RETRY_RECV, &ctx->wait_event);
+	cs_attach_endp_mux(cs, ctx, conn);
 	ctx->cs = cs;
 	cs->flags |= CS_FL_RCV_MORE;
 
@@ -413,6 +414,9 @@ static void mux_pt_detach(struct conn_stream *cs)
 	ctx = conn->ctx;
 
 	TRACE_ENTER(PT_EV_STRM_END, conn, cs);
+
+	cs->end = NULL;
+	cs->ctx = NULL;
 
 	/* Subscribe, to know if we got disconnected */
 	if (!conn_is_back(conn) && conn->owner != NULL &&

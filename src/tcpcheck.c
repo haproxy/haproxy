@@ -1101,7 +1101,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 		TRACE_ERROR("conn-stream allocation error", CHK_EV_TCPCHK_CONN|CHK_EV_TCPCHK_ERR, check);
 		goto out;
 	}
-	cs_attach_endp(check->cs, &conn->obj_type, conn);
+	cs_attach_endp_mux(check->cs, NULL, conn);
 	tasklet_set_tid(check->wait_list.tasklet, tid);
 	conn_set_owner(conn, check->sess, NULL);
 

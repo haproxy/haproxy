@@ -671,7 +671,7 @@ static struct appctx *sink_forward_session_create(struct sink *sink, struct sink
 	if (!sockaddr_alloc(&cs_si(s->csb)->dst, &sft->srv->addr, sizeof(sft->srv->addr)))
 		goto out_free_strm;
 
-	cs_attach_endp(cs, &appctx->obj_type, appctx);
+	cs_attach_endp_app(cs, appctx, appctx);
 	s->flags = SF_ASSIGNED|SF_ADDR_SET;
 	cs_si(s->csb)->flags |= SI_FL_NOLINGER;
 

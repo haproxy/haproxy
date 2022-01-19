@@ -95,11 +95,11 @@ struct conn_stream {
 	enum obj_type obj_type;              /* differentiates connection from applet context */
 	/* 3 bytes hole here */
 	unsigned int flags;                  /* CS_FL_* */
-	enum obj_type *end;                  /* points to the end point (connection or appctx) */
+	void *end;                           /* points to the end point (MUX stream or appctx) */
 	enum obj_type *app;                  /* points to the applicative point (stream or check) */
 	struct stream_interface *si;
 	const struct data_cb *data_cb;       /* data layer callbacks. Must be set before xprt->init() */
-	void *ctx;                           /* mux-specific context */
+	void *ctx;                           /* endpoint-specific context */
 };
 
 

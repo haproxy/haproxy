@@ -529,7 +529,7 @@ struct appctx *httpclient_start(struct httpclient *hc)
 			break;
 	}
 
-	cs_attach_endp(cs, &appctx->obj_type, appctx);
+	cs_attach_endp_app(cs, appctx, appctx);
 	s->flags |= SF_ASSIGNED|SF_ADDR_SET;
 	cs_si(s->csb)->flags |= SI_FL_NOLINGER;
 	s->res.flags |= CF_READ_DONTWAIT;

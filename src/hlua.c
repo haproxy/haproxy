@@ -2975,7 +2975,7 @@ __LJMP static int hlua_socket_new(lua_State *L)
 		goto out_fail_sess;
 	}
 
-	cs_attach_endp(cs, &appctx->obj_type, appctx);
+	cs_attach_endp_app(cs, appctx, appctx);
 
 	/* Initialise cross reference between stream and Lua socket object. */
 	xref_create(&socket->xref, &appctx->ctx.hlua_cosocket.xref);

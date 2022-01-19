@@ -110,10 +110,8 @@ static inline struct conn_stream *qc_attach_cs(struct qcs *qcs, struct buffer *b
 	struct conn_stream *cs = cs_new();
 	if (!cs)
 		return NULL;
-	cs_attach_endp(cs, &qcs->qcc->conn->obj_type, qcs);
-
+	cs_attach_endp_mux(cs, qcs, qcs->qcc->conn);
 	qcs->cs = cs;
-	cs->ctx = qcs;
 	stream_new(qcs->qcc->conn->owner, cs, buf);
 
 	++qcs->qcc->nb_cs;

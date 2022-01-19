@@ -342,7 +342,7 @@ struct appctx *si_register_handler(struct stream_interface *si, struct applet *a
 	appctx = appctx_new(app, si->cs);
 	if (!appctx)
 		return NULL;
-	cs_attach_endp(si->cs, &appctx->obj_type, appctx);
+	cs_attach_endp_app(si->cs, appctx, appctx);
 	appctx->t->nice = si_strm(si)->task->nice;
 	si_cant_get(si);
 	appctx_wakeup(appctx);

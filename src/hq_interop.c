@@ -75,6 +75,7 @@ static int hq_interop_decode_qcs(struct qcs *qcs, int fin, void *ctx)
 	if (!cs)
 		return -1;
 
+
 	b_del(rxbuf, b_data(rxbuf));
 	b_free(&htx_buf);
 
@@ -95,7 +96,7 @@ static struct buffer *mux_get_buf(struct qcs *qcs)
 static size_t hq_interop_snd_buf(struct conn_stream *cs, struct buffer *buf,
                                  size_t count, int flags)
 {
-	struct qcs *qcs = cs->ctx;
+	struct qcs *qcs = cs->end;
 	struct htx *htx;
 	enum htx_blk_type btype;
 	struct htx_blk *blk;

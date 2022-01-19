@@ -1056,7 +1056,7 @@ static int qc_init(struct connection *conn, struct proxy *prx,
 
 static void qc_detach(struct conn_stream *cs)
 {
-	struct qcs *qcs = cs->ctx;
+	struct qcs *qcs = cs->end;
 	struct qcc *qcc = qcs->qcc;
 
 	TRACE_ENTER(QMUX_EV_STRM_END, qcc->conn, qcs);
@@ -1092,7 +1092,7 @@ static void qc_detach(struct conn_stream *cs)
 static size_t qc_rcv_buf(struct conn_stream *cs, struct buffer *buf,
                          size_t count, int flags)
 {
-	struct qcs *qcs = cs->ctx;
+	struct qcs *qcs = cs->end;
 	struct htx *qcs_htx = NULL;
 	struct htx *cs_htx = NULL;
 	size_t ret = 0;
@@ -1160,7 +1160,7 @@ static size_t qc_rcv_buf(struct conn_stream *cs, struct buffer *buf,
 static size_t qc_snd_buf(struct conn_stream *cs, struct buffer *buf,
                          size_t count, int flags)
 {
-	struct qcs *qcs = cs->ctx;
+	struct qcs *qcs = cs->end;
 	size_t ret;
 
 	TRACE_ENTER(QMUX_EV_STRM_SEND, qcs->qcc->conn, qcs);
@@ -1180,7 +1180,7 @@ static size_t qc_snd_buf(struct conn_stream *cs, struct buffer *buf,
 static int qc_subscribe(struct conn_stream *cs, int event_type,
                         struct wait_event *es)
 {
-	return qcs_subscribe(cs->ctx, event_type, es);
+	return qcs_subscribe(cs->end, event_type, es);
 }
 
 /* Called from the upper layer, to unsubscribe <es> from events <event_type>.
@@ -1189,7 +1189,7 @@ static int qc_subscribe(struct conn_stream *cs, int event_type,
  */
 static int qc_unsubscribe(struct conn_stream *cs, int event_type, struct wait_event *es)
 {
-	struct qcs *qcs = cs->ctx;
+	struct qcs *qcs = cs->end;
 
 	BUG_ON(event_type & ~(SUB_RETRY_SEND|SUB_RETRY_RECV));
 	BUG_ON(qcs->subs && qcs->subs != es);

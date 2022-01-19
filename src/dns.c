@@ -917,7 +917,7 @@ static struct appctx *dns_session_create(struct dns_session *ds)
 	if (!sockaddr_alloc(&cs_si(s->csb)->dst, &ds->dss->srv->addr, sizeof(ds->dss->srv->addr)))
 		goto out_free_strm;
 
-	cs_attach_endp(cs, &appctx->obj_type, appctx);
+	cs_attach_endp_app(cs, appctx, appctx);
 	s->flags = SF_ASSIGNED|SF_ADDR_SET;
 	cs_si(s->csb)->flags |= SI_FL_NOLINGER;
 

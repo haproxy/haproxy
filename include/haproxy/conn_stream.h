@@ -36,7 +36,8 @@ struct check;
 
 struct conn_stream *cs_new();
 void cs_free(struct conn_stream *cs);
-void cs_attach_endp(struct conn_stream *cs, enum obj_type *endp, void *ctx);
+void cs_attach_endp_mux(struct conn_stream *cs, void *endp, void *ctx);
+void cs_attach_endp_app(struct conn_stream *cs, void *endp, void *ctx);
 int cs_attach_app(struct conn_stream *cs, enum obj_type *app);
 void cs_detach_endp(struct conn_stream *cs);
 void cs_detach_app(struct conn_stream *cs);
@@ -55,13 +56,13 @@ static inline void cs_init(struct conn_stream *cs)
 	cs->data_cb = NULL;
 }
 
-/* Returns the connection from a cs if the endpoint is a connection. Otherwise
+/* Returns the connection from a cs if the endpoint is a mux stream. Otherwise
  * NULL is returned. __cs_conn() returns the connection without any control
  * while cs_conn() check the endpoint type.
  */
 static inline struct connection *__cs_conn(const struct conn_stream *cs)
 {
-	return __objt_conn(cs->end);
+	return cs->ctx;
 }
 static inline struct connection *cs_conn(const struct conn_stream *cs)
 {
@@ -70,8 +71,8 @@ static inline struct connection *cs_conn(const struct conn_stream *cs)
 	return NULL;
 }
 
-/* Returns the mux of the connection from a cs if the endpoint is a
- * connection. Otherwise NULL is returned.
+/* Returns the mux ops of the connection from a cs if the endpoint is a
+ * mux stream. Otherwise NULL is returned.
  */
 static inline const struct mux_ops *cs_conn_mux(const struct conn_stream *cs)
 {
@@ -86,7 +87,7 @@ static inline const struct mux_ops *cs_conn_mux(const struct conn_stream *cs)
  */
 static inline struct appctx *__cs_appctx(const struct conn_stream *cs)
 {
-	return __objt_appctx(cs->end);
+	return cs->end;
 }
 static inline struct appctx *cs_appctx(const struct conn_stream *cs)
 {

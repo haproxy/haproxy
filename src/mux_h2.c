@@ -1606,7 +1606,7 @@ static struct h2s *h2c_frt_stream_new(struct h2c *h2c, int id, struct buffer *in
 	if (!cs)
 		goto out_close;
 	cs->flags |= CS_FL_NOT_FIRST;
-	cs_attach_endp(cs, &h2c->conn->obj_type, h2s);
+	cs_attach_endp_mux(cs, h2s, h2c->conn);
 	h2s->cs = cs;
 	h2c->nb_cs++;
 
@@ -1676,9 +1676,9 @@ static struct h2s *h2c_bck_stream_new(struct h2c *h2c, struct conn_stream *cs, s
 	if (!h2s)
 		goto out;
 
+	cs_attach_endp_mux(cs, h2s, h2c->conn);
 	h2s->cs = cs;
 	h2s->sess = sess;
-	cs->ctx = h2s;
 	h2c->nb_cs++;
 
  out:
@@ -4349,12 +4349,13 @@ static void h2_destroy(void *ctx)
  */
 static void h2_detach(struct conn_stream *cs)
 {
-	struct h2s *h2s = cs->ctx;
+	struct h2s *h2s = cs->end;
 	struct h2c *h2c;
 	struct session *sess;
 
 	TRACE_ENTER(H2_EV_STRM_END, h2s ? h2s->h2c->conn : NULL, h2s);
 
+	cs->end = NULL;
 	cs->ctx = NULL;
 	if (!h2s) {
 		TRACE_LEAVE(H2_EV_STRM_END);
@@ -4669,7 +4670,7 @@ struct task *h2_deferred_shut(struct task *t, void *ctx, unsigned int state)
 /* shutr() called by the conn_stream (mux_ops.shutr) */
 static void h2_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
 {
-	struct h2s *h2s = cs->ctx;
+	struct h2s *h2s = cs->end;
 
 	TRACE_ENTER(H2_EV_STRM_SHUT, h2s->h2c->conn, h2s);
 	if (cs->flags & CS_FL_KILL_CONN)
@@ -4684,7 +4685,7 @@ static void h2_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
 /* shutw() called by the conn_stream (mux_ops.shutw) */
 static void h2_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
 {
-	struct h2s *h2s = cs->ctx;
+	struct h2s *h2s = cs->end;
 
 	TRACE_ENTER(H2_EV_STRM_SHUT, h2s->h2c->conn, h2s);
 	if (cs->flags & CS_FL_KILL_CONN)
@@ -6361,7 +6362,7 @@ static size_t h2s_make_trailers(struct h2s *h2s, struct htx *htx)
  */
 static int h2_subscribe(struct conn_stream *cs, int event_type, struct wait_event *es)
 {
-	struct h2s *h2s = cs->ctx;
+	struct h2s *h2s = cs->end;
 	struct h2c *h2c = h2s->h2c;
 
 	TRACE_ENTER(H2_EV_STRM_SEND|H2_EV_STRM_RECV, h2c->conn, h2s);
@@ -6395,7 +6396,7 @@ static int h2_subscribe(struct conn_stream *cs, int event_type, struct wait_even
  */
 static int h2_unsubscribe(struct conn_stream *cs, int event_type, struct wait_event *es)
 {
-	struct h2s *h2s = cs->ctx;
+	struct h2s *h2s = cs->end;
 
 	TRACE_ENTER(H2_EV_STRM_SEND|H2_EV_STRM_RECV, h2s->h2c->conn, h2s);
 
@@ -6435,7 +6436,7 @@ static int h2_unsubscribe(struct conn_stream *cs, int event_type, struct wait_ev
  */
 static size_t h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t count, int flags)
 {
-	struct h2s *h2s = cs->ctx;
+	struct h2s *h2s = cs->end;
 	struct h2c *h2c = h2s->h2c;
 	struct htx *h2s_htx = NULL;
 	struct htx *buf_htx = NULL;
@@ -6518,7 +6519,7 @@ static size_t h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
  */
 static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t count, int flags)
 {
-	struct h2s *h2s = cs->ctx;
+	struct h2s *h2s = cs->end;
 	size_t total = 0;
 	size_t ret;
 	struct htx *htx;
