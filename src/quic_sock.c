@@ -222,3 +222,67 @@ void quic_sock_fd_iocb(int fd)
  out:
 	MT_LIST_APPEND(&l->rx.rxbuf_list, &rxbuf->mt_list);
 }
+
+
+/*********************** QUIC accept queue management ***********************/
+/* per-thread accept queues */
+struct quic_accept_queue *quic_accept_queues;
+
+/* Tasklet handler to accept QUIC connections. Call listener_accept on every
+ * listener instances registered in the accept queue.
+ */
+static struct task *quic_accept_run(struct task *t, void *ctx, unsigned int i)
+{
+	struct li_per_thread *lthr;
+	struct mt_list *elt1, elt2;
+	struct quic_accept_queue *queue = &quic_accept_queues[tid];
+
+	mt_list_for_each_entry_safe(lthr, &queue->listeners, quic_accept.list, elt1, elt2) {
+		listener_accept(lthr->li);
+		MT_LIST_DELETE_SAFE(elt1);
+	}
+
+	return NULL;
+}
+
+static int quic_alloc_accept_queues(void)
+{
+	int i;
+
+	quic_accept_queues = calloc(global.nbthread, sizeof(struct quic_accept_queue));
+	if (!quic_accept_queues) {
+		ha_alert("Failed to allocate the quic accept queues.\n");
+		return 0;
+	}
+
+	for (i = 0; i < global.nbthread; ++i) {
+		struct tasklet *task;
+		if (!(task = tasklet_new())) {
+			ha_alert("Failed to allocate the quic accept queue on thread %d.\n", i);
+			return 0;
+		}
+
+		tasklet_set_tid(task, i);
+		task->process = quic_accept_run;
+		quic_accept_queues[i].tasklet = task;
+
+		MT_LIST_INIT(&quic_accept_queues[i].listeners);
+	}
+
+	return 1;
+}
+REGISTER_POST_CHECK(quic_alloc_accept_queues);
+
+static int quic_deallocate_accept_queues(void)
+{
+	int i;
+
+	if (quic_accept_queues) {
+		for (i = 0; i < global.nbthread; ++i)
+			tasklet_free(quic_accept_queues[i].tasklet);
+		free(quic_accept_queues);
+	}
+
+	return 1;
+}
+REGISTER_POST_DEINIT(quic_deallocate_accept_queues);

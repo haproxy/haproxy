@@ -525,6 +525,7 @@ static void quic_add_listener(struct protocol *proto, struct listener *listener)
 	listener->rx.cids = EB_ROOT_UNIQUE;
 	listener->rx.flags |= RX_F_LOCAL_ACCEPT;
 	HA_RWLOCK_INIT(&listener->rx.cids_lock);
+
 	default_add_listener(proto, listener);
 }
 
