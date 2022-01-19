@@ -1592,6 +1592,17 @@ static inline void qc_treat_newly_acked_pkts(struct quic_conn *qc,
 
 }
 
+/* Release all the frames attached to <pktns> packet number space */
+static inline void qc_release_pktns_frms(struct quic_pktns *pktns)
+{
+	struct quic_frame *frm, *frmbak;
+
+	list_for_each_entry_safe(frm, frmbak, &pktns->tx.frms, list) {
+		LIST_DELETE(&frm->list);
+		pool_free(pool_head_quic_frame, frm);
+	}
+}
+
 /* Handle <pkts> list of lost packets detected at <now_us> handling
  * their TX frames.
  * Send a packet loss event to the congestion controller if
@@ -2467,6 +2478,7 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct ssl_sock_ctx *ct
 		    quic_pktns_discard(qc->els[QUIC_TLS_ENC_LEVEL_INITIAL].pktns, qc);
 		    qc_set_timer(ctx->qc);
 		    qc_el_rx_pkts_del(&qc->els[QUIC_TLS_ENC_LEVEL_INITIAL]);
+		    qc_release_pktns_frms(qc->els[QUIC_TLS_ENC_LEVEL_INITIAL].pktns);
 		    if (state < QUIC_HS_ST_SERVER_HANDSHAKE)
 			    HA_ATOMIC_STORE(&qc->state, QUIC_HS_ST_SERVER_HANDSHAKE);
 	    }
@@ -2623,6 +2635,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct qring *qr,
 			quic_pktns_discard(qc->els[QUIC_TLS_ENC_LEVEL_INITIAL].pktns, qc);
 			qc_set_timer(qc);
 			qc_el_rx_pkts_del(&qc->els[QUIC_TLS_ENC_LEVEL_INITIAL]);
+			qc_release_pktns_frms(qc->els[QUIC_TLS_ENC_LEVEL_INITIAL].pktns);
 			HA_ATOMIC_STORE(&qc->state, QUIC_HS_ST_CLIENT_HANDSHAKE);
 		}
 		/* If the data for the current encryption level have all been sent,
@@ -3244,6 +3257,7 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 			quic_pktns_discard(qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE].pktns, qc);
 			qc_set_timer(qc);
 			qc_el_rx_pkts_del(&qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE]);
+			qc_release_pktns_frms(qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE].pktns);
 		}
 
 		if (qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE].pktns->flags & QUIC_FL_PKTNS_ACK_REQUIRED) {
