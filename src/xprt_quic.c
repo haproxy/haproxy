@@ -3403,19 +3403,28 @@ static void quic_conn_drop(struct quic_conn *qc)
 /* Release the quic_conn <qc>. It will decrement its refcount so that the
  * connection will be freed once all threads have finished to work with it. The
  * connection is removed from the CIDs tree and thus cannot be found by other
- * threads after it.
+ * threads after it. The connection tasklet is killed.
  *
  * Do not use <qc> after it as it may be freed. This function must only be
  * called by the thread responsible of the quic_conn tasklet.
  */
 static void quic_conn_release(struct quic_conn *qc)
 {
+	struct ssl_sock_ctx *conn_ctx;
+
 	/* remove the connection from receiver cids trees */
 	HA_RWLOCK_WRLOCK(QUIC_LOCK, &qc->li->rx.cids_lock);
 	ebmb_delete(&qc->odcid_node);
 	ebmb_delete(&qc->scid_node);
 	free_quic_conn_cids(qc);
 	HA_RWLOCK_WRUNLOCK(QUIC_LOCK, &qc->li->rx.cids_lock);
+
+	/* Kill the tasklet. Do not use tasklet_free as this is not thread safe
+	 * as other threads may call tasklet_wakeup after this.
+	 */
+	conn_ctx = HA_ATOMIC_LOAD(&qc->xprt_ctx);
+	if (conn_ctx)
+		tasklet_kill(conn_ctx->wait_event.tasklet);
 
 	quic_conn_drop(qc);
 }
@@ -3430,11 +3439,6 @@ void quic_close(struct connection *conn, void *xprt_ctx)
 	if (qc->timer_task) {
 		task_destroy(qc->timer_task);
 		qc->timer_task = NULL;
-	}
-
-	if (conn_ctx->wait_event.tasklet) {
-		tasklet_free(conn_ctx->wait_event.tasklet);
-		conn_ctx->wait_event.tasklet = NULL;
 	}
 
 	TRACE_LEAVE(QUIC_EV_CONN_CLOSE, qc);
