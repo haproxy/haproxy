@@ -2278,8 +2278,8 @@ int pcli_find_and_exec_kw(struct stream *s, char **args, int argl, char **errmsg
  */
 int pcli_parse_request(struct stream *s, struct channel *req, char **errmsg, int *next_pid)
 {
-	char *str = (char *)ci_head(req);
-	char *end = (char *)ci_stop(req);
+	char *str;
+	char *end;
 	char *args[MAX_CLI_ARGS + 1]; /* +1 for storing a NULL */
 	int argl; /* number of args */
 	char *p;
@@ -2289,6 +2289,15 @@ int pcli_parse_request(struct stream *s, struct channel *req, char **errmsg, int
 	int reql = 0;
 	int ret;
 	int i = 0;
+
+	/* we cannot deal with a wrapping buffer, so let's take care of this
+	 * first.
+	 */
+	if (b_head(&req->buf) + b_data(&req->buf) > b_wrap(&req->buf))
+		b_slow_realign(&req->buf, trash.area, co_data(req));
+
+	str = (char *)ci_head(req);
+	end = (char *)ci_stop(req);
 
 	p = str;
 
