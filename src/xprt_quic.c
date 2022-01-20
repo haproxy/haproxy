@@ -3385,17 +3385,8 @@ static void quic_conn_drop(struct quic_conn *qc)
 	if (!qc)
 		return;
 
-	HA_RWLOCK_WRLOCK(QUIC_LOCK, &qc->li->rx.cids_lock);
-	if (HA_ATOMIC_FETCH_SUB(&qc->refcount, 1)) {
-		HA_RWLOCK_WRUNLOCK(QUIC_LOCK, &qc->li->rx.cids_lock);
+	if (HA_ATOMIC_FETCH_SUB(&qc->refcount, 1))
 		return;
-	}
-
-	/* remove the connection from receiver cids trees */
-	ebmb_delete(&qc->odcid_node);
-	ebmb_delete(&qc->scid_node);
-	free_quic_conn_cids(qc);
-	HA_RWLOCK_WRUNLOCK(QUIC_LOCK, &qc->li->rx.cids_lock);
 
 	conn_ctx = HA_ATOMIC_LOAD(&qc->xprt_ctx);
 	if (conn_ctx)
@@ -3407,6 +3398,26 @@ static void quic_conn_drop(struct quic_conn *qc)
 	pool_free(pool_head_quic_conn_rxbuf, qc->rx.buf.area);
 	pool_free(pool_head_quic_conn, qc);
 	TRACE_PROTO("QUIC conn. freed", QUIC_EV_CONN_FREED, qc);
+}
+
+/* Release the quic_conn <qc>. It will decrement its refcount so that the
+ * connection will be freed once all threads have finished to work with it. The
+ * connection is removed from the CIDs tree and thus cannot be found by other
+ * threads after it.
+ *
+ * Do not use <qc> after it as it may be freed. This function must only be
+ * called by the thread responsible of the quic_conn tasklet.
+ */
+static void quic_conn_release(struct quic_conn *qc)
+{
+	/* remove the connection from receiver cids trees */
+	HA_RWLOCK_WRLOCK(QUIC_LOCK, &qc->li->rx.cids_lock);
+	ebmb_delete(&qc->odcid_node);
+	ebmb_delete(&qc->scid_node);
+	free_quic_conn_cids(qc);
+	HA_RWLOCK_WRUNLOCK(QUIC_LOCK, &qc->li->rx.cids_lock);
+
+	quic_conn_drop(qc);
 }
 
 void quic_close(struct connection *conn, void *xprt_ctx)
@@ -3428,7 +3439,11 @@ void quic_close(struct connection *conn, void *xprt_ctx)
 
 	TRACE_LEAVE(QUIC_EV_CONN_CLOSE, qc);
 
-	quic_conn_drop(qc);
+	/* TODO for now release the quic_conn on notification by the upper
+	 * layer. It could be useful to delay it if there is remaining data to
+	 * send or data to be acked.
+	 */
+	quic_conn_release(qc);
 }
 
 /* Callback called upon loss detection and PTO timer expirations. */
