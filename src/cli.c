@@ -2324,7 +2324,7 @@ int pcli_parse_request(struct stream *s, struct channel *req, char **errmsg, int
 	end = p + reql;
 
 	/* there is no end to this command, need more to parse ! */
-	if (*(end-1) != '\n') {
+	if (!reql || *(end-1) != '\n') {
 		return -1;
 	}
 
