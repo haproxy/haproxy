@@ -1628,9 +1628,14 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	si_sync_recv(si_f);
 	si_sync_recv(si_b);
 
-	rate = update_freq_ctr(&s->call_rate, 1);
-	if (rate >= 100000 && s->call_rate.prev_ctr) { // make sure to wait at least a full second
-		stream_dump_and_crash(&s->obj_type, read_freq_ctr(&s->call_rate));
+	/* Let's check if we're looping without making any progress, e.g. due
+	 * to a bogus analyser or the fact that we're ignoring a read0. The
+	 * call_rate counter only counts calls with no progress made.
+	 */
+	if (!((req->flags | res->flags) & (CF_READ_PARTIAL|CF_WRITE_PARTIAL))) {
+		rate = update_freq_ctr(&s->call_rate, 1);
+		if (rate >= 100000 && s->call_rate.prev_ctr) // make sure to wait at least a full second
+			stream_dump_and_crash(&s->obj_type, read_freq_ctr(&s->call_rate));
 	}
 
 	/* this data may be no longer valid, clear it */
