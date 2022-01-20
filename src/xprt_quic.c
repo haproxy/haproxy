@@ -3389,8 +3389,10 @@ static void quic_conn_drop(struct quic_conn *qc)
 		return;
 
 	conn_ctx = HA_ATOMIC_LOAD(&qc->xprt_ctx);
-	if (conn_ctx)
+	if (conn_ctx) {
+		SSL_free(conn_ctx->ssl);
 		pool_free(pool_head_quic_conn_ctx, conn_ctx);
+	}
 
 	for (i = 0; i < QUIC_TLS_ENC_LEVEL_MAX; i++)
 		quic_conn_enc_level_uninit(&qc->els[i]);
