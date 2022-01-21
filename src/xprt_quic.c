@@ -2444,6 +2444,8 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct ssl_sock_ctx *ct
 		case QUIC_FT_STREAMS_BLOCKED_UNI:
 			break;
 		case QUIC_FT_NEW_CONNECTION_ID:
+		case QUIC_FT_RETIRE_CONNECTION_ID:
+			/* XXX TO DO XXX */
 			break;
 		case QUIC_FT_CONNECTION_CLOSE:
 		case QUIC_FT_CONNECTION_CLOSE_APP:
