@@ -2574,6 +2574,14 @@ static int qc_prep_pkts(struct quic_conn *qc, struct qring *qr,
 			 */
 			if (prv_pkt)
 				qc_set_dg(cbuf, dglen, first_pkt);
+			/* Let's select the next encryption level */
+			if (tel != next_tel && next_tel != QUIC_TLS_ENC_LEVEL_NONE) {
+				tel = next_tel;
+				qel = &qc->els[tel];
+				/* Build a new datagram */
+				prv_pkt = NULL;
+				continue;
+			}
 			break;
 		}
 
