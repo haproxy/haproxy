@@ -177,6 +177,19 @@ Note:
  | 32-bytes long. This is the smallest size that a pool may be, and any smaller
  | size will automatically be rounded up to this size.
 
+When build option DEBUG_POOL_INTEGRITY is set, the area of the object between
+the two list elements and the end according to pool->size will be filled with
+pseudo-random words during pool_put_to_cache(), and these words will be
+compared between each other during pool_get_from_cache(), and the process will
+crash in case any bit differs, as this would indicate that the memory area was
+modified after the free. The pseudo-random pattern is in fact incremented by
+(~0)/3 upon each free so that roughly half of the bits change each time and we
+maximize the likelihood of detecting a single bit flip in either direction. In
+order to avoid an immediate reuse and maximize the time the object spends in
+the cache, when this option is set, objects are picked from the cache from the
+oldest one instead of the freshest one. This way even late memory corruptions
+have a chance to be detected.
+
 When build option DEBUG_MEMORY_POOLS is set, pool objects and allocated with
 one extra pointer compared to the requested size, so that the bytes that follow
 the memory area point to the pool descriptor itself as long as the object is
@@ -486,6 +499,19 @@ DEBUG_UAF
         and the performance degrades, but this allows to detect a lot of
         use-after-free conditions by crashing the program at the first abnormal
         access. This should not be used in production.
+
+DEBUG_POOL_INTEGRITY
+        When enabled, objects picked from the cache are checked for corruption
+        by comparing their contents against a pattern that was placed when they
+        were inserted into the cache. Objects are also allocated in the reverse
+        order, from the oldest one to the most recent, so as to maximize the
+        ability to detect such a corruption. The goal is to detect writes after
+        free (or possibly hardware memory corruptions). Contrary to DEBUG_UAF
+        this cannot detect reads after free, but may possibly detect later
+        corruptions and will not consume extra memory. The CPU usage will
+        increase a bit due to the cost of filling/checking the area and for the
+        preference for cold cache instead of hot cache, though not as much as
+        with DEBUG_UAF. This option is meant to be usable in production.
 
 DEBUG_MEM_STATS
         When enabled, all malloc/calloc/realloc/strdup/free calls are accounted

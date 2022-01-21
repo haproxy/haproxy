@@ -45,6 +45,9 @@
 struct pool_cache_head {
 	struct list list;    /* head of objects in this pool */
 	unsigned int count;  /* number of objects in this pool */
+#if defined(DEBUG_POOL_INTEGRITY)
+	ulong fill_pattern;  /* pattern used to fill the area on free */
+#endif
 } THREAD_ALIGNED(64);
 
 /* This represents one item stored in the thread-local cache. <by_pool> links

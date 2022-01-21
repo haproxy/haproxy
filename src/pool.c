@@ -319,6 +319,7 @@ static void pool_evict_last_items(struct pool_head *pool, struct pool_cache_head
 
 	while (released < count && !LIST_ISEMPTY(&ph->list)) {
 		item = LIST_PREV(&ph->list, typeof(item), by_pool);
+		pool_check_pattern(ph, item, pool->size);
 		LIST_DELETE(&item->by_pool);
 		LIST_DELETE(&item->by_lru);
 
@@ -399,6 +400,7 @@ void pool_put_to_cache(struct pool_head *pool, void *ptr)
 	LIST_INSERT(&ph->list, &item->by_pool);
 	LIST_INSERT(&th_ctx->pool_lru_head, &item->by_lru);
 	ph->count++;
+	pool_fill_pattern(ph, item, pool->size);
 	pool_cache_count++;
 	pool_cache_bytes += pool->size;
 
@@ -470,6 +472,7 @@ void pool_refill_local_from_shared(struct pool_head *pool, struct pool_cache_hea
 		LIST_INSERT(&pch->list, &item->by_pool);
 		LIST_INSERT(&th_ctx->pool_lru_head, &item->by_lru);
 		count++;
+		pool_fill_pattern(pch, item, pool->size);
 	}
 	HA_ATOMIC_ADD(&pool->used, count);
 	pch->count += count;
