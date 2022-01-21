@@ -3426,8 +3426,9 @@ void quic_close(struct connection *conn, void *xprt_ctx)
 		conn_ctx->wait_event.tasklet = NULL;
 	}
 
-	quic_conn_drop(qc);
 	TRACE_LEAVE(QUIC_EV_CONN_CLOSE, qc);
+
+	quic_conn_drop(qc);
 }
 
 /* Callback called upon loss detection and PTO timer expirations. */
