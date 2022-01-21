@@ -1,4 +1,7 @@
 #include <stdio.h>
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <errno.h>
 
 #include <haproxy/api.h>
 #include <haproxy/arg.h>
@@ -14,11 +17,16 @@
 #include <haproxy/tools.h>
 #include <dac.h>
 
+#define ATLASTOKSZ PATH_MAX
+#define ATLASMAPNM "/hapdeviceatlas"
+
 static struct {
 	void *atlasimgptr;
+	void *atlasmap;
 	char *jsonpath;
 	char *cookiename;
 	size_t cookienamelen;
+	int atlasfd;
 	da_atlas_t atlas;
 	da_evidence_id_t useragentid;
 	da_severity_t loglevel;
@@ -29,10 +37,14 @@ static struct {
 	.jsonpath = 0,
 	.cookiename = 0,
 	.cookienamelen = 0,
+	.atlasmap = NULL,
+	.atlasfd = -1,
 	.useragentid = 0,
 	.daset = 0,
 	.separator = '|',
 };
+
+__decl_thread(HA_SPINLOCK_T dadwsch_lock);
 
 static int da_json_file(char **args, int section_type, struct proxy *curpx,
                         const struct proxy *defpx, const char *file, int line,
@@ -163,6 +175,16 @@ static int init_deviceatlas(void)
 
 		global_deviceatlas.useragentid = da_atlas_header_evidence_id(&global_deviceatlas.atlas,
 			"user-agent");
+		if ((global_deviceatlas.atlasfd = shm_open(ATLASMAPNM, O_RDWR, 0660)) != -1) {
+			global_deviceatlas.atlasmap = mmap(NULL, ATLASTOKSZ, PROT_READ | PROT_WRITE, MAP_SHARED, global_deviceatlas.atlasfd, 0);
+			if (global_deviceatlas.atlasmap == MAP_FAILED) {
+				close(global_deviceatlas.atlasfd);
+				global_deviceatlas.atlasfd = -1;
+				global_deviceatlas.atlasmap = NULL;
+			} else {
+				fprintf(stdout, "Deviceatlas : scheduling support enabled.\n");
+			}
+		}
 		global_deviceatlas.daset = 1;
 
 		fprintf(stdout, "Deviceatlas module loaded.\n");
@@ -184,7 +206,56 @@ static void deinit_deviceatlas(void)
 		free(global_deviceatlas.atlasimgptr);
 	}
 
+	if (global_deviceatlas.atlasfd != -1) {
+		munmap(global_deviceatlas.atlasmap, ATLASTOKSZ);
+		close(global_deviceatlas.atlasfd);
+		shm_unlink(ATLASMAPNM);
+	}
+
 	da_fini();
+}
+
+static void da_haproxy_checkinst(void)
+{
+	if (global_deviceatlas.atlasmap != 0) {
+		char *base;
+		base = (char *)global_deviceatlas.atlasmap;
+
+		if (base[0] != 0) {
+			void *cnew;
+			size_t atlassz;
+			char atlasp[ATLASTOKSZ] = {0};
+			da_atlas_t inst;
+			da_property_decl_t extraprops[1] = {{NULL, 0}};
+#ifdef USE_THREAD
+			HA_SPIN_LOCK(OTHER_LOCK, &dadwsch_lock);
+#endif
+			strlcpy2(atlasp, base, sizeof(atlasp));
+			if (da_atlas_read_mapped(atlasp, NULL, &cnew, &atlassz) == DA_OK) {
+				if (da_atlas_open(&inst, extraprops, cnew, atlassz) == DA_OK) {
+					char jsonbuf[26];
+					time_t jsond;
+
+					da_atlas_close(&global_deviceatlas.atlas);
+					free(global_deviceatlas.atlasimgptr);
+					global_deviceatlas.atlasimgptr = cnew;
+					global_deviceatlas.atlas = inst;
+					memset(base, 0, ATLASTOKSZ);
+					jsond = da_getdatacreation(&global_deviceatlas.atlas);
+					ctime_r(&jsond, jsonbuf);
+					jsonbuf[24] = 0;
+					printf("deviceatlas: new instance, data file date `%s`.\n", jsonbuf);
+				} else {
+					ha_warning("deviceatlas: instance update failed.\n");
+					memset(base, 0, ATLASTOKSZ);
+					free(cnew);
+				}
+			}
+#ifdef USE_THREAD
+			HA_SPIN_UNLOCK(OTHER_LOCK, &dadwsch_lock);
+#endif
+		}
+	}
 }
 
 static int da_haproxy(const struct arg *args, struct sample *smp, da_deviceinfo_t *devinfo)
@@ -272,6 +343,8 @@ static int da_haproxy_conv(const struct arg *args, struct sample *smp, void *pri
 		return 1;
 	}
 
+	da_haproxy_checkinst();
+
 	i = smp->data.u.str.data > sizeof(useragentbuf) ? sizeof(useragentbuf) : smp->data.u.str.data;
 	memcpy(useragentbuf, smp->data.u.str.area, i - 1);
 	useragentbuf[i - 1] = 0;
@@ -300,6 +373,8 @@ static int da_haproxy_fetch(const struct arg *args, struct sample *smp, const ch
 	if (global_deviceatlas.daset == 0) {
 		return 0;
 	}
+
+	da_haproxy_checkinst();
 
 	chn = (smp->strm ? &smp->strm->req : NULL);
 	htx = smp_prefetch_htx(smp, chn, NULL, 1);
