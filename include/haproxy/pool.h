@@ -97,6 +97,7 @@ void create_pool_callback(struct pool_head **ptr, char *name, unsigned int size)
 void *pool_destroy(struct pool_head *pool);
 void pool_destroy_all(void);
 int mem_should_fail(const struct pool_head *pool);
+void __pool_free(struct pool_head *pool, void *ptr);
 
 
 #ifdef CONFIG_HAP_POOLS
@@ -345,26 +346,15 @@ static inline void *pool_zalloc(struct pool_head *pool)
 }
 
 /*
- * Puts a memory area back to the corresponding pool.
- * Items are chained directly through a pointer that
- * is written in the beginning of the memory area, so
- * there's no need for any carrier cell. This implies
- * that each memory area is at least as big as one
- * pointer. Just like with the libc's free(), nothing
- * is done if <ptr> is NULL.
+ * Puts a memory area back to the corresponding pool. Just like with the libc's
+ * free(), <ptr> may be NULL.
  */
-static inline void pool_free(struct pool_head *pool, void *ptr)
-{
-        if (likely(ptr != NULL)) {
-		/* we'll get late corruption if we refill to the wrong pool or double-free */
-		POOL_DEBUG_CHECK_MARK(pool, ptr);
-
-		if (unlikely(mem_poison_byte >= 0))
-			memset(ptr, mem_poison_byte, pool->size);
-
-		pool_put_to_cache(pool, ptr);
-	}
-}
+#define pool_free(pool, ptr)				\
+	do {						\
+		typeof(ptr) __ptr = (ptr);		\
+		if (likely((__ptr) != NULL))		\
+			__pool_free(pool, __ptr);	\
+	} while (0)
 
 #endif /* _HAPROXY_POOL_H */
 

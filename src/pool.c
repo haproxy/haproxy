@@ -588,6 +588,21 @@ void pool_gc(struct pool_head *pool_ctx)
 
 #endif /* CONFIG_HAP_POOLS */
 
+/*
+ * Puts a memory area back to the corresponding pool. <ptr> be valid. Using
+ * pool_free() is preferred.
+ */
+void __pool_free(struct pool_head *pool, void *ptr)
+{
+	/* we'll get late corruption if we refill to the wrong pool or double-free */
+	POOL_DEBUG_CHECK_MARK(pool, ptr);
+
+	if (unlikely(mem_poison_byte >= 0))
+		memset(ptr, mem_poison_byte, pool->size);
+
+	pool_put_to_cache(pool, ptr);
+}
+
 
 #ifdef DEBUG_UAF
 
