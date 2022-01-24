@@ -3182,6 +3182,37 @@ int qc_treat_rx_pkts(struct quic_enc_level *cur_el, struct quic_enc_level *next_
 	return 0;
 }
 
+/* Check if it's possible to remove header protection for packets related to
+ * encryption level <qel>. If <qel> is NULL, assume it's false.
+ *
+ * Return true if the operation is possible else false.
+ */
+static int qc_qel_may_rm_hp(struct quic_conn *qc, struct quic_enc_level *qel)
+{
+	enum quic_tls_enc_level tel;
+
+	if (!qel)
+		return 0;
+
+	tel = ssl_to_quic_enc_level(qel->level);
+
+	/* check if tls secrets are available */
+	if (qel->tls_ctx.rx.flags & QUIC_FL_TLS_SECRETS_DCD)
+		TRACE_DEVEL("Discarded keys", QUIC_EV_CONN_TRMHP, qc);
+
+	if (!(qel->tls_ctx.rx.flags & QUIC_FL_TLS_SECRETS_SET))
+		return 0;
+
+	/* do not decrypt application level until handshake completion */
+	if (tel == QUIC_TLS_ENC_LEVEL_APP &&
+	    HA_ATOMIC_LOAD(&qc->state) < QUIC_HS_ST_COMPLETE) {
+		return 0;
+	}
+
+
+	return 1;
+}
+
 /* QUIC connection packet handler task. */
 struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 {
@@ -3190,7 +3221,6 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 	struct quic_conn *qc;
 	enum quic_tls_enc_level tel, next_tel;
 	struct quic_enc_level *qel, *next_qel;
-	struct quic_tls_ctx *tls_ctx;
 	struct qring *qr; // Tx ring
 	int st, force_ack, zero_rtt;
 
@@ -3228,13 +3258,8 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 	next_qel = next_tel == QUIC_TLS_ENC_LEVEL_NONE ? NULL : &qc->els[next_tel];
 
  next_level:
-	tls_ctx = &qel->tls_ctx;
-
-	/* If the header protection key for this level has been derived,
-	 * remove the packet header protections.
-	 */
-	if (!MT_LIST_ISEMPTY(&qel->rx.pqpkts) &&
-	    (tls_ctx->rx.flags & QUIC_FL_TLS_SECRETS_SET))
+	/* Treat packets waiting for header packet protection decryption */
+	if (!MT_LIST_ISEMPTY(&qel->rx.pqpkts) && qc_qel_may_rm_hp(qc, qel))
 		qc_rm_hp_pkts(qc, qel);
 
 	force_ack = qel == &qc->els[QUIC_TLS_ENC_LEVEL_INITIAL] ||
@@ -3715,34 +3740,6 @@ static inline int quic_packet_read_long_header(unsigned char **buf, const unsign
 	return 1;
 }
 
-/* If the header protection of <pkt> packet attached to <qc> connection with <ctx>
- * as context may be removed, return 1, 0 if not. Also set <*qel> to the associated
- * encryption level matching with the packet type. <*qel> may be null if not found.
- * Note that <ctx> may be null (for Initial packets).
- */
-static int qc_pkt_may_rm_hp(struct quic_conn *qc, struct quic_rx_packet *pkt,
-                            struct quic_enc_level **qel)
-{
-	enum quic_tls_enc_level tel;
-
-	tel = quic_packet_type_enc_level(pkt->type);
-	if (tel == QUIC_TLS_ENC_LEVEL_NONE) {
-		*qel = NULL;
-		return 0;
-	}
-
-	*qel = &qc->els[tel];
-	if ((*qel)->tls_ctx.rx.flags & QUIC_FL_TLS_SECRETS_DCD)
-		TRACE_DEVEL("Discarded keys", QUIC_EV_CONN_TRMHP, qc);
-
-	if (((*qel)->tls_ctx.rx.flags & QUIC_FL_TLS_SECRETS_SET) &&
-	    (tel != QUIC_TLS_ENC_LEVEL_APP ||
-	     HA_ATOMIC_LOAD(&qc->state) >= QUIC_HS_ST_COMPLETE))
-		return 1;
-
-	return 0;
-}
-
 /* Insert <pkt> RX packet in its <qel> RX packets tree */
 static void qc_pkt_insert(struct quic_rx_packet *pkt, struct quic_enc_level *qel)
 {
@@ -3767,6 +3764,7 @@ static inline int qc_try_rm_hp(struct quic_conn *qc,
                                struct quic_enc_level **el)
 {
 	unsigned char *pn = NULL; /* Packet number field */
+	enum quic_tls_enc_level tel;
 	struct quic_enc_level *qel;
 	/* Only for traces. */
 	struct quic_rx_packet *qpkt_trace;
@@ -3778,7 +3776,11 @@ static inline int qc_try_rm_hp(struct quic_conn *qc,
 	 * protection.
 	 */
 	pn = buf;
-	if (qc_pkt_may_rm_hp(qc, pkt, &qel)) {
+
+	tel = quic_packet_type_enc_level(pkt->type);
+	qel = &qc->els[tel];
+
+	if (qc_qel_may_rm_hp(qc, qel)) {
 		 /* Note that the following function enables us to unprotect the packet
 		 * number and its length subsequently used to decrypt the entire
 		 * packets.
