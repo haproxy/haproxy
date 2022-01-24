@@ -11,14 +11,20 @@
  */
 
 
+#include <errno.h>
 #include <fcntl.h>
 #include <signal.h>
 #include <time.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <syslog.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <unistd.h>
+#ifdef USE_EPOLL
+#include <sys/epoll.h>
+#endif
 
 #include <haproxy/api.h>
 #include <haproxy/buf.h>
@@ -973,6 +979,169 @@ static int debug_parse_cli_sched(char **args, char *payload, struct appctx *appc
 	return cli_err(appctx, "Not enough memory");
 }
 
+/* CLI parser for the "debug dev fd" command. The current FD to restart from is
+ * stored in i0.
+ */
+static int debug_parse_cli_fd(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	if (!cli_has_level(appctx, ACCESS_LVL_OPER))
+		return 1;
+
+	/* start at fd #0 */
+	appctx->ctx.cli.i0 = 0;
+	return 0;
+}
+
+/* CLI I/O handler for the "debug dev fd" command. Dumps all FDs that are
+ * accessible from the process but not known from fdtab. The FD number to
+ * restart from is stored in i0.
+ */
+static int debug_iohandler_fd(struct appctx *appctx)
+{
+	struct stream_interface *si = appctx->owner;
+	struct sockaddr_storage sa;
+	struct stat statbuf;
+	socklen_t salen, vlen;
+	int ret1, ret2, port;
+	char *addrstr;
+	int ret = 1;
+	int i, fd;
+
+	if (unlikely(si_ic(si)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
+		goto end;
+
+	chunk_reset(&trash);
+
+	thread_isolate();
+
+	/* we have two inner loops here, one for the proxy, the other one for
+	 * the buffer.
+	 */
+	for (fd = appctx->ctx.cli.i0; fd < global.maxsock; fd++) {
+		/* check for FD's existence */
+		ret1 = fcntl(fd, F_GETFD, 0);
+		if (ret1 == -1)
+			continue; // not known to the process
+		if (fdtab[fd].owner)
+			continue; // well-known
+
+		/* OK we're seeing an orphan let's try to retrieve as much
+		 * information as possible about it.
+		 */
+		chunk_printf(&trash, "%5d", fd);
+
+		if (fstat(fd, &statbuf) != -1) {
+			chunk_appendf(&trash, " type=%s mod=%04o dev=%#llx siz=%#llx uid=%lld gid=%lld fs=%#llx ino=%#llx",
+				      isatty(fd)                ? "tty.":
+				      S_ISREG(statbuf.st_mode)  ? "file":
+				      S_ISDIR(statbuf.st_mode)  ? "dir.":
+				      S_ISCHR(statbuf.st_mode)  ? "chr.":
+				      S_ISBLK(statbuf.st_mode)  ? "blk.":
+				      S_ISFIFO(statbuf.st_mode) ? "pipe":
+				      S_ISLNK(statbuf.st_mode)  ? "link":
+				      S_ISSOCK(statbuf.st_mode) ? "sock":
+#ifdef USE_EPOLL
+				      epoll_wait(fd, NULL, 0, 0) != -1 || errno != EBADF ? "epol":
+#endif
+				      "????",
+				      (uint)statbuf.st_mode & 07777,
+
+				      (ullong)statbuf.st_rdev,
+				      (ullong)statbuf.st_size,
+				      (ullong)statbuf.st_uid,
+				      (ullong)statbuf.st_gid,
+
+				      (ullong)statbuf.st_dev,
+				      (ullong)statbuf.st_ino);
+		}
+
+		chunk_appendf(&trash, " getfd=%s+%#x",
+			     (ret1 & FD_CLOEXEC) ? "cloex" : "",
+			     ret1 &~ FD_CLOEXEC);
+
+		/* FD options */
+		ret2 = fcntl(fd, F_GETFL, 0);
+		if (ret2) {
+			chunk_appendf(&trash, " getfl=%s",
+				      (ret1 & 3) >= 2 ? "O_RDWR" :
+				      (ret1 & 1) ? "O_WRONLY" : "O_RDONLY");
+
+			for (i = 2; i < 32; i++) {
+				if (!(ret2 & (1UL << i)))
+					continue;
+				switch (1UL << i) {
+				case O_CREAT:   chunk_appendf(&trash, ",O_CREAT");   break;
+				case O_EXCL:    chunk_appendf(&trash, ",O_EXCL");    break;
+				case O_NOCTTY:  chunk_appendf(&trash, ",O_NOCTTY");  break;
+				case O_TRUNC:   chunk_appendf(&trash, ",O_TRUNC");   break;
+				case O_APPEND:  chunk_appendf(&trash, ",O_APPEND");  break;
+				case O_ASYNC:   chunk_appendf(&trash, ",O_ASYNC");   break;
+#ifdef O_DIRECT
+				case O_DIRECT:  chunk_appendf(&trash, ",O_DIRECT");  break;
+#endif
+#ifdef O_NOATIME
+				case O_NOATIME: chunk_appendf(&trash, ",O_NOATIME"); break;
+#endif
+				}
+			}
+		}
+
+		vlen = sizeof(ret2);
+		ret1 = getsockopt(fd, SOL_SOCKET, SO_TYPE, &ret2, &vlen);
+		if (ret1 != -1)
+			chunk_appendf(&trash, " so_type=%d", ret2);
+
+		vlen = sizeof(ret2);
+		ret1 = getsockopt(fd, SOL_SOCKET, SO_ACCEPTCONN, &ret2, &vlen);
+		if (ret1 != -1)
+			chunk_appendf(&trash, " so_accept=%d", ret2);
+
+		vlen = sizeof(ret2);
+		ret1 = getsockopt(fd, SOL_SOCKET, SO_ERROR, &ret2, &vlen);
+		if (ret1 != -1)
+			chunk_appendf(&trash, " so_error=%d", ret2);
+
+		salen = sizeof(sa);
+		if (getsockname(fd, (struct sockaddr *)&sa, &salen) != -1) {
+			if (sa.ss_family == AF_INET)
+				port = ntohs(((const struct sockaddr_in *)&sa)->sin_port);
+			else if (sa.ss_family == AF_INET6)
+				port = ntohs(((const struct sockaddr_in6 *)&sa)->sin6_port);
+			else
+				port = 0;
+			addrstr = sa2str(&sa, port, 0);
+			chunk_appendf(&trash, " laddr=%s", addrstr);
+			free(addrstr);
+		}
+
+		salen = sizeof(sa);
+		if (getpeername(fd, (struct sockaddr *)&sa, &salen) != -1) {
+			if (sa.ss_family == AF_INET)
+				port = ntohs(((const struct sockaddr_in *)&sa)->sin_port);
+			else if (sa.ss_family == AF_INET6)
+				port = ntohs(((const struct sockaddr_in6 *)&sa)->sin6_port);
+			else
+				port = 0;
+			addrstr = sa2str(&sa, port, 0);
+			chunk_appendf(&trash, " raddr=%s", addrstr);
+			free(addrstr);
+		}
+
+		chunk_appendf(&trash, "\n");
+
+		if (ci_putchk(si_ic(si), &trash) == -1) {
+			si_rx_room_blk(si);
+			appctx->ctx.cli.i0 = fd;
+			ret = 0;
+			break;
+		}
+	}
+
+	thread_release();
+ end:
+	return ret;
+}
+
 #if defined(DEBUG_MEM_STATS)
 /* CLI parser for the "debug dev memstats" command */
 static int debug_parse_cli_memstats(char **args, char *payload, struct appctx *appctx, void *private)
@@ -1206,6 +1375,7 @@ static struct cli_kw_list cli_kws = {{ },{
 #if defined(DEBUG_DEV)
 	{{ "debug", "dev", "exec",  NULL },    "debug dev exec   [cmd] ...              : show this command's output",              debug_parse_cli_exec,  NULL, NULL, NULL, ACCESS_EXPERT },
 #endif
+	{{ "debug", "dev", "fd", NULL },       "debug dev fd                            : scan for rogue/unhandled FDs",            debug_parse_cli_fd,    debug_iohandler_fd, NULL, NULL, ACCESS_EXPERT },
 	{{ "debug", "dev", "exit",  NULL },    "debug dev exit   [code]                 : immediately exit the process",            debug_parse_cli_exit,  NULL, NULL, NULL, ACCESS_EXPERT },
 	{{ "debug", "dev", "hex",   NULL },    "debug dev hex    <addr> [len]           : dump a memory area",                      debug_parse_cli_hex,   NULL, NULL, NULL, ACCESS_EXPERT },
 	{{ "debug", "dev", "log",   NULL },    "debug dev log    [msg] ...              : send this msg to global logs",            debug_parse_cli_log,   NULL, NULL, NULL, ACCESS_EXPERT },
