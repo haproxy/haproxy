@@ -112,7 +112,7 @@ extern THREAD_LOCAL size_t pool_cache_count;   /* #cache objects   */
 
 void pool_evict_from_local_cache(struct pool_head *pool);
 void pool_evict_from_local_caches(void);
-void pool_put_to_cache(struct pool_head *pool, void *ptr);
+void pool_put_to_cache(struct pool_head *pool, void *ptr, const void *caller);
 
 #if defined(CONFIG_HAP_NO_GLOBAL_POOLS)
 
@@ -246,7 +246,7 @@ static inline void pool_check_pattern(struct pool_cache_head *pch, struct pool_c
  * <pool>. If none is available, tries to allocate from the shared cache, and
  * returns NULL if nothing is available.
  */
-static inline void *pool_get_from_cache(struct pool_head *pool)
+static inline void *pool_get_from_cache(struct pool_head *pool, const void *caller)
 {
 	struct pool_cache_item *item;
 	struct pool_cache_head *ph;
@@ -286,12 +286,12 @@ static inline void *pool_get_from_cache(struct pool_head *pool)
 
 /* no cache pools implementation */
 
-static inline void *pool_get_from_cache(struct pool_head *pool)
+static inline void *pool_get_from_cache(struct pool_head *pool, const void *caller)
 {
 	return NULL;
 }
 
-static inline void pool_put_to_cache(struct pool_head *pool, void *ptr)
+static inline void pool_put_to_cache(struct pool_head *pool, void *ptr, const void *caller)
 {
 	pool_free_nocache(pool, ptr);
 }

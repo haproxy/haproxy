@@ -392,7 +392,7 @@ void pool_evict_from_local_caches()
  * While it is unspecified what the object becomes past this point, it is
  * guaranteed to be released from the users' perpective.
  */
-void pool_put_to_cache(struct pool_head *pool, void *ptr)
+void pool_put_to_cache(struct pool_head *pool, void *ptr, const void *caller)
 {
 	struct pool_cache_item *item = (struct pool_cache_item *)ptr;
 	struct pool_cache_head *ph = &pool->cache[tid];
@@ -597,6 +597,7 @@ void pool_gc(struct pool_head *pool_ctx)
 void *__pool_alloc(struct pool_head *pool, unsigned int flags)
 {
 	void *p = NULL;
+	void *caller = NULL;
 
 #ifdef DEBUG_FAIL_ALLOC
 	if (unlikely(!(flags & POOL_F_NO_FAIL) && mem_should_fail(pool)))
@@ -604,7 +605,7 @@ void *__pool_alloc(struct pool_head *pool, unsigned int flags)
 #endif
 
 	if (!p)
-		p = pool_get_from_cache(pool);
+		p = pool_get_from_cache(pool, caller);
 	if (unlikely(!p))
 		p = pool_alloc_nocache(pool);
 
@@ -623,13 +624,15 @@ void *__pool_alloc(struct pool_head *pool, unsigned int flags)
  */
 void __pool_free(struct pool_head *pool, void *ptr)
 {
+	const void *caller = NULL;
+
 	/* we'll get late corruption if we refill to the wrong pool or double-free */
 	POOL_DEBUG_CHECK_MARK(pool, ptr);
 
 	if (unlikely(mem_poison_byte >= 0))
 		memset(ptr, mem_poison_byte, pool->size);
 
-	pool_put_to_cache(pool, ptr);
+	pool_put_to_cache(pool, ptr, caller);
 }
 
 
