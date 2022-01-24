@@ -589,6 +589,35 @@ void pool_gc(struct pool_head *pool_ctx)
 #endif /* CONFIG_HAP_POOLS */
 
 /*
+ * Returns a pointer to type <type> taken from the pool <pool_type> or
+ * dynamically allocated. In the first case, <pool_type> is updated to point to
+ * the next element in the list. <flags> is a binary-OR of POOL_F_* flags.
+ * Prefer using pool_alloc() which does the right thing without flags.
+ */
+void *__pool_alloc(struct pool_head *pool, unsigned int flags)
+{
+	void *p = NULL;
+
+#ifdef DEBUG_FAIL_ALLOC
+	if (unlikely(!(flags & POOL_F_NO_FAIL) && mem_should_fail(pool)))
+		return NULL;
+#endif
+
+	if (!p)
+		p = pool_get_from_cache(pool);
+	if (unlikely(!p))
+		p = pool_alloc_nocache(pool);
+
+	if (likely(p)) {
+		if (unlikely(flags & POOL_F_MUST_ZERO))
+			memset(p, 0, pool->size);
+		else if (unlikely(!(flags & POOL_F_NO_POISON) && mem_poison_byte >= 0))
+			memset(p, mem_poison_byte, pool->size);
+	}
+	return p;
+}
+
+/*
  * Puts a memory area back to the corresponding pool. <ptr> be valid. Using
  * pool_free() is preferred.
  */

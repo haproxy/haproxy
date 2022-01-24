@@ -97,6 +97,7 @@ void create_pool_callback(struct pool_head **ptr, char *name, unsigned int size)
 void *pool_destroy(struct pool_head *pool);
 void pool_destroy_all(void);
 int mem_should_fail(const struct pool_head *pool);
+void *__pool_alloc(struct pool_head *pool, unsigned int flags);
 void __pool_free(struct pool_head *pool, void *ptr);
 
 
@@ -300,50 +301,15 @@ static inline void pool_put_to_cache(struct pool_head *pool, void *ptr)
 
 /*
  * Returns a pointer to type <type> taken from the pool <pool_type> or
- * dynamically allocated. In the first case, <pool_type> is updated to point to
- * the next element in the list. <flags> is a binary-OR of POOL_F_* flags.
- * Prefer using pool_alloc() which does the right thing without flags.
- */
-static inline void *__pool_alloc(struct pool_head *pool, unsigned int flags)
-{
-	void *p = NULL;
-
-#ifdef DEBUG_FAIL_ALLOC
-	if (!(flags & POOL_F_NO_FAIL) && mem_should_fail(pool))
-		return NULL;
-#endif
-
-	if (!p)
-		p = pool_get_from_cache(pool);
-	if (!p)
-		p = pool_alloc_nocache(pool);
-
-	if (p) {
-		if (flags & POOL_F_MUST_ZERO)
-			memset(p, 0, pool->size);
-		else if (!(flags & POOL_F_NO_POISON) && mem_poison_byte >= 0)
-			memset(p, mem_poison_byte, pool->size);
-	}
-	return p;
-}
-
-/*
- * Returns a pointer to type <type> taken from the pool <pool_type> or
  * dynamically allocated. Memory poisonning is performed if enabled.
  */
-static inline void *pool_alloc(struct pool_head *pool)
-{
-	return __pool_alloc(pool, 0);
-}
+#define pool_alloc(pool) __pool_alloc((pool), 0)
 
 /*
  * Returns a pointer to type <type> taken from the pool <pool_type> or
  * dynamically allocated. The area is zeroed.
  */
-static inline void *pool_zalloc(struct pool_head *pool)
-{
-	return __pool_alloc(pool, POOL_F_MUST_ZERO);
-}
+#define pool_zalloc(pool) __pool_alloc((pool), POOL_F_MUST_ZERO)
 
 /*
  * Puts a memory area back to the corresponding pool. Just like with the libc's
