@@ -1537,7 +1537,12 @@ void ssl_sock_infocbk(const SSL *ssl, int where, int ret)
 	else if (qc)
 		ctx = qc->xprt_ctx;
 #endif /* USE_QUIC */
-	BUG_ON(!ctx);
+
+	if (!ctx) {
+		/* must never happen */
+		ABORT_NOW();
+		return;
+	}
 
 #ifndef SSL_OP_NO_RENEGOTIATION
 	/* Please note that BoringSSL defines this macro to zero so don't
@@ -2488,7 +2493,12 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 	else if (qc)
 		s = qc->li->bind_conf;
 #endif /* USE_QUIC */
-	BUG_ON(!s);
+
+	if (!s) {
+		/* must never happen */
+		ABORT_NOW();
+		return 0;
+	}
 
 #ifdef USE_QUIC
 	if (qc) {
