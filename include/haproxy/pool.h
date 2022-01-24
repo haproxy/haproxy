@@ -54,7 +54,7 @@
  */
 #ifdef DEBUG_MEMORY_POOLS
 
-# define POOL_EXTRA (sizeof(void *))
+# define POOL_EXTRA_MARK (sizeof(void *))
 # define POOL_DEBUG_SET_MARK(pool, item)				\
 	do {								\
 		typeof(pool) __p = (pool);				\
@@ -72,11 +72,13 @@
 
 #else // DEBUG_MEMORY_POOLS
 
-# define POOL_EXTRA (0)
+# define POOL_EXTRA_MARK (0)
 # define POOL_DEBUG_SET_MARK(pool, item)   do { } while (0)
 # define POOL_DEBUG_CHECK_MARK(pool, item) do { } while (0)
 
 #endif // DEBUG_MEMORY_POOLS
+
+# define POOL_EXTRA (POOL_EXTRA_MARK)
 
 /* poison each newly allocated area with this byte if >= 0 */
 extern int mem_poison_byte;
