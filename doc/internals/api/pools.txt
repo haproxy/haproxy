@@ -513,6 +513,15 @@ DEBUG_POOL_INTEGRITY
         preference for cold cache instead of hot cache, though not as much as
         with DEBUG_UAF. This option is meant to be usable in production.
 
+DEBUG_POOL_TRACING
+        When enabled, the callers of pool_alloc() and pool_free() will be
+        recorded into an extra memory area placed after the end of the object.
+        This may only be required by developers who want to get a few more
+        hints about code paths involved in some crashes, but will serve no
+        purpose outside of this. It remains compatible (and completes well)
+        DEBUG_POOL_INTEGRITY above. Such information become meaningless once
+        the objects leave the thread-local cache.
+
 DEBUG_MEM_STATS
         When enabled, all malloc/calloc/realloc/strdup/free calls are accounted
         for per call place (file+line number), and may be displayed or reset on

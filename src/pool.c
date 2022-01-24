@@ -284,6 +284,7 @@ void *pool_alloc_nocache(struct pool_head *pool)
 
 	/* keep track of where the element was allocated from */
 	POOL_DEBUG_SET_MARK(pool, ptr);
+	POOL_DEBUG_TRACE_CALLER(pool, item, NULL);
 	return ptr;
 }
 
@@ -390,7 +391,8 @@ void pool_evict_from_local_caches()
 /* Frees an object to the local cache, possibly pushing oldest objects to the
  * shared cache, which itself may decide to release some of them to the OS.
  * While it is unspecified what the object becomes past this point, it is
- * guaranteed to be released from the users' perpective.
+ * guaranteed to be released from the users' perpective. A caller address may
+ * be passed and stored into the area when DEBUG_POOL_TRACING is set.
  */
 void pool_put_to_cache(struct pool_head *pool, void *ptr, const void *caller)
 {
@@ -399,6 +401,7 @@ void pool_put_to_cache(struct pool_head *pool, void *ptr, const void *caller)
 
 	LIST_INSERT(&ph->list, &item->by_pool);
 	LIST_INSERT(&th_ctx->pool_lru_head, &item->by_lru);
+	POOL_DEBUG_TRACE_CALLER(pool, item, caller);
 	ph->count++;
 	pool_fill_pattern(ph, item, pool->size);
 	pool_cache_count++;
@@ -467,6 +470,7 @@ void pool_refill_local_from_shared(struct pool_head *pool, struct pool_cache_hea
 		down = ret->down;
 		/* keep track of where the element was allocated from */
 		POOL_DEBUG_SET_MARK(pool, ret);
+		POOL_DEBUG_TRACE_CALLER(pool, item, NULL);
 
 		item = (struct pool_cache_item *)ret;
 		LIST_INSERT(&pch->list, &item->by_pool);
@@ -604,6 +608,9 @@ void *__pool_alloc(struct pool_head *pool, unsigned int flags)
 		return NULL;
 #endif
 
+#if defined(DEBUG_POOL_TRACING)
+	caller = __builtin_return_address(0);
+#endif
 	if (!p)
 		p = pool_get_from_cache(pool, caller);
 	if (unlikely(!p))
@@ -626,6 +633,9 @@ void __pool_free(struct pool_head *pool, void *ptr)
 {
 	const void *caller = NULL;
 
+#if defined(DEBUG_POOL_TRACING)
+	caller = __builtin_return_address(0);
+#endif
 	/* we'll get late corruption if we refill to the wrong pool or double-free */
 	POOL_DEBUG_CHECK_MARK(pool, ptr);
 

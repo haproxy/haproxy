@@ -78,7 +78,27 @@
 
 #endif // DEBUG_MEMORY_POOLS
 
-# define POOL_EXTRA (POOL_EXTRA_MARK)
+/* It's possible to trace callers of pool_free() by placing their pointer
+ * after the end of the area and the optional mark above.
+ */
+#if defined(DEBUG_POOL_TRACING)
+# define POOL_EXTRA_CALLER (sizeof(void *))
+# define POOL_DEBUG_TRACE_CALLER(pool, item, caller)			\
+	do {								\
+		typeof(pool) __p = (pool);				\
+		typeof(item) __i = (item);				\
+		typeof(caller) __c = (caller);				\
+		*(typeof(caller)*)(((char *)__i) + __p->size + POOL_EXTRA_MARK) = __c; \
+	} while (0)
+
+#else // DEBUG_POOL_TRACING
+
+# define POOL_EXTRA_CALLER (0)
+# define POOL_DEBUG_TRACE_CALLER(pool, item, caller)   do { } while (0)
+
+#endif
+
+# define POOL_EXTRA (POOL_EXTRA_MARK + POOL_EXTRA_CALLER)
 
 /* poison each newly allocated area with this byte if >= 0 */
 extern int mem_poison_byte;
@@ -274,6 +294,7 @@ static inline void *pool_get_from_cache(struct pool_head *pool, const void *call
 
 	/* keep track of where the element was allocated from */
 	POOL_DEBUG_SET_MARK(pool, item);
+	POOL_DEBUG_TRACE_CALLER(pool, item, caller);
 
 	ph->count--;
 	pool_cache_bytes -= pool->size;
