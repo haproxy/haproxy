@@ -191,6 +191,28 @@ REGISTER_CONFIG_POSTPARSER("multi-threaded accept queue", accept_queue_init);
 
 #endif // USE_THREAD
 
+/* Memory allocation and initialization of the per_thr field.
+ * Returns 0 if the field has been successfully initialized, -1 on failure.
+ */
+int li_init_per_thr(struct listener *li)
+{
+	int i;
+
+	/* allocate per-thread elements for listener */
+	li->per_thr = calloc(global.nbthread, sizeof(*li->per_thr));
+	if (!li->per_thr)
+		return -1;
+
+	for (i = 0; i < global.nbthread; ++i) {
+		MT_LIST_INIT(&li->per_thr[i].quic_accept.list);
+		MT_LIST_INIT(&li->per_thr[i].quic_accept.conns);
+
+		li->per_thr[i].li = li;
+	}
+
+	return 0;
+}
+
 /* helper to get listener status for stats */
 enum li_status get_li_status(struct listener *l)
 {

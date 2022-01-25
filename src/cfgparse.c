@@ -3906,8 +3906,10 @@ out_uri_auth_compat:
 			listener->accept = session_accept_fd;
 #ifdef USE_QUIC
 			/* override the accept callback for QUIC listeners. */
-			if (listener->flags & LI_F_QUIC_LISTENER)
+			if (listener->flags & LI_F_QUIC_LISTENER) {
 				listener->accept = quic_session_accept;
+				li_init_per_thr(listener);
+			}
 #endif
 
 			listener->analysers |= curproxy->fe_req_ana;

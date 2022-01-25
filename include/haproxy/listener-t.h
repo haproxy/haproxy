@@ -191,6 +191,16 @@ struct bind_conf {
 	struct rx_settings settings; /* all the settings needed for the listening socket */
 };
 
+/* Fields of a listener allocated per thread */
+struct li_per_thread {
+	struct {
+		struct mt_list list;  /* list element in the QUIC accept queue */
+		struct mt_list conns; /* list of QUIC connections from this listener ready to be accepted */
+	} quic_accept;
+
+	struct listener *li; /* back reference on the listener */
+};
+
 #define LI_F_QUIC_LISTENER       0x00000001  /* listener uses proto quic */
 
 /* The listener will be directly referenced by the fdtab[] which holds its
@@ -233,6 +243,8 @@ struct listener {
 	struct {
 		struct eb32_node id;	/* place in the tree of used IDs */
 	} conf;				/* config information */
+
+	struct li_per_thread *per_thr;  /* per-thread fields */
 
 	EXTRA_COUNTERS(extra_counters);
 };

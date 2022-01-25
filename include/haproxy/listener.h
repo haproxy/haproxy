@@ -31,6 +31,8 @@
 struct proxy;
 struct task;
 
+int li_init_per_thr(struct listener *li);
+
 /* adjust the listener's state and its proxy's listener counters if needed */
 void listener_set_state(struct listener *l, enum li_state st);
 
