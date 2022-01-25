@@ -1075,7 +1075,9 @@ static int debug_iohandler_fd(struct appctx *appctx)
 				case O_NOCTTY:  chunk_appendf(&trash, ",O_NOCTTY");  break;
 				case O_TRUNC:   chunk_appendf(&trash, ",O_TRUNC");   break;
 				case O_APPEND:  chunk_appendf(&trash, ",O_APPEND");  break;
+#ifdef O_ASYNC
 				case O_ASYNC:   chunk_appendf(&trash, ",O_ASYNC");   break;
+#endif
 #ifdef O_DIRECT
 				case O_DIRECT:  chunk_appendf(&trash, ",O_DIRECT");  break;
 #endif
