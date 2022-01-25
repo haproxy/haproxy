@@ -201,6 +201,7 @@ struct listener {
 	short int nice;                 /* nice value to assign to the instantiated tasks */
 	int luid;			/* listener universally unique ID, used for SNMP */
 	int options;			/* socket options : LI_O_* */
+	int flags;                      /* LI_F_* flags */
 	__decl_thread(HA_SPINLOCK_T lock);
 
 	struct fe_counters *counters;	/* statistics counters */
