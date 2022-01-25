@@ -284,7 +284,7 @@ void *pool_alloc_nocache(struct pool_head *pool)
 
 	/* keep track of where the element was allocated from */
 	POOL_DEBUG_SET_MARK(pool, ptr);
-	POOL_DEBUG_TRACE_CALLER(pool, item, NULL);
+	POOL_DEBUG_TRACE_CALLER(pool, (struct pool_cache_item *)ptr, NULL);
 	return ptr;
 }
 
@@ -470,9 +470,9 @@ void pool_refill_local_from_shared(struct pool_head *pool, struct pool_cache_hea
 		down = ret->down;
 		/* keep track of where the element was allocated from */
 		POOL_DEBUG_SET_MARK(pool, ret);
-		POOL_DEBUG_TRACE_CALLER(pool, item, NULL);
 
 		item = (struct pool_cache_item *)ret;
+		POOL_DEBUG_TRACE_CALLER(pool, item, NULL);
 		LIST_INSERT(&pch->list, &item->by_pool);
 		LIST_INSERT(&th_ctx->pool_lru_head, &item->by_lru);
 		count++;
