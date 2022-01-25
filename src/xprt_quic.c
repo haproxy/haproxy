@@ -3988,6 +3988,7 @@ static ssize_t qc_srv_pkt_rcv(unsigned char **buf, const unsigned char *end,
 	 */
 	if (!dgram_ctx->dcid.len) {
 		memcpy(dgram_ctx->dcid.data, pkt->dcid.data, pkt->dcid.len);
+		dgram_ctx->dcid.len = pkt->dcid.len;
 	}
 	else if (memcmp(dgram_ctx->dcid.data, pkt->dcid.data, pkt->dcid.len)) {
 		TRACE_PROTO("Packet dropped", QUIC_EV_CONN_SPKT, qc);
@@ -4601,6 +4602,7 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 	 */
 	if (!dgram_ctx->dcid.len) {
 		memcpy(dgram_ctx->dcid.data, pkt->dcid.data, pkt->dcid.len);
+		dgram_ctx->dcid.len = pkt->dcid.len;
 		if (!quic_peer_validated_addr(qc) &&
 		    HA_ATOMIC_LOAD(&qc->flags) & QUIC_FL_CONN_ANTI_AMPLIFICATION_REACHED) {
 			TRACE_PROTO("PTO timer must be armed after anti-amplication was reached",
