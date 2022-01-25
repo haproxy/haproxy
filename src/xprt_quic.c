@@ -3942,7 +3942,8 @@ static ssize_t qc_srv_pkt_rcv(unsigned char **buf, const unsigned char *end,
 			 * So, a client which receives an Initial packet with a token
 			 * MUST discard the packet or generate a connection error with
 			 * PROTOCOL_VIOLATION as type.
-			 * The token must be provided in a Retry packet or NEW_TOKEN frame.
+			 * The token may be provided in a Retry packet or NEW_TOKEN frame
+			 * only by the QUIC server.
 			 */
 			pkt->token_len = token_len;
 		}
@@ -4429,12 +4430,8 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 				goto err;
 			}
 
-			/* XXX TO DO XXX 0 value means "the token is not present".
-			 * A server which sends an Initial packet must not set the token.
-			 * So, a client which receives an Initial packet with a token
-			 * MUST discard the packet or generate a connection error with
-			 * PROTOCOL_VIOLATION as type.
-			 * The token must be provided in a Retry packet or NEW_TOKEN frame.
+			/* The token may be provided in a Retry packet or NEW_TOKEN frame
+			 * only by the QUIC server.
 			 */
 			pkt->token_len = token_len;
 
