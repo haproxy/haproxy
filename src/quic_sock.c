@@ -212,7 +212,7 @@ void quic_sock_fd_iocb(int fd)
 	} while (0);
 
 	b_add(buf, ret);
-	quic_lstnr_dgram_read(buf, ret, l, &saddr);
+	quic_lstnr_dgram_read((unsigned char *)b_head(buf), ret, l, &saddr);
 	b_del(buf, ret);
  out:
 	MT_LIST_APPEND(&l->rx.rxbuf_list, &rxbuf->mt_list);

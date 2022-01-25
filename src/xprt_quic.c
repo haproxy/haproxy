@@ -5527,7 +5527,7 @@ static void __quic_conn_deinit(void)
  * as owner calling <func> function.
  * Return the number of bytes read if succeeded, -1 if not.
  */
-static ssize_t quic_dgram_read(struct buffer *buf, size_t len, void *owner,
+static ssize_t quic_dgram_read(unsigned char *buf, size_t len, void *owner,
                                struct sockaddr_storage *saddr, qpkt_read_func *func)
 {
 	unsigned char *pos;
@@ -5538,7 +5538,7 @@ static ssize_t quic_dgram_read(struct buffer *buf, size_t len, void *owner,
 		.owner = owner,
 	};
 
-	pos = (unsigned char *)b_head(buf);
+	pos = buf;
 	end = pos + len;
 	do {
 		int ret;
@@ -5563,13 +5563,13 @@ static ssize_t quic_dgram_read(struct buffer *buf, size_t len, void *owner,
 	if (dgram_ctx.qc)
 		dgram_ctx.qc->rx.bytes += len;
 
-	return pos - (unsigned char *)b_head(buf);
+	return pos - buf;
 
  err:
 	return -1;
 }
 
-ssize_t quic_lstnr_dgram_read(struct buffer *buf, size_t len, void *owner,
+ssize_t quic_lstnr_dgram_read(unsigned char *buf, size_t len, void *owner,
                               struct sockaddr_storage *saddr)
 {
 	return quic_dgram_read(buf, len, owner, saddr, qc_lstnr_pkt_rcv);
