@@ -518,8 +518,7 @@ int quic_connect_server(struct connection *conn, int flags)
  */
 static void quic_add_listener(struct protocol *proto, struct listener *listener)
 {
-	/* custom accept callback for QUIC */
-	listener->accept = quic_session_accept;
+	listener->flags |= LI_F_QUIC_LISTENER;
 
 	MT_LIST_INIT(&listener->rx.pkts);
 	listener->rx.odcids = EB_ROOT_UNIQUE;

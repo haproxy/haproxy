@@ -191,6 +191,8 @@ struct bind_conf {
 	struct rx_settings settings; /* all the settings needed for the listening socket */
 };
 
+#define LI_F_QUIC_LISTENER       0x00000001  /* listener uses proto quic */
+
 /* The listener will be directly referenced by the fdtab[] which holds its
  * socket. The listener provides the protocol-specific accept() function to
  * the fdtab.
