@@ -67,11 +67,16 @@ typedef unsigned long long ull;
  * flags(1), version(4), DCID length(1), DCID(0..20), SCID length(1), SCID(0..20)
  */
 #define QUIC_LONG_PACKET_MINLEN            7
+/* DCID offset from beginning of a long packet */
+#define QUIC_LONG_PACKET_DCID_OFF         (1 + sizeof(uint32_t))
 /*
  * All QUIC packets with short headers are made of at least (in bytes):
  * flags(1), DCID(0..20)
  */
 #define QUIC_SHORT_PACKET_MINLEN           1
+/* DCID offset from beginning of a short packet */
+#define QUIC_SHORT_PACKET_DCID_OFF         1
+
 /* Byte 0 of QUIC packets. */
 #define QUIC_PACKET_LONG_HEADER_BIT  0x80 /* Long header format if set, short if not. */
 #define QUIC_PACKET_FIXED_BIT        0x40 /* Must always be set for all the headers. */
