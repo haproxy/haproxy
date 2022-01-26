@@ -262,6 +262,17 @@ static long get_value(struct lru64_head *lru, long a)
 	return a;
 }
 
+static inline unsigned int statistical_prng()
+{
+	static unsigned int statistical_prng_state = 0x12345678;
+	unsigned int x = statistical_prng_state;
+
+	x ^= x << 13;
+	x ^= x >> 17;
+	x ^= x << 5;
+	return statistical_prng_state = x;
+}
+
 /* pass #of loops in argv[1] and set argv[2] to something to use the LRU */
 int main(int argc, char **argv)
 {
@@ -281,7 +292,7 @@ int main(int argc, char **argv)
 
 	ret = 0;
 	for (loops = 0; loops < total; loops++) {
-		ret += get_value(lru, rand() & 65535);
+		ret += get_value(lru, statistical_prng() & 65535);
 	}
 	/* just for accuracy control */
 	printf("ret=%llx, hits=%d, misses=%d (%d %% hits)\n", ret, total-misses, misses, (int)((float)(total-misses) * 100.0 / total));
