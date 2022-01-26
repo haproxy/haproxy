@@ -1058,6 +1058,9 @@ int quic_set_app_ops(struct quic_conn *qc, const unsigned char *alpn, size_t alp
 	if (app_ops->finalize)
 		app_ops->finalize(qc->qcc->ctx);
 
+	/* mux-quic can now be considered ready. */
+	qc->mux_state = QC_MUX_READY;
+
 	return 1;
 }
 
@@ -3203,12 +3206,9 @@ static int qc_qel_may_rm_hp(struct quic_conn *qc, struct quic_enc_level *qel)
 	if (!(qel->tls_ctx.rx.flags & QUIC_FL_TLS_SECRETS_SET))
 		return 0;
 
-	/* do not decrypt application level until handshake completion */
-	if (tel == QUIC_TLS_ENC_LEVEL_APP &&
-	    HA_ATOMIC_LOAD(&qc->state) < QUIC_HS_ST_COMPLETE) {
+	/* check if the connection layer is ready before using app level */
+	if (tel == QUIC_TLS_ENC_LEVEL_APP && qc->mux_state != QC_MUX_READY)
 		return 0;
-	}
-
 
 	return 1;
 }
@@ -3475,6 +3475,9 @@ void quic_close(struct connection *conn, void *xprt_ctx)
 		qc->timer_task = NULL;
 	}
 
+	/* Next application data can be dropped. */
+	qc->mux_state = QC_MUX_RELEASED;
+
 	TRACE_LEAVE(QUIC_EV_CONN_CLOSE, qc);
 
 	/* TODO for now release the quic_conn on notification by the upper
@@ -3608,6 +3611,7 @@ static struct quic_conn *qc_new_conn(unsigned int version, int ipv4,
 			memcpy(qc->dcid.data, dcid, dcid_len);
 		qc->dcid.len = dcid_len;
 	}
+	qc->mux_state = QC_MUX_NULL;
 
 	/* Initialize the output buffer */
 	qc->obuf.pos = qc->obuf.data;

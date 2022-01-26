@@ -614,6 +614,17 @@ struct rxbuf {
 	struct mt_list mt_list;
 };
 
+/* Status of the connection/mux layer. This defines how to handle app data.
+ *
+ * During a standard quic_conn lifetime it transitions like this :
+ * QC_MUX_NULL -> QC_MUX_READY -> QC_MUX_RELEASED
+ */
+enum qc_mux_state {
+	QC_MUX_NULL,     /* not allocated, data should be buffered */
+	QC_MUX_READY,    /* allocated, ready to handle data */
+	QC_MUX_RELEASED, /* released, data can be dropped */
+};
+
 /* The number of buffers for outgoing packets (must be a power of two). */
 #define QUIC_CONN_TX_BUFS_NB 8
 #define QUIC_CONN_TX_BUF_SZ  QUIC_PACKET_MAXLEN
@@ -647,6 +658,7 @@ struct quic_conn {
 	/* Thread ID this connection is attached to */
 	int tid;
 	int state;
+	enum qc_mux_state mux_state; /* status of the connection/mux layer */
 	uint64_t err_code;
 	unsigned char enc_params[QUIC_TP_MAX_ENCLEN]; /* encoded QUIC transport parameters */
 	size_t enc_params_len;
