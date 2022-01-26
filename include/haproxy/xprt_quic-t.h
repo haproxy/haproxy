@@ -616,6 +616,7 @@ struct qring {
 /* QUIC RX buffer */
 struct rxbuf {
 	struct buffer buf;
+	struct list dgrams;
 	struct mt_list mt_list;
 };
 
