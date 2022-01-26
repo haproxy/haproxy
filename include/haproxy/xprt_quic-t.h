@@ -468,6 +468,14 @@ struct quic_rx_packet {
 	unsigned int flags;
 };
 
+/* QUIC datagram handler */
+struct quic_dghdlr {
+	struct mt_list dgrams;
+	struct tasklet *task;
+	struct eb_root odcids;
+	struct eb_root cids;
+};
+
 /* UDP datagram context used by the I/O handler receiver callbacks.
  * Useful to store the connection
  */
