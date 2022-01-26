@@ -4160,7 +4160,7 @@ int qc_conn_alloc_ssl_ctx(struct quic_conn *qc)
 	/* Set tasklet tid based on the SCID selected by us for this
 	 * connection. The upper layer will also be binded on the same thread.
 	 */
-	qc->tid = ctx->wait_event.tasklet->tid = quic_get_cid_tid(&qc->scid);
+	qc->tid = ctx->wait_event.tasklet->tid = quic_get_cid_tid(qc->scid.data);
 
 	if (qc_is_listener(qc)) {
 		if (qc_ssl_sess_init(qc, bc->initial_ctx, &ctx->ssl,
