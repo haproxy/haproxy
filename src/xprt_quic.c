@@ -160,6 +160,7 @@ DECLARE_STATIC_POOL(pool_head_quic_conn_ctx,
 DECLARE_STATIC_POOL(pool_head_quic_conn, "quic_conn", sizeof(struct quic_conn));
 DECLARE_POOL(pool_head_quic_connection_id,
              "quic_connnection_id_pool", sizeof(struct quic_connection_id));
+DECLARE_POOL(pool_head_quic_dgram, "quic_dgram", sizeof(struct quic_dgram));
 DECLARE_POOL(pool_head_quic_rx_packet, "quic_rx_packet_pool", sizeof(struct quic_rx_packet));
 DECLARE_POOL(pool_head_quic_tx_packet, "quic_tx_packet_pool", sizeof(struct quic_tx_packet));
 DECLARE_STATIC_POOL(pool_head_quic_rx_crypto_frm, "quic_rx_crypto_frm_pool", sizeof(struct quic_rx_crypto_frm));
@@ -5401,10 +5402,62 @@ static ssize_t quic_dgram_read(unsigned char *buf, size_t len, void *owner,
 	return -1;
 }
 
-ssize_t quic_lstnr_dgram_read(unsigned char *buf, size_t len, void *owner,
-                              struct sockaddr_storage *saddr)
+/* Retreive the DCID from a QUIC datagram or packet with <buf> as first octet.
+ * Returns 1 if succeeded, 0 if not.
+ */
+static int quic_get_dgram_dcid(unsigned char *buf, const unsigned char *end,
+                               unsigned char **dcid, size_t *dcid_len)
 {
+	int long_header;
+	size_t minlen, skip;
+
+	if (!(*buf & QUIC_PACKET_FIXED_BIT))
+		goto err;
+
+	long_header = *buf & QUIC_PACKET_LONG_HEADER_BIT;
+	minlen = long_header ?
+		QUIC_LONG_PACKET_MINLEN : QUIC_SHORT_PACKET_MINLEN + QUIC_HAP_CID_LEN;
+	skip = long_header ? QUIC_LONG_PACKET_DCID_OFF : QUIC_SHORT_PACKET_DCID_OFF;
+	if (end - buf <= minlen || !(*buf & QUIC_PACKET_FIXED_BIT))
+		goto err;
+
+	buf += skip;
+	*dcid_len = long_header ? *buf++ : QUIC_HAP_CID_LEN;
+	if (*dcid_len > QUIC_CID_MAXLEN || end - buf <= *dcid_len)
+		goto err;
+
+	*dcid = buf;
+
+	return 1;
+
+ err:
+	TRACE_PROTO("wrong datagram", QUIC_EV_CONN_LPKT);
+	return 0;
+}
+
+int quic_lstnr_dgram_read(unsigned char *buf, size_t len, void *owner,
+                          struct sockaddr_storage *saddr, struct list *dgrams)
+{
+	struct quic_dgram *dgram;
+	unsigned char *dcid;
+	size_t dcid_len;
+
+	if (!len || !quic_get_dgram_dcid(buf, buf + len, &dcid, &dcid_len))
+		goto out;
+
+	dgram = pool_alloc(pool_head_quic_dgram);
+	if (!dgram)
+		goto out;
+
+	dgram->buf = buf;
+	dgram->len = len;
+	dgram->saddr = *saddr;
+	LIST_APPEND(dgrams, &dgram->list);
+
 	return quic_dgram_read(buf, len, owner, saddr, qc_lstnr_pkt_rcv);
+
+ out:
+	return 0;
 }
 
 /* Function to automatically activate QUIC traces on stdout.

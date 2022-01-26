@@ -420,6 +420,14 @@ struct quic_pktns {
 	unsigned int flags;
 };
 
+/* QUIC datagram */
+struct quic_dgram {
+	unsigned char *buf;
+	size_t len;
+	struct sockaddr_storage saddr;
+	struct list list;
+};
+
 /* The QUIC packet numbers are 62-bits integers */
 #define QUIC_MAX_PACKET_NUM      ((1ULL << 62) - 1)
 
