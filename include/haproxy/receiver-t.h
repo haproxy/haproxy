@@ -68,11 +68,11 @@ struct receiver {
 	struct eb_root odcids;           /* QUIC original destination connection IDs. */
 	struct eb_root cids;             /* QUIC connection IDs. */
 	__decl_thread(HA_RWLOCK_T cids_lock); /* RW lock for connection IDs tree accesses */
-	struct qring *tx_qrings;         /* Array of rings (one by thread) */
-	struct mt_list tx_qring_list;    /* The same as ->qrings but arranged in a list */
+	struct qring **tx_qrings;         /* Array of rings (one by thread) */
+	struct mt_list tx_qring_list;    /* The same as ->tx_qrings but arranged in a list */
 
 	struct quic_dghdlr **dghdlrs;    /* Datagram handlers (one by thread) */
-	struct rxbuf *rxbufs;            /* Array of buffers for RX (one by thread) */
+	struct rxbuf **rxbufs;           /* Array of buffers for RX (one by thread) */
 	struct mt_list rxbuf_list;       /* The same as ->rxbufs but arranged in a list */
 #endif
 	/* warning: this struct is huge, keep it at the bottom */

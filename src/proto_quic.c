@@ -543,18 +543,26 @@ static int quic_alloc_tx_rings_listener(struct listener *l)
 	MT_LIST_INIT(&l->rx.tx_qring_list);
 	for (i = 0; i < global.nbthread; i++) {
 		unsigned char *buf;
-		struct qring *qr = &l->rx.tx_qrings[i];
+		struct qring *qr;
+
+		qr = calloc(1, sizeof *qr);
+		if (!qr)
+			goto err;
 
 		buf = pool_alloc(pool_head_quic_tx_ring);
-		if (!buf)
+		if (!buf) {
+			free(qr);
 			goto err;
+		}
 
 		qr->cbuf = cbuf_new(buf, QUIC_TX_RING_BUFSZ);
 		if (!qr->cbuf) {
 			pool_free(pool_head_quic_tx_ring, buf);
+			free(qr);
 			goto err;
 		}
 
+        l->rx.tx_qrings[i] = qr;
 		MT_LIST_APPEND(&l->rx.tx_qring_list, &qr->mt_list);
 	}
 
@@ -564,6 +572,7 @@ static int quic_alloc_tx_rings_listener(struct listener *l)
 	while ((qr = MT_LIST_POP(&l->rx.tx_qring_list, typeof(qr), mt_list))) {
 		pool_free(pool_head_quic_tx_ring, qr->cbuf->buf);
 		cbuf_free(qr->cbuf);
+		free(qr);
 	}
 	free(l->rx.tx_qrings);
 	return 0;
@@ -584,11 +593,19 @@ static int quic_alloc_rxbufs_listener(struct listener *l)
 	MT_LIST_INIT(&l->rx.rxbuf_list);
 	for (i = 0; i < global.nbthread; i++) {
 		char *buf;
+		struct rxbuf *rxbuf;
 
-		rxbuf = &l->rx.rxbufs[i];
-		buf = pool_alloc(pool_head_quic_rxbuf);
-		if (!buf)
+		rxbuf = calloc(1, sizeof *rxbuf);
+		if (!rxbuf)
 			goto err;
+
+		buf = pool_alloc(pool_head_quic_rxbuf);
+		if (!buf) {
+			free(rxbuf);
+			goto err;
+		}
+
+		l->rx.rxbufs[i] = rxbuf;
 
 		rxbuf->buf = b_make(buf, QUIC_RX_BUFSZ, 0, 0);
 		LIST_INIT(&rxbuf->dgrams);
@@ -598,8 +615,10 @@ static int quic_alloc_rxbufs_listener(struct listener *l)
 	return 1;
 
  err:
-	while ((rxbuf = MT_LIST_POP(&l->rx.rxbuf_list, typeof(rxbuf), mt_list)))
+	while ((rxbuf = MT_LIST_POP(&l->rx.rxbuf_list, typeof(rxbuf), mt_list))) {
 		pool_free(pool_head_quic_rxbuf, rxbuf->buf.area);
+		free(rxbuf);
+	}
 	free(l->rx.rxbufs);
 	return 0;
 }
