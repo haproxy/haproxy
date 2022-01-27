@@ -116,6 +116,7 @@ THREAD_LOCAL int poller_rd_pipe = -1; // Pipe to wake the thread
 int poller_wr_pipe[MAX_THREADS] __read_mostly; // Pipe to wake the threads
 
 volatile int ha_used_fds = 0; // Number of FD we're currently using
+static struct fdtab *fdtab_addr;  /* address of the allocated area containing fdtab */
 
 #define _GET_NEXT(fd, off) ((volatile struct fdlist_entry *)(void *)((char *)(&fdtab[fd]) + off))->next
 #define _GET_PREV(fd, off) ((volatile struct fdlist_entry *)(void *)((char *)(&fdtab[fd]) + off))->prev
@@ -797,10 +798,13 @@ int init_pollers()
 	int p;
 	struct poller *bp;
 
-	if ((fdtab = calloc(global.maxsock, sizeof(*fdtab))) == NULL) {
+	if ((fdtab_addr = calloc(global.maxsock, sizeof(*fdtab) + 64)) == NULL) {
 		ha_alert("Not enough memory to allocate %d entries for fdtab!\n", global.maxsock);
 		goto fail_tab;
 	}
+
+	/* always provide an aligned fdtab */
+	fdtab = (struct fdtab*)((((size_t)fdtab_addr) + 63) & -(size_t)64);
 
 	if ((polled_mask = calloc(global.maxsock, sizeof(*polled_mask))) == NULL) {
 		ha_alert("Not enough memory to allocate %d entries for polled_mask!\n", global.maxsock);
@@ -838,7 +842,7 @@ int init_pollers()
  fail_info:
 	free(polled_mask);
  fail_polledmask:
-	free(fdtab);
+	free(fdtab_addr);
  fail_tab:
 	return 0;
 }
@@ -859,7 +863,7 @@ void deinit_pollers() {
 	}
 
 	ha_free(&fdinfo);
-	ha_free(&fdtab);
+	ha_free(&fdtab_addr);
 	ha_free(&polled_mask);
 }
 
