@@ -481,22 +481,6 @@ struct quic_dghdlr {
 	struct eb_root cids;
 };
 
-/* UDP datagram context used by the I/O handler receiver callbacks.
- * Useful to store the connection
- */
-struct quic_dgram_ctx {
-	struct quic_conn *qc;
-	struct quic_cid dcid;
-	void *owner;
-};
-
-/* QUIC packet reader. */
-typedef ssize_t qpkt_read_func(unsigned char *buf,
-                               const unsigned char *end,
-                               struct quic_rx_packet *qpkt,
-                               struct quic_dgram_ctx *dgram_ctx,
-                               struct sockaddr_storage *saddr);
-
 /* Structure to store enough information about the RX CRYPTO frames. */
 struct quic_rx_crypto_frm {
 	struct eb64_node offset_node;
