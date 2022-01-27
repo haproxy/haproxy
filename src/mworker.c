@@ -603,26 +603,17 @@ out:
 
 void mworker_free_child(struct mworker_proc *child)
 {
+	int i;
+
 	if (child == NULL)
 		return;
 
-	if (child->command) {
-		int i;
+	for (i = 0; child->command && child->command[i]; i++)
+		ha_free(&child->command[i]);
 
-		for (i = 0; child->command[i]; i++) {
-			if (child->command[i]) {
-				ha_free(&child->command[i]);
-			}
-
-		}
-		ha_free(&child->command);
-	}
-	if (child->id) {
-		ha_free(&child->id);
-	}
-	if (child->version) {
-		ha_free(&child->version);
-	}
+	ha_free(&child->command);
+	ha_free(&child->id);
+	ha_free(&child->version);
 	free(child);
 }
 
