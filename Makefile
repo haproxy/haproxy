@@ -653,6 +653,9 @@ endif
 ifneq ($(USE_PCRE2),)
 OPTIONS_CFLAGS  += -DDA_REGEX_HDR=\"dac_pcre2.c\" -DDA_REGEX_TAG=2
 endif
+OPTIONS_OBJS	+= $(DEVICEATLAS_LIB)/Os/daunix.o
+OPTIONS_OBJS	+= $(DEVICEATLAS_LIB)/dadwcom.o
+OPTIONS_OBJS	+= $(DEVICEATLAS_LIB)/dasch.o
 OPTIONS_OBJS	+= $(DEVICEATLAS_LIB)/json.o
 OPTIONS_OBJS	+= $(DEVICEATLAS_LIB)/dac.o
 endif
@@ -1033,7 +1036,7 @@ clean:
 	$(Q)rm -f haproxy-$(VERSION) haproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION) nohup.out gmon.out
 	$(Q)rm -f addons/promex/*.[oas]
 	$(Q)rm -f addons/51degrees/*.[oas] addons/51degrees/dummy/*.[oas] addons/51degrees/dummy/*/*.[oas]
-	$(Q)rm -f addons/deviceatlas/*.[oas] addons/deviceatlas/dummy/*.[oas]
+	$(Q)rm -f addons/deviceatlas/*.[oas] addons/deviceatlas/dummy/*.[oas] addons/deviceatlas/dummy/*.o
 	$(Q)rm -f addons/ot/src/*.[oas]
 	$(Q)rm -f addons/wurfl/*.[oas] addons/wurfl/dummy/*.[oas]
 	$(Q)rm -f admin/*/*.[oas] admin/*/*/*.[oas]

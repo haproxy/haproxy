@@ -9,7 +9,9 @@ The build supports the USE_PCRE and USE_PCRE2 options. Once extracted :
 
 Optionally DEVICEATLAS_INC and DEVICEATLAS_LIB may be set to override the path
 to the include files and libraries respectively if they're not in the source
-directory.
+directory. However, if the API had been installed beforehand, DEVICEATLAS_SRC
+can be omitted. Note that the DeviceAtlas C API version supported is the 2.4.0
+at minimum.
 
 For HAProxy developers who need to verify that their changes didn't accidentally
 break the DeviceAtlas code, it is possible to build a dummy library provided in
@@ -62,5 +64,19 @@ Single HTTP header
 
     acl device_type_tablet req.fhdr(User-Agent),da-csv-conv(primaryHardwareType) "Tablet"
 
+Optionally a JSON download scheduler is provided to allow a data file being
+fetched automatically in a daily basis without restarting HAProxy :
 
-Please find more information about DeviceAtlas and the detection methods at https://deviceatlas.com/resources .
+    $ cd addons/deviceatlas && make [DEVICEATLAS_SRC=<path to the API root folder>]
+
+Similarly, if the DeviceAtlas API is installed, DEVICEATLAS_SRC can be omitted.
+
+    $ ./dadwsch -u JSON data file URL e.g. "https://deviceatlas.com/getJSON?licencekey=<your licence key>&format=zip&data=my&index=web" \
+      [-p download directory path /tmp by default] \
+      [-d scheduled hour of download, hour when the service is launched by default]
+
+Noted it needs to be started before HAProxy.
+
+
+Please find more information about DeviceAtlas and the detection methods at
+https://deviceatlas.com/resources .

@@ -224,6 +224,17 @@ da_status_t da_atlas_compile(void *ctx, da_read_fn readfn, da_setpos_fn setposfn
 da_status_t da_atlas_open(da_atlas_t *atlas, da_property_decl_t *extra_props, const void *ptr, size_t pos);
 
 /**
+ * @brief read from a mapped data which then replace da_atlas_compile call
+ *
+ * @param dumppath, anonymous if NULL
+ * @param map for anonymous, it is the responsability of the caller to unmap it, ignored otherwise
+ * @param maplen for anonymous, it is the size of the mapped data, ignored otherwise
+ * @param ptr Pointer dynamically allocated if the mapping happened normally
+ * @param len size of the atlas image
+ * @return status of mapping
+ */
+da_status_t da_atlas_read_mapped(const char *path, void *m, void **p, size_t *l);
+/**
  * @brief Release any resources associated with the atlas structure atlas, which was previously generated from
  * da_read_atlas or da_compile_atlas.
  * @param atlas instance
