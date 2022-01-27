@@ -173,7 +173,7 @@ void quic_sock_fd_iocb(int fd)
 	struct quic_transport_params *params;
 	/* Source address */
 	struct sockaddr_storage saddr = {0};
-	size_t max_sz;
+	size_t max_sz, cspace;
 	socklen_t saddrlen;
 	struct quic_dgram *dgram, *dgramp, *new_dgram;
 
@@ -207,9 +207,10 @@ void quic_sock_fd_iocb(int fd)
 
 	params = &l->bind_conf->quic_params;
 	max_sz = params->max_udp_payload_size;
-	if (b_contig_space(buf) < max_sz) {
-		/* Note that when we enter this function, <buf> is always empty */
-		b_reset(buf);
+	cspace = b_contig_space(buf);
+	if (cspace < max_sz) {
+		/* Consume the remaining space */
+		b_add(buf, cspace);
 		if (b_contig_space(buf) < max_sz)
 			goto out;
 	}
