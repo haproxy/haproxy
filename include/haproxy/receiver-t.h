@@ -65,9 +65,6 @@ struct receiver {
 	struct rx_settings *settings;    /* points to the settings used by this receiver */
 	struct list proto_list;          /* list in the protocol header */
 #ifdef USE_QUIC
-	struct eb_root odcids;           /* QUIC original destination connection IDs. */
-	struct eb_root cids;             /* QUIC connection IDs. */
-	__decl_thread(HA_RWLOCK_T cids_lock); /* RW lock for connection IDs tree accesses */
 	struct qring **tx_qrings;         /* Array of rings (one by thread) */
 	struct mt_list tx_qring_list;    /* The same as ->tx_qrings but arranged in a list */
 

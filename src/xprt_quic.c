@@ -2810,10 +2810,8 @@ static int quic_build_post_handshake_frames(struct quic_conn *qc)
 		if (!cid)
 			goto err;
 
-		/* insert the allocated CID in the receiver tree */
-		HA_RWLOCK_WRLOCK(QUIC_LOCK, &l->rx.cids_lock);
-		ebmb_insert(&l->rx.cids, &cid->node, cid->cid.len);
-		HA_RWLOCK_WRUNLOCK(QUIC_LOCK, &l->rx.cids_lock);
+		/* insert the allocated CID in the receiver datagram handler tree */
+		ebmb_insert(&l->rx.dghdlrs[tid]->cids, &cid->node, cid->cid.len);
 
 		quic_connection_id_to_frm_cpy(frm, cid);
 		LIST_APPEND(&qel->pktns->tx.frms, &frm->list);
@@ -3440,11 +3438,9 @@ static void quic_conn_release(struct quic_conn *qc)
 	struct ssl_sock_ctx *conn_ctx;
 
 	/* remove the connection from receiver cids trees */
-	HA_RWLOCK_WRLOCK(QUIC_LOCK, &qc->li->rx.cids_lock);
 	ebmb_delete(&qc->odcid_node);
 	ebmb_delete(&qc->scid_node);
 	free_quic_conn_cids(qc);
-	HA_RWLOCK_WRUNLOCK(QUIC_LOCK, &qc->li->rx.cids_lock);
 
 	/* Kill the tasklet. Do not use tasklet_free as this is not thread safe
 	 * as other threads may call tasklet_wakeup after this.
@@ -3615,12 +3611,9 @@ static struct quic_conn *qc_new_conn(unsigned int version, int ipv4,
 		goto err;
 	}
 
-	/* insert the allocated CID in the receiver tree */
-	if (server) {
-		HA_RWLOCK_WRLOCK(QUIC_LOCK, &l->rx.cids_lock);
-		ebmb_insert(&l->rx.cids, &icid->node, icid->cid.len);
-		HA_RWLOCK_WRUNLOCK(QUIC_LOCK, &l->rx.cids_lock);
-	}
+	/* insert the allocated CID in the receiver datagram handler tree */
+	if (server)
+		ebmb_insert(&l->rx.dghdlrs[tid]->cids, &icid->node, icid->cid.len);
 
 	/* Select our SCID which is the first CID with 0 as sequence number. */
 	qc->scid = icid->cid;
@@ -4018,8 +4011,6 @@ static struct quic_conn *retrieve_qc_conn_from_cid(struct quic_rx_packet *pkt,
 	/* set if the quic_conn is found in the second DCID tree */
 	int found_in_dcid = 0;
 
-	HA_RWLOCK_RDLOCK(QUIC_LOCK, &l->rx.cids_lock);
-
 	/* Look first into ODCIDs tree for INITIAL/0-RTT packets. */
 	if (pkt->type == QUIC_PACKET_TYPE_INITIAL ||
 	    pkt->type == QUIC_PACKET_TYPE_0RTT) {
@@ -4028,7 +4019,7 @@ static struct quic_conn *retrieve_qc_conn_from_cid(struct quic_rx_packet *pkt,
 		 * socket addresses.
 		 */
 		quic_cid_saddr_cat(&pkt->dcid, saddr);
-		node = ebmb_lookup(&l->rx.odcids, pkt->dcid.data,
+		node = ebmb_lookup(&l->rx.dghdlrs[tid]->odcids, pkt->dcid.data,
 		                   pkt->dcid.len + pkt->dcid.addrlen);
 		if (node) {
 			qc = ebmb_entry(node, struct quic_conn, odcid_node);
@@ -4040,7 +4031,7 @@ static struct quic_conn *retrieve_qc_conn_from_cid(struct quic_rx_packet *pkt,
 	 * also for INITIAL/0-RTT non-first packets with the final DCID in
 	 * used.
 	 */
-	node = ebmb_lookup(&l->rx.cids, pkt->dcid.data, pkt->dcid.len);
+	node = ebmb_lookup(&l->rx.dghdlrs[tid]->cids, pkt->dcid.data, pkt->dcid.len);
 	if (!node)
 		goto end;
 
@@ -4051,18 +4042,12 @@ static struct quic_conn *retrieve_qc_conn_from_cid(struct quic_rx_packet *pkt,
  end:
 	if (qc)
 		quic_conn_take(qc);
-	HA_RWLOCK_RDUNLOCK(QUIC_LOCK, &l->rx.cids_lock);
 
 	/* If found in DCIDs tree, remove the quic_conn from the ODCIDs tree.
 	 * If already done, this is a noop.
-	 *
-	 * node.leaf_p is first checked to avoid unnecessary locking.
 	 */
-	if (qc && found_in_dcid && qc->odcid_node.node.leaf_p) {
-		HA_RWLOCK_WRLOCK(QUIC_LOCK, &l->rx.cids_lock);
+	if (qc && found_in_dcid)
 		ebmb_delete(&qc->odcid_node);
-		HA_RWLOCK_WRUNLOCK(QUIC_LOCK, &l->rx.cids_lock);
-	}
 
 	return qc;
 }
@@ -4377,9 +4362,8 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 				goto err;
 			}
 
-			HA_RWLOCK_WRLOCK(QUIC_LOCK, &l->rx.cids_lock);
 			/* Insert the DCID the QUIC client has chosen (only for listeners) */
-			n = ebmb_insert(&l->rx.odcids, &qc->odcid_node,
+			n = ebmb_insert(&l->rx.dghdlrs[tid]->odcids, &qc->odcid_node,
 			                qc->odcid.len + qc->odcid.addrlen);
 
 			/* If the insertion failed, it means that another
@@ -4394,7 +4378,6 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 			}
 
 			quic_conn_take(qc);
-			HA_RWLOCK_WRUNLOCK(QUIC_LOCK, &l->rx.cids_lock);
 
 			if (likely(!qc_to_purge)) {
 				/* Enqueue this packet. */
