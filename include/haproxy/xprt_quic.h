@@ -1184,6 +1184,7 @@ void chunk_frm_appendf(struct buffer *buf, const struct quic_frame *frm);
 
 void quic_set_tls_alert(struct quic_conn *qc, int alert);
 int quic_set_app_ops(struct quic_conn *qc, const unsigned char *alpn, size_t alpn_len);
+struct task *quic_lstnr_dghdlr(struct task *t, void *ctx, unsigned int state);
 int quic_lstnr_dgram_read(unsigned char *buf, size_t len, void *owner,
                           struct sockaddr_storage *saddr, struct list *dgrams);
 

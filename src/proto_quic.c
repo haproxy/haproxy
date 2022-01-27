@@ -45,7 +45,7 @@
 #include <haproxy/quic_sock.h>
 #include <haproxy/sock_inet.h>
 #include <haproxy/tools.h>
-#include <haproxy/xprt_quic-t.h>
+#include <haproxy/xprt_quic.h>
 
 
 static void quic_add_listener(struct protocol *proto, struct listener *listener);
@@ -630,6 +630,7 @@ static int quic_alloc_dghdlrs_listener(struct listener *l)
 
 		dghdlr->task->tid = i;
 		dghdlr->task->context = dghdlr;
+		dghdlr->task->process = quic_lstnr_dghdlr;
 		dghdlr->odcids = EB_ROOT_UNIQUE;
 		dghdlr->cids = EB_ROOT_UNIQUE;
 		MT_LIST_INIT(&dghdlr->dgrams);

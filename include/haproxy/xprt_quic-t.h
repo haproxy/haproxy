@@ -422,10 +422,15 @@ struct quic_pktns {
 
 /* QUIC datagram */
 struct quic_dgram {
+	void *owner;
 	unsigned char *buf;
 	size_t len;
+	unsigned char *dcid;
+	size_t dcid_len;
 	struct sockaddr_storage saddr;
+	struct quic_conn *qc;
 	struct list list;
+	struct mt_list mt_list;
 };
 
 /* The QUIC packet numbers are 62-bits integers */

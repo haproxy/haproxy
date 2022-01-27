@@ -4191,9 +4191,8 @@ int qc_conn_alloc_ssl_ctx(struct quic_conn *qc)
 }
 
 static ssize_t qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
-                                struct quic_rx_packet *pkt,
-                                struct quic_dgram_ctx *dgram_ctx,
-                                struct sockaddr_storage *saddr)
+                                struct quic_rx_packet *pkt, int first_pkt,
+                                struct quic_dgram *dgram)
 {
 	unsigned char *beg, *payload;
 	struct quic_conn *qc, *qc_to_purge = NULL;
@@ -4222,7 +4221,7 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 		goto err;
 	}
 
-	l = dgram_ctx->owner;
+	l = dgram->owner;
 	/* Header form */
 	qc_parse_hd_form(pkt, *buf++, &long_header);
 	if (long_header) {
@@ -4230,6 +4229,16 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 
 		if (!quic_packet_read_long_header(&buf, end, pkt)) {
 			TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT);
+			goto err;
+		}
+
+		/* When multiple QUIC packets are coalesced on the same UDP datagram,
+		 * they must have the same DCID.
+		 */
+		if (!first_pkt &&
+		    (pkt->dcid.len != dgram->dcid_len ||
+		     memcmp(dgram->dcid, pkt->dcid.data, pkt->dcid.len))) {
+			TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT, qc);
 			goto err;
 		}
 
@@ -4242,7 +4251,7 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 		/* RFC9000 6. Version Negotiation */
 		if (!qc_pkt_is_supported_version(pkt)) {
 			 /* unsupported version, send Negotiation packet */
-			if (send_version_negotiation(l->rx.fd, saddr, pkt)) {
+			if (send_version_negotiation(l->rx.fd, &dgram->saddr, pkt)) {
 				TRACE_PROTO("Error on Version Negotiation sending", QUIC_EV_CONN_LPKT);
 				goto err;
 			}
@@ -4273,7 +4282,7 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 			 */
 			if (!token_len && l->bind_conf->quic_force_retry) {
 				TRACE_PROTO("Initial without token, sending retry", QUIC_EV_CONN_LPKT);
-				if (send_retry(l->rx.fd, saddr, pkt)) {
+				if (send_retry(l->rx.fd, &dgram->saddr, pkt)) {
 					TRACE_PROTO("Error during Retry generation", QUIC_EV_CONN_LPKT);
 					goto err;
 				}
@@ -4301,7 +4310,7 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 		payload = buf;
 		pkt->len = len + payload - beg;
 
-		qc = retrieve_qc_conn_from_cid(pkt, l, saddr);
+		qc = retrieve_qc_conn_from_cid(pkt, l, &dgram->saddr);
 		if (!qc) {
 			int ipv4;
 			struct quic_cid *odcid;
@@ -4314,8 +4323,8 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 				goto err;
 			}
 
-			pkt->saddr = *saddr;
-			ipv4 = saddr->ss_family == AF_INET;
+			pkt->saddr = dgram->saddr;
+			ipv4 = dgram->saddr.ss_family == AF_INET;
 			qc = qc_new_conn(pkt->version, ipv4,
 			                 pkt->dcid.data, pkt->dcid.len, pkt->dcid.addrlen,
 			                 pkt->scid.data, pkt->scid.len, 1, l);
@@ -4407,13 +4416,24 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 
 		memcpy(pkt->dcid.data, buf, QUIC_HAP_CID_LEN);
 		pkt->dcid.len = QUIC_HAP_CID_LEN;
+
+		/* When multiple QUIC packets are coalesced on the same UDP datagram,
+		 * they must have the same DCID.
+		 */
+		if (!first_pkt &&
+		    (pkt->dcid.len != dgram->dcid_len ||
+		     memcmp(dgram->dcid, pkt->dcid.data, pkt->dcid.len))) {
+			TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT, qc);
+			goto err;
+		}
+
 		buf += QUIC_HAP_CID_LEN;
 
 		/* A short packet is the last one of a UDP datagram. */
 		payload = buf;
 		pkt->len = end - beg;
 
-		qc = retrieve_qc_conn_from_cid(pkt, l, saddr);
+		qc = retrieve_qc_conn_from_cid(pkt, l, &dgram->saddr);
 		if (!qc) {
 			size_t pktlen = end - buf;
 			TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT, NULL, pkt, &pktlen);
@@ -4430,27 +4450,19 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 	 * This check must be done after the final update to pkt.len to
 	 * properly drop the packet on failure.
 	 */
-	if (!dgram_ctx->dcid.len) {
-		memcpy(dgram_ctx->dcid.data, pkt->dcid.data, pkt->dcid.len);
-		dgram_ctx->dcid.len = pkt->dcid.len;
-		if (!quic_peer_validated_addr(qc) &&
-		    HA_ATOMIC_LOAD(&qc->flags) & QUIC_FL_CONN_ANTI_AMPLIFICATION_REACHED) {
-			TRACE_PROTO("PTO timer must be armed after anti-amplication was reached",
-			            QUIC_EV_CONN_LPKT, qc);
-			/* Reset the anti-amplification bit. It will be set again
-			 * when sending the next packet if reached again.
-			 */
-			HA_ATOMIC_BTR(&qc->flags, QUIC_FL_CONN_ANTI_AMPLIFICATION_REACHED_BIT);
-			HA_ATOMIC_OR(&qc->flags, QUIC_FL_CONN_IO_CB_WAKEUP_BIT);
-			io_cb_wakeup = 1;
-		}
+	if (first_pkt && !quic_peer_validated_addr(qc) &&
+	    HA_ATOMIC_LOAD(&qc->flags) & QUIC_FL_CONN_ANTI_AMPLIFICATION_REACHED) {
+		TRACE_PROTO("PTO timer must be armed after anti-amplication was reached",
+					QUIC_EV_CONN_LPKT, qc);
+		/* Reset the anti-amplification bit. It will be set again
+		 * when sending the next packet if reached again.
+		 */
+		HA_ATOMIC_BTR(&qc->flags, QUIC_FL_CONN_ANTI_AMPLIFICATION_REACHED_BIT);
+		HA_ATOMIC_OR(&qc->flags, QUIC_FL_CONN_IO_CB_WAKEUP_BIT);
+		io_cb_wakeup = 1;
 	}
-	else if (memcmp(dgram_ctx->dcid.data, pkt->dcid.data, pkt->dcid.len)) {
-		TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT, qc);
-		goto err;
-	}
-	dgram_ctx->qc = qc;
 
+	dgram->qc = qc;
 
 	if (HA_ATOMIC_LOAD(&qc->err_code)) {
 		TRACE_PROTO("Connection error", QUIC_EV_CONN_LPKT, qc);
@@ -5360,19 +5372,20 @@ static void __quic_conn_deinit(void)
  * as owner calling <func> function.
  * Return the number of bytes read if succeeded, -1 if not.
  */
-static ssize_t quic_dgram_read(unsigned char *buf, size_t len, void *owner,
-                               struct sockaddr_storage *saddr, qpkt_read_func *func)
+struct task *quic_lstnr_dghdlr(struct task *t, void *ctx, unsigned int state)
 {
 	unsigned char *pos;
 	const unsigned char *end;
-	struct quic_dgram_ctx dgram_ctx = {
-		.qc = NULL,
-		.dcid.len = 0,
-		.owner = owner,
-	};
+	struct quic_dghdlr *dghdlr = ctx;
+	struct quic_dgram *dgram;
+	int first_pkt = 1;
 
-	pos = buf;
-	end = pos + len;
+	dgram = MT_LIST_POP(&dghdlr->dgrams, typeof(dgram), mt_list);
+	if (!dgram)
+		goto err;
+
+	pos = dgram->buf;
+	end = pos + dgram->len;
 	do {
 		int ret;
 		struct quic_rx_packet *pkt;
@@ -5382,7 +5395,8 @@ static ssize_t quic_dgram_read(unsigned char *buf, size_t len, void *owner,
 			goto err;
 
 		quic_rx_packet_refinc(pkt);
-		ret = func(pos, end, pkt, &dgram_ctx, saddr);
+		ret = qc_lstnr_pkt_rcv(pos, end, pkt, first_pkt, dgram);
+		first_pkt = 0;
 		pos += pkt->len;
 		quic_rx_packet_refdec(pkt);
 		if (ret == -1)
@@ -5393,13 +5407,13 @@ static ssize_t quic_dgram_read(unsigned char *buf, size_t len, void *owner,
 	/* Increasing the received bytes counter by the UDP datagram length
 	 * if this datagram could be associated to a connection.
 	 */
-	if (dgram_ctx.qc)
-		dgram_ctx.qc->rx.bytes += len;
+	if (dgram->qc)
+		dgram->qc->rx.bytes += dgram->len;
 
-	return pos - buf;
+	return t;
 
  err:
-	return -1;
+	return t;
 }
 
 /* Retreive the DCID from a QUIC datagram or packet with <buf> as first octet.
@@ -5441,22 +5455,33 @@ int quic_lstnr_dgram_read(unsigned char *buf, size_t len, void *owner,
 	struct quic_dgram *dgram;
 	unsigned char *dcid;
 	size_t dcid_len;
+	int tid;
+	struct listener *l = owner;
 
 	if (!len || !quic_get_dgram_dcid(buf, buf + len, &dcid, &dcid_len))
-		goto out;
+		goto err;
 
 	dgram = pool_alloc(pool_head_quic_dgram);
 	if (!dgram)
-		goto out;
+		goto err;
 
+	tid = quic_get_cid_tid(dcid);
+	/* All the members must be initialized! */
+	dgram->owner = owner;
 	dgram->buf = buf;
 	dgram->len = len;
+	dgram->dcid = dcid;
+	dgram->dcid_len = dcid_len;
 	dgram->saddr = *saddr;
+	dgram->qc = NULL;
 	LIST_APPEND(dgrams, &dgram->list);
+	MT_LIST_APPEND(&l->rx.dghdlrs[tid]->dgrams, &dgram->mt_list);
 
-	return quic_dgram_read(buf, len, owner, saddr, qc_lstnr_pkt_rcv);
+	tasklet_wakeup(l->rx.dghdlrs[tid]->task);
 
- out:
+	return 1;
+
+ err:
 	return 0;
 }
 
