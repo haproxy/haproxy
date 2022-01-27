@@ -5403,6 +5403,8 @@ struct task *quic_lstnr_dghdlr(struct task *t, void *ctx, unsigned int state)
 			/* If the packet length could not be found, we cannot continue. */
 			break;
 	} while (pos < end);
+	/* Mark this datagram as consumed */
+	HA_ATOMIC_STORE(&dgram->buf, NULL);
 
 	/* Increasing the received bytes counter by the UDP datagram length
 	 * if this datagram could be associated to a connection.
@@ -5449,8 +5451,13 @@ static int quic_get_dgram_dcid(unsigned char *buf, const unsigned char *end,
 	return 0;
 }
 
-int quic_lstnr_dgram_read(unsigned char *buf, size_t len, void *owner,
-                          struct sockaddr_storage *saddr, struct list *dgrams)
+/* Retrieve the DCID from the datagram found in <buf> and deliver it to the
+ * correct datagram handler.
+ * Return 1 if a correct datagram could be found, 0 if not.
+ */
+int quic_lstnr_dgram_dispatch(unsigned char *buf, size_t len, void *owner,
+                              struct sockaddr_storage *saddr,
+                              struct quic_dgram *new_dgram, struct list *dgrams)
 {
 	struct quic_dgram *dgram;
 	unsigned char *dcid;
@@ -5461,7 +5468,7 @@ int quic_lstnr_dgram_read(unsigned char *buf, size_t len, void *owner,
 	if (!len || !quic_get_dgram_dcid(buf, buf + len, &dcid, &dcid_len))
 		goto err;
 
-	dgram = pool_alloc(pool_head_quic_dgram);
+	dgram = new_dgram ? new_dgram : pool_alloc(pool_head_quic_dgram);
 	if (!dgram)
 		goto err;
 

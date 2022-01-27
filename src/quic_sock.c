@@ -175,6 +175,7 @@ void quic_sock_fd_iocb(int fd)
 	struct sockaddr_storage saddr = {0};
 	size_t max_sz;
 	socklen_t saddrlen;
+	struct quic_dgram *dgram, *dgramp, *new_dgram;
 
 	BUG_ON(!l);
 
@@ -187,7 +188,22 @@ void quic_sock_fd_iocb(int fd)
 	rxbuf = MT_LIST_POP(&l->rx.rxbuf_list, typeof(rxbuf), mt_list);
 	if (!rxbuf)
 		goto out;
+
 	buf = &rxbuf->buf;
+
+	new_dgram = NULL;
+	/* Remove all consumed datagrams of this buffer */
+	list_for_each_entry_safe(dgram, dgramp, &rxbuf->dgrams, list) {
+		if (HA_ATOMIC_LOAD(&dgram->buf))
+			break;
+
+		LIST_DELETE(&dgram->list);
+		b_del(buf, dgram->len);
+		if (!new_dgram)
+			new_dgram = dgram;
+		else
+			pool_free(pool_head_quic_dgram, dgram);
+	}
 
 	params = &l->bind_conf->quic_params;
 	max_sz = params->max_udp_payload_size;
@@ -212,9 +228,11 @@ void quic_sock_fd_iocb(int fd)
 	} while (0);
 
 	b_add(buf, ret);
-	quic_lstnr_dgram_read((unsigned char *)b_head(buf), ret,
-	                      l, &saddr, &rxbuf->dgrams);
-	b_del(buf, ret);
+	if (!quic_lstnr_dgram_dispatch((unsigned char *)b_head(buf), ret,
+	                               l, &saddr, new_dgram, &rxbuf->dgrams)) {
+		/* If wrong, consume this datagram */
+		b_del(buf, ret);
+	}
  out:
 	MT_LIST_APPEND(&l->rx.rxbuf_list, &rxbuf->mt_list);
 }
