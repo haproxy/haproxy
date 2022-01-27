@@ -183,7 +183,7 @@ static inline void quic_connection_id_to_frm_cpy(struct quic_frame *dst,
  */
 static inline struct quic_connection_id *new_quic_cid(struct eb_root *root,
                                                       struct quic_conn *qc,
-                                                      int seq_num)
+                                                      int seq_num, unsigned char *dcid)
 {
 	struct quic_connection_id *cid;
 
@@ -198,6 +198,9 @@ static inline struct quic_connection_id *new_quic_cid(struct eb_root *root,
 		fprintf(stderr, "Could not generate %d random bytes\n", cid->cid.len);
 		goto err;
 	}
+
+	/* Set the same first octet from <dcid> */
+	cid->cid.data[0] = *dcid;
 
 	cid->qc = qc;
 
