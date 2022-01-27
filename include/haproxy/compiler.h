@@ -220,6 +220,17 @@
 #define HA_HAVE_CAS_DW
 #endif
 
+/*********************** IMPORTANT NOTE ABOUT ALIGNMENT **********************\
+ * Alignment works fine for variables. It also works on types and struct     *
+ * members by propagating the alignment to the container struct itself,      *
+ * but this requires that variables of the affected type are properly        *
+ * aligned themselves. While regular variables will always abide, those      *
+ * allocated using malloc() will not! Most platforms provide posix_memalign()*
+ * for this, but it's not available everywhere. As such one ought not to use *
+ * these alignment declarations inside structures that are dynamically       *
+ * allocated. If the purpose is only to avoid false sharing of cache lines   *
+ * for multi_threading, see THREAD_PAD() below.                              *
+\*****************************************************************************/
 
 /* sets alignment for current field or variable */
 #ifndef ALIGNED
@@ -292,6 +303,20 @@
 #else
 #define THREAD_ALIGN(x)
 #endif
+#endif
+
+/* add optional padding of the specified size between fields in a structure,
+ * only when threads are enabled. This is used to avoid false sharing of cache
+ * lines for dynamically allocated structures which cannot guarantee alignment.
+ */
+#ifndef THREAD_PAD
+# ifdef USE_THREAD
+#  define __THREAD_PAD(x,l)  char __pad_##l[x]
+#  define _THREAD_PAD(x,l)   __THREAD_PAD(x, l)
+#  define THREAD_PAD(x)      _THREAD_PAD(x, __LINE__)
+# else
+#  define THREAD_PAD(x)
+# endif
 #endif
 
 /* The THREAD_LOCAL type attribute defines thread-local storage and is defined

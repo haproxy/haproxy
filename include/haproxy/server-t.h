@@ -273,7 +273,7 @@ struct server {
 	/* The elements below may be changed on every single request by any
 	 * thread, and generally at the same time.
 	 */
-	ALWAYS_ALIGN(64);
+	THREAD_PAD(63);
 	struct eb32_node idle_node;             /* When to next do cleanup in the idle connections */
 	unsigned int curr_idle_conns;           /* Current number of orphan idling connections, both the idle and the safe lists */
 	unsigned int curr_idle_nb;              /* Current number of connections in the idle list */
@@ -288,14 +288,14 @@ struct server {
 	/* Element below are usd by LB algorithms and must be doable in
 	 * parallel to other threads reusing connections above.
 	 */
-	ALWAYS_ALIGN(64);
+	THREAD_PAD(63);
 	__decl_thread(HA_SPINLOCK_T lock);      /* may enclose the proxy's lock, must not be taken under */
 	unsigned npos, lpos;			/* next and last positions in the LB tree, protected by LB lock */
 	struct eb32_node lb_node;               /* node used for tree-based load balancing */
 	struct server *next_full;               /* next server in the temporary full list */
 
 	/* usually atomically updated by any thread during parsing or on end of request */
-	ALWAYS_ALIGN(64);
+	THREAD_PAD(63);
 	int cur_sess;				/* number of currently active sessions (including syn_sent) */
 	int served;				/* # of active sessions currently being served (ie not pending) */
 	int consecutive_errors;			/* current number of consecutive errors */
@@ -303,7 +303,7 @@ struct server {
 	struct be_counters counters;		/* statistics counters */
 
 	/* Below are some relatively stable settings, only changed under the lock */
-	ALWAYS_ALIGN(64);
+	THREAD_PAD(63);
 
 	struct eb_root *lb_tree;                /* we want to know in what tree the server is */
 	struct tree_occ *lb_nodes;              /* lb_nodes_tot * struct tree_occ */
