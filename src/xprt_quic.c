@@ -4308,6 +4308,11 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 				goto err;
 			}
 
+			if (pkt->dcid.len < QUIC_ODCID_MINLEN) {
+				TRACE_PROTO("dropped packet", QUIC_EV_CONN_LPKT);
+				goto err;
+			}
+
 			pkt->saddr = dgram->saddr;
 			ipv4 = dgram->saddr.ss_family == AF_INET;
 			qc = qc_new_conn(pkt->version, ipv4,

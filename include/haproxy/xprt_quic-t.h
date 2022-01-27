@@ -62,6 +62,8 @@ typedef unsigned long long ull;
 /* Common definitions for short and long QUIC packet headers. */
 /* QUIC connection ID maximum length for version 1. */
 #define QUIC_CID_MAXLEN               20 /* bytes */
+/* QUIC original destination connection ID minial length */
+#define QUIC_ODCID_MINLEN              8 /* bytes */
 /*
  * All QUIC packets with long headers are made of at least (in bytes):
  * flags(1), version(4), DCID length(1), DCID(0..20), SCID length(1), SCID(0..20)
