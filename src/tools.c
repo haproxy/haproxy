@@ -4814,7 +4814,7 @@ static int dladdr_and_size(const void *addr, Dl_info *dli, size_t *size)
 {
 	int ret;
 #if defined(__GLIBC__) && (__GLIBC__ > 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ >= 3)) // most detailed one
-	const ElfW(Sym) *sym;
+	const ElfW(Sym) *sym __attribute__((may_alias));
 
 	ret = dladdr1(addr, dli, (void **)&sym, RTLD_DL_SYMENT);
 	if (ret)
