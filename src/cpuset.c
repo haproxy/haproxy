@@ -47,7 +47,7 @@ int ha_cpuset_clr(struct hap_cpuset *set, int cpu)
 #endif
 }
 
-void ha_cpuset_and(struct hap_cpuset *dst, const struct hap_cpuset *src)
+void ha_cpuset_and(struct hap_cpuset *dst, struct hap_cpuset *src)
 {
 #if defined(CPUSET_USE_CPUSET)
 	CPU_AND(&dst->cpuset, &dst->cpuset, &src->cpuset);
@@ -94,7 +94,7 @@ int ha_cpuset_ffs(const struct hap_cpuset *set)
 #endif
 }
 
-void ha_cpuset_assign(struct hap_cpuset *dst, const struct hap_cpuset *src)
+void ha_cpuset_assign(struct hap_cpuset *dst, struct hap_cpuset *src)
 {
 #if defined(CPUSET_USE_CPUSET)
 	CPU_ZERO(&dst->cpuset);
