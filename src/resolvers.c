@@ -1738,10 +1738,8 @@ int resolv_str_to_dn_label(const char *str, int str_len, char *dn, int dn_len)
 				return -1;
 
 			/* ignore trailing dot */
-			if (i + 1 == str_len) {
-				i++;
+			if (i + 1 == str_len)
 				break;
-			}
 
 			dn[offset] = (i - offset);
 			offset = i+1;
