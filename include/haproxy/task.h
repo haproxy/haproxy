@@ -400,7 +400,7 @@ static inline void _tasklet_wakeup_on(struct tasklet *tl, int thr, const char *f
  */
 static inline void tasklet_remove_from_tasklet_list(struct tasklet *t)
 {
-	if (MT_LIST_DELETE((struct mt_list *)&t->list)) {
+	if (MT_LIST_DELETE(list_to_mt_list(&t->list))) {
 		_HA_ATOMIC_AND(&t->state, ~TASK_IN_LIST);
 		_HA_ATOMIC_DEC(&ha_thread_ctx[t->tid >= 0 ? t->tid : tid].rq_total);
 	}
@@ -556,7 +556,7 @@ static inline void task_destroy(struct task *t)
 /* Should only be called by the thread responsible for the tasklet */
 static inline void tasklet_free(struct tasklet *tl)
 {
-	if (MT_LIST_DELETE((struct mt_list *)&tl->list))
+	if (MT_LIST_DELETE(list_to_mt_list(&tl->list)))
 		_HA_ATOMIC_DEC(&ha_thread_ctx[tl->tid >= 0 ? tl->tid : tid].rq_total);
 
 #ifdef DEBUG_TASK

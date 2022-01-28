@@ -89,7 +89,7 @@ void task_kill(struct task *t)
 
 			/* Beware: tasks that have never run don't have their ->list empty yet! */
 			MT_LIST_APPEND(&ha_thread_ctx[thr].shared_tasklet_list,
-			             (struct mt_list *)&((struct tasklet *)t)->list);
+			               list_to_mt_list(&((struct tasklet *)t)->list));
 			_HA_ATOMIC_INC(&ha_thread_ctx[thr].rq_total);
 			_HA_ATOMIC_INC(&ha_thread_ctx[thr].tasks_in_list);
 			if (sleeping_thread_mask & (1UL << thr)) {
@@ -128,7 +128,7 @@ void tasklet_kill(struct tasklet *t)
 		if (_HA_ATOMIC_CAS(&t->state, &state, state | TASK_IN_LIST | TASK_KILLED)) {
 			thr = t->tid > 0 ? t->tid: tid;
 			MT_LIST_APPEND(&ha_thread_ctx[thr].shared_tasklet_list,
-			               (struct mt_list *)&t->list);
+			               list_to_mt_list(&t->list));
 			_HA_ATOMIC_INC(&ha_thread_ctx[thr].rq_total);
 			if (sleeping_thread_mask & (1UL << thr)) {
 				_HA_ATOMIC_AND(&sleeping_thread_mask, ~(1UL << thr));
@@ -172,7 +172,7 @@ void __tasklet_wakeup_on(struct tasklet *tl, int thr)
 		_HA_ATOMIC_INC(&th_ctx->rq_total);
 	} else {
 		/* this tasklet runs on a specific thread. */
-		MT_LIST_APPEND(&ha_thread_ctx[thr].shared_tasklet_list, (struct mt_list *)&tl->list);
+		MT_LIST_APPEND(&ha_thread_ctx[thr].shared_tasklet_list, list_to_mt_list(&tl->list));
 		_HA_ATOMIC_INC(&ha_thread_ctx[thr].rq_total);
 		if (sleeping_thread_mask & (1UL << thr)) {
 			_HA_ATOMIC_AND(&sleeping_thread_mask, ~(1UL << thr));
