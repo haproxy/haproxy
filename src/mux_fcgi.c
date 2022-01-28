@@ -425,7 +425,7 @@ static void fcgi_trace(enum trace_level level, uint64_t mask, const struct trace
 		       const void *a1, const void *a2, const void *a3, const void *a4)
 {
 	const struct connection *conn = a1;
-	const struct fcgi_conn *fconn = conn ? conn->ctx : NULL;
+	struct fcgi_conn *fconn = conn ? conn->ctx : NULL;
 	const struct fcgi_strm *fstrm = a2;
 	const struct htx *htx = a3;
 	const size_t     *val = a4;
@@ -482,8 +482,8 @@ static void fcgi_trace(enum trace_level level, uint64_t mask, const struct trace
 				      (unsigned int)b_head_ofs(&fconn->dbuf), (unsigned int)b_size(&fconn->dbuf));
 		if (src->verbosity == FCGI_VERB_COMPLETE ||
 		    (src->verbosity == FCGI_VERB_ADVANCED && (mask & (FCGI_EV_FCONN_SEND|FCGI_EV_TX_RECORD)))) {
-			struct buffer *hmbuf = br_head((struct buffer *)fconn->mbuf);
-			struct buffer *tmbuf = br_tail((struct buffer *)fconn->mbuf);
+			struct buffer *hmbuf = br_head(fconn->mbuf);
+			struct buffer *tmbuf = br_tail(fconn->mbuf);
 
 			chunk_appendf(&trace_buf, " .mbuf=[%u..%u|%u],h=[%u@%p+%u/%u],t=[%u@%p+%u/%u]",
 				      br_head_idx(fconn->mbuf), br_tail_idx(fconn->mbuf), br_size(fconn->mbuf),
