@@ -571,7 +571,7 @@ static int srv_state_parse_line(char *buf, const int version, char **params)
 	}
 
 	/* skip blank characters at the beginning of the line */
-	while (isblank((unsigned char)*cur))
+	while (*cur == ' ' || *cur == '\t')
 		++cur;
 
 	/* ignore empty or commented lines */
@@ -592,7 +592,7 @@ static int srv_state_parse_line(char *buf, const int version, char **params)
 			break;
 
 		/* then skip leading spaces */
-		while (*cur && isblank((unsigned char)*cur)) {
+		while (*cur && (*cur == ' ' || *cur == '\t')) {
 			++cur;
 			if (!*cur)
 				break;
@@ -632,7 +632,7 @@ static int srv_state_parse_line(char *buf, const int version, char **params)
 		params[arg++] = cur;
 
 		/* look for the end of the current field */
-		while (*cur && !isblank((unsigned char)*cur)) {
+		while (*cur && *cur != ' ' && *cur != '\t') {
 			++cur;
 			if (!*cur)
 				break;
