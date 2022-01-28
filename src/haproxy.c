@@ -856,6 +856,9 @@ void reexec_on_failure()
 		child->failedreloads++;
 	}
 
+	/* do not keep unused FDs retrieved from the previous process */
+	sock_drop_unused_old_sockets();
+
 	usermsgs_clr(NULL);
 	ha_warning("Loading failure!\n");
 	mworker_reexec_waitmode();
