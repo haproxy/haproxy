@@ -1071,14 +1071,12 @@ static int vars_parse_global_set_var(char **args, int section_type, struct proxy
 {
 	struct proxy px = {
 		.id = "CFG",
-		.conf.args.file = file,
-		.conf.args.line = line,
+		.conf.args = { .file = file, .line = line, },
 	};
 	struct act_rule rule = {
 		.arg.vars.scope = SCOPE_PROC,
 		.from = ACT_F_CFG_PARSER,
-		.conf.file = (char *)file,
-		.conf.line = line,
+		.conf = { .file = (char *)file, .line = line, },
 	};
 	enum obj_type objt = OBJ_TYPE_NONE;
 	struct session *sess = NULL;
@@ -1192,14 +1190,12 @@ static int vars_parse_cli_set_var(char **args, char *payload, struct appctx *app
 {
 	struct proxy px = {
 		.id = "CLI",
-		.conf.args.file = "CLI",
-		.conf.args.line = 0,
+		.conf.args = { .file = "CLI", .line = 0, },
 	};
 	struct act_rule rule = {
 		.arg.vars.scope = SCOPE_PROC,
 		.from = ACT_F_CLI_PARSER,
-		.conf.file = "CLI",
-		.conf.line = 0,
+		.conf = { .file = "CLI", .line = 0, },
 	};
 	enum obj_type objt = OBJ_TYPE_NONE;
 	struct session *sess = NULL;
