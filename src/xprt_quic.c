@@ -3204,7 +3204,8 @@ static int qc_qel_may_rm_hp(struct quic_conn *qc, struct quic_enc_level *qel)
 		return 0;
 
 	/* check if the connection layer is ready before using app level */
-	if (tel == QUIC_TLS_ENC_LEVEL_APP && qc->mux_state != QC_MUX_READY)
+	if ((tel == QUIC_TLS_ENC_LEVEL_APP || tel == QUIC_TLS_ENC_LEVEL_EARLY_DATA) &&
+	    qc->mux_state != QC_MUX_READY)
 		return 0;
 
 	return 1;
