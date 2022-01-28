@@ -13,7 +13,7 @@ jobs:
       container:
         image: alpine:latest
       steps:
-      - uses: actions/checkout@master
+      - uses: actions/checkout@v2
       - name: Install dependencies
         run: apk add gcc make tar git python3 libc-dev linux-headers pcre-dev pcre2-dev openssl-dev lua5.3-dev grep socat curl
       - name: Install VTest
