@@ -5368,37 +5368,39 @@ struct task *quic_lstnr_dghdlr(struct task *t, void *ctx, unsigned int state)
 	struct quic_dgram *dgram;
 	int first_pkt = 1;
 
-	dgram = MT_LIST_POP(&dghdlr->dgrams, typeof(dgram), mt_list);
-	if (!dgram)
-		goto err;
-
-	pos = dgram->buf;
-	end = pos + dgram->len;
-	do {
-		int ret;
-		struct quic_rx_packet *pkt;
-
-		pkt = pool_zalloc(pool_head_quic_rx_packet);
-		if (!pkt)
+	while ((dgram = MT_LIST_POP(&dghdlr->dgrams, typeof(dgram), mt_list))) {
+		if (!dgram)
 			goto err;
 
-		quic_rx_packet_refinc(pkt);
-		ret = qc_lstnr_pkt_rcv(pos, end, pkt, first_pkt, dgram);
-		first_pkt = 0;
-		pos += pkt->len;
-		quic_rx_packet_refdec(pkt);
-		if (ret == -1)
-			/* If the packet length could not be found, we cannot continue. */
-			break;
-	} while (pos < end);
-	/* Mark this datagram as consumed */
-	HA_ATOMIC_STORE(&dgram->buf, NULL);
+		pos = dgram->buf;
+		end = pos + dgram->len;
+		do {
+			int ret;
+			struct quic_rx_packet *pkt;
 
-	/* Increasing the received bytes counter by the UDP datagram length
-	 * if this datagram could be associated to a connection.
-	 */
-	if (dgram->qc)
-		dgram->qc->rx.bytes += dgram->len;
+			pkt = pool_zalloc(pool_head_quic_rx_packet);
+			if (!pkt)
+				goto err;
+
+			quic_rx_packet_refinc(pkt);
+			ret = qc_lstnr_pkt_rcv(pos, end, pkt, first_pkt, dgram);
+			first_pkt = 0;
+			pos += pkt->len;
+			quic_rx_packet_refdec(pkt);
+			if (ret == -1)
+				/* If the packet length could not be found, we cannot continue. */
+				break;
+		} while (pos < end);
+
+		/* Mark this datagram as consumed */
+		HA_ATOMIC_STORE(&dgram->buf, NULL);
+
+		/* Increasing the received bytes counter by the UDP datagram length
+		 * if this datagram could be associated to a connection.
+		 */
+		if (dgram->qc)
+			dgram->qc->rx.bytes += dgram->len;
+	}
 
 	return t;
 
