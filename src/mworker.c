@@ -457,6 +457,36 @@ void mworker_cleanlisteners()
 	}
 }
 
+/* Upon a configuration loading error some mworker_proc and FDs/server were
+ * assigned but the worker was never forked, we must close the FDs and
+ * remove the server
+ */
+void mworker_cleanup_proc()
+{
+	struct mworker_proc *child, *it;
+
+	list_for_each_entry_safe(child, it, &proc_list, list) {
+
+		if (child->pid == -1) {
+			/* Close the socketpair master side.  We don't need to
+			 * close the worker side, because it's stored in the
+			 * GLOBAL cli listener which was supposed to be in the
+			 * worker and which will be closed in
+			 * mworker_cleanlisteners()
+			 */
+			if (child->ipc_fd[0] > -1)
+				close(child->ipc_fd[0]);
+			if (child->srv) {
+				/* only exists if we created a master CLI listener */
+				srv_drop(child->srv);
+			}
+			LIST_DELETE(&child->list);
+			mworker_free_child(child);
+		}
+	}
+}
+
+
 /*  Displays workers and processes  */
 static int cli_io_handler_show_proc(struct appctx *appctx)
 {
