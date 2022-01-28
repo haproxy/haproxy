@@ -255,12 +255,18 @@ void quic_sock_fd_iocb(int fd)
 struct quic_accept_queue *quic_accept_queues;
 
 /* Install <qc> on the queue ready to be accepted. The queue task is then woken
- * up.
+ * up. If <qc> accept is already scheduled or done, nothing is done.
  */
 void quic_accept_push_qc(struct quic_conn *qc)
 {
 	struct quic_accept_queue *queue = &quic_accept_queues[qc->tid];
 	struct li_per_thread *lthr = &qc->li->per_thr[qc->tid];
+
+	/* early return if accept is already in progress/done for this
+	 * connection
+	 */
+	if (HA_ATOMIC_BTS(&qc->flags, QUIC_FL_ACCEPT_REGISTERED_BIT))
+		return;
 
 	BUG_ON(MT_LIST_INLIST(&qc->accept_list));
 
