@@ -30,8 +30,6 @@
 #include <haproxy/listener-t.h>
 #include <haproxy/sock-t.h>
 
-extern struct xfer_sock_list *xfer_sock_list;
-
 int sock_create_server_socket(struct connection *conn);
 void sock_enable(struct receiver *rx);
 void sock_disable(struct receiver *rx);
@@ -40,6 +38,7 @@ int sock_get_src(int fd, struct sockaddr *sa, socklen_t salen, int dir);
 int sock_get_dst(int fd, struct sockaddr *sa, socklen_t salen, int dir);
 int sock_get_old_sockets(const char *unixsocket);
 int sock_find_compatible_fd(const struct receiver *rx);
+void sock_drop_unused_old_sockets();
 int sock_accepting_conn(const struct receiver *rx);
 struct connection *sock_accept_conn(struct listener *l, int *status);
 void sock_accept_iocb(int fd);

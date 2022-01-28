@@ -36,8 +36,24 @@
 #include <haproxy/sock_inet.h>
 #include <haproxy/tools.h>
 
+#define SOCK_XFER_OPT_FOREIGN 0x000000001
+#define SOCK_XFER_OPT_V6ONLY  0x000000002
+#define SOCK_XFER_OPT_DGRAM   0x000000004
+
 /* the list of remaining sockets transferred from an older process */
-struct xfer_sock_list *xfer_sock_list = NULL;
+struct xfer_sock_list {
+	int fd;
+	int options; /* socket options as SOCK_XFER_OPT_* */
+	char *iface;
+	char *namespace;
+	int if_namelen;
+	int ns_namelen;
+	struct xfer_sock_list *prev;
+	struct xfer_sock_list *next;
+	struct sockaddr_storage addr;
+};
+
+static struct xfer_sock_list *xfer_sock_list;
 
 
 /* Accept an incoming connection from listener <l>, and return it, as well as
@@ -620,6 +636,24 @@ int sock_find_compatible_fd(const struct receiver *rx)
 		free(xfer_sock);
 	}
 	return ret;
+}
+
+/* After all protocols are bound, there may remain some old sockets that have
+ * been removed between the previous config and the new one. These ones must
+ * be dropped, otherwise they will remain open and may prevent a service from
+ * restarting.
+ */
+void sock_drop_unused_old_sockets()
+{
+	while (xfer_sock_list != NULL) {
+		struct xfer_sock_list *tmpxfer = xfer_sock_list->next;
+
+		close(xfer_sock_list->fd);
+		free(xfer_sock_list->iface);
+		free(xfer_sock_list->namespace);
+		free(xfer_sock_list);
+		xfer_sock_list = tmpxfer;
+	}
 }
 
 /* Tests if the receiver supports accepting connections. Returns positive on

@@ -3054,14 +3054,7 @@ int main(int argc, char **argv)
 	/* Ok, all listeners should now be bound, close any leftover sockets
 	 * the previous process gave us, we don't need them anymore
 	 */
-	while (xfer_sock_list != NULL) {
-		struct xfer_sock_list *tmpxfer = xfer_sock_list->next;
-		close(xfer_sock_list->fd);
-		free(xfer_sock_list->iface);
-		free(xfer_sock_list->namespace);
-		free(xfer_sock_list);
-		xfer_sock_list = tmpxfer;
-	}
+	sock_drop_unused_old_sockets();
 
 	/* prepare pause/play signals */
 	signal_register_fct(SIGTTOU, sig_pause, SIGTTOU);
