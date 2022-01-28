@@ -2806,7 +2806,7 @@ static int quic_build_post_handshake_frames(struct quic_conn *qc)
 		if (!frm)
 			goto err;
 
-		cid = new_quic_cid(&qc->cids, qc, i, qc->scid.data);
+		cid = new_quic_cid(&qc->cids, qc, i);
 		if (!cid)
 			goto err;
 
@@ -3605,7 +3605,7 @@ static struct quic_conn *qc_new_conn(unsigned int version, int ipv4,
 	/* Initialize the output buffer */
 	qc->obuf.pos = qc->obuf.data;
 
-	icid = new_quic_cid(&qc->cids, qc, 0, dcid);
+	icid = new_quic_cid(&qc->cids, qc, 0);
 	if (!icid) {
 		TRACE_PROTO("Could not allocate a new connection ID", QUIC_EV_CONN_INIT, qc);
 		goto err;

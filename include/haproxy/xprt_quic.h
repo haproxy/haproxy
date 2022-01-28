@@ -132,12 +132,6 @@ static inline void quic_cid_dump(struct buffer *buf,
 	chunk_appendf(buf, ")");
 }
 
-/* Simply compute a thread ID from a CID */
-static inline unsigned long quic_get_cid_tid(const unsigned char *cid)
-{
-	return *cid % global.nbthread;
-}
-
 /* Free the CIDs attached to <conn> QUIC connection. This must be called under
  * the CID lock.
  */
@@ -177,13 +171,32 @@ static inline void quic_connection_id_to_frm_cpy(struct quic_frame *dst,
 	to->stateless_reset_token = src->stateless_reset_token;
 }
 
+/* Retrieve the associated thread ID for <cid>. */
+static inline unsigned long quic_get_cid_tid(const unsigned char *cid)
+{
+	return *cid % global.nbthread;
+}
+
+/* Modify <cid> to have a CID linked to the thread ID <target_tid>. This is
+ * based on quic_get_cid_tid.
+ */
+static inline void quic_pin_cid_to_tid(unsigned char *cid, int target_tid)
+{
+	cid[0] = cid[0] - (cid[0] % global.nbthread) + target_tid;
+}
+
 /* Allocate a new CID with <seq_num> as sequence number and attach it to <root>
  * ebtree.
+ *
+ * The CID is randomly generated in part with the result altered to be
+ * associated with the current thread ID. This means this function must only
+ * be called by the quic_conn thread.
+ *
  * Returns the new CID if succeeded, NULL if not.
  */
 static inline struct quic_connection_id *new_quic_cid(struct eb_root *root,
                                                       struct quic_conn *qc,
-                                                      int seq_num, unsigned char *dcid)
+                                                      int seq_num)
 {
 	struct quic_connection_id *cid;
 
@@ -199,8 +212,7 @@ static inline struct quic_connection_id *new_quic_cid(struct eb_root *root,
 		goto err;
 	}
 
-	/* Set the same first octet from <dcid> */
-	cid->cid.data[0] = *dcid;
+	quic_pin_cid_to_tid(cid->cid.data, tid);
 
 	cid->qc = qc;
 
