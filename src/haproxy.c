@@ -1937,37 +1937,25 @@ static void init(int argc, char **argv)
 
 		if (getenv("HAPROXY_MWORKER_REEXEC") == NULL) {
 
-			tmproc = calloc(1, sizeof(*tmproc));
+			tmproc = mworker_proc_new();
 			if (!tmproc) {
 				ha_alert("Cannot allocate process structures.\n");
 				exit(EXIT_FAILURE);
 			}
 			tmproc->options |= PROC_O_TYPE_MASTER; /* master */
-			tmproc->failedreloads = 0;
-			tmproc->reloads = 0;
 			tmproc->pid = pid;
 			tmproc->timestamp = start_date.tv_sec;
-			tmproc->ipc_fd[0] = -1;
-			tmproc->ipc_fd[1] = -1;
-
 			proc_self = tmproc;
 
 			LIST_APPEND(&proc_list, &tmproc->list);
 		}
 
-		tmproc = calloc(1, sizeof(*tmproc));
+		tmproc = mworker_proc_new();
 		if (!tmproc) {
 			ha_alert("Cannot allocate process structures.\n");
 			exit(EXIT_FAILURE);
 		}
-
 		tmproc->options |= PROC_O_TYPE_WORKER; /* worker */
-		tmproc->pid = -1;
-		tmproc->failedreloads = 0;
-		tmproc->reloads = 0;
-		tmproc->timestamp = -1;
-		tmproc->ipc_fd[0] = -1;
-		tmproc->ipc_fd[1] = -1;
 
 		if (mworker_cli_sockpair_new(tmproc, 0) < 0) {
 			exit(EXIT_FAILURE);

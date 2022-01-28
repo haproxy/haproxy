@@ -128,6 +128,25 @@ void mworker_proc_list_to_env()
 		setenv("HAPROXY_PROCESSES", msg, 1);
 }
 
+struct mworker_proc *mworker_proc_new()
+{
+	struct mworker_proc *child;
+
+	child = calloc(1, sizeof(*child));
+	if (!child)
+		return NULL;
+
+	child->failedreloads = 0;
+	child->reloads = 0;
+	child->pid = -1;
+	child->ipc_fd[0] = -1;
+	child->ipc_fd[1] = -1;
+	child->timestamp = -1;
+
+	return child;
+}
+
+
 /*
  * unserialize the proc list from the environment
  */
@@ -147,7 +166,7 @@ int mworker_env_to_proc_list()
 
 		msg = NULL;
 
-		child = calloc(1, sizeof(*child));
+		child = mworker_proc_new();
 		if (!child) {
 			ha_alert("Out of memory while trying to allocate a worker process structure.");
 			return -1;
