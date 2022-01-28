@@ -3302,8 +3302,10 @@ int main(int argc, char **argv)
 				 * workers, we don't need to close the worker
 				 * side of other workers since it's done with
 				 * the bind_proc */
-				if (child->ipc_fd[0] >= 0)
+				if (child->ipc_fd[0] >= 0) {
 					close(child->ipc_fd[0]);
+					child->ipc_fd[0] = -1;
+				}
 				if (child->options & PROC_O_TYPE_WORKER &&
 				    child->reloads == 0) {
 					/* keep this struct if this is our pid */
