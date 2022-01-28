@@ -209,6 +209,17 @@ void quic_sock_fd_iocb(int fd)
 	max_sz = params->max_udp_payload_size;
 	cspace = b_contig_space(buf);
 	if (cspace < max_sz) {
+		struct quic_dgram *dgram;
+
+		/* Allocate a fake datagram, without data to locate
+		 * the end of the RX buffer (required during purging).
+		 */
+		dgram = pool_zalloc(pool_head_quic_dgram);
+		if (!dgram)
+			goto out;
+
+		dgram->len = cspace;
+		LIST_APPEND(&rxbuf->dgrams, &dgram->list);
 		/* Consume the remaining space */
 		b_add(buf, cspace);
 		if (b_contig_space(buf) < max_sz)
