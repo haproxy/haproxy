@@ -779,6 +779,12 @@ int ha_quic_set_encryption_secrets(SSL *ssl, enum ssl_encryption_level_t level,
 	}
 
 	rx->flags |= QUIC_FL_TLS_SECRETS_SET;
+	/* Enqueue this connection asap if we could derive O-RTT secrets as
+	 * listener. Note that a listener derives only RX secrets for this
+	 * level.
+	 */
+	if (qc_is_listener(qc) && level == ssl_encryption_early_data)
+		quic_accept_push_qc(qc);
 
 	if (!write_secret)
 		goto tp;
