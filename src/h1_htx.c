@@ -642,7 +642,7 @@ static size_t h1_parse_full_contig_chunks(struct h1m *h1m, struct htx **dsthtx,
 			/* Update current chunk size */
 			chksz = (chksz << 4) + c;
 
-			if (unlikely(chksz & 0xF0000000000000)) {
+			if (unlikely(chksz & 0xF0000000000000ULL)) {
 				/* Don't get more than 13 hexa-digit (2^52 - 1)
 				 * to never fed possibly bogus values from
 				 * languages that use floats for their integers

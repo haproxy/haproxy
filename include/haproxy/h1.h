@@ -278,7 +278,7 @@ static inline int h1_parse_chunk_size(const struct buffer *buf, int start, int s
 		if (unlikely(++ptr >= end))
 			ptr = b_orig(buf);
 		chunk = (chunk << 4) + c;
-		if (unlikely(chunk & 0xF0000000000000)) {
+		if (unlikely(chunk & 0xF0000000000000ULL)) {
 			/* Don't get more than 13 hexa-digit (2^52 - 1) to never fed possibly
 			 * bogus values from languages that use floats for their integers
 			 */

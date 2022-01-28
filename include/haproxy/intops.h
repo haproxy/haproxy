@@ -396,15 +396,15 @@ static inline unsigned int __read_uint(const char **s, const char *end)
 static inline int __varint_bytes(uint64_t v)
 {
 	switch (v) {
-	case 0x0000000000000000 ... 0x00000000000000ef: return 1;
-	case 0x00000000000000f0 ... 0x00000000000008ef: return 2;
-	case 0x00000000000008f0 ... 0x00000000000408ef: return 3;
-	case 0x00000000000408f0 ... 0x00000000020408ef: return 4;
-	case 0x00000000020408f0 ... 0x00000001020408ef: return 5;
-	case 0x00000001020408f0 ... 0x00000081020408ef: return 6;
-	case 0x00000081020408f0 ... 0x00004081020408ef: return 7;
-	case 0x00004081020408f0 ... 0x00204081020408ef: return 8;
-	case 0x00204081020408f0 ... 0x10204081020408ef: return 9;
+	case 0x0000000000000000ULL ... 0x00000000000000efULL: return 1;
+	case 0x00000000000000f0ULL ... 0x00000000000008efULL: return 2;
+	case 0x00000000000008f0ULL ... 0x00000000000408efULL: return 3;
+	case 0x00000000000408f0ULL ... 0x00000000020408efULL: return 4;
+	case 0x00000000020408f0ULL ... 0x00000001020408efULL: return 5;
+	case 0x00000001020408f0ULL ... 0x00000081020408efULL: return 6;
+	case 0x00000081020408f0ULL ... 0x00004081020408efULL: return 7;
+	case 0x00004081020408f0ULL ... 0x00204081020408efULL: return 8;
+	case 0x00204081020408f0ULL ... 0x10204081020408efULL: return 9;
 	default: return 10;
 	}
 }
