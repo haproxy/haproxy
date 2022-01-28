@@ -194,13 +194,12 @@
 #if defined(__GNUC__) && (__GNUC__ < 4 || __GNUC__ == 4 && __GNUC_MINOR__ < 7) && !defined(__clang__)
 /* gcc < 4.7 */
 
-#define HA_ATOMIC_LOAD(val)						\
-        ({								\
-	        typeof(*(val)) ret;					\
-		__sync_synchronize();					\
-		ret = *(volatile typeof(val))val;			\
-		__sync_synchronize();					\
-		ret;							\
+#define HA_ATOMIC_LOAD(val)						      \
+        ({								      \
+		typeof(*(val)) ret =					      \
+		    ({ __sync_synchronize(); *(volatile typeof(val))val; });  \
+		__sync_synchronize();					      \
+		ret;							      \
 	})
 
 #define HA_ATOMIC_STORE(val, new)					\
