@@ -1,5 +1,4 @@
 varnishtest "Health-checks: agent-check"
-#REQUIRE_VERSION=1.8
 #REGTEST_TYPE=slow
 feature ignore_unknown_macro
 

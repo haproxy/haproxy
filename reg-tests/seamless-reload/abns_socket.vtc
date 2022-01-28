@@ -19,7 +19,6 @@ feature ignore_unknown_macro
 
 # abns@ sockets are not available on freebsd
 #EXCLUDE_TARGETS=freebsd,osx,generic
-#REQUIRE_VERSION=1.8
 #REGTEST_TYPE=broken
 
 haproxy h1 -W -conf {

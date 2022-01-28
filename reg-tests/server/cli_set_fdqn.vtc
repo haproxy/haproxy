@@ -3,7 +3,6 @@ varnishtest "Set server FQDN via CLI crash"
 feature ignore_unknown_macro
 
 # for "set server <srv> fqdn"
-#REQUIRE_VERSION=1.8
 #REGTEST_TYPE=bug
 
 # Do nothing. Is there only to create s1_* macros
