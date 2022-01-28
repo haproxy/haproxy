@@ -27,6 +27,7 @@
 #include <haproxy/mworker.h>
 #include <haproxy/task.h>
 #include <haproxy/time.h>
+#include <haproxy/tools.h>
 
 
 static int use_program = 0; /* do we use the program section ? */
