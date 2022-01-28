@@ -90,8 +90,20 @@ int spoe_prepare_healthcheck_request(char **req, int *len);
 int spoe_handle_healthcheck_response(char *frame, size_t size, char *err, int errlen);
 
 int set_srv_agent_send(struct server *srv, const char *send);
-void set_srv_agent_addr(struct server *srv, struct sockaddr_storage *sk);
-void set_srv_agent_port(struct server *srv, int port);
+
+/* set agent addr and appropriate flag */
+static inline void set_srv_agent_addr(struct server *srv, struct sockaddr_storage *sk)
+{
+	srv->agent.addr = *sk;
+	srv->flags |= SRV_F_AGENTADDR;
+}
+
+/* set agent port and appropriate flag */
+static inline void set_srv_agent_port(struct server *srv, int port)
+{
+	srv->agent.port = port;
+	srv->flags |= SRV_F_AGENTPORT;
+}
 
 /* Use this one only. This inline version only ensures that we don't
  * call the function when the observe mode is disabled.

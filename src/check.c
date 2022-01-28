@@ -1983,20 +1983,6 @@ int set_srv_agent_send(struct server *srv, const char *send)
 	return 0;
 }
 
-/* set agent addr and appropriate flag */
-inline void set_srv_agent_addr(struct server *srv, struct sockaddr_storage *sk)
-{
-	srv->agent.addr = *sk;
-	srv->flags |= SRV_F_AGENTADDR;
-}
-
-/* set agent port and appropriate flag */
-inline void set_srv_agent_port(struct server *srv, int port)
-{
-	srv->agent.port = port;
-	srv->flags |= SRV_F_AGENTPORT;
-}
-
 /* Parse the "agent-send" server keyword */
 static int srv_parse_agent_send(char **args, int *cur_arg, struct proxy *curpx, struct server *srv,
 				char **errmsg)
