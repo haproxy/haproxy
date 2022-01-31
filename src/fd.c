@@ -336,6 +336,11 @@ void _fd_delete_orphan(int fd)
  */
 void fd_delete(int fd)
 {
+	/* This must never happen and would definitely indicate a bug, in
+	 * addition to overwriting some unexpected memory areas.
+	 */
+	BUG_ON(fd < 0 || fd >= global.maxsock);
+
 	/* we must postpone removal of an FD that may currently be in use
 	 * by another thread. This can happen in the following two situations:
 	 *   - after a takeover, the owning thread closes the connection but
