@@ -135,8 +135,8 @@ endif
 #       call it only once.
 cc-opt = $(shell set -e; if $(CC) -Werror $(1) -E -xc - -o /dev/null </dev/null >&0 2>/dev/null; then echo "$(1)"; fi;)
 
-# same but emits $2 if $1 is not supported
-cc-opt-alt = $(shell set -e; if $(CC) -Werror $(1) -E -xc - -o /dev/null </dev/null >&0 2>/dev/null; then echo "$(1)"; else echo "$(2)"; fi;)
+# same but tries with $2 if $1 is not supported
+cc-opt-alt = $(if $(shell set -e; if $(CC) -Werror $(1) -E -xc - -o /dev/null </dev/null >&0 2>/dev/null; then echo 1;fi),$(1),$(call cc-opt,$(2)))
 
 # validate a list of options one at a time
 cc-all-opts  = $(foreach a,$(1),$(call cc-opt,$(a)))
@@ -221,7 +221,7 @@ WARN_CFLAGS := -Wtype-limits -Wshift-negative-value -Wshift-overflow=2 \
 SPEC_CFLAGS := -Wall -Wextra -Wundef -Wdeclaration-after-statement
 SPEC_CFLAGS += $(call cc-all-fast,$(WARN_CFLAGS))
 
-SPEC_CFLAGS += $(call cc-opt-alt,-fwrapv,$(call cc-opt,-fno-strict-overflow))
+SPEC_CFLAGS += $(call cc-opt-alt,-fwrapv,-fno-strict-overflow)
 SPEC_CFLAGS += $(cc-wnouwo)
 SPEC_CFLAGS += $(call cc-nowarn,address-of-packed-member)
 SPEC_CFLAGS += $(call cc-nowarn,unused-label)
