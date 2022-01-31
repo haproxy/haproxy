@@ -138,11 +138,27 @@ cc-opt = $(shell set -e; if $(CC) -Werror $(1) -E -xc - -o /dev/null </dev/null 
 # same but emits $2 if $1 is not supported
 cc-opt-alt = $(shell set -e; if $(CC) -Werror $(1) -E -xc - -o /dev/null </dev/null >&0 2>/dev/null; then echo "$(1)"; else echo "$(2)"; fi;)
 
+
+# Below we verify that the compiler supports any -Wno-something option to
+# disable any warning, or if a special option is needed to achieve that. This
+# will allow to get rid of testing when the compiler doesn't care. The result
+# is made of two variables:
+#  - cc-anywno that's non-empty if the compiler supports disabling anything
+#  - cc-wnouwo that may contain an option needed to enable this behavior
+# Gcc 4.x and above do not need any option but will still complain about unknown
+# options if another warning or error happens, and as such they're not testable.
+# Clang needs a special option -Wno-unknown-warning-option. Compilers not
+# supporting this option will check all warnings individually.
+cc-anywno := $(call cc-opt,-Wno-haproxy-warning)
+cc-wnouwo := $(if $(cc-anywno),,$(call cc-opt,-Wno-unknown-warning-option))
+cc-anywno := $(if $(cc-anywno)$(cc-wnouwo),1)
+
 # Disable a warning when supported by the compiler. Don't put spaces around the
 # warning! And don't use cc-opt which doesn't always report an error until
-# another one is also returned.
+# another one is also returned. If "cc-anywno" is set, the compiler supports
+# -Wno- followed by anything so we don't even need to start the compiler.
 # Usage: CFLAGS += $(call cc-nowarn,warning). Eg: $(call cc-opt,format-truncation)
-cc-nowarn = $(shell set -e; if $(CC) -Werror -W$(1) -E -xc - -o /dev/null </dev/null >&0 2>/dev/null; then echo "-Wno-$(1)"; fi;)
+cc-nowarn = $(if $(cc-anywno),-Wno-$(1),$(shell set -e; if $(CC) -Werror -W$(1) -E -xc - -o /dev/null </dev/null >&0 2>/dev/null; then echo "-Wno-$(1)"; fi;))
 
 #### Installation options.
 DESTDIR =
@@ -195,6 +211,7 @@ REG_TEST_SCRIPT=./scripts/run-regtests.sh
 # to be sure we get the intended behavior.
 SPEC_CFLAGS := -Wall -Wextra -Wundef -Wdeclaration-after-statement
 SPEC_CFLAGS += $(call cc-opt-alt,-fwrapv,$(call cc-opt,-fno-strict-overflow))
+SPEC_CFLAGS += $(cc-wnouwo)
 SPEC_CFLAGS += $(call cc-nowarn,address-of-packed-member)
 SPEC_CFLAGS += $(call cc-nowarn,unused-label)
 SPEC_CFLAGS += $(call cc-nowarn,sign-compare)
