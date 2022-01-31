@@ -2982,19 +2982,11 @@ int mworker_cli_sockpair_new(struct mworker_proc *mworker_proc, int proc)
 		global.maxsock++; /* for the listening socket */
 	}
 
-	/* the sockpair was asssigned successfully to the listener for the
-	 * worker,  we can remove it from the mworker_proc, so it's not used
-	 * elsewhere accidentally
-	 */
-	mworker_proc->ipc_fd[1] = -1;
-
 	return 0;
 
 error:
 	close(mworker_proc->ipc_fd[0]);
 	close(mworker_proc->ipc_fd[1]);
-	mworker_proc->ipc_fd[0] = -1;
-	mworker_proc->ipc_fd[1] = -1;
 	free(err);
 
 	return -1;
