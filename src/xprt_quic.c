@@ -4361,6 +4361,9 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 			if (qc_conn_alloc_ssl_ctx(qc))
 				goto err;
 
+			if (!quic_conn_init_timer(qc))
+				goto err;
+
 			/* NOTE: the socket address has been concatenated to the destination ID
 			 * chosen by the client for Initial packets.
 			 */
@@ -5317,11 +5320,6 @@ static int qc_xprt_start(struct connection *conn, void *ctx)
 	struct ssl_sock_ctx *qctx = ctx;
 
 	qc = conn->qc;
-	if (!quic_conn_init_timer(qc)) {
-		TRACE_PROTO("Non initialized timer", QUIC_EV_CONN_LPKT, qc);
-		return 0;
-	}
-
 	quic_mux_transport_params_update(qc->qcc);
 	if (qcc_install_app_ops(qc->qcc, qc->app_ops)) {
 		TRACE_PROTO("Cannot install app layer", QUIC_EV_CONN_LPKT, qc);
