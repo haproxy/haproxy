@@ -247,6 +247,8 @@ static void qc_release(struct qcc *qcc)
 	}
 
 	if (conn) {
+		LIST_DEL_INIT(&conn->stopping_list);
+
 		conn->qc->conn = NULL;
 		conn->mux = NULL;
 		conn->ctx = NULL;
@@ -498,6 +500,13 @@ static int qc_init(struct connection *conn, struct proxy *prx,
 	qcc->task->context = qcc;
 	qcc->task->expire = tick_add(now_ms, qcc->timeout);
 
+	if (!conn_is_back(conn)) {
+		if (!LIST_INLIST(&conn->stopping_list)) {
+			LIST_APPEND(&mux_stopping_data[tid].list,
+			            &conn->stopping_list);
+		}
+	}
+
 	HA_ATOMIC_STORE(&conn->qc->qcc, qcc);
 	/* init read cycle */
 	tasklet_wakeup(qcc->wait_event.tasklet);
@@ -588,6 +597,20 @@ static int qc_unsubscribe(struct conn_stream *cs, int event_type, struct wait_ev
 	return 0;
 }
 
+static int qc_wake(struct connection *conn)
+{
+	struct qcc *qcc = conn->ctx;
+
+	/* Check if a soft-stop is in progress.
+	 * Release idling front connection if this is the case.
+	 */
+	if (unlikely(conn->qc->li->bind_conf->frontend->flags & (PR_FL_DISABLED|PR_FL_STOPPED))) {
+		qc_release(qcc);
+	}
+
+	return 1;
+}
+
 static const struct mux_ops qc_ops = {
 	.init = qc_init,
 	.detach = qc_detach,
@@ -595,6 +618,7 @@ static const struct mux_ops qc_ops = {
 	.snd_buf = qc_snd_buf,
 	.subscribe = qc_subscribe,
 	.unsubscribe = qc_unsubscribe,
+	.wake = qc_wake,
 };
 
 static struct mux_proto_list mux_proto_quic =
