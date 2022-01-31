@@ -138,6 +138,13 @@ cc-opt = $(shell set -e; if $(CC) -Werror $(1) -E -xc - -o /dev/null </dev/null 
 # same but emits $2 if $1 is not supported
 cc-opt-alt = $(shell set -e; if $(CC) -Werror $(1) -E -xc - -o /dev/null </dev/null >&0 2>/dev/null; then echo "$(1)"; else echo "$(2)"; fi;)
 
+# validate a list of options one at a time
+cc-all-opts  = $(foreach a,$(1),$(call cc-opt,$(a)))
+
+# try to pass plenty of options at once, take them on success or try them
+# one at a time on failure and keep successful ones. This is handy to quickly
+# validate most common options.
+cc-all-fast = $(if $(call cc-opt,$(1)),$(1),$(call cc-all-opts,$(1)))
 
 # Below we verify that the compiler supports any -Wno-something option to
 # disable any warning, or if a special option is needed to achieve that. This
@@ -209,7 +216,11 @@ REG_TEST_SCRIPT=./scripts/run-regtests.sh
 # We rely on signed integer wraparound on overflow, however clang think it
 # can do whatever it wants since it's an undefined behavior, so use -fwrapv
 # to be sure we get the intended behavior.
+WARN_CFLAGS := -Wtype-limits -Wshift-negative-value -Wshift-overflow=2 \
+               -Wduplicated-cond -Wnull-dereference
 SPEC_CFLAGS := -Wall -Wextra -Wundef -Wdeclaration-after-statement
+SPEC_CFLAGS += $(call cc-all-fast,$(WARN_CFLAGS))
+
 SPEC_CFLAGS += $(call cc-opt-alt,-fwrapv,$(call cc-opt,-fno-strict-overflow))
 SPEC_CFLAGS += $(cc-wnouwo)
 SPEC_CFLAGS += $(call cc-nowarn,address-of-packed-member)
@@ -221,11 +232,6 @@ SPEC_CFLAGS += $(call cc-nowarn,missing-field-initializers)
 SPEC_CFLAGS += $(call cc-nowarn,cast-function-type)
 SPEC_CFLAGS += $(call cc-nowarn,string-plus-int)
 SPEC_CFLAGS += $(call cc-nowarn,atomic-alignment)
-SPEC_CFLAGS += $(call cc-opt,-Wtype-limits)
-SPEC_CFLAGS += $(call cc-opt,-Wshift-negative-value)
-SPEC_CFLAGS += $(call cc-opt,-Wshift-overflow=2)
-SPEC_CFLAGS += $(call cc-opt,-Wduplicated-cond)
-SPEC_CFLAGS += $(call cc-opt,-Wnull-dereference)
 
 ifneq ($(ERR),)
 SPEC_CFLAGS += -Werror
