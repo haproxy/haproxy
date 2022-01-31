@@ -119,7 +119,7 @@ static inline void X509_ALGOR_get0(ASN1_OBJECT **paobj, int *pptype, const void 
 
 #endif // OpenSSL < 0.9.8
 
-#if (((HA_OPENSSL_VERSION_NUMBER < 0x1000000fL) || defined(OPENSSL_IS_BORINGSSL)) && !defined(X509_get_X509_PUBKEY))
+#if ((HA_OPENSSL_VERSION_NUMBER < 0x1000000fL) && !defined(X509_get_X509_PUBKEY))
 #define X509_get_X509_PUBKEY(x) ((x)->cert_info->key)
 #endif
 
