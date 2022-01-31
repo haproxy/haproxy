@@ -3687,7 +3687,7 @@ static int quic_conn_init_timer(struct quic_conn *qc)
 
 	qc->timer = TICK_ETERNITY;
 	qc->timer_task->process = process_timer;
-	qc->timer_task->context = qc->conn->xprt_ctx;
+	qc->timer_task->context = qc->xprt_ctx;
 
 	return 1;
 }
