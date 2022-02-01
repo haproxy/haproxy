@@ -391,9 +391,10 @@ static struct task *qc_io_cb(struct task *t, void *ctx, unsigned int status)
 	qc_send(qcc);
 
 	if (qc_release_detached_streams(qcc)) {
-		if (qcc_is_dead(qcc)) {
-			qc_release(qcc);
-			return NULL;
+		/* Schedule the mux timeout if no bidirectional streams left. */
+		if (qcc_may_expire(qcc)) {
+			qcc->task->expire = tick_add(now_ms, qcc->timeout);
+			task_queue(qcc->task);
 		}
 	}
 
@@ -530,9 +531,11 @@ static void qc_detach(struct conn_stream *cs)
 	}
 
 	qcs_destroy(qcs);
-	if (qcc_is_dead(qcc)) {
-		qc_release(qcc);
-		return;
+
+	/* Schedule the mux timeout if no bidirectional streams left. */
+	if (qcc_may_expire(qcc)) {
+		qcc->task->expire = tick_add(now_ms, qcc->timeout);
+		task_queue(qcc->task);
 	}
 }
 
