@@ -1,6 +1,387 @@
 ChangeLog :
 ===========
 
+2022/02/01 : 2.6-dev1
+    - BUG/MINOR: cache: Fix loop on cache entries in "show cache"
+    - BUG/MINOR: httpclient: allow to replace the host header
+    - BUG/MINOR: lua: don't expose internal proxies
+    - MEDIUM: mworker: seamless reload use the internal sockpairs
+    - BUG/MINOR: lua: remove loop initial declarations
+    - BUG/MINOR: mworker: does not add the -sf in wait mode
+    - BUG/MEDIUM: mworker: FD leak of the eventpoll in wait mode
+    - MINOR: quic: do not reject PADDING followed by other frames
+    - REORG: quic: add comment on rare thread concurrence during CID alloc
+    - CLEANUP: quic: add comments on CID code
+    - MEDIUM: quic: handle CIDs to rattach received packets to connection
+    - MINOR: qpack: support litteral field line with non-huff name
+    - MINOR: quic: activate QUIC traces at compilation
+    - MINOR: quic: use more verbose QUIC traces set at compile-time
+    - MEDIUM: pool: refactor malloc_trim/glibc and jemalloc api addition detections.
+    - MEDIUM: pool: support purging jemalloc arenas in trim_all_pools()
+    - BUG/MINOR: mworker: deinit of thread poller was called when not initialized
+    - BUILD: pools: only detect link-time jemalloc on ELF platforms
+    - CI: github actions: add the output of $CC -dM -E-
+    - BUG/MEDIUM: cli: Properly set stream analyzers to process one command at a time
+    - BUILD: evports: remove a leftover from the dead_fd cleanup
+    - MINOR: quic: Set "no_application_protocol" alert
+    - MINOR: quic: More accurate immediately close.
+    - MINOR: quic: Immediately close if no transport parameters extension found
+    - MINOR: quic: Rename qc_prep_hdshk_pkts() to qc_prep_pkts()
+    - MINOR: quic: Possible crash when inspecting the xprt context
+    - MINOR: quic: Dynamically allocate the secrete keys
+    - MINOR: quic: Add a function to derive the key update secrets
+    - MINOR: quic: Add structures to maintain key phase information
+    - MINOR: quic: Optional header protection key for quic_tls_derive_keys()
+    - MINOR: quic: Add quic_tls_key_update() function for Key Update
+    - MINOR: quic: Enable the Key Update process
+    - MINOR: quic: Delete the ODCIDs asap
+    - BUG/MINOR: vars: Fix the set-var and unset-var converters
+    - MEDIUM: pool: Following up on previous pool trimming update.
+    - BUG/MEDIUM: mux-h1: Fix splicing by properly detecting end of message
+    - BUG/MINOR: mux-h1: Fix splicing for messages with unknown length
+    - MINOR: mux-h1: Improve H1 traces by adding info about http parsers
+    - MINOR: mux-h1: register a stats module
+    - MINOR: mux-h1: add counters instance to h1c
+    - MINOR: mux-h1: count open connections/streams on stats
+    - MINOR: mux-h1: add stat for total count of connections/streams
+    - MINOR: mux-h1: add stat for total amount of bytes received and sent
+    - REGTESTS: h1: Add a script to validate H1 splicing support
+    - BUG/MINOR: server: Don't rely on last default-server to init server SSL context
+    - BUG/MEDIUM: resolvers: Detach query item on response error
+    - MEDIUM: resolvers: No longer store query items in a list into the response
+    - BUG/MAJOR: segfault using multiple log forward sections.
+    - BUG/MEDIUM: h1: Properly reset h1m flags when headers parsing is restarted
+    - BUG/MINOR: resolvers: Don't overwrite the error for invalid query domain name
+    - BUILD: bug: Fix error when compiling with -DDEBUG_STRICT_NOCRASH
+    - BUG/MEDIUM: sample: Fix memory leak in sample_conv_jwt_member_query
+    - DOC: spoe: Clarify use of the event directive in spoe-message section
+    - DOC: config: Specify %Ta is only available in HTTP mode
+    - BUILD: tree-wide: avoid warnings caused by redundant checks of obj_types
+    - IMPORT: slz: use the correct CRC32 instruction when running in 32-bit mode
+    - MINOR: quic: fix segfault on CONNECTION_CLOSE parsing
+    - MINOR: h3: add BUG_ON on control receive function
+    - MEDIUM: xprt-quic: finalize app layer initialization after ALPN nego
+    - MINOR: h3: remove duplicated FIN flag position
+    - MAJOR: mux-quic: implement a simplified mux version
+    - MEDIUM: mux-quic: implement release mux operation
+    - MEDIUM: quic: detect the stream FIN
+    - MINOR: mux-quic: implement subscribe on stream
+    - MEDIUM: mux-quic: subscribe on xprt if remaining data after send
+    - MEDIUM: mux-quic: wake up xprt on data transferred
+    - MEDIUM: mux-quic: handle when sending buffer is full
+    - MINOR: quic: RX buffer full due to wrong CRYPTO data handling
+    - MINOR: quic: Race issue when consuming RX packets buffer
+    - MINOR: quic: QUIC encryption level RX packets race issue
+    - MINOR: quic: Delete remaining RX handshake packets
+    - MINOR: quic: Remove QUIC TX packet length evaluation function
+    - MINOR: hq-interop: fix tx buffering
+    - MINOR: mux-quic: remove uneeded code to check fin on TX
+    - MINOR: quic: add HTX EOM on request end
+    - BUILD: mux-quic: fix compilation with DEBUG_MEM_STATS
+    - MINOR: http-rules: Add capture action to http-after-response ruleset
+    - BUG/MINOR: cli/server: Don't crash when a server is added with a custom id
+    - MINOR: mux-quic: do not release qcs if there is remaining data to send
+    - MINOR: quic: notify the mux on CONNECTION_CLOSE
+    - BUG/MINOR: mux-quic: properly initialize flow control
+    - MINOR: quic: Compilation fix for quic_rx_packet_refinc()
+    - MINOR: h3: fix possible invalid dereference on htx parsing
+    - DOC: config: retry-on list is space-delimited
+    - DOC: config: fix error-log-format example
+    - BUG/MEDIUM: mworker/cli: crash when trying to access an old PID in prompt mode
+    - MINOR: hq-interop: refix tx buffering
+    - REGTESTS: ssl: use X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY for cert check
+    - MINOR: cli: "show version" displays the current process version
+    - CLEANUP: cfgparse: modify preprocessor guards around numa detection code
+    - MEDIUM: cfgparse: numa detect topology on FreeBSD.
+    - BUILD: ssl: unbreak the build with newer libressl
+    - MINOR: vars: Move UPDATEONLY flag test to vars_set_ifexist
+    - MINOR: vars: Set variable type to ANY upon creation
+    - MINOR: vars: Delay variable content freeing in var_set function
+    - MINOR: vars: Parse optional conditions passed to the set-var converter
+    - MINOR: vars: Parse optional conditions passed to the set-var actions
+    - MEDIUM: vars: Enable optional conditions to set-var converter and actions
+    - DOC: vars: Add documentation about the set-var conditions
+    - REGTESTS: vars: Add new test for conditional set-var
+    - MINOR: quic: Attach timer task to thread for the connection.
+    - CLEANUP: quic_frame: Remove a useless suffix to STOP_SENDING
+    - MINOR: quic: Add traces for STOP_SENDING frame and modify others
+    - CLEANUP: quic: Remove cdata_len from quic_tx_packet struct
+    - MINOR: quic: Enable TLS 0-RTT if needed
+    - MINOR: quic: No TX secret at EARLY_DATA encryption level
+    - MINOR: quic: Add quic_set_app_ops() function
+    - MINOR: ssl_sock: Set the QUIC application from ssl_sock_advertise_alpn_protos.
+    - MINOR: quic: Make xprt support 0-RTT.
+    - MINOR: qpack: Missing check for truncated QPACK fields
+    - CLEANUP: quic: Comment fix for qc_strm_cpy()
+    - MINOR: hq_interop: Stop BUG_ON() truncated streams
+    - MINOR: quic: Do not mix packet number space and connection flags
+    - CLEANUP: quic: Shorten a litte bit the traces in lstnr_rcv_pkt()
+    - MINOR: mux-quic: fix trace on stream creation
+    - CLEANUP: quic: fix spelling mistake in a trace
+    - CLEANUP: quic: rename quic_conn conn to qc in quic_conn_free
+    - MINOR: quic: add missing lock on cid tree
+    - MINOR: quic: rename constant for haproxy CIDs length
+    - MINOR: quic: refactor concat DCID with address for Initial packets
+    - MINOR: quic: compare coalesced packets by DCID
+    - MINOR: quic: refactor DCID lookup
+    - MINOR: quic: simplify the removal from ODCID tree
+    - REGTESTS: vars: Remove useless ssl tunes from conditional set-var test
+    - MINOR: ssl: Remove empty lines from "show ssl ocsp-response" output
+    - MINOR: quic: Increase the RX buffer for each connection
+    - MINOR: quic: Add a function to list remaining RX packets by encryption level
+    - MINOR: quic: Stop emptying the RX buffer asap.
+    - MINOR: quic: Do not expect to receive only one O-RTT packet
+    - MINOR: quic: Do not forget STREAM frames received in disorder
+    - MINOR: quic: Wrong packet refcount handling in qc_pkt_insert()
+    - DOC: fix misspelled keyword "resolve_retries" in resolvers
+    - CLEANUP: quic: rename quic_conn instances to qc
+    - REORG: quic: move mux function outside of xprt
+    - MINOR: quic: add reference to quic_conn in ssl context
+    - MINOR: quic: add const qualifier for traces function
+    - MINOR: trace: add quic_conn argument definition
+    - MINOR: quic: use quic_conn as argument to traces
+    - MINOR: quic: add quic_conn instance in traces for qc_new_conn
+    - MINOR: quic: Add stream IDs to qcs_push_frame() traces
+    - MINOR: quic: unchecked qc_retrieve_conn_from_cid() returned value
+    - MINOR: quic: Wrong dropped packet skipping
+    - MINOR: quic: Handle the cases of overlapping STREAM frames
+    - MINOR: quic: xprt traces fixes
+    - MINOR: quic: Drop asap Retry or Version Negotiation packets
+    - MINOR: pools: work around possibly slow malloc_trim() during gc
+    - DEBUG: ssl: make sure we never change a servername on established connections
+    - MINOR: quic: Add traces for RX frames (flow control related)
+    - MINOR: quic: Add CONNECTION_CLOSE phrase to trace
+    - REORG: quic: remove qc_ prefix on functions which not used it directly
+    - BUG/MINOR: quic: upgrade rdlock to wrlock for ODCID removal
+    - MINOR: quic: remove unnecessary call to free_quic_conn_cids()
+    - MINOR: quic: store ssl_sock_ctx reference into quic_conn
+    - MINOR: quic: remove unnecessary if in qc_pkt_may_rm_hp()
+    - MINOR: quic: replace usage of ssl_sock_ctx by quic_conn
+    - MINOR: quic: delete timer task on quic_close()
+    - MEDIUM: quic: implement refcount for quic_conn
+    - BUG/MINOR: quic: fix potential null dereference
+    - BUG/MINOR: quic: fix potential use of uninit pointer
+    - BUG/MEDIUM: backend: fix possible sockaddr leak on redispatch
+    - BUG/MEDIUM: peers: properly skip conn_cur from incoming messages
+    - CI: Github Actions: do not show VTest failures if build failed
+    - BUILD: opentracing: display warning in case of using OT_USE_VARS at compile time
+    - MINOR: compat: detect support for dl_iterate_phdr()
+    - MINOR: debug: add ability to dump loaded shared libraries
+    - MINOR: debug: add support for -dL to dump library names at boot
+    - BUG/MEDIUM: ssl: initialize correctly ssl w/ default-server
+    - REGTESTS: ssl: fix ssl_default_server.vtc
+    - BUG/MINOR: ssl: free the fields in srv->ssl_ctx
+    - BUG/MEDIUM: ssl: free the ckch instance linked to a server
+    - REGTESTS: ssl: update of a crt with server deletion
+    - BUILD/MINOR: cpuset FreeBSD 14 build fix.
+    - MINOR: pools: always evict oldest objects first in pool_evict_from_local_cache()
+    - DOC: pool: document the purpose of various structures in the code
+    - CLEANUP: pools: do not use the extra pointer to link shared elements
+    - CLEANUP: pools: get rid of the POOL_LINK macro
+    - MINOR: pool: allocate from the shared cache through the local caches
+    - CLEANUP: pools: group list updates in pool_get_from_cache()
+    - MINOR: pool: rely on pool_free_nocache() in pool_put_to_shared_cache()
+    - MINOR: pool: make pool_is_crowded() always true when no shared pools are used
+    - MINOR: pool: check for pool's fullness outside of pool_put_to_shared_cache()
+    - MINOR: pool: introduce pool_item to represent shared pool items
+    - MINOR: pool: add a function to estimate how many may be released at once
+    - MEDIUM: pool: compute the number of evictable entries once per pool
+    - MINOR: pools: prepare pool_item to support chained clusters
+    - MINOR: pools: pass the objects count to pool_put_to_shared_cache()
+    - MEDIUM: pools: centralize cache eviction in a common function
+    - MEDIUM: pools: start to batch eviction from local caches
+    - MEDIUM: pools: release cached objects in batches
+    - OPTIM: pools: reduce local pool cache size to 512kB
+    - CLEANUP: assorted typo fixes in the code and comments This is 29th iteration of typo fixes
+    - CI: github actions: update OpenSSL to 3.0.1
+    - BUILD/MINOR: tools: solaris build fix on dladdr.
+    - BUG/MINOR: cli: fix _getsocks with musl libc
+    - BUG/MEDIUM: http-ana: Preserve response's FLT_END analyser on L7 retry
+    - MINOR: quic: Wrong traces after rework
+    - MINOR: quic: Add trace about in flight bytes by packet number space
+    - MINOR: quic: Wrong first packet number space computation
+    - MINOR: quic: Wrong packet number space computation for PTO
+    - MINOR: quic: Wrong loss time computation in qc_packet_loss_lookup()
+    - MINOR: quic: Wrong ack_delay compution before calling quic_loss_srtt_update()
+    - MINOR: quic: Remove nb_pto_dgrams quic_conn struct member
+    - MINOR: quic: Wrong packet number space trace in qc_prep_pkts()
+    - MINOR: quic: Useless test in qc_prep_pkts()
+    - MINOR: quic: qc_prep_pkts() code moving
+    - MINOR: quic: Speeding up Handshake Completion
+    - MINOR: quic: Probe Initial packet number space more often
+    - MINOR: quic: Probe several packet number space upon timer expiration
+    - MINOR: quic: Comment fix.
+    - MINOR: quic: Improve qc_prep_pkts() flexibility
+    - MINOR: quic: Do not drop secret key but drop the CRYPTO data
+    - MINOR: quic: Prepare Handshake packets asap after completed handshake
+    - MINOR: quic: Flag asap the connection having reached the anti-amplification limit
+    - MINOR: quic: PTO timer too often reset
+    - MINOR: quic: Re-arm the PTO timer upon datagram receipt
+    - MINOR: proxy: add option idle-close-on-response
+    - MINOR: cpuset: switch to sched_setaffinity for FreeBSD 14 and above.
+    - CI: refactor spelling check
+    - CLEANUP: assorted typo fixes in the code and comments
+    - BUILD: makefile: add -Wno-atomic-alignment to work around clang abusive warning
+    - MINOR: quic: Only one CRYPTO frame by encryption level
+    - MINOR: quic: Missing retransmission from qc_prep_fast_retrans()
+    - MINOR: quic: Non-optimal use of a TX buffer
+    - BUG/MEDIUM: mworker: don't use _getsocks in wait mode
+    - BUG/MINOR: ssl: Store client SNI in SSL context in case of ClientHello error
+    - BUG/MAJOR: mux-h1: Don't decrement .curr_len for unsent data
+    - DOC: internals: document the pools architecture and API
+    - CI: github actions: clean default step conditions
+    - BUILD: cpuset: fix build issue on macos introduced by previous change
+    - MINOR: quic: Remaining TRACEs with connection as firt arg
+    - MINOR: quic: Reset ->conn quic_conn struct member when calling qc_release()
+    - MINOR: quic: Flag the connection as being attached to a listener
+    - MINOR: quic: Wrong CRYPTO frame concatenation
+    - MINOR: quid: Add traces quic_close() and quic_conn_io_cb()
+    - REGTESTS: ssl: Fix ssl_errors regtest with OpenSSL 1.0.2
+    - MINOR: quic: Do not dereference ->conn quic_conn struct member
+    - MINOR: quic: fix return of quic_dgram_read
+    - MINOR: quic: add config parse source file
+    - MINOR: quic: implement Retry TLS AEAD tag generation
+    - MEDIUM: quic: implement Initial token parsing
+    - MINOR: quic: define retry_source_connection_id TP
+    - MEDIUM: quic: implement Retry emission
+    - MINOR: quic: free xprt tasklet on its thread
+    - BUG/MEDIUM: connection: properly leave stopping list on error
+    - MINOR: pools: enable pools with DEBUG_FAIL_ALLOC as well
+    - MINOR: quic: As server, skip 0-RTT packet number space
+    - MINOR: quic: Do not wakeup the I/O handler before the mux is started
+    - BUG/MEDIUM: htx: Adjust length to add DATA block in an empty HTX buffer
+    - CI: github actions: use cache for OpenTracing
+    - BUG/MINOR: httpclient: don't send an empty body
+    - BUG/MINOR: httpclient: set default Accept and User-Agent headers
+    - BUG/MINOR: httpclient/lua: don't pop the lua stack when getting headers
+    - BUILD/MINOR: fix solaris build with clang.
+    - BUG/MEDIUM: server: avoid changing healthcheck ctx with set server ssl
+    - CI: refactor OpenTracing build script
+    - DOC: management: mark "set server ssl" as deprecated
+    - MEDIUM: cli: yield between each pipelined command
+    - MINOR: channel: add new function co_getdelim() to support multiple delimiters
+    - BUG/MINOR: cli: avoid O(bufsize) parsing cost on pipelined commands
+    - MEDIUM: h2/hpack: emit a Dynamic Table Size Update after settings change
+    - MINOR: quic: Retransmit the TX frames in the same order
+    - MINOR: quic: Remove the packet number space TX MT_LIST
+    - MINOR: quic: Splice the frames which could not be added to packets
+    - MINOR: quic: Add the number of TX bytes to traces
+    - CLEANUP: quic: Replace <nb_pto_dgrams> by <probe>
+    - MINOR: quic: Send two ack-eliciting packets when probing packet number spaces
+    - MINOR: quic: Probe regardless of the congestion control
+    - MINOR: quic: Speeding up handshake completion
+    - MINOR: quic: Release RX Initial packets asap
+    - MINOR: quic: Release asap TX frames to be transmitted
+    - MINOR: quic: Probe even if coalescing
+    - BUG/MEDIUM: cli: Never wait for more data on client shutdown
+    - BUG/MEDIUM: mcli: do not try to parse empty buffers
+    - BUG/MEDIUM: mcli: always realign wrapping buffers before parsing them
+    - BUG/MINOR: stream: make the call_rate only count the no-progress calls
+    - MINOR: quic: do not use quic_conn after dropping it
+    - MINOR: quic: adjust quic_conn refcount decrement
+    - MINOR: quic: fix race-condition on xprt tasklet free
+    - MINOR: quic: free SSL context on quic_conn free
+    - MINOR: quic: Add QUIC_FT_RETIRE_CONNECTION_ID parsing case
+    - MINOR: quic: Wrong packet number space selection
+    - DEBUG: pools: add new build option DEBUG_POOL_INTEGRITY
+    - MINOR: quic: add missing include in quic_sock
+    - MINOR: quic: fix indentation in qc_send_ppkts
+    - MINOR: quic: remove dereferencement of connection when possible
+    - MINOR: quic: set listener accept cb on parsing
+    - MEDIUM: quic/ssl: add new ex data for quic_conn
+    - MINOR: quic: initialize ssl_sock_ctx alongside the quic_conn
+    - MINOR: ssl: fix build in release mode
+    - MINOR: pools: partially uninline pool_free()
+    - MINOR: pools: partially uninline pool_alloc()
+    - MINOR: pools: prepare POOL_EXTRA to be split into multiple extra fields
+    - MINOR: pools: extend pool_cache API to pass a pointer to a caller
+    - DEBUG: pools: add new build option DEBUG_POOL_TRACING
+    - DEBUG: cli: add a new "debug dev fd" expert command
+    - MINOR: fd: register the write side of the poller pipe as well
+    - CI: github actions: use cache for SSL libs
+    - BUILD: debug/cli: condition test of O_ASYNC to its existence
+    - BUILD: pools: fix build error on DEBUG_POOL_TRACING
+    - MINOR: quic: refactor header protection removal
+    - MINOR: quic: handle app data according to mux/connection layer status
+    - MINOR: quic: refactor app-ops initialization
+    - MINOR: receiver: define a flag for local accept
+    - MEDIUM: quic: flag listener for local accept
+    - MINOR: quic: do not manage connection in xprt snd_buf
+    - MINOR: quic: remove wait handshake/L6 flags on init connection
+    - MINOR: listener: add flags field
+    - MINOR: quic: define QUIC flag on listener
+    - MINOR: quic: create accept queue for QUIC connections
+    - MINOR: listener: define per-thr struct
+    - MAJOR: quic: implement accept queue
+    - CLEANUP: mworker: simplify mworker_free_child()
+    - BUILD/DEBUG: lru: update the standalone code to support the revision
+    - DEBUG: lru: use a xorshift generator in the testing code
+    - BUG/MAJOR: compiler: relax alignment constraints on certain structures
+    - BUG/MEDIUM: fd: always align fdtab[] to 64 bytes
+    - MINOR: quic: No DCID length for datagram context
+    - MINOR: quic: Comment fix about the token found in Initial packets
+    - MINOR: quic: Get rid of a struct buffer in quic_lstnr_dgram_read()
+    - MINOR: quic: Remove the QUIC haproxy server packet parser
+    - MINOR: quic: Add new defintion about DCIDs offsets
+    - MINOR: quic: Add a list to QUIC sock I/O handler RX buffer
+    - MINOR: quic: Allocate QUIC datagrams from sock I/O handler
+    - MINOR: proto_quic: Allocate datagram handlers
+    - MINOR: quic: Pass CID as a buffer to quic_get_cid_tid()
+    - MINOR: quic: Convert quic_dgram_read() into a task
+    - CLEANUP: quic: Remove useless definition
+    - MINOR: proto_quic: Wrong allocations for TX rings and RX bufs
+    - MINOR: quic: Do not consume the RX buffer on QUIC sock i/o handler side
+    - MINOR: quic: Do not reset a full RX buffer
+    - MINOR: quic: Attach all the CIDs to the same connection
+    - MINOR: quic: Make usage of by datagram handler trees
+    - MEDIUM: da: new optional data file download scheduler service.
+    - MEDIUM: da: update doc and build for new scheduler mode service.
+    - MEDIUM: da: update module to handle schedule mode.
+    - MINOR: quic: Drop Initial packets with wrong ODCID
+    - MINOR: quic: Wrong RX buffer tail handling when no more contiguous data
+    - MINOR: quic: Iterate over all received datagrams
+    - MINOR: quic: refactor quic CID association with threads
+    - BUG/MEDIUM: resolvers: Really ignore trailing dot in domain names
+    - DEV: flags: Add missing flags
+    - BUG/MINOR: sink: Use the right field in appctx context in release callback
+    - MINOR: sock: move the unused socket cleaning code into its own function
+    - BUG/MEDIUM: mworker: close unused transferred FDs on load failure
+    - BUILD: atomic: make the old HA_ATOMIC_LOAD() support const pointers
+    - BUILD: cpuset: do not use const on the source of CPU_AND/CPU_ASSIGN
+    - BUILD: checks: fix inlining issue on set_srv_agent_[addr,port}
+    - BUILD: vars: avoid overlapping field initialization
+    - BUILD: server-state: avoid using not-so-portable isblank()
+    - BUILD: mux_fcgi: avoid aliasing of a const struct in traces
+    - BUILD: tree-wide: mark a few numeric constants as explicitly long long
+    - BUILD: tools: fix warning about incorrect cast with dladdr1()
+    - BUILD: task: use list_to_mt_list() instead of casting list to mt_list
+    - BUILD: mworker: include tools.h for platforms without unsetenv()
+    - BUG/MINOR: mworker: fix a FD leak of a sockpair upon a failed reload
+    - MINOR: mworker: set the master side of ipc_fd in the worker to -1
+    - MINOR: mworker: allocate and initialize a mworker_proc
+    - CI: Consistently use actions/checkout@v2
+    - REGTESTS: Remove REQUIRE_VERSION=1.8 from all tests
+    - MINOR: mworker: sets used or closed worker FDs to -1
+    - MINOR: quic: Try to accept 0-RTT connections
+    - MINOR: quic: Do not try to treat 0-RTT packets without started mux
+    - MINOR: quic: Do not try to accept a connection more than one time
+    - MINOR: quic: Initialize the connection timer asap
+    - MINOR: quic: Do not use connection struct xprt_ctx too soon
+    - Revert "MINOR: mworker: sets used or closed worker FDs to -1"
+    - BUILD: makefile: avoid testing all -Wno-* options when not needed
+    - BUILD: makefile: validate support for extra warnings by batches
+    - BUILD: makefile: only compute alternative options if required
+    - DEBUG: fd: make sure we never try to insert/delete an impossible FD number
+    - MINOR: mux-quic: add comment
+    - MINOR: mux-quic: properly initialize qcc flags
+    - MINOR: mux-quic: do not consider CONNECTION_CLOSE for the moment
+    - MINOR: mux-quic: create a timeout task
+    - MEDIUM: mux-quic: delay the closing with the timeout
+    - MINOR: mux-quic: release idle conns on process stopping
+    - MINOR: listener: replace the listener's spinlock with an rwlock
+    - BUG/MEDIUM: listener: read-lock the listener during accept()
+    - MINOR: mworker/cli: set expert/experimental mode from the CLI
+
 2021/11/23 : 2.6-dev0
     - MINOR: version: it's development again
 
