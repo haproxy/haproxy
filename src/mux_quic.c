@@ -400,6 +400,7 @@ static int qc_init(struct connection *conn, struct proxy *prx,
 
 	qcc->conn = conn;
 	conn->ctx = qcc;
+	qcc->flags = 0;
 
 	qcc->app_ops = NULL;
 
