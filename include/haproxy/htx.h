@@ -749,8 +749,8 @@ static inline int htx_expect_more(const struct htx *htx)
  */
 static inline int htx_copy_msg(struct htx *htx, const struct buffer *msg)
 {
-	/* The destination HTX message is empty, we can do a raw copy */
-	if (htx_is_empty(htx)) {
+	/* The destination HTX message is allocated and empty, we can do a raw copy */
+	if (htx_is_empty(htx) && htx_free_space(htx)) {
 		memcpy(htx, msg->area, msg->size);
 		return 1;
 	}
