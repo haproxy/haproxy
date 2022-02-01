@@ -777,13 +777,8 @@ static void stream_free(struct stream *s)
  */
 static int stream_alloc_work_buffer(struct stream *s)
 {
-	if (LIST_INLIST(&s->buffer_wait.list))
-		LIST_DEL_INIT(&s->buffer_wait.list);
-
 	if (b_alloc(&s->res.buf))
 		return 1;
-
-	LIST_APPEND(&th_ctx->buffer_wq, &s->buffer_wait.list);
 	return 0;
 }
 
@@ -1717,15 +1712,24 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 
  resync_stream_interface:
 	/* below we may emit error messages so we have to ensure that we have
-	 * our buffers properly allocated.
+	 * our buffers properly allocated. If the allocation failed, an error is
+	 * triggered.
+	 *
+	 * NOTE: An error is returned because the mechanism to queue entities
+	 *       waiting for a buffer is totally broken for now. However, this
+	 *       part must be refactored. When it will be handled, this part
+	 *       must be be reviewed too.
 	 */
 	if (!stream_alloc_work_buffer(s)) {
-		/* No buffer available, we've been subscribed to the list of
-		 * buffer waiters, let's wait for our turn.
-		 */
-		si_f->flags &= ~SI_FL_DONT_WAKE;
-		si_b->flags &= ~SI_FL_DONT_WAKE;
-		goto update_exp_and_leave;
+		si_f->flags |= SI_FL_ERR;
+		si_f->err_type = SI_ET_CONN_RES;
+
+		si_b->flags |= SI_FL_ERR;
+		si_b->err_type = SI_ET_CONN_RES;
+
+		if (!(s->flags & SF_ERR_MASK))
+			s->flags |= SF_ERR_RESOURCE;
+		sess_set_term_flags(s);
 	}
 
 	/* 1b: check for low-level errors reported at the stream interface.
