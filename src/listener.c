@@ -288,7 +288,7 @@ void listener_set_state(struct listener *l, enum li_state st)
  */
 void enable_listener(struct listener *listener)
 {
-	HA_SPIN_LOCK(LISTENER_LOCK, &listener->lock);
+	HA_RWLOCK_WRLOCK(LISTENER_LOCK, &listener->lock);
 
 	/* If this listener is supposed to be only in the master, close it in
 	 * the workers. Conversely, if it's supposed to be only in the workers
@@ -315,7 +315,7 @@ void enable_listener(struct listener *listener)
 		}
 	}
 
-	HA_SPIN_UNLOCK(LISTENER_LOCK, &listener->lock);
+	HA_RWLOCK_WRUNLOCK(LISTENER_LOCK, &listener->lock);
 }
 
 /*
@@ -344,7 +344,7 @@ void stop_listener(struct listener *l, int lpx, int lpr, int lli)
 		HA_SPIN_LOCK(PROTO_LOCK, &proto_lock);
 
 	if (!lli)
-		HA_SPIN_LOCK(LISTENER_LOCK, &l->lock);
+		HA_RWLOCK_WRLOCK(LISTENER_LOCK, &l->lock);
 
 	if (l->state > LI_INIT) {
 		do_unbind_listener(l);
@@ -356,7 +356,7 @@ void stop_listener(struct listener *l, int lpx, int lpr, int lli)
 	}
 
 	if (!lli)
-		HA_SPIN_UNLOCK(LISTENER_LOCK, &l->lock);
+		HA_RWLOCK_WRUNLOCK(LISTENER_LOCK, &l->lock);
 
 	if (!lpr)
 		HA_SPIN_UNLOCK(PROTO_LOCK, &proto_lock);
@@ -451,7 +451,7 @@ int pause_listener(struct listener *l)
 	struct proxy *px = l->bind_conf->frontend;
 	int ret = 1;
 
-	HA_SPIN_LOCK(LISTENER_LOCK, &l->lock);
+	HA_RWLOCK_WRLOCK(LISTENER_LOCK, &l->lock);
 
 	if (l->state <= LI_PAUSED)
 		goto end;
@@ -468,7 +468,7 @@ int pause_listener(struct listener *l)
 		send_log(px, LOG_WARNING, "Paused %s %s.\n", proxy_cap_str(px->cap), px->id);
 	}
   end:
-	HA_SPIN_UNLOCK(LISTENER_LOCK, &l->lock);
+	HA_RWLOCK_WRUNLOCK(LISTENER_LOCK, &l->lock);
 	return ret;
 }
 
@@ -488,7 +488,7 @@ int resume_listener(struct listener *l)
 	int was_paused = px && px->li_paused;
 	int ret = 1;
 
-	HA_SPIN_LOCK(LISTENER_LOCK, &l->lock);
+	HA_RWLOCK_WRLOCK(LISTENER_LOCK, &l->lock);
 
 	/* check that another thread didn't to the job in parallel (e.g. at the
 	 * end of listen_accept() while we'd come from dequeue_all_listeners().
@@ -517,7 +517,7 @@ int resume_listener(struct listener *l)
 		send_log(px, LOG_WARNING, "Resumed %s %s.\n", proxy_cap_str(px->cap), px->id);
 	}
   end:
-	HA_SPIN_UNLOCK(LISTENER_LOCK, &l->lock);
+	HA_RWLOCK_WRUNLOCK(LISTENER_LOCK, &l->lock);
 	return ret;
 }
 
@@ -526,7 +526,7 @@ int resume_listener(struct listener *l)
  */
 static void listener_full(struct listener *l)
 {
-	HA_SPIN_LOCK(LISTENER_LOCK, &l->lock);
+	HA_RWLOCK_WRLOCK(LISTENER_LOCK, &l->lock);
 	if (l->state >= LI_READY) {
 		MT_LIST_DELETE(&l->wait_queue);
 		if (l->state != LI_FULL) {
@@ -534,7 +534,7 @@ static void listener_full(struct listener *l)
 			listener_set_state(l, LI_FULL);
 		}
 	}
-	HA_SPIN_UNLOCK(LISTENER_LOCK, &l->lock);
+	HA_RWLOCK_WRUNLOCK(LISTENER_LOCK, &l->lock);
 }
 
 /* Marks a ready listener as limited so that we only try to re-enable it when
@@ -542,13 +542,13 @@ static void listener_full(struct listener *l)
  */
 static void limit_listener(struct listener *l, struct mt_list *list)
 {
-	HA_SPIN_LOCK(LISTENER_LOCK, &l->lock);
+	HA_RWLOCK_WRLOCK(LISTENER_LOCK, &l->lock);
 	if (l->state == LI_READY) {
 		MT_LIST_TRY_APPEND(list, &l->wait_queue);
 		l->rx.proto->disable(l);
 		listener_set_state(l, LI_LIMITED);
 	}
-	HA_SPIN_UNLOCK(LISTENER_LOCK, &l->lock);
+	HA_RWLOCK_WRUNLOCK(LISTENER_LOCK, &l->lock);
 }
 
 /* Dequeues all listeners waiting for a resource the global wait queue */
@@ -630,9 +630,9 @@ void do_unbind_listener(struct listener *listener)
  */
 void unbind_listener(struct listener *listener)
 {
-	HA_SPIN_LOCK(LISTENER_LOCK, &listener->lock);
+	HA_RWLOCK_WRLOCK(LISTENER_LOCK, &listener->lock);
 	do_unbind_listener(listener);
-	HA_SPIN_UNLOCK(LISTENER_LOCK, &listener->lock);
+	HA_RWLOCK_WRUNLOCK(LISTENER_LOCK, &listener->lock);
 }
 
 /* creates one or multiple listeners for bind_conf <bc> on sockaddr <ss> on port
@@ -678,7 +678,7 @@ int create_listeners(struct bind_conf *bc, const struct sockaddr_storage *ss,
 
 		l->extra_counters = NULL;
 
-		HA_SPIN_INIT(&l->lock);
+		HA_RWLOCK_INIT(&l->lock);
 		_HA_ATOMIC_INC(&jobs);
 		_HA_ATOMIC_INC(&listeners);
 	}
@@ -720,7 +720,7 @@ struct listener *clone_listener(struct listener *src)
 
 	l->rx.proto->add(l->rx.proto, l);
 
-	HA_SPIN_INIT(&l->lock);
+	HA_RWLOCK_INIT(&l->lock);
 	_HA_ATOMIC_INC(&jobs);
 	_HA_ATOMIC_INC(&listeners);
 	global.maxsock++;
@@ -757,9 +757,9 @@ void __delete_listener(struct listener *listener)
 void delete_listener(struct listener *listener)
 {
 	HA_SPIN_LOCK(PROTO_LOCK, &proto_lock);
-	HA_SPIN_LOCK(LISTENER_LOCK, &listener->lock);
+	HA_RWLOCK_WRLOCK(LISTENER_LOCK, &listener->lock);
 	__delete_listener(listener);
-	HA_SPIN_UNLOCK(LISTENER_LOCK, &listener->lock);
+	HA_RWLOCK_WRUNLOCK(LISTENER_LOCK, &listener->lock);
 	HA_SPIN_UNLOCK(PROTO_LOCK, &proto_lock);
 }
 
