@@ -2840,7 +2840,7 @@ static int h1_send(struct h1c *h1c)
 	}
 
   end:
-	if (!(h1c->flags & H1C_F_OUT_FULL))
+	if (!(h1c->flags & (H1C_F_OUT_FULL|H1C_F_OUT_ALLOC)))
 		h1_wake_stream_for_send(h1c->h1s);
 
 	/* We're done, no more to send */
