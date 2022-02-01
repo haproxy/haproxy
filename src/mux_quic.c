@@ -339,6 +339,11 @@ static int qc_send(struct qcc *qcc)
 	return ret;
 }
 
+/* Release all streams that are already marked as detached. This is only done
+ * if their TX buffers are empty or if a CONNECTION_CLOSE has been received.
+ *
+ * Return the number of released stream.
+ */
 static int qc_release_detached_streams(struct qcc *qcc)
 {
 	struct eb64_node *node;
