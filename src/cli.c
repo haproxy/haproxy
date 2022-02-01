@@ -1751,6 +1751,10 @@ static int cli_parse_expert_experimental_mode(char **args, char *payload, struct
 	char *level_str;
 	char *output = NULL;
 
+	/* this will ask the applet to not output a \n after the command */
+	if (*args[1] && *args[2] && strcmp(args[2], "-") == 0)
+		appctx->st1 |= APPCTX_CLI_ST1_NOLF;
+
 	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
 		return 1;
 
@@ -2262,6 +2266,27 @@ int pcli_find_and_exec_kw(struct stream *s, char **args, int argl, char **errmsg
 		s->pcli_flags &= ~ACCESS_LVL_MASK;
 		s->pcli_flags |= ACCESS_LVL_USER;
 		return argl;
+
+	} else if (strcmp(args[0], "expert-mode") == 0) {
+		if (!pcli_has_level(s, ACCESS_LVL_ADMIN)) {
+			memprintf(errmsg, "Permission denied!\n");
+			return -1;
+		}
+
+		s->pcli_flags &= ~ACCESS_EXPERT;
+		if ((argl > 1) && (strcmp(args[1], "on") == 0))
+			s->pcli_flags |= ACCESS_EXPERT;
+		return argl;
+
+	} else if (strcmp(args[0], "experimental-mode") == 0) {
+		if (!pcli_has_level(s, ACCESS_LVL_ADMIN)) {
+			memprintf(errmsg, "Permission denied!\n");
+			return -1;
+		}
+		s->pcli_flags &= ~ACCESS_EXPERIMENTAL;
+		if ((argl > 1) && (strcmp(args[1], "on") == 0))
+			s->pcli_flags |= ACCESS_EXPERIMENTAL;
+		return argl;
 	}
 
 	return 0;
@@ -2410,6 +2435,15 @@ int pcli_parse_request(struct stream *s, struct channel *req, char **errmsg, int
 	}
 
 	if (ret > 1) {
+		if (s->pcli_flags & ACCESS_EXPERIMENTAL) {
+			ci_insert_line2(req, 0, "experimental-mode on -", strlen("experimental-mode on -"));
+			ret += strlen("experimental-mode on -") + 2;
+		}
+		if (s->pcli_flags & ACCESS_EXPERT) {
+			ci_insert_line2(req, 0, "expert-mode on -", strlen("expert-mode on -"));
+			ret += strlen("expert-mode on -") + 2;
+		}
+
 		if (pcli_has_level(s, ACCESS_LVL_ADMIN)) {
 			goto end;
 		} else if (pcli_has_level(s, ACCESS_LVL_OPER)) {
