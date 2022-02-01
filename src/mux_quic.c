@@ -355,8 +355,7 @@ static int qc_release_detached_streams(struct qcc *qcc)
 		node = eb64_next(node);
 
 		if (qcs->flags & QC_SF_DETACH) {
-			if ((!b_data(&qcs->tx.buf) && !b_data(&qcs->tx.xprt_buf)) ||
-			    qcc->flags & QC_CF_CC_RECV) {
+			if ((!b_data(&qcs->tx.buf) && !b_data(&qcs->tx.xprt_buf))) {
 				qcs_destroy(qcs);
 				release = 1;
 			}
@@ -466,8 +465,12 @@ static void qc_detach(struct conn_stream *cs)
 	fprintf(stderr, "%s: leaving with tx.buf.data=%lu, tx.xprt_buf.data=%lu\n",
 	        __func__, b_data(&qcs->tx.buf), b_data(&qcs->tx.xprt_buf));
 
-	if ((b_data(&qcs->tx.buf) || b_data(&qcs->tx.xprt_buf)) &&
-	    !(qcc->flags & QC_CF_CC_RECV)) {
+	/* TODO on CONNECTION_CLOSE reception, it should be possible to free
+	 * qcs instances. This should be done once the buffering and ACK
+	 * managment between xprt and mux is reorganized.
+	 */
+
+	if ((b_data(&qcs->tx.buf) || b_data(&qcs->tx.xprt_buf))) {
 		qcs->flags |= QC_SF_DETACH;
 		return;
 	}
