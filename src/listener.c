@@ -915,7 +915,18 @@ void listener_accept(struct listener *l)
 			} while (!_HA_ATOMIC_CAS(&actconn, (int *)(&count), next_actconn));
 		}
 
-		cli_conn = l->rx.proto->accept_conn(l, &status);
+		/* be careful below, the listener might be shutting down in
+		 * another thread on error and we must not dereference its
+		 * FD without a bit of protection.
+		 */
+		cli_conn = NULL;
+		status = CO_AC_PERMERR;
+
+		HA_RWLOCK_RDLOCK(LISTENER_LOCK, &l->lock);
+		if (l->rx.flags & RX_F_BOUND)
+			cli_conn = l->rx.proto->accept_conn(l, &status);
+		HA_RWLOCK_RDUNLOCK(LISTENER_LOCK, &l->lock);
+
 		if (!cli_conn) {
 			switch (status) {
 			case CO_AC_DONE:
