@@ -3675,14 +3675,14 @@ Example:
 expert-mode [on|off]
   This command activates the "expert-mode" for every worker accessed from the
   master CLI. Combined with "mcli-debug-mode" it also activates the command on
-  the master.
+  the master. Display the flag "e" in the master CLI prompt.
 
   See also "expert-mode" in Section 9.3 and "mcli-debug-mode" in 9.4.1.
 
 experimental-mode [on|off]
   This command activates the "experimental-mode" for every worker accessed from
   the master CLI. Combined with "mcli-debug-mode" it also activates the command on
-  the master.
+  the master. Display the flag "x" in the master CLI prompt.
 
   See also "experimental-mode" in Section 9.3 and "mcli-debug-mode" in 9.4.1.
 
@@ -3691,7 +3691,7 @@ mcli-debug-mode [on|off]
   keywords that were meant for a worker CLI on the master CLI, allowing to debug
   the master process. Once activated, you list the new available keywords with
   "help". Combined with "experimental-mode" or "expert-mode" it enables even
-  more keywords.
+  more keywords. Display the flag "d" in the master CLI prompt.
 
 prompt
   When the prompt is enabled (via the "prompt" command), the context the CLI is
@@ -3700,6 +3700,19 @@ prompt
   reload failed, the master prompt will be changed to "master[ReloadFailed]>" so
   that it becomes visible that the process is still running on the previous
   configuration and that the new configuration is not operational.
+
+  The prompt of the master CLI is able to display several flags which are the
+  enable modes. "d" for mcli-debug-mode, "e" for expert-mode, "x" for
+  experimental-mode.
+
+  Example:
+     $ socat /var/run/haproxy-master.sock -
+     prompt
+     master> expert-mode on
+     master(e)> experimental-mode on
+     master(xe)> mcli-debug-mode on
+     master(xed)> @1
+     95191(xed)>
 
 reload
   You can also reload the HAProxy master process with the "reload" command which

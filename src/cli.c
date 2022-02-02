@@ -2127,10 +2127,29 @@ void pcli_write_prompt(struct stream *s)
 		chunk_appendf(msg, "+ ");
 	} else {
 		if (s->pcli_next_pid == 0)
-			chunk_appendf(msg, "master%s> ",
+			chunk_appendf(msg, "master%s",
 			              (proc_self->failedreloads > 0) ? "[ReloadFailed]" : "");
 		else
-			chunk_appendf(msg, "%d> ", s->pcli_next_pid);
+			chunk_appendf(msg, "%d", s->pcli_next_pid);
+
+		if (s->pcli_flags & (ACCESS_EXPERIMENTAL|ACCESS_EXPERT|ACCESS_MCLI_DEBUG)) {
+			chunk_appendf(msg, "(");
+
+			if (s->pcli_flags & ACCESS_EXPERIMENTAL)
+				chunk_appendf(msg, "x");
+
+			if (s->pcli_flags & ACCESS_EXPERT)
+				chunk_appendf(msg, "e");
+
+			if (s->pcli_flags & ACCESS_MCLI_DEBUG)
+				chunk_appendf(msg, "d");
+
+			chunk_appendf(msg, ")");
+		}
+
+		chunk_appendf(msg, "> ");
+
+
 	}
 	co_inject(oc, msg->area, msg->data);
 }
