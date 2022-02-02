@@ -122,7 +122,8 @@ static char *cli_gen_usage_msg(struct appctx *appctx, char * const *args)
 		for (kw = &kw_list->kw[0]; kw->str_kw[0]; kw++) {
 			if (kw->level & ~appctx->cli_level & (ACCESS_MASTER_ONLY|ACCESS_EXPERT|ACCESS_EXPERIMENTAL))
 				continue;
-			if ((appctx->cli_level & ~kw->level & (ACCESS_MASTER_ONLY|ACCESS_MASTER)) ==
+			if (!(appctx->cli_level & ACCESS_MCLI_DEBUG) &&
+			    (appctx->cli_level & ~kw->level & (ACCESS_MASTER_ONLY|ACCESS_MASTER)) ==
 			    (ACCESS_MASTER_ONLY|ACCESS_MASTER))
 				continue;
 
@@ -162,8 +163,9 @@ static char *cli_gen_usage_msg(struct appctx *appctx, char * const *args)
 			for (kw = &kw_list->kw[0]; kw->str_kw[0]; kw++) {
 				if (kw->level & ~appctx->cli_level & (ACCESS_MASTER_ONLY|ACCESS_EXPERT|ACCESS_EXPERIMENTAL))
 					continue;
-				if ((appctx->cli_level & ~kw->level & (ACCESS_MASTER_ONLY|ACCESS_MASTER)) ==
-				    (ACCESS_MASTER_ONLY|ACCESS_MASTER))
+				if (!(appctx->cli_level & ACCESS_MCLI_DEBUG) &&
+				    ((appctx->cli_level & ~kw->level & (ACCESS_MASTER_ONLY|ACCESS_MASTER)) ==
+				    (ACCESS_MASTER_ONLY|ACCESS_MASTER)))
 					continue;
 
 				for (idx = 0; idx < length; idx++) {
@@ -249,11 +251,13 @@ static char *cli_gen_usage_msg(struct appctx *appctx, char * const *args)
 			if (kw->level & ~appctx->cli_level & (ACCESS_MASTER_ONLY|ACCESS_EXPERT|ACCESS_EXPERIMENTAL))
 				continue;
 
-			/* in master don't display commands that have neither the master bit
-			 * nor the master-only bit.
+			/* in master, if the CLI don't have the
+			 * ACCESS_MCLI_DEBUG don't display commands that have
+			 * neither the master bit nor the master-only bit.
 			 */
-			if ((appctx->cli_level & ~kw->level & (ACCESS_MASTER_ONLY|ACCESS_MASTER)) ==
-			    (ACCESS_MASTER_ONLY|ACCESS_MASTER))
+			if (!(appctx->cli_level & ACCESS_MCLI_DEBUG) &&
+			    ((appctx->cli_level & ~kw->level & (ACCESS_MASTER_ONLY|ACCESS_MASTER)) ==
+			    (ACCESS_MASTER_ONLY|ACCESS_MASTER)))
 				continue;
 
 			for (idx = 0; idx < length; idx++) {
@@ -750,7 +754,8 @@ static int cli_parse_request(struct appctx *appctx)
 	kw = cli_find_kw(args);
 	if (!kw ||
 	    (kw->level & ~appctx->cli_level & ACCESS_MASTER_ONLY) ||
-	    (appctx->cli_level & ~kw->level & (ACCESS_MASTER_ONLY|ACCESS_MASTER)) == (ACCESS_MASTER_ONLY|ACCESS_MASTER)) {
+	    (!(appctx->cli_level & ACCESS_MCLI_DEBUG) &&
+	     (appctx->cli_level & ~kw->level & (ACCESS_MASTER_ONLY|ACCESS_MASTER)) == (ACCESS_MASTER_ONLY|ACCESS_MASTER))) {
 		/* keyword not found in this mode */
 		cli_gen_usage_msg(appctx, args);
 		return 0;
@@ -1766,6 +1771,10 @@ static int cli_parse_expert_experimental_mode(char **args, char *payload, struct
 		level = ACCESS_EXPERIMENTAL;
 		level_str = "experimental-mode";
 	}
+	else if (strcmp(args[0], "mcli-debug-mode") == 0) {
+		level = ACCESS_MCLI_DEBUG;
+		level_str = "mcli-debug-mode";
+	}
 	else {
 		return 1;
 	}
@@ -2287,6 +2296,15 @@ int pcli_find_and_exec_kw(struct stream *s, char **args, int argl, char **errmsg
 		if ((argl > 1) && (strcmp(args[1], "on") == 0))
 			s->pcli_flags |= ACCESS_EXPERIMENTAL;
 		return argl;
+	} else if (strcmp(args[0], "mcli-debug-mode") == 0) {
+		if (!pcli_has_level(s, ACCESS_LVL_ADMIN)) {
+			memprintf(errmsg, "Permission denied!\n");
+			return -1;
+		}
+		s->pcli_flags &= ~ACCESS_MCLI_DEBUG;
+		if ((argl > 1) && (strcmp(args[1], "on") == 0))
+			s->pcli_flags |= ACCESS_MCLI_DEBUG;
+		return argl;
 	}
 
 	return 0;
@@ -2435,6 +2453,12 @@ int pcli_parse_request(struct stream *s, struct channel *req, char **errmsg, int
 	}
 
 	if (ret > 1) {
+
+		/* the mcli-debug-mode is only sent to the applet of the master */
+		if ((s->pcli_flags & ACCESS_MCLI_DEBUG) && *next_pid <= 0) {
+			ci_insert_line2(req, 0, "mcli-debug-mode on -", strlen("mcli-debug-mode on -"));
+			ret += strlen("mcli-debug-mode on -") + 2;
+		}
 		if (s->pcli_flags & ACCESS_EXPERIMENTAL) {
 			ci_insert_line2(req, 0, "experimental-mode on -", strlen("experimental-mode on -"));
 			ret += strlen("experimental-mode on -") + 2;
@@ -3049,6 +3073,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "_getsocks", NULL },                 NULL,                                                                                                _getsocks, NULL },
 	{ { "expert-mode", NULL },               NULL,                                                                                                cli_parse_expert_experimental_mode, NULL, NULL, NULL, ACCESS_MASTER }, // not listed
 	{ { "experimental-mode", NULL },         NULL,                                                                                                cli_parse_expert_experimental_mode, NULL, NULL, NULL, ACCESS_MASTER }, // not listed
+	{ { "mcli-debug-mode", NULL },         NULL,                                                                                                  cli_parse_expert_experimental_mode, NULL, NULL, NULL, ACCESS_MASTER_ONLY }, // not listed
 	{ { "set", "maxconn", "global",  NULL }, "set maxconn global <value>              : change the per-process maxconn setting",                  cli_parse_set_maxconn_global, NULL },
 	{ { "set", "rate-limit", NULL },         "set rate-limit <setting> <value>        : change a rate limiting value",                            cli_parse_set_ratelimit, NULL },
 	{ { "set", "severity-output",  NULL },   "set severity-output [none|number|string]: set presence of severity level in feedback information",  cli_parse_set_severity_output, NULL, NULL },

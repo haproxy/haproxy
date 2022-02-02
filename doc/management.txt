@@ -3674,15 +3674,24 @@ Example:
 
 expert-mode [on|off]
   This command activates the "expert-mode" for every worker accessed from the
-  master CLI.
+  master CLI. Combined with "mcli-debug-mode" it also activates the command on
+  the master.
 
-  See also "expert-mode" in Section 9.3.
+  See also "expert-mode" in Section 9.3 and "mcli-debug-mode" in 9.4.1.
 
 experimental-mode [on|off]
   This command activates the "experimental-mode" for every worker accessed from
-  the master CLI.
+  the master CLI. Combined with "mcli-debug-mode" it also activates the command on
+  the master.
 
-  See also "experimental-mode" in Section 9.3.
+  See also "experimental-mode" in Section 9.3 and "mcli-debug-mode" in 9.4.1.
+
+mcli-debug-mode [on|off]
+  This keyword allows a special mode in the master CLI which enables every
+  keywords that were meant for a worker CLI on the master CLI, allowing to debug
+  the master process. Once activated, you list the new available keywords with
+  "help". Combined with "experimental-mode" or "expert-mode" it enables even
+  more keywords.
 
 prompt
   When the prompt is enabled (via the "prompt" command), the context the CLI is
