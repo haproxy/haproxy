@@ -20,7 +20,7 @@ jobs:
       COVERITY_SCAN_PROJECT_NAME: 'Haproxy'
       COVERITY_SCAN_BRANCH_PATTERN: '*'
       COVERITY_SCAN_NOTIFICATION_EMAIL: 'chipitsine@gmail.com'
-      COVERITY_SCAN_BUILD_COMMAND: "make CC=clang TARGET=linux-glibc USE_ZLIB=1 USE_PCRE=1 USE_PCRE_JIT=1 USE_LUA=1 USE_OPENSSL=1 USE_SYSTEMD=1 USE_WURFL=1 WURFL_INC=addons/wurfl/dummy WURFL_LIB=addons/wurfl/dummy USE_DEVICEATLAS=1 DEVICEATLAS_SRC=addons/deviceatlas/dummy USE_51DEGREES=1 51DEGREES_SRC=addons/51degrees/dummy/pattern"
+      COVERITY_SCAN_BUILD_COMMAND: "make CC=clang TARGET=linux-glibc USE_ZLIB=1 USE_PCRE=1 USE_PCRE_JIT=1 USE_LUA=1 USE_OPENSSL=1 USE_QUIC=1 USE_SYSTEMD=1 USE_WURFL=1 WURFL_INC=addons/wurfl/dummy WURFL_LIB=addons/wurfl/dummy USE_DEVICEATLAS=1 DEVICEATLAS_SRC=addons/deviceatlas/dummy USE_51DEGREES=1 51DEGREES_SRC=addons/51degrees/dummy/pattern ADDLIB=\"-Wl,-rpath,$HOME/opt/lib/\" SSL_LIB=${HOME}/opt/lib SSL_INC=${HOME}/opt/include"
     steps:
     - uses: actions/checkout@v2
     - name: Install apt dependencies
@@ -29,6 +29,9 @@ jobs:
         sudo apt-get install -y \
           liblua5.3-dev \
           libsystemd-dev
+    - name: Install QUICTLS
+      run: |
+        QUICTLS=yes scripts/build-ssl.sh
     - name: Hijack Makefile
       run: |
         # We cannot pass the DEBUG variable in `COVERITY_SCAN_BUILD_COMMAND`,
