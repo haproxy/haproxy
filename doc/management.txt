@@ -3672,6 +3672,18 @@ Example:
     $ echo '@1; show info; show stat; @2; show info; show stat' | socat /var/run/haproxy-master.sock -
     [...]
 
+expert-mode [on|off]
+  This command activates the "expert-mode" for every worker accessed from the
+  master CLI.
+
+  See also "expert-mode" in Section 9.3.
+
+experimental-mode [on|off]
+  This command activates the "experimental-mode" for every worker accessed from
+  the master CLI.
+
+  See also "experimental-mode" in Section 9.3.
+
 prompt
   When the prompt is enabled (via the "prompt" command), the context the CLI is
   working on is displayed in the prompt. The master is identified by the "master"
