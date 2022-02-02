@@ -3561,7 +3561,7 @@ static struct quic_conn *qc_new_conn(unsigned int version, int ipv4,
 	struct quic_conn *qc;
 	/* Initial CID. */
 	struct quic_connection_id *icid;
-	char *buf_area;
+	char *buf_area = NULL;
 	struct listener *l = NULL;
 
 	TRACE_ENTER(QUIC_EV_CONN_INIT);
@@ -3668,6 +3668,9 @@ static struct quic_conn *qc_new_conn(unsigned int version, int ipv4,
 
  err:
 	TRACE_DEVEL("leaving in error", QUIC_EV_CONN_INIT, qc ? qc : NULL);
+	pool_free(pool_head_quic_conn_rxbuf, buf_area);
+	if (qc)
+		qc->rx.buf.area = NULL;
 	quic_conn_drop(qc);
 	return NULL;
 }
