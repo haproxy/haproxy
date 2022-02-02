@@ -2402,7 +2402,7 @@ int pcli_parse_request(struct stream *s, struct channel *req, char **errmsg, int
 	wtrim = pcli_find_and_exec_kw(s, args, argl, errmsg, next_pid);
 
 	/* End of words are ending by \0, we need to replace the \0s by spaces
-1	   before forwarding them */
+	   before forwarding them */
 	p = str;
 	while (p < end-1) {
 		if (*p == '\0')
