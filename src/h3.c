@@ -770,7 +770,6 @@ static int h3_uqs_init(struct h3_uqs *h3_uqs, struct h3 *h3,
 	h3_uqs->wait_event.tasklet->context = h3_uqs;
 	return 1;
 
- err:
 	tasklet_free(h3_uqs->wait_event.tasklet);
 	return 0;
 }
