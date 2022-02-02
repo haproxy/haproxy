@@ -972,7 +972,6 @@ static int quic_crypto_data_cpy(struct quic_enc_level *qel,
 			/* Increment the total size of this CRYPTO buffers by <to_copy>. */
 			qel->tx.crypto.sz += to_copy;
 			(*qcb)->sz += to_copy;
-			pos += to_copy;
 			len -= to_copy;
 			data += to_copy;
 		}
