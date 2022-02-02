@@ -5397,14 +5397,14 @@ struct task *quic_lstnr_dghdlr(struct task *t, void *ctx, unsigned int state)
 				break;
 		} while (pos < end);
 
-		/* Mark this datagram as consumed */
-		HA_ATOMIC_STORE(&dgram->buf, NULL);
-
 		/* Increasing the received bytes counter by the UDP datagram length
 		 * if this datagram could be associated to a connection.
 		 */
 		if (dgram->qc)
 			dgram->qc->rx.bytes += dgram->len;
+
+		/* Mark this datagram as consumed */
+		HA_ATOMIC_STORE(&dgram->buf, NULL);
 	}
 
 	return t;
