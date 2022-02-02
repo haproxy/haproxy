@@ -176,6 +176,7 @@ void quic_sock_fd_iocb(int fd)
 	size_t max_sz, cspace;
 	socklen_t saddrlen;
 	struct quic_dgram *dgram, *dgramp, *new_dgram;
+	unsigned char *dgram_buf;
 
 	BUG_ON(!l);
 
@@ -224,11 +225,13 @@ void quic_sock_fd_iocb(int fd)
 		b_add(buf, cspace);
 		if (b_contig_space(buf) < max_sz)
 			goto out;
+
 	}
 
+	dgram_buf = (unsigned char *)b_tail(buf);
 	saddrlen = sizeof saddr;
 	do {
-		ret = recvfrom(fd, b_tail(buf), max_sz, 0,
+		ret = recvfrom(fd, dgram_buf, max_sz, 0,
 		               (struct sockaddr *)&saddr, &saddrlen);
 		if (ret < 0) {
 			if (errno == EINTR)
@@ -240,8 +243,8 @@ void quic_sock_fd_iocb(int fd)
 	} while (0);
 
 	b_add(buf, ret);
-	if (!quic_lstnr_dgram_dispatch((unsigned char *)b_head(buf), ret,
-	                               l, &saddr, new_dgram, &rxbuf->dgrams)) {
+	if (!quic_lstnr_dgram_dispatch(dgram_buf, ret, l, &saddr,
+	                               new_dgram, &rxbuf->dgrams)) {
 		/* If wrong, consume this datagram */
 		b_del(buf, ret);
 	}
