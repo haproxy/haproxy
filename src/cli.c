@@ -3047,8 +3047,8 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "prompt", NULL },                    NULL,                                                                                                cli_parse_simple, NULL, NULL, NULL, ACCESS_MASTER },
 	{ { "quit", NULL },                      NULL,                                                                                                cli_parse_simple, NULL, NULL, NULL, ACCESS_MASTER },
 	{ { "_getsocks", NULL },                 NULL,                                                                                                _getsocks, NULL },
-	{ { "expert-mode", NULL },               NULL,                                                                                                cli_parse_expert_experimental_mode, NULL }, // not listed
-	{ { "experimental-mode", NULL },         NULL,                                                                                                cli_parse_expert_experimental_mode, NULL }, // not listed
+	{ { "expert-mode", NULL },               NULL,                                                                                                cli_parse_expert_experimental_mode, NULL, NULL, NULL, ACCESS_MASTER }, // not listed
+	{ { "experimental-mode", NULL },         NULL,                                                                                                cli_parse_expert_experimental_mode, NULL, NULL, NULL, ACCESS_MASTER }, // not listed
 	{ { "set", "maxconn", "global",  NULL }, "set maxconn global <value>              : change the per-process maxconn setting",                  cli_parse_set_maxconn_global, NULL },
 	{ { "set", "rate-limit", NULL },         "set rate-limit <setting> <value>        : change a rate limiting value",                            cli_parse_set_ratelimit, NULL },
 	{ { "set", "severity-output",  NULL },   "set severity-output [none|number|string]: set presence of severity level in feedback information",  cli_parse_set_severity_output, NULL, NULL },
