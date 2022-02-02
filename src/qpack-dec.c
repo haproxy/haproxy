@@ -67,8 +67,8 @@ static uint64_t qpack_get_varint(const unsigned char **buf, uint64_t *len_in, in
 	uint8_t shift = 0;
 
 	len--;
-	ret = *raw++ & ((1 << b) - 1);
-	if (ret != (uint64_t)((1 << b) - 1))
+	ret = *raw++ & ((1ULL << b) - 1);
+	if (ret != (uint64_t)((1ULL << b) - 1))
 		goto end;
 
 	while (len && (*raw & 128)) {
