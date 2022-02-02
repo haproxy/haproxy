@@ -233,14 +233,11 @@ void quic_sock_fd_iocb(int fd)
 	do {
 		ret = recvfrom(fd, dgram_buf, max_sz, 0,
 		               (struct sockaddr *)&saddr, &saddrlen);
-		if (ret < 0) {
-			if (errno == EINTR)
-				continue;
-			if (errno == EAGAIN)
-				fd_cant_recv(fd);
+		if (ret < 0 && errno == EAGAIN) {
+			fd_cant_recv(fd);
 			goto out;
 		}
-	} while (0);
+	} while (ret < 0 && errno == EINTR);
 
 	b_add(buf, ret);
 	if (!quic_lstnr_dgram_dispatch(dgram_buf, ret, l, &saddr,
