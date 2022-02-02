@@ -3650,7 +3650,6 @@ static struct quic_conn *qc_new_conn(unsigned int version, int ipv4,
 	qc->rx.bytes = 0;
 	qc->rx.nb_ack_eliciting = 0;
 	qc->rx.buf = b_make(buf_area, QUIC_CONN_RX_BUFSZ, 0, 0);
-	HA_RWLOCK_INIT(&qc->rx.buf_rwlock);
 	LIST_INIT(&qc->rx.pkt_list);
 	if (!quic_tls_ku_init(qc)) {
 		TRACE_PROTO("Key update initialization failed", QUIC_EV_CONN_INIT, qc);
@@ -4467,7 +4466,6 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 	}
 
 	pkt->raw_len = pkt->len;
-	HA_RWLOCK_WRLOCK(QUIC_LOCK, &qc->rx.buf_rwlock);
 	quic_rx_pkts_del(qc);
 	b_cspace = b_contig_space(&qc->rx.buf);
 	if (b_cspace < pkt->len) {
@@ -4478,7 +4476,6 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 		}
 		b_add(&qc->rx.buf, b_cspace);
 		if (b_contig_space(&qc->rx.buf) < pkt->len) {
-			HA_RWLOCK_WRUNLOCK(QUIC_LOCK, &qc->rx.buf_rwlock);
 			TRACE_PROTO("Too big packet", QUIC_EV_CONN_LPKT, qc, pkt, &pkt->len);
 			qc_list_all_rx_pkts(qc);
 			goto err;
@@ -4486,12 +4483,10 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 	}
 
 	if (!qc_try_rm_hp(qc, pkt, payload, beg, end, &qel)) {
-		HA_RWLOCK_WRUNLOCK(QUIC_LOCK, &qc->rx.buf_rwlock);
 		TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT, qc);
 		goto err;
 	}
 
-	HA_RWLOCK_WRUNLOCK(QUIC_LOCK, &qc->rx.buf_rwlock);
 	TRACE_PROTO("New packet", QUIC_EV_CONN_LPKT, qc, pkt);
 	if (pkt->aad_len)
 		qc_pkt_insert(pkt, qel);

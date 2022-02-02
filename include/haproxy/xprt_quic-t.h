@@ -734,8 +734,6 @@ struct quic_conn {
 		struct quic_transport_params params;
 		/* RX buffer */
 		struct buffer buf;
-		/* RX buffer read/write lock */
-		__decl_thread(HA_RWLOCK_T buf_rwlock);
 		struct list pkt_list;
 	} rx;
 	struct {
