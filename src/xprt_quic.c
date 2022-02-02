@@ -1078,13 +1078,12 @@ int ha_quic_add_handshake_data(SSL *ssl, enum ssl_encryption_level_t level,
 	}
 
 	tel = ssl_to_quic_enc_level(level);
-	qel = &qc->els[tel];
-
 	if (tel == -1) {
 		TRACE_PROTO("Wrong encryption level", QUIC_EV_CONN_ADDDATA, qc);
 		goto err;
 	}
 
+	qel = &qc->els[tel];
 	if (!quic_crypto_data_cpy(qel, data, len)) {
 		TRACE_PROTO("Could not bufferize", QUIC_EV_CONN_ADDDATA, qc);
 		goto err;
