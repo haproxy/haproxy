@@ -133,6 +133,18 @@ int jwt_tree_load_cert(char *path, int pathlen, char **err)
 	EVP_PKEY *pkey = NULL;
 	BIO *bio = NULL;
 
+	entry = calloc(1, sizeof(*entry) + pathlen + 1);
+	if (!entry) {
+		memprintf(err, "%sunable to allocate memory (jwt_cert_tree_entry).\n", err && *err ? *err : "");
+		return -1;
+	}
+	memcpy(entry->path, path, pathlen + 1);
+
+	if (ebst_insert(&jwt_cert_tree, &entry->node) != &entry->node) {
+		free(entry);
+		return 0; /* Entry already in the tree */
+	}
+
 	bio = BIO_new(BIO_s_file());
 	if (!bio) {
 		memprintf(err, "%sunable to allocate memory (BIO).\n", err && *err ? *err : "");
@@ -148,20 +160,18 @@ int jwt_tree_load_cert(char *path, int pathlen, char **err)
 			goto end;
 		}
 
-		entry = calloc(1, sizeof(*entry) + pathlen + 1);
-		if (!entry) {
-			memprintf(err, "%sunable to allocate memory (jwt_cert_tree_entry).\n", err && *err ? *err : "");
-			goto end;
-		}
-
-		memcpy(entry->path, path, pathlen + 1);
 		entry->pkey = pkey;
-
-		ebst_insert(&jwt_cert_tree, &entry->node);
 		retval = 0;
 	}
 
 end:
+	if (retval) {
+		/* Some error happened during pkey parsing, remove the already
+		 * inserted node from the tree and free it.
+		 */
+		ebmb_delete(&entry->node);
+		free(entry);
+	}
 	BIO_free(bio);
 	return retval;
 }
