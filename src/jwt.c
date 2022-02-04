@@ -363,6 +363,7 @@ static void jwt_deinit(void)
 	node = ebmb_first(&jwt_cert_tree);
 	while (node) {
 		entry = ebmb_entry(node, struct jwt_cert_tree_entry, node);
+		ebmb_delete(node);
 		ha_free(&entry);
 		node = ebmb_first(&jwt_cert_tree);
 	}
