@@ -1543,6 +1543,12 @@ static struct h2s *h2c_frt_stream_new(struct h2c *h2c, int id, struct buffer *in
 	if (flags & H2_SF_EXT_CONNECT_RCVD)
 		cs->flags |= CS_FL_WEBSOCKET;
 
+	/* The stream will record the request's accept date (which is either the
+	 * end of the connection's or the date immediately after the previous
+	 * request) and the idle time, which is the delay since the previous
+	 * request. We can set the value now, it will be copied by stream_new().
+	 */
+	sess->t_idle = tv_ms_elapsed(&sess->tv_accept, &now) - sess->t_handshake;
 	if (stream_create_from_cs(cs, input) < 0)
 		goto out_free_cs;
 
@@ -1554,6 +1560,7 @@ static struct h2s *h2c_frt_stream_new(struct h2c *h2c, int id, struct buffer *in
 	sess->accept_date = date;
 	sess->tv_accept   = now;
 	sess->t_handshake = 0;
+	sess->t_idle = 0;
 
 	/* OK done, the stream lives its own life now */
 	if (h2_frt_has_too_many_cs(h2c))
