@@ -42,6 +42,14 @@ struct qcc {
 		} tx;
 	} strms[QCS_MAX_TYPES];
 
+	/* Flow-control related fields which are enforced on our side. */
+	struct {
+	} lfctl;
+
+	/* Flow-control related fields from the endpoint which we must respect. */
+	struct {
+	} rfctl;
+
 	struct {
 		uint64_t max_data; /* Maximum number of bytes which may be received */
 	} rx;
