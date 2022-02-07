@@ -113,7 +113,7 @@ struct eb64_node *qcc_get_qcs(struct qcc *qcc, uint64_t id)
 	strm_type = id & QCS_ID_TYPE_MASK;
 	sub_id = id >> QCS_ID_TYPE_SHIFT;
 	strm_node = NULL;
-	if (qc_local_stream_id(qcc, id)) {
+	if (quic_stream_is_local(qcc, id)) {
 		/* Local streams: this stream must be already opened. */
 		strm_node = eb64_lookup(&qcc->streams_by_id, id);
 		if (!strm_node) {
