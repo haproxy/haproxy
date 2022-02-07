@@ -179,6 +179,15 @@ struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
 		size  = ((size + POOL_EXTRA + align - 1) & -align) - POOL_EXTRA;
 	}
 
+#ifdef CONFIG_HAP_POOLS
+	/* we'll store two lists there, we need the room for this. This is
+	 * guaranteed by the test above, except if MEM_F_EXACT is set, or if
+	 * the only EXTRA part is in fact the one that's stored in the cache
+	 * in addition to the pci struct.
+	 */
+	if (size + POOL_EXTRA - POOL_EXTRA_CALLER < sizeof(struct pool_cache_item))
+		size = sizeof(struct pool_cache_item) + POOL_EXTRA_CALLER - POOL_EXTRA;
+#endif
 	/* TODO: thread: we do not lock pool list for now because all pools are
 	 * created during HAProxy startup (so before threads creation) */
 	start = &pools;
