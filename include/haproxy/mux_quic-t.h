@@ -44,6 +44,9 @@ struct qcc {
 
 	/* Flow-control related fields which are enforced on our side. */
 	struct {
+		uint64_t max_bidi_streams; /* max sub-ID of bidi stream allowed for the peer */
+		uint64_t initial_max_bidi_streams; /* max initial sub-ID of bidi stream allowed for the peer */
+		uint64_t closed_bidi_streams; /* total count of closed bidi stream since last MAX_STREAMS emission */
 	} lfctl;
 
 	/* Flow-control related fields from the endpoint which we must respect. */
