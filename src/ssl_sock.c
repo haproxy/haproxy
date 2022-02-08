@@ -2234,14 +2234,6 @@ ssl_sock_do_create_cert(const char *servername, struct bind_conf *bind_conf, SSL
 	return NULL;
 }
 
-SSL_CTX *
-ssl_sock_create_cert(struct connection *conn, const char *servername, unsigned int key)
-{
-	struct bind_conf *bind_conf = __objt_listener(conn->target)->bind_conf;
-	struct ssl_sock_ctx *ctx = conn->xprt_ctx;
-
-	return ssl_sock_do_create_cert(servername, bind_conf, ctx->ssl);
-}
 
 /* Do a lookup for a certificate in the LRU cache used to store generated
  * certificates and immediately assign it to the SSL session if not null. */
