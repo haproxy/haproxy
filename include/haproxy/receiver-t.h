@@ -68,7 +68,6 @@ struct receiver {
 	struct qring **tx_qrings;         /* Array of rings (one by thread) */
 	struct mt_list tx_qring_list;    /* The same as ->tx_qrings but arranged in a list */
 
-	struct quic_dghdlr **dghdlrs;    /* Datagram handlers (one by thread) */
 	struct rxbuf **rxbufs;           /* Array of buffers for RX (one by thread) */
 	struct mt_list rxbuf_list;       /* The same as ->rxbufs but arranged in a list */
 #endif

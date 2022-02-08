@@ -46,6 +46,7 @@
 #include <haproxy/quic_loss.h>
 #include <haproxy/quic_sock.h>
 #include <haproxy/cbuf.h>
+#include <haproxy/proto_quic.h>
 #include <haproxy/quic_tls.h>
 #include <haproxy/sink.h>
 #include <haproxy/ssl_sock.h>
@@ -2803,7 +2804,6 @@ static int quic_build_post_handshake_frames(struct quic_conn *qc)
 
 	for (i = 1; i < qc->tx.params.active_connection_id_limit; i++) {
 		struct quic_connection_id *cid;
-		struct listener *l = qc->li;
 
 		frm = pool_alloc(pool_head_quic_frame);
 		if (!frm)
@@ -2814,7 +2814,7 @@ static int quic_build_post_handshake_frames(struct quic_conn *qc)
 			goto err;
 
 		/* insert the allocated CID in the receiver datagram handler tree */
-		ebmb_insert(&l->rx.dghdlrs[tid]->cids, &cid->node, cid->cid.len);
+		ebmb_insert(&quic_dghdlrs[tid].cids, &cid->node, cid->cid.len);
 
 		quic_connection_id_to_frm_cpy(frm, cid);
 		LIST_APPEND(&qel->pktns->tx.frms, &frm->list);
@@ -3617,7 +3617,7 @@ static struct quic_conn *qc_new_conn(unsigned int version, int ipv4,
 
 	/* insert the allocated CID in the receiver datagram handler tree */
 	if (server)
-		ebmb_insert(&l->rx.dghdlrs[tid]->cids, &icid->node, icid->cid.len);
+		ebmb_insert(&quic_dghdlrs[tid].cids, &icid->node, icid->cid.len);
 
 	/* Select our SCID which is the first CID with 0 as sequence number. */
 	qc->scid = icid->cid;
@@ -4025,7 +4025,7 @@ static struct quic_conn *retrieve_qc_conn_from_cid(struct quic_rx_packet *pkt,
 		 * socket addresses.
 		 */
 		quic_cid_saddr_cat(&pkt->dcid, saddr);
-		node = ebmb_lookup(&l->rx.dghdlrs[tid]->odcids, pkt->dcid.data,
+		node = ebmb_lookup(&quic_dghdlrs[tid].odcids, pkt->dcid.data,
 		                   pkt->dcid.len + pkt->dcid.addrlen);
 		if (node) {
 			qc = ebmb_entry(node, struct quic_conn, odcid_node);
@@ -4037,7 +4037,7 @@ static struct quic_conn *retrieve_qc_conn_from_cid(struct quic_rx_packet *pkt,
 	 * also for INITIAL/0-RTT non-first packets with the final DCID in
 	 * used.
 	 */
-	node = ebmb_lookup(&l->rx.dghdlrs[tid]->cids, pkt->dcid.data, pkt->dcid.len);
+	node = ebmb_lookup(&quic_dghdlrs[tid].cids, pkt->dcid.data, pkt->dcid.len);
 	if (!node)
 		goto end;
 
@@ -4377,7 +4377,7 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 			}
 
 			/* Insert the DCID the QUIC client has chosen (only for listeners) */
-			n = ebmb_insert(&l->rx.dghdlrs[tid]->odcids, &qc->odcid_node,
+			n = ebmb_insert(&quic_dghdlrs[tid].odcids, &qc->odcid_node,
 			                qc->odcid.len + qc->odcid.addrlen);
 
 			/* If the insertion failed, it means that another
@@ -5336,7 +5336,6 @@ int quic_lstnr_dgram_dispatch(unsigned char *buf, size_t len, void *owner,
 	unsigned char *dcid;
 	size_t dcid_len;
 	int cid_tid;
-	struct listener *l = owner;
 
 	if (!len || !quic_get_dgram_dcid(buf, buf + len, &dcid, &dcid_len))
 		goto err;
@@ -5356,9 +5355,9 @@ int quic_lstnr_dgram_dispatch(unsigned char *buf, size_t len, void *owner,
 	dgram->saddr = *saddr;
 	dgram->qc = NULL;
 	LIST_APPEND(dgrams, &dgram->list);
-	MT_LIST_APPEND(&l->rx.dghdlrs[cid_tid]->dgrams, &dgram->mt_list);
+	MT_LIST_APPEND(&quic_dghdlrs[cid_tid].dgrams, &dgram->mt_list);
 
-	tasklet_wakeup(l->rx.dghdlrs[cid_tid]->task);
+	tasklet_wakeup(quic_dghdlrs[cid_tid].task);
 
 	return 1;
 

@@ -24,4 +24,6 @@
 extern struct protocol proto_quic4;
 extern struct protocol proto_quic6;
 
+extern struct quic_dghdlr *quic_dghdlrs;
+
 #endif /* _HAPROXY_PROTO_QUIC_H  */

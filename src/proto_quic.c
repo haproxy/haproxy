@@ -47,6 +47,8 @@
 #include <haproxy/tools.h>
 #include <haproxy/xprt_quic.h>
 
+/* per-thread quic datagram handlers */
+struct quic_dghdlr *quic_dghdlrs;
 
 static void quic_add_listener(struct protocol *proto, struct listener *listener);
 static int quic_bind_listener(struct listener *listener, char *errmsg, int errlen);
@@ -619,56 +621,6 @@ static int quic_alloc_rxbufs_listener(struct listener *l)
 	return 0;
 }
 
-/* Allocate QUIC listener datagram handlers, one by thread.
- * Returns 1 if succeeded, 0 if not.
- */
-static int quic_alloc_dghdlrs_listener(struct listener *l)
-{
-	int i;
-
-	l->rx.dghdlrs = calloc(global.nbthread, sizeof *l->rx.dghdlrs);
-	if (!l->rx.dghdlrs)
-		return 0;
-
-	for (i = 0; i < global.nbthread; i++) {
-		struct quic_dghdlr *dghdlr;
-
-		dghdlr = calloc(1, sizeof *dghdlr);
-		if (!dghdlr)
-			goto err;
-
-		dghdlr->task = tasklet_new();
-		if (!dghdlr->task) {
-			free(dghdlr);
-			goto err;
-		}
-
-		dghdlr->task->tid = i;
-		dghdlr->task->context = dghdlr;
-		dghdlr->task->process = quic_lstnr_dghdlr;
-		dghdlr->odcids = EB_ROOT_UNIQUE;
-		dghdlr->cids = EB_ROOT_UNIQUE;
-		MT_LIST_INIT(&dghdlr->dgrams);
-		l->rx.dghdlrs[i] = dghdlr;
-	}
-
-	return 1;
-
- err:
-	for (i = 0; i < global.nbthread; i++) {
-		struct quic_dghdlr *dghdlr = l->rx.dghdlrs[i];
-
-		if (!dghdlr)
-			break;
-
-		tasklet_free(dghdlr->task);
-		free(dghdlr);
-	}
-	free(l->rx.dghdlrs);
-
-	return 0;
-}
-
 /* This function tries to bind a QUIC4/6 listener. It may return a warning or
  * an error message in <errmsg> if the message is at most <errlen> bytes long
  * (including '\0'). Note that <errmsg> may be NULL if <errlen> is also zero.
@@ -700,9 +652,8 @@ static int quic_bind_listener(struct listener *listener, char *errmsg, int errle
 	}
 
 	if (!quic_alloc_tx_rings_listener(listener) ||
-	    !quic_alloc_rxbufs_listener(listener) ||
-	    !quic_alloc_dghdlrs_listener(listener)) {
-		msg = "could not initialize tx/rx rings or dgram handlers";
+	    !quic_alloc_rxbufs_listener(listener)) {
+		msg = "could not initialize tx/rx rings";
 		err |= ERR_WARN;
 		goto udp_return;
 	}
@@ -744,6 +695,53 @@ static void quic_disable_listener(struct listener *l)
 	if (fd_updt)
 		fd_stop_recv(l->rx.fd);
 }
+
+static int quic_alloc_dghdlrs(void)
+{
+	int i;
+
+	quic_dghdlrs = calloc(global.nbthread, sizeof(struct quic_dghdlr));
+	if (!quic_dghdlrs) {
+		ha_alert("Failed to allocate the quic datagram handlers.\n");
+		return 0;
+	}
+
+	for (i = 0; i < global.nbthread; i++) {
+		struct quic_dghdlr *dghdlr = &quic_dghdlrs[i];
+
+		dghdlr->task = tasklet_new();
+		if (!dghdlr->task) {
+			ha_alert("Failed to allocate the quic datagram handler on thread %d.\n", i);
+			return 0;
+		}
+
+		tasklet_set_tid(dghdlr->task, i);
+		dghdlr->task->context = dghdlr;
+		dghdlr->task->process = quic_lstnr_dghdlr;
+
+		dghdlr->odcids = EB_ROOT_UNIQUE;
+		dghdlr->cids = EB_ROOT_UNIQUE;
+
+		MT_LIST_INIT(&dghdlr->dgrams);
+	}
+
+	return 1;
+}
+REGISTER_POST_CHECK(quic_alloc_dghdlrs);
+
+static int quic_deallocate_dghdlrs(void)
+{
+	int i;
+
+	if (quic_dghdlrs) {
+		for (i = 0; i < global.nbthread; ++i)
+			tasklet_free(quic_dghdlrs[i].task);
+		free(quic_dghdlrs);
+	}
+
+	return 1;
+}
+REGISTER_POST_DEINIT(quic_deallocate_dghdlrs);
 
 /*
  * Local variables:
