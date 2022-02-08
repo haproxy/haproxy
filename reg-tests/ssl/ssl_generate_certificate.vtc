@@ -1,0 +1,168 @@
+#REGTEST_TYPE=devel
+
+# This reg-test checks that the 'generate-certificates' SSL option works
+# properly. This option allows to generate server-side certificates on the fly
+# for clients that use an SNI for which no certificate was specified in the
+# configuration file.
+# This test also aims at checking that the 'generate-certificates' and the
+# 'ecdhe' bind options work correctly together.
+# Any bind line having a 'generate-certificates' needs to have a ca-sign-file
+# option as well that specifies the path to a CA pem file (containing a
+# certificate as well as its private key). For this reason, a new
+# ssl_gen_ca.pem CA certificate was created, along with the ssl_gen_server.pem
+# server certificate signed by the CA. This server certificate will be used as
+# a default certificate and will serve as a base for any newly created
+# certificate.
+
+varnishtest "Test the 'generate-certificates' SSL option"
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL)'"
+feature cmd "command -v openssl && command -v grep"
+feature ignore_unknown_macro
+
+server s1 -repeat 6 {
+  rxreq
+  txresp
+} -start
+
+
+haproxy h1 -conf {
+    global
+        tune.ssl.default-dh-param 2048
+        tune.ssl.capture-buffer-size 2048
+
+    defaults
+        mode http
+        option httpslog
+        log stderr local0 debug err
+        option logasap
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+        option httpslog
+
+    listen clear-lst
+        bind "fd@${clearlst}"
+        http-request set-var(sess.sni) hdr(x-sni)
+
+        use_backend P-384_backend if { path /P-384 }
+        default_backend default_backend
+
+    backend default_backend
+        server s1 "${tmpdir}/ssl.sock" ssl verify none ssl-max-ver TLSv1.2 sni var(sess.sni)
+
+    backend P-384_backend
+        server s1 "${tmpdir}/ssl_P-384.sock" ssl verify none ssl-max-ver TLSv1.2 sni var(sess.sni)
+
+    listen ssl-lst
+        bind "${tmpdir}/ssl.sock" ssl generate-certificates crt ${testdir}/generate_certificates/gen_cert_server.pem ca-sign-file ${testdir}/generate_certificates/gen_cert_ca.pem ca-file ${testdir}/generate_certificates/gen_cert_ca.pem verify optional
+        http-response add-header x-ssl-s_dn %[ssl_f_s_dn(CN)]
+        http-response add-header x-ssl-i_dn %[ssl_f_i_dn(CN)]
+        http-response add-header x-ssl-sig_alg %[ssl_f_sig_alg]
+        http-response add-header x-ssl-key_alg %[ssl_f_key_alg]
+        http-response add-header x-ssl-sha1 %[ssl_f_sha1,hex]
+
+        server s1 ${s1_addr}:${s1_port}
+
+    listen ssl-lst-P-384
+        bind "${tmpdir}/ssl_P-384.sock" ssl generate-certificates crt ${testdir}/generate_certificates/gen_cert_server.pem ca-sign-file ${testdir}/generate_certificates/gen_cert_ca.pem ca-file ${testdir}/generate_certificates/gen_cert_ca.pem verify optional ecdhe secp384r1
+        http-response add-header x-ssl-s_dn %[ssl_f_s_dn(CN)]
+        http-response add-header x-ssl-i_dn %[ssl_f_i_dn(CN)]
+        http-response add-header x-ssl-sig_alg %[ssl_f_sig_alg]
+        http-response add-header x-ssl-key_alg %[ssl_f_key_alg]
+        http-response add-header x-ssl-sha1 %[ssl_f_sha1,hex]
+
+        server s1 ${s1_addr}:${s1_port}
+
+} -start
+
+# Use default certificate
+client c1 -connect ${h1_clearlst_sock} {
+  txreq
+  rxresp
+  expect resp.status == 200
+  expect resp.http.x-ssl-sig_alg == "ecdsa-with-SHA256"
+  expect resp.http.x-ssl-i_dn == "ECDSA CA"
+  expect resp.http.x-ssl-s_dn  == "server.ecdsa.com"
+  expect resp.http.x-ssl-key_alg == "id-ecPublicKey"
+  expect resp.http.x-ssl-sha1 == "66AC64728CEA0C1F614A89C278FA2F94EDE9AB11"
+} -run
+
+
+# Use default certificate's sni
+client c2 -connect ${h1_clearlst_sock} {
+  txreq -hdr "x-sni: server.ecdsa.com"
+  rxresp
+  expect resp.status == 200
+  expect resp.http.x-ssl-sig_alg == "ecdsa-with-SHA256"
+  expect resp.http.x-ssl-i_dn == "ECDSA CA"
+  expect resp.http.x-ssl-s_dn  == "server.ecdsa.com"
+  expect resp.http.x-ssl-key_alg == "id-ecPublicKey"
+  expect resp.http.x-ssl-sha1 == "66AC64728CEA0C1F614A89C278FA2F94EDE9AB11"
+} -run
+
+
+
+# Use another SNI - the server certificate should be generated and different
+# than the default one
+client c3 -connect ${h1_clearlst_sock} {
+  txreq -hdr "x-sni: unknown-sni.com"
+  rxresp
+  expect resp.status == 200
+  expect resp.http.x-ssl-sig_alg == "ecdsa-with-SHA256"
+  expect resp.http.x-ssl-i_dn == "ECDSA CA"
+  expect resp.http.x-ssl-s_dn  == "ECDSA CA"
+  expect resp.http.x-ssl-key_alg == "id-ecPublicKey"
+  expect resp.http.x-ssl-sha1 != "66AC64728CEA0C1F614A89C278FA2F94EDE9AB11"
+} -run
+
+
+# Use default certificate
+client c4 -connect ${h1_clearlst_sock} {
+  txreq -url "/P-384"
+  rxresp
+  expect resp.status == 200
+  expect resp.http.x-ssl-sig_alg == "ecdsa-with-SHA256"
+  expect resp.http.x-ssl-i_dn == "ECDSA CA"
+  expect resp.http.x-ssl-s_dn  == "server.ecdsa.com"
+  expect resp.http.x-ssl-key_alg == "id-ecPublicKey"
+  expect resp.http.x-ssl-sha1 == "66AC64728CEA0C1F614A89C278FA2F94EDE9AB11"
+} -run
+
+
+# Use default certificate's sni
+client c5 -connect ${h1_clearlst_sock} {
+  txreq -url "/P-384" -hdr "x-sni: server.ecdsa.com"
+  rxresp
+  expect resp.status == 200
+  expect resp.http.x-ssl-sig_alg == "ecdsa-with-SHA256"
+  expect resp.http.x-ssl-i_dn == "ECDSA CA"
+  expect resp.http.x-ssl-s_dn  == "server.ecdsa.com"
+  expect resp.http.x-ssl-key_alg == "id-ecPublicKey"
+  expect resp.http.x-ssl-sha1 == "66AC64728CEA0C1F614A89C278FA2F94EDE9AB11"
+} -run
+
+
+# Use another SNI - the server certificate should be generated and different
+# than the default one
+client c6 -connect ${h1_clearlst_sock} {
+  txreq -url "/P-384" -hdr "x-sni: unknown-sni.com"
+  rxresp
+  expect resp.status == 200
+  expect resp.http.x-ssl-sig_alg == "ecdsa-with-SHA256"
+  expect resp.http.x-ssl-i_dn == "ECDSA CA"
+  expect resp.http.x-ssl-s_dn  == "ECDSA CA"
+  expect resp.http.x-ssl-key_alg == "id-ecPublicKey"
+  expect resp.http.x-ssl-sha1 != "66AC64728CEA0C1F614A89C278FA2F94EDE9AB11"
+} -run
+
+# Check that the curves that the server accepts to use correspond to what we
+# expect it to be (according to ecdhe option).
+# The curve with the highest priority is X25519 for OpenSSL 1.1.1 and later,
+# and P-256 for OpenSSL 1.0.2.
+shell {
+    echo "Q" | openssl s_client -unix "${tmpdir}/ssl.sock" -servername server.ecdsa.com -tls1_2 2>/dev/null | grep -E "Server Temp Key: (ECDH, P-256, 256 bits|X25519, 253 bits)"
+}
+
+shell {
+    echo "Q" | openssl s_client -unix "${tmpdir}/ssl_P-384.sock" -servername server.ecdsa.com 2>/dev/null| grep "Server Temp Key: ECDH, P-384, 384 bits"
+}
