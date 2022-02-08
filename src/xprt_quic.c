@@ -5457,7 +5457,7 @@ int quic_lstnr_dgram_dispatch(unsigned char *buf, size_t len, void *owner,
 	struct quic_dgram *dgram;
 	unsigned char *dcid;
 	size_t dcid_len;
-	int tid;
+	int cid_tid;
 	struct listener *l = owner;
 
 	if (!len || !quic_get_dgram_dcid(buf, buf + len, &dcid, &dcid_len))
@@ -5467,7 +5467,8 @@ int quic_lstnr_dgram_dispatch(unsigned char *buf, size_t len, void *owner,
 	if (!dgram)
 		goto err;
 
-	tid = quic_get_cid_tid(dcid);
+	cid_tid = quic_get_cid_tid(dcid);
+
 	/* All the members must be initialized! */
 	dgram->owner = owner;
 	dgram->buf = buf;
@@ -5477,9 +5478,9 @@ int quic_lstnr_dgram_dispatch(unsigned char *buf, size_t len, void *owner,
 	dgram->saddr = *saddr;
 	dgram->qc = NULL;
 	LIST_APPEND(dgrams, &dgram->list);
-	MT_LIST_APPEND(&l->rx.dghdlrs[tid]->dgrams, &dgram->mt_list);
+	MT_LIST_APPEND(&l->rx.dghdlrs[cid_tid]->dgrams, &dgram->mt_list);
 
-	tasklet_wakeup(l->rx.dghdlrs[tid]->task);
+	tasklet_wakeup(l->rx.dghdlrs[cid_tid]->task);
 
 	return 1;
 
