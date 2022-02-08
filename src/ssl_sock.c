@@ -2209,6 +2209,16 @@ ssl_sock_do_create_cert(const char *servername, struct bind_conf *bind_conf, SSL
 #ifndef OPENSSL_NO_DH
 	SSL_CTX_set_tmp_dh_callback(ssl_ctx, ssl_get_tmp_dh);
 #endif
+
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
+#if defined(SSL_CTX_set1_curves_list)
+	{
+		const char *ecdhe = (bind_conf->ssl_conf.ecdhe ? bind_conf->ssl_conf.ecdhe : ECDHE_DEFAULT_CURVE);
+		if (!SSL_CTX_set1_curves_list(ssl_ctx, ecdhe))
+			goto end;
+	}
+#endif
+#else
 #if defined(SSL_CTX_set_tmp_ecdh) && !defined(OPENSSL_NO_ECDH)
 	{
 		const char *ecdhe = (bind_conf->ssl_conf.ecdhe ? bind_conf->ssl_conf.ecdhe : ECDHE_DEFAULT_CURVE);
@@ -2222,7 +2232,8 @@ ssl_sock_do_create_cert(const char *servername, struct bind_conf *bind_conf, SSL
 		SSL_CTX_set_tmp_ecdh(ssl_ctx, ecc);
 		EC_KEY_free(ecc);
 	}
-#endif
+#endif /* defined(SSL_CTX_set_tmp_ecdh) && !defined(OPENSSL_NO_ECDH) */
+#endif /* HA_OPENSSL_VERSION_NUMBER >= 0x10101000L */
  end:
 	return ssl_ctx;
 
