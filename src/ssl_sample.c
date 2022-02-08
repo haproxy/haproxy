@@ -117,57 +117,38 @@ static int sample_conv_sha2(const struct arg *arg_p, struct sample *smp, void *p
 {
 	struct buffer *trash = get_trash_chunk();
 	int bits = 256;
+	EVP_MD_CTX *mdctx;
+	const EVP_MD *evp = NULL;
+	unsigned int digest_length = 0;
 	if (arg_p->data.sint)
 		bits = arg_p->data.sint;
 
 	switch (bits) {
-	case 224: {
-		SHA256_CTX ctx;
-
-		memset(&ctx, 0, sizeof(ctx));
-
-		SHA224_Init(&ctx);
-		SHA224_Update(&ctx, smp->data.u.str.area, smp->data.u.str.data);
-		SHA224_Final((unsigned char *) trash->area, &ctx);
-		trash->data = SHA224_DIGEST_LENGTH;
+	case 224:
+		evp = EVP_sha224();
 		break;
-	}
-	case 256: {
-		SHA256_CTX ctx;
-
-		memset(&ctx, 0, sizeof(ctx));
-
-		SHA256_Init(&ctx);
-		SHA256_Update(&ctx, smp->data.u.str.area, smp->data.u.str.data);
-		SHA256_Final((unsigned char *) trash->area, &ctx);
-		trash->data = SHA256_DIGEST_LENGTH;
+	case 256:
+		evp = EVP_sha256();
 		break;
-	}
-	case 384: {
-		SHA512_CTX ctx;
-
-		memset(&ctx, 0, sizeof(ctx));
-
-		SHA384_Init(&ctx);
-		SHA384_Update(&ctx, smp->data.u.str.area, smp->data.u.str.data);
-		SHA384_Final((unsigned char *) trash->area, &ctx);
-		trash->data = SHA384_DIGEST_LENGTH;
+	case 384:
+		evp = EVP_sha384();
 		break;
-	}
-	case 512: {
-		SHA512_CTX ctx;
-
-		memset(&ctx, 0, sizeof(ctx));
-
-		SHA512_Init(&ctx);
-		SHA512_Update(&ctx, smp->data.u.str.area, smp->data.u.str.data);
-		SHA512_Final((unsigned char *) trash->area, &ctx);
-		trash->data = SHA512_DIGEST_LENGTH;
+	case 512:
+		evp = EVP_sha512();
 		break;
-	}
 	default:
 		return 0;
 	}
+
+	mdctx = EVP_MD_CTX_new();
+	if (!mdctx)
+		return 0;
+	EVP_DigestInit_ex(mdctx, evp, NULL);
+	EVP_DigestUpdate(mdctx, smp->data.u.str.area, smp->data.u.str.data);
+	EVP_DigestFinal_ex(mdctx, (unsigned char*)trash->area, &digest_length);
+	trash->data = digest_length;
+
+	EVP_MD_CTX_free(mdctx);
 
 	smp->data.u.str = *trash;
 	smp->data.type = SMP_T_BIN;
