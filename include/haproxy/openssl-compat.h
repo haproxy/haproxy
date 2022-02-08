@@ -24,6 +24,10 @@
 #include <openssl/async.h>
 #endif
 
+#if (OPENSSL_VERSION_NUMBER >= 0x3000000fL)
+#include <openssl/core_names.h>
+#endif
+
 #if defined(LIBRESSL_VERSION_NUMBER)
 /* LibreSSL is a fork of OpenSSL 1.0.1g but pretends to be 2.0.0, thus
  * systematically breaking when some code is written for a specific version
@@ -77,6 +81,14 @@
 
 #if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
 #define HAVE_SSL_KEYLOG
+#endif
+
+
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x3000000fL)
+#define HAVE_OSSL_PARAM
+#define MAC_CTX EVP_MAC_CTX
+#else
+#define MAC_CTX HMAC_CTX
 #endif
 
 #if (HA_OPENSSL_VERSION_NUMBER < 0x0090800fL)
@@ -296,6 +308,12 @@ static inline X509 *X509_STORE_CTX_get0_cert(X509_STORE_CTX *ctx)
 {
     return ctx->cert;
 }
+#endif
+
+#if (HA_OPENSSL_VERSION_NUMBER < 0x3000000fL)
+#if defined(SSL_CTRL_SET_TLSEXT_TICKET_KEY_CB)
+#define SSL_CTX_set_tlsext_ticket_key_evp_cb SSL_CTX_set_tlsext_ticket_key_cb
+#endif
 #endif
 
 #if (HA_OPENSSL_VERSION_NUMBER >= 0x1010000fL) || (defined(LIBRESSL_VERSION_NUMBER) && LIBRESSL_VERSION_NUMBER >= 0x2070200fL)
