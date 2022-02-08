@@ -1,0 +1,134 @@
+#REGTEST_TYPE=devel
+
+# This reg-test checks the behaviour of the 'curves' and 'ecdhe' options on a
+# bind line.  Its main point is to ensure that the default curve used in
+# HAProxy is indeed prime256v1 (or P-256 depending on the curve's
+# representation). In order to check this, is uses two ssl frontends that have
+# different lists of accepted curves, one of them accepting this default curve
+# while the other one does not. A backend tries to connect to those two
+# frontends by using the default curve, and it should succeed in one case and
+# fail in the other.
+# For some strange reason, OpenSSL 1.0.2 does not behave the same way as later
+# versions when it comes to ECDH and curves related matters. Instead of trying
+# to make it work the same way as the other (more used) versions, we will
+# ignore it and disable this test on OpenSSL 1.0.2.
+# For the same reason, this test is disabled for other SSL libraries as well.
+#
+
+varnishtest "Test the 'curves' and 'ecdhe' options and default curve value"
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL) && ssllib_name_startswith(OpenSSL) && openssl_version_atleast(1.1.1)'"
+feature ignore_unknown_macro
+
+server s1 -repeat 2 {
+  rxreq
+  txresp
+} -start
+
+barrier b1 cond 2 -cyclic
+
+syslog Slg_cust_fmt -level info {
+    recv
+    expect ~ "ERROR.*conn_status:\"34:SSL handshake failure\" hsk_err:\".*wrong curve\".*"
+
+    barrier b1 sync
+
+    recv
+    expect ~ "ERROR ECDHE.*conn_status:\"34:SSL handshake failure\" hsk_err:\".*wrong curve\".*"
+} -start
+
+
+haproxy h1 -conf {
+    global
+        tune.ssl.default-dh-param 2048
+
+    defaults
+        mode http
+        option httpslog
+        log stderr local0 debug err
+        option logasap
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+        retries 0
+
+    listen clear-lst
+        bind "fd@${clearlst}"
+
+        use_backend ssl-curves-be if { path /curves }
+        use_backend ssl-ecdhe-521-be if { path /ecdhe-521 }
+        use_backend ssl-ecdhe-256-be if { path /ecdhe-256 }
+        default_backend ssl-be
+
+    backend ssl-be
+        server s1 "${tmpdir}/ssl1.sock" ssl verify none crt ${testdir}/client.ecdsa.pem force-tlsv12
+
+    backend ssl-curves-be
+        server s1 "${tmpdir}/ssl2.sock" ssl verify none crt ${testdir}/client.ecdsa.pem force-tlsv12
+
+    backend ssl-ecdhe-256-be
+        server s1 "${tmpdir}/ssl-ecdhe-256.sock" ssl verify none crt ${testdir}/client.ecdsa.pem force-tlsv12
+
+    backend ssl-ecdhe-521-be
+        server s1 "${tmpdir}/ssl-ecdhe-521.sock" ssl verify none crt ${testdir}/client.ecdsa.pem force-tlsv12
+
+
+    listen ssl1-lst
+        bind "${tmpdir}/ssl1.sock" ssl crt ${testdir}/common.pem ca-file ${testdir}/set_cafile_rootCA.crt verify optional curves P-256:P-384
+        server s1 ${s1_addr}:${s1_port}
+
+    # The prime256v1 curve, which is used by default by a backend when no
+    # 'curves' or 'ecdhe' option is specified, is not allowed on this listener
+    listen ssl2-lst
+        log ${Slg_cust_fmt_addr}:${Slg_cust_fmt_port} local0
+        error-log-format "ERROR conn_status:\"%[fc_err]:%[fc_err_str]\" hsk_err:%{+Q}[ssl_fc_err_str]"
+
+        bind "${tmpdir}/ssl2.sock" ssl crt ${testdir}/common.pem ca-file ${testdir}/set_cafile_rootCA.crt verify optional curves P-384
+        server s1 ${s1_addr}:${s1_port}
+
+    listen ssl-ecdhe-521-lst
+        log ${Slg_cust_fmt_addr}:${Slg_cust_fmt_port} local0
+        error-log-format "ERROR ECDHE-521 conn_status:\"%[fc_err]:%[fc_err_str]\" hsk_err:%{+Q}[ssl_fc_err_str]"
+
+        bind "${tmpdir}/ssl-ecdhe-521.sock" ssl crt ${testdir}/common.pem ca-file ${testdir}/set_cafile_rootCA.crt verify optional ecdhe secp521r1
+        server s1 ${s1_addr}:${s1_port}
+
+    listen ssl-ecdhe-256-lst
+        log ${Slg_cust_fmt_addr}:${Slg_cust_fmt_port} local0
+        error-log-format "ERROR ECDHE-256 conn_status:\"%[fc_err]:%[fc_err_str]\" hsk_err:%{+Q}[ssl_fc_err_str]"
+
+        bind "${tmpdir}/ssl-ecdhe-256.sock" ssl crt ${testdir}/common.pem ca-file ${testdir}/set_cafile_rootCA.crt verify optional ecdhe prime256v1
+        server s1 ${s1_addr}:${s1_port}
+
+} -start
+
+client c1 -connect ${h1_clearlst_sock} {
+  txreq
+  rxresp
+  expect resp.status == 200
+} -run
+
+# The backend tries to use the prime256v1 curve that is not accepted by the
+# frontend so the handshake should fail.
+client c2 -connect ${h1_clearlst_sock} {
+  txreq -url "/curves"
+  rxresp
+  expect resp.status == 503
+} -run
+
+barrier b1 sync
+
+# The backend tries to use the prime256v1 curve that is not accepted by the
+# frontend so the handshake should fail.
+client c3 -connect ${h1_clearlst_sock} {
+  txreq -url "/ecdhe-521"
+  rxresp
+  expect resp.status == 503
+} -run
+
+client c4 -connect ${h1_clearlst_sock} {
+  txreq -url "/ecdhe-256"
+  rxresp
+  expect resp.status == 200
+} -run
+
+syslog Slg_cust_fmt -wait
