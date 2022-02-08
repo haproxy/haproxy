@@ -4677,38 +4677,43 @@ static int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_con
 		}
 		(void)SSL_CTX_set_ecdh_auto(ctx, 1);
 	}
-#endif
-#if defined(SSL_CTX_set_tmp_ecdh) && !defined(OPENSSL_NO_ECDH)
+#endif /* defined(SSL_CTX_set1_curves_list) */
+
 	if (!conf_curves) {
-		int i;
-		EC_KEY  *ecdh;
 #if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
+#if defined(SSL_CTX_set1_curves_list)
 		const char *ecdhe = (ssl_conf && ssl_conf->ecdhe) ? ssl_conf->ecdhe :
 			(bind_conf->ssl_conf.ecdhe ? bind_conf->ssl_conf.ecdhe :
 			 NULL);
 
-		if (ecdhe == NULL) {
-			(void)SSL_CTX_set_ecdh_auto(ctx, 1);
-			return cfgerr;
+		if (ecdhe && SSL_CTX_set1_curves_list(ctx, ecdhe) == 0) {
+			memprintf(err, "%sProxy '%s': unable to set elliptic named curve to '%s' for bind '%s' at [%s:%d].\n",
+				  err && *err ? *err : "", curproxy->id, ecdhe, bind_conf->arg, bind_conf->file, bind_conf->line);
+			cfgerr |= ERR_ALERT | ERR_FATAL;
 		}
+#endif /* defined(SSL_CTX_set1_curves_list) */
 #else
+#if defined(SSL_CTX_set_tmp_ecdh) && !defined(OPENSSL_NO_ECDH)
+		int i;
+		EC_KEY  *ecdh;
+
 		const char *ecdhe = (ssl_conf && ssl_conf->ecdhe) ? ssl_conf->ecdhe :
 			(bind_conf->ssl_conf.ecdhe ? bind_conf->ssl_conf.ecdhe :
 			 ECDHE_DEFAULT_CURVE);
-#endif
 
 		i = OBJ_sn2nid(ecdhe);
 		if (!i || ((ecdh = EC_KEY_new_by_curve_name(i)) == NULL)) {
 			memprintf(err, "%sProxy '%s': unable to set elliptic named curve to '%s' for bind '%s' at [%s:%d].\n",
-			          err && *err ? *err : "", curproxy->id, ecdhe, bind_conf->arg, bind_conf->file, bind_conf->line);
+				  err && *err ? *err : "", curproxy->id, ecdhe, bind_conf->arg, bind_conf->file, bind_conf->line);
 			cfgerr |= ERR_ALERT | ERR_FATAL;
 		}
 		else {
 			SSL_CTX_set_tmp_ecdh(ctx, ecdh);
 			EC_KEY_free(ecdh);
 		}
+#endif /* defined(SSL_CTX_set_tmp_ecdh) && !defined(OPENSSL_NO_ECDH) */
+#endif /* HA_OPENSSL_VERSION_NUMBER >= 0x10101000L */
 	}
-#endif
 
 	return cfgerr;
 }
