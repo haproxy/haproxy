@@ -1050,6 +1050,28 @@ int ssl_sock_update_ocsp_response(struct buffer *ocsp_response, char **err)
 
 #endif
 
+
+/*
+ * Initialize an HMAC context <hctx> using the <key> and <md> parameters.
+ * Returns -1 in case of error, 1 otherwise.
+ */
+static int ssl_hmac_init(MAC_CTX *hctx, unsigned char *key, int key_len, const EVP_MD *md)
+{
+#ifdef HAVE_OSSL_PARAM
+       OSSL_PARAM params[3];
+
+       params[0] = OSSL_PARAM_construct_octet_string(OSSL_MAC_PARAM_KEY, key, key_len);
+       params[1] = OSSL_PARAM_construct_utf8_string(OSSL_MAC_PARAM_DIGEST, (char*)EVP_MD_name(md), 0);
+       params[2] = OSSL_PARAM_construct_end();
+       if (EVP_MAC_CTX_set_params(hctx, params) == 0)
+               return -1; /* error in mac initialisation */
+
+#else
+       HMAC_Init_ex(hctx, key, key_len, md, NULL);
+#endif
+       return 1;
+}
+
 #if (defined SSL_CTRL_SET_TLSEXT_TICKET_KEY_CB && TLS_TICKETS_NO > 0)
 
 static int ssl_tlsext_ticket_key_cb(SSL *s, unsigned char key_name[16], unsigned char *iv, EVP_CIPHER_CTX *ectx, MAC_CTX *hctx, int enc)
@@ -1079,7 +1101,8 @@ static int ssl_tlsext_ticket_key_cb(SSL *s, unsigned char key_name[16], unsigned
 			if(!EVP_EncryptInit_ex(ectx, EVP_aes_128_cbc(), NULL, keys[head].key_128.aes_key, iv))
 				goto end;
 
-			HMAC_Init_ex(hctx, keys[head].key_128.hmac_key, 16, TLS_TICKET_HASH_FUNCT(), NULL);
+			if (ssl_hmac_init(hctx, keys[head].key_128.hmac_key, 16, TLS_TICKET_HASH_FUNCT()) < 0)
+				goto end;
 			ret = 1;
 		}
 		else if (ref->key_size_bits == 256 ) {
@@ -1087,7 +1110,8 @@ static int ssl_tlsext_ticket_key_cb(SSL *s, unsigned char key_name[16], unsigned
 			if(!EVP_EncryptInit_ex(ectx, EVP_aes_256_cbc(), NULL, keys[head].key_256.aes_key, iv))
 				goto end;
 
-			HMAC_Init_ex(hctx, keys[head].key_256.hmac_key, 32, TLS_TICKET_HASH_FUNCT(), NULL);
+			if (ssl_hmac_init(hctx,  keys[head].key_256.hmac_key, 32, TLS_TICKET_HASH_FUNCT()) < 0)
+				goto end;
 			ret = 1;
 		}
 	} else {
@@ -1100,14 +1124,16 @@ static int ssl_tlsext_ticket_key_cb(SSL *s, unsigned char key_name[16], unsigned
 
 	  found:
 		if (ref->key_size_bits == 128) {
-			HMAC_Init_ex(hctx, keys[(head + i) % TLS_TICKETS_NO].key_128.hmac_key, 16, TLS_TICKET_HASH_FUNCT(), NULL);
+			if (ssl_hmac_init(hctx, keys[(head + i) % TLS_TICKETS_NO].key_128.hmac_key, 16, TLS_TICKET_HASH_FUNCT()) < 0)
+				goto end;
 			if(!EVP_DecryptInit_ex(ectx, EVP_aes_128_cbc(), NULL, keys[(head + i) % TLS_TICKETS_NO].key_128.aes_key, iv))
 				goto end;
 			/* 2 for key renewal, 1 if current key is still valid */
 			ret = i ? 2 : 1;
 		}
 		else if (ref->key_size_bits == 256) {
-			HMAC_Init_ex(hctx, keys[(head + i) % TLS_TICKETS_NO].key_256.hmac_key, 32, TLS_TICKET_HASH_FUNCT(), NULL);
+			if (ssl_hmac_init(hctx, keys[(head + i) % TLS_TICKETS_NO].key_256.hmac_key, 32, TLS_TICKET_HASH_FUNCT()) < 0)
+				goto end;
 			if(!EVP_DecryptInit_ex(ectx, EVP_aes_256_cbc(), NULL, keys[(head + i) % TLS_TICKETS_NO].key_256.aes_key, iv))
 				goto end;
 			/* 2 for key renewal, 1 if current key is still valid */
