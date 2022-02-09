@@ -45,6 +45,8 @@
 struct pool_cache_head {
 	struct list list;    /* head of objects in this pool */
 	unsigned int count;  /* number of objects in this pool */
+	unsigned int tid;    /* thread id, for debugging only */
+	struct pool_head *pool; /* assigned pool, for debugging only */
 #if defined(DEBUG_POOL_INTEGRITY)
 	ulong fill_pattern;  /* pattern used to fill the area on free */
 #endif
