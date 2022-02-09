@@ -55,6 +55,7 @@ struct qcc {
 	} rx;
 	struct {
 		uint64_t max_data; /* Maximum number of bytes which may be sent */
+		struct list frms; /* list of frames ready to be sent */
 	} tx;
 
 	struct eb_root streams_by_id; /* all active streams by their ID */
