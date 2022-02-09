@@ -13,26 +13,6 @@
 DECLARE_POOL(pool_head_qcc, "qcc", sizeof(struct qcc));
 DECLARE_POOL(pool_head_qcs, "qcs", sizeof(struct qcs));
 
-void quic_mux_transport_params_update(struct qcc *qcc)
-{
-	struct quic_transport_params *clt_params;
-
-	/* Client parameters, params used to TX. */
-	clt_params = &qcc->conn->qc->tx.params;
-
-	qcc->tx.max_data = clt_params->initial_max_data;
-	/* Client initiated streams must respect the server flow control. */
-	qcc->strms[QCS_CLT_BIDI].rx.max_data = clt_params->initial_max_stream_data_bidi_local;
-	qcc->strms[QCS_CLT_UNI].rx.max_data = clt_params->initial_max_stream_data_uni;
-
-	/* Server initiated streams must respect the server flow control. */
-	qcc->strms[QCS_SRV_BIDI].max_streams = clt_params->initial_max_streams_bidi;
-	qcc->strms[QCS_SRV_BIDI].tx.max_data = clt_params->initial_max_stream_data_bidi_remote;
-
-	qcc->strms[QCS_SRV_UNI].max_streams = clt_params->initial_max_streams_uni;
-	qcc->strms[QCS_SRV_UNI].tx.max_data = clt_params->initial_max_stream_data_uni;
-}
-
 /* Allocate a new QUIC streams with id <id> and type <type>. */
 struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
 {
@@ -532,7 +512,7 @@ static int qc_init(struct connection *conn, struct proxy *prx,
                    struct session *sess, struct buffer *input)
 {
 	struct qcc *qcc;
-	struct quic_transport_params *srv_params;
+	struct quic_transport_params *lparams;
 
 	qcc = pool_alloc(pool_head_qcc);
 	if (!qcc)
@@ -547,35 +527,35 @@ static int qc_init(struct connection *conn, struct proxy *prx,
 	qcc->streams_by_id = EB_ROOT_UNIQUE;
 
 	/* Server parameters, params used for RX flow control. */
-	srv_params = &conn->qc->rx.params;
+	lparams = &conn->qc->rx.params;
 
-	qcc->rx.max_data = srv_params->initial_max_data;
+	qcc->rx.max_data = lparams->initial_max_data;
 	qcc->tx.max_data = 0;
 
 	/* Client initiated streams must respect the server flow control. */
-	qcc->strms[QCS_CLT_BIDI].max_streams = srv_params->initial_max_streams_bidi;
+	qcc->strms[QCS_CLT_BIDI].max_streams = lparams->initial_max_streams_bidi;
 	qcc->strms[QCS_CLT_BIDI].nb_streams = 0;
 	qcc->strms[QCS_CLT_BIDI].largest_id = -1;
 	qcc->strms[QCS_CLT_BIDI].rx.max_data = 0;
-	qcc->strms[QCS_CLT_BIDI].tx.max_data = srv_params->initial_max_stream_data_bidi_remote;
+	qcc->strms[QCS_CLT_BIDI].tx.max_data = lparams->initial_max_stream_data_bidi_remote;
 
-	qcc->strms[QCS_CLT_UNI].max_streams = srv_params->initial_max_streams_uni;
+	qcc->strms[QCS_CLT_UNI].max_streams = lparams->initial_max_streams_uni;
 	qcc->strms[QCS_CLT_UNI].nb_streams = 0;
 	qcc->strms[QCS_CLT_UNI].largest_id = -1;
 	qcc->strms[QCS_CLT_UNI].rx.max_data = 0;
-	qcc->strms[QCS_CLT_UNI].tx.max_data = srv_params->initial_max_stream_data_uni;
+	qcc->strms[QCS_CLT_UNI].tx.max_data = lparams->initial_max_stream_data_uni;
 
 	/* Server initiated streams must respect the server flow control. */
 	qcc->strms[QCS_SRV_BIDI].max_streams = 0;
 	qcc->strms[QCS_SRV_BIDI].nb_streams = 0;
 	qcc->strms[QCS_SRV_BIDI].largest_id = -1;
-	qcc->strms[QCS_SRV_BIDI].rx.max_data = srv_params->initial_max_stream_data_bidi_local;
+	qcc->strms[QCS_SRV_BIDI].rx.max_data = lparams->initial_max_stream_data_bidi_local;
 	qcc->strms[QCS_SRV_BIDI].tx.max_data = 0;
 
 	qcc->strms[QCS_SRV_UNI].max_streams = 0;
 	qcc->strms[QCS_SRV_UNI].nb_streams = 0;
 	qcc->strms[QCS_SRV_UNI].largest_id = -1;
-	qcc->strms[QCS_SRV_UNI].rx.max_data = srv_params->initial_max_stream_data_uni;
+	qcc->strms[QCS_SRV_UNI].rx.max_data = lparams->initial_max_stream_data_uni;
 	qcc->strms[QCS_SRV_UNI].tx.max_data = 0;
 
 	qcc->wait_event.tasklet = tasklet_new();

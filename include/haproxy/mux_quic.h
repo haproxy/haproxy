@@ -8,8 +8,8 @@
 
 #include <haproxy/api.h>
 #include <haproxy/mux_quic-t.h>
+#include <haproxy/xprt_quic-t.h>
 
-void quic_mux_transport_params_update(struct qcc *qcc);
 struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type);
 void uni_qcs_free(struct qcs *qcs);
 

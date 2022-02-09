@@ -5330,7 +5330,6 @@ static int qc_xprt_start(struct connection *conn, void *ctx)
 	struct ssl_sock_ctx *qctx = ctx;
 
 	qc = conn->qc;
-	quic_mux_transport_params_update(qc->qcc);
 	if (qcc_install_app_ops(qc->qcc, qc->app_ops)) {
 		TRACE_PROTO("Cannot install app layer", QUIC_EV_CONN_LPKT, qc);
 		return 0;
