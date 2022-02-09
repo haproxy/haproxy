@@ -2751,8 +2751,7 @@ int qc_send_ppkts(struct qring *qr, struct ssl_sock_ctx *ctx)
 		TRACE_PROTO("to send", QUIC_EV_CONN_SPPKTS, qc);
 		for (pkt = first_pkt; pkt; pkt = pkt->next)
 			quic_tx_packet_refinc(pkt);
-		if (ctx->xprt->snd_buf(NULL, qc->xprt_ctx,
-		                       &tmpbuf, tmpbuf.data, 0) <= 0) {
+		if(qc_snd_buf(qc, &tmpbuf, tmpbuf.data, 0) <= 0) {
 			for (pkt = first_pkt; pkt; pkt = pkt->next)
 				quic_tx_packet_refdec(pkt);
 			break;
@@ -5144,66 +5143,6 @@ static struct quic_tx_packet *qc_build_pkt(unsigned char **pos,
 }
 
 
-/* Send up to <count> pending bytes from buffer <buf> to connection <conn>'s
- * socket. <flags> may contain some CO_SFL_* flags to hint the system about
- * other pending data for example, but this flag is ignored at the moment.
- * Only one call to send() is performed, unless the buffer wraps, in which case
- * a second call may be performed. The connection's flags are updated with
- * whatever special event is detected (error, empty). The caller is responsible
- * for taking care of those events and avoiding the call if inappropriate. The
- * function does not call the connection's polling update function, so the caller
- * is responsible for this. It's up to the caller to update the buffer's contents
- * based on the return value.
- */
-static size_t quic_conn_from_buf(struct connection *conn, void *xprt_ctx, const struct buffer *buf, size_t count, int flags)
-{
-	ssize_t ret;
-	size_t try, done;
-	int send_flag;
-	struct quic_conn *qc = ((struct ssl_sock_ctx *)xprt_ctx)->qc;
-
-	done = 0;
-	/* send the largest possible block. For this we perform only one call
-	 * to send() unless the buffer wraps and we exactly fill the first hunk,
-	 * in which case we accept to do it once again.
-	 */
-	while (count) {
-		try = b_contig_data(buf, done);
-		if (try > count)
-			try = count;
-
-		send_flag = MSG_DONTWAIT | MSG_NOSIGNAL;
-		if (try < count || flags & CO_SFL_MSG_MORE)
-			send_flag |= MSG_MORE;
-
-		ret = sendto(qc->li->rx.fd, b_peek(buf, done), try, send_flag,
-		             (struct sockaddr *)&qc->peer_addr, get_addr_len(&qc->peer_addr));
-		if (ret > 0) {
-			count -= ret;
-			done += ret;
-
-			if (ret < try)
-				break;
-		}
-		else if (ret == 0 || errno == EAGAIN || errno == ENOTCONN || errno == EINPROGRESS) {
-			ABORT_NOW();
-		}
-		else if (errno != EINTR) {
-			ABORT_NOW();
-		}
-	}
-
-	if (done > 0) {
-		/* we count the total bytes sent, and the send rate for 32-byte
-		 * blocks. The reason for the latter is that freq_ctr are
-		 * limited to 4GB and that it's not enough per second.
-		 */
-		_HA_ATOMIC_ADD(&global.out_bytes, done);
-		update_freq_ctr(&global.out_32bps, (done + 16) / 32);
-	}
-	return done;
-}
-
 /* Called from the upper layer, to subscribe <es> to events <event_type>. The
  * event subscriber <es> is not allowed to change from a previous call as long
  * as at least one event is still subscribed. The <event_type> must only be a
@@ -5281,7 +5220,6 @@ static int qc_xprt_start(struct connection *conn, void *ctx)
 /* transport-layer operations for QUIC connections. */
 static struct xprt_ops ssl_quic = {
 	.close    = quic_close,
-	.snd_buf  = quic_conn_from_buf,
 	.subscribe = quic_conn_subscribe,
 	.unsubscribe = quic_conn_unsubscribe,
 	.init     = qc_conn_init,

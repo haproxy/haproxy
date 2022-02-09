@@ -252,6 +252,61 @@ void quic_sock_fd_iocb(int fd)
 	MT_LIST_APPEND(&l->rx.rxbuf_list, &rxbuf->mt_list);
 }
 
+/* TODO standardize this function for a generic UDP sendto wrapper. This can be
+ * done by removing the <qc> arg and replace it with address/port.
+ */
+size_t qc_snd_buf(struct quic_conn *qc, const struct buffer *buf, size_t count,
+                  int flags)
+{
+	ssize_t ret;
+	size_t try, done;
+	int send_flag;
+
+	done = 0;
+	/* send the largest possible block. For this we perform only one call
+	 * to send() unless the buffer wraps and we exactly fill the first hunk,
+	 * in which case we accept to do it once again.
+	 */
+	while (count) {
+		try = b_contig_data(buf, done);
+		if (try > count)
+			try = count;
+
+		send_flag = MSG_DONTWAIT | MSG_NOSIGNAL;
+		if (try < count || flags & CO_SFL_MSG_MORE)
+			send_flag |= MSG_MORE;
+
+		ret = sendto(qc->li->rx.fd, b_peek(buf, done), try, send_flag,
+		             (struct sockaddr *)&qc->peer_addr, get_addr_len(&qc->peer_addr));
+		if (ret > 0) {
+			/* TODO remove partial sending support for UDP */
+			count -= ret;
+			done += ret;
+
+			if (ret < try)
+				break;
+		}
+		else if (ret == 0 || errno == EAGAIN || errno == ENOTCONN || errno == EINPROGRESS) {
+			/* TODO must be handle properly. It is justified for UDP ? */
+			ABORT_NOW();
+		}
+		else if (errno != EINTR) {
+			/* TODO must be handle properly. It is justified for UDP ? */
+			ABORT_NOW();
+		}
+	}
+
+	if (done > 0) {
+		/* we count the total bytes sent, and the send rate for 32-byte
+		 * blocks. The reason for the latter is that freq_ctr are
+		 * limited to 4GB and that it's not enough per second.
+		 */
+		_HA_ATOMIC_ADD(&global.out_bytes, done);
+		update_freq_ctr(&global.out_32bps, (done + 16) / 32);
+	}
+	return done;
+}
+
 
 /*********************** QUIC accept queue management ***********************/
 /* per-thread accept queues */

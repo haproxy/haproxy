@@ -38,6 +38,8 @@ int quic_session_accept(struct connection *cli_conn);
 int quic_sock_accepting_conn(const struct receiver *rx);
 struct connection *quic_sock_accept_conn(struct listener *l, int *status);
 void quic_sock_fd_iocb(int fd);
+size_t qc_snd_buf(struct quic_conn *qc, const struct buffer *buf, size_t count,
+                  int flags);
 
 void quic_accept_push_qc(struct quic_conn *qc);
 
