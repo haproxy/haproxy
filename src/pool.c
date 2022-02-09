@@ -364,15 +364,16 @@ static void pool_evict_last_items(struct pool_head *pool, struct pool_cache_head
  * objects is no more than 16+1/8 of the total number of locally cached objects
  * or the total size of the local cache is no more than 75% of its maximum (i.e.
  * we don't want a single cache to use all the cache for itself). For this, the
- * list is scanned in reverse.
+ * list is scanned in reverse. If <full> is non-null, all objects are evicted.
  */
-void pool_evict_from_local_cache(struct pool_head *pool)
+void pool_evict_from_local_cache(struct pool_head *pool, int full)
 {
 	struct pool_cache_head *ph = &pool->cache[tid];
 
-	while (ph->count >= CONFIG_HAP_POOL_CLUSTER_SIZE &&
-	       ph->count >= 16 + pool_cache_count / 8 &&
-	       pool_cache_bytes > CONFIG_HAP_POOL_CACHE_SIZE * 3 / 4) {
+	while ((ph->count && full) ||
+	       (ph->count >= CONFIG_HAP_POOL_CLUSTER_SIZE &&
+	        ph->count >= 16 + pool_cache_count / 8 &&
+	        pool_cache_bytes > CONFIG_HAP_POOL_CACHE_SIZE * 3 / 4)) {
 		pool_evict_last_items(pool, ph, CONFIG_HAP_POOL_CLUSTER_SIZE);
 	}
 }
@@ -418,7 +419,7 @@ void pool_put_to_cache(struct pool_head *pool, void *ptr, const void *caller)
 
 	if (unlikely(pool_cache_bytes > CONFIG_HAP_POOL_CACHE_SIZE * 3 / 4)) {
 		if (ph->count >= 16 + pool_cache_count / 8 + CONFIG_HAP_POOL_CLUSTER_SIZE)
-			pool_evict_from_local_cache(pool);
+			pool_evict_from_local_cache(pool, 0);
 		if (pool_cache_bytes > CONFIG_HAP_POOL_CACHE_SIZE)
 			pool_evict_from_local_caches();
 	}
@@ -715,6 +716,9 @@ void pool_free_area_uaf(void *area, size_t size)
 void *pool_destroy(struct pool_head *pool)
 {
 	if (pool) {
+#ifdef CONFIG_HAP_POOLS
+		pool_evict_from_local_cache(pool, 1);
+#endif
 		pool_flush(pool);
 		if (pool->used)
 			return pool;
