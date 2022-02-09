@@ -329,6 +329,7 @@ static void pool_evict_last_items(struct pool_head *pool, struct pool_cache_head
 
 	while (released < count && !LIST_ISEMPTY(&ph->list)) {
 		item = LIST_PREV(&ph->list, typeof(item), by_pool);
+		BUG_ON(&item->by_pool == &ph->list);
 		pool_check_pattern(ph, item, pool->size);
 		LIST_DELETE(&item->by_pool);
 		LIST_DELETE(&item->by_lru);
@@ -389,6 +390,7 @@ void pool_evict_from_local_caches()
 
 	do {
 		item = LIST_PREV(&th_ctx->pool_lru_head, struct pool_cache_item *, by_lru);
+		BUG_ON(&item->by_lru == &th_ctx->pool_lru_head);
 		/* note: by definition we remove oldest objects so they also are the
 		 * oldest in their own pools, thus their next is the pool's head.
 		 */

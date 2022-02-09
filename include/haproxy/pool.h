@@ -289,6 +289,7 @@ static inline void *pool_get_from_cache(struct pool_head *pool, const void *call
 	/* allocate hottest objects first */
 	item = LIST_NEXT(&ph->list, typeof(item), by_pool);
 #endif
+	BUG_ON(&item->by_pool == &ph->list);
 	LIST_DELETE(&item->by_pool);
 	LIST_DELETE(&item->by_lru);
 
