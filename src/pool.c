@@ -653,6 +653,7 @@ void __pool_free(struct pool_head *pool, void *ptr)
 #endif
 	/* we'll get late corruption if we refill to the wrong pool or double-free */
 	POOL_DEBUG_CHECK_MARK(pool, ptr);
+	POOL_DEBUG_RESET_MARK(pool, ptr);
 
 	if (unlikely(mem_poison_byte >= 0))
 		memset(ptr, mem_poison_byte, pool->size);

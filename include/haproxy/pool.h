@@ -62,6 +62,13 @@
 		*(typeof(pool)*)(((char *)__i) + __p->size) = __p;	\
 	} while (0)
 
+# define POOL_DEBUG_RESET_MARK(pool, item)				\
+	do {								\
+		typeof(pool) __p = (pool);				\
+		typeof(item) __i = (item);				\
+		*(typeof(pool)*)(((char *)__i) + __p->size) = __builtin_return_address(0); \
+	} while (0)
+
 # define POOL_DEBUG_CHECK_MARK(pool, item)				\
 	do {								\
 		typeof(pool) __p = (pool);				\
@@ -74,6 +81,7 @@
 
 # define POOL_EXTRA_MARK (0)
 # define POOL_DEBUG_SET_MARK(pool, item)   do { } while (0)
+# define POOL_DEBUG_RESET_MARK(pool, item) do { } while (0)
 # define POOL_DEBUG_CHECK_MARK(pool, item) do { } while (0)
 
 #endif // DEBUG_MEMORY_POOLS
