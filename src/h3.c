@@ -706,10 +706,8 @@ static int h3_attach_ruqs(struct qcs *qcs, void *ctx)
 static int h3_finalize(void *ctx)
 {
 	struct h3 *h3 = ctx;
-	int lctrl_id;
 
-	lctrl_id = qcs_get_next_id(h3->qcc, QCS_SRV_UNI);
-	h3->lctrl.qcs = qcs_new(h3->qcc, lctrl_id, QCS_SRV_UNI);
+	h3->lctrl.qcs = qcs_new(h3->qcc, 0x3, QCS_SRV_UNI);
 	if (!h3->lctrl.qcs)
 		return 0;
 

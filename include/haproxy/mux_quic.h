@@ -46,12 +46,6 @@ static inline int qc_local_stream_id(struct qcc *qcc, uint64_t id)
 	return id & QCS_ID_SRV_INTIATOR_BIT;
 }
 
-static inline int qcs_get_next_id(struct qcc *qcc, enum qcs_type type)
-{
-	BUG_ON(qcc->strms[type].nb_streams + 1 > qcc->strms[type].max_streams);
-	return (qcc->strms[type].nb_streams++ << QCS_ID_TYPE_SHIFT) | type;
-}
-
 struct eb64_node *qcc_get_qcs(struct qcc *qcc, uint64_t id);
 
 /* Install the <app_ops> applicative layer of a QUIC connection on mux <qcc>.
