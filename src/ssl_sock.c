@@ -3091,6 +3091,23 @@ static DH *ssl_get_tmp_dh_cbk(SSL *ssl, int export, int keylen)
 	return ssl_get_tmp_dh(pkey);
 }
 
+static int ssl_sock_set_tmp_dh(SSL_CTX *ctx, HASSL_DH *dh)
+{
+#if (HA_OPENSSL_VERSION_NUMBER < 0x3000000fL)
+	return SSL_CTX_set_tmp_dh(ctx, dh);
+#else
+	int retval = 0;
+	HASSL_DH_up_ref(dh);
+
+	retval = SSL_CTX_set0_tmp_dh_pkey(ctx, dh);
+
+	if (!retval)
+		HASSL_DH_free(dh);
+
+	return retval;
+#endif
+}
+
 HASSL_DH *ssl_sock_get_dh_from_bio(BIO *bio)
 {
 #if (HA_OPENSSL_VERSION_NUMBER >= 0x3000000fL)
