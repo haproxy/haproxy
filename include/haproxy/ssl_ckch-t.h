@@ -50,7 +50,7 @@ struct cert_key_and_chain {
 	X509 *cert;
 	EVP_PKEY *key;
 	STACK_OF(X509) *chain;
-	DH *dh;
+	HASSL_DH *dh;
 	struct buffer *sctl;
 	struct buffer *ocsp_response;
 	X509 *ocsp_issuer;

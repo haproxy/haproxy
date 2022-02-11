@@ -499,7 +499,7 @@ int ssl_sock_load_pem_into_ckch(const char *path, char *buf, struct cert_key_and
 	X509 *ca;
 	X509 *cert = NULL;
 	EVP_PKEY *key = NULL;
-	DH *dh = NULL;
+	HASSL_DH *dh = NULL;
 	STACK_OF(X509) *chain = NULL;
 
 	if (buf) {
@@ -537,7 +537,8 @@ int ssl_sock_load_pem_into_ckch(const char *path, char *buf, struct cert_key_and
 		goto end;
 	}
 
-	dh = PEM_read_bio_DHparams(in, NULL, NULL, NULL);
+	dh = ssl_sock_get_dh_from_bio(in);
+	ERR_clear_error();
 	/* no need to return an error there, dh is not mandatory */
 #endif
 
@@ -605,7 +606,7 @@ end:
 	if (key)
 		EVP_PKEY_free(key);
 	if (dh)
-		DH_free(dh);
+		HASSL_DH_free(dh);
 	if (cert)
 		X509_free(cert);
 	if (chain)
@@ -637,7 +638,7 @@ void ssl_sock_free_cert_key_and_chain_contents(struct cert_key_and_chain *ckch)
 	ckch->chain = NULL;
 
 	if (ckch->dh)
-		DH_free(ckch->dh);
+		HASSL_DH_free(ckch->dh);
 	ckch->dh = NULL;
 
 	if (ckch->sctl) {
@@ -685,7 +686,7 @@ struct cert_key_and_chain *ssl_sock_copy_cert_key_and_chain(struct cert_key_and_
 	}
 
 	if (src->dh) {
-		DH_up_ref(src->dh);
+		HASSL_DH_up_ref(src->dh);
 		dst->dh = src->dh;
 	}
 
