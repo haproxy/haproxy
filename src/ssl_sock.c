@@ -3084,6 +3084,40 @@ static DH *ssl_get_tmp_dh(SSL *ssl, int export, int keylen)
 	return dh;
 }
 
+HASSL_DH *ssl_sock_get_dh_from_bio(BIO *bio)
+{
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x3000000fL)
+	HASSL_DH *dh = NULL;
+	OSSL_DECODER_CTX *dctx = NULL;
+	const char *format = "PEM";
+	const char *keytype = "DH";
+
+	dctx = OSSL_DECODER_CTX_new_for_pkey(&dh, format, NULL, keytype,
+					     OSSL_KEYMGMT_SELECT_DOMAIN_PARAMETERS,
+					     NULL, NULL);
+
+	if (dctx == NULL || OSSL_DECODER_CTX_get_num_decoders(dctx) == 0)
+		goto end;
+
+	/* The DH parameters might not be the first section found in the PEM
+	 * file so we need to iterate over all of them until we find the right
+	 * one.
+	 */
+	while (!BIO_eof(bio) && !dh)
+		OSSL_DECODER_from_bio(dctx, bio);
+
+end:
+	OSSL_DECODER_CTX_free(dctx);
+	return dh;
+#else
+	HASSL_DH *dh = NULL;
+
+	dh = PEM_read_bio_DHparams(bio, NULL, NULL, NULL);
+
+	return dh;
+#endif
+}
+
 static DH * ssl_sock_get_dh_from_file(const char *filename)
 {
 	DH *dh = NULL;

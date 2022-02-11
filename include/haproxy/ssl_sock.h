@@ -95,6 +95,7 @@ struct tls_keys_ref *tlskeys_ref_lookup(const char *filename);
 struct tls_keys_ref *tlskeys_ref_lookupid(int unique_id);
 #endif
 #ifndef OPENSSL_NO_DH
+HASSL_DH *ssl_sock_get_dh_from_bio(BIO *bio);
 int ssl_sock_load_global_dh_param_from_file(const char *filename);
 void ssl_free_dh(void);
 #endif
