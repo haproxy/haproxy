@@ -2899,6 +2899,46 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *priv)
 
 #ifndef OPENSSL_NO_DH
 
+static inline HASSL_DH *ssl_new_dh_fromdata(BIGNUM *p, BIGNUM *g)
+{
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x3000000fL)
+	OSSL_PARAM_BLD *tmpl = NULL;
+	OSSL_PARAM *params = NULL;
+	EVP_PKEY_CTX *ctx = NULL;
+	EVP_PKEY *pkey = NULL;
+
+	if ((tmpl = OSSL_PARAM_BLD_new()) == NULL
+	    || !OSSL_PARAM_BLD_push_BN(tmpl, OSSL_PKEY_PARAM_FFC_P, p)
+	    || !OSSL_PARAM_BLD_push_BN(tmpl, OSSL_PKEY_PARAM_FFC_G, g)
+	    || (params = OSSL_PARAM_BLD_to_param(tmpl)) == NULL) {
+		goto end;
+	}
+	ctx = EVP_PKEY_CTX_new_from_name(NULL, "DH", NULL);
+	if (ctx == NULL
+	    || !EVP_PKEY_fromdata_init(ctx)
+	    || !EVP_PKEY_fromdata(ctx, &pkey, EVP_PKEY_KEY_PARAMETERS, params)) {
+		goto end;
+	}
+
+end:
+	EVP_PKEY_CTX_free(ctx);
+	OSSL_PARAM_free(params);
+	OSSL_PARAM_BLD_free(tmpl);
+	return pkey;
+#else
+
+	DH *dh = DH_new();
+
+	if (!dh)
+		return NULL;
+
+	DH_set0_pqg(dh, p, NULL, g);
+
+	return dh;
+#endif
+}
+
+
 static DH * ssl_get_dh_1024(void)
 {
 	static unsigned char dh1024_p[]={
