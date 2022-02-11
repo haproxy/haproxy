@@ -1,0 +1,242 @@
+#REGTEST_TYPE=devel
+
+# This reg-tests checks that the DH-related mechanisms works properly.
+# When no DH is specified, either directly in the server's PEM or through a
+# ssl-dh-param-file global option, in case of DHE negotiation, the hard coded
+# DH parameters included in the sources will be used. We will use DH parameters
+# of the same size as the server's RSA or DSA key.
+# This test has three distinct HAProxy instances, one with no DH-related option
+# used, one with the tune.ssl.default-dh-param global parameter set, and one
+# with an ssl-dh-param-file global option.
+# We use "openssl s_client" calls in order to check the size of the "Server
+# Temp Key" (which will be the same as the DH parameters in case a DHE cipher
+# is used).
+#
+# The main goal of this test was to check that the newly added OpenSSLv3
+# specific DH code worked as before, since it needed to be created in order to
+# stop using deprecated APIs.
+
+varnishtest "Test the DH related SSL options"
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL)'"
+feature cmd "command -v openssl && command -v grep && command -v socat"
+feature ignore_unknown_macro
+
+server s1 -repeat 8 {
+  rxreq
+  txresp
+} -start
+
+
+haproxy h1 -conf {
+    global
+        stats socket "${tmpdir}/h1/stats" level admin
+
+    defaults
+        mode http
+        option httpslog
+        log stderr local0 debug err
+        option logasap
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+        retries 0
+
+    frontend clear-fe
+        bind "fd@${clearlst}"
+        use_backend gen_cert_be if { path /gencert }
+        default_backend dflt_be
+
+    backend dflt_be
+        server s1 "${tmpdir}/ssl_dflt.sock" ssl verify none ssl-max-ver TLSv1.2
+
+    backend gen_cert_be
+        server s1 "${tmpdir}/ssl_dflt_gencert.sock" ssl verify none ssl-max-ver TLSv1.2
+
+    listen ssl-dflt-lst
+        bind "${tmpdir}/ssl_dflt.sock" ssl crt ${testdir}/common.pem ca-file ${testdir}/set_cafile_rootCA.crt verify optional ciphers "DHE-RSA-AES256-GCM-SHA384" ssl-max-ver TLSv1.2
+        http-response set-header x-ssl-cipher %[ssl_fc_cipher]
+        server s1 ${s1_addr}:${s1_port}
+
+    listen ssl-dflt-gencert-lst
+        bind "${tmpdir}/ssl_dflt_gencert.sock" ssl generate-certificates crt ${testdir}/common.pem ca-file ${testdir}/set_cafile_rootCA.crt ca-sign-file ${testdir}/generate_certificates/gen_cert_ca.pem verify optional ciphers "DHE-RSA-AES256-GCM-SHA384" ssl-max-ver TLSv1.2
+        http-response set-header x-ssl-cipher %[ssl_fc_cipher]
+        server s1 ${s1_addr}:${s1_port}
+} -start
+
+haproxy h2 -conf {
+    global
+        stats socket "${tmpdir}/h2/stats" level admin
+
+    global
+        tune.ssl.default-dh-param 4096
+
+    defaults
+        mode http
+        option httpslog
+        log stderr local0 debug err
+        option logasap
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+        retries 0
+
+    listen clear-lst
+        bind "fd@${clearlst_dfltdh}"
+        server s1 "${tmpdir}/ssl_dfltdh.sock" ssl verify none ssl-max-ver TLSv1.2
+
+    listen ssl-4096dh-dflt-lst
+        bind "${tmpdir}/ssl_dfltdh.sock" ssl crt ${testdir}/common.pem ca-file ${testdir}/set_cafile_rootCA.crt verify optional ciphers "DHE-RSA-AES256-GCM-SHA384" ssl-max-ver TLSv1.2
+        http-response set-header x-ssl-cipher %[ssl_fc_cipher]
+        server s1 ${s1_addr}:${s1_port}
+} -start
+
+haproxy h3 -conf {
+    global
+        stats socket "${tmpdir}/h3/stats" level admin
+
+    global
+        ssl-dh-param-file ${testdir}/common.4096.dh
+
+    defaults
+        mode http
+        option httpslog
+        log stderr local0 debug err
+        option logasap
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+        retries 0
+
+    listen clear-lst
+        bind "fd@${clearlst_dhfile}"
+        server s1 "${tmpdir}/ssl_dhfile.sock" ssl verify none ssl-max-ver TLSv1.2
+
+    listen ssl-dhfile-lst
+        bind "${tmpdir}/ssl_dhfile.sock" ssl crt ${testdir}/common.pem ca-file ${testdir}/set_cafile_rootCA.crt verify optional ciphers "DHE-RSA-AES256-GCM-SHA384" ssl-max-ver TLSv1.2
+        http-response set-header x-ssl-cipher %[ssl_fc_cipher]
+        server s1 ${s1_addr}:${s1_port}
+} -start
+
+#
+# Check that all the SSL backend <-> SSL frontend connections work
+#
+client c1 -connect ${h1_clearlst_sock} {
+  txreq
+  rxresp
+  expect resp.status == 200
+  expect resp.http.x-ssl-cipher == "DHE-RSA-AES256-GCM-SHA384"
+} -run
+
+client c2 -connect ${h2_clearlst_dfltdh_sock} {
+  txreq
+  rxresp
+  expect resp.status == 200
+  expect resp.http.x-ssl-cipher == "DHE-RSA-AES256-GCM-SHA384"
+} -run
+
+client c3 -connect ${h3_clearlst_dhfile_sock} {
+  txreq
+  rxresp
+  expect resp.status == 200
+  expect resp.http.x-ssl-cipher == "DHE-RSA-AES256-GCM-SHA384"
+} -run
+
+client c4 -connect ${h1_clearlst_sock} {
+  txreq -url "/gencert"
+  rxresp
+  expect resp.status == 200
+  expect resp.http.x-ssl-cipher == "DHE-RSA-AES256-GCM-SHA384"
+} -run
+
+
+#
+# Check the size of the DH key
+#
+shell {
+    echo "Q" | openssl s_client -unix "${tmpdir}/ssl_dflt.sock" -tls1_2 2>/dev/null | grep -E "Server Temp Key: DH, 2048 bits"
+}
+
+# On the second HAProxy instance, even if default-dh-param is set to 4096, this
+# value is only considered as a maximum DH key length and we will always try to
+# match the server's certificate key length in our DHE key exchange (2048 bits
+# in the case of common.pem).
+shell {
+    echo "Q" | openssl s_client -unix "${tmpdir}/ssl_dfltdh.sock" -tls1_2 2>/dev/null | grep -E "Server Temp Key: DH, 2048 bits"
+}
+
+shell {
+    echo "Q" | openssl s_client -unix "${tmpdir}/ssl_dhfile.sock" -tls1_2 2>/dev/null | grep -E "Server Temp Key: DH, 4096 bits"
+}
+
+shell {
+    echo "Q" | openssl s_client -unix "${tmpdir}/ssl_dflt_gencert.sock" -tls1_2 2>/dev/null | grep -E "Server Temp Key: DH, 2048 bits"
+}
+
+
+
+#
+# Add a custom DH to the server's PEM certificate
+#
+shell {
+    printf "set ssl cert ${testdir}/common.pem <<\n$(cat ${testdir}/common.pem)\n$(cat ${testdir}/common.4096.dh)\n\n" | socat "${tmpdir}/h1/stats" -
+    echo "commit ssl cert ${testdir}/common.pem" | socat "${tmpdir}/h1/stats" -
+
+    printf "set ssl cert ${testdir}/common.pem <<\n$(cat ${testdir}/common.pem)\n$(cat ${testdir}/common.4096.dh)\n\n" | socat "${tmpdir}/h2/stats" -
+    echo "commit ssl cert ${testdir}/common.pem" | socat "${tmpdir}/h2/stats" -
+
+    printf "set ssl cert ${testdir}/common.pem <<\n$(cat ${testdir}/common.pem)\n$(cat ${testdir}/common.4096.dh)\n\n" | socat "${tmpdir}/h3/stats" -
+    echo "commit ssl cert ${testdir}/common.pem" | socat "${tmpdir}/h3/stats" -
+}
+
+
+#
+# Check that all the SSL backend <-> SSL frontend connections still work
+#
+client c5 -connect ${h1_clearlst_sock} {
+  txreq
+  rxresp
+  expect resp.status == 200
+  expect resp.http.x-ssl-cipher == "DHE-RSA-AES256-GCM-SHA384"
+} -run
+
+client c6 -connect ${h2_clearlst_dfltdh_sock} {
+  txreq
+  rxresp
+  expect resp.status == 200
+  expect resp.http.x-ssl-cipher == "DHE-RSA-AES256-GCM-SHA384"
+} -run
+
+client c7 -connect ${h3_clearlst_dhfile_sock} {
+  txreq
+  rxresp
+  expect resp.status == 200
+  expect resp.http.x-ssl-cipher == "DHE-RSA-AES256-GCM-SHA384"
+} -run
+
+client c8 -connect ${h1_clearlst_sock} {
+  txreq -url "/gencert"
+  rxresp
+  expect resp.status == 200
+  expect resp.http.x-ssl-cipher == "DHE-RSA-AES256-GCM-SHA384"
+} -run
+
+
+
+#
+# Check the new size of the DH key
+#
+shell {
+    echo "Q" | openssl s_client -unix "${tmpdir}/ssl_dflt.sock" -tls1_2 2>/dev/null | grep -E "Server Temp Key: DH, 4096 bits"
+}
+
+shell {
+    echo "Q" | openssl s_client -unix "${tmpdir}/ssl_dfltdh.sock" -tls1_2 2>/dev/null | grep -E "Server Temp Key: DH, 4096 bits"
+}
+
+shell {
+    echo "Q" | openssl s_client -unix "${tmpdir}/ssl_dhfile.sock" -tls1_2 2>/dev/null | grep -E "Server Temp Key: DH, 4096 bits"
+}
+
+shell {
+    echo "Q" | openssl s_client -unix "${tmpdir}/ssl_dflt_gencert.sock" -tls1_2 2>/dev/null | grep -E "Server Temp Key: DH, 4096 bits"
+}
