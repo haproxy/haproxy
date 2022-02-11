@@ -26,6 +26,8 @@
 
 #if (OPENSSL_VERSION_NUMBER >= 0x3000000fL)
 #include <openssl/core_names.h>
+#include <openssl/decoder.h>
+#include <openssl/param_build.h>
 #endif
 
 #if defined(LIBRESSL_VERSION_NUMBER)
@@ -87,8 +89,14 @@
 #if (HA_OPENSSL_VERSION_NUMBER >= 0x3000000fL)
 #define HAVE_OSSL_PARAM
 #define MAC_CTX EVP_MAC_CTX
-#else
+#define HASSL_DH EVP_PKEY
+#define HASSL_DH_free EVP_PKEY_free
+#define HASSL_DH_up_ref EVP_PKEY_up_ref
+#else /* HA_OPENSSL_VERSION_NUMBER >= 0x3000000fL */
 #define MAC_CTX HMAC_CTX
+#define HASSL_DH DH
+#define HASSL_DH_free DH_free
+#define HASSL_DH_up_ref DH_up_ref
 #endif
 
 #if (HA_OPENSSL_VERSION_NUMBER < 0x0090800fL)
