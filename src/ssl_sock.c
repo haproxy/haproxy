@@ -4772,17 +4772,6 @@ static int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_con
 #endif
 
 #ifndef OPENSSL_NO_DH
-	/* If tune.ssl.default-dh-param has not been set,
-	   neither has ssl-default-dh-file and no static DH
-	   params were in the certificate file. */
-	if (global_ssl.default_dh_param == 0 &&
-	    global_dh == NULL &&
-	    (ssl_dh_ptr_index == -1 ||
-	     SSL_CTX_get_ex_data(ctx, ssl_dh_ptr_index) == NULL)) {
-		/* default to dh-param 2048 */
-		global_ssl.default_dh_param = 2048;
-	}
-
 	if (global_ssl.default_dh_param >= 1024) {
 		if (local_dh_1024 == NULL) {
 			local_dh_1024 = ssl_get_dh_1024();

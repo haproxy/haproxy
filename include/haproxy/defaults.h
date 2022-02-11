@@ -354,7 +354,7 @@
 
 /* ssl max dh param size */
 #ifndef SSL_DEFAULT_DH_PARAM
-#define SSL_DEFAULT_DH_PARAM 0
+#define SSL_DEFAULT_DH_PARAM 2048
 #endif
 
 /* max memory cost per SSL session */
