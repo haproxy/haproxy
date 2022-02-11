@@ -3108,6 +3108,20 @@ static int ssl_sock_set_tmp_dh(SSL_CTX *ctx, HASSL_DH *dh)
 #endif
 }
 
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x3000000fL)
+static void ssl_sock_set_tmp_dh_from_pkey(SSL_CTX *ctx, EVP_PKEY *pkey)
+{
+	HASSL_DH *dh = NULL;
+	if (pkey && (dh = ssl_get_tmp_dh(pkey))) {
+		HASSL_DH_up_ref(dh);
+		if (!SSL_CTX_set0_tmp_dh_pkey(ctx, dh))
+			HASSL_DH_free(dh);
+	}
+	else
+		SSL_CTX_set_dh_auto(ctx, 1);
+}
+#endif
+
 HASSL_DH *ssl_sock_get_dh_from_bio(BIO *bio)
 {
 #if (HA_OPENSSL_VERSION_NUMBER >= 0x3000000fL)
