@@ -7786,8 +7786,10 @@ static void __ssl_sock_init(void)
 #ifndef OPENSSL_NO_ENGINE
 	hap_register_post_deinit(ssl_free_engines);
 #endif
+#if HA_OPENSSL_VERSION_NUMBER < 0x3000000fL
 	/* Load SSL string for the verbose & debug mode. */
 	ERR_load_SSL_strings();
+#endif
 	ha_meth = BIO_meth_new(0x666, "ha methods");
 	BIO_meth_set_write(ha_meth, ha_ssl_write);
 	BIO_meth_set_read(ha_meth, ha_ssl_read);
