@@ -3110,12 +3110,18 @@ static DH *ssl_get_tmp_dh(EVP_PKEY *pkey)
 	}
 
 	if (keylen >= 4096) {
+		if (!local_dh_4096)
+			local_dh_4096 = ssl_get_dh_4096();
 		dh = local_dh_4096;
 	}
 	else if (keylen >= 2048) {
+		if (!local_dh_2048)
+			local_dh_2048 = ssl_get_dh_2048();
 		dh = local_dh_2048;
 	}
 	else {
+		if (!local_dh_1024)
+			local_dh_1024 = ssl_get_dh_1024();
 		dh = local_dh_1024;
 	}
 
