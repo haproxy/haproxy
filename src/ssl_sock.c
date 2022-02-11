@@ -471,7 +471,7 @@ static DH *global_dh = NULL;
 static DH *local_dh_1024 = NULL;
 static DH *local_dh_2048 = NULL;
 static DH *local_dh_4096 = NULL;
-static DH *ssl_get_tmp_dh(SSL *ssl, int export, int keylen);
+static DH *ssl_get_tmp_dh_cbk(SSL *ssl, int export, int keylen);
 #endif /* OPENSSL_NO_DH */
 
 #if (defined SSL_CTRL_SET_TLSEXT_HOSTNAME && !defined SSL_NO_GENERATE_CERTIFICATES)
@@ -2237,7 +2237,7 @@ ssl_sock_do_create_cert(const char *servername, struct bind_conf *bind_conf, SSL
 	if (newcrt) X509_free(newcrt);
 
 #ifndef OPENSSL_NO_DH
-	SSL_CTX_set_tmp_dh_callback(ssl_ctx, ssl_get_tmp_dh);
+	SSL_CTX_set_tmp_dh_callback(ssl_ctx, ssl_get_tmp_dh_cbk);
 #endif
 
 #if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
@@ -3050,13 +3050,11 @@ static DH *ssl_get_dh_4096(void)
 	return dh;
 }
 
-/* Returns Diffie-Hellman parameters matching the private key length
-   but not exceeding global_ssl.default_dh_param */
-static DH *ssl_get_tmp_dh(SSL *ssl, int export, int keylen)
+static DH *ssl_get_tmp_dh(EVP_PKEY *pkey)
 {
 	DH *dh = NULL;
-	EVP_PKEY *pkey = SSL_get_privatekey(ssl);
 	int type;
+	int keylen = 0;
 
 	type = pkey ? EVP_PKEY_base_id(pkey) : EVP_PKEY_NONE;
 
@@ -3082,6 +3080,15 @@ static DH *ssl_get_tmp_dh(SSL *ssl, int export, int keylen)
 	}
 
 	return dh;
+}
+
+/* Returns Diffie-Hellman parameters matching the private key length
+   but not exceeding global_ssl.default_dh_param */
+static DH *ssl_get_tmp_dh_cbk(SSL *ssl, int export, int keylen)
+{
+	EVP_PKEY *pkey = SSL_get_privatekey(ssl);
+
+	return ssl_get_tmp_dh(pkey);
 }
 
 HASSL_DH *ssl_sock_get_dh_from_bio(BIO *bio)
@@ -3351,7 +3358,7 @@ static int ssl_sock_load_dh_params(SSL_CTX *ctx, const struct cert_key_and_chain
 			}
 		}
 		else {
-			SSL_CTX_set_tmp_dh_callback(ctx, ssl_get_tmp_dh);
+			SSL_CTX_set_tmp_dh_callback(ctx, ssl_get_tmp_dh_cbk);
 		}
 	}
 
