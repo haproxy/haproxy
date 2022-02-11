@@ -608,12 +608,15 @@ static forceinline void ssl_sock_dump_errors(struct connection *conn)
 
 	if (unlikely(global.mode & MODE_DEBUG)) {
 		while(1) {
+			const char *func = NULL;
+			ERR_peek_error_func(&func);
+
 			ret = ERR_get_error();
 			if (ret == 0)
 				return;
 			fprintf(stderr, "fd[%#x] OpenSSL error[0x%lx] %s: %s\n",
 			        conn->handle.fd, ret,
-			        ERR_func_error_string(ret), ERR_reason_error_string(ret));
+			        func, ERR_reason_error_string(ret));
 		}
 	}
 }

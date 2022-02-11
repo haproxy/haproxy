@@ -314,6 +314,22 @@ static inline X509 *X509_STORE_CTX_get0_cert(X509_STORE_CTX *ctx)
 #if defined(SSL_CTRL_SET_TLSEXT_TICKET_KEY_CB)
 #define SSL_CTX_set_tlsext_ticket_key_evp_cb SSL_CTX_set_tlsext_ticket_key_cb
 #endif
+
+/*
+ * Functions introduced in OpenSSL 3.0.0
+ */
+static inline unsigned long ERR_peek_error_func(const char **func)
+{
+	unsigned long ret = ERR_peek_error();
+	if (ret == 0)
+		return ret;
+
+	if (func)
+		*func = ERR_func_error_string(ret);
+
+	return ret;
+}
+
 #endif
 
 #if (HA_OPENSSL_VERSION_NUMBER >= 0x1010000fL) || (defined(LIBRESSL_VERSION_NUMBER) && LIBRESSL_VERSION_NUMBER >= 0x2070200fL)
