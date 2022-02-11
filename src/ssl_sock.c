@@ -471,7 +471,11 @@ static HASSL_DH *global_dh = NULL;
 static HASSL_DH *local_dh_1024 = NULL;
 static HASSL_DH *local_dh_2048 = NULL;
 static HASSL_DH *local_dh_4096 = NULL;
+#if (HA_OPENSSL_VERSION_NUMBER < 0x3000000fL)
 static DH *ssl_get_tmp_dh_cbk(SSL *ssl, int export, int keylen);
+#else
+static void ssl_sock_set_tmp_dh_from_pkey(SSL_CTX *ctx, EVP_PKEY *pkey);
+#endif
 #endif /* OPENSSL_NO_DH */
 
 #if (defined SSL_CTRL_SET_TLSEXT_HOSTNAME && !defined SSL_NO_GENERATE_CERTIFICATES)
@@ -2237,7 +2241,11 @@ ssl_sock_do_create_cert(const char *servername, struct bind_conf *bind_conf, SSL
 	if (newcrt) X509_free(newcrt);
 
 #ifndef OPENSSL_NO_DH
+#if (HA_OPENSSL_VERSION_NUMBER < 0x3000000fL)
 	SSL_CTX_set_tmp_dh_callback(ssl_ctx, ssl_get_tmp_dh_cbk);
+#else
+	ssl_sock_set_tmp_dh_from_pkey(ssl_ctx, pkey);
+#endif
 #endif
 
 #if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
@@ -3119,6 +3127,7 @@ static HASSL_DH *ssl_get_tmp_dh(EVP_PKEY *pkey)
 	return dh;
 }
 
+#if (HA_OPENSSL_VERSION_NUMBER < 0x3000000fL)
 /* Returns Diffie-Hellman parameters matching the private key length
    but not exceeding global_ssl.default_dh_param */
 static HASSL_DH *ssl_get_tmp_dh_cbk(SSL *ssl, int export, int keylen)
@@ -3127,6 +3136,7 @@ static HASSL_DH *ssl_get_tmp_dh_cbk(SSL *ssl, int export, int keylen)
 
 	return ssl_get_tmp_dh(pkey);
 }
+#endif
 
 static int ssl_sock_set_tmp_dh(SSL_CTX *ctx, HASSL_DH *dh)
 {
@@ -3426,7 +3436,11 @@ static int ssl_sock_load_dh_params(SSL_CTX *ctx, const struct cert_key_and_chain
 			}
 		}
 		else {
+#if (HA_OPENSSL_VERSION_NUMBER < 0x3000000fL)
 			SSL_CTX_set_tmp_dh_callback(ctx, ssl_get_tmp_dh_cbk);
+#else
+			ssl_sock_set_tmp_dh_from_pkey(ctx, ckch ? ckch->key : NULL);
+#endif
 		}
 	}
 
