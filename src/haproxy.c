@@ -3069,7 +3069,8 @@ int main(int argc, char **argv)
 	}
 
 	/* open log & pid files before the chroot */
-	if ((global.mode & MODE_DAEMON || global.mode & MODE_MWORKER) && global.pidfile != NULL) {
+	if ((global.mode & MODE_DAEMON || global.mode & MODE_MWORKER) &&
+	    !(global.mode & MODE_MWORKER_WAIT) && global.pidfile != NULL) {
 		unlink(global.pidfile);
 		pidfd = open(global.pidfile, O_CREAT | O_WRONLY | O_TRUNC, 0644);
 		if (pidfd < 0) {
