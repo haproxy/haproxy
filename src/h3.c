@@ -207,6 +207,7 @@ static int h3_decode_qcs(struct qcs *qcs, int fin, void *ctx)
 				htx->flags |= HTX_FL_EOM;
 
 			cs = cs_new(qcs->qcc->conn, qcs->qcc->conn->target);
+			cs->flags |= CS_FL_NOT_FIRST;
 			cs->ctx = qcs;
 			stream_create_from_cs(cs, &htx_buf);
 
