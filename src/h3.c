@@ -116,6 +116,7 @@ static int h3_decode_qcs(struct qcs *qcs, int fin, void *ctx)
 		size_t hlen;
 		uint64_t ftype, flen;
 		struct buffer b;
+		char last_stream_frame = 0;
 
 		/* Work on a copy of <rxbuf> */
 		b = h3_b_dup(rxbuf);
@@ -129,6 +130,8 @@ static int h3_decode_qcs(struct qcs *qcs, int fin, void *ctx)
 			break;
 
 		b_del(rxbuf, hlen);
+		last_stream_frame = (fin && flen == b_data(rxbuf));
+
 		switch (ftype) {
 		case H3_FT_DATA:
 			break;
@@ -175,7 +178,10 @@ static int h3_decode_qcs(struct qcs *qcs, int fin, void *ctx)
 			sl = htx_add_stline(htx, HTX_BLK_REQ_SL, flags, meth, path, ist("HTTP/3.0"));
 			if (!sl)
 				goto fail;
-			sl->flags |= HTX_SL_F_BODYLESS;
+
+			if (last_stream_frame)
+				sl->flags |= HTX_SL_F_BODYLESS;
+
 			sl->info.req.meth = find_http_meth(meth.ptr, meth.len);
 			BUG_ON(sl->info.req.meth == HTTP_METH_OTHER);
 
@@ -196,6 +202,9 @@ static int h3_decode_qcs(struct qcs *qcs, int fin, void *ctx)
 
 			htx_add_endof(htx, HTX_BLK_EOH);
 			htx_to_buf(htx, &htx_buf);
+
+			if (last_stream_frame)
+				htx->flags |= HTX_FL_EOM;
 
 			cs = cs_new(qcs->qcc->conn, qcs->qcc->conn->target);
 			cs->ctx = qcs;
@@ -218,11 +227,6 @@ static int h3_decode_qcs(struct qcs *qcs, int fin, void *ctx)
 			h3_debug_printf(stderr, "ignore unknown frame type 0x%lx\n", ftype);
 		}
 		b_del(rxbuf, flen);
-	}
-
-	if (htx) {
-		if (fin && !b_data(rxbuf))
-			htx->flags |= HTX_FL_EOM;
 	}
 
 	return 0;
