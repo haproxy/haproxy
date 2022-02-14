@@ -189,6 +189,38 @@ static int h3_headers_to_htx(struct qcs *qcs, struct buffer *buf, uint64_t len,
 	return 0;
 }
 
+/* Copy from buffer <buf> a H3 DATA frame of length <len> in QUIC stream <qcs>
+ * HTX buffer. <fin> must be set if this is the last data to transfer from this
+ * stream.
+ *
+ * Returns 0 on success else non-zero
+ */
+static int h3_data_to_htx(struct qcs *qcs, struct buffer *buf, uint64_t len,
+                          char fin)
+{
+	struct buffer *appbuf;
+	struct htx *htx = NULL;
+	size_t htx_sent;
+	int htx_space;
+
+	appbuf = qc_get_buf(qcs, &qcs->rx.app_buf);
+	BUG_ON(!appbuf);
+	htx = htx_from_buf(appbuf);
+
+	htx_space = htx_free_data_space(htx);
+	BUG_ON(!htx_space || htx_space < len);
+
+	htx_sent = htx_add_data(htx, ist2(b_head(buf), len));
+	/* TODO handle full appbuf */
+	BUG_ON(htx_sent < len);
+
+	if (fin)
+		htx->flags |= HTX_FL_EOM;
+	htx_to_buf(htx, appbuf);
+
+	return 0;
+}
+
 /* Decode <qcs> remotely initiated bidi-stream. <fin> must be set to indicate
  * that we received the last data of the stream.
  * Returns <0 on error else 0.
@@ -226,6 +258,7 @@ static int h3_decode_qcs(struct qcs *qcs, int fin, void *ctx)
 
 		switch (ftype) {
 		case H3_FT_DATA:
+			h3_data_to_htx(qcs, rxbuf, flen, last_stream_frame);
 			break;
 		case H3_FT_HEADERS:
 			h3_headers_to_htx(qcs, rxbuf, flen, last_stream_frame);
