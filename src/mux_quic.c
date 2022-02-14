@@ -558,6 +558,7 @@ static size_t qc_rcv_buf(struct conn_stream *cs, struct buffer *buf,
 	struct htx *qcs_htx = NULL;
 	struct htx *cs_htx = NULL;
 	size_t ret = 0;
+	char fin = 0;
 
 	fprintf(stderr, "%s\n", __func__);
 
@@ -582,8 +583,10 @@ static size_t qc_rcv_buf(struct conn_stream *cs, struct buffer *buf,
 	BUG_ON(qcs_htx->flags & HTX_FL_PARSING_ERROR);
 
 	/* Copy EOM from src to dst buffer if all data copied. */
-	if (htx_is_empty(qcs_htx))
-		cs_htx->flags |= (qcs_htx->flags & HTX_FL_EOM);
+	if (htx_is_empty(qcs_htx) && (qcs_htx->flags & HTX_FL_EOM)) {
+		cs_htx->flags |= HTX_FL_EOM;
+		fin = 1;
+	}
 
 	cs_htx->extra = qcs_htx->extra ? (qcs_htx->data + qcs_htx->extra) : 0;
 	htx_to_buf(cs_htx, buf);
@@ -599,7 +602,8 @@ static size_t qc_rcv_buf(struct conn_stream *cs, struct buffer *buf,
 		if (cs->flags & CS_FL_ERR_PENDING)
 			cs->flags |= CS_FL_ERROR;
 
-		/* TODO put CS_FL_EOI/EOS on fin */
+		if (fin)
+			cs->flags |= (CS_FL_EOI|CS_FL_EOS);
 
 		if (b_size(&qcs->rx.app_buf)) {
 			b_free(&qcs->rx.app_buf);
