@@ -478,9 +478,6 @@ void pool_refill_local_from_shared(struct pool_head *pool, struct pool_cache_hea
 	count = 0;
 	for (; ret; ret = down) {
 		down = ret->down;
-		/* keep track of where the element was allocated from */
-		POOL_DEBUG_SET_MARK(pool, ret);
-
 		item = (struct pool_cache_item *)ret;
 		POOL_DEBUG_TRACE_CALLER(pool, item, NULL);
 		LIST_INSERT(&pch->list, &item->by_pool);
