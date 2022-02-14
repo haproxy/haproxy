@@ -50,6 +50,7 @@
 #   USE_PROMEX           : enable the Prometheus exporter
 #   USE_DEVICEATLAS      : enable DeviceAtlas api.
 #   USE_51DEGREES        : enable third party device detection library from 51Degrees
+#   USE_51DEGREES_V4     : enable use of 51Degrees V4 engine with Hash algorithm
 #   USE_WURFL            : enable WURFL detection library from Scientiamobile
 #   USE_SYSTEMD          : enable sd_notify() support.
 #   USE_OBSOLETE_LINKER  : use when the linker fails to emit __start_init/__stop_init
@@ -300,7 +301,8 @@ use_opts = USE_EPOLL USE_KQUEUE USE_NETFILTER                                 \
            USE_LINUX_SPLICE USE_LIBCRYPT USE_CRYPT_H USE_ENGINE               \
            USE_GETADDRINFO USE_OPENSSL USE_OPENSSL_WOLFSSL USE_LUA            \
            USE_ACCEPT4 USE_CLOSEFROM USE_ZLIB USE_SLZ USE_CPU_AFFINITY        \
-           USE_TFO USE_NS USE_DL USE_RT USE_DEVICEATLAS USE_51DEGREES         \
+           USE_TFO USE_NS USE_DL USE_RT                                       \
+           USE_DEVICEATLAS USE_51DEGREES USE_51DEGREES_V4                     \
            USE_WURFL USE_SYSTEMD USE_OBSOLETE_LINKER USE_PRCTL USE_PROCCTL    \
            USE_THREAD_DUMP USE_EVPORTS USE_OT USE_QUIC USE_PROMEX             \
            USE_MEMORY_PROFILING USE_SHM_OPEN
@@ -688,22 +690,44 @@ OPTIONS_CFLAGS += $(if $(DEVICEATLAS_INC),-I$(DEVICEATLAS_INC))
 endif
 
 ifneq ($(USE_51DEGREES),)
+ifneq ($(USE_51DEGREES_V4),)
+$(error cannot compile both 51Degrees V3 and V4 engine support)
+endif
+endif
+
+ifneq ($(USE_51DEGREES)$(USE_51DEGREES_V4),)
 # Use 51DEGREES_SRC and possibly 51DEGREES_INC and 51DEGREES_LIB to force path
 # to 51degrees headers and libraries if needed.
 51DEGREES_SRC =
 51DEGREES_INC = $(51DEGREES_SRC)
 51DEGREES_LIB = $(51DEGREES_SRC)
+ifneq ($(USE_51DEGREES_V4),)
+_51DEGREES_SRC   = $(shell find $(51DEGREES_LIB) -maxdepth 2 -name '*.c')
+OPTIONS_OBJS    += $(_51DEGREES_SRC:%.c=%.o)
+else
 OPTIONS_OBJS    += $(51DEGREES_LIB)/../cityhash/city.o
 OPTIONS_OBJS    += $(51DEGREES_LIB)/51Degrees.o
+endif
 OPTIONS_OBJS    += addons/51degrees/51d.o
 OPTIONS_CFLAGS  += $(if $(51DEGREES_INC),-I$(51DEGREES_INC))
+ifneq ($(USE_51DEGREES_V4),)
+OPTIONS_CFLAGS  += -DUSE_51DEGREES_V4
+endif
 ifeq ($(USE_THREAD),)
 OPTIONS_CFLAGS  += -DFIFTYONEDEGREES_NO_THREADING
+ifneq ($(USE_51DEGREES_V4),)
+OPTIONS_CFLAGS  += -DFIFTYONE_DEGREES_NO_THREADING
+endif
 else
+ifeq ($(USE_51DEGREES_V4),)
 OPTIONS_OBJS    += $(51DEGREES_LIB)/../threading.o
+endif
 endif
 
 OPTIONS_LDFLAGS += $(if $(51DEGREES_LIB),-L$(51DEGREES_LIB)) -lm
+ifneq ($(USE_51DEGREES_V4),)
+OPTIONS_LDFLAGS += -latomic
+endif
 endif
 
 ifneq ($(USE_WURFL),)

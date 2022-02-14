@@ -19,24 +19,31 @@ official git repository :
 
       git clone https://git.51Degrees.com/Device-Detection.git -b v3.2.10
 
-    - or use the new 3.2.12.12 version which continues to receive database
+    - use newer 3.2.12.12 version which continues to receive database
       updates and supports a new Hash Trie algorithm, but which is not
       compatible with older Trie databases :
 
       git clone https://github.com/51Degrees/Device-Detection.git -b v3.2.12
 
-then run 'make' with USE_51DEGREES and 51DEGREES_SRC set. Both 51DEGREES_INC
-and 51DEGREES_LIB may additionally be used to force specific different paths
-for .o and .h, but will default to 51DEGREES_SRC. Make sure to replace
-'51D_REPO_PATH' with the path to the 51Degrees repository.
+    - or use the latest 51Degrees version 4 with 51Degrees Hash algorithm,
+      not compatible with older databases :
 
-51Degrees provide 3 different detection algorithms:
+      git clone --recurse-submodules https://github.com/51Degrees/device-detection-cxx.git
+
+then run 'make' with USE_51DEGREES or USE_51DEGREES_V4 (if using 51Degrees
+version 4), and 51DEGREES_SRC set. Both 51DEGREES_INC and 51DEGREES_LIB may
+additionally be used to force specific different paths for .o and .h, but
+will default to 51DEGREES_SRC. Make sure to replace '51D_REPO_PATH' with
+the path to the 51Degrees repository.
+
+51Degrees provide 4 different detection algorithms:
 
     1. Pattern - balances main memory usage and CPU.
     2. Trie - a very high performance detection solution which uses more main
        memory than Pattern.
     3. Hash Trie - replaces Trie, 3x faster, 80% lower memory consumption and
        tuning options.
+    4. 51Degrees V4 Hash - only with 51Degrees Device Detection V4.
 
 To make with 51Degrees Pattern algorithm use the following command line.
 
@@ -46,29 +53,38 @@ To use the 51Degrees Trie algorithm use the following command line.
 
     $ make TARGET=<target> USE_51DEGREES=1 51DEGREES_SRC='51D_REPO_PATH'/src/trie
 
+To build with the 51Degrees Device Detection V4 use the following command line.
+
+    $ make TARGET=<target> USE_51DEGREES_V4=1 51DEGREES_SRC='51D_REPO_PATH'/src
+
 A data file containing information about devices, browsers, operating systems
 and their associated signatures is then needed. 51Degrees provide a free
 database with Github repo for this purpose. These free data files are located
 in '51D_REPO_PATH'/data with the extensions .dat for Pattern data and .trie for
 Trie data. Free Hash Trie data file can be obtained by signing up for a licence
 key at https://51degrees.com/products/store/on-premise-device-detection.
+If using the 51degrees version 4, the free hash data file is located in
+'51D_REPO_PATH'/device-detection-data with the .hash extension.
 
 For HAProxy developers who need to verify that their changes didn't affect the
 51Degrees implementation, a dummy library is provided in the
 "addons/51degrees/dummy" directory. This does not function, but implements the
 API such that the 51Degrees module can be used (but not return any meaningful
-information). To test either Pattern or Hash Trie, build with:
+information). To test either Pattern or Hash Trie, or the 51Degrees version 4
+Hash algorithm, build with:
 
     $ make TARGET=<target> USE_51DEGREES=1 51DEGREES_SRC=addons/51degrees/dummy/pattern
 or
     $ make TARGET=<target> USE_51DEGREES=1 51DEGREES_SRC=addons/51degrees/dummy/trie
+or
+    $ make TARGET=<target> USE_51DEGREES_V4=1 51DEGREES_SRC=addons/51degrees/dummy/v4hash
 
 respectively.
 
 The configuration file needs to set the following parameters:
 
     global
-        51degrees-data-file           path to the Pattern or Trie data file
+        51degrees-data-file           path to the Pattern, Trie or V4 Hash data file
         51degrees-property-name-list  list of 51Degrees properties to detect
         51degrees-property-separator  separator to use between values
         51degrees-cache-size          LRU-based cache size (disabled by default)
@@ -136,6 +152,12 @@ use the correct data.
 
 When used with Trie the Method, Difference and Rank properties are not
 available.
+
+When using the 51Degrees V4 Hash algorithm, the hash format data file needs
+to be provided as in the following example.
+
+    global
+        51degrees-data-file '51D_REPO_PATH'/device-detection-data/51Degrees-LiteV4.1.hash
 
 The free Lite data file contains information about screen size in pixels and
 whether the device is a mobile. A full list of available properties is located

@@ -997,10 +997,15 @@ of them have command-line equivalents.
 The following keywords are supported in the "global" section :
 
  * Process management and security
+   - 51degrees-allow-unmatched
    - 51degrees-cache-size
    - 51degrees-data-file
+   - 51degrees-difference
+   - 51degrees-drift
    - 51degrees-property-name-list
    - 51degrees-property-separator
+   - 51degrees-use-performance-graph
+   - 51degrees-use-predictive-graph
    - ca-base
    - chroot
    - cluster-secret
@@ -1169,7 +1174,7 @@ The following keywords are supported in the "global" section :
   file should be unzipped and accessible by HAProxy with relevant permissions.
 
   Please note that this option is only available when HAProxy has been
-  compiled with USE_51DEGREES.
+  compiled with USE_51DEGREES or USE_51DEGREES_V4.
 
 51degrees-property-name-list [<string> ...]
   A list of 51Degrees property names to be load from the dataset. A full list
@@ -1177,14 +1182,14 @@ The following keywords are supported in the "global" section :
   https://51degrees.com/resources/property-dictionary
 
   Please note that this option is only available when HAProxy has been
-  compiled with USE_51DEGREES.
+  compiled with USE_51DEGREES or USE_51DEGREES_V4.
 
 51degrees-property-separator <char>
   A char that will be appended to every property value in a response header
   containing 51Degrees results. If not set that will be set as ','.
 
   Please note that this option is only available when HAProxy has been
-  compiled with USE_51DEGREES.
+  compiled with USE_51DEGREES or USE_51DEGREES_V4.
 
 51degrees-cache-size <number>
   Sets the size of the 51Degrees converter cache to <number> entries. This
@@ -1192,7 +1197,40 @@ The following keywords are supported in the "global" section :
   By default, this cache is disabled.
 
   Please note that this option is only available when HAProxy has been
-  compiled with USE_51DEGREES.
+  compiled with USE_51DEGREES or USE_51DEGREES_V4.
+
+51degrees-use-performance-graph { on | off }
+  Enables ('on') or disables ('off') the use of the performance graph in
+  the detection process. The default value depends on 51Degrees library.
+
+  Please note that this option is only available when HAProxy has been
+  compiled with USE_51DEGREES_V4.
+
+51degrees-use-predictive-graph { on | off }
+  Enables ('on') or disables ('off') the use of the predictive graph in
+  the detection process. The default value depends on 51Degrees library.
+
+  Please note that this option is only available when HAProxy has been
+  compiled with USE_51DEGREES_V4.
+
+51degrees-drift <number>
+  Sets the drift value that a detection can allow.
+
+  Please note that this option is only available when HAProxy has been
+  compiled with USE_51DEGREES_V4.
+
+51degrees-difference <number>
+  Sets the difference value that a detection can allow.
+
+  Please note that this option is only available when HAProxy has been
+  compiled with USE_51DEGREES_V4.
+
+51degrees-allow-unmatched { on | off }
+  Enables ('on') or disables ('off') the use of unmatched nodes in the
+  detection process. The default value depends on 51Degrees library.
+
+  Please note that this option is only available when HAProxy has been
+  compiled with USE_51DEGREES_V4.
 
 ca-base <dir>
   Assigns a default directory to fetch SSL CA certificates and CRLs from when a
