@@ -788,7 +788,7 @@ int ha_quic_set_encryption_secrets(SSL *ssl, enum ssl_encryption_level_t level,
 		quic_accept_push_qc(qc);
 
 	if (!write_secret)
-		goto tp;
+		goto out;
 
 	if (!quic_tls_derive_keys(tx->aead, tx->hp, tx->md, tx->key, tx->keylen,
 	                          tx->iv, tx->ivlen, tx->hp_key, sizeof tx->hp_key,
@@ -798,19 +798,6 @@ int ha_quic_set_encryption_secrets(SSL *ssl, enum ssl_encryption_level_t level,
 	}
 
 	tx->flags |= QUIC_FL_TLS_SECRETS_SET;
- tp:
-	if (!qc_is_listener(qc) && level == ssl_encryption_application) {
-		const unsigned char *buf;
-		size_t buflen;
-
-		SSL_get_peer_quic_transport_params(ssl, &buf, &buflen);
-		if (!buflen)
-			goto err;
-
-		if (!quic_transport_params_store(qc, 1, buf, buf + buflen))
-			goto err;
-	}
-
 	if (level == ssl_encryption_application) {
 		struct quic_tls_kp *prv_rx = &qc->ku.prv_rx;
 		struct quic_tls_kp *nxt_rx = &qc->ku.nxt_rx;
@@ -832,6 +819,7 @@ int ha_quic_set_encryption_secrets(SSL *ssl, enum ssl_encryption_level_t level,
 		if (!quic_tls_key_update(qc))
 			goto err;
 	}
+
  out:
 	TRACE_LEAVE(QUIC_EV_CONN_RWSEC, qc, &level);
 	return 1;
