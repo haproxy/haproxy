@@ -40,7 +40,7 @@
 struct quic_loss {
 	/* The most recent RTT measurement. */
 	unsigned int latest_rtt;
-	/* Smoothed RTT << 4*/
+	/* Smoothed RTT << 3 */
 	unsigned int srtt;
 	/* RTT variation << 2 */
 	unsigned int rtt_var;
