@@ -220,6 +220,42 @@ static inline void _task_wakeup(struct task *t, unsigned int f, const char *file
 	}
 }
 
+/* Atomically drop the TASK_RUNNING bit while ensuring that any wakeup that
+ * happened since the flag was set will result in the task being queued (if
+ * it wasn't already). This is used to safely drop the flag from within the
+ * scheduler. The flag <f> is combined with existing flags before the test so
+ * that it's possible to inconditionally wakeup the task and drop the RUNNING
+ * flag if needed.
+ */
+#define task_drop_running(t, f) _task_drop_running(t, f, __FILE__, __LINE__)
+static inline void _task_drop_running(struct task *t, unsigned int f, const char *file, int line)
+{
+	unsigned int state, new_state;
+
+	state = _HA_ATOMIC_LOAD(&t->state);
+
+	while (1) {
+		new_state = state | f;
+		if (new_state & TASK_WOKEN_ANY)
+			new_state |= TASK_QUEUED;
+
+		if (_HA_ATOMIC_CAS(&t->state, &state, new_state & ~TASK_RUNNING))
+			break;
+		__ha_cpu_relax();
+	}
+
+	if ((new_state & ~state) & TASK_QUEUED) {
+#ifdef DEBUG_TASK
+		if ((unsigned int)t->debug.caller_idx > 1)
+			ABORT_NOW();
+		t->debug.caller_idx = !t->debug.caller_idx;
+		t->debug.caller_file[t->debug.caller_idx] = file;
+		t->debug.caller_line[t->debug.caller_idx] = line;
+#endif
+		__task_wakeup(t);
+	}
+}
+
 /*
  * Unlink the task from the wait queue, and possibly update the last_timer
  * pointer. A pointer to the task itself is returned. The task *must* already
