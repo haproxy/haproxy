@@ -5,6 +5,7 @@
 #include <haproxy/api.h>
 #include <haproxy/connection.h>
 #include <haproxy/dynbuf.h>
+#include <haproxy/htx.h>
 #include <haproxy/pool.h>
 #include <haproxy/ssl_sock-t.h>
 
@@ -51,6 +52,7 @@ struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
 	qcc->strms[type].nb_streams++;
 
 	qcs->rx.buf = BUF_NULL;
+	qcs->rx.app_buf = BUF_NULL;
 	qcs->rx.offset = 0;
 	qcs->rx.frms = EB_ROOT_UNIQUE;
 
@@ -552,10 +554,63 @@ static void qc_detach(struct conn_stream *cs)
 static size_t qc_rcv_buf(struct conn_stream *cs, struct buffer *buf,
                          size_t count, int flags)
 {
-	/* XXX TODO XXX */
+	struct qcs *qcs = cs->ctx;
+	struct htx *qcs_htx = NULL;
+	struct htx *cs_htx = NULL;
+	size_t ret = 0;
+
 	fprintf(stderr, "%s\n", __func__);
 
-	return 0;
+	qcs_htx = htx_from_buf(&qcs->rx.app_buf);
+	if (htx_is_empty(qcs_htx)) {
+		/* Set buffer data to 0 as HTX is empty. */
+		htx_to_buf(qcs_htx, &qcs->rx.app_buf);
+		goto end;
+	}
+
+	ret = qcs_htx->data;
+
+	cs_htx = htx_from_buf(buf);
+	if (htx_is_empty(cs_htx) && htx_used_space(qcs_htx) <= count) {
+		htx_to_buf(cs_htx, buf);
+		htx_to_buf(qcs_htx, &qcs->rx.app_buf);
+		b_xfer(buf, &qcs->rx.app_buf, b_data(&qcs->rx.app_buf));
+		goto end;
+	}
+
+	htx_xfer_blks(cs_htx, qcs_htx, count, HTX_BLK_UNUSED);
+	BUG_ON(qcs_htx->flags & HTX_FL_PARSING_ERROR);
+
+	/* Copy EOM from src to dst buffer if all data copied. */
+	if (htx_is_empty(qcs_htx))
+		cs_htx->flags |= (qcs_htx->flags & HTX_FL_EOM);
+
+	cs_htx->extra = qcs_htx->extra ? (qcs_htx->data + qcs_htx->extra) : 0;
+	htx_to_buf(cs_htx, buf);
+	htx_to_buf(qcs_htx, &qcs->rx.app_buf);
+	ret -= qcs_htx->data;
+
+ end:
+	if (b_data(&qcs->rx.app_buf)) {
+		cs->flags |= (CS_FL_RCV_MORE | CS_FL_WANT_ROOM);
+	}
+	else {
+		cs->flags &= ~(CS_FL_RCV_MORE | CS_FL_WANT_ROOM);
+		if (cs->flags & CS_FL_ERR_PENDING)
+			cs->flags |= CS_FL_ERROR;
+
+		/* TODO put CS_FL_EOI/EOS on fin */
+
+		if (b_size(&qcs->rx.app_buf)) {
+			b_free(&qcs->rx.app_buf);
+			offer_buffers(NULL, 1);
+		}
+	}
+
+	if (ret)
+		tasklet_wakeup(qcs->qcc->wait_event.tasklet);
+
+	return ret;
 }
 
 static size_t qc_snd_buf(struct conn_stream *cs, struct buffer *buf,

@@ -76,6 +76,7 @@ struct qcs {
 		struct eb_root frms; /* received frames ordered by their offsets */
 		uint64_t offset; /* the current offset of received data */
 		struct buffer buf; /* receive buffer, always valid (buf_empty or real buffer) */
+		struct buffer app_buf; /* receive buffer used by conn_stream layer */
 	} rx;
 	struct {
 		uint64_t offset;   /* the current offset of received data */
