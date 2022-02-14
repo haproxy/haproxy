@@ -351,7 +351,7 @@ int qpack_decode_fs(const unsigned char *raw, size_t len, struct buffer *tmp,
 				goto out;
 			}
 
-			qpack_debug_printf(stderr, " n=%d hanme=%d name_len=%llu", !!n, !!hname, (unsigned long long)name_len);
+			qpack_debug_printf(stderr, " n=%d hname=%d name_len=%llu", !!n, !!hname, (unsigned long long)name_len);
 			/* Name string */
 
 			if (len < name_len) {
