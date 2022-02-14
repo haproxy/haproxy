@@ -134,14 +134,13 @@ static int h3_decode_qcs(struct qcs *qcs, int fin, void *ctx)
 		case H3_FT_HEADERS:
 		{
 			const unsigned char *buf = (const unsigned char *)b_head(rxbuf);
-			size_t len = b_data(rxbuf);
 			struct buffer htx_buf = BUF_NULL;
 			struct buffer *tmp = get_trash_chunk();
 			struct ist meth = IST_NULL, path = IST_NULL;
 			//struct ist scheme = IST_NULL, authority = IST_NULL;
 			struct ist authority = IST_NULL;
 
-			if (qpack_decode_fs(buf, len, tmp, list) < 0) {
+			if (qpack_decode_fs(buf, flen, tmp, list) < 0) {
 				h3->err = QPACK_DECOMPRESSION_FAILED;
 				return -1;
 			}
