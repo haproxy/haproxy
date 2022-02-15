@@ -1094,7 +1094,7 @@ int qc_parse_frm(struct quic_frame *frm, struct quic_rx_packet *pkt,
 	}
 
 	frm->type = *(*buf)++;
-	if (frm->type > QUIC_FT_MAX) {
+	if (frm->type >= QUIC_FT_MAX) {
 		TRACE_DEVEL("wrong frame type", QUIC_EV_CONN_PRSFRM, qc, frm);
 		return 0;
 	}
