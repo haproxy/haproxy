@@ -50,6 +50,11 @@
 /* per-thread quic datagram handlers */
 struct quic_dghdlr *quic_dghdlrs;
 
+/* Size of the internal buffer of QUIC RX buffer at the fd level */
+#define QUIC_RX_BUFSZ  (1UL << 18)
+
+DECLARE_STATIC_POOL(pool_head_quic_rxbuf, "quic_rxbuf_pool", QUIC_RX_BUFSZ);
+
 static void quic_add_listener(struct protocol *proto, struct listener *listener);
 static int quic_bind_listener(struct listener *listener, char *errmsg, int errlen);
 static int quic_connect_server(struct connection *conn, int flags);
