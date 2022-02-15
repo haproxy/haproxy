@@ -468,6 +468,14 @@ static int h3_resp_headers_send(struct qcs *qcs, struct htx *htx)
 		if (isteq(list[hdr].n, ist("")))
 			break;
 
+		/* draft-ietf-quic-http34 4.1. HTTP Message Exchanges
+		 * Transfer codings (see Section 6.1 of [HTTP11]) are not
+		 * defined for HTTP/3; the Transfer-Encoding header field MUST
+		 * NOT be used.
+		 */
+		if (isteq(list[hdr].n, ist("transfer-encoding")))
+			continue;
+
 		if (qpack_encode_header(&headers_buf, list[hdr].n, list[hdr].v))
 			ABORT_NOW();
 	}
