@@ -73,6 +73,9 @@ static int hq_interop_decode_qcs(struct qcs *qcs, int fin, void *ctx)
 	htx_to_buf(htx, &htx_buf);
 
 	cs = cs_new(qcs->qcc->conn, qcs->qcc->conn->target);
+	if (!cs)
+		return -1;
+
 	cs->ctx = qcs;
 	stream_create_from_cs(cs, &htx_buf);
 
