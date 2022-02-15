@@ -5241,9 +5241,6 @@ struct task *quic_lstnr_dghdlr(struct task *t, void *ctx, unsigned int state)
 	int first_pkt = 1;
 
 	while ((dgram = MT_LIST_POP(&dghdlr->dgrams, typeof(dgram), mt_list))) {
-		if (!dgram)
-			goto err;
-
 		pos = dgram->buf;
 		end = pos + dgram->len;
 		do {
