@@ -126,8 +126,11 @@ static int h3_decode_qcs(struct qcs *qcs, int fin, void *ctx)
 
 		h3_debug_printf(stderr, "%s: ftype: %llu, flen: %llu\n", __func__,
 		        (unsigned long long)ftype, (unsigned long long)flen);
-		if (flen > b_data(&b))
+		if (flen > b_data(&b) && !b_full(rxbuf))
 			break;
+
+		/* TODO handle full rxbuf */
+		BUG_ON(flen > b_size(rxbuf));
 
 		b_del(rxbuf, hlen);
 		last_stream_frame = (fin && flen == b_data(rxbuf));
