@@ -1282,7 +1282,7 @@ spoe_release_appctx(struct appctx *appctx)
 		task_wakeup(ctx->strm->task, TASK_WOKEN_MSG);
 	}
 
-	if (!LIST_ISEMPTY(&agent->rt[tid].applets)) {
+	if (!LIST_ISEMPTY(&agent->rt[tid].waiting_queue)) {
 		list_for_each_entry_safe(ctx, back, &agent->rt[tid].waiting_queue, list) {
 			if (ctx->spoe_appctx == spoe_appctx)
 				ctx->spoe_appctx = NULL;
