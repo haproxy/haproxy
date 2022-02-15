@@ -176,6 +176,9 @@ static int h3_headers_to_htx(struct qcs *qcs, struct buffer *buf, uint64_t len,
 		htx->flags |= HTX_FL_EOM;
 
 	cs = cs_new(qcs->qcc->conn, qcs->qcc->conn->target);
+	if (!cs)
+		return 1;
+
 	cs->flags |= CS_FL_NOT_FIRST;
 	cs->ctx = qcs;
 	stream_create_from_cs(cs, &htx_buf);
