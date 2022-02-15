@@ -231,6 +231,7 @@ static int h3_data_to_htx(struct qcs *qcs, struct buffer *buf, uint64_t len,
 static int h3_decode_qcs(struct qcs *qcs, int fin, void *ctx)
 {
 	struct buffer *rxbuf = &qcs->rx.buf;
+	int ret;
 
 	h3_debug_printf(stderr, "%s: STREAM ID: %llu\n", __func__, qcs->by_id.key);
 	if (!b_data(rxbuf))
@@ -261,10 +262,14 @@ static int h3_decode_qcs(struct qcs *qcs, int fin, void *ctx)
 
 		switch (ftype) {
 		case H3_FT_DATA:
-			h3_data_to_htx(qcs, rxbuf, flen, last_stream_frame);
+			ret = h3_data_to_htx(qcs, rxbuf, flen, last_stream_frame);
+			/* TODO handle error reporting. Stream closure required. */
+			BUG_ON(ret);
 			break;
 		case H3_FT_HEADERS:
-			h3_headers_to_htx(qcs, rxbuf, flen, last_stream_frame);
+			ret = h3_headers_to_htx(qcs, rxbuf, flen, last_stream_frame);
+			/* TODO handle error reporting. Stream closure required. */
+			BUG_ON(ret);
 			break;
 		case H3_FT_PUSH_PROMISE:
 			/* Not supported */
