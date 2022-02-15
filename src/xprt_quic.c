@@ -3518,13 +3518,10 @@ static struct task *process_timer(struct task *task, void *ctx, unsigned int sta
 	}
 
 	for (i = QUIC_TLS_ENC_LEVEL_INITIAL; i < QUIC_TLS_ENC_LEVEL_MAX; i++) {
-		int j;
-
 		if (i == QUIC_TLS_ENC_LEVEL_APP && !quic_peer_validated_addr(qc))
 		    continue;
 
-		for (j = 0; j < qc->els[i].pktns->tx.pto_probe; j++)
-			qc_prep_fast_retrans(&qc->els[i], qc);
+		qc_prep_fast_retrans(&qc->els[i], qc);
 	}
 
 	tasklet_wakeup(conn_ctx->wait_event.tasklet);
