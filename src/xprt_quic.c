@@ -2054,6 +2054,7 @@ static int qc_handle_bidi_strm_frm(struct quic_rx_packet *pkt,
 	struct qcs *strm;
 	struct eb64_node *strm_node;
 	struct quic_rx_strm_frm *frm;
+	char fin = 0;
 
 	strm_node = qcc_get_qcs(qc->qcc, strm_frm->id);
 	if (!strm_node) {
@@ -2092,7 +2093,9 @@ static int qc_handle_bidi_strm_frm(struct quic_rx_packet *pkt,
 	}
 
 	total += qc_treat_rx_strm_frms(strm);
-	if (total && qc->qcc->app_ops->decode_qcs(strm, strm_frm->fin, qc->qcc->ctx) < 0) {
+	/* FIN is set only if all data were copied. */
+	fin = strm_frm->fin && !strm_frm->len;
+	if (total && qc->qcc->app_ops->decode_qcs(strm, fin, qc->qcc->ctx) < 0) {
 		TRACE_PROTO("Decoding error", QUIC_EV_CONN_PSTRM, qc);
 		return 0;
 	}
