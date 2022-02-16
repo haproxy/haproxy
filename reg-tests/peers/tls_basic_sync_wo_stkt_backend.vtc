@@ -115,20 +115,20 @@ client c4 -connect ${h1_fe_sock} {
 } -start
 
 haproxy h1 -start
-delay 0.2
+delay 0.02
 haproxy h2 -start
-delay 0.2
+delay 0.02
 haproxy h3 -start
-delay 0.2
+delay 0.02
 haproxy h4 -start
-delay 0.2
+delay 0.02
 
 client c1 -wait
 client c2 -wait
 client c3 -wait
 client c4 -wait
 
-delay 2
+delay 3
 
 haproxy h1 -cli {
     send "show table peers/stkt"
