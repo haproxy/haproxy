@@ -173,7 +173,8 @@ static int hc_cli_io_handler(struct appctx *appctx)
 	if (!trash)
 		goto out;
 	if (appctx->ctx.cli.i0 & HC_CLI_F_RES_STLINE) {
-		chunk_appendf(trash, "%s %d %s\n",istptr(hc->res.vsn), hc->res.status, istptr(hc->res.reason));
+		chunk_appendf(trash, "%.*s %d %.*s\n", (unsigned int)istlen(hc->res.vsn), istptr(hc->res.vsn),
+			      hc->res.status, (unsigned int)istlen(hc->res.reason), istptr(hc->res.reason));
 		if (ci_putchk(si_ic(si), trash) == -1)
 			si_rx_room_blk(si);
 		appctx->ctx.cli.i0 &= ~HC_CLI_F_RES_STLINE;
