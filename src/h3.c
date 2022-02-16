@@ -284,9 +284,6 @@ static int h3_decode_qcs(struct qcs *qcs, int fin, void *ctx)
 	}
 
 	return 0;
-
- fail:
-	return -1;
 }
 
 /* Parse a SETTINGS frame which must not be truncated with <flen> as length from
