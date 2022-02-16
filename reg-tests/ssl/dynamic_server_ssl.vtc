@@ -23,6 +23,7 @@ haproxy h1 -conf {
 
 	defaults
 		mode http
+		option httpclose
 		timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
 		timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
 		timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
