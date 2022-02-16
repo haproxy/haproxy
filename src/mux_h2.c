@@ -5259,7 +5259,7 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, struct htx *htx)
 	if (h2c->flags & H2_CF_SHTS_UPDATED) {
 		/* was sent above */
 		h2c->flags |= H2_CF_DTSU_EMITTED;
-		h2c->flags &= H2_CF_SHTS_UPDATED;
+		h2c->flags &= ~H2_CF_SHTS_UPDATED;
 	}
 
 	if (es_now) {
