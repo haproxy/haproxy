@@ -1619,7 +1619,8 @@ static int cli_io_handler_show_cert_ocsp_detail(struct appctx *appctx)
 	 * Otherwise, we must rebuild the certificate's certid in order to
 	 * look for the current OCSP response in the tree. */
 	if (from_transaction && ckchs->ckch->ocsp_response) {
-		ssl_ocsp_response_print(ckchs->ckch->ocsp_response, out);
+		if (ssl_ocsp_response_print(ckchs->ckch->ocsp_response, out))
+			goto end_no_putchk;
 	}
 	else {
 		unsigned char key[OCSP_MAX_CERTID_ASN1_LENGTH] = {};
@@ -1628,7 +1629,8 @@ static int cli_io_handler_show_cert_ocsp_detail(struct appctx *appctx)
 		if (ckch_store_build_certid(ckchs, (unsigned char*)key, &key_length) < 0)
 			goto end_no_putchk;
 
-		ssl_get_ocspresponse_detail(key, out);
+		if (ssl_get_ocspresponse_detail(key, out))
+			goto end_no_putchk;
 	}
 
 	if (ci_putchk(si_ic(si), out) == -1) {

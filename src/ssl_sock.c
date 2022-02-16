@@ -7567,6 +7567,7 @@ int ssl_ocsp_response_print(struct buffer *ocsp_response, struct buffer *out)
 	int write = -1;
 	OCSP_RESPONSE *resp;
 	const unsigned char *p;
+	int retval = -1;
 
 	if (!ocsp_response)
 		return -1;
@@ -7619,13 +7620,13 @@ int ssl_ocsp_response_print(struct buffer *ocsp_response, struct buffer *out)
 			ist_double_lf = istist(ist_block, double_lf);
 		}
 
-		b_istput(out, ist_block);
+		retval = (b_istput(out, ist_block) <= 0);
 	}
 
 	if (bio)
 		BIO_free(bio);
 
-	return 0;
+	return retval;
 }
 
 /*
@@ -7656,7 +7657,10 @@ static int cli_io_handler_show_ocspresponse_detail(struct appctx *appctx)
 	if (trash == NULL)
 		return 1;
 
-	ssl_ocsp_response_print(&ocsp->response, trash);
+	if (ssl_ocsp_response_print(&ocsp->response, trash)) {
+		free_trash_chunk(trash);
+		return 1;
+	}
 
 	if (ci_putchk(si_ic(si), trash) == -1) {
 		si_rx_room_blk(si);
