@@ -7511,9 +7511,12 @@ static int cli_io_handler_show_ocspresponse(struct appctx *appctx)
 
 		/* Decode the certificate ID (serialized into the key). */
 		d2i_OCSP_CERTID(&certid, &p, ocsp->key_length);
+		if (!certid)
+			goto end;
 
 		/* Dump the CERTID info */
 		ocsp_certid_print(bio, certid, 1);
+		OCSP_CERTID_free(certid);
 		write = BIO_read(bio, tmp->area, tmp->size-1);
 		/* strip trailing LFs */
 		while (write > 0 && tmp->area[write-1] == '\n')
@@ -7580,7 +7583,7 @@ int ssl_ocsp_response_print(struct buffer *ocsp_response, struct buffer *out)
 	resp = d2i_OCSP_RESPONSE(NULL, &p, ocsp_response->data);
 	if (!resp) {
 		chunk_appendf(out, "Unable to parse OCSP response");
-		return -1;
+		goto end;
 	}
 
 	if (OCSP_RESPONSE_print(bio, resp, 0) != 0) {
@@ -7623,8 +7626,11 @@ int ssl_ocsp_response_print(struct buffer *ocsp_response, struct buffer *out)
 		retval = (b_istput(out, ist_block) <= 0);
 	}
 
+end:
 	if (bio)
 		BIO_free(bio);
+
+	OCSP_RESPONSE_free(resp);
 
 	return retval;
 }
