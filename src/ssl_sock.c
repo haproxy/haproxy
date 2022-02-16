@@ -7593,6 +7593,8 @@ int ssl_ocsp_response_print(struct buffer *ocsp_response, struct buffer *out)
 		static struct ist double_lf = IST("\n\n");
 
 		write = BIO_read(bio, trash->area, trash->size - 1);
+		if (write <= 0)
+			goto end;
 		trash->data = write;
 
 		/* Look for empty lines in the 'trash' buffer and add a space to
