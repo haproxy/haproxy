@@ -646,8 +646,12 @@ static inline void qc_set_timer(struct quic_conn *qc)
 	if (tick_isset(pto))
 		qc->timer = pto;
  out:
-	if (qc->timer_task && qc->timer != TICK_ETERNITY)
-		task_schedule(qc->timer_task, qc->timer);
+	if (qc->timer_task && qc->timer != TICK_ETERNITY) {
+		if (tick_is_expired(qc->timer, now_ms))
+			task_wakeup(qc->timer_task, TASK_WOKEN_MSG);
+		else
+			task_schedule(qc->timer_task, qc->timer);
+	}
 	TRACE_LEAVE(QUIC_EV_CONN_STIMER, qc, pktns);
 }
 

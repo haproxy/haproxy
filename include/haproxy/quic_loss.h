@@ -128,7 +128,7 @@ static inline struct quic_pktns *quic_pto_pktns(struct quic_conn *qc,
                                                 unsigned int *pto)
 {
 	int i;
-	unsigned int duration, lpto, time_of_last_eliciting;
+	unsigned int duration, lpto;
 	struct quic_loss *ql = &qc->path->loss;
 	struct quic_pktns *pktns, *p;
 
@@ -170,9 +170,7 @@ static inline struct quic_pktns *quic_pto_pktns(struct quic_conn *qc,
 		}
 
 		p = &qc->pktns[i];
-		time_of_last_eliciting = p->tx.time_of_last_eliciting;
-		tmp_pto =
-			tick_first(lpto, tick_add(time_of_last_eliciting, duration));
+		tmp_pto = tick_add(p->tx.time_of_last_eliciting, duration);
 		if (!tick_isset(lpto) || tmp_pto < lpto) {
 			lpto = tmp_pto;
 			pktns = p;
