@@ -218,6 +218,9 @@ int jobs = 0;   /* number of active jobs (conns, listeners, active tasks, ...) *
 int unstoppable_jobs = 0;  /* number of active jobs that can't be stopped during a soft stop */
 int active_peers = 0; /* number of active peers (connection attempts and connected) */
 int connected_peers = 0; /* number of connected peers (verified ones) */
+int arg_mode = 0;	/* MODE_DEBUG etc as passed on command line ... */
+char *change_dir = NULL; /* set when -C is passed */
+char *check_condition = NULL; /* check condition passed to -cc */
 
 /* Here we store information about the pids of the processes we may pause
  * or kill. We will send them a signal every 10 ms until we can bind to all
@@ -1529,13 +1532,6 @@ static void init_early(int argc, char **argv)
 	}
 #endif
 
-	/* keep a copy of original arguments for the master process */
-	old_argv = copy_argv(argc, argv);
-	if (!old_argv) {
-		ha_alert("failed to copy argv.\n");
-		exit(EXIT_FAILURE);
-	}
-
 	/* extract the program name from argv[0], it will be used for the logs
 	 * and error messages.
 	 */
@@ -1553,34 +1549,14 @@ static void init_early(int argc, char **argv)
 	chunk_initlen(&global.log_tag, progname, len, len);
 }
 
-/*
- * This function initializes all the necessary variables. It only returns
- * if everything is OK. If something fails, it exits.
+/* handles program arguments. Very minimal parsing is performed, variables are
+ * fed with some values, and lists are completed with other ones. In case of
+ * error, it will exit.
  */
-static void init(int argc, char **argv)
+static void init_args(int argc, char **argv)
 {
-	int arg_mode = 0;	/* MODE_DEBUG, ... */
-	char *cfg_pidfile = NULL;
-	int err_code = 0;
-	char *err_msg = NULL;
-	struct wordlist *wl;
 	char *progname = global.log_tag.area;
-	char *change_dir = NULL;
-	struct proxy *px;
-	struct post_check_fct *pcf;
-	int ideal_maxconn;
-	char *check_condition = NULL;
-
-	if (!init_trash_buffers(1)) {
-		ha_alert("failed to initialize trash buffers.\n");
-		exit(1);
-	}
-
-	if (init_acl() != 0)
-		exit(1);
-
-	/* Initialise lua. */
-	hlua_init();
+	char *err_msg = NULL;
 
 	/* pre-fill in the global tuning options before we let the cmdline
 	 * change them.
@@ -1612,6 +1588,14 @@ static void init(int argc, char **argv)
 #endif
 	global.tune.options |= GTUNE_STRICT_LIMITS;
 
+	/* keep a copy of original arguments for the master process */
+	old_argv = copy_argv(argc, argv);
+	if (!old_argv) {
+		ha_alert("failed to copy argv.\n");
+		exit(EXIT_FAILURE);
+	}
+
+	/* skip program name and start */
 	argc--; argv++;
 	while (argc > 0) {
 		char *flag;
@@ -1806,7 +1790,13 @@ static void init(int argc, char **argv)
 						exit(1);
 					}
 					break;
-				case 'p' : cfg_pidfile = *argv; break;
+				case 'p' :
+					free(global.pidfile);
+					if ((global.pidfile = strdup(*argv)) == NULL) {
+						ha_alert("Cannot allocate memory for pidfile.\n");
+						exit(EXIT_FAILURE);
+					}
+					break;
 				default: usage(progname);
 				}
 			}
@@ -1815,6 +1805,32 @@ static void init(int argc, char **argv)
 			usage(progname);
 		argv++; argc--;
 	}
+	free(err_msg);
+}
+
+/*
+ * This function initializes all the necessary variables. It only returns
+ * if everything is OK. If something fails, it exits.
+ */
+static void init(int argc, char **argv)
+{
+	char *progname = global.log_tag.area;
+	int err_code = 0;
+	struct wordlist *wl;
+	struct proxy *px;
+	struct post_check_fct *pcf;
+	int ideal_maxconn;
+
+	if (!init_trash_buffers(1)) {
+		ha_alert("failed to initialize trash buffers.\n");
+		exit(1);
+	}
+
+	if (init_acl() != 0)
+		exit(1);
+
+	/* Initialise lua. */
+	hlua_init();
 
 	global.mode |= (arg_mode & (MODE_DAEMON | MODE_MWORKER | MODE_FOREGROUND | MODE_VERBOSE
 				    | MODE_QUIET | MODE_CHECK | MODE_DEBUG | MODE_ZERO_WARNING
@@ -2144,11 +2160,6 @@ static void init(int argc, char **argv)
 				global.maxsock += p->peers_fe->maxconn;
 	}
 
-	if (cfg_pidfile) {
-		free(global.pidfile);
-		global.pidfile = strdup(cfg_pidfile);
-	}
-
 	/* Now we want to compute the maxconn and possibly maxsslconn values.
 	 * It's a bit tricky. Maxconn defaults to the pre-computed value based
 	 * on rlim_fd_cur and the number of FDs in use due to the configuration,
@@ -2443,8 +2454,6 @@ static void init(int argc, char **argv)
 
 	if (!hlua_post_init())
 		exit(1);
-
-	free(err_msg);
 }
 
 void deinit(void)
@@ -2936,6 +2945,9 @@ int main(int argc, char **argv)
 	RUN_INITCALLS(STG_ALLOC);
 	RUN_INITCALLS(STG_POOL);
 	RUN_INITCALLS(STG_INIT);
+
+	/* handles argument parsing */
+	init_args(argc, argv);
 
 	/* this is the late init where the config is parsed */
 	init(argc, argv);
