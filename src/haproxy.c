@@ -1458,6 +1458,101 @@ unsigned int get_tainted()
 	return tainted_state;
 }
 
+
+/* This performs th every basic early initialization at the end of the PREPARE
+ * init stage. It may only assume that list heads are initialized, but not that
+ * anything else is correct. It will initialize a number of variables that
+ * depend on command line and will pre-parse the command line. If it fails, it
+ * directly exits.
+ */
+static void init_early(int argc, char **argv)
+{
+	char *progname;
+	char *tmp;
+	int len;
+
+	/* First, let's initialize most global variables */
+	totalconn = actconn = listeners = stopping = 0;
+	killed = pid = 0;
+
+	global.maxsock = 10; /* reserve 10 fds ; will be incremented by socket eaters */
+	global.rlimit_memmax_all = HAPROXY_MEMMAX;
+	global.mode = MODE_STARTING;
+
+	/* if we were in mworker mode, we should restart in mworker mode */
+	if (getenv("HAPROXY_MWORKER_REEXEC") != NULL)
+		global.mode |= MODE_MWORKER;
+
+	/* initialize date, time, and pid */
+	tzset();
+	clock_init_process_date();
+	start_date = now;
+	pid = getpid();
+
+	/* Set local host name and adjust some environment variables.
+	 * NB: POSIX does not make it mandatory for gethostname() to
+	 * NULL-terminate the string in case of truncation, and at least
+	 * FreeBSD appears not to do it.
+	 */
+	memset(hostname, 0, sizeof(hostname));
+	gethostname(hostname, sizeof(hostname) - 1);
+
+	/* preset some environment variables */
+	localpeer = strdup(hostname);
+	if (!localpeer || setenv("HAPROXY_LOCALPEER", localpeer, 1) < 0) {
+		ha_alert("Cannot allocate memory for local peer.\n");
+		exit(EXIT_FAILURE);
+	}
+
+	/* Initialize the random generators */
+#ifdef USE_OPENSSL
+	/* Initialize SSL random generator. Must be called before chroot for
+	 * access to /dev/urandom, and before ha_random_boot() which may use
+	 * RAND_bytes().
+	 */
+	if (!ssl_initialize_random()) {
+		ha_alert("OpenSSL random data generator initialization failed.\n");
+		exit(EXIT_FAILURE);
+	}
+#endif
+	ha_random_boot(argv); // the argv pointer brings some kernel-fed entropy
+
+	/* Some CPU affinity stuff may have to be initialized */
+#ifdef USE_CPU_AFFINITY
+	{
+		int i;
+		ha_cpuset_zero(&cpu_map.proc);
+		ha_cpuset_zero(&cpu_map.proc_t1);
+		for (i = 0; i < MAX_THREADS; ++i) {
+			ha_cpuset_zero(&cpu_map.thread[i]);
+		}
+	}
+#endif
+
+	/* keep a copy of original arguments for the master process */
+	old_argv = copy_argv(argc, argv);
+	if (!old_argv) {
+		ha_alert("failed to copy argv.\n");
+		exit(EXIT_FAILURE);
+	}
+
+	/* extract the program name from argv[0], it will be used for the logs
+	 * and error messages.
+	 */
+	progname = *argv;
+	while ((tmp = strchr(progname, '/')) != NULL)
+		progname = tmp + 1;
+
+	len = strlen(progname);
+	progname = strdup(progname);
+	if (!progname) {
+		ha_alert("Cannot allocate memory for log_tag.\n");
+		exit(EXIT_FAILURE);
+	}
+
+	chunk_initlen(&global.log_tag, progname, len, len);
+}
+
 /*
  * This function initializes all the necessary variables. It only returns
  * if everything is OK. If something fails, it exits.
@@ -1465,78 +1560,31 @@ unsigned int get_tainted()
 static void init(int argc, char **argv)
 {
 	int arg_mode = 0;	/* MODE_DEBUG, ... */
-	char *tmp;
 	char *cfg_pidfile = NULL;
 	int err_code = 0;
 	char *err_msg = NULL;
 	struct wordlist *wl;
-	char *progname;
+	char *progname = global.log_tag.area;
 	char *change_dir = NULL;
 	struct proxy *px;
 	struct post_check_fct *pcf;
 	int ideal_maxconn;
 	char *check_condition = NULL;
 
-	global.mode = MODE_STARTING;
-	old_argv = copy_argv(argc, argv);
-	if (!old_argv) {
-		ha_alert("failed to copy argv.\n");
-		exit(1);
-	}
-
 	if (!init_trash_buffers(1)) {
 		ha_alert("failed to initialize trash buffers.\n");
 		exit(1);
 	}
 
-	/* NB: POSIX does not make it mandatory for gethostname() to NULL-terminate
-	 * the string in case of truncation, and at least FreeBSD appears not to do
-	 * it.
-	 */
-	memset(hostname, 0, sizeof(hostname));
-	gethostname(hostname, sizeof(hostname) - 1);
-
-	if ((localpeer = strdup(hostname)) == NULL) {
-		ha_alert("Cannot allocate memory for local peer.\n");
-		exit(EXIT_FAILURE);
-	}
-	setenv("HAPROXY_LOCALPEER", localpeer, 1);
-
-	/* we were in mworker mode, we should restart in mworker mode */
-	if (getenv("HAPROXY_MWORKER_REEXEC") != NULL)
-		global.mode |= MODE_MWORKER;
-
-	/*
-	 * Initialize the previously static variables.
-	 */
-
-	totalconn = actconn = listeners = stopping = 0;
-	killed = 0;
-
-	global.rlimit_memmax_all = HAPROXY_MEMMAX;
-
-	tzset();
-	clock_init_process_date();
-	start_date = now;
-
-	ha_random_boot(argv);
-
 	if (init_acl() != 0)
 		exit(1);
-
-#ifdef USE_OPENSSL
-	/* Initialize the random generator.
-	 * Must be called before chroot for access to /dev/urandom
-	 */
-	if (!ssl_initialize_random()) {
-		ha_alert("OpenSSL random data generator initialization failed.\n");
-		exit(1);
-	}
-#endif
 
 	/* Initialise lua. */
 	hlua_init();
 
+	/* pre-fill in the global tuning options before we let the cmdline
+	 * change them.
+	 */
 	global.tune.options |= GTUNE_USE_SELECT;  /* select() is always available */
 #if defined(USE_POLL)
 	global.tune.options |= GTUNE_USE_POLL;
@@ -1563,19 +1611,6 @@ static void init(int argc, char **argv)
 	global.tune.options |= GTUNE_IDLE_POOL_SHARED;
 #endif
 	global.tune.options |= GTUNE_STRICT_LIMITS;
-
-	pid = getpid();
-	progname = *argv;
-	while ((tmp = strchr(progname, '/')) != NULL)
-		progname = tmp + 1;
-
-	/* the process name is used for the logs only */
-	chunk_initlen(&global.log_tag, strdup(progname), strlen(progname), strlen(progname));
-	if (b_orig(&global.log_tag) == NULL) {
-		chunk_destroy(&global.log_tag);
-		ha_alert("Cannot allocate memory for log_tag.\n");
-		exit(EXIT_FAILURE);
-	}
 
 	argc--; argv++;
 	while (argc > 0) {
@@ -1801,19 +1836,6 @@ static void init(int argc, char **argv)
 		ha_alert("Could not change to directory %s : %s\n", change_dir, strerror(errno));
 		exit(1);
 	}
-
-	global.maxsock = 10; /* reserve 10 fds ; will be incremented by socket eaters */
-
-#ifdef USE_CPU_AFFINITY
-	{
-		int i;
-		ha_cpuset_zero(&cpu_map.proc);
-		ha_cpuset_zero(&cpu_map.proc_t1);
-		for (i = 0; i < MAX_THREADS; ++i) {
-			ha_cpuset_zero(&cpu_map.thread[i]);
-		}
-	}
-#endif
 
 	usermsgs_clr("config");
 
@@ -2907,11 +2929,17 @@ int main(int argc, char **argv)
 	RUN_INITCALLS(STG_PREPARE);
 	RUN_INITCALLS(STG_LOCK);
 	RUN_INITCALLS(STG_REGISTER);
+
+	/* now's time to initialize early boot variables */
+	init_early(argc, argv);
+
 	RUN_INITCALLS(STG_ALLOC);
 	RUN_INITCALLS(STG_POOL);
 	RUN_INITCALLS(STG_INIT);
 
+	/* this is the late init where the config is parsed */
 	init(argc, argv);
+
 	signal_register_fct(SIGQUIT, dump, SIGQUIT);
 	signal_register_fct(SIGUSR1, sig_soft_stop, SIGUSR1);
 	signal_register_fct(SIGHUP, sig_dump_state, SIGHUP);
