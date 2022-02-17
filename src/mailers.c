@@ -195,7 +195,7 @@ static int enqueue_one_email_alert(struct proxy *p, struct server *s,
 		goto error;
 
 	{
-		const char * const strs[4] = { "EHLO ", p->email_alert.myhostname, "\r\n" };
+		const char * const strs[4] = { "HELO ", p->email_alert.myhostname, "\r\n" };
 		if (!add_tcpcheck_send_strs(&alert->rules, strs))
 			goto error;
 	}
