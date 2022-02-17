@@ -1335,6 +1335,8 @@ static int vars_max_size_check(char **args, int section_type, struct proxy *curp
 static void vars_init()
 {
 	var_name_hash_seed = ha_random64();
+	/* Initialize process vars */
+	vars_init_head(&proc_vars, SCOPE_PROC);
 }
 
 INITCALL0(STG_PREPARE, vars_init);
