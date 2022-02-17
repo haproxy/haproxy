@@ -404,6 +404,34 @@ error:
 	return ret;
 }
 
+/*
+ * Sets a destination for the httpclient from an HAProxy addr format
+ * This will prevent to determine the destination from the URL
+ * Return 0 in case of success or -1 otherwise.
+ */
+int httpclient_set_dst(struct httpclient *hc, const char *dst)
+{
+	struct sockaddr_storage *sk;
+	char *errmsg = NULL;
+
+	sockaddr_free(&hc->dst);
+	/* 'sk' is statically allocated (no need to be freed). */
+	sk = str2sa_range(dst, NULL, NULL, NULL, NULL, NULL,
+	                  &errmsg, NULL, NULL,
+	                  PA_O_PORT_OK | PA_O_STREAM | PA_O_XPRT | PA_O_CONNECT);
+	if (!sk) {
+		ha_alert("httpclient: Failed to parse destination address in %s\n", errmsg);
+		free(errmsg);
+		return -1;
+	}
+
+	if (!sockaddr_alloc(&hc->dst, sk, sizeof(*sk))) {
+		ha_alert("httpclient: Failed to allocate sockaddr in %s:%d.\n", __FUNCTION__, __LINE__);
+		return -1;
+	}
+
+	return 0;
+}
 
 /*
  * Start the HTTP client
@@ -421,6 +449,8 @@ struct appctx *httpclient_start(struct httpclient *hc)
 	struct session *sess;
 	struct stream *s;
 	int len;
+	struct sockaddr_storage ss_url;
+	struct sockaddr_storage* ss_dst;
 	struct split_url out;
 
 	/* if the client was started and not ended, an applet is already
@@ -431,8 +461,7 @@ struct appctx *httpclient_start(struct httpclient *hc)
 	hc->flags = 0;
 
 	/* parse URI and fill sockaddr_storage */
-	/* FIXME: use a resolver */
-	len = url2sa(istptr(hc->req.url), istlen(hc->req.url), &hc->dst, &out);
+	len = url2sa(istptr(hc->req.url), istlen(hc->req.url), &ss_url, &out);
 	if (len == -1) {
 		ha_alert("httpclient: cannot parse uri '%s'.\n", istptr(hc->req.url));
 		goto out;
@@ -454,7 +483,13 @@ struct appctx *httpclient_start(struct httpclient *hc)
 		goto out_free_appctx;
 	}
 
-	if (!sockaddr_alloc(&s->si[1].dst, &hc->dst, sizeof(hc->dst))) {
+	/* if httpclient_set_dst() was used, sets the alternative address */
+	if (hc->dst)
+		ss_dst = hc->dst;
+	else
+		ss_dst = &ss_url;
+
+	if (!sockaddr_alloc(&s->si[1].dst, ss_dst, sizeof(*hc->dst))) {
 		ha_alert("httpclient: Failed to initialize stream in %s:%d.\n", __FUNCTION__, __LINE__);
 		goto out_free_stream;
 	}
@@ -553,7 +588,7 @@ void httpclient_destroy(struct httpclient *hc)
 	}
 	ha_free(&hc->res.hdrs);
 	b_free(&hc->res.buf);
-
+	sockaddr_free(&hc->dst);
 
 	free(hc);
 
