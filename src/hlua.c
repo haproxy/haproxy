@@ -7230,6 +7230,15 @@ __LJMP static int hlua_httpclient_send(lua_State *L, enum http_meth_t meth)
 	if (lua_gettop(L) != 2 || lua_type(L, -1) != LUA_TTABLE)
 		WILL_LJMP(luaL_error(L, "'get' needs a table as argument"));
 
+	hlua_hc = hlua_checkhttpclient(L, 1);
+
+	ret = lua_getfield(L, -1, "dst");
+	if (ret == LUA_TSTRING) {
+		if (httpclient_set_dst(hlua_hc->hc, lua_tostring(L, -1)) < 0)
+			WILL_LJMP(luaL_error(L, "Can't use the 'dst' argument"));
+	}
+	lua_pop(L, 1);
+
 	ret = lua_getfield(L, -1, "url");
 	if (ret == LUA_TSTRING) {
 		url_str = lua_tostring(L, -1);
@@ -7254,7 +7263,6 @@ __LJMP static int hlua_httpclient_send(lua_State *L, enum http_meth_t meth)
 		return 0;
 	}
 
-	hlua_hc = hlua_checkhttpclient(L, 1);
 
 	hlua_hc->hc->req.url = istdup(ist(url_str));
 	hlua_hc->hc->req.meth = meth;

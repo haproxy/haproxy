@@ -1869,13 +1869,14 @@ HTTPClient class
   :param string request.url: Is a mandatory parameter for the request that contains the URL.
   :param string request.body: Is an optional parameter for the request that contains the body to send.
   :param table request.headers: Is an optional parameter for the request that contains the headers to send.
+  :param table request.dst: Is an optional parameter for the destination in haproxy address format.
   :returns: Lua table containing the response
 
 
 .. code-block:: lua
 
   local httpclient = core.httpclient()
-  local response = httpclient:post{url="http://127.0.0.1", body=body}
+  local response = httpclient:post{url="http://127.0.0.1", body=body, dst="unix@/var/run/http.sock"}
 
 ..
 
@@ -1888,7 +1889,7 @@ HTTPClient class
         ["content-type"]  = { "text/html" },
         ["cache-control"] = { "no-cache", "no-store" },
     },
-    body = "<html><body><h1>invalid request<h1></body></html>"
+    body = "<html><body><h1>invalid request<h1></body></html>",
   }
 ..
 

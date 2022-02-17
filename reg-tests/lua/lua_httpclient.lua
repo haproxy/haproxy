@@ -42,7 +42,7 @@ local function cron()
 
 	core.Info("Third httpclient request")
 	local httpclient3 = core.httpclient()
-	local response3 = httpclient3:get{url="http://127.0.0.1:" .. vtc_port3, headers={ [ "Host" ] = { "foobar.haproxy.local" } }}
+	local response3 = httpclient3:get{url="http://127.0.0.1", dst = vtc_port3, headers={ [ "Host" ] = { "foobar.haproxy.local" } }}
 
 end
 

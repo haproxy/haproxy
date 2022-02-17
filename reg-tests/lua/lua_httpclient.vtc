@@ -49,10 +49,15 @@ haproxy h1 -conf {
         mode http
         http-request use-service lua.fakeserv
 
+   listen li1
+       mode http
+       bind unix@${testdir}/srv3
+       server srv3 ${s3_addr}:${s3_port}
+
 } -start
 
 client c0 -connect ${h1_fe1_sock} {
-    txreq -url "/" -hdr "vtcport: ${s1_port}" -hdr "vtcport2: ${s2_port}" -hdr "vtcport3: ${s3_port}"
+    txreq -url "/" -hdr "vtcport: ${s1_port}" -hdr "vtcport2: ${s2_port}" -hdr "vtcport3: unix@${testdir}/srv3"
     rxresp
     expect resp.status == 200
 } -run
