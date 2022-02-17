@@ -423,6 +423,13 @@ struct appctx *httpclient_start(struct httpclient *hc)
 	int len;
 	struct split_url out;
 
+	/* if the client was started and not ended, an applet is already
+	 * running, we shouldn't try anything */
+	if (httpclient_started(hc) && !httpclient_ended(hc))
+		return NULL;
+
+	hc->flags = 0;
+
 	/* parse URI and fill sockaddr_storage */
 	/* FIXME: use a resolver */
 	len = url2sa(istptr(hc->req.url), istlen(hc->req.url), &hc->dst, &out);
