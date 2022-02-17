@@ -1513,10 +1513,7 @@ static void init(int argc, char **argv)
 	totalconn = actconn = listeners = stopping = 0;
 	killed = 0;
 
-
-#ifdef HAPROXY_MEMMAX
 	global.rlimit_memmax_all = HAPROXY_MEMMAX;
-#endif
 
 	tzset();
 	clock_init_process_date();

@@ -385,6 +385,11 @@
 #define MEM_USABLE_RATIO 0.97
 #endif
 
+/* if not 0, maximum allocatable memory per process in MB */
+#ifndef HAPROXY_MEMMAX
+#define HAPROXY_MEMMAX 0
+#endif
+
 /* Pools are always enabled unless explicitly disabled. When disabled, the
  * calls are directly passed to the underlying OS functions.
  */
