@@ -35,14 +35,14 @@ THREAD_LOCAL size_t pool_cache_bytes = 0;                /* total cache size */
 THREAD_LOCAL size_t pool_cache_count = 0;                /* #cache objects   */
 #endif
 
-static struct list pools = LIST_HEAD_INIT(pools);
-int mem_poison_byte = -1;
+static struct list pools __read_mostly = LIST_HEAD_INIT(pools);
+int mem_poison_byte __read_mostly = -1;
 
 #ifdef DEBUG_FAIL_ALLOC
-static int mem_fail_rate = 0;
+static int mem_fail_rate __read_mostly = 0;
 #endif
 
-static int using_default_allocator = 1;
+static int using_default_allocator __read_mostly = 1;
 static int(*my_mallctl)(const char *, void *, size_t *, void *, size_t) = NULL;
 
 /* ask the allocator to trim memory pools.
