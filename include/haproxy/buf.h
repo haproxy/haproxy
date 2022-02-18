@@ -519,6 +519,8 @@ static inline void __b_putblk(struct buffer *b, const char *blk, size_t len)
 {
 	size_t half = b_contig_space(b);
 
+	BUG_ON(b_data(b) + len > b_size(b));
+
 	if (half > len)
 		half = len;
 
