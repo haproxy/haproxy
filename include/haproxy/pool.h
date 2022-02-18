@@ -108,6 +108,7 @@ void *pool_alloc_nocache(struct pool_head *pool);
 void pool_free_nocache(struct pool_head *pool, void *ptr);
 void dump_pools_to_trash(void);
 void dump_pools(void);
+int pool_parse_debugging(const char *str, char **err);
 int pool_total_failures(void);
 unsigned long pool_total_allocated(void);
 unsigned long pool_total_used(void);

@@ -1649,11 +1649,19 @@ static void init_args(int argc, char **argv)
 			else if (*flag == 'd' && flag[1] == 'W')
 				arg_mode |= MODE_ZERO_WARNING;
 			else if (*flag == 'd' && flag[1] == 'M') {
-				mem_poison_byte = flag[2] ? strtol(flag + 2, NULL, 0) : 'P';
-				if (mem_poison_byte >= 0)
-					pool_debugging |=  POOL_DBG_POISON;
-				else
-					pool_debugging &= ~POOL_DBG_POISON;
+				int ret = pool_parse_debugging(flag + 2, &err_msg);
+
+				if (ret <= -1) {
+					if (ret < -1)
+						ha_alert("-dM: %s\n", err_msg);
+					else
+						printf("%s\n", err_msg);
+					ha_free(&err_msg);
+					exit(ret < -1 ? EXIT_FAILURE : 0);
+				} else if (ret == 0) {
+					ha_warning("-dM: %s\n", err_msg);
+					ha_free(&err_msg);
+				}
 			}
 			else if (*flag == 'd' && flag[1] == 'r')
 				global.tune.options |= GTUNE_RESOLVE_DONTFAIL;

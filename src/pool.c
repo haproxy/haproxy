@@ -891,6 +891,34 @@ unsigned long pool_total_used()
 	return used;
 }
 
+/* This function parses a string made of a set of debugging features as
+ * specified after -dM on the command line, and will set pool_debugging
+ * accordingly. On success it returns a strictly positive value. It may zero
+ * with the first warning in <err>, -1 with a help message in <err>, or -2 with
+ * the first error in <err> return the first error in <err>. <err> is undefined
+ * on success, and will be non-null and locally allocated on help/error/warning.
+ * The caller must free it. Warnings are used to report features that were not
+ * enabled at build time, and errors are used to report unknown features.
+ */
+int pool_parse_debugging(const char *str, char **err)
+{
+	char *end;
+	int v;
+
+
+	/* if it's empty or starts with a number, it's the mem poisonning byte */
+	v = strtol(str, &end, 0);
+	if (!*end || *end == ',') {
+		mem_poison_byte = *str ? v : 'P';
+		if (mem_poison_byte >= 0)
+			pool_debugging |=  POOL_DBG_POISON;
+		else
+			pool_debugging &= ~POOL_DBG_POISON;
+		str = end;
+	}
+	return 1;
+}
+
 /* This function dumps memory usage information onto the stream interface's
  * read buffer. It returns 0 as long as it does not complete, non-zero upon
  * completion. No state is used.
