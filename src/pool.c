@@ -37,6 +37,7 @@ THREAD_LOCAL size_t pool_cache_count = 0;                /* #cache objects   */
 
 static struct list pools __read_mostly = LIST_HEAD_INIT(pools);
 int mem_poison_byte __read_mostly = -1;
+uint pool_debugging __read_mostly = 0;                   /* set of POOL_DBG_* flags */
 
 #ifdef DEBUG_FAIL_ALLOC
 static int mem_fail_rate __read_mostly = 0;
