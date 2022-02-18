@@ -1603,13 +1603,16 @@ int conn_recv_socks4_proxy_response(struct connection *conn)
 	return 0;
 }
 
-/* Lists the known proto mux on <out> */
+/* Lists the known proto mux on <out>. This function is used by "haproxy -vv"
+ * and is suitable for early boot just after the "REGISTER" stage because it
+ * doesn't depend on anything to be already allocated.
+ */
 void list_mux_proto(FILE *out)
 {
 	struct mux_proto_list *item;
-	struct buffer *chk = get_trash_chunk();
 	struct ist proto;
 	char *mode, *side;
+	int done;
 
 	fprintf(out, "Available multiplexer protocols :\n"
 		"(protocols marked as <default> cannot be specified using 'proto' keyword)\n");
@@ -1634,19 +1637,27 @@ void list_mux_proto(FILE *out)
 		else
 			side = "NONE";
 
-		chunk_reset(chk);
-		if (item->mux->flags & MX_FL_HTX)
-			chunk_strcpy(chk, "HTX");
-		if (item->mux->flags & MX_FL_CLEAN_ABRT)
-			chunk_appendf(chk, "%sCLEAN_ABRT", (b_data(chk) ? "|": ""));
-		if (item->mux->flags & MX_FL_HOL_RISK)
-			chunk_appendf(chk, "%sHOL_RISK", (b_data(chk) ? "|": ""));
-		if (item->mux->flags & MX_FL_NO_UPG)
-			chunk_appendf(chk, "%sNO_UPG", (b_data(chk) ? "|": ""));
+		fprintf(out, " %15s : mode=%-10s side=%-8s  mux=%-8s flags=",
+			(proto.len ? proto.ptr : "<default>"), mode, side, item->mux->name);
 
-		fprintf(out, " %15s : mode=%-10s side=%-8s  mux=%-8s flags=%.*s\n",
-			(proto.len ? proto.ptr : "<default>"), mode, side, item->mux->name,
-			(int)b_data(chk), b_orig(chk));
+		done = 0;
+
+		/* note: the block below could be simplied using macros but for only
+		 * 4 flags it's not worth it.
+		 */
+		if (item->mux->flags & MX_FL_HTX)
+			done |= fprintf(out, "%sHTX", done ? "|" : "");
+
+		if (item->mux->flags & MX_FL_CLEAN_ABRT)
+			done |= fprintf(out, "%sCLEAN_ABRT", done ? "|" : "");
+
+		if (item->mux->flags & MX_FL_HOL_RISK)
+			done |= fprintf(out, "%sHOL_RISK", done ? "|" : "");
+
+		if (item->mux->flags & MX_FL_NO_UPG)
+			done |= fprintf(out, "%sNO_UPG", done ? "|" : "");
+
+		fprintf(out, "\n");
 	}
 }
 
