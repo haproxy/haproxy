@@ -352,9 +352,10 @@ error:
  */
 int httpclient_res_xfer(struct httpclient *hc, struct buffer *dst)
 {
+	size_t room = b_room(dst);
 	int ret;
 
-	ret = b_force_xfer(dst, &hc->res.buf, b_data(&hc->res.buf));
+	ret = b_force_xfer(dst, &hc->res.buf, MIN(room, b_data(&hc->res.buf)));
 	/* call the client once we consumed all data */
 	if (!b_data(&hc->res.buf)) {
 		b_free(&hc->res.buf);
