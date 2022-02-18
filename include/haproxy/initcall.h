@@ -63,9 +63,9 @@
 enum init_stage {
 	STG_PREPARE = 0,      // preset variables, tables, list heads
 	STG_LOCK,             // pre-initialize locks
+	STG_REGISTER,         // register static lists (keywords etc)
 	STG_ALLOC,            // allocate required structures
 	STG_POOL,             // create pools
-	STG_REGISTER,         // register static lists (keywords etc)
 	STG_INIT,             // subsystems normal initialization
 	STG_SIZE              // size of the stages array, must be last
 };
@@ -200,9 +200,9 @@ __attribute__((constructor)) static void __initcb_##linenum()      \
 /* Declare all initcall sections here */
 DECLARE_INIT_SECTION(STG_PREPARE);
 DECLARE_INIT_SECTION(STG_LOCK);
+DECLARE_INIT_SECTION(STG_REGISTER);
 DECLARE_INIT_SECTION(STG_ALLOC);
 DECLARE_INIT_SECTION(STG_POOL);
-DECLARE_INIT_SECTION(STG_REGISTER);
 DECLARE_INIT_SECTION(STG_INIT);
 
 // for use in the main haproxy.c file

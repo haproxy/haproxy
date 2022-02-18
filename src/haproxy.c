@@ -2906,9 +2906,9 @@ int main(int argc, char **argv)
 	/* process all initcalls in order of potential dependency */
 	RUN_INITCALLS(STG_PREPARE);
 	RUN_INITCALLS(STG_LOCK);
+	RUN_INITCALLS(STG_REGISTER);
 	RUN_INITCALLS(STG_ALLOC);
 	RUN_INITCALLS(STG_POOL);
-	RUN_INITCALLS(STG_REGISTER);
 	RUN_INITCALLS(STG_INIT);
 
 	init(argc, argv);

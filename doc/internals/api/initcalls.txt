@@ -213,18 +213,23 @@ and in this execution order:
   - STG_PREPARE  : used to preset variables, pre-initialize lookup tables and
                    pre-initialize list heads
   - STG_LOCK     : used to pre-initialize locks
+  - STG_REGISTER : used to register static lists such as keywords
   - STG_ALLOC    : used to allocate the required structures
   - STG_POOL     : used to create pools
-  - STG_REGISTER : used to register static lists such as keywords
   - STG_INIT     : used to initialize subsystems
 
 Each stage is guaranteed that previous stages have successfully completed. This
-means that an INITCALL placed at stage STG_REGISTER is guaranteed that all
-pools were already created and will be usable. Conversely, an INITCALL placed
-at stage STG_PREPARE must not rely on any field that requires preliminary
+means that an INITCALL placed at stage STG_INIT is guaranteed that all pools
+were already created and will be usable. Conversely, an INITCALL placed at
+stage STG_REGISTER must not rely on any field that requires preliminary
 allocation nor initialization. A callback cannot rely on other callbacks of the
 same stage, as the execution order within a stage is undefined and essentially
 depends on the linking order.
+
+The STG_REGISTER level is made for run-time linking of the various modules that
+compose the executable. Keywords, protocols and various other elements that are
+local known to each compilation unit can will be appended into common lists at
+boot time. This is why this call is placed just before STG_ALLOC.
 
 Example: register a very early call to init_log() with no argument, and another
          call to cli_register_kw(&cli_kws) much later:
