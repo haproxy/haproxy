@@ -196,7 +196,7 @@ enum quic_pkt_type {
 #define           QUIC_EV_CONN_HPKT      (1ULL << 9)
 #define           QUIC_EV_CONN_PAPKT     (1ULL << 10)
 #define           QUIC_EV_CONN_PAPKTS    (1ULL << 11)
-#define           QUIC_EV_CONN_HDSHK     (1ULL << 12)
+#define           QUIC_EV_CONN_IO_CB     (1ULL << 12)
 #define           QUIC_EV_CONN_RMHP      (1ULL << 13)
 #define           QUIC_EV_CONN_PRSHPKT   (1ULL << 14)
 #define           QUIC_EV_CONN_PRSAPKT   (1ULL << 15)

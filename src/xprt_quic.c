@@ -93,7 +93,7 @@ static const struct trace_event quic_trace_events[] = {
 	{ .mask = QUIC_EV_CONN_HPKT,     .name = "hdshk_pkt",        .desc = "handhshake packet building" },
 	{ .mask = QUIC_EV_CONN_PAPKT,    .name = "phdshk_apkt",      .desc = "post handhshake application packet preparation" },
 	{ .mask = QUIC_EV_CONN_PAPKTS,   .name = "phdshk_apkts",     .desc = "post handhshake application packets preparation" },
-	{ .mask = QUIC_EV_CONN_HDSHK,    .name = "hdshk",            .desc = "SSL handhshake processing" },
+	{ .mask = QUIC_EV_CONN_IO_CB,    .name = "qc_io_cb",         .desc = "QUIC conn. I/O processin" },
 	{ .mask = QUIC_EV_CONN_RMHP,     .name = "rm_hp",            .desc = "Remove header protection" },
 	{ .mask = QUIC_EV_CONN_PRSHPKT,  .name = "parse_hpkt",       .desc = "parse handshake packet" },
 	{ .mask = QUIC_EV_CONN_PRSAPKT,  .name = "parse_apkt",       .desc = "parse application packet" },
@@ -173,6 +173,7 @@ static struct quic_tx_packet *qc_build_pkt(unsigned char **pos, const unsigned c
                                            struct quic_enc_level *qel,
                                            struct quic_conn *qc, size_t dglen, int pkt_type,
                                            int padding, int ack, int probe, int cc, int *err);
+static struct task *quic_conn_app_io_cb(struct task *t, void *context, unsigned int state);
 
 /* Only for debug purpose */
 struct enc_debug_info {
@@ -319,7 +320,7 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 			}
 		}
 
-		if (mask & QUIC_EV_CONN_HDSHK) {
+		if (mask & QUIC_EV_CONN_IO_CB) {
 			const enum quic_handshake_state *state = a2;
 			const int *err = a3;
 
@@ -1904,18 +1905,20 @@ static inline int qc_provide_cdata(struct quic_enc_level *el,
 			ssl_err = SSL_get_error(ctx->ssl, ssl_err);
 			if (ssl_err == SSL_ERROR_WANT_READ || ssl_err == SSL_ERROR_WANT_WRITE) {
 				TRACE_PROTO("SSL handshake",
-				            QUIC_EV_CONN_HDSHK, qc, &state, &ssl_err);
+				            QUIC_EV_CONN_IO_CB, qc, &state, &ssl_err);
 				goto out;
 			}
 
 			TRACE_DEVEL("SSL handshake error",
-			            QUIC_EV_CONN_HDSHK, qc, &state, &ssl_err);
+			            QUIC_EV_CONN_IO_CB, qc, &state, &ssl_err);
 			qc_ssl_dump_errors(ctx->conn);
 			ERR_clear_error();
 			goto err;
 		}
 
-		TRACE_PROTO("SSL handshake OK", QUIC_EV_CONN_HDSHK, qc, &state);
+		TRACE_PROTO("SSL handshake OK", QUIC_EV_CONN_IO_CB, qc, &state);
+		/* I/O callback switch */
+		ctx->wait_event.tasklet->process = quic_conn_app_io_cb;
 		if (qc_is_listener(ctx->qc)) {
 			HA_ATOMIC_STORE(&qc->state, QUIC_HS_ST_CONFIRMED);
 			/* The connection is ready to be accepted. */
@@ -1930,17 +1933,17 @@ static inline int qc_provide_cdata(struct quic_enc_level *el,
 			ssl_err = SSL_get_error(ctx->ssl, ssl_err);
 			if (ssl_err == SSL_ERROR_WANT_READ || ssl_err == SSL_ERROR_WANT_WRITE) {
 				TRACE_DEVEL("SSL post handshake",
-				            QUIC_EV_CONN_HDSHK, qc, &state, &ssl_err);
+				            QUIC_EV_CONN_IO_CB, qc, &state, &ssl_err);
 				goto out;
 			}
 
 			TRACE_DEVEL("SSL post handshake error",
-			            QUIC_EV_CONN_HDSHK, qc, &state, &ssl_err);
+			            QUIC_EV_CONN_IO_CB, qc, &state, &ssl_err);
 			goto err;
 		}
 
 		TRACE_PROTO("SSL post handshake succeeded",
-		            QUIC_EV_CONN_HDSHK, qc, &state);
+		            QUIC_EV_CONN_IO_CB, qc, &state);
 	}
 
  out:
@@ -3155,6 +3158,68 @@ static int qc_qel_may_rm_hp(struct quic_conn *qc, struct quic_enc_level *qel)
 	return 1;
 }
 
+/* Sends application level packets from <qc> QUIC connection */
+static int qc_send_app_pkts(struct quic_conn *qc)
+{
+	int ret;
+	struct qring *qr;
+
+	qr = MT_LIST_POP(qc->tx.qring_list, typeof(qr), mt_list);
+	if (!qr)
+		/* Never happens */
+		return 1;
+
+	ret = qc_prep_pkts(qc, qr, QUIC_TLS_ENC_LEVEL_APP, QUIC_TLS_ENC_LEVEL_NONE);
+	if (ret == -1)
+		goto err;
+	else if (ret == 0)
+		goto out;
+
+	if (!qc_send_ppkts(qr, qc->xprt_ctx))
+		goto err;
+
+ out:
+	MT_LIST_APPEND(qc->tx.qring_list, &qr->mt_list);
+	return 1;
+
+ err:
+	MT_LIST_APPEND(qc->tx.qring_list, &qr->mt_list);
+	TRACE_DEVEL("leaving in error", QUIC_EV_CONN_IO_CB, qc);
+	return 0;
+}
+
+/* QUIC connection packet handler task (post handshake) */
+static struct task *quic_conn_app_io_cb(struct task *t, void *context, unsigned int state)
+{
+	struct ssl_sock_ctx *ctx;
+	struct quic_conn *qc;
+	struct quic_enc_level *qel;
+	int st;
+
+
+	ctx = context;
+	qc = ctx->qc;
+	qel = &qc->els[QUIC_TLS_ENC_LEVEL_APP];
+	st = HA_ATOMIC_LOAD(&qc->state);
+
+	TRACE_PROTO("state", QUIC_EV_CONN_IO_CB, qc, &st);
+
+	if (!MT_LIST_ISEMPTY(&qel->rx.pqpkts) && qc_qel_may_rm_hp(qc, qel))
+		qc_rm_hp_pkts(qc, qel);
+
+	if (!qc_treat_rx_pkts(qel, NULL, ctx, 0))
+		goto err;
+
+	if (!qc_send_app_pkts(qc))
+		goto err;
+
+	return t;
+
+ err:
+	TRACE_DEVEL("leaving in error", QUIC_EV_CONN_IO_CB, qc, &st);
+	return t;
+}
+
 /* QUIC connection packet handler task. */
 struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 {
@@ -3168,10 +3233,10 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 
 	ctx = context;
 	qc = ctx->qc;
-	TRACE_ENTER(QUIC_EV_CONN_HDSHK, qc);
+	TRACE_ENTER(QUIC_EV_CONN_IO_CB, qc);
 	qr = NULL;
 	st = HA_ATOMIC_LOAD(&qc->state);
-	TRACE_PROTO("state", QUIC_EV_CONN_HDSHK, qc, &st);
+	TRACE_PROTO("state", QUIC_EV_CONN_IO_CB, qc, &st);
 	if (HA_ATOMIC_LOAD(&qc->flags) & QUIC_FL_CONN_IO_CB_WAKEUP) {
 		HA_ATOMIC_BTR(&qc->flags, QUIC_FL_CONN_IO_CB_WAKEUP_BIT);
 		/* The I/O handler has been woken up by the dgram listener
@@ -3267,13 +3332,13 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 	}
 
 	MT_LIST_APPEND(qc->tx.qring_list, &qr->mt_list);
-	TRACE_LEAVE(QUIC_EV_CONN_HDSHK, qc, &st);
+	TRACE_LEAVE(QUIC_EV_CONN_IO_CB, qc, &st);
 	return t;
 
  err:
 	if (qr)
 		MT_LIST_APPEND(qc->tx.qring_list, &qr->mt_list);
-	TRACE_DEVEL("leaving in error", QUIC_EV_CONN_HDSHK, qc, &st, &ssl_err);
+	TRACE_DEVEL("leaving in error", QUIC_EV_CONN_IO_CB, qc, &st, &ssl_err);
 	return t;
 }
 
