@@ -1688,12 +1688,20 @@ int url2sa(const char *url, int ulen, struct sockaddr_storage *addr, struct spli
 		return end - url;
 	}
 	else {
+		/* we need to copy the string into the trash because url2ipv4
+		 * needs a \0 at the end of the string */
+		if (trash.size < ulen)
+			return -1;
+
+		memcpy(trash.area, curr, ulen - (curr - url));
+		trash.area[ulen - (curr - url)] = '\0';
+
 		/* We are looking for IP address. If you want to parse and
 		 * resolve hostname found in url, you can use str2sa_range(), but
 		 * be warned this can slow down global daemon performances
 		 * while handling lagging dns responses.
 		 */
-		ret = url2ipv4(curr, &((struct sockaddr_in *)addr)->sin_addr);
+		ret = url2ipv4(trash.area, &((struct sockaddr_in *)addr)->sin_addr);
 		if (ret) {
 			/* Update out. */
 			if (out) {
@@ -1701,7 +1709,9 @@ int url2sa(const char *url, int ulen, struct sockaddr_storage *addr, struct spli
 				out->host_len = ret;
 			}
 
-			curr += ret;
+			/* we need to assign again curr and end from the trash */
+			url = trash.area;
+			curr = trash.area + ret;
 
 			/* Decode port. */
 			if (*curr == ':') {
