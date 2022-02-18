@@ -236,7 +236,7 @@ static void hc_cli_release(struct appctx *appctx)
 
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
-	{ { "httpclient", NULL }, "httpclient <method> <URI>   : launch an HTTP request", hc_cli_parse, hc_cli_io_handler, hc_cli_release,  NULL, ACCESS_EXPERT},
+	{ { "httpclient", NULL }, "httpclient <method> <URI>               : launch an HTTP request", hc_cli_parse, hc_cli_io_handler, hc_cli_release,  NULL, ACCESS_EXPERT},
 	{ { NULL }, NULL, NULL, NULL }
 }};
 
