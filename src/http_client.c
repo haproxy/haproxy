@@ -1045,5 +1045,5 @@ err:
 
 /* initialize the proxy and servers for the HTTP client */
 
-INITCALL0(STG_REGISTER, httpclient_init);
+INITCALL0(STG_INIT, httpclient_init);
 REGISTER_CONFIG_POSTPARSER("httpclient", httpclient_cfg_postparser);
