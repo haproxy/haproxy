@@ -4056,7 +4056,7 @@ balance url_param <param> [check_post]
       rdp-cookie(<name>)
                   The RDP cookie <name> (or "mstshash" if omitted) will be
                   looked up and hashed for each incoming TCP request. Just as
-                  with the equivalent ACL 'req_rdp_cookie()' function, the name
+                  with the equivalent ACL 'req.rdp_cookie()' function, the name
                   is not case-sensitive. This mechanism is useful as a degraded
                   persistence mode, as it makes it possible to always send the
                   same user (or the same session ID) to the same server. If the
@@ -4066,13 +4066,11 @@ balance url_param <param> [check_post]
                   Note that for this to work, the frontend must ensure that an
                   RDP cookie is already present in the request buffer. For this
                   you must use 'tcp-request content accept' rule combined with
-                  a 'req_rdp_cookie_cnt' ACL.
+                  a 'req.rdp_cookie_cnt' ACL.
 
                   This algorithm is static by default, which means that
                   changing a server's weight on the fly will have no effect,
                   but this can be changed using "hash-type".
-
-                  See also the rdp_cookie pattern fetch function.
 
     <arguments> is an optional list of arguments which may be needed by some
                 algorithms. Right now, only "url_param" and "uri" support an
@@ -9985,8 +9983,7 @@ persist rdp-cookie(<name>)
             server srv1 1.1.1.1:3389
             server srv2 1.1.1.2:3389
 
-  See also : "balance rdp-cookie", "tcp-request", the "req_rdp_cookie" ACL and
-  the rdp_cookie pattern fetch function.
+  See also : "balance rdp-cookie", "tcp-request" and the "req.rdp_cookie" ACL.
 
 
 rate-limit sessions <rate>
@@ -11607,8 +11604,8 @@ stick store-response <pattern> [table <table>] [{if | unless} <condition>]
         # maximum SSL session ID length is 32 bytes.
         stick-table type binary len 32 size 30k expire 30m
 
-        acl clienthello req_ssl_hello_type 1
-        acl serverhello rep_ssl_hello_type 2
+        acl clienthello req.ssl_hello_type 1
+        acl serverhello rep.ssl_hello_type 2
 
         # use tcp content accepts to detects ssl client and server hello.
         tcp-request inspect-delay 5s
@@ -11622,10 +11619,10 @@ stick store-response <pattern> [table <table>] [{if | unless} <condition>]
         # at offset 44.
 
         # Match and learn on request if client hello.
-        stick on payload_lv(43,1) if clienthello
+        stick on req.payload_lv(43,1) if clienthello
 
         # Learn on response if server hello.
-        stick store-response payload_lv(43,1) if serverhello
+        stick store-response resp.payload_lv(43,1) if serverhello
 
         server s1 192.168.1.1:443
         server s2 192.168.1.1:443
@@ -12349,12 +12346,12 @@ tcp-request content <action> [{if | unless} <condition>]
   Example:
         # reject SMTP connection if client speaks first
         tcp-request inspect-delay 30s
-        acl content_present req_len gt 0
+        acl content_present req.len gt 0
         tcp-request content reject if content_present
 
         # Forward HTTPS connection only if client speaks
         tcp-request inspect-delay 30s
-        acl content_present req_len gt 0
+        acl content_present req.len gt 0
         tcp-request content accept if content_present
         tcp-request content reject
 
@@ -15882,17 +15879,17 @@ be placed first. The pattern matching method must be one of the following :
 For example, to quickly detect the presence of cookie "JSESSIONID" in an HTTP
 request, it is possible to do :
 
-    acl jsess_present cook(JSESSIONID) -m found
+    acl jsess_present req.cook(JSESSIONID) -m found
 
 In order to apply a regular expression on the 500 first bytes of data in the
 buffer, one would use the following acl :
 
-    acl script_tag payload(0,500) -m reg -i <script>
+    acl script_tag req.payload(0,500) -m reg -i <script>
 
 On systems where the regex library is much slower when using "-i", it is
 possible to convert the sample to lowercase before matching, like this :
 
-    acl script_tag payload(0,500),lower -m reg <script>
+    acl script_tag req.payload(0,500),lower -m reg <script>
 
 All ACL-specific criteria imply a default matching method. Most often, these
 criteria are composed by concatenating the name of the original sample fetch
@@ -15998,11 +15995,11 @@ Available operators for integer matching are :
 
 For instance, the following ACL matches any negative Content-Length header :
 
-  acl negative-length hdr_val(content-length) lt 0
+  acl negative-length req.hdr_val(content-length) lt 0
 
 This one matches SSL versions between 3.0 and 3.1 (inclusive) :
 
-  acl sslv3 req_ssl_ver 3:3.1
+  acl sslv3 req.ssl_ver 3:3.1
 
 
 7.1.3. Matching strings
@@ -16070,7 +16067,7 @@ digits may be used upper or lower case.
 
 Example :
     # match "Hello\n" in the input stream (\x48 \x65 \x6c \x6c \x6f \x0a)
-    acl hello payload(0,6) -m bin 48656c6c6f0a
+    acl hello req.payload(0,6) -m bin 48656c6c6f0a
 
 
 7.1.6. Matching IPv4 and IPv6 addresses
@@ -16141,7 +16138,7 @@ For instance, to block HTTP requests to the "*" URL with methods other than
 requests with a content-length greater than 0, and finally every request which
 is not either GET/HEAD/POST/OPTIONS !
 
-   acl missing_cl hdr_cnt(Content-length) eq 0
+   acl missing_cl req.hdr_cnt(Content-length) eq 0
    http-request deny if HTTP_URL_STAR !METH_OPTIONS || METH_POST missing_cl
    http-request deny if METH_GET HTTP_CONTENT
    http-request deny unless METH_GET or METH_POST or METH_OPTIONS
@@ -16166,12 +16163,12 @@ the braces must be seen as independent words). Example :
 
    The following rule :
 
-       acl missing_cl hdr_cnt(Content-length) eq 0
+       acl missing_cl req.hdr_cnt(Content-length) eq 0
        http-request deny if METH_POST missing_cl
 
    Can also be written that way :
 
-       http-request deny if METH_POST { hdr_cnt(Content-length) eq 0 }
+       http-request deny if METH_POST { req.hdr_cnt(Content-length) eq 0 }
 
 It is generally not recommended to use this construct because it's a lot easier
 to leave errors in the configuration when written that way. However, for very
@@ -17799,7 +17796,7 @@ env(<name>) : string
       http-request add-header Via 1.1\ %[env(HOSTNAME)]
 
       # reject cookie-less requests when the STOP environment variable is set
-      http-request deny if !{ cook(SESSIONID) -m found } { env(STOP) -m found }
+      http-request deny if !{ req.cook(SESSIONID) -m found } { env(STOP) -m found }
 
 fe_conn([<frontend>]) : integer
   Returns the number of currently established connections on the frontend,
@@ -19711,8 +19708,8 @@ req.payload(<offset>,<length>) : binary
   with ACLs in order to check for the presence of some content in a buffer at
   any location.
 
-  ACL alternatives :
-    payload(<offset>,<length>) : hex binary match
+  ACL derivatives :
+    req.payload(<offset>,<length>) : hex binary match
 
 req.payload_lv(<offset1>,<length>[,<offset2>]) : binary
   This extracts a binary block whose size is specified at <offset1> for <length>
@@ -19720,8 +19717,8 @@ req.payload_lv(<offset1>,<length>[,<offset2>]) : binary
   the request buffer. The <offset2> parameter also supports relative offsets if
   prepended with a '+' or '-' sign.
 
-  ACL alternatives :
-    payload_lv(<offset1>,<length>[,<offset2>]) : hex binary match
+  ACL derivatives :
+    req.payload_lv(<offset1>,<length>[,<offset2>]) : hex binary match
 
   Example : please consult the example from the "stick store-response" keyword.
 
@@ -19759,7 +19756,7 @@ rdp_cookie([<name>]) : string (deprecated)
   rdp-cookie".
 
   ACL derivatives :
-    req_rdp_cookie([<name>]) : exact string match
+    req.rdp_cookie([<name>]) : exact string match
 
   Example :
    listen tse-farm
@@ -19778,7 +19775,7 @@ rdp_cookie([<name>]) : string (deprecated)
        server srv1 1.1.1.2:3389
 
   See also : "balance rdp-cookie", "persist rdp-cookie", "tcp-request" and the
-  "req_rdp_cookie" ACL.
+  "req.rdp_cookie" ACL.
 
 req.rdp_cookie_cnt([name]) : integer
 rdp_cookie_cnt([name]) : integer (deprecated)
@@ -19788,7 +19785,7 @@ rdp_cookie_cnt([name]) : integer (deprecated)
   used in ACL.
 
   ACL derivatives :
-    req_rdp_cookie_cnt([<name>]) : integer match
+    req.rdp_cookie_cnt([<name>]) : integer match
 
 req.ssl_alpn : string
   Returns a string containing the values of the Application-Layer Protocol
@@ -19802,7 +19799,7 @@ req.ssl_alpn : string
   Examples :
      # Wait for a client hello for at most 5 seconds
      tcp-request inspect-delay 5s
-     tcp-request content accept if { req_ssl_hello_type 1 }
+     tcp-request content accept if { req.ssl_hello_type 1 }
      use_backend bk_acme if { req.ssl_alpn acme-tls/1 }
      default_backend bk_default
 
@@ -19848,7 +19845,7 @@ req_ssl_sni : string (deprecated)
   Examples :
      # Wait for a client hello for at most 5 seconds
      tcp-request inspect-delay 5s
-     tcp-request content accept if { req_ssl_hello_type 1 }
+     tcp-request content accept if { req.ssl_hello_type 1 }
      use_backend bk_allow if { req.ssl_sni -f allowed_sites }
      default_backend bk_sorry_page
 
@@ -19876,7 +19873,7 @@ req_ssl_ver : integer (deprecated)
   fetch is mostly used in ACL.
 
   ACL derivatives :
-    req_ssl_ver : decimal match
+    req.ssl_ver : decimal match
 
 res.len : integer
   Returns an integer value corresponding to the number of bytes present in the
@@ -20071,14 +20068,14 @@ cook([<name>]) : string (deprecated)
   presence. Use the res.cook() variant for response cookies sent by the server.
 
   ACL derivatives :
-    cook([<name>])     : exact string match
-    cook_beg([<name>]) : prefix match
-    cook_dir([<name>]) : subdir match
-    cook_dom([<name>]) : domain match
-    cook_end([<name>]) : suffix match
-    cook_len([<name>]) : length match
-    cook_reg([<name>]) : regex match
-    cook_sub([<name>]) : substring match
+    req.cook([<name>])     : exact string match
+    req.cook_beg([<name>]) : prefix match
+    req.cook_dir([<name>]) : subdir match
+    req.cook_dom([<name>]) : domain match
+    req.cook_end([<name>]) : suffix match
+    req.cook_len([<name>]) : length match
+    req.cook_reg([<name>]) : regex match
+    req.cook_sub([<name>]) : substring match
 
 req.cook_cnt([<name>]) : integer
 cook_cnt([<name>]) : integer (deprecated)
@@ -20331,7 +20328,7 @@ req_ver : string (deprecated)
   check for versions 1.0 and 1.1.
 
   ACL derivatives :
-    req_ver : exact string match
+    req.ver : exact string match
 
 res.body : binary
   This returns the HTTP response's available body as a block of data. Unlike
@@ -20384,7 +20381,7 @@ scook([<name>]) : string (deprecated)
   It may be used in tcp-check based expect rules.
 
   ACL derivatives :
-    scook([<name>] : exact string match
+    res.scook([<name>] : exact string match
 
 res.cook_cnt([<name>]) : integer
 scook_cnt([<name>]) : integer (deprecated)
@@ -20433,14 +20430,14 @@ shdr([<name>[,<occ>]]) : string (deprecated)
   It may be used in tcp-check based expect rules.
 
   ACL derivatives :
-    shdr([<name>[,<occ>]])     : exact string match
-    shdr_beg([<name>[,<occ>]]) : prefix match
-    shdr_dir([<name>[,<occ>]]) : subdir match
-    shdr_dom([<name>[,<occ>]]) : domain match
-    shdr_end([<name>[,<occ>]]) : suffix match
-    shdr_len([<name>[,<occ>]]) : length match
-    shdr_reg([<name>[,<occ>]]) : regex match
-    shdr_sub([<name>[,<occ>]]) : substring match
+    res.hdr([<name>[,<occ>]])     : exact string match
+    res.hdr_beg([<name>[,<occ>]]) : prefix match
+    res.hdr_dir([<name>[,<occ>]]) : subdir match
+    res.hdr_dom([<name>[,<occ>]]) : domain match
+    res.hdr_end([<name>[,<occ>]]) : suffix match
+    res.hdr_len([<name>[,<occ>]]) : length match
+    res.hdr_reg([<name>[,<occ>]]) : regex match
+    res.hdr_sub([<name>[,<occ>]]) : substring match
 
 res.hdr_cnt([<name>]) : integer
 shdr_cnt([<name>]) : integer (deprecated)
@@ -20508,7 +20505,7 @@ resp_ver : string (deprecated)
   It may be used in tcp-check based expect rules.
 
   ACL derivatives :
-    resp_ver : exact string match
+    resp.ver : exact string match
 
 set-cookie([<name>]) : string (deprecated)
   This extracts the last occurrence of the cookie name <name> on a "Set-Cookie"
