@@ -3805,7 +3805,7 @@ static inline int qc_try_rm_hp(struct quic_conn *qc,
 		pkt->aad_len = pn - beg + pkt->pnl;
 		qpkt_trace = pkt;
 	}
-	else if (qel) {
+	else {
 		if (qel->tls_ctx.rx.flags & QUIC_FL_TLS_SECRETS_DCD) {
 			/* If the packet number space has been discarded, this packet
 			 * will be not parsed.
@@ -3818,10 +3818,6 @@ static inline int qc_try_rm_hp(struct quic_conn *qc,
 		pkt->pn_offset = pn - beg;
 		MT_LIST_APPEND(&qel->rx.pqpkts, &pkt->list);
 		quic_rx_packet_refinc(pkt);
-	}
-	else {
-		TRACE_PROTO("Unknown packet type", QUIC_EV_CONN_TRMHP, qc);
-		goto err;
 	}
 
 	*el = qel;
