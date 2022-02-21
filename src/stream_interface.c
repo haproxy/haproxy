@@ -1377,6 +1377,11 @@ int si_cs_recv(struct conn_stream *cs)
 		ret = cs->conn->mux->rcv_buf(cs, &ic->buf, max, cur_flags);
 
 		if (cs->flags & CS_FL_WANT_ROOM) {
+			/* CS_FL_WANT_ROOM must not be reported if the channel's
+			 * buffer is empty.
+			 */
+			BUG_ON(c_empty(ic));
+
 			si_rx_room_blk(si);
 			/* Add READ_PARTIAL because some data are pending but
 			 * cannot be xferred to the channel
