@@ -144,12 +144,6 @@ void pool_put_to_cache(struct pool_head *pool, void *ptr, const void *caller);
 
 #if defined(CONFIG_HAP_NO_GLOBAL_POOLS)
 
-static inline int pool_is_crowded(const struct pool_head *pool)
-{
-	/* no shared pools, hence they're always full */
-	return 1;
-}
-
 static inline uint pool_releasable(const struct pool_head *pool)
 {
 	/* no room left */
@@ -170,13 +164,6 @@ static inline void pool_put_to_shared_cache(struct pool_head *pool, struct pool_
 
 void pool_refill_local_from_shared(struct pool_head *pool, struct pool_cache_head *pch);
 void pool_put_to_shared_cache(struct pool_head *pool, struct pool_item *item, uint count);
-
-/* returns true if the pool is considered to have too many free objects */
-static inline int pool_is_crowded(const struct pool_head *pool)
-{
-	return pool->allocated >= swrate_avg(pool->needed_avg + pool->needed_avg / 4, POOL_AVG_SAMPLES) &&
-	       (int)(pool->allocated - pool->used) >= pool->minavail;
-}
 
 /* Returns the max number of entries that may be brought back to the pool
  * before it's considered as full. Note that it is only usable for releasing
