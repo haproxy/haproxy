@@ -427,6 +427,10 @@ static struct task *qc_timeout_task(struct task *t, void *ctx, unsigned int stat
 
 	fprintf(stderr, "%s: timeout\n", __func__);
 	task_destroy(t);
+
+	if (!qcc)
+		return NULL;
+
 	qcc->task = NULL;
 
 	if (qcc_is_dead(qcc))
