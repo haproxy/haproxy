@@ -275,16 +275,18 @@ static inline void *pool_get_from_cache(struct pool_head *pool, const void *call
 			return NULL;
 	}
 
+	if (unlikely(pool_debugging & POOL_DBG_COLD_FIRST)) {
+		/* allocate oldest objects first so as to keep them as long as possible
+		 * in the cache before being reused and maximizing the chance to detect
+		 * an overwrite.
+		 */
+		item = LIST_PREV(&ph->list, typeof(item), by_pool);
+	} else {
+		/* allocate hottest objects first */
+		item = LIST_NEXT(&ph->list, typeof(item), by_pool);
+	}
 #if defined(DEBUG_POOL_INTEGRITY)
-	/* allocate oldest objects first so as to keep them as long as possible
-	 * in the cache before being reused and maximizing the chance to detect
-	 * an overwrite.
-	 */
-	item = LIST_PREV(&ph->list, typeof(item), by_pool);
 	pool_check_pattern(ph, item, pool->size);
-#else
-	/* allocate hottest objects first */
-	item = LIST_NEXT(&ph->list, typeof(item), by_pool);
 #endif
 	BUG_ON(&item->by_pool == &ph->list);
 	LIST_DELETE(&item->by_pool);

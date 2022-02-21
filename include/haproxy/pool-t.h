@@ -43,6 +43,7 @@
 /* pool debugging flags */
 #define POOL_DBG_FAIL_ALLOC 0x00000001  // randomly fail memory allocations
 #define POOL_DBG_DONT_MERGE 0x00000002  // do not merge same-size pools
+#define POOL_DBG_COLD_FIRST 0x00000004  // pick cold objects first
 
 
 /* This is the head of a thread-local cache */

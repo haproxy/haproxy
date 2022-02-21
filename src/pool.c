@@ -44,6 +44,9 @@ uint pool_debugging __read_mostly =               /* set of POOL_DBG_* flags */
 #ifdef DEBUG_DONT_SHARE_POOLS
 	POOL_DBG_DONT_MERGE |
 #endif
+#ifdef DEBUG_POOL_INTEGRITY
+	POOL_DBG_COLD_FIRST |
+#endif
 	0;
 
 static int mem_fail_rate __read_mostly = 0;
