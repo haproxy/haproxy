@@ -314,7 +314,7 @@ static int qc_send(struct qcc *qcc)
 {
 	struct eb64_node *node;
 	int xprt_wake = 0;
-	int ret;
+	int ret = 0;
 
 	fprintf(stderr, "%s\n", __func__);
 
