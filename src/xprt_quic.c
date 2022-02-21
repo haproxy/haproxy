@@ -1964,28 +1964,29 @@ static size_t qc_strm_cpy(struct buffer *buf, struct quic_stream *strm_frm)
 }
 
 /* Copy as most as possible STREAM data from <strm_frm> into <buf> buffer.
- * Also update <strm_frm> frame to reflect the data which have been consumed.
+ *
+ * Note that <strm_frm> is not updated as it is implied that the frame may be
+ * present in a tree and offset node is used as the key. The caller should
+ * update offset/lenght of the frame after the function call.
+ *
+ * Return the total count of copied bytes.
  */
 static size_t qc_rx_strm_frm_cpy(struct buffer *buf,
                                  struct quic_rx_strm_frm *strm_frm)
 {
-	size_t ret;
+	size_t flen = strm_frm->len;
+	size_t ret = 0;
+	size_t try;
 
 	ret = 0;
-	while (strm_frm->len) {
-		size_t try;
+	while (flen && (try = b_contig_space(buf))) {
+		if (try > flen)
+			try = flen;
 
-		try = b_contig_space(buf);
-		if (!try)
-			break;
-
-		if (try > strm_frm->len)
-			try = strm_frm->len;
-		memcpy(b_tail(buf), strm_frm->data, try);
-		strm_frm->len -= try;
-		strm_frm->offset_node.key += try;
+		memcpy(b_tail(buf), strm_frm->data + ret, try);
 		b_add(buf, try);
 		ret += try;
+		flen -= try;
 	}
 
 	return ret;
@@ -2014,6 +2015,10 @@ static size_t qc_treat_rx_strm_frms(struct qcs *qcs)
 			/* If there is remaining data in this frame
 			 * this is because the destination buffer is full.
 			 */
+			eb64_delete(&frm->offset_node);
+			frm->offset_node.key += ret;
+			frm->len -= ret;
+			eb64_insert(&qcs->rx.frms, &frm->offset_node);
 			break;
 		}
 
