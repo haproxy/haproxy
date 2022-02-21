@@ -6358,7 +6358,7 @@ static size_t h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 
 	/* transfer possibly pending data to the upper layer */
 	h2s_htx = htx_from_buf(&h2s->rxbuf);
-	if (htx_is_empty(h2s_htx)) {
+	if (htx_is_empty(h2s_htx) && !(h2s_htx->flags & HTX_FL_PARSING_ERROR)) {
 		/* Here htx_to_buf() will set buffer data to 0 because
 		 * the HTX is empty.
 		 */
