@@ -2011,12 +2011,15 @@ static size_t qc_treat_rx_strm_frms(struct qcs *qcs)
 		ret = qc_rx_strm_frm_cpy(&qcs->rx.buf, frm);
 		qcs->rx.offset += ret;
 		total += ret;
-		if (frm->len) {
-			/* If there is remaining data in this frame
-			 * this is because the destination buffer is full.
+
+		BUG_ON(frm->len < ret);
+		if (frm->len - ret > 0) {
+			/* Remove the frame from the tree before updating the
+			 * offset field.
 			 */
 			eb64_delete(&frm->offset_node);
 			frm->offset_node.key += ret;
+			frm->data += ret;
 			frm->len -= ret;
 			eb64_insert(&qcs->rx.frms, &frm->offset_node);
 			break;
