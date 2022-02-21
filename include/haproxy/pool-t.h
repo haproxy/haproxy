@@ -40,6 +40,9 @@
 #define POOL_F_MUST_ZERO    0x00000002  // zero the returned area
 #define POOL_F_NO_FAIL      0x00000004  // do not randomly fail
 
+/* pool debugging flags */
+#define POOL_DBG_FAIL_ALLOC 0x00000001  // randomly fail memory allocations
+
 
 /* This is the head of a thread-local cache */
 struct pool_cache_head {

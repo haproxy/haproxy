@@ -37,12 +37,13 @@ THREAD_LOCAL size_t pool_cache_count = 0;                /* #cache objects   */
 
 static struct list pools __read_mostly = LIST_HEAD_INIT(pools);
 int mem_poison_byte __read_mostly = -1;
-uint pool_debugging __read_mostly = 0;                   /* set of POOL_DBG_* flags */
-
+uint pool_debugging __read_mostly =               /* set of POOL_DBG_* flags */
 #ifdef DEBUG_FAIL_ALLOC
-static int mem_fail_rate __read_mostly = 0;
+	POOL_DBG_FAIL_ALLOC |
 #endif
+	0;
 
+static int mem_fail_rate __read_mostly = 0;
 static int using_default_allocator __read_mostly = 1;
 static int(*my_mallctl)(const char *, void *, size_t *, void *, size_t) = NULL;
 
@@ -149,6 +150,19 @@ static void detect_allocator(void)
 static int is_trim_enabled(void)
 {
 	return using_default_allocator;
+}
+
+static int mem_should_fail(const struct pool_head *pool)
+{
+	int ret = 0;
+
+	if (mem_fail_rate > 0 && !(global.mode & MODE_STARTING)) {
+		if (mem_fail_rate > statistical_prng_range(100))
+			ret = 1;
+		else
+			ret = 0;
+	}
+	return ret;
 }
 
 /* Try to find an existing shared pool with the same characteristics and
@@ -619,10 +633,9 @@ void *__pool_alloc(struct pool_head *pool, unsigned int flags)
 	void *p = NULL;
 	void *caller = NULL;
 
-#ifdef DEBUG_FAIL_ALLOC
-	if (unlikely(!(flags & POOL_F_NO_FAIL) && mem_should_fail(pool)))
-		return NULL;
-#endif
+	if (unlikely(pool_debugging & POOL_DBG_FAIL_ALLOC))
+		if (!(flags & POOL_F_NO_FAIL) && mem_should_fail(pool))
+			return NULL;
 
 #if defined(DEBUG_POOL_TRACING)
 	caller = __builtin_return_address(0);
@@ -898,21 +911,6 @@ static struct cli_kw_list cli_kws = {{ },{
 
 INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);
 
-#ifdef DEBUG_FAIL_ALLOC
-
-int mem_should_fail(const struct pool_head *pool)
-{
-	int ret = 0;
-
-	if (mem_fail_rate > 0 && !(global.mode & MODE_STARTING)) {
-		if (mem_fail_rate > statistical_prng_range(100))
-			ret = 1;
-		else
-			ret = 0;
-	}
-	return ret;
-
-}
 
 /* config parser for global "tune.fail-alloc" */
 static int mem_parse_global_fail_alloc(char **args, int section_type, struct proxy *curpx,
@@ -928,13 +926,10 @@ static int mem_parse_global_fail_alloc(char **args, int section_type, struct pro
 	}
 	return 0;
 }
-#endif
 
 /* register global config keywords */
 static struct cfg_kw_list mem_cfg_kws = {ILH, {
-#ifdef DEBUG_FAIL_ALLOC
 	{ CFG_GLOBAL, "tune.fail-alloc", mem_parse_global_fail_alloc },
-#endif
 	{ 0, NULL, NULL }
 }};
 
