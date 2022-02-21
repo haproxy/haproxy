@@ -14,6 +14,8 @@ feature ignore_unknown_macro
 #   - so that to ensure that health-checks do not consume any connection
 #     (any varnishtest server without -repeat <n> with n > 1 accepts
 #     only one connection).
+#   - we take care of sending the clients to the unchecked servers using the
+#     "first" lb algo so that servers always receive a valid request
 
 syslog S1 -level notice {
     recv
@@ -115,126 +117,126 @@ syslog S39 -level notice {
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be39/srv39 succeeded, reason: Layer4 check passed, check duration: [[:digit:]]+ms, status: 1/1 UP"
 } -start
 
-server s0 {} -start
-server s2 {} -start
-server s4 {} -start
-server s6 {} -start
-server s8 {} -start
-server s10 {} -start
-server s12 {} -start
-server s14 {} -start
-server s16 {} -start
-server s18 {} -start
-server s20 {} -start
-server s22 {} -start
-server s24 {} -start
-server s26 {} -start
-server s28 {} -start
-server s30 {} -start
-server s32 {} -start
-server s34 {} -start
-server s36 {} -start
-server s38 {} -start
-
-server s1 {
+server s0 {
     rxreq
     txresp
 } -start
 
-server s3 {
+server s2 {
     rxreq
     txresp
 } -start
 
-server s5 {
+server s4 {
     rxreq
     txresp
 } -start
 
-server s7 {
+server s6 {
     rxreq
     txresp
 } -start
 
-server s9 {
+server s8 {
     rxreq
     txresp
 } -start
 
-server s11 {
+server s10 {
     rxreq
     txresp
 } -start
 
-server s13 {
+server s12 {
     rxreq
     txresp
 } -start
 
-server s15 {
+server s14 {
     rxreq
     txresp
 } -start
 
-server s17 {
+server s16 {
     rxreq
     txresp
 } -start
 
-server s19 {
+server s18 {
     rxreq
     txresp
 } -start
 
-server s21 {
+server s20 {
     rxreq
     txresp
 } -start
 
-server s23 {
+server s22 {
     rxreq
     txresp
 } -start
 
-server s25 {
-    rxreq
-txresp
-} -start
-
-server s27 {
+server s24 {
     rxreq
     txresp
 } -start
 
-server s29 {
+server s26 {
     rxreq
     txresp
 } -start
 
-server s31 {
+server s28 {
     rxreq
     txresp
 } -start
 
-server s33 {
+server s30 {
     rxreq
     txresp
 } -start
 
-server s35 {
+server s32 {
     rxreq
     txresp
 } -start
 
-server s37 {
+server s34 {
     rxreq
     txresp
 } -start
 
-server s39 {
+server s36 {
     rxreq
     txresp
 } -start
+
+server s38 {
+    rxreq
+    txresp
+} -start
+
+server s1 {} -start
+server s3 {} -start
+server s5 {} -start
+server s7 {} -start
+server s9 {} -start
+server s11 {} -start
+server s13 {} -start
+server s15 {} -start
+server s17 {} -start
+server s19 {} -start
+server s21 {} -start
+server s23 {} -start
+server s25 {} -start
+server s27 {} -start
+server s29 {} -start
+server s31 {} -start
+server s33 {} -start
+server s35 {} -start
+server s37 {} -start
+server s39 {} -start
 
 haproxy h1 -conf {
     defaults
@@ -242,127 +244,127 @@ haproxy h1 -conf {
         timeout server "${HAPROXY_TEST_TIMEOUT-5s}"
         timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
         balance first
-        default-server no-check inter 5ms downinter 1s rise 1 fall 1
+        default-server no-check inter 20ms downinter 1s rise 1 fall 1
 
     backend be1
         option log-health-checks
         log ${S1_addr}:${S1_port} daemon
-        server srv1 ${s1_addr}:${s1_port} check
         server srv0 ${s0_addr}:${s0_port}
+        server srv1 ${s1_addr}:${s1_port} check
 
     backend be3
         option log-health-checks
         log ${S3_addr}:${S3_port} daemon
-        server srv3 ${s3_addr}:${s3_port} check
         server srv2 ${s2_addr}:${s2_port}
+        server srv3 ${s3_addr}:${s3_port} check
 
     backend be5
         option log-health-checks
         log ${S5_addr}:${S5_port} daemon
-        server srv5 ${s5_addr}:${s5_port} check
         server srv4 ${s4_addr}:${s4_port}
+        server srv5 ${s5_addr}:${s5_port} check
 
     backend be7
         option log-health-checks
         log ${S7_addr}:${S7_port} daemon
-        server srv7 ${s7_addr}:${s7_port} check
         server srv6 ${s6_addr}:${s6_port}
+        server srv7 ${s7_addr}:${s7_port} check
 
     backend be9
         option log-health-checks
         log ${S9_addr}:${S9_port} daemon
-        server srv9 ${s9_addr}:${s9_port} check
         server srv8 ${s8_addr}:${s8_port}
+        server srv9 ${s9_addr}:${s9_port} check
 
     backend be11
         option log-health-checks
         log ${S11_addr}:${S11_port} daemon
-        server srv11 ${s11_addr}:${s11_port} check
         server srv10 ${s10_addr}:${s10_port}
+        server srv11 ${s11_addr}:${s11_port} check
 
     backend be13
         option log-health-checks
         log ${S13_addr}:${S13_port} daemon
-        server srv13 ${s13_addr}:${s13_port} check
         server srv12 ${s12_addr}:${s12_port}
+        server srv13 ${s13_addr}:${s13_port} check
 
     backend be15
         option log-health-checks
         log ${S15_addr}:${S15_port} daemon
-        server srv15 ${s15_addr}:${s15_port} check
         server srv14 ${s14_addr}:${s14_port}
+        server srv15 ${s15_addr}:${s15_port} check
 
     backend be17
         option log-health-checks
         log ${S17_addr}:${S17_port} daemon
-        server srv17 ${s17_addr}:${s17_port} check
         server srv16 ${s16_addr}:${s16_port}
+        server srv17 ${s17_addr}:${s17_port} check
 
     backend be19
         option log-health-checks
         log ${S19_addr}:${S19_port} daemon
-        server srv19 ${s19_addr}:${s19_port} check
         server srv18 ${s18_addr}:${s18_port}
+        server srv19 ${s19_addr}:${s19_port} check
 
     backend be21
         option log-health-checks
         log ${S21_addr}:${S21_port} daemon
-        server srv21 ${s21_addr}:${s21_port} check
         server srv20 ${s20_addr}:${s20_port}
+        server srv21 ${s21_addr}:${s21_port} check
 
     backend be23
         option log-health-checks
         log ${S23_addr}:${S23_port} daemon
-        server srv23 ${s23_addr}:${s23_port} check
         server srv22 ${s22_addr}:${s22_port}
+        server srv23 ${s23_addr}:${s23_port} check
 
     backend be25
         option log-health-checks
         log ${S25_addr}:${S25_port} daemon
-        server srv25 ${s25_addr}:${s25_port} check
         server srv24 ${s24_addr}:${s24_port}
+        server srv25 ${s25_addr}:${s25_port} check
 
     backend be27
         option log-health-checks
         log ${S27_addr}:${S27_port} daemon
-        server srv27 ${s27_addr}:${s27_port} check
         server srv26 ${s26_addr}:${s26_port}
+        server srv27 ${s27_addr}:${s27_port} check
 
     backend be29
         option log-health-checks
         log ${S29_addr}:${S29_port} daemon
-        server srv29 ${s29_addr}:${s29_port} check
         server srv28 ${s28_addr}:${s28_port}
+        server srv29 ${s29_addr}:${s29_port} check
 
     backend be31
         option log-health-checks
         log ${S31_addr}:${S31_port} daemon
-        server srv31 ${s31_addr}:${s31_port} check
         server srv30 ${s30_addr}:${s30_port}
+        server srv31 ${s31_addr}:${s31_port} check
 
     backend be33
         option log-health-checks
         log ${S33_addr}:${S33_port} daemon
-        server srv33 ${s33_addr}:${s33_port} check
         server srv32 ${s32_addr}:${s32_port}
+        server srv33 ${s33_addr}:${s33_port} check
 
     backend be35
         option log-health-checks
         log ${S35_addr}:${S35_port} daemon
-        server srv35 ${s35_addr}:${s35_port} check
         server srv34 ${s34_addr}:${s34_port}
+        server srv35 ${s35_addr}:${s35_port} check
 
     backend be37
         option log-health-checks
         log ${S37_addr}:${S37_port} daemon
-        server srv37 ${s37_addr}:${s37_port} check
         server srv36 ${s36_addr}:${s36_port}
+        server srv37 ${s37_addr}:${s37_port} check
 
     backend be39
         option log-health-checks
         log ${S39_addr}:${S39_port} daemon
-        server srv39 ${s39_addr}:${s39_port} check
         server srv38 ${s38_addr}:${s38_port}
+        server srv39 ${s39_addr}:${s39_port} check
 
     frontend fe1
         bind "fd@${fe1}"
@@ -609,30 +611,35 @@ client c35 -wait
 client c37 -wait
 client c39 -wait
 
-server s1 -wait
-server s3 -wait
-server s5 -wait
-server s7 -wait
-server s9 -wait
-server s11 -wait
-server s13 -wait
-server s15 -wait
-server s17 -wait
-server s19 -wait
-server s21 -wait
-server s23 -wait
-server s25 -wait
-server s27 -wait
-server s29 -wait
-server s31 -wait
-server s33 -wait
-server s35 -wait
-server s37 -wait
-server s39 -wait
+server s0 -wait
+server s2 -wait
+server s4 -wait
+server s6 -wait
+server s8 -wait
+server s10 -wait
+server s12 -wait
+server s14 -wait
+server s16 -wait
+server s18 -wait
+server s20 -wait
+server s22 -wait
+server s24 -wait
+server s26 -wait
+server s28 -wait
+server s30 -wait
+server s32 -wait
+server s34 -wait
+server s36 -wait
+server s38 -wait
 
 
 haproxy h1 -cli {
     send "show servers state"
-    expect ~ "# be_id be_name srv_id srv_name srv_addr srv_op_state srv_admin_state srv_uweight srv_iweight srv_time_since_last_change srv_check_status srv_check_result srv_check_health srv_check_state srv_agent_state bk_f_forced_id srv_f_forced_id srv_fqdn srv_port srvrecord srv_use_ssl srv_check_port srv_check_addr srv_agent_addr srv_agent_port\n2 be1 1 srv1 ${s1_addr} 2 0 1 1 [[:digit:]]+ 6 ([[:digit:]]+ ){3}0 0 0 - ${s1_port} - 0 0 - - 0\n2 be1 2 srv0 ${s0_addr} 2 0 1 1 [[:digit:]]+ 1 0 1 0 0 0 0 - ${s0_port} - 0 0 - - 0\n3 be3 1 srv3 ${s3_addr} 2 0 1 1 [[:digit:]]+ 6 ([[:digit:]]+ ){3}0 0 0 - ${s3_port} - 0 0 - - 0\n3 be3 2 srv2 ${s2_addr} 2 0 1 1 [[:digit:]]+ 1 0 1 0 0 0 0 - ${s2_port} - 0 0 - - 0\n4 be5 1 srv5 ${s5_addr} 2 0 1 1 [[:digit:]]+ 6 ([[:digit:]]+ ){3}0 0 0 - ${s5_port} - 0 0 - - 0\n4 be5 2 srv4 ${s4_addr} 2 0 1 1 [[:digit:]]+ 1 0 1 0 0 0 0 - ${s4_port} - 0 0 - - 0\n5 be7 1 srv7 ${s7_addr} 2 0 1 1 [[:digit:]]+ 6 ([[:digit:]]+ ){3}0 0 0 - ${s7_port} - 0 0 - - 0\n5 be7 2 srv6 ${s6_addr} 2 0 1 1 [[:digit:]]+ 1 0 1 0 0 0 0 - ${s6_port} - 0 0 - - 0\n6 be9 1 srv9 ${s9_addr} 2 0 1 1 [[:digit:]]+ 6 ([[:digit:]]+ ){3}0 0 0 - ${s9_port} - 0 0 - - 0\n6 be9 2 srv8 ${s8_addr} 2 0 1 1 [[:digit:]]+ 1 0 1 0 0 0 0 - ${s8_port} - 0 0 - - 0\n7 be11 1 srv11 ${s11_addr} 2 0 1 1 [[:digit:]]+ 6 ([[:digit:]]+ ){3}0 0 0 - ${s11_port} - 0 0 - - 0\n7 be11 2 srv10 ${s10_addr} 2 0 1 1 [[:digit:]]+ 1 0 1 0 0 0 0 - ${s10_port} - 0 0 - - 0\n8 be13 1 srv13 ${s13_addr} 2 0 1 1 [[:digit:]]+ 6 ([[:digit:]]+ ){3}0 0 0 - ${s13_port} - 0 0 - - 0\n8 be13 2 srv12 ${s12_addr} 2 0 1 1 [[:digit:]]+ 1 0 1 0 0 0 0 - ${s12_port} - 0 0 - - 0\n9 be15 1 srv15 ${s15_addr} 2 0 1 1 [[:digit:]]+ 6 ([[:digit:]]+ ){3}0 0 0 - ${s15_port} - 0 0 - - 0\n9 be15 2 srv14 ${s14_addr} 2 0 1 1 [[:digit:]]+ 1 0 1 0 0 0 0 - ${s14_port} - 0 0 - - 0\n10 be17 1 srv17 ${s17_addr} 2 0 1 1 [[:digit:]]+ 6 ([[:digit:]]+ ){3}0 0 0 - ${s17_port} - 0 0 - - 0\n10 be17 2 srv16 ${s16_addr} 2 0 1 1 [[:digit:]]+ 1 0 1 0 0 0 0 - ${s16_port} - 0 0 - - 0\n11 be19 1 srv19 ${s19_addr} 2 0 1 1 [[:digit:]]+ 6 ([[:digit:]]+ ){3}0 0 0 - ${s19_port} - 0 0 - - 0\n11 be19 2 srv18 ${s18_addr} 2 0 1 1 [[:digit:]]+ 1 0 1 0 0 0 0 - ${s18_port} - 0 0 - - 0\n12 be21 1 srv21 ${s21_addr} 2 0 1 1 [[:digit:]]+ 6 ([[:digit:]]+ ){3}0 0 0 - ${s21_port} - 0 0 - - 0\n12 be21 2 srv20 ${s20_addr} 2 0 1 1 [[:digit:]]+ 1 0 1 0 0 0 0 - ${s20_port} - 0 0 - - 0\n13 be23 1 srv23 ${s23_addr} 2 0 1 1 [[:digit:]]+ 6 ([[:digit:]]+ ){3}0 0 0 - ${s23_port} - 0 0 - - 0\n13 be23 2 srv22 ${s22_addr} 2 0 1 1 [[:digit:]]+ 1 0 1 0 0 0 0 - ${s22_port} - 0 0 - - 0\n14 be25 1 srv25 ${s25_addr} 2 0 1 1 [[:digit:]]+ 6 ([[:digit:]]+ ){3}0 0 0 - ${s25_port} - 0 0 - - 0\n14 be25 2 srv24 ${s24_addr} 2 0 1 1 [[:digit:]]+ 1 0 1 0 0 0 0 - ${s24_port} - 0 0 - - 0\n15 be27 1 srv27 ${s27_addr} 2 0 1 1 [[:digit:]]+ 6 ([[:digit:]]+ ){3}0 0 0 - ${s27_port} - 0 0 - - 0\n15 be27 2 srv26 ${s26_addr} 2 0 1 1 [[:digit:]]+ 1 0 1 0 0 0 0 - ${s26_port} - 0 0 - - 0\n16 be29 1 srv29 ${s29_addr} 2 0 1 1 [[:digit:]]+ 6 ([[:digit:]]+ ){3}0 0 0 - ${s29_port} - 0 0 - - 0\n16 be29 2 srv28 ${s28_addr} 2 0 1 1 [[:digit:]]+ 1 0 1 0 0 0 0 - ${s28_port} - 0 0 - - 0\n17 be31 1 srv31 ${s31_addr} 2 0 1 1 [[:digit:]]+ 6 ([[:digit:]]+ ){3}0 0 0 - ${s31_port} - 0 0 - - 0\n17 be31 2 srv30 ${s30_addr} 2 0 1 1 [[:digit:]]+ 1 0 1 0 0 0 0 - ${s30_port} - 0 0 - - 0\n18 be33 1 srv33 ${s33_addr} 2 0 1 1 [[:digit:]]+ 6 ([[:digit:]]+ ){3}0 0 0 - ${s33_port} - 0 0 - - 0\n18 be33 2 srv32 ${s32_addr} 2 0 1 1 [[:digit:]]+ 1 0 1 0 0 0 0 - ${s32_port} - 0 0 - - 0\n19 be35 1 srv35 ${s35_addr} 2 0 1 1 [[:digit:]]+ 6 ([[:digit:]]+ ){3}0 0 0 - ${s35_port} - 0 0 - - 0\n19 be35 2 srv34 ${s34_addr} 2 0 1 1 [[:digit:]]+ 1 0 1 0 0 0 0 - ${s34_port} - 0 0 - - 0\n20 be37 1 srv37 ${s37_addr} 2 0 1 1 [[:digit:]]+ 6 ([[:digit:]]+ ){3}0 0 0 - ${s37_port} - 0 0 - - 0\n20 be37 2 srv36 ${s36_addr} 2 0 1 1 [[:digit:]]+ 1 0 1 0 0 0 0 - ${s36_port} - 0 0 - - 0\n21 be39 1 srv39 ${s39_addr} 2 0 1 1 [[:digit:]]+ 6 ([[:digit:]]+ ){3}0 0 0 - ${s39_port} - 0 0 - - 0\n21 be39 2 srv38 ${s38_addr} 2 0 1 1 [[:digit:]]+ 1 0 1 0 0 0 0 - ${s38_port} - 0 0 - - 0\n"
+    # output produced using the command below (warning, a bug inserts a "be0" every other line:
+    # for ((i=0;i<40;i++)); do id=$((i/2+2)); be=$((i|1)); si=$(((i&1)+1));
+    #   if ((i&1)); then chk="6 ([[:digit:]]+ ){3}"; else chk="1 0 1 0 ";fi;
+    #   printf "%d be%d %d srv%d \${s%d_addr} 2 0 1 1 [[:digit:]]+ %s0 0 0 - \${s%d_port} - 0 0 - - 0\n" "$id" "$be" "$si" "$i" "$i" "$chk" "$i" "$i" ;
+    # done|grep -v be0|sed 's,$,\\n,'| tr -d '\n'
+    expect ~ "# be_id be_name srv_id srv_name srv_addr srv_op_state srv_admin_state srv_uweight srv_iweight srv_time_since_last_change srv_check_status srv_check_result srv_check_health srv_check_state srv_agent_state bk_f_forced_id srv_f_forced_id srv_fqdn srv_port srvrecord srv_use_ssl srv_check_port srv_check_addr srv_agent_addr srv_agent_port\n2 be1 1 srv0 ${s0_addr} 2 0 1 1 [[:digit:]]+ 1 0 1 0 0 0 0 - ${s0_port} - 0 0 - - 0\n2 be1 2 srv1 ${s1_addr} 2 0 1 1 [[:digit:]]+ 6 ([[:digit:]]+ ){3}0 0 0 - ${s1_port} - 0 0 - - 0\n3 be3 1 srv2 ${s2_addr} 2 0 1 1 [[:digit:]]+ 1 0 1 0 0 0 0 - ${s2_port} - 0 0 - - 0\n3 be3 2 srv3 ${s3_addr} 2 0 1 1 [[:digit:]]+ 6 ([[:digit:]]+ ){3}0 0 0 - ${s3_port} - 0 0 - - 0\n4 be5 1 srv4 ${s4_addr} 2 0 1 1 [[:digit:]]+ 1 0 1 0 0 0 0 - ${s4_port} - 0 0 - - 0\n4 be5 2 srv5 ${s5_addr} 2 0 1 1 [[:digit:]]+ 6 ([[:digit:]]+ ){3}0 0 0 - ${s5_port} - 0 0 - - 0\n5 be7 1 srv6 ${s6_addr} 2 0 1 1 [[:digit:]]+ 1 0 1 0 0 0 0 - ${s6_port} - 0 0 - - 0\n5 be7 2 srv7 ${s7_addr} 2 0 1 1 [[:digit:]]+ 6 ([[:digit:]]+ ){3}0 0 0 - ${s7_port} - 0 0 - - 0\n6 be9 1 srv8 ${s8_addr} 2 0 1 1 [[:digit:]]+ 1 0 1 0 0 0 0 - ${s8_port} - 0 0 - - 0\n6 be9 2 srv9 ${s9_addr} 2 0 1 1 [[:digit:]]+ 6 ([[:digit:]]+ ){3}0 0 0 - ${s9_port} - 0 0 - - 0\n7 be11 1 srv10 ${s10_addr} 2 0 1 1 [[:digit:]]+ 1 0 1 0 0 0 0 - ${s10_port} - 0 0 - - 0\n7 be11 2 srv11 ${s11_addr} 2 0 1 1 [[:digit:]]+ 6 ([[:digit:]]+ ){3}0 0 0 - ${s11_port} - 0 0 - - 0\n8 be13 1 srv12 ${s12_addr} 2 0 1 1 [[:digit:]]+ 1 0 1 0 0 0 0 - ${s12_port} - 0 0 - - 0\n8 be13 2 srv13 ${s13_addr} 2 0 1 1 [[:digit:]]+ 6 ([[:digit:]]+ ){3}0 0 0 - ${s13_port} - 0 0 - - 0\n9 be15 1 srv14 ${s14_addr} 2 0 1 1 [[:digit:]]+ 1 0 1 0 0 0 0 - ${s14_port} - 0 0 - - 0\n9 be15 2 srv15 ${s15_addr} 2 0 1 1 [[:digit:]]+ 6 ([[:digit:]]+ ){3}0 0 0 - ${s15_port} - 0 0 - - 0\n10 be17 1 srv16 ${s16_addr} 2 0 1 1 [[:digit:]]+ 1 0 1 0 0 0 0 - ${s16_port} - 0 0 - - 0\n10 be17 2 srv17 ${s17_addr} 2 0 1 1 [[:digit:]]+ 6 ([[:digit:]]+ ){3}0 0 0 - ${s17_port} - 0 0 - - 0\n11 be19 1 srv18 ${s18_addr} 2 0 1 1 [[:digit:]]+ 1 0 1 0 0 0 0 - ${s18_port} - 0 0 - - 0\n11 be19 2 srv19 ${s19_addr} 2 0 1 1 [[:digit:]]+ 6 ([[:digit:]]+ ){3}0 0 0 - ${s19_port} - 0 0 - - 0\n12 be21 1 srv20 ${s20_addr} 2 0 1 1 [[:digit:]]+ 1 0 1 0 0 0 0 - ${s20_port} - 0 0 - - 0\n12 be21 2 srv21 ${s21_addr} 2 0 1 1 [[:digit:]]+ 6 ([[:digit:]]+ ){3}0 0 0 - ${s21_port} - 0 0 - - 0\n13 be23 1 srv22 ${s22_addr} 2 0 1 1 [[:digit:]]+ 1 0 1 0 0 0 0 - ${s22_port} - 0 0 - - 0\n13 be23 2 srv23 ${s23_addr} 2 0 1 1 [[:digit:]]+ 6 ([[:digit:]]+ ){3}0 0 0 - ${s23_port} - 0 0 - - 0\n14 be25 1 srv24 ${s24_addr} 2 0 1 1 [[:digit:]]+ 1 0 1 0 0 0 0 - ${s24_port} - 0 0 - - 0\n14 be25 2 srv25 ${s25_addr} 2 0 1 1 [[:digit:]]+ 6 ([[:digit:]]+ ){3}0 0 0 - ${s25_port} - 0 0 - - 0\n15 be27 1 srv26 ${s26_addr} 2 0 1 1 [[:digit:]]+ 1 0 1 0 0 0 0 - ${s26_port} - 0 0 - - 0\n15 be27 2 srv27 ${s27_addr} 2 0 1 1 [[:digit:]]+ 6 ([[:digit:]]+ ){3}0 0 0 - ${s27_port} - 0 0 - - 0\n16 be29 1 srv28 ${s28_addr} 2 0 1 1 [[:digit:]]+ 1 0 1 0 0 0 0 - ${s28_port} - 0 0 - - 0\n16 be29 2 srv29 ${s29_addr} 2 0 1 1 [[:digit:]]+ 6 ([[:digit:]]+ ){3}0 0 0 - ${s29_port} - 0 0 - - 0\n17 be31 1 srv30 ${s30_addr} 2 0 1 1 [[:digit:]]+ 1 0 1 0 0 0 0 - ${s30_port} - 0 0 - - 0\n17 be31 2 srv31 ${s31_addr} 2 0 1 1 [[:digit:]]+ 6 ([[:digit:]]+ ){3}0 0 0 - ${s31_port} - 0 0 - - 0\n18 be33 1 srv32 ${s32_addr} 2 0 1 1 [[:digit:]]+ 1 0 1 0 0 0 0 - ${s32_port} - 0 0 - - 0\n18 be33 2 srv33 ${s33_addr} 2 0 1 1 [[:digit:]]+ 6 ([[:digit:]]+ ){3}0 0 0 - ${s33_port} - 0 0 - - 0\n19 be35 1 srv34 ${s34_addr} 2 0 1 1 [[:digit:]]+ 1 0 1 0 0 0 0 - ${s34_port} - 0 0 - - 0\n19 be35 2 srv35 ${s35_addr} 2 0 1 1 [[:digit:]]+ 6 ([[:digit:]]+ ){3}0 0 0 - ${s35_port} - 0 0 - - 0\n20 be37 1 srv36 ${s36_addr} 2 0 1 1 [[:digit:]]+ 1 0 1 0 0 0 0 - ${s36_port} - 0 0 - - 0\n20 be37 2 srv37 ${s37_addr} 2 0 1 1 [[:digit:]]+ 6 ([[:digit:]]+ ){3}0 0 0 - ${s37_port} - 0 0 - - 0\n21 be39 1 srv38 ${s38_addr} 2 0 1 1 [[:digit:]]+ 1 0 1 0 0 0 0 - ${s38_port} - 0 0 - - 0\n21 be39 2 srv39 ${s39_addr} 2 0 1 1 [[:digit:]]+ 6 ([[:digit:]]+ ){3}0 0 0 - ${s39_port} - 0 0 - - 0\n"
 }
 
