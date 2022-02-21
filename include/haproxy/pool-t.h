@@ -44,6 +44,7 @@
 #define POOL_DBG_FAIL_ALLOC 0x00000001  // randomly fail memory allocations
 #define POOL_DBG_DONT_MERGE 0x00000002  // do not merge same-size pools
 #define POOL_DBG_COLD_FIRST 0x00000004  // pick cold objects first
+#define POOL_DBG_INTEGRITY  0x00000008  // perform integrity checks on cache
 
 
 /* This is the head of a thread-local cache */
@@ -52,9 +53,7 @@ struct pool_cache_head {
 	unsigned int count;  /* number of objects in this pool */
 	unsigned int tid;    /* thread id, for debugging only */
 	struct pool_head *pool; /* assigned pool, for debugging only */
-#if defined(DEBUG_POOL_INTEGRITY)
 	ulong fill_pattern;  /* pattern used to fill the area on free */
-#endif
 } THREAD_ALIGNED(64);
 
 /* This represents one item stored in the thread-local cache. <by_pool> links

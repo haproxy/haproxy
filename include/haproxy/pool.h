@@ -143,6 +143,8 @@ extern THREAD_LOCAL size_t pool_cache_count;   /* #cache objects   */
 void pool_evict_from_local_cache(struct pool_head *pool, int full);
 void pool_evict_from_local_caches(void);
 void pool_put_to_cache(struct pool_head *pool, void *ptr, const void *caller);
+void pool_fill_pattern(struct pool_cache_head *pch, struct pool_cache_item *item, uint size);
+void pool_check_pattern(struct pool_cache_head *pch, struct pool_cache_item *item, uint size);
 
 #if defined(CONFIG_HAP_NO_GLOBAL_POOLS)
 
@@ -201,64 +203,6 @@ static inline uint pool_releasable(const struct pool_head *pool)
  * cache first, then from the second level if it exists.
  */
 
-#if defined(DEBUG_POOL_INTEGRITY)
-
-/* Updates <pch>'s fill_pattern and fills the free area after <item> with it,
- * up to <size> bytes. The item part is left untouched.
- */
-static inline void pool_fill_pattern(struct pool_cache_head *pch, struct pool_cache_item *item, uint size)
-{
-	ulong *ptr = (ulong *)item;
-	uint ofs;
-	ulong u;
-
-	if (size <= sizeof(*item))
-		return;
-
-	/* Upgrade the fill_pattern to change about half of the bits
-	 * (to be sure to catch static flag corruption), and apply it.
-	 */
-	u = pch->fill_pattern += ~0UL / 3; // 0x55...55
-	ofs = sizeof(*item) / sizeof(*ptr);
-	while (ofs < size / sizeof(*ptr))
-		ptr[ofs++] = u;
-}
-
-/* check for a pool_cache_item integrity after extracting it from the cache. It
- * must have been previously initialized using pool_fill_pattern(). If any
- * corruption is detected, the function provokes an immediate crash.
- */
-static inline void pool_check_pattern(struct pool_cache_head *pch, struct pool_cache_item *item, uint size)
-{
-	const ulong *ptr = (const ulong *)item;
-	uint ofs;
-	ulong u;
-
-	if (size <= sizeof(*item))
-		return;
-
-	/* let's check that all words past *item are equal */
-	ofs = sizeof(*item) / sizeof(*ptr);
-	u = ptr[ofs++];
-	while (ofs < size / sizeof(*ptr)) {
-		if (unlikely(ptr[ofs] != u))
-			ABORT_NOW();
-		ofs++;
-	}
-}
-
-#else
-
-static inline void pool_fill_pattern(struct pool_cache_head *pch, struct pool_cache_item *item, uint size)
-{
-}
-
-static inline void pool_check_pattern(struct pool_cache_head *pch, struct pool_cache_item *item, uint size)
-{
-}
-
-#endif
-
 /* Tries to retrieve an object from the local pool cache corresponding to pool
  * <pool>. If none is available, tries to allocate from the shared cache, and
  * returns NULL if nothing is available.
@@ -275,19 +219,21 @@ static inline void *pool_get_from_cache(struct pool_head *pool, const void *call
 			return NULL;
 	}
 
-	if (unlikely(pool_debugging & POOL_DBG_COLD_FIRST)) {
+	/* allocate hottest objects first */
+	item = LIST_NEXT(&ph->list, typeof(item), by_pool);
+
+	if (unlikely(pool_debugging & (POOL_DBG_COLD_FIRST|POOL_DBG_INTEGRITY))) {
 		/* allocate oldest objects first so as to keep them as long as possible
 		 * in the cache before being reused and maximizing the chance to detect
 		 * an overwrite.
 		 */
-		item = LIST_PREV(&ph->list, typeof(item), by_pool);
-	} else {
-		/* allocate hottest objects first */
-		item = LIST_NEXT(&ph->list, typeof(item), by_pool);
+		if (pool_debugging & POOL_DBG_COLD_FIRST)
+			item = LIST_PREV(&ph->list, typeof(item), by_pool);
+
+		if (pool_debugging & POOL_DBG_INTEGRITY)
+			pool_check_pattern(ph, item, pool->size);
 	}
-#if defined(DEBUG_POOL_INTEGRITY)
-	pool_check_pattern(ph, item, pool->size);
-#endif
+
 	BUG_ON(&item->by_pool == &ph->list);
 	LIST_DELETE(&item->by_pool);
 	LIST_DELETE(&item->by_lru);

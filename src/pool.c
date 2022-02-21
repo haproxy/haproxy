@@ -47,6 +47,9 @@ uint pool_debugging __read_mostly =               /* set of POOL_DBG_* flags */
 #ifdef DEBUG_POOL_INTEGRITY
 	POOL_DBG_COLD_FIRST |
 #endif
+#ifdef DEBUG_POOL_INTEGRITY
+	POOL_DBG_INTEGRITY  |
+#endif
 	0;
 
 static int mem_fail_rate __read_mostly = 0;
@@ -332,6 +335,50 @@ void pool_free_nocache(struct pool_head *pool, void *ptr)
 
 #ifdef CONFIG_HAP_POOLS
 
+/* Updates <pch>'s fill_pattern and fills the free area after <item> with it,
+ * up to <size> bytes. The item part is left untouched.
+ */
+void pool_fill_pattern(struct pool_cache_head *pch, struct pool_cache_item *item, uint size)
+{
+	ulong *ptr = (ulong *)item;
+	uint ofs;
+	ulong u;
+
+	if (size <= sizeof(*item))
+		return;
+
+	/* Upgrade the fill_pattern to change about half of the bits
+	 * (to be sure to catch static flag corruption), and apply it.
+	 */
+	u = pch->fill_pattern += ~0UL / 3; // 0x55...55
+	ofs = sizeof(*item) / sizeof(*ptr);
+	while (ofs < size / sizeof(*ptr))
+		ptr[ofs++] = u;
+}
+
+/* check for a pool_cache_item integrity after extracting it from the cache. It
+ * must have been previously initialized using pool_fill_pattern(). If any
+ * corruption is detected, the function provokes an immediate crash.
+ */
+void pool_check_pattern(struct pool_cache_head *pch, struct pool_cache_item *item, uint size)
+{
+	const ulong *ptr = (const ulong *)item;
+	uint ofs;
+	ulong u;
+
+	if (size <= sizeof(*item))
+		return;
+
+	/* let's check that all words past *item are equal */
+	ofs = sizeof(*item) / sizeof(*ptr);
+	u = ptr[ofs++];
+	while (ofs < size / sizeof(*ptr)) {
+		if (unlikely(ptr[ofs] != u))
+			ABORT_NOW();
+		ofs++;
+	}
+}
+
 /* removes up to <count> items from the end of the local pool cache <ph> for
  * pool <pool>. The shared pool is refilled with these objects in the limit
  * of the number of acceptable objects, and the rest will be released to the
@@ -351,7 +398,8 @@ static void pool_evict_last_items(struct pool_head *pool, struct pool_cache_head
 	while (released < count && !LIST_ISEMPTY(&ph->list)) {
 		item = LIST_PREV(&ph->list, typeof(item), by_pool);
 		BUG_ON(&item->by_pool == &ph->list);
-		pool_check_pattern(ph, item, pool->size);
+		if (unlikely(pool_debugging & POOL_DBG_INTEGRITY))
+			pool_check_pattern(ph, item, pool->size);
 		LIST_DELETE(&item->by_pool);
 		LIST_DELETE(&item->by_lru);
 
@@ -440,7 +488,8 @@ void pool_put_to_cache(struct pool_head *pool, void *ptr, const void *caller)
 	LIST_INSERT(&th_ctx->pool_lru_head, &item->by_lru);
 	POOL_DEBUG_TRACE_CALLER(pool, item, caller);
 	ph->count++;
-	pool_fill_pattern(ph, item, pool->size);
+	if (unlikely(pool_debugging & POOL_DBG_INTEGRITY))
+		pool_fill_pattern(ph, item, pool->size);
 	pool_cache_count++;
 	pool_cache_bytes += pool->size;
 
@@ -510,7 +559,8 @@ void pool_refill_local_from_shared(struct pool_head *pool, struct pool_cache_hea
 		LIST_INSERT(&pch->list, &item->by_pool);
 		LIST_INSERT(&th_ctx->pool_lru_head, &item->by_lru);
 		count++;
-		pool_fill_pattern(pch, item, pool->size);
+		if (unlikely(pool_debugging & POOL_DBG_INTEGRITY))
+			pool_fill_pattern(pch, item, pool->size);
 	}
 	HA_ATOMIC_ADD(&pool->used, count);
 	pch->count += count;
