@@ -41,6 +41,9 @@ uint pool_debugging __read_mostly =               /* set of POOL_DBG_* flags */
 #ifdef DEBUG_FAIL_ALLOC
 	POOL_DBG_FAIL_ALLOC |
 #endif
+#ifdef DEBUG_DONT_SHARE_POOLS
+	POOL_DBG_DONT_MERGE |
+#endif
 	0;
 
 static int mem_fail_rate __read_mostly = 0;
@@ -214,11 +217,9 @@ struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
 			 * we look for a shareable one or for the next position
 			 * before which we will insert a new one.
 			 */
-			if ((flags & entry->flags & MEM_F_SHARED)
-#ifdef DEBUG_DONT_SHARE_POOLS
-			    && strcmp(name, entry->name) == 0
-#endif
-			    ) {
+			if ((flags & entry->flags & MEM_F_SHARED) &&
+			    (!(pool_debugging & POOL_DBG_DONT_MERGE) ||
+			     strcmp(name, entry->name) == 0)) {
 				/* we can share this one */
 				pool = entry;
 				DPRINTF(stderr, "Sharing %s with %s\n", name, pool->name);
