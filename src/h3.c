@@ -211,11 +211,14 @@ static int h3_data_to_htx(struct qcs *qcs, struct buffer *buf, uint64_t len,
 	htx = htx_from_buf(appbuf);
 
 	htx_space = htx_free_data_space(htx);
-	BUG_ON(!htx_space || htx_space < len);
+	if (!htx_space || htx_space < len) {
+		ABORT_NOW(); /* TODO handle this case properly */
+	}
 
 	htx_sent = htx_add_data(htx, ist2(b_head(buf), len));
-	/* TODO handle full appbuf */
-	BUG_ON(htx_sent < len);
+	if (htx_sent < len) {
+		ABORT_NOW(); /* TODO handle this case properly */
+	}
 
 	if (fin)
 		htx->flags |= HTX_FL_EOM;
@@ -264,12 +267,12 @@ static int h3_decode_qcs(struct qcs *qcs, int fin, void *ctx)
 		case H3_FT_DATA:
 			ret = h3_data_to_htx(qcs, rxbuf, flen, last_stream_frame);
 			/* TODO handle error reporting. Stream closure required. */
-			BUG_ON(ret);
+			if (ret) { ABORT_NOW(); }
 			break;
 		case H3_FT_HEADERS:
 			ret = h3_headers_to_htx(qcs, rxbuf, flen, last_stream_frame);
 			/* TODO handle error reporting. Stream closure required. */
-			BUG_ON(ret);
+			if (ret) { ABORT_NOW(); }
 			break;
 		case H3_FT_PUSH_PROMISE:
 			/* Not supported */
