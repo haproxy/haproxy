@@ -29,11 +29,9 @@
 #include <haproxy/tools.h>
 
 
-#ifdef CONFIG_HAP_POOLS
 /* These ones are initialized per-thread on startup by init_pools() */
 THREAD_LOCAL size_t pool_cache_bytes = 0;                /* total cache size */
 THREAD_LOCAL size_t pool_cache_count = 0;                /* #cache objects   */
-#endif
 
 static struct list pools __read_mostly = LIST_HEAD_INIT(pools);
 int mem_poison_byte __read_mostly = -1;
@@ -52,6 +50,9 @@ uint pool_debugging __read_mostly =               /* set of POOL_DBG_* flags */
 #endif
 #ifdef CONFIG_HAP_NO_GLOBAL_POOLS
 	POOL_DBG_NO_GLOBAL  |
+#endif
+#ifndef CONFIG_HAP_POOLS
+	POOL_DBG_NO_CACHE   |
 #endif
 	0;
 
@@ -206,15 +207,16 @@ struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
 		size  = ((size + POOL_EXTRA + align - 1) & -align) - POOL_EXTRA;
 	}
 
-#ifdef CONFIG_HAP_POOLS
-	/* we'll store two lists there, we need the room for this. This is
-	 * guaranteed by the test above, except if MEM_F_EXACT is set, or if
-	 * the only EXTRA part is in fact the one that's stored in the cache
-	 * in addition to the pci struct.
-	 */
-	if (size + POOL_EXTRA - POOL_EXTRA_CALLER < sizeof(struct pool_cache_item))
-		size = sizeof(struct pool_cache_item) + POOL_EXTRA_CALLER - POOL_EXTRA;
-#endif
+	if (!(pool_debugging & POOL_DBG_NO_CACHE)) {
+		/* we'll store two lists there, we need the room for this. This is
+		 * guaranteed by the test above, except if MEM_F_EXACT is set, or if
+		 * the only EXTRA part is in fact the one that's stored in the cache
+		 * in addition to the pci struct.
+		 */
+		if (size + POOL_EXTRA - POOL_EXTRA_CALLER < sizeof(struct pool_cache_item))
+			size = sizeof(struct pool_cache_item) + POOL_EXTRA_CALLER - POOL_EXTRA;
+	}
+
 	/* TODO: thread: we do not lock pool list for now because all pools are
 	 * created during HAProxy startup (so before threads creation) */
 	start = &pools;
@@ -254,14 +256,14 @@ struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
 		pool->flags = flags;
 		LIST_APPEND(start, &pool->list);
 
-#ifdef CONFIG_HAP_POOLS
-		/* update per-thread pool cache if necessary */
-		for (thr = 0; thr < MAX_THREADS; thr++) {
-			LIST_INIT(&pool->cache[thr].list);
-			pool->cache[thr].tid = thr;
-			pool->cache[thr].pool = pool;
+		if (!(pool_debugging & POOL_DBG_NO_CACHE)) {
+			/* update per-thread pool cache if necessary */
+			for (thr = 0; thr < MAX_THREADS; thr++) {
+				LIST_INIT(&pool->cache[thr].list);
+				pool->cache[thr].tid = thr;
+				pool->cache[thr].pool = pool;
+			}
 		}
-#endif
 	}
 	pool->users++;
 	return pool;
@@ -336,8 +338,6 @@ void pool_free_nocache(struct pool_head *pool, void *ptr)
 }
 
 
-#ifdef CONFIG_HAP_POOLS
-
 /* Updates <pch>'s fill_pattern and fills the free area after <item> with it,
  * up to <size> bytes. The item part is left untouched.
  */
@@ -386,7 +386,8 @@ void pool_check_pattern(struct pool_cache_head *pch, struct pool_cache_item *ite
  * pool <pool>. The shared pool is refilled with these objects in the limit
  * of the number of acceptable objects, and the rest will be released to the
  * OS. It is not a problem is <count> is larger than the number of objects in
- * the local cache. The counters are automatically updated.
+ * the local cache. The counters are automatically updated. Must not be used
+ * with pools disabled.
  */
 static void pool_evict_last_items(struct pool_head *pool, struct pool_cache_head *ph, uint count)
 {
@@ -395,6 +396,8 @@ static void pool_evict_last_items(struct pool_head *pool, struct pool_cache_head
 	uint released = 0;
 	uint cluster = 0;
 	uint to_free_max;
+
+	BUG_ON(pool_debugging & POOL_DBG_NO_CACHE);
 
 	/* Note: this will be zero when global pools are disabled */
 	to_free_max = pool_releasable(pool);
@@ -440,10 +443,13 @@ static void pool_evict_last_items(struct pool_head *pool, struct pool_cache_head
  * or the total size of the local cache is no more than 75% of its maximum (i.e.
  * we don't want a single cache to use all the cache for itself). For this, the
  * list is scanned in reverse. If <full> is non-null, all objects are evicted.
+ * Must not be used when pools are disabled.
  */
 void pool_evict_from_local_cache(struct pool_head *pool, int full)
 {
 	struct pool_cache_head *ph = &pool->cache[tid];
+
+	BUG_ON(pool_debugging & POOL_DBG_NO_CACHE);
 
 	while ((ph->count && full) ||
 	       (ph->count >= CONFIG_HAP_POOL_CLUSTER_SIZE &&
@@ -454,13 +460,15 @@ void pool_evict_from_local_cache(struct pool_head *pool, int full)
 }
 
 /* Evicts some of the oldest objects from the local cache, pushing them to the
- * global pool.
+ * global pool. Must not be used when pools are disabled.
  */
 void pool_evict_from_local_caches()
 {
 	struct pool_cache_item *item;
 	struct pool_cache_head *ph;
 	struct pool_head *pool;
+
+	BUG_ON(pool_debugging & POOL_DBG_NO_CACHE);
 
 	do {
 		item = LIST_PREV(&th_ctx->pool_lru_head, struct pool_cache_item *, by_lru);
@@ -482,12 +490,15 @@ void pool_evict_from_local_caches()
  * shared cache, which itself may decide to release some of them to the OS.
  * While it is unspecified what the object becomes past this point, it is
  * guaranteed to be released from the users' perpective. A caller address may
- * be passed and stored into the area when DEBUG_POOL_TRACING is set.
+ * be passed and stored into the area when DEBUG_POOL_TRACING is set. Must not
+ * be used with pools disabled.
  */
 void pool_put_to_cache(struct pool_head *pool, void *ptr, const void *caller)
 {
 	struct pool_cache_item *item = (struct pool_cache_item *)ptr;
 	struct pool_cache_head *ph = &pool->cache[tid];
+
+	BUG_ON(pool_debugging & POOL_DBG_NO_CACHE);
 
 	LIST_INSERT(&ph->list, &item->by_pool);
 	LIST_INSERT(&th_ctx->pool_lru_head, &item->by_lru);
@@ -510,13 +521,16 @@ void pool_put_to_cache(struct pool_head *pool, void *ptr, const void *caller)
  * This is only used when pools are in use and shared pools are enabled. No
  * malloc() is attempted, and poisonning is never performed. The purpose is to
  * get the fastest possible refilling so that the caller can easily check if
- * the cache has enough objects for its use.
+ * the cache has enough objects for its use. Must not be used when pools are
+ * disabled.
  */
 void pool_refill_local_from_shared(struct pool_head *pool, struct pool_cache_head *pch)
 {
 	struct pool_cache_item *item;
 	struct pool_item *ret, *down;
 	uint count;
+
+	BUG_ON(pool_debugging & POOL_DBG_NO_CACHE);
 
 	/* we'll need to reference the first element to figure the next one. We
 	 * must temporarily lock it so that nobody allocates then releases it,
@@ -588,7 +602,7 @@ void pool_flush(struct pool_head *pool)
 {
 	struct pool_item *next, *temp, *down;
 
-	if (!pool)
+	if (!pool || (pool_debugging & (POOL_DBG_NO_CACHE|POOL_DBG_NO_GLOBAL)))
 		return;
 
 	/* The loop below atomically detaches the head of the free list and
@@ -650,21 +664,6 @@ void pool_gc(struct pool_head *pool_ctx)
 		thread_release();
 }
 
-#else  /* CONFIG_HAP_POOLS */
-
-/* legacy stuff */
-void pool_flush(struct pool_head *pool)
-{
-}
-
-/* This function might ask the malloc library to trim its buffers. */
-void pool_gc(struct pool_head *pool_ctx)
-{
-	trim_all_pools();
-}
-
-#endif /* CONFIG_HAP_POOLS */
-
 /*
  * Returns a pointer to type <type> taken from the pool <pool_type> or
  * dynamically allocated. In the first case, <pool_type> is updated to point to
@@ -683,8 +682,9 @@ void *__pool_alloc(struct pool_head *pool, unsigned int flags)
 #if defined(DEBUG_POOL_TRACING)
 	caller = __builtin_return_address(0);
 #endif
-	if (!p)
+	if (likely(!(pool_debugging & POOL_DBG_NO_CACHE)) && !p)
 		p = pool_get_from_cache(pool, caller);
+
 	if (unlikely(!p))
 		p = pool_alloc_nocache(pool);
 
@@ -711,6 +711,12 @@ void __pool_free(struct pool_head *pool, void *ptr)
 	/* we'll get late corruption if we refill to the wrong pool or double-free */
 	POOL_DEBUG_CHECK_MARK(pool, ptr);
 	POOL_DEBUG_RESET_MARK(pool, ptr);
+
+	if (unlikely(pool_debugging & POOL_DBG_NO_CACHE)) {
+		pool_free_nocache(pool, ptr);
+		return;
+	}
+
 	pool_put_to_cache(pool, ptr, caller);
 }
 
@@ -775,9 +781,9 @@ void pool_free_area_uaf(void *area, size_t size)
 void *pool_destroy(struct pool_head *pool)
 {
 	if (pool) {
-#ifdef CONFIG_HAP_POOLS
-		pool_evict_from_local_cache(pool, 1);
-#endif
+		if (!(pool_debugging & POOL_DBG_NO_CACHE))
+			pool_evict_from_local_cache(pool, 1);
+
 		pool_flush(pool);
 		if (pool->used)
 			return pool;
@@ -806,30 +812,24 @@ void dump_pools_to_trash()
 	struct pool_head *entry;
 	unsigned long allocated, used;
 	int nbpools;
-#ifdef CONFIG_HAP_POOLS
 	unsigned long cached_bytes = 0;
 	uint cached = 0;
-#endif
 
 	allocated = used = nbpools = 0;
 	chunk_printf(&trash, "Dumping pools usage. Use SIGQUIT to flush them.\n");
 	list_for_each_entry(entry, &pools, list) {
-#ifdef CONFIG_HAP_POOLS
-		int i;
-		for (cached = i = 0; i < global.nbthread; i++)
-			cached += entry->cache[i].count;
-		cached_bytes += cached * entry->size;
-#endif
+		if (!(pool_debugging & POOL_DBG_NO_CACHE)) {
+			int i;
+			for (cached = i = 0; i < global.nbthread; i++)
+				cached += entry->cache[i].count;
+			cached_bytes += cached * entry->size;
+		}
 		chunk_appendf(&trash, "  - Pool %s (%u bytes) : %u allocated (%u bytes), %u used"
-#ifdef CONFIG_HAP_POOLS
 			      " (~%u by thread caches)"
-#endif
 			      ", needed_avg %u, %u failures, %u users, @%p%s\n",
 		              entry->name, entry->size, entry->allocated,
 		              entry->size * entry->allocated, entry->used,
-#ifdef CONFIG_HAP_POOLS
 		              cached,
-#endif
 		              swrate_avg(entry->needed_avg, POOL_AVG_SAMPLES), entry->failed,
 		              entry->users, entry,
 		              (entry->flags & MEM_F_SHARED) ? " [SHARED]" : "");
@@ -839,14 +839,9 @@ void dump_pools_to_trash()
 		nbpools++;
 	}
 	chunk_appendf(&trash, "Total: %d pools, %lu bytes allocated, %lu used"
-#ifdef CONFIG_HAP_POOLS
 		      " (~%lu by thread caches)"
-#endif
 		      ".\n",
-	              nbpools, allocated, used
-#ifdef CONFIG_HAP_POOLS
-	              , cached_bytes
-#endif
+	              nbpools, allocated, used, cached_bytes
 		      );
 }
 
@@ -923,13 +918,12 @@ void create_pool_callback(struct pool_head **ptr, char *name, unsigned int size)
 /* Initializes all per-thread arrays on startup */
 static void init_pools()
 {
-#ifdef CONFIG_HAP_POOLS
 	int thr;
 
 	for (thr = 0; thr < MAX_THREADS; thr++) {
 		LIST_INIT(&ha_thread_ctx[thr].pool_lru_head);
 	}
-#endif
+
 	detect_allocator();
 }
 

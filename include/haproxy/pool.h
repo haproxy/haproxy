@@ -133,8 +133,6 @@ void *__pool_alloc(struct pool_head *pool, unsigned int flags);
 void __pool_free(struct pool_head *pool, void *ptr);
 
 
-#ifdef CONFIG_HAP_POOLS
-
 /****************** Thread-local cache management ******************/
 
 extern THREAD_LOCAL size_t pool_cache_bytes;   /* total cache size */
@@ -162,7 +160,7 @@ static inline uint pool_releasable(const struct pool_head *pool)
 {
 	uint alloc, used;
 
-	if (unlikely(pool_debugging & POOL_DBG_NO_GLOBAL))
+	if (unlikely(pool_debugging & (POOL_DBG_NO_CACHE|POOL_DBG_NO_GLOBAL)))
 		return 0;
 
 	alloc = HA_ATOMIC_LOAD(&pool->allocated);
@@ -186,12 +184,15 @@ static inline uint pool_releasable(const struct pool_head *pool)
 
 /* Tries to retrieve an object from the local pool cache corresponding to pool
  * <pool>. If none is available, tries to allocate from the shared cache if any
- * and returns NULL if nothing is available.
+ * and returns NULL if nothing is available. Must not be used when pools are
+ * disabled.
  */
 static inline void *pool_get_from_cache(struct pool_head *pool, const void *caller)
 {
 	struct pool_cache_item *item;
 	struct pool_cache_head *ph;
+
+	BUG_ON(pool_debugging & POOL_DBG_NO_CACHE);
 
 	ph = &pool->cache[tid];
 	if (unlikely(LIST_ISEMPTY(&ph->list))) {
@@ -230,22 +231,6 @@ static inline void *pool_get_from_cache(struct pool_head *pool, const void *call
 
 	return item;
 }
-
-#else /* CONFIG_HAP_POOLS */
-
-/* no cache pools implementation */
-
-static inline void *pool_get_from_cache(struct pool_head *pool, const void *caller)
-{
-	return NULL;
-}
-
-static inline void pool_put_to_cache(struct pool_head *pool, void *ptr, const void *caller)
-{
-	pool_free_nocache(pool, ptr);
-}
-
-#endif /* CONFIG_HAP_POOLS */
 
 
 /****************** Common high-level code ******************/

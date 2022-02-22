@@ -85,9 +85,7 @@ struct thread_ctx {
 	uint8_t tl_class_mask;              /* bit mask of non-empty tasklets classes */
 
 	// 7 bytes hole here
-#ifdef CONFIG_HAP_POOLS
-	struct list pool_lru_head;          /* oldest objects   */
-#endif
+	struct list pool_lru_head;          /* oldest objects in thread-local pool caches */
 	struct list buffer_wq;              /* buffer waiters */
 	struct list streams;                /* list of streams attached to this thread */
 

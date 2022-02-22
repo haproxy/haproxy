@@ -46,6 +46,7 @@
 #define POOL_DBG_COLD_FIRST 0x00000004  // pick cold objects first
 #define POOL_DBG_INTEGRITY  0x00000008  // perform integrity checks on cache
 #define POOL_DBG_NO_GLOBAL  0x00000010  // disable global pools
+#define POOL_DBG_NO_CACHE   0x00000020  // disable thread-local pool caches
 
 
 /* This is the head of a thread-local cache */
@@ -115,9 +116,7 @@ struct pool_head {
 	/* 32-bit hole here */
 	struct list list;	/* list of all known pools */
 	char name[12];		/* name of the pool */
-#ifdef CONFIG_HAP_POOLS
 	struct pool_cache_head cache[MAX_THREADS]; /* pool caches */
-#endif
 } __attribute__((aligned(64)));
 
 #endif /* _HAPROXY_POOL_T_H */
