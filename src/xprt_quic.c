@@ -3144,8 +3144,10 @@ static int qc_qel_may_rm_hp(struct quic_conn *qc, struct quic_enc_level *qel)
 	tel = ssl_to_quic_enc_level(qel->level);
 
 	/* check if tls secrets are available */
-	if (qel->tls_ctx.rx.flags & QUIC_FL_TLS_SECRETS_DCD)
+	if (qel->tls_ctx.rx.flags & QUIC_FL_TLS_SECRETS_DCD) {
 		TRACE_DEVEL("Discarded keys", QUIC_EV_CONN_TRMHP, qc);
+		return 0;
+	}
 
 	if (!(qel->tls_ctx.rx.flags & QUIC_FL_TLS_SECRETS_SET))
 		return 0;
