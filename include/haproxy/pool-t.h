@@ -45,6 +45,7 @@
 #define POOL_DBG_DONT_MERGE 0x00000002  // do not merge same-size pools
 #define POOL_DBG_COLD_FIRST 0x00000004  // pick cold objects first
 #define POOL_DBG_INTEGRITY  0x00000008  // perform integrity checks on cache
+#define POOL_DBG_NO_GLOBAL  0x00000010  // disable global pools
 
 
 /* This is the head of a thread-local cache */

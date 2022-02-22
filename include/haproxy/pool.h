@@ -145,27 +145,6 @@ void pool_evict_from_local_caches(void);
 void pool_put_to_cache(struct pool_head *pool, void *ptr, const void *caller);
 void pool_fill_pattern(struct pool_cache_head *pch, struct pool_cache_item *item, uint size);
 void pool_check_pattern(struct pool_cache_head *pch, struct pool_cache_item *item, uint size);
-
-#if defined(CONFIG_HAP_NO_GLOBAL_POOLS)
-
-static inline uint pool_releasable(const struct pool_head *pool)
-{
-	/* no room left */
-	return 0;
-}
-
-static inline void pool_refill_local_from_shared(struct pool_head *pool, struct pool_cache_head *pch)
-{
-	/* ignored without shared pools */
-}
-
-static inline void pool_put_to_shared_cache(struct pool_head *pool, struct pool_item *item, uint count)
-{
-	/* ignored without shared pools */
-}
-
-#else /* CONFIG_HAP_NO_GLOBAL_POOLS */
-
 void pool_refill_local_from_shared(struct pool_head *pool, struct pool_cache_head *pch);
 void pool_put_to_shared_cache(struct pool_head *pool, struct pool_item *item, uint count);
 
@@ -175,11 +154,16 @@ void pool_put_to_shared_cache(struct pool_head *pool, struct pool_item *item, ui
  * be released in the worst case, and that this value is always lower than or
  * equal to ->allocated. It's important to understand that under thread
  * contention these values may not always be accurate but the principle is that
- * any deviation remains contained.
+ * any deviation remains contained. When global pools are disabled, this
+ * function always returns zero so that the caller knows it must free the
+ * object via other ways.
  */
 static inline uint pool_releasable(const struct pool_head *pool)
 {
 	uint alloc, used;
+
+	if (unlikely(pool_debugging & POOL_DBG_NO_GLOBAL))
+		return 0;
 
 	alloc = HA_ATOMIC_LOAD(&pool->allocated);
 	used = HA_ATOMIC_LOAD(&pool->used);
@@ -196,16 +180,13 @@ static inline uint pool_releasable(const struct pool_head *pool)
 	return 0;
 }
 
-
-#endif /* CONFIG_HAP_NO_GLOBAL_POOLS */
-
 /* These are generic cache-aware wrappers that allocate/free from/to the local
  * cache first, then from the second level if it exists.
  */
 
 /* Tries to retrieve an object from the local pool cache corresponding to pool
- * <pool>. If none is available, tries to allocate from the shared cache, and
- * returns NULL if nothing is available.
+ * <pool>. If none is available, tries to allocate from the shared cache if any
+ * and returns NULL if nothing is available.
  */
 static inline void *pool_get_from_cache(struct pool_head *pool, const void *caller)
 {
@@ -214,7 +195,8 @@ static inline void *pool_get_from_cache(struct pool_head *pool, const void *call
 
 	ph = &pool->cache[tid];
 	if (unlikely(LIST_ISEMPTY(&ph->list))) {
-		pool_refill_local_from_shared(pool, ph);
+		if (!(pool_debugging & POOL_DBG_NO_GLOBAL))
+			pool_refill_local_from_shared(pool, ph);
 		if (LIST_ISEMPTY(&ph->list))
 			return NULL;
 	}

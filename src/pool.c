@@ -50,6 +50,9 @@ uint pool_debugging __read_mostly =               /* set of POOL_DBG_* flags */
 #ifdef DEBUG_POOL_INTEGRITY
 	POOL_DBG_INTEGRITY  |
 #endif
+#ifdef CONFIG_HAP_NO_GLOBAL_POOLS
+	POOL_DBG_NO_GLOBAL  |
+#endif
 	0;
 
 static int mem_fail_rate __read_mostly = 0;
@@ -393,6 +396,7 @@ static void pool_evict_last_items(struct pool_head *pool, struct pool_cache_head
 	uint cluster = 0;
 	uint to_free_max;
 
+	/* Note: this will be zero when global pools are disabled */
 	to_free_max = pool_releasable(pool);
 
 	while (released < count && !LIST_ISEMPTY(&ph->list)) {
@@ -404,6 +408,7 @@ static void pool_evict_last_items(struct pool_head *pool, struct pool_cache_head
 		LIST_DELETE(&item->by_lru);
 
 		if (to_free_max > released || cluster) {
+			/* will never match when global pools are disabled */
 			pi = (struct pool_item *)item;
 			pi->next = NULL;
 			pi->down = head;
@@ -500,21 +505,6 @@ void pool_put_to_cache(struct pool_head *pool, void *ptr, const void *caller)
 			pool_evict_from_local_caches();
 	}
 }
-
-#if defined(CONFIG_HAP_NO_GLOBAL_POOLS)
-
-/* legacy stuff */
-void pool_flush(struct pool_head *pool)
-{
-}
-
-/* This function might ask the malloc library to trim its buffers. */
-void pool_gc(struct pool_head *pool_ctx)
-{
-	trim_all_pools();
-}
-
-#else /* CONFIG_HAP_NO_GLOBAL_POOLS */
 
 /* Tries to refill the local cache <pch> from the shared one for pool <pool>.
  * This is only used when pools are in use and shared pools are enabled. No
@@ -659,7 +649,6 @@ void pool_gc(struct pool_head *pool_ctx)
 	if (!isolated)
 		thread_release();
 }
-#endif /* CONFIG_HAP_NO_GLOBAL_POOLS */
 
 #else  /* CONFIG_HAP_POOLS */
 
