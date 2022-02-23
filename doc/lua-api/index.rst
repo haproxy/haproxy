@@ -1870,6 +1870,7 @@ HTTPClient class
   :param string request.body: Is an optional parameter for the request that contains the body to send.
   :param table request.headers: Is an optional parameter for the request that contains the headers to send.
   :param table request.dst: Is an optional parameter for the destination in haproxy address format.
+  :param integer request.timeout: Optional timeout parameter, set a "timeout server" on the connections.
   :returns: Lua table containing the response
 
 

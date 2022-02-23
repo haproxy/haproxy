@@ -7218,6 +7218,7 @@ __LJMP static int hlua_httpclient_send(lua_State *L, enum http_meth_t meth)
 	struct hlua *hlua;
 	const char *url_str = NULL;
 	const char *body_str = NULL;
+	int timeout;
 	size_t buf_len;
 	int ret;
 
@@ -7244,6 +7245,12 @@ __LJMP static int hlua_httpclient_send(lua_State *L, enum http_meth_t meth)
 		url_str = lua_tostring(L, -1);
 	}
 	lua_pop(L, 1);
+
+	ret = lua_getfield(L, -1, "timeout");
+	if (ret == LUA_TNUMBER) {
+		timeout = lua_tointeger(L, -1);
+		httpclient_set_timeout(hlua_hc->hc, timeout);
+	}
 
 	ret = lua_getfield(L, -1, "headers");
 	if (ret == LUA_TTABLE) {

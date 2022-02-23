@@ -29,6 +29,7 @@ struct httpclient {
 	} ops;
 	struct sockaddr_storage *dst;         /* destination address */
 	struct appctx *appctx;                /* HTTPclient appctx */
+	int timeout_server;                   /* server timeout in ms */
 	void *caller;                         /* ptr of the caller */
 	unsigned int flags;                   /* other flags */
 };

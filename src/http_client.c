@@ -405,6 +405,12 @@ error:
 	return ret;
 }
 
+/* Set the 'timeout server' in ms for the next httpclient request */
+void httpclient_set_timeout(struct httpclient *hc, int timeout)
+{
+	hc->timeout_server = timeout;
+}
+
 /*
  * Sets a destination for the httpclient from an HAProxy addr format
  * This will prevent to determine the destination from the URL
@@ -483,6 +489,10 @@ struct appctx *httpclient_start(struct httpclient *hc)
 		ha_alert("httpclient: Failed to initialize stream %s:%d.\n", __FUNCTION__, __LINE__);
 		goto out_free_appctx;
 	}
+
+	/* set the "timeout server" */
+	s->req.wto = hc->timeout_server;
+	s->res.rto = hc->timeout_server;
 
 	/* if httpclient_set_dst() was used, sets the alternative address */
 	if (hc->dst)
