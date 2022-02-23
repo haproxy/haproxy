@@ -22,7 +22,7 @@
 
 #define FLT_OT_FMT_NAME           "'" FLT_OT_OPT_NAME "' : "
 #define FLT_OT_FMT_TYPE           "'filter' : "
-#define FLT_OT_VAR_UUID           "txn", "ot", "uuid"
+#define FLT_OT_VAR_UUID           "sess", "ot", "uuid"
 #define FLT_OT_ALERT(f, ...)      ha_alert(FLT_OT_FMT_TYPE FLT_OT_FMT_NAME f "\n", ##__VA_ARGS__)
 
 #define FLT_OT_CONDITION_IF       "if"

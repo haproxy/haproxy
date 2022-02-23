@@ -144,7 +144,7 @@ context is created, and flags are set that define which analyzers are used.
       flt_ot_runtime_context_init(<err>) {
          flt_ot_pool_alloc() {
          }
-         /* Initializing and setting the variable 'txn.ot.uuid'. */
+         /* Initializing and setting the variable 'sess.ot.uuid'. */
          if (flt_ot_var_register(<err>) != -1) {
             flt_ot_var_set(<err>) {
             }
