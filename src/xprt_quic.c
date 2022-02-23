@@ -2642,7 +2642,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct qring *qr,
 			}
 		}
 
-	    if (rd && rd <= cbuf->wr) {
+		if (rd && rd <= cbuf->wr) {
 			cb_wr_reset(cbuf);
 			/* Let's try to reuse this buffer */
 			goto start;
