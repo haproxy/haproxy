@@ -54,6 +54,9 @@ uint pool_debugging __read_mostly =               /* set of POOL_DBG_* flags */
 #ifndef CONFIG_HAP_POOLS
 	POOL_DBG_NO_CACHE   |
 #endif
+#if defined(DEBUG_POOL_TRACING)
+	POOL_DBG_CALLER     |
+#endif
 	0;
 
 static int mem_fail_rate __read_mostly = 0;
@@ -204,7 +207,7 @@ struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
 	 */
 
 	extra_mark = POOL_EXTRA_MARK;
-	extra_caller = POOL_EXTRA_CALLER;
+	extra_caller = (pool_debugging & POOL_DBG_CALLER) ? POOL_EXTRA_CALLER : 0;
 	extra = extra_mark + extra_caller;
 
 	if (!(flags & MEM_F_EXACT)) {
@@ -679,15 +682,12 @@ void pool_gc(struct pool_head *pool_ctx)
 void *__pool_alloc(struct pool_head *pool, unsigned int flags)
 {
 	void *p = NULL;
-	void *caller = NULL;
+	void *caller = __builtin_return_address(0);
 
 	if (unlikely(pool_debugging & POOL_DBG_FAIL_ALLOC))
 		if (!(flags & POOL_F_NO_FAIL) && mem_should_fail(pool))
 			return NULL;
 
-#if defined(DEBUG_POOL_TRACING)
-	caller = __builtin_return_address(0);
-#endif
 	if (likely(!(pool_debugging & POOL_DBG_NO_CACHE)) && !p)
 		p = pool_get_from_cache(pool, caller);
 
@@ -709,11 +709,8 @@ void *__pool_alloc(struct pool_head *pool, unsigned int flags)
  */
 void __pool_free(struct pool_head *pool, void *ptr)
 {
-	const void *caller = NULL;
+	const void *caller = __builtin_return_address(0);
 
-#if defined(DEBUG_POOL_TRACING)
-	caller = __builtin_return_address(0);
-#endif
 	/* we'll get late corruption if we refill to the wrong pool or double-free */
 	POOL_DEBUG_CHECK_MARK(pool, ptr);
 	POOL_DEBUG_RESET_MARK(pool, ptr);

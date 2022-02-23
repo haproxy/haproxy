@@ -90,22 +90,16 @@
  * after the end of the area and the optional mark above, which means the
  * end of the allocated array.
  */
-#if defined(DEBUG_POOL_TRACING)
 # define POOL_EXTRA_CALLER (sizeof(void *))
 # define POOL_DEBUG_TRACE_CALLER(pool, item, caller)			\
 	do {								\
 		typeof(pool) __p = (pool);				\
 		typeof(item) __i = (item);				\
 		typeof(caller) __c = (caller);				\
+		if (likely(!(pool_debugging & POOL_DBG_CALLER)))	\
+			break;						\
 		*(typeof(caller)*)(((char *)__i) + __p->alloc_sz - sizeof(void*)) = __c; \
 	} while (0)
-
-#else // DEBUG_POOL_TRACING
-
-# define POOL_EXTRA_CALLER (0)
-# define POOL_DEBUG_TRACE_CALLER(pool, item, caller)   do { } while (0)
-
-#endif
 
 /* poison each newly allocated area with this byte if >= 0 */
 extern int mem_poison_byte;

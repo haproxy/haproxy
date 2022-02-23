@@ -47,6 +47,7 @@
 #define POOL_DBG_INTEGRITY  0x00000008  // perform integrity checks on cache
 #define POOL_DBG_NO_GLOBAL  0x00000010  // disable global pools
 #define POOL_DBG_NO_CACHE   0x00000020  // disable thread-local pool caches
+#define POOL_DBG_CALLER     0x00000040  // trace last caller's location
 
 
 /* This is the head of a thread-local cache */
