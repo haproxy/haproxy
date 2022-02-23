@@ -1629,8 +1629,13 @@ static void init(int argc, char **argv)
 				arg_mode |= MODE_DIAG;
 			else if (*flag == 'd' && flag[1] == 'W')
 				arg_mode |= MODE_ZERO_WARNING;
-			else if (*flag == 'd' && flag[1] == 'M')
+			else if (*flag == 'd' && flag[1] == 'M') {
 				mem_poison_byte = flag[2] ? strtol(flag + 2, NULL, 0) : 'P';
+				if (mem_poison_byte >= 0)
+					pool_debugging |=  POOL_DBG_POISON;
+				else
+					pool_debugging &= ~POOL_DBG_POISON;
+			}
 			else if (*flag == 'd' && flag[1] == 'r')
 				global.tune.options |= GTUNE_RESOLVE_DONTFAIL;
 #if defined(HA_HAVE_DUMP_LIBS)

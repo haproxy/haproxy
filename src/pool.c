@@ -34,7 +34,7 @@ THREAD_LOCAL size_t pool_cache_bytes = 0;                /* total cache size */
 THREAD_LOCAL size_t pool_cache_count = 0;                /* #cache objects   */
 
 static struct list pools __read_mostly = LIST_HEAD_INIT(pools);
-int mem_poison_byte __read_mostly = -1;
+int mem_poison_byte __read_mostly = 'P';
 uint pool_debugging __read_mostly =               /* set of POOL_DBG_* flags */
 #ifdef DEBUG_FAIL_ALLOC
 	POOL_DBG_FAIL_ALLOC |
@@ -700,7 +700,7 @@ void *__pool_alloc(struct pool_head *pool, unsigned int flags)
 	if (likely(p)) {
 		if (unlikely(flags & POOL_F_MUST_ZERO))
 			memset(p, 0, pool->size);
-		else if (unlikely(!(flags & POOL_F_NO_POISON) && mem_poison_byte >= 0))
+		else if (unlikely(!(flags & POOL_F_NO_POISON) && (pool_debugging & POOL_DBG_POISON)))
 			memset(p, mem_poison_byte, pool->size);
 	}
 	return p;
