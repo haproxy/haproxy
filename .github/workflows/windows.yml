@@ -58,7 +58,7 @@ jobs:
           ERR=1 \
           TARGET=${{ matrix.TARGET }} \
           CC=${{ matrix.CC }} \
-          DEBUG=-DDEBUG_STRICT=1 \
+          DEBUG="-DDEBUG_STRICT -DDEBUG_MEMORY_POOLS -DDEBUG_POOL_INTEGRITY" \
           ${{ join(matrix.FLAGS, ' ') }}
     - name: Show HAProxy version
       id: show-version

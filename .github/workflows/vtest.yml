@@ -107,7 +107,7 @@ jobs:
           ERR=1 \
           TARGET=${{ matrix.TARGET }} \
           CC=${{ matrix.CC }} \
-          DEBUG=-DDEBUG_STRICT=1 \
+          DEBUG="-DDEBUG_STRICT -DDEBUG_MEMORY_POOLS -DDEBUG_POOL_INTEGRITY" \
           ${{ join(matrix.FLAGS, ' ') }} \
           ADDLIB="-Wl,-rpath,/usr/local/lib/ -Wl,-rpath,$HOME/opt/lib/"
         sudo make install
