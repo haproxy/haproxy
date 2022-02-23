@@ -7251,6 +7251,7 @@ __LJMP static int hlua_httpclient_send(lua_State *L, enum http_meth_t meth)
 		timeout = lua_tointeger(L, -1);
 		httpclient_set_timeout(hlua_hc->hc, timeout);
 	}
+	lua_pop(L, 1);
 
 	ret = lua_getfield(L, -1, "headers");
 	if (ret == LUA_TTABLE) {
