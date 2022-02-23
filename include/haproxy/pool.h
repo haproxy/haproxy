@@ -52,13 +52,13 @@
  * this location is used to keep a pointer to the pool the object was
  * allocated from, and verify it's freed into the appropriate one.
  */
-#ifdef DEBUG_MEMORY_POOLS
-
 # define POOL_EXTRA_MARK (sizeof(void *))
 # define POOL_DEBUG_SET_MARK(pool, item)				\
 	do {								\
 		typeof(pool) __p = (pool);				\
 		typeof(item) __i = (item);				\
+		if (likely(!(pool_debugging & POOL_DBG_TAG)))		\
+			break;						\
 		*(typeof(pool)*)(((char *)__i) + __p->size) = __p;	\
 	} while (0)
 
@@ -66,6 +66,8 @@
 	do {								\
 		typeof(pool) __p = (pool);				\
 		typeof(item) __i = (item);				\
+		if (likely(!(pool_debugging & POOL_DBG_TAG)))		\
+			break;						\
 		*(typeof(pool)*)(((char *)__i) + __p->size) = __builtin_return_address(0); \
 	} while (0)
 
@@ -73,18 +75,11 @@
 	do {								\
 		typeof(pool) __p = (pool);				\
 		typeof(item) __i = (item);				\
+		if (likely(!(pool_debugging & POOL_DBG_TAG)))		\
+			break;						\
 		if (*(typeof(pool)*)(((char *)__i) + __p->size) != __p)	\
 			ABORT_NOW();					\
 	} while (0)
-
-#else // DEBUG_MEMORY_POOLS
-
-# define POOL_EXTRA_MARK (0)
-# define POOL_DEBUG_SET_MARK(pool, item)   do { } while (0)
-# define POOL_DEBUG_RESET_MARK(pool, item) do { } while (0)
-# define POOL_DEBUG_CHECK_MARK(pool, item) do { } while (0)
-
-#endif // DEBUG_MEMORY_POOLS
 
 /* It's possible to trace callers of pool_free() by placing their pointer
  * after the end of the area and the optional mark above, which means the

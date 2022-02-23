@@ -48,6 +48,7 @@
 #define POOL_DBG_NO_GLOBAL  0x00000010  // disable global pools
 #define POOL_DBG_NO_CACHE   0x00000020  // disable thread-local pool caches
 #define POOL_DBG_CALLER     0x00000040  // trace last caller's location
+#define POOL_DBG_TAG        0x00000080  // place a tag at the end of the area
 
 
 /* This is the head of a thread-local cache */

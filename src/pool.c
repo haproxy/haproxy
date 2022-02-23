@@ -57,6 +57,9 @@ uint pool_debugging __read_mostly =               /* set of POOL_DBG_* flags */
 #if defined(DEBUG_POOL_TRACING)
 	POOL_DBG_CALLER     |
 #endif
+#if defined(DEBUG_MEMORY_POOLS)
+	POOL_DBG_TAG        |
+#endif
 	0;
 
 static int mem_fail_rate __read_mostly = 0;
@@ -206,7 +209,7 @@ struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
 	 * Note: for the LRU cache, we need to store 2 doubly-linked lists.
 	 */
 
-	extra_mark = POOL_EXTRA_MARK;
+	extra_mark = (pool_debugging & POOL_DBG_TAG) ? POOL_EXTRA_MARK : 0;
 	extra_caller = (pool_debugging & POOL_DBG_CALLER) ? POOL_EXTRA_CALLER : 0;
 	extra = extra_mark + extra_caller;
 
