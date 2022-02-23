@@ -44,10 +44,10 @@ static void flt_ot_vars_scope_dump(struct vars *vars, const char *scope)
 	if (vars == NULL)
 		return;
 
-	HA_RWLOCK_RDLOCK(VARS_LOCK, &(vars->rwlock));
+	vars_rdlock(vars);
 	list_for_each_entry(var, &(vars->head), l)
 		FLT_OT_DBG(2, "'%s.%s' -> '%.*s'", scope, var->name, (int)var->data.u.str.data, var->data.u.str.area);
-	HA_RWLOCK_RDUNLOCK(VARS_LOCK, &(vars->rwlock));
+	vars_rdunlock(vars);
 }
 
 
@@ -361,7 +361,7 @@ int flt_ot_vars_unset(struct stream *s, const char *scope, const char *prefix, u
 
 	retval = 0;
 
-	HA_RWLOCK_WRLOCK(VARS_LOCK, &(vars->rwlock));
+	vars_wrlock(vars);
 	list_for_each_entry_safe(var, var_back, &(vars->head), l) {
 		FLT_OT_DBG(3, "variable cmp '%s' '%s' %d", var_prefix, var->name, var_prefix_len);
 
@@ -384,7 +384,7 @@ int flt_ot_vars_unset(struct stream *s, const char *scope, const char *prefix, u
 			retval++;
 		}
 	}
-	HA_RWLOCK_WRUNLOCK(VARS_LOCK, &(vars->rwlock));
+	vars_wrunlock(vars);
 
 	FLT_OT_RETURN(retval);
 }
@@ -425,7 +425,7 @@ struct otc_text_map *flt_ot_vars_get(struct stream *s, const char *scope, const 
 	if (rc == -1)
 		FLT_OT_RETURN(retptr);
 
-	HA_RWLOCK_RDLOCK(VARS_LOCK, &(vars->rwlock));
+	vars_rdlock(vars);
 	list_for_each_entry(var, &(vars->head), l) {
 		FLT_OT_DBG(3, "variable cmp '%s' '%s' %d", var_name, var->name, rc);
 
@@ -479,7 +479,7 @@ struct otc_text_map *flt_ot_vars_get(struct stream *s, const char *scope, const 
 			}
 		}
 	}
-	HA_RWLOCK_RDUNLOCK(VARS_LOCK, &(vars->rwlock));
+	vars_rdunlock(vars);
 
 	ot_text_map_show(retptr);
 
