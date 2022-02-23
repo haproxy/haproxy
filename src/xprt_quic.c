@@ -4775,6 +4775,7 @@ static inline int qc_build_frms(struct list *l,
 			}
 			else {
 				struct quic_frame *new_cf;
+				struct buffer cf_buf;
 
 				new_cf = pool_zalloc(pool_head_quic_frame);
 				if (!new_cf) {
@@ -4796,9 +4797,12 @@ static inline int qc_build_frms(struct list *l,
 				LIST_APPEND(l, &new_cf->list);
 				cf->type |= QUIC_STREAM_FRAME_TYPE_OFF_BIT;
 				/* Consume <dlen> bytes of the current frame. */
+				cf_buf = b_make(b_orig(cf->stream.buf),
+				                b_size(cf->stream.buf),
+				                (char *)cf->stream.data - b_orig(cf->stream.buf), 0);
 				cf->stream.len -= dlen;
 				cf->stream.offset.key += dlen;
-				cf->stream.data += dlen;
+				cf->stream.data = (unsigned char *)b_peek(&cf_buf, dlen);
 			}
 			break;
 

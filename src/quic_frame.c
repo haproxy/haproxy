@@ -501,8 +501,7 @@ static int quic_build_stream_frame(unsigned char **buf, const unsigned char *end
                                    struct quic_frame *frm, struct quic_conn *conn)
 {
 	struct quic_stream *stream = &frm->stream;
-	size_t offset, block1, block2;
-	struct buffer b;
+	const unsigned char *wrap;
 
 	if (!quic_enc_int(buf, end, stream->id) ||
 	    ((frm->type & QUIC_STREAM_FRAME_TYPE_OFF_BIT) && !quic_enc_int(buf, end, stream->offset.key)) ||
@@ -510,19 +509,19 @@ static int quic_build_stream_frame(unsigned char **buf, const unsigned char *end
 	     (!quic_enc_int(buf, end, stream->len) || end - *buf < stream->len)))
 		return 0;
 
-	/* Buffer copy */
-	b = *stream->buf;
-	offset = (frm->type & QUIC_STREAM_FRAME_TYPE_OFF_BIT) ?
-		stream->offset.key & (b_size(stream->buf) - 1): 0;
-	block1 = b_wrap(&b) - (b_orig(&b) + offset);
-	if (block1 > stream->len)
-		block1 = stream->len;
-	block2 = stream->len - block1;
-	memcpy(*buf, b_orig(&b) + offset, block1);
-	*buf += block1;
-	if (block2) {
-		memcpy(*buf, b_orig(&b), block2);
-		*buf += block2;
+	wrap = (const unsigned char *)b_wrap(stream->buf);
+	if (stream->data + stream->len > wrap) {
+		size_t to_copy = wrap - stream->data;
+		memcpy(*buf, stream->data, to_copy);
+		*buf += to_copy;
+
+		to_copy = stream->len - to_copy;
+		memcpy(*buf, b_orig(stream->buf), to_copy);
+		*buf += to_copy;
+	}
+	else {
+		memcpy(*buf, stream->data, stream->len);
+		*buf += stream->len;
 	}
 
 	return 1;

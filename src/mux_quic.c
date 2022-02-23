@@ -271,6 +271,7 @@ static int qcs_push_frame(struct qcs *qcs, struct buffer *payload, int fin, uint
 	struct buffer *buf = &qcs->tx.xprt_buf;
 	struct quic_enc_level *qel = &qcs->qcc->conn->qc->els[QUIC_TLS_ENC_LEVEL_APP];
 	int total = 0, to_xfer;
+	unsigned char *btail;
 
 	fprintf(stderr, "%s\n", __func__);
 
@@ -283,6 +284,8 @@ static int qcs_push_frame(struct qcs *qcs, struct buffer *payload, int fin, uint
 	if (!frm)
 		goto err;
 
+	/* store buffer end before transfering data for frm.stream.data */
+	btail = (unsigned char *)b_tail(buf);
 	total = b_force_xfer(buf, payload, to_xfer);
 	/* FIN is positioned only when the buffer has been totally emptied. */
 	fin = fin && !b_data(payload);
@@ -295,6 +298,7 @@ static int qcs_push_frame(struct qcs *qcs, struct buffer *payload, int fin, uint
 	}
 	frm->stream.qcs = (struct qcs *)qcs;
 	frm->stream.buf = buf;
+	frm->stream.data = btail;
 	frm->stream.id = qcs->by_id.key;
 	if (total) {
 		frm->type |= QUIC_STREAM_FRAME_TYPE_LEN_BIT;

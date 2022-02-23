@@ -148,10 +148,23 @@ struct quic_new_token {
 struct quic_stream {
 	uint64_t id;
 	struct qcs *qcs;
+
+	/* used only on TX when constructing frames.
+	 * Data cleared when processing ACK related to this STREAM frame.
+	 *
+	 * A same buffer may be shared between several STREAM frames. The
+	 * <data> field of each quic_stream serves to differentiate the payload
+	 * of each of these.
+	 */
 	struct buffer *buf;
+
 	struct eb64_node offset;
 	uint64_t len;
 	int fin;
+
+	/* for TX pointer into <buf> field.
+	 * for RX pointer into the packet buffer.
+	 */
 	const unsigned char *data;
 };
 
