@@ -380,9 +380,7 @@ void pool_free(struct pool_head *pool, void *ptr)
         Free an entry allocate from one of the pool_alloc() functions above
         from pool <pool>. The object will be placed into the thread-local cache
         if enabled, or in the shared pool if enabled, or will be released using
-        the operating system's default allocator. When memory poisonning is
-        enabled, the area will be overwritten before being released. This can
-        sometimes help detect use-after-free conditions. When a local cache is
+        the operating system's default allocator. When a local cache is
         enabled, if the local cache size becomes larger than 75% of the maximum
         size configured at build time, some objects will be evicted to the
         shared pool. Such objects are taken first from the same pool, but if
