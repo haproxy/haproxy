@@ -227,7 +227,8 @@ list of options is :
 
        ./haproxy -W -q -c -dL -f foo.cfg | tar -T - -hzcf archive.tgz
 
-  -dM[<byte>] : forces memory poisoning, which means that each and every
+  -dM[<byte>[,]][help|options,...] : forces memory poisoning, and/or changes
+    memory other debugging options. Memory poisonning means that each and every
     memory region allocated with malloc() or pool_alloc() will be filled with
     <byte> before being passed to the caller. When <byte> is not specified, it
     defaults to 0x50 ('P'). While this slightly slows down operations, it is
@@ -235,7 +236,74 @@ list of options is :
     the code that cause random crashes. Note that -dM0 has the effect of
     turning any malloc() into a calloc(). In any case if a bug appears or
     disappears when using this option it means there is a bug in haproxy, so
-    please report it.
+    please report it. A number of other options are available either alone or
+    after a comma following the byte. The special option "help" will list the
+    currently supported options and their current value. Each debugging option
+    may be forced on or off. The most optimal options are usually chosen at
+    build time based on the operating system and do not need to be adjusted,
+    unless suggested by a developer. Supported debugging options include
+    (set/clear):
+      - fail / no-fail:
+        This enables randomly failing memory allocations, in conjunction with
+        the global "tune.fail-alloc" setting. This is used to detect missing
+        error checks in the code.
+
+      - no-merge / merge:
+        By default, pools of very similar sizes are merged, resulting in more
+        efficiency, but this complicates the analysis of certain memory dumps.
+        This option allows to disable this mechanism, and may slightly increase
+        the memory usage.
+
+      - cold-first / hot-first:
+        In order to optimize the CPU cache hit ratio, by default the most
+        recently released objects ("hot") are recycled for new allocations.
+        But doing so also complicates analysis of memory dumps and may hide
+        use-after-free bugs. This option allows to instead pick the coldest
+        objects first, which may result in a slight increase of CPU usage.
+
+      - integrity / no-integrity:
+        When this option is enabled, memory integrity checks are enabled on
+        the allocated area to verify that it hasn't been modified since it was
+        last released. This works best with "no-merge", "cold-first" and "tag".
+        Enabling this option will slightly increase the CPU usage.
+
+      - no-global / global:
+        Depending on the operating system, a process-wide global memory cache
+        may be enabled if it is estimated that the standard allocator is too
+        slow or inefficient with threads. This option allows to forcefully
+        disable it or enable it. Disabling it may result in a CPU usage
+        increase with inefficient allocators. Enabling it may result in a
+        higher memory usage with efficient allocators.
+
+      - no-cache / cache:
+        Each thread uses a very fast local object cache for allocations, which
+        is always enabled by default. This option allows to disable it. Since
+        the global cache also passes via the local caches, this will
+        effectively result in disabling all caches and allocating directly from
+        the default allocator. This may result in a significant increase of CPU
+        usage, but may also result in small memory savings on tiny systems.
+
+      - caller / no-caller:
+        Enabling this option reserves some extra space in each allocated object
+        to store the address of the last caller that allocated or released it.
+        This helps developers go back in time when analysing memory dumps and
+        to guess how something unexpected happened.
+
+      - tag / no-tag:
+        Enabling this option reserves some extra space in each allocated object
+        to store a tag that allows to detect bugs such as double-free, freeing
+        an invalid object, and buffer overflows. It offers much stronger
+        reliability guarantees at the expense of 4 or 8 extra bytes per
+        allocation. It usually is the first step to detect memory corruption.
+
+      - poison / no-poison:
+        Enabling this option will fill allocated objects with a fixed pattern
+        that will make sure that some accidental values such as 0 will not be
+        present if a newly added field was mistakenly forgotten in an
+        initialization routine. Such bugs tend to rarely reproduce, especially
+        when pools are not merged. This is normally enabled by directly passing
+        the byte's value to -dM but using this option allows to disable/enable
+        use of a previously set value.
 
   -dS : disable use of the splice() system call. It is equivalent to the
     "global" section's "nosplice" keyword. This may be used when splice() is

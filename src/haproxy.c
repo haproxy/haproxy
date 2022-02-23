@@ -564,7 +564,7 @@ static void usage(char *name)
 		"        [ -p <pidfile> ] [ -m <max megs> ] [ -C <dir> ] [-- <cfgfile>*]\n"
 		"        -v displays version ; -vv shows known build options.\n"
 		"        -d enters debug mode ; -db only disables background mode.\n"
-		"        -dM[<byte>] poisons memory with <byte> (defaults to 0x50)\n"
+		"        -dM[<byte>,help,...] debug memory (default: poison with <byte>/0x50)\n"
 		"        -V enters verbose mode (disables quiet mode)\n"
 		"        -D goes daemon ; -C changes to <dir> before loading files.\n"
 		"        -W master-worker mode.\n"

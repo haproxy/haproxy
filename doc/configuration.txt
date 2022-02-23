@@ -2531,10 +2531,10 @@ tune.comp.maxlevel <number>
   this value. The default value is 1.
 
 tune.fail-alloc
-  If compiled with DEBUG_FAIL_ALLOC, gives the percentage of chances an
-  allocation attempt fails. Must be between 0 (no failure) and 100 (no
-  success). This is useful to debug and make sure memory failures are handled
-  gracefully.
+  If compiled with DEBUG_FAIL_ALLOC or started with "-dMfail", gives the
+  percentage of chances an allocation attempt fails. Must be between 0 (no
+  failure) and 100 (no success). This is useful to debug and make sure memory
+  failures are handled gracefully.
 
 tune.fd.edge-triggered { on | off }  [ EXPERIMENTAL ]
   Enables ('on') or disables ('off') the edge-triggered polling mode for FDs

@@ -62,6 +62,25 @@ uint pool_debugging __read_mostly =               /* set of POOL_DBG_* flags */
 #endif
 	0;
 
+static const struct {
+	uint flg;
+	const char *set;
+	const char *clr;
+	const char *hlp;
+} dbg_options[] = {
+	/* flg,                 set,          clr,            hlp */
+	{ POOL_DBG_FAIL_ALLOC, "fail",       "no-fail",      "randomly fail allocations" },
+	{ POOL_DBG_DONT_MERGE, "no-merge",   "merge",        "disable merging of similar pools" },
+	{ POOL_DBG_COLD_FIRST, "cold-first", "hot-first",    "pick cold objects first" },
+	{ POOL_DBG_INTEGRITY,  "integrity",  "no-integrity", "enable cache integrity checks" },
+	{ POOL_DBG_NO_GLOBAL,  "no-global",  "global",       "disable global shared cache" },
+	{ POOL_DBG_NO_CACHE,   "no-cache",   "cache",        "disable thread-local cache" },
+	{ POOL_DBG_CALLER,     "caller",     "no-caller",    "save caller information in cache" },
+	{ POOL_DBG_TAG,        "tag",        "no-tag",       "add tag at end of allocated objects" },
+	{ POOL_DBG_POISON,     "poison",     "no-poison",    "poison newly allocated objects" },
+	{ 0 /* end */ }
+};
+
 static int mem_fail_rate __read_mostly = 0;
 static int using_default_allocator __read_mostly = 1;
 static int(*my_mallctl)(const char *, void *, size_t *, void *, size_t) = NULL;
@@ -902,7 +921,9 @@ unsigned long pool_total_used()
  */
 int pool_parse_debugging(const char *str, char **err)
 {
+	struct ist args;
 	char *end;
+	uint new_dbg;
 	int v;
 
 
@@ -916,6 +937,55 @@ int pool_parse_debugging(const char *str, char **err)
 			pool_debugging &= ~POOL_DBG_POISON;
 		str = end;
 	}
+
+	new_dbg = pool_debugging;
+
+	for (args = ist(str); istlen(args); args = istadv(istfind(args, ','), 1)) {
+		struct ist feat = iststop(args, ',');
+
+		if (!istlen(feat))
+			continue;
+
+		if (isteq(feat, ist("help"))) {
+			ha_free(err);
+			memprintf(err,
+				  "-dM alone enables memory poisonning with byte 0x50 on allocation. A numeric\n"
+				  "value may be appended immediately after -dM to use another value (0 supported).\n"
+				  "Then an optional list of comma-delimited keywords may be appended to set or\n"
+				  "clear some debugging options ('*' marks the current setting):\n\n"
+				  "    set               clear            description\n"
+				  "  -----------------+-----------------+-----------------------------------------\n");
+
+			for (v = 0; dbg_options[v].flg; v++) {
+				memprintf(err, "%s  %c %-15s|%c %-15s| %s\n",
+					  *err,
+					  (pool_debugging & dbg_options[v].flg) ? '*' : ' ',
+					  dbg_options[v].set,
+					  (pool_debugging & dbg_options[v].flg) ? ' ' : '*',
+					  dbg_options[v].clr,
+					  dbg_options[v].hlp);
+			}
+			return -1;
+		}
+
+		for (v = 0; dbg_options[v].flg; v++) {
+			if (isteq(feat, ist(dbg_options[v].set))) {
+				new_dbg |= dbg_options[v].flg;
+				break;
+			}
+			else if (isteq(feat, ist(dbg_options[v].clr))) {
+				new_dbg &= ~dbg_options[v].flg;
+				break;
+			}
+		}
+
+		if (!dbg_options[v].flg) {
+			memprintf(err, "unknown pool debugging feature <%.*s>", (int)istlen(feat), istptr(feat));
+			return -2;
+		}
+	}
+
+	pool_debugging = new_dbg;
 	return 1;
 }
 
