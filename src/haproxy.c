@@ -2942,12 +2942,12 @@ int main(int argc, char **argv)
 	/* now's time to initialize early boot variables */
 	init_early(argc, argv);
 
+	/* handles argument parsing */
+	init_args(argc, argv);
+
 	RUN_INITCALLS(STG_ALLOC);
 	RUN_INITCALLS(STG_POOL);
 	RUN_INITCALLS(STG_INIT);
-
-	/* handles argument parsing */
-	init_args(argc, argv);
 
 	/* this is the late init where the config is parsed */
 	init(argc, argv);
