@@ -252,6 +252,7 @@ struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
 			return NULL;
 		if (name)
 			strlcpy2(pool->name, name, sizeof(pool->name));
+		pool->alloc_sz = size + POOL_EXTRA;
 		pool->size = size;
 		pool->flags = flags;
 		LIST_APPEND(start, &pool->list);
@@ -276,7 +277,7 @@ struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
 void *pool_get_from_os(struct pool_head *pool)
 {
 	if (!pool->limit || pool->allocated < pool->limit) {
-		void *ptr = pool_alloc_area(pool->size + POOL_EXTRA);
+		void *ptr = pool_alloc_area(pool->alloc_sz);
 		if (ptr) {
 			_HA_ATOMIC_INC(&pool->allocated);
 			return ptr;
@@ -301,7 +302,7 @@ void pool_put_to_os(struct pool_head *pool, void *ptr)
 	*(uint32_t *)ptr = 0xDEADADD4;
 #endif /* DEBUG_UAF */
 
-	pool_free_area(ptr, pool->size + POOL_EXTRA);
+	pool_free_area(ptr, pool->alloc_sz);
 	_HA_ATOMIC_DEC(&pool->allocated);
 }
 

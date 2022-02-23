@@ -87,7 +87,8 @@
 #endif // DEBUG_MEMORY_POOLS
 
 /* It's possible to trace callers of pool_free() by placing their pointer
- * after the end of the area and the optional mark above.
+ * after the end of the area and the optional mark above, which means the
+ * end of the allocated array.
  */
 #if defined(DEBUG_POOL_TRACING)
 # define POOL_EXTRA_CALLER (sizeof(void *))
@@ -96,7 +97,7 @@
 		typeof(pool) __p = (pool);				\
 		typeof(item) __i = (item);				\
 		typeof(caller) __c = (caller);				\
-		*(typeof(caller)*)(((char *)__i) + __p->size + POOL_EXTRA_MARK) = __c; \
+		*(typeof(caller)*)(((char *)__i) + __p->alloc_sz - sizeof(void*)) = __c; \
 	} while (0)
 
 #else // DEBUG_POOL_TRACING

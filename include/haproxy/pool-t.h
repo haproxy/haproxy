@@ -113,7 +113,7 @@ struct pool_head {
 	unsigned int flags;	/* MEM_F_* */
 	unsigned int users;	/* number of pools sharing this zone */
 	unsigned int failed;	/* failed allocations */
-	/* 32-bit hole here */
+	unsigned int alloc_sz;	/* allocated size (includes hidden fields) */
 	struct list list;	/* list of all known pools */
 	char name[12];		/* name of the pool */
 	struct pool_cache_head cache[MAX_THREADS]; /* pool caches */
