@@ -107,8 +107,6 @@
 
 #endif
 
-# define POOL_EXTRA (POOL_EXTRA_MARK + POOL_EXTRA_CALLER)
-
 /* poison each newly allocated area with this byte if >= 0 */
 extern int mem_poison_byte;
 

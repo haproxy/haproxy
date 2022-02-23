@@ -186,6 +186,7 @@ static int mem_should_fail(const struct pool_head *pool)
  */
 struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
 {
+	unsigned int extra_mark, extra_caller, extra;
 	struct pool_head *pool;
 	struct pool_head *entry;
 	struct list *start;
@@ -202,9 +203,13 @@ struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
 	 * Note: for the LRU cache, we need to store 2 doubly-linked lists.
 	 */
 
+	extra_mark = POOL_EXTRA_MARK;
+	extra_caller = POOL_EXTRA_CALLER;
+	extra = extra_mark + extra_caller;
+
 	if (!(flags & MEM_F_EXACT)) {
 		align = 4 * sizeof(void *); // 2 lists = 4 pointers min
-		size  = ((size + POOL_EXTRA + align - 1) & -align) - POOL_EXTRA;
+		size  = ((size + extra + align - 1) & -align) - extra;
 	}
 
 	if (!(pool_debugging & POOL_DBG_NO_CACHE)) {
@@ -213,8 +218,8 @@ struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
 		 * the only EXTRA part is in fact the one that's stored in the cache
 		 * in addition to the pci struct.
 		 */
-		if (size + POOL_EXTRA - POOL_EXTRA_CALLER < sizeof(struct pool_cache_item))
-			size = sizeof(struct pool_cache_item) + POOL_EXTRA_CALLER - POOL_EXTRA;
+		if (size + extra - extra_caller < sizeof(struct pool_cache_item))
+			size = sizeof(struct pool_cache_item) + extra_caller - extra;
 	}
 
 	/* TODO: thread: we do not lock pool list for now because all pools are
@@ -252,7 +257,7 @@ struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
 			return NULL;
 		if (name)
 			strlcpy2(pool->name, name, sizeof(pool->name));
-		pool->alloc_sz = size + POOL_EXTRA;
+		pool->alloc_sz = size + extra;
 		pool->size = size;
 		pool->flags = flags;
 		LIST_APPEND(start, &pool->list);
