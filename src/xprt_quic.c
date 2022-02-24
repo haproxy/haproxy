@@ -1396,14 +1396,19 @@ static int qcs_try_to_consume(struct qcs *qcs)
 		struct quic_stream *strm;
 
 		strm = eb64_entry(&frm_node->node, struct quic_stream, offset);
-		if (strm->offset.key != qcs->tx.ack_offset)
+		if (strm->offset.key > qcs->tx.ack_offset)
 			break;
 
-		b_del(strm->buf, strm->len);
-		qcs->tx.ack_offset += strm->len;
+		if (strm->offset.key + strm->len > qcs->tx.ack_offset) {
+			const size_t diff = strm->offset.key + strm->len -
+			                    qcs->tx.ack_offset;
+			qcs->tx.ack_offset += diff;
+			b_del(strm->buf, diff);
+			ret = 1;
+		}
+
 		frm_node = eb64_next(frm_node);
 		eb64_delete(&strm->offset);
-		ret = 1;
 	}
 
 	return ret;
@@ -1423,16 +1428,22 @@ static inline void qc_treat_acked_tx_frm(struct quic_conn *qc,
 		struct qcs *qcs = frm->stream.qcs;
 		struct quic_stream *strm = &frm->stream;
 
-		if (qcs->tx.ack_offset == strm->offset.key) {
-			b_del(strm->buf, strm->len);
-			qcs->tx.ack_offset += strm->len;
+		if (strm->offset.key <= qcs->tx.ack_offset) {
+			if (strm->offset.key + strm->len > qcs->tx.ack_offset) {
+				const size_t diff = strm->offset.key + strm->len -
+				                    qcs->tx.ack_offset;
+				qcs->tx.ack_offset += diff;
+				b_del(strm->buf, diff);
+				stream_acked = 1;
+			}
+
 			LIST_DELETE(&frm->list);
 			pool_free(pool_head_quic_frame, frm);
-			stream_acked = 1;
 		}
 		else {
 			eb64_insert(&qcs->tx.acked_frms, &strm->offset);
 		}
+
 		stream_acked |= qcs_try_to_consume(qcs);
 	}
 	break;
