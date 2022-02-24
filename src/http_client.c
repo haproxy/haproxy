@@ -22,6 +22,7 @@
 #include <haproxy/istbuf.h>
 #include <haproxy/h1_htx.h>
 #include <haproxy/http.h>
+#include <haproxy/http_ana-t.h>
 #include <haproxy/http_client.h>
 #include <haproxy/http_htx.h>
 #include <haproxy/htx.h>
@@ -644,11 +645,13 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 	struct stream *s = si_strm(si);
 	struct channel *req = &s->req;
 	struct channel *res = &s->res;
+	struct http_msg *msg = &s->txn->rsp;
 	struct htx_blk *blk = NULL;
 	struct htx *htx;
 	struct htx_sl *sl = NULL;
 	int32_t pos;
 	uint32_t hdr_num;
+	uint32_t sz;
 	int ret;
 
 
@@ -732,7 +735,7 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 
 			case HTTPCLIENT_S_RES_STLINE:
 				/* copy the start line in the hc structure,then remove the htx block */
-				if (!b_data(&res->buf))
+				if (!co_data(res) || (msg->msg_state < HTTP_MSG_DATA))
 					goto more;
 				htx = htxbuf(&res->buf);
 				if (!htx)
@@ -747,7 +750,9 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 				hc->res.status = sl->info.res.status;
 				hc->res.vsn = istdup(htx_sl_res_vsn(sl));
 				hc->res.reason = istdup(htx_sl_res_reason(sl));
-				co_htx_remove_blk(res, htx, blk);
+				sz = htx_get_blksz(blk);
+				co_set_data(res, co_data(res) - sz);
+				htx_remove_blk(htx, blk);
 				/* caller callback */
 				if (hc->ops.res_stline)
 					hc->ops.res_stline(hc);
@@ -769,7 +774,7 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 				{
 					struct http_hdr hdrs[global.tune.max_http_hdr];
 
-					if (!b_data(&res->buf))
+					if (!co_data(res) || (msg->msg_state < HTTP_MSG_DATA))
 						goto more;
 					htx = htxbuf(&res->buf);
 					if (!htx)
@@ -780,22 +785,25 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 					for (pos = htx_get_first(htx);  pos != -1; pos = htx_get_next(htx, pos)) {
 						struct htx_blk *blk = htx_get_blk(htx, pos);
 						enum htx_blk_type type = htx_get_blk_type(blk);
+						uint32_t sz = htx_get_blksz(blk);
 
 						if (type == HTX_BLK_EOH) {
 							hdrs[hdr_num].n = IST_NULL;
 							hdrs[hdr_num].v = IST_NULL;
-							co_htx_remove_blk(res, htx, blk);
+							co_set_data(res, co_data(res) - sz);
+							htx_remove_blk(htx, blk);
 							break;
 						}
 
 						if (type != HTX_BLK_HDR)
-							continue;
+							break;
 
 						hdrs[hdr_num].n = istdup(htx_get_blk_name(htx, blk));
 						hdrs[hdr_num].v = istdup(htx_get_blk_value(htx, blk));
 						if (!isttest(hdrs[hdr_num].v) || !isttest(hdrs[hdr_num].n))
 							goto end;
-						co_htx_remove_blk(res, htx, blk);
+						co_set_data(res, co_data(res) - sz);
+						htx_remove_blk(htx, blk);
 						hdr_num++;
 					}
 
@@ -826,6 +834,9 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 				 * The IO handler removes the htx blocks in the response buffer and
 				 * push them in the hc->res.buf buffer in a raw format.
 				 */
+				if (!co_data(res) || (msg->msg_state < HTTP_MSG_DATA))
+					goto more;
+
 				htx = htxbuf(&res->buf);
 				if (!htx || htx_is_empty(htx))
 					goto more;
@@ -839,23 +850,33 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 				/* decapsule the htx data to raw data */
 				for (pos = htx_get_first(htx); pos != -1; pos = htx_get_next(htx, pos)) {
 					enum htx_blk_type type;
+					uint32_t sz;
 
 					blk = htx_get_blk(htx, pos);
 					type = htx_get_blk_type(blk);
+					sz = htx_get_blksz(blk);
+
+					/* we need to check if the data are part of the ouput */
+					if (co_data(res) < sz)
+						goto process_data;
+
 					if (type == HTX_BLK_DATA) {
 						struct ist v = htx_get_blk_value(htx, blk);
 
-						if ((b_room(&hc->res.buf) < v.len) )
+						if ((b_room(&hc->res.buf) < v.len))
 							goto process_data;
 
 						__b_putblk(&hc->res.buf, v.ptr, v.len);
-						co_htx_remove_blk(res, htx, blk);
+						co_set_data(res, co_data(res) - sz);
+						htx_remove_blk(htx, blk);
+
 						/* the data must be processed by the caller in the receive phase */
 						if (hc->ops.res_payload)
 							hc->ops.res_payload(hc);
 					} else {
 						/* remove any block which is not a data block */
-						co_htx_remove_blk(res, htx, blk);
+						co_set_data(res, co_data(res) - sz);
+						htx_remove_blk(htx, blk);
 					}
 				}
 				/* if not finished, should be called again */
