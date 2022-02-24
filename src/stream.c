@@ -278,7 +278,7 @@ int stream_upgrade_from_cs(struct conn_stream *cs, struct buffer *input)
 	struct stream *s = cs_strm(cs);
 
 	if (cs_conn_mux(cs)) {
-		const struct mux_ops *mux = cs_conn_mux(cs);
+		const struct mux_ops *mux = DISGUISE(cs_conn_mux(cs));
 
 		if (mux->flags & MX_FL_HTX)
 			s->flags |= SF_HTX;
