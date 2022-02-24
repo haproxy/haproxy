@@ -1,4 +1,4 @@
-2022-01-04 - Pools structure and API
+2022-02-24 - Pools structure and API
 
 1. Background
 -------------
@@ -29,6 +29,12 @@ really efficient memory allocator in modern operating systems, the shared part
 has also become optional so that it doesn't consume memory if it does not bring
 any value.
 
+In 2.6-dev2, a number of debugging options that used to be configured at build
+time only changed to boot-time and can be modified using keywords passed after
+"-dM" on the command line, which sets or clears bits in the pool_debugging
+variable. The build-time options still affect the default settings however.
+Default values may be consulted using "haproxy -dMhelp".
+
 
 2. Principles
 -------------
@@ -40,14 +46,16 @@ The pools architecture is selected at build time. The main options are:
     This is the default situation on most operating systems. Each thread has
     its own local cache, and when depleted it refills from the process-wide
     pool that avoids calling the standard allocator too often. It is possible
-    to force this mode at build time by setting CONFIG_HAP_GLOBAL_POOLS.
+    to force this mode at build time by setting CONFIG_HAP_GLOBAL_POOLS or at
+    boot time with "-dMglobal".
 
   - thread-local caches only are enabled (2)
 
     This is the situation on operating systems where a fast and modern memory
     allocator is detected and when it is estimated that the process-wide shared
     pool will not bring any benefit. This detection is automatic at build time,
-    but may also be forced at build tmie by setting CONFIG_HAP_NO_GLOBAL_POOLS.
+    but may also be forced at build tmie by setting CONFIG_HAP_NO_GLOBAL_POOLS
+    or at boot time with "-dMno-global".
 
   - pass-through to the standard allocator (3)
 
@@ -55,7 +63,7 @@ The pools architecture is selected at build time. The main options are:
     malloc() and free() calls, essentially in order to trace memory allocations
     by call points, either internally via DEBUG_MEM_STATS, or externally via
     tools such as Valgrind. This mode of operation may be forced at build time
-    by setting DEBUG_NO_POOLS.
+    by setting DEBUG_NO_POOLS or at boot time with "-dMno-cache".
 
   - pass-through to an mmap-based allocator for debugging (4)
 
@@ -111,9 +119,9 @@ Summary of the various operation modes:
 
 One extra build define, DEBUG_FAIL_ALLOC, is used to enforce random allocation
 failure in pool_alloc() by randomly returning NULL, to test that callers
-properly handle allocation failures. In this case the desired average rate of
-allocation failures can be fixed by global setting "tune.fail-alloc" expressed
-in percent.
+properly handle allocation failures. It may also be enabled at boot time using
+"-dMfail". In this case the desired average rate of allocation failures can be
+fixed by global setting "tune.fail-alloc" expressed in percent.
 
 The thread-local caches contain the freshest objects whose total size amounts
 to CONFIG_HAP_POOL_CACHE_SIZE bytes, which is typically was 1MB before 2.6 and
@@ -177,7 +185,8 @@ Note:
  | 32-bytes long. This is the smallest size that a pool may be, and any smaller
  | size will automatically be rounded up to this size.
 
-When build option DEBUG_POOL_INTEGRITY is set, the area of the object between
+When build option DEBUG_POOL_INTEGRITY is set, or the boot-time option
+"-dMintegrity" is passed on the command line, the area of the object between
 the two list elements and the end according to pool->size will be filled with
 pseudo-random words during pool_put_to_cache(), and these words will be
 compared between each other during pool_get_from_cache(), and the process will
@@ -190,7 +199,8 @@ the cache, when this option is set, objects are picked from the cache from the
 oldest one instead of the freshest one. This way even late memory corruptions
 have a chance to be detected.
 
-When build option DEBUG_MEMORY_POOLS is set, pool objects and allocated with
+When build option DEBUG_MEMORY_POOLS is set, or the boot-time option "-dMtag"
+is passed on the executable's command line, pool objects are allocated with
 one extra pointer compared to the requested size, so that the bytes that follow
 the memory area point to the pool descriptor itself as long as the object is
 allocated via pool_alloc(). Upon releasing via pool_free(), the pointer is
@@ -214,6 +224,7 @@ currently in use:
           +------------+          +------------+ \   optional, only if
           :  (unused)  :          :  pool ptr  :  >  DEBUG_MEMORY_POOLS
           +------------+          +------------+ /   is set at build time
+                                                     or -dMtag at boot time
 
 Right now no provisions are made to return objects aligned on larger boundaries
 than those currently covered by malloc() (i.e. two pointers). This need appears
@@ -322,7 +333,8 @@ struct pool_head *create_pool(char *name, uint size, uint flags)
         Create a new pool named <name> for objects of size <size> bytes. Pool
         names are truncated to their first 11 characters. Pools of very similar
         size will usually be merged if both have set the flag MEM_F_SHARED in
-        <flags>. When DEBUG_DONT_SHARE_POOLS was set at build time, the pools
+        <flags>. When DEBUG_DONT_SHARE_POOLS was set at build time, or
+        "-dMno-merge" is passed on the executable's command line, the pools
         also need to have the exact same name to be merged. In addition, unless
         MEM_F_EXACT is set in <flags>, the object size will usually be rounded
         up to the size of pointers (16 or 32 bytes). The name that will appear
@@ -474,22 +486,25 @@ variable.
 DEBUG_NO_POOLS
         When this is set, pools are entirely disabled, and allocations are made
         using malloc() instead. This is not recommended for production but may
-        be useful for tracing allocations.
+        be useful for tracing allocations. It corresponds to "-dMno-cache" at
+        boot time.
 
 DEBUG_MEMORY_POOLS
         When this is set, an extra pointer is allocated at the end of each
         object to reference the pool the object was allocated from and detect
         buffer overflows. Then, pool_free() will provoke a crash in case it
-        detects an anomaly (pointer at the end not matching the pool).
+        detects an anomaly (pointer at the end not matching the pool). It
+        corresponds to "-dMtag" at boot time.
 
 DEBUG_FAIL_ALLOC
         When enabled, a global setting "tune.fail-alloc" may be set to a non-
         zero value representing a percentage of memory allocations that will be
-        made to fail in order to stress the calling code.
+        made to fail in order to stress the calling code. It corresponds to
+        "-dMfail" at boot time.
 
 DEBUG_DONT_SHARE_POOLS
         When enabled, pools of similar sizes are not merged unless the have the
-        exact same name.
+        exact same name. It corresponds to "-dMno-merge" at boot time.
 
 DEBUG_UAF
         When enabled, pools are disabled and all allocations and releases pass
@@ -509,7 +524,8 @@ DEBUG_POOL_INTEGRITY
         corruptions and will not consume extra memory. The CPU usage will
         increase a bit due to the cost of filling/checking the area and for the
         preference for cold cache instead of hot cache, though not as much as
-        with DEBUG_UAF. This option is meant to be usable in production.
+        with DEBUG_UAF. This option is meant to be usable in production. It
+        corresponds to boot-time options "-dMcold-first,integrity".
 
 DEBUG_POOL_TRACING
         When enabled, the callers of pool_alloc() and pool_free() will be
@@ -518,7 +534,8 @@ DEBUG_POOL_TRACING
         hints about code paths involved in some crashes, but will serve no
         purpose outside of this. It remains compatible (and completes well)
         DEBUG_POOL_INTEGRITY above. Such information become meaningless once
-        the objects leave the thread-local cache.
+        the objects leave the thread-local cache. It corresponds to boot-time
+        option "-dMcaller".
 
 DEBUG_MEM_STATS
         When enabled, all malloc/calloc/realloc/strdup/free calls are accounted
@@ -533,12 +550,14 @@ DEBUG_MEM_STATS
 CONFIG_HAP_GLOBAL_POOLS
         When enabled, process-wide shared pools will be forcefully enabled even
         if not considered useful on the platform. The default is to let haproxy
-        decide based on the OS and C library.
+        decide based on the OS and C library. It corresponds to boot-time
+        option "-dMglobal".
 
 CONFIG_HAP_NO_GLOBAL_POOLS
         When enabled, process-wide shared pools will be forcefully disabled
         even if considered useful on the platform. The default is to let
-        haproxy decide based on the OS and C library.
+        haproxy decide based on the OS and C library. It corresponds to
+        boot-time option "-dMno-global".
 
 CONFIG_HAP_POOL_CACHE_SIZE
         This allows one to define the size of the per-thread cache, in bytes.
