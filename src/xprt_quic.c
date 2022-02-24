@@ -1405,6 +1405,11 @@ static int qcs_try_to_consume(struct qcs *qcs)
 			qcs->tx.ack_offset += diff;
 			b_del(strm->buf, diff);
 			ret = 1;
+
+			if (!b_data(strm->buf)) {
+				b_free(strm->buf);
+				offer_buffers(NULL, 1);
+			}
 		}
 
 		frm_node = eb64_next(frm_node);
@@ -1435,6 +1440,11 @@ static inline void qc_treat_acked_tx_frm(struct quic_conn *qc,
 				qcs->tx.ack_offset += diff;
 				b_del(strm->buf, diff);
 				stream_acked = 1;
+
+				if (!b_data(strm->buf)) {
+					b_free(strm->buf);
+					offer_buffers(NULL, 1);
+				}
 			}
 
 			LIST_DELETE(&frm->list);
