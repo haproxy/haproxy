@@ -77,7 +77,7 @@ static int hq_interop_decode_qcs(struct qcs *qcs, int fin, void *ctx)
 		return -1;
 	cs_attach_endp(cs, &qcs->qcc->conn->obj_type, qcs);
 	cs->ctx = qcs;
-	stream_create_from_cs(cs, &htx_buf);
+	stream_new(qcs->qcc->conn->owner, cs, &htx_buf);
 
 	b_del(rxbuf, b_data(rxbuf));
 	b_free(&htx_buf);

@@ -179,11 +179,11 @@ static int h3_headers_to_htx(struct qcs *qcs, struct buffer *buf, uint64_t len,
 	cs = cs_new();
 	if (!cs)
 		return 1;
-	cs_attach_endp(&qcs->qcc->conn->obj_type, qcs);
+	cs_attach_endp(cs, &qcs->qcc->conn->obj_type, qcs);
 
 	cs->flags |= CS_FL_NOT_FIRST;
 	cs->ctx = qcs;
-	stream_create_from_cs(cs, &htx_buf);
+	stream_new(qcs->qcc->conn->owner, cs, &htx_buf);
 
 	/* buffer is transferred to conn_stream and set to NULL
 	 * except on stream creation error.
