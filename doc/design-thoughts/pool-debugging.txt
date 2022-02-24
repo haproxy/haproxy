@@ -1,0 +1,243 @@
+2022-02-22 - debugging options with pools
+
+Two goals:
+  - help developers spot bugs as early as possible
+
+  - make the process more reliable in field, by killing sick ones as soon as
+    possible instead of letting them corrupt data, cause trouble, or even be
+    exploited.
+
+An allocated object may exist in 5 forms:
+  - in use: currently referenced and used by haproxy, 100% of its size are
+    dedicated to the application which can do absolutely anything with it,
+    but it may never touch anything before nor after that area.
+
+  - in cache: the object is neither referenced nor used anymore, but it sits
+    in a thread's cache. The application may not touch it at all anymore, and
+    some parts of it could even be unmapped. Only the current thread may safely
+    reach it, though others might find/release it when under thread isolation.
+    The thread cache needs some LRU linking that may be stored anywhere, either
+    inside the area, or outside. The parts surrounding the <size> parts remain
+    invisible to the application layer, and can serve as a protection.
+
+  - in shared cache: the object is neither referenced nor used anymore, but it
+    may be reached by any thread. Some parts of it could be unmapped. Any
+    thread may pick it but only one may find it, hence once grabbed, it is
+    guaranteed no other one will find it. The shared cache needs to set up a
+    linked list and a single pointer needs to be stored anywhere, either inside
+    or outside the area. The parts surrounding the <size> parts remain
+    invisible to the application layer, and can serve as a protection.
+
+  - in the system's memory allocator: the object is not known anymore from
+    haproxy. It may be reassigned in parts or totally to other pools or other
+    subsystems (e.g. crypto library). Some or all of it may be unmapped. The
+    areas surrounding the <size> parts are also part of the object from the
+    library's point of view and may be delivered to other areas. Tampering
+    with these may cause any other part to malfunction in dirty ways.
+
+  - in the OS only: the memory allocator gave it back to the OS.
+
+The following options need to be configurable:
+  - detect improper initialization: this is done by poisonning objects before
+    delivering them to the application.
+
+  - help figure where an object was allocated when in use: a pointer to the
+    call place will help. Pointing to the last pool_free() as well for the
+    same reasons when dealing with a UAF.
+
+  - detection of wrong pointer/pool when in use: a pointer to the pool before
+    or after the area will definitely help.
+
+  - detection of overflows when in use: a canary at the end of the area
+    (closest possible to <size>) will definitely help. The pool above can do
+    that job. Ideally, we should fill some data at the end so that even
+    unaligned sizes can be checked (e.g. a buffer that gets a zero appended).
+    If we just align on 2 pointers, writing the same pointer twice at the end
+    may do the job, but we won't necessarily have our bytes. Thus a particular
+    end-of-string pattern would be useful (e.g. ff55aa01) to fill it.
+
+  - detection of double free when in cache: similar to detection of wrong
+    pointer/pool when in use: the pointer at the end may simply be changed so
+    that it cannot match the pool anymore. By using a pointer to the caller of
+    the previous free() operation, we have the guarantee to see different
+    pointers, and this pointer can be inspected to figure where the object was
+    previously freed. An extra check may even distinguish a perfect double-free
+    (same caller) from just a wrong free (pointer differs from pool).
+
+  - detection of late corruption when in cache: keeping a copy of the
+    checksum of the whole area upon free() will do the job, but requires one
+    extra storage area for the checksum. Filling the area with a pattern also
+    does the job and doesn't require extra storage, but it loses the contents
+    and can be a bit slower. Sometimes losing the contents can be a feature,
+    especially when trying to detect late reads. Probably that both need to
+    be implemented. Note that if contents are not strictly needed, storing a
+    checksum inside the area does the job.
+
+  - preserve total contents in cache for debugging: losing some precious
+    information can be a problem.
+
+  - pattern filling of the area helps detect use-after-free in read-only mode.
+
+  - allocate cold first helps with both cases above.
+
+Uncovered:
+  - overflow/underflow when in cache/shared/libc: it belongs to use-after-free
+    pattern and such an error during regular use ought to be caught while the
+    object was still in use.
+
+  - integrity when in libc: not under our control anymore, this is a libc
+    problem.
+
+Arbitrable:
+  - integrity when in shared cache: unlikely to happen only then if it could
+    have happened in the local cache. Shared cache not often used anymore, thus
+    probably not worth the effort
+
+  - protection against double-free when in shared cache/libc: might be done for
+    a cheap price, probably worth being able to quickly tell that such an
+    object left the local cache (e.g. the mark points to the caller, but could
+    possibly just be incremented, hence still point to the same code location+1
+    byte when released. Calls are 4 bytes min on RISC, 5 on x86 so we do have
+    some margin by having a caller's location be +0,+1,+2 or +3.
+
+  - underflow when in use: hasn't been really needed over time but may change.
+
+  - detection of late corruption when in shared cache: checksum or area filling
+    are possible, but is this as relevant as it used to considering the less
+    common use of the shared cache ?
+
+Design considerations:
+  - object allocation when in use must remain minimal
+
+  - when in cache, there are 2 lists which the compiler expect to be at least
+    aligned each (e.g. if/when we start to use DWCAS).
+
+  - the original "pool debugging" feature covers both pool tracking, double-
+    free detection, overflow detection and caller info at the cost of a single
+    pointer placed immediately after the area.
+
+  - preserving the contents might be done by placing the cache links and the
+    shared cache's list outside of the area (either before or after). Placing
+    it before has the merit that the allocated object preserves the 4-ptr
+    alignment. But when a larger alignment is desired this often does not work
+    anymore. Placing it after requires some dynamic adjustment depending on the
+    object's size. If any protection is installed, this protection must be
+    placed before the links so that the list doesn't get randomly corrupted and
+    corrupts adjacent elements. Note that if protection is desired, the extra
+    waste is probably less critical.
+
+  - a link to the last caller might have to be stored somewhere. Without
+    preservation the free() caller may be placed anywhere while the alloc()
+    caller may only be placed outside. With preservation, again the free()
+    caller may be placed either before the object or after the mark at the end.
+    There is no particular need that both share the same location though it may
+    help. Note that when debugging is enabled, the free() caller doesn't need
+    to be duplicated and can continue to serve as the double-free detection.
+    Thus maybe in the end we only need to store the caller to the last alloc()
+    but not the free() since if we want it it's available via the pool debug.
+
+  - use-after-free detection: contents may be erased on free() and checked on
+    alloc(), but they can also be checksummed on free() and rechecked on
+    alloc(). In the latter case we need to store a checksum somewhere. Note
+    that with pure checksum we don't know what part was modified, but seeing
+    previous contents can be useful.
+
+Possibilities:
+
+1) Linked lists inside the area:
+
+            V                             size            alloc
+         ---+------------------------------+-----------------+--
+ in use     |##############################| (Pool) (Tracer) |
+         ---+------------------------------+-----------------+--
+
+         ---+--+--+------------------------+-----------------+--
+ in cache   |L1|L2|########################| (Caller) (Sum)  |
+         ---+--+--+------------------------+-----------------+--
+or:
+         ---+--+--+------------------------+-----------------+--
+ in cache   |L1|L2|###################(sum)| (Caller)        |
+         ---+--+--+------------------------+-----------------+--
+
+         ---+-+----------------------------+-----------------+--
+ in global  |N|XXXX########################| (Caller)        |
+         ---+-+----------------------------+-----------------+--
+
+
+2) Linked lists before the the area leave room for tracer and pool before
+   the area, but the canary must remain at the end, however the area will
+   be more difficult to keep aligned:
+
+           V    head                           size            alloc
+         ----+-+-+------------------------------+-----------------+--
+ in use      |T|P|##############################| (canary)        |
+         ----+-+-+------------------------------+-----------------+--
+
+         --+-----+------------------------------+-----------------+--
+ in cache  |L1|L2|##############################| (Caller) (Sum)  |
+         --+-----+------------------------------+-----------------+--
+
+         ------+-+------------------------------+-----------------+--
+ in global     |N|##############################| (Caller)        |
+         ------+-+------------------------------+-----------------+--
+
+
+3) Linked lists at the end of the area, might be shared with extra data
+   depending on the state:
+
+            V                             size            alloc
+         ---+------------------------------+-----------------+--
+ in use     |##############################| (Pool) (Tracer) |
+         ---+------------------------------+-----------------+--
+
+         ---+------------------------------+--+--+-----------+--
+ in cache   |##############################|L1|L2| (Caller) (Sum)
+         ---+------------------------------+--+--+-----------+--
+
+         ---+------------------------------+-+---------------+--
+ in global  |##############################|N| (Caller)      |
+         ---+------------------------------+-+---------------+--
+
+This model requires a little bit of alignment at the end of the area, which is
+not incompatible with pattern filling and/or checksumming:
+  - preserving the area for post-mortem analysis means nothing may be placed
+    inside. In this case it could make sense to always store the last releaser.
+  - detecting late corruption may be done either with filling or checksumming,
+    but the simple fact of assuming a risk of corruption that needs to be
+    chased means we must not store the lists nor caller inside the area.
+
+Some models imply dedicating some place when in cache:
+  - preserving contents forces the lists to be prefixed or appended, which
+    leaves unused places when in use. Thus we could systematically place the
+    pool pointer and the caller in this case.
+
+  - if preserving contents is not desired, almost everything can be stored
+    inside when not in use. Then each situation's size should be calculated
+    so that the allocated size is known, and entries are filled from the
+    beginning while not in use, or after the size when in use.
+
+  - if poisonning is requested, late corruption might be detected but then we
+    don't want the list to be stored inside at the risk of being corrupted.
+
+Maybe just implement a few models:
+  - compact/optimal: put l1/l2 inside
+  - detect late corruption: fill/sum, put l1/l2 out
+  - preserve contents: put l1/l2 out
+  - corruption+preserve: do not fill, sum out
+  - poisonning: not needed on free if pattern filling is done.
+
+try2:
+  - poison on alloc to detect missing initialization: yes/no
+    (note: nothing to do if filling done)
+  - poison on free to detect use-after-free: yes/no
+    (note: nothing to do if filling done)
+  - check on alloc for corruption-after-free: yes/no
+    If content-preserving => sum, otherwise pattern filling; in
+    any case, move L1/L2 out.
+  - check for overflows: yes/no: use a canary after the area. The
+    canary can be the pointer to the pool.
+  - check for alloc caller: yes/no => always after the area
+  - content preservation: yes/no
+    (disables filling, moves lists out)
+  - improved caller tracking: used to detect double-free, may benefit
+    from content-preserving but not only.
