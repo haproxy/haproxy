@@ -2685,6 +2685,7 @@ __LJMP static int hlua_socket_connect_yield(struct lua_State *L, int status, lua
 	}
 
 	appctx = cs_appctx(s->csf);
+	ALREADY_CHECKED(appctx);
 
 	/* Check for connection established. */
 	if (appctx->ctx.hlua_cosocket.connected) {
@@ -4272,7 +4273,10 @@ static int hlua_applet_tcp_new(lua_State *L, struct appctx *ctx)
 	struct hlua_appctx *luactx;
 	struct stream_interface *si = cs_si(ctx->owner);
 	struct stream *s = si_strm(si);
-	struct proxy *p = s->be;
+	struct proxy *p;
+
+	ALREADY_CHECKED(s);
+	p = s->be;
 
 	/* Check stack size. */
 	if (!lua_checkstack(L, 3))

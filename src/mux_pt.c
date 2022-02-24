@@ -407,7 +407,10 @@ static void mux_pt_destroy_meth(void *ctx)
 static void mux_pt_detach(struct conn_stream *cs)
 {
 	struct connection *conn = cs_conn(cs);
-	struct mux_pt_ctx *ctx = conn->ctx;
+	struct mux_pt_ctx *ctx;
+
+	ALREADY_CHECKED(conn);
+	ctx = conn->ctx;
 
 	TRACE_ENTER(PT_EV_STRM_END, conn, cs);
 

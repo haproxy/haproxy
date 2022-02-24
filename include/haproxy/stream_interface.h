@@ -55,13 +55,19 @@ void si_sync_send(struct stream_interface *si);
 /* returns the channel which receives data from this stream interface (input channel) */
 static inline struct channel *si_ic(struct stream_interface *si)
 {
-	return ((si->flags & SI_FL_ISBACK) ? &(cs_strm(si->cs)->res) : &(cs_strm(si->cs)->req));
+	struct stream *strm = cs_strm(si->cs);
+
+	ALREADY_CHECKED(strm);
+	return ((si->flags & SI_FL_ISBACK) ? &(strm->res) : &(strm->req));
 }
 
 /* returns the channel which feeds data to this stream interface (output channel) */
 static inline struct channel *si_oc(struct stream_interface *si)
 {
-	return ((si->flags & SI_FL_ISBACK) ? &(cs_strm(si->cs)->req) : &(cs_strm(si->cs)->res));
+	struct stream *strm = cs_strm(si->cs);
+
+	ALREADY_CHECKED(strm);
+	return ((si->flags & SI_FL_ISBACK) ? &(strm->req) : &(strm->res));
 }
 
 /* returns the buffer which receives data from this stream interface (input channel's buffer) */
@@ -79,19 +85,28 @@ static inline struct buffer *si_ob(struct stream_interface *si)
 /* returns the stream associated to a stream interface */
 static inline struct stream *si_strm(struct stream_interface *si)
 {
-	return cs_strm(si->cs);
+	struct stream *strm = cs_strm(si->cs);
+
+	ALREADY_CHECKED(strm);
+	return strm;
 }
 
 /* returns the task associated to this stream interface */
 static inline struct task *si_task(struct stream_interface *si)
 {
-	return cs_strm(si->cs)->task;
+	struct stream *strm = cs_strm(si->cs);
+
+	ALREADY_CHECKED(strm);
+	return strm->task;
 }
 
 /* returns the stream interface on the other side. Used during forwarding. */
 static inline struct stream_interface *si_opposite(struct stream_interface *si)
 {
-	return ((si->flags & SI_FL_ISBACK) ? cs_strm(si->cs)->csf->si : cs_strm(si->cs)->csb->si);
+	struct stream *strm = cs_strm(si->cs);
+
+	ALREADY_CHECKED(strm);
+	return ((si->flags & SI_FL_ISBACK) ? strm->csf->si : strm->csb->si);
 }
 
 /* initializes a stream interface in the SI_ST_INI state and create the event

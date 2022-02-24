@@ -3883,6 +3883,7 @@ static int http_handle_stats(struct stream *s, struct channel *req)
 	struct htx_sl *sl;
 
 	appctx = cs_appctx(s->csb);
+	ALREADY_CHECKED(appctx);
 	memset(&appctx->ctx.stats, 0, sizeof(appctx->ctx.stats));
 	appctx->st1 = appctx->st2 = 0;
 	appctx->ctx.stats.st_code = STAT_STATUS_INIT;

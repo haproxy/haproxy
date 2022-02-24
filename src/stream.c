@@ -980,11 +980,11 @@ enum act_return process_use_service(struct act_rule *rule, struct proxy *px,
 	if (flags & ACT_OPT_FIRST) {
 		/* Register applet. this function schedules the applet. */
 		s->target = &rule->applet.obj_type;
-		if (unlikely(!si_register_handler(cs_si(s->csb), objt_applet(s->target))))
+		appctx = si_register_handler(cs_si(s->csb), objt_applet(s->target));
+		if (unlikely(!appctx))
 			return ACT_RET_ERR;
 
 		/* Initialise the context. */
-		appctx = cs_appctx(s->csb);
 		memset(&appctx->ctx, 0, sizeof(appctx->ctx));
 		appctx->rule = rule;
 	}
@@ -3100,6 +3100,8 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 	struct conn_stream *cs;
 	struct connection *conn;
 	struct appctx *tmpctx;
+
+	ALREADY_CHECKED(appctx);
 
 	chunk_reset(&trash);
 

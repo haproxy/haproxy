@@ -1984,6 +1984,8 @@ static int stats_dump_li_stats(struct stream_interface *si, struct proxy *px, st
 	struct stats_module *mod;
 	size_t stats_count = ST_F_TOTAL_FIELDS;
 
+	ALREADY_CHECKED(appctx);
+
 	memset(stats, 0, sizeof(struct field) * stat_count[STATS_DOMAIN_PROXY]);
 
 	if (!stats_fill_li_stats(px, l, appctx->ctx.stats.flags, stats,
@@ -2494,6 +2496,8 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, st
 	struct stats_module *mod;
 	struct field *stats = stat_l[STATS_DOMAIN_PROXY];
 	size_t stats_count = ST_F_TOTAL_FIELDS;
+
+	ALREADY_CHECKED(appctx);
 
 	memset(stats, 0, sizeof(struct field) * stat_count[STATS_DOMAIN_PROXY]);
 
@@ -4205,6 +4209,8 @@ static int stats_send_http_redirect(struct stream_interface *si, struct htx *htx
 	struct htx_sl *sl;
 	unsigned int flags;
 
+	ALREADY_CHECKED(appctx);
+
 	/* scope_txt = search pattern + search query, appctx->ctx.stats.scope_len is always <= STAT_SCOPE_TXT_MAXLEN */
 	scope_txt[0] = 0;
 	if (appctx->ctx.stats.scope_len) {
@@ -4517,6 +4523,8 @@ int stats_fill_info(struct field *info, int len, uint flags)
 static int stats_dump_info_to_buffer(struct stream_interface *si)
 {
 	struct appctx *appctx = cs_appctx(si->cs);
+
+	ALREADY_CHECKED(appctx);
 
 	if (!stats_fill_info(info, INF_TOTAL_FIELDS, appctx->ctx.stats.flags))
 		return 0;

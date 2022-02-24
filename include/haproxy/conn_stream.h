@@ -93,7 +93,7 @@ static inline struct check *cs_check(const struct conn_stream *cs)
 
 static inline struct stream_interface *cs_si(const struct conn_stream *cs)
 {
-	return (cs_strm(cs) ? cs->si : NULL);
+	return cs->si;
 }
 
 static inline const char *cs_get_data_name(const struct conn_stream *cs)
