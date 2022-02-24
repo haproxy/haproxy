@@ -1414,6 +1414,18 @@ static int qcs_try_to_consume(struct qcs *qcs)
 
 		frm_node = eb64_next(frm_node);
 		eb64_delete(&strm->offset);
+
+		/* TODO
+		 *
+		 * memleak: The quic_frame container of the quic_stream should
+		 * be liberated here, as in qc_treat_acked_tx_frm. However this
+		 * code seems to cause a bug which can lead to interrupted
+		 * transfers.
+		 *
+		 * struct quic_frame frm = container_of(strm, struct quic_frame, stream);
+		 * LIST_DELETE(&frm->list);
+		 * pool_free(pool_head_quic_frame, frm);
+		 */
 	}
 
 	return ret;
