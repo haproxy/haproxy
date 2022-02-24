@@ -1839,7 +1839,7 @@ struct proxy *parse_new_proxy(const char *name, unsigned int cap,
                               const struct proxy *defproxy)
 {
 	struct proxy *curproxy = NULL;
-	char *errmsg;
+	char *errmsg = NULL;
 
 	if (!(curproxy = alloc_new_proxy(name, cap, &errmsg))) {
 		ha_alert("parsing [%s:%d] : %s\n", file, linenum, errmsg);
