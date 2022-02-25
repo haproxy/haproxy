@@ -206,7 +206,7 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 	const struct quic_conn *qc = a1;
 
 	if (qc) {
-		const struct quic_tls_secrets *secs;
+		const struct quic_tls_ctx *tls_ctx;
 
 		chunk_appendf(&trace_buf, " : qc@%p", qc);
 		if ((mask & QUIC_EV_CONN_INIT) && qc) {
@@ -236,19 +236,16 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 			const unsigned char *rx_sec = a2;
 			const unsigned char *tx_sec = a3;
 
-			secs = &qc->els[level].tls_ctx.rx;
-			if (secs->flags & QUIC_FL_TLS_SECRETS_SET) {
+			tls_ctx = &qc->els[level].tls_ctx;
+			if (tls_ctx->flags & QUIC_FL_TLS_SECRETS_SET) {
 				chunk_appendf(&trace_buf, "\n  RX el=%c", quic_enc_level_char(level));
 				if (rx_sec)
 					quic_tls_secret_hexdump(&trace_buf, rx_sec, 32);
-				quic_tls_keys_hexdump(&trace_buf, secs);
-			}
-			secs = &qc->els[level].tls_ctx.tx;
-			if (secs->flags & QUIC_FL_TLS_SECRETS_SET) {
+				quic_tls_keys_hexdump(&trace_buf, &tls_ctx->rx);
 				chunk_appendf(&trace_buf, "\n  TX el=%c", quic_enc_level_char(level));
 				if (tx_sec)
 					quic_tls_secret_hexdump(&trace_buf, tx_sec, 32);
-				quic_tls_keys_hexdump(&trace_buf, secs);
+				quic_tls_keys_hexdump(&trace_buf, &tls_ctx->tx);
 			}
 		}
 		if (mask & (QUIC_EV_CONN_RSEC|QUIC_EV_CONN_RWSEC)) {
@@ -262,9 +259,9 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 				chunk_appendf(&trace_buf, "\n  RX el=%c", quic_enc_level_char(lvl));
 				if (secret && secret_len)
 					quic_tls_secret_hexdump(&trace_buf, secret, *secret_len);
-				secs = &qc->els[lvl].tls_ctx.rx;
-				if (secs->flags & QUIC_FL_TLS_SECRETS_SET)
-					quic_tls_keys_hexdump(&trace_buf, secs);
+				tls_ctx = &qc->els[lvl].tls_ctx;
+				if (tls_ctx->flags & QUIC_FL_TLS_SECRETS_SET)
+					quic_tls_keys_hexdump(&trace_buf, &tls_ctx->rx);
 			}
 		}
 
@@ -279,9 +276,9 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 				chunk_appendf(&trace_buf, "\n  TX el=%c", quic_enc_level_char(lvl));
 				if (secret && secret_len)
 					quic_tls_secret_hexdump(&trace_buf, secret, *secret_len);
-				secs = &qc->els[lvl].tls_ctx.tx;
-				if (secs->flags & QUIC_FL_TLS_SECRETS_SET)
-					quic_tls_keys_hexdump(&trace_buf, secs);
+				tls_ctx = &qc->els[lvl].tls_ctx;
+				if (tls_ctx->flags & QUIC_FL_TLS_SECRETS_SET)
+					quic_tls_keys_hexdump(&trace_buf, &tls_ctx->tx);
 			}
 
 		}
@@ -783,7 +780,6 @@ int ha_quic_set_encryption_secrets(SSL *ssl, enum ssl_encryption_level_t level,
 		goto err;
 	}
 
-	rx->flags |= QUIC_FL_TLS_SECRETS_SET;
 	/* Enqueue this connection asap if we could derive O-RTT secrets as
 	 * listener. Note that a listener derives only RX secrets for this
 	 * level.
@@ -801,7 +797,6 @@ int ha_quic_set_encryption_secrets(SSL *ssl, enum ssl_encryption_level_t level,
 		goto err;
 	}
 
-	tx->flags |= QUIC_FL_TLS_SECRETS_SET;
 	if (level == ssl_encryption_application) {
 		struct quic_tls_kp *prv_rx = &qc->ku.prv_rx;
 		struct quic_tls_kp *nxt_rx = &qc->ku.nxt_rx;
@@ -825,6 +820,7 @@ int ha_quic_set_encryption_secrets(SSL *ssl, enum ssl_encryption_level_t level,
 	}
 
  out:
+	tls_ctx->flags |= QUIC_FL_TLS_SECRETS_SET;
 	TRACE_LEAVE(QUIC_EV_CONN_RWSEC, qc, &level);
 	return 1;
 
@@ -2295,7 +2291,7 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct ssl_sock_ctx *ct
 		{
 			struct quic_rx_crypto_frm *cf;
 
-			if (unlikely(qel->tls_ctx.rx.flags & QUIC_FL_TLS_SECRETS_DCD)) {
+			if (unlikely(qel->tls_ctx.flags & QUIC_FL_TLS_SECRETS_DCD)) {
 				/* XXX TO DO: <cfdebug> is used only for the traces. */
 				struct quic_rx_crypto_frm cfdebug = { };
 
@@ -2512,7 +2508,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct qring *qr,
 		 * and if there is no more CRYPTO data available or in flight
 		 * congestion control limit is reached for prepared data
 		 */
-		if (!(qel->tls_ctx.tx.flags & QUIC_FL_TLS_SECRETS_SET) ||
+		if (!(qel->tls_ctx.flags & QUIC_FL_TLS_SECRETS_SET) ||
 		    (!cc && !ack && !probe &&
 		     (LIST_ISEMPTY(&qel->pktns->tx.frms) ||
 		      qc->path->prep_in_flight >= qc->path->cwnd))) {
@@ -3144,12 +3140,12 @@ static int qc_qel_may_rm_hp(struct quic_conn *qc, struct quic_enc_level *qel)
 	tel = ssl_to_quic_enc_level(qel->level);
 
 	/* check if tls secrets are available */
-	if (qel->tls_ctx.rx.flags & QUIC_FL_TLS_SECRETS_DCD) {
+	if (qel->tls_ctx.flags & QUIC_FL_TLS_SECRETS_DCD) {
 		TRACE_DEVEL("Discarded keys", QUIC_EV_CONN_TRMHP, qc);
 		return 0;
 	}
 
-	if (!(qel->tls_ctx.rx.flags & QUIC_FL_TLS_SECRETS_SET))
+	if (!(qel->tls_ctx.flags & QUIC_FL_TLS_SECRETS_SET))
 		return 0;
 
 	/* check if the connection layer is ready before using app level */
@@ -3277,7 +3273,7 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 		goto err;
 
 	if (zero_rtt && next_qel && !MT_LIST_ISEMPTY(&next_qel->rx.pqpkts) &&
-	    (next_qel->tls_ctx.rx.flags & QUIC_FL_TLS_SECRETS_SET)) {
+	    (next_qel->tls_ctx.flags & QUIC_FL_TLS_SECRETS_SET)) {
 		qel = next_qel;
 		next_qel = NULL;
 		goto next_level;
@@ -3289,7 +3285,7 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 		    !quic_build_post_handshake_frames(qc))
 			goto err;
 
-		if (!(qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE].tls_ctx.rx.flags &
+		if (!(qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE].tls_ctx.flags &
 		           QUIC_FL_TLS_SECRETS_DCD)) {
 			/* Discard the Handshake keys. */
 			quic_tls_discard_keys(&qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE]);
@@ -3326,7 +3322,7 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 	/* Check if there is something to do for the next level.
 	 */
 	if (next_qel && next_qel != qel &&
-	    (next_qel->tls_ctx.rx.flags & QUIC_FL_TLS_SECRETS_SET) &&
+	    (next_qel->tls_ctx.flags & QUIC_FL_TLS_SECRETS_SET) &&
 	    (!MT_LIST_ISEMPTY(&next_qel->rx.pqpkts) || qc_el_rx_pkts(next_qel))) {
 		qel = next_qel;
 		next_qel = NULL;
@@ -3372,8 +3368,6 @@ static int quic_conn_enc_level_init(struct quic_conn *qc,
 	qel->tls_ctx.rx.aead = qel->tls_ctx.tx.aead = NULL;
 	qel->tls_ctx.rx.md   = qel->tls_ctx.tx.md = NULL;
 	qel->tls_ctx.rx.hp   = qel->tls_ctx.tx.hp = NULL;
-	qel->tls_ctx.rx.flags = 0;
-	qel->tls_ctx.tx.flags = 0;
 	qel->tls_ctx.flags = 0;
 
 	qel->rx.pkts = EB_ROOT;
@@ -3534,9 +3528,9 @@ static struct task *process_timer(struct task *task, void *ctx, unsigned int sta
 		struct quic_enc_level *iel = &qc->els[QUIC_TLS_ENC_LEVEL_INITIAL];
 		struct quic_enc_level *hel = &qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE];
 
-		if (hel->tls_ctx.rx.flags == QUIC_FL_TLS_SECRETS_SET)
+		if (hel->tls_ctx.flags == QUIC_FL_TLS_SECRETS_SET)
 			hel->pktns->tx.pto_probe = 1;
-		if (iel->tls_ctx.rx.flags == QUIC_FL_TLS_SECRETS_SET)
+		if (iel->tls_ctx.flags == QUIC_FL_TLS_SECRETS_SET)
 			iel->pktns->tx.pto_probe = 1;
 	}
 
@@ -3806,7 +3800,7 @@ static inline int qc_try_rm_hp(struct quic_conn *qc,
 		qpkt_trace = pkt;
 	}
 	else {
-		if (qel->tls_ctx.rx.flags & QUIC_FL_TLS_SECRETS_DCD) {
+		if (qel->tls_ctx.flags & QUIC_FL_TLS_SECRETS_DCD) {
 			/* If the packet number space has been discarded, this packet
 			 * will be not parsed.
 			 */

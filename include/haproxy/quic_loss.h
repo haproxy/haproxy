@@ -141,7 +141,7 @@ static inline struct quic_pktns *quic_pto_pktns(struct quic_conn *qc,
 		struct quic_enc_level *hel;
 
 		hel = &qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE];
-		if (hel->tls_ctx.tx.flags & QUIC_FL_TLS_SECRETS_SET) {
+		if (hel->tls_ctx.flags & QUIC_FL_TLS_SECRETS_SET) {
 			pktns = &qc->pktns[QUIC_TLS_PKTNS_HANDSHAKE];
 		}
 		else {

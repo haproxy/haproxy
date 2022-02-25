@@ -460,8 +460,7 @@ static inline int quic_get_tls_enc_levels(enum quic_tls_enc_level *level,
  */
 static inline void quic_tls_discard_keys(struct quic_enc_level *qel)
 {
-	qel->tls_ctx.rx.flags |= QUIC_FL_TLS_SECRETS_DCD;
-	qel->tls_ctx.tx.flags |= QUIC_FL_TLS_SECRETS_DCD;
+	qel->tls_ctx.flags |= QUIC_FL_TLS_SECRETS_DCD;
 }
 
 /* Derive the initial secrets with <ctx> as QUIC TLS context which is the
@@ -508,7 +507,6 @@ static inline int qc_new_isecs(struct quic_conn *qc,
 	                          rx_init_sec, sizeof rx_init_sec))
 		goto err;
 
-	rx_ctx->flags |= QUIC_FL_TLS_SECRETS_SET;
 	if (!quic_tls_derive_keys(ctx->tx.aead, ctx->tx.hp, ctx->tx.md,
 	                          tx_ctx->key, tx_ctx->keylen,
 	                          tx_ctx->iv, tx_ctx->ivlen,
@@ -516,7 +514,7 @@ static inline int qc_new_isecs(struct quic_conn *qc,
 	                          tx_init_sec, sizeof tx_init_sec))
 		goto err;
 
-	tx_ctx->flags |= QUIC_FL_TLS_SECRETS_SET;
+	ctx->flags |= QUIC_FL_TLS_SECRETS_SET;
 	TRACE_LEAVE(QUIC_EV_CONN_ISEC, NULL, rx_init_sec, tx_init_sec);
 
 	return 1;
