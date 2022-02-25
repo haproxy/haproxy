@@ -261,7 +261,7 @@ static void *run_thread_poll_loop(void *data);
 unsigned int warned = 0;
 
 /* set if experimental features have been used for the current process */
-static unsigned int tainted = 0;
+unsigned int tainted = 0;
 
 unsigned int experimental_directives_allowed = 0;
 
@@ -1448,17 +1448,6 @@ static int check_if_maxsock_permitted(int maxsock)
 
 	return ret == 0;
 }
-
-void mark_tainted(const enum tainted_flags flag)
-{
-	HA_ATOMIC_OR(&tainted, flag);
-}
-
-unsigned int get_tainted()
-{
-	return HA_ATOMIC_LOAD(&tainted);
-}
-
 
 /* This performs th every basic early initialization at the end of the PREPARE
  * init stage. It may only assume that list heads are initialized, but not that

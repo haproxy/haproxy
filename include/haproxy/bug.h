@@ -28,6 +28,7 @@
 #ifndef _HAPROXY_BUG_H
 #define _HAPROXY_BUG_H
 
+#include <haproxy/atomic.h>
 #include <haproxy/compiler.h>
 
 /* quick debugging hack, should really be removed ASAP */
@@ -96,6 +97,28 @@
 		free(*__x);						\
 		*__x = NULL;						\
 	} while (0)
+
+
+/* handle 'tainted' status */
+enum tainted_flags {
+	TAINTED_CONFIG_EXP_KW_DECLARED = 0x00000001,
+	TAINTED_ACTION_EXP_EXECUTED    = 0x00000002,
+	TAINTED_CLI_EXPERT_MODE        = 0x00000004,
+	TAINTED_CLI_EXPERIMENTAL_MODE  = 0x00000008,
+};
+
+/* this is a bit field made of TAINTED_*, and is declared in haproxy.c */
+extern unsigned int tainted;
+
+static inline void mark_tainted(const enum tainted_flags flag)
+{
+	HA_ATOMIC_OR(&tainted, flag);
+}
+
+static inline unsigned int get_tainted()
+{
+	return HA_ATOMIC_LOAD(&tainted);
+}
 
 #if defined(DEBUG_MEM_STATS)
 #include <stdlib.h>
