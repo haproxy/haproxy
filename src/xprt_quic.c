@@ -170,7 +170,7 @@ DECLARE_POOL(pool_head_quic_frame, "quic_frame_pool", sizeof(struct quic_frame))
 DECLARE_STATIC_POOL(pool_head_quic_arng, "quic_arng_pool", sizeof(struct quic_arng_node));
 
 static struct quic_tx_packet *qc_build_pkt(unsigned char **pos, const unsigned char *buf_end,
-                                           struct quic_enc_level *qel,
+                                           struct quic_enc_level *qel, struct list *frms,
                                            struct quic_conn *qc, size_t dglen, int pkt_type,
                                            int padding, int ack, int probe, int cc, int *err);
 static struct task *quic_conn_app_io_cb(struct task *t, void *context, unsigned int state);
@@ -2454,12 +2454,14 @@ static inline void qc_set_dg(struct cbuf *cbuf,
 }
 
 /* Prepare as much as possible short packets which are also datagrams into <qr>
- * ring buffer for the QUIC connection with <ctx> as I/O handler context.
+ * ring buffer for the QUIC connection with <ctx> as I/O handler context from
+ * <frms> list of prebuilt frames.
  * A header made of two fields is added to each datagram: the datagram length followed
  * by the address of the first packet in this datagram.
  * Returns 1 if succeeded, or 0 if something wrong happened.
  */
-static int qc_prep_app_pkts(struct quic_conn *qc, struct qring *qr)
+static int qc_prep_app_pkts(struct quic_conn *qc, struct qring *qr,
+                            struct list *frms)
 {
 	struct quic_enc_level *qel;
 	struct cbuf *cbuf;
@@ -2501,7 +2503,7 @@ static int qc_prep_app_pkts(struct quic_conn *qc, struct qring *qr)
 		 */
 		if (!(qel->tls_ctx.flags & QUIC_FL_TLS_SECRETS_SET) ||
 		    (!cc && !ack && !probe &&
-		     (LIST_ISEMPTY(&qel->pktns->tx.frms) ||
+		     (LIST_ISEMPTY(frms) ||
 		      qc->path->prep_in_flight >= qc->path->cwnd))) {
 			TRACE_DEVEL("nothing more to do", QUIC_EV_CONN_PHPKTS, qc);
 			break;
@@ -2516,7 +2518,7 @@ static int qc_prep_app_pkts(struct quic_conn *qc, struct qring *qr)
 			end = pos + qc->path->mtu;
 		}
 
-		pkt = qc_build_pkt(&pos, end, qel, qc, 0, 0,
+		pkt = qc_build_pkt(&pos, end, qel, frms, qc, 0, 0,
 		                   QUIC_PACKET_TYPE_SHORT, ack, probe, cc, &err);
 		/* Restore the PTO dgrams counter if a packet could not be built */
 		if (err < 0) {
@@ -2660,8 +2662,8 @@ static int qc_prep_pkts(struct quic_conn *qc, struct qring *qr,
 			}
 		}
 
-		cur_pkt = qc_build_pkt(&pos, end, qel, qc, dglen, padding,
-		                       pkt_type, ack, probe, cc, &err);
+		cur_pkt = qc_build_pkt(&pos, end, qel, &qel->pktns->tx.frms,
+		                       qc, dglen, padding, pkt_type, ack, probe, cc, &err);
 		/* Restore the PTO dgrams counter if a packet could not be built */
 		if (err < 0) {
 			if (ack)
@@ -3276,7 +3278,7 @@ static int qc_qel_may_rm_hp(struct quic_conn *qc, struct quic_enc_level *qel)
 }
 
 /* Sends application level packets from <qc> QUIC connection */
-static int qc_send_app_pkts(struct quic_conn *qc)
+static int qc_send_app_pkts(struct quic_conn *qc, struct list *frms)
 {
 	int ret;
 	struct qring *qr;
@@ -3286,7 +3288,7 @@ static int qc_send_app_pkts(struct quic_conn *qc)
 		/* Never happens */
 		return 1;
 
-	ret = qc_prep_app_pkts(qc, qr);
+	ret = qc_prep_app_pkts(qc, qr, frms);
 	if (ret == -1)
 		goto err;
 	else if (ret == 0)
@@ -3327,7 +3329,7 @@ static struct task *quic_conn_app_io_cb(struct task *t, void *context, unsigned 
 	if (!qc_treat_rx_pkts(qel, NULL, ctx, 0))
 		goto err;
 
-	if (!qc_send_app_pkts(qc))
+	if (!qc_send_app_pkts(qc, &qel->pktns->tx.frms))
 		goto err;
 
 	return t;
@@ -4941,7 +4943,8 @@ static inline int qc_build_frms(struct list *l,
 /* This function builds a clear packet from <pkt> information (its type)
  * into a buffer with <pos> as position pointer and <qel> as QUIC TLS encryption
  * level for <conn> QUIC connection and <qel> as QUIC TLS encryption level,
- * filling the buffer with as much frames as possible.
+ * filling the buffer with as much frames as possible from <frms> list of
+ * prebuilt frames.
  * The trailing QUIC_TLS_TAG_LEN bytes of this packet are not built. But they are
  * reserved so that to ensure there is enough room to build this AEAD TAG after
  * having returned from this function.
@@ -4955,7 +4958,8 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
                            size_t dglen, struct quic_tx_packet *pkt,
                            int64_t pn, size_t *pn_len, unsigned char **buf_pn,
                            int ack, int padding, int cc, int probe,
-                           struct quic_enc_level *qel, struct quic_conn *qc)
+                           struct quic_enc_level *qel, struct quic_conn *qc,
+                           struct list *frms)
 {
 	unsigned char *beg;
 	size_t len, len_sz, len_frms, padding_len;
@@ -4975,7 +4979,7 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 	 * the congestion controller window. So, we do not limit the size of this
 	 * packet if we have an ACK frame to send because an ACK frame is not
 	 * ack-eliciting. This size will be limited if we have ack-eliciting
-	 * frames to send from qel->pktns->tx.frms.
+	 * frames to send from <frms>.
 	 */
 	if (!probe && !ack && !cc) {
 		size_t path_room;
@@ -5026,7 +5030,7 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 	/* Length field value without the ack-eliciting frames. */
 	len = ack_frm_len + *pn_len;
 	len_frms = 0;
-	if (!cc && !LIST_ISEMPTY(&qel->pktns->tx.frms)) {
+	if (!cc && !LIST_ISEMPTY(frms)) {
 		ssize_t room = end - pos;
 
 		/* Initialize the length of the frames built below to <len>.
@@ -5144,7 +5148,7 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 
  no_room:
 	/* Replace the pre-built frames which could not be add to this packet */
-	LIST_SPLICE(&qel->pktns->tx.frms, &frm_list);
+	LIST_SPLICE(frms, &frm_list);
 	TRACE_PROTO("Not enough room", QUIC_EV_CONN_HPKT, qc);
 	return 0;
 }
@@ -5176,13 +5180,15 @@ static inline void free_quic_tx_packet(struct quic_tx_packet *pkt)
 }
 
 /* Build a packet into <buf> packet buffer with <pkt_type> as packet
- * type for <qc> QUIC connection from <qel> encryption level.
+ * type for <qc> QUIC connection from <qel> encryption level from <frms> list
+ * of prebuilt frames.
+ *
  * Return -2 if the packet could not be allocated or encrypted for any reason,
  * -1 if there was not enough room to build a packet.
  */
 static struct quic_tx_packet *qc_build_pkt(unsigned char **pos,
                                            const unsigned char *buf_end,
-                                           struct quic_enc_level *qel,
+                                           struct quic_enc_level *qel, struct list *frms,
                                            struct quic_conn *qc, size_t dglen, int padding,
                                            int pkt_type, int ack, int probe, int cc, int *err)
 {
@@ -5210,7 +5216,7 @@ static struct quic_tx_packet *qc_build_pkt(unsigned char **pos,
 
 	pn = qel->pktns->tx.next_pn + 1;
 	if (!qc_do_build_pkt(*pos, buf_end, dglen, pkt, pn, &pn_len, &buf_pn,
-	                     ack, padding, cc, probe, qel, qc)) {
+	                     ack, padding, cc, probe, qel, qc, frms)) {
 		*err = -1;
 		goto err;
 	}
