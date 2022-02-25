@@ -53,7 +53,9 @@
 /* This is the generic low-level macro dealing with conditional warnings and
  * bugs. The caller decides whether to crash or not and what prefix and suffix
  * to pass. The macro returns the boolean value of the condition as an int for
- * the case where it wouldn't die.
+ * the case where it wouldn't die. The <crash> flag is made of:
+ *  - crash & 1: crash yes/no;
+ *  - crash & 2: taint as bug instead of warn
  */
 #define _BUG_ON(cond, file, line, crash, pfx, sfx)			\
 	__BUG_ON(cond, file, line, crash, pfx, sfx)
@@ -64,7 +66,11 @@
 		if (unlikely(__bug_cond)) {				\
 			const char msg[] = "\n" pfx "condition \"" #cond "\" matched at " file ":" #line "" sfx "\n"; \
 			DISGUISE(write(2, msg, __builtin_strlen(msg)));	\
-			if (crash)					\
+			if (crash & 2)					\
+				mark_tainted(TAINTED_BUG);		\
+			else						\
+				mark_tainted(TAINTED_WARN);		\
+			if (crash & 1)					\
 				ABORT_NOW();				\
 			else						\
 				DUMP_TRACE();				\
@@ -88,7 +94,11 @@
 		    !_HA_ATOMIC_FETCH_ADD(&__match_count_##line, 1)) {	\
 			const char msg[] = "\n" pfx "condition \"" #cond "\" matched at " file ":" #line "" sfx "\n"; \
 			DISGUISE(write(2, msg, __builtin_strlen(msg)));	\
-			if (crash)					\
+			if (crash & 2)					\
+				mark_tainted(TAINTED_BUG);		\
+			else						\
+				mark_tainted(TAINTED_WARN);		\
+			if (crash & 1)					\
 				ABORT_NOW();				\
 			else						\
 				DUMP_TRACE();				\
@@ -101,11 +111,11 @@
  * crashes using ABORT_NOW() above.
  */
 #if defined(DEBUG_STRICT)
-#define BUG_ON(cond)       _BUG_ON     (cond, __FILE__, __LINE__, 1, "FATAL: bug ", "")
+#define BUG_ON(cond)       _BUG_ON     (cond, __FILE__, __LINE__, 3, "FATAL: bug ", "")
 #define WARN_ON(cond)      _BUG_ON     (cond, __FILE__, __LINE__, 0, "WARNING: ",   " (please report to developers)")
 #define WARN_ON_ONCE(cond) _BUG_ON_ONCE(cond, __FILE__, __LINE__, 0, "WARNING: ",   " (please report to developers)")
 #elif defined(DEBUG_STRICT_NOCRASH)
-#define BUG_ON(cond)       _BUG_ON     (cond, __FILE__, __LINE__, 0, "FATAL: bug ", " (not crashing but process is untrusted now)")
+#define BUG_ON(cond)       _BUG_ON     (cond, __FILE__, __LINE__, 2, "FATAL: bug ", " (not crashing but process is untrusted now)")
 #define WARN_ON(cond)      _BUG_ON     (cond, __FILE__, __LINE__, 0, "WARNING: ",   " (please report to developers)")
 #define WARN_ON_ONCE(cond) _BUG_ON_ONCE(cond, __FILE__, __LINE__, 0, "WARNING: ",   " (please report to developers)")
 #else
@@ -145,6 +155,8 @@ enum tainted_flags {
 	TAINTED_ACTION_EXP_EXECUTED    = 0x00000002,
 	TAINTED_CLI_EXPERT_MODE        = 0x00000004,
 	TAINTED_CLI_EXPERIMENTAL_MODE  = 0x00000008,
+	TAINTED_WARN                   = 0x00000010, /* a WARN_ON triggered */
+	TAINTED_BUG                    = 0x00000020, /* a BUG_ON triggered */
 };
 
 /* this is a bit field made of TAINTED_*, and is declared in haproxy.c */
