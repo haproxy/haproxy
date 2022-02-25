@@ -2453,6 +2453,124 @@ static inline void qc_set_dg(struct cbuf *cbuf,
 	cb_add(cbuf, dglen + sizeof dglen + sizeof pkt);
 }
 
+/* Prepare as much as possible short packets which are also datagrams into <qr>
+ * ring buffer for the QUIC connection with <ctx> as I/O handler context.
+ * A header made of two fields is added to each datagram: the datagram length followed
+ * by the address of the first packet in this datagram.
+ * Returns 1 if succeeded, or 0 if something wrong happened.
+ */
+static int qc_prep_app_pkts(struct quic_conn *qc, struct qring *qr)
+{
+	struct quic_enc_level *qel;
+	struct cbuf *cbuf;
+	unsigned char *end_buf, *end, *pos, *spos;
+	struct quic_tx_packet *pkt;
+	size_t total;
+	size_t dg_headlen;
+
+	TRACE_ENTER(QUIC_EV_CONN_PHPKTS, qc);
+	/* Each datagram is prepended with its length followed by the
+	 * address of the first packet in the datagram.
+	 */
+	dg_headlen = sizeof(uint16_t) + sizeof pkt;
+	qel = &qc->els[QUIC_TLS_ENC_LEVEL_APP];
+	total = 0;
+ start:
+	cbuf = qr->cbuf;
+	spos = pos = cb_wr(cbuf);
+	/* Leave at least <sizeof(uint16_t)> bytes at the end of this buffer
+	 * to ensure there is enough room to mark the end of prepared
+	 * contiguous data with a zero length.
+	 */
+	end_buf = pos + cb_contig_space(cbuf) - sizeof(uint16_t);
+	while (end_buf - pos >= (int)qc->path->mtu + dg_headlen) {
+		int err, probe, ack, cc;
+
+		TRACE_POINT(QUIC_EV_CONN_PHPKTS, qc, qel);
+		probe = ack = 0;
+		cc =  HA_ATOMIC_LOAD(&qc->flags) & QUIC_FL_CONN_IMMEDIATE_CLOSE;
+		if (!cc) {
+			probe = qel->pktns->tx.pto_probe;
+			ack = HA_ATOMIC_BTR(&qel->pktns->flags, QUIC_FL_PKTNS_ACK_REQUIRED_BIT);
+		}
+		/* Do not build any more packet if the TX secrets are not available or
+		 * if there is nothing to send, i.e. if no CONNECTION_CLOSE or ACK are required
+		 * and if there is no more packets to send upon PTO expiration
+		 * and if there is no more CRYPTO data available or in flight
+		 * congestion control limit is reached for prepared data
+		 */
+		if (!(qel->tls_ctx.flags & QUIC_FL_TLS_SECRETS_SET) ||
+		    (!cc && !ack && !probe &&
+		     (LIST_ISEMPTY(&qel->pktns->tx.frms) ||
+		      qc->path->prep_in_flight >= qc->path->cwnd))) {
+			TRACE_DEVEL("nothing more to do", QUIC_EV_CONN_PHPKTS, qc);
+			break;
+		}
+
+		/* Leave room for the datagram header */
+		pos += dg_headlen;
+		if (!quic_peer_validated_addr(qc) && qc_is_listener(qc)) {
+			end = pos + QUIC_MIN(qc->path->mtu, 3 * qc->rx.bytes - qc->tx.prep_bytes);
+		}
+		else {
+			end = pos + qc->path->mtu;
+		}
+
+		pkt = qc_build_pkt(&pos, end, qel, qc, 0, 0,
+		                   QUIC_PACKET_TYPE_SHORT, ack, probe, cc, &err);
+		/* Restore the PTO dgrams counter if a packet could not be built */
+		if (err < 0) {
+			if (ack)
+				HA_ATOMIC_BTS(&qel->pktns->flags, QUIC_FL_PKTNS_ACK_REQUIRED_BIT);
+		}
+		switch (err) {
+		case -2:
+			goto err;
+		case -1:
+			goto out;
+		default:
+			break;
+		}
+
+		/* This is to please to GCC. We cannot have (err >= 0 && !pkt) */
+		if (!pkt)
+			goto err;
+
+		total += pkt->len;
+		/* Set the current datagram as prepared into <cbuf>. */
+		qc_set_dg(cbuf, pkt->len, pkt);
+	}
+
+ stop_build:
+	/* Reset <wr> writer index if in front of <rd> index */
+	if (end_buf - pos < (int)qc->path->mtu + dg_headlen) {
+		int rd = HA_ATOMIC_LOAD(&cbuf->rd);
+
+		TRACE_DEVEL("buffer full", QUIC_EV_CONN_PHPKTS, qc);
+		if (cb_contig_space(cbuf) >= sizeof(uint16_t)) {
+			if ((pos != spos && cbuf->wr > rd) || (pos == spos && rd <= cbuf->wr)) {
+				/* Mark the end of contiguous data for the reader */
+				write_u16(cb_wr(cbuf), 0);
+				cb_add(cbuf, sizeof(uint16_t));
+			}
+		}
+
+		if (rd && rd <= cbuf->wr) {
+			cb_wr_reset(cbuf);
+			/* Let's try to reuse this buffer */
+			goto start;
+		}
+	}
+
+ out:
+	TRACE_LEAVE(QUIC_EV_CONN_PHPKTS, qc);
+	return total;
+
+ err:
+	TRACE_DEVEL("leaving in error", QUIC_EV_CONN_PHPKTS, qc);
+	return -1;
+}
+
 /* Prepare as much as possible packets into <qr> ring buffer for
  * the QUIC connection with <ctx> as I/O handler context, possibly concatenating
  * several packets in the same datagram. A header made of two fields is added
@@ -3168,7 +3286,7 @@ static int qc_send_app_pkts(struct quic_conn *qc)
 		/* Never happens */
 		return 1;
 
-	ret = qc_prep_pkts(qc, qr, QUIC_TLS_ENC_LEVEL_APP, QUIC_TLS_ENC_LEVEL_NONE);
+	ret = qc_prep_app_pkts(qc, qr);
 	if (ret == -1)
 		goto err;
 	else if (ret == 0)
