@@ -2110,9 +2110,8 @@ static int qc_handle_bidi_strm_frm(struct quic_rx_packet *pkt,
 	if (strm_frm->offset.key == strm->rx.offset) {
 		int ret;
 
-		if (!qc_get_buf(strm, &strm->rx.buf)) {
-		    goto store_frm;
-		}
+		if (!qc_get_buf(strm, &strm->rx.buf))
+			goto store_frm;
 
 		ret = qc_strm_cpy(&strm->rx.buf, strm_frm);
 		total += ret;
