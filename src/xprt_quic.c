@@ -2023,10 +2023,20 @@ static size_t qc_treat_rx_strm_frms(struct qcs *qcs)
 	while (frm_node) {
 		int ret;
 		struct quic_rx_strm_frm *frm;
+		size_t diff;
 
 		frm = eb64_entry(&frm_node->node, struct quic_rx_strm_frm, offset_node);
-		if (frm->offset_node.key != qcs->rx.offset)
+		if (frm->offset_node.key > qcs->rx.offset)
 			break;
+
+		if (frm->offset_node.key + frm->len < qcs->rx.offset) {
+			/* fully already received STREAM offset */
+			goto next;
+		}
+
+		diff = qcs->rx.offset - frm->offset_node.key;
+		frm->data += diff;
+		frm->len -= diff;
 
 		ret = qc_rx_strm_frm_cpy(&qcs->rx.buf, frm);
 		qcs->rx.offset += ret;
@@ -2038,13 +2048,14 @@ static size_t qc_treat_rx_strm_frms(struct qcs *qcs)
 			 * offset field.
 			 */
 			eb64_delete(&frm->offset_node);
-			frm->offset_node.key += ret;
+			frm->offset_node.key += (diff + ret);
 			frm->data += ret;
 			frm->len -= ret;
 			eb64_insert(&qcs->rx.frms, &frm->offset_node);
 			break;
 		}
 
+ next:
 		frm_node = eb64_next(frm_node);
 		quic_rx_packet_refdec(frm->pkt);
 		eb64_delete(&frm->offset_node);
