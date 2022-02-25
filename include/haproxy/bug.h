@@ -72,19 +72,46 @@
 		__bug_cond; /* let's return the condition */		\
 	})
 
+/* This one is equivalent except that it only emits the message once by
+ * maintaining a static counter. This may be used with warnings to detect
+ * certain unexpected conditions in field. Later on, in cores it will be
+ * possible to verify these counters.
+ */
+#define _BUG_ON_ONCE(cond, file, line, crash, pfx, sfx)			\
+	__BUG_ON_ONCE(cond, file, line, crash, pfx, sfx)
+
+#define __BUG_ON_ONCE(cond, file, line, crash, pfx, sfx)                \
+	({								\
+		static int __match_count_##line;			\
+		int __bug_cond = !!(cond);				\
+		if (unlikely(__bug_cond) &&				\
+		    !_HA_ATOMIC_FETCH_ADD(&__match_count_##line, 1)) {	\
+			const char msg[] = "\n" pfx "condition \"" #cond "\" matched at " file ":" #line "" sfx "\n"; \
+			DISGUISE(write(2, msg, __builtin_strlen(msg)));	\
+			if (crash)					\
+				ABORT_NOW();				\
+			else						\
+				DUMP_TRACE();				\
+		}							\
+		__bug_cond; /* let's return the condition */		\
+	})
+
 /* BUG_ON: complains if <cond> is true when DEBUG_STRICT or DEBUG_STRICT_NOCRASH
  * are set, does nothing otherwise. With DEBUG_STRICT in addition it immediately
  * crashes using ABORT_NOW() above.
  */
 #if defined(DEBUG_STRICT)
-#define BUG_ON(cond)  _BUG_ON(cond, __FILE__, __LINE__, 1, "FATAL: bug ", "")
-#define WARN_ON(cond) _BUG_ON(cond, __FILE__, __LINE__, 0, "WARNING: ",   " (please report to developers)")
+#define BUG_ON(cond)       _BUG_ON     (cond, __FILE__, __LINE__, 1, "FATAL: bug ", "")
+#define WARN_ON(cond)      _BUG_ON     (cond, __FILE__, __LINE__, 0, "WARNING: ",   " (please report to developers)")
+#define WARN_ON_ONCE(cond) _BUG_ON_ONCE(cond, __FILE__, __LINE__, 0, "WARNING: ",   " (please report to developers)")
 #elif defined(DEBUG_STRICT_NOCRASH)
-#define BUG_ON(cond)  _BUG_ON(cond, __FILE__, __LINE__, 0, "FATAL: bug ", " (not crashing but process is untrusted now)")
-#define WARN_ON(cond) _BUG_ON(cond, __FILE__, __LINE__, 0, "WARNING: ",   " (please report to developers)")
+#define BUG_ON(cond)       _BUG_ON     (cond, __FILE__, __LINE__, 0, "FATAL: bug ", " (not crashing but process is untrusted now)")
+#define WARN_ON(cond)      _BUG_ON     (cond, __FILE__, __LINE__, 0, "WARNING: ",   " (please report to developers)")
+#define WARN_ON_ONCE(cond) _BUG_ON_ONCE(cond, __FILE__, __LINE__, 0, "WARNING: ",   " (please report to developers)")
 #else
 #define BUG_ON(cond)
 #define WARN_ON(cond)
+#define WARN_ON_ONCE(cond)
 #endif
 
 /* When not optimizing, clang won't remove that code, so only compile it in when optimizing */
