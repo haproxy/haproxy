@@ -38,14 +38,16 @@
 #define DPRINTF(x...)
 #endif
 
+#define DUMP_TRACE() do { extern void ha_backtrace_to_stderr(void); ha_backtrace_to_stderr(); } while (0)
+
 #ifdef DEBUG_USE_ABORT
 /* abort() is better recognized by code analysis tools */
-#define ABORT_NOW() do { extern void ha_backtrace_to_stderr(void); ha_backtrace_to_stderr(); abort(); } while (0)
+#define ABORT_NOW() do { DUMP_TRACE(); abort(); } while (0)
 #else
 /* More efficient than abort() because it does not mangle the
   * stack and stops at the exact location we need.
   */
-#define ABORT_NOW() do { extern void ha_backtrace_to_stderr(void); ha_backtrace_to_stderr(); (*(volatile int*)1=0); } while (0)
+#define ABORT_NOW() do { DUMP_TRACE(); (*(volatile int*)1=0); } while (0)
 #endif
 
 /* BUG_ON: complains if <cond> is true when DEBUG_STRICT or DEBUG_STRICT_NOCRASH
@@ -56,7 +58,7 @@
 #if defined(DEBUG_STRICT)
 #define CRASH_NOW() ABORT_NOW()
 #else
-#define CRASH_NOW() do { extern void ha_backtrace_to_stderr(void); ha_backtrace_to_stderr(); } while (0)
+#define CRASH_NOW() do { DUMP_TRACE(); } while (0)
 #endif
 
 #define BUG_ON(cond) _BUG_ON(cond, __FILE__, __LINE__)
