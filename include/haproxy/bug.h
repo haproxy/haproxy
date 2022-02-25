@@ -52,14 +52,16 @@
 
 /* This is the generic low-level macro dealing with conditional warnings and
  * bugs. The caller decides whether to crash or not and what prefix and suffix
- * to pass.
+ * to pass. The macro returns the boolean value of the condition as an int for
+ * the case where it wouldn't die.
  */
 #define _BUG_ON(cond, file, line, crash, pfx, sfx)			\
 	__BUG_ON(cond, file, line, crash, pfx, sfx)
 
 #define __BUG_ON(cond, file, line, crash, pfx, sfx)                     \
-	do {                                                            \
-		if (unlikely(cond)) {					\
+	({								\
+		int __bug_cond = !!(cond);				\
+		if (unlikely(__bug_cond)) {				\
 			const char msg[] = "\n" pfx "condition \"" #cond "\" matched at " file ":" #line "" sfx "\n"; \
 			DISGUISE(write(2, msg, __builtin_strlen(msg)));	\
 			if (crash)					\
@@ -67,7 +69,8 @@
 			else						\
 				DUMP_TRACE();				\
 		}							\
-	} while (0)
+		__bug_cond; /* let's return the condition */		\
+	})
 
 /* BUG_ON: complains if <cond> is true when DEBUG_STRICT or DEBUG_STRICT_NOCRASH
  * are set, does nothing otherwise. With DEBUG_STRICT in addition it immediately
