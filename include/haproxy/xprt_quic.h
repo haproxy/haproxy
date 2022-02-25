@@ -1197,6 +1197,7 @@ struct task *quic_lstnr_dghdlr(struct task *t, void *ctx, unsigned int state);
 int quic_lstnr_dgram_dispatch(unsigned char *buf, size_t len, void *owner,
                               struct sockaddr_storage *saddr,
                               struct quic_dgram *new_dgram, struct list *dgrams);
+int qc_send_app_pkts(struct quic_conn *qc, struct list *frms);
 
 #endif /* USE_QUIC */
 #endif /* _HAPROXY_XPRT_QUIC_H */

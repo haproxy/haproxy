@@ -3278,7 +3278,7 @@ static int qc_qel_may_rm_hp(struct quic_conn *qc, struct quic_enc_level *qel)
 }
 
 /* Sends application level packets from <qc> QUIC connection */
-static int qc_send_app_pkts(struct quic_conn *qc, struct list *frms)
+int qc_send_app_pkts(struct quic_conn *qc, struct list *frms)
 {
 	int ret;
 	struct qring *qr;
