@@ -47,7 +47,7 @@
 /* More efficient than abort() because it does not mangle the
   * stack and stops at the exact location we need.
   */
-#define ABORT_NOW() do { DUMP_TRACE(); (*(volatile int*)1=0); } while (0)
+#define ABORT_NOW() do { DUMP_TRACE(); (*(volatile int*)1=0); my_unreachable(); } while (0)
 #endif
 
 /* This is the generic low-level macro dealing with conditional warnings and
