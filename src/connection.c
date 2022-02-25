@@ -1073,9 +1073,8 @@ int conn_recv_proxy(struct connection *conn, int flag)
 				if (!isttest(conn->proxy_authority))
 					goto fail;
 				if (istcpy(&conn->proxy_authority, tlv, PP2_AUTHORITY_MAX) < 0) {
-					/* This is technically unreachable, because we verified above
-					 * that the TLV value fits.
-					 */
+					/* This is impossible, because we verified that the TLV value fits. */
+					my_unreachable();
 					goto fail;
 				}
 				break;
@@ -1087,9 +1086,8 @@ int conn_recv_proxy(struct connection *conn, int flag)
 				if (!isttest(conn->proxy_unique_id))
 					goto fail;
 				if (istcpy(&conn->proxy_unique_id, tlv, UNIQUEID_LEN) < 0) {
-					/* This is technically unreachable, because we verified above
-					 * that the TLV value fits.
-					 */
+					/* This is impossible, because we verified that the TLV value fits. */
+					my_unreachable();
 					goto fail;
 				}
 				break;
