@@ -1456,9 +1456,7 @@ void mark_tainted(const enum tainted_flags flag)
 
 unsigned int get_tainted()
 {
-	int tainted_state;
-	HA_ATOMIC_STORE(&tainted_state, tainted);
-	return tainted_state;
+	return HA_ATOMIC_LOAD(&tainted);
 }
 
 
