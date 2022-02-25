@@ -50,29 +50,34 @@
 #define ABORT_NOW() do { DUMP_TRACE(); (*(volatile int*)1=0); } while (0)
 #endif
 
+/* This is the generic low-level macro dealing with conditional warnings and
+ * bugs. The caller decides whether to crash or not and what prefix and suffix
+ * to pass.
+ */
+#define _BUG_ON(cond, file, line, crash, pfx, sfx)			\
+	__BUG_ON(cond, file, line, crash, pfx, sfx)
+
+#define __BUG_ON(cond, file, line, crash, pfx, sfx)                     \
+	do {                                                            \
+		if (unlikely(cond)) {					\
+			const char msg[] = "\n" pfx "condition \"" #cond "\" matched at " file ":" #line "" sfx "\n"; \
+			DISGUISE(write(2, msg, __builtin_strlen(msg)));	\
+			if (crash)					\
+				ABORT_NOW();				\
+			else						\
+				DUMP_TRACE();				\
+		}							\
+	} while (0)
+
 /* BUG_ON: complains if <cond> is true when DEBUG_STRICT or DEBUG_STRICT_NOCRASH
  * are set, does nothing otherwise. With DEBUG_STRICT in addition it immediately
  * crashes using ABORT_NOW() above.
  */
-#if defined(DEBUG_STRICT) || defined(DEBUG_STRICT_NOCRASH)
 #if defined(DEBUG_STRICT)
-#define CRASH_NOW() ABORT_NOW()
+#define BUG_ON(cond) _BUG_ON(cond, __FILE__, __LINE__, 1, "FATAL: bug ", "")
+#elif defined(DEBUG_STRICT_NOCRASH)
+#define BUG_ON(cond) _BUG_ON(cond, __FILE__, __LINE__, 0, "FATAL: bug ", " (not crashing but process is untrusted now)")
 #else
-#define CRASH_NOW() do { DUMP_TRACE(); } while (0)
-#endif
-
-#define BUG_ON(cond) _BUG_ON(cond, __FILE__, __LINE__)
-#define _BUG_ON(cond, file, line) __BUG_ON(cond, file, line)
-#define __BUG_ON(cond, file, line)                                             \
-	do {                                                                   \
-		if (unlikely(cond)) {					       \
-			const char msg[] = "\nFATAL: bug condition \"" #cond "\" matched at " file ":" #line "\n"; \
-			DISGUISE(write(2, msg, __builtin_strlen(msg)));        \
-			CRASH_NOW();                                           \
-		}                                                              \
-	} while (0)
-#else
-#undef CRASH_NOW
 #define BUG_ON(cond)
 #endif
 
