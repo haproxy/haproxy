@@ -1098,12 +1098,11 @@ int conn_recv_proxy(struct connection *conn, int flag)
 		}
 
 		/* Verify that the PROXYv2 header ends at a TLV boundary.
-		 * This is technically unreachable, because the TLV parsing already
-		 * verifies that a TLV does not exceed the total length and also
-		 * that there is space for a TLV header.
+		 * This is can not be true, because the TLV parsing already
+		 * verifies that a TLV does not exceed the total length and
+		 * also that there is space for a TLV header.
 		 */
-		if (tlv_offset != total_v2_len)
-			goto bad_header;
+		BUG_ON(tlv_offset != total_v2_len);
 
 		/* unsupported protocol, keep local connection address */
 		break;
