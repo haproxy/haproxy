@@ -1,6 +1,220 @@
 ChangeLog :
 ===========
 
+2022/02/25 : 2.6-dev2
+    - DOC: management: rework the Master CLI section
+    - DOC: management: add expert and experimental mode in 9.4.1
+    - CLEANUP: cleanup a commentary in pcli_parse_request()
+    - BUG/MINOR: mworker/cli: don't display help on master applet
+    - MINOR: mworker/cli: mcli-debug-mode enables every command
+    - MINOR: mworker/cli: add flags in the prompt
+    - BUG/MINOR: httpclient: Revisit HC request and response buffers allocation
+    - BUG/MEDIUM: httpclient: Xfer the request when the stream is created
+    - MINOR: httpclient: Don't limit data transfer to 1024 bytes
+    - BUILD: ssl: adjust guard for X509_get_X509_PUBKEY(x)
+    - REGTESTS: ssl: skip show_ssl_ocspresponse.vtc when BoringSSL is used
+    - MINOR: quic: Do not modify a marked as consumed datagram
+    - MINOR: quic: Wrong datagram buffer passed to quic_lstnr_dgram_dispatch()
+    - MINOR: quic: Remove a useless test in quic_get_dgram_dcid()
+    - BUG/MINOR: ssl: Remove empty lines from "show ssl ocsp-response <id>" output
+    - CLEANUP: ssl: Remove unused ssl_sock_create_cert function
+    - MINOR: ssl: Use high level OpenSSL APIs in sha2 converter
+    - MINOR: ssl: Remove EC_KEY related calls when preparing SSL context
+    - REGTESTS: ssl: Add test for "curves" and "ecdhe" SSL options
+    - MINOR: ssl: Remove EC_KEY related calls when creating a certificate
+    - REGTESTS: ssl: Add test for "generate-certificates" SSL option
+    - MINOR: ssl: Remove call to SSL_CTX_set_tlsext_ticket_key_cb with OpenSSLv3
+    - MINOR: ssl: Remove call to HMAC_Init_ex with OpenSSLv3
+    - MINOR: h3: hardcode the stream id of control stream
+    - MINOR: mux-quic: remove quic_transport_params_update
+    - MINOR: quic: rename local tid variable
+    - MINOR: quic: remove unused xprt rcv_buf operation
+    - MINOR: quic: take out xprt snd_buf operation
+    - CI: enable QUIC for Coverity scan
+    - BUG/MINOR: mworker: does not erase the pidfile upon reload
+    - MINOR: ssl: Remove call to ERR_func_error_string with OpenSSLv3
+    - MINOR: ssl: Remove call to ERR_load_SSL_strings with OpenSSLv3
+    - REGTESTS: ssl: Add tests for DH related options
+    - MINOR: ssl: Create HASSL_DH wrapper structure
+    - MINOR: ssl: Add ssl_sock_get_dh_from_bio helper function
+    - MINOR: ssl: Factorize ssl_get_tmp_dh and append a cbk to its name
+    - MINOR: ssl: Add ssl_sock_set_tmp_dh helper function
+    - MINOR: ssl: Add ssl_sock_set_tmp_dh_from_pkey helper function
+    - MINOR: ssl: Add ssl_new_dh_fromdata helper function
+    - MINOR: ssl: Build local DH of right size when needed
+    - MINOR: ssl: Set default dh size to 2048
+    - MEDIUM: ssl: Replace all DH objects by EVP_PKEY on OpenSSLv3 (via HASSL_DH type)
+    - MINOR: ssl: Remove calls to SSL_CTX_set_tmp_dh_callback on OpenSSLv3
+    - MINOR: quic: Remove an RX buffer useless lock
+    - MINOR: quic: Variable used before being checked in ha_quic_add_handshake_data()
+    - MINOR: quic: EINTR error ignored
+    - MINOR: quic: Potential overflow expression in qc_parse_frm()
+    - MINOR: quic: Possible overflow in qpack_get_varint()
+    - CLEANUP: h3: Unreachable target in h3_uqs_init()
+    - MINOR: quic: Possible memleak in qc_new_conn()
+    - MINOR: quic: Useless statement in quic_crypto_data_cpy()
+    - BUG/MEDIUM: pools: ensure items are always large enough for the pool_cache_item
+    - BUG/MINOR: pools: always flush pools about to be destroyed
+    - CLEANUP: pools: don't needlessly set a call mark during refilling of caches
+    - DEBUG: pools: add extra sanity checks when picking objects from a local cache
+    - DEBUG: pools: let's add reverse mapping from cache heads to thread and pool
+    - DEBUG: pools: replace the link pointer with the caller's address on pool_free()
+    - BUG/MAJOR: sched: prevent rare concurrent wakeup of multi-threaded tasks
+    - MINOR: quic: use a global dghlrs for each thread
+    - BUG/MEDIUM: quic: fix crash on CC if mux not present
+    - MINOR: qpack: fix typo in trace
+    - BUG/MINOR: quic: fix FIN stream signaling
+    - BUG/MINOR: h3: fix the header length for QPACK decoding
+    - MINOR: h3: remove transfer-encoding header
+    - MINOR: h3: add documentation on h3_decode_qcs
+    - MINOR: h3: set properly HTX EOM/BODYLESS on HEADERS parsing
+    - MINOR: mux-quic: implement rcv_buf
+    - MINOR: mux-quic: set EOS on rcv_buf
+    - MINOR: h3: set CS_FL_NOT_FIRST
+    - MINOR: h3: report frames bigger than rx buffer
+    - MINOR: h3: extract HEADERS parsing in a dedicated function
+    - MINOR: h3: implement DATA parsing
+    - MINOR: quic: Wrong smoothed rtt initialization
+    - MINOR: quic: Wrong loss delay computation
+    - MINOR: quic: Code never reached in qc_ssl_sess_init()
+    - MINOR: quic: ha_quic_set_encryption_secrets without server specific code
+    - MINOR: quic: Avoid warning about NULL pointer dereferences
+    - MINOR: quic: Useless test in quic_lstnr_dghdlr()
+    - MINOR: quic: Non checked returned value for cs_new() in hq_interop_decode_qcs()
+    - MINOR: h3: Dead code in h3_uqs_init()
+    - MINOR: quic: Non checked returned value for cs_new() in h3_decode_qcs()
+    - MINOR: quic: Possible frame parsers array overrun
+    - MINOR: quic: Do not retransmit too much packets.
+    - MINOR: quic: Move quic_rxbuf_pool pool out of xprt part
+    - MINOR: h3: report error on HEADERS/DATA parsing
+    - BUG/MINOR: jwt: Double free in deinit function
+    - BUG/MINOR: jwt: Missing pkey free during cleanup
+    - BUG/MINOR: jwt: Memory leak if same key is used in multiple jwt_verify calls
+    - BUG/MINOR: httpclient/cli: display junk characters in vsn
+    - MINOR: h3: remove unused return value on decode_qcs
+    - BUG/MAJOR: http/htx: prevent unbounded loop in http_manage_server_side_cookies
+    - BUG/MAJOR: spoe: properly detach all agents when releasing the applet
+    - REGTESTS: server: close an occasional race on dynamic_server_ssl.vtc
+    - REGTESTS: peers: leave a bit more time to peers to synchronize
+    - BUG/MEDIUM: h2/hpack: fix emission of HPACK DTSU after settings change
+    - BUG/MINOR: mux-h2: update the session's idle delay before creating the stream
+    - BUG/MINOR: httpclient: reinit flags in httpclient_start()
+    - BUG/MINOR: mailers: negotiate SMTP, not ESMTP
+    - MINOR: httpclient: sets an alternative destination
+    - MINOR: httpclient/lua: add 'dst' optionnal field
+    - BUG/MINOR: ssl: Add missing return value check in ssl_ocsp_response_print
+    - BUG/MINOR: ssl: Fix leak in "show ssl ocsp-response" CLI command
+    - BUG/MINOR: ssl: Missing return value check in ssl_ocsp_response_print
+    - CLEANUP: httpclient/cli: fix indentation alignment of the help message
+    - BUG/MINOR: tools: url2sa reads ipv4 too far
+    - BUG/MEDIUM: httpclient: limit transfers to the maximum available room
+    - DEBUG: buffer: check in __b_put_blk() whether the buffer room is respected
+    - MINOR: mux-quic: fix a possible null dereference in qc_timeout_task
+    - BUG/MEDIUM: htx: Be sure to have a buffer to perform a raw copy of a message
+    - BUG/MEDIUM: mux-h1: Don't wake h1s if mux is blocked on lack of output buffer
+    - BUG/MAJOR: mux-h2: Be sure to always report HTX parsing error to the app layer
+    - DEBUG: stream-int: Check CS_FL_WANT_ROOM is not set with an empty input buffer
+    - MINOR: quic: do not modify offset node if quic_rx_strm_frm in tree
+    - MINOR: h3: fix compiler warning variable set but not used
+    - MINOR: mux-quic: fix uninitialized return on qc_send
+    - MINOR: quic: fix handling of out-of-order received STREAM frames
+    - MINOR: pools: mark most static pool configuration variables as read-mostly
+    - CLEANUP: pools: remove the now unused pool_is_crowded()
+    - REGTESTS: fix the race conditions in 40be_2srv_odd_health_checks
+    - BUG/MEDIUM: stream: Abort processing if response buffer allocation fails
+    - MINOR: httpclient/lua: ability to set a server timeout
+    - BUG/MINOR: httpclient/lua: missing pop for new timeout parameter
+    - DOC: httpclient/lua: fix the type of the dst parameter
+    - CLEANUP: httpclient: initialize the client in stage INIT not REGISTER
+    - CLEANUP: muxes: do not use a dynamic trash in list_mux_protos()
+    - CLEANUP: vars: move the per-process variables initialization to vars.c
+    - CLEANUP: init: remove the ifdef on HAPROXY_MEMMAX
+    - MINOR: pools: disable redundant poisonning on pool_free()
+    - MINOR: pools: introduce a new pool_debugging global variable
+    - MINOR: pools: switch the fail-alloc test to runtime only
+    - MINOR: pools: switch DEBUG_DONT_SHARE_POOLS to runtime
+    - MINOR: pools: add a new debugging flag POOL_DBG_COLD_FIRST
+    - MINOR: pools: add a new debugging flag POOL_DBG_INTEGRITY
+    - MINOR: pools: make the global pools a runtime option.
+    - MEDIUM: pools: replace CONFIG_HAP_POOLS with a runtime "NO_CACHE" flag.
+    - MINOR: pools: store the allocated size for each pool
+    - MINOR: pools: get rid of POOL_EXTRA
+    - MINOR: pools: replace DEBUG_POOL_TRACING with runtime POOL_DBG_CALLER
+    - MINOR: pools: replace DEBUG_MEMORY_POOLS with runtime POOL_DBG_TAG
+    - MINOR: pools: add a debugging flag for memory poisonning option
+    - MEDIUM: initcall: move STG_REGISTER earlier
+    - MEDIUM: init: split the early initialization in its own function
+    - MINOR: init: extract args parsing to their own function
+    - MEDIUM: init: handle arguments earlier
+    - MINOR: pools: delegate parsing of command line option -dM to a new function
+    - MINOR: pools: support setting debugging options using -dM
+    - BUILD: makefile: enable both DEBUG_STRICT and DEBUG_MEMORY_POOLS by default
+    - CI: github: enable pool debugging by default
+    - DOC: Fix usage/examples of deprecated ACLs
+    - DOC: internal: update the pools API to mention boot-time settings
+    - DOC: design: add design thoughts for later simplification of the pools
+    - DOC: design: commit the temporary design notes on thread groups
+    - MINOR: stream-int: Handle appctx case first when releasing the endpoint
+    - MINOR: connection: Be prepared to handle conn-stream with no connection
+    - MINOR: stream: Handle appctx case first when creating a new stream
+    - MINOR: connection: Add a function to detach a conn-stream from the connection
+    - MINOR: stream-int: Add function to reset a SI endpoint
+    - MINOR: stream-int: Add function to attach a connection to a SI
+    - MINOR: stream-int: Be able to allocate a CS without connection
+    - MEDIUM: stream: No longer release backend conn-stream on connection retry
+    - MEDIUM: stream: Allocate backend CS when the stream is created
+    - REORG: conn_stream: move conn-stream stuff in dedicated files
+    - MEDIUM: conn-stream: No longer access connection field directly
+    - MEDIUM: conn-stream: Be prepared to use an appctx as conn-stream endpoint
+    - MAJOR: conn_stream/stream-int: move the appctx to the conn-stream
+    - MEDIUM: applet: Set the conn-stream as appctx owner instead of the stream-int
+    - MEDIUM: conn_stream: Add a pointer to the app object into the conn-stream
+    - MINOR: stream: Add pointer to front/back conn-streams into stream struct
+    - MINOR: stream: Slightly rework stream_new to separate CS/SI initialization
+    - MINOR: stream-int: Always access the stream-int via the conn-stream
+    - MINOR: backend: Always access the stream-int via the conn-stream
+    - MINOR: stream: Always access the stream-int via the conn-stream
+    - MINOR: http-ana: Always access the stream-int via the conn-stream
+    - MINOR: cli: Always access the stream-int via the conn-stream
+    - MINOR: log: Always access the stream-int via the conn-stream
+    - MINOR: frontend: Always access the stream-int via the conn-stream
+    - MINOR: proxy: Always access the stream-int via the conn-stream
+    - MINOR: peers: Always access the stream-int via the conn-stream
+    - MINOR: debug: Always access the stream-int via the conn-stream
+    - MINOR: hlua: Always access the stream-int via the conn-stream
+    - MINOR: cache: Always access the stream-int via the conn-stream
+    - MINOR: dns: Always access the stream-int via the conn-stream
+    - MINOR: http-act: Always access the stream-int via the conn-stream
+    - MINOR: httpclient: Always access the stream-int via the conn-stream
+    - MINOR: tcp-act: Always access the stream-int via the conn-stream
+    - MINOR: sink: Always access the stream-int via the conn-stream
+    - MINOR: conn-stream: Rename cs_detach() to cs_detach_endp()
+    - CLEANUP: conn-stream: Don't export conn-stream pool
+    - MAJOR: stream/conn_stream: Move the stream-interface into the conn-stream
+    - CLEANUP: stream-int: rename si_reset() to si_init()
+    - MINOR: conn-stream: Release a CS when both app and endp are detached
+    - MINOR: stream: Don't destroy conn-streams but detach app and endp
+    - MAJOR: check: Use a persistent conn-stream for health-checks
+    - CLEANUP: conn-stream: Remove cs_destroy()
+    - CLEANUP: backend: Don't export connect_server anymore
+    - BUG/MINOR: h3/hq_interop: Fix CS and stream creation
+    - BUILD: tree-wide: Avoid warnings about undefined entities retrieved from a CS
+    - BUG/MINOR: proxy: preset the error message pointer to NULL in parse_new_proxy()
+    - BUG/MEDIUM: quic: fix received ACK stream calculation
+    - BUILD: stream: fix build warning with older compilers
+    - BUG/MINOR: debug: fix get_tainted() to properly read an atomic value
+    - DEBUG: move the tainted stuff to bug.h for easier inclusion
+    - DEBUG: cleanup back trace generation
+    - DEBUG: cleanup BUG_ON() configuration
+    - DEBUG: mark ABORT_NOW() as unreachable
+    - DBEUG: add a new WARN_ON() macro
+    - DEBUG: make the _BUG_ON() macro return the condition
+    - DEBUG: add a new WARN_ON_ONCE() macro
+    - DEBUG: report BUG_ON() and WARN_ON() in the tainted flags
+    - MINOR: quic: adjust buffer handling for STREAM transmission
+    - MINOR: quic: liberate the TX stream buffer after ACK processing
+    - MINOR: quic: add a TODO for a memleak frame on ACK consume
+
 2022/02/01 : 2.6-dev1
     - BUG/MINOR: cache: Fix loop on cache entries in "show cache"
     - BUG/MINOR: httpclient: allow to replace the host header
