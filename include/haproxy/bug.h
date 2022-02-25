@@ -74,11 +74,14 @@
  * crashes using ABORT_NOW() above.
  */
 #if defined(DEBUG_STRICT)
-#define BUG_ON(cond) _BUG_ON(cond, __FILE__, __LINE__, 1, "FATAL: bug ", "")
+#define BUG_ON(cond)  _BUG_ON(cond, __FILE__, __LINE__, 1, "FATAL: bug ", "")
+#define WARN_ON(cond) _BUG_ON(cond, __FILE__, __LINE__, 0, "WARNING: ",   " (please report to developers)")
 #elif defined(DEBUG_STRICT_NOCRASH)
-#define BUG_ON(cond) _BUG_ON(cond, __FILE__, __LINE__, 0, "FATAL: bug ", " (not crashing but process is untrusted now)")
+#define BUG_ON(cond)  _BUG_ON(cond, __FILE__, __LINE__, 0, "FATAL: bug ", " (not crashing but process is untrusted now)")
+#define WARN_ON(cond) _BUG_ON(cond, __FILE__, __LINE__, 0, "WARNING: ",   " (please report to developers)")
 #else
 #define BUG_ON(cond)
+#define WARN_ON(cond)
 #endif
 
 /* When not optimizing, clang won't remove that code, so only compile it in when optimizing */

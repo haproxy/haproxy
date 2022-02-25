@@ -363,6 +363,19 @@ int debug_parse_cli_bug(char **args, char *payload, struct appctx *appctx, void 
 	return 1;
 }
 
+/* parse a "debug dev warn" command. It always returns 1.
+ * Note: we make sure not to make the function static so that it appears in the trace.
+ */
+int debug_parse_cli_warn(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
+
+	_HA_ATOMIC_INC(&debug_commands_issued);
+	WARN_ON(one > zero);
+	return 1;
+}
+
 /* parse a "debug dev close" command. It always returns 1. */
 static int debug_parse_cli_close(char **args, char *payload, struct appctx *appctx, void *private)
 {
@@ -1390,6 +1403,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{{ "debug", "dev", "stream",NULL },    "debug dev stream [k=v]*                 : show/manipulate stream flags",            debug_parse_cli_stream,NULL, NULL, NULL, ACCESS_EXPERT },
 	{{ "debug", "dev", "sym",   NULL },    "debug dev sym    <addr>                 : resolve symbol address",                  debug_parse_cli_sym,   NULL, NULL, NULL, ACCESS_EXPERT },
 	{{ "debug", "dev", "tkill", NULL },    "debug dev tkill  [thr] [sig]            : send signal to thread",                   debug_parse_cli_tkill, NULL, NULL, NULL, ACCESS_EXPERT },
+	{{ "debug", "dev", "warn",  NULL },    "debug dev warn                          : call WARN_ON() and possibly crash",       debug_parse_cli_warn,  NULL, NULL, NULL, ACCESS_EXPERT },
 	{{ "debug", "dev", "write", NULL },    "debug dev write  [size]                 : write that many bytes in return",         debug_parse_cli_write, NULL, NULL, NULL, ACCESS_EXPERT },
 #if defined(HA_HAVE_DUMP_LIBS)
 	{{ "show", "libs", NULL, NULL },       "show libs                               : show loaded object files and libraries", debug_parse_cli_show_libs, NULL, NULL },
