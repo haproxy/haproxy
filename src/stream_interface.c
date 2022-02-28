@@ -93,7 +93,7 @@ struct si_ops si_applet_ops = {
  * directly, the last one is mostly a wake callback.
  */
 int si_cs_recv(struct conn_stream *cs);
-int si_cs_send(struct conn_stream *cs);
+static int si_cs_send(struct conn_stream *cs);
 static int si_cs_process(struct conn_stream *cs);
 
 
@@ -679,7 +679,7 @@ static int si_cs_process(struct conn_stream *cs)
  * caller to commit polling changes. The caller should check conn->flags
  * for errors.
  */
-int si_cs_send(struct conn_stream *cs)
+static int si_cs_send(struct conn_stream *cs)
 {
 	struct connection *conn = __cs_conn(cs);
 	struct stream_interface *si = cs_si(cs);
