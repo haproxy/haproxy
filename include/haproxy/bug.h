@@ -129,12 +129,12 @@
 #  define BUG_ON(cond)       _BUG_ON     (cond, __FILE__, __LINE__, 3, "FATAL: bug ",     "")
 #  define WARN_ON(cond)      _BUG_ON     (cond, __FILE__, __LINE__, 0, "WARNING: warn ",  " (please report to developers)")
 #  define CHECK_IF(cond)     _BUG_ON_ONCE(cond, __FILE__, __LINE__, 0, "WARNING: check ", " (please report to developers)")
-# elif DEBUG_STRICT_ACTION == 2
+# elif defined(DEBUG_STRICT_ACTION) && (DEBUG_STRICT_ACTION == 2)
 /* Stricter level: BUG_ON() crashes, WARN_ON() crashes, CHECK_IF() warns */
 #  define BUG_ON(cond)       _BUG_ON     (cond, __FILE__, __LINE__, 3, "FATAL: bug ",     "")
 #  define WARN_ON(cond)      _BUG_ON     (cond, __FILE__, __LINE__, 1, "FATAL: warn ",    "")
 #  define CHECK_IF(cond)     _BUG_ON_ONCE(cond, __FILE__, __LINE__, 0, "WARNING: check ", " (please report to developers)")
-# elif DEBUG_STRICT_ACTION >= 3
+# elif defined(DEBUG_STRICT_ACTION) && (DEBUG_STRICT_ACTION >= 3)
 /* Developer/CI level: BUG_ON() crashes, WARN_ON() crashes, CHECK_IF() crashes */
 #  define BUG_ON(cond)       _BUG_ON     (cond, __FILE__, __LINE__, 3, "FATAL: bug ",     "")
 #  define WARN_ON(cond)      _BUG_ON     (cond, __FILE__, __LINE__, 1, "FATAL: warn ",    "")
@@ -159,7 +159,7 @@
 /* default level: BUG_ON() crashes, CHECK_IF() warns */
 #  define BUG_ON_HOT(cond)   _BUG_ON     (cond, __FILE__, __LINE__, 3, "FATAL: bug ",     "")
 #  define CHECK_IF_HOT(cond) _BUG_ON_ONCE(cond, __FILE__, __LINE__, 0, "WARNING: check ", " (please report to developers)")
-# elif DEBUG_STRICT_ACTION >= 3
+# elif defined(DEBUG_STRICT_ACTION) && (DEBUG_STRICT_ACTION >= 3)
 /* Developer/CI level: BUG_ON() crashes, CHECK_IF() crashes */
 #  define BUG_ON_HOT(cond)   _BUG_ON     (cond, __FILE__, __LINE__, 3, "FATAL: bug ",     "")
 #  define CHECK_IF_HOT(cond) _BUG_ON_ONCE(cond, __FILE__, __LINE__, 1, "FATAL: check ",   "")
