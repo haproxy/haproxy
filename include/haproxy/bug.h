@@ -106,18 +106,39 @@
 		__bug_cond; /* let's return the condition */		\
 	})
 
-/* BUG_ON: complains if <cond> is true when DEBUG_STRICT or DEBUG_STRICT_NOCRASH
- * are set, does nothing otherwise. With DEBUG_STRICT in addition it immediately
- * crashes using ABORT_NOW() above.
+/* DEBUG_STRICT enables/disables runtime checks on condition <cond>
+ * DEBUG_STRICT_ACTION indicates the level of verification on the rules when
+ * <cond> is true:
+ *
+ *    macro   BUG_ON()    WARN_ON()    CHECK_IF()
+ * value  0    warn         warn         warn
+ *        1    CRASH        warn         warn
+ *        2    CRASH        CRASH        warn
+ *        3    CRASH        CRASH        CRASH
  */
+
 #if defined(DEBUG_STRICT)
-#  define BUG_ON(cond)       _BUG_ON     (cond, __FILE__, __LINE__, 3, "FATAL: bug ",     "")
-#  define WARN_ON(cond)      _BUG_ON     (cond, __FILE__, __LINE__, 0, "WARNING: warn ",  " (please report to developers)")
-#  define CHECK_IF(cond)     _BUG_ON_ONCE(cond, __FILE__, __LINE__, 0, "WARNING: check ", " (please report to developers)")
-#elif defined(DEBUG_STRICT_NOCRASH)
+# if defined(DEBUG_STRICT_ACTION) && (DEBUG_STRICT_ACTION < 1)
+/* Lowest level: BUG_ON() warns, WARN_ON() warns, CHECK_IF() warns */
 #  define BUG_ON(cond)       _BUG_ON     (cond, __FILE__, __LINE__, 2, "WARNING: bug ",   " (not crashing but process is untrusted now, please report to developers)")
 #  define WARN_ON(cond)      _BUG_ON     (cond, __FILE__, __LINE__, 0, "WARNING: warn ",  " (please report to developers)")
 #  define CHECK_IF(cond)     _BUG_ON_ONCE(cond, __FILE__, __LINE__, 0, "WARNING: check ", " (please report to developers)")
+# elif !defined(DEBUG_STRICT_ACTION) || (DEBUG_STRICT_ACTION == 1)
+/* default level: BUG_ON() crashes, WARN_ON() warns, CHECK_IF() warns */
+#  define BUG_ON(cond)       _BUG_ON     (cond, __FILE__, __LINE__, 3, "FATAL: bug ",     "")
+#  define WARN_ON(cond)      _BUG_ON     (cond, __FILE__, __LINE__, 0, "WARNING: warn ",  " (please report to developers)")
+#  define CHECK_IF(cond)     _BUG_ON_ONCE(cond, __FILE__, __LINE__, 0, "WARNING: check ", " (please report to developers)")
+# elif DEBUG_STRICT_ACTION == 2
+/* Stricter level: BUG_ON() crashes, WARN_ON() crashes, CHECK_IF() warns */
+#  define BUG_ON(cond)       _BUG_ON     (cond, __FILE__, __LINE__, 3, "FATAL: bug ",     "")
+#  define WARN_ON(cond)      _BUG_ON     (cond, __FILE__, __LINE__, 1, "FATAL: warn ",    "")
+#  define CHECK_IF(cond)     _BUG_ON_ONCE(cond, __FILE__, __LINE__, 0, "WARNING: check ", " (please report to developers)")
+# elif DEBUG_STRICT_ACTION >= 3
+/* Developer/CI level: BUG_ON() crashes, WARN_ON() crashes, CHECK_IF() crashes */
+#  define BUG_ON(cond)       _BUG_ON     (cond, __FILE__, __LINE__, 3, "FATAL: bug ",     "")
+#  define WARN_ON(cond)      _BUG_ON     (cond, __FILE__, __LINE__, 1, "FATAL: warn ",    "")
+#  define CHECK_IF(cond)     _BUG_ON_ONCE(cond, __FILE__, __LINE__, 1, "FATAL: check ",   "")
+# endif
 #else
 #  define BUG_ON(cond)
 #  define WARN_ON(cond)
