@@ -117,6 +117,7 @@
  *        3    CRASH        CRASH        CRASH
  */
 
+/* The macros below are for general use */
 #if defined(DEBUG_STRICT)
 # if defined(DEBUG_STRICT_ACTION) && (DEBUG_STRICT_ACTION < 1)
 /* Lowest level: BUG_ON() warns, WARN_ON() warns, CHECK_IF() warns */
@@ -144,6 +145,30 @@
 #  define WARN_ON(cond)
 #  define CHECK_IF(cond)
 #endif
+
+/* These macros are only for hot paths and remain disabled unless DEBUG_STRICT is 2 or above.
+ * Only developers/CI should use these levels as they may significantly impact performance by
+ * enabling checks in sensitive areas.
+ */
+#if defined(DEBUG_STRICT) && (DEBUG_STRICT > 1)
+# if defined(DEBUG_STRICT_ACTION) && (DEBUG_STRICT_ACTION < 1)
+/* Lowest level: BUG_ON() warns, CHECK_IF() warns */
+#  define BUG_ON_HOT(cond)   _BUG_ON_ONCE(cond, __FILE__, __LINE__, 2, "WARNING: bug ",   " (not crashing but process is untrusted now, please report to developers)")
+#  define CHECK_IF_HOT(cond) _BUG_ON_ONCE(cond, __FILE__, __LINE__, 0, "WARNING: check ", " (please report to developers)")
+# elif !defined(DEBUG_STRICT_ACTION) || (DEBUG_STRICT_ACTION < 3)
+/* default level: BUG_ON() crashes, CHECK_IF() warns */
+#  define BUG_ON_HOT(cond)   _BUG_ON     (cond, __FILE__, __LINE__, 3, "FATAL: bug ",     "")
+#  define CHECK_IF_HOT(cond) _BUG_ON_ONCE(cond, __FILE__, __LINE__, 0, "WARNING: check ", " (please report to developers)")
+# elif DEBUG_STRICT_ACTION >= 3
+/* Developer/CI level: BUG_ON() crashes, CHECK_IF() crashes */
+#  define BUG_ON_HOT(cond)   _BUG_ON     (cond, __FILE__, __LINE__, 3, "FATAL: bug ",     "")
+#  define CHECK_IF_HOT(cond) _BUG_ON_ONCE(cond, __FILE__, __LINE__, 1, "FATAL: check ",   "")
+# endif
+#else
+#  define BUG_ON_HOT(cond)
+#  define CHECK_IF_HOT(cond)
+#endif
+
 
 /* When not optimizing, clang won't remove that code, so only compile it in when optimizing */
 #if defined(__GNUC__) && defined(__OPTIMIZE__)
