@@ -3878,12 +3878,10 @@ static int http_handle_stats(struct stream *s, struct channel *req)
 	struct http_msg *msg = &txn->req;
 	struct uri_auth *uri_auth = s->be->uri_auth;
 	const char *h, *lookup, *end;
-	struct appctx *appctx;
+	struct appctx *appctx = __cs_appctx(s->csb);
 	struct htx *htx;
 	struct htx_sl *sl;
 
-	appctx = cs_appctx(s->csb);
-	ALREADY_CHECKED(appctx);
 	memset(&appctx->ctx.stats, 0, sizeof(appctx->ctx.stats));
 	appctx->st1 = appctx->st2 = 0;
 	appctx->ctx.stats.st_code = STAT_STATUS_INIT;
@@ -5004,7 +5002,7 @@ static void http_debug_stline(const char *dir, struct stream *s, const struct ht
         chunk_printf(&trash, "%08x:%s.%s[%04x:%04x]: ", s->uniq_id, s->be->id,
                      dir,
                      objt_conn(sess->origin) ? (unsigned short)__objt_conn(sess->origin)->handle.fd : -1,
-                     cs_conn(s->csb) ? (unsigned short)(cs_conn(s->csb))->handle.fd : -1);
+                     cs_conn(s->csb) ? (unsigned short)(__cs_conn(s->csb))->handle.fd : -1);
 
         max = HTX_SL_P1_LEN(sl);
         UBOUND(max, trash.size - trash.data - 3);
@@ -5035,7 +5033,7 @@ static void http_debug_hdr(const char *dir, struct stream *s, const struct ist n
         chunk_printf(&trash, "%08x:%s.%s[%04x:%04x]: ", s->uniq_id, s->be->id,
                      dir,
                      objt_conn(sess->origin) ? (unsigned short)__objt_conn(sess->origin)->handle.fd : -1,
-                     cs_conn(s->csb) ? (unsigned short)(cs_conn(s->csb))->handle.fd : -1);
+                     cs_conn(s->csb) ? (unsigned short)(__cs_conn(s->csb))->handle.fd : -1);
 
         max = n.len;
         UBOUND(max, trash.size - trash.data - 3);

@@ -1323,7 +1323,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_send(struct check *check, struct tcpcheck_r
 	enum tcpcheck_eval_ret ret = TCPCHK_EVAL_CONTINUE;
 	struct tcpcheck_send *send = &rule->send;
 	struct conn_stream *cs = check->cs;
-	struct connection *conn = cs_conn(cs);
+	struct connection *conn = __cs_conn(cs);
 	struct buffer *tmp = NULL;
 	struct htx *htx = NULL;
 	int connection_hdr = 0;
@@ -1533,7 +1533,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_send(struct check *check, struct tcpcheck_r
 enum tcpcheck_eval_ret tcpcheck_eval_recv(struct check *check, struct tcpcheck_rule *rule)
 {
 	struct conn_stream *cs = check->cs;
-	struct connection *conn = cs_conn(cs);
+	struct connection *conn = __cs_conn(cs);
 	enum tcpcheck_eval_ret ret = TCPCHK_EVAL_CONTINUE;
 	size_t max, read, cur_read = 0;
 	int is_empty;

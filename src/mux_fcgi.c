@@ -3314,9 +3314,9 @@ static void fcgi_strm_capture_bad_message(struct fcgi_conn *fconn, struct fcgi_s
 
 	if (fstrm->cs && cs_strm(fstrm->cs)) {
 		if (sess == NULL)
-			sess = cs_strm(fstrm->cs)->sess;
+			sess = __cs_strm(fstrm->cs)->sess;
 		if (!(h1m->flags & H1_MF_RESP))
-			other_end = cs_strm(fstrm->cs)->be;
+			other_end = __cs_strm(fstrm->cs)->be;
 		else
 			other_end = sess->fe;
 	} else

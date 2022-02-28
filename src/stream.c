@@ -275,11 +275,10 @@ static void strm_trace(enum trace_level level, uint64_t mask, const struct trace
  */
 int stream_upgrade_from_cs(struct conn_stream *cs, struct buffer *input)
 {
-	struct stream *s = cs_strm(cs);
+	struct stream *s = __cs_strm(cs);
+	const struct mux_ops *mux = cs_conn_mux(cs);
 
-	if (cs_conn_mux(cs)) {
-		const struct mux_ops *mux = DISGUISE(cs_conn_mux(cs));
-
+	if (mux) {
 		if (mux->flags & MX_FL_HTX)
 			s->flags |= SF_HTX;
 	}
@@ -989,7 +988,7 @@ enum act_return process_use_service(struct act_rule *rule, struct proxy *px,
 		appctx->rule = rule;
 	}
 	else
-		appctx = cs_appctx(s->csb);
+		appctx = __cs_appctx(s->csb);
 
 	/* Stops the applet scheduling, in case of the init function miss
 	 * some data.
@@ -2140,10 +2139,10 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	if (!(req->flags & (CF_KERN_SPLICING|CF_SHUTR)) &&
 	    req->to_forward &&
 	    (global.tune.options & GTUNE_USE_SPLICE) &&
-	    (cs_conn(si_f->cs) && cs_conn(si_f->cs)->xprt && cs_conn(si_f->cs)->xprt->rcv_pipe &&
-	     cs_conn(si_f->cs)->mux && cs_conn(si_f->cs)->mux->rcv_pipe) &&
-	    (cs_conn(si_b->cs) && cs_conn(si_b->cs)->xprt && cs_conn(si_b->cs)->xprt->snd_pipe &&
-	     cs_conn(si_b->cs)->mux && cs_conn(si_b->cs)->mux->snd_pipe) &&
+	    (cs_conn(si_f->cs) && __cs_conn(si_f->cs)->xprt && __cs_conn(si_f->cs)->xprt->rcv_pipe &&
+	     __cs_conn(si_f->cs)->mux && __cs_conn(si_f->cs)->mux->rcv_pipe) &&
+	    (cs_conn(si_b->cs) && __cs_conn(si_b->cs)->xprt && __cs_conn(si_b->cs)->xprt->snd_pipe &&
+	     __cs_conn(si_b->cs)->mux && __cs_conn(si_b->cs)->mux->snd_pipe) &&
 	    (pipes_used < global.maxpipes) &&
 	    (((sess->fe->options2|s->be->options2) & PR_O2_SPLIC_REQ) ||
 	     (((sess->fe->options2|s->be->options2) & PR_O2_SPLIC_AUT) &&
@@ -2333,10 +2332,10 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	if (!(res->flags & (CF_KERN_SPLICING|CF_SHUTR)) &&
 	    res->to_forward &&
 	    (global.tune.options & GTUNE_USE_SPLICE) &&
-	    (cs_conn(si_f->cs) && cs_conn(si_f->cs)->xprt && cs_conn(si_f->cs)->xprt->snd_pipe &&
-	     cs_conn(si_f->cs)->mux && cs_conn(si_f->cs)->mux->snd_pipe) &&
-	    (cs_conn(si_b->cs) && cs_conn(si_b->cs)->xprt && cs_conn(si_b->cs)->xprt->rcv_pipe &&
-	     cs_conn(si_b->cs)->mux && cs_conn(si_b->cs)->mux->rcv_pipe) &&
+	    (cs_conn(si_f->cs) && __cs_conn(si_f->cs)->xprt && __cs_conn(si_f->cs)->xprt->snd_pipe &&
+	     __cs_conn(si_f->cs)->mux && __cs_conn(si_f->cs)->mux->snd_pipe) &&
+	    (cs_conn(si_b->cs) && __cs_conn(si_b->cs)->xprt && __cs_conn(si_b->cs)->xprt->rcv_pipe &&
+	     __cs_conn(si_b->cs)->mux && __cs_conn(si_b->cs)->mux->rcv_pipe) &&
 	    (pipes_used < global.maxpipes) &&
 	    (((sess->fe->options2|s->be->options2) & PR_O2_SPLIC_RTR) ||
 	     (((sess->fe->options2|s->be->options2) & PR_O2_SPLIC_AUT) &&
@@ -2413,8 +2412,8 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		    si_b->prev_state == SI_ST_EST) {
 			chunk_printf(&trash, "%08x:%s.srvcls[%04x:%04x]\n",
 				     s->uniq_id, s->be->id,
-				     cs_conn(si_f->cs) ? (unsigned short)cs_conn(si_f->cs)->handle.fd : -1,
-				     cs_conn(si_b->cs) ? (unsigned short)cs_conn(si_b->cs)->handle.fd : -1);
+				     cs_conn(si_f->cs) ? (unsigned short)__cs_conn(si_f->cs)->handle.fd : -1,
+				     cs_conn(si_b->cs) ? (unsigned short)__cs_conn(si_b->cs)->handle.fd : -1);
 			DISGUISE(write(1, trash.area, trash.data));
 		}
 
@@ -2422,8 +2421,8 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		    si_f->prev_state == SI_ST_EST) {
 			chunk_printf(&trash, "%08x:%s.clicls[%04x:%04x]\n",
 				     s->uniq_id, s->be->id,
-				     cs_conn(si_f->cs) ? (unsigned short)cs_conn(si_f->cs)->handle.fd : -1,
-				     cs_conn(si_b->cs) ? (unsigned short)cs_conn(si_b->cs)->handle.fd : -1);
+				     cs_conn(si_f->cs) ? (unsigned short)__cs_conn(si_f->cs)->handle.fd : -1,
+				     cs_conn(si_b->cs) ? (unsigned short)__cs_conn(si_b->cs)->handle.fd : -1);
 			DISGUISE(write(1, trash.area, trash.data));
 		}
 	}
@@ -2490,8 +2489,8 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		     (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)))) {
 		chunk_printf(&trash, "%08x:%s.closed[%04x:%04x]\n",
 			     s->uniq_id, s->be->id,
-			     cs_conn(si_f->cs) ? (unsigned short)cs_conn(si_f->cs)->handle.fd : -1,
-			     cs_conn(si_b->cs) ? (unsigned short)cs_conn(si_b->cs)->handle.fd : -1);
+			     cs_conn(si_f->cs) ? (unsigned short)__cs_conn(si_f->cs)->handle.fd : -1,
+			     cs_conn(si_b->cs) ? (unsigned short)__cs_conn(si_b->cs)->handle.fd : -1);
 		DISGUISE(write(1, trash.area, trash.data));
 	}
 
@@ -3093,15 +3092,13 @@ void list_services(FILE *out)
  */
 static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct stream *strm)
 {
-	struct appctx *appctx = cs_appctx(si->cs);
+	struct appctx *appctx = __cs_appctx(si->cs);
 	struct tm tm;
 	extern const char *monthname[12];
 	char pn[INET6_ADDRSTRLEN];
 	struct conn_stream *cs;
 	struct connection *conn;
 	struct appctx *tmpctx;
-
-	ALREADY_CHECKED(appctx);
 
 	chunk_reset(&trash);
 

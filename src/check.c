@@ -1019,7 +1019,7 @@ int httpchk_build_status_header(struct server *s, struct buffer *buf)
 static int wake_srv_chk(struct conn_stream *cs)
 {
 	struct connection *conn;
-	struct check *check = cs_check(cs);
+	struct check *check = __cs_check(cs);
 	struct email_alertq *q = container_of(check, typeof(*q), check);
 	int ret = 0;
 

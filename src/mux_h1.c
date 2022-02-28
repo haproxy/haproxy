@@ -1353,9 +1353,9 @@ static void h1_capture_bad_message(struct h1c *h1c, struct h1s *h1s,
 
 	if ((h1c->flags & H1C_F_ST_ATTACHED) && cs_strm(h1s->cs)) {
 		if (sess == NULL)
-			sess = cs_strm(h1s->cs)->sess;
+			sess = __cs_strm(h1s->cs)->sess;
 		if (!(h1m->flags & H1_MF_RESP))
-			other_end = cs_strm(h1s->cs)->be;
+			other_end = __cs_strm(h1s->cs)->be;
 		else
 			other_end = sess->fe;
 	} else

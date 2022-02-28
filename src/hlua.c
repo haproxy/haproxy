@@ -2684,8 +2684,7 @@ __LJMP static int hlua_socket_connect_yield(struct lua_State *L, int status, lua
 		return 2;
 	}
 
-	appctx = cs_appctx(s->csf);
-	ALREADY_CHECKED(appctx);
+	appctx = __cs_appctx(s->csf);
 
 	/* Check for connection established. */
 	if (appctx->ctx.hlua_cosocket.connected) {

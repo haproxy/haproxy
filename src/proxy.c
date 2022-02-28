@@ -2612,8 +2612,8 @@ static void dump_server_addr(const struct sockaddr_storage *addr, char *addr_str
  */
 static int dump_servers_state(struct stream_interface *si)
 {
-	struct appctx *appctx = cs_appctx(si->cs);
-	struct proxy *px;
+	struct appctx *appctx = __cs_appctx(si->cs);
+	struct proxy *px = appctx->ctx.cli.p0;
 	struct server *srv;
 	char srv_addr[INET6_ADDRSTRLEN + 1];
 	char srv_agent_addr[INET6_ADDRSTRLEN + 1];
@@ -2621,9 +2621,6 @@ static int dump_servers_state(struct stream_interface *si)
 	time_t srv_time_since_last_change;
 	int bk_f_forced_id, srv_f_forced_id;
 	char *srvrecord;
-
-	ALREADY_CHECKED(appctx);
-	px = appctx->ctx.cli.p0;
 
 	if (!appctx->ctx.cli.p1)
 		appctx->ctx.cli.p1 = px->srv;

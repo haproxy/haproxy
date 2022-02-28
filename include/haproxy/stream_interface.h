@@ -55,18 +55,16 @@ void si_sync_send(struct stream_interface *si);
 /* returns the channel which receives data from this stream interface (input channel) */
 static inline struct channel *si_ic(struct stream_interface *si)
 {
-	struct stream *strm = cs_strm(si->cs);
+	struct stream *strm = __cs_strm(si->cs);
 
-	ALREADY_CHECKED(strm);
 	return ((si->flags & SI_FL_ISBACK) ? &(strm->res) : &(strm->req));
 }
 
 /* returns the channel which feeds data to this stream interface (output channel) */
 static inline struct channel *si_oc(struct stream_interface *si)
 {
-	struct stream *strm = cs_strm(si->cs);
+	struct stream *strm = __cs_strm(si->cs);
 
-	ALREADY_CHECKED(strm);
 	return ((si->flags & SI_FL_ISBACK) ? &(strm->req) : &(strm->res));
 }
 
@@ -85,27 +83,22 @@ static inline struct buffer *si_ob(struct stream_interface *si)
 /* returns the stream associated to a stream interface */
 static inline struct stream *si_strm(struct stream_interface *si)
 {
-	struct stream *strm = cs_strm(si->cs);
-
-	ALREADY_CHECKED(strm);
-	return strm;
+	return __cs_strm(si->cs);
 }
 
 /* returns the task associated to this stream interface */
 static inline struct task *si_task(struct stream_interface *si)
 {
-	struct stream *strm = cs_strm(si->cs);
+	struct stream *strm = __cs_strm(si->cs);
 
-	ALREADY_CHECKED(strm);
 	return strm->task;
 }
 
 /* returns the stream interface on the other side. Used during forwarding. */
 static inline struct stream_interface *si_opposite(struct stream_interface *si)
 {
-	struct stream *strm = cs_strm(si->cs);
+	struct stream *strm = __cs_strm(si->cs);
 
-	ALREADY_CHECKED(strm);
 	return ((si->flags & SI_FL_ISBACK) ? strm->csf->si : strm->csb->si);
 }
 
@@ -161,8 +154,8 @@ static inline void si_applet_release(struct stream_interface *si)
 {
 	struct appctx *appctx;
 
-	appctx = cs_appctx(si->cs);
-	if (appctx && appctx->applet->release && !si_state_in(si->state, SI_SB_DIS|SI_SB_CLO))
+	appctx = __cs_appctx(si->cs);
+	if (appctx->applet->release && !si_state_in(si->state, SI_SB_DIS|SI_SB_CLO))
 		appctx->applet->release(appctx);
 }
 
