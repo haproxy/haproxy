@@ -1976,22 +1976,9 @@ static size_t qc_strm_cpy(struct buffer *buf, struct quic_stream *strm_frm)
 {
 	size_t ret;
 
-	ret = 0;
-	while (strm_frm->len) {
-		size_t try;
-
-		try = b_contig_space(buf);
-		if (!try)
-			break;
-
-		if (try > strm_frm->len)
-			try = strm_frm->len;
-		memcpy(b_tail(buf), strm_frm->data, try);
-		strm_frm->len -= try;
-		strm_frm->offset.key += try;
-		b_add(buf, try);
-		ret += try;
-	}
+	ret = b_putblk(buf, (char *)strm_frm->data, strm_frm->len);
+	strm_frm->len -= ret;
+	strm_frm->offset.key += ret;
 
 	return ret;
 }
