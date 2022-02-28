@@ -111,17 +111,17 @@
  * crashes using ABORT_NOW() above.
  */
 #if defined(DEBUG_STRICT)
-#define BUG_ON(cond)       _BUG_ON     (cond, __FILE__, __LINE__, 3, "FATAL: bug ", "")
-#define WARN_ON(cond)      _BUG_ON     (cond, __FILE__, __LINE__, 0, "WARNING: ",   " (please report to developers)")
-#define CHECK_IF(cond)     _BUG_ON_ONCE(cond, __FILE__, __LINE__, 0, "WARNING: ",   " (please report to developers)")
+#  define BUG_ON(cond)       _BUG_ON     (cond, __FILE__, __LINE__, 3, "FATAL: bug ",     "")
+#  define WARN_ON(cond)      _BUG_ON     (cond, __FILE__, __LINE__, 0, "WARNING: warn ",  " (please report to developers)")
+#  define CHECK_IF(cond)     _BUG_ON_ONCE(cond, __FILE__, __LINE__, 0, "WARNING: check ", " (please report to developers)")
 #elif defined(DEBUG_STRICT_NOCRASH)
-#define BUG_ON(cond)       _BUG_ON     (cond, __FILE__, __LINE__, 2, "FATAL: bug ", " (not crashing but process is untrusted now)")
-#define WARN_ON(cond)      _BUG_ON     (cond, __FILE__, __LINE__, 0, "WARNING: ",   " (please report to developers)")
-#define CHECK_IF(cond)     _BUG_ON_ONCE(cond, __FILE__, __LINE__, 0, "WARNING: ",   " (please report to developers)")
+#  define BUG_ON(cond)       _BUG_ON     (cond, __FILE__, __LINE__, 2, "WARNING: bug ",   " (not crashing but process is untrusted now, please report to developers)")
+#  define WARN_ON(cond)      _BUG_ON     (cond, __FILE__, __LINE__, 0, "WARNING: warn ",  " (please report to developers)")
+#  define CHECK_IF(cond)     _BUG_ON_ONCE(cond, __FILE__, __LINE__, 0, "WARNING: check ", " (please report to developers)")
 #else
-#define BUG_ON(cond)
-#define WARN_ON(cond)
-#define CHECK_IF(cond)
+#  define BUG_ON(cond)
+#  define WARN_ON(cond)
+#  define CHECK_IF(cond)
 #endif
 
 /* When not optimizing, clang won't remove that code, so only compile it in when optimizing */
