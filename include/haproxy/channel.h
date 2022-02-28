@@ -127,6 +127,7 @@ static inline size_t c_full(const struct channel *c)
 /* co_data() : returns the amount of output data in the channel's buffer */
 static inline size_t co_data(const struct channel *c)
 {
+	CHECK_IF_HOT(c->output > c_data(c));
 	return c->output;
 }
 
@@ -170,6 +171,7 @@ static inline char *c_ptr(const struct channel *c, ssize_t ofs)
 static inline void c_adv(struct channel *c, size_t adv)
 {
 	c->output += adv;
+	BUG_ON_HOT(c->output > c_data(c));
 }
 
 /* c_rew() : rewinds the channel's buffer by <adv> bytes, which means that the
@@ -179,6 +181,7 @@ static inline void c_adv(struct channel *c, size_t adv)
  */
 static inline void c_rew(struct channel *c, size_t adv)
 {
+	BUG_ON_HOT(c->output < adv);
 	c->output -= adv;
 }
 
@@ -191,6 +194,7 @@ static inline void c_realign_if_empty(struct channel *chn)
 /* Sets the amount of output for the channel */
 static inline void co_set_data(struct channel *c, size_t output)
 {
+	BUG_ON_HOT(output > c_data(c));
 	c->output = output;
 }
 
@@ -932,6 +936,7 @@ static inline int32_t channel_htx_fwd_headers(struct channel *chn, struct htx *h
  */
 static inline void co_skip(struct channel *chn, int len)
 {
+	BUG_ON_HOT(len > chn->output);
 	b_del(&chn->buf, len);
 	chn->output -= len;
 	c_realign_if_empty(chn);
@@ -946,8 +951,10 @@ static inline void co_htx_skip(struct channel *chn, struct htx *htx, int len)
 	struct htx_ret htxret;
 
 	htxret = htx_drain(htx, len);
-	if (htxret.ret)
+	if (htxret.ret) {
+		BUG_ON_HOT(htxret.ret > chn->output);
 		chn->output -= htxret.ret;
+	}
 }
 
 /* Tries to copy chunk <chunk> into the channel's buffer after length controls.
