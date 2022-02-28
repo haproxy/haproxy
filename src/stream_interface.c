@@ -1656,7 +1656,7 @@ void si_applet_wake_cb(struct stream_interface *si)
 {
 	struct channel *ic = si_ic(si);
 
-	BUG_ON(cs_appctx(si->cs));
+	BUG_ON(!cs_appctx(si->cs));
 
 	/* If the applet wants to write and the channel is closed, it's a
 	 * broken pipe and it must be reported.
@@ -1696,7 +1696,7 @@ static void stream_int_shutr_applet(struct stream_interface *si)
 {
 	struct channel *ic = si_ic(si);
 
-	BUG_ON(cs_appctx(si->cs));
+	BUG_ON(!cs_appctx(si->cs));
 
 	si_rx_shut_blk(si);
 	if (ic->flags & CF_SHUTR)
@@ -1732,7 +1732,7 @@ static void stream_int_shutw_applet(struct stream_interface *si)
 	struct channel *ic = si_ic(si);
 	struct channel *oc = si_oc(si);
 
-	BUG_ON(cs_appctx(si->cs));
+	BUG_ON(!cs_appctx(si->cs));
 
 	oc->flags &= ~CF_SHUTW_NOW;
 	if (oc->flags & CF_SHUTW)
@@ -1785,7 +1785,7 @@ static void stream_int_chk_rcv_applet(struct stream_interface *si)
 {
 	struct channel *ic = si_ic(si);
 
-	BUG_ON(cs_appctx(si->cs));
+	BUG_ON(!cs_appctx(si->cs));
 
 	DPRINTF(stderr, "%s: si=%p, si->state=%d ic->flags=%08x oc->flags=%08x\n",
 		__FUNCTION__,
@@ -1802,7 +1802,7 @@ static void stream_int_chk_snd_applet(struct stream_interface *si)
 {
 	struct channel *oc = si_oc(si);
 
-	BUG_ON(cs_appctx(si->cs));
+	BUG_ON(!cs_appctx(si->cs));
 
 	DPRINTF(stderr, "%s: si=%p, si->state=%d ic->flags=%08x oc->flags=%08x\n",
 		__FUNCTION__,

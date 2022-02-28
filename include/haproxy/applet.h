@@ -113,8 +113,6 @@ static inline void appctx_free(struct appctx *appctx)
 /* wakes up an applet when conditions have changed */
 static inline void appctx_wakeup(struct appctx *appctx)
 {
-	ALREADY_CHECKED(appctx);
-
 	task_wakeup(appctx->t, TASK_WOKEN_OTHER);
 }
 
