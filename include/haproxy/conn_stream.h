@@ -56,11 +56,18 @@ static inline void cs_init(struct conn_stream *cs)
 }
 
 /* Returns the connection from a cs if the endpoint is a connection. Otherwise
- * NULL is returned.
+ * NULL is returned. __cs_conn() returns the connection without any control
+ * while cs_conn() check the endpoint type.
  */
+static inline struct connection *__cs_conn(const struct conn_stream *cs)
+{
+	return __objt_conn(cs->end);
+}
 static inline struct connection *cs_conn(const struct conn_stream *cs)
 {
-	return (cs ? objt_conn(cs->end) : NULL);
+	if (obj_type(cs->end) == OBJ_TYPE_CONN)
+		return __cs_conn(cs);
+	return NULL;
 }
 
 /* Returns the mux of the connection from a cs if the endpoint is a
@@ -73,24 +80,54 @@ static inline const struct mux_ops *cs_conn_mux(const struct conn_stream *cs)
 	return (conn ? conn->mux : NULL);
 }
 
-/* Returns the appctx from a cs if the endpoint is an appctx. Otherwise NULL is
- * returned.
+/* Returns the appctx from a cs if the endpoint is an appctx. Otherwise
+ * NULL is returned. __cs_appctx() returns the appctx without any control
+ * while cs_appctx() check the endpoint type.
  */
+static inline struct appctx *__cs_appctx(const struct conn_stream *cs)
+{
+	return __objt_appctx(cs->end);
+}
 static inline struct appctx *cs_appctx(const struct conn_stream *cs)
 {
-	return (cs ? objt_appctx(cs->end) : NULL);
+	if (obj_type(cs->end) == OBJ_TYPE_APPCTX)
+		return __cs_appctx(cs);
+	return NULL;
 }
 
+/* Returns the stream from a cs if the application is a stream. Otherwise
+ * NULL is returned. __cs_strm() returns the stream without any control
+ * while cs_strm() check the application type.
+ */
+static inline struct stream *__cs_strm(const struct conn_stream *cs)
+{
+	return __objt_stream(cs->app);
+}
 static inline struct stream *cs_strm(const struct conn_stream *cs)
 {
-	return (cs ? objt_stream(cs->app) : NULL);
+	if (obj_type(cs->app) == OBJ_TYPE_STREAM)
+		return __cs_strm(cs);
+	return NULL;
 }
 
+/* Returns the healthcheck from a cs if the application is a
+ * healthcheck. Otherwise NULL is returned. __cs_check() returns the healthcheck
+ * without any control while cs_check() check the application type.
+ */
+static inline struct check *__cs_check(const struct conn_stream *cs)
+{
+	return __objt_check(cs->app);
+}
 static inline struct check *cs_check(const struct conn_stream *cs)
 {
-	return (cs ? objt_check(cs->app) : NULL);
+	if (obj_type(cs->app) == OBJ_TYPE_CHECK)
+		return __objt_check(cs->app);
+	return NULL;
 }
 
+/* Returns the stream-interface from a cs. It is not NULL only if a stream is
+ * attached to the cs.
+ */
 static inline struct stream_interface *cs_si(const struct conn_stream *cs)
 {
 	return cs->si;
@@ -98,7 +135,7 @@ static inline struct stream_interface *cs_si(const struct conn_stream *cs)
 
 static inline const char *cs_get_data_name(const struct conn_stream *cs)
 {
-	if (!cs || !cs->data_cb)
+	if (!cs->data_cb)
 		return "NONE";
 	return cs->data_cb->name;
 }
