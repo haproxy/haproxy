@@ -192,6 +192,91 @@ struct eb64_node *qcc_get_qcs(struct qcc *qcc, uint64_t id)
 	return NULL;
 }
 
+/* Handle a new STREAM frame <strm_frm>. The frame content will be copied in
+ * the buffer of the stream instance. The stream instance will be stored in
+ * <out_qcs>. In case of success, the caller can immediatly call qcc_decode_qcs
+ * to process the frame content.
+ *
+ * Returns 0 on success. On errors, two codes are present.
+ * - 1 is returned if the frame cannot be decoded and must be discarded.
+ * - 2 is returned if the stream cannot decode at the moment the frame. The
+ *   frame should be buffered to be handled later.
+ */
+int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
+             char fin, char *data, struct qcs **out_qcs)
+{
+	struct qcs *qcs;
+	struct eb64_node *strm_node;
+	size_t total, diff;
+
+	strm_node = qcc_get_qcs(qcc, id);
+	if (!strm_node) {
+		fprintf(stderr, "%s: stream not found\n", __func__);
+		return 1;
+	}
+
+	qcs = eb64_entry(&strm_node->node, struct qcs, by_id);
+	*out_qcs = qcs;
+
+	if (offset > qcs->rx.offset)
+		return 2;
+
+	if (offset + len <= qcs->rx.offset) {
+		fprintf(stderr, "%s: already received STREAM data\n", __func__);
+		return 1;
+	}
+
+	/* Last frame already handled for this stream. */
+	BUG_ON(qcs->flags & QC_SF_FIN_RECV);
+
+	if (!qc_get_buf(qcs, &qcs->rx.buf)) {
+		/* TODO should mark qcs as full */
+		return 2;
+	}
+
+	fprintf(stderr, "%s: new STREAM data\n", __func__);
+	diff = qcs->rx.offset - offset;
+
+	/* TODO do not partially copy a frame if not enough size left. Maybe
+	 * this can be optimized.
+	 */
+	if (len > b_room(&qcs->rx.buf)) {
+		/* TODO handle STREAM frames larger than RX buffer. */
+		BUG_ON(len > b_size(&qcs->rx.buf));
+		return 2;
+	}
+
+	len -= diff;
+	data += diff;
+
+	total = b_putblk(&qcs->rx.buf, data, len);
+	/* TODO handle partial copy of a STREAM frame. */
+	BUG_ON(len != total);
+
+	qcs->rx.offset += total;
+
+	if (fin)
+		qcs->flags |= QC_SF_FIN_RECV;
+
+ out:
+	return 0;
+}
+
+/* Decode the content of STREAM frames already received on the stream instance
+ * <qcs>.
+ *
+ * Returns 0 on success else non-zero.
+ */
+int qcc_decode_qcs(struct qcc *qcc, struct qcs *qcs)
+{
+	if (qcc->app_ops->decode_qcs(qcs, qcs->flags & QC_SF_FIN_RECV, qcc->ctx) < 0) {
+		fprintf(stderr, "%s: decoding error\n", __func__);
+		return 1;
+	}
+
+	return 0;
+}
+
 /* detaches the QUIC stream from its QCC and releases it to the QCS pool. */
 static void qcs_destroy(struct qcs *qcs)
 {
