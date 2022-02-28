@@ -1964,6 +1964,7 @@ struct quic_rx_strm_frm *new_quic_rx_strm_frm(struct quic_stream *stream_frm,
 		frm->len = stream_frm->len;
 		frm->data = stream_frm->data;
 		frm->pkt = pkt;
+		frm->fin = stream_frm->fin;
 	}
 
 	return frm;
@@ -2026,13 +2027,14 @@ static size_t qc_treat_rx_strm_frms(struct qcs *qcs)
 		size_t diff;
 
 		frm = eb64_entry(&frm_node->node, struct quic_rx_strm_frm, offset_node);
-		if (frm->offset_node.key > qcs->rx.offset)
-			break;
-
 		if (frm->offset_node.key + frm->len < qcs->rx.offset) {
 			/* fully already received STREAM offset */
 			goto next;
 		}
+
+		BUG_ON(qcs->flags & QC_SF_FIN_RECV);
+		if (frm->offset_node.key > qcs->rx.offset)
+			break;
 
 		diff = qcs->rx.offset - frm->offset_node.key;
 		frm->data += diff;
@@ -2054,6 +2056,9 @@ static size_t qc_treat_rx_strm_frms(struct qcs *qcs)
 			eb64_insert(&qcs->rx.frms, &frm->offset_node);
 			break;
 		}
+
+		if (frm->fin)
+			qcs->flags |= QC_SF_FIN_RECV;
 
  next:
 		frm_node = eb64_next(frm_node);
@@ -2117,10 +2122,11 @@ static int qc_handle_bidi_strm_frm(struct quic_rx_packet *pkt,
 		strm->rx.offset += ret;
 	}
 
-	total += qc_treat_rx_strm_frms(strm);
 	/* FIN is set only if all data were copied. */
 	if (strm_frm->fin && !strm_frm->len)
 		strm->flags |= QC_SF_FIN_RECV;
+
+	total += qc_treat_rx_strm_frms(strm);
 
 	if (total && qc->qcc->app_ops->decode_qcs(strm, strm->flags & QC_SF_FIN_RECV, qc->qcc->ctx) < 0) {
 		TRACE_PROTO("Decoding error", QUIC_EV_CONN_PSTRM, qc);

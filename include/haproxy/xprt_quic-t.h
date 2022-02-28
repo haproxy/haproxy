@@ -496,6 +496,7 @@ struct quic_rx_strm_frm {
 	struct eb64_node offset_node;
 	uint64_t len;
 	const unsigned char *data;
+	int fin;
 	struct quic_rx_packet *pkt;
 };
 
