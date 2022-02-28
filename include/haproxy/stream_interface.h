@@ -47,9 +47,9 @@ struct appctx *si_register_handler(struct stream_interface *si, struct applet *a
 void si_applet_wake_cb(struct stream_interface *si);
 void si_update_rx(struct stream_interface *si);
 void si_update_tx(struct stream_interface *si);
-int si_cs_recv(struct conn_stream *cs);
 struct task *si_cs_io_cb(struct task *t, void *ctx, unsigned int state);
 void si_update_both(struct stream_interface *si_f, struct stream_interface *si_b);
+int si_sync_recv(struct stream_interface *si);
 void si_sync_send(struct stream_interface *si);
 
 /* returns the channel which receives data from this stream interface (input channel) */
@@ -358,30 +358,6 @@ static inline void si_chk_rcv(struct stream_interface *si)
 
 	si->flags |= SI_FL_RX_WAIT_EP;
 	si->ops->chk_rcv(si);
-}
-
-/* This tries to perform a synchronous receive on the stream interface to
- * try to collect last arrived data. In practice it's only implemented on
- * conn_streams. Returns 0 if nothing was done, non-zero if new data or a
- * shutdown were collected. This may result on some delayed receive calls
- * to be programmed and performed later, though it doesn't provide any
- * such guarantee.
- */
-static inline int si_sync_recv(struct stream_interface *si)
-{
-	if (!si_state_in(si->state, SI_SB_RDY|SI_SB_EST))
-		return 0;
-
-	if (!cs_conn_mux(si->cs))
-		return 0; // only conn_streams are supported
-
-	if (si->wait_event.events & SUB_RETRY_RECV)
-		return 0; // already subscribed
-
-	if (!si_rx_endp_ready(si) || si_rx_blocked(si))
-		return 0; // already failed
-
-	return si_cs_recv(si->cs);
 }
 
 /* Calls chk_snd on the connection using the data layer */
