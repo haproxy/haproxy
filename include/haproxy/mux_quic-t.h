@@ -63,9 +63,10 @@ struct qcc {
 };
 
 #define QC_SF_NONE              0x00000000
-#define QC_SF_FIN_STREAM        0x00000001  // FIN bit must be set for last frame of the stream
-#define QC_SF_BLK_MROOM         0x00000002  // app layer is blocked waiting for room in the qcs.tx.buf
-#define QC_SF_DETACH            0x00000004  // cs is detached but there is remaining data to send
+#define QC_SF_FIN_RECV          0x00000001  // last frame received for this stream
+#define QC_SF_FIN_STREAM        0x00000002  // FIN bit must be set for last frame of the stream
+#define QC_SF_BLK_MROOM         0x00000004  // app layer is blocked waiting for room in the qcs.tx.buf
+#define QC_SF_DETACH            0x00000008  // cs is detached but there is remaining data to send
 
 struct qcs {
 	struct qcc *qcc;
