@@ -949,7 +949,7 @@ static inline void br_init(struct buffer *r, size_t size)
 /* Returns number of elements in the ring, root included */
 static inline unsigned int br_size(const struct buffer *r)
 {
-	BUG_ON(r->area != BUF_RING.area);
+	BUG_ON_HOT(r->area != BUF_RING.area);
 
 	return r->size;
 }
@@ -957,7 +957,7 @@ static inline unsigned int br_size(const struct buffer *r)
 /* Returns true if no more buffers may be added */
 static inline unsigned int br_full(const struct buffer *r)
 {
-	BUG_ON(r->area != BUF_RING.area);
+	BUG_ON_HOT(r->area != BUF_RING.area);
 
 	return r->data + 1 == r->head || r->data + 1 == r->head - 1 + r->size;
 }
@@ -965,7 +965,7 @@ static inline unsigned int br_full(const struct buffer *r)
 /* Returns the index of the ring's head buffer */
 static inline unsigned int br_head_idx(const struct buffer *r)
 {
-	BUG_ON(r->area != BUF_RING.area);
+	BUG_ON_HOT(r->area != BUF_RING.area);
 
 	return r->head;
 }
@@ -973,7 +973,7 @@ static inline unsigned int br_head_idx(const struct buffer *r)
 /* Returns the index of the ring's tail buffer */
 static inline unsigned int br_tail_idx(const struct buffer *r)
 {
-	BUG_ON(r->area != BUF_RING.area);
+	BUG_ON_HOT(r->area != BUF_RING.area);
 
 	return r->data;
 }
@@ -981,7 +981,7 @@ static inline unsigned int br_tail_idx(const struct buffer *r)
 /* Returns a pointer to the ring's head buffer */
 static inline struct buffer *br_head(struct buffer *r)
 {
-	BUG_ON(r->area != BUF_RING.area);
+	BUG_ON_HOT(r->area != BUF_RING.area);
 
 	return r + br_head_idx(r);
 }
@@ -989,7 +989,7 @@ static inline struct buffer *br_head(struct buffer *r)
 /* Returns a pointer to the ring's tail buffer */
 static inline struct buffer *br_tail(struct buffer *r)
 {
-	BUG_ON(r->area != BUF_RING.area);
+	BUG_ON_HOT(r->area != BUF_RING.area);
 
 	return r + br_tail_idx(r);
 }
@@ -997,7 +997,7 @@ static inline struct buffer *br_tail(struct buffer *r)
 /* Returns the amount of data of the ring's HEAD buffer */
 static inline unsigned int br_data(const struct buffer *r)
 {
-	BUG_ON(r->area != BUF_RING.area);
+	BUG_ON_HOT(r->area != BUF_RING.area);
 
 	return b_data(r + br_head_idx(r));
 }
@@ -1005,7 +1005,7 @@ static inline unsigned int br_data(const struct buffer *r)
 /* Returns non-zero if the ring is non-full or its tail has some room */
 static inline unsigned int br_has_room(const struct buffer *r)
 {
-	BUG_ON(r->area != BUF_RING.area);
+	BUG_ON_HOT(r->area != BUF_RING.area);
 
 	if (!br_full(r))
 		return 1;
@@ -1021,7 +1021,7 @@ static inline struct buffer *br_tail_add(struct buffer *r)
 {
 	struct buffer *b;
 
-	BUG_ON(r->area != BUF_RING.area);
+	BUG_ON_HOT(r->area != BUF_RING.area);
 
 	b = br_tail(r);
 	if (!b_size(b))
@@ -1050,7 +1050,7 @@ static inline struct buffer *br_head_pick(struct buffer *r)
 {
 	struct buffer *b;
 
-	BUG_ON(r->area != BUF_RING.area);
+	BUG_ON_HOT(r->area != BUF_RING.area);
 
 	b = br_head(r);
 	if (r->head != r->data) {
@@ -1068,7 +1068,7 @@ static inline struct buffer *br_head_pick(struct buffer *r)
  */
 static inline struct buffer *br_del_head(struct buffer *r)
 {
-	BUG_ON(r->area != BUF_RING.area);
+	BUG_ON_HOT(r->area != BUF_RING.area);
 
 	if (r->head != r->data) {
 		r->head++;
