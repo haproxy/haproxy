@@ -567,14 +567,13 @@ int pendconn_dequeue(struct stream *strm)
 	struct pendconn *p;
 	int is_unlinked;
 
-	if (unlikely(!strm->pend_pos)) {
-		/* unexpected case because it is called by the stream itself and
-		 * only the stream can release a pendconn. So it is only
-		 * possible if a pendconn is released by someone else or if the
-		 * stream is supposed to be queued but without its associated
-		 * pendconn. In both cases it is a bug! */
-		abort();
-	}
+	/* unexpected case because it is called by the stream itself and
+	 * only the stream can release a pendconn. So it is only
+	 * possible if a pendconn is released by someone else or if the
+	 * stream is supposed to be queued but without its associated
+	 * pendconn. In both cases it is a bug! */
+	BUG_ON(!strm->pend_pos);
+
 	p = strm->pend_pos;
 
 	/* note below : we need to grab the queue's lock to check for emptiness
