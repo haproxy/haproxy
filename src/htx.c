@@ -336,7 +336,7 @@ struct htx_blk *htx_remove_blk(struct htx *htx, struct htx_blk *blk)
 	enum htx_blk_type type;
 	uint32_t pos, addr, sz;
 
-	BUG_ON(htx->head == -1);
+	BUG_ON(!blk || htx->head == -1);
 
 	/* This is the last block in use */
 	if (htx->head == htx->tail) {
@@ -739,12 +739,14 @@ struct htx_ret htx_xfer_blks(struct htx *dst, struct htx *src, uint32_t count,
 	}
 
 	if (unlikely(dstref)) {
-		/* Headers or trailers part was partially xferred, so rollback the copy
-		 * by removing all block between <dstref> and <dstblk>, both included.
+		/* Headers or trailers part was partially xferred, so rollback
+		 * the copy by removing all block between <dstref> and <dstblk>,
+		 * both included. <dstblk> may be NULL.
 		 */
 		while (dstref && dstref != dstblk)
 			dstref = htx_remove_blk(dst, dstref);
-		htx_remove_blk(dst, dstblk);
+		if (dstblk)
+			htx_remove_blk(dst, dstblk);
 
 		/* <dst> HTX message is empty, it means the headers or trailers
 		 * part is too big to be copied at once.
