@@ -376,16 +376,16 @@ int debug_parse_cli_warn(char **args, char *payload, struct appctx *appctx, void
 	return 1;
 }
 
-/* parse a "debug dev warn1" command. It always returns 1.
+/* parse a "debug dev check" command. It always returns 1.
  * Note: we make sure not to make the function static so that it appears in the trace.
  */
-int debug_parse_cli_warn1(char **args, char *payload, struct appctx *appctx, void *private)
+int debug_parse_cli_check(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
 		return 1;
 
 	_HA_ATOMIC_INC(&debug_commands_issued);
-	WARN_ON_ONCE(one > zero);
+	CHECK_IF(one > zero);
 	return 1;
 }
 
@@ -1398,6 +1398,7 @@ REGISTER_PER_THREAD_INIT(init_debug_per_thread);
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
 	{{ "debug", "dev", "bug", NULL },      "debug dev bug                           : call BUG_ON() and crash",                 debug_parse_cli_bug,   NULL, NULL, NULL, ACCESS_EXPERT },
+	{{ "debug", "dev", "check", NULL },    "debug dev check                         : call CHECK_IF() and possibly crash",      debug_parse_cli_check, NULL, NULL, NULL, ACCESS_EXPERT },
 	{{ "debug", "dev", "close", NULL },    "debug dev close  <fd>                   : close this file descriptor",              debug_parse_cli_close, NULL, NULL, NULL, ACCESS_EXPERT },
 	{{ "debug", "dev", "delay", NULL },    "debug dev delay  [ms]                   : sleep this long",                         debug_parse_cli_delay, NULL, NULL, NULL, ACCESS_EXPERT },
 #if defined(DEBUG_DEV)
@@ -1417,7 +1418,6 @@ static struct cli_kw_list cli_kws = {{ },{
 	{{ "debug", "dev", "sym",   NULL },    "debug dev sym    <addr>                 : resolve symbol address",                  debug_parse_cli_sym,   NULL, NULL, NULL, ACCESS_EXPERT },
 	{{ "debug", "dev", "tkill", NULL },    "debug dev tkill  [thr] [sig]            : send signal to thread",                   debug_parse_cli_tkill, NULL, NULL, NULL, ACCESS_EXPERT },
 	{{ "debug", "dev", "warn",  NULL },    "debug dev warn                          : call WARN_ON() and possibly crash",       debug_parse_cli_warn,  NULL, NULL, NULL, ACCESS_EXPERT },
-	{{ "debug", "dev", "warn1", NULL },    "debug dev warn1                         : call WARN_ON_ONCE() and possibly crash",  debug_parse_cli_warn1, NULL, NULL, NULL, ACCESS_EXPERT },
 	{{ "debug", "dev", "write", NULL },    "debug dev write  [size]                 : write that many bytes in return",         debug_parse_cli_write, NULL, NULL, NULL, ACCESS_EXPERT },
 #if defined(HA_HAVE_DUMP_LIBS)
 	{{ "show", "libs", NULL, NULL },       "show libs                               : show loaded object files and libraries", debug_parse_cli_show_libs, NULL, NULL },
