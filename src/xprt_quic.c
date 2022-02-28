@@ -2676,11 +2676,9 @@ static int qc_prep_pkts(struct quic_conn *qc, struct qring *qr,
 			/* If there was already a correct packet present, set the
 			 * current datagram as prepared into <cbuf>.
 			 */
-			if (prv_pkt) {
+			if (prv_pkt)
 				qc_set_dg(cbuf, dglen, first_pkt);
-				goto stop_build;
-			}
-			goto out;
+			goto stop_build;
 		default:
 			break;
 		}
