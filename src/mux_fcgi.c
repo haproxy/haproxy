@@ -1230,8 +1230,8 @@ static int fcgi_set_default_param(struct fcgi_conn *fconn, struct fcgi_strm *fst
 				  struct fcgi_strm_params *params)
 {
 	struct connection *cli_conn = objt_conn(fstrm->sess->origin);
-	const struct sockaddr_storage *src = si_src(si_opposite(cs_si(fstrm->cs)));
-	const struct sockaddr_storage *dst = si_dst(si_opposite(cs_si(fstrm->cs)));
+	const struct sockaddr_storage *src = (cs_check(fstrm->cs) ? conn_src(fconn->conn) : si_src(si_opposite(cs_si(fstrm->cs))));
+	const struct sockaddr_storage *dst = (cs_check(fstrm->cs) ? conn_dst(fconn->conn) : si_dst(si_opposite(cs_si(fstrm->cs))));
 	struct ist p;
 
 	if (!sl)
