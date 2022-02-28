@@ -174,7 +174,7 @@ static inline int SSL_SESSION_set1_id_context(SSL_SESSION *s, const unsigned cha
 #endif
 
 
-#if (HA_OPENSSL_VERSION_NUMBER < 0x1000200fL) && (LIBRESSL_VERSION_NUMBER < 0x2070500fL)
+#if (HA_OPENSSL_VERSION_NUMBER < 0x1000200fL) && (!defined(LIBRESSL_VERSION_NUMBER) || LIBRESSL_VERSION_NUMBER < 0x2070500fL)
 /* introduced in openssl 1.0.2 */
 
 static inline STACK_OF(X509) *X509_chain_up_ref(STACK_OF(X509) *chain)
