@@ -4991,7 +4991,7 @@ __LJMP static int hlua_applet_http_getline_yield(lua_State *L, int status, lua_K
 				break;
 		}
 
-		co_set_data(req, co_data(req) - vlen);
+		c_rew(req, vlen);
 		count -= vlen;
 		if (sz == vlen)
 			blk = htx_remove_blk(htx, blk);
@@ -5081,7 +5081,7 @@ __LJMP static int hlua_applet_http_recv_yield(lua_State *L, int status, lua_KCon
 				break;
 		}
 
-		co_set_data(req, co_data(req) - vlen);
+		c_rew(req, vlen);
 		count -= vlen;
 		if (len > 0)
 			len -= vlen;

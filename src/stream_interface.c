@@ -792,7 +792,7 @@ int si_cs_send(struct conn_stream *cs)
 		ret = conn->mux->snd_buf(cs, &oc->buf, co_data(oc), send_flag);
 		if (ret > 0) {
 			did_send = 1;
-			co_set_data(oc, co_data(oc) - ret);
+			c_rew(oc, ret);
 			c_realign_if_empty(oc);
 
 			if (!co_data(oc)) {

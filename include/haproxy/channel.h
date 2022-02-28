@@ -1007,7 +1007,7 @@ static inline int32_t co_htx_remove_blk(struct channel *chn, struct htx *htx, st
 	int32_t size = htx_get_blksz(blk);
 
 	htx_remove_blk(htx, blk);
-	co_set_data(chn, co_data(chn) - size);
+	c_rew(chn, size);
 
 	return size;
 }
