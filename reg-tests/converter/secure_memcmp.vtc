@@ -7,12 +7,12 @@ feature ignore_unknown_macro
 
 server s1 {
 	rxreq
-	txresp
+	txresp -hdr "Connection: close"
 } -repeat 4 -start
 
 server s2 {
 	rxreq
-	txresp
+	txresp -hdr "Connection: close"
 } -repeat 7 -start
 
 haproxy h1 -conf {
