@@ -519,10 +519,10 @@ section 4 about dependencies for more information on how to build with OpenSSL.
 HAProxy can compress HTTP responses to save bandwidth. Please see section 4
 about dependencies to see the available libraries and associated options.
 
-By default, the DEBUG variable is set to '-g' to enable debug symbols. It is
-not wise to disable it on uncommon systems, because it's often the only way to
-get a usable core when you need one. Otherwise, you can set DEBUG to '-s' to
-strip the binary.
+By default, the DEBUG_CFLAGS variable is set to '-g' to enable debug symbols.
+It is not wise to disable it on uncommon systems, because it's often the only
+way to get a usable core when you need one. Otherwise, you can set DEBUG to
+'-s' to strip the binary.
 
 If the ERR variable is set to any non-empty value, then -Werror will be added
 to the compiler so that any build warning will trigger an error. This is the
