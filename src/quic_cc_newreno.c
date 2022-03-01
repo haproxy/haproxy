@@ -48,7 +48,6 @@ static void quic_cc_nr_ss_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 	path = container_of(cc, struct quic_path, cc);
 	switch (ev->type) {
 	case QUIC_CC_EVT_ACK:
-		path->in_flight -= ev->ack.acked;
 		/* Do not increase the congestion window in recovery period. */
 		if (ev->ack.time_sent <= cc->algo_state.nr.recovery_start_time)
 			return;
@@ -61,7 +60,6 @@ static void quic_cc_nr_ss_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 		break;
 
 	case QUIC_CC_EVT_LOSS:
-		path->in_flight -= ev->loss.lost_bytes;
 		cc->algo_state.nr.cwnd = QUIC_MAX(cc->algo_state.nr.cwnd >> 1, path->min_cwnd);
 		path->cwnd = cc->algo_state.nr.ssthresh = cc->algo_state.nr.cwnd;
 		/* Exit to congestion avoidance. */
@@ -84,7 +82,6 @@ static void quic_cc_nr_ca_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 	path = container_of(cc, struct quic_path, cc);
 	switch (ev->type) {
 	case QUIC_CC_EVT_ACK:
-		path->in_flight -= ev->ack.acked;
 		/* Do not increase the congestion window in recovery period. */
 		if (ev->ack.time_sent <= cc->algo_state.nr.recovery_start_time)
 			goto out;
@@ -98,7 +95,6 @@ static void quic_cc_nr_ca_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 		break;
 
 	case QUIC_CC_EVT_LOSS:
-		path->in_flight -= ev->loss.lost_bytes;
 		if (ev->loss.newest_time_sent > cc->algo_state.nr.recovery_start_time) {
 			cc->algo_state.nr.recovery_start_time = ev->loss.now_ms;
 			cc->algo_state.nr.cwnd = QUIC_MAX(cc->algo_state.nr.cwnd >> 1, path->min_cwnd);
