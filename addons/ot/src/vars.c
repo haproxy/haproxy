@@ -158,6 +158,7 @@ static inline struct vars *flt_ot_get_vars(struct stream *s, const char *scope)
  *   size     -
  *   len      -
  *   name     -
+ *   flag_cpy -
  *   err      -
  *
  * DESCRIPTION
@@ -166,11 +167,11 @@ static inline struct vars *flt_ot_get_vars(struct stream *s, const char *scope)
  * RETURN VALUE
  *   -
  */
-static int flt_ot_normalize_name(char *var_name, size_t size, int *len, const char *name, char **err)
+static int flt_ot_normalize_name(char *var_name, size_t size, int *len, const char *name, bool flag_cpy, char **err)
 {
 	int retval = 0;
 
-	FLT_OT_FUNC("%p, %zu, %p, \"%s\", %p:%p", var_name, size, len, name, FLT_OT_DPTR_ARGS(err));
+	FLT_OT_FUNC("%p, %zu, %p, \"%s\", %hhu, %p:%p", var_name, size, len, name, flag_cpy, FLT_OT_DPTR_ARGS(err));
 
 	if (!FLT_OT_STR_ISVALID(name))
 		FLT_OT_RETURN(retval);
@@ -186,33 +187,45 @@ static int flt_ot_normalize_name(char *var_name, size_t size, int *len, const ch
 	else
 		retval = -1;
 
-	/*
-	 * HAProxy does not allow the use of variable names containing '-'
-	 * or ' '.  This of course applies to HTTP header names as well.
-	 * Also, here the capital letters are converted to lowercase.
-	 */
-	while (retval != -1)
-		if (*len >= (size - 1)) {
+	if (flag_cpy) {
+		retval = strlen(name);
+		if ((*len + retval + 1) > size) {
 			FLT_OT_ERR("failed to normalize variable name, buffer too small");
 
 			retval = -1;
 		} else {
-			uint8_t ch = name[retval];
-
-			if (ch == '\0')
-				break;
-			else if (ch == '-')
-				ch = FLT_OT_VAR_CHAR_DASH;
-			else if (ch == ' ')
-				ch = FLT_OT_VAR_CHAR_SPACE;
-			else if (isupper(ch))
-				ch = ist_lc[ch];
-
-			var_name[(*len)++] = ch;
-			retval++;
+			(void)memcpy(var_name + *len, name, retval + 1);
+			*len += retval;
 		}
+	} else {
+		/*
+		 * HAProxy does not allow the use of variable names containing '-'
+		 * or ' '.  This of course applies to HTTP header names as well.
+		 * Also, here the capital letters are converted to lowercase.
+		 */
+		while (retval != -1)
+			if (*len >= (size - 1)) {
+				FLT_OT_ERR("failed to normalize variable name, buffer too small");
 
-	var_name[*len] = '\0';
+				retval = -1;
+			} else {
+				uint8_t ch = name[retval];
+
+				if (ch == '\0')
+					break;
+				else if (ch == '-')
+					ch = FLT_OT_VAR_CHAR_DASH;
+				else if (ch == ' ')
+					ch = FLT_OT_VAR_CHAR_SPACE;
+				else if (isupper(ch))
+					ch = ist_lc[ch];
+
+				var_name[(*len)++] = ch;
+				retval++;
+			}
+
+		var_name[*len] = '\0';
+	}
 
 	FLT_OT_DBG(3, "var_name: \"%s\" %d/%d", var_name, retval, *len);
 
@@ -231,6 +244,7 @@ static int flt_ot_normalize_name(char *var_name, size_t size, int *len, const ch
  *   scope    -
  *   prefix   -
  *   name     -
+ *   flag_cpy -
  *   var_name -
  *   size     -
  *   err      -
@@ -243,15 +257,15 @@ static int flt_ot_normalize_name(char *var_name, size_t size, int *len, const ch
  * RETURN VALUE
  *   -
  */
-static int flt_ot_var_name(const char *scope, const char *prefix, const char *name, char *var_name, size_t size, char **err)
+static int flt_ot_var_name(const char *scope, const char *prefix, const char *name, bool flag_cpy, char *var_name, size_t size, char **err)
 {
 	int retval = 0;
 
-	FLT_OT_FUNC("\"%s\", \"%s\", \"%s\", %p, %zu, %p:%p", scope, prefix, name, var_name, size, FLT_OT_DPTR_ARGS(err));
+	FLT_OT_FUNC("\"%s\", \"%s\", \"%s\", %hhu, %p, %zu, %p:%p", scope, prefix, name, flag_cpy, var_name, size, FLT_OT_DPTR_ARGS(err));
 
-	if (flt_ot_normalize_name(var_name, size, &retval, scope, err) >= 0)
-		if (flt_ot_normalize_name(var_name, size, &retval, prefix, err) >= 0)
-			(void)flt_ot_normalize_name(var_name, size, &retval, name, err);
+	if (flt_ot_normalize_name(var_name, size, &retval, scope, 0, err) >= 0)
+		if (flt_ot_normalize_name(var_name, size, &retval, prefix, 0, err) >= 0)
+			(void)flt_ot_normalize_name(var_name, size, &retval, name, flag_cpy, err);
 
 	if (retval == -1)
 		FLT_OT_ERR("failed to construct variable name '%s.%s.%s'", scope, prefix, name);
@@ -284,7 +298,7 @@ int flt_ot_var_register(const char *scope, const char *prefix, const char *name,
 
 	FLT_OT_FUNC("\"%s\", \"%s\", \"%s\", %p:%p", scope, prefix, name, FLT_OT_DPTR_ARGS(err));
 
-	var_name_len = flt_ot_var_name(scope, prefix, name, var_name, sizeof(var_name), err);
+	var_name_len = flt_ot_var_name(scope, prefix, name, 0, var_name, sizeof(var_name), err);
 	if (var_name_len == -1)
 		FLT_OT_RETURN(retval);
 
@@ -333,7 +347,7 @@ int flt_ot_var_set(struct stream *s, const char *scope, const char *prefix, cons
 
 	FLT_OT_FUNC("%p, \"%s\", \"%s\", \"%s\", \"%s\", %u, %p:%p", s, scope, prefix, name, value, opt, FLT_OT_DPTR_ARGS(err));
 
-	var_name_len = flt_ot_var_name(scope, prefix, name, var_name, sizeof(var_name), err);
+	var_name_len = flt_ot_var_name(scope, prefix, name, 0, var_name, sizeof(var_name), err);
 	if (var_name_len == -1)
 		FLT_OT_RETURN(retval);
 
@@ -383,7 +397,7 @@ int flt_ot_vars_unset(struct stream *s, const char *scope, const char *prefix, u
 	if (vars == NULL)
 		FLT_OT_RETURN(retval);
 
-	var_prefix_len = flt_ot_var_name(NULL, prefix, NULL, var_prefix, sizeof(var_prefix), err);
+	var_prefix_len = flt_ot_var_name(NULL, prefix, NULL, 0, var_prefix, sizeof(var_prefix), err);
 	if (var_prefix_len == -1)
 		FLT_OT_RETURN(retval);
 
@@ -447,7 +461,7 @@ struct otc_text_map *flt_ot_vars_get(struct stream *s, const char *scope, const 
 	if (vars == NULL)
 		FLT_OT_RETURN(retptr);
 
-	rc = flt_ot_var_name(NULL, prefix, NULL, var_name, sizeof(var_name), err);
+	rc = flt_ot_var_name(NULL, prefix, NULL, 0, var_name, sizeof(var_name), err);
 	if (rc == -1)
 		FLT_OT_RETURN(retptr);
 
