@@ -31,7 +31,8 @@
  *   scope -
  *
  * DESCRIPTION
- *   -
+ *   Function prints the contents of all variables defined for a particular
+ *   scope.
  *
  * RETURN VALUE
  *   This function does not return a value.
@@ -58,7 +59,8 @@ static void flt_ot_vars_scope_dump(struct vars *vars, const char *scope)
  *   s -
  *
  * DESCRIPTION
- *   -
+ *   Function prints the contents of all variables grouped by individual
+ *   scope.
  *
  * RETURN VALUE
  *   This function does not return a value.
@@ -95,7 +97,8 @@ void flt_ot_vars_dump(struct stream *s)
  *   -
  *
  * RETURN VALUE
- *   -
+ *   Returns the struct vars pointer for a stream and scope, or NULL if it does
+ *   not exist.
  */
 static inline struct vars *flt_ot_get_vars(struct stream *s, const char *scope)
 {
@@ -201,7 +204,9 @@ static int flt_ot_normalize_name(char *var_name, size_t size, int *len, const ch
  *   err      -
  *
  * DESCRIPTION
- *   -
+ *   The function initializes the value of the 'smp' structure.  If the 'data'
+ *   argument is set, then the 'sample_data' member of the 'smp' structure is
+ *   also initialized.
  *
  * RETURN VALUE
  *   -

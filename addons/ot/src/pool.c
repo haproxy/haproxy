@@ -147,7 +147,7 @@ void flt_ot_pool_free(struct pool_head *pool, void **ptr)
  *   -
  *
  * RETURN VALUE
- *   This function does not return a value.
+ *   -
  */
 struct buffer *flt_ot_trash_alloc(bool flag_clear, char **err)
 {
