@@ -306,7 +306,13 @@ int flt_ot_var_set(struct stream *s, const char *scope, const char *prefix, cons
 	smp.data.u.str.area = (char *)value;
 	smp.data.u.str.data = strlen(value);
 
-	vars_set_by_name_ifexist(var_name, retval, &smp);
+	if (vars_set_by_name_ifexist(var_name, retval, &smp) == 0) {
+		FLT_OT_ERR("failed to set variable '%s'", var_name);
+
+		retval = -1;
+	} else {
+		FLT_OT_DBG(2, "variable '%s' set", var_name);
+	}
 
 	FLT_OT_RETURN(retval);
 }
