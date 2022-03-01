@@ -280,26 +280,26 @@ int flt_ot_var_register(const char *scope, const char *prefix, const char *name,
 {
 	struct arg arg;
 	char       var_name[BUFSIZ];
-	int        retval;
+	int        retval = -1, var_name_len;
 
 	FLT_OT_FUNC("\"%s\", \"%s\", \"%s\", %p:%p", scope, prefix, name, FLT_OT_DPTR_ARGS(err));
 
-	retval = flt_ot_var_name(scope, prefix, name, var_name, sizeof(var_name), err);
-	if (retval == -1)
+	var_name_len = flt_ot_var_name(scope, prefix, name, var_name, sizeof(var_name), err);
+	if (var_name_len == -1)
 		FLT_OT_RETURN(retval);
 
 	/* Set <size> to 0 to not release var_name memory in vars_check_arg(). */
 	(void)memset(&arg, 0, sizeof(arg));
 	arg.type          = ARGT_STR;
 	arg.data.str.area = var_name;
-	arg.data.str.data = retval;
+	arg.data.str.data = var_name_len;
 
 	if (vars_check_arg(&arg, err) == 0) {
 		FLT_OT_ERR_APPEND("failed to register variable '%s': %s", var_name, *err);
-
-		retval = -1;
 	} else {
 		FLT_OT_DBG(2, "variable '%s' registered", arg.data.var.name);
+
+		retval = var_name_len;
 	}
 
 	FLT_OT_RETURN(retval);
@@ -329,22 +329,22 @@ int flt_ot_var_set(struct stream *s, const char *scope, const char *prefix, cons
 {
 	struct sample smp;
 	char          var_name[BUFSIZ];
-	int           retval;
+	int           retval = -1, var_name_len;
 
 	FLT_OT_FUNC("%p, \"%s\", \"%s\", \"%s\", \"%s\", %u, %p:%p", s, scope, prefix, name, value, opt, FLT_OT_DPTR_ARGS(err));
 
-	retval = flt_ot_var_name(scope, prefix, name, var_name, sizeof(var_name), err);
-	if (retval == -1)
+	var_name_len = flt_ot_var_name(scope, prefix, name, var_name, sizeof(var_name), err);
+	if (var_name_len == -1)
 		FLT_OT_RETURN(retval);
 
 	flt_ot_smp_init(s, &smp, opt, SMP_T_STR, value);
 
-	if (vars_set_by_name_ifexist(var_name, retval, &smp) == 0) {
+	if (vars_set_by_name_ifexist(var_name, var_name_len, &smp) == 0) {
 		FLT_OT_ERR("failed to set variable '%s'", var_name);
-
-		retval = -1;
 	} else {
 		FLT_OT_DBG(2, "variable '%s' set", var_name);
+
+		retval = var_name_len;
 	}
 
 	FLT_OT_RETURN(retval);
