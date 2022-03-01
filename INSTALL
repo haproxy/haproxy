@@ -529,6 +529,76 @@ to the compiler so that any build warning will trigger an error. This is the
 recommended way to build when developing, and it is expected that contributed
 patches were tested with ERR=1.
 
+The DEBUG variable is used to extend the CFLAGS and is preset to a list of
+build-time options that are known for providing significant reliability
+improvements and a barely perceptible performance cost. Unless instructed to do
+so by some project developers, or trying to save the last ounce of performance,
+these options should not be changed. Among the usable ones are:
+  - -DDEBUG_STRICT: enable some runtime assertions at key places in the code.
+    The goal is to emit a warning or stop the program if certain expected
+    conditions are not met, and whose violation will result in a misbehaving
+    process due to memory corruption or other significant trouble, possibly
+    caused by an attempt to exploit a bug in the program or a library it relies
+    on. The option knows 3 values: 0 (disable all such assertions, the default
+    when the option is not set), 1 (enable all inexpensive assertions), and
+    2 (enable all assertions even in fast paths). Setting the option with no
+    value corresponds to 1, which is the recommended value for production.
+
+  - -DDEBUG_STRICT_ACTION: indicates how to react to a check violation. There
+    are 3 types of checks: BUG (condition that is known to have serious
+    consequences), WARN (warning about a highly suspicious condition which the
+    process may recover from, but whose unknown cause may also have serious
+    consequences), CHECK (verification whether a condition that developers now
+    consider impossible still happens). The variable takes a value from 0 to 3,
+    that adjusts the behavior on these 3 violations:
+
+               BUG       WARN      CHECK
+         0     warn      warn      warn
+         1     stop      warn      warn
+         2     stop      stop      warn
+         3     stop      stop      stop
+
+    The default value is 1, which is the best balance for production in that it
+    will do its best to prevent a known bogus process from running away, but
+    will let it run if it believes it can recover. Users running the process in
+    sensitive environments (finance etc) may prefer to run at level 2 to make
+    sure to stop any detected anomaly before it may have an impact. Level 3
+    should only be used at the request of developers. In any case, any emitted
+    warning should be reported to developers.
+
+  - -DDEBUG_MEMORY_POOLS: this enables by default extra controls around memory
+    allocation that will help detect coding errors such as double-frees and
+    freeing a bad memory location. It will also detect earlier risks of memory
+    overflows, which may have security implications. The cost is extremely low
+    (less than 1% increase in memory footprint). This is equivalent to adding
+    "-dMtag" on the command line. This option is enabled in the default build
+    options.
+
+  - -DDEBUG_DONT_SHARE_POOLS: this will keep separate pools for same-sized
+    objects of different types. Using this increases the memory usage a little
+    bit but further reduces the risk of memory management related bugs and will
+    lead to more accurate traces in case of error. It is equivalent to adding
+    "-dMno-merge" on the command line. It is not enabled in the default build
+    options.
+
+  - -DDEBUG_POOL_INTEGRITY: this will enable runtime detection and stopping of
+    a class of bugs known as "use after free", which consists in modifying a
+    memory area after freeing it while it was reused for something else. This
+    option is quite powerful but such bugs are fortunately extremely rare, and
+    it will cause a measurable performance degradation (a few percent). This is
+    equivalent to adding "-dMcold-first,integrity" on the command line. This
+    option is not enabled by default but users running development versions on
+    moderate performance sites in order to participate to reliability testing
+    are encouraged to use it, in combination with -DDEBUG_DONT_SHARE_POOLS and
+    -DDEBUG_MEMORY_POOLS, as this could catch dangerous regressions.
+
+As such, for regular production, "-DDEBUG_STRICT -DDEBUG_MEMORY_POOLS" is
+recommended. For security sensitive environments, it is recommended to use
+"-DDEBUG_STRICT -DDEBUG_STRICT_ACTION=2 -DDEBUG_MEMORY_POOLS \
+-DDEBUG_DONT_SHARE_POOLS". For deployments dedicated to testing new versions or
+when trying to nail a bug down, use "-DDEBUG_STRICT=2 -DDEBUG_STRICT_ACTION=2 \
+-DDEBUG_MEMORY_POOLS -DDEBUG_DONT_SHARE_POOLS -DDEBUG_POOL_INTEGRITY".
+
 The DEP variable is automatically set to the list of include files and also
 designates a file that contains the last build options used. It is used during
 the build process to compute dependencies and decide whether or not to rebuild
