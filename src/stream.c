@@ -2713,12 +2713,11 @@ void stream_dump(struct buffer *buf, const struct stream *s, const char *pfx, ch
 		return;
 	}
 
-	si_f = cs_si(s->csf);
-	si_b = cs_si(s->csb);
 	req = &s->req;
 	res = &s->res;
 
-	csf = si_f->cs;
+	csf = s->csf;
+	si_f = cs_si(csf);
 	cof = cs_conn(csf);
 	acf = cs_appctx(csf);
 	if (cof && cof->src && addr_to_str(cof->src, pn, sizeof(pn)) >= 0)
@@ -2726,7 +2725,8 @@ void stream_dump(struct buffer *buf, const struct stream *s, const char *pfx, ch
 	else if (acf)
 		src = acf->applet->name;
 
-	csb = si_b->cs;
+	csb = s->csb;
+	si_b = cs_si(csb);
 	cob = cs_conn(csb);
 	acb = cs_appctx(csb);
 	srv = objt_server(s->target);
@@ -2751,7 +2751,7 @@ void stream_dump(struct buffer *buf, const struct stream *s, const char *pfx, ch
 	              pfx, req->flags, req->analysers, res->flags, res->analysers,
 	                   si_state_str(si_f->state), si_f->flags,
 	                   si_state_str(si_b->state), si_b->flags, eol,
-		      pfx, csf, csf ? csf->flags : 0, csb, csb ? csb->flags : 0, eol,
+		      pfx, csf, csf->flags, csb, csb->flags, eol,
 	              pfx, acf, acf ? acf->st0   : 0, acb, acb ? acb->st0   : 0, eol,
 	              pfx, cof, cof ? cof->flags : 0, conn_get_mux_name(cof), cof?cof->ctx:0, conn_get_xprt_name(cof),
 	                   cof ? cof->xprt_ctx : 0, conn_get_ctrl_name(cof), cof ? cof->handle.fd : 0, eol,
