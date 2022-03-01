@@ -111,6 +111,7 @@ static void quic_cc_nr_ca_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 			cc->algo_state.nr.cwnd = path->min_cwnd;
 			/* Re-entering slow start state. */
 			cc->algo_state.nr.state = QUIC_CC_ST_SS;
+			cc->algo_state.nr.recovery_start_time = 0;
 		}
 		path->cwnd = cc->algo_state.nr.cwnd;
 		break;
