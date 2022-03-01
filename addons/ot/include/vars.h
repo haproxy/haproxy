@@ -32,7 +32,6 @@ void                 flt_ot_vars_dump(struct stream *s);
 #endif
 int                  flt_ot_var_register(const char *scope, const char *prefix, const char *name, char **err);
 int                  flt_ot_var_set(struct stream *s, const char *scope, const char *prefix, const char *name, const char *value, uint opt, char **err);
-int                  flt_ot_var_unset(struct stream *s, const char *scope, const char *prefix, const char *name, uint opt, char **err);
 int                  flt_ot_vars_unset(struct stream *s, const char *scope, const char *prefix, uint opt, char **err);
 int                  flt_ot_var_get(struct stream *s, const char *scope, const char *prefix, const char *name, char **value, uint opt, char **err);
 struct otc_text_map *flt_ot_vars_get(struct stream *s, const char *scope, const char *prefix, uint opt, char **err);

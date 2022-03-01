@@ -325,45 +325,6 @@ int flt_ot_var_set(struct stream *s, const char *scope, const char *prefix, cons
 
 /***
  * NAME
- *   flt_ot_var_unset -
- *
- * ARGUMENTS
- *   s      -
- *   scope  -
- *   prefix -
- *   name   -
- *   opt    -
- *   err    -
- *
- * DESCRIPTION
- *   -
- *
- * RETURN VALUE
- *   -
- */
-int flt_ot_var_unset(struct stream *s, const char *scope, const char *prefix, const char *name, uint opt, char **err)
-{
-	struct sample smp;
-	char          var_name[BUFSIZ];
-	int           retval;
-
-	FLT_OT_FUNC("%p, \"%s\", \"%s\", \"%s\", %u, %p:%p", s, scope, prefix, name, opt, FLT_OT_DPTR_ARGS(err));
-
-	retval = flt_ot_var_name(scope, prefix, name, var_name, sizeof(var_name), err);
-	if (retval == -1)
-		FLT_OT_RETURN(retval);
-
-	(void)memset(&smp, 0, sizeof(smp));
-	(void)smp_set_owner(&smp, s->be, s->sess, s, opt | SMP_OPT_FINAL);
-
-	vars_unset_by_name_ifexist(var_name, retval, &smp);
-
-	FLT_OT_RETURN(retval);
-}
-
-
-/***
- * NAME
  *   flt_ot_vars_unset -
  *
  * ARGUMENTS
