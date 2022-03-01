@@ -392,54 +392,6 @@ int flt_ot_vars_unset(struct stream *s, const char *scope, const char *prefix, u
 
 /***
  * NAME
- *   flt_ot_var_get -
- *
- * ARGUMENTS
- *   s      -
- *   scope  -
- *   prefix -
- *   name   -
- *   value  -
- *   opt    -
- *   err    -
- *
- * DESCRIPTION
- *   -
- *
- * RETURN VALUE
- *   -
- */
-int flt_ot_var_get(struct stream *s, const char *scope, const char *prefix, const char *name, char **value, uint opt, char **err)
-{
-	struct sample smp;
-	char          var_name[BUFSIZ], var_value[BUFSIZ];
-	int           retval;
-
-	FLT_OT_FUNC("%p, \"%s\", \"%s\", \"%s\", %p:%p, %u, %p:%p", s, scope, prefix, name, FLT_OT_DPTR_ARGS(value), opt, FLT_OT_DPTR_ARGS(err));
-
-	retval = flt_ot_var_name(scope, prefix, name, var_name, sizeof(var_name), err);
-	if (retval == -1)
-		FLT_OT_RETURN(retval);
-
-	(void)memset(&smp, 0, sizeof(smp));
-	(void)smp_set_owner(&smp, s->be, s->sess, s, opt | SMP_OPT_FINAL);
-
-	if (vars_get_by_name(var_name, retval, &smp, NULL)) {
-		retval = flt_ot_sample_to_str(&(smp.data), var_value, sizeof(var_value), err);
-		if (retval != -1)
-			FLT_OT_DBG(3, "data type %d: '%s' = '%s'", smp.data.type, var_name, var_value);
-	} else {
-		FLT_OT_ERR("failed to get variable '%s'", var_name);
-
-		retval = -1;
-	}
-
-	FLT_OT_RETURN(retval);
-}
-
-
-/***
- * NAME
  *   flt_ot_vars_get -
  *
  * ARGUMENTS
