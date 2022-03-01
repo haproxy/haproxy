@@ -87,6 +87,38 @@ void flt_ot_vars_dump(struct stream *s)
 
 /***
  * NAME
+ *   flt_ot_smp_init -
+ *
+ * ARGUMENTS
+ *   s    -
+ *   smp  -
+ *   opt  -
+ *   type -
+ *   data -
+ *
+ * DESCRIPTION
+ *   The function initializes the value of the 'smp' structure.  If the 'data'
+ *   argument is set, then the 'sample_data' member of the 'smp' structure is
+ *   also initialized.
+ *
+ * RETURN VALUE
+ *   This function does not return a value.
+ */
+static inline void flt_ot_smp_init(struct stream *s, struct sample *smp, uint opt, int type, const char *data)
+{
+	(void)memset(smp, 0, sizeof(*smp));
+	(void)smp_set_owner(smp, s->be, s->sess, s, opt | SMP_OPT_FINAL);
+
+	if (data != NULL) {
+		smp->data.type = type;
+
+		chunk_initstr(&(smp->data.u.str), data);
+	}
+}
+
+
+/***
+ * NAME
  *   flt_ot_get_vars -
  *
  * ARGUMENTS
@@ -305,11 +337,7 @@ int flt_ot_var_set(struct stream *s, const char *scope, const char *prefix, cons
 	if (retval == -1)
 		FLT_OT_RETURN(retval);
 
-	(void)memset(&smp, 0, sizeof(smp));
-	(void)smp_set_owner(&smp, s->be, s->sess, s, opt | SMP_OPT_FINAL);
-	smp.data.type       = SMP_T_STR;
-	smp.data.u.str.area = (char *)value;
-	smp.data.u.str.data = strlen(value);
+	flt_ot_smp_init(s, &smp, opt, SMP_T_STR, value);
 
 	if (vars_set_by_name_ifexist(var_name, retval, &smp) == 0) {
 		FLT_OT_ERR("failed to set variable '%s'", var_name);
@@ -375,10 +403,8 @@ int flt_ot_vars_unset(struct stream *s, const char *scope, const char *prefix, u
 
 			FLT_OT_DBG(2, "- '%s' -> '%.*s'", var_name, (int)var->data.u.str.data, var->data.u.str.area);
 
-			(void)memset(&smp, 0, sizeof(smp));
-			(void)smp_set_owner(&smp, s->be, s->sess, s, opt | SMP_OPT_FINAL);
-
-			size = var_clear(var);
+			size = var_clear(var, 1);
+			flt_ot_smp_init(s, &smp, opt, 0, NULL);
 			var_accounting_diff(vars, smp.sess, smp.strm, -size);
 
 			retval++;
