@@ -529,6 +529,16 @@ to the compiler so that any build warning will trigger an error. This is the
 recommended way to build when developing, and it is expected that contributed
 patches were tested with ERR=1.
 
+The DEP variable is automatically set to the list of include files and also
+designates a file that contains the last build options used. It is used during
+the build process to compute dependencies and decide whether or not to rebuild
+everything (we do rebuild everything when .h files are touched or when build
+options change). Sometimes when performing fast build iterations on inline
+functions it may be desirable to avoid a full rebuild. Forcing this variable
+to be empty will be sufficient to achieve this. This variable must never be
+forced to produce final binaries, and must not be used during bisect sessions,
+as it will often lead to the wrong commit.
+
 If you need to pass other defines, includes, libraries, etc... then please
 check the Makefile to see which ones will be available in your case, and
 use/override the USE_* variables from the Makefile.
