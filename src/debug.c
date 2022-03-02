@@ -337,6 +337,22 @@ void ha_panic()
 		abort();
 }
 
+/* Complain with message <msg> on stderr. If <counter> is not NULL, it is
+ * atomically incremented, and the message is only printed when the counter
+ * was zero, so that the message is only printed once. <taint> is only checked
+ * on bit 1, and will taint the process either for a bug (2) or warn (0).
+ */
+void complain(int *counter, const char *msg, int taint)
+{
+	if (counter && _HA_ATOMIC_FETCH_ADD(counter, 1))
+		return;
+	DISGUISE(write(2, msg, strlen(msg)));
+	if (taint & 2)
+		mark_tainted(TAINTED_BUG);
+	else
+		mark_tainted(TAINTED_WARN);
+}
+
 /* parse a "debug dev exit" command. It always returns 1, though it should never return. */
 static int debug_parse_cli_exit(char **args, char *payload, struct appctx *appctx, void *private)
 {

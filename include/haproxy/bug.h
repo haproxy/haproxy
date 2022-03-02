@@ -61,22 +61,14 @@
 	__BUG_ON(cond, file, line, crash, pfx, sfx)
 
 #define __BUG_ON(cond, file, line, crash, pfx, sfx)                     \
-	({								\
-		int __bug_cond = !!(cond);				\
-		if (unlikely(__bug_cond)) {				\
-			const char msg[] = "\n" pfx "condition \"" #cond "\" matched at " file ":" #line "" sfx "\n"; \
-			DISGUISE(write(2, msg, __builtin_strlen(msg)));	\
-			if (crash & 2)					\
-				mark_tainted(TAINTED_BUG);		\
-			else						\
-				mark_tainted(TAINTED_WARN);		\
-			if (crash & 1)					\
-				ABORT_NOW();				\
-			else						\
-				DUMP_TRACE();				\
-		}							\
-		__bug_cond; /* let's return the condition */		\
-	})
+	(unlikely(cond) ? ({						\
+		complain(NULL, "\n" pfx "condition \"" #cond "\" matched at " file ":" #line "" sfx "\n", crash); \
+		if (crash & 1)						\
+			ABORT_NOW();					\
+		else							\
+			DUMP_TRACE();					\
+		1; /* let's return the true condition */		\
+	}) : 0)
 
 /* This one is equivalent except that it only emits the message once by
  * maintaining a static counter. This may be used with warnings to detect
@@ -87,24 +79,15 @@
 	__BUG_ON_ONCE(cond, file, line, crash, pfx, sfx)
 
 #define __BUG_ON_ONCE(cond, file, line, crash, pfx, sfx)                \
-	({								\
+	(unlikely(cond) ? ({						\
 		static int __match_count_##line;			\
-		int __bug_cond = !!(cond);				\
-		if (unlikely(__bug_cond) &&				\
-		    !_HA_ATOMIC_FETCH_ADD(&__match_count_##line, 1)) {	\
-			const char msg[] = "\n" pfx "condition \"" #cond "\" matched at " file ":" #line "" sfx "\n"; \
-			DISGUISE(write(2, msg, __builtin_strlen(msg)));	\
-			if (crash & 2)					\
-				mark_tainted(TAINTED_BUG);		\
-			else						\
-				mark_tainted(TAINTED_WARN);		\
-			if (crash & 1)					\
-				ABORT_NOW();				\
-			else						\
-				DUMP_TRACE();				\
-		}							\
-		__bug_cond; /* let's return the condition */		\
-	})
+		complain(&__match_count_##line, "\n" pfx "condition \"" #cond "\" matched at " file ":" #line "" sfx "\n", crash); \
+		if (crash & 1)						\
+			ABORT_NOW();					\
+		else							\
+			DUMP_TRACE();					\
+		1; /* let's return the true condition */		\
+	}) : 0)
 
 /* DEBUG_STRICT enables/disables runtime checks on condition <cond>
  * DEBUG_STRICT_ACTION indicates the level of verification on the rules when
@@ -207,6 +190,8 @@ enum tainted_flags {
 
 /* this is a bit field made of TAINTED_*, and is declared in haproxy.c */
 extern unsigned int tainted;
+
+void complain(int *counter, const char *msg, int taint);
 
 static inline void mark_tainted(const enum tainted_flags flag)
 {
