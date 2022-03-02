@@ -94,6 +94,7 @@ struct quic_cc_algo {
 	enum quic_cc_algo_type type;
 	int (*init)(struct quic_cc *cc);
 	void (*event)(struct quic_cc *cc, struct quic_cc_event *ev);
+	void (*slow_start)(struct quic_cc *cc);
 	void (*state_trace)(struct buffer *buf, const struct quic_cc *cc);
 };
 

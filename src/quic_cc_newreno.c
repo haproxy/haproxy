@@ -39,6 +39,19 @@ static int quic_cc_nr_init(struct quic_cc *cc)
 	return 1;
 }
 
+/* Re-enter slow start state. */
+static void quic_cc_nr_slow_start(struct quic_cc *cc)
+{
+	struct quic_path *path;
+
+	path = container_of(cc, struct quic_path, cc);
+	cc->algo_state.nr.cwnd = path->min_cwnd;
+	/* Re-entering slow start state. */
+	cc->algo_state.nr.state = QUIC_CC_ST_SS;
+	/* Recovery start time reset */
+	cc->algo_state.nr.recovery_start_time = 0;
+}
+
 /* Slow start callback. */
 static void quic_cc_nr_ss_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 {
@@ -145,6 +158,7 @@ struct quic_cc_algo quic_cc_algo_nr = {
 	.type        = QUIC_CC_ALGO_TP_NEWRENO,
 	.init        = quic_cc_nr_init,
 	.event       = quic_cc_nr_event,
+	.slow_start  = quic_cc_nr_slow_start,
 	.state_trace = quic_cc_nr_state_trace,
 };
 
