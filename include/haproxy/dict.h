@@ -2,7 +2,7 @@
  * include/haproxy/dict.h
  * Dictionaries - functions prototypes
  *
- * Copyright 2019 Frédéric Lécaille <flecaille@haproxy.com>
+ * Copyright 2019 Frederic Lecaille <flecaille@haproxy.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files (the

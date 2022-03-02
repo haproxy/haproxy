@@ -3,7 +3,7 @@
  * This file contains definitions and prototypes for circular buffers.
  * Inspired from Linux circular buffers (include/linux/circ_buf.h).
  *
- * Copyright 2021 HAProxy Technologies, Frédéric Lécaille <flecaille@haproxy.com>
+ * Copyright 2021 HAProxy Technologies, Frederic Lecaille <flecaille@haproxy.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public

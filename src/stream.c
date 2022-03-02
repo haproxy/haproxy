@@ -715,7 +715,7 @@ static void stream_free(struct stream *s)
 	/* FIXME: Handle it in appctx_free ??? */
 	must_free_sess = objt_appctx(sess->origin) && sess->origin == s->csf->end;
 
-	/* FIXME: ATTENTION, si CSF est librérer avant, ça plante !!!! */
+	/* FIXME: ATTENTION, si CSF est libere avant, ca plante !!!! */
 	cs_detach_endp(s->csb);
 	cs_detach_endp(s->csf);
 	cs_detach_app(s->csb);

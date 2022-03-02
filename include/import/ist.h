@@ -863,7 +863,7 @@ static inline int istissame(const struct ist ist1, const struct ist ist2)
 static inline struct ist istalloc(const size_t size)
 {
 	/* Note: do not use ist2 here, as it triggers a gcc11 warning.
-	 * â€˜<unknown>â€™ may be used uninitialized [-Werror=maybe-uninitialized]
+	 * €˜<unknown>€™ may be used uninitialized [-Werror=maybe-uninitialized]
 	 *
 	 * This warning is reported because the uninitialized memory block
 	 * allocated by malloc should not be passed to a const argument as in

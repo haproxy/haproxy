@@ -2,7 +2,7 @@
  * include/haproxy/quic_sock.h
  * This file contains declarations for QUIC sockets.
  *
- * Copyright 2020 Frédéric Lécaille <flecaille@haproxy.com>
+ * Copyright 2020 Frederic Lecaille <flecaille@haproxy.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public

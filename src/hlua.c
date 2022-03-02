@@ -88,10 +88,10 @@
  *   recovery point outside Lua).
  *
  *   The panic function runs as if it were a message handler (see
- *   §2.3); in particular, the error message is at the top of the
+ *   #2.3); in particular, the error message is at the top of the
  *   stack. However, there is no guarantee about stack space. To push
  *   anything on the stack, the panic function must first check the
- *   available space (see §4.2).
+ *   available space (see #4.2).
  *
  * We must check all the Lua entry point. This includes:
  *  - The include/proto/hlua.h exported functions

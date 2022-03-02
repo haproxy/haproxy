@@ -2,7 +2,7 @@
  * include/haproxy/xprt_quic.h
  * This file contains QUIC xprt function prototypes
  *
- * Copyright 2020 HAProxy Technologies, Frédéric Lécaille <flecaille@haproxy.com>
+ * Copyright 2020 HAProxy Technologies, Frederic Lecaille <flecaille@haproxy.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -966,7 +966,7 @@ static inline void quic_pktns_init(struct quic_pktns *pktns)
 /* Discard <pktns> packet number space attached to <qc> QUIC connection.
  * Its loss information are reset. Deduce the outstanding bytes for this
  * packet number space from the outstanding bytes for the path of this
- * connection§.
+ * connection.
  * Note that all the non acknowledged TX packets and their frames are freed.
  * Always succeeds. 
  */

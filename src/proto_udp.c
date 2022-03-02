@@ -1,7 +1,7 @@
 /*
  * UDP protocol layer on top of AF_INET/AF_INET6
  *
- * Copyright 2019 HAProxy Technologies, Frédéric Lécaille <flecaille@haproxy.com>
+ * Copyright 2019 HAProxy Technologies, Frederic Lecaille <flecaille@haproxy.com>
  *
  * Partial merge by Emeric Brun <ebrun@haproxy.com>
  *

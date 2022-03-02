@@ -1,7 +1,7 @@
 /*
  * AF_INET/AF_INET6 QUIC protocol layer.
  *
- * Copyright 2020 Frédéric Lécaille <flecaille@haproxy.com>
+ * Copyright 2020 Frederic Lecaille <flecaille@haproxy.com>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License

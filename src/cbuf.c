@@ -1,7 +1,7 @@
 /*
  * Circular buffer management
  *
- * Copyright 2021 HAProxy Technologies, Frédéric Lécaille <flecaill@haproxy.com>
+ * Copyright 2021 HAProxy Technologies, Frederic Lecaille <flecaill@haproxy.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public

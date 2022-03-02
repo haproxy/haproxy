@@ -2,7 +2,7 @@
  * include/haproxy/proto_udp.h
  * This file contains UDP socket protocol definitions.
  *
- * Copyright 2019 HAProxy Technologies, Frédéric Lécaille <flecaille@haproxy.com>
+ * Copyright 2019 HAProxy Technologies, Frederic Lecaille <flecaille@haproxy.com>
  *
  * Partial merge by Emeric Brun <ebrun@haproxy.com>
  *
