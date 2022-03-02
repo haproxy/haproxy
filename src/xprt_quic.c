@@ -1558,30 +1558,6 @@ static inline void free_quic_tx_pkts(struct list *pkts)
 	}
 }
 
-/* Send a packet loss event nofification to the congestion controller
- * attached to <qc> connection with <lost_bytes> the number of lost bytes,
- * <oldest_lost>, <newest_lost> the oldest lost packet and newest lost packet
- * at <now_us> current time.
- * Always succeeds.
- */
-static inline void qc_cc_loss_event(struct quic_conn *qc,
-                                    unsigned int lost_bytes,
-                                    unsigned int newest_time_sent,
-                                    unsigned int period,
-                                    unsigned int now_us)
-{
-	struct quic_cc_event ev = {
-		.type = QUIC_CC_EVT_LOSS,
-		.loss.now_ms           = now_ms,
-		.loss.max_ack_delay    = qc->max_ack_delay,
-		.loss.lost_bytes       = lost_bytes,
-		.loss.time_sent        = newest_time_sent,
-		.loss.period           = period,
-	};
-
-	quic_cc_event(&qc->path->cc, &ev);
-}
-
 /* Send a packet ack event nofication for each newly acked packet of
  * <newly_acked_pkts> list and free them.
  * Always succeeds.
