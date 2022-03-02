@@ -50,6 +50,21 @@ struct action_kw_list http_after_res_keywords = {
        .list = LIST_HEAD_INIT(http_after_res_keywords.list)
 };
 
+void http_req_keywords_register(struct action_kw_list *kw_list)
+{
+	LIST_APPEND(&http_req_keywords.list, &kw_list->list);
+}
+
+void http_res_keywords_register(struct action_kw_list *kw_list)
+{
+	LIST_APPEND(&http_res_keywords.list, &kw_list->list);
+}
+
+void http_after_res_keywords_register(struct action_kw_list *kw_list)
+{
+	LIST_APPEND(&http_after_res_keywords.list, &kw_list->list);
+}
+
 /*
  * Return the struct http_req_action_kw associated to a keyword.
  */
