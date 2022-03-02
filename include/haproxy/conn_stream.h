@@ -32,7 +32,7 @@ struct stream;
 struct stream_interface;
 struct check;
 
-#define IS_HTX_CS(cs)     (cs_conn(cs) && IS_HTX_CONN(cs_conn(cs)))
+#define IS_HTX_CS(cs)     (cs_conn(cs) && IS_HTX_CONN(__cs_conn(cs)))
 
 struct conn_stream *cs_new();
 void cs_free(struct conn_stream *cs);
