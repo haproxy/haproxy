@@ -102,6 +102,7 @@ int proxy_parse_spop_check_opt(char **args, int cur_arg, struct proxy *curpx, co
 int proxy_parse_httpchk_opt(char **args, int cur_arg, struct proxy *curpx, const struct proxy *defpx,
 			    const char *file, int line);
 
+void tcp_check_keywords_register(struct action_kw_list *kw_list);
 
 /* Return the struct action_kw associated to a keyword */
 static inline struct action_kw *action_kw_tcp_check_lookup(const char *kw)
@@ -112,11 +113,6 @@ static inline struct action_kw *action_kw_tcp_check_lookup(const char *kw)
 static inline void action_kw_tcp_check_build_list(struct buffer *chk)
 {
 	action_build_list(&tcp_check_keywords.list, chk);
-}
-
-static inline void tcp_check_keywords_register(struct action_kw_list *kw_list)
-{
-	LIST_APPEND(&tcp_check_keywords.list, &kw_list->list);
 }
 
 #endif /* _HAPROXY_TCPCHECK_H */

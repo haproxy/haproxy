@@ -2316,6 +2316,10 @@ int tcpcheck_main(struct check *check)
 	return retcode;
 }
 
+void tcp_check_keywords_register(struct action_kw_list *kw_list)
+{
+	LIST_APPEND(&tcp_check_keywords.list, &kw_list->list);
+}
 
 /**************************************************************************/
 /******************* Internals to parse tcp-check rules *******************/
