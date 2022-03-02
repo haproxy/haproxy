@@ -1575,7 +1575,7 @@ static inline void qc_cc_loss_event(struct quic_conn *qc,
 		.loss.now_ms           = now_ms,
 		.loss.max_ack_delay    = qc->max_ack_delay,
 		.loss.lost_bytes       = lost_bytes,
-		.loss.newest_time_sent = newest_time_sent,
+		.loss.time_sent        = newest_time_sent,
 		.loss.period           = period,
 	};
 
@@ -1658,10 +1658,30 @@ static inline void qc_release_lost_pkts(struct quic_conn *qc,
 		}
 	}
 
+	if (newest_lost) {
+		/* Sent a congestion event to the controller */
+		struct quic_cc_event ev = {
+			.type = QUIC_CC_EVT_LOSS,
+			.loss.time_sent = newest_lost->time_sent,
+		};
+
+		quic_cc_event(&qc->path->cc, &ev);
+	}
+
+	/* If an RTT have been already sampled, <rtt_min> has been set.
+	 * We must check if we are experiencing a persistent congestion.
+	 * If this is the case, the congestion controller must re-enter
+	 * slow start state.
+	 */
+	if (qc->path->loss.rtt_min && newest_lost != oldest_lost) {
+		unsigned int period = newest_lost->time_sent - oldest_lost->time_sent;
+
+		if (quic_loss_persistent_congestion(&qc->path->loss, period,
+		                                    now_ms, qc->max_ack_delay))
+			qc->path->cc.algo->slow_start(&qc->path->cc);
+	}
+
 	if (lost_bytes) {
-		/* Sent a packet loss event to the congestion controller. */
-		qc_cc_loss_event(qc, lost_bytes, newest_lost->time_sent,
-		                 newest_lost->time_sent - oldest_lost->time_sent, now_us);
 		quic_tx_packet_refdec(oldest_lost);
 		if (newest_lost != oldest_lost)
 			quic_tx_packet_refdec(newest_lost);

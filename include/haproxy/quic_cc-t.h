@@ -63,7 +63,7 @@ struct quic_cc_event {
 			unsigned int now_ms;
 			unsigned int max_ack_delay;
 			size_t lost_bytes;
-			unsigned int newest_time_sent;
+			unsigned int time_sent;
 			unsigned int period;
 		} loss;
 	};
