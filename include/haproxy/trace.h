@@ -130,6 +130,8 @@ void __trace(enum trace_level level, uint64_t mask, struct trace_source *src,
                         const void *a1, const void *a2, const void *a3, const void *a4),
              const struct ist msg);
 
+void trace_register_source(struct trace_source *source);
+
 /* return a single char to describe a trace state */
 static inline char trace_state_char(enum trace_state st)
 {
@@ -142,21 +144,6 @@ static inline char trace_state_char(enum trace_state st)
 static inline char trace_event_char(uint64_t conf, uint64_t ev)
 {
 	return (conf & ev) ? '+' : '-';
-}
-
-/* registers trace source <source>. Modifies the list element!
- * The {start,pause,stop,report} events are not changed so the source may
- * preset them.
- */
-static inline void trace_register_source(struct trace_source *source)
-{
-	source->lockon = TRACE_LOCKON_NOTHING;
-	source->level = TRACE_LEVEL_USER;
-	source->verbosity = 1;
-	source->sink = NULL;
-	source->state = TRACE_STATE_STOPPED;
-	source->lockon_ptr = NULL;
-	LIST_APPEND(&trace_sources, &source->source_link);
 }
 
 #endif /* _HAPROXY_TRACE_H */

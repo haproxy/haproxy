@@ -265,6 +265,21 @@ void __trace(enum trace_level level, uint64_t mask, struct trace_source *src,
 	}
 }
 
+/* registers trace source <source>. Modifies the list element!
+ * The {start,pause,stop,report} events are not changed so the source may
+ * preset them.
+ */
+void trace_register_source(struct trace_source *source)
+{
+	source->lockon = TRACE_LOCKON_NOTHING;
+	source->level = TRACE_LEVEL_USER;
+	source->verbosity = 1;
+	source->sink = NULL;
+	source->state = TRACE_STATE_STOPPED;
+	source->lockon_ptr = NULL;
+	LIST_APPEND(&trace_sources, &source->source_link);
+}
+
 struct trace_source *trace_find_source(const char *name)
 {
 	struct trace_source *src;
