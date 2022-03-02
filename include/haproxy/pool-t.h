@@ -118,8 +118,9 @@ struct pool_head {
 	unsigned int failed;	/* failed allocations */
 	unsigned int alloc_sz;	/* allocated size (includes hidden fields) */
 	struct list list;	/* list of all known pools */
+	void *base_addr;        /* allocation address, for free() */
 	char name[12];		/* name of the pool */
-	struct pool_cache_head cache[MAX_THREADS]; /* pool caches */
+	struct pool_cache_head cache[MAX_THREADS] THREAD_ALIGNED(64); /* pool caches */
 } __attribute__((aligned(64)));
 
 #endif /* _HAPROXY_POOL_T_H */
