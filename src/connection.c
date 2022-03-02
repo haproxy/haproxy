@@ -1565,6 +1565,12 @@ int conn_recv_socks4_proxy_response(struct connection *conn)
 	return 0;
 }
 
+/* registers proto mux list <list>. Modifies the list element! */
+void register_mux_proto(struct mux_proto_list *list)
+{
+	LIST_APPEND(&mux_proto_list.list, &list->list);
+}
+
 /* Lists the known proto mux on <out>. This function is used by "haproxy -vv"
  * and is suitable for early boot just after the "REGISTER" stage because it
  * doesn't depend on anything to be already allocated.

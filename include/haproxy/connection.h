@@ -101,6 +101,7 @@ uint64_t conn_hash_digest(char *buf, size_t bufsize,
                           enum conn_hash_params_t flags);
 const char *conn_err_code_str(struct connection *c);
 int xprt_add_hs(struct connection *conn);
+void register_mux_proto(struct mux_proto_list *list);
 
 extern struct idle_conns idle_conns[MAX_THREADS];
 
@@ -516,12 +517,6 @@ static inline int conn_get_alpn(const struct connection *conn, const char **str,
 	if (!conn_xprt_ready(conn) || !conn->xprt->get_alpn)
 		return 0;
 	return conn->xprt->get_alpn(conn, conn->xprt_ctx, str, len);
-}
-
-/* registers proto mux list <list>. Modifies the list element! */
-static inline void register_mux_proto(struct mux_proto_list *list)
-{
-	LIST_APPEND(&mux_proto_list.list, &list->list);
 }
 
 /* unregisters proto mux list <list> */
