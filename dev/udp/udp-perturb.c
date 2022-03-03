@@ -66,7 +66,16 @@ struct sockaddr_storage frt_addr; // listen address
 struct sockaddr_storage srv_addr; // server address
 
 #define MAXPKTSIZE 16384
+#define MAXREORDER 20
 char trash[MAXPKTSIZE];
+
+/* history buffer, to resend random packets */
+struct {
+	char buf[MAXPKTSIZE];
+	size_t len;
+} history[MAXREORDER];
+int history_idx = 0;
+unsigned int rand_rate = 0;
 
 struct conn conns[MAXCONN];        // sole connection for now
 int fd_frt;
@@ -84,6 +93,19 @@ __attribute__((noreturn)) void die(int code, const char *format, ...)
 	vfprintf(stderr, format, args);
 	va_end(args);
 	exit(code);
+}
+
+/* Xorshift RNG */
+unsigned int prng_state = ~0U/3; // half bits set, but any seed will fit
+static inline unsigned int prng(unsigned int range)
+{
+	unsigned int x = prng_state;
+
+	x ^= x << 13;
+	x ^= x >> 17;
+	x ^= x << 5;
+	prng_state = x;
+        return ((unsigned long long)x * (range - 1) + x) >> 32;
 }
 
 /* converts str in the form [<ipv4>|<ipv6>|<hostname>]:port to struct sockaddr_storage.
@@ -259,11 +281,36 @@ int handle_frt(int fd, struct pollfd *pfd, struct conn *conns, int nbconn)
 	struct sockaddr_storage addr;
 	socklen_t addrlen;
 	struct conn *conn;
+	char *pktbuf = trash;
 	int ret;
 	int i;
 
-	ret = recvfrom(fd, trash, sizeof(trash), MSG_DONTWAIT | MSG_NOSIGNAL,
+	if (rand_rate > 0) {
+		/* keep a copy of this packet */
+		history_idx++;
+		if (history_idx >= MAXREORDER)
+			history_idx = 0;
+		pktbuf = history[history_idx].buf;
+	}
+
+	ret = recvfrom(fd, pktbuf, MAXPKTSIZE, MSG_DONTWAIT | MSG_NOSIGNAL,
 		       (struct sockaddr *)&addr, &addrlen);
+
+	if (rand_rate > 0) {
+		history[history_idx].len = ret; // note: we may store -1/EAGAIN
+		if (prng(100) < rand_rate) {
+			/* return a random buffer or nothing */
+			int idx = prng(MAXREORDER + 1) - 1;
+			if (idx < 0) {
+				/* pretend we didn't receive anything */
+				return 0;
+			}
+			pktbuf = history[idx].buf;
+			ret    = history[idx].len;
+			if (ret < 0)
+				errno = EAGAIN;
+		}
+	}
 
 	if (ret == 0)
 		return 0;
@@ -305,7 +352,7 @@ int handle_frt(int fd, struct pollfd *pfd, struct conn *conns, int nbconn)
 	if (conn->fd_bck < 0)
 		return 0;
 
-	ret = send(conn->fd_bck, trash, ret, MSG_DONTWAIT | MSG_NOSIGNAL);
+	ret = send(conn->fd_bck, pktbuf, ret, MSG_DONTWAIT | MSG_NOSIGNAL);
 	return ret;
 }
 
@@ -315,10 +362,35 @@ int handle_bck(int fd, struct pollfd *pfd, struct conn *conns, int nbconn)
 	struct sockaddr_storage addr;
 	socklen_t addrlen;
 	struct conn *conn;
+	char *pktbuf = trash;
 	int ret;
 
-	ret = recvfrom(fd, trash, sizeof(trash), MSG_DONTWAIT | MSG_NOSIGNAL,
+	if (rand_rate > 0) {
+		/* keep a copy of this packet */
+		history_idx++;
+		if (history_idx >= MAXREORDER)
+			history_idx = 0;
+		pktbuf = history[history_idx].buf;
+	}
+
+	ret = recvfrom(fd, pktbuf, MAXPKTSIZE, MSG_DONTWAIT | MSG_NOSIGNAL,
 		       (struct sockaddr *)&addr, &addrlen);
+
+	if (rand_rate > 0) {
+		history[history_idx].len = ret; // note: we may store -1/EAGAIN
+		if (prng(100) < rand_rate) {
+			/* return a random buffer or nothing */
+			int idx = prng(MAXREORDER + 1) - 1;
+			if (idx < 0) {
+				/* pretend we didn't receive anything */
+				return 0;
+			}
+			pktbuf = history[idx].buf;
+			ret    = history[idx].len;
+			if (ret < 0)
+				errno = EAGAIN;
+		}
+	}
 
 	if (ret == 0)
 		return 0;
@@ -330,7 +402,7 @@ int handle_bck(int fd, struct pollfd *pfd, struct conn *conns, int nbconn)
 	if (!conn)
 		return 0;
 
-	ret = sendto(fd_frt, trash, ret, MSG_DONTWAIT | MSG_NOSIGNAL,
+	ret = sendto(fd_frt, pktbuf, ret, MSG_DONTWAIT | MSG_NOSIGNAL,
 		     (struct sockaddr *)&conn->cli_addr,
 		     conn->cli_addr.ss_family == AF_INET6 ?
 		     sizeof(struct sockaddr_in6) : sizeof(struct sockaddr_in));
@@ -348,13 +420,16 @@ int main(int argc, char **argv)
 	err.msg = malloc(err.size);
 
 	if (argc < 3)
-		die(1, "Usage: %s [<laddr>:]<lport> [<saddr>:]<sport>\n", argv[0]);
+		die(1, "Usage: %s [<laddr>:]<lport> [<saddr>:]<sport> [rand_rate%%]\n", argv[0]);
 
 	if (addr_to_ss(argv[1], &frt_addr, &err) < 0)
 		die(1, "parsing listen address: %s\n", err.msg);
 
 	if (addr_to_ss(argv[2], &srv_addr, &err) < 0)
 		die(1, "parsing server address: %s\n", err.msg);
+
+	if (argc > 3)
+		rand_rate = atoi(argv[3]);
 
 	pfd = calloc(sizeof(struct pollfd), MAXCONN + 1);
 	if (!pfd)
