@@ -720,8 +720,11 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 						goto more;
 
 					/* if the request contains the HTX_FL_EOM, we finished the request part. */
-					if (htx->flags & HTX_FL_EOM)
+					if (htx->flags & HTX_FL_EOM) {
+						si->cs->flags |= CS_FL_EOI;
+						req->flags |= CF_EOI;
 						appctx->st0 = HTTPCLIENT_S_RES_STLINE;
+					}
 
 					goto more; /* we need to leave the IO handler once we wrote the request */
 				}
