@@ -420,7 +420,7 @@ int main(int argc, char **argv)
 	err.msg = malloc(err.size);
 
 	if (argc < 3)
-		die(1, "Usage: %s [<laddr>:]<lport> [<saddr>:]<sport> [rand_rate%%]\n", argv[0]);
+		die(1, "Usage: %s [<laddr>:]<lport> [<saddr>:]<sport> [rand_rate%% [seed]]\n", argv[0]);
 
 	if (addr_to_ss(argv[1], &frt_addr, &err) < 0)
 		die(1, "parsing listen address: %s\n", err.msg);
@@ -430,6 +430,9 @@ int main(int argc, char **argv)
 
 	if (argc > 3)
 		rand_rate = atoi(argv[3]);
+
+	if (argc > 4)
+		prng_state = atol(argv[4]);
 
 	pfd = calloc(sizeof(struct pollfd), MAXCONN + 1);
 	if (!pfd)
