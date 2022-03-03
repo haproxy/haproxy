@@ -2393,9 +2393,10 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct ssl_sock_ctx *ct
 		case QUIC_FT_CONNECTION_CLOSE:
 		case QUIC_FT_CONNECTION_CLOSE_APP:
 			/* warn the mux to close the connection */
-			if (qc->mux_state == QC_MUX_READY)
+			if (qc->mux_state == QC_MUX_READY) {
 				qc->qcc->flags |= QC_CF_CC_RECV;
-			tasklet_wakeup(qc->qcc->wait_event.tasklet);
+				tasklet_wakeup(qc->qcc->wait_event.tasklet);
+			}
 			break;
 		case QUIC_FT_HANDSHAKE_DONE:
 			if (qc_is_listener(ctx->qc))
