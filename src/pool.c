@@ -821,7 +821,7 @@ void *pool_destroy(struct pool_head *pool)
 		if (!pool->users) {
 			LIST_DELETE(&pool->list);
 			/* note that if used == 0, the cache is empty */
-			ha_free(&pool->base_addr);
+			free(pool->base_addr);
 		}
 	}
 	return NULL;
