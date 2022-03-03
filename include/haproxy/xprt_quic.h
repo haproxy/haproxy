@@ -1034,7 +1034,7 @@ static inline size_t quic_path_room(struct quic_path *path)
  */
 static inline size_t quic_path_prep_data(struct quic_path *path)
 {
-	if (path->in_flight > path->cwnd)
+	if (path->prep_in_flight > path->cwnd)
 		return 0;
 
 	return path->cwnd - path->prep_in_flight;
