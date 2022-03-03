@@ -73,7 +73,6 @@ union quic_cc_algo_state {
 	/* NewReno */
 	struct nr {
 		enum quic_cc_algo_state_type state;
-		uint64_t cwnd;
 		uint64_t ssthresh;
 		uint64_t recovery_start_time;
 		uint64_t remain_acked;

@@ -28,11 +28,7 @@
 
 static int quic_cc_nr_init(struct quic_cc *cc)
 {
-	struct quic_path *path;
-
-	path = container_of(cc, struct quic_path, cc);
 	cc->algo_state.nr.state = QUIC_CC_ST_SS;
-	cc->algo_state.nr.cwnd = path->cwnd;
 	cc->algo_state.nr.ssthresh = QUIC_CC_INFINITE_SSTHESH;
 	cc->algo_state.nr.recovery_start_time = 0;
 	cc->algo_state.nr.remain_acked = 0;
@@ -46,7 +42,7 @@ static void quic_cc_nr_slow_start(struct quic_cc *cc)
 	struct quic_path *path;
 
 	path = container_of(cc, struct quic_path, cc);
-	cc->algo_state.nr.cwnd = path->min_cwnd;
+	path->cwnd = path->min_cwnd;
 	/* Re-entering slow start state. */
 	cc->algo_state.nr.state = QUIC_CC_ST_SS;
 	/* Recovery start time reset */
@@ -66,16 +62,15 @@ static void quic_cc_nr_ss_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 		if (ev->ack.time_sent <= cc->algo_state.nr.recovery_start_time)
 			return;
 
-		cc->algo_state.nr.cwnd += ev->ack.acked;
+		path->cwnd += ev->ack.acked;
 		/* Exit to congestion avoidance if slow start threshold is reached. */
-		if (cc->algo_state.nr.cwnd > cc->algo_state.nr.ssthresh)
+		if (path->cwnd > cc->algo_state.nr.ssthresh)
 			cc->algo_state.nr.state = QUIC_CC_ST_CA;
-		path->cwnd = cc->algo_state.nr.cwnd;
 		break;
 
 	case QUIC_CC_EVT_LOSS:
-		cc->algo_state.nr.cwnd = QUIC_MAX(cc->algo_state.nr.cwnd >> 1, path->min_cwnd);
-		path->cwnd = cc->algo_state.nr.ssthresh = cc->algo_state.nr.cwnd;
+		path->cwnd = QUIC_MAX(path->cwnd >> 1, path->min_cwnd);
+		cc->algo_state.nr.ssthresh = path->cwnd;
 		/* Exit to congestion avoidance. */
 		cc->algo_state.nr.state = QUIC_CC_ST_CA;
 		break;
@@ -105,9 +100,8 @@ static void quic_cc_nr_ca_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 		/* Increasing the congestion window by (acked / cwnd)
 		 */
 		acked = ev->ack.acked * path->mtu + cc->algo_state.nr.remain_acked;
-		cc->algo_state.nr.remain_acked = acked % cc->algo_state.nr.cwnd;
-		cc->algo_state.nr.cwnd += acked / cc->algo_state.nr.cwnd;
-		path->cwnd = cc->algo_state.nr.cwnd;
+		cc->algo_state.nr.remain_acked = acked % path->cwnd;
+		path->cwnd += acked / path->cwnd;
 		break;
 	}
 
@@ -117,9 +111,8 @@ static void quic_cc_nr_ca_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 			goto out;
 
 		cc->algo_state.nr.recovery_start_time = now_ms;
-		cc->algo_state.nr.ssthresh = cc->algo_state.nr.cwnd;
-		cc->algo_state.nr.cwnd = QUIC_MAX(cc->algo_state.nr.cwnd >> 1, path->min_cwnd);
-		path->cwnd = cc->algo_state.nr.cwnd;
+		cc->algo_state.nr.ssthresh = path->cwnd;
+		path->cwnd = QUIC_MAX(path->cwnd >> 1, path->min_cwnd);
 		break;
 
 	case QUIC_CC_EVT_ECN_CE:
@@ -133,9 +126,12 @@ static void quic_cc_nr_ca_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 
 static void quic_cc_nr_state_trace(struct buffer *buf, const struct quic_cc *cc)
 {
+	struct quic_path *path;
+
+	path = container_of(cc, struct quic_path, cc);
 	chunk_appendf(buf, " state=%s cwnd=%llu ssthresh=%ld recovery_start_time=%llu",
 	              quic_cc_state_str(cc->algo_state.nr.state),
-	              (unsigned long long)cc->algo_state.nr.cwnd,
+	              (unsigned long long)path->cwnd,
 	              (long)cc->algo_state.nr.ssthresh,
 	              (unsigned long long)cc->algo_state.nr.recovery_start_time);
 }
