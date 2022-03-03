@@ -7231,7 +7231,6 @@ __LJMP static int hlua_httpclient_send(lua_State *L, enum http_meth_t meth)
 	struct hlua *hlua;
 	const char *url_str = NULL;
 	const char *body_str = NULL;
-	int timeout;
 	size_t buf_len;
 	int ret;
 
@@ -7246,38 +7245,38 @@ __LJMP static int hlua_httpclient_send(lua_State *L, enum http_meth_t meth)
 
 	hlua_hc = hlua_checkhttpclient(L, 1);
 
-	ret = lua_getfield(L, -1, "dst");
-	if (ret == LUA_TSTRING) {
-		if (httpclient_set_dst(hlua_hc->hc, lua_tostring(L, -1)) < 0)
-			WILL_LJMP(luaL_error(L, "Can't use the 'dst' argument"));
-	}
-	lua_pop(L, 1);
+	lua_pushnil(L);  /* first key */
+	while (lua_next(L, 2)) {
+		if (strcmp(lua_tostring(L, -2), "dst") == 0) {
+			if (httpclient_set_dst(hlua_hc->hc, lua_tostring(L, -1)) < 0)
+				WILL_LJMP(luaL_error(L, "Can't use the 'dst' argument"));
 
-	ret = lua_getfield(L, -1, "url");
-	if (ret == LUA_TSTRING) {
-		url_str = lua_tostring(L, -1);
-	}
-	lua_pop(L, 1);
+		} else if (strcmp(lua_tostring(L, -2), "url") == 0) {
+			if (lua_type(L, -1) != LUA_TSTRING)
+				WILL_LJMP(luaL_error(L, "invalid parameter in 'url', must be a string"));
+			url_str = lua_tostring(L, -1);
 
-	ret = lua_getfield(L, -1, "timeout");
-	if (ret == LUA_TNUMBER) {
-		timeout = lua_tointeger(L, -1);
-		httpclient_set_timeout(hlua_hc->hc, timeout);
-	}
-	lua_pop(L, 1);
+		} else if (strcmp(lua_tostring(L, -2), "timeout") == 0) {
+			if (lua_type(L, -1) != LUA_TNUMBER)
+				WILL_LJMP(luaL_error(L, "invalid parameter in 'timeout', must be a number"));
+			httpclient_set_timeout(hlua_hc->hc, lua_tointeger(L, -1));
 
-	ret = lua_getfield(L, -1, "headers");
-	if (ret == LUA_TTABLE) {
-		hdrs = hlua_httpclient_table_to_hdrs(L);
-	}
-	lua_pop(L, 1);
+		} else if (strcmp(lua_tostring(L, -2), "headers") == 0) {
+			if (lua_type(L, -1) != LUA_TTABLE)
+				WILL_LJMP(luaL_error(L, "invalid parameter in 'headers', must be a table"));
+			hdrs = hlua_httpclient_table_to_hdrs(L);
 
-	ret = lua_getfield(L, -1, "body");
-	if (ret == LUA_TSTRING) {
-		body_str = lua_tolstring(L, -1, &buf_len);
-	}
+		} else if (strcmp(lua_tostring(L, -2), "body") == 0) {
+			if (lua_type(L, -1) != LUA_TSTRING)
+				WILL_LJMP(luaL_error(L, "invalid parameter in 'body', must be a string"));
+			body_str = lua_tolstring(L, -1, &buf_len);
 
-	lua_pop(L, 1);
+		} else {
+			WILL_LJMP(luaL_error(L, "'%s' invalid parameter name", lua_tostring(L, -2)));
+		}
+		/* removes 'value'; keeps 'key' for next iteration */
+		lua_pop(L, 1);
+	}
 
 	if (!url_str) {
 		WILL_LJMP(luaL_error(L, "'get' need a 'url' argument"));
