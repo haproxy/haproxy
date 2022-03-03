@@ -35,6 +35,7 @@ static int quic_cc_nr_init(struct quic_cc *cc)
 	cc->algo_state.nr.cwnd = path->cwnd;
 	cc->algo_state.nr.ssthresh = QUIC_CC_INFINITE_SSTHESH;
 	cc->algo_state.nr.recovery_start_time = 0;
+	cc->algo_state.nr.remain_acked = 0;
 
 	return 1;
 }
@@ -95,17 +96,20 @@ static void quic_cc_nr_ca_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 	path = container_of(cc, struct quic_path, cc);
 	switch (ev->type) {
 	case QUIC_CC_EVT_ACK:
+	{
+		uint64_t acked;
 		/* Do not increase the congestion window in recovery period. */
 		if (ev->ack.time_sent <= cc->algo_state.nr.recovery_start_time)
 			goto out;
 
-		/* Increasing the congestion window by 1 maximum packet size by
-		 * congestion window.
+		/* Increasing the congestion window by (acked / cwnd)
 		 */
-		cc->algo_state.nr.cwnd +=
-			path->mtu * QUIC_MAX(1ULL, (unsigned long long)ev->ack.acked / cc->algo_state.nr.cwnd);
+		acked = ev->ack.acked * path->mtu + cc->algo_state.nr.remain_acked;
+		cc->algo_state.nr.remain_acked = acked % cc->algo_state.nr.cwnd;
+		cc->algo_state.nr.cwnd += acked / cc->algo_state.nr.cwnd;
 		path->cwnd = cc->algo_state.nr.cwnd;
 		break;
+	}
 
 	case QUIC_CC_EVT_LOSS:
 		/* Do not decrease the congestion window when already in recovery period. */
