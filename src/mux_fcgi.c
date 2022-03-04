@@ -2030,6 +2030,8 @@ static size_t fcgi_strm_send_params(struct fcgi_conn *fconn, struct fcgi_strm *f
 				else if (isteq(p.n, ist("content-type")))
 					p.n = ist("CONTENT_TYPE");
 				else {
+					struct ist n;
+
 					if (isteq(p.n, ist("host")))
 						params.srv_name = p.v;
 					else if (isteq(p.n, ist("te"))) {
@@ -2046,9 +2048,10 @@ static size_t fcgi_strm_send_params(struct fcgi_conn *fconn, struct fcgi_strm *f
 					if (isttest(fconn->proxy->server_id_hdr_name) && isteq(p.n, fconn->proxy->server_id_hdr_name))
 						break;
 
-					memcpy(trash.area, "http_", 5);
-					memcpy(trash.area+5, p.n.ptr, p.n.len);
-					p.n = ist2(trash.area, p.n.len+5);
+					n = ist2(trash.area, 0);
+					istcat(&n, ist("http_"), trash.size);
+					istcat(&n, p.n, trash.size);
+					p.n = n;
 				}
 
 				if (!fcgi_encode_param(&outbuf, &p)) {
