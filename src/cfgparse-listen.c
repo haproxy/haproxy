@@ -575,13 +575,10 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		free(curproxy->monitor_uri);
-		curproxy->monitor_uri_len = strlen(args[1]);
-		curproxy->monitor_uri = calloc(1, curproxy->monitor_uri_len + 1);
-		if (!curproxy->monitor_uri)
+		istfree(&curproxy->monitor_uri);
+		curproxy->monitor_uri = istdup(ist(args[1]));
+		if (!isttest(curproxy->monitor_uri))
 			goto alloc_error;
-		memcpy(curproxy->monitor_uri, args[1], curproxy->monitor_uri_len);
-		curproxy->monitor_uri[curproxy->monitor_uri_len] = '\0';
 
 		goto out;
 	}

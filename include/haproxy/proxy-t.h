@@ -322,8 +322,7 @@ struct proxy {
 	int srvtcpka_cnt;                       /* The maximum number of keepalive probes TCP should send before dropping the connection. (server side) */
 	int srvtcpka_idle;                      /* The time (in seconds) the connection needs to remain idle before TCP starts sending keepalive probes. (server side) */
 	int srvtcpka_intvl;                     /* The time (in seconds) between individual keepalive probes. (server side) */
-	int monitor_uri_len;			/* length of the string above. 0 if unused */
-	char *monitor_uri;			/* a special URI to which we respond with HTTP/200 OK */
+	struct ist monitor_uri;			/* a special URI to which we respond with HTTP/200 OK */
 	struct list mon_fail_cond;              /* list of conditions to fail monitoring requests (chained) */
 	struct {				/* WARNING! check proxy_reset_timeouts() in proxy.h !!! */
 		int client;                     /* client I/O timeout (in ticks) */

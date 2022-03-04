@@ -203,9 +203,8 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	 * used. It is a workaround to let HTTP/2 health-checks work as
 	 * expected.
 	 */
-	if (unlikely(sess->fe->monitor_uri_len != 0)) {
-		const struct ist monitor_uri = ist2(sess->fe->monitor_uri,
-		                                    sess->fe->monitor_uri_len);
+	if (unlikely(isttest(sess->fe->monitor_uri))) {
+		const struct ist monitor_uri = sess->fe->monitor_uri;
 		struct http_uri_parser parser = http_uri_parser_init(htx_sl_req_uri(sl));
 
 		if ((istptr(monitor_uri)[0] == '/' &&
