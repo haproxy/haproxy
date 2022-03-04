@@ -388,13 +388,24 @@ static int qcs_push_frame(struct qcs *qcs, struct buffer *payload, int fin, uint
  */
 static int qc_send_frames(struct qcc *qcc, struct list *frms)
 {
+	void *first_frm = NULL;
+
+ retry_send:
 	if (!LIST_ISEMPTY(frms))
 		qc_send_app_pkts(qcc->conn->qc, frms);
 
-	/* TODO Currently, the transport layer is not complete. It might not
-	 * try to send all frames even if the Tx buffer is free. In this case
-	 * it is necessary to retry immediately instead of subscribing.
+	/* if the frame list is not empty, retry immediatly to send. Remember
+	 * the first frame in the list : if the pointer did not advance, it
+	 * means the transport layer is blocked.
+	 *
+	 * TODO implement immediate retry on transport layer. This way on mux
+	 * always subscribe if the list is not empty.
 	 */
+	if (!LIST_ISEMPTY(frms) && first_frm != frms->n) {
+		first_frm = frms->n;
+		goto retry_send;
+	}
+
 	if (!LIST_ISEMPTY(frms)) {
 		fprintf(stderr, "%s: remaining frames to send\n", __func__);
 		qcc->conn->xprt->subscribe(qcc->conn, qcc->conn->xprt_ctx,
