@@ -177,8 +177,8 @@ DOCDIR = $(PREFIX)/doc/haproxy
 #### TARGET system
 # Use TARGET=<target_name> to optimize for a specific target OS among the
 # following list (use the default "generic" if uncertain) :
-#    linux-glibc, linux-glibc-legacy, linux-musl, solaris, freebsd, dragonfly,
-#    openbsd, netbsd, cygwin, haiku, aix51, aix52, aix72-gcc, osx, generic,
+#    linux-glibc, linux-glibc-legacy, linux-musl, solaris, freebsd, freebsd-glibc,
+#    dragonfly, openbsd, netbsd, cygwin, haiku, aix51, aix52, aix72-gcc, osx, generic,
 #    custom
 TARGET =
 
@@ -410,6 +410,13 @@ ifeq ($(TARGET),freebsd)
   set_target_defaults = $(call default_opts, \
     USE_POLL USE_TPROXY USE_LIBCRYPT USE_THREAD USE_CPU_AFFINITY USE_KQUEUE   \
     USE_ACCEPT4 USE_CLOSEFROM USE_GETADDRINFO USE_PROCCTL)
+endif
+
+# kFreeBSD glibc
+ifeq ($(TARGET),freebsd-glibc)
+  set_target_defaults = $(call default_opts, \
+    USE_POLL USE_TPROXY USE_LIBCRYPT USE_THREAD USE_CPU_AFFINITY USE_KQUEUE   \
+    USE_ACCEPT4 USE_GETADDRINFO USE_CRYPT_H USE_DL)
 endif
 
 # DragonFlyBSD 4.3 and above

@@ -43,7 +43,7 @@ extern void *__elf_aux_vector;
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-#if defined(__GLIBC__) && (__GLIBC__ > 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ >= 16))
+#if defined(__linux__) && defined(__GLIBC__) && (__GLIBC__ > 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ >= 16))
 #include <sys/auxv.h>
 #endif
 
@@ -4791,7 +4791,7 @@ const char *get_exec_path()
 {
 	const char *ret = NULL;
 
-#if defined(__GLIBC__) && (__GLIBC__ > 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ >= 16))
+#if defined(__linux__) && defined(__GLIBC__) && (__GLIBC__ > 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ >= 16))
 	long execfn = getauxval(AT_EXECFN);
 
 	if (execfn && execfn != ENOENT)
