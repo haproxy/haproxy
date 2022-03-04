@@ -1980,8 +1980,7 @@ static size_t fcgi_strm_send_params(struct fcgi_conn *fconn, struct fcgi_strm *f
 				p.v = htx_get_blk_value(htx, blk);
 
 				if (istmatch(p.n, ist(":fcgi-"))) {
-					p.n.ptr += 6;
-					p.n.len -= 6;
+					p.n = istadv(p.n, 6);
 					if (isteq(p.n, ist("gateway_interface")))
 						params.mask |= FCGI_SP_CGI_GATEWAY;
 					else if (isteq(p.n, ist("document_root"))) {
