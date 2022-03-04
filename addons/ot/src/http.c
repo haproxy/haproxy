@@ -97,7 +97,7 @@ struct otc_text_map *flt_ot_http_headers_get(struct channel *chn, const char *pr
 	FLT_OT_FUNC("%p, \"%s\", %zu, %p:%p", chn, prefix, len, FLT_OT_DPTR_ARGS(err));
 
 	if (chn == NULL)
-		FLT_OT_RETURN(retptr);
+		FLT_OT_RETURN_PTR(retptr);
 
 	/*
 	 * The keyword 'inject' allows you to define the name of the OpenTracing
@@ -172,7 +172,7 @@ struct otc_text_map *flt_ot_http_headers_get(struct channel *chn, const char *pr
 		otc_text_map_destroy(&retptr, OTC_TEXT_MAP_FREE_KEY | OTC_TEXT_MAP_FREE_VALUE);
 	}
 
-	FLT_OT_RETURN(retptr);
+	FLT_OT_RETURN_PTR(retptr);
 }
 
 
@@ -205,7 +205,7 @@ int flt_ot_http_header_set(struct channel *chn, const char *prefix, const char *
 	FLT_OT_FUNC("%p, \"%s\", \"%s\", \"%s\", %p:%p", chn, prefix, name, value, FLT_OT_DPTR_ARGS(err));
 
 	if ((chn == NULL) || (!FLT_OT_STR_ISVALID(prefix) && !FLT_OT_STR_ISVALID(name)))
-		FLT_OT_RETURN(retval);
+		FLT_OT_RETURN_INT(retval);
 
 	htx = htxbuf(&(chn->buf));
 
@@ -216,7 +216,7 @@ int flt_ot_http_header_set(struct channel *chn, const char *prefix, const char *
 	if (htx_is_empty(htx)) {
 		FLT_OT_ERR("HTX is empty");
 
-		FLT_OT_RETURN(retval);
+		FLT_OT_RETURN_INT(retval);
 	}
 
 	if (!FLT_OT_STR_ISVALID(prefix)) {
@@ -228,7 +228,7 @@ int flt_ot_http_header_set(struct channel *chn, const char *prefix, const char *
 	else {
 		buffer = flt_ot_trash_alloc(0, err);
 		if (buffer == NULL)
-			FLT_OT_RETURN(retval);
+			FLT_OT_RETURN_INT(retval);
 
 		(void)chunk_printf(buffer, "%s-%s", prefix, name);
 
@@ -272,7 +272,7 @@ int flt_ot_http_header_set(struct channel *chn, const char *prefix, const char *
 
 	flt_ot_trash_free(&buffer);
 
-	FLT_OT_RETURN(retval);
+	FLT_OT_RETURN_INT(retval);
 }
 
 
@@ -299,7 +299,7 @@ int flt_ot_http_headers_remove(struct channel *chn, const char *prefix, char **e
 
 	retval = flt_ot_http_header_set(chn, prefix, NULL, NULL, err);
 
-	FLT_OT_RETURN(retval);
+	FLT_OT_RETURN_INT(retval);
 }
 
 /*

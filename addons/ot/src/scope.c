@@ -102,7 +102,7 @@ struct flt_ot_runtime_context *flt_ot_runtime_context_init(struct stream *s, str
 
 	retptr = flt_ot_pool_alloc(pool_head_ot_runtime_context, sizeof(*retptr), 1, err);
 	if (retptr == NULL)
-		FLT_OT_RETURN(retptr);
+		FLT_OT_RETURN_PTR(retptr);
 
 	retptr->stream        = s;
 	retptr->filter        = f;
@@ -126,7 +126,7 @@ struct flt_ot_runtime_context *flt_ot_runtime_context_init(struct stream *s, str
 
 	FLT_OT_DBG_RUNTIME_CONTEXT("session context: ", retptr);
 
-	FLT_OT_RETURN(retptr);
+	FLT_OT_RETURN_PTR(retptr);
 }
 
 
@@ -210,13 +210,13 @@ struct flt_ot_scope_span *flt_ot_scope_span_init(struct flt_ot_runtime_context *
 	FLT_OT_FUNC("%p, \"%s\", %zu, %d, \"%s\", %zu, %u, %p:%p", rt_ctx, id, id_len, ref_type, ref_id, ref_id_len, dir, FLT_OT_DPTR_ARGS(err));
 
 	if ((rt_ctx == NULL) || (id == NULL))
-		FLT_OT_RETURN(retptr);
+		FLT_OT_RETURN_PTR(retptr);
 
 	list_for_each_entry(span, &(rt_ctx->spans), list)
 		if ((span->id_len == id_len) && (memcmp(span->id, id, id_len) == 0)) {
 			FLT_OT_DBG(2, "found span %p", span);
 
-			FLT_OT_RETURN(span);
+			FLT_OT_RETURN_PTR(span);
 		}
 
 	if (ref_id != NULL) {
@@ -242,14 +242,14 @@ struct flt_ot_scope_span *flt_ot_scope_span_init(struct flt_ot_runtime_context *
 			} else {
 				FLT_OT_ERR("cannot find referenced span/context '%s'", ref_id);
 
-				FLT_OT_RETURN(retptr);
+				FLT_OT_RETURN_PTR(retptr);
 			}
 		}
 	}
 
 	retptr = flt_ot_pool_alloc(pool_head_ot_scope_span, sizeof(*retptr), 1, err);
 	if (retptr == NULL)
-		FLT_OT_RETURN(retptr);
+		FLT_OT_RETURN_PTR(retptr);
 
 	retptr->id          = id;
 	retptr->id_len      = id_len;
@@ -261,7 +261,7 @@ struct flt_ot_scope_span *flt_ot_scope_span_init(struct flt_ot_runtime_context *
 
 	FLT_OT_DBG_SCOPE_SPAN("new span ", retptr);
 
-	FLT_OT_RETURN(retptr);
+	FLT_OT_RETURN_PTR(retptr);
 }
 
 
@@ -329,24 +329,24 @@ struct flt_ot_scope_context *flt_ot_scope_context_init(struct flt_ot_runtime_con
 	FLT_OT_FUNC("%p, %p, \"%s\", %zu, %p, %u, %p:%p", rt_ctx, tracer, id, id_len, text_map, dir, FLT_OT_DPTR_ARGS(err));
 
 	if ((rt_ctx == NULL) || (tracer == NULL) || (id == NULL) || (text_map == NULL))
-		FLT_OT_RETURN(retptr);
+		FLT_OT_RETURN_PTR(retptr);
 
 	list_for_each_entry(retptr, &(rt_ctx->contexts), list)
 		if ((retptr->id_len == id_len) && (memcmp(retptr->id, id, id_len) == 0)) {
 			FLT_OT_DBG(2, "found context %p", retptr);
 
-			FLT_OT_RETURN(retptr);
+			FLT_OT_RETURN_PTR(retptr);
 		}
 
 	retptr = flt_ot_pool_alloc(pool_head_ot_scope_context, sizeof(*retptr), 1, err);
 	if (retptr == NULL)
-		FLT_OT_RETURN(retptr);
+		FLT_OT_RETURN_PTR(retptr);
 
 	span_ctx = ot_extract_http_headers(tracer, &reader, text_map, err);
 	if (span_ctx == NULL) {
 		flt_ot_scope_context_free(&retptr);
 
-		FLT_OT_RETURN(retptr);
+		FLT_OT_RETURN_PTR(retptr);
 	}
 
 	retptr->id          = id;
@@ -357,7 +357,7 @@ struct flt_ot_scope_context *flt_ot_scope_context_init(struct flt_ot_runtime_con
 
 	FLT_OT_DBG_SCOPE_CONTEXT("new context ", retptr);
 
-	FLT_OT_RETURN(retptr);
+	FLT_OT_RETURN_PTR(retptr);
 }
 
 
@@ -524,7 +524,7 @@ int flt_ot_scope_finish_mark(const struct flt_ot_runtime_context *rt_ctx, const 
 
 	retval = span_cnt + ctx_cnt;
 
-	FLT_OT_RETURN(retval);
+	FLT_OT_RETURN_INT(retval);
 }
 
 

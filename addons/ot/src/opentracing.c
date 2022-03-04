@@ -162,13 +162,13 @@ int ot_init(struct otc_tracer **tracer, const char *plugin, char **err)
 	if (getcwd(cwd, sizeof(cwd)) == NULL) {
 		FLT_OT_ERR("failed to get current working directory");
 
-		FLT_OT_RETURN(retval);
+		FLT_OT_RETURN_INT(retval);
 	}
 	rc = snprintf(path, sizeof(path), "%s/%s", cwd, plugin);
 	if ((rc == -1) || (rc >= sizeof(path))) {
 		FLT_OT_ERR("failed to construct the OpenTracing plugin path");
 
-		FLT_OT_RETURN(retval);
+		FLT_OT_RETURN_INT(retval);
 	}
 
 	*tracer = otc_tracer_load(path, errbuf, sizeof(errbuf));
@@ -180,7 +180,7 @@ int ot_init(struct otc_tracer **tracer, const char *plugin, char **err)
 		retval = 0;
 	}
 
-	FLT_OT_RETURN(retval);
+	FLT_OT_RETURN_INT(retval);
 }
 
 
@@ -207,13 +207,13 @@ int ot_start(struct otc_tracer *tracer, const char *cfgbuf, char **err)
 	FLT_OT_FUNC("%p, %p, %p:%p", tracer, cfgbuf, FLT_OT_DPTR_ARGS(err));
 
 	if (cfgbuf == NULL)
-		FLT_OT_RETURN(retval);
+		FLT_OT_RETURN_INT(retval);
 
 	retval = otc_tracer_start(NULL, cfgbuf, errbuf, sizeof(errbuf));
 	if (retval == -1)
 		FLT_OT_ERR("%s", (*errbuf == '\0') ? "failed to start tracer" : errbuf);
 
-	FLT_OT_RETURN(retval);
+	FLT_OT_RETURN_INT(retval);
 }
 
 
@@ -277,9 +277,9 @@ struct otc_span *ot_span_init(struct otc_tracer *tracer, const char *operation_n
 	FLT_OT_FUNC("%p, \"%s\", %p, %p, %d, %d, %p, %p, %d, %p:%p", tracer, operation_name, ts_steady, ts_system, ref_type, ref_ctx_idx, ref_span, tags, num_tags, FLT_OT_DPTR_ARGS(err));
 
 	if (operation_name == NULL)
-		FLT_OT_RETURN(retptr);
+		FLT_OT_RETURN_PTR(retptr);
 	else if (tracer == NULL)
-		FLT_OT_RETURN(retptr);
+		FLT_OT_RETURN_PTR(retptr);
 
 	(void)memset(&options, 0, sizeof(options));
 
@@ -303,7 +303,7 @@ struct otc_span *ot_span_init(struct otc_tracer *tracer, const char *operation_n
 	else
 		FLT_OT_DBG(2, "span %p:%zd initialized", retptr, retptr->idx);
 
-	FLT_OT_RETURN(retptr);
+	FLT_OT_RETURN_PTR(retptr);
 }
 
 
@@ -354,7 +354,7 @@ struct otc_span *ot_span_init_va(struct otc_tracer *tracer, const char *operatio
 
 	retptr = ot_span_init(tracer, operation_name, ts_steady, ts_system, ref_type, ref_ctx_idx, ref_span, tags, num_tags, err);
 
-	FLT_OT_RETURN(retptr);
+	FLT_OT_RETURN_PTR(retptr);
 }
 
 
@@ -380,12 +380,12 @@ int ot_span_tag(struct otc_span *span, const struct otc_tag *tags, int num_tags)
 	FLT_OT_FUNC("%p, %p, %d", span, tags, num_tags);
 
 	if ((span == NULL) || (tags == NULL))
-		FLT_OT_RETURN(retval);
+		FLT_OT_RETURN_INT(retval);
 
 	for (retval = 0; retval < num_tags; retval++)
 		span->set_tag(span, tags[retval].key, &(tags[retval].value));
 
-	FLT_OT_RETURN(retval);
+	FLT_OT_RETURN_INT(retval);
 }
 
 
@@ -414,7 +414,7 @@ int ot_span_tag_va(struct otc_span *span, const char *key, int type, ...)
 	FLT_OT_FUNC("%p, \"%s\", %d, ...", span, key, type);
 
 	if ((span == NULL) || (key == NULL))
-		FLT_OT_RETURN(retval);
+		FLT_OT_RETURN_INT(retval);
 
 	va_start(ap, type);
 	for (retval = 0; (key != NULL) && FLT_OT_IN_RANGE(type, otc_value_bool, otc_value_null); retval++) {
@@ -439,7 +439,7 @@ int ot_span_tag_va(struct otc_span *span, const char *key, int type, ...)
 	}
 	va_end(ap);
 
-	FLT_OT_RETURN(retval);
+	FLT_OT_RETURN_INT(retval);
 }
 
 
@@ -465,13 +465,13 @@ int ot_span_log(struct otc_span *span, const struct otc_log_field *log_fields, i
 	FLT_OT_FUNC("%p, %p, %d", span, log_fields, num_fields);
 
 	if ((span == NULL) || (log_fields == NULL))
-		FLT_OT_RETURN(retval);
+		FLT_OT_RETURN_INT(retval);
 
 	retval = MIN(OTC_MAXLOGFIELDS, num_fields);
 
 	span->log_fields(span, log_fields, retval);
 
-	FLT_OT_RETURN(retval);
+	FLT_OT_RETURN_INT(retval);
 }
 
 
@@ -499,7 +499,7 @@ int ot_span_log_va(struct otc_span *span, const char *key, const char *value, ..
 	FLT_OT_FUNC("%p, \"%s\", \"%s\", ...", span, key, value);
 
 	if ((span == NULL) || (key == NULL) || (value == NULL))
-		FLT_OT_RETURN(retval);
+		FLT_OT_RETURN_INT(retval);
 
 	va_start(ap, value);
 	for (retval = 0; (retval < FLT_OT_TABLESIZE(log_field)) && (key != NULL); retval++) {
@@ -515,7 +515,7 @@ int ot_span_log_va(struct otc_span *span, const char *key, const char *value, ..
 
 	span->log_fields(span, log_field, retval);
 
-	FLT_OT_RETURN(retval);
+	FLT_OT_RETURN_INT(retval);
 }
 
 
@@ -543,7 +543,7 @@ int ot_span_log_fmt(struct otc_span *span, const char *key, const char *format, 
 	FLT_OT_FUNC("%p, \"%s\", \"%s\", ...", span, key, format);
 
 	if ((span == NULL) || (key == NULL) || (format == NULL))
-		FLT_OT_RETURN(-1);
+		FLT_OT_RETURN_INT(-1);
 
 	va_start(ap, format);
 	n = vsnprintf(value, sizeof(value), format, ap);
@@ -554,7 +554,7 @@ int ot_span_log_fmt(struct otc_span *span, const char *key, const char *format, 
 	}
 	va_end(ap);
 
-	FLT_OT_RETURN(ot_span_log_va(span, key, value, NULL));
+	FLT_OT_RETURN_INT(ot_span_log_va(span, key, value, NULL));
 }
 
 
@@ -580,10 +580,10 @@ int ot_span_set_baggage(struct otc_span *span, const struct otc_text_map *baggag
 	FLT_OT_FUNC("%p, %p", span, baggage);
 
 	if ((span == NULL) || (baggage == NULL))
-		FLT_OT_RETURN(retval);
+		FLT_OT_RETURN_INT(retval);
 
 	if ((baggage->key == NULL) || (baggage->value == NULL))
-		FLT_OT_RETURN(retval);
+		FLT_OT_RETURN_INT(retval);
 
 	for (retval = i = 0; i < baggage->count; i++) {
 		FLT_OT_DBG(3, "set baggage: \"%s\" -> \"%s\"", baggage->key[i], baggage->value[i]);
@@ -595,7 +595,7 @@ int ot_span_set_baggage(struct otc_span *span, const struct otc_text_map *baggag
 		}
 	}
 
-	FLT_OT_RETURN(retval);
+	FLT_OT_RETURN_INT(retval);
 }
 
 
@@ -622,7 +622,7 @@ int ot_span_set_baggage_va(struct otc_span *span, const char *key, const char *v
 	FLT_OT_FUNC("%p, \"%s\", \"%s\", ...", span, key, value);
 
 	if ((span == NULL) || (key == NULL) || (value == NULL))
-		FLT_OT_RETURN(retval);
+		FLT_OT_RETURN_INT(retval);
 
 	va_start(ap, value);
 	for (retval = 0; (key != NULL); retval++) {
@@ -636,7 +636,7 @@ int ot_span_set_baggage_va(struct otc_span *span, const char *key, const char *v
 	}
 	va_end(ap);
 
-	FLT_OT_RETURN(retval);
+	FLT_OT_RETURN_INT(retval);
 }
 
 
@@ -663,7 +663,7 @@ struct otc_text_map *ot_span_baggage_va(const struct otc_span *span, const char 
 	FLT_OT_FUNC("%p, \"%s\", ...", span, key);
 
 	if ((span == NULL) || (key == NULL))
-		FLT_OT_RETURN(retptr);
+		FLT_OT_RETURN_PTR(retptr);
 
 	va_start(ap, key);
 	for (n = 1; va_arg(ap, typeof(key)) != NULL; n++);
@@ -671,7 +671,7 @@ struct otc_text_map *ot_span_baggage_va(const struct otc_span *span, const char 
 
 	retptr = otc_text_map_new(NULL, n);
 	if (retptr == NULL)
-		FLT_OT_RETURN(retptr);
+		FLT_OT_RETURN_PTR(retptr);
 
 	va_start(ap, key);
 	for (i = 0; (i < n) && (key != NULL); i++) {
@@ -689,7 +689,7 @@ struct otc_text_map *ot_span_baggage_va(const struct otc_span *span, const char 
 	}
 	va_end(ap);
 
-	FLT_OT_RETURN(retptr);
+	FLT_OT_RETURN_PTR(retptr);
 }
 
 
@@ -716,13 +716,13 @@ struct otc_span_context *ot_inject_text_map(struct otc_tracer *tracer, const str
 	FLT_OT_FUNC("%p, %p, %p", tracer, span, carrier);
 
 	if ((span == NULL) || (carrier == NULL))
-		FLT_OT_RETURN(retptr);
+		FLT_OT_RETURN_PTR(retptr);
 	else if (tracer == NULL)
-		FLT_OT_RETURN(retptr);
+		FLT_OT_RETURN_PTR(retptr);
 
 	retptr = span->span_context((struct otc_span *)span);
 	if (retptr == NULL)
-		FLT_OT_RETURN(retptr);
+		FLT_OT_RETURN_PTR(retptr);
 
 	(void)memset(carrier, 0, sizeof(*carrier));
 
@@ -737,7 +737,7 @@ struct otc_span_context *ot_inject_text_map(struct otc_tracer *tracer, const str
 #endif
 	}
 
-	FLT_OT_RETURN(retptr);
+	FLT_OT_RETURN_PTR(retptr);
 }
 
 
@@ -765,15 +765,15 @@ struct otc_span_context *ot_inject_http_headers(struct otc_tracer *tracer, const
 	FLT_OT_FUNC("%p, %p, %p, %p:%p", tracer, span, carrier, FLT_OT_DPTR_ARGS(err));
 
 	if ((span == NULL) || (carrier == NULL))
-		FLT_OT_RETURN(retptr);
+		FLT_OT_RETURN_PTR(retptr);
 	else if (tracer == NULL)
-		FLT_OT_RETURN(retptr);
+		FLT_OT_RETURN_PTR(retptr);
 
 	retptr = span->span_context((struct otc_span *)span);
 	if (retptr == NULL) {
 		FLT_OT_ERR("failed to create span context");
 
-		FLT_OT_RETURN(retptr);
+		FLT_OT_RETURN_PTR(retptr);
 	}
 
 	(void)memset(carrier, 0, sizeof(*carrier));
@@ -791,7 +791,7 @@ struct otc_span_context *ot_inject_http_headers(struct otc_tracer *tracer, const
 #endif
 	}
 
-	FLT_OT_RETURN(retptr);
+	FLT_OT_RETURN_PTR(retptr);
 }
 
 
@@ -818,13 +818,13 @@ struct otc_span_context *ot_inject_binary(struct otc_tracer *tracer, const struc
 	FLT_OT_FUNC("%p, %p, %p", tracer, span, carrier);
 
 	if ((span == NULL) || (carrier == NULL))
-		FLT_OT_RETURN(retptr);
+		FLT_OT_RETURN_PTR(retptr);
 	else if (tracer == NULL)
-		FLT_OT_RETURN(retptr);
+		FLT_OT_RETURN_PTR(retptr);
 
 	retptr = span->span_context((struct otc_span *)span);
 	if (retptr == NULL)
-		FLT_OT_RETURN(retptr);
+		FLT_OT_RETURN_PTR(retptr);
 
 	(void)memset(carrier, 0, sizeof(*carrier));
 
@@ -844,7 +844,7 @@ struct otc_span_context *ot_inject_binary(struct otc_tracer *tracer, const struc
 #endif
 	}
 
-	FLT_OT_RETURN(retptr);
+	FLT_OT_RETURN_PTR(retptr);
 }
 
 
@@ -871,9 +871,9 @@ struct otc_span_context *ot_extract_text_map(struct otc_tracer *tracer, struct o
 	FLT_OT_FUNC("%p, %p, %p", tracer, carrier, text_map);
 
 	if (carrier == NULL)
-		FLT_OT_RETURN(retptr);
+		FLT_OT_RETURN_PTR(retptr);
 	else if (tracer == NULL)
-		FLT_OT_RETURN(retptr);
+		FLT_OT_RETURN_PTR(retptr);
 
 	if (text_map != NULL) {
 		(void)memset(carrier, 0, sizeof(*carrier));
@@ -888,7 +888,7 @@ struct otc_span_context *ot_extract_text_map(struct otc_tracer *tracer, struct o
 	else if (retptr != NULL)
 		FLT_OT_DBG_SPAN_CONTEXT(retptr);
 
-	FLT_OT_RETURN(retptr);
+	FLT_OT_RETURN_PTR(retptr);
 }
 
 
@@ -916,9 +916,9 @@ struct otc_span_context *ot_extract_http_headers(struct otc_tracer *tracer, stru
 	FLT_OT_FUNC("%p, %p, %p, %p:%p", tracer, carrier, text_map, FLT_OT_DPTR_ARGS(err));
 
 	if (carrier == NULL)
-		FLT_OT_RETURN(retptr);
+		FLT_OT_RETURN_PTR(retptr);
 	else if (tracer == NULL)
-		FLT_OT_RETURN(retptr);
+		FLT_OT_RETURN_PTR(retptr);
 
 	if (text_map != NULL) {
 		(void)memset(carrier, 0, sizeof(*carrier));
@@ -936,7 +936,7 @@ struct otc_span_context *ot_extract_http_headers(struct otc_tracer *tracer, stru
 	else if (retptr != NULL)
 		FLT_OT_DBG_SPAN_CONTEXT(retptr);
 
-	FLT_OT_RETURN(retptr);
+	FLT_OT_RETURN_PTR(retptr);
 }
 
 
@@ -963,9 +963,9 @@ struct otc_span_context *ot_extract_binary(struct otc_tracer *tracer, struct otc
 	FLT_OT_FUNC("%p, %p, %p", tracer, carrier, binary_data);
 
 	if (carrier == NULL)
-		FLT_OT_RETURN(retptr);
+		FLT_OT_RETURN_PTR(retptr);
 	else if (tracer == NULL)
-		FLT_OT_RETURN(retptr);
+		FLT_OT_RETURN_PTR(retptr);
 
 	if ((FLT_OT_DEREF(binary_data, data, NULL) != NULL) && (binary_data->size > 0)) {
 		(void)memset(carrier, 0, sizeof(*carrier));
@@ -980,7 +980,7 @@ struct otc_span_context *ot_extract_binary(struct otc_tracer *tracer, struct otc
 	else if (retptr != NULL)
 		FLT_OT_DBG_SPAN_CONTEXT(retptr);
 
-	FLT_OT_RETURN(retptr);
+	FLT_OT_RETURN_PTR(retptr);
 }
 
 

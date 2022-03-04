@@ -48,7 +48,7 @@ static void *flt_ot_conf_hdr_init(size_t size, const char *id, int linenum, stru
 			if (strcmp(ptr->id, id) == 0) {
 				FLT_OT_ERR("'%s' : already defined", id);
 
-				FLT_OT_RETURN(retptr);
+				FLT_OT_RETURN_PTR(retptr);
 			}
 
 	retptr = FLT_OT_CALLOC(1, size);
@@ -72,7 +72,7 @@ static void *flt_ot_conf_hdr_init(size_t size, const char *id, int linenum, stru
 		FLT_OT_ERR("out of memory");
 	}
 
-	FLT_OT_RETURN(retptr);
+	FLT_OT_RETURN_PTR(retptr);
 }
 
 
@@ -102,7 +102,7 @@ struct flt_ot_conf_ph *flt_ot_conf_ph_init(const char *id, int linenum, struct l
 	if (retptr != NULL)
 		FLT_OT_DBG_CONF_PH("- init ", retptr);
 
-	FLT_OT_RETURN(retptr);
+	FLT_OT_RETURN_PTR(retptr);
 }
 
 
@@ -162,7 +162,7 @@ struct flt_ot_conf_sample_expr *flt_ot_conf_sample_expr_init(const char *id, int
 	if (retptr != NULL)
 		FLT_OT_DBG_CONF_SAMPLE_EXPR("- init ", retptr);
 
-	FLT_OT_RETURN(retptr);
+	FLT_OT_RETURN_PTR(retptr);
 }
 
 
@@ -221,13 +221,13 @@ struct flt_ot_conf_sample *flt_ot_conf_sample_init(char **args, int linenum, str
 
 	retptr = flt_ot_conf_hdr_init(sizeof(*retptr), args[1], linenum, head, err);
 	if (retptr == NULL)
-		FLT_OT_RETURN(retptr);
+		FLT_OT_RETURN_PTR(retptr);
 
 	flt_ot_args_to_str(args, 2, &(retptr->value));
 	if (retptr->value == NULL) {
 		FLT_OT_FREE_CLEAR(retptr);
 
-		FLT_OT_RETURN(retptr);
+		FLT_OT_RETURN_PTR(retptr);
 	}
 
 	retptr->num_exprs = flt_ot_args_count(args) - 2;
@@ -235,7 +235,7 @@ struct flt_ot_conf_sample *flt_ot_conf_sample_init(char **args, int linenum, str
 
 	FLT_OT_DBG_CONF_SAMPLE("- init ", retptr);
 
-	FLT_OT_RETURN(retptr);
+	FLT_OT_RETURN_PTR(retptr);
 }
 
 
@@ -297,7 +297,7 @@ struct flt_ot_conf_str *flt_ot_conf_str_init(const char *id, int linenum, struct
 	if (retptr != NULL)
 		FLT_OT_DBG_CONF_STR("- init ", retptr);
 
-	FLT_OT_RETURN(retptr);
+	FLT_OT_RETURN_PTR(retptr);
 }
 
 
@@ -357,7 +357,7 @@ struct flt_ot_conf_context *flt_ot_conf_context_init(const char *id, int linenum
 	if (retptr != NULL)
 		FLT_OT_DBG_CONF_CONTEXT("- init ", retptr);
 
-	FLT_OT_RETURN(retptr);
+	FLT_OT_RETURN_PTR(retptr);
 }
 
 
@@ -415,7 +415,7 @@ struct flt_ot_conf_span *flt_ot_conf_span_init(const char *id, int linenum, stru
 
 	retptr = flt_ot_conf_hdr_init(sizeof(*retptr), id, linenum, head, err);
 	if (retptr == NULL)
-		FLT_OT_RETURN(retptr);
+		FLT_OT_RETURN_PTR(retptr);
 
 	LIST_INIT(&(retptr->tags));
 	LIST_INIT(&(retptr->logs));
@@ -423,7 +423,7 @@ struct flt_ot_conf_span *flt_ot_conf_span_init(const char *id, int linenum, stru
 
 	FLT_OT_DBG_CONF_SPAN("- init ", retptr);
 
-	FLT_OT_RETURN(retptr);
+	FLT_OT_RETURN_PTR(retptr);
 }
 
 
@@ -486,7 +486,7 @@ struct flt_ot_conf_scope *flt_ot_conf_scope_init(const char *id, int linenum, st
 
 	retptr = flt_ot_conf_hdr_init(sizeof(*retptr), id, linenum, head, err);
 	if (retptr == NULL)
-		FLT_OT_RETURN(retptr);
+		FLT_OT_RETURN_PTR(retptr);
 
 	LIST_INIT(&(retptr->acls));
 	LIST_INIT(&(retptr->contexts));
@@ -495,7 +495,7 @@ struct flt_ot_conf_scope *flt_ot_conf_scope_init(const char *id, int linenum, st
 
 	FLT_OT_DBG_CONF_SCOPE("- init ", retptr);
 
-	FLT_OT_RETURN(retptr);
+	FLT_OT_RETURN_PTR(retptr);
 }
 
 /***
@@ -566,13 +566,13 @@ struct flt_ot_conf_group *flt_ot_conf_group_init(const char *id, int linenum, st
 
 	retptr = flt_ot_conf_hdr_init(sizeof(*retptr), id, linenum, head, err);
 	if (retptr == NULL)
-		FLT_OT_RETURN(retptr);
+		FLT_OT_RETURN_PTR(retptr);
 
 	LIST_INIT(&(retptr->ph_scopes));
 
 	FLT_OT_DBG_CONF_GROUP("- init ", retptr);
 
-	FLT_OT_RETURN(retptr);
+	FLT_OT_RETURN_PTR(retptr);
 }
 
 
@@ -630,7 +630,7 @@ struct flt_ot_conf_tracer *flt_ot_conf_tracer_init(const char *id, int linenum, 
 
 	retptr = flt_ot_conf_hdr_init(sizeof(*retptr), id, linenum, NULL, err);
 	if (retptr == NULL)
-		FLT_OT_RETURN(retptr);
+		FLT_OT_RETURN_PTR(retptr);
 
 	retptr->rate_limit = FLT_OT_FLOAT_U32(FLT_OT_RATE_LIMIT_MAX, FLT_OT_RATE_LIMIT_MAX);
 	init_new_proxy(&(retptr->proxy_log));
@@ -640,7 +640,7 @@ struct flt_ot_conf_tracer *flt_ot_conf_tracer_init(const char *id, int linenum, 
 
 	FLT_OT_DBG_CONF_TRACER("- init ", retptr);
 
-	FLT_OT_RETURN(retptr);
+	FLT_OT_RETURN_PTR(retptr);
 }
 
 
@@ -713,7 +713,7 @@ struct flt_ot_conf *flt_ot_conf_init(struct proxy *px)
 
 	retptr = FLT_OT_CALLOC(1, sizeof(*retptr));
 	if (retptr == NULL)
-		FLT_OT_RETURN(retptr);
+		FLT_OT_RETURN_PTR(retptr);
 
 	retptr->proxy = px;
 	LIST_INIT(&(retptr->groups));
@@ -721,7 +721,7 @@ struct flt_ot_conf *flt_ot_conf_init(struct proxy *px)
 
 	FLT_OT_DBG_CONF("- init ", retptr);
 
-	FLT_OT_RETURN(retptr);
+	FLT_OT_RETURN_PTR(retptr);
 }
 
 

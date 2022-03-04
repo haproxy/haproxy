@@ -162,7 +162,7 @@ static int flt_ot_init(struct proxy *p, struct flt_conf *fconf)
 	FLT_OT_FUNC("%p, %p", p, fconf);
 
 	if (conf == NULL)
-		FLT_OT_RETURN(retval);
+		FLT_OT_RETURN_INT(retval);
 
 	flt_ot_cli_init();
 
@@ -178,7 +178,7 @@ static int flt_ot_init(struct proxy *p, struct flt_conf *fconf)
 		FLT_OT_ERR_FREE(err);
 	}
 
-	FLT_OT_RETURN(retval);
+	FLT_OT_RETURN_INT(retval);
 }
 
 
@@ -256,7 +256,7 @@ static int flt_ot_check(struct proxy *p, struct flt_conf *fconf)
 	FLT_OT_FUNC("%p, %p", p, fconf);
 
 	if (conf == NULL)
-		FLT_OT_RETURN(++retval);
+		FLT_OT_RETURN_INT(++retval);
 
 	/*
 	 * If only the proxy specified with the <p> parameter is checked, then
@@ -421,7 +421,7 @@ static int flt_ot_check(struct proxy *p, struct flt_conf *fconf)
 		FLT_OT_DBG_LIST(conf->tracer, ph_scope, "   ", "used", _scope, FLT_OT_DBG_CONF_PH("      ", _scope));
 	}
 
-	FLT_OT_RETURN(retval);
+	FLT_OT_RETURN_INT(retval);
 }
 
 
@@ -450,7 +450,7 @@ static int flt_ot_init_per_thread(struct proxy *p, struct flt_conf *fconf)
 	FLT_OT_FUNC("%p, %p", p, fconf);
 
 	if (conf == NULL)
-		FLT_OT_RETURN(retval);
+		FLT_OT_RETURN_INT(retval);
 
 	/*
 	 * Start the OpenTracing library tracer thread.
@@ -469,7 +469,7 @@ static int flt_ot_init_per_thread(struct proxy *p, struct flt_conf *fconf)
 		retval = FLT_OT_RET_OK;
 	}
 
-	FLT_OT_RETURN(retval);
+	FLT_OT_RETURN_INT(retval);
 }
 
 
@@ -529,7 +529,7 @@ static int flt_ot_attach(struct stream *s, struct filter *f)
 	if (conf->tracer->flag_disabled) {
 		FLT_OT_DBG(2, "filter '%s', type: %s (disabled)", conf->id, flt_ot_type(f));
 
-		FLT_OT_RETURN(FLT_OT_RET_IGNORE);
+		FLT_OT_RETURN_INT(FLT_OT_RET_IGNORE);
 	}
 	else if (conf->tracer->rate_limit < FLT_OT_FLOAT_U32(FLT_OT_RATE_LIMIT_MAX, FLT_OT_RATE_LIMIT_MAX)) {
 		uint32_t rnd = ha_random32();
@@ -537,7 +537,7 @@ static int flt_ot_attach(struct stream *s, struct filter *f)
 		if (conf->tracer->rate_limit <= rnd) {
 			FLT_OT_DBG(2, "filter '%s', type: %s (ignored: %u <= %u)", conf->id, flt_ot_type(f), conf->tracer->rate_limit, rnd);
 
-			FLT_OT_RETURN(FLT_OT_RET_IGNORE);
+			FLT_OT_RETURN_INT(FLT_OT_RET_IGNORE);
 		}
 	}
 
@@ -548,7 +548,7 @@ static int flt_ot_attach(struct stream *s, struct filter *f)
 	if (f->ctx == NULL) {
 		FLT_OT_LOG(LOG_EMERG, "failed to create context");
 
-		FLT_OT_RETURN(FLT_OT_RET_IGNORE);
+		FLT_OT_RETURN_INT(FLT_OT_RET_IGNORE);
 	}
 
 	/*
@@ -565,7 +565,7 @@ static int flt_ot_attach(struct stream *s, struct filter *f)
 #endif
 	flt_ot_http_headers_dump(&(s->req));
 
-	FLT_OT_RETURN(FLT_OT_RET_OK);
+	FLT_OT_RETURN_INT(FLT_OT_RET_OK);
 }
 
 
@@ -595,9 +595,9 @@ static int flt_ot_stream_start(struct stream *s, struct filter *f)
 	FLT_OT_FUNC("%p, %p", s, f);
 
 	if (flt_ot_is_disabled(f FLT_OT_DBG_ARGS(, -1)))
-		FLT_OT_RETURN(retval);
+		FLT_OT_RETURN_INT(retval);
 
-	FLT_OT_RETURN(flt_ot_return_int(f, &err, retval));
+	FLT_OT_RETURN_INT(flt_ot_return_int(f, &err, retval));
 }
 
 
@@ -626,11 +626,11 @@ static int flt_ot_stream_set_backend(struct stream *s, struct filter *f, struct 
 	FLT_OT_FUNC("%p, %p, %p", s, f, be);
 
 	if (flt_ot_is_disabled(f FLT_OT_DBG_ARGS(, -1)))
-		FLT_OT_RETURN(retval);
+		FLT_OT_RETURN_INT(retval);
 
 	FLT_OT_DBG(3, "backend: %s", be->id);
 
-	FLT_OT_RETURN(flt_ot_return_int(f, &err, retval));
+	FLT_OT_RETURN_INT(flt_ot_return_int(f, &err, retval));
 }
 
 
@@ -750,7 +750,7 @@ static int flt_ot_channel_start_analyze(struct stream *s, struct filter *f, stru
 	FLT_OT_FUNC("%p, %p, %p", s, f, chn);
 
 	if (flt_ot_is_disabled(f FLT_OT_DBG_ARGS(, (chn->flags & CF_ISRESP) ? FLT_OT_EVENT_RES_SERVER_SESS_START : FLT_OT_EVENT_REQ_CLIENT_SESS_START)))
-		FLT_OT_RETURN(FLT_OT_RET_OK);
+		FLT_OT_RETURN_INT(FLT_OT_RET_OK);
 
 	FLT_OT_DBG(3, "channel: %s, mode: %s (%s)", flt_ot_chn_label(chn), flt_ot_pr_mode(s), flt_ot_stream_pos(s));
 
@@ -774,7 +774,7 @@ static int flt_ot_channel_start_analyze(struct stream *s, struct filter *f, stru
 
 //	register_data_filter(s, chn, f);
 
-	FLT_OT_RETURN(flt_ot_return_int(f, &err, retval));
+	FLT_OT_RETURN_INT(flt_ot_return_int(f, &err, retval));
 }
 
 
@@ -810,7 +810,7 @@ static int flt_ot_channel_pre_analyze(struct stream *s, struct filter *f, struct
 		}
 
 	if (flt_ot_is_disabled(f FLT_OT_DBG_ARGS(, event)))
-		FLT_OT_RETURN(FLT_OT_RET_OK);
+		FLT_OT_RETURN_INT(FLT_OT_RET_OK);
 
 	FLT_OT_DBG(3, "channel: %s, mode: %s (%s), analyzer: %s", flt_ot_chn_label(chn), flt_ot_pr_mode(s), flt_ot_stream_pos(s), flt_ot_analyzer(an_bit));
 
@@ -821,7 +821,7 @@ static int flt_ot_channel_pre_analyze(struct stream *s, struct filter *f, struct
 		channel_dont_close(chn);
 	}
 
-	FLT_OT_RETURN(flt_ot_return_int(f, &err, retval));
+	FLT_OT_RETURN_INT(flt_ot_return_int(f, &err, retval));
 }
 
 
@@ -859,13 +859,13 @@ static int flt_ot_channel_post_analyze(struct stream *s, struct filter *f, struc
 		}
 
 	if (flt_ot_is_disabled(f FLT_OT_DBG_ARGS(, event)))
-		FLT_OT_RETURN(FLT_OT_RET_OK);
+		FLT_OT_RETURN_INT(FLT_OT_RET_OK);
 
 	FLT_OT_DBG(3, "channel: %s, mode: %s (%s), analyzer: %s", flt_ot_chn_label(chn), flt_ot_pr_mode(s), flt_ot_stream_pos(s), flt_ot_analyzer(an_bit));
 
 	retval = flt_ot_event_run(s, f, chn, event, &err);
 
-	FLT_OT_RETURN(flt_ot_return_int(f, &err, retval));
+	FLT_OT_RETURN_INT(flt_ot_return_int(f, &err, retval));
 }
 
 
@@ -893,7 +893,7 @@ static int flt_ot_channel_end_analyze(struct stream *s, struct filter *f, struct
 	FLT_OT_FUNC("%p, %p, %p", s, f, chn);
 
 	if (flt_ot_is_disabled(f FLT_OT_DBG_ARGS(, (chn->flags & CF_ISRESP) ? FLT_OT_EVENT_RES_SERVER_SESS_END : FLT_OT_EVENT_REQ_CLIENT_SESS_END)))
-		FLT_OT_RETURN(FLT_OT_RET_OK);
+		FLT_OT_RETURN_INT(FLT_OT_RET_OK);
 
 	FLT_OT_DBG(3, "channel: %s, mode: %s (%s)", flt_ot_chn_label(chn), flt_ot_pr_mode(s), flt_ot_stream_pos(s));
 
@@ -915,7 +915,7 @@ static int flt_ot_channel_end_analyze(struct stream *s, struct filter *f, struct
 		}
 	}
 
-	FLT_OT_RETURN(flt_ot_return_int(f, &err, retval));
+	FLT_OT_RETURN_INT(flt_ot_return_int(f, &err, retval));
 }
 
 
@@ -947,11 +947,11 @@ static int flt_ot_http_headers(struct stream *s, struct filter *f, struct http_m
 	FLT_OT_FUNC("%p, %p, %p", s, f, msg);
 
 	if (flt_ot_is_disabled(f FLT_OT_DBG_ARGS(, -1)))
-		FLT_OT_RETURN(retval);
+		FLT_OT_RETURN_INT(retval);
 
 	FLT_OT_DBG(3, "channel: %s, mode: %s (%s), %.*s %.*s %.*s", flt_ot_chn_label(msg->chn), flt_ot_pr_mode(s), flt_ot_stream_pos(s), HTX_SL_P1_LEN(sl), HTX_SL_P1_PTR(sl), HTX_SL_P2_LEN(sl), HTX_SL_P2_PTR(sl), HTX_SL_P3_LEN(sl), HTX_SL_P3_PTR(sl));
 
-	FLT_OT_RETURN(flt_ot_return_int(f, &err, retval));
+	FLT_OT_RETURN_INT(flt_ot_return_int(f, &err, retval));
 }
 
 
@@ -980,14 +980,14 @@ static int flt_ot_http_payload(struct stream *s, struct filter *f, struct http_m
 	FLT_OT_FUNC("%p, %p, %p, %u, %u", s, f, msg, offset, len);
 
 	if (flt_ot_is_disabled(f FLT_OT_DBG_ARGS(, -1)))
-		FLT_OT_RETURN(len);
+		FLT_OT_RETURN_INT(len);
 
 	FLT_OT_DBG(3, "channel: %s, mode: %s (%s), offset: %u, len: %u, forward: %d", flt_ot_chn_label(msg->chn), flt_ot_pr_mode(s), flt_ot_stream_pos(s), offset, len, retval);
 
 	if (retval != len)
 		task_wakeup(s->task, TASK_WOKEN_MSG);
 
-	FLT_OT_RETURN(flt_ot_return_int(f, &err, retval));
+	FLT_OT_RETURN_INT(flt_ot_return_int(f, &err, retval));
 }
 
 
@@ -1015,11 +1015,11 @@ static int flt_ot_http_end(struct stream *s, struct filter *f, struct http_msg *
 	FLT_OT_FUNC("%p, %p, %p", s, f, msg);
 
 	if (flt_ot_is_disabled(f FLT_OT_DBG_ARGS(, -1)))
-		FLT_OT_RETURN(retval);
+		FLT_OT_RETURN_INT(retval);
 
 	FLT_OT_DBG(3, "channel: %s, mode: %s (%s)", flt_ot_chn_label(msg->chn), flt_ot_pr_mode(s), flt_ot_stream_pos(s));
 
-	FLT_OT_RETURN(flt_ot_return_int(f, &err, retval));
+	FLT_OT_RETURN_INT(flt_ot_return_int(f, &err, retval));
 }
 
 
@@ -1113,7 +1113,7 @@ static int flt_ot_tcp_payload(struct stream *s, struct filter *f, struct channel
 	FLT_OT_FUNC("%p, %p, %p, %u, %u", s, f, chn, offset, len);
 
 	if (flt_ot_is_disabled(f FLT_OT_DBG_ARGS(, -1)))
-		FLT_OT_RETURN(len);
+		FLT_OT_RETURN_INT(len);
 
 	FLT_OT_DBG(3, "channel: %s, mode: %s (%s), offset: %u, len: %u, forward: %d", flt_ot_chn_label(chn), flt_ot_pr_mode(s), flt_ot_stream_pos(s), offset, len, retval);
 
@@ -1124,7 +1124,7 @@ static int flt_ot_tcp_payload(struct stream *s, struct filter *f, struct channel
 	if (retval != len)
 		task_wakeup(s->task, TASK_WOKEN_MSG);
 
-	FLT_OT_RETURN(flt_ot_return_int(f, &err, retval));
+	FLT_OT_RETURN_INT(flt_ot_return_int(f, &err, retval));
 }
 
 #endif /* DEBUG_OT */

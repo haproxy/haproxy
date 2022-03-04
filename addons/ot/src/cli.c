@@ -97,7 +97,7 @@ static int flt_ot_cli_parse_debug(char **args, char *payload, struct appctx *app
 
 	cmn_cli_set_msg(appctx, err, msg, CLI_ST_PRINT_FREE);
 
-	FLT_OT_RETURN(retval);
+	FLT_OT_RETURN_INT(retval);
 }
 
 #endif /* DEBUG_OT */
@@ -137,7 +137,7 @@ static int flt_ot_cli_parse_disabled(char **args, char *payload, struct appctx *
 
 	cmn_cli_set_msg(appctx, NULL, msg, CLI_ST_PRINT_FREE);
 
-	FLT_OT_RETURN(retval);
+	FLT_OT_RETURN_INT(retval);
 }
 
 
@@ -175,7 +175,7 @@ static int flt_ot_cli_parse_option(char **args, char *payload, struct appctx *ap
 
 	cmn_cli_set_msg(appctx, NULL, msg, CLI_ST_PRINT_FREE);
 
-	FLT_OT_RETURN(retval);
+	FLT_OT_RETURN_INT(retval);
 }
 
 
@@ -238,7 +238,7 @@ static int flt_ot_cli_parse_logging(char **args, char *payload, struct appctx *a
 
 	cmn_cli_set_msg(appctx, err, msg, CLI_ST_PRINT_FREE);
 
-	FLT_OT_RETURN(retval);
+	FLT_OT_RETURN_INT(retval);
 }
 
 
@@ -289,7 +289,7 @@ static int flt_ot_cli_parse_rate(char **args, char *payload, struct appctx *appc
 
 	cmn_cli_set_msg(appctx, err, msg, CLI_ST_PRINT_FREE);
 
-	FLT_OT_RETURN(retval);
+	FLT_OT_RETURN_INT(retval);
 }
 
 
@@ -343,7 +343,7 @@ static int flt_ot_cli_parse_status(char **args, char *payload, struct appctx *ap
 
 	cmn_cli_set_msg(appctx, NULL, msg, CLI_ST_PRINT_FREE);
 
-	FLT_OT_RETURN(retval);
+	FLT_OT_RETURN_INT(retval);
 }
 
 

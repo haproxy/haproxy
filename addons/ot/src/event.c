@@ -55,7 +55,7 @@ static int flt_ot_scope_run_span(struct stream *s, struct filter *f, struct chan
 	FLT_OT_FUNC("%p, %p, %p, %u, %p, %p, %p, %p, %p:%p", s, f, chn, dir, span, data, conf_span, ts, FLT_OT_DPTR_ARGS(err));
 
 	if (span == NULL)
-		FLT_OT_RETURN(retval);
+		FLT_OT_RETURN_INT(retval);
 
 	if (span->span == NULL) {
 		span->span = ot_span_init(conf->tracer->tracer, span->id, ts, NULL, span->ref_type, FLT_OT_DEREF(span->ref_ctx, idx, -1), span->ref_span, data->tags, data->num_tags, err);
@@ -106,7 +106,7 @@ static int flt_ot_scope_run_span(struct stream *s, struct filter *f, struct chan
 		}
 	}
 
-	FLT_OT_RETURN(retval);
+	FLT_OT_RETURN_INT(retval);
 }
 
 
@@ -181,7 +181,7 @@ int flt_ot_scope_run(struct stream *s, struct filter *f, struct channel *chn, st
 					break;
 				}
 
-			FLT_OT_RETURN(retval);
+			FLT_OT_RETURN_INT(retval);
 		}
 	}
 
@@ -261,7 +261,7 @@ int flt_ot_scope_run(struct stream *s, struct filter *f, struct channel *chn, st
 	flt_ot_scope_finish_marked(f->ctx, ts);
 	flt_ot_scope_free_unused(f->ctx, chn);
 
-	FLT_OT_RETURN(retval);
+	FLT_OT_RETURN_INT(retval);
 }
 
 
@@ -325,7 +325,7 @@ int flt_ot_event_run(struct stream *s, struct filter *f, struct channel *chn, in
 
 	FLT_OT_DBG(3, "event = %d, chn = %p, s->req = %p, s->res = %p", event, chn, &(s->req), &(s->res));
 
-	FLT_OT_RETURN(retval);
+	FLT_OT_RETURN_INT(retval);
 }
 
 /*

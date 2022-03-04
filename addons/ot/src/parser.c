@@ -67,7 +67,7 @@ static int flt_ot_parse_strdup(char **ptr, const char *str, char **err, const ch
 		retval |= ERR_ABORT | ERR_ALERT;
 	}
 
-	FLT_OT_RETURN(retval);
+	FLT_OT_RETURN_INT(retval);
 }
 
 
@@ -112,7 +112,7 @@ static int flt_ot_parse_keyword(char **ptr, char **args, int cur_arg, int pos, c
 		retval = flt_ot_parse_strdup(ptr, args[pos + 1], err, args[cur_arg]);
 	}
 
-	FLT_OT_RETURN(retval);
+	FLT_OT_RETURN_INT(retval);
 }
 
 
@@ -137,7 +137,7 @@ static const char *flt_ot_parse_invalid_char(const char *name, int type)
 	FLT_OT_FUNC("\"%s\", %d", name, type);
 
 	if (!FLT_OT_STR_ISVALID(name))
-		FLT_OT_RETURN(retptr);
+		FLT_OT_RETURN_EX(retptr, const char *, "%p");
 
 	if (type == 1) {
 		retptr = invalid_char(name);
@@ -162,7 +162,7 @@ static const char *flt_ot_parse_invalid_char(const char *name, int type)
 			retptr = NULL;
 	}
 
-	FLT_OT_RETURN(retptr);
+	FLT_OT_RETURN_EX(retptr, const char *, "%p");
 }
 
 
@@ -241,7 +241,7 @@ static int flt_ot_parse_cfg_check(const char *file, int linenum, char **args, co
 	if (!(retval & ERR_CODE) && (*pdata)->flag_check_id && (id == NULL))
 		FLT_OT_PARSE_ERR(err, "'%s' : %s ID not set (use '%s%s')", args[0], parse_data[1].name, parse_data[1].name, parse_data[1].usage);
 
-	FLT_OT_RETURN(retval);
+	FLT_OT_RETURN_INT(retval);
 }
 
 
@@ -285,7 +285,7 @@ static int flt_ot_parse_cfg_sample_expr(const char *file, int linenum, char **ar
 	if (retval & ERR_CODE)
 		flt_ot_conf_sample_expr_free(&expr);
 
-	FLT_OT_RETURN(retval);
+	FLT_OT_RETURN_INT(retval);
 }
 
 
@@ -335,7 +335,7 @@ static int flt_ot_parse_cfg_sample(const char *file, int linenum, char **args, s
 	else
 		FLT_OT_DBG(3, "sample '%s' -> '%s' added", sample->key, sample->value);
 
-	FLT_OT_RETURN(retval);
+	FLT_OT_RETURN_INT(retval);
 }
 
 
@@ -371,7 +371,7 @@ static int flt_ot_parse_cfg_str(const char *file, int linenum, char **args, stru
 	if (retval & ERR_CODE)
 		flt_ot_conf_str_free(&str);
 
-	FLT_OT_RETURN(retval);
+	FLT_OT_RETURN_INT(retval);
 }
 
 
@@ -409,7 +409,7 @@ static int flt_ot_parse_cfg_file(char **ptr, const char *file, int linenum, char
 	else
 		retval = flt_ot_parse_keyword(ptr, args, 0, 0, err, err_msg);
 
-	FLT_OT_RETURN(retval);
+	FLT_OT_RETURN_INT(retval);
 }
 
 
@@ -470,13 +470,13 @@ static int flt_ot_parse_cfg_tracer(const char *file, int linenum, char **args, i
 	FLT_OT_FUNC("\"%s\", %d, %p, 0x%08x", file, linenum, args, kw_mod);
 
 	if (flt_ot_parse_check_scope())
-		FLT_OT_RETURN(retval);
+		FLT_OT_RETURN_INT(retval);
 
 	retval = flt_ot_parse_cfg_check(file, linenum, args, flt_ot_current_tracer, parse_data, FLT_OT_TABLESIZE(parse_data), &pdata, &err);
 	if (retval & ERR_CODE) {
 		FLT_OT_PARSE_IFERR_ALERT();
 
-		FLT_OT_RETURN(retval);
+		FLT_OT_RETURN_INT(retval);
 	}
 
 	if (pdata->keyword == FLT_OT_PARSE_TRACER_ID) {
@@ -554,7 +554,7 @@ static int flt_ot_parse_cfg_tracer(const char *file, int linenum, char **args, i
 	if ((retval & ERR_CODE) && (flt_ot_current_tracer != NULL))
 		flt_ot_conf_tracer_free(&flt_ot_current_tracer);
 
-	FLT_OT_RETURN(retval);
+	FLT_OT_RETURN_INT(retval);
 }
 
 
@@ -580,12 +580,12 @@ static int flt_ot_post_parse_cfg_tracer(void)
 	FLT_OT_FUNC("");
 
 	if (flt_ot_current_tracer == NULL)
-		FLT_OT_RETURN(retval);
+		FLT_OT_RETURN_INT(retval);
 
 	flt_ot_current_config->tracer = flt_ot_current_tracer;
 
 	if (flt_ot_current_tracer->id == NULL)
-		FLT_OT_RETURN(retval);
+		FLT_OT_RETURN_INT(retval);
 
 	if (flt_ot_current_tracer->config == NULL) {
 		FLT_OT_POST_PARSE_ALERT("tracer '%s' has no configuration file specified", flt_ot_current_tracer->cfg_line, flt_ot_current_tracer->id);
@@ -600,7 +600,7 @@ static int flt_ot_post_parse_cfg_tracer(void)
 
 	flt_ot_current_tracer = NULL;
 
-	FLT_OT_RETURN(retval);
+	FLT_OT_RETURN_INT(retval);
 }
 
 
@@ -633,13 +633,13 @@ static int flt_ot_parse_cfg_group(const char *file, int linenum, char **args, in
 	FLT_OT_FUNC("\"%s\", %d, %p, 0x%08x", file, linenum, args, kw_mod);
 
 	if (flt_ot_parse_check_scope())
-		FLT_OT_RETURN(retval);
+		FLT_OT_RETURN_INT(retval);
 
 	retval = flt_ot_parse_cfg_check(file, linenum, args, flt_ot_current_group, parse_data, FLT_OT_TABLESIZE(parse_data), &pdata, &err);
 	if (retval & ERR_CODE) {
 		FLT_OT_PARSE_IFERR_ALERT();
 
-		FLT_OT_RETURN(retval);
+		FLT_OT_RETURN_INT(retval);
 	}
 
 	if (pdata->keyword == FLT_OT_PARSE_GROUP_ID) {
@@ -658,7 +658,7 @@ static int flt_ot_parse_cfg_group(const char *file, int linenum, char **args, in
 	if ((retval & ERR_CODE) && (flt_ot_current_group != NULL))
 		flt_ot_conf_group_free(&flt_ot_current_group);
 
-	FLT_OT_RETURN(retval);
+	FLT_OT_RETURN_INT(retval);
 }
 
 
@@ -683,7 +683,7 @@ static int flt_ot_post_parse_cfg_group(void)
 	FLT_OT_FUNC("");
 
 	if (flt_ot_current_group == NULL)
-		FLT_OT_RETURN(retval);
+		FLT_OT_RETURN_INT(retval);
 
 	/* Check that the group has at least one scope defined. */
 	if (LIST_ISEMPTY(&(flt_ot_current_group->ph_scopes)))
@@ -691,7 +691,7 @@ static int flt_ot_post_parse_cfg_group(void)
 
 	flt_ot_current_group = NULL;
 
-	FLT_OT_RETURN(retval);
+	FLT_OT_RETURN_INT(retval);
 }
 
 
@@ -736,7 +736,7 @@ static int flt_ot_parse_cfg_scope_ctx(char **args, int cur_arg, char **err)
 
 	FLT_OT_DBG(2, "ctx_flags: 0x%02hhx (0x%02hhx)", flt_ot_current_span->ctx_flags, flags);
 
-	FLT_OT_RETURN(retval);
+	FLT_OT_RETURN_INT(retval);
 }
 
 
@@ -776,7 +776,7 @@ static struct acl_cond *flt_ot_parse_acl(const char *file, int linenum, struct p
 	if ((retptr != NULL) && (err != NULL))
 		FLT_OT_FREE_CLEAR(*err);
 
-	FLT_OT_RETURN(retptr);
+	FLT_OT_RETURN_PTR(retptr);
 }
 
 
@@ -809,13 +809,13 @@ static int flt_ot_parse_cfg_scope(const char *file, int linenum, char **args, in
 	FLT_OT_FUNC("\"%s\", %d, %p, 0x%08x", file, linenum, args, kw_mod);
 
 	if (flt_ot_parse_check_scope())
-		FLT_OT_RETURN(retval);
+		FLT_OT_RETURN_INT(retval);
 
 	retval = flt_ot_parse_cfg_check(file, linenum, args, flt_ot_current_span, parse_data, FLT_OT_TABLESIZE(parse_data), &pdata, &err);
 	if (retval & ERR_CODE) {
 		FLT_OT_PARSE_IFERR_ALERT();
 
-		FLT_OT_RETURN(retval);
+		FLT_OT_RETURN_INT(retval);
 	}
 
 	if (pdata->keyword == FLT_OT_PARSE_SCOPE_ID) {
@@ -1009,7 +1009,7 @@ static int flt_ot_parse_cfg_scope(const char *file, int linenum, char **args, in
 		flt_ot_current_span = NULL;
 	}
 
-	FLT_OT_RETURN(retval);
+	FLT_OT_RETURN_INT(retval);
 }
 
 
@@ -1038,7 +1038,7 @@ static int flt_ot_post_parse_cfg_scope(void)
 	FLT_OT_FUNC("");
 
 	if (flt_ot_current_scope == NULL)
-		FLT_OT_RETURN(retval);
+		FLT_OT_RETURN_INT(retval);
 
 	/* If span context inject is used, check that this is possible. */
 	list_for_each_entry(conf_span, &(flt_ot_current_scope->spans), list)
@@ -1052,7 +1052,7 @@ static int flt_ot_post_parse_cfg_scope(void)
 	flt_ot_current_scope = NULL;
 	flt_ot_current_span  = NULL;
 
-	FLT_OT_RETURN(retval);
+	FLT_OT_RETURN_INT(retval);
 }
 
 
@@ -1103,7 +1103,7 @@ static int flt_ot_parse_cfg(struct flt_ot_conf *conf, const char *flt_name, char
 
 	flt_ot_current_config = NULL;
 
-	FLT_OT_RETURN(retval);
+	FLT_OT_RETURN_INT(retval);
 }
 
 
@@ -1148,7 +1148,7 @@ static int flt_ot_parse(char **args, int *cur_arg, struct proxy *px, struct flt_
 		if (otc_dbg_mem_init(&dbg_mem, dbg_mem_data, FLT_OT_TABLESIZE(dbg_mem_data), 0xff) == -1) {
 			FLT_OT_PARSE_ERR(err, "cannot initialize memory debugger");
 
-			FLT_OT_RETURN(retval);
+			FLT_OT_RETURN_INT(retval);
 		}
 	);
 #endif
@@ -1159,7 +1159,7 @@ static int flt_ot_parse(char **args, int *cur_arg, struct proxy *px, struct flt_
 	if (conf == NULL) {
 		FLT_OT_PARSE_ERR(err, "'%s' : out of memory", args[*cur_arg]);
 
-		FLT_OT_RETURN(retval);
+		FLT_OT_RETURN_INT(retval);
 	}
 
 	for (pos = *cur_arg + 1; !(retval & ERR_CODE) && FLT_OT_ARG_ISVALID(pos); pos++) {
@@ -1202,7 +1202,7 @@ static int flt_ot_parse(char **args, int *cur_arg, struct proxy *px, struct flt_
 		FLT_OT_DBG(3, "filter set: id '%s', config '%s'", conf->id, conf->cfg_file);
 	}
 
-	FLT_OT_RETURN(retval);
+	FLT_OT_RETURN_INT(retval);
 }
 
 

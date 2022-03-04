@@ -39,6 +39,9 @@
 	} while (0)
 #  define FLT_OT_FUNC(f, ...)       do { FLT_OT_DBG(1, "%s(" f ") {", __func__, ##__VA_ARGS__); dbg_indent_level += 3; } while (0)
 #  define FLT_OT_RETURN(a)          do { dbg_indent_level -= 3; FLT_OT_DBG(1, "}"); return a; } while (0)
+#  define FLT_OT_RETURN_EX(a,t,f)   do { dbg_indent_level -= 3; { t _r = (a); FLT_OT_DBG(1, "} = " f, _r); return _r; } } while (0)
+#  define FLT_OT_RETURN_INT(a)      FLT_OT_RETURN_EX((a), int, "%d")
+#  define FLT_OT_RETURN_PTR(a)      FLT_OT_RETURN_EX((a), void *, "%p")
 #  define FLT_OT_DBG_IFDEF(a,b)     a
 #  define FLT_OT_DBG_ARGS(a, ...)   a, ##__VA_ARGS__
 
@@ -58,8 +61,12 @@ extern struct flt_ot_debug flt_ot_debug;
 #  define FLT_OT_DBG(...)           while (0)
 #  define FLT_OT_FUNC(...)          while (0)
 #  define FLT_OT_RETURN(a)          return a
+#  define FLT_OT_RETURN_EX(a,t,f)   return a
+#  define FLT_OT_RETURN_INT(a)      return a
+#  define FLT_OT_RETURN_PTR(a)      return a
 #  define FLT_OT_DBG_IFDEF(a,b)     b
 #  define FLT_OT_DBG_ARGS(...)
+#  define FLT_OT_DBG_BUF(a,b)       while (0)
 #endif /* DEBUG_OT */
 
 /*

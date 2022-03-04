@@ -66,13 +66,13 @@ static enum act_return flt_ot_group_action(struct act_rule *rule, struct proxy *
 	if ((fconf == NULL) || (conf == NULL) || (conf_group == NULL)) {
 		FLT_OT_LOG(LOG_ERR, FLT_OT_ACTION_GROUP ": internal error, invalid group action");
 
-		FLT_OT_RETURN(ACT_RET_CONT);
+		FLT_OT_RETURN_EX(ACT_RET_CONT, enum act_return, "%d");
 	}
 
 	if (conf->tracer->flag_disabled) {
 		FLT_OT_DBG(1, "filter '%s' disabled, group action '%s' ignored", conf->id, conf_group->id);
 
-		FLT_OT_RETURN(ACT_RET_CONT);
+		FLT_OT_RETURN_EX(ACT_RET_CONT, enum act_return, "%d");
 	}
 
 	/* Find the OpenTracing filter instance from the current stream. */
@@ -86,10 +86,10 @@ static enum act_return flt_ot_group_action(struct act_rule *rule, struct proxy *
 	if (rt_ctx == NULL) {
 		FLT_OT_DBG(1, "cannot find filter, probably not attached to the stream");
 
-		FLT_OT_RETURN(ACT_RET_CONT);
+		FLT_OT_RETURN_EX(ACT_RET_CONT, enum act_return, "%d");
 	}
 	else if (flt_ot_is_disabled(filter FLT_OT_DBG_ARGS(, -1))) {
-		FLT_OT_RETURN(ACT_RET_CONT);
+		FLT_OT_RETURN_EX(ACT_RET_CONT, enum act_return, "%d");
 	}
 	else {
 		FLT_OT_DBG(3, "run group '%s'", conf_group->id);
@@ -107,7 +107,7 @@ static enum act_return flt_ot_group_action(struct act_rule *rule, struct proxy *
 	if (i >= FLT_OT_TABLESIZE(flt_ot_group_data)) {
 		FLT_OT_LOG(LOG_ERR, FLT_OT_ACTION_GROUP ": internal error, invalid rule->from=%d", rule->from);
 
-		FLT_OT_RETURN(ACT_RET_CONT);
+		FLT_OT_RETURN_EX(ACT_RET_CONT, enum act_return, "%d");
 	}
 
 	list_for_each_entry(ph_scope, &(conf_group->ph_scopes), list) {
@@ -117,7 +117,7 @@ static enum act_return flt_ot_group_action(struct act_rule *rule, struct proxy *
 		}
 	}
 
-	FLT_OT_RETURN(ACT_RET_CONT);
+	FLT_OT_RETURN_EX(ACT_RET_CONT, enum act_return, "%d");
 }
 
 
@@ -166,7 +166,7 @@ static int flt_ot_group_check(struct act_rule *rule, struct proxy *px, char **er
 	if (i >= FLT_OT_TABLESIZE(flt_ot_group_data)) {
 		FLT_OT_ERR("internal error, unexpected rule->from=%d, please report this bug!", rule->from);
 
-		FLT_OT_RETURN(0);
+		FLT_OT_RETURN_INT(0);
 	}
 
 	/*
@@ -191,7 +191,7 @@ static int flt_ot_group_check(struct act_rule *rule, struct proxy *px, char **er
 	if (fconf == NULL) {
 		FLT_OT_ERR("unable to find the OpenTracing filter '%s' used by the " FLT_OT_ACTION_GROUP " '%s'", filter_id, group_id);
 
-		FLT_OT_RETURN(0);
+		FLT_OT_RETURN_INT(0);
 	}
 
 	/*
@@ -208,7 +208,7 @@ static int flt_ot_group_check(struct act_rule *rule, struct proxy *px, char **er
 	if (!flag_found) {
 		FLT_OT_ERR("unable to find group '%s' in the OpenTracing filter '%s' configuration", group_id, filter_id);
 
-		FLT_OT_RETURN(0);
+		FLT_OT_RETURN_INT(0);
 	}
 
 	FLT_OT_FREE_CLEAR(rule->arg.act.p[FLT_OT_ARG_FILTER_ID]);
@@ -218,7 +218,7 @@ static int flt_ot_group_check(struct act_rule *rule, struct proxy *px, char **er
 	rule->arg.act.p[FLT_OT_ARG_CONF]     = conf;
 	rule->arg.act.p[FLT_OT_ARG_GROUP]    = ph_group;
 
-	FLT_OT_RETURN(1);
+	FLT_OT_RETURN_INT(1);
 }
 
 
@@ -272,7 +272,7 @@ static enum act_parse_ret flt_ot_group_parse(const char **args, int *cur_arg, st
 	     (strcmp(args[*cur_arg + 2], FLT_OT_CONDITION_UNLESS) != 0))) {
 		FLT_OT_ERR("expects: <filter-id> <group-id> [{ if | unless } ...]");
 
-		FLT_OT_RETURN(ACT_RET_PRS_ERR);
+		FLT_OT_RETURN_EX(ACT_RET_PRS_ERR, enum act_parse_ret, "%d");
 	}
 
 	/* Copy the OpenTracing filter id. */
@@ -280,7 +280,7 @@ static enum act_parse_ret flt_ot_group_parse(const char **args, int *cur_arg, st
 	if (rule->arg.act.p[FLT_OT_ARG_FILTER_ID] == NULL) {
 		FLT_OT_ERR("%s : out of memory", args[*cur_arg]);
 
-		FLT_OT_RETURN(ACT_RET_PRS_ERR);
+		FLT_OT_RETURN_EX(ACT_RET_PRS_ERR, enum act_parse_ret, "%d");
 	}
 
 	/* Copy the OpenTracing group id. */
@@ -290,7 +290,7 @@ static enum act_parse_ret flt_ot_group_parse(const char **args, int *cur_arg, st
 
 		FLT_OT_FREE_CLEAR(rule->arg.act.p[FLT_OT_ARG_FILTER_ID]);
 
-		FLT_OT_RETURN(ACT_RET_PRS_ERR);
+		FLT_OT_RETURN_EX(ACT_RET_PRS_ERR, enum act_parse_ret, "%d");
 	}
 
 	rule->action      = ACT_CUSTOM;
@@ -300,7 +300,7 @@ static enum act_parse_ret flt_ot_group_parse(const char **args, int *cur_arg, st
 
 	*cur_arg += 2;
 
-	FLT_OT_RETURN(ACT_RET_PRS_OK);
+	FLT_OT_RETURN_EX(ACT_RET_PRS_OK, enum act_parse_ret, "%d");
 }
 
 

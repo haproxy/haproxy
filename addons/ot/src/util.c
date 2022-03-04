@@ -327,7 +327,7 @@ ssize_t flt_ot_chunk_add(struct buffer *chk, const void *src, size_t n, char **e
 	FLT_OT_FUNC("%p, %p, %zu, %p:%p", chk, src, n, FLT_OT_DPTR_ARGS(err));
 
 	if ((chk == NULL) || (src == NULL))
-		FLT_OT_RETURN(-1);
+		FLT_OT_RETURN_EX(-1, ssize_t, "%ld");
 
 	if (chk->area == NULL)
 		chunk_init(chk, FLT_OT_CALLOC(1, global.tune.bufsize), global.tune.bufsize);
@@ -335,18 +335,18 @@ ssize_t flt_ot_chunk_add(struct buffer *chk, const void *src, size_t n, char **e
 	if (chk->area == NULL) {
 		FLT_OT_ERR("out of memory");
 
-		FLT_OT_RETURN(-1);
+		FLT_OT_RETURN_EX(-1, ssize_t, "%ld");
 	}
 	else if (n > (chk->size - chk->data)) {
 		FLT_OT_ERR("chunk size too small");
 
-		FLT_OT_RETURN(-1);
+		FLT_OT_RETURN_EX(-1, ssize_t, "%ld");
 	}
 
 	(void)memcpy(chk->area + chk->data, src, n);
 	chk->data += n;
 
-	FLT_OT_RETURN(chk->data);
+	FLT_OT_RETURN_EX(chk->data, ssize_t, "%ld");
 }
 
 
@@ -512,7 +512,7 @@ int flt_ot_sample_to_str(const struct sample_data *data, char *value, size_t siz
 	FLT_OT_FUNC("%p, %p, %zu, %p:%p", data, value, size, FLT_OT_DPTR_ARGS(err));
 
 	if ((data == NULL) || (value == NULL) || (size == 0))
-		FLT_OT_RETURN(retval);
+		FLT_OT_RETURN_INT(retval);
 
 	*value = '\0';
 
@@ -623,7 +623,7 @@ int flt_ot_sample_to_str(const struct sample_data *data, char *value, size_t siz
 		FLT_OT_ERR("invalid HTTP method");
 	}
 
-	FLT_OT_RETURN(retval);
+	FLT_OT_RETURN_INT(retval);
 }
 
 
@@ -650,7 +650,7 @@ int flt_ot_sample_to_value(const char *key, const struct sample_data *data, stru
 	FLT_OT_FUNC("\"%s\", %p, %p, %p:%p", key, data, value, FLT_OT_DPTR_ARGS(err));
 
 	if ((data == NULL) || (value == NULL))
-		FLT_OT_RETURN(retval);
+		FLT_OT_RETURN_INT(retval);
 
 	if (data->type == SMP_T_BOOL) {
 		value->type             = otc_value_bool;
@@ -674,7 +674,7 @@ int flt_ot_sample_to_value(const char *key, const struct sample_data *data, stru
 			retval = flt_ot_sample_to_str(data, (char *)value->value.string_value, global.tune.bufsize, err);
 	}
 
-	FLT_OT_RETURN(retval);
+	FLT_OT_RETURN_INT(retval);
 }
 
 
@@ -802,7 +802,7 @@ int flt_ot_sample_add(struct stream *s, uint dir, struct flt_ot_conf_sample *sam
 			FLT_OT_DBG(3, "baggage[%zu]: '%s' -> '%s'", data->baggage->count - 1, data->baggage->key[data->baggage->count - 1], data->baggage->value[data->baggage->count - 1]);
 	}
 
-	FLT_OT_RETURN(retval);
+	FLT_OT_RETURN_INT(retval);
 }
 
 /*
