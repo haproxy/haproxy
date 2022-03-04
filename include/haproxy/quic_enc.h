@@ -88,6 +88,23 @@ static inline size_t quic_int_getsize(uint64_t val)
 	}
 }
 
+/* Returns the maximum integer which may be encoded with <size> bytes */
+static inline size_t quic_max_int_by_size(int size)
+{
+	switch (size) {
+	case 1:
+		return QUIC_VARINT_1_BYTE_MAX;
+	case 2:
+		return QUIC_VARINT_2_BYTE_MAX;
+	case 4:
+		return QUIC_VARINT_4_BYTE_MAX;
+	case 8:
+		return QUIC_VARINT_8_BYTE_MAX;
+	default:
+		return 0;
+	}
+}
+
 /* Decode a QUIC variable-length integer from <buf> buffer into <val>.
  * Note that the result is a 64-bits integer but with the less significant
  * 62 bits as relevant information. The most significant 2 remaining bits encode
