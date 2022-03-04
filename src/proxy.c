@@ -332,7 +332,7 @@ void free_proxy(struct proxy *p)
 		pxdf->fct(p);
 
 	free(p->desc);
-	free(p->fwdfor_hdr_name);
+	istfree(&p->fwdfor_hdr_name);
 
 	task_destroy(p->task);
 
@@ -1439,7 +1439,7 @@ void proxy_free_defaults(struct proxy *defproxy)
 	istfree(&defproxy->monitor_uri);
 	ha_free(&defproxy->defbe.name);
 	ha_free(&defproxy->conn_src.iface_name);
-	ha_free(&defproxy->fwdfor_hdr_name); defproxy->fwdfor_hdr_len = 0;
+	istfree(&defproxy->fwdfor_hdr_name);
 	ha_free(&defproxy->orgto_hdr_name); defproxy->orgto_hdr_len = 0;
 	ha_free(&defproxy->server_id_hdr_name); defproxy->server_id_hdr_len = 0;
 
@@ -1601,10 +1601,8 @@ static int proxy_defproxy_cpy(struct proxy *curproxy, const struct proxy *defpro
 	curproxy->tcp_req.inspect_delay = defproxy->tcp_req.inspect_delay;
 	curproxy->tcp_rep.inspect_delay = defproxy->tcp_rep.inspect_delay;
 
-	if (defproxy->fwdfor_hdr_len) {
-		curproxy->fwdfor_hdr_len  = defproxy->fwdfor_hdr_len;
-		curproxy->fwdfor_hdr_name = strdup(defproxy->fwdfor_hdr_name);
-	}
+	if (isttest(defproxy->fwdfor_hdr_name))
+		curproxy->fwdfor_hdr_name = istdup(defproxy->fwdfor_hdr_name);
 
 	if (defproxy->orgto_hdr_len) {
 		curproxy->orgto_hdr_len  = defproxy->orgto_hdr_len;

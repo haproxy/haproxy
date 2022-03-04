@@ -2331,11 +2331,10 @@ stats_error_parsing:
 
 			curproxy->options |= PR_O_FWDFOR | PR_O_FF_ALWAYS;
 
-			free(curproxy->fwdfor_hdr_name);
-			curproxy->fwdfor_hdr_name = strdup(DEF_XFORWARDFOR_HDR);
-			if (!curproxy->fwdfor_hdr_name)
+			istfree(&curproxy->fwdfor_hdr_name);
+			curproxy->fwdfor_hdr_name = istdup(ist(DEF_XFORWARDFOR_HDR));
+			if (!isttest(curproxy->fwdfor_hdr_name))
 				goto alloc_error;
-			curproxy->fwdfor_hdr_len  = strlen(DEF_XFORWARDFOR_HDR);
 			curproxy->except_xff_net.family = AF_UNSPEC;
 
 			/* loop to go through arguments - start at 2, since 0+1 = "option" "forwardfor" */
@@ -2374,11 +2373,10 @@ stats_error_parsing:
 						err_code |= ERR_ALERT | ERR_FATAL;
 						goto out;
 					}
-					free(curproxy->fwdfor_hdr_name);
-					curproxy->fwdfor_hdr_name = strdup(args[cur_arg+1]);
-					if (!curproxy->fwdfor_hdr_name)
+					istfree(&curproxy->fwdfor_hdr_name);
+					curproxy->fwdfor_hdr_name = istdup(ist(args[cur_arg+1]));
+					if (!isttest(curproxy->fwdfor_hdr_name))
 						goto alloc_error;
-					curproxy->fwdfor_hdr_len  = strlen(curproxy->fwdfor_hdr_name);
 					cur_arg += 2;
 				} else if (strcmp(args[cur_arg], "if-none") == 0) {
 					curproxy->options &= ~PR_O_FF_ALWAYS;

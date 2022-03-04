@@ -655,8 +655,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 	if ((sess->fe->options | s->be->options) & PR_O_FWDFOR) {
 		const struct sockaddr_storage *src = si_src(cs_si(s->csf));
 		struct http_hdr_ctx ctx = { .blk = NULL };
-		struct ist hdr = ist2(s->be->fwdfor_hdr_len ? s->be->fwdfor_hdr_name : sess->fe->fwdfor_hdr_name,
-				      s->be->fwdfor_hdr_len ? s->be->fwdfor_hdr_len : sess->fe->fwdfor_hdr_len);
+		struct ist hdr = isttest(s->be->fwdfor_hdr_name) ? s->be->fwdfor_hdr_name : sess->fe->fwdfor_hdr_name;
 
 		if (!((sess->fe->options | s->be->options) & PR_O_FF_ALWAYS) &&
 		    http_find_header(htx, hdr, &ctx, 0)) {
