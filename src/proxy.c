@@ -1440,7 +1440,7 @@ void proxy_free_defaults(struct proxy *defproxy)
 	ha_free(&defproxy->defbe.name);
 	ha_free(&defproxy->conn_src.iface_name);
 	istfree(&defproxy->fwdfor_hdr_name);
-	ha_free(&defproxy->orgto_hdr_name); defproxy->orgto_hdr_len = 0;
+	istfree(&defproxy->orgto_hdr_name);
 	ha_free(&defproxy->server_id_hdr_name); defproxy->server_id_hdr_len = 0;
 
 	list_for_each_entry_safe(acl, aclb, &defproxy->acl, list) {
@@ -1604,10 +1604,8 @@ static int proxy_defproxy_cpy(struct proxy *curproxy, const struct proxy *defpro
 	if (isttest(defproxy->fwdfor_hdr_name))
 		curproxy->fwdfor_hdr_name = istdup(defproxy->fwdfor_hdr_name);
 
-	if (defproxy->orgto_hdr_len) {
-		curproxy->orgto_hdr_len  = defproxy->orgto_hdr_len;
-		curproxy->orgto_hdr_name = strdup(defproxy->orgto_hdr_name);
-	}
+	if (isttest(defproxy->orgto_hdr_name))
+		curproxy->orgto_hdr_name = istdup(defproxy->orgto_hdr_name);
 
 	if (defproxy->server_id_hdr_len) {
 		curproxy->server_id_hdr_len  = defproxy->server_id_hdr_len;

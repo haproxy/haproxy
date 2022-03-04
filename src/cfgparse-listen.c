@@ -2399,11 +2399,10 @@ stats_error_parsing:
 
 			curproxy->options |= PR_O_ORGTO;
 
-			free(curproxy->orgto_hdr_name);
-			curproxy->orgto_hdr_name = strdup(DEF_XORIGINALTO_HDR);
-			if (!curproxy->orgto_hdr_name)
+			istfree(&curproxy->orgto_hdr_name);
+			curproxy->orgto_hdr_name = istdup(ist(DEF_XORIGINALTO_HDR));
+			if (!isttest(curproxy->orgto_hdr_name))
 				goto alloc_error;
-			curproxy->orgto_hdr_len  = strlen(DEF_XORIGINALTO_HDR);
 			curproxy->except_xot_net.family = AF_UNSPEC;
 
 			/* loop to go through arguments - start at 2, since 0+1 = "option" "originalto" */
@@ -2441,11 +2440,10 @@ stats_error_parsing:
 						err_code |= ERR_ALERT | ERR_FATAL;
 						goto out;
 					}
-					free(curproxy->orgto_hdr_name);
-					curproxy->orgto_hdr_name = strdup(args[cur_arg+1]);
-					if (!curproxy->orgto_hdr_name)
+					istfree(&curproxy->orgto_hdr_name);
+					curproxy->orgto_hdr_name = istdup(ist(args[cur_arg+1]));
+					if (!isttest(curproxy->orgto_hdr_name))
 						goto alloc_error;
-					curproxy->orgto_hdr_len  = strlen(curproxy->orgto_hdr_name);
 					cur_arg += 2;
 				} else {
 					/* unknown suboption - catchall */

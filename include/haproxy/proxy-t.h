@@ -353,8 +353,7 @@ struct proxy {
 	struct net_addr except_xff_net;         /* don't x-forward-for for this address. */
 	struct net_addr except_xot_net;         /* don't x-original-to for this address. */
 	struct ist fwdfor_hdr_name;			/* header to use - default: "x-forwarded-for" */
-	char *orgto_hdr_name;			/* header to use - default: "x-original-to" */
-	int orgto_hdr_len;			/* length of "x-original-to" header */
+	struct ist orgto_hdr_name;			/* header to use - default: "x-original-to" */
 	char *server_id_hdr_name;                   /* the header to use to send the server id (name) */
 	int server_id_hdr_len;                      /* the length of the id (name) header... name */
 	int conn_retries;			/* maximum number of connect retries */

@@ -711,8 +711,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 	 */
 	if ((sess->fe->options | s->be->options) & PR_O_ORGTO) {
 		const struct sockaddr_storage *dst = si_dst(cs_si(s->csf));
-		struct ist hdr = ist2(s->be->orgto_hdr_len ? s->be->orgto_hdr_name : sess->fe->orgto_hdr_name,
-				      s->be->orgto_hdr_len ? s->be->orgto_hdr_len  : sess->fe->orgto_hdr_len);
+		struct ist hdr = isttest(s->be->orgto_hdr_name) ? s->be->orgto_hdr_name : sess->fe->orgto_hdr_name;
 
 		if (dst && dst->ss_family == AF_INET) {
 			/* Add an X-Original-To header unless the destination IP is
