@@ -418,8 +418,7 @@ static int qc_send(struct qcc *qcc)
 		if (b_data(buf)) {
 			char fin = qcs->flags & QC_SF_FIN_STREAM;
 			ret = qcs_push_frame(qcs, buf, fin, qcs->tx.offset);
-			if (ret < 0)
-				ABORT_NOW();
+			BUG_ON(ret < 0); /* TODO handle this properly */
 
 			if (ret > 0) {
 				qcs_notify_send(qcs);
