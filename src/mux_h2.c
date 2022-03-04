@@ -5349,8 +5349,8 @@ static size_t h2s_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 			list[hdr].v = htx_get_blk_value(htx, blk);
 
 			/* Skip header if same name is used to add the server name */
-			if ((h2c->flags & H2_CF_IS_BACK) && h2c->proxy->server_id_hdr_name &&
-			    isteq(list[hdr].n, ist2(h2c->proxy->server_id_hdr_name, h2c->proxy->server_id_hdr_len)))
+			if ((h2c->flags & H2_CF_IS_BACK) && isttest(h2c->proxy->server_id_hdr_name) &&
+			    isteq(list[hdr].n, h2c->proxy->server_id_hdr_name))
 				continue;
 
 			/* Convert connection: upgrade to Extended connect from rfc 8441 */
@@ -5416,11 +5416,11 @@ static size_t h2s_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 	BUG_ON(!sl);
 
 	/* Now add the server name to a header (if requested) */
-	if ((h2c->flags & H2_CF_IS_BACK) && h2c->proxy->server_id_hdr_name) {
+	if ((h2c->flags & H2_CF_IS_BACK) && isttest(h2c->proxy->server_id_hdr_name)) {
 		struct server *srv = objt_server(h2c->conn->target);
 
 		if (srv) {
-			list[hdr].n = ist2(h2c->proxy->server_id_hdr_name, h2c->proxy->server_id_hdr_len);
+			list[hdr].n = h2c->proxy->server_id_hdr_name;
 			list[hdr].v = ist(srv->id);
 			hdr++;
 		}

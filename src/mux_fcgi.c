@@ -2043,8 +2043,7 @@ static size_t fcgi_strm_send_params(struct fcgi_conn *fconn, struct fcgi_strm *f
 					}
 
 					/* Skip header if same name is used to add the server name */
-					if (fconn->proxy->server_id_hdr_name &&
-					    isteq(p.n, ist2(fconn->proxy->server_id_hdr_name, fconn->proxy->server_id_hdr_len)))
+					if (isttest(fconn->proxy->server_id_hdr_name) && isteq(p.n, fconn->proxy->server_id_hdr_name))
 						break;
 
 					memcpy(trash.area, "http_", 5);
@@ -2062,15 +2061,15 @@ static size_t fcgi_strm_send_params(struct fcgi_conn *fconn, struct fcgi_strm *f
 				break;
 
 			case HTX_BLK_EOH:
-				if (fconn->proxy->server_id_hdr_name) {
+				if (isttest(fconn->proxy->server_id_hdr_name)) {
 					struct server *srv = objt_server(fconn->conn->target);
 
 					if (!srv)
 						goto done;
 
-					memcpy(trash.area, "http_", 5);
-					memcpy(trash.area+5, fconn->proxy->server_id_hdr_name, fconn->proxy->server_id_hdr_len);
-					p.n = ist2(trash.area, fconn->proxy->server_id_hdr_len+5);
+					p.n = ist2(trash.area, 0);
+					istcat(&p.n, ist("http_"), trash.size);
+					istcat(&p.n, fconn->proxy->server_id_hdr_name, trash.size);
 					p.v = ist(srv->id);
 
 					if (!fcgi_encode_param(&outbuf, &p)) {

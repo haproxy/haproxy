@@ -1383,12 +1383,11 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		}
 
 		/* set the desired header name, in lower case */
-		free(curproxy->server_id_hdr_name);
-		curproxy->server_id_hdr_name = strdup(args[1]);
-		if (!curproxy->server_id_hdr_name)
+		istfree(&curproxy->server_id_hdr_name);
+		curproxy->server_id_hdr_name = istdup(ist(args[1]));
+		if (!isttest(curproxy->server_id_hdr_name))
 			goto alloc_error;
-		curproxy->server_id_hdr_len  = strlen(curproxy->server_id_hdr_name);
-		ist2bin_lc(curproxy->server_id_hdr_name, ist2(curproxy->server_id_hdr_name, curproxy->server_id_hdr_len));
+		ist2bin_lc(istptr(curproxy->server_id_hdr_name), curproxy->server_id_hdr_name);
 	}
 	else if (strcmp(args[0], "block") == 0) {
 		ha_alert("parsing [%s:%d] : The '%s' directive is not supported anymore since HAProxy 2.1. Use 'http-request deny' which uses the exact same syntax.\n", file, linenum, args[0]);

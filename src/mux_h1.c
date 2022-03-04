@@ -2143,8 +2143,8 @@ static size_t h1_process_mux(struct h1c *h1c, struct buffer *buf, size_t count)
 				}
 
 				/* Skip header if same name is used to add the server name */
-				if (!(h1m->flags & H1_MF_RESP) && h1c->px->server_id_hdr_name &&
-				    isteqi(n, ist2(h1c->px->server_id_hdr_name, h1c->px->server_id_hdr_len)))
+				if (!(h1m->flags & H1_MF_RESP) && isttest(h1c->px->server_id_hdr_name) &&
+				    isteqi(n, h1c->px->server_id_hdr_name))
 					goto skip_hdr;
 
 				/* Try to adjust the case of the header name */
@@ -2213,11 +2213,11 @@ static size_t h1_process_mux(struct h1c *h1c, struct buffer *buf, size_t count)
 
 				/* Now add the server name to a header (if requested) */
 				if (!(h1s->flags & H1S_F_HAVE_SRV_NAME) &&
-				    !(h1m->flags & H1_MF_RESP) && h1c->px->server_id_hdr_name) {
+				    !(h1m->flags & H1_MF_RESP) && isttest(h1c->px->server_id_hdr_name)) {
 					struct server *srv = objt_server(h1c->conn->target);
 
 					if (srv) {
-						n = ist2(h1c->px->server_id_hdr_name, h1c->px->server_id_hdr_len);
+						n = h1c->px->server_id_hdr_name;
 						v = ist(srv->id);
 
 						/* Try to adjust the case of the header name */
