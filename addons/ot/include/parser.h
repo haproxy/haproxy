@@ -50,20 +50,20 @@
  * flt_ot_parse_data definition
  */
 #define FLT_OT_PARSE_TRACER_DEFINES                                                                                                                          \
-	FLT_OT_PARSE_TRACER_DEF(         ID, 0, 1, 2, 2, "ot-tracer",   " <name>")                                                                           \
-	FLT_OT_PARSE_TRACER_DEF(        ACL, 0, 1, 3, 0, "acl",         " <name> <criterion> [flags] [operator] <value> ...")                                \
-	FLT_OT_PARSE_TRACER_DEF(        LOG, 0, 1, 2, 0, "log",         " { global | <addr> [len <len>] [format <fmt>] <facility> [<level> [<minlevel>]] }") \
-	FLT_OT_PARSE_TRACER_DEF(     CONFIG, 0, 0, 2, 2, "config",      " <file>")                                                                           \
-	FLT_OT_PARSE_TRACER_DEF(     PLUGIN, 0, 0, 2, 2, "plugin",      " <file>")                                                                           \
-	FLT_OT_PARSE_TRACER_DEF(     GROUPS, 0, 0, 2, 0, "groups",      " <name> ...")                                                                       \
-	FLT_OT_PARSE_TRACER_DEF(     SCOPES, 0, 0, 2, 0, "scopes",      " <name> ...")                                                                       \
-	FLT_OT_PARSE_TRACER_DEF( RATE_LIMIT, 0, 0, 2, 2, "rate-limit",  " <value>")                                                                          \
-	FLT_OT_PARSE_TRACER_DEF(     OPTION, 0, 0, 2, 2, "option",      " { disabled | dontlog-normal | hard-errors }")                                      \
-	FLT_OT_PARSE_TRACER_DEF(DEBUG_LEVEL, 0, 0, 2, 2, "debug-level", " <value>")
+	FLT_OT_PARSE_TRACER_DEF(         ID, 0, CHAR, 2, 2, "ot-tracer",   " <name>")                                                                           \
+	FLT_OT_PARSE_TRACER_DEF(        ACL, 0, CHAR, 3, 0, "acl",         " <name> <criterion> [flags] [operator] <value> ...")                                \
+	FLT_OT_PARSE_TRACER_DEF(        LOG, 0, CHAR, 2, 0, "log",         " { global | <addr> [len <len>] [format <fmt>] <facility> [<level> [<minlevel>]] }") \
+	FLT_OT_PARSE_TRACER_DEF(     CONFIG, 0, NONE, 2, 2, "config",      " <file>")                                                                           \
+	FLT_OT_PARSE_TRACER_DEF(     PLUGIN, 0, NONE, 2, 2, "plugin",      " <file>")                                                                           \
+	FLT_OT_PARSE_TRACER_DEF(     GROUPS, 0, NONE, 2, 0, "groups",      " <name> ...")                                                                       \
+	FLT_OT_PARSE_TRACER_DEF(     SCOPES, 0, NONE, 2, 0, "scopes",      " <name> ...")                                                                       \
+	FLT_OT_PARSE_TRACER_DEF( RATE_LIMIT, 0, NONE, 2, 2, "rate-limit",  " <value>")                                                                          \
+	FLT_OT_PARSE_TRACER_DEF(     OPTION, 0, NONE, 2, 2, "option",      " { disabled | dontlog-normal | hard-errors }")                                      \
+	FLT_OT_PARSE_TRACER_DEF(DEBUG_LEVEL, 0, NONE, 2, 2, "debug-level", " <value>")
 
 #define FLT_OT_PARSE_GROUP_DEFINES                                        \
-	FLT_OT_PARSE_GROUP_DEF(    ID, 0, 1, 2, 2, "ot-group", " <name>") \
-	FLT_OT_PARSE_GROUP_DEF(SCOPES, 0, 0, 2, 0, "scopes",   " <name> ...")
+	FLT_OT_PARSE_GROUP_DEF(    ID, 0, CHAR, 2, 2, "ot-group", " <name>") \
+	FLT_OT_PARSE_GROUP_DEF(SCOPES, 0, NONE, 2, 0, "scopes",   " <name> ...")
 
 #ifdef USE_OT_VARS
 #  define FLT_OT_PARSE_SCOPE_INJECT_HELP    " <name-prefix> [use-vars] [use-headers]"
@@ -81,16 +81,24 @@
  * so I will not complicate it here with additional definitions.
  */
 #define FLT_OT_PARSE_SCOPE_DEFINES                                                                                    \
-	FLT_OT_PARSE_SCOPE_DEF(     ID, 0, 1, 2, 2, "ot-scope", " <name>")                                            \
-	FLT_OT_PARSE_SCOPE_DEF(   SPAN, 0, 0, 2, 5, "span",     " <name> [<reference>] [root]")                       \
-	FLT_OT_PARSE_SCOPE_DEF(    TAG, 1, 0, 3, 0, "tag",      " <name> <sample> ...")                               \
-	FLT_OT_PARSE_SCOPE_DEF(    LOG, 1, 0, 3, 0, "log",      " <name> <sample> ...")                               \
-	FLT_OT_PARSE_SCOPE_DEF(BAGGAGE, 1, 4, 3, 0, "baggage",  " <name> <sample> ...")                               \
-	FLT_OT_PARSE_SCOPE_DEF( INJECT, 1, 3, 2, 4, "inject",   FLT_OT_PARSE_SCOPE_INJECT_HELP)                       \
-	FLT_OT_PARSE_SCOPE_DEF(EXTRACT, 0, 3, 2, 3, "extract",  FLT_OT_PARSE_SCOPE_EXTRACT_HELP)                      \
-	FLT_OT_PARSE_SCOPE_DEF( FINISH, 0, 0, 2, 0, "finish",   " <name> ...")                                        \
-	FLT_OT_PARSE_SCOPE_DEF(    ACL, 0, 1, 3, 0, "acl",      " <name> <criterion> [flags] [operator] <value> ...") \
-	FLT_OT_PARSE_SCOPE_DEF(  EVENT, 0, 0, 2, 0, "event",    " <name> [{ if | unless } <condition>]")
+	FLT_OT_PARSE_SCOPE_DEF(     ID, 0, CHAR, 2, 2, "ot-scope", " <name>")                                            \
+	FLT_OT_PARSE_SCOPE_DEF(   SPAN, 0, NONE, 2, 5, "span",     " <name> [<reference>] [root]")                       \
+	FLT_OT_PARSE_SCOPE_DEF(    TAG, 1, NONE, 3, 0, "tag",      " <name> <sample> ...")                               \
+	FLT_OT_PARSE_SCOPE_DEF(    LOG, 1, NONE, 3, 0, "log",      " <name> <sample> ...")                               \
+	FLT_OT_PARSE_SCOPE_DEF(BAGGAGE, 1,  VAR, 3, 0, "baggage",  " <name> <sample> ...")                               \
+	FLT_OT_PARSE_SCOPE_DEF( INJECT, 1,  CTX, 2, 4, "inject",   FLT_OT_PARSE_SCOPE_INJECT_HELP)                       \
+	FLT_OT_PARSE_SCOPE_DEF(EXTRACT, 0,  CTX, 2, 3, "extract",  FLT_OT_PARSE_SCOPE_EXTRACT_HELP)                      \
+	FLT_OT_PARSE_SCOPE_DEF( FINISH, 0, NONE, 2, 0, "finish",   " <name> ...")                                        \
+	FLT_OT_PARSE_SCOPE_DEF(    ACL, 0, CHAR, 3, 0, "acl",      " <name> <criterion> [flags] [operator] <value> ...") \
+	FLT_OT_PARSE_SCOPE_DEF(  EVENT, 0, NONE, 2, 0, "event",    " <name> [{ if | unless } <condition>]")
+
+enum FLT_OT_PARSE_INVCHAR_enum {
+	FLT_OT_PARSE_INVALID_NONE,
+	FLT_OT_PARSE_INVALID_CHAR,
+	FLT_OT_PARSE_INVALID_DOM,
+	FLT_OT_PARSE_INVALID_CTX,
+	FLT_OT_PARSE_INVALID_VAR,
+};
 
 enum FLT_OT_PARSE_TRACER_enum {
 #define FLT_OT_PARSE_TRACER_DEF(a,b,c,d,e,f,g)   FLT_OT_PARSE_TRACER_##a,

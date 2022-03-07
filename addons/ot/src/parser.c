@@ -139,16 +139,16 @@ static const char *flt_ot_parse_invalid_char(const char *name, int type)
 	if (!FLT_OT_STR_ISVALID(name))
 		FLT_OT_RETURN_EX(retptr, const char *, "%p");
 
-	if (type == 1) {
+	if (type == FLT_OT_PARSE_INVALID_CHAR) {
 		retptr = invalid_char(name);
 	}
-	else if (type == 2) {
+	else if (type == FLT_OT_PARSE_INVALID_DOM) {
 		retptr = invalid_domainchar(name);
 	}
-	else if (type == 3) {
+	else if (type == FLT_OT_PARSE_INVALID_CTX) {
 		retptr = invalid_prefix_char(name);
 	}
-	else if (type == 4) {
+	else if (type == FLT_OT_PARSE_INVALID_VAR) {
 		retptr = name;
 
 		/*
@@ -229,7 +229,7 @@ static int flt_ot_parse_cfg_check(const char *file, int linenum, char **args, co
 			FLT_OT_PARSE_ERR(err, "'%s' : too many arguments (use '%s%s')", args[0], (*pdata)->name, (*pdata)->usage);
 
 	/* Checking that the first argument has only allowed characters. */
-	if (!(retval & ERR_CODE) && ((*pdata)->check_name > 0)) {
+	if (!(retval & ERR_CODE) && ((*pdata)->check_name != FLT_OT_PARSE_INVALID_NONE)) {
 		const char *ic;
 
 		ic = flt_ot_parse_invalid_char(args[1], (*pdata)->check_name);
@@ -460,7 +460,7 @@ static bool flt_ot_parse_check_scope(void)
  */
 static int flt_ot_parse_cfg_tracer(const char *file, int linenum, char **args, int kw_mod)
 {
-#define FLT_OT_PARSE_TRACER_DEF(a,b,c,d,e,f,g)   { FLT_OT_PARSE_TRACER_##a, b, c, d, e, f, g },
+#define FLT_OT_PARSE_TRACER_DEF(a,b,c,d,e,f,g)   { FLT_OT_PARSE_TRACER_##a, b, FLT_OT_PARSE_INVALID_##c, d, e, f, g },
 	static const struct flt_ot_parse_data  parse_data[] = { FLT_OT_PARSE_TRACER_DEFINES };
 #undef FLT_OT_PARSE_TRACER_DEF
 	const struct flt_ot_parse_data        *pdata = NULL;
@@ -623,7 +623,7 @@ static int flt_ot_post_parse_cfg_tracer(void)
  */
 static int flt_ot_parse_cfg_group(const char *file, int linenum, char **args, int kw_mod)
 {
-#define FLT_OT_PARSE_GROUP_DEF(a,b,c,d,e,f,g)   { FLT_OT_PARSE_GROUP_##a, b, c, d, e, f, g },
+#define FLT_OT_PARSE_GROUP_DEF(a,b,c,d,e,f,g)   { FLT_OT_PARSE_GROUP_##a, b, FLT_OT_PARSE_INVALID_##c, d, e, f, g },
 	static const struct flt_ot_parse_data  parse_data[] = { FLT_OT_PARSE_GROUP_DEFINES };
 #undef FLT_OT_PARSE_GROUP_DEF
 	const struct flt_ot_parse_data        *pdata = NULL;
@@ -799,7 +799,7 @@ static struct acl_cond *flt_ot_parse_acl(const char *file, int linenum, struct p
  */
 static int flt_ot_parse_cfg_scope(const char *file, int linenum, char **args, int kw_mod)
 {
-#define FLT_OT_PARSE_SCOPE_DEF(a,b,c,d,e,f,g)   { FLT_OT_PARSE_SCOPE_##a, b, c, d, e, f, g },
+#define FLT_OT_PARSE_SCOPE_DEF(a,b,c,d,e,f,g)   { FLT_OT_PARSE_SCOPE_##a, b, FLT_OT_PARSE_INVALID_##c, d, e, f, g },
 	static const struct flt_ot_parse_data  parse_data[] = { FLT_OT_PARSE_SCOPE_DEFINES };
 #undef FLT_OT_PARSE_SCOPE_DEF
 	const struct flt_ot_parse_data        *pdata = NULL;
