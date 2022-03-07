@@ -1437,7 +1437,7 @@ static void http_cache_io_handler(struct appctx *appctx)
 	unsigned int len;
 	size_t ret, total = 0;
 
-	res_htx = htxbuf(&res->buf);
+	res_htx = htx_from_buf(&res->buf);
 	total = res_htx->data;
 
 	if (unlikely(si->state == SI_ST_DIS || si->state == SI_ST_CLO))
