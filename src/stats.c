@@ -4318,6 +4318,8 @@ static void http_stats_io_handler(struct appctx *appctx)
 	if (appctx->st0 == STAT_HTTP_DONE) {
 		/* no more data are expected. Don't add TLR because mux-h1 will take care of it */
 		res_htx->flags |= HTX_FL_EOM;
+		si->cs->flags |= CS_FL_EOI;
+		res->flags |= CF_EOI;
 		appctx->st0 = STAT_HTTP_END;
 	}
 
