@@ -33,6 +33,11 @@ struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
 	eb64_insert(&qcc->streams_by_id, &qcs->by_id);
 	qcc->strms[type].nb_streams++;
 
+	/* If stream is local, use peer remote-limit, or else the opposite. */
+	/* TODO use uni limit for unidirectional streams */
+	qcs->tx.msd = quic_stream_is_local(qcc, id) ? qcc->rfctl.msd_bidi_r :
+	                                              qcc->rfctl.msd_bidi_l;
+
 	qcs->rx.buf = BUF_NULL;
 	qcs->rx.app_buf = BUF_NULL;
 	qcs->rx.offset = 0;
@@ -355,6 +360,8 @@ static void qc_release(struct qcc *qcc)
  * <payload> to <out> buffer. The STREAM frame payload points to the <out>
  * buffer. The frame is then pushed to <frm_list>. If <fin> is set, and the
  * <payload> buf is emptied after transfer, FIN bit is set on the STREAM frame.
+ * Transfer is automatically adjusted to not exceed the stream flow-control
+ * limit.
  *
  * Returns the total bytes of newly transferred data or a negative error code.
  */
@@ -390,6 +397,12 @@ static int qcs_push_frame(struct qcs *qcs, struct buffer *out,
 	head = qcs->tx.sent_offset - qcs->tx.ack_offset;
 	left = qcs->tx.offset - qcs->tx.sent_offset;
 	to_xfer = QUIC_MIN(b_data(payload), b_room(out));
+
+	BUG_ON_HOT(qcs->tx.offset > qcs->tx.msd);
+	/* do not exceed flow control limit */
+	if (qcs->tx.offset + to_xfer > qcs->tx.msd)
+		to_xfer = qcs->tx.msd - qcs->tx.offset;
+
 	if (!left && !to_xfer)
 		goto out;
 
@@ -450,6 +463,9 @@ void qcc_streams_sent_done(struct qcs *qcs, uint64_t data, uint64_t offset)
 
 	/* increase offset on stream */
 	qcs->tx.sent_offset += diff;
+	BUG_ON_HOT(qcs->tx.sent_offset > qcs->tx.msd);
+	if (qcs->tx.sent_offset == qcs->tx.msd)
+		qcs->flags |= QC_SF_BLK_SFCTL;
 }
 
 /* Wrapper for send on transport layer. Send a list of frames <frms> for the
@@ -548,6 +564,11 @@ static int qc_send(struct qcc *qcc)
 		 * in this case the next check will be removed.
 		 */
 		if (quic_stream_is_uni(qcs->by_id.key)) {
+			node = eb64_next(node);
+			continue;
+		}
+
+		if (qcs->flags & QC_SF_BLK_SFCTL) {
 			node = eb64_next(node);
 			continue;
 		}
@@ -703,7 +724,7 @@ static int qc_init(struct connection *conn, struct proxy *prx,
                    struct session *sess, struct buffer *input)
 {
 	struct qcc *qcc;
-	struct quic_transport_params *lparams;
+	struct quic_transport_params *lparams, *rparams;
 
 	qcc = pool_alloc(pool_head_qcc);
 	if (!qcc)
@@ -751,6 +772,10 @@ static int qc_init(struct connection *conn, struct proxy *prx,
 
 	qcc->lfctl.ms_bidi = qcc->lfctl.ms_bidi_init = lparams->initial_max_streams_bidi;
 	qcc->lfctl.cl_bidi_r = 0;
+
+	rparams = &conn->qc->tx.params;
+	qcc->rfctl.msd_bidi_l = rparams->initial_max_stream_data_bidi_local;
+	qcc->rfctl.msd_bidi_r = rparams->initial_max_stream_data_bidi_remote;
 
 	qcc->wait_event.tasklet = tasklet_new();
 	if (!qcc->wait_event.tasklet)
