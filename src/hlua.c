@@ -9567,6 +9567,8 @@ void hlua_applet_http_fct(struct appctx *ctx)
 
 		/* no more data are expected. Don't add TLR because mux-h1 will take care of it */
 		res_htx->flags |= HTX_FL_EOM;
+		si->cs->flags |= CS_FL_EOI;
+		res->flags |= CF_EOI;
 		strm->txn->status = ctx->ctx.hlua_apphttp.status;
 		ctx->ctx.hlua_apphttp.flags |= APPLET_RSP_SENT;
 	}
