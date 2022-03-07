@@ -483,7 +483,7 @@ struct stream *stream_new(struct session *sess, struct conn_stream *cs, struct b
 
 	channel_init(&s->req);
 	s->req.flags |= CF_READ_ATTACHED; /* the producer is already connected */
-	s->req.analysers = sess->listener ? sess->listener->analysers : 0;
+	s->req.analysers = sess->listener ? sess->listener->analysers : sess->fe->fe_req_ana;
 
 	if (IS_HTX_STRM(s)) {
 		/* Be sure to have HTTP analysers because in case of
