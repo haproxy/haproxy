@@ -2006,7 +2006,7 @@ static int qc_handle_bidi_strm_frm(struct quic_rx_packet *pkt,
 
 	/* invalid or already received frame */
 	if (ret == 1)
-		return 0;
+		return 1;
 
 	if (ret == 2) {
 		/* frame cannot be parsed at the moment and should be
@@ -2052,8 +2052,7 @@ static int qc_handle_bidi_strm_frm(struct quic_rx_packet *pkt,
 	}
 
 	/* Decode the received data. */
-	if (qcc_decode_qcs(qc->qcc, qcs))
-		return 0;
+	qcc_decode_qcs(qc->qcc, qcs);
 
 	return 1;
 }
