@@ -742,6 +742,7 @@ struct quic_conn {
 		struct quic_tls_kp nxt_tx;
 	} ku;
 	unsigned int max_ack_delay;
+	unsigned int max_idle_timeout;
 	struct quic_path paths[1];
 	struct quic_path *path;
 

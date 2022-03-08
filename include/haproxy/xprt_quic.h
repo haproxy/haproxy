@@ -942,17 +942,30 @@ static inline int quic_transport_params_decode(struct quic_transport_params *p, 
 /* Store transport parameters found in <buf> buffer into <conn> QUIC connection
  * depending on <server> value which must be 1 for a server (haproxy listener)
  * or 0 for a client (connection to a haproxy server).
+ * Note that peer transport parameters are stored in the TX part of the connection:
+ * they are used to send packets to the peer with its transport parameters as
+ * limitations.
  * Returns 1 if succeeded, 0 if not.
  */
 static inline int quic_transport_params_store(struct quic_conn *conn, int server,
                                               const unsigned char *buf,
                                               const unsigned char *end)
 {
-	if (!quic_transport_params_decode(&conn->tx.params, server, buf, end))
+	struct quic_transport_params *tx_params = &conn->tx.params;
+	struct quic_transport_params *rx_params = &conn->rx.params;
+
+	if (!quic_transport_params_decode(tx_params, server, buf, end))
 		return 0;
 
-	if (conn->tx.params.max_ack_delay)
-		conn->max_ack_delay = conn->tx.params.max_ack_delay;
+	if (tx_params->max_ack_delay)
+		conn->max_ack_delay = tx_params->max_ack_delay;
+
+	if (tx_params->max_idle_timeout && rx_params->max_idle_timeout)
+		conn->max_idle_timeout =
+			QUIC_MIN(tx_params->max_idle_timeout, rx_params->max_idle_timeout);
+	else
+		conn->max_idle_timeout =
+			QUIC_MAX(tx_params->max_idle_timeout, rx_params->max_idle_timeout);
 
 	return 1;
 }
