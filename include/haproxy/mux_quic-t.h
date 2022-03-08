@@ -22,7 +22,8 @@ enum qcs_type {
 	QCS_MAX_TYPES
 };
 
-#define QC_CF_CC_RECV 0x00000001
+#define QC_CF_CC_RECV   0x00000001
+#define QC_CF_BLK_MFCTL 0x00000002 /* sending blocked due to connection flow-control */
 
 struct qcc {
 	struct connection *conn;
@@ -51,6 +52,7 @@ struct qcc {
 
 	/* flow-control fields set by the peer which we must respect. */
 	struct {
+		uint64_t md; /* connection flow control limit updated on MAX_DATA frames reception */
 		uint64_t msd_bidi_l; /* initial max-stream-data for peer local streams */
 		uint64_t msd_bidi_r; /* initial max-stream-data for peer remote streams */
 	} rfctl;
@@ -59,7 +61,7 @@ struct qcc {
 		uint64_t max_data; /* Maximum number of bytes which may be received */
 	} rx;
 	struct {
-		uint64_t max_data; /* Maximum number of bytes which may be sent */
+		uint64_t sent_offsets; /* sum of all offset sent */
 	} tx;
 
 	struct eb_root streams_by_id; /* all active streams by their ID */
