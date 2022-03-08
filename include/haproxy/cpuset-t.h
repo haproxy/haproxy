@@ -16,7 +16,8 @@
 
 #include <haproxy/api-t.h>
 
-#if defined(__linux__) || defined(__DragonFly__) || defined(__FreeBSD_kernel__)
+#if defined(__linux__) || defined(__DragonFly__) || \
+  (defined(__FreeBSD_kernel__) && defined(__GLIBC__))
 
 # define CPUSET_REPR cpu_set_t
 # define CPUSET_USE_CPUSET
