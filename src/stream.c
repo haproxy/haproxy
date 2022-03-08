@@ -3149,7 +3149,7 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 
 		chunk_appendf(&trash,
 			     "  frontend=%s (id=%u mode=%s), listener=%s (id=%u)",
-			     strm_fe(strm)->id, strm_fe(strm)->uuid, strm_fe(strm)->mode ? "http" : "tcp",
+			     strm_fe(strm)->id, strm_fe(strm)->uuid, proxy_mode_str(strm_fe(strm)->mode),
 			     strm_li(strm) ? strm_li(strm)->name ? strm_li(strm)->name : "?" : "?",
 			     strm_li(strm) ? strm_li(strm)->luid : 0);
 
@@ -3172,7 +3172,7 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 			chunk_appendf(&trash,
 				     "  backend=%s (id=%u mode=%s)",
 				     strm->be->id,
-				     strm->be->uuid, strm->be->mode ? "http" : "tcp");
+				     strm->be->uuid, proxy_mode_str(strm->be->mode));
 		else
 			chunk_appendf(&trash, "  backend=<NONE> (id=-1 mode=-)");
 
