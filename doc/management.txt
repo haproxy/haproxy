@@ -214,6 +214,34 @@ list of options is :
     getaddrinfo() exist on various systems and cause anomalies that are
     difficult to troubleshoot.
 
+  -dK<class[,class]*> : dumps the list of registered keywords in each class.
+    The list of classes is available with "-dKhelp". All classes may be dumped
+    using "-dKall", otherwise a selection of those shown in the help can be
+    specified as a comma-delimited list. The output format will vary depending
+    on what class of keywords is being dumped (e.g. "cfg" will show the known
+    configuration keywords in a format ressembling the config file format while
+    "smp" will show sample fetch functions prefixed with a compatibility matrix
+    with each rule set). These may rarely be used as-is by humans but can be of
+    great help for external tools that try to detect the appearance of new
+    keywords at certain places to automatically update some documentation,
+    syntax highlighting files, configuration parsers, API etc. The output
+    format may evolve a bit over time so it is really recommended to use this
+    output mostly to detect differences with previous archives. Note that not
+    all keywords are listed because many keywords have existed long before the
+    different keyword registration subsystems were created, and they do not
+    appear there. However since new keywords are only added via the modern
+    mechanisms, it's reasonably safe to assume that this output may be used to
+    detect language additions with a good accuracy. The keywords are only
+    dumped after the configuration is fully parsed, so that even dynamically
+    created keywords can be dumped. A good way to dump and exit is to run a
+    silent config check on an existing configuration:
+
+       ./haproxy -dKall -q -c -f foo.cfg
+
+    If no configuration file is available, using "-f /dev/null" will work as
+    well to dump all default keywords, but then the return status will not be
+    zero since there will be no listener, and will have to be ignored.
+
   -dL : dumps the list of dynamic shared libraries that are loaded at the end
    of the config processing. This will generally also include deep dependencies
    such as anything loaded from Lua code for example, as well as the executable

@@ -242,6 +242,7 @@ const struct linger nolinger = { .l_onoff = 1, .l_linger = 0 };
 
 char hostname[MAX_HOSTNAME_LEN];
 char *localpeer = NULL;
+static char *kwd_dump = NULL; // list of keyword dumps to produce
 
 static char **old_argv = NULL; /* previous argv but cleaned up */
 
@@ -603,6 +604,7 @@ static void usage(char *name)
 #if defined(HA_HAVE_DUMP_LIBS)
 		"        -dL dumps loaded object files after config checks\n"
 #endif
+		"        -dK{class[,...]} dump registered keywords (use 'help' for list)\n"
 		"        -dr ignores server address resolution failures\n"
 		"        -dV disables SSL verify on servers side\n"
 		"        -dW fails if any warning is emitted\n"
@@ -1656,6 +1658,10 @@ static void init_args(int argc, char **argv)
 			else if (*flag == 'd' && flag[1] == 'L')
 				arg_mode |= MODE_DUMP_LIBS;
 #endif
+			else if (*flag == 'd' && flag[1] == 'K') {
+				arg_mode |= MODE_DUMP_KWD;
+				kwd_dump = flag + 2;
+			}
 			else if (*flag == 'd')
 				arg_mode |= MODE_DEBUG;
 			else if (*flag == 'c' && flag[1] == 'c') {
@@ -1803,6 +1809,30 @@ static void init_args(int argc, char **argv)
 	free(err_msg);
 }
 
+/* call the various keyword dump functions based on the comma-delimited list of
+ * classes in kwd_dump.
+ */
+static void dump_registered_keywords(void)
+{
+	char *end;
+	int all __maybe_unused = 0;
+
+	for (; kwd_dump && *kwd_dump; kwd_dump = end) {
+		end = strchr(kwd_dump, ',');
+		if (end)
+			*(end++) = 0;
+
+		if (strcmp(kwd_dump, "help") == 0) {
+			printf("# List of supported keyword classes:\n");
+			printf("all: list all keywords\n");
+			continue;
+		}
+		else if (strcmp(kwd_dump, "all") == 0) {
+			all = 1;
+		}
+	}
+}
+
 /*
  * This function initializes all the necessary variables. It only returns
  * if everything is OK. If something fails, it exits.
@@ -1829,7 +1859,7 @@ static void init(int argc, char **argv)
 
 	global.mode |= (arg_mode & (MODE_DAEMON | MODE_MWORKER | MODE_FOREGROUND | MODE_VERBOSE
 				    | MODE_QUIET | MODE_CHECK | MODE_DEBUG | MODE_ZERO_WARNING
-				    | MODE_DIAG | MODE_CHECK_CONDITION | MODE_DUMP_LIBS));
+				    | MODE_DIAG | MODE_CHECK_CONDITION | MODE_DUMP_LIBS | MODE_DUMP_KWD));
 
 	if (getenv("HAPROXY_MWORKER_WAIT_ONLY")) {
 		unsetenv("HAPROXY_MWORKER_WAIT_ONLY");
@@ -2095,6 +2125,9 @@ static void init(int argc, char **argv)
 			printf("%s", trash.area);
 	}
 #endif
+
+	if (global.mode & MODE_DUMP_KWD)
+		dump_registered_keywords();
 
 	if (global.mode & MODE_CHECK) {
 		struct peers *pr;
