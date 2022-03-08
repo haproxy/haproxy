@@ -73,10 +73,13 @@
 	char                       *p = b[__idx]; \
 	__idx = (__idx + 1) % (m)
 
-#define FLT_OT_ERR(f, ...)                                      \
-	do {                                                    \
-		if ((err != NULL) && (*err == NULL))            \
-			(void)memprintf(err, f, ##__VA_ARGS__); \
+#define FLT_OT_ERR(f, ...)                                             \
+	do {                                                           \
+		if ((err != NULL) && (*err == NULL)) {                 \
+			(void)memprintf(err, f, ##__VA_ARGS__);        \
+                                                                       \
+			FLT_OT_DBG(3, "%d err: '%s'", __LINE__, *err); \
+		}                                                      \
 	} while (0)
 #define FLT_OT_ERR_APPEND(f, ...)                               \
 	do {                                                    \
