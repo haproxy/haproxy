@@ -2456,6 +2456,12 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct ssl_sock_ctx *ct
 		}
 		case QUIC_FT_MAX_DATA:
 		case QUIC_FT_MAX_STREAM_DATA:
+			if (qc->mux_state == QC_MUX_READY) {
+				struct quic_max_stream_data *data = &frm.max_stream_data;
+				qcc_recv_max_stream_data(qc->qcc, data->id,
+				                         data->max_stream_data);
+			}
+			break;
 		case QUIC_FT_MAX_STREAMS_BIDI:
 		case QUIC_FT_MAX_STREAMS_UNI:
 		case QUIC_FT_DATA_BLOCKED:

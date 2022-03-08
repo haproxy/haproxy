@@ -253,6 +253,32 @@ int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
 	return 0;
 }
 
+/* Handle a new MAX_STREAM_DATA frame. <max> must contains the maximum data
+ * field of the frame and <id> is the identifier of the QUIC stream.
+ *
+ * Returns 0 on success else non-zero.
+ */
+int qcc_recv_max_stream_data(struct qcc *qcc, uint64_t id, uint64_t max)
+{
+	struct qcs *qcs;
+	struct eb64_node *node;
+
+	node = eb64_lookup(&qcc->streams_by_id, id);
+	if (node) {
+		qcs = eb64_entry(&node->node, struct qcs, by_id);
+		if (max > qcs->tx.msd) {
+			qcs->tx.msd = max;
+
+			if (qcs->flags & QC_SF_BLK_SFCTL) {
+				qcs->flags &= ~QC_SF_BLK_SFCTL;
+				tasklet_wakeup(qcc->wait_event.tasklet);
+			}
+		}
+	}
+
+	return 0;
+}
+
 /* Decode the content of STREAM frames already received on the stream instance
  * <qcs>.
  *
