@@ -379,6 +379,10 @@ const char *proxy_mode_str(int mode) {
 		return "http";
 	else if (mode == PR_MODE_CLI)
 		return "cli";
+	else if (mode == PR_MODE_SYSLOG)
+		return "syslog";
+	else if (mode == PR_MODE_PEERS)
+		return "peers";
 	else
 		return "unknown";
 }
