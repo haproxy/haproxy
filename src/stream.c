@@ -250,8 +250,8 @@ static void strm_trace(enum trace_level level, uint64_t mask, const struct trace
 		chunk_appendf(&trace_buf, " buf=(%u@%p+%u/%u, %u@%p+%u/%u)",
 			      (unsigned int)b_data(&req->buf), b_orig(&req->buf),
 			      (unsigned int)b_head_ofs(&req->buf), (unsigned int)b_size(&req->buf),
-			      (unsigned int)b_data(&req->buf), b_orig(&req->buf),
-			      (unsigned int)b_head_ofs(&req->buf), (unsigned int)b_size(&req->buf));
+			      (unsigned int)b_data(&res->buf), b_orig(&res->buf),
+			      (unsigned int)b_head_ofs(&res->buf), (unsigned int)b_size(&res->buf));
 	}
 
 	/* If msg defined, display htx info if defined (level > USER) */
