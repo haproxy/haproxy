@@ -1070,6 +1070,7 @@ The following keywords are supported in the "global" section :
    - maxsslconn
    - maxsslrate
    - maxzlibmem
+   - no-memory-trimming
    - noepoll
    - nokqueue
    - noevports
@@ -2379,6 +2380,22 @@ maxzlibmem <number>
   The default value is 0. The value is available in bytes on the UNIX socket
   with "show info" on the line "MaxZlibMemUsage", the memory used by zlib is
   "ZlibMemUsage" in bytes.
+
+no-memory-trimming
+  Disables memory trimming ("malloc_trim") at a few moments where attempts are
+  made to reclaim lots of memory (on memory shortage or on reload). Trimming
+  memory forces the system's allocator to scan all unused areas and to release
+  them. This is generally seen as nice action to leave more available memory to
+  a new process while the old one is unlikely to make significant use of it.
+  But some systems dealing with tens to hundreds of thousands of concurrent
+  connections may experience a lot of memory fragmentation, that may render
+  this release operation extremely long. During this time, no more traffic
+  passes through the process, new connections are not accepted anymore, some
+  health checks may even fail, and the watchdog may even trigger and kill the
+  unresponsive process, leaving a huge core dump. If this ever happens, then it
+  is suggested to use this option to disable trimming and stop trying to be
+  nice with the new process. Note that advanced memory allocators usually do
+  not suffer from such a problem.
 
 noepoll
   Disables the use of the "epoll" event polling system on Linux. It is

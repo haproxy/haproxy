@@ -83,6 +83,7 @@ static const struct {
 
 static int mem_fail_rate __read_mostly = 0;
 static int using_default_allocator __read_mostly = 1;
+static int disable_trim __read_mostly = 0;
 static int(*my_mallctl)(const char *, void *, size_t *, void *, size_t) = NULL;
 
 /* ask the allocator to trim memory pools.
@@ -94,6 +95,9 @@ static int(*my_mallctl)(const char *, void *, size_t *, void *, size_t) = NULL;
 static void trim_all_pools(void)
 {
 	int isolated = thread_isolated();
+
+	if (disable_trim)
+		return;
 
 	if (!isolated)
 		thread_isolate();
@@ -1073,9 +1077,21 @@ static int mem_parse_global_fail_alloc(char **args, int section_type, struct pro
 	return 0;
 }
 
+/* config parser for global "no-memory-trimming" */
+static int mem_parse_global_no_mem_trim(char **args, int section_type, struct proxy *curpx,
+                                       const struct proxy *defpx, const char *file, int line,
+                                       char **err)
+{
+	if (too_many_args(0, args, err, NULL))
+		return -1;
+	disable_trim = 1;
+	return 0;
+}
+
 /* register global config keywords */
 static struct cfg_kw_list mem_cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.fail-alloc", mem_parse_global_fail_alloc },
+	{ CFG_GLOBAL, "no-memory-trimming", mem_parse_global_no_mem_trim },
 	{ 0, NULL, NULL }
 }};
 
