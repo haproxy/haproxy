@@ -3332,6 +3332,7 @@ static void stats_dump_html_head(struct appctx *appctx, struct uri_auth *uri)
 	              " .hr { border-color: #8c8273; }\n"
 	              " .titre { background-color: #1aa6a6; color: #e8e6e3; }\n"
 	              " .frontend {background: #2f3437;}\n"
+	              " .socket	{background: #2a2d2f;}\n"
 	              " .backend {background: #2f3437;}\n"
 	              " .active_down {background: #760000;}\n"
 	              " .active_going_up {background: #b99200;}\n"
