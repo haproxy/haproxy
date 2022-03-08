@@ -661,13 +661,6 @@ enum qc_mux_state {
 #define QUIC_FL_ACCEPT_REGISTERED               (1U << QUIC_FL_ACCEPT_REGISTERED_BIT)
 #define QUIC_FL_CONN_IMMEDIATE_CLOSE            (1U << 31)
 struct quic_conn {
-	/* The quic_conn instance is refcounted as it can be used by threads
-	 * outside of the connection pinned thread.
-	 *
-	 * By default it is initialized to 0.
-	 */
-	uint refcount;
-
 	uint32_t version;
 	/* QUIC transport parameters TLS extension */
 	int tps_tls_ext;

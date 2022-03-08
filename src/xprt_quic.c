@@ -3514,33 +3514,30 @@ static int quic_conn_enc_level_init(struct quic_conn *qc,
 	return 0;
 }
 
-/* Increment the <qc> refcount.
+/* Release the quic_conn <qc>. The connection is removed from the CIDs tree.
+ * The connection tasklet is killed.
  *
- * This operation must be conducted when manipulating the quic_conn outside of
- * the connection pinned thread. These threads can only retrieve the connection
- * in the CID tree, so this function must be conducted under the CID lock.
+ * This function must only be called by the thread responsible of the quic_conn
+ * tasklet.
  */
-static inline void quic_conn_take(struct quic_conn *qc)
+static void quic_conn_release(struct quic_conn *qc)
 {
-	HA_ATOMIC_INC(&qc->refcount);
-}
-
-/* Decrement the <qc> refcount. If the refcount is zero *BEFORE* the
- * subtraction, the quic_conn is freed.
- */
-static void quic_conn_drop(struct quic_conn *qc)
-{
-	struct ssl_sock_ctx *conn_ctx;
 	int i;
+	struct ssl_sock_ctx *conn_ctx;
 
-	if (!qc)
-		return;
+	if (qc->timer_task) {
+		task_destroy(qc->timer_task);
+		qc->timer_task = NULL;
+	}
 
-	if (HA_ATOMIC_FETCH_SUB(&qc->refcount, 1))
-		return;
+	/* remove the connection from receiver cids trees */
+	ebmb_delete(&qc->odcid_node);
+	ebmb_delete(&qc->scid_node);
+	free_quic_conn_cids(qc);
 
 	conn_ctx = HA_ATOMIC_LOAD(&qc->xprt_ctx);
 	if (conn_ctx) {
+		tasklet_free(conn_ctx->wait_event.tasklet);
 		SSL_free(conn_ctx->ssl);
 		pool_free(pool_head_quic_conn_ctx, conn_ctx);
 	}
@@ -3553,44 +3550,12 @@ static void quic_conn_drop(struct quic_conn *qc)
 	TRACE_PROTO("QUIC conn. freed", QUIC_EV_CONN_FREED, qc);
 }
 
-/* Release the quic_conn <qc>. It will decrement its refcount so that the
- * connection will be freed once all threads have finished to work with it. The
- * connection is removed from the CIDs tree and thus cannot be found by other
- * threads after it. The connection tasklet is killed.
- *
- * Do not use <qc> after it as it may be freed. This function must only be
- * called by the thread responsible of the quic_conn tasklet.
- */
-static void quic_conn_release(struct quic_conn *qc)
-{
-	struct ssl_sock_ctx *conn_ctx;
-
-	/* remove the connection from receiver cids trees */
-	ebmb_delete(&qc->odcid_node);
-	ebmb_delete(&qc->scid_node);
-	free_quic_conn_cids(qc);
-
-	/* Kill the tasklet. Do not use tasklet_free as this is not thread safe
-	 * as other threads may call tasklet_wakeup after this.
-	 */
-	conn_ctx = HA_ATOMIC_LOAD(&qc->xprt_ctx);
-	if (conn_ctx)
-		tasklet_kill(conn_ctx->wait_event.tasklet);
-
-	quic_conn_drop(qc);
-}
-
 void quic_close(struct connection *conn, void *xprt_ctx)
 {
 	struct ssl_sock_ctx *conn_ctx = xprt_ctx;
 	struct quic_conn *qc = conn_ctx->qc;
 
 	TRACE_ENTER(QUIC_EV_CONN_CLOSE, qc);
-	/* This task must be deleted by the connection-pinned thread. */
-	if (qc->timer_task) {
-		task_destroy(qc->timer_task);
-		qc->timer_task = NULL;
-	}
 
 	/* Next application data can be dropped. */
 	qc->mux_state = QC_MUX_RELEASED;
@@ -3691,8 +3656,6 @@ static struct quic_conn *qc_new_conn(unsigned int version, int ipv4,
 		goto err;
 	}
 
-	HA_ATOMIC_STORE(&qc->refcount, 0);
-
 	buf_area = pool_alloc(pool_head_quic_conn_rxbuf);
 	if (!buf_area) {
 		TRACE_PROTO("Could not allocate a new RX buffer", QUIC_EV_CONN_INIT, qc);
@@ -3791,7 +3754,7 @@ static struct quic_conn *qc_new_conn(unsigned int version, int ipv4,
 	pool_free(pool_head_quic_conn_rxbuf, buf_area);
 	if (qc)
 		qc->rx.buf.area = NULL;
-	quic_conn_drop(qc);
+	quic_conn_release(qc);
 	return NULL;
 }
 
@@ -4163,9 +4126,6 @@ static struct quic_conn *retrieve_qc_conn_from_cid(struct quic_rx_packet *pkt,
 	found_in_dcid = 1;
 
  end:
-	if (qc)
-		quic_conn_take(qc);
-
 	/* If found in DCIDs tree, remove the quic_conn from the ODCIDs tree.
 	 * If already done, this is a noop.
 	 */
@@ -4506,14 +4466,12 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 				pkt->qc = qc;
 			}
 
-			quic_conn_take(qc);
-
 			if (likely(!qc_to_purge)) {
 				/* Enqueue this packet. */
 				pkt->qc = qc;
 			}
 			else {
-				quic_conn_drop(qc_to_purge);
+				quic_conn_release(qc_to_purge);
 			}
 		}
 		else {
@@ -4619,9 +4577,6 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 
 	TRACE_LEAVE(QUIC_EV_CONN_LPKT, qc ? qc : NULL, pkt);
 
-	if (qc)
-		quic_conn_drop(qc);
-
 	return pkt->len;
 
  err:
@@ -4638,9 +4593,6 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 		pkt->len = end - beg;
 	TRACE_DEVEL("Leaving in error", QUIC_EV_CONN_LPKT,
 	            qc ? qc : NULL, pkt);
-
-	if (qc)
-		quic_conn_drop(qc);
 
 	return -1;
 }
