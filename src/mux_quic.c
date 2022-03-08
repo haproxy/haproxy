@@ -253,6 +253,24 @@ int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
 	return 0;
 }
 
+/* Handle a new MAX_DATA frame. <max> must contains the maximum data field of
+ * the frame.
+ *
+ * Returns 0 on success else non-zero.
+ */
+int qcc_recv_max_data(struct qcc *qcc, uint64_t max)
+{
+	if (qcc->rfctl.md < max) {
+		qcc->rfctl.md = max;
+
+		if (qcc->flags & QC_CF_BLK_MFCTL) {
+			qcc->flags &= ~QC_CF_BLK_MFCTL;
+			tasklet_wakeup(qcc->wait_event.tasklet);
+		}
+	}
+	return 0;
+}
+
 /* Handle a new MAX_STREAM_DATA frame. <max> must contains the maximum data
  * field of the frame and <id> is the identifier of the QUIC stream.
  *
