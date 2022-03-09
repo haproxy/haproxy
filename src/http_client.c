@@ -787,24 +787,29 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 						enum htx_blk_type type = htx_get_blk_type(blk);
 						uint32_t sz = htx_get_blksz(blk);
 
+						if (type == HTX_BLK_UNUSED) {
+							c_rew(res, sz);
+							htx_remove_blk(htx, blk);
+						}
+
+						if (type == HTX_BLK_HDR) {
+							hdrs[hdr_num].n = istdup(htx_get_blk_name(htx, blk));
+							hdrs[hdr_num].v = istdup(htx_get_blk_value(htx, blk));
+							if (!isttest(hdrs[hdr_num].v) || !isttest(hdrs[hdr_num].n))
+								goto end;
+							c_rew(res, sz);
+							htx_remove_blk(htx, blk);
+							hdr_num++;
+						}
+
+						/* create a NULL end of array and leave the loop */
 						if (type == HTX_BLK_EOH) {
 							hdrs[hdr_num].n = IST_NULL;
 							hdrs[hdr_num].v = IST_NULL;
-							co_set_data(res, co_data(res) - sz);
+							c_rew(res, sz);
 							htx_remove_blk(htx, blk);
 							break;
 						}
-
-						if (type != HTX_BLK_HDR)
-							break;
-
-						hdrs[hdr_num].n = istdup(htx_get_blk_name(htx, blk));
-						hdrs[hdr_num].v = istdup(htx_get_blk_value(htx, blk));
-						if (!isttest(hdrs[hdr_num].v) || !isttest(hdrs[hdr_num].n))
-							goto end;
-						co_set_data(res, co_data(res) - sz);
-						htx_remove_blk(htx, blk);
-						hdr_num++;
 					}
 
 					if (hdr_num) {
