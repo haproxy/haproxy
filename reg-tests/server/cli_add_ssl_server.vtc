@@ -5,6 +5,24 @@ feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL)'"
 feature cmd "command -v socat"
 feature ignore_unknown_macro
 
+barrier b1 cond 2 -cyclic
+
+syslog S1 -level notice {
+	recv
+	expect ~ ".*Server li-ssl/s1 is UP/READY \\(leaving forced maintenance\\)."
+	recv
+	expect ~ ".*Server li-ssl/s2 is UP/READY \\(leaving forced maintenance\\)."
+	recv
+	expect ~ "Health check for server li-ssl/s2 failed"
+
+	barrier b1 sync
+
+	recv
+	expect ~ ".*Server li-ssl/s3 is UP/READY \\(leaving forced maintenance\\)."
+	recv
+	expect ~ "Health check for server li-ssl/s3 succeeded."
+} -start
+
 haproxy h1 -conf {
 	global
 		stats socket "${tmpdir}/h1/stats" level admin
@@ -14,11 +32,14 @@ haproxy h1 -conf {
 		timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
 		timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
 		timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+		option log-health-checks
+		option httpchk GET /
 
 	# proxy to attach a ssl server
 	listen li-ssl
 		bind "fd@${feSsl}"
 		balance random
+		log ${S1_addr}:${S1_port} daemon
 
 	# frontend used to respond to ssl connection
 	frontend fe-ssl-term
@@ -61,3 +82,29 @@ client c2 -connect ${h1_feSsl_sock} {
 	rxresp
 	expect resp.status == 200
 } -run
+
+# test interaction between SSL and checks for dynamic servers
+haproxy h1 -cli {
+	# no explicit check-ssl
+	# The health check should failed.
+	send "add server li-ssl/s2 ${h1_feSslTerm_addr}:${h1_feSslTerm_port} ssl verify none check"
+	expect ~ "New server registered."
+
+	send "enable server li-ssl/s2"
+	expect ~ ".*"
+	send "enable health li-ssl/s2"
+	expect ~ ".*"
+
+	barrier b1 sync
+
+	# explicit check-ssl : health check should succeeded
+	send "add server li-ssl/s3 ${h1_feSslTerm_addr}:${h1_feSslTerm_port} ssl verify none check check-ssl"
+	expect ~ "New server registered."
+
+	send "enable server li-ssl/s3"
+	expect ~ ".*"
+	send "enable health li-ssl/s3"
+	expect ~ ".*"
+}
+
+syslog S1 -wait
