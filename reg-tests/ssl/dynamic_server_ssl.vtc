@@ -70,11 +70,11 @@ haproxy h1 -cli {
 	expect ~ ".*"
 
 	# valid command
-	send "experimental-mode on; del server test/s1"
+	send "del server test/s1"
 	expect ~ "Server deleted."
-	send "experimental-mode on; del server test/s2"
+	send "del server test/s2"
 	expect ~ "Server deleted."
-	send "experimental-mode on; del server test/s3"
+	send "del server test/s3"
 	expect ~ "Server deleted."
 }
 
@@ -95,7 +95,7 @@ haproxy h1 -cli {
 }
 
 haproxy h1 -cli {
-	send "experimental-mode on; add server test/s1 ${tmpdir}/ssl.sock ssl verify none crt ${testdir}/client1.pem"
+	send "add server test/s1 ${tmpdir}/ssl.sock ssl verify none crt ${testdir}/client1.pem"
 	expect ~ "New server registered."
 	send "enable server test/s1"
 	expect ~ ".*"

@@ -1541,9 +1541,7 @@ add map [@<ver>] <map> <payload>
     >
 
 add server <backend>/<server> [args]*
-  Instantiate a new server attached to the backend <backend>. Only supported on
-  a CLI connection running in experimental mode (see "experimental-mode on").
-  This method is still in development and may change in the future.
+  Instantiate a new server attached to the backend <backend>.
 
   The <server> name must not be already used in the backend. A special
   restriction is put on the backend which must used a dynamic load-balancing
@@ -2014,8 +2012,8 @@ experimental-mode [on|off]
   set the mode for any worker when connecting to its CLI.
 
   Example:
-    echo "@1; experimental-mode on; del server be1/s2" | socat /var/run/haproxy.master -
-    echo "experimental-mode on; @1 del server be1/s2" | socat /var/run/haproxy.master -
+    echo "@1; experimental-mode on; <experimental_cmd>..." | socat /var/run/haproxy.master -
+    echo "experimental-mode on; @1 <experimental_cmd>..." | socat /var/run/haproxy.master -
 
 expert-mode [on|off]
   This command is similar to experimental-mode but is used to toggle the

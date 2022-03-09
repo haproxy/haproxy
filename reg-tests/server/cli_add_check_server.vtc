@@ -79,7 +79,7 @@ haproxy h1 -conf {
 
 # check on a functional server
 haproxy h1 -cli {
-	send "experimental-mode on; add server be1/s1 ${s1_addr}:${s1_port} check inter 200ms rise 1 fall 1"
+	send "add server be1/s1 ${s1_addr}:${s1_port} check inter 200ms rise 1 fall 1"
 	expect ~ "New server registered."
 
 	send "enable server be1/s1"
@@ -92,7 +92,7 @@ haproxy h1 -cli {
 	send "disable server be1/s1"
 	expect ~ ".*"
 
-	send "experimental-mode on; del server be1/s1"
+	send "del server be1/s1"
 	expect ~ "Server deleted."
 }
 
@@ -100,7 +100,7 @@ server s2 -break
 
 # check on a disabled server
 haproxy h1 -cli {
-	send "experimental-mode on; add server be1/s2 ${s2_addr}:${s2_port} check inter 200ms rise 1 fall 1"
+	send "add server be1/s2 ${s2_addr}:${s2_port} check inter 200ms rise 1 fall 1"
 	expect ~ "New server registered."
 
 	send "enable server be1/s2"
@@ -113,13 +113,13 @@ haproxy h1 -cli {
 	send "disable server be1/s2"
 	expect ~ ".*"
 
-	send "experimental-mode on; del server be1/s2"
+	send "del server be1/s2"
 	expect ~ "Server deleted."
 }
 
 # agent check
 haproxy h1 -cli {
-	send "experimental-mode on; add server be1/s3 ${s1_addr}:${s1_port} agent-check agent-addr ${s3_addr} agent-port ${s3_port} agent-send 'hello' agent-inter 200ms rise 1 fall 1"
+	send "add server be1/s3 ${s1_addr}:${s1_port} agent-check agent-addr ${s3_addr} agent-port ${s3_port} agent-send 'hello' agent-inter 200ms rise 1 fall 1"
 	expect ~ "New server registered."
 
 	send "enable agent be1/s3"
@@ -130,7 +130,7 @@ haproxy h1 -cli {
 	send "disable agent be1/s3; disable server be1/s3"
 	expect ~ ".*"
 
-	send "experimental-mode on; del server be1/s3"
+	send "del server be1/s3"
 	expect ~ "Server deleted."
 }
 

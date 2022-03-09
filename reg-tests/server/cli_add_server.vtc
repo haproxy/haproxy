@@ -38,37 +38,33 @@ client c1 -connect ${h1_feS_sock} {
 } -run
 
 haproxy h1 -cli {
-	# experimental mode disabled
-	send "add server foo/s1 ${s1_addr}:${s1_port}"
-	expect ~ "This command is restricted to experimental mode only."
-
 	# non existent backend
-	send "experimental-mode on; add server foo/s1 ${s1_addr}:${s1_port}"
+	send "add server foo/s1 ${s1_addr}:${s1_port}"
 	expect ~ "No such backend."
 
 	# missing address
-	send "experimental-mode on; add server test/s1"
+	send "add server test/s1"
 	expect ~ "'server' expects <name> and <addr>\\[:<port>\\] as arguments."
 
 	# invalid load-balancing algo
-	send "experimental-mode on; add server other/s1 ${s1_addr}:${s1_port}"
+	send "add server other/s1 ${s1_addr}:${s1_port}"
 	expect ~ "Backend must use a dynamic load balancing to support dynamic servers."
 
 	# invalid mux proto
-	send "experimental-mode on; add server other2/s1 ${s1_addr}:${s1_port} proto h2"
+	send "add server other2/s1 ${s1_addr}:${s1_port} proto h2"
 	expect ~ "MUX protocol is not usable for server."
 
 	# valid command
-	send "experimental-mode on; add server test/s1 ${s1_addr}:${s1_port}"
+	send "add server test/s1 ${s1_addr}:${s1_port}"
 	expect ~ "New server registered."
 
 	# duplicate server
-	send "experimental-mode on; add server test/s1 ${s1_addr}:${s1_port}"
+	send "add server test/s1 ${s1_addr}:${s1_port}"
 	expect ~ "Already exists a server with the same name in backend."
 
 	# valid command
 	# specify the proto, it should be accepted for this backend
-	send "experimental-mode on; add server test/s2 ${s1_addr}:${s1_port} proto h2"
+	send "add server test/s2 ${s1_addr}:${s1_port} proto h2"
 	expect ~ "New server registered."
 }
 

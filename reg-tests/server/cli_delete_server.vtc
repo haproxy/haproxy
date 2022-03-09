@@ -27,38 +27,34 @@ haproxy h1 -conf {
 } -start
 
 haproxy h1 -cli {
-	# experimental mode disabled
-	send "del server test/s1"
-	expect ~ "This command is restricted to experimental mode only."
-
 	# non existent backend
-	send "experimental-mode on; del server foo/s1"
+	send "del server foo/s1"
 	expect ~ "No such backend."
 
 	# non existent server
-	send "experimental-mode on; del server test/other"
+	send "del server test/other"
 	expect ~ "No such server."
 
 	# server referenced in ACL
-	send "experimental-mode on; del server test/s1"
+	send "del server test/s1"
 	expect ~ "This server cannot be removed at runtime due to other configuration elements pointing to it."
 
 	# tracked server
-	send "experimental-mode on; del server test/s2"
+	send "del server test/s2"
 	expect ~ "This server cannot be removed at runtime due to other configuration elements pointing to it."
 
 	# tracked server
-	send "experimental-mode on; del server test/s3"
+	send "del server test/s3"
 	expect ~ "This server cannot be removed at runtime due to other configuration elements pointing to it."
 
 	# server in running mode
-	send "experimental-mode on; del server test/s4"
+	send "del server test/s4"
 	expect ~ "Only servers in maintenance mode can be deleted."
 
 	send "disable server test/s4"
 	expect ~ ".*"
 
 	# valid command
-	send "experimental-mode on; del server test/s4"
+	send "del server test/s4"
 	expect ~ "Server deleted."
 }

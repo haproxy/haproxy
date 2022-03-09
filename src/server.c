@@ -5034,8 +5034,8 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "set", "server", NULL },             "set server <bk>/<srv> [opts]            : change a server's state, weight, address or ssl",             cli_parse_set_server },
 	{ { "get", "weight", NULL },             "get weight <bk>/<srv>                   : report a server's current weight",                            cli_parse_get_weight },
 	{ { "set", "weight", NULL },             "set weight <bk>/<srv>  (DEPRECATED)     : change a server's weight (use 'set server' instead)",         cli_parse_set_weight },
-	{ { "add", "server", NULL },             "add server <bk>/<srv>                   : create a new server (EXPERIMENTAL)",                          cli_parse_add_server, NULL, NULL, NULL, ACCESS_EXPERIMENTAL },
-	{ { "del", "server", NULL },             "del server <bk>/<srv>                   : remove a dynamically added server (EXPERIMENTAL)",            cli_parse_delete_server, NULL, NULL, NULL, ACCESS_EXPERIMENTAL },
+	{ { "add", "server", NULL },             "add server <bk>/<srv>                   : create a new server",                                         cli_parse_add_server, NULL },
+	{ { "del", "server", NULL },             "del server <bk>/<srv>                   : remove a dynamically added server",                           cli_parse_delete_server, NULL },
 	{{},}
 }};
 

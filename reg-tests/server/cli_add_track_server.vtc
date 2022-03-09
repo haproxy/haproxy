@@ -117,15 +117,15 @@ haproxy h1 -conf {
 ###
 haproxy h1 -cli {
 	# invalid command: track on a non-checked server
-	send "experimental-mode on; add server be_check/s1 ${s1_addr}:${s1_port} track be_check/srv_no_check"
+	send "add server be_check/s1 ${s1_addr}:${s1_port} track be_check/srv_no_check"
 	expect ~ "unable to use be_check/srv_no_check for tracking as it does not have any check nor agent enabled."
 
 	# valid track usage
-	send "experimental-mode on; add server be_check/s1 ${s1_addr}:${s1_port} track be_check/srv_check"
+	send "add server be_check/s1 ${s1_addr}:${s1_port} track be_check/srv_check"
 	expect ~ "New server registered."
 
 	# invalid command: track on a dynamic server
-	send "experimental-mode on; add server be_check/s3 ${s1_addr}:${s1_port} track be_check/s1"
+	send "add server be_check/s3 ${s1_addr}:${s1_port} track be_check/s1"
 	expect ~ "unable to use be_check/s1 for tracking as it is a dynamic server."
 }
 
@@ -137,17 +137,17 @@ haproxy h1 -cli {
 # Delete the first dynamic server, enable be1/srv, S1 should report s1 and s3 UP
 ####
 haproxy h1 -cli {
-	send "experimental-mode on; add server be1/s1 ${s1_addr}:${s1_port} track be1/srv"
+	send "add server be1/s1 ${s1_addr}:${s1_port} track be1/srv"
 	expect ~ "New server registered."
 	send "enable server be1/s1"
 	expect ~ ".*"
 
-	send "experimental-mode on; add server be1/s2 ${s1_addr}:${s1_port} track be1/srv"
+	send "add server be1/s2 ${s1_addr}:${s1_port} track be1/srv"
 	expect ~ "New server registered."
 	send "enable server be1/s2"
 	expect ~ ".*"
 
-	send "experimental-mode on; add server be1/s3 ${s1_addr}:${s1_port} track be1/srv"
+	send "add server be1/s3 ${s1_addr}:${s1_port} track be1/srv"
 	expect ~ "New server registered."
 	send "enable server be1/s3"
 	expect ~ ".*"
@@ -155,7 +155,7 @@ haproxy h1 -cli {
 	send "disable server be1/srv"
 	expect ~ ".*"
 
-	send "experimental-mode on; del server be1/s1"
+	send "del server be1/s1"
 	expect ~ "Server deleted."
 
 	send "enable server be1/srv"
@@ -170,17 +170,17 @@ haproxy h1 -cli {
 # Delete the second dynamic server, enable be2/srv, S2 should report s2 and s3 UP
 ####
 haproxy h1 -cli {
-	send "experimental-mode on; add server be2/s1 ${s1_addr}:${s1_port} track be2/srv"
+	send "add server be2/s1 ${s1_addr}:${s1_port} track be2/srv"
 	expect ~ "New server registered."
 	send "enable server be2/s1"
 	expect ~ ".*"
 
-	send "experimental-mode on; add server be2/s2 ${s1_addr}:${s1_port} track be2/srv"
+	send "add server be2/s2 ${s1_addr}:${s1_port} track be2/srv"
 	expect ~ "New server registered."
 	send "enable server be2/s2"
 	expect ~ ".*"
 
-	send "experimental-mode on; add server be2/s3 ${s1_addr}:${s1_port} track be2/srv"
+	send "add server be2/s3 ${s1_addr}:${s1_port} track be2/srv"
 	expect ~ "New server registered."
 	send "enable server be2/s3"
 	expect ~ ".*"
@@ -188,7 +188,7 @@ haproxy h1 -cli {
 	send "disable server be2/srv"
 	expect ~ ".*"
 
-	send "experimental-mode on; del server be2/s2"
+	send "del server be2/s2"
 	expect ~ "Server deleted."
 
 	send "enable server be2/srv"
@@ -204,29 +204,29 @@ haproxy h1 -cli {
 ####
 haproxy h1 -cli {
 	# create server 1, track on be3/srv
-	send "experimental-mode on; add server be3/s1 ${s1_addr}:${s1_port} track be3/srv"
+	send "add server be3/s1 ${s1_addr}:${s1_port} track be3/srv"
 	expect ~ "New server registered."
 	send "enable server be3/s1"
 	expect ~ ".*"
 
 	# create server 2, track on be3/srv
-	send "experimental-mode on; add server be3/s2 ${s1_addr}:${s1_port} track be3/srv"
+	send "add server be3/s2 ${s1_addr}:${s1_port} track be3/srv"
 	expect ~ "New server registered."
 	send "enable server be3/s2"
 	expect ~ ".*"
 
 	# create server 3, track on be3/srv
-	send "experimental-mode on; add server be3/s3 ${s1_addr}:${s1_port} track be3/srv"
+	send "add server be3/s3 ${s1_addr}:${s1_port} track be3/srv"
 	expect ~ "New server registered."
 	send "enable server be3/s3"
 	expect ~ ".*"
 
 	# delete all dynamic servers
-	send "experimental-mode on; disable server be3/s1; del server be3/s1"
+	send "disable server be3/s1; del server be3/s1"
 	expect ~ "Server deleted."
-	send "experimental-mode on; disable server be3/s3; del server be3/s3"
+	send "disable server be3/s3; del server be3/s3"
 	expect ~ "Server deleted."
-	send "experimental-mode on; disable server be3/s2; del server be3/s2"
+	send "disable server be3/s2; del server be3/s2"
 	expect ~ "Server deleted."
 
 	# disable / enable the static server
