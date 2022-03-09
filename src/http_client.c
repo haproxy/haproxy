@@ -849,39 +849,53 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 
 				/* decapsule the htx data to raw data */
 				for (pos = htx_get_first(htx); pos != -1; pos = htx_get_next(htx, pos)) {
-					enum htx_blk_type type;
-					uint32_t sz;
+					struct htx_blk *blk = htx_get_blk(htx, pos);
+					enum htx_blk_type type = htx_get_blk_type(blk);
+					size_t count = co_data(res);
+					uint32_t blksz = htx_get_blksz(blk);
+					uint32_t room = b_room(&hc->res.buf);
+					uint32_t vlen;
 
-					blk = htx_get_blk(htx, pos);
-					type = htx_get_blk_type(blk);
-					sz = htx_get_blksz(blk);
+					/* we should try to copy the maximum output data in a block, which fit
+					 * the destination buffer */
+					vlen = MIN(count, blksz);
+					vlen = MIN(vlen, room);
 
-					/* we need to check if the data are part of the ouput */
-					if (co_data(res) < sz)
+					if (vlen == 0)
 						goto process_data;
 
 					if (type == HTX_BLK_DATA) {
 						struct ist v = htx_get_blk_value(htx, blk);
 
-						if ((b_room(&hc->res.buf) < v.len))
-							goto process_data;
+						__b_putblk(&hc->res.buf, v.ptr, vlen);
+						c_rew(res, vlen);
 
-						__b_putblk(&hc->res.buf, v.ptr, v.len);
-						co_set_data(res, co_data(res) - sz);
-						htx_remove_blk(htx, blk);
+						if (vlen == blksz)
+							htx_remove_blk(htx, blk);
+						else
+							htx_cut_data_blk(htx, blk, vlen);
 
 						/* the data must be processed by the caller in the receive phase */
 						if (hc->ops.res_payload)
 							hc->ops.res_payload(hc);
+
+						/* cannot copy everything, need to processs */
+						if (vlen != blksz)
+							goto process_data;
 					} else {
+						if (vlen != blksz)
+							goto process_data;
+
 						/* remove any block which is not a data block */
-						co_set_data(res, co_data(res) - sz);
+						c_rew(res, blksz);
 						htx_remove_blk(htx, blk);
 					}
 				}
+
 				/* if not finished, should be called again */
-				if (!(htx->flags & HTX_FL_EOM))
+				if (!(htx_is_empty(htx) && (htx->flags & HTX_FL_EOM)))
 					goto more;
+
 
 				/* end of message, we should quit */
 				appctx->st0 = HTTPCLIENT_S_RES_END;
