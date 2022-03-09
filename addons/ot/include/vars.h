@@ -21,8 +21,16 @@
 #define _OPENTRACING_VARS_H_
 
 #define FLT_OT_VARS_SCOPE       "txn"
+#define FLT_OT_VAR_CTX_SIZE     int8_t
 #define FLT_OT_VAR_CHAR_DASH    'D'
 #define FLT_OT_VAR_CHAR_SPACE   'S'
+
+struct flt_ot_ctx {
+	char value[BUFSIZ];
+	int  value_len;
+};
+
+typedef int (*flt_ot_ctx_loop_cb)(struct sample *, size_t, const char *, const char *, const char *, FLT_OT_VAR_CTX_SIZE, char **, void *);
 
 
 #ifndef DEBUG_OT

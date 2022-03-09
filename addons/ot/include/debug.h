@@ -44,6 +44,7 @@
 #  define FLT_OT_RETURN_PTR(a)      FLT_OT_RETURN_EX((a), void *, "%p")
 #  define FLT_OT_DBG_IFDEF(a,b)     a
 #  define FLT_OT_DBG_ARGS(a, ...)   a, ##__VA_ARGS__
+#  define FLT_OT_DBG_BUF(a,b)       do { FLT_OT_DBG((a), "%p:{ %zu %p %zu %zu }", (b), (b)->size, (b)->area, (b)->data, (b)->head); } while (0)
 
 struct flt_ot_debug {
 #ifndef DEBUG_OT_SYSTIME

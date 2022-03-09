@@ -46,7 +46,7 @@ static void flt_ot_vars_scope_dump(struct vars *vars, const char *scope)
 
 	vars_rdlock(vars);
 	list_for_each_entry(var, &(vars->head), l)
-		FLT_OT_DBG(2, "'%s.%s' -> '%.*s'", scope, var->name, (int)var->data.u.str.data, var->data.u.str.area);
+		FLT_OT_DBG(2, "'%s.%016" PRIx64 "' -> '%.*s'", scope, var->name_hash, (int)b_data(&(var->data.u.str)), b_orig(&(var->data.u.str)));
 	vars_rdunlock(vars);
 }
 
@@ -119,33 +119,58 @@ static inline void flt_ot_smp_init(struct stream *s, struct sample *smp, uint op
 
 /***
  * NAME
- *   flt_ot_get_vars -
+ *   flt_ot_smp_add -
  *
  * ARGUMENTS
- *   s     -
- *   scope -
+ *   data -
+ *   blk  -
+ *   len  -
+ *   err  -
  *
  * DESCRIPTION
  *   -
  *
  * RETURN VALUE
- *   Returns the struct vars pointer for a stream and scope, or NULL if it does
- *   not exist.
+ *   -
  */
-static inline struct vars *flt_ot_get_vars(struct stream *s, const char *scope)
+static int flt_ot_smp_add(struct sample_data *data, const char *name, size_t len, char **err)
 {
-	struct vars *retptr = NULL;
+	bool flag_alloc = 0;
+	int  retval = FLT_OT_RET_ERROR;
 
-	if (strcasecmp(scope, "proc") == 0)
-		retptr = &(proc_vars);
-	else if (strcasecmp(scope, "sess") == 0)
-		retptr = (&(s->sess->vars));
-	else if (strcasecmp(scope, "txn") == 0)
-		retptr = (&(s->vars_txn));
-	else if ((strcasecmp(scope, "req") == 0) || (strcasecmp(scope, "res") == 0))
-		retptr = (&(s->vars_reqres));
+	FLT_OT_FUNC("%p, \"%.*s\", %zu, %p:%p", data, (int)len, name, len, FLT_OT_DPTR_ARGS(err));
 
-	return retptr;
+	FLT_OT_DBG_BUF(2, &(data->u.str));
+
+	if (b_orig(&(data->u.str)) == NULL) {
+		data->type = SMP_T_BIN;
+		chunk_init(&(data->u.str), FLT_OT_MALLOC(global.tune.bufsize), global.tune.bufsize);
+
+		flag_alloc = (b_orig(&(data->u.str)) != NULL);
+	}
+
+	if (b_orig(&(data->u.str)) == NULL) {
+		FLT_OT_ERR("failed to add ctx '%.*s', not enough memory", (int)len, name);
+	}
+	else if (len > ((UINT64_C(1) << ((sizeof(FLT_OT_VAR_CTX_SIZE) << 3) - 1)) - 1)) {
+		FLT_OT_ERR("failed to add ctx '%.*s', too long name", (int)len, name);
+	}
+	else if ((len + sizeof(FLT_OT_VAR_CTX_SIZE)) > b_room(&(data->u.str))) {
+		FLT_OT_ERR("failed to add ctx '%.*s', too many names", (int)len, name);
+	}
+	else {
+		retval = b_data(&(data->u.str));
+
+		b_putchr(&(data->u.str), len);
+		(void)__b_putblk(&(data->u.str), name, len);
+
+		FLT_OT_DBG_BUF(2, &(data->u.str));
+	}
+
+	if ((retval == FLT_OT_RET_ERROR) && flag_alloc)
+		FLT_OT_FREE(b_orig(&(data->u.str)));
+
+	FLT_OT_RETURN_INT(retval);
 }
 
 
@@ -184,10 +209,14 @@ static int flt_ot_normalize_name(char *var_name, size_t size, int *len, const ch
 		/* Do nothing. */;
 	else if (*len < (size - 1))
 		var_name[(*len)++] = '.';
-	else
+	else {
+		FLT_OT_ERR("failed to normalize variable name, buffer too small");
+
 		retval = -1;
+	}
 
 	if (flag_cpy) {
+		/* Copy variable name without modification. */
 		retval = strlen(name);
 		if ((*len + retval + 1) > size) {
 			FLT_OT_ERR("failed to normalize variable name, buffer too small");
@@ -195,6 +224,7 @@ static int flt_ot_normalize_name(char *var_name, size_t size, int *len, const ch
 			retval = -1;
 		} else {
 			(void)memcpy(var_name + *len, name, retval + 1);
+
 			*len += retval;
 		}
 	} else {
@@ -276,6 +306,204 @@ static int flt_ot_var_name(const char *scope, const char *prefix, const char *na
 
 /***
  * NAME
+ *   flt_ot_ctx_loop -
+ *
+ * ARGUMENTS
+ *   smp    -
+ *   scope  -
+ *   prefix -
+ *   err    -
+ *   func   -
+ *   ptr    -
+ *
+ * DESCRIPTION
+ *   -
+ *
+ * RETURN VALUE
+ *   -
+ */
+static int flt_ot_ctx_loop(struct sample *smp, const char *scope, const char *prefix, char **err, flt_ot_ctx_loop_cb func, void *ptr)
+{
+	FLT_OT_VAR_CTX_SIZE var_ctx_size;
+	char                var_name[BUFSIZ], var_ctx[BUFSIZ];
+	int                 i, var_name_len, var_ctx_len, rc, n = 1, retval = 0;
+
+	FLT_OT_FUNC("%p, \"%s\", \"%s\", %p:%p, %p, %p", smp, scope, prefix, FLT_OT_DPTR_ARGS(err), func, ptr);
+
+	/*
+	 * The variable in which we will save the name of the OpenTracing
+	 * context variable.
+	 */
+	var_name_len = flt_ot_var_name(scope, prefix, NULL, 0, var_name, sizeof(var_name), err);
+	if (var_name_len == -1)
+		FLT_OT_RETURN_INT(FLT_OT_RET_ERROR);
+
+	/*
+	 * Here we will try to find all the previously recorded variables from
+	 * the currently set OpenTracing context.  If we find the required
+	 * variable and it is marked as deleted, we will mark it as active.
+	 * If we do not find it, then it is added to the end of the previously
+	 * saved names.
+	 */
+	if (vars_get_by_name(var_name, var_name_len, smp, NULL) == 0) {
+		FLT_OT_DBG(2, "ctx '%s' no variable found", var_name);
+	}
+	else if (smp->data.type != SMP_T_BIN) {
+		FLT_OT_ERR("ctx '%s' invalid data type %d", var_name, smp->data.type);
+
+		retval = FLT_OT_RET_ERROR;
+	}
+	else {
+		FLT_OT_DBG_BUF(2, &(smp->data.u.str));
+
+		for (i = 0; i < b_data(&(smp->data.u.str)); i += sizeof(var_ctx_size) + var_ctx_len, n++) {
+			var_ctx_size = *((typeof(var_ctx_size) *)(b_orig(&(smp->data.u.str)) + i));
+			var_ctx_len  = abs(var_ctx_size);
+
+			if ((i + sizeof(var_ctx_size) + var_ctx_len) > b_data(&(smp->data.u.str))) {
+				FLT_OT_ERR("ctx '%s' invalid data size", var_name);
+
+				retval = FLT_OT_RET_ERROR;
+
+				break;
+			}
+
+			(void)memcpy(var_ctx, b_orig(&(smp->data.u.str)) + i + sizeof(var_ctx_size), var_ctx_len);
+			var_ctx[var_ctx_len] = '\0';
+
+			rc = func(smp, i, scope, prefix, var_ctx, var_ctx_size, err, ptr);
+			if (rc == FLT_OT_RET_ERROR) {
+				retval = FLT_OT_RET_ERROR;
+
+				break;
+			}
+			else if (rc > 0) {
+				retval = n;
+
+				break;
+			}
+		}
+	}
+
+	FLT_OT_RETURN_INT(retval);
+}
+
+
+/***
+ * NAME
+ *   flt_ot_ctx_set_cb -
+ *
+ * ARGUMENTS
+ *   smp      -
+ *   idx      -
+ *   scope    -
+ *   prefix   -
+ *   name     -
+ *   name_len -
+ *   err      -
+ *   ptr      -
+ *
+ * DESCRIPTION
+ *   -
+ *
+ * RETURN VALUE
+ *   -
+ */
+static int flt_ot_ctx_set_cb(struct sample *smp, size_t idx, const char *scope, const char *prefix, const char *name, FLT_OT_VAR_CTX_SIZE name_len, char **err, void *ptr)
+{
+	struct flt_ot_ctx *ctx = ptr;
+	int                retval = 0;
+
+	FLT_OT_FUNC("%p, %zu, \"%s\", \"%s\", \"%s\", %hhd, %p:%p, %p", smp, idx, scope, prefix, name, name_len, FLT_OT_DPTR_ARGS(err), ptr);
+
+	if ((name_len == ctx->value_len) && (strncmp(name, ctx->value, name_len) == 0)) {
+		FLT_OT_DBG(2, "ctx '%s' found\n", name);
+
+		retval = 1;
+	}
+
+	FLT_OT_RETURN_INT(retval);
+}
+
+
+/***
+ * NAME
+ *   flt_ot_ctx_set -
+ *
+ * ARGUMENTS
+ *   s      -
+ *   scope  -
+ *   prefix -
+ *   name   -
+ *   opt    -
+ *   err    -
+ *
+ * DESCRIPTION
+ *   -
+ *
+ * RETURN VALUE
+ *   -
+ */
+static int flt_ot_ctx_set(struct stream *s, const char *scope, const char *prefix, const char *name, uint opt, char **err)
+{
+	struct flt_ot_ctx ctx;
+	struct sample     smp_ctx;
+	char              var_name[BUFSIZ];
+	bool              flag_alloc = 0;
+	int               rc, var_name_len, retval = FLT_OT_RET_ERROR;
+
+	FLT_OT_FUNC("%p, \"%s\", \"%s\", \"%s\", %u, %p:%p", s, scope, prefix, name, opt, FLT_OT_DPTR_ARGS(err));
+
+	/*
+	 * The variable in which we will save the name of the OpenTracing
+	 * context variable.
+	 */
+	var_name_len = flt_ot_var_name(scope, prefix, NULL, 0, var_name, sizeof(var_name), err);
+	if (var_name_len == -1)
+		FLT_OT_RETURN_INT(retval);
+
+	/* Normalized name of the OpenTracing context variable. */
+	ctx.value_len = flt_ot_var_name(name, NULL, NULL, 0, ctx.value, sizeof(ctx.value), err);
+	if (ctx.value_len == -1)
+		FLT_OT_RETURN_INT(retval);
+
+	flt_ot_smp_init(s, &smp_ctx, opt, 0, NULL);
+
+	retval = flt_ot_ctx_loop(&smp_ctx, scope, prefix, err, flt_ot_ctx_set_cb, &ctx);
+	if (retval == 0) {
+		rc = flt_ot_smp_add(&(smp_ctx.data), ctx.value, ctx.value_len, err);
+		if (rc == FLT_OT_RET_ERROR)
+			retval = FLT_OT_RET_ERROR;
+
+		flag_alloc = (rc == 0);
+	}
+
+	if (retval == FLT_OT_RET_ERROR) {
+		/* Do nothing. */
+	}
+	else if (retval > 0) {
+		FLT_OT_DBG(2, "ctx '%s' data found", ctx.value);
+	}
+	else if (vars_set_by_name_ifexist(var_name, var_name_len, &smp_ctx) == 0) {
+		FLT_OT_ERR("failed to set ctx '%s'", var_name);
+
+		retval = FLT_OT_RET_ERROR;
+	}
+	else {
+		FLT_OT_DBG(2, "ctx '%s' -> '%.*s' set", var_name, (int)b_data(&(smp_ctx.data.u.str)), b_orig(&(smp_ctx.data.u.str)));
+
+		retval = b_data(&(smp_ctx.data.u.str));
+	}
+
+	if (flag_alloc)
+		FLT_OT_FREE(b_orig(&(smp_ctx.data.u.str)));
+
+	FLT_OT_RETURN_INT(retval);
+}
+
+
+/***
+ * NAME
  *   flt_ot_var_register -
  *
  * ARGUMENTS
@@ -311,7 +539,7 @@ int flt_ot_var_register(const char *scope, const char *prefix, const char *name,
 	if (vars_check_arg(&arg, err) == 0) {
 		FLT_OT_ERR_APPEND("failed to register variable '%s': %s", var_name, *err);
 	} else {
-		FLT_OT_DBG(2, "variable '%s' registered", arg.data.var.name);
+		FLT_OT_DBG(2, "variable '%s' registered", var_name);
 
 		retval = var_name_len;
 	}
@@ -359,6 +587,58 @@ int flt_ot_var_set(struct stream *s, const char *scope, const char *prefix, cons
 		FLT_OT_DBG(2, "variable '%s' set", var_name);
 
 		retval = var_name_len;
+
+		if (strcmp(scope, FLT_OT_VARS_SCOPE) == 0)
+			retval = flt_ot_ctx_set(s, scope, prefix, name, opt, err);
+	}
+
+	FLT_OT_RETURN_INT(retval);
+}
+
+
+/***
+ * NAME
+ *   flt_ot_vars_unset_cb -
+ *
+ * ARGUMENTS
+ *   smp      -
+ *   idx      -
+ *   scope    -
+ *   prefix   -
+ *   name     -
+ *   name_len -
+ *   err      -
+ *   ptr      -
+ *
+ * DESCRIPTION
+ *   -
+ *
+ * RETURN VALUE
+ *   -
+ */
+static int flt_ot_vars_unset_cb(struct sample *smp, size_t idx, const char *scope, const char *prefix, const char *name, FLT_OT_VAR_CTX_SIZE name_len, char **err, void *ptr)
+{
+	struct sample smp_ctx;
+	char          var_ctx[BUFSIZ];
+	int           var_ctx_len, retval = FLT_OT_RET_ERROR;
+
+	FLT_OT_FUNC("%p, %zu, \"%s\", \"%s\", \"%s\", %hhd, %p:%p, %p", smp, idx, scope, prefix, name, name_len, FLT_OT_DPTR_ARGS(err), ptr);
+
+	var_ctx_len = flt_ot_var_name(scope, prefix, name, 1, var_ctx, sizeof(var_ctx), err);
+	if (var_ctx_len == -1) {
+		FLT_OT_ERR("ctx '%s' invalid", name);
+
+		FLT_OT_RETURN_INT(retval);
+	}
+
+	flt_ot_smp_init(smp->strm, &smp_ctx, smp->opt, 0, NULL);
+
+	if (vars_unset_by_name_ifexist(var_ctx, var_ctx_len, &smp_ctx) == 0) {
+		FLT_OT_ERR("ctx '%s' no variable found", var_ctx);
+	} else {
+		FLT_OT_DBG(2, "ctx '%s' unset", var_ctx);
+
+		retval = 0;
 	}
 
 	FLT_OT_RETURN_INT(retval);
@@ -384,47 +664,122 @@ int flt_ot_var_set(struct stream *s, const char *scope, const char *prefix, cons
  */
 int flt_ot_vars_unset(struct stream *s, const char *scope, const char *prefix, uint opt, char **err)
 {
-	struct sample  smp;
-	struct vars   *vars;
-	struct var    *var, *var_back;
-	char           var_prefix[BUFSIZ], var_name[BUFSIZ];
-	uint           size;
-	int            var_prefix_len, var_name_len, retval = -1;
+	struct sample smp_ctx;
+	char          var_name[BUFSIZ];
+	int           var_name_len, retval;
 
 	FLT_OT_FUNC("%p, \"%s\", \"%s\", %u, %p:%p", s, scope, prefix, opt, FLT_OT_DPTR_ARGS(err));
 
-	vars = flt_ot_get_vars(s, scope);
-	if (vars == NULL)
-		FLT_OT_RETURN_INT(retval);
+	flt_ot_smp_init(s, &smp_ctx, opt, 0, NULL);
 
-	var_prefix_len = flt_ot_var_name(NULL, prefix, NULL, 0, var_prefix, sizeof(var_prefix), err);
-	if (var_prefix_len == -1)
-		FLT_OT_RETURN_INT(retval);
+	retval = flt_ot_ctx_loop(&smp_ctx, scope, prefix, err, flt_ot_vars_unset_cb, NULL);
+	if (retval != FLT_OT_RET_ERROR) {
+		/*
+		 * After all ctx variables have been unset, the variable used
+		 * to store their names should also be unset.
+		 */
+		var_name_len = flt_ot_var_name(scope, prefix, NULL, 0, var_name, sizeof(var_name), err);
+		if (var_name_len == -1)
+			FLT_OT_RETURN_INT(FLT_OT_RET_ERROR);
 
-	retval = 0;
+		flt_ot_smp_init(s, &smp_ctx, opt, 0, NULL);
 
-	vars_wrlock(vars);
-	list_for_each_entry_safe(var, var_back, &(vars->head), l) {
-		FLT_OT_DBG(3, "variable cmp '%s' '%s' %d", var_prefix, var->name, var_prefix_len);
+		if (vars_unset_by_name_ifexist(var_name, var_name_len, &smp_ctx) == 0) {
+			FLT_OT_DBG(2, "variable '%s' not found", var_name);
+		} else {
+			FLT_OT_DBG(2, "variable '%s' unset", var_name);
 
-		if (strncmp(var_prefix, var->name, var_prefix_len) == 0) {
-			var_name_len = snprintf(var_name, sizeof(var_name), "%s.%s", scope, var->name);
-			if ((var_name_len == -1) || (var_name_len >= sizeof(var_name))) {
-				FLT_OT_DBG(2, "'%s.%s' variable name too long", scope, var->name);
-
-				break;
-			}
-
-			FLT_OT_DBG(2, "- '%s' -> '%.*s'", var_name, (int)var->data.u.str.data, var->data.u.str.area);
-
-			size = var_clear(var, 1);
-			flt_ot_smp_init(s, &smp, opt, 0, NULL);
-			var_accounting_diff(vars, smp.sess, smp.strm, -size);
-
-			retval++;
+			retval = 1;
 		}
 	}
-	vars_wrunlock(vars);
+
+	FLT_OT_RETURN_INT(retval);
+}
+
+
+/***
+ * NAME
+ *   flt_ot_vars_get_cb -
+ *
+ * ARGUMENTS
+ *   smp      -
+ *   idx      -
+ *   scope    -
+ *   prefix   -
+ *   name     -
+ *   name_len -
+ *   err      -
+ *   ptr      -
+ *
+ * DESCRIPTION
+ *   -
+ *
+ * RETURN VALUE
+ *   -
+ */
+static int flt_ot_vars_get_cb(struct sample *smp, size_t idx, const char *scope, const char *prefix, const char *name, FLT_OT_VAR_CTX_SIZE name_len, char **err, void *ptr)
+{
+	struct otc_text_map **map = ptr;
+	struct sample         smp_ctx;
+	char                  var_ctx[BUFSIZ], ot_var_name[BUFSIZ], ch;
+	int                   var_ctx_len, ot_var_name_len, retval = FLT_OT_RET_ERROR;
+
+	FLT_OT_FUNC("%p, %zu, \"%s\", \"%s\", \"%s\", %hhd, %p:%p, %p", smp, idx, scope, prefix, name, name_len, FLT_OT_DPTR_ARGS(err), ptr);
+
+	var_ctx_len = flt_ot_var_name(scope, prefix, name, 1, var_ctx, sizeof(var_ctx), err);
+	if (var_ctx_len == -1) {
+		FLT_OT_ERR("ctx '%s' invalid", name);
+
+		FLT_OT_RETURN_INT(retval);
+	}
+
+	flt_ot_smp_init(smp->strm, &smp_ctx, smp->opt, 0, NULL);
+
+	if (vars_get_by_name(var_ctx, var_ctx_len, &smp_ctx, NULL) != 0) {
+		FLT_OT_DBG(2, "'%s' -> '%.*s'", var_ctx, (int)b_data(&(smp_ctx.data.u.str)), b_orig(&(smp_ctx.data.u.str)));
+
+		if (*map == NULL) {
+			*map = otc_text_map_new(NULL, 8);
+			if (*map == NULL) {
+				FLT_OT_ERR("failed to create map data");
+
+				FLT_OT_RETURN_INT(FLT_OT_RET_ERROR);
+			}
+		}
+
+		/*
+		 * Eh, because the use of some characters is not allowed
+		 * in the variable name, the conversion of the replaced
+		 * characters to the original is performed here.
+		 */
+		for (ot_var_name_len = 0; (ch = name[ot_var_name_len]) != '\0'; ot_var_name_len++)
+			if (ot_var_name_len >= (FLT_OT_TABLESIZE(ot_var_name) - 1)) {
+				FLT_OT_ERR("failed to reverse variable name, buffer too small");
+
+				otc_text_map_destroy(map, OTC_TEXT_MAP_FREE_KEY | OTC_TEXT_MAP_FREE_VALUE);
+
+				break;
+			} else {
+				ot_var_name[ot_var_name_len] = (ch == FLT_OT_VAR_CHAR_DASH) ? '-' : ((ch == FLT_OT_VAR_CHAR_SPACE) ? ' ' : ch);
+			}
+		ot_var_name[ot_var_name_len] = '\0';
+
+		if (*map == NULL) {
+			retval = FLT_OT_RET_ERROR;
+		}
+		else if (otc_text_map_add(*map, ot_var_name, ot_var_name_len, b_orig(&(smp_ctx.data.u.str)), b_data(&(smp_ctx.data.u.str)), OTC_TEXT_MAP_DUP_KEY | OTC_TEXT_MAP_DUP_VALUE) == -1) {
+			FLT_OT_ERR("failed to add map data");
+
+			otc_text_map_destroy(map, OTC_TEXT_MAP_FREE_KEY | OTC_TEXT_MAP_FREE_VALUE);
+
+			retval = FLT_OT_RET_ERROR;
+		}
+		else {
+			retval = 0;
+		}
+	} else {
+		FLT_OT_DBG(2, "ctx '%s' no variable found", var_ctx);
+	}
 
 	FLT_OT_RETURN_INT(retval);
 }
@@ -449,77 +804,14 @@ int flt_ot_vars_unset(struct stream *s, const char *scope, const char *prefix, u
  */
 struct otc_text_map *flt_ot_vars_get(struct stream *s, const char *scope, const char *prefix, uint opt, char **err)
 {
-	struct vars         *vars;
-	const struct var    *var;
-	char                 var_name[BUFSIZ], ot_var_name[BUFSIZ];
-	int                  rc, i;
+	struct sample        smp_ctx;
 	struct otc_text_map *retptr = NULL;
 
 	FLT_OT_FUNC("%p, \"%s\", \"%s\", %u, %p:%p", s, scope, prefix, opt, FLT_OT_DPTR_ARGS(err));
 
-	vars = flt_ot_get_vars(s, scope);
-	if (vars == NULL)
-		FLT_OT_RETURN_PTR(retptr);
+	flt_ot_smp_init(s, &smp_ctx, opt, 0, NULL);
 
-	rc = flt_ot_var_name(NULL, prefix, NULL, 0, var_name, sizeof(var_name), err);
-	if (rc == -1)
-		FLT_OT_RETURN_PTR(retptr);
-
-	vars_rdlock(vars);
-	list_for_each_entry(var, &(vars->head), l) {
-		FLT_OT_DBG(3, "variable cmp '%s' '%s' %d", var_name, var->name, rc);
-
-		if (strncmp(var_name, var->name, rc) == 0) {
-			FLT_OT_DBG(2, "'%s.%s' -> '%.*s'", scope, var->name, (int)var->data.u.str.data, var->data.u.str.area);
-
-			if (retptr == NULL) {
-				retptr = otc_text_map_new(NULL, 8);
-				if (retptr == NULL) {
-					FLT_OT_ERR("failed to create data");
-
-					break;
-				}
-			}
-
-			/*
-			 * Eh, because the use of some characters is not allowed
-			 * in the variable name, the conversion of the replaced
-			 * characters to the original is performed here.
-			 */
-			for (i = 0; ; )
-				if (i >= (FLT_OT_TABLESIZE(ot_var_name) - 1)) {
-					FLT_OT_ERR("failed to reverse variable name, buffer too small");
-
-					otc_text_map_destroy(&retptr, OTC_TEXT_MAP_FREE_KEY | OTC_TEXT_MAP_FREE_VALUE);
-
-					break;
-				} else {
-					char ch = var->name[rc + i + 1];
-
-					if (ch == '\0')
-						break;
-					else if (ch == FLT_OT_VAR_CHAR_DASH)
-						ch = '-';
-					else if (ch == FLT_OT_VAR_CHAR_SPACE)
-						ch = ' ';
-
-					ot_var_name[i++] = ch;
-				}
-			ot_var_name[i] = '\0';
-
-			if (retptr == NULL) {
-				break;
-			}
-			else if (otc_text_map_add(retptr, ot_var_name, i, var->data.u.str.area, var->data.u.str.data, OTC_TEXT_MAP_DUP_KEY | OTC_TEXT_MAP_DUP_VALUE) == -1) {
-				FLT_OT_ERR("failed to add map data");
-
-				otc_text_map_destroy(&retptr, OTC_TEXT_MAP_FREE_KEY | OTC_TEXT_MAP_FREE_VALUE);
-
-				break;
-			}
-		}
-	}
-	vars_rdunlock(vars);
+	(void)flt_ot_ctx_loop(&smp_ctx, scope, prefix, err, flt_ot_vars_get_cb, &retptr);
 
 	ot_text_map_show(retptr);
 
