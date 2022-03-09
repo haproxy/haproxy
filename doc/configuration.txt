@@ -14435,7 +14435,8 @@ check
       transport layer. This means TCP by default, or SSL/TLS when "ssl" or
       "check-ssl" are set, both possibly combined with connection prefixes such
       as a PROXY protocol header when "send-proxy" or "check-send-proxy" are
-      set.
+      set. This behavior is slightly different for dynamic servers, read the
+      following paragraphs for more details.
     - when set and an application-level health check is defined, the
       application-level exchanges are performed on top of the configured
       transport layer and the server is considered available if all of the
@@ -14448,6 +14449,11 @@ check
   server isn't checked on the service port, and configured encapsulation
   parameters are not reused. One must explicitly set "check-send-proxy" to send
   connection headers, "check-ssl" to use SSL/TLS.
+
+  Note that the implicit configuration of ssl and PROXY protocol is not
+  performed for dynamic servers. In this case, it is required to explicitely
+  use "check-ssl" and "check-send-proxy" when wanted, even if the check port is
+  not overridden.
 
   When "sni" or "alpn" are set on the server line, their value is not used for
   health checks and one must use "check-sni" or "check-alpn".

@@ -1566,22 +1566,33 @@ int init_srv_check(struct server *srv)
 
 	check_type = srv->check.tcpcheck_rules->flags & TCPCHK_RULES_PROTO_CHK;
 
-	/* If neither a port nor an addr was specified and no check transport
-	 * layer is forced, then the transport layer used by the checks is the
-	 * same as for the production traffic. Otherwise we use raw_sock by
-	 * default, unless one is specified.
-	 */
-	if (!srv->check.port && !is_addr(&srv->check.addr)) {
-		if (!srv->check.use_ssl && srv->use_ssl != -1) {
-			srv->check.use_ssl = srv->use_ssl;
-			srv->check.xprt    = srv->xprt;
+	if (!(srv->flags & SRV_F_DYNAMIC)) {
+		/* If neither a port nor an addr was specified and no check
+		 * transport layer is forced, then the transport layer used by
+		 * the checks is the same as for the production traffic.
+		 * Otherwise we use raw_sock by default, unless one is
+		 * specified.
+		 */
+		if (!srv->check.port && !is_addr(&srv->check.addr)) {
+			if (!srv->check.use_ssl && srv->use_ssl != -1) {
+				srv->check.use_ssl = srv->use_ssl;
+				srv->check.xprt    = srv->xprt;
+			}
+			else if (srv->check.use_ssl == 1)
+				srv->check.xprt = xprt_get(XPRT_SSL);
+			srv->check.send_proxy |= (srv->pp_opts);
 		}
 		else if (srv->check.use_ssl == 1)
 			srv->check.xprt = xprt_get(XPRT_SSL);
-		srv->check.send_proxy |= (srv->pp_opts);
 	}
-	else if (srv->check.use_ssl == 1)
-		srv->check.xprt = xprt_get(XPRT_SSL);
+	else {
+		/* For dynamic servers, check-ssl and check-send-proxy must be
+		 * explicitely defined even if the check port was not
+		 * overridden.
+		 */
+		if (srv->check.use_ssl == 1)
+			srv->check.xprt = xprt_get(XPRT_SSL);
+	}
 
 	/* Inherit the mux protocol from the server if not already defined for
 	 * the check
