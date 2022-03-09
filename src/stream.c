@@ -385,6 +385,8 @@ struct stream *stream_new(struct session *sess, struct conn_stream *cs, struct b
 	s->current_rule_list = NULL;
 	s->current_rule = NULL;
 	s->rules_exp = TICK_ETERNITY;
+	s->last_rule_file = NULL;
+	s->last_rule_line = 0;
 
 	/* Copy SC counters for the stream. We don't touch refcounts because
 	 * any reference we have is inherited from the session. Since the stream

@@ -182,6 +182,8 @@ struct stream {
 	struct list *current_rule_list;         /* this is used to store the current executed rule list. */
 	void *current_rule;                     /* this is used to store the current rule to be resumed. */
 	int rules_exp;                          /* expiration date for current rules execution */
+	const char *last_rule_file;             /* last evaluated final rule's file (def: NULL) */
+	int last_rule_line;                     /* last evaluated final rule's line (def: 0) */
 
 	unsigned int stream_epoch;              /* copy of stream_epoch when the stream was created */
 	struct hlua *hlua;                      /* lua runtime context */

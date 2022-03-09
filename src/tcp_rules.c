@@ -163,6 +163,8 @@ resume_execution:
 						break;
 					case ACT_RET_STOP:
 					case ACT_RET_DONE:
+						s->last_rule_file = rule->conf.file;
+						s->last_rule_line = rule->conf.line;
 						goto end;
 					case ACT_RET_YIELD:
 						s->current_rule = rule;
@@ -174,12 +176,20 @@ resume_execution:
 						}
 						goto missing_data;
 					case ACT_RET_DENY:
+						s->last_rule_file = rule->conf.file;
+						s->last_rule_line = rule->conf.line;
 						goto deny;
 					case ACT_RET_ABRT:
+						s->last_rule_file = rule->conf.file;
+						s->last_rule_line = rule->conf.line;
 						goto abort;
 					case ACT_RET_ERR:
+						s->last_rule_file = rule->conf.file;
+						s->last_rule_line = rule->conf.line;
 						goto internal;
 					case ACT_RET_INV:
+						s->last_rule_file = rule->conf.file;
+						s->last_rule_line = rule->conf.line;
 						goto invalid;
 				}
 				continue; /* eval the next rule */
@@ -187,9 +197,13 @@ resume_execution:
 
 			/* If not action function defined, check for known actions */
 			if (rule->action == ACT_ACTION_ALLOW) {
+				s->last_rule_file = rule->conf.file;
+				s->last_rule_line = rule->conf.line;
 				goto end;
 			}
 			else if (rule->action == ACT_ACTION_DENY) {
+				s->last_rule_file = rule->conf.file;
+				s->last_rule_line = rule->conf.line;
 				goto deny;
 			}
 		}
@@ -331,6 +345,8 @@ resume_execution:
 						break;
 					case ACT_RET_STOP:
 					case ACT_RET_DONE:
+						s->last_rule_file = rule->conf.file;
+						s->last_rule_line = rule->conf.line;
 						goto end;
 					case ACT_RET_YIELD:
 						s->current_rule = rule;
@@ -343,12 +359,20 @@ resume_execution:
 						channel_dont_close(rep);
 						goto missing_data;
 					case ACT_RET_DENY:
+						s->last_rule_file = rule->conf.file;
+						s->last_rule_line = rule->conf.line;
 						goto deny;
 					case ACT_RET_ABRT:
+						s->last_rule_file = rule->conf.file;
+						s->last_rule_line = rule->conf.line;
 						goto abort;
 					case ACT_RET_ERR:
+						s->last_rule_file = rule->conf.file;
+						s->last_rule_line = rule->conf.line;
 						goto internal;
 					case ACT_RET_INV:
+						s->last_rule_file = rule->conf.file;
+						s->last_rule_line = rule->conf.line;
 						goto invalid;
 				}
 				continue; /* eval the next rule */
@@ -356,9 +380,13 @@ resume_execution:
 
 			/* If not action function defined, check for known actions */
 			if (rule->action == ACT_ACTION_ALLOW) {
+				s->last_rule_file = rule->conf.file;
+				s->last_rule_line = rule->conf.line;
 				goto end;
 			}
 			else if (rule->action == ACT_ACTION_DENY) {
+				s->last_rule_file = rule->conf.file;
+				s->last_rule_line = rule->conf.line;
 				goto deny;
 			}
 			else if (rule->action == ACT_TCP_CLOSE) {
@@ -366,6 +394,8 @@ resume_execution:
 				si_must_kill_conn(chn_prod(rep));
 				si_shutr(chn_prod(rep));
 				si_shutw(chn_prod(rep));
+				s->last_rule_file = rule->conf.file;
+				s->last_rule_line = rule->conf.line;
 				goto end;
 			}
 		}
