@@ -1,10 +1,27 @@
 #!/bin/sh
 #
       _ARG_CFG="${1}"
-      _ARG_DIR="${2}"
+      _ARG_DIR="${2:-${1}}"
       _LOG_DIR="_logs"
 _HTTPD_PIDFILE="${_LOG_DIR}/thttpd.pid"
+    _USAGE_MSG="usage: $(basename "${0}") cfg [dir]"
 
+
+sh_exit ()
+{
+	test -z "${2}" && {
+		echo
+		echo "Script killed!"
+	}
+
+	test -n "${1}" && {
+		echo
+		echo "${1}"
+		echo
+	}
+
+	exit ${2:-64}
+}
 
 httpd_run ()
 {
@@ -63,18 +80,22 @@ wrk_run ()
 }
 
 
-mkdir -p "${_LOG_DIR}" || exit 1
+command -v thttpd >/dev/null 2>&1 || sh_exit "thttpd: command not found" 5
+command -v wrk >/dev/null 2>&1    || sh_exit "wrk: command not found" 6
+
+mkdir -p "${_LOG_DIR}" || sh_exit "${_LOG_DIR}: Cannot create log directory" 1
 
 if test "${_ARG_CFG}" = "all"; then
-	${0} fe-be fe > "${_LOG_DIR}/README-speed-fe-be"
-	${0} sa sa    > "${_LOG_DIR}/README-speed-sa"
-	${0} cmp cmp  > "${_LOG_DIR}/README-speed-cmp"
-	${0} ctx ctx  > "${_LOG_DIR}/README-speed-ctx"
+	"${0}" fe-be fe > "${_LOG_DIR}/README-speed-fe-be"
+	"${0}" sa sa    > "${_LOG_DIR}/README-speed-sa"
+	"${0}" cmp cmp  > "${_LOG_DIR}/README-speed-cmp"
+	"${0}" ctx ctx  > "${_LOG_DIR}/README-speed-ctx"
 	exit 0
 fi
 
-test -n "${_ARG_CFG}" -a -f "run-${_ARG_CFG}.sh" || exit 2
-test -n "${_ARG_DIR}" -a -d "${_ARG_DIR}"        || exit 3
+test -z "${_ARG_CFG}" -o -z "${_ARG_DIR}" && sh_exit "${_USAGE_MSG}" 4
+test -f "run-${_ARG_CFG}.sh"              || sh_exit "run-${_ARG_CFG}.sh: No such configuration script" 2
+test -d "${_ARG_DIR}"                     || sh_exit "${_ARG_DIR}: No such directory" 3
 
 test -e "${_ARG_DIR}/haproxy.cfg.in" || cp -af "${_ARG_DIR}/haproxy.cfg" "${_ARG_DIR}/haproxy.cfg.in"
 test -e "${_ARG_DIR}/ot.cfg.in"      || cp -af "${_ARG_DIR}/ot.cfg" "${_ARG_DIR}/ot.cfg.in"

@@ -3,7 +3,7 @@
 _ARG_HAPROXY="${1:-$(realpath -L ${PWD}/../../../haproxy)}"
        _ARGS="-f sa/haproxy.cfg"
     _LOG_DIR="_logs"
-        _LOG="${_LOG_DIR}/_log-$(basename ${0} .sh)-$(date +%s)"
+        _LOG="${_LOG_DIR}/_log-$(basename "${0}" .sh)-$(date +%s)"
 
 
 test -x "${_ARG_HAPROXY}" || exit 1

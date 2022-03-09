@@ -5,8 +5,8 @@ _ARG_HAPROXY="${1:-$(realpath -L ${PWD}/../../../haproxy)}"
     _ARGS_BE="-f be/haproxy.cfg"
        _TIME="$(date +%s)"
     _LOG_DIR="_logs"
-     _LOG_FE="${_LOG_DIR}/_log-$(basename ${0} fe-be.sh)fe-${_TIME}"
-     _LOG_BE="${_LOG_DIR}/_log-$(basename ${0} fe-be.sh)be-${_TIME}"
+     _LOG_FE="${_LOG_DIR}/_log-$(basename "${0}" fe-be.sh)fe-${_TIME}"
+     _LOG_BE="${_LOG_DIR}/_log-$(basename "${0}" fe-be.sh)be-${_TIME}"
 
 
 __exit ()
