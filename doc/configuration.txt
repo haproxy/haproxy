@@ -17840,6 +17840,34 @@ ipv4(<ipv4>) : ipv4
 ipv6(<ipv6>) : ipv6
   Returns an ipv6.
 
+last_rule_file: string
+  This returns the name of the configuration file containing the last final
+  rule that was matched during stream analysis. A final rule is one that
+  terminates the evaluation of the rule set (like an "accept", "deny" or
+  "redirect"). This works for TCP request and response rules acting on the
+  "content" rulesets, and on HTTP rules from "http-request", "http-response"
+  and "http-after-response" rule sets. The legacy "redirect" rulesets are not
+  supported (such information is not stored there), and neither "tcp-request
+  connection" nor "tcp-request session" rulesets are supported because the
+  information is stored at the stream level and streams do not exist during
+  these rules. The main purpose of this function is to be able to report in
+  logs where was the rule that gave the final verdict, in order to help
+  figure why a request was denied for example. See also "last_rule_line".
+
+last_rule_line: integer
+  This returns the line number in the configuration file where is located the
+  last final rule that was matched during stream analysis. A final rule is one
+  that terminates the evaluation of the rule set (like an "accept", "deny" or
+  "redirect"). This works for TCP request and response rules acting on the
+  "content" rulesets, and on HTTP rules from "http-request", "http-response"
+  and "http-after-response" rule sets. The legacy "redirect" rulesets are not
+  supported (such information is not stored there), and neither "tcp-request
+  connection" nor "tcp-request session" rulesets are supported because the
+  information is stored at the stream level and streams do not exist during
+  these rules. The main purpose of this function is to be able to report in
+  logs where was the rule that gave the final verdict, in order to help
+  figure why a request was denied for example. See also "last_rule_file".
+
 lat_ns_avg : integer
   Returns the average number of nanoseconds spent between the moment the task
   handling the stream is woken up and the moment it is effectively called. This

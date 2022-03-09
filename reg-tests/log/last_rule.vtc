@@ -1,0 +1,165 @@
+varnishtest "Verify logging of last final rule"
+feature ignore_unknown_macro
+
+#REQUIRE_VERSION=2.6
+
+server s1 {
+    rxreq
+    txresp
+} -repeat 15 -start
+
+syslog Slg_1 -level info {
+    recv
+    # /trqacc1
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: .* lr=.*/h1/cfg:30"
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: .* lr=.*/h1/cfg:31"
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: .* lr=.*/h1/cfg:32"
+    recv
+    # /trsacc1
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: .* lr=.*/h1/cfg:36"
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: .* lr=.*/h1/cfg:37"
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: .* lr=.*/h1/cfg:38"
+    recv
+    # /hrqvar
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: .* lr=.*-:-"
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: .* lr=.*/h1/cfg:41"
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: .* lr=.*/h1/cfg:42"
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: .* lr=.*/h1/cfg:43"
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: .* lr=.*/h1/cfg:44"
+    recv
+    # /hrsacc1
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: .* lr=.*/h1/cfg:46"
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: .* lr=.*/h1/cfg:47"
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: .* lr=.*/h1/cfg:48"
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: .* lr=.*/h1/cfg:49"
+} -start
+
+haproxy h1 -conf {
+    global
+        nbthread 1
+
+    defaults
+        mode http
+        option httplog
+	option http-server-close
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe1
+        bind "fd@${fe_1}"
+        log ${Slg_1_addr}:${Slg_1_port} local0
+        log-format "ci:%cp [%tr] lr=%[last_rule_file]:%[last_rule_line]"
+        default_backend be
+
+    backend be
+        # handle these URLs:
+	#  /trqacc1, /trqrej1, /trqrej2, /trsacc1, /trsrej1, /trsrej2
+	#  /hrqvar, /hrqacc1, /hrqred1, /hrqrej1, /hrqrej2,
+	#  /hrsacc1, /hrsred1, /hrsrej1, /hrsrej2
+
+	tcp-response inspect-delay 10s
+        tcp-request  content set-var(txn.path) path  # must have no effect
+        tcp-request  content accept if { var(txn.path) -m beg /trqacc1 /hrqrej1 }
+        tcp-request  content reject if { var(txn.path) -m beg /trqrej1 }
+        tcp-request  content reject if { var(txn.path) -m beg /trqrej2 }
+
+	tcp-response content reject unless WAIT_END
+        tcp-response content set-var(txn.foo) var(txn.path) # must have no effect
+        tcp-response content accept if { var(txn.path) -m beg /trsacc1 /hrsrej1 }
+        tcp-response content reject if { var(txn.path) -m beg /trsrej1 }
+        tcp-response content reject if { var(txn.path) -m beg /trsrej2 }
+
+        http-request set-var(txn.bar) var(txn.path) if { path_beg /hrqvar }  # must have no effect
+        http-request allow if { var(txn.path) -m beg /hrqacc1 /hrsrej2 }
+        http-request redirect location / if { var(txn.path) -m beg /hrqred1 }
+        http-request deny if { var(txn.path) -m beg /hrqrej1 } # accepted by tcp-rq above
+        http-request deny if { var(txn.path) -m beg /hrqrej2 }
+
+        http-response allow if { var(txn.path) -m beg /hrsacc1 }
+        http-response redirect location / if { var(txn.path) -m beg /hrsred1 }
+        http-response deny if { var(txn.path) -m beg /hrsrej1 } # accepted by tcp-rs above
+        http-response deny if { var(txn.path) -m beg /hrsrej2 } # accepted by http-rq above
+        http-response deny if { var(txn.path) -m beg /hrsrej3 }
+
+        server app1 ${s1_addr}:${s1_port}
+} -start
+
+client c1 -connect ${h1_fe_1_sock} {
+    txreq -url /trqacc1
+    rxresp
+
+    txreq -url /trqrej1
+    expect_close
+} -run
+
+# The following client are started in background and synchronized
+client c2 -connect ${h1_fe_1_sock} {
+    txreq -url /trqrej2
+    expect_close
+} -run
+
+client c3 -connect ${h1_fe_1_sock} {
+    txreq -url /trsacc1
+    rxresp
+    expect resp.status == 200
+
+    txreq -url /trsrej1
+    expect_close
+} -run
+
+client c4 -connect ${h1_fe_1_sock} {
+    txreq -url /trsrej2
+    expect_close
+} -run
+
+client c5 -connect ${h1_fe_1_sock} {
+    txreq -url /hrqvar
+    rxresp
+    expect resp.status == 200
+
+    txreq -url /hrqacc1
+    rxresp
+    expect resp.status == 200
+
+    txreq -url /hrqred1
+    rxresp
+    expect resp.status == 302
+
+    txreq -url /hrqrej1
+    rxresp
+    expect resp.status == 403
+
+    txreq -url /hrqrej2
+    rxresp
+    expect resp.status == 403
+
+    txreq -url /hrsacc1
+    rxresp
+    expect resp.status == 200
+
+    txreq -url /hrsred1
+    rxresp
+    expect resp.status == 302
+
+    txreq -url /hrsrej1
+    rxresp
+    expect resp.status == 502
+
+    txreq -url /hrsrej2
+    rxresp
+    expect resp.status == 502
+} -run
+
+syslog Slg_1 -wait

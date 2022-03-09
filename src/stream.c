@@ -3849,12 +3849,38 @@ static int smp_fetch_cur_tunnel_timeout(const struct arg *args, struct sample *s
 	return 1;
 }
 
+static int smp_fetch_last_rule_file(const struct arg *args, struct sample *smp, const char *km, void *private)
+{
+	smp->flags = SMP_F_VOL_TXN;
+	smp->data.type = SMP_T_STR;
+	if (!smp->strm || !smp->strm->last_rule_file)
+		return 0;
+
+	smp->flags |= SMP_F_CONST;
+	smp->data.u.str.area = (char *)smp->strm->last_rule_file;
+	smp->data.u.str.data = strlen(smp->strm->last_rule_file);
+	return 1;
+}
+
+static int smp_fetch_last_rule_line(const struct arg *args, struct sample *smp, const char *km, void *private)
+{
+	smp->flags = SMP_F_VOL_TXN;
+	smp->data.type = SMP_T_SINT;
+	if (!smp->strm || !smp->strm->last_rule_line)
+		return 0;
+
+	smp->data.u.sint = smp->strm->last_rule_line;
+	return 1;
+}
+
 /* Note: must not be declared <const> as its list will be overwritten.
  * Please take care of keeping this list alphabetically sorted.
  */
 static struct sample_fetch_kw_list smp_kws = {ILH, {
 	{ "cur_server_timeout", smp_fetch_cur_server_timeout, 0, NULL, SMP_T_SINT, SMP_USE_BKEND, },
 	{ "cur_tunnel_timeout", smp_fetch_cur_tunnel_timeout, 0, NULL, SMP_T_SINT, SMP_USE_BKEND, },
+	{ "last_rule_file",     smp_fetch_last_rule_file,     0, NULL, SMP_T_STR,  SMP_USE_INTRN, },
+	{ "last_rule_line",     smp_fetch_last_rule_line,     0, NULL, SMP_T_SINT, SMP_USE_INTRN, },
 	{ NULL, NULL, 0, 0, 0 },
 }};
 
