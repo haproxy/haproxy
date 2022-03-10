@@ -119,6 +119,15 @@ static inline struct quic_pktns *quic_loss_pktns(struct quic_conn *qc)
 	return pktns;
 }
 
+/* Return the PTO associated to <pktns> packet number space for <qc> connection */
+static inline unsigned int quic_pto(struct quic_conn *qc)
+{
+	struct quic_loss *ql = &qc->path->loss;
+
+	return (ql->srtt >> 3) + QUIC_MAX(ql->rtt_var, QUIC_TIMER_GRANULARITY) +
+		HA_ATOMIC_LOAD(&qc->state) >= QUIC_HS_ST_COMPLETE ? qc->max_ack_delay : 0;
+}
+
 /* Returns for <qc> QUIC connection the first packet number space to
  * arm the PTO for if any or a packet number space with TICK_ETERNITY
  * as PTO value if not.
