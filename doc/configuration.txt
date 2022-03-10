@@ -17775,32 +17775,6 @@ date_us : integer
   date sample). This sample is coherent with the date sample as it is comes
   from the same timeval structure.
 
-distcc_body(<token>[,<occ>]) : binary
-  Parses a distcc message and returns the body associated to occurrence #<occ>
-  of the token <token>. Occurrences start at 1, and when unspecified, any may
-  match though in practice only the first one is checked for now. This can be
-  used to extract file names or arguments in files built using distcc through
-  HAProxy. Please refer to distcc's protocol documentation for the complete
-  list of supported tokens.
-
-distcc_param(<token>[,<occ>]) : integer
-  Parses a distcc message and returns the parameter associated to occurrence
-  #<occ> of the token <token>. Occurrences start at 1, and when unspecified,
-  any may match though in practice only the first one is checked for now. This
-  can be used to extract certain information such as the protocol version, the
-  file size or the argument in files built using distcc through HAProxy.
-  Another use case consists in waiting for the start of the preprocessed file
-  contents before connecting to the server to avoid keeping idle connections.
-  Please refer to distcc's protocol documentation for the complete list of
-  supported tokens.
-
-  Example :
-      # wait up to 20s for the pre-processed file to be uploaded
-      tcp-request inspect-delay 20s
-      tcp-request content accept if { distcc_param(DOTI) -m found }
-      # send large files to the big farm
-      use_backend big_farm if { distcc_param(DOTI) gt 1000000 }
-
 env(<name>) : string
   Returns a string containing the value of environment variable <name>. As a
   reminder, environment variables are per-process and are sampled when the
@@ -19696,6 +19670,32 @@ Warning : Following sample fetches are ignored if used from HTTP proxies. They
           one of the following sample fetches. But it is not possible to detect
           all invalid usage (for instance inside a log-format string or a
           sample expression). So be careful.
+
+distcc_body(<token>[,<occ>]) : binary
+  Parses a distcc message and returns the body associated to occurrence #<occ>
+  of the token <token>. Occurrences start at 1, and when unspecified, any may
+  match though in practice only the first one is checked for now. This can be
+  used to extract file names or arguments in files built using distcc through
+  HAProxy. Please refer to distcc's protocol documentation for the complete
+  list of supported tokens.
+
+distcc_param(<token>[,<occ>]) : integer
+  Parses a distcc message and returns the parameter associated to occurrence
+  #<occ> of the token <token>. Occurrences start at 1, and when unspecified,
+  any may match though in practice only the first one is checked for now. This
+  can be used to extract certain information such as the protocol version, the
+  file size or the argument in files built using distcc through HAProxy.
+  Another use case consists in waiting for the start of the preprocessed file
+  contents before connecting to the server to avoid keeping idle connections.
+  Please refer to distcc's protocol documentation for the complete list of
+  supported tokens.
+
+  Example :
+      # wait up to 20s for the pre-processed file to be uploaded
+      tcp-request inspect-delay 20s
+      tcp-request content accept if { distcc_param(DOTI) -m found }
+      # send large files to the big farm
+      use_backend big_farm if { distcc_param(DOTI) gt 1000000 }
 
 payload(<offset>,<length>) : binary (deprecated)
   This is an alias for "req.payload" when used in the context of a request (e.g.
