@@ -740,7 +740,7 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 				htx = htxbuf(&res->buf);
 				if (!htx)
 					goto more;
-				blk = htx_get_first_blk(htx);
+				blk = htx_get_head_blk(htx);
 				if (blk && (htx_get_blk_type(blk) == HTX_BLK_RES_SL))
 					sl = htx_get_blk_ptr(htx, blk);
 				if (!sl || (!(sl->flags & HTX_SL_F_IS_RESP)))
@@ -782,7 +782,7 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 
 					hdr_num = 0;
 
-					for (pos = htx_get_first(htx);  pos != -1; pos = htx_get_next(htx, pos)) {
+					for (pos = htx_get_head(htx);  pos != -1; pos = htx_get_next(htx, pos)) {
 						struct htx_blk *blk = htx_get_blk(htx, pos);
 						enum htx_blk_type type = htx_get_blk_type(blk);
 						uint32_t sz = htx_get_blksz(blk);
@@ -853,7 +853,7 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 					goto process_data;
 
 				/* decapsule the htx data to raw data */
-				for (pos = htx_get_first(htx); pos != -1; pos = htx_get_next(htx, pos)) {
+				for (pos = htx_get_head(htx); pos != -1; pos = htx_get_next(htx, pos)) {
 					struct htx_blk *blk = htx_get_blk(htx, pos);
 					enum htx_blk_type type = htx_get_blk_type(blk);
 					size_t count = co_data(res);
