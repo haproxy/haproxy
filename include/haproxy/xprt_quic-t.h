@@ -391,6 +391,10 @@ struct quic_arngs {
 #define QUIC_FL_PKTNS_ACK_RECEIVED_BIT 0
 #define QUIC_FL_PKTNS_ACK_RECEIVED  (1UL << QUIC_FL_PKTNS_ACK_RECEIVED_BIT)
 
+/* Flag the packet number space as requiring an ACK frame to be sent. */
+#define QUIC_FL_PKTNS_ACK_REQUIRED_BIT 1
+#define QUIC_FL_PKTNS_ACK_REQUIRED  (1UL << QUIC_FL_PKTNS_ACK_REQUIRED_BIT)
+
 /* The maximum number of dgrams which may be sent upon PTO expirations. */
 #define QUIC_MAX_NB_PTO_DGRAMS         2
 
@@ -642,10 +646,6 @@ enum qc_mux_state {
 /* The number of buffers for outgoing packets (must be a power of two). */
 #define QUIC_CONN_TX_BUFS_NB 8
 #define QUIC_CONN_TX_BUF_SZ  QUIC_PACKET_MAXLEN
-
-/* Flag the packet number space as requiring an ACK frame to be sent. */
-#define QUIC_FL_PKTNS_ACK_REQUIRED_BIT 0
-#define QUIC_FL_PKTNS_ACK_REQUIRED  (1UL << QUIC_FL_PKTNS_ACK_REQUIRED_BIT)
 
 /* Flags at connection level */
 #define QUIC_FL_CONN_ANTI_AMPLIFICATION_REACHED_BIT 0
