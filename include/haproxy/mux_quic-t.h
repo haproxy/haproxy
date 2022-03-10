@@ -58,7 +58,6 @@ struct qcc {
 	} rx;
 	struct {
 		uint64_t max_data; /* Maximum number of bytes which may be sent */
-		struct list frms; /* list of frames ready to be sent */
 	} tx;
 
 	struct eb_root streams_by_id; /* all active streams by their ID */
@@ -92,7 +91,8 @@ struct qcs {
 		struct buffer app_buf; /* receive buffer used by conn_stream layer */
 	} rx;
 	struct {
-		uint64_t offset;   /* the current offset of received data */
+		uint64_t offset; /* last offset of data ready to be sent */
+		uint64_t sent_offset; /* last offset sent by transport layer */
 		struct eb_root acked_frms; /* acked frames ordered by their offsets */
 		uint64_t ack_offset; /* last acked ordered byte offset */
 		struct buffer buf; /* transmit buffer before sending via xprt */
