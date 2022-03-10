@@ -450,6 +450,16 @@ static int qc_send(struct qcc *qcc)
 		struct qcs *qcs = container_of(node, struct qcs, by_id);
 		struct buffer *buf = &qcs->tx.buf;
 
+		/* TODO
+		 * for the moment, unidirectional streams have their own
+		 * mechanism for sending. This should be unified in the future,
+		 * in this case the next check will be removed.
+		 */
+		if (quic_stream_is_uni(qcs->by_id.key)) {
+			node = eb64_next(node);
+			continue;
+		}
+
 		if (b_data(buf)) {
 			char fin = qcs->flags & QC_SF_FIN_STREAM;
 			ret = qcs_push_frame(qcs, buf, fin, qcs->tx.offset,
