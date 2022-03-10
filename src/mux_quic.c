@@ -400,6 +400,19 @@ static int qcs_push_frame(struct qcs *qcs, struct buffer *payload, int fin, uint
 	return -1;
 }
 
+/* This function must be called by the upper layer to inform about the sending
+ * of a STREAM frame for <qcs> instance. The frame is of <data> length and on
+ * <offset>.
+ */
+void qcc_streams_sent_done(struct qcs *qcs, uint64_t data, uint64_t offset)
+{
+	/* check if the STREAM frame has already been notified. It can happen
+	 * for retransmission.
+	 */
+	if (offset + data <= qcs->tx.sent_offset)
+		return;
+}
+
 /* Wrapper for send on transport layer. Send a list of frames <frms> for the
  * connection <qcc>.
  *

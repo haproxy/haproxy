@@ -4889,6 +4889,10 @@ static inline int qc_build_frms(struct list *outlist, struct list *inlist,
 				/* <cf> STREAM data have been consumed. */
 				LIST_DELETE(&cf->list);
 				LIST_APPEND(outlist, &cf->list);
+
+				qcc_streams_sent_done(cf->stream.qcs,
+				                      cf->stream.len,
+				                      cf->stream.offset.key);
 			}
 			else {
 				struct quic_frame *new_cf;
@@ -4920,7 +4924,20 @@ static inline int qc_build_frms(struct list *outlist, struct list *inlist,
 				cf->stream.len -= dlen;
 				cf->stream.offset.key += dlen;
 				cf->stream.data = (unsigned char *)b_peek(&cf_buf, dlen);
+
+				qcc_streams_sent_done(new_cf->stream.qcs,
+				                      new_cf->stream.len,
+				                      new_cf->stream.offset.key);
 			}
+
+			/* TODO the MUX is notified about the frame sending via
+			 * previous qcc_streams_sent_done call. However, the
+			 * sending can fail later, for example if the sendto
+			 * system call returns an error. As the MUX has been
+			 * notified, the transport layer is responsible to
+			 * bufferize and resent the announced data later.
+			 */
+
 			break;
 
 		default:
