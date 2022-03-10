@@ -407,24 +407,54 @@ static int qcs_push_frame(struct qcs *qcs, struct buffer *payload, int fin, uint
  */
 static int qc_send_frames(struct qcc *qcc, struct list *frms)
 {
-	void *first_frm = NULL;
+	/* TODO implement an opportunistic retry mechanism. This is needed
+	 * because qc_send_app_pkts is not completed. It will only prepare data
+	 * up to its Tx buffer. The frames left are not send even if the Tx
+	 * buffer is emptied by the sendto call.
+	 *
+	 * To overcome this, we call repeatedly qc_send_app_pkts until we
+	 * detect that the transport layer has send nothing. This could happen
+	 * on congestion or sendto syscall error.
+	 *
+	 * When qc_send_app_pkts is improved to handle retry by itself, we can
+	 * remove the looping from the MUX.
+	 */
+	struct quic_frame *first_frm;
+	uint64_t first_offset = 0;
+	char first_stream_frame_type;
 
  retry_send:
+	first_frm = LIST_ELEM(frms->n, struct quic_frame *, list);
+	if ((first_frm->type & QUIC_FT_STREAM_8) == QUIC_FT_STREAM_8) {
+		first_offset = first_frm->stream.offset.key;
+		first_stream_frame_type = 1;
+	}
+	else {
+		first_stream_frame_type = 0;
+	}
+
 	if (!LIST_ISEMPTY(frms))
 		qc_send_app_pkts(qcc->conn->qc, frms);
 
-	/* if the frame list is not empty, retry immediatly to send. Remember
-	 * the first frame in the list : if the pointer did not advance, it
-	 * means the transport layer is blocked.
-	 *
-	 * TODO implement immediate retry on transport layer. This way on mux
-	 * always subscribe if the list is not empty.
+	/* If there is frames left, check if the transport layer has send some
+	 * data or is blocked.
 	 */
-	if (!LIST_ISEMPTY(frms) && first_frm != frms->n) {
-		first_frm = frms->n;
-		goto retry_send;
+	if (!LIST_ISEMPTY(frms)) {
+		if (first_frm != LIST_ELEM(frms->n, struct quic_frame *, list))
+			goto retry_send;
+
+		/* If the first frame is STREAM, check if its offset has
+		 * changed.
+		 */
+		if (first_stream_frame_type &&
+		    first_offset != LIST_ELEM(frms->n, struct quic_frame *, list)->stream.offset.key) {
+			goto retry_send;
+		}
 	}
 
+	/* If there is frames left at this stage, transport layer is blocked.
+	 * Subscribe on it to retry later.
+	 */
 	if (!LIST_ISEMPTY(frms)) {
 		fprintf(stderr, "%s: remaining frames to send\n", __func__);
 		qcc->conn->xprt->subscribe(qcc->conn, qcc->conn->xprt_ctx,
