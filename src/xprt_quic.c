@@ -2456,7 +2456,8 @@ static inline void qc_set_dg(struct cbuf *cbuf,
  * <frms> list of prebuilt frames.
  * A header made of two fields is added to each datagram: the datagram length followed
  * by the address of the first packet in this datagram.
- * Returns 1 if succeeded, or 0 if something wrong happened.
+ * Returns the number of bytes prepared in packets if succeeded (may be 0),
+ * or -1 if something wrong happened.
  */
 static int qc_prep_app_pkts(struct quic_conn *qc, struct qring *qr,
                             struct list *frms)
@@ -2576,7 +2577,8 @@ static int qc_prep_app_pkts(struct quic_conn *qc, struct qring *qr,
  * several packets in the same datagram. A header made of two fields is added
  * to each datagram: the datagram length followed by the address of the first
  * packet in this datagram.
- * Returns 1 if succeeded, or 0 if something wrong happened.
+ * Returns the number of bytes prepared in packets if succeeded (may be 0),
+ * or -1 if something wrong happened.
  */
 static int qc_prep_pkts(struct quic_conn *qc, struct qring *qr,
                         enum quic_tls_enc_level tel,
