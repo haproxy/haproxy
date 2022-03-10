@@ -2527,7 +2527,7 @@ static int qc_prep_app_pkts(struct quic_conn *qc, struct qring *qr,
 		case -2:
 			goto err;
 		case -1:
-			goto out;
+			goto stop_build;
 		default:
 			break;
 		}
