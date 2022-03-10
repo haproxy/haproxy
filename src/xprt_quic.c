@@ -174,6 +174,7 @@ static struct quic_tx_packet *qc_build_pkt(unsigned char **pos, const unsigned c
                                            struct quic_conn *qc, size_t dglen, int pkt_type,
                                            int padding, int ack, int probe, int cc, int *err);
 static struct task *quic_conn_app_io_cb(struct task *t, void *context, unsigned int state);
+static void qc_idle_timer_rearm(struct quic_conn *qc, int read);
 
 /* Only for debug purpose */
 struct enc_debug_info {
@@ -2827,6 +2828,8 @@ int qc_send_ppkts(struct qring *qr, struct ssl_sock_ctx *ctx)
 			if (pkt->flags & QUIC_FL_TX_PACKET_ACK_ELICITING) {
 				pkt->pktns->tx.time_of_last_eliciting = time_sent;
 				qc->path->ifae_pkts++;
+				if (qc->flags & QUIC_FL_CONN_IDLE_TIMER_RESTARTED_AFTER_READ)
+					qc_idle_timer_rearm(qc, 0);
 			}
 			qc->path->in_flight += pkt->in_flight_len;
 			pkt->pktns->tx.in_flight += pkt->in_flight_len;
@@ -3203,9 +3206,11 @@ int qc_treat_rx_pkts(struct quic_enc_level *cur_el, struct quic_enc_level *next_
 			else {
 				struct quic_arng ar = { .first = pkt->pn, .last = pkt->pn };
 
-				if (pkt->flags & QUIC_FL_RX_PACKET_ACK_ELICITING &&
-				    (!(HA_ATOMIC_ADD_FETCH(&qc->rx.nb_ack_eliciting, 1) & 1) || force_ack))
-					HA_ATOMIC_BTS(&qel->pktns->flags, QUIC_FL_PKTNS_ACK_REQUIRED_BIT);
+				if (pkt->flags & QUIC_FL_RX_PACKET_ACK_ELICITING) {
+					if (!(HA_ATOMIC_ADD_FETCH(&qc->rx.nb_ack_eliciting, 1) & 1) || force_ack)
+						HA_ATOMIC_BTS(&qel->pktns->flags, QUIC_FL_PKTNS_ACK_REQUIRED_BIT);
+					qc_idle_timer_rearm(qc, 1);
+				}
 				if (pkt->pn > largest_pn)
 					largest_pn = pkt->pn;
 				/* Update the list of ranges to acknowledge. */
@@ -3525,6 +3530,11 @@ static void quic_conn_release(struct quic_conn *qc)
 	int i;
 	struct ssl_sock_ctx *conn_ctx;
 
+	if (qc->idle_timer_task) {
+		task_destroy(qc->idle_timer_task);
+		qc->idle_timer_task = NULL;
+	}
+
 	if (qc->timer_task) {
 		task_destroy(qc->timer_task);
 		qc->timer_task = NULL;
@@ -3561,12 +3571,6 @@ void quic_close(struct connection *conn, void *xprt_ctx)
 	qc->mux_state = QC_MUX_RELEASED;
 
 	TRACE_LEAVE(QUIC_EV_CONN_CLOSE, qc);
-
-	/* TODO for now release the quic_conn on notification by the upper
-	 * layer. It could be useful to delay it if there is remaining data to
-	 * send or data to be acked.
-	 */
-	quic_conn_release(qc);
 }
 
 /* Callback called upon loss detection and PTO timer expirations. */
@@ -3771,6 +3775,50 @@ static int quic_conn_init_timer(struct quic_conn *qc)
 	qc->timer = TICK_ETERNITY;
 	qc->timer_task->process = process_timer;
 	qc->timer_task->context = qc->xprt_ctx;
+
+	return 1;
+}
+
+/* Rearm the idle timer for <qc> QUIC connection depending on <read> boolean
+ * which is set to 1 when receiving a packet , and 0 when sending packet
+ */
+static void qc_idle_timer_rearm(struct quic_conn *qc, int read)
+{
+	unsigned int expire;
+
+	expire = QUIC_MAX(3 * quic_pto(qc), qc->max_idle_timeout);
+	if (read) {
+		qc->flags |= QUIC_FL_CONN_IDLE_TIMER_RESTARTED_AFTER_READ;
+	}
+	else {
+		qc->flags &= ~QUIC_FL_CONN_IDLE_TIMER_RESTARTED_AFTER_READ;
+	}
+	qc->idle_timer_task->expire = tick_add(now_ms, MS_TO_TICKS(expire));
+}
+
+/* The task handling the idle timeout */
+static struct task *qc_idle_timer_task(struct task *t, void *ctx, unsigned int state)
+{
+	struct quic_conn *qc = ctx;
+
+	quic_conn_release(qc);
+
+	return NULL;
+}
+
+/* Initialize the idle timeout task for <qc>.
+ * Returns 1 if succeeded, 0 if not.
+ */
+static int quic_conn_init_idle_timer_task(struct quic_conn *qc)
+{
+	qc->idle_timer_task = task_new_here();
+	if (!qc->idle_timer_task)
+		return 0;
+
+	qc->idle_timer_task->process = qc_idle_timer_task;
+	qc->idle_timer_task->context = qc;
+	qc_idle_timer_rearm(qc, 1);
+	task_queue(qc->idle_timer_task);
 
 	return 1;
 }
@@ -4436,6 +4484,9 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 				goto err;
 
 			if (!quic_conn_init_timer(qc))
+				goto err;
+
+			if (!quic_conn_init_idle_timer_task(qc))
 				goto err;
 
 			/* NOTE: the socket address has been concatenated to the destination ID
