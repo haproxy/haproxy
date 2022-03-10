@@ -5193,7 +5193,7 @@ static struct quic_tx_packet *qc_build_pkt(unsigned char **pos,
 	/* Consume a packet number */
 	qel->pktns->tx.next_pn++;
 	qc->tx.prep_bytes += pkt->len;
-	if (qc->tx.prep_bytes >= 3 * qc->rx.bytes)
+	if (qc->tx.prep_bytes >= 3 * qc->rx.bytes && !quic_peer_validated_addr(qc))
 		HA_ATOMIC_OR(&qc->flags, QUIC_FL_CONN_ANTI_AMPLIFICATION_REACHED);
 	/* Now that a correct packet is built, let us consume <*pos> buffer. */
 	*pos = end;
