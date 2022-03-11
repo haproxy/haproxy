@@ -913,7 +913,7 @@ static inline int b_peek_varint(struct buffer *b, size_t ofs, uint64_t *vptr)
 	uint64_t v = 0;
 	int bits = 0;
 
-	BUG_ON_HOT(ofs > data);
+	BUG_ON_HOT(ofs > b_data(b));
 
 	if (data != 0 && (*head >= 0xF0)) {
 		v = *head;
