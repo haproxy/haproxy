@@ -1,7 +1,7 @@
 varnishtest "Verify logging of last final rule"
-feature ignore_unknown_macro
 
-#REQUIRE_VERSION=2.6
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.6-dev0)'"
+feature ignore_unknown_macro
 
 server s1 {
     rxreq
