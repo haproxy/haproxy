@@ -1,6 +1,127 @@
 ChangeLog :
 ===========
 
+2022/03/11 : 2.6-dev3
+    - DEBUG: rename WARN_ON_ONCE() to CHECK_IF()
+    - DEBUG: improve BUG_ON output message accuracy
+    - DEBUG: implement 4 levels of choices between warn and crash.
+    - DEBUG: add two new macros to enable debugging in hot paths
+    - DEBUG: buf: replace some sensitive BUG_ON() with BUG_ON_HOT()
+    - DEBUG: buf: add BUG_ON_HOT() to most buffer management functions
+    - MINOR: channel: don't use co_set_data() to decrement output
+    - DEBUG: channel: add consistency checks using BUG_ON_HOT() in some key functions
+    - MINOR: conn-stream: Improve API to have safe/unsafe accessors
+    - MEDIUM: tree-wide: Use unsafe conn-stream API when it is relevant
+    - CLEANUP: stream-int: Make si_cs_send() function static
+    - REORG: stream-int: Uninline si_sync_recv() and make si_cs_recv() private
+    - BUG/MEDIUM: mux-fcgi: Don't rely on SI src/dst addresses for FCGI health-checks
+    - BUG/MEDIUM: htx: Fix a possible null derefs in htx_xfer_blks()
+    - REGTESTS: fix the race conditions in normalize_uri.vtc
+    - DEBUG: stream-int: Fix BUG_ON used to test appctx in si_applet_ops callbacks
+    - BUILD: debug: fix build warning on older compilers around DEBUG_STRICT_ACTION
+    - CLEANUP: connection: Indicate unreachability to the compiler in conn_recv_proxy
+    - MINOR: connection: Transform safety check in PROXYv2 parsing into BUG_ON()
+    - DOC: install: it's DEBUG_CFLAGS, not DEBUG, which is set to -g
+    - DOC: install: describe the DEP variable
+    - DOC: install: describe how to choose options used in the DEBUG variable
+    - MINOR: queue: Replace if() + abort() with BUG_ON()
+    - CLEANUP: adjust indentation in bidir STREAM handling function
+    - MINOR: quic: simplify copy of STREAM frames to RX buffer
+    - MINOR: quic: handle partially received buffered stream frame
+    - MINOR: mux-quic: define flag for last received frame
+    - BUG/MINOR: quic: support FIN on Rx-buffered STREAM frames
+    - MEDIUM: quic: rearchitecture Rx path for bidirectional STREAM frames
+    - REGTESTS: fix the race conditions in secure_memcmp.vtc
+    - CLEANUP: stream: Remove useless tests on conn-stream in stream_dump()
+    - BUILD: ssl: another build warning on LIBRESSL_VERSION_NUMBER
+    - MINOR: quic: Ensure PTO timer is not set in the past
+    - MINOR: quic: Post handshake I/O callback switching
+    - MINOR: quic: Drop the packets of discarded packet number spaces
+    - CLEANUP: quic: Useless tests in qc_try_rm_hp()
+    - CLEANUP: quic: Indentation fix in qc_prep_pkts()
+    - MINOR: quic: Assemble QUIC TLS flags at the same level
+    - BUILD: conn_stream: avoid null-deref warnings on gcc 6
+    - BUILD: connection: do not declare register_mux_proto() inline
+    - BUILD: http_rules: do not declare http_*_keywords_registre() inline
+    - BUILD: trace: do not declare trace_registre_source() inline
+    - BUILD: tcpcheck: do not declare tcp_check_keywords_register() inline
+    - DEBUG: reduce the footprint of BUG_ON() calls
+    - BUG/MEDIUM: httpclient/lua: infinite appctx loop with POST
+    - BUG/MINOR: pool: always align pool_heads to 64 bytes
+    - DEV: udp: add a tiny UDP proxy for testing
+    - DEV: udp: implement pseudo-random reordering/loss
+    - DEV: udp: add an optional argument to set the prng seed
+    - BUG/MINOR: quic: fix segfault on CC if mux uninitialized
+    - BUG/MEDIUM: pools: fix ha_free() on area in the process of being freed
+    - CLEANUP: tree-wide: remove a few rare non-ASCII chars
+    - CI: coverity: simplify debugging options
+    - CLEANUP: quic: complete ABORT_NOW with a TODO comment
+    - MINOR: quic: qc_prep_app_pkts() implementation
+    - MINOR: quic: Send short packet from a frame list
+    - MINOR: quic: Make qc_build_frms() build ack-eliciting frames from a list
+    - MINOR: quic: Export qc_send_app_pkts()
+    - MINOR: mux-quic: refactor transport parameters init
+    - MINOR: mux-quic: complete functions to detect stream type
+    - MINOR: mux-quic: define new unions for flow-control fields
+    - MEDIUM: mux-quic: use direct send transport API for STREAMs
+    - MINOR: mux-quic: retry send opportunistically for remaining frames
+    - MEDIUM: mux-quic: implement MAX_STREAMS emission for bidir streams
+    - BUILD: fix kFreeBSD build.
+    - MINOR: quic: Retry on qc_build_pkt() failures
+    - BUG/MINOR: quic: Missing recovery start timer reset
+    - CLEANUP: quic: Remove QUIC path manipulations out of the congestion controller
+    - MINOR: quic: Add a "slow start" callback to congestion controller
+    - MINOR: quic: Persistent congestion detection outside of controllers
+    - CLEANUP: quic: Remove useless definitions from quic_cc_event struct
+    - BUG/MINOR: quic: Confusion betwen "in_flight" and "prep_in_flight" in quic_path_prep_data()
+    - MINOR: quic: More precise window update calculation
+    - CLEANUP: quic: Remove window redundant variable from NewReno algorithm state struct
+    - MINOR: quic: Add quic_max_int_by_size() function
+    - BUG/MAJOR: quic: Wrong quic_max_available_room() returned value
+    - MINOR: pools: add a new global option "no-memory-trimming"
+    - BUG/MINOR: add missing modes in proxy_mode_str()
+    - BUG/MINOR: cli: shows correct mode in "show sess"
+    - BUG/MEDIUM: quic: do not drop packet on duplicate stream/decoding error
+    - MINOR: stats: Add dark mode support for socket rows
+    - BUILD: fix recent build breakage of freebsd caused by kFreeBSD build fix
+    - BUG/MINOR: httpclient: Set conn-stream/channel EOI flags at the end of request
+    - BUG/MINOR: hlua: Set conn-stream/channel EOI flags at the end of request
+    - BUG/MINOR: stats: Set conn-stream/channel EOI flags at the end of request
+    - BUG/MINOR: cache: Set conn-stream/channel EOI flags at the end of request
+    - BUG/MINOR: promex: Set conn-stream/channel EOI flags at the end of request
+    - BUG/MEDIUM: stream: Use the front analyzers for new listener-less streams
+    - DEBUG: cache: Update underlying buffer when loading HTX message in cache applet
+    - BUG/MEDIUM: mcli: Properly handle errors and timeouts during reponse processing
+    - DEBUG: stream: Add the missing descriptions for stream trace events
+    - DEBUG: stream: Fix stream trace message to print response buffer state
+    - MINOR: proxy: Store monitor_uri as a `struct ist`
+    - MINOR: proxy: Store fwdfor_hdr_name as a `struct ist`
+    - MINOR: proxy: Store orgto_hdr_name as a `struct ist`
+    - MEDIUM: proxy: Store server_id_hdr_name as a `struct ist`
+    - CLEANUP: fcgi: Replace memcpy() on ist by istcat()
+    - CLEANUP: fcgi: Use `istadv()` in `fcgi_strm_send_params`
+    - BUG/MAJOR: mux-pt: Always destroy the backend connection on detach
+    - DOC: sample fetch methods: move distcc_* to the right locations
+    - MINOR: rules: record the last http/tcp rule that gave a final verdict
+    - MINOR: stream: add "last_rule_file" and "last_rule_line" samples
+    - BUG/MINOR: session: fix theoretical risk of memleak in session_accept_fd()
+    - MINOR: quic: Add max_idle_timeout advertisement handling
+    - MEDIUM: quic: Remove the QUIC connection reference counter
+    - BUG/MINOR: quic: ACK_REQUIRED and ACK_RECEIVED flag collision
+    - BUG/MINOR: quic: Missing check when setting the anti-amplification limit as reached
+    - MINOR: quic: Add a function to compute the current PTO
+    - MEDIUM: quic: Implement the idle timeout feature
+    - BUG/MEDIUM: quic: qc_prep_app_pkts() retries on qc_build_pkt() failures
+    - CLEANUP: quic: Comments fix for qc_prep_(app)pkts() functions
+    - MINOR: mux-quic: prevent push frame for unidir streams
+    - MINOR: mux-quic: improve opportunistic retry sending for STREAM frames
+    - MINOR: quic: implement sending confirmation
+    - MEDIUM: mux-quic: improve bidir STREAM frames sending
+    - MEDIUM: check: do not auto configure SSL/PROXY for dynamic servers
+    - REGTESTS: server: test SSL/PROXY with checks for dynamic servers
+    - MEDIUM: server: remove experimental-mode for dynamic servers
+    - BUG/MINOR: buffer: fix debugging condition in b_peek_varint()
+
 2022/02/25 : 2.6-dev2
     - DOC: management: rework the Master CLI section
     - DOC: management: add expert and experimental mode in 9.4.1
