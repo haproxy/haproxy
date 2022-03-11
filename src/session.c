@@ -188,7 +188,7 @@ int session_accept_fd(struct connection *cli_conn)
 	}
 	/* TCP rules may flag the connection as needing proxy protocol, now that it's done we can start ourxprt */
 	if (conn_xprt_start(cli_conn) < 0)
-		goto out_free_conn;
+		goto out_free_sess;
 
 	/* Adjust some socket options */
 	if (l->rx.addr.ss_family == AF_INET || l->rx.addr.ss_family == AF_INET6) {
