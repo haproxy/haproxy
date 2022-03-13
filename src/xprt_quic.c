@@ -2528,7 +2528,11 @@ static int qc_prep_app_pkts(struct quic_conn *qc, struct qring *qr,
 		case -2:
 			goto err;
 		case -1:
-			goto stop_build;
+			/* As we provide qc_build_pkt() with an enough big buffer to fulfill an
+			 * MTU, we are here because of the congestion control window. There is
+			 * no need to try to reuse this buffer.
+			 */
+			goto out;
 		default:
 			break;
 		}
@@ -2542,7 +2546,6 @@ static int qc_prep_app_pkts(struct quic_conn *qc, struct qring *qr,
 		qc_set_dg(cbuf, pkt->len, pkt);
 	}
 
- stop_build:
 	/* Reset <wr> writer index if in front of <rd> index */
 	if (end_buf - pos < (int)qc->path->mtu + dg_headlen) {
 		int rd = HA_ATOMIC_LOAD(&cbuf->rd);
@@ -5204,6 +5207,10 @@ static inline void free_quic_tx_packet(struct quic_tx_packet *pkt)
  *
  * Return -2 if the packet could not be allocated or encrypted for any reason,
  * -1 if there was not enough room to build a packet.
+ * XXX NOTE XXX
+ * If you provide provide qc_build_pkt() with a big enough buffer to build a packet as big as
+ * possible (to fill an MTU), the unique reason why this function may fail is the congestion
+ * control window limitation.
  */
 static struct quic_tx_packet *qc_build_pkt(unsigned char **pos,
                                            const unsigned char *buf_end,
