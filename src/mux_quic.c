@@ -43,7 +43,7 @@ struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
 	qcs->tx.offset = 0;
 	qcs->tx.sent_offset = 0;
 	qcs->tx.ack_offset = 0;
-	qcs->tx.acked_frms = EB_ROOT_UNIQUE;
+	qcs->tx.acked_frms = EB_ROOT;
 
 	qcs->wait_event.tasklet = NULL;
 	qcs->wait_event.events = 0;
