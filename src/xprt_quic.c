@@ -2437,6 +2437,50 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct ssl_sock_ctx *ct
 	return 0;
 }
 
+/* Must be called only by a <cbuf> writer (packet builder).
+ * Return 1 if <cbuf> may be reused to build packets, depending on its <rd> and
+ * <wr> internal indexes, 0 if not. When this is the case, reset <wr> writer
+ * index after having marked the end of written data. This the responsability
+ * of the caller to ensure there is enough room in <cbuf> to write the end of
+ * data made of a uint16_t null field.
+ *
+ *   +XXXXXXXXXXXXXXXXXXXXXXX---------------+ (cannot be reused)
+ *    ^                      ^
+ *    r                      w
+ *
+ *   +-------XXXXXXXXXXXXXXXX---------------+ (can be reused)
+ *           ^               ^
+ *           r               w
+
+ *   +--------------------------------------+ (empty buffer, can be reused)
+ *                           ^
+ *                        (r = w)
+ *
+ *   +XXXXXXXXXXXXXXXXXXXXX-XXXXXXXXXXXXXXXX+ (full buffer, cannot be reused)
+ *                        ^ ^
+ *                        w r
+ */
+static int qc_may_reuse_cbuf(struct cbuf *cbuf)
+{
+	int rd = HA_ATOMIC_LOAD(&cbuf->rd);
+
+	/* We can reset the writer index only if in front of the reader index and
+	 * if the reader index is not null. Resetting the writer when the reader
+	 * index is null would empty the buffer.
+	 * XXX Note than the writer index cannot reach the reader index.
+	 * Only the reader index can reach the writer index.
+	 */
+	if (rd && rd <= cbuf->wr) {
+		/* Mark the end of contiguous data for the reader */
+		write_u16(cb_wr(cbuf), 0);
+		cb_add(cbuf, sizeof(uint16_t));
+		cb_wr_reset(cbuf);
+		return 1;
+	}
+
+	return 0;
+}
+
 /* Write <dglen> datagram length and <pkt> first packet address into <cbuf> ring
  * buffer. This is the responsibility of the caller to check there is enough
  * room in <cbuf>. Also increase the <cbuf> write index consequently.
@@ -2464,7 +2508,7 @@ static int qc_prep_app_pkts(struct quic_conn *qc, struct qring *qr,
 {
 	struct quic_enc_level *qel;
 	struct cbuf *cbuf;
-	unsigned char *end_buf, *end, *pos, *spos;
+	unsigned char *end_buf, *end, *pos;
 	struct quic_tx_packet *pkt;
 	size_t total;
 	size_t dg_headlen;
@@ -2478,7 +2522,7 @@ static int qc_prep_app_pkts(struct quic_conn *qc, struct qring *qr,
 	total = 0;
  start:
 	cbuf = qr->cbuf;
-	spos = pos = cb_wr(cbuf);
+	pos = cb_wr(cbuf);
 	/* Leave at least <sizeof(uint16_t)> bytes at the end of this buffer
 	 * to ensure there is enough room to mark the end of prepared
 	 * contiguous data with a zero length.
@@ -2548,22 +2592,9 @@ static int qc_prep_app_pkts(struct quic_conn *qc, struct qring *qr,
 
 	/* Reset <wr> writer index if in front of <rd> index */
 	if (end_buf - pos < (int)qc->path->mtu + dg_headlen) {
-		int rd = HA_ATOMIC_LOAD(&cbuf->rd);
-
 		TRACE_DEVEL("buffer full", QUIC_EV_CONN_PHPKTS, qc);
-		if (cb_contig_space(cbuf) >= sizeof(uint16_t)) {
-			if ((pos != spos && cbuf->wr > rd) || (pos == spos && rd <= cbuf->wr)) {
-				/* Mark the end of contiguous data for the reader */
-				write_u16(cb_wr(cbuf), 0);
-				cb_add(cbuf, sizeof(uint16_t));
-			}
-		}
-
-		if (rd && rd <= cbuf->wr) {
-			cb_wr_reset(cbuf);
-			/* Let's try to reuse this buffer */
+		if (qc_may_reuse_cbuf(cbuf))
 			goto start;
-		}
 	}
 
  out:
@@ -2589,7 +2620,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct qring *qr,
 {
 	struct quic_enc_level *qel;
 	struct cbuf *cbuf;
-	unsigned char *end_buf, *end, *pos, *spos;
+	unsigned char *end_buf, *end, *pos;
 	struct quic_tx_packet *first_pkt, *cur_pkt, *prv_pkt;
 	/* length of datagrams */
 	uint16_t dglen;
@@ -2608,7 +2639,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct qring *qr,
 	padding = 0;
 	qel = &qc->els[tel];
 	cbuf = qr->cbuf;
-	spos = pos = cb_wr(cbuf);
+	pos = cb_wr(cbuf);
 	/* Leave at least <dglen> bytes at the end of this buffer
 	 * to ensure there is enough room to mark the end of prepared
 	 * contiguous data with a zero length.
@@ -2749,22 +2780,9 @@ static int qc_prep_pkts(struct quic_conn *qc, struct qring *qr,
  stop_build:
 	/* Reset <wr> writer index if in front of <rd> index */
 	if (end_buf - pos < (int)qc->path->mtu + dg_headlen) {
-		int rd = HA_ATOMIC_LOAD(&cbuf->rd);
-
 		TRACE_DEVEL("buffer full", QUIC_EV_CONN_PHPKTS, qc);
-		if (cb_contig_space(cbuf) >= sizeof(uint16_t)) {
-			if ((pos != spos && cbuf->wr > rd) || (pos == spos && rd <= cbuf->wr)) {
-				/* Mark the end of contiguous data for the reader */
-				write_u16(cb_wr(cbuf), 0);
-				cb_add(cbuf, sizeof(uint16_t));
-			}
-		}
-
-		if (rd && rd <= cbuf->wr) {
-			cb_wr_reset(cbuf);
-			/* Let's try to reuse this buffer */
+		if (qc_may_reuse_cbuf(cbuf))
 			goto start;
-		}
 	}
 
  out:
