@@ -7293,6 +7293,7 @@ __LJMP static int hlua_httpclient_send(lua_State *L, enum http_meth_t meth)
 	hlua_hc->hc->ops.res_stline = hlua_httpclient_cb;
 	hlua_hc->hc->ops.res_headers = hlua_httpclient_cb;
 	hlua_hc->hc->ops.res_payload = hlua_httpclient_cb;
+	hlua_hc->hc->ops.res_end = hlua_httpclient_cb;
 
 	/* a body is available, it will use the request callback */
 	if (body_str) {
