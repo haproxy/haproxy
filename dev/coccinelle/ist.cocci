@@ -4,8 +4,9 @@ expression p, l;
 @@
 
 (
- i.ptr = p;
- i.len = strlen(i.ptr);
+- i.ptr = p;
+- i.len = strlen(i.ptr);
++ i = ist(p);
 |
 - i.ptr = p;
 - i.len = l;
