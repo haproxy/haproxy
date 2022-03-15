@@ -697,8 +697,7 @@ static enum act_parse_ret parse_http_set_status(const char **args, int *orig_arg
 	if (*args[*orig_arg] && strcmp(args[*orig_arg], "reason") == 0 &&
 	    (*args[*orig_arg + 1] && strcmp(args[*orig_arg + 1], "if") != 0 && strcmp(args[*orig_arg + 1], "unless") != 0)) {
 		(*orig_arg)++;
-		rule->arg.http.str.ptr = strdup(args[*orig_arg]);
-		rule->arg.http.str.len = strlen(rule->arg.http.str.ptr);
+		rule->arg.http.str = ist(strdup(args[*orig_arg]));
 		(*orig_arg)++;
 	}
 
@@ -1325,8 +1324,7 @@ static enum act_parse_ret parse_http_auth(const char **args, int *orig_arg, stru
 			memprintf(err, "missing realm value.\n");
 			return ACT_RET_PRS_ERR;
 		}
-		rule->arg.http.str.ptr = strdup(args[cur_arg]);
-		rule->arg.http.str.len = strlen(rule->arg.http.str.ptr);
+		rule->arg.http.str = ist(strdup(args[cur_arg]));
 		cur_arg++;
 	}
 
@@ -1508,8 +1506,7 @@ static enum act_parse_ret parse_http_set_header(const char **args, int *orig_arg
 	}
 
 
-	rule->arg.http.str.ptr = strdup(args[cur_arg]);
-	rule->arg.http.str.len = strlen(rule->arg.http.str.ptr);
+	rule->arg.http.str = ist(strdup(args[cur_arg]));
 	LIST_INIT(&rule->arg.http.fmt);
 
 	if (rule->from == ACT_F_HTTP_REQ) {
@@ -1617,8 +1614,7 @@ static enum act_parse_ret parse_http_replace_header(const char **args, int *orig
 		return ACT_RET_PRS_ERR;
 	}
 
-	rule->arg.http.str.ptr = strdup(args[cur_arg]);
-	rule->arg.http.str.len = strlen(rule->arg.http.str.ptr);
+	rule->arg.http.str = ist(strdup(args[cur_arg]));
 	LIST_INIT(&rule->arg.http.fmt);
 
 	cur_arg++;
@@ -1721,8 +1717,7 @@ static enum act_parse_ret parse_http_del_header(const char **args, int *orig_arg
 		return ACT_RET_PRS_ERR;
 	}
 
-	rule->arg.http.str.ptr = strdup(args[cur_arg]);
-	rule->arg.http.str.len = strlen(rule->arg.http.str.ptr);
+	rule->arg.http.str = ist(strdup(args[cur_arg]));
 	px->conf.args.ctx = (rule->from == ACT_F_HTTP_REQ ? ARGC_HRQ : ARGC_HRS);
 
 	LIST_INIT(&rule->arg.http.fmt);
