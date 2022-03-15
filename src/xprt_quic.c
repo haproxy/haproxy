@@ -1559,6 +1559,40 @@ static inline void free_quic_tx_pkts(struct list *pkts)
 	}
 }
 
+/* Remove already sent ranges of acknowledged packet numbers from
+ * <pktns> packet number space tree below <largest_acked_pn> possibly
+ * updating the range which contains <largest_acked_pn>.
+ * Never fails.
+ */
+static void qc_treat_ack_of_ack(struct quic_pktns *pktns,
+                                int64_t largest_acked_pn)
+{
+	struct eb64_node *ar, *next_ar;
+	struct quic_arngs *arngs = &pktns->rx.arngs;
+
+	ar = eb64_first(&arngs->root);
+	while (ar) {
+		struct quic_arng_node *ar_node;
+
+		next_ar = eb64_next(ar);
+		ar_node = eb64_entry(&ar->node, struct quic_arng_node, first);
+		if ((int64_t)ar_node->first.key > largest_acked_pn)
+			break;
+
+		if (largest_acked_pn < ar_node->last) {
+			eb64_delete(ar);
+			ar_node->first.key = largest_acked_pn + 1;
+			eb64_insert(&arngs->root, ar);
+			break;
+		}
+
+		eb64_delete(ar);
+		pool_free(pool_head_quic_arng, ar_node);
+		arngs->sz--;
+		ar = next_ar;
+	}
+}
+
 /* Send a packet ack event nofication for each newly acked packet of
  * <newly_acked_pkts> list and free them.
  * Always succeeds.
@@ -1575,6 +1609,12 @@ static inline void qc_treat_newly_acked_pkts(struct quic_conn *qc,
 		qc->path->in_flight -= pkt->in_flight_len;
 		if (pkt->flags & QUIC_FL_TX_PACKET_ACK_ELICITING)
 			qc->path->ifae_pkts--;
+		/* If this packet contained an ACK frame, proceed to the
+		 * acknowledging of range of acks from the largest acknowledged
+		 * packet number which was sent in an ACK frame by this packet.
+		 */
+		if (pkt->largest_acked_pn != -1)
+			qc_treat_ack_of_ack(pkt->pktns, pkt->largest_acked_pn);
 		ev.ack.acked = pkt->in_flight_len;
 		ev.ack.time_sent = pkt->time_sent;
 		quic_cc_event(&qc->path->cc, &ev);
@@ -5006,7 +5046,7 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 	struct quic_frame ack_frm = { .type = QUIC_FT_ACK, };
 	struct quic_frame cc_frm = { . type = QUIC_FT_CONNECTION_CLOSE, };
 	size_t ack_frm_len, head_len;
-	int64_t largest_acked_pn;
+	int64_t rx_largest_acked_pn;
 	int add_ping_frm;
 	struct list frm_list = LIST_HEAD_INIT(frm_list);
 
@@ -5036,9 +5076,9 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 		goto no_room;
 
 	end -= QUIC_TLS_TAG_LEN;
-	largest_acked_pn = HA_ATOMIC_LOAD(&qel->pktns->rx.largest_acked_pn);
+	rx_largest_acked_pn = HA_ATOMIC_LOAD(&qel->pktns->rx.largest_acked_pn);
 	/* packet number length */
-	*pn_len = quic_packet_number_length(pn, largest_acked_pn);
+	*pn_len = quic_packet_number_length(pn, rx_largest_acked_pn);
 	/* Build the header */
 	if ((pkt->type == QUIC_PACKET_TYPE_SHORT &&
 	    !quic_build_packet_short_header(&pos, end, *pn_len, qc, qel->tls_ctx.flags)) ||
@@ -5137,8 +5177,12 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 	if (!quic_packet_number_encode(&pos, end, pn, *pn_len))
 		goto no_room;
 
-	if (ack_frm_len && !qc_build_frm(&pos, end, &ack_frm, pkt, qc))
-		goto no_room;
+	if (ack_frm_len) {
+		if (!qc_build_frm(&pos, end, &ack_frm, pkt, qc))
+			goto no_room;
+
+		pkt->largest_acked_pn = quic_pktns_get_largest_acked_pn(qel->pktns);
+	}
 
 	/* Ack-eliciting frames */
 	if (!LIST_ISEMPTY(&frm_list)) {
@@ -5201,6 +5245,7 @@ static inline void quic_tx_packet_init(struct quic_tx_packet *pkt, int type)
 	pkt->pn_node.key = (uint64_t)-1;
 	LIST_INIT(&pkt->frms);
 	pkt->next = NULL;
+	pkt->largest_acked_pn = -1;
 	pkt->refcnt = 1;
 }
 

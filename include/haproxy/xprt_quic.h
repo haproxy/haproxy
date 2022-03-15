@@ -991,6 +991,17 @@ static inline void quic_pktns_init(struct quic_pktns *pktns)
 	pktns->flags = 0;
 }
 
+/* Returns the current largest acknowledged packet number if exists, -1 if not */
+static inline int64_t quic_pktns_get_largest_acked_pn(struct quic_pktns *pktns)
+{
+	struct eb64_node *ar = eb64_last(&pktns->rx.arngs.root);
+
+	if (!ar)
+		return -1;
+
+	return eb64_entry(&ar->node, struct quic_arng_node, first)->last;
+}
+
 /* Discard <pktns> packet number space attached to <qc> QUIC connection.
  * Its loss information are reset. Deduce the outstanding bytes for this
  * packet number space from the outstanding bytes for the path of this
