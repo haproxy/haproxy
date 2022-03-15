@@ -428,8 +428,7 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 		http_msg_req09_uri_e:
 			sl.rq.u.len = ptr - sl.rq.u.ptr;
 		http_msg_req09_ver:
-			sl.rq.v.ptr = ptr;
-			sl.rq.v.len = 0;
+			sl.rq.v = ist2(ptr, 0);
 			goto http_msg_rqline_eol;
 		}
 		state = H1_MSG_RQMETH;
@@ -659,8 +658,7 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 		sl.st.c.len = ptr - sl.st.c.ptr;
 
 	http_msg_rsp_reason:
-		sl.st.r.ptr = ptr;
-		sl.st.r.len = 0;
+		sl.st.r = ist2(ptr, 0);
 		goto http_msg_rpline_eol;
 
 	case H1_MSG_RPCODE_SP:

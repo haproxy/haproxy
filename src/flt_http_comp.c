@@ -400,26 +400,26 @@ select_compression_request_header(struct comp_state *st, struct stream *s, struc
 
 			qval = ctx.value.ptr + toklen;
 			while (1) {
-				while (qval < ctx.value.ptr + ctx.value.len && HTTP_IS_LWS(*qval))
+				while (qval < istend(ctx.value) && HTTP_IS_LWS(*qval))
 					qval++;
 
-				if (qval >= ctx.value.ptr + ctx.value.len || *qval != ';') {
+				if (qval >= istend(ctx.value) || *qval != ';') {
 					qval = NULL;
 					break;
 				}
 				qval++;
 
-				while (qval < ctx.value.ptr + ctx.value.len && HTTP_IS_LWS(*qval))
+				while (qval < istend(ctx.value) && HTTP_IS_LWS(*qval))
 					qval++;
 
-				if (qval >= ctx.value.ptr + ctx.value.len) {
+				if (qval >= istend(ctx.value)) {
 					qval = NULL;
 					break;
 				}
-				if (strncmp(qval, "q=", MIN(ctx.value.ptr + ctx.value.len - qval, 2)) == 0)
+				if (strncmp(qval, "q=", MIN(istend(ctx.value) - qval, 2)) == 0)
 					break;
 
-				while (qval < ctx.value.ptr + ctx.value.len && *qval != ';')
+				while (qval < istend(ctx.value) && *qval != ';')
 					qval++;
 			}
 

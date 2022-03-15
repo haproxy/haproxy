@@ -402,7 +402,7 @@ int h2_make_htx_request(struct http_hdr *list, struct htx *htx, unsigned int *ms
 	lck = ck = -1; // no cookie for now
 	fields = 0;
 	for (idx = 0; list[idx].n.len != 0; idx++) {
-		if (!list[idx].n.ptr) {
+		if (!isttest(list[idx].n)) {
 			/* this is an indexed pseudo-header */
 			phdr = list[idx].n.len;
 		}
@@ -721,7 +721,7 @@ int h2_make_htx_response(struct http_hdr *list, struct htx *htx, unsigned int *m
 
 	fields = 0;
 	for (idx = 0; list[idx].n.len != 0; idx++) {
-		if (!list[idx].n.ptr) {
+		if (!isttest(list[idx].n)) {
 			/* this is an indexed pseudo-header */
 			phdr = list[idx].n.len;
 		}
@@ -873,7 +873,7 @@ int h2_make_htx_trailers(struct http_hdr *list, struct htx *htx)
 	int i;
 
 	for (idx = 0; list[idx].n.len != 0; idx++) {
-		if (!list[idx].n.ptr) {
+		if (!isttest(list[idx].n)) {
 			/* This is an indexed pseudo-header (RFC7540#8.1.2.1) */
 			goto fail;
 		}

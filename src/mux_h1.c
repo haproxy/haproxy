@@ -2595,7 +2595,7 @@ static int h1_send_error(struct h1c *h1c)
 		TRACE_STATE("waiting for h1c obuf allocation", H1_EV_H1C_ERR|H1_EV_H1C_BLK, h1c->conn);
 		goto out;
 	}
-	ret = b_istput(&h1c->obuf, ist2(http_err_msgs[rc], strlen(http_err_msgs[rc])));
+	ret = b_istput(&h1c->obuf, ist(http_err_msgs[rc]));
 	if (unlikely(ret <= 0)) {
 		if (!ret) {
 			h1c->flags |= (H1C_F_OUT_FULL|H1C_F_ERR_PENDING);

@@ -4992,7 +4992,7 @@ static struct tcpcheck_rule *proxy_parse_httpchk_req(char **args, int cur_arg, s
 			}
 			LIST_INIT(&hdr->value);
 			hdr->name = istdup(tmp_hdrs[i].n);
-			if (!hdr->name.ptr) {
+			if (!isttest(hdr->name)) {
 				memprintf(errmsg, "out of memory");
 				goto error;
 			}

@@ -1417,7 +1417,7 @@ static int fcgi_set_default_param(struct fcgi_conn *fconn, struct fcgi_strm *fst
 
 			params->scriptname = ist2(b_tail(params->p), len+fconn->app->index.len);
 			chunk_istcat(params->p, sn);
-			chunk_memcat(params->p, fconn->app->index.ptr, fconn->app->index.len);
+			chunk_istcat(params->p, fconn->app->index);
 		}
 	}
 
@@ -1494,16 +1494,16 @@ static int fcgi_encode_default_param(struct fcgi_conn *fconn, struct fcgi_strm *
 			goto encode;
 		case FCGI_SP_SCRIPT_FILE:
 			p.n = ist("SCRIPT_FILENAME");
-			chunk_memcat(&trash, params->docroot.ptr, params->docroot.len);
-			chunk_memcat(&trash, params->scriptname.ptr, params->scriptname.len);
+			chunk_istcat(&trash, params->docroot);
+			chunk_istcat(&trash, params->scriptname);
 			p.v = ist2(b_head(&trash), b_data(&trash));
 			goto encode;
 		case FCGI_SP_PATH_TRANS:
 			if (!istlen(params->pathinfo))
 				goto skip;
 			p.n = ist("PATH_TRANSLATED");
-			chunk_memcat(&trash, params->docroot.ptr, params->docroot.len);
-			chunk_memcat(&trash, params->pathinfo.ptr, params->pathinfo.len);
+			chunk_istcat(&trash, params->docroot);
+			chunk_istcat(&trash, params->pathinfo);
 			p.v = ist2(b_head(&trash), b_data(&trash));
 			goto encode;
 		case FCGI_SP_CONT_LEN:

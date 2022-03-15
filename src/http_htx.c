@@ -139,7 +139,7 @@ static int __http_find_header(const struct htx *htx, const void *pattern, struct
 		if (flags & HTTP_FIND_FL_FULL)
 			goto next_blk;
 		v = htx_get_blk_value(htx, blk);
-		p = ctx->value.ptr + ctx->value.len + ctx->lws_after;
+		p = istend(ctx->value) + ctx->lws_after;
 		v.len -= (p - v.ptr);
 		v.ptr  = p;
 		if (!v.len)
@@ -574,8 +574,7 @@ int http_replace_header_value(struct htx *htx, struct http_hdr_ctx *ctx, const s
 	}
 
 	ctx->blk = blk;
-	ctx->value.ptr = v.ptr + off;
-	ctx->value.len = data.len;
+	ctx->value = ist2(v.ptr + off, data.len);
 	ctx->lws_before = ctx->lws_after = 0;
 
 	return 1;
@@ -674,8 +673,7 @@ int http_remove_header(struct htx *htx, struct http_hdr_ctx *ctx)
 	htx_change_blk_value_len(htx, blk, v.len-len);
 
 	/* Finally update the ctx */
-	ctx->value.ptr = start;
-	ctx->value.len = 0;
+	ctx->value = ist2(start, 0);
 	ctx->lws_before = ctx->lws_after = 0;
 
 	return 1;
@@ -1057,7 +1055,7 @@ static int http_htx_init(void)
 			continue;
 		}
 
-		raw = ist2(http_err_msgs[rc], strlen(http_err_msgs[rc]));
+		raw = ist(http_err_msgs[rc]);
 		if (!http_str_to_htx(&chk, raw, &errmsg)) {
 			ha_alert("Internal error: invalid default message for HTTP return code %d: %s.\n",
 				 http_err_codes[rc], errmsg);

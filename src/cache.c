@@ -626,7 +626,7 @@ cache_store_http_payload(struct stream *s, struct filter *filter, struct http_ms
 
 				info = (type << 28) + v.len;
 				chunk_memcat(&trash, (char *)&info, sizeof(info));
-				chunk_memcat(&trash, v.ptr, v.len);
+				chunk_istcat(&trash, v);
 				to_forward += v.len;
 				len -= v.len;
 				break;

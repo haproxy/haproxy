@@ -1099,7 +1099,7 @@ static int smp_fetch_base(const struct arg *args, struct sample *smp, const char
 
 	/* OK we have the header value in ctx.value */
 	temp = get_trash_chunk();
-	chunk_memcat(temp, ctx.value.ptr, ctx.value.len);
+	chunk_istcat(temp, ctx.value);
 
 	/* now retrieve the path */
 	sl = http_get_stline(htx);

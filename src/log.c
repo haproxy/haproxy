@@ -1803,7 +1803,7 @@ void __send_log(struct list *logsrvs, struct buffer *tagb, int level,
 
 	if (!metadata[LOG_META_HOST].len) {
 		if (global.log_send_hostname)
-			metadata[LOG_META_HOST] = ist2(global.log_send_hostname, strlen(global.log_send_hostname));
+			metadata[LOG_META_HOST] = ist(global.log_send_hostname);
 	}
 
 	if (!tagb || !tagb->area)

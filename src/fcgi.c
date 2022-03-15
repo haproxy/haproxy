@@ -197,10 +197,8 @@ size_t fcgi_decode_param(const struct buffer *in, size_t o, struct fcgi_param *p
 	if (data < nlen + vlen)
 		return 0;
 
-	p->n.ptr = b_peek(in, o);
-	p->n.len = nlen;
-	p->v.ptr = b_peek(in, o+nlen);
-	p->v.len = vlen;
+	p->n = ist2(b_peek(in, o), nlen);
+	p->v = ist2(b_peek(in, o + nlen), vlen);
 	len += nlen + vlen;
 
 	return len;
@@ -254,10 +252,8 @@ size_t fcgi_aligned_decode_param(const struct buffer *in, size_t o, struct fcgi_
 	if (data < nlen + vlen)
 		return 0;
 
-	p->n.ptr = in->area + o;
-	p->n.len = nlen;
-	p->v.ptr = in->area + o + nlen;
-	p->v.len = vlen;
+	p->n = ist2(in->area + o, nlen);
+	p->v = ist2(in->area + o + nlen, vlen);
 	len += nlen + vlen;
 
 	return len;
