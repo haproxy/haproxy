@@ -405,8 +405,6 @@ struct quic_pktns {
 		struct list frms;
 		/* Next packet number to use for transmissions. */
 		int64_t next_pn;
-		/* Largest acked sent packet. */
-		int64_t largest_acked_pn;
 		/* The packet which has been sent. */
 		struct eb_root pkts;
 		/* The time the most recent ack-eliciting packer was sent. */
@@ -421,6 +419,8 @@ struct quic_pktns {
 	struct {
 		/* Largest packet number */
 		int64_t largest_pn;
+		/* Largest acked sent packet. */
+		int64_t largest_acked_pn;
 		struct quic_arngs arngs;
 	} rx;
 	unsigned int flags;
@@ -534,6 +534,8 @@ struct quic_tx_packet {
 	int refcnt;
 	/* Next packet in the same datagram */
 	struct quic_tx_packet *next;
+	/* Largest acknowledged packet number if this packet contains an ACK frame */
+	int64_t largest_acked_pn;
 	unsigned char type;
 };
 

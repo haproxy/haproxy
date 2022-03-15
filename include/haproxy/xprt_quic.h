@@ -978,12 +978,12 @@ static inline void quic_pktns_init(struct quic_pktns *pktns)
 	LIST_INIT(&pktns->tx.frms);
 	pktns->tx.next_pn = -1;
 	pktns->tx.pkts = EB_ROOT_UNIQUE;
-	pktns->tx.largest_acked_pn = -1;
 	pktns->tx.time_of_last_eliciting = 0;
 	pktns->tx.loss_time = TICK_ETERNITY;
 	pktns->tx.in_flight = 0;
 
 	pktns->rx.largest_pn = -1;
+	pktns->rx.largest_acked_pn = -1;
 	pktns->rx.arngs.root = EB_ROOT_UNIQUE;
 	pktns->rx.arngs.sz = 0;
 	pktns->rx.arngs.enc_sz = 0;
