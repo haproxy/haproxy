@@ -129,8 +129,8 @@ void cs_detach_endp(struct conn_stream *cs)
 		}
 	}
 	else if ((appctx = cs_appctx(cs))) {
-		if (appctx->applet->release)
-			appctx->applet->release(appctx);
+		if (cs->si)
+			si_applet_release(cs->si);
 		appctx_free(appctx);
 	}
 
