@@ -294,7 +294,7 @@ void sink_setup_proxy(struct proxy *px)
  */
 static void sink_forward_io_handler(struct appctx *appctx)
 {
-	struct stream_interface *si = appctx->owner;
+	struct stream_interface *si = cs_si(appctx->owner);
 	struct stream *s = si_strm(si);
 	struct sink *sink = strm_fe(s)->parent;
 	struct sink_forward_target *sft = appctx->ctx.sft.ptr;
@@ -433,7 +433,7 @@ close:
  */
 static void sink_forward_oc_io_handler(struct appctx *appctx)
 {
-	struct stream_interface *si = appctx->owner;
+	struct stream_interface *si = cs_si(appctx->owner);
 	struct stream *s = si_strm(si);
 	struct sink *sink = strm_fe(s)->parent;
 	struct sink_forward_target *sft = appctx->ctx.sft.ptr;
@@ -580,7 +580,7 @@ void __sink_forward_session_deinit(struct sink_forward_target *sft)
 	if (!sft->appctx)
 		return;
 
-	si = sft->appctx->owner;
+	si = cs_si(sft->appctx->owner);
 	if (!si)
 		return;
 
