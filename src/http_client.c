@@ -1061,6 +1061,8 @@ static int httpclient_cfg_postparser()
 {
 	struct logsrv *logsrv;
 	struct proxy *curproxy = httpclient_proxy;
+	int err_code = 0;
+	char *errmsg = NULL;
 
 	/* copy logs from "global" log list */
 	list_for_each_entry(logsrv, &global.logsrvs, list) {
@@ -1089,6 +1091,19 @@ static int httpclient_cfg_postparser()
 		curproxy->conf.args.file = NULL;
 		curproxy->conf.args.line = 0;
 	}
+
+#ifdef USE_OPENSSL
+	/* init the SNI expression */
+	/* always use the host header as SNI, without the port */
+	httpclient_srv_ssl->sni_expr = strdup("req.hdr(host),field(1,:)");
+	err_code |= server_parse_sni_expr(httpclient_srv_ssl, httpclient_proxy, &errmsg);
+	if (err_code & ERR_CODE) {
+		ha_alert("httpclient: failed to configure sni: %s.\n", errmsg);
+		free(errmsg);
+		goto err;
+	}
+#endif
+
 	return 0;
 err:
 	return 1;
