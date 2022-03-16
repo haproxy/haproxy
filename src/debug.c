@@ -1040,7 +1040,7 @@ static int debug_parse_cli_fd(char **args, char *payload, struct appctx *appctx,
  */
 static int debug_iohandler_fd(struct appctx *appctx)
 {
-	struct stream_interface *si = appctx->owner;
+	struct stream_interface *si = cs_si(appctx->owner);
 	struct sockaddr_storage sa;
 	struct stat statbuf;
 	socklen_t salen, vlen;
