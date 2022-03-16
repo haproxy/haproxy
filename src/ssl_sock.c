@@ -69,6 +69,7 @@
 #include <haproxy/ssl_crtlist.h>
 #include <haproxy/ssl_sock.h>
 #include <haproxy/ssl_utils.h>
+#include <haproxy/sample.h>
 #include <haproxy/stats.h>
 #include <haproxy/stream-t.h>
 #include <haproxy/stream_interface.h>
@@ -5445,6 +5446,8 @@ void ssl_sock_free_srv_ctx(struct server *srv)
 	ha_free(&srv->ssl_ctx.verify_host);
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
 	ha_free(&srv->sni_expr);
+	release_sample_expr(srv->ssl_ctx.sni);
+	srv->ssl_ctx.sni = NULL;
 #endif
 	ha_free(&srv->ssl_ctx.ciphers);
 #ifdef HAVE_SSL_CTX_SET_CIPHERSUITES
