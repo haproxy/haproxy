@@ -46,6 +46,7 @@ int srv_lastsession(const struct server *s);
 int srv_getinter(const struct check *check);
 int parse_server(const char *file, int linenum, char **args, struct proxy *curproxy, const struct proxy *defproxy, int parse_flags);
 int srv_update_addr(struct server *s, void *ip, int ip_sin_family, const char *updater);
+int server_parse_sni_expr(struct server *newsrv, struct proxy *px, char **err);
 const char *srv_update_addr_port(struct server *s, const char *addr, const char *port, char *updater);
 const char *srv_update_check_addr_port(struct server *s, const char *addr, const char *port);
 const char *srv_update_agent_addr_port(struct server *s, const char *addr, const char *port);
