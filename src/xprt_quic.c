@@ -4272,6 +4272,9 @@ static int parse_retry_token(const unsigned char *token, uint64_t token_len,
 	if (!quic_dec_int(&odcid_len, &token, token + token_len))
 		return 1;
 
+	if (odcid_len > QUIC_CID_MAXLEN)
+		return 1;
+
 	memcpy(odcid->data, token, odcid_len);
 	odcid->len = odcid_len;
 
