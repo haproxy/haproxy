@@ -1192,7 +1192,7 @@ static int tcp_parse_tcp_rep(char **args, int section_type, struct proxy *curpx,
 
 	return warn;
  error:
-	free(rule);
+	free_act_rule(rule);
 	return -1;
 }
 
@@ -1406,7 +1406,7 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 
 	return warn;
  error:
-	free(rule);
+	free_act_rule(rule);
 	return -1;
 }
 
