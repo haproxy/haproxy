@@ -231,6 +231,7 @@ struct quic_connection_close_app {
 
 struct quic_frame {
 	struct list list;
+	struct quic_tx_packet *pkt;
 	unsigned char type;
 	union {
 		struct quic_padding padding;

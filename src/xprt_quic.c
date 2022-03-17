@@ -1396,6 +1396,7 @@ static int qcs_try_to_consume(struct qcs *qcs)
 	frm_node = eb64_first(&qcs->tx.acked_frms);
 	while (frm_node) {
 		struct quic_stream *strm;
+		struct quic_frame *frm;
 
 		strm = eb64_entry(&frm_node->node, struct quic_stream, offset);
 		if (strm->offset.key > qcs->tx.ack_offset)
@@ -1417,17 +1418,10 @@ static int qcs_try_to_consume(struct qcs *qcs)
 		frm_node = eb64_next(frm_node);
 		eb64_delete(&strm->offset);
 
-		/* TODO
-		 *
-		 * memleak: The quic_frame container of the quic_stream should
-		 * be liberated here, as in qc_treat_acked_tx_frm. However this
-		 * code seems to cause a bug which can lead to interrupted
-		 * transfers.
-		 *
-		 * struct quic_frame frm = container_of(strm, struct quic_frame, stream);
-		 * LIST_DELETE(&frm->list);
-		 * pool_free(pool_head_quic_frame, frm);
-		 */
+		frm = container_of(strm, struct quic_frame, stream);
+		LIST_DELETE(&frm->list);
+		quic_tx_packet_refdec(frm->pkt);
+		pool_free(pool_head_quic_frame, frm);
 	}
 
 	return ret;
@@ -1462,6 +1456,7 @@ static inline void qc_treat_acked_tx_frm(struct quic_conn *qc,
 			}
 
 			LIST_DELETE(&frm->list);
+			quic_tx_packet_refdec(frm->pkt);
 			pool_free(pool_head_quic_frame, frm);
 		}
 		else {
@@ -1473,6 +1468,7 @@ static inline void qc_treat_acked_tx_frm(struct quic_conn *qc,
 	break;
 	default:
 		LIST_DELETE(&frm->list);
+		quic_tx_packet_refdec(frm->pkt);
 		pool_free(pool_head_quic_frame, frm);
 	}
 
@@ -1540,11 +1536,32 @@ static inline void qc_requeue_nacked_pkt_tx_frms(struct quic_conn *qc,
 
 	list_for_each_entry_safe(frm, frmbak, pkt_frm_list, list) {
 		LIST_DELETE(&frm->list);
+		quic_tx_packet_refdec(frm->pkt);
+		/* This frame is not freed but removed from its packet */
+		frm->pkt = NULL;
 		TRACE_PROTO("to resend frame", QUIC_EV_CONN_PRSAFRM, qc, frm);
 		LIST_APPEND(&tmp, &frm->list);
 	}
 
 	LIST_SPLICE(pktns_frm_list, &tmp);
+}
+
+/* Free <pkt> TX packet and its attached frames.
+ * This is the responsability of the caller to remove this packet of
+ * any data structure it was possibly attached to.
+ */
+static inline void free_quic_tx_packet(struct quic_tx_packet *pkt)
+{
+	struct quic_frame *frm, *frmbak;
+
+	if (!pkt)
+		return;
+
+	list_for_each_entry_safe(frm, frmbak, &pkt->frms, list) {
+		LIST_DELETE(&frm->list);
+		pool_free(pool_head_quic_frame, frm);
+	}
+	pool_free(pool_head_quic_tx_packet, pkt);
 }
 
 /* Free the TX packets of <pkts> list */
@@ -1555,7 +1572,7 @@ static inline void free_quic_tx_pkts(struct list *pkts)
 	list_for_each_entry_safe(pkt, tmp, pkts, list) {
 		LIST_DELETE(&pkt->list);
 		eb64_delete(&pkt->pn_node);
-		quic_tx_packet_refdec(pkt);
+		free_quic_tx_packet(pkt);
 	}
 }
 
@@ -2256,6 +2273,7 @@ static void qc_prep_hdshk_fast_retrans(struct quic_conn *qc)
 	list_for_each_entry_safe(frm, frmbak, &pkt->frms, list) {
 		TRACE_PROTO("to resend frame", QUIC_EV_CONN_PRSAFRM, qc, frm);
 		LIST_DELETE(&frm->list);
+		frm->pkt = NULL;
 		LIST_APPEND(tmp, &frm->list);
 	}
 
@@ -2874,13 +2892,8 @@ int qc_send_ppkts(struct qring *qr, struct ssl_sock_ctx *ctx)
 		tmpbuf.size = tmpbuf.data = dglen;
 
 		TRACE_PROTO("to send", QUIC_EV_CONN_SPPKTS, qc);
-		for (pkt = first_pkt; pkt; pkt = pkt->next)
-			quic_tx_packet_refinc(pkt);
-		if(qc_snd_buf(qc, &tmpbuf, tmpbuf.data, 0) <= 0) {
-			for (pkt = first_pkt; pkt; pkt = pkt->next)
-				quic_tx_packet_refdec(pkt);
+		if(qc_snd_buf(qc, &tmpbuf, tmpbuf.data, 0) <= 0)
 			break;
-		}
 
 		cb_del(cbuf, dglen + headlen);
 		qc->tx.bytes += tmpbuf.data;
@@ -2900,8 +2913,8 @@ int qc_send_ppkts(struct qring *qr, struct ssl_sock_ctx *ctx)
 				qc_set_timer(qc);
 			TRACE_PROTO("sent pkt", QUIC_EV_CONN_SPPKTS, qc, pkt);
 			next_pkt = pkt->next;
+			quic_tx_packet_refinc(pkt);
 			eb64_insert(&pkt->pktns->tx.pkts, &pkt->pn_node);
-			quic_tx_packet_refdec(pkt);
 		}
 	}
 
@@ -5049,6 +5062,7 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 	int64_t rx_largest_acked_pn;
 	int add_ping_frm;
 	struct list frm_list = LIST_HEAD_INIT(frm_list);
+	struct quic_frame *cf;
 
 	/* Length field value with CRYPTO frames if present. */
 	len_frms = 0;
@@ -5186,8 +5200,6 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 
 	/* Ack-eliciting frames */
 	if (!LIST_ISEMPTY(&frm_list)) {
-		struct quic_frame *cf;
-
 		list_for_each_entry(cf, &frm_list, list) {
 			if (!qc_build_frm(&pos, end, cf, pkt, qc)) {
 				ssize_t room = end - pos;
@@ -5195,6 +5207,8 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 				            qc, NULL, NULL, &room);
 				break;
 			}
+			quic_tx_packet_refinc(pkt);
+			cf->pkt = pkt;
 		}
 	}
 
@@ -5246,22 +5260,7 @@ static inline void quic_tx_packet_init(struct quic_tx_packet *pkt, int type)
 	LIST_INIT(&pkt->frms);
 	pkt->next = NULL;
 	pkt->largest_acked_pn = -1;
-	pkt->refcnt = 1;
-}
-
-/* Free <pkt> TX packet which has not already attached to any tree. */
-static inline void free_quic_tx_packet(struct quic_tx_packet *pkt)
-{
-	struct quic_frame *frm, *frmbak;
-
-	if (!pkt)
-		return;
-
-	list_for_each_entry_safe(frm, frmbak, &pkt->frms, list) {
-		LIST_DELETE(&frm->list);
-		pool_free(pool_head_quic_frame, frm);
-	}
-	quic_tx_packet_refdec(pkt);
+	pkt->refcnt = 0;
 }
 
 /* Build a packet into <buf> packet buffer with <pkt_type> as packet
@@ -5350,6 +5349,9 @@ static struct quic_tx_packet *qc_build_pkt(unsigned char **pos,
 	return pkt;
 
  err:
+	/* TODO: what about the frames which have been built
+	 * for this packet.
+	 */
 	free_quic_tx_packet(pkt);
 	TRACE_DEVEL("leaving in error", QUIC_EV_CONN_HPKT, qc);
 	return NULL;

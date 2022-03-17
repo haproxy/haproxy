@@ -1002,6 +1002,21 @@ static inline int64_t quic_pktns_get_largest_acked_pn(struct quic_pktns *pktns)
 	return eb64_entry(&ar->node, struct quic_arng_node, first)->last;
 }
 
+/* Increment the reference counter of <pkt> */
+static inline void quic_tx_packet_refinc(struct quic_tx_packet *pkt)
+{
+	HA_ATOMIC_ADD(&pkt->refcnt, 1);
+}
+
+/* Decrement the reference counter of <pkt> */
+static inline void quic_tx_packet_refdec(struct quic_tx_packet *pkt)
+{
+	if (!HA_ATOMIC_SUB_FETCH(&pkt->refcnt, 1)) {
+		BUG_ON(!LIST_ISEMPTY(&pkt->frms));
+		pool_free(pool_head_quic_tx_packet, pkt);
+	}
+}
+
 /* Discard <pktns> packet number space attached to <qc> QUIC connection.
  * Its loss information are reset. Deduce the outstanding bytes for this
  * packet number space from the outstanding bytes for the path of this
@@ -1030,10 +1045,11 @@ static inline void quic_pktns_discard(struct quic_pktns *pktns,
 		node = eb64_next(node);
 		list_for_each_entry_safe(frm, frmbak, &pkt->frms, list) {
 			LIST_DELETE(&frm->list);
+			quic_tx_packet_refdec(frm->pkt);
 			pool_free(pool_head_quic_frame, frm);
 		}
 		eb64_delete(&pkt->pn_node);
-		pool_free(pool_head_quic_tx_packet, pkt);
+		quic_tx_packet_refdec(pkt);
 	}
 }
 
@@ -1169,19 +1185,6 @@ static inline void quic_rx_packet_refdec(struct quic_rx_packet *pkt)
 	do {
 		refcnt = HA_ATOMIC_LOAD(&pkt->refcnt);
 	} while (refcnt && !HA_ATOMIC_CAS(&pkt->refcnt, &refcnt, refcnt - 1));
-}
-
-/* Increment the reference counter of <pkt> */
-static inline void quic_tx_packet_refinc(struct quic_tx_packet *pkt)
-{
-	HA_ATOMIC_ADD(&pkt->refcnt, 1);
-}
-
-/* Decrement the reference counter of <pkt> */
-static inline void quic_tx_packet_refdec(struct quic_tx_packet *pkt)
-{
-	if (!HA_ATOMIC_SUB_FETCH(&pkt->refcnt, 1))
-		pool_free(pool_head_quic_tx_packet, pkt);
 }
 
 /* Delete all RX packets for <qel> QUIC encryption level */
