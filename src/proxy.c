@@ -237,8 +237,8 @@ void free_proxy(struct proxy *p)
 	}
 
 	list_for_each_entry_safe(log, logb, &p->logsrvs, list) {
-		LIST_DELETE(&log->list);
-		free(log);
+		LIST_DEL_INIT(&log->list);
+		free_logsrv(log);
 	}
 
 	list_for_each_entry_safe(lf, lfb, &p->logformat, list) {
@@ -1424,6 +1424,7 @@ void proxy_preset_defaults(struct proxy *defproxy)
 void proxy_free_defaults(struct proxy *defproxy)
 {
 	struct acl *acl, *aclb;
+	struct logsrv *log, *logb;
 
 	ha_free(&defproxy->id);
 	ha_free(&defproxy->conf.file);
@@ -1466,6 +1467,11 @@ void proxy_free_defaults(struct proxy *defproxy)
 
 	if (defproxy->conf.logformat_sd_string != default_rfc5424_sd_log_format)
 		ha_free(&defproxy->conf.logformat_sd_string);
+
+	list_for_each_entry_safe(log, logb, &defproxy->logsrvs, list) {
+		LIST_DEL_INIT(&log->list);
+		free_logsrv(log);
+	}
 
 	ha_free(&defproxy->conf.uniqueid_format_string);
 	ha_free(&defproxy->conf.error_logformat_string);
@@ -1773,6 +1779,9 @@ static int proxy_defproxy_cpy(struct proxy *curproxy, const struct proxy *defpro
 		node->ref = tmplogsrv->ref;
 		LIST_INIT(&node->list);
 		LIST_APPEND(&curproxy->logsrvs, &node->list);
+		node->ring_name = tmplogsrv->ring_name ? strdup(tmplogsrv->ring_name) : NULL;
+		node->conf.file = strdup(tmplogsrv->conf.file);
+		node->conf.line = tmplogsrv->conf.line;
 	}
 
 	curproxy->conf.uniqueid_format_string = defproxy->conf.uniqueid_format_string;

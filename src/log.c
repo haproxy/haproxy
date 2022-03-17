@@ -733,6 +733,21 @@ int smp_log_range_cmp(const void *a, const void *b)
 	return 0;
 }
 
+/* frees log server <logsrv> after freeing all of its allocated fields. The
+ * server must not belong to a list anymore. Logsrv may be NULL, which is
+ * silently ignored.
+ */
+void free_logsrv(struct logsrv *logsrv)
+{
+	if (!logsrv)
+		return;
+
+	BUG_ON(LIST_INLIST(&logsrv->list));
+	ha_free(&logsrv->conf.file);
+	ha_free(&logsrv->ring_name);
+	free(logsrv);
+}
+
 /*
  * Parse "log" keyword and update <logsrvs> list accordingly.
  *
@@ -769,8 +784,8 @@ int parse_logsrv(char **args, struct list *logsrvs, int do_del, const char *file
 		}
 
 		list_for_each_entry_safe(logsrv, back, logsrvs, list) {
-			LIST_DELETE(&logsrv->list);
-			free(logsrv);
+			LIST_DEL_INIT(&logsrv->list);
+			free_logsrv(logsrv);
 		}
 		return 1;
 	}
@@ -797,6 +812,7 @@ int parse_logsrv(char **args, struct list *logsrvs, int do_del, const char *file
 			node->ref = logsrv;
 			LIST_INIT(&node->list);
 			LIST_APPEND(logsrvs, &node->list);
+			node->ring_name = logsrv->ring_name ? strdup(logsrv->ring_name) : NULL;
 			node->conf.file = strdup(file);
 			node->conf.line = linenum;
 
@@ -1007,11 +1023,7 @@ int parse_logsrv(char **args, struct list *logsrvs, int do_del, const char *file
 
   error:
 	free(smp_rgs);
-	if (logsrv) {
-		free(logsrv->conf.file);
-		free(logsrv->ring_name);
-	}
-	free(logsrv);
+	free_logsrv(logsrv);
 	return 0;
 }
 

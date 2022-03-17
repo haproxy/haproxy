@@ -86,6 +86,8 @@ int add_to_logformat_list(char *start, char *end, int type, struct list *list_fo
  */
 int parse_logformat_string(const char *str, struct proxy *curproxy, struct list *list_format, int options, int cap, char **err);
 
+void free_logsrv(struct logsrv *logsrv);
+
 /* Parse "log" keyword and update the linked list. */
 int parse_logsrv(char **args, struct list *logsrvs, int do_del, const char *file, int linenum, char **err);
 
