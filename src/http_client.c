@@ -999,10 +999,12 @@ static int httpclient_init()
 	proxy_preset_defaults(httpclient_proxy);
 
 	httpclient_proxy->options |= PR_O_WREQ_BODY;
+	httpclient_proxy->retry_type |= PR_RE_CONN_FAILED | PR_RE_DISCONNECTED | PR_RE_TIMEOUT;
 	httpclient_proxy->options2 |= PR_O2_INDEPSTR;
 	httpclient_proxy->mode = PR_MODE_HTTP;
 	httpclient_proxy->maxconn = 0;
 	httpclient_proxy->accept = NULL;
+	httpclient_proxy->conn_retries = CONN_RETRIES;
 	httpclient_proxy->timeout.client = TICK_ETERNITY;
 	/* The HTTP Client use the "option httplog" with the global log server */
 	httpclient_proxy->conf.logformat_string = default_http_log_format;
