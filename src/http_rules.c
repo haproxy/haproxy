@@ -163,7 +163,7 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 
 	return rule;
  out_err:
-	free(rule);
+	free_act_rule(rule);
 	return NULL;
 }
 
@@ -241,7 +241,7 @@ struct act_rule *parse_http_res_cond(const char **args, const char *file, int li
 
 	return rule;
  out_err:
-	free(rule);
+	free_act_rule(rule);
 	return NULL;
 }
 
@@ -310,7 +310,7 @@ struct act_rule *parse_http_after_res_cond(const char **args, const char *file, 
 
 	return rule;
  out_err:
-	free(rule);
+	free_act_rule(rule);
 	return NULL;
 }
 
