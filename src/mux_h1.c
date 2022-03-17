@@ -2989,7 +2989,7 @@ static int h1_process(struct h1c * h1c)
 				h1s->flags |= H1S_F_REOS;
 				TRACE_STATE("read0 on connection", H1_EV_H1C_RECV, conn, h1s);
 			}
-			if ((h1c->flags & H1C_F_ST_ERROR) || (conn->flags & CO_FL_ERROR))
+			if ((h1c->flags & H1C_F_ST_ERROR) || ((conn->flags & CO_FL_ERROR) && !b_data(&h1c->ibuf)))
 				h1s->cs->flags |= CS_FL_ERROR;
 			TRACE_POINT(H1_EV_STRM_WAKE, h1c->conn, h1s);
 			h1_alert(h1s);
