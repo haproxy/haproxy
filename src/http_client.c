@@ -728,7 +728,7 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 						appctx->st0 = HTTPCLIENT_S_RES_STLINE;
 					}
 
-					goto more; /* we need to leave the IO handler once we wrote the request */
+					goto process_data; /* we need to leave the IO handler once we wrote the request */
 				}
 			break;
 
