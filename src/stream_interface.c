@@ -584,6 +584,23 @@ static void stream_int_notify(struct stream_interface *si)
 		ic->flags &= ~CF_READ_DONTWAIT;
 }
 
+/* The stream interface is only responsible for the connection during the early
+ * states, before plugging a mux. Thus it should only care about CO_FL_ERROR
+ * before SI_ST_EST, and after that it must absolutely ignore it since the mux
+ * may hold pending data. This function returns true if such an error was
+ * reported. Both the CS and the CONN must be valid.
+ */
+static inline int si_is_conn_error(const struct stream_interface *si)
+{
+	struct connection *conn;
+
+	if (si->state >= SI_ST_EST)
+		return 0;
+
+	conn = __cs_conn(si->cs);
+	BUG_ON(!conn);
+	return !!(conn->flags & CO_FL_ERROR);
+}
 
 /* Called by I/O handlers after completion.. It propagates
  * connection flags to the stream interface, updates the stream (which may or
@@ -616,9 +633,11 @@ static int si_cs_process(struct conn_stream *cs)
 	 *       wake callback. Otherwise si_cs_recv()/si_cs_send() already take
 	 *       care of it.
 	 */
-	if (si->state >= SI_ST_CON &&
-	    (conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR))
-		si->flags |= SI_FL_ERR;
+
+	if (si->state >= SI_ST_CON) {
+		if ((cs->flags & CS_FL_ERROR) || si_is_conn_error(si))
+			si->flags |= SI_FL_ERR;
+	}
 
 	/* If we had early data, and the handshake ended, then
 	 * we can remove the flag, and attempt to wake the task up,
@@ -687,7 +706,7 @@ static int si_cs_send(struct conn_stream *cs)
 	int ret;
 	int did_send = 0;
 
-	if (conn->flags & CO_FL_ERROR || cs->flags & (CS_FL_ERROR|CS_FL_ERR_PENDING)) {
+	if (cs->flags & (CS_FL_ERROR|CS_FL_ERR_PENDING) || si_is_conn_error(si)) {
 		/* We're probably there because the tasklet was woken up,
 		 * but process_stream() ran before, detected there were an
 		 * error and put the si back to SI_ST_TAR. There's still
@@ -810,7 +829,7 @@ static int si_cs_send(struct conn_stream *cs)
 		si_rx_room_rdy(si_opposite(si));
 	}
 
-	if (conn->flags & CO_FL_ERROR || cs->flags & (CS_FL_ERROR|CS_FL_ERR_PENDING)) {
+	if (cs->flags & (CS_FL_ERROR|CS_FL_ERR_PENDING)) {
 		si->flags |= SI_FL_ERR;
 		return 1;
 	}
@@ -1194,7 +1213,7 @@ static void stream_int_chk_snd_conn(struct stream_interface *si)
 	if (!(si->wait_event.events & SUB_RETRY_SEND) && !channel_is_empty(si_oc(si)))
 		si_cs_send(cs);
 
-	if (cs->flags & (CS_FL_ERROR|CS_FL_ERR_PENDING) || conn->flags & CO_FL_ERROR) {
+	if (cs->flags & (CS_FL_ERROR|CS_FL_ERR_PENDING) || si_is_conn_error(si)) {
 		/* Write error on the file descriptor */
 		if (si->state >= SI_ST_CON)
 			si->flags |= SI_FL_ERR;
@@ -1309,7 +1328,7 @@ static int si_cs_recv(struct conn_stream *cs)
 	if (!(cs->flags & CS_FL_RCV_MORE)) {
 		if (!conn_xprt_ready(conn))
 			return 0;
-		if (conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR)
+		if (cs->flags & CS_FL_ERROR)
 			goto end_recv;
 	}
 
@@ -1366,7 +1385,7 @@ static int si_cs_recv(struct conn_stream *cs)
 			ic->flags |= CF_READ_PARTIAL;
 		}
 
-		if (conn->flags & CO_FL_ERROR || cs->flags & (CS_FL_EOS|CS_FL_ERROR))
+		if (cs->flags & (CS_FL_EOS|CS_FL_ERROR))
 			goto end_recv;
 
 		if (conn->flags & CO_FL_WAIT_ROOM) {
@@ -1422,7 +1441,7 @@ static int si_cs_recv(struct conn_stream *cs)
 	 * recv().
 	 */
 	while ((cs->flags & CS_FL_RCV_MORE) ||
-	    (!(conn->flags & (CO_FL_ERROR | CO_FL_HANDSHAKE)) &&
+	       (!(conn->flags & CO_FL_HANDSHAKE) &&
 	       (!(cs->flags & (CS_FL_ERROR|CS_FL_EOS))) && !(ic->flags & CF_SHUTR))) {
 		int cur_flags = flags;
 
@@ -1573,8 +1592,7 @@ static int si_cs_recv(struct conn_stream *cs)
 		ret = 1;
 	}
 
-	if (conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR) {
-		cs->flags |= CS_FL_ERROR;
+	if (cs->flags & CS_FL_ERROR) {
 		si->flags |= SI_FL_ERR;
 		ret = 1;
 	}
