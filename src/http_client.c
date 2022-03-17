@@ -928,7 +928,8 @@ more:
 	 * isn't any data to handle and a shutdown is detected, let's stop
 	 * everything */
 	if ((req->flags & (CF_SHUTR|CF_SHUTR_NOW)) ||
-	    (res->flags & (CF_SHUTW|CF_SHUTW_NOW))) {
+	    (res->flags & CF_SHUTW) ||
+	    ((res->flags & CF_SHUTW_NOW) && channel_is_empty(res))) {
 		goto end;
 	}
 	return;
