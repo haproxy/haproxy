@@ -5231,12 +5231,23 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 	/* Ack-eliciting frames */
 	if (!LIST_ISEMPTY(&frm_list)) {
 		list_for_each_entry(cf, &frm_list, list) {
-			if (!qc_build_frm(&pos, end, cf, pkt, qc)) {
+			unsigned char *spos = pos;
+
+			if (!qc_build_frm(&spos, end, cf, pkt, qc)) {
 				ssize_t room = end - pos;
 				TRACE_PROTO("Not enough room", QUIC_EV_CONN_HPKT,
 				            qc, NULL, NULL, &room);
+				/* TODO: this should not have happened if qc_build_frms()
+				 * had correctly computed and sized the frames to be
+				 * added to this packet. Note that <cf> was added
+				 * from <frm_list> to <frms> list by qc_build_frms().
+				 */
+				LIST_DELETE(&cf->list);
+				LIST_INSERT(frms, &cf->list);
 				break;
 			}
+
+			pos = spos;
 			quic_tx_packet_refinc(pkt);
 			cf->pkt = pkt;
 		}
