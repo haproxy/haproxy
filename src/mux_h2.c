@@ -691,22 +691,14 @@ static inline int h2c_read0_pending(struct h2c *h2c)
 }
 
 /* returns true if the connection is allowed to expire, false otherwise. A
- * connection may expire when:
- *   - it has no stream
- *   - it has data in the mux buffer
- *   - it has streams in the blocked list
- *   - it has streams in the fctl list
- *   - it has streams in the send list
- * Otherwise it means some streams are waiting in the data layer and it should
- * not expire.
+ * connection may expire when it has no attached streams. As long as streams
+ * are attached, the application layer is responsible for timeout management,
+ * and each layer will detach when it doesn't want to wait anymore. When the
+ * last one leaves, the connection must take over timeout management.
  */
 static inline int h2c_may_expire(const struct h2c *h2c)
 {
-	return eb_is_empty(&h2c->streams_by_id) ||
-	       br_data(h2c->mbuf) ||
-	       !LIST_ISEMPTY(&h2c->blocked_list) ||
-	       !LIST_ISEMPTY(&h2c->fctl_list) ||
-	       !LIST_ISEMPTY(&h2c->send_list);
+	return !h2c->nb_cs;
 }
 
 static __inline int
