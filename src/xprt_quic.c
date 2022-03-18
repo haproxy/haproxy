@@ -2928,25 +2928,29 @@ int qc_send_ppkts(struct qring *qr, struct ssl_sock_ctx *ctx)
  */
 static int quic_build_post_handshake_frames(struct quic_conn *qc)
 {
-	int i;
+	int i, first, max;
 	struct quic_enc_level *qel;
-	struct quic_frame *frm;
+	struct quic_frame *frm, *frmbak;
+	struct list frm_list = LIST_HEAD_INIT(frm_list);
+	struct eb64_node *node;
 
 	qel = &qc->els[QUIC_TLS_ENC_LEVEL_APP];
 	/* Only servers must send a HANDSHAKE_DONE frame. */
 	if (qc_is_listener(qc)) {
-		frm = pool_alloc(pool_head_quic_frame);
+		frm = pool_zalloc(pool_head_quic_frame);
 		if (!frm)
 			return 0;
 
 		frm->type = QUIC_FT_HANDSHAKE_DONE;
-		LIST_APPEND(&qel->pktns->tx.frms, &frm->list);
+		LIST_APPEND(&frm_list, &frm->list);
 	}
 
-	for (i = 1; i < qc->tx.params.active_connection_id_limit; i++) {
+	first = 1;
+	max = qc->tx.params.active_connection_id_limit;
+	for (i = first; i < max; i++) {
 		struct quic_connection_id *cid;
 
-		frm = pool_alloc(pool_head_quic_frame);
+		frm = pool_zalloc(pool_head_quic_frame);
 		if (!frm)
 			goto err;
 
@@ -2958,13 +2962,36 @@ static int quic_build_post_handshake_frames(struct quic_conn *qc)
 		ebmb_insert(&quic_dghdlrs[tid].cids, &cid->node, cid->cid.len);
 
 		quic_connection_id_to_frm_cpy(frm, cid);
-		LIST_APPEND(&qel->pktns->tx.frms, &frm->list);
+		LIST_APPEND(&frm_list, &frm->list);
 	}
+
+	LIST_SPLICE(&qel->pktns->tx.frms, &frm_list);
 	HA_ATOMIC_OR(&qc->flags, QUIC_FL_POST_HANDSHAKE_FRAMES_BUILT);
 
     return 1;
 
  err:
+	/* free the frames */
+	list_for_each_entry_safe(frm, frmbak, &frm_list, list)
+		pool_free(pool_head_quic_frame, frm);
+
+	node = eb64_first(&qc->cids);
+	while (node) {
+		struct quic_connection_id *cid;
+
+		if (cid->seq_num.key >= max)
+			break;
+
+		cid = eb64_entry(&node->node, struct quic_connection_id, seq_num);
+		node = eb64_next(node);
+		if (cid->seq_num.key < first)
+			continue;
+
+		ebmb_delete(&cid->node);
+		eb64_delete(&cid->seq_num);
+		pool_free(pool_head_quic_connection_id, cid);
+	}
+
 	return 0;
 }
 
