@@ -122,7 +122,7 @@ void __trace(enum trace_level level, uint64_t mask, struct trace_source *src,
 
 	if (!sess && strm)
 		sess = strm->sess;
-	else if (!sess && conn)
+	else if (!sess && conn && LIST_INLIST(&conn->session_list))
 		sess = conn->owner;
 	else if (!sess && check)
 		sess = check->sess;
