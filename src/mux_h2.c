@@ -133,6 +133,8 @@ struct h2c {
 
 	int timeout;        /* idle timeout duration in ticks */
 	int shut_timeout;   /* idle timeout duration in ticks after GOAWAY was sent */
+	int idle_start;     /* date of the last time the connection went idle */
+	/* 32-bit hole here */
 	unsigned int nb_streams;  /* number of streams in the tree */
 	unsigned int nb_cs;       /* number of attached conn_streams */
 	unsigned int nb_reserved; /* number of reserved streams */
@@ -701,6 +703,43 @@ static inline int h2c_may_expire(const struct h2c *h2c)
 	return !h2c->nb_cs;
 }
 
+/* update h2c timeout if needed */
+static void h2c_update_timeout(struct h2c *h2c)
+{
+	TRACE_ENTER(H2_EV_H2C_WAKE, h2c->conn);
+
+	if (!h2c->task)
+		goto leave;
+
+	if (h2c_may_expire(h2c)) {
+		/* no more streams attached */
+		if (h2c->last_sid >= 0) {
+			/* GOAWAY sent, closing in progress */
+			h2c->task->expire = tick_add_ifset(now_ms, h2c->shut_timeout);
+		} else if (br_data(h2c->mbuf)) {
+			/* pending output data: always the regular data timeout */
+			h2c->task->expire = tick_add_ifset(now_ms, h2c->timeout);
+		} else if (h2c->max_id > 0 && !b_data(&h2c->dbuf)) {
+			/* idle after having seen one stream => keep-alive */
+			h2c->task->expire = tick_add_ifset(h2c->idle_start, h2c->proxy->timeout.httpka);
+		} else {
+			/* before first request, or started to deserialize a
+			 * new req => http-request, but only set, not refresh.
+			 */
+			int exp = (h2c->flags & H2_CF_IS_BACK) ? TICK_ETERNITY : h2c->proxy->timeout.httpreq;
+			h2c->task->expire = tick_add_ifset(h2c->idle_start, exp);
+		}
+		/* if a timeout above was not set, fall back to the default one */
+		if (!tick_isset(h2c->task->expire))
+			h2c->task->expire = tick_add_ifset(now_ms, h2c->timeout);
+	} else {
+		h2c->task->expire = TICK_ETERNITY;
+	}
+	task_queue(h2c->task);
+ leave:
+	TRACE_LEAVE(H2_EV_H2C_WAKE);
+}
+
 static __inline int
 h2c_is_dead(const struct h2c *h2c)
 {
@@ -942,6 +981,7 @@ static int h2_init(struct connection *conn, struct proxy *prx, struct session *s
 
 	h2c->proxy = prx;
 	h2c->task = NULL;
+	h2c->idle_start = now_ms;
 	if (tick_isset(h2c->timeout)) {
 		t = task_new_here();
 		if (!t)
@@ -1562,6 +1602,8 @@ static struct h2s *h2c_frt_stream_new(struct h2c *h2c, int id, struct buffer *in
 
  out_free_cs:
 	h2c->nb_cs--;
+	if (!h2c->nb_cs)
+		h2c->idle_start = now_ms;
 	cs_free(cs);
 	h2s->cs = NULL;
  out_close:
@@ -3356,6 +3398,12 @@ static void h2_process_demux(struct h2c *h2c)
 				HA_ATOMIC_INC(&h2c->px_counters->conn_proto_err);
 				goto done;
 			}
+
+			/* transition to HEADERS frame ends the keep-alive idle
+			 * timer and starts the http-request idle delay.
+			 */
+			if (hdr.ft == H2_FT_HEADERS)
+				h2c->idle_start = now_ms;
 		}
 
 		/* Only H2_CS_FRAME_P, H2_CS_FRAME_A and H2_CS_FRAME_E here.
@@ -4024,14 +4072,7 @@ static int h2_process(struct h2c *h2c)
 	     ((h2c->flags & H2_CF_MUX_BLOCK_ANY) || LIST_ISEMPTY(&h2c->send_list))))
 		h2_release_mbuf(h2c);
 
-	if (h2c->task) {
-		if (h2c_may_expire(h2c))
-			h2c->task->expire = tick_add(now_ms, h2c->last_sid < 0 ? h2c->timeout : h2c->shut_timeout);
-		else
-			h2c->task->expire = TICK_ETERNITY;
-		task_queue(h2c->task);
-	}
-
+	h2c_update_timeout(h2c);
 	h2_send(h2c);
 	TRACE_LEAVE(H2_EV_H2C_WAKE, conn);
 	return 0;
@@ -4270,6 +4311,9 @@ static void h2_detach(struct conn_stream *cs)
 	h2c = h2s->h2c;
 	h2s->cs = NULL;
 	h2c->nb_cs--;
+	if (!h2c->nb_cs)
+		h2c->idle_start = now_ms;
+
 	if ((h2c->flags & (H2_CF_IS_BACK|H2_CF_DEM_TOOMANY)) == H2_CF_DEM_TOOMANY &&
 	    !h2_frt_has_too_many_cs(h2c)) {
 		/* frontend connection was blocking new streams creation */
@@ -4285,6 +4329,11 @@ static void h2_detach(struct conn_stream *cs)
 	    (h2s->flags & (H2_SF_BLK_MBUSY | H2_SF_BLK_MROOM | H2_SF_BLK_MFCTL)) &&
 	    ((h2s->flags & (H2_SF_WANT_SHUTR | H2_SF_WANT_SHUTW)) || h2s->subs)) {
 		TRACE_DEVEL("leaving on stream blocked", H2_EV_STRM_END|H2_EV_H2S_BLK, h2c->conn, h2s);
+		/* refresh the timeout if none was active, so that the last
+		 * leaving stream may arm it.
+		 */
+		if (!tick_isset(h2c->task->expire))
+			h2c_update_timeout(h2c);
 		return;
 	}
 
@@ -4373,11 +4422,7 @@ static void h2_detach(struct conn_stream *cs)
 		h2_release(h2c);
 	}
 	else if (h2c->task) {
-		if (h2c_may_expire(h2c))
-			h2c->task->expire = tick_add(now_ms, h2c->last_sid < 0 ? h2c->timeout : h2c->shut_timeout);
-		else
-			h2c->task->expire = TICK_ETERNITY;
-		task_queue(h2c->task);
+		h2c_update_timeout(h2c);
 		TRACE_DEVEL("leaving, refreshing connection's timeout", H2_EV_STRM_END, h2c->conn);
 	}
 	else
