@@ -745,6 +745,7 @@ static int qc_init(struct connection *conn, struct proxy *prx,
 	qcc->subs = NULL;
 	qcc->wait_event.tasklet->process = qc_io_cb;
 	qcc->wait_event.tasklet->context = qcc;
+	qcc->wait_event.events = 0;
 
 	/* haproxy timeouts */
 	qcc->timeout = prx->timeout.client;
