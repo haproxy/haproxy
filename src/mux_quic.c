@@ -468,6 +468,9 @@ static int qc_send_frames(struct qcc *qcc, struct list *frms)
 	uint64_t first_offset = 0;
 	char first_stream_frame_type;
 
+	if (LIST_ISEMPTY(frms))
+		return 0;
+
  retry_send:
 	first_frm = LIST_ELEM(frms->n, struct quic_frame *, list);
 	if ((first_frm->type & QUIC_FT_STREAM_8) == QUIC_FT_STREAM_8) {
