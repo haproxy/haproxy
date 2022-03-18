@@ -690,31 +690,42 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 				/* call the payload callback */
 				{
 					if (hc->ops.req_payload) {
+						struct htx *hc_htx;
 
 						/* call the request callback */
 						hc->ops.req_payload(hc);
-						/* check if the request buffer is empty */
 
+						hc_htx = htx_from_buf(&hc->req.buf);
 						htx = htx_from_buf(&req->buf);
-						if (!htx_is_empty(htx))
-							goto more;
-						/* Here htx_to_buf() will set buffer data to 0 because
-						 * the HTX is empty, and allow us to do an xfer.
-						 */
-						htx_to_buf(htx, &req->buf);
 
-						ret = b_xfer(&req->buf, &hc->req.buf, b_data(&hc->req.buf));
-						if (!ret)
+						if (htx_is_empty(hc_htx))
 							goto more;
+
+						if (htx_is_empty(htx)) {
+							/* Here htx_to_buf() will set buffer data to 0 because
+							 * the HTX is empty, and allow us to do an xfer.
+							 */
+							htx_to_buf(hc_htx, &hc->req.buf);
+							htx_to_buf(htx, &req->buf);
+							channel_add_input(req, hc_htx->data);
+							b_xfer(&req->buf, &hc->req.buf, b_data(&hc->req.buf));
+						} else {
+							struct htx_ret ret;
+
+							ret = htx_xfer_blks(htx, hc_htx, hc_htx->data, HTX_BLK_UNUSED);
+							channel_add_input(req, ret.ret);
+
+							/* we must copy the EOM if we empty the buffer */
+							if (htx_is_empty(hc_htx)) {
+								htx->flags |= (hc_htx->flags & HTX_FL_EOM);
+							}
+							htx_to_buf(htx, &req->buf);
+							htx_to_buf(hc_htx, &hc->req.buf);
+						}
+
 
 						if (!b_data(&hc->req.buf))
 							b_free(&hc->req.buf);
-
-						htx = htx_from_buf(&req->buf);
-						if (!htx)
-							goto more;
-
-						channel_add_input(req, htx->data);
 					}
 
 					htx = htx_from_buf(&req->buf);
@@ -987,6 +998,7 @@ static int httpclient_init()
 
 	proxy_preset_defaults(httpclient_proxy);
 
+	httpclient_proxy->options |= PR_O_WREQ_BODY;
 	httpclient_proxy->options2 |= PR_O2_INDEPSTR;
 	httpclient_proxy->mode = PR_MODE_HTTP;
 	httpclient_proxy->maxconn = 0;
