@@ -42,6 +42,11 @@ server s1 {
     recv 22
     sendhex "21020000"
     expect_close
+
+    # MQTT 3.1 CONNECT packet (id: test_sub - username: test - passwd: passwd)
+    accept
+    recv 38
+    sendhex "20020000"
 } -start
 
 server s2 {
@@ -224,4 +229,10 @@ client c2_50_1 -connect ${h1_fe2_sock} {
     sendhex "107e00044d51545405ee003c182700000014170126000161000162260001630001642100140008746573745f7375622a03000a746578742f706c61696e08000c77696c6c727370746f7069632600016500016626000167000168000977696c6c746f706963000b77696c6c7061796c6f61640004746573740006706173737764"
     recv 39
     expect_close
+} -run
+
+client c3_31_1 -connect ${h1_fe1_sock} {
+    # Valid MQTT 3.1 CONNECT packet (id: test_sub - username: test - passwd: passwd)
+    sendhex "102400064d514973647003c200000008746573745f7375620004746573740006706173737764"
+    recv 4
 } -run

@@ -27,6 +27,7 @@
 /* MQTT protocol version
  * In MQTT 3.1.1, version is called "level"
  */
+#define MQTT_VERSION_3_1      3
 #define MQTT_VERSION_3_1_1    4
 #define MQTT_VERSION_5_0      5
 

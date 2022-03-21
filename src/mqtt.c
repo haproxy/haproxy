@@ -40,14 +40,14 @@ uint8_t mqtt_cpt_flags[MQTT_CPT_ENTRIES] = {
 const struct ist mqtt_fields_string[MQTT_FN_ENTRIES] = {
 	[MQTT_FN_INVALID]                            = IST(""),
 
-	/* it's MQTT 3.1.1 and 5.0, those fields have no unique id, so we use strings */
+	/* it's MQTT 3.1, 3.1.1 and 5.0, those fields have no unique id, so we use strings */
 	[MQTT_FN_FLAGS]                              = IST("flags"),
-	[MQTT_FN_REASON_CODE]                        = IST("reason_code"),       /* MQTT 3.1.1: return_code */
+	[MQTT_FN_REASON_CODE]                        = IST("reason_code"),       /* MQTT 3.1 and 3.1.1: return_code */
 	[MQTT_FN_PROTOCOL_NAME]                      = IST("protocol_name"),
 	[MQTT_FN_PROTOCOL_VERSION]                   = IST("protocol_version"),  /* MQTT 3.1.1: protocol_level */
 	[MQTT_FN_CLIENT_IDENTIFIER]                  = IST("client_identifier"),
 	[MQTT_FN_WILL_TOPIC]                         = IST("will_topic"),
-	[MQTT_FN_WILL_PAYLOAD]                       = IST("will_payload"),      /* MQTT 3.1.1: will_message */
+	[MQTT_FN_WILL_PAYLOAD]                       = IST("will_payload"),      /* MQTT 3.1 and 3.1.1: will_message */
 	[MQTT_FN_USERNAME]                           = IST("username"),
 	[MQTT_FN_PASSWORD]                           = IST("password"),
 	[MQTT_FN_KEEPALIVE]                          = IST("keepalive"),
@@ -695,6 +695,7 @@ struct ist mqtt_field_value(struct ist msg, int type, int fieldname_id)
 }
 
 /* Parses a CONNECT packet :
+ *   https://public.dhe.ibm.com/software/dw/webservices/ws-mqtt/mqtt-v3r1.html#connect
  *   https://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html#_Toc398718028
  *   https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html#_Toc3901033
  *
@@ -718,14 +719,15 @@ static int mqtt_parse_connect(struct ist parser, struct mqtt_pkt *mpkt)
 	 */
 	/* read protocol_name */
 	parser = mqtt_read_string(parser, &mpkt->data.connect.var_hdr.protocol_name);
-	if (!isttest(parser) || !isteqi(mpkt->data.connect.var_hdr.protocol_name, ist("MQTT")))
+	if (!isttest(parser) || !(isteqi(mpkt->data.connect.var_hdr.protocol_name, ist("MQTT")) || isteqi(mpkt->data.connect.var_hdr.protocol_name, ist("MQIsdp"))))
 		goto end;
 
 	/* read protocol_version */
 	parser = mqtt_read_1byte_int(parser, &mpkt->data.connect.var_hdr.protocol_version);
 	if (!isttest(parser))
 		goto end;
-	if (mpkt->data.connect.var_hdr.protocol_version != MQTT_VERSION_3_1_1 &&
+	if (mpkt->data.connect.var_hdr.protocol_version != MQTT_VERSION_3_1 &&
+	    mpkt->data.connect.var_hdr.protocol_version != MQTT_VERSION_3_1_1 &&
 	    mpkt->data.connect.var_hdr.protocol_version != MQTT_VERSION_5_0)
 		goto end;
 
