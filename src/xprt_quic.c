@@ -2983,14 +2983,15 @@ static int quic_build_post_handshake_frames(struct quic_conn *qc)
 	while (node) {
 		struct quic_connection_id *cid;
 
+
+		cid = eb64_entry(&node->node, struct quic_connection_id, seq_num);
 		if (cid->seq_num.key >= max)
 			break;
 
-		cid = eb64_entry(&node->node, struct quic_connection_id, seq_num);
-		node = eb64_next(node);
 		if (cid->seq_num.key < first)
 			continue;
 
+		node = eb64_next(node);
 		ebmb_delete(&cid->node);
 		eb64_delete(&cid->seq_num);
 		pool_free(pool_head_quic_connection_id, cid);
