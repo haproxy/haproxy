@@ -524,7 +524,7 @@ struct quic_tx_packet {
 	struct eb64_node pn_node;
 	/* The list of frames of this packet. */
 	struct list frms;
-	/* The time this packet was sent (usec). */
+	/* The time this packet was sent (ms). */
 	unsigned int time_sent;
 	/* Packet number spakce. */
 	struct quic_pktns *pktns;
