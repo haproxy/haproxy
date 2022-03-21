@@ -2428,6 +2428,10 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct ssl_sock_ctx *ct
 			} else if (!(stream->id & QUIC_STREAM_FRAME_ID_INITIATOR_BIT))
 				goto err;
 
+			/* At the application layer the connection may have already been closed. */
+			if (qc->mux_state != QC_MUX_READY)
+				break;
+
 			if (!qc_handle_strm_frm(pkt, stream, qc))
 				goto err;
 
@@ -3374,7 +3378,7 @@ static int qc_qel_may_rm_hp(struct quic_conn *qc, struct quic_enc_level *qel)
 
 	/* check if the connection layer is ready before using app level */
 	if ((tel == QUIC_TLS_ENC_LEVEL_APP || tel == QUIC_TLS_ENC_LEVEL_EARLY_DATA) &&
-	    qc->mux_state != QC_MUX_READY)
+	    qc->mux_state == QC_MUX_NULL)
 		return 0;
 
 	return 1;
