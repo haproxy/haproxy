@@ -134,7 +134,7 @@ struct eb64_node *qcc_get_qcs(struct qcc *qcc, uint64_t id)
 
 		/* TODO also checks max-streams for uni streams */
 		if (quic_stream_is_bidi(id)) {
-			if (sub_id + 1 > qcc->lfctl.max_bidi_streams) {
+			if (sub_id + 1 > qcc->lfctl.ms_bidi) {
 				/* streams limit reached */
 				goto out;
 			}
@@ -265,7 +265,7 @@ int qcc_decode_qcs(struct qcc *qcc, struct qcs *qcs)
 
 static int qc_is_max_streams_needed(struct qcc *qcc)
 {
-	return qcc->lfctl.closed_bidi_streams > qcc->lfctl.initial_max_bidi_streams / 2;
+	return qcc->lfctl.cl_bidi_r > qcc->lfctl.ms_bidi_init / 2;
 }
 
 /* detaches the QUIC stream from its QCC and releases it to the QCS pool. */
@@ -277,7 +277,7 @@ static void qcs_destroy(struct qcs *qcs)
 
 	if (quic_stream_is_remote(qcs->qcc, id)) {
 		if (quic_stream_is_bidi(id)) {
-			++qcs->qcc->lfctl.closed_bidi_streams;
+			++qcs->qcc->lfctl.cl_bidi_r;
 			if (qc_is_max_streams_needed(qcs->qcc))
 				tasklet_wakeup(qcs->qcc->wait_event.tasklet);
 		}
@@ -628,8 +628,8 @@ static int qc_send_max_streams(struct qcc *qcc)
 	BUG_ON(!frm); /* TODO handle this properly */
 
 	frm->type = QUIC_FT_MAX_STREAMS_BIDI;
-	frm->max_streams_bidi.max_streams = qcc->lfctl.max_bidi_streams +
-	                                    qcc->lfctl.closed_bidi_streams;
+	frm->max_streams_bidi.max_streams = qcc->lfctl.ms_bidi +
+	                                    qcc->lfctl.cl_bidi_r;
 	fprintf(stderr, "SET MAX_STREAMS %lu\n", frm->max_streams_bidi.max_streams);
 	LIST_APPEND(&frms, &frm->list);
 
@@ -637,8 +637,8 @@ static int qc_send_max_streams(struct qcc *qcc)
 		return 1;
 
 	/* save the new limit if the frame has been send. */
-	qcc->lfctl.max_bidi_streams += qcc->lfctl.closed_bidi_streams;
-	qcc->lfctl.closed_bidi_streams = 0;
+	qcc->lfctl.ms_bidi += qcc->lfctl.cl_bidi_r;
+	qcc->lfctl.cl_bidi_r = 0;
 
 	return 0;
 }
@@ -749,8 +749,8 @@ static int qc_init(struct connection *conn, struct proxy *prx,
 	qcc->strms[QCS_SRV_UNI].rx.max_data = lparams->initial_max_stream_data_uni;
 	qcc->strms[QCS_SRV_UNI].tx.max_data = 0;
 
-	qcc->lfctl.max_bidi_streams = qcc->lfctl.initial_max_bidi_streams = lparams->initial_max_streams_bidi;
-	qcc->lfctl.closed_bidi_streams = 0;
+	qcc->lfctl.ms_bidi = qcc->lfctl.ms_bidi_init = lparams->initial_max_streams_bidi;
+	qcc->lfctl.cl_bidi_r = 0;
 
 	qcc->wait_event.tasklet = tasklet_new();
 	if (!qcc->wait_event.tasklet)

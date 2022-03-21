@@ -42,14 +42,14 @@ struct qcc {
 		} tx;
 	} strms[QCS_MAX_TYPES];
 
-	/* Flow-control related fields which are enforced on our side. */
+	/* flow-control fields set by us enforced on our side. */
 	struct {
-		uint64_t max_bidi_streams; /* max sub-ID of bidi stream allowed for the peer */
-		uint64_t initial_max_bidi_streams; /* max initial sub-ID of bidi stream allowed for the peer */
-		uint64_t closed_bidi_streams; /* total count of closed bidi stream since last MAX_STREAMS emission */
+		uint64_t ms_bidi_init; /* max initial sub-ID of bidi stream allowed for the peer */
+		uint64_t ms_bidi; /* max sub-ID of bidi stream allowed for the peer */
+		uint64_t cl_bidi_r; /* total count of closed remote bidi stream since last MAX_STREAMS emission */
 	} lfctl;
 
-	/* Flow-control related fields from the endpoint which we must respect. */
+	/* flow-control fields set by the peer which we must respect. */
 	struct {
 	} rfctl;
 
