@@ -1029,12 +1029,14 @@ static inline void quic_pktns_discard(struct quic_pktns *pktns,
 {
 	struct eb64_node *node;
 
+	qc->path->in_flight -= pktns->tx.in_flight;
+	qc->path->prep_in_flight -= pktns->tx.in_flight;
+	qc->path->loss.pto_count = 0;
+
 	pktns->tx.time_of_last_eliciting = 0;
 	pktns->tx.loss_time = TICK_ETERNITY;
 	pktns->tx.pto_probe = 0;
 	pktns->tx.in_flight = 0;
-	qc->path->loss.pto_count = 0;
-	qc->path->in_flight -= pktns->tx.in_flight;
 
 	node = eb64_first(&pktns->tx.pkts);
 	while (node) {
