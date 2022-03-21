@@ -597,8 +597,8 @@ static inline int quic_peer_validated_addr(struct quic_conn *qc)
 
 	hdshk_pktns = qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE].pktns;
 	app_pktns = qc->els[QUIC_TLS_ENC_LEVEL_APP].pktns;
-	if ((HA_ATOMIC_LOAD(&hdshk_pktns->flags) & QUIC_FL_PKTNS_ACK_RECEIVED) ||
-	    (HA_ATOMIC_LOAD(&app_pktns->flags) & QUIC_FL_PKTNS_ACK_RECEIVED) ||
+	if ((HA_ATOMIC_LOAD(&hdshk_pktns->flags) & QUIC_FL_PKTNS_PKT_RECEIVED) ||
+	    (HA_ATOMIC_LOAD(&app_pktns->flags) & QUIC_FL_PKTNS_PKT_RECEIVED) ||
 	    HA_ATOMIC_LOAD(&qc->state) >= QUIC_HS_ST_COMPLETE)
 		return 1;
 
@@ -1869,9 +1869,6 @@ static inline int qc_parse_ack_frm(struct quic_conn *qc,
 		            qc, NULL, &largest, &smallest);
 	} while (1);
 
-	/* Flag this packet number space as having received an ACK. */
-	HA_ATOMIC_OR(&qel->pktns->flags, QUIC_FL_PKTNS_ACK_RECEIVED);
-
 	if (time_sent && (pkt_flags & QUIC_FL_TX_PACKET_ACK_ELICITING)) {
 		*rtt_sample = tick_remain(time_sent, now_ms);
 		HA_ATOMIC_STORE(&qel->pktns->rx.largest_acked_pn, ack->largest_ack);
@@ -2468,6 +2465,9 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct ssl_sock_ctx *ct
 			goto err;
 		}
 	}
+
+	/* Flag this packet number space as having received a packet. */
+	HA_ATOMIC_OR(&qel->pktns->flags, QUIC_FL_PKTNS_PKT_RECEIVED);
 
 	if (fast_retrans)
 		qc_prep_hdshk_fast_retrans(qc);

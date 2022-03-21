@@ -387,9 +387,9 @@ struct quic_arngs {
 	size_t enc_sz;
 };
 
-/* Flag the packet number space as having received an ACK frame */
-#define QUIC_FL_PKTNS_ACK_RECEIVED_BIT 0
-#define QUIC_FL_PKTNS_ACK_RECEIVED  (1UL << QUIC_FL_PKTNS_ACK_RECEIVED_BIT)
+/* Flag the packet number space as having received a packet */
+#define QUIC_FL_PKTNS_PKT_RECEIVED_BIT 0
+#define QUIC_FL_PKTNS_PKT_RECEIVED  (1UL << QUIC_FL_PKTNS_PKT_RECEIVED_BIT)
 
 /* Flag the packet number space as requiring an ACK frame to be sent. */
 #define QUIC_FL_PKTNS_ACK_REQUIRED_BIT 1
