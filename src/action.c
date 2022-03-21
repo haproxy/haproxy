@@ -298,6 +298,7 @@ struct act_rule *new_act_rule(enum act_from from, const char *file, int linenum)
 	rule->from = from;
 	rule->conf.file = file ? strdup(file) : NULL;
 	rule->conf.line = linenum;
+	LIST_INIT(&rule->list);
 	return rule;
 }
 
