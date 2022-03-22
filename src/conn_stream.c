@@ -29,7 +29,15 @@ struct conn_stream *cs_new()
 	cs = pool_alloc(pool_head_connstream);
 	if (unlikely(!cs))
 		return NULL;
-	cs_init(cs);
+
+	cs->obj_type = OBJ_TYPE_CS;
+	cs->flags = CS_FL_NONE;
+	cs->end = NULL;
+	cs->app = NULL;
+	cs->ctx = NULL;
+	cs->si = NULL;
+	cs->data_cb = NULL;
+
 	return cs;
 }
 

@@ -42,20 +42,6 @@ int cs_attach_app(struct conn_stream *cs, enum obj_type *app);
 void cs_detach_endp(struct conn_stream *cs);
 void cs_detach_app(struct conn_stream *cs);
 
-/*
- * Initializes all required fields for a new conn_strema.
- */
-static inline void cs_init(struct conn_stream *cs)
-{
-	cs->obj_type = OBJ_TYPE_CS;
-	cs->flags = CS_FL_NONE;
-	cs->end = NULL;
-	cs->app = NULL;
-	cs->ctx = NULL;
-	cs->si = NULL;
-	cs->data_cb = NULL;
-}
-
 /* Returns the connection from a cs if the endpoint is a mux stream. Otherwise
  * NULL is returned. __cs_conn() returns the connection without any control
  * while cs_conn() check the endpoint type.
