@@ -197,7 +197,7 @@ int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
 
 	strm_node = qcc_get_qcs(qcc, id);
 	if (!strm_node) {
-		fprintf(stderr, "%s: stream not found\n", __func__);
+		fprintf(stderr, "%s: stream not found: %ld\n", __func__, id);
 		return 1;
 	}
 
