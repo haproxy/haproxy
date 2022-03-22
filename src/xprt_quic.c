@@ -657,10 +657,14 @@ static inline void qc_set_timer(struct quic_conn *qc)
 		qc->timer = pto;
  out:
 	if (qc->timer_task && qc->timer != TICK_ETERNITY) {
-		if (tick_is_expired(qc->timer, now_ms))
+		if (tick_is_expired(qc->timer, now_ms)) {
+			TRACE_PROTO("wakeup asap timer task", QUIC_EV_CONN_STIMER, qc);
 			task_wakeup(qc->timer_task, TASK_WOKEN_MSG);
-		else
+		}
+		else {
+			TRACE_PROTO("timer task scheduling", QUIC_EV_CONN_STIMER, qc);
 			task_schedule(qc->timer_task, qc->timer);
+		}
 	}
 	TRACE_LEAVE(QUIC_EV_CONN_STIMER, qc, pktns);
 }
