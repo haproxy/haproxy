@@ -718,7 +718,7 @@ static void stream_free(struct stream *s)
 
 	/* applets do not release session yet */
 	/* FIXME: Handle it in appctx_free ??? */
-	must_free_sess = objt_appctx(sess->origin) && sess->origin == s->csf->end;
+	must_free_sess = objt_appctx(sess->origin) && sess->origin == __cs_endp_target(s->csf);
 
 	/* FIXME: ATTENTION, si CSF est libere avant, ca plante !!!! */
 	cs_detach_endp(s->csb);
@@ -3253,8 +3253,8 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 			     strm->csf->si,
 			     si_state_str(strm->csf->si->state),
 			     strm->csf->si->flags,
-			     obj_type_name(strm->csf->end),
-			     obj_base_ptr(strm->csf->end),
+			     (strm->csf->endp->flags & CS_EP_T_MUX ? "CONN" : "APPCTX"),
+			      __cs_endp_target(strm->csf),
 			     strm->csf->si->exp ?
 			             tick_is_expired(strm->csf->si->exp, now_ms) ? "<PAST>" :
 			                     human_time(TICKS_TO_MS(strm->csf->si->exp - now_ms),
@@ -3266,8 +3266,8 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 			     strm->csb->si,
 			     si_state_str(strm->csb->si->state),
 			     strm->csb->si->flags,
-			     obj_type_name(strm->csb->end),
-			     obj_base_ptr(strm->csb->end),
+			     (strm->csb->endp->flags & CS_EP_T_MUX ? "CONN" : "APPCTX"),
+			      __cs_endp_target(strm->csb),
 			     strm->csb->si->exp ?
 			             tick_is_expired(strm->csb->si->exp, now_ms) ? "<PAST>" :
 			                     human_time(TICKS_TO_MS(strm->csb->si->exp - now_ms),
@@ -3275,7 +3275,7 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 			     strm->csb->si->err_type, strm->csb->si->wait_event.events);
 
 		cs = strm->csf;
-		chunk_appendf(&trash, "  cs=%p csf=0x%08x endp=%p\n", cs, cs->flags, cs->end);
+		chunk_appendf(&trash, "  cs=%p csf=0x%08x endp=%p,0x%08x\n", cs, cs->flags, cs->endp->target, cs->endp->flags);
 
 		if ((conn = cs_conn(cs)) != NULL) {
 			chunk_appendf(&trash,
@@ -3311,7 +3311,7 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 		}
 
 		cs = strm->csb;
-		chunk_appendf(&trash, "  cs=%p csf=0x%08x end=%p\n", cs, cs->flags, cs->end);
+		chunk_appendf(&trash, "  cs=%p csb=0x%08x endp=%p,0x%08x\n", cs, cs->flags, cs->endp->target, cs->endp->flags);
 		if ((conn = cs_conn(cs)) != NULL) {
 			chunk_appendf(&trash,
 			              "      co1=%p ctrl=%s xprt=%s mux=%s data=%s target=%s:%p\n",

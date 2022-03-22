@@ -17,7 +17,31 @@
 #include <haproxy/stream_interface.h>
 
 DECLARE_POOL(pool_head_connstream, "conn_stream", sizeof(struct conn_stream));
+DECLARE_POOL(pool_head_cs_endpoint, "cs_endpoint", sizeof(struct cs_endpoint));
 
+void cs_endpoint_init(struct cs_endpoint *endp)
+{
+	endp->target = NULL;
+	endp->ctx = NULL;
+	endp->flags = CS_EP_NONE;
+}
+
+struct cs_endpoint *cs_endpoint_new()
+{
+	struct cs_endpoint *endp;
+
+	endp = pool_alloc(pool_head_cs_endpoint);
+	if (unlikely(!endp))
+		return NULL;
+
+	cs_endpoint_init(endp);
+	return endp;
+}
+
+void cs_endpoint_free(struct cs_endpoint *endp)
+{
+	pool_free(pool_head_cs_endpoint, endp);
+}
 
 /* Tries to allocate a new conn_stream and initialize its main fields. On
  * failure, nothing is allocated and NULL is returned.
@@ -25,20 +49,29 @@ DECLARE_POOL(pool_head_connstream, "conn_stream", sizeof(struct conn_stream));
 struct conn_stream *cs_new()
 {
 	struct conn_stream *cs;
+	struct cs_endpoint *endp;
 
 	cs = pool_alloc(pool_head_connstream);
+
 	if (unlikely(!cs))
-		return NULL;
+		goto alloc_error;
 
 	cs->obj_type = OBJ_TYPE_CS;
 	cs->flags = CS_FL_NONE;
-	cs->end = NULL;
 	cs->app = NULL;
-	cs->ctx = NULL;
 	cs->si = NULL;
 	cs->data_cb = NULL;
 
+	endp = cs_endpoint_new();
+	if (unlikely(!endp))
+		goto alloc_error;
+	cs->endp = endp;
+
 	return cs;
+
+  alloc_error:
+	pool_free(pool_head_connstream, cs);
+	return NULL;
 }
 
 /* Releases a conn_stream previously allocated by cs_new(), as well as any
@@ -47,6 +80,9 @@ struct conn_stream *cs_new()
 void cs_free(struct conn_stream *cs)
 {
 	si_free(cs->si);
+	if (cs->endp) {
+		cs_endpoint_free(cs->endp);
+	}
 	pool_free(pool_head_connstream, cs);
 }
 
@@ -56,8 +92,9 @@ void cs_attach_endp_mux(struct conn_stream *cs, void *endp, void *ctx)
 {
 	struct connection *conn = ctx;
 
-	cs->end = endp;
-	cs->ctx = ctx;
+	cs->endp->target = endp;
+	cs->endp->ctx = ctx;
+	cs->endp->flags |= CS_EP_T_MUX;
 	if (!conn->ctx)
 		conn->ctx = cs;
 	if (cs_strm(cs)) {
@@ -66,7 +103,6 @@ void cs_attach_endp_mux(struct conn_stream *cs, void *endp, void *ctx)
 	}
 	else if (cs_check(cs))
 		cs->data_cb = &check_conn_cb;
-	cs->flags |= CS_FL_ENDP_MUX;
 }
 
 /* Attaches a conn_stream to an applet endpoint and sets the endpoint ctx */
@@ -74,14 +110,14 @@ void cs_attach_endp_app(struct conn_stream *cs, void *endp, void *ctx)
 {
 	struct appctx *appctx = endp;
 
-	cs->end = endp;
-	cs->ctx = ctx;
+	cs->endp->target = endp;
+	cs->endp->ctx = ctx;
+	cs->endp->flags |= CS_EP_T_APPLET;
 	appctx->owner = cs;
 	if (cs->si) {
 		cs->si->ops = &si_applet_ops;
 		cs->data_cb = NULL;
 	}
-	cs->flags |= CS_FL_ENDP_APP;
 }
 
 /* Attaches a conn_stream to a app layer and sets the relevant callbacks */
@@ -95,11 +131,11 @@ int cs_attach_app(struct conn_stream *cs, enum obj_type *app)
 		if (unlikely(!cs->si))
 			return -1;
 
-		if (cs_conn(cs)) {
+		if (cs->endp->flags & CS_EP_T_MUX) {
 			cs->si->ops = &si_conn_ops;
 			cs->data_cb = &si_conn_cb;
 		}
-		else if (cs_appctx(cs)) {
+		else if (cs->endp->flags & CS_EP_T_APPLET) {
 			cs->si->ops = &si_applet_ops;
 			cs->data_cb = NULL;
 		}
@@ -121,10 +157,9 @@ int cs_attach_app(struct conn_stream *cs, enum obj_type *app)
  */
 void cs_detach_endp(struct conn_stream *cs)
 {
-	struct connection *conn;
-	struct appctx *appctx;
+	if (cs->endp->flags & CS_EP_T_MUX) {
+		struct connection *conn = cs_conn(cs);
 
-	if ((conn = cs_conn(cs))) {
 		if (conn->mux) {
 			/* TODO: handle unsubscribe for healthchecks too */
 			if (cs->si && cs->si->wait_event.events != 0)
@@ -142,18 +177,22 @@ void cs_detach_endp(struct conn_stream *cs)
 			conn_free(conn);
 		}
 	}
-	else if ((appctx = cs_appctx(cs))) {
+	else if (cs->endp->flags & CS_EP_T_APPLET) {
+		struct appctx *appctx = cs_appctx(cs);
+
 		if (cs->si)
 			si_applet_release(cs->si);
 		appctx_free(appctx);
+	}
+
+	if (cs->endp) {
+		cs_endpoint_init(cs->endp);
 	}
 
 	/* FIXME: Rest CS for now but must be reviewed. CS flags are only
 	 *        connection related for now but this will evolved
 	 */
 	cs->flags = CS_FL_NONE;
-	cs->end = NULL;
-	cs->ctx = NULL;
 	if (cs->si)
 		cs->si->ops = &si_embedded_ops;
 	cs->data_cb = NULL;
@@ -169,6 +208,6 @@ void cs_detach_app(struct conn_stream *cs)
 	cs->si  = NULL;
 	cs->data_cb = NULL;
 
-	if (cs->end == NULL)
+	if (!cs->endp || !cs->endp->target)
 		cs_free(cs);
 }

@@ -415,9 +415,6 @@ static void mux_pt_detach(struct conn_stream *cs)
 
 	TRACE_ENTER(PT_EV_STRM_END, conn, cs);
 
-	cs->end = NULL;
-	cs->ctx = NULL;
-
 	/* Subscribe, to know if we got disconnected */
 	if (!conn_is_back(conn) && conn->owner != NULL &&
 	    !(conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH))) {

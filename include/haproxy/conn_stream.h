@@ -34,6 +34,9 @@ struct check;
 
 #define IS_HTX_CS(cs)     (cs_conn(cs) && IS_HTX_CONN(__cs_conn(cs)))
 
+struct cs_endpoint *cs_endpoint_new();
+void cs_endpoint_free(struct cs_endpoint *endp);
+
 struct conn_stream *cs_new();
 void cs_free(struct conn_stream *cs);
 void cs_attach_endp_mux(struct conn_stream *cs, void *endp, void *ctx);
@@ -42,17 +45,29 @@ int cs_attach_app(struct conn_stream *cs, enum obj_type *app);
 void cs_detach_endp(struct conn_stream *cs);
 void cs_detach_app(struct conn_stream *cs);
 
+/* Returns the endpoint target without any control */
+static inline void *__cs_endp_target(const struct conn_stream *cs)
+{
+	return cs->endp->target;
+}
+
+/* Returns the endpoint context without any control */
+static inline void *__cs_endp_ctx(const struct conn_stream *cs)
+{
+	return cs->endp->ctx;
+}
+
 /* Returns the connection from a cs if the endpoint is a mux stream. Otherwise
  * NULL is returned. __cs_conn() returns the connection without any control
  * while cs_conn() check the endpoint type.
  */
 static inline struct connection *__cs_conn(const struct conn_stream *cs)
 {
-	return cs->ctx;
+	return __cs_endp_ctx(cs);
 }
 static inline struct connection *cs_conn(const struct conn_stream *cs)
 {
-	if (cs->flags & CS_FL_ENDP_MUX)
+	if (cs->endp->flags & CS_EP_T_MUX)
 		return __cs_conn(cs);
 	return NULL;
 }
@@ -67,17 +82,32 @@ static inline const struct mux_ops *cs_conn_mux(const struct conn_stream *cs)
 	return (conn ? conn->mux : NULL);
 }
 
+/* Returns the mux from a cs if the endpoint is a mux. Otherwise
+ * NULL is returned. __cs_mux() returns the mux without any control
+ * while cs_mux() check the endpoint type.
+ */
+static inline void *__cs_mux(const struct conn_stream *cs)
+{
+	return __cs_endp_target(cs);
+}
+static inline struct appctx *cs_mux(const struct conn_stream *cs)
+{
+	if (cs->endp->flags & CS_EP_T_MUX)
+		return __cs_mux(cs);
+	return NULL;
+}
+
 /* Returns the appctx from a cs if the endpoint is an appctx. Otherwise
  * NULL is returned. __cs_appctx() returns the appctx without any control
  * while cs_appctx() check the endpoint type.
  */
 static inline struct appctx *__cs_appctx(const struct conn_stream *cs)
 {
-	return cs->end;
+	return __cs_endp_target(cs);
 }
 static inline struct appctx *cs_appctx(const struct conn_stream *cs)
 {
-	if (cs->flags & CS_FL_ENDP_APP)
+	if (cs->endp->flags & CS_EP_T_APPLET)
 		return __cs_appctx(cs);
 	return NULL;
 }

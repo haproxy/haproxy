@@ -27,6 +27,15 @@
 
 struct stream_interface;
 
+/* CS endpoint flags */
+ enum {
+	 CS_EP_NONE       = 0x00000000, /* For initialization purposes */
+
+	 /* Endpoint types */
+	 CS_EP_T_MUX      = 0x00000001, /* The endpoint is a mux (the target may be NULL before the mux init) */
+	 CS_EP_T_APPLET   = 0x00000002, /* The endpoint is an applet */
+ };
+
 /* conn_stream flags */
 enum {
 	CS_FL_NONE          = 0x00000000,  /* Just for initialization purposes */
@@ -57,9 +66,6 @@ enum {
 
 	/* flags set by the mux relayed to the stream */
 	CS_FL_WEBSOCKET     = 0x00200000,  /* websocket stream */
-
-	CS_FL_ENDP_MUX      = 0x00400000,  /* Endpoint is a mux */
-	CS_FL_ENDP_APP      = 0x00800000,  /* Endpoint is an applet */
 };
 
 /* cs_shutr() modes */
@@ -88,6 +94,13 @@ struct data_cb {
 	char name[8];                           /* data layer name, zero-terminated */
 };
 
+
+struct cs_endpoint {
+	void *target;
+	void *ctx;
+	unsigned int flags;
+};
+
 /*
  * This structure describes the elements of a connection relevant to a stream
  */
@@ -95,11 +108,10 @@ struct conn_stream {
 	enum obj_type obj_type;              /* differentiates connection from applet context */
 	/* 3 bytes hole here */
 	unsigned int flags;                  /* CS_FL_* */
-	void *end;                           /* points to the end point (MUX stream or appctx) */
+	struct cs_endpoint *endp;            /* points to the end point (MUX stream or appctx) */
 	enum obj_type *app;                  /* points to the applicative point (stream or check) */
 	struct stream_interface *si;
 	const struct data_cb *data_cb;       /* data layer callbacks. Must be set before xprt->init() */
-	void *ctx;                           /* endpoint-specific context */
 };
 
 

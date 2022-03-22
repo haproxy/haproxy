@@ -636,7 +636,7 @@ static int h3_resp_data_send(struct qcs *qcs, struct buffer *buf, size_t count)
 size_t h3_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t count, int flags)
 {
 	size_t total = 0;
-	struct qcs *qcs = cs->end;
+	struct qcs *qcs = __cs_mux(cs);
 	struct htx *htx;
 	enum htx_blk_type btype;
 	struct htx_blk *blk;

@@ -3,6 +3,7 @@
 
 #include <haproxy/channel-t.h>
 #include <haproxy/connection-t.h>
+#include <haproxy/conn_stream-t.h>
 #include <haproxy/http_ana-t.h>
 #include <haproxy/stream-t.h>
 #include <haproxy/stream_interface-t.h>
@@ -18,10 +19,11 @@
 #define SHOW_AS_STRM  0x00000040
 #define SHOW_AS_TASK  0x00000080
 #define SHOW_AS_TXN   0x00000100
+#define SHOW_AS_ENDP  0x00000200
 
 // command line names, must be in exact same order as the SHOW_AS_* flags above
 // so that show_as_words[i] matches flag 1U<<i.
-const char *show_as_words[] = { "ana", "chn", "conn", "cs", "si", "siet", "strm", "task", "txn", };
+const char *show_as_words[] = { "ana", "chn", "conn", "cs", "si", "siet", "strm", "task", "txn", "endp", };
 
 #define SHOW_FLAG(f,n)					\
 	do {				 		\
@@ -177,6 +179,22 @@ void show_conn_flags(unsigned int f)
 	}
 	putchar('\n');
 }
+
+void show_endp_flags(unsigned int f)
+{
+	printf("endp->flags = ");
+	if (!f) {
+		printf("0\n");
+		return;
+	}
+	SHOW_FLAG(f, CS_EP_T_APPLET);
+	SHOW_FLAG(f, CS_EP_T_MUX);
+
+	if (f) {
+		printf("EXTRA(0x%08x)", f);
+	}
+	putchar('\n');
+}
 void show_cs_flags(unsigned int f)
 {
 	printf("cs->flags = ");
@@ -184,8 +202,6 @@ void show_cs_flags(unsigned int f)
 		printf("0\n");
 		return;
 	}
-	SHOW_FLAG(f, CS_FL_ENDP_APP);
-	SHOW_FLAG(f, CS_FL_ENDP_MUX);
 	SHOW_FLAG(f, CS_FL_WEBSOCKET);
 	SHOW_FLAG(f, CS_FL_NOT_FIRST);
 	SHOW_FLAG(f, CS_FL_KILL_CONN);
@@ -485,6 +501,7 @@ int main(int argc, char **argv)
 		if (show_as & SHOW_AS_CHN)   show_chn_flags(flags);
 		if (show_as & SHOW_AS_CONN)  show_conn_flags(flags);
 		if (show_as & SHOW_AS_CS)    show_cs_flags(flags);
+		if (show_as & SHOW_AS_ENDP)  show_endp_flags(flags);
 		if (show_as & SHOW_AS_SI)    show_si_flags(flags);
 		if (show_as & SHOW_AS_SIET)  show_si_et(flags);
 		if (show_as & SHOW_AS_STRM)  show_strm_flags(flags);

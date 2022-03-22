@@ -1133,7 +1133,6 @@ static struct fcgi_strm *fcgi_conn_stream_new(struct fcgi_conn *fconn, struct co
 	cs_attach_endp_mux(cs, fstrm, fconn->conn);
 	fstrm->cs = cs;
 	fstrm->sess = sess;
-	cs->end = fstrm;
 	fconn->nb_cs++;
 
 	TRACE_LEAVE(FCGI_EV_FSTRM_NEW, fconn->conn, fstrm);
@@ -3579,14 +3578,12 @@ static void fcgi_destroy(void *ctx)
  */
 static void fcgi_detach(struct conn_stream *cs)
 {
-	struct fcgi_strm *fstrm = cs->end;
+	struct fcgi_strm *fstrm = __cs_mux(cs);
 	struct fcgi_conn *fconn;
 	struct session *sess;
 
 	TRACE_ENTER(FCGI_EV_STRM_END, (fstrm ? fstrm->fconn->conn : NULL), fstrm);
 
-	cs->end = NULL;
-	cs->ctx = NULL;
 	if (!fstrm) {
 		TRACE_LEAVE(FCGI_EV_STRM_END);
 		return;
@@ -3854,7 +3851,7 @@ struct task *fcgi_deferred_shut(struct task *t, void *ctx, unsigned int state)
 /* shutr() called by the conn_stream (mux_ops.shutr) */
 static void fcgi_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
 {
-	struct fcgi_strm *fstrm = cs->end;
+	struct fcgi_strm *fstrm = __cs_mux(cs);
 
 	TRACE_POINT(FCGI_EV_STRM_SHUT, fstrm->fconn->conn, fstrm);
 	if (cs->flags & CS_FL_KILL_CONN)
@@ -3869,7 +3866,7 @@ static void fcgi_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
 /* shutw() called by the conn_stream (mux_ops.shutw) */
 static void fcgi_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
 {
-	struct fcgi_strm *fstrm = cs->end;
+	struct fcgi_strm *fstrm = __cs_mux(cs);
 
 	TRACE_POINT(FCGI_EV_STRM_SHUT, fstrm->fconn->conn, fstrm);
 	if (cs->flags & CS_FL_KILL_CONN)
@@ -3885,7 +3882,7 @@ static void fcgi_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
  */
 static int fcgi_subscribe(struct conn_stream *cs, int event_type, struct wait_event *es)
 {
-	struct fcgi_strm *fstrm = cs->end;
+	struct fcgi_strm *fstrm = __cs_mux(cs);
 	struct fcgi_conn *fconn = fstrm->fconn;
 
 	BUG_ON(event_type & ~(SUB_RETRY_SEND|SUB_RETRY_RECV));
@@ -3911,7 +3908,7 @@ static int fcgi_subscribe(struct conn_stream *cs, int event_type, struct wait_ev
  */
 static int fcgi_unsubscribe(struct conn_stream *cs, int event_type, struct wait_event *es)
 {
-	struct fcgi_strm *fstrm = cs->end;
+	struct fcgi_strm *fstrm = __cs_mux(cs);
 	struct fcgi_conn *fconn = fstrm->fconn;
 
 	BUG_ON(event_type & ~(SUB_RETRY_SEND|SUB_RETRY_RECV));
@@ -3947,7 +3944,7 @@ static int fcgi_unsubscribe(struct conn_stream *cs, int event_type, struct wait_
  */
 static size_t fcgi_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t count, int flags)
 {
-	struct fcgi_strm *fstrm = cs->end;
+	struct fcgi_strm *fstrm = __cs_mux(cs);
 	struct fcgi_conn *fconn = fstrm->fconn;
 	size_t ret = 0;
 
@@ -3991,7 +3988,7 @@ static size_t fcgi_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t co
  */
 static size_t fcgi_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t count, int flags)
 {
-	struct fcgi_strm *fstrm = cs->end;
+	struct fcgi_strm *fstrm = __cs_mux(cs);
 	struct fcgi_conn *fconn = fstrm->fconn;
 	size_t total = 0;
 	size_t ret;

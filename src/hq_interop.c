@@ -96,7 +96,7 @@ static struct buffer *mux_get_buf(struct qcs *qcs)
 static size_t hq_interop_snd_buf(struct conn_stream *cs, struct buffer *buf,
                                  size_t count, int flags)
 {
-	struct qcs *qcs = cs->end;
+	struct qcs *qcs = __cs_mux(cs);
 	struct htx *htx;
 	enum htx_blk_type btype;
 	struct htx_blk *blk;

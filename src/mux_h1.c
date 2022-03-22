@@ -3337,15 +3337,13 @@ static void h1_destroy(void *ctx)
  */
 static void h1_detach(struct conn_stream *cs)
 {
-	struct h1s *h1s = cs->end;
+	struct h1s *h1s = __cs_mux(cs);
 	struct h1c *h1c;
 	struct session *sess;
 	int is_not_first;
 
 	TRACE_ENTER(H1_EV_STRM_END, h1s ? h1s->h1c->conn : NULL, h1s);
 
-	cs->end = NULL;
-	cs->ctx = NULL;
 	if (!h1s) {
 		TRACE_LEAVE(H1_EV_STRM_END);
 		return;
@@ -3447,7 +3445,7 @@ static void h1_detach(struct conn_stream *cs)
 
 static void h1_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
 {
-	struct h1s *h1s = cs->end;
+	struct h1s *h1s = __cs_mux(cs);
 	struct h1c *h1c;
 
 	if (!h1s)
@@ -3490,7 +3488,7 @@ static void h1_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
 
 static void h1_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
 {
-	struct h1s *h1s = cs->end;
+	struct h1s *h1s = __cs_mux(cs);
 	struct h1c *h1c;
 
 	if (!h1s)
@@ -3550,7 +3548,7 @@ static void h1_shutw_conn(struct connection *conn)
  */
 static int h1_unsubscribe(struct conn_stream *cs, int event_type, struct wait_event *es)
 {
-	struct h1s *h1s = cs->end;
+	struct h1s *h1s = __cs_mux(cs);
 
 	if (!h1s)
 		return 0;
@@ -3579,7 +3577,7 @@ static int h1_unsubscribe(struct conn_stream *cs, int event_type, struct wait_ev
  */
 static int h1_subscribe(struct conn_stream *cs, int event_type, struct wait_event *es)
 {
-	struct h1s *h1s = cs->end;
+	struct h1s *h1s = __cs_mux(cs);
 	struct h1c *h1c;
 
 	if (!h1s)
@@ -3627,7 +3625,7 @@ static int h1_subscribe(struct conn_stream *cs, int event_type, struct wait_even
  */
 static size_t h1_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t count, int flags)
 {
-	struct h1s *h1s = cs->end;
+	struct h1s *h1s = __cs_mux(cs);
 	struct h1c *h1c = h1s->h1c;
 	struct h1m *h1m = (!(h1c->flags & H1C_F_IS_BACK) ? &h1s->req : &h1s->res);
 	size_t ret = 0;
@@ -3663,7 +3661,7 @@ static size_t h1_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 /* Called from the upper layer, to send data */
 static size_t h1_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t count, int flags)
 {
-	struct h1s *h1s = cs->end;
+	struct h1s *h1s = __cs_mux(cs);
 	struct h1c *h1c;
 	size_t total = 0;
 
@@ -3728,7 +3726,7 @@ static size_t h1_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 /* Send and get, using splicing */
 static int h1_rcv_pipe(struct conn_stream *cs, struct pipe *pipe, unsigned int count)
 {
-	struct h1s *h1s = cs->end;
+	struct h1s *h1s = __cs_mux(cs);
 	struct h1c *h1c = h1s->h1c;
 	struct h1m *h1m = (!(h1c->flags & H1C_F_IS_BACK) ? &h1s->req : &h1s->res);
 	int ret = 0;
@@ -3798,7 +3796,7 @@ static int h1_rcv_pipe(struct conn_stream *cs, struct pipe *pipe, unsigned int c
 
 static int h1_snd_pipe(struct conn_stream *cs, struct pipe *pipe)
 {
-	struct h1s *h1s = cs->end;
+	struct h1s *h1s = __cs_mux(cs);
 	struct h1c *h1c = h1s->h1c;
 	struct h1m *h1m = (!(h1c->flags & H1C_F_IS_BACK) ? &h1s->res : &h1s->req);
 	int ret = 0;
