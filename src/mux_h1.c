@@ -735,7 +735,7 @@ static struct conn_stream *h1s_new_cs(struct h1s *h1s, struct buffer *input)
 
 	if (!stream_new(h1c->conn->owner, cs, input)) {
 		TRACE_DEVEL("leaving on stream creation failure", H1_EV_STRM_NEW|H1_EV_STRM_END|H1_EV_STRM_ERR, h1c->conn, h1s);
-		goto err;
+		goto err_cs;
 	}
 
 	HA_ATOMIC_INC(&h1c->px_counters->open_streams);
@@ -745,8 +745,9 @@ static struct conn_stream *h1s_new_cs(struct h1s *h1s, struct buffer *input)
 	TRACE_LEAVE(H1_EV_STRM_NEW, h1c->conn, h1s);
 	return cs;
 
-  err:
+  err_cs:
 	cs_free(cs);
+  err:
 	h1s->cs = NULL;
 	TRACE_DEVEL("leaving on error", H1_EV_STRM_NEW|H1_EV_STRM_ERR, h1c->conn, h1s);
 	return NULL;
