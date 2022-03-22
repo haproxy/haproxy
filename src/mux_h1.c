@@ -728,10 +728,10 @@ static struct conn_stream *h1s_new_cs(struct h1s *h1s, struct buffer *input)
 	h1s->cs = cs;
 
 	if (h1s->flags & H1S_F_NOT_FIRST)
-		cs->flags |= CS_FL_NOT_FIRST;
+		cs->endp->flags |= CS_EP_NOT_FIRST;
 
 	if (h1s->req.flags & H1_MF_UPG_WEBSOCKET)
-		cs->flags |= CS_FL_WEBSOCKET;
+		cs->endp->flags |= CS_EP_WEBSOCKET;
 
 	if (!stream_new(h1c->conn->owner, cs, input)) {
 		TRACE_DEVEL("leaving on stream creation failure", H1_EV_STRM_NEW|H1_EV_STRM_END|H1_EV_STRM_ERR, h1c->conn, h1s);
@@ -1880,11 +1880,11 @@ static size_t h1_process_demux(struct h1c *h1c, struct buffer *buf, size_t count
 	/* Here h1s->cs is always defined */
 	if (!(h1m->flags & H1_MF_CHNK) && (h1m->state == H1_MSG_DATA || (h1m->state == H1_MSG_TUNNEL))) {
 		TRACE_STATE("notify the mux can use splicing", H1_EV_RX_DATA|H1_EV_RX_BODY, h1c->conn, h1s);
-		h1s->cs->flags |= CS_FL_MAY_SPLICE;
+		h1s->cs->endp->flags |= CS_EP_MAY_SPLICE;
 	}
 	else {
 		TRACE_STATE("notify the mux can't use splicing anymore", H1_EV_RX_DATA|H1_EV_RX_BODY, h1c->conn, h1s);
-		h1s->cs->flags &= ~CS_FL_MAY_SPLICE;
+		h1s->cs->endp->flags &= ~CS_EP_MAY_SPLICE;
 	}
 
 	/* Set EOI on conn-stream in DONE state iff:
@@ -3454,9 +3454,9 @@ static void h1_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
 
 	TRACE_ENTER(H1_EV_STRM_SHUT, h1c->conn, h1s, 0, (size_t[]){mode});
 
-	if (cs->flags & CS_FL_SHR)
+	if (cs->endp->flags & CS_EP_SHR)
 		goto end;
-	if (cs->flags & CS_FL_KILL_CONN) {
+	if (cs->endp->flags & CS_EP_KILL_CONN) {
 		TRACE_STATE("stream wants to kill the connection", H1_EV_STRM_SHUT, h1c->conn, h1s);
 		goto do_shutr;
 	}
@@ -3477,7 +3477,7 @@ static void h1_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
 
   do_shutr:
 	/* NOTE: Be sure to handle abort (cf. h2_shutr) */
-	if (cs->flags & CS_FL_SHR)
+	if (cs->endp->flags & CS_EP_SHR)
 		goto end;
 
 	if (conn_xprt_ready(h1c->conn) && h1c->conn->xprt->shutr)
@@ -3497,9 +3497,9 @@ static void h1_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
 
 	TRACE_ENTER(H1_EV_STRM_SHUT, h1c->conn, h1s, 0, (size_t[]){mode});
 
-	if (cs->flags & CS_FL_SHW)
+	if (cs->endp->flags & CS_EP_SHW)
 		goto end;
-	if (cs->flags & CS_FL_KILL_CONN) {
+	if (cs->endp->flags & CS_EP_KILL_CONN) {
 		TRACE_STATE("stream wants to kill the connection", H1_EV_STRM_SHUT, h1c->conn, h1s);
 		goto do_shutw;
 	}
@@ -3643,7 +3643,7 @@ static size_t h1_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 	else
 		TRACE_DEVEL("h1c ibuf not allocated", H1_EV_H1C_RECV|H1_EV_H1C_BLK, h1c->conn);
 
-	if ((flags & CO_RFL_BUF_FLUSH) && (cs->flags & CS_FL_MAY_SPLICE)) {
+	if ((flags & CO_RFL_BUF_FLUSH) && (cs->endp->flags & CS_EP_MAY_SPLICE)) {
 		h1c->flags |= H1C_F_WANT_SPLICE;
 		TRACE_STATE("Block xprt rcv_buf to flush stream's buffer (want_splice)", H1_EV_STRM_RECV, h1c->conn, h1s);
 	}
@@ -3783,7 +3783,7 @@ static int h1_rcv_pipe(struct conn_stream *cs, struct pipe *pipe, unsigned int c
 
 	if (!(h1c->flags & H1C_F_WANT_SPLICE)) {
 		TRACE_STATE("notify the mux can't use splicing anymore", H1_EV_STRM_RECV, h1c->conn, h1s);
-		cs->flags &= ~CS_FL_MAY_SPLICE;
+		cs->endp->flags &= ~CS_EP_MAY_SPLICE;
 		if (!(h1c->wait_event.events & SUB_RETRY_RECV)) {
 			TRACE_STATE("restart receiving data, subscribing", H1_EV_STRM_RECV, h1c->conn, h1s);
 			h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);

@@ -3117,7 +3117,7 @@ static int fcgi_process(struct fcgi_conn *fconn)
 
 		while (node) {
 			fstrm = container_of(node, struct fcgi_strm, by_id);
-			if (fstrm->cs && fstrm->cs->flags & CS_FL_WAIT_FOR_HS)
+			if (fstrm->cs && fstrm->cs->endp->flags & CS_EP_WAIT_FOR_HS)
 				fcgi_strm_notify_recv(fstrm);
 			node = eb32_next(node);
 		}
@@ -3854,7 +3854,7 @@ static void fcgi_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
 	struct fcgi_strm *fstrm = __cs_mux(cs);
 
 	TRACE_POINT(FCGI_EV_STRM_SHUT, fstrm->fconn->conn, fstrm);
-	if (cs->flags & CS_FL_KILL_CONN)
+	if (cs->endp->flags & CS_EP_KILL_CONN)
 		fstrm->flags |= FCGI_SF_KILL_CONN;
 
 	if (!mode)
@@ -3869,7 +3869,7 @@ static void fcgi_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
 	struct fcgi_strm *fstrm = __cs_mux(cs);
 
 	TRACE_POINT(FCGI_EV_STRM_SHUT, fstrm->fconn->conn, fstrm);
-	if (cs->flags & CS_FL_KILL_CONN)
+	if (cs->endp->flags & CS_EP_KILL_CONN)
 		fstrm->flags |= FCGI_SF_KILL_CONN;
 
 	fcgi_do_shutw(fstrm);

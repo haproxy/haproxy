@@ -1749,7 +1749,7 @@ skip_reuse:
 	 * the handshake.
 	 */
 	if (!(srv_conn->flags & (CO_FL_WAIT_XPRT | CO_FL_EARLY_SSL_HS)))
-		s->csb->flags &= ~CS_FL_WAIT_FOR_HS;
+		s->csb->endp->flags &= ~CS_EP_WAIT_FOR_HS;
 
 	if (!si_state_in(cs_si(s->csb)->state, SI_SB_EST|SI_SB_DIS|SI_SB_CLO) &&
 	    (srv_conn->flags & CO_FL_WAIT_XPRT) == 0) {

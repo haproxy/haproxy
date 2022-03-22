@@ -187,6 +187,15 @@ void show_endp_flags(unsigned int f)
 		printf("0\n");
 		return;
 	}
+	SHOW_FLAG(f, CS_EP_KILL_CONN);
+	SHOW_FLAG(f, CS_EP_WAIT_FOR_HS);
+	SHOW_FLAG(f, CS_EP_MAY_SPLICE);
+	SHOW_FLAG(f, CS_EP_WEBSOCKET);
+	SHOW_FLAG(f, CS_EP_NOT_FIRST);
+	SHOW_FLAG(f, CS_EP_SHWS);
+	SHOW_FLAG(f, CS_EP_SHWN);
+	SHOW_FLAG(f, CS_EP_SHRR);
+	SHOW_FLAG(f, CS_EP_SHRD);
 	SHOW_FLAG(f, CS_EP_T_APPLET);
 	SHOW_FLAG(f, CS_EP_T_MUX);
 
@@ -202,21 +211,12 @@ void show_cs_flags(unsigned int f)
 		printf("0\n");
 		return;
 	}
-	SHOW_FLAG(f, CS_FL_WEBSOCKET);
-	SHOW_FLAG(f, CS_FL_NOT_FIRST);
-	SHOW_FLAG(f, CS_FL_KILL_CONN);
-	SHOW_FLAG(f, CS_FL_WAIT_FOR_HS);
-	SHOW_FLAG(f, CS_FL_MAY_SPLICE);
 	SHOW_FLAG(f, CS_FL_EOI);
 	SHOW_FLAG(f, CS_FL_EOS);
 	SHOW_FLAG(f, CS_FL_ERR_PENDING);
 	SHOW_FLAG(f, CS_FL_WANT_ROOM);
 	SHOW_FLAG(f, CS_FL_RCV_MORE);
 	SHOW_FLAG(f, CS_FL_ERROR);
-	SHOW_FLAG(f, CS_FL_SHWS);
-	SHOW_FLAG(f, CS_FL_SHWN);
-	SHOW_FLAG(f, CS_FL_SHRR);
-	SHOW_FLAG(f, CS_FL_SHRD);
 
 	if (f) {
 		printf("EXTRA(0x%08x)", f);

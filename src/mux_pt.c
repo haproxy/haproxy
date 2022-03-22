@@ -308,7 +308,7 @@ static int mux_pt_init(struct connection *conn, struct proxy *prx, struct sessio
 	ctx->cs = cs;
 	cs->flags |= CS_FL_RCV_MORE;
 	if (global.tune.options & GTUNE_USE_SPLICE)
-		cs->flags |= CS_FL_MAY_SPLICE;
+		cs->endp->flags |= CS_EP_MAY_SPLICE;
 
 	TRACE_LEAVE(PT_EV_CONN_NEW, conn, cs);
 	return 0;
@@ -449,7 +449,7 @@ static void mux_pt_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
 
 	TRACE_ENTER(PT_EV_STRM_SHUT, conn, cs);
 
-	if (cs->flags & CS_FL_SHR)
+	if (cs->endp->flags & CS_EP_SHR)
 		return;
 	cs->flags &= ~(CS_FL_RCV_MORE | CS_FL_WANT_ROOM);
 	if (conn_xprt_ready(conn) && conn->xprt->shutr)
@@ -457,7 +457,7 @@ static void mux_pt_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
 		    (mode == CS_SHR_DRAIN));
 	else if (mode == CS_SHR_DRAIN)
 		conn_ctrl_drain(conn);
-	if (cs->flags & CS_FL_SHW)
+	if (cs->endp->flags & CS_EP_SHW)
 		conn_full_close(conn);
 
 	TRACE_LEAVE(PT_EV_STRM_SHUT, conn, cs);
@@ -469,12 +469,12 @@ static void mux_pt_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
 
 	TRACE_ENTER(PT_EV_STRM_SHUT, conn, cs);
 
-	if (cs->flags & CS_FL_SHW)
+	if (cs->endp->flags & CS_EP_SHW)
 		return;
 	if (conn_xprt_ready(conn) && conn->xprt->shutw)
 		conn->xprt->shutw(conn, conn->xprt_ctx,
 		    (mode == CS_SHW_NORMAL));
-	if (!(cs->flags & CS_FL_SHR))
+	if (!(cs->endp->flags & CS_EP_SHR))
 		conn_sock_shutw(conn, (mode == CS_SHW_NORMAL));
 	else
 		conn_full_close(conn);

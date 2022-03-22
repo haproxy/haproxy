@@ -1605,7 +1605,7 @@ static struct h2s *h2c_frt_stream_new(struct h2c *h2c, int id, struct buffer *in
 	cs = cs_new();
 	if (!cs)
 		goto out_close;
-	cs->flags |= CS_FL_NOT_FIRST;
+	cs->endp->flags |= CS_EP_NOT_FIRST;
 	cs_attach_endp_mux(cs, h2s, h2c->conn);
 	h2s->cs = cs;
 	h2c->nb_cs++;
@@ -1614,7 +1614,7 @@ static struct h2s *h2c_frt_stream_new(struct h2c *h2c, int id, struct buffer *in
 	 * be refine.
 	 */
 	if (flags & H2_SF_EXT_CONNECT_RCVD)
-		cs->flags |= CS_FL_WEBSOCKET;
+		cs->endp->flags |= CS_EP_WEBSOCKET;
 
 	/* The stream will record the request's accept date (which is either the
 	 * end of the connection's or the date immediately after the previous
@@ -4083,7 +4083,7 @@ static int h2_process(struct h2c *h2c)
 
 		while (node) {
 			h2s = container_of(node, struct h2s, by_id);
-			if (h2s->cs && h2s->cs->flags & CS_FL_WAIT_FOR_HS)
+			if (h2s->cs && h2s->cs->endp->flags & CS_EP_WAIT_FOR_HS)
 				h2s_notify_recv(h2s);
 			node = eb32_next(node);
 		}
@@ -4671,7 +4671,7 @@ static void h2_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
 	struct h2s *h2s = __cs_mux(cs);
 
 	TRACE_ENTER(H2_EV_STRM_SHUT, h2s->h2c->conn, h2s);
-	if (cs->flags & CS_FL_KILL_CONN)
+	if (cs->endp->flags & CS_EP_KILL_CONN)
 		h2s->flags |= H2_SF_KILL_CONN;
 
 	if (mode)
@@ -4686,7 +4686,7 @@ static void h2_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
 	struct h2s *h2s = __cs_mux(cs);
 
 	TRACE_ENTER(H2_EV_STRM_SHUT, h2s->h2c->conn, h2s);
-	if (cs->flags & CS_FL_KILL_CONN)
+	if (cs->endp->flags & CS_EP_KILL_CONN)
 		h2s->flags |= H2_SF_KILL_CONN;
 
 	h2_do_shutw(h2s);
@@ -5325,7 +5325,7 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, struct htx *htx)
 			break;
 	}
 
-	if (!h2s->cs || h2s->cs->flags & CS_FL_SHW) {
+	if (!h2s->cs || h2s->cs->endp->flags & CS_EP_SHW) {
 		/* Response already closed: add END_STREAM */
 		es_now = 1;
 	}
@@ -5745,7 +5745,7 @@ static size_t h2s_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 			break;
 	}
 
-	if (!h2s->cs || h2s->cs->flags & CS_FL_SHW) {
+	if (!h2s->cs || h2s->cs->endp->flags & CS_EP_SHW) {
 		/* Request already closed: add END_STREAM */
 		es_now = 1;
 	}

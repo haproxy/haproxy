@@ -463,7 +463,7 @@ struct stream *stream_new(struct session *sess, struct conn_stream *cs, struct b
 	if (likely(sess->fe->options2 & PR_O2_INDEPSTR))
 		cs_si(s->csb)->flags |= SI_FL_INDEP_STR;
 
-	if (cs->flags & CS_FL_WEBSOCKET)
+	if (cs->endp->flags & CS_EP_WEBSOCKET)
 		s->flags |= SF_WEBSOCKET;
 	if (cs_conn(cs)) {
 		const struct mux_ops *mux = cs_conn_mux(cs);

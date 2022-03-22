@@ -645,8 +645,8 @@ static int si_cs_process(struct conn_stream *cs)
 	 * the handshake.
 	 */
 	if (!(conn->flags & (CO_FL_WAIT_XPRT | CO_FL_EARLY_SSL_HS)) &&
-	    (cs->flags & CS_FL_WAIT_FOR_HS)) {
-		cs->flags &= ~CS_FL_WAIT_FOR_HS;
+	    (cs->endp->flags & CS_EP_WAIT_FOR_HS)) {
+		cs->endp->flags &= ~CS_EP_WAIT_FOR_HS;
 		task_wakeup(si_task(si), TASK_WOKEN_MSG);
 	}
 
@@ -1072,7 +1072,7 @@ static void stream_int_shutr_conn(struct stream_interface *si)
 		return;
 
 	if (si->flags & SI_FL_KILL_CONN)
-		cs->flags |= CS_FL_KILL_CONN;
+		cs->endp->flags |= CS_EP_KILL_CONN;
 
 	if (si_oc(si)->flags & CF_SHUTW) {
 		cs_close(cs);
@@ -1123,7 +1123,7 @@ static void stream_int_shutw_conn(struct stream_interface *si)
 		 * no risk so we close both sides immediately.
 		 */
 		if (si->flags & SI_FL_KILL_CONN)
-			cs->flags |= CS_FL_KILL_CONN;
+			cs->endp->flags |= CS_EP_KILL_CONN;
 
 		if (si->flags & SI_FL_ERR) {
 			/* quick close, the socket is already shut anyway */
@@ -1155,7 +1155,7 @@ static void stream_int_shutw_conn(struct stream_interface *si)
 		 * response buffer as shutr
 		 */
 		if (si->flags & SI_FL_KILL_CONN)
-			cs->flags |= CS_FL_KILL_CONN;
+			cs->endp->flags |= CS_EP_KILL_CONN;
 		cs_close(cs);
 		/* fall through */
 	case SI_ST_CER:
@@ -1349,7 +1349,7 @@ static int si_cs_recv(struct conn_stream *cs)
 	/* First, let's see if we may splice data across the channel without
 	 * using a buffer.
 	 */
-	if (cs->flags & CS_FL_MAY_SPLICE &&
+	if (cs->endp->flags & CS_EP_MAY_SPLICE &&
 	    (ic->pipe || ic->to_forward >= MIN_SPLICE_FORWARD) &&
 	    ic->flags & CF_KERN_SPLICING) {
 		if (c_data(ic)) {
@@ -1404,7 +1404,7 @@ static int si_cs_recv(struct conn_stream *cs)
 		ic->pipe = NULL;
 	}
 
-	if (ic->pipe && ic->to_forward && !(flags & CO_RFL_BUF_FLUSH) && cs->flags & CS_FL_MAY_SPLICE) {
+	if (ic->pipe && ic->to_forward && !(flags & CO_RFL_BUF_FLUSH) && cs->endp->flags & CS_EP_MAY_SPLICE) {
 		/* don't break splicing by reading, but still call rcv_buf()
 		 * to pass the flag.
 		 */

@@ -5131,7 +5131,7 @@ struct http_txn *http_create_txn(struct stream *s)
 		return NULL;
 	s->txn = txn;
 
-	txn->flags = ((cs && cs->flags & CS_FL_NOT_FIRST) ? TX_NOT_FIRST : 0);
+	txn->flags = ((cs && cs->endp->flags & CS_EP_NOT_FIRST) ? TX_NOT_FIRST : 0);
 	txn->status = -1;
 	txn->http_reply = NULL;
 	write_u32(txn->cache_hash, 0);

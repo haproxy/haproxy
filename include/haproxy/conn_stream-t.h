@@ -34,19 +34,36 @@ struct stream_interface;
 	 /* Endpoint types */
 	 CS_EP_T_MUX      = 0x00000001, /* The endpoint is a mux (the target may be NULL before the mux init) */
 	 CS_EP_T_APPLET   = 0x00000002, /* The endpoint is an applet */
+
+	 /* unused: 0x00000004 .. 0x00000080 */
+
+	 CS_EP_SHRD       = 0x00000100,  /* read shut, draining extra data */
+	 CS_EP_SHRR       = 0x00000200,  /* read shut, resetting extra data */
+	 CS_EP_SHR        = CS_EP_SHRD | CS_EP_SHRR, /* read shut status */
+
+	 CS_EP_SHWN       = 0x00000400,  /* write shut, verbose mode */
+	 CS_EP_SHWS       = 0x00000800,  /* write shut, silent mode */
+	 CS_EP_SHW        = CS_EP_SHWN | CS_EP_SHWS, /* write shut status */
+
+	/* following flags are supposed to be set by the endpoint and read by
+	 * the app layer :
+	 */
+	CS_EP_NOT_FIRST  = 0x00001000,  /* This conn-stream is not the first one for the endpoint */
+	CS_EP_WEBSOCKET  = 0x00002000,  /* The endpoint uses the websocket proto */
+	CS_EP_MAY_SPLICE = 0x00004000,  /* The endpoint may use the kernel splicing to forward data to the other side (implies CS_EP_CAN_SPLICE) */
+
+	 /* unused: 0x00008000 */
+
+	/* following flags are supposed to be set by the app layer and read by
+	 * the endpoint :
+	 */
+	CS_EP_WAIT_FOR_HS   = 0x00010000,  /* This stream is waiting for handhskae */
+	CS_EP_KILL_CONN     = 0x00020000,  /* must kill the connection when the CS closes */
  };
 
 /* conn_stream flags */
 enum {
 	CS_FL_NONE          = 0x00000000,  /* Just for initialization purposes */
-	CS_FL_SHRD          = 0x00000010,  /* read shut, draining extra data */
-	CS_FL_SHRR          = 0x00000020,  /* read shut, resetting extra data */
-	CS_FL_SHR           = CS_FL_SHRD | CS_FL_SHRR, /* read shut status */
-
-	CS_FL_SHWN          = 0x00000040,  /* write shut, verbose mode */
-	CS_FL_SHWS          = 0x00000080,  /* write shut, silent mode */
-	CS_FL_SHW           = CS_FL_SHWN | CS_FL_SHWS, /* write shut status */
-
 
 	CS_FL_ERROR         = 0x00000100,  /* a fatal error was reported */
 	CS_FL_RCV_MORE      = 0x00000200,  /* We may have more bytes to transfer */
@@ -55,17 +72,6 @@ enum {
 	CS_FL_EOS           = 0x00001000,  /* End of stream delivered to data layer */
 	/* unused: 0x00002000 */
 	CS_FL_EOI           = 0x00004000,  /* end-of-input reached */
-	CS_FL_MAY_SPLICE    = 0x00008000,  /* caller may use rcv_pipe() only if this flag is set */
-	CS_FL_WAIT_FOR_HS   = 0x00010000,  /* This stream is waiting for handhskae */
-	CS_FL_KILL_CONN     = 0x00020000,  /* must kill the connection when the CS closes */
-
-	/* following flags are supposed to be set by the mux and read/unset by
-	 * the stream-interface :
-	 */
-	CS_FL_NOT_FIRST     = 0x00100000,  /* this stream is not the first one */
-
-	/* flags set by the mux relayed to the stream */
-	CS_FL_WEBSOCKET     = 0x00200000,  /* websocket stream */
 };
 
 /* cs_shutr() modes */

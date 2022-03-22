@@ -162,14 +162,14 @@ static inline void cs_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
 {
 	const struct mux_ops *mux;
 
-	if (!cs_conn(cs) || cs->flags & CS_FL_SHR)
+	if (!cs_conn(cs) || cs->endp->flags & CS_EP_SHR)
 		return;
 
 	/* clean data-layer shutdown */
 	mux = cs_conn_mux(cs);
 	if (mux && mux->shutr)
 		mux->shutr(cs, mode);
-	cs->flags |= (mode == CS_SHR_DRAIN) ? CS_FL_SHRD : CS_FL_SHRR;
+	cs->endp->flags |= (mode == CS_SHR_DRAIN) ? CS_EP_SHRD : CS_EP_SHRR;
 }
 
 /* shut write */
@@ -177,14 +177,14 @@ static inline void cs_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
 {
 	const struct mux_ops *mux;
 
-	if (!cs_conn(cs) || cs->flags & CS_FL_SHW)
+	if (!cs_conn(cs) || cs->endp->flags & CS_EP_SHW)
 		return;
 
 	/* clean data-layer shutdown */
 	mux = cs_conn_mux(cs);
 	if (mux && mux->shutw)
 		mux->shutw(cs, mode);
-	cs->flags |= (mode == CS_SHW_NORMAL) ? CS_FL_SHWN : CS_FL_SHWS;
+	cs->endp->flags |= (mode == CS_SHW_NORMAL) ? CS_EP_SHWN : CS_EP_SHWS;
 }
 
 /* completely close a conn_stream (but do not detach it) */
