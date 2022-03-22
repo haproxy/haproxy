@@ -351,6 +351,13 @@ static void qc_release(struct qcc *qcc)
 	}
 }
 
+/* Prepare a STREAM frame for <qcs> instance. First, transfer data from
+ * <payload> to <out> buffer. The STREAM frame payload points to the <out>
+ * buffer. The frame is then pushed to <frm_list>. If <fin> is set, and the
+ * <payload> buf is emptied after transfer, FIN bit is set on the STREAM frame.
+ *
+ * Returns the total bytes of newly transferred data or a negative error code.
+ */
 static int qcs_push_frame(struct qcs *qcs, struct buffer *out,
                           struct buffer *payload, int fin,
                           struct list *frm_list)
@@ -513,11 +520,16 @@ static int qc_send_frames(struct qcc *qcc, struct list *frms)
 	return 0;
 }
 
+/* Proceed to sending. Loop through all available streams for the <qcc>
+ * instance and try to send as much as possible.
+ *
+ * Returns the total of bytes sent to the transport layer.
+ */
 static int qc_send(struct qcc *qcc)
 {
 	struct list frms = LIST_HEAD_INIT(frms);
 	struct eb64_node *node;
-	int ret = 0;
+	int total = 0;
 
 	fprintf(stderr, "%s\n", __func__);
 
@@ -541,7 +553,9 @@ static int qc_send(struct qcc *qcc)
 		}
 
 		if (b_data(buf) || b_data(out)) {
+			int ret;
 			char fin = qcs->flags & QC_SF_FIN_STREAM;
+
 			ret = qcs_push_frame(qcs, out, buf, fin, &frms);
 			BUG_ON(ret < 0); /* TODO handle this properly */
 
@@ -553,6 +567,7 @@ static int qc_send(struct qcc *qcc)
 
 			fprintf(stderr, "%s ret=%d\n", __func__, ret);
 			qcs->tx.offset += ret;
+			total += ret;
 
 			/* Subscribe if not all data can be send. */
 			if (b_data(buf)) {
@@ -564,9 +579,8 @@ static int qc_send(struct qcc *qcc)
 	}
 
 	qc_send_frames(qcc, &frms);
-	/* TODO adjust ret if not all frames are sent. */
 
-	return ret;
+	return total;
 }
 
 /* Release all streams that are already marked as detached. This is only done
