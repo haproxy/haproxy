@@ -716,22 +716,30 @@ static inline size_t h1s_data_pending(const struct h1s *h1s)
 static struct conn_stream *h1s_new_cs(struct h1s *h1s, struct buffer *input)
 {
 	struct h1c *h1c = h1s->h1c;
+	struct cs_endpoint *endp;
 	struct conn_stream *cs;
 
 	TRACE_ENTER(H1_EV_STRM_NEW, h1c->conn, h1s);
-	cs = cs_new();
+	endp = cs_endpoint_new();
+	if (!endp) {
+		TRACE_ERROR("CS endp allocation failure", H1_EV_STRM_NEW|H1_EV_STRM_END|H1_EV_STRM_ERR, h1c->conn, h1s);
+		goto err;
+	}
+	endp->target = h1s;
+	endp->ctx = h1c->conn;
+	if (h1s->flags & H1S_F_NOT_FIRST)
+		endp->flags |= CS_EP_NOT_FIRST;
+	if (h1s->req.flags & H1_MF_UPG_WEBSOCKET)
+		endp->flags |= CS_EP_WEBSOCKET;
+
+	cs = cs_new(endp);
 	if (!cs) {
 		TRACE_ERROR("CS allocation failure", H1_EV_STRM_NEW|H1_EV_STRM_END|H1_EV_STRM_ERR, h1c->conn, h1s);
+		cs_endpoint_free(endp);
 		goto err;
 	}
 	cs_attach_endp_mux(cs, h1s, h1c->conn);
 	h1s->cs = cs;
-
-	if (h1s->flags & H1S_F_NOT_FIRST)
-		cs->endp->flags |= CS_EP_NOT_FIRST;
-
-	if (h1s->req.flags & H1_MF_UPG_WEBSOCKET)
-		cs->endp->flags |= CS_EP_WEBSOCKET;
 
 	if (!stream_new(h1c->conn->owner, cs, input)) {
 		TRACE_DEVEL("leaving on stream creation failure", H1_EV_STRM_NEW|H1_EV_STRM_END|H1_EV_STRM_ERR, h1c->conn, h1s);

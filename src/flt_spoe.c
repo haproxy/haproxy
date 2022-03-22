@@ -1991,7 +1991,7 @@ spoe_create_appctx(struct spoe_config *conf)
 	struct conn_stream *cs;
 	struct stream      *strm;
 
-	cs = cs_new();
+	cs = cs_new(NULL);
 	if (!cs)
 		goto out_error;
 

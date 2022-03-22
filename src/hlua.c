@@ -2944,7 +2944,7 @@ __LJMP static int hlua_socket_new(lua_State *L)
 	lua_rawgeti(L, LUA_REGISTRYINDEX, class_socket_ref);
 	lua_setmetatable(L, -2);
 
-	cs = cs_new();
+	cs = cs_new(NULL);
 	if (!cs) {
 		hlua_pusherror(L, "socket: out of memory");
 		goto out_fail_conf;

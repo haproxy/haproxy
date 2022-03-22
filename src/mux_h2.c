@@ -1590,6 +1590,7 @@ static struct h2s *h2s_new(struct h2c *h2c, int id)
 static struct h2s *h2c_frt_stream_new(struct h2c *h2c, int id, struct buffer *input, uint32_t flags)
 {
 	struct session *sess = h2c->conn->owner;
+	struct cs_endpoint *endp;
 	struct conn_stream *cs;
 	struct h2s *h2s;
 
@@ -1602,19 +1603,26 @@ static struct h2s *h2c_frt_stream_new(struct h2c *h2c, int id, struct buffer *in
 	if (!h2s)
 		goto out;
 
-	cs = cs_new();
-	if (!cs)
+	endp = cs_endpoint_new();
+	if (!endp)
 		goto out_close;
-	cs->endp->flags |= CS_EP_NOT_FIRST;
-	cs_attach_endp_mux(cs, h2s, h2c->conn);
-	h2s->cs = cs;
-	h2c->nb_cs++;
-
+	endp->target = h2s;
+	endp->ctx = h2c->conn;
+	endp->flags |= CS_EP_NOT_FIRST;
 	/* FIXME wrong analogy between ext-connect and websocket, this need to
 	 * be refine.
 	 */
 	if (flags & H2_SF_EXT_CONNECT_RCVD)
-		cs->endp->flags |= CS_EP_WEBSOCKET;
+		endp->flags |= CS_EP_WEBSOCKET;
+
+	cs = cs_new(endp);
+	if (!cs) {
+		cs_endpoint_free(endp);
+		goto out_close;
+	}
+	cs_attach_endp_mux(cs, h2s, h2c->conn);
+	h2s->cs = cs;
+	h2c->nb_cs++;
 
 	/* The stream will record the request's accept date (which is either the
 	 * end of the connection's or the date immediately after the previous

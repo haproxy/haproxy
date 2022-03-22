@@ -46,10 +46,9 @@ void cs_endpoint_free(struct cs_endpoint *endp)
 /* Tries to allocate a new conn_stream and initialize its main fields. On
  * failure, nothing is allocated and NULL is returned.
  */
-struct conn_stream *cs_new()
+struct conn_stream *cs_new(struct cs_endpoint *endp)
 {
 	struct conn_stream *cs;
-	struct cs_endpoint *endp;
 
 	cs = pool_alloc(pool_head_connstream);
 
@@ -62,9 +61,11 @@ struct conn_stream *cs_new()
 	cs->si = NULL;
 	cs->data_cb = NULL;
 
-	endp = cs_endpoint_new();
-	if (unlikely(!endp))
-		goto alloc_error;
+	if (!endp) {
+		endp = cs_endpoint_new();
+		if (unlikely(!endp))
+			goto alloc_error;
+	}
 	cs->endp = endp;
 
 	return cs;

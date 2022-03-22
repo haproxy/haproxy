@@ -3191,7 +3191,7 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 	peer->last_hdshk = now_ms;
 	s = NULL;
 
-	cs = cs_new();
+	cs = cs_new(NULL);
 	if (!cs) {
 		ha_alert("out of memory in peer_session_create().\n");
 		goto out_close;

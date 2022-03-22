@@ -37,7 +37,7 @@ struct check;
 struct cs_endpoint *cs_endpoint_new();
 void cs_endpoint_free(struct cs_endpoint *endp);
 
-struct conn_stream *cs_new();
+struct conn_stream *cs_new(struct cs_endpoint *endp);
 void cs_free(struct conn_stream *cs);
 void cs_attach_endp_mux(struct conn_stream *cs, void *endp, void *ctx);
 void cs_attach_endp_app(struct conn_stream *cs, void *endp, void *ctx);

@@ -643,7 +643,7 @@ static struct appctx *sink_forward_session_create(struct sink *sink, struct sink
 	if (sft->srv->log_proto == SRV_LOG_PROTO_OCTET_COUNTING)
 		applet = &sink_forward_oc_applet;
 
-	cs = cs_new();
+	cs = cs_new(NULL);
 	if (!cs) {
 		ha_alert("out of memory in sink_forward_session_create");
 		goto out_close;

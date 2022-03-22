@@ -891,7 +891,7 @@ static struct appctx *dns_session_create(struct dns_session *ds)
 	struct stream *s;
 	struct applet *applet = &dns_session_applet;
 
-	cs = cs_new();
+	cs = cs_new(NULL);
 	if (!cs) {
 		ha_alert("out of memory in dns_session_create().\n");
 		goto out_close;

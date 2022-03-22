@@ -1391,7 +1391,7 @@ int start_check_task(struct check *check, int mininter,
 	if (check->type == PR_O2_EXT_CHK)
 		t = task_new_on(0);
 	else {
-		check->cs = cs_new();
+		check->cs = cs_new(NULL);
 		if (!check->cs)
 			goto fail_alloc_cs;
 		if (cs_attach_app(check->cs, &check->obj_type) < 0)

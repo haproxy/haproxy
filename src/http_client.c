@@ -476,7 +476,7 @@ struct appctx *httpclient_start(struct httpclient *hc)
 		goto out;
 	}
 
-	cs = cs_new();
+	cs = cs_new(NULL);
 	if (!cs) {
 		ha_alert("httpclient: out of memory in %s:%d.\n", __FUNCTION__, __LINE__);
 		goto out;

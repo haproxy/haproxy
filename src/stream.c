@@ -443,7 +443,7 @@ struct stream *stream_new(struct session *sess, struct conn_stream *cs, struct b
 		s->flags |= SF_HTX;
 
 	s->csf = cs;
-	s->csb = cs_new();
+	s->csb = cs_new(NULL);
 	if (!s->csb)
 		goto out_fail_alloc_csb;
 

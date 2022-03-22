@@ -272,6 +272,7 @@ struct task *mux_pt_io_cb(struct task *t, void *tctx, unsigned int status)
 static int mux_pt_init(struct connection *conn, struct proxy *prx, struct session *sess,
 		       struct buffer *input)
 {
+	struct cs_endpoint *endp;
 	struct conn_stream *cs = conn->ctx;
 	struct mux_pt_ctx *ctx = pool_alloc(pool_head_pt_ctx);
 
@@ -291,9 +292,15 @@ static int mux_pt_init(struct connection *conn, struct proxy *prx, struct sessio
 	ctx->conn = conn;
 
 	if (!cs) {
-		cs = cs_new();
+		endp = cs_endpoint_new();
+		if (!endp)
+			goto fail_free_ctx;
+		endp->target = ctx;
+		endp->ctx = conn;
+		cs = cs_new(endp);
 		if (!cs) {
 			TRACE_ERROR("CS allocation failure", PT_EV_STRM_NEW|PT_EV_STRM_END|PT_EV_STRM_ERR, conn);
+			cs_endpoint_free(endp);
 			goto fail_free_ctx;
 		}
 		cs_attach_endp_mux(cs, ctx, conn);
