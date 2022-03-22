@@ -120,6 +120,7 @@ static const struct trace_event quic_trace_events[] = {
 	{ .mask = QUIC_EV_CONN_XPRTRECV, .name = "xprt_recv",        .desc = "receiving XRPT subscription" },
 	{ .mask = QUIC_EV_CONN_FREED,    .name = "conn_freed",       .desc = "releasing conn. memory" },
 	{ .mask = QUIC_EV_CONN_CLOSE,    .name = "conn_close",       .desc = "closing conn." },
+	{ .mask = QUIC_EV_CONN_ACKSTRM,  .name = "ack_strm",         .desc = "STREAM ack."},
 	{ /* end */ }
 };
 
@@ -441,6 +442,16 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 				chunk_appendf(&trace_buf, " %lu", *val1);
 			if (val2)
 				chunk_appendf(&trace_buf, "..%lu", *val2);
+		}
+
+		if (mask & QUIC_EV_CONN_ACKSTRM) {
+			const struct quic_stream *s = a2;
+			const struct qcs *qcs = a3;
+
+			if (s)
+				chunk_appendf(&trace_buf, " off=%llu len=%llu", (ull)s->offset.key, (ull)s->len);
+			if (qcs)
+				chunk_appendf(&trace_buf, " ack_offset=%llu", (ull)qcs->tx.ack_offset);
 		}
 
 		if (mask & QUIC_EV_CONN_RTTUPDT) {
@@ -1402,6 +1413,8 @@ static int qcs_try_to_consume(struct qcs *qcs)
 		if (strm->offset.key > qcs->tx.ack_offset)
 			break;
 
+		TRACE_PROTO("stream consumed", QUIC_EV_CONN_ACKSTRM,
+		            qcs->qcc->conn->qc, strm, qcs);
 		if (strm->offset.key + strm->len > qcs->tx.ack_offset) {
 			const size_t diff = strm->offset.key + strm->len -
 			                    qcs->tx.ack_offset;
@@ -1441,6 +1454,7 @@ static inline void qc_treat_acked_tx_frm(struct quic_conn *qc,
 		struct qcs *qcs = frm->stream.qcs;
 		struct quic_stream *strm = &frm->stream;
 
+		TRACE_PROTO("acked stream", QUIC_EV_CONN_ACKSTRM, qc, strm, qcs);
 		if (strm->offset.key <= qcs->tx.ack_offset) {
 			if (strm->offset.key + strm->len > qcs->tx.ack_offset) {
 				const size_t diff = strm->offset.key + strm->len -
@@ -1455,6 +1469,8 @@ static inline void qc_treat_acked_tx_frm(struct quic_conn *qc,
 				}
 			}
 
+			TRACE_PROTO("stream consumed", QUIC_EV_CONN_ACKSTRM,
+			            qcs->qcc->conn->qc, strm, qcs);
 			LIST_DELETE(&frm->list);
 			quic_tx_packet_refdec(frm->pkt);
 			pool_free(pool_head_quic_frame, frm);
