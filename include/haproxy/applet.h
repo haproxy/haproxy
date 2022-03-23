@@ -26,6 +26,7 @@
 
 #include <haproxy/api.h>
 #include <haproxy/applet-t.h>
+#include <haproxy/conn_stream.h>
 #include <haproxy/list.h>
 #include <haproxy/pool.h>
 #include <haproxy/task.h>
@@ -36,7 +37,7 @@ extern struct pool_head *pool_head_appctx;
 struct task *task_run_applet(struct task *t, void *context, unsigned int state);
 int appctx_buf_available(void *arg);
 
-struct appctx *appctx_new(struct applet *applet);
+struct appctx *appctx_new(struct applet *applet, struct cs_endpoint *endp);
 
 /* Releases an appctx previously allocated by appctx_new(). */
 static inline void __appctx_free(struct appctx *appctx)
@@ -45,6 +46,8 @@ static inline void __appctx_free(struct appctx *appctx)
 	if (LIST_INLIST(&appctx->buffer_wait.list))
 		LIST_DEL_INIT(&appctx->buffer_wait.list);
 
+	BUG_ON(appctx->endp && !(appctx->endp->flags & CS_EP_ORPHAN));
+	cs_endpoint_free(appctx->endp);
 	pool_free(pool_head_appctx, appctx);
 	_HA_ATOMIC_DEC(&nb_applets);
 }

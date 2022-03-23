@@ -3181,7 +3181,6 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 	struct proxy *p = peers->peers_fe; /* attached frontend */
 	struct appctx *appctx;
 	struct session *sess;
-	struct cs_endpoint *endp;
 	struct conn_stream *cs;
 	struct stream *s;
 	struct sockaddr_storage *addr = NULL;
@@ -3193,7 +3192,7 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 	peer->last_hdshk = now_ms;
 	s = NULL;
 
-	appctx = appctx_new(&peer_applet);
+	appctx = appctx_new(&peer_applet, NULL);
 	if (!appctx)
 		goto out_close;
 
@@ -3209,17 +3208,9 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 	if (!sockaddr_alloc(&addr, &peer->addr, sizeof(peer->addr)))
 		goto out_free_sess;
 
-	endp = cs_endpoint_new();
-	if (!endp)
-		goto out_free_addr;
-	endp->target = appctx;
-	endp->ctx = appctx;
-	endp->flags |= CS_EP_T_APPLET;
-
-	cs = cs_new_from_applet(endp, sess, &BUF_NULL);
+	cs = cs_new_from_applet(appctx->endp, sess, &BUF_NULL);
 	if (!cs) {
 		ha_alert("Failed to initialize stream in peer_session_create().\n");
-		cs_endpoint_free(endp);
 		goto out_free_addr;
 	}
 

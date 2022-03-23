@@ -2918,7 +2918,6 @@ __LJMP static int hlua_socket_new(lua_State *L)
 	struct hlua_socket *socket;
 	struct appctx *appctx;
 	struct session *sess;
-	struct cs_endpoint *endp;
 	struct conn_stream *cs;
 	struct stream *s;
 
@@ -2946,7 +2945,7 @@ __LJMP static int hlua_socket_new(lua_State *L)
 	lua_setmetatable(L, -2);
 
 	/* Create the applet context */
-	appctx = appctx_new(&update_applet);
+	appctx = appctx_new(&update_applet, NULL);
 	if (!appctx) {
 		hlua_pusherror(L, "socket: out of memory");
 		goto out_fail_conf;
@@ -2964,17 +2963,9 @@ __LJMP static int hlua_socket_new(lua_State *L)
 		goto out_fail_appctx;
 	}
 
-	endp = cs_endpoint_new();
-	if (!endp)
-		goto out_fail_sess;
-	endp->target = appctx;
-	endp->ctx = appctx;
-	endp->flags |= CS_EP_T_APPLET;
-
-	cs = cs_new_from_applet(endp, sess, &BUF_NULL);
+	cs = cs_new_from_applet(appctx->endp, sess, &BUF_NULL);
 	if (!cs) {
 		hlua_pusherror(L, "socket: out of memory");
-		cs_endpoint_free(endp);
 		goto out_fail_sess;
 	}
 

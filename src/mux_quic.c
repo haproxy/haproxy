@@ -117,9 +117,19 @@ struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
 	qcs->cs = NULL;
 	qcs->flags = QC_SF_NONE;
 
+	qcs->endp = cs_endpoint_new();
+	if (!qcs->endp) {
+		pool_free(pool_head_qcs, qcs);
+		return NULL;
+	}
+	qcs->endp->target = qcs;
+	qcs->endp->ctx = qcc->conn;
+	qcs->endp->flags |= (CS_EP_T_MUX|CS_EP_ORPHAN|CS_EP_NOT_FIRST);
+
 	qcs->id = id;
 	/* store transport layer stream descriptor in qcc tree */
 	eb64_insert(&qcc->streams_by_id, &stream->by_id);
+
 	qcc->strms[type].nb_streams++;
 
 	/* If stream is local, use peer remote-limit, or else the opposite. */
@@ -160,6 +170,8 @@ void qcs_free(struct qcs *qcs)
 	/* stream desc must be removed from MUX tree before release it */
 	eb64_delete(&qcs->stream->by_id);
 	qc_stream_desc_release(qcs->stream, qcs->qcc->conn->handle.qc);
+	BUG_ON(qcs->endp && !(qcs->endp->flags & CS_EP_ORPHAN));
+	cs_endpoint_free(qcs->endp);
 	pool_free(pool_head_qcs, qcs);
 }
 

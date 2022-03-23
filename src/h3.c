@@ -176,7 +176,6 @@ static int h3_headers_to_htx(struct qcs *qcs, struct buffer *buf, uint64_t len,
 	cs = qc_attach_cs(qcs, &htx_buf);
 	if (!cs)
 		return 1;
-	cs->endp->flags |= CS_EP_NOT_FIRST;
 
 	/* buffer is transferred to conn_stream and set to NULL
 	 * except on stream creation error.

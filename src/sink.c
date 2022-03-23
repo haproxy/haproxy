@@ -636,7 +636,6 @@ static struct appctx *sink_forward_session_create(struct sink *sink, struct sink
 	struct proxy *p = sink->forward_px;
 	struct appctx *appctx;
 	struct session *sess;
-	struct cs_endpoint *endp;
 	struct conn_stream *cs;
 	struct stream *s;
 	struct applet *applet = &sink_forward_applet;
@@ -645,7 +644,7 @@ static struct appctx *sink_forward_session_create(struct sink *sink, struct sink
 	if (sft->srv->log_proto == SRV_LOG_PROTO_OCTET_COUNTING)
 		applet = &sink_forward_oc_applet;
 
-	appctx = appctx_new(applet);
+	appctx = appctx_new(applet, NULL);
 	if (!appctx)
 		goto out_close;
 
@@ -660,17 +659,9 @@ static struct appctx *sink_forward_session_create(struct sink *sink, struct sink
 	if (!sockaddr_alloc(&addr, &sft->srv->addr, sizeof(sft->srv->addr)))
 		goto out_free_sess;
 
-	endp = cs_endpoint_new();
-	if (!endp)
-		goto out_free_addr;
-	endp->target = appctx;
-	endp->ctx = appctx;
-	endp->flags |= CS_EP_T_APPLET;
-
-	cs = cs_new_from_applet(endp, sess, &BUF_NULL);
+	cs = cs_new_from_applet(appctx->endp, sess, &BUF_NULL);
 	if (!cs) {
 		ha_alert("Failed to initialize stream in sink_forward_session_create().\n");
-		cs_endpoint_free(endp);
 		goto out_free_addr;
 	}
 	s = DISGUISE(cs_strm(cs));

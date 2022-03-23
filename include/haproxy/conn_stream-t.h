@@ -35,7 +35,13 @@ struct stream_interface;
 	 CS_EP_T_MUX      = 0x00000001, /* The endpoint is a mux (the target may be NULL before the mux init) */
 	 CS_EP_T_APPLET   = 0x00000002, /* The endpoint is an applet */
 
-	 /* unused: 0x00000004 .. 0x00000080 */
+	 /* unused: 0x00000004 .. 0x00000008 */
+
+	 /* Endpoint states: none == attached to a mux with a conn-stream */
+	 CS_EP_DETACHED   = 0x00000010, /* The endpoint is detached (no mux/no applet) */
+	 CS_EP_ORPHAN     = 0x00000020, /* The endpoint is orphan (no conn-stream) */
+
+	 /* unused: 0x00000040 .. 0x00000080 */
 
 	 CS_EP_SHRD       = 0x00000100,  /* read shut, draining extra data */
 	 CS_EP_SHRR       = 0x00000200,  /* read shut, resetting extra data */

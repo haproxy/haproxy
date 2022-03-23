@@ -196,6 +196,8 @@ void show_endp_flags(unsigned int f)
 	SHOW_FLAG(f, CS_EP_SHWN);
 	SHOW_FLAG(f, CS_EP_SHRR);
 	SHOW_FLAG(f, CS_EP_SHRD);
+	SHOW_FLAG(f, CS_EP_ORPHAN);
+	SHOW_FLAG(f, CS_EP_DETACHED);
 	SHOW_FLAG(f, CS_EP_T_APPLET);
 	SHOW_FLAG(f, CS_EP_T_MUX);
 

@@ -21,6 +21,7 @@
 
 struct mux_pt_ctx {
 	struct conn_stream *cs;
+	struct cs_endpoint *endp;
 	struct connection *conn;
 	struct wait_event wait_event;
 };
@@ -207,6 +208,8 @@ static void mux_pt_destroy(struct mux_pt_ctx *ctx)
 		if (conn && ctx->wait_event.events != 0)
 			conn->xprt->unsubscribe(conn, conn->xprt_ctx, ctx->wait_event.events,
 						&ctx->wait_event);
+		BUG_ON(ctx->endp && !(ctx->endp->flags & CS_EP_ORPHAN));
+		cs_endpoint_free(ctx->endp);
 		pool_free(pool_head_pt_ctx, ctx);
 	}
 
@@ -272,7 +275,6 @@ struct task *mux_pt_io_cb(struct task *t, void *tctx, unsigned int status)
 static int mux_pt_init(struct connection *conn, struct proxy *prx, struct session *sess,
 		       struct buffer *input)
 {
-	struct cs_endpoint *endp;
 	struct conn_stream *cs = conn->ctx;
 	struct mux_pt_ctx *ctx = pool_alloc(pool_head_pt_ctx);
 
@@ -292,20 +294,26 @@ static int mux_pt_init(struct connection *conn, struct proxy *prx, struct sessio
 	ctx->conn = conn;
 
 	if (!cs) {
-		endp = cs_endpoint_new();
-		if (!endp)
-			goto fail_free_ctx;
-		endp->target = ctx;
-		endp->ctx = conn;
-		endp->flags |= CS_EP_T_MUX;
-
-		cs = cs_new_from_mux(endp, sess, input);
-		if (!cs) {
+		ctx->endp = cs_endpoint_new();
+		if (!ctx->endp) {
 			TRACE_ERROR("CS allocation failure", PT_EV_STRM_NEW|PT_EV_STRM_END|PT_EV_STRM_ERR, conn);
-			cs_endpoint_free(endp);
 			goto fail_free_ctx;
 		}
+		ctx->endp->target = ctx;
+		ctx->endp->ctx = conn;
+		ctx->endp->flags |= (CS_EP_T_MUX|CS_EP_ORPHAN);
+
+		cs = cs_new_from_mux(ctx->endp, sess, input);
+		if (!cs) {
+			TRACE_ERROR("CS allocation failure", PT_EV_STRM_NEW|PT_EV_STRM_END|PT_EV_STRM_ERR, conn);
+			goto fail_free_endp;
+		}
 		TRACE_POINT(PT_EV_STRM_NEW, conn, cs);
+	}
+	else {
+		cs_attach_mux(cs, ctx, conn);
+		ctx->cs = cs;
+		ctx->endp = cs->endp;
 	}
 	conn->ctx = ctx;
 	ctx->cs = cs;
@@ -316,6 +324,8 @@ static int mux_pt_init(struct connection *conn, struct proxy *prx, struct sessio
 	TRACE_LEAVE(PT_EV_CONN_NEW, conn, cs);
 	return 0;
 
+ fail_free_endp:
+	cs_endpoint_free(ctx->endp);
  fail_free_ctx:
 	if (ctx->wait_event.tasklet)
 		tasklet_free(ctx->wait_event.tasklet);
@@ -399,8 +409,11 @@ static void mux_pt_destroy_meth(void *ctx)
 	struct mux_pt_ctx *pt = ctx;
 
 	TRACE_POINT(PT_EV_CONN_END, pt->conn, pt->cs);
-	if (!(pt->cs) || !(pt->conn) || pt->conn->ctx != pt)
+	if (!(pt->cs) || !(pt->conn) || pt->conn->ctx != pt) {
+		if (pt->conn->ctx != pt)
+			pt->endp = NULL;
 		mux_pt_destroy(pt);
+	}
 }
 
 /*
@@ -411,15 +424,14 @@ static void mux_pt_detach(struct conn_stream *cs)
 	struct connection *conn = __cs_conn(cs);
 	struct mux_pt_ctx *ctx;
 
-	ALREADY_CHECKED(conn);
-	ctx = conn->ctx;
-
 	TRACE_ENTER(PT_EV_STRM_END, conn, cs);
+
+	ctx = conn->ctx;
+	ctx->cs = NULL;
 
 	/* Subscribe, to know if we got disconnected */
 	if (!conn_is_back(conn) && conn->owner != NULL &&
 	    !(conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH))) {
-		ctx->cs = NULL;
 		conn->xprt->subscribe(conn, conn->xprt_ctx, SUB_RETRY_RECV, &ctx->wait_event);
 	} else {
 		/* There's no session attached to that connection, destroy it */

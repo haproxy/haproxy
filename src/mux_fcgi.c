@@ -155,6 +155,7 @@ enum fcgi_strm_st {
 /* FCGI stream descriptor */
 struct fcgi_strm {
 	struct conn_stream *cs;
+	struct cs_endpoint *endp;
 	struct session *sess;
 	struct fcgi_conn *fconn;
 
@@ -1042,6 +1043,8 @@ static void fcgi_strm_destroy(struct fcgi_strm *fstrm)
 	 */
 	LIST_DEL_INIT(&fstrm->send_list);
 	tasklet_free(fstrm->shut_tl);
+	BUG_ON(fstrm->endp && !(fstrm->endp->flags & CS_EP_ORPHAN));
+	cs_endpoint_free(fstrm->endp);
 	pool_free(pool_head_fcgi_strm, fstrm);
 
 	TRACE_LEAVE(FCGI_EV_FSTRM_END, conn);
@@ -1077,6 +1080,7 @@ static struct fcgi_strm *fcgi_strm_new(struct fcgi_conn *fconn, int id)
 	LIST_INIT(&fstrm->send_list);
 	fstrm->fconn = fconn;
 	fstrm->cs = NULL;
+	fstrm->endp = NULL;
 	fstrm->flags = FCGI_SF_NONE;
 	fstrm->proto_status = 0;
 	fstrm->state = FCGI_SS_IDLE;
@@ -1132,6 +1136,7 @@ static struct fcgi_strm *fcgi_conn_stream_new(struct fcgi_conn *fconn, struct co
 	}
 	cs_attach_mux(cs, fstrm, fconn->conn);
 	fstrm->cs = cs;
+	fstrm->endp = cs->endp;
 	fstrm->sess = sess;
 	fconn->nb_cs++;
 
@@ -3117,7 +3122,7 @@ static int fcgi_process(struct fcgi_conn *fconn)
 
 		while (node) {
 			fstrm = container_of(node, struct fcgi_strm, by_id);
-			if (fstrm->cs && fstrm->cs->endp->flags & CS_EP_WAIT_FOR_HS)
+			if (fstrm->cs && fstrm->endp->flags & CS_EP_WAIT_FOR_HS)
 				fcgi_strm_notify_recv(fstrm);
 			node = eb32_next(node);
 		}

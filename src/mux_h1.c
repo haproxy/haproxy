@@ -119,6 +119,7 @@ struct h1c {
 struct h1s {
 	struct h1c *h1c;
 	struct conn_stream *cs;
+	struct cs_endpoint *endp;
 	uint32_t flags;                /* Connection flags: H1S_F_* */
 
 	struct wait_event *subs;      /* Address of the wait_event the conn_stream associated is waiting on */
@@ -716,27 +717,17 @@ static inline size_t h1s_data_pending(const struct h1s *h1s)
 static struct conn_stream *h1s_new_cs(struct h1s *h1s, struct buffer *input)
 {
 	struct h1c *h1c = h1s->h1c;
-	struct cs_endpoint *endp;
 
 	TRACE_ENTER(H1_EV_STRM_NEW, h1c->conn, h1s);
 
-	endp = cs_endpoint_new();
-	if (!endp) {
-		TRACE_ERROR("CS endp allocation failure", H1_EV_STRM_NEW|H1_EV_STRM_END|H1_EV_STRM_ERR, h1c->conn, h1s);
-		goto err;
-	}
-	endp->target = h1s;
-	endp->ctx = h1c->conn;
-	endp->flags |= CS_EP_T_MUX;
 	if (h1s->flags & H1S_F_NOT_FIRST)
-		endp->flags |= CS_EP_NOT_FIRST;
+		h1s->endp->flags |= CS_EP_NOT_FIRST;
 	if (h1s->req.flags & H1_MF_UPG_WEBSOCKET)
-		endp->flags |= CS_EP_WEBSOCKET;
+		h1s->endp->flags |= CS_EP_WEBSOCKET;
 
-	h1s->cs = cs_new_from_mux(endp, h1c->conn->owner, input);
+	h1s->cs = cs_new_from_mux(h1s->endp, h1c->conn->owner, input);
 	if (!h1s->cs) {
 		TRACE_ERROR("CS allocation failure", H1_EV_STRM_NEW|H1_EV_STRM_END|H1_EV_STRM_ERR, h1c->conn, h1s);
-		cs_endpoint_free(endp);
 		goto err;
 	}
 
@@ -785,6 +776,7 @@ static struct h1s *h1s_new(struct h1c *h1c)
 	h1c->h1s = h1s;
 	h1s->sess = NULL;
 	h1s->cs = NULL;
+	h1s->endp = NULL;
 	h1s->flags = H1S_F_WANT_KAL;
 	h1s->subs = NULL;
 	h1s->rxbuf = BUF_NULL;
@@ -811,9 +803,8 @@ static struct h1s *h1s_new(struct h1c *h1c)
 	return NULL;
 }
 
-static struct h1s *h1c_frt_stream_new(struct h1c *h1c)
+static struct h1s *h1c_frt_stream_new(struct h1c *h1c, struct conn_stream *cs, struct session *sess)
 {
-	struct session *sess = h1c->conn->owner;
 	struct h1s *h1s;
 
 	TRACE_ENTER(H1_EV_H1S_NEW, h1c->conn);
@@ -821,6 +812,20 @@ static struct h1s *h1c_frt_stream_new(struct h1c *h1c)
 	h1s = h1s_new(h1c);
 	if (!h1s)
 		goto fail;
+
+	if (cs) {
+		cs_attach_mux(cs, h1s, h1c->conn);
+		h1s->cs = cs;
+		h1s->endp = cs->endp;
+	}
+	else {
+		h1s->endp = cs_endpoint_new();
+		if (!h1s->endp)
+			goto fail;
+		h1s->endp->target = h1s;
+		h1s->endp->ctx = h1c->conn;
+		h1s->endp->flags |= (CS_EP_T_MUX|CS_EP_ORPHAN);
+	}
 
 	h1s->sess = sess;
 
@@ -834,6 +839,7 @@ static struct h1s *h1c_frt_stream_new(struct h1c *h1c)
 
   fail:
 	TRACE_DEVEL("leaving on error", H1_EV_STRM_NEW|H1_EV_STRM_ERR, h1c->conn);
+	pool_free(pool_head_h1s, h1s);
 	return NULL;
 }
 
@@ -850,6 +856,7 @@ static struct h1s *h1c_bck_stream_new(struct h1c *h1c, struct conn_stream *cs, s
 	cs_attach_mux(cs, h1s, h1c->conn);
 	h1s->flags |= H1S_F_RX_BLK;
 	h1s->cs = cs;
+	h1s->endp = cs->endp;
 	h1s->sess = sess;
 
 	h1c->flags = (h1c->flags & ~H1C_F_ST_EMBRYONIC) | H1C_F_ST_ATTACHED | H1C_F_ST_READY;
@@ -903,6 +910,8 @@ static void h1s_destroy(struct h1s *h1s)
 		}
 
 		HA_ATOMIC_DEC(&h1c->px_counters->open_streams);
+		BUG_ON(h1s->endp && !(h1s->endp->flags & CS_EP_ORPHAN));
+		cs_endpoint_free(h1s->endp);
 		pool_free(pool_head_h1s, h1s);
 	}
 }
@@ -990,12 +999,8 @@ static int h1_init(struct connection *conn, struct proxy *proxy, struct session 
 	}
 	else if (conn_ctx) {
 		/* Upgraded frontend connection (from TCP) */
-		struct conn_stream *cs = conn_ctx;
-
-		if (!h1c_frt_stream_new(h1c))
+		if (!h1c_frt_stream_new(h1c, conn_ctx, h1c->conn->owner))
 			goto fail;
-		h1c->h1s->cs = cs;
-		cs_attach_mux(cs, h1c->h1s, conn);
 
 		/* Attach the CS but Not ready yet */
 		h1c->flags = (h1c->flags & ~H1C_F_ST_EMBRYONIC) | H1C_F_ST_ATTACHED;
@@ -1879,11 +1884,11 @@ static size_t h1_process_demux(struct h1c *h1c, struct buffer *buf, size_t count
 	/* Here h1s->cs is always defined */
 	if (!(h1m->flags & H1_MF_CHNK) && (h1m->state == H1_MSG_DATA || (h1m->state == H1_MSG_TUNNEL))) {
 		TRACE_STATE("notify the mux can use splicing", H1_EV_RX_DATA|H1_EV_RX_BODY, h1c->conn, h1s);
-		h1s->cs->endp->flags |= CS_EP_MAY_SPLICE;
+		h1s->endp->flags |= CS_EP_MAY_SPLICE;
 	}
 	else {
 		TRACE_STATE("notify the mux can't use splicing anymore", H1_EV_RX_DATA|H1_EV_RX_BODY, h1c->conn, h1s);
-		h1s->cs->endp->flags &= ~CS_EP_MAY_SPLICE;
+		h1s->endp->flags &= ~CS_EP_MAY_SPLICE;
 	}
 
 	/* Set EOI on conn-stream in DONE state iff:
@@ -2948,7 +2953,7 @@ static int h1_process(struct h1c * h1c)
 
 		/* Create the H1 stream if not already there */
 		if (!h1s) {
-			h1s = h1c_frt_stream_new(h1c);
+			h1s = h1c_frt_stream_new(h1c, NULL, h1c->conn->owner);
 			if (!h1s) {
 				b_reset(&h1c->ibuf);
 				h1c->flags = (h1c->flags & ~(H1C_F_ST_IDLE|H1C_F_WAIT_NEXT_REQ)) | H1C_F_ST_ERROR;

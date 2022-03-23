@@ -1988,11 +1988,10 @@ spoe_create_appctx(struct spoe_config *conf)
 {
 	struct appctx      *appctx;
 	struct session     *sess;
-	struct cs_endpoint *endp;
 	struct conn_stream *cs;
 	struct stream      *strm;
 
-	if ((appctx = appctx_new(&spoe_applet)) == NULL)
+	if ((appctx = appctx_new(&spoe_applet, NULL)) == NULL)
 		goto out_error;
 
 	appctx->ctx.spoe.ptr = pool_zalloc(pool_head_spoe_appctx);
@@ -2025,18 +2024,9 @@ spoe_create_appctx(struct spoe_config *conf)
 	if (!sess)
 		goto out_free_spoe;
 
-	endp = cs_endpoint_new();
-	if (!endp)
+	cs = cs_new_from_applet(appctx->endp, sess, &BUF_NULL);
+	if (!cs)
 		goto out_free_sess;
-	endp->target = appctx;
-	endp->ctx = appctx;
-	endp->flags |= CS_EP_T_APPLET;
-
-	cs = cs_new_from_applet(endp, sess, &BUF_NULL);
-	if (!cs) {
-		cs_endpoint_free(endp);
-		goto out_free_sess;
-	}
 
 	strm = DISGUISE(cs_strm(cs));
 	stream_set_backend(strm, conf->agent->b.be);

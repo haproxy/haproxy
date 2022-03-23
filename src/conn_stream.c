@@ -86,6 +86,7 @@ struct conn_stream *cs_new_from_mux(struct cs_endpoint *endp, struct session *se
 		pool_free(pool_head_connstream, cs);
 		cs = NULL;
 	}
+	endp->flags &= ~CS_EP_ORPHAN;
 	return cs;
 }
 
@@ -102,6 +103,7 @@ struct conn_stream *cs_new_from_applet(struct cs_endpoint *endp, struct session 
 		pool_free(pool_head_connstream, cs);
 		cs = NULL;
 	}
+	endp->flags &= ~CS_EP_ORPHAN;
 	return cs;
 }
 
@@ -113,6 +115,7 @@ struct conn_stream *cs_new_from_strm(struct stream *strm, unsigned int flags)
 	if (unlikely(!cs))
 		return NULL;
 	cs->flags |= flags;
+	cs->endp->flags |=  CS_EP_DETACHED;
 	cs->si = si_new(cs);
 	if (unlikely(!cs->si)) {
 		cs_free(cs);
@@ -132,6 +135,7 @@ struct conn_stream *cs_new_from_check(struct check *check, unsigned int flags)
 	if (unlikely(!cs))
 		return NULL;
 	cs->flags |= flags;
+	cs->endp->flags |=  CS_EP_DETACHED;
 	cs->app = &check->obj_type;
 	cs->data_cb = &check_conn_cb;
 	return cs;
@@ -144,6 +148,7 @@ void cs_free(struct conn_stream *cs)
 {
 	si_free(cs->si);
 	if (cs->endp) {
+		BUG_ON(!(cs->endp->flags & CS_EP_DETACHED));
 		cs_endpoint_free(cs->endp);
 	}
 	pool_free(pool_head_connstream, cs);
@@ -158,6 +163,7 @@ void cs_attach_mux(struct conn_stream *cs, void *target, void *ctx)
 	cs->endp->target = target;
 	cs->endp->ctx = ctx;
 	cs->endp->flags |= CS_EP_T_MUX;
+	cs->endp->flags &= ~CS_EP_DETACHED;
 	if (!conn->ctx)
 		conn->ctx = cs;
 	if (cs_strm(cs)) {
@@ -176,8 +182,9 @@ void cs_attach_applet(struct conn_stream *cs, void *target, void *ctx)
 	cs->endp->target = target;
 	cs->endp->ctx = ctx;
 	cs->endp->flags |= CS_EP_T_APPLET;
+	cs->endp->flags &= ~CS_EP_DETACHED;
 	appctx->owner = cs;
-	if (cs->si) {
+	if (cs_strm(cs)) {
 		cs->si->ops = &si_applet_ops;
 		cs->data_cb = NULL;
 	}
@@ -191,7 +198,7 @@ int cs_attach_strm(struct conn_stream *cs, struct stream *strm)
 	cs->si = si_new(cs);
 	if (unlikely(!cs->si))
 		return -1;
-
+	cs->endp->flags &= ~CS_EP_ORPHAN;
 	if (cs->endp->flags & CS_EP_T_MUX) {
 		cs->si->ops = &si_conn_ops;
 		cs->data_cb = &si_conn_cb;
@@ -220,9 +227,11 @@ void cs_detach_endp(struct conn_stream *cs)
 
 		if (conn->mux) {
 			/* TODO: handle unsubscribe for healthchecks too */
+			cs->endp->flags |= CS_EP_ORPHAN;
 			if (cs->si && cs->si->wait_event.events != 0)
 				conn->mux->unsubscribe(cs, cs->si->wait_event.events, &cs->si->wait_event);
 			conn->mux->detach(cs);
+			cs->endp = NULL;
 		}
 		else {
 			/* It's too early to have a mux, let's just destroy
@@ -238,13 +247,17 @@ void cs_detach_endp(struct conn_stream *cs)
 	else if (cs->endp->flags & CS_EP_T_APPLET) {
 		struct appctx *appctx = cs_appctx(cs);
 
+		cs->endp->flags |= CS_EP_ORPHAN;
 		if (cs->si)
 			si_applet_release(cs->si);
 		appctx_free(appctx);
+		cs->endp = NULL;
 	}
 
 	if (cs->endp) {
+		/* the cs is the only one one the endpoint */
 		cs_endpoint_init(cs->endp);
+		cs->endp->flags |= CS_EP_DETACHED;
 	}
 
 	/* FIXME: Rest CS for now but must be reviewed. CS flags are only
@@ -266,6 +279,21 @@ void cs_detach_app(struct conn_stream *cs)
 	cs->si  = NULL;
 	cs->data_cb = NULL;
 
-	if (!cs->endp || !cs->endp->target)
+	if (!cs->endp || (cs->endp->flags & CS_EP_DETACHED))
 		cs_free(cs);
+}
+
+int cs_reset_endp(struct conn_stream *cs)
+{
+	BUG_ON(!cs->app);
+	cs_detach_endp(cs);
+	if (!cs->endp) {
+		cs->endp = cs_endpoint_new();
+		if (!cs->endp) {
+			cs->flags |= CS_FL_ERROR;
+			return -1;
+		}
+		cs->endp->flags |= CS_EP_DETACHED;
+	}
+	return 0;
 }

@@ -887,13 +887,12 @@ static struct appctx *dns_session_create(struct dns_session *ds)
 {
 	struct appctx *appctx;
 	struct session *sess;
-	struct cs_endpoint *endp;
 	struct conn_stream *cs;
 	struct stream *s;
 	struct applet *applet = &dns_session_applet;
 	struct sockaddr_storage *addr = NULL;
 
-	appctx = appctx_new(applet);
+	appctx = appctx_new(applet, NULL);
 	if (!appctx)
 		goto out_close;
 	appctx->ctx.sft.ptr = (void *)ds;
@@ -907,17 +906,9 @@ static struct appctx *dns_session_create(struct dns_session *ds)
 	if (!sockaddr_alloc(&addr, &ds->dss->srv->addr, sizeof(ds->dss->srv->addr)))
 		goto out_free_sess;
 
-	endp = cs_endpoint_new();
-	if (!endp)
-		goto out_free_addr;
-	endp->target = appctx;
-	endp->ctx = appctx;
-	endp->flags |= CS_EP_T_APPLET;
-
-	cs = cs_new_from_applet(endp, sess, &BUF_NULL);
+	cs = cs_new_from_applet(appctx->endp, sess, &BUF_NULL);
 	if (!cs) {
 		ha_alert("Failed to initialize stream in dns_session_create().\n");
-		cs_endpoint_free(endp);
 		goto out_free_addr;
 	}
 

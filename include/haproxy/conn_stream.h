@@ -50,6 +50,7 @@ void cs_attach_mux(struct conn_stream *cs, void *target, void *ctx);
 void cs_attach_applet(struct conn_stream *cs, void *target, void *ctx);
 int cs_attach_strm(struct conn_stream *cs, struct stream *strm);
 
+int cs_reset_endp(struct conn_stream *cs);
 void cs_detach_endp(struct conn_stream *cs);
 void cs_detach_app(struct conn_stream *cs);
 

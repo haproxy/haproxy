@@ -339,7 +339,7 @@ struct appctx *si_register_handler(struct stream_interface *si, struct applet *a
 
 	DPRINTF(stderr, "registering handler %p for si %p (was %p)\n", app, si, si_task(si));
 
-	appctx = appctx_new(app);
+	appctx = appctx_new(app, si->cs->endp);
 	if (!appctx)
 		return NULL;
 	cs_attach_applet(si->cs, appctx, appctx);

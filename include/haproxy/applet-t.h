@@ -58,7 +58,8 @@ struct appctx {
 	struct buffer *chunk;       /* used to store unfinished commands */
 	unsigned int st2;          /* output state for stats, unused by peers  */
 	struct applet *applet;     /* applet this context refers to */
-	void *owner;               /* pointer to upper layer's entity (eg: conn_stream) */
+	struct conn_stream *owner;
+	struct cs_endpoint *endp;
 	struct act_rule *rule;     /* rule associated with the applet. */
 	int (*io_handler)(struct appctx *appctx);  /* used within the cli_io_handler when st0 = CLI_ST_CALLBACK */
 	void (*io_release)(struct appctx *appctx);  /* used within the cli_io_handler when st0 = CLI_ST_CALLBACK,

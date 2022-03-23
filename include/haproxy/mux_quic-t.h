@@ -11,6 +11,7 @@
 #include <haproxy/buf-t.h>
 #include <haproxy/connection-t.h>
 #include <haproxy/xprt_quic-t.h>
+#include <haproxy/conn_stream-t.h>
 
 /* Stream types */
 enum qcs_type {
@@ -88,6 +89,7 @@ struct qcc {
 struct qcs {
 	struct qcc *qcc;
 	struct conn_stream *cs;
+	struct cs_endpoint *endp;
 	uint32_t flags;      /* QC_SF_* */
 
 	struct {

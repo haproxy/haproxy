@@ -214,6 +214,7 @@ enum h2_ss {
  */
 struct h2s {
 	struct conn_stream *cs;
+	struct cs_endpoint *endp;
 	struct session *sess;
 	struct h2c *h2c;
 	struct eb32_node by_id; /* place in h2c's streams_by_id */
@@ -1520,6 +1521,8 @@ static void h2s_destroy(struct h2s *h2s)
 
 	/* ditto, calling tasklet_free() here should be ok */
 	tasklet_free(h2s->shut_tl);
+	BUG_ON(h2s->endp && !(h2s->endp->flags & CS_EP_ORPHAN));
+	cs_endpoint_free(h2s->endp);
 	pool_free(pool_head_h2s, h2s);
 
 	TRACE_LEAVE(H2_EV_H2S_END, conn);
@@ -1552,6 +1555,7 @@ static struct h2s *h2s_new(struct h2c *h2c, int id)
 	LIST_INIT(&h2s->list);
 	h2s->h2c       = h2c;
 	h2s->cs        = NULL;
+	h2s->endp      = NULL;
 	h2s->sws       = 0;
 	h2s->flags     = H2_SF_NONE;
 	h2s->errcode   = H2_ERR_NO_ERROR;
@@ -1590,7 +1594,6 @@ static struct h2s *h2s_new(struct h2c *h2c, int id)
 static struct h2s *h2c_frt_stream_new(struct h2c *h2c, int id, struct buffer *input, uint32_t flags)
 {
 	struct session *sess = h2c->conn->owner;
-	struct cs_endpoint *endp;
 	struct h2s *h2s;
 
 	TRACE_ENTER(H2_EV_H2S_NEW, h2c->conn);
@@ -1602,17 +1605,18 @@ static struct h2s *h2c_frt_stream_new(struct h2c *h2c, int id, struct buffer *in
 	if (!h2s)
 		goto out;
 
-	endp = cs_endpoint_new();
-	if (!endp)
+	h2s->endp = cs_endpoint_new();
+	if (!h2s->endp)
 		goto out_close;
-	endp->target = h2s;
-	endp->ctx = h2c->conn;
-	endp->flags |= (CS_EP_T_MUX|CS_EP_NOT_FIRST);
+	h2s->endp->target = h2s;
+	h2s->endp->ctx = h2c->conn;
+	h2s->endp->flags |= (CS_EP_T_MUX|CS_EP_ORPHAN|CS_EP_NOT_FIRST);
+
 	/* FIXME wrong analogy between ext-connect and websocket, this need to
 	 * be refine.
 	 */
 	if (flags & H2_SF_EXT_CONNECT_RCVD)
-		endp->flags |= CS_EP_WEBSOCKET;
+		h2s->endp->flags |= CS_EP_WEBSOCKET;
 
 	/* The stream will record the request's accept date (which is either the
 	 * end of the connection's or the date immediately after the previous
@@ -1621,9 +1625,8 @@ static struct h2s *h2c_frt_stream_new(struct h2c *h2c, int id, struct buffer *in
 	 */
 	sess->t_idle = tv_ms_elapsed(&sess->tv_accept, &now) - sess->t_handshake;
 
-	h2s->cs = cs_new_from_mux(endp, sess, input);
+	h2s->cs = cs_new_from_mux(h2s->endp, sess, input);
 	if (!h2s->cs) {
-		cs_endpoint_free(endp);
 		goto out_close;
 	}
 	h2c->nb_cs++;
@@ -1675,6 +1678,7 @@ static struct h2s *h2c_bck_stream_new(struct h2c *h2c, struct conn_stream *cs, s
 
 	cs_attach_mux(cs, h2s, h2c->conn);
 	h2s->cs = cs;
+	h2s->endp = cs->endp;
 	h2s->sess = sess;
 	h2c->nb_cs++;
 
@@ -4080,7 +4084,7 @@ static int h2_process(struct h2c *h2c)
 
 		while (node) {
 			h2s = container_of(node, struct h2s, by_id);
-			if (h2s->cs && h2s->cs->endp->flags & CS_EP_WAIT_FOR_HS)
+			if (h2s->cs && h2s->endp->flags & CS_EP_WAIT_FOR_HS)
 				h2s_notify_recv(h2s);
 			node = eb32_next(node);
 		}
@@ -5322,7 +5326,7 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, struct htx *htx)
 			break;
 	}
 
-	if (!h2s->cs || h2s->cs->endp->flags & CS_EP_SHW) {
+	if (!h2s->cs || h2s->endp->flags & CS_EP_SHW) {
 		/* Response already closed: add END_STREAM */
 		es_now = 1;
 	}
@@ -5742,7 +5746,7 @@ static size_t h2s_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 			break;
 	}
 
-	if (!h2s->cs || h2s->cs->endp->flags & CS_EP_SHW) {
+	if (!h2s->cs || h2s->endp->flags & CS_EP_SHW) {
 		/* Request already closed: add END_STREAM */
 		es_now = 1;
 	}

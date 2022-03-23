@@ -47,28 +47,47 @@ static inline void appctx_init(struct appctx *appctx)
  * appctx_free(). <applet> is assigned as the applet, but it can be NULL. The
  * applet's task is always created on the current thread.
  */
-struct appctx *appctx_new(struct applet *applet)
+struct appctx *appctx_new(struct applet *applet, struct cs_endpoint *endp)
 {
 	struct appctx *appctx;
 
 	appctx = pool_alloc(pool_head_appctx);
-	if (likely(appctx != NULL)) {
-		appctx->obj_type = OBJ_TYPE_APPCTX;
-		appctx->applet = applet;
-		appctx_init(appctx);
-		appctx->t = task_new_here();
-		if (unlikely(appctx->t == NULL)) {
-			pool_free(pool_head_appctx, appctx);
-			return NULL;
-		}
-		appctx->t->process = task_run_applet;
-		appctx->t->context = appctx;
-		LIST_INIT(&appctx->buffer_wait.list);
-		appctx->buffer_wait.target = appctx;
-		appctx->buffer_wait.wakeup_cb = appctx_buf_available;
-		_HA_ATOMIC_INC(&nb_applets);
+	if (unlikely(!appctx))
+		goto fail_appctx;
+
+	appctx_init(appctx);
+	appctx->obj_type = OBJ_TYPE_APPCTX;
+	appctx->applet = applet;
+
+	if (!endp) {
+		endp = cs_endpoint_new();
+		if (!endp)
+			goto fail_endp;
+		endp->target = appctx;
+		endp->ctx = appctx;
+		endp->flags |= (CS_EP_T_APPLET|CS_EP_ORPHAN);
 	}
+	appctx->endp = endp;
+
+	appctx->t = task_new_here();
+	if (unlikely(!appctx->t))
+		goto fail_task;
+	appctx->t->process = task_run_applet;
+	appctx->t->context = appctx;
+
+	LIST_INIT(&appctx->buffer_wait.list);
+	appctx->buffer_wait.target = appctx;
+	appctx->buffer_wait.wakeup_cb = appctx_buf_available;
+
+	_HA_ATOMIC_INC(&nb_applets);
 	return appctx;
+
+  fail_task:
+	cs_endpoint_free(appctx->endp);
+  fail_endp:
+	pool_free(pool_head_appctx, appctx);
+  fail_appctx:
+	return NULL;
 }
 
 /* Callback used to wake up an applet when a buffer is available. The applet

@@ -1496,8 +1496,9 @@ static int connect_server(struct stream *s)
 
 			if (avail >= 1) {
 				if (srv_conn->mux->attach(srv_conn, s->csb, s->sess) == -1) {
-					cs_detach_endp(s->csb);
 					srv_conn = NULL;
+					if (cs_reset_endp(s->csb) < 0)
+						return SF_ERR_INTERNAL;
 				}
 			}
 			else
@@ -2290,7 +2291,29 @@ void back_handle_st_cer(struct stream *s)
 	 * Note: the stream-interface will be switched to ST_REQ, ST_ASS or
 	 * ST_TAR and SI_FL_ERR and SI_FL_EXP flags will be unset.
 	 */
-	cs_detach_endp(s->csb);
+	if (cs_reset_endp(s->csb) < 0) {
+		if (!si->err_type)
+			si->err_type = SI_ET_CONN_OTHER;
+
+		if (objt_server(s->target))
+			_HA_ATOMIC_INC(&objt_server(s->target)->counters.internal_errors);
+		_HA_ATOMIC_INC(&s->be->be_counters.internal_errors);
+		sess_change_server(s, NULL);
+		if (may_dequeue_tasks(objt_server(s->target), s->be))
+			process_srv_queue(objt_server(s->target));
+
+		/* shutw is enough so stop a connecting socket */
+		si_shutw(si);
+		s->req.flags |= CF_WRITE_ERROR;
+		s->res.flags |= CF_READ_ERROR;
+
+		si->state = SI_ST_CLO;
+		if (s->srv_error)
+			s->srv_error(s, si);
+
+		DBG_TRACE_STATE("error resetting endpoint", STRM_EV_STRM_PROC|STRM_EV_SI_ST|STRM_EV_STRM_ERR, s);
+		goto end;
+	}
 
 	stream_choose_redispatch(s);
 

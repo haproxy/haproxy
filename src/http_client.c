@@ -455,7 +455,6 @@ struct appctx *httpclient_start(struct httpclient *hc)
 	struct applet *applet = &httpclient_applet;
 	struct appctx *appctx;
 	struct session *sess;
-	struct cs_endpoint *endp;
 	struct conn_stream *cs;
 	struct stream *s;
 	struct sockaddr_storage *addr = NULL;
@@ -480,7 +479,7 @@ struct appctx *httpclient_start(struct httpclient *hc)
 
 	/* The HTTP client will be created in the same thread as the caller,
 	 * avoiding threading issues */
-	appctx = appctx_new(applet);
+	appctx = appctx_new(applet, NULL);
 	if (!appctx)
 		goto out;
 
@@ -499,17 +498,9 @@ struct appctx *httpclient_start(struct httpclient *hc)
 	if (!sockaddr_alloc(&addr, ss_dst, sizeof(*hc->dst)))
 		goto out_free_sess;
 
-	endp = cs_endpoint_new();
-	if (!endp)
-		goto out_free_addr;
-	endp->target = appctx;
-	endp->ctx = appctx;
-	endp->flags |= CS_EP_T_APPLET;
-
-	cs = cs_new_from_applet(endp, sess, &hc->req.buf);
+	cs = cs_new_from_applet(appctx->endp, sess, &hc->req.buf);
 	if (!cs) {
 		ha_alert("httpclient: Failed to initialize stream %s:%d.\n", __FUNCTION__, __LINE__);
-		cs_endpoint_free(endp);
 		goto out_free_addr;
 	}
 	s = DISGUISE(cs_strm(cs));

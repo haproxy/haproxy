@@ -2753,8 +2753,14 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		 * connection.
 		 */
 		if (!si_conn_ready(cs_si(s->csb))) {
-			cs_detach_endp(s->csb);
 			s->srv_conn = NULL;
+			if (cs_reset_endp(s->csb) < 0) {
+				if (!cs_si(s->csb)->err_type)
+					cs_si(s->csb)->err_type = SI_ET_CONN_OTHER;
+				if (s->srv_error)
+					s->srv_error(s, cs_si(s->csb));
+				return 1;
+			}
 		}
 
 		sockaddr_free(&(cs_si(s->csb)->dst));

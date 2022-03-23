@@ -1134,6 +1134,15 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 		task_set_affinity(t, tid_bit);
 
 		check->current_step = NULL;
+
+		if (check->cs->flags & CS_FL_ERROR) {
+			check->cs->flags &= ~CS_FL_ERROR;
+			check->cs->endp = cs_endpoint_new();
+			if (!check->cs->endp)
+				check->cs->flags |= CS_FL_ERROR;
+			else
+				check->cs->endp->flags |=  CS_EP_DETACHED;
+		}
 		tcpcheck_main(check);
 		expired = 0;
 	}
@@ -1155,9 +1164,10 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 		else {
 			if (check->state & CHK_ST_CLOSE_CONN) {
 				TRACE_DEVEL("closing current connection", CHK_EV_TASK_WAKE|CHK_EV_HCHK_RUN, check);
-				cs_detach_endp(check->cs);
-				conn = NULL;
 				check->state &= ~CHK_ST_CLOSE_CONN;
+				if (cs_reset_endp(check->cs) < 0)
+					check->cs->flags |= CS_FL_ERROR;
+				conn = NULL;
 				tcpcheck_main(check);
 			}
 			if (check->result == CHK_RES_UNKNOWN) {
@@ -1190,7 +1200,13 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 	 * the tasklet
 	 */
 	tasklet_remove_from_tasklet_list(check->wait_list.tasklet);
-	cs_detach_endp(check->cs);
+
+	if (cs_reset_endp(check->cs) < 0) {
+		/* If an error occurred at this stage, it will be fixed by the
+		 * next check
+		 */
+		check->cs->flags |= CS_FL_ERROR;
+	}
 
 	if (check->sess != NULL) {
 		vars_prune(&check->vars, check->sess, NULL);

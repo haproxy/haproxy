@@ -1254,7 +1254,13 @@ static __inline int do_l7_retry(struct stream *s, struct stream_interface *si)
 	res->to_forward = 0;
 	res->analyse_exp = TICK_ETERNITY;
 	res->total = 0;
-	cs_detach_endp(s->csb);
+
+	if (cs_reset_endp(s->csb) < 0) {
+		s->csb->flags |= CS_FL_ERROR;
+		if (!(s->flags & SF_ERR_MASK))
+			s->flags |= SF_ERR_INTERNAL;
+		return -1;
+	}
 
 	b_free(&req->buf);
 	/* Swap the L7 buffer with the channel buffer */
