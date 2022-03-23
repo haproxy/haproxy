@@ -59,7 +59,7 @@ static inline void appctx_init(struct appctx *appctx)
  * appctx_free(). <applet> is assigned as the applet, but it can be NULL. The
  * applet's task is always created on the current thread.
  */
-static inline struct appctx *appctx_new(struct applet *applet, void *owner)
+static inline struct appctx *appctx_new(struct applet *applet)
 {
 	struct appctx *appctx;
 
@@ -67,7 +67,6 @@ static inline struct appctx *appctx_new(struct applet *applet, void *owner)
 	if (likely(appctx != NULL)) {
 		appctx->obj_type = OBJ_TYPE_APPCTX;
 		appctx->applet = applet;
-		appctx->owner = owner;
 		appctx_init(appctx);
 		appctx->t = task_new_here();
 		if (unlikely(appctx->t == NULL)) {

@@ -455,8 +455,10 @@ struct appctx *httpclient_start(struct httpclient *hc)
 	struct applet *applet = &httpclient_applet;
 	struct appctx *appctx;
 	struct session *sess;
+	struct cs_endpoint *endp;
 	struct conn_stream *cs;
 	struct stream *s;
+	struct sockaddr_storage *addr = NULL;
 	int len;
 	struct sockaddr_storage ss_url;
 	struct sockaddr_storage* ss_dst;
@@ -476,17 +478,11 @@ struct appctx *httpclient_start(struct httpclient *hc)
 		goto out;
 	}
 
-	cs = cs_new(NULL);
-	if (!cs) {
-		ha_alert("httpclient: out of memory in %s:%d.\n", __FUNCTION__, __LINE__);
-		goto out;
-	}
-
 	/* The HTTP client will be created in the same thread as the caller,
 	 * avoiding threading issues */
-	appctx = appctx_new(applet, cs);
+	appctx = appctx_new(applet);
 	if (!appctx)
-		goto out_free_cs;
+		goto out;
 
 	sess = session_new(httpclient_proxy, NULL, &appctx->obj_type);
 	if (!sess) {
@@ -494,25 +490,33 @@ struct appctx *httpclient_start(struct httpclient *hc)
 		goto out_free_appctx;
 	}
 
-	if ((s = stream_new(sess, cs, &hc->req.buf)) == NULL) {
-		ha_alert("httpclient: Failed to initialize stream %s:%d.\n", __FUNCTION__, __LINE__);
-		goto out_free_sess;
-	}
-
-	/* set the "timeout server" */
-	s->req.wto = hc->timeout_server;
-	s->res.rto = hc->timeout_server;
-
 	/* if httpclient_set_dst() was used, sets the alternative address */
 	if (hc->dst)
 		ss_dst = hc->dst;
 	else
 		ss_dst = &ss_url;
 
-	if (!sockaddr_alloc(&cs_si(s->csb)->dst, ss_dst, sizeof(*hc->dst))) {
-		ha_alert("httpclient: Failed to initialize stream in %s:%d.\n", __FUNCTION__, __LINE__);
-		goto out_free_stream;
+	if (!sockaddr_alloc(&addr, ss_dst, sizeof(*hc->dst)))
+		goto out_free_sess;
+
+	endp = cs_endpoint_new();
+	if (!endp)
+		goto out_free_addr;
+	endp->target = appctx;
+	endp->ctx = appctx;
+	endp->flags |= CS_EP_T_APPLET;
+
+	cs = cs_new_from_applet(endp, sess, &hc->req.buf);
+	if (!cs) {
+		ha_alert("httpclient: Failed to initialize stream %s:%d.\n", __FUNCTION__, __LINE__);
+		cs_endpoint_free(endp);
+		goto out_free_addr;
 	}
+	s = DISGUISE(cs_strm(cs));
+
+	/* set the "timeout server" */
+	s->req.wto = hc->timeout_server;
+	s->res.rto = hc->timeout_server;
 
 	/* choose the SSL server or not */
 	switch (out.scheme) {
@@ -529,9 +533,9 @@ struct appctx *httpclient_start(struct httpclient *hc)
 			break;
 	}
 
-	cs_attach_endp_app(cs, appctx, appctx);
-	s->flags |= SF_ASSIGNED|SF_ADDR_SET;
+	cs_si(s->csb)->dst = addr;
 	cs_si(s->csb)->flags |= SI_FL_NOLINGER;
+	s->flags |= SF_ASSIGNED|SF_ADDR_SET;
 	s->res.flags |= CF_READ_DONTWAIT;
 
 	/* applet is waiting for data */
@@ -550,14 +554,16 @@ struct appctx *httpclient_start(struct httpclient *hc)
 	return appctx;
 
 out_free_stream:
+	cs_detach_app(cs);
 	LIST_DELETE(&s->list);
 	pool_free(pool_head_stream, s);
+	cs_free(cs);
+out_free_addr:
+	sockaddr_free(&addr);
 out_free_sess:
 	session_free(sess);
 out_free_appctx:
 	appctx_free(appctx);
-out_free_cs:
-	cs_free(cs);
 out:
 
 	return NULL;

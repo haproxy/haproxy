@@ -1591,7 +1591,6 @@ static struct h2s *h2c_frt_stream_new(struct h2c *h2c, int id, struct buffer *in
 {
 	struct session *sess = h2c->conn->owner;
 	struct cs_endpoint *endp;
-	struct conn_stream *cs;
 	struct h2s *h2s;
 
 	TRACE_ENTER(H2_EV_H2S_NEW, h2c->conn);
@@ -1608,21 +1607,12 @@ static struct h2s *h2c_frt_stream_new(struct h2c *h2c, int id, struct buffer *in
 		goto out_close;
 	endp->target = h2s;
 	endp->ctx = h2c->conn;
-	endp->flags |= CS_EP_NOT_FIRST;
+	endp->flags |= (CS_EP_T_MUX|CS_EP_NOT_FIRST);
 	/* FIXME wrong analogy between ext-connect and websocket, this need to
 	 * be refine.
 	 */
 	if (flags & H2_SF_EXT_CONNECT_RCVD)
 		endp->flags |= CS_EP_WEBSOCKET;
-
-	cs = cs_new(endp);
-	if (!cs) {
-		cs_endpoint_free(endp);
-		goto out_close;
-	}
-	cs_attach_endp_mux(cs, h2s, h2c->conn);
-	h2s->cs = cs;
-	h2c->nb_cs++;
 
 	/* The stream will record the request's accept date (which is either the
 	 * end of the connection's or the date immediately after the previous
@@ -1630,8 +1620,13 @@ static struct h2s *h2c_frt_stream_new(struct h2c *h2c, int id, struct buffer *in
 	 * request. We can set the value now, it will be copied by stream_new().
 	 */
 	sess->t_idle = tv_ms_elapsed(&sess->tv_accept, &now) - sess->t_handshake;
-	if (!stream_new(h2c->conn->owner, cs, input))
-		goto out_free_cs;
+
+	h2s->cs = cs_new_from_mux(endp, sess, input);
+	if (!h2s->cs) {
+		cs_endpoint_free(endp);
+		goto out_close;
+	}
+	h2c->nb_cs++;
 
 	/* We want the accept date presented to the next stream to be the one
 	 * we have now, the handshake time to be null (since the next stream
@@ -1649,12 +1644,6 @@ static struct h2s *h2c_frt_stream_new(struct h2c *h2c, int id, struct buffer *in
 	TRACE_LEAVE(H2_EV_H2S_NEW, h2c->conn);
 	return h2s;
 
- out_free_cs:
-	h2c->nb_cs--;
-	if (!h2c->nb_cs)
-		h2c->idle_start = now_ms;
-	cs_free(cs);
-	h2s->cs = NULL;
  out_close:
 	h2s_destroy(h2s);
  out:
@@ -1684,7 +1673,7 @@ static struct h2s *h2c_bck_stream_new(struct h2c *h2c, struct conn_stream *cs, s
 	if (!h2s)
 		goto out;
 
-	cs_attach_endp_mux(cs, h2s, h2c->conn);
+	cs_attach_mux(cs, h2s, h2c->conn);
 	h2s->cs = cs;
 	h2s->sess = sess;
 	h2c->nb_cs++;

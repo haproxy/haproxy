@@ -1391,11 +1391,9 @@ int start_check_task(struct check *check, int mininter,
 	if (check->type == PR_O2_EXT_CHK)
 		t = task_new_on(0);
 	else {
-		check->cs = cs_new(NULL);
+		check->cs = cs_new_from_check(check, CS_FL_NONE);
 		if (!check->cs)
 			goto fail_alloc_cs;
-		if (cs_attach_app(check->cs, &check->obj_type) < 0)
-			goto fail_attach_cs;
 		t = task_new_anywhere();
 	}
 
@@ -1420,7 +1418,6 @@ int start_check_task(struct check *check, int mininter,
 	return 1;
 
   fail_alloc_task:
-  fail_attach_cs:
 	cs_free(check->cs);
   fail_alloc_cs:
 	ha_alert("Starting [%s:%s] check: out of memory.\n",

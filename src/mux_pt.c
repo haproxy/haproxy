@@ -297,17 +297,13 @@ static int mux_pt_init(struct connection *conn, struct proxy *prx, struct sessio
 			goto fail_free_ctx;
 		endp->target = ctx;
 		endp->ctx = conn;
-		cs = cs_new(endp);
+		endp->flags |= CS_EP_T_MUX;
+
+		cs = cs_new_from_mux(endp, sess, input);
 		if (!cs) {
 			TRACE_ERROR("CS allocation failure", PT_EV_STRM_NEW|PT_EV_STRM_END|PT_EV_STRM_ERR, conn);
 			cs_endpoint_free(endp);
 			goto fail_free_ctx;
-		}
-		cs_attach_endp_mux(cs, ctx, conn);
-
-		if (!stream_new(conn->owner, cs, &BUF_NULL)) {
-			TRACE_ERROR("stream creation failure", PT_EV_STRM_NEW|PT_EV_STRM_END|PT_EV_STRM_ERR, conn, cs);
-			goto fail_free;
 		}
 		TRACE_POINT(PT_EV_STRM_NEW, conn, cs);
 	}
@@ -320,9 +316,7 @@ static int mux_pt_init(struct connection *conn, struct proxy *prx, struct sessio
 	TRACE_LEAVE(PT_EV_CONN_NEW, conn, cs);
 	return 0;
 
- fail_free:
-	cs_free(cs);
-fail_free_ctx:
+ fail_free_ctx:
 	if (ctx->wait_event.tasklet)
 		tasklet_free(ctx->wait_event.tasklet);
 	pool_free(pool_head_pt_ctx, ctx);
@@ -379,7 +373,7 @@ static int mux_pt_attach(struct connection *conn, struct conn_stream *cs, struct
 	TRACE_ENTER(PT_EV_STRM_NEW, conn);
 	if (ctx->wait_event.events)
 		conn->xprt->unsubscribe(ctx->conn, conn->xprt_ctx, SUB_RETRY_RECV, &ctx->wait_event);
-	cs_attach_endp_mux(cs, ctx, conn);
+	cs_attach_mux(cs, ctx, conn);
 	ctx->cs = cs;
 	cs->flags |= CS_FL_RCV_MORE;
 

@@ -1988,15 +1988,12 @@ spoe_create_appctx(struct spoe_config *conf)
 {
 	struct appctx      *appctx;
 	struct session     *sess;
+	struct cs_endpoint *endp;
 	struct conn_stream *cs;
 	struct stream      *strm;
 
-	cs = cs_new(NULL);
-	if (!cs)
+	if ((appctx = appctx_new(&spoe_applet)) == NULL)
 		goto out_error;
-
-	if ((appctx = appctx_new(&spoe_applet, cs)) == NULL)
-		goto out_free_cs;
 
 	appctx->ctx.spoe.ptr = pool_zalloc(pool_head_spoe_appctx);
 	if (SPOE_APPCTX(appctx) == NULL)
@@ -2028,14 +2025,24 @@ spoe_create_appctx(struct spoe_config *conf)
 	if (!sess)
 		goto out_free_spoe;
 
-	if ((strm = stream_new(sess, cs, &BUF_NULL)) == NULL)
+	endp = cs_endpoint_new();
+	if (!endp)
 		goto out_free_sess;
+	endp->target = appctx;
+	endp->ctx = appctx;
+	endp->flags |= CS_EP_T_APPLET;
 
-	cs_attach_endp_app(cs, appctx, appctx);
+	cs = cs_new_from_applet(endp, sess, &BUF_NULL);
+	if (!cs) {
+		cs_endpoint_free(endp);
+		goto out_free_sess;
+	}
+
+	strm = DISGUISE(cs_strm(cs));
 	stream_set_backend(strm, conf->agent->b.be);
 
 	/* applet is waiting for data */
-	si_cant_get(strm->csf->si);
+	si_cant_get(cs_si(strm->csf));
 	appctx_wakeup(appctx);
 
 	strm->do_log = NULL;
@@ -2058,8 +2065,6 @@ spoe_create_appctx(struct spoe_config *conf)
 	pool_free(pool_head_spoe_appctx, SPOE_APPCTX(appctx));
  out_free_appctx:
 	appctx_free(appctx);
- out_free_cs:
-	cs_free(cs);
  out_error:
 	return NULL;
 }

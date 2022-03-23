@@ -1130,7 +1130,7 @@ static struct fcgi_strm *fcgi_conn_stream_new(struct fcgi_conn *fconn, struct co
 		TRACE_ERROR("fstream allocation failure", FCGI_EV_FSTRM_NEW|FCGI_EV_FSTRM_END|FCGI_EV_FSTRM_ERR, fconn->conn);
 		goto out;
 	}
-	cs_attach_endp_mux(cs, fstrm, fconn->conn);
+	cs_attach_mux(cs, fstrm, fconn->conn);
 	fstrm->cs = cs;
 	fstrm->sess = sess;
 	fconn->nb_cs++;

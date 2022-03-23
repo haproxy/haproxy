@@ -2918,8 +2918,9 @@ __LJMP static int hlua_socket_new(lua_State *L)
 	struct hlua_socket *socket;
 	struct appctx *appctx;
 	struct session *sess;
+	struct cs_endpoint *endp;
 	struct conn_stream *cs;
-	struct stream *strm;
+	struct stream *s;
 
 	/* Check stack size. */
 	if (!lua_checkstack(L, 3)) {
@@ -2944,17 +2945,11 @@ __LJMP static int hlua_socket_new(lua_State *L)
 	lua_rawgeti(L, LUA_REGISTRYINDEX, class_socket_ref);
 	lua_setmetatable(L, -2);
 
-	cs = cs_new(NULL);
-	if (!cs) {
-		hlua_pusherror(L, "socket: out of memory");
-		goto out_fail_conf;
-	}
-
 	/* Create the applet context */
-	appctx = appctx_new(&update_applet, cs);
+	appctx = appctx_new(&update_applet);
 	if (!appctx) {
 		hlua_pusherror(L, "socket: out of memory");
-		goto out_fail_cs;
+		goto out_fail_conf;
 	}
 
 	appctx->ctx.hlua_cosocket.connected = 0;
@@ -2969,13 +2964,21 @@ __LJMP static int hlua_socket_new(lua_State *L)
 		goto out_fail_appctx;
 	}
 
-	strm = stream_new(sess, cs, &BUF_NULL);
-	if (!strm) {
+	endp = cs_endpoint_new();
+	if (!endp)
+		goto out_fail_sess;
+	endp->target = appctx;
+	endp->ctx = appctx;
+	endp->flags |= CS_EP_T_APPLET;
+
+	cs = cs_new_from_applet(endp, sess, &BUF_NULL);
+	if (!cs) {
 		hlua_pusherror(L, "socket: out of memory");
+		cs_endpoint_free(endp);
 		goto out_fail_sess;
 	}
 
-	cs_attach_endp_app(cs, appctx, appctx);
+	s = DISGUISE(cs_strm(cs));
 
 	/* Initialise cross reference between stream and Lua socket object. */
 	xref_create(&socket->xref, &appctx->ctx.hlua_cosocket.xref);
@@ -2984,11 +2987,11 @@ __LJMP static int hlua_socket_new(lua_State *L)
 	 * and retrieve data from the server. The connection is initialized
 	 * with the "struct server".
 	 */
-	si_set_state(strm->csb->si, SI_ST_ASS);
+	si_set_state(cs_si(s->csb), SI_ST_ASS);
 
 	/* Force destination server. */
-	strm->flags |= SF_DIRECT | SF_ASSIGNED | SF_BE_ASSIGNED;
-	strm->target = &socket_tcp->obj_type;
+	s->flags |= SF_DIRECT | SF_ASSIGNED | SF_BE_ASSIGNED;
+	s->target = &socket_tcp->obj_type;
 
 	return 1;
 
@@ -2996,8 +2999,6 @@ __LJMP static int hlua_socket_new(lua_State *L)
 	session_free(sess);
  out_fail_appctx:
 	appctx_free(appctx);
- out_fail_cs:
-	cs_free(cs);
  out_fail_conf:
 	WILL_LJMP(lua_error(L));
 	return 0;

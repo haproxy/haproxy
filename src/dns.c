@@ -887,19 +887,15 @@ static struct appctx *dns_session_create(struct dns_session *ds)
 {
 	struct appctx *appctx;
 	struct session *sess;
+	struct cs_endpoint *endp;
 	struct conn_stream *cs;
 	struct stream *s;
 	struct applet *applet = &dns_session_applet;
+	struct sockaddr_storage *addr = NULL;
 
-	cs = cs_new(NULL);
-	if (!cs) {
-		ha_alert("out of memory in dns_session_create().\n");
-		goto out_close;
-	}
-
-	appctx = appctx_new(applet, cs);
+	appctx = appctx_new(applet);
 	if (!appctx)
-		goto out_free_cs;
+		goto out_close;
 	appctx->ctx.sft.ptr = (void *)ds;
 
 	sess = session_new(ds->dss->srv->proxy, NULL, &appctx->obj_type);
@@ -908,18 +904,28 @@ static struct appctx *dns_session_create(struct dns_session *ds)
 		goto out_free_appctx;
 	}
 
-	if ((s = stream_new(sess, cs, &BUF_NULL)) == NULL) {
-		ha_alert("Failed to initialize stream in dns_session_create().\n");
+	if (!sockaddr_alloc(&addr, &ds->dss->srv->addr, sizeof(ds->dss->srv->addr)))
 		goto out_free_sess;
+
+	endp = cs_endpoint_new();
+	if (!endp)
+		goto out_free_addr;
+	endp->target = appctx;
+	endp->ctx = appctx;
+	endp->flags |= CS_EP_T_APPLET;
+
+	cs = cs_new_from_applet(endp, sess, &BUF_NULL);
+	if (!cs) {
+		ha_alert("Failed to initialize stream in dns_session_create().\n");
+		cs_endpoint_free(endp);
+		goto out_free_addr;
 	}
 
-	s->target = &ds->dss->srv->obj_type;
-	if (!sockaddr_alloc(&cs_si(s->csb)->dst, &ds->dss->srv->addr, sizeof(ds->dss->srv->addr)))
-		goto out_free_strm;
-
-	cs_attach_endp_app(cs, appctx, appctx);
-	s->flags = SF_ASSIGNED|SF_ADDR_SET;
+	s = DISGUISE(cs_strm(cs));
+	cs_si(s->csb)->dst = addr;
 	cs_si(s->csb)->flags |= SI_FL_NOLINGER;
+	s->target = &ds->dss->srv->obj_type;
+	s->flags = SF_ASSIGNED|SF_ADDR_SET;
 
 	s->do_log = NULL;
 	s->uniq_id = 0;
@@ -934,15 +940,12 @@ static struct appctx *dns_session_create(struct dns_session *ds)
 	return appctx;
 
 	/* Error unrolling */
- out_free_strm:
-	LIST_DELETE(&s->list);
-	pool_free(pool_head_stream, s);
+ out_free_addr:
+	sockaddr_free(&addr);
  out_free_sess:
 	session_free(sess);
  out_free_appctx:
 	appctx_free(appctx);
- out_free_cs:
-	cs_free(cs);
  out_close:
 	return NULL;
 }

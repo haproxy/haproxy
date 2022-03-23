@@ -75,6 +75,68 @@ struct conn_stream *cs_new(struct cs_endpoint *endp)
 	return NULL;
 }
 
+struct conn_stream *cs_new_from_mux(struct cs_endpoint *endp, struct session *sess, struct buffer *input)
+{
+	struct conn_stream *cs;
+
+	cs = cs_new(endp);
+	if (unlikely(!cs))
+		return NULL;
+	if (unlikely(!stream_new(sess, cs, input))) {
+		pool_free(pool_head_connstream, cs);
+		cs = NULL;
+	}
+	return cs;
+}
+
+struct conn_stream *cs_new_from_applet(struct cs_endpoint *endp, struct session *sess, struct buffer *input)
+{
+	struct conn_stream *cs;
+	struct appctx *appctx = endp->ctx;
+
+	cs = cs_new(endp);
+	if (unlikely(!cs))
+		return NULL;
+	appctx->owner = cs;
+	if (unlikely(!stream_new(sess, cs, input))) {
+		pool_free(pool_head_connstream, cs);
+		cs = NULL;
+	}
+	return cs;
+}
+
+struct conn_stream *cs_new_from_strm(struct stream *strm, unsigned int flags)
+{
+	struct conn_stream *cs;
+
+	cs = cs_new(NULL);
+	if (unlikely(!cs))
+		return NULL;
+	cs->flags |= flags;
+	cs->si = si_new(cs);
+	if (unlikely(!cs->si)) {
+		cs_free(cs);
+		return NULL;
+	}
+	cs->app = &strm->obj_type;
+	cs->si->ops = &si_embedded_ops;
+	cs->data_cb = NULL;
+	return cs;
+}
+
+struct conn_stream *cs_new_from_check(struct check *check, unsigned int flags)
+{
+	struct conn_stream *cs;
+
+	cs = cs_new(NULL);
+	if (unlikely(!cs))
+		return NULL;
+	cs->flags |= flags;
+	cs->app = &check->obj_type;
+	cs->data_cb = &check_conn_cb;
+	return cs;
+}
+
 /* Releases a conn_stream previously allocated by cs_new(), as well as any
  * buffer it would still hold.
  */
@@ -89,11 +151,11 @@ void cs_free(struct conn_stream *cs)
 
 
 /* Attaches a conn_stream to an mux endpoint and sets the endpoint ctx */
-void cs_attach_endp_mux(struct conn_stream *cs, void *endp, void *ctx)
+void cs_attach_mux(struct conn_stream *cs, void *target, void *ctx)
 {
 	struct connection *conn = ctx;
 
-	cs->endp->target = endp;
+	cs->endp->target = target;
 	cs->endp->ctx = ctx;
 	cs->endp->flags |= CS_EP_T_MUX;
 	if (!conn->ctx)
@@ -107,11 +169,11 @@ void cs_attach_endp_mux(struct conn_stream *cs, void *endp, void *ctx)
 }
 
 /* Attaches a conn_stream to an applet endpoint and sets the endpoint ctx */
-void cs_attach_endp_app(struct conn_stream *cs, void *endp, void *ctx)
+void cs_attach_applet(struct conn_stream *cs, void *target, void *ctx)
 {
-	struct appctx *appctx = endp;
+	struct appctx *appctx = target;
 
-	cs->endp->target = endp;
+	cs->endp->target = target;
 	cs->endp->ctx = ctx;
 	cs->endp->flags |= CS_EP_T_APPLET;
 	appctx->owner = cs;
@@ -122,31 +184,26 @@ void cs_attach_endp_app(struct conn_stream *cs, void *endp, void *ctx)
 }
 
 /* Attaches a conn_stream to a app layer and sets the relevant callbacks */
-int cs_attach_app(struct conn_stream *cs, enum obj_type *app)
+int cs_attach_strm(struct conn_stream *cs, struct stream *strm)
 {
-	cs->app = app;
+	cs->app = &strm->obj_type;
 
-	if (objt_stream(app)) {
-		if (!cs->si)
-			cs->si = si_new(cs);
-		if (unlikely(!cs->si))
-			return -1;
+	cs->si = si_new(cs);
+	if (unlikely(!cs->si))
+		return -1;
 
-		if (cs->endp->flags & CS_EP_T_MUX) {
-			cs->si->ops = &si_conn_ops;
-			cs->data_cb = &si_conn_cb;
-		}
-		else if (cs->endp->flags & CS_EP_T_APPLET) {
-			cs->si->ops = &si_applet_ops;
-			cs->data_cb = NULL;
-		}
-		else {
-			cs->si->ops = &si_embedded_ops;
-			cs->data_cb = NULL;
-		}
+	if (cs->endp->flags & CS_EP_T_MUX) {
+		cs->si->ops = &si_conn_ops;
+		cs->data_cb = &si_conn_cb;
 	}
-	else if (objt_check(app))
-		cs->data_cb = &check_conn_cb;
+	else if (cs->endp->flags & CS_EP_T_APPLET) {
+		cs->si->ops = &si_applet_ops;
+		cs->data_cb = NULL;
+	}
+	else {
+		cs->si->ops = &si_embedded_ops;
+		cs->data_cb = NULL;
+	}
 	return 0;
 }
 

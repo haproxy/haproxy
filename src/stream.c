@@ -443,14 +443,12 @@ struct stream *stream_new(struct session *sess, struct conn_stream *cs, struct b
 		s->flags |= SF_HTX;
 
 	s->csf = cs;
-	s->csb = cs_new(NULL);
+	if (cs_attach_strm(s->csf, s) < 0)
+		goto out_fail_attach_csf;
+
+	s->csb = cs_new_from_strm(s, CS_FL_NONE);
 	if (!s->csb)
 		goto out_fail_alloc_csb;
-
-	if (cs_attach_app(s->csf, &s->obj_type) < 0)
-		goto out_fail_attach_csf;
-	if (cs_attach_app(s->csb, &s->obj_type) < 0)
-		goto out_fail_attach_csb;
 
 	si_set_state(cs_si(s->csf), SI_ST_EST);
 	cs_si(s->csf)->hcto = sess->fe->timeout.clientfin;

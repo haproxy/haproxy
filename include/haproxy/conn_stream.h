@@ -23,11 +23,13 @@
 #define _HAPROXY_CONN_STREAM_H
 
 #include <haproxy/api.h>
-#include <haproxy/applet.h>
 #include <haproxy/connection.h>
 #include <haproxy/conn_stream-t.h>
 #include <haproxy/obj_type.h>
 
+struct buffer;
+struct session;
+struct appctx;
 struct stream;
 struct stream_interface;
 struct check;
@@ -38,10 +40,16 @@ struct cs_endpoint *cs_endpoint_new();
 void cs_endpoint_free(struct cs_endpoint *endp);
 
 struct conn_stream *cs_new(struct cs_endpoint *endp);
+struct conn_stream *cs_new_from_mux(struct cs_endpoint *endp, struct session *sess, struct buffer *input);
+struct conn_stream *cs_new_from_applet(struct cs_endpoint *endp, struct session *sess, struct buffer *input);
+struct conn_stream *cs_new_from_strm(struct stream *strm, unsigned int flags);
+struct conn_stream *cs_new_from_check(struct check *check, unsigned int flags);
 void cs_free(struct conn_stream *cs);
-void cs_attach_endp_mux(struct conn_stream *cs, void *endp, void *ctx);
-void cs_attach_endp_app(struct conn_stream *cs, void *endp, void *ctx);
-int cs_attach_app(struct conn_stream *cs, enum obj_type *app);
+
+void cs_attach_mux(struct conn_stream *cs, void *target, void *ctx);
+void cs_attach_applet(struct conn_stream *cs, void *target, void *ctx);
+int cs_attach_strm(struct conn_stream *cs, struct stream *strm);
+
 void cs_detach_endp(struct conn_stream *cs);
 void cs_detach_app(struct conn_stream *cs);
 

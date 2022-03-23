@@ -339,10 +339,11 @@ struct appctx *si_register_handler(struct stream_interface *si, struct applet *a
 
 	DPRINTF(stderr, "registering handler %p for si %p (was %p)\n", app, si, si_task(si));
 
-	appctx = appctx_new(app, si->cs);
+	appctx = appctx_new(app);
 	if (!appctx)
 		return NULL;
-	cs_attach_endp_app(si->cs, appctx, appctx);
+	cs_attach_applet(si->cs, appctx, appctx);
+	appctx->owner = si->cs;
 	appctx->t->nice = si_strm(si)->task->nice;
 	si_cant_get(si);
 	appctx_wakeup(appctx);

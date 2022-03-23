@@ -115,15 +115,13 @@ static inline struct conn_stream *qc_attach_cs(struct qcs *qcs, struct buffer *b
 		return NULL;
 	endp->target = qcs;
 	endp->ctx = qcs->qcc->conn;
-	cs = cs_new(endp);
+	endp->flags |= CS_EP_T_MUX;
+	cs = cs_new_from_mux(endp, qcs->qcc->conn->owner, buf);
 	if (!cs) {
 		cs_endpoint_free(endp);
 		return NULL;
 	}
-	cs_attach_endp_mux(cs, qcs, qcs->qcc->conn);
 	qcs->cs = cs;
-	stream_new(qcs->qcc->conn->owner, cs, buf);
-
 	++qcs->qcc->nb_cs;
 
 	return cs;
