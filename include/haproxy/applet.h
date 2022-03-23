@@ -36,52 +36,7 @@ extern struct pool_head *pool_head_appctx;
 struct task *task_run_applet(struct task *t, void *context, unsigned int state);
 int appctx_buf_available(void *arg);
 
-
-/* Initializes all required fields for a new appctx. Note that it does the
- * minimum acceptable initialization for an appctx. This means only the
- * 3 integer states st0, st1, st2 and the chunk used to gather unfinished
- * commands are zeroed
- */
-static inline void appctx_init(struct appctx *appctx)
-{
-	appctx->st0 = appctx->st1 = appctx->st2 = 0;
-	appctx->chunk = NULL;
-	appctx->io_release = NULL;
-	appctx->call_rate.curr_tick = 0;
-	appctx->call_rate.curr_ctr = 0;
-	appctx->call_rate.prev_ctr = 0;
-	appctx->state = 0;
-	LIST_INIT(&appctx->wait_entry);
-}
-
-/* Tries to allocate a new appctx and initialize its main fields. The appctx
- * is returned on success, NULL on failure. The appctx must be released using
- * appctx_free(). <applet> is assigned as the applet, but it can be NULL. The
- * applet's task is always created on the current thread.
- */
-static inline struct appctx *appctx_new(struct applet *applet)
-{
-	struct appctx *appctx;
-
-	appctx = pool_alloc(pool_head_appctx);
-	if (likely(appctx != NULL)) {
-		appctx->obj_type = OBJ_TYPE_APPCTX;
-		appctx->applet = applet;
-		appctx_init(appctx);
-		appctx->t = task_new_here();
-		if (unlikely(appctx->t == NULL)) {
-			pool_free(pool_head_appctx, appctx);
-			return NULL;
-		}
-		appctx->t->process = task_run_applet;
-		appctx->t->context = appctx;
-		LIST_INIT(&appctx->buffer_wait.list);
-		appctx->buffer_wait.target = appctx;
-		appctx->buffer_wait.wakeup_cb = appctx_buf_available;
-		_HA_ATOMIC_INC(&nb_applets);
-	}
-	return appctx;
-}
+struct appctx *appctx_new(struct applet *applet);
 
 /* Releases an appctx previously allocated by appctx_new(). */
 static inline void __appctx_free(struct appctx *appctx)
