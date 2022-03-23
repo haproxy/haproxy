@@ -4249,8 +4249,9 @@ static int send_retry(int fd, struct sockaddr_storage *addr,
 	i += scid.len;
 
 	/* token */
-	if (!(token_len = generate_retry_token(&buf[i], &buf[i] - buf, pkt)))
+	if (!(token_len = generate_retry_token(&buf[i], sizeof(buf) - i, pkt)))
 		return 1;
+
 	i += token_len;
 
 	/* token integrity tag */
