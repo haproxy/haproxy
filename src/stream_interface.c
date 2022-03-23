@@ -1195,9 +1195,8 @@ static void stream_int_chk_snd_conn(struct stream_interface *si)
 {
 	struct channel *oc = si_oc(si);
 	struct conn_stream *cs = si->cs;
-	struct connection *conn = cs_conn(cs);
 
-	BUG_ON(!conn);
+	BUG_ON(!cs_conn(cs));
 
 	if (unlikely(!si_state_in(si->state, SI_SB_CON|SI_SB_RDY|SI_SB_EST) ||
 	    (oc->flags & CF_SHUTW)))
