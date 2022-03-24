@@ -638,7 +638,7 @@ static int qc_send(struct qcc *qcc)
 
 		if (b_data(buf) || b_data(out)) {
 			int ret;
-			char fin = qcs->flags & QC_SF_FIN_STREAM;
+			char fin = !!(qcs->flags & QC_SF_FIN_STREAM);
 
 			ret = qcs_push_frame(qcs, out, buf, fin, &frms,
 			                     qcc->tx.sent_offsets + total);
