@@ -636,7 +636,7 @@ static int si_cs_process(struct conn_stream *cs)
 	 */
 
 	if (si->state >= SI_ST_CON) {
-		if ((cs->flags & CS_FL_ERROR) || si_is_conn_error(si))
+		if ((cs->endp->flags & CS_EP_ERROR) || si_is_conn_error(si))
 			si->flags |= SI_FL_ERR;
 	}
 
@@ -666,7 +666,7 @@ static int si_cs_process(struct conn_stream *cs)
 	 *       wake callback. Otherwise si_cs_recv()/si_cs_send() already take
 	 *       care of it.
 	 */
-	if (cs->flags & CS_FL_EOS && !(ic->flags & CF_SHUTR)) {
+	if (cs->endp->flags & CS_EP_EOS && !(ic->flags & CF_SHUTR)) {
 		/* we received a shutdown */
 		ic->flags |= CF_READ_NULL;
 		if (ic->flags & CF_AUTO_CLOSE)
@@ -681,7 +681,7 @@ static int si_cs_process(struct conn_stream *cs)
 	 *       wake callback. Otherwise si_cs_recv()/si_cs_send() already take
 	 *       care of it.
 	 */
-	if ((cs->flags & CS_FL_EOI) && !(ic->flags & CF_EOI))
+	if ((cs->endp->flags & CS_EP_EOI) && !(ic->flags & CF_EOI))
 		ic->flags |= (CF_EOI|CF_READ_PARTIAL);
 
 	/* Second step : update the stream-int and channels, try to forward any
@@ -707,7 +707,7 @@ static int si_cs_send(struct conn_stream *cs)
 	int ret;
 	int did_send = 0;
 
-	if (cs->flags & (CS_FL_ERROR|CS_FL_ERR_PENDING) || si_is_conn_error(si)) {
+	if (cs->endp->flags & (CS_EP_ERROR|CS_EP_ERR_PENDING) || si_is_conn_error(si)) {
 		/* We're probably there because the tasklet was woken up,
 		 * but process_stream() ran before, detected there were an
 		 * error and put the si back to SI_ST_TAR. There's still
@@ -830,7 +830,7 @@ static int si_cs_send(struct conn_stream *cs)
 		si_rx_room_rdy(si_opposite(si));
 	}
 
-	if (cs->flags & (CS_FL_ERROR|CS_FL_ERR_PENDING)) {
+	if (cs->endp->flags & (CS_EP_ERROR|CS_EP_ERR_PENDING)) {
 		si->flags |= SI_FL_ERR;
 		return 1;
 	}
@@ -1213,7 +1213,7 @@ static void stream_int_chk_snd_conn(struct stream_interface *si)
 	if (!(si->wait_event.events & SUB_RETRY_SEND) && !channel_is_empty(si_oc(si)))
 		si_cs_send(cs);
 
-	if (cs->flags & (CS_FL_ERROR|CS_FL_ERR_PENDING) || si_is_conn_error(si)) {
+	if (cs->endp->flags & (CS_EP_ERROR|CS_EP_ERR_PENDING) || si_is_conn_error(si)) {
 		/* Write error on the file descriptor */
 		if (si->state >= SI_ST_CON)
 			si->flags |= SI_FL_ERR;
@@ -1316,7 +1316,7 @@ static int si_cs_recv(struct conn_stream *cs)
 		return 0;
 
 	/* stop here if we reached the end of data */
-	if (cs->flags & CS_FL_EOS)
+	if (cs->endp->flags & CS_EP_EOS)
 		goto end_recv;
 
 	/* stop immediately on errors. Note that we DON'T want to stop on
@@ -1325,15 +1325,15 @@ static int si_cs_recv(struct conn_stream *cs)
 	 * happens when we send too large a request to a backend server
 	 * which rejects it before reading it all.
 	 */
-	if (!(cs->flags & CS_FL_RCV_MORE)) {
+	if (!(cs->endp->flags & CS_EP_RCV_MORE)) {
 		if (!conn_xprt_ready(conn))
 			return 0;
-		if (cs->flags & CS_FL_ERROR)
+		if (cs->endp->flags & CS_EP_ERROR)
 			goto end_recv;
 	}
 
 	/* prepare to detect if the mux needs more room */
-	cs->flags &= ~CS_FL_WANT_ROOM;
+	cs->endp->flags &= ~CS_EP_WANT_ROOM;
 
 	if ((ic->flags & (CF_STREAMER | CF_STREAMER_FAST)) && !co_data(ic) &&
 	    global.tune.idle_timer &&
@@ -1385,7 +1385,7 @@ static int si_cs_recv(struct conn_stream *cs)
 			ic->flags |= CF_READ_PARTIAL;
 		}
 
-		if (cs->flags & (CS_FL_EOS|CS_FL_ERROR))
+		if (cs->endp->flags & (CS_EP_EOS|CS_EP_ERROR))
 			goto end_recv;
 
 		if (conn->flags & CO_FL_WAIT_ROOM) {
@@ -1440,9 +1440,9 @@ static int si_cs_recv(struct conn_stream *cs)
 	 * that if such an event is not handled above in splice, it will be handled here by
 	 * recv().
 	 */
-	while ((cs->flags & CS_FL_RCV_MORE) ||
+	while ((cs->endp->flags & CS_EP_RCV_MORE) ||
 	       (!(conn->flags & CO_FL_HANDSHAKE) &&
-	       (!(cs->flags & (CS_FL_ERROR|CS_FL_EOS))) && !(ic->flags & CF_SHUTR))) {
+	       (!(cs->endp->flags & (CS_EP_ERROR|CS_EP_EOS))) && !(ic->flags & CF_SHUTR))) {
 		int cur_flags = flags;
 
 		/* Compute transient CO_RFL_* flags */
@@ -1451,13 +1451,13 @@ static int si_cs_recv(struct conn_stream *cs)
 		}
 
 		/* <max> may be null. This is the mux responsibility to set
-		 * CS_FL_RCV_MORE on the CS if more space is needed.
+		 * CS_EP_RCV_MORE on the CS if more space is needed.
 		 */
 		max = channel_recv_max(ic);
 		ret = conn->mux->rcv_buf(cs, &ic->buf, max, cur_flags);
 
-		if (cs->flags & CS_FL_WANT_ROOM) {
-			/* CS_FL_WANT_ROOM must not be reported if the channel's
+		if (cs->endp->flags & CS_EP_WANT_ROOM) {
+			/* CS_EP_WANT_ROOM must not be reported if the channel's
 			 * buffer is empty.
 			 */
 			BUG_ON(c_empty(ic));
@@ -1501,7 +1501,7 @@ static int si_cs_recv(struct conn_stream *cs)
 		 * the channel's policies.This way, we are still able to receive
 		 * shutdowns.
 		 */
-		if (cs->flags & CS_FL_EOI)
+		if (cs->endp->flags & CS_EP_EOI)
 			break;
 
 		if ((ic->flags & CF_READ_DONTWAIT) || --read_poll <= 0) {
@@ -1587,16 +1587,16 @@ static int si_cs_recv(struct conn_stream *cs)
 
 	/* Report EOI on the channel if it was reached from the mux point of
 	 * view. */
-	if ((cs->flags & CS_FL_EOI) && !(ic->flags & CF_EOI)) {
+	if ((cs->endp->flags & CS_EP_EOI) && !(ic->flags & CF_EOI)) {
 		ic->flags |= (CF_EOI|CF_READ_PARTIAL);
 		ret = 1;
 	}
 
-	if (cs->flags & CS_FL_ERROR) {
+	if (cs->endp->flags & CS_EP_ERROR) {
 		si->flags |= SI_FL_ERR;
 		ret = 1;
 	}
-	else if (cs->flags & CS_FL_EOS) {
+	else if (cs->endp->flags & CS_EP_EOS) {
 		/* we received a shutdown */
 		ic->flags |= CF_READ_NULL;
 		if (ic->flags & CF_AUTO_CLOSE)

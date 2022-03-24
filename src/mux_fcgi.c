@@ -1011,7 +1011,7 @@ static inline void fcgi_strm_close(struct fcgi_strm *fstrm)
 		if (!fstrm->id)
 			fstrm->fconn->nb_reserved--;
 		if (fstrm->cs) {
-			if (!(fstrm->cs->flags & CS_FL_EOS) && !b_data(&fstrm->rxbuf))
+			if (!(fstrm->endp->flags & CS_EP_EOS) && !b_data(&fstrm->rxbuf))
 				fcgi_strm_notify_recv(fstrm);
 		}
 		fstrm->state = FCGI_SS_CLOSED;
@@ -1148,8 +1148,8 @@ static struct fcgi_strm *fcgi_conn_stream_new(struct fcgi_conn *fconn, struct co
 	return NULL;
 }
 
-/* Wakes a specific stream and assign its conn_stream some CS_FL_* flags among
- * CS_FL_ERR_PENDING and CS_FL_ERROR if needed. The stream's state is
+/* Wakes a specific stream and assign its conn_stream some CS_EP_* flags among
+ * CS_EP_ERR_PENDING and CS_EP_ERROR if needed. The stream's state is
  * automatically updated accordingly. If the stream is orphaned, it is
  * destroyed.
  */
@@ -1176,9 +1176,9 @@ static void fcgi_strm_wake_one_stream(struct fcgi_strm *fstrm)
 	}
 
 	if ((fconn->state == FCGI_CS_CLOSED || fconn->conn->flags & CO_FL_ERROR)) {
-		fstrm->cs->flags |= CS_FL_ERR_PENDING;
-		if (fstrm->cs->flags & CS_FL_EOS)
-			fstrm->cs->flags |= CS_FL_ERROR;
+		fstrm->endp->flags |= CS_EP_ERR_PENDING;
+		if (fstrm->endp->flags & CS_EP_EOS)
+			fstrm->endp->flags |= CS_EP_ERROR;
 
 		if (fstrm->state < FCGI_SS_ERROR) {
 			fstrm->state = FCGI_SS_ERROR;
@@ -2626,10 +2626,10 @@ static void fcgi_process_demux(struct fcgi_conn *fconn)
 		     fcgi_conn_read0_pending(fconn) ||
 		     fstrm->state == FCGI_SS_CLOSED ||
 		     (fstrm->flags & FCGI_SF_ES_RCVD) ||
-		     (fstrm->cs->flags & (CS_FL_ERROR|CS_FL_ERR_PENDING|CS_FL_EOS)))) {
+		     (fstrm->endp->flags & (CS_EP_ERROR|CS_EP_ERR_PENDING|CS_EP_EOS)))) {
 			/* we may have to signal the upper layers */
 			TRACE_DEVEL("notifying stream before switching SID", FCGI_EV_RX_RECORD|FCGI_EV_STRM_WAKE, fconn->conn, fstrm);
-			fstrm->cs->flags |= CS_FL_RCV_MORE;
+			fstrm->endp->flags |= CS_EP_RCV_MORE;
 			fcgi_strm_notify_recv(fstrm);
 		}
 		fstrm = tmp_fstrm;
@@ -2707,10 +2707,10 @@ static void fcgi_process_demux(struct fcgi_conn *fconn)
 	     fcgi_conn_read0_pending(fconn) ||
 	     fstrm->state == FCGI_SS_CLOSED ||
 	     (fstrm->flags & FCGI_SF_ES_RCVD) ||
-	     (fstrm->cs->flags & (CS_FL_ERROR|CS_FL_ERR_PENDING|CS_FL_EOS)))) {
+	     (fstrm->endp->flags & (CS_EP_ERROR|CS_EP_ERR_PENDING|CS_EP_EOS)))) {
 		/* we may have to signal the upper layers */
 		TRACE_DEVEL("notifying stream before switching SID", FCGI_EV_RX_RECORD|FCGI_EV_STRM_WAKE, fconn->conn, fstrm);
-		fstrm->cs->flags |= CS_FL_RCV_MORE;
+		fstrm->endp->flags |= CS_EP_RCV_MORE;
 		fcgi_strm_notify_recv(fstrm);
 	}
 
@@ -3961,18 +3961,18 @@ static size_t fcgi_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t co
 		TRACE_STATE("fstrm rxbuf not allocated", FCGI_EV_STRM_RECV|FCGI_EV_FSTRM_BLK, fconn->conn, fstrm);
 
 	if (b_data(&fstrm->rxbuf))
-		cs->flags |= (CS_FL_RCV_MORE | CS_FL_WANT_ROOM);
+		cs->endp->flags |= (CS_EP_RCV_MORE | CS_EP_WANT_ROOM);
 	else {
-		cs->flags &= ~(CS_FL_RCV_MORE | CS_FL_WANT_ROOM);
+		cs->endp->flags &= ~(CS_EP_RCV_MORE | CS_EP_WANT_ROOM);
 		if (fstrm->state == FCGI_SS_ERROR || (fstrm->h1m.state == H1_MSG_DONE)) {
-			cs->flags |= CS_FL_EOI;
+			cs->endp->flags |= CS_EP_EOI;
 			if (!(fstrm->h1m.flags & (H1_MF_VER_11|H1_MF_XFER_LEN)))
-				cs->flags |= CS_FL_EOS;
+				cs->endp->flags |= CS_EP_EOS;
 		}
 		if (fcgi_conn_read0_pending(fconn))
-			cs->flags |= CS_FL_EOS;
-		if (cs->flags & CS_FL_ERR_PENDING)
-			cs->flags |= CS_FL_ERROR;
+			cs->endp->flags |= CS_EP_EOS;
+		if (cs->endp->flags & CS_EP_ERR_PENDING)
+			cs->endp->flags |= CS_EP_ERROR;
 		fcgi_release_buf(fconn, &fstrm->rxbuf);
 	}
 
@@ -4025,7 +4025,7 @@ static size_t fcgi_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t co
 
 		if (id < 0) {
 			fcgi_strm_close(fstrm);
-			cs->flags |= CS_FL_ERROR;
+			cs->endp->flags |= CS_EP_ERROR;
 			TRACE_DEVEL("couldn't get a stream ID, leaving in error", FCGI_EV_STRM_SEND|FCGI_EV_FSTRM_ERR|FCGI_EV_STRM_ERR, fconn->conn, fstrm);
 			return 0;
 		}

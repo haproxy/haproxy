@@ -1743,7 +1743,7 @@ skip_reuse:
 	 * sockets, socket pairs, and occasionally TCP connections on the
 	 * loopback on a heavily loaded system.
 	 */
-	if ((srv_conn->flags & CO_FL_ERROR || s->csb->flags & CS_FL_ERROR))
+	if ((srv_conn->flags & CO_FL_ERROR || s->csb->endp->flags & CS_EP_ERROR))
 		cs_si(s->csb)->flags |= SI_FL_ERR;
 
 	/* If we had early data, and the handshake ended, then
@@ -1769,7 +1769,7 @@ skip_reuse:
 	 *       wake callback. Otherwise si_cs_recv()/si_cs_send() already take
 	 *       care of it.
 	 */
-	if ((s->csb->flags & CS_FL_EOI) && !(si_ic(cs_si(s->csb))->flags & CF_EOI))
+	if ((s->csb->endp->flags & CS_EP_EOI) && !(si_ic(cs_si(s->csb))->flags & CF_EOI))
 		si_ic(cs_si(s->csb))->flags |= (CF_EOI|CF_READ_PARTIAL);
 
 	/* catch all sync connect while the mux is not already installed */

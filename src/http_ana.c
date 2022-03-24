@@ -1256,7 +1256,6 @@ static __inline int do_l7_retry(struct stream *s, struct stream_interface *si)
 	res->total = 0;
 
 	if (cs_reset_endp(s->csb) < 0) {
-		s->csb->flags |= CS_FL_ERROR;
 		if (!(s->flags & SF_ERR_MASK))
 			s->flags |= SF_ERR_INTERNAL;
 		return -1;

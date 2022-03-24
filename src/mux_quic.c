@@ -1144,15 +1144,15 @@ static size_t qc_rcv_buf(struct conn_stream *cs, struct buffer *buf,
 
  end:
 	if (b_data(&qcs->rx.app_buf)) {
-		cs->flags |= (CS_FL_RCV_MORE | CS_FL_WANT_ROOM);
+		cs->endp->flags |= (CS_EP_RCV_MORE | CS_EP_WANT_ROOM);
 	}
 	else {
-		cs->flags &= ~(CS_FL_RCV_MORE | CS_FL_WANT_ROOM);
-		if (cs->flags & CS_FL_ERR_PENDING)
-			cs->flags |= CS_FL_ERROR;
+		cs->endp->flags &= ~(CS_EP_RCV_MORE | CS_EP_WANT_ROOM);
+		if (cs->endp->flags & CS_EP_ERR_PENDING)
+			cs->endp->flags |= CS_EP_ERROR;
 
 		if (fin)
-			cs->flags |= (CS_FL_EOI|CS_FL_EOS);
+			cs->endp->flags |= (CS_EP_EOI|CS_EP_EOS);
 
 		if (b_size(&qcs->rx.app_buf)) {
 			b_free(&qcs->rx.app_buf);
@@ -1213,7 +1213,7 @@ static int qc_unsubscribe(struct conn_stream *cs, int event_type, struct wait_ev
 }
 
 /* Loop through all qcs from <qcc>. If CO_FL_ERROR is set on the connection,
- * report CS_FL_ERR_PENDING|CS_FL_ERROR on the attached conn-streams and wake
+ * report CS_EP_ERR_PENDING|CS_EP_ERROR on the attached conn-streams and wake
  * them.
  */
 static int qc_wake_some_streams(struct qcc *qcc)
@@ -1231,9 +1231,9 @@ static int qc_wake_some_streams(struct qcc *qcc)
 			continue;
 
 		if (qcc->conn->flags & CO_FL_ERROR) {
-			qcs->cs->flags |= CS_FL_ERR_PENDING;
-			if (qcs->cs->flags & CS_FL_EOS)
-				qcs->cs->flags |= CS_FL_ERROR;
+			qcs->endp->flags |= CS_EP_ERR_PENDING;
+			if (qcs->endp->flags & CS_EP_EOS)
+				qcs->endp->flags |= CS_EP_ERROR;
 
 			if (qcs->subs) {
 				qcs_notify_recv(qcs);

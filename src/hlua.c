@@ -9576,7 +9576,7 @@ void hlua_applet_http_fct(struct appctx *ctx)
 		}
 
 		res_htx->flags |= HTX_FL_EOM;
-		si->cs->flags |= CS_FL_EOI;
+		si->cs->endp->flags |= CS_EP_EOI;
 		res->flags |= CF_EOI;
 		strm->txn->status = ctx->ctx.hlua_apphttp.status;
 		ctx->ctx.hlua_apphttp.flags |= APPLET_RSP_SENT;

@@ -54,30 +54,30 @@ struct stream_interface;
 	/* following flags are supposed to be set by the endpoint and read by
 	 * the app layer :
 	 */
+	 /* Permanent flags */
 	CS_EP_NOT_FIRST  = 0x00001000,  /* This conn-stream is not the first one for the endpoint */
 	CS_EP_WEBSOCKET  = 0x00002000,  /* The endpoint uses the websocket proto */
-	CS_EP_MAY_SPLICE = 0x00004000,  /* The endpoint may use the kernel splicing to forward data to the other side (implies CS_EP_CAN_SPLICE) */
+	CS_EP_EOI        = 0x00004000,  /* end-of-input reached */
+	CS_EP_EOS        = 0x00008000,  /* End of stream delivered to data layer */
+	CS_EP_ERROR      = 0x00010000,  /* a fatal error was reported */
+	/* Transient flags */
+	CS_EP_ERR_PENDING= 0x00020000,  /* An error is pending, but there's still data to be read */
+	CS_EP_MAY_SPLICE = 0x00040000,  /* The endpoint may use the kernel splicing to forward data to the other side (implies CS_EP_CAN_SPLICE) */
+	CS_EP_RCV_MORE   = 0x00080000,  /* Endpoint may have more bytes to transfer */
+	CS_EP_WANT_ROOM  = 0x00100000,  /* More bytes to transfer, but not enough room */
 
-	 /* unused: 0x00008000 */
+	 /* unused: 0x00200000 ..  0x00800000 */
 
 	/* following flags are supposed to be set by the app layer and read by
 	 * the endpoint :
 	 */
-	CS_EP_WAIT_FOR_HS   = 0x00010000,  /* This stream is waiting for handhskae */
-	CS_EP_KILL_CONN     = 0x00020000,  /* must kill the connection when the CS closes */
+	CS_EP_WAIT_FOR_HS   = 0x01000000,  /* This stream is waiting for handhskae */
+	CS_EP_KILL_CONN     = 0x02000000,  /* must kill the connection when the CS closes */
  };
 
 /* conn_stream flags */
 enum {
 	CS_FL_NONE          = 0x00000000,  /* Just for initialization purposes */
-
-	CS_FL_ERROR         = 0x00000100,  /* a fatal error was reported */
-	CS_FL_RCV_MORE      = 0x00000200,  /* We may have more bytes to transfer */
-	CS_FL_WANT_ROOM     = 0x00000400,  /* More bytes to transfer, but not enough room */
-	CS_FL_ERR_PENDING   = 0x00000800,  /* An error is pending, but there's still data to be read */
-	CS_FL_EOS           = 0x00001000,  /* End of stream delivered to data layer */
-	/* unused: 0x00002000 */
-	CS_FL_EOI           = 0x00004000,  /* end-of-input reached */
 };
 
 /* cs_shutr() modes */

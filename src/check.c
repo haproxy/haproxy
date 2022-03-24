@@ -795,7 +795,7 @@ void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 		retrieve_errno_from_socket(conn);
 
 	if (conn && !(conn->flags & CO_FL_ERROR) &&
-	    cs && !(cs->flags & CS_FL_ERROR) && !expired)
+	    cs && !(cs->endp->flags & CS_EP_ERROR) && !expired)
 		return;
 
 	TRACE_ENTER(CHK_EV_HCHK_END|CHK_EV_HCHK_ERR, check, 0, 0, (size_t[]){expired});
@@ -914,7 +914,7 @@ void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 	}
 	else if (conn->flags & CO_FL_WAIT_L4_CONN) {
 		/* L4 not established (yet) */
-		if (conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR)
+		if (conn->flags & CO_FL_ERROR || cs->endp->flags & CS_EP_ERROR)
 			set_server_check_status(check, HCHK_STATUS_L4CON, err_msg);
 		else if (expired)
 			set_server_check_status(check, HCHK_STATUS_L4TOUT, err_msg);
@@ -929,12 +929,12 @@ void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 	}
 	else if (conn->flags & CO_FL_WAIT_L6_CONN) {
 		/* L6 not established (yet) */
-		if (conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR)
+		if (conn->flags & CO_FL_ERROR || cs->endp->flags & CS_EP_ERROR)
 			set_server_check_status(check, HCHK_STATUS_L6RSP, err_msg);
 		else if (expired)
 			set_server_check_status(check, HCHK_STATUS_L6TOUT, err_msg);
 	}
-	else if (conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR) {
+	else if (conn->flags & CO_FL_ERROR || cs->endp->flags & CS_EP_ERROR) {
 		/* I/O error after connection was established and before we could diagnose */
 		set_server_check_status(check, HCHK_STATUS_SOCKERR, err_msg);
 	}
@@ -1037,7 +1037,7 @@ static int wake_srv_chk(struct conn_stream *cs)
 	cs = check->cs;
 	conn = cs_conn(cs);
 
-	if (unlikely(!conn || !cs || conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR)) {
+	if (unlikely(!conn || !cs || conn->flags & CO_FL_ERROR || cs->endp->flags & CS_EP_ERROR)) {
 		/* We may get error reports bypassing the I/O handlers, typically
 		 * the case when sending a pure TCP check which fails, then the I/O
 		 * handlers above are not called. This is completely handled by the
@@ -1135,13 +1135,17 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 
 		check->current_step = NULL;
 
-		if (check->cs->flags & CS_FL_ERROR) {
-			check->cs->flags &= ~CS_FL_ERROR;
+		if (!check->cs->endp) {
+			/* CS endpoint may be NULL if a previous reset
+			 * failed. Try to allocate a new one and report a
+			 * SOCKERR if it fails.
+			 */
 			check->cs->endp = cs_endpoint_new();
-			if (!check->cs->endp)
-				check->cs->flags |= CS_FL_ERROR;
-			else
-				check->cs->endp->flags |=  CS_EP_DETACHED;
+			if (!check->cs->endp) {
+				set_server_check_status(check, HCHK_STATUS_SOCKERR, NULL);
+				goto end;
+			}
+			check->cs->endp->flags |= CS_EP_DETACHED;
 		}
 		tcpcheck_main(check);
 		expired = 0;
@@ -1157,7 +1161,7 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 		/* Here the connection must be defined. Otherwise the
 		 * error would have already been detected
 		 */
-		if ((conn && ((conn->flags & CO_FL_ERROR) || (check->cs->flags & CS_FL_ERROR))) || expired) {
+		if ((conn && ((conn->flags & CO_FL_ERROR) || (check->cs->endp->flags & CS_EP_ERROR))) || expired) {
 			TRACE_ERROR("report connection error", CHK_EV_TASK_WAKE|CHK_EV_HCHK_END|CHK_EV_HCHK_ERR, check);
 			chk_report_conn_err(check, 0, expired);
 		}
@@ -1165,9 +1169,8 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 			if (check->state & CHK_ST_CLOSE_CONN) {
 				TRACE_DEVEL("closing current connection", CHK_EV_TASK_WAKE|CHK_EV_HCHK_RUN, check);
 				check->state &= ~CHK_ST_CLOSE_CONN;
-				if (cs_reset_endp(check->cs) < 0)
-					check->cs->flags |= CS_FL_ERROR;
 				conn = NULL;
+				cs_reset_endp(check->cs); /* error will be handled by tcpcheck_main() */
 				tcpcheck_main(check);
 			}
 			if (check->result == CHK_RES_UNKNOWN) {
@@ -1201,12 +1204,9 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 	 */
 	tasklet_remove_from_tasklet_list(check->wait_list.tasklet);
 
-	if (cs_reset_endp(check->cs) < 0) {
-		/* If an error occurred at this stage, it will be fixed by the
-		 * next check
-		 */
-		check->cs->flags |= CS_FL_ERROR;
-	}
+	/* Force detach on error. the endpoint will be recreated on the next start */
+	if (cs_reset_endp(check->cs) < 0)
+		cs_detach_endp(check->cs);
 
 	if (check->sess != NULL) {
 		vars_prune(&check->vars, check->sess, NULL);
@@ -1214,6 +1214,7 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 		check->sess = NULL;
 	}
 
+  end:
 	if (check->server && likely(!(check->state & CHK_ST_PURGE))) {
 		if (check->result == CHK_RES_FAILED) {
 			/* a failure or timeout detected */

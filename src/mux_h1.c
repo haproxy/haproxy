@@ -1900,7 +1900,7 @@ static size_t h1_process_demux(struct h1c *h1c, struct buffer *buf, size_t count
 	 */
 	if (((h1m->state == H1_MSG_DONE) && (h1m->flags & H1_MF_RESP)) ||
 	    ((h1m->state == H1_MSG_DONE) && (h1s->meth != HTTP_METH_CONNECT) && !(h1m->flags & H1_MF_CONN_UPG)))
-		h1s->cs->flags |= CS_FL_EOI;
+		h1s->endp->flags |= CS_EP_EOI;
 
   out:
 	/* When Input data are pending for this message, notify upper layer that
@@ -1910,20 +1910,20 @@ static size_t h1_process_demux(struct h1c *h1c, struct buffer *buf, size_t count
 	 *   - Headers or trailers are pending to be copied.
 	 */
 	if (h1s->flags & (H1S_F_RX_CONGESTED)) {
-		h1s->cs->flags |= CS_FL_RCV_MORE | CS_FL_WANT_ROOM;
+		h1s->endp->flags |= CS_EP_RCV_MORE | CS_EP_WANT_ROOM;
 		TRACE_STATE("waiting for more room", H1_EV_RX_DATA|H1_EV_H1S_BLK, h1c->conn, h1s);
 	}
 	else {
-		h1s->cs->flags &= ~(CS_FL_RCV_MORE | CS_FL_WANT_ROOM);
+		h1s->endp->flags &= ~(CS_EP_RCV_MORE | CS_EP_WANT_ROOM);
 		if (h1s->flags & H1S_F_REOS) {
-			h1s->cs->flags |= CS_FL_EOS;
+			h1s->endp->flags |= CS_EP_EOS;
 			if (h1m->state >= H1_MSG_DONE || !(h1m->flags & H1_MF_XFER_LEN)) {
 				/* DONE or TUNNEL or SHUTR without XFER_LEN, set
 				 * EOI on the conn-stream */
-				h1s->cs->flags |= CS_FL_EOI;
+				h1s->endp->flags |= CS_EP_EOI;
 			}
 			else if (h1m->state > H1_MSG_LAST_LF && h1m->state < H1_MSG_DONE) {
-				h1s->cs->flags |= CS_FL_ERROR;
+				h1s->endp->flags |= CS_EP_ERROR;
 				TRACE_ERROR("message aborted, set error on CS", H1_EV_RX_DATA|H1_EV_H1S_ERR, h1c->conn, h1s);
 			}
 
@@ -1942,7 +1942,7 @@ static size_t h1_process_demux(struct h1c *h1c, struct buffer *buf, size_t count
   err:
 	htx_to_buf(htx, buf);
 	if (h1s->cs)
-		h1s->cs->flags |= CS_FL_EOI;
+		h1s->endp->flags |= CS_EP_EOI;
 	TRACE_DEVEL("leaving on error", H1_EV_RX_DATA|H1_EV_STRM_ERR, h1c->conn, h1s);
 	return 0;
 }
@@ -2556,7 +2556,7 @@ static size_t h1_process_mux(struct h1c *h1c, struct buffer *buf, size_t count)
 			h1c->flags |= H1C_F_ST_ERROR;
 			TRACE_ERROR("txn done but data waiting to be sent, set error on h1c", H1_EV_H1C_ERR, h1c->conn, h1s);
 		}
-		h1s->cs->flags |= CS_FL_EOI;
+		h1s->endp->flags |= CS_EP_EOI;
 	}
 
 	TRACE_LEAVE(H1_EV_TX_DATA, h1c->conn, h1s, chn_htx, (size_t[]){total});
@@ -3037,7 +3037,7 @@ static int h1_process(struct h1c * h1c)
 				TRACE_STATE("read0 on connection", H1_EV_H1C_RECV, conn, h1s);
 			}
 			if ((h1c->flags & H1C_F_ST_ERROR) || ((conn->flags & CO_FL_ERROR) && !b_data(&h1c->ibuf)))
-				h1s->cs->flags |= CS_FL_ERROR;
+				h1s->endp->flags |= CS_EP_ERROR;
 			TRACE_POINT(H1_EV_STRM_WAKE, h1c->conn, h1s);
 			h1_alert(h1s);
 		}
@@ -3091,9 +3091,9 @@ static int h1_process(struct h1c * h1c)
 		BUG_ON(!h1s || h1c->flags & H1C_F_ST_READY);
 
 		if (conn_xprt_read0_pending(conn) || (h1s->flags & H1S_F_REOS))
-			h1s->cs->flags |= CS_FL_EOS;
+			h1s->endp->flags |= CS_EP_EOS;
 		if ((h1c->flags & H1C_F_ST_ERROR) || (conn->flags & CO_FL_ERROR))
-			h1s->cs->flags |= CS_FL_ERROR;
+			h1s->endp->flags |= CS_EP_ERROR;
 		h1_alert(h1s);
 		TRACE_DEVEL("waiting to release the CS before releasing the connection", H1_EV_H1C_WAKE);
 	}
@@ -3245,7 +3245,7 @@ struct task *h1_timeout_task(struct task *t, void *context, unsigned int state)
 		if (h1c->flags & H1C_F_ST_ATTACHED) {
 			/* Don't release the H1 connection right now, we must destroy the
 			 * attached CS first. Here, the H1C must not be READY */
-			h1c->h1s->cs->flags |= (CS_FL_EOS|CS_FL_ERROR);
+			h1c->h1s->endp->flags |= (CS_EP_EOS|CS_EP_ERROR);
 			h1_alert(h1c->h1s);
 			h1_refresh_timeout(h1c);
 			HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[tid].idle_conns_lock);
@@ -3685,7 +3685,7 @@ static size_t h1_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 	}
 
 	if (h1c->flags & H1C_F_ST_ERROR) {
-		cs->flags |= CS_FL_ERROR;
+		cs->endp->flags |= CS_EP_ERROR;
 		TRACE_ERROR("H1C on error, leaving in error", H1_EV_STRM_SEND|H1_EV_H1C_ERR|H1_EV_H1S_ERR|H1_EV_STRM_ERR, h1c->conn, h1s);
 		return 0;
 	}
@@ -3717,7 +3717,7 @@ static size_t h1_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 	}
 
 	if (h1c->flags & H1C_F_ST_ERROR) {
-		cs->flags |= CS_FL_ERROR;
+		cs->endp->flags |= CS_EP_ERROR;
 		TRACE_ERROR("reporting error to the app-layer stream", H1_EV_STRM_SEND|H1_EV_H1S_ERR|H1_EV_STRM_ERR, h1c->conn, h1s);
 	}
 
@@ -3762,7 +3762,7 @@ static int h1_rcv_pipe(struct conn_stream *cs, struct pipe *pipe, unsigned int c
 			if (ret > h1m->curr_len) {
 				h1s->flags |= H1S_F_PARSING_ERROR;
 				h1c->flags |= H1C_F_ST_ERROR;
-				cs->flags  |= CS_FL_ERROR;
+				cs->endp->flags  |= CS_EP_ERROR;
 				TRACE_ERROR("too much payload, more than announced",
 					    H1_EV_RX_DATA|H1_EV_STRM_ERR|H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
 				goto end;
@@ -3820,7 +3820,7 @@ static int h1_snd_pipe(struct conn_stream *cs, struct pipe *pipe)
 		if (ret > h1m->curr_len) {
 			h1s->flags |= H1S_F_PROCESSING_ERROR;
 			h1c->flags |= H1C_F_ST_ERROR;
-			cs->flags  |= CS_FL_ERROR;
+			cs->endp->flags  |= CS_EP_ERROR;
 			TRACE_ERROR("too much payload, more than announced",
 				    H1_EV_TX_DATA|H1_EV_STRM_ERR|H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
 			goto end;

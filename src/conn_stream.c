@@ -222,6 +222,9 @@ int cs_attach_strm(struct conn_stream *cs, struct stream *strm)
  */
 void cs_detach_endp(struct conn_stream *cs)
 {
+	if (!cs->endp)
+		goto reset_cs;
+
 	if (cs->endp->flags & CS_EP_T_MUX) {
 		struct connection *conn = cs_conn(cs);
 
@@ -260,6 +263,7 @@ void cs_detach_endp(struct conn_stream *cs)
 		cs->endp->flags |= CS_EP_DETACHED;
 	}
 
+  reset_cs:
 	/* FIXME: Rest CS for now but must be reviewed. CS flags are only
 	 *        connection related for now but this will evolved
 	 */
@@ -285,15 +289,29 @@ void cs_detach_app(struct conn_stream *cs)
 
 int cs_reset_endp(struct conn_stream *cs)
 {
+	struct cs_endpoint *new_endp;
+
 	BUG_ON(!cs->app);
-	cs_detach_endp(cs);
-	if (!cs->endp) {
-		cs->endp = cs_endpoint_new();
-		if (!cs->endp) {
-			cs->flags |= CS_FL_ERROR;
-			return -1;
-		}
-		cs->endp->flags |= CS_EP_DETACHED;
+	if (!__cs_endp_target(cs)) {
+		/* endpoint not attached or attached to a mux with no
+		 * target. Thus the endpoint will not be release but just
+		 * reset
+		 */
+		cs_detach_endp(cs);
+		return 0;
 	}
+
+	/* allocate the new endpoint first to be able to set error if it
+	 * fails */
+	new_endp = cs_endpoint_new();
+	if (!unlikely(new_endp)) {
+		cs->endp->flags |= CS_EP_ERROR;
+		return -1;
+	}
+
+	cs_detach_endp(cs);
+	BUG_ON(cs->endp);
+	cs->endp = new_endp;
+	cs->endp->flags |= CS_EP_DETACHED;
 	return 0;
 }

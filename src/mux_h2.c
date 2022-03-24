@@ -1482,7 +1482,7 @@ static inline void h2s_close(struct h2s *h2s)
 		if (!h2s->id)
 			h2s->h2c->nb_reserved--;
 		if (h2s->cs) {
-			if (!(h2s->cs->flags & CS_FL_EOS) && !b_data(&h2s->rxbuf))
+			if (!(h2s->endp->flags & CS_EP_EOS) && !b_data(&h2s->rxbuf))
 				h2s_notify_recv(h2s);
 		}
 		HA_ATOMIC_DEC(&h2s->h2c->px_counters->open_streams);
@@ -2170,8 +2170,8 @@ static int h2_send_empty_data_es(struct h2s *h2s)
 	return ret;
 }
 
-/* wake a specific stream and assign its conn_stream some CS_FL_* flags among
- * CS_FL_ERR_PENDING and CS_FL_ERROR if needed. The stream's state
+/* wake a specific stream and assign its conn_stream some CS_EP_* flags among
+ * CS_EP_ERR_PENDING and CS_EP_ERROR if needed. The stream's state
  * is automatically updated accordingly. If the stream is orphaned, it is
  * destroyed.
  */
@@ -2197,9 +2197,9 @@ static void h2s_wake_one_stream(struct h2s *h2s)
 
 	if ((h2s->h2c->st0 >= H2_CS_ERROR || h2s->h2c->conn->flags & CO_FL_ERROR) ||
 	    (h2s->h2c->last_sid > 0 && (!h2s->id || h2s->id > h2s->h2c->last_sid))) {
-		h2s->cs->flags |= CS_FL_ERR_PENDING;
-		if (h2s->cs->flags & CS_FL_EOS)
-			h2s->cs->flags |= CS_FL_ERROR;
+		h2s->endp->flags |= CS_EP_ERR_PENDING;
+		if (h2s->endp->flags & CS_EP_EOS)
+			h2s->endp->flags |= CS_EP_ERROR;
 
 		if (h2s->st < H2_SS_ERROR)
 			h2s->st = H2_SS_ERROR;
@@ -2962,7 +2962,7 @@ static struct h2s *h2c_bck_handle_headers(struct h2c *h2c, struct h2s *h2s)
 	if (h2c->dff & H2_F_HEADERS_END_STREAM)
 		h2s->flags |= H2_SF_ES_RCVD;
 
-	if (h2s->cs && h2s->cs->flags & CS_FL_ERROR && h2s->st < H2_SS_ERROR)
+	if (h2s->cs && (h2s->endp->flags & CS_EP_ERROR) && h2s->st < H2_SS_ERROR)
 		h2s->st = H2_SS_ERROR;
 	else if (h2s->flags & H2_SF_ES_RCVD) {
 		if (h2s->st == H2_SS_OPEN)
@@ -3463,10 +3463,10 @@ static void h2_process_demux(struct h2c *h2c)
 		     h2c_read0_pending(h2c) ||
 		     h2s->st == H2_SS_CLOSED ||
 		     (h2s->flags & H2_SF_ES_RCVD) ||
-		     (h2s->cs->flags & (CS_FL_ERROR|CS_FL_ERR_PENDING|CS_FL_EOS)))) {
+		     (h2s->endp->flags & (CS_EP_ERROR|CS_EP_ERR_PENDING|CS_EP_EOS)))) {
 			/* we may have to signal the upper layers */
 			TRACE_DEVEL("notifying stream before switching SID", H2_EV_RX_FRAME|H2_EV_STRM_WAKE, h2c->conn, h2s);
-			h2s->cs->flags |= CS_FL_RCV_MORE;
+			h2s->endp->flags |= CS_EP_RCV_MORE;
 			h2s_notify_recv(h2s);
 		}
 		h2s = tmp_h2s;
@@ -3634,10 +3634,10 @@ static void h2_process_demux(struct h2c *h2c)
 	     h2c_read0_pending(h2c) ||
 	     h2s->st == H2_SS_CLOSED ||
 	     (h2s->flags & H2_SF_ES_RCVD) ||
-	     (h2s->cs->flags & (CS_FL_ERROR|CS_FL_ERR_PENDING|CS_FL_EOS)))) {
+	     (h2s->endp->flags & (CS_EP_ERROR|CS_EP_ERR_PENDING|CS_EP_EOS)))) {
 		/* we may have to signal the upper layers */
 		TRACE_DEVEL("notifying stream before switching SID", H2_EV_RX_FRAME|H2_EV_H2S_WAKE, h2c->conn, h2s);
-		h2s->cs->flags |= CS_FL_RCV_MORE;
+		h2s->endp->flags |= CS_EP_RCV_MORE;
 		h2s_notify_recv(h2s);
 	}
 
@@ -5010,7 +5010,7 @@ next_frame:
 /* Transfer the payload of a DATA frame to the HTTP/1 side. The HTTP/2 frame
  * parser state is automatically updated. Returns > 0 if it could completely
  * send the current frame, 0 if it couldn't complete, in which case
- * CS_FL_RCV_MORE must be checked to know if some data remain pending (an empty
+ * CS_EP_RCV_MORE must be checked to know if some data remain pending (an empty
  * DATA frame can return 0 as a valid result). Stream errors are reported in
  * h2s->errcode and connection errors in h2c->errcode. The caller must already
  * have checked the frame header and ensured that the frame was complete or the
@@ -6470,7 +6470,7 @@ static size_t h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 	if (h2s_htx->flags & HTX_FL_PARSING_ERROR) {
 		buf_htx->flags |= HTX_FL_PARSING_ERROR;
 		if (htx_is_empty(buf_htx))
-			cs->flags |= CS_FL_EOI;
+			cs->endp->flags |= CS_EP_EOI;
 	}
 	else if (htx_is_empty(h2s_htx))
 		buf_htx->flags |= (h2s_htx->flags & HTX_FL_EOM);
@@ -6482,19 +6482,19 @@ static size_t h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 
   end:
 	if (b_data(&h2s->rxbuf))
-		cs->flags |= (CS_FL_RCV_MORE | CS_FL_WANT_ROOM);
+		cs->endp->flags |= (CS_EP_RCV_MORE | CS_EP_WANT_ROOM);
 	else {
-		cs->flags &= ~(CS_FL_RCV_MORE | CS_FL_WANT_ROOM);
+		cs->endp->flags &= ~(CS_EP_RCV_MORE | CS_EP_WANT_ROOM);
 		if (h2s->flags & H2_SF_ES_RCVD) {
-			cs->flags |= CS_FL_EOI;
+			cs->endp->flags |= CS_EP_EOI;
 			/* Add EOS flag for tunnel */
 			if (h2s->flags & H2_SF_BODY_TUNNEL)
-				cs->flags |= CS_FL_EOS;
+				cs->endp->flags |= CS_EP_EOS;
 		}
 		if (h2c_read0_pending(h2c) || h2s->st == H2_SS_CLOSED)
-			cs->flags |= CS_FL_EOS;
-		if (cs->flags & CS_FL_ERR_PENDING)
-			cs->flags |= CS_FL_ERROR;
+			cs->endp->flags |= CS_EP_EOS;
+		if (cs->endp->flags & CS_EP_ERR_PENDING)
+			cs->endp->flags |= CS_EP_ERROR;
 		if (b_size(&h2s->rxbuf)) {
 			b_free(&h2s->rxbuf);
 			offer_buffers(NULL, 1);
@@ -6546,7 +6546,7 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 	}
 
 	if (h2s->h2c->st0 >= H2_CS_ERROR) {
-		cs->flags |= CS_FL_ERROR;
+		cs->endp->flags |= CS_EP_ERROR;
 		TRACE_DEVEL("connection is in error, leaving in error", H2_EV_H2S_SEND|H2_EV_H2S_BLK|H2_EV_H2S_ERR|H2_EV_STRM_ERR, h2s->h2c->conn, h2s);
 		return 0;
 	}
@@ -6560,7 +6560,7 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 		int32_t id = h2c_get_next_sid(h2s->h2c);
 
 		if (id < 0) {
-			cs->flags |= CS_FL_ERROR;
+			cs->endp->flags |= CS_EP_ERROR;
 			TRACE_DEVEL("couldn't get a stream ID, leaving in error", H2_EV_H2S_SEND|H2_EV_H2S_BLK|H2_EV_H2S_ERR|H2_EV_STRM_ERR, h2s->h2c->conn, h2s);
 			return 0;
 		}
@@ -6672,10 +6672,10 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 	    !b_data(&h2s->h2c->dbuf) &&
 	    (h2s->flags & (H2_SF_BLK_SFCTL | H2_SF_BLK_MFCTL))) {
 		TRACE_DEVEL("fctl with shutr, reporting error to app-layer", H2_EV_H2S_SEND|H2_EV_STRM_SEND|H2_EV_STRM_ERR, h2s->h2c->conn, h2s);
-		if (cs->flags & CS_FL_EOS)
-			cs->flags |= CS_FL_ERROR;
+		if (cs->endp->flags & CS_EP_EOS)
+			cs->endp->flags |= CS_EP_ERROR;
 		else
-			cs->flags |= CS_FL_ERR_PENDING;
+			cs->endp->flags |= CS_EP_ERR_PENDING;
 	}
 
 	if (total > 0 && !(h2s->flags & H2_SF_BLK_SFCTL) &&
