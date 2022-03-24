@@ -133,5 +133,25 @@ struct cafile_entry {
 	char path[0];
 };
 
+enum {
+	CERT_TYPE_PEM = 0,
+	CERT_TYPE_KEY,
+#if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) || defined OPENSSL_IS_BORINGSSL)
+	CERT_TYPE_OCSP,
+#endif
+	CERT_TYPE_ISSUER,
+#ifdef HAVE_SSL_SCTL
+	CERT_TYPE_SCTL,
+#endif
+	CERT_TYPE_MAX,
+};
+
+struct cert_exts {
+	const char *ext;
+	int type;
+	int (*load)(const char *path, char *payload, struct cert_key_and_chain *ckch, char **err);
+	/* add a parsing callback */
+};
+
 #endif /* USE_OPENSSL */
 #endif /* _HAPROXY_SSL_CKCH_T_H */

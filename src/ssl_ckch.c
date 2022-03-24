@@ -1116,25 +1116,7 @@ int ssl_store_load_locations_file(char *path, int create_if_none, enum cafile_ty
 
 /* Type of SSL payloads that can be updated over the CLI */
 
-enum {
-	CERT_TYPE_PEM = 0,
-	CERT_TYPE_KEY,
-#if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) || defined OPENSSL_IS_BORINGSSL)
-	CERT_TYPE_OCSP,
-#endif
-	CERT_TYPE_ISSUER,
-#ifdef HAVE_SSL_SCTL
-	CERT_TYPE_SCTL,
-#endif
-	CERT_TYPE_MAX,
-};
-
-struct {
-	const char *ext;
-	int type;
-	int (*load)(const char *path, char *payload, struct cert_key_and_chain *ckch, char **err);
-	/* add a parsing callback */
-} cert_exts[CERT_TYPE_MAX+1] = {
+struct cert_exts cert_exts[CERT_TYPE_MAX+1] = {
 	[CERT_TYPE_PEM]    = { "",        CERT_TYPE_PEM,      &ssl_sock_load_pem_into_ckch }, /* default mode, no extensions */
 	[CERT_TYPE_KEY]    = { "key",     CERT_TYPE_KEY,      &ssl_sock_load_key_into_ckch },
 #if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) || defined OPENSSL_IS_BORINGSSL)

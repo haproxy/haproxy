@@ -65,5 +65,7 @@ void ssl_store_delete_cafile_entry(struct cafile_entry *ca_e);
 int ssl_store_load_ca_from_buf(struct cafile_entry *ca_e, char *cert_buf);
 int ssl_store_load_locations_file(char *path, int create_if_none, enum cafile_type type);
 
+extern struct cert_exts cert_exts[];
+
 #endif /* USE_OPENSSL */
 #endif /* _HAPROXY_SSL_CRTLIST_H */
