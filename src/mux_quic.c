@@ -9,10 +9,50 @@
 #include <haproxy/htx.h>
 #include <haproxy/pool.h>
 #include <haproxy/ssl_sock-t.h>
+#include <haproxy/trace.h>
 #include <haproxy/xprt_quic.h>
 
 DECLARE_POOL(pool_head_qcc, "qcc", sizeof(struct qcc));
 DECLARE_POOL(pool_head_qcs, "qcs", sizeof(struct qcs));
+
+/* trace source and events */
+static void qmux_trace(enum trace_level level, uint64_t mask,
+                       const struct trace_source *src,
+                       const struct ist where, const struct ist func,
+                       const void *a1, const void *a2, const void *a3, const void *a4);
+
+static const struct trace_event qmux_trace_events[] = {
+	{ }
+};
+
+static const struct name_desc qmux_trace_lockon_args[4] = {
+	/* arg1 */ { /* already used by the connection */ },
+	/* arg2 */ { .name="qcs", .desc="QUIC stream" },
+	/* arg3 */ { },
+	/* arg4 */ { }
+};
+
+static const struct name_desc qmux_trace_decoding[] = {
+#define QMUX_VERB_CLEAN    1
+	{ .name="clean",    .desc="only user-friendly stuff, generally suitable for level \"user\"" },
+#define QMUX_VERB_MINIMAL  2
+	{ .name="minimal",  .desc="report only qcc/qcs state and flags, no real decoding" },
+	{ /* end */ }
+};
+
+struct trace_source trace_qmux = {
+	.name = IST("qmux"),
+	.desc = "QUIC multiplexer",
+	.arg_def = TRC_ARG1_CONN,  /* TRACE()'s first argument is always a connection */
+	.default_cb = qmux_trace,
+	.known_events = qmux_trace_events,
+	.lockon_args = qmux_trace_lockon_args,
+	.decoding = qmux_trace_decoding,
+	.report_events = ~0,  /* report everything by default */
+};
+
+#define TRACE_SOURCE    &trace_qmux
+INITCALL1(STG_REGISTER, trace_register_source, TRACE_SOURCE);
 
 /* Allocate a new QUIC streams with id <id> and type <type>. */
 struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
@@ -1027,6 +1067,29 @@ static int qc_wake(struct connection *conn)
 
 	return 1;
 }
+
+
+/* quic-mux trace handler */
+static void qmux_trace(enum trace_level level, uint64_t mask,
+                       const struct trace_source *src,
+                       const struct ist where, const struct ist func,
+                       const void *a1, const void *a2, const void *a3, const void *a4)
+{
+	const struct connection *conn = a1;
+	const struct qcc *qcc   = conn ? conn->ctx : NULL;
+	const struct qcs *qcs   = a2;
+
+	if (!qcc)
+		return;
+
+	if (src->verbosity > QMUX_VERB_CLEAN) {
+		chunk_appendf(&trace_buf, " : qcc=%p(F)", qcc);
+
+		if (qcs)
+			chunk_appendf(&trace_buf, " qcs=%p(%llu)", qcs, qcs->by_id.key);
+	}
+}
+
 
 static const struct mux_ops qc_ops = {
 	.init = qc_init,
