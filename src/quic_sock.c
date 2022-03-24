@@ -19,6 +19,7 @@
 #include <haproxy/listener.h>
 #include <haproxy/quic_sock.h>
 #include <haproxy/session.h>
+#include <haproxy/tools.h>
 #include <haproxy/xprt_quic.h>
 
 /* This function is called from the protocol layer accept() in order to

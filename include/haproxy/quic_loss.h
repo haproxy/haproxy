@@ -26,6 +26,10 @@
 #error "Must define USE_OPENSSL"
 #endif
 
+#include <haproxy/quic_loss-t.h>
+
+#include <haproxy/api.h>
+#include <haproxy/quic_tls-t.h>
 #include <haproxy/ticks.h>
 #include <haproxy/xprt_quic-t.h>
 
