@@ -35,9 +35,7 @@
 #include <haproxy/http-hdr.h>
 #include <haproxy/tools.h>
 
-#define DEBUG_HPACK
-
-#if defined(DEBUG_HPACK)
+#if defined(DEBUG_QPACK)
 #define qpack_debug_printf fprintf
 #define qpack_debug_hexdump debug_hexdump
 #else
@@ -207,7 +205,7 @@ int qpack_decode_fs(const unsigned char *raw, size_t len, struct buffer *tmp,
 		if (efl_type == QPACK_LFL_WPBNM) {
 			/* Literal field line with post-base name reference */
 			uint64_t index __maybe_unused, length;
-			unsigned int n __maybe_unused, h;
+			unsigned int n __maybe_unused, h __maybe_unused;
 
 			qpack_debug_printf(stderr, "literal field line with post-base name reference:");
 			n = *raw & 0x08;
