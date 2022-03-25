@@ -78,6 +78,7 @@ struct stream_interface;
 /* conn_stream flags */
 enum {
 	CS_FL_NONE          = 0x00000000,  /* Just for initialization purposes */
+	CS_FL_ISBACK        = 0x00000001,  /* Set for CS on back-side */
 };
 
 /* cs_shutr() modes */

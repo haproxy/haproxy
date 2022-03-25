@@ -267,7 +267,7 @@ void cs_detach_endp(struct conn_stream *cs)
 	/* FIXME: Rest CS for now but must be reviewed. CS flags are only
 	 *        connection related for now but this will evolved
 	 */
-	cs->flags = CS_FL_NONE;
+	cs->flags &= CS_FL_ISBACK;
 	if (cs->si)
 		cs->si->ops = &si_embedded_ops;
 	cs->data_cb = NULL;

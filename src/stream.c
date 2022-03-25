@@ -446,7 +446,7 @@ struct stream *stream_new(struct session *sess, struct conn_stream *cs, struct b
 	if (cs_attach_strm(s->csf, s) < 0)
 		goto out_fail_attach_csf;
 
-	s->csb = cs_new_from_strm(s, CS_FL_NONE);
+	s->csb = cs_new_from_strm(s, CS_FL_ISBACK);
 	if (!s->csb)
 		goto out_fail_alloc_csb;
 

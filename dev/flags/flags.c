@@ -219,6 +219,7 @@ void show_cs_flags(unsigned int f)
 		printf("0\n");
 		return;
 	}
+	SHOW_FLAG(f, CS_FL_ISBACK);
 
 	if (f) {
 		printf("EXTRA(0x%08x)", f);
