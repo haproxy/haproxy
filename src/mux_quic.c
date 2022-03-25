@@ -46,6 +46,8 @@ static const struct trace_event qmux_trace_events[] = {
 	{ .mask = QMUX_EV_STRM_SEND,    .name = "strm_send",    .desc = "sending data for stream" },
 #define           QMUX_EV_STRM_END      (1ULL << 12)
 	{ .mask = QMUX_EV_STRM_END,     .name = "strm_end",     .desc = "detaching app-layer stream" },
+#define           QMUX_EV_SEND_FRM      (1ULL << 13)
+	{ .mask = QMUX_EV_SEND_FRM,     .name = "send_frm",     .desc = "sending QUIC frame" },
 	{ }
 };
 
@@ -813,6 +815,7 @@ static int qc_send_max_streams(struct qcc *qcc)
 	frm->type = QUIC_FT_MAX_STREAMS_BIDI;
 	frm->max_streams_bidi.max_streams = qcc->lfctl.ms_bidi +
 	                                    qcc->lfctl.cl_bidi_r;
+	TRACE_DEVEL("sending MAX_STREAMS frame", QMUX_EV_SEND_FRM, qcc->conn, NULL, frm);
 	LIST_APPEND(&frms, &frm->list);
 
 	if (qc_send_frames(qcc, &frms))
@@ -1140,6 +1143,24 @@ static int qc_wake(struct connection *conn)
 }
 
 
+static void qmux_trace_frm(const struct quic_frame *frm)
+{
+	switch (frm->type) {
+	case QUIC_FT_MAX_STREAMS_BIDI:
+		chunk_appendf(&trace_buf, " max_streams=%lu",
+		              frm->max_streams_bidi.max_streams);
+		break;
+
+	case QUIC_FT_MAX_STREAMS_UNI:
+		chunk_appendf(&trace_buf, " max_streams=%lu",
+		              frm->max_streams_uni.max_streams);
+		break;
+
+	default:
+		break;
+	}
+}
+
 /* quic-mux trace handler */
 static void qmux_trace(enum trace_level level, uint64_t mask,
                        const struct trace_source *src,
@@ -1163,6 +1184,9 @@ static void qmux_trace(enum trace_level level, uint64_t mask,
 			const uint64_t *id = a3;
 			chunk_appendf(&trace_buf, " id=%lu", *id);
 		}
+
+		if (mask & QMUX_EV_SEND_FRM)
+			qmux_trace_frm(a3);
 	}
 }
 
