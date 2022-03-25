@@ -48,7 +48,18 @@ static const struct trace_event qmux_trace_events[] = {
 	{ .mask = QMUX_EV_STRM_END,     .name = "strm_end",     .desc = "detaching app-layer stream" },
 #define           QMUX_EV_SEND_FRM      (1ULL << 13)
 	{ .mask = QMUX_EV_SEND_FRM,     .name = "send_frm",     .desc = "sending QUIC frame" },
+/* special event dedicated to qcs_push_frame */
+#define           QMUX_EV_QCS_PUSH_FRM  (1ULL << 14)
+	{ .mask = QMUX_EV_QCS_PUSH_FRM, .name = "qcs_push_frm", .desc = "qcs_push_frame" },
 	{ }
+};
+
+/* custom arg for QMUX_EV_QCS_PUSH_FRM */
+struct qcs_push_frm_trace_arg {
+	size_t sent;
+	int xfer;
+	char fin;
+	uint64_t offset;
 };
 
 static const struct name_desc qmux_trace_lockon_args[4] = {
@@ -581,6 +592,14 @@ static int qcs_push_frame(struct qcs *qcs, struct buffer *out,
 	LIST_APPEND(frm_list, &frm->list);
 
  out:
+	{
+		struct qcs_push_frm_trace_arg arg = {
+			.sent = b_data(out), .xfer = total, .fin  = fin,
+			.offset = qcs->tx.sent_offset
+		};
+		TRACE_LEAVE(QMUX_EV_QCS_SEND|QMUX_EV_QCS_PUSH_FRM,
+		            qcc->conn, qcs, &arg);
+	}
 
 	return total;
 
@@ -1187,6 +1206,12 @@ static void qmux_trace(enum trace_level level, uint64_t mask,
 
 		if (mask & QMUX_EV_SEND_FRM)
 			qmux_trace_frm(a3);
+
+		if (mask & QMUX_EV_QCS_PUSH_FRM) {
+			const struct qcs_push_frm_trace_arg *arg = a3;
+			chunk_appendf(&trace_buf, " sent=%lu xfer=%d fin=%d offset=%lu",
+			              arg->sent, arg->xfer, arg->fin, arg->offset);
+		}
 	}
 }
 
