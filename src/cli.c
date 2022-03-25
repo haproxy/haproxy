@@ -34,6 +34,8 @@
 #include <haproxy/channel.h>
 #include <haproxy/check.h>
 #include <haproxy/cli.h>
+#include <haproxy/conn_stream.h>
+#include <haproxy/cs_utils.h>
 #include <haproxy/compression.h>
 #include <haproxy/dns-t.h>
 #include <haproxy/errors.h>
@@ -706,7 +708,7 @@ static int cli_get_severity_output(struct appctx *appctx)
 {
 	if (appctx->cli_severity_output)
 		return appctx->cli_severity_output;
-	return strm_li(si_strm(cs_si(appctx->owner)))->bind_conf->severity_output;
+	return strm_li(__cs_strm(appctx->owner))->bind_conf->severity_output;
 }
 
 /* Processes the CLI interpreter on the stats socket. This function is called
@@ -874,14 +876,14 @@ static int cli_output_msg(struct channel *chn, const char *msg, int severity, in
  */
 static void cli_io_handler(struct appctx *appctx)
 {
-	struct stream_interface *si = cs_si(appctx->owner);
-	struct channel *req = si_oc(si);
-	struct channel *res = si_ic(si);
-	struct bind_conf *bind_conf = strm_li(si_strm(si))->bind_conf;
+	struct conn_stream *cs = appctx->owner;
+	struct channel *req = cs_oc(cs);
+	struct channel *res = cs_ic(cs);
+	struct bind_conf *bind_conf = strm_li(__cs_strm(cs))->bind_conf;
 	int reql;
 	int len;
 
-	if (unlikely(si->state == SI_ST_DIS || si->state == SI_ST_CLO))
+	if (unlikely(cs->si->state == SI_ST_DIS || cs->si->state == SI_ST_CLO))
 		goto out;
 
 	/* Check if the input buffer is available. */
@@ -905,7 +907,7 @@ static void cli_io_handler(struct appctx *appctx)
 			/* Let's close for real now. We just close the request
 			 * side, the conditions below will complete if needed.
 			 */
-			si_shutw(si);
+			si_shutw(cs->si);
 			free_trash_chunk(appctx->chunk);
 			appctx->chunk = NULL;
 			break;
@@ -927,8 +929,8 @@ static void cli_io_handler(struct appctx *appctx)
 			/* ensure we have some output room left in the event we
 			 * would want to return some info right after parsing.
 			 */
-			if (buffer_almost_full(si_ib(si))) {
-				si_rx_room_blk(si);
+			if (buffer_almost_full(cs_ib(cs))) {
+				si_rx_room_blk(cs->si);
 				break;
 			}
 
@@ -939,10 +941,10 @@ static void cli_io_handler(struct appctx *appctx)
 			 */
 
 			if (appctx->st1 & APPCTX_CLI_ST1_PAYLOAD)
-				reql = co_getline(si_oc(si), str,
+				reql = co_getline(cs_oc(cs), str,
 				                  appctx->chunk->size - appctx->chunk->data - 1);
 			else
-				reql = co_getdelim(si_oc(si), str,
+				reql = co_getdelim(cs_oc(cs), str,
 				                   appctx->chunk->size - appctx->chunk->data - 1,
 				                   "\n;", '\\');
 
@@ -1027,7 +1029,7 @@ static void cli_io_handler(struct appctx *appctx)
 			}
 
 			/* re-adjust req buffer */
-			co_skip(si_oc(si), reql);
+			co_skip(cs_oc(cs), reql);
 			req->flags |= CF_READ_DONTWAIT; /* we plan to read small requests */
 		}
 		else {	/* output functions */
@@ -1068,7 +1070,7 @@ static void cli_io_handler(struct appctx *appctx)
 					appctx->st0 = CLI_ST_PROMPT;
 				}
 				else
-					si_rx_room_blk(si);
+					si_rx_room_blk(cs->si);
 				break;
 
 			case CLI_ST_CALLBACK: /* use custom pointer */
@@ -1082,7 +1084,7 @@ static void cli_io_handler(struct appctx *appctx)
 					}
 				break;
 			default: /* abnormal state */
-				si->flags |= SI_FL_ERR;
+				cs->si->flags |= SI_FL_ERR;
 				break;
 			}
 
@@ -1105,10 +1107,10 @@ static void cli_io_handler(struct appctx *appctx)
 						prompt = "\n";
 				}
 
-				if (ci_putstr(si_ic(si), prompt) != -1)
+				if (ci_putstr(cs_ic(cs), prompt) != -1)
 					appctx->st0 = CLI_ST_GETREQ;
 				else
-					si_rx_room_blk(si);
+					si_rx_room_blk(cs->si);
 			}
 
 			/* If the output functions are still there, it means they require more room. */
@@ -1137,39 +1139,39 @@ static void cli_io_handler(struct appctx *appctx)
 			 * refills the buffer with new bytes in non-interactive
 			 * mode, avoiding to close on apparently empty commands.
 			 */
-			if (co_data(si_oc(si))) {
+			if (co_data(cs_oc(cs))) {
 				appctx_wakeup(appctx);
 				goto out;
 			}
 		}
 	}
 
-	if ((res->flags & CF_SHUTR) && (si->state == SI_ST_EST)) {
+	if ((res->flags & CF_SHUTR) && (cs->si->state == SI_ST_EST)) {
 		DPRINTF(stderr, "%s@%d: si to buf closed. req=%08x, res=%08x, st=%d\n",
-			__FUNCTION__, __LINE__, req->flags, res->flags, si->state);
+			__FUNCTION__, __LINE__, req->flags, res->flags, cs->si->state);
 		/* Other side has closed, let's abort if we have no more processing to do
 		 * and nothing more to consume. This is comparable to a broken pipe, so
 		 * we forward the close to the request side so that it flows upstream to
 		 * the client.
 		 */
-		si_shutw(si);
+		si_shutw(cs->si);
 	}
 
-	if ((req->flags & CF_SHUTW) && (si->state == SI_ST_EST) && (appctx->st0 < CLI_ST_OUTPUT)) {
+	if ((req->flags & CF_SHUTW) && (cs->si->state == SI_ST_EST) && (appctx->st0 < CLI_ST_OUTPUT)) {
 		DPRINTF(stderr, "%s@%d: buf to si closed. req=%08x, res=%08x, st=%d\n",
-			__FUNCTION__, __LINE__, req->flags, res->flags, si->state);
+			__FUNCTION__, __LINE__, req->flags, res->flags, cs->si->state);
 		/* We have no more processing to do, and nothing more to send, and
 		 * the client side has closed. So we'll forward this state downstream
 		 * on the response buffer.
 		 */
-		si_shutr(si);
+		si_shutr(cs->si);
 		res->flags |= CF_READ_NULL;
 	}
 
  out:
 	DPRINTF(stderr, "%s@%d: st=%d, rqf=%x, rpf=%x, rqh=%lu, rqs=%lu, rh=%lu, rs=%lu\n",
 		__FUNCTION__, __LINE__,
-		si->state, req->flags, res->flags, ci_data(req), co_data(req), ci_data(res), co_data(res));
+		cs->si->state, req->flags, res->flags, ci_data(req), co_data(req), ci_data(res), co_data(res));
 }
 
 /* This is called when the stream interface is closed. For instance, upon an
@@ -1197,10 +1199,10 @@ static void cli_release_handler(struct appctx *appctx)
  */
 static int cli_io_handler_show_env(struct appctx *appctx)
 {
-	struct stream_interface *si = cs_si(appctx->owner);
+	struct conn_stream *cs = appctx->owner;
 	char **var = appctx->ctx.cli.p0;
 
-	if (unlikely(si_ic(si)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
+	if (unlikely(cs_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
 		return 1;
 
 	chunk_reset(&trash);
@@ -1211,8 +1213,8 @@ static int cli_io_handler_show_env(struct appctx *appctx)
 	while (*var) {
 		chunk_printf(&trash, "%s\n", *var);
 
-		if (ci_putchk(si_ic(si), &trash) == -1) {
-			si_rx_room_blk(si);
+		if (ci_putchk(cs_ic(cs), &trash) == -1) {
+			si_rx_room_blk(cs->si);
 			return 0;
 		}
 		if (appctx->st2 == STAT_ST_END)
@@ -1232,11 +1234,11 @@ static int cli_io_handler_show_env(struct appctx *appctx)
  */
 static int cli_io_handler_show_fd(struct appctx *appctx)
 {
-	struct stream_interface *si = cs_si(appctx->owner);
+	struct conn_stream *cs = appctx->owner;
 	int fd = appctx->ctx.cli.i0;
 	int ret = 1;
 
-	if (unlikely(si_ic(si)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
+	if (unlikely(cs_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
 		goto end;
 
 	chunk_reset(&trash);
@@ -1403,8 +1405,8 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 #endif
 		chunk_appendf(&trash, "%s\n", suspicious ? " !" : "");
 
-		if (ci_putchk(si_ic(si), &trash) == -1) {
-			si_rx_room_blk(si);
+		if (ci_putchk(cs_ic(cs), &trash) == -1) {
+			si_rx_room_blk(cs->si);
 			appctx->ctx.cli.i0 = fd;
 			ret = 0;
 			break;
@@ -1431,10 +1433,10 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
  */
 static int cli_io_handler_show_activity(struct appctx *appctx)
 {
-	struct stream_interface *si = cs_si(appctx->owner);
+	struct conn_stream *cs = appctx->owner;
 	int thr;
 
-	if (unlikely(si_ic(si)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
+	if (unlikely(cs_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
 		return 1;
 
 	chunk_reset(&trash);
@@ -1515,10 +1517,10 @@ static int cli_io_handler_show_activity(struct appctx *appctx)
 	chunk_appendf(&trash, "ctr2:");         SHOW_TOT(thr, activity[thr].ctr2);
 #endif
 
-	if (ci_putchk(si_ic(si), &trash) == -1) {
+	if (ci_putchk(cs_ic(cs), &trash) == -1) {
 		chunk_reset(&trash);
 		chunk_printf(&trash, "[output too large, cannot dump]\n");
-		si_rx_room_blk(si);
+		si_rx_room_blk(cs->si);
 	}
 
 #undef SHOW_AVG
@@ -1534,15 +1536,15 @@ static int cli_io_handler_show_activity(struct appctx *appctx)
 static int cli_io_handler_show_cli_sock(struct appctx *appctx)
 {
 	struct bind_conf *bind_conf;
-	struct stream_interface *si = cs_si(appctx->owner);
+	struct conn_stream *cs = appctx->owner;
 
 	chunk_reset(&trash);
 
 	switch (appctx->st2) {
 		case STAT_ST_INIT:
 			chunk_printf(&trash, "# socket lvl processes\n");
-			if (ci_putchk(si_ic(si), &trash) == -1) {
-				si_rx_room_blk(si);
+			if (ci_putchk(cs_ic(cs), &trash) == -1) {
+				si_rx_room_blk(cs->si);
 				return 0;
 			}
 			appctx->st2 = STAT_ST_LIST;
@@ -1603,8 +1605,8 @@ static int cli_io_handler_show_cli_sock(struct appctx *appctx)
 
 						chunk_appendf(&trash, "all\n");
 
-						if (ci_putchk(si_ic(si), &trash) == -1) {
-							si_rx_room_blk(si);
+						if (ci_putchk(cs_ic(cs), &trash) == -1) {
+							si_rx_room_blk(cs->si);
 							return 0;
 						}
 					}
@@ -1671,8 +1673,7 @@ static int cli_parse_show_fd(char **args, char *payload, struct appctx *appctx, 
 /* parse a "set timeout" CLI request. It always returns 1. */
 static int cli_parse_set_timeout(char **args, char *payload, struct appctx *appctx, void *private)
 {
-	struct stream_interface *si = cs_si(appctx->owner);
-	struct stream *s = si_strm(si);
+	struct stream *s = __cs_strm(appctx->owner);
 
 	if (strcmp(args[2], "cli") == 0) {
 		unsigned timeout;
@@ -1955,9 +1956,9 @@ static int _getsocks(char **args, char *payload, struct appctx *appctx, void *pr
 	char *cmsgbuf = NULL;
 	unsigned char *tmpbuf = NULL;
 	struct cmsghdr *cmsg;
-	struct stream_interface *si = cs_si(appctx->owner);
-	struct stream *s = si_strm(si);
-	struct connection *remote = cs_conn(si_opposite(si)->cs);
+	struct conn_stream *cs = appctx->owner;
+	struct stream *s = __cs_strm(cs);
+	struct connection *remote = cs_conn(cs_opposite(cs));
 	struct msghdr msghdr;
 	struct iovec iov;
 	struct timeval tv = { .tv_sec = 1, .tv_usec = 0 };
@@ -2155,7 +2156,7 @@ static int cli_parse_simple(char **args, char *payload, struct appctx *appctx, v
 void pcli_write_prompt(struct stream *s)
 {
 	struct buffer *msg = get_trash_chunk();
-	struct channel *oc = si_oc(cs_si(s->csf));
+	struct channel *oc = cs_oc(s->csf);
 
 	if (!(s->pcli_flags & PCLI_F_PROMPT))
 		return;

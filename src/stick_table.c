@@ -22,6 +22,8 @@
 #include <haproxy/arg.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/cli.h>
+#include <haproxy/conn_stream.h>
+#include <haproxy/cs_utils.h>
 #include <haproxy/dict.h>
 #include <haproxy/errors.h>
 #include <haproxy/global.h>
@@ -4237,10 +4239,10 @@ enum {
  * and needs to be called again, otherwise non-zero.
  */
 static int table_dump_head_to_buffer(struct buffer *msg,
-                                     struct stream_interface *si,
+                                     struct conn_stream *cs,
                                      struct stktable *t, struct stktable *target)
 {
-	struct stream *s = si_strm(si);
+	struct stream *s = __cs_strm(cs);
 
 	chunk_appendf(msg, "# table: %s, type: %s, size:%d, used:%d\n",
 		     t->id, stktable_types[t->type].kw, t->size, t->current);
@@ -4250,8 +4252,8 @@ static int table_dump_head_to_buffer(struct buffer *msg,
 	if (target && (strm_li(s)->bind_conf->level & ACCESS_LVL_MASK) < ACCESS_LVL_OPER)
 		chunk_appendf(msg, "# contents not dumped due to insufficient privileges\n");
 
-	if (ci_putchk(si_ic(si), msg) == -1) {
-		si_rx_room_blk(si);
+	if (ci_putchk(cs_ic(cs), msg) == -1) {
+		si_rx_room_blk(cs->si);
 		return 0;
 	}
 
@@ -4263,7 +4265,7 @@ static int table_dump_head_to_buffer(struct buffer *msg,
  * and needs to be called again, otherwise non-zero.
  */
 static int table_dump_entry_to_buffer(struct buffer *msg,
-                                      struct stream_interface *si,
+                                      struct conn_stream *cs,
                                       struct stktable *t, struct stksess *entry)
 {
 	int dt;
@@ -4377,8 +4379,8 @@ static int table_dump_entry_to_buffer(struct buffer *msg,
 	}
 	chunk_appendf(msg, "\n");
 
-	if (ci_putchk(si_ic(si), msg) == -1) {
-		si_rx_room_blk(si);
+	if (ci_putchk(cs_ic(cs), msg) == -1) {
+		si_rx_room_blk(cs->si);
 		return 0;
 	}
 
@@ -4391,7 +4393,7 @@ static int table_dump_entry_to_buffer(struct buffer *msg,
  */
 static int table_process_entry_per_key(struct appctx *appctx, char **args)
 {
-	struct stream_interface *si = cs_si(appctx->owner);
+	struct conn_stream *cs = appctx->owner;
 	struct stktable *t = appctx->ctx.table.target;
 	struct stksess *ts;
 	uint32_t uint32_key;
@@ -4457,12 +4459,12 @@ static int table_process_entry_per_key(struct appctx *appctx, char **args)
 		if (!ts)
 			return 1;
 		chunk_reset(&trash);
-		if (!table_dump_head_to_buffer(&trash, si, t, t)) {
+		if (!table_dump_head_to_buffer(&trash, cs, t, t)) {
 			stktable_release(t, ts);
 			return 0;
 		}
 		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &ts->lock);
-		if (!table_dump_entry_to_buffer(&trash, si, t, ts)) {
+		if (!table_dump_entry_to_buffer(&trash, cs, t, ts)) {
 			HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &ts->lock);
 			stktable_release(t, ts);
 			return 0;
@@ -4646,8 +4648,8 @@ err_args:
  */
 static int cli_io_handler_table(struct appctx *appctx)
 {
-	struct stream_interface *si = cs_si(appctx->owner);
-	struct stream *s = si_strm(si);
+	struct conn_stream *cs = appctx->owner;
+	struct stream *s = __cs_strm(cs);
 	struct ebmb_node *eb;
 	int skip_entry;
 	int show = appctx->ctx.table.action == STK_CLI_ACT_SHOW;
@@ -4664,7 +4666,7 @@ static int cli_io_handler_table(struct appctx *appctx)
 	 *     data though.
 	 */
 
-	if (unlikely(si_ic(si)->flags & (CF_WRITE_ERROR|CF_SHUTW))) {
+	if (unlikely(cs_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW))) {
 		/* in case of abort, remove any refcount we might have set on an entry */
 		if (appctx->st2 == STAT_ST_LIST) {
 			stksess_kill_if_expired(appctx->ctx.table.t, appctx->ctx.table.entry, 1);
@@ -4694,7 +4696,7 @@ static int cli_io_handler_table(struct appctx *appctx)
 			}
 
 			if (appctx->ctx.table.t->size) {
-				if (show && !table_dump_head_to_buffer(&trash, si, appctx->ctx.table.t, appctx->ctx.table.target))
+				if (show && !table_dump_head_to_buffer(&trash, cs, appctx->ctx.table.t, appctx->ctx.table.target))
 					return 0;
 
 				if (appctx->ctx.table.target &&
@@ -4770,7 +4772,7 @@ static int cli_io_handler_table(struct appctx *appctx)
 			}
 
 			if (show && !skip_entry &&
-			    !table_dump_entry_to_buffer(&trash, si, appctx->ctx.table.t, appctx->ctx.table.entry)) {
+			    !table_dump_entry_to_buffer(&trash, cs, appctx->ctx.table.t, appctx->ctx.table.entry)) {
 				HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &appctx->ctx.table.entry->lock);
 				return 0;
 			}

@@ -18,6 +18,8 @@
 #include <haproxy/arg.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/check.h>
+#include <haproxy/conn_stream.h>
+#include <haproxy/cs_utils.h>
 #include <haproxy/filters.h>
 #include <haproxy/freq_ctr.h>
 #include <haproxy/frontend.h>
@@ -1135,7 +1137,7 @@ spoe_handle_healthcheck_response(char *frame, size_t size, char *err, int errlen
 static int
 spoe_send_frame(struct appctx *appctx, char *buf, size_t framesz)
 {
-	struct stream_interface *si = cs_si(appctx->owner);
+	struct conn_stream *cs = appctx->owner;
 	int      ret;
 	uint32_t netint;
 
@@ -1143,10 +1145,10 @@ spoe_send_frame(struct appctx *appctx, char *buf, size_t framesz)
 	 * length. */
 	netint = htonl(framesz);
 	memcpy(buf, (char *)&netint, 4);
-	ret = ci_putblk(si_ic(si), buf, framesz+4);
+	ret = ci_putblk(cs_ic(cs), buf, framesz+4);
 	if (ret <= 0) {
-		if ((ret == -3 && b_is_null(&si_ic(si)->buf)) || ret == -1) {
-			si_rx_room_blk(si);
+		if ((ret == -3 && b_is_null(&cs_ic(cs)->buf)) || ret == -1) {
+			si_rx_room_blk(cs->si);
 			return 1; /* retry */
 		}
 		SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_IO;
@@ -1161,18 +1163,18 @@ spoe_send_frame(struct appctx *appctx, char *buf, size_t framesz)
 static int
 spoe_recv_frame(struct appctx *appctx, char *buf, size_t framesz)
 {
-	struct stream_interface *si = cs_si(appctx->owner);
+	struct conn_stream *cs = appctx->owner;
 	int      ret;
 	uint32_t netint;
 
-	ret = co_getblk(si_oc(si), (char *)&netint, 4, 0);
+	ret = co_getblk(cs_oc(cs), (char *)&netint, 4, 0);
 	if (ret > 0) {
 		framesz = ntohl(netint);
 		if (framesz > SPOE_APPCTX(appctx)->max_frame_size) {
 			SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_TOO_BIG;
 			return -1;
 		}
-		ret = co_getblk(si_oc(si), buf, framesz, 4);
+		ret = co_getblk(cs_oc(cs), buf, framesz, 4);
 	}
 	if (ret <= 0) {
 		if (ret == 0) {
@@ -1217,10 +1219,10 @@ spoe_process_appctx(struct task * task, void *context, unsigned int state)
 static void
 spoe_release_appctx(struct appctx *appctx)
 {
-	struct stream_interface *si          = cs_si(appctx->owner);
-	struct spoe_appctx      *spoe_appctx = SPOE_APPCTX(appctx);
-	struct spoe_agent       *agent;
-	struct spoe_context     *ctx, *back;
+	struct conn_stream  *cs          = appctx->owner;
+	struct spoe_appctx  *spoe_appctx = SPOE_APPCTX(appctx);
+	struct spoe_agent   *agent;
+	struct spoe_context *ctx, *back;
 
 	if (spoe_appctx == NULL)
 		return;
@@ -1252,9 +1254,9 @@ spoe_release_appctx(struct appctx *appctx)
 		if (spoe_appctx->status_code == SPOE_FRM_ERR_NONE)
 			spoe_appctx->status_code = SPOE_FRM_ERR_IO;
 
-		si_shutw(si);
-		si_shutr(si);
-		si_ic(si)->flags |= CF_READ_NULL;
+		si_shutw(cs->si);
+		si_shutr(cs->si);
+		cs_ic(cs)->flags |= CF_READ_NULL;
 	}
 
 	/* Destroy the task attached to this applet */
@@ -1337,21 +1339,21 @@ spoe_release_appctx(struct appctx *appctx)
 static int
 spoe_handle_connect_appctx(struct appctx *appctx)
 {
-	struct stream_interface *si    = cs_si(appctx->owner);
-	struct spoe_agent       *agent = SPOE_APPCTX(appctx)->agent;
+	struct conn_stream *cs    = appctx->owner;
+	struct spoe_agent  *agent = SPOE_APPCTX(appctx)->agent;
 	char *frame, *buf;
 	int   ret;
 
-	if (si_state_in(si->state, SI_SB_CER|SI_SB_DIS|SI_SB_CLO)) {
+	if (si_state_in(cs->si->state, SI_SB_CER|SI_SB_DIS|SI_SB_CLO)) {
 		/* closed */
 		SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_IO;
 		goto exit;
 	}
 
-	if (!si_state_in(si->state, SI_SB_RDY|SI_SB_EST)) {
+	if (!si_state_in(cs->si->state, SI_SB_RDY|SI_SB_EST)) {
 		/* not connected yet */
-		si_rx_endp_more(si);
-		task_wakeup(si_strm(si)->task, TASK_WOKEN_MSG);
+		si_rx_endp_more(cs->si);
+		task_wakeup(__cs_strm(cs)->task, TASK_WOKEN_MSG);
 		goto stop;
 	}
 
@@ -1403,13 +1405,13 @@ spoe_handle_connect_appctx(struct appctx *appctx)
 static int
 spoe_handle_connecting_appctx(struct appctx *appctx)
 {
-	struct stream_interface *si     = cs_si(appctx->owner);
-	struct spoe_agent       *agent  = SPOE_APPCTX(appctx)->agent;
+	struct conn_stream *cs     = appctx->owner;
+	struct spoe_agent  *agent  = SPOE_APPCTX(appctx)->agent;
 	char  *frame;
 	int    ret;
 
 
-	if (si->state == SI_ST_CLO || si_opposite(si)->state == SI_ST_CLO) {
+	if (cs->si->state == SI_ST_CLO || cs_opposite(cs)->si->state == SI_ST_CLO) {
 		SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_IO;
 		goto exit;
 	}
@@ -1458,7 +1460,7 @@ spoe_handle_connecting_appctx(struct appctx *appctx)
   next:
 	/* Do not forget to remove processed frame from the output buffer */
 	if (trash.data)
-		co_skip(si_oc(si), trash.data);
+		co_skip(cs_oc(cs), trash.data);
 
 	SPOE_APPCTX(appctx)->task->expire =
 		tick_add_ifset(now_ms, agent->timeout.idle);
@@ -1648,7 +1650,7 @@ spoe_handle_receiving_frame_appctx(struct appctx *appctx, int *skip)
 
 	/* Do not forget to remove processed frame from the output buffer */
 	if (trash.data)
-		co_skip(si_oc(cs_si(appctx->owner)), trash.data);
+		co_skip(cs_oc(appctx->owner), trash.data);
   end:
 	return ret;
 }
@@ -1656,12 +1658,12 @@ spoe_handle_receiving_frame_appctx(struct appctx *appctx, int *skip)
 static int
 spoe_handle_processing_appctx(struct appctx *appctx)
 {
-	struct stream_interface *si    = cs_si(appctx->owner);
-	struct server           *srv   = objt_server(si_strm(si)->target);
+	struct conn_stream      *cs    = appctx->owner;
+	struct server           *srv   = objt_server(__cs_strm(cs)->target);
 	struct spoe_agent       *agent = SPOE_APPCTX(appctx)->agent;
 	int ret, skip_sending = 0, skip_receiving = 0, active_s = 0, active_r = 0, close_asap = 0;
 
-	if (si->state == SI_ST_CLO || si_opposite(si)->state == SI_ST_CLO) {
+	if (cs->si->state == SI_ST_CLO || cs_opposite(cs)->si->state == SI_ST_CLO) {
 		SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_IO;
 		goto exit;
 	}
@@ -1779,12 +1781,12 @@ spoe_handle_processing_appctx(struct appctx *appctx)
 static int
 spoe_handle_disconnect_appctx(struct appctx *appctx)
 {
-	struct stream_interface *si    = cs_si(appctx->owner);
-	struct spoe_agent       *agent = SPOE_APPCTX(appctx)->agent;
+	struct conn_stream *cs    = appctx->owner;
+	struct spoe_agent  *agent = SPOE_APPCTX(appctx)->agent;
 	char *frame, *buf;
 	int   ret;
 
-	if (si->state == SI_ST_CLO || si_opposite(si)->state == SI_ST_CLO)
+	if (cs->si->state == SI_ST_CLO || cs_opposite(cs)->si->state == SI_ST_CLO)
 		goto exit;
 
 	if (appctx->st1 == SPOE_APPCTX_ERR_TOUT)
@@ -1832,11 +1834,11 @@ spoe_handle_disconnect_appctx(struct appctx *appctx)
 static int
 spoe_handle_disconnecting_appctx(struct appctx *appctx)
 {
-	struct stream_interface *si = cs_si(appctx->owner);
+	struct conn_stream *cs = appctx->owner;
 	char  *frame;
 	int    ret;
 
-	if (si->state == SI_ST_CLO || si_opposite(si)->state == SI_ST_CLO) {
+	if (cs->si->state == SI_ST_CLO || cs_opposite(cs)->si->state == SI_ST_CLO) {
 		SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_IO;
 		goto exit;
 	}
@@ -1883,7 +1885,7 @@ spoe_handle_disconnecting_appctx(struct appctx *appctx)
   next:
 	/* Do not forget to remove processed frame from the output buffer */
 	if (trash.data)
-		co_skip(si_oc(cs_si(appctx->owner)), trash.data);
+		co_skip(cs_oc(cs), trash.data);
 
 	return 0;
   stop:
@@ -1897,8 +1899,8 @@ spoe_handle_disconnecting_appctx(struct appctx *appctx)
 static void
 spoe_handle_appctx(struct appctx *appctx)
 {
-	struct stream_interface *si = cs_si(appctx->owner);
-	struct spoe_agent       *agent;
+	struct conn_stream *cs = appctx->owner;
+	struct spoe_agent  *agent;
 
 	if (SPOE_APPCTX(appctx) == NULL)
 		return;
@@ -1958,9 +1960,9 @@ spoe_handle_appctx(struct appctx *appctx)
 			appctx->st0 = SPOE_APPCTX_ST_END;
 			SPOE_APPCTX(appctx)->task->expire = TICK_ETERNITY;
 
-			si_shutw(si);
-			si_shutr(si);
-			si_ic(si)->flags |= CF_READ_NULL;
+			si_shutw(cs->si);
+			si_shutr(cs->si);
+			cs_ic(cs)->flags |= CF_READ_NULL;
 			/* fall through */
 
 		case SPOE_APPCTX_ST_END:

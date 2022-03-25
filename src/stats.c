@@ -35,6 +35,8 @@
 #include <haproxy/cli.h>
 #include <haproxy/clock.h>
 #include <haproxy/compression.h>
+#include <haproxy/conn_stream.h>
+#include <haproxy/cs_utils.h>
 #include <haproxy/debug.h>
 #include <haproxy/errors.h>
 #include <haproxy/fd.h>
@@ -309,9 +311,9 @@ int stats_putchk(struct channel *chn, struct htx *htx, struct buffer *chk)
 	return 1;
 }
 
-static const char *stats_scope_ptr(struct appctx *appctx, struct stream_interface *si)
+static const char *stats_scope_ptr(struct appctx *appctx, struct conn_stream *cs)
 {
-	struct channel *req = si_oc(si);
+	struct channel *req = cs_oc(cs);
 	struct htx *htx = htxbuf(&req->buf);
 	struct htx_blk *blk;
 	struct ist uri;
@@ -1807,12 +1809,12 @@ int stats_fill_fe_stats(struct proxy *px, struct field *stats, int len,
 }
 
 /* Dumps a frontend's line to the trash for the current proxy <px> and uses
- * the state from stream interface <si>. The caller is responsible for clearing
+ * the state from conn-stream <cs>. The caller is responsible for clearing
  * the trash if needed. Returns non-zero if it emits anything, zero otherwise.
  */
-static int stats_dump_fe_stats(struct stream_interface *si, struct proxy *px)
+static int stats_dump_fe_stats(struct conn_stream *cs, struct proxy *px)
 {
-	struct appctx *appctx = __cs_appctx(si->cs);
+	struct appctx *appctx = __cs_appctx(cs);
 	struct field *stats = stat_l[STATS_DOMAIN_PROXY];
 	struct stats_module *mod;
 	size_t stats_count = ST_F_TOTAL_FIELDS;
@@ -1974,12 +1976,12 @@ int stats_fill_li_stats(struct proxy *px, struct listener *l, int flags,
 }
 
 /* Dumps a line for listener <l> and proxy <px> to the trash and uses the state
- * from stream interface <si>. The caller is responsible for clearing the trash
+ * from conn-stream <cs>. The caller is responsible for clearing the trash
  * if needed. Returns non-zero if it emits anything, zero otherwise.
  */
-static int stats_dump_li_stats(struct stream_interface *si, struct proxy *px, struct listener *l)
+static int stats_dump_li_stats(struct conn_stream *cs, struct proxy *px, struct listener *l)
 {
-	struct appctx *appctx = __cs_appctx(si->cs);
+	struct appctx *appctx = __cs_appctx(cs);
 	struct field *stats = stat_l[STATS_DOMAIN_PROXY];
 	struct stats_module *mod;
 	size_t stats_count = ST_F_TOTAL_FIELDS;
@@ -2484,13 +2486,13 @@ int stats_fill_sv_stats(struct proxy *px, struct server *sv, int flags,
 }
 
 /* Dumps a line for server <sv> and proxy <px> to the trash and uses the state
- * from stream interface <si>, and server state <state>. The caller is
+ * from conn-stream <cs>, and server state <state>. The caller is
  * responsible for clearing the trash if needed. Returns non-zero if it emits
  * anything, zero otherwise.
  */
-static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, struct server *sv)
+static int stats_dump_sv_stats(struct conn_stream *cs, struct proxy *px, struct server *sv)
 {
-	struct appctx *appctx = __cs_appctx(si->cs);
+	struct appctx *appctx = __cs_appctx(cs);
 	struct stats_module *mod;
 	struct field *stats = stat_l[STATS_DOMAIN_PROXY];
 	size_t stats_count = ST_F_TOTAL_FIELDS;
@@ -2813,9 +2815,9 @@ int stats_fill_be_stats(struct proxy *px, int flags, struct field *stats, int le
  * interface <si>. The caller is responsible for clearing the trash if needed.
  * Returns non-zero if it emits anything, zero otherwise.
  */
-static int stats_dump_be_stats(struct stream_interface *si, struct proxy *px)
+static int stats_dump_be_stats(struct conn_stream *cs, struct proxy *px)
 {
-	struct appctx *appctx = __cs_appctx(si->cs);
+	struct appctx *appctx = __cs_appctx(cs);
 	struct field *stats = stat_l[STATS_DOMAIN_PROXY];
 	struct stats_module *mod;
 	size_t stats_count = ST_F_TOTAL_FIELDS;
@@ -2851,12 +2853,12 @@ static int stats_dump_be_stats(struct stream_interface *si, struct proxy *px)
 }
 
 /* Dumps the HTML table header for proxy <px> to the trash for and uses the state from
- * stream interface <si> and per-uri parameters <uri>. The caller is responsible
+ * conn-stream <cs> and per-uri parameters <uri>. The caller is responsible
  * for clearing the trash if needed.
  */
-static void stats_dump_html_px_hdr(struct stream_interface *si, struct proxy *px)
+static void stats_dump_html_px_hdr(struct conn_stream *cs, struct proxy *px)
 {
-	struct appctx *appctx = __cs_appctx(si->cs);
+	struct appctx *appctx = __cs_appctx(cs);
 	char scope_txt[STAT_SCOPE_TXT_MAXLEN + sizeof STAT_SCOPE_PATTERN];
 	struct stats_module *mod;
 	int stats_module_len = 0;
@@ -2867,7 +2869,7 @@ static void stats_dump_html_px_hdr(struct stream_interface *si, struct proxy *px
 		/* scope_txt = search pattern + search query, appctx->ctx.stats.scope_len is always <= STAT_SCOPE_TXT_MAXLEN */
 		scope_txt[0] = 0;
 		if (appctx->ctx.stats.scope_len) {
-			const char *scope_ptr = stats_scope_ptr(appctx, si);
+			const char *scope_ptr = stats_scope_ptr(appctx, cs);
 
 			strcpy(scope_txt, STAT_SCOPE_PATTERN);
 			memcpy(scope_txt + strlen(STAT_SCOPE_PATTERN), scope_ptr, appctx->ctx.stats.scope_len);
@@ -2961,11 +2963,11 @@ static void stats_dump_html_px_hdr(struct stream_interface *si, struct proxy *px
 }
 
 /* Dumps the HTML table trailer for proxy <px> to the trash for and uses the state from
- * stream interface <si>. The caller is responsible for clearing the trash if needed.
+ * conn_stream <cs>. The caller is responsible for clearing the trash if needed.
  */
-static void stats_dump_html_px_end(struct stream_interface *si, struct proxy *px)
+static void stats_dump_html_px_end(struct conn_stream *cs, struct proxy *px)
 {
-	struct appctx *appctx = __cs_appctx(si->cs);
+	struct appctx *appctx = __cs_appctx(cs);
 
 	chunk_appendf(&trash, "</table>");
 
@@ -2999,18 +3001,18 @@ static void stats_dump_html_px_end(struct stream_interface *si, struct proxy *px
 }
 
 /*
- * Dumps statistics for a proxy. The output is sent to the stream interface's
+ * Dumps statistics for a proxy. The output is sent to the conn-stream's
  * input buffer. Returns 0 if it had to stop dumping data because of lack of
  * buffer space, or non-zero if everything completed. This function is used
  * both by the CLI and the HTTP entry points, and is able to dump the output
  * in HTML or CSV formats. If the later, <uri> must be NULL.
  */
-int stats_dump_proxy_to_buffer(struct stream_interface *si, struct htx *htx,
+int stats_dump_proxy_to_buffer(struct conn_stream *cs, struct htx *htx,
 			       struct proxy *px, struct uri_auth *uri)
 {
-	struct appctx *appctx = __cs_appctx(si->cs);
-	struct stream *s = si_strm(si);
-	struct channel *rep = si_ic(si);
+	struct appctx *appctx = __cs_appctx(cs);
+	struct stream *s = __cs_strm(cs);
+	struct channel *rep = cs_ic(cs);
 	struct server *sv, *svs;	/* server and server-state, server-state=server or server->track */
 	struct listener *l;
 
@@ -3047,7 +3049,7 @@ int stats_dump_proxy_to_buffer(struct stream_interface *si, struct htx *htx,
 		 * name does not match, skip it.
 		 */
 		if (appctx->ctx.stats.scope_len) {
-			const char *scope_ptr = stats_scope_ptr(appctx, si);
+			const char *scope_ptr = stats_scope_ptr(appctx, cs);
 
 			if (strnistr(px->id, strlen(px->id), scope_ptr, appctx->ctx.stats.scope_len) == NULL)
 				return 1;
@@ -3063,7 +3065,7 @@ int stats_dump_proxy_to_buffer(struct stream_interface *si, struct htx *htx,
 
 	case STAT_PX_ST_TH:
 		if (appctx->ctx.stats.flags & STAT_FMT_HTML) {
-			stats_dump_html_px_hdr(si, px);
+			stats_dump_html_px_hdr(cs, px);
 			if (!stats_putchk(rep, htx, &trash))
 				goto full;
 		}
@@ -3073,7 +3075,7 @@ int stats_dump_proxy_to_buffer(struct stream_interface *si, struct htx *htx,
 
 	case STAT_PX_ST_FE:
 		/* print the frontend */
-		if (stats_dump_fe_stats(si, px)) {
+		if (stats_dump_fe_stats(cs, px)) {
 			if (!stats_putchk(rep, htx, &trash))
 				goto full;
 		}
@@ -3107,7 +3109,7 @@ int stats_dump_proxy_to_buffer(struct stream_interface *si, struct htx *htx,
 			}
 
 			/* print the frontend */
-			if (stats_dump_li_stats(si, px, l)) {
+			if (stats_dump_li_stats(cs, px, l)) {
 				if (!stats_putchk(rep, htx, &trash))
 					goto full;
 			}
@@ -3169,7 +3171,7 @@ int stats_dump_proxy_to_buffer(struct stream_interface *si, struct htx *htx,
 				continue;
 			}
 
-			if (stats_dump_sv_stats(si, px, sv)) {
+			if (stats_dump_sv_stats(cs, px, sv)) {
 				if (!stats_putchk(rep, htx, &trash))
 					goto full;
 			}
@@ -3180,7 +3182,7 @@ int stats_dump_proxy_to_buffer(struct stream_interface *si, struct htx *htx,
 
 	case STAT_PX_ST_BE:
 		/* print the backend */
-		if (stats_dump_be_stats(si, px)) {
+		if (stats_dump_be_stats(cs, px)) {
 			if (!stats_putchk(rep, htx, &trash))
 				goto full;
 		}
@@ -3190,7 +3192,7 @@ int stats_dump_proxy_to_buffer(struct stream_interface *si, struct htx *htx,
 
 	case STAT_PX_ST_END:
 		if (appctx->ctx.stats.flags & STAT_FMT_HTML) {
-			stats_dump_html_px_end(si, px);
+			stats_dump_html_px_end(cs, px);
 			if (!stats_putchk(rep, htx, &trash))
 				goto full;
 		}
@@ -3207,7 +3209,7 @@ int stats_dump_proxy_to_buffer(struct stream_interface *si, struct htx *htx,
 	}
 
   full:
-	si_rx_room_blk(si);
+	si_rx_room_blk(cs->si);
 	return 0;
 }
 
@@ -3378,15 +3380,15 @@ static void stats_dump_html_head(struct appctx *appctx, struct uri_auth *uri)
 }
 
 /* Dumps the HTML stats information block to the trash for and uses the state from
- * stream interface <si> and per-uri parameters <uri>. The caller is responsible
+ * conn-stream <cs> and per-uri parameters <uri>. The caller is responsible
  * for clearing the trash if needed.
  */
-static void stats_dump_html_info(struct stream_interface *si, struct uri_auth *uri)
+static void stats_dump_html_info(struct conn_stream *cs, struct uri_auth *uri)
 {
-	struct appctx *appctx = __cs_appctx(si->cs);
+	struct appctx *appctx = __cs_appctx(cs);
 	unsigned int up = (now.tv_sec - start_date.tv_sec);
 	char scope_txt[STAT_SCOPE_TXT_MAXLEN + sizeof STAT_SCOPE_PATTERN];
-	const char *scope_ptr = stats_scope_ptr(appctx, si);
+	const char *scope_ptr = stats_scope_ptr(appctx, cs);
 	unsigned long long bps = (unsigned long long)read_freq_ctr(&global.out_32bps) * 32;
 
 	/* Turn the bytes per second to bits per second and take care of the
@@ -3661,12 +3663,12 @@ static void stats_dump_json_end()
 /* Uses <appctx.ctx.stats.obj1> as a pointer to the current proxy and <obj2> as
  * a pointer to the current server/listener.
  */
-static int stats_dump_proxies(struct stream_interface *si,
+static int stats_dump_proxies(struct conn_stream *cs,
                               struct htx *htx,
                               struct uri_auth *uri)
 {
-	struct appctx *appctx = __cs_appctx(si->cs);
-	struct channel *rep = si_ic(si);
+	struct appctx *appctx = __cs_appctx(cs);
+	struct channel *rep = cs_ic(cs);
 	struct proxy *px;
 
 	/* dump proxies */
@@ -3687,7 +3689,7 @@ static int stats_dump_proxies(struct stream_interface *si,
 		 */
 		if (!(px->flags & PR_FL_DISABLED) && px->uuid > 0 &&
 		    (px->cap & (PR_CAP_FE | PR_CAP_BE)) && !(px->cap & PR_CAP_INT)) {
-			if (stats_dump_proxy_to_buffer(si, htx, px, uri) == 0)
+			if (stats_dump_proxy_to_buffer(cs, htx, px, uri) == 0)
 				return 0;
 		}
 
@@ -3698,22 +3700,22 @@ static int stats_dump_proxies(struct stream_interface *si,
 	return 1;
 
   full:
-	si_rx_room_blk(si);
+	si_rx_room_blk(cs->si);
 	return 0;
 }
 
-/* This function dumps statistics onto the stream interface's read buffer in
+/* This function dumps statistics onto the conn-stream's read buffer in
  * either CSV or HTML format. <uri> contains some HTML-specific parameters that
  * are ignored for CSV format (hence <uri> may be NULL there). It returns 0 if
  * it had to stop writing data and an I/O is needed, 1 if the dump is finished
  * and the stream must be closed, or -1 in case of any error. This function is
  * used by both the CLI and the HTTP handlers.
  */
-static int stats_dump_stat_to_buffer(struct stream_interface *si, struct htx *htx,
+static int stats_dump_stat_to_buffer(struct conn_stream *cs, struct htx *htx,
 				     struct uri_auth *uri)
 {
-	struct appctx *appctx = __cs_appctx(si->cs);
-	struct channel *rep = si_ic(si);
+	struct appctx *appctx = __cs_appctx(cs);
+	struct channel *rep = cs_ic(cs);
 	enum stats_domain domain = appctx->ctx.stats.domain;
 
 	chunk_reset(&trash);
@@ -3745,7 +3747,7 @@ static int stats_dump_stat_to_buffer(struct stream_interface *si, struct htx *ht
 
 	case STAT_ST_INFO:
 		if (appctx->ctx.stats.flags & STAT_FMT_HTML) {
-			stats_dump_html_info(si, uri);
+			stats_dump_html_info(cs, uri);
 			if (!stats_putchk(rep, htx, &trash))
 				goto full;
 		}
@@ -3760,7 +3762,7 @@ static int stats_dump_stat_to_buffer(struct stream_interface *si, struct htx *ht
 	case STAT_ST_LIST:
 		switch (domain) {
 		case STATS_DOMAIN_RESOLVERS:
-			if (!stats_dump_resolvers(si, stat_l[domain],
+			if (!stats_dump_resolvers(cs, stat_l[domain],
 			                          stat_count[domain],
 			                          &stats_module_list[domain])) {
 				return 0;
@@ -3770,7 +3772,7 @@ static int stats_dump_stat_to_buffer(struct stream_interface *si, struct htx *ht
 		case STATS_DOMAIN_PROXY:
 		default:
 			/* dump proxies */
-			if (!stats_dump_proxies(si, htx, uri))
+			if (!stats_dump_proxies(cs, htx, uri))
 				return 0;
 			break;
 		}
@@ -3801,7 +3803,7 @@ static int stats_dump_stat_to_buffer(struct stream_interface *si, struct htx *ht
 	}
 
   full:
-	si_rx_room_blk(si);
+	si_rx_room_blk(cs->si);
 	return 0;
 
 }
@@ -3811,10 +3813,10 @@ static int stats_dump_stat_to_buffer(struct stream_interface *si, struct htx *ht
  * Parse the posted data and enable/disable servers if necessary.
  * Returns 1 if request was parsed or zero if it needs more data.
  */
-static int stats_process_http_post(struct stream_interface *si)
+static int stats_process_http_post(struct conn_stream *cs)
 {
-	struct stream *s = si_strm(si);
-	struct appctx *appctx = __cs_appctx(si->cs);
+	struct stream *s = __cs_strm(cs);
+	struct appctx *appctx = __cs_appctx(cs);
 
 	struct proxy *px = NULL;
 	struct server *sv = NULL;
@@ -4146,11 +4148,11 @@ static int stats_process_http_post(struct stream_interface *si)
 }
 
 
-static int stats_send_http_headers(struct stream_interface *si, struct htx *htx)
+static int stats_send_http_headers(struct conn_stream *cs, struct htx *htx)
 {
-	struct stream *s = si_strm(si);
+	struct stream *s = __cs_strm(cs);
 	struct uri_auth *uri = s->be->uri_auth;
-	struct appctx *appctx = __cs_appctx(si->cs);
+	struct appctx *appctx = __cs_appctx(cs);
 	struct htx_sl *sl;
 	unsigned int flags;
 
@@ -4194,24 +4196,24 @@ static int stats_send_http_headers(struct stream_interface *si, struct htx *htx)
 
   full:
 	htx_reset(htx);
-	si_rx_room_blk(si);
+	si_rx_room_blk(cs->si);
 	return 0;
 }
 
 
-static int stats_send_http_redirect(struct stream_interface *si, struct htx *htx)
+static int stats_send_http_redirect(struct conn_stream *cs, struct htx *htx)
 {
 	char scope_txt[STAT_SCOPE_TXT_MAXLEN + sizeof STAT_SCOPE_PATTERN];
-	struct stream *s = si_strm(si);
+	struct stream *s = __cs_strm(cs);
 	struct uri_auth *uri = s->be->uri_auth;
-	struct appctx *appctx = __cs_appctx(si->cs);
+	struct appctx *appctx = __cs_appctx(cs);
 	struct htx_sl *sl;
 	unsigned int flags;
 
 	/* scope_txt = search pattern + search query, appctx->ctx.stats.scope_len is always <= STAT_SCOPE_TXT_MAXLEN */
 	scope_txt[0] = 0;
 	if (appctx->ctx.stats.scope_len) {
-		const char *scope_ptr = stats_scope_ptr(appctx, si);
+		const char *scope_ptr = stats_scope_ptr(appctx, cs);
 
 		strcpy(scope_txt, STAT_SCOPE_PATTERN);
 		memcpy(scope_txt + strlen(STAT_SCOPE_PATTERN), scope_ptr, appctx->ctx.stats.scope_len);
@@ -4253,7 +4255,7 @@ static int stats_send_http_redirect(struct stream_interface *si, struct htx *htx
 
 full:
 	htx_reset(htx);
-	si_rx_room_blk(si);
+	si_rx_room_blk(cs->si);
 	return 0;
 }
 
@@ -4265,10 +4267,10 @@ full:
  */
 static void http_stats_io_handler(struct appctx *appctx)
 {
-	struct stream_interface *si = cs_si(appctx->owner);
-	struct stream *s = si_strm(si);
-	struct channel *req = si_oc(si);
-	struct channel *res = si_ic(si);
+	struct conn_stream *cs = appctx->owner;
+	struct stream *s = __cs_strm(cs);
+	struct channel *req = cs_oc(cs);
+	struct channel *res = cs_ic(cs);
 	struct htx *req_htx, *res_htx;
 
 	/* only proxy stats are available via http */
@@ -4276,12 +4278,12 @@ static void http_stats_io_handler(struct appctx *appctx)
 
 	res_htx = htx_from_buf(&res->buf);
 
-	if (unlikely(si->state == SI_ST_DIS || si->state == SI_ST_CLO))
+	if (unlikely(cs->si->state == SI_ST_DIS || cs->si->state == SI_ST_CLO))
 		goto out;
 
 	/* Check if the input buffer is available. */
 	if (!b_size(&res->buf)) {
-		si_rx_room_blk(si);
+		si_rx_room_blk(cs->si);
 		goto out;
 	}
 
@@ -4291,7 +4293,7 @@ static void http_stats_io_handler(struct appctx *appctx)
 
 	/* all states are processed in sequence */
 	if (appctx->st0 == STAT_HTTP_HEAD) {
-		if (stats_send_http_headers(si, res_htx)) {
+		if (stats_send_http_headers(cs, res_htx)) {
 			if (s->txn->meth == HTTP_METH_HEAD)
 				appctx->st0 = STAT_HTTP_DONE;
 			else
@@ -4300,19 +4302,19 @@ static void http_stats_io_handler(struct appctx *appctx)
 	}
 
 	if (appctx->st0 == STAT_HTTP_DUMP) {
-		if (stats_dump_stat_to_buffer(si, res_htx, s->be->uri_auth))
+		if (stats_dump_stat_to_buffer(cs, res_htx, s->be->uri_auth))
 			appctx->st0 = STAT_HTTP_DONE;
 	}
 
 	if (appctx->st0 == STAT_HTTP_POST) {
-		if (stats_process_http_post(si))
+		if (stats_process_http_post(cs))
 			appctx->st0 = STAT_HTTP_LAST;
 		else if (req->flags & CF_SHUTR)
 			appctx->st0 = STAT_HTTP_DONE;
 	}
 
 	if (appctx->st0 == STAT_HTTP_LAST) {
-		if (stats_send_http_redirect(si, res_htx))
+		if (stats_send_http_redirect(cs, res_htx))
 			appctx->st0 = STAT_HTTP_DONE;
 	}
 
@@ -4324,13 +4326,13 @@ static void http_stats_io_handler(struct appctx *appctx)
 		 */
 		if (htx_is_empty(res_htx)) {
 			if (!htx_add_endof(res_htx, HTX_BLK_EOT)) {
-				si_rx_room_blk(si);
+				si_rx_room_blk(cs->si);
 				goto out;
 			}
 			channel_add_input(res, 1);
 		}
 		res_htx->flags |= HTX_FL_EOM;
-		si->cs->endp->flags |= CS_EP_EOI;
+		cs->endp->flags |= CS_EP_EOI;
 		res->flags |= CF_EOI;
 		appctx->st0 = STAT_HTTP_END;
 	}
@@ -4338,7 +4340,7 @@ static void http_stats_io_handler(struct appctx *appctx)
 	if (appctx->st0 == STAT_HTTP_END) {
 		if (!(res->flags & CF_SHUTR)) {
 			res->flags |= CF_READ_NULL;
-			si_shutr(si);
+			si_shutr(cs->si);
 		}
 
 		/* eat the whole request */
@@ -4359,7 +4361,7 @@ static void http_stats_io_handler(struct appctx *appctx)
 	 */
 	htx_to_buf(res_htx, &res->buf);
 	if (!channel_is_empty(res))
-		si_stop_get(si);
+		si_stop_get(cs->si);
 }
 
 /* Dump all fields from <info> into <out> using the "show info" format (name: value) */
@@ -4526,13 +4528,13 @@ int stats_fill_info(struct field *info, int len, uint flags)
 	return 1;
 }
 
-/* This function dumps information onto the stream interface's read buffer.
+/* This function dumps information onto the conn-stream's read buffer.
  * It returns 0 as long as it does not complete, non-zero upon completion.
  * No state is used.
  */
-static int stats_dump_info_to_buffer(struct stream_interface *si)
+static int stats_dump_info_to_buffer(struct conn_stream *cs)
 {
-	struct appctx *appctx = __cs_appctx(si->cs);
+	struct appctx *appctx = __cs_appctx(cs);
 
 	if (!stats_fill_info(info, INF_TOTAL_FIELDS, appctx->ctx.stats.flags))
 		return 0;
@@ -4546,8 +4548,8 @@ static int stats_dump_info_to_buffer(struct stream_interface *si)
 	else
 		stats_dump_info_fields(&trash, info, appctx->ctx.stats.flags);
 
-	if (ci_putchk(si_ic(si), &trash) == -1) {
-		si_rx_room_blk(si);
+	if (ci_putchk(cs_ic(cs), &trash) == -1) {
+		si_rx_room_blk(cs->si);
 		return 0;
 	}
 
@@ -4768,14 +4770,14 @@ static void stats_dump_json_schema(struct buffer *out)
  * It returns 0 as long as it does not complete, non-zero upon completion.
  * No state is used.
  */
-static int stats_dump_json_schema_to_buffer(struct stream_interface *si)
+static int stats_dump_json_schema_to_buffer(struct conn_stream *cs)
 {
 	chunk_reset(&trash);
 
 	stats_dump_json_schema(&trash);
 
-	if (ci_putchk(si_ic(si), &trash) == -1) {
-		si_rx_room_blk(si);
+	if (ci_putchk(cs_ic(cs), &trash) == -1) {
+		si_rx_room_blk(cs->si);
 		return 0;
 	}
 
@@ -4927,7 +4929,7 @@ static int cli_parse_show_stat(char **args, char *payload, struct appctx *appctx
 	appctx->ctx.stats.scope_len = 0;
 	appctx->ctx.stats.flags = STAT_SHNODE | STAT_SHDESC;
 
-	if ((strm_li(si_strm(cs_si(appctx->owner)))->bind_conf->level & ACCESS_LVL_MASK) >= ACCESS_LVL_OPER)
+	if ((strm_li(__cs_strm(appctx->owner))->bind_conf->level & ACCESS_LVL_MASK) >= ACCESS_LVL_OPER)
 		appctx->ctx.stats.flags |= STAT_SHLGNDS;
 
 	/* proxy is the default domain */
@@ -4983,20 +4985,20 @@ static int cli_parse_show_stat(char **args, char *payload, struct appctx *appctx
 
 static int cli_io_handler_dump_info(struct appctx *appctx)
 {
-	return stats_dump_info_to_buffer(cs_si(appctx->owner));
+	return stats_dump_info_to_buffer(appctx->owner);
 }
 
-/* This I/O handler runs as an applet embedded in a stream interface. It is
+/* This I/O handler runs as an applet embedded in a conn-stream. It is
  * used to send raw stats over a socket.
  */
 static int cli_io_handler_dump_stat(struct appctx *appctx)
 {
-	return stats_dump_stat_to_buffer(cs_si(appctx->owner), NULL, NULL);
+	return stats_dump_stat_to_buffer(appctx->owner, NULL, NULL);
 }
 
 static int cli_io_handler_dump_json_schema(struct appctx *appctx)
 {
-	return stats_dump_json_schema_to_buffer(cs_si(appctx->owner));
+	return stats_dump_json_schema_to_buffer(appctx->owner);
 }
 
 int stats_allocate_proxy_counters_internal(struct extra_counters **counters,

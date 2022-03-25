@@ -29,6 +29,8 @@
 #include <haproxy/base64.h>
 #include <haproxy/channel.h>
 #include <haproxy/cli.h>
+#include <haproxy/conn_stream.h>
+#include <haproxy/cs_utils.h>
 #include <haproxy/errors.h>
 #include <haproxy/ssl_ckch.h>
 #include <haproxy/ssl_sock.h>
@@ -1233,7 +1235,7 @@ static int cli_io_handler_show_cert(struct appctx *appctx)
 {
 	struct buffer *trash = alloc_trash_chunk();
 	struct ebmb_node *node;
-	struct stream_interface *si = cs_si(appctx->owner);
+	struct conn_stream *cs = appctx->owner;
 	struct ckch_store *ckchs;
 
 	if (trash == NULL)
@@ -1258,8 +1260,8 @@ static int cli_io_handler_show_cert(struct appctx *appctx)
 		chunk_appendf(trash, "%s\n", ckchs->path);
 
 		node = ebmb_next(node);
-		if (ci_putchk(si_ic(si), trash) == -1) {
-			si_rx_room_blk(si);
+		if (ci_putchk(cs_ic(cs), trash) == -1) {
+			si_rx_room_blk(cs->si);
 			goto yield;
 		}
 	}
@@ -1632,7 +1634,7 @@ static int ckch_store_show_ocsp_certid(struct ckch_store *ckch_store, struct buf
 /* IO handler of the details "show ssl cert <filename>" */
 static int cli_io_handler_show_cert_detail(struct appctx *appctx)
 {
-	struct stream_interface *si = cs_si(appctx->owner);
+	struct conn_stream *cs = appctx->owner;
 	struct ckch_store *ckchs = appctx->ctx.cli.p0;
 	struct buffer *out = alloc_trash_chunk();
 	int retval = 0;
@@ -1662,8 +1664,8 @@ static int cli_io_handler_show_cert_detail(struct appctx *appctx)
 	ckch_store_show_ocsp_certid(ckchs, out);
 
 end:
-	if (ci_putchk(si_ic(si), out) == -1) {
-		si_rx_room_blk(si);
+	if (ci_putchk(cs_ic(cs), out) == -1) {
+		si_rx_room_blk(cs->si);
 		goto yield;
 	}
 
@@ -1680,7 +1682,7 @@ yield:
 static int cli_io_handler_show_cert_ocsp_detail(struct appctx *appctx)
 {
 #if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) && !defined OPENSSL_IS_BORINGSSL)
-	struct stream_interface *si = cs_si(appctx->owner);
+	struct conn_stream *cs = appctx->owner;
 	struct ckch_store *ckchs = appctx->ctx.cli.p0;
 	struct buffer *out = alloc_trash_chunk();
 	int from_transaction = appctx->ctx.cli.i0;
@@ -1707,8 +1709,8 @@ static int cli_io_handler_show_cert_ocsp_detail(struct appctx *appctx)
 			goto end_no_putchk;
 	}
 
-	if (ci_putchk(si_ic(si), out) == -1) {
-		si_rx_room_blk(si);
+	if (ci_putchk(cs_ic(cs), out) == -1) {
+		si_rx_room_blk(cs->si);
 		goto yield;
 	}
 
@@ -1958,7 +1960,7 @@ void ckch_store_replace(struct ckch_store *old_ckchs, struct ckch_store *new_ckc
  */
 static int cli_io_handler_commit_cert(struct appctx *appctx)
 {
-	struct stream_interface *si = cs_si(appctx->owner);
+	struct conn_stream *cs = appctx->owner;
 	int y = 0;
 	char *err = NULL;
 	struct ckch_store *old_ckchs, *new_ckchs = NULL;
@@ -1968,7 +1970,7 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 	if (trash == NULL)
 		goto error;
 
-	if (unlikely(si_ic(si)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
+	if (unlikely(cs_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
 		goto error;
 
 	while (1) {
@@ -1976,8 +1978,8 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 			case SETCERT_ST_INIT:
 				/* This state just print the update message */
 				chunk_printf(trash, "Committing %s", ckchs_transaction.path);
-				if (ci_putchk(si_ic(si), trash) == -1) {
-					si_rx_room_blk(si);
+				if (ci_putchk(cs_ic(cs), trash) == -1) {
+					si_rx_room_blk(cs->si);
 					goto yield;
 				}
 				appctx->st2 = SETCERT_ST_GEN;
@@ -2051,25 +2053,25 @@ end:
 
 	chunk_appendf(trash, "\n");
 	chunk_appendf(trash, "Success!\n");
-	if (ci_putchk(si_ic(si), trash) == -1)
-		si_rx_room_blk(si);
+	if (ci_putchk(cs_ic(cs), trash) == -1)
+		si_rx_room_blk(cs->si);
 	free_trash_chunk(trash);
 	/* success: call the release function and don't come back */
 	return 1;
 yield:
 	/* store the state */
-	if (ci_putchk(si_ic(si), trash) == -1)
-		si_rx_room_blk(si);
+	if (ci_putchk(cs_ic(cs), trash) == -1)
+		si_rx_room_blk(cs->si);
 	free_trash_chunk(trash);
-	si_rx_endp_more(si); /* let's come back later */
+	si_rx_endp_more(cs->si); /* let's come back later */
 	return 0; /* should come back */
 
 error:
 	/* spin unlock and free are done in the release  function */
 	if (trash) {
 		chunk_appendf(trash, "\n%sFailed!\n", err);
-		if (ci_putchk(si_ic(si), trash) == -1)
-			si_rx_room_blk(si);
+		if (ci_putchk(cs_ic(cs), trash) == -1)
+			si_rx_room_blk(cs->si);
 		free_trash_chunk(trash);
 	}
 	/* error: call the release function and don't come back */
@@ -2698,7 +2700,7 @@ static inline int __create_new_instance(struct appctx *appctx, struct ckch_inst 
  */
 static int cli_io_handler_commit_cafile_crlfile(struct appctx *appctx)
 {
-	struct stream_interface *si = cs_si(appctx->owner);
+	struct conn_stream *cs = appctx->owner;
 	int y = 0;
 	char *err = NULL;
 	struct cafile_entry *old_cafile_entry = NULL, *new_cafile_entry = NULL;
@@ -2708,7 +2710,7 @@ static int cli_io_handler_commit_cafile_crlfile(struct appctx *appctx)
 	if (trash == NULL)
 		goto error;
 
-	if (unlikely(si_ic(si)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
+	if (unlikely(cs_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
 		goto error;
 
 	while (1) {
@@ -2725,8 +2727,8 @@ static int cli_io_handler_commit_cafile_crlfile(struct appctx *appctx)
 				default:
 					goto error;
 				}
-				if (ci_putchk(si_ic(si), trash) == -1) {
-					si_rx_room_blk(si);
+				if (ci_putchk(cs_ic(cs), trash) == -1) {
+					si_rx_room_blk(cs->si);
 					goto yield;
 				}
 				appctx->st2 = SETCERT_ST_GEN;
@@ -2836,25 +2838,25 @@ end:
 
 	chunk_appendf(trash, "\n");
 	chunk_appendf(trash, "Success!\n");
-	if (ci_putchk(si_ic(si), trash) == -1)
-		si_rx_room_blk(si);
+	if (ci_putchk(cs_ic(cs), trash) == -1)
+		si_rx_room_blk(cs->si);
 	free_trash_chunk(trash);
 	/* success: call the release function and don't come back */
 	return 1;
 yield:
 	/* store the state */
-	if (ci_putchk(si_ic(si), trash) == -1)
-		si_rx_room_blk(si);
+	if (ci_putchk(cs_ic(cs), trash) == -1)
+		si_rx_room_blk(cs->si);
 	free_trash_chunk(trash);
-	si_rx_endp_more(si); /* let's come back later */
+	si_rx_endp_more(cs->si); /* let's come back later */
 	return 0; /* should come back */
 
 error:
 	/* spin unlock and free are done in the release function */
 	if (trash) {
 		chunk_appendf(trash, "\n%sFailed!\n", err);
-		if (ci_putchk(si_ic(si), trash) == -1)
-			si_rx_room_blk(si);
+		if (ci_putchk(cs_ic(cs), trash) == -1)
+			si_rx_room_blk(cs->si);
 		free_trash_chunk(trash);
 	}
 	/* error: call the release function and don't come back */
@@ -2922,7 +2924,7 @@ static void cli_release_commit_cafile(struct appctx *appctx)
 /* IO handler of details "show ssl ca-file <filename[:index]>" */
 static int cli_io_handler_show_cafile_detail(struct appctx *appctx)
 {
-	struct stream_interface *si = cs_si(appctx->owner);
+	struct conn_stream *cs = appctx->owner;
 	struct cafile_entry *cafile_entry = appctx->ctx.cli.p0;
 	struct buffer *out = alloc_trash_chunk();
 	int i;
@@ -2969,8 +2971,8 @@ static int cli_io_handler_show_cafile_detail(struct appctx *appctx)
 	}
 
 end:
-	if (ci_putchk(si_ic(si), out) == -1) {
-		si_rx_room_blk(si);
+	if (ci_putchk(cs_ic(cs), out) == -1) {
+		si_rx_room_blk(cs->si);
 		goto yield;
 	}
 
@@ -3075,7 +3077,7 @@ static int cli_io_handler_show_cafile(struct appctx *appctx)
 {
 	struct buffer *trash = alloc_trash_chunk();
 	struct ebmb_node *node;
-	struct stream_interface *si = cs_si(appctx->owner);
+	struct conn_stream *cs = appctx->owner;
 	struct cafile_entry *cafile_entry;
 
 	if (trash == NULL)
@@ -3108,8 +3110,8 @@ static int cli_io_handler_show_cafile(struct appctx *appctx)
 		}
 
 		node = ebmb_next(node);
-		if (ci_putchk(si_ic(si), trash) == -1) {
-			si_rx_room_blk(si);
+		if (ci_putchk(cs_ic(cs), trash) == -1) {
+			si_rx_room_blk(cs->si);
 			goto yield;
 		}
 	}
@@ -3581,7 +3583,7 @@ end:
 /* IO handler of details "show ssl crl-file <filename[:index]>" */
 static int cli_io_handler_show_crlfile_detail(struct appctx *appctx)
 {
-	struct stream_interface *si = cs_si(appctx->owner);
+	struct conn_stream *cs = appctx->owner;
 	struct cafile_entry *cafile_entry = appctx->ctx.cli.p0;
 	struct buffer *out = alloc_trash_chunk();
 	int i;
@@ -3628,8 +3630,8 @@ static int cli_io_handler_show_crlfile_detail(struct appctx *appctx)
 	}
 
 end:
-	if (ci_putchk(si_ic(si), out) == -1) {
-		si_rx_room_blk(si);
+	if (ci_putchk(cs_ic(cs), out) == -1) {
+		si_rx_room_blk(cs->si);
 		goto yield;
 	}
 
@@ -3711,7 +3713,7 @@ static int cli_io_handler_show_crlfile(struct appctx *appctx)
 {
 	struct buffer *trash = alloc_trash_chunk();
 	struct ebmb_node *node;
-	struct stream_interface *si = cs_si(appctx->owner);
+	struct conn_stream *cs = appctx->owner;
 	struct cafile_entry *cafile_entry;
 
 	if (trash == NULL)
@@ -3740,8 +3742,8 @@ static int cli_io_handler_show_crlfile(struct appctx *appctx)
 		}
 
 		node = ebmb_next(node);
-		if (ci_putchk(si_ic(si), trash) == -1) {
-			si_rx_room_blk(si);
+		if (ci_putchk(cs_ic(cs), trash) == -1) {
+			si_rx_room_blk(cs->si);
 			goto yield;
 		}
 	}

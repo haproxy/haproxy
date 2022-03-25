@@ -17,6 +17,8 @@
 #include <haproxy/applet-t.h>
 #include <haproxy/arg.h>
 #include <haproxy/cli.h>
+#include <haproxy/conn_stream.h>
+#include <haproxy/cs_utils.h>
 #include <haproxy/map.h>
 #include <haproxy/pattern.h>
 #include <haproxy/regex.h>
@@ -323,10 +325,10 @@ struct pattern_expr *pat_expr_get_next(struct pattern_expr *getnext, struct list
 /* expects the current generation ID in appctx->cli.cli.i0 */
 static int cli_io_handler_pat_list(struct appctx *appctx)
 {
-	struct stream_interface *si = cs_si(appctx->owner);
+	struct conn_stream *cs = appctx->owner;
 	struct pat_ref_elt *elt;
 
-	if (unlikely(si_ic(si)->flags & (CF_WRITE_ERROR|CF_SHUTW))) {
+	if (unlikely(cs_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW))) {
 		/* If we're forced to shut down, we might have to remove our
 		 * reference to the last ref_elt being dumped.
 		 */
@@ -382,13 +384,13 @@ static int cli_io_handler_pat_list(struct appctx *appctx)
 				chunk_appendf(&trash, "%p %s\n",
 				              elt, elt->pattern);
 
-			if (ci_putchk(si_ic(si), &trash) == -1) {
+			if (ci_putchk(cs_ic(cs), &trash) == -1) {
 				/* let's try again later from this stream. We add ourselves into
 				 * this stream's users so that it can remove us upon termination.
 				 */
 				LIST_APPEND(&elt->back_refs, &appctx->ctx.map.bref.users);
 				HA_SPIN_UNLOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
-				si_rx_room_blk(si);
+				si_rx_room_blk(cs->si);
 				return 0;
 			}
 		skip:
@@ -406,7 +408,7 @@ static int cli_io_handler_pat_list(struct appctx *appctx)
 
 static int cli_io_handler_pats_list(struct appctx *appctx)
 {
-	struct stream_interface *si = cs_si(appctx->owner);
+	struct conn_stream *cs = appctx->owner;
 
 	switch (appctx->st2) {
 	case STAT_ST_INIT:
@@ -416,8 +418,8 @@ static int cli_io_handler_pats_list(struct appctx *appctx)
 		 */
 		chunk_reset(&trash);
 		chunk_appendf(&trash, "# id (file) description\n");
-		if (ci_putchk(si_ic(si), &trash) == -1) {
-			si_rx_room_blk(si);
+		if (ci_putchk(cs_ic(cs), &trash) == -1) {
+			si_rx_room_blk(cs->si);
 			return 0;
 		}
 
@@ -444,11 +446,11 @@ static int cli_io_handler_pats_list(struct appctx *appctx)
 			              appctx->ctx.map.ref->display, appctx->ctx.map.ref->curr_gen, appctx->ctx.map.ref->next_gen,
 			              appctx->ctx.map.ref->entry_cnt);
 
-			if (ci_putchk(si_ic(si), &trash) == -1) {
+			if (ci_putchk(cs_ic(cs), &trash) == -1) {
 				/* let's try again later from this stream. We add ourselves into
 				 * this stream's users so that it can remove us upon termination.
 				 */
-				si_rx_room_blk(si);
+				si_rx_room_blk(cs->si);
 				return 0;
 			}
 
@@ -468,7 +470,7 @@ static int cli_io_handler_pats_list(struct appctx *appctx)
 
 static int cli_io_handler_map_lookup(struct appctx *appctx)
 {
-	struct stream_interface *si = cs_si(appctx->owner);
+	struct conn_stream *cs = appctx->owner;
 	struct sample sample;
 	struct pattern *pat;
 	int match_method;
@@ -564,12 +566,12 @@ static int cli_io_handler_map_lookup(struct appctx *appctx)
 			chunk_appendf(&trash, "\n");
 
 			/* display response */
-			if (ci_putchk(si_ic(si), &trash) == -1) {
+			if (ci_putchk(cs_ic(cs), &trash) == -1) {
 				/* let's try again later from this stream. We add ourselves into
 				 * this stream's users so that it can remove us upon termination.
 				 */
 				HA_SPIN_UNLOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
-				si_rx_room_blk(si);
+				si_rx_room_blk(cs->si);
 				return 0;
 			}
 
@@ -993,7 +995,6 @@ static int cli_parse_del_map(char **args, char *payload, struct appctx *appctx, 
  */
 static int cli_io_handler_clear_map(struct appctx *appctx)
 {
-	struct stream_interface *si = cs_si(appctx->owner);
 	int finished;
 
 	HA_SPIN_LOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
@@ -1002,7 +1003,7 @@ static int cli_io_handler_clear_map(struct appctx *appctx)
 
 	if (!finished) {
 		/* let's come back later */
-		si_rx_endp_more(si);
+		si_rx_endp_more(cs_si(appctx->owner));
 		return 0;
 	}
 	return 1;

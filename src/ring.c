@@ -23,6 +23,8 @@
 #include <haproxy/applet.h>
 #include <haproxy/buf.h>
 #include <haproxy/cli.h>
+#include <haproxy/conn_stream.h>
+#include <haproxy/cs_utils.h>
 #include <haproxy/ring.h>
 #include <haproxy/stream_interface.h>
 #include <haproxy/thread.h>
@@ -276,7 +278,7 @@ int ring_attach_cli(struct ring *ring, struct appctx *appctx)
  */
 int cli_io_handler_show_ring(struct appctx *appctx)
 {
-	struct stream_interface *si = cs_si(appctx->owner);
+	struct conn_stream *cs = appctx->owner;
 	struct ring *ring = appctx->ctx.cli.p0;
 	struct buffer *buf = &ring->buf;
 	size_t ofs = appctx->ctx.cli.o0;
@@ -284,7 +286,7 @@ int cli_io_handler_show_ring(struct appctx *appctx)
 	size_t len, cnt;
 	int ret;
 
-	if (unlikely(si_ic(si)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
+	if (unlikely(cs_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
 		return 1;
 
 	HA_RWLOCK_WRLOCK(LOGSRV_LOCK, &ring->lock);
@@ -343,8 +345,8 @@ int cli_io_handler_show_ring(struct appctx *appctx)
 		trash.data += len;
 		trash.area[trash.data++] = '\n';
 
-		if (ci_putchk(si_ic(si), &trash) == -1) {
-			si_rx_room_blk(si);
+		if (ci_putchk(cs_ic(cs), &trash) == -1) {
+			si_rx_room_blk(cs->si);
 			ret = 0;
 			break;
 		}
@@ -360,16 +362,16 @@ int cli_io_handler_show_ring(struct appctx *appctx)
 		/* we've drained everything and are configured to wait for more
 		 * data or an event (keypress, close)
 		 */
-		if (!si_oc(si)->output && !(si_oc(si)->flags & CF_SHUTW)) {
+		if (!cs_oc(cs)->output && !(cs_oc(cs)->flags & CF_SHUTW)) {
 			/* let's be woken up once new data arrive */
 			HA_RWLOCK_WRLOCK(LOGSRV_LOCK, &ring->lock);
 			LIST_APPEND(&ring->waiters, &appctx->wait_entry);
 			HA_RWLOCK_WRUNLOCK(LOGSRV_LOCK, &ring->lock);
-			si_rx_endp_done(si);
+			si_rx_endp_done(cs->si);
 			ret = 0;
 		}
 		/* always drain all the request */
-		co_skip(si_oc(si), si_oc(si)->output);
+		co_skip(cs_oc(cs), cs_oc(cs)->output);
 	}
 	return ret;
 }

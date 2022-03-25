@@ -29,6 +29,8 @@
 #include <haproxy/api.h>
 #include <haproxy/buf.h>
 #include <haproxy/cli.h>
+#include <haproxy/conn_stream.h>
+#include <haproxy/cs_utils.h>
 #include <haproxy/clock.h>
 #include <haproxy/debug.h>
 #include <haproxy/fd.h>
@@ -249,9 +251,9 @@ void ha_task_dump(struct buffer *buf, const struct task *task, const char *pfx)
 	if (task->process == process_stream && task->context)
 		s = (struct stream *)task->context;
 	else if (task->process == task_run_applet && task->context)
-		s = si_strm(cs_si(((struct appctx *)task->context)->owner));
+		s = cs_strm(((struct appctx *)task->context)->owner);
 	else if (task->process == si_cs_io_cb && task->context)
-		s = si_strm((struct stream_interface *)task->context);
+		s = cs_strm(((struct stream_interface *)task->context)->cs);
 
 	if (s)
 		stream_dump(buf, s, pfx, '\n');
@@ -288,10 +290,10 @@ void ha_task_dump(struct buffer *buf, const struct task *task, const char *pfx)
  */
 static int cli_io_handler_show_threads(struct appctx *appctx)
 {
-	struct stream_interface *si = cs_si(appctx->owner);
+	struct conn_stream *cs = appctx->owner;
 	int thr;
 
-	if (unlikely(si_ic(si)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
+	if (unlikely(cs_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
 		return 1;
 
 	if (appctx->st0)
@@ -302,9 +304,9 @@ static int cli_io_handler_show_threads(struct appctx *appctx)
 	chunk_reset(&trash);
 	ha_thread_dump_all_to_trash();
 
-	if (ci_putchk(si_ic(si), &trash) == -1) {
+	if (ci_putchk(cs_ic(cs), &trash) == -1) {
 		/* failed, try again */
-		si_rx_room_blk(si);
+		si_rx_room_blk(cs->si);
 		appctx->st1 = thr;
 		return 0;
 	}
@@ -674,7 +676,7 @@ static int debug_parse_cli_write(char **args, char *payload, struct appctx *appc
  */
 static int debug_parse_cli_stream(char **args, char *payload, struct appctx *appctx, void *private)
 {
-	struct stream *s = si_strm(cs_si(appctx->owner));
+	struct stream *s = __cs_strm(appctx->owner);
 	int arg;
 	void *ptr;
 	int size;
@@ -1040,7 +1042,7 @@ static int debug_parse_cli_fd(char **args, char *payload, struct appctx *appctx,
  */
 static int debug_iohandler_fd(struct appctx *appctx)
 {
-	struct stream_interface *si = cs_si(appctx->owner);
+	struct conn_stream *cs = appctx->owner;
 	struct sockaddr_storage sa;
 	struct stat statbuf;
 	socklen_t salen, vlen;
@@ -1049,7 +1051,7 @@ static int debug_iohandler_fd(struct appctx *appctx)
 	int ret = 1;
 	int i, fd;
 
-	if (unlikely(si_ic(si)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
+	if (unlikely(cs_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
 		goto end;
 
 	chunk_reset(&trash);
@@ -1173,8 +1175,8 @@ static int debug_iohandler_fd(struct appctx *appctx)
 
 		chunk_appendf(&trash, "\n");
 
-		if (ci_putchk(si_ic(si), &trash) == -1) {
-			si_rx_room_blk(si);
+		if (ci_putchk(cs_ic(cs), &trash) == -1) {
+			si_rx_room_blk(cs->si);
 			appctx->ctx.cli.i0 = fd;
 			ret = 0;
 			break;
@@ -1224,11 +1226,11 @@ static int debug_parse_cli_memstats(char **args, char *payload, struct appctx *a
  */
 static int debug_iohandler_memstats(struct appctx *appctx)
 {
-	struct stream_interface *si = cs_si(appctx->owner);
+	struct conn_stream *cs = appctx->owner;
 	struct mem_stats *ptr = appctx->ctx.cli.p0;
 	int ret = 1;
 
-	if (unlikely(si_ic(si)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
+	if (unlikely(cs_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
 		goto end;
 
 	chunk_reset(&trash);
@@ -1273,8 +1275,8 @@ static int debug_iohandler_memstats(struct appctx *appctx)
 			     (unsigned long)ptr->size, (unsigned long)ptr->calls,
 			     (unsigned long)(ptr->calls ? (ptr->size / ptr->calls) : 0));
 
-		if (ci_putchk(si_ic(si), &trash) == -1) {
-			si_rx_room_blk(si);
+		if (ci_putchk(cs_ic(cs), &trash) == -1) {
+			si_rx_room_blk(cs->si);
 			appctx->ctx.cli.p0 = ptr;
 			ret = 0;
 			break;

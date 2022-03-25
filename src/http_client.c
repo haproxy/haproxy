@@ -17,7 +17,8 @@
 #include <haproxy/cli.h>
 #include <haproxy/dynbuf.h>
 #include <haproxy/cfgparse.h>
-#include <haproxy/connection.h>
+#include <haproxy/conn_stream.h>
+#include <haproxy/cs_utils.h>
 #include <haproxy/global.h>
 #include <haproxy/istbuf.h>
 #include <haproxy/h1_htx.h>
@@ -166,7 +167,7 @@ err:
  */
 static int hc_cli_io_handler(struct appctx *appctx)
 {
-	struct stream_interface *si = cs_si(appctx->owner);
+	struct conn_stream *cs = appctx->owner;
 	struct buffer *trash = alloc_trash_chunk();
 	struct httpclient *hc = appctx->ctx.cli.p0;
 	struct http_hdr *hdrs, *hdr;
@@ -176,8 +177,8 @@ static int hc_cli_io_handler(struct appctx *appctx)
 	if (appctx->ctx.cli.i0 & HC_CLI_F_RES_STLINE) {
 		chunk_appendf(trash, "%.*s %d %.*s\n", (unsigned int)istlen(hc->res.vsn), istptr(hc->res.vsn),
 			      hc->res.status, (unsigned int)istlen(hc->res.reason), istptr(hc->res.reason));
-		if (ci_putchk(si_ic(si), trash) == -1)
-			si_rx_room_blk(si);
+		if (ci_putchk(cs_ic(cs), trash) == -1)
+			si_rx_room_blk(cs->si);
 		appctx->ctx.cli.i0 &= ~HC_CLI_F_RES_STLINE;
 		goto out;
 	}
@@ -190,8 +191,8 @@ static int hc_cli_io_handler(struct appctx *appctx)
 		}
 		if (!chunk_memcat(trash, "\r\n", 2))
 			goto out;
-		if (ci_putchk(si_ic(si), trash) == -1)
-			si_rx_room_blk(si);
+		if (ci_putchk(cs_ic(cs), trash) == -1)
+			si_rx_room_blk(cs->si);
 		appctx->ctx.cli.i0 &= ~HC_CLI_F_RES_HDR;
 		goto out;
 	}
@@ -199,8 +200,8 @@ static int hc_cli_io_handler(struct appctx *appctx)
 	if (appctx->ctx.cli.i0 & HC_CLI_F_RES_BODY) {
 		int ret;
 
-		ret = httpclient_res_xfer(hc, &si_ic(si)->buf);
-		channel_add_input(si_ic(si), ret); /* forward what we put in the buffer channel */
+		ret = httpclient_res_xfer(hc, cs_ib(cs));
+		channel_add_input(cs_ic(cs), ret); /* forward what we put in the buffer channel */
 
 		if (!httpclient_data(hc)) {/* remove the flag if the buffer was emptied */
 			appctx->ctx.cli.i0 &= ~HC_CLI_F_RES_BODY;
@@ -210,8 +211,8 @@ static int hc_cli_io_handler(struct appctx *appctx)
 
 	/* we must close only if F_END is the last flag */
 	if (appctx->ctx.cli.i0 ==  HC_CLI_F_RES_END) {
-		si_shutw(si);
-		si_shutr(si);
+		si_shutw(cs->si);
+		si_shutr(cs->si);
 		appctx->ctx.cli.i0 &= ~HC_CLI_F_RES_END;
 		goto out;
 	}
@@ -219,7 +220,7 @@ static int hc_cli_io_handler(struct appctx *appctx)
 out:
 	/* we didn't clear every flags, we should come back to finish things */
 	if (appctx->ctx.cli.i0)
-		si_rx_room_blk(si);
+		si_rx_room_blk(cs->si);
 
 	free_trash_chunk(trash);
 	return 0;
@@ -640,8 +641,8 @@ err:
 static void httpclient_applet_io_handler(struct appctx *appctx)
 {
 	struct httpclient *hc = appctx->ctx.httpclient.ptr;
-	struct stream_interface *si = cs_si(appctx->owner);
-	struct stream *s = si_strm(si);
+	struct conn_stream *cs = appctx->owner;
+	struct stream *s = __cs_strm(cs);
 	struct channel *req = &s->req;
 	struct channel *res = &s->res;
 	struct htx_blk *blk = NULL;
@@ -735,7 +736,7 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 
 					/* if the request contains the HTX_FL_EOM, we finished the request part. */
 					if (htx->flags & HTX_FL_EOM) {
-						si->cs->endp->flags |= CS_EP_EOI;
+						cs->endp->flags |= CS_EP_EOI;
 						req->flags |= CF_EOI;
 						appctx->st0 = HTTPCLIENT_S_RES_STLINE;
 					}
@@ -925,13 +926,13 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 
 process_data:
 
-	si_rx_chan_rdy(si);
+	si_rx_chan_rdy(cs->si);
 
 	return;
 more:
 	/* There was not enough data in the response channel */
 
-	si_rx_room_blk(si);
+	si_rx_room_blk(cs->si);
 
 	if (appctx->st0 == HTTPCLIENT_S_RES_END)
 		goto end;
@@ -947,8 +948,8 @@ more:
 	return;
 
 end:
-	si_shutw(si);
-	si_shutr(si);
+	si_shutw(cs->si);
+	si_shutr(cs->si);
 	return;
 }
 

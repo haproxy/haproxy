@@ -33,8 +33,9 @@
 #define APPLET_WANT_DIE     0x01  /* applet was running and requested to die */
 
 struct appctx;
-struct stream;
 struct proxy;
+struct conn_stream;
+struct cs_endpoint;
 
 /* Applet descriptor */
 struct applet {

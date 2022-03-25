@@ -29,6 +29,8 @@
 #include <haproxy/check.h>
 #include <haproxy/cli.h>
 #include <haproxy/connection.h>
+#include <haproxy/conn_stream.h>
+#include <haproxy/cs_utils.h>
 #include <haproxy/dict.h>
 #include <haproxy/dynbuf.h>
 #include <haproxy/fd.h>
@@ -2766,7 +2768,7 @@ void stream_dump_and_crash(enum obj_type *obj, int rate)
 		if (!appctx)
 			return;
 		ptr = appctx;
-		s = si_strm(cs_si(appctx->owner));
+		s = __cs_strm(appctx->owner);
 		if (!s)
 			return;
 	}
@@ -3098,13 +3100,13 @@ void list_services(FILE *out)
  * buffer is full and it needs to be called again, otherwise non-zero. It is
  * designed to be called from stats_dump_strm_to_buffer() below.
  */
-static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct stream *strm)
+static int stats_dump_full_strm_to_buffer(struct conn_stream *cs, struct stream *strm)
 {
-	struct appctx *appctx = __cs_appctx(si->cs);
+	struct appctx *appctx = __cs_appctx(cs);
+	struct conn_stream *csf, *csb;
 	struct tm tm;
 	extern const char *monthname[12];
 	char pn[INET6_ADDRSTRLEN];
-	struct conn_stream *cs;
 	struct connection *conn;
 	struct appctx *tmpctx;
 
@@ -3113,7 +3115,7 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 	if (appctx->ctx.sess.section > 0 && appctx->ctx.sess.uid != strm->uniq_id) {
 		/* stream changed, no need to go any further */
 		chunk_appendf(&trash, "  *** session terminated while we were watching it ***\n");
-		if (ci_putchk(si_ic(si), &trash) == -1)
+		if (ci_putchk(cs_ic(cs), &trash) == -1)
 			goto full;
 		goto done;
 	}
@@ -3272,17 +3274,17 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 			                     TICKS_TO_MS(1000)) : "<NEVER>",
 			     strm->csb->si->err_type, strm->csb->si->wait_event.events);
 
-		cs = strm->csf;
-		chunk_appendf(&trash, "  cs=%p csf=0x%08x endp=%p,0x%08x\n", cs, cs->flags, cs->endp->target, cs->endp->flags);
+		csf = strm->csf;
+		chunk_appendf(&trash, "  cs=%p csf=0x%08x endp=%p,0x%08x\n", csf, csf->flags, csf->endp->target, csf->endp->flags);
 
-		if ((conn = cs_conn(cs)) != NULL) {
+		if ((conn = cs_conn(csf)) != NULL) {
 			chunk_appendf(&trash,
 			              "      co0=%p ctrl=%s xprt=%s mux=%s data=%s target=%s:%p\n",
 				      conn,
 				      conn_get_ctrl_name(conn),
 				      conn_get_xprt_name(conn),
 				      conn_get_mux_name(conn),
-				      cs_get_data_name(cs),
+				      cs_get_data_name(csf),
 			              obj_type_name(conn->target),
 			              obj_base_ptr(conn->target));
 
@@ -3295,7 +3297,7 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 				      conn_fd(conn) >= 0 ? fdtab[conn->handle.fd].thread_mask: 0);
 
 		}
-		else if ((tmpctx = cs_appctx(cs)) != NULL) {
+		else if ((tmpctx = cs_appctx(csf)) != NULL) {
 			chunk_appendf(&trash,
 			              "      app0=%p st0=%d st1=%d st2=%d applet=%s tmask=0x%lx nice=%d calls=%u rate=%u cpu=%llu lat=%llu\n",
 				      tmpctx,
@@ -3308,16 +3310,16 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 			              (unsigned long long)tmpctx->t->cpu_time, (unsigned long long)tmpctx->t->lat_time);
 		}
 
-		cs = strm->csb;
-		chunk_appendf(&trash, "  cs=%p csb=0x%08x endp=%p,0x%08x\n", cs, cs->flags, cs->endp->target, cs->endp->flags);
-		if ((conn = cs_conn(cs)) != NULL) {
+		csb = strm->csb;
+		chunk_appendf(&trash, "  cs=%p csb=0x%08x endp=%p,0x%08x\n", csb, csb->flags, csb->endp->target, csb->endp->flags);
+		if ((conn = cs_conn(csb)) != NULL) {
 			chunk_appendf(&trash,
 			              "      co1=%p ctrl=%s xprt=%s mux=%s data=%s target=%s:%p\n",
 				      conn,
 				      conn_get_ctrl_name(conn),
 				      conn_get_xprt_name(conn),
 				      conn_get_mux_name(conn),
-				      cs_get_data_name(cs),
+				      cs_get_data_name(csb),
 			              obj_type_name(conn->target),
 			              obj_base_ptr(conn->target));
 
@@ -3330,7 +3332,7 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 				      conn_fd(conn) >= 0 ? fdtab[conn->handle.fd].thread_mask: 0);
 
 		}
-		else if ((tmpctx = cs_appctx(cs)) != NULL) {
+		else if ((tmpctx = cs_appctx(csb)) != NULL) {
 			chunk_appendf(&trash,
 			              "      app1=%p st0=%d st1=%d st2=%d applet=%s tmask=0x%lx nice=%d calls=%u rate=%u cpu=%llu lat=%llu\n",
 				      tmpctx,
@@ -3436,7 +3438,7 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 			chunk_appendf(&trash, "  current_rule=\"%s\" [%s:%d]\n", rule->kw->kw, rule->conf.file, rule->conf.line);
 		}
 
-		if (ci_putchk(si_ic(si), &trash) == -1)
+		if (ci_putchk(cs_ic(cs), &trash) == -1)
 			goto full;
 
 		/* use other states to dump the contents */
@@ -3469,7 +3471,7 @@ static int cli_parse_show_sess(char **args, char *payload, struct appctx *appctx
 	/* let's set our own stream's epoch to the current one and increment
 	 * it so that we know which streams were already there before us.
 	 */
-	si_strm(cs_si(appctx->owner))->stream_epoch = _HA_ATOMIC_FETCH_ADD(&stream_epoch, 1);
+	__cs_strm(appctx->owner)->stream_epoch = _HA_ATOMIC_FETCH_ADD(&stream_epoch, 1);
 	return 0;
 }
 
@@ -3480,12 +3482,12 @@ static int cli_parse_show_sess(char **args, char *payload, struct appctx *appctx
  */
 static int cli_io_handler_dump_sess(struct appctx *appctx)
 {
-	struct stream_interface *si = cs_si(appctx->owner);
+	struct conn_stream *cs = appctx->owner;
 	struct connection *conn;
 
 	thread_isolate();
 
-	if (unlikely(si_ic(si)->flags & (CF_WRITE_ERROR|CF_SHUTW))) {
+	if (unlikely(cs_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW))) {
 		/* If we're forced to shut down, we might have to remove our
 		 * reference to the last stream being dumped.
 		 */
@@ -3532,7 +3534,7 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 			else {
 				/* check if we've found a stream created after issuing the "show sess" */
 				curr_strm = LIST_ELEM(appctx->ctx.sess.bref.ref, struct stream *, list);
-				if ((int)(curr_strm->stream_epoch - si_strm(cs_si(appctx->owner))->stream_epoch) > 0)
+				if ((int)(curr_strm->stream_epoch - __cs_strm(appctx->owner)->stream_epoch) > 0)
 					done = 1;
 			}
 
@@ -3550,7 +3552,7 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 
 				LIST_APPEND(&curr_strm->back_refs, &appctx->ctx.sess.bref.users);
 				/* call the proper dump() function and return if we're missing space */
-				if (!stats_dump_full_strm_to_buffer(si, curr_strm))
+				if (!stats_dump_full_strm_to_buffer(cs, curr_strm))
 					goto full;
 
 				/* stream dump complete */
@@ -3672,7 +3674,7 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 
 			chunk_appendf(&trash, "\n");
 
-			if (ci_putchk(si_ic(si), &trash) == -1) {
+			if (ci_putchk(cs_ic(cs), &trash) == -1) {
 				/* let's try again later from this stream. We add ourselves into
 				 * this stream's users so that it can remove us upon termination.
 				 */
@@ -3691,7 +3693,7 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 			else
 				chunk_appendf(&trash, "Session not found.\n");
 
-			if (ci_putchk(si_ic(si), &trash) == -1)
+			if (ci_putchk(cs_ic(cs), &trash) == -1)
 				goto full;
 
 			appctx->ctx.sess.target = NULL;
@@ -3709,7 +3711,7 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 	return 1;
  full:
 	thread_release();
-	si_rx_room_blk(si);
+	si_rx_room_blk(cs->si);
 	return 0;
 }
 

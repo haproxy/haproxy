@@ -51,6 +51,8 @@
 #include <haproxy/chunk.h>
 #include <haproxy/cli.h>
 #include <haproxy/connection.h>
+#include <haproxy/conn_stream.h>
+#include <haproxy/cs_utils.h>
 #include <haproxy/dynbuf.h>
 #include <haproxy/errors.h>
 #include <haproxy/fd.h>
@@ -7194,7 +7196,7 @@ static inline int cli_io_handler_tlskeys_entries(struct appctx *appctx) {
  */
 static int cli_io_handler_tlskeys_files(struct appctx *appctx) {
 
-	struct stream_interface *si = cs_si(appctx->owner);
+	struct conn_stream *cs = appctx->owner;
 
 	switch (appctx->st2) {
 	case STAT_ST_INIT:
@@ -7209,8 +7211,8 @@ static int cli_io_handler_tlskeys_files(struct appctx *appctx) {
 		else
 			chunk_appendf(&trash, "# id (file)\n");
 
-		if (ci_putchk(si_ic(si), &trash) == -1) {
-			si_rx_room_blk(si);
+		if (ci_putchk(cs_ic(cs), &trash) == -1) {
+			si_rx_room_blk(cs->si);
 			return 0;
 		}
 
@@ -7265,12 +7267,12 @@ static int cli_io_handler_tlskeys_files(struct appctx *appctx) {
 						chunk_appendf(&trash, "%d.%d <unknown>\n", ref->unique_id, appctx->ctx.cli.i1);
 					}
 
-					if (ci_putchk(si_ic(si), &trash) == -1) {
+					if (ci_putchk(cs_ic(cs), &trash) == -1) {
 						/* let's try again later from this stream. We add ourselves into
 						 * this stream's users so that it can remove us upon termination.
 						 */
 						HA_RWLOCK_RDUNLOCK(TLSKEYS_REF_LOCK, &ref->lock);
-						si_rx_room_blk(si);
+						si_rx_room_blk(cs->si);
 						return 0;
 					}
 					appctx->ctx.cli.i1++;
@@ -7278,11 +7280,11 @@ static int cli_io_handler_tlskeys_files(struct appctx *appctx) {
 				HA_RWLOCK_RDUNLOCK(TLSKEYS_REF_LOCK, &ref->lock);
 				appctx->ctx.cli.i1 = 0;
 			}
-			if (ci_putchk(si_ic(si), &trash) == -1) {
+			if (ci_putchk(cs_ic(cs), &trash) == -1) {
 				/* let's try again later from this stream. We add ourselves into
 				 * this stream's users so that it can remove us upon termination.
 				 */
-				si_rx_room_blk(si);
+				si_rx_room_blk(cs->si);
 				return 0;
 			}
 
@@ -7470,7 +7472,7 @@ static int cli_io_handler_show_ocspresponse(struct appctx *appctx)
 	struct buffer *trash = alloc_trash_chunk();
 	struct buffer *tmp = NULL;
 	struct ebmb_node *node;
-	struct stream_interface *si = cs_si(appctx->owner);
+	struct conn_stream *cs = appctx->owner;
 	struct certificate_ocsp *ocsp = NULL;
 	BIO *bio = NULL;
 	int write = -1;
@@ -7525,8 +7527,8 @@ static int cli_io_handler_show_ocspresponse(struct appctx *appctx)
 		chunk_appendf(trash, "%s\n", tmp->area);
 
 		node = ebmb_next(node);
-		if (ci_putchk(si_ic(si), trash) == -1) {
-			si_rx_room_blk(si);
+		if (ci_putchk(cs_ic(cs), trash) == -1) {
+			si_rx_room_blk(cs->si);
 			goto yield;
 		}
 	}
@@ -7657,7 +7659,7 @@ static int cli_io_handler_show_ocspresponse_detail(struct appctx *appctx)
 {
 	struct buffer *trash = alloc_trash_chunk();
 	struct certificate_ocsp *ocsp = NULL;
-	struct stream_interface *si = cs_si(appctx->owner);
+	struct conn_stream *cs = appctx->owner;
 
 	ocsp = appctx->ctx.cli.p0;
 
@@ -7669,8 +7671,8 @@ static int cli_io_handler_show_ocspresponse_detail(struct appctx *appctx)
 		return 1;
 	}
 
-	if (ci_putchk(si_ic(si), trash) == -1) {
-		si_rx_room_blk(si);
+	if (ci_putchk(cs_ic(cs), trash) == -1) {
+		si_rx_room_blk(cs->si);
 		goto yield;
 	}
 	appctx->ctx.cli.p0 = NULL;

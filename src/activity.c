@@ -16,6 +16,8 @@
 #include <haproxy/clock.h>
 #include <haproxy/channel.h>
 #include <haproxy/cli.h>
+#include <haproxy/conn_stream.h>
+#include <haproxy/cs_utils.h>
 #include <haproxy/freq_ctr.h>
 #include <haproxy/stream_interface.h>
 #include <haproxy/tools.h>
@@ -610,13 +612,13 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 	unsigned long long tot_alloc_calls, tot_free_calls;
 	unsigned long long tot_alloc_bytes, tot_free_bytes;
 #endif
-	struct stream_interface *si = cs_si(appctx->owner);
+	struct conn_stream *cs = appctx->owner;
 	struct buffer *name_buffer = get_trash_chunk();
 	const char *str;
 	int max_lines;
 	int i, max;
 
-	if (unlikely(si_ic(si)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
+	if (unlikely(cs_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
 		return 1;
 
 	chunk_reset(&trash);
@@ -636,9 +638,9 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 	             "Memory usage profiling              : %-8s      # set profiling memory {on|off}\n",
 	             str, (profiling & HA_PROF_MEMORY) ? "on" : "off");
 
-	if (ci_putchk(si_ic(si), &trash) == -1) {
+	if (ci_putchk(cs_ic(cs), &trash) == -1) {
 		/* failed, try again */
-		si_rx_room_blk(si);
+		si_rx_room_blk(cs->si);
 		return 0;
 	}
 
@@ -686,16 +688,16 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 		print_time_short(&trash, "   ", tmp_activity[i].lat_time, "");
 		print_time_short(&trash, "   ", tmp_activity[i].lat_time / tmp_activity[i].calls, "\n");
 
-		if (ci_putchk(si_ic(si), &trash) == -1) {
+		if (ci_putchk(cs_ic(cs), &trash) == -1) {
 			/* failed, try again */
-			si_rx_room_blk(si);
+			si_rx_room_blk(cs->si);
 			return 0;
 		}
 	}
 
-	if (ci_putchk(si_ic(si), &trash) == -1) {
+	if (ci_putchk(cs_ic(cs), &trash) == -1) {
 		/* failed, try again */
-		si_rx_room_blk(si);
+		si_rx_room_blk(cs->si);
 		return 0;
 	}
 
@@ -751,14 +753,14 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 
 		chunk_appendf(&trash, "\n");
 
-		if (ci_putchk(si_ic(si), &trash) == -1) {
-			si_rx_room_blk(si);
+		if (ci_putchk(cs_ic(cs), &trash) == -1) {
+			si_rx_room_blk(cs->si);
 			return 0;
 		}
 	}
 
-	if (ci_putchk(si_ic(si), &trash) == -1) {
-		si_rx_room_blk(si);
+	if (ci_putchk(cs_ic(cs), &trash) == -1) {
+		si_rx_room_blk(cs->si);
 		return 0;
 	}
 
@@ -778,8 +780,8 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 		      tot_alloc_calls - tot_free_calls,
 		      tot_alloc_bytes - tot_free_bytes);
 
-	if (ci_putchk(si_ic(si), &trash) == -1) {
-		si_rx_room_blk(si);
+	if (ci_putchk(cs_ic(cs), &trash) == -1) {
+		si_rx_room_blk(cs->si);
 		return 0;
 	}
 
@@ -837,7 +839,7 @@ static int cli_parse_show_profiling(char **args, char *payload, struct appctx *a
 static int cli_io_handler_show_tasks(struct appctx *appctx)
 {
 	struct sched_activity tmp_activity[256] __attribute__((aligned(64)));
-	struct stream_interface *si = cs_si(appctx->owner);
+	struct conn_stream *cs = appctx->owner;
 	struct buffer *name_buffer = get_trash_chunk();
 	struct sched_activity *entry;
 	const struct tasklet *tl;
@@ -848,7 +850,7 @@ static int cli_io_handler_show_tasks(struct appctx *appctx)
 	int thr, queue;
 	int i, max;
 
-	if (unlikely(si_ic(si)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
+	if (unlikely(cs_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
 		return 1;
 
 	/* It's not possible to scan queues in small chunks and yield in the
@@ -964,9 +966,9 @@ static int cli_io_handler_show_tasks(struct appctx *appctx)
 		print_time_short(&trash, "   ", tmp_activity[i].lat_time / tmp_activity[i].calls, "\n");
 	}
 
-	if (ci_putchk(si_ic(si), &trash) == -1) {
+	if (ci_putchk(cs_ic(cs), &trash) == -1) {
 		/* failed, try again */
-		si_rx_room_blk(si);
+		si_rx_room_blk(cs->si);
 		return 0;
 	}
 	return 1;

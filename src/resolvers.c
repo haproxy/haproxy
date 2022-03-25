@@ -27,6 +27,8 @@
 #include <haproxy/channel.h>
 #include <haproxy/check.h>
 #include <haproxy/cli.h>
+#include <haproxy/conn_stream.h>
+#include <haproxy/cs_utils.h>
 #include <haproxy/dns.h>
 #include <haproxy/errors.h>
 #include <haproxy/fd.h>
@@ -2581,13 +2583,13 @@ static int resolvers_finalize_config(void)
 
 }
 
-static int stats_dump_resolv_to_buffer(struct stream_interface *si,
+static int stats_dump_resolv_to_buffer(struct conn_stream *cs,
                                     struct dns_nameserver *ns,
                                     struct field *stats, size_t stats_count,
                                     struct list *stat_modules)
 {
-	struct appctx *appctx = __cs_appctx(si->cs);
-	struct channel *rep = si_ic(si);
+	struct appctx *appctx = __cs_appctx(cs);
+	struct channel *rep = cs_ic(cs);
 	struct stats_module *mod;
 	size_t idx = 0;
 
@@ -2609,19 +2611,19 @@ static int stats_dump_resolv_to_buffer(struct stream_interface *si,
 	return 1;
 
   full:
-	si_rx_room_rdy(si);
+	si_rx_room_rdy(cs->si);
 	return 0;
 }
 
 /* Uses <appctx.ctx.stats.obj1> as a pointer to the current resolver and <obj2>
  * as a pointer to the current nameserver.
  */
-int stats_dump_resolvers(struct stream_interface *si,
+int stats_dump_resolvers(struct conn_stream *cs,
                          struct field *stats, size_t stats_count,
                          struct list *stat_modules)
 {
-	struct appctx *appctx = __cs_appctx(si->cs);
-	struct channel *rep = si_ic(si);
+	struct appctx *appctx = __cs_appctx(cs);
+	struct channel *rep = cs_ic(cs);
 	struct resolvers *resolver = appctx->ctx.stats.obj1;
 	struct dns_nameserver *ns = appctx->ctx.stats.obj2;
 
@@ -2642,7 +2644,7 @@ int stats_dump_resolvers(struct stream_interface *si,
 			if (buffer_almost_full(&rep->buf))
 				goto full;
 
-			if (!stats_dump_resolv_to_buffer(si, ns,
+			if (!stats_dump_resolv_to_buffer(cs, ns,
 			                                 stats, stats_count,
 			                                 stat_modules)) {
 				return 0;
@@ -2655,7 +2657,7 @@ int stats_dump_resolvers(struct stream_interface *si,
 	return 1;
 
   full:
-	si_rx_room_blk(si);
+	si_rx_room_blk(cs->si);
 	return 0;
 }
 
@@ -2745,7 +2747,7 @@ static int cli_parse_stat_resolvers(char **args, char *payload, struct appctx *a
  */
 static int cli_io_handler_dump_resolvers_to_buffer(struct appctx *appctx)
 {
-	struct stream_interface *si = cs_si(appctx->owner);
+	struct conn_stream *cs = appctx->owner;
 	struct resolvers    *resolvers;
 	struct dns_nameserver   *ns;
 
@@ -2789,11 +2791,11 @@ static int cli_io_handler_dump_resolvers_to_buffer(struct appctx *appctx)
 		}
 
 		/* display response */
-		if (ci_putchk(si_ic(si), &trash) == -1) {
+		if (ci_putchk(cs_ic(cs), &trash) == -1) {
 			/* let's try again later from this session. We add ourselves into
 			 * this session's users so that it can remove us upon termination.
 			 */
-			si_rx_room_blk(si);
+			si_rx_room_blk(cs->si);
 			return 0;
 		}
 		/* fall through */

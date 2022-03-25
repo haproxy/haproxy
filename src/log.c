@@ -28,6 +28,8 @@
 #include <haproxy/applet-t.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/clock.h>
+#include <haproxy/conn_stream.h>
+#include <haproxy/cs_utils.h>
 #include <haproxy/fd.h>
 #include <haproxy/frontend.h>
 #include <haproxy/global.h>
@@ -3562,8 +3564,8 @@ out:
 static void syslog_io_handler(struct appctx *appctx)
 {
 	static THREAD_LOCAL struct ist metadata[LOG_META_FIELDS];
-	struct stream_interface *si = cs_si(appctx->owner);
-	struct stream *s = si_strm(si);
+	struct conn_stream *cs = appctx->owner;
+	struct stream *s = __cs_strm(cs);
 	struct proxy *frontend = strm_fe(s);
 	struct listener *l = strm_li(s);
 	struct buffer *buf = get_trash_chunk();
@@ -3575,14 +3577,14 @@ static void syslog_io_handler(struct appctx *appctx)
 	size_t size;
 
 	max_accept = l->maxaccept ? l->maxaccept : 1;
-	while (co_data(si_oc(si))) {
+	while (co_data(cs_oc(cs))) {
 		char c;
 
 		if (max_accept <= 0)
 			goto missing_budget;
 		max_accept--;
 
-		to_skip = co_getchar(si_oc(si), &c);
+		to_skip = co_getchar(cs_oc(cs), &c);
 		if (!to_skip)
 			goto missing_data;
 		else if (to_skip < 0)
@@ -3592,7 +3594,7 @@ static void syslog_io_handler(struct appctx *appctx)
 			/* rfc-6587, Non-Transparent-Framing: messages separated by
 			 * a trailing LF or CR LF
 			 */
-			to_skip = co_getline(si_oc(si), buf->area, buf->size);
+			to_skip = co_getline(cs_oc(cs), buf->area, buf->size);
 			if (!to_skip)
 				goto missing_data;
 			else if (to_skip < 0)
@@ -3616,7 +3618,7 @@ static void syslog_io_handler(struct appctx *appctx)
 			char *p = NULL;
 			int msglen;
 
-			to_skip = co_getword(si_oc(si), buf->area, buf->size, ' ');
+			to_skip = co_getword(cs_oc(cs), buf->area, buf->size, ' ');
 			if (!to_skip)
 				goto missing_data;
 			else if (to_skip < 0)
@@ -3633,7 +3635,7 @@ static void syslog_io_handler(struct appctx *appctx)
 			if (msglen > buf->size)
 				goto parse_error;
 
-			msglen = co_getblk(si_oc(si), buf->area, msglen, to_skip);
+			msglen = co_getblk(cs_oc(cs), buf->area, msglen, to_skip);
 			if (!msglen)
 				goto missing_data;
 			else if (msglen < 0)
@@ -3646,7 +3648,7 @@ static void syslog_io_handler(struct appctx *appctx)
 		else
 			goto parse_error;
 
-		co_skip(si_oc(si), to_skip);
+		co_skip(cs_oc(cs), to_skip);
 
 		/* update counters */
 		_HA_ATOMIC_INC(&cum_log_messages);
@@ -3660,7 +3662,7 @@ static void syslog_io_handler(struct appctx *appctx)
 
 missing_data:
 	/* we need more data to read */
-	si_oc(si)->flags |= CF_READ_DONTWAIT;
+	cs_oc(cs)->flags |= CF_READ_DONTWAIT;
 
 	return;
 
@@ -3683,10 +3685,10 @@ cli_abort:
 	_HA_ATOMIC_INC(&frontend->fe_counters.cli_aborts);
 
 close:
-	si_shutw(si);
-	si_shutr(si);
+	si_shutw(cs->si);
+	si_shutr(cs->si);
 
-	si_ic(si)->flags |= CF_READ_NULL;
+	cs_ic(cs)->flags |= CF_READ_NULL;
 
 	return;
 }

@@ -22,6 +22,8 @@
 
 #include <haproxy/channel.h>
 #include <haproxy/cli.h>
+#include <haproxy/conn_stream.h>
+#include <haproxy/cs_utils.h>
 #include <haproxy/errors.h>
 #include <haproxy/ssl_ckch.h>
 #include <haproxy/ssl_crtlist.h>
@@ -887,7 +889,7 @@ static void dump_crtlist_filters(struct buffer *buf, struct crtlist_entry *entry
 static int cli_io_handler_dump_crtlist(struct appctx *appctx)
 {
 	struct buffer *trash = alloc_trash_chunk();
-	struct stream_interface *si = cs_si(appctx->owner);
+	struct conn_stream *cs = appctx->owner;
 	struct ebmb_node *lnode;
 
 	if (trash == NULL)
@@ -899,8 +901,8 @@ static int cli_io_handler_dump_crtlist(struct appctx *appctx)
 		lnode = ebmb_first(&crtlists_tree);
 	while (lnode) {
 		chunk_appendf(trash, "%s\n", lnode->key);
-		if (ci_putchk(si_ic(si), trash) == -1) {
-			si_rx_room_blk(si);
+		if (ci_putchk(cs_ic(cs), trash) == -1) {
+			si_rx_room_blk(cs->si);
 			goto yield;
 		}
 		lnode = ebmb_next(lnode);
@@ -918,7 +920,7 @@ static int cli_io_handler_dump_crtlist_entries(struct appctx *appctx)
 {
 	struct buffer *trash = alloc_trash_chunk();
 	struct crtlist *crtlist;
-	struct stream_interface *si = cs_si(appctx->owner);
+	struct conn_stream *cs = appctx->owner;
 	struct crtlist_entry *entry;
 
 	if (trash == NULL)
@@ -930,8 +932,8 @@ static int cli_io_handler_dump_crtlist_entries(struct appctx *appctx)
 	if (entry == NULL) {
 		entry = LIST_ELEM((crtlist->ord_entries).n, typeof(entry), by_crtlist);
 		chunk_appendf(trash, "# %s\n", crtlist->node.key);
-		if (ci_putchk(si_ic(si), trash) == -1) {
-			si_rx_room_blk(si);
+		if (ci_putchk(cs_ic(cs), trash) == -1) {
+			si_rx_room_blk(cs->si);
 			goto yield;
 		}
 	}
@@ -949,8 +951,8 @@ static int cli_io_handler_dump_crtlist_entries(struct appctx *appctx)
 		dump_crtlist_filters(trash, entry);
 		chunk_appendf(trash, "\n");
 
-		if (ci_putchk(si_ic(si), trash) == -1) {
-			si_rx_room_blk(si);
+		if (ci_putchk(cs_ic(cs), trash) == -1) {
+			si_rx_room_blk(cs->si);
 			goto yield;
 		}
 	}
@@ -1041,7 +1043,7 @@ static void cli_release_add_crtlist(struct appctx *appctx)
 static int cli_io_handler_add_crtlist(struct appctx *appctx)
 {
 	struct bind_conf_list *bind_conf_node;
-	struct stream_interface *si = cs_si(appctx->owner);
+	struct conn_stream *cs = appctx->owner;
 	struct crtlist *crtlist = appctx->ctx.cli.p0;
 	struct crtlist_entry *entry = appctx->ctx.cli.p1;
 	struct ckch_store *store = entry->node.key;
@@ -1057,7 +1059,7 @@ static int cli_io_handler_add_crtlist(struct appctx *appctx)
 	/* for each bind_conf which use the crt-list, a new ckch_inst must be
 	 * created.
 	 */
-	if (unlikely(si_ic(si)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
+	if (unlikely(cs_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
 		goto error;
 
 	while (1) {
@@ -1065,8 +1067,8 @@ static int cli_io_handler_add_crtlist(struct appctx *appctx)
 			case SETCERT_ST_INIT:
 				/* This state just print the update message */
 				chunk_printf(trash, "Inserting certificate '%s' in crt-list '%s'", store->path, crtlist->node.key);
-				if (ci_putchk(si_ic(si), trash) == -1) {
-					si_rx_room_blk(si);
+				if (ci_putchk(cs_ic(cs), trash) == -1) {
+					si_rx_room_blk(cs->si);
 					goto yield;
 				}
 				appctx->st2 = SETCERT_ST_GEN;
@@ -1126,25 +1128,25 @@ end:
 	if (errcode & ERR_WARN)
 		chunk_appendf(trash, "%s", err);
 	chunk_appendf(trash, "Success!\n");
-	if (ci_putchk(si_ic(si), trash) == -1)
-		si_rx_room_blk(si);
+	if (ci_putchk(cs_ic(cs), trash) == -1)
+		si_rx_room_blk(cs->si);
 	free_trash_chunk(trash);
 	/* success: call the release function and don't come back */
 	return 1;
 yield:
 	/* store the state */
-	if (ci_putchk(si_ic(si), trash) == -1)
-		si_rx_room_blk(si);
+	if (ci_putchk(cs_ic(cs), trash) == -1)
+		si_rx_room_blk(cs->si);
 	free_trash_chunk(trash);
-	si_rx_endp_more(si); /* let's come back later */
+	si_rx_endp_more(cs->si); /* let's come back later */
 	return 0; /* should come back */
 
 error:
 	/* spin unlock and free are done in the release function */
 	if (trash) {
 		chunk_appendf(trash, "\n%sFailed!\n", err);
-		if (ci_putchk(si_ic(si), trash) == -1)
-			si_rx_room_blk(si);
+		if (ci_putchk(cs_ic(cs), trash) == -1)
+			si_rx_room_blk(cs->si);
 		free_trash_chunk(trash);
 	}
 	/* error: call the release function and don't come back */

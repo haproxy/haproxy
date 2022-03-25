@@ -19,6 +19,8 @@
 #include <haproxy/cfgparse.h>
 #include <haproxy/channel.h>
 #include <haproxy/cli.h>
+#include <haproxy/conn_stream.h>
+#include <haproxy/cs_utils.h>
 #include <haproxy/errors.h>
 #include <haproxy/global.h>
 #include <haproxy/list.h>
@@ -1004,11 +1006,11 @@ int pool_parse_debugging(const char *str, char **err)
  */
 static int cli_io_handler_dump_pools(struct appctx *appctx)
 {
-	struct stream_interface *si = cs_si(appctx->owner);
+	struct conn_stream *cs = appctx->owner;
 
 	dump_pools_to_trash();
-	if (ci_putchk(si_ic(si), &trash) == -1) {
-		si_rx_room_blk(si);
+	if (ci_putchk(cs_ic(cs), &trash) == -1) {
+		si_rx_room_blk(cs->si);
 		return 0;
 	}
 	return 1;

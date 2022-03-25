@@ -28,6 +28,8 @@
 #include <haproxy/backend.h>
 #include <haproxy/channel.h>
 #include <haproxy/check.h>
+#include <haproxy/conn_stream.h>
+#include <haproxy/cs_utils.h>
 #include <haproxy/frontend.h>
 #include <haproxy/global.h>
 #include <haproxy/hash.h>
@@ -1720,7 +1722,7 @@ skip_reuse:
 	    ((cli_conn->flags & CO_FL_EARLY_DATA) ||
 	     ((s->be->retry_type & PR_RE_EARLY_ERROR) &&
 	      cs_si(s->csb)->conn_retries == s->be->conn_retries)) &&
-	    !channel_is_empty(si_oc(cs_si(s->csb))) &&
+	    !channel_is_empty(cs_oc(s->csb)) &&
 	    srv_conn->flags & CO_FL_SSL_WAIT_HS)
 		srv_conn->flags &= ~(CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN);
 #endif
@@ -1757,7 +1759,7 @@ skip_reuse:
 	if (!si_state_in(cs_si(s->csb)->state, SI_SB_EST|SI_SB_DIS|SI_SB_CLO) &&
 	    (srv_conn->flags & CO_FL_WAIT_XPRT) == 0) {
 		cs_si(s->csb)->exp = TICK_ETERNITY;
-		si_oc(cs_si(s->csb))->flags |= CF_WRITE_NULL;
+		cs_oc(s->csb)->flags |= CF_WRITE_NULL;
 		if (cs_si(s->csb)->state == SI_ST_CON)
 			cs_si(s->csb)->state = SI_ST_RDY;
 	}
@@ -1769,8 +1771,8 @@ skip_reuse:
 	 *       wake callback. Otherwise si_cs_recv()/si_cs_send() already take
 	 *       care of it.
 	 */
-	if ((s->csb->endp->flags & CS_EP_EOI) && !(si_ic(cs_si(s->csb))->flags & CF_EOI))
-		si_ic(cs_si(s->csb))->flags |= (CF_EOI|CF_READ_PARTIAL);
+	if ((s->csb->endp->flags & CS_EP_EOI) && !(cs_ic(s->csb)->flags & CF_EOI))
+		cs_ic(s->csb)->flags |= (CF_EOI|CF_READ_PARTIAL);
 
 	/* catch all sync connect while the mux is not already installed */
 	if (!srv_conn->mux && !(srv_conn->flags & CO_FL_WAIT_XPRT)) {
@@ -1888,12 +1890,12 @@ static int back_may_abort_req(struct channel *req, struct stream *s)
 void back_try_conn_req(struct stream *s)
 {
 	struct server *srv = objt_server(s->target);
-	struct stream_interface *si = cs_si(s->csb);
+	struct conn_stream *cs = s->csb;
 	struct channel *req = &s->req;
 
 	DBG_TRACE_ENTER(STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
 
-	if (si->state == SI_ST_ASS) {
+	if (cs->si->state == SI_ST_ASS) {
 		/* Server assigned to connection request, we have to try to connect now */
 		int conn_err;
 
@@ -1901,7 +1903,7 @@ void back_try_conn_req(struct stream *s)
 		 * request may be aborted instead.
 		 */
 		if (back_may_abort_req(req, s)) {
-			si->err_type |= SI_ET_CONN_ABRT;
+			cs->si->err_type |= SI_ET_CONN_ABRT;
 			DBG_TRACE_STATE("connection aborted", STRM_EV_STRM_PROC|STRM_EV_SI_ST|STRM_EV_STRM_ERR, s);
 			goto abort_connection;
 		}
@@ -1923,8 +1925,8 @@ void back_try_conn_req(struct stream *s)
 		 * abort, retry immediately or redispatch.
 		 */
 		if (conn_err == SF_ERR_INTERNAL) {
-			if (!si->err_type) {
-				si->err_type = SI_ET_CONN_OTHER;
+			if (!cs->si->err_type) {
+				cs->si->err_type = SI_ET_CONN_OTHER;
 			}
 
 			if (srv)
@@ -1941,8 +1943,8 @@ void back_try_conn_req(struct stream *s)
 				process_srv_queue(srv);
 
 			/* Failed and not retryable. */
-			si_shutr(si);
-			si_shutw(si);
+			si_shutr(cs->si);
+			si_shutw(cs->si);
 			req->flags |= CF_WRITE_ERROR;
 
 			s->logs.t_queue = tv_ms_elapsed(&s->logs.tv_accept, &now);
@@ -1951,9 +1953,9 @@ void back_try_conn_req(struct stream *s)
 			pendconn_cond_unlink(s->pend_pos);
 
 			/* no stream was ever accounted for this server */
-			si->state = SI_ST_CLO;
+			cs->si->state = SI_ST_CLO;
 			if (s->srv_error)
-				s->srv_error(s, si);
+				s->srv_error(s, cs->si);
 			DBG_TRACE_STATE("internal error during connection", STRM_EV_STRM_PROC|STRM_EV_SI_ST|STRM_EV_STRM_ERR, s);
 			goto end;
 		}
@@ -1962,14 +1964,14 @@ void back_try_conn_req(struct stream *s)
 		 * turn-around now, as the problem is likely a source port
 		 * allocation problem, so we want to retry now.
 		 */
-		si->state = SI_ST_CER;
-		si->flags &= ~SI_FL_ERR;
+		cs->si->state = SI_ST_CER;
+		cs->si->flags &= ~SI_FL_ERR;
 		back_handle_st_cer(s);
 
 		DBG_TRACE_STATE("connection error, retry", STRM_EV_STRM_PROC|STRM_EV_SI_ST|STRM_EV_STRM_ERR, s);
 		/* now si->state is one of SI_ST_CLO, SI_ST_TAR, SI_ST_ASS, SI_ST_REQ */
 	}
-	else if (si->state == SI_ST_QUE) {
+	else if (cs->si->state == SI_ST_QUE) {
 		/* connection request was queued, check for any update */
 		if (!pendconn_dequeue(s)) {
 			/* The connection is not in the queue anymore. Either
@@ -1977,22 +1979,22 @@ void back_try_conn_req(struct stream *s)
 			 * go directly to the assigned state, or we need to
 			 * load-balance first and go to the INI state.
 			 */
-			si->exp = TICK_ETERNITY;
+			cs->si->exp = TICK_ETERNITY;
 			if (unlikely(!(s->flags & SF_ASSIGNED)))
-				si->state = SI_ST_REQ;
+				cs->si->state = SI_ST_REQ;
 			else {
 				s->logs.t_queue = tv_ms_elapsed(&s->logs.tv_accept, &now);
-				si->state = SI_ST_ASS;
+				cs->si->state = SI_ST_ASS;
 			}
 			DBG_TRACE_STATE("dequeue connection request", STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
 			goto end;
 		}
 
 		/* Connection request still in queue... */
-		if (si->flags & SI_FL_EXP) {
+		if (cs->si->flags & SI_FL_EXP) {
 			/* ... and timeout expired */
-			si->exp = TICK_ETERNITY;
-			si->flags &= ~SI_FL_EXP;
+			cs->si->exp = TICK_ETERNITY;
+			cs->si->flags &= ~SI_FL_EXP;
 			s->logs.t_queue = tv_ms_elapsed(&s->logs.tv_accept, &now);
 
 			/* we may need to know the position in the queue for logging */
@@ -2001,14 +2003,14 @@ void back_try_conn_req(struct stream *s)
 			if (srv)
 				_HA_ATOMIC_INC(&srv->counters.failed_conns);
 			_HA_ATOMIC_INC(&s->be->be_counters.failed_conns);
-			si_shutr(si);
-			si_shutw(si);
+			si_shutr(cs->si);
+			si_shutw(cs->si);
 			req->flags |= CF_WRITE_TIMEOUT;
-			if (!si->err_type)
-				si->err_type = SI_ET_QUEUE_TO;
-			si->state = SI_ST_CLO;
+			if (!cs->si->err_type)
+				cs->si->err_type = SI_ET_QUEUE_TO;
+			cs->si->state = SI_ST_CLO;
 			if (s->srv_error)
-				s->srv_error(s, si);
+				s->srv_error(s, cs->si);
 			DBG_TRACE_STATE("connection request still queued", STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
 			goto end;
 		}
@@ -2020,35 +2022,35 @@ void back_try_conn_req(struct stream *s)
 			/* we may need to know the position in the queue for logging */
 			pendconn_cond_unlink(s->pend_pos);
 
-			si->err_type |= SI_ET_QUEUE_ABRT;
+			cs->si->err_type |= SI_ET_QUEUE_ABRT;
 			DBG_TRACE_STATE("abort queued connection request", STRM_EV_STRM_PROC|STRM_EV_SI_ST|STRM_EV_STRM_ERR, s);
 			goto abort_connection;
 		}
 
 		/* Nothing changed */
 	}
-	else if (si->state == SI_ST_TAR) {
+	else if (cs->si->state == SI_ST_TAR) {
 		/* Connection request might be aborted */
 		if (back_may_abort_req(req, s)) {
-			si->err_type |= SI_ET_CONN_ABRT;
+			cs->si->err_type |= SI_ET_CONN_ABRT;
 			DBG_TRACE_STATE("connection aborted", STRM_EV_STRM_PROC|STRM_EV_SI_ST|STRM_EV_STRM_ERR, s);
 			goto abort_connection;
 		}
 
-		if (!(si->flags & SI_FL_EXP))
+		if (!(cs->si->flags & SI_FL_EXP))
 			return;  /* still in turn-around */
 
-		si->flags &= ~SI_FL_EXP;
-		si->exp = TICK_ETERNITY;
+		cs->si->flags &= ~SI_FL_EXP;
+		cs->si->exp = TICK_ETERNITY;
 
 		/* we keep trying on the same server as long as the stream is
 		 * marked "assigned".
 		 * FIXME: Should we force a redispatch attempt when the server is down ?
 		 */
 		if (s->flags & SF_ASSIGNED)
-			si->state = SI_ST_ASS;
+			cs->si->state = SI_ST_ASS;
 		else
-			si->state = SI_ST_REQ;
+			cs->si->state = SI_ST_REQ;
 
 		DBG_TRACE_STATE("retry connection now", STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
 	}
@@ -2059,13 +2061,13 @@ void back_try_conn_req(struct stream *s)
 
 abort_connection:
 	/* give up */
-	si->exp = TICK_ETERNITY;
-	si->flags &= ~SI_FL_EXP;
-	si_shutr(si);
-	si_shutw(si);
-	si->state = SI_ST_CLO;
+	cs->si->exp = TICK_ETERNITY;
+	cs->si->flags &= ~SI_FL_EXP;
+	si_shutr(cs->si);
+	si_shutw(cs->si);
+	cs->si->state = SI_ST_CLO;
 	if (s->srv_error)
-		s->srv_error(s, si);
+		s->srv_error(s, cs->si);
 	DBG_TRACE_DEVEL("leaving on error", STRM_EV_STRM_PROC|STRM_EV_SI_ST|STRM_EV_STRM_ERR, s);
 	return;
 }
@@ -2078,9 +2080,9 @@ abort_connection:
  */
 void back_handle_st_req(struct stream *s)
 {
-	struct stream_interface *si = cs_si(s->csb);
+	struct conn_stream *cs = s->csb;
 
-	if (si->state != SI_ST_REQ)
+	if (cs->si->state != SI_ST_REQ)
 		return;
 
 	DBG_TRACE_ENTER(STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
@@ -2090,7 +2092,7 @@ void back_handle_st_req(struct stream *s)
 		struct appctx *appctx = cs_appctx(s->csb);
 
 		if (!appctx || appctx->applet != __objt_applet(s->target))
-			appctx = si_register_handler(si, objt_applet(s->target));
+			appctx = si_register_handler(cs->si, objt_applet(s->target));
 
 		if (!appctx) {
 			/* No more memory, let's immediately abort. Force the
@@ -2099,13 +2101,13 @@ void back_handle_st_req(struct stream *s)
 			 */
 			s->flags &= ~(SF_ERR_MASK | SF_FINST_MASK);
 
-			si_shutr(si);
-			si_shutw(si);
+			si_shutr(cs->si);
+			si_shutw(cs->si);
 			s->req.flags |= CF_WRITE_ERROR;
-			si->err_type = SI_ET_CONN_RES;
-			si->state = SI_ST_CLO;
+			cs->si->err_type = SI_ET_CONN_RES;
+			cs->si->state = SI_ST_CLO;
 			if (s->srv_error)
-				s->srv_error(s, si);
+				s->srv_error(s, cs->si);
 			DBG_TRACE_STATE("failed to register applet", STRM_EV_STRM_PROC|STRM_EV_SI_ST|STRM_EV_STRM_ERR, s);
 			goto end;
 		}
@@ -2113,8 +2115,8 @@ void back_handle_st_req(struct stream *s)
 		if (tv_iszero(&s->logs.tv_request))
 			s->logs.tv_request = now;
 		s->logs.t_queue   = tv_ms_elapsed(&s->logs.tv_accept, &now);
-		si->state         = SI_ST_EST;
-		si->err_type      = SI_ET_NONE;
+		cs->si->state     = SI_ST_EST;
+		cs->si->err_type   = SI_ET_NONE;
 		be_set_sess_last(s->be);
 
 		DBG_TRACE_STATE("applet registered", STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
@@ -2127,27 +2129,27 @@ void back_handle_st_req(struct stream *s)
 		/* We did not get a server. Either we queued the
 		 * connection request, or we encountered an error.
 		 */
-		if (si->state == SI_ST_QUE) {
+		if (cs->si->state == SI_ST_QUE) {
 			DBG_TRACE_STATE("connection request queued", STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
 			goto end;
 		}
 
 		/* we did not get any server, let's check the cause */
-		si_shutr(si);
-		si_shutw(si);
+		si_shutr(cs->si);
+		si_shutw(cs->si);
 		s->req.flags |= CF_WRITE_ERROR;
-		if (!si->err_type)
-			si->err_type = SI_ET_CONN_OTHER;
-		si->state = SI_ST_CLO;
+		if (!cs->si->err_type)
+			cs->si->err_type = SI_ET_CONN_OTHER;
+		cs->si->state = SI_ST_CLO;
 		if (s->srv_error)
-			s->srv_error(s, si);
+			s->srv_error(s, cs->si);
 		DBG_TRACE_STATE("connection request failed", STRM_EV_STRM_PROC|STRM_EV_SI_ST|STRM_EV_STRM_ERR, s);
 		goto end;
 	}
 
 	/* The server is assigned */
 	s->logs.t_queue = tv_ms_elapsed(&s->logs.tv_accept, &now);
-	si->state = SI_ST_ASS;
+	cs->si->state = SI_ST_ASS;
 	be_set_sess_last(s->be);
 	DBG_TRACE_STATE("connection request assigned to a server", STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
 
@@ -2164,7 +2166,7 @@ void back_handle_st_req(struct stream *s)
  */
 void back_handle_st_con(struct stream *s)
 {
-	struct stream_interface *si = cs_si(s->csb);
+	struct conn_stream *cs = s->csb;
 	struct channel *req = &s->req;
 	struct channel *rep = &s->res;
 
@@ -2174,11 +2176,11 @@ void back_handle_st_con(struct stream *s)
 	if ((rep->flags & CF_SHUTW) ||
 	    ((req->flags & CF_SHUTW_NOW) &&
 	     (channel_is_empty(req) || (s->be->options & PR_O_ABRT_CLOSE)))) {
-		si->flags |= SI_FL_NOLINGER;
-		si_shutw(si);
-		si->err_type |= SI_ET_CONN_ABRT;
+		cs->si->flags |= SI_FL_NOLINGER;
+		si_shutw(cs->si);
+		cs->si->err_type |= SI_ET_CONN_ABRT;
 		if (s->srv_error)
-			s->srv_error(s, si);
+			s->srv_error(s, cs->si);
 		/* Note: state = SI_ST_DIS now */
 		DBG_TRACE_STATE("client abort during connection attempt", STRM_EV_STRM_PROC|STRM_EV_SI_ST|STRM_EV_STRM_ERR, s);
 		goto end;
@@ -2186,15 +2188,15 @@ void back_handle_st_con(struct stream *s)
 
  done:
 	/* retryable error ? */
-	if (si->flags & (SI_FL_EXP|SI_FL_ERR)) {
-		if (!si->err_type) {
-			if (si->flags & SI_FL_ERR)
-				si->err_type = SI_ET_CONN_ERR;
+	if (cs->si->flags & (SI_FL_EXP|SI_FL_ERR)) {
+		if (!cs->si->err_type) {
+			if (cs->si->flags & SI_FL_ERR)
+				cs->si->err_type = SI_ET_CONN_ERR;
 			else
-				si->err_type = SI_ET_CONN_TO;
+				cs->si->err_type = SI_ET_CONN_TO;
 		}
 
-		si->state  = SI_ST_CER;
+		cs->si->state  = SI_ST_CER;
 		DBG_TRACE_STATE("connection failed, retry", STRM_EV_STRM_PROC|STRM_EV_SI_ST|STRM_EV_STRM_ERR, s);
 	}
 
@@ -2213,16 +2215,16 @@ void back_handle_st_con(struct stream *s)
  */
 void back_handle_st_cer(struct stream *s)
 {
-	struct stream_interface *si = cs_si(s->csb);
+	struct conn_stream *cs = s->csb;
 
 	DBG_TRACE_ENTER(STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
 
-	si->exp    = TICK_ETERNITY;
-	si->flags &= ~SI_FL_EXP;
+	cs->si->exp    = TICK_ETERNITY;
+	cs->si->flags &= ~SI_FL_EXP;
 
 	/* we probably have to release last stream from the server */
 	if (objt_server(s->target)) {
-		struct connection *conn = cs_conn(s->csb);
+		struct connection *conn = cs_conn(cs);
 
 		health_adjust(__objt_server(s->target), HANA_STATUS_L4_ERR);
 
@@ -2231,7 +2233,7 @@ void back_handle_st_cer(struct stream *s)
 			_HA_ATOMIC_DEC(&__objt_server(s->target)->cur_sess);
 		}
 
-		if ((si->flags & SI_FL_ERR) &&
+		if ((cs->si->flags & SI_FL_ERR) &&
 		    conn && conn->err_code == CO_ER_SSL_MISMATCH_SNI) {
 			/* We tried to connect to a server which is configured
 			 * with "verify required" and which doesn't have the
@@ -2249,16 +2251,16 @@ void back_handle_st_cer(struct stream *s)
 			 * provided by the client and we don't want to let the
 			 * client provoke retries.
 			 */
-			si->conn_retries = 0;
+			cs->si->conn_retries = 0;
 			DBG_TRACE_DEVEL("Bad SSL cert, disable connection retries", STRM_EV_STRM_PROC|STRM_EV_SI_ST|STRM_EV_STRM_ERR, s);
 		}
 	}
 
 	/* ensure that we have enough retries left */
-	si->conn_retries--;
-	if (si->conn_retries < 0 || !(s->be->retry_type & PR_RE_CONN_FAILED)) {
-		if (!si->err_type) {
-			si->err_type = SI_ET_CONN_ERR;
+	cs->si->conn_retries--;
+	if (cs->si->conn_retries < 0 || !(s->be->retry_type & PR_RE_CONN_FAILED)) {
+		if (!cs->si->err_type) {
+			cs->si->err_type = SI_ET_CONN_ERR;
 		}
 
 		if (objt_server(s->target))
@@ -2269,13 +2271,13 @@ void back_handle_st_cer(struct stream *s)
 			process_srv_queue(objt_server(s->target));
 
 		/* shutw is enough so stop a connecting socket */
-		si_shutw(si);
+		si_shutw(cs->si);
 		s->req.flags |= CF_WRITE_ERROR;
 		s->res.flags |= CF_READ_ERROR;
 
-		si->state = SI_ST_CLO;
+		cs->si->state = SI_ST_CLO;
 		if (s->srv_error)
-			s->srv_error(s, si);
+			s->srv_error(s, cs->si);
 
 		DBG_TRACE_STATE("connection failed", STRM_EV_STRM_PROC|STRM_EV_SI_ST|STRM_EV_STRM_ERR, s);
 		goto end;
@@ -2291,9 +2293,9 @@ void back_handle_st_cer(struct stream *s)
 	 * Note: the stream-interface will be switched to ST_REQ, ST_ASS or
 	 * ST_TAR and SI_FL_ERR and SI_FL_EXP flags will be unset.
 	 */
-	if (cs_reset_endp(s->csb) < 0) {
-		if (!si->err_type)
-			si->err_type = SI_ET_CONN_OTHER;
+	if (cs_reset_endp(cs) < 0) {
+		if (!cs->si->err_type)
+			cs->si->err_type = SI_ET_CONN_OTHER;
 
 		if (objt_server(s->target))
 			_HA_ATOMIC_INC(&objt_server(s->target)->counters.internal_errors);
@@ -2303,13 +2305,13 @@ void back_handle_st_cer(struct stream *s)
 			process_srv_queue(objt_server(s->target));
 
 		/* shutw is enough so stop a connecting socket */
-		si_shutw(si);
+		si_shutw(cs->si);
 		s->req.flags |= CF_WRITE_ERROR;
 		s->res.flags |= CF_READ_ERROR;
 
-		si->state = SI_ST_CLO;
+		cs->si->state = SI_ST_CLO;
 		if (s->srv_error)
-			s->srv_error(s, si);
+			s->srv_error(s, cs->si);
 
 		DBG_TRACE_STATE("error resetting endpoint", STRM_EV_STRM_PROC|STRM_EV_SI_ST|STRM_EV_STRM_ERR, s);
 		goto end;
@@ -2317,7 +2319,7 @@ void back_handle_st_cer(struct stream *s)
 
 	stream_choose_redispatch(s);
 
-	if (si->flags & SI_FL_ERR) {
+	if (cs->si->flags & SI_FL_ERR) {
 		/* The error was an asynchronous connection error, and we will
 		 * likely have to retry connecting to the same server, most
 		 * likely leading to the same result. To avoid this, we wait
@@ -2333,17 +2335,17 @@ void back_handle_st_cer(struct stream *s)
 		if (s->be->timeout.connect && s->be->timeout.connect < delay)
 			delay = s->be->timeout.connect;
 
-		if (!si->err_type)
-			si->err_type = SI_ET_CONN_ERR;
+		if (!cs->si->err_type)
+			cs->si->err_type = SI_ET_CONN_ERR;
 
 		/* only wait when we're retrying on the same server */
-		if ((si->state == SI_ST_ASS ||
+		if ((cs->si->state == SI_ST_ASS ||
 		     (s->be->lbprm.algo & BE_LB_KIND) != BE_LB_KIND_RR ||
 		     (s->be->srv_act <= 1)) && !reused) {
-			si->state = SI_ST_TAR;
-			si->exp = tick_add(now_ms, MS_TO_TICKS(delay));
+			cs->si->state = SI_ST_TAR;
+			cs->si->exp = tick_add(now_ms, MS_TO_TICKS(delay));
 		}
-		si->flags &= ~SI_FL_ERR;
+		cs->si->flags &= ~SI_FL_ERR;
 		DBG_TRACE_STATE("retry a new connection", STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
 	}
 
@@ -2360,7 +2362,7 @@ void back_handle_st_cer(struct stream *s)
  */
 void back_handle_st_rdy(struct stream *s)
 {
-	struct stream_interface *si = cs_si(s->csb);
+	struct conn_stream *cs = s->csb;
 	struct channel *req = &s->req;
 	struct channel *rep = &s->res;
 
@@ -2389,20 +2391,20 @@ void back_handle_st_rdy(struct stream *s)
 		    ((req->flags & CF_SHUTW_NOW) &&
 		     (channel_is_empty(req) || (s->be->options & PR_O_ABRT_CLOSE)))) {
 			/* give up */
-			si->flags |= SI_FL_NOLINGER;
-			si_shutw(si);
-			si->err_type |= SI_ET_CONN_ABRT;
+			cs->si->flags |= SI_FL_NOLINGER;
+			si_shutw(cs->si);
+			cs->si->err_type |= SI_ET_CONN_ABRT;
 			if (s->srv_error)
-				s->srv_error(s, si);
+				s->srv_error(s, cs->si);
 			DBG_TRACE_STATE("client abort during connection attempt", STRM_EV_STRM_PROC|STRM_EV_SI_ST|STRM_EV_STRM_ERR, s);
 			goto end;
 		}
 
 		/* retryable error ? */
-		if (si->flags & SI_FL_ERR) {
-			if (!si->err_type)
-				si->err_type = SI_ET_CONN_ERR;
-			si->state = SI_ST_CER;
+		if (cs->si->flags & SI_FL_ERR) {
+			if (!cs->si->err_type)
+				cs->si->err_type = SI_ET_CONN_ERR;
+			cs->si->state = SI_ST_CER;
 			DBG_TRACE_STATE("connection failed, retry", STRM_EV_STRM_PROC|STRM_EV_SI_ST|STRM_EV_STRM_ERR, s);
 			goto end;
 		}
@@ -2412,8 +2414,8 @@ void back_handle_st_rdy(struct stream *s)
 	 * now take over.
 	 */
 	DBG_TRACE_STATE("connection established", STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
-	si->err_type = SI_ET_NONE;
-	si->state    = SI_ST_EST;
+	cs->si->err_type = SI_ET_NONE;
+	cs->si->state    = SI_ST_EST;
 
   end:
 	DBG_TRACE_LEAVE(STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);

@@ -26,6 +26,8 @@
 #include <haproxy/api.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/cli.h>
+#include <haproxy/conn_stream.h>
+#include <haproxy/cs_utils.h>
 #include <haproxy/errors.h>
 #include <haproxy/fd.h>
 #include <haproxy/global.h>
@@ -509,14 +511,14 @@ void mworker_cleanup_proc()
 /*  Displays workers and processes  */
 static int cli_io_handler_show_proc(struct appctx *appctx)
 {
-	struct stream_interface *si = cs_si(appctx->owner);
+	struct conn_stream *cs = appctx->owner;
 	struct mworker_proc *child;
 	int old = 0;
 	int up = now.tv_sec - proc_self->timestamp;
 	char *uptime = NULL;
 	char *reloadtxt = NULL;
 
-	if (unlikely(si_ic(si)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
+	if (unlikely(cs_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
 		return 1;
 
 	chunk_reset(&trash);
@@ -603,8 +605,8 @@ static int cli_io_handler_show_proc(struct appctx *appctx)
 
 
 
-	if (ci_putchk(si_ic(si), &trash) == -1) {
-		si_rx_room_blk(si);
+	if (ci_putchk(cs_ic(cs), &trash) == -1) {
+		si_rx_room_blk(cs->si);
 		return 0;
 	}
 
