@@ -1679,7 +1679,7 @@ int url2sa(const char *url, int ulen, struct sockaddr_storage *addr, struct spli
 		end++;
 
 		/* Decode port. */
-		if (*end == ':') {
+		if (end < url + ulen && *end == ':') {
 			end++;
 			default_port = read_uint(&end, url + ulen);
 		}
@@ -1712,7 +1712,7 @@ int url2sa(const char *url, int ulen, struct sockaddr_storage *addr, struct spli
 			curr += ret;
 
 			/* Decode port. */
-			if (*curr == ':') {
+			if (curr < url + ulen && *curr == ':') {
 				curr++;
 				default_port = read_uint(&curr, url + ulen);
 			}
@@ -1746,7 +1746,7 @@ int url2sa(const char *url, int ulen, struct sockaddr_storage *addr, struct spli
 			}
 
 			/* Decode port. */
-			if (*end == ':') {
+			if (end < url + ulen && *end == ':') {
 				end++;
 				default_port = read_uint(&end, url + ulen);
 			}
