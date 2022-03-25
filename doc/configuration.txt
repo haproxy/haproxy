@@ -11683,9 +11683,12 @@ stick-table type {ip | integer | string [len <length>] | binary [len <length>]}
       of keeping a cumulative number, they maintain the rate at which the
       counter is incremented. Most of the time it will be used to measure the
       frequency of occurrence of certain events (e.g. requests to a specific
-      URL). This array is limited to a maximum of 100 elements: gpc0 to gpc99,
-      to ensure that the build of a peer update message can fit into the
-      buffer. Users should take in consideration that a large amount of
+      URL). This array is limited to a maximum of 100 elements: gpt(100)
+      allowing the storage of gpc0 to gpc99, to ensure that the build of a peer
+      update message can fit into the buffer.
+      The array cannot contain less than 1 element: use gpc(1) if you want to
+      store only the counter gpc0.
+      Users should take in consideration that a large amount of
       counters will increase the data size and the traffic load using peers
       protocol since all data/counters are pushed each time any of them is
       updated.
@@ -11723,11 +11726,13 @@ stick-table type {ip | integer | string [len <length>] | binary [len <length>]}
       Most of the time they will be used to put a special tags on some entries,
       for instance to note that a specific behavior was detected and must be
       known for future matches. This array is limited to a maximum of 100
-      elements: gpt0 to gpt99, to ensure that the build of a peer update
-      message can fit into the buffer. Users should take in consideration
-      that a large amount of counters will increase the data size and the
-      traffic load using peers protocol since all data/counters are pushed
-      each time any of them is updated.
+      elements: gpt(100) allowing the storage of gpt0 to gpt99, to ensure that
+      the build of a peer update message can fit into the buffer.
+      The array cannot contain less than 1 element: use gpt(1) if you want to
+      to store only the tag gpt0.
+      Users should take in consideration that a large amount of counters will
+      increase the data size and the traffic load using peers protocol since
+      all data/counters are pushed each time any of them is updated.
       This data_type will exclude the usage of the legacy data_type 'gpt0'
       on the same table. Using the 'gpt' array data_type, all 'gpt0' related
       fetches and actions will apply to the first element of this array.
