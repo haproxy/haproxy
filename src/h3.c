@@ -33,8 +33,6 @@
 #include <haproxy/tools.h>
 #include <haproxy/xprt_quic.h>
 
-#define DEBUG_H3
-
 #if defined(DEBUG_H3)
 #define h3_debug_printf fprintf
 #define h3_debug_hexdump debug_hexdump
@@ -651,7 +649,7 @@ size_t h3_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t count, int 
 	int32_t idx;
 	int ret;
 
-	fprintf(stderr, "%s\n", __func__);
+	h3_debug_printf(stderr, "%s\n", __func__);
 
 	htx = htx_from_buf(buf);
 
