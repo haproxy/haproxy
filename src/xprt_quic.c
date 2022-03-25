@@ -177,6 +177,7 @@ static struct quic_tx_packet *qc_build_pkt(unsigned char **pos, const unsigned c
                                            struct quic_conn *qc, size_t dglen, int pkt_type,
                                            int padding, int probe, int cc, int *err);
 static struct task *quic_conn_app_io_cb(struct task *t, void *context, unsigned int state);
+static void qc_idle_timer_do_rearm(struct quic_conn *qc);
 static void qc_idle_timer_rearm(struct quic_conn *qc, int read);
 
 /* Only for debug purpose */
@@ -2576,6 +2577,20 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct ssl_sock_ctx *ct
 			break;
 		case QUIC_FT_CONNECTION_CLOSE:
 		case QUIC_FT_CONNECTION_CLOSE_APP:
+			if (!(qc->flags & QUIC_FL_CONN_DRAINING)) {
+				TRACE_PROTO("Entering draining state", QUIC_EV_CONN_PRSHPKT, qc);
+				/* RFC 9000 10.2. Immediate Close:
+				 * The closing and draining connection states exist to ensure
+				 * that connections close cleanly and that delayed or reordered
+				 * packets are properly discarded. These states SHOULD persist
+				 * for at least three times the current PTO interval...
+				 *
+				 * Rearm the idle timeout only one time when entering draining
+				 * state.
+				 */
+				qc_idle_timer_do_rearm(qc);
+				qc->flags |= QUIC_FL_CONN_DRAINING|QUIC_FL_CONN_IMMEDIATE_CLOSE;
+			}
 			/* warn the mux to close the connection */
 			if (qc->mux_state == QC_MUX_READY) {
 				qc->qcc->flags |= QC_CF_CC_RECV;
@@ -3555,9 +3570,14 @@ static struct task *quic_conn_app_io_cb(struct task *t, void *context, unsigned 
 	if (!qc_treat_rx_pkts(qel, NULL, ctx, 0))
 		goto err;
 
+	if ((qc->flags & QUIC_FL_CONN_DRAINING) &&
+	    !(qc->flags & QUIC_FL_CONN_IMMEDIATE_CLOSE))
+		goto out;
+
 	if (!qc_send_app_pkts(qc, &qel->pktns->tx.frms))
 		goto err;
 
+out:
 	return t;
 
  err:
@@ -3619,6 +3639,10 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 	if (!qc_treat_rx_pkts(qel, next_qel, ctx, force_ack))
 		goto err;
 
+	if ((qc->flags & QUIC_FL_CONN_DRAINING) &&
+	    !(qc->flags & QUIC_FL_CONN_IMMEDIATE_CLOSE))
+		goto out;
+
 	if (zero_rtt && next_qel && !MT_LIST_ISEMPTY(&next_qel->rx.pqpkts) &&
 	    (next_qel->tls_ctx.flags & QUIC_FL_TLS_SECRETS_SET)) {
 		qel = next_qel;
@@ -3676,7 +3700,9 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 		goto next_level;
 	}
 
-	MT_LIST_APPEND(qc->tx.qring_list, &qr->mt_list);
+ out:
+	if (qr)
+		MT_LIST_APPEND(qc->tx.qring_list, &qr->mt_list);
 	TRACE_LEAVE(QUIC_EV_CONN_IO_CB, qc, &st);
 	return t;
 
@@ -4031,21 +4057,27 @@ static int quic_conn_init_timer(struct quic_conn *qc)
 	return 1;
 }
 
+/* Rearm the idle timer for <qc> QUIC connection. */
+static void qc_idle_timer_do_rearm(struct quic_conn *qc)
+{
+	unsigned int expire;
+
+	expire = QUIC_MAX(3 * quic_pto(qc), qc->max_idle_timeout);
+	qc->idle_timer_task->expire = tick_add(now_ms, MS_TO_TICKS(expire));
+}
+
 /* Rearm the idle timer for <qc> QUIC connection depending on <read> boolean
  * which is set to 1 when receiving a packet , and 0 when sending packet
  */
 static void qc_idle_timer_rearm(struct quic_conn *qc, int read)
 {
-	unsigned int expire;
-
-	expire = QUIC_MAX(3 * quic_pto(qc), qc->max_idle_timeout);
 	if (read) {
 		qc->flags |= QUIC_FL_CONN_IDLE_TIMER_RESTARTED_AFTER_READ;
 	}
 	else {
 		qc->flags &= ~QUIC_FL_CONN_IDLE_TIMER_RESTARTED_AFTER_READ;
 	}
-	qc->idle_timer_task->expire = tick_add(now_ms, MS_TO_TICKS(expire));
+	qc_idle_timer_do_rearm(qc);
 }
 
 /* The task handling the idle timeout */
@@ -5551,6 +5583,8 @@ static struct quic_tx_packet *qc_build_pkt(unsigned char **pos,
 		pkt->in_flight_len = pkt->len;
 		qc->path->prep_in_flight += pkt->len;
 	}
+	/* Always reset this flags */
+	qc->flags &= ~QUIC_FL_CONN_IMMEDIATE_CLOSE;
 	if (pkt->flags & QUIC_FL_TX_PACKET_ACK) {
 		qel->pktns->flags &= ~QUIC_FL_PKTNS_ACK_REQUIRED;
 		qel->pktns->rx.nb_aepkts_since_last_ack = 0;
