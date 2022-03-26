@@ -13034,8 +13034,6 @@ timeout client <timeout>
   during startup because it may result in accumulation of expired sessions in
   the system if the system's timeouts are not configured either.
 
-  This also applies to HTTP/2 connections, which will be closed with GOAWAY.
-
   See also : "timeout server", "timeout tunnel", "timeout http-request".
 
 
@@ -13129,10 +13127,6 @@ timeout http-keep-alive <timeout>
   are not set, "timeout client" still applies at the lower level. It should be
   set in the frontend to take effect, unless the frontend is in TCP mode, in
   which case the HTTP backend's timeout will be used.
-
-  When using HTTP/2 "timeout client" is applied instead. This is so we can keep
-  using short keep-alive timeouts in HTTP/1.1 while using longer ones in HTTP/2
-  (where we only have one connection per client and a connection setup).
 
   See also : "timeout http-request", "timeout client".
 
