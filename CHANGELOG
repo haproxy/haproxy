@@ -1,6 +1,88 @@
 ChangeLog :
 ===========
 
+2022/03/26 : 2.6-dev4
+    - BUG/MEDIUM: httpclient: don't consume data before it was analyzed
+    - CLEANUP: htx: remove unused co_htx_remove_blk()
+    - BUG/MINOR: httpclient: consume partly the blocks when necessary
+    - BUG/MINOR: httpclient: remove the UNUSED block when parsing headers
+    - BUG/MEDIUM: httpclient: must manipulate head, not first
+    - REGTESTS: fix the race conditions in be2hex.vtc
+    - BUG/MEDIUM: quic: Blocked STREAM when retransmitted
+    - BUG/MAJOR: quic: Possible crash with full congestion control window
+    - BUG/MINOR: httpclient/lua: stuck when closing without data
+    - BUG/MEDIUM: applet: Don't call .release callback function twice
+    - BUG/MEDIUM: cli/debug: Properly get the stream-int in all debug I/O handlers
+    - BUG/MEDIUM: sink: Properly get the stream-int in appctx callback functions
+    - DEV: udp: switch parser to getopt() instead of positional arguments
+    - DEV: udp: add support for random packet corruption
+    - MINOR: server: export server_parse_sni_expr() function
+    - BUG/MINOR: httpclient: send the SNI using the host header
+    - BUILD: httpclient: fix build without SSL
+    - BUG/MINOR: server/ssl: free the SNI sample expression
+    - BUG/MINOR: logs: fix logsrv leaks on clean exit
+    - MINOR: actions: add new function free_act_rule() to free a single rule
+    - BUG/MINOR: tcp-rules: completely free incorrect TCP rules on error
+    - BUG/MINOR: http-rules: completely free incorrect TCP rules on error
+    - BUG/MINOR: httpclient: only check co_data() instead of HTTP_MSG_DATA
+    - BUG/MINOR: httpclient: process the response when received before the end of the request
+    - BUG/MINOR: httpclient: CF_SHUTW_NOW should be tested with channel_is_empty()
+    - CI: github actions: switch to LibreSSL-3.5.1
+    - BUG/MEDIUM: mux-h1: only turn CO_FL_ERROR to CS_FL_ERROR with empty ibuf
+    - BUG/MEDIUM: stream-int: do not rely on the connection error once established
+    - BUG/MEDIUM: trace: avoid race condition when retrieving session from conn->owner
+    - MEDIUM: mux-h2: slightly relax timeout management rules
+    - BUG/MEDIUM: mux-h2: make use of http-request and keep-alive timeouts
+    - BUG/MINOR: rules: Initialize the list element when allocating a new rule
+    - BUG/MINOR: http-rules: Don't free new rule on allocation failure
+    - DEV: coccinelle: Fix incorrect replacement in ist.cocci
+    - CLEANUP: Reapply ist.cocci with `--include-headers-for-types --recursive-includes`
+    - DEV: coccinelle: Add a new pattern to ist.cocci
+    - CLEANUP: Reapply ist.cocci
+    - REGTESTS: Do not use REQUIRE_VERSION for HAProxy 2.5+
+    - MINOR: quic: Code factorization (TX buffer reuse)
+    - CLEANUP: quic: "largest_acked_pn" pktns struc member moving
+    - MEDIUM: quic: Limit the number of ACK ranges
+    - MEDIUM: quic: Rework of the TX packets memory handling
+    - BUG/MINOR: quic: Possible crash in parse_retry_token()
+    - BUG/MINOR: quic: Possible leak in quic_build_post_handshake_frames()
+    - BUG/MINOR: quic: Unsent frame because of qc_build_frms()
+    - BUG/MINOR: mux-quic: Access to empty frame list from qc_send_frames()
+    - BUG/MINOR: mux-quic: Missing I/O handler events initialization
+    - BUG/MINOR: quic: Missing TX packet initializations
+    - BUG/MINOR: quic: 1RTT packets ignored after mux was released
+    - BUG/MINOR: quic: Incorrect peer address validation
+    - BUG/MINOR: quic: Non initialized variable in quic_build_post_handshake_frames()
+    - BUG/MINOR: quic: Wrong TX packet related counters handling
+    - MEDIUM: mqtt: support mqtt_is_valid and mqtt_field_value converters for MQTTv3.1
+    - DOC: config: Explictly add supported MQTT versions
+    - MINOR: quic: Add traces about stream TX buffer consumption
+    - MINOR: quic: Add traces in qc_set_timer() (scheduling)
+    - CLEANUP: mux-quic: change comment style to not mess with git conflict
+    - CLEANUP: mux-quic: adjust comment for coding-style
+    - MINOR: mux-quic: complete trace when stream is not found
+    - MINOR: mux-quic: add comments for send functions
+    - MINOR: mux-quic: use shorter name for flow-control fields
+    - MEDIUM: mux-quic: respect peer bidirectional stream data limit
+    - MEDIUM: mux-quic: respect peer connection data limit
+    - MINOR: mux-quic: support MAX_STREAM_DATA frame parsing
+    - MINOR: mux-quic: support MAX_DATA frame parsing
+    - BUILD: stream-int: avoid a build warning when DEBUG is empty
+    - BUG/MINOR: quic: Wrong buffer length passed to generate_retry_token()
+    - BUG/MINOR: tools: fix url2sa return value with IPv4
+    - MINOR: mux-quic: convert fin on push-frame as boolean
+    - BUILD: quic: add missing includes
+    - REORG: quic: use a dedicated quic_loss.c
+    - MINOR: mux-quic: declare the qmux trace module
+    - MINOR: mux-quic: replace printfs by traces
+    - MINOR: mux-quic: add trace event for frame sending
+    - MINOR: mux-quic: add trace event for qcs_push_frame
+    - MINOR: mux-quic: activate qmux traces on stdout via macro
+    - BUILD: qpack: fix unused value when not using DEBUG_HPACK
+    - CLEANUP: qpack: suppress by default stdout traces
+    - CLEANUP: h3: suppress by default stdout traces
+    - BUG/MINOR: tools: url2sa reads too far when no port nor path
+
 2022/03/11 : 2.6-dev3
     - DEBUG: rename WARN_ON_ONCE() to CHECK_IF()
     - DEBUG: improve BUG_ON output message accuracy
