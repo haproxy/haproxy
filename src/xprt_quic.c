@@ -775,7 +775,7 @@ int ha_quic_set_encryption_secrets(SSL *ssl, enum ssl_encryption_level_t level,
 	BUG_ON(secret_len > QUIC_TLS_SECRET_LEN);
 	if (HA_ATOMIC_LOAD(&qc->flags) & QUIC_FL_CONN_IMMEDIATE_CLOSE) {
 		TRACE_PROTO("CC required", QUIC_EV_CONN_RWSEC, qc);
-		goto out;
+		goto no_secret;
 	}
 
 	if (!quic_tls_ctx_keys_alloc(tls_ctx)) {
@@ -838,6 +838,7 @@ int ha_quic_set_encryption_secrets(SSL *ssl, enum ssl_encryption_level_t level,
 
  out:
 	tls_ctx->flags |= QUIC_FL_TLS_SECRETS_SET;
+ no_secret:
 	TRACE_LEAVE(QUIC_EV_CONN_RWSEC, qc, &level);
 	return 1;
 
