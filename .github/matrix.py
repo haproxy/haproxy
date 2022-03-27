@@ -110,7 +110,7 @@ for CC in ["gcc", "clang"]:
     for ssl in [
         "stock",
         "OPENSSL_VERSION=1.0.2u",
-        "OPENSSL_VERSION=3.0.1",
+        "OPENSSL_VERSION=3.0.2",
         "LIBRESSL_VERSION=2.9.2",
         "LIBRESSL_VERSION=3.5.1",
         "QUICTLS=yes",
