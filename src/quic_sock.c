@@ -321,11 +321,12 @@ void quic_accept_push_qc(struct quic_conn *qc)
 	/* early return if accept is already in progress/done for this
 	 * connection
 	 */
-	if (HA_ATOMIC_BTS(&qc->flags, QUIC_FL_ACCEPT_REGISTERED_BIT))
+	if (qc->flags & QUIC_FL_CONN_ACCEPT_REGISTERED)
 		return;
 
 	BUG_ON(MT_LIST_INLIST(&qc->accept_list));
 
+	qc->flags |= QUIC_FL_CONN_ACCEPT_REGISTERED;
 	/* 1. insert the listener in the accept queue
 	 *
 	 * Use TRY_APPEND as there is a possible race even with INLIST if

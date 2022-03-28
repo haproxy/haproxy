@@ -651,19 +651,13 @@ enum qc_mux_state {
 #define QUIC_CONN_TX_BUF_SZ  QUIC_PACKET_MAXLEN
 
 /* Flags at connection level */
-#define QUIC_FL_CONN_ANTI_AMPLIFICATION_REACHED_BIT 0
-#define QUIC_FL_CONN_ANTI_AMPLIFICATION_REACHED \
-	(1U << QUIC_FL_CONN_ANTI_AMPLIFICATION_REACHED_BIT)
-
-#define QUIC_FL_CONN_IO_CB_WAKEUP_BIT               1
-#define QUIC_FL_CONN_IO_CB_WAKEUP (1U << QUIC_FL_CONN_IO_CB_WAKEUP_BIT)
-
-#define QUIC_FL_POST_HANDSHAKE_FRAMES_BUILT     (1U << 2)
-#define QUIC_FL_CONN_LISTENER                   (1U << 3)
-#define QUIC_FL_ACCEPT_REGISTERED_BIT                  4
-#define QUIC_FL_ACCEPT_REGISTERED               (1U << QUIC_FL_ACCEPT_REGISTERED_BIT)
+#define QUIC_FL_CONN_ANTI_AMPLIFICATION_REACHED  (1U << 0)
+#define QUIC_FL_CONN_IO_CB_WAKEUP                (1U << 1)
+#define QUIC_FL_CONN_POST_HANDSHAKE_FRAMES_BUILT (1U << 2)
+#define QUIC_FL_CONN_LISTENER                    (1U << 3)
+#define QUIC_FL_CONN_ACCEPT_REGISTERED           (1U << 4)
 #define QUIC_FL_CONN_IDLE_TIMER_RESTARTED_AFTER_READ (1U << 6)
-#define QUIC_FL_CONN_IMMEDIATE_CLOSE            (1U << 31)
+#define QUIC_FL_CONN_IMMEDIATE_CLOSE             (1U << 31)
 struct quic_conn {
 	uint32_t version;
 	/* QUIC transport parameters TLS extension */
