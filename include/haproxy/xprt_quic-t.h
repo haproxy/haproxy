@@ -389,12 +389,9 @@ struct quic_arngs {
 };
 
 /* Flag the packet number space as having received a packet */
-#define QUIC_FL_PKTNS_PKT_RECEIVED_BIT 0
-#define QUIC_FL_PKTNS_PKT_RECEIVED  (1UL << QUIC_FL_PKTNS_PKT_RECEIVED_BIT)
-
+#define QUIC_FL_PKTNS_PKT_RECEIVED  (1UL << 0)
 /* Flag the packet number space as requiring an ACK frame to be sent. */
-#define QUIC_FL_PKTNS_ACK_REQUIRED_BIT 1
-#define QUIC_FL_PKTNS_ACK_REQUIRED  (1UL << QUIC_FL_PKTNS_ACK_REQUIRED_BIT)
+#define QUIC_FL_PKTNS_ACK_REQUIRED  (1UL << 1)
 
 /* The maximum number of dgrams which may be sent upon PTO expirations. */
 #define QUIC_MAX_NB_PTO_DGRAMS         2

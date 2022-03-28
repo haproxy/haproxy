@@ -398,7 +398,7 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 				              " qel=%c state=%s ack?%d cwnd=%llu ppif=%lld pif=%llu if=%llu pp=%u",
 				              quic_enc_level_char_from_qel(qel, qc),
 				              quic_hdshk_state_str(qc->state),
-				              !!(HA_ATOMIC_LOAD(&qel->pktns->flags) & QUIC_FL_PKTNS_ACK_REQUIRED),
+				              !!(qel->pktns->flags & QUIC_FL_PKTNS_ACK_REQUIRED),
 				              (unsigned long long)qc->path->cwnd,
 				              (unsigned long long)qc->path->prep_in_flight,
 				              (unsigned long long)qc->path->in_flight,
@@ -609,8 +609,8 @@ static inline int quic_peer_validated_addr(struct quic_conn *qc)
 
 	hdshk_pktns = qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE].pktns;
 	app_pktns = qc->els[QUIC_TLS_ENC_LEVEL_APP].pktns;
-	if ((HA_ATOMIC_LOAD(&hdshk_pktns->flags) & QUIC_FL_PKTNS_PKT_RECEIVED) ||
-	    (HA_ATOMIC_LOAD(&app_pktns->flags) & QUIC_FL_PKTNS_PKT_RECEIVED) ||
+	if ((hdshk_pktns->flags & QUIC_FL_PKTNS_PKT_RECEIVED) ||
+	    (app_pktns->flags & QUIC_FL_PKTNS_PKT_RECEIVED) ||
 	    qc->state >= QUIC_HS_ST_COMPLETE)
 		return 1;
 
@@ -1828,7 +1828,7 @@ static void qc_packet_loss_lookup(struct quic_pktns *pktns,
 		unsigned int loss_time_limit, time_sent;
 
 		pkt = eb64_entry(&node->node, struct quic_tx_packet, pn_node);
-		largest_acked_pn = HA_ATOMIC_LOAD(&pktns->rx.largest_acked_pn);
+		largest_acked_pn = pktns->rx.largest_acked_pn;
 		node = eb64_next(node);
 		if ((int64_t)pkt->pn_node.key > largest_acked_pn)
 			break;
@@ -1891,7 +1891,7 @@ static inline int qc_parse_ack_frm(struct quic_conn *qc,
 	largest_node = NULL;
 	time_sent = 0;
 
-	if ((int64_t)ack->largest_ack > HA_ATOMIC_LOAD(&qel->pktns->rx.largest_acked_pn)) {
+	if ((int64_t)ack->largest_ack > qel->pktns->rx.largest_acked_pn) {
 		largest_node = eb64_lookup(pkts, largest);
 		if (!largest_node) {
 			TRACE_DEVEL("Largest acked packet not found",
@@ -1943,7 +1943,7 @@ static inline int qc_parse_ack_frm(struct quic_conn *qc,
 
 	if (time_sent && (pkt_flags & QUIC_FL_TX_PACKET_ACK_ELICITING)) {
 		*rtt_sample = tick_remain(time_sent, now_ms);
-		HA_ATOMIC_STORE(&qel->pktns->rx.largest_acked_pn, ack->largest_ack);
+		qel->pktns->rx.largest_acked_pn = ack->largest_ack;
 	}
 
 	if (!LIST_ISEMPTY(&newly_acked_pkts)) {
@@ -2548,7 +2548,7 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct ssl_sock_ctx *ct
 	}
 
 	/* Flag this packet number space as having received a packet. */
-	HA_ATOMIC_OR(&qel->pktns->flags, QUIC_FL_PKTNS_PKT_RECEIVED);
+	qel->pktns->flags |= QUIC_FL_PKTNS_PKT_RECEIVED;
 
 	if (fast_retrans)
 		qc_prep_hdshk_fast_retrans(qc);
@@ -2677,7 +2677,7 @@ static int qc_prep_app_pkts(struct quic_conn *qc, struct qring *qr,
 		cc =  qc->flags & QUIC_FL_CONN_IMMEDIATE_CLOSE;
 		if (!cc) {
 			probe = qel->pktns->tx.pto_probe;
-			ack = HA_ATOMIC_BTR(&qel->pktns->flags, QUIC_FL_PKTNS_ACK_REQUIRED_BIT);
+			ack = qel->pktns->flags & QUIC_FL_PKTNS_ACK_REQUIRED;
 		}
 		/* Do not build any more packet if the TX secrets are not available or
 		 * if there is nothing to send, i.e. if no CONNECTION_CLOSE or ACK are required
@@ -2704,11 +2704,6 @@ static int qc_prep_app_pkts(struct quic_conn *qc, struct qring *qr,
 
 		pkt = qc_build_pkt(&pos, end, qel, frms, qc, 0, 0,
 		                   QUIC_PACKET_TYPE_SHORT, ack, probe, cc, &err);
-		/* Restore the PTO dgrams counter if a packet could not be built */
-		if (err < 0) {
-			if (ack)
-				HA_ATOMIC_BTS(&qel->pktns->flags, QUIC_FL_PKTNS_ACK_REQUIRED_BIT);
-		}
 		switch (err) {
 		case -2:
 			goto err;
@@ -2796,7 +2791,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct qring *qr,
 		cc =  qc->flags & QUIC_FL_CONN_IMMEDIATE_CLOSE;
 		if (!cc) {
 			probe = qel->pktns->tx.pto_probe;
-			ack = HA_ATOMIC_BTR(&qel->pktns->flags, QUIC_FL_PKTNS_ACK_REQUIRED_BIT);
+			ack = qel->pktns->flags & QUIC_FL_PKTNS_ACK_REQUIRED;
 		}
 		/* Do not build any more packet if the TX secrets are not available or
 		 * if there is nothing to send, i.e. if no CONNECTION_CLOSE or ACK are required
@@ -2839,11 +2834,6 @@ static int qc_prep_pkts(struct quic_conn *qc, struct qring *qr,
 
 		cur_pkt = qc_build_pkt(&pos, end, qel, &qel->pktns->tx.frms,
 		                       qc, dglen, padding, pkt_type, ack, probe, cc, &err);
-		/* Restore the PTO dgrams counter if a packet could not be built */
-		if (err < 0) {
-			if (ack)
-				HA_ATOMIC_BTS(&qel->pktns->flags, QUIC_FL_PKTNS_ACK_REQUIRED_BIT);
-		}
 		switch (err) {
 		case -2:
 			goto err;
@@ -3394,7 +3384,7 @@ int qc_treat_rx_pkts(struct quic_enc_level *cur_el, struct quic_enc_level *next_
 
 				if (pkt->flags & QUIC_FL_RX_PACKET_ACK_ELICITING) {
 					if (!(++qc->rx.nb_ack_eliciting & 1) || force_ack)
-						HA_ATOMIC_BTS(&qel->pktns->flags, QUIC_FL_PKTNS_ACK_REQUIRED_BIT);
+						qel->pktns->flags |= QUIC_FL_PKTNS_ACK_REQUIRED;
 					qc_idle_timer_rearm(qc, 1);
 				}
 				if (pkt->pn > largest_pn)
@@ -3412,8 +3402,8 @@ int qc_treat_rx_pkts(struct quic_enc_level *cur_el, struct quic_enc_level *next_
 	HA_RWLOCK_WRUNLOCK(QUIC_LOCK, &qel->rx.pkts_rwlock);
 
 	/* Update the largest packet number. */
-	if (largest_pn != -1)
-		HA_ATOMIC_UPDATE_MAX(&qel->pktns->rx.largest_pn, largest_pn);
+	if (largest_pn != -1 && largest_pn > qel->pktns->rx.largest_pn)
+		qel->pktns->rx.largest_pn = largest_pn;
 	if (!qc_treat_rx_crypto_frms(qel, ctx))
 		goto err;
 
@@ -5230,7 +5220,7 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 		goto no_room;
 
 	end -= QUIC_TLS_TAG_LEN;
-	rx_largest_acked_pn = HA_ATOMIC_LOAD(&qel->pktns->rx.largest_acked_pn);
+	rx_largest_acked_pn = qel->pktns->rx.largest_acked_pn;
 	/* packet number length */
 	*pn_len = quic_packet_number_length(pn, rx_largest_acked_pn);
 	/* Build the header */
@@ -5496,6 +5486,9 @@ static struct quic_tx_packet *qc_build_pkt(unsigned char **pos,
 		pkt->in_flight_len = pkt->len;
 		qc->path->prep_in_flight += pkt->len;
 	}
+	/* Always reset these flags */
+	qel->pktns->flags &= ~QUIC_FL_PKTNS_ACK_REQUIRED;
+
 	pkt->pktns = qel->pktns;
 	TRACE_LEAVE(QUIC_EV_CONN_HPKT, qc, pkt);
 
