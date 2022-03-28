@@ -122,6 +122,8 @@ struct h3c {
 	uint64_t qpack_blocked_streams;
 	uint64_t max_field_section_size;
 
+	uint64_t id_goaway; /* stream ID used for a GOAWAY frame */
+
 	struct buffer_wait buf_wait; /* wait list for buffer allocations */
 	/* Stats counters */
 	struct h3_counters *prx_counters;
@@ -416,6 +418,19 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 		h3c->err = H3_INTERNAL_ERROR;
 		return -1;
 	}
+
+	/* RFC 9114 5.2. Connection Shutdown
+	 *
+	 * The GOAWAY frame contains an identifier that
+	 * indicates to the receiver the range of requests or pushes that were
+	 * or might be processed in this connection.  The server sends a client-
+	 * initiated bidirectional stream ID; the client sends a push ID.
+	 * Requests or pushes with the indicated identifier or greater are
+	 * rejected (Section 4.1.1) by the sender of the GOAWAY.  This
+	 * identifier MAY be zero if no requests or pushes were processed.
+	 */
+	if (qcs->id >= h3c->id_goaway)
+		h3c->id_goaway = qcs->id + 4;
 
 	/* buffer is transferred to the stream connector and set to NULL
 	 * except on stream creation error.
@@ -1092,6 +1107,37 @@ static int h3_finalize(void *ctx)
 	return 1;
 }
 
+/* Generate a GOAWAY frame for <h3c> connection on the control stream.
+ *
+ * Returns 0 on success else non-zero.
+ */
+static int h3_send_goaway(struct h3c *h3c)
+{
+	struct qcs *qcs = h3c->ctrl_strm;
+	struct buffer pos, *res;
+	unsigned char data[3 * QUIC_VARINT_MAX_SIZE];
+	size_t frm_len = quic_int_getsize(h3c->id_goaway);
+
+	if (!qcs)
+		return 1;
+
+	pos = b_make((char *)data, sizeof(data), 0, 0);
+
+	b_quic_enc_int(&pos, H3_FT_GOAWAY);
+	b_quic_enc_int(&pos, frm_len);
+	b_quic_enc_int(&pos, h3c->id_goaway);
+
+	res = mux_get_buf(qcs);
+	if (!res || b_room(res) < b_data(&pos)) {
+		/* Do not try forcefully to emit GOAWAY if no space left. */
+		return 1;
+	}
+
+	b_force_xfer(res, &pos, b_data(&pos));
+
+	return 0;
+}
+
 /* Initialize the HTTP/3 context for <qcc> mux.
  * Return 1 if succeeded, 0 if not.
  */
@@ -1108,6 +1154,7 @@ static int h3_init(struct qcc *qcc)
 	h3c->ctrl_strm = NULL;
 	h3c->err = H3_NO_ERROR;
 	h3c->flags = 0;
+	h3c->id_goaway = 0;
 
 	qcc->ctx = h3c;
 	h3c->prx_counters =
@@ -1124,6 +1171,15 @@ static int h3_init(struct qcc *qcc)
 static void h3_release(void *ctx)
 {
 	struct h3c *h3c = ctx;
+
+	/* RFC 9114 5.2. Connection Shutdown
+	 *
+	 * Even when a connection is not idle, either endpoint can decide to
+	 * stop using the connection and initiate a graceful connection close.
+	 * Endpoints initiate the graceful shutdown of an HTTP/3 connection by
+	 * sending a GOAWAY frame.
+	 */
+	h3_send_goaway(h3c);
 
 	/* RFC 9114 5.2. Connection Shutdown
 	 *
