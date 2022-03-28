@@ -514,8 +514,10 @@ struct quic_rx_strm_frm {
 #define QUIC_FL_TX_PACKET_PADDING       (1UL << 1)
 /* Flag a sent packet as being in flight. */
 #define QUIC_FL_TX_PACKET_IN_FLIGHT     (QUIC_FL_TX_PACKET_ACK_ELICITING | QUIC_FL_TX_PACKET_PADDING)
+/* Flag a sent packet as containg a CONNECTION_CLOSE frame */
+#define QUIC_FL_TX_PACKET_CC            (1UL << 2)
 /* Flag a sent packet as containg an ACK frame */
-#define QUIC_FL_TX_PACKET_ACK           (1UL << 2)
+#define QUIC_FL_TX_PACKET_ACK           (1UL << 3)
 
 /* Structure to store enough information about TX QUIC packets. */
 struct quic_tx_packet {
@@ -662,6 +664,7 @@ enum qc_mux_state {
 #define QUIC_FL_CONN_LISTENER                    (1U << 3)
 #define QUIC_FL_CONN_ACCEPT_REGISTERED           (1U << 4)
 #define QUIC_FL_CONN_IDLE_TIMER_RESTARTED_AFTER_READ (1U << 6)
+#define QUIC_FL_CONN_CLOSING                     (1U << 29)
 #define QUIC_FL_CONN_DRAINING                    (1U << 30)
 #define QUIC_FL_CONN_IMMEDIATE_CLOSE             (1U << 31)
 struct quic_conn {
@@ -753,6 +756,11 @@ struct quic_conn {
 	/* Idle timer task */
 	struct task *idle_timer_task;
 	unsigned int flags;
+
+	/* When in closing state, number of packet before sending CC */
+	unsigned int nb_pkt_for_cc;
+	/* When in closing state, number of packet since receiving CC */
+	unsigned int nb_pkt_since_cc;
 
 	const struct qcc_app_ops *app_ops;
 };

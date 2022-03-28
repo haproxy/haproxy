@@ -3047,6 +3047,24 @@ int qc_send_ppkts(struct qring *qr, struct ssl_sock_ctx *ctx)
 				if (qc->flags & QUIC_FL_CONN_IDLE_TIMER_RESTARTED_AFTER_READ)
 					qc_idle_timer_rearm(qc, 0);
 			}
+			if (!(qc->flags & QUIC_FL_CONN_CLOSING) &&
+			    (pkt->flags & QUIC_FL_TX_PACKET_CC)) {
+				qc->flags |= QUIC_FL_CONN_CLOSING;
+				/* RFC 9000 10.2. Immediate Close:
+				 * The closing and draining connection states exist to ensure
+				 * that connections close cleanly and that delayed or reordered
+				 * packets are properly discarded. These states SHOULD persist
+				 * for at least three times the current PTO interval...
+				 *
+				 * Rearm the idle timeout only one time when entering closing
+				 * state.
+				 */
+				qc_idle_timer_do_rearm(qc);
+				if (qc->timer_task) {
+					task_destroy(qc->timer_task);
+					qc->timer_task = NULL;
+				}
+			}
 			qc->path->in_flight += pkt->in_flight_len;
 			pkt->pktns->tx.in_flight += pkt->in_flight_len;
 			if (pkt->in_flight_len)
@@ -4012,6 +4030,10 @@ static struct quic_conn *qc_new_conn(unsigned int version, int ipv4,
 	/* RX part. */
 	qc->rx.bytes = 0;
 	qc->rx.buf = b_make(buf_area, QUIC_CONN_RX_BUFSZ, 0, 0);
+
+	qc->nb_pkt_for_cc = 1;
+	qc->nb_pkt_since_cc = 0;
+
 	LIST_INIT(&qc->rx.pkt_list);
 	if (!quic_tls_ku_init(qc)) {
 		TRACE_PROTO("Key update initialization failed", QUIC_EV_CONN_INIT, qc);
@@ -4852,6 +4874,17 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 		pkt->qc = qc;
 	}
 
+	if (qc->flags & QUIC_FL_CONN_CLOSING) {
+		if (++qc->nb_pkt_since_cc >= qc->nb_pkt_for_cc) {
+			qc->flags |= QUIC_FL_CONN_IMMEDIATE_CLOSE;
+			qc->nb_pkt_for_cc++;
+			qc->nb_pkt_since_cc = 0;
+		}
+		/* Skip the entire datagram */
+		pkt->len = end - beg;
+		TRACE_PROTO("Closing state connection", QUIC_EV_CONN_LPKT, pkt->qc);
+		goto out;
+	}
 
 	/* When multiple QUIC packets are coalesced on the same UDP datagram,
 	 * they must have the same DCID.
@@ -5457,8 +5490,12 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 	}
 
 	/* Build a CONNECTION_CLOSE frame if needed. */
-	if (cc && !qc_build_frm(&pos, end, &cc_frm, pkt, qc))
-		goto no_room;
+	if (cc) {
+		if (!qc_build_frm(&pos, end, &cc_frm, pkt, qc))
+			goto no_room;
+
+		pkt->flags |= QUIC_FL_TX_PACKET_CC;
+	}
 
 	/* Build a PADDING frame if needed. */
 	if (padding_len) {
