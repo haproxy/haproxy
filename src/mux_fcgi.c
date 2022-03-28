@@ -3338,17 +3338,18 @@ static void fcgi_strm_capture_bad_message(struct fcgi_conn *fconn, struct fcgi_s
 static size_t fcgi_strm_parse_headers(struct fcgi_strm *fstrm, struct h1m *h1m, struct htx *htx,
 				      struct buffer *buf, size_t *ofs, size_t max)
 {
-	size_t ret;
+	int ret;
 
 	TRACE_ENTER(FCGI_EV_RSP_DATA|FCGI_EV_RSP_HDRS, fstrm->fconn->conn, fstrm, 0, (size_t[]){max});
 	ret = h1_parse_msg_hdrs(h1m, NULL, htx, buf, *ofs, max);
-	if (!ret) {
+	if (ret <= 0) {
 		TRACE_DEVEL("leaving on missing data or error", FCGI_EV_RSP_DATA|FCGI_EV_RSP_HDRS, fstrm->fconn->conn, fstrm);
 		if (htx->flags & HTX_FL_PARSING_ERROR) {
 			TRACE_ERROR("parsing error, reject H1 response", FCGI_EV_RSP_DATA|FCGI_EV_RSP_HDRS|FCGI_EV_FSTRM_ERR, fstrm->fconn->conn, fstrm);
 			fcgi_strm_error(fstrm);
 			fcgi_strm_capture_bad_message(fstrm->fconn, fstrm, h1m, buf);
 		}
+		ret = 0;
 		goto end;
 	}
 
@@ -3398,17 +3399,18 @@ static size_t fcgi_strm_parse_data(struct fcgi_strm *fstrm, struct h1m *h1m, str
 static size_t fcgi_strm_parse_trailers(struct fcgi_strm *fstrm, struct h1m *h1m, struct htx *htx,
 				       struct buffer *buf, size_t *ofs, size_t max)
 {
-	size_t ret;
+	int ret;
 
 	TRACE_ENTER(FCGI_EV_RSP_DATA|FCGI_EV_RSP_TLRS, fstrm->fconn->conn, fstrm, 0, (size_t[]){max});
 	ret = h1_parse_msg_tlrs(h1m, htx, buf, *ofs, max);
-	if (!ret) {
+	if (ret <= 0) {
 		TRACE_DEVEL("leaving on missing data or error", FCGI_EV_RSP_DATA|FCGI_EV_RSP_TLRS, fstrm->fconn->conn, fstrm);
 		if (htx->flags & HTX_FL_PARSING_ERROR) {
 			TRACE_ERROR("parsing error, reject H1 response", FCGI_EV_RSP_DATA|FCGI_EV_RSP_TLRS|FCGI_EV_FSTRM_ERR, fstrm->fconn->conn, fstrm);
 			fcgi_strm_error(fstrm);
 			fcgi_strm_capture_bad_message(fstrm->fconn, fstrm, h1m, buf);
 		}
+		ret = 0;
 		goto end;
 	}
 	*ofs += ret;
