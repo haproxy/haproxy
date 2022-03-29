@@ -1829,6 +1829,7 @@ static void dump_registered_keywords(void)
 			printf("cfg: configuration keywords\n");
 			printf("cli: CLI keywords\n");
 			printf("flt: filter names\n");
+			printf("smp: sample fetch functions\n");
 			printf("svc: service names\n");
 			continue;
 		}
@@ -1854,6 +1855,11 @@ static void dump_registered_keywords(void)
 		if (all || strcmp(kwd_dump, "flt") == 0) {
 			printf("# List of registered filter names:\n");
 			flt_dump_kws(NULL);
+		}
+
+		if (all || strcmp(kwd_dump, "smp") == 0) {
+			printf("# List of registered sample fetch functions:\n");
+			smp_dump_fetch_kw();
 		}
 
 		if (all || strcmp(kwd_dump, "svc") == 0) {

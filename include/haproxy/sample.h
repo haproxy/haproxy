@@ -49,6 +49,7 @@ void sample_register_convs(struct sample_conv_kw_list *psl);
 const char *sample_src_names(unsigned int use);
 const char *sample_ckp_names(unsigned int use);
 struct sample_fetch *find_sample_fetch(const char *kw, int len);
+void smp_dump_fetch_kw(void);
 struct sample_fetch *sample_fetch_getnext(struct sample_fetch *current, int *idx);
 struct sample_conv *sample_conv_getnext(struct sample_conv *current, int *idx);
 int smp_resolve_args(struct proxy *p, char **err);
