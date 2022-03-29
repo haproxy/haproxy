@@ -1116,17 +1116,17 @@ int ssl_store_load_locations_file(char *path, int create_if_none, enum cafile_ty
 
 /* Type of SSL payloads that can be updated over the CLI */
 
-struct cert_exts cert_exts[CERT_TYPE_MAX+1] = {
-	[CERT_TYPE_PEM]    = { "",        CERT_TYPE_PEM,      &ssl_sock_load_pem_into_ckch }, /* default mode, no extensions */
-	[CERT_TYPE_KEY]    = { "key",     CERT_TYPE_KEY,      &ssl_sock_load_key_into_ckch },
+struct cert_exts cert_exts[] = {
+	{ "",        CERT_TYPE_PEM,      &ssl_sock_load_pem_into_ckch }, /* default mode, no extensions */
+	{ "key",     CERT_TYPE_KEY,      &ssl_sock_load_key_into_ckch },
 #if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) || defined OPENSSL_IS_BORINGSSL)
-	[CERT_TYPE_OCSP]   = { "ocsp",    CERT_TYPE_OCSP,     &ssl_sock_load_ocsp_response_from_file },
+	{ "ocsp",    CERT_TYPE_OCSP,     &ssl_sock_load_ocsp_response_from_file },
 #endif
 #ifdef HAVE_SSL_SCTL
-	[CERT_TYPE_SCTL]   = { "sctl",    CERT_TYPE_SCTL,     &ssl_sock_load_sctl_from_file },
+	{ "sctl",    CERT_TYPE_SCTL,     &ssl_sock_load_sctl_from_file },
 #endif
-	[CERT_TYPE_ISSUER] = { "issuer",  CERT_TYPE_ISSUER,   &ssl_sock_load_issuer_file_into_ckch },
-	[CERT_TYPE_MAX]    = { NULL,      CERT_TYPE_MAX,      NULL },
+	{ "issuer",  CERT_TYPE_ISSUER,   &ssl_sock_load_issuer_file_into_ckch },
+	{ NULL,      CERT_TYPE_MAX,      NULL },
 };
 
 
@@ -2052,7 +2052,7 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 	int i;
 	int errcode = 0;
 	char *end;
-	int type = CERT_TYPE_PEM;
+	struct cert_exts *cert_ext = &cert_exts[0]; /* default one, PEM */
 	struct cert_key_and_chain *ckch;
 	struct buffer *buf;
 
@@ -2080,12 +2080,12 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 	}
 
 	/* check which type of file we want to update */
-	for (i = 0; cert_exts[i].type < CERT_TYPE_MAX; i++) {
+	for (i = 0; cert_exts[i].ext != NULL; i++) {
 		end = strrchr(buf->area, '.');
 		if (end && *cert_exts[i].ext && (strcmp(end + 1, cert_exts[i].ext) == 0)) {
 			*end = '\0';
 			buf->data = strlen(buf->area);
-			type = cert_exts[i].type;
+			cert_ext = &cert_exts[i];
 			break;
 		}
 	}
@@ -2100,7 +2100,7 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 			/* we didn't find the transaction, must try more cases below */
 
 			/* if the del-ext option is activated we should try to take a look at a ".crt" too. */
-			if (type != CERT_TYPE_PEM && global_ssl.extra_files_noext) {
+			if (cert_ext->type != CERT_TYPE_PEM && global_ssl.extra_files_noext) {
 				if (!chunk_strcat(buf, ".crt")) {
 					memprintf(&err, "%sCan't allocate memory\n", err ? err : "");
 					errcode |= ERR_ALERT | ERR_FATAL;
@@ -2128,7 +2128,7 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 
 		if (!appctx->ctx.ssl.old_ckchs) {
 			/* if the del-ext option is activated we should try to take a look at a ".crt" too. */
-			if (type != CERT_TYPE_PEM && global_ssl.extra_files_noext) {
+			if (cert_ext->type != CERT_TYPE_PEM && global_ssl.extra_files_noext) {
 				if (!chunk_strcat(buf, ".crt")) {
 					memprintf(&err, "%sCan't allocate memory\n", err ? err : "");
 					errcode |= ERR_ALERT | ERR_FATAL;
@@ -2170,7 +2170,7 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 	ckch = new_ckchs->ckch;
 
 	/* appply the change on the duplicate */
-	if (cert_exts[type].load(buf->area, payload, ckch, &err) != 0) {
+	if (cert_ext->load(buf->area, payload, ckch, &err) != 0) {
 		memprintf(&err, "%sCan't load the payload\n", err ? err : "");
 		errcode |= ERR_ALERT | ERR_FATAL;
 		goto end;
