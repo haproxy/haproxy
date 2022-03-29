@@ -5089,26 +5089,6 @@ static void http_debug_hdr(const char *dir, struct stream *s, const struct ist n
         DISGUISE(write(1, trash.area, trash.data));
 }
 
-/* Allocate a new HTTP transaction for stream <s> unless there is one already.
- * In case of allocation failure, everything allocated is freed and NULL is
- * returned. Otherwise the new transaction is assigned to the stream and
- * returned.
- */
-struct http_txn *http_alloc_txn(struct stream *s)
-{
-	struct http_txn *txn = s->txn;
-
-	if (txn)
-		return txn;
-
-	txn = pool_alloc(pool_head_http_txn);
-	if (!txn)
-		return txn;
-
-	s->txn = txn;
-	return txn;
-}
-
 void http_txn_reset_req(struct http_txn *txn)
 {
 	txn->req.flags = 0;
