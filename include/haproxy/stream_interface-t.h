@@ -130,7 +130,6 @@ struct stream_interface {
 	/* struct members below are the "remote" part, as seen from the buffer side */
 	unsigned int err_type;  /* first error detected, one of SI_ET_* */
 
-	unsigned int hcto;      /* half-closed timeout (0 = unset) */
 	struct wait_event wait_event; /* We're in a wait list */
 };
 

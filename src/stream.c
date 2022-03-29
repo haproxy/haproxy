@@ -454,13 +454,13 @@ struct stream *stream_new(struct session *sess, struct conn_stream *cs, struct b
 		goto out_fail_alloc_csb;
 
 	si_set_state(cs_si(s->csf), SI_ST_EST);
-	cs_si(s->csf)->hcto = sess->fe->timeout.clientfin;
+	s->csf->hcto = sess->fe->timeout.clientfin;
 
 	if (likely(sess->fe->options2 & PR_O2_INDEPSTR))
 		cs_si(s->csf)->flags |= SI_FL_INDEP_STR;
 
 	cs_si(s->csb)->flags = SI_FL_ISBACK;
-	cs_si(s->csb)->hcto = TICK_ETERNITY;
+	s->csb->hcto = TICK_ETERNITY;
 	if (likely(sess->fe->options2 & PR_O2_INDEPSTR))
 		cs_si(s->csb)->flags |= SI_FL_INDEP_STR;
 

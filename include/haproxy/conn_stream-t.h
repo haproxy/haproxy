@@ -124,6 +124,7 @@ struct conn_stream {
 	enum obj_type obj_type;              /* differentiates connection from applet context */
 	/* 3 bytes hole here */
 	unsigned int flags;                  /* CS_FL_* */
+	unsigned int hcto;                   /* half-closed timeout (0 = unset) */
 	struct cs_endpoint *endp;            /* points to the end point (MUX stream or appctx) */
 	enum obj_type *app;                  /* points to the applicative point (stream or check) */
 	struct stream_interface *si;

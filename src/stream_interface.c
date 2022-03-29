@@ -237,8 +237,8 @@ static void stream_int_shutw(struct stream_interface *si)
 	oc->wex = TICK_ETERNITY;
 	si_done_get(si);
 
-	if (tick_isset(si->hcto)) {
-		ic->rto = si->hcto;
+	if (tick_isset(si->cs->hcto)) {
+		ic->rto = si->cs->hcto;
 		ic->rex = tick_add(now_ms, ic->rto);
 	}
 
@@ -1106,8 +1106,8 @@ static void stream_int_shutw_conn(struct stream_interface *si)
 	oc->wex = TICK_ETERNITY;
 	si_done_get(si);
 
-	if (tick_isset(si->hcto)) {
-		ic->rto = si->hcto;
+	if (tick_isset(si->cs->hcto)) {
+		ic->rto = si->cs->hcto;
 		ic->rex = tick_add(now_ms, ic->rto);
 	}
 
@@ -1756,8 +1756,8 @@ static void stream_int_shutw_applet(struct stream_interface *si)
 	oc->wex = TICK_ETERNITY;
 	si_done_get(si);
 
-	if (tick_isset(si->hcto)) {
-		ic->rto = si->hcto;
+	if (tick_isset(si->cs->hcto)) {
+		ic->rto = si->cs->hcto;
 		ic->rex = tick_add(now_ms, ic->rto);
 	}
 

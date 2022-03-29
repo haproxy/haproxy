@@ -2310,7 +2310,7 @@ int stream_set_backend(struct stream *s, struct proxy *be)
 		cs_si(s->csb)->flags |= SI_FL_INDEP_STR;
 
 	if (tick_isset(be->timeout.serverfin))
-		cs_si(s->csb)->hcto = be->timeout.serverfin;
+		s->csb->hcto = be->timeout.serverfin;
 
 	/* We want to enable the backend-specific analysers except those which
 	 * were already run as part of the frontend/listener. Note that it would
