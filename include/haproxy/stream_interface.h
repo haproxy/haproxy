@@ -110,7 +110,6 @@ static inline int si_init(struct stream_interface *si)
 	si->src            = NULL;
 	si->dst            = NULL;
 	si->err_type       = SI_ET_NONE;
-	si->conn_retries   = 0;  /* used for logging too */
 	si->exp            = TICK_ETERNITY;
 	si->flags         &= SI_FL_ISBACK;
 	si->cs             = NULL;
@@ -376,7 +375,7 @@ static inline int si_connect(struct stream_interface *si, struct connection *con
 
 	if (!channel_is_empty(si_oc(si)))
 		conn_flags |= CONNECT_HAS_DATA;
-	if (si->conn_retries == si_strm(si)->be->conn_retries)
+	if (si_strm(si)->conn_retries == si_strm(si)->be->conn_retries)
 		conn_flags |= CONNECT_CAN_USE_TFO;
 	if (!conn_ctrl_ready(conn) || !conn_xprt_ready(conn)) {
 		ret = conn->ctrl->connect(conn, conn_flags);

@@ -331,10 +331,10 @@ static inline void stream_choose_redispatch(struct stream *s)
 	    (s->be->options & PR_O_REDISP) && !(s->flags & SF_FORCE_PRST) &&
 	    ((__objt_server(s->target)->cur_state < SRV_ST_RUNNING) ||
 	     (((s->be->redispatch_after > 0) &&
-	       ((s->be->conn_retries - si->conn_retries) %
+	       ((s->be->conn_retries - s->conn_retries) %
 	        s->be->redispatch_after == 0)) ||
 	      ((s->be->redispatch_after < 0) &&
-	       ((s->be->conn_retries - si->conn_retries) %
+	       ((s->be->conn_retries - s->conn_retries) %
 	        (s->be->conn_retries + 1 + s->be->redispatch_after) == 0))) ||
 	     (!(s->flags & SF_DIRECT) && s->be->srv_act > 1 &&
 	      ((s->be->lbprm.algo & BE_LB_KIND) == BE_LB_KIND_RR)))) {

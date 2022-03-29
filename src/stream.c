@@ -212,7 +212,7 @@ static void strm_trace(enum trace_level level, uint64_t mask, const struct trace
 	else {
 		chunk_appendf(&trace_buf, " - t=%p s=(%p,0x%08x) si_f=(%p,0x%08x,0x%x) si_b=(%p,0x%08x,0x%x) retries=%d",
 			      task, s, s->flags, si_f, si_f->flags, si_f->err_type,
-			      si_b, si_b->flags, si_b->err_type, si_b->conn_retries);
+			      si_b, si_b->flags, si_b->err_type, s->conn_retries);
 	}
 
 	if (src->verbosity == STRM_VERB_MINIMAL)
@@ -420,6 +420,7 @@ struct stream *stream_new(struct session *sess, struct conn_stream *cs, struct b
 
 	s->task = t;
 	s->pending_events = 0;
+	s->conn_retries = 0;
 	t->process = process_stream;
 	t->context = s;
 	t->expire = TICK_ETERNITY;
@@ -2160,7 +2161,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 				 * perform a connection request.
 				 */
 				si_b->state = SI_ST_REQ; /* new connection requested */
-				si_b->conn_retries = s->be->conn_retries;
+				s->conn_retries = s->be->conn_retries;
 				if ((s->be->retry_type &~ PR_RE_CONN_FAILED) &&
 				    (s->be->mode == PR_MODE_HTTP) &&
 				    !(s->txn->flags & TX_D_L7_RETRY))
@@ -3154,7 +3155,7 @@ static int stats_dump_full_strm_to_buffer(struct conn_stream *cs, struct stream 
 
 		chunk_appendf(&trash,
 			     "  flags=0x%x, conn_retries=%d, srv_conn=%p, pend_pos=%p waiting=%d epoch=%#x\n",
-			     strm->flags, strm->csb->si->conn_retries, strm->srv_conn, strm->pend_pos,
+			     strm->flags, strm->conn_retries, strm->srv_conn, strm->pend_pos,
 			     LIST_INLIST(&strm->buffer_wait.list), strm->stream_epoch);
 
 		chunk_appendf(&trash,

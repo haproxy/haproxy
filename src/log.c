@@ -2616,8 +2616,8 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 			case LOG_FMT_RETRIES:  // %rq
 				if (s_flags & SF_REDISP)
 					LOGCHAR('+');
-				ret = ltoa_o(((s && cs_si(s->csb)->conn_retries > 0)
-					      ? (be->conn_retries - cs_si(s->csb)->conn_retries)
+				ret = ltoa_o(((s && s->conn_retries > 0)
+					      ? (be->conn_retries - s->conn_retries)
 					      : ((s && cs_si(s->csb)->state != SI_ST_INI) ? be->conn_retries : 0)),
 					     tmplog, dst + maxsize - tmplog);
 				if (ret == NULL)
@@ -3080,7 +3080,7 @@ void strm_log(struct stream *s)
 	err = (s->flags & SF_REDISP) ||
               ((s->flags & SF_ERR_MASK) > SF_ERR_LOCAL) ||
 	      (((s->flags & SF_ERR_MASK) == SF_ERR_NONE) &&
-	       (cs_si(s->csb)->conn_retries != s->be->conn_retries)) ||
+	       (s->conn_retries != s->be->conn_retries)) ||
 	      ((sess->fe->mode == PR_MODE_HTTP) && s->txn && s->txn->status >= 500);
 
 	if (!err && (sess->fe->options2 & PR_O2_NOLOGNORM))

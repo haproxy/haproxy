@@ -2768,7 +2768,6 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 
 		cs_si(s->csb)->state = cs_si(s->csb)->prev_state = SI_ST_INI;
 		cs_si(s->csb)->err_type = SI_ET_NONE;
-		cs_si(s->csb)->conn_retries = 0;  /* used for logging too */
 		cs_si(s->csb)->exp = TICK_ETERNITY;
 		cs_si(s->csb)->flags &= SI_FL_ISBACK | SI_FL_DONT_WAKE; /* we're in the context of process_stream */
 		s->req.flags &= ~(CF_SHUTW|CF_SHUTW_NOW|CF_AUTO_CONNECT|CF_WRITE_ERROR|CF_STREAMER|CF_STREAMER_FAST|CF_NEVER_WAIT|CF_WROTE_DATA);
@@ -2776,6 +2775,7 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		s->flags &= ~(SF_DIRECT|SF_ASSIGNED|SF_ADDR_SET|SF_BE_ASSIGNED|SF_FORCE_PRST|SF_IGNORE_PRST);
 		s->flags &= ~(SF_CURR_SESS|SF_REDIRECTABLE|SF_SRV_REUSED);
 		s->flags &= ~(SF_ERR_MASK|SF_FINST_MASK|SF_REDISP);
+		s->conn_retries = 0;  /* used for logging too */
 		/* reinitialise the current rule list pointer to NULL. We are sure that
 		 * any rulelist match the NULL pointer.
 		 */

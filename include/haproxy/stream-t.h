@@ -80,7 +80,7 @@
 
 #define SF_SRV_REUSED   0x00100000	/* the server-side connection was reused */
 #define SF_SRV_REUSED_ANTICIPATED  0x00200000  /* the connection was reused but the mux is not ready yet */
-#define SF_WEBSOCKET    0x00400000	/* websocket stream */
+#define SF_WEBSOCKET    0x00400000	/* websocket stream */ // TODO: must be removed
 
 /* flags for the proxy of the master CLI */
 /* 0x0001.. to 0x8000 are reserved for ACCESS_* flags from cli-t.h */
@@ -138,6 +138,8 @@ struct stream {
 					 * This is a bit field of TASK_WOKEN_* */
 	int16_t priority_class;         /* priority class of the stream for the pending queue */
 	int32_t priority_offset;        /* priority offset of the stream for the pending queue */
+
+	int conn_retries;               /* number of connect retries left */
 
 	struct list list;               /* position in the thread's streams list */
 	struct mt_list by_srv;          /* position in server stream list */
