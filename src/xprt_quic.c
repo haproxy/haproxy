@@ -1484,13 +1484,18 @@ static inline void qc_treat_acked_tx_frm(struct quic_conn *qc,
 
 		/* do not use strm_frm->stream as the qc_stream_desc instance
 		 * might be freed at this stage. Use the id to do a proper
-		 * lookup.
+		 * lookup. First search in the MUX then in the released stream
+		 * list.
 		 *
 		 * TODO if lookup operation impact on the perf is noticeable,
 		 * implement a refcount on qc_stream_desc instances.
 		 */
-		node = eb64_lookup(&qc->streams_by_id, strm_frm->id);
-		stream = eb64_entry(node, struct qc_stream_desc, by_id);
+		if (qc->mux_state == QC_MUX_READY)
+			stream = qcc_get_stream(qc->qcc, strm_frm->id);
+		if (!stream) {
+			node = eb64_lookup(&qc->streams_by_id, strm_frm->id);
+			stream = eb64_entry(node, struct qc_stream_desc, by_id);
+		}
 
 		if (!stream) {
 			TRACE_PROTO("acked stream for released stream", QUIC_EV_CONN_ACKSTRM, qc, strm_frm);
@@ -2155,7 +2160,7 @@ static int qc_handle_bidi_strm_frm(struct quic_rx_packet *pkt,
 		frm = eb64_entry(&frm_node->node,
 		                 struct quic_rx_strm_frm, offset_node);
 
-		ret = qcc_recv(qc->qcc, qcs->by_id.key, frm->len,
+		ret = qcc_recv(qc->qcc, qcs->id, frm->len,
 		               frm->offset_node.key, frm->fin,
 		               (char *)frm->data, &qcs);
 
@@ -5733,12 +5738,12 @@ int quic_lstnr_dgram_dispatch(unsigned char *buf, size_t len, void *owner,
 	return 0;
 }
 
-/* Allocate a new stream descriptor with id <id>. The stream will be stored
- * inside the <qc> connection.
+/* Allocate a new stream descriptor with id <id>. The caller is responsible to
+ * store the stream in the appropriate tree.
  *
  * Returns the newly allocated instance on success or else NULL.
  */
-struct qc_stream_desc *qc_stream_desc_new(struct quic_conn *qc, uint64_t id, void *ctx)
+struct qc_stream_desc *qc_stream_desc_new(uint64_t id, void *ctx)
 {
 	struct qc_stream_desc *stream;
 
@@ -5747,7 +5752,7 @@ struct qc_stream_desc *qc_stream_desc_new(struct quic_conn *qc, uint64_t id, voi
 		return NULL;
 
 	stream->by_id.key = id;
-	eb64_insert(&qc->streams_by_id, &stream->by_id);
+	stream->by_id.node.leaf_p = NULL;
 
 	stream->buf = BUF_NULL;
 	stream->acked_frms = EB_ROOT;
@@ -5759,15 +5764,22 @@ struct qc_stream_desc *qc_stream_desc_new(struct quic_conn *qc, uint64_t id, voi
 }
 
 /* Mark the stream descriptor <stream> as released by the upper layer. It will
- * be freed as soon as all its buffered data are acknowledged.
+ * be freed as soon as all its buffered data are acknowledged. In the meantime,
+ * the stream is stored in the <qc> tree : thus it must have been removed from
+ * any other tree before calling this function.
  */
-void qc_stream_desc_release(struct qc_stream_desc *stream)
+void qc_stream_desc_release(struct qc_stream_desc *stream,
+                            struct quic_conn *qc)
 {
+	BUG_ON(stream->by_id.node.leaf_p);
+
 	stream->release = 1;
 	stream->ctx = NULL;
 
 	if (!b_data(&stream->buf))
 		qc_stream_desc_free(stream);
+	else
+		eb64_insert(&qc->streams_by_id, &stream->by_id);
 }
 
 /* Function to automatically activate QUIC traces on stdout.

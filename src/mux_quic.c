@@ -105,7 +105,7 @@ struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
 		goto out;
 
 	/* allocate transport layer stream descriptor */
-	stream = qc_stream_desc_new(qcc->conn->qc, id, qcs);
+	stream = qc_stream_desc_new(id, qcs);
 	if (!stream) {
 		pool_free(pool_head_qcs, qcs);
 		qcs = NULL;
@@ -117,8 +117,9 @@ struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
 	qcs->cs = NULL;
 	qcs->flags = QC_SF_NONE;
 
-	qcs->by_id.key = id;
-	eb64_insert(&qcc->streams_by_id, &qcs->by_id);
+	qcs->id = id;
+	/* store transport layer stream descriptor in qcc tree */
+	eb64_insert(&qcc->streams_by_id, &stream->by_id);
 	qcc->strms[type].nb_streams++;
 
 	/* If stream is local, use peer remote-limit, or else the opposite. */
@@ -153,12 +154,12 @@ void qcs_free(struct qcs *qcs)
 	b_free(&qcs->rx.buf);
 	b_free(&qcs->tx.buf);
 
-	BUG_ON(!qcs->qcc->strms[qcs_id_type(qcs->by_id.key)].nb_streams);
-	--qcs->qcc->strms[qcs_id_type(qcs->by_id.key)].nb_streams;
+	BUG_ON(!qcs->qcc->strms[qcs_id_type(qcs->id)].nb_streams);
+	--qcs->qcc->strms[qcs_id_type(qcs->id)].nb_streams;
 
-	qc_stream_desc_release(qcs->stream);
-
-	eb64_delete(&qcs->by_id);
+	/* stream desc must be removed from MUX tree before release it */
+	eb64_delete(&qcs->stream->by_id);
+	qc_stream_desc_release(qcs->stream, qcs->qcc->conn->qc);
 	pool_free(pool_head_qcs, qcs);
 }
 
@@ -218,6 +219,7 @@ void qcs_notify_send(struct qcs *qcs)
  */
 struct qcs *qcc_get_qcs(struct qcc *qcc, uint64_t id)
 {
+	struct qc_stream_desc *stream;
 	unsigned int strm_type;
 	int64_t sub_id;
 	struct eb64_node *strm_node;
@@ -233,7 +235,8 @@ struct qcs *qcc_get_qcs(struct qcc *qcc, uint64_t id)
 			/* unknown stream id */
 			goto out;
 		}
-		qcs = eb64_entry(strm_node, struct qcs, by_id);
+		stream = eb64_entry(strm_node, struct qc_stream_desc, by_id);
+		qcs = stream->ctx;
 	}
 	else {
 		/* Remote streams. */
@@ -282,8 +285,10 @@ struct qcs *qcc_get_qcs(struct qcc *qcc, uint64_t id)
 		}
 		else {
 			strm_node = eb64_lookup(strms, id);
-			if (strm_node)
-				qcs = eb64_entry(strm_node, struct qcs, by_id);
+			if (strm_node) {
+				stream = eb64_entry(strm_node, struct qc_stream_desc, by_id);
+				qcs = stream->ctx;
+			}
 		}
 	}
 
@@ -389,12 +394,14 @@ int qcc_recv_max_data(struct qcc *qcc, uint64_t max)
  */
 int qcc_recv_max_stream_data(struct qcc *qcc, uint64_t id, uint64_t max)
 {
+	struct qc_stream_desc *stream;
 	struct qcs *qcs;
 	struct eb64_node *node;
 
 	node = eb64_lookup(&qcc->streams_by_id, id);
 	if (node) {
-		qcs = eb64_entry(&node->node, struct qcs, by_id);
+		stream = eb64_entry(node, struct qc_stream_desc, by_id);
+		qcs = stream->ctx;
 		if (max > qcs->tx.msd) {
 			qcs->tx.msd = max;
 
@@ -436,7 +443,7 @@ static int qc_is_max_streams_needed(struct qcc *qcc)
 static void qcs_destroy(struct qcs *qcs)
 {
 	struct connection *conn = qcs->qcc->conn;
-	const uint64_t id = qcs->by_id.key;
+	const uint64_t id = qcs->id;
 
 	TRACE_ENTER(QMUX_EV_QCS_END, conn, qcs);
 
@@ -501,9 +508,9 @@ static void qc_release(struct qcc *qcc)
 		/* liberate remaining qcs instances */
 		node = eb64_first(&qcc->streams_by_id);
 		while (node) {
-			struct qcs *qcs = eb64_entry(node, struct qcs, by_id);
+			struct qc_stream_desc *stream = eb64_entry(node, struct qc_stream_desc, by_id);
 			node = eb64_next(node);
-			qcs_free(qcs);
+			qcs_free(stream->ctx);
 		}
 
 		pool_free(pool_head_qcc, qcc);
@@ -595,7 +602,7 @@ static int qcs_push_frame(struct qcs *qcs, struct buffer *out,
 
 	frm->type = QUIC_FT_STREAM_8;
 	frm->stream.stream = qcs->stream;
-	frm->stream.id = qcs->by_id.key;
+	frm->stream.id = qcs->id;
 	frm->stream.buf = out;
 	frm->stream.data = (unsigned char *)b_peek(out, head);
 
@@ -760,7 +767,8 @@ static int qc_send(struct qcc *qcc)
 	 */
 	node = eb64_first(&qcc->streams_by_id);
 	while (node) {
-		struct qcs *qcs = container_of(node, struct qcs, by_id);
+		struct qc_stream_desc *stream = eb64_entry(node, struct qc_stream_desc, by_id);
+		struct qcs *qcs = stream->ctx;
 		struct buffer *buf = &qcs->tx.buf;
 		struct buffer *out = &qcs->stream->buf;
 
@@ -769,7 +777,7 @@ static int qc_send(struct qcc *qcc)
 		 * mechanism for sending. This should be unified in the future,
 		 * in this case the next check will be removed.
 		 */
-		if (quic_stream_is_uni(qcs->by_id.key)) {
+		if (quic_stream_is_uni(qcs->id)) {
 			node = eb64_next(node);
 			continue;
 		}
@@ -824,7 +832,8 @@ static int qc_release_detached_streams(struct qcc *qcc)
 
 	node = eb64_first(&qcc->streams_by_id);
 	while (node) {
-		struct qcs *qcs = container_of(node, struct qcs, by_id);
+		struct qc_stream_desc *stream = eb64_entry(node, struct qc_stream_desc, by_id);
+		struct qcs *qcs = stream->ctx;
 		node = eb64_next(node);
 
 		if (qcs->flags & QC_SF_DETACH) {
@@ -1223,7 +1232,7 @@ static void qmux_trace(enum trace_level level, uint64_t mask,
 		chunk_appendf(&trace_buf, " : qcc=%p(F)", qcc);
 
 		if (qcs)
-			chunk_appendf(&trace_buf, " qcs=%p(%llu)", qcs, qcs->by_id.key);
+			chunk_appendf(&trace_buf, " qcs=%p(%lu)", qcs, qcs->id);
 
 		if (mask & QMUX_EV_QCC_NQCS) {
 			const uint64_t *id = a3;
