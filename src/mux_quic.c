@@ -481,6 +481,9 @@ static void qc_release(struct qcc *qcc)
 
 		TRACE_DEVEL("freeing qcc", QMUX_EV_QCC_END, conn);
 
+		if (qcc->app_ops && qcc->app_ops->release)
+			qcc->app_ops->release(qcc->ctx);
+
 		if (qcc->wait_event.tasklet)
 			tasklet_free(qcc->wait_event.tasklet);
 
