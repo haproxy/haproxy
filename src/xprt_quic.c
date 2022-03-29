@@ -169,6 +169,7 @@ DECLARE_POOL(pool_head_quic_rx_strm_frm, "quic_rx_strm_frm", sizeof(struct quic_
 DECLARE_STATIC_POOL(pool_head_quic_crypto_buf, "quic_crypto_buf_pool", sizeof(struct quic_crypto_buf));
 DECLARE_POOL(pool_head_quic_frame, "quic_frame_pool", sizeof(struct quic_frame));
 DECLARE_STATIC_POOL(pool_head_quic_arng, "quic_arng_pool", sizeof(struct quic_arng_node));
+DECLARE_STATIC_POOL(pool_head_quic_conn_stream, "qc_stream_desc", sizeof(struct qc_stream_desc));
 
 static struct quic_tx_packet *qc_build_pkt(unsigned char **pos, const unsigned char *buf_end,
                                            struct quic_enc_level *qel, struct list *frms,
@@ -1397,6 +1398,27 @@ static int qc_pkt_decrypt(struct quic_rx_packet *pkt, struct quic_enc_level *qel
 	pkt->len = pkt->aad_len + ret;
 
 	return 1;
+}
+
+/* Free the stream descriptor <stream> buffer. This function should be used
+ * when all its data have been acknowledged. If the stream was released by the
+ * upper layer, the stream descriptor will be freed.
+ *
+ * Returns 0 if the stream was not freed else non-zero.
+ */
+static int qc_stream_desc_free(struct qc_stream_desc *stream)
+{
+	b_free(&stream->buf);
+	offer_buffers(NULL, 1);
+
+	if (stream->release) {
+		eb64_delete(&stream->by_id);
+		pool_free(pool_head_quic_conn_stream, stream);
+
+		return 1;
+	}
+
+	return 0;
 }
 
 /* Remove from <qcs> stream the acknowledged frames.
@@ -3689,6 +3711,19 @@ static void quic_conn_release(struct quic_conn *qc)
 {
 	int i;
 	struct ssl_sock_ctx *conn_ctx;
+	struct eb64_node *node;
+
+	/* free remaining stream descriptors */
+	node = eb64_first(&qc->streams_by_id);
+	while (node) {
+		struct qc_stream_desc *stream;
+
+		stream = eb64_entry(node, struct qc_stream_desc, by_id);
+		node = eb64_next(node);
+
+		eb64_delete(&stream->by_id);
+		pool_free(pool_head_quic_conn_stream, stream);
+	}
 
 	if (qc->idle_timer_task) {
 		task_destroy(qc->idle_timer_task);
@@ -3908,6 +3943,8 @@ static struct quic_conn *qc_new_conn(unsigned int version, int ipv4,
 
 	/* required to use MTLIST_IN_LIST */
 	MT_LIST_INIT(&qc->accept_list);
+
+	qc->streams_by_id = EB_ROOT_UNIQUE;
 
 	TRACE_LEAVE(QUIC_EV_CONN_INIT, qc);
 
@@ -5679,6 +5716,43 @@ int quic_lstnr_dgram_dispatch(unsigned char *buf, size_t len, void *owner,
 
  err:
 	return 0;
+}
+
+/* Allocate a new stream descriptor with id <id>. The stream will be stored
+ * inside the <qc> connection.
+ *
+ * Returns the newly allocated instance on success or else NULL.
+ */
+struct qc_stream_desc *qc_stream_desc_new(struct quic_conn *qc, uint64_t id, void *ctx)
+{
+	struct qc_stream_desc *stream;
+
+	stream = pool_alloc(pool_head_quic_conn_stream);
+	if (!stream)
+		return NULL;
+
+	stream->by_id.key = id;
+	eb64_insert(&qc->streams_by_id, &stream->by_id);
+
+	stream->buf = BUF_NULL;
+	stream->acked_frms = EB_ROOT;
+	stream->ack_offset = 0;
+	stream->release = 0;
+	stream->ctx = ctx;
+
+	return stream;
+}
+
+/* Mark the stream descriptor <stream> as released by the upper layer. It will
+ * be freed as soon as all its buffered data are acknowledged.
+ */
+void qc_stream_desc_release(struct qc_stream_desc *stream)
+{
+	stream->release = 1;
+	stream->ctx = NULL;
+
+	if (!b_data(&stream->buf))
+		qc_stream_desc_free(stream);
 }
 
 /* Function to automatically activate QUIC traces on stdout.
