@@ -125,8 +125,6 @@ void si_free(struct stream_interface *si)
 		return;
 
 	tasklet_free(si->wait_event.tasklet);
-	sockaddr_free(&si->src);
-	sockaddr_free(&si->dst);
 	pool_free(pool_head_streaminterface, si);
 }
 

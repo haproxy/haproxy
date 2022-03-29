@@ -219,6 +219,8 @@ void show_cs_flags(unsigned int f)
 		printf("0\n");
 		return;
 	}
+	SHOW_FLAG(f, CS_FL_ADDR_FROM_SET);
+	SHOW_FLAG(f, CS_FL_ADDR_TO_SET);
 	SHOW_FLAG(f, CS_FL_ISBACK);
 
 	if (f) {
@@ -279,8 +281,6 @@ void show_si_flags(unsigned int f)
 	SHOW_FLAG(f, SI_FL_RXBLK_SHUT);
 	SHOW_FLAG(f, SI_FL_RXBLK_CONN);
 	SHOW_FLAG(f, SI_FL_RX_WAIT_EP);
-	SHOW_FLAG(f, SI_FL_ADDR_FROM_SET);
-	SHOW_FLAG(f, SI_FL_ADDR_TO_SET);
 
 	if (f) {
 		printf("EXTRA(0x%08x)", f);

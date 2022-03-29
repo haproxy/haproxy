@@ -79,6 +79,9 @@ struct stream_interface;
 enum {
 	CS_FL_NONE          = 0x00000000,  /* Just for initialization purposes */
 	CS_FL_ISBACK        = 0x00000001,  /* Set for CS on back-side */
+
+	CS_FL_ADDR_FROM_SET = 0x00000002, /* source address is set */
+	CS_FL_ADDR_TO_SET   = 0x00000004, /* destination address is set */
 };
 
 /* cs_shutr() modes */
@@ -125,6 +128,8 @@ struct conn_stream {
 	enum obj_type *app;                  /* points to the applicative point (stream or check) */
 	struct stream_interface *si;
 	const struct data_cb *data_cb;       /* data layer callbacks. Must be set before xprt->init() */
+	struct sockaddr_storage *src;        /* source address (pool), when known, otherwise NULL */
+	struct sockaddr_storage *dst;        /* destination address (pool), when known, otherwise NULL */
 };
 
 

@@ -30,6 +30,7 @@
 #include <haproxy/arg.h>
 #include <haproxy/channel.h>
 #include <haproxy/connection.h>
+#include <haproxy/cs_utils.h>
 #include <haproxy/global.h>
 #include <haproxy/http_rules.h>
 #include <haproxy/proto_tcp.h>
@@ -68,9 +69,9 @@ static enum act_return tcp_action_req_set_src(struct act_rule *rule, struct prox
 
 	case ACT_F_TCP_REQ_CNT:
 	case ACT_F_HTTP_REQ:
-		if (!si_get_src(cs_si(s->csf)))
+		if (!cs_get_src(s->csf))
 			goto end;
-		src = cs_si(s->csf)->src;
+		src = s->csf->src;
 		break;
 
 	default:
@@ -124,9 +125,9 @@ static enum act_return tcp_action_req_set_dst(struct act_rule *rule, struct prox
 
 	case ACT_F_TCP_REQ_CNT:
 	case ACT_F_HTTP_REQ:
-		if (!si_get_dst(cs_si(s->csf)))
+		if (!cs_get_dst(s->csf))
 			goto end;
-		dst = cs_si(s->csf)->dst;
+		dst = s->csf->dst;
 		break;
 
 	default:
@@ -181,9 +182,9 @@ static enum act_return tcp_action_req_set_src_port(struct act_rule *rule, struct
 
 	case ACT_F_TCP_REQ_CNT:
 	case ACT_F_HTTP_REQ:
-		if (!si_get_src(cs_si(s->csf)))
+		if (!cs_get_src(s->csf))
 			goto end;
-		src = cs_si(s->csf)->src;
+		src = s->csf->src;
 		break;
 
 	default:
@@ -236,9 +237,9 @@ static enum act_return tcp_action_req_set_dst_port(struct act_rule *rule, struct
 
 	case ACT_F_TCP_REQ_CNT:
 	case ACT_F_HTTP_REQ:
-		if (!si_get_dst(cs_si(s->csf)))
+		if (!cs_get_dst(s->csf))
 			goto end;
-		dst = cs_si(s->csf)->dst;
+		dst = s->csf->dst;
 		break;
 
 	default:

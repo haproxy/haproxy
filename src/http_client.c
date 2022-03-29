@@ -525,7 +525,7 @@ struct appctx *httpclient_start(struct httpclient *hc)
 			break;
 	}
 
-	cs_si(s->csb)->dst = addr;
+	s->csb->dst = addr;
 	cs_si(s->csb)->flags |= SI_FL_NOLINGER;
 	s->flags |= SF_ASSIGNED|SF_ADDR_SET;
 	s->res.flags |= CF_READ_DONTWAIT;

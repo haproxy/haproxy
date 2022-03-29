@@ -656,7 +656,7 @@ static struct appctx *sink_forward_session_create(struct sink *sink, struct sink
 	}
 	s = DISGUISE(cs_strm(cs));
 
-	cs_si(s->csb)->dst = addr;
+	s->csb->dst = addr;
 	cs_si(s->csb)->flags |= SI_FL_NOLINGER;
 
 	s->target = &sft->srv->obj_type;

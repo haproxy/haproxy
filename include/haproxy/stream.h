@@ -340,7 +340,7 @@ static inline void stream_choose_redispatch(struct stream *s)
 		if (may_dequeue_tasks(objt_server(s->target), s->be))
 			process_srv_queue(objt_server(s->target));
 
-		sockaddr_free(&cs_si(s->csb)->dst);
+		sockaddr_free(&s->csb->dst);
 		s->flags &= ~(SF_DIRECT | SF_ASSIGNED | SF_ADDR_SET);
 		si->state = SI_ST_REQ;
 	} else {

@@ -104,10 +104,6 @@ enum {
 	SI_FL_RXBLK_CONN = 0x00100000,  /* other side is not connected */
 	SI_FL_RXBLK_ANY  = 0x001F0000,  /* any of the RXBLK flags above */
 	SI_FL_RX_WAIT_EP = 0x00200000,  /* stream-int waits for more data from the end point */
-	/* unused: 0x01000000, 0x02000000 */
-
-	SI_FL_ADDR_FROM_SET = 0x04000000, /* source address is set */
-	SI_FL_ADDR_TO_SET   = 0x08000000  /* destination address is set */
 };
 
 /* A stream interface has 3 parts :
@@ -129,8 +125,6 @@ struct stream_interface {
 	unsigned int flags;     /* SI_FL_* */
 	struct conn_stream *cs; /* points to the conn-streams that owns the endpoint (connection or applet) */
 	struct si_ops *ops;     /* general operations at the stream interface layer */
-	struct sockaddr_storage *src; /* source address (pool), when known, otherwise NULL */
-	struct sockaddr_storage *dst; /* destination address (pool), when known, otherwise NULL */
 	unsigned int exp;       /* wake up time for connect, queue, turn-around, ... */
 
 	/* struct members below are the "remote" part, as seen from the buffer side */

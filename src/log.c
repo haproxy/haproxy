@@ -2116,7 +2116,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				break;
 
 			case LOG_FMT_CLIENTIP:  // %ci
-				addr = (s ? si_src(cs_si(s->csf)) : sess_src(sess));
+				addr = (s ? cs_src(s->csf) : sess_src(sess));
 				if (addr)
 					ret = lf_ip(tmplog, (struct sockaddr *)addr, dst + maxsize - tmplog, tmp);
 				else
@@ -2129,7 +2129,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				break;
 
 			case LOG_FMT_CLIENTPORT:  // %cp
-				addr = (s ? si_src(cs_si(s->csf)) : sess_src(sess));
+				addr = (s ? cs_src(s->csf) : sess_src(sess));
 				if (addr) {
 					/* sess->listener is always defined when the session's owner is an inbound connections */
 					if (addr->ss_family == AF_UNIX)
@@ -2147,7 +2147,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				break;
 
 			case LOG_FMT_FRONTENDIP: // %fi
-				addr = (s ? si_dst(cs_si(s->csf)) : sess_dst(sess));
+				addr = (s ? cs_dst(s->csf) : sess_dst(sess));
 				if (addr)
 					ret = lf_ip(tmplog, (struct sockaddr *)addr, dst + maxsize - tmplog, tmp);
 				else
@@ -2160,7 +2160,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				break;
 
 			case  LOG_FMT_FRONTENDPORT: // %fp
-				addr = (s ? si_dst(cs_si(s->csf)) : sess_dst(sess));
+				addr = (s ? cs_dst(s->csf) : sess_dst(sess));
 				if (addr) {
 					/* sess->listener is always defined when the session's owner is an inbound connections */
 					if (addr->ss_family == AF_UNIX)

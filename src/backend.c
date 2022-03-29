@@ -701,7 +701,7 @@ int assign_server(struct stream *s)
 				const struct sockaddr_storage *src;
 
 			case BE_LB_HASH_SRC:
-				src = si_src(cs_si(s->csf));
+				src = cs_src(s->csf);
 				if (src && src->ss_family == AF_INET) {
 					srv = get_server_sh(s->be,
 							    (void *)&((struct sockaddr_in *)src)->sin_addr,
@@ -854,7 +854,7 @@ static int alloc_dst_address(struct sockaddr_storage **ss,
 			 * locally on multiple addresses at once. Nothing is done
 			 * for AF_UNIX addresses.
 			 */
-			dst = si_dst(cs_si(s->csf));
+			dst = cs_dst(s->csf);
 			if (dst && dst->ss_family == AF_INET) {
 				((struct sockaddr_in *)*ss)->sin_family = AF_INET;
 				((struct sockaddr_in *)*ss)->sin_addr =
@@ -871,7 +871,7 @@ static int alloc_dst_address(struct sockaddr_storage **ss,
 		if ((srv->flags & SRV_F_MAPPORTS)) {
 			int base_port;
 
-			dst = si_dst(cs_si(s->csf));
+			dst = cs_dst(s->csf);
 			if (dst) {
 				/* First, retrieve the port from the incoming connection */
 				base_port = get_host_port(dst);
@@ -894,7 +894,7 @@ static int alloc_dst_address(struct sockaddr_storage **ss,
 			return SRV_STATUS_INTERNAL;
 
 		/* in transparent mode, use the original dest addr if no dispatch specified */
-		dst = si_dst(cs_si(s->csf));
+		dst = cs_dst(s->csf);
 		if (dst && (dst->ss_family == AF_INET || dst->ss_family == AF_INET6))
 			**ss = *dst;
 	}
@@ -1069,7 +1069,7 @@ static int alloc_bind_address(struct sockaddr_storage **ss,
 	case CO_SRC_TPROXY_CLI:
 	case CO_SRC_TPROXY_CIP:
 		/* FIXME: what can we do if the client connects in IPv6 or unix socket ? */
-		addr = si_src(cs_si(s->csf));
+		addr = cs_src(s->csf);
 		if (!addr)
 			return SRV_STATUS_INTERNAL;
 
@@ -1271,7 +1271,7 @@ static int connect_server(struct stream *s)
 	srv = objt_server(s->target);
 
 	if (!(s->flags & SF_ADDR_SET)) {
-		err = alloc_dst_address(&(cs_si(s->csb)->dst), srv, s);
+		err = alloc_dst_address(&s->csb->dst, srv, s);
 		if (err != SRV_STATUS_OK)
 			return SF_ERR_INTERNAL;
 
@@ -1326,7 +1326,7 @@ static int connect_server(struct stream *s)
 
 	/* 3. destination address */
 	if (srv && (!is_addr(&srv->addr) || srv->flags & SRV_F_MAPPORTS))
-		hash_params.dst_addr = cs_si(s->csb)->dst;
+		hash_params.dst_addr = s->csb->dst;
 
 	/* 4. source address */
 	hash_params.src_addr = bind_addr;
@@ -1546,7 +1546,7 @@ skip_reuse:
 		return SF_ERR_RESOURCE;
 
 	/* copy the target address into the connection */
-	*srv_conn->dst = *(cs_si(s->csb))->dst;
+	*srv_conn->dst = *s->csb->dst;
 
 	/* Copy network namespace from client connection */
 	srv_conn->proxy_netns = cli_conn ? cli_conn->proxy_netns : NULL;
@@ -1820,7 +1820,7 @@ int srv_redispatch_connect(struct stream *s)
 		if (((s->flags & (SF_DIRECT|SF_FORCE_PRST)) == SF_DIRECT) &&
 		    (s->be->options & PR_O_REDISP)) {
 			s->flags &= ~(SF_DIRECT | SF_ASSIGNED | SF_ADDR_SET);
-			sockaddr_free(&(cs_si(s->csb)->dst));
+			sockaddr_free(&s->csb->dst);
 			goto redispatch;
 		}
 

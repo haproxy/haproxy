@@ -915,7 +915,7 @@ static struct appctx *dns_session_create(struct dns_session *ds)
 	}
 
 	s = DISGUISE(cs_strm(cs));
-	cs_si(s->csb)->dst = addr;
+	s->csb->dst = addr;
 	cs_si(s->csb)->flags |= SI_FL_NOLINGER;
 	s->target = &ds->dss->srv->obj_type;
 	s->flags = SF_ASSIGNED|SF_ADDR_SET;

@@ -2764,7 +2764,7 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 			}
 		}
 
-		sockaddr_free(&(cs_si(s->csb)->dst));
+		sockaddr_free(&s->csb->dst);
 
 		cs_si(s->csb)->state = cs_si(s->csb)->prev_state = SI_ST_INI;
 		cs_si(s->csb)->err_type = SI_ET_NONE;

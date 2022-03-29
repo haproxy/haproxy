@@ -60,7 +60,8 @@ struct conn_stream *cs_new(struct cs_endpoint *endp)
 	cs->app = NULL;
 	cs->si = NULL;
 	cs->data_cb = NULL;
-
+	cs->src = NULL;
+	cs->dst = NULL;
 	if (!endp) {
 		endp = cs_endpoint_new();
 		if (unlikely(!endp))
@@ -147,6 +148,8 @@ struct conn_stream *cs_new_from_check(struct check *check, unsigned int flags)
 void cs_free(struct conn_stream *cs)
 {
 	si_free(cs->si);
+	sockaddr_free(&cs->src);
+	sockaddr_free(&cs->dst);
 	if (cs->endp) {
 		BUG_ON(!(cs->endp->flags & CS_EP_DETACHED));
 		cs_endpoint_free(cs->endp);
@@ -282,7 +285,8 @@ void cs_detach_app(struct conn_stream *cs)
 	cs->app = NULL;
 	cs->si  = NULL;
 	cs->data_cb = NULL;
-
+	sockaddr_free(&cs->src);
+	sockaddr_free(&cs->dst);
 	if (!cs->endp || (cs->endp->flags & CS_EP_DETACHED))
 		cs_free(cs);
 }

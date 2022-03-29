@@ -23,6 +23,7 @@
 #include <haproxy/channel.h>
 #include <haproxy/chunk.h>
 #include <haproxy/connection.h>
+#include <haproxy/cs_utils.h>
 #include <haproxy/global.h>
 #include <haproxy/h1.h>
 #include <haproxy/h1_htx.h>
@@ -1186,7 +1187,7 @@ static int smp_fetch_base32(const struct arg *args, struct sample *smp, const ch
  */
 static int smp_fetch_base32_src(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	const struct sockaddr_storage *src = (smp->strm ? si_src(smp->strm->csf->si) : NULL);
+	const struct sockaddr_storage *src = (smp->strm ? cs_src(smp->strm->csf) : NULL);
 	struct buffer *temp;
 
 	if (!src)
@@ -2053,7 +2054,7 @@ static int smp_fetch_url32(const struct arg *args, struct sample *smp, const cha
  */
 static int smp_fetch_url32_src(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	const struct sockaddr_storage *src = (smp->strm ? si_src(smp->strm->csf->si) : NULL);
+	const struct sockaddr_storage *src = (smp->strm ? cs_src(smp->strm->csf) : NULL);
 	struct buffer *temp;
 
 	if (!src)

@@ -20,6 +20,8 @@
 #include <haproxy/channel.h>
 #include <haproxy/check.h>
 #include <haproxy/connection.h>
+#include <haproxy/conn_stream.h>
+#include <haproxy/cs_utils.h>
 #include <haproxy/errors.h>
 #include <haproxy/filters.h>
 #include <haproxy/http.h>
@@ -653,7 +655,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 	 * asks for it.
 	 */
 	if ((sess->fe->options | s->be->options) & PR_O_FWDFOR) {
-		const struct sockaddr_storage *src = si_src(cs_si(s->csf));
+		const struct sockaddr_storage *src = cs_src(s->csf);
 		struct http_hdr_ctx ctx = { .blk = NULL };
 		struct ist hdr = isttest(s->be->fwdfor_hdr_name) ? s->be->fwdfor_hdr_name : sess->fe->fwdfor_hdr_name;
 
@@ -710,7 +712,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 	 * asks for it.
 	 */
 	if ((sess->fe->options | s->be->options) & PR_O_ORGTO) {
-		const struct sockaddr_storage *dst = si_dst(cs_si(s->csf));
+		const struct sockaddr_storage *dst = cs_dst(s->csf);
 		struct ist hdr = isttest(s->be->orgto_hdr_name) ? s->be->orgto_hdr_name : sess->fe->orgto_hdr_name;
 
 		if (dst && dst->ss_family == AF_INET) {
