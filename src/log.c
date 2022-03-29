@@ -842,7 +842,7 @@ int parse_logsrv(char **args, struct list *logsrvs, int do_del, const char *file
 		memprintf(err, "out of memory");
 		goto error;
 	}
-
+	LIST_INIT(&logsrv->list);
 	logsrv->conf.file = strdup(file);
 	logsrv->conf.line = linenum;
 
