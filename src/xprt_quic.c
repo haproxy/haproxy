@@ -1400,7 +1400,8 @@ static int qc_pkt_decrypt(struct quic_rx_packet *pkt, struct quic_enc_level *qel
 }
 
 /* Remove from <qcs> stream the acknowledged frames.
- * Never fails.
+ *
+ * Returns 1 if at least one frame was removed else 0.
  */
 static int qcs_try_to_consume(struct qcs *qcs)
 {
