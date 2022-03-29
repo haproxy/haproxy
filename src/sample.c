@@ -327,6 +327,8 @@ static const char *fetch_ckp_names[SMP_CKP_ENTRIES] = {
 	[SMP_CKP_FE_HRS_BDY] = "frontend http-response body rule",
 	[SMP_CKP_FE_LOG_END] = "logs",
 	[SMP_CKP_BE_CHK_RUL] = "backend tcp-check rule",
+	[SMP_CKP_CFG_PARSER] = "configuration parser",
+	[SMP_CKP_CLI_PARSER] = "CLI parser",
 };
 
 /* This function returns the type of the data returned by the sample_expr.
