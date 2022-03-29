@@ -12,7 +12,7 @@
 #include <haproxy/xprt_quic-t.h>
 
 struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type);
-void uni_qcs_free(struct qcs *qcs);
+void qcs_free(struct qcs *qcs);
 
 struct buffer *qc_get_buf(struct qcs *qcs, struct buffer *bptr);
 

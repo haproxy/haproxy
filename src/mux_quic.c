@@ -137,11 +137,19 @@ struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
 	return qcs;
 }
 
-/* Free a qcs. This function must only be used for unidirectional streams.
- * Bidirectional streams are released by the upper layer through qc_detach().
+/* Free a qcs. This function must only be done to remove a stream on allocation
+ * error or connection shutdown. Else use qcs_destroy which handle all the
+ * QUIC connection mechanism.
  */
-void uni_qcs_free(struct qcs *qcs)
+void qcs_free(struct qcs *qcs)
 {
+	b_free(&qcs->rx.buf);
+	b_free(&qcs->tx.buf);
+	b_free(&qcs->tx.xprt_buf);
+
+	BUG_ON(!qcs->qcc->strms[qcs_id_type(qcs->by_id.key)].nb_streams);
+	--qcs->qcc->strms[qcs_id_type(qcs->by_id.key)].nb_streams;
+
 	eb64_delete(&qcs->by_id);
 	pool_free(pool_head_qcs, qcs);
 }
@@ -431,15 +439,7 @@ static void qcs_destroy(struct qcs *qcs)
 		}
 	}
 
-	eb64_delete(&qcs->by_id);
-
-	b_free(&qcs->rx.buf);
-	b_free(&qcs->tx.buf);
-	b_free(&qcs->tx.xprt_buf);
-
-	--qcs->qcc->strms[qcs_id_type(qcs->by_id.key)].nb_streams;
-
-	pool_free(pool_head_qcs, qcs);
+	qcs_free(qcs);
 
 	TRACE_LEAVE(QMUX_EV_QCS_END, conn);
 }

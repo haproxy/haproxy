@@ -840,7 +840,7 @@ static int h3_uqs_init(struct h3_uqs *h3_uqs, struct h3 *h3,
 static inline void h3_uqs_release(struct h3_uqs *h3_uqs)
 {
 	if (h3_uqs->qcs)
-		uni_qcs_free(h3_uqs->qcs);
+		qcs_free(h3_uqs->qcs);
 }
 
 static inline void h3_uqs_release_all(struct h3 *h3)
