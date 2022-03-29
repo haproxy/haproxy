@@ -62,7 +62,7 @@ static const char *extra_kw_list[] = {
 };
 
 /* List head of all known server keywords */
-static struct srv_kw_list srv_keywords = {
+struct srv_kw_list srv_keywords = {
 	.list = LIST_HEAD_INIT(srv_keywords.list)
 };
 

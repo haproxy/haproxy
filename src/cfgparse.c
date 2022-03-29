@@ -4241,6 +4241,128 @@ void cfg_restore_sections(struct list *backup_sections)
 	}
 }
 
+/* dumps all registered keywords by section on stdout */
+void cfg_dump_registered_keywords()
+{
+	const char* sect_names[] = { "", "global", "listen", "userlist", "peers", 0 };
+	int section;
+	int index;
+
+	for (section = 1; sect_names[section]; section++) {
+		struct cfg_kw_list *kwl;
+
+		printf("%s\n", sect_names[section]);
+		list_for_each_entry(kwl, &cfg_keywords.list, list) {
+			for (index = 0; kwl->kw[index].kw != NULL; index++)
+				if (kwl->kw[index].section == section)
+					printf("\t%s\n", kwl->kw[index].kw);
+		}
+
+		if (section == CFG_LISTEN) {
+			/* there are plenty of other keywords there */
+			extern struct list tcp_req_conn_keywords, tcp_req_sess_keywords,
+				tcp_req_cont_keywords, tcp_res_cont_keywords;
+			extern struct bind_kw_list bind_keywords;
+			extern struct ssl_bind_kw ssl_bind_kws[] __maybe_unused;
+			extern struct srv_kw_list srv_keywords;
+			struct action_kw_list *akwl;
+			struct bind_kw_list *bkwl;
+			struct srv_kw_list *skwl;
+
+			list_for_each_entry(bkwl, &bind_keywords.list, list) {
+				for (index = 0; bkwl->kw[index].kw != NULL; index++) {
+					if (!bkwl->kw[index].skip)
+						printf("\tbind <addr> %s\n", bkwl->kw[index].kw);
+					else
+						printf("\tbind <addr> %s +%d\n", bkwl->kw[index].kw, bkwl->kw[index].skip);
+				}
+			}
+
+#if defined(USE_OPENSSL)
+			for (index = 0; ssl_bind_kws[index].kw != NULL; index++) {
+				if (!ssl_bind_kws[index].skip)
+					printf("\tbind <addr> ssl %s\n", ssl_bind_kws[index].kw);
+				else
+					printf("\tbind <addr> ssl %s +%d\n", ssl_bind_kws[index].kw, ssl_bind_kws[index].skip);
+			}
+#endif
+
+			list_for_each_entry(skwl, &srv_keywords.list, list) {
+				for (index = 0; skwl->kw[index].kw != NULL; index++) {
+					if (!skwl->kw[index].skip)
+						printf("\tserver <name> <addr> %s\n", skwl->kw[index].kw);
+					else
+						printf("\tserver <name> <addr> %s +%d\n", skwl->kw[index].kw, skwl->kw[index].skip);
+				}
+			}
+
+			for (index = 0; cfg_opts[index].name; index++) {
+				printf("\toption %s [ ", cfg_opts[index].name);
+				if (cfg_opts[index].cap & PR_CAP_FE)
+					printf("FE ");
+				if (cfg_opts[index].cap & PR_CAP_BE)
+					printf("BE ");
+				if (cfg_opts[index].mode == PR_MODE_HTTP)
+					printf("HTTP ");
+				printf("]\n");
+			}
+
+			for (index = 0; cfg_opts2[index].name; index++) {
+				printf("\toption %s [ ", cfg_opts2[index].name);
+				if (cfg_opts2[index].cap & PR_CAP_FE)
+					printf("FE ");
+				if (cfg_opts2[index].cap & PR_CAP_BE)
+					printf("BE ");
+				if (cfg_opts2[index].mode == PR_MODE_HTTP)
+					printf("HTTP ");
+				printf("]\n");
+			}
+
+			list_for_each_entry(akwl, &tcp_req_conn_keywords, list) {
+				for (index = 0; akwl->kw[index].kw != NULL; index++)
+					printf("\ttcp-request connection %s%s\n", akwl->kw[index].kw,
+					       (akwl->kw[index].flags & KWF_MATCH_PREFIX) ? "*" : "");
+			}
+
+			list_for_each_entry(akwl, &tcp_req_sess_keywords, list) {
+				for (index = 0; akwl->kw[index].kw != NULL; index++)
+					printf("\ttcp-request session %s%s\n", akwl->kw[index].kw,
+					       (akwl->kw[index].flags & KWF_MATCH_PREFIX) ? "*" : "");
+			}
+
+			list_for_each_entry(akwl, &tcp_req_cont_keywords, list) {
+				for (index = 0; akwl->kw[index].kw != NULL; index++)
+					printf("\ttcp-request content %s%s\n", akwl->kw[index].kw,
+					       (akwl->kw[index].flags & KWF_MATCH_PREFIX) ? "*" : "");
+			}
+
+			list_for_each_entry(akwl, &tcp_res_cont_keywords, list) {
+				for (index = 0; akwl->kw[index].kw != NULL; index++)
+					printf("\ttcp-response content %s%s\n", akwl->kw[index].kw,
+					       (akwl->kw[index].flags & KWF_MATCH_PREFIX) ? "*" : "");
+			}
+
+			list_for_each_entry(akwl, &http_req_keywords.list, list) {
+				for (index = 0; akwl->kw[index].kw != NULL; index++)
+					printf("\thttp-request %s%s\n", akwl->kw[index].kw,
+					       (akwl->kw[index].flags & KWF_MATCH_PREFIX) ? "*" : "");
+			}
+
+			list_for_each_entry(akwl, &http_res_keywords.list, list) {
+				for (index = 0; akwl->kw[index].kw != NULL; index++)
+					printf("\thttp-response %s%s\n", akwl->kw[index].kw,
+					       (akwl->kw[index].flags & KWF_MATCH_PREFIX) ? "*" : "");
+			}
+
+			list_for_each_entry(akwl, &http_after_res_keywords.list, list) {
+				for (index = 0; akwl->kw[index].kw != NULL; index++)
+					printf("\thttp-after-response %s%s\n", akwl->kw[index].kw,
+					       (akwl->kw[index].flags & KWF_MATCH_PREFIX) ? "*" : "");
+			}
+		}
+	}
+}
+
 /* these are the config sections handled by default */
 REGISTER_CONFIG_SECTION("listen",         cfg_parse_listen,    NULL);
 REGISTER_CONFIG_SECTION("frontend",       cfg_parse_listen,    NULL);

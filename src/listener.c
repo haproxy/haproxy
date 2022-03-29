@@ -40,7 +40,7 @@
 
 
 /* List head of all known bind keywords */
-static struct bind_kw_list bind_keywords = {
+struct bind_kw_list bind_keywords = {
 	.list = LIST_HEAD_INIT(bind_keywords.list)
 };
 

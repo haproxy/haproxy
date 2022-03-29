@@ -126,6 +126,7 @@ void free_email_alert(struct proxy *p);
 const char *cfg_find_best_match(const char *word, const struct list *list, int section, const char **extra);
 int warnifnotcap(struct proxy *proxy, int cap, const char *file, int line, const char *arg, const char *hint);
 int failifnotcap(struct proxy *proxy, int cap, const char *file, int line, const char *arg, const char *hint);
+void cfg_dump_registered_keywords();
 
 /* simplified way to define a section parser */
 #define REGISTER_CONFIG_SECTION(name, parse, post)                            \

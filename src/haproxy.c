@@ -1825,10 +1825,16 @@ static void dump_registered_keywords(void)
 		if (strcmp(kwd_dump, "help") == 0) {
 			printf("# List of supported keyword classes:\n");
 			printf("all: list all keywords\n");
+			printf("cfg: configuration keywords\n");
 			continue;
 		}
 		else if (strcmp(kwd_dump, "all") == 0) {
 			all = 1;
+		}
+
+		if (all || strcmp(kwd_dump, "cfg") == 0) {
+			printf("# List of registered configuration keywords:\n");
+			cfg_dump_registered_keywords();
 		}
 	}
 }
