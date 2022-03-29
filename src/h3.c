@@ -892,6 +892,15 @@ static int h3_init(struct qcc *qcc)
 	return 0;
 }
 
+static void h3_release(void *ctx)
+{
+	struct h3 *h3 = ctx;
+
+	h3_uqs_release_all(h3);
+	h3_uqs_tasklets_release(h3);
+	pool_free(pool_head_h3, h3);
+}
+
 /* HTTP/3 application layer operations */
 const struct qcc_app_ops h3_ops = {
 	.init        = h3_init,
@@ -899,4 +908,5 @@ const struct qcc_app_ops h3_ops = {
 	.decode_qcs  = h3_decode_qcs,
 	.snd_buf     = h3_snd_buf,
 	.finalize    = h3_finalize,
+	.release     = h3_release,
 };
