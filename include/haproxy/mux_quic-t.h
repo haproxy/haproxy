@@ -10,6 +10,7 @@
 
 #include <haproxy/buf-t.h>
 #include <haproxy/connection-t.h>
+#include <haproxy/xprt_quic-t.h>
 
 /* Stream types */
 enum qcs_type {
@@ -98,14 +99,12 @@ struct qcs {
 	struct {
 		uint64_t offset; /* last offset of data ready to be sent */
 		uint64_t sent_offset; /* last offset sent by transport layer */
-		struct eb_root acked_frms; /* acked frames ordered by their offsets */
-		uint64_t ack_offset; /* last acked ordered byte offset */
 		struct buffer buf; /* transmit buffer before sending via xprt */
-		struct buffer xprt_buf; /* buffer for xprt sending, cleared on ACK. */
 		uint64_t msd; /* fctl bytes limit to respect on emission */
 	} tx;
 
 	struct eb64_node by_id; /* place in qcc's streams_by_id */
+	struct qc_stream_desc *stream;
 
 	struct wait_event wait_event;
 	struct wait_event *subs;

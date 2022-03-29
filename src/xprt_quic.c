@@ -447,12 +447,12 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 
 		if (mask & QUIC_EV_CONN_ACKSTRM) {
 			const struct quic_stream *s = a2;
-			const struct qcs *qcs = a3;
+			const struct qc_stream_desc *stream = a3;
 
 			if (s)
 				chunk_appendf(&trace_buf, " off=%llu len=%llu", (ull)s->offset.key, (ull)s->len);
-			if (qcs)
-				chunk_appendf(&trace_buf, " ack_offset=%llu", (ull)qcs->tx.ack_offset);
+			if (stream)
+				chunk_appendf(&trace_buf, " ack_offset=%llu", (ull)stream->ack_offset);
 		}
 
 		if (mask & QUIC_EV_CONN_RTTUPDT) {
@@ -1421,38 +1421,35 @@ static int qc_stream_desc_free(struct qc_stream_desc *stream)
 	return 0;
 }
 
-/* Remove from <qcs> stream the acknowledged frames.
+/* Remove from <stream> the acknowledged frames.
  *
  * Returns 1 if at least one frame was removed else 0.
  */
-static int qcs_try_to_consume(struct qcs *qcs)
+static int quic_stream_try_to_consume(struct quic_conn *qc,
+                                      struct qc_stream_desc *stream)
 {
 	int ret;
 	struct eb64_node *frm_node;
 
 	ret = 0;
-	frm_node = eb64_first(&qcs->tx.acked_frms);
+	frm_node = eb64_first(&stream->acked_frms);
 	while (frm_node) {
 		struct quic_stream *strm;
 		struct quic_frame *frm;
 
 		strm = eb64_entry(&frm_node->node, struct quic_stream, offset);
-		if (strm->offset.key > qcs->tx.ack_offset)
+		if (strm->offset.key > stream->ack_offset)
 			break;
 
 		TRACE_PROTO("stream consumed", QUIC_EV_CONN_ACKSTRM,
-		            qcs->qcc->conn->qc, strm, qcs);
-		if (strm->offset.key + strm->len > qcs->tx.ack_offset) {
+		            qc, strm, stream);
+
+		if (strm->offset.key + strm->len > stream->ack_offset) {
 			const size_t diff = strm->offset.key + strm->len -
-			                    qcs->tx.ack_offset;
-			qcs->tx.ack_offset += diff;
+			                    stream->ack_offset;
+			stream->ack_offset += diff;
 			b_del(strm->buf, diff);
 			ret = 1;
-
-			if (!b_data(strm->buf)) {
-				b_free(strm->buf);
-				offer_buffers(NULL, 1);
-			}
 		}
 
 		frm_node = eb64_next(frm_node);
@@ -1463,6 +1460,9 @@ static int qcs_try_to_consume(struct qcs *qcs)
 		quic_tx_packet_refdec(frm->pkt);
 		pool_free(pool_head_quic_frame, frm);
 	}
+
+	if (!b_data(&stream->buf))
+		qc_stream_desc_free(stream);
 
 	return ret;
 }
@@ -1478,23 +1478,22 @@ static inline void qc_treat_acked_tx_frm(struct quic_conn *qc,
 	switch (frm->type) {
 	case QUIC_FT_STREAM_8 ... QUIC_FT_STREAM_F:
 	{
-		struct quic_stream *strm = &frm->stream;
+		struct quic_stream *strm_frm = &frm->stream;
 		struct eb64_node *node = NULL;
-		struct qcs *qcs = NULL;
+		struct qc_stream_desc *stream = NULL;
 
-		/* do not use strm->qcs as the qcs instance might be freed at
-		 * this stage. Use the id to do a proper lookup.
+		/* do not use strm_frm->stream as the qc_stream_desc instance
+		 * might be freed at this stage. Use the id to do a proper
+		 * lookup.
 		 *
 		 * TODO if lookup operation impact on the perf is noticeable,
-		 * implement a refcount on qcs instances.
+		 * implement a refcount on qc_stream_desc instances.
 		 */
-		if (qc->mux_state == QC_MUX_READY) {
-			node = eb64_lookup(&qc->qcc->streams_by_id, strm->id);
-			qcs = eb64_entry(node, struct qcs, by_id);
-		}
+		node = eb64_lookup(&qc->streams_by_id, strm_frm->id);
+		stream = eb64_entry(node, struct qc_stream_desc, by_id);
 
-		if (!qcs) {
-			TRACE_PROTO("acked stream for released stream", QUIC_EV_CONN_ACKSTRM, qc, strm);
+		if (!stream) {
+			TRACE_PROTO("acked stream for released stream", QUIC_EV_CONN_ACKSTRM, qc, strm_frm);
 			LIST_DELETE(&frm->list);
 			quic_tx_packet_refdec(frm->pkt);
 			pool_free(pool_head_quic_frame, frm);
@@ -1503,32 +1502,34 @@ static inline void qc_treat_acked_tx_frm(struct quic_conn *qc,
 			return;
 		}
 
-		TRACE_PROTO("acked stream", QUIC_EV_CONN_ACKSTRM, qc, strm, qcs);
-		if (strm->offset.key <= qcs->tx.ack_offset) {
-			if (strm->offset.key + strm->len > qcs->tx.ack_offset) {
-				const size_t diff = strm->offset.key + strm->len -
-				                    qcs->tx.ack_offset;
-				qcs->tx.ack_offset += diff;
-				b_del(strm->buf, diff);
+		TRACE_PROTO("acked stream", QUIC_EV_CONN_ACKSTRM, qc, strm_frm, stream);
+		if (strm_frm->offset.key <= stream->ack_offset) {
+			if (strm_frm->offset.key + strm_frm->len > stream->ack_offset) {
+				const size_t diff = strm_frm->offset.key + strm_frm->len -
+				                    stream->ack_offset;
+				stream->ack_offset += diff;
+				b_del(strm_frm->buf, diff);
 				stream_acked = 1;
 
-				if (!b_data(strm->buf)) {
-					b_free(strm->buf);
-					offer_buffers(NULL, 1);
+				if (!b_data(strm_frm->buf)) {
+					if (qc_stream_desc_free(stream)) {
+						/* early return */
+						return;
+					}
 				}
 			}
 
 			TRACE_PROTO("stream consumed", QUIC_EV_CONN_ACKSTRM,
-			            qcs->qcc->conn->qc, strm, qcs);
+			            qc, strm_frm, stream);
 			LIST_DELETE(&frm->list);
 			quic_tx_packet_refdec(frm->pkt);
 			pool_free(pool_head_quic_frame, frm);
 		}
 		else {
-			eb64_insert(&qcs->tx.acked_frms, &strm->offset);
+			eb64_insert(&stream->acked_frms, &strm_frm->offset);
 		}
 
-		stream_acked |= qcs_try_to_consume(qcs);
+		stream_acked |= quic_stream_try_to_consume(qc, stream);
 	}
 	break;
 	default:
@@ -5089,9 +5090,16 @@ static inline int qc_build_frms(struct list *outlist, struct list *inlist,
 				LIST_DELETE(&cf->list);
 				LIST_APPEND(outlist, &cf->list);
 
-				qcc_streams_sent_done(cf->stream.qcs,
-				                      cf->stream.len,
-				                      cf->stream.offset.key);
+				/* The MUX stream might be released at this
+				 * stage. This can most notably happen on
+				 * retransmission.
+				 */
+				if (qc->mux_state == QC_MUX_READY &&
+				    !cf->stream.stream->release) {
+					qcc_streams_sent_done(cf->stream.stream->ctx,
+					                      cf->stream.len,
+					                      cf->stream.offset.key);
+				}
 			}
 			else {
 				struct quic_frame *new_cf;
@@ -5104,7 +5112,7 @@ static inline int qc_build_frms(struct list *outlist, struct list *inlist,
 				}
 
 				new_cf->type = cf->type;
-				new_cf->stream.qcs = cf->stream.qcs;
+				new_cf->stream.stream = cf->stream.stream;
 				new_cf->stream.buf = cf->stream.buf;
 				new_cf->stream.id = cf->stream.id;
 				if (cf->type & QUIC_STREAM_FRAME_TYPE_OFF_BIT)
@@ -5124,9 +5132,16 @@ static inline int qc_build_frms(struct list *outlist, struct list *inlist,
 				cf->stream.offset.key += dlen;
 				cf->stream.data = (unsigned char *)b_peek(&cf_buf, dlen);
 
-				qcc_streams_sent_done(new_cf->stream.qcs,
-				                      new_cf->stream.len,
-				                      new_cf->stream.offset.key);
+				/* The MUX stream might be released at this
+				 * stage. This can most notably happen on
+				 * retransmission.
+				 */
+				if (qc->mux_state == QC_MUX_READY &&
+				    !cf->stream.stream->release) {
+					qcc_streams_sent_done(new_cf->stream.stream->ctx,
+					                      new_cf->stream.len,
+					                      new_cf->stream.offset.key);
+				}
 			}
 
 			/* TODO the MUX is notified about the frame sending via

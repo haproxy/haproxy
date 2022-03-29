@@ -34,6 +34,7 @@
 #include <import/ebtree-t.h>
 
 #include <haproxy/mux_quic-t.h>
+#include <haproxy/xprt_quic-t.h>
 
 /* QUIC frame types. */
 enum quic_frame_type {
@@ -147,7 +148,7 @@ struct quic_new_token {
 
 struct quic_stream {
 	uint64_t id;
-	struct qcs *qcs;
+	struct qc_stream_desc *stream;
 
 	/* used only on TX when constructing frames.
 	 * Data cleared when processing ACK related to this STREAM frame.

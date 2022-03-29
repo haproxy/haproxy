@@ -96,6 +96,7 @@ INITCALL1(STG_REGISTER, trace_register_source, TRACE_SOURCE);
 struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
 {
 	struct qcs *qcs;
+	struct qc_stream_desc *stream;
 
 	TRACE_ENTER(QMUX_EV_QCS_NEW, qcc->conn);
 
@@ -103,6 +104,15 @@ struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
 	if (!qcs)
 		goto out;
 
+	/* allocate transport layer stream descriptor */
+	stream = qc_stream_desc_new(qcc->conn->qc, id, qcs);
+	if (!stream) {
+		pool_free(pool_head_qcs, qcs);
+		qcs = NULL;
+		goto out;
+	}
+
+	qcs->stream = stream;
 	qcs->qcc = qcc;
 	qcs->cs = NULL;
 	qcs->flags = QC_SF_NONE;
@@ -122,11 +132,8 @@ struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
 	qcs->rx.frms = EB_ROOT_UNIQUE;
 
 	qcs->tx.buf = BUF_NULL;
-	qcs->tx.xprt_buf = BUF_NULL;
 	qcs->tx.offset = 0;
 	qcs->tx.sent_offset = 0;
-	qcs->tx.ack_offset = 0;
-	qcs->tx.acked_frms = EB_ROOT;
 
 	qcs->wait_event.tasklet = NULL;
 	qcs->wait_event.events = 0;
@@ -145,10 +152,11 @@ void qcs_free(struct qcs *qcs)
 {
 	b_free(&qcs->rx.buf);
 	b_free(&qcs->tx.buf);
-	b_free(&qcs->tx.xprt_buf);
 
 	BUG_ON(!qcs->qcc->strms[qcs_id_type(qcs->by_id.key)].nb_streams);
 	--qcs->qcc->strms[qcs_id_type(qcs->by_id.key)].nb_streams;
+
+	qc_stream_desc_release(qcs->stream);
 
 	eb64_delete(&qcs->by_id);
 	pool_free(pool_head_qcs, qcs);
@@ -260,6 +268,7 @@ struct qcs *qcc_get_qcs(struct qcc *qcc, uint64_t id)
 			for (i = largest_id + 1; i <= sub_id; i++) {
 				uint64_t id = (i << QCS_ID_TYPE_SHIFT) | strm_type;
 				enum qcs_type type = id & QCS_ID_DIR_BIT ? QCS_CLT_UNI : QCS_CLT_BIDI;
+
 				tmp_qcs = qcs_new(qcc, id, type);
 				if (!tmp_qcs) {
 					/* allocation failure */
@@ -558,10 +567,10 @@ static int qcs_push_frame(struct qcs *qcs, struct buffer *out,
 	 *                       |xxxxxxxxxxxxxxxxx|
 	 */
 
-	BUG_ON_HOT(qcs->tx.sent_offset < qcs->tx.ack_offset);
+	BUG_ON_HOT(qcs->tx.sent_offset < qcs->stream->ack_offset);
 	BUG_ON_HOT(qcs->tx.offset < qcs->tx.sent_offset);
 
-	head = qcs->tx.sent_offset - qcs->tx.ack_offset;
+	head = qcs->tx.sent_offset - qcs->stream->ack_offset;
 	left = qcs->tx.offset - qcs->tx.sent_offset;
 	to_xfer = QUIC_MIN(b_data(payload), b_room(out));
 
@@ -585,7 +594,7 @@ static int qcs_push_frame(struct qcs *qcs, struct buffer *out,
 	total = b_force_xfer(out, payload, to_xfer);
 
 	frm->type = QUIC_FT_STREAM_8;
-	frm->stream.qcs = (struct qcs *)qcs;
+	frm->stream.stream = qcs->stream;
 	frm->stream.id = qcs->by_id.key;
 	frm->stream.buf = out;
 	frm->stream.data = (unsigned char *)b_peek(out, head);
@@ -753,7 +762,7 @@ static int qc_send(struct qcc *qcc)
 	while (node) {
 		struct qcs *qcs = container_of(node, struct qcs, by_id);
 		struct buffer *buf = &qcs->tx.buf;
-		struct buffer *out = &qcs->tx.xprt_buf;
+		struct buffer *out = &qcs->stream->buf;
 
 		/* TODO
 		 * for the moment, unidirectional streams have their own
@@ -819,7 +828,8 @@ static int qc_release_detached_streams(struct qcc *qcc)
 		node = eb64_next(node);
 
 		if (qcs->flags & QC_SF_DETACH) {
-			if ((!b_data(&qcs->tx.buf) && !b_data(&qcs->tx.xprt_buf))) {
+			if (!b_data(&qcs->tx.buf) &&
+			    qcs->tx.offset == qcs->tx.sent_offset) {
 				qcs_destroy(qcs);
 				release = 1;
 			}
@@ -1033,7 +1043,7 @@ static void qc_detach(struct conn_stream *cs)
 	 * managment between xprt and mux is reorganized.
 	 */
 
-	if ((b_data(&qcs->tx.buf) || b_data(&qcs->tx.xprt_buf))) {
+	if (b_data(&qcs->tx.buf) || qcs->tx.offset > qcs->tx.sent_offset) {
 		TRACE_DEVEL("leaving with remaining data, detaching qcs", QMUX_EV_STRM_END, qcc->conn, qcs);
 		qcs->flags |= QC_SF_DETACH;
 		return;
