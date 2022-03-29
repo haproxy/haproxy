@@ -1827,6 +1827,7 @@ static void dump_registered_keywords(void)
 			printf("all: list all keywords\n");
 			printf("cfg: configuration keywords\n");
 			printf("flt: filter names\n");
+			printf("svc: service names\n");
 			continue;
 		}
 		else if (strcmp(kwd_dump, "all") == 0) {
@@ -1841,6 +1842,11 @@ static void dump_registered_keywords(void)
 		if (all || strcmp(kwd_dump, "flt") == 0) {
 			printf("# List of registered filter names:\n");
 			flt_dump_kws(NULL);
+		}
+
+		if (all || strcmp(kwd_dump, "svc") == 0) {
+			printf("# List of registered service names:\n");
+			list_services(NULL);
 		}
 	}
 }

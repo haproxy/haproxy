@@ -3072,21 +3072,27 @@ struct action_kw *service_find(const char *kw)
 	return action_lookup(&service_keywords, kw);
 }
 
-/* Lists the known services on <out> */
+/* Lists the known services on <out>. If <out> is null, emit them on stdout one
+ * per line.
+ */
 void list_services(FILE *out)
 {
 	struct action_kw_list *kw_list;
 	int found = 0;
 	int i;
 
-	fprintf(out, "Available services :");
+	if (out)
+		fprintf(out, "Available services :");
 	list_for_each_entry(kw_list, &service_keywords, list) {
 		for (i = 0; kw_list->kw[i].kw != NULL; i++) {
 			found = 1;
-			fprintf(out, " %s", kw_list->kw[i].kw);
+			if (out)
+				fprintf(out, " %s", kw_list->kw[i].kw);
+			else
+				printf("%s\n", kw_list->kw[i].kw);
 		}
 	}
-	if (!found)
+	if (!found && out)
 		fprintf(out, " none\n");
 }
 
