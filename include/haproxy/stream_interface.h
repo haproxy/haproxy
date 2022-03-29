@@ -116,7 +116,6 @@ static inline int si_init(struct stream_interface *si)
 	si->cs             = NULL;
 	si->state          = si->prev_state = SI_ST_INI;
 	si->ops            = &si_embedded_ops;
-	si->l7_buffer      = BUF_NULL;
 	si->wait_event.tasklet = tasklet_new();
 	if (!si->wait_event.tasklet)
 		return -1;

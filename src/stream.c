@@ -2163,8 +2163,8 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 				si_b->conn_retries = s->be->conn_retries;
 				if ((s->be->retry_type &~ PR_RE_CONN_FAILED) &&
 				    (s->be->mode == PR_MODE_HTTP) &&
-				    !(si_b->flags & SI_FL_D_L7_RETRY))
-					si_b->flags |= SI_FL_L7_RETRY;
+				    !(s->txn->flags & TX_D_L7_RETRY))
+					s->txn->flags |= TX_L7_RETRY;
 			}
 		}
 		else {

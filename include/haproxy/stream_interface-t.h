@@ -104,8 +104,7 @@ enum {
 	SI_FL_RXBLK_CONN = 0x00100000,  /* other side is not connected */
 	SI_FL_RXBLK_ANY  = 0x001F0000,  /* any of the RXBLK flags above */
 	SI_FL_RX_WAIT_EP = 0x00200000,  /* stream-int waits for more data from the end point */
-	SI_FL_L7_RETRY   = 0x01000000,  /* The stream interface may attempt L7 retries */
-	SI_FL_D_L7_RETRY = 0x02000000,  /* Disable L7 retries on this stream interface, even if configured to do it */
+	/* unused: 0x01000000, 0x02000000 */
 
 	SI_FL_ADDR_FROM_SET = 0x04000000, /* source address is set */
 	SI_FL_ADDR_TO_SET   = 0x08000000  /* destination address is set */
@@ -140,7 +139,6 @@ struct stream_interface {
 
 	unsigned int hcto;      /* half-closed timeout (0 = unset) */
 	struct wait_event wait_event; /* We're in a wait list */
-	struct buffer l7_buffer; /* To store the data, in case we have to retry */
 };
 
 /* operations available on a stream-interface */

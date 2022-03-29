@@ -124,7 +124,6 @@ void si_free(struct stream_interface *si)
 	if (!si)
 		return;
 
-	b_free(&si->l7_buffer);
 	tasklet_free(si->wait_event.tasklet);
 	sockaddr_free(&si->src);
 	sockaddr_free(&si->dst);
@@ -703,6 +702,7 @@ static int si_cs_send(struct conn_stream *cs)
 {
 	struct connection *conn = __cs_conn(cs);
 	struct stream_interface *si = cs_si(cs);
+	struct stream *s = si_strm(si);
 	struct channel *oc = si_oc(si);
 	int ret;
 	int did_send = 0;
@@ -778,8 +778,7 @@ static int si_cs_send(struct conn_stream *cs)
 		if (oc->flags & CF_STREAMER)
 			send_flag |= CO_SFL_STREAMER;
 
-		if ((si->flags & SI_FL_L7_RETRY) && !b_data(&si->l7_buffer)) {
-			struct stream *s = si_strm(si);
+		if (s->txn && s->txn->flags & TX_L7_RETRY && !b_data(&s->txn->l7_buffer)) {
 			/* If we want to be able to do L7 retries, copy
 			 * the data we're about to send, so that we are able
 			 * to resend them if needed
@@ -789,17 +788,17 @@ static int si_cs_send(struct conn_stream *cs)
 			 * disable the l7 retries by setting
 			 * l7_conn_retries to 0.
 			 */
-			if (!s->txn || (s->txn->req.msg_state != HTTP_MSG_DONE))
-				si->flags &= ~SI_FL_L7_RETRY;
+			if (s->txn->req.msg_state != HTTP_MSG_DONE)
+				s->txn->flags &= ~TX_L7_RETRY;
 			else {
-				if (b_alloc(&si->l7_buffer) == NULL)
-					si->flags &= ~SI_FL_L7_RETRY;
+				if (b_alloc(&s->txn->l7_buffer) == NULL)
+					s->txn->flags &= ~TX_L7_RETRY;
 				else {
-					memcpy(b_orig(&si->l7_buffer),
+					memcpy(b_orig(&s->txn->l7_buffer),
 					       b_orig(&oc->buf),
 					       b_size(&oc->buf));
-					si->l7_buffer.head = co_data(oc);
-					b_add(&si->l7_buffer, co_data(oc));
+					s->txn->l7_buffer.head = co_data(oc);
+					b_add(&s->txn->l7_buffer, co_data(oc));
 				}
 
 			}

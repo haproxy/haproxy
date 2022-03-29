@@ -987,7 +987,7 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 		 * was a write error, we may recover.
 		 */
 		if (!(req->flags & (CF_READ_ERROR | CF_READ_TIMEOUT)) &&
-		    (cs_si(s->csb)->flags & SI_FL_L7_RETRY)) {
+		    (txn->flags & TX_L7_RETRY)) {
 			DBG_TRACE_DEVEL("leaving on L7 retry",
 					STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_HTTP_ERR, s, txn);
 			return 0;
@@ -1264,9 +1264,9 @@ static __inline int do_l7_retry(struct stream *s, struct stream_interface *si)
 	b_free(&req->buf);
 	/* Swap the L7 buffer with the channel buffer */
 	/* We know we stored the co_data as b_data, so get it there */
-	co_data = b_data(&si->l7_buffer);
-	b_set_data(&si->l7_buffer, b_size(&si->l7_buffer));
-	b_xfer(&req->buf, &si->l7_buffer, b_data(&si->l7_buffer));
+	co_data = b_data(&s->txn->l7_buffer);
+	b_set_data(&s->txn->l7_buffer, b_size(&s->txn->l7_buffer));
+	b_xfer(&req->buf, &s->txn->l7_buffer, b_data(&s->txn->l7_buffer));
 	co_set_data(req, co_data);
 
 	DBG_TRACE_DEVEL("perform a L7 retry", STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, s->txn);
@@ -1330,7 +1330,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 			struct connection *conn = cs_conn(s->csb);
 
 			/* Perform a L7 retry because server refuses the early data. */
-			if ((si_b->flags & SI_FL_L7_RETRY) &&
+			if ((txn->flags & TX_L7_RETRY) &&
 			    (s->be->retry_type & PR_RE_EARLY_ERROR) &&
 			    conn && conn->err_code == CO_ER_SSL_EARLY_FAILED &&
 			    do_l7_retry(s, si_b) == 0) {
@@ -1370,7 +1370,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 
 		/* 2: read timeout : return a 504 to the client. */
 		else if (rep->flags & CF_READ_TIMEOUT) {
-			if ((si_b->flags & SI_FL_L7_RETRY) &&
+			if ((txn->flags & TX_L7_RETRY) &&
 			    (s->be->retry_type & PR_RE_TIMEOUT)) {
 				if (co_data(rep) || do_l7_retry(s, si_b) == 0) {
 					DBG_TRACE_DEVEL("leaving on L7 retry",
@@ -1423,7 +1423,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 
 		/* 4: close from server, capture the response if the server has started to respond */
 		else if (rep->flags & CF_SHUTR) {
-			if ((si_b->flags & SI_FL_L7_RETRY) &&
+			if ((txn->flags & TX_L7_RETRY) &&
 			    (s->be->retry_type & PR_RE_DISCONNECTED)) {
 				if (co_data(rep) || do_l7_retry(s, si_b) == 0) {
 					DBG_TRACE_DEVEL("leaving on L7 retry",
@@ -1491,7 +1491,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	sl = http_get_stline(htx);
 
 	/* Perform a L7 retry because of the status code */
-	if ((si_b->flags & SI_FL_L7_RETRY) &&
+	if ((txn->flags & TX_L7_RETRY) &&
 	    l7_status_match(s->be, sl->info.res.status) &&
 	    do_l7_retry(s, si_b) == 0) {
 		DBG_TRACE_DEVEL("leaving on L7 retry", STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
@@ -1499,7 +1499,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	}
 
 	/* Now, L7 buffer is useless, it can be released */
-	b_free(&(cs_si(s->csb)->l7_buffer));
+	b_free(&txn->l7_buffer);
 
 	msg->msg_state = HTTP_MSG_BODY;
 
@@ -1720,7 +1720,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		health_adjust(__objt_server(s->target), HANA_STATUS_HTTP_HDRRSP);
 	}
 	if ((s->be->retry_type & PR_RE_JUNK_REQUEST) &&
-	    (si_b->flags & SI_FL_L7_RETRY) &&
+	    (txn->flags & TX_L7_RETRY) &&
 	    do_l7_retry(s, si_b) == 0) {
 		DBG_TRACE_DEVEL("leaving on L7 retry",
 				STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
@@ -5139,6 +5139,7 @@ struct http_txn *http_create_txn(struct stream *s)
 	txn->flags = ((cs && cs->endp->flags & CS_EP_NOT_FIRST) ? TX_NOT_FIRST : 0);
 	txn->status = -1;
 	txn->http_reply = NULL;
+	txn->l7_buffer = BUF_NULL;
 	write_u32(txn->cache_hash, 0);
 
 	txn->cookie_first_date = 0;
@@ -5182,6 +5183,8 @@ void http_destroy_txn(struct stream *s)
 		vars_prune(&s->vars_txn, s->sess, s);
 	if (!LIST_ISEMPTY(&s->vars_reqres.head))
 		vars_prune(&s->vars_reqres, s->sess, s);
+
+	b_free(&txn->l7_buffer);
 
 	pool_free(pool_head_http_txn, txn);
 	s->txn = NULL;

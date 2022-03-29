@@ -71,6 +71,8 @@
 /* used only for keep-alive purposes, to indicate we're on a second transaction */
 #define TX_NOT_FIRST	0x00040000	/* the transaction is not the first one */
 
+#define TX_L7_RETRY     0x000800000     /* The transaction may attempt L7 retries */
+#define TX_D_L7_RETRY   0x001000000     /* Disable L7 retries on this transaction, even if configured to do it */
 /*
  * HTTP message status flags (msg->flags)
  */
@@ -184,7 +186,7 @@ struct http_txn {
 	/* 1 unused byte here */
 	short status;                   /* HTTP status from the server, negative if from proxy */
 	struct http_reply *http_reply;  /* The HTTP reply to use as reply */
-
+	struct buffer l7_buffer;        /* To store the data, in case we have to retry */
 	char cache_hash[20];               /* Store the cache hash  */
 	char cache_secondary_hash[HTTP_CACHE_SEC_KEY_LEN]; /* Optional cache secondary key. */
 	char *uri;                      /* first line if log needed, NULL otherwise */

@@ -279,8 +279,6 @@ void show_si_flags(unsigned int f)
 	SHOW_FLAG(f, SI_FL_RXBLK_SHUT);
 	SHOW_FLAG(f, SI_FL_RXBLK_CONN);
 	SHOW_FLAG(f, SI_FL_RX_WAIT_EP);
-	SHOW_FLAG(f, SI_FL_L7_RETRY);
-	SHOW_FLAG(f, SI_FL_D_L7_RETRY);
 	SHOW_FLAG(f, SI_FL_ADDR_FROM_SET);
 	SHOW_FLAG(f, SI_FL_ADDR_TO_SET);
 
@@ -332,6 +330,8 @@ void show_txn_flags(unsigned int f)
 		return;
 	}
 
+	SHOW_FLAG(f, TX_L7_RETRY);
+	SHOW_FLAG(f, TX_D_L7_RETRY);
 	SHOW_FLAG(f, TX_NOT_FIRST);
 	SHOW_FLAG(f, TX_USE_PX_CONN);
 	SHOW_FLAG(f, TX_CACHE_HAS_SEC_KEY);
