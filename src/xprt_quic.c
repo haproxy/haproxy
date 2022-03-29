@@ -2559,12 +2559,15 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct ssl_sock_ctx *ct
 	 */
 	if (pkt->type == QUIC_PACKET_TYPE_HANDSHAKE && qc_is_listener(ctx->qc)) {
 	    if (qc->state >= QUIC_HS_ST_SERVER_INITIAL) {
-		    quic_tls_discard_keys(&qc->els[QUIC_TLS_ENC_LEVEL_INITIAL]);
-		    TRACE_PROTO("discarding Initial pktns", QUIC_EV_CONN_PRSHPKT, qc);
-		    quic_pktns_discard(qc->els[QUIC_TLS_ENC_LEVEL_INITIAL].pktns, qc);
-		    qc_set_timer(ctx->qc);
-		    qc_el_rx_pkts_del(&qc->els[QUIC_TLS_ENC_LEVEL_INITIAL]);
-		    qc_release_pktns_frms(qc->els[QUIC_TLS_ENC_LEVEL_INITIAL].pktns);
+			if (!(qc->els[QUIC_TLS_ENC_LEVEL_INITIAL].tls_ctx.flags &
+			      QUIC_FL_TLS_SECRETS_DCD)) {
+				quic_tls_discard_keys(&qc->els[QUIC_TLS_ENC_LEVEL_INITIAL]);
+				TRACE_PROTO("discarding Initial pktns", QUIC_EV_CONN_PRSHPKT, qc);
+				quic_pktns_discard(qc->els[QUIC_TLS_ENC_LEVEL_INITIAL].pktns, qc);
+				qc_set_timer(ctx->qc);
+				qc_el_rx_pkts_del(&qc->els[QUIC_TLS_ENC_LEVEL_INITIAL]);
+				qc_release_pktns_frms(qc->els[QUIC_TLS_ENC_LEVEL_INITIAL].pktns);
+			}
 		    if (qc->state < QUIC_HS_ST_SERVER_HANDSHAKE)
 			    qc->state = QUIC_HS_ST_SERVER_HANDSHAKE;
 	    }
