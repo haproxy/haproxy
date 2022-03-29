@@ -2882,7 +2882,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct qring *qr,
 		 * select the next level.
 		 */
 		if ((tel == QUIC_TLS_ENC_LEVEL_INITIAL || tel == QUIC_TLS_ENC_LEVEL_HANDSHAKE) &&
-		    (LIST_ISEMPTY(&qel->pktns->tx.frms))) {
+		    (LIST_ISEMPTY(&qel->pktns->tx.frms) && !qel->pktns->tx.pto_probe)) {
 			/* If QUIC_TLS_ENC_LEVEL_HANDSHAKE was already reached let's try QUIC_TLS_ENC_LEVEL_APP */
 			if (tel == QUIC_TLS_ENC_LEVEL_HANDSHAKE && next_tel == tel)
 				next_tel = QUIC_TLS_ENC_LEVEL_APP;
