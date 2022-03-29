@@ -3118,7 +3118,7 @@ server <peername> [<ip>:<port>] [param*]
   As previously mentioned, "peer" keyword may be replaced by "server" keyword
   with a support for all "server" parameters found in 5.2 paragraph.
   If the underlying peer is local, <ip>:<port> parameters must not be present.
-  These parameters must  be provided on a "bind" line (see "bind" keyword
+  These parameters must be provided on a "bind" line (see "bind" keyword
   of this "peers" section).
   Some of these parameters are irrelevant for "peers" sections.
 
@@ -12553,7 +12553,7 @@ tcp-request content unset-var(<var-name>) [ { if | unless } <condition> ]
   This is used to unset a variable. Please refer to "http-request set-var" for
   details about variables.
 
-tcp-request content  use-service <service-name>  [ { if | unless } <condition> ]
+tcp-request content use-service <service-name> [ { if | unless } <condition> ]
 
   This action is used to executes a TCP service which will reply to the request
   and stop the evaluation of the rules. This service may choose to reply by
