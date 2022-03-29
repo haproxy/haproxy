@@ -200,11 +200,12 @@ void qcs_notify_send(struct qcs *qcs)
  * several streams, depending on the already open ones.
  * Return this node if succeeded, NULL if not.
  */
-struct eb64_node *qcc_get_qcs(struct qcc *qcc, uint64_t id)
+struct qcs *qcc_get_qcs(struct qcc *qcc, uint64_t id)
 {
 	unsigned int strm_type;
 	int64_t sub_id;
 	struct eb64_node *strm_node;
+	struct qcs *qcs = NULL;
 
 	strm_type = id & QCS_ID_TYPE_MASK;
 	sub_id = id >> QCS_ID_TYPE_SHIFT;
@@ -216,6 +217,7 @@ struct eb64_node *qcc_get_qcs(struct qcc *qcc, uint64_t id)
 			/* unknown stream id */
 			goto out;
 		}
+		qcs = eb64_entry(strm_node, struct qcs, by_id);
 	}
 	else {
 		/* Remote streams. */
@@ -244,29 +246,31 @@ struct eb64_node *qcc_get_qcs(struct qcc *qcc, uint64_t id)
 			 * So, let's "open" these streams.
 			 */
 			int64_t i;
-			struct qcs *qcs;
+			struct qcs *tmp_qcs;
 
-			qcs = NULL;
+			tmp_qcs = NULL;
 			for (i = largest_id + 1; i <= sub_id; i++) {
 				uint64_t id = (i << QCS_ID_TYPE_SHIFT) | strm_type;
 				enum qcs_type type = id & QCS_ID_DIR_BIT ? QCS_CLT_UNI : QCS_CLT_BIDI;
-				qcs = qcs_new(qcc, id, type);
-				if (!qcs) {
+				tmp_qcs = qcs_new(qcc, id, type);
+				if (!tmp_qcs) {
 					/* allocation failure */
 					goto out;
 				}
 
 				qcc->strms[qcs_type].largest_id = i;
 			}
-			if (qcs)
-				strm_node = &qcs->by_id;
+			if (tmp_qcs)
+				qcs = tmp_qcs;
 		}
 		else {
 			strm_node = eb64_lookup(strms, id);
+			if (strm_node)
+				qcs = eb64_entry(strm_node, struct qcs, by_id);
 		}
 	}
 
-	return strm_node;
+	return qcs;
 
  out:
 	return NULL;
@@ -286,18 +290,16 @@ int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
              char fin, char *data, struct qcs **out_qcs)
 {
 	struct qcs *qcs;
-	struct eb64_node *strm_node;
 	size_t total, diff;
 
 	TRACE_ENTER(QMUX_EV_QCC_RECV, qcc->conn);
 
-	strm_node = qcc_get_qcs(qcc, id);
-	if (!strm_node) {
+	qcs = qcc_get_qcs(qcc, id);
+	if (!qcs) {
 		TRACE_DEVEL("leaving on stream not found", QMUX_EV_QCC_RECV|QMUX_EV_QCC_NQCS, qcc->conn, NULL, &id);
 		return 1;
 	}
 
-	qcs = eb64_entry(&strm_node->node, struct qcs, by_id);
 	*out_qcs = qcs;
 
 	if (offset > qcs->rx.offset)

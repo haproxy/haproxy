@@ -68,7 +68,7 @@ static inline int quic_stream_is_bidi(uint64_t id)
 	return !quic_stream_is_uni(id);
 }
 
-struct eb64_node *qcc_get_qcs(struct qcc *qcc, uint64_t id);
+struct qcs *qcc_get_qcs(struct qcc *qcc, uint64_t id);
 
 /* Install the <app_ops> applicative layer of a QUIC connection on mux <qcc>.
  * Returns 0 on success else non-zero.

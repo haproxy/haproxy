@@ -2165,17 +2165,15 @@ static int qc_handle_uni_strm_frm(struct quic_rx_packet *pkt,
                                   struct quic_conn *qc)
 {
 	struct qcs *strm;
-	struct eb64_node *strm_node;
 	struct quic_rx_strm_frm *frm;
 	size_t strm_frm_len;
 
-	strm_node = qcc_get_qcs(qc->qcc, strm_frm->id);
-	if (!strm_node) {
+	strm = qcc_get_qcs(qc->qcc, strm_frm->id);
+	if (!strm) {
 		TRACE_PROTO("Stream not found", QUIC_EV_CONN_PSTRM, qc);
 		return 0;
 	}
 
-	strm = eb64_entry(&strm_node->node, struct qcs, by_id);
 	if (strm_frm->offset.key < strm->rx.offset) {
 		size_t diff;
 
