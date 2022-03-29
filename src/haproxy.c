@@ -1828,6 +1828,7 @@ static void dump_registered_keywords(void)
 			printf("acl: ACL keywords\n");
 			printf("cfg: configuration keywords\n");
 			printf("cli: CLI keywords\n");
+			printf("cnv: sample converter keywords\n");
 			printf("flt: filter names\n");
 			printf("smp: sample fetch functions\n");
 			printf("svc: service names\n");
@@ -1850,6 +1851,11 @@ static void dump_registered_keywords(void)
 		if (all || strcmp(kwd_dump, "cli") == 0) {
 			printf("# List of registered CLI keywords:\n");
 			cli_list_keywords();
+		}
+
+		if (all || strcmp(kwd_dump, "cnv") == 0) {
+			printf("# List of registered sample converter functions:\n");
+			smp_dump_conv_kw();
 		}
 
 		if (all || strcmp(kwd_dump, "flt") == 0) {

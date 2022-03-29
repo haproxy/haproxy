@@ -495,6 +495,45 @@ void smp_dump_fetch_kw(void)
 	}
 }
 
+/* dump list of registered sample converter keywords on stdout */
+void smp_dump_conv_kw(void)
+{
+	struct sample_conv_kw_list *kwl;
+	struct sample_conv *kw;
+	uint64_t mask;
+	int index;
+	int arg;
+
+	list_for_each_entry(kwl, &sample_convs.list, list) {
+		for (index = 0; kwl->kw[index].kw != NULL; index++) {
+			kw = &kwl->kw[index];
+			printf("%s", kw->kw);
+			if (kw->arg_mask) {
+				mask = kw->arg_mask >> ARGM_BITS;
+				printf("(");
+				for (arg = 0;
+				     arg < ARGM_NBARGS && ((mask >> (arg * ARGT_BITS)) & ARGT_MASK);
+				     arg++) {
+					if (arg == (kw->arg_mask & ARGM_MASK)) {
+						/* now dumping extra args */
+						printf("[");
+					}
+					if (arg)
+						printf(",");
+					printf("%s", arg_type_names[(mask >> (arg * ARGT_BITS)) & ARGT_MASK]);
+				}
+				if (arg > (kw->arg_mask & ARGM_MASK)) {
+					/* extra args were dumped */
+					printf("]");
+				}
+				printf(")");
+			}
+			printf(": %s => %s", smp_to_type[kw->out_type], smp_to_type[kw->in_type]);
+			printf("\n");
+		}
+	}
+}
+
 /* This function browses the list of available sample fetches. <current> is
  * the last used sample fetch. If it is the first call, it must set to NULL.
  * <idx> is the index of the next sample fetch entry. It is used as private
