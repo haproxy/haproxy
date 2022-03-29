@@ -130,6 +130,7 @@ flt_find_kw(const char *kw)
 /*
  * Dumps all registered "filter" keywords to the <out> string pointer. The
  * unsupported keywords are only dumped if their supported form was not found.
+ * If <out> is NULL, the output is emitted using a more compact format on stdout.
  */
 void
 flt_dump_kws(char **out)
@@ -137,18 +138,20 @@ flt_dump_kws(char **out)
 	struct flt_kw_list *kwl;
 	int index;
 
-	if (!out)
-		return;
-
-	*out = NULL;
+	if (out)
+		*out = NULL;
 	list_for_each_entry(kwl, &flt_keywords.list, list) {
 		for (index = 0; kwl->kw[index].kw != NULL; index++) {
 			if (kwl->kw[index].parse ||
 			    flt_find_kw(kwl->kw[index].kw) == &kwl->kw[index]) {
-				memprintf(out, "%s[%4s] %s%s\n", *out ? *out : "",
-				          kwl->scope,
-				          kwl->kw[index].kw,
-				          kwl->kw[index].parse ? "" : " (not supported)");
+				if (out)
+					memprintf(out, "%s[%4s] %s%s\n", *out ? *out : "",
+					          kwl->scope,
+					          kwl->kw[index].kw,
+					          kwl->kw[index].parse ? "" : " (not supported)");
+				else
+					printf("%s [%s]\n",
+					       kwl->kw[index].kw, kwl->scope);
 			}
 		}
 	}

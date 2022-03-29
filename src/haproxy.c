@@ -1826,6 +1826,7 @@ static void dump_registered_keywords(void)
 			printf("# List of supported keyword classes:\n");
 			printf("all: list all keywords\n");
 			printf("cfg: configuration keywords\n");
+			printf("flt: filter names\n");
 			continue;
 		}
 		else if (strcmp(kwd_dump, "all") == 0) {
@@ -1835,6 +1836,11 @@ static void dump_registered_keywords(void)
 		if (all || strcmp(kwd_dump, "cfg") == 0) {
 			printf("# List of registered configuration keywords:\n");
 			cfg_dump_registered_keywords();
+		}
+
+		if (all || strcmp(kwd_dump, "flt") == 0) {
+			printf("# List of registered filter names:\n");
+			flt_dump_kws(NULL);
 		}
 	}
 }
