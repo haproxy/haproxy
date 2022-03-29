@@ -1727,7 +1727,7 @@ skip_reuse:
 #endif
 
 	/* set connect timeout */
-	cs_si(s->csb)->exp = tick_add_ifset(now_ms, s->be->timeout.connect);
+	s->conn_exp = tick_add_ifset(now_ms, s->be->timeout.connect);
 
 	if (srv) {
 		int count;
@@ -1757,7 +1757,7 @@ skip_reuse:
 
 	if (!si_state_in(cs_si(s->csb)->state, SI_SB_EST|SI_SB_DIS|SI_SB_CLO) &&
 	    (srv_conn->flags & CO_FL_WAIT_XPRT) == 0) {
-		cs_si(s->csb)->exp = TICK_ETERNITY;
+		s->conn_exp = TICK_ETERNITY;
 		cs_oc(s->csb)->flags |= CF_WRITE_NULL;
 		if (cs_si(s->csb)->state == SI_ST_CON)
 			cs_si(s->csb)->state = SI_ST_RDY;
@@ -1842,7 +1842,7 @@ int srv_redispatch_connect(struct stream *s)
 		return 1;
 
 	case SRV_STATUS_QUEUED:
-		cs_si(s->csb)->exp = tick_add_ifset(now_ms, s->be->timeout.queue);
+		s->conn_exp = tick_add_ifset(now_ms, s->be->timeout.queue);
 		cs_si(s->csb)->state = SI_ST_QUE;
 		/* do nothing else and do not wake any other stream up */
 		return 1;
@@ -1978,7 +1978,7 @@ void back_try_conn_req(struct stream *s)
 			 * go directly to the assigned state, or we need to
 			 * load-balance first and go to the INI state.
 			 */
-			cs->si->exp = TICK_ETERNITY;
+			s->conn_exp = TICK_ETERNITY;
 			if (unlikely(!(s->flags & SF_ASSIGNED)))
 				cs->si->state = SI_ST_REQ;
 			else {
@@ -1990,10 +1990,10 @@ void back_try_conn_req(struct stream *s)
 		}
 
 		/* Connection request still in queue... */
-		if (cs->si->flags & SI_FL_EXP) {
+		if (s->flags & SF_CONN_EXP) {
 			/* ... and timeout expired */
-			cs->si->exp = TICK_ETERNITY;
-			cs->si->flags &= ~SI_FL_EXP;
+			s->conn_exp = TICK_ETERNITY;
+			s->flags &= ~SF_CONN_EXP;
 			s->logs.t_queue = tv_ms_elapsed(&s->logs.tv_accept, &now);
 
 			/* we may need to know the position in the queue for logging */
@@ -2036,11 +2036,11 @@ void back_try_conn_req(struct stream *s)
 			goto abort_connection;
 		}
 
-		if (!(cs->si->flags & SI_FL_EXP))
+		if (!(s->flags & SF_CONN_EXP))
 			return;  /* still in turn-around */
 
-		cs->si->flags &= ~SI_FL_EXP;
-		cs->si->exp = TICK_ETERNITY;
+		s->flags &= ~SF_CONN_EXP;
+		s->conn_exp = TICK_ETERNITY;
 
 		/* we keep trying on the same server as long as the stream is
 		 * marked "assigned".
@@ -2060,8 +2060,8 @@ void back_try_conn_req(struct stream *s)
 
 abort_connection:
 	/* give up */
-	cs->si->exp = TICK_ETERNITY;
-	cs->si->flags &= ~SI_FL_EXP;
+	s->conn_exp = TICK_ETERNITY;
+	s->flags &= ~SF_CONN_EXP;
 	si_shutr(cs->si);
 	si_shutw(cs->si);
 	cs->si->state = SI_ST_CLO;
@@ -2187,7 +2187,7 @@ void back_handle_st_con(struct stream *s)
 
  done:
 	/* retryable error ? */
-	if (cs->si->flags & (SI_FL_EXP|SI_FL_ERR)) {
+	if ((s->flags & SF_CONN_EXP) || (cs->si->flags & SI_FL_ERR)) {
 		if (!cs->si->err_type) {
 			if (cs->si->flags & SI_FL_ERR)
 				cs->si->err_type = SI_ET_CONN_ERR;
@@ -2218,8 +2218,8 @@ void back_handle_st_cer(struct stream *s)
 
 	DBG_TRACE_ENTER(STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
 
-	cs->si->exp    = TICK_ETERNITY;
-	cs->si->flags &= ~SI_FL_EXP;
+	s->conn_exp = TICK_ETERNITY;
+	s->flags &= ~SF_CONN_EXP;
 
 	s->conn_retries++;
 
@@ -2291,7 +2291,7 @@ void back_handle_st_cer(struct stream *s)
 	 * layers in an unexpected state (i.e < ST_CONN).
 	 *
 	 * Note: the stream-interface will be switched to ST_REQ, ST_ASS or
-	 * ST_TAR and SI_FL_ERR and SI_FL_EXP flags will be unset.
+	 * ST_TAR and SI_FL_ERR and SF_CONN_EXP flags will be unset.
 	 */
 	if (cs_reset_endp(cs) < 0) {
 		if (!cs->si->err_type)
@@ -2343,7 +2343,7 @@ void back_handle_st_cer(struct stream *s)
 		     (s->be->lbprm.algo & BE_LB_KIND) != BE_LB_KIND_RR ||
 		     (s->be->srv_act <= 1)) && !reused) {
 			cs->si->state = SI_ST_TAR;
-			cs->si->exp = tick_add(now_ms, MS_TO_TICKS(delay));
+			s->conn_exp = tick_add(now_ms, MS_TO_TICKS(delay));
 		}
 		cs->si->flags &= ~SI_FL_ERR;
 		DBG_TRACE_STATE("retry a new connection", STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);

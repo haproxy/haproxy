@@ -352,6 +352,22 @@ static inline void stream_choose_redispatch(struct stream *s)
 
 }
 
+/*
+ * This function only has to be called once after a wakeup event in case of
+ * suspected timeout. It controls the stream connection timeout and sets
+ * si->flags accordingly. It does NOT close anything, as this timeout may
+ * be used for any purpose. It returns 1 if the timeout fired, otherwise
+ * zero.
+ */
+static inline int stream_check_conn_timeout(struct stream *s)
+{
+	if (tick_is_expired(s->conn_exp, now_ms)) {
+		s->flags |= SF_CONN_EXP;
+		return 1;
+	}
+	return 0;
+}
+
 int stream_set_timeout(struct stream *s, enum act_timeout_name name, int timeout);
 
 void service_keywords_register(struct action_kw_list *kw_list);

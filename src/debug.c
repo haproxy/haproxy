@@ -694,7 +694,7 @@ static int debug_parse_cli_stream(char **args, char *payload, struct appctx *app
 	if (!*args[3]) {
 		return cli_err(appctx,
 			       "Usage: debug dev stream { <obj> <op> <value> | wake }*\n"
-			       "     <obj>   = {strm | strm.f | sif.f | sif.s | sif.x | sib.f | sib.s | sib.x |\n"
+			       "     <obj>   = {strm | strm.f | strm.x | sif.f | sif.s | sib.f | sib.s |\n"
 			       "                txn.f | req.f | req.r | req.w | res.f | res.r | res.w}\n"
 			       "     <op>    = {'' (show) | '=' (assign) | '^' (xor) | '+' (or) | '-' (andnot)}\n"
 			       "     <value> = 'now' | 64-bit dec/hex integer (0x prefix supported)\n"
@@ -713,6 +713,8 @@ static int debug_parse_cli_stream(char **args, char *payload, struct appctx *app
 			ptr = (!s || !may_access(s)) ? NULL : &s; size = sizeof(s);
 		} else if (isteq(name, ist("strm.f"))) {
 			ptr = (!s || !may_access(s)) ? NULL : &s->flags; size = sizeof(s->flags);
+		} else if (isteq(name, ist("strm.x"))) {
+			ptr = (!s || !may_access(s)) ? NULL : &s->conn_exp; size = sizeof(s->conn_exp);
 		} else if (isteq(name, ist("txn.f"))) {
 			ptr = (!s || !may_access(s)) ? NULL : &s->txn->flags; size = sizeof(s->txn->flags);
 		} else if (isteq(name, ist("req.f"))) {
@@ -731,10 +733,6 @@ static int debug_parse_cli_stream(char **args, char *payload, struct appctx *app
 			ptr = (!s || !may_access(s)) ? NULL : &cs_si(s->csf)->flags; size = sizeof(cs_si(s->csf)->flags);
 		} else if (isteq(name, ist("sib.f"))) {
 			ptr = (!s || !may_access(s)) ? NULL : &cs_si(s->csb)->flags; size = sizeof(cs_si(s->csb)->flags);
-		} else if (isteq(name, ist("sif.x"))) {
-			ptr = (!s || !may_access(s)) ? NULL : &cs_si(s->csf)->exp; size = sizeof(cs_si(s->csf)->exp);
-		} else if (isteq(name, ist("sib.x"))) {
-			ptr = (!s || !may_access(s)) ? NULL : &cs_si(s->csb)->exp; size = sizeof(cs_si(s->csb)->exp);
 		} else if (isteq(name, ist("sif.s"))) {
 			ptr = (!s || !may_access(s)) ? NULL : &cs_si(s->csf)->state; size = sizeof(cs_si(s->csf)->state);
 		} else if (isteq(name, ist("sib.s"))) {

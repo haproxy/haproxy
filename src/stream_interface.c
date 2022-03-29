@@ -128,22 +128,6 @@ void si_free(struct stream_interface *si)
 	pool_free(pool_head_streaminterface, si);
 }
 
-/*
- * This function only has to be called once after a wakeup event in case of
- * suspected timeout. It controls the stream interface timeouts and sets
- * si->flags accordingly. It does NOT close anything, as this timeout may
- * be used for any purpose. It returns 1 if the timeout fired, otherwise
- * zero.
- */
-int si_check_timeouts(struct stream_interface *si)
-{
-	if (tick_is_expired(si->exp, now_ms)) {
-		si->flags |= SI_FL_EXP;
-		return 1;
-	}
-	return 0;
-}
-
 /* to be called only when in SI_ST_DIS with SI_FL_ERR */
 void si_report_error(struct stream_interface *si)
 {
@@ -206,7 +190,7 @@ static void stream_int_shutr(struct stream_interface *si)
 
 	if (si_oc(si)->flags & CF_SHUTW) {
 		si->state = SI_ST_DIS;
-		si->exp = TICK_ETERNITY;
+		__cs_strm(si->cs)->conn_exp = TICK_ETERNITY;
 	}
 	else if (si->flags & SI_FL_NOHALF) {
 		/* we want to immediately forward this close to the write side */
@@ -268,7 +252,7 @@ static void stream_int_shutw(struct stream_interface *si)
 		si_rx_shut_blk(si);
 		ic->flags |= CF_SHUTR;
 		ic->rex = TICK_ETERNITY;
-		si->exp = TICK_ETERNITY;
+		__cs_strm(si->cs)->conn_exp = TICK_ETERNITY;
 	}
 
 	/* note that if the task exists, it must unregister itself once it runs */
@@ -569,12 +553,7 @@ static void stream_int_notify(struct stream_interface *si)
 
 		task->expire = tick_first(task->expire, ic->analyse_exp);
 		task->expire = tick_first(task->expire, oc->analyse_exp);
-
-		if (si->exp)
-			task->expire = tick_first(task->expire, si->exp);
-
-		if (sio->exp)
-			task->expire = tick_first(task->expire, sio->exp);
+		task->expire = tick_first(task->expire, __cs_strm(si->cs)->conn_exp);
 
 		task_queue(task);
 	}
@@ -650,7 +629,7 @@ static int si_cs_process(struct conn_stream *cs)
 
 	if (!si_state_in(si->state, SI_SB_EST|SI_SB_DIS|SI_SB_CLO) &&
 	    (conn->flags & CO_FL_WAIT_XPRT) == 0) {
-		si->exp = TICK_ETERNITY;
+		__cs_strm(cs)->conn_exp = TICK_ETERNITY;
 		oc->flags |= CF_WRITE_NULL;
 		if (si->state == SI_ST_CON)
 			si->state = SI_ST_RDY;
@@ -1075,7 +1054,7 @@ static void stream_int_shutr_conn(struct stream_interface *si)
 	if (si_oc(si)->flags & CF_SHUTW) {
 		cs_close(cs);
 		si->state = SI_ST_DIS;
-		si->exp = TICK_ETERNITY;
+		__cs_strm(cs)->conn_exp = TICK_ETERNITY;
 	}
 	else if (si->flags & SI_FL_NOHALF) {
 		/* we want to immediately forward this close to the write side */
@@ -1166,7 +1145,7 @@ static void stream_int_shutw_conn(struct stream_interface *si)
 		si_rx_shut_blk(si);
 		ic->flags |= CF_SHUTR;
 		ic->rex = TICK_ETERNITY;
-		si->exp = TICK_ETERNITY;
+		__cs_strm(cs)->conn_exp = TICK_ETERNITY;
 	}
 }
 
@@ -1658,7 +1637,7 @@ static void stream_int_read0(struct stream_interface *si)
 	si_done_get(si);
 
 	si->state = SI_ST_DIS;
-	si->exp = TICK_ETERNITY;
+	__cs_strm(cs)->conn_exp = TICK_ETERNITY;
 	return;
 }
 
@@ -1727,7 +1706,7 @@ static void stream_int_shutr_applet(struct stream_interface *si)
 	if (si_oc(si)->flags & CF_SHUTW) {
 		si_applet_release(si);
 		si->state = SI_ST_DIS;
-		si->exp = TICK_ETERNITY;
+		__cs_strm(si->cs)->conn_exp = TICK_ETERNITY;
 	}
 	else if (si->flags & SI_FL_NOHALF) {
 		/* we want to immediately forward this close to the write side */
@@ -1791,7 +1770,7 @@ static void stream_int_shutw_applet(struct stream_interface *si)
 		si_rx_shut_blk(si);
 		ic->flags |= CF_SHUTR;
 		ic->rex = TICK_ETERNITY;
-		si->exp = TICK_ETERNITY;
+		__cs_strm(si->cs)->conn_exp = TICK_ETERNITY;
 	}
 }
 

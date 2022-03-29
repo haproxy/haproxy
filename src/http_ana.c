@@ -1247,11 +1247,11 @@ static __inline int do_l7_retry(struct stream *s, struct stream_interface *si)
 	req->flags &= ~(CF_WRITE_ERROR | CF_WRITE_TIMEOUT | CF_SHUTW | CF_SHUTW_NOW);
 	res->flags &= ~(CF_READ_ERROR | CF_READ_TIMEOUT | CF_SHUTR | CF_EOI | CF_READ_NULL | CF_SHUTR_NOW);
 	res->analysers &= AN_RES_FLT_END;
-	si->flags &= ~(SI_FL_ERR | SI_FL_EXP | SI_FL_RXBLK_SHUT);
+	si->flags &= ~(SI_FL_ERR | SI_FL_RXBLK_SHUT);
 	si->err_type = SI_ET_NONE;
-	s->flags &= ~(SF_ERR_MASK | SF_FINST_MASK);
+	s->flags &= ~(SF_CONN_EXP | SF_ERR_MASK | SF_FINST_MASK);
+	s->conn_exp = TICK_ETERNITY;
 	stream_choose_redispatch(s);
-	si->exp = TICK_ETERNITY;
 	res->rex = TICK_ETERNITY;
 	res->to_forward = 0;
 	res->analyse_exp = TICK_ETERNITY;

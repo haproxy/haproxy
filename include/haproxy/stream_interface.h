@@ -39,7 +39,6 @@ struct stream_interface *si_new(struct conn_stream *cs);
 void si_free(struct stream_interface *si);
 
 /* main event functions used to move data between sockets and buffers */
-int si_check_timeouts(struct stream_interface *si);
 void si_report_error(struct stream_interface *si);
 void si_retnclose(struct stream_interface *si, const struct buffer *msg);
 int conn_si_send_proxy(struct connection *conn, unsigned int flag);
@@ -108,7 +107,6 @@ static inline struct stream_interface *si_opposite(struct stream_interface *si)
 static inline int si_init(struct stream_interface *si)
 {
 	si->err_type       = SI_ET_NONE;
-	si->exp            = TICK_ETERNITY;
 	si->flags         &= SI_FL_ISBACK;
 	si->cs             = NULL;
 	si->state          = si->prev_state = SI_ST_INI;

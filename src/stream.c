@@ -421,6 +421,7 @@ struct stream *stream_new(struct session *sess, struct conn_stream *cs, struct b
 	s->task = t;
 	s->pending_events = 0;
 	s->conn_retries = 0;
+	s->conn_exp = TICK_ETERNITY;
 	t->process = process_stream;
 	t->context = s;
 	t->expire = TICK_ETERNITY;
@@ -875,8 +876,8 @@ static void back_establish(struct stream *s)
 	 * timeout.
 	 */
 	s->logs.t_connect = tv_ms_elapsed(&s->logs.tv_accept, &now);
-	si->exp = TICK_ETERNITY;
-	si->flags &= ~SI_FL_EXP;
+	s->conn_exp = TICK_ETERNITY;
+	s->flags &= ~SF_CONN_EXP;
 
 	/* errors faced after sending data need to be reported */
 	if (si->flags & SI_FL_ERR && req->flags & CF_WROTE_DATA) {
@@ -1626,8 +1627,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	 * stream interfaces when their timeouts have expired.
 	 */
 	if (unlikely(s->pending_events & TASK_WOKEN_TIMER)) {
-		si_check_timeouts(si_f);
-		si_check_timeouts(si_b);
+		stream_check_conn_timeout(s);
 
 		/* check channel timeouts, and close the corresponding stream interfaces
 		 * for future reads or writes. Note: this will also concern upper layers
@@ -1672,7 +1672,8 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		if (!((req->flags | res->flags) &
 		      (CF_SHUTR|CF_READ_ACTIVITY|CF_READ_TIMEOUT|CF_SHUTW|
 		       CF_WRITE_ACTIVITY|CF_WRITE_TIMEOUT|CF_ANA_TIMEOUT)) &&
-		    !((si_f->flags | si_b->flags) & (SI_FL_EXP|SI_FL_ERR)) &&
+		    !(s->flags & SF_CONN_EXP) &&
+		    !((si_f->flags | si_b->flags) & SI_FL_ERR) &&
 		    ((s->pending_events & TASK_WOKEN_ANY) == TASK_WOKEN_TIMER)) {
 			si_f->flags &= ~SI_FL_DONT_WAKE;
 			si_b->flags &= ~SI_FL_DONT_WAKE;
@@ -2462,11 +2463,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 
 		t->expire = tick_first(t->expire, res->analyse_exp);
 
-		if (si_f->exp)
-			t->expire = tick_first(t->expire, si_f->exp);
-
-		if (si_b->exp)
-			t->expire = tick_first(t->expire, si_b->exp);
+		t->expire = tick_first(t->expire, s->conn_exp);
 
 		s->pending_events &= ~(TASK_WOKEN_TIMER | TASK_WOKEN_RES);
 		stream_release_buffers(s);
@@ -3154,8 +3151,13 @@ static int stats_dump_full_strm_to_buffer(struct conn_stream *cs, struct stream 
 		}
 
 		chunk_appendf(&trash,
-			     "  flags=0x%x, conn_retries=%d, srv_conn=%p, pend_pos=%p waiting=%d epoch=%#x\n",
-			     strm->flags, strm->conn_retries, strm->srv_conn, strm->pend_pos,
+			     "  flags=0x%x, conn_retries=%d, conn_exp=%s srv_conn=%p, pend_pos=%p waiting=%d epoch=%#x\n",
+			     strm->flags, strm->conn_retries,
+			     strm->conn_exp ?
+			             tick_is_expired(strm->conn_exp, now_ms) ? "<PAST>" :
+			                     human_time(TICKS_TO_MS(strm->conn_exp - now_ms),
+			                     TICKS_TO_MS(1000)) : "<NEVER>",
+			      strm->srv_conn, strm->pend_pos,
 			     LIST_INLIST(&strm->buffer_wait.list), strm->stream_epoch);
 
 		chunk_appendf(&trash,
@@ -3250,29 +3252,21 @@ static int stats_dump_full_strm_to_buffer(struct conn_stream *cs, struct stream 
 			      strm->txn->req.flags, strm->txn->rsp.flags);
 
 		chunk_appendf(&trash,
-			     "  si[0]=%p (state=%s flags=0x%02x endp0=%s:%p exp=%s et=0x%03x sub=%d)\n",
+			     "  si[0]=%p (state=%s flags=0x%02x endp0=%s:%p et=0x%03x sub=%d)\n",
 			     strm->csf->si,
 			     si_state_str(strm->csf->si->state),
 			     strm->csf->si->flags,
 			     (strm->csf->endp->flags & CS_EP_T_MUX ? "CONN" : "APPCTX"),
 			      __cs_endp_target(strm->csf),
-			     strm->csf->si->exp ?
-			             tick_is_expired(strm->csf->si->exp, now_ms) ? "<PAST>" :
-			                     human_time(TICKS_TO_MS(strm->csf->si->exp - now_ms),
-			                     TICKS_TO_MS(1000)) : "<NEVER>",
 			      strm->csf->si->err_type, strm->csf->si->wait_event.events);
 
 		chunk_appendf(&trash,
-			     "  si[1]=%p (state=%s flags=0x%02x endp1=%s:%p exp=%s et=0x%03x sub=%d)\n",
+			     "  si[1]=%p (state=%s flags=0x%02x endp1=%s:%p et=0x%03x sub=%d)\n",
 			     strm->csb->si,
 			     si_state_str(strm->csb->si->state),
 			     strm->csb->si->flags,
 			     (strm->csb->endp->flags & CS_EP_T_MUX ? "CONN" : "APPCTX"),
 			      __cs_endp_target(strm->csb),
-			     strm->csb->si->exp ?
-			             tick_is_expired(strm->csb->si->exp, now_ms) ? "<PAST>" :
-			                     human_time(TICKS_TO_MS(strm->csb->si->exp - now_ms),
-			                     TICKS_TO_MS(1000)) : "<NEVER>",
 			     strm->csb->si->err_type, strm->csb->si->wait_event.events);
 
 		csf = strm->csf;
@@ -3647,28 +3641,26 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 
 			conn = cs_conn(curr_strm->csf);
 			chunk_appendf(&trash,
-				     " s0=[%d,%1xh,fd=%d,ex=%s]",
+				     " s0=[%d,%1xh,fd=%d]",
 				     curr_strm->csf->si->state,
 				     curr_strm->csf->si->flags,
-				     conn_fd(conn),
-				     curr_strm->csf->si->exp ?
-				     human_time(TICKS_TO_MS(curr_strm->csf->si->exp - now_ms),
-						TICKS_TO_MS(1000)) : "");
+				     conn_fd(conn));
 
 			conn = cs_conn(curr_strm->csb);
 			chunk_appendf(&trash,
-				     " s1=[%d,%1xh,fd=%d,ex=%s]",
+				     " s1=[%d,%1xh,fd=%d]",
 				     curr_strm->csb->si->state,
 				     curr_strm->csb->si->flags,
-				     conn_fd(conn),
-				     curr_strm->csb->si->exp ?
-				     human_time(TICKS_TO_MS(curr_strm->csb->si->exp - now_ms),
-						TICKS_TO_MS(1000)) : "");
+				     conn_fd(conn));
 
 			chunk_appendf(&trash,
-				     " exp=%s",
+				     " exp=%s rc=%d c_exp=%s",
 				     curr_strm->task->expire ?
 				     human_time(TICKS_TO_MS(curr_strm->task->expire - now_ms),
+						TICKS_TO_MS(1000)) : "",
+				     curr_strm->conn_retries,
+				     curr_strm->conn_exp ?
+				     human_time(TICKS_TO_MS(curr_strm->conn_exp - now_ms),
 						TICKS_TO_MS(1000)) : "");
 			if (task_in_rq(curr_strm->task))
 				chunk_appendf(&trash, " run(nice=%d)", curr_strm->task->nice);

@@ -263,7 +263,6 @@ void show_si_flags(unsigned int f)
 		return;
 	}
 
-	SHOW_FLAG(f, SI_FL_EXP);
 	SHOW_FLAG(f, SI_FL_ERR);
 	SHOW_FLAG(f, SI_FL_KILL_CONN);
 	SHOW_FLAG(f, SI_FL_WAIT_DATA);
@@ -418,6 +417,7 @@ void show_strm_flags(unsigned int f)
 	SHOW_FLAG(f, SF_REDIRECTABLE);
 	SHOW_FLAG(f, SF_IGNORE);
 	SHOW_FLAG(f, SF_REDISP);
+	SHOW_FLAG(f, SF_CONN_EXP);
 	SHOW_FLAG(f, SF_CURR_SESS);
 	SHOW_FLAG(f, SF_MONITOR);
 	SHOW_FLAG(f, SF_FORCE_PRST);

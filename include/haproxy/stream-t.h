@@ -43,6 +43,7 @@
 #define SF_FORCE_PRST	0x00000010	/* force persistence here, even if server is down */
 #define SF_MONITOR	0x00000020	/* this stream comes from a monitoring system */
 #define SF_CURR_SESS	0x00000040	/* a connection is currently being counted on the server */
+#define SF_CONN_EXP     0x00000080      /* timeout has expired */
 #define SF_REDISP	0x00000100	/* set if this stream was redispatched from one server to another */
 #define SF_IGNORE	0x00000200      /* The stream lead to a mux upgrade, and should be ignored */
 #define SF_REDIRECTABLE	0x00000400	/* set if this stream is redirectable (GET or HEAD) */
@@ -140,6 +141,7 @@ struct stream {
 	int32_t priority_offset;        /* priority offset of the stream for the pending queue */
 
 	int conn_retries;               /* number of connect retries performed */
+	unsigned int conn_exp;          /* wake up time for connect, queue, turn-around, ... */
 
 	struct list list;               /* position in the thread's streams list */
 	struct mt_list by_srv;          /* position in server stream list */
