@@ -1825,6 +1825,7 @@ static void dump_registered_keywords(void)
 		if (strcmp(kwd_dump, "help") == 0) {
 			printf("# List of supported keyword classes:\n");
 			printf("all: list all keywords\n");
+			printf("acl: ACL keywords\n");
 			printf("cfg: configuration keywords\n");
 			printf("cli: CLI keywords\n");
 			printf("flt: filter names\n");
@@ -1833,6 +1834,11 @@ static void dump_registered_keywords(void)
 		}
 		else if (strcmp(kwd_dump, "all") == 0) {
 			all = 1;
+		}
+
+		if (all || strcmp(kwd_dump, "acl") == 0) {
+			printf("# List of registered ACL keywords:\n");
+			acl_dump_kwd();
 		}
 
 		if (all || strcmp(kwd_dump, "cfg") == 0) {
