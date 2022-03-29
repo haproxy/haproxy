@@ -8,6 +8,7 @@
 #include <grp.h>
 #include <errno.h>
 #include <sys/types.h>
+#include <sys/resource.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -1540,6 +1541,54 @@ static int cfg_parse_global_parser_pause(char **args, int section_type,
 	return 0;
 }
 
+/* config parser for global "tune.renice.startup" and "tune.renice.runtime",
+ * accepts -20 to +19 inclusive, stored as 80..119.
+ */
+static int cfg_parse_tune_renice(char **args, int section_type, struct proxy *curpx,
+                                const struct proxy *defpx, const char *file, int line,
+                                char **err)
+{
+	int prio;
+	char *stop;
+
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	prio = strtol(args[1], &stop, 10);
+	if ((*stop != '\0') || (prio < -20 || prio > 19)) {
+		memprintf(err, "'%s' only supports values between -20 and 19 inclusive (was given %s)", args[0], args[1]);
+		return -1;
+	}
+
+	/* 'runtime' vs 'startup' */
+	if (args[0][12] == 'r') {
+		/* runtime is executed once parsing is done */
+
+		global.tune.renice_runtime = prio + 100;
+	} else if (args[0][12] == 's') {
+		/* startup is executed during cfg parsing */
+
+		global.tune.renice_startup = prio + 100;
+		if (setpriority(PRIO_PROCESS, 0, prio) == -1)
+			ha_warning("couldn't set the startup nice value to %d: %s\n", prio, strerror(errno));
+
+		/* try to store the previous priority in the runtime priority */
+		prio = getpriority(PRIO_PROCESS, 0);
+		if (prio == -1) {
+			ha_warning("couldn't get the runtime nice value: %s\n", strerror(errno));
+		} else {
+			/* if there wasn't a renice runtime option set */
+			if (global.tune.renice_runtime == 0)
+				global.tune.renice_runtime = prio + 100;
+		}
+
+	} else {
+		BUG_ON(1, "Triggered in cfg_parse_tune_renice() by unsupported keyword.\n");
+	}
+
+	return 0;
+}
+
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "prealloc-fd", cfg_parse_prealloc_fd },
 	{ CFG_GLOBAL, "force-cfg-parser-pause", cfg_parse_global_parser_pause, KWF_EXPERIMENTAL },
@@ -1563,6 +1612,8 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.bufsize", cfg_parse_global_tune_opts },
 	{ CFG_GLOBAL, "tune.maxrewrite", cfg_parse_global_tune_opts },
 	{ CFG_GLOBAL, "tune.idletimer", cfg_parse_global_tune_opts },
+	{ CFG_GLOBAL, "tune.renice.startup", cfg_parse_tune_renice },
+	{ CFG_GLOBAL, "tune.renice.runtime", cfg_parse_tune_renice },
 	{ CFG_GLOBAL, "tune.rcvbuf.client", cfg_parse_global_tune_opts },
 	{ CFG_GLOBAL, "tune.rcvbuf.server", cfg_parse_global_tune_opts },
 	{ CFG_GLOBAL, "tune.sndbuf.client", cfg_parse_global_tune_opts },

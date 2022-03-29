@@ -1524,6 +1524,8 @@ The following keywords are supported in the "global" section :
    - tune.quic.retry-threshold
    - tune.quic.socket-owner
    - tune.quic.zero-copy-fwd-send
+   - tune.renice.runtime
+   - tune.renice.startup
    - tune.rcvbuf.backend
    - tune.rcvbuf.client
    - tune.rcvbuf.frontend
@@ -4059,6 +4061,26 @@ tune.quic.zero-copy-fwd-send { on | off }
   multiplexer. It is enabled by default.
 
   See also: tune.disable-zero-copy-forwarding
+
+tune.renice.runtime <number>
+  This configuration option takes a value between -20 and 19. It applies a
+  scheduling priority as documented in man 2 setpriority. This priority is
+  applied after the configuration parsing, which means only the worker or the
+  standalone process will apply it. It is usually configured to set a higher
+  priority than a process doing configuration parsing (tune.renice.startup).
+
+  See also: tune.renice.startup
+
+tune.renice.startup <number>
+  This configuration option takes a value between -20 and 19. It applies a
+  scheduling priority as documented in man 2 setpriority. This priority is
+  applied before applying the rest of the configuration which can be useful if
+  you want to lower the priority for configuration parsing. This is applied on
+  the standalone process or the worker before configuration parsing. Once the
+  configuration is parsed, the previous priority is restored unless
+  tune.renice.runtime is used.
+
+  See also: tune.renice.runtime
 
 tune.rcvbuf.backend <number>
 tune.rcvbuf.frontend <number>

@@ -190,6 +190,8 @@ struct global {
 		int pool_low_count;   /* max number of opened fd before we stop using new idle connections */
 		int pool_high_count;  /* max number of opened fd before we start killing idle connections when creating new connections */
 		size_t pool_cache_size;    /* per-thread cache size per pool (defaults to CONFIG_HAP_POOL_CACHE_SIZE) */
+		int renice_startup;     /* startup nice()+100 value during startup; 0 = unset */
+		int renice_runtime;     /* startup nice()+100 value during runtime; 0 = unset */
 		unsigned short idle_timer; /* how long before an empty buffer is considered idle (ms) */
 		unsigned short no_zero_copy_fwd; /* Flags to disable zero-copy fast-forwarding (global & per-protocols) */
 		int nb_stk_ctr;       /* number of stick counters, defaults to MAX_SESS_STKCTR */

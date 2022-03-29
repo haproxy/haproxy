@@ -3942,6 +3942,15 @@ int main(int argc, char **argv)
 		}
 	}
 
+        /* applies the renice value in the worker or standalone after configuration parsing
+         * but before chaning identity */
+        if (!master && global.tune.renice_runtime) {
+		if (setpriority(PRIO_PROCESS, 0, global.tune.renice_runtime - 100) == -1) {
+			ha_warning("[%s.main()] couldn't set the runtime nice value to %d: %s\n",
+			           argv[0], global.tune.renice_runtime - 100, strerror(errno));
+		}
+	}
+
 	/* Must chroot and setgid/setuid in the children */
 	/* chroot if needed */
 	if (global.chroot != NULL) {
