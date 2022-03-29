@@ -1826,6 +1826,7 @@ static void dump_registered_keywords(void)
 			printf("# List of supported keyword classes:\n");
 			printf("all: list all keywords\n");
 			printf("cfg: configuration keywords\n");
+			printf("cli: CLI keywords\n");
 			printf("flt: filter names\n");
 			printf("svc: service names\n");
 			continue;
@@ -1837,6 +1838,11 @@ static void dump_registered_keywords(void)
 		if (all || strcmp(kwd_dump, "cfg") == 0) {
 			printf("# List of registered configuration keywords:\n");
 			cfg_dump_registered_keywords();
+		}
+
+		if (all || strcmp(kwd_dump, "cli") == 0) {
+			printf("# List of registered CLI keywords:\n");
+			cli_list_keywords();
 		}
 
 		if (all || strcmp(kwd_dump, "flt") == 0) {

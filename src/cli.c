@@ -368,6 +368,30 @@ void cli_register_kw(struct cli_kw_list *kw_list)
 	LIST_APPEND(&cli_keywords.list, &kw_list->list);
 }
 
+/* list all known keywords on stdout, one per line */
+void cli_list_keywords(void)
+{
+	struct cli_kw_list *kw_list;
+	struct cli_kw *kw;
+	int idx;
+
+	list_for_each_entry(kw_list, &cli_keywords.list, list) {
+		for (kw = &kw_list->kw[0]; kw->str_kw[0]; kw++) {
+			for (idx = 0; kw->str_kw[idx]; idx++) {
+				printf("%s ", kw->str_kw[idx]);
+			}
+			if (kw->level & (ACCESS_MASTER_ONLY|ACCESS_MASTER))
+				printf("[MASTER] ");
+			if (!(kw->level & ACCESS_MASTER_ONLY))
+				printf("[WORKER] ");
+			if (kw->level & ACCESS_EXPERT)
+				printf("[EXPERT] ");
+			if (kw->level & ACCESS_EXPERIMENTAL)
+				printf("[EXPERIM] ");
+			printf("\n");
+		}
+	}
+}
 
 /* allocate a new stats frontend named <name>, and return it
  * (or NULL in case of lack of memory).
