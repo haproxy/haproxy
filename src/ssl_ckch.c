@@ -1831,6 +1831,51 @@ static void __ckch_inst_free_locked(struct ckch_inst *ckchi)
 	}
 }
 
+/* Replace a ckch_store in the ckch tree and insert the whole dependencies,
+* then free the previous dependencies and store.
+* Used in the case of a certificate update.
+*
+* Every dependencies must allocated before using this function.
+*
+* This function can't fail as it only update pointers, and does not alloc anything.
+*
+* /!\ This function must be used under the ckch lock. /!\
+*
+* - Insert every dependencies (SNI, crtlist_entry, ckch_inst, etc)
+* - Delete the old ckch_store from the tree
+* - Insert the new ckch_store
+* - Free the old dependencies and the old ckch_store
+*/
+void ckch_store_replace(struct ckch_store *old_ckchs, struct ckch_store *new_ckchs)
+{
+	struct crtlist_entry *entry;
+	struct ckch_inst *ckchi, *ckchis;
+
+	LIST_SPLICE(&new_ckchs->crtlist_entry, &old_ckchs->crtlist_entry);
+	list_for_each_entry(entry, &new_ckchs->crtlist_entry, by_ckch_store) {
+		ebpt_delete(&entry->node);
+		/* change the ptr and reinsert the node */
+		entry->node.key = new_ckchs;
+		ebpt_insert(&entry->crtlist->entries, &entry->node);
+	}
+	/* insert the new ckch_insts in the crtlist_entry */
+	list_for_each_entry(ckchi, &new_ckchs->ckch_inst, by_ckchs) {
+		if (ckchi->crtlist_entry)
+			LIST_INSERT(&ckchi->crtlist_entry->ckch_inst, &ckchi->by_crtlist_entry);
+	}
+	/* First, we insert every new SNIs in the trees, also replace the default_ctx */
+	list_for_each_entry_safe(ckchi, ckchis, &new_ckchs->ckch_inst, by_ckchs) {
+		__ssl_sock_load_new_ckch_instance(ckchi);
+	}
+	/* delete the old sni_ctx, the old ckch_insts and the ckch_store */
+	list_for_each_entry_safe(ckchi, ckchis, &old_ckchs->ckch_inst, by_ckchs) {
+		__ckch_inst_free_locked(ckchi);
+	}
+
+	ckch_store_free(old_ckchs);
+	ebst_insert(&ckchs_tree, &new_ckchs->node);
+}
+
 
 /*
  * This function tries to create the new ckch_inst and their SNIs
@@ -1841,9 +1886,8 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 	int y = 0;
 	char *err = NULL;
 	struct ckch_store *old_ckchs, *new_ckchs = NULL;
-	struct ckch_inst *ckchi, *ckchis;
+	struct ckch_inst *ckchi;
 	struct buffer *trash = alloc_trash_chunk();
-	struct crtlist_entry *entry;
 
 	if (trash == NULL)
 		goto error;
@@ -1914,34 +1958,9 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 				if (!new_ckchs)
 					continue;
 
-				/* get the list of crtlist_entry in the old store, and update the pointers to the store */
-				LIST_SPLICE(&new_ckchs->crtlist_entry, &old_ckchs->crtlist_entry);
-				list_for_each_entry(entry, &new_ckchs->crtlist_entry, by_ckch_store) {
-					ebpt_delete(&entry->node);
-					/* change the ptr and reinsert the node */
-					entry->node.key = new_ckchs;
-					ebpt_insert(&entry->crtlist->entries, &entry->node);
-				}
+				/* insert everything and remove the previous objects */
+				ckch_store_replace(old_ckchs, new_ckchs);
 
-				/* insert the new ckch_insts in the crtlist_entry */
-				list_for_each_entry(ckchi, &new_ckchs->ckch_inst, by_ckchs) {
-					if (ckchi->crtlist_entry)
-						LIST_INSERT(&ckchi->crtlist_entry->ckch_inst, &ckchi->by_crtlist_entry);
-				}
-
-				/* First, we insert every new SNIs in the trees, also replace the default_ctx */
-				list_for_each_entry_safe(ckchi, ckchis, &new_ckchs->ckch_inst, by_ckchs) {
-					__ssl_sock_load_new_ckch_instance(ckchi);
-				}
-
-				/* delete the old sni_ctx, the old ckch_insts and the ckch_store */
-				list_for_each_entry_safe(ckchi, ckchis, &old_ckchs->ckch_inst, by_ckchs) {
-					__ckch_inst_free_locked(ckchi);
-				}
-
-				/* Replace the old ckchs by the new one */
-				ckch_store_free(old_ckchs);
-				ebst_insert(&ckchs_tree, &new_ckchs->node);
 				appctx->st2 = SETCERT_ST_FIN;
 				/* fallthrough */
 			case SETCERT_ST_FIN:
