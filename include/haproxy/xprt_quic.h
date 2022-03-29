@@ -987,6 +987,7 @@ static inline void quic_pktns_init(struct quic_pktns *pktns)
 	pktns->rx.arngs.root = EB_ROOT_UNIQUE;
 	pktns->rx.arngs.sz = 0;
 	pktns->rx.arngs.enc_sz = 0;
+	pktns->rx.nb_aepkts_since_last_ack = 0;
 
 	pktns->flags = 0;
 }

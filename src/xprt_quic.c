@@ -174,7 +174,7 @@ DECLARE_STATIC_POOL(pool_head_quic_conn_stream, "qc_stream_desc", sizeof(struct 
 static struct quic_tx_packet *qc_build_pkt(unsigned char **pos, const unsigned char *buf_end,
                                            struct quic_enc_level *qel, struct list *frms,
                                            struct quic_conn *qc, size_t dglen, int pkt_type,
-                                           int padding, int ack, int probe, int cc, int *err);
+                                           int padding, int probe, int cc, int *err);
 static struct task *quic_conn_app_io_cb(struct task *t, void *context, unsigned int state);
 static void qc_idle_timer_rearm(struct quic_conn *qc, int read);
 
@@ -2636,6 +2636,33 @@ static inline void qc_set_dg(struct cbuf *cbuf,
 	cb_add(cbuf, dglen + sizeof dglen + sizeof pkt);
 }
 
+/* Returns 1 if a packet may be built for <qc> from <qel> encryption level
+ * with <frms> as ack-eliciting frame list to send, 0 if not.
+ * <cc> must equal to 1 if an immediate close was asked, 0 if not.
+ * <probe> must equalt to 1 if a probing packet is required, 0 if not.
+ */
+static int qc_may_build_pkt(struct quic_conn *qc, struct list *frms,
+                            struct quic_enc_level *qel, int cc, int probe)
+{
+	unsigned int must_ack =
+		qel->pktns->rx.nb_aepkts_since_last_ack >= QUIC_MAX_RX_AEPKTS_SINCE_LAST_ACK;
+
+	/* Do not build any more packet if the TX secrets are not available or
+	 * if there is nothing to send, i.e. if no CONNECTION_CLOSE or ACK are required
+	 * and if there is no more packets to send upon PTO expiration
+	 * and if there is no more ack-eliciting frames to send or in flight
+	 * congestion control limit is reached for prepared data
+	 */
+	if (!(qel->tls_ctx.flags & QUIC_FL_TLS_SECRETS_SET) ||
+	    (!cc && !probe && !must_ack &&
+	     (LIST_ISEMPTY(frms) || qc->path->prep_in_flight >= qc->path->cwnd))) {
+		TRACE_DEVEL("nothing more to do", QUIC_EV_CONN_PHPKTS, qc);
+		return 0;
+	}
+
+	return 1;
+}
+
 /* Prepare as much as possible short packets which are also datagrams into <qr>
  * ring buffer for the QUIC connection with <ctx> as I/O handler context from
  * <frms> list of prebuilt frames.
@@ -2670,28 +2697,17 @@ static int qc_prep_app_pkts(struct quic_conn *qc, struct qring *qr,
 	 */
 	end_buf = pos + cb_contig_space(cbuf) - sizeof(uint16_t);
 	while (end_buf - pos >= (int)qc->path->mtu + dg_headlen) {
-		int err, probe, ack, cc;
+		int err, probe, cc;
 
 		TRACE_POINT(QUIC_EV_CONN_PHPKTS, qc, qel);
-		probe = ack = 0;
+		probe = 0;
 		cc =  qc->flags & QUIC_FL_CONN_IMMEDIATE_CLOSE;
-		if (!cc) {
+		/* We do not probe if an immediate close was asked */
+		if (!cc)
 			probe = qel->pktns->tx.pto_probe;
-			ack = qel->pktns->flags & QUIC_FL_PKTNS_ACK_REQUIRED;
-		}
-		/* Do not build any more packet if the TX secrets are not available or
-		 * if there is nothing to send, i.e. if no CONNECTION_CLOSE or ACK are required
-		 * and if there is no more packets to send upon PTO expiration
-		 * and if there is no more CRYPTO data available or in flight
-		 * congestion control limit is reached for prepared data
-		 */
-		if (!(qel->tls_ctx.flags & QUIC_FL_TLS_SECRETS_SET) ||
-		    (!cc && !ack && !probe &&
-		     (LIST_ISEMPTY(frms) ||
-		      qc->path->prep_in_flight >= qc->path->cwnd))) {
-			TRACE_DEVEL("nothing more to do", QUIC_EV_CONN_PHPKTS, qc);
+
+		if (!qc_may_build_pkt(qc, frms, qel, cc, probe))
 			break;
-		}
 
 		/* Leave room for the datagram header */
 		pos += dg_headlen;
@@ -2703,7 +2719,7 @@ static int qc_prep_app_pkts(struct quic_conn *qc, struct qring *qr,
 		}
 
 		pkt = qc_build_pkt(&pos, end, qel, frms, qc, 0, 0,
-		                   QUIC_PACKET_TYPE_SHORT, ack, probe, cc, &err);
+		                   QUIC_PACKET_TYPE_SHORT, probe, cc, &err);
 		switch (err) {
 		case -2:
 			goto err;
@@ -2783,30 +2799,17 @@ static int qc_prep_pkts(struct quic_conn *qc, struct qring *qr,
 	end_buf = pos + cb_contig_space(cbuf) - sizeof dglen;
 	first_pkt = prv_pkt = NULL;
 	while (end_buf - pos >= (int)qc->path->mtu + dg_headlen || prv_pkt) {
-		int err, probe, ack, cc;
+		int err, probe, cc;
 		enum quic_pkt_type pkt_type;
 
 		TRACE_POINT(QUIC_EV_CONN_PHPKTS, qc, qel);
-		probe = ack = 0;
+		probe = 0;
 		cc =  qc->flags & QUIC_FL_CONN_IMMEDIATE_CLOSE;
-		if (!cc) {
+		/* We do not probe if an immediate close was asked */
+		if (!cc)
 			probe = qel->pktns->tx.pto_probe;
-			ack = qel->pktns->flags & QUIC_FL_PKTNS_ACK_REQUIRED;
-		}
-		/* Do not build any more packet if the TX secrets are not available or
-		 * if there is nothing to send, i.e. if no CONNECTION_CLOSE or ACK are required
-		 * and if there is no more packets to send upon PTO expiration
-		 * and if there is no more CRYPTO data available or in flight
-		 * congestion control limit is reached for prepared data
-		 */
-		if (!(qel->tls_ctx.flags & QUIC_FL_TLS_SECRETS_SET) ||
-		    (!cc && !ack && !probe &&
-		     (LIST_ISEMPTY(&qel->pktns->tx.frms) ||
-		      qc->path->prep_in_flight >= qc->path->cwnd))) {
-			TRACE_DEVEL("nothing more to do", QUIC_EV_CONN_PHPKTS, qc);
-			/* Set the current datagram as prepared into <cbuf> if
-			 * the was already a correct packet which was previously written.
-			 */
+
+		if (!qc_may_build_pkt(qc, &qel->pktns->tx.frms, qel, cc, probe)) {
 			if (prv_pkt)
 				qc_set_dg(cbuf, dglen, first_pkt);
 			/* Let's select the next encryption level */
@@ -2833,7 +2836,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct qring *qr,
 		}
 
 		cur_pkt = qc_build_pkt(&pos, end, qel, &qel->pktns->tx.frms,
-		                       qc, dglen, padding, pkt_type, ack, probe, cc, &err);
+		                       qc, dglen, padding, pkt_type, probe, cc, &err);
 		switch (err) {
 		case -2:
 			goto err;
@@ -3382,9 +3385,9 @@ int qc_treat_rx_pkts(struct quic_enc_level *cur_el, struct quic_enc_level *next_
 			else {
 				struct quic_arng ar = { .first = pkt->pn, .last = pkt->pn };
 
-				if (pkt->flags & QUIC_FL_RX_PACKET_ACK_ELICITING) {
-					if (!(++qc->rx.nb_ack_eliciting & 1) || force_ack)
-						qel->pktns->flags |= QUIC_FL_PKTNS_ACK_REQUIRED;
+				if (pkt->flags & QUIC_FL_RX_PACKET_ACK_ELICITING || force_ack) {
+					qel->pktns->flags |= QUIC_FL_PKTNS_ACK_REQUIRED;
+					qel->pktns->rx.nb_aepkts_since_last_ack++;
 					qc_idle_timer_rearm(qc, 1);
 				}
 				if (pkt->pn > largest_pn)
@@ -3920,7 +3923,6 @@ static struct quic_conn *qc_new_conn(unsigned int version, int ipv4,
 	qc->tx.bytes = 0;
 	/* RX part. */
 	qc->rx.bytes = 0;
-	qc->rx.nb_ack_eliciting = 0;
 	qc->rx.buf = b_make(buf_area, QUIC_CONN_RX_BUFSZ, 0, 0);
 	LIST_INIT(&qc->rx.pkt_list);
 	if (!quic_tls_ku_init(qc)) {
@@ -5179,7 +5181,7 @@ static inline int qc_build_frms(struct list *outlist, struct list *inlist,
 static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
                            size_t dglen, struct quic_tx_packet *pkt,
                            int64_t pn, size_t *pn_len, unsigned char **buf_pn,
-                           int ack, int padding, int cc, int probe,
+                           int padding, int cc, int probe,
                            struct quic_enc_level *qel, struct quic_conn *qc,
                            struct list *frms)
 {
@@ -5197,14 +5199,11 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 	/* Length field value with CRYPTO frames if present. */
 	len_frms = 0;
 	beg = pos;
-	/* When not probing and not acking, and no immediate close is required,
-	 * reduce the size of this buffer to respect
-	 * the congestion controller window. So, we do not limit the size of this
-	 * packet if we have an ACK frame to send because an ACK frame is not
-	 * ack-eliciting. This size will be limited if we have ack-eliciting
-	 * frames to send from <frms>.
+	/* When not probing, and no immediate close is required, reduce the size of this
+	 * buffer to respect the congestion controller window.
+	 * This size will be limited if we have ack-eliciting frames to send from <frms>.
 	 */
-	if (!probe && !ack && !cc) {
+	if (!probe && !LIST_ISEMPTY(frms) && !cc) {
 		size_t path_room;
 
 		path_room = quic_path_prep_data(qc->path);
@@ -5236,7 +5235,8 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 	head_len = pos - beg;
 	/* Build an ACK frame if required. */
 	ack_frm_len = 0;
-	if (!cc && ack && !eb_is_empty(&qel->pktns->rx.arngs.root)) {
+	if ((qel->pktns->flags & QUIC_FL_PKTNS_ACK_REQUIRED)) {
+	    BUG_ON(eb_is_empty(&qel->pktns->rx.arngs.root));
 		ack_frm.tx_ack.ack_delay = 0;
 		ack_frm.tx_ack.arngs = &qel->pktns->rx.arngs;
 		/* XXX BE CAREFUL XXX : here we reserved at least one byte for the
@@ -5326,6 +5326,7 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 			goto no_room;
 
 		pkt->largest_acked_pn = quic_pktns_get_largest_acked_pn(qel->pktns);
+		pkt->flags |= QUIC_FL_TX_PACKET_ACK;
 	}
 
 	/* Ack-eliciting frames */
@@ -5421,7 +5422,7 @@ static struct quic_tx_packet *qc_build_pkt(unsigned char **pos,
                                            const unsigned char *buf_end,
                                            struct quic_enc_level *qel, struct list *frms,
                                            struct quic_conn *qc, size_t dglen, int padding,
-                                           int pkt_type, int ack, int probe, int cc, int *err)
+                                           int pkt_type, int probe, int cc, int *err)
 {
 	/* The pointer to the packet number field. */
 	unsigned char *buf_pn;
@@ -5447,7 +5448,7 @@ static struct quic_tx_packet *qc_build_pkt(unsigned char **pos,
 
 	pn = qel->pktns->tx.next_pn + 1;
 	if (!qc_do_build_pkt(*pos, buf_end, dglen, pkt, pn, &pn_len, &buf_pn,
-	                     ack, padding, cc, probe, qel, qc, frms)) {
+	                     padding, cc, probe, qel, qc, frms)) {
 		*err = -1;
 		goto err;
 	}
@@ -5486,8 +5487,10 @@ static struct quic_tx_packet *qc_build_pkt(unsigned char **pos,
 		pkt->in_flight_len = pkt->len;
 		qc->path->prep_in_flight += pkt->len;
 	}
-	/* Always reset these flags */
-	qel->pktns->flags &= ~QUIC_FL_PKTNS_ACK_REQUIRED;
+	if (pkt->flags & QUIC_FL_TX_PACKET_ACK) {
+		qel->pktns->flags &= ~QUIC_FL_PKTNS_ACK_REQUIRED;
+		qel->pktns->rx.nb_aepkts_since_last_ack = 0;
+	}
 
 	pkt->pktns = qel->pktns;
 	TRACE_LEAVE(QUIC_EV_CONN_HPKT, qc, pkt);

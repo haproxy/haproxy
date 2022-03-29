@@ -420,6 +420,7 @@ struct quic_pktns {
 		/* Largest acked sent packet. */
 		int64_t largest_acked_pn;
 		struct quic_arngs arngs;
+		unsigned int nb_aepkts_since_last_ack;
 	} rx;
 	unsigned int flags;
 };
@@ -443,6 +444,10 @@ struct quic_dgram {
 /* Default QUIC connection transport parameters */
 extern struct quic_transport_params quic_dflt_transport_params;
 
+/* Maximum number of ack-eliciting received packets since the last
+ * ACK frame was sent
+ */
+#define QUIC_MAX_RX_AEPKTS_SINCE_LAST_ACK       2
 /* Flag a received packet as being an ack-eliciting packet. */
 #define QUIC_FL_RX_PACKET_ACK_ELICITING (1UL << 0)
 
@@ -508,6 +513,8 @@ struct quic_rx_strm_frm {
 #define QUIC_FL_TX_PACKET_PADDING       (1UL << 1)
 /* Flag a sent packet as being in flight. */
 #define QUIC_FL_TX_PACKET_IN_FLIGHT     (QUIC_FL_TX_PACKET_ACK_ELICITING | QUIC_FL_TX_PACKET_PADDING)
+/* Flag a sent packet as containg an ACK frame */
+#define QUIC_FL_TX_PACKET_ACK           (1UL << 2)
 
 /* Structure to store enough information about TX QUIC packets. */
 struct quic_tx_packet {
@@ -716,8 +723,6 @@ struct quic_conn {
 	struct {
 		/* Number of received bytes. */
 		uint64_t bytes;
-		/* Number of ack-eliciting received packets. */
-		size_t nb_ack_eliciting;
 		/* Transport parameters the peer will receive */
 		struct quic_transport_params params;
 		/* RX buffer */
