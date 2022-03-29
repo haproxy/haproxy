@@ -2161,7 +2161,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 				 * perform a connection request.
 				 */
 				si_b->state = SI_ST_REQ; /* new connection requested */
-				s->conn_retries = s->be->conn_retries;
+				s->conn_retries = 0;
 				if ((s->be->retry_type &~ PR_RE_CONN_FAILED) &&
 				    (s->be->mode == PR_MODE_HTTP) &&
 				    !(s->txn->flags & TX_D_L7_RETRY))

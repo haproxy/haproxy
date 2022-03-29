@@ -1226,8 +1226,8 @@ static __inline int do_l7_retry(struct stream *s, struct stream_interface *si)
 	struct channel *req, *res;
 	int co_data;
 
-	s->conn_retries--;
-	if (s->conn_retries < 0)
+	s->conn_retries++;
+	if (s->conn_retries >= s->be->conn_retries)
 		return -1;
 
 	if (objt_server(s->target)) {

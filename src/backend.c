@@ -1720,8 +1720,7 @@ skip_reuse:
 	     * it's our first try
 	     */
 	    ((cli_conn->flags & CO_FL_EARLY_DATA) ||
-	     ((s->be->retry_type & PR_RE_EARLY_ERROR) &&
-	      s->conn_retries == s->be->conn_retries)) &&
+	     ((s->be->retry_type & PR_RE_EARLY_ERROR) && !s->conn_retries)) &&
 	    !channel_is_empty(cs_oc(s->csb)) &&
 	    srv_conn->flags & CO_FL_SSL_WAIT_HS)
 		srv_conn->flags &= ~(CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN);
@@ -2222,6 +2221,8 @@ void back_handle_st_cer(struct stream *s)
 	cs->si->exp    = TICK_ETERNITY;
 	cs->si->flags &= ~SI_FL_EXP;
 
+	s->conn_retries++;
+
 	/* we probably have to release last stream from the server */
 	if (objt_server(s->target)) {
 		struct connection *conn = cs_conn(cs);
@@ -2251,14 +2252,13 @@ void back_handle_st_cer(struct stream *s)
 			 * provided by the client and we don't want to let the
 			 * client provoke retries.
 			 */
-			s->conn_retries = 0;
+			s->conn_retries = s->be->conn_retries;
 			DBG_TRACE_DEVEL("Bad SSL cert, disable connection retries", STRM_EV_STRM_PROC|STRM_EV_SI_ST|STRM_EV_STRM_ERR, s);
 		}
 	}
 
 	/* ensure that we have enough retries left */
-	s->conn_retries--;
-	if (s->conn_retries < 0 || !(s->be->retry_type & PR_RE_CONN_FAILED)) {
+	if (s->conn_retries >= s->be->conn_retries || !(s->be->retry_type & PR_RE_CONN_FAILED)) {
 		if (!cs->si->err_type) {
 			cs->si->err_type = SI_ET_CONN_ERR;
 		}

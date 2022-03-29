@@ -2616,10 +2616,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 			case LOG_FMT_RETRIES:  // %rq
 				if (s_flags & SF_REDISP)
 					LOGCHAR('+');
-				ret = ltoa_o(((s && s->conn_retries > 0)
-					      ? (be->conn_retries - s->conn_retries)
-					      : ((s && cs_si(s->csb)->state != SI_ST_INI) ? be->conn_retries : 0)),
-					     tmplog, dst + maxsize - tmplog);
+				ret = ltoa_o((s  ? s->conn_retries : 0), tmplog, dst + maxsize - tmplog);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;

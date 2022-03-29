@@ -139,7 +139,7 @@ struct stream {
 	int16_t priority_class;         /* priority class of the stream for the pending queue */
 	int32_t priority_offset;        /* priority offset of the stream for the pending queue */
 
-	int conn_retries;               /* number of connect retries left */
+	int conn_retries;               /* number of connect retries performed */
 
 	struct list list;               /* position in the thread's streams list */
 	struct mt_list by_srv;          /* position in server stream list */
