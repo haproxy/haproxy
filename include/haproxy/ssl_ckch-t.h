@@ -135,6 +135,7 @@ struct cafile_entry {
 
 enum {
 	CERT_TYPE_PEM = 0,
+	CERT_TYPE_CRT,
 	CERT_TYPE_KEY,
 #if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) || defined OPENSSL_IS_BORINGSSL)
 	CERT_TYPE_OCSP,

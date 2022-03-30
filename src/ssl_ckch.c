@@ -1118,6 +1118,7 @@ int ssl_store_load_locations_file(char *path, int create_if_none, enum cafile_ty
 
 struct cert_exts cert_exts[] = {
 	{ "",        CERT_TYPE_PEM,      &ssl_sock_load_pem_into_ckch }, /* default mode, no extensions */
+	{ "crt",     CERT_TYPE_CRT,      &ssl_sock_load_pem_into_ckch },
 	{ "key",     CERT_TYPE_KEY,      &ssl_sock_load_key_into_ckch },
 #if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) || defined OPENSSL_IS_BORINGSSL)
 	{ "ocsp",    CERT_TYPE_OCSP,     &ssl_sock_load_ocsp_response_from_file },
