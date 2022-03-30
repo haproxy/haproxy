@@ -150,7 +150,6 @@ enum fcgi_strm_st {
 
 #define FCGI_SF_WANT_SHUTR     0x00001000  /* a stream couldn't shutr() (mux full/busy) */
 #define FCGI_SF_WANT_SHUTW     0x00002000  /* a stream couldn't shutw() (mux full/busy) */
-#define FCGI_SF_KILL_CONN      0x00004000  /* kill the whole connection with this stream */
 
 
 /* FCGI stream descriptor */
@@ -3724,7 +3723,7 @@ static void fcgi_do_shutr(struct fcgi_strm *fstrm)
 	 * for example because of a "tcp-request content reject" rule that is
 	 * normally used to limit abuse.
 	 */
-	if ((fstrm->flags & FCGI_SF_KILL_CONN) &&
+	if ((fstrm->endp->flags & CS_EP_KILL_CONN) &&
 	    !(fconn->flags & (FCGI_CF_ABRTS_SENT|FCGI_CF_ABRTS_FAILED))) {
 		TRACE_STATE("stream wants to kill the connection", FCGI_EV_STRM_SHUT, fconn->conn, fstrm);
 		fconn->state = FCGI_CS_CLOSED;
@@ -3785,7 +3784,7 @@ static void fcgi_do_shutw(struct fcgi_strm *fstrm)
 		 * for example because of a "tcp-request content reject" rule that is
 		 * normally used to limit abuse.
 		 */
-		if ((fstrm->flags & FCGI_SF_KILL_CONN) &&
+		if ((fstrm->endp->flags & CS_EP_KILL_CONN) &&
 		    !(fconn->flags & (FCGI_CF_ABRTS_SENT|FCGI_CF_ABRTS_FAILED))) {
 			TRACE_STATE("stream wants to kill the connection", FCGI_EV_STRM_SHUT, fconn->conn, fstrm);
 			fconn->state = FCGI_CS_CLOSED;
@@ -3860,12 +3859,8 @@ static void fcgi_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
 	struct fcgi_strm *fstrm = __cs_mux(cs);
 
 	TRACE_POINT(FCGI_EV_STRM_SHUT, fstrm->fconn->conn, fstrm);
-	if (cs->endp->flags & CS_EP_KILL_CONN)
-		fstrm->flags |= FCGI_SF_KILL_CONN;
-
 	if (!mode)
 		return;
-
 	fcgi_do_shutr(fstrm);
 }
 
@@ -3875,9 +3870,6 @@ static void fcgi_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
 	struct fcgi_strm *fstrm = __cs_mux(cs);
 
 	TRACE_POINT(FCGI_EV_STRM_SHUT, fstrm->fconn->conn, fstrm);
-	if (cs->endp->flags & CS_EP_KILL_CONN)
-		fstrm->flags |= FCGI_SF_KILL_CONN;
-
 	fcgi_do_shutw(fstrm);
 }
 

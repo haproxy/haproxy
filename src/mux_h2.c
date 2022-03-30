@@ -202,7 +202,6 @@ enum h2_ss {
 
 #define H2_SF_WANT_SHUTR        0x00008000  // a stream couldn't shutr() (mux full/busy)
 #define H2_SF_WANT_SHUTW        0x00010000  // a stream couldn't shutw() (mux full/busy)
-#define H2_SF_KILL_CONN         0x00020000  // kill the whole connection with this stream
 
 #define H2_SF_EXT_CONNECT_SENT  0x00040000  // rfc 8441 an Extended CONNECT has been sent
 #define H2_SF_EXT_CONNECT_RCVD  0x00080000  // rfc 8441 an Extended CONNECT has been received and parsed
@@ -4501,7 +4500,7 @@ static void h2_do_shutr(struct h2s *h2s)
 	 * normally used to limit abuse. In this case we schedule a goaway to
 	 * close the connection.
 	 */
-	if ((h2s->flags & H2_SF_KILL_CONN) &&
+	if ((h2s->endp->flags & CS_EP_KILL_CONN) &&
 	    !(h2c->flags & (H2_CF_GOAWAY_SENT|H2_CF_GOAWAY_FAILED))) {
 		TRACE_STATE("stream wants to kill the connection", H2_EV_STRM_SHUT, h2c->conn, h2s);
 		h2c_error(h2c, H2_ERR_ENHANCE_YOUR_CALM);
@@ -4579,7 +4578,7 @@ static void h2_do_shutw(struct h2s *h2s)
 		 * normally used to limit abuse. In this case we schedule a goaway to
 		 * close the connection.
 		 */
-		if ((h2s->flags & H2_SF_KILL_CONN) &&
+		if ((h2s->endp->flags & CS_EP_KILL_CONN) &&
 		    !(h2c->flags & (H2_CF_GOAWAY_SENT|H2_CF_GOAWAY_FAILED))) {
 			TRACE_STATE("stream wants to kill the connection", H2_EV_STRM_SHUT, h2c->conn, h2s);
 			h2c_error(h2c, H2_ERR_ENHANCE_YOUR_CALM);
@@ -4672,12 +4671,8 @@ static void h2_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
 	struct h2s *h2s = __cs_mux(cs);
 
 	TRACE_ENTER(H2_EV_STRM_SHUT, h2s->h2c->conn, h2s);
-	if (cs->endp->flags & CS_EP_KILL_CONN)
-		h2s->flags |= H2_SF_KILL_CONN;
-
 	if (mode)
 		h2_do_shutr(h2s);
-
 	TRACE_LEAVE(H2_EV_STRM_SHUT, h2s->h2c->conn, h2s);
 }
 
@@ -4687,9 +4682,6 @@ static void h2_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
 	struct h2s *h2s = __cs_mux(cs);
 
 	TRACE_ENTER(H2_EV_STRM_SHUT, h2s->h2c->conn, h2s);
-	if (cs->endp->flags & CS_EP_KILL_CONN)
-		h2s->flags |= H2_SF_KILL_CONN;
-
 	h2_do_shutw(h2s);
 	TRACE_LEAVE(H2_EV_STRM_SHUT, h2s->h2c->conn, h2s);
 }
