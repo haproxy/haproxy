@@ -136,24 +136,38 @@ void
 flt_dump_kws(char **out)
 {
 	struct flt_kw_list *kwl;
+	const struct flt_kw *kwp, *kw;
+	const char *scope = NULL;
 	int index;
 
 	if (out)
 		*out = NULL;
-	list_for_each_entry(kwl, &flt_keywords.list, list) {
-		for (index = 0; kwl->kw[index].kw != NULL; index++) {
-			if (kwl->kw[index].parse ||
-			    flt_find_kw(kwl->kw[index].kw) == &kwl->kw[index]) {
-				if (out)
-					memprintf(out, "%s[%4s] %s%s\n", *out ? *out : "",
-					          kwl->scope,
-					          kwl->kw[index].kw,
-					          kwl->kw[index].parse ? "" : " (not supported)");
-				else
-					printf("%s [%s]\n",
-					       kwl->kw[index].kw, kwl->scope);
+
+	for (kw = kwp = NULL;; kwp = kw) {
+		list_for_each_entry(kwl, &flt_keywords.list, list) {
+			for (index = 0; kwl->kw[index].kw != NULL; index++) {
+				if ((kwl->kw[index].parse ||
+				     flt_find_kw(kwl->kw[index].kw) == &kwl->kw[index])
+				    && strordered(kwp ? kwp->kw : NULL,
+						  kwl->kw[index].kw,
+						  kw != kwp ? kw->kw : NULL)) {
+					kw = &kwl->kw[index];
+					scope = kwl->scope;
+				}
 			}
 		}
+
+		if (kw == kwp)
+			break;
+
+		if (out)
+			memprintf(out, "%s[%4s] %s%s\n", *out ? *out : "",
+				  scope,
+				  kw->kw,
+				  kw->parse ? "" : " (not supported)");
+		else
+			printf("%s [%s]\n",
+			       kw->kw, scope);
 	}
 }
 
