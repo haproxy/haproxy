@@ -11369,6 +11369,7 @@ static struct cfg_kw_list cfg_kws = {{ },{
 
 INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
 
+#ifdef USE_OPENSSL
 
 /*
  * This function replace a ckch_store by another one, and rebuild the ckch_inst and all its dependencies.
@@ -11550,6 +11551,18 @@ end:
 
 	return 0;
 }
+
+#else
+
+__LJMP static int hlua_ckch_set(lua_State *L)
+{
+	WILL_LJMP(luaL_error(L, "'CertCache.set' needs an HAProxy built with OpenSSL"));
+
+	return 0;
+}
+#endif /* ! USE_OPENSSL */
+
+
 
 /* This function can fail with an abort() due to an Lua critical error.
  * We are in the initialisation process of HAProxy, this abort() is
