@@ -82,6 +82,8 @@ enum {
 
 	CS_FL_ADDR_FROM_SET = 0x00000002, /* source address is set */
 	CS_FL_ADDR_TO_SET   = 0x00000004, /* destination address is set */
+
+	CS_FL_ERR           = 0x00000008,  /* a non-recoverable error has occurred */
 };
 
 /* cs_shutr() modes */

@@ -880,7 +880,7 @@ static void back_establish(struct stream *s)
 	s->flags &= ~SF_CONN_EXP;
 
 	/* errors faced after sending data need to be reported */
-	if (si->flags & SI_FL_ERR && req->flags & CF_WROTE_DATA) {
+	if (si->cs->flags & CS_FL_ERR && req->flags & CF_WROTE_DATA) {
 		/* Don't add CF_WRITE_ERROR if we're here because
 		 * early data were rejected by the server, or
 		 * http_wait_for_response() will never be called
@@ -1673,7 +1673,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		      (CF_SHUTR|CF_READ_ACTIVITY|CF_READ_TIMEOUT|CF_SHUTW|
 		       CF_WRITE_ACTIVITY|CF_WRITE_TIMEOUT|CF_ANA_TIMEOUT)) &&
 		    !(s->flags & SF_CONN_EXP) &&
-		    !((si_f->flags | si_b->flags) & SI_FL_ERR) &&
+		    !((si_f->cs->flags | si_b->cs->flags) & CS_FL_ERR) &&
 		    ((s->pending_events & TASK_WOKEN_ANY) == TASK_WOKEN_TIMER)) {
 			si_f->flags &= ~SI_FL_DONT_WAKE;
 			si_b->flags &= ~SI_FL_DONT_WAKE;
@@ -1692,10 +1692,10 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	 *       must be be reviewed too.
 	 */
 	if (!stream_alloc_work_buffer(s)) {
-		si_f->flags |= SI_FL_ERR;
+		si_f->cs->flags |= CS_FL_ERR;
 		si_f->err_type = SI_ET_CONN_RES;
 
-		si_b->flags |= SI_FL_ERR;
+		si_b->cs->flags |= CS_FL_ERR;
 		si_b->err_type = SI_ET_CONN_RES;
 
 		if (!(s->flags & SF_ERR_MASK))
@@ -1711,11 +1711,11 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	 * connection setup code must be able to deal with any type of abort.
 	 */
 	srv = objt_server(s->target);
-	if (unlikely(si_f->flags & SI_FL_ERR)) {
+	if (unlikely(si_f->cs->flags & CS_FL_ERR)) {
 		if (si_state_in(si_f->state, SI_SB_EST|SI_SB_DIS)) {
 			si_shutr(si_f);
 			si_shutw(si_f);
-			si_report_error(si_f);
+			cs_report_error(si_f->cs);
 			if (!(req->analysers) && !(res->analysers)) {
 				_HA_ATOMIC_INC(&s->be->be_counters.cli_aborts);
 				_HA_ATOMIC_INC(&sess->fe->fe_counters.cli_aborts);
@@ -1731,11 +1731,11 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		}
 	}
 
-	if (unlikely(si_b->flags & SI_FL_ERR)) {
+	if (unlikely(si_b->cs->flags & CS_FL_ERR)) {
 		if (si_state_in(si_b->state, SI_SB_EST|SI_SB_DIS)) {
 			si_shutr(si_b);
 			si_shutw(si_b);
-			si_report_error(si_b);
+			cs_report_error(si_b->cs);
 			_HA_ATOMIC_INC(&s->be->be_counters.failed_resp);
 			if (srv)
 				_HA_ATOMIC_INC(&srv->counters.failed_resp);
@@ -2255,8 +2255,8 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	/* Benchmarks have shown that it's optimal to do a full resync now */
 	if (si_f->state == SI_ST_DIS ||
 	    si_state_in(si_b->state, SI_SB_RDY|SI_SB_DIS) ||
-	    (si_f->flags & SI_FL_ERR && si_f->state != SI_ST_CLO) ||
-	    (si_b->flags & SI_FL_ERR && si_b->state != SI_ST_CLO))
+	    (si_f->cs->flags & CS_FL_ERR && si_f->state != SI_ST_CLO) ||
+	    (si_b->cs->flags & CS_FL_ERR && si_b->state != SI_ST_CLO))
 		goto resync_stream_interface;
 
 	/* otherwise we want to check if we need to resync the req buffer or not */
@@ -2379,8 +2379,8 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 
 	if (si_f->state == SI_ST_DIS ||
 	    si_state_in(si_b->state, SI_SB_RDY|SI_SB_DIS) ||
-	    (si_f->flags & SI_FL_ERR && si_f->state != SI_ST_CLO) ||
-	    (si_b->flags & SI_FL_ERR && si_b->state != SI_ST_CLO))
+	    (si_f->cs->flags & CS_FL_ERR && si_f->state != SI_ST_CLO) ||
+	    (si_b->cs->flags & CS_FL_ERR && si_b->state != SI_ST_CLO))
 		goto resync_stream_interface;
 
 	if ((req->flags & ~rqf_last) & CF_MASK_ANALYSER)

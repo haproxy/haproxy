@@ -219,6 +219,7 @@ void show_cs_flags(unsigned int f)
 		printf("0\n");
 		return;
 	}
+	SHOW_FLAG(f, CS_FL_ERR);
 	SHOW_FLAG(f, CS_FL_ADDR_FROM_SET);
 	SHOW_FLAG(f, CS_FL_ADDR_TO_SET);
 	SHOW_FLAG(f, CS_FL_ISBACK);
@@ -263,7 +264,6 @@ void show_si_flags(unsigned int f)
 		return;
 	}
 
-	SHOW_FLAG(f, SI_FL_ERR);
 	SHOW_FLAG(f, SI_FL_KILL_CONN);
 	SHOW_FLAG(f, SI_FL_WAIT_DATA);
 	SHOW_FLAG(f, SI_FL_ISBACK);

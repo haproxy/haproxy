@@ -76,6 +76,16 @@ static inline struct conn_stream *cs_opposite(struct conn_stream *cs)
 }
 
 
+/* to be called only when in SI_ST_DIS with SI_FL_ERR */
+static inline void cs_report_error(struct conn_stream *cs)
+{
+	if (!cs->si->err_type)
+		cs->si->err_type = SI_ET_DATA_ERR;
+
+	cs_oc(cs)->flags |= CF_WRITE_ERROR;
+	cs_ic(cs)->flags |= CF_READ_ERROR;
+}
+
 /* Returns the source address of the conn-stream and, if not set, fallbacks on
  * the session for frontend CS and the server connection for the backend CS. It
  * returns a const address on success or NULL on failure.

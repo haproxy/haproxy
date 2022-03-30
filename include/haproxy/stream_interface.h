@@ -39,7 +39,7 @@ struct stream_interface *si_new(struct conn_stream *cs);
 void si_free(struct stream_interface *si);
 
 /* main event functions used to move data between sockets and buffers */
-void si_report_error(struct stream_interface *si);
+
 void si_retnclose(struct stream_interface *si, const struct buffer *msg);
 int conn_si_send_proxy(struct connection *conn, unsigned int flag);
 struct appctx *si_register_handler(struct stream_interface *si, struct applet *app);

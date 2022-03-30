@@ -128,16 +128,6 @@ void si_free(struct stream_interface *si)
 	pool_free(pool_head_streaminterface, si);
 }
 
-/* to be called only when in SI_ST_DIS with SI_FL_ERR */
-void si_report_error(struct stream_interface *si)
-{
-	if (!si->err_type)
-		si->err_type = SI_ET_DATA_ERR;
-
-	si_oc(si)->flags |= CF_WRITE_ERROR;
-	si_ic(si)->flags |= CF_READ_ERROR;
-}
-
 /*
  * Returns a message to the client ; the connection is shut down for read,
  * and the request is cleared so that no server connection can be initiated.
@@ -235,7 +225,7 @@ static void stream_int_shutw(struct stream_interface *si)
 		 * However, if SI_FL_NOLINGER is explicitly set, we know there is
 		 * no risk so we close both sides immediately.
 		 */
-		if (!(si->flags & (SI_FL_ERR | SI_FL_NOLINGER)) &&
+		if (!(si->cs->flags & CS_FL_ERR) && !(si->flags & SI_FL_NOLINGER) &&
 		    !(ic->flags & (CF_SHUTR|CF_DONT_READ)))
 			return;
 
@@ -531,7 +521,7 @@ static void stream_int_notify(struct stream_interface *si)
 	if (/* changes on the production side */
 	    (ic->flags & (CF_READ_NULL|CF_READ_ERROR)) ||
 	    !si_state_in(si->state, SI_SB_CON|SI_SB_RDY|SI_SB_EST) ||
-	    (si->flags & SI_FL_ERR) ||
+	    (si->cs->flags & CS_FL_ERR) ||
 	    ((ic->flags & CF_READ_PARTIAL) &&
 	     ((ic->flags & CF_EOI) || !ic->to_forward || sio->state != SI_ST_EST)) ||
 
@@ -598,13 +588,13 @@ static int si_cs_process(struct conn_stream *cs)
 	if (!channel_is_empty(oc) && !(si->wait_event.events & SUB_RETRY_SEND))
 		si_cs_send(cs);
 
-	/* First step, report to the stream-int what was detected at the
+	/* First step, report to the conn-stream what was detected at the
 	 * connection layer : errors and connection establishment.
-	 * Only add SI_FL_ERR if we're connected, or we're attempting to
+	 * Only add CS_FL_ERR if we're connected, or we're attempting to
 	 * connect, we may get there because we got woken up, but only run
 	 * after process_stream() noticed there were an error, and decided
 	 * to retry to connect, the connection may still have CO_FL_ERROR,
-	 * and we don't want to add SI_FL_ERR back
+	 * and we don't want to add CS_FL_ERR back
 	 *
 	 * Note: This test is only required because si_cs_process is also the SI
 	 *       wake callback. Otherwise si_cs_recv()/si_cs_send() already take
@@ -613,7 +603,7 @@ static int si_cs_process(struct conn_stream *cs)
 
 	if (si->state >= SI_ST_CON) {
 		if ((cs->endp->flags & CS_EP_ERROR) || si_is_conn_error(si))
-			si->flags |= SI_FL_ERR;
+			si->cs->flags |= CS_FL_ERR;
 	}
 
 	/* If we had early data, and the handshake ended, then
@@ -689,11 +679,11 @@ static int si_cs_send(struct conn_stream *cs)
 		 * but process_stream() ran before, detected there were an
 		 * error and put the si back to SI_ST_TAR. There's still
 		 * CO_FL_ERROR on the connection but we don't want to add
-		 * SI_FL_ERR back, so give up
+		 * CS_FL_ERR back, so give up
 		 */
 		if (si->state < SI_ST_CON)
 			return 0;
-		si->flags |= SI_FL_ERR;
+		si->cs->flags |= CS_FL_ERR;
 		return 1;
 	}
 
@@ -807,7 +797,7 @@ static int si_cs_send(struct conn_stream *cs)
 	}
 
 	if (cs->endp->flags & (CS_EP_ERROR|CS_EP_ERR_PENDING)) {
-		si->flags |= SI_FL_ERR;
+		si->cs->flags |= CS_FL_ERR;
 		return 1;
 	}
 
@@ -1102,7 +1092,7 @@ static void stream_int_shutw_conn(struct stream_interface *si)
 		if (si->flags & SI_FL_KILL_CONN)
 			cs->endp->flags |= CS_EP_KILL_CONN;
 
-		if (si->flags & SI_FL_ERR) {
+		if (si->cs->flags & CS_FL_ERR) {
 			/* quick close, the socket is already shut anyway */
 		}
 		else if (si->flags & SI_FL_NOLINGER) {
@@ -1192,7 +1182,7 @@ static void stream_int_chk_snd_conn(struct stream_interface *si)
 	if (cs->endp->flags & (CS_EP_ERROR|CS_EP_ERR_PENDING) || si_is_conn_error(si)) {
 		/* Write error on the file descriptor */
 		if (si->state >= SI_ST_CON)
-			si->flags |= SI_FL_ERR;
+			si->cs->flags |= CS_FL_ERR;
 		goto out_wakeup;
 	}
 
@@ -1569,7 +1559,7 @@ static int si_cs_recv(struct conn_stream *cs)
 	}
 
 	if (cs->endp->flags & CS_EP_ERROR) {
-		si->flags |= SI_FL_ERR;
+		si->cs->flags |= CS_FL_ERR;
 		ret = 1;
 	}
 	else if (cs->endp->flags & CS_EP_EOS) {
@@ -1656,7 +1646,7 @@ void si_applet_wake_cb(struct stream_interface *si)
 	 * broken pipe and it must be reported.
 	 */
 	if (!(si->flags & SI_FL_RX_WAIT_EP) && (ic->flags & CF_SHUTR))
-		si->flags |= SI_FL_ERR;
+		si->cs->flags |= CS_FL_ERR;
 
 	/* automatically mark the applet having data available if it reported
 	 * begin blocked by the channel.
@@ -1752,7 +1742,7 @@ static void stream_int_shutw_applet(struct stream_interface *si)
 		 * However, if SI_FL_NOLINGER is explicitly set, we know there is
 		 * no risk so we close both sides immediately.
 		 */
-		if (!(si->flags & (SI_FL_ERR | SI_FL_NOLINGER)) &&
+		if (!(si->cs->flags & CS_FL_ERR) && !(si->flags & SI_FL_NOLINGER) &&
 		    !(ic->flags & (CF_SHUTR|CF_DONT_READ)))
 			return;
 
