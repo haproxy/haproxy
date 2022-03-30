@@ -1824,8 +1824,8 @@ int srv_redispatch_connect(struct stream *s)
 			goto redispatch;
 		}
 
-		if (!cs_si(s->csb)->err_type) {
-			cs_si(s->csb)->err_type = SI_ET_QUEUE_ERR;
+		if (!s->conn_err_type) {
+			s->conn_err_type = STRM_ET_QUEUE_ERR;
 		}
 
 		_HA_ATOMIC_INC(&srv->counters.failed_conns);
@@ -1834,8 +1834,8 @@ int srv_redispatch_connect(struct stream *s)
 
 	case SRV_STATUS_NOSRV:
 		/* note: it is guaranteed that srv == NULL here */
-		if (!cs_si(s->csb)->err_type) {
-			cs_si(s->csb)->err_type = SI_ET_CONN_ERR;
+		if (!s->conn_err_type) {
+			s->conn_err_type = STRM_ET_CONN_ERR;
 		}
 
 		_HA_ATOMIC_INC(&s->be->be_counters.failed_conns);
@@ -1849,8 +1849,8 @@ int srv_redispatch_connect(struct stream *s)
 
 	case SRV_STATUS_INTERNAL:
 	default:
-		if (!cs_si(s->csb)->err_type) {
-			cs_si(s->csb)->err_type = SI_ET_CONN_OTHER;
+		if (!s->conn_err_type) {
+			s->conn_err_type = STRM_ET_CONN_OTHER;
 		}
 
 		if (srv)
@@ -1902,7 +1902,7 @@ void back_try_conn_req(struct stream *s)
 		 * request may be aborted instead.
 		 */
 		if (back_may_abort_req(req, s)) {
-			cs->si->err_type |= SI_ET_CONN_ABRT;
+			s->conn_err_type |= STRM_ET_CONN_ABRT;
 			DBG_TRACE_STATE("connection aborted", STRM_EV_STRM_PROC|STRM_EV_SI_ST|STRM_EV_STRM_ERR, s);
 			goto abort_connection;
 		}
@@ -1924,8 +1924,8 @@ void back_try_conn_req(struct stream *s)
 		 * abort, retry immediately or redispatch.
 		 */
 		if (conn_err == SF_ERR_INTERNAL) {
-			if (!cs->si->err_type) {
-				cs->si->err_type = SI_ET_CONN_OTHER;
+			if (!s->conn_err_type) {
+				s->conn_err_type = STRM_ET_CONN_OTHER;
 			}
 
 			if (srv)
@@ -2005,8 +2005,8 @@ void back_try_conn_req(struct stream *s)
 			si_shutr(cs->si);
 			si_shutw(cs->si);
 			req->flags |= CF_WRITE_TIMEOUT;
-			if (!cs->si->err_type)
-				cs->si->err_type = SI_ET_QUEUE_TO;
+			if (!s->conn_err_type)
+				s->conn_err_type = STRM_ET_QUEUE_TO;
 			cs->si->state = SI_ST_CLO;
 			if (s->srv_error)
 				s->srv_error(s, cs->si);
@@ -2021,7 +2021,7 @@ void back_try_conn_req(struct stream *s)
 			/* we may need to know the position in the queue for logging */
 			pendconn_cond_unlink(s->pend_pos);
 
-			cs->si->err_type |= SI_ET_QUEUE_ABRT;
+			s->conn_err_type |= STRM_ET_QUEUE_ABRT;
 			DBG_TRACE_STATE("abort queued connection request", STRM_EV_STRM_PROC|STRM_EV_SI_ST|STRM_EV_STRM_ERR, s);
 			goto abort_connection;
 		}
@@ -2031,7 +2031,7 @@ void back_try_conn_req(struct stream *s)
 	else if (cs->si->state == SI_ST_TAR) {
 		/* Connection request might be aborted */
 		if (back_may_abort_req(req, s)) {
-			cs->si->err_type |= SI_ET_CONN_ABRT;
+			s->conn_err_type |= STRM_ET_CONN_ABRT;
 			DBG_TRACE_STATE("connection aborted", STRM_EV_STRM_PROC|STRM_EV_SI_ST|STRM_EV_STRM_ERR, s);
 			goto abort_connection;
 		}
@@ -2103,7 +2103,7 @@ void back_handle_st_req(struct stream *s)
 			si_shutr(cs->si);
 			si_shutw(cs->si);
 			s->req.flags |= CF_WRITE_ERROR;
-			cs->si->err_type = SI_ET_CONN_RES;
+			s->conn_err_type = STRM_ET_CONN_RES;
 			cs->si->state = SI_ST_CLO;
 			if (s->srv_error)
 				s->srv_error(s, cs->si);
@@ -2115,7 +2115,7 @@ void back_handle_st_req(struct stream *s)
 			s->logs.tv_request = now;
 		s->logs.t_queue   = tv_ms_elapsed(&s->logs.tv_accept, &now);
 		cs->si->state     = SI_ST_EST;
-		cs->si->err_type   = SI_ET_NONE;
+		s->conn_err_type  = STRM_ET_NONE;
 		be_set_sess_last(s->be);
 
 		DBG_TRACE_STATE("applet registered", STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
@@ -2137,8 +2137,8 @@ void back_handle_st_req(struct stream *s)
 		si_shutr(cs->si);
 		si_shutw(cs->si);
 		s->req.flags |= CF_WRITE_ERROR;
-		if (!cs->si->err_type)
-			cs->si->err_type = SI_ET_CONN_OTHER;
+		if (!s->conn_err_type)
+			s->conn_err_type = STRM_ET_CONN_OTHER;
 		cs->si->state = SI_ST_CLO;
 		if (s->srv_error)
 			s->srv_error(s, cs->si);
@@ -2177,7 +2177,7 @@ void back_handle_st_con(struct stream *s)
 	     (channel_is_empty(req) || (s->be->options & PR_O_ABRT_CLOSE)))) {
 		cs->flags |= CS_FL_NOLINGER;
 		si_shutw(cs->si);
-		cs->si->err_type |= SI_ET_CONN_ABRT;
+		s->conn_err_type |= STRM_ET_CONN_ABRT;
 		if (s->srv_error)
 			s->srv_error(s, cs->si);
 		/* Note: state = SI_ST_DIS now */
@@ -2188,11 +2188,11 @@ void back_handle_st_con(struct stream *s)
  done:
 	/* retryable error ? */
 	if ((s->flags & SF_CONN_EXP) || (cs->endp->flags & CS_EP_ERROR)) {
-		if (!cs->si->err_type) {
+		if (!s->conn_err_type) {
 			if (cs->endp->flags & CS_EP_ERROR)
-				cs->si->err_type = SI_ET_CONN_ERR;
+				s->conn_err_type = STRM_ET_CONN_ERR;
 			else
-				cs->si->err_type = SI_ET_CONN_TO;
+				s->conn_err_type = STRM_ET_CONN_TO;
 		}
 
 		cs->si->state  = SI_ST_CER;
@@ -2260,8 +2260,8 @@ void back_handle_st_cer(struct stream *s)
 
 	/* ensure that we have enough retries left */
 	if (s->conn_retries >= s->be->conn_retries || !(s->be->retry_type & PR_RE_CONN_FAILED)) {
-		if (!cs->si->err_type) {
-			cs->si->err_type = SI_ET_CONN_ERR;
+		if (!s->conn_err_type) {
+			s->conn_err_type = STRM_ET_CONN_ERR;
 		}
 
 		if (objt_server(s->target))
@@ -2295,8 +2295,8 @@ void back_handle_st_cer(struct stream *s)
 	 * ST_TAR and CS_EP_ERROR and SF_CONN_EXP flags will be unset.
 	 */
 	if (cs_reset_endp(cs) < 0) {
-		if (!cs->si->err_type)
-			cs->si->err_type = SI_ET_CONN_OTHER;
+		if (!s->conn_err_type)
+			s->conn_err_type = STRM_ET_CONN_OTHER;
 
 		if (objt_server(s->target))
 			_HA_ATOMIC_INC(&objt_server(s->target)->counters.internal_errors);
@@ -2336,8 +2336,8 @@ void back_handle_st_cer(struct stream *s)
 		if (s->be->timeout.connect && s->be->timeout.connect < delay)
 			delay = s->be->timeout.connect;
 
-		if (!cs->si->err_type)
-			cs->si->err_type = SI_ET_CONN_ERR;
+		if (!s->conn_err_type)
+			s->conn_err_type = STRM_ET_CONN_ERR;
 
 		/* only wait when we're retrying on the same server */
 		if ((cs->si->state == SI_ST_ASS ||
@@ -2393,7 +2393,7 @@ void back_handle_st_rdy(struct stream *s)
 			/* give up */
 			cs->flags |= CS_FL_NOLINGER;
 			si_shutw(cs->si);
-			cs->si->err_type |= SI_ET_CONN_ABRT;
+			s->conn_err_type |= STRM_ET_CONN_ABRT;
 			if (s->srv_error)
 				s->srv_error(s, cs->si);
 			DBG_TRACE_STATE("client abort during connection attempt", STRM_EV_STRM_PROC|STRM_EV_SI_ST|STRM_EV_STRM_ERR, s);
@@ -2402,8 +2402,8 @@ void back_handle_st_rdy(struct stream *s)
 
 		/* retryable error ? */
 		if (cs->endp->flags & CS_EP_ERROR) {
-			if (!cs->si->err_type)
-				cs->si->err_type = SI_ET_CONN_ERR;
+			if (!s->conn_err_type)
+				s->conn_err_type = STRM_ET_CONN_ERR;
 			cs->si->state = SI_ST_CER;
 			DBG_TRACE_STATE("connection failed, retry", STRM_EV_STRM_PROC|STRM_EV_SI_ST|STRM_EV_STRM_ERR, s);
 			goto end;
@@ -2414,8 +2414,8 @@ void back_handle_st_rdy(struct stream *s)
 	 * now take over.
 	 */
 	DBG_TRACE_STATE("connection established", STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
-	cs->si->err_type = SI_ET_NONE;
-	cs->si->state    = SI_ST_EST;
+	s->conn_err_type = STRM_ET_NONE;
+	cs->si->state = SI_ST_EST;
 
   end:
 	DBG_TRACE_LEAVE(STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);

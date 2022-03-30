@@ -106,7 +106,6 @@ static inline struct stream_interface *si_opposite(struct stream_interface *si)
  */
 static inline int si_init(struct stream_interface *si)
 {
-	si->err_type       = SI_ET_NONE;
 	si->flags         &= SI_FL_ISBACK;
 	si->cs             = NULL;
 	si->state          = SI_ST_INI;

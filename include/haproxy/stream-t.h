@@ -90,6 +90,23 @@
 #define PCLI_F_PROMPT   0x10000
 #define PCLI_F_PAYLOAD  0x20000
 
+
+/* error types reported on the streams for more accurate reporting */
+enum {
+	STRM_ET_NONE       = 0x0000,  /* no error yet, leave it to zero */
+	STRM_ET_QUEUE_TO   = 0x0001,  /* queue timeout */
+	STRM_ET_QUEUE_ERR  = 0x0002,  /* queue error (eg: full) */
+	STRM_ET_QUEUE_ABRT = 0x0004,  /* aborted in queue by external cause */
+	STRM_ET_CONN_TO    = 0x0008,  /* connection timeout */
+	STRM_ET_CONN_ERR   = 0x0010,  /* connection error (eg: no server available) */
+	STRM_ET_CONN_ABRT  = 0x0020,  /* connection aborted by external cause (eg: abort) */
+	STRM_ET_CONN_RES   = 0x0040,  /* connection aborted due to lack of resources */
+	STRM_ET_CONN_OTHER = 0x0080,  /* connection aborted for other reason (eg: 500) */
+	STRM_ET_DATA_TO    = 0x0100,  /* timeout during data phase */
+	STRM_ET_DATA_ERR   = 0x0200,  /* error during data phase */
+	STRM_ET_DATA_ABRT  = 0x0400,  /* data phase aborted by external cause */
+};
+
 struct conn_stream;
 struct hlua;
 struct proxy;
@@ -143,6 +160,7 @@ struct stream {
 
 	int conn_retries;               /* number of connect retries performed */
 	unsigned int conn_exp;          /* wake up time for connect, queue, turn-around, ... */
+	unsigned int conn_err_type;     /* first error detected, one of STRM_ET_* */
 	enum si_state prev_conn_state;  /* SI_ST*, copy of previous state of the server conn-stream */
 
 	struct list list;               /* position in the thread's streams list */

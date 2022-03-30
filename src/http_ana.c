@@ -1248,7 +1248,7 @@ static __inline int do_l7_retry(struct stream *s, struct stream_interface *si)
 	res->flags &= ~(CF_READ_ERROR | CF_READ_TIMEOUT | CF_SHUTR | CF_EOI | CF_READ_NULL | CF_SHUTR_NOW);
 	res->analysers &= AN_RES_FLT_END;
 	si->flags &= ~SI_FL_RXBLK_SHUT;
-	si->err_type = SI_ET_NONE;
+	s->conn_err_type = STRM_ET_NONE;
 	s->flags &= ~(SF_CONN_EXP | SF_ERR_MASK | SF_FINST_MASK);
 	s->conn_exp = TICK_ETERNITY;
 	stream_choose_redispatch(s);
@@ -4262,8 +4262,8 @@ void http_perform_server_redirect(struct stream *s, struct stream_interface *si)
 	/* return without error. */
 	si_shutr(si);
 	si_shutw(si);
-	si->err_type = SI_ET_NONE;
-	si->state    = SI_ST_CLO;
+	s->conn_err_type = STRM_ET_NONE;
+	si->state = SI_ST_CLO;
 
 	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= SF_ERR_LOCAL;
@@ -4797,7 +4797,7 @@ int http_reply_message(struct stream *s, struct http_reply *reply)
 	return -1;
 }
 
-/* Return the error message corresponding to si->err_type. It is assumed
+/* Return the error message corresponding to s->conn_err_type. It is assumed
  * that the server side is closed. Note that err_type is actually a
  * bitmask, where almost only aborts may be cumulated with other
  * values. We consider that aborted operations are more important
@@ -4810,46 +4810,46 @@ int http_reply_message(struct stream *s, struct http_reply *reply)
  */
 void http_return_srv_error(struct stream *s, struct stream_interface *si)
 {
-	int err_type = si->err_type;
+	int err_type = s->conn_err_type;
 
 	/* set s->txn->status for http_error_message(s) */
-	if (err_type & SI_ET_QUEUE_ABRT) {
+	if (err_type & STRM_ET_QUEUE_ABRT) {
 		s->txn->status = -1;
 		http_server_error(s, si, SF_ERR_CLICL, SF_FINST_Q, NULL);
 	}
-	else if (err_type & SI_ET_CONN_ABRT) {
+	else if (err_type & STRM_ET_CONN_ABRT) {
 		s->txn->status = -1;
 		http_server_error(s, si, SF_ERR_CLICL, SF_FINST_C, NULL);
 	}
-	else if (err_type & SI_ET_QUEUE_TO) {
+	else if (err_type & STRM_ET_QUEUE_TO) {
 		s->txn->status = 503;
 		http_server_error(s, si, SF_ERR_SRVTO, SF_FINST_Q,
 				  http_error_message(s));
 	}
-	else if (err_type & SI_ET_QUEUE_ERR) {
+	else if (err_type & STRM_ET_QUEUE_ERR) {
 		s->txn->status = 503;
 		http_server_error(s, si, SF_ERR_SRVCL, SF_FINST_Q,
 				  http_error_message(s));
 	}
-	else if (err_type & SI_ET_CONN_TO) {
+	else if (err_type & STRM_ET_CONN_TO) {
 		s->txn->status = 503;
 		http_server_error(s, si, SF_ERR_SRVTO, SF_FINST_C,
 				  (s->txn->flags & TX_NOT_FIRST) ? NULL :
 				  http_error_message(s));
 	}
-	else if (err_type & SI_ET_CONN_ERR) {
+	else if (err_type & STRM_ET_CONN_ERR) {
 		s->txn->status = 503;
 		http_server_error(s, si, SF_ERR_SRVCL, SF_FINST_C,
 				  (s->flags & SF_SRV_REUSED) ? NULL :
 				  http_error_message(s));
 	}
-	else if (err_type & SI_ET_CONN_RES) {
+	else if (err_type & STRM_ET_CONN_RES) {
 		s->txn->status = 503;
 		http_server_error(s, si, SF_ERR_RESOURCE, SF_FINST_C,
 				  (s->txn->flags & TX_NOT_FIRST) ? NULL :
 				  http_error_message(s));
 	}
-	else { /* SI_ET_CONN_OTHER and others */
+	else { /* STRM_ET_CONN_OTHER and others */
 		s->txn->status = 500;
 		http_server_error(s, si, SF_ERR_INTERNAL, SF_FINST_C,
 				  http_error_message(s));

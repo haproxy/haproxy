@@ -15,7 +15,7 @@
 #define SHOW_AS_CONN  0x00000004
 #define SHOW_AS_CS    0x00000008
 #define SHOW_AS_SI    0x00000010
-#define SHOW_AS_SIET  0x00000020
+#define SHOW_AS_SET   0x00000020
 #define SHOW_AS_STRM  0x00000040
 #define SHOW_AS_TASK  0x00000080
 #define SHOW_AS_TXN   0x00000100
@@ -233,25 +233,25 @@ void show_cs_flags(unsigned int f)
 	putchar('\n');
 }
 
-void show_si_et(unsigned int f)
+void show_strm_et(unsigned int f)
 {
-	printf("si->et      = ");
+	printf("strm->et    = ");
 	if (!f) {
-		printf("SI_ET_NONE\n");
+		printf("STRM_ET_NONE\n");
 		return;
 	}
 
-	SHOW_FLAG(f, SI_ET_QUEUE_TO);
-	SHOW_FLAG(f, SI_ET_QUEUE_ERR);
-	SHOW_FLAG(f, SI_ET_QUEUE_ABRT);
-	SHOW_FLAG(f, SI_ET_CONN_TO);
-	SHOW_FLAG(f, SI_ET_CONN_ERR);
-	SHOW_FLAG(f, SI_ET_CONN_ABRT);
-	SHOW_FLAG(f, SI_ET_CONN_RES);
-	SHOW_FLAG(f, SI_ET_CONN_OTHER);
-	SHOW_FLAG(f, SI_ET_DATA_TO);
-	SHOW_FLAG(f, SI_ET_DATA_ERR);
-	SHOW_FLAG(f, SI_ET_DATA_ABRT);
+	SHOW_FLAG(f, STRM_ET_QUEUE_TO);
+	SHOW_FLAG(f, STRM_ET_QUEUE_ERR);
+	SHOW_FLAG(f, STRM_ET_QUEUE_ABRT);
+	SHOW_FLAG(f, STRM_ET_CONN_TO);
+	SHOW_FLAG(f, STRM_ET_CONN_ERR);
+	SHOW_FLAG(f, STRM_ET_CONN_ABRT);
+	SHOW_FLAG(f, STRM_ET_CONN_RES);
+	SHOW_FLAG(f, STRM_ET_CONN_OTHER);
+	SHOW_FLAG(f, STRM_ET_DATA_TO);
+	SHOW_FLAG(f, STRM_ET_DATA_ERR);
+	SHOW_FLAG(f, STRM_ET_DATA_ABRT);
 
 	if (f) {
 		printf("EXTRA(0x%08x)", f);
@@ -503,7 +503,7 @@ int main(int argc, char **argv)
 		if (show_as & SHOW_AS_CS)    show_cs_flags(flags);
 		if (show_as & SHOW_AS_ENDP)  show_endp_flags(flags);
 		if (show_as & SHOW_AS_SI)    show_si_flags(flags);
-		if (show_as & SHOW_AS_SIET)  show_si_et(flags);
+		if (show_as & SHOW_AS_SET)   show_strm_et(flags);
 		if (show_as & SHOW_AS_STRM)  show_strm_flags(flags);
 		if (show_as & SHOW_AS_TASK)  show_task_state(flags);
 		if (show_as & SHOW_AS_TXN)   show_txn_flags(flags);

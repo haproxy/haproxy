@@ -2756,8 +2756,8 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		if (!si_conn_ready(cs_si(s->csb))) {
 			s->srv_conn = NULL;
 			if (cs_reset_endp(s->csb) < 0) {
-				if (!cs_si(s->csb)->err_type)
-					cs_si(s->csb)->err_type = SI_ET_CONN_OTHER;
+				if (!s->conn_err_type)
+					s->conn_err_type = STRM_ET_CONN_OTHER;
 				if (s->srv_error)
 					s->srv_error(s, cs_si(s->csb));
 				return 1;
@@ -2767,7 +2767,6 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		sockaddr_free(&s->csb->dst);
 
 		si_set_state(cs_si(s->csb), SI_ST_INI);
-		cs_si(s->csb)->err_type = SI_ET_NONE;
 		cs_si(s->csb)->flags &= SI_FL_ISBACK; /* we're in the context of process_stream */
 		s->csb->flags &= CS_FL_ISBACK | CS_FL_DONT_WAKE; /* we're in the context of process_stream */
 		s->req.flags &= ~(CF_SHUTW|CF_SHUTW_NOW|CF_AUTO_CONNECT|CF_WRITE_ERROR|CF_STREAMER|CF_STREAMER_FAST|CF_NEVER_WAIT|CF_WROTE_DATA);
@@ -2777,6 +2776,7 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		s->flags &= ~(SF_ERR_MASK|SF_FINST_MASK|SF_REDISP);
 		s->conn_retries = 0;  /* used for logging too */
 		s->conn_exp = TICK_ETERNITY;
+		s->conn_err_type = STRM_ET_NONE;
 		/* reinitialise the current rule list pointer to NULL. We are sure that
 		 * any rulelist match the NULL pointer.
 		 */

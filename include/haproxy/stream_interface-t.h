@@ -64,22 +64,6 @@ enum si_state_bit {
 	SI_SB_ALL = SI_SB_INI|SI_SB_REQ|SI_SB_QUE|SI_SB_TAR|SI_SB_ASS|SI_SB_CON|SI_SB_CER|SI_SB_RDY|SI_SB_EST|SI_SB_DIS|SI_SB_CLO,
 };
 
-/* error types reported on the streams interface for more accurate reporting */
-enum {
-	SI_ET_NONE       = 0x0000,  /* no error yet, leave it to zero */
-	SI_ET_QUEUE_TO   = 0x0001,  /* queue timeout */
-	SI_ET_QUEUE_ERR  = 0x0002,  /* queue error (eg: full) */
-	SI_ET_QUEUE_ABRT = 0x0004,  /* aborted in queue by external cause */
-	SI_ET_CONN_TO    = 0x0008,  /* connection timeout */
-	SI_ET_CONN_ERR   = 0x0010,  /* connection error (eg: no server available) */
-	SI_ET_CONN_ABRT  = 0x0020,  /* connection aborted by external cause (eg: abort) */
-	SI_ET_CONN_RES   = 0x0040,  /* connection aborted due to lack of resources */
-	SI_ET_CONN_OTHER = 0x0080,  /* connection aborted for other reason (eg: 500) */
-	SI_ET_DATA_TO    = 0x0100,  /* timeout during data phase */
-	SI_ET_DATA_ERR   = 0x0200,  /* error during data phase */
-	SI_ET_DATA_ABRT  = 0x0400,  /* data phase aborted by external cause */
-};
-
 /* flags set after I/O (32 bit) */
 enum {
 	SI_FL_NONE       = 0x00000000,  /* nothing */
@@ -116,9 +100,6 @@ struct stream_interface {
 	unsigned int flags;     /* SI_FL_* */
 	struct conn_stream *cs; /* points to the conn-streams that owns the endpoint (connection or applet) */
 	struct si_ops *ops;     /* general operations at the stream interface layer */
-
-	/* struct members below are the "remote" part, as seen from the buffer side */
-	unsigned int err_type;  /* first error detected, one of SI_ET_* */
 
 	struct wait_event wait_event; /* We're in a wait list */
 };

@@ -206,13 +206,12 @@ static void strm_trace(enum trace_level level, uint64_t mask, const struct trace
 
 	/* If txn defined info about HTTP msgs, otherwise info about SI. */
 	if (txn) {
-		chunk_appendf(&trace_buf, " - t=%p s=(%p,0x%08x) txn.flags=0x%08x, http.flags=(0x%08x,0x%08x) status=%d",
-			      task, s, s->flags, txn->flags, txn->req.flags, txn->rsp.flags, txn->status);
+		chunk_appendf(&trace_buf, " - t=%p s=(%p,0x%08x,0x%x) txn.flags=0x%08x, http.flags=(0x%08x,0x%08x) status=%d",
+			      task, s, s->flags, s->conn_err_type, txn->flags, txn->req.flags, txn->rsp.flags, txn->status);
 	}
 	else {
-		chunk_appendf(&trace_buf, " - t=%p s=(%p,0x%08x) si_f=(%p,0x%08x,0x%x) si_b=(%p,0x%08x,0x%x) retries=%d",
-			      task, s, s->flags, si_f, si_f->flags, si_f->err_type,
-			      si_b, si_b->flags, si_b->err_type, s->conn_retries);
+		chunk_appendf(&trace_buf, " - t=%p s=(%p,0x%08x,0x%x) si_f=(%p,0x%08x) si_b=(%p,0x%08x) retries=%d",
+			      task, s, s->flags, s->conn_err_type, si_f, si_f->flags, si_b, si_b->flags, s->conn_retries);
 	}
 
 	if (src->verbosity == STRM_VERB_MINIMAL)
@@ -422,6 +421,7 @@ struct stream *stream_new(struct session *sess, struct conn_stream *cs, struct b
 	s->pending_events = 0;
 	s->conn_retries = 0;
 	s->conn_exp = TICK_ETERNITY;
+	s->conn_err_type = STRM_ET_NONE;
 	s->prev_conn_state = SI_ST_INI;
 	t->process = process_stream;
 	t->context = s;
@@ -886,7 +886,7 @@ static void back_establish(struct stream *s)
 		if (conn && conn->err_code != CO_ER_SSL_EARLY_FAILED)
 			req->flags |= CF_WRITE_ERROR;
 		rep->flags |= CF_READ_ERROR;
-		si->err_type = SI_ET_DATA_ERR;
+		s->conn_err_type = STRM_ET_DATA_ERR;
 		DBG_TRACE_STATE("read/write error", STRM_EV_STRM_PROC|STRM_EV_SI_ST|STRM_EV_STRM_ERR, s);
 	}
 
@@ -1690,10 +1690,10 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	 */
 	if (!stream_alloc_work_buffer(s)) {
 		s->csf->endp->flags |= CS_EP_ERROR;
-		si_f->err_type = SI_ET_CONN_RES;
+		s->conn_err_type = STRM_ET_CONN_RES;
 
 		s->csb->endp->flags |= CS_EP_ERROR;
-		si_b->err_type = SI_ET_CONN_RES;
+		s->conn_err_type = STRM_ET_CONN_RES;
 
 		if (!(s->flags & SF_ERR_MASK))
 			s->flags |= SF_ERR_RESOURCE;
@@ -2621,38 +2621,38 @@ void sess_change_server(struct stream *strm, struct server *newsrv)
  */
 void default_srv_error(struct stream *s, struct stream_interface *si)
 {
-	int err_type = si->err_type;
+	int err_type = s->conn_err_type;
 	int err = 0, fin = 0;
 
-	if (err_type & SI_ET_QUEUE_ABRT) {
+	if (err_type & STRM_ET_QUEUE_ABRT) {
 		err = SF_ERR_CLICL;
 		fin = SF_FINST_Q;
 	}
-	else if (err_type & SI_ET_CONN_ABRT) {
+	else if (err_type & STRM_ET_CONN_ABRT) {
 		err = SF_ERR_CLICL;
 		fin = SF_FINST_C;
 	}
-	else if (err_type & SI_ET_QUEUE_TO) {
+	else if (err_type & STRM_ET_QUEUE_TO) {
 		err = SF_ERR_SRVTO;
 		fin = SF_FINST_Q;
 	}
-	else if (err_type & SI_ET_QUEUE_ERR) {
+	else if (err_type & STRM_ET_QUEUE_ERR) {
 		err = SF_ERR_SRVCL;
 		fin = SF_FINST_Q;
 	}
-	else if (err_type & SI_ET_CONN_TO) {
+	else if (err_type & STRM_ET_CONN_TO) {
 		err = SF_ERR_SRVTO;
 		fin = SF_FINST_C;
 	}
-	else if (err_type & SI_ET_CONN_ERR) {
+	else if (err_type & STRM_ET_CONN_ERR) {
 		err = SF_ERR_SRVCL;
 		fin = SF_FINST_C;
 	}
-	else if (err_type & SI_ET_CONN_RES) {
+	else if (err_type & STRM_ET_CONN_RES) {
 		err = SF_ERR_RESOURCE;
 		fin = SF_FINST_C;
 	}
-	else /* SI_ET_CONN_OTHER and others */ {
+	else /* STRM_ET_CONN_OTHER and others */ {
 		err = SF_ERR_INTERNAL;
 		fin = SF_FINST_C;
 	}
@@ -3150,13 +3150,13 @@ static int stats_dump_full_strm_to_buffer(struct conn_stream *cs, struct stream 
 		}
 
 		chunk_appendf(&trash,
-			     "  flags=0x%x, conn_retries=%d, conn_exp=%s srv_conn=%p, pend_pos=%p waiting=%d epoch=%#x\n",
+			     "  flags=0x%x, conn_retries=%d, conn_exp=%s conn_et=0x%03x srv_conn=%p, pend_pos=%p waiting=%d epoch=%#x\n",
 			     strm->flags, strm->conn_retries,
 			     strm->conn_exp ?
 			             tick_is_expired(strm->conn_exp, now_ms) ? "<PAST>" :
 			                     human_time(TICKS_TO_MS(strm->conn_exp - now_ms),
 			                     TICKS_TO_MS(1000)) : "<NEVER>",
-			      strm->srv_conn, strm->pend_pos,
+			     strm->conn_err_type, strm->srv_conn, strm->pend_pos,
 			     LIST_INLIST(&strm->buffer_wait.list), strm->stream_epoch);
 
 		chunk_appendf(&trash,
@@ -3251,22 +3251,20 @@ static int stats_dump_full_strm_to_buffer(struct conn_stream *cs, struct stream 
 			      strm->txn->req.flags, strm->txn->rsp.flags);
 
 		chunk_appendf(&trash,
-			     "  si[0]=%p (state=%s flags=0x%02x endp0=%s:%p et=0x%03x sub=%d)\n",
+			     "  si[0]=%p (state=%s flags=0x%02x endp0=%s:%p sub=%d)\n",
 			     strm->csf->si,
 			     si_state_str(strm->csf->si->state),
 			     strm->csf->si->flags,
 			     (strm->csf->endp->flags & CS_EP_T_MUX ? "CONN" : "APPCTX"),
-			      __cs_endp_target(strm->csf),
-			      strm->csf->si->err_type, strm->csf->si->wait_event.events);
+			      __cs_endp_target(strm->csf), strm->csf->si->wait_event.events);
 
 		chunk_appendf(&trash,
-			     "  si[1]=%p (state=%s flags=0x%02x endp1=%s:%p et=0x%03x sub=%d)\n",
+			     "  si[1]=%p (state=%s flags=0x%02x endp1=%s:%p sub=%d)\n",
 			     strm->csb->si,
 			     si_state_str(strm->csb->si->state),
 			     strm->csb->si->flags,
 			     (strm->csb->endp->flags & CS_EP_T_MUX ? "CONN" : "APPCTX"),
-			      __cs_endp_target(strm->csb),
-			     strm->csb->si->err_type, strm->csb->si->wait_event.events);
+			      __cs_endp_target(strm->csb), strm->csb->si->wait_event.events);
 
 		csf = strm->csf;
 		chunk_appendf(&trash, "  cs=%p csf=0x%08x endp=%p,0x%08x\n", csf, csf->flags, csf->endp->target, csf->endp->flags);
