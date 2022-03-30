@@ -1713,8 +1713,8 @@ static void cli_release_commit_cert(struct appctx *appctx)
  * specific ckch_store.
  * Returns 0 in case of success, 1 otherwise.
  */
-static int ckch_inst_rebuild(struct ckch_store *ckch_store, struct ckch_inst *ckchi,
-			     struct ckch_inst **new_inst, char **err)
+int ckch_inst_rebuild(struct ckch_store *ckch_store, struct ckch_inst *ckchi,
+                      struct ckch_inst **new_inst, char **err)
 {
 	int retval = 0;
 	int errcode = 0;
