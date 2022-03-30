@@ -387,7 +387,7 @@ static inline int si_connect(struct stream_interface *si, struct connection *con
 	}
 
 	/* needs src ip/port for logging */
-	if (si->flags & SI_FL_SRC_ADDR)
+	if (si_strm(si)->flags & SF_SRC_ADDR)
 		conn_get_src(conn);
 
 	return ret;

@@ -1637,7 +1637,7 @@ skip_reuse:
 
 	/* flag for logging source ip/port */
 	if (strm_fe(s)->options2 & PR_O2_SRC_ADDR)
-		cs_si(s->csb)->flags |= SI_FL_SRC_ADDR;
+		s->flags |= SF_SRC_ADDR;
 
 	/* disable lingering */
 	if (s->be->options & PR_O_TCP_NOLING)

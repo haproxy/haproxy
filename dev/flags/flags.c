@@ -269,7 +269,6 @@ void show_si_flags(unsigned int f)
 
 	SHOW_FLAG(f, SI_FL_WAIT_DATA);
 	SHOW_FLAG(f, SI_FL_ISBACK);
-	SHOW_FLAG(f, SI_FL_SRC_ADDR);
 	SHOW_FLAG(f, SI_FL_WANT_GET);
 	SHOW_FLAG(f, SI_FL_CLEAN_ABRT);
 	SHOW_FLAG(f, SI_FL_RXBLK_CHAN);
@@ -380,6 +379,7 @@ void show_strm_flags(unsigned int f)
 		return;
 	}
 
+	SHOW_FLAG(f, SF_SRC_ADDR);
 	SHOW_FLAG(f, SF_WEBSOCKET);
 	SHOW_FLAG(f, SF_SRV_REUSED_ANTICIPATED);
 	SHOW_FLAG(f, SF_SRV_REUSED);

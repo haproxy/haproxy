@@ -86,7 +86,6 @@ enum {
 	/* unused: 0x00000001, 0x00000002 */
 	SI_FL_WAIT_DATA  = 0x00000008,  /* stream-int waits for more outgoing data to send */
 	SI_FL_ISBACK     = 0x00000010,  /* 0 for front-side SI, 1 for back-side */
-	SI_FL_SRC_ADDR   = 0x00001000,  /* get the source ip/port with getsockname */
 	/* unused: 0x00000200 */
 	SI_FL_WANT_GET   = 0x00004000,  /* a stream-int would like to get some data from the buffer */
 	SI_FL_CLEAN_ABRT = 0x00008000,  /* SI_FL_ERR is used to report aborts, and not SHUTR */
