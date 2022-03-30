@@ -2347,10 +2347,18 @@ static void qc_prep_hdshk_fast_retrans(struct quic_conn *qc)
 	qel->pktns->tx.pto_probe += 1;
  requeue:
 	list_for_each_entry_safe(frm, frmbak, &pkt->frms, list) {
+		struct quic_frame *dup_frm;
+
+
+		dup_frm = pool_alloc(pool_head_quic_frame);
+		if (!dup_frm) {
+			TRACE_PROTO("could not duplicate frame", QUIC_EV_CONN_PRSAFRM, qc, frm);
+			break;
+		}
+
 		TRACE_PROTO("to resend frame", QUIC_EV_CONN_PRSAFRM, qc, frm);
-		LIST_DELETE(&frm->list);
-		frm->pkt = NULL;
-		LIST_APPEND(tmp, &frm->list);
+		*dup_frm = *frm;
+		LIST_APPEND(tmp, &dup_frm->list);
 	}
 
 	if (qel == iqel) {
