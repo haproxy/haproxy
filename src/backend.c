@@ -1744,8 +1744,8 @@ skip_reuse:
 	 * sockets, socket pairs, andoccasionally TCP connections on the
 	 * loopback on a heavily loaded system.
 	 */
-	if ((srv_conn->flags & CO_FL_ERROR || s->csb->endp->flags & CS_EP_ERROR))
-		s->csb->flags |= CS_FL_ERR;
+	if (srv_conn->flags & CO_FL_ERROR)
+		s->csb->endp->flags |= CS_EP_ERROR;
 
 	/* If we had early data, and the handshake ended, then
 	 * we can remove the flag, and attempt to wake the task up,
@@ -1964,7 +1964,7 @@ void back_try_conn_req(struct stream *s)
 		 * allocation problem, so we want to retry now.
 		 */
 		cs->si->state = SI_ST_CER;
-		cs->flags &= ~CS_FL_ERR;
+		cs->endp->flags &= ~CS_EP_ERROR;
 		back_handle_st_cer(s);
 
 		DBG_TRACE_STATE("connection error, retry", STRM_EV_STRM_PROC|STRM_EV_SI_ST|STRM_EV_STRM_ERR, s);
@@ -2187,9 +2187,9 @@ void back_handle_st_con(struct stream *s)
 
  done:
 	/* retryable error ? */
-	if ((s->flags & SF_CONN_EXP) || (cs->flags & CS_FL_ERR)) {
+	if ((s->flags & SF_CONN_EXP) || (cs->endp->flags & CS_EP_ERROR)) {
 		if (!cs->si->err_type) {
-			if (cs->flags & CS_FL_ERR)
+			if (cs->endp->flags & CS_EP_ERROR)
 				cs->si->err_type = SI_ET_CONN_ERR;
 			else
 				cs->si->err_type = SI_ET_CONN_TO;
@@ -2215,6 +2215,7 @@ void back_handle_st_con(struct stream *s)
 void back_handle_st_cer(struct stream *s)
 {
 	struct conn_stream *cs = s->csb;
+	int must_tar = (cs->endp->flags & CS_EP_ERROR);
 
 	DBG_TRACE_ENTER(STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
 
@@ -2234,7 +2235,7 @@ void back_handle_st_cer(struct stream *s)
 			_HA_ATOMIC_DEC(&__objt_server(s->target)->cur_sess);
 		}
 
-		if ((cs->flags & CS_FL_ERR) &&
+		if ((cs->endp->flags & CS_EP_ERROR) &&
 		    conn && conn->err_code == CO_ER_SSL_MISMATCH_SNI) {
 			/* We tried to connect to a server which is configured
 			 * with "verify required" and which doesn't have the
@@ -2291,7 +2292,7 @@ void back_handle_st_cer(struct stream *s)
 	 * layers in an unexpected state (i.e < ST_CONN).
 	 *
 	 * Note: the stream-interface will be switched to ST_REQ, ST_ASS or
-	 * ST_TAR and CS_FL_ERR and SF_CONN_EXP flags will be unset.
+	 * ST_TAR and CS_EP_ERROR and SF_CONN_EXP flags will be unset.
 	 */
 	if (cs_reset_endp(cs) < 0) {
 		if (!cs->si->err_type)
@@ -2319,7 +2320,7 @@ void back_handle_st_cer(struct stream *s)
 
 	stream_choose_redispatch(s);
 
-	if (cs->flags & CS_FL_ERR) {
+	if (must_tar) {
 		/* The error was an asynchronous connection error, and we will
 		 * likely have to retry connecting to the same server, most
 		 * likely leading to the same result. To avoid this, we wait
@@ -2345,7 +2346,6 @@ void back_handle_st_cer(struct stream *s)
 			cs->si->state = SI_ST_TAR;
 			s->conn_exp = tick_add(now_ms, MS_TO_TICKS(delay));
 		}
-		cs->flags &= ~CS_FL_ERR;
 		DBG_TRACE_STATE("retry a new connection", STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
 	}
 
@@ -2401,7 +2401,7 @@ void back_handle_st_rdy(struct stream *s)
 		}
 
 		/* retryable error ? */
-		if (cs->flags & CS_FL_ERR) {
+		if (cs->endp->flags & CS_EP_ERROR) {
 			if (!cs->si->err_type)
 				cs->si->err_type = SI_ET_CONN_ERR;
 			cs->si->state = SI_ST_CER;

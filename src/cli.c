@@ -1084,7 +1084,7 @@ static void cli_io_handler(struct appctx *appctx)
 					}
 				break;
 			default: /* abnormal state */
-				cs->flags |= CS_FL_ERR;
+				cs->endp->flags |= CS_EP_ERROR;
 				break;
 			}
 

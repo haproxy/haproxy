@@ -1249,7 +1249,6 @@ static __inline int do_l7_retry(struct stream *s, struct stream_interface *si)
 	res->analysers &= AN_RES_FLT_END;
 	si->flags &= ~SI_FL_RXBLK_SHUT;
 	si->err_type = SI_ET_NONE;
-	si->cs->flags &= ~CS_FL_ERR;
 	s->flags &= ~(SF_CONN_EXP | SF_ERR_MASK | SF_FINST_MASK);
 	s->conn_exp = TICK_ETERNITY;
 	stream_choose_redispatch(s);
