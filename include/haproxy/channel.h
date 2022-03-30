@@ -64,22 +64,22 @@ static inline struct stream *chn_strm(const struct channel *chn)
 		return LIST_ELEM(chn, struct stream *, req);
 }
 
-/* returns a pointer to the stream interface feeding the channel (producer) */
-static inline struct stream_interface *chn_prod(const struct channel *chn)
+/* returns a pointer to the conn-stream feeding the channel (producer) */
+static inline struct conn_stream *chn_prod(const struct channel *chn)
 {
 	if (chn->flags & CF_ISRESP)
-		return LIST_ELEM(chn, struct stream *, res)->csb->si;
+		return LIST_ELEM(chn, struct stream *, res)->csb;
 	else
-		return LIST_ELEM(chn, struct stream *, req)->csf->si;
+		return LIST_ELEM(chn, struct stream *, req)->csf;
 }
 
-/* returns a pointer to the stream interface consuming the channel (producer) */
-static inline struct stream_interface *chn_cons(const struct channel *chn)
+/* returns a pointer to the conn-stream consuming the channel (producer) */
+static inline struct conn_stream *chn_cons(const struct channel *chn)
 {
 	if (chn->flags & CF_ISRESP)
-		return LIST_ELEM(chn, struct stream *, res)->csf->si;
+		return LIST_ELEM(chn, struct stream *, res)->csf;
 	else
-		return LIST_ELEM(chn, struct stream *, req)->csb->si;
+		return LIST_ELEM(chn, struct stream *, req)->csb;
 }
 
 /* c_orig() : returns the pointer to the channel buffer's origin */
@@ -433,7 +433,7 @@ static inline int channel_is_rewritable(const struct channel *chn)
  */
 static inline int channel_may_send(const struct channel *chn)
 {
-	return chn_cons(chn)->state == SI_ST_EST;
+	return chn_cons(chn)->si->state == SI_ST_EST;
 }
 
 /* HTX version of channel_may_recv(). Returns non-zero if the channel can still

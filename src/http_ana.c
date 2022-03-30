@@ -4140,7 +4140,7 @@ enum rule_result http_wait_for_msg_body(struct stream *s, struct channel *chn,
 	if ((htx->flags & HTX_FL_EOM) ||
 	    htx_get_tail_type(htx) > HTX_BLK_DATA ||
 	    channel_htx_full(chn, htx, global.tune.maxrewrite) ||
-	    si_rx_blocked_room(chn_prod(chn)))
+	    si_rx_blocked_room(chn_prod(chn)->si))
 		goto end;
 
 	if (bytes) {
