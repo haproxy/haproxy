@@ -529,7 +529,7 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 				}
 			}
 
-			if (!(mask & QUIC_EV_CONN_SPTO) && qc->timer_task) {
+			if (!(mask & (QUIC_EV_CONN_SPTO|QUIC_EV_CONN_PTIMER)) && qc->timer_task) {
 				chunk_appendf(&trace_buf,
 				              " expire=%dms", TICKS_TO_MS(qc->timer - now_ms));
 			}
