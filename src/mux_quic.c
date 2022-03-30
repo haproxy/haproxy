@@ -475,6 +475,8 @@ static void qc_release(struct qcc *qcc)
 	TRACE_ENTER(QMUX_EV_QCC_END);
 
 	if (qcc) {
+		struct eb64_node *node;
+
 		/* The connection must be aattached to this mux to be released */
 		if (qcc->conn && qcc->conn->ctx == qcc)
 			conn = qcc->conn;
@@ -486,6 +488,14 @@ static void qc_release(struct qcc *qcc)
 
 		if (qcc->wait_event.tasklet)
 			tasklet_free(qcc->wait_event.tasklet);
+
+		/* liberate remaining qcs instances */
+		node = eb64_first(&qcc->streams_by_id);
+		while (node) {
+			struct qcs *qcs = eb64_entry(node, struct qcs, by_id);
+			node = eb64_next(node);
+			qcs_free(qcs);
+		}
 
 		pool_free(pool_head_qcc, qcc);
 	}
