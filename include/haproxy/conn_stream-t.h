@@ -86,6 +86,7 @@ enum {
 	CS_FL_NOLINGER      = 0x00000008,  /* may close without lingering. One-shot. */
 	CS_FL_NOHALF        = 0x00000010,  /* no half close, close both sides at once */
 	CS_FL_DONT_WAKE     = 0x00000020,  /* resync in progress, don't wake up */
+	CS_FL_INDEP_STR     = 0x00000040,  /* independent streams = don't update rex on write */
 };
 
 /* cs_shutr() modes */

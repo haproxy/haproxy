@@ -458,12 +458,12 @@ struct stream *stream_new(struct session *sess, struct conn_stream *cs, struct b
 	s->csf->hcto = sess->fe->timeout.clientfin;
 
 	if (likely(sess->fe->options2 & PR_O2_INDEPSTR))
-		cs_si(s->csf)->flags |= SI_FL_INDEP_STR;
+		s->csf->flags |= CS_FL_INDEP_STR;
 
 	cs_si(s->csb)->flags = SI_FL_ISBACK;
 	s->csb->hcto = TICK_ETERNITY;
 	if (likely(sess->fe->options2 & PR_O2_INDEPSTR))
-		cs_si(s->csb)->flags |= SI_FL_INDEP_STR;
+		s->csb->flags |= CS_FL_INDEP_STR;
 
 	if (cs->endp->flags & CS_EP_WEBSOCKET)
 		s->flags |= SF_WEBSOCKET;

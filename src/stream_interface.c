@@ -459,7 +459,7 @@ static void stream_int_notify(struct stream_interface *si)
 			if (tick_isset(oc->wex))
 				oc->wex = tick_add_ifset(now_ms, oc->wto);
 
-		if (!(si->flags & SI_FL_INDEP_STR))
+		if (!(si->cs->flags & CS_FL_INDEP_STR))
 			if (tick_isset(ic->rex))
 				ic->rex = tick_add_ifset(now_ms, ic->rto);
 	}
@@ -912,7 +912,7 @@ void si_update_tx(struct stream_interface *si)
 	si->flags &= ~SI_FL_WAIT_DATA;
 	if (!tick_isset(oc->wex)) {
 		oc->wex = tick_add_ifset(now_ms, oc->wto);
-		if (tick_isset(ic->rex) && !(si->flags & SI_FL_INDEP_STR)) {
+		if (tick_isset(ic->rex) && !(si->cs->flags & CS_FL_INDEP_STR)) {
 			/* Note: depending on the protocol, we don't know if we're waiting
 			 * for incoming data or not. So in order to prevent the socket from
 			 * expiring read timeouts during writes, we refresh the read timeout,
@@ -1216,7 +1216,7 @@ static void stream_int_chk_snd_conn(struct stream_interface *si)
 		    !channel_is_empty(oc))
 			oc->wex = tick_add_ifset(now_ms, oc->wto);
 
-		if (tick_isset(ic->rex) && !(si->flags & SI_FL_INDEP_STR)) {
+		if (tick_isset(ic->rex) && !(cs->flags & CS_FL_INDEP_STR)) {
 			/* Note: to prevent the client from expiring read timeouts
 			 * during writes, we refresh it. We only do this if the
 			 * interface is not configured for "independent streams",
