@@ -109,7 +109,7 @@ static inline int si_init(struct stream_interface *si)
 	si->err_type       = SI_ET_NONE;
 	si->flags         &= SI_FL_ISBACK;
 	si->cs             = NULL;
-	si->state          = si->prev_state = SI_ST_INI;
+	si->state          = SI_ST_INI;
 	si->ops            = &si_embedded_ops;
 	si->wait_event.tasklet = tasklet_new();
 	if (!si->wait_event.tasklet)
@@ -126,7 +126,7 @@ static inline int si_init(struct stream_interface *si)
  */
 static inline void si_set_state(struct stream_interface *si, int state)
 {
-	si->state = si->prev_state = state;
+	si->state = si_strm(si)->prev_conn_state = state;
 }
 
 /* returns a bit for a stream-int state, to match against SI_SB_* */

@@ -2766,7 +2766,7 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 
 		sockaddr_free(&s->csb->dst);
 
-		cs_si(s->csb)->state = cs_si(s->csb)->prev_state = SI_ST_INI;
+		si_set_state(cs_si(s->csb), SI_ST_INI);
 		cs_si(s->csb)->err_type = SI_ET_NONE;
 		cs_si(s->csb)->flags &= SI_FL_ISBACK; /* we're in the context of process_stream */
 		s->csb->flags &= CS_FL_ISBACK | CS_FL_DONT_WAKE; /* we're in the context of process_stream */

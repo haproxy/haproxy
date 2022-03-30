@@ -422,6 +422,7 @@ struct stream *stream_new(struct session *sess, struct conn_stream *cs, struct b
 	s->pending_events = 0;
 	s->conn_retries = 0;
 	s->conn_exp = TICK_ETERNITY;
+	s->prev_conn_state = SI_ST_INI;
 	t->process = process_stream;
 	t->context = s;
 	t->expire = TICK_ETERNITY;
@@ -958,7 +959,7 @@ static void sess_set_term_flags(struct stream *s)
 			s->flags |= SF_FINST_Q;
 		else if (si_state_in(cs_si(s->csb)->state, SI_SB_REQ|SI_SB_TAR|SI_SB_ASS|SI_SB_CON|SI_SB_CER|SI_SB_RDY))
 			s->flags |= SF_FINST_C;
-		else if (cs_si(s->csb)->state == SI_ST_EST || cs_si(s->csb)->prev_state == SI_ST_EST)
+		else if (cs_si(s->csb)->state == SI_ST_EST || s->prev_conn_state == SI_ST_EST)
 			s->flags |= SF_FINST_D;
 		else
 			s->flags |= SF_FINST_L;
@@ -1780,8 +1781,22 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	DBG_TRACE_POINT(STRM_EV_STRM_PROC, s);
 
 	/* nothing special to be done on client side */
-	if (unlikely(si_f->state == SI_ST_DIS))
+	if (unlikely(si_f->state == SI_ST_DIS)) {
 		si_f->state = SI_ST_CLO;
+
+		/* This is needed only when debugging is enabled, to indicate
+		 * client-side close.
+		 */
+		if (unlikely((global.mode & MODE_DEBUG) &&
+			     (!(global.mode & MODE_QUIET) ||
+			      (global.mode & MODE_VERBOSE)))) {
+			chunk_printf(&trash, "%08x:%s.clicls[%04x:%04x]\n",
+				     s->uniq_id, s->be->id,
+				     (unsigned short)conn_fd(cs_conn(si_f->cs)),
+				     (unsigned short)conn_fd(cs_conn(si_b->cs)));
+			DISGUISE(write(1, trash.area, trash.data));
+		}
+	}
 
 	/* When a server-side connection is released, we have to count it and
 	 * check for pending connections on this server.
@@ -1797,6 +1812,21 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 			sess_change_server(s, NULL);
 			if (may_dequeue_tasks(srv, s->be))
 				process_srv_queue(srv);
+		}
+
+		/* This is needed only when debugging is enabled, to indicate
+		 * server-side close.
+		 */
+		if (unlikely((global.mode & MODE_DEBUG) &&
+			     (!(global.mode & MODE_QUIET) ||
+			      (global.mode & MODE_VERBOSE)))) {
+			if (s->prev_conn_state == SI_ST_EST) {
+				chunk_printf(&trash, "%08x:%s.srvcls[%04x:%04x]\n",
+					     s->uniq_id, s->be->id,
+					     (unsigned short)conn_fd(__cs_conn(si_f->cs)),
+					     (unsigned short)conn_fd(cs_conn(si_b->cs)));
+				DISGUISE(write(1, trash.area, trash.data));
+			}
 		}
 	}
 
@@ -2391,33 +2421,6 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	/* we're interested in getting wakeups again */
 	s->csf->flags &= ~CS_FL_DONT_WAKE;
 	s->csb->flags &= ~CS_FL_DONT_WAKE;
-
-	/* This is needed only when debugging is enabled, to indicate
-	 * client-side or server-side close. Please note that in the unlikely
-	 * event where both sides would close at once, the sequence is reported
-	 * on the server side first.
-	 */
-	if (unlikely((global.mode & MODE_DEBUG) &&
-		     (!(global.mode & MODE_QUIET) ||
-		      (global.mode & MODE_VERBOSE)))) {
-		if (si_b->state == SI_ST_CLO &&
-		    si_b->prev_state == SI_ST_EST) {
-			chunk_printf(&trash, "%08x:%s.srvcls[%04x:%04x]\n",
-				     s->uniq_id, s->be->id,
-				     (unsigned short)conn_fd(cs_conn(si_f->cs)),
-				     (unsigned short)conn_fd(cs_conn(si_b->cs)));
-			DISGUISE(write(1, trash.area, trash.data));
-		}
-
-		if (si_f->state == SI_ST_CLO &&
-		    si_f->prev_state == SI_ST_EST) {
-			chunk_printf(&trash, "%08x:%s.clicls[%04x:%04x]\n",
-				     s->uniq_id, s->be->id,
-				     (unsigned short)conn_fd(cs_conn(si_f->cs)),
-				     (unsigned short)conn_fd(cs_conn(si_b->cs)));
-			DISGUISE(write(1, trash.area, trash.data));
-		}
-	}
 
 	if (likely((si_f->state != SI_ST_CLO) || !si_state_in(si_b->state, SI_SB_INI|SI_SB_CLO) ||
 		   (req->analysers & AN_REQ_FLT_END) || (res->analysers & AN_RES_FLT_END))) {

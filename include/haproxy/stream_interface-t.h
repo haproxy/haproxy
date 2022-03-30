@@ -112,7 +112,6 @@ enum {
 struct stream_interface {
 	/* struct members used by the "buffer" side */
 	enum si_state state;     /* SI_ST* */
-	enum si_state prev_state;/* SI_ST*, copy of previous state */
 	/* 16-bit hole here */
 	unsigned int flags;     /* SI_FL_* */
 	struct conn_stream *cs; /* points to the conn-streams that owns the endpoint (connection or applet) */

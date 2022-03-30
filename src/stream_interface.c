@@ -988,8 +988,7 @@ void si_update_both(struct stream_interface *si_f, struct stream_interface *si_b
 	req->flags &= ~(CF_READ_NULL|CF_READ_PARTIAL|CF_READ_ATTACHED|CF_WRITE_NULL|CF_WRITE_PARTIAL);
 	res->flags &= ~(CF_READ_NULL|CF_READ_PARTIAL|CF_READ_ATTACHED|CF_WRITE_NULL|CF_WRITE_PARTIAL);
 
-	si_f->prev_state = si_f->state;
-	si_b->prev_state = si_b->state;
+	si_strm(si_b)->prev_conn_state = si_b->state;
 
 	/* let's recompute both sides states */
 	if (si_state_in(si_f->state, SI_SB_RDY|SI_SB_EST))

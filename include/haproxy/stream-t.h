@@ -143,6 +143,7 @@ struct stream {
 
 	int conn_retries;               /* number of connect retries performed */
 	unsigned int conn_exp;          /* wake up time for connect, queue, turn-around, ... */
+	enum si_state prev_conn_state;  /* SI_ST*, copy of previous state of the server conn-stream */
 
 	struct list list;               /* position in the thread's streams list */
 	struct mt_list by_srv;          /* position in server stream list */
