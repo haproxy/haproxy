@@ -3077,20 +3077,30 @@ struct action_kw *service_find(const char *kw)
  */
 void list_services(FILE *out)
 {
+	const struct action_kw *akwp, *akwn;
 	struct action_kw_list *kw_list;
 	int found = 0;
 	int i;
 
 	if (out)
 		fprintf(out, "Available services :");
-	list_for_each_entry(kw_list, &service_keywords, list) {
-		for (i = 0; kw_list->kw[i].kw != NULL; i++) {
-			found = 1;
-			if (out)
-				fprintf(out, " %s", kw_list->kw[i].kw);
-			else
-				printf("%s\n", kw_list->kw[i].kw);
+
+	for (akwn = akwp = NULL;; akwp = akwn) {
+		list_for_each_entry(kw_list, &service_keywords, list) {
+			for (i = 0; kw_list->kw[i].kw != NULL; i++) {
+				if (strordered(akwp ? akwp->kw : NULL,
+					       kw_list->kw[i].kw,
+					       akwn != akwp ? akwn->kw : NULL))
+					akwn = &kw_list->kw[i];
+				found = 1;
+			}
 		}
+		if (akwn == akwp)
+			break;
+		if (out)
+			fprintf(out, " %s", akwn->kw);
+		else
+			printf("%s\n", akwn->kw);
 	}
 	if (!found && out)
 		fprintf(out, " none\n");
