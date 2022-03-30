@@ -3722,6 +3722,36 @@ HTTPMessage class
 
   :param class_httpmessage http_msg: The manipulated HTTP message.
 
+.. _CertCache_class:
+
+CertCache class
+================
+
+.. js:class:: CertCache
+
+   This class allows to update an SSL certificate file in the memory of the
+   current HAProxy process. It will do the same as "set ssl cert" + "commit ssl
+   cert" over the HAProxy CLI.
+
+.. js:function:: CertCache.set(certificate)
+
+  This function updates a certificate in memory.
+
+  :param table certificate: A table containing the fields to update.
+  :param string certificate.filename: The mandatory filename of the certificate
+                                      to update, it must already exist in memory.
+  :param string certificate.crt: A certificate in the PEM format. It can also
+                                 contain a private key.
+  :param string certificate.key: A private key in the PEM format.
+  :param string certificate.ocsp: An OCSP response in base64. (cf management.txt)
+  :param string certificate.issuer: The certificate of the OCSP issuer.
+  :param string certificate.sctl: An SCTL file.
+
+.. code-block:: lua
+
+    CertCache.set{filename="certs/localhost9994.pem.rsa", crt=crt}
+
+
 External Lua libraries
 ======================
 
