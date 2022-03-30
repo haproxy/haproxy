@@ -219,6 +219,7 @@ void show_cs_flags(unsigned int f)
 		printf("0\n");
 		return;
 	}
+	SHOW_FLAG(f, CS_FL_DONT_WAKE);
 	SHOW_FLAG(f, CS_FL_NOLINGER);
 	SHOW_FLAG(f, CS_FL_NOHALF);
 	SHOW_FLAG(f, CS_FL_ADDR_FROM_SET);
@@ -267,7 +268,6 @@ void show_si_flags(unsigned int f)
 
 	SHOW_FLAG(f, SI_FL_WAIT_DATA);
 	SHOW_FLAG(f, SI_FL_ISBACK);
-	SHOW_FLAG(f, SI_FL_DONT_WAKE);
 	SHOW_FLAG(f, SI_FL_INDEP_STR);
 	SHOW_FLAG(f, SI_FL_SRC_ADDR);
 	SHOW_FLAG(f, SI_FL_WANT_GET);

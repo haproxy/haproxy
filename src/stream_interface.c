@@ -188,7 +188,7 @@ static void stream_int_shutr(struct stream_interface *si)
 	}
 
 	/* note that if the task exists, it must unregister itself once it runs */
-	if (!(si->flags & SI_FL_DONT_WAKE))
+	if (!(si->cs->flags & CS_FL_DONT_WAKE))
 		task_wakeup(si_task(si), TASK_WOKEN_IO);
 }
 
@@ -246,7 +246,7 @@ static void stream_int_shutw(struct stream_interface *si)
 	}
 
 	/* note that if the task exists, it must unregister itself once it runs */
-	if (!(si->flags & SI_FL_DONT_WAKE))
+	if (!(si->cs->flags & CS_FL_DONT_WAKE))
 		task_wakeup(si_task(si), TASK_WOKEN_IO);
 }
 
@@ -266,7 +266,7 @@ static void stream_int_chk_rcv(struct stream_interface *si)
 	else {
 		/* (re)start reading */
 		tasklet_wakeup(si->wait_event.tasklet);
-		if (!(si->flags & SI_FL_DONT_WAKE))
+		if (!(si->cs->flags & CS_FL_DONT_WAKE))
 			task_wakeup(si_task(si), TASK_WOKEN_IO);
 	}
 }
@@ -294,7 +294,7 @@ static void stream_int_chk_snd(struct stream_interface *si)
 	if (!tick_isset(oc->wex))
 		oc->wex = tick_add_ifset(now_ms, oc->wto);
 
-	if (!(si->flags & SI_FL_DONT_WAKE))
+	if (!(si->cs->flags & CS_FL_DONT_WAKE))
 		task_wakeup(si_task(si), TASK_WOKEN_IO);
 }
 
@@ -1237,7 +1237,7 @@ static void stream_int_chk_snd_conn(struct stream_interface *si)
 	           ((channel_is_empty(oc) && !oc->to_forward) ||
 	            !si_state_in(si->state, SI_SB_EST))))) {
 	out_wakeup:
-		if (!(si->flags & SI_FL_DONT_WAKE))
+		if (!(si->cs->flags & CS_FL_DONT_WAKE))
 			task_wakeup(si_task(si), TASK_WOKEN_IO);
 	}
 }

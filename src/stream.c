@@ -1616,9 +1616,9 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	rqf_last = req->flags & ~CF_MASK_ANALYSER;
 	rpf_last = res->flags & ~CF_MASK_ANALYSER;
 
-	/* we don't want the stream interface functions to recursively wake us up */
-	si_f->flags |= SI_FL_DONT_WAKE;
-	si_b->flags |= SI_FL_DONT_WAKE;
+	/* we don't want the conn-stream functions to recursively wake us up */
+	s->csf->flags |= CS_FL_DONT_WAKE;
+	s->csb->flags |= CS_FL_DONT_WAKE;
 
 	/* update pending events */
 	s->pending_events |= (state & TASK_WOKEN_ANY);
@@ -1675,8 +1675,8 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		    !(s->flags & SF_CONN_EXP) &&
 		    !((s->csf->endp->flags | s->csb->flags) & CS_EP_ERROR) &&
 		    ((s->pending_events & TASK_WOKEN_ANY) == TASK_WOKEN_TIMER)) {
-			si_f->flags &= ~SI_FL_DONT_WAKE;
-			si_b->flags &= ~SI_FL_DONT_WAKE;
+			s->csf->flags &= ~CS_FL_DONT_WAKE;
+			s->csb->flags &= ~CS_FL_DONT_WAKE;
 			goto update_exp_and_leave;
 		}
 	}
@@ -2393,8 +2393,8 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		goto resync_request;
 
 	/* we're interested in getting wakeups again */
-	si_f->flags &= ~SI_FL_DONT_WAKE;
-	si_b->flags &= ~SI_FL_DONT_WAKE;
+	s->csf->flags &= ~CS_FL_DONT_WAKE;
+	s->csb->flags &= ~CS_FL_DONT_WAKE;
 
 	/* This is needed only when debugging is enabled, to indicate
 	 * client-side or server-side close. Please note that in the unlikely
@@ -2448,7 +2448,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		s->pending_events = 0;
 
 	update_exp_and_leave:
-		/* Note: please ensure that if you branch here you disable SI_FL_DONT_WAKE */
+		/* Note: please ensure that if you branch here you disable CS_FL_DONT_WAKE */
 		t->expire = tick_first((tick_is_expired(t->expire, now_ms) ? 0 : t->expire),
 				       tick_first(tick_first(req->rex, req->wex),
 						  tick_first(res->rex, res->wex)));
