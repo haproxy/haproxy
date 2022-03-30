@@ -2320,6 +2320,15 @@ static void qc_prep_hdshk_fast_retrans(struct quic_conn *qc)
 	struct quic_tx_packet *pkt;
 	struct list *tmp = &itmp;
 
+	/* Do not probe from a packet number space if some probing
+	 * was already asked.
+	 */
+	if (qel->pktns->tx.pto_probe) {
+		qel = hqel;
+		if (qel->pktns->tx.pto_probe)
+			return;
+	}
+
  start:
 	pkt = NULL;
 	pkts = &qel->pktns->tx.pkts;
