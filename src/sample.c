@@ -438,7 +438,7 @@ struct sample_fetch *find_sample_fetch(const char *kw, int len)
 void smp_dump_fetch_kw(void)
 {
 	struct sample_fetch_kw_list *kwl;
-	struct sample_fetch *kw;
+	struct sample_fetch *kwp, *kw;
 	uint64_t mask;
 	int index;
 	int arg;
@@ -460,38 +460,46 @@ void smp_dump_fetch_kw(void)
 		printf(" %s\n", (bit < SMP_CKP_ENTRIES) ? fetch_ckp_names[bit] : "");
 	}
 
-	list_for_each_entry(kwl, &sample_fetches.list, list) {
-		for (index = 0; kwl->kw[index].kw != NULL; index++) {
-			kw = &kwl->kw[index];
-
-			printf("[ ");
-			for (bit = 0; bit < SMP_CKP_ENTRIES; bit++)
-				printf("%s", (kw->val & (1 << bit)) ? "Y " : ". ");
-
-			printf("] %s", kw->kw);
-			if (kw->arg_mask) {
-				mask = kw->arg_mask >> ARGM_BITS;
-				printf("(");
-				for (arg = 0;
-				     arg < ARGM_NBARGS && ((mask >> (arg * ARGT_BITS)) & ARGT_MASK);
-				     arg++) {
-					if (arg == (kw->arg_mask & ARGM_MASK)) {
-						/* now dumping extra args */
-						printf("[");
-					}
-					if (arg)
-						printf(",");
-					printf("%s", arg_type_names[(mask >> (arg * ARGT_BITS)) & ARGT_MASK]);
-				}
-				if (arg > (kw->arg_mask & ARGM_MASK)) {
-					/* extra args were dumped */
-					printf("]");
-				}
-				printf(")");
+	for (kw = kwp = NULL;; kwp = kw) {
+		list_for_each_entry(kwl, &sample_fetches.list, list) {
+			for (index = 0; kwl->kw[index].kw != NULL; index++) {
+				if (strordered(kwp ? kwp->kw : NULL,
+					       kwl->kw[index].kw,
+					       kw != kwp ? kw->kw : NULL))
+					kw = &kwl->kw[index];
 			}
-			printf(": %s", smp_to_type[kw->out_type]);
-			printf("\n");
 		}
+
+		if (kw == kwp)
+			break;
+
+		printf("[ ");
+		for (bit = 0; bit < SMP_CKP_ENTRIES; bit++)
+			printf("%s", (kw->val & (1 << bit)) ? "Y " : ". ");
+
+		printf("] %s", kw->kw);
+		if (kw->arg_mask) {
+			mask = kw->arg_mask >> ARGM_BITS;
+			printf("(");
+			for (arg = 0;
+			     arg < ARGM_NBARGS && ((mask >> (arg * ARGT_BITS)) & ARGT_MASK);
+			     arg++) {
+				if (arg == (kw->arg_mask & ARGM_MASK)) {
+					/* now dumping extra args */
+					printf("[");
+				}
+				if (arg)
+					printf(",");
+				printf("%s", arg_type_names[(mask >> (arg * ARGT_BITS)) & ARGT_MASK]);
+			}
+			if (arg > (kw->arg_mask & ARGM_MASK)) {
+				/* extra args were dumped */
+				printf("]");
+			}
+			printf(")");
+		}
+		printf(": %s", smp_to_type[kw->out_type]);
+		printf("\n");
 	}
 }
 
@@ -499,38 +507,47 @@ void smp_dump_fetch_kw(void)
 void smp_dump_conv_kw(void)
 {
 	struct sample_conv_kw_list *kwl;
-	struct sample_conv *kw;
+	struct sample_conv *kwp, *kw;
 	uint64_t mask;
 	int index;
 	int arg;
 
-	list_for_each_entry(kwl, &sample_convs.list, list) {
-		for (index = 0; kwl->kw[index].kw != NULL; index++) {
-			kw = &kwl->kw[index];
-			printf("%s", kw->kw);
-			if (kw->arg_mask) {
-				mask = kw->arg_mask >> ARGM_BITS;
-				printf("(");
-				for (arg = 0;
-				     arg < ARGM_NBARGS && ((mask >> (arg * ARGT_BITS)) & ARGT_MASK);
-				     arg++) {
-					if (arg == (kw->arg_mask & ARGM_MASK)) {
-						/* now dumping extra args */
-						printf("[");
-					}
-					if (arg)
-						printf(",");
-					printf("%s", arg_type_names[(mask >> (arg * ARGT_BITS)) & ARGT_MASK]);
-				}
-				if (arg > (kw->arg_mask & ARGM_MASK)) {
-					/* extra args were dumped */
-					printf("]");
-				}
-				printf(")");
+	for (kw = kwp = NULL;; kwp = kw) {
+		list_for_each_entry(kwl, &sample_convs.list, list) {
+			for (index = 0; kwl->kw[index].kw != NULL; index++) {
+				if (strordered(kwp ? kwp->kw : NULL,
+					       kwl->kw[index].kw,
+					       kw != kwp ? kw->kw : NULL))
+					kw = &kwl->kw[index];
 			}
-			printf(": %s => %s", smp_to_type[kw->out_type], smp_to_type[kw->in_type]);
-			printf("\n");
 		}
+
+		if (kw == kwp)
+			break;
+
+		printf("%s", kw->kw);
+		if (kw->arg_mask) {
+			mask = kw->arg_mask >> ARGM_BITS;
+			printf("(");
+			for (arg = 0;
+			     arg < ARGM_NBARGS && ((mask >> (arg * ARGT_BITS)) & ARGT_MASK);
+			     arg++) {
+				if (arg == (kw->arg_mask & ARGM_MASK)) {
+					/* now dumping extra args */
+					printf("[");
+				}
+				if (arg)
+					printf(",");
+				printf("%s", arg_type_names[(mask >> (arg * ARGT_BITS)) & ARGT_MASK]);
+			}
+			if (arg > (kw->arg_mask & ARGM_MASK)) {
+				/* extra args were dumped */
+				printf("]");
+			}
+			printf(")");
+		}
+		printf(": %s => %s", smp_to_type[kw->out_type], smp_to_type[kw->in_type]);
+		printf("\n");
 	}
 }
 
