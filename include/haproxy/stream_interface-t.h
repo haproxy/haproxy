@@ -88,8 +88,6 @@ enum {
 	SI_FL_ISBACK     = 0x00000010,  /* 0 for front-side SI, 1 for back-side */
 	SI_FL_DONT_WAKE  = 0x00000020,  /* resync in progress, don't wake up */
 	SI_FL_INDEP_STR  = 0x00000040,  /* independent streams = don't update rex on write */
-	SI_FL_NOLINGER   = 0x00000080,  /* may close without lingering. One-shot. */
-	SI_FL_NOHALF     = 0x00000100,  /* no half close, close both sides at once */
 	SI_FL_SRC_ADDR   = 0x00001000,  /* get the source ip/port with getsockname */
 	/* unused: 0x00000200 */
 	SI_FL_WANT_GET   = 0x00004000,  /* a stream-int would like to get some data from the buffer */

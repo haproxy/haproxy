@@ -162,7 +162,7 @@ void si_retnclose(struct stream_interface *si,
  * This function performs a shutdown-read on a detached stream interface in a
  * connected or init state (it does nothing for other states). It either shuts
  * the read side or marks itself as closed. The buffer flags are updated to
- * reflect the new state. If the stream interface has SI_FL_NOHALF, we also
+ * reflect the new state. If the stream interface has CS_FL_NOHALF, we also
  * forward the close to the write side. The owner task is woken up if it exists.
  */
 static void stream_int_shutr(struct stream_interface *si)
@@ -182,7 +182,7 @@ static void stream_int_shutr(struct stream_interface *si)
 		si->state = SI_ST_DIS;
 		__cs_strm(si->cs)->conn_exp = TICK_ETERNITY;
 	}
-	else if (si->flags & SI_FL_NOHALF) {
+	else if (si->cs->flags & CS_FL_NOHALF) {
 		/* we want to immediately forward this close to the write side */
 		return stream_int_shutw(si);
 	}
@@ -222,10 +222,10 @@ static void stream_int_shutw(struct stream_interface *si)
 		/* we have to shut before closing, otherwise some short messages
 		 * may never leave the system, especially when there are remaining
 		 * unread data in the socket input buffer, or when nolinger is set.
-		 * However, if SI_FL_NOLINGER is explicitly set, we know there is
+		 * However, if CS_FL_NOLINGER is explicitly set, we know there is
 		 * no risk so we close both sides immediately.
 		 */
-		if (!(si->cs->endp->flags & CS_EP_ERROR) && !(si->flags & SI_FL_NOLINGER) &&
+		if (!(si->cs->endp->flags & CS_EP_ERROR) && !(si->cs->flags & CS_FL_NOLINGER) &&
 		    !(ic->flags & (CF_SHUTR|CF_DONT_READ)))
 			return;
 
@@ -238,7 +238,7 @@ static void stream_int_shutw(struct stream_interface *si)
 		si->state = SI_ST_DIS;
 		/* fall through */
 	default:
-		si->flags &= ~SI_FL_NOLINGER;
+		si->cs->flags &= ~CS_FL_NOLINGER;
 		si_rx_shut_blk(si);
 		ic->flags |= CF_SHUTR;
 		ic->rex = TICK_ETERNITY;
@@ -1017,7 +1017,7 @@ void si_update_both(struct stream_interface *si_f, struct stream_interface *si_b
  * a connection in a connected or init state (it does nothing for other
  * states). It either shuts the read side or marks itself as closed. The buffer
  * flags are updated to reflect the new state. If the stream interface has
- * SI_FL_NOHALF, we also forward the close to the write side. If a control
+ * CS_FL_NOHALF, we also forward the close to the write side. If a control
  * layer is defined, then it is supposed to be a socket layer and file
  * descriptors are then shutdown or closed accordingly. The function
  * automatically disables polling if needed.
@@ -1043,7 +1043,7 @@ static void stream_int_shutr_conn(struct stream_interface *si)
 		si->state = SI_ST_DIS;
 		__cs_strm(cs)->conn_exp = TICK_ETERNITY;
 	}
-	else if (si->flags & SI_FL_NOHALF) {
+	else if (si->cs->flags & CS_FL_NOHALF) {
 		/* we want to immediately forward this close to the write side */
 		return stream_int_shutw_conn(si);
 	}
@@ -1083,14 +1083,14 @@ static void stream_int_shutw_conn(struct stream_interface *si)
 		/* we have to shut before closing, otherwise some short messages
 		 * may never leave the system, especially when there are remaining
 		 * unread data in the socket input buffer, or when nolinger is set.
-		 * However, if SI_FL_NOLINGER is explicitly set, we know there is
+		 * However, if CS_FL_NOLINGER is explicitly set, we know there is
 		 * no risk so we close both sides immediately.
 		 */
 
 		if (cs->endp->flags & CS_EP_ERROR) {
 			/* quick close, the socket is already shut anyway */
 		}
-		else if (si->flags & SI_FL_NOLINGER) {
+		else if (cs->flags & CS_FL_NOLINGER) {
 			/* unclean data-layer shutdown, typically an aborted request
 			 * or a forwarded shutdown from a client to a server due to
 			 * option abortonclose. No need for the TLS layer to try to
@@ -1124,7 +1124,7 @@ static void stream_int_shutw_conn(struct stream_interface *si)
 		si->state = SI_ST_DIS;
 		/* fall through */
 	default:
-		si->flags &= ~SI_FL_NOLINGER;
+		cs->flags &= ~CS_FL_NOLINGER;
 		si_rx_shut_blk(si);
 		ic->flags |= CF_SHUTR;
 		ic->rex = TICK_ETERNITY;
@@ -1574,7 +1574,7 @@ static int si_cs_recv(struct conn_stream *cs)
 
 /*
  * This function propagates a null read received on a socket-based connection.
- * It updates the stream interface. If the stream interface has SI_FL_NOHALF,
+ * It updates the stream interface. If the stream interface has CS_FL_NOHALF,
  * the close is also forwarded to the write side as an abort.
  */
 static void stream_int_read0(struct stream_interface *si)
@@ -1597,7 +1597,7 @@ static void stream_int_read0(struct stream_interface *si)
 	if (oc->flags & CF_SHUTW)
 		goto do_close;
 
-	if (si->flags & SI_FL_NOHALF) {
+	if (cs->flags & CS_FL_NOHALF) {
 		/* we want to immediately forward this close to the write side */
 		/* force flag on ssl to keep stream in cache */
 		cs_shutw(cs, CS_SHW_SILENT);
@@ -1663,7 +1663,7 @@ void si_applet_wake_cb(struct stream_interface *si)
  * This function performs a shutdown-read on a stream interface attached to an
  * applet in a connected or init state (it does nothing for other states). It
  * either shuts the read side or marks itself as closed. The buffer flags are
- * updated to reflect the new state. If the stream interface has SI_FL_NOHALF,
+ * updated to reflect the new state. If the stream interface has CS_FL_NOHALF,
  * we also forward the close to the write side. The owner task is woken up if
  * it exists.
  */
@@ -1689,7 +1689,7 @@ static void stream_int_shutr_applet(struct stream_interface *si)
 		si->state = SI_ST_DIS;
 		__cs_strm(si->cs)->conn_exp = TICK_ETERNITY;
 	}
-	else if (si->flags & SI_FL_NOHALF) {
+	else if (si->cs->flags & CS_FL_NOHALF) {
 		/* we want to immediately forward this close to the write side */
 		return stream_int_shutw_applet(si);
 	}
@@ -1730,10 +1730,10 @@ static void stream_int_shutw_applet(struct stream_interface *si)
 		/* we have to shut before closing, otherwise some short messages
 		 * may never leave the system, especially when there are remaining
 		 * unread data in the socket input buffer, or when nolinger is set.
-		 * However, if SI_FL_NOLINGER is explicitly set, we know there is
+		 * However, if CS_FL_NOLINGER is explicitly set, we know there is
 		 * no risk so we close both sides immediately.
 		 */
-		if (!(si->cs->endp->flags & CS_EP_ERROR) && !(si->flags & SI_FL_NOLINGER) &&
+		if (!(si->cs->endp->flags & CS_EP_ERROR) && !(si->cs->flags & CS_FL_NOLINGER) &&
 		    !(ic->flags & (CF_SHUTR|CF_DONT_READ)))
 			return;
 
@@ -1747,7 +1747,7 @@ static void stream_int_shutw_applet(struct stream_interface *si)
 		si->state = SI_ST_DIS;
 		/* fall through */
 	default:
-		si->flags &= ~SI_FL_NOLINGER;
+		si->cs->flags &= ~CS_FL_NOLINGER;
 		si_rx_shut_blk(si);
 		ic->flags |= CF_SHUTR;
 		ic->rex = TICK_ETERNITY;

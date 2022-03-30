@@ -1638,26 +1638,26 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		channel_check_timeouts(req);
 
 		if (unlikely((req->flags & (CF_SHUTW|CF_WRITE_TIMEOUT)) == CF_WRITE_TIMEOUT)) {
-			si_b->flags |= SI_FL_NOLINGER;
+			s->csb->flags |= CS_FL_NOLINGER;
 			si_shutw(si_b);
 		}
 
 		if (unlikely((req->flags & (CF_SHUTR|CF_READ_TIMEOUT)) == CF_READ_TIMEOUT)) {
-			if (si_f->flags & SI_FL_NOHALF)
-				si_f->flags |= SI_FL_NOLINGER;
+			if (s->csf->flags & CS_FL_NOHALF)
+				s->csf->flags |= CS_FL_NOLINGER;
 			si_shutr(si_f);
 		}
 
 		channel_check_timeouts(res);
 
 		if (unlikely((res->flags & (CF_SHUTW|CF_WRITE_TIMEOUT)) == CF_WRITE_TIMEOUT)) {
-			si_f->flags |= SI_FL_NOLINGER;
+			s->csf->flags |= CS_FL_NOLINGER;
 			si_shutw(si_f);
 		}
 
 		if (unlikely((res->flags & (CF_SHUTR|CF_READ_TIMEOUT)) == CF_READ_TIMEOUT)) {
-			if (si_b->flags & SI_FL_NOHALF)
-				si_b->flags |= SI_FL_NOLINGER;
+			if (s->csb->flags & CS_FL_NOHALF)
+				s->csb->flags |= CS_FL_NOLINGER;
 			si_shutr(si_b);
 		}
 
@@ -2236,7 +2236,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	if (unlikely((req->flags & (CF_SHUTW|CF_SHUTW_NOW)) == CF_SHUTW_NOW &&
 		     channel_is_empty(req))) {
 		if (req->flags & CF_READ_ERROR)
-			si_b->flags |= SI_FL_NOLINGER;
+			s->csb->flags |= CS_FL_NOLINGER;
 		si_shutw(si_b);
 	}
 
@@ -2247,8 +2247,8 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 
 	/* shutdown(read) pending */
 	if (unlikely((req->flags & (CF_SHUTR|CF_SHUTR_NOW)) == CF_SHUTR_NOW)) {
-		if (si_f->flags & SI_FL_NOHALF)
-			si_f->flags |= SI_FL_NOLINGER;
+		if (s->csf->flags & CS_FL_NOHALF)
+			s->csf->flags |= CS_FL_NOLINGER;
 		si_shutr(si_f);
 	}
 
@@ -2372,8 +2372,8 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 
 	/* shutdown(read) pending */
 	if (unlikely((res->flags & (CF_SHUTR|CF_SHUTR_NOW)) == CF_SHUTR_NOW)) {
-		if (si_b->flags & SI_FL_NOHALF)
-			si_b->flags |= SI_FL_NOLINGER;
+		if (s->csb->flags & CS_FL_NOHALF)
+			s->csb->flags |= CS_FL_NOLINGER;
 		si_shutr(si_b);
 	}
 

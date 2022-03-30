@@ -2684,7 +2684,7 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 
 		pcli_write_prompt(s);
 
-		cs_si(s->csb)->flags |= SI_FL_NOLINGER | SI_FL_NOHALF;
+		s->csb->flags |= CS_FL_NOLINGER | CS_FL_NOHALF;
 		si_shutr(cs_si(s->csb));
 		si_shutw(cs_si(s->csb));
 

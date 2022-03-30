@@ -82,6 +82,9 @@ enum {
 
 	CS_FL_ADDR_FROM_SET = 0x00000002, /* source address is set */
 	CS_FL_ADDR_TO_SET   = 0x00000004, /* destination address is set */
+
+	CS_FL_NOLINGER      = 0x00000008,  /* may close without lingering. One-shot. */
+	CS_FL_NOHALF        = 0x00000010,  /* no half close, close both sides at once */
 };
 
 /* cs_shutr() modes */

@@ -1641,7 +1641,7 @@ skip_reuse:
 
 	/* disable lingering */
 	if (s->be->options & PR_O_TCP_NOLING)
-		cs_si(s->csb)->flags |= SI_FL_NOLINGER;
+		s->csb->flags |= CS_FL_NOLINGER;
 
 	if (s->flags & SF_SRV_REUSED) {
 		_HA_ATOMIC_INC(&s->be->be_counters.reuse);
@@ -2175,7 +2175,7 @@ void back_handle_st_con(struct stream *s)
 	if ((rep->flags & CF_SHUTW) ||
 	    ((req->flags & CF_SHUTW_NOW) &&
 	     (channel_is_empty(req) || (s->be->options & PR_O_ABRT_CLOSE)))) {
-		cs->si->flags |= SI_FL_NOLINGER;
+		cs->flags |= CS_FL_NOLINGER;
 		si_shutw(cs->si);
 		cs->si->err_type |= SI_ET_CONN_ABRT;
 		if (s->srv_error)
@@ -2391,7 +2391,7 @@ void back_handle_st_rdy(struct stream *s)
 		    ((req->flags & CF_SHUTW_NOW) &&
 		     (channel_is_empty(req) || (s->be->options & PR_O_ABRT_CLOSE)))) {
 			/* give up */
-			cs->si->flags |= SI_FL_NOLINGER;
+			cs->flags |= CS_FL_NOLINGER;
 			si_shutw(cs->si);
 			cs->si->err_type |= SI_ET_CONN_ABRT;
 			if (s->srv_error)
