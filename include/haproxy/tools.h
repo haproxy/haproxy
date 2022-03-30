@@ -915,6 +915,8 @@ void calltrace(char *fmt, ...);
 /* same as strstr() but case-insensitive */
 const char *strnistr(const char *str1, int len_str1, const char *str2, int len_str2);
 
+int strordered(const char *s1, const char *s2, const char *s3);
+
 /* after increasing a pointer value, it can exceed the first buffer
  * size. This function transform the value of <ptr> according with
  * the expected position. <chunks> is an array of the one or two

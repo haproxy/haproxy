@@ -4363,6 +4363,15 @@ const char *strnistr(const char *str1, int len_str1, const char *str2, int len_s
 	return NULL;
 }
 
+/* Returns true if s1 < s2 < s3 otherwise zero. Both s1 and s3 may be NULL and
+ * in this case only non-null strings are compared. This allows to pass initial
+ * values in iterators and in sort functions.
+ */
+int strordered(const char *s1, const char *s2, const char *s3)
+{
+	return (!s1 || strcmp(s1, s2) < 0) && (!s3 || strcmp(s2, s3) < 0);
+}
+
 /* This function read the next valid utf8 char.
  * <s> is the byte srray to be decode, <len> is its length.
  * The function returns decoded char encoded like this:
