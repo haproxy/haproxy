@@ -1038,9 +1038,6 @@ static void stream_int_shutr_conn(struct stream_interface *si)
 	if (!si_state_in(si->state, SI_SB_CON|SI_SB_RDY|SI_SB_EST))
 		return;
 
-	if (si->flags & SI_FL_KILL_CONN)
-		cs->endp->flags |= CS_EP_KILL_CONN;
-
 	if (si_oc(si)->flags & CF_SHUTW) {
 		cs_close(cs);
 		si->state = SI_ST_DIS;
@@ -1089,8 +1086,6 @@ static void stream_int_shutw_conn(struct stream_interface *si)
 		 * However, if SI_FL_NOLINGER is explicitly set, we know there is
 		 * no risk so we close both sides immediately.
 		 */
-		if (si->flags & SI_FL_KILL_CONN)
-			cs->endp->flags |= CS_EP_KILL_CONN;
 
 		if (cs->endp->flags & CS_EP_ERROR) {
 			/* quick close, the socket is already shut anyway */
@@ -1121,8 +1116,6 @@ static void stream_int_shutw_conn(struct stream_interface *si)
 		/* we may have to close a pending connection, and mark the
 		 * response buffer as shutr
 		 */
-		if (si->flags & SI_FL_KILL_CONN)
-			cs->endp->flags |= CS_EP_KILL_CONN;
 		cs_close(cs);
 		/* fall through */
 	case SI_ST_CER:

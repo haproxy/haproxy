@@ -263,7 +263,6 @@ void show_si_flags(unsigned int f)
 		return;
 	}
 
-	SHOW_FLAG(f, SI_FL_KILL_CONN);
 	SHOW_FLAG(f, SI_FL_WAIT_DATA);
 	SHOW_FLAG(f, SI_FL_ISBACK);
 	SHOW_FLAG(f, SI_FL_DONT_WAKE);

@@ -187,4 +187,11 @@ static inline int cs_get_dst(struct conn_stream *cs)
 	return 1;
 }
 
+
+/* Marks on the conn-stream that next shutw must kill the whole connection */
+static inline void cs_must_kill_conn(struct conn_stream *cs)
+{
+	cs->endp->flags |= CS_EP_KILL_CONN;
+}
+
 #endif /* _HAPROXY_CS_UTILS_H */

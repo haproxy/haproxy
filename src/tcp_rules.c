@@ -17,6 +17,8 @@
 #include <haproxy/cfgparse.h>
 #include <haproxy/channel.h>
 #include <haproxy/connection.h>
+#include <haproxy/conn_stream.h>
+#include <haproxy/cs_utils.h>
 #include <haproxy/global.h>
 #include <haproxy/list.h>
 #include <haproxy/log.h>
@@ -253,7 +255,7 @@ resume_execution:
 		_HA_ATOMIC_INC(&sess->listener->counters->failed_req);
 
  reject:
-	si_must_kill_conn(chn_prod(req)->si);
+	cs_must_kill_conn(chn_prod(req));
 	channel_abort(req);
 	channel_abort(&s->res);
 
@@ -391,7 +393,7 @@ resume_execution:
 			}
 			else if (rule->action == ACT_TCP_CLOSE) {
 				chn_prod(rep)->si->flags |= SI_FL_NOLINGER | SI_FL_NOHALF;
-				si_must_kill_conn(chn_prod(rep)->si);
+				cs_must_kill_conn(chn_prod(rep));
 				si_shutr(chn_prod(rep)->si);
 				si_shutw(chn_prod(rep)->si);
 				s->last_rule_file = rule->conf.file;
@@ -450,7 +452,7 @@ resume_execution:
 		_HA_ATOMIC_INC(&__objt_server(s->target)->counters.failed_resp);
 
  reject:
-	si_must_kill_conn(chn_prod(rep)->si);
+	cs_must_kill_conn(chn_prod(rep));
 	channel_abort(rep);
 	channel_abort(&s->req);
 
