@@ -470,12 +470,8 @@ struct stream *stream_new(struct session *sess, struct conn_stream *cs, struct b
 	if (cs_conn(cs)) {
 		const struct mux_ops *mux = cs_conn_mux(cs);
 
-		if (mux) {
-			if (mux->flags & MX_FL_CLEAN_ABRT)
-				cs_si(s->csf)->flags |= SI_FL_CLEAN_ABRT;
-			if (mux->flags & MX_FL_HTX)
-				s->flags |= SF_HTX;
-		}
+		if (mux && mux->flags & MX_FL_HTX)
+			s->flags |= SF_HTX;
 	}
 
 	stream_init_srv_conn(s);

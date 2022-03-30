@@ -88,7 +88,6 @@ enum {
 	SI_FL_ISBACK     = 0x00000010,  /* 0 for front-side SI, 1 for back-side */
 	/* unused: 0x00000200 */
 	SI_FL_WANT_GET   = 0x00004000,  /* a stream-int would like to get some data from the buffer */
-	SI_FL_CLEAN_ABRT = 0x00008000,  /* SI_FL_ERR is used to report aborts, and not SHUTR */
 
 	SI_FL_RXBLK_CHAN = 0x00010000,  /* the channel doesn't want the stream-int to introduce data */
 	SI_FL_RXBLK_BUFF = 0x00020000,  /* stream-int waits for a buffer allocation to complete */
