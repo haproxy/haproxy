@@ -321,3 +321,28 @@ void free_act_rules(struct list *rules)
 		free_act_rule(rule);
 	}
 }
+
+/* dumps all known actions registered in action rules <rules> after prefix
+ * <pfx> to stdout. The actions are alphabetically sorted. Those with the
+ * KWF_MATCH_PREFIX flag have their name suffixed with '*'.
+ */
+void dump_act_rules(const struct list *rules, const char *pfx)
+{
+	const struct action_kw *akwp, *akwn;
+	struct action_kw_list *akwl;
+	int index;
+
+	for (akwn = akwp = NULL;; akwp = akwn) {
+		list_for_each_entry(akwl, rules, list) {
+			for (index = 0; akwl->kw[index].kw != NULL; index++)
+				if (strordered(akwp ? akwp->kw : NULL,
+					       akwl->kw[index].kw,
+					       akwn != akwp ? akwn->kw : NULL))
+					akwn = &akwl->kw[index];
+		}
+		if (akwn == akwp)
+			break;
+		printf("%s%s%s\n", pfx ? pfx : "", akwn->kw,
+		       (akwn->flags & KWF_MATCH_PREFIX) ? "*" : "");
+	}
+}
