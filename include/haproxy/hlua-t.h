@@ -52,6 +52,7 @@
 #define CLASS_LISTENER     "Listener"
 #define CLASS_REGEX        "Regex"
 #define CLASS_STKTABLE     "StickTable"
+#define CLASS_CERTCACHE    "CertCache"
 
 struct stream;
 

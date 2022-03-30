@@ -1862,6 +1862,8 @@ void ckch_store_replace(struct ckch_store *old_ckchs, struct ckch_store *new_ckc
 
 /*
  * This function tries to create the new ckch_inst and their SNIs
+ *
+ * /!\ don't forget to update __hlua_ckch_commit() if you changes things there. /!\
  */
 static int cli_io_handler_commit_cert(struct appctx *appctx)
 {
