@@ -129,36 +129,6 @@ void si_free(struct stream_interface *si)
 }
 
 /*
- * Returns a message to the client ; the connection is shut down for read,
- * and the request is cleared so that no server connection can be initiated.
- * The buffer is marked for read shutdown on the other side to protect the
- * message, and the buffer write is enabled. The message is contained in a
- * "chunk". If it is null, then an empty message is used. The reply buffer does
- * not need to be empty before this, and its contents will not be overwritten.
- * The primary goal of this function is to return error messages to a client.
- */
-void si_retnclose(struct stream_interface *si,
-			  const struct buffer *msg)
-{
-	struct channel *ic = si_ic(si);
-	struct channel *oc = si_oc(si);
-
-	channel_auto_read(ic);
-	channel_abort(ic);
-	channel_auto_close(ic);
-	channel_erase(ic);
-	channel_truncate(oc);
-
-	if (likely(msg && msg->data))
-		co_inject(oc, msg->area, msg->data);
-
-	oc->wex = tick_add_ifset(now_ms, oc->wto);
-	channel_auto_read(oc);
-	channel_auto_close(oc);
-	channel_shutr_now(oc);
-}
-
-/*
  * This function performs a shutdown-read on a detached stream interface in a
  * connected or init state (it does nothing for other states). It either shuts
  * the read side or marks itself as closed. The buffer flags are updated to

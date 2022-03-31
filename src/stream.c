@@ -832,6 +832,35 @@ void stream_process_counters(struct stream *s)
 	}
 }
 
+/*
+ * Returns a message to the client ; the connection is shut down for read,
+ * and the request is cleared so that no server connection can be initiated.
+ * The buffer is marked for read shutdown on the other side to protect the
+ * message, and the buffer write is enabled. The message is contained in a
+ * "chunk". If it is null, then an empty message is used. The reply buffer does
+ * not need to be empty before this, and its contents will not be overwritten.
+ * The primary goal of this function is to return error messages to a client.
+ */
+void stream_retnclose(struct stream *s, const struct buffer *msg)
+{
+	struct channel *ic = &s->req;
+	struct channel *oc = &s->res;
+
+	channel_auto_read(ic);
+	channel_abort(ic);
+	channel_auto_close(ic);
+	channel_erase(ic);
+	channel_truncate(oc);
+
+	if (likely(msg && msg->data))
+		co_inject(oc, msg->area, msg->data);
+
+	oc->wex = tick_add_ifset(now_ms, oc->wto);
+	channel_auto_read(oc);
+	channel_auto_close(oc);
+	channel_shutr_now(oc);
+}
+
 int stream_set_timeout(struct stream *s, enum act_timeout_name name, int timeout)
 {
 	switch (name) {

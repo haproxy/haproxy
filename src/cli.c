@@ -2200,7 +2200,7 @@ void pcli_reply_and_close(struct stream *s, const char *msg)
 	struct buffer *buf = get_trash_chunk();
 
 	chunk_initstr(buf, msg);
-	si_retnclose(cs_si(s->csf), buf);
+	stream_retnclose(s, buf);
 }
 
 static enum obj_type *pcli_pid_to_server(int proc_pid)

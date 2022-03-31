@@ -367,6 +367,7 @@ static inline int stream_check_conn_timeout(struct stream *s)
 }
 
 int stream_set_timeout(struct stream *s, enum act_timeout_name name, int timeout);
+void stream_retnclose(struct stream *s, const struct buffer *msg);
 
 void service_keywords_register(struct action_kw_list *kw_list);
 struct action_kw *service_find(const char *kw);
