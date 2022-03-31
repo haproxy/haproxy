@@ -1234,6 +1234,44 @@ static struct connection *conn_backend_get(struct stream *s, struct server *srv,
 	return conn;
 }
 
+static int do_connect_server(struct stream *s, struct connection *conn)
+{
+	int ret = SF_ERR_NONE;
+	int conn_flags = 0;
+
+	if (unlikely(!conn || !conn->ctrl || !conn->ctrl->connect))
+		return SF_ERR_INTERNAL;
+
+	if (!channel_is_empty(&s->res))
+		conn_flags |= CONNECT_HAS_DATA;
+	if (s->conn_retries == s->be->conn_retries)
+		conn_flags |= CONNECT_CAN_USE_TFO;
+	if (!conn_ctrl_ready(conn) || !conn_xprt_ready(conn)) {
+		ret = conn->ctrl->connect(conn, conn_flags);
+		if (ret != SF_ERR_NONE)
+			return ret;
+
+		/* we're in the process of establishing a connection */
+		s->csb->state = CS_ST_CON;
+	}
+	else {
+		/* try to reuse the existing connection, it will be
+		 * confirmed once we can send on it.
+		 */
+		/* Is the connection really ready ? */
+		if (conn->mux->ctl(conn, MUX_STATUS, NULL) & MUX_STATUS_READY)
+			s->csb->state = CS_ST_RDY;
+		else
+			s->csb->state = CS_ST_CON;
+	}
+
+	/* needs src ip/port for logging */
+	if (s->flags & SF_SRC_ADDR)
+		conn_get_src(conn);
+
+	return ret;
+}
+
 /*
  * This function initiates a connection to the server assigned to this stream
  * (s->target, (s->csb->si)->addr.to). It will assign a server if none
@@ -1653,7 +1691,7 @@ skip_reuse:
 			_HA_ATOMIC_INC(&srv->counters.connect);
 	}
 
-	err = si_connect(cs_si(s->csb), srv_conn);
+	err = do_connect_server(s, srv_conn);
 	if (err != SF_ERR_NONE)
 		return err;
 
