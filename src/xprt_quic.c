@@ -121,6 +121,7 @@ static const struct trace_event quic_trace_events[] = {
 	{ .mask = QUIC_EV_CONN_FREED,    .name = "conn_freed",       .desc = "releasing conn. memory" },
 	{ .mask = QUIC_EV_CONN_CLOSE,    .name = "conn_close",       .desc = "closing conn." },
 	{ .mask = QUIC_EV_CONN_ACKSTRM,  .name = "ack_strm",         .desc = "STREAM ack."},
+	{ .mask = QUIC_EV_CONN_FRMLIST,  .name = "frm_list",         .desc = "frame list"},
 	{ /* end */ }
 };
 
@@ -284,6 +285,16 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 					quic_tls_keys_hexdump(&trace_buf, &tls_ctx->tx);
 			}
 
+		}
+
+		if (mask & QUIC_EV_CONN_FRMLIST) {
+			const struct list *l = a2;
+
+			if (l) {
+				const struct quic_frame *frm;
+				list_for_each_entry(frm, l, list)
+					chunk_frm_appendf(&trace_buf, frm);
+			}
 		}
 
 		if (mask & (QUIC_EV_CONN_HPKT|QUIC_EV_CONN_PAPKT)) {
@@ -5293,6 +5304,7 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 	if (!cc && !LIST_ISEMPTY(frms)) {
 		ssize_t room = end - pos;
 
+		TRACE_PROTO("Avail. ack eliciting frames", QUIC_EV_CONN_FRMLIST, qc, frms);
 		/* Initialize the length of the frames built below to <len>.
 		 * If any frame could be successfully built by qc_build_frms(),
 		 * we will have len_frms > len.
@@ -5419,14 +5431,15 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 
 	pkt->len = pos - beg;
 	LIST_SPLICE(&pkt->frms, &frm_list);
-	TRACE_PROTO("Ack eliciting frame", QUIC_EV_CONN_HPKT, qc, pkt);
+	TRACE_PROTO("Packet ack-eliciting frames", QUIC_EV_CONN_HPKT, qc, pkt);
 
 	return 1;
 
  no_room:
 	/* Replace the pre-built frames which could not be add to this packet */
 	LIST_SPLICE(frms, &frm_list);
-	TRACE_PROTO("Not enough room", QUIC_EV_CONN_HPKT, qc);
+	TRACE_PROTO("Remaining ack-eliciting frames", QUIC_EV_CONN_HPKT, qc, pkt);
+
 	return 0;
 }
 
