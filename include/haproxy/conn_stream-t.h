@@ -24,6 +24,7 @@
 #define _HAPROXY_CONN_STREAM_T_H
 
 #include <haproxy/obj_type-t.h>
+#include <haproxy/connection-t.h>
 
 struct stream_interface;
 
@@ -87,18 +88,6 @@ enum {
 	CS_FL_NOHALF        = 0x00000010,  /* no half close, close both sides at once */
 	CS_FL_DONT_WAKE     = 0x00000020,  /* resync in progress, don't wake up */
 	CS_FL_INDEP_STR     = 0x00000040,  /* independent streams = don't update rex on write */
-};
-
-/* cs_shutr() modes */
-enum cs_shr_mode {
-	CS_SHR_DRAIN        = 0,           /* read shutdown, drain any extra stuff */
-	CS_SHR_RESET        = 1,           /* read shutdown, reset any extra stuff */
-};
-
-/* cs_shutw() modes */
-enum cs_shw_mode {
-	CS_SHW_NORMAL       = 0,           /* regular write shutdown */
-	CS_SHW_SILENT       = 1,           /* imminent close, don't notify peer */
 };
 
 /* A conn stream must have its own errors independently of the buffer's, so that

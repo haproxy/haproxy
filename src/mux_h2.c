@@ -4666,7 +4666,7 @@ struct task *h2_deferred_shut(struct task *t, void *ctx, unsigned int state)
 }
 
 /* shutr() called by the conn_stream (mux_ops.shutr) */
-static void h2_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
+static void h2_shutr(struct conn_stream *cs, enum co_shr_mode mode)
 {
 	struct h2s *h2s = __cs_mux(cs);
 
@@ -4677,7 +4677,7 @@ static void h2_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
 }
 
 /* shutw() called by the conn_stream (mux_ops.shutw) */
-static void h2_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
+static void h2_shutw(struct conn_stream *cs, enum co_shw_mode mode)
 {
 	struct h2s *h2s = __cs_mux(cs);
 

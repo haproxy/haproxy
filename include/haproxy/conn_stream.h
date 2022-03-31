@@ -167,7 +167,7 @@ static inline const char *cs_get_data_name(const struct conn_stream *cs)
 }
 
 /* shut read */
-static inline void cs_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
+static inline void cs_shutr(struct conn_stream *cs, enum co_shr_mode mode)
 {
 	const struct mux_ops *mux;
 
@@ -178,11 +178,11 @@ static inline void cs_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
 	mux = cs_conn_mux(cs);
 	if (mux && mux->shutr)
 		mux->shutr(cs, mode);
-	cs->endp->flags |= (mode == CS_SHR_DRAIN) ? CS_EP_SHRD : CS_EP_SHRR;
+	cs->endp->flags |= (mode == CO_SHR_DRAIN) ? CS_EP_SHRD : CS_EP_SHRR;
 }
 
 /* shut write */
-static inline void cs_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
+static inline void cs_shutw(struct conn_stream *cs, enum co_shw_mode mode)
 {
 	const struct mux_ops *mux;
 
@@ -193,21 +193,21 @@ static inline void cs_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
 	mux = cs_conn_mux(cs);
 	if (mux && mux->shutw)
 		mux->shutw(cs, mode);
-	cs->endp->flags |= (mode == CS_SHW_NORMAL) ? CS_EP_SHWN : CS_EP_SHWS;
+	cs->endp->flags |= (mode == CO_SHW_NORMAL) ? CS_EP_SHWN : CS_EP_SHWS;
 }
 
 /* completely close a conn_stream (but do not detach it) */
 static inline void cs_close(struct conn_stream *cs)
 {
-	cs_shutw(cs, CS_SHW_SILENT);
-	cs_shutr(cs, CS_SHR_RESET);
+	cs_shutw(cs, CO_SHW_SILENT);
+	cs_shutr(cs, CO_SHR_RESET);
 }
 
 /* completely close a conn_stream after draining possibly pending data (but do not detach it) */
 static inline void cs_drain_and_close(struct conn_stream *cs)
 {
-	cs_shutw(cs, CS_SHW_SILENT);
-	cs_shutr(cs, CS_SHR_DRAIN);
+	cs_shutw(cs, CO_SHW_SILENT);
+	cs_shutr(cs, CO_SHR_DRAIN);
 }
 
 /* sets CS_EP_ERROR or CS_EP_ERR_PENDING on the cs */

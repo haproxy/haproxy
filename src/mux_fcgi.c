@@ -3854,7 +3854,7 @@ struct task *fcgi_deferred_shut(struct task *t, void *ctx, unsigned int state)
 }
 
 /* shutr() called by the conn_stream (mux_ops.shutr) */
-static void fcgi_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
+static void fcgi_shutr(struct conn_stream *cs, enum co_shr_mode mode)
 {
 	struct fcgi_strm *fstrm = __cs_mux(cs);
 
@@ -3865,7 +3865,7 @@ static void fcgi_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
 }
 
 /* shutw() called by the conn_stream (mux_ops.shutw) */
-static void fcgi_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
+static void fcgi_shutw(struct conn_stream *cs, enum co_shw_mode mode)
 {
 	struct fcgi_strm *fstrm = __cs_mux(cs);
 

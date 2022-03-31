@@ -458,7 +458,7 @@ static int mux_pt_avail_streams(struct connection *conn)
 	return 1 - mux_pt_used_streams(conn);
 }
 
-static void mux_pt_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
+static void mux_pt_shutr(struct conn_stream *cs, enum co_shr_mode mode)
 {
 	struct connection *conn = __cs_conn(cs);
 
@@ -469,8 +469,8 @@ static void mux_pt_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
 	cs->endp->flags &= ~(CS_EP_RCV_MORE | CS_EP_WANT_ROOM);
 	if (conn_xprt_ready(conn) && conn->xprt->shutr)
 		conn->xprt->shutr(conn, conn->xprt_ctx,
-		    (mode == CS_SHR_DRAIN));
-	else if (mode == CS_SHR_DRAIN)
+		    (mode == CO_SHR_DRAIN));
+	else if (mode == CO_SHR_DRAIN)
 		conn_ctrl_drain(conn);
 	if (cs->endp->flags & CS_EP_SHW)
 		conn_full_close(conn);
@@ -478,7 +478,7 @@ static void mux_pt_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
 	TRACE_LEAVE(PT_EV_STRM_SHUT, conn, cs);
 }
 
-static void mux_pt_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
+static void mux_pt_shutw(struct conn_stream *cs, enum co_shw_mode mode)
 {
 	struct connection *conn = __cs_conn(cs);
 
@@ -488,9 +488,9 @@ static void mux_pt_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
 		return;
 	if (conn_xprt_ready(conn) && conn->xprt->shutw)
 		conn->xprt->shutw(conn, conn->xprt_ctx,
-		    (mode == CS_SHW_NORMAL));
+		    (mode == CO_SHW_NORMAL));
 	if (!(cs->endp->flags & CS_EP_SHR))
-		conn_sock_shutw(conn, (mode == CS_SHW_NORMAL));
+		conn_sock_shutw(conn, (mode == CO_SHW_NORMAL));
 	else
 		conn_full_close(conn);
 

@@ -3447,7 +3447,7 @@ static void h1_detach(struct conn_stream *cs)
 }
 
 
-static void h1_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
+static void h1_shutr(struct conn_stream *cs, enum co_shr_mode mode)
 {
 	struct h1s *h1s = __cs_mux(cs);
 	struct h1c *h1c;
@@ -3485,12 +3485,12 @@ static void h1_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
 		goto end;
 
 	if (conn_xprt_ready(h1c->conn) && h1c->conn->xprt->shutr)
-		h1c->conn->xprt->shutr(h1c->conn, h1c->conn->xprt_ctx, (mode == CS_SHR_DRAIN));
+		h1c->conn->xprt->shutr(h1c->conn, h1c->conn->xprt_ctx, (mode == CO_SHR_DRAIN));
   end:
 	TRACE_LEAVE(H1_EV_STRM_SHUT, h1c->conn, h1s);
 }
 
-static void h1_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
+static void h1_shutw(struct conn_stream *cs, enum co_shw_mode mode)
 {
 	struct h1s *h1s = __cs_mux(cs);
 	struct h1c *h1c;
@@ -3524,7 +3524,7 @@ static void h1_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
 
   do_shutw:
 	h1c->flags |= H1C_F_ST_SHUTDOWN;
-	if (mode != CS_SHW_NORMAL)
+	if (mode != CO_SHW_NORMAL)
 		h1c->flags |= H1C_F_ST_SILENT_SHUT;
 
 	if (!b_data(&h1c->obuf))

@@ -33,7 +33,6 @@
 
 #include <haproxy/api-t.h>
 #include <haproxy/buf-t.h>
-#include <haproxy/conn_stream-t.h>
 #include <haproxy/obj_type-t.h>
 #include <haproxy/port_range-t.h>
 #include <haproxy/protocol-t.h>
@@ -253,6 +252,18 @@ enum {
 	CO_SFL_STREAMER    = 0x0002,    /* Producer is continuously streaming data */
 };
 
+/* mux->shutr() modes */
+enum co_shr_mode {
+	CO_SHR_DRAIN        = 0,           /* read shutdown, drain any extra stuff */
+	CO_SHR_RESET        = 1,           /* read shutdown, reset any extra stuff */
+};
+
+/* mux->shutw() modes */
+enum co_shw_mode {
+	CO_SHW_NORMAL       = 0,           /* regular write shutdown */
+	CO_SHW_SILENT       = 1,           /* imminent close, don't notify peer */
+};
+
 /* known transport layers (for ease of lookup) */
 enum {
 	XPRT_RAW = 0,
@@ -381,8 +392,8 @@ struct mux_ops {
 	size_t (*snd_buf)(struct conn_stream *cs, struct buffer *buf, size_t count, int flags); /* Called from the upper layer to send data */
 	int  (*rcv_pipe)(struct conn_stream *cs, struct pipe *pipe, unsigned int count); /* recv-to-pipe callback */
 	int  (*snd_pipe)(struct conn_stream *cs, struct pipe *pipe); /* send-to-pipe callback */
-	void (*shutr)(struct conn_stream *cs, enum cs_shr_mode);     /* shutr function */
-	void (*shutw)(struct conn_stream *cs, enum cs_shw_mode);     /* shutw function */
+	void (*shutr)(struct conn_stream *cs, enum co_shr_mode);     /* shutr function */
+	void (*shutw)(struct conn_stream *cs, enum co_shw_mode);     /* shutw function */
 
 	int (*attach)(struct connection *conn, struct conn_stream *, struct session *sess); /* attach a conn_stream to an outgoing connection */
 	const struct conn_stream *(*get_first_cs)(const struct connection *); /* retrieves any valid conn_stream from this connection */

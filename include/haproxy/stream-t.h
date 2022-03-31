@@ -26,6 +26,7 @@
 
 #include <haproxy/api-t.h>
 #include <haproxy/channel-t.h>
+#include <haproxy/conn_stream-t.h>
 #include <haproxy/dynbuf-t.h>
 #include <haproxy/filters-t.h>
 #include <haproxy/obj_type-t.h>
@@ -107,7 +108,6 @@ enum {
 	STRM_ET_DATA_ABRT  = 0x0400,  /* data phase aborted by external cause */
 };
 
-struct conn_stream;
 struct hlua;
 struct proxy;
 struct pendconn;
