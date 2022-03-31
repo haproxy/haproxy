@@ -2297,6 +2297,15 @@ static void qc_prep_fast_retrans(struct quic_enc_level *qel,
 	if (!pkt)
 		return;
 
+	/* When building a packet from another one, the field which may increase the
+	 * packet size is the packet number. And the maximum increase is 4 bytes.
+	 */
+	if (!quic_peer_validated_addr(qc) && qc_is_listener(qc) &&
+	    pkt->len + 4 > 3 * qc->rx.bytes - qc->tx.prep_bytes) {
+		TRACE_PROTO("anti-amplification limit would be reached", QUIC_EV_CONN_PRSAFRM, qc);
+		return;
+	}
+
 	qc_requeue_nacked_pkt_tx_frms(qc, &pkt->frms, &qel->pktns->tx.frms);
 }
 
@@ -2343,6 +2352,15 @@ static void qc_prep_hdshk_fast_retrans(struct quic_conn *qc)
 
 	if (!pkt)
 		goto end;
+
+	/* When building a packet from another one, the field which may increase the
+	 * packet size is the packet number. And the maximum increase is 4 bytes.
+	 */
+	if (!quic_peer_validated_addr(qc) && qc_is_listener(qc) &&
+	    pkt->len + 4 > 3 * qc->rx.bytes - qc->tx.prep_bytes) {
+		TRACE_PROTO("anti-amplification limit would be reached", QUIC_EV_CONN_PRSAFRM, qc);
+		goto end;
+	}
 
 	qel->pktns->tx.pto_probe += 1;
  requeue:
