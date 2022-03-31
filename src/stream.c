@@ -3750,16 +3750,16 @@ static int cli_parse_shutdown_session(char **args, char *payload, struct appctx 
 	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
 		return 1;
 
-	if (!*args[2])
+	ptr = (void *)strtoul(args[2], NULL, 0);
+	if (!ptr)
 		return cli_err(appctx, "Session pointer expected (use 'show sess').\n");
 
-	ptr = (void *)strtoul(args[2], NULL, 0);
 	strm = NULL;
 
 	thread_isolate();
 
 	/* first, look for the requested stream in the stream table */
-	for (thr = 0; !strm && thr < global.nbthread; thr++) {
+	for (thr = 0; strm != ptr && thr < global.nbthread; thr++) {
 		list_for_each_entry(strm, &ha_thread_ctx[thr].streams, list) {
 			if (strm == ptr) {
 				stream_shutdown(strm, SF_ERR_KILLED);
@@ -3771,7 +3771,7 @@ static int cli_parse_shutdown_session(char **args, char *payload, struct appctx 
 	thread_release();
 
 	/* do we have the stream ? */
-	if (!strm)
+	if (strm != ptr)
 		return cli_err(appctx, "No such session (use 'show sess').\n");
 
 	return 1;
