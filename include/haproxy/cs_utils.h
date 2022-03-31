@@ -108,6 +108,17 @@ static inline int cs_state_in(enum cs_state state, enum cs_state_bit mask)
 	return !!(cs_state_bit(state) & mask);
 }
 
+/* Returns true if a connection is attached to the conn-stream <cs> and if this
+ * connection is ready.
+ */
+static inline int cs_conn_ready(struct conn_stream *cs)
+{
+	struct connection *conn = cs_conn(cs);
+
+	return conn && conn_ctrl_ready(conn) && conn_xprt_ready(conn);
+}
+
+
 /* Returns the source address of the conn-stream and, if not set, fallbacks on
  * the session for frontend CS and the server connection for the backend CS. It
  * returns a const address on success or NULL on failure.

@@ -127,16 +127,6 @@ static inline void si_applet_release(struct stream_interface *si)
 		appctx->applet->release(appctx);
 }
 
-/* Returns true if a connection is attached to the stream interface <si> and
- * if this connection is ready.
- */
-static inline int si_conn_ready(struct stream_interface *si)
-{
-	struct connection *conn = cs_conn(si->cs);
-
-	return conn && conn_ctrl_ready(conn) && conn_xprt_ready(conn);
-}
-
 /* Returns non-zero if the stream interface's Rx path is blocked */
 static inline int si_rx_blocked(const struct stream_interface *si)
 {
