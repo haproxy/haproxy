@@ -1189,7 +1189,6 @@ int ssl_quic_initial_ctx(struct bind_conf *bind_conf)
 	SSL_CTX_set_mode(ctx, SSL_MODE_RELEASE_BUFFERS);
 	SSL_CTX_set_min_proto_version(ctx, TLS1_3_VERSION);
 	SSL_CTX_set_max_proto_version(ctx, TLS1_3_VERSION);
-	SSL_CTX_set_default_verify_paths(ctx);
 
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
 #ifdef OPENSSL_IS_BORINGSSL
