@@ -408,7 +408,7 @@ static void stream_int_notify(struct stream_interface *si)
 
 		if (((oc->flags & (CF_SHUTW|CF_SHUTW_NOW)) == CF_SHUTW_NOW) &&
 		    (si->cs->state == CS_ST_EST) && (!conn || !(conn->flags & (CO_FL_WAIT_XPRT | CO_FL_EARLY_SSL_HS))))
-			si_shutw(si);
+			cs_shutw(si->cs);
 		oc->wex = TICK_ETERNITY;
 	}
 
@@ -457,7 +457,7 @@ static void stream_int_notify(struct stream_interface *si)
 		if (ic->pipe)
 			last_len += ic->pipe->data;
 
-		si_chk_snd(sio);
+		cs_chk_snd(sio->cs);
 
 		new_len = co_data(ic);
 		if (ic->pipe)
@@ -473,14 +473,14 @@ static void stream_int_notify(struct stream_interface *si)
 	if (!(ic->flags & CF_DONT_READ))
 		si_rx_chan_rdy(si);
 
-	si_chk_rcv(si);
-	si_chk_rcv(sio);
+	cs_chk_rcv(si->cs);
+	cs_chk_rcv(sio->cs);
 
 	if (si_rx_blocked(si)) {
 		ic->rex = TICK_ETERNITY;
 	}
 	else if ((ic->flags & (CF_SHUTR|CF_READ_PARTIAL)) == CF_READ_PARTIAL) {
-		/* we must re-enable reading if si_chk_snd() has freed some space */
+		/* we must re-enable reading if cs_chk_snd() has freed some space */
 		if (!(ic->flags & CF_READ_NOEXP) && tick_isset(ic->rex))
 			ic->rex = tick_add_ifset(now_ms, ic->rto);
 	}
@@ -841,7 +841,7 @@ void si_update_rx(struct stream_interface *si)
 	else if (!(ic->flags & CF_READ_NOEXP) && !tick_isset(ic->rex))
 		ic->rex = tick_add_ifset(now_ms, ic->rto);
 
-	si_chk_rcv(si);
+	cs_chk_rcv(si->cs);
 }
 
 /* This function is designed to be called from within the stream handler to
@@ -1158,25 +1158,25 @@ static void stream_int_chk_snd_conn(struct stream_interface *si)
 		if (((oc->flags & (CF_SHUTW|CF_AUTO_CLOSE|CF_SHUTW_NOW)) ==
 		     (CF_AUTO_CLOSE|CF_SHUTW_NOW)) &&
 		    cs_state_in(cs->state, CS_SB_RDY|CS_SB_EST)) {
-			si_shutw(si);
+			cs_shutw(cs);
 			goto out_wakeup;
 		}
 
 		if ((oc->flags & (CF_SHUTW|CF_SHUTW_NOW)) == 0)
-			si->flags |= SI_FL_WAIT_DATA;
+			cs->si->flags |= SI_FL_WAIT_DATA;
 		oc->wex = TICK_ETERNITY;
 	}
 	else {
 		/* Otherwise there are remaining data to be sent in the buffer,
 		 * which means we have to poll before doing so.
 		 */
-		si->flags &= ~SI_FL_WAIT_DATA;
+		cs->si->flags &= ~SI_FL_WAIT_DATA;
 		if (!tick_isset(oc->wex))
 			oc->wex = tick_add_ifset(now_ms, oc->wto);
 	}
 
 	if (likely(oc->flags & CF_WRITE_ACTIVITY)) {
-		struct channel *ic = si_ic(si);
+		struct channel *ic = cs_ic(cs);
 
 		/* update timeout if we have written something */
 		if ((oc->flags & (CF_SHUTW|CF_WRITE_PARTIAL)) == CF_WRITE_PARTIAL &&
@@ -1204,8 +1204,8 @@ static void stream_int_chk_snd_conn(struct stream_interface *si)
 	           ((channel_is_empty(oc) && !oc->to_forward) ||
 	            !cs_state_in(cs->state, CS_SB_EST))))) {
 	out_wakeup:
-		if (!(si->cs->flags & CS_FL_DONT_WAKE))
-			task_wakeup(si_task(si), TASK_WOKEN_IO);
+		if (!(cs->flags & CS_FL_DONT_WAKE))
+			task_wakeup(cs_strm_task(cs), TASK_WOKEN_IO);
 	}
 }
 
@@ -1575,7 +1575,7 @@ static void stream_int_read0(struct stream_interface *si)
 	return;
 
  do_close:
-	/* OK we completely close the socket here just as if we went through si_shut[rw]() */
+	/* OK we completely close the socket here just as if we went through cs_shut[rw]() */
 	cs_conn_close(cs);
 
 	oc->flags &= ~CF_SHUTW_NOW;

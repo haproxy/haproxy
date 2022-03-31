@@ -1254,8 +1254,8 @@ spoe_release_appctx(struct appctx *appctx)
 		if (spoe_appctx->status_code == SPOE_FRM_ERR_NONE)
 			spoe_appctx->status_code = SPOE_FRM_ERR_IO;
 
-		si_shutw(cs->si);
-		si_shutr(cs->si);
+		cs_shutw(cs);
+		cs_shutr(cs);
 		cs_ic(cs)->flags |= CF_READ_NULL;
 	}
 
@@ -1960,8 +1960,8 @@ spoe_handle_appctx(struct appctx *appctx)
 			appctx->st0 = SPOE_APPCTX_ST_END;
 			SPOE_APPCTX(appctx)->task->expire = TICK_ETERNITY;
 
-			si_shutw(cs->si);
-			si_shutr(cs->si);
+			cs_shutw(cs);
+			cs_shutr(cs);
 			cs_ic(cs)->flags |= CF_READ_NULL;
 			/* fall through */
 

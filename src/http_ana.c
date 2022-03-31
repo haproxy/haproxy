@@ -4260,8 +4260,8 @@ void http_perform_server_redirect(struct stream *s, struct stream_interface *si)
 		goto fail;
 
 	/* return without error. */
-	si_shutr(si);
-	si_shutw(si);
+	cs_shutr(si->cs);
+	cs_shutw(si->cs);
 	s->conn_err_type = STRM_ET_NONE;
 	si->cs->state = CS_ST_CLO;
 

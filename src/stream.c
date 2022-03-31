@@ -956,7 +956,7 @@ static void back_establish(struct stream *s)
 		 * delayed recv here to give a chance to the data to flow back
 		 * by the time we process other tasks.
 		 */
-		si_chk_rcv(si);
+		cs_chk_rcv(si->cs);
 	}
 	req->wex = TICK_ETERNITY;
 	/* If we managed to get the whole response, and we don't have anything
@@ -1664,26 +1664,26 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 
 		if (unlikely((req->flags & (CF_SHUTW|CF_WRITE_TIMEOUT)) == CF_WRITE_TIMEOUT)) {
 			s->csb->flags |= CS_FL_NOLINGER;
-			si_shutw(si_b);
+			cs_shutw(s->csb);
 		}
 
 		if (unlikely((req->flags & (CF_SHUTR|CF_READ_TIMEOUT)) == CF_READ_TIMEOUT)) {
 			if (s->csf->flags & CS_FL_NOHALF)
 				s->csf->flags |= CS_FL_NOLINGER;
-			si_shutr(si_f);
+			cs_shutr(s->csf);
 		}
 
 		channel_check_timeouts(res);
 
 		if (unlikely((res->flags & (CF_SHUTW|CF_WRITE_TIMEOUT)) == CF_WRITE_TIMEOUT)) {
 			s->csf->flags |= CS_FL_NOLINGER;
-			si_shutw(si_f);
+			cs_shutw(s->csf);
 		}
 
 		if (unlikely((res->flags & (CF_SHUTR|CF_READ_TIMEOUT)) == CF_READ_TIMEOUT)) {
 			if (s->csb->flags & CS_FL_NOHALF)
 				s->csb->flags |= CS_FL_NOLINGER;
-			si_shutr(si_b);
+			cs_shutr(s->csb);
 		}
 
 		if (HAS_FILTERS(s))
@@ -1738,8 +1738,8 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	srv = objt_server(s->target);
 	if (unlikely(s->csf->endp->flags & CS_EP_ERROR)) {
 		if (cs_state_in(s->csf->state, CS_SB_EST|CS_SB_DIS)) {
-			si_shutr(si_f);
-			si_shutw(si_f);
+			cs_shutr(s->csf);
+			cs_shutw(s->csf);
 			cs_report_error(si_f->cs);
 			if (!(req->analysers) && !(res->analysers)) {
 				_HA_ATOMIC_INC(&s->be->be_counters.cli_aborts);
@@ -1758,8 +1758,8 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 
 	if (unlikely(s->csb->endp->flags & CS_EP_ERROR)) {
 		if (cs_state_in(s->csb->state, CS_SB_EST|CS_SB_DIS)) {
-			si_shutr(si_b);
-			si_shutw(si_b);
+			cs_shutr(s->csb);
+			cs_shutw(s->csb);
 			cs_report_error(si_b->cs);
 			_HA_ATOMIC_INC(&s->be->be_counters.failed_resp);
 			if (srv)
@@ -2291,7 +2291,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		     channel_is_empty(req))) {
 		if (req->flags & CF_READ_ERROR)
 			s->csb->flags |= CS_FL_NOLINGER;
-		si_shutw(si_b);
+		cs_shutw(s->csb);
 	}
 
 	/* shutdown(write) done on server side, we must stop the client too */
@@ -2303,7 +2303,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	if (unlikely((req->flags & (CF_SHUTR|CF_SHUTR_NOW)) == CF_SHUTR_NOW)) {
 		if (s->csf->flags & CS_FL_NOHALF)
 			s->csf->flags |= CS_FL_NOLINGER;
-		si_shutr(si_f);
+		cs_shutr(s->csf);
 	}
 
 	/* Benchmarks have shown that it's optimal to do a full resync now */
@@ -2416,7 +2416,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	/* shutdown(write) pending */
 	if (unlikely((res->flags & (CF_SHUTW|CF_SHUTW_NOW)) == CF_SHUTW_NOW &&
 		     channel_is_empty(res))) {
-		si_shutw(si_f);
+		cs_shutw(s->csf);
 	}
 
 	/* shutdown(write) done on the client side, we must stop the server too */
@@ -2428,7 +2428,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	if (unlikely((res->flags & (CF_SHUTR|CF_SHUTR_NOW)) == CF_SHUTR_NOW)) {
 		if (s->csb->flags & CS_FL_NOHALF)
 			s->csb->flags |= CS_FL_NOLINGER;
-		si_shutr(si_b);
+		cs_shutr(s->csb);
 	}
 
 	if (s->csf->state == CS_ST_DIS ||

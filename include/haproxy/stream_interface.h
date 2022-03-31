@@ -273,43 +273,43 @@ static inline int si_alloc_ibuf(struct stream_interface *si, struct buffer_wait 
 	return ret;
 }
 
-/* Sends a shutr to the connection using the data layer */
-static inline void si_shutr(struct stream_interface *si)
+/* Sends a shutr to the endpoint using the data layer */
+static inline void cs_shutr(struct conn_stream *cs)
 {
-	si->ops->shutr(si);
+	cs->si->ops->shutr(cs->si);
 }
 
-/* Sends a shutw to the connection using the data layer */
-static inline void si_shutw(struct stream_interface *si)
+/* Sends a shutw to the endpoint using the data layer */
+static inline void cs_shutw(struct conn_stream *cs)
 {
-	si->ops->shutw(si);
+	cs->si->ops->shutw(cs->si);
 }
 
 /* This is to be used after making some room available in a channel. It will
- * return without doing anything if the stream interface's RX path is blocked.
+ * return without doing anything if the conn-stream's RX path is blocked.
  * It will automatically mark the stream interface as busy processing the end
  * point in order to avoid useless repeated wakeups.
  * It will then call ->chk_rcv() to enable receipt of new data.
  */
-static inline void si_chk_rcv(struct stream_interface *si)
+static inline void cs_chk_rcv(struct conn_stream *cs)
 {
-	if (si->flags & SI_FL_RXBLK_CONN && cs_state_in(si_opposite(si)->cs->state, CS_SB_RDY|CS_SB_EST|CS_SB_DIS|CS_SB_CLO))
-		si_rx_conn_rdy(si);
+	if (cs->si->flags & SI_FL_RXBLK_CONN && cs_state_in(cs_opposite(cs)->state, CS_SB_RDY|CS_SB_EST|CS_SB_DIS|CS_SB_CLO))
+		si_rx_conn_rdy(cs->si);
 
-	if (si_rx_blocked(si) || !si_rx_endp_ready(si))
+	if (si_rx_blocked(cs->si) || !si_rx_endp_ready(cs->si))
 		return;
 
-	if (!cs_state_in(si->cs->state, CS_SB_RDY|CS_SB_EST))
+	if (!cs_state_in(cs->state, CS_SB_RDY|CS_SB_EST))
 		return;
 
-	si->flags |= SI_FL_RX_WAIT_EP;
-	si->ops->chk_rcv(si);
+	cs->si->flags |= SI_FL_RX_WAIT_EP;
+	cs->si->ops->chk_rcv(cs->si);
 }
 
-/* Calls chk_snd on the connection using the data layer */
-static inline void si_chk_snd(struct stream_interface *si)
+/* Calls chk_snd on the endpoint using the data layer */
+static inline void cs_chk_snd(struct conn_stream *cs)
 {
-	si->ops->chk_snd(si);
+	cs->si->ops->chk_snd(cs->si);
 }
 
 /* Combines both si_update_rx() and si_update_tx() at once */

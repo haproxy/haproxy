@@ -394,8 +394,8 @@ resume_execution:
 			else if (rule->action == ACT_TCP_CLOSE) {
 				chn_prod(rep)->flags |= CS_FL_NOLINGER | CS_FL_NOHALF;
 				cs_must_kill_conn(chn_prod(rep));
-				si_shutr(chn_prod(rep)->si);
-				si_shutw(chn_prod(rep)->si);
+				cs_shutr(chn_prod(rep));
+				cs_shutw(chn_prod(rep));
 				s->last_rule_file = rule->conf.file;
 				s->last_rule_line = rule->conf.line;
 				goto end;

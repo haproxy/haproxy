@@ -211,8 +211,8 @@ static int hc_cli_io_handler(struct appctx *appctx)
 
 	/* we must close only if F_END is the last flag */
 	if (appctx->ctx.cli.i0 ==  HC_CLI_F_RES_END) {
-		si_shutw(cs->si);
-		si_shutr(cs->si);
+		cs_shutw(cs);
+		cs_shutr(cs);
 		appctx->ctx.cli.i0 &= ~HC_CLI_F_RES_END;
 		goto out;
 	}
@@ -948,8 +948,8 @@ more:
 	return;
 
 end:
-	si_shutw(cs->si);
-	si_shutr(cs->si);
+	cs_shutw(cs);
+	cs_shutr(cs);
 	return;
 }
 

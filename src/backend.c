@@ -1983,8 +1983,8 @@ void back_try_conn_req(struct stream *s)
 				process_srv_queue(srv);
 
 			/* Failed and not retryable. */
-			si_shutr(cs->si);
-			si_shutw(cs->si);
+			cs_shutr(cs);
+			cs_shutw(cs);
 			req->flags |= CF_WRITE_ERROR;
 
 			s->logs.t_queue = tv_ms_elapsed(&s->logs.tv_accept, &now);
@@ -2043,8 +2043,8 @@ void back_try_conn_req(struct stream *s)
 			if (srv)
 				_HA_ATOMIC_INC(&srv->counters.failed_conns);
 			_HA_ATOMIC_INC(&s->be->be_counters.failed_conns);
-			si_shutr(cs->si);
-			si_shutw(cs->si);
+			cs_shutr(cs);
+			cs_shutw(cs);
 			req->flags |= CF_WRITE_TIMEOUT;
 			if (!s->conn_err_type)
 				s->conn_err_type = STRM_ET_QUEUE_TO;
@@ -2103,8 +2103,8 @@ abort_connection:
 	/* give up */
 	s->conn_exp = TICK_ETERNITY;
 	s->flags &= ~SF_CONN_EXP;
-	si_shutr(cs->si);
-	si_shutw(cs->si);
+	cs_shutr(cs);
+	cs_shutw(cs);
 	cs->state = CS_ST_CLO;
 	if (s->srv_error)
 		s->srv_error(s, cs->si);
@@ -2141,8 +2141,8 @@ void back_handle_st_req(struct stream *s)
 			 */
 			s->flags &= ~(SF_ERR_MASK | SF_FINST_MASK);
 
-			si_shutr(cs->si);
-			si_shutw(cs->si);
+			cs_shutr(cs);
+			cs_shutw(cs);
 			s->req.flags |= CF_WRITE_ERROR;
 			s->conn_err_type = STRM_ET_CONN_RES;
 			cs->state = CS_ST_CLO;
@@ -2175,8 +2175,8 @@ void back_handle_st_req(struct stream *s)
 		}
 
 		/* we did not get any server, let's check the cause */
-		si_shutr(cs->si);
-		si_shutw(cs->si);
+		cs_shutr(cs);
+		cs_shutw(cs);
 		s->req.flags |= CF_WRITE_ERROR;
 		if (!s->conn_err_type)
 			s->conn_err_type = STRM_ET_CONN_OTHER;
@@ -2217,7 +2217,7 @@ void back_handle_st_con(struct stream *s)
 	    ((req->flags & CF_SHUTW_NOW) &&
 	     (channel_is_empty(req) || (s->be->options & PR_O_ABRT_CLOSE)))) {
 		cs->flags |= CS_FL_NOLINGER;
-		si_shutw(cs->si);
+		cs_shutw(cs);
 		s->conn_err_type |= STRM_ET_CONN_ABRT;
 		if (s->srv_error)
 			s->srv_error(s, cs->si);
@@ -2312,8 +2312,8 @@ void back_handle_st_cer(struct stream *s)
 		if (may_dequeue_tasks(objt_server(s->target), s->be))
 			process_srv_queue(objt_server(s->target));
 
-		/* shutw is enough so stop a connecting socket */
-		si_shutw(cs->si);
+		/* shutw is enough to stop a connecting socket */
+		cs_shutw(cs);
 		s->req.flags |= CF_WRITE_ERROR;
 		s->res.flags |= CF_READ_ERROR;
 
@@ -2346,8 +2346,8 @@ void back_handle_st_cer(struct stream *s)
 		if (may_dequeue_tasks(objt_server(s->target), s->be))
 			process_srv_queue(objt_server(s->target));
 
-		/* shutw is enough so stop a connecting socket */
-		si_shutw(cs->si);
+		/* shutw is enough to stop a connecting socket */
+		cs_shutw(cs);
 		s->req.flags |= CF_WRITE_ERROR;
 		s->res.flags |= CF_READ_ERROR;
 
@@ -2433,7 +2433,7 @@ void back_handle_st_rdy(struct stream *s)
 		     (channel_is_empty(req) || (s->be->options & PR_O_ABRT_CLOSE)))) {
 			/* give up */
 			cs->flags |= CS_FL_NOLINGER;
-			si_shutw(cs->si);
+			cs_shutw(cs);
 			s->conn_err_type |= STRM_ET_CONN_ABRT;
 			if (s->srv_error)
 				s->srv_error(s, cs->si);
