@@ -108,12 +108,6 @@ static inline int si_init(struct stream_interface *si)
 	si->flags         &= SI_FL_ISBACK;
 	si->cs             = NULL;
 	si->ops            = &si_embedded_ops;
-	si->wait_event.tasklet = tasklet_new();
-	if (!si->wait_event.tasklet)
-		return -1;
-	si->wait_event.tasklet->process = si_cs_io_cb;
-	si->wait_event.tasklet->context = si;
-	si->wait_event.events = 0;
 	return 0;
 }
 

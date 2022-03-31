@@ -157,6 +157,7 @@ struct conn_stream {
 
 	unsigned int flags;                  /* CS_FL_* */
 	unsigned int hcto;                   /* half-closed timeout (0 = unset) */
+	struct wait_event wait_event;        /* We're in a wait list */
 	struct cs_endpoint *endp;            /* points to the end point (MUX stream or appctx) */
 	enum obj_type *app;                  /* points to the applicative point (stream or check) */
 	struct stream_interface *si;

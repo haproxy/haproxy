@@ -1502,9 +1502,8 @@ int stream_set_http_mode(struct stream *s, const struct mux_proto_list *mux_prot
 		 * mux will probably want to subscribe to
 		 * the underlying XPRT
 		 */
-		if (cs_si(s->csf)->wait_event.events)
-			conn->mux->unsubscribe(cs, cs_si(s->csf)->wait_event.events,
-					       &(cs_si(s->csf)->wait_event));
+		if (s->csf->wait_event.events)
+			conn->mux->unsubscribe(cs, s->csf->wait_event.events, &(s->csf->wait_event));
 
 		if (conn->mux->flags & MX_FL_NO_UPG)
 			return 0;
@@ -3278,22 +3277,22 @@ static int stats_dump_full_strm_to_buffer(struct conn_stream *cs, struct stream 
 			      strm->txn->req.flags, strm->txn->rsp.flags);
 
 		chunk_appendf(&trash,
-			     "  si[0]=%p (flags=0x%02x endp0=%s:%p sub=%d)\n",
+			     "  si[0]=%p (flags=0x%02x endp0=%s:%p)\n",
 			     strm->csf->si,
 			     strm->csf->si->flags,
 			     (strm->csf->endp->flags & CS_EP_T_MUX ? "CONN" : "APPCTX"),
-			      __cs_endp_target(strm->csf), strm->csf->si->wait_event.events);
+			      __cs_endp_target(strm->csf));
 
 		chunk_appendf(&trash,
-			     "  si[1]=%p (flags=0x%02x endp1=%s:%p sub=%d)\n",
+			     "  si[1]=%p (flags=0x%02x endp1=%s:%p)\n",
 			     strm->csb->si,
 			     strm->csb->si->flags,
 			     (strm->csb->endp->flags & CS_EP_T_MUX ? "CONN" : "APPCTX"),
-			      __cs_endp_target(strm->csb), strm->csb->si->wait_event.events);
+			      __cs_endp_target(strm->csb));
 
 		csf = strm->csf;
-		chunk_appendf(&trash, "  cs=%p csf=0x%08x state=%s endp=%p,0x%08x\n", csf, csf->flags,
-			      cs_state_str(csf->state), csf->endp->target, csf->endp->flags);
+		chunk_appendf(&trash, "  cs=%p csf=0x%08x state=%s endp=%p,0x%08x sub=%d\n", csf, csf->flags,
+			      cs_state_str(csf->state), csf->endp->target, csf->endp->flags, csf->wait_event.events);
 
 		if ((conn = cs_conn(csf)) != NULL) {
 			chunk_appendf(&trash,
@@ -3329,8 +3328,8 @@ static int stats_dump_full_strm_to_buffer(struct conn_stream *cs, struct stream 
 		}
 
 		csb = strm->csb;
-		chunk_appendf(&trash, "  cs=%p csb=0x%08x state=%s endp=%p,0x%08x\n", csb, csb->flags,
-			      cs_state_str(csb->state), csb->endp->target, csb->endp->flags);
+		chunk_appendf(&trash, "  cs=%p csb=0x%08x state=%s endp=%p,0x%08x sub=%d\n", csb, csb->flags,
+			      cs_state_str(csb->state), csb->endp->target, csb->endp->flags, csb->wait_event.events);
 		if ((conn = cs_conn(csb)) != NULL) {
 			chunk_appendf(&trash,
 			              "      co1=%p ctrl=%s xprt=%s mux=%s data=%s target=%s:%p\n",

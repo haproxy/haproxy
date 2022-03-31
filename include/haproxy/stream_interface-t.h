@@ -63,8 +63,6 @@ struct stream_interface {
 	unsigned int flags;     /* SI_FL_* */
 	struct conn_stream *cs; /* points to the conn-streams that owns the endpoint (connection or applet) */
 	struct si_ops *ops;     /* general operations at the stream interface layer */
-
-	struct wait_event wait_event; /* We're in a wait list */
 };
 
 /* operations available on a stream-interface */

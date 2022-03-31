@@ -124,7 +124,6 @@ void si_free(struct stream_interface *si)
 	if (!si)
 		return;
 
-	tasklet_free(si->wait_event.tasklet);
 	pool_free(pool_head_streaminterface, si);
 }
 
@@ -235,7 +234,6 @@ static void stream_int_chk_rcv(struct stream_interface *si)
 	}
 	else {
 		/* (re)start reading */
-		tasklet_wakeup(si->wait_event.tasklet);
 		if (!(si->cs->flags & CS_FL_DONT_WAKE))
 			task_wakeup(si_task(si), TASK_WOKEN_IO);
 	}
@@ -555,7 +553,7 @@ static int si_cs_process(struct conn_stream *cs)
 	BUG_ON(!conn);
 
 	/* If we have data to send, try it now */
-	if (!channel_is_empty(oc) && !(si->wait_event.events & SUB_RETRY_SEND))
+	if (!channel_is_empty(oc) && !(si->cs->wait_event.events & SUB_RETRY_SEND))
 		si_cs_send(cs);
 
 	/* First step, report to the conn-stream what was detected at the
@@ -658,7 +656,7 @@ static int si_cs_send(struct conn_stream *cs)
 	}
 
 	/* We're already waiting to be able to send, give up */
-	if (si->wait_event.events & SUB_RETRY_SEND)
+	if (si->cs->wait_event.events & SUB_RETRY_SEND)
 		return 0;
 
 	/* we might have been called just after an asynchronous shutw */
@@ -773,11 +771,11 @@ static int si_cs_send(struct conn_stream *cs)
 
 	/* We couldn't send all of our data, let the mux know we'd like to send more */
 	if (!channel_is_empty(oc))
-		conn->mux->subscribe(cs, SUB_RETRY_SEND, &si->wait_event);
+		conn->mux->subscribe(cs, SUB_RETRY_SEND, &si->cs->wait_event);
 	return did_send;
 }
 
-/* This is the ->process() function for any stream-interface's wait_event task.
+/* This is the ->process() function for any conn-stream's wait_event task.
  * It's assigned during the stream-interface's initialization, for any type of
  * stream interface. Thus it is always safe to perform a tasklet_wakeup() on a
  * stream interface, as the presence of the CS is checked there.
@@ -791,9 +789,9 @@ struct task *si_cs_io_cb(struct task *t, void *ctx, unsigned int state)
 	if (!cs_conn(cs))
 		return t;
 
-	if (!(si->wait_event.events & SUB_RETRY_SEND) && !channel_is_empty(si_oc(si)))
+	if (!(cs->wait_event.events & SUB_RETRY_SEND) && !channel_is_empty(si_oc(si)))
 		ret = si_cs_send(cs);
-	if (!(si->wait_event.events & SUB_RETRY_RECV))
+	if (!(cs->wait_event.events & SUB_RETRY_RECV))
 		ret |= si_cs_recv(cs);
 	if (ret != 0)
 		si_cs_process(cs);
@@ -909,7 +907,7 @@ int si_sync_recv(struct stream_interface *si)
 	if (!cs_conn_mux(si->cs))
 		return 0; // only conn_streams are supported
 
-	if (si->wait_event.events & SUB_RETRY_RECV)
+	if (si->cs->wait_event.events & SUB_RETRY_RECV)
 		return 0; // already subscribed
 
 	if (!si_rx_endp_ready(si) || si_rx_blocked(si))
@@ -1111,7 +1109,7 @@ static void stream_int_chk_rcv_conn(struct stream_interface *si)
 {
 	/* (re)start reading */
 	if (cs_state_in(si->cs->state, CS_SB_CON|CS_SB_RDY|CS_SB_EST))
-		tasklet_wakeup(si->wait_event.tasklet);
+		tasklet_wakeup(si->cs->wait_event.tasklet);
 }
 
 
@@ -1138,7 +1136,7 @@ static void stream_int_chk_snd_conn(struct stream_interface *si)
 	    !(si->flags & SI_FL_WAIT_DATA))       /* not waiting for data */
 		return;
 
-	if (!(si->wait_event.events & SUB_RETRY_SEND) && !channel_is_empty(si_oc(si)))
+	if (!(si->cs->wait_event.events & SUB_RETRY_SEND) && !channel_is_empty(si_oc(si)))
 		si_cs_send(cs);
 
 	if (cs->endp->flags & (CS_EP_ERROR|CS_EP_ERR_PENDING) || si_is_conn_error(si)) {
@@ -1232,7 +1230,7 @@ static int si_cs_recv(struct conn_stream *cs)
 	/* If another call to si_cs_recv() failed, and we subscribed to
 	 * recv events already, give up now.
 	 */
-	if (si->wait_event.events & SUB_RETRY_RECV)
+	if (si->cs->wait_event.events & SUB_RETRY_RECV)
 		return 0;
 
 	/* maybe we were called immediately after an asynchronous shutr */
@@ -1532,7 +1530,7 @@ static int si_cs_recv(struct conn_stream *cs)
 	}
 	else if (!si_rx_blocked(si)) {
 		/* Subscribe to receive events if we're blocking on I/O */
-		conn->mux->subscribe(cs, SUB_RETRY_RECV, &si->wait_event);
+		conn->mux->subscribe(cs, SUB_RETRY_RECV, &si->cs->wait_event);
 		si_rx_endp_done(si);
 	} else {
 		si_rx_endp_more(si);

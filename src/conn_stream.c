@@ -64,6 +64,9 @@ struct conn_stream *cs_new(struct cs_endpoint *endp)
 	cs->data_cb = NULL;
 	cs->src = NULL;
 	cs->dst = NULL;
+	cs->wait_event.tasklet = NULL;
+	cs->wait_event.events = 0;
+
 	if (!endp) {
 		endp = cs_endpoint_new();
 		if (unlikely(!endp))
@@ -156,6 +159,8 @@ void cs_free(struct conn_stream *cs)
 		BUG_ON(!(cs->endp->flags & CS_EP_DETACHED));
 		cs_endpoint_free(cs->endp);
 	}
+	if (cs->wait_event.tasklet)
+		tasklet_free(cs->wait_event.tasklet);
 	pool_free(pool_head_connstream, cs);
 }
 
@@ -172,6 +177,15 @@ int cs_attach_mux(struct conn_stream *cs, void *target, void *ctx)
 	if (!conn->ctx)
 		conn->ctx = cs;
 	if (cs_strm(cs)) {
+		if (!cs->wait_event.tasklet) {
+			cs->wait_event.tasklet = tasklet_new();
+			if (!cs->wait_event.tasklet)
+				return -1;
+			cs->wait_event.tasklet->process = si_cs_io_cb;
+			cs->wait_event.tasklet->context = cs->si;
+			cs->wait_event.events = 0;
+		}
+
 		cs->si->ops = &si_conn_ops;
 		cs->data_cb = &si_conn_cb;
 	}
@@ -204,8 +218,19 @@ int cs_attach_strm(struct conn_stream *cs, struct stream *strm)
 	cs->si = si_new(cs);
 	if (unlikely(!cs->si))
 		return -1;
+
 	cs->endp->flags &= ~CS_EP_ORPHAN;
 	if (cs->endp->flags & CS_EP_T_MUX) {
+		cs->wait_event.tasklet = tasklet_new();
+		if (!cs->wait_event.tasklet) {
+			si_free(cs->si);
+			cs->si = NULL;
+			return -1;
+		}
+		cs->wait_event.tasklet->process = si_cs_io_cb;
+		cs->wait_event.tasklet->context = cs->si;
+		cs->wait_event.events = 0;
+
 		cs->si->ops = &si_conn_ops;
 		cs->data_cb = &si_conn_cb;
 	}
@@ -237,8 +262,8 @@ void cs_detach_endp(struct conn_stream *cs)
 		if (conn->mux) {
 			/* TODO: handle unsubscribe for healthchecks too */
 			cs->endp->flags |= CS_EP_ORPHAN;
-			if (cs->si && cs->si->wait_event.events != 0)
-				conn->mux->unsubscribe(cs, cs->si->wait_event.events, &cs->si->wait_event);
+			if (cs->wait_event.events != 0)
+				conn->mux->unsubscribe(cs, cs->wait_event.events, &cs->wait_event);
 			conn->mux->detach(cs);
 			cs->endp = NULL;
 		}
@@ -290,6 +315,12 @@ void cs_detach_app(struct conn_stream *cs)
 	cs->data_cb = NULL;
 	sockaddr_free(&cs->src);
 	sockaddr_free(&cs->dst);
+
+	if (cs->wait_event.tasklet)
+		tasklet_free(cs->wait_event.tasklet);
+	cs->wait_event.tasklet = NULL;
+	cs->wait_event.events = 0;
+
 	if (!cs->endp || (cs->endp->flags & CS_EP_DETACHED))
 		cs_free(cs);
 }
