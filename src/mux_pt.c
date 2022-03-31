@@ -535,6 +535,11 @@ static size_t mux_pt_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t 
 	if (ret > 0)
 		b_del(buf, ret);
 
+	if (conn->flags & CO_FL_ERROR) {
+		cs->flags |= CS_FL_ERROR;
+		TRACE_DEVEL("error on connection", PT_EV_TX_DATA|PT_EV_CONN_ERR, conn, cs);
+	}
+
 	TRACE_LEAVE(PT_EV_TX_DATA, conn, cs, buf, (size_t[]){ret});
 	return ret;
 }
@@ -595,6 +600,11 @@ static int mux_pt_snd_pipe(struct conn_stream *cs, struct pipe *pipe)
 	TRACE_ENTER(PT_EV_TX_DATA, conn, cs, 0, (size_t[]){pipe->data});
 
 	ret = conn->xprt->snd_pipe(conn, conn->xprt_ctx, pipe);
+
+	if (conn->flags & CO_FL_ERROR) {
+		cs->flags |= CS_FL_ERROR;
+		TRACE_DEVEL("error on connection", PT_EV_TX_DATA|PT_EV_CONN_ERR, conn, cs);
+	}
 
 	TRACE_LEAVE(PT_EV_TX_DATA, conn, cs, 0, (size_t[]){ret});
 	return ret;
