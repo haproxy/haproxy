@@ -1053,11 +1053,12 @@ static int wake_srv_chk(struct conn_stream *cs)
 		/* Check complete or aborted. If connection not yet closed do it
 		 * now and wake the check task up to be sure the result is
 		 * handled ASAP. */
-		cs_drain_and_close(cs);
 		ret = -1;
-
-		if (check->wait_list.events)
-			conn->mux->unsubscribe(cs, check->wait_list.events, &check->wait_list);
+		if (conn)  {
+			cs_conn_drain_and_close(cs);
+			if (check->wait_list.events)
+				conn->mux->unsubscribe(cs, check->wait_list.events, &check->wait_list);
+		}
 
 		/* We may have been scheduled to run, and the
 		 * I/O handler expects to have a cs, so remove
@@ -1192,7 +1193,7 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 		 * as a failed response coupled with "observe layer7" caused the
 		 * server state to be suddenly changed.
 		 */
-		cs_drain_and_close(check->cs);
+		cs_conn_drain_and_close(check->cs);
 	}
 
 	/* TODO: must be handled by cs_detach_endp */

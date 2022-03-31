@@ -167,11 +167,13 @@ static inline const char *cs_get_data_name(const struct conn_stream *cs)
 }
 
 /* shut read */
-static inline void cs_shutr(struct conn_stream *cs, enum co_shr_mode mode)
+static inline void cs_conn_shutr(struct conn_stream *cs, enum co_shr_mode mode)
 {
 	const struct mux_ops *mux;
 
-	if (!cs_conn(cs) || cs->endp->flags & CS_EP_SHR)
+	BUG_ON(!cs_conn(cs));
+
+	if (cs->endp->flags & CS_EP_SHR)
 		return;
 
 	/* clean data-layer shutdown */
@@ -182,11 +184,13 @@ static inline void cs_shutr(struct conn_stream *cs, enum co_shr_mode mode)
 }
 
 /* shut write */
-static inline void cs_shutw(struct conn_stream *cs, enum co_shw_mode mode)
+static inline void cs_conn_shutw(struct conn_stream *cs, enum co_shw_mode mode)
 {
 	const struct mux_ops *mux;
 
-	if (!cs_conn(cs) || cs->endp->flags & CS_EP_SHW)
+	BUG_ON(!cs_conn(cs));
+
+	if (cs->endp->flags & CS_EP_SHW)
 		return;
 
 	/* clean data-layer shutdown */
@@ -197,17 +201,17 @@ static inline void cs_shutw(struct conn_stream *cs, enum co_shw_mode mode)
 }
 
 /* completely close a conn_stream (but do not detach it) */
-static inline void cs_close(struct conn_stream *cs)
+static inline void cs_conn_close(struct conn_stream *cs)
 {
-	cs_shutw(cs, CO_SHW_SILENT);
-	cs_shutr(cs, CO_SHR_RESET);
+	cs_conn_shutw(cs, CO_SHW_SILENT);
+	cs_conn_shutr(cs, CO_SHR_RESET);
 }
 
 /* completely close a conn_stream after draining possibly pending data (but do not detach it) */
-static inline void cs_drain_and_close(struct conn_stream *cs)
+static inline void cs_conn_drain_and_close(struct conn_stream *cs)
 {
-	cs_shutw(cs, CO_SHW_SILENT);
-	cs_shutr(cs, CO_SHR_DRAIN);
+	cs_conn_shutw(cs, CO_SHW_SILENT);
+	cs_conn_shutr(cs, CO_SHR_DRAIN);
 }
 
 /* sets CS_EP_ERROR or CS_EP_ERR_PENDING on the cs */
@@ -228,9 +232,11 @@ static inline void cs_set_error(struct conn_stream *cs)
  * conn_stream, NULL is returned. The output pointer is purposely marked
  * const to discourage the caller from modifying anything there.
  */
-static inline const struct conn_stream *cs_get_first(const struct connection *conn)
+static inline const struct conn_stream *cs_conn_get_first(const struct connection *conn)
 {
-	if (!conn || !conn->mux || !conn->mux->get_first_cs)
+	BUG_ON(!conn || !conn->mux);
+
+	if (!conn->mux->get_first_cs)
 		return NULL;
 	return conn->mux->get_first_cs(conn);
 }

@@ -314,7 +314,7 @@ int conn_si_send_proxy(struct connection *conn, unsigned int flag)
 		/* If there is no mux attached to the connection, it means the
 		 * connection context is a conn-stream.
 		 */
-		cs = (conn->mux ? cs_get_first(conn) : conn->ctx);
+		cs = (conn->mux ? cs_conn_get_first(conn) : conn->ctx);
 
 		/* The target server expects a PROXY line to be sent first.
 		 * If the send_proxy_ofs is negative, it corresponds to the
@@ -1006,7 +1006,7 @@ static void stream_int_shutr_conn(struct stream_interface *si)
 		return;
 
 	if (si_oc(si)->flags & CF_SHUTW) {
-		cs_close(cs);
+		cs_conn_close(cs);
 		cs->state = CS_ST_DIS;
 		__cs_strm(cs)->conn_exp = TICK_ETERNITY;
 	}
@@ -1063,7 +1063,7 @@ static void stream_int_shutw_conn(struct stream_interface *si)
 			 * option abortonclose. No need for the TLS layer to try to
 			 * emit a shutdown message.
 			 */
-			cs_shutw(cs, CO_SHW_SILENT);
+			cs_conn_shutw(cs, CO_SHW_SILENT);
 		}
 		else {
 			/* clean data-layer shutdown. This only happens on the
@@ -1072,7 +1072,7 @@ static void stream_int_shutw_conn(struct stream_interface *si)
 			 * while option abortonclose is set. We want the TLS
 			 * layer to try to signal it to the peer before we close.
 			 */
-			cs_shutw(cs, CO_SHW_NORMAL);
+			cs_conn_shutw(cs, CO_SHW_NORMAL);
 
 			if (!(ic->flags & (CF_SHUTR|CF_DONT_READ)))
 				return;
@@ -1083,7 +1083,7 @@ static void stream_int_shutw_conn(struct stream_interface *si)
 		/* we may have to close a pending connection, and mark the
 		 * response buffer as shutr
 		 */
-		cs_close(cs);
+		cs_conn_close(cs);
 		/* fall through */
 	case CS_ST_CER:
 	case CS_ST_QUE:
@@ -1567,7 +1567,7 @@ static void stream_int_read0(struct stream_interface *si)
 	if (cs->flags & CS_FL_NOHALF) {
 		/* we want to immediately forward this close to the write side */
 		/* force flag on ssl to keep stream in cache */
-		cs_shutw(cs, CO_SHW_SILENT);
+		cs_conn_shutw(cs, CO_SHW_SILENT);
 		goto do_close;
 	}
 
@@ -1576,7 +1576,7 @@ static void stream_int_read0(struct stream_interface *si)
 
  do_close:
 	/* OK we completely close the socket here just as if we went through si_shut[rw]() */
-	cs_close(cs);
+	cs_conn_close(cs);
 
 	oc->flags &= ~CF_SHUTW_NOW;
 	oc->flags |= CF_SHUTW;
