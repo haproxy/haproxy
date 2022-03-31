@@ -883,7 +883,7 @@ static void cli_io_handler(struct appctx *appctx)
 	int reql;
 	int len;
 
-	if (unlikely(cs->si->state == SI_ST_DIS || cs->si->state == SI_ST_CLO))
+	if (unlikely(cs->state == CS_ST_DIS || cs->state == CS_ST_CLO))
 		goto out;
 
 	/* Check if the input buffer is available. */
@@ -1146,9 +1146,9 @@ static void cli_io_handler(struct appctx *appctx)
 		}
 	}
 
-	if ((res->flags & CF_SHUTR) && (cs->si->state == SI_ST_EST)) {
+	if ((res->flags & CF_SHUTR) && (cs->state == CS_ST_EST)) {
 		DPRINTF(stderr, "%s@%d: si to buf closed. req=%08x, res=%08x, st=%d\n",
-			__FUNCTION__, __LINE__, req->flags, res->flags, cs->si->state);
+			__FUNCTION__, __LINE__, req->flags, res->flags, cs->state);
 		/* Other side has closed, let's abort if we have no more processing to do
 		 * and nothing more to consume. This is comparable to a broken pipe, so
 		 * we forward the close to the request side so that it flows upstream to
@@ -1157,9 +1157,9 @@ static void cli_io_handler(struct appctx *appctx)
 		si_shutw(cs->si);
 	}
 
-	if ((req->flags & CF_SHUTW) && (cs->si->state == SI_ST_EST) && (appctx->st0 < CLI_ST_OUTPUT)) {
+	if ((req->flags & CF_SHUTW) && (cs->state == CS_ST_EST) && (appctx->st0 < CLI_ST_OUTPUT)) {
 		DPRINTF(stderr, "%s@%d: buf to si closed. req=%08x, res=%08x, st=%d\n",
-			__FUNCTION__, __LINE__, req->flags, res->flags, cs->si->state);
+			__FUNCTION__, __LINE__, req->flags, res->flags, cs->state);
 		/* We have no more processing to do, and nothing more to send, and
 		 * the client side has closed. So we'll forward this state downstream
 		 * on the response buffer.
@@ -1171,7 +1171,7 @@ static void cli_io_handler(struct appctx *appctx)
  out:
 	DPRINTF(stderr, "%s@%d: st=%d, rqf=%x, rpf=%x, rqh=%lu, rqs=%lu, rh=%lu, rs=%lu\n",
 		__FUNCTION__, __LINE__,
-		cs->si->state, req->flags, res->flags, ci_data(req), co_data(req), ci_data(res), co_data(res));
+		cs->state, req->flags, res->flags, ci_data(req), co_data(req), ci_data(res), co_data(res));
 }
 
 /* This is called when the stream interface is closed. For instance, upon an
@@ -2766,7 +2766,7 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 
 		sockaddr_free(&s->csb->dst);
 
-		si_set_state(cs_si(s->csb), SI_ST_INI);
+		cs_set_state(s->csb, CS_ST_INI);
 		cs_si(s->csb)->flags &= SI_FL_ISBACK; /* we're in the context of process_stream */
 		s->csb->flags &= CS_FL_ISBACK | CS_FL_DONT_WAKE; /* we're in the context of process_stream */
 		s->req.flags &= ~(CF_SHUTW|CF_SHUTW_NOW|CF_AUTO_CONNECT|CF_WRITE_ERROR|CF_STREAMER|CF_STREAMER_FAST|CF_NEVER_WAIT|CF_WROTE_DATA);

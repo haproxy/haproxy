@@ -76,7 +76,7 @@ static inline struct conn_stream *cs_opposite(struct conn_stream *cs)
 }
 
 
-/* to be called only when in SI_ST_DIS with SI_FL_ERR */
+/* to be called only when in CS_ST_DIS with CS_FL_ERR */
 static inline void cs_report_error(struct conn_stream *cs)
 {
 	if (!__cs_strm(cs)->conn_err_type)
@@ -84,6 +84,28 @@ static inline void cs_report_error(struct conn_stream *cs)
 
 	cs_oc(cs)->flags |= CF_WRITE_ERROR;
 	cs_ic(cs)->flags |= CF_READ_ERROR;
+}
+
+/* sets the current and previous state of a conn-stream to <state>. This is
+ * mainly used to create one in the established state on incoming conncetions.
+ */
+static inline void cs_set_state(struct conn_stream *cs, int state)
+{
+	cs->state = __cs_strm(cs)->prev_conn_state = state;
+}
+
+/* returns a bit for a conn-stream state, to match against CS_SB_* */
+static inline enum cs_state_bit cs_state_bit(enum cs_state state)
+{
+	BUG_ON(state > CS_ST_CLO);
+	return 1U << state;
+}
+
+/* returns true if <state> matches one of the CS_SB_* bits in <mask> */
+static inline int cs_state_in(enum cs_state state, enum cs_state_bit mask)
+{
+	BUG_ON(mask & ~CS_SB_ALL);
+	return !!(cs_state_bit(state) & mask);
 }
 
 /* Returns the source address of the conn-stream and, if not set, fallbacks on
@@ -192,6 +214,25 @@ static inline int cs_get_dst(struct conn_stream *cs)
 static inline void cs_must_kill_conn(struct conn_stream *cs)
 {
 	cs->endp->flags |= CS_EP_KILL_CONN;
+}
+
+/* for debugging, reports the stream interface state name */
+static inline const char *cs_state_str(int state)
+{
+	switch (state) {
+	case CS_ST_INI: return "INI";
+	case CS_ST_REQ: return "REQ";
+	case CS_ST_QUE: return "QUE";
+	case CS_ST_TAR: return "TAR";
+	case CS_ST_ASS: return "ASS";
+	case CS_ST_CON: return "CON";
+	case CS_ST_CER: return "CER";
+	case CS_ST_RDY: return "RDY";
+	case CS_ST_EST: return "EST";
+	case CS_ST_DIS: return "DIS";
+	case CS_ST_CLO: return "CLO";
+	default:        return "???";
+	}
 }
 
 #endif /* _HAPROXY_CS_UTILS_H */

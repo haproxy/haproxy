@@ -44,7 +44,7 @@ extern struct trace_source trace_strm;
 #define  STRM_EV_STRM_ERR     (1ULL <<  2)
 #define  STRM_EV_STRM_ANA     (1ULL <<  3)
 #define  STRM_EV_STRM_PROC    (1ULL <<  4)
-#define  STRM_EV_SI_ST        (1ULL <<  5)
+#define  STRM_EV_CS_ST        (1ULL <<  5)
 #define  STRM_EV_HTTP_ANA     (1ULL <<  6)
 #define  STRM_EV_HTTP_ERR     (1ULL <<  7)
 #define  STRM_EV_TCP_ANA      (1ULL <<  8)
@@ -313,8 +313,6 @@ static inline void stream_init_srv_conn(struct stream *strm)
 
 static inline void stream_choose_redispatch(struct stream *s)
 {
-	struct stream_interface *si = cs_si(s->csb);
-
 	/* If the "redispatch" option is set on the backend, we are allowed to
 	 * retry on another server. By default this redispatch occurs on the
 	 * last retry, but if configured we allow redispatches to occur on
@@ -342,12 +340,12 @@ static inline void stream_choose_redispatch(struct stream *s)
 
 		sockaddr_free(&s->csb->dst);
 		s->flags &= ~(SF_DIRECT | SF_ASSIGNED | SF_ADDR_SET);
-		si->state = SI_ST_REQ;
+		s->csb->state = CS_ST_REQ;
 	} else {
 		if (objt_server(s->target))
 			_HA_ATOMIC_INC(&__objt_server(s->target)->counters.retries);
 		_HA_ATOMIC_INC(&s->be->be_counters.retries);
-		si->state = SI_ST_ASS;
+		s->csb->state = CS_ST_ASS;
 	}
 
 }

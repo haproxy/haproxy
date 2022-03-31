@@ -3817,7 +3817,7 @@ static int peers_dump_peer(struct buffer *msg, struct conn_stream *cs, struct pe
 	peer_cs = peer->appctx->owner;
 	peer_s = __cs_strm(peer_cs);
 
-	chunk_appendf(&trash, " state=%s", si_state_str(cs_opposite(peer_cs)->si->state));
+	chunk_appendf(&trash, " state=%s", cs_state_str(cs_opposite(peer_cs)->state));
 
 	conn = objt_conn(strm_orig(peer_s));
 	if (conn)

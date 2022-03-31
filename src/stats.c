@@ -4278,7 +4278,7 @@ static void http_stats_io_handler(struct appctx *appctx)
 
 	res_htx = htx_from_buf(&res->buf);
 
-	if (unlikely(cs->si->state == SI_ST_DIS || cs->si->state == SI_ST_CLO))
+	if (unlikely(cs->state == CS_ST_DIS || cs->state == CS_ST_CLO))
 		goto out;
 
 	/* Check if the input buffer is available. */

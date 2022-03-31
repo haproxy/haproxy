@@ -28,42 +28,6 @@
 
 struct conn_stream;
 
-/* A stream interface must have its own errors independently of the buffer's,
- * so that applications can rely on what the buffer reports while the stream
- * interface is performing some retries (eg: connection error). Some states are
- * transient and do not last beyond process_session().
- */
-enum si_state {
-	SI_ST_INI = 0,           /* interface not sollicitated yet */
-	SI_ST_REQ,               /* [transient] connection initiation desired and not started yet */
-	SI_ST_QUE,               /* interface waiting in queue */
-	SI_ST_TAR,               /* interface in turn-around state after failed connect attempt */
-	SI_ST_ASS,               /* server just assigned to this interface */
-	SI_ST_CON,               /* initiated connection request (resource exists) */
-	SI_ST_CER,               /* [transient] previous connection attempt failed (resource released) */
-	SI_ST_RDY,               /* [transient] ready proven after I/O success during SI_ST_CON */
-	SI_ST_EST,               /* connection established (resource exists) */
-	SI_ST_DIS,               /* [transient] disconnected from other side, but cleanup not done yet */
-	SI_ST_CLO,               /* stream intf closed, might not existing anymore. Buffers shut. */
-} __attribute__((packed));
-
-/* state bits for use with lists of states */
-enum si_state_bit {
-	SI_SB_NONE = 0,
-	SI_SB_INI = 1U << SI_ST_INI,
-	SI_SB_REQ = 1U << SI_ST_REQ,
-	SI_SB_QUE = 1U << SI_ST_QUE,
-	SI_SB_TAR = 1U << SI_ST_TAR,
-	SI_SB_ASS = 1U << SI_ST_ASS,
-	SI_SB_CON = 1U << SI_ST_CON,
-	SI_SB_CER = 1U << SI_ST_CER,
-	SI_SB_RDY = 1U << SI_ST_RDY,
-	SI_SB_EST = 1U << SI_ST_EST,
-	SI_SB_DIS = 1U << SI_ST_DIS,
-	SI_SB_CLO = 1U << SI_ST_CLO,
-	SI_SB_ALL = SI_SB_INI|SI_SB_REQ|SI_SB_QUE|SI_SB_TAR|SI_SB_ASS|SI_SB_CON|SI_SB_CER|SI_SB_RDY|SI_SB_EST|SI_SB_DIS|SI_SB_CLO,
-};
-
 /* flags set after I/O (32 bit) */
 enum {
 	SI_FL_NONE       = 0x00000000,  /* nothing */
@@ -95,7 +59,6 @@ enum {
  */
 struct stream_interface {
 	/* struct members used by the "buffer" side */
-	enum si_state state;     /* SI_ST* */
 	/* 16-bit hole here */
 	unsigned int flags;     /* SI_FL_* */
 	struct conn_stream *cs; /* points to the conn-streams that owns the endpoint (connection or applet) */

@@ -57,6 +57,7 @@ struct conn_stream *cs_new(struct cs_endpoint *endp)
 
 	cs->obj_type = OBJ_TYPE_CS;
 	cs->flags = CS_FL_NONE;
+	cs->state = CS_ST_INI;
 	cs->hcto = TICK_ETERNITY;
 	cs->app = NULL;
 	cs->si = NULL;

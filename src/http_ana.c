@@ -4263,7 +4263,7 @@ void http_perform_server_redirect(struct stream *s, struct stream_interface *si)
 	si_shutr(si);
 	si_shutw(si);
 	s->conn_err_type = STRM_ET_NONE;
-	si->state = SI_ST_CLO;
+	si->cs->state = CS_ST_CLO;
 
 	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= SF_ERR_LOCAL;

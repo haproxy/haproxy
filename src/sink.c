@@ -329,7 +329,7 @@ static void sink_forward_io_handler(struct appctx *appctx)
 	/* if the connection is not established, inform the stream that we want
 	 * to be notified whenever the connection completes.
 	 */
-	if (cs_opposite(cs)->si->state < SI_ST_EST) {
+	if (cs_opposite(cs)->state < CS_ST_EST) {
 		si_cant_get(cs->si);
 		si_rx_conn_blk(cs->si);
 		si_rx_endp_more(cs->si);
@@ -368,7 +368,7 @@ static void sink_forward_io_handler(struct appctx *appctx)
 	 * the message so that we can take our reference there if we have to
 	 * stop before the end (ret=0).
 	 */
-	if (cs_opposite(cs)->si->state == SI_ST_EST) {
+	if (cs_opposite(cs)->state == CS_ST_EST) {
 		/* we were already there, adjust the offset to be relative to
 		 * the buffer's head and remove us from the counter.
 		 */
@@ -469,7 +469,7 @@ static void sink_forward_oc_io_handler(struct appctx *appctx)
 	/* if the connection is not established, inform the stream that we want
 	 * to be notified whenever the connection completes.
 	 */
-	if (cs_opposite(cs)->si->state < SI_ST_EST) {
+	if (cs_opposite(cs)->state < CS_ST_EST) {
 		si_cant_get(cs->si);
 		si_rx_conn_blk(cs->si);
 		si_rx_endp_more(cs->si);
@@ -508,7 +508,7 @@ static void sink_forward_oc_io_handler(struct appctx *appctx)
 	 * the message so that we can take our reference there if we have to
 	 * stop before the end (ret=0).
 	 */
-	if (cs_opposite(cs)->si->state == SI_ST_EST) {
+	if (cs_opposite(cs)->state == CS_ST_EST) {
 		/* we were already there, adjust the offset to be relative to
 		 * the buffer's head and remove us from the counter.
 		 */

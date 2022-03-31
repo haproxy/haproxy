@@ -27,6 +27,7 @@
 #include <haproxy/channel.h>
 #include <haproxy/connection.h>
 #include <haproxy/conn_stream.h>
+#include <haproxy/cs_utils.h>
 #include <haproxy/obj_type.h>
 
 extern struct si_ops si_embedded_ops;
@@ -101,14 +102,13 @@ static inline struct stream_interface *si_opposite(struct stream_interface *si)
 	return ((si->flags & SI_FL_ISBACK) ? strm->csf->si : strm->csb->si);
 }
 
-/* initializes a stream interface in the SI_ST_INI state and create the event
+/* initializes a stream interface and create the event
  * tasklet.
  */
 static inline int si_init(struct stream_interface *si)
 {
 	si->flags         &= SI_FL_ISBACK;
 	si->cs             = NULL;
-	si->state          = SI_ST_INI;
 	si->ops            = &si_embedded_ops;
 	si->wait_event.tasklet = tasklet_new();
 	if (!si->wait_event.tasklet)
@@ -119,36 +119,13 @@ static inline int si_init(struct stream_interface *si)
 	return 0;
 }
 
-/* sets the current and previous state of a stream interface to <state>. This
- * is mainly used to create one in the established state on incoming
- * conncetions.
- */
-static inline void si_set_state(struct stream_interface *si, int state)
-{
-	si->state = si_strm(si)->prev_conn_state = state;
-}
-
-/* returns a bit for a stream-int state, to match against SI_SB_* */
-static inline enum si_state_bit si_state_bit(enum si_state state)
-{
-	BUG_ON(state > SI_ST_CLO);
-	return 1U << state;
-}
-
-/* returns true if <state> matches one of the SI_SB_* bits in <mask> */
-static inline int si_state_in(enum si_state state, enum si_state_bit mask)
-{
-	BUG_ON(mask & ~SI_SB_ALL);
-	return !!(si_state_bit(state) & mask);
-}
-
 /* call the applet's release function if any. Needs to be called upon close() */
 static inline void si_applet_release(struct stream_interface *si)
 {
 	struct appctx *appctx;
 
 	appctx = __cs_appctx(si->cs);
-	if (appctx->applet->release && !si_state_in(si->state, SI_SB_DIS|SI_SB_CLO))
+	if (appctx->applet->release && !cs_state_in(si->cs->state, CS_SB_DIS|CS_SB_CLO))
 		appctx->applet->release(appctx);
 }
 
@@ -334,13 +311,13 @@ static inline void si_shutw(struct stream_interface *si)
  */
 static inline void si_chk_rcv(struct stream_interface *si)
 {
-	if (si->flags & SI_FL_RXBLK_CONN && si_state_in(si_opposite(si)->state, SI_SB_RDY|SI_SB_EST|SI_SB_DIS|SI_SB_CLO))
+	if (si->flags & SI_FL_RXBLK_CONN && cs_state_in(si_opposite(si)->cs->state, CS_SB_RDY|CS_SB_EST|CS_SB_DIS|CS_SB_CLO))
 		si_rx_conn_rdy(si);
 
 	if (si_rx_blocked(si) || !si_rx_endp_ready(si))
 		return;
 
-	if (!si_state_in(si->state, SI_SB_RDY|SI_SB_EST))
+	if (!cs_state_in(si->cs->state, CS_SB_RDY|CS_SB_EST))
 		return;
 
 	si->flags |= SI_FL_RX_WAIT_EP;
@@ -372,7 +349,7 @@ static inline int si_connect(struct stream_interface *si, struct connection *con
 			return ret;
 
 		/* we're in the process of establishing a connection */
-		si->state = SI_ST_CON;
+		si->cs->state = CS_ST_CON;
 	}
 	else {
 		/* try to reuse the existing connection, it will be
@@ -380,9 +357,9 @@ static inline int si_connect(struct stream_interface *si, struct connection *con
 		 */
 		/* Is the connection really ready ? */
 		if (conn->mux->ctl(conn, MUX_STATUS, NULL) & MUX_STATUS_READY)
-			si->state = SI_ST_RDY;
+			si->cs->state = CS_ST_RDY;
 		else
-			si->state = SI_ST_CON;
+			si->cs->state = CS_ST_CON;
 	}
 
 	/* needs src ip/port for logging */
@@ -397,25 +374,6 @@ static inline void si_update(struct stream_interface *si)
 {
 	si_update_rx(si);
 	si_update_tx(si);
-}
-
-/* for debugging, reports the stream interface state name */
-static inline const char *si_state_str(int state)
-{
-	switch (state) {
-	case SI_ST_INI: return "INI";
-	case SI_ST_REQ: return "REQ";
-	case SI_ST_QUE: return "QUE";
-	case SI_ST_TAR: return "TAR";
-	case SI_ST_ASS: return "ASS";
-	case SI_ST_CON: return "CON";
-	case SI_ST_CER: return "CER";
-	case SI_ST_RDY: return "RDY";
-	case SI_ST_EST: return "EST";
-	case SI_ST_DIS: return "DIS";
-	case SI_ST_CLO: return "CLO";
-	default:        return "???";
-	}
 }
 
 #endif /* _HAPROXY_STREAM_INTERFACE_H */

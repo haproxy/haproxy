@@ -1292,7 +1292,7 @@ static int connect_server(struct stream *s)
 
 	/* do not reuse if mode is not http */
 	if (!IS_HTX_STRM(s)) {
-		DBG_TRACE_STATE("skip idle connections reuse: no htx", STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
+		DBG_TRACE_STATE("skip idle connections reuse: no htx", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 		goto skip_reuse;
 	}
 
@@ -1301,7 +1301,7 @@ static int connect_server(struct stream *s)
 	 */
 	if (unlikely(s->flags & SF_WEBSOCKET) && srv) {
 		if (!srv_check_reuse_ws(srv)) {
-			DBG_TRACE_STATE("skip idle connections reuse: websocket stream", STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
+			DBG_TRACE_STATE("skip idle connections reuse: websocket stream", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 			goto skip_reuse;
 		}
 	}
@@ -1345,7 +1345,7 @@ static int connect_server(struct stream *s)
 	/* first, search for a matching connection in the session's idle conns */
 	srv_conn = session_get_conn(s->sess, s->target, hash);
 	if (srv_conn) {
-		DBG_TRACE_STATE("reuse connection from session", STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
+		DBG_TRACE_STATE("reuse connection from session", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 		reuse = 1;
 	}
 
@@ -1371,7 +1371,7 @@ static int connect_server(struct stream *s)
 		if (!eb_is_empty(&srv->per_thr[tid].avail_conns)) {
 			srv_conn = srv_lookup_conn(&srv->per_thr[tid].avail_conns, hash);
 			if (srv_conn) {
-				DBG_TRACE_STATE("reuse connection from avail", STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
+				DBG_TRACE_STATE("reuse connection from avail", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 				reuse = 1;
 			}
 		}
@@ -1405,7 +1405,7 @@ static int connect_server(struct stream *s)
 			}
 
 			if (srv_conn) {
-				DBG_TRACE_STATE("reuse connection from idle/safe", STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
+				DBG_TRACE_STATE("reuse connection from idle/safe", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 				reuse = 1;
 			}
 		}
@@ -1516,7 +1516,7 @@ skip_reuse:
 	if (!srv_conn) {
 		srv_conn = conn_new(s->target);
 		if (srv_conn) {
-			DBG_TRACE_STATE("alloc new be connection", STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
+			DBG_TRACE_STATE("alloc new be connection", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 			srv_conn->owner = s->sess;
 
 			/* connection will be attached to the session if
@@ -1619,7 +1619,7 @@ skip_reuse:
 			}
 
 			if (!conn_update_alpn(srv_conn, ist(alpn), force))
-				DBG_TRACE_STATE("update alpn for websocket", STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
+				DBG_TRACE_STATE("update alpn for websocket", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 		}
 #endif
 	}
@@ -1740,7 +1740,7 @@ skip_reuse:
 	}
 
 	/* Now handle synchronously connected sockets. We know the stream-int
-	 * is at least in state SI_ST_CON. These ones typically are UNIX
+	 * is at least in state CS_ST_CON. These ones typically are UNIX
 	 * sockets, socket pairs, andoccasionally TCP connections on the
 	 * loopback on a heavily loaded system.
 	 */
@@ -1755,12 +1755,12 @@ skip_reuse:
 	if (!(srv_conn->flags & (CO_FL_WAIT_XPRT | CO_FL_EARLY_SSL_HS)))
 		s->csb->endp->flags &= ~CS_EP_WAIT_FOR_HS;
 
-	if (!si_state_in(cs_si(s->csb)->state, SI_SB_EST|SI_SB_DIS|SI_SB_CLO) &&
+	if (!cs_state_in(s->csb->state, CS_SB_EST|CS_SB_DIS|CS_SB_CLO) &&
 	    (srv_conn->flags & CO_FL_WAIT_XPRT) == 0) {
 		s->conn_exp = TICK_ETERNITY;
 		cs_oc(s->csb)->flags |= CF_WRITE_NULL;
-		if (cs_si(s->csb)->state == SI_ST_CON)
-			cs_si(s->csb)->state = SI_ST_RDY;
+		if (s->csb->state == CS_ST_CON)
+			s->csb->state = CS_ST_RDY;
 	}
 
 	/* Report EOI on the channel if it was reached from the mux point of
@@ -1843,7 +1843,7 @@ int srv_redispatch_connect(struct stream *s)
 
 	case SRV_STATUS_QUEUED:
 		s->conn_exp = tick_add_ifset(now_ms, s->be->timeout.queue);
-		cs_si(s->csb)->state = SI_ST_QUE;
+		s->csb->state = CS_ST_QUE;
 		/* do nothing else and do not wake any other stream up */
 		return 1;
 
@@ -1880,10 +1880,10 @@ static int back_may_abort_req(struct channel *req, struct stream *s)
 	         (channel_is_empty(req) || (s->be->options & PR_O_ABRT_CLOSE))));
 }
 
-/* Update back stream interface status for input states SI_ST_ASS, SI_ST_QUE,
- * SI_ST_TAR. Other input states are simply ignored.
- * Possible output states are SI_ST_CLO, SI_ST_TAR, SI_ST_ASS, SI_ST_REQ, SI_ST_CON
- * and SI_ST_EST. Flags must have previously been updated for timeouts and other
+/* Update back stream interface status for input states CS_ST_ASS, CS_ST_QUE,
+ * CS_ST_TAR. Other input states are simply ignored.
+ * Possible output states are CS_ST_CLO, CS_ST_TAR, CS_ST_ASS, CS_ST_REQ, CS_ST_CON
+ * and CS_ST_EST. Flags must have previously been updated for timeouts and other
  * conditions.
  */
 void back_try_conn_req(struct stream *s)
@@ -1892,9 +1892,9 @@ void back_try_conn_req(struct stream *s)
 	struct conn_stream *cs = s->csb;
 	struct channel *req = &s->req;
 
-	DBG_TRACE_ENTER(STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
+	DBG_TRACE_ENTER(STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 
-	if (cs->si->state == SI_ST_ASS) {
+	if (cs->state == CS_ST_ASS) {
 		/* Server assigned to connection request, we have to try to connect now */
 		int conn_err;
 
@@ -1903,7 +1903,7 @@ void back_try_conn_req(struct stream *s)
 		 */
 		if (back_may_abort_req(req, s)) {
 			s->conn_err_type |= STRM_ET_CONN_ABRT;
-			DBG_TRACE_STATE("connection aborted", STRM_EV_STRM_PROC|STRM_EV_SI_ST|STRM_EV_STRM_ERR, s);
+			DBG_TRACE_STATE("connection aborted", STRM_EV_STRM_PROC|STRM_EV_CS_ST|STRM_EV_STRM_ERR, s);
 			goto abort_connection;
 		}
 
@@ -1911,12 +1911,12 @@ void back_try_conn_req(struct stream *s)
 		srv = objt_server(s->target);
 
 		if (conn_err == SF_ERR_NONE) {
-			/* state = SI_ST_CON or SI_ST_EST now */
+			/* state = CS_ST_CON or CS_ST_EST now */
 			if (srv)
 				srv_inc_sess_ctr(srv);
 			if (srv)
 				srv_set_sess_last(srv);
-			DBG_TRACE_STATE("connection attempt", STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
+			DBG_TRACE_STATE("connection attempt", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 			goto end;
 		}
 
@@ -1952,10 +1952,10 @@ void back_try_conn_req(struct stream *s)
 			pendconn_cond_unlink(s->pend_pos);
 
 			/* no stream was ever accounted for this server */
-			cs->si->state = SI_ST_CLO;
+			cs->state = CS_ST_CLO;
 			if (s->srv_error)
 				s->srv_error(s, cs->si);
-			DBG_TRACE_STATE("internal error during connection", STRM_EV_STRM_PROC|STRM_EV_SI_ST|STRM_EV_STRM_ERR, s);
+			DBG_TRACE_STATE("internal error during connection", STRM_EV_STRM_PROC|STRM_EV_CS_ST|STRM_EV_STRM_ERR, s);
 			goto end;
 		}
 
@@ -1963,14 +1963,14 @@ void back_try_conn_req(struct stream *s)
 		 * turn-around now, as the problem is likely a source port
 		 * allocation problem, so we want to retry now.
 		 */
-		cs->si->state = SI_ST_CER;
+		cs->state = CS_ST_CER;
 		cs->endp->flags &= ~CS_EP_ERROR;
 		back_handle_st_cer(s);
 
-		DBG_TRACE_STATE("connection error, retry", STRM_EV_STRM_PROC|STRM_EV_SI_ST|STRM_EV_STRM_ERR, s);
-		/* now si->state is one of SI_ST_CLO, SI_ST_TAR, SI_ST_ASS, SI_ST_REQ */
+		DBG_TRACE_STATE("connection error, retry", STRM_EV_STRM_PROC|STRM_EV_CS_ST|STRM_EV_STRM_ERR, s);
+		/* now cs->state is one of CS_ST_CLO, CS_ST_TAR, CS_ST_ASS, CS_ST_REQ */
 	}
-	else if (cs->si->state == SI_ST_QUE) {
+	else if (cs->state == CS_ST_QUE) {
 		/* connection request was queued, check for any update */
 		if (!pendconn_dequeue(s)) {
 			/* The connection is not in the queue anymore. Either
@@ -1980,12 +1980,12 @@ void back_try_conn_req(struct stream *s)
 			 */
 			s->conn_exp = TICK_ETERNITY;
 			if (unlikely(!(s->flags & SF_ASSIGNED)))
-				cs->si->state = SI_ST_REQ;
+				cs->state = CS_ST_REQ;
 			else {
 				s->logs.t_queue = tv_ms_elapsed(&s->logs.tv_accept, &now);
-				cs->si->state = SI_ST_ASS;
+				cs->state = CS_ST_ASS;
 			}
-			DBG_TRACE_STATE("dequeue connection request", STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
+			DBG_TRACE_STATE("dequeue connection request", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 			goto end;
 		}
 
@@ -2007,10 +2007,10 @@ void back_try_conn_req(struct stream *s)
 			req->flags |= CF_WRITE_TIMEOUT;
 			if (!s->conn_err_type)
 				s->conn_err_type = STRM_ET_QUEUE_TO;
-			cs->si->state = SI_ST_CLO;
+			cs->state = CS_ST_CLO;
 			if (s->srv_error)
 				s->srv_error(s, cs->si);
-			DBG_TRACE_STATE("connection request still queued", STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
+			DBG_TRACE_STATE("connection request still queued", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 			goto end;
 		}
 
@@ -2022,17 +2022,17 @@ void back_try_conn_req(struct stream *s)
 			pendconn_cond_unlink(s->pend_pos);
 
 			s->conn_err_type |= STRM_ET_QUEUE_ABRT;
-			DBG_TRACE_STATE("abort queued connection request", STRM_EV_STRM_PROC|STRM_EV_SI_ST|STRM_EV_STRM_ERR, s);
+			DBG_TRACE_STATE("abort queued connection request", STRM_EV_STRM_PROC|STRM_EV_CS_ST|STRM_EV_STRM_ERR, s);
 			goto abort_connection;
 		}
 
 		/* Nothing changed */
 	}
-	else if (cs->si->state == SI_ST_TAR) {
+	else if (cs->state == CS_ST_TAR) {
 		/* Connection request might be aborted */
 		if (back_may_abort_req(req, s)) {
 			s->conn_err_type |= STRM_ET_CONN_ABRT;
-			DBG_TRACE_STATE("connection aborted", STRM_EV_STRM_PROC|STRM_EV_SI_ST|STRM_EV_STRM_ERR, s);
+			DBG_TRACE_STATE("connection aborted", STRM_EV_STRM_PROC|STRM_EV_CS_ST|STRM_EV_STRM_ERR, s);
 			goto abort_connection;
 		}
 
@@ -2047,15 +2047,15 @@ void back_try_conn_req(struct stream *s)
 		 * FIXME: Should we force a redispatch attempt when the server is down ?
 		 */
 		if (s->flags & SF_ASSIGNED)
-			cs->si->state = SI_ST_ASS;
+			cs->state = CS_ST_ASS;
 		else
-			cs->si->state = SI_ST_REQ;
+			cs->state = CS_ST_REQ;
 
-		DBG_TRACE_STATE("retry connection now", STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
+		DBG_TRACE_STATE("retry connection now", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 	}
 
   end:
-	DBG_TRACE_LEAVE(STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
+	DBG_TRACE_LEAVE(STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 	return;
 
 abort_connection:
@@ -2064,27 +2064,27 @@ abort_connection:
 	s->flags &= ~SF_CONN_EXP;
 	si_shutr(cs->si);
 	si_shutw(cs->si);
-	cs->si->state = SI_ST_CLO;
+	cs->state = CS_ST_CLO;
 	if (s->srv_error)
 		s->srv_error(s, cs->si);
-	DBG_TRACE_DEVEL("leaving on error", STRM_EV_STRM_PROC|STRM_EV_SI_ST|STRM_EV_STRM_ERR, s);
+	DBG_TRACE_DEVEL("leaving on error", STRM_EV_STRM_PROC|STRM_EV_CS_ST|STRM_EV_STRM_ERR, s);
 	return;
 }
 
 /* This function initiates a server connection request on a stream interface
- * already in SI_ST_REQ state. Upon success, the state goes to SI_ST_ASS for
+ * already in CS_ST_REQ state. Upon success, the state goes to CS_ST_ASS for
  * a real connection to a server, indicating that a server has been assigned,
- * or SI_ST_EST for a successful connection to an applet. It may also return
- * SI_ST_QUE, or SI_ST_CLO upon error.
+ * or CS_ST_EST for a successful connection to an applet. It may also return
+ * CS_ST_QUE, or CS_ST_CLO upon error.
  */
 void back_handle_st_req(struct stream *s)
 {
 	struct conn_stream *cs = s->csb;
 
-	if (cs->si->state != SI_ST_REQ)
+	if (cs->state != CS_ST_REQ)
 		return;
 
-	DBG_TRACE_ENTER(STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
+	DBG_TRACE_ENTER(STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 
 	if (unlikely(obj_type(s->target) == OBJ_TYPE_APPLET)) {
 		/* the applet directly goes to the EST state */
@@ -2104,21 +2104,21 @@ void back_handle_st_req(struct stream *s)
 			si_shutw(cs->si);
 			s->req.flags |= CF_WRITE_ERROR;
 			s->conn_err_type = STRM_ET_CONN_RES;
-			cs->si->state = SI_ST_CLO;
+			cs->state = CS_ST_CLO;
 			if (s->srv_error)
 				s->srv_error(s, cs->si);
-			DBG_TRACE_STATE("failed to register applet", STRM_EV_STRM_PROC|STRM_EV_SI_ST|STRM_EV_STRM_ERR, s);
+			DBG_TRACE_STATE("failed to register applet", STRM_EV_STRM_PROC|STRM_EV_CS_ST|STRM_EV_STRM_ERR, s);
 			goto end;
 		}
 
 		if (tv_iszero(&s->logs.tv_request))
 			s->logs.tv_request = now;
 		s->logs.t_queue   = tv_ms_elapsed(&s->logs.tv_accept, &now);
-		cs->si->state     = SI_ST_EST;
+		cs->state     = CS_ST_EST;
 		s->conn_err_type  = STRM_ET_NONE;
 		be_set_sess_last(s->be);
 
-		DBG_TRACE_STATE("applet registered", STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
+		DBG_TRACE_STATE("applet registered", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 		/* let back_establish() finish the job */
 		goto end;
 	}
@@ -2128,8 +2128,8 @@ void back_handle_st_req(struct stream *s)
 		/* We did not get a server. Either we queued the
 		 * connection request, or we encountered an error.
 		 */
-		if (cs->si->state == SI_ST_QUE) {
-			DBG_TRACE_STATE("connection request queued", STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
+		if (cs->state == CS_ST_QUE) {
+			DBG_TRACE_STATE("connection request queued", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 			goto end;
 		}
 
@@ -2139,27 +2139,27 @@ void back_handle_st_req(struct stream *s)
 		s->req.flags |= CF_WRITE_ERROR;
 		if (!s->conn_err_type)
 			s->conn_err_type = STRM_ET_CONN_OTHER;
-		cs->si->state = SI_ST_CLO;
+		cs->state = CS_ST_CLO;
 		if (s->srv_error)
 			s->srv_error(s, cs->si);
-		DBG_TRACE_STATE("connection request failed", STRM_EV_STRM_PROC|STRM_EV_SI_ST|STRM_EV_STRM_ERR, s);
+		DBG_TRACE_STATE("connection request failed", STRM_EV_STRM_PROC|STRM_EV_CS_ST|STRM_EV_STRM_ERR, s);
 		goto end;
 	}
 
 	/* The server is assigned */
 	s->logs.t_queue = tv_ms_elapsed(&s->logs.tv_accept, &now);
-	cs->si->state = SI_ST_ASS;
+	cs->state = CS_ST_ASS;
 	be_set_sess_last(s->be);
-	DBG_TRACE_STATE("connection request assigned to a server", STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
+	DBG_TRACE_STATE("connection request assigned to a server", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 
   end:
-	DBG_TRACE_LEAVE(STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
+	DBG_TRACE_LEAVE(STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 }
 
-/* This function is called with (si->state == SI_ST_CON) meaning that a
+/* This function is called with (cs->state == CS_ST_CON) meaning that a
  * connection was attempted and that the file descriptor is already allocated.
  * We must check for timeout, error and abort. Possible output states are
- * SI_ST_CER (error), SI_ST_DIS (abort), and SI_ST_CON (no change). This only
+ * CS_ST_CER (error), CS_ST_DIS (abort), and CS_ST_CON (no change). This only
  * works with connection-based streams. We know that there were no I/O event
  * when reaching this function. Timeouts and errors are *not* cleared.
  */
@@ -2169,7 +2169,7 @@ void back_handle_st_con(struct stream *s)
 	struct channel *req = &s->req;
 	struct channel *rep = &s->res;
 
-	DBG_TRACE_ENTER(STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
+	DBG_TRACE_ENTER(STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 
 	/* the client might want to abort */
 	if ((rep->flags & CF_SHUTW) ||
@@ -2180,8 +2180,8 @@ void back_handle_st_con(struct stream *s)
 		s->conn_err_type |= STRM_ET_CONN_ABRT;
 		if (s->srv_error)
 			s->srv_error(s, cs->si);
-		/* Note: state = SI_ST_DIS now */
-		DBG_TRACE_STATE("client abort during connection attempt", STRM_EV_STRM_PROC|STRM_EV_SI_ST|STRM_EV_STRM_ERR, s);
+		/* Note: state = CS_ST_DIS now */
+		DBG_TRACE_STATE("client abort during connection attempt", STRM_EV_STRM_PROC|STRM_EV_CS_ST|STRM_EV_STRM_ERR, s);
 		goto end;
 	}
 
@@ -2195,21 +2195,21 @@ void back_handle_st_con(struct stream *s)
 				s->conn_err_type = STRM_ET_CONN_TO;
 		}
 
-		cs->si->state  = SI_ST_CER;
-		DBG_TRACE_STATE("connection failed, retry", STRM_EV_STRM_PROC|STRM_EV_SI_ST|STRM_EV_STRM_ERR, s);
+		cs->state  = CS_ST_CER;
+		DBG_TRACE_STATE("connection failed, retry", STRM_EV_STRM_PROC|STRM_EV_CS_ST|STRM_EV_STRM_ERR, s);
 	}
 
  end:
-	DBG_TRACE_LEAVE(STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
+	DBG_TRACE_LEAVE(STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 }
 
-/* This function is called with (si->state == SI_ST_CER) meaning that a
+/* This function is called with (cs->state == CS_ST_CER) meaning that a
  * previous connection attempt has failed and that the file descriptor
  * has already been released. Possible causes include asynchronous error
- * notification and time out. Possible output states are SI_ST_CLO when
- * retries are exhausted, SI_ST_TAR when a delay is wanted before a new
- * connection attempt, SI_ST_ASS when it's wise to retry on the same server,
- * and SI_ST_REQ when an immediate redispatch is wanted. The buffers are
+ * notification and time out. Possible output states are CS_ST_CLO when
+ * retries are exhausted, CS_ST_TAR when a delay is wanted before a new
+ * connection attempt, CS_ST_ASS when it's wise to retry on the same server,
+ * and CS_ST_REQ when an immediate redispatch is wanted. The buffers are
  * marked as in error state. Timeouts and errors are cleared before retrying.
  */
 void back_handle_st_cer(struct stream *s)
@@ -2217,7 +2217,7 @@ void back_handle_st_cer(struct stream *s)
 	struct conn_stream *cs = s->csb;
 	int must_tar = (cs->endp->flags & CS_EP_ERROR);
 
-	DBG_TRACE_ENTER(STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
+	DBG_TRACE_ENTER(STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 
 	s->conn_exp = TICK_ETERNITY;
 	s->flags &= ~SF_CONN_EXP;
@@ -2254,7 +2254,7 @@ void back_handle_st_cer(struct stream *s)
 			 * client provoke retries.
 			 */
 			s->conn_retries = s->be->conn_retries;
-			DBG_TRACE_DEVEL("Bad SSL cert, disable connection retries", STRM_EV_STRM_PROC|STRM_EV_SI_ST|STRM_EV_STRM_ERR, s);
+			DBG_TRACE_DEVEL("Bad SSL cert, disable connection retries", STRM_EV_STRM_PROC|STRM_EV_CS_ST|STRM_EV_STRM_ERR, s);
 		}
 	}
 
@@ -2276,11 +2276,11 @@ void back_handle_st_cer(struct stream *s)
 		s->req.flags |= CF_WRITE_ERROR;
 		s->res.flags |= CF_READ_ERROR;
 
-		cs->si->state = SI_ST_CLO;
+		cs->state = CS_ST_CLO;
 		if (s->srv_error)
 			s->srv_error(s, cs->si);
 
-		DBG_TRACE_STATE("connection failed", STRM_EV_STRM_PROC|STRM_EV_SI_ST|STRM_EV_STRM_ERR, s);
+		DBG_TRACE_STATE("connection failed", STRM_EV_STRM_PROC|STRM_EV_CS_ST|STRM_EV_STRM_ERR, s);
 		goto end;
 	}
 
@@ -2310,11 +2310,11 @@ void back_handle_st_cer(struct stream *s)
 		s->req.flags |= CF_WRITE_ERROR;
 		s->res.flags |= CF_READ_ERROR;
 
-		cs->si->state = SI_ST_CLO;
+		cs->state = CS_ST_CLO;
 		if (s->srv_error)
 			s->srv_error(s, cs->si);
 
-		DBG_TRACE_STATE("error resetting endpoint", STRM_EV_STRM_PROC|STRM_EV_SI_ST|STRM_EV_STRM_ERR, s);
+		DBG_TRACE_STATE("error resetting endpoint", STRM_EV_STRM_PROC|STRM_EV_CS_ST|STRM_EV_STRM_ERR, s);
 		goto end;
 	}
 
@@ -2340,24 +2340,24 @@ void back_handle_st_cer(struct stream *s)
 			s->conn_err_type = STRM_ET_CONN_ERR;
 
 		/* only wait when we're retrying on the same server */
-		if ((cs->si->state == SI_ST_ASS ||
+		if ((cs->state == CS_ST_ASS ||
 		     (s->be->lbprm.algo & BE_LB_KIND) != BE_LB_KIND_RR ||
 		     (s->be->srv_act <= 1)) && !reused) {
-			cs->si->state = SI_ST_TAR;
+			cs->state = CS_ST_TAR;
 			s->conn_exp = tick_add(now_ms, MS_TO_TICKS(delay));
 		}
-		DBG_TRACE_STATE("retry a new connection", STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
+		DBG_TRACE_STATE("retry a new connection", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 	}
 
   end:
-	DBG_TRACE_LEAVE(STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
+	DBG_TRACE_LEAVE(STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 }
 
-/* This function is called with (si->state == SI_ST_RDY) meaning that a
+/* This function is called with (cs->state == CS_ST_RDY) meaning that a
  * connection was attempted, that the file descriptor is already allocated,
  * and that it has succeeded. We must still check for errors and aborts.
- * Possible output states are SI_ST_EST (established), SI_ST_CER (error),
- * and SI_ST_DIS (abort). This only works with connection-based streams.
+ * Possible output states are CS_ST_EST (established), CS_ST_CER (error),
+ * and CS_ST_DIS (abort). This only works with connection-based streams.
  * Timeouts and errors are *not* cleared.
  */
 void back_handle_st_rdy(struct stream *s)
@@ -2366,7 +2366,7 @@ void back_handle_st_rdy(struct stream *s)
 	struct channel *req = &s->req;
 	struct channel *rep = &s->res;
 
-	DBG_TRACE_ENTER(STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
+	DBG_TRACE_ENTER(STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 	/* We know the connection at least succeeded, though it could have
 	 * since met an error for any other reason. At least it didn't time out
 	 * even though the timeout might have been reported right after success.
@@ -2375,7 +2375,7 @@ void back_handle_st_rdy(struct stream *s)
 	 *   - an I/O error might have been reported after a successful transfer,
 	 *     which is not retryable and needs to be logged correctly, and needs
 	 *     established as well
-	 *   - SI_ST_CON implies !CF_WROTE_DATA but not conversely as we could
+	 *   - CS_ST_CON implies !CF_WROTE_DATA but not conversely as we could
 	 *     have validated a connection with incoming data (e.g. TCP with a
 	 *     banner protocol), or just a successful connect() probe.
 	 *   - the client might have requested a connection abort, this needs to
@@ -2396,7 +2396,7 @@ void back_handle_st_rdy(struct stream *s)
 			s->conn_err_type |= STRM_ET_CONN_ABRT;
 			if (s->srv_error)
 				s->srv_error(s, cs->si);
-			DBG_TRACE_STATE("client abort during connection attempt", STRM_EV_STRM_PROC|STRM_EV_SI_ST|STRM_EV_STRM_ERR, s);
+			DBG_TRACE_STATE("client abort during connection attempt", STRM_EV_STRM_PROC|STRM_EV_CS_ST|STRM_EV_STRM_ERR, s);
 			goto end;
 		}
 
@@ -2404,8 +2404,8 @@ void back_handle_st_rdy(struct stream *s)
 		if (cs->endp->flags & CS_EP_ERROR) {
 			if (!s->conn_err_type)
 				s->conn_err_type = STRM_ET_CONN_ERR;
-			cs->si->state = SI_ST_CER;
-			DBG_TRACE_STATE("connection failed, retry", STRM_EV_STRM_PROC|STRM_EV_SI_ST|STRM_EV_STRM_ERR, s);
+			cs->state = CS_ST_CER;
+			DBG_TRACE_STATE("connection failed, retry", STRM_EV_STRM_PROC|STRM_EV_CS_ST|STRM_EV_STRM_ERR, s);
 			goto end;
 		}
 	}
@@ -2413,12 +2413,12 @@ void back_handle_st_rdy(struct stream *s)
 	/* data were sent and/or we had no error, back_establish() will
 	 * now take over.
 	 */
-	DBG_TRACE_STATE("connection established", STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
+	DBG_TRACE_STATE("connection established", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 	s->conn_err_type = STRM_ET_NONE;
-	cs->si->state = SI_ST_EST;
+	cs->state = CS_ST_EST;
 
   end:
-	DBG_TRACE_LEAVE(STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
+	DBG_TRACE_LEAVE(STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 }
 
 /* sends a log message when a backend goes down, and also sets last

@@ -101,6 +101,42 @@ enum cs_shw_mode {
 	CS_SHW_SILENT       = 1,           /* imminent close, don't notify peer */
 };
 
+/* A conn stream must have its own errors independently of the buffer's, so that
+ * applications can rely on what the buffer reports while the conn stream is
+ * performing some retries (eg: connection error). Some states are transient and
+ * do not last beyond process_session().
+ */
+enum cs_state {
+	CS_ST_INI = 0,           /* CS not sollicitated yet */
+	CS_ST_REQ,               /* [transient] connection initiation desired and not started yet */
+	CS_ST_QUE,               /* CS waiting in queue */
+	CS_ST_TAR,               /* CS in turn-around state after failed connect attempt */
+	CS_ST_ASS,               /* server just assigned to this CS */
+	CS_ST_CON,               /* initiated connection request (resource exists) */
+	CS_ST_CER,               /* [transient] previous connection attempt failed (resource released) */
+	CS_ST_RDY,               /* [transient] ready proven after I/O success during CS_ST_CON */
+	CS_ST_EST,               /* connection established (resource exists) */
+	CS_ST_DIS,               /* [transient] disconnected from other side, but cleanup not done yet */
+	CS_ST_CLO,               /* CS closed, might not existing anymore. Buffers shut. */
+} __attribute__((packed));
+
+/* state bits for use with lists of states */
+enum cs_state_bit {
+	CS_SB_NONE = 0,
+	CS_SB_INI = 1U << CS_ST_INI,
+	CS_SB_REQ = 1U << CS_ST_REQ,
+	CS_SB_QUE = 1U << CS_ST_QUE,
+	CS_SB_TAR = 1U << CS_ST_TAR,
+	CS_SB_ASS = 1U << CS_ST_ASS,
+	CS_SB_CON = 1U << CS_ST_CON,
+	CS_SB_CER = 1U << CS_ST_CER,
+	CS_SB_RDY = 1U << CS_ST_RDY,
+	CS_SB_EST = 1U << CS_ST_EST,
+	CS_SB_DIS = 1U << CS_ST_DIS,
+	CS_SB_CLO = 1U << CS_ST_CLO,
+	CS_SB_ALL = CS_SB_INI|CS_SB_REQ|CS_SB_QUE|CS_SB_TAR|CS_SB_ASS|CS_SB_CON|CS_SB_CER|CS_SB_RDY|CS_SB_EST|CS_SB_DIS|CS_SB_CLO,
+};
+
 struct conn_stream;
 
 /* data_cb describes the data layer's recv and send callbacks which are called
@@ -127,7 +163,9 @@ struct cs_endpoint {
  */
 struct conn_stream {
 	enum obj_type obj_type;              /* differentiates connection from applet context */
-	/* 3 bytes hole here */
+	enum cs_state state;                 /* CS_ST* */
+	/* 2 bytes hole here */
+
 	unsigned int flags;                  /* CS_FL_* */
 	unsigned int hcto;                   /* half-closed timeout (0 = unset) */
 	struct cs_endpoint *endp;            /* points to the end point (MUX stream or appctx) */

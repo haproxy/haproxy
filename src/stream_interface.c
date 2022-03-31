@@ -175,11 +175,11 @@ static void stream_int_shutr(struct stream_interface *si)
 	ic->flags |= CF_SHUTR;
 	ic->rex = TICK_ETERNITY;
 
-	if (!si_state_in(si->state, SI_SB_CON|SI_SB_RDY|SI_SB_EST))
+	if (!cs_state_in(si->cs->state, CS_SB_CON|CS_SB_RDY|CS_SB_EST))
 		return;
 
 	if (si_oc(si)->flags & CF_SHUTW) {
-		si->state = SI_ST_DIS;
+		si->cs->state = CS_ST_DIS;
 		__cs_strm(si->cs)->conn_exp = TICK_ETERNITY;
 	}
 	else if (si->cs->flags & CS_FL_NOHALF) {
@@ -216,9 +216,9 @@ static void stream_int_shutw(struct stream_interface *si)
 		ic->rex = tick_add(now_ms, ic->rto);
 	}
 
-	switch (si->state) {
-	case SI_ST_RDY:
-	case SI_ST_EST:
+	switch (si->cs->state) {
+	case CS_ST_RDY:
+	case CS_ST_EST:
 		/* we have to shut before closing, otherwise some short messages
 		 * may never leave the system, especially when there are remaining
 		 * unread data in the socket input buffer, or when nolinger is set.
@@ -230,12 +230,12 @@ static void stream_int_shutw(struct stream_interface *si)
 			return;
 
 		/* fall through */
-	case SI_ST_CON:
-	case SI_ST_CER:
-	case SI_ST_QUE:
-	case SI_ST_TAR:
+	case CS_ST_CON:
+	case CS_ST_CER:
+	case CS_ST_QUE:
+	case CS_ST_TAR:
 		/* Note that none of these states may happen with applets */
-		si->state = SI_ST_DIS;
+		si->cs->state = CS_ST_DIS;
 		/* fall through */
 	default:
 		si->cs->flags &= ~CS_FL_NOLINGER;
@@ -255,9 +255,9 @@ static void stream_int_chk_rcv(struct stream_interface *si)
 {
 	struct channel *ic = si_ic(si);
 
-	DPRINTF(stderr, "%s: si=%p, si->state=%d ic->flags=%08x oc->flags=%08x\n",
+	DPRINTF(stderr, "%s: si=%p, cs->state=%d ic->flags=%08x oc->flags=%08x\n",
 		__FUNCTION__,
-		si, si->state, ic->flags, si_oc(si)->flags);
+		si, si->cs->state, ic->flags, si_oc(si)->flags);
 
 	if (ic->pipe) {
 		/* stop reading */
@@ -276,11 +276,11 @@ static void stream_int_chk_snd(struct stream_interface *si)
 {
 	struct channel *oc = si_oc(si);
 
-	DPRINTF(stderr, "%s: si=%p, si->state=%d ic->flags=%08x oc->flags=%08x\n",
+	DPRINTF(stderr, "%s: si=%p, cs->state=%d ic->flags=%08x oc->flags=%08x\n",
 		__FUNCTION__,
-		si, si->state, si_ic(si)->flags, oc->flags);
+		si, si->cs->state, si_ic(si)->flags, oc->flags);
 
-	if (unlikely(si->state != SI_ST_EST || (oc->flags & CF_SHUTW)))
+	if (unlikely(si->cs->state != CS_ST_EST || (oc->flags & CF_SHUTW)))
 		return;
 
 	if (!(si->flags & SI_FL_WAIT_DATA) ||        /* not waiting for data */
@@ -439,7 +439,7 @@ static void stream_int_notify(struct stream_interface *si)
 		struct connection *conn = cs_conn(si->cs);
 
 		if (((oc->flags & (CF_SHUTW|CF_SHUTW_NOW)) == CF_SHUTW_NOW) &&
-		    (si->state == SI_ST_EST) && (!conn || !(conn->flags & (CO_FL_WAIT_XPRT | CO_FL_EARLY_SSL_HS))))
+		    (si->cs->state == CS_ST_EST) && (!conn || !(conn->flags & (CO_FL_WAIT_XPRT | CO_FL_EARLY_SSL_HS))))
 			si_shutw(si);
 		oc->wex = TICK_ETERNITY;
 	}
@@ -520,10 +520,10 @@ static void stream_int_notify(struct stream_interface *si)
 	/* wake the task up only when needed */
 	if (/* changes on the production side */
 	    (ic->flags & (CF_READ_NULL|CF_READ_ERROR)) ||
-	    !si_state_in(si->state, SI_SB_CON|SI_SB_RDY|SI_SB_EST) ||
+	    !cs_state_in(si->cs->state, CS_SB_CON|CS_SB_RDY|CS_SB_EST) ||
 	    (si->cs->endp->flags & CS_EP_ERROR) ||
 	    ((ic->flags & CF_READ_PARTIAL) &&
-	     ((ic->flags & CF_EOI) || !ic->to_forward || sio->state != SI_ST_EST)) ||
+	     ((ic->flags & CF_EOI) || !ic->to_forward || sio->cs->state != CS_ST_EST)) ||
 
 	    /* changes on the consumption side */
 	    (oc->flags & (CF_WRITE_NULL|CF_WRITE_ERROR)) ||
@@ -531,7 +531,7 @@ static void stream_int_notify(struct stream_interface *si)
 	     ((oc->flags & CF_SHUTW) ||
 	      (((oc->flags & CF_WAKE_WRITE) ||
 		!(oc->flags & (CF_AUTO_CLOSE|CF_SHUTW_NOW|CF_SHUTW))) &&
-	       (sio->state != SI_ST_EST ||
+	       (sio->cs->state != CS_ST_EST ||
 	        (channel_is_empty(oc) && !oc->to_forward)))))) {
 		task_wakeup(task, TASK_WOKEN_IO);
 	}
@@ -553,7 +553,7 @@ static void stream_int_notify(struct stream_interface *si)
 
 /* The stream interface is only responsible for the connection during the early
  * states, before plugging a mux. Thus it should only care about CO_FL_ERROR
- * before SI_ST_EST, and after that it must absolutely ignore it since the mux
+ * before CS_ST_EST, and after that it must absolutely ignore it since the mux
  * may hold pending data. This function returns true if such an error was
  * reported. Both the CS and the CONN must be valid.
  */
@@ -561,7 +561,7 @@ static inline int si_is_conn_error(const struct stream_interface *si)
 {
 	struct connection *conn;
 
-	if (si->state >= SI_ST_EST)
+	if (si->cs->state >= CS_ST_EST)
 		return 0;
 
 	conn = __cs_conn(si->cs);
@@ -601,7 +601,7 @@ static int si_cs_process(struct conn_stream *cs)
 	 *       care of it.
 	 */
 
-	if (si->state >= SI_ST_CON) {
+	if (si->cs->state >= CS_ST_CON) {
 		if (si_is_conn_error(si))
 			cs->endp->flags |= CS_EP_ERROR;
 	}
@@ -617,12 +617,12 @@ static int si_cs_process(struct conn_stream *cs)
 		task_wakeup(si_task(si), TASK_WOKEN_MSG);
 	}
 
-	if (!si_state_in(si->state, SI_SB_EST|SI_SB_DIS|SI_SB_CLO) &&
+	if (!cs_state_in(si->cs->state, CS_SB_EST|CS_SB_DIS|CS_SB_CLO) &&
 	    (conn->flags & CO_FL_WAIT_XPRT) == 0) {
 		__cs_strm(cs)->conn_exp = TICK_ETERNITY;
 		oc->flags |= CF_WRITE_NULL;
-		if (si->state == SI_ST_CON)
-			si->state = SI_ST_RDY;
+		if (si->cs->state == CS_ST_CON)
+			si->cs->state = CS_ST_RDY;
 	}
 
 	/* Report EOS on the channel if it was reached from the mux point of
@@ -677,11 +677,11 @@ static int si_cs_send(struct conn_stream *cs)
 	if (cs->endp->flags & (CS_EP_ERROR|CS_EP_ERR_PENDING) || si_is_conn_error(si)) {
 		/* We're probably there because the tasklet was woken up,
 		 * but process_stream() ran before, detected there were an
-		 * error and put the si back to SI_ST_TAR. There's still
+		 * error and put the si back to CS_ST_TAR. There's still
 		 * CO_FL_ERROR on the connection but we don't want to add
 		 * CS_EP_ERROR back, so give up
 		 */
-		if (si->state < SI_ST_CON)
+		if (si->cs->state < CS_ST_CON)
 			return 0;
 		cs->endp->flags |= CS_EP_ERROR;
 		return 1;
@@ -790,8 +790,8 @@ static int si_cs_send(struct conn_stream *cs)
  end:
 	if (did_send) {
 		oc->flags |= CF_WRITE_PARTIAL | CF_WROTE_DATA;
-		if (si->state == SI_ST_CON)
-			si->state = SI_ST_RDY;
+		if (si->cs->state == CS_ST_CON)
+			si->cs->state = CS_ST_RDY;
 
 		si_rx_room_rdy(si_opposite(si));
 	}
@@ -933,7 +933,7 @@ void si_update_tx(struct stream_interface *si)
  */
 int si_sync_recv(struct stream_interface *si)
 {
-	if (!si_state_in(si->state, SI_SB_RDY|SI_SB_EST))
+	if (!cs_state_in(si->cs->state, CS_SB_RDY|CS_SB_EST))
 		return 0;
 
 	if (!cs_conn_mux(si->cs))
@@ -964,7 +964,7 @@ void si_sync_send(struct stream_interface *si)
 	if (channel_is_empty(oc))
 		return;
 
-	if (!si_state_in(si->state, SI_SB_CON|SI_SB_RDY|SI_SB_EST))
+	if (!cs_state_in(si->cs->state, CS_SB_CON|CS_SB_RDY|CS_SB_EST))
 		return;
 
 	if (!cs_conn_mux(si->cs))
@@ -988,13 +988,13 @@ void si_update_both(struct stream_interface *si_f, struct stream_interface *si_b
 	req->flags &= ~(CF_READ_NULL|CF_READ_PARTIAL|CF_READ_ATTACHED|CF_WRITE_NULL|CF_WRITE_PARTIAL);
 	res->flags &= ~(CF_READ_NULL|CF_READ_PARTIAL|CF_READ_ATTACHED|CF_WRITE_NULL|CF_WRITE_PARTIAL);
 
-	si_strm(si_b)->prev_conn_state = si_b->state;
+	si_strm(si_b)->prev_conn_state = si_b->cs->state;
 
 	/* let's recompute both sides states */
-	if (si_state_in(si_f->state, SI_SB_RDY|SI_SB_EST))
+	if (cs_state_in(si_f->cs->state, CS_SB_RDY|CS_SB_EST))
 		si_update(si_f);
 
-	if (si_state_in(si_b->state, SI_SB_RDY|SI_SB_EST))
+	if (cs_state_in(si_b->cs->state, CS_SB_RDY|CS_SB_EST))
 		si_update(si_b);
 
 	/* stream ints are processed outside of process_stream() and must be
@@ -1034,12 +1034,12 @@ static void stream_int_shutr_conn(struct stream_interface *si)
 	ic->flags |= CF_SHUTR;
 	ic->rex = TICK_ETERNITY;
 
-	if (!si_state_in(si->state, SI_SB_CON|SI_SB_RDY|SI_SB_EST))
+	if (!cs_state_in(cs->state, CS_SB_CON|CS_SB_RDY|CS_SB_EST))
 		return;
 
 	if (si_oc(si)->flags & CF_SHUTW) {
 		cs_close(cs);
-		si->state = SI_ST_DIS;
+		cs->state = CS_ST_DIS;
 		__cs_strm(cs)->conn_exp = TICK_ETERNITY;
 	}
 	else if (si->cs->flags & CS_FL_NOHALF) {
@@ -1076,9 +1076,9 @@ static void stream_int_shutw_conn(struct stream_interface *si)
 		ic->rex = tick_add(now_ms, ic->rto);
 	}
 
-	switch (si->state) {
-	case SI_ST_RDY:
-	case SI_ST_EST:
+	switch (cs->state) {
+	case CS_ST_RDY:
+	case CS_ST_EST:
 		/* we have to shut before closing, otherwise some short messages
 		 * may never leave the system, especially when there are remaining
 		 * unread data in the socket input buffer, or when nolinger is set.
@@ -1111,16 +1111,16 @@ static void stream_int_shutw_conn(struct stream_interface *si)
 		}
 
 		/* fall through */
-	case SI_ST_CON:
+	case CS_ST_CON:
 		/* we may have to close a pending connection, and mark the
 		 * response buffer as shutr
 		 */
 		cs_close(cs);
 		/* fall through */
-	case SI_ST_CER:
-	case SI_ST_QUE:
-	case SI_ST_TAR:
-		si->state = SI_ST_DIS;
+	case CS_ST_CER:
+	case CS_ST_QUE:
+	case CS_ST_TAR:
+		cs->state = CS_ST_DIS;
 		/* fall through */
 	default:
 		cs->flags &= ~CS_FL_NOLINGER;
@@ -1140,7 +1140,7 @@ static void stream_int_shutw_conn(struct stream_interface *si)
 static void stream_int_chk_rcv_conn(struct stream_interface *si)
 {
 	/* (re)start reading */
-	if (si_state_in(si->state, SI_SB_CON|SI_SB_RDY|SI_SB_EST))
+	if (cs_state_in(si->cs->state, CS_SB_CON|CS_SB_RDY|CS_SB_EST))
 		tasklet_wakeup(si->wait_event.tasklet);
 }
 
@@ -1157,7 +1157,7 @@ static void stream_int_chk_snd_conn(struct stream_interface *si)
 
 	BUG_ON(!cs_conn(cs));
 
-	if (unlikely(!si_state_in(si->state, SI_SB_CON|SI_SB_RDY|SI_SB_EST) ||
+	if (unlikely(!cs_state_in(cs->state, CS_SB_CON|CS_SB_RDY|CS_SB_EST) ||
 	    (oc->flags & CF_SHUTW)))
 		return;
 
@@ -1173,7 +1173,7 @@ static void stream_int_chk_snd_conn(struct stream_interface *si)
 
 	if (cs->endp->flags & (CS_EP_ERROR|CS_EP_ERR_PENDING) || si_is_conn_error(si)) {
 		/* Write error on the file descriptor */
-		if (si->state >= SI_ST_CON)
+		if (cs->state >= CS_ST_CON)
 			cs->endp->flags |= CS_EP_ERROR;
 		goto out_wakeup;
 	}
@@ -1189,7 +1189,7 @@ static void stream_int_chk_snd_conn(struct stream_interface *si)
 		 */
 		if (((oc->flags & (CF_SHUTW|CF_AUTO_CLOSE|CF_SHUTW_NOW)) ==
 		     (CF_AUTO_CLOSE|CF_SHUTW_NOW)) &&
-		    si_state_in(si->state, SI_SB_RDY|SI_SB_EST)) {
+		    cs_state_in(cs->state, CS_SB_RDY|CS_SB_EST)) {
 			si_shutw(si);
 			goto out_wakeup;
 		}
@@ -1234,7 +1234,7 @@ static void stream_int_chk_snd_conn(struct stream_interface *si)
 	if (likely((oc->flags & (CF_WRITE_NULL|CF_WRITE_ERROR|CF_SHUTW)) ||
 	          ((oc->flags & CF_WAKE_WRITE) &&
 	           ((channel_is_empty(oc) && !oc->to_forward) ||
-	            !si_state_in(si->state, SI_SB_EST))))) {
+	            !cs_state_in(cs->state, CS_SB_EST))))) {
 	out_wakeup:
 		if (!(si->cs->flags & CS_FL_DONT_WAKE))
 			task_wakeup(si_task(si), TASK_WOKEN_IO);
@@ -1256,7 +1256,7 @@ static int si_cs_recv(struct conn_stream *cs)
 	int flags = 0;
 
 	/* If not established yet, do nothing. */
-	if (si->state != SI_ST_EST)
+	if (cs->state != CS_ST_EST)
 		return 0;
 
 	/* If another call to si_cs_recv() failed, and we subscribed to
@@ -1590,7 +1590,7 @@ static void stream_int_read0(struct stream_interface *si)
 	ic->flags |= CF_SHUTR;
 	ic->rex = TICK_ETERNITY;
 
-	if (!si_state_in(si->state, SI_SB_CON|SI_SB_RDY|SI_SB_EST))
+	if (!cs_state_in(cs->state, CS_SB_CON|CS_SB_RDY|CS_SB_EST))
 		return;
 
 	if (oc->flags & CF_SHUTW)
@@ -1616,7 +1616,7 @@ static void stream_int_read0(struct stream_interface *si)
 
 	si_done_get(si);
 
-	si->state = SI_ST_DIS;
+	cs->state = CS_ST_DIS;
 	__cs_strm(cs)->conn_exp = TICK_ETERNITY;
 	return;
 }
@@ -1680,12 +1680,12 @@ static void stream_int_shutr_applet(struct stream_interface *si)
 
 	/* Note: on shutr, we don't call the applet */
 
-	if (!si_state_in(si->state, SI_SB_CON|SI_SB_RDY|SI_SB_EST))
+	if (!cs_state_in(si->cs->state, CS_SB_CON|CS_SB_RDY|CS_SB_EST))
 		return;
 
 	if (si_oc(si)->flags & CF_SHUTW) {
 		si_applet_release(si);
-		si->state = SI_ST_DIS;
+		si->cs->state = CS_ST_DIS;
 		__cs_strm(si->cs)->conn_exp = TICK_ETERNITY;
 	}
 	else if (si->cs->flags & CS_FL_NOHALF) {
@@ -1723,9 +1723,9 @@ static void stream_int_shutw_applet(struct stream_interface *si)
 	/* on shutw we always wake the applet up */
 	appctx_wakeup(__cs_appctx(si->cs));
 
-	switch (si->state) {
-	case SI_ST_RDY:
-	case SI_ST_EST:
+	switch (si->cs->state) {
+	case CS_ST_RDY:
+	case CS_ST_EST:
 		/* we have to shut before closing, otherwise some short messages
 		 * may never leave the system, especially when there are remaining
 		 * unread data in the socket input buffer, or when nolinger is set.
@@ -1737,13 +1737,13 @@ static void stream_int_shutw_applet(struct stream_interface *si)
 			return;
 
 		/* fall through */
-	case SI_ST_CON:
-	case SI_ST_CER:
-	case SI_ST_QUE:
-	case SI_ST_TAR:
+	case CS_ST_CON:
+	case CS_ST_CER:
+	case CS_ST_QUE:
+	case CS_ST_TAR:
 		/* Note that none of these states may happen with applets */
 		si_applet_release(si);
-		si->state = SI_ST_DIS;
+		si->cs->state = CS_ST_DIS;
 		/* fall through */
 	default:
 		si->cs->flags &= ~CS_FL_NOLINGER;
@@ -1761,9 +1761,9 @@ static void stream_int_chk_rcv_applet(struct stream_interface *si)
 
 	BUG_ON(!cs_appctx(si->cs));
 
-	DPRINTF(stderr, "%s: si=%p, si->state=%d ic->flags=%08x oc->flags=%08x\n",
+	DPRINTF(stderr, "%s: si=%p, cs->state=%d ic->flags=%08x oc->flags=%08x\n",
 		__FUNCTION__,
-		si, si->state, ic->flags, si_oc(si)->flags);
+		si, si->cs->state, ic->flags, si_oc(si)->flags);
 
 	if (!ic->pipe) {
 		/* (re)start reading */
@@ -1778,11 +1778,11 @@ static void stream_int_chk_snd_applet(struct stream_interface *si)
 
 	BUG_ON(!cs_appctx(si->cs));
 
-	DPRINTF(stderr, "%s: si=%p, si->state=%d ic->flags=%08x oc->flags=%08x\n",
+	DPRINTF(stderr, "%s: si=%p, cs->state=%d ic->flags=%08x oc->flags=%08x\n",
 		__FUNCTION__,
-		si, si->state, si_ic(si)->flags, oc->flags);
+		si, si->cs->state, si_ic(si)->flags, oc->flags);
 
-	if (unlikely(si->state != SI_ST_EST || (oc->flags & CF_SHUTW)))
+	if (unlikely(si->cs->state != CS_ST_EST || (oc->flags & CF_SHUTW)))
 		return;
 
 	/* we only wake the applet up if it was waiting for some data */
