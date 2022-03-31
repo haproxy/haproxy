@@ -161,7 +161,7 @@ void cs_free(struct conn_stream *cs)
 
 
 /* Attaches a conn_stream to an mux endpoint and sets the endpoint ctx */
-void cs_attach_mux(struct conn_stream *cs, void *target, void *ctx)
+int cs_attach_mux(struct conn_stream *cs, void *target, void *ctx)
 {
 	struct connection *conn = ctx;
 
@@ -177,6 +177,7 @@ void cs_attach_mux(struct conn_stream *cs, void *target, void *ctx)
 	}
 	else if (cs_check(cs))
 		cs->data_cb = &check_conn_cb;
+	return 0;
 }
 
 /* Attaches a conn_stream to an applet endpoint and sets the endpoint ctx */

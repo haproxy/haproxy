@@ -1611,7 +1611,10 @@ skip_reuse:
 			return SF_ERR_INTERNAL;  /* how did we get there ? */
 		}
 
-		cs_attach_mux(s->csb, NULL, srv_conn);
+		if (cs_attach_mux(s->csb, NULL, srv_conn) < 0) {
+			conn_free(srv_conn);
+			return SF_ERR_INTERNAL;  /* how did we get there ? */
+		}
 		srv_conn->ctx = s->csb;
 
 #if defined(USE_OPENSSL) && defined(TLSEXT_TYPE_application_layer_protocol_negotiation)

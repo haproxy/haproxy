@@ -1675,7 +1675,11 @@ static struct h2s *h2c_bck_stream_new(struct h2c *h2c, struct conn_stream *cs, s
 	if (!h2s)
 		goto out;
 
-	cs_attach_mux(cs, h2s, h2c->conn);
+	if (cs_attach_mux(cs, h2s, h2c->conn) < 0) {
+		h2s_destroy(h2s);
+		h2s = NULL;
+		goto out;
+	}
 	h2s->cs = cs;
 	h2s->endp = cs->endp;
 	h2s->sess = sess;

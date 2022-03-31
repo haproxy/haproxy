@@ -814,7 +814,8 @@ static struct h1s *h1c_frt_stream_new(struct h1c *h1c, struct conn_stream *cs, s
 		goto fail;
 
 	if (cs) {
-		cs_attach_mux(cs, h1s, h1c->conn);
+		if (cs_attach_mux(cs, h1s, h1c->conn) < 0)
+			goto fail;
 		h1s->cs = cs;
 		h1s->endp = cs->endp;
 	}
@@ -853,7 +854,9 @@ static struct h1s *h1c_bck_stream_new(struct h1c *h1c, struct conn_stream *cs, s
 	if (!h1s)
 		goto fail;
 
-	cs_attach_mux(cs, h1s, h1c->conn);
+	if (cs_attach_mux(cs, h1s, h1c->conn) < 0)
+		goto fail;
+
 	h1s->flags |= H1S_F_RX_BLK;
 	h1s->cs = cs;
 	h1s->endp = cs->endp;
@@ -872,6 +875,7 @@ static struct h1s *h1c_bck_stream_new(struct h1c *h1c, struct conn_stream *cs, s
 
   fail:
 	TRACE_DEVEL("leaving on error", H1_EV_STRM_NEW|H1_EV_STRM_ERR, h1c->conn);
+	pool_free(pool_head_h1s, h1s);
 	return NULL;
 }
 

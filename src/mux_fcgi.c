@@ -1134,7 +1134,8 @@ static struct fcgi_strm *fcgi_conn_stream_new(struct fcgi_conn *fconn, struct co
 		TRACE_ERROR("fstream allocation failure", FCGI_EV_FSTRM_NEW|FCGI_EV_FSTRM_END|FCGI_EV_FSTRM_ERR, fconn->conn);
 		goto out;
 	}
-	cs_attach_mux(cs, fstrm, fconn->conn);
+	if (cs_attach_mux(cs, fstrm, fconn->conn) < 0)
+		goto out;
 	fstrm->cs = cs;
 	fstrm->endp = cs->endp;
 	fstrm->sess = sess;
@@ -1145,6 +1146,7 @@ static struct fcgi_strm *fcgi_conn_stream_new(struct fcgi_conn *fconn, struct co
 
   out:
 	TRACE_DEVEL("leaving on error", FCGI_EV_FSTRM_NEW|FCGI_EV_FSTRM_END|FCGI_EV_FSTRM_ERR, fconn->conn);
+	fcgi_strm_destroy(fstrm);
 	return NULL;
 }
 
