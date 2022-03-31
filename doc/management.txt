@@ -3719,7 +3719,7 @@ Example:
    # haproxy -W -S /tmp/master-socket,level,user -f test1.cfg
 
 
-9.4.1 Master CLI commands
+9.4.1. Master CLI commands
 --------------------------
 
 @<[!]pid>
