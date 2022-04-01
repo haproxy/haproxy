@@ -3808,8 +3808,11 @@ static void quic_conn_release(struct quic_conn *qc)
 		stream = eb64_entry(node, struct qc_stream_desc, by_id);
 		node = eb64_next(node);
 
-		eb64_delete(&stream->by_id);
-		pool_free(pool_head_quic_conn_stream, stream);
+		/* all streams attached to the quic-conn are released, so
+		 * qc_stream_desc_free will liberate the stream instance.
+		 */
+		BUG_ON(!stream->release);
+		qc_stream_desc_free(stream);
 	}
 
 	if (qc->idle_timer_task) {
