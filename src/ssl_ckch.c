@@ -1101,18 +1101,24 @@ int ssl_store_load_locations_file(char *path, int create_if_none, enum cafile_ty
 		int cert_count = 0;
 		struct stat buf;
 		struct cafile_entry *ca_e;
-		char *file = NULL;
-		char *dir = NULL;
+		const char *file = NULL;
+		const char *dir = NULL;
 
 		store = X509_STORE_new();
 
-		if (stat(path, &buf))
-			goto err;
+		if (strcmp(path, "@system-ca") == 0) {
+			dir = X509_get_default_cert_dir();
 
-		if (S_ISDIR(buf.st_mode))
-			dir = path;
-		else
-			file = path;
+		} else {
+
+			if (stat(path, &buf))
+				goto err;
+
+			if (S_ISDIR(buf.st_mode))
+				dir = path;
+			else
+				file = path;
+		}
 
 		if (file) {
 			if (!X509_STORE_load_locations(store, file, NULL)) {
@@ -1150,7 +1156,7 @@ int ssl_store_load_locations_file(char *path, int create_if_none, enum cafile_ty
 				if (in == NULL)
 					goto scandir_err;
 
-				chunk_printf(&trash, "%s/%s", path, de->d_name);
+				chunk_printf(&trash, "%s/%s", dir, de->d_name);
 
 				if (BIO_read_filename(in, trash.area) == 0)
 					goto scandir_err;
