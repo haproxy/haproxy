@@ -834,6 +834,7 @@ static int h3_uqs_init(struct h3_uqs *h3_uqs, struct h3 *h3,
 
 	h3_uqs->wait_event.tasklet->process = t;
 	h3_uqs->wait_event.tasklet->context = h3_uqs;
+	h3_uqs->wait_event.events = 0;
 	return 1;
 }
 
