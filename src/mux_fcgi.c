@@ -3552,7 +3552,7 @@ static int fcgi_attach(struct connection *conn, struct conn_stream *cs, struct s
  * beneficial to scan backwards from the end to reduce the likeliness to find
  * orphans.
  */
-static const struct conn_stream *fcgi_get_first_cs(const struct connection *conn)
+static struct conn_stream *fcgi_get_first_cs(const struct connection *conn)
 {
 	struct fcgi_conn *fconn = conn->ctx;
 	struct fcgi_strm *fstrm;

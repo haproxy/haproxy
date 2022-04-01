@@ -3320,7 +3320,7 @@ static int h1_attach(struct connection *conn, struct conn_stream *cs, struct ses
 /* Retrieves a valid conn_stream from this connection, or returns NULL. For
  * this mux, it's easy as we can only store a single conn_stream.
  */
-static const struct conn_stream *h1_get_first_cs(const struct connection *conn)
+static struct conn_stream *h1_get_first_cs(const struct connection *conn)
 {
 	struct h1c *h1c = conn->ctx;
 	struct h1s *h1s = h1c->h1s;

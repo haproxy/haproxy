@@ -399,7 +399,7 @@ static int mux_pt_attach(struct connection *conn, struct conn_stream *cs, struct
 /* Retrieves a valid conn_stream from this connection, or returns NULL. For
  * this mux, it's easy as we can only store a single conn_stream.
  */
-static const struct conn_stream *mux_pt_get_first_cs(const struct connection *conn)
+static struct conn_stream *mux_pt_get_first_cs(const struct connection *conn)
 {
 	struct mux_pt_ctx *ctx = conn->ctx;
 

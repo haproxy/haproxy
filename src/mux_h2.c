@@ -4299,7 +4299,7 @@ static int h2_attach(struct connection *conn, struct conn_stream *cs, struct ses
  * beneficial to scan backwards from the end to reduce the likeliness to find
  * orphans.
  */
-static const struct conn_stream *h2_get_first_cs(const struct connection *conn)
+static struct conn_stream *h2_get_first_cs(const struct connection *conn)
 {
 	struct h2c *h2c = conn->ctx;
 	struct h2s *h2s;

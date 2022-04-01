@@ -396,7 +396,7 @@ struct mux_ops {
 	void (*shutw)(struct conn_stream *cs, enum co_shw_mode);     /* shutw function */
 
 	int (*attach)(struct connection *conn, struct conn_stream *, struct session *sess); /* attach a conn_stream to an outgoing connection */
-	const struct conn_stream *(*get_first_cs)(const struct connection *); /* retrieves any valid conn_stream from this connection */
+	struct conn_stream *(*get_first_cs)(const struct connection *); /* retrieves any valid conn_stream from this connection */
 	void (*detach)(struct conn_stream *); /* Detach a conn_stream from an outgoing connection, when the request is done */
 	int (*show_fd)(struct buffer *, struct connection *); /* append some data about connection into chunk for "show fd"; returns non-zero if suspicious */
 	int (*subscribe)(struct conn_stream *cs, int event_type,  struct wait_event *es); /* Subscribe <es> to events, such as "being able to send" */

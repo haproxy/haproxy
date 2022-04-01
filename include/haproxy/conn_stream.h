@@ -235,7 +235,7 @@ static inline void cs_set_error(struct conn_stream *cs)
  * conn_stream, NULL is returned. The output pointer is purposely marked
  * const to discourage the caller from modifying anything there.
  */
-static inline const struct conn_stream *cs_conn_get_first(const struct connection *conn)
+static inline struct conn_stream *cs_conn_get_first(const struct connection *conn)
 {
 	BUG_ON(!conn || !conn->mux);
 
