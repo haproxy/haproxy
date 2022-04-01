@@ -123,6 +123,25 @@ static inline int cs_conn_ready(struct conn_stream *cs)
 }
 
 
+/* The conn-stream is only responsible for the connection during the early
+ * states, before plugging a mux. Thus it should only care about CO_FL_ERROR
+ * before CS_ST_EST, and after that it must absolutely ignore it since the mux
+ * may hold pending data. This function returns true if such an error was
+ * reported. Both the CS and the CONN must be valid.
+ */
+static inline int cs_is_conn_error(const struct conn_stream *cs)
+{
+	struct connection *conn;
+
+	if (cs->state >= CS_ST_EST)
+		return 0;
+
+	conn = __cs_conn(cs);
+	BUG_ON(!conn);
+	return !!(conn->flags & CO_FL_ERROR);
+}
+
+
 /* Returns the source address of the conn-stream and, if not set, fallbacks on
  * the session for frontend CS and the server connection for the backend CS. It
  * returns a const address on success or NULL on failure.

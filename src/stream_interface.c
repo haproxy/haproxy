@@ -249,7 +249,7 @@ int cs_conn_process(struct conn_stream *cs)
 	 */
 
 	if (cs->state >= CS_ST_CON) {
-		if (si_is_conn_error(cs->si))
+		if (cs_is_conn_error(cs))
 			cs->endp->flags |= CS_EP_ERROR;
 	}
 
@@ -320,7 +320,7 @@ int cs_conn_send(struct conn_stream *cs)
 	int ret;
 	int did_send = 0;
 
-	if (cs->endp->flags & (CS_EP_ERROR|CS_EP_ERR_PENDING) || si_is_conn_error(cs->si)) {
+	if (cs->endp->flags & (CS_EP_ERROR|CS_EP_ERR_PENDING) || cs_is_conn_error(cs)) {
 		/* We're probably there because the tasklet was woken up,
 		 * but process_stream() ran before, detected there were an
 		 * error and put the si back to CS_ST_TAR. There's still

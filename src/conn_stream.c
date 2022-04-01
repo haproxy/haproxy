@@ -730,7 +730,7 @@ static void cs_app_chk_snd_conn(struct conn_stream *cs)
 	if (!(cs->wait_event.events & SUB_RETRY_SEND) && !channel_is_empty(cs_oc(cs)))
 		cs_conn_send(cs);
 
-	if (cs->endp->flags & (CS_EP_ERROR|CS_EP_ERR_PENDING) || si_is_conn_error(cs->si)) {
+	if (cs->endp->flags & (CS_EP_ERROR|CS_EP_ERR_PENDING) || cs_is_conn_error(cs)) {
 		/* Write error on the file descriptor */
 		if (cs->state >= CS_ST_CON)
 			cs->endp->flags |= CS_EP_ERROR;
