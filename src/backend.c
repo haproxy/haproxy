@@ -2132,7 +2132,7 @@ void back_handle_st_req(struct stream *s)
 		struct appctx *appctx = cs_appctx(s->csb);
 
 		if (!appctx || appctx->applet != __objt_applet(s->target))
-			appctx = si_register_handler(cs->si, objt_applet(s->target));
+			appctx = cs_register_applet(cs, objt_applet(s->target));
 
 		if (!appctx) {
 			/* No more memory, let's immediately abort. Force the

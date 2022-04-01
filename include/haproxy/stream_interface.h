@@ -41,7 +41,6 @@ void si_free(struct stream_interface *si);
 
 /* main event functions used to move data between sockets and buffers */
 int conn_si_send_proxy(struct connection *conn, unsigned int flag);
-struct appctx *si_register_handler(struct stream_interface *si, struct applet *app);
 void si_applet_wake_cb(struct stream_interface *si);
 void si_update_rx(struct stream_interface *si);
 void si_update_tx(struct stream_interface *si);
@@ -108,16 +107,6 @@ static inline int si_init(struct stream_interface *si)
 	si->flags         &= SI_FL_ISBACK;
 	si->cs             = NULL;
 	return 0;
-}
-
-/* call the applet's release function if any. Needs to be called upon close() */
-static inline void si_applet_release(struct stream_interface *si)
-{
-	struct appctx *appctx;
-
-	appctx = __cs_appctx(si->cs);
-	if (appctx->applet->release && !cs_state_in(si->cs->state, CS_SB_DIS|CS_SB_CLO))
-		appctx->applet->release(appctx);
 }
 
 /* Returns non-zero if the stream interface's Rx path is blocked */

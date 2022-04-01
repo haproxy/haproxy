@@ -11,6 +11,7 @@
  */
 
 #include <haproxy/api.h>
+#include <haproxy/applet.h>
 #include <haproxy/connection.h>
 #include <haproxy/conn_stream.h>
 #include <haproxy/pool.h>
@@ -283,8 +284,7 @@ void cs_detach_endp(struct conn_stream *cs)
 		struct appctx *appctx = cs_appctx(cs);
 
 		cs->endp->flags |= CS_EP_ORPHAN;
-		if (cs->si)
-			si_applet_release(cs->si);
+		cs_applet_release(cs);
 		appctx_free(appctx);
 		cs->endp = NULL;
 	}
@@ -353,4 +353,37 @@ int cs_reset_endp(struct conn_stream *cs)
 	cs->endp = new_endp;
 	cs->endp->flags |= CS_EP_DETACHED;
 	return 0;
+}
+
+
+/* Register an applet to handle a conn-stream as a new appctx. The CS will
+ * wake it up every time it is solicited. The appctx must be deleted by the task
+ * handler using cs_detach_endp(), possibly from within the function itself.
+ * It also pre-initializes the applet's context and returns it (or NULL in case
+ * it could not be allocated).
+ */
+struct appctx *cs_register_applet(struct conn_stream *cs, struct applet *app)
+{
+	struct appctx *appctx;
+
+	DPRINTF(stderr, "registering handler %p for cs %p (was %p)\n", app, cs, cs_strm_task(cs));
+
+	appctx = appctx_new(app, cs->endp);
+	if (!appctx)
+		return NULL;
+	cs_attach_applet(cs, appctx, appctx);
+	appctx->owner = cs;
+	appctx->t->nice = __cs_strm(cs)->task->nice;
+	si_cant_get(cs->si);
+	appctx_wakeup(appctx);
+	return appctx;
+}
+
+/* call the applet's release function if any. Needs to be called upon close() */
+void cs_applet_release(struct conn_stream *cs)
+{
+	struct appctx *appctx = __cs_appctx(cs);
+
+	if (appctx->applet->release && !cs_state_in(cs->state, CS_SB_DIS|CS_SB_CLO))
+		appctx->applet->release(appctx);
 }

@@ -269,29 +269,6 @@ static void cs_app_chk_snd(struct conn_stream *cs)
 		task_wakeup(cs_strm_task(cs), TASK_WOKEN_IO);
 }
 
-/* Register an applet to handle a stream_interface as a new appctx. The SI will
- * wake it up every time it is solicited. The appctx must be deleted by the task
- * handler using si_release_endpoint(), possibly from within the function itself.
- * It also pre-initializes the applet's context and returns it (or NULL in case
- * it could not be allocated).
- */
-struct appctx *si_register_handler(struct stream_interface *si, struct applet *app)
-{
-	struct appctx *appctx;
-
-	DPRINTF(stderr, "registering handler %p for si %p (was %p)\n", app, si, si_task(si));
-
-	appctx = appctx_new(app, si->cs->endp);
-	if (!appctx)
-		return NULL;
-	cs_attach_applet(si->cs, appctx, appctx);
-	appctx->owner = si->cs;
-	appctx->t->nice = si_strm(si)->task->nice;
-	si_cant_get(si);
-	appctx_wakeup(appctx);
-	return appctx;
-}
-
 /* This callback is used to send a valid PROXY protocol line to a socket being
  * established. It returns 0 if it fails in a fatal way or needs to poll to go
  * further, otherwise it returns non-zero and removes itself from the connection's
@@ -1655,7 +1632,7 @@ static void cs_app_shutr_applet(struct conn_stream *cs)
 		return;
 
 	if (cs_oc(cs)->flags & CF_SHUTW) {
-		si_applet_release(cs->si);
+		cs_applet_release(cs);
 		cs->state = CS_ST_DIS;
 		__cs_strm(cs)->conn_exp = TICK_ETERNITY;
 	}
@@ -1713,7 +1690,7 @@ static void cs_app_shutw_applet(struct conn_stream *cs)
 	case CS_ST_QUE:
 	case CS_ST_TAR:
 		/* Note that none of these states may happen with applets */
-		si_applet_release(cs->si);
+		cs_applet_release(cs);
 		cs->state = CS_ST_DIS;
 		/* fall through */
 	default:
