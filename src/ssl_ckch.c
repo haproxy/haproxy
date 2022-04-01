@@ -1169,7 +1169,6 @@ scandir_err:
 				BIO_free(in);
 				free(de);
 				ha_warning("ca-file: '%s' couldn't load '%s'\n", path, trash.area);
-				break;
 
 			}
 			free(de_list);
