@@ -3122,7 +3122,7 @@ static int quic_build_post_handshake_frames(struct quic_conn *qc)
 }
 
 /* Deallocate <l> list of ACK ranges. */
-void free_quic_arngs(struct quic_arngs *arngs)
+void quic_free_arngs(struct quic_arngs *arngs)
 {
 	struct eb64_node *n;
 	struct quic_arng_node *ar;
@@ -3801,6 +3801,9 @@ static void quic_conn_release(struct quic_conn *qc)
 	app_tls_ctx = &qc->els[QUIC_TLS_ENC_LEVEL_APP].tls_ctx;
 	pool_free(pool_head_quic_tls_secret, app_tls_ctx->rx.secret);
 	pool_free(pool_head_quic_tls_secret, app_tls_ctx->tx.secret);
+
+	for (i = 0; i < QUIC_TLS_PKTNS_MAX; i++)
+		quic_free_arngs(&qc->pktns[i].rx.arngs);
 
 	pool_free(pool_head_quic_conn_rxbuf, qc->rx.buf.area);
 	pool_free(pool_head_quic_conn, qc);
