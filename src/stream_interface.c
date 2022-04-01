@@ -42,7 +42,7 @@
 DECLARE_POOL(pool_head_streaminterface, "stream_interface", sizeof(struct stream_interface));
 
 /* last read notification */
-static void stream_int_read0(struct stream_interface *si);
+static void cs_conn_read0(struct conn_stream *cs);
 
 /* post-IO notification callback */
 static void stream_int_notify(struct stream_interface *si);
@@ -284,7 +284,7 @@ int si_cs_process(struct conn_stream *cs)
 		ic->flags |= CF_READ_NULL;
 		if (ic->flags & CF_AUTO_CLOSE)
 			channel_shutw_now(ic);
-		stream_int_read0(si);
+		cs_conn_read0(cs);
 	}
 
 	/* Report EOI on the channel if it was reached from the mux point of
@@ -844,7 +844,7 @@ int si_cs_recv(struct conn_stream *cs)
 		ic->flags |= CF_READ_NULL;
 		if (ic->flags & CF_AUTO_CLOSE)
 			channel_shutw_now(ic);
-		stream_int_read0(si);
+		cs_conn_read0(cs);
 		ret = 1;
 	}
 	else if (!si_rx_blocked(si)) {
@@ -863,15 +863,14 @@ int si_cs_recv(struct conn_stream *cs)
  * It updates the stream interface. If the stream interface has CS_FL_NOHALF,
  * the close is also forwarded to the write side as an abort.
  */
-static void stream_int_read0(struct stream_interface *si)
+static void cs_conn_read0(struct conn_stream *cs)
 {
-	struct conn_stream *cs = si->cs;
-	struct channel *ic = si_ic(si);
-	struct channel *oc = si_oc(si);
+	struct channel *ic = cs_ic(cs);
+	struct channel *oc = cs_oc(cs);
 
 	BUG_ON(!cs_conn(cs));
 
-	si_rx_shut_blk(si);
+	si_rx_shut_blk(cs->si);
 	if (ic->flags & CF_SHUTR)
 		return;
 	ic->flags |= CF_SHUTR;
@@ -901,7 +900,7 @@ static void stream_int_read0(struct stream_interface *si)
 	oc->flags |= CF_SHUTW;
 	oc->wex = TICK_ETERNITY;
 
-	si_done_get(si);
+	si_done_get(cs->si);
 
 	cs->state = CS_ST_DIS;
 	__cs_strm(cs)->conn_exp = TICK_ETERNITY;
