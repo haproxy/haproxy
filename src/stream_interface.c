@@ -395,24 +395,6 @@ static void stream_int_notify(struct stream_interface *si)
 		ic->flags &= ~CF_READ_DONTWAIT;
 }
 
-/* The stream interface is only responsible for the connection during the early
- * states, before plugging a mux. Thus it should only care about CO_FL_ERROR
- * before CS_ST_EST, and after that it must absolutely ignore it since the mux
- * may hold pending data. This function returns true if such an error was
- * reported. Both the CS and the CONN must be valid.
- */
-static inline int si_is_conn_error(const struct stream_interface *si)
-{
-	struct connection *conn;
-
-	if (si->cs->state >= CS_ST_EST)
-		return 0;
-
-	conn = __cs_conn(si->cs);
-	BUG_ON(!conn);
-	return !!(conn->flags & CO_FL_ERROR);
-}
-
 /* Called by I/O handlers after completion.. It propagates
  * connection flags to the stream interface, updates the stream (which may or
  * may not take this opportunity to try to forward data), then update the
