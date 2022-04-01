@@ -55,7 +55,7 @@ enum {
 
 /* Note that if an applet is registered, the update function will not be called
  * by the session handler, so it may be used to resync flags at the end of the
- * applet handler. See si_update() for reference.
+ * applet handler.
  */
 struct stream_interface {
 	/* struct members used by the "buffer" side */

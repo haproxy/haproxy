@@ -33,6 +33,10 @@
 #include <haproxy/stream.h>
 #include <haproxy/stream_interface.h>
 
+void cs_update_rx(struct conn_stream *cs);
+void cs_update_tx(struct conn_stream *cs);
+void cs_update_both(struct conn_stream *csf, struct conn_stream *csb);
+
 /* returns the channel which receives data from this conn-stream (input channel) */
 static inline struct channel *cs_ic(struct conn_stream *cs)
 {
@@ -266,6 +270,13 @@ static inline void cs_chk_rcv(struct conn_stream *cs)
 static inline void cs_chk_snd(struct conn_stream *cs)
 {
 	cs->ops->chk_snd(cs);
+}
+
+/* Combines both cs_update_rx() and cs_update_tx() at once */
+static inline void cs_update(struct conn_stream *cs)
+{
+	cs_update_rx(cs);
+	cs_update_tx(cs);
 }
 
 /* for debugging, reports the stream interface state name */

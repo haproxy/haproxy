@@ -37,10 +37,7 @@ void si_free(struct stream_interface *si);
 
 /* main event functions used to move data between sockets and buffers */
 void si_applet_wake_cb(struct stream_interface *si);
-void si_update_rx(struct stream_interface *si);
-void si_update_tx(struct stream_interface *si);
 struct task *si_cs_io_cb(struct task *t, void *ctx, unsigned int state);
-void si_update_both(struct stream_interface *si_f, struct stream_interface *si_b);
 int si_sync_recv(struct stream_interface *si);
 void si_sync_send(struct stream_interface *si);
 
@@ -261,13 +258,6 @@ static inline int si_alloc_ibuf(struct stream_interface *si, struct buffer_wait 
 	if (!ret)
 		si_rx_buff_blk(si);
 	return ret;
-}
-
-/* Combines both si_update_rx() and si_update_tx() at once */
-static inline void si_update(struct stream_interface *si)
-{
-	si_update_rx(si);
-	si_update_tx(si);
 }
 
 /* The stream interface is only responsible for the connection during the early

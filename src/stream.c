@@ -2455,7 +2455,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		if ((sess->fe->options & PR_O_CONTSTATS) && (s->flags & SF_BE_ASSIGNED) && !(s->flags & SF_IGNORE))
 			stream_process_counters(s);
 
-		si_update_both(si_f, si_b);
+		cs_update_both(s->csf, s->csb);
 
 		/* Trick: if a request is being waiting for the server to respond,
 		 * and if we know the server can timeout, we don't want the timeout

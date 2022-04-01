@@ -940,3 +940,134 @@ static void cs_app_chk_snd_applet(struct conn_stream *cs)
 		appctx_wakeup(__cs_appctx(cs));
 	}
 }
+
+
+/* This function is designed to be called from within the stream handler to
+ * update the input channel's expiration timer and the conn-stream's
+ * Rx flags based on the channel's flags. It needs to be called only once
+ * after the channel's flags have settled down, and before they are cleared,
+ * though it doesn't harm to call it as often as desired (it just slightly
+ * hurts performance). It must not be called from outside of the stream
+ * handler, as what it does will be used to compute the stream task's
+ * expiration.
+ */
+void cs_update_rx(struct conn_stream *cs)
+{
+	struct channel *ic = cs_ic(cs);
+
+	if (ic->flags & CF_SHUTR) {
+		si_rx_shut_blk(cs->si);
+		return;
+	}
+
+	/* Read not closed, update FD status and timeout for reads */
+	if (ic->flags & CF_DONT_READ)
+		si_rx_chan_blk(cs->si);
+	else
+		si_rx_chan_rdy(cs->si);
+
+	if (!channel_is_empty(ic) || !channel_may_recv(ic)) {
+		/* stop reading, imposed by channel's policy or contents */
+		si_rx_room_blk(cs->si);
+	}
+	else {
+		/* (re)start reading and update timeout. Note: we don't recompute the timeout
+		 * every time we get here, otherwise it would risk never to expire. We only
+		 * update it if is was not yet set. The stream socket handler will already
+		 * have updated it if there has been a completed I/O.
+		 */
+		si_rx_room_rdy(cs->si);
+	}
+	if (cs->si->flags & SI_FL_RXBLK_ANY & ~SI_FL_RX_WAIT_EP)
+		ic->rex = TICK_ETERNITY;
+	else if (!(ic->flags & CF_READ_NOEXP) && !tick_isset(ic->rex))
+		ic->rex = tick_add_ifset(now_ms, ic->rto);
+
+	cs_chk_rcv(cs);
+}
+
+/* This function is designed to be called from within the stream handler to
+ * update the output channel's expiration timer and the conn-stream's
+ * Tx flags based on the channel's flags. It needs to be called only once
+ * after the channel's flags have settled down, and before they are cleared,
+ * though it doesn't harm to call it as often as desired (it just slightly
+ * hurts performance). It must not be called from outside of the stream
+ * handler, as what it does will be used to compute the stream task's
+ * expiration.
+ */
+void cs_update_tx(struct conn_stream *cs)
+{
+	struct channel *oc = cs_oc(cs);
+	struct channel *ic = cs_ic(cs);
+
+	if (oc->flags & CF_SHUTW)
+		return;
+
+	/* Write not closed, update FD status and timeout for writes */
+	if (channel_is_empty(oc)) {
+		/* stop writing */
+		if (!(cs->si->flags & SI_FL_WAIT_DATA)) {
+			if ((oc->flags & CF_SHUTW_NOW) == 0)
+				cs->si->flags |= SI_FL_WAIT_DATA;
+			oc->wex = TICK_ETERNITY;
+		}
+		return;
+	}
+
+	/* (re)start writing and update timeout. Note: we don't recompute the timeout
+	 * every time we get here, otherwise it would risk never to expire. We only
+	 * update it if is was not yet set. The stream socket handler will already
+	 * have updated it if there has been a completed I/O.
+	 */
+	cs->si->flags &= ~SI_FL_WAIT_DATA;
+	if (!tick_isset(oc->wex)) {
+		oc->wex = tick_add_ifset(now_ms, oc->wto);
+		if (tick_isset(ic->rex) && !(cs->flags & CS_FL_INDEP_STR)) {
+			/* Note: depending on the protocol, we don't know if we're waiting
+			 * for incoming data or not. So in order to prevent the socket from
+			 * expiring read timeouts during writes, we refresh the read timeout,
+			 * except if it was already infinite or if we have explicitly setup
+			 * independent streams.
+			 */
+			ic->rex = tick_add_ifset(now_ms, ic->rto);
+		}
+	}
+}
+
+/* Updates at once the channel flags, and timers of both conn-streams of a
+ * same stream, to complete the work after the analysers, then updates the data
+ * layer below. This will ensure that any synchronous update performed at the
+ * data layer will be reflected in the channel flags and/or conn-stream.
+ * Note that this does not change the conn-stream's current state, though
+ * it updates the previous state to the current one.
+ */
+void cs_update_both(struct conn_stream *csf, struct conn_stream *csb)
+{
+	struct channel *req = cs_ic(csf);
+	struct channel *res = cs_oc(csf);
+
+	req->flags &= ~(CF_READ_NULL|CF_READ_PARTIAL|CF_READ_ATTACHED|CF_WRITE_NULL|CF_WRITE_PARTIAL);
+	res->flags &= ~(CF_READ_NULL|CF_READ_PARTIAL|CF_READ_ATTACHED|CF_WRITE_NULL|CF_WRITE_PARTIAL);
+
+	__cs_strm(csb)->prev_conn_state = csb->state;
+
+	/* let's recompute both sides states */
+	if (cs_state_in(csf->state, CS_SB_RDY|CS_SB_EST))
+		cs_update(csf);
+
+	if (cs_state_in(csb->state, CS_SB_RDY|CS_SB_EST))
+		cs_update(csb);
+
+	/* stream ints are processed outside of process_stream() and must be
+	 * handled at the latest moment.
+	 */
+	if (cs_appctx(csf) &&
+	    ((si_rx_endp_ready(csf->si) && !si_rx_blocked(csf->si)) ||
+	     (si_tx_endp_ready(csf->si) && !si_tx_blocked(csf->si))))
+		appctx_wakeup(__cs_appctx(csf));
+
+	if (cs_appctx(csb) &&
+	    ((si_rx_endp_ready(csb->si) && !si_rx_blocked(csb->si)) ||
+	     (si_tx_endp_ready(csb->si) && !si_tx_blocked(csb->si))))
+		appctx_wakeup(__cs_appctx(csb));
+}

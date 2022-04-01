@@ -77,14 +77,14 @@ void si_free(struct stream_interface *si)
 	pool_free(pool_head_streaminterface, si);
 }
 
-/* This function is the equivalent to si_update() except that it's
+/* This function is the equivalent to cs_update() except that it's
  * designed to be called from outside the stream handlers, typically the lower
  * layers (applets, connections) after I/O completion. After updating the stream
  * interface and timeouts, it will try to forward what can be forwarded, then to
  * wake the associated task up if an important event requires special handling.
  * It may update SI_FL_WAIT_DATA and/or SI_FL_RXBLK_ROOM, that the callers are
  * encouraged to watch to take appropriate action.
- * It should not be called from within the stream itself, si_update()
+ * It should not be called from within the stream itself, cs_update()
  * is designed for this.
  */
 static void stream_int_notify(struct stream_interface *si)
@@ -474,98 +474,6 @@ struct task *si_cs_io_cb(struct task *t, void *ctx, unsigned int state)
 	return t;
 }
 
-/* This function is designed to be called from within the stream handler to
- * update the input channel's expiration timer and the stream interface's
- * Rx flags based on the channel's flags. It needs to be called only once
- * after the channel's flags have settled down, and before they are cleared,
- * though it doesn't harm to call it as often as desired (it just slightly
- * hurts performance). It must not be called from outside of the stream
- * handler, as what it does will be used to compute the stream task's
- * expiration.
- */
-void si_update_rx(struct stream_interface *si)
-{
-	struct channel *ic = si_ic(si);
-
-	if (ic->flags & CF_SHUTR) {
-		si_rx_shut_blk(si);
-		return;
-	}
-
-	/* Read not closed, update FD status and timeout for reads */
-	if (ic->flags & CF_DONT_READ)
-		si_rx_chan_blk(si);
-	else
-		si_rx_chan_rdy(si);
-
-	if (!channel_is_empty(ic) || !channel_may_recv(ic)) {
-		/* stop reading, imposed by channel's policy or contents */
-		si_rx_room_blk(si);
-	}
-	else {
-		/* (re)start reading and update timeout. Note: we don't recompute the timeout
-		 * every time we get here, otherwise it would risk never to expire. We only
-		 * update it if is was not yet set. The stream socket handler will already
-		 * have updated it if there has been a completed I/O.
-		 */
-		si_rx_room_rdy(si);
-	}
-	if (si->flags & SI_FL_RXBLK_ANY & ~SI_FL_RX_WAIT_EP)
-		ic->rex = TICK_ETERNITY;
-	else if (!(ic->flags & CF_READ_NOEXP) && !tick_isset(ic->rex))
-		ic->rex = tick_add_ifset(now_ms, ic->rto);
-
-	cs_chk_rcv(si->cs);
-}
-
-/* This function is designed to be called from within the stream handler to
- * update the output channel's expiration timer and the stream interface's
- * Tx flags based on the channel's flags. It needs to be called only once
- * after the channel's flags have settled down, and before they are cleared,
- * though it doesn't harm to call it as often as desired (it just slightly
- * hurts performance). It must not be called from outside of the stream
- * handler, as what it does will be used to compute the stream task's
- * expiration.
- */
-void si_update_tx(struct stream_interface *si)
-{
-	struct channel *oc = si_oc(si);
-	struct channel *ic = si_ic(si);
-
-	if (oc->flags & CF_SHUTW)
-		return;
-
-	/* Write not closed, update FD status and timeout for writes */
-	if (channel_is_empty(oc)) {
-		/* stop writing */
-		if (!(si->flags & SI_FL_WAIT_DATA)) {
-			if ((oc->flags & CF_SHUTW_NOW) == 0)
-				si->flags |= SI_FL_WAIT_DATA;
-			oc->wex = TICK_ETERNITY;
-		}
-		return;
-	}
-
-	/* (re)start writing and update timeout. Note: we don't recompute the timeout
-	 * every time we get here, otherwise it would risk never to expire. We only
-	 * update it if is was not yet set. The stream socket handler will already
-	 * have updated it if there has been a completed I/O.
-	 */
-	si->flags &= ~SI_FL_WAIT_DATA;
-	if (!tick_isset(oc->wex)) {
-		oc->wex = tick_add_ifset(now_ms, oc->wto);
-		if (tick_isset(ic->rex) && !(si->cs->flags & CS_FL_INDEP_STR)) {
-			/* Note: depending on the protocol, we don't know if we're waiting
-			 * for incoming data or not. So in order to prevent the socket from
-			 * expiring read timeouts during writes, we refresh the read timeout,
-			 * except if it was already infinite or if we have explicitly setup
-			 * independent streams.
-			 */
-			ic->rex = tick_add_ifset(now_ms, ic->rto);
-		}
-	}
-}
-
 /* This tries to perform a synchronous receive on the stream interface to
  * try to collect last arrived data. In practice it's only implemented on
  * conn_streams. Returns 0 if nothing was done, non-zero if new data or a
@@ -613,44 +521,6 @@ void si_sync_send(struct stream_interface *si)
 		return;
 
 	si_cs_send(si->cs);
-}
-
-/* Updates at once the channel flags, and timers of both stream interfaces of a
- * same stream, to complete the work after the analysers, then updates the data
- * layer below. This will ensure that any synchronous update performed at the
- * data layer will be reflected in the channel flags and/or stream-interface.
- * Note that this does not change the stream interface's current state, though
- * it updates the previous state to the current one.
- */
-void si_update_both(struct stream_interface *si_f, struct stream_interface *si_b)
-{
-	struct channel *req = si_ic(si_f);
-	struct channel *res = si_oc(si_f);
-
-	req->flags &= ~(CF_READ_NULL|CF_READ_PARTIAL|CF_READ_ATTACHED|CF_WRITE_NULL|CF_WRITE_PARTIAL);
-	res->flags &= ~(CF_READ_NULL|CF_READ_PARTIAL|CF_READ_ATTACHED|CF_WRITE_NULL|CF_WRITE_PARTIAL);
-
-	si_strm(si_b)->prev_conn_state = si_b->cs->state;
-
-	/* let's recompute both sides states */
-	if (cs_state_in(si_f->cs->state, CS_SB_RDY|CS_SB_EST))
-		si_update(si_f);
-
-	if (cs_state_in(si_b->cs->state, CS_SB_RDY|CS_SB_EST))
-		si_update(si_b);
-
-	/* stream ints are processed outside of process_stream() and must be
-	 * handled at the latest moment.
-	 */
-	if (cs_appctx(si_f->cs) &&
-	    ((si_rx_endp_ready(si_f) && !si_rx_blocked(si_f)) ||
-	     (si_tx_endp_ready(si_f) && !si_tx_blocked(si_f))))
-		appctx_wakeup(__cs_appctx(si_f->cs));
-
-	if (cs_appctx(si_b->cs) &&
-	    ((si_rx_endp_ready(si_b) && !si_rx_blocked(si_b)) ||
-	     (si_tx_endp_ready(si_b) && !si_tx_blocked(si_b))))
-		appctx_wakeup(__cs_appctx(si_b->cs));
 }
 
 /*

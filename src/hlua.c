@@ -1953,7 +1953,7 @@ static void hlua_socket_handler(struct appctx *appctx)
 	 * interface.
 	 */
 	if (!channel_is_empty(cs_ic(cs)))
-		si_update(cs->si);
+		cs_update(cs);
 
 	/* If write notifications are registered, we considers we want
 	 * to write, so we clear the blocking flag.
