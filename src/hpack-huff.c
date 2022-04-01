@@ -1446,7 +1446,10 @@ int huff_dec(const uint8_t *huff, int hlen, char *out, int olen)
 			next = 0;
 
 			if (huff + 4 <= huff_end) {
-				next = (huff[0] << 24) + (huff[1] << 16) + (huff[2] <<  8) + huff[3];
+				next =  ((uint32_t)huff[0] << 24) +
+					((uint32_t)huff[1] << 16) +
+					((uint32_t)huff[2] <<  8) +
+					 (uint32_t)huff[3];
 				huff += 4;
 			}
 			else {
@@ -1454,10 +1457,10 @@ int huff_dec(const uint8_t *huff, int hlen, char *out, int olen)
 				 * distinguish shifted bits from a really inserted
 				 * EOS.
 				 */
-				next =  (((huff + 0 < huff_end) ? huff[0] : 0x00) << 24) +
-					(((huff + 1 < huff_end) ? huff[1] : 0x00) << 16) +
-					(((huff + 2 < huff_end) ? huff[2] : 0x00) <<  8) +
-					((huff + 3 < huff_end) ? huff[3] : 0x00);
+				next =  (((huff + 0 < huff_end) ? (uint32_t)huff[0] : 0x00) << 24) +
+					(((huff + 1 < huff_end) ? (uint32_t)huff[1] : 0x00) << 16) +
+					(((huff + 2 < huff_end) ? (uint32_t)huff[2] : 0x00) <<  8) +
+					 ((huff + 3 < huff_end) ? (uint32_t)huff[3] : 0x00);
 				huff = huff_end;
 			}
 
