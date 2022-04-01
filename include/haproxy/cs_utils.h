@@ -31,6 +31,7 @@
 #include <haproxy/conn_stream.h>
 #include <haproxy/session.h>
 #include <haproxy/stream.h>
+#include <haproxy/stream_interface.h>
 
 /* returns the channel which receives data from this conn-stream (input channel) */
 static inline struct channel *cs_ic(struct conn_stream *cs)
@@ -225,6 +226,46 @@ static inline int cs_get_dst(struct conn_stream *cs)
 static inline void cs_must_kill_conn(struct conn_stream *cs)
 {
 	cs->endp->flags |= CS_EP_KILL_CONN;
+}
+
+
+/* Sends a shutr to the endpoint using the data layer */
+static inline void cs_shutr(struct conn_stream *cs)
+{
+	cs->ops->shutr(cs);
+}
+
+/* Sends a shutw to the endpoint using the data layer */
+static inline void cs_shutw(struct conn_stream *cs)
+{
+	cs->ops->shutw(cs);
+}
+
+/* This is to be used after making some room available in a channel. It will
+ * return without doing anything if the conn-stream's RX path is blocked.
+ * It will automatically mark the stream interface as busy processing the end
+ * point in order to avoid useless repeated wakeups.
+ * It will then call ->chk_rcv() to enable receipt of new data.
+ */
+static inline void cs_chk_rcv(struct conn_stream *cs)
+{
+	if (cs->si->flags & SI_FL_RXBLK_CONN && cs_state_in(cs_opposite(cs)->state, CS_SB_RDY|CS_SB_EST|CS_SB_DIS|CS_SB_CLO))
+		si_rx_conn_rdy(cs->si);
+
+	if (si_rx_blocked(cs->si) || !si_rx_endp_ready(cs->si))
+		return;
+
+	if (!cs_state_in(cs->state, CS_SB_RDY|CS_SB_EST))
+		return;
+
+	cs->si->flags |= SI_FL_RX_WAIT_EP;
+	cs->ops->chk_rcv(cs);
+}
+
+/* Calls chk_snd on the endpoint using the data layer */
+static inline void cs_chk_snd(struct conn_stream *cs)
+{
+	cs->ops->chk_snd(cs);
 }
 
 /* for debugging, reports the stream interface state name */

@@ -14,6 +14,7 @@
 #include <haproxy/applet.h>
 #include <haproxy/connection.h>
 #include <haproxy/conn_stream.h>
+#include <haproxy/cs_utils.h>
 #include <haproxy/pool.h>
 #include <haproxy/stream_interface.h>
 

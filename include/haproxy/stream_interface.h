@@ -27,7 +27,6 @@
 #include <haproxy/channel.h>
 #include <haproxy/connection.h>
 #include <haproxy/conn_stream.h>
-#include <haproxy/cs_utils.h>
 #include <haproxy/obj_type.h>
 
 extern struct cs_app_ops cs_app_embedded_ops;
@@ -265,45 +264,6 @@ static inline int si_alloc_ibuf(struct stream_interface *si, struct buffer_wait 
 	if (!ret)
 		si_rx_buff_blk(si);
 	return ret;
-}
-
-/* Sends a shutr to the endpoint using the data layer */
-static inline void cs_shutr(struct conn_stream *cs)
-{
-	cs->ops->shutr(cs);
-}
-
-/* Sends a shutw to the endpoint using the data layer */
-static inline void cs_shutw(struct conn_stream *cs)
-{
-	cs->ops->shutw(cs);
-}
-
-/* This is to be used after making some room available in a channel. It will
- * return without doing anything if the conn-stream's RX path is blocked.
- * It will automatically mark the stream interface as busy processing the end
- * point in order to avoid useless repeated wakeups.
- * It will then call ->chk_rcv() to enable receipt of new data.
- */
-static inline void cs_chk_rcv(struct conn_stream *cs)
-{
-	if (cs->si->flags & SI_FL_RXBLK_CONN && cs_state_in(cs_opposite(cs)->state, CS_SB_RDY|CS_SB_EST|CS_SB_DIS|CS_SB_CLO))
-		si_rx_conn_rdy(cs->si);
-
-	if (si_rx_blocked(cs->si) || !si_rx_endp_ready(cs->si))
-		return;
-
-	if (!cs_state_in(cs->state, CS_SB_RDY|CS_SB_EST))
-		return;
-
-	cs->si->flags |= SI_FL_RX_WAIT_EP;
-	cs->ops->chk_rcv(cs);
-}
-
-/* Calls chk_snd on the endpoint using the data layer */
-static inline void cs_chk_snd(struct conn_stream *cs)
-{
-	cs->ops->chk_snd(cs);
 }
 
 /* Combines both si_update_rx() and si_update_tx() at once */
