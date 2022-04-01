@@ -166,7 +166,16 @@ static size_t hq_interop_snd_buf(struct conn_stream *cs, struct buffer *buf,
 	return total;
 }
 
+static int hq_is_active(const struct qcc *qcc, void *ctx)
+{
+	if (!eb_is_empty(&qcc->streams_by_id))
+		return 1;
+
+	return 0;
+}
+
 const struct qcc_app_ops hq_interop_ops = {
 	.decode_qcs = hq_interop_decode_qcs,
 	.snd_buf    = hq_interop_snd_buf,
+	.is_active  = hq_is_active,
 };

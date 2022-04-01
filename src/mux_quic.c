@@ -462,7 +462,11 @@ static void qcs_destroy(struct qcs *qcs)
 
 static inline int qcc_is_dead(const struct qcc *qcc)
 {
-	if (!qcc->strms[QCS_CLT_BIDI].nb_streams && !qcc->task)
+	if (qcc->app_ops && qcc->app_ops->is_active &&
+	    qcc->app_ops->is_active(qcc, qcc->ctx))
+		return 0;
+
+	if (!qcc->task)
 		return 1;
 
 	return 0;

@@ -117,6 +117,7 @@ struct qcc_app_ops {
 	int (*decode_qcs)(struct qcs *qcs, int fin, void *ctx);
 	size_t (*snd_buf)(struct conn_stream *cs, struct buffer *buf, size_t count, int flags);
 	int (*finalize)(void *ctx);
+	int (*is_active)(const struct qcc *qcc, void *ctx);
 	void (*release)(void *ctx);
 };
 
