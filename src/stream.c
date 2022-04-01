@@ -1657,8 +1657,8 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	si_b = cs_si(s->csb);
 
 	/* First, attempt to receive pending data from I/O layers */
-	si_sync_recv(si_f);
-	si_sync_recv(si_b);
+	cs_conn_sync_recv(s->csf);
+	cs_conn_sync_recv(s->csb);
 
 	/* Let's check if we're looping without making any progress, e.g. due
 	 * to a bogus analyser or the fact that we're ignoring a read0. The
@@ -2311,7 +2311,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	}
 
 	/* Let's see if we can send the pending request now */
-	si_sync_send(si_b);
+	cs_conn_sync_send(s->csb);
 
 	/*
 	 * Now forward all shutdown requests between both sides of the request buffer
@@ -2438,7 +2438,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	rpf_last = res->flags;
 
 	/* Let's see if we can send the pending response now */
-	si_sync_send(si_f);
+	cs_conn_sync_send(s->csf);
 
 	/*
 	 * Now forward all shutdown requests between both sides of the buffer

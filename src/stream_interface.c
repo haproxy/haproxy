@@ -485,30 +485,30 @@ struct task *cs_conn_io_cb(struct task *t, void *ctx, unsigned int state)
  * to be programmed and performed later, though it doesn't provide any
  * such guarantee.
  */
-int si_sync_recv(struct stream_interface *si)
+int cs_conn_sync_recv(struct conn_stream *cs)
 {
-	if (!cs_state_in(si->cs->state, CS_SB_RDY|CS_SB_EST))
+	if (!cs_state_in(cs->state, CS_SB_RDY|CS_SB_EST))
 		return 0;
 
-	if (!cs_conn_mux(si->cs))
+	if (!cs_conn_mux(cs))
 		return 0; // only conn_streams are supported
 
-	if (si->cs->wait_event.events & SUB_RETRY_RECV)
+	if (cs->wait_event.events & SUB_RETRY_RECV)
 		return 0; // already subscribed
 
-	if (!si_rx_endp_ready(si) || si_rx_blocked(si))
+	if (!si_rx_endp_ready(cs->si) || si_rx_blocked(cs->si))
 		return 0; // already failed
 
-	return si_cs_recv(si->cs);
+	return si_cs_recv(cs);
 }
 
 /* perform a synchronous send() for the stream interface. The CF_WRITE_NULL and
  * CF_WRITE_PARTIAL flags are cleared prior to the attempt, and will possibly
  * be updated in case of success.
  */
-void si_sync_send(struct stream_interface *si)
+void cs_conn_sync_send(struct conn_stream *cs)
 {
-	struct channel *oc = si_oc(si);
+	struct channel *oc = cs_oc(cs);
 
 	oc->flags &= ~(CF_WRITE_NULL|CF_WRITE_PARTIAL);
 
@@ -518,13 +518,13 @@ void si_sync_send(struct stream_interface *si)
 	if (channel_is_empty(oc))
 		return;
 
-	if (!cs_state_in(si->cs->state, CS_SB_CON|CS_SB_RDY|CS_SB_EST))
+	if (!cs_state_in(cs->state, CS_SB_CON|CS_SB_RDY|CS_SB_EST))
 		return;
 
-	if (!cs_conn_mux(si->cs))
+	if (!cs_conn_mux(cs))
 		return;
 
-	si_cs_send(si->cs);
+	si_cs_send(cs);
 }
 
 /*
