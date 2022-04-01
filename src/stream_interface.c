@@ -91,14 +91,6 @@ struct cs_app_ops cs_app_applet_ops = {
 	.shutw   = cs_app_shutw_applet,
 };
 
-/* Functions used to communicate with a conn_stream. The first two may be used
- * directly, the last one is mostly a wake callback.
- */
-static int si_cs_recv(struct conn_stream *cs);
-static int si_cs_send(struct conn_stream *cs);
-static int si_cs_process(struct conn_stream *cs);
-
-
 struct data_cb si_conn_cb = {
 	.wake    = si_cs_process,
 	.name    = "STRM",
@@ -427,7 +419,7 @@ static inline int si_is_conn_error(const struct stream_interface *si)
  * connection's polling based on the channels and stream interface's final
  * states. The function always returns 0.
  */
-static int si_cs_process(struct conn_stream *cs)
+int si_cs_process(struct conn_stream *cs)
 {
 	struct connection *conn = __cs_conn(cs);
 	struct stream_interface *si = cs_si(cs);
@@ -517,7 +509,7 @@ static int si_cs_process(struct conn_stream *cs)
  * caller to commit polling changes. The caller should check conn->flags
  * for errors.
  */
-static int si_cs_send(struct conn_stream *cs)
+int si_cs_send(struct conn_stream *cs)
 {
 	struct connection *conn = __cs_conn(cs);
 	struct stream_interface *si = cs_si(cs);
@@ -1097,7 +1089,7 @@ static void cs_app_chk_snd_conn(struct conn_stream *cs)
  * into the buffer from the connection. It iterates over the mux layer's
  * rcv_buf function.
  */
-static int si_cs_recv(struct conn_stream *cs)
+int si_cs_recv(struct conn_stream *cs)
 {
 	struct connection *conn = __cs_conn(cs);
 	struct stream_interface *si = cs_si(cs);

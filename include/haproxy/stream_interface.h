@@ -48,6 +48,13 @@ void si_update_both(struct stream_interface *si_f, struct stream_interface *si_b
 int si_sync_recv(struct stream_interface *si);
 void si_sync_send(struct stream_interface *si);
 
+/* Functions used to communicate with a conn_stream. The first two may be used
+ * directly, the last one is mostly a wake callback.
+ */
+int si_cs_recv(struct conn_stream *cs);
+int si_cs_send(struct conn_stream *cs);
+int si_cs_process(struct conn_stream *cs);
+
 /* returns the channel which receives data from this stream interface (input channel) */
 static inline struct channel *si_ic(struct stream_interface *si)
 {
