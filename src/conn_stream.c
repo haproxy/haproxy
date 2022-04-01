@@ -227,8 +227,8 @@ int cs_attach_mux(struct conn_stream *cs, void *target, void *ctx)
 			cs->wait_event.tasklet = tasklet_new();
 			if (!cs->wait_event.tasklet)
 				return -1;
-			cs->wait_event.tasklet->process = si_cs_io_cb;
-			cs->wait_event.tasklet->context = cs->si;
+			cs->wait_event.tasklet->process = cs_conn_io_cb;
+			cs->wait_event.tasklet->context = cs;
 			cs->wait_event.events = 0;
 		}
 
@@ -273,8 +273,8 @@ int cs_attach_strm(struct conn_stream *cs, struct stream *strm)
 			cs->si = NULL;
 			return -1;
 		}
-		cs->wait_event.tasklet->process = si_cs_io_cb;
-		cs->wait_event.tasklet->context = cs->si;
+		cs->wait_event.tasklet->process = cs_conn_io_cb;
+		cs->wait_event.tasklet->context = cs;
 		cs->wait_event.events = 0;
 
 		cs->ops = &cs_app_conn_ops;

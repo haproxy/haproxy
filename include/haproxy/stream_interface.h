@@ -38,7 +38,7 @@ void si_free(struct stream_interface *si);
 
 /* main event functions used to move data between sockets and buffers */
 int cs_applet_process(struct conn_stream *cs);
-struct task *si_cs_io_cb(struct task *t, void *ctx, unsigned int state);
+struct task *cs_conn_io_cb(struct task *t, void *ctx, unsigned int state);
 int si_sync_recv(struct stream_interface *si);
 void si_sync_send(struct stream_interface *si);
 

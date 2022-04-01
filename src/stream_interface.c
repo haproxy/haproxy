@@ -459,23 +459,22 @@ int si_cs_send(struct conn_stream *cs)
  * stream interface. Thus it is always safe to perform a tasklet_wakeup() on a
  * stream interface, as the presence of the CS is checked there.
  */
-struct task *si_cs_io_cb(struct task *t, void *ctx, unsigned int state)
+struct task *cs_conn_io_cb(struct task *t, void *ctx, unsigned int state)
 {
-	struct stream_interface *si = ctx;
-	struct conn_stream *cs = si->cs;
+	struct conn_stream *cs = ctx;
 	int ret = 0;
 
 	if (!cs_conn(cs))
 		return t;
 
-	if (!(cs->wait_event.events & SUB_RETRY_SEND) && !channel_is_empty(si_oc(si)))
+	if (!(cs->wait_event.events & SUB_RETRY_SEND) && !channel_is_empty(cs_oc(cs)))
 		ret = si_cs_send(cs);
 	if (!(cs->wait_event.events & SUB_RETRY_RECV))
 		ret |= si_cs_recv(cs);
 	if (ret != 0)
 		si_cs_process(cs);
 
-	stream_release_buffers(si_strm(si));
+	stream_release_buffers(__cs_strm(cs));
 	return t;
 }
 
