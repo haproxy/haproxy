@@ -830,6 +830,7 @@ int ha_quic_set_encryption_secrets(SSL *ssl, enum ssl_encryption_level_t level,
 		struct quic_tls_kp *nxt_rx = &qc->ku.nxt_rx;
 		struct quic_tls_kp *nxt_tx = &qc->ku.nxt_tx;
 
+		/* These secrets must be stored only for Application encryption level */
 		if (!(rx->secret = pool_alloc(pool_head_quic_tls_secret)) ||
 		    !(tx->secret = pool_alloc(pool_head_quic_tls_secret))) {
 			TRACE_DEVEL("Could not allocate secrete keys", QUIC_EV_CONN_RWSEC, qc);
@@ -3755,6 +3756,7 @@ static void quic_conn_release(struct quic_conn *qc)
 	int i;
 	struct ssl_sock_ctx *conn_ctx;
 	struct eb64_node *node;
+	struct quic_tls_ctx *app_tls_ctx;
 
 	/* free remaining stream descriptors */
 	node = eb64_first(&qc->streams_by_id);
@@ -3790,8 +3792,15 @@ static void quic_conn_release(struct quic_conn *qc)
 		pool_free(pool_head_quic_conn_ctx, conn_ctx);
 	}
 
-	for (i = 0; i < QUIC_TLS_ENC_LEVEL_MAX; i++)
+	quic_tls_ku_free(qc);
+	for (i = 0; i < QUIC_TLS_ENC_LEVEL_MAX; i++) {
+		quic_tls_ctx_secs_free(&qc->els[i].tls_ctx);
 		quic_conn_enc_level_uninit(&qc->els[i]);
+	}
+
+	app_tls_ctx = &qc->els[QUIC_TLS_ENC_LEVEL_APP].tls_ctx;
+	pool_free(pool_head_quic_tls_secret, app_tls_ctx->rx.secret);
+	pool_free(pool_head_quic_tls_secret, app_tls_ctx->tx.secret);
 
 	pool_free(pool_head_quic_conn_rxbuf, qc->rx.buf.area);
 	pool_free(pool_head_quic_conn, qc);
