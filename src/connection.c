@@ -1163,6 +1163,101 @@ int conn_recv_proxy(struct connection *conn, int flag)
 	return 0;
 }
 
+/* This callback is used to send a valid PROXY protocol line to a socket being
+ * established. It returns 0 if it fails in a fatal way or needs to poll to go
+ * further, otherwise it returns non-zero and removes itself from the connection's
+ * flags (the bit is provided in <flag> by the caller). It is designed to be
+ * called by the connection handler and relies on it to commit polling changes.
+ * Note that it can emit a PROXY line by relying on the other end's address
+ * when the connection is attached to a stream interface, or by resolving the
+ * local address otherwise (also called a LOCAL line).
+ */
+int conn_send_proxy(struct connection *conn, unsigned int flag)
+{
+	if (!conn_ctrl_ready(conn))
+		goto out_error;
+
+	/* If we have a PROXY line to send, we'll use this to validate the
+	 * connection, in which case the connection is validated only once
+	 * we've sent the whole proxy line. Otherwise we use connect().
+	 */
+	if (conn->send_proxy_ofs) {
+		struct conn_stream *cs;
+		int ret;
+
+		/* If there is no mux attached to the connection, it means the
+		 * connection context is a conn-stream.
+		 */
+		cs = (conn->mux ? cs_conn_get_first(conn) : conn->ctx);
+
+		/* The target server expects a PROXY line to be sent first.
+		 * If the send_proxy_ofs is negative, it corresponds to the
+		 * offset to start sending from then end of the proxy string
+		 * (which is recomputed every time since it's constant). If
+		 * it is positive, it means we have to send from the start.
+		 * We can only send a "normal" PROXY line when the connection
+		 * is attached to a stream interface. Otherwise we can only
+		 * send a LOCAL line (eg: for use with health checks).
+		 */
+
+		if (cs && cs_strm(cs)) {
+			ret = make_proxy_line(trash.area, trash.size,
+					      objt_server(conn->target),
+					      cs_conn(cs_opposite(cs)),
+					      __cs_strm(cs));
+		}
+		else {
+			/* The target server expects a LOCAL line to be sent first. Retrieving
+			 * local or remote addresses may fail until the connection is established.
+			 */
+			if (!conn_get_src(conn) || !conn_get_dst(conn))
+				goto out_wait;
+
+			ret = make_proxy_line(trash.area, trash.size,
+					      objt_server(conn->target), conn,
+					      NULL);
+		}
+
+		if (!ret)
+			goto out_error;
+
+		if (conn->send_proxy_ofs > 0)
+			conn->send_proxy_ofs = -ret; /* first call */
+
+		/* we have to send trash from (ret+sp for -sp bytes). If the
+		 * data layer has a pending write, we'll also set MSG_MORE.
+		 */
+		ret = conn_ctrl_send(conn,
+				     trash.area + ret + conn->send_proxy_ofs,
+		                     -conn->send_proxy_ofs,
+		                     (conn->subs && conn->subs->events & SUB_RETRY_SEND) ? CO_SFL_MSG_MORE : 0);
+
+		if (ret < 0)
+			goto out_error;
+
+		conn->send_proxy_ofs += ret; /* becomes zero once complete */
+		if (conn->send_proxy_ofs != 0)
+			goto out_wait;
+
+		/* OK we've sent the whole line, we're connected */
+	}
+
+	/* The connection is ready now, simply return and let the connection
+	 * handler notify upper layers if needed.
+	 */
+	conn->flags &= ~CO_FL_WAIT_L4_CONN;
+	conn->flags &= ~flag;
+	return 1;
+
+ out_error:
+	/* Write error on the file descriptor */
+	conn->flags |= CO_FL_ERROR;
+	return 0;
+
+ out_wait:
+	return 0;
+}
+
 /* This handshake handler waits a NetScaler Client IP insertion header
  * at the beginning of the raw data stream. The header format is
  * described in doc/netscaler-client-ip-insertion-protocol.txt

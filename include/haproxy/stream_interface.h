@@ -40,7 +40,6 @@ struct stream_interface *si_new(struct conn_stream *cs);
 void si_free(struct stream_interface *si);
 
 /* main event functions used to move data between sockets and buffers */
-int conn_si_send_proxy(struct connection *conn, unsigned int flag);
 void si_applet_wake_cb(struct stream_interface *si);
 void si_update_rx(struct stream_interface *si);
 void si_update_tx(struct stream_interface *si);

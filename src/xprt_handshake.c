@@ -11,7 +11,6 @@
  */
 
 #include <haproxy/connection.h>
-#include <haproxy/stream_interface.h>
 
 struct xprt_handshake_ctx {
 	struct connection *conn;
@@ -72,7 +71,7 @@ struct task *xprt_handshake_io_cb(struct task *t, void *bctx, unsigned int state
 		}
 
 	if (conn->flags & CO_FL_SEND_PROXY)
-		if (!conn_si_send_proxy(conn, CO_FL_SEND_PROXY)) {
+		if (!conn_send_proxy(conn, CO_FL_SEND_PROXY)) {
 			ctx->xprt->subscribe(conn, ctx->xprt_ctx, SUB_RETRY_SEND,
 			    &ctx->wait_event);
 			goto out;

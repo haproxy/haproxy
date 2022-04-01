@@ -50,6 +50,7 @@ extern struct mux_stopping_data mux_stopping_data[MAX_THREADS];
 
 /* receive a PROXY protocol header over a connection */
 int conn_recv_proxy(struct connection *conn, int flag);
+int conn_send_proxy(struct connection *conn, unsigned int flag);
 int make_proxy_line(char *buf, int buf_len, struct server *srv, struct connection *remote, struct stream *strm);
 
 int conn_append_debug_info(struct buffer *buf, const struct connection *conn, const char *pfx);
