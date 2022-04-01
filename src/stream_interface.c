@@ -53,6 +53,11 @@ struct data_cb si_conn_cb = {
 };
 
 
+struct data_cb cs_data_applet_cb = {
+	.wake    = cs_applet_process,
+	.name    = "STRM",
+};
+
 struct stream_interface *si_new(struct conn_stream *cs)
 {
 	struct stream_interface *si;
@@ -908,36 +913,37 @@ static void stream_int_read0(struct stream_interface *si)
  * may re-enable the applet's based on the channels and stream interface's final
  * states.
  */
-void si_applet_wake_cb(struct stream_interface *si)
+int cs_applet_process(struct conn_stream *cs)
 {
-	struct channel *ic = si_ic(si);
+	struct channel *ic = cs_ic(cs);
 
-	BUG_ON(!cs_appctx(si->cs));
+	BUG_ON(!cs_appctx(cs));
 
 	/* If the applet wants to write and the channel is closed, it's a
 	 * broken pipe and it must be reported.
 	 */
-	if (!(si->flags & SI_FL_RX_WAIT_EP) && (ic->flags & CF_SHUTR))
-		si->cs->endp->flags |= CS_EP_ERROR;
+	if (!(cs->si->flags & SI_FL_RX_WAIT_EP) && (ic->flags & CF_SHUTR))
+		cs->endp->flags |= CS_EP_ERROR;
 
 	/* automatically mark the applet having data available if it reported
 	 * begin blocked by the channel.
 	 */
-	if (si_rx_blocked(si))
-		si_rx_endp_more(si);
+	if (si_rx_blocked(cs->si))
+		si_rx_endp_more(cs->si);
 
 	/* update the stream-int, channels, and possibly wake the stream up */
-	stream_int_notify(si);
-	stream_release_buffers(si_strm(si));
+	stream_int_notify(cs->si);
+	stream_release_buffers(__cs_strm(cs));
 
 	/* stream_int_notify may have passed through chk_snd and released some
 	 * RXBLK flags. Process_stream will consider those flags to wake up the
 	 * appctx but in the case the task is not in runqueue we may have to
 	 * wakeup the appctx immediately.
 	 */
-	if ((si_rx_endp_ready(si) && !si_rx_blocked(si)) ||
-	    (si_tx_endp_ready(si) && !si_tx_blocked(si)))
-		appctx_wakeup(__cs_appctx(si->cs));
+	if ((si_rx_endp_ready(cs->si) && !si_rx_blocked(cs->si)) ||
+	    (si_tx_endp_ready(cs->si) && !si_tx_blocked(cs->si)))
+		appctx_wakeup(__cs_appctx(cs));
+	return 0;
 }
 
 /*

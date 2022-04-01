@@ -252,7 +252,7 @@ void cs_attach_applet(struct conn_stream *cs, void *target, void *ctx)
 	appctx->owner = cs;
 	if (cs_strm(cs)) {
 		cs->ops = &cs_app_applet_ops;
-		cs->data_cb = NULL;
+		cs->data_cb = &cs_data_applet_cb;
 	}
 }
 
@@ -282,7 +282,7 @@ int cs_attach_strm(struct conn_stream *cs, struct stream *strm)
 	}
 	else if (cs->endp->flags & CS_EP_T_APPLET) {
 		cs->ops = &cs_app_applet_ops;
-		cs->data_cb = NULL;
+		cs->data_cb = &cs_data_applet_cb;
 	}
 	else {
 		cs->ops = &cs_app_embedded_ops;

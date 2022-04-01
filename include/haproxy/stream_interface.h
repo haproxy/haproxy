@@ -30,13 +30,14 @@
 #include <haproxy/obj_type.h>
 
 extern struct data_cb si_conn_cb;
+extern struct data_cb cs_data_applet_cb;
 extern struct data_cb check_conn_cb;
 
 struct stream_interface *si_new(struct conn_stream *cs);
 void si_free(struct stream_interface *si);
 
 /* main event functions used to move data between sockets and buffers */
-void si_applet_wake_cb(struct stream_interface *si);
+int cs_applet_process(struct conn_stream *cs);
 struct task *si_cs_io_cb(struct task *t, void *ctx, unsigned int state);
 int si_sync_recv(struct stream_interface *si);
 void si_sync_send(struct stream_interface *si);
