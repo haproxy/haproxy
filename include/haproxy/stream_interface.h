@@ -243,24 +243,6 @@ static inline void si_done_get(struct stream_interface *si)
 	si->flags &= ~(SI_FL_WANT_GET | SI_FL_WAIT_DATA);
 }
 
-/* Try to allocate a buffer for the stream-int's input channel. It relies on
- * channel_alloc_buffer() for this so it abides by its rules. It returns 0 on
- * failure, non-zero otherwise. If no buffer is available, the requester,
- * represented by the <wait> pointer, will be added in the list of objects
- * waiting for an available buffer, and SI_FL_RXBLK_BUFF will be set on the
- * stream-int and SI_FL_RX_WAIT_EP cleared. The requester will be responsible
- * for calling this function to try again once woken up.
- */
-static inline int si_alloc_ibuf(struct stream_interface *si, struct buffer_wait *wait)
-{
-	int ret;
-
-	ret = channel_alloc_buffer(si_ic(si), wait);
-	if (!ret)
-		si_rx_buff_blk(si);
-	return ret;
-}
-
 #endif /* _HAPROXY_STREAM_INTERFACE_H */
 
 /*

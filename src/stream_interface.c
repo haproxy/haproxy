@@ -655,7 +655,7 @@ int cs_conn_recv(struct conn_stream *cs)
 	}
 
 	/* now we'll need a input buffer for the stream */
-	if (!si_alloc_ibuf(cs->si, &(__cs_strm(cs)->buffer_wait)))
+	if (!cs_alloc_ibuf(cs, &(__cs_strm(cs)->buffer_wait)))
 		goto end_recv;
 
 	/* For an HTX stream, if the buffer is stuck (no output data with some

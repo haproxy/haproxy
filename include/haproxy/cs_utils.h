@@ -141,6 +141,24 @@ static inline int cs_is_conn_error(const struct conn_stream *cs)
 	return !!(conn->flags & CO_FL_ERROR);
 }
 
+/* Try to allocate a buffer for the conn-stream's input channel. It relies on
+ * channel_alloc_buffer() for this so it abides by its rules. It returns 0 on
+ * failure, non-zero otherwise. If no buffer is available, the requester,
+ * represented by the <wait> pointer, will be added in the list of objects
+ * waiting for an available buffer, and SI_FL_RXBLK_BUFF will be set on the
+ * stream-int and SI_FL_RX_WAIT_EP cleared. The requester will be responsible
+ * for calling this function to try again once woken up.
+ */
+static inline int cs_alloc_ibuf(struct conn_stream *cs, struct buffer_wait *wait)
+{
+	int ret;
+
+	ret = channel_alloc_buffer(cs_ic(cs), wait);
+	if (!ret)
+		si_rx_buff_blk(cs->si);
+	return ret;
+}
+
 
 /* Returns the source address of the conn-stream and, if not set, fallbacks on
  * the session for frontend CS and the server connection for the backend CS. It

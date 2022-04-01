@@ -150,7 +150,7 @@ struct task *task_run_applet(struct task *t, void *context, unsigned int state)
 	 * some other processing if needed. The applet doesn't have anything to
 	 * do if it needs the buffer, it will be called again upon readiness.
 	 */
-	if (!si_alloc_ibuf(cs->si, &app->buffer_wait))
+	if (!cs_alloc_ibuf(cs, &app->buffer_wait))
 		si_rx_endp_more(cs->si);
 
 	count = co_data(cs_oc(cs));
