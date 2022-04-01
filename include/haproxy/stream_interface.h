@@ -29,9 +29,6 @@
 #include <haproxy/conn_stream.h>
 #include <haproxy/obj_type.h>
 
-extern struct cs_app_ops cs_app_embedded_ops;
-extern struct cs_app_ops cs_app_conn_ops;
-extern struct cs_app_ops cs_app_applet_ops;
 extern struct data_cb si_conn_cb;
 extern struct data_cb check_conn_cb;
 
