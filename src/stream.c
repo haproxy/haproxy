@@ -1536,6 +1536,47 @@ int stream_set_http_mode(struct stream *s, const struct mux_proto_list *mux_prot
 }
 
 
+/* Updates at once the channel flags, and timers of both conn-streams of a
+ * same stream, to complete the work after the analysers, then updates the data
+ * layer below. This will ensure that any synchronous update performed at the
+ * data layer will be reflected in the channel flags and/or conn-stream.
+ * Note that this does not change the conn-stream's current state, though
+ * it updates the previous state to the current one.
+ */
+static void stream_update_both_cs(struct stream *s)
+{
+	struct conn_stream *csf = s->csf;
+	struct conn_stream *csb = s->csb;
+	struct channel *req = &s->req;
+	struct channel *res = &s->res;
+
+	req->flags &= ~(CF_READ_NULL|CF_READ_PARTIAL|CF_READ_ATTACHED|CF_WRITE_NULL|CF_WRITE_PARTIAL);
+	res->flags &= ~(CF_READ_NULL|CF_READ_PARTIAL|CF_READ_ATTACHED|CF_WRITE_NULL|CF_WRITE_PARTIAL);
+
+	s->prev_conn_state = csb->state;
+
+	/* let's recompute both sides states */
+	if (cs_state_in(csf->state, CS_SB_RDY|CS_SB_EST))
+		cs_update(csf);
+
+	if (cs_state_in(csb->state, CS_SB_RDY|CS_SB_EST))
+		cs_update(csb);
+
+	/* stream ints are processed outside of process_stream() and must be
+	 * handled at the latest moment.
+	 */
+	if (cs_appctx(csf)) {
+		if ((si_rx_endp_ready(csf->si) && !si_rx_blocked(csf->si)) ||
+		    (si_tx_endp_ready(csf->si) && !si_tx_blocked(csf->si)))
+			appctx_wakeup(__cs_appctx(csf));
+	}
+	if (cs_appctx(csb)) {
+		if ((si_rx_endp_ready(csb->si) && !si_rx_blocked(csb->si)) ||
+		    (si_tx_endp_ready(csb->si) && !si_tx_blocked(csb->si)))
+			appctx_wakeup(__cs_appctx(csb));
+	}
+}
+
 
 /* This macro is very specific to the function below. See the comments in
  * process_stream() below to understand the logic and the tests.
@@ -2455,7 +2496,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		if ((sess->fe->options & PR_O_CONTSTATS) && (s->flags & SF_BE_ASSIGNED) && !(s->flags & SF_IGNORE))
 			stream_process_counters(s);
 
-		cs_update_both(s->csf, s->csb);
+		stream_update_both_cs(s);
 
 		/* Trick: if a request is being waiting for the server to respond,
 		 * and if we know the server can timeout, we don't want the timeout

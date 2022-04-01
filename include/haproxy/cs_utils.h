@@ -35,7 +35,6 @@
 
 void cs_update_rx(struct conn_stream *cs);
 void cs_update_tx(struct conn_stream *cs);
-void cs_update_both(struct conn_stream *csf, struct conn_stream *csb);
 
 /* returns the channel which receives data from this conn-stream (input channel) */
 static inline struct channel *cs_ic(struct conn_stream *cs)
