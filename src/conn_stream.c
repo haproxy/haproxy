@@ -233,7 +233,7 @@ int cs_attach_mux(struct conn_stream *cs, void *target, void *ctx)
 		}
 
 		cs->ops = &cs_app_conn_ops;
-		cs->data_cb = &si_conn_cb;
+		cs->data_cb = &cs_data_conn_cb;
 	}
 	else if (cs_check(cs))
 		cs->data_cb = &check_conn_cb;
@@ -278,7 +278,7 @@ int cs_attach_strm(struct conn_stream *cs, struct stream *strm)
 		cs->wait_event.events = 0;
 
 		cs->ops = &cs_app_conn_ops;
-		cs->data_cb = &si_conn_cb;
+		cs->data_cb = &cs_data_conn_cb;
 	}
 	else if (cs->endp->flags & CS_EP_T_APPLET) {
 		cs->ops = &cs_app_applet_ops;
@@ -728,7 +728,7 @@ static void cs_app_chk_snd_conn(struct conn_stream *cs)
 		return;
 
 	if (!(cs->wait_event.events & SUB_RETRY_SEND) && !channel_is_empty(cs_oc(cs)))
-		si_cs_send(cs);
+		cs_conn_send(cs);
 
 	if (cs->endp->flags & (CS_EP_ERROR|CS_EP_ERR_PENDING) || si_is_conn_error(cs->si)) {
 		/* Write error on the file descriptor */

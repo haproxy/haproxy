@@ -29,7 +29,7 @@
 #include <haproxy/conn_stream.h>
 #include <haproxy/obj_type.h>
 
-extern struct data_cb si_conn_cb;
+extern struct data_cb cs_data_conn_cb;
 extern struct data_cb cs_data_applet_cb;
 extern struct data_cb check_conn_cb;
 
@@ -45,9 +45,9 @@ void cs_conn_sync_send(struct conn_stream *cs);
 /* Functions used to communicate with a conn_stream. The first two may be used
  * directly, the last one is mostly a wake callback.
  */
-int si_cs_recv(struct conn_stream *cs);
-int si_cs_send(struct conn_stream *cs);
-int si_cs_process(struct conn_stream *cs);
+int cs_conn_recv(struct conn_stream *cs);
+int cs_conn_send(struct conn_stream *cs);
+int cs_conn_process(struct conn_stream *cs);
 
 /* returns the channel which receives data from this stream interface (input channel) */
 static inline struct channel *si_ic(struct stream_interface *si)
