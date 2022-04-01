@@ -11,6 +11,7 @@
 
 #define _GNU_SOURCE
 #include <ctype.h>
+#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -1096,19 +1097,101 @@ int ssl_store_load_locations_file(char *path, int create_if_none, enum cafile_ty
 	 * X509_STORE_load_locations function because it performs forbidden disk
 	 * accesses. */
 	if (!store && create_if_none) {
+		STACK_OF(X509_OBJECT) *objs;
+		int cert_count = 0;
+		struct stat buf;
 		struct cafile_entry *ca_e;
+		char *file = NULL;
+		char *dir = NULL;
+
 		store = X509_STORE_new();
-		if (X509_STORE_load_locations(store, path, NULL)) {
-			ca_e = ssl_store_create_cafile_entry(path, store, type);
-			if (ca_e) {
-				ebst_insert(&cafile_tree, &ca_e->node);
+
+		if (stat(path, &buf))
+			goto err;
+
+		if (S_ISDIR(buf.st_mode))
+			dir = path;
+		else
+			file = path;
+
+		if (file) {
+			if (!X509_STORE_load_locations(store, file, NULL)) {
+				goto err;
 			}
 		} else {
-			X509_STORE_free(store);
-			store = NULL;
+			int n, i;
+			struct dirent **de_list;
+
+			n = scandir(dir, &de_list, 0, alphasort);
+			if (n < 0)
+				goto err;
+
+			for (i= 0; i < n; i++) {
+				char *end;
+				struct dirent *de = de_list[i];
+				BIO *in = NULL;
+				X509 *ca = NULL;;
+
+				/* we try to load the files that would have
+				 * been loaded in an hashed directory loaded by
+				 * X509_LOOKUP_hash_dir, so according to "man 1
+				 * c_rehash", we should load  ".pem", ".crt",
+				 * ".cer", or ".crl"
+				 */
+				end = strrchr(de->d_name, '.');
+				if (!end || (strcmp(end, ".pem") != 0 &&
+				             strcmp(end, ".crt") != 0 &&
+				             strcmp(end, ".cer") != 0 &&
+				             strcmp(end, ".crl") != 0)) {
+					free(de);
+					continue;
+				}
+				in = BIO_new(BIO_s_file());
+				if (in == NULL)
+					goto scandir_err;
+
+				chunk_printf(&trash, "%s/%s", path, de->d_name);
+
+				if (BIO_read_filename(in, trash.area) == 0)
+					goto scandir_err;
+
+				if (PEM_read_bio_X509_AUX(in, &ca, NULL, NULL) == NULL)
+					goto scandir_err;
+
+				if (X509_STORE_add_cert(store, ca) == 0)
+					goto scandir_err;
+
+				BIO_free(in);
+				free(de);
+				continue;
+
+scandir_err:
+				BIO_free(in);
+				free(de);
+				ha_warning("ca-file: '%s' couldn't load '%s'\n", path, trash.area);
+				break;
+
+			}
+			free(de_list);
 		}
+
+		objs = X509_STORE_get0_objects(store);
+		cert_count = sk_X509_OBJECT_num(objs);
+		if (cert_count == 0)
+			ha_warning("ca-file: 0 CA were loaded from '%s'\n", path);
+
+		ca_e = ssl_store_create_cafile_entry(path, store, type);
+		if (!ca_e)
+			goto err;
+		ebst_insert(&cafile_tree, &ca_e->node);
 	}
 	return (store != NULL);
+
+err:
+	X509_STORE_free(store);
+	store = NULL;
+	return 0;
+
 }
 
 
