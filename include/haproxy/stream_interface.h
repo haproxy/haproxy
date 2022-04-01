@@ -30,9 +30,9 @@
 #include <haproxy/cs_utils.h>
 #include <haproxy/obj_type.h>
 
-extern struct si_ops si_embedded_ops;
-extern struct si_ops si_conn_ops;
-extern struct si_ops si_applet_ops;
+extern struct cs_app_ops cs_app_embedded_ops;
+extern struct cs_app_ops cs_app_conn_ops;
+extern struct cs_app_ops cs_app_applet_ops;
 extern struct data_cb si_conn_cb;
 extern struct data_cb check_conn_cb;
 
@@ -107,7 +107,6 @@ static inline int si_init(struct stream_interface *si)
 {
 	si->flags         &= SI_FL_ISBACK;
 	si->cs             = NULL;
-	si->ops            = &si_embedded_ops;
 	return 0;
 }
 
@@ -276,13 +275,13 @@ static inline int si_alloc_ibuf(struct stream_interface *si, struct buffer_wait 
 /* Sends a shutr to the endpoint using the data layer */
 static inline void cs_shutr(struct conn_stream *cs)
 {
-	cs->si->ops->shutr(cs->si);
+	cs->ops->shutr(cs);
 }
 
 /* Sends a shutw to the endpoint using the data layer */
 static inline void cs_shutw(struct conn_stream *cs)
 {
-	cs->si->ops->shutw(cs->si);
+	cs->ops->shutw(cs);
 }
 
 /* This is to be used after making some room available in a channel. It will
@@ -303,13 +302,13 @@ static inline void cs_chk_rcv(struct conn_stream *cs)
 		return;
 
 	cs->si->flags |= SI_FL_RX_WAIT_EP;
-	cs->si->ops->chk_rcv(cs->si);
+	cs->ops->chk_rcv(cs);
 }
 
 /* Calls chk_snd on the endpoint using the data layer */
 static inline void cs_chk_snd(struct conn_stream *cs)
 {
-	cs->si->ops->chk_snd(cs->si);
+	cs->ops->chk_snd(cs);
 }
 
 /* Combines both si_update_rx() and si_update_tx() at once */

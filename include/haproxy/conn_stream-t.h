@@ -147,6 +147,14 @@ struct cs_endpoint {
 	unsigned int flags;
 };
 
+/* operations available on a conn-stream */
+struct cs_app_ops {
+	void (*chk_rcv)(struct conn_stream *); /* chk_rcv function, may not be null */
+	void (*chk_snd)(struct conn_stream *); /* chk_snd function, may not be null */
+	void (*shutr)(struct conn_stream *);   /* shut read function, may not be null */
+	void (*shutw)(struct conn_stream *);   /* shut write function, may not be null */
+};
+
 /*
  * This structure describes the elements of a connection relevant to a stream
  */
@@ -162,6 +170,7 @@ struct conn_stream {
 	enum obj_type *app;                  /* points to the applicative point (stream or check) */
 	struct stream_interface *si;
 	const struct data_cb *data_cb;       /* data layer callbacks. Must be set before xprt->init() */
+	struct cs_app_ops *ops;              /* general operations used at the app layer */
 	struct sockaddr_storage *src;        /* source address (pool), when known, otherwise NULL */
 	struct sockaddr_storage *dst;        /* destination address (pool), when known, otherwise NULL */
 };

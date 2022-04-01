@@ -127,8 +127,9 @@ struct conn_stream *cs_new_from_strm(struct stream *strm, unsigned int flags)
 		cs_free(cs);
 		return NULL;
 	}
+
 	cs->app = &strm->obj_type;
-	cs->si->ops = &si_embedded_ops;
+	cs->ops = &cs_app_embedded_ops;
 	cs->data_cb = NULL;
 	return cs;
 }
@@ -186,7 +187,7 @@ int cs_attach_mux(struct conn_stream *cs, void *target, void *ctx)
 			cs->wait_event.events = 0;
 		}
 
-		cs->si->ops = &si_conn_ops;
+		cs->ops = &cs_app_conn_ops;
 		cs->data_cb = &si_conn_cb;
 	}
 	else if (cs_check(cs))
@@ -205,7 +206,7 @@ void cs_attach_applet(struct conn_stream *cs, void *target, void *ctx)
 	cs->endp->flags &= ~CS_EP_DETACHED;
 	appctx->owner = cs;
 	if (cs_strm(cs)) {
-		cs->si->ops = &si_applet_ops;
+		cs->ops = &cs_app_applet_ops;
 		cs->data_cb = NULL;
 	}
 }
@@ -231,15 +232,15 @@ int cs_attach_strm(struct conn_stream *cs, struct stream *strm)
 		cs->wait_event.tasklet->context = cs->si;
 		cs->wait_event.events = 0;
 
-		cs->si->ops = &si_conn_ops;
+		cs->ops = &cs_app_conn_ops;
 		cs->data_cb = &si_conn_cb;
 	}
 	else if (cs->endp->flags & CS_EP_T_APPLET) {
-		cs->si->ops = &si_applet_ops;
+		cs->ops = &cs_app_applet_ops;
 		cs->data_cb = NULL;
 	}
 	else {
-		cs->si->ops = &si_embedded_ops;
+		cs->ops = &cs_app_embedded_ops;
 		cs->data_cb = NULL;
 	}
 	return 0;
@@ -300,7 +301,7 @@ void cs_detach_endp(struct conn_stream *cs)
 	 */
 	cs->flags &= CS_FL_ISBACK;
 	if (cs->si)
-		cs->si->ops = &si_embedded_ops;
+		cs->ops = &cs_app_embedded_ops;
 	cs->data_cb = NULL;
 
 	if (cs->app == NULL)

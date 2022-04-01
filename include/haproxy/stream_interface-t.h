@@ -62,15 +62,6 @@ struct stream_interface {
 	/* 16-bit hole here */
 	unsigned int flags;     /* SI_FL_* */
 	struct conn_stream *cs; /* points to the conn-streams that owns the endpoint (connection or applet) */
-	struct si_ops *ops;     /* general operations at the stream interface layer */
-};
-
-/* operations available on a stream-interface */
-struct si_ops {
-	void (*chk_rcv)(struct stream_interface *); /* chk_rcv function, may not be null */
-	void (*chk_snd)(struct stream_interface *); /* chk_snd function, may not be null */
-	void (*shutr)(struct stream_interface *);   /* shut read function, may not be null */
-	void (*shutw)(struct stream_interface *);   /* shut write function, may not be null */
 };
 
 #endif /* _HAPROXY_STREAM_INTERFACE_T_H */
