@@ -1,0 +1,50 @@
+varnishtest "be2dec converter Test"
+
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.6-dev0)'"
+feature ignore_unknown_macro
+
+server s1 {
+	rxreq
+	txresp
+} -repeat 3 -start
+
+haproxy h1 -conf {
+    defaults
+	mode http
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe
+	bind "fd@${fe}"
+
+	#### requests
+	http-request  set-var(txn.input) req.hdr(input)
+	http-request  set-var(txn.var) str("var_content")
+
+	http-response set-header add_item-1   "%[var(txn.input),add_item(',',txn.var,_suff_)]"
+	http-response set-header add_item-2   "%[var(txn.input),add_item(',',txn.var)]"
+	http-response set-header add_item-3   "%[var(txn.input),add_item(',',,_suff_)]"
+
+	default_backend be
+
+    backend be
+	server s1 ${s1_addr}:${s1_port}
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+	txreq -url "/" \
+	  -hdr "input:"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.add_item-1 == "var_content_suff_"
+	expect resp.http.add_item-2 == "var_content"
+	expect resp.http.add_item-3 == "_suff_"
+	txreq -url "/" \
+	  -hdr "input: input_string"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.add_item-1 == "input_string,var_content_suff_"
+	expect resp.http.add_item-2 == "input_string,var_content"
+	expect resp.http.add_item-3 == "input_string,_suff_"
+} -run

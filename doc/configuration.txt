@@ -16308,6 +16308,35 @@ add(<value>)
   This prefix is followed by a name. The separator is a '.'. The name may only
   contain characters 'a-z', 'A-Z', '0-9', '.' and '_'.
 
+add_item(<delim>,[<var>][,<suff>]])
+  Concatenates a minimum of 2 and up to 3 fields after the current sample which
+  is then turned into a string. The first one, <delim>, is a constant string,
+  that will be appended immediately after the existing sample if an existing
+  sample is not empty and either the <var> or the <suff> is not empty. The
+  second one, <var>, is a variable name. The variable will be looked up, its
+  contents converted to a string, and it will be appended immediately after
+  the <delim> part. If the variable is not found, nothing is appended. It is
+  optional and may optionally be followed by a constant string <suff>, however
+  if <var> is omitted, then <suff> is mandatory. This converter is similar to
+  the concat converter and can be used to build new variables made of a
+  succession of other variables but the main difference is that it does the
+  checks if adding a delimiter makes sense as wouldn't be the case if e.g. the
+  current sample is empty. That situation would require 2 separate rules using
+  concat converter where the first rule would have to check if the current
+  sample string is empty before adding a delimiter. If commas or closing
+  parenthesis are needed as delimiters, they must be protected by quotes or
+  backslashes, themselves protected so that they are not stripped by the first
+  level parser. See examples below.
+
+  Example:
+    http-request set-var(req.tagged) 'var(req.tagged),add_item(",",req.score1,"(site1)") if src,in_table(site1)'
+    http-request set-var(req.tagged) 'var(req.tagged),add_item(",",req.score2,"(site2)") if src,in_table(site2)'
+    http-request set-var(req.tagged) 'var(req.tagged),add_item(",",req.score3,"(site3)") if src,in_table(site3)'
+    http-request set-header x-tagged %[var(req.tagged)]
+
+    http-request set-var(req.tagged) 'var(req.tagged),add_item(",",req.score1),add_item(",",req.score2)'
+    http-request set-var(req.tagged) 'var(req.tagged),add_item(",",,(site1))' if src,in_table(site1)
+
 aes_gcm_dec(<bits>,<nonce>,<key>,<aead_tag>)
   Decrypts the raw byte input using the AES128-GCM, AES192-GCM or
   AES256-GCM algorithm, depending on the <bits> parameter. All other parameters

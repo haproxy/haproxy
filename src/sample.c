@@ -3122,6 +3122,103 @@ static int smp_check_concat(struct arg *args, struct sample_conv *conv,
 	return 1;
 }
 
+/* Append delimiter (only to a non empty input) followed by the optional
+ * variable contents concatenated with the optional sufix.
+ */
+static int sample_conv_add_item(const struct arg *arg_p, struct sample *smp, void *private)
+{
+	struct buffer *tmpbuf;
+	struct sample tmp;
+	size_t max;
+	int var_available;
+
+	tmpbuf = alloc_trash_chunk();
+	if (!tmpbuf)
+		return 0;
+
+	tmpbuf->data = smp->data.u.str.data;
+	if (tmpbuf->data > tmpbuf->size - 1)
+		tmpbuf->data = tmpbuf->size - 1;
+
+	memcpy(tmpbuf->area, smp->data.u.str.area, tmpbuf->data);
+	tmpbuf->area[tmpbuf->data] = 0;
+
+	/* Check if variable is found and we can turn into a string. */
+	var_available = 0;
+	smp_set_owner(&tmp, smp->px, smp->sess, smp->strm, smp->opt);
+	if (arg_p[1].type == ARGT_VAR && vars_get_by_desc(&arg_p[1].data.var, &tmp, NULL) &&
+	    (sample_casts[tmp.data.type][SMP_T_STR] == c_none ||
+	     sample_casts[tmp.data.type][SMP_T_STR](&tmp)))
+		var_available = 1;
+
+	/* Append delimiter only if input is not empty and either
+	 * the variable or the suffix are not empty
+	 */
+	if (smp->data.u.str.data && ((var_available && tmp.data.u.str.data) ||
+	    arg_p[2].data.str.data)) {
+		max = arg_p[0].data.str.data;
+		if (max > tmpbuf->size - 1 - tmpbuf->data)
+			max = tmpbuf->size - 1 - tmpbuf->data;
+
+		if (max) {
+			memcpy(tmpbuf->area + tmpbuf->data, arg_p[0].data.str.area, max);
+			tmpbuf->data += max;
+			tmpbuf->area[tmpbuf->data] = 0;
+		}
+	}
+
+	/* Append variable contents if variable is found and turned into string. */
+	if (var_available) {
+		max = tmp.data.u.str.data;
+		if (max > tmpbuf->size - 1 - tmpbuf->data)
+			max = tmpbuf->size - 1 - tmpbuf->data;
+
+		if (max) {
+			memcpy(tmpbuf->area + tmpbuf->data, tmp.data.u.str.area, max);
+			tmpbuf->data += max;
+			tmpbuf->area[tmpbuf->data] = 0;
+		}
+	}
+
+	/* Append optional suffix. */
+	max = arg_p[2].data.str.data;
+	if (max > tmpbuf->size - 1 - tmpbuf->data)
+		max = tmpbuf->size - 1 - tmpbuf->data;
+
+	if (max) {
+		memcpy(tmpbuf->area + tmpbuf->data, arg_p[2].data.str.area, max);
+		tmpbuf->data += max;
+		tmpbuf->area[tmpbuf->data] = 0;
+	}
+
+	smp->data.u.str = *tmpbuf;
+	smp->data.type = SMP_T_STR;
+	smp_dup(smp);
+	free_trash_chunk(tmpbuf);
+	return 1;
+}
+
+/* Check the "add_item" converter's arguments and extracts the
+ * variable name and its scope.
+ */
+static int smp_check_add_item(struct arg *args, struct sample_conv *conv,
+                           const char *file, int line, char **err)
+{
+	/* Try to decode a variable. */
+	if (args[1].data.str.data > 0 && !vars_check_arg(&args[1], NULL)) {
+		memprintf(err, "failed to register variable name '%s'",
+			  args[1].data.str.area);
+		return 0;
+	}
+
+	if (args[1].data.str.data == 0 && args[2].data.str.data == 0) {
+		memprintf(err, "one of the optional arguments has to be nonempty");
+		return 0;
+	}
+
+	return 1;
+}
+
 /* Compares string with a variable containing a string. Return value
  * is compatible with strcmp(3)'s return value.
  */
@@ -4206,9 +4303,11 @@ INITCALL1(STG_REGISTER, sample_register_fetches, &smp_kws);
 
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct sample_conv_kw_list sample_conv_kws = {ILH, {
+	{ "add_item",sample_conv_add_item,     ARG3(2,STR,STR,STR),   smp_check_add_item,       SMP_T_STR,  SMP_T_STR  },
 	{ "debug",   sample_conv_debug,        ARG2(0,STR,STR),       smp_check_debug,          SMP_T_ANY,  SMP_T_ANY  },
 	{ "b64dec",  sample_conv_base642bin,   0,                     NULL,                     SMP_T_STR,  SMP_T_BIN  },
 	{ "base64",  sample_conv_bin2base64,   0,                     NULL,                     SMP_T_BIN,  SMP_T_STR  },
+	{ "concat",  sample_conv_concat,       ARG3(1,STR,STR,STR),   smp_check_concat,         SMP_T_STR,  SMP_T_STR  },
 	{ "ub64enc", sample_conv_bin2base64url,0,                     NULL,                     SMP_T_BIN,  SMP_T_STR  },
 	{ "ub64dec", sample_conv_base64url2bin,0,                     NULL,                     SMP_T_STR,  SMP_T_BIN  },
 	{ "upper",   sample_conv_str2upper,    0,                     NULL,                     SMP_T_STR,  SMP_T_STR  },
@@ -4235,7 +4334,6 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "word",    sample_conv_word,         ARG3(2,SINT,STR,SINT), sample_conv_field_check,  SMP_T_STR,  SMP_T_STR  },
 	{ "regsub",  sample_conv_regsub,       ARG3(2,REG,STR,STR),   sample_conv_regsub_check, SMP_T_STR,  SMP_T_STR  },
 	{ "sha1",    sample_conv_sha1,         0,                     NULL,                     SMP_T_BIN,  SMP_T_BIN  },
-	{ "concat",  sample_conv_concat,       ARG3(1,STR,STR,STR),   smp_check_concat,         SMP_T_STR,  SMP_T_STR  },
 	{ "strcmp",  sample_conv_strcmp,       ARG1(1,STR),           smp_check_strcmp,         SMP_T_STR,  SMP_T_SINT },
 
 	/* gRPC converters. */
