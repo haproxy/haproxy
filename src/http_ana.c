@@ -1221,9 +1221,9 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 	return 0;
 }
 
-/* Reset the stream and the backend stream_interface to a situation suitable for attemption connection */
+/* Reset the stream and the backend conn_stream to a situation suitable for attemption connection */
 /* Returns 0 if we can attempt to retry, -1 otherwise */
-static __inline int do_l7_retry(struct stream *s, struct stream_interface *si)
+static __inline int do_l7_retry(struct stream *s, struct conn_stream *cs)
 {
 	struct channel *req, *res;
 	int co_data;
@@ -1247,7 +1247,7 @@ static __inline int do_l7_retry(struct stream *s, struct stream_interface *si)
 	req->flags &= ~(CF_WRITE_ERROR | CF_WRITE_TIMEOUT | CF_SHUTW | CF_SHUTW_NOW);
 	res->flags &= ~(CF_READ_ERROR | CF_READ_TIMEOUT | CF_SHUTR | CF_EOI | CF_READ_NULL | CF_SHUTR_NOW);
 	res->analysers &= AN_RES_FLT_END;
-	si->cs->endp->flags &= ~CS_EP_RXBLK_SHUT;
+	cs->endp->flags &= ~CS_EP_RXBLK_SHUT;
 	s->conn_err_type = STRM_ET_NONE;
 	s->flags &= ~(SF_CONN_EXP | SF_ERR_MASK | SF_FINST_MASK);
 	s->conn_exp = TICK_ETERNITY;
@@ -1298,7 +1298,6 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	struct http_txn *txn = s->txn;
 	struct http_msg *msg = &txn->rsp;
 	struct htx *htx;
-	struct stream_interface *si_b = cs_si(s->csb);
 	struct connection *srv_conn;
 	struct htx_sl *sl;
 	int n;
@@ -1335,7 +1334,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 			if ((txn->flags & TX_L7_RETRY) &&
 			    (s->be->retry_type & PR_RE_EARLY_ERROR) &&
 			    conn && conn->err_code == CO_ER_SSL_EARLY_FAILED &&
-			    do_l7_retry(s, si_b) == 0) {
+			    do_l7_retry(s, s->csb) == 0) {
 				DBG_TRACE_DEVEL("leaving on L7 retry",
 						STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
 				return 0;
@@ -1374,7 +1373,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		else if (rep->flags & CF_READ_TIMEOUT) {
 			if ((txn->flags & TX_L7_RETRY) &&
 			    (s->be->retry_type & PR_RE_TIMEOUT)) {
-				if (co_data(rep) || do_l7_retry(s, si_b) == 0) {
+				if (co_data(rep) || do_l7_retry(s, s->csb) == 0) {
 					DBG_TRACE_DEVEL("leaving on L7 retry",
 							STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
 					return 0;
@@ -1427,7 +1426,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		else if (rep->flags & CF_SHUTR) {
 			if ((txn->flags & TX_L7_RETRY) &&
 			    (s->be->retry_type & PR_RE_DISCONNECTED)) {
-				if (co_data(rep) || do_l7_retry(s, si_b) == 0) {
+				if (co_data(rep) || do_l7_retry(s, s->csb) == 0) {
 					DBG_TRACE_DEVEL("leaving on L7 retry",
 							STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
 					return 0;
@@ -1495,7 +1494,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	/* Perform a L7 retry because of the status code */
 	if ((txn->flags & TX_L7_RETRY) &&
 	    l7_status_match(s->be, sl->info.res.status) &&
-	    do_l7_retry(s, si_b) == 0) {
+	    do_l7_retry(s, s->csb) == 0) {
 		DBG_TRACE_DEVEL("leaving on L7 retry", STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
 		return 0;
 	}
@@ -1723,7 +1722,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	}
 	if ((s->be->retry_type & PR_RE_JUNK_REQUEST) &&
 	    (txn->flags & TX_L7_RETRY) &&
-	    do_l7_retry(s, si_b) == 0) {
+	    do_l7_retry(s, s->csb) == 0) {
 		DBG_TRACE_DEVEL("leaving on L7 retry",
 				STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
 		return 0;
