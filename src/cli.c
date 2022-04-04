@@ -2759,7 +2759,7 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 				if (!s->conn_err_type)
 					s->conn_err_type = STRM_ET_CONN_OTHER;
 				if (s->srv_error)
-					s->srv_error(s, cs_si(s->csb));
+					s->srv_error(s, s->csb);
 				return 1;
 			}
 		}

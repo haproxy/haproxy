@@ -4197,7 +4197,7 @@ enum rule_result http_wait_for_msg_body(struct stream *s, struct channel *chn,
 	goto end;
 }
 
-void http_perform_server_redirect(struct stream *s, struct stream_interface *si)
+void http_perform_server_redirect(struct stream *s, struct conn_stream *cs)
 {
 	struct channel *req = &s->req;
 	struct channel *res = &s->res;
@@ -4260,10 +4260,10 @@ void http_perform_server_redirect(struct stream *s, struct stream_interface *si)
 		goto fail;
 
 	/* return without error. */
-	cs_shutr(si->cs);
-	cs_shutw(si->cs);
+	cs_shutr(cs);
+	cs_shutw(cs);
 	s->conn_err_type = STRM_ET_NONE;
-	si->cs->state = CS_ST_CLO;
+	cs->state = CS_ST_CLO;
 
 	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= SF_ERR_LOCAL;
@@ -4586,7 +4586,7 @@ int http_forward_proxy_resp(struct stream *s, int final)
 	return 1;
 }
 
-void http_server_error(struct stream *s, struct stream_interface *si, int err,
+void http_server_error(struct stream *s, struct conn_stream *cs, int err,
 		       int finst, struct http_reply *msg)
 {
 	http_reply_and_close(s, s->txn->status, msg);
@@ -4808,50 +4808,50 @@ int http_reply_message(struct stream *s, struct http_reply *reply)
  * Note that connection errors appearing on the second request of a keep-alive
  * connection are not reported since this allows the client to retry.
  */
-void http_return_srv_error(struct stream *s, struct stream_interface *si)
+void http_return_srv_error(struct stream *s, struct conn_stream *cs)
 {
 	int err_type = s->conn_err_type;
 
 	/* set s->txn->status for http_error_message(s) */
 	if (err_type & STRM_ET_QUEUE_ABRT) {
 		s->txn->status = -1;
-		http_server_error(s, si, SF_ERR_CLICL, SF_FINST_Q, NULL);
+		http_server_error(s, cs, SF_ERR_CLICL, SF_FINST_Q, NULL);
 	}
 	else if (err_type & STRM_ET_CONN_ABRT) {
 		s->txn->status = -1;
-		http_server_error(s, si, SF_ERR_CLICL, SF_FINST_C, NULL);
+		http_server_error(s, cs, SF_ERR_CLICL, SF_FINST_C, NULL);
 	}
 	else if (err_type & STRM_ET_QUEUE_TO) {
 		s->txn->status = 503;
-		http_server_error(s, si, SF_ERR_SRVTO, SF_FINST_Q,
+		http_server_error(s, cs, SF_ERR_SRVTO, SF_FINST_Q,
 				  http_error_message(s));
 	}
 	else if (err_type & STRM_ET_QUEUE_ERR) {
 		s->txn->status = 503;
-		http_server_error(s, si, SF_ERR_SRVCL, SF_FINST_Q,
+		http_server_error(s, cs, SF_ERR_SRVCL, SF_FINST_Q,
 				  http_error_message(s));
 	}
 	else if (err_type & STRM_ET_CONN_TO) {
 		s->txn->status = 503;
-		http_server_error(s, si, SF_ERR_SRVTO, SF_FINST_C,
+		http_server_error(s, cs, SF_ERR_SRVTO, SF_FINST_C,
 				  (s->txn->flags & TX_NOT_FIRST) ? NULL :
 				  http_error_message(s));
 	}
 	else if (err_type & STRM_ET_CONN_ERR) {
 		s->txn->status = 503;
-		http_server_error(s, si, SF_ERR_SRVCL, SF_FINST_C,
+		http_server_error(s, cs, SF_ERR_SRVCL, SF_FINST_C,
 				  (s->flags & SF_SRV_REUSED) ? NULL :
 				  http_error_message(s));
 	}
 	else if (err_type & STRM_ET_CONN_RES) {
 		s->txn->status = 503;
-		http_server_error(s, si, SF_ERR_RESOURCE, SF_FINST_C,
+		http_server_error(s, cs, SF_ERR_RESOURCE, SF_FINST_C,
 				  (s->txn->flags & TX_NOT_FIRST) ? NULL :
 				  http_error_message(s));
 	}
 	else { /* STRM_ET_CONN_OTHER and others */
 		s->txn->status = 500;
-		http_server_error(s, si, SF_ERR_INTERNAL, SF_FINST_C,
+		http_server_error(s, cs, SF_ERR_INTERNAL, SF_FINST_C,
 				  http_error_message(s));
 	}
 }

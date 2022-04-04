@@ -2306,7 +2306,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 
 			srv = objt_server(s->target);
 			if (s->csb->state == CS_ST_ASS && srv && srv->rdr_len && (s->flags & SF_REDIRECTABLE))
-				http_perform_server_redirect(s, si_b);
+				http_perform_server_redirect(s, s->csb);
 		} while (s->csb->state == CS_ST_ASS);
 	}
 
@@ -2686,9 +2686,9 @@ void sess_change_server(struct stream *strm, struct server *newsrv)
 /* Handle server-side errors for default protocols. It is called whenever a a
  * connection setup is aborted or a request is aborted in queue. It sets the
  * stream termination flags so that the caller does not have to worry about
- * them. It's installed as ->srv_error for the server-side stream_interface.
+ * them. It's installed as ->srv_error for the server-side conn_stream.
  */
-void default_srv_error(struct stream *s, struct stream_interface *si)
+void default_srv_error(struct stream *s, struct conn_stream *cs)
 {
 	int err_type = s->conn_err_type;
 	int err = 0, fin = 0;

@@ -1995,7 +1995,7 @@ void back_try_conn_req(struct stream *s)
 			/* no stream was ever accounted for this server */
 			cs->state = CS_ST_CLO;
 			if (s->srv_error)
-				s->srv_error(s, cs->si);
+				s->srv_error(s, cs);
 			DBG_TRACE_STATE("internal error during connection", STRM_EV_STRM_PROC|STRM_EV_CS_ST|STRM_EV_STRM_ERR, s);
 			goto end;
 		}
@@ -2050,7 +2050,7 @@ void back_try_conn_req(struct stream *s)
 				s->conn_err_type = STRM_ET_QUEUE_TO;
 			cs->state = CS_ST_CLO;
 			if (s->srv_error)
-				s->srv_error(s, cs->si);
+				s->srv_error(s, cs);
 			DBG_TRACE_STATE("connection request still queued", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 			goto end;
 		}
@@ -2107,7 +2107,7 @@ abort_connection:
 	cs_shutw(cs);
 	cs->state = CS_ST_CLO;
 	if (s->srv_error)
-		s->srv_error(s, cs->si);
+		s->srv_error(s, cs);
 	DBG_TRACE_DEVEL("leaving on error", STRM_EV_STRM_PROC|STRM_EV_CS_ST|STRM_EV_STRM_ERR, s);
 	return;
 }
@@ -2147,7 +2147,7 @@ void back_handle_st_req(struct stream *s)
 			s->conn_err_type = STRM_ET_CONN_RES;
 			cs->state = CS_ST_CLO;
 			if (s->srv_error)
-				s->srv_error(s, cs->si);
+				s->srv_error(s, cs);
 			DBG_TRACE_STATE("failed to register applet", STRM_EV_STRM_PROC|STRM_EV_CS_ST|STRM_EV_STRM_ERR, s);
 			goto end;
 		}
@@ -2182,7 +2182,7 @@ void back_handle_st_req(struct stream *s)
 			s->conn_err_type = STRM_ET_CONN_OTHER;
 		cs->state = CS_ST_CLO;
 		if (s->srv_error)
-			s->srv_error(s, cs->si);
+			s->srv_error(s, cs);
 		DBG_TRACE_STATE("connection request failed", STRM_EV_STRM_PROC|STRM_EV_CS_ST|STRM_EV_STRM_ERR, s);
 		goto end;
 	}
@@ -2220,7 +2220,7 @@ void back_handle_st_con(struct stream *s)
 		cs_shutw(cs);
 		s->conn_err_type |= STRM_ET_CONN_ABRT;
 		if (s->srv_error)
-			s->srv_error(s, cs->si);
+			s->srv_error(s, cs);
 		/* Note: state = CS_ST_DIS now */
 		DBG_TRACE_STATE("client abort during connection attempt", STRM_EV_STRM_PROC|STRM_EV_CS_ST|STRM_EV_STRM_ERR, s);
 		goto end;
@@ -2319,7 +2319,7 @@ void back_handle_st_cer(struct stream *s)
 
 		cs->state = CS_ST_CLO;
 		if (s->srv_error)
-			s->srv_error(s, cs->si);
+			s->srv_error(s, cs);
 
 		DBG_TRACE_STATE("connection failed", STRM_EV_STRM_PROC|STRM_EV_CS_ST|STRM_EV_STRM_ERR, s);
 		goto end;
@@ -2353,7 +2353,7 @@ void back_handle_st_cer(struct stream *s)
 
 		cs->state = CS_ST_CLO;
 		if (s->srv_error)
-			s->srv_error(s, cs->si);
+			s->srv_error(s, cs);
 
 		DBG_TRACE_STATE("error resetting endpoint", STRM_EV_STRM_PROC|STRM_EV_CS_ST|STRM_EV_STRM_ERR, s);
 		goto end;
@@ -2436,7 +2436,7 @@ void back_handle_st_rdy(struct stream *s)
 			cs_shutw(cs);
 			s->conn_err_type |= STRM_ET_CONN_ABRT;
 			if (s->srv_error)
-				s->srv_error(s, cs->si);
+				s->srv_error(s, cs);
 			DBG_TRACE_STATE("client abort during connection attempt", STRM_EV_STRM_PROC|STRM_EV_CS_ST|STRM_EV_STRM_ERR, s);
 			goto end;
 		}

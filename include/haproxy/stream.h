@@ -73,7 +73,7 @@ struct ist stream_generate_unique_id(struct stream *strm, struct list *format);
 void stream_process_counters(struct stream *s);
 void sess_change_server(struct stream *strm, struct server *newsrv);
 struct task *process_stream(struct task *t, void *context, unsigned int state);
-void default_srv_error(struct stream *s, struct stream_interface *si);
+void default_srv_error(struct stream *s, struct conn_stream *cs);
 
 /* Update the stream's backend and server time stats */
 void stream_update_time_stats(struct stream *s);
