@@ -27,6 +27,7 @@ enum qcs_type {
 
 struct qcc {
 	struct connection *conn;
+	uint64_t nb_cs; /* number of attached conn-streams */
 	uint32_t flags; /* QC_CF_* */
 
 	struct {

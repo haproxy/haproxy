@@ -115,6 +115,8 @@ static inline struct conn_stream *qc_attach_cs(struct qcs *qcs, struct buffer *b
 	cs->ctx = qcs;
 	stream_new(qcs->qcc->conn->owner, cs, buf);
 
+	++qcs->qcc->nb_cs;
+
 	return cs;
 }
 

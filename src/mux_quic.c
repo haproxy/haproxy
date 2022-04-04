@@ -471,14 +471,7 @@ static inline int qcc_is_dead(const struct qcc *qcc)
 /* Return true if the mux timeout should be armed. */
 static inline int qcc_may_expire(struct qcc *qcc)
 {
-
-	/* Consider that the timeout must be set if no bidirectional streams
-	 * are opened.
-	 */
-	if (!qcc->strms[QCS_CLT_BIDI].nb_streams)
-		return 1;
-
-	return 0;
+	return !qcc->nb_cs;
 }
 
 /* release function. This one should be called to free all resources allocated
@@ -501,6 +494,11 @@ static void qc_release(struct qcc *qcc)
 
 		if (qcc->app_ops && qcc->app_ops->release)
 			qcc->app_ops->release(qcc->ctx);
+
+		if (qcc->task) {
+			task_destroy(qcc->task);
+			qcc->task = NULL;
+		}
 
 		if (qcc->wait_event.tasklet)
 			tasklet_free(qcc->wait_event.tasklet);
@@ -894,9 +892,14 @@ static struct task *qc_io_cb(struct task *t, void *ctx, unsigned int status)
 	qc_send(qcc);
 
 	if (qc_release_detached_streams(qcc)) {
-		/* Schedule the mux timeout if no bidirectional streams left. */
-		if (qcc_may_expire(qcc)) {
-			qcc->task->expire = tick_add(now_ms, qcc->timeout);
+		if (qcc_is_dead(qcc)) {
+			qc_release(qcc);
+		}
+		else {
+			if (qcc_may_expire(qcc))
+				qcc->task->expire = tick_add(now_ms, qcc->timeout);
+			else
+				qcc->task->expire = TICK_ETERNITY;
 			task_queue(qcc->task);
 		}
 	}
@@ -955,6 +958,7 @@ static int qc_init(struct connection *conn, struct proxy *prx,
 
 	qcc->conn = conn;
 	conn->ctx = qcc;
+	qcc->nb_cs = 0;
 	qcc->flags = 0;
 
 	qcc->app_ops = NULL;
@@ -1052,6 +1056,8 @@ static void qc_detach(struct conn_stream *cs)
 	 * managment between xprt and mux is reorganized.
 	 */
 
+	--qcc->nb_cs;
+
 	if (b_data(&qcs->tx.buf) || qcs->tx.offset > qcs->tx.sent_offset) {
 		TRACE_DEVEL("leaving with remaining data, detaching qcs", QMUX_EV_STRM_END, qcc->conn, qcs);
 		qcs->flags |= QC_SF_DETACH;
@@ -1060,9 +1066,14 @@ static void qc_detach(struct conn_stream *cs)
 
 	qcs_destroy(qcs);
 
-	/* Schedule the mux timeout if no bidirectional streams left. */
-	if (qcc_may_expire(qcc)) {
-		qcc->task->expire = tick_add(now_ms, qcc->timeout);
+	if (qcc_is_dead(qcc)) {
+		qc_release(qcc);
+	}
+	else {
+		if (qcc_may_expire(qcc))
+			qcc->task->expire = tick_add(now_ms, qcc->timeout);
+		else
+			qcc->task->expire = TICK_ETERNITY;
 		task_queue(qcc->task);
 	}
 
