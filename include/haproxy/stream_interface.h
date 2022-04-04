@@ -29,25 +29,8 @@
 #include <haproxy/conn_stream.h>
 #include <haproxy/obj_type.h>
 
-extern struct data_cb cs_data_conn_cb;
-extern struct data_cb cs_data_applet_cb;
-extern struct data_cb check_conn_cb;
-
 struct stream_interface *si_new(struct conn_stream *cs);
 void si_free(struct stream_interface *si);
-
-/* main event functions used to move data between sockets and buffers */
-int cs_applet_process(struct conn_stream *cs);
-struct task *cs_conn_io_cb(struct task *t, void *ctx, unsigned int state);
-int cs_conn_sync_recv(struct conn_stream *cs);
-void cs_conn_sync_send(struct conn_stream *cs);
-
-/* Functions used to communicate with a conn_stream. The first two may be used
- * directly, the last one is mostly a wake callback.
- */
-int cs_conn_recv(struct conn_stream *cs);
-int cs_conn_send(struct conn_stream *cs);
-int cs_conn_process(struct conn_stream *cs);
 
 /* initializes a stream interface and create the event
  * tasklet.

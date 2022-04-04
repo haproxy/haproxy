@@ -36,6 +36,11 @@
 void cs_update_rx(struct conn_stream *cs);
 void cs_update_tx(struct conn_stream *cs);
 
+struct task *cs_conn_io_cb(struct task *t, void *ctx, unsigned int state);
+int cs_conn_sync_recv(struct conn_stream *cs);
+void cs_conn_sync_send(struct conn_stream *cs);
+
+
 /* returns the channel which receives data from this conn-stream (input channel) */
 static inline struct channel *cs_ic(struct conn_stream *cs)
 {

@@ -39,7 +39,6 @@
 #include <haproxy/http_ana.h>
 #include <haproxy/log.h>
 #include <haproxy/net_helper.h>
-#include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
 #include <haproxy/thread.h>
 #include <haproxy/time.h>
