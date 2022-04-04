@@ -24,12 +24,11 @@
 #include <haproxy/http.h>
 #include <haproxy/htx.h>
 #include <haproxy/istbuf.h>
-#include <haproxy/mux_quic-t.h>
+#include <haproxy/mux_quic.h>
 #include <haproxy/pool.h>
 #include <haproxy/qpack-dec.h>
 #include <haproxy/qpack-enc.h>
 #include <haproxy/quic_enc.h>
-#include <haproxy/stream.h>
 #include <haproxy/tools.h>
 #include <haproxy/xprt_quic.h>
 
@@ -174,14 +173,10 @@ static int h3_headers_to_htx(struct qcs *qcs, struct buffer *buf, uint64_t len,
 	if (fin)
 		htx->flags |= HTX_FL_EOM;
 
-	cs = cs_new();
+	cs = qc_attach_cs(qcs, &htx_buf);
 	if (!cs)
 		return 1;
-	cs_attach_endp(cs, &qcs->qcc->conn->obj_type, qcs);
-
 	cs->flags |= CS_FL_NOT_FIRST;
-	cs->ctx = qcs;
-	stream_new(qcs->qcc->conn->owner, cs, &htx_buf);
 
 	/* buffer is transferred to conn_stream and set to NULL
 	 * except on stream creation error.
