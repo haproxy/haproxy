@@ -3165,7 +3165,7 @@ void quic_free_arngs(struct quic_arngs *arngs)
 		ar = eb64_entry(&n->node, struct quic_arng_node, first);
 		next = eb64_next(n);
 		eb64_delete(n);
-		free(ar);
+		pool_free(pool_head_quic_arng, ar);
 		n = next;
 	}
 }
