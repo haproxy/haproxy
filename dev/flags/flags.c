@@ -6,7 +6,6 @@
 #include <haproxy/conn_stream-t.h>
 #include <haproxy/http_ana-t.h>
 #include <haproxy/stream-t.h>
-#include <haproxy/stream_interface-t.h>
 #include <haproxy/task-t.h>
 
 // 1 bit per flag, no hole permitted here
@@ -14,16 +13,15 @@
 #define SHOW_AS_CHN   0x00000002
 #define SHOW_AS_CONN  0x00000004
 #define SHOW_AS_CS    0x00000008
-#define SHOW_AS_SI    0x00000010
-#define SHOW_AS_SET   0x00000020
-#define SHOW_AS_STRM  0x00000040
-#define SHOW_AS_TASK  0x00000080
-#define SHOW_AS_TXN   0x00000100
-#define SHOW_AS_ENDP  0x00000200
+#define SHOW_AS_SET   0x00000010
+#define SHOW_AS_STRM  0x00000020
+#define SHOW_AS_TASK  0x00000040
+#define SHOW_AS_TXN   0x00000080
+#define SHOW_AS_ENDP  0x00000100
 
 // command line names, must be in exact same order as the SHOW_AS_* flags above
 // so that show_as_words[i] matches flag 1U<<i.
-const char *show_as_words[] = { "ana", "chn", "conn", "cs", "si", "siet", "strm", "task", "txn", "endp", };
+const char *show_as_words[] = { "ana", "chn", "conn", "cs", "siet", "strm", "task", "txn", "endp", };
 
 #define SHOW_FLAG(f,n)					\
 	do {				 		\
@@ -268,22 +266,6 @@ void show_strm_et(unsigned int f)
 	putchar('\n');
 }
 
-void show_si_flags(unsigned int f)
-{
-	printf("si->flags   = ");
-	if (!f) {
-		printf("SI_FL_NONE\n");
-		return;
-	}
-
-	SHOW_FLAG(f, SI_FL_ISBACK);
-
-	if (f) {
-		printf("EXTRA(0x%08x)", f);
-	}
-	putchar('\n');
-}
-
 void show_task_state(unsigned int f)
 {
 	printf("task->state = ");
@@ -503,7 +485,6 @@ int main(int argc, char **argv)
 		if (show_as & SHOW_AS_CONN)  show_conn_flags(flags);
 		if (show_as & SHOW_AS_CS)    show_cs_flags(flags);
 		if (show_as & SHOW_AS_ENDP)  show_endp_flags(flags);
-		if (show_as & SHOW_AS_SI)    show_si_flags(flags);
 		if (show_as & SHOW_AS_SET)   show_strm_et(flags);
 		if (show_as & SHOW_AS_STRM)  show_strm_flags(flags);
 		if (show_as & SHOW_AS_TASK)  show_task_state(flags);
