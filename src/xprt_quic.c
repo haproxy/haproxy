@@ -50,7 +50,6 @@
 #include <haproxy/quic_tls.h>
 #include <haproxy/sink.h>
 #include <haproxy/ssl_sock.h>
-#include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
 #include <haproxy/trace.h>
 #include <haproxy/xprt_quic.h>

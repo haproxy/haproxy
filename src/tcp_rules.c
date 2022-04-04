@@ -26,7 +26,6 @@
 #include <haproxy/sample.h>
 #include <haproxy/stick_table.h>
 #include <haproxy/stream-t.h>
-#include <haproxy/stream_interface.h>
 #include <haproxy/tcp_rules.h>
 #include <haproxy/ticks.h>
 #include <haproxy/tools.h>
@@ -473,7 +472,7 @@ resume_execution:
 /* This function performs the TCP layer4 analysis on the current request. It
  * returns 0 if a reject rule matches, otherwise 1 if either an accept rule
  * matches or if no more rule matches. It can only use rules which don't need
- * any data. This only works on connection-based client-facing stream interfaces.
+ * any data. This only works on connection-based client-facing conn-streams.
  */
 int tcp_exec_l4_rules(struct session *sess)
 {
@@ -570,7 +569,7 @@ int tcp_exec_l4_rules(struct session *sess)
 /* This function performs the TCP layer5 analysis on the current request. It
  * returns 0 if a reject rule matches, otherwise 1 if either an accept rule
  * matches or if no more rule matches. It can only use rules which don't need
- * any data. This only works on session-based client-facing stream interfaces.
+ * any data. This only works on session-based client-facing conn-streams.
  * An example of valid use case is to track a stick-counter on the source
  * address extracted from the proxy protocol.
  */

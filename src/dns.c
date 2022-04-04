@@ -21,6 +21,7 @@
 
 #include <haproxy/action.h>
 #include <haproxy/api.h>
+#include <haproxy/applet.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/channel.h>
 #include <haproxy/check.h>
@@ -34,7 +35,6 @@
 #include <haproxy/log.h>
 #include <haproxy/ring.h>
 #include <haproxy/stream.h>
-#include <haproxy/stream_interface.h>
 #include <haproxy/tools.h>
 
 static THREAD_LOCAL char *dns_msg_trash;

@@ -28,7 +28,6 @@
 #include <haproxy/ssl_ckch.h>
 #include <haproxy/ssl_crtlist.h>
 #include <haproxy/ssl_sock.h>
-#include <haproxy/stream_interface.h>
 #include <haproxy/tools.h>
 
 

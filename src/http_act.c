@@ -35,7 +35,6 @@
 #include <haproxy/pool.h>
 #include <haproxy/regex.h>
 #include <haproxy/sample.h>
-#include <haproxy/stream_interface.h>
 #include <haproxy/tools.h>
 #include <haproxy/uri_auth-t.h>
 #include <haproxy/uri_normalizer.h>

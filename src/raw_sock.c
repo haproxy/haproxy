@@ -29,7 +29,6 @@
 #include <haproxy/freq_ctr.h>
 #include <haproxy/global.h>
 #include <haproxy/pipe.h>
-#include <haproxy/stream_interface.h>
 #include <haproxy/tools.h>
 
 

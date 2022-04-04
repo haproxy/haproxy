@@ -37,7 +37,6 @@
 #include <haproxy/proxy.h>
 #include <haproxy/sample.h>
 #include <haproxy/stream.h>
-#include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
 #include <haproxy/ticks.h>
 #include <haproxy/tools.h>

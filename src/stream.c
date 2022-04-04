@@ -55,7 +55,6 @@
 #include <haproxy/stats-t.h>
 #include <haproxy/stick_table.h>
 #include <haproxy/stream.h>
-#include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
 #include <haproxy/tcp_rules.h>
 #include <haproxy/thread.h>
@@ -81,7 +80,7 @@ static void strm_trace(enum trace_level level, uint64_t mask,
 
 /* The event representation is split like this :
  *   strm  - stream
- *   si    - stream interface
+ *   cs    - conn-stream
  *   http  - http analyzis
  *   tcp   - tcp analyzis
  *
@@ -118,7 +117,7 @@ static const struct name_desc strm_trace_decoding[] = {
 #define STRM_VERB_CLEAN    1
 	{ .name="clean",    .desc="only user-friendly stuff, generally suitable for level \"user\"" },
 #define STRM_VERB_MINIMAL  2
-	{ .name="minimal",  .desc="report info on stream and stream-interfaces" },
+	{ .name="minimal",  .desc="report info on stream and conn-streams" },
 #define STRM_VERB_SIMPLE   3
 	{ .name="simple",   .desc="add info on request and response channels" },
 #define STRM_VERB_ADVANCED 4
@@ -173,7 +172,7 @@ static void strm_trace(enum trace_level level, uint64_t mask, const struct trace
 		b_putist(&trace_buf, s->unique_id);
 	}
 
-	/* Front and back stream-int state */
+	/* Front and back conn-stream state */
 	chunk_appendf(&trace_buf, " CS=(%s,%s)",
 		      cs_state_str(s->csf->state), cs_state_str(s->csb->state));
 
@@ -305,7 +304,7 @@ int stream_upgrade_from_cs(struct conn_stream *cs, struct buffer *input)
 }
 
 /* Callback used to wake up a stream when an input buffer is available. The
- * stream <s>'s stream interfaces are checked for a failed buffer allocation
+ * stream <s>'s conn-streams are checked for a failed buffer allocation
  * as indicated by the presence of the CS_EP_RXBLK_ROOM flag and the lack of a
  * buffer, and and input buffer is assigned there (at most one). The function
  * returns 1 and wakes the stream up if a buffer was taken, otherwise zero.
@@ -715,7 +714,6 @@ static void stream_free(struct stream *s)
 	/* FIXME: Handle it in appctx_free ??? */
 	must_free_sess = objt_appctx(sess->origin) && sess->origin == __cs_endp_target(s->csf);
 
-	/* FIXME: ATTENTION, si CSF est libere avant, ca plante !!!! */
 	cs_detach_endp(s->csb);
 	cs_detach_endp(s->csf);
 	cs_detach_app(s->csb);
@@ -1555,7 +1553,7 @@ static void stream_update_both_cs(struct stream *s)
 	if (cs_state_in(csb->state, CS_SB_RDY|CS_SB_EST))
 		cs_update(csb);
 
-	/* stream ints are processed outside of process_stream() and must be
+	/* conn-streams are processed outside of process_stream() and must be
 	 * handled at the latest moment.
 	 */
 	if (cs_appctx(csf)) {
@@ -1683,12 +1681,12 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	s->pending_events |= (state & TASK_WOKEN_ANY);
 
 	/* 1a: Check for low level timeouts if needed. We just set a flag on
-	 * stream interfaces when their timeouts have expired.
+	 * conn-streams when their timeouts have expired.
 	 */
 	if (unlikely(s->pending_events & TASK_WOKEN_TIMER)) {
 		stream_check_conn_timeout(s);
 
-		/* check channel timeouts, and close the corresponding stream interfaces
+		/* check channel timeouts, and close the corresponding conn-streams
 		 * for future reads or writes. Note: this will also concern upper layers
 		 * but we do not touch any other flag. We must be careful and correctly
 		 * detect state changes when calling them.
@@ -1762,7 +1760,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		sess_set_term_flags(s);
 	}
 
-	/* 1b: check for low-level errors reported at the stream interface.
+	/* 1b: check for low-level errors reported at the conn-stream.
 	 * First we check if it's a retryable error (in which case we don't
 	 * want to tell the buffer). Otherwise we report the error one level
 	 * upper by setting flags into the buffers. Note that the side towards
@@ -2121,7 +2119,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 			sess_set_term_flags(s);
 
 			/* Abort the request if a client error occurred while
-			 * the backend stream-interface is in the CS_ST_INI
+			 * the backend conn-stream is in the CS_ST_INI
 			 * state. It is switched into the CS_ST_CLO state and
 			 * the request channel is erased. */
 			if (csb->state == CS_ST_INI) {
@@ -3149,7 +3147,7 @@ void list_services(FILE *out)
 		fprintf(out, " none\n");
 }
 
-/* This function dumps a complete stream state onto the stream interface's
+/* This function dumps a complete stream state onto the conn-stream's
  * read buffer. The stream has to be set in strm. It returns 0 if the output
  * buffer is full and it needs to be called again, otherwise non-zero. It is
  * designed to be called from stats_dump_strm_to_buffer() below.
@@ -3514,7 +3512,7 @@ static int cli_parse_show_sess(char **args, char *payload, struct appctx *appctx
 	return 0;
 }
 
-/* This function dumps all streams' states onto the stream interface's
+/* This function dumps all streams' states onto the conn-stream's
  * read buffer. It returns 0 if the output buffer is full and it needs
  * to be called again, otherwise non-zero. It proceeds in an isolated
  * thread so there is no thread safety issue here.

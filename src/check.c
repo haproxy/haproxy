@@ -36,7 +36,7 @@
 #include <haproxy/check.h>
 #include <haproxy/chunk.h>
 #include <haproxy/dgram.h>
-#include <haproxy/dynbuf-t.h>
+#include <haproxy/dynbuf.h>
 #include <haproxy/extcheck.h>
 #include <haproxy/fd.h>
 #include <haproxy/global.h>
@@ -59,7 +59,6 @@
 #include <haproxy/server.h>
 #include <haproxy/ssl_sock.h>
 #include <haproxy/stats-t.h>
-#include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
 #include <haproxy/tcpcheck.h>
 #include <haproxy/thread.h>
@@ -117,7 +116,7 @@ static const struct name_desc check_trace_decoding[] = {
 #define CHK_VERB_CLEAN    1
 	{ .name="clean",    .desc="only user-friendly stuff, generally suitable for level \"user\"" },
 #define CHK_VERB_MINIMAL  2
-	{ .name="minimal",  .desc="report info on stream and stream-interfaces" },
+	{ .name="minimal",  .desc="report info on stream and conn-streams" },
 #define CHK_VERB_SIMPLE   3
 	{ .name="simple",   .desc="add info on request and response channels" },
 #define CHK_VERB_ADVANCED 4

@@ -28,11 +28,11 @@
 #include <haproxy/global.h>
 #include <haproxy/htx.h>
 #include <haproxy/stream.h>
-#include <haproxy/stream_interface-t.h>
 #include <haproxy/task.h>
 #include <haproxy/ticks.h>
 #include <haproxy/tools-t.h>
 
+struct conn_stream;
 
 /* perform minimal intializations, report 0 in case of error, 1 if OK. */
 int init_channel();
@@ -477,7 +477,7 @@ static inline int channel_htx_may_recv(const struct channel *chn, const struct h
  * are considered as available since they're supposed to leave the buffer. The
  * test is optimized to avoid as many operations as possible for the fast case
  * and to be used as an "if" condition. Just like channel_recv_limit(), we
- * never allow to overwrite the reserve until the output stream interface is
+ * never allow to overwrite the reserve until the output conn-stream is
  * connected, otherwise we could spin on a POST with http-send-name-header.
  */
 static inline int channel_may_recv(const struct channel *chn)

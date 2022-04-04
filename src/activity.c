@@ -19,7 +19,6 @@
 #include <haproxy/conn_stream.h>
 #include <haproxy/cs_utils.h>
 #include <haproxy/freq_ctr.h>
-#include <haproxy/stream_interface.h>
 #include <haproxy/tools.h>
 #include <haproxy/xxhash.h>
 

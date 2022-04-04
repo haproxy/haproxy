@@ -29,9 +29,9 @@
 #include <haproxy/task-t.h>
 #include <haproxy/connection.h>
 #include <haproxy/conn_stream.h>
+#include <haproxy/channel.h>
 #include <haproxy/session.h>
 #include <haproxy/stream.h>
-#include <haproxy/stream_interface.h>
 
 void cs_update_rx(struct conn_stream *cs);
 void cs_update_tx(struct conn_stream *cs);
@@ -151,7 +151,7 @@ static inline int cs_is_conn_error(const struct conn_stream *cs)
  * failure, non-zero otherwise. If no buffer is available, the requester,
  * represented by the <wait> pointer, will be added in the list of objects
  * waiting for an available buffer, and CS_EP_RXBLK_BUFF will be set on the
- * stream-int and CS_EP_RX_WAIT_EP cleared. The requester will be responsible
+ * conn-stream and CS_EP_RX_WAIT_EP cleared. The requester will be responsible
  * for calling this function to try again once woken up.
  */
 static inline int cs_alloc_ibuf(struct conn_stream *cs, struct buffer_wait *wait)
@@ -288,7 +288,7 @@ static inline void cs_shutw(struct conn_stream *cs)
 
 /* This is to be used after making some room available in a channel. It will
  * return without doing anything if the conn-stream's RX path is blocked.
- * It will automatically mark the stream interface as busy processing the end
+ * It will automatically mark the conn-stream as busy processing the end
  * point in order to avoid useless repeated wakeups.
  * It will then call ->chk_rcv() to enable receipt of new data.
  */
@@ -320,7 +320,7 @@ static inline void cs_update(struct conn_stream *cs)
 	cs_update_tx(cs);
 }
 
-/* for debugging, reports the stream interface state name */
+/* for debugging, reports the conn-stream state name */
 static inline const char *cs_state_str(int state)
 {
 	switch (state) {

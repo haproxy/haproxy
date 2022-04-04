@@ -27,6 +27,7 @@
 #endif
 
 #include <haproxy/api.h>
+#include <haproxy/applet.h>
 #include <haproxy/buf.h>
 #include <haproxy/cli.h>
 #include <haproxy/conn_stream.h>

@@ -20,6 +20,7 @@
 
 #include <import/ist.h>
 #include <haproxy/api.h>
+#include <haproxy/applet.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/cli.h>
 #include <haproxy/conn_stream.h>
@@ -31,7 +32,6 @@
 #include <haproxy/ring.h>
 #include <haproxy/signal.h>
 #include <haproxy/sink.h>
-#include <haproxy/stream_interface.h>
 #include <haproxy/time.h>
 #include <haproxy/tools.h>
 

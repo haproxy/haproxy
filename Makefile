@@ -929,7 +929,7 @@ OBJS += src/mux_h2.o src/mux_fcgi.o src/http_ana.o src/mux_h1.o               \
         src/resolvers.o src/backend.o src/cfgparse.o src/http_htx.o src/cli.o \
         src/proxy.o src/pattern.o src/connection.o src/check.o                \
         src/cfgparse-listen.o src/cache.o src/haproxy.o src/http_act.o        \
-        src/http_fetch.o src/stream_interface.o src/dns.o src/listener.o      \
+        src/http_fetch.o src/dns.o src/listener.o                             \
         src/http_client.o src/vars.o src/tcp_rules.o src/debug.o src/sink.o   \
         src/server_state.o src/filters.o src/h2.o src/fcgi-app.o src/task.o   \
         src/payload.o src/h1_htx.o src/mjson.o src/h1.o src/map.o             \

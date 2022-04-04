@@ -26,7 +26,6 @@
 #include <haproxy/conn_stream.h>
 #include <haproxy/cs_utils.h>
 #include <haproxy/ring.h>
-#include <haproxy/stream_interface.h>
 #include <haproxy/thread.h>
 
 /* Initialize a pre-allocated ring with the buffer area

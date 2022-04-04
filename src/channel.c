@@ -260,7 +260,7 @@ int co_getdelim(const struct channel *chn, char *str, int len, const char *delim
 	return ret;
 }
 
-/* Gets one text word out of a channel's buffer from a stream interface.
+/* Gets one text word out of a channel's buffer from a conn-stream.
  * Return values :
  *   >0 : number of bytes read. Includes the sep if present before len or end.
  *   =0 : no sep before end found. <str> is left undefined.
@@ -311,7 +311,7 @@ int co_getword(const struct channel *chn, char *str, int len, char sep)
 	return ret;
 }
 
-/* Gets one text line out of a channel's buffer from a stream interface.
+/* Gets one text line out of a channel's buffer from a conn-stream.
  * Return values :
  *   >0 : number of bytes read. Includes the \n if present before len or end.
  *   =0 : no '\n' before end found. <str> is left undefined.
@@ -426,7 +426,7 @@ int co_getblk_nc(const struct channel *chn, const char **blk1, size_t *len1, con
 	return b_getblk_nc(&chn->buf, blk1, len1, blk2, len2, 0, co_data(chn));
 }
 
-/* Gets one text line out of a channel's output buffer from a stream interface.
+/* Gets one text line out of a channel's output buffer from a conn-stream.
  * Return values :
  *   >0 : number of blocks returned (1 or 2). blk1 is always filled before blk2.
  *   =0 : not enough data available.
@@ -502,7 +502,7 @@ int ci_getblk_nc(const struct channel *chn,
 	return 1;
 }
 
-/* Gets one text line out of a channel's input buffer from a stream interface.
+/* Gets one text line out of a channel's input buffer from a conn-stream.
  * Return values :
  *   >0 : number of blocks returned (1 or 2). blk1 is always filled before blk2.
  *   =0 : not enough data available.

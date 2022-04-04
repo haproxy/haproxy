@@ -74,7 +74,6 @@
 #include <haproxy/sample.h>
 #include <haproxy/stats.h>
 #include <haproxy/stream-t.h>
-#include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>

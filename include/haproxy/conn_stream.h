@@ -236,7 +236,7 @@ static inline struct conn_stream *cs_conn_get_first(const struct connection *con
 }
 
 
-/* Returns non-zero if the stream interface's Rx path is blocked */
+/* Returns non-zero if the conn-stream's Rx path is blocked */
 static inline int cs_rx_blocked(const struct conn_stream *cs)
 {
 	return !!(cs->endp->flags & CS_EP_RXBLK_ANY);

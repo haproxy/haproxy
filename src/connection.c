@@ -29,7 +29,6 @@
 #include <haproxy/proto_tcp.h>
 #include <haproxy/sample.h>
 #include <haproxy/session.h>
-#include <haproxy/stream_interface.h>
 #include <haproxy/ssl_sock.h>
 #include <haproxy/tools.h>
 #include <haproxy/xxhash.h>
@@ -504,7 +503,7 @@ void conn_free(struct connection *conn)
 
 	/* By convention we always place a NULL where the ctx points to if the
 	 * mux is null. It may have been used to store the connection as a
-	 * stream_interface's end point for example.
+	 * conn-stream's end point for example.
 	 */
 	if (conn->ctx != NULL && conn->mux == NULL)
 		*(void **)conn->ctx = NULL;
@@ -1169,7 +1168,7 @@ int conn_recv_proxy(struct connection *conn, int flag)
  * flags (the bit is provided in <flag> by the caller). It is designed to be
  * called by the connection handler and relies on it to commit polling changes.
  * Note that it can emit a PROXY line by relying on the other end's address
- * when the connection is attached to a stream interface, or by resolving the
+ * when the connection is attached to a conn-stream, or by resolving the
  * local address otherwise (also called a LOCAL line).
  */
 int conn_send_proxy(struct connection *conn, unsigned int flag)
@@ -1196,7 +1195,7 @@ int conn_send_proxy(struct connection *conn, unsigned int flag)
 		 * (which is recomputed every time since it's constant). If
 		 * it is positive, it means we have to send from the start.
 		 * We can only send a "normal" PROXY line when the connection
-		 * is attached to a stream interface. Otherwise we can only
+		 * is attached to a conn-stream. Otherwise we can only
 		 * send a LOCAL line (eg: for use with health checks).
 		 */
 

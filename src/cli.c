@@ -28,7 +28,7 @@
 
 #include <haproxy/activity.h>
 #include <haproxy/api.h>
-#include <haproxy/applet-t.h>
+#include <haproxy/applet.h>
 #include <haproxy/base64.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/channel.h>
@@ -59,7 +59,6 @@
 #include <haproxy/sock.h>
 #include <haproxy/stats-t.h>
 #include <haproxy/stream.h>
-#include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>
@@ -866,7 +865,7 @@ static int cli_output_msg(struct channel *chn, const char *msg, int severity, in
 	return ci_putblk(chn, tmp->area, strlen(tmp->area));
 }
 
-/* This I/O handler runs as an applet embedded in a stream interface. It is
+/* This I/O handler runs as an applet embedded in a conn-stream. It is
  * used to processes I/O from/to the stats unix socket. The system relies on a
  * state machine handling requests and various responses. We read a request,
  * then we process it and send the response, and we possibly display a prompt.
@@ -1147,7 +1146,7 @@ static void cli_io_handler(struct appctx *appctx)
 	}
 
 	if ((res->flags & CF_SHUTR) && (cs->state == CS_ST_EST)) {
-		DPRINTF(stderr, "%s@%d: si to buf closed. req=%08x, res=%08x, st=%d\n",
+		DPRINTF(stderr, "%s@%d: cs to buf closed. req=%08x, res=%08x, st=%d\n",
 			__FUNCTION__, __LINE__, req->flags, res->flags, cs->state);
 		/* Other side has closed, let's abort if we have no more processing to do
 		 * and nothing more to consume. This is comparable to a broken pipe, so
@@ -1158,7 +1157,7 @@ static void cli_io_handler(struct appctx *appctx)
 	}
 
 	if ((req->flags & CF_SHUTW) && (cs->state == CS_ST_EST) && (appctx->st0 < CLI_ST_OUTPUT)) {
-		DPRINTF(stderr, "%s@%d: buf to si closed. req=%08x, res=%08x, st=%d\n",
+		DPRINTF(stderr, "%s@%d: buf to cs closed. req=%08x, res=%08x, st=%d\n",
 			__FUNCTION__, __LINE__, req->flags, res->flags, cs->state);
 		/* We have no more processing to do, and nothing more to send, and
 		 * the client side has closed. So we'll forward this state downstream
@@ -1174,7 +1173,7 @@ static void cli_io_handler(struct appctx *appctx)
 		cs->state, req->flags, res->flags, ci_data(req), co_data(req), ci_data(res), co_data(res));
 }
 
-/* This is called when the stream interface is closed. For instance, upon an
+/* This is called when the conn-stream is closed. For instance, upon an
  * external abort, we won't call the i/o handler anymore so we may need to
  * remove back references to the stream currently being dumped.
  */

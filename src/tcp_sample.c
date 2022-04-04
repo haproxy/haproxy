@@ -41,7 +41,6 @@
 #include <haproxy/proxy-t.h>
 #include <haproxy/sample.h>
 #include <haproxy/session.h>
-#include <haproxy/stream_interface.h>
 #include <haproxy/tools.h>
 
 /* Fetch the connection's source IPv4/IPv6 address. Depending on the keyword, it
@@ -323,7 +322,7 @@ static inline int get_tcp_info(const struct arg *args, struct sample *smp,
 	if (!smp->strm)
 		return 0;
 
-	/* get the object associated with the stream interface.The
+	/* get the object associated with the conn-stream.The
 	 * object can be other thing than a connection. For example,
 	 * it be a appctx. */
 	conn = (dir == 0 ? cs_conn(smp->strm->csf) : cs_conn(smp->strm->csb));

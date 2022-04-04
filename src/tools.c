@@ -51,6 +51,7 @@ extern void *__elf_aux_vector;
 #include <import/eb32tree.h>
 
 #include <haproxy/api.h>
+#include <haproxy/applet.h>
 #include <haproxy/chunk.h>
 #include <haproxy/conn_stream.h>
 #include <haproxy/cs_utils.h>

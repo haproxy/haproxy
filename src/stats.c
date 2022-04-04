@@ -60,7 +60,6 @@
 #include <haproxy/session.h>
 #include <haproxy/stats.h>
 #include <haproxy/stream.h>
-#include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>
@@ -4260,7 +4259,7 @@ full:
 }
 
 
-/* This I/O handler runs as an applet embedded in a stream interface. It is
+/* This I/O handler runs as an applet embedded in a conn-stream. It is
  * used to send HTTP stats over a TCP socket. The mechanism is very simple.
  * appctx->st0 contains the operation in progress (dump, done). The handler
  * automatically unregisters itself once transfer is complete.
@@ -4556,7 +4555,7 @@ static int stats_dump_info_to_buffer(struct conn_stream *cs)
 	return 1;
 }
 
-/* This function dumps the schema onto the stream interface's read buffer.
+/* This function dumps the schema onto the conn-stream's read buffer.
  * It returns 0 as long as it does not complete, non-zero upon completion.
  * No state is used.
  *
@@ -4766,7 +4765,7 @@ static void stats_dump_json_schema(struct buffer *out)
 	}
 }
 
-/* This function dumps the schema onto the stream interface's read buffer.
+/* This function dumps the schema onto the conn-stream's read buffer.
  * It returns 0 as long as it does not complete, non-zero upon completion.
  * No state is used.
  */

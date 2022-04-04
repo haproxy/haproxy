@@ -42,7 +42,6 @@
 #include <haproxy/sample.h>
 #include <haproxy/server.h>
 #include <haproxy/stats.h>
-#include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
 #include <haproxy/tcp_rules.h>
 #include <haproxy/ticks.h>

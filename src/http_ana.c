@@ -35,7 +35,6 @@
 #include <haproxy/server-t.h>
 #include <haproxy/stats.h>
 #include <haproxy/stream.h>
-#include <haproxy/stream_interface.h>
 #include <haproxy/trace.h>
 #include <haproxy/uri_auth-t.h>
 #include <haproxy/vars.h>

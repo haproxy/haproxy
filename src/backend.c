@@ -55,7 +55,6 @@
 #include <haproxy/session.h>
 #include <haproxy/ssl_sock.h>
 #include <haproxy/stream.h>
-#include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>
@@ -1274,7 +1273,7 @@ static int do_connect_server(struct stream *s, struct connection *conn)
 
 /*
  * This function initiates a connection to the server assigned to this stream
- * (s->target, (s->csb->si)->addr.to). It will assign a server if none
+ * (s->target, (s->csb)->addr.to). It will assign a server if none
  * is assigned yet.
  * It can return one of :
  *  - SF_ERR_NONE if everything's OK
@@ -1284,8 +1283,7 @@ static int do_connect_server(struct stream *s, struct connection *conn)
  *  - SF_ERR_RESOURCE if a system resource is lacking (eg: fd limits, ports, ...)
  *  - SF_ERR_INTERNAL for any other purely internal errors
  * Additionally, in the case of SF_ERR_RESOURCE, an emergency log will be emitted.
- * The server-facing stream interface is expected to hold a pre-allocated connection
- * in s->csb->si->conn.
+ * The server-facing conn-stream is expected to hold a pre-allocated connection.
  */
 static int connect_server(struct stream *s)
 {
@@ -1590,7 +1588,7 @@ skip_reuse:
 	srv_conn->proxy_netns = cli_conn ? cli_conn->proxy_netns : NULL;
 
 	if (!srv_conn->xprt) {
-		/* set the correct protocol on the output stream interface */
+		/* set the correct protocol on the output conn-stream */
 		if (srv) {
 			if (conn_prepare(srv_conn, protocol_lookup(srv_conn->dst->ss_family, PROTO_TYPE_STREAM, 0), srv->xprt)) {
 				conn_free(srv_conn);
@@ -1780,7 +1778,7 @@ skip_reuse:
 			s->be->lbprm.server_take_conn(srv);
 	}
 
-	/* Now handle synchronously connected sockets. We know the stream-int
+	/* Now handle synchronously connected sockets. We know the conn-stream
 	 * is at least in state CS_ST_CON. These ones typically are UNIX
 	 * sockets, socket pairs, andoccasionally TCP connections on the
 	 * loopback on a heavily loaded system.
@@ -1921,7 +1919,7 @@ static int back_may_abort_req(struct channel *req, struct stream *s)
 	         (channel_is_empty(req) || (s->be->options & PR_O_ABRT_CLOSE))));
 }
 
-/* Update back stream interface status for input states CS_ST_ASS, CS_ST_QUE,
+/* Update back conn-stream status for input states CS_ST_ASS, CS_ST_QUE,
  * CS_ST_TAR. Other input states are simply ignored.
  * Possible output states are CS_ST_CLO, CS_ST_TAR, CS_ST_ASS, CS_ST_REQ, CS_ST_CON
  * and CS_ST_EST. Flags must have previously been updated for timeouts and other
@@ -2112,7 +2110,7 @@ abort_connection:
 	return;
 }
 
-/* This function initiates a server connection request on a stream interface
+/* This function initiates a server connection request on a conn-stream
  * already in CS_ST_REQ state. Upon success, the state goes to CS_ST_ASS for
  * a real connection to a server, indicating that a server has been assigned,
  * or CS_ST_EST for a successful connection to an applet. It may also return
@@ -2332,7 +2330,7 @@ void back_handle_st_cer(struct stream *s)
 	 * resources as soon as possible and to not catch errors from the lower
 	 * layers in an unexpected state (i.e < ST_CONN).
 	 *
-	 * Note: the stream-interface will be switched to ST_REQ, ST_ASS or
+	 * Note: the conn-stream will be switched to ST_REQ, ST_ASS or
 	 * ST_TAR and CS_EP_ERROR and SF_CONN_EXP flags will be unset.
 	 */
 	if (cs_reset_endp(cs) < 0) {

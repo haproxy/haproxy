@@ -16,6 +16,7 @@
 #include <haproxy/cfgparse.h>
 #include <haproxy/connection.h>
 #include <haproxy/conn_stream.h>
+#include <haproxy/dynbuf.h>
 #include <haproxy/h2.h>
 #include <haproxy/hpack-dec.h>
 #include <haproxy/hpack-enc.h>
@@ -28,7 +29,6 @@
 #include <haproxy/session-t.h>
 #include <haproxy/stats.h>
 #include <haproxy/stream.h>
-#include <haproxy/stream_interface.h>
 #include <haproxy/trace.h>
 
 

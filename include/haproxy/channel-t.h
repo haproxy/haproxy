@@ -32,14 +32,14 @@
  *     before doing further I/O :
  *     CF_*_NULL, CF_*_PARTIAL
  *
- *   - pure status flags, reported by stream-interface layer, which must also
+ *   - pure status flags, reported by conn-stream layer, which must also
  *     be cleared before doing further I/O :
  *     CF_*_TIMEOUT, CF_*_ERROR
  *
  *   - read-only indicators reported by lower data levels :
  *     CF_STREAMER, CF_STREAMER_FAST
  *
- *   - write-once status flags reported by the stream-interface layer :
+ *   - write-once status flags reported by the conn-stream layer :
  *     CF_SHUTR, CF_SHUTW
  *
  *   - persistent control flags managed only by application level :
@@ -48,7 +48,7 @@
  * The flags have been arranged for readability, so that the read and write
  * bits have the same position in a byte (read being the lower byte and write
  * the second one). All flag names are relative to the channel. For instance,
- * 'write' indicates the direction from the channel to the stream interface.
+ * 'write' indicates the direction from the channel to the conn-stream.
  */
 
 #define CF_READ_NULL      0x00000001  /* last read detected on producer side */

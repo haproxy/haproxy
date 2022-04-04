@@ -39,7 +39,6 @@
 #include <haproxy/stats-t.h>
 #include <haproxy/stick_table.h>
 #include <haproxy/stream.h>
-#include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
 #include <haproxy/tcp_rules.h>
 #include <haproxy/ticks.h>
@@ -4234,7 +4233,7 @@ enum {
 	STK_CLI_ACT_SHOW,
 };
 
-/* Dump the status of a table to a stream interface's
+/* Dump the status of a table to a conn-stream's
  * read buffer. It returns 0 if the output buffer is full
  * and needs to be called again, otherwise non-zero.
  */
@@ -4260,7 +4259,7 @@ static int table_dump_head_to_buffer(struct buffer *msg,
 	return 1;
 }
 
-/* Dump a table entry to a stream interface's
+/* Dump a table entry to a conn-stream's
  * read buffer. It returns 0 if the output buffer is full
  * and needs to be called again, otherwise non-zero.
  */

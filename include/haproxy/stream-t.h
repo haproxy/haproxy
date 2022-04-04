@@ -31,7 +31,6 @@
 #include <haproxy/filters-t.h>
 #include <haproxy/obj_type-t.h>
 #include <haproxy/stick_table-t.h>
-#include <haproxy/stream_interface-t.h>
 #include <haproxy/vars-t.h>
 
 

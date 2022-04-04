@@ -46,7 +46,6 @@
 #include <haproxy/signal.h>
 #include <haproxy/stats-t.h>
 #include <haproxy/stream.h>
-#include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
 #include <haproxy/tcpcheck.h>
 #include <haproxy/time.h>
@@ -3074,7 +3073,7 @@ static int cli_parse_show_errors(char **args, char *payload, struct appctx *appc
 	return 0;
 }
 
-/* This function dumps all captured errors onto the stream interface's
+/* This function dumps all captured errors onto the conn-stream's
  * read buffer. It returns 0 if the output buffer is full and it needs
  * to be called again, otherwise non-zero.
  */

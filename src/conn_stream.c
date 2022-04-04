@@ -436,7 +436,7 @@ void cs_applet_release(struct conn_stream *cs)
  * This function performs a shutdown-read on a detached conn-stream in a
  * connected or init state (it does nothing for other states). It either shuts
  * the read side or marks itself as closed. The buffer flags are updated to
- * reflect the new state. If the stream interface has CS_FL_NOHALF, we also
+ * reflect the new state. If the conn-stream has CS_FL_NOHALF, we also
  * forward the close to the write side. The owner task is woken up if it exists.
  */
 static void cs_app_shutr(struct conn_stream *cs)
@@ -470,7 +470,7 @@ static void cs_app_shutr(struct conn_stream *cs)
  * This function performs a shutdown-write on a detached conn-stream in a
  * connected or init state (it does nothing for other states). It either shuts
  * the write side or marks itself as closed. The buffer flags are updated to
- * reflect the new state. It does also close everything if the SI was marked as
+ * reflect the new state. It does also close everything if the CS was marked as
  * being in error state. The owner task is woken up if it exists.
  */
 static void cs_app_shutw(struct conn_stream *cs)
@@ -575,7 +575,7 @@ static void cs_app_chk_snd(struct conn_stream *cs)
  * This function performs a shutdown-read on a conn-stream attached to
  * a connection in a connected or init state (it does nothing for other
  * states). It either shuts the read side or marks itself as closed. The buffer
- * flags are updated to reflect the new state. If the stream interface has
+ * flags are updated to reflect the new state. If the conn-stream has
  * CS_FL_NOHALF, we also forward the close to the write side. If a control
  * layer is defined, then it is supposed to be a socket layer and file
  * descriptors are then shutdown or closed accordingly. The function
@@ -612,7 +612,7 @@ static void cs_app_shutr_conn(struct conn_stream *cs)
  * a connection in a connected or init state (it does nothing for other
  * states). It either shuts the write side or marks itself as closed. The
  * buffer flags are updated to reflect the new state.  It does also close
- * everything if the SI was marked as being in error state. If there is a
+ * everything if the CS was marked as being in error state. If there is a
  * data-layer shutdown, it is called.
  */
 static void cs_app_shutw_conn(struct conn_stream *cs)
@@ -693,7 +693,7 @@ static void cs_app_shutw_conn(struct conn_stream *cs)
  * consumer to inform the producer side that it may be interested in checking
  * for free space in the buffer. Note that it intentionally does not update
  * timeouts, so that we can still check them later at wake-up. This function is
- * dedicated to connection-based stream interfaces.
+ * dedicated to connection-based conn-streams.
  */
 static void cs_app_chk_rcv_conn(struct conn_stream *cs)
 {
@@ -804,7 +804,7 @@ static void cs_app_chk_snd_conn(struct conn_stream *cs)
  * This function performs a shutdown-read on a conn-stream attached to an
  * applet in a connected or init state (it does nothing for other states). It
  * either shuts the read side or marks itself as closed. The buffer flags are
- * updated to reflect the new state. If the stream interface has CS_FL_NOHALF,
+ * updated to reflect the new state. If the conn-stream has CS_FL_NOHALF,
  * we also forward the close to the write side. The owner task is woken up if
  * it exists.
  */
@@ -1170,7 +1170,7 @@ static void cs_notify(struct conn_stream *cs)
 
 /*
  * This function propagates a null read received on a socket-based connection.
- * It updates the stream interface. If the stream interface has CS_FL_NOHALF,
+ * It updates the conn-stream. If the conn-stream has CS_FL_NOHALF,
  * the close is also forwarded to the write side as an abort.
  */
 static void cs_conn_read0(struct conn_stream *cs)
@@ -1430,7 +1430,7 @@ static int cs_conn_recv(struct conn_stream *cs)
 		ic->total += ret;
 
 		/* End-of-input reached, we can leave. In this case, it is
-		 * important to break the loop to not block the SI because of
+		 * important to break the loop to not block the CS because of
 		 * the channel's policies.This way, we are still able to receive
 		 * shutdowns.
 		 */
@@ -1546,7 +1546,7 @@ static int cs_conn_recv(struct conn_stream *cs)
 	return ret;
 }
 
-/* This tries to perform a synchronous receive on the stream interface to
+/* This tries to perform a synchronous receive on the conn-stream to
  * try to collect last arrived data. In practice it's only implemented on
  * conn_streams. Returns 0 if nothing was done, non-zero if new data or a
  * shutdown were collected. This may result on some delayed receive calls
@@ -1587,7 +1587,7 @@ static int cs_conn_send(struct conn_stream *cs)
 	if (cs->endp->flags & (CS_EP_ERROR|CS_EP_ERR_PENDING) || cs_is_conn_error(cs)) {
 		/* We're probably there because the tasklet was woken up,
 		 * but process_stream() ran before, detected there were an
-		 * error and put the si back to CS_ST_TAR. There's still
+		 * error and put the CS back to CS_ST_TAR. There's still
 		 * CO_FL_ERROR on the connection but we don't want to add
 		 * CS_EP_ERROR back, so give up
 		 */
@@ -1717,7 +1717,7 @@ static int cs_conn_send(struct conn_stream *cs)
 	return did_send;
 }
 
-/* perform a synchronous send() for the stream interface. The CF_WRITE_NULL and
+/* perform a synchronous send() for the conn-stream. The CF_WRITE_NULL and
  * CF_WRITE_PARTIAL flags are cleared prior to the attempt, and will possibly
  * be updated in case of success.
  */
@@ -1743,9 +1743,9 @@ void cs_conn_sync_send(struct conn_stream *cs)
 }
 
 /* Called by I/O handlers after completion.. It propagates
- * connection flags to the stream interface, updates the stream (which may or
+ * connection flags to the conn-stream, updates the stream (which may or
  * may not take this opportunity to try to forward data), then update the
- * connection's polling based on the channels and stream interface's final
+ * connection's polling based on the channels and conn-stream's final
  * states. The function always returns 0.
  */
 static int cs_conn_process(struct conn_stream *cs)
@@ -1822,9 +1822,9 @@ static int cs_conn_process(struct conn_stream *cs)
 	if ((cs->endp->flags & CS_EP_EOI) && !(ic->flags & CF_EOI))
 		ic->flags |= (CF_EOI|CF_READ_PARTIAL);
 
-	/* Second step : update the stream-int and channels, try to forward any
+	/* Second step : update the conn-stream and channels, try to forward any
 	 * pending data, then possibly wake the stream up based on the new
-	 * stream-int status.
+	 * conn-stream status.
 	 */
 	cs_notify(cs);
 	stream_release_buffers(__cs_strm(cs));
@@ -1832,9 +1832,9 @@ static int cs_conn_process(struct conn_stream *cs)
 }
 
 /* This is the ->process() function for any conn-stream's wait_event task.
- * It's assigned during the stream-interface's initialization, for any type of
- * stream interface. Thus it is always safe to perform a tasklet_wakeup() on a
- * stream interface, as the presence of the CS is checked there.
+ * It's assigned during the conn-stream's initialization, for any type of
+ * conn-stream. Thus it is always safe to perform a tasklet_wakeup() on a
+ * conn-stream, as the presence of the CS is checked there.
  */
 struct task *cs_conn_io_cb(struct task *t, void *ctx, unsigned int state)
 {
@@ -1857,7 +1857,7 @@ struct task *cs_conn_io_cb(struct task *t, void *ctx, unsigned int state)
 
 /* Callback to be used by applet handlers upon completion. It updates the stream
  * (which may or may not take this opportunity to try to forward data), then
- * may re-enable the applet's based on the channels and stream interface's final
+ * may re-enable the applet's based on the channels and conn-stream's final
  * states.
  */
 static int cs_applet_process(struct conn_stream *cs)
@@ -1878,7 +1878,7 @@ static int cs_applet_process(struct conn_stream *cs)
 	if (cs_rx_blocked(cs))
 		cs_rx_endp_more(cs);
 
-	/* update the stream-int, channels, and possibly wake the stream up */
+	/* update the conn-stream, channels, and possibly wake the stream up */
 	cs_notify(cs);
 	stream_release_buffers(__cs_strm(cs));
 

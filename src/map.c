@@ -24,7 +24,6 @@
 #include <haproxy/regex.h>
 #include <haproxy/sample.h>
 #include <haproxy/stats-t.h>
-#include <haproxy/stream_interface.h>
 #include <haproxy/tools.h>
 
 

@@ -26,7 +26,6 @@
 #include <haproxy/api.h>
 #include <haproxy/stats-t.h>
 
-struct stream_interface;
 struct channel;
 struct buffer;
 struct proxy;
@@ -58,7 +57,6 @@ int stats_fill_sv_stats(struct proxy *px, struct server *sv, int flags,
 int stats_fill_be_stats(struct proxy *px, int flags, struct field *stats, int len,
 			enum stat_field *selected_field);
 
-void stats_io_handler(struct stream_interface *si);
 int stats_emit_raw_data_field(struct buffer *out, const struct field *f);
 int stats_emit_typed_data_field(struct buffer *out, const struct field *f);
 int stats_emit_field_tags(struct buffer *out, const struct field *f,

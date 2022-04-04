@@ -59,7 +59,6 @@
 #include <haproxy/ssl_sock.h>
 #include <haproxy/stats-t.h>
 #include <haproxy/stream.h>
-#include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
 #include <haproxy/tcp_rules.h>
 #include <haproxy/thread.h>
@@ -2966,7 +2965,7 @@ __LJMP static int hlua_socket_new(lua_State *L)
 	/* Initialise cross reference between stream and Lua socket object. */
 	xref_create(&socket->xref, &appctx->ctx.hlua_cosocket.xref);
 
-	/* Configure "right" stream interface. this "si" is used to connect
+	/* Configure "right" conn-stream. this "si" is used to connect
 	 * and retrieve data from the server. The connection is initialized
 	 * with the "struct server".
 	 */

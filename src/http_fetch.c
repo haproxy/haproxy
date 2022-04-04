@@ -36,7 +36,6 @@
 #include <haproxy/pool.h>
 #include <haproxy/sample.h>
 #include <haproxy/stream.h>
-#include <haproxy/stream_interface.h>
 #include <haproxy/tools.h>
 #include <haproxy/version.h>
 

@@ -26,7 +26,6 @@
 #include <haproxy/list.h>
 #include <haproxy/pool.h>
 #include <haproxy/stats-t.h>
-#include <haproxy/stream_interface.h>
 #include <haproxy/thread.h>
 #include <haproxy/tools.h>
 
@@ -1000,7 +999,7 @@ int pool_parse_debugging(const char *str, char **err)
 	return 1;
 }
 
-/* This function dumps memory usage information onto the stream interface's
+/* This function dumps memory usage information onto the conn-stream's
  * read buffer. It returns 0 as long as it does not complete, non-zero upon
  * completion. No state is used.
  */

@@ -43,7 +43,6 @@
 #include <haproxy/stats-t.h>
 #include <haproxy/stick_table.h>
 #include <haproxy/stream.h>
-#include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
 #include <haproxy/thread.h>
 #include <haproxy/time.h>

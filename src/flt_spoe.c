@@ -13,6 +13,7 @@
 #include <errno.h>
 
 #include <haproxy/acl.h>
+#include <haproxy/applet.h>
 #include <haproxy/action-t.h>
 #include <haproxy/api.h>
 #include <haproxy/arg.h>
@@ -34,7 +35,6 @@
 #include <haproxy/sink.h>
 #include <haproxy/spoe.h>
 #include <haproxy/stream.h>
-#include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
 #include <haproxy/tcp_rules.h>
 #include <haproxy/thread.h>

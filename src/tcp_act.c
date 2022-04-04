@@ -37,7 +37,6 @@
 #include <haproxy/proxy-t.h>
 #include <haproxy/sample.h>
 #include <haproxy/session.h>
-#include <haproxy/stream_interface.h>
 #include <haproxy/tcp_rules.h>
 #include <haproxy/tools.h>
 

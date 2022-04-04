@@ -20,7 +20,6 @@
 #include <haproxy/cs_utils.h>
 #include <haproxy/list.h>
 #include <haproxy/stream.h>
-#include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
 
 unsigned int nb_applets = 0;
@@ -94,7 +93,7 @@ struct appctx *appctx_new(struct applet *applet, struct cs_endpoint *endp)
 
 /* Callback used to wake up an applet when a buffer is available. The applet
  * <appctx> is woken up if an input buffer was requested for the associated
- * stream interface. In this case the buffer is immediately allocated and the
+ * conn-stream. In this case the buffer is immediately allocated and the
  * function returns 1. Otherwise it returns 0. Note that this automatically
  * covers multiple wake-up attempts by ensuring that the same buffer will not
  * be accounted for multiple times.
