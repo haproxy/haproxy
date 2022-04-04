@@ -346,7 +346,7 @@ int cli_io_handler_show_ring(struct appctx *appctx)
 		trash.area[trash.data++] = '\n';
 
 		if (ci_putchk(cs_ic(cs), &trash) == -1) {
-			si_rx_room_blk(cs->si);
+			cs_rx_room_blk(cs);
 			ret = 0;
 			break;
 		}
@@ -367,7 +367,7 @@ int cli_io_handler_show_ring(struct appctx *appctx)
 			HA_RWLOCK_WRLOCK(LOGSRV_LOCK, &ring->lock);
 			LIST_APPEND(&ring->waiters, &appctx->wait_entry);
 			HA_RWLOCK_WRUNLOCK(LOGSRV_LOCK, &ring->lock);
-			si_rx_endp_done(cs->si);
+			cs_rx_endp_done(cs);
 			ret = 0;
 		}
 		/* always drain all the request */

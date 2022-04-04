@@ -306,7 +306,7 @@ int stream_upgrade_from_cs(struct conn_stream *cs, struct buffer *input)
 
 /* Callback used to wake up a stream when an input buffer is available. The
  * stream <s>'s stream interfaces are checked for a failed buffer allocation
- * as indicated by the presence of the SI_FL_RXBLK_ROOM flag and the lack of a
+ * as indicated by the presence of the CS_EP_RXBLK_ROOM flag and the lack of a
  * buffer, and and input buffer is assigned there (at most one). The function
  * returns 1 and wakes the stream up if a buffer was taken, otherwise zero.
  * It's designed to be called from __offer_buffer().
@@ -315,12 +315,12 @@ int stream_buf_available(void *arg)
 {
 	struct stream *s = arg;
 
-	if (!s->req.buf.size && !s->req.pipe && (cs_si(s->csf)->flags & SI_FL_RXBLK_BUFF) &&
+	if (!s->req.buf.size && !s->req.pipe && (s->csf->endp->flags & CS_EP_RXBLK_BUFF) &&
 	    b_alloc(&s->req.buf))
-		si_rx_buff_rdy(cs_si(s->csf));
-	else if (!s->res.buf.size && !s->res.pipe && (cs_si(s->csb)->flags & SI_FL_RXBLK_BUFF) &&
+		cs_rx_buff_rdy(s->csf);
+	else if (!s->res.buf.size && !s->res.pipe && (s->csb->endp->flags & CS_EP_RXBLK_BUFF) &&
 		 b_alloc(&s->res.buf))
-		si_rx_buff_rdy(cs_si(s->csb));
+		cs_rx_buff_rdy(s->csb);
 	else
 		return 0;
 
@@ -540,7 +540,7 @@ struct stream *stream_new(struct session *sess, struct conn_stream *cs, struct b
 
 	/* finish initialization of the accepted file descriptor */
 	if (cs_appctx(cs))
-		si_want_get(cs_si(s->csf));
+		cs_want_get(s->csf);
 
 	if (sess->fe->accept && sess->fe->accept(s) < 0)
 		goto out_fail_accept;
@@ -937,7 +937,7 @@ static void back_establish(struct stream *s)
 
 	rep->analysers |= strm_fe(s)->fe_rsp_ana | s->be->be_rsp_ana;
 
-	si_rx_endp_more(si);
+	cs_rx_endp_more(s->csb);
 	rep->flags |= CF_READ_ATTACHED; /* producer is now attached */
 	if (conn) {
 		/* real connections have timeouts
@@ -1034,7 +1034,7 @@ enum act_return process_use_service(struct act_rule *rule, struct proxy *px,
 	}
 
 	/* Now we can schedule the applet. */
-	si_cant_get(cs_si(s->csb));
+	cs_cant_get(s->csb);
 	appctx_wakeup(appctx);
 	return ACT_RET_STOP;
 }
@@ -1497,7 +1497,7 @@ int stream_set_http_mode(struct stream *s, const struct mux_proto_list *mux_prot
 
 	conn = cs_conn(cs);
 	if (conn) {
-		si_rx_endp_more(cs_si(s->csf));
+		cs_rx_endp_more(s->csf);
 		/* Make sure we're unsubscribed, the the new
 		 * mux will probably want to subscribe to
 		 * the underlying XPRT
@@ -1566,13 +1566,13 @@ static void stream_update_both_cs(struct stream *s)
 	 * handled at the latest moment.
 	 */
 	if (cs_appctx(csf)) {
-		if ((si_rx_endp_ready(csf->si) && !si_rx_blocked(csf->si)) ||
-		    (si_tx_endp_ready(csf->si) && !si_tx_blocked(csf->si)))
+		if ((cs_rx_endp_ready(csf) && !cs_rx_blocked(csf)) ||
+		    (cs_tx_endp_ready(csf) && !cs_tx_blocked(csf)))
 			appctx_wakeup(__cs_appctx(csf));
 	}
 	if (cs_appctx(csb)) {
-		if ((si_rx_endp_ready(csb->si) && !si_rx_blocked(csb->si)) ||
-		    (si_tx_endp_ready(csb->si) && !si_tx_blocked(csb->si)))
+		if ((cs_rx_endp_ready(csb) && !cs_rx_blocked(csb)) ||
+		    (cs_tx_endp_ready(csb) && !cs_tx_blocked(csb)))
 			appctx_wakeup(__cs_appctx(csb));
 	}
 }
@@ -3768,7 +3768,7 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 	return 1;
  full:
 	thread_release();
-	si_rx_room_blk(cs->si);
+	cs_rx_room_blk(cs);
 	return 0;
 }
 

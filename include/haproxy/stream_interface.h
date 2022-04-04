@@ -60,137 +60,137 @@ static inline int si_init(struct stream_interface *si)
 }
 
 /* Returns non-zero if the stream interface's Rx path is blocked */
-static inline int si_rx_blocked(const struct stream_interface *si)
+static inline int cs_rx_blocked(const struct conn_stream *cs)
 {
-	return !!(si->flags & SI_FL_RXBLK_ANY);
+	return !!(cs->endp->flags & CS_EP_RXBLK_ANY);
 }
 
 
-/* Returns non-zero if the stream interface's Rx path is blocked because of lack
+/* Returns non-zero if the conn-stream's Rx path is blocked because of lack
  * of room in the input buffer.
  */
-static inline int si_rx_blocked_room(const struct stream_interface *si)
+static inline int cs_rx_blocked_room(const struct conn_stream *cs)
 {
-	return !!(si->flags & SI_FL_RXBLK_ROOM);
+	return !!(cs->endp->flags & CS_EP_RXBLK_ROOM);
 }
 
-/* Returns non-zero if the stream interface's endpoint is ready to receive */
-static inline int si_rx_endp_ready(const struct stream_interface *si)
+/* Returns non-zero if the conn-stream's endpoint is ready to receive */
+static inline int cs_rx_endp_ready(const struct conn_stream *cs)
 {
-	return !(si->flags & SI_FL_RX_WAIT_EP);
+	return !(cs->endp->flags & CS_EP_RX_WAIT_EP);
 }
 
-/* The stream interface announces it is ready to try to deliver more data to the input buffer */
-static inline void si_rx_endp_more(struct stream_interface *si)
+/* The conn-stream announces it is ready to try to deliver more data to the input buffer */
+static inline void cs_rx_endp_more(struct conn_stream *cs)
 {
-	si->flags &= ~SI_FL_RX_WAIT_EP;
+	cs->endp->flags &= ~CS_EP_RX_WAIT_EP;
 }
 
-/* The stream interface announces it doesn't have more data for the input buffer */
-static inline void si_rx_endp_done(struct stream_interface *si)
+/* The conn-stream announces it doesn't have more data for the input buffer */
+static inline void cs_rx_endp_done(struct conn_stream *cs)
 {
-	si->flags |=  SI_FL_RX_WAIT_EP;
+	cs->endp->flags |=  CS_EP_RX_WAIT_EP;
 }
 
-/* Tell a stream interface the input channel is OK with it sending it some data */
-static inline void si_rx_chan_rdy(struct stream_interface *si)
+/* Tell a conn-stream the input channel is OK with it sending it some data */
+static inline void cs_rx_chan_rdy(struct conn_stream *cs)
 {
-	si->flags &= ~SI_FL_RXBLK_CHAN;
+	cs->endp->flags &= ~CS_EP_RXBLK_CHAN;
 }
 
-/* Tell a stream interface the input channel is not OK with it sending it some data */
-static inline void si_rx_chan_blk(struct stream_interface *si)
+/* Tell a conn-stream the input channel is not OK with it sending it some data */
+static inline void cs_rx_chan_blk(struct conn_stream *cs)
 {
-	si->flags |=  SI_FL_RXBLK_CHAN;
+	cs->endp->flags |=  CS_EP_RXBLK_CHAN;
 }
 
-/* Tell a stream interface the other side is connected */
-static inline void si_rx_conn_rdy(struct stream_interface *si)
+/* Tell a conn-stream the other side is connected */
+static inline void cs_rx_conn_rdy(struct conn_stream *cs)
 {
-	si->flags &= ~SI_FL_RXBLK_CONN;
+	cs->endp->flags &= ~CS_EP_RXBLK_CONN;
 }
 
-/* Tell a stream interface it must wait for the other side to connect */
-static inline void si_rx_conn_blk(struct stream_interface *si)
+/* Tell a conn-stream it must wait for the other side to connect */
+static inline void cs_rx_conn_blk(struct conn_stream *cs)
 {
-	si->flags |=  SI_FL_RXBLK_CONN;
+	cs->endp->flags |=  CS_EP_RXBLK_CONN;
 }
 
-/* The stream interface just got the input buffer it was waiting for */
-static inline void si_rx_buff_rdy(struct stream_interface *si)
+/* The conn-stream just got the input buffer it was waiting for */
+static inline void cs_rx_buff_rdy(struct conn_stream *cs)
 {
-	si->flags &= ~SI_FL_RXBLK_BUFF;
+	cs->endp->flags &= ~CS_EP_RXBLK_BUFF;
 }
 
-/* The stream interface failed to get an input buffer and is waiting for it.
+/* The conn-stream failed to get an input buffer and is waiting for it.
  * Since it indicates a willingness to deliver data to the buffer that will
  * have to be retried, we automatically clear RXBLK_ENDP to be called again
  * as soon as RXBLK_BUFF is cleared.
  */
-static inline void si_rx_buff_blk(struct stream_interface *si)
+static inline void cs_rx_buff_blk(struct conn_stream *cs)
 {
-	si->flags |=  SI_FL_RXBLK_BUFF;
+	cs->endp->flags |=  CS_EP_RXBLK_BUFF;
 }
 
-/* Tell a stream interface some room was made in the input buffer */
-static inline void si_rx_room_rdy(struct stream_interface *si)
+/* Tell a conn-stream some room was made in the input buffer */
+static inline void cs_rx_room_rdy(struct conn_stream *cs)
 {
-	si->flags &= ~SI_FL_RXBLK_ROOM;
+	cs->endp->flags &= ~CS_EP_RXBLK_ROOM;
 }
 
-/* The stream interface announces it failed to put data into the input buffer
+/* The conn-stream announces it failed to put data into the input buffer
  * by lack of room. Since it indicates a willingness to deliver data to the
  * buffer that will have to be retried, we automatically clear RXBLK_ENDP to
  * be called again as soon as RXBLK_ROOM is cleared.
  */
-static inline void si_rx_room_blk(struct stream_interface *si)
+static inline void cs_rx_room_blk(struct conn_stream *cs)
 {
-	si->flags |=  SI_FL_RXBLK_ROOM;
+	cs->endp->flags |=  CS_EP_RXBLK_ROOM;
 }
 
-/* The stream interface announces it will never put new data into the input
+/* The conn-stream announces it will never put new data into the input
  * buffer and that it's not waiting for its endpoint to deliver anything else.
  * This function obviously doesn't have a _rdy equivalent.
  */
-static inline void si_rx_shut_blk(struct stream_interface *si)
+static inline void cs_rx_shut_blk(struct conn_stream *cs)
 {
-	si->flags |=  SI_FL_RXBLK_SHUT;
+	cs->endp->flags |=  CS_EP_RXBLK_SHUT;
 }
 
-/* Returns non-zero if the stream interface's Rx path is blocked */
-static inline int si_tx_blocked(const struct stream_interface *si)
+/* Returns non-zero if the conn-stream's Tx path is blocked */
+static inline int cs_tx_blocked(const struct conn_stream *cs)
 {
-	return !!(si->flags & SI_FL_WAIT_DATA);
+	return !!(cs->endp->flags & CS_EP_WAIT_DATA);
 }
 
-/* Returns non-zero if the stream interface's endpoint is ready to transmit */
-static inline int si_tx_endp_ready(const struct stream_interface *si)
+/* Returns non-zero if the conn-stream's endpoint is ready to transmit */
+static inline int cs_tx_endp_ready(const struct conn_stream *cs)
 {
-	return (si->flags & SI_FL_WANT_GET);
+	return (cs->endp->flags & CS_EP_WANT_GET);
 }
 
-/* Report that a stream interface wants to get some data from the output buffer */
-static inline void si_want_get(struct stream_interface *si)
+/* Report that a conn-stream wants to get some data from the output buffer */
+static inline void cs_want_get(struct conn_stream *cs)
 {
-	si->flags |= SI_FL_WANT_GET;
+	cs->endp->flags |= CS_EP_WANT_GET;
 }
 
-/* Report that a stream interface failed to get some data from the output buffer */
-static inline void si_cant_get(struct stream_interface *si)
+/* Report that a conn-stream failed to get some data from the output buffer */
+static inline void cs_cant_get(struct conn_stream *cs)
 {
-	si->flags |= SI_FL_WANT_GET | SI_FL_WAIT_DATA;
+	cs->endp->flags |= CS_EP_WANT_GET | CS_EP_WAIT_DATA;
 }
 
-/* Report that a stream interface doesn't want to get data from the output buffer */
-static inline void si_stop_get(struct stream_interface *si)
+/* Report that a conn-stream doesn't want to get data from the output buffer */
+static inline void cs_stop_get(struct conn_stream *cs)
 {
-	si->flags &= ~SI_FL_WANT_GET;
+	cs->endp->flags &= ~CS_EP_WANT_GET;
 }
 
-/* Report that a stream interface won't get any more data from the output buffer */
-static inline void si_done_get(struct stream_interface *si)
+/* Report that a conn-stream won't get any more data from the output buffer */
+static inline void cs_done_get(struct conn_stream *cs)
 {
-	si->flags &= ~(SI_FL_WANT_GET | SI_FL_WAIT_DATA);
+	cs->endp->flags &= ~(CS_EP_WANT_GET | CS_EP_WAIT_DATA);
 }
 
 #endif /* _HAPROXY_STREAM_INTERFACE_H */

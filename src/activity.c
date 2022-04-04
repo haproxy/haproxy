@@ -640,7 +640,7 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 
 	if (ci_putchk(cs_ic(cs), &trash) == -1) {
 		/* failed, try again */
-		si_rx_room_blk(cs->si);
+		cs_rx_room_blk(cs);
 		return 0;
 	}
 
@@ -690,14 +690,14 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 
 		if (ci_putchk(cs_ic(cs), &trash) == -1) {
 			/* failed, try again */
-			si_rx_room_blk(cs->si);
+			cs_rx_room_blk(cs);
 			return 0;
 		}
 	}
 
 	if (ci_putchk(cs_ic(cs), &trash) == -1) {
 		/* failed, try again */
-		si_rx_room_blk(cs->si);
+		cs_rx_room_blk(cs);
 		return 0;
 	}
 
@@ -754,13 +754,13 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 		chunk_appendf(&trash, "\n");
 
 		if (ci_putchk(cs_ic(cs), &trash) == -1) {
-			si_rx_room_blk(cs->si);
+			cs_rx_room_blk(cs);
 			return 0;
 		}
 	}
 
 	if (ci_putchk(cs_ic(cs), &trash) == -1) {
-		si_rx_room_blk(cs->si);
+		cs_rx_room_blk(cs);
 		return 0;
 	}
 
@@ -781,7 +781,7 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 		      tot_alloc_bytes - tot_free_bytes);
 
 	if (ci_putchk(cs_ic(cs), &trash) == -1) {
-		si_rx_room_blk(cs->si);
+		cs_rx_room_blk(cs);
 		return 0;
 	}
 
@@ -968,7 +968,7 @@ static int cli_io_handler_show_tasks(struct appctx *appctx)
 
 	if (ci_putchk(cs_ic(cs), &trash) == -1) {
 		/* failed, try again */
-		si_rx_room_blk(cs->si);
+		cs_rx_room_blk(cs);
 		return 0;
 	}
 	return 1;

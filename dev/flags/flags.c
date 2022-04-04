@@ -187,6 +187,15 @@ void show_endp_flags(unsigned int f)
 		printf("0\n");
 		return;
 	}
+
+	SHOW_FLAG(f, CS_EP_RXBLK_CHAN);
+	SHOW_FLAG(f, CS_EP_RXBLK_BUFF);
+	SHOW_FLAG(f, CS_EP_RXBLK_ROOM);
+	SHOW_FLAG(f, CS_EP_RXBLK_SHUT);
+	SHOW_FLAG(f, CS_EP_RXBLK_CONN);
+	SHOW_FLAG(f, CS_EP_RX_WAIT_EP);
+	SHOW_FLAG(f, CS_EP_WANT_GET);
+	SHOW_FLAG(f, CS_EP_WAIT_DATA);
 	SHOW_FLAG(f, CS_EP_KILL_CONN);
 	SHOW_FLAG(f, CS_EP_WAIT_FOR_HS);
 	SHOW_FLAG(f, CS_EP_WANT_ROOM);
@@ -267,15 +276,7 @@ void show_si_flags(unsigned int f)
 		return;
 	}
 
-	SHOW_FLAG(f, SI_FL_WAIT_DATA);
 	SHOW_FLAG(f, SI_FL_ISBACK);
-	SHOW_FLAG(f, SI_FL_WANT_GET);
-	SHOW_FLAG(f, SI_FL_RXBLK_CHAN);
-	SHOW_FLAG(f, SI_FL_RXBLK_BUFF);
-	SHOW_FLAG(f, SI_FL_RXBLK_ROOM);
-	SHOW_FLAG(f, SI_FL_RXBLK_SHUT);
-	SHOW_FLAG(f, SI_FL_RXBLK_CONN);
-	SHOW_FLAG(f, SI_FL_RX_WAIT_EP);
 
 	if (f) {
 		printf("EXTRA(0x%08x)", f);

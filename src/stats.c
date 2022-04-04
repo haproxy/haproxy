@@ -3209,7 +3209,7 @@ int stats_dump_proxy_to_buffer(struct conn_stream *cs, struct htx *htx,
 	}
 
   full:
-	si_rx_room_blk(cs->si);
+	cs_rx_room_blk(cs);
 	return 0;
 }
 
@@ -3700,7 +3700,7 @@ static int stats_dump_proxies(struct conn_stream *cs,
 	return 1;
 
   full:
-	si_rx_room_blk(cs->si);
+	cs_rx_room_blk(cs);
 	return 0;
 }
 
@@ -3803,7 +3803,7 @@ static int stats_dump_stat_to_buffer(struct conn_stream *cs, struct htx *htx,
 	}
 
   full:
-	si_rx_room_blk(cs->si);
+	cs_rx_room_blk(cs);
 	return 0;
 
 }
@@ -4196,7 +4196,7 @@ static int stats_send_http_headers(struct conn_stream *cs, struct htx *htx)
 
   full:
 	htx_reset(htx);
-	si_rx_room_blk(cs->si);
+	cs_rx_room_blk(cs);
 	return 0;
 }
 
@@ -4255,7 +4255,7 @@ static int stats_send_http_redirect(struct conn_stream *cs, struct htx *htx)
 
 full:
 	htx_reset(htx);
-	si_rx_room_blk(cs->si);
+	cs_rx_room_blk(cs);
 	return 0;
 }
 
@@ -4283,7 +4283,7 @@ static void http_stats_io_handler(struct appctx *appctx)
 
 	/* Check if the input buffer is available. */
 	if (!b_size(&res->buf)) {
-		si_rx_room_blk(cs->si);
+		cs_rx_room_blk(cs);
 		goto out;
 	}
 
@@ -4326,7 +4326,7 @@ static void http_stats_io_handler(struct appctx *appctx)
 		 */
 		if (htx_is_empty(res_htx)) {
 			if (!htx_add_endof(res_htx, HTX_BLK_EOT)) {
-				si_rx_room_blk(cs->si);
+				cs_rx_room_blk(cs);
 				goto out;
 			}
 			channel_add_input(res, 1);
@@ -4361,7 +4361,7 @@ static void http_stats_io_handler(struct appctx *appctx)
 	 */
 	htx_to_buf(res_htx, &res->buf);
 	if (!channel_is_empty(res))
-		si_stop_get(cs->si);
+		cs_stop_get(cs);
 }
 
 /* Dump all fields from <info> into <out> using the "show info" format (name: value) */
@@ -4549,7 +4549,7 @@ static int stats_dump_info_to_buffer(struct conn_stream *cs)
 		stats_dump_info_fields(&trash, info, appctx->ctx.stats.flags);
 
 	if (ci_putchk(cs_ic(cs), &trash) == -1) {
-		si_rx_room_blk(cs->si);
+		cs_rx_room_blk(cs);
 		return 0;
 	}
 
@@ -4777,7 +4777,7 @@ static int stats_dump_json_schema_to_buffer(struct conn_stream *cs)
 	stats_dump_json_schema(&trash);
 
 	if (ci_putchk(cs_ic(cs), &trash) == -1) {
-		si_rx_room_blk(cs->si);
+		cs_rx_room_blk(cs);
 		return 0;
 	}
 

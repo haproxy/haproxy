@@ -2611,7 +2611,7 @@ static int stats_dump_resolv_to_buffer(struct conn_stream *cs,
 	return 1;
 
   full:
-	si_rx_room_rdy(cs->si);
+	cs_rx_room_rdy(cs);
 	return 0;
 }
 
@@ -2657,7 +2657,7 @@ int stats_dump_resolvers(struct conn_stream *cs,
 	return 1;
 
   full:
-	si_rx_room_blk(cs->si);
+	cs_rx_room_blk(cs);
 	return 0;
 }
 
@@ -2795,7 +2795,7 @@ static int cli_io_handler_dump_resolvers_to_buffer(struct appctx *appctx)
 			/* let's try again later from this session. We add ourselves into
 			 * this session's users so that it can remove us upon termination.
 			 */
-			si_rx_room_blk(cs->si);
+			cs_rx_room_blk(cs);
 			return 0;
 		}
 		/* fall through */

@@ -67,13 +67,20 @@ struct stream_interface;
 	CS_EP_RCV_MORE   = 0x00080000,  /* Endpoint may have more bytes to transfer */
 	CS_EP_WANT_ROOM  = 0x00100000,  /* More bytes to transfer, but not enough room */
 
-	 /* unused: 0x00200000 ..  0x00800000 */
-
 	/* following flags are supposed to be set by the app layer and read by
 	 * the endpoint :
 	 */
-	CS_EP_WAIT_FOR_HS   = 0x01000000,  /* This stream is waiting for handhskae */
-	CS_EP_KILL_CONN     = 0x02000000,  /* must kill the connection when the CS closes */
+	CS_EP_WAIT_FOR_HS   = 0x00200000,  /* This stream is waiting for handhskae */
+	CS_EP_KILL_CONN     = 0x00400000,  /* must kill the connection when the CS closes */
+	CS_EP_WAIT_DATA     = 0x00800000,  /* CS waits for more outgoing data to send */
+	CS_EP_WANT_GET      = 0x01000000,  /* CS would like to get some data from the buffer */
+	CS_EP_RX_WAIT_EP    = 0x02000000,  /* CS waits for more data from the end point */
+	CS_EP_RXBLK_CHAN    = 0x04000000,  /* the channel doesn't want the CS to introduce data */
+	CS_EP_RXBLK_BUFF    = 0x08000000,  /* CS waits for a buffer allocation to complete */
+	CS_EP_RXBLK_ROOM    = 0x10000000,  /* CS waits for more buffer room to store incoming data */
+	CS_EP_RXBLK_SHUT    = 0x20000000,  /* input is now closed, nothing new will ever come */
+	CS_EP_RXBLK_CONN    = 0x40000000,  /* other side is not connected */
+	CS_EP_RXBLK_ANY     = 0x7C000000,  /* any of the RXBLK flags above */
  };
 
 /* conn_stream flags */
@@ -128,7 +135,7 @@ enum cs_state_bit {
 
 struct conn_stream;
 
-/* data_cb describes the data layer's recv and send callbacks which are called
+/* cs_data_cb describes the data layer's recv and send callbacks which are called
  * when I/O activity was detected after the transport layer is ready. These
  * callbacks are supposed to make use of the xprt_ops above to exchange data
  * from/to buffers and pipes. The <wake> callback is used to report activity

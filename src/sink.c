@@ -330,9 +330,9 @@ static void sink_forward_io_handler(struct appctx *appctx)
 	 * to be notified whenever the connection completes.
 	 */
 	if (cs_opposite(cs)->state < CS_ST_EST) {
-		si_cant_get(cs->si);
-		si_rx_conn_blk(cs->si);
-		si_rx_endp_more(cs->si);
+		cs_cant_get(cs);
+		cs_rx_conn_blk(cs);
+		cs_rx_endp_more(cs);
 		return;
 	}
 
@@ -397,7 +397,7 @@ static void sink_forward_io_handler(struct appctx *appctx)
 			trash.area[trash.data++] = '\n';
 
 			if (ci_putchk(cs_ic(cs), &trash) == -1) {
-				si_rx_room_blk(cs->si);
+				cs_rx_room_blk(cs);
 				ret = 0;
 				break;
 			}
@@ -415,7 +415,7 @@ static void sink_forward_io_handler(struct appctx *appctx)
 		HA_RWLOCK_WRLOCK(LOGSRV_LOCK, &ring->lock);
 		LIST_APPEND(&ring->waiters, &appctx->wait_entry);
 		HA_RWLOCK_WRUNLOCK(LOGSRV_LOCK, &ring->lock);
-		si_rx_endp_done(cs->si);
+		cs_rx_endp_done(cs);
 	}
 	HA_SPIN_UNLOCK(SFT_LOCK, &sft->lock);
 
@@ -470,9 +470,9 @@ static void sink_forward_oc_io_handler(struct appctx *appctx)
 	 * to be notified whenever the connection completes.
 	 */
 	if (cs_opposite(cs)->state < CS_ST_EST) {
-		si_cant_get(cs->si);
-		si_rx_conn_blk(cs->si);
-		si_rx_endp_more(cs->si);
+		cs_cant_get(cs);
+		cs_rx_conn_blk(cs);
+		cs_rx_endp_more(cs);
 		return;
 	}
 
@@ -541,7 +541,7 @@ static void sink_forward_oc_io_handler(struct appctx *appctx)
 			trash.data += b_getblk(buf, p + 1, msg_len, ofs + cnt);
 
 			if (ci_putchk(cs_ic(cs), &trash) == -1) {
-				si_rx_room_blk(cs->si);
+				cs_rx_room_blk(cs);
 				ret = 0;
 				break;
 			}
@@ -559,7 +559,7 @@ static void sink_forward_oc_io_handler(struct appctx *appctx)
 		HA_RWLOCK_WRLOCK(LOGSRV_LOCK, &ring->lock);
 		LIST_APPEND(&ring->waiters, &appctx->wait_entry);
 		HA_RWLOCK_WRUNLOCK(LOGSRV_LOCK, &ring->lock);
-		si_rx_endp_done(cs->si);
+		cs_rx_endp_done(cs);
 	}
 	HA_SPIN_UNLOCK(SFT_LOCK, &sft->lock);
 

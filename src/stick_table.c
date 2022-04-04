@@ -4253,7 +4253,7 @@ static int table_dump_head_to_buffer(struct buffer *msg,
 		chunk_appendf(msg, "# contents not dumped due to insufficient privileges\n");
 
 	if (ci_putchk(cs_ic(cs), msg) == -1) {
-		si_rx_room_blk(cs->si);
+		cs_rx_room_blk(cs);
 		return 0;
 	}
 
@@ -4380,7 +4380,7 @@ static int table_dump_entry_to_buffer(struct buffer *msg,
 	chunk_appendf(msg, "\n");
 
 	if (ci_putchk(cs_ic(cs), msg) == -1) {
-		si_rx_room_blk(cs->si);
+		cs_rx_room_blk(cs);
 		return 0;
 	}
 

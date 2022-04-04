@@ -1261,7 +1261,7 @@ static int cli_io_handler_show_cert(struct appctx *appctx)
 
 		node = ebmb_next(node);
 		if (ci_putchk(cs_ic(cs), trash) == -1) {
-			si_rx_room_blk(cs->si);
+			cs_rx_room_blk(cs);
 			goto yield;
 		}
 	}
@@ -1665,7 +1665,7 @@ static int cli_io_handler_show_cert_detail(struct appctx *appctx)
 
 end:
 	if (ci_putchk(cs_ic(cs), out) == -1) {
-		si_rx_room_blk(cs->si);
+		cs_rx_room_blk(cs);
 		goto yield;
 	}
 
@@ -1710,7 +1710,7 @@ static int cli_io_handler_show_cert_ocsp_detail(struct appctx *appctx)
 	}
 
 	if (ci_putchk(cs_ic(cs), out) == -1) {
-		si_rx_room_blk(cs->si);
+		cs_rx_room_blk(cs);
 		goto yield;
 	}
 
@@ -1979,7 +1979,7 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 				/* This state just print the update message */
 				chunk_printf(trash, "Committing %s", ckchs_transaction.path);
 				if (ci_putchk(cs_ic(cs), trash) == -1) {
-					si_rx_room_blk(cs->si);
+					cs_rx_room_blk(cs);
 					goto yield;
 				}
 				appctx->st2 = SETCERT_ST_GEN;
@@ -2054,16 +2054,16 @@ end:
 	chunk_appendf(trash, "\n");
 	chunk_appendf(trash, "Success!\n");
 	if (ci_putchk(cs_ic(cs), trash) == -1)
-		si_rx_room_blk(cs->si);
+		cs_rx_room_blk(cs);
 	free_trash_chunk(trash);
 	/* success: call the release function and don't come back */
 	return 1;
 yield:
 	/* store the state */
 	if (ci_putchk(cs_ic(cs), trash) == -1)
-		si_rx_room_blk(cs->si);
+		cs_rx_room_blk(cs);
 	free_trash_chunk(trash);
-	si_rx_endp_more(cs->si); /* let's come back later */
+	cs_rx_endp_more(cs); /* let's come back later */
 	return 0; /* should come back */
 
 error:
@@ -2071,7 +2071,7 @@ error:
 	if (trash) {
 		chunk_appendf(trash, "\n%sFailed!\n", err);
 		if (ci_putchk(cs_ic(cs), trash) == -1)
-			si_rx_room_blk(cs->si);
+			cs_rx_room_blk(cs);
 		free_trash_chunk(trash);
 	}
 	/* error: call the release function and don't come back */
@@ -2728,7 +2728,7 @@ static int cli_io_handler_commit_cafile_crlfile(struct appctx *appctx)
 					goto error;
 				}
 				if (ci_putchk(cs_ic(cs), trash) == -1) {
-					si_rx_room_blk(cs->si);
+					cs_rx_room_blk(cs);
 					goto yield;
 				}
 				appctx->st2 = SETCERT_ST_GEN;
@@ -2839,16 +2839,16 @@ end:
 	chunk_appendf(trash, "\n");
 	chunk_appendf(trash, "Success!\n");
 	if (ci_putchk(cs_ic(cs), trash) == -1)
-		si_rx_room_blk(cs->si);
+		cs_rx_room_blk(cs);
 	free_trash_chunk(trash);
 	/* success: call the release function and don't come back */
 	return 1;
 yield:
 	/* store the state */
 	if (ci_putchk(cs_ic(cs), trash) == -1)
-		si_rx_room_blk(cs->si);
+		cs_rx_room_blk(cs);
 	free_trash_chunk(trash);
-	si_rx_endp_more(cs->si); /* let's come back later */
+	cs_rx_endp_more(cs); /* let's come back later */
 	return 0; /* should come back */
 
 error:
@@ -2856,7 +2856,7 @@ error:
 	if (trash) {
 		chunk_appendf(trash, "\n%sFailed!\n", err);
 		if (ci_putchk(cs_ic(cs), trash) == -1)
-			si_rx_room_blk(cs->si);
+			cs_rx_room_blk(cs);
 		free_trash_chunk(trash);
 	}
 	/* error: call the release function and don't come back */
@@ -2972,7 +2972,7 @@ static int cli_io_handler_show_cafile_detail(struct appctx *appctx)
 
 end:
 	if (ci_putchk(cs_ic(cs), out) == -1) {
-		si_rx_room_blk(cs->si);
+		cs_rx_room_blk(cs);
 		goto yield;
 	}
 
@@ -3111,7 +3111,7 @@ static int cli_io_handler_show_cafile(struct appctx *appctx)
 
 		node = ebmb_next(node);
 		if (ci_putchk(cs_ic(cs), trash) == -1) {
-			si_rx_room_blk(cs->si);
+			cs_rx_room_blk(cs);
 			goto yield;
 		}
 	}
@@ -3631,7 +3631,7 @@ static int cli_io_handler_show_crlfile_detail(struct appctx *appctx)
 
 end:
 	if (ci_putchk(cs_ic(cs), out) == -1) {
-		si_rx_room_blk(cs->si);
+		cs_rx_room_blk(cs);
 		goto yield;
 	}
 
@@ -3743,7 +3743,7 @@ static int cli_io_handler_show_crlfile(struct appctx *appctx)
 
 		node = ebmb_next(node);
 		if (ci_putchk(cs_ic(cs), trash) == -1) {
-			si_rx_room_blk(cs->si);
+			cs_rx_room_blk(cs);
 			goto yield;
 		}
 	}

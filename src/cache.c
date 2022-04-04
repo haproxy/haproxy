@@ -1447,7 +1447,7 @@ static void http_cache_io_handler(struct appctx *appctx)
 
 	/* Check if the input buffer is available. */
 	if (!b_size(&res->buf)) {
-		si_rx_room_blk(cs->si);
+		cs_rx_room_blk(cs);
 		goto out;
 	}
 
@@ -1492,7 +1492,7 @@ static void http_cache_io_handler(struct appctx *appctx)
 		if (len) {
 			ret = htx_cache_dump_msg(appctx, res_htx, len, HTX_BLK_UNUSED);
 			if (ret < len) {
-				si_rx_room_blk(cs->si);
+				cs_rx_room_blk(cs);
 				goto out;
 			}
 		}
@@ -2583,7 +2583,7 @@ static int cli_io_handler_show_cache(struct appctx *appctx)
 		if (!next_key) {
 			chunk_printf(&trash, "%p: %s (shctx:%p, available blocks:%d)\n", cache, cache->id, shctx_ptr(cache), shctx_ptr(cache)->nbav);
 			if (ci_putchk(cs_ic(cs), &trash) == -1) {
-				si_rx_room_blk(cs->si);
+				cs_rx_room_blk(cs);
 				return 0;
 			}
 		}
@@ -2621,7 +2621,7 @@ static int cli_io_handler_show_cache(struct appctx *appctx)
 			shctx_unlock(shctx_ptr(cache));
 
 			if (ci_putchk(cs_ic(cs), &trash) == -1) {
-				si_rx_room_blk(cs->si);
+				cs_rx_room_blk(cs);
 				return 0;
 			}
 		}

@@ -930,7 +930,7 @@ static void cli_io_handler(struct appctx *appctx)
 			 * would want to return some info right after parsing.
 			 */
 			if (buffer_almost_full(cs_ib(cs))) {
-				si_rx_room_blk(cs->si);
+				cs_rx_room_blk(cs);
 				break;
 			}
 
@@ -1070,7 +1070,7 @@ static void cli_io_handler(struct appctx *appctx)
 					appctx->st0 = CLI_ST_PROMPT;
 				}
 				else
-					si_rx_room_blk(cs->si);
+					cs_rx_room_blk(cs);
 				break;
 
 			case CLI_ST_CALLBACK: /* use custom pointer */
@@ -1110,7 +1110,7 @@ static void cli_io_handler(struct appctx *appctx)
 				if (ci_putstr(cs_ic(cs), prompt) != -1)
 					appctx->st0 = CLI_ST_GETREQ;
 				else
-					si_rx_room_blk(cs->si);
+					cs_rx_room_blk(cs);
 			}
 
 			/* If the output functions are still there, it means they require more room. */
@@ -1214,7 +1214,7 @@ static int cli_io_handler_show_env(struct appctx *appctx)
 		chunk_printf(&trash, "%s\n", *var);
 
 		if (ci_putchk(cs_ic(cs), &trash) == -1) {
-			si_rx_room_blk(cs->si);
+			cs_rx_room_blk(cs);
 			return 0;
 		}
 		if (appctx->st2 == STAT_ST_END)
@@ -1406,7 +1406,7 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 		chunk_appendf(&trash, "%s\n", suspicious ? " !" : "");
 
 		if (ci_putchk(cs_ic(cs), &trash) == -1) {
-			si_rx_room_blk(cs->si);
+			cs_rx_room_blk(cs);
 			appctx->ctx.cli.i0 = fd;
 			ret = 0;
 			break;
@@ -1520,7 +1520,7 @@ static int cli_io_handler_show_activity(struct appctx *appctx)
 	if (ci_putchk(cs_ic(cs), &trash) == -1) {
 		chunk_reset(&trash);
 		chunk_printf(&trash, "[output too large, cannot dump]\n");
-		si_rx_room_blk(cs->si);
+		cs_rx_room_blk(cs);
 	}
 
 #undef SHOW_AVG
@@ -1544,7 +1544,7 @@ static int cli_io_handler_show_cli_sock(struct appctx *appctx)
 		case STAT_ST_INIT:
 			chunk_printf(&trash, "# socket lvl processes\n");
 			if (ci_putchk(cs_ic(cs), &trash) == -1) {
-				si_rx_room_blk(cs->si);
+				cs_rx_room_blk(cs);
 				return 0;
 			}
 			appctx->st2 = STAT_ST_LIST;
@@ -1606,7 +1606,7 @@ static int cli_io_handler_show_cli_sock(struct appctx *appctx)
 						chunk_appendf(&trash, "all\n");
 
 						if (ci_putchk(cs_ic(cs), &trash) == -1) {
-							si_rx_room_blk(cs->si);
+							cs_rx_room_blk(cs);
 							return 0;
 						}
 					}

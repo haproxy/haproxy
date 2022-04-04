@@ -1186,7 +1186,7 @@ static inline int peer_send_msg(struct appctx *appctx,
 	if (ret <= 0) {
 		if (ret == -1) {
 			/* No more write possible */
-			si_rx_room_blk(cs->si);
+			cs_rx_room_blk(cs);
 			return -1;
 		}
 		appctx->st0 = PEER_SESS_ST_END;
@@ -2833,7 +2833,7 @@ static void peer_io_handler(struct appctx *appctx)
 
 	/* Check if the input buffer is available. */
 	if (cs_ib(cs)->size == 0) {
-		si_rx_room_blk(cs->si);
+		cs_rx_room_blk(cs);
 		goto out;
 	}
 
@@ -3205,7 +3205,7 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 	s = DISGUISE(cs_strm(cs));
 
 	/* applet is waiting for data */
-	si_cant_get(cs_si(s->csf));
+	cs_cant_get(s->csf);
 	appctx_wakeup(appctx);
 
 	/* initiate an outgoing connection */
@@ -3756,7 +3756,7 @@ static int peers_dump_head(struct buffer *msg, struct conn_stream *cs, struct pe
 	              peers->sync_task ? peers->sync_task->calls : 0);
 
 	if (ci_putchk(cs_ic(cs), msg) == -1) {
-		si_rx_room_blk(cs->si);
+		cs_rx_room_blk(cs);
 		return 0;
 	}
 
@@ -3915,7 +3915,7 @@ static int peers_dump_peer(struct buffer *msg, struct conn_stream *cs, struct pe
  end:
 	chunk_appendf(&trash, "\n");
 	if (ci_putchk(cs_ic(cs), msg) == -1) {
-		si_rx_room_blk(cs->si);
+		cs_rx_room_blk(cs);
 		return 0;
 	}
 

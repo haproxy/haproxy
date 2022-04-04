@@ -1010,7 +1010,7 @@ static int cli_io_handler_dump_pools(struct appctx *appctx)
 
 	dump_pools_to_trash();
 	if (ci_putchk(cs_ic(cs), &trash) == -1) {
-		si_rx_room_blk(cs->si);
+		cs_rx_room_blk(cs);
 		return 0;
 	}
 	return 1;

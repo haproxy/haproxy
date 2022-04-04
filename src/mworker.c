@@ -606,7 +606,7 @@ static int cli_io_handler_show_proc(struct appctx *appctx)
 
 
 	if (ci_putchk(cs_ic(cs), &trash) == -1) {
-		si_rx_room_blk(cs->si);
+		cs_rx_room_blk(cs);
 		return 0;
 	}
 

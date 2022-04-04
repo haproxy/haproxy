@@ -88,7 +88,7 @@ void si_free(struct stream_interface *si)
  * layers (applets, connections) after I/O completion. After updating the stream
  * interface and timeouts, it will try to forward what can be forwarded, then to
  * wake the associated task up if an important event requires special handling.
- * It may update SI_FL_WAIT_DATA and/or SI_FL_RXBLK_ROOM, that the callers are
+ * It may update CS_EP_WAIT_DATA and/or CS_EP_RXBLK_ROOM, that the callers are
  * encouraged to watch to take appropriate action.
  * It should not be called from within the stream itself, cs_update()
  * is designed for this.
@@ -114,9 +114,9 @@ static void cs_notify(struct conn_stream *cs)
 	 * we're about to close and can't expect more data if SHUTW_NOW is there.
 	 */
 	if (!(oc->flags & (CF_SHUTW|CF_SHUTW_NOW)))
-		cs->si->flags |= SI_FL_WAIT_DATA;
+		cs->endp->flags |= CS_EP_WAIT_DATA;
 	else if ((oc->flags & (CF_SHUTW|CF_SHUTW_NOW)) == CF_SHUTW_NOW)
-		cs->si->flags &= ~SI_FL_WAIT_DATA;
+		cs->endp->flags &= ~CS_EP_WAIT_DATA;
 
 	/* update OC timeouts and wake the other side up if it's waiting for room */
 	if (oc->flags & CF_WRITE_ACTIVITY) {
@@ -131,23 +131,23 @@ static void cs_notify(struct conn_stream *cs)
 	}
 
 	if (oc->flags & CF_DONT_READ)
-		si_rx_chan_blk(cso->si);
+		cs_rx_chan_blk(cso);
 	else
-		si_rx_chan_rdy(cso->si);
+		cs_rx_chan_rdy(cso);
 
 	/* Notify the other side when we've injected data into the IC that
 	 * needs to be forwarded. We can do fast-forwarding as soon as there
 	 * are output data, but we avoid doing this if some of the data are
 	 * not yet scheduled for being forwarded, because it is very likely
 	 * that it will be done again immediately afterwards once the following
-	 * data are parsed (eg: HTTP chunking). We only SI_FL_RXBLK_ROOM once
+	 * data are parsed (eg: HTTP chunking). We only CS_EP_RXBLK_ROOM once
 	 * we've emptied *some* of the output buffer, and not just when there
 	 * is available room, because applets are often forced to stop before
 	 * the buffer is full. We must not stop based on input data alone because
 	 * an HTTP parser might need more data to complete the parsing.
 	 */
 	if (!channel_is_empty(ic) &&
-	    (cso->si->flags & SI_FL_WAIT_DATA) &&
+	    (cso->endp->flags & CS_EP_WAIT_DATA) &&
 	    (!(ic->flags & CF_EXPECT_MORE) || c_full(ic) || ci_data(ic) == 0 || ic->pipe)) {
 		int new_len, last_len;
 
@@ -165,16 +165,16 @@ static void cs_notify(struct conn_stream *cs)
 		 * buffer or in the pipe.
 		 */
 		if (new_len < last_len)
-			si_rx_room_rdy(cs->si);
+			cs_rx_room_rdy(cs);
 	}
 
 	if (!(ic->flags & CF_DONT_READ))
-		si_rx_chan_rdy(cs->si);
+		cs_rx_chan_rdy(cs);
 
 	cs_chk_rcv(cs);
 	cs_chk_rcv(cso);
 
-	if (si_rx_blocked(cs->si)) {
+	if (cs_rx_blocked(cs)) {
 		ic->rex = TICK_ETERNITY;
 	}
 	else if ((ic->flags & (CF_SHUTR|CF_READ_PARTIAL)) == CF_READ_PARTIAL) {
@@ -439,7 +439,7 @@ int cs_conn_send(struct conn_stream *cs)
 		if (cs->state == CS_ST_CON)
 			cs->state = CS_ST_RDY;
 
-		si_rx_room_rdy(cs_opposite(cs)->si);
+		cs_rx_room_rdy(cs_opposite(cs));
 	}
 
 	if (cs->endp->flags & (CS_EP_ERROR|CS_EP_ERR_PENDING)) {
@@ -495,7 +495,7 @@ int cs_conn_sync_recv(struct conn_stream *cs)
 	if (cs->wait_event.events & SUB_RETRY_RECV)
 		return 0; // already subscribed
 
-	if (!si_rx_endp_ready(cs->si) || si_rx_blocked(cs->si))
+	if (!cs_rx_endp_ready(cs) || cs_rx_blocked(cs))
 		return 0; // already failed
 
 	return cs_conn_recv(cs);
@@ -634,7 +634,7 @@ int cs_conn_recv(struct conn_stream *cs)
 			/* the pipe is full or we have read enough data that it
 			 * could soon be full. Let's stop before needing to poll.
 			 */
-			si_rx_room_blk(cs->si);
+			cs_rx_room_blk(cs);
 			goto done_recv;
 		}
 
@@ -704,7 +704,7 @@ int cs_conn_recv(struct conn_stream *cs)
 			 */
 			BUG_ON(c_empty(ic));
 
-			si_rx_room_blk(cs->si);
+			cs_rx_room_blk(cs);
 			/* Add READ_PARTIAL because some data are pending but
 			 * cannot be xferred to the channel
 			 */
@@ -718,7 +718,7 @@ int cs_conn_recv(struct conn_stream *cs)
 			 * here to proceed.
 			 */
 			if (flags & CO_RFL_BUF_FLUSH)
-				si_rx_room_blk(cs->si);
+				cs_rx_room_blk(cs);
 			break;
 		}
 
@@ -748,7 +748,7 @@ int cs_conn_recv(struct conn_stream *cs)
 
 		if ((ic->flags & CF_READ_DONTWAIT) || --read_poll <= 0) {
 			/* we're stopped by the channel's policy */
-			si_rx_chan_blk(cs->si);
+			cs_rx_chan_blk(cs);
 			break;
 		}
 
@@ -763,7 +763,7 @@ int cs_conn_recv(struct conn_stream *cs)
 			 */
 			if (ic->flags & CF_STREAMER) {
 				/* we're stopped by the channel's policy */
-				si_rx_chan_blk(cs->si);
+				cs_rx_chan_blk(cs);
 				break;
 			}
 
@@ -772,7 +772,7 @@ int cs_conn_recv(struct conn_stream *cs)
 			 */
 			if (ret >= global.tune.recv_enough) {
 				/* we're stopped by the channel's policy */
-				si_rx_chan_blk(cs->si);
+				cs_rx_chan_blk(cs);
 				break;
 			}
 		}
@@ -780,7 +780,7 @@ int cs_conn_recv(struct conn_stream *cs)
 		/* if we are waiting for more space, don't try to read more data
 		 * right now.
 		 */
-		if (si_rx_blocked(cs->si))
+		if (cs_rx_blocked(cs))
 			break;
 	} /* while !flags */
 
@@ -844,12 +844,12 @@ int cs_conn_recv(struct conn_stream *cs)
 		cs_conn_read0(cs);
 		ret = 1;
 	}
-	else if (!si_rx_blocked(cs->si)) {
+	else if (!cs_rx_blocked(cs)) {
 		/* Subscribe to receive events if we're blocking on I/O */
 		conn->mux->subscribe(cs, SUB_RETRY_RECV, &cs->wait_event);
-		si_rx_endp_done(cs->si);
+		cs_rx_endp_done(cs);
 	} else {
-		si_rx_endp_more(cs->si);
+		cs_rx_endp_more(cs);
 		ret = 1;
 	}
 	return ret;
@@ -867,7 +867,7 @@ static void cs_conn_read0(struct conn_stream *cs)
 
 	BUG_ON(!cs_conn(cs));
 
-	si_rx_shut_blk(cs->si);
+	cs_rx_shut_blk(cs);
 	if (ic->flags & CF_SHUTR)
 		return;
 	ic->flags |= CF_SHUTR;
@@ -897,7 +897,7 @@ static void cs_conn_read0(struct conn_stream *cs)
 	oc->flags |= CF_SHUTW;
 	oc->wex = TICK_ETERNITY;
 
-	si_done_get(cs->si);
+	cs_done_get(cs);
 
 	cs->state = CS_ST_DIS;
 	__cs_strm(cs)->conn_exp = TICK_ETERNITY;
@@ -918,14 +918,14 @@ int cs_applet_process(struct conn_stream *cs)
 	/* If the applet wants to write and the channel is closed, it's a
 	 * broken pipe and it must be reported.
 	 */
-	if (!(cs->si->flags & SI_FL_RX_WAIT_EP) && (ic->flags & CF_SHUTR))
+	if (!(cs->endp->flags & CS_EP_RX_WAIT_EP) && (ic->flags & CF_SHUTR))
 		cs->endp->flags |= CS_EP_ERROR;
 
 	/* automatically mark the applet having data available if it reported
 	 * begin blocked by the channel.
 	 */
-	if (si_rx_blocked(cs->si))
-		si_rx_endp_more(cs->si);
+	if (cs_rx_blocked(cs))
+		cs_rx_endp_more(cs);
 
 	/* update the stream-int, channels, and possibly wake the stream up */
 	cs_notify(cs);
@@ -936,8 +936,8 @@ int cs_applet_process(struct conn_stream *cs)
 	 * appctx but in the case the task is not in runqueue we may have to
 	 * wakeup the appctx immediately.
 	 */
-	if ((si_rx_endp_ready(cs->si) && !si_rx_blocked(cs->si)) ||
-	    (si_tx_endp_ready(cs->si) && !si_tx_blocked(cs->si)))
+	if ((cs_rx_endp_ready(cs) && !cs_rx_blocked(cs)) ||
+	    (cs_tx_endp_ready(cs) && !cs_tx_blocked(cs)))
 		appctx_wakeup(__cs_appctx(cs));
 	return 0;
 }

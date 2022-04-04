@@ -2717,7 +2717,7 @@ static int dump_servers_state(struct conn_stream *cs)
 		}
 
 		if (ci_putchk(cs_ic(cs), &trash) == -1) {
-			si_rx_room_blk(cs->si);
+			cs_rx_room_blk(cs);
 			return 0;
 		}
 	}
@@ -2750,7 +2750,7 @@ static int cli_io_handler_servers_state(struct appctx *appctx)
 			             global.nbthread);
 
 		if (ci_putchk(cs_ic(cs), &trash) == -1) {
-			si_rx_room_blk(cs->si);
+			cs_rx_room_blk(cs);
 			return 0;
 		}
 		appctx->st2 = STAT_ST_INFO;
@@ -2785,7 +2785,7 @@ static int cli_io_handler_show_backend(struct appctx *appctx)
 	if (!appctx->ctx.cli.p0) {
 		chunk_printf(&trash, "# name\n");
 		if (ci_putchk(cs_ic(cs), &trash) == -1) {
-			si_rx_room_blk(cs->si);
+			cs_rx_room_blk(cs);
 			return 0;
 		}
 		appctx->ctx.cli.p0 = proxies_list;
@@ -2800,7 +2800,7 @@ static int cli_io_handler_show_backend(struct appctx *appctx)
 
 		chunk_appendf(&trash, "%s\n", curproxy->id);
 		if (ci_putchk(cs_ic(cs), &trash) == -1) {
-			si_rx_room_blk(cs->si);
+			cs_rx_room_blk(cs);
 			return 0;
 		}
 	}
@@ -3238,7 +3238,7 @@ static int cli_io_handler_show_errors(struct appctx *appctx)
  cant_send_unlock:
 	HA_RWLOCK_RDUNLOCK(PROXY_LOCK, &appctx->ctx.errors.px->lock);
  cant_send:
-	si_rx_room_blk(cs->si);
+	cs_rx_room_blk(cs);
 	return 0;
 }
 

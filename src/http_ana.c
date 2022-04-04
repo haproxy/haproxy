@@ -1247,7 +1247,7 @@ static __inline int do_l7_retry(struct stream *s, struct stream_interface *si)
 	req->flags &= ~(CF_WRITE_ERROR | CF_WRITE_TIMEOUT | CF_SHUTW | CF_SHUTW_NOW);
 	res->flags &= ~(CF_READ_ERROR | CF_READ_TIMEOUT | CF_SHUTR | CF_EOI | CF_READ_NULL | CF_SHUTR_NOW);
 	res->analysers &= AN_RES_FLT_END;
-	si->flags &= ~SI_FL_RXBLK_SHUT;
+	si->cs->endp->flags &= ~CS_EP_RXBLK_SHUT;
 	s->conn_err_type = STRM_ET_NONE;
 	s->flags &= ~(SF_CONN_EXP | SF_ERR_MASK | SF_FINST_MASK);
 	s->conn_exp = TICK_ETERNITY;
@@ -4140,7 +4140,7 @@ enum rule_result http_wait_for_msg_body(struct stream *s, struct channel *chn,
 	if ((htx->flags & HTX_FL_EOM) ||
 	    htx_get_tail_type(htx) > HTX_BLK_DATA ||
 	    channel_htx_full(chn, htx, global.tune.maxrewrite) ||
-	    si_rx_blocked_room(chn_prod(chn)->si))
+	    cs_rx_blocked_room(chn_prod(chn)))
 		goto end;
 
 	if (bytes) {

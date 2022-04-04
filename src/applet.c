@@ -105,10 +105,10 @@ int appctx_buf_available(void *arg)
 	struct conn_stream *cs = appctx->owner;
 
 	/* allocation requested ? */
-	if (!(cs->si->flags & SI_FL_RXBLK_BUFF))
+	if (!(cs->endp->flags & CS_EP_RXBLK_BUFF))
 		return 0;
 
-	si_rx_buff_rdy(cs->si);
+	cs_rx_buff_rdy(cs);
 
 	/* was already allocated another way ? if so, don't take this one */
 	if (c_size(cs_ic(cs)) || cs_ic(cs)->pipe)
@@ -116,7 +116,7 @@ int appctx_buf_available(void *arg)
 
 	/* allocation possible now ? */
 	if (!b_alloc(&cs_ic(cs)->buf)) {
-		si_rx_buff_blk(cs->si);
+		cs_rx_buff_blk(cs);
 		return 0;
 	}
 
@@ -141,8 +141,8 @@ struct task *task_run_applet(struct task *t, void *context, unsigned int state)
 	 * put, it's up to it to change this if needed. This ensures
 	 * that one applet which ignores any event will not spin.
 	 */
-	si_cant_get(cs->si);
-	si_rx_endp_done(cs->si);
+	cs_cant_get(cs);
+	cs_rx_endp_done(cs);
 
 	/* Now we'll try to allocate the input buffer. We wake up the applet in
 	 * all cases. So this is the applet's responsibility to check if this
@@ -151,7 +151,7 @@ struct task *task_run_applet(struct task *t, void *context, unsigned int state)
 	 * do if it needs the buffer, it will be called again upon readiness.
 	 */
 	if (!cs_alloc_ibuf(cs, &app->buffer_wait))
-		si_rx_endp_more(cs->si);
+		cs_rx_endp_more(cs);
 
 	count = co_data(cs_oc(cs));
 	app->applet->fct(app);
@@ -161,15 +161,15 @@ struct task *task_run_applet(struct task *t, void *context, unsigned int state)
 	 */
 	if (count != co_data(cs_oc(cs))) {
 		cs_oc(cs)->flags |= CF_WRITE_PARTIAL | CF_WROTE_DATA;
-		si_rx_room_rdy(cs_opposite(cs)->si);
+		cs_rx_room_rdy(cs_opposite(cs));
 	}
 
 	/* measure the call rate and check for anomalies when too high */
 	rate = update_freq_ctr(&app->call_rate, 1);
 	if (rate >= 100000 && app->call_rate.prev_ctr && // looped more than 100k times over last second
-	    ((b_size(cs_ib(cs)) && cs->si->flags & SI_FL_RXBLK_BUFF) || // asks for a buffer which is present
-	     (b_size(cs_ib(cs)) && !b_data(cs_ib(cs)) && cs->si->flags & SI_FL_RXBLK_ROOM) || // asks for room in an empty buffer
-	     (b_data(cs_ob(cs)) && si_tx_endp_ready(cs->si) && !si_tx_blocked(cs->si)) || // asks for data already present
+	    ((b_size(cs_ib(cs)) && cs->endp->flags & CS_EP_RXBLK_BUFF) || // asks for a buffer which is present
+	     (b_size(cs_ib(cs)) && !b_data(cs_ib(cs)) && cs->endp->flags & CS_EP_RXBLK_ROOM) || // asks for room in an empty buffer
+	     (b_data(cs_ob(cs)) && cs_tx_endp_ready(cs) && !cs_tx_blocked(cs)) || // asks for data already present
 	     (!b_data(cs_ib(cs)) && b_data(cs_ob(cs)) && // didn't return anything ...
 	      (cs_oc(cs)->flags & (CF_WRITE_PARTIAL|CF_SHUTW_NOW)) == CF_SHUTW_NOW))) { // ... and left data pending after a shut
 		stream_dump_and_crash(&app->obj_type, read_freq_ctr(&app->call_rate));

@@ -4339,7 +4339,7 @@ static int cli_parse_get_weight(char **args, char *payload, struct appctx *appct
 	snprintf(trash.area, trash.size, "%d (initial %d)\n", sv->uweight,
 		 sv->iweight);
 	if (ci_putstr(cs_ic(cs), trash.area) == -1) {
-		si_rx_room_blk(cs->si);
+		cs_rx_room_blk(cs);
 		return 0;
 	}
 	return 1;

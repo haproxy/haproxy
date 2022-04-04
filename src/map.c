@@ -390,7 +390,7 @@ static int cli_io_handler_pat_list(struct appctx *appctx)
 				 */
 				LIST_APPEND(&elt->back_refs, &appctx->ctx.map.bref.users);
 				HA_SPIN_UNLOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
-				si_rx_room_blk(cs->si);
+				cs_rx_room_blk(cs);
 				return 0;
 			}
 		skip:
@@ -419,7 +419,7 @@ static int cli_io_handler_pats_list(struct appctx *appctx)
 		chunk_reset(&trash);
 		chunk_appendf(&trash, "# id (file) description\n");
 		if (ci_putchk(cs_ic(cs), &trash) == -1) {
-			si_rx_room_blk(cs->si);
+			cs_rx_room_blk(cs);
 			return 0;
 		}
 
@@ -450,7 +450,7 @@ static int cli_io_handler_pats_list(struct appctx *appctx)
 				/* let's try again later from this stream. We add ourselves into
 				 * this stream's users so that it can remove us upon termination.
 				 */
-				si_rx_room_blk(cs->si);
+				cs_rx_room_blk(cs);
 				return 0;
 			}
 
@@ -571,7 +571,7 @@ static int cli_io_handler_map_lookup(struct appctx *appctx)
 				 * this stream's users so that it can remove us upon termination.
 				 */
 				HA_SPIN_UNLOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
-				si_rx_room_blk(cs->si);
+				cs_rx_room_blk(cs);
 				return 0;
 			}
 
@@ -1003,7 +1003,7 @@ static int cli_io_handler_clear_map(struct appctx *appctx)
 
 	if (!finished) {
 		/* let's come back later */
-		si_rx_endp_more(cs_si(appctx->owner));
+		cs_rx_endp_more(appctx->owner);
 		return 0;
 	}
 	return 1;

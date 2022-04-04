@@ -178,7 +178,7 @@ static int hc_cli_io_handler(struct appctx *appctx)
 		chunk_appendf(trash, "%.*s %d %.*s\n", (unsigned int)istlen(hc->res.vsn), istptr(hc->res.vsn),
 			      hc->res.status, (unsigned int)istlen(hc->res.reason), istptr(hc->res.reason));
 		if (ci_putchk(cs_ic(cs), trash) == -1)
-			si_rx_room_blk(cs->si);
+			cs_rx_room_blk(cs);
 		appctx->ctx.cli.i0 &= ~HC_CLI_F_RES_STLINE;
 		goto out;
 	}
@@ -192,7 +192,7 @@ static int hc_cli_io_handler(struct appctx *appctx)
 		if (!chunk_memcat(trash, "\r\n", 2))
 			goto out;
 		if (ci_putchk(cs_ic(cs), trash) == -1)
-			si_rx_room_blk(cs->si);
+			cs_rx_room_blk(cs);
 		appctx->ctx.cli.i0 &= ~HC_CLI_F_RES_HDR;
 		goto out;
 	}
@@ -220,7 +220,7 @@ static int hc_cli_io_handler(struct appctx *appctx)
 out:
 	/* we didn't clear every flags, we should come back to finish things */
 	if (appctx->ctx.cli.i0)
-		si_rx_room_blk(cs->si);
+		cs_rx_room_blk(cs);
 
 	free_trash_chunk(trash);
 	return 0;
@@ -531,7 +531,7 @@ struct appctx *httpclient_start(struct httpclient *hc)
 	s->res.flags |= CF_READ_DONTWAIT;
 
 	/* applet is waiting for data */
-	si_cant_get(cs_si(s->csf));
+	cs_cant_get(s->csf);
 	appctx_wakeup(appctx);
 
 	hc->appctx = appctx;
@@ -926,13 +926,13 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 
 process_data:
 
-	si_rx_chan_rdy(cs->si);
+	cs_rx_chan_rdy(cs);
 
 	return;
 more:
 	/* There was not enough data in the response channel */
 
-	si_rx_room_blk(cs->si);
+	cs_rx_room_blk(cs);
 
 	if (appctx->st0 == HTTPCLIENT_S_RES_END)
 		goto end;

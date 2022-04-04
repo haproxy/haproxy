@@ -418,7 +418,7 @@ struct appctx *cs_register_applet(struct conn_stream *cs, struct applet *app)
 	cs_attach_applet(cs, appctx, appctx);
 	appctx->owner = cs;
 	appctx->t->nice = __cs_strm(cs)->task->nice;
-	si_cant_get(cs->si);
+	cs_cant_get(cs);
 	appctx_wakeup(appctx);
 	return appctx;
 }
@@ -443,7 +443,7 @@ static void cs_app_shutr(struct conn_stream *cs)
 {
 	struct channel *ic = cs_ic(cs);
 
-	si_rx_shut_blk(cs->si);
+	cs_rx_shut_blk(cs);
 	if (ic->flags & CF_SHUTR)
 		return;
 	ic->flags |= CF_SHUTR;
@@ -483,7 +483,7 @@ static void cs_app_shutw(struct conn_stream *cs)
 		return;
 	oc->flags |= CF_SHUTW;
 	oc->wex = TICK_ETERNITY;
-	si_done_get(cs->si);
+	cs_done_get(cs);
 
 	if (tick_isset(cs->hcto)) {
 		ic->rto = cs->hcto;
@@ -513,7 +513,7 @@ static void cs_app_shutw(struct conn_stream *cs)
 		/* fall through */
 	default:
 		cs->flags &= ~CS_FL_NOLINGER;
-		si_rx_shut_blk(cs->si);
+		cs_rx_shut_blk(cs);
 		ic->flags |= CF_SHUTR;
 		ic->rex = TICK_ETERNITY;
 		__cs_strm(cs)->conn_exp = TICK_ETERNITY;
@@ -535,7 +535,7 @@ static void cs_app_chk_rcv(struct conn_stream *cs)
 
 	if (ic->pipe) {
 		/* stop reading */
-		si_rx_room_blk(cs->si);
+		cs_rx_room_blk(cs);
 	}
 	else {
 		/* (re)start reading */
@@ -556,14 +556,14 @@ static void cs_app_chk_snd(struct conn_stream *cs)
 	if (unlikely(cs->state != CS_ST_EST || (oc->flags & CF_SHUTW)))
 		return;
 
-	if (!(cs->si->flags & SI_FL_WAIT_DATA) ||  /* not waiting for data */
+	if (!(cs->endp->flags & CS_EP_WAIT_DATA) ||  /* not waiting for data */
 	    channel_is_empty(oc))                  /* called with nothing to send ! */
 		return;
 
 	/* Otherwise there are remaining data to be sent in the buffer,
 	 * so we tell the handler.
 	 */
-	cs->si->flags &= ~SI_FL_WAIT_DATA;
+	cs->endp->flags &= ~CS_EP_WAIT_DATA;
 	if (!tick_isset(oc->wex))
 		oc->wex = tick_add_ifset(now_ms, oc->wto);
 
@@ -587,7 +587,7 @@ static void cs_app_shutr_conn(struct conn_stream *cs)
 
 	BUG_ON(!cs_conn(cs));
 
-	si_rx_shut_blk(cs->si);
+	cs_rx_shut_blk(cs);
 	if (ic->flags & CF_SHUTR)
 		return;
 	ic->flags |= CF_SHUTR;
@@ -627,7 +627,7 @@ static void cs_app_shutw_conn(struct conn_stream *cs)
 		return;
 	oc->flags |= CF_SHUTW;
 	oc->wex = TICK_ETERNITY;
-	si_done_get(cs->si);
+	cs_done_get(cs);
 
 	if (tick_isset(cs->hcto)) {
 		ic->rto = cs->hcto;
@@ -682,7 +682,7 @@ static void cs_app_shutw_conn(struct conn_stream *cs)
 		/* fall through */
 	default:
 		cs->flags &= ~CS_FL_NOLINGER;
-		si_rx_shut_blk(cs->si);
+		cs_rx_shut_blk(cs);
 		ic->flags |= CF_SHUTR;
 		ic->rex = TICK_ETERNITY;
 		__cs_strm(cs)->conn_exp = TICK_ETERNITY;
@@ -724,7 +724,7 @@ static void cs_app_chk_snd_conn(struct conn_stream *cs)
 		return;
 
 	if (!oc->pipe &&                          /* spliced data wants to be forwarded ASAP */
-	    !(cs->si->flags & SI_FL_WAIT_DATA))       /* not waiting for data */
+	    !(cs->endp->flags & CS_EP_WAIT_DATA))       /* not waiting for data */
 		return;
 
 	if (!(cs->wait_event.events & SUB_RETRY_SEND) && !channel_is_empty(cs_oc(cs)))
@@ -754,14 +754,14 @@ static void cs_app_chk_snd_conn(struct conn_stream *cs)
 		}
 
 		if ((oc->flags & (CF_SHUTW|CF_SHUTW_NOW)) == 0)
-			cs->si->flags |= SI_FL_WAIT_DATA;
+			cs->endp->flags |= CS_EP_WAIT_DATA;
 		oc->wex = TICK_ETERNITY;
 	}
 	else {
 		/* Otherwise there are remaining data to be sent in the buffer,
 		 * which means we have to poll before doing so.
 		 */
-		cs->si->flags &= ~SI_FL_WAIT_DATA;
+		cs->endp->flags &= ~CS_EP_WAIT_DATA;
 		if (!tick_isset(oc->wex))
 			oc->wex = tick_add_ifset(now_ms, oc->wto);
 	}
@@ -814,7 +814,7 @@ static void cs_app_shutr_applet(struct conn_stream *cs)
 
 	BUG_ON(!cs_appctx(cs));
 
-	si_rx_shut_blk(cs->si);
+	cs_rx_shut_blk(cs);
 	if (ic->flags & CF_SHUTR)
 		return;
 	ic->flags |= CF_SHUTR;
@@ -855,7 +855,7 @@ static void cs_app_shutw_applet(struct conn_stream *cs)
 		return;
 	oc->flags |= CF_SHUTW;
 	oc->wex = TICK_ETERNITY;
-	si_done_get(cs->si);
+	cs_done_get(cs);
 
 	if (tick_isset(cs->hcto)) {
 		ic->rto = cs->hcto;
@@ -889,7 +889,7 @@ static void cs_app_shutw_applet(struct conn_stream *cs)
 		/* fall through */
 	default:
 		cs->flags &= ~CS_FL_NOLINGER;
-		si_rx_shut_blk(cs->si);
+		cs_rx_shut_blk(cs);
 		ic->flags |= CF_SHUTR;
 		ic->rex = TICK_ETERNITY;
 		__cs_strm(cs)->conn_exp = TICK_ETERNITY;
@@ -929,7 +929,7 @@ static void cs_app_chk_snd_applet(struct conn_stream *cs)
 
 	/* we only wake the applet up if it was waiting for some data */
 
-	if (!(cs->si->flags & SI_FL_WAIT_DATA))
+	if (!(cs->endp->flags & CS_EP_WAIT_DATA))
 		return;
 
 	if (!tick_isset(oc->wex))
@@ -956,19 +956,19 @@ void cs_update_rx(struct conn_stream *cs)
 	struct channel *ic = cs_ic(cs);
 
 	if (ic->flags & CF_SHUTR) {
-		si_rx_shut_blk(cs->si);
+		cs_rx_shut_blk(cs);
 		return;
 	}
 
 	/* Read not closed, update FD status and timeout for reads */
 	if (ic->flags & CF_DONT_READ)
-		si_rx_chan_blk(cs->si);
+		cs_rx_chan_blk(cs);
 	else
-		si_rx_chan_rdy(cs->si);
+		cs_rx_chan_rdy(cs);
 
 	if (!channel_is_empty(ic) || !channel_may_recv(ic)) {
 		/* stop reading, imposed by channel's policy or contents */
-		si_rx_room_blk(cs->si);
+		cs_rx_room_blk(cs);
 	}
 	else {
 		/* (re)start reading and update timeout. Note: we don't recompute the timeout
@@ -976,9 +976,9 @@ void cs_update_rx(struct conn_stream *cs)
 		 * update it if is was not yet set. The stream socket handler will already
 		 * have updated it if there has been a completed I/O.
 		 */
-		si_rx_room_rdy(cs->si);
+		cs_rx_room_rdy(cs);
 	}
-	if (cs->si->flags & SI_FL_RXBLK_ANY & ~SI_FL_RX_WAIT_EP)
+	if (cs->endp->flags & CS_EP_RXBLK_ANY & ~CS_EP_RX_WAIT_EP)
 		ic->rex = TICK_ETERNITY;
 	else if (!(ic->flags & CF_READ_NOEXP) && !tick_isset(ic->rex))
 		ic->rex = tick_add_ifset(now_ms, ic->rto);
@@ -1006,9 +1006,9 @@ void cs_update_tx(struct conn_stream *cs)
 	/* Write not closed, update FD status and timeout for writes */
 	if (channel_is_empty(oc)) {
 		/* stop writing */
-		if (!(cs->si->flags & SI_FL_WAIT_DATA)) {
+		if (!(cs->endp->flags & CS_EP_WAIT_DATA)) {
 			if ((oc->flags & CF_SHUTW_NOW) == 0)
-				cs->si->flags |= SI_FL_WAIT_DATA;
+				cs->endp->flags |= CS_EP_WAIT_DATA;
 			oc->wex = TICK_ETERNITY;
 		}
 		return;
@@ -1019,7 +1019,7 @@ void cs_update_tx(struct conn_stream *cs)
 	 * update it if is was not yet set. The stream socket handler will already
 	 * have updated it if there has been a completed I/O.
 	 */
-	cs->si->flags &= ~SI_FL_WAIT_DATA;
+	cs->endp->flags &= ~CS_EP_WAIT_DATA;
 	if (!tick_isset(oc->wex)) {
 		oc->wex = tick_add_ifset(now_ms, oc->wto);
 		if (tick_isset(ic->rex) && !(cs->flags & CS_FL_INDEP_STR)) {

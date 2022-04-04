@@ -306,7 +306,7 @@ static int cli_io_handler_show_threads(struct appctx *appctx)
 
 	if (ci_putchk(cs_ic(cs), &trash) == -1) {
 		/* failed, try again */
-		si_rx_room_blk(cs->si);
+		cs_rx_room_blk(cs);
 		appctx->st1 = thr;
 		return 0;
 	}
@@ -1174,7 +1174,7 @@ static int debug_iohandler_fd(struct appctx *appctx)
 		chunk_appendf(&trash, "\n");
 
 		if (ci_putchk(cs_ic(cs), &trash) == -1) {
-			si_rx_room_blk(cs->si);
+			cs_rx_room_blk(cs);
 			appctx->ctx.cli.i0 = fd;
 			ret = 0;
 			break;
@@ -1274,7 +1274,7 @@ static int debug_iohandler_memstats(struct appctx *appctx)
 			     (unsigned long)(ptr->calls ? (ptr->size / ptr->calls) : 0));
 
 		if (ci_putchk(cs_ic(cs), &trash) == -1) {
-			si_rx_room_blk(cs->si);
+			cs_rx_room_blk(cs);
 			appctx->ctx.cli.p0 = ptr;
 			ret = 0;
 			break;

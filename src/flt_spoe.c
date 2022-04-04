@@ -1148,7 +1148,7 @@ spoe_send_frame(struct appctx *appctx, char *buf, size_t framesz)
 	ret = ci_putblk(cs_ic(cs), buf, framesz+4);
 	if (ret <= 0) {
 		if ((ret == -3 && b_is_null(&cs_ic(cs)->buf)) || ret == -1) {
-			si_rx_room_blk(cs->si);
+			cs_rx_room_blk(cs);
 			return 1; /* retry */
 		}
 		SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_IO;
@@ -1192,8 +1192,8 @@ spoe_recv_frame(struct appctx *appctx, char *buf, size_t framesz)
 static int
 spoe_wakeup_appctx(struct appctx *appctx)
 {
-	si_want_get(cs_si(appctx->owner));
-	si_rx_endp_more(cs_si(appctx->owner));
+	cs_want_get(appctx->owner);
+	cs_rx_endp_more(appctx->owner);
 	appctx_wakeup(appctx);
 	return 1;
 }
@@ -1352,7 +1352,7 @@ spoe_handle_connect_appctx(struct appctx *appctx)
 
 	if (!cs_state_in(cs->state, CS_SB_RDY|CS_SB_EST)) {
 		/* not connected yet */
-		si_rx_endp_more(cs->si);
+		cs_rx_endp_more(cs);
 		task_wakeup(__cs_strm(cs)->task, TASK_WOKEN_MSG);
 		goto stop;
 	}
@@ -2034,7 +2034,7 @@ spoe_create_appctx(struct spoe_config *conf)
 	stream_set_backend(strm, conf->agent->b.be);
 
 	/* applet is waiting for data */
-	si_cant_get(cs_si(strm->csf));
+	cs_cant_get(strm->csf);
 	appctx_wakeup(appctx);
 
 	strm->do_log = NULL;

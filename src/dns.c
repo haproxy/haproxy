@@ -443,9 +443,9 @@ static void dns_session_io_handler(struct appctx *appctx)
 	 * to be notified whenever the connection completes.
 	 */
 	if (cs_opposite(cs)->state < CS_ST_EST) {
-		si_cant_get(cs->si);
-		si_rx_conn_blk(cs->si);
-		si_rx_endp_more(cs->si);
+		cs_cant_get(cs);
+		cs_rx_conn_blk(cs);
+		cs_rx_endp_more(cs);
 		return;
 	}
 
@@ -507,7 +507,7 @@ static void dns_session_io_handler(struct appctx *appctx)
 
 				/* check if there is enough room to put message len and query id */
 				if (available_room < sizeof(slen) + sizeof(new_qid)) {
-					si_rx_room_blk(cs->si);
+					cs_rx_room_blk(cs);
 					ret = 0;
 					break;
 				}
@@ -565,7 +565,7 @@ static void dns_session_io_handler(struct appctx *appctx)
 
 			/* check if it remains available room on output chan */
 			if (unlikely(!available_room)) {
-				si_rx_room_blk(cs->si);
+				cs_rx_room_blk(cs);
 				ret = 0;
 				break;
 			}
@@ -593,7 +593,7 @@ static void dns_session_io_handler(struct appctx *appctx)
 				 * check available_room is large
 				 * enough here.
 				 */
-				si_rx_room_blk(cs->si);
+				cs_rx_room_blk(cs);
 				ret = 0;
 				break;
 			}
@@ -601,7 +601,7 @@ static void dns_session_io_handler(struct appctx *appctx)
 			if (ds->tx_msg_offset) {
 				/* msg was not fully processed, we must  be awake to drain pending data */
 
-				si_rx_room_blk(cs->si);
+				cs_rx_room_blk(cs);
 				ret = 0;
 				break;
 			}
@@ -621,7 +621,7 @@ static void dns_session_io_handler(struct appctx *appctx)
 		BUG_ON(LIST_INLIST(&appctx->wait_entry));
 		LIST_APPEND(&ring->waiters, &appctx->wait_entry);
 		HA_RWLOCK_WRUNLOCK(DNS_LOCK, &ring->lock);
-		si_rx_endp_done(cs->si);
+		cs_rx_endp_done(cs);
 	}
 
 read:
