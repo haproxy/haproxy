@@ -19,7 +19,6 @@
 #include <haproxy/http_ana.h>
 #include <haproxy/pipe.h>
 #include <haproxy/pool.h>
-#include <haproxy/stream_interface.h>
 
 DECLARE_POOL(pool_head_connstream, "conn_stream", sizeof(struct conn_stream));
 DECLARE_POOL(pool_head_cs_endpoint, "cs_endpoint", sizeof(struct cs_endpoint));
@@ -124,7 +123,6 @@ struct conn_stream *cs_new(struct cs_endpoint *endp)
 	cs->state = CS_ST_INI;
 	cs->hcto = TICK_ETERNITY;
 	cs->app = NULL;
-	cs->si = NULL;
 	cs->data_cb = NULL;
 	cs->src = NULL;
 	cs->dst = NULL;
@@ -186,12 +184,6 @@ struct conn_stream *cs_new_from_strm(struct stream *strm, unsigned int flags)
 		return NULL;
 	cs->flags |= flags;
 	cs->endp->flags |=  CS_EP_DETACHED;
-	cs->si = si_new(cs);
-	if (unlikely(!cs->si)) {
-		cs_free(cs);
-		return NULL;
-	}
-
 	cs->app = &strm->obj_type;
 	cs->ops = &cs_app_embedded_ops;
 	cs->data_cb = NULL;
@@ -217,7 +209,6 @@ struct conn_stream *cs_new_from_check(struct check *check, unsigned int flags)
  */
 void cs_free(struct conn_stream *cs)
 {
-	si_free(cs->si);
 	sockaddr_free(&cs->src);
 	sockaddr_free(&cs->dst);
 	if (cs->endp) {
@@ -279,19 +270,11 @@ void cs_attach_applet(struct conn_stream *cs, void *target, void *ctx)
 int cs_attach_strm(struct conn_stream *cs, struct stream *strm)
 {
 	cs->app = &strm->obj_type;
-
-	cs->si = si_new(cs);
-	if (unlikely(!cs->si))
-		return -1;
-
 	cs->endp->flags &= ~CS_EP_ORPHAN;
 	if (cs->endp->flags & CS_EP_T_MUX) {
 		cs->wait_event.tasklet = tasklet_new();
-		if (!cs->wait_event.tasklet) {
-			si_free(cs->si);
-			cs->si = NULL;
+		if (!cs->wait_event.tasklet)
 			return -1;
-		}
 		cs->wait_event.tasklet->process = cs_conn_io_cb;
 		cs->wait_event.tasklet->context = cs;
 		cs->wait_event.events = 0;
@@ -363,7 +346,7 @@ void cs_detach_endp(struct conn_stream *cs)
 	 *        connection related for now but this will evolved
 	 */
 	cs->flags &= CS_FL_ISBACK;
-	if (cs->si)
+	if (cs_strm(cs))
 		cs->ops = &cs_app_embedded_ops;
 	cs->data_cb = NULL;
 
@@ -373,9 +356,7 @@ void cs_detach_endp(struct conn_stream *cs)
 
 void cs_detach_app(struct conn_stream *cs)
 {
-	si_free(cs->si);
 	cs->app = NULL;
-	cs->si  = NULL;
 	cs->data_cb = NULL;
 	sockaddr_free(&cs->src);
 	sockaddr_free(&cs->dst);

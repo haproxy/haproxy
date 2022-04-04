@@ -26,8 +26,6 @@
 #include <haproxy/obj_type-t.h>
 #include <haproxy/connection-t.h>
 
-struct stream_interface;
-
 /* CS endpoint flags */
  enum {
 	 CS_EP_NONE       = 0x00000000, /* For initialization purposes */
@@ -175,7 +173,6 @@ struct conn_stream {
 	struct wait_event wait_event;        /* We're in a wait list */
 	struct cs_endpoint *endp;            /* points to the end point (MUX stream or appctx) */
 	enum obj_type *app;                  /* points to the applicative point (stream or check) */
-	struct stream_interface *si;
 	const struct data_cb *data_cb;       /* data layer callbacks. Must be set before xprt->init() */
 	struct cs_app_ops *ops;              /* general operations used at the app layer */
 	struct sockaddr_storage *src;        /* source address (pool), when known, otherwise NULL */

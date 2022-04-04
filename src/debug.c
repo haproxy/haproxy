@@ -693,7 +693,7 @@ static int debug_parse_cli_stream(char **args, char *payload, struct appctx *app
 	if (!*args[3]) {
 		return cli_err(appctx,
 			       "Usage: debug dev stream { <obj> <op> <value> | wake }*\n"
-			       "     <obj>   = {strm | strm.f | strm.x | sif.f | csf.s | sib.f | csb.s |\n"
+			       "     <obj>   = {strm | strm.f | strm.x | csf.s | csb.s |\n"
 			       "                txn.f | req.f | req.r | req.w | res.f | res.r | res.w}\n"
 			       "     <op>    = {'' (show) | '=' (assign) | '^' (xor) | '+' (or) | '-' (andnot)}\n"
 			       "     <value> = 'now' | 64-bit dec/hex integer (0x prefix supported)\n"
@@ -728,10 +728,6 @@ static int debug_parse_cli_stream(char **args, char *payload, struct appctx *app
 			ptr = (!s || !may_access(s)) ? NULL : &s->req.wex; size = sizeof(s->req.wex);
 		} else if (isteq(name, ist("res.w"))) {
 			ptr = (!s || !may_access(s)) ? NULL : &s->res.wex; size = sizeof(s->res.wex);
-		} else if (isteq(name, ist("sif.f"))) {
-			ptr = (!s || !may_access(s)) ? NULL : &cs_si(s->csf)->flags; size = sizeof(cs_si(s->csf)->flags);
-		} else if (isteq(name, ist("sib.f"))) {
-			ptr = (!s || !may_access(s)) ? NULL : &cs_si(s->csb)->flags; size = sizeof(cs_si(s->csb)->flags);
 		} else if (isteq(name, ist("csf.s"))) {
 			ptr = (!s || !may_access(s)) ? NULL : &s->csf->state; size = sizeof(s->csf->state);
 		} else if (isteq(name, ist("csb.s"))) {

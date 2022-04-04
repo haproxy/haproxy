@@ -31,7 +31,6 @@ struct buffer;
 struct session;
 struct appctx;
 struct stream;
-struct stream_interface;
 struct check;
 
 #define IS_HTX_CS(cs)     (cs_conn(cs) && IS_HTX_CONN(__cs_conn(cs)))
@@ -132,6 +131,7 @@ static inline struct stream *__cs_strm(const struct conn_stream *cs)
 {
 	return __objt_stream(cs->app);
 }
+
 static inline struct stream *cs_strm(const struct conn_stream *cs)
 {
 	if (obj_type(cs->app) == OBJ_TYPE_STREAM)
@@ -153,15 +153,6 @@ static inline struct check *cs_check(const struct conn_stream *cs)
 		return __objt_check(cs->app);
 	return NULL;
 }
-
-/* Returns the stream-interface from a cs. It is not NULL only if a stream is
- * attached to the cs.
- */
-static inline struct stream_interface *cs_si(const struct conn_stream *cs)
-{
-	return cs->si;
-}
-
 static inline const char *cs_get_data_name(const struct conn_stream *cs)
 {
 	if (!cs->data_cb)
