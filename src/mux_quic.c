@@ -748,6 +748,36 @@ static int qc_send_frames(struct qcc *qcc, struct list *frms)
 	return 0;
 }
 
+/* Send a MAX_STREAM_BIDI frame to update the limit of bidirectional streams
+ * allowed to be opened by the peer. The caller should have first checked if
+ * this is required with qc_is_max_streams_needed.
+ *
+ * Returns 0 on success else non-zero.
+ */
+static int qc_send_max_streams(struct qcc *qcc)
+{
+	struct list frms = LIST_HEAD_INIT(frms);
+	struct quic_frame *frm;
+
+	frm = pool_zalloc(pool_head_quic_frame);
+	BUG_ON(!frm); /* TODO handle this properly */
+
+	frm->type = QUIC_FT_MAX_STREAMS_BIDI;
+	frm->max_streams_bidi.max_streams = qcc->lfctl.ms_bidi +
+	                                    qcc->lfctl.cl_bidi_r;
+	TRACE_DEVEL("sending MAX_STREAMS frame", QMUX_EV_SEND_FRM, qcc->conn, NULL, frm);
+	LIST_APPEND(&frms, &frm->list);
+
+	if (qc_send_frames(qcc, &frms))
+		return 1;
+
+	/* save the new limit if the frame has been send. */
+	qcc->lfctl.ms_bidi += qcc->lfctl.cl_bidi_r;
+	qcc->lfctl.cl_bidi_r = 0;
+
+	return 0;
+}
+
 /* Proceed to sending. Loop through all available streams for the <qcc>
  * instance and try to send as much as possible.
  *
@@ -760,6 +790,9 @@ static int qc_send(struct qcc *qcc)
 	int total = 0;
 
 	TRACE_ENTER(QMUX_EV_QCC_SEND);
+
+	if (qc_is_max_streams_needed(qcc))
+		qc_send_max_streams(qcc);
 
 	if (qcc->flags & QC_CF_BLK_MFCTL)
 		return 0;
@@ -854,44 +887,11 @@ static int qc_release_detached_streams(struct qcc *qcc)
 	return release;
 }
 
-/* Send a MAX_STREAM_BIDI frame to update the limit of bidirectional streams
- * allowed to be opened by the peer. The caller should have first checked if
- * this is required with qc_is_max_streams_needed.
- *
- * Returns 0 on success else non-zero.
- */
-static int qc_send_max_streams(struct qcc *qcc)
-{
-	struct list frms = LIST_HEAD_INIT(frms);
-	struct quic_frame *frm;
-
-	frm = pool_zalloc(pool_head_quic_frame);
-	BUG_ON(!frm); /* TODO handle this properly */
-
-	frm->type = QUIC_FT_MAX_STREAMS_BIDI;
-	frm->max_streams_bidi.max_streams = qcc->lfctl.ms_bidi +
-	                                    qcc->lfctl.cl_bidi_r;
-	TRACE_DEVEL("sending MAX_STREAMS frame", QMUX_EV_SEND_FRM, qcc->conn, NULL, frm);
-	LIST_APPEND(&frms, &frm->list);
-
-	if (qc_send_frames(qcc, &frms))
-		return 1;
-
-	/* save the new limit if the frame has been send. */
-	qcc->lfctl.ms_bidi += qcc->lfctl.cl_bidi_r;
-	qcc->lfctl.cl_bidi_r = 0;
-
-	return 0;
-}
-
 static struct task *qc_io_cb(struct task *t, void *ctx, unsigned int status)
 {
 	struct qcc *qcc = ctx;
 
 	TRACE_ENTER(QMUX_EV_QCC_WAKE);
-
-	if (qc_is_max_streams_needed(qcc))
-		qc_send_max_streams(qcc);
 
 	qc_send(qcc);
 
