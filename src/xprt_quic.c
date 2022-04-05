@@ -809,6 +809,11 @@ int ha_quic_set_encryption_secrets(SSL *ssl, enum ssl_encryption_level_t level,
 		goto err;
 	}
 
+	if (!quic_tls_rx_ctx_init(&rx->ctx, rx->aead, rx->key)) {
+		TRACE_DEVEL("could not initial RX TLS cipher context", QUIC_EV_CONN_RWSEC, qc);
+		goto err;
+	}
+
 	/* Enqueue this connection asap if we could derive O-RTT secrets as
 	 * listener. Note that a listener derives only RX secrets for this
 	 * level.
@@ -823,6 +828,11 @@ int ha_quic_set_encryption_secrets(SSL *ssl, enum ssl_encryption_level_t level,
 	                          tx->iv, tx->ivlen, tx->hp_key, sizeof tx->hp_key,
 	                          write_secret, secret_len)) {
 		TRACE_DEVEL("TX key derivation failed", QUIC_EV_CONN_RWSEC, qc);
+		goto err;
+	}
+
+	if (!quic_tls_tx_ctx_init(&tx->ctx, tx->aead, tx->key)) {
+		TRACE_DEVEL("could not initial RX TLS cipher context", QUIC_EV_CONN_RWSEC, qc);
 		goto err;
 	}
 
@@ -1335,7 +1345,7 @@ static int quic_packet_encrypt(unsigned char *payload, size_t payload_len,
 	}
 
 	if (!quic_tls_encrypt(payload, payload_len, aad, aad_len,
-	                      tls_ctx->tx.aead, tls_ctx->tx.key, iv)) {
+	                      tls_ctx->tx.ctx, tls_ctx->tx.aead, tls_ctx->tx.key, iv)) {
 		TRACE_DEVEL("QUIC packet encryption failed", QUIC_EV_CONN_HPKT, qc);
 		goto err;
 	}
@@ -1391,7 +1401,7 @@ static int qc_pkt_decrypt(struct quic_rx_packet *pkt, struct quic_enc_level *qel
 
 	ret = quic_tls_decrypt(pkt->data + pkt->aad_len, pkt->len - pkt->aad_len,
 	                       pkt->data, pkt->aad_len,
-	                       tls_ctx->rx.aead, rx_key, iv);
+	                       tls_ctx->rx.ctx, tls_ctx->rx.aead, rx_key, iv);
 	if (!ret)
 		return 0;
 
@@ -1408,7 +1418,7 @@ static int qc_pkt_decrypt(struct quic_rx_packet *pkt, struct quic_enc_level *qel
 	}
 
 	/* Update the packet length (required to parse the frames). */
-	pkt->len = pkt->aad_len + ret;
+	pkt->len -= QUIC_TLS_TAG_LEN;
 
 	return 1;
 }

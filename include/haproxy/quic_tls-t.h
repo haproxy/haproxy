@@ -112,6 +112,7 @@ struct quic_tls_kp {
 #define QUIC_FL_TLS_SECRETS_DCD  (1 << 2)
 
 struct quic_tls_secrets {
+	EVP_CIPHER_CTX *ctx;
 	const EVP_CIPHER *aead;
 	const EVP_MD *md;
 	const EVP_CIPHER *hp;

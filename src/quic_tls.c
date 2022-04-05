@@ -303,6 +303,64 @@ int quic_aead_iv_build(unsigned char *iv, size_t ivlen,
 	return 1;
 }
 
+/* Initialize the cipher context for RX part of <tls_ctx> QUIC TLS context.
+ * Return 1 if succeeded, 0 if not.
+ */
+int quic_tls_rx_ctx_init(EVP_CIPHER_CTX **rx_ctx,
+                         const EVP_CIPHER *aead, unsigned char *key)
+{
+	EVP_CIPHER_CTX *ctx;
+	int aead_nid = EVP_CIPHER_nid(aead);
+
+	ctx = EVP_CIPHER_CTX_new();
+	if (!ctx)
+		return 0;
+
+	if (!EVP_DecryptInit_ex(ctx, aead, NULL, NULL, NULL) ||
+	    !EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, 12, NULL) ||
+	    (aead_nid == NID_aes_128_ccm &&
+	     !EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_TAG, QUIC_TLS_TAG_LEN, NULL)) ||
+	    !EVP_DecryptInit_ex(ctx, NULL, NULL, key, NULL))
+		goto err;
+
+	*rx_ctx = ctx;
+
+	return 1;
+
+ err:
+	EVP_CIPHER_CTX_free(ctx);
+	return 0;
+}
+
+/* Initialize the cipher context for TX part of <tls_ctx> QUIC TLS context.
+ * Return 1 if succeeded, 0 if not.
+ */
+int quic_tls_tx_ctx_init(EVP_CIPHER_CTX **tx_ctx,
+                         const EVP_CIPHER *aead, unsigned char *key)
+{
+	EVP_CIPHER_CTX *ctx;
+	int aead_nid = EVP_CIPHER_nid(aead);
+
+	ctx = EVP_CIPHER_CTX_new();
+	if (!ctx)
+		return 0;
+
+	if (!EVP_EncryptInit_ex(ctx, aead, NULL, NULL, NULL) ||
+	    !EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, 12, NULL) ||
+	    (aead_nid == NID_aes_128_ccm &&
+	     !EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_TAG, QUIC_TLS_TAG_LEN, NULL)) ||
+	    !EVP_EncryptInit_ex(ctx, NULL, NULL, key, NULL))
+		goto err;
+
+	*tx_ctx = ctx;
+
+	return 1;
+
+ err:
+	EVP_CIPHER_CTX_free(ctx);
+	return 0;
+}
+
 /*
  * https://quicwg.org/base-drafts/draft-ietf-quic-tls.html#aead
  *
@@ -335,66 +393,63 @@ int quic_aead_iv_build(unsigned char *iv, size_t ivlen,
  * the AEAD that is in use.
  */
 
+/* Encrypt in place <buf> plaintext with <len> as length with QUIC_TLS_TAG_LEN
+ * included tailing bytes for the tag.
+ * Note that for CCM mode, we must set the the ciphertext length if AAD data
+ * are provided from <aad> buffer with <aad_len> as length. This is always the
+ * case here. So the caller of this function must provide <aad>.
+ *
+ * https://wiki.openssl.org/index.php/EVP_Authenticated_Encryption_and_Decryption
+ */
 int quic_tls_encrypt(unsigned char *buf, size_t len,
                      const unsigned char *aad, size_t aad_len,
-                     const EVP_CIPHER *aead, const unsigned char *key, const unsigned char *iv)
+                     EVP_CIPHER_CTX *ctx, const EVP_CIPHER *aead,
+                     const unsigned char *key, const unsigned char *iv)
 {
-	EVP_CIPHER_CTX *ctx;
-	int ret, outlen;
+	int outlen;
+	int aead_nid = EVP_CIPHER_nid(aead);
 
-	ret = 0;
-	ctx = EVP_CIPHER_CTX_new();
-	if (!ctx)
-		return 0;
-
-	if (!EVP_EncryptInit_ex(ctx, aead, NULL, key, iv) ||
+	if (!EVP_EncryptInit_ex(ctx, NULL, NULL, NULL, iv) ||
+	    (aead_nid == NID_aes_128_ccm &&
+	     !EVP_EncryptUpdate(ctx, NULL, &outlen, NULL, len)) ||
 		!EVP_EncryptUpdate(ctx, NULL, &outlen, aad, aad_len) ||
 		!EVP_EncryptUpdate(ctx, buf, &outlen, buf, len) ||
 		!EVP_EncryptFinal_ex(ctx, buf + outlen, &outlen) ||
 		!EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_GET_TAG, QUIC_TLS_TAG_LEN, buf + len))
-		goto out;
-
-	ret = 1;
-
- out:
-	EVP_CIPHER_CTX_free(ctx);
-
-	return ret;
-}
-
-int quic_tls_decrypt(unsigned char *buf, size_t len,
-                     unsigned char *aad, size_t aad_len,
-                     const EVP_CIPHER *aead, const unsigned char *key, const unsigned char *iv)
-{
-	int ret, outlen;
-	size_t off;
-	EVP_CIPHER_CTX *ctx;
-
-	ret = 0;
-	off = 0;
-	ctx = EVP_CIPHER_CTX_new();
-	if (!ctx)
 		return 0;
 
-	if (!EVP_DecryptInit_ex(ctx, aead, NULL, key, iv) ||
-		!EVP_DecryptUpdate(ctx, NULL, &outlen, aad, aad_len) ||
-		!EVP_DecryptUpdate(ctx, buf, &outlen, buf, len - QUIC_TLS_TAG_LEN))
-		goto out;
+	return 1;
+}
 
-	off += outlen;
+/* Decrypt in place <buf> ciphertext with <len> as length with QUIC_TLS_TAG_LEN
+ * included tailing bytes for the tag.
+ * Note that for CCM mode, we must set the the ciphertext length if AAD data
+ * are provided from <aad> buffer with <aad_len> as length. This is always the
+ * case here. So the caller of this function must provide <aad>. Also not the
+ * there is no need to call EVP_DecryptFinal_ex for CCM mode.
+ *
+ * https://wiki.openssl.org/index.php/EVP_Authenticated_Encryption_and_Decryption
+ */
+int quic_tls_decrypt(unsigned char *buf, size_t len,
+                     unsigned char *aad, size_t aad_len,
+                     EVP_CIPHER_CTX *ctx, const EVP_CIPHER *aead,
+                     const unsigned char *key, const unsigned char *iv)
+{
+	int outlen;
+	int aead_nid = EVP_CIPHER_nid(aead);
 
-	if (!EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_TAG, QUIC_TLS_TAG_LEN,
+	if (!EVP_DecryptInit_ex(ctx, NULL, NULL, NULL, iv) ||
+	    !EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_TAG, QUIC_TLS_TAG_LEN,
 	                         buf + len - QUIC_TLS_TAG_LEN) ||
-	    !EVP_DecryptFinal_ex(ctx, buf + off, &outlen))
-		goto out;
+	    (aead_nid == NID_aes_128_ccm &&
+	     !EVP_DecryptUpdate(ctx, NULL, &outlen, NULL, len - QUIC_TLS_TAG_LEN)) ||
+		!EVP_DecryptUpdate(ctx, NULL, &outlen, aad, aad_len) ||
+		!EVP_DecryptUpdate(ctx, buf, &outlen, buf, len - QUIC_TLS_TAG_LEN) ||
+		(aead_nid != NID_aes_128_ccm &&
+		 !EVP_DecryptFinal_ex(ctx, buf + outlen, &outlen)))
+		return 0;
 
-	off += outlen;
-
-	ret = off;
-
- out:
-	EVP_CIPHER_CTX_free(ctx);
-	return ret;
+	return 1;
 }
 
 /* Generate the AEAD tag for the Retry packet <pkt> of <pkt_len> bytes and
