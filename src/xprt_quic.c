@@ -3859,7 +3859,7 @@ static void quic_conn_release(struct quic_conn *qc)
 	TRACE_PROTO("QUIC conn. freed", QUIC_EV_CONN_FREED, qc);
 }
 
-void quic_close(struct connection *conn, void *xprt_ctx)
+static void quic_close(struct connection *conn, void *xprt_ctx)
 {
 	struct ssl_sock_ctx *conn_ctx = xprt_ctx;
 	struct quic_conn *qc = conn_ctx->qc;
