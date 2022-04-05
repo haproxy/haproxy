@@ -1168,19 +1168,9 @@ static SSL_QUIC_METHOD ha_quic_method = {
  */
 int ssl_quic_initial_ctx(struct bind_conf *bind_conf)
 {
-	struct proxy *curproxy = bind_conf->frontend;
 	struct ssl_bind_conf __maybe_unused *ssl_conf_cur;
 	int cfgerr = 0;
 
-#if 0
-	/* XXX Did not manage to use this. */
-	const char *ciphers =
-		"TLS_AES_128_GCM_SHA256:"
-		"TLS_AES_256_GCM_SHA384:"
-		"TLS_CHACHA20_POLY1305_SHA256:"
-		"TLS_AES_128_CCM_SHA256";
-#endif
-	const char *groups = "X25519:P-256:P-384:P-521";
 	long options =
 		(SSL_OP_ALL & ~SSL_OP_DONT_INSERT_EMPTY_FRAGMENTS) |
 		SSL_OP_SINGLE_ECDH_USE |
@@ -1191,24 +1181,6 @@ int ssl_quic_initial_ctx(struct bind_conf *bind_conf)
 	bind_conf->initial_ctx = ctx;
 
 	SSL_CTX_set_options(ctx, options);
-#if 0
-	if (SSL_CTX_set_cipher_list(ctx, ciphers) != 1) {
-		ha_alert("Proxy '%s': unable to set TLS 1.3 cipher list to '%s' "
-		         "for bind '%s' at [%s:%d].\n",
-		         curproxy->id, ciphers,
-		         bind_conf->arg, bind_conf->file, bind_conf->line);
-		cfgerr++;
-	}
-#endif
-
-	if (SSL_CTX_set1_curves_list(ctx, groups) != 1) {
-		ha_alert("Proxy '%s': unable to set TLS 1.3 curves list to '%s' "
-		         "for bind '%s' at [%s:%d].\n",
-		         curproxy->id, groups,
-		         bind_conf->arg, bind_conf->file, bind_conf->line);
-		cfgerr++;
-	}
-
 	SSL_CTX_set_mode(ctx, SSL_MODE_RELEASE_BUFFERS);
 	SSL_CTX_set_min_proto_version(ctx, TLS1_3_VERSION);
 	SSL_CTX_set_max_proto_version(ctx, TLS1_3_VERSION);
