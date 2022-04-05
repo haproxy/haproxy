@@ -1334,7 +1334,7 @@ static int quic_packet_encrypt(unsigned char *payload, size_t payload_len,
                                unsigned char *aad, size_t aad_len, uint64_t pn,
                                struct quic_tls_ctx *tls_ctx, struct quic_conn *qc)
 {
-	unsigned char iv[12];
+	unsigned char iv[QUIC_TLS_IV_LEN];
 	unsigned char *tx_iv = tls_ctx->tx.iv;
 	size_t tx_iv_sz = tls_ctx->tx.ivlen;
 	struct enc_debug_info edi;
@@ -1364,7 +1364,7 @@ static int quic_packet_encrypt(unsigned char *payload, size_t payload_len,
 static int qc_pkt_decrypt(struct quic_rx_packet *pkt, struct quic_enc_level *qel)
 {
 	int ret, kp_changed;
-	unsigned char iv[12];
+	unsigned char iv[QUIC_TLS_IV_LEN];
 	struct quic_tls_ctx *tls_ctx = &qel->tls_ctx;
 	unsigned char *rx_iv = tls_ctx->rx.iv;
 	size_t rx_iv_sz = tls_ctx->rx.ivlen;

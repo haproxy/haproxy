@@ -317,7 +317,7 @@ int quic_tls_rx_ctx_init(EVP_CIPHER_CTX **rx_ctx,
 		return 0;
 
 	if (!EVP_DecryptInit_ex(ctx, aead, NULL, NULL, NULL) ||
-	    !EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, 12, NULL) ||
+	    !EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, QUIC_TLS_IV_LEN, NULL) ||
 	    (aead_nid == NID_aes_128_ccm &&
 	     !EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_TAG, QUIC_TLS_TAG_LEN, NULL)) ||
 	    !EVP_DecryptInit_ex(ctx, NULL, NULL, key, NULL))
@@ -346,7 +346,7 @@ int quic_tls_tx_ctx_init(EVP_CIPHER_CTX **tx_ctx,
 		return 0;
 
 	if (!EVP_EncryptInit_ex(ctx, aead, NULL, NULL, NULL) ||
-	    !EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, 12, NULL) ||
+	    !EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, QUIC_TLS_IV_LEN, NULL) ||
 	    (aead_nid == NID_aes_128_ccm &&
 	     !EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_TAG, QUIC_TLS_TAG_LEN, NULL)) ||
 	    !EVP_EncryptInit_ex(ctx, NULL, NULL, key, NULL))
