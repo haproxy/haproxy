@@ -96,6 +96,7 @@ extern unsigned char initial_salt[20];
 
 /* Key phase used for Key Update */
 struct quic_tls_kp {
+	EVP_CIPHER_CTX *ctx;
 	unsigned char *secret;
 	size_t secretlen;
 	unsigned char *iv;

@@ -546,12 +546,15 @@ static inline int qc_new_isecs(struct quic_conn *qc,
  */
 static inline void quic_tls_ku_free(struct quic_conn *qc)
 {
+	EVP_CIPHER_CTX_free(qc->ku.prv_rx.ctx);
 	pool_free(pool_head_quic_tls_secret, qc->ku.prv_rx.secret);
 	pool_free(pool_head_quic_tls_iv,     qc->ku.prv_rx.iv);
 	pool_free(pool_head_quic_tls_key,    qc->ku.prv_rx.key);
+	EVP_CIPHER_CTX_free(qc->ku.nxt_rx.ctx);
 	pool_free(pool_head_quic_tls_secret, qc->ku.nxt_rx.secret);
 	pool_free(pool_head_quic_tls_iv,     qc->ku.nxt_rx.iv);
 	pool_free(pool_head_quic_tls_key,    qc->ku.nxt_rx.key);
+	EVP_CIPHER_CTX_free(qc->ku.nxt_tx.ctx);
 	pool_free(pool_head_quic_tls_secret, qc->ku.nxt_tx.secret);
 	pool_free(pool_head_quic_tls_iv,     qc->ku.nxt_tx.iv);
 	pool_free(pool_head_quic_tls_key,    qc->ku.nxt_tx.key);
