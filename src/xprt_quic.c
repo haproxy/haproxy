@@ -348,8 +348,12 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 			const SSL *ssl = a4;
 
 			if (pkt) {
-				chunk_appendf(&trace_buf, " pkt@%p el=%c",
-				              pkt, quic_packet_type_enc_level_char(pkt->type));
+				chunk_appendf(&trace_buf, " pkt@%p", pkt);
+				if (pkt->type == QUIC_PACKET_TYPE_SHORT && pkt->data)
+					chunk_appendf(&trace_buf, " kp=%d",
+					              !!(*pkt->data & QUIC_PACKET_KEY_PHASE_BIT));
+				chunk_appendf(&trace_buf, " el=%c",
+				              quic_packet_type_enc_level_char(pkt->type));
 				if (pkt->pnl)
 					chunk_appendf(&trace_buf, " pnl=%u pn=%llu", pkt->pnl,
 					              (unsigned long long)pkt->pn);
