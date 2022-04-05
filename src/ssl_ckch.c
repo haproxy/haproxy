@@ -1124,7 +1124,7 @@ int ssl_store_load_locations_file(char *path, int create_if_none, enum cafile_ty
 			if (!X509_STORE_load_locations(store, file, NULL)) {
 				goto err;
 			}
-		} else {
+		} else if (dir) {
 			int n, i;
 			struct dirent **de_list;
 
@@ -1178,6 +1178,9 @@ scandir_err:
 
 			}
 			free(de_list);
+		} else {
+			ha_alert("ca-file: couldn't load '%s'\n", path);
+			goto err;
 		}
 
 		objs = X509_STORE_get0_objects(store);
