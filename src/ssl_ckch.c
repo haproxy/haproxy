@@ -2960,7 +2960,7 @@ static int cli_io_handler_show_cafile_detail(struct appctx *appctx)
 		if (ca_index && ca_index-1 != i)
 			continue;
 
-		chunk_appendf(out, "\nCertificate #%d:\n", i+1);
+		chunk_appendf(out, " \nCertificate #%d:\n", i+1);
 		retval = show_cert_detail(cert, NULL, out);
 		if (retval < 0)
 			goto end_no_putchk;
@@ -3619,7 +3619,7 @@ static int cli_io_handler_show_crlfile_detail(struct appctx *appctx)
 		if (index && index-1 != i)
 			continue;
 
-		chunk_appendf(out, "\nCertificate Revocation List #%d:\n", i+1);
+		chunk_appendf(out, " \nCertificate Revocation List #%d:\n", i+1);
 		retval = show_crl_detail(crl, out);
 		if (retval < 0)
 			goto end_no_putchk;
