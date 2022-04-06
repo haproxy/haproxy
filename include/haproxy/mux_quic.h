@@ -112,6 +112,7 @@ static inline struct conn_stream *qc_attach_cs(struct qcs *qcs, struct buffer *b
 		return NULL;
 	cs_attach_endp(cs, &qcs->qcc->conn->obj_type, qcs);
 
+	qcs->cs = cs;
 	cs->ctx = qcs;
 	stream_new(qcs->qcc->conn->owner, cs, buf);
 

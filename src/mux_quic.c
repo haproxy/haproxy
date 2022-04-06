@@ -1068,7 +1068,8 @@ static void qc_detach(struct conn_stream *cs)
 
 	--qcc->nb_cs;
 
-	if (b_data(&qcs->tx.buf) || qcs->tx.offset > qcs->tx.sent_offset) {
+	if ((b_data(&qcs->tx.buf) || qcs->tx.offset > qcs->tx.sent_offset) &&
+	    !(qcc->conn->flags & CO_FL_ERROR)) {
 		TRACE_DEVEL("leaving with remaining data, detaching qcs", QMUX_EV_STRM_END, qcc->conn, qcs);
 		qcs->flags |= QC_SF_DETACH;
 		return;
@@ -1203,6 +1204,42 @@ static int qc_unsubscribe(struct conn_stream *cs, int event_type, struct wait_ev
 	return 0;
 }
 
+/* Loop through all qcs from <qcc>. If CO_FL_ERROR is set on the connection,
+ * report CS_FL_ERR_PENDING|CS_FL_ERROR on the attached conn-streams and wake
+ * them.
+ */
+static int qc_wake_some_streams(struct qcc *qcc)
+{
+	struct qc_stream_desc *stream;
+	struct qcs *qcs;
+	struct eb64_node *node;
+
+	for (node = eb64_first(&qcc->streams_by_id); node;
+	     node = eb64_next(node)) {
+		stream = eb64_entry(node, struct qc_stream_desc, by_id);
+		qcs = stream->ctx;
+
+		if (!qcs->cs)
+			continue;
+
+		if (qcc->conn->flags & CO_FL_ERROR) {
+			qcs->cs->flags |= CS_FL_ERR_PENDING;
+			if (qcs->cs->flags & CS_FL_EOS)
+				qcs->cs->flags |= CS_FL_ERROR;
+
+			if (qcs->subs) {
+				qcs_notify_recv(qcs);
+				qcs_notify_send(qcs);
+			}
+			else if (qcs->cs->data_cb->wake) {
+				qcs->cs->data_cb->wake(qcs->cs);
+			}
+		}
+	}
+
+	return 0;
+}
+
 static int qc_wake(struct connection *conn)
 {
 	struct qcc *qcc = conn->ctx;
@@ -1219,6 +1256,8 @@ static int qc_wake(struct connection *conn)
 		goto release;
 
 	qc_send(qcc);
+
+	qc_wake_some_streams(qcc);
 
 	if (qcc_is_dead(qcc))
 		goto release;
