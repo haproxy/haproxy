@@ -946,8 +946,6 @@ more:
 	return;
 
 end:
-	if (hc->ops.res_end)
-		hc->ops.res_end(hc);
 	si_shutw(si);
 	si_shutr(si);
 	return;
@@ -963,6 +961,8 @@ static void httpclient_applet_release(struct appctx *appctx)
 	 * again from the caller */
 	hc->appctx = NULL;
 
+	if (hc->ops.res_end)
+		hc->ops.res_end(hc);
 
 	/* destroy the httpclient when set to autotokill */
 	if (hc->flags & HTTPCLIENT_FA_AUTOKILL) {
