@@ -466,7 +466,7 @@ static inline int qcc_is_dead(const struct qcc *qcc)
 	    qcc->app_ops->is_active(qcc, qcc->ctx))
 		return 0;
 
-	if (!qcc->task)
+	if ((qcc->conn->flags & CO_FL_ERROR) || !qcc->task)
 		return 1;
 
 	return 0;
@@ -790,6 +790,12 @@ static int qc_send(struct qcc *qcc)
 	int total = 0;
 
 	TRACE_ENTER(QMUX_EV_QCC_SEND);
+
+	if (qcc->conn->flags & CO_FL_SOCK_WR_SH) {
+		qcc->conn->flags |= CO_FL_ERROR;
+		TRACE_DEVEL("leaving on error", QMUX_EV_QCC_SEND, qcc->conn);
+		return 0;
+	}
 
 	if (qc_is_max_streams_needed(qcc))
 		qc_send_max_streams(qcc);
@@ -1200,14 +1206,30 @@ static int qc_unsubscribe(struct conn_stream *cs, int event_type, struct wait_ev
 static int qc_wake(struct connection *conn)
 {
 	struct qcc *qcc = conn->ctx;
+	struct proxy *prx = conn->qc->li->bind_conf->frontend;
+
+	TRACE_ENTER(QMUX_EV_QCC_WAKE, conn);
 
 	/* Check if a soft-stop is in progress.
 	 * Release idling front connection if this is the case.
+	 *
+	 * TODO this is revelant for frontend connections only.
 	 */
-	if (unlikely(conn->qc->li->bind_conf->frontend->flags & (PR_FL_DISABLED|PR_FL_STOPPED))) {
-		qc_release(qcc);
-	}
+	if (unlikely(prx->flags & (PR_FL_DISABLED|PR_FL_STOPPED)))
+		goto release;
 
+	qc_send(qcc);
+
+	if (qcc_is_dead(qcc))
+		goto release;
+
+	TRACE_LEAVE(QMUX_EV_QCC_WAKE, conn);
+
+	return 0;
+
+ release:
+	qc_release(qcc);
+	TRACE_DEVEL("leaving after releasing the connection", QMUX_EV_QCC_WAKE);
 	return 1;
 }
 
