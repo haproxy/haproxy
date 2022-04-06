@@ -1255,6 +1255,9 @@ static int qc_wake(struct connection *conn)
 	if (unlikely(prx->flags & (PR_FL_DISABLED|PR_FL_STOPPED)))
 		goto release;
 
+	if (conn->qc->flags & QUIC_FL_CONN_NOTIFY_CLOSE)
+		qcc->conn->flags |= (CO_FL_SOCK_RD_SH|CO_FL_SOCK_WR_SH);
+
 	qc_send(qcc);
 
 	qc_wake_some_streams(qcc);

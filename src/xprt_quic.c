@@ -2590,6 +2590,7 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct ssl_sock_ctx *ct
 				 */
 				qc_idle_timer_do_rearm(qc);
 				qc->flags |= QUIC_FL_CONN_DRAINING|QUIC_FL_CONN_IMMEDIATE_CLOSE;
+				qc_notify_close(qc);
 			}
 			break;
 		case QUIC_FT_HANDSHAKE_DONE:
@@ -3045,6 +3046,8 @@ int qc_send_ppkts(struct qring *qr, struct ssl_sock_ctx *ctx)
 			if (!(qc->flags & QUIC_FL_CONN_CLOSING) &&
 			    (pkt->flags & QUIC_FL_TX_PACKET_CC)) {
 				qc->flags |= QUIC_FL_CONN_CLOSING;
+				qc_notify_close(qc);
+
 				/* RFC 9000 10.2. Immediate Close:
 				 * The closing and draining connection states exist to ensure
 				 * that connections close cleanly and that delayed or reordered
@@ -4114,6 +4117,11 @@ static void qc_idle_timer_rearm(struct quic_conn *qc, int read)
 static struct task *qc_idle_timer_task(struct task *t, void *ctx, unsigned int state)
 {
 	struct quic_conn *qc = ctx;
+
+	/* Notify the MUX before settings QUIC_FL_CONN_EXP_TIMER or the MUX
+	 * might free the quic-conn too early via quic_close().
+	 */
+	qc_notify_close(qc);
 
 	/* If the MUX is still alive, keep the quic-conn. The MUX is
 	 * responsible to call quic_close to release it.
@@ -5923,6 +5931,19 @@ void qc_stream_desc_release(struct qc_stream_desc *stream,
 		qc_stream_desc_free(stream);
 	else
 		eb64_insert(&qc->streams_by_id, &stream->by_id);
+}
+
+/* Notify the MUX layer if alive about an imminent close of <qc>. */
+void qc_notify_close(struct quic_conn *qc)
+{
+	if (qc->flags & QUIC_FL_CONN_NOTIFY_CLOSE)
+		return;
+
+	qc->flags |= QUIC_FL_CONN_NOTIFY_CLOSE;
+
+	/* wake up the MUX */
+	if (qc->mux_state == QC_MUX_READY && qc->conn->mux->wake)
+		qc->conn->mux->wake(qc->conn);
 }
 
 /* Function to automatically activate QUIC traces on stdout.
