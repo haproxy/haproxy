@@ -3802,6 +3802,9 @@ static void quic_conn_release(struct quic_conn *qc)
 	struct eb64_node *node;
 	struct quic_tls_ctx *app_tls_ctx;
 
+	/* We must not free the quic-conn if the MUX is still allocated. */
+	BUG_ON(qc->mux_state == QC_MUX_READY);
+
 	/* free remaining stream descriptors */
 	node = eb64_first(&qc->streams_by_id);
 	while (node) {
@@ -3865,6 +3868,13 @@ void quic_close(struct connection *conn, void *xprt_ctx)
 
 	/* Next application data can be dropped. */
 	qc->mux_state = QC_MUX_RELEASED;
+
+	/* If the quic-conn timer has already expired free the quic-conn. */
+	if (qc->flags & QUIC_FL_CONN_EXP_TIMER) {
+		quic_conn_release(qc);
+		TRACE_LEAVE(QUIC_EV_CONN_CLOSE);
+		return;
+	}
 
 	TRACE_LEAVE(QUIC_EV_CONN_CLOSE, qc);
 }
@@ -4107,7 +4117,16 @@ static struct task *qc_idle_timer_task(struct task *t, void *ctx, unsigned int s
 {
 	struct quic_conn *qc = ctx;
 
-	quic_conn_release(qc);
+	/* If the MUX is still alive, keep the quic-conn. The MUX is
+	 * responsible to call quic_close to release it.
+	 */
+	qc->flags |= QUIC_FL_CONN_EXP_TIMER;
+	if (qc->mux_state != QC_MUX_READY)
+		quic_conn_release(qc);
+
+	/* TODO if the quic-conn cannot be freed because of the MUX, we may at
+	 * least clean some parts of it such as the tasklet.
+	 */
 
 	return NULL;
 }
