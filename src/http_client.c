@@ -702,13 +702,15 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 							goto more;
 
 						if (htx_is_empty(htx)) {
+							size_t data = hc_htx->data;
+
 							/* Here htx_to_buf() will set buffer data to 0 because
 							 * the HTX is empty, and allow us to do an xfer.
 							 */
 							htx_to_buf(hc_htx, &hc->req.buf);
 							htx_to_buf(htx, &req->buf);
-							channel_add_input(req, hc_htx->data);
 							b_xfer(&req->buf, &hc->req.buf, b_data(&hc->req.buf));
+							channel_add_input(req, data);
 						} else {
 							struct htx_ret ret;
 
