@@ -9567,7 +9567,19 @@ void hlua_applet_http_fct(struct appctx *ctx)
 		if (!(ctx->ctx.hlua_apphttp.flags & APPLET_HDR_SENT))
 			goto error;
 
-		/* no more data are expected. Don't add TLR because mux-h1 will take care of it */
+		/* no more data are expected. If the response buffer is empty
+		 * for a chunked message, be sure to add something (EOT block in
+		 * this case) to have something to send. It is important to be
+		 * sure the EOM flags will be handled by the endpoint.
+		 */
+		if (htx_is_empty(res_htx) && (strm->txn->rsp.flags & (HTTP_MSGF_XFER_LEN|HTTP_MSGF_CNT_LEN)) == HTTP_MSGF_XFER_LEN) {
+			if (!htx_add_endof(res_htx, HTX_BLK_EOT)) {
+				si_rx_room_blk(si);
+				goto out;
+			}
+			channel_add_input(res, 1);
+		}
+
 		res_htx->flags |= HTX_FL_EOM;
 		si->cs->flags |= CS_FL_EOI;
 		res->flags |= CF_EOI;
