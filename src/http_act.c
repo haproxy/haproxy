@@ -538,6 +538,9 @@ static enum act_return http_action_replace_uri(struct act_rule *rule, struct pro
 		uri = http_parse_path(&parser);
 	}
 
+	if (!istlen(uri))
+		goto leave;
+
 	if (!regex_exec_match2(rule->arg.http.re, uri.ptr, uri.len, MAX_MATCH, pmatch, 0))
 		goto leave;
 
