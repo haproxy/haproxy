@@ -348,17 +348,27 @@ static inline int conn_get_src(struct connection *conn)
 	if (conn->flags & CO_FL_ADDR_FROM_SET)
 		return 1;
 
-	if (!conn_ctrl_ready(conn) || !conn->ctrl->fam->get_src)
-		return 0;
+	if (!conn_ctrl_ready(conn))
+		goto fail;
 
 	if (!sockaddr_alloc(&conn->src, NULL, 0))
-		return 0;
+		goto fail;
 
+	if (conn->ctrl->proto_type != PROTO_TYPE_STREAM)
+		goto fail;
+
+	/* most other socket-based stream protocols will use their socket family's functions */
 	if (conn->ctrl->fam->get_src && !(conn->flags & CO_FL_FDLESS) &&
 	    conn->ctrl->fam->get_src(conn->handle.fd, (struct sockaddr *)conn->src,
 	                        sizeof(*conn->src),
-	                        obj_type(conn->target) != OBJ_TYPE_LISTENER) == -1)
-		return 0;
+	                        obj_type(conn->target) != OBJ_TYPE_LISTENER) != -1)
+		goto done;
+
+	/* no other means */
+ fail:
+	sockaddr_free(&conn->src);
+	return 0;
+ done:
 	conn->flags |= CO_FL_ADDR_FROM_SET;
 	return 1;
 }
@@ -372,17 +382,27 @@ static inline int conn_get_dst(struct connection *conn)
 	if (conn->flags & CO_FL_ADDR_TO_SET)
 		return 1;
 
-	if (!conn_ctrl_ready(conn) || !conn->ctrl->fam->get_dst)
-		return 0;
+	if (!conn_ctrl_ready(conn))
+		goto fail;
 
 	if (!sockaddr_alloc(&conn->dst, NULL, 0))
-		return 0;
+		goto fail;
 
+	if (conn->ctrl->proto_type != PROTO_TYPE_STREAM)
+		goto fail;
+
+	/* most other socket-based stream protocols will use their socket family's functions */
 	if (conn->ctrl->fam->get_dst && !(conn->flags & CO_FL_FDLESS) &&
 	    conn->ctrl->fam->get_dst(conn->handle.fd, (struct sockaddr *)conn->dst,
 	                        sizeof(*conn->dst),
-	                        obj_type(conn->target) != OBJ_TYPE_LISTENER) == -1)
-		return 0;
+	                        obj_type(conn->target) != OBJ_TYPE_LISTENER) != -1)
+		goto done;
+
+	/* no other means */
+ fail:
+	sockaddr_free(&conn->dst);
+	return 0;
+ done:
 	conn->flags |= CO_FL_ADDR_TO_SET;
 	return 1;
 }
