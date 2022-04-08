@@ -2046,6 +2046,34 @@ static int proxy_parse_hard_stop_after(char **args, int section_type, struct pro
 	return 0;
 }
 
+static int proxy_parse_close_spread_time(char **args, int section_type, struct proxy *curpx,
+					 const struct proxy *defpx, const char *file, int line,
+					 char **err)
+{
+	const char *res;
+
+	if (!*args[1]) {
+		memprintf(err, "'%s' expects <time> as argument.\n", args[0]);
+		return -1;
+	}
+	res = parse_time_err(args[1], &global.close_spread_time, TIME_UNIT_MS);
+	if (res == PARSE_TIME_OVER) {
+		memprintf(err, "timer overflow in argument '%s' to '%s' (maximum value is 2147483647 ms or ~24.8 days)",
+			  args[1], args[0]);
+		return -1;
+	}
+	else if (res == PARSE_TIME_UNDER) {
+		memprintf(err, "timer underflow in argument '%s' to '%s' (minimum non-null value is 1 ms)",
+			  args[1], args[0]);
+		return -1;
+	}
+	else if (res) {
+		memprintf(err, "unexpected character '%c' in argument to <%s>.\n", *res, args[0]);
+		return -1;
+	}
+	return 0;
+}
+
 struct task *hard_stop(struct task *t, void *context, unsigned int state)
 {
 	struct proxy *p;
@@ -2098,6 +2126,10 @@ static void do_soft_stop_now()
 
 	/* disable busy polling to avoid cpu eating for the new process */
 	global.tune.options &= ~GTUNE_BUSY_POLLING;
+
+	if (tick_isset(global.close_spread_time)) {
+		global.close_spread_end = tick_add(now_ms, global.close_spread_time);
+	}
 
 	/* schedule a hard-stop after a delay if needed */
 	if (tick_isset(global.hard_stop_after)) {
@@ -2501,6 +2533,7 @@ void proxy_adjust_all_maxconn()
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "grace", proxy_parse_grace },
 	{ CFG_GLOBAL, "hard-stop-after", proxy_parse_hard_stop_after },
+	{ CFG_GLOBAL, "close-spread-time", proxy_parse_close_spread_time },
 	{ CFG_LISTEN, "timeout", proxy_parse_timeout },
 	{ CFG_LISTEN, "clitimeout", proxy_parse_timeout }, /* This keyword actually fails to parse, this line remains for better error messages. */
 	{ CFG_LISTEN, "contimeout", proxy_parse_timeout }, /* This keyword actually fails to parse, this line remains for better error messages. */

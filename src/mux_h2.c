@@ -706,6 +706,8 @@ static inline int h2c_may_expire(const struct h2c *h2c)
 /* update h2c timeout if needed */
 static void h2c_update_timeout(struct h2c *h2c)
 {
+	int is_idle_conn = 0;
+
 	TRACE_ENTER(H2_EV_H2C_WAKE, h2c->conn);
 
 	if (!h2c->task)
@@ -716,12 +718,14 @@ static void h2c_update_timeout(struct h2c *h2c)
 		if (h2c->last_sid >= 0) {
 			/* GOAWAY sent, closing in progress */
 			h2c->task->expire = tick_add_ifset(now_ms, h2c->shut_timeout);
+			is_idle_conn = 1;
 		} else if (br_data(h2c->mbuf)) {
 			/* pending output data: always the regular data timeout */
 			h2c->task->expire = tick_add_ifset(now_ms, h2c->timeout);
 		} else if (h2c->max_id > 0 && !b_data(&h2c->dbuf)) {
 			/* idle after having seen one stream => keep-alive */
 			h2c->task->expire = tick_add_ifset(h2c->idle_start, h2c->proxy->timeout.httpka);
+			is_idle_conn = 1;
 		} else {
 			/* before first request, or started to deserialize a
 			 * new req => http-request, but only set, not refresh.
@@ -732,6 +736,37 @@ static void h2c_update_timeout(struct h2c *h2c)
 		/* if a timeout above was not set, fall back to the default one */
 		if (!tick_isset(h2c->task->expire))
 			h2c->task->expire = tick_add_ifset(now_ms, h2c->timeout);
+
+		if ((h2c->proxy->flags & (PR_FL_DISABLED|PR_FL_STOPPED)) &&
+		    is_idle_conn && tick_isset(global.close_spread_end)) {
+			/* If a soft-stop is in progress and a close-spread-time
+			 * is set, we want to spread idle connection closing roughly
+			 * evenly across the defined window. This should only
+			 * act on idle frontend connections.
+			 * If the window end is already in the past, we wake the
+			 * timeout task up immediately so that it can be closed.
+			 */
+			int remaining_window = tick_remain(now_ms, global.close_spread_end);
+			if (remaining_window) {
+				/* We don't need to reset the expire if it would
+				 * already happen before the close window end.
+				 */
+				if (tick_isset(h2c->task->expire) &&
+				    tick_is_le(global.close_spread_end, h2c->task->expire)) {
+					/* Set an expire value shorter than the current value
+					 * because the close spread window end comes earlier.
+					 */
+					h2c->task->expire = tick_add(now_ms, statistical_prng_range(remaining_window));
+				}
+			}
+			else {
+				/* We are past the soft close window end, wake the timeout
+				 * task up immediately.
+				 */
+				task_wakeup(h2c->task, TASK_WOKEN_TIMER);
+			}
+		}
+
 	} else {
 		h2c->task->expire = TICK_ETERNITY;
 	}
@@ -4000,15 +4035,30 @@ static int h2_process(struct h2c *h2c)
 	h2_send(h2c);
 
 	if (unlikely(h2c->proxy->flags & (PR_FL_DISABLED|PR_FL_STOPPED)) && !(h2c->flags & H2_CF_IS_BACK)) {
+		int send_goaway = 1;
+		/* If a close-spread-time option is set, we want to avoid
+		 * closing all the active HTTP2 connections at once so we add a
+		 * random factor that will spread the closing.
+		 */
+		if (tick_isset(global.close_spread_end)) {
+			int remaining_window = tick_remain(now_ms, global.close_spread_end);
+			if (remaining_window) {
+				/* This should increase the closing rate the
+				 * further along the window we are. */
+				send_goaway = (remaining_window <= statistical_prng_range(global.close_spread_time));
+			}
+		}
 		/* frontend is stopping, reload likely in progress, let's try
 		 * to announce a graceful shutdown if not yet done. We don't
 		 * care if it fails, it will be tried again later.
 		 */
-		TRACE_STATE("proxy stopped, sending GOAWAY", H2_EV_H2C_WAKE|H2_EV_TX_FRAME, conn);
-		if (!(h2c->flags & (H2_CF_GOAWAY_SENT|H2_CF_GOAWAY_FAILED))) {
-			if (h2c->last_sid < 0)
-				h2c->last_sid = (1U << 31) - 1;
-			h2c_send_goaway_error(h2c, NULL);
+		if (send_goaway) {
+			TRACE_STATE("proxy stopped, sending GOAWAY", H2_EV_H2C_WAKE|H2_EV_TX_FRAME, conn);
+			if (!(h2c->flags & (H2_CF_GOAWAY_SENT|H2_CF_GOAWAY_FAILED))) {
+				if (h2c->last_sid < 0)
+					h2c->last_sid = (1U << 31) - 1;
+				h2c_send_goaway_error(h2c, NULL);
+			}
 		}
 	}
 

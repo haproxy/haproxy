@@ -169,6 +169,8 @@ volatile unsigned long stopping_thread_mask = 0; /* Threads acknowledged stoppin
 /* global options */
 struct global global = {
 	.hard_stop_after = TICK_ETERNITY,
+	.close_spread_time = TICK_ETERNITY,
+	.close_spread_end = TICK_ETERNITY,
 	.numa_cpu_mapping = 1,
 	.nbthread = 0,
 	.req_count = 0,

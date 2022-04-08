@@ -98,6 +98,8 @@ struct global {
 	int mode;
 	unsigned int hard_stop_after;	/* maximum time allowed to perform a soft-stop */
 	unsigned int grace_delay;       /* grace delay between SIGUSR1 and soft-stop */
+	unsigned int close_spread_time;	/* time window during which connection closing is spread */
+	unsigned int close_spread_end;	/* end of close spread window */
 	int maxconn, hardmaxconn;
 	int maxsslconn;
 	int ssl_session_max_cost;   /* how many bytes an SSL session may cost */

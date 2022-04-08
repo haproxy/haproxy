@@ -1155,6 +1155,26 @@ chroot <jail dir>
   with superuser privileges. It is important to ensure that <jail_dir> is both
   empty and non-writable to anyone.
 
+close-spread-time <time>
+  Define a time window during which idle connections and active connections
+  closing is spread in case of soft-stop. After a SIGUSR1 is received and the
+  grace period is over (if any), the idle connections will all be closed at
+  once if this option is not set, and active HTTP or HTTP2 connections will be
+  ended after the next request is received, either by appending a "Connection:
+  close" line to the HTTP response, or by sending a GOAWAY frame in case of
+  HTTP2. When this option is set, connection closing will be spread over this
+  set <time>.
+
+  Arguments :
+    <time>  is a time window (by default in milliseconds) during which
+            connection closing will be spread during a soft-stop operation.
+
+  It is recommended to set this setting to a value lower than the one used in
+  the "hard-stop-after" option if this one is used, so that all connections
+  have a chance to gracefully close before the process stops.
+
+  See also: grace, hard-stop-after
+
 cpu-map [auto:]<process-set>[/<thread-set>] <cpu-set>...
   On some operating systems, it is possible to bind a process or a thread to a
   specific CPU set. This means that the process or the thread will never run on
