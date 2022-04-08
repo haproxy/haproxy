@@ -324,16 +324,13 @@ static int sample_conv_url_enc(const struct arg *args, struct sample *smp, void
 	enc_type = ENC_QUERY;
 	enc_type = args->data.sint;
 
-	/* Add final \0 required by encode_string() */
-	smp->data.u.str.area[smp->data.u.str.data] = '\0';
-
 	if (enc_type == ENC_QUERY)
 		encode_map = query_encode_map;
 	else
 		return 0;
 
-	ret = encode_string(trash->area, trash->area + trash->size, '%',
-			    encode_map, smp->data.u.str.area);
+	ret = encode_chunk(trash->area, trash->area + trash->size, '%',
+			   encode_map, &smp->data.u.str);
 	if (ret == NULL || *ret != '\0')
 		return 0;
 	trash->data = ret - trash->area;
