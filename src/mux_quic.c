@@ -1061,11 +1061,6 @@ static void qc_detach(struct conn_stream *cs)
 
 	TRACE_ENTER(QMUX_EV_STRM_END, qcc->conn, qcs);
 
-	/* TODO on CONNECTION_CLOSE reception, it should be possible to free
-	 * qcs instances. This should be done once the buffering and ACK
-	 * managment between xprt and mux is reorganized.
-	 */
-
 	--qcc->nb_cs;
 
 	if ((b_data(&qcs->tx.buf) || qcs->tx.offset > qcs->tx.sent_offset) &&
