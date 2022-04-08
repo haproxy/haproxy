@@ -1061,6 +1061,8 @@ static void qc_detach(struct conn_stream *cs)
 
 	TRACE_ENTER(QMUX_EV_STRM_END, qcc->conn, qcs);
 
+	cs->ctx = NULL;
+	qcs->cs = NULL;
 	--qcc->nb_cs;
 
 	if ((b_data(&qcs->tx.buf) || qcs->tx.offset > qcs->tx.sent_offset) &&
