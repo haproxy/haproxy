@@ -354,6 +354,11 @@ static inline int conn_get_src(struct connection *conn)
 	if (!sockaddr_alloc(&conn->src, NULL, 0))
 		goto fail;
 
+	/* some stream protocols may provide their own get_src/dst functions */
+	if (conn->ctrl->get_src &&
+	    conn->ctrl->get_src(conn, (struct sockaddr *)conn->src, sizeof(*conn->src)) != -1)
+		goto done;
+
 	if (conn->ctrl->proto_type != PROTO_TYPE_STREAM)
 		goto fail;
 
@@ -387,6 +392,11 @@ static inline int conn_get_dst(struct connection *conn)
 
 	if (!sockaddr_alloc(&conn->dst, NULL, 0))
 		goto fail;
+
+	/* some stream protocols may provide their own get_src/dst functions */
+	if (conn->ctrl->get_dst &&
+	    conn->ctrl->get_dst(conn, (struct sockaddr *)conn->dst, sizeof(*conn->dst)) != -1)
+		goto done;
 
 	if (conn->ctrl->proto_type != PROTO_TYPE_STREAM)
 		goto fail;

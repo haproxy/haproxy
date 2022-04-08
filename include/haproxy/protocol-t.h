@@ -75,8 +75,8 @@ struct proto_fam {
 	int l3_addrlen;					/* layer3 address length, used by hashes */
 	int (*addrcmp)(const struct sockaddr_storage *, const struct sockaddr_storage *); /* compare addresses (like memcmp) */
 	int (*bind)(struct receiver *rx, char **errmsg); /* bind a receiver */
-	int (*get_src)(int fd, struct sockaddr *, socklen_t, int dir); /* syscall used to retrieve src addr */
-	int (*get_dst)(int fd, struct sockaddr *, socklen_t, int dir); /* syscall used to retrieve dst addr */
+	int (*get_src)(int fd, struct sockaddr *, socklen_t, int dir); /* syscall used to retrieve connection's src addr */
+	int (*get_dst)(int fd, struct sockaddr *, socklen_t, int dir); /* syscall used to retrieve connection's dst addr */
 	void (*set_port)(struct sockaddr_storage *, int port);  /* set the port on the address; NULL if not implemented */
 };
 
@@ -103,6 +103,7 @@ struct protocol {
 	int (*suspend)(struct listener *l);             /* try to suspend the listener */
 	int (*resume)(struct listener *l);              /* try to resume a suspended listener */
 	struct connection *(*accept_conn)(struct listener *l, int *status); /* accept a new connection */
+
 	/* functions acting on connections */
 	void (*ctrl_init)(struct connection *);         /* completes initialization of the connection */
 	void (*ctrl_close)(struct connection *);        /* completes release of the connection */
@@ -110,6 +111,8 @@ struct protocol {
 	int (*drain)(struct connection *);              /* drain pending data; 0=failed, >0=success */
 	int (*check_events)(struct connection *conn, int event_type);  /* subscribe to socket events */
 	void (*ignore_events)(struct connection *conn, int event_type);  /* unsubscribe from socket events */
+	int (*get_src)(struct connection *conn, struct sockaddr *, socklen_t); /* retrieve connection's source address; -1=fail */
+	int (*get_dst)(struct connection *conn, struct sockaddr *, socklen_t); /* retrieve connection's dest address; -1=fail */
 
 	/* functions acting on the receiver */
 	int (*rx_suspend)(struct receiver *rx);         /* temporarily suspend this receiver for a soft restart */
