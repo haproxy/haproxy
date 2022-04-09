@@ -1605,7 +1605,7 @@ void list_mux_proto(FILE *out)
 		else
 			side = "NONE";
 
-		fprintf(out, " %15s : mode=%-10s side=%-8s  mux=%-8s flags=",
+		fprintf(out, " %10s : mode=%-5s side=%-6s mux=%-5s flags=",
 			(proto.len ? proto.ptr : "<default>"), mode, side, item->mux->name);
 
 		done = 0;
