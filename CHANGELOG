@@ -1,6 +1,128 @@
 ChangeLog :
 ===========
 
+2022/04/09 : 2.6-dev5
+    - DOC: reflect H2 timeout changes
+    - BUG/MEDIUM: mux-fcgi: Properly handle return value of headers/trailers parsing
+    - BUG/MEDIUM: mux-h1: Properly detect full buffer cases during message parsing
+    - BUG/MINOR: log: Initialize the list element when allocating a new log server
+    - BUG/MINOR: samples: add missing context names for sample fetch functions
+    - MINOR: management: add some basic keyword dump infrastructure
+    - MINOR: config: add a function to dump all known config keywords
+    - MINOR: filters: extend flt_dump_kws() to dump to stdout
+    - MINOR: services: extend list_services() to dump to stdout
+    - MINOR: cli: add a new keyword dump function
+    - MINOR: acl: add a function to dump the list of known ACL keywords
+    - MINOR: samples: add a function to list register sample fetch keywords
+    - MINOR: sample: list registered sample converter functions
+    - MINOR: tools: add strordered() to check whether strings are ordered
+    - MINOR: action: add a function to dump the list of actions for a ruleset
+    - MINOR: config: alphanumerically sort config keywords output
+    - MINOR: sample: alphanumerically sort sample & conv keyword dumps
+    - MINOR: acl: alphanumerically sort the ACL dump
+    - MINOR: cli: alphanumerically sort the dump of supported commands
+    - MINOR: filters: alphabetically sort the list of filter names
+    - MINOR: services: alphabetically sort service names
+    - MEDIUM: httpclient/lua: be stricter with httpclient parameters
+    - MINOR: ssl: split the cert commit io handler
+    - MINOR: ssl: move the cert_exts and the CERT_TYPE enum
+    - MINOR: ssl: simplify the certificate extensions array
+    - MINOR: ssl: export ckch_inst_rebuild()
+    - MINOR: ssl: add "crt" in the cert_exts array
+    - MINOR: ssl/lua: CertCache.set() allows to update an SSL certificate file
+    - BUILD: ssl/lua: CacheCert needs OpenSSL
+    - DOC: lua: CertCache class documentation
+    - BUG/MEDIUM: quic: do not use qcs from quic_stream on ACK parsing
+    - MINOR: mux-quic: return qcs instance from qcc_get_qcs
+    - MINOR: mux-quic: reorganize qcs free
+    - MINOR: mux-quic: define release app-ops
+    - BUG/MINOR: h3: release resources on close
+    - BUG/MINOR: mux-quic: ensure to free all qcs on MUX release
+    - CLEANUP: quic: complete comment on qcs_try_to_consume
+    - MINOR: quic: implement stream descriptor for transport layer
+    - MEDIUM: quic: move transport fields from qcs to qc_conn_stream
+    - MEDIUM: mux-quic: remove qcs tree node
+    - BUG/MINOR: cli/stream: fix "shutdown session" to iterate over all threads
+    - DOC: management: add missing dot in 9.4.1
+    - BUG/MAJOR: mux_pt: always report the connection error to the conn_stream
+    - DOC: remove double blanks in configuration.txt
+    - CI: github actions: update OpenSSL to 3.0.2
+    - BUG/MEDIUM: quic: Possible crash in ha_quic_set_encryption_secrets()
+    - CLEANUP: quic: Remove all atomic operations on quic_conn struct
+    - CLEANUP: quic: Remove all atomic operations on packet number spaces
+    - MEDIUM: quic: Send ACK frames asap
+    - BUG/MINOR: quic: Missing probing packets when coalescing
+    - BUG/MINOR: quic: Discard Initial packet number space only one time
+    - MINOR: quic: Do not display any timer value from process_timer()
+    - BUG/MINOR: quic: Do not probe from an already probing packet number space
+    - BUG/MINOR: quic: Non duplicated frames upon fast retransmission
+    - BUG/MINOR: quic: Too much prepared retransmissions due to anti-amplification
+    - MINOR: quic: Useless call to SSL_CTX_set_default_verify_paths()
+    - MINOR: quic: Add traces about list of frames
+    - BUG/MINOR: h3: Missing wait event struct field initialization
+    - BUG/MINOR: quic: QUIC TLS secrets memory leak
+    - BUG/MINOR: quic: Missing ACK range deallocations
+    - BUG/MINOR: quic: Missing TX packet deallocations
+    - CLEANUP: hpack: be careful about integer promotion from uint8_t
+    - OPTIM: hpack: read 32 bits at once when possible.
+    - MEDIUM: ssl: allow loading of a directory with the ca-file directive
+    - BUG/MINOR: ssl: continue upon error when opening a directory w/ ca-file
+    - MINOR: ssl: ca-file @system-ca loads the system trusted CA
+    - DOC: configuration: add the ca-file changes
+    - MINOR: sample: converter: Add add_item convertor
+    - BUG/MINOR: ssl: handle X509_get_default_cert_dir() returning NULL
+    - BUG/MINOR: ssl/cli: Remove empty lines from CLI output
+    - MINOR: httpclient: enable request buffering
+    - MEDIUM: httpclient: enable l7-retry
+    - BUG/MINOR: httpclient: end callback in applet release
+    - MINOR: quic: Add draining connection state.
+    - MINOR: quic: Add closing connection state
+    - BUG/MEDIUM: quic: ensure quic-conn survives to the MUX
+    - CLEANUP: quic: use static qualifer on quic_close
+    - CLEANUP: mux-quic: remove unused QC_CF_CC_RECV
+    - BUG/MINOR: fix memleak on quic-conn streams cleaning
+    - MINOR: mux-quic: factorize conn-stream attach
+    - MINOR: mux-quic: adjust timeout to accelerate closing
+    - MINOR: mux-quic: define is_active app-ops
+    - MINOR: mux-quic: centralize send operations in qc_send
+    - MEDIUM: mux-quic: report CO_FL_ERROR on send
+    - MEDIUM: mux-quic: report errors on conn-streams
+    - MEDIUM: quic: report closing state for the MUX
+    - BUG/MINOR: fcgi-app: Don't add C-L header on response to HEAD requests
+    - BUG/MEDIUM: stats: Be sure to never set EOM flag on an empty HTX message
+    - BUG/MEDIUM: hlua: Don't set EOM flag on an empty HTX message in HTTP applet
+    - BUG/MEDIUM: promex: Be sure to never set EOM flag on an empty HTX message
+    - BUG/MEDIUM: mux-h1: Set outgoing message to DONE when payload length is reached
+    - BUG/MINOR: http_client: Don't add input data on an empty request buffer
+    - BUG/MEDIUM: http-conv: Fix url_enc() to not crush const samples
+    - BUG/MEDIUM: http-act: Don't replace URI if path is not found or invalid
+    - CLEANUP: mux-quic: remove uneeded TODO in qc_detach
+    - BUG/MEDIUM: mux-quic: properly release conn-stream on detach
+    - BUG/MINOR: quic: set the source not the destination address on accept()
+    - BUG/MEDIUM: quic: Possible crash from quic_free_arngs()
+    - MINOR: quic_tls: Add reusable cipher contexts to QUIC TLS contexts
+    - MINOR: quic_tls: Stop hardcoding cipher IV lengths
+    - CLEANUP: quic: Do not set any cipher/group from ssl_quic_initial_ctx()
+    - MINOR: quic: Add short packet key phase bit values to traces
+    - MINOR: quic_tls: Make key update use of reusable cipher contexts
+    - BUG/MINOR: opentracing: setting the return value in function flt_ot_var_set()
+    - BUG/BUILD: opentracing: fixed OT_DEFINE variable setting
+    - EXAMPLES: opentracing: refined shell scripts for testing filter performance
+    - DOC: opentracing: corrected comments in function descriptions
+    - CLEANUP: opentracing: removed unused function flt_ot_var_unset()
+    - CLEANUP: opentracing: removed unused function flt_ot_var_get()
+    - Revert "MINOR: opentracing: change the scope of the variable 'ot.uuid' from 'sess' to 'txn'"
+    - MINOR: opentracing: only takes the variables lock on shared entries
+    - CLEANUP: opentracing: added flt_ot_smp_init() function
+    - CLEANUP: opentracing: added variable to store variable length
+    - MINOR: opentracing: improved normalization of context variable names
+    - DEBUG: opentracing: show return values of all functions in the debug output
+    - CLEANUP: opentracing: added FLT_OT_PARSE_INVALID_enum enum
+    - DEBUG: opentracing: display the contents of the err variable after setting
+    - MAJOR: opentracing: reenable usage of vars to transmit opentracing context
+    - Revert "BUILD: opentracing: display warning in case of using OT_USE_VARS at compile time"
+    - MEDIUM: global: Add a "close-spread-time" option to spread soft-stop on time window
+
 2022/03/26 : 2.6-dev4
     - BUG/MEDIUM: httpclient: don't consume data before it was analyzed
     - CLEANUP: htx: remove unused co_htx_remove_blk()
