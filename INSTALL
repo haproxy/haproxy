@@ -400,7 +400,7 @@ is to use QUICTLS. This is a fork of OpenSSL with a QUIC-compatible API. Its
 repository is available at https://github.com/quictls/openssl. You can use the
 following instruction to build a functional QUICTLS.
 
-  $ ./config enable-tls1_3 [--prefix=/opt/quictls]
+  $ ./config --libdir=lib [--prefix=/opt/quictls]
   $ make
   $ make install
 
