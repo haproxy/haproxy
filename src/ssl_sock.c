@@ -457,7 +457,7 @@ int ssl_client_sni_index = -1;
 struct list tlskeys_reference = LIST_HEAD_INIT(tlskeys_reference);
 #endif
 
-#ifndef OPENSSL_NO_ENGINE
+#if defined(USE_ENGINE) && !defined(OPENSSL_NO_ENGINE)
 unsigned int openssl_engines_initialized;
 struct list openssl_engines = LIST_HEAD_INIT(openssl_engines);
 struct ssl_engine_list {
@@ -627,7 +627,7 @@ static forceinline void ssl_sock_dump_errors(struct connection *conn)
 }
 
 
-#ifndef OPENSSL_NO_ENGINE
+#if defined(USE_ENGINE) && !defined(OPENSSL_NO_ENGINE)
 int ssl_init_single_engine(const char *engine_id, const char *def_algorithms)
 {
 	int err_code = ERR_ABORT;
@@ -7082,7 +7082,7 @@ void ssl_free_global_issuers(void)
 	}
 }
 
-#ifndef OPENSSL_NO_ENGINE
+#if defined(USE_ENGINE) && !defined(OPENSSL_NO_ENGINE)
 static int ssl_check_async_engine_count(void) {
 	int err_code = ERR_NONE;
 
@@ -7893,7 +7893,7 @@ static void __ssl_sock_init(void)
 #endif
 	ssl_client_crt_ref_index = SSL_get_ex_new_index(0, NULL, NULL, NULL, ssl_sock_clt_crt_free_func);
 	ssl_client_sni_index = SSL_get_ex_new_index(0, NULL, NULL, NULL, ssl_sock_clt_sni_free_func);
-#ifndef OPENSSL_NO_ENGINE
+#if defined(USE_ENGINE) && !defined(OPENSSL_NO_ENGINE)
 	ENGINE_load_builtin_engines();
 	hap_register_post_check(ssl_check_async_engine_count);
 #endif
@@ -7910,7 +7910,7 @@ static void __ssl_sock_init(void)
 	ssl_dh_ptr_index = SSL_CTX_get_ex_new_index(0, NULL, NULL, NULL, NULL);
 	hap_register_post_deinit(ssl_free_dh);
 #endif
-#ifndef OPENSSL_NO_ENGINE
+#if defined(USE_ENGINE) && !defined(OPENSSL_NO_ENGINE)
 	hap_register_post_deinit(ssl_free_engines);
 #endif
 #if HA_OPENSSL_VERSION_NUMBER < 0x3000000fL
@@ -7986,8 +7986,7 @@ static void ssl_register_build_options()
 
 INITCALL0(STG_REGISTER, ssl_register_build_options);
 
-
-#ifndef OPENSSL_NO_ENGINE
+#if defined(USE_ENGINE) && !defined(OPENSSL_NO_ENGINE)
 void ssl_free_engines(void) {
 	struct ssl_engine_list *wl, *wlb;
 	/* free up engine list */

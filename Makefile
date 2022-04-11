@@ -32,6 +32,7 @@
 #   USE_CRYPT_H          : set it if your system requires including crypt.h
 #   USE_GETADDRINFO      : use getaddrinfo() to resolve IPv6 host names.
 #   USE_OPENSSL          : enable use of OpenSSL. Recommended, but see below.
+#   USE_ENGINE           : enable use of OpenSSL Engine.
 #   USE_LUA              : enable Lua support.
 #   USE_ACCEPT4          : enable use of accept4() on linux. Automatic.
 #   USE_CLOSEFROM        : enable use of closefrom() on *bsd, solaris. Automatic.

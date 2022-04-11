@@ -16,7 +16,7 @@
 #ifndef OPENSSL_NO_DH
 #include <openssl/dh.h>
 #endif
-#ifndef OPENSSL_NO_ENGINE
+#if defined(USE_ENGINE) && !defined(OPENSSL_NO_ENGINE)
 #include <openssl/engine.h>
 #endif
 

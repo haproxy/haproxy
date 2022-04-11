@@ -137,7 +137,7 @@ static int ssl_parse_global_ssl_async(char **args, int section_type, struct prox
 #endif
 }
 
-#ifndef OPENSSL_NO_ENGINE
+#if defined(USE_ENGINE) && !defined(OPENSSL_NO_ENGINE)
 /* parse the "ssl-engine" keyword in global section.
  * Returns <0 on alert, >0 on warning, 0 on success.
  */
@@ -1932,7 +1932,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "ssl-dh-param-file", ssl_parse_global_dh_param_file },
 #endif
 	{ CFG_GLOBAL, "ssl-mode-async",  ssl_parse_global_ssl_async },
-#ifndef OPENSSL_NO_ENGINE
+#if defined(USE_ENGINE) && !defined(OPENSSL_NO_ENGINE)
 	{ CFG_GLOBAL, "ssl-engine",  ssl_parse_global_ssl_engine },
 #endif
 	{ CFG_GLOBAL, "ssl-skip-self-issued-ca", ssl_parse_skip_self_issued_ca },
