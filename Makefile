@@ -335,7 +335,7 @@ use_opts = USE_EPOLL USE_KQUEUE USE_NETFILTER                                 \
            USE_PCRE USE_PCRE_JIT USE_PCRE2 USE_PCRE2_JIT USE_POLL             \
            USE_THREAD USE_BACKTRACE                                           \
            USE_STATIC_PCRE USE_STATIC_PCRE2 USE_TPROXY USE_LINUX_TPROXY       \
-           USE_LINUX_SPLICE USE_LIBCRYPT USE_CRYPT_H                          \
+           USE_LINUX_SPLICE USE_LIBCRYPT USE_CRYPT_H USE_ENGINE               \
            USE_GETADDRINFO USE_OPENSSL USE_LUA USE_ACCEPT4                    \
            USE_CLOSEFROM USE_ZLIB USE_SLZ USE_CPU_AFFINITY USE_TFO USE_NS     \
            USE_DL USE_RT USE_DEVICEATLAS USE_51DEGREES USE_WURFL USE_SYSTEMD  \
