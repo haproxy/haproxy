@@ -5759,6 +5759,14 @@ static int qc_xprt_start(struct connection *conn, void *ctx)
 	return 1;
 }
 
+static struct ssl_sock_ctx *qc_get_ssl_sock_ctx(struct connection *conn)
+{
+	if (!conn || conn->xprt != xprt_get(XPRT_QUIC) || !conn->qc || !conn->xprt_ctx)
+		return NULL;
+
+	return conn->qc->xprt_ctx;
+}
+
 /* transport-layer operations for QUIC connections. */
 static struct xprt_ops ssl_quic = {
 	.close    = quic_close,
@@ -5769,6 +5777,7 @@ static struct xprt_ops ssl_quic = {
 	.prepare_bind_conf = ssl_sock_prepare_bind_conf,
 	.destroy_bind_conf = ssl_sock_destroy_bind_conf,
 	.get_alpn = ssl_sock_get_alpn,
+	.get_ssl_sock_ctx = qc_get_ssl_sock_ctx,
 	.name     = "QUIC",
 };
 
