@@ -25,6 +25,7 @@
 #include <haproxy/arg.h>
 #include <haproxy/base64.h>
 #include <haproxy/buf-t.h>
+#include <haproxy/connection.h>
 #include <haproxy/conn_stream.h>
 #include <haproxy/obj_type.h>
 #include <haproxy/openssl-compat.h>
@@ -491,14 +492,11 @@ smp_fetch_ssl_fc_has_early(const struct arg *args, struct sample *smp, const cha
 static int
 smp_fetch_ssl_fc_has_crt(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct connection *conn;
-	struct ssl_sock_ctx *ctx;
+	struct connection *conn = objt_conn(smp->sess->origin);
+	struct ssl_sock_ctx *ctx = conn_get_ssl_sock_ctx(conn);
 
-	conn = objt_conn(smp->sess->origin);
-	if (!conn || conn->xprt != &ssl_sock)
+	if (!ctx)
 		return 0;
-
-	ctx = conn->xprt_ctx;
 
 	if (conn->flags & CO_FL_WAIT_XPRT) {
 		smp->flags |= SMP_F_MAY_CHANGE;
@@ -1177,7 +1175,7 @@ smp_fetch_ssl_fc(const struct arg *args, struct sample *smp, const char *kw, voi
 			smp->strm ? cs_conn(smp->strm->csb) : NULL;
 
 	smp->data.type = SMP_T_BOOL;
-	smp->data.u.sint = (conn && conn->xprt == &ssl_sock);
+	smp->data.u.sint = conn_is_ssl(conn);
 	return 1;
 }
 
@@ -1657,9 +1655,9 @@ smp_fetch_ssl_fc_err(const struct arg *args, struct sample *smp, const char *kw,
 		conn = (kw[4] != 'b') ? objt_conn(smp->sess->origin) :
 			smp->strm ? cs_conn(smp->strm->csb) : NULL;
 
-	if (!conn || conn->xprt != &ssl_sock)
+	ctx = conn_get_ssl_sock_ctx(conn);
+	if (!ctx)
 		return 0;
-	ctx = conn->xprt_ctx;
 
 	if (conn->flags & CO_FL_WAIT_XPRT && !conn->err_code) {
 		smp->flags = SMP_F_MAY_CHANGE;
@@ -1710,9 +1708,9 @@ smp_fetch_ssl_fc_err_str(const struct arg *args, struct sample *smp, const char 
 		conn = (kw[4] != 'b') ? objt_conn(smp->sess->origin) :
 			smp->strm ? cs_conn(smp->strm->csb) : NULL;
 
-	if (!conn || conn->xprt != &ssl_sock)
+	ctx = conn_get_ssl_sock_ctx(conn);
+	if (!ctx)
 		return 0;
-	ctx = conn->xprt_ctx;
 
 	if (conn->flags & CO_FL_WAIT_XPRT && !conn->err_code) {
 		smp->flags = SMP_F_MAY_CHANGE;
@@ -1976,15 +1974,10 @@ smp_fetch_ssl_fc_unique_id(const struct arg *args, struct sample *smp, const cha
 static int
 smp_fetch_ssl_c_ca_err(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct connection *conn;
-	struct ssl_sock_ctx *ctx;
+	struct connection *conn = objt_conn(smp->sess->origin);
+	struct ssl_sock_ctx *ctx = conn_get_ssl_sock_ctx(conn);
 
-	conn = objt_conn(smp->sess->origin);
-	if (!conn || conn->xprt != &ssl_sock)
-		return 0;
-	ctx = conn->xprt_ctx;
-
-	if (conn->flags & CO_FL_WAIT_XPRT && !conn->err_code) {
+	if (conn && conn->flags & CO_FL_WAIT_XPRT && !conn->err_code) {
 		smp->flags = SMP_F_MAY_CHANGE;
 		return 0;
 	}
@@ -2003,18 +1996,13 @@ smp_fetch_ssl_c_ca_err(const struct arg *args, struct sample *smp, const char *k
 static int
 smp_fetch_ssl_c_ca_err_depth(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct connection *conn;
-	struct ssl_sock_ctx *ctx;
+	struct connection *conn = objt_conn(smp->sess->origin);
+	struct ssl_sock_ctx *ctx = conn_get_ssl_sock_ctx(conn);
 
-	conn = objt_conn(smp->sess->origin);
-	if (!conn || conn->xprt != &ssl_sock)
-		return 0;
-
-	if (conn->flags & CO_FL_WAIT_XPRT && !conn->err_code) {
+	if (conn && conn->flags & CO_FL_WAIT_XPRT && !conn->err_code) {
 		smp->flags = SMP_F_MAY_CHANGE;
 		return 0;
 	}
-	ctx = conn->xprt_ctx;
 
 	if (!ctx)
 		return 0;
@@ -2030,19 +2018,13 @@ smp_fetch_ssl_c_ca_err_depth(const struct arg *args, struct sample *smp, const c
 static int
 smp_fetch_ssl_c_err(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct connection *conn;
-	struct ssl_sock_ctx *ctx;
+	struct connection *conn = objt_conn(smp->sess->origin);
+	struct ssl_sock_ctx *ctx = conn_get_ssl_sock_ctx(conn);
 
-	conn = objt_conn(smp->sess->origin);
-	if (!conn || conn->xprt != &ssl_sock)
-		return 0;
-
-	if (conn->flags & CO_FL_WAIT_XPRT && !conn->err_code) {
+	if (conn && conn->flags & CO_FL_WAIT_XPRT && !conn->err_code) {
 		smp->flags = SMP_F_MAY_CHANGE;
 		return 0;
 	}
-
-	ctx = conn->xprt_ctx;
 
 	if (!ctx)
 		return 0;
