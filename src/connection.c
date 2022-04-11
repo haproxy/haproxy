@@ -1404,7 +1404,7 @@ int conn_send_socks4_proxy_request(struct connection *conn)
 				(conn->subs && conn->subs->events & SUB_RETRY_SEND) ? CO_SFL_MSG_MORE : 0);
 
 		DPRINTF(stderr, "SOCKS PROXY HS FD[%04X]: Before send remain is [%d], sent [%d]\n",
-				conn->handle.fd, -conn->send_proxy_ofs, ret);
+			conn_fd(conn), -conn->send_proxy_ofs, ret);
 
 		if (ret < 0) {
 			goto out_error;

@@ -620,7 +620,7 @@ static forceinline void ssl_sock_dump_errors(struct connection *conn)
 			if (ret == 0)
 				return;
 			fprintf(stderr, "fd[%#x] OpenSSL error[0x%lx] %s: %s\n",
-			        conn->handle.fd, ret,
+			        conn_fd(conn), ret,
 			        func, ERR_reason_error_string(ret));
 		}
 	}
