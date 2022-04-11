@@ -3356,6 +3356,7 @@ static void stats_dump_html_head(struct appctx *appctx, struct uri_auth *uri)
 	              " a.lfsb:visited {color: #e8e6e3; text-decoration: none;}\n"
 	              " a.lfsb:hover {color: #b5afa6; text-decoration: none;}\n"
 	              " table.tbl th.empty { background-color: #181a1b; }\n"
+	              " table.tbl th.desc { background: #181a1b; }\n"
 	              " table.tbl th.pxname { background-color: #8d0033; color: #ffff46; }\n"
 	              " table.tbl th { border-color: #808080; }\n"
 	              " table.tbl td { border-color: #808080; }\n"
