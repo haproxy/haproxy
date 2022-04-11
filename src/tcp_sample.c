@@ -339,9 +339,17 @@ static inline int get_tcp_info(const struct arg *args, struct sample *smp,
 	/* extract the value. */
 	smp->data.type = SMP_T_SINT;
 	switch (val) {
+#if defined(__APPLE__)
+	case 0:  smp->data.u.sint = info.tcpi_rttcur;         break;
+	case 1:  smp->data.u.sint = info.tcpi_rttvar;         break;
+	case 2:  smp->data.u.sint = info.tcpi_tfo_syn_data_acked; break;
+	case 4:  smp->data.u.sint = info.tcpi_tfo_syn_loss;   break;
+	case 5:  smp->data.u.sint = info.tcpi_rto;            break;
+#else
+	/* all other platforms supporting TCP_INFO have these ones */
 	case 0:  smp->data.u.sint = info.tcpi_rtt;            break;
 	case 1:  smp->data.u.sint = info.tcpi_rttvar;         break;
-#if defined(__linux__)
+# if defined(__linux__)
 	/* these ones are common to all Linux versions */
 	case 2:  smp->data.u.sint = info.tcpi_unacked;        break;
 	case 3:  smp->data.u.sint = info.tcpi_sacked;         break;
@@ -349,7 +357,7 @@ static inline int get_tcp_info(const struct arg *args, struct sample *smp,
 	case 5:  smp->data.u.sint = info.tcpi_retrans;        break;
 	case 6:  smp->data.u.sint = info.tcpi_fackets;        break;
 	case 7:  smp->data.u.sint = info.tcpi_reordering;     break;
-#elif defined(__FreeBSD__) || defined(__NetBSD__)
+# elif defined(__FreeBSD__) || defined(__NetBSD__)
 	/* the ones are found on FreeBSD and NetBSD featuring TCP_INFO */
 	case 2:  smp->data.u.sint = info.__tcpi_unacked;      break;
 	case 3:  smp->data.u.sint = info.__tcpi_sacked;       break;
@@ -357,14 +365,15 @@ static inline int get_tcp_info(const struct arg *args, struct sample *smp,
 	case 5:  smp->data.u.sint = info.__tcpi_retrans;      break;
 	case 6:  smp->data.u.sint = info.__tcpi_fackets;      break;
 	case 7:  smp->data.u.sint = info.__tcpi_reordering;   break;
-#endif
+# endif
+#endif // apple
 	default: return 0;
 	}
 
 	return 1;
 }
 
-#if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__)
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(__APPLE__)
 /* get the mean rtt of a client connection */
 static int
 smp_fetch_fc_rtt(const struct arg *args, struct sample *smp, const char *kw, void *private)
@@ -380,7 +389,7 @@ smp_fetch_fc_rtt(const struct arg *args, struct sample *smp, const char *kw, voi
 }
 #endif
 
-#if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__)
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(__APPLE__)
 /* get the variance of the mean rtt of a client connection */
 static int
 smp_fetch_fc_rttvar(const struct arg *args, struct sample *smp, const char *kw, void *private)
@@ -397,7 +406,7 @@ smp_fetch_fc_rttvar(const struct arg *args, struct sample *smp, const char *kw, 
 #endif
 
 
-#if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__)
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(__APPLE__)
 /* get the unacked counter on a client connection */
 static int
 smp_fetch_fc_unacked(const struct arg *args, struct sample *smp, const char *kw, void *private)
@@ -419,7 +428,7 @@ smp_fetch_fc_sacked(const struct arg *args, struct sample *smp, const char *kw, 
 }
 #endif
 
-#if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__)
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(__APPLE__)
 /* get the lost counter on a client connection */
 static int
 smp_fetch_fc_lost(const struct arg *args, struct sample *smp, const char *kw, void *private)
@@ -430,7 +439,7 @@ smp_fetch_fc_lost(const struct arg *args, struct sample *smp, const char *kw, vo
 }
 #endif
 
-#if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__)
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(__APPLE__)
 /* get the retrans counter on a client connection */
 static int
 smp_fetch_fc_retrans(const struct arg *args, struct sample *smp, const char *kw, void *private)
@@ -493,19 +502,19 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 #ifdef TCP_INFO
 	{ "fc_rtt",           smp_fetch_fc_rtt,           ARG1(0,STR), val_fc_time_value, SMP_T_SINT, SMP_USE_L4CLI },
 	{ "fc_rttvar",        smp_fetch_fc_rttvar,        ARG1(0,STR), val_fc_time_value, SMP_T_SINT, SMP_USE_L4CLI },
-#if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__)
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(__APPLE__)
 	{ "fc_unacked",       smp_fetch_fc_unacked,       ARG1(0,STR), var_fc_counter, SMP_T_SINT, SMP_USE_L4CLI },
 #endif
 #if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__)
 	{ "fc_sacked",        smp_fetch_fc_sacked,        ARG1(0,STR), var_fc_counter, SMP_T_SINT, SMP_USE_L4CLI },
 #endif
-#if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__)
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(__APPLE__)
 	{ "fc_retrans",       smp_fetch_fc_retrans,       ARG1(0,STR), var_fc_counter, SMP_T_SINT, SMP_USE_L4CLI },
 #endif
 #if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__)
 	{ "fc_fackets",       smp_fetch_fc_fackets,       ARG1(0,STR), var_fc_counter, SMP_T_SINT, SMP_USE_L4CLI },
 #endif
-#if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__)
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(__APPLE__)
 	{ "fc_lost",          smp_fetch_fc_lost,          ARG1(0,STR), var_fc_counter, SMP_T_SINT, SMP_USE_L4CLI },
 #endif
 #if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__)
