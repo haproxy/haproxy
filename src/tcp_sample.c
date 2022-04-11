@@ -364,6 +364,7 @@ static inline int get_tcp_info(const struct arg *args, struct sample *smp,
 	return 1;
 }
 
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__)
 /* get the mean rtt of a client connection */
 static int
 smp_fetch_fc_rtt(const struct arg *args, struct sample *smp, const char *kw, void *private)
@@ -377,7 +378,9 @@ smp_fetch_fc_rtt(const struct arg *args, struct sample *smp, const char *kw, voi
 
 	return 1;
 }
+#endif
 
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__)
 /* get the variance of the mean rtt of a client connection */
 static int
 smp_fetch_fc_rttvar(const struct arg *args, struct sample *smp, const char *kw, void *private)
@@ -391,9 +394,10 @@ smp_fetch_fc_rttvar(const struct arg *args, struct sample *smp, const char *kw, 
 
 	return 1;
 }
+#endif
+
 
 #if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__)
-
 /* get the unacked counter on a client connection */
 static int
 smp_fetch_fc_unacked(const struct arg *args, struct sample *smp, const char *kw, void *private)
@@ -402,7 +406,9 @@ smp_fetch_fc_unacked(const struct arg *args, struct sample *smp, const char *kw,
 		return 0;
 	return 1;
 }
+#endif
 
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__)
 /* get the sacked counter on a client connection */
 static int
 smp_fetch_fc_sacked(const struct arg *args, struct sample *smp, const char *kw, void *private)
@@ -411,7 +417,9 @@ smp_fetch_fc_sacked(const struct arg *args, struct sample *smp, const char *kw, 
 		return 0;
 	return 1;
 }
+#endif
 
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__)
 /* get the lost counter on a client connection */
 static int
 smp_fetch_fc_lost(const struct arg *args, struct sample *smp, const char *kw, void *private)
@@ -420,7 +428,9 @@ smp_fetch_fc_lost(const struct arg *args, struct sample *smp, const char *kw, vo
 		return 0;
 	return 1;
 }
+#endif
 
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__)
 /* get the retrans counter on a client connection */
 static int
 smp_fetch_fc_retrans(const struct arg *args, struct sample *smp, const char *kw, void *private)
@@ -429,7 +439,9 @@ smp_fetch_fc_retrans(const struct arg *args, struct sample *smp, const char *kw,
 		return 0;
 	return 1;
 }
+#endif
 
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__)
 /* get the fackets counter on a client connection */
 static int
 smp_fetch_fc_fackets(const struct arg *args, struct sample *smp, const char *kw, void *private)
@@ -438,7 +450,9 @@ smp_fetch_fc_fackets(const struct arg *args, struct sample *smp, const char *kw,
 		return 0;
 	return 1;
 }
+#endif
 
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__)
 /* get the reordering counter on a client connection */
 static int
 smp_fetch_fc_reordering(const struct arg *args, struct sample *smp, const char *kw, void *private)
@@ -447,7 +461,7 @@ smp_fetch_fc_reordering(const struct arg *args, struct sample *smp, const char *
 		return 0;
 	return 1;
 }
-#endif // linux || freebsd || netbsd
+#endif
 #endif // TCP_INFO
 
 /* Note: must not be declared <const> as its list will be overwritten.
@@ -481,12 +495,22 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "fc_rttvar",        smp_fetch_fc_rttvar,        ARG1(0,STR), val_fc_time_value, SMP_T_SINT, SMP_USE_L4CLI },
 #if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__)
 	{ "fc_unacked",       smp_fetch_fc_unacked,       ARG1(0,STR), var_fc_counter, SMP_T_SINT, SMP_USE_L4CLI },
+#endif
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__)
 	{ "fc_sacked",        smp_fetch_fc_sacked,        ARG1(0,STR), var_fc_counter, SMP_T_SINT, SMP_USE_L4CLI },
+#endif
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__)
 	{ "fc_retrans",       smp_fetch_fc_retrans,       ARG1(0,STR), var_fc_counter, SMP_T_SINT, SMP_USE_L4CLI },
+#endif
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__)
 	{ "fc_fackets",       smp_fetch_fc_fackets,       ARG1(0,STR), var_fc_counter, SMP_T_SINT, SMP_USE_L4CLI },
+#endif
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__)
 	{ "fc_lost",          smp_fetch_fc_lost,          ARG1(0,STR), var_fc_counter, SMP_T_SINT, SMP_USE_L4CLI },
+#endif
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__)
 	{ "fc_reordering",    smp_fetch_fc_reordering,    ARG1(0,STR), var_fc_counter, SMP_T_SINT, SMP_USE_L4CLI },
-#endif // linux || freebsd || netbsd
+#endif
 #endif // TCP_INFO
 	{ /* END */ },
 }};
