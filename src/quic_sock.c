@@ -84,6 +84,54 @@ int quic_session_accept(struct connection *cli_conn)
 	return -1;
 }
 
+/* Retrieve a connection's source address. Returns -1 on failure. */
+int quic_sock_get_src(struct connection *conn, struct sockaddr *addr, socklen_t len)
+{
+	struct quic_conn *qc;
+
+	if (!conn || !conn->qc)
+		return -1;
+
+	qc = conn->qc;
+	if (conn_is_back(conn)) {
+		/* no source address defined for outgoing connections for now */
+		return -1;
+	} else {
+		/* front connection, return the peer's address */
+		if (len > sizeof(qc->peer_addr))
+			len = sizeof(qc->peer_addr);
+		memcpy(addr, &qc->peer_addr, len);
+		return 0;
+	}
+}
+
+/* Retrieve a connection's destination address. Returns -1 on failure. */
+int quic_sock_get_dst(struct connection *conn, struct sockaddr *addr, socklen_t len)
+{
+	struct quic_conn *qc;
+
+	if (!conn || !conn->qc)
+		return -1;
+
+	qc = conn->qc;
+	if (conn_is_back(conn)) {
+		/* back connection, return the peer's address */
+		if (len > sizeof(qc->peer_addr))
+			len = sizeof(qc->peer_addr);
+		memcpy(addr, &qc->peer_addr, len);
+	} else {
+		/* FIXME: front connection, no local address for now, we'll
+		 * return the listener's address instead.
+		 */
+		BUG_ON(!qc->li);
+
+		if (len > sizeof(qc->li->rx.addr))
+			len = sizeof(qc->li->rx.addr);
+		memcpy(addr, &qc->li->rx.addr, len);
+	}
+	return 0;
+}
+
 /*
  * Inspired from session_accept_fd().
  * Instantiate a new connection (connection struct) to be attached to <qc>

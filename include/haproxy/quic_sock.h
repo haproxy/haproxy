@@ -35,6 +35,8 @@
 #include <haproxy/quic_sock-t.h>
 
 int quic_session_accept(struct connection *cli_conn);
+int quic_sock_get_src(struct connection *conn, struct sockaddr *addr, socklen_t len);
+int quic_sock_get_dst(struct connection *conn, struct sockaddr *addr, socklen_t len);
 int quic_sock_accepting_conn(const struct receiver *rx);
 struct connection *quic_sock_accept_conn(struct listener *l, int *status);
 void quic_sock_fd_iocb(int fd);

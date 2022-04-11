@@ -75,6 +75,8 @@ struct protocol proto_quic4 = {
 	.suspend        = default_suspend_listener,
 	.resume         = default_resume_listener,
 	.accept_conn    = quic_sock_accept_conn,
+	.get_src        = quic_sock_get_src,
+	.get_dst        = quic_sock_get_dst,
 	.connect        = quic_connect_server,
 
 	/* binding layer */
@@ -113,6 +115,8 @@ struct protocol proto_quic6 = {
 	.suspend        = default_suspend_listener,
 	.resume         = default_resume_listener,
 	.accept_conn    = quic_sock_accept_conn,
+	.get_src        = quic_sock_get_src,
+	.get_dst        = quic_sock_get_dst,
 	.connect        = quic_connect_server,
 
 	/* binding layer */
