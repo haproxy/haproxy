@@ -103,6 +103,14 @@ struct connection *sock_accept_conn(struct listener *l, int *status)
 	}
 
 	if (likely(cfd != -1)) {
+		if (unlikely(cfd >= global.maxsock)) {
+			close(cfd);
+			send_log(p, LOG_EMERG,
+				 "Proxy %s reached the configured maximum connection limit. Please check the global 'maxconn' value.\n",
+				 p->id);
+			goto fail_conn;
+		}
+
 		/* Perfect, the connection was accepted */
 		conn = conn_new(&l->obj_type);
 		if (!conn)

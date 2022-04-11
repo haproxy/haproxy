@@ -965,16 +965,6 @@ void listener_accept(struct listener *l)
 
 		_HA_ATOMIC_INC(&activity[tid].accepted);
 
-		if (unlikely(cli_conn->handle.fd >= global.maxsock)) {
-			send_log(p, LOG_EMERG,
-				 "Proxy %s reached the configured maximum connection limit. Please check the global 'maxconn' value.\n",
-				 p->id);
-			close(cli_conn->handle.fd);
-			conn_free(cli_conn);
-			expire = tick_add(now_ms, 1000); /* try again in 1 second */
-			goto limit_global;
-		}
-
 		/* past this point, l->accept() will automatically decrement
 		 * l->nbconn, feconn and actconn once done. Setting next_*conn=0
 		 * allows the error path not to rollback on nbconn. It's more
