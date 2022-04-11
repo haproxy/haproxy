@@ -2417,8 +2417,8 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		    si_b->prev_state == SI_ST_EST) {
 			chunk_printf(&trash, "%08x:%s.srvcls[%04x:%04x]\n",
 				     s->uniq_id, s->be->id,
-				     cs_conn(si_f->cs) ? (unsigned short)__cs_conn(si_f->cs)->handle.fd : -1,
-				     cs_conn(si_b->cs) ? (unsigned short)__cs_conn(si_b->cs)->handle.fd : -1);
+				     (unsigned short)conn_fd(cs_conn(si_f->cs)),
+				     (unsigned short)conn_fd(cs_conn(si_b->cs)));
 			DISGUISE(write(1, trash.area, trash.data));
 		}
 
@@ -2426,8 +2426,8 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		    si_f->prev_state == SI_ST_EST) {
 			chunk_printf(&trash, "%08x:%s.clicls[%04x:%04x]\n",
 				     s->uniq_id, s->be->id,
-				     cs_conn(si_f->cs) ? (unsigned short)__cs_conn(si_f->cs)->handle.fd : -1,
-				     cs_conn(si_b->cs) ? (unsigned short)__cs_conn(si_b->cs)->handle.fd : -1);
+				     (unsigned short)conn_fd(cs_conn(si_f->cs)),
+				     (unsigned short)conn_fd(cs_conn(si_b->cs)));
 			DISGUISE(write(1, trash.area, trash.data));
 		}
 	}
@@ -2494,8 +2494,8 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		     (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)))) {
 		chunk_printf(&trash, "%08x:%s.closed[%04x:%04x]\n",
 			     s->uniq_id, s->be->id,
-			     cs_conn(si_f->cs) ? (unsigned short)__cs_conn(si_f->cs)->handle.fd : -1,
-			     cs_conn(si_b->cs) ? (unsigned short)__cs_conn(si_b->cs)->handle.fd : -1);
+			     (unsigned short)conn_fd(cs_conn(si_f->cs)),
+			     (unsigned short)conn_fd(cs_conn(si_b->cs)));
 		DISGUISE(write(1, trash.area, trash.data));
 	}
 
@@ -2759,9 +2759,9 @@ void stream_dump(struct buffer *buf, const struct stream *s, const char *pfx, ch
 		      pfx, csf, csf->flags, csb, csb->flags, eol,
 	              pfx, acf, acf ? acf->st0   : 0, acb, acb ? acb->st0   : 0, eol,
 	              pfx, cof, cof ? cof->flags : 0, conn_get_mux_name(cof), cof?cof->ctx:0, conn_get_xprt_name(cof),
-	                   cof ? cof->xprt_ctx : 0, conn_get_ctrl_name(cof), cof ? cof->handle.fd : 0, eol,
+		           cof ? cof->xprt_ctx : 0, conn_get_ctrl_name(cof), conn_fd(cof), eol,
 	              pfx, cob, cob ? cob->flags : 0, conn_get_mux_name(cob), cob?cob->ctx:0, conn_get_xprt_name(cob),
-	                   cob ? cob->xprt_ctx : 0, conn_get_ctrl_name(cob), cob ? cob->handle.fd : 0, eol);
+		           cob ? cob->xprt_ctx : 0, conn_get_ctrl_name(cob), conn_fd(cob), eol);
 }
 
 /* dumps an error message for type <type> at ptr <ptr> related to stream <s>,
@@ -3302,10 +3302,10 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 			chunk_appendf(&trash,
 			              "      flags=0x%08x fd=%d fd.state=%02x updt=%d fd.tmask=0x%lx\n",
 			              conn->flags,
-			              conn->handle.fd,
-			              conn->handle.fd >= 0 ? fdtab[conn->handle.fd].state : 0,
-			              conn->handle.fd >= 0 ? !!(fdtab[conn->handle.fd].update_mask & tid_bit) : 0,
-				      conn->handle.fd >= 0 ? fdtab[conn->handle.fd].thread_mask: 0);
+			              conn_fd(conn),
+			              conn_fd(conn) >= 0 ? fdtab[conn->handle.fd].state : 0,
+			              conn_fd(conn) >= 0 ? !!(fdtab[conn->handle.fd].update_mask & tid_bit) : 0,
+				      conn_fd(conn) >= 0 ? fdtab[conn->handle.fd].thread_mask: 0);
 
 		}
 		else if ((tmpctx = cs_appctx(cs)) != NULL) {
@@ -3337,10 +3337,10 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 			chunk_appendf(&trash,
 			              "      flags=0x%08x fd=%d fd.state=%02x updt=%d fd.tmask=0x%lx\n",
 			              conn->flags,
-			              conn->handle.fd,
-			              conn->handle.fd >= 0 ? fdtab[conn->handle.fd].state : 0,
-			              conn->handle.fd >= 0 ? !!(fdtab[conn->handle.fd].update_mask & tid_bit) : 0,
-				      conn->handle.fd >= 0 ? fdtab[conn->handle.fd].thread_mask: 0);
+			              conn_fd(conn),
+			              conn_fd(conn) >= 0 ? fdtab[conn->handle.fd].state : 0,
+			              conn_fd(conn) >= 0 ? !!(fdtab[conn->handle.fd].update_mask & tid_bit) : 0,
+				      conn_fd(conn) >= 0 ? fdtab[conn->handle.fd].thread_mask: 0);
 
 		}
 		else if ((tmpctx = cs_appctx(cs)) != NULL) {
@@ -3660,7 +3660,7 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 				     " s0=[%d,%1xh,fd=%d,ex=%s]",
 				     curr_strm->csf->si->state,
 				     curr_strm->csf->si->flags,
-				     conn ? conn->handle.fd : -1,
+				     conn_fd(conn),
 				     curr_strm->csf->si->exp ?
 				     human_time(TICKS_TO_MS(curr_strm->csf->si->exp - now_ms),
 						TICKS_TO_MS(1000)) : "");
@@ -3670,7 +3670,7 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 				     " s1=[%d,%1xh,fd=%d,ex=%s]",
 				     curr_strm->csb->si->state,
 				     curr_strm->csb->si->flags,
-				     conn ? conn->handle.fd : -1,
+				     conn_fd(conn),
 				     curr_strm->csb->si->exp ?
 				     human_time(TICKS_TO_MS(curr_strm->csb->si->exp - now_ms),
 						TICKS_TO_MS(1000)) : "");
