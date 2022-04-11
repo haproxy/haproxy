@@ -1713,6 +1713,7 @@ static void ssl_sock_parse_heartbeat(struct connection *conn, int write_p, int v
 		const unsigned char *p = buf;
 		unsigned int payload;
 
+		ALREADY_CHECKED(ctx);
 		ctx->xprt_st |= SSL_SOCK_RECV_HEARTBEAT;
 
 		/* Check if this is a CVE-2014-0160 exploitation attempt. */
