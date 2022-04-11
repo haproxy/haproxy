@@ -5693,7 +5693,7 @@ static struct quic_tx_packet *qc_build_pkt(unsigned char **pos,
  */
 static int quic_conn_subscribe(struct connection *conn, void *xprt_ctx, int event_type, struct wait_event *es)
 {
-	struct qcc *qcc = conn->qc->qcc;
+	struct qcc *qcc = conn->handle.qc->qcc;
 
 	BUG_ON(event_type & ~(SUB_RETRY_SEND|SUB_RETRY_RECV));
 	BUG_ON(qcc->subs && qcc->subs != es);
@@ -5702,10 +5702,10 @@ static int quic_conn_subscribe(struct connection *conn, void *xprt_ctx, int even
 	qcc->subs = es;
 
 	if (event_type & SUB_RETRY_RECV)
-		TRACE_DEVEL("subscribe(recv)", QUIC_EV_CONN_XPRTRECV, conn->qc, qcc);
+		TRACE_DEVEL("subscribe(recv)", QUIC_EV_CONN_XPRTRECV, conn->handle.qc, qcc);
 
 	if (event_type & SUB_RETRY_SEND)
-		TRACE_DEVEL("subscribe(send)", QUIC_EV_CONN_XPRTSEND, conn->qc, qcc);
+		TRACE_DEVEL("subscribe(send)", QUIC_EV_CONN_XPRTSEND, conn->handle.qc, qcc);
 
 	return 0;
 }
@@ -5732,7 +5732,7 @@ static int qc_conn_init(struct connection *conn, void **xprt_ctx)
 	if (*xprt_ctx)
 		goto out;
 
-	*xprt_ctx = conn->qc->xprt_ctx;
+	*xprt_ctx = conn->handle.qc->xprt_ctx;
 
  out:
 	TRACE_LEAVE(QUIC_EV_CONN_NEW, qc);
@@ -5746,7 +5746,7 @@ static int qc_xprt_start(struct connection *conn, void *ctx)
 	struct quic_conn *qc;
 	struct ssl_sock_ctx *qctx = ctx;
 
-	qc = conn->qc;
+	qc = conn->handle.qc;
 	if (qcc_install_app_ops(qc->qcc, qc->app_ops)) {
 		TRACE_PROTO("Cannot install app layer", QUIC_EV_CONN_LPKT, qc);
 		return 0;
@@ -5761,10 +5761,10 @@ static int qc_xprt_start(struct connection *conn, void *ctx)
 
 static struct ssl_sock_ctx *qc_get_ssl_sock_ctx(struct connection *conn)
 {
-	if (!conn || conn->xprt != xprt_get(XPRT_QUIC) || !conn->qc || !conn->xprt_ctx)
+	if (!conn || conn->xprt != xprt_get(XPRT_QUIC) || !conn->handle.qc || !conn->xprt_ctx)
 		return NULL;
 
-	return conn->qc->xprt_ctx;
+	return conn->handle.qc->xprt_ctx;
 }
 
 /* transport-layer operations for QUIC connections. */

@@ -327,10 +327,12 @@ struct wait_event {
 };
 
 /* A connection handle is how we differentiate two connections on the lower
- * layers. It usually is a file descriptor but can be a connection id.
+ * layers. It usually is a file descriptor but can be a connection id. The
+ * CO_FL_FDLESS flag indicates which one is relevant.
  */
 union conn_handle {
-	int fd;                 /* file descriptor, for regular sockets */
+	struct quic_conn *qc;   /* Only present if this connection is a QUIC one (CO_FL_FDLESS=1) */
+	int fd;                 /* file descriptor, for regular sockets (CO_FL_FDLESS=0) */
 };
 
 /* xprt_ops describes transport-layer operations for a connection. They
@@ -497,7 +499,6 @@ struct connection {
 	struct sockaddr_storage *dst; /* destination address (pool), when known, otherwise NULL */
 	struct ist proxy_authority;   /* Value of the authority TLV received via PROXYv2 */
 	struct ist proxy_unique_id;   /* Value of the unique ID TLV received via PROXYv2 */
-	struct quic_conn *qc;         /* Only present if this connection is a QUIC one */
 
 	/* used to identify a backend connection for http-reuse,
 	 * thus only present if conn.target is of type OBJ_TYPE_SERVER

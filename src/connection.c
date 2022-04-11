@@ -433,7 +433,6 @@ void conn_init(struct connection *conn, void *target)
 	conn->dst = NULL;
 	conn->proxy_authority = IST_NULL;
 	conn->proxy_unique_id = IST_NULL;
-	conn->qc = NULL;
 	conn->hash_node = NULL;
 	conn->xprt = NULL;
 }

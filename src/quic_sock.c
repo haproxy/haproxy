@@ -75,7 +75,7 @@ int quic_session_accept(struct connection *cli_conn)
 	sess->listener = NULL;
 	session_free(sess);
  out_free_conn:
-	cli_conn->qc->conn = NULL;
+	cli_conn->handle.qc->conn = NULL;
 	conn_stop_tracking(cli_conn);
 	conn_xprt_close(cli_conn);
 	conn_free(cli_conn);
@@ -89,10 +89,10 @@ int quic_sock_get_src(struct connection *conn, struct sockaddr *addr, socklen_t 
 {
 	struct quic_conn *qc;
 
-	if (!conn || !conn->qc)
+	if (!conn || !conn->handle.qc)
 		return -1;
 
-	qc = conn->qc;
+	qc = conn->handle.qc;
 	if (conn_is_back(conn)) {
 		/* no source address defined for outgoing connections for now */
 		return -1;
@@ -110,10 +110,10 @@ int quic_sock_get_dst(struct connection *conn, struct sockaddr *addr, socklen_t 
 {
 	struct quic_conn *qc;
 
-	if (!conn || !conn->qc)
+	if (!conn || !conn->handle.qc)
 		return -1;
 
-	qc = conn->qc;
+	qc = conn->handle.qc;
 	if (conn_is_back(conn)) {
 		/* back connection, return the peer's address */
 		if (len > sizeof(qc->peer_addr))
@@ -151,9 +151,8 @@ static int new_quic_cli_conn(struct quic_conn *qc, struct listener *l,
 
 	cli_conn->flags |= CO_FL_ADDR_FROM_SET | CO_FL_FDLESS;
 	qc->conn = cli_conn;
-	cli_conn->qc = qc;
+	cli_conn->handle.qc = qc;
 
-	cli_conn->handle.fd = l->rx.fd;
 	cli_conn->target = &l->obj_type;
 
 	/* We need the xprt context before accepting (->accept()) the connection:

@@ -159,7 +159,7 @@ void qcs_free(struct qcs *qcs)
 
 	/* stream desc must be removed from MUX tree before release it */
 	eb64_delete(&qcs->stream->by_id);
-	qc_stream_desc_release(qcs->stream, qcs->qcc->conn->qc);
+	qc_stream_desc_release(qcs->stream, qcs->qcc->conn->handle.qc);
 	pool_free(pool_head_qcs, qcs);
 }
 
@@ -521,7 +521,7 @@ static void qc_release(struct qcc *qcc)
 	if (conn) {
 		LIST_DEL_INIT(&conn->stopping_list);
 
-		conn->qc->conn = NULL;
+		conn->handle.qc->conn = NULL;
 		conn->mux = NULL;
 		conn->ctx = NULL;
 
@@ -715,7 +715,7 @@ static int qc_send_frames(struct qcc *qcc, struct list *frms)
 	}
 
 	if (!LIST_ISEMPTY(frms))
-		qc_send_app_pkts(qcc->conn->qc, frms);
+		qc_send_app_pkts(qcc->conn->handle.qc, frms);
 
 	/* If there is frames left, check if the transport layer has send some
 	 * data or is blocked.
@@ -976,7 +976,7 @@ static int qc_init(struct connection *conn, struct proxy *prx,
 	qcc->streams_by_id = EB_ROOT_UNIQUE;
 
 	/* Server parameters, params used for RX flow control. */
-	lparams = &conn->qc->rx.params;
+	lparams = &conn->handle.qc->rx.params;
 
 	qcc->rx.max_data = lparams->initial_max_data;
 	qcc->tx.sent_offsets = 0;
@@ -1010,7 +1010,7 @@ static int qc_init(struct connection *conn, struct proxy *prx,
 	qcc->lfctl.ms_bidi = qcc->lfctl.ms_bidi_init = lparams->initial_max_streams_bidi;
 	qcc->lfctl.cl_bidi_r = 0;
 
-	rparams = &conn->qc->tx.params;
+	rparams = &conn->handle.qc->tx.params;
 	qcc->rfctl.md = rparams->initial_max_data;
 	qcc->rfctl.msd_bidi_l = rparams->initial_max_stream_data_bidi_local;
 	qcc->rfctl.msd_bidi_r = rparams->initial_max_stream_data_bidi_remote;
@@ -1040,7 +1040,7 @@ static int qc_init(struct connection *conn, struct proxy *prx,
 		}
 	}
 
-	HA_ATOMIC_STORE(&conn->qc->qcc, qcc);
+	HA_ATOMIC_STORE(&conn->handle.qc->qcc, qcc);
 	/* init read cycle */
 	tasklet_wakeup(qcc->wait_event.tasklet);
 
@@ -1240,7 +1240,7 @@ static int qc_wake_some_streams(struct qcc *qcc)
 static int qc_wake(struct connection *conn)
 {
 	struct qcc *qcc = conn->ctx;
-	struct proxy *prx = conn->qc->li->bind_conf->frontend;
+	struct proxy *prx = conn->handle.qc->li->bind_conf->frontend;
 
 	TRACE_ENTER(QMUX_EV_QCC_WAKE, conn);
 
@@ -1252,7 +1252,7 @@ static int qc_wake(struct connection *conn)
 	if (unlikely(prx->flags & (PR_FL_DISABLED|PR_FL_STOPPED)))
 		goto release;
 
-	if (conn->qc->flags & QUIC_FL_CONN_NOTIFY_CLOSE)
+	if (conn->handle.qc->flags & QUIC_FL_CONN_NOTIFY_CLOSE)
 		qcc->conn->flags |= (CO_FL_SOCK_RD_SH|CO_FL_SOCK_WR_SH);
 
 	qc_send(qcc);
