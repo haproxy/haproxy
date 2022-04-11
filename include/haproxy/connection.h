@@ -352,7 +352,8 @@ static inline int conn_get_src(struct connection *conn)
 	if (!sockaddr_alloc(&conn->src, NULL, 0))
 		return 0;
 
-	if (conn->ctrl->fam->get_src(conn->handle.fd, (struct sockaddr *)conn->src,
+	if (conn->ctrl->fam->get_src && !(conn->flags & CO_FL_FDLESS) &&
+	    conn->ctrl->fam->get_src(conn->handle.fd, (struct sockaddr *)conn->src,
 	                        sizeof(*conn->src),
 	                        obj_type(conn->target) != OBJ_TYPE_LISTENER) == -1)
 		return 0;
@@ -375,7 +376,8 @@ static inline int conn_get_dst(struct connection *conn)
 	if (!sockaddr_alloc(&conn->dst, NULL, 0))
 		return 0;
 
-	if (conn->ctrl->fam->get_dst(conn->handle.fd, (struct sockaddr *)conn->dst,
+	if (conn->ctrl->fam->get_dst && !(conn->flags & CO_FL_FDLESS) &&
+	    conn->ctrl->fam->get_dst(conn->handle.fd, (struct sockaddr *)conn->dst,
 	                        sizeof(*conn->dst),
 	                        obj_type(conn->target) != OBJ_TYPE_LISTENER) == -1)
 		return 0;
@@ -389,7 +391,7 @@ static inline int conn_get_dst(struct connection *conn)
  */
 static inline void conn_set_tos(const struct connection *conn, int tos)
 {
-	if (!conn || !conn_ctrl_ready(conn))
+	if (!conn || !conn_ctrl_ready(conn) || (conn->flags & CO_FL_FDLESS))
 		return;
 
 #ifdef IP_TOS
@@ -412,7 +414,7 @@ static inline void conn_set_tos(const struct connection *conn, int tos)
  */
 static inline void conn_set_mark(const struct connection *conn, int mark)
 {
-	if (!conn || !conn_ctrl_ready(conn))
+	if (!conn || !conn_ctrl_ready(conn) || (conn->flags & CO_FL_FDLESS))
 		return;
 
 #if defined(SO_MARK)
@@ -429,7 +431,7 @@ static inline void conn_set_mark(const struct connection *conn, int mark)
  */
 static inline void conn_set_quickack(const struct connection *conn, int value)
 {
-	if (!conn || !conn_ctrl_ready(conn))
+	if (!conn || !conn_ctrl_ready(conn) || (conn->flags & CO_FL_FDLESS))
 		return;
 
 #ifdef TCP_QUICKACK

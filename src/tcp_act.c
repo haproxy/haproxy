@@ -290,6 +290,9 @@ static enum act_return tcp_exec_action_silent_drop(struct act_rule *rule, struct
 	if (strm)
 		strm->csf->si->flags |= SI_FL_NOLINGER;
 
+	if (conn->flags & CO_FL_FDLESS)
+		goto out;
+
 	/* We're on the client-facing side, we must force to disable lingering to
 	 * ensure we will use an RST exclusively and kill any pending data.
 	 */

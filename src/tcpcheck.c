@@ -1210,7 +1210,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 		ssl_sock_set_alpn(conn, (unsigned char *)s->check.alpn_str, s->check.alpn_len);
 #endif
 
-	if (conn_ctrl_ready(conn) && (connect->options & TCPCHK_OPT_LINGER)) {
+	if (conn_ctrl_ready(conn) && (connect->options & TCPCHK_OPT_LINGER) && !(conn->flags & CO_FL_FDLESS)) {
 		/* Some servers don't like reset on close */
 		HA_ATOMIC_AND(&fdtab[conn->handle.fd].state, ~FD_LINGER_RISK);
 	}
