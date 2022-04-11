@@ -274,7 +274,10 @@ the command line.
 
 It is worth mentioning that asynchronous cryptography engines are supported on
 OpenSSL 1.1.0 and above. Such engines are used to access hardware cryptography
-acceleration that might be present on your system.
+acceleration that might be present on your system. Due to API changes that
+appeared with OpenSSL 3.0 and cause lots of build warnings, engines are not
+enabled by default anymore in HAProxy 2.6. It is required to pass USE_ENGINE=1
+if they are desired.
 
 
 4.6) Compression
