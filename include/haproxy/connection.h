@@ -648,15 +648,18 @@ static inline struct proxy *conn_get_proxy(const struct connection *conn)
 	return objt_proxy(conn->target);
 }
 
+/* retrieves the ssl_sock_ctx for this connection otherwise NULL */
+static inline struct ssl_sock_ctx *conn_get_ssl_sock_ctx(struct connection *conn)
+{
+	if (!conn || !conn->xprt || !conn->xprt->get_ssl_sock_ctx)
+		return NULL;
+	return conn->xprt->get_ssl_sock_ctx(conn);
+}
 
 /* boolean, returns true if connection is over SSL */
-static inline
-int conn_is_ssl(struct connection *conn)
+static inline int conn_is_ssl(struct connection *conn)
 {
-	if (!conn || conn->xprt != xprt_get(XPRT_SSL) || !conn->xprt_ctx)
-		return 0;
-	else
-		return 1;
+	return !!conn_get_ssl_sock_ctx(conn);
 }
 
 #endif /* _HAPROXY_CONNECTION_H */

@@ -595,6 +595,14 @@ static void ssl_sock_unregister_msg_callbacks(void)
 	}
 }
 
+static struct ssl_sock_ctx *ssl_sock_get_ctx(struct connection *conn)
+{
+	if (!conn || conn->xprt != xprt_get(XPRT_SSL) || !conn->xprt_ctx)
+		return NULL;
+
+	return (struct ssl_sock_ctx *)conn->xprt_ctx;
+}
+
 SSL *ssl_sock_get_ssl_object(struct connection *conn)
 {
 	if (!conn_is_ssl(conn))
@@ -7729,6 +7737,7 @@ struct xprt_ops ssl_sock = {
 	.takeover = ssl_takeover,
 	.set_idle = ssl_set_idle,
 	.set_used = ssl_set_used,
+	.get_ssl_sock_ctx = ssl_sock_get_ctx,
 	.name     = "SSL",
 	.show_fd  = ssl_sock_show_fd,
 };

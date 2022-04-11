@@ -51,6 +51,7 @@ struct pipe;
 struct quic_conn;
 struct bind_conf;
 struct qcs;
+struct ssl_sock_ctx;
 
 /* Note: subscribing to these events is only valid after the caller has really
  * attempted to perform the operation, and failed to proceed or complete.
@@ -360,6 +361,7 @@ struct xprt_ops {
 	int (*unsubscribe)(struct connection *conn, void *xprt_ctx, int event_type, struct wait_event *es); /* Unsubscribe <es> from events */
 	int (*remove_xprt)(struct connection *conn, void *xprt_ctx, void *toremove_ctx, const struct xprt_ops *newops, void *newctx); /* Remove an xprt from the connection, used by temporary xprt such as the handshake one */
 	int (*add_xprt)(struct connection *conn, void *xprt_ctx, void *toadd_ctx, const struct xprt_ops *toadd_ops, void **oldxprt_ctx, const struct xprt_ops **oldxprt_ops); /* Add a new XPRT as the new xprt, and return the old one */
+	struct ssl_sock_ctx *(*get_ssl_sock_ctx)(struct connection *); /* retrieve the ssl_sock_ctx in use, or NULL if none */
 	int (*show_fd)(struct buffer *, const struct connection *, const void *ctx); /* append some data about xprt for "show fd"; returns non-zero if suspicious */
 };
 
