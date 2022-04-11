@@ -200,6 +200,16 @@ static inline void conn_stop_tracking(struct connection *conn)
 	conn->flags &= ~CO_FL_XPRT_TRACKED;
 }
 
+/* returns the connection's FD if the connection exists, its control is ready,
+ * and the connection has an FD, otherwise -1.
+ */
+static inline int conn_fd(const struct connection *conn)
+{
+	if (!conn || !conn_ctrl_ready(conn) || (conn->flags & CO_FL_FDLESS))
+		return -1;
+	return conn->handle.fd;
+}
+
 /* read shutdown, called from the rcv_buf/rcv_pipe handlers when
  * detecting an end of connection.
  */
