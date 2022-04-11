@@ -2864,8 +2864,8 @@ static int qc_prep_app_pkts(struct quic_conn *qc, struct qring *qr,
  * or -1 if something wrong happened.
  */
 static int qc_prep_pkts(struct quic_conn *qc, struct qring *qr,
-                        enum quic_tls_enc_level tel,
-                        enum quic_tls_enc_level next_tel)
+                        enum quic_tls_enc_level tel, struct list *tel_frms,
+                        enum quic_tls_enc_level next_tel, struct list *next_tel_frms)
 {
 	struct quic_enc_level *qel;
 	struct cbuf *cbuf;
@@ -2879,14 +2879,16 @@ static int qc_prep_pkts(struct quic_conn *qc, struct qring *qr,
 	 * address of the first packet in the datagram.
 	 */
 	size_t dg_headlen = sizeof dglen + sizeof first_pkt;
+	struct list *frms;
 
 	TRACE_ENTER(QUIC_EV_CONN_PHPKTS, qc);
 
 	total = 0;
+	qel = &qc->els[tel];
+	frms = tel_frms;
  start:
 	dglen = 0;
 	padding = 0;
-	qel = &qc->els[tel];
 	cbuf = qr->cbuf;
 	pos = cb_wr(cbuf);
 	/* Leave at least <dglen> bytes at the end of this buffer
@@ -2906,12 +2908,13 @@ static int qc_prep_pkts(struct quic_conn *qc, struct qring *qr,
 		if (!cc)
 			probe = qel->pktns->tx.pto_probe;
 
-		if (!qc_may_build_pkt(qc, &qel->pktns->tx.frms, qel, cc, probe)) {
+		if (!qc_may_build_pkt(qc, frms, qel, cc, probe)) {
 			if (prv_pkt)
 				qc_set_dg(cbuf, dglen, first_pkt);
 			/* Let's select the next encryption level */
 			if (tel != next_tel && next_tel != QUIC_TLS_ENC_LEVEL_NONE) {
 				tel = next_tel;
+				frms = next_tel_frms;
 				qel = &qc->els[tel];
 				/* Build a new datagram */
 				prv_pkt = NULL;
@@ -2932,7 +2935,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct qring *qr,
 			}
 		}
 
-		cur_pkt = qc_build_pkt(&pos, end, qel, &qel->pktns->tx.frms,
+		cur_pkt = qc_build_pkt(&pos, end, qel, frms,
 		                       qc, dglen, padding, pkt_type, probe, cc, &err);
 		switch (err) {
 		case -2:
@@ -2979,13 +2982,17 @@ static int qc_prep_pkts(struct quic_conn *qc, struct qring *qr,
 		 * select the next level.
 		 */
 		if ((tel == QUIC_TLS_ENC_LEVEL_INITIAL || tel == QUIC_TLS_ENC_LEVEL_HANDSHAKE) &&
-		    (LIST_ISEMPTY(&qel->pktns->tx.frms) && !qel->pktns->tx.pto_probe)) {
+		    (LIST_ISEMPTY(frms) && !qel->pktns->tx.pto_probe)) {
 			/* If QUIC_TLS_ENC_LEVEL_HANDSHAKE was already reached let's try QUIC_TLS_ENC_LEVEL_APP */
 			if (tel == QUIC_TLS_ENC_LEVEL_HANDSHAKE && next_tel == tel)
 				next_tel = QUIC_TLS_ENC_LEVEL_APP;
 			tel = next_tel;
+			if (tel == QUIC_TLS_ENC_LEVEL_APP)
+				frms = &qc->els[tel].pktns->tx.frms;
+			else
+				frms = next_tel_frms;
 			qel = &qc->els[tel];
-			if (!LIST_ISEMPTY(&qel->pktns->tx.frms)) {
+			if (!LIST_ISEMPTY(frms)) {
 				/* If there is data for the next level, do not
 				 * consume a datagram.
 				 */
@@ -3733,7 +3740,8 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 	 */
 	if (!quic_get_tls_enc_levels(&tel, &next_tel, st, 0))
 		goto err;
-	ret = qc_prep_pkts(qc, qr, tel, next_tel);
+	ret = qc_prep_pkts(qc, qr, tel, &qc->els[tel].pktns->tx.frms,
+	                   next_tel, &qc->els[next_tel].pktns->tx.frms);
 	if (ret == -1)
 		goto err;
 	else if (ret == 0)
