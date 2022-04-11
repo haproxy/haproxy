@@ -116,6 +116,8 @@ enum {
 	CO_FL_ERROR         = 0x00100000,  /* a fatal error was reported     */
 	CO_FL_NOTIFY_DONE   = 0x001C0000,  /* any xprt shut/error flags above needs to be reported */
 
+	CO_FL_FDLESS        = 0x00200000,  /* this connection doesn't use any FD (e.g. QUIC) */
+
 	/* flags used to report connection status updates */
 	CO_FL_WAIT_L4_CONN  = 0x00400000,  /* waiting for L4 to be connected */
 	CO_FL_WAIT_L6_CONN  = 0x00800000,  /* waiting for L6 to be connected (eg: SSL) */

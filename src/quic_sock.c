@@ -101,7 +101,7 @@ static int new_quic_cli_conn(struct quic_conn *qc, struct listener *l,
 	if (!sockaddr_alloc(&cli_conn->src, saddr, sizeof *saddr))
 		goto out_free_conn;
 
-	cli_conn->flags |= CO_FL_ADDR_FROM_SET;
+	cli_conn->flags |= CO_FL_ADDR_FROM_SET | CO_FL_FDLESS;
 	qc->conn = cli_conn;
 	cli_conn->qc = qc;
 
