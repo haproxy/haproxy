@@ -1,7 +1,7 @@
 FreeBSD_task:
   freebsd_instance:
     matrix:
-      image_family: freebsd-12-2
+      image_family: freebsd-13-0
   only_if: $CIRRUS_BRANCH =~ 'master|next'
   install_script:
     - pkg update -f && pkg upgrade -y && pkg install -y openssl git gmake lua53 socat pcre
