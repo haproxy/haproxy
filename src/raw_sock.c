@@ -59,6 +59,8 @@ int raw_sock_to_pipe(struct connection *conn, void *xprt_ctx, struct pipe *pipe,
 	if (!conn_ctrl_ready(conn))
 		return 0;
 
+	BUG_ON(conn->flags & CO_FL_FDLESS);
+
 	if (!fd_recv_ready(conn->handle.fd))
 		return 0;
 
@@ -172,6 +174,8 @@ int raw_sock_from_pipe(struct connection *conn, void *xprt_ctx, struct pipe *pip
 	if (!conn_ctrl_ready(conn))
 		return 0;
 
+	BUG_ON(conn->flags & CO_FL_FDLESS);
+
 	if (!fd_send_ready(conn->handle.fd))
 		return 0;
 
@@ -230,6 +234,8 @@ static size_t raw_sock_to_buf(struct connection *conn, void *xprt_ctx, struct bu
 
 	if (!conn_ctrl_ready(conn))
 		return 0;
+
+	BUG_ON(conn->flags & CO_FL_FDLESS);
 
 	if (!fd_recv_ready(conn->handle.fd))
 		return 0;
@@ -349,6 +355,8 @@ static size_t raw_sock_from_buf(struct connection *conn, void *xprt_ctx, const s
 
 	if (!conn_ctrl_ready(conn))
 		return 0;
+
+	BUG_ON(conn->flags & CO_FL_FDLESS);
 
 	if (!fd_send_ready(conn->handle.fd))
 		return 0;

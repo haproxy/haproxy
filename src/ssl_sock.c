@@ -5849,6 +5849,8 @@ static int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 	 * the xprt layers should provide some status indicating their knowledge
 	 * of shutdowns or error.
 	 */
+	BUG_ON(conn->flags & CO_FL_FDLESS);
+
 	skerr = 0;
 	lskerr = sizeof(skerr);
 	if ((getsockopt(conn->handle.fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr) < 0) ||

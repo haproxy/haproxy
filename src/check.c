@@ -744,6 +744,8 @@ static int retrieve_errno_from_socket(struct connection *conn)
 	if (!conn_ctrl_ready(conn))
 		return 0;
 
+	BUG_ON(conn->flags & CO_FL_FDLESS);
+
 	if (getsockopt(conn->handle.fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr) == 0)
 		errno = skerr;
 

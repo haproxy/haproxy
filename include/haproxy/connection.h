@@ -220,6 +220,7 @@ static inline void conn_sock_read0(struct connection *c)
 		/* we don't risk keeping ports unusable if we found the
 		 * zero from the other side.
 		 */
+		BUG_ON(c->flags & CO_FL_FDLESS);
 		HA_ATOMIC_AND(&fdtab[c->handle.fd].state, ~FD_LINGER_RISK);
 	}
 }
@@ -236,6 +237,7 @@ static inline void conn_sock_shutw(struct connection *c, int clean)
 		/* don't perform a clean shutdown if we're going to reset or
 		 * if the shutr was already received.
 		 */
+		BUG_ON(c->flags & CO_FL_FDLESS);
 		if (!(c->flags & CO_FL_SOCK_RD_SH) && clean)
 			shutdown(c->handle.fd, SHUT_WR);
 	}

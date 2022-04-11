@@ -702,6 +702,7 @@ void sock_accept_iocb(int fd)
  */
 void sock_conn_ctrl_init(struct connection *conn)
 {
+	BUG_ON(conn->flags & CO_FL_FDLESS);
 	fd_insert(conn->handle.fd, conn, sock_conn_iocb, tid_bit);
 }
 
@@ -711,6 +712,7 @@ void sock_conn_ctrl_init(struct connection *conn)
  */
 void sock_conn_ctrl_close(struct connection *conn)
 {
+	BUG_ON(conn->flags & CO_FL_FDLESS);
 	fd_delete(conn->handle.fd);
 	conn->handle.fd = DEAD_FD_MAGIC;
 }
@@ -735,6 +737,8 @@ int sock_conn_check(struct connection *conn)
 
 	if (!(conn->flags & CO_FL_WAIT_L4_CONN))
 		return 1; /* strange we were called while ready */
+
+	BUG_ON(conn->flags & CO_FL_FDLESS);
 
 	if (!fd_send_ready(fd) && !(fdtab[fd].state & (FD_POLL_ERR|FD_POLL_HUP)))
 		return 0;
@@ -901,6 +905,8 @@ int sock_drain(struct connection *conn)
 	int fd = conn->handle.fd;
 	int len;
 
+	BUG_ON(conn->flags & CO_FL_FDLESS);
+
 	if (fdtab[fd].state & (FD_POLL_ERR|FD_POLL_HUP))
 		goto shut;
 
@@ -953,6 +959,8 @@ int sock_check_events(struct connection *conn, int event_type)
 {
 	int ret = 0;
 
+	BUG_ON(conn->flags & CO_FL_FDLESS);
+
 	if (event_type & SUB_RETRY_RECV) {
 		if (fd_recv_ready(conn->handle.fd))
 			ret |= SUB_RETRY_RECV;
@@ -975,6 +983,8 @@ int sock_check_events(struct connection *conn, int event_type)
  */
 void sock_ignore_events(struct connection *conn, int event_type)
 {
+	BUG_ON(conn->flags & CO_FL_FDLESS);
+
 	if (event_type & SUB_RETRY_RECV)
 		fd_stop_recv(conn->handle.fd);
 

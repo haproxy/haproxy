@@ -809,6 +809,8 @@ int conn_recv_proxy(struct connection *conn, int flag)
 	if (!conn_ctrl_ready(conn))
 		goto fail;
 
+	BUG_ON(conn->flags & CO_FL_FDLESS);
+
 	if (!fd_recv_ready(conn->handle.fd))
 		goto not_ready;
 
@@ -1188,6 +1190,8 @@ int conn_recv_netscaler_cip(struct connection *conn, int flag)
 	if (!conn_ctrl_ready(conn))
 		goto fail;
 
+	BUG_ON(conn->flags & CO_FL_FDLESS);
+
 	if (!fd_recv_ready(conn->handle.fd))
 		goto not_ready;
 
@@ -1453,6 +1457,8 @@ int conn_recv_socks4_proxy_response(struct connection *conn)
 
 	if (!conn_ctrl_ready(conn))
 		goto fail;
+
+	BUG_ON(conn->flags & CO_FL_FDLESS);
 
 	if (!fd_recv_ready(conn->handle.fd))
 		goto not_ready;
