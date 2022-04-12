@@ -295,7 +295,7 @@ int main(int argc, char **argv)
 		ret += get_value(lru, statistical_prng() & 65535);
 	}
 	/* just for accuracy control */
-	printf("ret=%llx, hits=%d, misses=%d (%d %% hits)\n", ret, total-misses, misses, (int)((float)(total-misses) * 100.0 / total));
+	printf("ret=%llx, hits=%u, misses=%u (%d %% hits)\n", ret, (unsigned)(total-misses), misses, (int)((float)(total-misses) * 100.0 / total));
 
 	while (lru64_destroy(lru));
 
