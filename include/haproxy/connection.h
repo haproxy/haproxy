@@ -648,6 +648,15 @@ static inline struct proxy *conn_get_proxy(const struct connection *conn)
 	return objt_proxy(conn->target);
 }
 
+/* unconditionally retrieves the ssl_sock_ctx for this connection. Prefer using
+ * the standard form conn_get_ssl_sock_ctx() which checks the transport layer
+ * and the availability of the method.
+ */
+static inline struct ssl_sock_ctx *__conn_get_ssl_sock_ctx(struct connection *conn)
+{
+	return conn->xprt->get_ssl_sock_ctx(conn);
+}
+
 /* retrieves the ssl_sock_ctx for this connection otherwise NULL */
 static inline struct ssl_sock_ctx *conn_get_ssl_sock_ctx(struct connection *conn)
 {

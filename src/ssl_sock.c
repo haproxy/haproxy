@@ -1632,9 +1632,7 @@ int ssl_sock_bind_verifycbk(int ok, X509_STORE_CTX *x_store)
 	conn = SSL_get_ex_data(ssl, ssl_app_data_index);
 	client_crt = SSL_get_ex_data(ssl, ssl_client_crt_ref_index);
 
-	ctx = conn_get_ssl_sock_ctx(conn);
-	ALREADY_CHECKED(ctx);
-
+	ctx = __conn_get_ssl_sock_ctx(conn);
 	ctx->xprt_st |= SSL_SOCK_ST_FL_VERIFY_DONE;
 
 	depth = X509_STORE_CTX_get_error_depth(x_store);
@@ -1709,11 +1707,10 @@ static void ssl_sock_parse_heartbeat(struct connection *conn, int write_p, int v
 	/* test heartbeat received (write_p is set to 0
 	   for a received record) */
 	if ((content_type == TLS1_RT_HEARTBEAT) && (write_p == 0)) {
-		struct ssl_sock_ctx *ctx = conn_get_ssl_sock_ctx(conn);
+		struct ssl_sock_ctx *ctx = __conn_get_ssl_sock_ctx(conn);
 		const unsigned char *p = buf;
 		unsigned int payload;
 
-		ALREADY_CHECKED(ctx);
 		ctx->xprt_st |= SSL_SOCK_RECV_HEARTBEAT;
 
 		/* Check if this is a CVE-2014-0160 exploitation attempt. */
@@ -4979,8 +4976,7 @@ static int ssl_sock_srv_verifycbk(int ok, X509_STORE_CTX *ctx)
 
 	ssl = X509_STORE_CTX_get_ex_data(ctx, SSL_get_ex_data_X509_STORE_CTX_idx());
 	conn = SSL_get_ex_data(ssl, ssl_app_data_index);
-	ssl_ctx = conn_get_ssl_sock_ctx(conn);
-	ALREADY_CHECKED(ssl_ctx);
+	ssl_ctx = __conn_get_ssl_sock_ctx(conn);
 
 	/* We're checking if the provided hostnames match the desired one. The
 	 * desired hostname comes from the SNI we presented if any, or if not
@@ -6648,8 +6644,7 @@ static size_t ssl_sock_from_buf(struct connection *conn, void *xprt_ctx, const s
 			else if (ret == SSL_ERROR_SSL || ret == SSL_ERROR_SYSCALL) {
 				struct ssl_sock_ctx *ctx = conn_get_ssl_sock_ctx(conn);
 
-				ALREADY_CHECKED(ctx);
-				if (!ctx->error_code)
+				if (ctx && !ctx->error_code)
 					ctx->error_code = ERR_peek_error();
 				conn->err_code = CO_ERR_SSL_FATAL;
 			}
