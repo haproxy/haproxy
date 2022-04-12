@@ -244,6 +244,15 @@ void cs_free(struct conn_stream *cs)
 	pool_free(pool_head_connstream, cs);
 }
 
+/* Conditionally removes a conn-stream if it is detached and it there is no app
+ * layer defined. Except on error path, this one must be used.
+ */
+static void cs_free_cond(struct conn_stream *cs)
+{
+	if (!cs->app && (!cs->endp || (cs->endp->flags & CS_EP_DETACHED)))
+		cs_free(cs);
+}
+
 
 /* Attaches a conn_stream to a mux endpoint and sets the endpoint ctx. Returns
  * -1 on error and 0 on sucess. CS_EP_DETACHED flag is removed. This function is
@@ -385,9 +394,7 @@ void cs_detach_endp(struct conn_stream *cs)
 	if (cs_strm(cs))
 		cs->ops = &cs_app_embedded_ops;
 	cs->data_cb = NULL;
-
-	if (cs->app == NULL)
-		cs_free(cs);
+	cs_free_cond(cs);
 }
 
 /* Detaches the conn_stream from the app layer. If there is no endpoint attached
@@ -404,9 +411,7 @@ void cs_detach_app(struct conn_stream *cs)
 		tasklet_free(cs->wait_event.tasklet);
 	cs->wait_event.tasklet = NULL;
 	cs->wait_event.events = 0;
-
-	if (!cs->endp || (cs->endp->flags & CS_EP_DETACHED))
-		cs_free(cs);
+	cs_free_cond(cs);
 }
 
 /* Resets the conn-stream endpoint. It happens when the app layer want to renew
