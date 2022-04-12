@@ -2954,6 +2954,41 @@ end:
 #endif
 }
 
+static inline HASSL_DH *ssl_get_dh_by_nid(int nid)
+{
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x3000000fL)
+	OSSL_PARAM params[2];
+	EVP_PKEY *pkey = NULL;
+	EVP_PKEY_CTX *pctx = EVP_PKEY_CTX_new_from_name(NULL, "DH", NULL);
+	const char *named_group = NULL;
+
+	if (!pctx)
+		goto end;
+
+	named_group = OBJ_nid2ln(nid);
+
+	if (!named_group)
+		goto end;
+
+	params[0] = OSSL_PARAM_construct_utf8_string("group", (char*)named_group, 0);
+	params[1] = OSSL_PARAM_construct_end();
+
+	if (EVP_PKEY_keygen_init(pctx) && EVP_PKEY_CTX_set_params(pctx, params))
+		EVP_PKEY_generate(pctx, &pkey);
+
+end:
+	EVP_PKEY_CTX_free(pctx);
+	return pkey;
+#else
+
+	HASSL_DH *dh = NULL;
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
+	dh = DH_new_by_nid(nid);
+#endif
+	return dh;
+#endif
+}
+
 
 static HASSL_DH * ssl_get_dh_1024(void)
 {
@@ -2990,6 +3025,7 @@ static HASSL_DH * ssl_get_dh_1024(void)
 
 static HASSL_DH *ssl_get_dh_2048(void)
 {
+#if (HA_OPENSSL_VERSION_NUMBER < 0x10101000L)
 	static unsigned char dh2048_p[]={
 		0xEC,0x86,0xF8,0x70,0xA0,0x33,0x16,0xEC,0x05,0x1A,0x73,0x59,
 		0xCD,0x1F,0x8B,0xF8,0x29,0xE4,0xD2,0xCF,0x52,0xDD,0xC2,0x24,
@@ -3030,10 +3066,14 @@ static HASSL_DH *ssl_get_dh_2048(void)
 		dh = ssl_new_dh_fromdata(p, g);
 
 	return dh;
+#else
+	return ssl_get_dh_by_nid(NID_ffdhe2048);
+#endif
 }
 
 static HASSL_DH *ssl_get_dh_4096(void)
 {
+#if (HA_OPENSSL_VERSION_NUMBER < 0x10101000L)
 	static unsigned char dh4096_p[]={
 		0xDE,0x16,0x94,0xCD,0x99,0x58,0x07,0xF1,0xF7,0x32,0x96,0x11,
 		0x04,0x82,0xD4,0x84,0x72,0x80,0x99,0x06,0xCA,0xF0,0xA3,0x68,
@@ -3095,6 +3135,9 @@ static HASSL_DH *ssl_get_dh_4096(void)
 		dh = ssl_new_dh_fromdata(p, g);
 
 	return dh;
+#else
+	return ssl_get_dh_by_nid(NID_ffdhe4096);
+#endif
 }
 
 static HASSL_DH *ssl_get_tmp_dh(EVP_PKEY *pkey)
