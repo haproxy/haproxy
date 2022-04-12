@@ -231,7 +231,7 @@ static int h3_decode_qcs(struct qcs *qcs, int fin, void *ctx)
 	struct buffer *rxbuf = &qcs->rx.buf;
 	int ret;
 
-	h3_debug_printf(stderr, "%s: STREAM ID: %llu\n", __func__, qcs->by_id.key);
+	h3_debug_printf(stderr, "%s: STREAM ID: %lu\n", __func__, qcs->id);
 	if (!b_data(rxbuf))
 		return 0;
 
@@ -333,7 +333,7 @@ static int h3_control_recv(struct h3_uqs *h3_uqs, void *ctx)
 	struct buffer *rxbuf = &h3_uqs->qcs->rx.buf;
 	struct h3 *h3 = ctx;
 
-	h3_debug_printf(stderr, "%s STREAM ID: %llu\n", __func__,  h3_uqs->qcs->by_id.key);
+	h3_debug_printf(stderr, "%s STREAM ID: %lu\n", __func__,  h3_uqs->qcs->id);
 	if (!b_data(rxbuf))
 		return 1;
 
