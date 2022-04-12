@@ -81,7 +81,7 @@ struct data_cb cs_data_applet_cb = {
 };
 
 
-
+/* Initializes an endpoint */
 void cs_endpoint_init(struct cs_endpoint *endp)
 {
 	endp->target = NULL;
@@ -89,6 +89,7 @@ void cs_endpoint_init(struct cs_endpoint *endp)
 	endp->flags = CS_EP_NONE;
 }
 
+/* Tries to alloc an endpoint and initialize it. Returns NULL on failure. */
 struct cs_endpoint *cs_endpoint_new()
 {
 	struct cs_endpoint *endp;
@@ -101,13 +102,18 @@ struct cs_endpoint *cs_endpoint_new()
 	return endp;
 }
 
+/* Releases an endpoint. It is the caller responsibility to be sure it is safe
+ * and it is not shared with another entity
+ */
 void cs_endpoint_free(struct cs_endpoint *endp)
 {
 	pool_free(pool_head_cs_endpoint, endp);
 }
 
 /* Tries to allocate a new conn_stream and initialize its main fields. On
- * failure, nothing is allocated and NULL is returned.
+ * failure, nothing is allocated and NULL is returned. It is an internal
+ * function. The caller must, at least, set the CS_EP_ORPHAN or CS_EP_DETAC§HED
+ * flag.
  */
 static struct conn_stream *cs_new(struct cs_endpoint *endp)
 {
@@ -129,6 +135,7 @@ static struct conn_stream *cs_new(struct cs_endpoint *endp)
 	cs->wait_event.tasklet = NULL;
 	cs->wait_event.events = 0;
 
+	/* If there is no endpoint, allocate a new one now */
 	if (!endp) {
 		endp = cs_endpoint_new();
 		if (unlikely(!endp))
@@ -143,6 +150,10 @@ static struct conn_stream *cs_new(struct cs_endpoint *endp)
 	return NULL;
 }
 
+/* Creates a new conn-stream and its associated stream from a mux. <endp> must be
+ * defined. It returns NULL on error. On success, the new conn-stream is
+ * returned. In this case, CS_EP_ORPHAN flag is removed.
+ */
 struct conn_stream *cs_new_from_mux(struct cs_endpoint *endp, struct session *sess, struct buffer *input)
 {
 	struct conn_stream *cs;
@@ -158,6 +169,11 @@ struct conn_stream *cs_new_from_mux(struct cs_endpoint *endp, struct session *se
 	return cs;
 }
 
+/* Creates a new conn-stream and its associated stream from an applet. <endp>
+ * must be defined. It returns NULL on error. On success, the new conn-stream is
+ * returned. In this case, CS_EP_ORPHAN flag is removed. The created CS is used
+ * to set the appctx owner.
+ */
 struct conn_stream *cs_new_from_applet(struct cs_endpoint *endp, struct session *sess, struct buffer *input)
 {
 	struct conn_stream *cs;
@@ -175,6 +191,10 @@ struct conn_stream *cs_new_from_applet(struct cs_endpoint *endp, struct session 
 	return cs;
 }
 
+/* Creates a new conn-stream from an stream. There is no endpoint here, thus it
+ * will be created by cs_new(). So the CS_EP_DETACHED flag is set. It returns
+ * NULL on error. On success, the new conn-stream is returned.
+ */
 struct conn_stream *cs_new_from_strm(struct stream *strm, unsigned int flags)
 {
 	struct conn_stream *cs;
@@ -190,6 +210,10 @@ struct conn_stream *cs_new_from_strm(struct stream *strm, unsigned int flags)
 	return cs;
 }
 
+/* Creates a new conn-stream from an health-check. There is no endpoint here,
+ * thus it will be created by cs_new(). So the CS_EP_DETACHED flag is set. It
+ * returns NULL on error. On success, the new conn-stream is returned.
+ */
 struct conn_stream *cs_new_from_check(struct check *check, unsigned int flags)
 {
 	struct conn_stream *cs;
@@ -204,8 +228,8 @@ struct conn_stream *cs_new_from_check(struct check *check, unsigned int flags)
 	return cs;
 }
 
-/* Releases a conn_stream previously allocated by cs_new(), as well as any
- * buffer it would still hold.
+/* Releases a conn_stream previously allocated by cs_new(), as well as its
+ * endpoint, if it exists. This function is called internally or on error path.
  */
 void cs_free(struct conn_stream *cs)
 {
@@ -221,7 +245,10 @@ void cs_free(struct conn_stream *cs)
 }
 
 
-/* Attaches a conn_stream to an mux endpoint and sets the endpoint ctx */
+/* Attaches a conn_stream to a mux endpoint and sets the endpoint ctx. Returns
+ * -1 on error and 0 on sucess. CS_EP_DETACHED flag is removed. This function is
+ * called from a mux when it is attached to a stream or a health-check.
+ */
 int cs_attach_mux(struct conn_stream *cs, void *target, void *ctx)
 {
 	struct connection *conn = ctx;
@@ -250,7 +277,11 @@ int cs_attach_mux(struct conn_stream *cs, void *target, void *ctx)
 	return 0;
 }
 
-/* Attaches a conn_stream to an applet endpoint and sets the endpoint ctx */
+/* Attaches a conn_stream to an applet endpoint and sets the endpoint
+ * ctx. Returns -1 on error and 0 on sucess. CS_EP_DETACHED flag is
+ * removed. This function is called by a stream when a backend applet is
+ * registered.
+ */
 static void cs_attach_applet(struct conn_stream *cs, void *target, void *ctx)
 {
 	struct appctx *appctx = target;
@@ -266,7 +297,11 @@ static void cs_attach_applet(struct conn_stream *cs, void *target, void *ctx)
 	}
 }
 
-/* Attaches a conn_stream to a app layer and sets the relevant callbacks */
+/* Attaches a conn_stream to a app layer and sets the relevant
+ * callbacks. Returns -1 on error and 0 on success. CS_EP_ORPHAN flag is
+ * removed. This function is called by a stream when it is created to attach it
+ * on the conn-stream on the client side.
+ */
 int cs_attach_strm(struct conn_stream *cs, struct stream *strm)
 {
 	cs->app = &strm->obj_type;
@@ -293,11 +328,12 @@ int cs_attach_strm(struct conn_stream *cs, struct stream *strm)
 	return 0;
 }
 
-/* Detach the conn_stream from the endpoint, if any. For a connecrion, if a mux
- * owns the connection ->detach() callback is called. Otherwise, it means the
- * conn-stream owns the connection. In this case the connection is closed and
- * released. For an applet, the appctx is released. At the end, the conn-stream
- * is not released but some fields a reset.
+/* Detaches the conn_stream from the endpoint, if any. For a connecrion, if a
+ * mux owns the connection ->detach() callback is called. Otherwise, it means
+ * the conn-stream owns the connection. In this case the connection is closed
+ * and released. For an applet, the appctx is released. If still allocated, the
+ * endpoint is reset and flag as detached. If the app layer is also detached,
+ * the conn-stream is released.
  */
 void cs_detach_endp(struct conn_stream *cs)
 {
@@ -354,6 +390,9 @@ void cs_detach_endp(struct conn_stream *cs)
 		cs_free(cs);
 }
 
+/* Detaches the conn_stream from the app layer. If there is no endpoint attached
+ * to the conn_stream
+ */
 void cs_detach_app(struct conn_stream *cs)
 {
 	cs->app = NULL;
@@ -370,6 +409,10 @@ void cs_detach_app(struct conn_stream *cs)
 		cs_free(cs);
 }
 
+/* Resets the conn-stream endpoint. It happens when the app layer want to renew
+ * its endpoint. For a connection retry for instance. If a mux or an applet is
+ * attached, a new endpoint is created. Returns -1 on error and 0 on sucess.
+ */
 int cs_reset_endp(struct conn_stream *cs)
 {
 	struct cs_endpoint *new_endp;

@@ -146,6 +146,18 @@ struct data_cb {
 };
 
 
+/* cs_endpoint is the link between the conn-stream and the endpoint (mux or
+ * appctx). It is created by the mux/applet on the client side and share with
+ * the conn-stream. On the server side, it is the opposite. A cs-endpoint
+ * without conn-stream is called an orphan endpoint. A cs-endpoint with no
+ * mux/applet is called a detached endpoint. On detach, the conn-stream
+ * transfers the whole responsibility to the mux/applet and eventually create a
+ * new cs-endpoint (for instance on connection retries).
+ *
+ * <target> is the mux or the appctx
+ * <ctx>    is the context set and used by <target>
+ * <flags>  CS_EP_*
+*/
 struct cs_endpoint {
 	void *target;
 	void *ctx;
