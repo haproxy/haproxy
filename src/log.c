@@ -2335,7 +2335,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				tmplog += iret;
 
 				/* sess->listener may be undefined if the session's owner is a health-check */
-				if (sess->listener && sess->listener->bind_conf->xprt == xprt_get(XPRT_SSL))
+				if (sess->listener && sess->listener->bind_conf->xprt->get_ssl_sock_ctx)
 					LOGCHAR('~');
 				if (tmp->options & LOG_OPT_QUOTE)
 					LOGCHAR('"');
