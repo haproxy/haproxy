@@ -166,7 +166,7 @@ int hpack_decode_frame(struct hpack_dht *dht, const uint8_t *raw, uint32_t len,
 		if (*raw >= 0x80) {
 			/* indexed header field */
 			if (*raw == 0x80) {
-				hpack_debug_printf("unhandled code 0x%02x (raw=%p, len=%d)\n", *raw, raw, len);
+				hpack_debug_printf("unhandled code 0x%02x (raw=%p, len=%u)\n", *raw, raw, len);
 				ret = -HPACK_ERR_UNKNOWN_OPCODE;
 				goto leave;
 			}
