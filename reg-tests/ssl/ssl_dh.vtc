@@ -2,9 +2,10 @@
 
 # This reg-tests checks that the DH-related mechanisms works properly.
 # When no DH is specified, either directly in the server's PEM or through a
-# ssl-dh-param-file global option, in case of DHE negotiation, the hard coded
-# DH parameters included in the sources will be used. We will use DH parameters
-# of the same size as the server's RSA or DSA key.
+# ssl-dh-param-file global option, and no tune.ssl.default-dh-param is defined,
+# DHE ciphers are disabled.
+# If a default-dh-param is defined, we will use DH parameters of the same size
+# as the server's RSA or DSA key, or default-dh-param if it is smaller.
 # This test has three distinct HAProxy instances, one with no DH-related option
 # used, one with the tune.ssl.default-dh-param global parameter set, and one
 # with an ssl-dh-param-file global option.
@@ -123,8 +124,8 @@ haproxy h3 -conf {
 client c1 -connect ${h1_clearlst_sock} {
   txreq
   rxresp
-  expect resp.status == 200
-  expect resp.http.x-ssl-cipher == "DHE-RSA-AES256-GCM-SHA384"
+  # No DH parameters are defined, DHE ciphers are unavailable
+  expect resp.status == 503
 } -run
 
 client c2 -connect ${h2_clearlst_dfltdh_sock} {
@@ -144,17 +145,10 @@ client c3 -connect ${h3_clearlst_dhfile_sock} {
 client c4 -connect ${h1_clearlst_sock} {
   txreq -url "/gencert"
   rxresp
-  expect resp.status == 200
-  expect resp.http.x-ssl-cipher == "DHE-RSA-AES256-GCM-SHA384"
+  # No DH parameters are defined, DHE ciphers are unavailable
+  expect resp.status == 503
 } -run
 
-
-#
-# Check the size of the DH key
-#
-shell {
-    echo "Q" | openssl s_client -unix "${tmpdir}/ssl_dflt.sock" -tls1_2 2>/dev/null | grep -E "Server Temp Key: DH, 2048 bits"
-}
 
 # On the second HAProxy instance, even if default-dh-param is set to 4096, this
 # value is only considered as a maximum DH key length and we will always try to
@@ -167,11 +161,6 @@ shell {
 shell {
     echo "Q" | openssl s_client -unix "${tmpdir}/ssl_dhfile.sock" -tls1_2 2>/dev/null | grep -E "Server Temp Key: DH, 4096 bits"
 }
-
-shell {
-    echo "Q" | openssl s_client -unix "${tmpdir}/ssl_dflt_gencert.sock" -tls1_2 2>/dev/null | grep -E "Server Temp Key: DH, 2048 bits"
-}
-
 
 
 #
@@ -191,6 +180,8 @@ shell {
 
 #
 # Check that all the SSL backend <-> SSL frontend connections still work
+# Common.pem now contains DH parameters so the first instance's frontends
+# can now use DHE ciphers.
 #
 client c5 -connect ${h1_clearlst_sock} {
   txreq

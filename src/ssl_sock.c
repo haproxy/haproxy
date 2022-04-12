@@ -3215,8 +3215,6 @@ static void ssl_sock_set_tmp_dh_from_pkey(SSL_CTX *ctx, EVP_PKEY *pkey)
 		if (!SSL_CTX_set0_tmp_dh_pkey(ctx, dh))
 			HASSL_DH_free(dh);
 	}
-	else
-		SSL_CTX_set_dh_auto(ctx, 1);
 }
 #endif
 
@@ -3421,14 +3419,8 @@ static int ssl_sock_load_dh_params(SSL_CTX *ctx, const struct cert_key_and_chain
 		if (!ssl_sock_set_tmp_dh(ctx, dh)) {
 			memprintf(err, "%sunable to load the DH parameter specified in '%s'",
 				  err && *err ? *err : "", path);
-#if defined(SSL_CTX_set_dh_auto)
-			SSL_CTX_set_dh_auto(ctx, 1);
-			memprintf(err, "%s, SSL library will use an automatically generated DH parameter.\n",
-				  err && *err ? *err : "");
-#else
 			memprintf(err, "%s, DH ciphers won't be available.\n",
 				  err && *err ? *err : "");
-#endif
 			ret |= ERR_WARN;
 			goto end;
 		}
@@ -3443,14 +3435,8 @@ static int ssl_sock_load_dh_params(SSL_CTX *ctx, const struct cert_key_and_chain
 		if (!ssl_sock_set_tmp_dh(ctx, global_dh)) {
 			memprintf(err, "%sunable to use the global DH parameter for certificate '%s'",
 				  err && *err ? *err : "", path);
-#if defined(SSL_CTX_set_dh_auto)
-			SSL_CTX_set_dh_auto(ctx, 1);
-			memprintf(err, "%s, SSL library will use an automatically generated DH parameter.\n",
-				  err && *err ? *err : "");
-#else
 			memprintf(err, "%s, DH ciphers won't be available.\n",
 				  err && *err ? *err : "");
-#endif
 			ret |= ERR_WARN;
 			goto end;
 		}
@@ -3459,39 +3445,38 @@ static int ssl_sock_load_dh_params(SSL_CTX *ctx, const struct cert_key_and_chain
 		/* Clear openssl global errors stack */
 		ERR_clear_error();
 
-		if (global_ssl.default_dh_param && global_ssl.default_dh_param <= 1024) {
-			/* we are limited to DH parameter of 1024 bits anyway */
-			if (local_dh_1024 == NULL)
-				local_dh_1024 = ssl_get_dh_1024();
+		/* We do not want DHE ciphers to be added to the cipher list
+		 * unless there is an explicit global dh option in the conf.
+		 */
+		if (global_ssl.default_dh_param) {
+			if (global_ssl.default_dh_param <= 1024) {
+				/* we are limited to DH parameter of 1024 bits anyway */
+				if (local_dh_1024 == NULL)
+					local_dh_1024 = ssl_get_dh_1024();
 
-			if (local_dh_1024 == NULL) {
-				memprintf(err, "%sunable to load default 1024 bits DH parameter for certificate '%s'.\n",
-					  err && *err ? *err : "", path);
-				ret |= ERR_ALERT | ERR_FATAL;
-				goto end;
-			}
+				if (local_dh_1024 == NULL) {
+					memprintf(err, "%sunable to load default 1024 bits DH parameter for certificate '%s'.\n",
+						  err && *err ? *err : "", path);
+					ret |= ERR_ALERT | ERR_FATAL;
+					goto end;
+				}
 
-			if (!ssl_sock_set_tmp_dh(ctx, local_dh_1024)) {
-				memprintf(err, "%sunable to load default 1024 bits DH parameter for certificate '%s'.\n",
-					  err && *err ? *err : "", path);
-#if defined(SSL_CTX_set_dh_auto)
-				SSL_CTX_set_dh_auto(ctx, 1);
-				memprintf(err, "%s, SSL library will use an automatically generated DH parameter.\n",
-					  err && *err ? *err : "");
-#else
-				memprintf(err, "%s, DH ciphers won't be available.\n",
-					  err && *err ? *err : "");
-#endif
-				ret |= ERR_WARN;
-				goto end;
+				if (!ssl_sock_set_tmp_dh(ctx, local_dh_1024)) {
+					memprintf(err, "%sunable to load default 1024 bits DH parameter for certificate '%s'.\n",
+						  err && *err ? *err : "", path);
+					memprintf(err, "%s, DH ciphers won't be available.\n",
+						  err && *err ? *err : "");
+					ret |= ERR_WARN;
+					goto end;
+				}
 			}
-		}
-		else {
+			else {
 #if (HA_OPENSSL_VERSION_NUMBER < 0x3000000fL)
-			SSL_CTX_set_tmp_dh_callback(ctx, ssl_get_tmp_dh_cbk);
+				SSL_CTX_set_tmp_dh_callback(ctx, ssl_get_tmp_dh_cbk);
 #else
-			ssl_sock_set_tmp_dh_from_pkey(ctx, ckch ? ckch->key : NULL);
+				ssl_sock_set_tmp_dh_from_pkey(ctx, ckch ? ckch->key : NULL);
 #endif
+			}
 		}
 	}
 
@@ -4828,21 +4813,12 @@ static int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_con
 #endif
 
 #ifndef OPENSSL_NO_DH
-	if (global_ssl.default_dh_param >= 1024) {
-		if (local_dh_1024 == NULL) {
-			local_dh_1024 = ssl_get_dh_1024();
-		}
-		if (global_ssl.default_dh_param >= 2048) {
-			if (local_dh_2048 == NULL) {
-				local_dh_2048 = ssl_get_dh_2048();
-			}
-			if (global_ssl.default_dh_param >= 4096) {
-				if (local_dh_4096 == NULL) {
-					local_dh_4096 = ssl_get_dh_4096();
-				}
-			}
-		}
-	}
+	if (!local_dh_1024)
+		local_dh_1024 = ssl_get_dh_1024();
+	if (!local_dh_2048)
+		local_dh_2048 = ssl_get_dh_2048();
+	if (!local_dh_4096)
+		local_dh_4096 = ssl_get_dh_4096();
 #endif /* OPENSSL_NO_DH */
 
 	SSL_CTX_set_info_callback(ctx, ssl_sock_infocbk);
