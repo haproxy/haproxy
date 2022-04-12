@@ -1096,6 +1096,7 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 {
 	struct check *check = context;
 	struct proxy *proxy = check->proxy;
+	struct conn_stream *cs;
 	struct connection *conn;
 	int rv;
 	int expired = tick_is_expired(t->expire, now_ms);
@@ -1135,33 +1136,27 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 
 		check->current_step = NULL;
 
-		if (!check->cs->endp) {
-			/* CS endpoint may be NULL if a previous reset
-			 * failed. Try to allocate a new one and report a
-			 * SOCKERR if it fails.
-			 */
-			check->cs->endp = cs_endpoint_new();
-			if (!check->cs->endp) {
-				set_server_check_status(check, HCHK_STATUS_SOCKERR, NULL);
-				goto end;
-			}
-			check->cs->endp->flags |= CS_EP_DETACHED;
+		check->cs = cs_new_from_check(check, CS_FL_NONE);
+		if (!check->cs) {
+			set_server_check_status(check, HCHK_STATUS_SOCKERR, NULL);
+			goto end;
 		}
 		tcpcheck_main(check);
 		expired = 0;
 	}
-
-	conn = cs_conn(check->cs);
 
 	/* there was a test running.
 	 * First, let's check whether there was an uncaught error,
 	 * which can happen on connect timeout or error.
 	 */
 	if (check->result == CHK_RES_UNKNOWN && likely(!(check->state & CHK_ST_PURGE))) {
+		cs = check->cs;
+		conn = (cs ? cs_conn(cs) : NULL);
+
 		/* Here the connection must be defined. Otherwise the
 		 * error would have already been detected
 		 */
-		if ((conn && ((conn->flags & CO_FL_ERROR) || (check->cs->endp->flags & CS_EP_ERROR))) || expired) {
+		if ((conn && ((conn->flags & CO_FL_ERROR) || (cs->endp->flags & CS_EP_ERROR))) || expired) {
 			TRACE_ERROR("report connection error", CHK_EV_TASK_WAKE|CHK_EV_HCHK_END|CHK_EV_HCHK_ERR, check);
 			chk_report_conn_err(check, 0, expired);
 		}
@@ -1184,7 +1179,8 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 	TRACE_STATE("health-check complete or aborted", CHK_EV_TASK_WAKE|CHK_EV_HCHK_END, check);
 
 	check->current_step = NULL;
-	conn = cs_conn(check->cs);
+	cs = check->cs;
+	conn = (cs ? cs_conn(cs) : NULL);
 
 	if (conn && conn->xprt) {
 		/* The check was aborted and the connection was not yet closed.
@@ -1192,21 +1188,22 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 		 * as a failed response coupled with "observe layer7" caused the
 		 * server state to be suddenly changed.
 		 */
-		cs_conn_drain_and_close(check->cs);
+		cs_conn_drain_and_close(cs);
 	}
 
-	/* TODO: must be handled by cs_detach_endp */
-	if (conn && check->wait_list.events)
-		conn->mux->unsubscribe(check->cs, check->wait_list.events, &check->wait_list);
-	/* We may have been scheduled to run, and the
-	 * I/O handler expects to have a cs, so remove
-	 * the tasklet
-	 */
-	tasklet_remove_from_tasklet_list(check->wait_list.tasklet);
-
-	/* Force detach on error. the endpoint will be recreated on the next start */
-	if (cs_reset_endp(check->cs) < 0)
-		cs_detach_endp(check->cs);
+	if (cs) {
+		if (conn && check->wait_list.events)
+			conn->mux->unsubscribe(cs, check->wait_list.events, &check->wait_list);
+		/* We may have been scheduled to run, and the
+		 * I/O handler expects to have a cs, so remove
+		 * the tasklet
+		 */
+		tasklet_remove_from_tasklet_list(check->wait_list.tasklet);
+		cs_detach_endp(cs);
+		cs_detach_app(cs);
+		cs = check->cs = NULL;
+		conn = NULL;
+	}
 
 	if (check->sess != NULL) {
 		vars_prune(&check->vars, check->sess, NULL);
@@ -1407,12 +1404,8 @@ int start_check_task(struct check *check, int mininter,
 	/* task for the check. Process-based checks exclusively run on thread 1. */
 	if (check->type == PR_O2_EXT_CHK)
 		t = task_new_on(0);
-	else {
-		check->cs = cs_new_from_check(check, CS_FL_NONE);
-		if (!check->cs)
-			goto fail_alloc_cs;
+	else
 		t = task_new_anywhere();
-	}
 
 	if (!t)
 		goto fail_alloc_task;
@@ -1435,8 +1428,6 @@ int start_check_task(struct check *check, int mininter,
 	return 1;
 
   fail_alloc_task:
-	cs_free(check->cs);
-  fail_alloc_cs:
 	ha_alert("Starting [%s:%s] check: out of memory.\n",
 		 check->server->proxy->id, check->server->id);
 	return 0;
