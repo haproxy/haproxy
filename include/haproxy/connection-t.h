@@ -276,10 +276,9 @@ enum {
 /* MUX-specific flags */
 enum {
 	MX_FL_NONE        = 0x00000000,
-	MX_FL_CLEAN_ABRT  = 0x00000001, /* abort is clearly reported as an error */
-	MX_FL_HTX         = 0x00000002, /* set if it is an HTX multiplexer */
-	MX_FL_HOL_RISK    = 0x00000004, /* set if the protocol is subject the to head-of-line blocking on server */
-	MX_FL_NO_UPG      = 0x00000008, /* set if mux does not support any upgrade */
+	MX_FL_HTX         = 0x00000001, /* set if it is an HTX multiplexer */
+	MX_FL_HOL_RISK    = 0x00000002, /* set if the protocol is subject the to head-of-line blocking on server */
+	MX_FL_NO_UPG      = 0x00000004, /* set if mux does not support any upgrade */
 };
 
 /* PROTO token registration */

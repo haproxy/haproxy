@@ -1361,7 +1361,7 @@ static const struct mux_ops qc_ops = {
 	.subscribe = qc_subscribe,
 	.unsubscribe = qc_unsubscribe,
 	.wake = qc_wake,
-	.flags = MX_FL_CLEAN_ABRT|MX_FL_HTX|MX_FL_NO_UPG,
+	.flags = MX_FL_HTX|MX_FL_NO_UPG,
 	.name = "QUIC",
 };
 

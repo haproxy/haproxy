@@ -14102,15 +14102,14 @@ proto <name>
   in haproxy -vv. The protocols properties are reported : the mode (TCP/HTTP),
   the side (FE/BE), the mux name and its flags.
 
-  Some protocols report errors on aborts (flag=CLEAN_ABRT). Some others are
-  subject to the head-of-line blocking on server side (flag=HOL_RISK). Finally
-  some protocols don't support upgrades (flag=NO_UPG). The HTX compatibility is
-  also reported (flag=HTX).
+  Some protocols are subject to the head-of-line blocking on server side
+  (flag=HOL_RISK). Finally some protocols don't support upgrades (flag=NO_UPG).
+  The HTX compatibility is also reported (flag=HTX).
 
   Here are the protocols that may be used as argument to a "proto" directive on
   a bind line :
 
-    h2   : mode=HTTP  side=FE|BE  mux=H2    flags=HTX|CLEAN_ABRT|HOL_RISK|NO_UPG
+    h2   : mode=HTTP  side=FE|BE  mux=H2    flags=HTX|HOL_RISK|NO_UPG
     h1   : mode=HTTP  side=FE|BE  mux=H1    flags=HTX|NO_UPG
     none : mode=TCP   side=FE|BE  mux=PASS  flags=NO_UPG
 
@@ -14526,15 +14525,14 @@ check-proto <name>
   protocols is reported in haproxy -vv. The protocols properties are
   reported : the mode (TCP/HTTP), the side (FE/BE), the mux name and its flags.
 
-  Some protocols report errors on aborts (flag=CLEAN_ABRT). Some others are
-  subject to the head-of-line blocking on server side (flag=HOL_RISK). Finally
-  some protocols don't support upgrades (flag=NO_UPG). The HTX compatibility is
-  also reported (flag=HTX).
+  Some protocols are subject to the head-of-line blocking on server side
+  (flag=HOL_RISK). Finally some protocols don't support upgrades (flag=NO_UPG).
+  The HTX compatibility is also reported (flag=HTX).
 
   Here are the protocols that may be used as argument to a "check-proto"
   directive on a server line:
 
-    h2   : mode=HTTP  side=FE|BE  mux=H2    flags=HTX|CLEAN_ABRT|HOL_RISK|NO_UPG
+    h2   : mode=HTTP  side=FE|BE  mux=H2    flags=HTX|HOL_RISK|NO_UPG
     fcgi : mode=HTTP  side=BE     mux=FCGI  flags=HTX|HOL_RISK|NO_UPG
     h1   : mode=HTTP  side=FE|BE  mux=H1    flags=HTX|NO_UPG
     none : mode=TCP   side=FE|BE  mux=PASS  flags=NO_UPG
@@ -15038,15 +15036,14 @@ proto <name>
   reported in haproxy -vv.The protocols properties are reported : the mode
   (TCP/HTTP), the side (FE/BE), the mux name and its flags.
 
-  Some protocols report errors on aborts (flag=CLEAN_ABRT). Some others are
-  subject to the head-of-line blocking on server side (flag=HOL_RISK). Finally
-  some protocols don't support upgrades (flag=NO_UPG). The HTX compatibility is
-  also reported (flag=HTX).
+  Some protocols are subject to the head-of-line blocking on server side
+  (flag=HOL_RISK). Finally some protocols don't support upgrades (flag=NO_UPG).
+  The HTX compatibility is also reported (flag=HTX).
 
   Here are the protocols that may be used as argument to a "proto" directive on
   a server line :
 
-    h2   : mode=HTTP  side=FE|BE  mux=H2    flags=HTX|CLEAN_ABRT|HOL_RISK|NO_UPG
+    h2   : mode=HTTP  side=FE|BE  mux=H2    flags=HTX|HOL_RISK|NO_UPG
     fcgi : mode=HTTP  side=BE     mux=FCGI  flags=HTX|HOL_RISK|NO_UPG
     h1   : mode=HTTP  side=FE|BE  mux=H1    flags=HTX|NO_UPG
     none : mode=TCP   side=FE|BE  mux=PASS  flags=NO_UPG

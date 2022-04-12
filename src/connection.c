@@ -1716,9 +1716,6 @@ void list_mux_proto(FILE *out)
 		if (item->mux->flags & MX_FL_HTX)
 			done |= fprintf(out, "%sHTX", done ? "|" : "");
 
-		if (item->mux->flags & MX_FL_CLEAN_ABRT)
-			done |= fprintf(out, "%sCLEAN_ABRT", done ? "|" : "");
-
 		if (item->mux->flags & MX_FL_HOL_RISK)
 			done |= fprintf(out, "%sHOL_RISK", done ? "|" : "");
 
