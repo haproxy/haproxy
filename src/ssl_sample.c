@@ -1655,8 +1655,7 @@ smp_fetch_ssl_fc_err(const struct arg *args, struct sample *smp, const char *kw,
 		conn = (kw[4] != 'b') ? objt_conn(smp->sess->origin) :
 			smp->strm ? cs_conn(smp->strm->csb) : NULL;
 
-	ctx = conn_get_ssl_sock_ctx(conn);
-	if (!ctx)
+	if (!conn)
 		return 0;
 
 	if (conn->flags & CO_FL_WAIT_XPRT && !conn->err_code) {
@@ -1664,6 +1663,7 @@ smp_fetch_ssl_fc_err(const struct arg *args, struct sample *smp, const char *kw,
 		return 0;
 	}
 
+	ctx = conn_get_ssl_sock_ctx(conn);
 	if (!ctx)
 		return 0;
 
@@ -1708,8 +1708,7 @@ smp_fetch_ssl_fc_err_str(const struct arg *args, struct sample *smp, const char 
 		conn = (kw[4] != 'b') ? objt_conn(smp->sess->origin) :
 			smp->strm ? cs_conn(smp->strm->csb) : NULL;
 
-	ctx = conn_get_ssl_sock_ctx(conn);
-	if (!ctx)
+	if (!conn)
 		return 0;
 
 	if (conn->flags & CO_FL_WAIT_XPRT && !conn->err_code) {
@@ -1717,6 +1716,7 @@ smp_fetch_ssl_fc_err_str(const struct arg *args, struct sample *smp, const char 
 		return 0;
 	}
 
+	ctx = conn_get_ssl_sock_ctx(conn);
 	if (!ctx || !ctx->error_code)
 		return 0;
 
