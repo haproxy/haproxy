@@ -261,7 +261,7 @@ int main() {
 
 	while ((p=fgets2(stdin)))
 		lines++;
-	printf("lines=%d\n", lines);
+	printf("lines=%u\n", lines);
 	return 0;
 }
 #endif

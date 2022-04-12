@@ -207,7 +207,7 @@ void help()
 	       "       -uao, -uto: average times computed on valid ('OK') requests\n"
 	       "       -uba, -ubt: average bytes returned, total bytes returned\n"
 	       " -hdr  output captured header at the given <block>:<field>\n",
-	       SOURCE_FIELD,SOURCE_FIELD
+	       (int)SOURCE_FIELD, (int)SOURCE_FIELD
 	       );
 	exit(0);
 }
@@ -1150,7 +1150,7 @@ int main(int argc, char **argv)
 				ms = h % 1000; h = h / 1000;
 				s = h % 60; h = h / 60;
 				m = h % 60; h = h / 60;
-				printf("%02d:%02d:%02d.%03d %d %d %d\n", h, m, s, ms, last, d, t->count);
+				printf("%02u:%02u:%02u.%03u %d %u %u\n", h, m, s, ms, last, d, t->count);
 				lines_out++;
 				if (lines_max >= 0 && lines_out >= lines_max)
 					break;
@@ -1208,7 +1208,7 @@ int main(int argc, char **argv)
 		for (step = 1; step <= 1000;) {
 			unsigned int thres = lines_out * (step / 1000.0);
 
-			printf("%3.1f %d ", step/10.0, thres);
+			printf("%3.1f %u ", step/10.0, thres);
 			for (f = 1; f < 5; f++) {
 				struct eb32_node *next;
 				while (cum[f] < thres) {
@@ -1237,7 +1237,7 @@ int main(int argc, char **argv)
 		n = eb32_first(&timers[0]);
 		while (n) {
 			t = container_of(n, struct timer, node);
-			printf("%d %d\n", n->key, t->count);
+			printf("%d %u\n", n->key, t->count);
 			lines_out++;
 			if (lines_max >= 0 && lines_out >= lines_max)
 				break;
@@ -1260,7 +1260,7 @@ int main(int argc, char **argv)
 			for (f = 0; f <= 5; f++)
 				tot_rq += srv->st_cnt[f];
 
-			printf("%s %d %d %d %d %d %d %d %d %.1f %d %d\n",
+			printf("%s %u %u %u %u %u %u %d %u %.1f %d %d\n",
 			       srv_node->key, srv->st_cnt[1], srv->st_cnt[2],
 			       srv->st_cnt[3], srv->st_cnt[4], srv->st_cnt[5], srv->st_cnt[0],
 			       tot_rq,
@@ -1277,7 +1277,7 @@ int main(int argc, char **argv)
 		n = eb32_first(&timers[0]);
 		while (n) {
 			t = container_of(n, struct timer, node);
-			printf("%c%c %d\n", (n->key >> 8), (n->key) & 255, t->count);
+			printf("%c%c %u\n", (n->key >> 8), (n->key) & 255, t->count);
 			lines_out++;
 			if (lines_max >= 0 && lines_out >= lines_max)
 				break;
@@ -1333,7 +1333,7 @@ int main(int argc, char **argv)
 		node = eb_last(&timers[0]);
 		while (node) {
 			ustat = container_of(node, struct url_stat, node.url.node);
-			printf("%d %d %llu %llu %llu %llu %llu %llu %s\n",
+			printf("%u %u %llu %llu %llu %llu %llu %llu %s\n",
 			       ustat->nb_req,
 			       ustat->nb_err,
 			       ustat->total_time,
