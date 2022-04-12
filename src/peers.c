@@ -583,8 +583,8 @@ static int peer_prepare_hellomsg(char *msg, size_t size, struct peer_prep_params
 	peer = p->hello.peer;
 	min_ver = (peer->flags & PEER_F_DWNGRD) ? PEER_DWNGRD_MINOR_VER : PEER_MINOR_VER;
 	/* Prepare headers */
-	ret = snprintf(msg, size, PEER_SESSION_PROTO_NAME " %u.%u\n%s\n%s %d %d\n",
-	              PEER_MAJOR_VER, min_ver, peer->id, localpeer, (int)getpid(), 1);
+	ret = snprintf(msg, size, PEER_SESSION_PROTO_NAME " %d.%d\n%s\n%s %d %d\n",
+		       (int)PEER_MAJOR_VER, min_ver, peer->id, localpeer, (int)getpid(), (int)1);
 	if (ret >= size)
 		return 0;
 
@@ -600,7 +600,7 @@ static int peer_prepare_status_successmsg(char *msg, size_t size, struct peer_pr
 {
 	int ret;
 
-	ret = snprintf(msg, size, "%d\n", PEER_SESS_SC_SUCCESSCODE);
+	ret = snprintf(msg, size, "%d\n", (int)PEER_SESS_SC_SUCCESSCODE);
 	if (ret >= size)
 		return 0;
 
