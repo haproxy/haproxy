@@ -109,7 +109,7 @@ void cs_endpoint_free(struct cs_endpoint *endp)
 /* Tries to allocate a new conn_stream and initialize its main fields. On
  * failure, nothing is allocated and NULL is returned.
  */
-struct conn_stream *cs_new(struct cs_endpoint *endp)
+static struct conn_stream *cs_new(struct cs_endpoint *endp)
 {
 	struct conn_stream *cs;
 
@@ -251,7 +251,7 @@ int cs_attach_mux(struct conn_stream *cs, void *target, void *ctx)
 }
 
 /* Attaches a conn_stream to an applet endpoint and sets the endpoint ctx */
-void cs_attach_applet(struct conn_stream *cs, void *target, void *ctx)
+static void cs_attach_applet(struct conn_stream *cs, void *target, void *ctx)
 {
 	struct appctx *appctx = target;
 

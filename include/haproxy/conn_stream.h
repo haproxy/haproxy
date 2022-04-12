@@ -38,7 +38,6 @@ struct check;
 struct cs_endpoint *cs_endpoint_new();
 void cs_endpoint_free(struct cs_endpoint *endp);
 
-struct conn_stream *cs_new(struct cs_endpoint *endp);
 struct conn_stream *cs_new_from_mux(struct cs_endpoint *endp, struct session *sess, struct buffer *input);
 struct conn_stream *cs_new_from_applet(struct cs_endpoint *endp, struct session *sess, struct buffer *input);
 struct conn_stream *cs_new_from_strm(struct stream *strm, unsigned int flags);
@@ -46,7 +45,6 @@ struct conn_stream *cs_new_from_check(struct check *check, unsigned int flags);
 void cs_free(struct conn_stream *cs);
 
 int cs_attach_mux(struct conn_stream *cs, void *target, void *ctx);
-void cs_attach_applet(struct conn_stream *cs, void *target, void *ctx);
 int cs_attach_strm(struct conn_stream *cs, struct stream *strm);
 
 int cs_reset_endp(struct conn_stream *cs);
