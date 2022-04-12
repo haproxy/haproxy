@@ -1815,7 +1815,7 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 		}
 
 		s->target = &http_cache_applet.obj_type;
-		if ((appctx = cs_register_applet(s->csb, objt_applet(s->target)))) {
+		if ((appctx = cs_applet_create(s->csb, objt_applet(s->target)))) {
 			appctx->st0 = HTX_CACHE_INIT;
 			appctx->rule = rule;
 			appctx->ctx.cache.entry = res;

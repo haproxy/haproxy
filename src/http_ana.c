@@ -422,7 +422,7 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 	 */
 	if (!s->target && http_stats_check_uri(s, txn, px)) {
 		s->target = &http_stats_applet.obj_type;
-		if (unlikely(!cs_register_applet(s->csb, objt_applet(s->target)))) {
+		if (unlikely(!cs_applet_create(s->csb, objt_applet(s->target)))) {
 			s->logs.tv_request = now;
 			if (!(s->flags & SF_ERR_MASK))
 				s->flags |= SF_ERR_RESOURCE;

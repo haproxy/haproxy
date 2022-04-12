@@ -448,13 +448,13 @@ int cs_reset_endp(struct conn_stream *cs)
 }
 
 
-/* Register an applet to handle a conn-stream as a new appctx. The CS will
+/* Create an applet to handle a conn-stream as a new appctx. The CS will
  * wake it up every time it is solicited. The appctx must be deleted by the task
  * handler using cs_detach_endp(), possibly from within the function itself.
  * It also pre-initializes the applet's context and returns it (or NULL in case
  * it could not be allocated).
  */
-struct appctx *cs_register_applet(struct conn_stream *cs, struct applet *app)
+struct appctx *cs_applet_create(struct conn_stream *cs, struct applet *app)
 {
 	struct appctx *appctx;
 

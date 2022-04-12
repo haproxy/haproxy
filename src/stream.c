@@ -1005,7 +1005,7 @@ enum act_return process_use_service(struct act_rule *rule, struct proxy *px,
 	if (flags & ACT_OPT_FIRST) {
 		/* Register applet. this function schedules the applet. */
 		s->target = &rule->applet.obj_type;
-		appctx = cs_register_applet(s->csb, objt_applet(s->target));
+		appctx = cs_applet_create(s->csb, objt_applet(s->target));
 		if (unlikely(!appctx))
 			return ACT_RET_ERR;
 
