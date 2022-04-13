@@ -878,8 +878,14 @@ int h1_parse_msg_tlrs(struct h1m *h1m, struct htx *dsthtx,
 	struct h1m tlr_h1m;
 	int ret = 0;
 
-	if (!max || !b_data(srcbuf))
+	if (b_data(srcbuf) == ofs) {
+		/* Nothing to parse */
 		goto end;
+	}
+	if (!max) {
+		/* No more room */
+		goto output_full;
+	}
 
 	/* Realing input buffer if necessary */
 	if (b_peek(srcbuf, ofs) > b_tail(srcbuf))
