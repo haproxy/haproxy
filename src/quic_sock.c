@@ -66,8 +66,16 @@ int quic_session_accept(struct connection *cli_conn)
 	if (conn_complete_session(cli_conn) < 0)
 		goto out_free_sess;
 
-	if (conn_xprt_start(cli_conn) >= 0)
-		return 1;
+	if (conn_xprt_start(cli_conn) < 0) {
+		/* conn_complete_session has succeeded : conn is the owner of
+		 * the session and the MUX is initialized.
+		 * Let the MUX free all resources on error.
+		 */
+		cli_conn->mux->destroy(cli_conn->ctx);
+		return -1;
+	}
+
+	return 1;
 
  out_free_sess:
 	/* prevent call to listener_release during session_free. It will be
