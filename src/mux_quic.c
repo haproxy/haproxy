@@ -1057,6 +1057,15 @@ static int qc_init(struct connection *conn, struct proxy *prx,
 	return -1;
 }
 
+static void qc_destroy(void *ctx)
+{
+	struct qcc *qcc = ctx;
+
+	TRACE_ENTER(QMUX_EV_QCC_END, qcc->conn);
+	qc_release(qcc);
+	TRACE_LEAVE(QMUX_EV_QCC_END);
+}
+
 static void qc_detach(struct conn_stream *cs)
 {
 	struct qcs *qcs = __cs_mux(cs);
@@ -1346,6 +1355,7 @@ INITCALL0(STG_INIT, qmux_init_stdout_traces);
 
 static const struct mux_ops qc_ops = {
 	.init = qc_init,
+	.destroy = qc_destroy,
 	.detach = qc_detach,
 	.rcv_buf = qc_rcv_buf,
 	.snd_buf = qc_snd_buf,
