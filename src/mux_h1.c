@@ -428,6 +428,8 @@ static void h1_trace(enum trace_level level, uint64_t mask, const struct trace_s
 		chunk_appendf(&trace_buf, " conn=%p(0x%08x)", h1c->conn, h1c->conn->flags);
 	if (h1s) {
 		chunk_appendf(&trace_buf, " h1s=%p(0x%08x)", h1s, h1s->flags);
+		if (h1s->endp)
+			chunk_appendf(&trace_buf, " endp=%p(0x%08x)", h1s->endp, h1s->endp->flags);
 		if (h1s->cs)
 			chunk_appendf(&trace_buf, " cs=%p(0x%08x)", h1s->cs, h1s->cs->flags);
 	}
@@ -1945,8 +1947,7 @@ static size_t h1_process_demux(struct h1c *h1c, struct buffer *buf, size_t count
 
   err:
 	htx_to_buf(htx, buf);
-	if (h1s->cs)
-		h1s->endp->flags |= CS_EP_EOI;
+	h1s->endp->flags |= CS_EP_EOI;
 	TRACE_DEVEL("leaving on error", H1_EV_RX_DATA|H1_EV_STRM_ERR, h1c->conn, h1s);
 	return 0;
 }
@@ -3651,7 +3652,7 @@ static size_t h1_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 	else
 		TRACE_DEVEL("h1c ibuf not allocated", H1_EV_H1C_RECV|H1_EV_H1C_BLK, h1c->conn);
 
-	if ((flags & CO_RFL_BUF_FLUSH) && (cs->endp->flags & CS_EP_MAY_SPLICE)) {
+	if ((flags & CO_RFL_BUF_FLUSH) && (h1s->endp->flags & CS_EP_MAY_SPLICE)) {
 		h1c->flags |= H1C_F_WANT_SPLICE;
 		TRACE_STATE("Block xprt rcv_buf to flush stream's buffer (want_splice)", H1_EV_STRM_RECV, h1c->conn, h1s);
 	}
@@ -3689,7 +3690,7 @@ static size_t h1_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 	}
 
 	if (h1c->flags & H1C_F_ST_ERROR) {
-		cs->endp->flags |= CS_EP_ERROR;
+		h1s->endp->flags |= CS_EP_ERROR;
 		TRACE_ERROR("H1C on error, leaving in error", H1_EV_STRM_SEND|H1_EV_H1C_ERR|H1_EV_H1S_ERR|H1_EV_STRM_ERR, h1c->conn, h1s);
 		return 0;
 	}
@@ -3721,7 +3722,7 @@ static size_t h1_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 	}
 
 	if (h1c->flags & H1C_F_ST_ERROR) {
-		cs->endp->flags |= CS_EP_ERROR;
+		h1s->endp->flags |= CS_EP_ERROR;
 		TRACE_ERROR("reporting error to the app-layer stream", H1_EV_STRM_SEND|H1_EV_H1S_ERR|H1_EV_STRM_ERR, h1c->conn, h1s);
 	}
 
@@ -3766,7 +3767,7 @@ static int h1_rcv_pipe(struct conn_stream *cs, struct pipe *pipe, unsigned int c
 			if (ret > h1m->curr_len) {
 				h1s->flags |= H1S_F_PARSING_ERROR;
 				h1c->flags |= H1C_F_ST_ERROR;
-				cs->endp->flags  |= CS_EP_ERROR;
+				h1s->endp->flags  |= CS_EP_ERROR;
 				TRACE_ERROR("too much payload, more than announced",
 					    H1_EV_RX_DATA|H1_EV_STRM_ERR|H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
 				goto end;
@@ -3791,7 +3792,7 @@ static int h1_rcv_pipe(struct conn_stream *cs, struct pipe *pipe, unsigned int c
 
 	if (!(h1c->flags & H1C_F_WANT_SPLICE)) {
 		TRACE_STATE("notify the mux can't use splicing anymore", H1_EV_STRM_RECV, h1c->conn, h1s);
-		cs->endp->flags &= ~CS_EP_MAY_SPLICE;
+		h1s->endp->flags &= ~CS_EP_MAY_SPLICE;
 		if (!(h1c->wait_event.events & SUB_RETRY_RECV)) {
 			TRACE_STATE("restart receiving data, subscribing", H1_EV_STRM_RECV, h1c->conn, h1s);
 			h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
@@ -3824,7 +3825,7 @@ static int h1_snd_pipe(struct conn_stream *cs, struct pipe *pipe)
 		if (ret > h1m->curr_len) {
 			h1s->flags |= H1S_F_PROCESSING_ERROR;
 			h1c->flags |= H1C_F_ST_ERROR;
-			cs->endp->flags  |= CS_EP_ERROR;
+			h1s->endp->flags  |= CS_EP_ERROR;
 			TRACE_ERROR("too much payload, more than announced",
 				    H1_EV_TX_DATA|H1_EV_STRM_ERR|H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
 			goto end;
