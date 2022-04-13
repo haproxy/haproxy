@@ -4189,9 +4189,12 @@ static int fcgi_show_fd(struct buffer *msg, struct connection *conn)
 			      (unsigned int)b_data(&fstrm->rxbuf), b_orig(&fstrm->rxbuf),
 			      (unsigned int)b_head_ofs(&fstrm->rxbuf), (unsigned int)b_size(&fstrm->rxbuf),
 			      fstrm->cs);
-		if (fstrm->cs)
-			chunk_appendf(msg, " .cs.flg=0x%08x .cs.app=%p",
-				      fstrm->cs->flags, fstrm->cs->app);
+		if (fstrm->endp) {
+			chunk_appendf(msg, " .endp.flg=0x%08x", fstrm->endp->flags);
+			if (!(fstrm->endp->flags & CS_EP_ORPHAN))
+				chunk_appendf(msg, " .cs.flg=0x%08x .cs.app=%p",
+					      fstrm->cs->flags, fstrm->cs->app);
+		}
 		chunk_appendf(&trash, " .subs=%p", fstrm->subs);
 		if (fstrm->subs) {
 			chunk_appendf(&trash, "(ev=%d tl=%p", fstrm->subs->events, fstrm->subs->tasklet);

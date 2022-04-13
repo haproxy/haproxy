@@ -6744,6 +6744,11 @@ static int h2_show_fd(struct buffer *msg, struct connection *conn)
 			chunk_appendf(msg, "(.flg=0x%08x .app=%p)",
 				      h2s->cs->flags, h2s->cs->app);
 
+		chunk_appendf(msg, "endp=%p", h2s->endp);
+		if (h2s->endp)
+			chunk_appendf(msg, "(.flg=0x%08x)",
+				      h2s->endp->flags);
+
 		chunk_appendf(&trash, " .subs=%p", h2s->subs);
 		if (h2s->subs) {
 			chunk_appendf(&trash, "(ev=%d tl=%p", h2s->subs->events, h2s->subs->tasklet);

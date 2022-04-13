@@ -3889,15 +3889,17 @@ static int h1_show_fd(struct buffer *msg, struct connection *conn)
 			method = http_known_methods[h1s->meth].ptr;
 		else
 			method = "UNKNOWN";
-		chunk_appendf(msg, " h1s=%p h1s.flg=0x%x .req.state=%s .res.state=%s"
+		chunk_appendf(msg, " h1s=%p h1s.flg=0x%x .endp.flg=0x%x .req.state=%s .res.state=%s"
 		    " .meth=%s status=%d",
-			      h1s, h1s->flags,
+			      h1s, h1s->flags, h1s->endp->flags,
 			      h1m_state_str(h1s->req.state),
 			      h1m_state_str(h1s->res.state), method, h1s->status);
-		if (h1s->cs)
-			chunk_appendf(msg, " .cs.flg=0x%08x .cs.app=%p",
-				      h1s->cs->flags, h1s->cs->app);
-
+		if (h1s->endp) {
+			chunk_appendf(msg, " .endp.flg=0x%08x", h1s->endp->flags);
+			if (!(h1s->endp->flags & CS_EP_ORPHAN))
+				chunk_appendf(msg, " .cs.flg=0x%08x .cs.app=%p",
+					      h1s->cs->flags, h1s->cs->app);
+		}
 		chunk_appendf(&trash, " .subs=%p", h1s->subs);
 		if (h1s->subs) {
 			chunk_appendf(&trash, "(ev=%d tl=%p", h1s->subs->events, h1s->subs->tasklet);
