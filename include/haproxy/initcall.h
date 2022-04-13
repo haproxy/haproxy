@@ -96,7 +96,7 @@ struct initcall {
  * as a pointer (args are cast to (void*)). Do not use this macro directly,
  * use INITCALL{0..3}() instead.
  */
-#define __HA_GLOBL1(sym)   __asm__(".globl " #sym)
+#define __HA_GLOBL1(sym)   __asm__(".weak " #sym)
 #define __HA_GLOBL(sym)    __HA_GLOBL1(sym)
 #define __DECLARE_INITCALL(stg, linenum, function, a1, a2, a3)     \
         __HA_GLOBL(__start_i_##stg );                              \
