@@ -2068,6 +2068,14 @@ static inline int qc_provide_cdata(struct quic_enc_level *el,
 		}
 
 		TRACE_PROTO("SSL handshake OK", QUIC_EV_CONN_IO_CB, qc, &state);
+
+		/* Check the alpn could be negotiated */
+		if (!qc->app_ops) {
+			TRACE_PROTO("No ALPN", QUIC_EV_CONN_IO_CB, qc, &state);
+			quic_set_tls_alert(qc, SSL_AD_NO_APPLICATION_PROTOCOL);
+			goto err;
+		}
+
 		/* I/O callback switch */
 		ctx->wait_event.tasklet->process = quic_conn_app_io_cb;
 		if (qc_is_listener(ctx->qc)) {
