@@ -724,7 +724,14 @@ static void h2c_update_timeout(struct h2c *h2c)
 			h2c->task->expire = tick_add_ifset(now_ms, h2c->timeout);
 		} else if (!(h2c->flags & H2_CF_IS_BACK) && h2c->max_id > 0 && !b_data(&h2c->dbuf)) {
 			/* idle after having seen one stream => keep-alive */
-			h2c->task->expire = tick_add_ifset(h2c->idle_start, h2c->proxy->timeout.httpka);
+			int to;
+
+			if (tick_isset(h2c->proxy->timeout.httpka))
+				to = h2c->proxy->timeout.httpka;
+			else
+				to = h2c->proxy->timeout.httpreq;
+
+			h2c->task->expire = tick_add_ifset(h2c->idle_start, to);
 			is_idle_conn = 1;
 		} else {
 			/* before first request, or started to deserialize a
