@@ -2311,10 +2311,12 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	/* first, let's check if the request buffer needs to shutdown(write), which may
 	 * happen either because the input is closed or because we want to force a close
 	 * once the server has begun to respond. If a half-closed timeout is set, we adjust
-	 * the other side's timeout as well.
+	 * the other side's timeout as well. However this doesn't have effect during the
+	 * connection setup unless the backend has abortonclose set.
 	 */
 	if (unlikely((req->flags & (CF_SHUTW|CF_SHUTW_NOW|CF_AUTO_CLOSE|CF_SHUTR)) ==
-		     (CF_AUTO_CLOSE|CF_SHUTR))) {
+		     (CF_AUTO_CLOSE|CF_SHUTR) &&
+		     (csb->state != CS_ST_CON || (s->be->options & PR_O_ABRT_CLOSE)))) {
 		channel_shutw_now(req);
 	}
 
