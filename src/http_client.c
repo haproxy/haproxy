@@ -32,6 +32,7 @@
 #include <haproxy/proxy.h>
 #include <haproxy/server.h>
 #include <haproxy/ssl_sock-t.h>
+#include <haproxy/sock_inet.h>
 #include <haproxy/tools.h>
 
 #include <string.h>
@@ -445,6 +446,54 @@ int httpclient_set_dst(struct httpclient *hc, const char *dst)
 }
 
 /*
+ * Return a splitted URL in <scheme>, <host>, <port>
+ */
+static void httpclient_spliturl(struct ist url, enum http_scheme *scheme,
+                                struct ist *host, int *port)
+{
+	enum http_scheme scheme_tmp = SCH_HTTP;
+	int port_tmp = 0;
+	struct ist scheme_ist, authority_ist, host_ist, port_ist;
+	char *p, *end;
+	struct http_uri_parser parser;
+
+	parser = http_uri_parser_init(url);
+	scheme_ist = http_parse_scheme(&parser);
+
+	if (isteqi(scheme_ist, ist("http://"))){
+		scheme_tmp = SCH_HTTP;
+		port_tmp = 80;
+	} else if (isteqi(scheme_ist, ist("https://"))) {
+		scheme_tmp = SCH_HTTPS;
+		port_tmp = 443;
+	}
+
+	authority_ist = http_parse_authority(&parser, 1);
+	p = end = istend(authority_ist);
+
+	/* look for a port at the end of the authority */
+	while (p > istptr(authority_ist) && isdigit((unsigned char)*--p))
+		;
+
+	if (*p == ':') {
+		host_ist = ist2(istptr(authority_ist), p - istptr(authority_ist));
+		port_ist = istnext(ist2(p, end - p));
+		ist2str(trash.area, port_ist);
+		port_tmp = atoi(trash.area);
+	} else {
+		host_ist = authority_ist;
+	}
+
+	if (scheme)
+		*scheme = scheme_tmp;
+	if (host)
+		*host = host_ist;
+	if (port)
+		*port = port_tmp;
+
+}
+
+/*
  * Start the HTTP client
  * Create the appctx, session, stream and wakeup the applet
  *
@@ -461,11 +510,12 @@ struct appctx *httpclient_start(struct httpclient *hc)
 	struct conn_stream *cs;
 	struct stream *s;
 	struct sockaddr_storage *addr = NULL;
-	int len;
-	struct sockaddr_storage ss_url;
-	struct sockaddr_storage* ss_dst;
-	struct split_url out;
+	struct sockaddr_storage ss_url = {};
+	struct sockaddr_storage *ss_dst;
 	enum obj_type *target = NULL;
+	struct ist host = IST_NULL;
+	enum http_scheme scheme;
+	int port;
 
 	/* if the client was started and not ended, an applet is already
 	 * running, we shouldn't try anything */
@@ -474,12 +524,12 @@ struct appctx *httpclient_start(struct httpclient *hc)
 
 	hc->flags = 0;
 
-	/* parse URI and fill sockaddr_storage */
-	len = url2sa(istptr(hc->req.url), istlen(hc->req.url), &ss_url, &out);
-	if (len == -1) {
-		ha_alert("httpclient: cannot parse uri '%s'.\n", istptr(hc->req.url));
-		goto out;
-	}
+	/* parse the URL and  */
+	httpclient_spliturl(hc->req.url, &scheme, &host, &port);
+
+	ist2str(trash.area, host);
+	ss_dst = str2ip2(trash.area, &ss_url, 0);
+	sock_inet_set_port(&ss_url, port);
 
 	/* The HTTP client will be created in the same thread as the caller,
 	 * avoiding threading issues */
@@ -494,7 +544,7 @@ struct appctx *httpclient_start(struct httpclient *hc)
 	}
 
 	/* choose the SSL server or not */
-	switch (out.scheme) {
+	switch (scheme) {
 		case SCH_HTTP:
 			target = &httpclient_srv_raw->obj_type;
 			break;
@@ -516,8 +566,9 @@ struct appctx *httpclient_start(struct httpclient *hc)
 	/* if httpclient_set_dst() was used, sets the alternative address */
 	if (hc->dst)
 		ss_dst = hc->dst;
-	else
-		ss_dst = &ss_url;
+
+	/* TODO: if ss_dst == NULL, must resolve the domain */
+
 
 	if (!sockaddr_alloc(&addr, ss_dst, sizeof(*hc->dst)))
 		goto out_free_sess;
