@@ -840,34 +840,28 @@ static inline struct fcgi_strm *fcgi_conn_st_by_id(struct fcgi_conn *fconn, int 
  */
 static void fcgi_release(struct fcgi_conn *fconn)
 {
-	struct connection *conn = NULL;
+	struct connection *conn = fconn->conn;
 
 	TRACE_POINT(FCGI_EV_FCONN_END);
 
-	if (fconn) {
-		conn = fconn->conn;
+	if (LIST_INLIST(&fconn->buf_wait.list))
+		LIST_DEL_INIT(&fconn->buf_wait.list);
 
-		TRACE_DEVEL("freeing fconn", FCGI_EV_FCONN_END, conn);
+	fcgi_release_buf(fconn, &fconn->dbuf);
+	fcgi_release_mbuf(fconn);
 
-		if (LIST_INLIST(&fconn->buf_wait.list))
-			LIST_DEL_INIT(&fconn->buf_wait.list);
-
-		fcgi_release_buf(fconn, &fconn->dbuf);
-		fcgi_release_mbuf(fconn);
-
-		if (fconn->task) {
-			fconn->task->context = NULL;
-			task_wakeup(fconn->task, TASK_WOKEN_OTHER);
-			fconn->task = NULL;
-		}
-		if (fconn->wait_event.tasklet)
-			tasklet_free(fconn->wait_event.tasklet);
-		if (conn && fconn->wait_event.events != 0)
-			conn->xprt->unsubscribe(conn, conn->xprt_ctx, fconn->wait_event.events,
-						&fconn->wait_event);
-
-		pool_free(pool_head_fcgi_conn, fconn);
+	if (fconn->task) {
+		fconn->task->context = NULL;
+		task_wakeup(fconn->task, TASK_WOKEN_OTHER);
+		fconn->task = NULL;
 	}
+	if (fconn->wait_event.tasklet)
+		tasklet_free(fconn->wait_event.tasklet);
+	if (conn && fconn->wait_event.events != 0)
+		conn->xprt->unsubscribe(conn, conn->xprt_ctx, fconn->wait_event.events,
+					&fconn->wait_event);
+
+	pool_free(pool_head_fcgi_conn, fconn);
 
 	if (conn) {
 		conn->mux = NULL;

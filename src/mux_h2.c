@@ -1161,37 +1161,32 @@ static inline struct h2s *h2c_st_by_id(struct h2c *h2c, int id)
  */
 static void h2_release(struct h2c *h2c)
 {
-	struct connection *conn = NULL;
+	struct connection *conn = h2c->conn;
 
 	TRACE_ENTER(H2_EV_H2C_END);
 
-	if (h2c) {
-		conn = h2c->conn;
+	hpack_dht_free(h2c->ddht);
 
-		TRACE_DEVEL("freeing h2c", H2_EV_H2C_END, conn);
-		hpack_dht_free(h2c->ddht);
+	if (LIST_INLIST(&h2c->buf_wait.list))
+		LIST_DEL_INIT(&h2c->buf_wait.list);
 
-		if (LIST_INLIST(&h2c->buf_wait.list))
-			LIST_DEL_INIT(&h2c->buf_wait.list);
+	h2_release_buf(h2c, &h2c->dbuf);
+	h2_release_mbuf(h2c);
 
-		h2_release_buf(h2c, &h2c->dbuf);
-		h2_release_mbuf(h2c);
-
-		if (h2c->task) {
-			h2c->task->context = NULL;
-			task_wakeup(h2c->task, TASK_WOKEN_OTHER);
-			h2c->task = NULL;
-		}
-		if (h2c->wait_event.tasklet)
-			tasklet_free(h2c->wait_event.tasklet);
-		if (conn && h2c->wait_event.events != 0)
-			conn->xprt->unsubscribe(conn, conn->xprt_ctx, h2c->wait_event.events,
-						&h2c->wait_event);
-
-		HA_ATOMIC_DEC(&h2c->px_counters->open_conns);
-
-		pool_free(pool_head_h2c, h2c);
+	if (h2c->task) {
+		h2c->task->context = NULL;
+		task_wakeup(h2c->task, TASK_WOKEN_OTHER);
+		h2c->task = NULL;
 	}
+	if (h2c->wait_event.tasklet)
+		tasklet_free(h2c->wait_event.tasklet);
+	if (conn && h2c->wait_event.events != 0)
+		conn->xprt->unsubscribe(conn, conn->xprt_ctx, h2c->wait_event.events,
+					&h2c->wait_event);
+
+	HA_ATOMIC_DEC(&h2c->px_counters->open_conns);
+
+	pool_free(pool_head_h2c, h2c);
 
 	if (conn) {
 		if (!conn_is_back(conn))

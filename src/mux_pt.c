@@ -200,22 +200,18 @@ static void mux_pt_destroy(struct mux_pt_ctx *ctx)
 
 	TRACE_POINT(PT_EV_CONN_END);
 
-	if (ctx) {
-		/* The connection must be attached to this mux to be released */
-		if (ctx->conn && ctx->conn->ctx == ctx)
-			conn = ctx->conn;
+	/* The connection must be attached to this mux to be released */
+	if (ctx->conn && ctx->conn->ctx == ctx)
+		conn = ctx->conn;
 
-		TRACE_DEVEL("freeing pt context", PT_EV_CONN_END, conn);
+	tasklet_free(ctx->wait_event.tasklet);
 
-		tasklet_free(ctx->wait_event.tasklet);
-
-		if (conn && ctx->wait_event.events != 0)
-			conn->xprt->unsubscribe(conn, conn->xprt_ctx, ctx->wait_event.events,
-						&ctx->wait_event);
-		BUG_ON(ctx->endp && !(ctx->endp->flags & CS_EP_ORPHAN));
-		cs_endpoint_free(ctx->endp);
-		pool_free(pool_head_pt_ctx, ctx);
-	}
+	if (conn && ctx->wait_event.events != 0)
+		conn->xprt->unsubscribe(conn, conn->xprt_ctx, ctx->wait_event.events,
+					&ctx->wait_event);
+	BUG_ON(ctx->endp && !(ctx->endp->flags & CS_EP_ORPHAN));
+	cs_endpoint_free(ctx->endp);
+	pool_free(pool_head_pt_ctx, ctx);
 
 	if (conn) {
 		conn->mux = NULL;

@@ -1055,55 +1055,51 @@ static void h1_release(struct h1c *h1c)
 
 	TRACE_POINT(H1_EV_H1C_END);
 
-	if (h1c) {
-		/* The connection must be aattached to this mux to be released */
-		if (h1c->conn && h1c->conn->ctx == h1c)
-			conn = h1c->conn;
+	/* The connection must be aattached to this mux to be released */
+	if (h1c->conn && h1c->conn->ctx == h1c)
+		conn = h1c->conn;
 
-		TRACE_DEVEL("freeing h1c", H1_EV_H1C_END, conn);
-
-		if (conn && h1c->flags & H1C_F_UPG_H2C) {
-			TRACE_DEVEL("upgrading H1 to H2", H1_EV_H1C_END, conn);
-			/* Make sure we're no longer subscribed to anything */
-			if (h1c->wait_event.events)
-				conn->xprt->unsubscribe(conn, conn->xprt_ctx,
-				    h1c->wait_event.events, &h1c->wait_event);
-			if (conn_upgrade_mux_fe(conn, NULL, &h1c->ibuf, ist("h2"), PROTO_MODE_HTTP) != -1) {
-				/* connection successfully upgraded to H2, this
-				 * mux was already released */
-				return;
-			}
-			TRACE_ERROR("h2 upgrade failed", H1_EV_H1C_END|H1_EV_H1C_ERR, conn);
-			sess_log(conn->owner); /* Log if the upgrade failed */
+	if (conn && h1c->flags & H1C_F_UPG_H2C) {
+		TRACE_DEVEL("upgrading H1 to H2", H1_EV_H1C_END, conn);
+		/* Make sure we're no longer subscribed to anything */
+		if (h1c->wait_event.events)
+			conn->xprt->unsubscribe(conn, conn->xprt_ctx,
+						h1c->wait_event.events, &h1c->wait_event);
+		if (conn_upgrade_mux_fe(conn, NULL, &h1c->ibuf, ist("h2"), PROTO_MODE_HTTP) != -1) {
+			/* connection successfully upgraded to H2, this
+			 * mux was already released */
+			return;
 		}
-
-
-		if (LIST_INLIST(&h1c->buf_wait.list))
-			LIST_DEL_INIT(&h1c->buf_wait.list);
-
-		h1_release_buf(h1c, &h1c->ibuf);
-		h1_release_buf(h1c, &h1c->obuf);
-
-		if (h1c->task) {
-			h1c->task->context = NULL;
-			task_wakeup(h1c->task, TASK_WOKEN_OTHER);
-			h1c->task = NULL;
-		}
-
-		if (h1c->wait_event.tasklet)
-			tasklet_free(h1c->wait_event.tasklet);
-
-		h1s_destroy(h1c->h1s);
-		if (conn) {
-			if (h1c->wait_event.events != 0)
-				conn->xprt->unsubscribe(conn, conn->xprt_ctx, h1c->wait_event.events,
-							&h1c->wait_event);
-			h1_shutw_conn(conn);
-		}
-
-		HA_ATOMIC_DEC(&h1c->px_counters->open_conns);
-		pool_free(pool_head_h1c, h1c);
+		TRACE_ERROR("h2 upgrade failed", H1_EV_H1C_END|H1_EV_H1C_ERR, conn);
+		sess_log(conn->owner); /* Log if the upgrade failed */
 	}
+
+
+	if (LIST_INLIST(&h1c->buf_wait.list))
+		LIST_DEL_INIT(&h1c->buf_wait.list);
+
+	h1_release_buf(h1c, &h1c->ibuf);
+	h1_release_buf(h1c, &h1c->obuf);
+
+	if (h1c->task) {
+		h1c->task->context = NULL;
+		task_wakeup(h1c->task, TASK_WOKEN_OTHER);
+		h1c->task = NULL;
+	}
+
+	if (h1c->wait_event.tasklet)
+		tasklet_free(h1c->wait_event.tasklet);
+
+	h1s_destroy(h1c->h1s);
+	if (conn) {
+		if (h1c->wait_event.events != 0)
+			conn->xprt->unsubscribe(conn, conn->xprt_ctx, h1c->wait_event.events,
+						&h1c->wait_event);
+		h1_shutw_conn(conn);
+	}
+
+	HA_ATOMIC_DEC(&h1c->px_counters->open_conns);
+	pool_free(pool_head_h1c, h1c);
 
 	if (conn) {
 		if (!conn_is_back(conn))

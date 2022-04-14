@@ -495,38 +495,31 @@ static inline int qcc_may_expire(struct qcc *qcc)
  */
 static void qc_release(struct qcc *qcc)
 {
-	struct connection *conn = NULL;
+	struct connection *conn = qcc->conn;
+	struct eb64_node *node;
 
 	TRACE_ENTER(QMUX_EV_QCC_END);
 
-	if (qcc) {
-		struct eb64_node *node;
+	if (qcc->app_ops && qcc->app_ops->release)
+		qcc->app_ops->release(qcc->ctx);
 
-		conn = qcc->conn;
-
-		TRACE_DEVEL("freeing qcc", QMUX_EV_QCC_END, conn);
-
-		if (qcc->app_ops && qcc->app_ops->release)
-			qcc->app_ops->release(qcc->ctx);
-
-		if (qcc->task) {
-			task_destroy(qcc->task);
-			qcc->task = NULL;
-		}
-
-		if (qcc->wait_event.tasklet)
-			tasklet_free(qcc->wait_event.tasklet);
-
-		/* liberate remaining qcs instances */
-		node = eb64_first(&qcc->streams_by_id);
-		while (node) {
-			struct qc_stream_desc *stream = eb64_entry(node, struct qc_stream_desc, by_id);
-			node = eb64_next(node);
-			qcs_free(stream->ctx);
-		}
-
-		pool_free(pool_head_qcc, qcc);
+	if (qcc->task) {
+		task_destroy(qcc->task);
+		qcc->task = NULL;
 	}
+
+	if (qcc->wait_event.tasklet)
+		tasklet_free(qcc->wait_event.tasklet);
+
+	/* liberate remaining qcs instances */
+	node = eb64_first(&qcc->streams_by_id);
+	while (node) {
+		struct qc_stream_desc *stream = eb64_entry(node, struct qc_stream_desc, by_id);
+		node = eb64_next(node);
+		qcs_free(stream->ctx);
+	}
+
+	pool_free(pool_head_qcc, qcc);
 
 	if (conn) {
 		LIST_DEL_INIT(&conn->stopping_list);
