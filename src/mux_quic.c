@@ -502,9 +502,7 @@ static void qc_release(struct qcc *qcc)
 	if (qcc) {
 		struct eb64_node *node;
 
-		/* The connection must be aattached to this mux to be released */
-		if (qcc->conn && qcc->conn->ctx == qcc)
-			conn = qcc->conn;
+		conn = qcc->conn;
 
 		TRACE_DEVEL("freeing qcc", QMUX_EV_QCC_END, conn);
 

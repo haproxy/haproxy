@@ -1166,9 +1166,7 @@ static void h2_release(struct h2c *h2c)
 	TRACE_ENTER(H2_EV_H2C_END);
 
 	if (h2c) {
-		/* The connection must be aattached to this mux to be released */
-		if (h2c->conn && h2c->conn->ctx == h2c)
-			conn = h2c->conn;
+		conn = h2c->conn;
 
 		TRACE_DEVEL("freeing h2c", H2_EV_H2C_END, conn);
 		hpack_dht_free(h2c->ddht);
@@ -4350,8 +4348,10 @@ static void h2_destroy(void *ctx)
 	struct h2c *h2c = ctx;
 
 	TRACE_ENTER(H2_EV_H2C_END, h2c->conn);
-	if (eb_is_empty(&h2c->streams_by_id) || h2c->conn->ctx != h2c)
+	if (eb_is_empty(&h2c->streams_by_id)) {
+		BUG_ON(h2c->conn->ctx != h2c);
 		h2_release(h2c);
+	}
 	TRACE_LEAVE(H2_EV_H2C_END);
 }
 

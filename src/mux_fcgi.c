@@ -845,9 +845,7 @@ static void fcgi_release(struct fcgi_conn *fconn)
 	TRACE_POINT(FCGI_EV_FCONN_END);
 
 	if (fconn) {
-		/* The connection must be attached to this mux to be released */
-		if (fconn->conn && fconn->conn->ctx == fconn)
-			conn = fconn->conn;
+		conn = fconn->conn;
 
 		TRACE_DEVEL("freeing fconn", FCGI_EV_FCONN_END, conn);
 
@@ -3576,8 +3574,10 @@ static void fcgi_destroy(void *ctx)
 	struct fcgi_conn *fconn = ctx;
 
 	TRACE_POINT(FCGI_EV_FCONN_END, fconn->conn);
-	if (eb_is_empty(&fconn->streams_by_id) || fconn->conn->ctx != fconn)
+	if (eb_is_empty(&fconn->streams_by_id)) {
+		BUG_ON(fconn->conn->ctx != fconn);
 		fcgi_release(fconn);
+	}
 }
 
 /*
