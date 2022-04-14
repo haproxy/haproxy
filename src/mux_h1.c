@@ -3337,7 +3337,7 @@ static void h1_destroy(void *ctx)
 	struct h1c *h1c = ctx;
 
 	TRACE_POINT(H1_EV_H1C_END, h1c->conn);
-	if (!h1c->h1s || !h1c->conn || h1c->conn->ctx != h1c)
+	if (!h1c->h1s || h1c->conn->ctx != h1c)
 		h1_release(h1c);
 }
 

@@ -3576,7 +3576,7 @@ static void fcgi_destroy(void *ctx)
 	struct fcgi_conn *fconn = ctx;
 
 	TRACE_POINT(FCGI_EV_FCONN_END, fconn->conn);
-	if (eb_is_empty(&fconn->streams_by_id) || !fconn->conn || fconn->conn->ctx != fconn)
+	if (eb_is_empty(&fconn->streams_by_id) || fconn->conn->ctx != fconn)
 		fcgi_release(fconn);
 }
 

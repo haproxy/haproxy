@@ -413,9 +413,10 @@ static void mux_pt_destroy_meth(void *ctx)
 	struct mux_pt_ctx *pt = ctx;
 
 	TRACE_POINT(PT_EV_CONN_END, pt->conn, pt->cs);
-	if ((pt->endp->flags & CS_EP_ORPHAN) || !(pt->conn) || pt->conn->ctx != pt) {
-		if (pt->conn->ctx != pt)
+	if ((pt->endp->flags & CS_EP_ORPHAN) || pt->conn->ctx != pt) {
+		if (pt->conn->ctx != pt) {
 			pt->endp = NULL;
+		}
 		mux_pt_destroy(pt);
 	}
 }

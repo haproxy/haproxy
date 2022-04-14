@@ -4350,7 +4350,7 @@ static void h2_destroy(void *ctx)
 	struct h2c *h2c = ctx;
 
 	TRACE_ENTER(H2_EV_H2C_END, h2c->conn);
-	if (eb_is_empty(&h2c->streams_by_id) || !h2c->conn || h2c->conn->ctx != h2c)
+	if (eb_is_empty(&h2c->streams_by_id) || h2c->conn->ctx != h2c)
 		h2_release(h2c);
 	TRACE_LEAVE(H2_EV_H2C_END);
 }
