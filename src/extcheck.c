@@ -311,21 +311,9 @@ int prepare_external_check(struct check *check)
 		goto err;
 	}
 
-	if (!check->argv[1] || !check->argv[2]) {
-		ha_alert("Starting [%s:%s] check: out of memory.\n", px->id, s->id);
-		goto err;
-	}
-
+	/* args 3 and 4 are the address, they're replaced on each check */
 	check->argv[3] = calloc(EXTCHK_SIZE_ADDR, sizeof(*check->argv[3]));
 	check->argv[4] = calloc(EXTCHK_SIZE_UINT, sizeof(*check->argv[4]));
-	if (!check->argv[3] || !check->argv[4]) {
-		ha_alert("Starting [%s:%s] check: out of memory.\n", px->id, s->id);
-		goto err;
-	}
-
-	addr_to_str(&s->addr, check->argv[3], EXTCHK_SIZE_ADDR);
-	if (s->addr.ss_family == AF_INET || s->addr.ss_family == AF_INET6)
-		snprintf(check->argv[4], EXTCHK_SIZE_UINT, "%u", s->svc_port);
 
 	for (i = 0; i < 5; i++) {
 		if (!check->argv[i]) {
