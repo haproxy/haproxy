@@ -88,6 +88,21 @@
 
 #endif // USE_OBSOLETE_LINKER
 
+/* Declare a symbol as global and if possible, as weak. Since we don't want to
+ * error on multiple definitions, the symbol is declared weak. On MacOS ".weak"
+ * does not exist and we must continue to use ".globl" instead. Note that
+ * ".global" is to be avoided on other platforms as llvm complains about it
+ * being used for symbols declared as weak elsewhere in the code. It may or may
+ * not work depending on linkers and assemblers, this is only for advanced use
+ * anyway (and most likely it will only work with !USE_OBSOLETE_LINKER).
+ */
+#if defined(__APPLE__)
+#  define __HA_GLOBL(sym)   __asm__(".globl " #sym)
+#else
+#  define __HA_GLOBL(sym)   __asm__(".weak " #sym)
+#endif
+#define HA_GLOBL(sym)    __HA_GLOBL(sym)
+
 /* use this attribute on a variable to move it to the read_mostly section */
 #if !defined(__read_mostly)
 #define __read_mostly           HA_SECTION("read_mostly")
