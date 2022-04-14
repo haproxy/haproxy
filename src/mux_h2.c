@@ -722,7 +722,7 @@ static void h2c_update_timeout(struct h2c *h2c)
 		} else if (br_data(h2c->mbuf)) {
 			/* pending output data: always the regular data timeout */
 			h2c->task->expire = tick_add_ifset(now_ms, h2c->timeout);
-		} else if (h2c->max_id > 0 && !b_data(&h2c->dbuf)) {
+		} else if (!(h2c->flags & H2_CF_IS_BACK) && h2c->max_id > 0 && !b_data(&h2c->dbuf)) {
 			/* idle after having seen one stream => keep-alive */
 			h2c->task->expire = tick_add_ifset(h2c->idle_start, h2c->proxy->timeout.httpka);
 			is_idle_conn = 1;
