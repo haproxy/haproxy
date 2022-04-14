@@ -5756,6 +5756,9 @@ static int qc_xprt_start(struct connection *conn, void *ctx)
 	qc = conn->handle.qc;
 	if (qcc_install_app_ops(qc->qcc, qc->app_ops)) {
 		TRACE_PROTO("Cannot install app layer", QUIC_EV_CONN_LPKT, qc);
+		/* prepare a CONNECTION_CLOSE frame */
+		qc->err_code = QC_ERR_APPLICATION_ERROR;
+		qc->flags |= QUIC_FL_CONN_IMMEDIATE_CLOSE;
 		return -1;
 	}
 
