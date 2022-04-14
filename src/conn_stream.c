@@ -350,7 +350,7 @@ void cs_detach_endp(struct conn_stream *cs)
 		goto reset_cs;
 
 	if (cs->endp->flags & CS_EP_T_MUX) {
-		struct connection *conn = cs_conn(cs);
+		struct connection *conn = __cs_conn(cs);
 
 		if (conn->mux) {
 			/* TODO: handle unsubscribe for healthchecks too */
@@ -372,7 +372,7 @@ void cs_detach_endp(struct conn_stream *cs)
 		}
 	}
 	else if (cs->endp->flags & CS_EP_T_APPLET) {
-		struct appctx *appctx = cs_appctx(cs);
+		struct appctx *appctx = __cs_appctx(cs);
 
 		cs->endp->flags |= CS_EP_ORPHAN;
 		cs_applet_release(cs);
