@@ -519,7 +519,11 @@ struct appctx *httpclient_start(struct httpclient *hc)
 			s->target = &httpclient_srv_ssl->obj_type;
 #else
 			ha_alert("httpclient: OpenSSL is not available %s:%d.\n", __FUNCTION__, __LINE__);
-			goto out_free_stream;
+			cs_detach_app(cs);
+			LIST_DELETE(&s->list);
+			pool_free(pool_head_stream, s);
+			cs_free(cs);
+			goto out_free_addr;
 #endif
 			break;
 	}
@@ -544,11 +548,6 @@ struct appctx *httpclient_start(struct httpclient *hc)
 
 	return appctx;
 
-out_free_stream:
-	cs_detach_app(cs);
-	LIST_DELETE(&s->list);
-	pool_free(pool_head_stream, s);
-	cs_free(cs);
 out_free_addr:
 	sockaddr_free(&addr);
 out_free_sess:
