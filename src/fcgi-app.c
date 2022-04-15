@@ -350,7 +350,7 @@ static int fcgi_flt_http_headers(struct stream *s, struct filter *filter, struct
 		/* Add the header "Content-Length:" if possible */
 		sl = http_get_stline(htx);
 		if (s->txn->meth != HTTP_METH_HEAD && sl &&
-		    (sl->flags & (HTX_SL_F_XFER_LEN|HTX_SL_F_CLEN|HTX_SL_F_CHNK)) == HTX_SL_F_XFER_LEN &&
+		    (msg->flags & (HTTP_MSGF_XFER_LEN|HTTP_MSGF_CNT_LEN|HTTP_MSGF_TE_CHNK)) == HTTP_MSGF_XFER_LEN &&
 		    (htx->flags & HTX_FL_EOM)) {
 			struct htx_blk * blk;
 			char *end;
@@ -365,8 +365,10 @@ static int fcgi_flt_http_headers(struct stream *s, struct filter *filter, struct
 					len += htx_get_blksz(blk);
 			}
 			end = ultoa_o(len, trash.area, trash.size);
-			if (http_add_header(htx, ist("content-length"), ist2(trash.area, end-trash.area)))
+			if (http_add_header(htx, ist("content-length"), ist2(trash.area, end-trash.area))) {
 				sl->flags |= HTX_SL_F_CLEN;
+				msg->flags |= HTTP_MSGF_CNT_LEN;
+			}
 		}
 
 		return 1;
