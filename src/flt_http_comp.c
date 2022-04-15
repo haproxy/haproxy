@@ -301,6 +301,7 @@ static int
 set_compression_response_header(struct comp_state *st, struct stream *s, struct http_msg *msg)
 {
 	struct htx *htx = htxbuf(&msg->chn->buf);
+	struct htx_sl *sl;
 	struct http_hdr_ctx ctx;
 
 	/*
@@ -316,17 +317,25 @@ set_compression_response_header(struct comp_state *st, struct stream *s, struct 
 			goto error;
 	}
 
+	sl = http_get_stline(htx);
+	if (!sl)
+		goto error;
+
 	/* remove Content-Length header */
 	if (msg->flags & HTTP_MSGF_CNT_LEN) {
 		ctx.blk = NULL;
 		while (http_find_header(htx, ist("Content-Length"), &ctx, 1))
 			http_remove_header(htx, &ctx);
+		msg->flags &= ~HTTP_MSGF_CNT_LEN;
+		sl->flags &= ~HTX_SL_F_CLEN;
 	}
 
 	/* add "Transfer-Encoding: chunked" header */
 	if (!(msg->flags & HTTP_MSGF_TE_CHNK)) {
 		if (!http_add_header(htx, ist("Transfer-Encoding"), ist("chunked")))
 			goto error;
+		msg->flags |= HTTP_MSGF_TE_CHNK;
+		sl->flags |= (HTX_SL_F_XFER_ENC|HTX_SL_F_CHNK);
 	}
 
 	/* convert "ETag" header to a weak ETag */
