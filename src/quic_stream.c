@@ -75,11 +75,11 @@ void qc_stream_desc_release(struct qc_stream_desc *stream)
  * Returns the count of byte removed from stream. Do not forget to check if
  * <stream> is NULL after invocation.
  */
-int qc_stream_desc_ack(struct qc_stream_desc **stream, size_t offset,
-                       size_t len)
+int qc_stream_desc_ack(struct qc_stream_desc **stream, size_t offset, size_t len)
 {
 	struct qc_stream_desc *s = *stream;
 	struct qc_stream_buf *stream_buf;
+	struct quic_conn *qc = s->qc;
 	struct buffer *buf;
 	size_t diff;
 
@@ -115,6 +115,15 @@ int qc_stream_desc_ack(struct qc_stream_desc **stream, size_t offset,
 	pool_free(pool_head_quic_conn_stream_buf, stream_buf);
 	offer_buffers(NULL, 1);
 
+	/* notify MUX about available buffers. */
+	--qc->stream_buf_count;
+	if (qc->mux_state == QC_MUX_READY) {
+		if (qc->qcc->flags & QC_CF_CONN_FULL) {
+			qc->qcc->flags &= ~QC_CF_CONN_FULL;
+			tasklet_wakeup(qc->qcc->wait_event.tasklet);
+		}
+	}
+
 	/* Free stream instance if already released and no buffers left. */
 	if (s->release && LIST_ISEMPTY(&s->buf_list)) {
 		qc_stream_desc_free(s);
@@ -131,6 +140,7 @@ int qc_stream_desc_ack(struct qc_stream_desc **stream, size_t offset,
 void qc_stream_desc_free(struct qc_stream_desc *stream)
 {
 	struct qc_stream_buf *buf, *buf_back;
+	struct quic_conn *qc = stream->qc;
 	struct eb64_node *frm_node;
 	unsigned int free_count = 0;
 
@@ -148,8 +158,18 @@ void qc_stream_desc_free(struct qc_stream_desc *stream)
 		}
 	}
 
-	if (free_count)
+	if (free_count) {
 		offer_buffers(NULL, free_count);
+
+		qc->stream_buf_count -= free_count;
+		if (qc->mux_state == QC_MUX_READY) {
+			/* notify MUX about available buffers. */
+			if (qc->qcc->flags & QC_CF_CONN_FULL) {
+				qc->qcc->flags &= ~QC_CF_CONN_FULL;
+				tasklet_wakeup(qc->qcc->wait_event.tasklet);
+			}
+		}
+	}
 
 	/* qc_stream_desc might be freed before having received all its ACKs.
 	 * This is the case if some frames were retransmitted.
@@ -183,17 +203,34 @@ struct buffer *qc_stream_buf_get(struct qc_stream_desc *stream)
 	return &stream->buf->buf;
 }
 
-/* Allocate a new current buffer for <stream>. This function is not allowed if
- * current buffer is not NULL prior to this call. The new buffer represents
- * stream payload at offset <offset>.
+/* Check if a new stream buffer can be allocated for the connection <qc>.
+ * Returns a boolean.
+ */
+int qc_stream_buf_avail(struct quic_conn *qc)
+{
+	/* TODO use a global tune settings for max */
+	return qc->stream_buf_count < 30;
+}
+
+/* Allocate a new current buffer for <stream>. The buffer limit count for the
+ * connection is checked first. This function is not allowed if current buffer
+ * is not NULL prior to this call. The new buffer represents stream payload at
+ * offset <offset>.
  *
  * Returns the buffer or NULL.
  */
 struct buffer *qc_stream_buf_alloc(struct qc_stream_desc *stream,
                                    uint64_t offset)
 {
+	struct quic_conn *qc = stream->qc;
+
 	/* current buffer must be released first before allocate a new one. */
 	BUG_ON(stream->buf);
+
+	if (!qc_stream_buf_avail(qc))
+		return NULL;
+
+	++qc->stream_buf_count;
 
 	stream->buf_offset = offset;
 	stream->buf = pool_alloc(pool_head_quic_conn_stream_buf);

@@ -4057,6 +4057,7 @@ static struct quic_conn *qc_new_conn(unsigned int version, int ipv4,
 	MT_LIST_INIT(&qc->accept_list);
 
 	qc->streams_by_id = EB_ROOT_UNIQUE;
+	qc->stream_buf_count = 0;
 
 	TRACE_LEAVE(QUIC_EV_CONN_INIT, qc);
 

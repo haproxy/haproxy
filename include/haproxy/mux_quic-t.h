@@ -26,6 +26,7 @@ enum qcs_type {
 };
 
 #define QC_CF_BLK_MFCTL 0x00000001 /* sending blocked due to connection flow-control */
+#define QC_CF_CONN_FULL 0x00000002 /* no stream buffers available on connection */
 
 struct qcc {
 	struct connection *conn;

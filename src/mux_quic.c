@@ -722,7 +722,14 @@ void qcc_streams_sent_done(struct qcs *qcs, uint64_t data, uint64_t offset)
 
 	if (qcs->tx.offset == qcs->tx.sent_offset && b_full(&qcs->stream->buf->buf)) {
 		qc_stream_buf_release(qcs->stream);
-		tasklet_wakeup(qcc->wait_event.tasklet);
+
+		/* reschedule send if buffers available */
+		if (qc_stream_buf_avail(qcc->conn->handle.qc)) {
+			tasklet_wakeup(qcc->wait_event.tasklet);
+		}
+		else {
+			qcc->flags |= QC_CF_CONN_FULL;
+		}
 	}
 }
 
@@ -884,14 +891,15 @@ static int qc_send(struct qcc *qcc)
 			continue;
 		}
 
-		if (!out) {
-			struct connection *conn = qcc->conn;
+		if (!out && (qcc->flags & QC_CF_CONN_FULL)) {
+			node = eb64_next(node);
+			continue;
+		}
 
-			out = qc_stream_buf_alloc(qcs->stream,
-			                          qcs->tx.offset);
+		if (!out) {
+			out = qc_stream_buf_alloc(qcs->stream, qcs->tx.offset);
 			if (!out) {
-				conn->xprt->subscribe(conn, conn->xprt_ctx,
-				                      SUB_RETRY_SEND, &qcc->wait_event);
+				qcc->flags |= QC_CF_CONN_FULL;
 				node = eb64_next(node);
 				continue;
 			}

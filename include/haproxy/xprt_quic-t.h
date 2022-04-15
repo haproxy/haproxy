@@ -750,6 +750,7 @@ struct quic_conn {
 	struct mt_list accept_list; /* chaining element used for accept, only valid for frontend connections */
 
 	struct eb_root streams_by_id; /* qc_stream_desc tree */
+	int stream_buf_count; /* total count of allocated stream buffers for this connection */
 
 	/* MUX */
 	struct qcc *qcc;
