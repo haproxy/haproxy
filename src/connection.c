@@ -501,13 +501,6 @@ void conn_free(struct connection *conn)
 	pool_free(pool_head_conn_hash_node, conn->hash_node);
 	conn->hash_node = NULL;
 
-	/* By convention we always place a NULL where the ctx points to if the
-	 * mux is null. It may have been used to store the connection as a
-	 * conn-stream's end point for example.
-	 */
-	if (conn->ctx != NULL && conn->mux == NULL)
-		*(void **)conn->ctx = NULL;
-
 	conn_force_unsubscribe(conn);
 	pool_free(pool_head_connection, conn);
 }
