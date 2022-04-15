@@ -1457,6 +1457,12 @@ static int quic_stream_try_to_consume(struct quic_conn *qc,
 			                    stream->ack_offset;
 			stream->ack_offset += diff;
 			b_del(strm->buf, diff);
+			if (!b_data(strm->buf)) {
+				if (qc_stream_desc_free_buf(stream)) {
+					/* stream is freed here */
+					return 1;
+				}
+			}
 			ret = 1;
 		}
 
@@ -1467,11 +1473,6 @@ static int quic_stream_try_to_consume(struct quic_conn *qc,
 		LIST_DELETE(&frm->list);
 		quic_tx_packet_refdec(frm->pkt);
 		pool_free(pool_head_quic_frame, frm);
-	}
-
-	if (!b_data(&stream->buf)) {
-		if (qc_stream_desc_free(stream))
-			TRACE_PROTO("stream released and freed", QUIC_EV_CONN_ACKSTRM, qc);
 	}
 
 	return ret;
@@ -1521,7 +1522,7 @@ static inline void qc_treat_acked_tx_frm(struct quic_conn *qc,
 				stream_acked = 1;
 
 				if (!b_data(strm_frm->buf)) {
-					if (qc_stream_desc_free(stream)) {
+					if (qc_stream_desc_free_buf(stream)) {
 						/* stream is freed at this stage,
 						 * no need to continue.
 						 */

@@ -627,16 +627,24 @@ static int qcs_build_stream_frm(struct qcs *qcs, struct buffer *out, char fin,
 	struct qcc *qcc = qcs->qcc;
 	struct quic_frame *frm;
 	int head, total;
+	uint64_t base_off;
 
 	TRACE_ENTER(QMUX_EV_QCS_SEND, qcc->conn, qcs);
 
-	/* cf buffer schema in qcs_xfer_data */
-	head = qcs->tx.sent_offset - qcs->stream->ack_offset;
+	/* if ack_offset < buf_offset, it points to an older buffer. */
+	base_off = MAX(qcs->stream->buf_offset, qcs->stream->ack_offset);
+	BUG_ON(qcs->tx.sent_offset < base_off);
+
+	head = qcs->tx.sent_offset - base_off;
 	total = b_data(out) - head;
+	BUG_ON(total < 0);
+
 	if (!total) {
 		TRACE_LEAVE(QMUX_EV_QCS_SEND, qcc->conn, qcs);
 		return 0;
 	}
+	BUG_ON(qcs->tx.sent_offset >= qcs->tx.offset);
+	BUG_ON(qcs->tx.sent_offset + total > qcs->tx.offset);
 
 	frm = pool_zalloc(pool_head_quic_frame);
 	if (!frm)
@@ -689,6 +697,7 @@ void qcc_streams_sent_done(struct qcs *qcs, uint64_t data, uint64_t offset)
 	uint64_t diff;
 
 	BUG_ON(offset > qcs->tx.sent_offset);
+	BUG_ON(offset >= qcs->tx.offset);
 
 	/* check if the STREAM frame has already been notified. It can happen
 	 * for retransmission.
@@ -707,8 +716,14 @@ void qcc_streams_sent_done(struct qcs *qcs, uint64_t data, uint64_t offset)
 	/* increase offset on stream */
 	qcs->tx.sent_offset += diff;
 	BUG_ON_HOT(qcs->tx.sent_offset > qcs->tx.msd);
+	BUG_ON_HOT(qcs->tx.sent_offset > qcs->tx.offset);
 	if (qcs->tx.sent_offset == qcs->tx.msd)
 		qcs->flags |= QC_SF_BLK_SFCTL;
+
+	if (qcs->tx.offset == qcs->tx.sent_offset && b_full(&qcs->stream->buf->buf)) {
+		qc_stream_buf_release(qcs->stream);
+		tasklet_wakeup(qcc->wait_event.tasklet);
+	}
 }
 
 /* Wrapper for send on transport layer. Send a list of frames <frms> for the
@@ -847,7 +862,7 @@ static int qc_send(struct qcc *qcc)
 	while (node) {
 		struct qcs *qcs = eb64_entry(node, struct qcs, by_id);
 		struct buffer *buf = &qcs->tx.buf;
-		struct buffer *out = &qcs->stream->buf;
+		struct buffer *out = qc_stream_buf_get(qcs->stream);
 
 		/* TODO
 		 * for the moment, unidirectional streams have their own
@@ -862,6 +877,24 @@ static int qc_send(struct qcc *qcc)
 		if (qcs->flags & QC_SF_BLK_SFCTL) {
 			node = eb64_next(node);
 			continue;
+		}
+
+		if (!b_data(buf) && !out) {
+			node = eb64_next(node);
+			continue;
+		}
+
+		if (!out) {
+			struct connection *conn = qcc->conn;
+
+			out = qc_stream_buf_alloc(qcs->stream,
+			                          qcs->tx.offset);
+			if (!out) {
+				conn->xprt->subscribe(conn, conn->xprt_ctx,
+				                      SUB_RETRY_SEND, &qcc->wait_event);
+				node = eb64_next(node);
+				continue;
+			}
 		}
 
 		/* Prepare <out> buffer with data from <buf>. */
@@ -887,7 +920,7 @@ static int qc_send(struct qcc *qcc)
 		}
 
 		/* Build a new STREAM frame with <out> buffer. */
-		if (b_data(out)) {
+		if (b_data(out) && qcs->tx.sent_offset != qcs->tx.offset) {
 			int ret;
 			char fin = !!(qcs->flags & QC_SF_FIN_STREAM);
 

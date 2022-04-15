@@ -6,6 +6,18 @@
 #include <import/ebtree-t.h>
 
 #include <haproxy/buf-t.h>
+#include <haproxy/list-t.h>
+
+/* A QUIC STREAM buffer used for Tx.
+ *
+ * Currently, no offset is associated with an offset. The qc_stream_desc must
+ * store them in order and keep the offset of the oldest buffer. The buffers
+ * can be freed in strict order.
+ */
+struct qc_stream_buf {
+	struct buffer buf; /* STREAM payload */
+	struct list list; /* element for qc_stream_desc list */
+};
 
 /* QUIC STREAM descriptor.
  *
@@ -20,7 +32,10 @@ struct qc_stream_desc {
 	struct eb64_node by_id; /* node for quic_conn tree */
 	struct quic_conn *qc;
 
-	struct buffer buf; /* buffer for STREAM data on Tx, emptied on acknowledge */
+	struct list buf_list; /* buffers waiting for ACK, oldest offset first */
+	struct qc_stream_buf *buf; /* current buffer used by the MUX */
+	uint64_t buf_offset; /* base offset of current buffer */
+
 	uint64_t ack_offset; /* last acknowledged offset */
 	struct eb_root acked_frms; /* ACK frames tree for non-contiguous ACK ranges */
 
