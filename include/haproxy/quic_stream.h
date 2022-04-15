@@ -14,7 +14,6 @@ int qc_stream_desc_ack(struct qc_stream_desc **stream, size_t offset, size_t len
 void qc_stream_desc_free(struct qc_stream_desc *stream);
 
 struct buffer *qc_stream_buf_get(struct qc_stream_desc *stream);
-int qc_stream_buf_avail(struct quic_conn *qc);
 struct buffer *qc_stream_buf_alloc(struct qc_stream_desc *stream,
                                    uint64_t offset);
 void qc_stream_buf_release(struct qc_stream_desc *stream);

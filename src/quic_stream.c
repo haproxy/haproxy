@@ -206,7 +206,7 @@ struct buffer *qc_stream_buf_get(struct qc_stream_desc *stream)
 /* Check if a new stream buffer can be allocated for the connection <qc>.
  * Returns a boolean.
  */
-int qc_stream_buf_avail(struct quic_conn *qc)
+static int qc_stream_buf_avail(struct quic_conn *qc)
 {
 	/* TODO use a global tune settings for max */
 	return qc->stream_buf_count < 30;
