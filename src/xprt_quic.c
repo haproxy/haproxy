@@ -1441,6 +1441,27 @@ static int qc_stream_desc_free(struct qc_stream_desc *stream)
 	offer_buffers(NULL, 1);
 
 	if (stream->release) {
+		/* Free frames still waiting for an ACK. Even if the stream buf
+		 * is NULL, some frames could still be not acknowledged. This
+		 * is notably the case for retransmission where multiple frames
+		 * points to the same buffer content.
+		 */
+		struct eb64_node *frm_node = eb64_first(&stream->acked_frms);
+		while (frm_node) {
+			struct quic_stream *strm;
+			struct quic_frame *frm;
+
+			strm = eb64_entry(&frm_node->node, struct quic_stream, offset);
+
+			frm_node = eb64_next(frm_node);
+			eb64_delete(&strm->offset);
+
+			frm = container_of(strm, struct quic_frame, stream);
+			LIST_DELETE(&frm->list);
+			quic_tx_packet_refdec(frm->pkt);
+			pool_free(pool_head_quic_frame, frm);
+		}
+
 		eb64_delete(&stream->by_id);
 		pool_free(pool_head_quic_conn_stream, stream);
 
@@ -1490,8 +1511,10 @@ static int quic_stream_try_to_consume(struct quic_conn *qc,
 		pool_free(pool_head_quic_frame, frm);
 	}
 
-	if (!b_data(&stream->buf))
-		qc_stream_desc_free(stream);
+	if (!b_data(&stream->buf)) {
+		if (qc_stream_desc_free(stream))
+			TRACE_PROTO("stream released and freed", QUIC_EV_CONN_ACKSTRM, qc);
+	}
 
 	return ret;
 }
@@ -1547,8 +1570,14 @@ static inline void qc_treat_acked_tx_frm(struct quic_conn *qc,
 
 				if (!b_data(strm_frm->buf)) {
 					if (qc_stream_desc_free(stream)) {
-						/* early return */
-						return;
+						/* stream is freed at this stage,
+						 * no need to continue.
+						 */
+						TRACE_PROTO("stream released and freed", QUIC_EV_CONN_ACKSTRM, qc);
+						LIST_DELETE(&frm->list);
+						quic_tx_packet_refdec(frm->pkt);
+						pool_free(pool_head_quic_frame, frm);
+						break;
 					}
 				}
 			}
