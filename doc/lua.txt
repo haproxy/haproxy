@@ -1,6 +1,6 @@
                    Lua: Architecture and first steps
                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-                             version 2.4
+                             version 2.6
 
                         author: Thierry FOURNIER
                  contact: tfournier at arpalert dot org

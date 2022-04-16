@@ -1,6 +1,158 @@
 ChangeLog :
 ===========
 
+2022/04/16 : 2.6-dev6
+    - CLEANUP: connection: reduce the with of the mux dump output
+    - CI: Update to actions/checkout@v3
+    - CI: Update to actions/cache@v3
+    - DOC: adjust QUIC instruction in INSTALL
+    - BUG/MINOR: stats: define the description' background color in dark color scheme
+    - BUILD: ssl: add USE_ENGINE and disable the openssl engine by default
+    - BUILD: makefile: pass USE_ENGINE to cflags
+    - BUILD: xprt-quic: replace ERR_func_error_string() with ERR_peek_error_func()
+    - DOC: install: document the fact that SSL engines are not enabled by default
+    - CI: github actions: disable -Wno-deprecated
+    - BUILD: makefile: silence unbearable OpenSSL deprecation warnings
+    - MINOR: sock: check configured limits at the sock layer, not the listener's
+    - MINOR: connection: add a new flag CO_FL_FDLESS on fd-less connections
+    - MINOR: connection: add conn_fd() to retrieve the FD only when it exists
+    - MINOR: stream: only dump connections' FDs when they are valid
+    - MINOR: connection: use conn_fd() when displaying connection errors
+    - MINOR: connection: skip FD-based syscalls for FD-less connections
+    - MEDIUM: connection: panic when calling FD-specific functions on FD-less conns
+    - MINOR: mux-quic: properly set the flags and name fields
+    - MINOR: connection: rearrange conn_get_src/dst to be a bit more extensible
+    - MINOR: protocol: add get_src() and get_dst() at the protocol level
+    - MINOR: quic-sock: provide a pair of get_src/get_dst functions
+    - MEDIUM: ssl: improve retrieval of ssl_sock_ctx and SSL detection
+    - MEDIUM: ssl: stop using conn->xprt_ctx to access the ssl_sock_ctx
+    - MEDIUM: xprt-quic: implement get_ssl_sock_ctx()
+    - MEDIUM: quic: move conn->qc into conn->handle
+    - BUILD: ssl: fix build warning with previous changes to ssl_sock_ctx
+    - BUILD: ssl: add an unchecked version of __conn_get_ssl_sock_ctx()
+    - MINOR: ssl: refine the error testing for fc_err and fc_err_str
+    - BUG/MINOR: sock: do not double-close the accepted socket on the error path
+    - CI: cirrus: switch to FreeBSD-13.0
+    - MINOR: log: add '~' to frontend when the transport layer provides SSL
+    - BUILD/DEBUG: lru: fix printf format in debug code
+    - BUILD: peers: adjust some printf format to silence cppcheck
+    - BUILD/DEBUG: hpack-tbl: fix format string in standalone debug code
+    - BUILD/DEBUG: hpack: use unsigned int in printf format in debug code
+    - BUILD: halog: fix some incorrect signs in printf formats for integers
+    - BUG/MINOR: h3: fix build with DEBUG_H3
+    - BUG/MINOR: mux-h2: do not send GOAWAY if SETTINGS were not sent
+    - BUG/MINOR: cache: do not display expired entries in "show cache"
+    - BUG/MINOR: mux-h1: Don't release unallocated CS on error path
+    - MINOR: applet: Make .init callback more generic
+    - MINOR: conn-stream: Add flags to set the type of the endpoint
+    - MEDIUM: applet: Set the appctx owner during allocation
+    - MAJOR: conn-stream: Invert conn-stream endpoint and its context
+    - REORG: Initialize the conn-stream by hand in cs_init()
+    - MEDIUM: conn-stream: Add an endpoint structure in the conn-stream
+    - MINOR: conn-stream: Move some CS flags to the endpoint
+    - MEDIUM: conn-stream: Be able to pass endpoint to create a conn-stream
+    - MEDIUM: conn-stream: Pre-allocate endpoint to create CS from muxes and applets
+    - REORG: applet: Uninline appctx_new function
+    - MAJOR: conn-stream: Share endpoint struct between the CS and the mux/applet
+    - MEDIUM: conn-stream: Move remaning flags from CS to endpoint
+    - MINOR: mux-pt: Rely on the endpoint instead of the conn-stream when possible
+    - MINOR: conn-stream: Add ISBACK conn-stream flag
+    - MINOR: conn-stream: Add header file with util functions related to conn-streams
+    - MEDIUM: tree-wide: Use CS util functions instead of SI ones
+    - MINOR: stream-int/txn: Move buffer for L7 retries in the HTTP transaction
+    - CLEANUP: http-ana: Remove http_alloc_txn() function
+    - MINOR: stream-int/stream: Move conn_retries counter in the stream
+    - MINOR: stream: Simplify retries counter calculation
+    - MEDIUM: stream-int/conn-stream: Move src/dst addresses in the conn-stream
+    - MINOR: stream-int/conn-stream: Move half-close timeout in the conn-stream
+    - MEDIUM: stream-int/stream: Use connect expiration instead of SI expiration
+    - MINOR: stream-int/conn-stream: Report error to the CS instead of the SI
+    - MEDIUM: conn-stream: Use endpoint error instead of conn-stream error
+    - MINOR: channel: Use conn-streams as channel producer and consumer
+    - MINOR: stream-int: Remove SI_FL_KILL_CON to rely on conn-stream endpoint only
+    - MINOR: mux-h2/mux-fcgi: Fully rely on CS_EP_KILL_CONN
+    - MINOR: stream-int: Remove SI_FL_NOLINGER/NOHALF to rely on CS flags instead
+    - MINOR: stream-int: Remove SI_FL_DONT_WAKE to rely on CS flags instead
+    - MINOR: stream-int: Remove SI_FL_INDEP_STR to rely on CS flags instead
+    - MINOR: stream-int: Remove SI_FL_SRC_ADDR to rely on stream flags instead
+    - CLEANUP: stream-int: Remove unused SI_FL_CLEAN_ABRT flag
+    - MINOR: stream: Only save previous connection state for the server side
+    - MEDIUM: stream-int: Move SI err_type in the stream
+    - MEDIUM: stream-int/conn-stream: Move stream-interface state in the conn-stream
+    - MINOR: stream-int/stream: Move si_retnclose() in the stream scope
+    - MINOR: stream-int/backend: Move si_connect() in the backend scope
+    - MINOR: stream-int/conn-stream: Move si_conn_ready() in the conn-stream scope
+    - MINOR: conn-stream/connection: Move SHR/SHW modes in the connection scope
+    - MEDIUM: conn-stream: Be prepared to fail to attach a cs to a mux
+    - MEDIUM: stream-int/conn-stream: Handle I/O subscriptions in the conn-stream
+    - MINOR: conn-stream: Rename CS functions dedicated to connections
+    - MINOR: stream-int/conn-stream: Move si_shut* and si_chk* in conn-stream scope
+    - MEDIUM: stream-int/conn-stream: Move si_ops in the conn-stream scope
+    - MINOR: applet: Use the CS to register and release applets instead of SI
+    - MINOR: connection: unconst mux's get_fist_cs() callback function
+    - MINOR: stream-int/connection: Move conn_si_send_proxy() in the connection scope
+    - REORG: stream-int: Export si_cs_recv(), si_cs_send() and si_cs_process()
+    - REORG: stream-int: Move si_is_conn_error() in the header file
+    - REORG: conn-stream: Move cs_shut* and cs_chk* in cs_utils
+    - REORG: conn-stream: Move cs_app_ops in conn_stream.c
+    - MINOR: stream-int-conn-stream: Move si_update_* in conn-stream scope
+    - MINOR: stream-int/stream: Move si_update_both in stream scope
+    - MEDIUM: conn-stream/applet: Add a data callback for applets
+    - MINOR: stream-int/conn-stream: Move stream_int_read0() in the conn-stream scope
+    - MINOR: stream-int/conn-stream: Move stream_int_notify() in the conn-stream scope
+    - MINOR: stream-int/conn-stream: Move si_cs_io_cb() in the conn-stream scope
+    - MINOR: stream-int/conn-stream: Move si_sync_recv/send() in conn-stream scope
+    - MINOR: conn-stream: Move si_conn_cb in the conn-stream scope
+    - MINOR: stream-int/conn-stream Move si_is_conn_error() in the conn-stream scope
+    - MINOR: stream-int/conn-stream: Move si_alloc_ibuf() in the conn-stream scope
+    - CLEANUP: stream-int:  Remove unused SI functions
+    - MEDIUM: stream-int/conn-stream: Move blocking flags from SI to CS
+    - MEDIUM: stream-int/conn-stream: Move I/O functions to conn-stream
+    - REORG: stream-int/conn-stream: Move remaining functions to conn-stream
+    - MINOR: stream: Use conn-stream to report server error
+    - MINOR: http-ana: Use CS to perform L7 retries
+    - MEDIUM: stream: Don't use the stream-int anymore in process_stream()
+    - MINOR: conn-stream: Remove the stream-interface from the conn-stream
+    - DEV: flags: No longer dump SI flags
+    - CLEANUP: tree-wide: Remove any ref to stream-interfaces
+    - CLEANUP: conn-stream: Don't export internal functions
+    - DOC: conn-stream: Add comments on functions of the new CS api
+    - MEDIUM: check: Use a new conn-stream for each health-check run
+    - CLEANUP: muxes: Remove MX_FL_CLEAN_ABRT flag
+    - MINOR: conn-stream: Use a dedicated function to conditionally remove a CS
+    - CLEANUP: conn-stream: rename cs_register_applet() to cs_applet_create()
+    - MINOR: muxes: Improve show_fd callbacks to dump endpoint flags
+    - MINOR: mux-h1: Rely on the endpoint instead of the conn-stream when possible
+    - BUG/MINOR: quic: Avoid starting the mux if no ALPN sent by the client
+    - BUILD: debug: mark the __start_mem_stats/__stop_mem_stats symbols as weak
+    - BUILD: initcall: mark the __start_i_* symbols as weak, not global
+    - BUG/MINOR: mux-h2: do not use timeout http-keep-alive on backend side
+    - BUG/MINOR: mux-h2: use timeout http-request as a fallback for http-keep-alive
+    - MINOR: muxes: Don't expect to have a mux without connection in destroy callback
+    - MINOR: muxes: Don't handle proto upgrade for muxes not supporting it
+    - MINOR: muxes: Don't expect to call release function with no mux defined
+    - MINOR: conn-stream: Use unsafe functions to get conn/appctx in cs_detach_endp
+    - BUG/MEDIUM: mux-h1: Don't request more room on partial trailers
+    - BUILD: http-client: Avoid dead code when compiled without SSL support
+    - BUG/MINOR: mux-quic: prevent a crash in session_free on mux.destroy
+    - BUG/MINOR: quic-sock: do not double free session on conn init failure
+    - BUG/MINOR: quic: fix return value for error in start
+    - MINOR: quic: emit CONNECTION_CLOSE on app init error
+    - BUILD: sched: workaround crazy and dangerous warning in Clang 14
+    - BUILD: compiler: use a more portable set of asm(".weak") statements
+    - BUG/MEDIUM: stream: do not abort connection setup too early
+    - CLEANUP: extcheck: do not needlessly preset the server's address/port
+    - MINOR: extcheck: fill in the server's UNIX socket address when known
+    - BUG/MEDIUM: connection: Don't crush context pointer location if it is a CS
+    - BUG/MEDIUM: quic: properly clean frames on stream free
+    - BUG/MEDIUM: fcgi-app: Use http_msg flags to know if C-L header can be added
+    - BUG/MEDIUM: compression: Don't forget to update htx_sl and http_msg flags
+    - MINOR: tcp_sample: clarifying samples support per os, for further expansion.
+    - MINOR: tcp_sample: extend support for get_tcp_info to macOs.
+    - SCRIPTS: announce-release: update the doc's URL
+    - DOC: lua: update a few doc URLs
+    - SCRIPTS: announce-release: add shortened links to pending issues
+
 2022/04/09 : 2.6-dev5
     - DOC: reflect H2 timeout changes
     - BUG/MEDIUM: mux-fcgi: Properly handle return value of headers/trailers parsing
