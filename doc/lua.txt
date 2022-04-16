@@ -83,9 +83,9 @@ Prerequisite
 Reading the following documentation links is required to understand the
 current paragraph:
 
-   HAProxy doc: http://cbonte.github.io/haproxy-dconv/
+   HAProxy doc: http://docs.haproxy.org/
    Lua API:     http://www.lua.org/manual/5.3/
-   HAProxy API: http://www.arpalert.org/src/haproxy-lua-api/1.9dev/index.html
+   HAProxy API: http://www.arpalert.org/src/haproxy-lua-api/2.6/index.html
    Lua guide:   http://www.lua.org/pil/
 
 more about Lua choice
