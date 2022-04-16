@@ -220,6 +220,9 @@ fi
  echo "   Git repository   : http://git.haproxy.org/git/${gitdir}/"
  echo "   Git Web browsing : http://git.haproxy.org/?p=${gitdir}"
  echo "   Changelog        : http://www.haproxy.org/download/${BRANCH}/src/CHANGELOG"
+ echo "   Pending bugs     : http://www.haproxy.org/l/pending-bugs"
+ echo "   Reviewed bugs    : http://www.haproxy.org/l/reviewed-bugs"
+ echo "   Code reports     : http://www.haproxy.org/l/code-reports"
 ) >> "$OUTPUT"
 
 # sign
