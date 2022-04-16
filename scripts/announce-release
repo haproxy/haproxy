@@ -211,15 +211,15 @@ fi
 
 (echo "Please find the usual URLs below :"
  echo "   Site index       : http://www.haproxy.org/"
+ echo "   Documentation    : http://docs.haproxy.org/"
+ echo "   Wiki             : https://github.com/haproxy/wiki/wiki"
  echo "   Discourse        : http://discourse.haproxy.org/"
  echo "   Slack channel    : https://slack.haproxy.org/"
  echo "   Issue tracker    : https://github.com/haproxy/haproxy/issues"
- echo "   Wiki             : https://github.com/haproxy/wiki/wiki"
  echo "   Sources          : http://www.haproxy.org/download/${BRANCH}/src/"
  echo "   Git repository   : http://git.haproxy.org/git/${gitdir}/"
  echo "   Git Web browsing : http://git.haproxy.org/?p=${gitdir}"
  echo "   Changelog        : http://www.haproxy.org/download/${BRANCH}/src/CHANGELOG"
- echo "   Cyril's HTML doc : http://cbonte.github.io/haproxy-dconv/"
 ) >> "$OUTPUT"
 
 # sign
