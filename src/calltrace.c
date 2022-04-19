@@ -48,7 +48,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <haproxy/api.h>
-#include <haproxy/time.h>
+#include <haproxy/clock.h>
 #include <haproxy/tools.h>
 
 static FILE *log;
