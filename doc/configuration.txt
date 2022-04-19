@@ -1109,6 +1109,7 @@ The following keywords are supported in the "global" section :
    - tune.pipesize
    - tune.pool-high-fd-ratio
    - tune.pool-low-fd-ratio
+   - tune.quic.conn-buf-limit
    - tune.rcvbuf.client
    - tune.rcvbuf.server
    - tune.recv_enough
@@ -2787,6 +2788,16 @@ tune.pool-low-fd-ratio <number>
   HAProxy globally against the maximum number of file descriptors HAProxy can
   use before we stop putting connection into the idle pool for reuse. The
   default is 20.
+
+tune.quic.conn-buf-limit <number>
+  Warning: QUIC support in HAProxy is currently experimental. Configuration may
+  change without deprecation in the future.
+
+  This settings defines the maximum number of buffers allocated for a QUIC
+  connection on data emission. By default, it is set to 30. QUIC buffers are
+  drained on ACK reception. This setting has a direct impact on the throughput
+  and memory consumption and can be adjusted according to an estimated round
+  time-trip.
 
 tune.rcvbuf.client <number>
 tune.rcvbuf.server <number>

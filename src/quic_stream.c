@@ -208,8 +208,7 @@ struct buffer *qc_stream_buf_get(struct qc_stream_desc *stream)
  */
 static int qc_stream_buf_avail(struct quic_conn *qc)
 {
-	/* TODO use a global tune settings for max */
-	return qc->stream_buf_count < 30;
+	return qc->stream_buf_count < global.tune.quic_streams_buf;
 }
 
 /* Allocate a new current buffer for <stream>. The buffer limit count for the

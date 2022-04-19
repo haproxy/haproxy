@@ -154,6 +154,9 @@ struct global {
 		int pool_low_count;   /* max number of opened fd before we stop using new idle connections */
 		int pool_high_count;  /* max number of opened fd before we start killing idle connections when creating new connections */
 		unsigned short idle_timer; /* how long before an empty buffer is considered idle (ms) */
+#ifdef USE_QUIC
+		unsigned int quic_streams_buf;
+#endif /* USE_QUIC */
 	} tune;
 	struct {
 		char *prefix;           /* path prefix of unix bind socket */

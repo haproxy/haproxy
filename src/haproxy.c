@@ -203,6 +203,9 @@ struct global global = {
 #else
 		.idle_timer = 1000, /* 1 second */
 #endif
+#ifdef USE_QUIC
+		.quic_streams_buf = 30,
+#endif /* USE_QUIC */
 	},
 #ifdef USE_OPENSSL
 #ifdef DEFAULT_MAXSSLCONN
