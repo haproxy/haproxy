@@ -106,6 +106,7 @@ struct qcs {
 		uint64_t msd; /* fctl bytes limit to respect on emission */
 	} tx;
 
+	struct eb64_node by_id;
 	uint64_t id;
 	struct qc_stream_desc *stream;
 

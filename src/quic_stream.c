@@ -17,7 +17,8 @@ DECLARE_STATIC_POOL(pool_head_quic_conn_stream, "qc_stream_desc",
  *
  * Returns the newly allocated instance on success or else NULL.
  */
-struct qc_stream_desc *qc_stream_desc_new(uint64_t id, void *ctx)
+struct qc_stream_desc *qc_stream_desc_new(uint64_t id, void *ctx,
+                                          struct quic_conn *qc)
 {
 	struct qc_stream_desc *stream;
 
@@ -26,7 +27,7 @@ struct qc_stream_desc *qc_stream_desc_new(uint64_t id, void *ctx)
 		return NULL;
 
 	stream->by_id.key = id;
-	stream->by_id.node.leaf_p = NULL;
+	eb64_insert(&qc->streams_by_id, &stream->by_id);
 
 	stream->buf = BUF_NULL;
 	stream->acked_frms = EB_ROOT;
@@ -37,23 +38,19 @@ struct qc_stream_desc *qc_stream_desc_new(uint64_t id, void *ctx)
 	return stream;
 }
 
-/* Mark the stream descriptor <stream> as released by the upper layer. It will
- * be freed as soon as all its buffered data are acknowledged. In the meantime,
- * the stream is stored in the <qc> tree : thus it must have been removed from
- * any other tree before calling this function.
+/* Mark the stream descriptor <stream> as released. It will be freed as soon as
+ * all its buffered data are acknowledged.
  */
-void qc_stream_desc_release(struct qc_stream_desc *stream,
-                            struct quic_conn *qc)
+void qc_stream_desc_release(struct qc_stream_desc *stream)
 {
-	BUG_ON(stream->by_id.node.leaf_p);
+	/* A stream can be released only one time. */
+	BUG_ON(stream->release);
 
 	stream->release = 1;
 	stream->ctx = NULL;
 
 	if (!b_data(&stream->buf))
 		qc_stream_desc_free(stream);
-	else
-		eb64_insert(&qc->streams_by_id, &stream->by_id);
 }
 
 /* Free the stream descriptor <stream> buffer. This function should be used

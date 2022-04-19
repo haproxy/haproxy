@@ -1494,20 +1494,13 @@ static inline void qc_treat_acked_tx_frm(struct quic_conn *qc,
 
 		/* do not use strm_frm->stream as the qc_stream_desc instance
 		 * might be freed at this stage. Use the id to do a proper
-		 * lookup. First search in the MUX then in the released stream
-		 * list.
+		 * lookup.
 		 *
 		 * TODO if lookup operation impact on the perf is noticeable,
 		 * implement a refcount on qc_stream_desc instances.
 		 */
-		if (qc->mux_state == QC_MUX_READY)
-			stream = qcc_get_stream(qc->qcc, strm_frm->id);
-		if (!stream) {
-			node = eb64_lookup(&qc->streams_by_id, strm_frm->id);
-			stream = eb64_entry(node, struct qc_stream_desc, by_id);
-		}
-
-		if (!stream) {
+		node = eb64_lookup(&qc->streams_by_id, strm_frm->id);
+		if (!node) {
 			TRACE_PROTO("acked stream for released stream", QUIC_EV_CONN_ACKSTRM, qc, strm_frm);
 			LIST_DELETE(&frm->list);
 			quic_tx_packet_refdec(frm->pkt);
@@ -1516,6 +1509,7 @@ static inline void qc_treat_acked_tx_frm(struct quic_conn *qc,
 			/* early return */
 			return;
 		}
+		stream = eb64_entry(node, struct qc_stream_desc, by_id);
 
 		TRACE_PROTO("acked stream", QUIC_EV_CONN_ACKSTRM, qc, strm_frm, stream);
 		if (strm_frm->offset.key <= stream->ack_offset) {

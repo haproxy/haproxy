@@ -749,7 +749,7 @@ struct quic_conn {
 	struct listener *li; /* only valid for frontend connections */
 	struct mt_list accept_list; /* chaining element used for accept, only valid for frontend connections */
 
-	struct eb_root streams_by_id; /* storage for released qc_stream_desc */
+	struct eb_root streams_by_id; /* qc_stream_desc tree */
 
 	/* MUX */
 	struct qcc *qcc;

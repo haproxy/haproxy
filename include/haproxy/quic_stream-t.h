@@ -10,14 +10,14 @@
 /* QUIC STREAM descriptor.
  *
  * This structure is the low-level counterpart of the QUIC STREAM at the MUX
- * layer. It provides a node for tree-storage and buffering for Tx.
+ * layer. It is stored in the quic-conn and provides facility for Tx buffering.
  *
  * Once the MUX has finished to transfer data on a STREAM, it must release its
  * QUIC STREAM descriptor. The descriptor will be kept by the quic_conn until
  * all acknowledgement has been received.
  */
 struct qc_stream_desc {
-	struct eb64_node by_id; /* id of the stream used for <streams_by_id> tree */
+	struct eb64_node by_id; /* node for quic_conn tree */
 
 	struct buffer buf; /* buffer for STREAM data on Tx, emptied on acknowledge */
 	uint64_t ack_offset; /* last acknowledged offset */

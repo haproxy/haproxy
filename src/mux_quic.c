@@ -112,8 +112,12 @@ struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
 	if (!qcs)
 		goto out;
 
-	/* allocate transport layer stream descriptor */
-	stream = qc_stream_desc_new(id, qcs);
+	/* allocate transport layer stream descriptor
+	 *
+	 * TODO qc_stream_desc is only useful for Tx buffering. It should not
+	 * be required for unidirectional remote streams.
+	 */
+	stream = qc_stream_desc_new(id, qcs, qcc->conn->handle.qc);
 	if (!stream) {
 		pool_free(pool_head_qcs, qcs);
 		qcs = NULL;
@@ -134,9 +138,9 @@ struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
 	qcs->endp->ctx = qcc->conn;
 	qcs->endp->flags |= (CS_EP_T_MUX|CS_EP_ORPHAN|CS_EP_NOT_FIRST);
 
-	qcs->id = id;
+	qcs->id = qcs->by_id.key = id;
 	/* store transport layer stream descriptor in qcc tree */
-	eb64_insert(&qcc->streams_by_id, &stream->by_id);
+	eb64_insert(&qcc->streams_by_id, &qcs->by_id);
 
 	qcc->strms[type].nb_streams++;
 
@@ -175,11 +179,12 @@ void qcs_free(struct qcs *qcs)
 	BUG_ON(!qcs->qcc->strms[qcs_id_type(qcs->id)].nb_streams);
 	--qcs->qcc->strms[qcs_id_type(qcs->id)].nb_streams;
 
-	/* stream desc must be removed from MUX tree before release it */
-	eb64_delete(&qcs->stream->by_id);
-	qc_stream_desc_release(qcs->stream, qcs->qcc->conn->handle.qc);
+	qc_stream_desc_release(qcs->stream);
+
 	BUG_ON(qcs->endp && !(qcs->endp->flags & CS_EP_ORPHAN));
 	cs_endpoint_free(qcs->endp);
+
+	eb64_delete(&qcs->by_id);
 	pool_free(pool_head_qcs, qcs);
 }
 
@@ -239,24 +244,22 @@ void qcs_notify_send(struct qcs *qcs)
  */
 struct qcs *qcc_get_qcs(struct qcc *qcc, uint64_t id)
 {
-	struct qc_stream_desc *stream;
 	unsigned int strm_type;
 	int64_t sub_id;
-	struct eb64_node *strm_node;
+	struct eb64_node *node;
 	struct qcs *qcs = NULL;
 
 	strm_type = id & QCS_ID_TYPE_MASK;
 	sub_id = id >> QCS_ID_TYPE_SHIFT;
-	strm_node = NULL;
+	node = NULL;
 	if (quic_stream_is_local(qcc, id)) {
 		/* Local streams: this stream must be already opened. */
-		strm_node = eb64_lookup(&qcc->streams_by_id, id);
-		if (!strm_node) {
+		node = eb64_lookup(&qcc->streams_by_id, id);
+		if (!node) {
 			/* unknown stream id */
 			goto out;
 		}
-		stream = eb64_entry(strm_node, struct qc_stream_desc, by_id);
-		qcs = stream->ctx;
+		qcs = eb64_entry(node, struct qcs, by_id);
 	}
 	else {
 		/* Remote streams. */
@@ -304,11 +307,9 @@ struct qcs *qcc_get_qcs(struct qcc *qcc, uint64_t id)
 				qcs = tmp_qcs;
 		}
 		else {
-			strm_node = eb64_lookup(strms, id);
-			if (strm_node) {
-				stream = eb64_entry(strm_node, struct qc_stream_desc, by_id);
-				qcs = stream->ctx;
-			}
+			node = eb64_lookup(strms, id);
+			if (node)
+				qcs = eb64_entry(node, struct qcs, by_id);
 		}
 	}
 
@@ -414,14 +415,12 @@ int qcc_recv_max_data(struct qcc *qcc, uint64_t max)
  */
 int qcc_recv_max_stream_data(struct qcc *qcc, uint64_t id, uint64_t max)
 {
-	struct qc_stream_desc *stream;
 	struct qcs *qcs;
 	struct eb64_node *node;
 
 	node = eb64_lookup(&qcc->streams_by_id, id);
 	if (node) {
-		stream = eb64_entry(node, struct qc_stream_desc, by_id);
-		qcs = stream->ctx;
+		qcs = eb64_entry(node, struct qcs, by_id);
 		if (max > qcs->tx.msd) {
 			qcs->tx.msd = max;
 
@@ -522,9 +521,9 @@ static void qc_release(struct qcc *qcc)
 	/* liberate remaining qcs instances */
 	node = eb64_first(&qcc->streams_by_id);
 	while (node) {
-		struct qc_stream_desc *stream = eb64_entry(node, struct qc_stream_desc, by_id);
+		struct qcs *qcs = eb64_entry(node, struct qcs, by_id);
 		node = eb64_next(node);
-		qcs_free(stream->ctx);
+		qcs_free(qcs);
 	}
 
 	pool_free(pool_head_qcc, qcc);
@@ -846,8 +845,7 @@ static int qc_send(struct qcc *qcc)
 	 */
 	node = eb64_first(&qcc->streams_by_id);
 	while (node) {
-		struct qc_stream_desc *stream = eb64_entry(node, struct qc_stream_desc, by_id);
-		struct qcs *qcs = stream->ctx;
+		struct qcs *qcs = eb64_entry(node, struct qcs, by_id);
 		struct buffer *buf = &qcs->tx.buf;
 		struct buffer *out = &qcs->stream->buf;
 
@@ -921,8 +919,7 @@ static int qc_release_detached_streams(struct qcc *qcc)
 
 	node = eb64_first(&qcc->streams_by_id);
 	while (node) {
-		struct qc_stream_desc *stream = eb64_entry(node, struct qc_stream_desc, by_id);
-		struct qcs *qcs = stream->ctx;
+		struct qcs *qcs = eb64_entry(node, struct qcs, by_id);
 		node = eb64_next(node);
 
 		if (qcs->flags & QC_SF_DETACH) {
@@ -1263,14 +1260,12 @@ static int qc_unsubscribe(struct conn_stream *cs, int event_type, struct wait_ev
  */
 static int qc_wake_some_streams(struct qcc *qcc)
 {
-	struct qc_stream_desc *stream;
 	struct qcs *qcs;
 	struct eb64_node *node;
 
 	for (node = eb64_first(&qcc->streams_by_id); node;
 	     node = eb64_next(node)) {
-		stream = eb64_entry(node, struct qc_stream_desc, by_id);
-		qcs = stream->ctx;
+		qcs = eb64_entry(node, struct qcs, by_id);
 
 		if (!qcs->cs)
 			continue;
