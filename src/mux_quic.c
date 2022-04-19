@@ -8,6 +8,7 @@
 #include <haproxy/dynbuf.h>
 #include <haproxy/htx.h>
 #include <haproxy/pool.h>
+#include <haproxy/quic_stream.h>
 #include <haproxy/sink.h>
 #include <haproxy/ssl_sock-t.h>
 #include <haproxy/trace.h>

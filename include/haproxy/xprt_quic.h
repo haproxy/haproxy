@@ -1248,9 +1248,6 @@ int quic_lstnr_dgram_dispatch(unsigned char *buf, size_t len, void *owner,
                               struct quic_dgram *new_dgram, struct list *dgrams);
 int qc_send_app_pkts(struct quic_conn *qc, struct list *frms);
 
-struct qc_stream_desc *qc_stream_desc_new(uint64_t id, void *ctx);
-void qc_stream_desc_release(struct qc_stream_desc *stream, struct quic_conn *qc);
-
 void qc_notify_close(struct quic_conn *qc);
 
 #endif /* USE_QUIC */

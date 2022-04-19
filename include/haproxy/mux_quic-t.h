@@ -10,6 +10,7 @@
 
 #include <haproxy/buf-t.h>
 #include <haproxy/connection-t.h>
+#include <haproxy/quic_stream-t.h>
 #include <haproxy/xprt_quic-t.h>
 #include <haproxy/conn_stream-t.h>
 
