@@ -2954,6 +2954,7 @@ end:
 #endif
 }
 
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
 static inline HASSL_DH *ssl_get_dh_by_nid(int nid)
 {
 #if (HA_OPENSSL_VERSION_NUMBER >= 0x3000000fL)
@@ -2982,12 +2983,11 @@ end:
 #else
 
 	HASSL_DH *dh = NULL;
-#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
 	dh = DH_new_by_nid(nid);
-#endif
 	return dh;
 #endif
 }
+#endif
 
 
 static HASSL_DH * ssl_get_dh_1024(void)
