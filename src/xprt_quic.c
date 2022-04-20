@@ -1544,7 +1544,7 @@ static inline void qc_treat_acked_tx_frm(struct quic_conn *qc,
 		pool_free(pool_head_quic_frame, frm);
 	}
 
-	if (stream_acked) {
+	if (stream_acked && qc->mux_state == QC_MUX_READY) {
 		struct qcc *qcc = qc->qcc;
 
 		if (qcc->subs && qcc->subs->events & SUB_RETRY_SEND) {
