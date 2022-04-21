@@ -1028,7 +1028,7 @@ static struct task *qc_io_cb(struct task *t, void *ctx, unsigned int status)
 		if (qcc_is_dead(qcc)) {
 			qc_release(qcc);
 		}
-		else {
+		else if (qcc->task) {
 			if (qcc_may_expire(qcc))
 				qcc->task->expire = tick_add(now_ms, qcc->timeout);
 			else
@@ -1150,13 +1150,16 @@ static int qc_init(struct connection *conn, struct proxy *prx,
 	qcc->wait_event.events = 0;
 
 	/* haproxy timeouts */
+	qcc->task = NULL;
 	qcc->timeout = prx->timeout.client;
-	qcc->task = task_new_here();
-	if (!qcc->task)
-		goto fail_no_timeout_task;
-	qcc->task->process = qc_timeout_task;
-	qcc->task->context = qcc;
-	qcc->task->expire = tick_add(now_ms, qcc->timeout);
+	if (tick_isset(qcc->timeout)) {
+		qcc->task = task_new_here();
+		if (!qcc->task)
+			goto fail_no_timeout_task;
+		qcc->task->process = qc_timeout_task;
+		qcc->task->context = qcc;
+		qcc->task->expire = tick_add(now_ms, qcc->timeout);
+	}
 
 	if (!conn_is_back(conn)) {
 		if (!LIST_INLIST(&conn->stopping_list)) {
@@ -1210,7 +1213,7 @@ static void qc_detach(struct conn_stream *cs)
 	if (qcc_is_dead(qcc)) {
 		qc_release(qcc);
 	}
-	else {
+	else if (qcc->task) {
 		if (qcc_may_expire(qcc))
 			qcc->task->expire = tick_add(now_ms, qcc->timeout);
 		else
