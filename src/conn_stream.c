@@ -476,8 +476,13 @@ void cs_applet_shut(struct conn_stream *cs)
 {
 	struct appctx *appctx = __cs_appctx(cs);
 
-	if (appctx->applet->release && !cs_state_in(cs->state, CS_SB_DIS|CS_SB_CLO))
+	if (cs->endp->flags & (CS_EP_SHR|CS_EP_SHW))
+		return;
+
+	if (appctx->applet->release)
 		appctx->applet->release(appctx);
+
+	cs->endp->flags |= CS_EP_SHRR | CS_EP_SHWN;
 }
 
 /*
