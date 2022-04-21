@@ -126,12 +126,12 @@ syslog Slg_bcknd -level info {
     barrier b2 sync
 
     recv
-    expect ~ ".*bc_err:34:\"SSL handshake failure\" ssl_bc_err:1040:.*:sslv3 alert handshake failure"
+    expect ~ ".*bc_err:34:\"SSL handshake failure\" ssl_bc_err:1040:.* alert handshake failure"
 
     barrier b2 sync
 
     recv
-    expect ~ ".*bc_err:34:\"SSL handshake failure\" ssl_bc_err:1040:.*:sslv3 alert handshake failure"
+    expect ~ ".*bc_err:34:\"SSL handshake failure\" ssl_bc_err:1040:.* alert handshake failure"
 } -start
 
 syslog Slg_bcknd_fe -level info {
