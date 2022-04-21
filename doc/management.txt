@@ -3359,6 +3359,18 @@ show ssl ocsp-response [<id>]
       Next Update: Oct 12 15:43:38 2048 GMT
       [...]
 
+show ssl providers
+  Display the names of the providers loaded by OpenSSL during init. Provider
+  loading can indeed be configured via the OpenSSL configuration file and this
+  option allows to check that the right providers were loaded. This command is
+  only available with OpenSSL v3.
+
+  Example :
+    $ echo "show ssl providers" | socat /var/run/haproxy.master -
+    Loaded providers :
+        - fips
+        - base
+
 show table
   Dump general information on all known stick-tables. Their name is returned
   (the name of the proxy which holds them), their type (currently zero, always

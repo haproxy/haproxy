@@ -7576,6 +7576,84 @@ yield:
 #endif
 }
 
+#ifdef HAVE_SSL_PROVIDERS
+struct provider_name {
+	const char *name;
+	struct list list;
+};
+
+
+static int ssl_provider_get_name_cb(OSSL_PROVIDER *provider, void *cbdata)
+{
+	struct list *provider_names = cbdata;
+	struct provider_name *item = NULL;
+	const char *name = OSSL_PROVIDER_get0_name(provider);
+
+	if (!provider_names)
+		return 0;
+
+	item = calloc(1, sizeof(*item));
+
+	if (!item)
+		return 0;
+
+	item->name = name;
+	LIST_APPEND(provider_names, &item->list);
+
+	return 1;
+}
+
+static void ssl_provider_get_name_list(struct list *provider_names)
+{
+	if (!provider_names)
+		return;
+
+	OSSL_PROVIDER_do_all(NULL, ssl_provider_get_name_cb, provider_names);
+}
+
+static void ssl_provider_clear_name_list(struct list *provider_names)
+{
+	struct provider_name *item = NULL, *item_s = NULL;
+
+	if (provider_names) {
+		list_for_each_entry_safe(item, item_s, provider_names, list) {
+			LIST_DELETE(&item->list);
+			free(item);
+		}
+	}
+}
+
+static int cli_io_handler_show_providers(struct appctx *appctx)
+{
+	struct buffer *trash = get_trash_chunk();
+	struct conn_stream *cs = appctx->owner;
+	struct list provider_names;
+	struct provider_name *name;
+
+	LIST_INIT(&provider_names);
+
+	chunk_appendf(trash, "Loaded providers : \n");
+
+	ssl_provider_get_name_list(&provider_names);
+
+	list_for_each_entry(name, &provider_names, list) {
+		chunk_appendf(trash, "\t- %s\n", name->name);
+	}
+
+	ssl_provider_clear_name_list(&provider_names);
+
+	if (ci_putchk(cs_ic(cs), trash) == -1) {
+		cs_rx_room_blk(cs);
+		goto yield;
+	}
+
+	return 1;
+
+yield:
+	return 0;
+}
+#endif
+
 
 #if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) && !defined OPENSSL_IS_BORINGSSL)
 /*
@@ -7715,6 +7793,9 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "set", "ssl", "ocsp-response", NULL }, "set ssl ocsp-response <resp|payload>    : update a certificate's OCSP Response from a base64-encode DER",      cli_parse_set_ocspresponse, NULL },
 
 	{ { "show", "ssl", "ocsp-response", NULL },"show ssl ocsp-response [id]             : display the IDs of the OCSP responses used in memory, or the details of a single OCSP response", cli_parse_show_ocspresponse, cli_io_handler_show_ocspresponse, NULL },
+#ifdef HAVE_SSL_PROVIDERS
+	{ { "show", "ssl", "providers", NULL },    "show ssl providers                      : show loaded SSL providers", NULL, cli_io_handler_show_providers },
+#endif
 	{ { NULL }, NULL, NULL, NULL }
 }};
 
@@ -7997,6 +8078,23 @@ static void ssl_register_build_options()
 	for (i = CONF_TLSV_MIN; i <= CONF_TLSV_MAX; i++)
 		if (methodVersions[i].option)
 			memprintf(&ptr, "%s %s", ptr, methodVersions[i].name);
+
+#ifdef HAVE_SSL_PROVIDERS
+	{
+		struct list provider_names;
+		struct provider_name *name;
+		LIST_INIT(&provider_names);
+		ssl_provider_get_name_list(&provider_names);
+
+		memprintf(&ptr, "%s\nOpenSSL providers loaded :", ptr);
+
+		list_for_each_entry(name, &provider_names, list) {
+			memprintf(&ptr, "%s %s", ptr, name->name);
+		}
+
+		ssl_provider_clear_name_list(&provider_names);
+	}
+#endif
 
 	hap_register_build_opts(ptr, 1);
 }

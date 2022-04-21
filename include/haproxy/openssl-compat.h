@@ -28,6 +28,7 @@
 #include <openssl/core_names.h>
 #include <openssl/decoder.h>
 #include <openssl/param_build.h>
+#include <openssl/provider.h>
 #endif
 
 #if defined(LIBRESSL_VERSION_NUMBER)
@@ -92,6 +93,9 @@
 #define HASSL_DH EVP_PKEY
 #define HASSL_DH_free EVP_PKEY_free
 #define HASSL_DH_up_ref EVP_PKEY_up_ref
+
+#define HAVE_SSL_PROVIDERS
+
 #else /* HA_OPENSSL_VERSION_NUMBER >= 0x3000000fL */
 #define MAC_CTX HMAC_CTX
 #define HASSL_DH DH
