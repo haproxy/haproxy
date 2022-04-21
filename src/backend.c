@@ -2129,7 +2129,7 @@ void back_handle_st_req(struct stream *s)
 		/* the applet directly goes to the EST state */
 		struct appctx *appctx = cs_appctx(s->csb);
 
-		if (!appctx || appctx->applet != __objt_applet(s->target))
+		if (!appctx)
 			appctx = cs_applet_create(cs, objt_applet(s->target));
 
 		if (!appctx) {
