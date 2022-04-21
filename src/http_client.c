@@ -1089,9 +1089,8 @@ static int httpclient_cfg_postparser()
 		memcpy(node, logsrv, sizeof(*node));
 		LIST_INIT(&node->list);
 		LIST_APPEND(&curproxy->logsrvs, &node->list);
-		node->ring_name = NULL;
-		node->conf.file = NULL;
-		node->conf.line = 0;
+		node->ring_name = logsrv->ring_name ? strdup(logsrv->ring_name) : NULL;
+		node->conf.file = logsrv->conf.file ? strdup(logsrv->conf.file) : NULL;
 	}
 	if (curproxy->conf.logformat_string) {
 		curproxy->conf.args.ctx = ARGC_LOG;
