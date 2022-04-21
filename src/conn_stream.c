@@ -468,6 +468,8 @@ struct appctx *cs_applet_create(struct conn_stream *cs, struct applet *app)
 	appctx->t->nice = __cs_strm(cs)->task->nice;
 	cs_cant_get(cs);
 	appctx_wakeup(appctx);
+
+	cs->state = CS_ST_RDY;
 	return appctx;
 }
 
