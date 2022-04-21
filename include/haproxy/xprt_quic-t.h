@@ -518,6 +518,8 @@ struct quic_rx_strm_frm {
 #define QUIC_FL_TX_PACKET_CC            (1UL << 2)
 /* Flag a sent packet as containg an ACK frame */
 #define QUIC_FL_TX_PACKET_ACK           (1UL << 3)
+/* Flag a sent packet as being coalesced to another one in the same datagram */
+#define QUIC_FL_TX_PACKET_COALESCED     (1UL << 4)
 
 /* Structure to store enough information about TX QUIC packets. */
 struct quic_tx_packet {

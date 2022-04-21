@@ -2339,7 +2339,7 @@ static void qc_prep_fast_retrans(struct quic_enc_level *qel,
 	/* Skip the empty packet (they have already been retransmitted) */
 	while (node) {
 		pkt = eb64_entry(&node->node, struct quic_tx_packet, pn_node);
-		if (!LIST_ISEMPTY(&pkt->frms))
+		if (!LIST_ISEMPTY(&pkt->frms) && !(pkt->flags & QUIC_FL_TX_PACKET_COALESCED))
 			break;
 		node = eb64_next(node);
 	}
@@ -2395,7 +2395,7 @@ static void qc_prep_hdshk_fast_retrans(struct quic_conn *qc)
 	/* Skip the empty packet (they have already been retransmitted) */
 	while (node) {
 		pkt = eb64_entry(&node->node, struct quic_tx_packet, pn_node);
-		if (!LIST_ISEMPTY(&pkt->frms))
+		if (!LIST_ISEMPTY(&pkt->frms) && !(pkt->flags & QUIC_FL_TX_PACKET_COALESCED))
 			break;
 		node = eb64_next(node);
 	}
@@ -2961,8 +2961,10 @@ static int qc_prep_pkts(struct quic_conn *qc, struct qring *qr,
 		if (!first_pkt)
 			first_pkt = cur_pkt;
 		/* Attach the current one to the previous one */
-		if (prv_pkt)
+		if (prv_pkt) {
 			prv_pkt->next = cur_pkt;
+			cur_pkt->flags |= QUIC_FL_TX_PACKET_COALESCED;
+		}
 		/* Let's say we have to build a new dgram */
 		prv_pkt = NULL;
 		dglen += cur_pkt->len;
