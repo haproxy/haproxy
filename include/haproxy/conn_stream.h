@@ -193,14 +193,14 @@ static inline void cs_conn_shutw(struct conn_stream *cs, enum co_shw_mode mode)
 }
 
 /* completely close a conn_stream (but do not detach it) */
-static inline void cs_conn_close(struct conn_stream *cs)
+static inline void cs_conn_shut(struct conn_stream *cs)
 {
 	cs_conn_shutw(cs, CO_SHW_SILENT);
 	cs_conn_shutr(cs, CO_SHR_RESET);
 }
 
 /* completely close a conn_stream after draining possibly pending data (but do not detach it) */
-static inline void cs_conn_drain_and_close(struct conn_stream *cs)
+static inline void cs_conn_drain_and_shut(struct conn_stream *cs)
 {
 	cs_conn_shutw(cs, CO_SHW_SILENT);
 	cs_conn_shutr(cs, CO_SHR_DRAIN);

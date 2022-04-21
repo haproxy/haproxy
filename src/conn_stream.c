@@ -645,7 +645,7 @@ static void cs_app_shutr_conn(struct conn_stream *cs)
 		return;
 
 	if (cs_oc(cs)->flags & CF_SHUTW) {
-		cs_conn_close(cs);
+		cs_conn_shut(cs);
 		cs->state = CS_ST_DIS;
 		__cs_strm(cs)->conn_exp = TICK_ETERNITY;
 	}
@@ -721,7 +721,7 @@ static void cs_app_shutw_conn(struct conn_stream *cs)
 		/* we may have to close a pending connection, and mark the
 		 * response buffer as shutr
 		 */
-		cs_conn_close(cs);
+		cs_conn_shut(cs);
 		/* fall through */
 	case CS_ST_CER:
 	case CS_ST_QUE:
@@ -1252,7 +1252,7 @@ static void cs_conn_read0(struct conn_stream *cs)
 
  do_close:
 	/* OK we completely close the socket here just as if we went through cs_shut[rw]() */
-	cs_conn_close(cs);
+	cs_conn_shut(cs);
 
 	oc->flags &= ~CF_SHUTW_NOW;
 	oc->flags |= CF_SHUTW;

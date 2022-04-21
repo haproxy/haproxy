@@ -1054,7 +1054,7 @@ static int wake_srv_chk(struct conn_stream *cs)
 		 * handled ASAP. */
 		ret = -1;
 		if (conn)  {
-			cs_conn_drain_and_close(cs);
+			cs_conn_drain_and_shut(cs);
 			if (check->wait_list.events)
 				conn->mux->unsubscribe(cs, check->wait_list.events, &check->wait_list);
 		}
@@ -1188,7 +1188,7 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 		 * as a failed response coupled with "observe layer7" caused the
 		 * server state to be suddenly changed.
 		 */
-		cs_conn_drain_and_close(cs);
+		cs_conn_drain_and_shut(cs);
 	}
 
 	if (cs) {
