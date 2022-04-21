@@ -114,6 +114,19 @@ make sure to respect this ordering when adding new ones.
   exit. See also hap_register_per_thread_alloc() for functions called before
   these ones.
 
+- void hap_register_pre_check(int (*fct)())
+
+  This adds a call to function <fct> to the list of functions to be called at
+  the step just before the configuration validity checks. This is useful when you
+  need to create things like it would have been done during the configuration
+  parsing and where the initialization should continue in the configuration
+  check.
+  It could be used for example to generate a proxy with multiple servers using
+  the configuration parser itself. At this step the trash buffers are allocated.
+  Threads are not yet started so no protection is required. The function is
+  expected to return non-zero on success, or zero on failure. A failure will make
+  the process emit a succinct error message and immediately exit.
+
 - void hap_register_post_check(int (*fct)())
 
   This adds a call to function <fct> to the list of functions to be called at
@@ -316,6 +329,10 @@ alphanumerically ordered:
   Used internally to declare a new pool. This is made by calling function
   create_pool_callback() with these arguments at stage STG_POOL. Do not use it
   directly, use either DECLARE_POOL() or DECLARE_STATIC_POOL() instead.
+
+- REGISTER_PRE_CHECK(fct)
+
+  Registers a call to register_pre_check(fct) at stage STG_REGISTER.
 
 - REGISTER_POST_CHECK(fct)
 

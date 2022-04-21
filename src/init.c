@@ -4,6 +4,17 @@
 #include <haproxy/init.h>
 #include <haproxy/list.h>
 
+/* These functions are called just before a config validity check, which mean
+ * they are suited to use them in case we need to generate part of the
+ * configuration. It could be used for example to generate a proxy with
+ * multiple servers using the configuration parser itself. At this step the
+ * trash buffers are allocated.
+ * The functions must return 0 on success, or a combination
+ * of ERR_* flags (ERR_WARN, ERR_ABORT, ERR_FATAL, ...). The 2 latter cause
+ * and immediate exit, so the function must have emitted any useful error.
+ */
+struct list pre_check_list = LIST_HEAD_INIT(pre_check_list);
+
 /* These functions are called just after the point where the program exits
  * after a config validity check, so they are generally suited for resource
  * allocation and slow initializations that should be skipped during basic
@@ -72,6 +83,20 @@ struct list per_thread_free_list = LIST_HEAD_INIT(per_thread_free_list);
  * functions, they work in best effort mode as their sole goal is to make
  * valgrind mostly happy. */
 struct list per_thread_deinit_list = LIST_HEAD_INIT(per_thread_deinit_list);
+
+/* used to register some initialization functions to call before the checks. */
+void hap_register_pre_check(int (*fct)())
+{
+	struct pre_check_fct *b;
+
+	b = calloc(1, sizeof(*b));
+	if (!b) {
+		fprintf(stderr, "out of memory\n");
+		exit(1);
+	}
+	b->fct = fct;
+	LIST_APPEND(&pre_check_list, &b->list);
+}
 
 /* used to register some initialization functions to call after the checks. */
 void hap_register_post_check(int (*fct)())

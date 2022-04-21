@@ -6,6 +6,11 @@
 struct proxy;
 struct server;
 
+struct pre_check_fct {
+	struct list list;
+	int (*fct)();
+};
+
 struct post_check_fct {
 	struct list list;
 	int (*fct)();

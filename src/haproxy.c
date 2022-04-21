@@ -1891,6 +1891,7 @@ static void init(int argc, char **argv)
 	struct wordlist *wl;
 	struct proxy *px;
 	struct post_check_fct *pcf;
+	struct pre_check_fct *prcf;
 	int ideal_maxconn;
 
 	if (!init_trash_buffers(1)) {
@@ -2107,6 +2108,8 @@ static void init(int argc, char **argv)
 	/* destroy unreferenced defaults proxies  */
 	proxy_destroy_all_unref_defaults();
 
+	list_for_each_entry(prcf, &pre_check_list, list)
+		err_code |= prcf->fct();
 
 	err_code |= check_config_validity();
 	for (px = proxies_list; px; px = px->next) {

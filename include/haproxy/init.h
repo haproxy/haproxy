@@ -7,6 +7,7 @@
 struct proxy;
 struct server;
 
+extern struct list pre_check_list;
 extern struct list post_check_list;
 extern struct list post_proxy_check_list;
 extern struct list post_server_check_list;
@@ -18,6 +19,7 @@ extern struct list server_deinit_list;
 extern struct list per_thread_free_list;
 extern struct list per_thread_deinit_list;
 
+void hap_register_pre_check(int (*fct)());
 void hap_register_post_check(int (*fct)());
 void hap_register_post_proxy_check(int (*fct)(struct proxy *));
 void hap_register_post_server_check(int (*fct)(struct server *));
@@ -29,6 +31,10 @@ void hap_register_per_thread_alloc(int (*fct)());
 void hap_register_per_thread_init(int (*fct)());
 void hap_register_per_thread_deinit(void (*fct)());
 void hap_register_per_thread_free(void (*fct)());
+
+/* simplified way to declare a pre-check callback in a file */
+#define REGISTER_PRE_CHECK(fct) \
+	INITCALL1(STG_REGISTER, hap_register_pre_check, (fct))
 
 /* simplified way to declare a post-check callback in a file */
 #define REGISTER_POST_CHECK(fct) \
