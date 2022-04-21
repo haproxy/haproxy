@@ -518,6 +518,11 @@ static void qc_release(struct qcc *qcc)
 
 	if (qcc->wait_event.tasklet)
 		tasklet_free(qcc->wait_event.tasklet);
+	if (conn && qcc->wait_event.events) {
+		conn->xprt->unsubscribe(conn, conn->xprt_ctx,
+		                        qcc->wait_event.events,
+		                        &qcc->wait_event);
+	}
 
 	/* liberate remaining qcs instances */
 	node = eb64_first(&qcc->streams_by_id);
