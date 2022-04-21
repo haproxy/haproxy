@@ -52,7 +52,7 @@ void cs_detach_endp(struct conn_stream *cs);
 void cs_detach_app(struct conn_stream *cs);
 
 struct appctx *cs_applet_create(struct conn_stream *cs, struct applet *app);
-void cs_applet_release(struct conn_stream *cs);
+void cs_applet_shut(struct conn_stream *cs);
 
 /* Returns the endpoint target without any control */
 static inline void *__cs_endp_target(const struct conn_stream *cs)

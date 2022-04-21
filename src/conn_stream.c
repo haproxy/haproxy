@@ -375,7 +375,7 @@ void cs_detach_endp(struct conn_stream *cs)
 		struct appctx *appctx = __cs_appctx(cs);
 
 		cs->endp->flags |= CS_EP_ORPHAN;
-		cs_applet_release(cs);
+		cs_applet_shut(cs);
 		appctx_free(appctx);
 		cs->endp = NULL;
 	}
@@ -472,7 +472,7 @@ struct appctx *cs_applet_create(struct conn_stream *cs, struct applet *app)
 }
 
 /* call the applet's release function if any. Needs to be called upon close() */
-void cs_applet_release(struct conn_stream *cs)
+void cs_applet_shut(struct conn_stream *cs)
 {
 	struct appctx *appctx = __cs_appctx(cs);
 
@@ -874,7 +874,7 @@ static void cs_app_shutr_applet(struct conn_stream *cs)
 		return;
 
 	if (cs_oc(cs)->flags & CF_SHUTW) {
-		cs_applet_release(cs);
+		cs_applet_shut(cs);
 		cs->state = CS_ST_DIS;
 		__cs_strm(cs)->conn_exp = TICK_ETERNITY;
 	}
@@ -932,7 +932,7 @@ static void cs_app_shutw_applet(struct conn_stream *cs)
 	case CS_ST_QUE:
 	case CS_ST_TAR:
 		/* Note that none of these states may happen with applets */
-		cs_applet_release(cs);
+		cs_applet_shut(cs);
 		cs->state = CS_ST_DIS;
 		/* fall through */
 	default:
