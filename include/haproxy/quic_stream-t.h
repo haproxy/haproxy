@@ -18,6 +18,7 @@
  */
 struct qc_stream_desc {
 	struct eb64_node by_id; /* node for quic_conn tree */
+	struct quic_conn *qc;
 
 	struct buffer buf; /* buffer for STREAM data on Tx, emptied on acknowledge */
 	uint64_t ack_offset; /* last acknowledged offset */

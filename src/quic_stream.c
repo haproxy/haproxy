@@ -28,6 +28,7 @@ struct qc_stream_desc *qc_stream_desc_new(uint64_t id, void *ctx,
 
 	stream->by_id.key = id;
 	eb64_insert(&qc->streams_by_id, &stream->by_id);
+	stream->qc = qc;
 
 	stream->buf = BUF_NULL;
 	stream->acked_frms = EB_ROOT;
