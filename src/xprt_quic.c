@@ -3949,7 +3949,6 @@ static struct task *process_timer(struct task *task, void *ctx, unsigned int sta
 	struct ssl_sock_ctx *conn_ctx;
 	struct quic_conn *qc;
 	struct quic_pktns *pktns;
-	int i;
 
 	conn_ctx = task->context;
 	qc = conn_ctx->qc;
@@ -3968,14 +3967,12 @@ static struct task *process_timer(struct task *task, void *ctx, unsigned int sta
 	}
 
 	if (qc->path->in_flight) {
+		qc->flags |= QUIC_FL_CONN_RETRANS_NEEDED;
 		pktns = quic_pto_pktns(qc, qc->state >= QUIC_HS_ST_COMPLETE, NULL);
+		pktns->flags |= QUIC_FL_PKTNS_PROBE_NEEDED;
 		if (pktns == &qc->pktns[QUIC_TLS_PKTNS_INITIAL]) {
-			pktns->tx.pto_probe = 1;
 			if (qc->pktns[QUIC_TLS_PKTNS_HANDSHAKE].tx.in_flight)
-				qc->pktns[QUIC_TLS_PKTNS_HANDSHAKE].tx.pto_probe = 1;
-		}
-		else {
-			pktns->tx.pto_probe = 2;
+				qc->pktns[QUIC_TLS_PKTNS_HANDSHAKE].flags |= QUIC_FL_PKTNS_PROBE_NEEDED;
 		}
 	}
 	else if (!qc_is_listener(qc) && qc->state <= QUIC_HS_ST_COMPLETE) {
@@ -3986,13 +3983,6 @@ static struct task *process_timer(struct task *task, void *ctx, unsigned int sta
 			hel->pktns->tx.pto_probe = 1;
 		if (iel->tls_ctx.flags == QUIC_FL_TLS_SECRETS_SET)
 			iel->pktns->tx.pto_probe = 1;
-	}
-
-	for (i = QUIC_TLS_ENC_LEVEL_INITIAL; i < QUIC_TLS_ENC_LEVEL_MAX; i++) {
-		if (i == QUIC_TLS_ENC_LEVEL_APP && !quic_peer_validated_addr(qc))
-		    continue;
-
-		qc_prep_fast_retrans(&qc->els[i], qc);
 	}
 
 	tasklet_wakeup(conn_ctx->wait_event.tasklet);
