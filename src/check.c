@@ -1199,8 +1199,7 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 		 * the tasklet
 		 */
 		tasklet_remove_from_tasklet_list(check->wait_list.tasklet);
-		cs_detach_endp(cs);
-		cs_detach_app(cs);
+		cs_destroy(cs);
 		cs = check->cs = NULL;
 		conn = NULL;
 	}
@@ -1364,8 +1363,7 @@ void free_check(struct check *check)
 	check_release_buf(check, &check->bi);
 	check_release_buf(check, &check->bo);
 	if (check->cs) {
-		cs_detach_endp(check->cs);
-		cs_detach_app(check->cs);
+		cs_destroy(check->cs);
 		check->cs = NULL;
 	}
 }

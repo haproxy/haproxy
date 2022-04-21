@@ -714,10 +714,8 @@ static void stream_free(struct stream *s)
 	/* FIXME: Handle it in appctx_free ??? */
 	must_free_sess = objt_appctx(sess->origin) && sess->origin == __cs_endp_target(s->csf);
 
-	cs_detach_endp(s->csb);
-	cs_detach_endp(s->csf);
-	cs_detach_app(s->csb);
-	cs_detach_app(s->csf);
+	cs_destroy(s->csb);
+	cs_destroy(s->csf);
 
 	if (must_free_sess) {
 		sess->origin = NULL;
