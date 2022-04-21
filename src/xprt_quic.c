@@ -1444,27 +1444,23 @@ static int quic_stream_try_to_consume(struct quic_conn *qc,
 	while (frm_node) {
 		struct quic_stream *strm;
 		struct quic_frame *frm;
+		size_t offset, len;
 
 		strm = eb64_entry(&frm_node->node, struct quic_stream, offset);
-		if (strm->offset.key > stream->ack_offset)
+		offset = strm->offset.key;
+		len = strm->len;
+
+		if (offset > stream->ack_offset)
 			break;
 
-		TRACE_PROTO("stream consumed", QUIC_EV_CONN_ACKSTRM,
-		            qc, strm, stream);
-
-		if (strm->offset.key + strm->len > stream->ack_offset) {
-			const size_t diff = strm->offset.key + strm->len -
-			                    stream->ack_offset;
-			stream->ack_offset += diff;
-			b_del(strm->buf, diff);
-			if (!b_data(strm->buf)) {
-				if (qc_stream_desc_free_buf(stream)) {
-					/* stream is freed here */
-					return 1;
-				}
-			}
+		if (qc_stream_desc_ack(&stream, offset, len)) {
+			TRACE_PROTO("stream consumed", QUIC_EV_CONN_ACKSTRM,
+			            qc, strm, stream);
 			ret = 1;
 		}
+
+		if (!stream)
+			return 1;
 
 		frm_node = eb64_next(frm_node);
 		eb64_delete(&strm->offset);
@@ -1492,6 +1488,8 @@ static inline void qc_treat_acked_tx_frm(struct quic_conn *qc,
 		struct quic_stream *strm_frm = &frm->stream;
 		struct eb64_node *node = NULL;
 		struct qc_stream_desc *stream = NULL;
+		const size_t offset = strm_frm->offset.key;
+		const size_t len = strm_frm->len;
 
 		/* do not use strm_frm->stream as the qc_stream_desc instance
 		 * might be freed at this stage. Use the id to do a proper
@@ -1513,30 +1511,22 @@ static inline void qc_treat_acked_tx_frm(struct quic_conn *qc,
 		stream = eb64_entry(node, struct qc_stream_desc, by_id);
 
 		TRACE_PROTO("acked stream", QUIC_EV_CONN_ACKSTRM, qc, strm_frm, stream);
-		if (strm_frm->offset.key <= stream->ack_offset) {
-			if (strm_frm->offset.key + strm_frm->len > stream->ack_offset) {
-				const size_t diff = strm_frm->offset.key + strm_frm->len -
-				                    stream->ack_offset;
-				stream->ack_offset += diff;
-				b_del(strm_frm->buf, diff);
+		if (offset <= stream->ack_offset) {
+			if (qc_stream_desc_ack(&stream, offset, len)) {
 				stream_acked = 1;
-
-				if (!b_data(strm_frm->buf)) {
-					if (qc_stream_desc_free_buf(stream)) {
-						/* stream is freed at this stage,
-						 * no need to continue.
-						 */
-						TRACE_PROTO("stream released and freed", QUIC_EV_CONN_ACKSTRM, qc);
-						LIST_DELETE(&frm->list);
-						quic_tx_packet_refdec(frm->pkt);
-						pool_free(pool_head_quic_frame, frm);
-						break;
-					}
-				}
+				TRACE_PROTO("stream consumed", QUIC_EV_CONN_ACKSTRM,
+				            qc, strm_frm, stream);
 			}
 
-			TRACE_PROTO("stream consumed", QUIC_EV_CONN_ACKSTRM,
-			            qc, strm_frm, stream);
+			if (!stream) {
+				/* no need to continue if stream freed. */
+				TRACE_PROTO("stream released and freed", QUIC_EV_CONN_ACKSTRM, qc);
+				LIST_DELETE(&frm->list);
+				quic_tx_packet_refdec(frm->pkt);
+				pool_free(pool_head_quic_frame, frm);
+				break;
+			}
+
 			LIST_DELETE(&frm->list);
 			quic_tx_packet_refdec(frm->pkt);
 			pool_free(pool_head_quic_frame, frm);

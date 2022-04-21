@@ -66,6 +66,64 @@ void qc_stream_desc_release(struct qc_stream_desc *stream)
 	}
 }
 
+/* Acknowledge data at <offset> of length <len> for <stream>. It is handled
+ * only if it covers a range corresponding to stream.ack_offset. After data
+ * removal, if the stream does not contains data any more and is already
+ * released, the instance stream is freed. <stream> is set to NULL to indicate
+ * this.
+ *
+ * Returns the count of byte removed from stream. Do not forget to check if
+ * <stream> is NULL after invocation.
+ */
+int qc_stream_desc_ack(struct qc_stream_desc **stream, size_t offset,
+                       size_t len)
+{
+	struct qc_stream_desc *s = *stream;
+	struct qc_stream_buf *stream_buf;
+	struct buffer *buf;
+	size_t diff;
+
+	if (offset + len <= s->ack_offset || offset > s->ack_offset)
+		return 0;
+
+	/* There must be at least a buffer or we must not report an ACK. */
+	BUG_ON(LIST_ISEMPTY(&s->buf_list));
+
+	/* get oldest buffer from buf_list */
+	stream_buf = LIST_NEXT(&s->buf_list, struct qc_stream_buf *, list);
+	buf = &stream_buf->buf;
+
+	diff = offset + len - s->ack_offset;
+	s->ack_offset += diff;
+	b_del(buf, diff);
+
+	/* nothing more to do if buf still not empty. */
+	if (b_data(buf))
+		return diff;
+
+	/* buf is empty and can now be freed. Do not forget to reset current
+	 * buf ptr if we were working on it.
+	 */
+	LIST_DELETE(&stream_buf->list);
+	if (stream_buf == s->buf) {
+		/* current buf must always be last entry in buflist */
+		BUG_ON(!LIST_ISEMPTY(&s->buf_list));
+		s->buf = NULL;
+	}
+
+	b_free(buf);
+	pool_free(pool_head_quic_conn_stream_buf, stream_buf);
+	offer_buffers(NULL, 1);
+
+	/* Free stream instance if already released and no buffers left. */
+	if (s->release && LIST_ISEMPTY(&s->buf_list)) {
+		qc_stream_desc_free(s);
+		*stream = NULL;
+	}
+
+	return diff;
+}
+
 /* Free the stream descriptor <stream> content. This function should be used
  * when all its data have been acknowledged or on full connection closing. It
  * must only be called after the stream is released.
@@ -158,44 +216,4 @@ void qc_stream_buf_release(struct qc_stream_desc *stream)
 
 	stream->buf = NULL;
 	stream->buf_offset = 0;
-}
-
-/* Free the oldest buffer of <stream>. If the stream was already released and
- * does not references any buffers, it is freed. This function must only be
- * called if at least one buffer is present. Use qc_stream_desc_free() to free
- * a released stream.
- *
- * Returns 0 if the stream is not yet freed else 1.
- */
-int qc_stream_desc_free_buf(struct qc_stream_desc *stream)
-{
-	struct qc_stream_buf *stream_buf;
-
-	BUG_ON(LIST_ISEMPTY(&stream->buf_list) && !stream->buf);
-
-	if (!LIST_ISEMPTY(&stream->buf_list)) {
-		/* get first buffer from buf_list and remove it */
-		stream_buf = LIST_NEXT(&stream->buf_list, struct qc_stream_buf *,
-		                       list);
-		LIST_DELETE(&stream_buf->list);
-	}
-	else {
-		stream_buf = stream->buf;
-		stream->buf = NULL;
-	}
-
-	b_free(&stream_buf->buf);
-	pool_free(pool_head_quic_conn_stream_buf, stream_buf);
-
-	offer_buffers(NULL, 1);
-
-	/* If qc_stream_desc is released and does not contains any buffers, we
-	 * can free it now.
-	 */
-	if (stream->release && LIST_ISEMPTY(&stream->buf_list)) {
-		qc_stream_desc_free(stream);
-		return 1;
-	}
-
-	return 0;
 }
