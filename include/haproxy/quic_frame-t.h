@@ -93,6 +93,10 @@ enum quic_frame_type {
 
 #define QUIC_FT_PKT_TYPE____1_BITMASK QUIC_FT_PKT_TYPE_1_BITMASK
 
+
+/* Flag a TX frame as acknowledged */
+#define QUIC_FL_TX_FRAME_ACKED             0x01
+
 #define QUIC_STREAM_FRAME_TYPE_FIN_BIT     0x01
 #define QUIC_STREAM_FRAME_TYPE_LEN_BIT     0x02
 #define QUIC_STREAM_FRAME_TYPE_OFF_BIT     0x04
@@ -258,6 +262,10 @@ struct quic_frame {
 		struct quic_connection_close connection_close;
 		struct quic_connection_close_app connection_close_app;
 	};
+	struct quic_frame *origin;
+	struct list reflist;
+	struct list ref;
+	unsigned int flags;
 };
 
 #endif /* USE_QUIC */

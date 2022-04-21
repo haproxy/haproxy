@@ -677,6 +677,7 @@ static int qcs_build_stream_frm(struct qcs *qcs, struct buffer *out, char fin,
 	if (!frm)
 		goto err;
 
+	LIST_INIT(&frm->reflist);
 	frm->type = QUIC_FT_STREAM_8;
 	frm->stream.stream = qcs->stream;
 	frm->stream.id = qcs->id;
@@ -845,6 +846,7 @@ static int qc_send_max_streams(struct qcc *qcc)
 	frm = pool_zalloc(pool_head_quic_frame);
 	BUG_ON(!frm); /* TODO handle this properly */
 
+	LIST_INIT(&frm->reflist);
 	frm->type = QUIC_FT_MAX_STREAMS_BIDI;
 	frm->max_streams_bidi.max_streams = qcc->lfctl.ms_bidi +
 	                                    qcc->lfctl.cl_bidi_r;

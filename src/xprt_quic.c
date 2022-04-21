@@ -1079,10 +1079,11 @@ static int quic_crypto_data_cpy(struct quic_enc_level *qel,
 			found->crypto.len += cf_len;
 		}
 		else {
-			frm = pool_alloc(pool_head_quic_frame);
+			frm = pool_zalloc(pool_head_quic_frame);
 			if (!frm)
 				return 0;
 
+			LIST_INIT(&frm->reflist);
 			frm->type = QUIC_FT_CRYPTO;
 			frm->crypto.offset = cf_offset;
 			frm->crypto.len = cf_len;
@@ -3141,6 +3142,7 @@ static int quic_build_post_handshake_frames(struct quic_conn *qc)
 		if (!frm)
 			return 0;
 
+		LIST_INIT(&frm->reflist);
 		frm->type = QUIC_FT_HANDSHAKE_DONE;
 		LIST_APPEND(&frm_list, &frm->list);
 	}
@@ -3154,6 +3156,7 @@ static int quic_build_post_handshake_frames(struct quic_conn *qc)
 		if (!frm)
 			goto err;
 
+		LIST_INIT(&frm->reflist);
 		cid = new_quic_cid(&qc->cids, qc, i);
 		if (!cid)
 			goto err;
@@ -5220,12 +5223,13 @@ static inline int qc_build_frms(struct list *outlist, struct list *inlist,
 			else {
 				struct quic_frame *new_cf;
 
-				new_cf = pool_alloc(pool_head_quic_frame);
+				new_cf = pool_zalloc(pool_head_quic_frame);
 				if (!new_cf) {
 					TRACE_PROTO("No memory for new crypto frame", QUIC_EV_CONN_BCFRMS, qc);
 					return 0;
 				}
 
+				LIST_INIT(&new_cf->reflist);
 				new_cf->type = QUIC_FT_CRYPTO;
 				new_cf->crypto.len = dlen;
 				new_cf->crypto.offset = cf->crypto.offset;
@@ -5301,6 +5305,7 @@ static inline int qc_build_frms(struct list *outlist, struct list *inlist,
 					return 0;
 				}
 
+				LIST_INIT(&new_cf->reflist);
 				new_cf->type = cf->type;
 				new_cf->stream.stream = cf->stream.stream;
 				new_cf->stream.buf = cf->stream.buf;
