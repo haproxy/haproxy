@@ -1529,7 +1529,9 @@ static int connect_server(struct stream *s)
 
 			if (avail <= 1) {
 				/* No more streams available, remove it from the list */
+				HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 				conn_delete_from_tree(&srv_conn->hash_node->node);
+				HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 			}
 
 			if (avail >= 1) {
