@@ -449,6 +449,8 @@ int qcc_decode_qcs(struct qcc *qcc, struct qcs *qcs)
 		return 1;
 	}
 
+	qcs_notify_recv(qcs);
+
 	TRACE_LEAVE(QMUX_EV_QCS_RECV, qcc->conn, qcs);
 
 	return 0;
