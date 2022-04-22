@@ -41,8 +41,10 @@ static struct proxy *httpclient_proxy;
 static struct server *httpclient_srv_raw;
 #ifdef USE_OPENSSL
 static struct server *httpclient_srv_ssl;
+static int httpclient_ssl_verify = SSL_SOCK_VERIFY_NONE;
 #endif
 static struct applet httpclient_applet;
+
 
 /* --- This part of the file implement an HTTP client over the CLI ---
  * The functions will be  starting by "hc_cli" for "httpclient cli"
@@ -1043,10 +1045,13 @@ static int httpclient_precheck()
 	if (!httpclient_srv_ssl->id)
 		goto err;
 
-	httpclient_srv_ssl->ssl_ctx.verify = SSL_SOCK_VERIFY_REQUIRED;
-	httpclient_srv_ssl->ssl_ctx.ca_file = strdup("@system-ca");
-	if (!ssl_store_load_locations_file(httpclient_srv_ssl->ssl_ctx.ca_file, 1, CAFILE_CERT))
-		goto err;
+	httpclient_srv_ssl->ssl_ctx.verify = httpclient_ssl_verify;
+
+	if (httpclient_ssl_verify == SSL_SOCK_VERIFY_REQUIRED) {
+		httpclient_srv_ssl->ssl_ctx.ca_file = strdup("@system-ca");
+		if (!ssl_store_load_locations_file(httpclient_srv_ssl->ssl_ctx.ca_file, 1, CAFILE_CERT))
+			goto err;
+	}
 
 #endif
 
@@ -1139,3 +1144,31 @@ err:
 
 REGISTER_PRE_CHECK(httpclient_precheck);
 REGISTER_POST_CHECK(httpclient_postcheck);
+
+#ifdef USE_OPENSSL
+static int httpclient_parse_global_verify(char **args, int section_type, struct proxy *curpx,
+                                        const struct proxy *defpx, const char *file, int line,
+                                        char **err)
+{
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	if (strcmp(args[1],"none") == 0)
+		httpclient_ssl_verify = SSL_SERVER_VERIFY_NONE;
+	else if (strcmp(args[1],"required") == 0)
+		httpclient_ssl_verify = SSL_SERVER_VERIFY_REQUIRED;
+	else {
+		ha_alert("parsing [%s:%d] : '%s' expects 'none' or 'required' as argument.\n", file, line, args[0]);
+		return -1;
+	}
+
+	return 0;
+}
+
+static struct cfg_kw_list cfg_kws = {ILH, {
+	{ CFG_GLOBAL, "httpclient-ssl-verify", httpclient_parse_global_verify },
+	{ 0, NULL, NULL },
+}};
+
+INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
+#endif
