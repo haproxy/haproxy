@@ -989,6 +989,9 @@ static int httpclient_precheck()
 	int err_code = 0;
 	char *errmsg = NULL;
 
+	if (global.mode & MODE_MWORKER_WAIT)
+		return 0;
+
 	httpclient_proxy = alloc_new_proxy("<HTTPCLIENT>", PR_CAP_LISTEN|PR_CAP_INT, &errmsg);
 	if (!httpclient_proxy) {
 		err_code |= ERR_ALERT | ERR_FATAL;
@@ -1079,6 +1082,9 @@ static int httpclient_postcheck()
 	struct logsrv *logsrv;
 	struct proxy *curproxy = httpclient_proxy;
 	char *errmsg = NULL;
+
+	if (global.mode & MODE_MWORKER_WAIT)
+		return 0;
 
 	/* copy logs from "global" log list */
 	list_for_each_entry(logsrv, &global.logsrvs, list) {
