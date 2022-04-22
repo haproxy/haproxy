@@ -15,6 +15,7 @@
 #include <haproxy/api.h>
 #include <haproxy/applet.h>
 #include <haproxy/cli.h>
+#include <haproxy/ssl_ckch.h>
 #include <haproxy/dynbuf.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/conn_stream.h>
@@ -1039,7 +1040,11 @@ static int httpclient_precheck()
 	if (!httpclient_srv_ssl->id)
 		goto err;
 
-	httpclient_srv_ssl->ssl_ctx.verify = SSL_SOCK_VERIFY_NONE;
+	httpclient_srv_ssl->ssl_ctx.verify = SSL_SOCK_VERIFY_REQUIRED;
+	httpclient_srv_ssl->ssl_ctx.ca_file = strdup("@system-ca");
+	if (!ssl_store_load_locations_file(httpclient_srv_ssl->ssl_ctx.ca_file, 1, CAFILE_CERT))
+		goto err;
+
 #endif
 
 	/* add the proxy in the proxy list only if everything is successful */
