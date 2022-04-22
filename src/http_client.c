@@ -983,8 +983,7 @@ static struct applet httpclient_applet = {
  * Initialize the proxy for the HTTP client with 2 servers, one for raw HTTP,
  * the other for HTTPS.
  */
-
-static int httpclient_init()
+static int httpclient_precheck()
 {
 	int err_code = 0;
 	char *errmsg = NULL;
@@ -1070,7 +1069,7 @@ err:
 	return err_code;
 }
 
-static int httpclient_cfg_postparser()
+static int httpclient_postcheck()
 {
 	struct logsrv *logsrv;
 	struct proxy *curproxy = httpclient_proxy;
@@ -1127,5 +1126,5 @@ err:
 
 /* initialize the proxy and servers for the HTTP client */
 
-INITCALL0(STG_INIT, httpclient_init);
-REGISTER_CONFIG_POSTPARSER("httpclient", httpclient_cfg_postparser);
+REGISTER_PRE_CHECK(httpclient_precheck);
+REGISTER_POST_CHECK(httpclient_postcheck);
