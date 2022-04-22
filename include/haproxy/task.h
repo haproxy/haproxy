@@ -414,6 +414,50 @@ static inline void _tasklet_wakeup_on(struct tasklet *tl, int thr, const char *f
  */
 #define tasklet_wakeup(tl) _tasklet_wakeup_on(tl, (tl)->tid, __FILE__, __LINE__)
 
+/* instantly wakes up task <t> on its owner thread even if it's not the current
+ * one, bypassing the run queue. The purpose is to be able to avoid contention
+ * in the global run queue for massively remote tasks (e.g. queue) when there's
+ * no value in passing the task again through the priority ordering since it has
+ * already been subject to it once (e.g. before entering process_stream). The
+ * task goes directly into the shared mt_list as a tasklet and will run as
+ * TL_URGENT. Great care is taken to be certain it's not queued nor running
+ * already.
+ */
+#define task_instant_wakeup(t, f) _task_instant_wakeup(t, f, __FILE__, __LINE__)
+static inline void _task_instant_wakeup(struct task *t, unsigned int f, const char *file, int line)
+{
+	struct tasklet *tl = (struct tasklet *)t;
+	int thr = my_ffsl(t->thread_mask) - 1;
+	unsigned int state;
+
+	/* first, let's update the task's state with the wakeup condition */
+	state = _HA_ATOMIC_OR_FETCH(&tl->state, f);
+
+	/* next we need to make sure the task was not/will not be added to the
+	 * run queue because the tasklet list's mt_list uses the same storage
+	 * as the task's run_queue.
+	 */
+	do {
+		/* do nothing if someone else already added it */
+		if (state & (TASK_QUEUED|TASK_RUNNING))
+			return;
+	} while (!_HA_ATOMIC_CAS(&tl->state, &state, state | TASK_QUEUED));
+
+	BUG_ON_HOT(task_in_rq(t));
+
+	/* at this point we're the first ones to add this task to the list */
+#ifdef DEBUG_TASK
+	if ((unsigned int)tl->debug.caller_idx > 1)
+		ABORT_NOW();
+	tl->debug.caller_idx = !tl->debug.caller_idx;
+	tl->debug.caller_file[tl->debug.caller_idx] = file;
+	tl->debug.caller_line[tl->debug.caller_idx] = line;
+	if (task_profiling_mask & tid_bit)
+		tl->call_date = now_mono_time();
+#endif
+	__tasklet_wakeup_on(tl, thr);
+}
+
 /* This macro shows the current function name and the last known caller of the
  * task (or tasklet) wakeup.
  */

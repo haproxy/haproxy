@@ -104,6 +104,11 @@ struct notification {
 struct task {
 	TASK_COMMON;			/* must be at the beginning! */
 	struct eb32sc_node rq;		/* ebtree node used to hold the task in the run queue */
+	/* WARNING: the struct task is often aliased as a struct tasklet when
+	 * it is NOT in the run queue. The tasklet has its struct list here
+	 * where rq starts and this works because both are exclusive. Never
+	 * ever reorder these fields without taking this into account!
+	 */
 	struct eb32_node wq;		/* ebtree node used to hold the task in the wait queue */
 	int expire;			/* next expiration date for this task, in ticks */
 	short nice;                     /* task prio from -1024 to +1024 */
@@ -118,6 +123,11 @@ struct task {
 struct tasklet {
 	TASK_COMMON;			/* must be at the beginning! */
 	struct list list;
+	/* WARNING: the struct task is often aliased as a struct tasklet when
+	 * it is not in the run queue. The task has its struct rq here where
+	 * list starts and this works because both are exclusive. Never ever
+	 * reorder these fields without taking this into account!
+	 */
 #ifdef DEBUG_TASK
 	uint64_t call_date;		/* date of the last tasklet wakeup or call */
 #endif
