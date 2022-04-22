@@ -1273,7 +1273,7 @@ static size_t qc_rcv_buf(struct conn_stream *cs, struct buffer *buf,
 			cs->endp->flags |= CS_EP_ERROR;
 
 		if (fin)
-			cs->endp->flags |= (CS_EP_EOI|CS_EP_EOS);
+			cs->endp->flags |= CS_EP_EOI;
 
 		if (b_size(&qcs->rx.app_buf)) {
 			b_free(&qcs->rx.app_buf);
