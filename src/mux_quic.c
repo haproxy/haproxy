@@ -563,7 +563,7 @@ static void qc_release(struct qcc *qcc)
  * repeatdly this function on multiple streams before passing the data to the
  * lower layer.
  *
- * Returns the total bytes of newly transferred data or a negative error code.
+ * Returns the total bytes of newly transferred data. It may be 0 if none.
  */
 static int qcs_xfer_data(struct qcs *qcs, struct buffer *out,
                          struct buffer *payload, uint64_t max_data)
@@ -621,10 +621,6 @@ static int qcs_xfer_data(struct qcs *qcs, struct buffer *out,
 	}
 
 	return total;
-
- err:
-	TRACE_DEVEL("leaving in error", QMUX_EV_QCS_SEND, qcc->conn, qcs);
-	return -1;
 }
 
 static int qcs_build_stream_frm(struct qcs *qcs, struct buffer *out, char fin,
@@ -871,8 +867,6 @@ static int _qc_send_qcs(struct qcs *qcs, struct list *frms,
 	/* Transfer data from <buf> to <out>. */
 	if (b_data(buf)) {
 		xfer = qcs_xfer_data(qcs, out, buf, qcc_max_data);
-		BUG_ON(xfer < 0); /* TODO handle this properly */
-
 		if (xfer > 0) {
 			qcs_notify_send(qcs);
 			qcs->flags &= ~QC_SF_BLK_MROOM;
