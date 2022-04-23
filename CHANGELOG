@@ -1,6 +1,48 @@
 ChangeLog :
 ===========
 
+2022/04/23 : 2.6-dev7
+    - BUILD: calltrace: fix wrong include when building with TRACE=1
+    - MINOR: ssl: Use DH parameters defined in RFC7919 instead of hard coded ones
+    - MEDIUM: ssl: Disable DHE ciphers by default
+    - BUILD: ssl: Fix compilation with OpenSSL 1.0.2
+    - MINOR: mux-quic: split xfer and STREAM frames build
+    - REORG: quic: use a dedicated module for qc_stream_desc
+    - MINOR: quic-stream: use distinct tree nodes for quic stream and qcs
+    - MINOR: quic-stream: add qc field
+    - MEDIUM: quic: implement multi-buffered Tx streams
+    - MINOR: quic-stream: refactor ack management
+    - MINOR: quic: limit total stream buffers per connection
+    - MINOR: mux-quic: implement immediate send retry
+    - MINOR: cfg-quic: define tune.quic.conn-buf-limit
+    - MINOR: ssl: Add 'show ssl providers' cli command and providers list in -vv option
+    - REGTESTS: ssl: Update error messages that changed with OpenSSLv3.1.0-dev
+    - BUG/MEDIUM: quic: Possible crash with released mux
+    - BUG/MINOR: mux-quic: unsubscribe on release
+    - BUG/MINOR: mux-quic: handle null timeout
+    - BUG/MEDIUM: logs: fix http-client's log srv initialization
+    - BUG/MINOR: mux-quic: remove dead code in qcs_xfer_data()
+    - DEV: stream: Fix conn-streams dump in full stream message
+    - CLEANUP: conn-stream: Rename cs_conn_close() and cs_conn_drain_and_close()
+    - CLEANUP: conn-stream: Rename cs_applet_release()
+    - MINOR: conn-stream: Rely on endpoint shutdown flags to shutdown an applet
+    - BUG/MINOR: cache: Disable cache if applet creation fails
+    - BUG/MINOR: backend: Don't allow to change backend applet
+    - BUG/MEDIUM: conn-stream: Set back CS to RDY state when the appctx is created
+    - MINOR: stream: Don't needlessly detach server endpoint on early client abort
+    - MINOR: conn-stream: Make cs_detach_* private and use cs_destroy() from outside
+    - MINOR: init: add the pre-check callback
+    - MEDIUM: httpclient: change the init sequence
+    - MEDIUM: httpclient/ssl: verify required
+    - MINOR: httpclient/mworker: disable in the master process
+    - MEDIUM: httpclient/ssl: verify is configurable and disabled by default
+    - BUG/MAJOR: connection: Never remove connection from idle lists outside the lock
+    - BUG/MEDIUM: mux-quic: fix stalled POST requets
+    - BUG/MINOR: mux-quic: fix POST with abortonclose
+    - MINOR: task: add a new task_instant_wakeup() function
+    - MEDIUM: queue: use tasklet_instant_wakeup() to wake tasks
+    - DOC: remove my name from the config doc
+
 2022/04/16 : 2.6-dev6
     - CLEANUP: connection: reduce the with of the mux dump output
     - CI: Update to actions/checkout@v3
