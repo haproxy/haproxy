@@ -1429,6 +1429,21 @@ static int qc_pkt_decrypt(struct quic_rx_packet *pkt, struct quic_enc_level *qel
 	return 1;
 }
 
+
+/* Remove references to <frm> frame */
+static void qc_frm_unref(struct quic_conn *qc, struct quic_frame *frm)
+{
+	uint64_t pn;
+	struct quic_frame *f, *tmp;
+
+	list_for_each_entry_safe(f, tmp, &frm->reflist, ref) {
+		pn = f->pkt->pn_node.key;
+		f->origin = NULL;
+		LIST_DELETE(&f->ref);
+		TRACE_PROTO("remove frame reference", QUIC_EV_CONN_PRSAFRM, qc, f, &pn);
+	}
+}
+
 /* Release <frm> frame and mark its copies as acknowledged */
 static void qc_release_frm(struct quic_conn *qc, struct quic_frame *frm)
 {
@@ -1651,19 +1666,81 @@ static inline struct eb64_node *qc_ackrng_pkts(struct quic_conn *qc,
  * same order they have been sent into <pktns_frm_list>.
  */
 static inline void qc_requeue_nacked_pkt_tx_frms(struct quic_conn *qc,
-                                                 struct list *pkt_frm_list,
+                                                 struct quic_tx_packet *pkt,
                                                  struct list *pktns_frm_list)
 {
 	struct quic_frame *frm, *frmbak;
 	struct list tmp = LIST_HEAD_INIT(tmp);
+	struct list *pkt_frm_list = &pkt->frms;
 
 	list_for_each_entry_safe(frm, frmbak, pkt_frm_list, list) {
+		/* Only for debug */
+		uint64_t pn;
+
+		/* First remove this frame from the packet it was attached to */
 		LIST_DELETE(&frm->list);
+		pn = frm->pkt->pn_node.key;
 		quic_tx_packet_refdec(frm->pkt);
-		/* This frame is not freed but removed from its packet */
+		/* At this time, this frame is not freed but removed from its packet */
 		frm->pkt = NULL;
-		TRACE_PROTO("to resend frame", QUIC_EV_CONN_PRSAFRM, qc, frm);
-		LIST_APPEND(&tmp, &frm->list);
+		/* Remove any reference to this frame */
+		qc_frm_unref(qc, frm);
+		switch (frm->type) {
+		case QUIC_FT_STREAM_8 ... QUIC_FT_STREAM_F:
+		{
+			struct quic_stream *strm_frm = &frm->stream;
+			struct eb64_node *node = NULL;
+			struct qc_stream_desc *stream_desc;
+
+			node = eb64_lookup(&qc->streams_by_id, strm_frm->id);
+			if (!node) {
+				TRACE_PROTO("released stream", QUIC_EV_CONN_PRSAFRM, qc, strm_frm);
+				TRACE_PROTO("freeing frame from packet", QUIC_EV_CONN_PRSAFRM,
+				            qc, frm, &pn);
+				pool_free(pool_head_quic_frame, frm);
+				continue;
+			}
+
+			stream_desc = eb64_entry(node, struct qc_stream_desc, by_id);
+			/* Do not resend this frame if in the "already acked range" */
+			if (strm_frm->offset.key + strm_frm->len <= stream_desc->ack_offset) {
+				TRACE_PROTO("ignored frame in already acked range",
+				            QUIC_EV_CONN_PRSAFRM, qc, frm);
+				continue;
+			}
+			else if (strm_frm->offset.key < stream_desc->ack_offset) {
+				strm_frm->offset.key = stream_desc->ack_offset;
+				TRACE_PROTO("updated partially acked frame",
+				            QUIC_EV_CONN_PRSAFRM, qc, frm);
+			}
+
+			break;
+		}
+
+		default:
+			break;
+		}
+
+		/* Do not resend probing packet with old data */
+		if (pkt->flags & QUIC_FL_TX_PACKET_PROBE_WITH_OLD_DATA) {
+			TRACE_PROTO("ignored frame with old data from packet", QUIC_EV_CONN_PRSAFRM,
+						qc, frm, &pn);
+			if (frm->origin)
+				LIST_DELETE(&frm->ref);
+			pool_free(pool_head_quic_frame, frm);
+			continue;
+		}
+
+		if (frm->flags & QUIC_FL_TX_FRAME_ACKED) {
+			TRACE_PROTO("already acked frame", QUIC_EV_CONN_PRSAFRM, qc, frm);
+			TRACE_PROTO("freeing frame from packet", QUIC_EV_CONN_PRSAFRM,
+			            qc, frm, &pn);
+			pool_free(pool_head_quic_frame, frm);
+		}
+		else {
+			TRACE_PROTO("to resend frame", QUIC_EV_CONN_PRSAFRM, qc, frm);
+			LIST_APPEND(&tmp, &frm->list);
+		}
 	}
 
 	LIST_SPLICE(pktns_frm_list, &tmp);
@@ -1803,7 +1880,7 @@ static inline void qc_release_lost_pkts(struct quic_conn *qc,
 		if (pkt->flags & QUIC_FL_TX_PACKET_ACK_ELICITING)
 			qc->path->ifae_pkts--;
 		/* Treat the frames of this lost packet. */
-		qc_requeue_nacked_pkt_tx_frms(qc, &pkt->frms, &pktns->tx.frms);
+		qc_requeue_nacked_pkt_tx_frms(qc, pkt, &pktns->tx.frms);
 		LIST_DELETE(&pkt->list);
 		if (!oldest_lost) {
 			oldest_lost = newest_lost = pkt;
