@@ -951,7 +951,6 @@ static inline void preload_libgcc_s(void)
 	pthread_join(dummy_thread, NULL);
 }
 
-__attribute__((constructor))
 static void __thread_init(void)
 {
 	char *ptr = NULL;
@@ -975,6 +974,7 @@ static void __thread_init(void)
 	memset(lock_stats, 0, sizeof(lock_stats));
 #endif
 }
+INITCALL0(STG_PREPARE, __thread_init);
 
 #else
 
