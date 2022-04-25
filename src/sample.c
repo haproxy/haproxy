@@ -1564,7 +1564,8 @@ struct sample *sample_fetch_as_type(struct proxy *px, struct session *sess,
 	if (!sample_casts[smp->data.type][smp_type])
 		return NULL;
 
-	if (!sample_casts[smp->data.type][smp_type](smp))
+	if (sample_casts[smp->data.type][smp_type] != c_none &&
+	    !sample_casts[smp->data.type][smp_type](smp))
 		return NULL;
 
 	smp->flags &= ~SMP_F_MAY_CHANGE;
