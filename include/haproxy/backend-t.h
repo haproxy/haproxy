@@ -47,6 +47,7 @@
 #define BE_LB_HASH_PRM  0x00002  /* hash HTTP URL parameter */
 #define BE_LB_HASH_HDR  0x00003  /* hash HTTP header value */
 #define BE_LB_HASH_RDP  0x00004  /* hash RDP cookie value */
+#define BE_LB_HASH_SMP  0x00005  /* hash a sample expression */
 #define BE_LB_HASH_RND  0x00008  /* hash a random value */
 
 /* BE_LB_RR_* is used with BE_LB_KIND_RR */
@@ -89,6 +90,7 @@
 #define BE_LB_ALGO_PH	(BE_LB_KIND_HI | BE_LB_NEED_HTTP | BE_LB_HASH_PRM) /* hash: HTTP URL parameter */
 #define BE_LB_ALGO_HH	(BE_LB_KIND_HI | BE_LB_NEED_HTTP | BE_LB_HASH_HDR) /* hash: HTTP header value  */
 #define BE_LB_ALGO_RCH	(BE_LB_KIND_HI | BE_LB_NEED_DATA | BE_LB_HASH_RDP) /* hash: RDP cookie value   */
+#define BE_LB_ALGO_SMP	(BE_LB_KIND_HI | BE_LB_NEED_DATA | BE_LB_HASH_SMP) /* hash: sample expression  */
 #define BE_LB_ALGO      (BE_LB_KIND    | BE_LB_NEED      | BE_LB_PARM    ) /* mask to clear algo */
 
 /* Higher bits define how a given criterion is mapped to a server. In fact it
@@ -152,6 +154,7 @@ struct lbprm {
 	int wmult;			/* ratio between user weight and effective weight */
 	int wdiv;			/* ratio between effective weight and user weight */
 	int hash_balance_factor;	/* load balancing factor * 100, 0 if disabled */
+	struct sample_expr *expr;       /* sample expression for "balance hash" */
 	char *arg_str;			/* name of the URL parameter/header/cookie used for hashing */
 	int   arg_len;			/* strlen(arg_str), computed only once */
 	int   arg_opt1;			/* extra option 1 for the LB algo (algo-specific) */

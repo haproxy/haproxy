@@ -524,6 +524,40 @@ static struct server *get_server_rch(struct stream *s, const struct server *avoi
 		return map_get_server_hash(px, hash);
 }
 
+/* sample expression HASH. Returns NULL if the sample is not found or if there
+ * are no server, relying on the caller to fall back to round robin instead.
+ */
+static struct server *get_server_expr(struct stream *s, const struct server *avoid)
+{
+	struct proxy  *px = s->be;
+	struct sample *smp;
+	unsigned int hash = 0;
+
+	if (px->lbprm.tot_weight == 0)
+		return NULL;
+
+	/* note: no need to hash if there's only one server left */
+	if (px->lbprm.tot_used == 1)
+		goto hash_done;
+
+	smp = sample_fetch_as_type(px, s->sess, s, SMP_OPT_DIR_REQ | SMP_OPT_FINAL, px->lbprm.expr, SMP_T_BIN);
+	if (!smp)
+		return NULL;
+
+	/* We have the desired data. Let's hash it according to the configured
+	 * options and algorithm.
+	 */
+	hash = gen_hash(px, smp->data.u.str.area, smp->data.u.str.data);
+
+	if ((px->lbprm.algo & BE_LB_HASH_MOD) == BE_LB_HMOD_AVAL)
+		hash = full_hash(hash);
+ hash_done:
+	if ((px->lbprm.algo & BE_LB_LKUP) == BE_LB_LKUP_CHTREE)
+		return chash_get_server_hash(px, hash, avoid);
+	else
+		return map_get_server_hash(px, hash);
+}
+
 /* random value  */
 static struct server *get_server_rnd(struct stream *s, const struct server *avoid)
 {
@@ -758,6 +792,11 @@ int assign_server(struct stream *s)
 			case BE_LB_HASH_RDP:
 				/* RDP Cookie hashing */
 				srv = get_server_rch(s, prev_srv);
+				break;
+
+			case BE_LB_HASH_SMP:
+				/* sample expression hashing */
+				srv = get_server_expr(s, prev_srv);
 				break;
 
 			default:
@@ -2578,6 +2617,8 @@ const char *backend_lb_algo_str(int algo) {
 		return "hdr";
 	else if (algo == BE_LB_ALGO_RCH)
 		return "rdp-cookie";
+	else if (algo == BE_LB_ALGO_SMP)
+		return "hash";
 	else if (algo == BE_LB_ALGO_NONE)
 		return "none";
 	else
@@ -2705,6 +2746,23 @@ int backend_parse_balance(const char **args, char **err, struct proxy *curproxy)
 				memprintf(err, "%s only accepts 'check_post' modifier (got '%s').", args[0], args[2]);
 				return -1;
 			}
+		}
+	}
+	else if (strcmp(args[0], "hash") == 0) {
+		if (!*args[1]) {
+			memprintf(err, "%s requires a sample expression.", args[0]);
+			return -1;
+		}
+		curproxy->lbprm.algo &= ~BE_LB_ALGO;
+		curproxy->lbprm.algo |= BE_LB_ALGO_SMP;
+
+		ha_free(&curproxy->lbprm.arg_str);
+		curproxy->lbprm.arg_str = strdup(args[1]);
+		curproxy->lbprm.arg_len = strlen(args[1]);
+
+		if (*args[2]) {
+			memprintf(err, "%s takes no other argument (got '%s').", args[0], args[2]);
+			return -1;
 		}
 	}
 	else if (!strncmp(args[0], "hdr(", 4)) {

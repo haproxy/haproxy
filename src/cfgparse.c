@@ -3294,6 +3294,47 @@ out_uri_auth_compat:
 			curproxy->conf.args.line = 0;
 		}
 
+		/* "balance hash" needs to compile its expression */
+		if ((curproxy->lbprm.algo & BE_LB_ALGO) == BE_LB_ALGO_SMP) {
+			int idx = 0;
+			const char *args[] = {
+				curproxy->lbprm.arg_str,
+				NULL,
+			};
+
+			err = NULL;
+			curproxy->conf.args.ctx = ARGC_USRV; // same context as use_server.
+			curproxy->lbprm.expr =
+				sample_parse_expr((char **)args, &idx,
+						  curproxy->conf.file, curproxy->conf.line,
+						  &err, &curproxy->conf.args, NULL);
+
+			if (!curproxy->lbprm.expr) {
+				ha_alert("%s '%s' [%s:%d]: failed to parse 'balance hash' expression '%s' in : %s.\n",
+					 proxy_type_str(curproxy), curproxy->id,
+					 curproxy->conf.file, curproxy->conf.line,
+					 curproxy->lbprm.arg_str, err);
+				ha_free(&err);
+				cfgerr++;
+			}
+			else if (!(curproxy->lbprm.expr->fetch->val & SMP_VAL_BE_SET_SRV)) {
+				ha_alert("%s '%s' [%s:%d]: error detected while parsing 'balance hash' expression '%s' "
+					 "which requires information from %s, which is not available here.\n",
+					 proxy_type_str(curproxy), curproxy->id,
+					 curproxy->conf.file, curproxy->conf.line,
+					 curproxy->lbprm.arg_str, sample_src_names(curproxy->lbprm.expr->fetch->use));
+				cfgerr++;
+			}
+			else if (curproxy->mode == PR_MODE_HTTP && (curproxy->lbprm.expr->fetch->use & SMP_USE_L6REQ)) {
+				ha_warning("%s '%s' [%s:%d]: L6 sample fetch <%s> will be ignored in 'balance hash' expression in HTTP mode.\n",
+					   proxy_type_str(curproxy), curproxy->id,
+					   curproxy->conf.file, curproxy->conf.line,
+					   curproxy->lbprm.arg_str);
+			}
+			else
+				curproxy->http_needed |= !!(curproxy->lbprm.expr->fetch->use & SMP_USE_HTTP_ANY);
+		}
+
 		/* only now we can check if some args remain unresolved.
 		 * This must be done after the users and groups resolution.
 		 */

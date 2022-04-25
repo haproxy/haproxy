@@ -154,6 +154,7 @@ void free_proxy(struct proxy *p)
 	free(p->cookie_domain);
 	free(p->cookie_attrs);
 	free(p->lbprm.arg_str);
+	release_sample_expr(p->lbprm.expr);
 	free(p->server_state_file_name);
 	free(p->capture_name);
 	istfree(&p->monitor_uri);

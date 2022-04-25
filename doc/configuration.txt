@@ -3986,6 +3986,19 @@ balance url_param <param> [check_post]
                   turn new servers on when the queue inflates. Alternatively,
                   using "http-check send-state" may inform servers on the load.
 
+      hash        Takes a regular sample expression in argument. The expression
+                  is evaluated for each request and hashed according to the
+                  configured hash-type. The result of the hash is divided by
+                  the total weight of the running servers to designate which
+                  server will receive the request. This can be used in place of
+                  "source", "uri", "hdr()", "url_param()", "rdp-cookie" to make
+                  use of a converter, refine the evaluation, or be used to
+                  extract data from local variables for example. When the data
+                  is not available, round robin will apply. This algorithm is
+                  static by default, which means that changing a server's
+                  weight on the fly will have no effect, but this can be
+                  changed using "hash-type".
+
       source      The source IP address is hashed and divided by the total
                   weight of the running servers to designate which server will
                   receive the request. This ensures that the same client IP
@@ -3998,7 +4011,7 @@ balance url_param <param> [check_post]
                   to clients which refuse session cookies. This algorithm is
                   static by default, which means that changing a server's
                   weight on the fly will have no effect, but this can be
-                  changed using "hash-type".
+                  changed using "hash-type". See also the "hash" option above.
 
       uri         This algorithm hashes either the left part of the URI (before
                   the question mark) or the whole URI (if the "whole" parameter
@@ -4030,7 +4043,8 @@ balance url_param <param> [check_post]
                   A "path-only" parameter indicates that the hashing key starts
                   at the first '/' of the path. This can be used to ignore the
                   authority part of absolute URIs, and to make sure that HTTP/1
-                  and HTTP/2 URIs will provide the same hash.
+                  and HTTP/2 URIs will provide the same hash. See also the
+                  "hash" option above.
 
       url_param   The URL parameter specified in argument will be looked up in
                   the query string of each HTTP GET request.
@@ -4058,7 +4072,8 @@ balance url_param <param> [check_post]
                   applied. Note that this algorithm may only be used in an HTTP
                   backend. This algorithm is static by default, which means
                   that changing a server's weight on the fly will have no
-                  effect, but this can be changed using "hash-type".
+                  effect, but this can be changed using "hash-type". See also
+                  the "hash" option above.
 
       hdr(<name>) The HTTP header <name> will be looked up in each HTTP
                   request. Just as with the equivalent ACL 'hdr()' function,
@@ -4073,7 +4088,8 @@ balance url_param <param> [check_post]
 
                   This algorithm is static by default, which means that
                   changing a server's weight on the fly will have no effect,
-                  but this can be changed using "hash-type".
+                  but this can be changed using "hash-type". See also the
+                  "hash" option above.
 
       random
       random(<draws>)
@@ -4121,7 +4137,8 @@ balance url_param <param> [check_post]
 
                   This algorithm is static by default, which means that
                   changing a server's weight on the fly will have no effect,
-                  but this can be changed using "hash-type".
+                  but this can be changed using "hash-type". See also the
+                  "hash" option above.
 
     <arguments> is an optional list of arguments which may be needed by some
                 algorithms. Right now, only "url_param" and "uri" support an
@@ -4143,6 +4160,9 @@ balance url_param <param> [check_post]
         balance hdr(User-Agent)
         balance hdr(host)
         balance hdr(Host) use_domain_only
+        balance hash req.cookie(clientid)
+        balance hash var(req.client_id)
+        balance hash req.hdr_ip(x-forwarded-for,-1),ipmask(24)
 
   Note: the following caveats and limitations on using the "check_post"
   extension with "url_param" must be considered :
