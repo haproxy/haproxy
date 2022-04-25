@@ -3763,7 +3763,7 @@ static int qc_qel_may_rm_hp(struct quic_conn *qc, struct quic_enc_level *qel)
 }
 
 /* Sends application level packets from <qc> QUIC connection */
-int qc_send_app_pkts(struct quic_conn *qc, struct list *frms)
+int qc_send_app_pkts(struct quic_conn *qc, int old_data, struct list *frms)
 {
 	int ret;
 	struct qring *qr;
@@ -3773,6 +3773,8 @@ int qc_send_app_pkts(struct quic_conn *qc, struct list *frms)
 		/* Never happens */
 		return 1;
 
+	if (old_data)
+		qc->flags |= QUIC_FL_CONN_RETRANS_OLD_DATA;
 	ret = qc_prep_app_pkts(qc, qr, frms);
 	if (ret == -1)
 		goto err;
@@ -3783,10 +3785,12 @@ int qc_send_app_pkts(struct quic_conn *qc, struct list *frms)
 		goto err;
 
  out:
+	qc->flags &= ~QUIC_FL_CONN_RETRANS_OLD_DATA;
 	MT_LIST_APPEND(qc->tx.qring_list, &qr->mt_list);
 	return 1;
 
  err:
+	qc->flags &= ~QUIC_FL_CONN_RETRANS_OLD_DATA;
 	MT_LIST_APPEND(qc->tx.qring_list, &qr->mt_list);
 	TRACE_DEVEL("leaving in error", QUIC_EV_CONN_IO_CB, qc);
 	return 0;
@@ -3926,7 +3930,7 @@ static struct task *quic_conn_app_io_cb(struct task *t, void *context, unsigned 
 	    !(qc->flags & QUIC_FL_CONN_IMMEDIATE_CLOSE))
 		goto out;
 
-	if (!qc_send_app_pkts(qc, &qel->pktns->tx.frms))
+	if (!qc_send_app_pkts(qc, 0, &qel->pktns->tx.frms))
 		goto err;
 
 out:

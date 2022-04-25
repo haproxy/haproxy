@@ -799,7 +799,7 @@ static int qc_send_frames(struct qcc *qcc, struct list *frms)
 	}
 
 	if (!LIST_ISEMPTY(frms))
-		qc_send_app_pkts(qcc->conn->handle.qc, frms);
+		qc_send_app_pkts(qcc->conn->handle.qc, 0, frms);
 
 	/* If there is frames left, check if the transport layer has send some
 	 * data or is blocked.
