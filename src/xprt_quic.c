@@ -3146,7 +3146,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct qring *qr,
 		 * select the next level.
 		 */
 		if ((tel == QUIC_TLS_ENC_LEVEL_INITIAL || tel == QUIC_TLS_ENC_LEVEL_HANDSHAKE) &&
-		    (LIST_ISEMPTY(frms) && !qel->pktns->tx.pto_probe)) {
+		    next_tel != QUIC_TLS_ENC_LEVEL_NONE && (LIST_ISEMPTY(frms) && !qel->pktns->tx.pto_probe)) {
 			/* If QUIC_TLS_ENC_LEVEL_HANDSHAKE was already reached let's try QUIC_TLS_ENC_LEVEL_APP */
 			if (tel == QUIC_TLS_ENC_LEVEL_HANDSHAKE && next_tel == tel)
 				next_tel = QUIC_TLS_ENC_LEVEL_APP;
@@ -3904,6 +3904,13 @@ static struct task *quic_conn_app_io_cb(struct task *t, void *context, unsigned 
 
 	TRACE_PROTO("state", QUIC_EV_CONN_IO_CB, qc, &qc->state);
 
+	/* Retranmissions */
+	if (qc->flags & QUIC_FL_CONN_RETRANS_NEEDED) {
+		TRACE_PROTO("retransmission needed", QUIC_EV_CONN_IO_CB, qc);
+		qc->flags &= ~QUIC_FL_CONN_RETRANS_NEEDED;
+		qc_dgrams_retransmit(qc);
+	}
+
 	if (!MT_LIST_ISEMPTY(&qel->rx.pqpkts) && qc_qel_may_rm_hp(qc, qel))
 		qc_rm_hp_pkts(qc, qel);
 
@@ -3942,6 +3949,14 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 	qr = NULL;
 	st = qc->state;
 	TRACE_PROTO("state", QUIC_EV_CONN_IO_CB, qc, &st);
+
+	/* Retranmissions */
+	if (qc->flags & QUIC_FL_CONN_RETRANS_NEEDED) {
+		TRACE_PROTO("retransmission needed", QUIC_EV_CONN_PHPKTS, qc);
+		qc->flags &= ~QUIC_FL_CONN_RETRANS_NEEDED;
+		qc_dgrams_retransmit(qc);
+	}
+
 	if (qc->flags & QUIC_FL_CONN_IO_CB_WAKEUP) {
 		qc->flags &= ~QUIC_FL_CONN_IO_CB_WAKEUP;
 		/* The I/O handler has been woken up by the dgram listener
