@@ -465,6 +465,7 @@ struct appctx *httpclient_start(struct httpclient *hc)
 	struct sockaddr_storage ss_url;
 	struct sockaddr_storage* ss_dst;
 	struct split_url out;
+	enum obj_type *target = NULL;
 
 	/* if the client was started and not ended, an applet is already
 	 * running, we shouldn't try anything */
@@ -492,6 +493,26 @@ struct appctx *httpclient_start(struct httpclient *hc)
 		goto out_free_appctx;
 	}
 
+	/* choose the SSL server or not */
+	switch (out.scheme) {
+		case SCH_HTTP:
+			target = &httpclient_srv_raw->obj_type;
+			break;
+		case SCH_HTTPS:
+#ifdef USE_OPENSSL
+			if (httpclient_srv_ssl) {
+				target = &httpclient_srv_ssl->obj_type;
+			} else {
+				ha_alert("httpclient: SSL was disabled (wrong verify/ca-file)!\n");
+				goto out_free_sess;
+			}
+#else
+			ha_alert("httpclient: OpenSSL is not available %s:%d.\n", __FUNCTION__, __LINE__);
+			goto out_free_sess;
+#endif
+			break;
+	}
+
 	/* if httpclient_set_dst() was used, sets the alternative address */
 	if (hc->dst)
 		ss_dst = hc->dst;
@@ -508,27 +529,10 @@ struct appctx *httpclient_start(struct httpclient *hc)
 	}
 	s = DISGUISE(cs_strm(cs));
 
+	s->target = target;
 	/* set the "timeout server" */
 	s->req.wto = hc->timeout_server;
 	s->res.rto = hc->timeout_server;
-
-	/* choose the SSL server or not */
-	switch (out.scheme) {
-		case SCH_HTTP:
-			s->target = &httpclient_srv_raw->obj_type;
-			break;
-		case SCH_HTTPS:
-#ifdef USE_OPENSSL
-			s->target = &httpclient_srv_ssl->obj_type;
-#else
-			ha_alert("httpclient: OpenSSL is not available %s:%d.\n", __FUNCTION__, __LINE__);
-			LIST_DELETE(&s->list);
-			pool_free(pool_head_stream, s);
-			cs_free(cs);
-			goto out_free_addr;
-#endif
-			break;
-	}
 
 	s->csb->dst = addr;
 	s->csb->flags |= CS_FL_NOLINGER;
@@ -1046,11 +1050,15 @@ static int httpclient_precheck()
 		goto err;
 
 	httpclient_srv_ssl->ssl_ctx.verify = httpclient_ssl_verify;
-
+	/* if the verify is required, try to load the system CA */
 	if (httpclient_ssl_verify == SSL_SOCK_VERIFY_REQUIRED) {
 		httpclient_srv_ssl->ssl_ctx.ca_file = strdup("@system-ca");
-		if (!ssl_store_load_locations_file(httpclient_srv_ssl->ssl_ctx.ca_file, 1, CAFILE_CERT))
-			goto err;
+		if (!ssl_store_load_locations_file(httpclient_srv_ssl->ssl_ctx.ca_file, 1, CAFILE_CERT)) {
+			ha_warning("httpclient: cannot initialize SSL verify with 'ca-file \"%s\"'. Disabling SSL.\n", httpclient_srv_ssl->ssl_ctx.ca_file);
+			ha_free(&httpclient_srv_ssl->ssl_ctx.ca_file);
+			srv_drop(httpclient_srv_ssl);
+			httpclient_srv_ssl = NULL;
+		}
 	}
 
 #endif
@@ -1064,8 +1072,10 @@ static int httpclient_precheck()
 	httpclient_proxy->srv = httpclient_srv_raw;
 
 #ifdef USE_OPENSSL
-	httpclient_srv_ssl->next = httpclient_proxy->srv;
-	httpclient_proxy->srv = httpclient_srv_ssl;
+	if (httpclient_srv_ssl) {
+		httpclient_srv_ssl->next = httpclient_proxy->srv;
+		httpclient_proxy->srv = httpclient_srv_ssl;
+	}
 #endif
 
 
@@ -1120,7 +1130,7 @@ static int httpclient_postcheck()
 	}
 
 #ifdef USE_OPENSSL
-	{
+	if (httpclient_srv_ssl) {
 		int err_code = 0;
 
 		/* init the SNI expression */
