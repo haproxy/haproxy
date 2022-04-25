@@ -1454,11 +1454,16 @@ static int quic_stream_try_to_consume(struct quic_conn *qc,
 			break;
 
 		if (qc_stream_desc_ack(&stream, offset, len)) {
+			/* cf. next comment : frame may be freed at this stage. */
 			TRACE_PROTO("stream consumed", QUIC_EV_CONN_ACKSTRM,
-			            qc, strm, stream);
+			            qc, stream ? strm : NULL, stream);
 			ret = 1;
 		}
 
+		/* If stream is NULL after qc_stream_desc_ack(), it means frame
+		 * has been freed. with the stream frames tree. Nothing to do
+		 * anymore in here.
+		 */
 		if (!stream)
 			return 1;
 
