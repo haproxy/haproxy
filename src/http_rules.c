@@ -490,11 +490,6 @@ struct redirect_rule *http_parse_redirect_rule(const char *file, int linenum, st
 	return NULL;
 }
 
-__attribute__((constructor))
-static void __http_rules_init(void)
-{
-}
-
 /*
  * Local variables:
  *  c-indent-level: 8

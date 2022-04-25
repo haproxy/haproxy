@@ -5173,12 +5173,6 @@ void http_destroy_txn(struct stream *s)
 
 DECLARE_POOL(pool_head_http_txn, "http_txn", sizeof(struct http_txn));
 
-__attribute__((constructor))
-static void __http_protocol_init(void)
-{
-}
-
-
 /*
  * Local variables:
  *  c-indent-level: 8
