@@ -1250,5 +1250,7 @@ int qc_send_app_pkts(struct quic_conn *qc, int old_data, struct list *frms);
 
 void qc_notify_close(struct quic_conn *qc);
 
+void qc_release_frm(struct quic_conn *qc, struct quic_frame *frm);
+
 #endif /* USE_QUIC */
 #endif /* _HAPROXY_XPRT_QUIC_H */

@@ -185,9 +185,7 @@ void qc_stream_desc_free(struct qc_stream_desc *stream)
 		eb64_delete(&strm->offset);
 
 		frm = container_of(strm, struct quic_frame, stream);
-		LIST_DELETE(&frm->list);
-		quic_tx_packet_refdec(frm->pkt);
-		pool_free(pool_head_quic_frame, frm);
+		qc_release_frm(qc, frm);
 	}
 
 	eb64_delete(&stream->by_id);
