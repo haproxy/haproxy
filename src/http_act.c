@@ -1760,6 +1760,9 @@ static void release_http_redir(struct act_rule *rule)
 	struct redirect_rule *redir;
 
 	redir = rule->arg.redir;
+	if (!redir)
+		return;
+
 	LIST_DELETE(&redir->list);
 	if (redir->cond) {
 		prune_acl_cond(redir->cond);
