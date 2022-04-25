@@ -402,10 +402,8 @@ static int _do_fork(struct poller *p)
 }
 
 /*
- * This constructor must be called before main() to register the event ports
- * poller.
+ * Registers the poller.
  */
-__attribute__((constructor))
 static void _do_register(void)
 {
 	struct poller *p;
@@ -431,3 +429,5 @@ static void _do_register(void)
 	p->poll = _do_poll;
 	p->fork = _do_fork;
 }
+
+INITCALL0(STG_REGISTER, _do_register);

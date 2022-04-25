@@ -300,11 +300,8 @@ static int _do_test(struct poller *p)
 }
 
 /*
- * It is a constructor, which means that it will automatically be called before
- * main(). This is GCC-specific but it works at least since 2.95.
- * Special care must be taken so that it does not need any uninitialized data.
+ * Registers the poller.
  */
-__attribute__((constructor))
 static void _do_register(void)
 {
 	struct poller *p;
@@ -325,6 +322,7 @@ static void _do_register(void)
 	p->poll = _do_poll;
 }
 
+INITCALL0(STG_REGISTER, _do_register);
 
 /*
  * Local variables:
