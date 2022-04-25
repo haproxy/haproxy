@@ -5440,7 +5440,7 @@ static int quic_ack_frm_reduce_sz(struct quic_frame *ack_frm, size_t limit)
  *
  * Update consequently <*len> to reflect the size of these frames built
  * by this function. Also attach these frames to <l> frame list.
- * Return 1 if succeeded, 0 if not.
+ * Return 1 if at least one ack-eleciting frame could be built, 0 if not.
  */
 static inline int qc_build_frms(struct list *outlist, struct list *inlist,
                                 size_t room, size_t *len, size_t headlen,
@@ -5468,6 +5468,11 @@ static inline int qc_build_frms(struct list *outlist, struct list *inlist,
 
 	TRACE_PROTO("************** frames build (headlen)",
 	            QUIC_EV_CONN_BCFRMS, qc, &headlen);
+
+	/* NOTE: switch/case block inside a loop, a successful status must be
+	 * returned by this function only if at least one frame could be built
+	 * in the switch/case block.
+	 */
 	list_for_each_entry_safe(cf, cfbak, inlist, list) {
 		/* header length, data length, frame length. */
 		size_t hlen, dlen, dlen_sz, avail_room, flen;
@@ -5486,7 +5491,7 @@ static inline int qc_build_frms(struct list *outlist, struct list *inlist,
 			TRACE_PROTO(" CRYPTO data length (hlen, crypto.len, dlen)",
 			            QUIC_EV_CONN_BCFRMS, qc, &hlen, &cf->crypto.len, &dlen);
 			if (!dlen)
-				break;
+				continue;
 
 			/* CRYPTO frame length. */
 			flen = hlen + quic_int_getsize(dlen) + dlen;
@@ -5508,7 +5513,7 @@ static inline int qc_build_frms(struct list *outlist, struct list *inlist,
 				new_cf = pool_zalloc(pool_head_quic_frame);
 				if (!new_cf) {
 					TRACE_PROTO("No memory for new crypto frame", QUIC_EV_CONN_BCFRMS, qc);
-					return 0;
+					continue;
 				}
 
 				LIST_INIT(&new_cf->reflist);
@@ -5535,11 +5540,11 @@ static inline int qc_build_frms(struct list *outlist, struct list *inlist,
 				((cf->type & QUIC_STREAM_FRAME_TYPE_OFF_BIT) ? quic_int_getsize(cf->stream.offset.key) : 0);
 			/* Compute the data length of this STREAM frame. */
 			avail_room = room - hlen - *len;
-			if ((ssize_t)avail_room <= 0)
-				break;
-
 			TRACE_PROTO("          New STREAM frame build (room, len)",
 			            QUIC_EV_CONN_BCFRMS, qc, &room, len);
+			if ((ssize_t)avail_room <= 0)
+				continue;
+
 			if (cf->type & QUIC_STREAM_FRAME_TYPE_LEN_BIT) {
 				dlen = max_available_room(avail_room, &dlen_sz);
 				if (dlen > cf->stream.len) {
@@ -5584,7 +5589,7 @@ static inline int qc_build_frms(struct list *outlist, struct list *inlist,
 				new_cf = pool_zalloc(pool_head_quic_frame);
 				if (!new_cf) {
 					TRACE_PROTO("No memory for new STREAM frame", QUIC_EV_CONN_BCFRMS, qc);
-					return 0;
+					continue;
 				}
 
 				LIST_INIT(&new_cf->reflist);
@@ -5643,6 +5648,8 @@ static inline int qc_build_frms(struct list *outlist, struct list *inlist,
 			LIST_APPEND(outlist, &cf->list);
 			break;
 		}
+
+		/* Successful status as soon as a frame could be built */
 		ret = 1;
 	}
 
