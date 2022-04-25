@@ -7939,7 +7939,6 @@ static void ssl_sock_clt_sni_free_func(void *parent, void *ptr, CRYPTO_EX_DATA *
 	pool_free(ssl_sock_client_sni_pool, ptr);
 }
 
-__attribute__((constructor))
 static void __ssl_sock_init(void)
 {
 #if (!defined(OPENSSL_NO_COMP) && !defined(SSL_OP_NO_COMPRESSION))
@@ -8036,6 +8035,7 @@ static void __ssl_sock_init(void)
 	 */
 	hap_register_post_deinit(ssl_sock_unregister_msg_callbacks);
 }
+INITCALL0(STG_REGISTER, __ssl_sock_init);
 
 /* Compute and register the version string */
 static void ssl_register_build_options()
@@ -8135,7 +8135,6 @@ void ssl_free_dh(void) {
 }
 #endif
 
-__attribute__((destructor))
 static void __ssl_sock_deinit(void)
 {
 #if (defined SSL_CTRL_SET_TLSEXT_HOSTNAME && !defined SSL_NO_GENERATE_CERTIFICATES)
@@ -8157,6 +8156,7 @@ static void __ssl_sock_deinit(void)
 #endif
 	BIO_meth_free(ha_meth);
 }
+REGISTER_POST_DEINIT(__ssl_sock_deinit);
 
 
 /*

@@ -291,8 +291,9 @@ struct xprt_ops xprt_handshake = {
 	.name     = "HS",
 };
 
-__attribute__((constructor))
 static void __xprt_handshake_init(void)
 {
 	xprt_register(XPRT_HANDSHAKE, &xprt_handshake);
 }
+
+INITCALL0(STG_REGISTER, __xprt_handshake_init);

@@ -474,11 +474,12 @@ static struct xprt_ops raw_sock = {
 };
 
 
-__attribute__((constructor))
 static void __raw_sock_init(void)
 {
 	xprt_register(XPRT_RAW, &raw_sock);
 }
+
+INITCALL0(STG_REGISTER, __raw_sock_init);
 
 /*
  * Local variables:

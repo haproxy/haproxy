@@ -5769,18 +5769,18 @@ static struct xprt_ops ssl_quic = {
 	.name     = "QUIC",
 };
 
-__attribute__((constructor))
 static void __quic_conn_init(void)
 {
 	ha_quic_meth = BIO_meth_new(0x666, "ha QUIC methods");
 	xprt_register(XPRT_QUIC, &ssl_quic);
 }
+INITCALL0(STG_REGISTER, __quic_conn_init);
 
-__attribute__((destructor))
 static void __quic_conn_deinit(void)
 {
 	BIO_meth_free(ha_quic_meth);
 }
+REGISTER_POST_DEINIT(__quic_conn_deinit);
 
 /* Read all the QUIC packets found in <buf> from QUIC connection with <owner>
  * as owner calling <func> function.
