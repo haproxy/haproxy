@@ -713,14 +713,6 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 
 INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
 
-__attribute__((constructor))
-static void __comp_fetch_init(void)
-{
-#if defined(USE_ZLIB) && defined(DEFAULT_MAXZLIBMEM)
-	global.maxzlibmem = DEFAULT_MAXZLIBMEM * 1024U * 1024U;
-#endif
-}
-
 static void comp_register_build_opts(void)
 {
 	char *ptr = NULL;
