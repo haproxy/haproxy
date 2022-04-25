@@ -5888,7 +5888,7 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
  no_room:
 	/* Replace the pre-built frames which could not be add to this packet */
 	LIST_SPLICE(frms, &frm_list);
-	TRACE_PROTO("Remaining ack-eliciting frames", QUIC_EV_CONN_HPKT, qc, pkt);
+	TRACE_PROTO("Remaining ack-eliciting frames", QUIC_EV_CONN_FRMLIST, qc, frms);
 
 	return 0;
 }
