@@ -1197,10 +1197,29 @@ static void h1_set_cli_conn_mode(struct h1s *h1s, struct h1m *h1m)
 		}
 	}
 
-	/* If KAL, check if the frontend is stopping. If yes, switch in CLO mode */
+	/* If KAL, check if the frontend is stopping. If yes, switch in CLO mode
+	 * unless a 'close-spread-time' option is set.
+	 */
 	if (h1s->flags & H1S_F_WANT_KAL && (fe->flags & (PR_FL_DISABLED|PR_FL_STOPPED))) {
-		h1s->flags = (h1s->flags & ~H1S_F_WANT_MSK) | H1S_F_WANT_CLO;
-		TRACE_STATE("stopping, set close mode", H1_EV_RX_DATA|H1_EV_RX_HDRS|H1_EV_TX_DATA|H1_EV_TX_HDRS, h1s->h1c->conn, h1s);
+		int want_clo = 1;
+		/* If a close-spread-time option is set, we want to avoid
+		 * closing all the active HTTP connections at once so we add a
+		 * random factor that will spread the closing.
+		 */
+		if (tick_isset(global.close_spread_end)) {
+			int remaining_window = tick_remain(now_ms, global.close_spread_end);
+			if (remaining_window) {
+				/* This should increase the closing rate the further along
+				 * the window we are.
+				 */
+				want_clo = (remaining_window <= statistical_prng_range(global.close_spread_time));
+			}
+		}
+
+		if (want_clo) {
+			h1s->flags = (h1s->flags & ~H1S_F_WANT_MSK) | H1S_F_WANT_CLO;
+			TRACE_STATE("stopping, set close mode", H1_EV_RX_DATA|H1_EV_RX_HDRS|H1_EV_TX_DATA|H1_EV_TX_HDRS, h1s->h1c->conn, h1s);
+		}
 	}
 }
 
