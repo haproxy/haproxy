@@ -12,8 +12,6 @@ haproxy h1 -conf {
     # under us.
     tune.idle-pool.shared off
 
-    stats socket /tmp/haproxy.socket level admin
-
   defaults
     mode http
 
