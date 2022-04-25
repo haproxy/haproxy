@@ -298,9 +298,9 @@ static int uxst_connect_server(struct connection *conn, int flags)
 		else if (errno == EISCONN) {
 			conn->flags &= ~CO_FL_WAIT_L4_CONN;
 		}
-		else if (errno == EAGAIN || errno == EADDRINUSE || errno == EADDRNOTAVAIL) {
+		else if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EADDRINUSE || errno == EADDRNOTAVAIL) {
 			char *msg;
-			if (errno == EAGAIN || errno == EADDRNOTAVAIL) {
+			if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EADDRNOTAVAIL) {
 				msg = "can't connect to destination unix socket, check backlog size on the server";
 				conn->err_code = CO_ER_FREE_PORTS;
 			}

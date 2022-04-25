@@ -811,7 +811,7 @@ int conn_recv_proxy(struct connection *conn, int flag)
 		if (ret < 0) {
 			if (errno == EINTR)
 				continue;
-			if (errno == EAGAIN) {
+			if (errno == EAGAIN || errno == EWOULDBLOCK) {
 				fd_cant_recv(conn->handle.fd);
 				goto not_ready;
 			}
@@ -1287,7 +1287,7 @@ int conn_recv_netscaler_cip(struct connection *conn, int flag)
 		if (ret < 0) {
 			if (errno == EINTR)
 				continue;
-			if (errno == EAGAIN) {
+			if (errno == EAGAIN || errno == EWOULDBLOCK) {
 				fd_cant_recv(conn->handle.fd);
 				goto not_ready;
 			}
@@ -1581,7 +1581,7 @@ int conn_recv_socks4_proxy_response(struct connection *conn)
 			if (errno == EINTR) {
 				continue;
 			}
-			if (errno == EAGAIN) {
+			if (errno == EAGAIN || errno == EWOULDBLOCK) {
 				fd_cant_recv(conn->handle.fd);
 				goto not_ready;
 			}

@@ -666,7 +666,7 @@ void my_closefrom(int start)
 			ret = poll(poll_events, fd - start, 0);
 			if (ret >= 0)
 				break;
-		} while (errno == EAGAIN || errno == EINTR || errno == ENOMEM);
+		} while (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR || errno == ENOMEM);
 
 		if (ret)
 			ret = fd - start;

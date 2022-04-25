@@ -384,7 +384,7 @@ void mworker_accept_wrapper(int fd)
 		if (ret == -1) {
 			if (errno == EINTR)
 				continue;
-			if (errno == EAGAIN) {
+			if (errno == EAGAIN || errno == EWOULDBLOCK) {
 				fd_cant_recv(fd);
 				return;
 			}

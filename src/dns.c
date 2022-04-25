@@ -101,7 +101,7 @@ int dns_send_nameserver(struct dns_nameserver *ns, void *buf, size_t len)
 
 		ret = send(fd, buf, len, 0);
 		if (ret < 0) {
-			if (errno == EAGAIN) {
+			if (errno == EAGAIN || errno == EWOULDBLOCK) {
 				struct ist myist;
 
 				myist = ist2(buf, len);
@@ -155,7 +155,7 @@ ssize_t dns_recv_nameserver(struct dns_nameserver *ns, void *data, size_t size)
 			return -1;
 
 		if ((ret = recv(fd, data, size, 0)) < 0) {
-			if (errno == EAGAIN) {
+			if (errno == EAGAIN || errno == EWOULDBLOCK) {
 				fd_cant_recv(fd);
 				return 0;
 			}
@@ -333,7 +333,7 @@ static void dns_resolve_send(struct dgram_conn *dgram)
 
 		ret = send(fd, dns_msg_trash, len, 0);
 		if (ret < 0) {
-			if (errno == EAGAIN) {
+			if (errno == EAGAIN || errno == EWOULDBLOCK) {
 				fd_cant_send(fd);
 				goto out;
 			}

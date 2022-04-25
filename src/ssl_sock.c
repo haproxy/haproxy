@@ -6503,7 +6503,7 @@ static size_t ssl_sock_to_buf(struct connection *conn, void *xprt_ctx, struct bu
 			/* For SSL_ERROR_SYSCALL, make sure to clear the error
 			 * stack before shutting down the connection for
 			 * reading. */
-			if (ret == SSL_ERROR_SYSCALL && (!errno || errno == EAGAIN))
+			if (ret == SSL_ERROR_SYSCALL && (!errno || errno == EAGAIN || errno == EWOULDBLOCK))
 				goto clear_ssl_error;
 			/* otherwise it's a real error */
 			goto out_error;

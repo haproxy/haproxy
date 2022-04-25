@@ -369,7 +369,7 @@ static const struct analyze_status analyze_statuses[HANA_STATUS_SIZE] = {		/* 0:
  */
 static inline int unclean_errno(int err)
 {
-	if (err == EAGAIN || err == EINPROGRESS ||
+	if (err == EAGAIN || err == EWOULDBLOCK || err == EINPROGRESS ||
 	    err == EISCONN || err == EALREADY)
 		return 0;
 	return err;

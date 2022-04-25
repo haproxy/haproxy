@@ -489,6 +489,9 @@ struct connection *sockpair_accept_conn(struct listener *l, int *status)
 	}
 
 	switch (errno) {
+#if defined(EWOULDBLOCK) && defined(EAGAIN) && EWOULDBLOCK != EAGAIN
+	case EWOULDBLOCK:
+#endif
 	case EAGAIN:
 		ret = CO_AC_DONE; /* nothing more to accept */
 		if (fdtab[l->rx.fd].state & (FD_POLL_HUP|FD_POLL_ERR)) {

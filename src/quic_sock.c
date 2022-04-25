@@ -289,7 +289,7 @@ void quic_sock_fd_iocb(int fd)
 	do {
 		ret = recvfrom(fd, dgram_buf, max_sz, 0,
 		               (struct sockaddr *)&saddr, &saddrlen);
-		if (ret < 0 && errno == EAGAIN) {
+		if (ret < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
 			fd_cant_recv(fd);
 			goto out;
 		}
@@ -339,7 +339,7 @@ size_t qc_snd_buf(struct quic_conn *qc, const struct buffer *buf, size_t count,
 			if (ret < try)
 				break;
 		}
-		else if (ret == 0 || errno == EAGAIN || errno == ENOTCONN || errno == EINPROGRESS) {
+		else if (ret == 0 || errno == EAGAIN || errno == EWOULDBLOCK || errno == ENOTCONN || errno == EINPROGRESS) {
 			/* TODO must be handle properly. It is justified for UDP ? */
 			ABORT_NOW();
 		}

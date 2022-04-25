@@ -94,7 +94,7 @@ int raw_sock_to_pipe(struct connection *conn, void *xprt_ctx, struct pipe *pipe,
 			if (ret == 0)
 				goto out_read0;
 
-			if (errno == EAGAIN) {
+			if (errno == EAGAIN || errno == EWOULDBLOCK) {
 				/* there are two reasons for EAGAIN :
 				 *   - nothing in the socket buffer (standard)
 				 *   - pipe is full
@@ -191,7 +191,7 @@ int raw_sock_from_pipe(struct connection *conn, void *xprt_ctx, struct pipe *pip
 			     SPLICE_F_MOVE|SPLICE_F_NONBLOCK);
 
 		if (ret <= 0) {
-			if (ret == 0 || errno == EAGAIN) {
+			if (ret == 0 || errno == EAGAIN || errno == EWOULDBLOCK) {
 				fd_cant_send(conn->handle.fd);
 				break;
 			}
@@ -301,7 +301,7 @@ static size_t raw_sock_to_buf(struct connection *conn, void *xprt_ctx, struct bu
 		else if (ret == 0) {
 			goto read0;
 		}
-		else if (errno == EAGAIN || errno == ENOTCONN) {
+		else if (errno == EAGAIN || errno == EWOULDBLOCK || errno == ENOTCONN) {
 			/* socket buffer exhausted */
 			fd_cant_recv(conn->handle.fd);
 			break;
@@ -395,7 +395,7 @@ static size_t raw_sock_from_buf(struct connection *conn, void *xprt_ctx, const s
 			if (!count)
 				fd_stop_send(conn->handle.fd);
 		}
-		else if (ret == 0 || errno == EAGAIN || errno == ENOTCONN || errno == EINPROGRESS) {
+		else if (ret == 0 || errno == EAGAIN || errno == EWOULDBLOCK || errno == ENOTCONN || errno == EINPROGRESS) {
 			/* nothing written, we need to poll for write first */
 			fd_cant_send(conn->handle.fd);
 			break;

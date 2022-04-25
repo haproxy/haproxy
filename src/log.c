@@ -1725,7 +1725,7 @@ static inline void __do_send_log(struct logsrv *logsrv, int nblogger, int level,
 	if (sent < 0) {
 		static char once;
 
-		if (errno == EAGAIN)
+		if (errno == EAGAIN || errno == EWOULDBLOCK)
 			_HA_ATOMIC_INC(&dropped_logs);
 		else if (!once) {
 			once = 1; /* note: no need for atomic ops here */
@@ -3533,7 +3533,7 @@ void syslog_fd_handler(int fd)
 			if (ret < 0) {
 				if (errno == EINTR)
 					continue;
-				if (errno == EAGAIN)
+				if (errno == EAGAIN || errno == EWOULDBLOCK)
 					fd_cant_recv(fd);
 				goto out;
 			}

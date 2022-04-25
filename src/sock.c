@@ -126,6 +126,9 @@ struct connection *sock_accept_conn(struct listener *l, int *status)
 	sockaddr_free(&addr);
 
 	switch (errno) {
+#if defined(EWOULDBLOCK) && defined(EAGAIN) && EWOULDBLOCK != EAGAIN
+	case EWOULDBLOCK:
+#endif
 	case EAGAIN:
 		ret = CO_AC_DONE; /* nothing more to accept */
 		if (fdtab[l->rx.fd].state & (FD_POLL_HUP|FD_POLL_ERR)) {
@@ -925,7 +928,7 @@ int sock_drain(struct connection *conn)
 			goto shut;
 
 		if (len < 0) {
-			if (errno == EAGAIN) {
+			if (errno == EAGAIN || errno == EWOULDBLOCK) {
 				/* connection not closed yet */
 				fd_cant_recv(fd);
 				break;
