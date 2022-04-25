@@ -92,6 +92,30 @@ haproxy h2 -conf {
 
 } -start
 
+haproxy h3 -conf {
+  defaults base-http
+      mode http
+      timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+      timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+      timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+      http-request capture hdr(Host)  len 64  # idx 0
+      http-request capture hdr(X-req-1) len 32  # idx 1
+
+  frontend fe1 from base-http
+      bind "fd@${fe1h3}"
+      declare capture request len 32 # idx 2
+
+      http-request capture hdr(X-req-2) id 2
+      http-request return status 200 hdr "X-Capture-1" "%[capture.req.hdr(0)]" hdr "X-Capture-2" "%[capture.req.hdr(1)]" hdr "X-Capture-3" "%[capture.req.hdr(2)]"
+
+  frontend fe2 from base-http
+      bind "fd@${fe2h3}"
+      http-request capture hdr(X-req-2) id 1
+      http-request return status 200 hdr "X-Capture-1" "%[capture.req.hdr(0)]" hdr "X-Capture-2" "%[capture.req.hdr(1)]"
+
+} -start
+
 client c1 -connect ${h1_feh1_sock} {
         txreq -req GET -url /
         rxresp
@@ -108,4 +132,28 @@ client c2 -connect ${h2_feh2_sock} {
         txreq -req GET -url /
         rxresp
         expect resp.status == 200
+} -run
+
+client c3 -connect ${h3_fe1h3_sock} {
+        txreq -req GET -url /  \
+          -hdr "host: v-test"  \
+          -hdr "x-req-1: val1" \
+          -hdr "x-req-2: val2"
+        rxresp
+        expect resp.status == 200
+        expect resp.http.x-capture-1 == "v-test"
+        expect resp.http.x-capture-2 == "val1"
+        expect resp.http.x-capture-3 == "val2"
+} -run
+
+client c4 -connect ${h3_fe2h3_sock} {
+        txreq -req GET -url /  \
+          -hdr "host: v-test"  \
+          -hdr "x-req-1: val1" \
+          -hdr "x-req-2: val2"
+        rxresp
+        expect resp.status == 200
+        expect resp.http.x-capture-1 == "v-test"
+        expect resp.http.x-capture-2 == "val2"
+        expect resp.http.x-capture-3 == "<undef>"
 } -run
