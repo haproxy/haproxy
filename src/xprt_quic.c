@@ -1429,6 +1429,39 @@ static int qc_pkt_decrypt(struct quic_rx_packet *pkt, struct quic_enc_level *qel
 	return 1;
 }
 
+/* Release <frm> frame and mark its copies as acknowledged */
+static void qc_release_frm(struct quic_conn *qc, struct quic_frame *frm)
+{
+	uint64_t pn;
+	struct quic_frame *origin, *f, *tmp;
+
+	/* Identify this frame: a frame copy or one of its copies */
+	origin = frm->origin ? frm->origin : frm;
+	/* Ensure the source of the copies is flagged as acked, <frm> being
+	 * possibly a copy of <origin>
+	 */
+	origin->flags |= QUIC_FL_TX_FRAME_ACKED;
+	/* Mark all the copy of <origin> as acknowledged. We must
+	 * not release the packets (releasing the frames) at this time as
+	 * they are possibly also to be acknowledged alongside the
+	 * the current one.
+	 */
+	list_for_each_entry_safe(f, tmp, &origin->reflist, ref) {
+		pn = f->pkt->pn_node.key;
+		TRACE_PROTO("mark frame as acked from packet",
+		            QUIC_EV_CONN_PRSAFRM, qc, f, &pn);
+		f->flags |= QUIC_FL_TX_FRAME_ACKED;
+		f->origin = NULL;
+		LIST_DELETE(&f->ref);
+	}
+	LIST_DELETE(&frm->list);
+	pn = frm->pkt->pn_node.key;
+	quic_tx_packet_refdec(frm->pkt);
+	TRACE_PROTO("freeing frame from packet",
+	            QUIC_EV_CONN_PRSAFRM, qc, frm, &pn);
+	pool_free(pool_head_quic_frame, frm);
+}
+
 /* Remove from <stream> the acknowledged frames.
  *
  * Returns 1 if at least one frame was removed else 0.
@@ -2336,6 +2369,76 @@ static inline int qc_handle_strm_frm(struct quic_rx_packet *pkt,
 		return qc_handle_uni_strm_frm(pkt, strm_frm, qc);
 	else
 		return qc_handle_bidi_strm_frm(pkt, strm_frm, qc);
+}
+
+/* Duplicate all frames from <pkt_frm_list> list into <out_frm_list> list
+ * for <qc> QUIC connection.
+ * This is a best effort function which never fails even if no memory could be
+ * allocated to duplicate these frames.
+ */
+static void qc_dup_pkt_frms(struct quic_conn *qc,
+                            struct list *pkt_frm_list, struct list *out_frm_list)
+{
+	struct quic_frame *frm, *frmbak;
+	struct list tmp = LIST_HEAD_INIT(tmp);
+
+	list_for_each_entry_safe(frm, frmbak, pkt_frm_list, list) {
+		struct quic_frame *dup_frm, *origin;
+
+		switch (frm->type) {
+		case QUIC_FT_STREAM_8 ... QUIC_FT_STREAM_F:
+		{
+			struct quic_stream *strm_frm = &frm->stream;
+			struct eb64_node *node = NULL;
+			struct qc_stream_desc *stream_desc;
+
+			node = eb64_lookup(&qc->streams_by_id, strm_frm->id);
+			if (!node) {
+				TRACE_PROTO("released stream", QUIC_EV_CONN_PRSAFRM, qc, strm_frm);
+				continue;
+			}
+
+			stream_desc = eb64_entry(node, struct qc_stream_desc, by_id);
+			/* Do not resend this frame if in the "already acked range" */
+			if (strm_frm->offset.key + strm_frm->len <= stream_desc->ack_offset) {
+				TRACE_PROTO("ignored frame frame in already acked range",
+				            QUIC_EV_CONN_PRSAFRM, qc, frm);
+				continue;
+			}
+			else if (strm_frm->offset.key < stream_desc->ack_offset) {
+				strm_frm->offset.key = stream_desc->ack_offset;
+				TRACE_PROTO("updated partially acked frame",
+				            QUIC_EV_CONN_PRSAFRM, qc, frm);
+			}
+
+			break;
+		}
+
+		default:
+			break;
+		}
+
+		dup_frm = pool_zalloc(pool_head_quic_frame);
+		if (!dup_frm) {
+			TRACE_PROTO("could not duplicate frame", QUIC_EV_CONN_PRSAFRM, qc, frm);
+			break;
+		}
+
+		/* If <frm> is already a copy of another frame, we must take
+		 * its original frame as source for the copy.
+		 */
+		origin = frm->origin ? frm->origin : frm;
+		TRACE_PROTO("probing frame", QUIC_EV_CONN_PRSAFRM, qc, origin);
+		*dup_frm = *origin;
+		LIST_INIT(&dup_frm->reflist);
+		TRACE_PROTO("copied from packet", QUIC_EV_CONN_PRSAFRM,
+		            qc, NULL, &origin->pkt->pn_node.key);
+		dup_frm->origin = origin;
+		LIST_APPEND(&origin->reflist, &dup_frm->ref);
+		LIST_APPEND(&tmp, &dup_frm->list);
+	}
+
+	LIST_SPLICE(out_frm_list, &tmp);
 }
 
 /* Prepare a fast retransmission from <qel> encryption level */
@@ -3626,6 +3729,116 @@ int qc_send_app_pkts(struct quic_conn *qc, struct list *frms)
 	MT_LIST_APPEND(qc->tx.qring_list, &qr->mt_list);
 	TRACE_DEVEL("leaving in error", QUIC_EV_CONN_IO_CB, qc);
 	return 0;
+}
+
+/* Sends handshake packets from up to two encryption levels <tel> and <next_te>
+ * with <tel_frms> and <next_tel_frms> as frame list respectively for <qc>
+ * QUIC connection
+ * Returns 1 if succeeded, 0 if not.
+ */
+int qc_send_hdshk_pkts(struct quic_conn *qc, int old_data,
+                       enum quic_tls_enc_level tel, struct list *tel_frms,
+                       enum quic_tls_enc_level next_tel, struct list *next_tel_frms)
+{
+	int ret;
+	struct qring *qr;
+
+	qr = MT_LIST_POP(qc->tx.qring_list, typeof(qr), mt_list);
+	if (!qr)
+		/* Never happens */
+		return 1;
+
+	if (old_data)
+		qc->flags |= QUIC_FL_CONN_RETRANS_OLD_DATA;
+	ret = qc_prep_pkts(qc, qr, tel, tel_frms, next_tel, next_tel_frms);
+	if (ret == -1)
+		goto err;
+	else if (ret == 0)
+		goto out;
+
+	if (!qc_send_ppkts(qr, qc->xprt_ctx))
+		goto err;
+
+ out:
+	qc->flags &= ~QUIC_FL_CONN_RETRANS_OLD_DATA;
+	MT_LIST_APPEND(qc->tx.qring_list, &qr->mt_list);
+	return 1;
+
+ err:
+	qc->flags &= ~QUIC_FL_CONN_RETRANS_OLD_DATA;
+	MT_LIST_APPEND(qc->tx.qring_list, &qr->mt_list);
+	TRACE_DEVEL("leaving in error", QUIC_EV_CONN_IO_CB, qc);
+	return 0;
+}
+
+/* Retransmit up to two datagrams depending on packet number space */
+static void qc_dgrams_retransmit(struct quic_conn *qc)
+{
+	struct quic_enc_level *iqel = &qc->els[QUIC_TLS_ENC_LEVEL_INITIAL];
+	struct quic_enc_level *hqel = &qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE];
+	struct quic_enc_level *aqel = &qc->els[QUIC_TLS_ENC_LEVEL_APP];
+
+	if (iqel->pktns->flags & QUIC_FL_PKTNS_PROBE_NEEDED) {
+		struct list ifrms = LIST_HEAD_INIT(ifrms);
+		struct list hfrms = LIST_HEAD_INIT(hfrms);
+
+		qc_prep_hdshk_fast_retrans(qc, &ifrms, &hfrms);
+		TRACE_PROTO("Avail. ack eliciting frames", QUIC_EV_CONN_FRMLIST, qc, &ifrms);
+		TRACE_PROTO("Avail. ack eliciting frames", QUIC_EV_CONN_FRMLIST, qc, &hfrms);
+		if (!LIST_ISEMPTY(&ifrms)) {
+			iqel->pktns->tx.pto_probe = 1;
+			if (!LIST_ISEMPTY(&hfrms)) {
+				hqel->pktns->tx.pto_probe = 1;
+				qc_send_hdshk_pkts(qc, 1, QUIC_TLS_ENC_LEVEL_INITIAL, &ifrms,
+				                   QUIC_TLS_ENC_LEVEL_HANDSHAKE, &hfrms);
+			}
+		}
+		if (hqel->pktns->flags & QUIC_FL_PKTNS_PROBE_NEEDED) {
+			qc_prep_fast_retrans(qc, hqel, &hfrms, NULL);
+			TRACE_PROTO("Avail. ack eliciting frames", QUIC_EV_CONN_FRMLIST, qc, &hfrms);
+			if (!LIST_ISEMPTY(&hfrms)) {
+				hqel->pktns->tx.pto_probe = 1;
+				qc_send_hdshk_pkts(qc, 1, QUIC_TLS_ENC_LEVEL_HANDSHAKE, &hfrms,
+				                   QUIC_TLS_ENC_LEVEL_NONE, NULL);
+			}
+			hqel->pktns->flags &= ~QUIC_FL_PKTNS_PROBE_NEEDED;
+		}
+		iqel->pktns->flags &= ~QUIC_FL_PKTNS_PROBE_NEEDED;
+	}
+	else {
+		int i;
+		struct list frms1 = LIST_HEAD_INIT(frms1);
+		struct list frms2 = LIST_HEAD_INIT(frms2);
+
+		if (hqel->pktns->flags & QUIC_FL_PKTNS_PROBE_NEEDED) {
+			hqel->pktns->tx.pto_probe = 0;
+			for (i = 0; i < QUIC_MAX_NB_PTO_DGRAMS; i++) {
+				qc_prep_fast_retrans(qc, hqel, &frms1, NULL);
+				TRACE_PROTO("Avail. ack eliciting frames", QUIC_EV_CONN_FRMLIST, qc, &frms1);
+				if (!LIST_ISEMPTY(&frms1)) {
+					hqel->pktns->tx.pto_probe = 1;
+					qc_send_hdshk_pkts(qc, 1, QUIC_TLS_ENC_LEVEL_HANDSHAKE, &frms1,
+					                   QUIC_TLS_ENC_LEVEL_NONE, NULL);
+				}
+			}
+			hqel->pktns->flags &= ~QUIC_FL_PKTNS_PROBE_NEEDED;
+		}
+		else if (aqel->pktns->flags & QUIC_FL_PKTNS_PROBE_NEEDED) {
+			aqel->pktns->tx.pto_probe = 0;
+			qc_prep_fast_retrans(qc, aqel, &frms1, &frms2);
+			TRACE_PROTO("Avail. ack eliciting frames", QUIC_EV_CONN_FRMLIST, qc, &frms1);
+			TRACE_PROTO("Avail. ack eliciting frames", QUIC_EV_CONN_FRMLIST, qc, &frms2);
+			if (!LIST_ISEMPTY(&frms1)) {
+				aqel->pktns->tx.pto_probe = 1;
+				qc_send_app_pkts(qc, 1, &frms1);
+			}
+			if (!LIST_ISEMPTY(&frms2)) {
+				aqel->pktns->tx.pto_probe = 1;
+				qc_send_app_pkts(qc, 1, &frms2);
+			}
+			aqel->pktns->flags &= ~QUIC_FL_PKTNS_PROBE_NEEDED;
+		}
+	}
 }
 
 /* QUIC connection packet handler task (post handshake) */
