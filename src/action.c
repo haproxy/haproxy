@@ -124,7 +124,7 @@ int check_trk_action(struct act_rule *rule, struct proxy *px, char **err)
 int check_capture(struct act_rule *rule, struct proxy *px, char **err)
 {
 	if (rule->from == ACT_F_TCP_REQ_CNT && (px->cap & PR_CAP_FE) && !px->tcp_req.inspect_delay &&
-	    !(rule->arg.trk_ctr.expr->fetch->val & SMP_VAL_FE_SES_ACC)) {
+	    !(rule->arg.cap.expr->fetch->val & SMP_VAL_FE_SES_ACC)) {
 		ha_warning("%s '%s' : a 'tcp-request capture' rule explicitly depending on request"
 			   " contents without any 'tcp-request inspect-delay' setting."
 			   " This means that this rule will randomly find its contents. This can be fixed by"
