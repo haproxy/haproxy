@@ -5758,6 +5758,8 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 		                   end - pos, &len_frms, pos - beg, qel, qc)) {
 			TRACE_PROTO("Not enough room", QUIC_EV_CONN_HPKT,
 			            qc, NULL, NULL, &room);
+			if (!ack_frm_len && !qel->pktns->tx.pto_probe)
+				goto no_room;
 		}
 	}
 
