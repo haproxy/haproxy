@@ -3012,6 +3012,9 @@ static int qc_prep_app_pkts(struct quic_conn *qc, struct qring *qr,
 		if (!pkt)
 			goto err;
 
+		if (qc->flags & QUIC_FL_CONN_RETRANS_OLD_DATA)
+			pkt->flags |= QUIC_FL_TX_PACKET_PROBE_WITH_OLD_DATA;
+
 		total += pkt->len;
 		/* Set the current datagram as prepared into <cbuf>. */
 		qc_set_dg(cbuf, pkt->len, pkt);
@@ -3132,6 +3135,9 @@ static int qc_prep_pkts(struct quic_conn *qc, struct qring *qr,
 		/* This is to please to GCC. We cannot have (err >= 0 && !cur_pkt) */
 		if (!cur_pkt)
 			goto err;
+
+		if (qc->flags & QUIC_FL_CONN_RETRANS_OLD_DATA)
+			cur_pkt->flags |= QUIC_FL_TX_PACKET_PROBE_WITH_OLD_DATA;
 
 		total += cur_pkt->len;
 		/* keep trace of the first packet in the datagram */
