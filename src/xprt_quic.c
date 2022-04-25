@@ -2442,22 +2442,24 @@ static void qc_dup_pkt_frms(struct quic_conn *qc,
 }
 
 /* Prepare a fast retransmission from <qel> encryption level */
-static void qc_prep_fast_retrans(struct quic_enc_level *qel,
-                                 struct quic_conn *qc)
+static void qc_prep_fast_retrans(struct quic_conn *qc,
+                                 struct quic_enc_level *qel,
+                                 struct list *frms1, struct list *frms2)
 {
 	struct eb_root *pkts = &qel->pktns->tx.pkts;
+	struct list *frms = frms1;
 	struct eb64_node *node;
 	struct quic_tx_packet *pkt;
 
 	pkt = NULL;
-	pkts = &qel->pktns->tx.pkts;
 	node = eb64_first(pkts);
-	/* Skip the empty packet (they have already been retransmitted) */
+ start:
 	while (node) {
-		pkt = eb64_entry(&node->node, struct quic_tx_packet, pn_node);
+		pkt = eb64_entry(node, struct quic_tx_packet, pn_node);
+		node = eb64_next(node);
+		/* Skip the empty and coalesced packets */
 		if (!LIST_ISEMPTY(&pkt->frms) && !(pkt->flags & QUIC_FL_TX_PACKET_COALESCED))
 			break;
-		node = eb64_next(node);
 	}
 
 	if (!pkt)
@@ -2472,20 +2474,24 @@ static void qc_prep_fast_retrans(struct quic_enc_level *qel,
 		return;
 	}
 
-	qc_requeue_nacked_pkt_tx_frms(qc, &pkt->frms, &qel->pktns->tx.frms);
+	TRACE_PROTO("duplicating packet", QUIC_EV_CONN_PRSAFRM, qc, NULL, &pkt->pn_node.key);
+	qc_dup_pkt_frms(qc, &pkt->frms, frms);
+	if (frms == frms1 && frms2) {
+		frms = frms2;
+		goto start;
+	}
 }
 
-/* Prepare a fast retransmission during handshake after a client
+/* Prepare a fast retransmission during a handshake after a client
  * has resent Initial packets. According to the RFC a server may retransmit
- * up to two datagrams of Initial packets if did not receive all Initial packets
- * and resend them coalescing with others (Handshake here).
- * (Listener only).
+ * Initial packets send them coalescing with others (Handshake here).
+ * (Listener only function).
  */
-static void qc_prep_hdshk_fast_retrans(struct quic_conn *qc)
+static void qc_prep_hdshk_fast_retrans(struct quic_conn *qc,
+                                       struct list *ifrms, struct list *hfrms)
 {
 	struct list itmp = LIST_HEAD_INIT(itmp);
 	struct list htmp = LIST_HEAD_INIT(htmp);
-	struct quic_frame *frm, *frmbak;
 
 	struct quic_enc_level *iqel = &qc->els[QUIC_TLS_ENC_LEVEL_INITIAL];
 	struct quic_enc_level *hqel = &qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE];
@@ -2494,15 +2500,6 @@ static void qc_prep_hdshk_fast_retrans(struct quic_conn *qc)
 	struct eb64_node *node;
 	struct quic_tx_packet *pkt;
 	struct list *tmp = &itmp;
-
-	/* Do not probe from a packet number space if some probing
-	 * was already asked.
-	 */
-	if (qel->pktns->tx.pto_probe) {
-		qel = hqel;
-		if (qel->pktns->tx.pto_probe)
-			return;
-	}
 
  start:
 	pkt = NULL;
@@ -2530,21 +2527,8 @@ static void qc_prep_hdshk_fast_retrans(struct quic_conn *qc)
 
 	qel->pktns->tx.pto_probe += 1;
  requeue:
-	list_for_each_entry_safe(frm, frmbak, &pkt->frms, list) {
-		struct quic_frame *dup_frm;
-
-
-		dup_frm = pool_alloc(pool_head_quic_frame);
-		if (!dup_frm) {
-			TRACE_PROTO("could not duplicate frame", QUIC_EV_CONN_PRSAFRM, qc, frm);
-			break;
-		}
-
-		TRACE_PROTO("to resend frame", QUIC_EV_CONN_PRSAFRM, qc, frm);
-		*dup_frm = *frm;
-		LIST_APPEND(tmp, &dup_frm->list);
-	}
-
+	TRACE_PROTO("duplicating packet", QUIC_EV_CONN_PRSAFRM, qc, NULL, &pkt->pn_node.key);
+	qc_dup_pkt_frms(qc, &pkt->frms, tmp);
 	if (qel == iqel) {
 		if (pkt->next && pkt->next->type == QUIC_PACKET_TYPE_HANDSHAKE) {
 			pkt = pkt->next;
@@ -2552,15 +2536,11 @@ static void qc_prep_hdshk_fast_retrans(struct quic_conn *qc)
 			hqel->pktns->tx.pto_probe += 1;
 			goto requeue;
 		}
-
-		qel = hqel;
-		tmp = &htmp;
-		goto start;
 	}
 
  end:
-	LIST_SPLICE(&iqel->pktns->tx.frms, &itmp);
-	LIST_SPLICE(&hqel->pktns->tx.frms, &htmp);
+	LIST_SPLICE(ifrms, &itmp);
+	LIST_SPLICE(hfrms, &htmp);
 }
 
 /* Parse all the frames of <pkt> QUIC packet for QUIC connection with <ctx>
@@ -2761,8 +2741,12 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct ssl_sock_ctx *ct
 	/* Flag this packet number space as having received a packet. */
 	qel->pktns->flags |= QUIC_FL_PKTNS_PKT_RECEIVED;
 
-	if (fast_retrans)
-		qc_prep_hdshk_fast_retrans(qc);
+	if (fast_retrans) {
+		struct quic_enc_level *iqel = &qc->els[QUIC_TLS_ENC_LEVEL_INITIAL];
+		struct quic_enc_level *hqel = &qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE];
+
+		qc_prep_hdshk_fast_retrans(qc, &iqel->pktns->tx.frms, &hqel->pktns->tx.frms);
+	}
 
 	/* The server must switch from INITIAL to HANDSHAKE handshake state when it
 	 * has successfully parse a Handshake packet. The Initial encryption must also
