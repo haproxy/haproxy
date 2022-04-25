@@ -1003,6 +1003,7 @@ The following keywords are supported in the "global" section :
    - deviceatlas-properties-cookie
    - expose-experimental-directives
    - external-check
+   - fd-hard-limit
    - gid
    - grace
    - group
@@ -1333,6 +1334,26 @@ external-check
   you may also need to set "insecure-setuid-wanted" in the global section.
   See "option external-check", and "insecure-fork-wanted", and
   "insecure-setuid-wanted".
+
+fd-hard-limit <number>
+  Sets an upper bound to the maximum number of file descriptors that the
+  process will use, regardless of system limits. While "ulimit-n" and "maxconn"
+  may be used to enforce a value, when they are not set, the process will be
+  limited to the hard limit of the RLIMIT_NOFILE setting as reported by
+  "ulimit -n -H". But some modern operating systems are now allowing extremely
+  large values here (in the order of 1 billion), which will consume way too
+  much RAM for regular usage. The fd-hard-limit setting is provided to enforce
+  a possibly lower bound to this limit. This means that it will always respect
+  the system-imposed limits when they are below <number> but the specified
+  value will be used if system-imposed limits are higher. In the example below,
+  no other setting is specified and the maxconn value will automatically adapt
+  to the lower of "fd-hard-limit" and the system-imposed limit:
+
+      global
+          # use as many FDs as possible but no more than 50000
+          fd-hard-limit 50000
+
+  See also: ulimit-n, maxconn
 
 gid <number>
   Changes the process's group ID to <number>. It is recommended that the group
@@ -2121,11 +2142,14 @@ uid <number>
 ulimit-n <number>
   Sets the maximum number of per-process file-descriptors to <number>. By
   default, it is automatically computed, so it is recommended not to use this
-  option.
+  option. If the intent is only to limit the number of file descriptors, better
+  use "fd-hard-limit" instead.
 
   Note that the dynamic servers are not taken into account in this automatic
   resource calculation. If using a large number of them, it may be needed to
   manually specify this value.
+
+  See also: fd-hard-limit, maxconn
 
 unix-bind [ prefix <prefix> ] [ mode <mode> ] [ user <user> ] [ uid <uid> ]
           [ group <group> ] [ gid <gid> ]
@@ -2318,7 +2342,9 @@ maxconn <number>
   "ulimit -n" command, possibly reduced to a lower value if a memory limit
   is enforced, based on the buffer size, memory allocated to compression, SSL
   cache size, and use or not of SSL and the associated maxsslconn (which can
-  also be automatic).
+  also be automatic). In any case, the fd-hard-limit applies if set.
+
+  See also: fd-hard-limit, ulimit-n
 
 maxconnrate <number>
   Sets the maximum per-process number of connections per second to <number>.

@@ -1362,6 +1362,9 @@ static int compute_ideal_maxconn()
 	 *   - two FDs per connection
 	 */
 
+	if (global.fd_hard_limit && remain > global.fd_hard_limit)
+		remain = global.fd_hard_limit;
+
 	/* subtract listeners and checks */
 	remain -= global.maxsock;
 
@@ -1438,6 +1441,9 @@ static int check_if_maxsock_permitted(int maxsock)
 {
 	struct rlimit orig_limit, test_limit;
 	int ret;
+
+	if (global.fd_hard_limit && maxsock > global.fd_hard_limit)
+		return 0;
 
 	if (getrlimit(RLIMIT_NOFILE, &orig_limit) != 0)
 		return 1;
@@ -3049,8 +3055,12 @@ int main(int argc, char **argv)
 		limit.rlim_cur = global.rlimit_nofile;
 		limit.rlim_max = MAX(rlim_fd_max_at_boot, limit.rlim_cur);
 
-		if (setrlimit(RLIMIT_NOFILE, &limit) == -1) {
+		if ((global.fd_hard_limit && limit.rlim_cur > global.fd_hard_limit) ||
+		    setrlimit(RLIMIT_NOFILE, &limit) == -1) {
 			getrlimit(RLIMIT_NOFILE, &limit);
+			if (global.fd_hard_limit && limit.rlim_cur > global.fd_hard_limit)
+				limit.rlim_cur = global.fd_hard_limit;
+
 			if (global.tune.options & GTUNE_STRICT_LIMITS) {
 				ha_alert("[%s.main()] Cannot raise FD limit to %d, limit is %d.\n",
 					 argv[0], global.rlimit_nofile, (int)limit.rlim_cur);
@@ -3059,6 +3069,9 @@ int main(int argc, char **argv)
 			else {
 				/* try to set it to the max possible at least */
 				limit.rlim_cur = limit.rlim_max;
+				if (global.fd_hard_limit && limit.rlim_cur > global.fd_hard_limit)
+					limit.rlim_cur = global.fd_hard_limit;
+
 				if (setrlimit(RLIMIT_NOFILE, &limit) != -1)
 					getrlimit(RLIMIT_NOFILE, &limit);
 

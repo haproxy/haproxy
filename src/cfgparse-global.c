@@ -711,7 +711,21 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 	}
-
+	else if (strcmp(args[0], "fd-hard-limit") == 0) {
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
+		if (global.fd_hard_limit != 0) {
+			ha_alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT;
+			goto out;
+		}
+		if (*(args[1]) == 0) {
+			ha_alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		global.fd_hard_limit = atol(args[1]);
+	}
 	else if (strcmp(args[0], "ulimit-n") == 0) {
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;

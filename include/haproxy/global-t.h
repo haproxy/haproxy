@@ -123,6 +123,7 @@ struct global {
 	char *pidfile;
 	char *node, *desc;		/* node name & description */
 	int localpeer_cmdline;		/* whether or not the commandline "-L" was set */
+	int fd_hard_limit;		/* hard limit on ulimit-n : 0=unset */
 	struct buffer log_tag;           /* name for syslog */
 	struct list logsrvs;
 	char *log_send_hostname;   /* set hostname in syslog header */
