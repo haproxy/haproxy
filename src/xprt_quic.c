@@ -5720,7 +5720,7 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 	head_len = pos - beg;
 	/* Build an ACK frame if required. */
 	ack_frm_len = 0;
-	if ((qel->pktns->flags & QUIC_FL_PKTNS_ACK_REQUIRED)) {
+	if ((qel->pktns->flags & QUIC_FL_PKTNS_ACK_REQUIRED) && !qel->pktns->tx.pto_probe) {
 	    BUG_ON(eb_is_empty(&qel->pktns->rx.arngs.root));
 		ack_frm.tx_ack.ack_delay = 0;
 		ack_frm.tx_ack.arngs = &qel->pktns->rx.arngs;
