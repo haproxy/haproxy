@@ -11,7 +11,6 @@
  */
 
 #include <errno.h>
-#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -71,7 +70,7 @@ static int dns_connect_nameserver(struct dns_nameserver *ns)
 	}
 
 	/* Make the socket non blocking */
-	fcntl(fd, F_SETFL, O_NONBLOCK);
+	fd_set_nonblock(fd);
 
 	/* Add the fd in the fd list and update its parameters */
 	dgram->t.sock.fd = fd;

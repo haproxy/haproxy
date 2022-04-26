@@ -11,7 +11,6 @@
  */
 
 #include <errno.h>
-#include <fcntl.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -319,7 +318,7 @@ int sock_inet_bind_receiver(struct receiver *rx, char **errmsg)
 		goto bind_close_return;
 	}
 
-	if (fcntl(fd, F_SETFL, O_NONBLOCK) == -1) {
+	if (fd_set_nonblock(fd) == -1) {
 		err |= ERR_FATAL | ERR_ALERT;
 		memprintf(errmsg, "cannot make socket non-blocking");
 		goto bind_close_return;

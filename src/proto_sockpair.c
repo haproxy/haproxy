@@ -12,7 +12,6 @@
 
 #include <ctype.h>
 #include <errno.h>
-#include <fcntl.h>
 #include <pwd.h>
 #include <grp.h>
 #include <stdio.h>
@@ -150,7 +149,7 @@ int sockpair_bind_receiver(struct receiver *rx, char **errmsg)
 		goto bind_close_return;
 	}
 
-	if (fcntl(rx->fd, F_SETFL, O_NONBLOCK) == -1) {
+	if (fd_set_nonblock(rx->fd) == -1) {
 		err |= ERR_FATAL | ERR_ALERT;
 		memprintf(errmsg, "cannot make socket non-blocking");
 		goto bind_close_return;
@@ -313,7 +312,7 @@ static int sockpair_connect_server(struct connection *conn, int flags)
 		return SF_ERR_PRXCOND; /* it is a configuration limit */
 	}
 
-	if (fcntl(fd, F_SETFL, O_NONBLOCK) == -1) {
+	if (fd_set_nonblock(fd) == -1) {
 		qfprintf(stderr,"Cannot set client socket to non blocking mode.\n");
 		close(sv[0]);
 		close(sv[1]);
@@ -322,7 +321,7 @@ static int sockpair_connect_server(struct connection *conn, int flags)
 		return SF_ERR_INTERNAL;
 	}
 
-	if (master == 1 && (fcntl(fd, F_SETFD, FD_CLOEXEC) == -1)) {
+	if (master == 1 && fd_set_cloexec(fd) == -1) {
 		ha_alert("Cannot set CLOEXEC on client socket.\n");
 		close(sv[0]);
 		close(sv[1]);
@@ -469,7 +468,7 @@ struct connection *sockpair_accept_conn(struct listener *l, int *status)
 	int cfd;
 
 	if ((cfd = recv_fd_uxst(l->rx.fd)) != -1)
-		DISGUISE(fcntl(cfd, F_SETFL, O_NONBLOCK));
+		fd_set_nonblock(cfd);
 
 	if (likely(cfd != -1)) {
 		/* Perfect, the connection was accepted */

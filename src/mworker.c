@@ -13,7 +13,6 @@
 #define _GNU_SOURCE
 
 #include <errno.h>
-#include <fcntl.h>
 #include <signal.h>
 #include <stdlib.h>
 #include <string.h>
@@ -422,7 +421,7 @@ static int mworker_pipe_register_per_thread()
 	if (tid != 0)
 		return 1;
 
-	fcntl(proc_self->ipc_fd[1], F_SETFL, O_NONBLOCK);
+	fd_set_nonblock(proc_self->ipc_fd[1]);
 	/* In multi-tread, we need only one thread to process
 	 * events on the pipe with master
 	 */

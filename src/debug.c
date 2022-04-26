@@ -516,10 +516,10 @@ static int debug_parse_cli_exec(char **args, char *payload, struct appctx *appct
 	if (pipe(pipefd) < 0)
 		goto fail_pipe;
 
-	if (fcntl(pipefd[0], F_SETFD, fcntl(pipefd[0], F_GETFD, FD_CLOEXEC) | FD_CLOEXEC) == -1)
+	if (fd_set_cloexec(pipefd[0]) == -1)
 		goto fail_fcntl;
 
-	if (fcntl(pipefd[1], F_SETFD, fcntl(pipefd[1], F_GETFD, FD_CLOEXEC) | FD_CLOEXEC) == -1)
+	if (fd_set_cloexec(pipefd[1]) == -1)
 		goto fail_fcntl;
 
 	pid = fork();

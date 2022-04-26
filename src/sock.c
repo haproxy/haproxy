@@ -13,7 +13,6 @@
 #define _GNU_SOURCE
 #include <ctype.h>
 #include <errno.h>
-#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -96,9 +95,9 @@ struct connection *sock_accept_conn(struct listener *l, int *status)
 	{
 		laddr = sizeof(*conn->src);
 		if ((cfd = accept(l->rx.fd, (struct sockaddr*)addr, &laddr)) != -1) {
-			fcntl(cfd, F_SETFL, O_NONBLOCK);
+			fd_set_nonblock(cfd);
 			if (master)
-				fcntl(cfd, F_SETFD, FD_CLOEXEC);
+				fd_set_cloexec(cfd);
 		}
 	}
 

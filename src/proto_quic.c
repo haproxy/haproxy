@@ -12,7 +12,6 @@
 
 #include <ctype.h>
 #include <errno.h>
-#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -334,7 +333,7 @@ int quic_connect_server(struct connection *conn, int flags)
 		return SF_ERR_PRXCOND; /* it is a configuration limit */
 	}
 
-	if ((fcntl(fd, F_SETFL, O_NONBLOCK)==-1)) {
+	if (fd_set_nonblock(fd) == -1) {
 		qfprintf(stderr,"Cannot set client socket to non blocking mode.\n");
 		close(fd);
 		conn->err_code = CO_ER_SOCK_ERR;
@@ -342,7 +341,7 @@ int quic_connect_server(struct connection *conn, int flags)
 		return SF_ERR_INTERNAL;
 	}
 
-	if (master == 1 && (fcntl(fd, F_SETFD, FD_CLOEXEC) == -1)) {
+	if (master == 1 && fd_set_cloexec(fd) == -1) {
 		ha_alert("Cannot set CLOEXEC on client socket.\n");
 		close(fd);
 		conn->err_code = CO_ER_SOCK_ERR;

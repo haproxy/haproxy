@@ -11,7 +11,6 @@
  */
 
 #include <ctype.h>
-#include <fcntl.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -1668,7 +1667,7 @@ static inline void __do_send_log(struct logsrv *logsrv, int nblogger, int level,
 			setsockopt(*plogfd, SOL_SOCKET, SO_RCVBUF, &zero, sizeof(zero));
 			/* does nothing under Linux, maybe needed for others */
 			shutdown(*plogfd, SHUT_RD);
-			fcntl(*plogfd, F_SETFD, fcntl(*plogfd, F_GETFD, FD_CLOEXEC) | FD_CLOEXEC);
+			fd_set_cloexec(*plogfd);
 		}
 	}
 
