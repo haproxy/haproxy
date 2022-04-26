@@ -1608,7 +1608,7 @@ static void init_args(int argc, char **argv)
 				display_version();
 				if (flag[1] == 'v')  /* -vv */
 					display_build_opts();
-				exit(0);
+				deinit_and_exit(0);
 			}
 #if defined(USE_EPOLL)
 			else if (*flag == 'd' && flag[1] == 'e')
