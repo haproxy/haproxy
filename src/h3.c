@@ -141,6 +141,7 @@ static int h3_headers_to_htx(struct qcs *qcs, struct buffer *buf, uint64_t len,
 	}
 
 	flags |= HTX_SL_F_VER_11;
+	flags |= HTX_SL_F_XFER_LEN;
 
 	sl = htx_add_stline(htx, HTX_BLK_REQ_SL, flags, meth, path, ist("HTTP/3.0"));
 	if (!sl)
