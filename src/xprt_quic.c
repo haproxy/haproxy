@@ -4244,12 +4244,24 @@ static struct task *process_timer(struct task *task, void *ctx, unsigned int sta
 	}
 
 	if (qc->path->in_flight) {
-		qc->flags |= QUIC_FL_CONN_RETRANS_NEEDED;
 		pktns = quic_pto_pktns(qc, qc->state >= QUIC_HS_ST_COMPLETE, NULL);
-		pktns->flags |= QUIC_FL_PKTNS_PROBE_NEEDED;
-		if (pktns == &qc->pktns[QUIC_TLS_PKTNS_INITIAL]) {
-			if (qc->pktns[QUIC_TLS_PKTNS_HANDSHAKE].tx.in_flight)
-				qc->pktns[QUIC_TLS_PKTNS_HANDSHAKE].flags |= QUIC_FL_PKTNS_PROBE_NEEDED;
+		if (qc->mux_state == QC_MUX_READY && qc->qcc->subs &&
+		    qc->qcc->subs->events & SUB_RETRY_SEND) {
+			struct qcc *qcc = qc->qcc;
+
+			pktns->tx.pto_probe = QUIC_MAX_NB_PTO_DGRAMS;
+			tasklet_wakeup(qcc->subs->tasklet);
+			qcc->subs->events &= ~SUB_RETRY_SEND;
+			if (!qcc->subs->events)
+				qcc->subs = NULL;
+		}
+		else {
+			qc->flags |= QUIC_FL_CONN_RETRANS_NEEDED;
+			pktns->flags |= QUIC_FL_PKTNS_PROBE_NEEDED;
+			if (pktns == &qc->pktns[QUIC_TLS_PKTNS_INITIAL]) {
+				if (qc->pktns[QUIC_TLS_PKTNS_HANDSHAKE].tx.in_flight)
+					qc->pktns[QUIC_TLS_PKTNS_HANDSHAKE].flags |= QUIC_FL_PKTNS_PROBE_NEEDED;
+			}
 		}
 	}
 	else if (!qc_is_listener(qc) && qc->state <= QUIC_HS_ST_COMPLETE) {
