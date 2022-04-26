@@ -41,7 +41,7 @@ static struct proxy *httpclient_proxy;
 static struct server *httpclient_srv_raw;
 #ifdef USE_OPENSSL
 static struct server *httpclient_srv_ssl;
-static int httpclient_ssl_verify = SSL_SOCK_VERIFY_NONE;
+static int httpclient_ssl_verify = SSL_SOCK_VERIFY_REQUIRED;
 #endif
 static struct applet httpclient_applet;
 
