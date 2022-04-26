@@ -2139,11 +2139,12 @@ static int qc_handle_bidi_strm_frm(struct quic_rx_packet *pkt,
 	struct quic_rx_strm_frm *frm;
 	struct eb64_node *frm_node;
 	struct qcs *qcs = NULL;
+	size_t done;
 	int ret;
 
 	ret = qcc_recv(qc->qcc, strm_frm->id, strm_frm->len,
 	               strm_frm->offset.key, strm_frm->fin,
-	               (char *)strm_frm->data, &qcs);
+	               (char *)strm_frm->data, &qcs, &done);
 
 	/* invalid or already received frame */
 	if (ret == 1)
@@ -2160,13 +2161,22 @@ static int qc_handle_bidi_strm_frm(struct quic_rx_packet *pkt,
 			return 0;
 		}
 
+		if (done) {
+			BUG_ON(done >= frm->len); /* must never happen */
+			frm->len -= done;
+			frm->data += done;
+			frm->offset_node.key += done;
+		}
+
 		eb64_insert(&qcs->rx.frms, &frm->offset_node);
 		quic_rx_packet_refinc(pkt);
 
-		return 1;
+		/* interrupt only if frame was not received at all. */
+		if (!done)
+			return 1;
 	}
 
-	/* Frame correctly received by the mux.
+	/* Frame received (partially or not) by the mux.
 	 * If there is buffered frame for next offset, it may be possible to
 	 * receive them now.
 	 */
@@ -2177,13 +2187,23 @@ static int qc_handle_bidi_strm_frm(struct quic_rx_packet *pkt,
 
 		ret = qcc_recv(qc->qcc, qcs->id, frm->len,
 		               frm->offset_node.key, frm->fin,
-		               (char *)frm->data, &qcs);
+		               (char *)frm->data, &qcs, &done);
 
-		/* interrupt the parsing if the frame cannot be handled for the
-		 * moment only by the MUX.
+		/* interrupt the parsing if the frame cannot be handled
+		 * entirely for the moment only.
 		 */
-		if (ret == 2)
+		if (ret == 2) {
+			if (done) {
+				BUG_ON(done >= frm->len); /* must never happen */
+				frm->len -= done;
+				frm->data += done;
+
+				eb64_delete(&frm->offset_node);
+				frm->offset_node.key += done;
+				eb64_insert(&qcs->rx.frms, &frm->offset_node);
+			}
 			break;
+		}
 
 		/* Remove a newly received frame or an invalid one. */
 		frm_node = eb64_next(frm_node);

@@ -333,18 +333,22 @@ struct qcs *qcc_get_qcs(struct qcc *qcc, uint64_t id)
  * <out_qcs>. In case of success, the caller can immediatly call qcc_decode_qcs
  * to process the frame content.
  *
- * Returns 0 on success. On errors, two codes are present.
- * - 1 is returned if the frame cannot be decoded and must be discarded.
- * - 2 is returned if the stream cannot decode at the moment the frame. The
- *   frame should be buffered to be handled later.
+ * Returns a code indicating how the frame was handled.
+ * - 0: frame received completly and can be dropped.
+ * - 1: frame not received but can be dropped.
+ * - 2: frame cannot be handled, either partially or not at all. <done>
+ *   indicated the number of bytes handled. The rest should be buffered.
  */
 int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
-             char fin, char *data, struct qcs **out_qcs)
+             char fin, char *data, struct qcs **out_qcs, size_t *done)
 {
 	struct qcs *qcs;
 	size_t total, diff;
 
 	TRACE_ENTER(QMUX_EV_QCC_RECV, qcc->conn);
+
+	*out_qcs = NULL;
+	*done = 0;
 
 	qcs = qcc_get_qcs(qcc, id);
 	if (!qcs) {
@@ -367,7 +371,7 @@ int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
 	/* TODO initial max-stream-data overflow. Implement FLOW_CONTROL_ERROR emission. */
 	BUG_ON(offset + len > qcs->rx.msd);
 
-	if (!qc_get_buf(qcs, &qcs->rx.buf)) {
+	if (!qc_get_buf(qcs, &qcs->rx.buf) || b_full(&qcs->rx.buf)) {
 		/* TODO should mark qcs as full */
 		return 2;
 	}
@@ -375,26 +379,23 @@ int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
 	TRACE_DEVEL("newly received offset", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV, qcc->conn, qcs);
 	diff = qcs->rx.offset - offset;
 
-	/* TODO do not partially copy a frame if not enough size left. Maybe
-	 * this can be optimized.
-	 */
-	if (len > b_room(&qcs->rx.buf)) {
-		/* TODO handle STREAM frames larger than RX buffer. */
-		BUG_ON(len > b_size(&qcs->rx.buf));
-		return 2;
-	}
-
 	len -= diff;
 	data += diff;
 
-	total = b_putblk(&qcs->rx.buf, data, len);
-	/* TODO handle partial copy of a STREAM frame. */
-	BUG_ON(len != total);
+	/* TODO handle STREAM frames larger than RX buffer. */
+	BUG_ON(len > b_size(&qcs->rx.buf));
 
+	total = b_putblk(&qcs->rx.buf, data, len);
 	qcs->rx.offset += total;
+	*done = total;
 
 	/* TODO initial max-stream-data reached. Implement MAX_STREAM_DATA emission. */
 	BUG_ON(qcs->rx.offset == qcs->rx.msd);
+
+	if (total < len) {
+		TRACE_DEVEL("leaving on partially received offset", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV, qcc->conn, qcs);
+		return 2;
+	}
 
 	if (fin)
 		qcs->flags |= QC_SF_FIN_RECV;
