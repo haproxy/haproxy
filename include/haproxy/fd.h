@@ -59,6 +59,14 @@ extern volatile int ha_used_fds; // Number of FDs we're currently using
 void fd_delete(int fd);
 void _fd_delete_orphan(int fd);
 
+/* makes the new fd non-blocking and clears all other O_* flags;
+ * this is meant to be used on new FDs. Returns -1 on failure.
+ */
+int fd_set_nonblock(int fd);
+
+/* makes the fd close-on-exec; returns -1 on failure. */
+int fd_set_cloexec(int fd);
+
 /*
  * Take over a FD belonging to another thread.
  * Returns 0 on success, and -1 on failure.

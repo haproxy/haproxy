@@ -363,6 +363,27 @@ void fd_delete(int fd)
 		_fd_delete_orphan(fd);
 }
 
+/* makes the new fd non-blocking and clears all other O_* flags;
+ * this is meant to be used on new FDs. Returns -1 on failure.
+ */
+int fd_set_nonblock(int fd)
+{
+	int ret = fcntl(fd, F_SETFL, O_NONBLOCK);
+
+	return ret;
+}
+
+/* sets the close-on-exec flag on fd; returns -1 on failure. */
+int fd_set_cloexec(int fd)
+{
+	int flags, ret;
+
+	flags = fcntl(fd, F_GETFD);
+	flags |= FD_CLOEXEC;
+	ret = fcntl(fd, F_SETFD, flags);
+	return ret;
+}
+
 /*
  * Take over a FD belonging to another thread.
  * unexpected_conn is the expected owner of the fd.
