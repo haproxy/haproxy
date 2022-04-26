@@ -13,7 +13,6 @@
 #define _GNU_SOURCE
 #include <unistd.h>
 #include <stdlib.h>
-#include <fcntl.h>
 
 #include <signal.h>
 #include <unistd.h>

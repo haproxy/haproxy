@@ -12,7 +12,6 @@
 
 #include <ctype.h>
 #include <errno.h>
-#include <fcntl.h>
 #include <grp.h>
 #include <pwd.h>
 #include <stdio.h>

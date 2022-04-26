@@ -15,7 +15,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
-#include <fcntl.h>
 
 #include <haproxy/acl.h>
 #include <haproxy/api.h>
