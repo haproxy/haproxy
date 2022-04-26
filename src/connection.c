@@ -1707,6 +1707,9 @@ void list_mux_proto(FILE *out)
 		if (item->mux->flags & MX_FL_NO_UPG)
 			done |= fprintf(out, "%sNO_UPG", done ? "|" : "");
 
+		if (item->mux->flags & MX_FL_FRAMED)
+			done |= fprintf(out, "%sFRAMED", done ? "|" : "");
+
 		fprintf(out, "\n");
 	}
 }
