@@ -1112,6 +1112,9 @@ static void http_htx_deinit(void)
 		LIST_DELETE(&http_rep->list);
 		release_http_reply(http_rep);
 	}
+
+	for (rc = 0; rc < HTTP_ERR_SIZE; rc++)
+		chunk_destroy(&http_err_chunks[rc]);
 }
 
 REGISTER_CONFIG_POSTPARSER("http_htx", http_htx_init);
