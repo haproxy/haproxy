@@ -1168,11 +1168,13 @@ int ssl_store_load_locations_file(char *path, int create_if_none, enum cafile_ty
 				if (X509_STORE_add_cert(store, ca) == 0)
 					goto scandir_err;
 
+				X509_free(ca);
 				BIO_free(in);
 				free(de);
 				continue;
 
 scandir_err:
+				X509_free(ca);
 				BIO_free(in);
 				free(de);
 				ha_warning("ca-file: '%s' couldn't load '%s'\n", path, trash.area);
