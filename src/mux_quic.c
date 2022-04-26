@@ -152,6 +152,10 @@ struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
 	qcs->rx.offset = 0;
 	qcs->rx.frms = EB_ROOT_UNIQUE;
 
+	/* TODO use uni limit for unidirectional streams */
+	qcs->rx.msd = quic_stream_is_local(qcc, id) ? qcc->lfctl.msd_bidi_l :
+	                                              qcc->lfctl.msd_bidi_r;
+
 	qcs->tx.buf = BUF_NULL;
 	qcs->tx.offset = 0;
 	qcs->tx.sent_offset = 0;
@@ -360,6 +364,8 @@ int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
 
 	/* Last frame already handled for this stream. */
 	BUG_ON(qcs->flags & QC_SF_FIN_RECV);
+	/* TODO initial max-stream-data overflow. Implement FLOW_CONTROL_ERROR emission. */
+	BUG_ON(offset + len > qcs->rx.msd);
 
 	if (!qc_get_buf(qcs, &qcs->rx.buf)) {
 		/* TODO should mark qcs as full */
@@ -387,10 +393,12 @@ int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
 
 	qcs->rx.offset += total;
 
+	/* TODO initial max-stream-data reached. Implement MAX_STREAM_DATA emission. */
+	BUG_ON(qcs->rx.offset == qcs->rx.msd);
+
 	if (fin)
 		qcs->flags |= QC_SF_FIN_RECV;
 
- out:
 	TRACE_LEAVE(QMUX_EV_QCC_RECV, qcc->conn);
 	return 0;
 }
@@ -1130,6 +1138,8 @@ static int qc_init(struct connection *conn, struct proxy *prx,
 	qcc->strms[QCS_SRV_UNI].tx.max_data = 0;
 
 	qcc->lfctl.ms_bidi = qcc->lfctl.ms_bidi_init = lparams->initial_max_streams_bidi;
+	qcc->lfctl.msd_bidi_l = lparams->initial_max_stream_data_bidi_local;
+	qcc->lfctl.msd_bidi_r = lparams->initial_max_stream_data_bidi_remote;
 	qcc->lfctl.cl_bidi_r = 0;
 
 	rparams = &conn->handle.qc->tx.params;

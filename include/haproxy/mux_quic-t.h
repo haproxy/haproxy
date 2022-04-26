@@ -52,6 +52,8 @@ struct qcc {
 	struct {
 		uint64_t ms_bidi_init; /* max initial sub-ID of bidi stream allowed for the peer */
 		uint64_t ms_bidi; /* max sub-ID of bidi stream allowed for the peer */
+		uint64_t msd_bidi_l; /* initial max-stream-data on local streams */
+		uint64_t msd_bidi_r; /* initial max-stream-data on remote streams */
 		uint64_t cl_bidi_r; /* total count of closed remote bidi stream since last MAX_STREAMS emission */
 	} lfctl;
 
@@ -102,6 +104,7 @@ struct qcs {
 		uint64_t offset; /* the current offset of received data */
 		struct buffer buf; /* receive buffer, always valid (buf_empty or real buffer) */
 		struct buffer app_buf; /* receive buffer used by conn_stream layer */
+		uint64_t msd; /* fctl bytes limit to enforce */
 	} rx;
 	struct {
 		uint64_t offset; /* last offset of data ready to be sent */
