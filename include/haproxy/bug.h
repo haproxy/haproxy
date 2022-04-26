@@ -234,8 +234,8 @@ struct mem_stats {
 		.file = __FILE__, .line = __LINE__,			\
 		.type = MEM_STATS_TYPE_CALLOC,				\
 	};								\
-	HA_GLOBL("__start_mem_stats");					\
-	HA_GLOBL("__stop_mem_stats");					\
+	HA_WEAK("__start_mem_stats");					\
+	HA_WEAK("__stop_mem_stats");					\
 	_HA_ATOMIC_INC(&_.calls);					\
 	_HA_ATOMIC_ADD(&_.size, __x * __y);				\
 	calloc(__x,__y);						\
@@ -251,8 +251,8 @@ struct mem_stats {
 		.file = __FILE__, .line = __LINE__,			\
 		.type = MEM_STATS_TYPE_FREE,				\
 	};								\
-	HA_GLOBL("__start_mem_stats");					\
-	HA_GLOBL("__stop_mem_stats");					\
+	HA_WEAK("__start_mem_stats");					\
+	HA_WEAK("__stop_mem_stats");					\
 	if (__x)							\
 		_HA_ATOMIC_INC(&_.calls);				\
 	free(__x);							\
@@ -265,8 +265,8 @@ struct mem_stats {
 		.file = __FILE__, .line = __LINE__,			\
 		.type = MEM_STATS_TYPE_FREE,				\
 	};								\
-	HA_GLOBL("__start_mem_stats");					\
-	HA_GLOBL("__stop_mem_stats");					\
+	HA_WEAK("__start_mem_stats");					\
+	HA_WEAK("__stop_mem_stats");					\
 	if (__builtin_constant_p((x)) || __builtin_constant_p(*(x))) {  \
 		HA_LINK_ERROR(call_to_ha_free_attempts_to_free_a_constant); \
 	}								\
@@ -283,8 +283,8 @@ struct mem_stats {
 		.file = __FILE__, .line = __LINE__,			\
 		.type = MEM_STATS_TYPE_MALLOC,				\
 	};								\
-	HA_GLOBL("__start_mem_stats");					\
-	HA_GLOBL("__stop_mem_stats");					\
+	HA_WEAK("__start_mem_stats");					\
+	HA_WEAK("__stop_mem_stats");					\
 	_HA_ATOMIC_INC(&_.calls);					\
 	_HA_ATOMIC_ADD(&_.size, __x);					\
 	malloc(__x);							\
@@ -297,8 +297,8 @@ struct mem_stats {
 		.file = __FILE__, .line = __LINE__,			\
 		.type = MEM_STATS_TYPE_REALLOC,				\
 	};								\
-	HA_GLOBL("__start_mem_stats");					\
-	HA_GLOBL("__stop_mem_stats");					\
+	HA_WEAK("__start_mem_stats");					\
+	HA_WEAK("__stop_mem_stats");					\
 	_HA_ATOMIC_INC(&_.calls);					\
 	_HA_ATOMIC_ADD(&_.size, __y);					\
 	realloc(__x,__y);						\
@@ -311,8 +311,8 @@ struct mem_stats {
 		.file = __FILE__, .line = __LINE__,			\
 		.type = MEM_STATS_TYPE_STRDUP,				\
 	};								\
-	HA_GLOBL("__start_mem_stats");					\
-	HA_GLOBL("__stop_mem_stats");					\
+	HA_WEAK("__start_mem_stats");					\
+	HA_WEAK("__stop_mem_stats");					\
 	_HA_ATOMIC_INC(&_.calls);					\
 	_HA_ATOMIC_ADD(&_.size, __y);					\
 	strdup(__x);							\
