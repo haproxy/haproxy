@@ -2087,6 +2087,16 @@ static int proxy_parse_close_spread_time(char **args, int section_type, struct p
 		memprintf(err, "'%s' expects <time> as argument.\n", args[0]);
 		return -1;
 	}
+
+	/* If close-spread-time is set to "infinite", disable the active connection
+	 * closing during soft-stop.
+	 */
+	if (strcmp(args[1], "infinite") == 0) {
+		global.tune.options |= GTUNE_DISABLE_ACTIVE_CLOSE;
+		global.close_spread_time = TICK_ETERNITY;
+		return 0;
+	}
+
 	res = parse_time_err(args[1], &global.close_spread_time, TIME_UNIT_MS);
 	if (res == PARSE_TIME_OVER) {
 		memprintf(err, "timer overflow in argument '%s' to '%s' (maximum value is 2147483647 ms or ~24.8 days)",
@@ -2102,6 +2112,8 @@ static int proxy_parse_close_spread_time(char **args, int section_type, struct p
 		memprintf(err, "unexpected character '%c' in argument to <%s>.\n", *res, args[0]);
 		return -1;
 	}
+	global.tune.options &= ~GTUNE_DISABLE_ACTIVE_CLOSE;
+
 	return 0;
 }
 

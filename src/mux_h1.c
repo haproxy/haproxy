@@ -1198,7 +1198,9 @@ static void h1_set_cli_conn_mode(struct h1s *h1s, struct h1m *h1m)
 	}
 
 	/* If KAL, check if the frontend is stopping. If yes, switch in CLO mode
-	 * unless a 'close-spread-time' option is set.
+	 * unless a 'close-spread-time' option is set (either to define a
+	 * soft-close window or to disable active closing (close-spread-time
+	 * option set to 0).
 	 */
 	if (h1s->flags & H1S_F_WANT_KAL && (fe->flags & (PR_FL_DISABLED|PR_FL_STOPPED))) {
 		int want_clo = 1;
@@ -1215,6 +1217,8 @@ static void h1_set_cli_conn_mode(struct h1s *h1s, struct h1m *h1m)
 				want_clo = (remaining_window <= statistical_prng_range(global.close_spread_time));
 			}
 		}
+		else if (global.tune.options & GTUNE_DISABLE_ACTIVE_CLOSE)
+			want_clo = 0;
 
 		if (want_clo) {
 			h1s->flags = (h1s->flags & ~H1S_F_WANT_MSK) | H1S_F_WANT_CLO;
@@ -3088,6 +3092,8 @@ static int h1_process(struct h1c * h1c)
 						send_close = (remaining_window <= statistical_prng_range(global.close_spread_time));
 					}
 				}
+				else if (global.tune.options & GTUNE_DISABLE_ACTIVE_CLOSE)
+					send_close = 0; /* let the client close his connection himself */
 				if (send_close)
 					goto release;
 			}

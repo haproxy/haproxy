@@ -1165,16 +1165,22 @@ close-spread-time <time>
   close" line to the HTTP response, or by sending a GOAWAY frame in case of
   HTTP2. When this option is set, connection closing will be spread over this
   set <time>.
+  If the close-spread-time is set to "infinite", active connection closing
+  during a soft-stop will be disabled. The "Connection: close" header will not
+  be added to HTTP responses (or GOAWAY for HTTP2) anymore and idle connections
+  will only be closed once their timeout is reached (based on the various
+  timeouts set in the configuration).
 
   Arguments :
     <time>  is a time window (by default in milliseconds) during which
-            connection closing will be spread during a soft-stop operation.
+            connection closing will be spread during a soft-stop operation, or
+            "infinite" if active connection closing should be disabled.
 
   It is recommended to set this setting to a value lower than the one used in
   the "hard-stop-after" option if this one is used, so that all connections
   have a chance to gracefully close before the process stops.
 
-  See also: grace, hard-stop-after
+  See also: grace, hard-stop-after, idle-close-on-response
 
 cpu-map [auto:]<process-set>[/<thread-set>] <cpu-set>...
   On some operating systems, it is possible to bind a process or a thread to a

@@ -4059,6 +4059,8 @@ static int h2_process(struct h2c *h2c)
 				send_goaway = (remaining_window <= statistical_prng_range(global.close_spread_time));
 			}
 		}
+		else if (global.tune.options & GTUNE_DISABLE_ACTIVE_CLOSE)
+			send_goaway = 0; /* let the client close his connection himself */
 		/* frontend is stopping, reload likely in progress, let's try
 		 * to announce a graceful shutdown if not yet done. We don't
 		 * care if it fails, it will be tried again later.
