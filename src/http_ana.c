@@ -2348,7 +2348,7 @@ int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s, struc
 	struct buffer *chunk;
 	struct ist status, reason, location;
 	unsigned int flags;
-	int close = 0; /* Try to keep the connection alive byt default */
+	int ret = 1, close = 0; /* Try to keep the connection alive byt default */
 
 	chunk = alloc_trash_chunk();
 	if (!chunk) {
@@ -2483,8 +2483,10 @@ int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s, struc
 				int len = build_logline(s, chunk->area + chunk->data,
 				                        chunk->size - chunk->data,
 				                        &rule->rdr_fmt);
-				if (!len && rule->flags & REDIRECT_FLAG_IGNORE_EMPTY)
-					return 2;
+				if (!len && rule->flags & REDIRECT_FLAG_IGNORE_EMPTY) {
+					ret = 2;
+					goto out;
+				}
 
 				chunk->data += len;
 			}
@@ -2571,15 +2573,16 @@ int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s, struc
 	if (!(s->flags & SF_FINST_MASK))
 		s->flags |= ((rule->flags & REDIRECT_FLAG_FROM_REQ) ? SF_FINST_R : SF_FINST_H);
 
+  out:
 	free_trash_chunk(chunk);
-	return 1;
+	return ret;
 
   fail:
 	/* If an error occurred, remove the incomplete HTTP response from the
 	 * buffer */
 	channel_htx_truncate(res, htxbuf(&res->buf));
-	free_trash_chunk(chunk);
-	return 0;
+	ret = 0;
+	goto out;
 }
 
 /* Replace all headers matching the name <name>. The header value is replaced if
