@@ -3769,13 +3769,25 @@ void ckch_deinit()
 {
 	struct eb_node *node, *next;
 	struct ckch_store *store;
+	struct ebmb_node *canode;
 
+	/* deinit the ckch stores */
 	node = eb_first(&ckchs_tree);
 	while (node) {
 		next = eb_next(node);
 		store = ebmb_entry(node, struct ckch_store, node);
 		ckch_store_free(store);
 		node = next;
+	}
+
+	/* deinit the ca-file store */
+	canode = ebmb_first(&cafile_tree);
+	while (canode) {
+		struct cafile_entry *entry = NULL;
+
+		entry = ebmb_entry(canode, struct cafile_entry, node);
+		canode = ebmb_next(canode);
+		ssl_store_delete_cafile_entry(entry);
 	}
 }
 
