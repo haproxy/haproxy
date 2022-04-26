@@ -7300,7 +7300,8 @@ __LJMP static int hlua_httpclient_send(lua_State *L, enum http_meth_t meth)
 		return 0;
 	}
 
-	httpclient_start(hlua_hc->hc);
+	if (!httpclient_start(hlua_hc->hc))
+		WILL_LJMP(luaL_error(L, "couldn't start the httpclient"));
 
 	MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_httpclient_snd_yield, TICK_ETERNITY, 0));
 
