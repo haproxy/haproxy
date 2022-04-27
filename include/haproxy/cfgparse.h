@@ -88,6 +88,7 @@ struct cfg_postparser {
 	int (*func)();
 };
 
+extern struct list postparsers;
 extern int cfg_maxpconn;
 extern int cfg_maxconn;
 extern char *cfg_scope;
