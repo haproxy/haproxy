@@ -4989,9 +4989,19 @@ int qc_conn_alloc_ssl_ctx(struct quic_conn *qc)
 	return 1;
 }
 
-static ssize_t qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
-                                struct quic_rx_packet *pkt, int first_pkt,
-                                struct quic_dgram *dgram)
+/* Parse a QUIC packet from UDP datagram found in <buf> buffer with <end> the
+ * end of this buffer past one byte and populate <pkt> RX packet structure
+ * with the information collected from the packet.
+ * This function sets ->len <pkt> field value to the end of the packet past one
+ * byte to enable the caller to run this function again to continue to parse
+ * the remaing QUIC packets carried by the datagram.
+ * Note that this function always sets this ->len value. If a paquet could
+ * not be correctly found, ->len value will be set to the remaining number
+ * bytes in the datagram to entirely consume this latter.
+ */
+static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
+                             struct quic_rx_packet *pkt, int first_pkt,
+                             struct quic_dgram *dgram)
 {
 	unsigned char *beg, *payload;
 	struct quic_conn *qc, *qc_to_purge = NULL;
@@ -5334,7 +5344,7 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
  drop_no_con:
 	TRACE_LEAVE(QUIC_EV_CONN_LPKT, qc ? qc : NULL, pkt);
 
-	return pkt->len;
+	return;
 
  err:
 	/* Wakeup the I/O handler callback if the PTO timer must be armed.
@@ -5350,8 +5360,6 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 		pkt->len = end - beg;
 	TRACE_DEVEL("Leaving in error", QUIC_EV_CONN_LPKT,
 	            qc ? qc : NULL, pkt);
-
-	return -1;
 }
 
 /* This function builds into <buf> buffer a QUIC long packet header.
@@ -6196,7 +6204,6 @@ struct task *quic_lstnr_dghdlr(struct task *t, void *ctx, unsigned int state)
 		pos = dgram->buf;
 		end = pos + dgram->len;
 		do {
-			int ret;
 			struct quic_rx_packet *pkt;
 
 			pkt = pool_zalloc(pool_head_quic_rx_packet);
@@ -6204,13 +6211,10 @@ struct task *quic_lstnr_dghdlr(struct task *t, void *ctx, unsigned int state)
 				goto err;
 
 			quic_rx_packet_refinc(pkt);
-			ret = qc_lstnr_pkt_rcv(pos, end, pkt, first_pkt, dgram);
+			qc_lstnr_pkt_rcv(pos, end, pkt, first_pkt, dgram);
 			first_pkt = 0;
 			pos += pkt->len;
 			quic_rx_packet_refdec(pkt);
-			if (ret == -1)
-				/* If the packet length could not be found, we cannot continue. */
-				break;
 		} while (pos < end);
 
 		/* Increasing the received bytes counter by the UDP datagram length
