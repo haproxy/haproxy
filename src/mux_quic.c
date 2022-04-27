@@ -555,20 +555,13 @@ static void qc_release(struct qcc *qcc)
 	TRACE_LEAVE(QMUX_EV_QCC_END);
 }
 
-/* Prepare a STREAM frame for <qcs> instance. First, transfer data from
- * <payload> to <out> buffer. The STREAM frame payload points to the <out>
- * buffer. The frame is then pushed to <frm_list>. If <fin> is set, and the
- * <payload> buf is emptied after transfer, FIN bit is set on the STREAM frame.
- * Transfer is automatically adjusted to not exceed the stream flow-control
- * limit. <max_data> must contains the current sum offsets for the connection.
- * This is useful to not exceed the connection flow-control limit when using
- * repeatdly this function on multiple streams before passing the data to the
- * lower layer.
+/* Transfer as much as possible data on <qcs> from <in> to <out>. <max_data> is
+ * the current flow-control limit on the connection which must not be exceeded.
  *
- * Returns the total bytes of newly transferred data. It may be 0 if none.
+ * Returns the total bytes of transferred data.
  */
 static int qcs_xfer_data(struct qcs *qcs, struct buffer *out,
-                         struct buffer *payload, uint64_t max_data)
+                         struct buffer *in, uint64_t max_data)
 {
 	struct qcc *qcc = qcs->qcc;
 	int left, to_xfer;
@@ -596,7 +589,7 @@ static int qcs_xfer_data(struct qcs *qcs, struct buffer *out,
 	BUG_ON_HOT(qcs->tx.offset < qcs->tx.sent_offset);
 
 	left = qcs->tx.offset - qcs->tx.sent_offset;
-	to_xfer = QUIC_MIN(b_data(payload), b_room(out));
+	to_xfer = QUIC_MIN(b_data(in), b_room(out));
 
 	BUG_ON_HOT(qcs->tx.offset > qcs->tx.msd);
 	/* do not exceed flow control limit */
@@ -611,7 +604,7 @@ static int qcs_xfer_data(struct qcs *qcs, struct buffer *out,
 	if (!left && !to_xfer)
 		goto out;
 
-	total = b_force_xfer(out, payload, to_xfer);
+	total = b_force_xfer(out, in, to_xfer);
 
  out:
 	{
@@ -625,6 +618,12 @@ static int qcs_xfer_data(struct qcs *qcs, struct buffer *out,
 	return total;
 }
 
+/* Prepare a STREAM frame for <qcs> instance using <out> as payload. The frame
+ * is appended in <frm_list>. Set <fin> if this is supposed to be the last
+ * stream frame.
+ *
+ * Returns the length of the STREAM frame or a negative error code.
+ */
 static int qcs_build_stream_frm(struct qcs *qcs, struct buffer *out, char fin,
                                 struct list *frm_list)
 {
