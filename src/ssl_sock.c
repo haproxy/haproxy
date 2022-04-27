@@ -122,6 +122,7 @@ struct global_ssl global_ssl = {
 #ifdef DEFAULT_SSL_MAX_RECORD
 	.max_record = DEFAULT_SSL_MAX_RECORD,
 #endif
+	.hard_max_record = 0,
 	.default_dh_param = SSL_DEFAULT_DH_PARAM,
 	.ctx_cache = DEFAULT_SSL_CTX_CACHE,
 	.capture_buffer_size = 0,
@@ -6567,6 +6568,9 @@ static size_t ssl_sock_from_buf(struct connection *conn, void *xprt_ctx, const s
 		try = b_contig_data(buf, done);
 		if (try > count)
 			try = count;
+
+		if (global_ssl.hard_max_record && try > global_ssl.hard_max_record)
+			try = global_ssl.hard_max_record;
 
 		if (!(flags & CO_SFL_STREAMER) &&
 		    !(ctx->xprt_st & SSL_SOCK_SEND_UNLIMITED) &&

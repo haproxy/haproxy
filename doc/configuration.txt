@@ -1118,9 +1118,10 @@ The following keywords are supported in the "global" section :
    - tune.sndbuf.client
    - tune.sndbuf.server
    - tune.ssl.cachesize
+   - tune.ssl.force-private-cache
+   - tune.ssl.hard-maxrecord
    - tune.ssl.keylog
    - tune.ssl.lifetime
-   - tune.ssl.force-private-cache
    - tune.ssl.maxrecord
    - tune.ssl.default-dh-param
    - tune.ssl.ssl-ctx-cache-size
@@ -2903,6 +2904,12 @@ tune.ssl.force-private-cache
   this case, adding a first layer of hash-based load balancing before the SSL
   layer might limit the impact of the lack of session sharing.
 
+tune.ssl.hard-maxrecord <number>
+  Sets the maximum amount of bytes passed to SSL_write() at any time. Default
+  value 0 means there is no limit. In contrast to tune.ssl.maxrecord this
+  settings will not be adjusted dynamically. Smaller records may decrease
+  throughput, but may be required when dealing with low-footprint clients.
+
 tune.ssl.keylog { on | off }
   This option activates the logging of the TLS keys. It should be used with
   care as it will consume more memory per SSL session and could decrease
@@ -2950,18 +2957,19 @@ tune.ssl.lifetime <timeout>
   being used for too long.
 
 tune.ssl.maxrecord <number>
-  Sets the maximum amount of bytes passed to SSL_write() at a time. Default
-  value 0 means there is no limit. Over SSL/TLS, the client can decipher the
-  data only once it has received a full record. With large records, it means
-  that clients might have to download up to 16kB of data before starting to
-  process them. Limiting the value can improve page load times on browsers
-  located over high latency or low bandwidth networks. It is suggested to find
-  optimal values which fit into 1 or 2 TCP segments (generally 1448 bytes over
-  Ethernet with TCP timestamps enabled, or 1460 when timestamps are disabled),
-  keeping in mind that SSL/TLS add some overhead. Typical values of 1419 and
-  2859 gave good results during tests. Use "strace -e trace=write" to find the
-  best value. HAProxy will automatically switch to this setting after an idle
-  stream has been detected (see tune.idletimer above).
+  Sets the maximum amount of bytes passed to SSL_write() at the beginning of
+  the data transfer. Default value 0 means there is no limit. Over SSL/TLS,
+  the client can decipher the data only once it has received a full record.
+  With large records, it means that clients might have to download up to 16kB
+  of data before starting to process them. Limiting the value can improve page
+  load times on browsers located over high latency or low bandwidth networks.
+  It is suggested to find optimal values which fit into 1 or 2 TCP segments
+  (generally 1448 bytes over Ethernet with TCP timestamps enabled, or 1460 when
+  timestamps are disabled), keeping in mind that SSL/TLS add some overhead.
+  Typical values of 1419 and 2859 gave good results during tests. Use
+  "strace -e trace=write" to find the best value. HAProxy will automatically
+  switch to this setting after an idle stream has been detected (see
+  tune.idletimer above). See also tune.ssl.hard-maxrecord.
 
 tune.ssl.default-dh-param <number>
   Sets the maximum size of the Diffie-Hellman parameters used for generating

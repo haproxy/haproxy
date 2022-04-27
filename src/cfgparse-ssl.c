@@ -268,6 +268,8 @@ static int ssl_parse_global_int(char **args, int section_type, struct proxy *cur
 		target = &global.tune.sslcachesize;
 	else if (strcmp(args[0], "tune.ssl.maxrecord") == 0)
 		target = (int *)&global_ssl.max_record;
+	else if (strcmp(args[0], "tune.ssl.hard-maxrecord") == 0)
+		target = (int *)&global_ssl.hard_max_record;
 	else if (strcmp(args[0], "tune.ssl.ssl-ctx-cache-size") == 0)
 		target = &global_ssl.ctx_cache;
 	else if (strcmp(args[0], "maxsslconn") == 0)
@@ -1942,6 +1944,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.ssl.force-private-cache",  ssl_parse_global_private_cache },
 	{ CFG_GLOBAL, "tune.ssl.lifetime", ssl_parse_global_lifetime },
 	{ CFG_GLOBAL, "tune.ssl.maxrecord", ssl_parse_global_int },
+	{ CFG_GLOBAL, "tune.ssl.hard-maxrecord", ssl_parse_global_int },
 	{ CFG_GLOBAL, "tune.ssl.ssl-ctx-cache-size", ssl_parse_global_int },
 	{ CFG_GLOBAL, "tune.ssl.capture-cipherlist-size", ssl_parse_global_capture_buffer },
 	{ CFG_GLOBAL, "tune.ssl.capture-buffer-size", ssl_parse_global_capture_buffer },

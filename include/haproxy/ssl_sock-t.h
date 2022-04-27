@@ -275,6 +275,7 @@ struct global_ssl {
 	int private_cache; /* Force to use a private session cache even if nbproc > 1 */
 	unsigned int life_time;   /* SSL session lifetime in seconds */
 	unsigned int max_record; /* SSL max record size */
+	unsigned int hard_max_record; /* SSL max record size hard limit */
 	unsigned int default_dh_param; /* SSL maximum DH parameter size */
 	int ctx_cache; /* max number of entries in the ssl_ctx cache. */
 	int capture_buffer_size; /* Size of the capture buffer. */
