@@ -69,6 +69,8 @@ struct h3 {
 DECLARE_STATIC_POOL(pool_head_h3, "h3", sizeof(struct h3));
 
 struct h3s {
+	int demux_frame_len;
+	int demux_frame_type;
 };
 
 DECLARE_STATIC_POOL(pool_head_h3s, "h3s", sizeof(struct h3s));
@@ -213,10 +215,20 @@ static int h3_data_to_htx(struct qcs *qcs, struct buffer *buf, uint64_t len,
 	BUG_ON(!appbuf);
 	htx = htx_from_buf(appbuf);
 
+	if (len > b_data(buf)) {
+		len = b_data(buf);
+		fin = 0;
+	}
+
+	head = b_head(buf);
  retry:
 	htx_space = htx_free_data_space(htx);
-	if (!htx_space || htx_space < len) {
-		ABORT_NOW(); /* TODO handle this case properly */
+	if (!htx_space)
+		goto out;
+
+	if (len > htx_space) {
+		len = htx_space;
+		fin = 0;
 	}
 
 	contig = b_contig_data(buf, contig);
@@ -230,10 +242,11 @@ static int h3_data_to_htx(struct qcs *qcs, struct buffer *buf, uint64_t len,
 	htx_sent += htx_add_data(htx, ist2(head, len));
 	BUG_ON(htx_sent < len);
 
-	if (fin)
+	if (fin && len == htx_sent)
 		htx->flags |= HTX_FL_EOM;
-	htx_to_buf(htx, appbuf);
 
+ out:
+	htx_to_buf(htx, appbuf);
 	return htx_sent;
 }
 
@@ -244,6 +257,7 @@ static int h3_data_to_htx(struct qcs *qcs, struct buffer *buf, uint64_t len,
 static int h3_decode_qcs(struct qcs *qcs, int fin, void *ctx)
 {
 	struct buffer *rxbuf = &qcs->rx.buf;
+	struct h3s *h3s = qcs->ctx;
 	ssize_t ret;
 
 	h3_debug_printf(stderr, "%s: STREAM ID: %lu\n", __func__, qcs->id);
@@ -251,26 +265,29 @@ static int h3_decode_qcs(struct qcs *qcs, int fin, void *ctx)
 		return 0;
 
 	while (b_data(rxbuf)) {
-		size_t hlen;
 		uint64_t ftype, flen;
 		struct buffer b;
 		char last_stream_frame = 0;
 
 		/* Work on a copy of <rxbuf> */
 		b = h3_b_dup(rxbuf);
-		hlen = h3_decode_frm_header(&ftype, &flen, &b);
-		if (!hlen)
-			break;
+		if (!h3s->demux_frame_len) {
+			size_t hlen = h3_decode_frm_header(&ftype, &flen, &b);
+			if (!hlen)
+				break;
 
-		h3_debug_printf(stderr, "%s: ftype: %llu, flen: %llu\n", __func__,
-		        (unsigned long long)ftype, (unsigned long long)flen);
+			h3_debug_printf(stderr, "%s: ftype: %lu, flen: %lu\n",
+			                __func__, ftype, flen);
+
+			b_del(rxbuf, hlen);
+			h3s->demux_frame_type = ftype;
+			h3s->demux_frame_len = flen;
+		}
+
+		flen = h3s->demux_frame_len;
+		ftype = h3s->demux_frame_type;
 		if (flen > b_data(&b) && !b_full(rxbuf))
 			break;
-
-		/* TODO handle full rxbuf */
-		BUG_ON(flen > b_size(rxbuf));
-
-		b_del(rxbuf, hlen);
 		last_stream_frame = (fin && flen == b_data(rxbuf));
 
 		switch (ftype) {
@@ -300,6 +317,8 @@ static int h3_decode_qcs(struct qcs *qcs, int fin, void *ctx)
 			break;
 
 		b_del(rxbuf, ret);
+		BUG_ON(h3s->demux_frame_len < ret);
+		h3s->demux_frame_len -= ret;
 	}
 
 	return 0;
@@ -734,6 +753,9 @@ static int h3_attach(struct qcs *qcs)
 		return 1;
 
 	qcs->ctx = h3s;
+	h3s->demux_frame_len = 0;
+	h3s->demux_frame_type = 0;
+
 	return 0;
 }
 
