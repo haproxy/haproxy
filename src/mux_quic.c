@@ -116,6 +116,7 @@ struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
 	qcs->qcc = qcc;
 	qcs->cs = NULL;
 	qcs->flags = QC_SF_NONE;
+	qcs->ctx = NULL;
 
 	/* allocate transport layer stream descriptor
 	 *
@@ -126,6 +127,10 @@ struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
 	if (!qcs->stream)
 		goto err;
 
+	if (qcc->app_ops->attach) {
+		if (qcc->app_ops->attach(qcs))
+			goto err;
+	}
 
 	qcs->endp = cs_endpoint_new();
 	if (!qcs->endp) {
@@ -169,6 +174,9 @@ struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
 	return qcs;
 
  err:
+	if (qcs->ctx && qcc->app_ops->detach)
+		qcc->app_ops->detach(qcs);
+
 	if (qcs->stream)
 		qc_stream_desc_release(qcs->stream);
 
@@ -187,6 +195,9 @@ void qcs_free(struct qcs *qcs)
 
 	BUG_ON(!qcs->qcc->strms[qcs_id_type(qcs->id)].nb_streams);
 	--qcs->qcc->strms[qcs_id_type(qcs->id)].nb_streams;
+
+	if (qcs->ctx && qcs->qcc->app_ops->detach)
+		qcs->qcc->app_ops->detach(qcs);
 
 	qc_stream_desc_release(qcs->stream);
 

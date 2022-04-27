@@ -98,6 +98,7 @@ struct qcs {
 	struct conn_stream *cs;
 	struct cs_endpoint *endp;
 	uint32_t flags;      /* QC_SF_* */
+	void *ctx;           /* app-ops context */
 
 	struct {
 		struct eb_root frms; /* received frames ordered by their offsets */
@@ -126,9 +127,11 @@ struct qcs {
 /* QUIC application layer operations */
 struct qcc_app_ops {
 	int (*init)(struct qcc *qcc);
+	int (*attach)(struct qcs *qcs);
 	int (*attach_ruqs)(struct qcs *qcs, void *ctx);
 	int (*decode_qcs)(struct qcs *qcs, int fin, void *ctx);
 	size_t (*snd_buf)(struct conn_stream *cs, struct buffer *buf, size_t count, int flags);
+	void (*detach)(struct qcs *qcs);
 	int (*finalize)(void *ctx);
 	int (*is_active)(const struct qcc *qcc, void *ctx);
 	void (*release)(void *ctx);
