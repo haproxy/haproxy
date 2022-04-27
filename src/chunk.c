@@ -82,10 +82,8 @@ static int alloc_trash_buffers_per_thread()
 static void free_trash_buffers_per_thread()
 {
 	chunk_destroy(&trash);
-	free(trash_buf2);
-	free(trash_buf1);
-	trash_buf2 = NULL;
-	trash_buf1 = NULL;
+	ha_free(&trash_buf2);
+	ha_free(&trash_buf1);
 }
 
 /* Initialize the trash buffers. It returns 0 if an error occurred. */
@@ -309,6 +307,7 @@ int chunk_strcasecmp(const struct buffer *chk, const char *str)
 
 REGISTER_PER_THREAD_ALLOC(alloc_trash_buffers_per_thread);
 REGISTER_PER_THREAD_FREE(free_trash_buffers_per_thread);
+REGISTER_POST_DEINIT(free_trash_buffers_per_thread);
 
 /*
  * Local variables:
