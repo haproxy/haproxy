@@ -1717,6 +1717,13 @@ static inline void qc_requeue_nacked_pkt_tx_frms(struct quic_conn *qc,
 		}
 		else {
 			TRACE_PROTO("to resend frame", QUIC_EV_CONN_PRSAFRM, qc, frm);
+			if (QUIC_FT_STREAM_8 <= frm->type && frm->type <= QUIC_FT_STREAM_F) {
+				/* Mark this STREAM frame as lost. A look up their stream descriptor
+				 * will be performed to check the stream is not consumed or released.
+				 */
+				fprintf(stderr, "LOST STREAM FRAME\n");
+				frm->flags = QUIC_FL_TX_FRAME_LOST;
+			}
 			LIST_APPEND(&tmp, &frm->list);
 		}
 	}
@@ -5541,6 +5548,37 @@ static inline int qc_build_frms(struct list *outlist, struct list *inlist,
 			break;
 
 		case QUIC_FT_STREAM_8 ... QUIC_FT_STREAM_F:
+			if (cf->flags & QUIC_FL_TX_FRAME_LOST) {
+				struct eb64_node *node = NULL;
+				struct qc_stream_desc *stream_desc = NULL;
+				struct quic_stream *strm = &cf->stream;
+
+				/* As this frame has been already lost, ensure the stream is always
+				 * available or the range of this frame is not consumed before
+				 * resending it.
+				 */
+				node = eb64_lookup(&qc->streams_by_id, strm->id);
+				if (!node) {
+					TRACE_PROTO("released stream", QUIC_EV_CONN_PRSAFRM, qc, strm);
+					LIST_DELETE(&cf->list);
+					pool_free(pool_head_quic_frame, cf);
+					continue;
+				}
+
+				stream_desc = eb64_entry(node, struct qc_stream_desc, by_id);
+				if (strm->offset.key + strm->len <= stream_desc->ack_offset) {
+					TRACE_PROTO("ignored frame frame in already acked range",
+					            QUIC_EV_CONN_PRSAFRM, qc, strm);
+					LIST_DELETE(&cf->list);
+					pool_free(pool_head_quic_frame, cf);
+					continue;
+				}
+				else if (strm->offset.key < stream_desc->ack_offset) {
+					strm->offset.key = stream_desc->ack_offset;
+					TRACE_PROTO("updated partially acked frame",
+					            QUIC_EV_CONN_PRSAFRM, qc, strm);
+				}
+			}
 			/* Note that these frames are accepted in short packets only without
 			 * "Length" packet field. Here, <*len> is used only to compute the
 			 * sum of the lengths of the already built frames for this packet.

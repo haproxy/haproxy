@@ -96,6 +96,8 @@ enum quic_frame_type {
 
 /* Flag a TX frame as acknowledged */
 #define QUIC_FL_TX_FRAME_ACKED             0x01
+/* Flag a TX frame as lost */
+#define QUIC_FL_TX_FRAME_LOST              0x02
 
 #define QUIC_STREAM_FRAME_TYPE_FIN_BIT     0x01
 #define QUIC_STREAM_FRAME_TYPE_LEN_BIT     0x02
