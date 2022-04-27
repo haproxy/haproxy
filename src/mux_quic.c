@@ -105,35 +105,32 @@ INITCALL1(STG_REGISTER, trace_register_source, TRACE_SOURCE);
 struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
 {
 	struct qcs *qcs;
-	struct qc_stream_desc *stream;
 
 	TRACE_ENTER(QMUX_EV_QCS_NEW, qcc->conn);
 
 	qcs = pool_alloc(pool_head_qcs);
 	if (!qcs)
-		goto out;
+		return NULL;
+
+	qcs->stream = NULL;
+	qcs->qcc = qcc;
+	qcs->cs = NULL;
+	qcs->flags = QC_SF_NONE;
 
 	/* allocate transport layer stream descriptor
 	 *
 	 * TODO qc_stream_desc is only useful for Tx buffering. It should not
 	 * be required for unidirectional remote streams.
 	 */
-	stream = qc_stream_desc_new(id, qcs, qcc->conn->handle.qc);
-	if (!stream) {
-		pool_free(pool_head_qcs, qcs);
-		qcs = NULL;
-		goto out;
-	}
+	qcs->stream = qc_stream_desc_new(id, qcs, qcc->conn->handle.qc);
+	if (!qcs->stream)
+		goto err;
 
-	qcs->stream = stream;
-	qcs->qcc = qcc;
-	qcs->cs = NULL;
-	qcs->flags = QC_SF_NONE;
 
 	qcs->endp = cs_endpoint_new();
 	if (!qcs->endp) {
 		pool_free(pool_head_qcs, qcs);
-		return NULL;
+		goto err;
 	}
 	qcs->endp->target = qcs;
 	qcs->endp->ctx = qcc->conn;
@@ -166,6 +163,13 @@ struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
  out:
 	TRACE_LEAVE(QMUX_EV_QCS_NEW, qcc->conn, qcs);
 	return qcs;
+
+ err:
+	if (qcs->stream)
+		qc_stream_desc_release(qcs->stream);
+
+	pool_free(pool_head_qcs, qcs);
+	return NULL;
 }
 
 /* Free a qcs. This function must only be done to remove a stream on allocation
