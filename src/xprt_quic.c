@@ -5042,8 +5042,12 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 			goto err;
 		}
 
-		if (pkt->type == QUIC_PACKET_TYPE_INITIAL &&
-		    dgram->len < QUIC_INITIAL_PACKET_MINLEN) {
+		if (pkt->type == QUIC_PACKET_TYPE_0RTT && !l->bind_conf->ssl_conf.early_data) {
+			TRACE_PROTO("0-RTT packet not supported", QUIC_EV_CONN_LPKT, qc);
+			drop_no_con = 1;
+		}
+		else if (pkt->type == QUIC_PACKET_TYPE_INITIAL &&
+		         dgram->len < QUIC_INITIAL_PACKET_MINLEN) {
 			TRACE_PROTO("Too short datagram with an Initial packet", QUIC_EV_CONN_LPKT, qc);
 			drop_no_con = 1;
 		}
