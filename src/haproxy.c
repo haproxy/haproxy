@@ -2557,6 +2557,7 @@ void deinit(void)
 	struct post_server_check_fct *pscf, *pscfb;
 	struct post_check_fct *pcf, *pcfb;
 	struct post_proxy_check_fct *ppcf, *ppcfb;
+	struct pre_check_fct *prcf, *prcfb;
 	int cur_fd;
 
 	/* At this point the listeners state is weird:
@@ -2710,6 +2711,11 @@ void deinit(void)
 	list_for_each_entry_safe(ppcf, ppcfb, &post_proxy_check_list, list) {
 		LIST_DELETE(&ppcf->list);
 		free(ppcf);
+	}
+
+	list_for_each_entry_safe(prcf, prcfb, &pre_check_list, list) {
+		LIST_DELETE(&prcf->list);
+		free(prcf);
 	}
 
 	list_for_each_entry_safe(tif, tifb, &per_thread_init_list, list) {
