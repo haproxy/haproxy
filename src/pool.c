@@ -837,8 +837,14 @@ void pool_destroy_all()
 {
 	struct pool_head *entry, *back;
 
-	list_for_each_entry_safe(entry, back, &pools, list)
+	list_for_each_entry_safe(entry, back, &pools, list) {
+		/* there's only one occurrence of each pool in the list,
+		 * and we're existing instead of looping on the whole
+		 * list just to decrement users, force it to 1 here.
+		 */
+		entry->users = 1;
 		pool_destroy(entry);
+	}
 }
 
 /* This function dumps memory usage information into the trash buffer. */
