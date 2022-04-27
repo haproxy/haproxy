@@ -112,6 +112,8 @@ static int h3_headers_to_htx(struct qcs *qcs, struct buffer *buf, uint64_t len,
 	struct ist authority = IST_NULL;
 	int hdr_idx;
 
+	/* TODO support buffer wrapping */
+	BUG_ON(b_contig_data(buf, 0) != b_data(buf));
 	if (qpack_decode_fs((const unsigned char *)b_head(buf), len, tmp, list) < 0)
 		return 1;
 
@@ -198,22 +200,30 @@ static int h3_data_to_htx(struct qcs *qcs, struct buffer *buf, uint64_t len,
 {
 	struct buffer *appbuf;
 	struct htx *htx = NULL;
-	size_t htx_sent;
+	size_t contig = 0, htx_sent = 0;
 	int htx_space;
+	char *head;
 
 	appbuf = qc_get_buf(qcs, &qcs->rx.app_buf);
 	BUG_ON(!appbuf);
 	htx = htx_from_buf(appbuf);
 
+ retry:
 	htx_space = htx_free_data_space(htx);
 	if (!htx_space || htx_space < len) {
 		ABORT_NOW(); /* TODO handle this case properly */
 	}
 
-	htx_sent = htx_add_data(htx, ist2(b_head(buf), len));
-	if (htx_sent < len) {
-		ABORT_NOW(); /* TODO handle this case properly */
+	contig = b_contig_data(buf, contig);
+	if (len > contig) {
+		htx_sent = htx_add_data(htx, ist2(b_head(buf), contig));
+		head = b_orig(buf);
+		len -= contig;
+		goto retry;
 	}
+
+	htx_sent += htx_add_data(htx, ist2(head, len));
+	BUG_ON(htx_sent < len);
 
 	if (fin)
 		htx->flags |= HTX_FL_EOM;
