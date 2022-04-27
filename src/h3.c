@@ -95,7 +95,7 @@ static inline size_t h3_decode_frm_header(uint64_t *ftype, uint64_t *flen,
  * in a local HTX buffer and transfer to the conn-stream layer. <fin> must be
  * set if this is the last data to transfer from this stream.
  *
- * Returns 0 on success else non-zero.
+ * Returns the number of bytes handled or a negative error code.
  */
 static int h3_headers_to_htx(struct qcs *qcs, struct buffer *buf, uint64_t len,
                              char fin)
@@ -115,7 +115,7 @@ static int h3_headers_to_htx(struct qcs *qcs, struct buffer *buf, uint64_t len,
 	/* TODO support buffer wrapping */
 	BUG_ON(b_contig_data(buf, 0) != b_data(buf));
 	if (qpack_decode_fs((const unsigned char *)b_head(buf), len, tmp, list) < 0)
-		return 1;
+		return -1;
 
 	qc_get_buf(qcs, &htx_buf);
 	BUG_ON(!b_size(&htx_buf));
@@ -147,7 +147,7 @@ static int h3_headers_to_htx(struct qcs *qcs, struct buffer *buf, uint64_t len,
 
 	sl = htx_add_stline(htx, HTX_BLK_REQ_SL, flags, meth, path, ist("HTTP/3.0"));
 	if (!sl)
-		return 1;
+		return -1;
 
 	if (fin)
 		sl->flags |= HTX_SL_F_BODYLESS;
@@ -178,7 +178,7 @@ static int h3_headers_to_htx(struct qcs *qcs, struct buffer *buf, uint64_t len,
 
 	cs = qc_attach_cs(qcs, &htx_buf);
 	if (!cs)
-		return 1;
+		return -1;
 
 	/* buffer is transferred to conn_stream and set to NULL
 	 * except on stream creation error.
@@ -186,14 +186,14 @@ static int h3_headers_to_htx(struct qcs *qcs, struct buffer *buf, uint64_t len,
 	b_free(&htx_buf);
 	offer_buffers(NULL, 1);
 
-	return 0;
+	return len;
 }
 
 /* Copy from buffer <buf> a H3 DATA frame of length <len> in QUIC stream <qcs>
  * HTX buffer. <fin> must be set if this is the last data to transfer from this
  * stream.
  *
- * Returns 0 on success else non-zero
+ * Returns the number of bytes handled or a negative error code.
  */
 static int h3_data_to_htx(struct qcs *qcs, struct buffer *buf, uint64_t len,
                           char fin)
@@ -229,7 +229,7 @@ static int h3_data_to_htx(struct qcs *qcs, struct buffer *buf, uint64_t len,
 		htx->flags |= HTX_FL_EOM;
 	htx_to_buf(htx, appbuf);
 
-	return 0;
+	return htx_sent;
 }
 
 /* Decode <qcs> remotely initiated bidi-stream. <fin> must be set to indicate
@@ -239,7 +239,7 @@ static int h3_data_to_htx(struct qcs *qcs, struct buffer *buf, uint64_t len,
 static int h3_decode_qcs(struct qcs *qcs, int fin, void *ctx)
 {
 	struct buffer *rxbuf = &qcs->rx.buf;
-	int ret;
+	ssize_t ret;
 
 	h3_debug_printf(stderr, "%s: STREAM ID: %lu\n", __func__, qcs->id);
 	if (!b_data(rxbuf))
@@ -272,23 +272,29 @@ static int h3_decode_qcs(struct qcs *qcs, int fin, void *ctx)
 		case H3_FT_DATA:
 			ret = h3_data_to_htx(qcs, rxbuf, flen, last_stream_frame);
 			/* TODO handle error reporting. Stream closure required. */
-			if (ret) { ABORT_NOW(); }
+			if (ret < 0) { ABORT_NOW(); }
 			break;
 		case H3_FT_HEADERS:
 			ret = h3_headers_to_htx(qcs, rxbuf, flen, last_stream_frame);
 			/* TODO handle error reporting. Stream closure required. */
-			if (ret) { ABORT_NOW(); }
+			if (ret < 0) { ABORT_NOW(); }
 			break;
 		case H3_FT_PUSH_PROMISE:
 			/* Not supported */
+			ret = MIN(b_data(rxbuf), flen);
 			break;
 		default:
 			/* draft-ietf-quic-http34 9. Extensions to HTTP/3
 			 * unknown frame types MUST be ignored
 			 */
 			h3_debug_printf(stderr, "ignore unknown frame type 0x%lx\n", ftype);
+			ret = MIN(b_data(rxbuf), flen);
 		}
-		b_del(rxbuf, flen);
+
+		if (!ret)
+			break;
+
+		b_del(rxbuf, ret);
 	}
 
 	return 0;
