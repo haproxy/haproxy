@@ -68,6 +68,11 @@ struct h3 {
 
 DECLARE_STATIC_POOL(pool_head_h3, "h3", sizeof(struct h3));
 
+struct h3s {
+};
+
+DECLARE_STATIC_POOL(pool_head_h3s, "h3s", sizeof(struct h3s));
+
 /* Simple function to duplicate a buffer */
 static inline struct buffer h3_b_dup(struct buffer *b)
 {
@@ -720,6 +725,18 @@ size_t h3_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t count, int 
 	return total;
 }
 
+static int h3_attach(struct qcs *qcs)
+{
+	struct h3s *h3s;
+
+	h3s = pool_alloc(pool_head_h3s);
+	if (!h3s)
+		return 1;
+
+	qcs->ctx = h3s;
+	return 0;
+}
+
 /* Finalize the initialization of remotely initiated uni-stream <qcs>.
  * Return 1 if succeeded, 0 if not. In this latter case, set the ->err h3 error
  * to inform the QUIC mux layer of the encountered error.
@@ -778,6 +795,13 @@ static int h3_attach_ruqs(struct qcs *qcs, void *ctx)
 	}
 
 	return 1;
+}
+
+static void h3_detach(struct qcs *qcs)
+{
+	struct h3s *h3s = qcs->ctx;
+	pool_free(pool_head_h3s, h3s);
+	qcs->ctx = NULL;
 }
 
 static int h3_finalize(void *ctx)
@@ -928,9 +952,11 @@ static int h3_is_active(const struct qcc *qcc, void *ctx)
 /* HTTP/3 application layer operations */
 const struct qcc_app_ops h3_ops = {
 	.init        = h3_init,
+	.attach      = h3_attach,
 	.attach_ruqs = h3_attach_ruqs,
 	.decode_qcs  = h3_decode_qcs,
 	.snd_buf     = h3_snd_buf,
+	.detach      = h3_detach,
 	.finalize    = h3_finalize,
 	.is_active   = h3_is_active,
 	.release     = h3_release,
