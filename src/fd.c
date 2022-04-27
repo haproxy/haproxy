@@ -363,17 +363,22 @@ void fd_delete(int fd)
 		_fd_delete_orphan(fd);
 }
 
-/* makes the new fd non-blocking and clears all other O_* flags;
- * this is meant to be used on new FDs. Returns -1 on failure.
+/* makes the new fd non-blocking and clears all other O_* flags; this is meant
+ * to be used on new FDs. Returns -1 on failure. The result is disguised at the
+ * end because some callers need to be able to ignore it regardless of the libc
+ * attributes.
  */
 int fd_set_nonblock(int fd)
 {
 	int ret = fcntl(fd, F_SETFL, O_NONBLOCK);
 
-	return ret;
+	return DISGUISE(ret);
 }
 
-/* sets the close-on-exec flag on fd; returns -1 on failure. */
+/* sets the close-on-exec flag on fd; returns -1 on failure. The result is
+ * disguised at the end because some callers need to be able to ignore it
+ * regardless of the libc attributes.
+ */
 int fd_set_cloexec(int fd)
 {
 	int flags, ret;
@@ -381,7 +386,7 @@ int fd_set_cloexec(int fd)
 	flags = fcntl(fd, F_GETFD);
 	flags |= FD_CLOEXEC;
 	ret = fcntl(fd, F_SETFD, flags);
-	return ret;
+	return DISGUISE(ret);
 }
 
 /*
