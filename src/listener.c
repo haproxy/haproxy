@@ -188,6 +188,18 @@ static int accept_queue_init()
 
 REGISTER_CONFIG_POSTPARSER("multi-threaded accept queue", accept_queue_init);
 
+static void accept_queue_deinit()
+{
+	int i;
+
+	for (i = 0; i < global.nbthread; i++) {
+		if (accept_queue_rings[i].tasklet)
+			tasklet_free(accept_queue_rings[i].tasklet);
+	}
+}
+
+REGISTER_POST_DEINIT(accept_queue_deinit);
+
 #endif // USE_THREAD
 
 /* Memory allocation and initialization of the per_thr field.
