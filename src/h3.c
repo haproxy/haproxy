@@ -321,6 +321,10 @@ static int h3_decode_qcs(struct qcs *qcs, int fin, void *ctx)
 		h3s->demux_frame_len -= ret;
 	}
 
+	/* TODO may be useful to wakeup the MUX if blocked due to full buffer.
+	 * However, currently, io-cb of MUX does not handle Rx.
+	 */
+
 	return 0;
 }
 

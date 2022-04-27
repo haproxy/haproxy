@@ -2139,7 +2139,7 @@ static int qc_handle_bidi_strm_frm(struct quic_rx_packet *pkt,
 	struct quic_rx_strm_frm *frm;
 	struct eb64_node *frm_node;
 	struct qcs *qcs = NULL;
-	size_t done;
+	size_t done, buf_was_full;
 	int ret;
 
 	ret = qcc_recv(qc->qcc, strm_frm->id, strm_frm->len,
@@ -2176,6 +2176,13 @@ static int qc_handle_bidi_strm_frm(struct quic_rx_packet *pkt,
 			return 1;
 	}
 
+	/* Decode the data if buffer is already full as it's not possible to
+	 * dequeue a frame in this condition.
+	 */
+	if (b_full(&qcs->rx.buf))
+		qcc_decode_qcs(qc->qcc, qcs);
+
+ retry:
 	/* Frame received (partially or not) by the mux.
 	 * If there is buffered frame for next offset, it may be possible to
 	 * receive them now.
@@ -2212,8 +2219,16 @@ static int qc_handle_bidi_strm_frm(struct quic_rx_packet *pkt,
 		pool_free(pool_head_quic_rx_strm_frm, frm);
 	}
 
+	buf_was_full = b_full(&qcs->rx.buf);
 	/* Decode the received data. */
 	qcc_decode_qcs(qc->qcc, qcs);
+
+	/* Buffer was full so the reception was stopped. Now the buffer has
+	 * space available thanks to qcc_decode_qcs(). We can now retry to
+	 * handle more data.
+	 */
+	if (buf_was_full && !b_full(&qcs->rx.buf))
+		goto retry;
 
 	return 1;
 }
