@@ -5025,10 +5025,17 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 	qc_parse_hd_form(pkt, *buf++, &long_header);
 	if (long_header) {
 		uint64_t len;
+		int drop_no_con = 0;
 
 		if (!quic_packet_read_long_header(&buf, end, pkt)) {
 			TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT);
 			goto err;
+		}
+
+		if (pkt->type == QUIC_PACKET_TYPE_INITIAL &&
+		    dgram->len < QUIC_INITIAL_PACKET_MINLEN) {
+			TRACE_PROTO("Too short datagram with an Initial packet", QUIC_EV_CONN_LPKT, qc);
+			drop_no_con = 1;
 		}
 
 		/* When multiple QUIC packets are coalesced on the same UDP datagram,
@@ -5108,6 +5115,8 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 
 		payload = buf;
 		pkt->len = len + payload - beg;
+		if (drop_no_con)
+			goto drop_no_con;
 
 		qc = retrieve_qc_conn_from_cid(pkt, l, &dgram->saddr);
 		if (!qc) {
@@ -5322,6 +5331,7 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 	if (conn_ctx)
 		tasklet_wakeup(conn_ctx->wait_event.tasklet);
 
+ drop_no_con:
 	TRACE_LEAVE(QUIC_EV_CONN_LPKT, qc ? qc : NULL, pkt);
 
 	return pkt->len;
