@@ -375,4 +375,6 @@ static void deinit_errors_buffers()
 	ha_free(&usermsgs_ctx.str.area);
 }
 
+/* errors might be used in threads and even before forking, thus 2 deinit */
 REGISTER_PER_THREAD_FREE(deinit_errors_buffers);
+REGISTER_POST_DEINIT(deinit_errors_buffers);
