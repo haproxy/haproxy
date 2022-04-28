@@ -1246,7 +1246,6 @@ static __inline int do_l7_retry(struct stream *s, struct conn_stream *cs)
 	req->flags &= ~(CF_WRITE_ERROR | CF_WRITE_TIMEOUT | CF_SHUTW | CF_SHUTW_NOW);
 	res->flags &= ~(CF_READ_ERROR | CF_READ_TIMEOUT | CF_SHUTR | CF_EOI | CF_READ_NULL | CF_SHUTR_NOW);
 	res->analysers &= AN_RES_FLT_END;
-	cs->endp->flags &= ~CS_EP_RXBLK_SHUT;
 	s->conn_err_type = STRM_ET_NONE;
 	s->flags &= ~(SF_CONN_EXP | SF_ERR_MASK | SF_FINST_MASK);
 	s->conn_exp = TICK_ETERNITY;
@@ -1261,6 +1260,7 @@ static __inline int do_l7_retry(struct stream *s, struct conn_stream *cs)
 			s->flags |= SF_ERR_INTERNAL;
 		return -1;
 	}
+	cs->endp->flags &= ~CS_EP_RXBLK_SHUT;
 
 	b_free(&req->buf);
 	/* Swap the L7 buffer with the channel buffer */

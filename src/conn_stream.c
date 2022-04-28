@@ -392,7 +392,8 @@ static void cs_detach_endp(struct conn_stream **csp)
 
 	if (cs->endp) {
 		/* the cs is the only one one the endpoint */
-		cs_endpoint_init(cs->endp);
+		cs->endp->target = NULL;
+		cs->endp->ctx = NULL;
 		cs->endp->flags |= CS_EP_DETACHED;
 	}
 
@@ -442,12 +443,17 @@ void cs_destroy(struct conn_stream *cs)
 /* Resets the conn-stream endpoint. It happens when the app layer want to renew
  * its endpoint. For a connection retry for instance. If a mux or an applet is
  * attached, a new endpoint is created. Returns -1 on error and 0 on sucess.
+ *
+ * Only CS_EP_ERROR flag is removed on the endpoint. Orther flags are preserved.
+ * It is the caller responsibility to remove other flags if needed.
  */
 int cs_reset_endp(struct conn_stream *cs)
 {
 	struct cs_endpoint *new_endp;
 
 	BUG_ON(!cs->app);
+
+	cs->endp->flags &= ~CS_EP_ERROR;
 	if (!__cs_endp_target(cs)) {
 		/* endpoint not attached or attached to a mux with no
 		 * target. Thus the endpoint will not be release but just
@@ -465,6 +471,7 @@ int cs_reset_endp(struct conn_stream *cs)
 		cs->endp->flags |= CS_EP_ERROR;
 		return -1;
 	}
+	new_endp->flags = cs->endp->flags;
 
 	/* The app is still attached, the cs will not be released */
 	cs_detach_endp(&cs);

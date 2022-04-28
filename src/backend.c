@@ -1577,6 +1577,7 @@ static int connect_server(struct stream *s)
 					srv_conn = NULL;
 					if (cs_reset_endp(s->csb) < 0)
 						return SF_ERR_INTERNAL;
+					s->csb->endp->flags &= CS_EP_DETACHED;
 				}
 			}
 			else

@@ -2761,6 +2761,7 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 					s->srv_error(s, s->csb);
 				return 1;
 			}
+			s->csb->endp->flags &= CS_EP_DETACHED;
 		}
 
 		sockaddr_free(&s->csb->dst);
