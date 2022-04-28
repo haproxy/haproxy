@@ -4025,11 +4025,25 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 	    !(qc->flags & QUIC_FL_CONN_IMMEDIATE_CLOSE))
 		goto out;
 
-	if (zero_rtt && next_qel && !MT_LIST_ISEMPTY(&next_qel->rx.pqpkts) &&
-	    (next_qel->tls_ctx.flags & QUIC_FL_TLS_SECRETS_SET)) {
-		qel = next_qel;
-		next_qel = NULL;
-		goto next_level;
+	if (next_qel && next_qel == &qc->els[QUIC_TLS_ENC_LEVEL_EARLY_DATA] &&
+	    !MT_LIST_ISEMPTY(&next_qel->rx.pqpkts)) {
+	    if ((next_qel->tls_ctx.flags & QUIC_FL_TLS_SECRETS_SET)) {
+			qel = next_qel;
+			next_qel = NULL;
+			goto next_level;
+		}
+		else {
+			struct quic_rx_packet *pkt;
+			struct mt_list *elt1, elt2;
+			struct quic_enc_level *aqel = &qc->els[QUIC_TLS_ENC_LEVEL_EARLY_DATA];
+
+			/* Drop these 0-RTT packets */
+			TRACE_PROTO("drop all 0-RTT packets", QUIC_EV_CONN_PHPKTS, qc);
+			mt_list_for_each_entry_safe(pkt, &aqel->rx.pqpkts, list, elt1, elt2) {
+				MT_LIST_DELETE_SAFE(elt1);
+				quic_rx_packet_refdec(pkt);
+			}
+		}
 	}
 
 	st = qc->state;
