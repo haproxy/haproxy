@@ -1164,9 +1164,9 @@ static int httpclient_parse_global_verify(char **args, int section_type, struct 
 		return -1;
 
 	if (strcmp(args[1],"none") == 0)
-		httpclient_ssl_verify = SSL_SERVER_VERIFY_NONE;
+		httpclient_ssl_verify = SSL_SOCK_VERIFY_NONE;
 	else if (strcmp(args[1],"required") == 0)
-		httpclient_ssl_verify = SSL_SERVER_VERIFY_REQUIRED;
+		httpclient_ssl_verify = SSL_SOCK_VERIFY_REQUIRED;
 	else {
 		ha_alert("parsing [%s:%d] : '%s' expects 'none' or 'required' as argument.\n", file, line, args[0]);
 		return -1;
