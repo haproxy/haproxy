@@ -27,9 +27,11 @@
 #include <haproxy/http_ana-t.h>
 #include <haproxy/http_client.h>
 #include <haproxy/http_htx.h>
+#include <haproxy/http_rules.h>
 #include <haproxy/htx.h>
 #include <haproxy/log.h>
 #include <haproxy/proxy.h>
+#include <haproxy/resolvers.h>
 #include <haproxy/server.h>
 #include <haproxy/ssl_sock-t.h>
 #include <haproxy/sock_inet.h>
@@ -516,6 +518,7 @@ struct appctx *httpclient_start(struct httpclient *hc)
 	struct ist host = IST_NULL;
 	enum http_scheme scheme;
 	int port;
+	int doresolve = 0;
 
 	/* if the client was started and not ended, an applet is already
 	 * running, we shouldn't try anything */
@@ -529,7 +532,8 @@ struct appctx *httpclient_start(struct httpclient *hc)
 
 	ist2str(trash.area, host);
 	ss_dst = str2ip2(trash.area, &ss_url, 0);
-	sock_inet_set_port(&ss_url, port);
+	if (!ss_dst)  /* couldn't get an IP from that, try to resolve */
+		doresolve = 1;
 
 	/* The HTTP client will be created in the same thread as the caller,
 	 * avoiding threading issues */
@@ -567,8 +571,15 @@ struct appctx *httpclient_start(struct httpclient *hc)
 	if (hc->dst)
 		ss_dst = hc->dst;
 
-	/* TODO: if ss_dst == NULL, must resolve the domain */
+	if (doresolve) /* when resolving, must set-dst from 0.0.0.0  */
+		ss_dst = str2ip2("0.0.0.0", &ss_url, 0);
 
+	sock_inet_set_port(&ss_url, port);
+
+	if (!ss_dst) {
+		ha_alert("httpclient: Failed to initialize address %s:%d.\n", __FUNCTION__, __LINE__);
+		goto out_free_sess;
+	}
 
 	if (!sockaddr_alloc(&addr, ss_dst, sizeof(*hc->dst)))
 		goto out_free_sess;
@@ -1027,6 +1038,39 @@ static struct applet httpclient_applet = {
 	.release = httpclient_applet_release,
 };
 
+
+static int httpclient_resolve_init()
+{
+	struct act_rule *rule;
+	int i;
+	const char *http_rules[][11] = {
+	       { "set-var(txn.hc_ip)", "dst", "" },
+	       { "do-resolve(txn.hc_ip,default)", "hdr(Host),lower", "if", "{", "var(txn.hc_ip)", "-m", "ip", "0.0.0.0", "}", "" },
+	       { "return", "status", "503", "if", "{", "var(txn.hc_ip)", "-m", "ip", "0.0.0.0", "}", "" },
+	       { "capture", "var(txn.hc_ip)", "len", "40", "" },
+	       { "set-dst", "var(txn.hc_ip)", "" },
+	       { "" }
+	};
+
+	/* if the "default" resolver does not exist, simply ignore resolving */
+	if (!find_resolvers_by_id("default"))
+		return 0;
+
+
+	for (i = 0; *http_rules[i][0] != '\0'; i++) {
+		rule = parse_http_req_cond((const char **)http_rules[i], "httpclient", 0, httpclient_proxy);
+		if (!rule) {
+			ha_alert("Couldn't setup the httpclient resolver.\n");
+			return 1;
+		}
+		LIST_APPEND(&httpclient_proxy->http_req_rules, &rule->list);
+	}
+
+	return 0;
+}
+
+
+
 /*
  * Initialize the proxy for the HTTP client with 2 servers, one for raw HTTP,
  * the other for HTTPS.
@@ -1107,6 +1151,9 @@ static int httpclient_precheck()
 	/* add the proxy in the proxy list only if everything is successful */
 	httpclient_proxy->next = proxies_list;
 	proxies_list = httpclient_proxy;
+
+	if (httpclient_resolve_init() != 0)
+		goto err;
 
 	/* link the 2 servers in the proxy */
 	httpclient_srv_raw->next = httpclient_proxy->srv;
