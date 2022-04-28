@@ -889,7 +889,7 @@ static int _qc_send_qcs(struct qcs *qcs, struct list *frms,
 		fin = !!(fin && !b_data(buf));
 
 		ret = qcs_build_stream_frm(qcs, out, fin, frms);
-		BUG_ON(ret < 0); /* TODO handle this properly */
+		if (ret < 0) { ABORT_NOW(); /* TODO handle this properly */ }
 	}
 
 	return xfer;
