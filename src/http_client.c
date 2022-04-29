@@ -716,7 +716,7 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 						} else {
 							struct htx_ret ret;
 
-							ret = htx_xfer_blks(htx, hc_htx, hc_htx->data, HTX_BLK_UNUSED);
+							ret = htx_xfer_blks(htx, hc_htx, htx_used_space(hc_htx), HTX_BLK_UNUSED);
 							channel_add_input(req, ret.ret);
 
 							/* we must copy the EOM if we empty the buffer */
