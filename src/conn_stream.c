@@ -805,7 +805,7 @@ static void cs_app_chk_snd_conn(struct conn_stream *cs)
 
 	BUG_ON(!cs_conn(cs));
 
-	if (unlikely(!cs_state_in(cs->state, CS_SB_CON|CS_SB_RDY|CS_SB_EST) ||
+	if (unlikely(!cs_state_in(cs->state, CS_SB_RDY|CS_SB_EST) ||
 	    (oc->flags & CF_SHUTW)))
 		return;
 
