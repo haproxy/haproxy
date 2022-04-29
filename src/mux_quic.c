@@ -345,7 +345,7 @@ struct qcs *qcc_get_qcs(struct qcc *qcc, uint64_t id)
  * to process the frame content.
  *
  * Returns a code indicating how the frame was handled.
- * - 0: frame received completly and can be dropped.
+ * - 0: frame received completely and can be dropped.
  * - 1: frame not received but can be dropped.
  * - 2: frame cannot be handled, either partially or not at all. <done>
  *   indicated the number of bytes handled. The rest should be buffered.
@@ -374,7 +374,7 @@ int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
 
 	if (offset + len <= qcs->rx.offset) {
 		TRACE_DEVEL("leaving on already received offset", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV, qcc->conn, qcs);
-		return 1;
+		return 0;
 	}
 
 	/* Last frame already handled for this stream. */

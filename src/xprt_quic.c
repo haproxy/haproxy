@@ -2255,14 +2255,16 @@ static int qc_handle_bidi_strm_frm(struct quic_rx_packet *pkt,
 	               strm_frm->offset.key, strm_frm->fin,
 	               (char *)strm_frm->data, &qcs, &done);
 
-	/* invalid or already received frame */
+	/* invalid frame */
 	if (ret == 1)
+		return 0;
+
+	/* already fully received offset */
+	if (ret == 0 && done == 0)
 		return 1;
 
+	/* frame not handled (partially or completely) must be buffered */
 	if (ret == 2) {
-		/* frame cannot be parsed at the moment and should be
-		 * buffered.
-		 */
 		frm = new_quic_rx_strm_frm(strm_frm, pkt);
 		if (!frm) {
 			TRACE_PROTO("Could not alloc RX STREAM frame",
@@ -2270,6 +2272,7 @@ static int qc_handle_bidi_strm_frm(struct quic_rx_packet *pkt,
 			return 0;
 		}
 
+		/* frame partially handled by the MUX */
 		if (done) {
 			BUG_ON(done >= frm->len); /* must never happen */
 			frm->len -= done;
@@ -2304,6 +2307,8 @@ static int qc_handle_bidi_strm_frm(struct quic_rx_packet *pkt,
 		ret = qcc_recv(qc->qcc, qcs->id, frm->len,
 		               frm->offset_node.key, frm->fin,
 		               (char *)frm->data, &qcs, &done);
+
+		BUG_ON(ret == 1); /* must never happen for buffered frames */
 
 		/* interrupt the parsing if the frame cannot be handled
 		 * entirely for the moment only.
@@ -2423,10 +2428,22 @@ static int qc_handle_uni_strm_frm(struct quic_rx_packet *pkt,
 	return 1;
 }
 
+/* Returns 1 on success or 0 on error. On error, the packet containing the
+ * frame must not be acknowledged.
+ */
 static inline int qc_handle_strm_frm(struct quic_rx_packet *pkt,
                                      struct quic_stream *strm_frm,
                                      struct quic_conn *qc)
 {
+	/* RFC9000 13.1.  Packet Processing
+	 *
+	 * A packet MUST NOT be acknowledged until packet protection has been
+	 * successfully removed and all frames contained in the packet have
+	 * been processed. For STREAM frames, this means the data has been
+	 * enqueued in preparation to be received by the application protocol,
+	 * but it does not require that data be delivered and consumed.
+	 */
+
 	if (strm_frm->id & QCS_ID_DIR_BIT)
 		return qc_handle_uni_strm_frm(pkt, strm_frm, qc);
 	else
