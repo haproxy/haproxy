@@ -765,7 +765,7 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 				hc->res.vsn = istdup(htx_sl_res_vsn(sl));
 				hc->res.reason = istdup(htx_sl_res_reason(sl));
 				sz = htx_get_blksz(blk);
-				co_set_data(res, co_data(res) - sz);
+				c_rew(res, sz);
 				htx_remove_blk(htx, blk);
 				/* caller callback */
 				if (hc->ops.res_stline)
