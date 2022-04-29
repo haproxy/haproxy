@@ -81,5 +81,7 @@ struct quic_pktns *quic_pto_pktns(struct quic_conn *qc,
                                   int handshake_completed,
                                   unsigned int *pto);
 
+void qc_packet_loss_lookup(struct quic_pktns *pktns, struct quic_conn *qc,
+                           struct list *lost_pkts);
 #endif /* USE_QUIC */
 #endif /* _PROTO_QUIC_LOSS_H */
