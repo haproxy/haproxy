@@ -33,6 +33,12 @@
 #define QUIC_TIMER_GRANULARITY            1U /* 1ms   */
 #define QUIC_LOSS_INITIAL_RTT           333U /* 333ms */
 
+/* QUIC loss time threshold expressed an RTT multiplier
+ * (QUIC_LOSS_TIME_THRESHOLD_MULTIPLICAND / QUIC_LOSS_TIME_THRESHOLD_DIVISOR)
+ */
+#define QUIC_LOSS_TIME_THRESHOLD_MULTIPLICAND 9
+#define QUIC_LOSS_TIME_THRESHOLD_DIVISOR      8
+
 /* Note that all the unit of variables for QUIC LOSS dectections
  * is the tick.
  */

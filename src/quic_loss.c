@@ -154,7 +154,8 @@ void qc_packet_loss_lookup(struct quic_pktns *pktns, struct quic_conn *qc,
 
 	ql = &qc->path->loss;
 	loss_delay = QUIC_MAX(ql->latest_rtt, ql->srtt >> 3);
-	loss_delay = QUIC_MAX(loss_delay, MS_TO_TICKS(QUIC_TIMER_GRANULARITY));
+	loss_delay = QUIC_MAX(loss_delay, MS_TO_TICKS(QUIC_TIMER_GRANULARITY)) *
+		QUIC_LOSS_TIME_THRESHOLD_MULTIPLICAND / QUIC_LOSS_TIME_THRESHOLD_DIVISOR;
 
 	node = eb64_first(pkts);
 	while (node) {
