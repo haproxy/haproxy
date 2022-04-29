@@ -652,11 +652,9 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 	struct htx_blk *blk = NULL;
 	struct htx *htx;
 	struct htx_sl *sl = NULL;
-	int32_t pos;
 	uint32_t hdr_num;
 	uint32_t sz;
 	int ret;
-
 
 	while (1) {
 
@@ -797,33 +795,25 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 						goto more;
 
 					hdr_num = 0;
-
-					for (pos = htx_get_head(htx);  pos != -1; pos = htx_get_next(htx, pos)) {
-						struct htx_blk *blk = htx_get_blk(htx, pos);
+					blk = htx_get_head_blk(htx);
+					while (blk) {
 						enum htx_blk_type type = htx_get_blk_type(blk);
 						uint32_t sz = htx_get_blksz(blk);
 
-						if (type == HTX_BLK_UNUSED) {
-							c_rew(res, sz);
-							htx_remove_blk(htx, blk);
-						}
+						c_rew(res, sz);
+						blk = htx_remove_blk(htx, blk);
 
-						if (type == HTX_BLK_HDR) {
+						if (type == HTX_BLK_UNUSED)
+							continue;
+						else if (type == HTX_BLK_HDR) {
 							hdrs[hdr_num].n = istdup(htx_get_blk_name(htx, blk));
 							hdrs[hdr_num].v = istdup(htx_get_blk_value(htx, blk));
-							if (!isttest(hdrs[hdr_num].v) || !isttest(hdrs[hdr_num].n))
-								goto end;
-							c_rew(res, sz);
-							htx_remove_blk(htx, blk);
 							hdr_num++;
 						}
-
-						/* create a NULL end of array and leave the loop */
-						if (type == HTX_BLK_EOH) {
+						else if (type == HTX_BLK_EOH) {
+							/* create a NULL end of array and leave the loop */
 							hdrs[hdr_num].n = IST_NULL;
 							hdrs[hdr_num].v = IST_NULL;
-							c_rew(res, sz);
-							htx_remove_blk(htx, blk);
 							break;
 						}
 					}
@@ -869,8 +859,8 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 					goto process_data;
 
 				/* decapsule the htx data to raw data */
-				for (pos = htx_get_head(htx); pos != -1; pos = htx_get_next(htx, pos)) {
-					struct htx_blk *blk = htx_get_blk(htx, pos);
+				blk = htx_get_head_blk(htx);
+				while (blk) {
 					enum htx_blk_type type = htx_get_blk_type(blk);
 					size_t count = co_data(res);
 					uint32_t blksz = htx_get_blksz(blk);
@@ -892,7 +882,7 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 						c_rew(res, vlen);
 
 						if (vlen == blksz)
-							htx_remove_blk(htx, blk);
+							blk = htx_remove_blk(htx, blk);
 						else
 							htx_cut_data_blk(htx, blk, vlen);
 
@@ -909,7 +899,7 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 
 						/* remove any block which is not a data block */
 						c_rew(res, blksz);
-						htx_remove_blk(htx, blk);
+						blk = htx_remove_blk(htx, blk);
 					}
 				}
 
