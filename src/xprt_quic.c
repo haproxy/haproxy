@@ -2738,9 +2738,12 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct ssl_sock_ctx *ct
 			} else if (!(stream->id & QUIC_STREAM_FRAME_ID_INITIATOR_BIT))
 				goto err;
 
-			/* At the application layer the connection may have already been closed. */
+			/* The upper layer may not be allocated.
+			 *
+			 * TODO emit a CONNECTION_CLOSE if mux already freed.
+			 */
 			if (qc->mux_state != QC_MUX_READY)
-				break;
+				goto err;
 
 			if (!qc_handle_strm_frm(pkt, stream, qc))
 				goto err;
