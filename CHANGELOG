@@ -1,6 +1,99 @@
 ChangeLog :
 ===========
 
+2022/04/30 : 2.6-dev8
+    - BUG/MINOR: quic: fix use-after-free with trace on ACK consume
+    - BUG/MINOR: rules: Forbid captures in defaults section if used by a backend
+    - BUG/MEDIUM: rules: Be able to use captures defined in defaults section
+    - BUG/MINOR: rules: Fix check_capture() function to use the right rule arguments
+    - BUG/MINOR: http-act: make release_http_redir() more robust
+    - BUG/MINOR: sample: add missing use_backend/use-server contexts in smp_resolve_args
+    - MINOR: sample: don't needlessly call c_none() in sample_fetch_as_type()
+    - MINOR: sample: make the bool type cast to bin
+    - MEDIUM: backend: add new "balance hash <expr>" algorithm
+    - MINOR: init: add global setting "fd-hard-limit" to bound system limits
+    - BUILD: pollers: use an initcall to register the pollers
+    - BUILD: xprt: use an initcall to register the transport layers
+    - BUILD: thread: use initcall instead of a constructor
+    - BUILD: http: remove the two unused constructors in rules and ana
+    - CLEANUP: compression: move the default setting of maxzlibmem to defaults
+    - MINOR: tree-wide: always consider EWOULDBLOCK in addition to EAGAIN
+    - BUG/MINOR: connection: "connection:close" header added despite 'close-spread-time'
+    - MINOR: fd: add functions to set O_NONBLOCK and FD_CLOEXEC
+    - CLEANUP: tree-wide: use fd_set_nonblock() and fd_set_cloexec()
+    - CLEANUP: tree-wide: remove 25 occurrences of unneeded fcntl.h
+    - REGTESTS: fix the race conditions in be2dec.vtc ad field.vtc
+    - REGTESTS: webstats: remove unused stats socket in /tmp
+    - MEDIUM: httpclient: disable SSL when the ca-file couldn't be loaded
+    - BUG/MINOR: httpclient/lua: error when the httpclient_start() fails
+    - BUG/MINOR: ssl: free the cafile entries on deinit
+    - BUG/MINOR: ssl: memory leak when trying to load a directory with ca-file
+    - MEDIUM: httpclient: re-enable the verify by default
+    - BUG/MEDIUM: ssl/cli: fix yielding in show_cafile_detail
+    - BUILD: compiler: properly distinguish weak and global symbols
+    - MINOR: connection: Add way to disable active connection closing during soft-stop
+    - BUG/MEDIUM: http-ana: Fix memleak in redirect rules with ignore-empty option
+    - CLEANUP: Destroy `http_err_chunks` members during deinit
+    - BUG/MINOR: resolvers: Fix memory leak in resolvers_deinit()
+    - MINOR: Call deinit_and_exit(0) for `haproxy -vv`
+    - BUILD: fd: disguise the fd_set_nonblock/cloexec result
+    - BUG/MINOR: pools: make sure to also destroy shared pools in pool_destroy_all()
+    - MINOR: ssl: add a new global option "tune.ssl.hard-maxrecord"
+    - CLEANUP: errors: also call deinit_errors_buffers() on deinit()
+    - CLEANUP: chunks: release trash also in deinit
+    - CLEANUP: deinit: release the pre-check callbacks
+    - CLEANUP: deinit: release the config postparsers
+    - CLEANUP: listeners/deinit: release accept queue tasklets on deinit
+    - CLEANUP: connections/deinit: destroy the idle_conns tasks
+    - BUG/MINOR: mux-quic: fix build in release mode
+    - MINOR: mux-quic: adjust comment on emission function
+    - MINOR: mux-quic: remove unused bogus qcc_get_stream()
+    - BUG/MINOR: mux-quic: fix leak if cs alloc failure
+    - MINOR: mux-quic: count local flow-control stream limit on reception
+    - BUG/MINOR: h3: fix incomplete POST requests
+    - BUG/MEDIUM: h3: fix use-after-free on mux Rx buffer wrapping
+    - MINOR: mux-quic: partially copy Rx frame if almost full buf
+    - MINOR: h3: change frame demuxing API
+    - MINOR: mux-quic: add a app-layer context in qcs
+    - MINOR: h3: implement h3 stream context
+    - MINOR: h3: support DATA demux if buffer full
+    - MINOR: quic: decode as much STREAM as possible
+    - MINOR: quic: Improve qc_prep_pkts() flexibility
+    - MINOR: quic: Prepare quic_frame struct duplication
+    - MINOR: quic: Do not retransmit frames from coalesced packets
+    - MINOR: quic: Add traces about TX frame memory releasing
+    - MINOR: quic: process_timer() rework
+    - MEDIUM: quic: New functions for probing rework
+    - MEDIUM: quic: Retransmission functions rework
+    - MEDIUM: quic: qc_requeue_nacked_pkt_tx_frms() rework
+    - MINOR: quic: old data distinction for qc_send_app_pkt()
+    - MINOR: quic: Mark packets as probing with old data
+    - MEDIUM: quic: Mark copies of acknowledged frames as acknowledged
+    - MEDIUM: quic: Enable the new datagram probing process
+    - MINOR: quic: Do not send ACK frames when probing
+    - BUG/MINOR: quic: Wrong returned status by qc_build_frms()
+    - BUG/MINOR: quic: Avoid sending useless PADDING frame
+    - BUG/MINOR: quic: Traces fix about remaining frames upon packet build failure
+    - MINOR: quic: Wake up the mux to probe with new data
+    - BUG/MEDIUM: quic: Possible crash on STREAM frame loss
+    - BUG/MINOR: quic: Missing Initial packet length check
+    - CLEANUP: quic: Rely on the packet length set by qc_lstnr_pkt_rcv()
+    - MINOR: quic: Drop 0-RTT packets if not allowed
+    - BUG/MINOR: httpclient/ssl: use the correct verify constant
+    - BUG/MEDIUM: conn-stream: Don't erase endpoint flags on reset
+    - BUG/MEDIUM: httpclient: Fix loop consuming HTX blocks from the response channel
+    - BUG/MINOR: httpclient: Count metadata in size to transfer via htx_xfer_blks()
+    - MINOR: httpclient: Don't use co_set_data() to decrement output
+    - BUG/MINOR: conn_stream: do not confirm a connection from the frontend path
+    - MEDIUM: quic: do not ACK packet with STREAM if MUX not present
+    - MEDIUM: quic: do not ack packet with invalid STREAM
+    - MINOR: quic: Drop 0-RTT packets without secrets
+    - CLEANUP: quic: Remaining fprintf() debug trace
+    - MINOR: quic: moving code for QUIC loss detection
+    - BUG/MINOR: quic: Missing time threshold multiplifier for loss delay computation
+    - CI: github actions: update LibreSSL to 3.5.2
+    - SCRIPTS: announce-release: add URL of dev packages
+
 2022/04/23 : 2.6-dev7
     - BUILD: calltrace: fix wrong include when building with TRACE=1
     - MINOR: ssl: Use DH parameters defined in RFC7919 instead of hard coded ones
