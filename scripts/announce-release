@@ -223,6 +223,7 @@ fi
  echo "   Pending bugs     : http://www.haproxy.org/l/pending-bugs"
  echo "   Reviewed bugs    : http://www.haproxy.org/l/reviewed-bugs"
  echo "   Code reports     : http://www.haproxy.org/l/code-reports"
+ echo "   Latest builds    : http://www.haproxy.org/l/dev-packages"
 ) >> "$OUTPUT"
 
 # sign
