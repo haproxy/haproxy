@@ -284,6 +284,7 @@ typedef struct { } empty_t;
 #include <malloc/malloc.h>
 #define malloc_usable_size malloc_size
 #define HA_HAVE_MALLOC_ZONE
+#define TCP_KEEPIDLE TCP_KEEPALIVE
 #define TCP_INFO TCP_CONNECTION_INFO
 #define tcp_info tcp_connection_info
 #endif
