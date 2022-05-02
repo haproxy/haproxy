@@ -4365,6 +4365,8 @@ static struct quic_conn *qc_new_conn(unsigned int version, int ipv4,
 	/* RX part. */
 	qc->rx.bytes = 0;
 	qc->rx.buf = b_make(buf_area, QUIC_CONN_RX_BUFSZ, 0, 0);
+	for (i = 0; i < QCS_MAX_TYPES; i++)
+		qc->rx.strms[i].nb_streams = 0;
 
 	qc->nb_pkt_for_cc = 1;
 	qc->nb_pkt_since_cc = 0;

@@ -123,7 +123,7 @@ struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
 	 * TODO qc_stream_desc is only useful for Tx buffering. It should not
 	 * be required for unidirectional remote streams.
 	 */
-	qcs->stream = qc_stream_desc_new(id, qcs, qcc->conn->handle.qc);
+	qcs->stream = qc_stream_desc_new(id, type, qcs, qcc->conn->handle.qc);
 	if (!qcs->stream)
 		goto err;
 

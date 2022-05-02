@@ -743,6 +743,10 @@ struct quic_conn {
 		/* RX buffer */
 		struct buffer buf;
 		struct list pkt_list;
+		struct {
+			/* Number of open or closed streams */
+			uint64_t nb_streams;
+		} strms[QCS_MAX_TYPES];
 	} rx;
 	struct {
 		struct quic_tls_kp prv_rx;

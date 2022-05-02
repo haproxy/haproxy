@@ -20,7 +20,7 @@ DECLARE_STATIC_POOL(pool_head_quic_conn_stream_buf, "qc_stream_buf",
  *
  * Returns the newly allocated instance on success or else NULL.
  */
-struct qc_stream_desc *qc_stream_desc_new(uint64_t id, void *ctx,
+struct qc_stream_desc *qc_stream_desc_new(uint64_t id, enum qcs_type type, void *ctx,
                                           struct quic_conn *qc)
 {
 	struct qc_stream_desc *stream;
@@ -31,6 +31,7 @@ struct qc_stream_desc *qc_stream_desc_new(uint64_t id, void *ctx,
 
 	stream->by_id.key = id;
 	eb64_insert(&qc->streams_by_id, &stream->by_id);
+	qc->rx.strms[type].nb_streams++;
 	stream->qc = qc;
 
 	stream->buf = NULL;

@@ -3,11 +3,12 @@
 
 #ifdef USE_QUIC
 
+#include <haproxy/mux_quic-t.h>
 #include <haproxy/quic_stream-t.h>
 
 struct quic_conn;
 
-struct qc_stream_desc *qc_stream_desc_new(uint64_t id, void *ctx,
+struct qc_stream_desc *qc_stream_desc_new(uint64_t id, enum qcs_type, void *ctx,
                                           struct quic_conn *qc);
 void qc_stream_desc_release(struct qc_stream_desc *stream);
 int qc_stream_desc_ack(struct qc_stream_desc **stream, size_t offset, size_t len);
