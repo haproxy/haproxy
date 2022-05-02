@@ -283,6 +283,8 @@ static int sockpair_connect_server(struct connection *conn, int flags)
 {
 	int sv[2], fd, dst_fd = -1;
 
+	BUG_ON(!conn->dst);
+
 	/* the FD is stored in the sockaddr struct */
 	dst_fd = ((struct sockaddr_in *)conn->dst)->sin_addr.s_addr;
 

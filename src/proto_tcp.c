@@ -266,6 +266,8 @@ int tcp_connect_server(struct connection *conn, int flags)
 	int use_fastopen = 0;
 	struct sockaddr_storage *addr;
 
+	BUG_ON(!conn->dst);
+
 	conn->flags |= CO_FL_WAIT_L4_CONN; /* connection in progress */
 
 	switch (obj_type(conn->target)) {
@@ -286,11 +288,6 @@ int tcp_connect_server(struct connection *conn, int flags)
 				(CONNECT_CAN_USE_TFO | CONNECT_HAS_DATA));
 		break;
 	default:
-		conn->flags |= CO_FL_ERROR;
-		return SF_ERR_INTERNAL;
-	}
-
-	if (!conn->dst) {
 		conn->flags |= CO_FL_ERROR;
 		return SF_ERR_INTERNAL;
 	}
