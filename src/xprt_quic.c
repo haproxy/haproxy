@@ -2689,6 +2689,7 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct ssl_sock_ctx *ct
 		case QUIC_FT_STREAM_8 ... QUIC_FT_STREAM_F:
 		{
 			struct quic_stream *stream = &frm.stream;
+			unsigned nb_streams = qc->rx.strms[qcs_id_type(stream->id)].nb_streams;
 
 			if (qc_is_listener(ctx->qc)) {
 				if (stream->id & QUIC_STREAM_FRAME_ID_INITIATOR_BIT)
@@ -2696,12 +2697,17 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct ssl_sock_ctx *ct
 			} else if (!(stream->id & QUIC_STREAM_FRAME_ID_INITIATOR_BIT))
 				goto err;
 
-			/* The upper layer may not be allocated.
-			 *
-			 * TODO emit a CONNECTION_CLOSE if mux already freed.
-			 */
-			if (qc->mux_state != QC_MUX_READY)
-				goto err;
+			/* The upper layer may not be allocated. */
+			if (qc->mux_state != QC_MUX_READY) {
+				if ((stream->id >> QCS_ID_TYPE_SHIFT) < nb_streams) {
+					TRACE_PROTO("Already closed stream", QUIC_EV_CONN_PRSHPKT, qc);
+					break;
+				}
+				else {
+					TRACE_PROTO("Stream not found", QUIC_EV_CONN_PRSHPKT, qc);
+					goto err;
+				}
+			}
 
 			if (!qc_handle_strm_frm(pkt, stream, qc))
 				goto err;
