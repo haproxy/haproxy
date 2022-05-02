@@ -1308,8 +1308,13 @@ static size_t qc_rcv_buf(struct conn_stream *cs, struct buffer *buf,
 		}
 	}
 
-	if (ret)
+	/* TODO QUIC MUX iocb does not treat RX : following wake-up is thus
+	 * useless for the moment. This may causes freezing transfer on POST.
+	 */
+	if (ret) {
+		qcs->flags &= ~QC_SF_DEM_FULL;
 		tasklet_wakeup(qcs->qcc->wait_event.tasklet);
+	}
 
 	TRACE_LEAVE(QMUX_EV_STRM_RECV, qcs->qcc->conn, qcs);
 
