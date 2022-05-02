@@ -1349,13 +1349,9 @@ static int connect_server(struct stream *s)
 	 * it can be NULL for dispatch mode or transparent backend */
 	srv = objt_server(s->target);
 
-	if (!(s->flags & SF_ADDR_SET)) {
-		err = alloc_dst_address(&s->csb->dst, srv, s);
-		if (err != SRV_STATUS_OK)
-			return SF_ERR_INTERNAL;
-
-		s->flags |= SF_ADDR_SET;
-	}
+	err = alloc_dst_address(&s->csb->dst, srv, s);
+	if (err != SRV_STATUS_OK)
+		return SF_ERR_INTERNAL;
 
 	err = alloc_bind_address(&bind_addr, srv, s);
 	if (err != SRV_STATUS_OK)
@@ -1904,7 +1900,7 @@ int srv_redispatch_connect(struct stream *s)
 		 */
 		if (((s->flags & (SF_DIRECT|SF_FORCE_PRST)) == SF_DIRECT) &&
 		    (s->be->options & PR_O_REDISP)) {
-			s->flags &= ~(SF_DIRECT | SF_ASSIGNED | SF_ADDR_SET);
+			s->flags &= ~(SF_DIRECT | SF_ASSIGNED);
 			sockaddr_free(&s->csb->dst);
 			goto redispatch;
 		}

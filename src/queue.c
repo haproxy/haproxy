@@ -495,7 +495,7 @@ int pendconn_redistribute(struct server *s)
 
 		/* it's left to the dispatcher to choose a server */
 		__pendconn_unlink_srv(p);
-		p->strm_flags &= ~(SF_DIRECT | SF_ASSIGNED | SF_ADDR_SET);
+		p->strm_flags &= ~(SF_DIRECT | SF_ASSIGNED);
 
 		task_instant_wakeup(p->strm->task, TASK_WOKEN_RES);
 		xferred++;
@@ -595,11 +595,11 @@ int pendconn_dequeue(struct stream *strm)
 	/* the pendconn is not queued anymore and will not be so we're safe
 	 * to proceed.
 	 */
-	strm->flags &= ~(SF_DIRECT | SF_ASSIGNED | SF_ADDR_SET);
-	strm->flags |= p->strm_flags & (SF_DIRECT | SF_ASSIGNED | SF_ADDR_SET);
+	strm->flags &= ~(SF_DIRECT | SF_ASSIGNED);
+	strm->flags |= p->strm_flags & (SF_DIRECT | SF_ASSIGNED);
 
 	/* the entry might have been redistributed to another server */
-	if (!(strm->flags & SF_ADDR_SET))
+	if (!(strm->flags & SF_ASSIGNED))
 		sockaddr_free(&strm->csb->dst);
 
 	if (p->target) {

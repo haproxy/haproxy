@@ -917,7 +917,7 @@ static struct appctx *dns_session_create(struct dns_session *ds)
 	s->csb->dst = addr;
 	s->csb->flags |= CS_FL_NOLINGER;
 	s->target = &ds->dss->srv->obj_type;
-	s->flags = SF_ASSIGNED|SF_ADDR_SET;
+	s->flags = SF_ASSIGNED;
 
 	s->do_log = NULL;
 	s->uniq_id = 0;

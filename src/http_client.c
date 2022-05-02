@@ -536,7 +536,7 @@ struct appctx *httpclient_start(struct httpclient *hc)
 
 	s->csb->dst = addr;
 	s->csb->flags |= CS_FL_NOLINGER;
-	s->flags |= SF_ASSIGNED|SF_ADDR_SET;
+	s->flags |= SF_ASSIGNED;
 	s->res.flags |= CF_READ_DONTWAIT;
 
 	/* applet is waiting for data */

@@ -3209,7 +3209,7 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 	/* initiate an outgoing connection */
 	s->csb->dst = addr;
 	s->csb->flags |= CS_FL_NOLINGER;
-	s->flags = SF_ASSIGNED|SF_ADDR_SET;
+	s->flags = SF_ASSIGNED;
 	s->target = peer_session_target(peer, s);
 
 	s->do_log = NULL;

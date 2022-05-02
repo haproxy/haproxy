@@ -37,7 +37,7 @@
 /* Various Stream Flags, bits values 0x01 to 0x100 (shift 0) */
 #define SF_DIRECT	0x00000001	/* connection made on the server matching the client cookie */
 #define SF_ASSIGNED	0x00000002	/* no need to assign a server to this stream */
-#define SF_ADDR_SET	0x00000004	/* this stream's server address has been set */
+/* unused: 0x00000004 */
 #define SF_BE_ASSIGNED	0x00000008	/* a backend was assigned. Conns are accounted. */
 
 #define SF_FORCE_PRST	0x00000010	/* force persistence here, even if server is down */

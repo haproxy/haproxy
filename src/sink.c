@@ -660,7 +660,7 @@ static struct appctx *sink_forward_session_create(struct sink *sink, struct sink
 	s->csb->flags |= CS_FL_NOLINGER;
 
 	s->target = &sft->srv->obj_type;
-	s->flags = SF_ASSIGNED|SF_ADDR_SET;
+	s->flags = SF_ASSIGNED;
 
 	s->do_log = NULL;
 	s->uniq_id = 0;

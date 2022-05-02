@@ -402,7 +402,6 @@ void show_strm_flags(unsigned int f)
 	SHOW_FLAG(f, SF_MONITOR);
 	SHOW_FLAG(f, SF_FORCE_PRST);
 	SHOW_FLAG(f, SF_BE_ASSIGNED);
-	SHOW_FLAG(f, SF_ADDR_SET);
 	SHOW_FLAG(f, SF_ASSIGNED);
 	SHOW_FLAG(f, SF_DIRECT);
 
