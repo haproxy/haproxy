@@ -171,7 +171,7 @@ static inline int cs_alloc_ibuf(struct conn_stream *cs, struct buffer_wait *wait
  */
 static inline const struct sockaddr_storage *cs_src(struct conn_stream *cs)
 {
-	if (cs->flags & CS_FL_ADDR_FROM_SET)
+	if (cs->src)
 		return cs->src;
 	if (!(cs->flags & CS_FL_ISBACK))
 		return sess_src(strm_sess(__cs_strm(cs)));
@@ -191,7 +191,7 @@ static inline const struct sockaddr_storage *cs_src(struct conn_stream *cs)
  */
 static inline const struct sockaddr_storage *cs_dst(struct conn_stream *cs)
 {
-	if (cs->flags & CS_FL_ADDR_TO_SET)
+	if (cs->dst)
 		return cs->dst;
 	if (!(cs->flags & CS_FL_ISBACK))
 		return sess_dst(strm_sess(__cs_strm(cs)));
@@ -214,7 +214,7 @@ static inline int cs_get_src(struct conn_stream *cs)
 {
 	const struct sockaddr_storage *src = NULL;
 
-	if (cs->flags & CS_FL_ADDR_FROM_SET)
+	if (cs->src)
 		return 1;
 
 	if (!(cs->flags & CS_FL_ISBACK))
@@ -231,7 +231,6 @@ static inline int cs_get_src(struct conn_stream *cs)
 	if (!sockaddr_alloc(&cs->src, src, sizeof(*src)))
 		return 0;
 
-	cs->flags |= CS_FL_ADDR_FROM_SET;
 	return 1;
 }
 
@@ -245,7 +244,7 @@ static inline int cs_get_dst(struct conn_stream *cs)
 {
 	const struct sockaddr_storage *dst = NULL;
 
-	if (cs->flags & CS_FL_ADDR_TO_SET)
+	if (cs->dst)
 		return 1;
 
 	if (!(cs->flags & CS_FL_ISBACK))
@@ -262,7 +261,6 @@ static inline int cs_get_dst(struct conn_stream *cs)
 	if (!sockaddr_alloc(&cs->dst, dst, sizeof(*dst)))
 		return 0;
 
-	cs->flags |= CS_FL_ADDR_TO_SET;
 	return 1;
 }
 

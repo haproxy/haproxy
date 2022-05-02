@@ -230,8 +230,6 @@ void show_cs_flags(unsigned int f)
 	SHOW_FLAG(f, CS_FL_DONT_WAKE);
 	SHOW_FLAG(f, CS_FL_NOLINGER);
 	SHOW_FLAG(f, CS_FL_NOHALF);
-	SHOW_FLAG(f, CS_FL_ADDR_FROM_SET);
-	SHOW_FLAG(f, CS_FL_ADDR_TO_SET);
 	SHOW_FLAG(f, CS_FL_ISBACK);
 
 	if (f) {

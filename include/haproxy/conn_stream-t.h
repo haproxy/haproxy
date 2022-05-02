@@ -86,8 +86,8 @@ enum {
 	CS_FL_NONE          = 0x00000000,  /* Just for initialization purposes */
 	CS_FL_ISBACK        = 0x00000001,  /* Set for CS on back-side */
 
-	CS_FL_ADDR_FROM_SET = 0x00000002, /* source address is set */
-	CS_FL_ADDR_TO_SET   = 0x00000004, /* destination address is set */
+	/* not used: 0x00000002 */
+	/* not used: 0x00000004 */
 
 	CS_FL_NOLINGER      = 0x00000008,  /* may close without lingering. One-shot. */
 	CS_FL_NOHALF        = 0x00000010,  /* no half close, close both sides at once */
