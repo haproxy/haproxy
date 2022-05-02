@@ -241,7 +241,7 @@ static inline const struct sockaddr_storage *sess_src(struct session *sess)
 {
 	struct connection *cli_conn = objt_conn(sess->origin);
 
-	if (sess->flags & SESS_FL_ADDR_FROM_SET)
+	if (sess->src)
 		return sess->src;
 	if (cli_conn && conn_get_src(cli_conn))
 		return conn_src(cli_conn);
@@ -256,7 +256,7 @@ static inline const struct sockaddr_storage *sess_dst(struct session *sess)
 {
 	struct connection *cli_conn = objt_conn(sess->origin);
 
-	if (sess->flags & SESS_FL_ADDR_TO_SET)
+	if (sess->dst)
 		return sess->dst;
 	if (cli_conn && conn_get_dst(cli_conn))
 		return conn_dst(cli_conn);
@@ -274,7 +274,7 @@ static inline int sess_get_src(struct session *sess)
 	struct connection *cli_conn = objt_conn(sess->origin);
 	const struct sockaddr_storage *src = NULL;
 
-	if (sess->flags & SESS_FL_ADDR_FROM_SET)
+	if (sess->src)
 		return 1;
 
 	if (cli_conn && conn_get_src(cli_conn))
@@ -285,7 +285,6 @@ static inline int sess_get_src(struct session *sess)
 	if (!sockaddr_alloc(&sess->src, src, sizeof(*src)))
 		return 0;
 
-	sess->flags |= SESS_FL_ADDR_FROM_SET;
 	return 1;
 }
 
@@ -300,7 +299,7 @@ static inline int sess_get_dst(struct session *sess)
 	struct connection *cli_conn = objt_conn(sess->origin);
 	const struct sockaddr_storage *dst = NULL;
 
-	if (sess->flags & SESS_FL_ADDR_TO_SET)
+	if (sess->dst)
 		return 1;
 
 	if (cli_conn && conn_get_dst(cli_conn))
@@ -311,7 +310,6 @@ static inline int sess_get_dst(struct session *sess)
 	if (!sockaddr_alloc(&sess->dst, dst, sizeof(*dst)))
 		return 0;
 
-	sess->flags |= SESS_FL_ADDR_TO_SET;
 	return 1;
 }
 

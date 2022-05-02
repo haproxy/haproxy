@@ -885,7 +885,6 @@ int conn_recv_proxy(struct connection *conn, int flag)
 		((struct sockaddr_in *)sess->dst)->sin_family        = AF_INET;
 		((struct sockaddr_in *)sess->dst)->sin_addr.s_addr   = htonl(dst3);
 		((struct sockaddr_in *)sess->dst)->sin_port          = htons(dport);
-		sess->flags |= SESS_FL_ADDR_FROM_SET | SESS_FL_ADDR_TO_SET;
 	}
 	else if (memcmp(line, "TCP6 ", 5) == 0) {
 		u32 sport, dport;
@@ -949,7 +948,6 @@ int conn_recv_proxy(struct connection *conn, int flag)
 		((struct sockaddr_in6 *)sess->dst)->sin6_family        = AF_INET6;
 		memcpy(&((struct sockaddr_in6 *)sess->dst)->sin6_addr, &dst3, sizeof(struct in6_addr));
 		((struct sockaddr_in6 *)sess->dst)->sin6_port          = htons(dport);
-		sess->flags |= SESS_FL_ADDR_FROM_SET | SESS_FL_ADDR_TO_SET;
 	}
 	else if (memcmp(line, "UNKNOWN\r\n", 9) == 0) {
 		/* This can be a UNIX socket forwarded by an haproxy upstream */
@@ -997,7 +995,6 @@ int conn_recv_proxy(struct connection *conn, int flag)
 			((struct sockaddr_in *)sess->dst)->sin_family = AF_INET;
 			((struct sockaddr_in *)sess->dst)->sin_addr.s_addr = hdr_v2->addr.ip4.dst_addr;
 			((struct sockaddr_in *)sess->dst)->sin_port = hdr_v2->addr.ip4.dst_port;
-			sess->flags |= SESS_FL_ADDR_FROM_SET | SESS_FL_ADDR_TO_SET;
 			tlv_offset = PP2_HEADER_LEN + PP2_ADDR_LEN_INET;
 			break;
 		case 0x21:  /* TCPv6 */
@@ -1013,7 +1010,6 @@ int conn_recv_proxy(struct connection *conn, int flag)
 			((struct sockaddr_in6 *)sess->dst)->sin6_family = AF_INET6;
 			memcpy(&((struct sockaddr_in6 *)sess->dst)->sin6_addr, hdr_v2->addr.ip6.dst_addr, 16);
 			((struct sockaddr_in6 *)sess->dst)->sin6_port = hdr_v2->addr.ip6.dst_port;
-			sess->flags |= SESS_FL_ADDR_FROM_SET | SESS_FL_ADDR_TO_SET;
 			tlv_offset = PP2_HEADER_LEN + PP2_ADDR_LEN_INET6;
 			break;
 		}
@@ -1372,8 +1368,6 @@ int conn_recv_netscaler_cip(struct connection *conn, int flag)
 		((struct sockaddr_in *)sess->dst)->sin_family = AF_INET;
 		((struct sockaddr_in *)sess->dst)->sin_addr.s_addr = hdr_ip4->ip_dst.s_addr;
 		((struct sockaddr_in *)sess->dst)->sin_port = hdr_tcp->dest;
-
-		sess->flags |= SESS_FL_ADDR_FROM_SET | SESS_FL_ADDR_TO_SET;
 	}
 	else if (ip_ver == 6) {
 		struct ip6_hdr *hdr_ip6;
@@ -1405,8 +1399,6 @@ int conn_recv_netscaler_cip(struct connection *conn, int flag)
 		((struct sockaddr_in6 *)sess->dst)->sin6_family = AF_INET6;
 		((struct sockaddr_in6 *)sess->dst)->sin6_addr = hdr_ip6->ip6_dst;
 		((struct sockaddr_in6 *)sess->dst)->sin6_port = hdr_tcp->dest;
-
-		sess->flags |= SESS_FL_ADDR_FROM_SET | SESS_FL_ADDR_TO_SET;
 	}
 	else {
 		/* The protocol does not match something known (IPv4/IPv6) */
