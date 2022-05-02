@@ -352,8 +352,6 @@ static int sockpair_connect_server(struct connection *conn, int flags)
 
 	conn->flags &= ~CO_FL_WAIT_L4_CONN;
 
-	conn->flags |= CO_FL_ADDR_TO_SET;
-
 	/* Prepare to send a few handshakes related to the on-wire protocol. */
 	if (conn->send_proxy_ofs)
 		conn->flags |= CO_FL_SEND_PROXY;
@@ -484,7 +482,6 @@ struct connection *sockpair_accept_conn(struct listener *l, int *status)
 		/* just like with UNIX sockets, only the family is filled */
 		conn->src->ss_family = AF_UNIX;
 		conn->handle.fd = cfd;
-		conn->flags |= CO_FL_ADDR_FROM_SET;
 		ret = CO_AC_DONE;
 		goto done;
 	}

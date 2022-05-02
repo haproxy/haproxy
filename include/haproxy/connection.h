@@ -327,17 +327,13 @@ static inline void conn_force_unsubscribe(struct connection *conn)
 /* Returns the source address of the connection or NULL if not set */
 static inline const struct sockaddr_storage *conn_src(struct connection *conn)
 {
-	if (conn->flags & CO_FL_ADDR_FROM_SET)
-		return conn->src;
-	return NULL;
+	return conn->src;
 }
 
 /* Returns the destination address of the connection or NULL if not set */
 static inline const struct sockaddr_storage *conn_dst(struct connection *conn)
 {
-	if (conn->flags & CO_FL_ADDR_TO_SET)
-		return conn->dst;
-	return NULL;
+	return conn->dst;
 }
 
 /* Retrieves the connection's original source address. Returns non-zero on
@@ -346,7 +342,7 @@ static inline const struct sockaddr_storage *conn_dst(struct connection *conn)
  */
 static inline int conn_get_src(struct connection *conn)
 {
-	if (conn->flags & CO_FL_ADDR_FROM_SET)
+	if (conn->src)
 		return 1;
 
 	if (!conn_ctrl_ready(conn))
@@ -375,7 +371,6 @@ static inline int conn_get_src(struct connection *conn)
 	sockaddr_free(&conn->src);
 	return 0;
  done:
-	conn->flags |= CO_FL_ADDR_FROM_SET;
 	return 1;
 }
 
@@ -385,7 +380,7 @@ static inline int conn_get_src(struct connection *conn)
  */
 static inline int conn_get_dst(struct connection *conn)
 {
-	if (conn->flags & CO_FL_ADDR_TO_SET)
+	if (conn->dst)
 		return 1;
 
 	if (!conn_ctrl_ready(conn))
@@ -414,7 +409,6 @@ static inline int conn_get_dst(struct connection *conn)
 	sockaddr_free(&conn->dst);
 	return 0;
  done:
-	conn->flags |= CO_FL_ADDR_TO_SET;
 	return 1;
 }
 

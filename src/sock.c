@@ -116,7 +116,6 @@ struct connection *sock_accept_conn(struct listener *l, int *status)
 
 		conn->src = addr;
 		conn->handle.fd = cfd;
-		conn->flags |= CO_FL_ADDR_FROM_SET;
 		ret = CO_AC_DONE;
 		goto done;
 	}

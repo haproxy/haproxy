@@ -2088,10 +2088,10 @@ int conn_append_debug_info(struct buffer *buf, const struct connection *conn, co
 
 	chunk_appendf(buf, " %s/%s", conn_get_xprt_name(conn), conn_get_ctrl_name(conn));
 
-	if (conn->flags & CO_FL_ADDR_FROM_SET && addr_to_str(conn->src, addr, sizeof(addr)))
+	if (conn->src && addr_to_str(conn->src, addr, sizeof(addr)))
 		chunk_appendf(buf, " src=%s:%d", addr, get_host_port(conn->src));
 
-	if (conn->flags & CO_FL_ADDR_TO_SET && addr_to_str(conn->dst, addr, sizeof(addr)))
+	if (conn->dst && addr_to_str(conn->dst, addr, sizeof(addr)))
 		chunk_appendf(buf, " dst=%s:%d", addr, get_host_port(conn->dst));
 
 	return buf->data - old_len;

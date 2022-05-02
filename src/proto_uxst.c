@@ -336,8 +336,6 @@ static int uxst_connect_server(struct connection *conn, int flags)
 		conn->flags &= ~CO_FL_WAIT_L4_CONN;
 	}
 
-	conn->flags |= CO_FL_ADDR_TO_SET;
-
 	/* Prepare to send a few handshakes related to the on-wire protocol. */
 	if (conn->send_proxy_ofs)
 		conn->flags |= CO_FL_SEND_PROXY;

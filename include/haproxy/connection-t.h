@@ -100,8 +100,8 @@ enum {
 	CO_FL_WAIT_ROOM     = 0x00000800,  /* data sink is full */
 
 	/* These flags are used to report whether the from/to addresses are set or not */
-	CO_FL_ADDR_FROM_SET = 0x00001000,  /* addr.from is set */
-	CO_FL_ADDR_TO_SET   = 0x00002000,  /* addr.to is set */
+	/* unused: 0x00001000 */
+	/* unused: 0x00002000 */
 
 	CO_FL_EARLY_SSL_HS  = 0x00004000,  /* We have early data pending, don't start SSL handshake yet */
 	CO_FL_EARLY_DATA    = 0x00008000,  /* At least some of the data are early data */
