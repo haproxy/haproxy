@@ -40,6 +40,7 @@ static inline void appctx_init(struct appctx *appctx)
 	appctx->call_rate.curr_ctr = 0;
 	appctx->call_rate.prev_ctr = 0;
 	appctx->state = 0;
+	memset(&appctx->svc, 0, sizeof(appctx->svc));
 	LIST_INIT(&appctx->wait_entry);
 }
 
@@ -89,6 +90,25 @@ struct appctx *appctx_new(struct applet *applet, struct cs_endpoint *endp)
 	pool_free(pool_head_appctx, appctx);
   fail_appctx:
 	return NULL;
+}
+
+/* reserves a command context of at least <size> bytes in the <appctx>, for
+ * use by a CLI command or any regular applet. The pointer to this context is
+ * stored in ctx.svcctx and is returned. The caller doesn't need to release
+ * it as it's allocated from reserved space. If the size is larger than
+ * APPLET_MAX_SVCCTX a crash will occur (hence that will never happen outside
+ * of development).
+ *
+ * Note that the command does *not* initialize the area, so that it can easily
+ * be used upon each entry in a function. It's left to the initialization code
+ * to do it if needed. The CLI will always zero the whole area before calling
+ * a keyword's ->parse() function.
+ */
+void *applet_reserve_svcctx(struct appctx *appctx, size_t size)
+{
+	BUG_ON(size > APPLET_MAX_SVCCTX);
+	appctx->svcctx = &appctx->svc.storage;
+	return appctx->svcctx;
 }
 
 /* Callback used to wake up an applet when a buffer is available. The applet

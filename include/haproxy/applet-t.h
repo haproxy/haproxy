@@ -32,6 +32,9 @@
 /* flags for appctx->state */
 #define APPLET_WANT_DIE     0x01  /* applet was running and requested to die */
 
+/* Room for per-command context (mostly CLI commands but not only) */
+#define APPLET_MAX_SVCCTX 88
+
 struct appctx;
 struct proxy;
 struct conn_stream;
@@ -72,137 +75,153 @@ struct appctx {
 	struct freq_ctr call_rate;       /* appctx call rate */
 	struct list wait_entry;          /* entry in a list of waiters for an event (e.g. ring events) */
 
+	/* This anonymous union is temporary for 2.6 to avoid a new API change
+	 * after 2.6 while keeping the compatibility with pre-2.7 code.
+	 * The pointer seen by application code is appctx->svcctx. In 2.7 the
+	 * anonymous union will disappear and the struct "svc" will become
+	 * svc_storage, which is never accessed directly by application code.
+	 * The compatibility with the old appctx->ctx.* is preserved for now
+	 * and this union will disappear in 2.7
+	 */
 	union {
+		/* here we have the service's context (CLI command, applet, etc) */
+		void *svcctx;                  /* pointer to a context used by the command, e.g. <storage> below */
 		struct {
-			void *ptr;              /* current peer or NULL, do not use for something else */
-		} peers;                        /* used by the peers applet */
-		struct {
-			int connected;
-			struct xref xref; /* cross reference with the Lua object owner. */
-			struct list wake_on_read;
-			struct list wake_on_write;
-			int die;
-		} hlua_cosocket;                /* used by the Lua cosockets */
-		struct {
-			struct hlua *hlua;
-			int flags;
-			struct task *task;
-		} hlua_apptcp;                  /* used by the Lua TCP services */
-		struct {
-			struct hlua *hlua;
-			int left_bytes;         /* The max amount of bytes that we can read. */
-			int flags;
-			int status;
-			const char *reason;
-			struct task *task;
-		} hlua_apphttp;                 /* used by the Lua HTTP services */
-		struct {
-			void *ptr;              /* private pointer for SPOE filter */
-		} spoe;                         /* used by SPOE filter */
-		struct {
-			const char *msg;        /* pointer to a persistent message to be returned in CLI_ST_PRINT state */
-			int severity;           /* severity of the message to be returned according to (syslog) rfc5424 */
-			char *err;              /* pointer to a 'must free' message to be returned in CLI_ST_PRINT_FREE state */
-			void *p0, *p1, *p2;     /* ...registered commands, initialized to 0 by the CLI before first... */
-			size_t o0, o1;          /* ...invocation of the keyword parser, except for the list element which... */
-			int i0, i1;             /* ...is initialized with LIST_INIT(). */
-		} cli;                          /* context used by the CLI */
-		struct {
-			struct cache_entry *entry;  /* Entry to be sent from cache. */
-			unsigned int sent;          /* The number of bytes already sent for this cache entry. */
-			unsigned int offset;        /* start offset of remaining data relative to beginning of the next block */
-			unsigned int rem_data;      /* Remaining bytes for the last data block (HTX only, 0 means process next block) */
-			unsigned int send_notmodified:1;   /* In case of conditional request, we might want to send a "304 Not Modified"
-                                                            * response instead of the stored data. */
-			unsigned int unused:31;
-			struct shared_block *next;  /* The next block of data to be sent for this cache entry. */
-		} cache;
-		/* all entries below are used by various CLI commands, please
-		 * keep the grouped together and avoid adding new ones.
-		 */
-		struct {
-			void *obj1;             /* context pointer used in stats dump */
-			void *obj2;             /* context pointer used in stats dump */
-			uint32_t domain;        /* set the stats to used, for now only proxy stats are supported */
-			int scope_str;		/* limit scope to a frontend/backend substring */
-			int scope_len;		/* length of the string above in the buffer */
-			int px_st;		/* STAT_PX_ST* */
-			unsigned int flags;	/* STAT_* */
-			int iid, type, sid;	/* proxy id, type and service id if bounding of stats is enabled */
-			int st_code;		/* the status code returned by an action */
-		} stats;
-		struct {
-			struct bref bref;	/* back-reference from the session being dumped */
-			void *target;		/* session we want to dump, or NULL for all */
-			unsigned int thr;       /* the thread number being explored (0..MAX_THREADS-1) */
-			unsigned int uid;	/* if non-null, the uniq_id of the session being dumped */
-			int section;		/* section of the session being dumped */
-			int pos;		/* last position of the current session's buffer */
-		} sess;
-		struct {
-			int iid;		/* if >= 0, ID of the proxy to filter on */
-			struct proxy *px;	/* current proxy being dumped, NULL = not started yet. */
-			unsigned int flag;	/* bit0: buffer being dumped, 0 = req, 1 = resp ; bit1=skip req ; bit2=skip resp. */
-			unsigned int ev_id;	/* event ID of error being dumped */
-			int ptr;		/* <0: headers, >=0 : text pointer to restart from */
-			int bol;		/* pointer to beginning of current line */
-		} errors;
-		struct {
-			void *target;		/* table we want to dump, or NULL for all */
-			struct stktable *t;	/* table being currently dumped (first if NULL) */
-			struct stksess *entry;	/* last entry we were trying to dump (or first if NULL) */
-			long long value[STKTABLE_FILTER_LEN];	     /* value to compare against */
-			signed char data_type[STKTABLE_FILTER_LEN];  /* type of data to compare, or -1 if none */
-			signed char data_op[STKTABLE_FILTER_LEN];    /* operator (STD_OP_*) when data_type set */
-			char action;            /* action on the table : one of STK_CLI_ACT_* */
-		} table;
-		struct {
-			unsigned int display_flags;
-			struct pat_ref *ref;
-			struct bref bref;	/* back-reference from the pat_ref_elt being dumped */
-			struct pattern_expr *expr;
-			struct buffer chunk;
-		} map;
-		struct {
-			struct hlua *hlua;
-			struct task *task;
-			struct hlua_function *fcn;
-		} hlua_cli;
-		struct {
-			void *target;
-			struct peers *peers; /* "peers" section being currently dumped. */
-			struct peer *peer;   /* "peer" being currently dumped. */
-			int flags;           /* non-zero if "dict" dump requested */
-		} cfgpeers;
-		struct {
-			char *path;
-			struct ckch_store *old_ckchs;
-			struct ckch_store *new_ckchs;
-			struct ckch_inst *next_ckchi;
-			struct ckch_store *cur_ckchs;
+			void *shadow;          /* shadow of svcctx above, do not use! */
+			char storage[APPLET_MAX_SVCCTX]; /* storage of svcctx above */
+		} svc;                         /* generic storage for most commands */
+		union {
+			struct {
+				void *ptr;              /* current peer or NULL, do not use for something else */
+			} peers;                        /* used by the peers applet */
+			struct {
+				int connected;
+				struct xref xref; /* cross reference with the Lua object owner. */
+				struct list wake_on_read;
+				struct list wake_on_write;
+				int die;
+			} hlua_cosocket;                /* used by the Lua cosockets */
+			struct {
+				struct hlua *hlua;
+				int flags;
+				struct task *task;
+			} hlua_apptcp;                  /* used by the Lua TCP services */
+			struct {
+				struct hlua *hlua;
+				int left_bytes;         /* The max amount of bytes that we can read. */
+				int flags;
+				int status;
+				const char *reason;
+				struct task *task;
+			} hlua_apphttp;                 /* used by the Lua HTTP services */
+			struct {
+				void *ptr;              /* private pointer for SPOE filter */
+			} spoe;                         /* used by SPOE filter */
+			struct {
+				const char *msg;        /* pointer to a persistent message to be returned in CLI_ST_PRINT state */
+				int severity;           /* severity of the message to be returned according to (syslog) rfc5424 */
+				char *err;              /* pointer to a 'must free' message to be returned in CLI_ST_PRINT_FREE state */
+				void *p0, *p1, *p2;     /* ...registered commands, initialized to 0 by the CLI before first... */
+				size_t o0, o1;          /* ...invocation of the keyword parser, except for the list element which... */
+				int i0, i1;             /* ...is initialized with LIST_INIT(). */
+			} cli;                          /* context used by the CLI */
+			struct {
+				struct cache_entry *entry;  /* Entry to be sent from cache. */
+				unsigned int sent;          /* The number of bytes already sent for this cache entry. */
+				unsigned int offset;        /* start offset of remaining data relative to beginning of the next block */
+				unsigned int rem_data;      /* Remaining bytes for the last data block (HTX only, 0 means process next block) */
+				unsigned int send_notmodified:1;   /* In case of conditional request, we might want to send a "304 Not Modified"
+	                                                            * response instead of the stored data. */
+				unsigned int unused:31;
+				struct shared_block *next;  /* The next block of data to be sent for this cache entry. */
+			} cache;
+			/* all entries below are used by various CLI commands, please
+			 * keep the grouped together and avoid adding new ones.
+			 */
+			struct {
+				void *obj1;             /* context pointer used in stats dump */
+				void *obj2;             /* context pointer used in stats dump */
+				uint32_t domain;        /* set the stats to used, for now only proxy stats are supported */
+				int scope_str;		/* limit scope to a frontend/backend substring */
+				int scope_len;		/* length of the string above in the buffer */
+				int px_st;		/* STAT_PX_ST* */
+				unsigned int flags;	/* STAT_* */
+				int iid, type, sid;	/* proxy id, type and service id if bounding of stats is enabled */
+				int st_code;		/* the status code returned by an action */
+			} stats;
+			struct {
+				struct bref bref;	/* back-reference from the session being dumped */
+				void *target;		/* session we want to dump, or NULL for all */
+				unsigned int thr;       /* the thread number being explored (0..MAX_THREADS-1) */
+				unsigned int uid;	/* if non-null, the uniq_id of the session being dumped */
+				int section;		/* section of the session being dumped */
+				int pos;		/* last position of the current session's buffer */
+			} sess;
+			struct {
+				int iid;		/* if >= 0, ID of the proxy to filter on */
+				struct proxy *px;	/* current proxy being dumped, NULL = not started yet. */
+				unsigned int flag;	/* bit0: buffer being dumped, 0 = req, 1 = resp ; bit1=skip req ; bit2=skip resp. */
+				unsigned int ev_id;	/* event ID of error being dumped */
+				int ptr;		/* <0: headers, >=0 : text pointer to restart from */
+				int bol;		/* pointer to beginning of current line */
+			} errors;
+			struct {
+				void *target;		/* table we want to dump, or NULL for all */
+				struct stktable *t;	/* table being currently dumped (first if NULL) */
+				struct stksess *entry;	/* last entry we were trying to dump (or first if NULL) */
+				long long value[STKTABLE_FILTER_LEN];	     /* value to compare against */
+				signed char data_type[STKTABLE_FILTER_LEN];  /* type of data to compare, or -1 if none */
+				signed char data_op[STKTABLE_FILTER_LEN];    /* operator (STD_OP_*) when data_type set */
+				char action;            /* action on the table : one of STK_CLI_ACT_* */
+			} table;
+			struct {
+				unsigned int display_flags;
+				struct pat_ref *ref;
+				struct bref bref;	/* back-reference from the pat_ref_elt being dumped */
+				struct pattern_expr *expr;
+				struct buffer chunk;
+			} map;
+			struct {
+				struct hlua *hlua;
+				struct task *task;
+				struct hlua_function *fcn;
+			} hlua_cli;
+			struct {
+				void *target;
+				struct peers *peers; /* "peers" section being currently dumped. */
+				struct peer *peer;   /* "peer" being currently dumped. */
+				int flags;           /* non-zero if "dict" dump requested */
+			} cfgpeers;
+			struct {
+				char *path;
+				struct ckch_store *old_ckchs;
+				struct ckch_store *new_ckchs;
+				struct ckch_inst *next_ckchi;
+				struct ckch_store *cur_ckchs;
 
-			struct ckch_inst_link *next_ckchi_link;
-			struct cafile_entry *old_cafile_entry;
-			struct cafile_entry *new_cafile_entry;
-			struct cafile_entry *cur_cafile_entry;
+				struct ckch_inst_link *next_ckchi_link;
+				struct cafile_entry *old_cafile_entry;
+				struct cafile_entry *new_cafile_entry;
+				struct cafile_entry *cur_cafile_entry;
 
-			struct cafile_entry *old_crlfile_entry;
-			struct cafile_entry *new_crlfile_entry;
-			int cafile_type; /* either CA or CRL, depending on the current command */
-			int index;
-			int show_all;
-		} ssl;
-		struct {
-			void *ptr;
-		} sft; /* sink forward target */
-		struct {
-			struct httpclient *ptr;
-		} httpclient;
+				struct cafile_entry *old_crlfile_entry;
+				struct cafile_entry *new_crlfile_entry;
+				int cafile_type; /* either CA or CRL, depending on the current command */
+				int index;
+				int show_all;
+			} ssl;
+			struct {
+				void *ptr;
+			} sft; /* sink forward target */
+			struct {
+				struct httpclient *ptr;
+			} httpclient;
 
-		/* NOTE: please add regular applet contexts (ie: not
-		 * CLI-specific ones) above, before "cli".
-		 */
-	} ctx;					/* context-specific variables used by any applet */
+			/* NOTE: please add regular applet contexts (ie: not
+			 * CLI-specific ones) above, before "cli".
+			 */
+		} ctx;					/* context-specific variables used by any applet */
+	}; /* end of anon union */
 };
 
 #endif /* _HAPROXY_APPLET_T_H */

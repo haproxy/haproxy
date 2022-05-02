@@ -728,7 +728,14 @@ static int cli_parse_request(struct appctx *appctx)
 	struct cli_kw *kw;
 
 	appctx->st2 = 0;
-	memset(&appctx->ctx.cli, 0, sizeof(appctx->ctx.cli));
+
+	/* temporary for 2.6: let's make sure we clean the whole shared
+	 * context.
+	 */
+	if (sizeof(appctx->ctx) > sizeof(appctx->svc))
+		memset(&appctx->ctx, 0, sizeof(appctx->ctx));
+	else
+		memset(&appctx->svc, 0, sizeof(appctx->svc));
 
 	p = appctx->chunk->area;
 	end = p + appctx->chunk->data;

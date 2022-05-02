@@ -36,6 +36,7 @@ extern struct pool_head *pool_head_appctx;
 
 struct task *task_run_applet(struct task *t, void *context, unsigned int state);
 int appctx_buf_available(void *arg);
+void *applet_reserve_svcctx(struct appctx *appctx, size_t size);
 
 struct appctx *appctx_new(struct applet *applet, struct cs_endpoint *endp);
 
