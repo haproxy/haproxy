@@ -866,7 +866,8 @@ out_ok:
  * The address is taken from the currently assigned server, or from the
  * dispatch or transparent address.
  *
- * Returns SRV_STATUS_OK on success.
+ * Returns SRV_STATUS_OK on success. Does nothing if the address was
+ * already set.
  * On error, no address is allocated and SRV_STATUS_INTERNAL is returned.
  */
 static int alloc_dst_address(struct sockaddr_storage **ss,
@@ -874,7 +875,9 @@ static int alloc_dst_address(struct sockaddr_storage **ss,
 {
 	const struct sockaddr_storage *dst;
 
-	*ss = NULL;
+	if (*ss)
+		return SRV_STATUS_OK;
+
 	if ((s->flags & SF_DIRECT) || (s->be->lbprm.algo & BE_LB_KIND)) {
 		/* A server is necessarily known for this stream */
 		if (!(s->flags & SF_ASSIGNED))
@@ -1070,7 +1073,8 @@ int assign_server_and_queue(struct stream *s)
  * with transparent mode.
  *
  * Returns SRV_STATUS_OK if no transparent mode or the address was successfully
- * allocated. Otherwise returns SRV_STATUS_INTERNAL.
+ * allocated. Otherwise returns SRV_STATUS_INTERNAL. Does nothing if the
+ * address was already allocated.
  */
 static int alloc_bind_address(struct sockaddr_storage **ss,
                               struct server *srv, struct stream *s)
@@ -1083,7 +1087,8 @@ static int alloc_bind_address(struct sockaddr_storage **ss,
 	size_t vlen;
 #endif
 
-	*ss = NULL;
+	if (*ss)
+		return SRV_STATUS_OK;
 
 #if defined(CONFIG_HAP_TRANSPARENT)
 	if (srv && srv->conn_src.opts & CO_SRC_BIND)
@@ -1335,7 +1340,7 @@ static int connect_server(struct stream *s)
 #ifdef USE_OPENSSL
 	struct sample *sni_smp = NULL;
 #endif
-	struct sockaddr_storage *bind_addr;
+	struct sockaddr_storage *bind_addr = NULL;
 	int proxy_line_ret;
 	int64_t hash = 0;
 	struct conn_hash_params hash_params;
