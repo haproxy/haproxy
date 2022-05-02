@@ -315,12 +315,11 @@ static int h3_decode_qcs(struct qcs *qcs, int fin, void *ctx)
 			ret = MIN(b_data(rxbuf), flen);
 		}
 
-		if (!ret)
-			break;
-
-		b_del(rxbuf, ret);
-		BUG_ON(h3s->demux_frame_len < ret);
-		h3s->demux_frame_len -= ret;
+		if (ret) {
+			b_del(rxbuf, ret);
+			BUG_ON(h3s->demux_frame_len < ret);
+			h3s->demux_frame_len -= ret;
+		}
 	}
 
 	/* TODO may be useful to wakeup the MUX if blocked due to full buffer.
