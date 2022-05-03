@@ -467,13 +467,14 @@ static inline int quic_packet_number_encode(unsigned char **buf,
 	return 1;
 }
 
-/* Returns the <ack_delay> field value from <ack_frm> ACK frame for
- * <conn> QUIC connection.
+/* Returns the <ack_delay> field value in milliseconds from <ack_frm> ACK frame for
+ * <conn> QUIC connection. Note that the value of <ack_delay> coming from
+ * ACK frame is in microseconds.
  */
 static inline unsigned int quic_ack_delay_ms(struct quic_ack *ack_frm,
                                              struct quic_conn *conn)
 {
-	return ack_frm->ack_delay << conn->tx.params.ack_delay_exponent;
+	return (ack_frm->ack_delay << conn->tx.params.ack_delay_exponent) / 1000;
 }
 
 /* Initialize <dst> transport parameters with default values (when absent)
