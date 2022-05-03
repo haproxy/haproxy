@@ -3706,8 +3706,7 @@ struct show_peers_ctx {
 	struct peer *peer;      /* "peer" being currently dumped. */
 	int flags;              /* non-zero if "dict" dump requested */
 	enum {
-		STATE_INIT = 0, /* initialization */
-		STATE_HEAD,     /* dump the section's header */
+		STATE_HEAD = 0, /* dump the section's header */
 		STATE_PEER,     /* dump the whole peer */
 		STATE_DONE,     /* finished */
 	} state;                /* parser's state */
@@ -3743,6 +3742,8 @@ static int cli_parse_show_peers(char **args, char *payload, struct appctx *appct
 			return cli_err(appctx, "No such peers\n");
 	}
 
+	/* where to start from */
+	ctx->peers = ctx->target ? ctx->target : cfg_peers;
 	return 0;
 }
 
@@ -3943,26 +3944,14 @@ static int peers_dump_peer(struct buffer *msg, struct conn_stream *cs, struct pe
 static int cli_io_handler_show_peers(struct appctx *appctx)
 {
 	struct show_peers_ctx *ctx = appctx->svcctx;
-	int show_all;
 	int ret = 0, first_peers = 1;
 
 	thread_isolate();
-
-	show_all = !ctx->target;
 
 	chunk_reset(&trash);
 
 	while (ctx->state != STATE_DONE) {
 		switch (ctx->state) {
-		case STATE_INIT:
-			if (show_all)
-				ctx->peers = cfg_peers;
-			else
-				ctx->peers = ctx->target;
-
-			ctx->state = STATE_HEAD;
-			/* fall through */
-
 		case STATE_HEAD:
 			if (!ctx->peers) {
 				/* No more peers list. */
@@ -3985,8 +3974,8 @@ static int cli_io_handler_show_peers(struct appctx *appctx)
 		case STATE_PEER:
 			if (!ctx->peer) {
 				/* End of peer list */
-				if (show_all)
-					ctx->state = STATE_HEAD;
+				if (!ctx->target)
+					ctx->state = STATE_HEAD; // next one
 			    else
 					ctx->state = STATE_DONE;
 			}
