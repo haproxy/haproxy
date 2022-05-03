@@ -334,6 +334,11 @@ struct show_map_ctx {
 	unsigned int display_flags;
 	unsigned int curr_gen;  /* current/latest generation, for show/clear */
 	unsigned int prev_gen;  /* prev generation, for clear */
+	enum {
+		STATE_INIT = 0, /* initialize list and backrefs */
+		STATE_LIST,     /* list entries */
+		STATE_DONE,     /* finished */
+	} state;                /* state of the dump */
 };
 
 /* expects the current generation ID in ctx->curr_gen */
@@ -347,7 +352,7 @@ static int cli_io_handler_pat_list(struct appctx *appctx)
 		/* If we're forced to shut down, we might have to remove our
 		 * reference to the last ref_elt being dumped.
 		 */
-		if (appctx->st2 == STAT_ST_LIST) {
+		if (ctx->state == STATE_LIST) {
 			HA_SPIN_LOCK(PATREF_LOCK, &ctx->ref->lock);
 			if (!LIST_ISEMPTY(&ctx->bref.users)) {
 				LIST_DELETE(&ctx->bref.users);
@@ -358,13 +363,12 @@ static int cli_io_handler_pat_list(struct appctx *appctx)
 		return 1;
 	}
 
-	switch (appctx->st2) {
-
-	case STAT_ST_INIT:
-		appctx->st2 = STAT_ST_LIST;
+	switch (ctx->state) {
+	case STATE_INIT:
+		ctx->state = STATE_LIST;
 		/* fall through */
 
-	case STAT_ST_LIST:
+	case STATE_LIST:
 		HA_SPIN_LOCK(PATREF_LOCK, &ctx->ref->lock);
 
 		if (!LIST_ISEMPTY(&ctx->bref.users)) {
@@ -408,7 +412,7 @@ static int cli_io_handler_pat_list(struct appctx *appctx)
 		/* fall through */
 
 	default:
-		appctx->st2 = STAT_ST_FIN;
+		ctx->state = STATE_DONE;
 		return 1;
 	}
 }
@@ -418,11 +422,11 @@ static int cli_io_handler_pats_list(struct appctx *appctx)
 	struct show_map_ctx *ctx = appctx->svcctx;
 	struct conn_stream *cs = appctx->owner;
 
-	switch (appctx->st2) {
-	case STAT_ST_INIT:
+	switch (ctx->state) {
+	case STATE_INIT:
 		/* Display the column headers. If the message cannot be sent,
 		 * quit the function with returning 0. The function is called
-		 * later and restarted at the state "STAT_ST_INIT".
+		 * later and restarted at the state "STATE_INIT".
 		 */
 		chunk_reset(&trash);
 		chunk_appendf(&trash, "# id (file) description\n");
@@ -439,10 +443,10 @@ static int cli_io_handler_pats_list(struct appctx *appctx)
 		ctx->ref = LIST_ELEM(&pattern_reference, struct pat_ref *, list);
 		ctx->ref = pat_list_get_next(ctx->ref, &pattern_reference,
 		                                        ctx->display_flags);
-		appctx->st2 = STAT_ST_LIST;
+		ctx->state = STATE_LIST;
 		/* fall through */
 
-	case STAT_ST_LIST:
+	case STATE_LIST:
 		while (ctx->ref) {
 			chunk_reset(&trash);
 
@@ -470,7 +474,7 @@ static int cli_io_handler_pats_list(struct appctx *appctx)
 		/* fall through */
 
 	default:
-		appctx->st2 = STAT_ST_FIN;
+		ctx->state = STATE_DONE;
 		return 1;
 	}
 	return 0;
@@ -484,15 +488,15 @@ static int cli_io_handler_map_lookup(struct appctx *appctx)
 	struct pattern *pat;
 	int match_method;
 
-	switch (appctx->st2) {
-	case STAT_ST_INIT:
+	switch (ctx->state) {
+	case STATE_INIT:
 		/* Init to the first entry. The list cannot be change */
 		ctx->expr = LIST_ELEM(&ctx->ref->pat, struct pattern_expr *, list);
 		ctx->expr = pat_expr_get_next(ctx->expr, &ctx->ref->pat);
-		appctx->st2 = STAT_ST_LIST;
+		ctx->state = STATE_LIST;
 		/* fall through */
 
-	case STAT_ST_LIST:
+	case STATE_LIST:
 		HA_SPIN_LOCK(PATREF_LOCK, &ctx->ref->lock);
 		/* for each lookup type */
 		while (ctx->expr) {
@@ -592,7 +596,7 @@ static int cli_io_handler_map_lookup(struct appctx *appctx)
 		/* fall through */
 
 	default:
-		appctx->st2 = STAT_ST_FIN;
+		ctx->state = STATE_DONE;
 		return 1;
 	}
 }
@@ -683,7 +687,7 @@ static void cli_release_show_map(struct appctx *appctx)
 {
 	struct show_map_ctx *ctx = appctx->svcctx;
 
-	if (appctx->st2 == STAT_ST_LIST) {
+	if (ctx->state == STATE_LIST) {
 		HA_SPIN_LOCK(PATREF_LOCK, &ctx->ref->lock);
 		if (!LIST_ISEMPTY(&ctx->bref.users))
 			LIST_DELETE(&ctx->bref.users);
