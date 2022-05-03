@@ -3145,6 +3145,17 @@ void list_services(FILE *out)
 		fprintf(out, " none\n");
 }
 
+/* appctx context used by the "show sess" command */
+
+struct show_sess_ctx {
+	struct bref bref;	/* back-reference from the session being dumped */
+	void *target;		/* session we want to dump, or NULL for all */
+	unsigned int thr;       /* the thread number being explored (0..MAX_THREADS-1) */
+	unsigned int uid;	/* if non-null, the uniq_id of the session being dumped */
+	int section;		/* section of the session being dumped */
+	int pos;		/* last position of the current session's buffer */
+};
+
 /* This function dumps a complete stream state onto the conn-stream's
  * read buffer. The stream has to be set in strm. It returns 0 if the output
  * buffer is full and it needs to be called again, otherwise non-zero. It is
@@ -3153,6 +3164,7 @@ void list_services(FILE *out)
 static int stats_dump_full_strm_to_buffer(struct conn_stream *cs, struct stream *strm)
 {
 	struct appctx *appctx = __cs_appctx(cs);
+	struct show_sess_ctx *ctx = appctx->svcctx;
 	struct conn_stream *csf, *csb;
 	struct tm tm;
 	extern const char *monthname[12];
@@ -3162,7 +3174,7 @@ static int stats_dump_full_strm_to_buffer(struct conn_stream *cs, struct stream 
 
 	chunk_reset(&trash);
 
-	if (appctx->ctx.sess.section > 0 && appctx->ctx.sess.uid != strm->uniq_id) {
+	if (ctx->section > 0 && ctx->uid != strm->uniq_id) {
 		/* stream changed, no need to go any further */
 		chunk_appendf(&trash, "  *** session terminated while we were watching it ***\n");
 		if (ci_putchk(cs_ic(cs), &trash) == -1)
@@ -3170,10 +3182,10 @@ static int stats_dump_full_strm_to_buffer(struct conn_stream *cs, struct stream 
 		goto done;
 	}
 
-	switch (appctx->ctx.sess.section) {
+	switch (ctx->section) {
 	case 0: /* main status of the stream */
-		appctx->ctx.sess.uid = strm->uniq_id;
-		appctx->ctx.sess.section = 1;
+		ctx->uid = strm->uniq_id;
+		ctx->section = 1;
 		/* fall through */
 
 	case 1:
@@ -3480,28 +3492,29 @@ static int stats_dump_full_strm_to_buffer(struct conn_stream *cs, struct stream 
 	}
 	/* end of dump */
  done:
-	appctx->ctx.sess.uid = 0;
-	appctx->ctx.sess.section = 0;
+	ctx->uid = 0;
+	ctx->section = 0;
 	return 1;
  full:
 	return 0;
 }
 
-
 static int cli_parse_show_sess(char **args, char *payload, struct appctx *appctx, void *private)
 {
+	struct show_sess_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
+
 	if (!cli_has_level(appctx, ACCESS_LVL_OPER))
 		return 1;
 
 	if (*args[2] && strcmp(args[2], "all") == 0)
-		appctx->ctx.sess.target = (void *)-1;
+		ctx->target = (void *)-1;
 	else if (*args[2])
-		appctx->ctx.sess.target = (void *)strtoul(args[2], NULL, 0);
+		ctx->target = (void *)strtoul(args[2], NULL, 0);
 	else
-		appctx->ctx.sess.target = NULL;
-	appctx->ctx.sess.section = 0; /* start with stream status */
-	appctx->ctx.sess.pos = 0;
-	appctx->ctx.sess.thr = 0;
+		ctx->target = NULL;
+	ctx->section = 0; /* start with stream status */
+	ctx->pos = 0;
+	ctx->thr = 0;
 
 	/* let's set our own stream's epoch to the current one and increment
 	 * it so that we know which streams were already there before us.
@@ -3517,6 +3530,7 @@ static int cli_parse_show_sess(char **args, char *payload, struct appctx *appctx
  */
 static int cli_io_handler_dump_sess(struct appctx *appctx)
 {
+	struct show_sess_ctx *ctx = appctx->svcctx;
 	struct conn_stream *cs = appctx->owner;
 	struct connection *conn;
 
@@ -3527,9 +3541,9 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 		 * reference to the last stream being dumped.
 		 */
 		if (appctx->st2 == STAT_ST_LIST) {
-			if (!LIST_ISEMPTY(&appctx->ctx.sess.bref.users)) {
-				LIST_DELETE(&appctx->ctx.sess.bref.users);
-				LIST_INIT(&appctx->ctx.sess.bref.users);
+			if (!LIST_ISEMPTY(&ctx->bref.users)) {
+				LIST_DELETE(&ctx->bref.users);
+				LIST_INIT(&ctx->bref.users);
 			}
 		}
 		goto done;
@@ -3546,16 +3560,16 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 		 * this pointer. We know we have reached the end when this
 		 * pointer points back to the head of the streams list.
 		 */
-		LIST_INIT(&appctx->ctx.sess.bref.users);
-		appctx->ctx.sess.bref.ref = ha_thread_ctx[appctx->ctx.sess.thr].streams.n;
+		LIST_INIT(&ctx->bref.users);
+		ctx->bref.ref = ha_thread_ctx[ctx->thr].streams.n;
 		appctx->st2 = STAT_ST_LIST;
 		/* fall through */
 
 	case STAT_ST_LIST:
 		/* first, let's detach the back-ref from a possible previous stream */
-		if (!LIST_ISEMPTY(&appctx->ctx.sess.bref.users)) {
-			LIST_DELETE(&appctx->ctx.sess.bref.users);
-			LIST_INIT(&appctx->ctx.sess.bref.users);
+		if (!LIST_ISEMPTY(&ctx->bref.users)) {
+			LIST_DELETE(&ctx->bref.users);
+			LIST_INIT(&ctx->bref.users);
 		}
 
 		/* and start from where we stopped */
@@ -3564,37 +3578,37 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 			struct stream *curr_strm;
 			int done= 0;
 
-			if (appctx->ctx.sess.bref.ref == &ha_thread_ctx[appctx->ctx.sess.thr].streams)
+			if (ctx->bref.ref == &ha_thread_ctx[ctx->thr].streams)
 				done = 1;
 			else {
 				/* check if we've found a stream created after issuing the "show sess" */
-				curr_strm = LIST_ELEM(appctx->ctx.sess.bref.ref, struct stream *, list);
+				curr_strm = LIST_ELEM(ctx->bref.ref, struct stream *, list);
 				if ((int)(curr_strm->stream_epoch - __cs_strm(appctx->owner)->stream_epoch) > 0)
 					done = 1;
 			}
 
 			if (done) {
-				appctx->ctx.sess.thr++;
-				if (appctx->ctx.sess.thr >= global.nbthread)
+				ctx->thr++;
+				if (ctx->thr >= global.nbthread)
 					break;
-				appctx->ctx.sess.bref.ref = ha_thread_ctx[appctx->ctx.sess.thr].streams.n;
+				ctx->bref.ref = ha_thread_ctx[ctx->thr].streams.n;
 				continue;
 			}
 
-			if (appctx->ctx.sess.target) {
-				if (appctx->ctx.sess.target != (void *)-1 && appctx->ctx.sess.target != curr_strm)
+			if (ctx->target) {
+				if (ctx->target != (void *)-1 && ctx->target != curr_strm)
 					goto next_sess;
 
-				LIST_APPEND(&curr_strm->back_refs, &appctx->ctx.sess.bref.users);
+				LIST_APPEND(&curr_strm->back_refs, &ctx->bref.users);
 				/* call the proper dump() function and return if we're missing space */
 				if (!stats_dump_full_strm_to_buffer(cs, curr_strm))
 					goto full;
 
 				/* stream dump complete */
-				LIST_DELETE(&appctx->ctx.sess.bref.users);
-				LIST_INIT(&appctx->ctx.sess.bref.users);
-				if (appctx->ctx.sess.target != (void *)-1) {
-					appctx->ctx.sess.target = NULL;
+				LIST_DELETE(&ctx->bref.users);
+				LIST_INIT(&ctx->bref.users);
+				if (ctx->target != (void *)-1) {
+					ctx->target = NULL;
 					break;
 				}
 				else
@@ -3711,17 +3725,17 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 				/* let's try again later from this stream. We add ourselves into
 				 * this stream's users so that it can remove us upon termination.
 				 */
-				LIST_APPEND(&curr_strm->back_refs, &appctx->ctx.sess.bref.users);
+				LIST_APPEND(&curr_strm->back_refs, &ctx->bref.users);
 				goto full;
 			}
 
 		next_sess:
-			appctx->ctx.sess.bref.ref = curr_strm->list.n;
+			ctx->bref.ref = curr_strm->list.n;
 		}
 
-		if (appctx->ctx.sess.target && appctx->ctx.sess.target != (void *)-1) {
+		if (ctx->target && ctx->target != (void *)-1) {
 			/* specified stream not found */
-			if (appctx->ctx.sess.section > 0)
+			if (ctx->section > 0)
 				chunk_appendf(&trash, "  *** session terminated while we were watching it ***\n");
 			else
 				chunk_appendf(&trash, "Session not found.\n");
@@ -3729,8 +3743,8 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 			if (ci_putchk(cs_ic(cs), &trash) == -1)
 				goto full;
 
-			appctx->ctx.sess.target = NULL;
-			appctx->ctx.sess.uid = 0;
+			ctx->target = NULL;
+			ctx->uid = 0;
 			goto done;
 		}
 		/* fall through */
@@ -3750,15 +3764,17 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 
 static void cli_release_show_sess(struct appctx *appctx)
 {
-	if (appctx->st2 == STAT_ST_LIST && appctx->ctx.sess.thr < global.nbthread) {
+	struct show_sess_ctx *ctx = appctx->svcctx;
+
+	if (appctx->st2 == STAT_ST_LIST && ctx->thr < global.nbthread) {
 		/* a dump was aborted, either in error or timeout. We need to
 		 * safely detach from the target stream's list. It's mandatory
 		 * to lock because a stream on the target thread could be moving
 		 * our node.
 		 */
 		thread_isolate();
-		if (!LIST_ISEMPTY(&appctx->ctx.sess.bref.users))
-			LIST_DELETE(&appctx->ctx.sess.bref.users);
+		if (!LIST_ISEMPTY(&ctx->bref.users))
+			LIST_DELETE(&ctx->bref.users);
 		thread_release();
 	}
 }

@@ -150,14 +150,6 @@ struct appctx {
 				int st_code;		/* the status code returned by an action */
 			} stats;
 			struct {
-				struct bref bref;	/* back-reference from the session being dumped */
-				void *target;		/* session we want to dump, or NULL for all */
-				unsigned int thr;       /* the thread number being explored (0..MAX_THREADS-1) */
-				unsigned int uid;	/* if non-null, the uniq_id of the session being dumped */
-				int section;		/* section of the session being dumped */
-				int pos;		/* last position of the current session's buffer */
-			} sess;
-			struct {
 				int iid;		/* if >= 0, ID of the proxy to filter on */
 				struct proxy *px;	/* current proxy being dumped, NULL = not started yet. */
 				unsigned int flag;	/* bit0: buffer being dumped, 0 = req, 1 = resp ; bit1=skip req ; bit2=skip resp. */
