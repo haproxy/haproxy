@@ -902,8 +902,8 @@ static void cli_io_handler(struct appctx *appctx)
 
 	while (1) {
 		if (appctx->st0 == CLI_ST_INIT) {
-			/* Stats output not initialized yet */
-			memset(&appctx->ctx.stats, 0, sizeof(appctx->ctx.stats));
+			/* CLI/stats not initialized yet */
+			memset(&appctx->ctx, 0, sizeof(appctx->ctx));
 			/* reset severity to default at init */
 			appctx->cli_severity_output = bind_conf->severity_output;
 			appctx->st0 = CLI_ST_GETREQ;
