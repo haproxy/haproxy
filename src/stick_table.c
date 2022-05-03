@@ -4395,6 +4395,12 @@ struct show_table_ctx {
 	long long value[STKTABLE_FILTER_LEN];       /* value to compare against */
 	signed char data_type[STKTABLE_FILTER_LEN]; /* type of data to compare, or -1 if none */
 	signed char data_op[STKTABLE_FILTER_LEN];   /* operator (STD_OP_*) when data_type set */
+	enum {
+		STATE_INIT = 0,                     /* first call, init needed */
+		STATE_NEXT,                         /* px points to next table, entry=NULL */
+		STATE_DUMP,                         /* px points to curr table, entry is valid, refcount held */
+		STATE_DONE,                         /* done dumping */
+	} state;
 	char action;                                /* action on the table : one of STK_CLI_ACT_* */
 };
 
@@ -4669,20 +4675,20 @@ static int cli_io_handler_table(struct appctx *appctx)
 	int show = ctx->action == STK_CLI_ACT_SHOW;
 
 	/*
-	 * We have 3 possible states in appctx->st2 :
-	 *   - STAT_ST_INIT : the first call
-	 *   - STAT_ST_INFO : the proxy pointer points to the next table to
+	 * We have 4 possible states in ctx->state :
+	 *   - STATE_INIT : the first call
+	 *   - STATE_NEXT : the proxy pointer points to the next table to
 	 *     dump, the entry pointer is NULL ;
-	 *   - STAT_ST_LIST : the proxy pointer points to the current table
+	 *   - STATE_DUMP : the proxy pointer points to the current table
 	 *     and the entry pointer points to the next entry to be dumped,
 	 *     and the refcount on the next entry is held ;
-	 *   - STAT_ST_END : nothing left to dump, the buffer may contain some
+	 *   - STATE_DONE : nothing left to dump, the buffer may contain some
 	 *     data though.
 	 */
 
 	if (unlikely(cs_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW))) {
 		/* in case of abort, remove any refcount we might have set on an entry */
-		if (appctx->st2 == STAT_ST_LIST) {
+		if (ctx->state == STATE_DUMP) {
 			stksess_kill_if_expired(ctx->t, ctx->entry, 1);
 		}
 		return 1;
@@ -4690,22 +4696,22 @@ static int cli_io_handler_table(struct appctx *appctx)
 
 	chunk_reset(&trash);
 
-	while (appctx->st2 != STAT_ST_FIN) {
-		switch (appctx->st2) {
-		case STAT_ST_INIT:
+	while (ctx->state != STATE_DONE) {
+		switch (ctx->state) {
+		case STATE_INIT:
 			ctx->t = ctx->target;
 			if (!ctx->t)
 				ctx->t = stktables_list;
 
 			ctx->entry = NULL;
-			appctx->st2 = STAT_ST_INFO;
+			ctx->state = STATE_NEXT;
 			break;
 
-		case STAT_ST_INFO:
+		case STATE_NEXT:
 			if (!ctx->t ||
 			    (ctx->target &&
 			     ctx->t != ctx->target)) {
-				appctx->st2 = STAT_ST_END;
+				ctx->state = STATE_DONE;
 				break;
 			}
 
@@ -4721,7 +4727,7 @@ static int cli_io_handler_table(struct appctx *appctx)
 					if (eb) {
 						ctx->entry = ebmb_entry(eb, struct stksess, key);
 						ctx->entry->ref_cnt++;
-						appctx->st2 = STAT_ST_LIST;
+						ctx->state = STATE_DUMP;
 						HA_SPIN_UNLOCK(STK_TABLE_LOCK, &ctx->t->lock);
 						break;
 					}
@@ -4731,7 +4737,7 @@ static int cli_io_handler_table(struct appctx *appctx)
 			ctx->t = ctx->t->next;
 			break;
 
-		case STAT_ST_LIST:
+		case STATE_DUMP:
 			skip_entry = 0;
 
 			HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &ctx->entry->lock);
@@ -4818,11 +4824,10 @@ static int cli_io_handler_table(struct appctx *appctx)
 			HA_SPIN_UNLOCK(STK_TABLE_LOCK, &ctx->t->lock);
 
 			ctx->t = ctx->t->next;
-			appctx->st2 = STAT_ST_INFO;
+			ctx->state = STATE_NEXT;
 			break;
 
-		case STAT_ST_END:
-			appctx->st2 = STAT_ST_FIN;
+		default:
 			break;
 		}
 	}
@@ -4833,7 +4838,7 @@ static void cli_release_show_table(struct appctx *appctx)
 {
 	struct show_table_ctx *ctx = appctx->svcctx;
 
-	if (appctx->st2 == STAT_ST_LIST) {
+	if (ctx->state == STATE_DUMP) {
 		stksess_kill_if_expired(ctx->t, ctx->entry, 1);
 	}
 }
