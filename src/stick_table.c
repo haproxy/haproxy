@@ -19,6 +19,7 @@
 #include <import/ebistree.h>
 
 #include <haproxy/api.h>
+#include <haproxy/applet.h>
 #include <haproxy/arg.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/cli.h>
@@ -4386,6 +4387,16 @@ static int table_dump_entry_to_buffer(struct buffer *msg,
 	return 1;
 }
 
+/* appctx context used by the "show table" command */
+struct show_table_ctx {
+	void *target;                               /* table we want to dump, or NULL for all */
+	struct stktable *t;                         /* table being currently dumped (first if NULL) */
+	struct stksess *entry;                      /* last entry we were trying to dump (or first if NULL) */
+	long long value[STKTABLE_FILTER_LEN];       /* value to compare against */
+	signed char data_type[STKTABLE_FILTER_LEN]; /* type of data to compare, or -1 if none */
+	signed char data_op[STKTABLE_FILTER_LEN];   /* operator (STD_OP_*) when data_type set */
+	char action;                                /* action on the table : one of STK_CLI_ACT_* */
+};
 
 /* Processes a single table entry matching a specific key passed in argument.
  * returns 0 if wants to be called again, 1 if has ended processing.
@@ -4393,7 +4404,8 @@ static int table_dump_entry_to_buffer(struct buffer *msg,
 static int table_process_entry_per_key(struct appctx *appctx, char **args)
 {
 	struct conn_stream *cs = appctx->owner;
-	struct stktable *t = appctx->ctx.table.target;
+	struct show_table_ctx *ctx = appctx->svcctx;
+	struct stktable *t = ctx->target;
 	struct stksess *ts;
 	uint32_t uint32_key;
 	unsigned char ip6_key[sizeof(struct in6_addr)];
@@ -4436,7 +4448,7 @@ static int table_process_entry_per_key(struct appctx *appctx, char **args)
 		static_table_key.key_len = strlen(args[4]);
 		break;
 	default:
-		switch (appctx->ctx.table.action) {
+		switch (ctx->action) {
 		case STK_CLI_ACT_SHOW:
 			return cli_err(appctx, "Showing keys from tables of type other than ip, ipv6, string and integer is not supported\n");
 		case STK_CLI_ACT_CLR:
@@ -4452,7 +4464,7 @@ static int table_process_entry_per_key(struct appctx *appctx, char **args)
 	if (!cli_has_level(appctx, ACCESS_LVL_OPER))
 		return 1;
 
-	switch (appctx->ctx.table.action) {
+	switch (ctx->action) {
 	case STK_CLI_ACT_SHOW:
 		ts = stktable_lookup_key(t, &static_table_key);
 		if (!ts)
@@ -4564,28 +4576,29 @@ static int table_process_entry_per_key(struct appctx *appctx, char **args)
  */
 static int table_prepare_data_request(struct appctx *appctx, char **args)
 {
+	struct show_table_ctx *ctx = appctx->svcctx;
 	int i;
 	char *err = NULL;
 
-	if (appctx->ctx.table.action != STK_CLI_ACT_SHOW && appctx->ctx.table.action != STK_CLI_ACT_CLR)
+	if (ctx->action != STK_CLI_ACT_SHOW && ctx->action != STK_CLI_ACT_CLR)
 		return cli_err(appctx, "content-based lookup is only supported with the \"show\" and \"clear\" actions\n");
 
 	for (i = 0; i < STKTABLE_FILTER_LEN; i++) {
 		if (i > 0 && !*args[3+3*i])  // number of filter entries can be less than STKTABLE_FILTER_LEN
 			break;
 		/* condition on stored data value */
-		appctx->ctx.table.data_type[i] = stktable_get_data_type(args[3+3*i] + 5);
-		if (appctx->ctx.table.data_type[i] < 0)
+		ctx->data_type[i] = stktable_get_data_type(args[3+3*i] + 5);
+		if (ctx->data_type[i] < 0)
 			return cli_dynerr(appctx, memprintf(&err, "Filter entry #%i: Unknown data type\n", i + 1));
 
-		if (!((struct stktable *)appctx->ctx.table.target)->data_ofs[appctx->ctx.table.data_type[i]])
+		if (!((struct stktable *)ctx->target)->data_ofs[ctx->data_type[i]])
 			return cli_dynerr(appctx, memprintf(&err, "Filter entry #%i: Data type not stored in this table\n", i + 1));
 
-		appctx->ctx.table.data_op[i] = get_std_op(args[4+3*i]);
-		if (appctx->ctx.table.data_op[i] < 0)
+		ctx->data_op[i] = get_std_op(args[4+3*i]);
+		if (ctx->data_op[i] < 0)
 			return cli_dynerr(appctx, memprintf(&err, "Filter entry #%i: Require and operator among \"eq\", \"ne\", \"le\", \"ge\", \"lt\", \"gt\"\n", i + 1));
 
-		if (!*args[5+3*i] || strl2llrc(args[5+3*i], strlen(args[5+3*i]), &appctx->ctx.table.value[i]) != 0)
+		if (!*args[5+3*i] || strl2llrc(args[5+3*i], strlen(args[5+3*i]), &ctx->value[i]) != 0)
 			return cli_dynerr(appctx, memprintf(&err, "Filter entry #%i: Require a valid integer value to compare against\n", i + 1));
 	}
 
@@ -4600,21 +4613,22 @@ static int table_prepare_data_request(struct appctx *appctx, char **args)
 /* returns 0 if wants to be called, 1 if has ended processing */
 static int cli_parse_table_req(char **args, char *payload, struct appctx *appctx, void *private)
 {
+	struct show_table_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
 	int i;
 
 	for (i = 0; i < STKTABLE_FILTER_LEN; i++)
-		appctx->ctx.table.data_type[i] = -1;
-	appctx->ctx.table.target = NULL;
-	appctx->ctx.table.entry = NULL;
-	appctx->ctx.table.action = (long)private; // keyword argument, one of STK_CLI_ACT_*
+		ctx->data_type[i] = -1;
+	ctx->target = NULL;
+	ctx->entry = NULL;
+	ctx->action = (long)private; // keyword argument, one of STK_CLI_ACT_*
 
 	if (*args[2]) {
-		appctx->ctx.table.target = stktable_find_by_name(args[2]);
-		if (!appctx->ctx.table.target)
+		ctx->target = stktable_find_by_name(args[2]);
+		if (!ctx->target)
 			return cli_err(appctx, "No such table\n");
 	}
 	else {
-		if (appctx->ctx.table.action != STK_CLI_ACT_SHOW)
+		if (ctx->action != STK_CLI_ACT_SHOW)
 			goto err_args;
 		return 0;
 	}
@@ -4629,7 +4643,7 @@ static int cli_parse_table_req(char **args, char *payload, struct appctx *appctx
 	return 0;
 
 err_args:
-	switch (appctx->ctx.table.action) {
+	switch (ctx->action) {
 	case STK_CLI_ACT_SHOW:
 		return cli_err(appctx, "Optional argument only supports \"data.<store_data_type>\" <operator> <value> and key <key>\n");
 	case STK_CLI_ACT_CLR:
@@ -4647,11 +4661,12 @@ err_args:
  */
 static int cli_io_handler_table(struct appctx *appctx)
 {
+	struct show_table_ctx *ctx = appctx->svcctx;
 	struct conn_stream *cs = appctx->owner;
 	struct stream *s = __cs_strm(cs);
 	struct ebmb_node *eb;
 	int skip_entry;
-	int show = appctx->ctx.table.action == STK_CLI_ACT_SHOW;
+	int show = ctx->action == STK_CLI_ACT_SHOW;
 
 	/*
 	 * We have 3 possible states in appctx->st2 :
@@ -4668,7 +4683,7 @@ static int cli_io_handler_table(struct appctx *appctx)
 	if (unlikely(cs_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW))) {
 		/* in case of abort, remove any refcount we might have set on an entry */
 		if (appctx->st2 == STAT_ST_LIST) {
-			stksess_kill_if_expired(appctx->ctx.table.t, appctx->ctx.table.entry, 1);
+			stksess_kill_if_expired(ctx->t, ctx->entry, 1);
 		}
 		return 1;
 	}
@@ -4678,50 +4693,50 @@ static int cli_io_handler_table(struct appctx *appctx)
 	while (appctx->st2 != STAT_ST_FIN) {
 		switch (appctx->st2) {
 		case STAT_ST_INIT:
-			appctx->ctx.table.t = appctx->ctx.table.target;
-			if (!appctx->ctx.table.t)
-				appctx->ctx.table.t = stktables_list;
+			ctx->t = ctx->target;
+			if (!ctx->t)
+				ctx->t = stktables_list;
 
-			appctx->ctx.table.entry = NULL;
+			ctx->entry = NULL;
 			appctx->st2 = STAT_ST_INFO;
 			break;
 
 		case STAT_ST_INFO:
-			if (!appctx->ctx.table.t ||
-			    (appctx->ctx.table.target &&
-			     appctx->ctx.table.t != appctx->ctx.table.target)) {
+			if (!ctx->t ||
+			    (ctx->target &&
+			     ctx->t != ctx->target)) {
 				appctx->st2 = STAT_ST_END;
 				break;
 			}
 
-			if (appctx->ctx.table.t->size) {
-				if (show && !table_dump_head_to_buffer(&trash, cs, appctx->ctx.table.t, appctx->ctx.table.target))
+			if (ctx->t->size) {
+				if (show && !table_dump_head_to_buffer(&trash, cs, ctx->t, ctx->target))
 					return 0;
 
-				if (appctx->ctx.table.target &&
+				if (ctx->target &&
 				    (strm_li(s)->bind_conf->level & ACCESS_LVL_MASK) >= ACCESS_LVL_OPER) {
 					/* dump entries only if table explicitly requested */
-					HA_SPIN_LOCK(STK_TABLE_LOCK, &appctx->ctx.table.t->lock);
-					eb = ebmb_first(&appctx->ctx.table.t->keys);
+					HA_SPIN_LOCK(STK_TABLE_LOCK, &ctx->t->lock);
+					eb = ebmb_first(&ctx->t->keys);
 					if (eb) {
-						appctx->ctx.table.entry = ebmb_entry(eb, struct stksess, key);
-						appctx->ctx.table.entry->ref_cnt++;
+						ctx->entry = ebmb_entry(eb, struct stksess, key);
+						ctx->entry->ref_cnt++;
 						appctx->st2 = STAT_ST_LIST;
-						HA_SPIN_UNLOCK(STK_TABLE_LOCK, &appctx->ctx.table.t->lock);
+						HA_SPIN_UNLOCK(STK_TABLE_LOCK, &ctx->t->lock);
 						break;
 					}
-					HA_SPIN_UNLOCK(STK_TABLE_LOCK, &appctx->ctx.table.t->lock);
+					HA_SPIN_UNLOCK(STK_TABLE_LOCK, &ctx->t->lock);
 				}
 			}
-			appctx->ctx.table.t = appctx->ctx.table.t->next;
+			ctx->t = ctx->t->next;
 			break;
 
 		case STAT_ST_LIST:
 			skip_entry = 0;
 
-			HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &appctx->ctx.table.entry->lock);
+			HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &ctx->entry->lock);
 
-			if (appctx->ctx.table.data_type[0] >= 0) {
+			if (ctx->data_type[0] >= 0) {
 				/* we're filtering on some data contents */
 				void *ptr;
 				int dt, i;
@@ -4730,11 +4745,11 @@ static int cli_io_handler_table(struct appctx *appctx)
 
 
 				for (i = 0; i < STKTABLE_FILTER_LEN; i++) {
-					if (appctx->ctx.table.data_type[i] == -1)
+					if (ctx->data_type[i] == -1)
 						break;
-					dt = appctx->ctx.table.data_type[i];
-					ptr = stktable_data_ptr(appctx->ctx.table.t,
-								appctx->ctx.table.entry,
+					dt = ctx->data_type[i];
+					ptr = stktable_data_ptr(ctx->t,
+								ctx->entry,
 								dt);
 
 					data = 0;
@@ -4750,12 +4765,12 @@ static int cli_io_handler_table(struct appctx *appctx)
 						break;
 					case STD_T_FRQP:
 						data = read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
-									    appctx->ctx.table.t->data_arg[dt].u);
+									    ctx->t->data_arg[dt].u);
 						break;
 					}
 
-					op = appctx->ctx.table.data_op[i];
-					value = appctx->ctx.table.value[i];
+					op = ctx->data_op[i];
+					value = ctx->value[i];
 
 					/* skip the entry if the data does not match the test and the value */
 					if ((data < value &&
@@ -4771,38 +4786,38 @@ static int cli_io_handler_table(struct appctx *appctx)
 			}
 
 			if (show && !skip_entry &&
-			    !table_dump_entry_to_buffer(&trash, cs, appctx->ctx.table.t, appctx->ctx.table.entry)) {
-				HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &appctx->ctx.table.entry->lock);
+			    !table_dump_entry_to_buffer(&trash, cs, ctx->t, ctx->entry)) {
+				HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &ctx->entry->lock);
 				return 0;
 			}
 
-			HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &appctx->ctx.table.entry->lock);
+			HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &ctx->entry->lock);
 
-			HA_SPIN_LOCK(STK_TABLE_LOCK, &appctx->ctx.table.t->lock);
-			appctx->ctx.table.entry->ref_cnt--;
+			HA_SPIN_LOCK(STK_TABLE_LOCK, &ctx->t->lock);
+			ctx->entry->ref_cnt--;
 
-			eb = ebmb_next(&appctx->ctx.table.entry->key);
+			eb = ebmb_next(&ctx->entry->key);
 			if (eb) {
-				struct stksess *old = appctx->ctx.table.entry;
-				appctx->ctx.table.entry = ebmb_entry(eb, struct stksess, key);
+				struct stksess *old = ctx->entry;
+				ctx->entry = ebmb_entry(eb, struct stksess, key);
 				if (show)
-					__stksess_kill_if_expired(appctx->ctx.table.t, old);
-				else if (!skip_entry && !appctx->ctx.table.entry->ref_cnt)
-					__stksess_kill(appctx->ctx.table.t, old);
-				appctx->ctx.table.entry->ref_cnt++;
-				HA_SPIN_UNLOCK(STK_TABLE_LOCK, &appctx->ctx.table.t->lock);
+					__stksess_kill_if_expired(ctx->t, old);
+				else if (!skip_entry && !ctx->entry->ref_cnt)
+					__stksess_kill(ctx->t, old);
+				ctx->entry->ref_cnt++;
+				HA_SPIN_UNLOCK(STK_TABLE_LOCK, &ctx->t->lock);
 				break;
 			}
 
 
 			if (show)
-				__stksess_kill_if_expired(appctx->ctx.table.t, appctx->ctx.table.entry);
-			else if (!skip_entry && !appctx->ctx.table.entry->ref_cnt)
-				__stksess_kill(appctx->ctx.table.t, appctx->ctx.table.entry);
+				__stksess_kill_if_expired(ctx->t, ctx->entry);
+			else if (!skip_entry && !ctx->entry->ref_cnt)
+				__stksess_kill(ctx->t, ctx->entry);
 
-			HA_SPIN_UNLOCK(STK_TABLE_LOCK, &appctx->ctx.table.t->lock);
+			HA_SPIN_UNLOCK(STK_TABLE_LOCK, &ctx->t->lock);
 
-			appctx->ctx.table.t = appctx->ctx.table.t->next;
+			ctx->t = ctx->t->next;
 			appctx->st2 = STAT_ST_INFO;
 			break;
 
@@ -4816,8 +4831,10 @@ static int cli_io_handler_table(struct appctx *appctx)
 
 static void cli_release_show_table(struct appctx *appctx)
 {
+	struct show_table_ctx *ctx = appctx->svcctx;
+
 	if (appctx->st2 == STAT_ST_LIST) {
-		stksess_kill_if_expired(appctx->ctx.table.t, appctx->ctx.table.entry, 1);
+		stksess_kill_if_expired(ctx->t, ctx->entry, 1);
 	}
 }
 

@@ -150,15 +150,6 @@ struct appctx {
 				int st_code;		/* the status code returned by an action */
 			} stats;
 			struct {
-				void *target;		/* table we want to dump, or NULL for all */
-				struct stktable *t;	/* table being currently dumped (first if NULL) */
-				struct stksess *entry;	/* last entry we were trying to dump (or first if NULL) */
-				long long value[STKTABLE_FILTER_LEN];	     /* value to compare against */
-				signed char data_type[STKTABLE_FILTER_LEN];  /* type of data to compare, or -1 if none */
-				signed char data_op[STKTABLE_FILTER_LEN];    /* operator (STD_OP_*) when data_type set */
-				char action;            /* action on the table : one of STK_CLI_ACT_* */
-			} table;
-			struct {
 				unsigned int display_flags;
 				struct pat_ref *ref;
 				struct bref bref;	/* back-reference from the pat_ref_elt being dumped */
