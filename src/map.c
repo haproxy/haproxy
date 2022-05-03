@@ -352,12 +352,9 @@ static int cli_io_handler_pat_list(struct appctx *appctx)
 		/* If we're forced to shut down, we might have to remove our
 		 * reference to the last ref_elt being dumped.
 		 */
-		if (ctx->state == STATE_LIST) {
+		if (!LIST_ISEMPTY(&ctx->bref.users)) {
 			HA_SPIN_LOCK(PATREF_LOCK, &ctx->ref->lock);
-			if (!LIST_ISEMPTY(&ctx->bref.users)) {
-				LIST_DELETE(&ctx->bref.users);
-				LIST_INIT(&ctx->bref.users);
-			}
+			LIST_DEL_INIT(&ctx->bref.users);
 			HA_SPIN_UNLOCK(PATREF_LOCK, &ctx->ref->lock);
 		}
 		return 1;
@@ -687,10 +684,9 @@ static void cli_release_show_map(struct appctx *appctx)
 {
 	struct show_map_ctx *ctx = appctx->svcctx;
 
-	if (ctx->state == STATE_LIST) {
+	if (!LIST_ISEMPTY(&ctx->bref.users)) {
 		HA_SPIN_LOCK(PATREF_LOCK, &ctx->ref->lock);
-		if (!LIST_ISEMPTY(&ctx->bref.users))
-			LIST_DELETE(&ctx->bref.users);
+		LIST_DEL_INIT(&ctx->bref.users);
 		HA_SPIN_UNLOCK(PATREF_LOCK, &ctx->ref->lock);
 	}
 }
