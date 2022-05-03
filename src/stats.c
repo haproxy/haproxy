@@ -25,7 +25,7 @@
 
 #include <haproxy/api.h>
 #include <haproxy/activity.h>
-#include <haproxy/applet-t.h>
+#include <haproxy/applet.h>
 #include <haproxy/backend.h>
 #include <haproxy/base64.h>
 #include <haproxy/cfgparse.h>
@@ -311,6 +311,7 @@ int stats_putchk(struct channel *chn, struct htx *htx, struct buffer *chk)
 
 static const char *stats_scope_ptr(struct appctx *appctx, struct conn_stream *cs)
 {
+	struct show_stat_ctx *ctx = appctx->svcctx;
 	struct channel *req = cs_oc(cs);
 	struct htx *htx = htxbuf(&req->buf);
 	struct htx_blk *blk;
@@ -320,7 +321,7 @@ static const char *stats_scope_ptr(struct appctx *appctx, struct conn_stream *cs
 	BUG_ON(!blk || htx_get_blk_type(blk) != HTX_BLK_REQ_SL);
 	ALREADY_CHECKED(blk);
 	uri = htx_sl_req_uri(htx_get_blk_ptr(htx, blk));
-	return uri.ptr + appctx->ctx.stats.scope_str;
+	return uri.ptr + ctx->scope_str;
 }
 
 /*
@@ -1618,19 +1619,20 @@ static int stats_dump_fields_html(struct buffer *out,
 int stats_dump_one_line(const struct field *stats, size_t stats_count,
                         struct appctx *appctx)
 {
+	struct show_stat_ctx *ctx = appctx->svcctx;
 	int ret;
 
-	if (appctx->ctx.stats.flags & STAT_FMT_HTML)
-		ret = stats_dump_fields_html(&trash, stats, appctx->ctx.stats.flags);
-	else if (appctx->ctx.stats.flags & STAT_FMT_TYPED)
-		ret = stats_dump_fields_typed(&trash, stats, stats_count, appctx->ctx.stats.flags, appctx->ctx.stats.domain);
-	else if (appctx->ctx.stats.flags & STAT_FMT_JSON)
-		ret = stats_dump_fields_json(&trash, stats, stats_count, appctx->ctx.stats.flags, appctx->ctx.stats.domain);
+	if (ctx->flags & STAT_FMT_HTML)
+		ret = stats_dump_fields_html(&trash, stats, ctx->flags);
+	else if (ctx->flags & STAT_FMT_TYPED)
+		ret = stats_dump_fields_typed(&trash, stats, stats_count, ctx->flags, ctx->domain);
+	else if (ctx->flags & STAT_FMT_JSON)
+		ret = stats_dump_fields_json(&trash, stats, stats_count, ctx->flags, ctx->domain);
 	else
-		ret = stats_dump_fields_csv(&trash, stats, stats_count, appctx->ctx.stats.flags, appctx->ctx.stats.domain);
+		ret = stats_dump_fields_csv(&trash, stats, stats_count, ctx->flags, ctx->domain);
 
 	if (ret)
-		appctx->ctx.stats.flags |= STAT_STARTED;
+		ctx->flags |= STAT_STARTED;
 
 	return ret;
 }
@@ -1813,6 +1815,7 @@ int stats_fill_fe_stats(struct proxy *px, struct field *stats, int len,
 static int stats_dump_fe_stats(struct conn_stream *cs, struct proxy *px)
 {
 	struct appctx *appctx = __cs_appctx(cs);
+	struct show_stat_ctx *ctx = appctx->svcctx;
 	struct field *stats = stat_l[STATS_DOMAIN_PROXY];
 	struct stats_module *mod;
 	size_t stats_count = ST_F_TOTAL_FIELDS;
@@ -1820,7 +1823,7 @@ static int stats_dump_fe_stats(struct conn_stream *cs, struct proxy *px)
 	if (!(px->cap & PR_CAP_FE))
 		return 0;
 
-	if ((appctx->ctx.stats.flags & STAT_BOUND) && !(appctx->ctx.stats.type & (1 << STATS_TYPE_FE)))
+	if ((ctx->flags & STAT_BOUND) && !(ctx->type & (1 << STATS_TYPE_FE)))
 		return 0;
 
 	memset(stats, 0, sizeof(struct field) * stat_count[STATS_DOMAIN_PROXY]);
@@ -1980,13 +1983,14 @@ int stats_fill_li_stats(struct proxy *px, struct listener *l, int flags,
 static int stats_dump_li_stats(struct conn_stream *cs, struct proxy *px, struct listener *l)
 {
 	struct appctx *appctx = __cs_appctx(cs);
+	struct show_stat_ctx *ctx = appctx->svcctx;
 	struct field *stats = stat_l[STATS_DOMAIN_PROXY];
 	struct stats_module *mod;
 	size_t stats_count = ST_F_TOTAL_FIELDS;
 
 	memset(stats, 0, sizeof(struct field) * stat_count[STATS_DOMAIN_PROXY]);
 
-	if (!stats_fill_li_stats(px, l, appctx->ctx.stats.flags, stats,
+	if (!stats_fill_li_stats(px, l, ctx->flags, stats,
 				 ST_F_TOTAL_FIELDS, NULL))
 		return 0;
 
@@ -2491,13 +2495,14 @@ int stats_fill_sv_stats(struct proxy *px, struct server *sv, int flags,
 static int stats_dump_sv_stats(struct conn_stream *cs, struct proxy *px, struct server *sv)
 {
 	struct appctx *appctx = __cs_appctx(cs);
+	struct show_stat_ctx *ctx = appctx->svcctx;
 	struct stats_module *mod;
 	struct field *stats = stat_l[STATS_DOMAIN_PROXY];
 	size_t stats_count = ST_F_TOTAL_FIELDS;
 
 	memset(stats, 0, sizeof(struct field) * stat_count[STATS_DOMAIN_PROXY]);
 
-	if (!stats_fill_sv_stats(px, sv, appctx->ctx.stats.flags, stats,
+	if (!stats_fill_sv_stats(px, sv, ctx->flags, stats,
 				 ST_F_TOTAL_FIELDS, NULL))
 		return 0;
 
@@ -2816,6 +2821,7 @@ int stats_fill_be_stats(struct proxy *px, int flags, struct field *stats, int le
 static int stats_dump_be_stats(struct conn_stream *cs, struct proxy *px)
 {
 	struct appctx *appctx = __cs_appctx(cs);
+	struct show_stat_ctx *ctx = appctx->svcctx;
 	struct field *stats = stat_l[STATS_DOMAIN_PROXY];
 	struct stats_module *mod;
 	size_t stats_count = ST_F_TOTAL_FIELDS;
@@ -2823,12 +2829,12 @@ static int stats_dump_be_stats(struct conn_stream *cs, struct proxy *px)
 	if (!(px->cap & PR_CAP_BE))
 		return 0;
 
-	if ((appctx->ctx.stats.flags & STAT_BOUND) && !(appctx->ctx.stats.type & (1 << STATS_TYPE_BE)))
+	if ((ctx->flags & STAT_BOUND) && !(ctx->type & (1 << STATS_TYPE_BE)))
 		return 0;
 
 	memset(stats, 0, sizeof(struct field) * stat_count[STATS_DOMAIN_PROXY]);
 
-	if (!stats_fill_be_stats(px, appctx->ctx.stats.flags, stats, ST_F_TOTAL_FIELDS, NULL))
+	if (!stats_fill_be_stats(px, ctx->flags, stats, ST_F_TOTAL_FIELDS, NULL))
 		return 0;
 
 	list_for_each_entry(mod, &stats_module_list[STATS_DOMAIN_PROXY], list) {
@@ -2857,21 +2863,22 @@ static int stats_dump_be_stats(struct conn_stream *cs, struct proxy *px)
 static void stats_dump_html_px_hdr(struct conn_stream *cs, struct proxy *px)
 {
 	struct appctx *appctx = __cs_appctx(cs);
+	struct show_stat_ctx *ctx = appctx->svcctx;
 	char scope_txt[STAT_SCOPE_TXT_MAXLEN + sizeof STAT_SCOPE_PATTERN];
 	struct stats_module *mod;
 	int stats_module_len = 0;
 
-	if (px->cap & PR_CAP_BE && px->srv && (appctx->ctx.stats.flags & STAT_ADMIN)) {
+	if (px->cap & PR_CAP_BE && px->srv && (ctx->flags & STAT_ADMIN)) {
 		/* A form to enable/disable this proxy servers */
 
-		/* scope_txt = search pattern + search query, appctx->ctx.stats.scope_len is always <= STAT_SCOPE_TXT_MAXLEN */
+		/* scope_txt = search pattern + search query, ctx->scope_len is always <= STAT_SCOPE_TXT_MAXLEN */
 		scope_txt[0] = 0;
-		if (appctx->ctx.stats.scope_len) {
+		if (ctx->scope_len) {
 			const char *scope_ptr = stats_scope_ptr(appctx, cs);
 
 			strcpy(scope_txt, STAT_SCOPE_PATTERN);
-			memcpy(scope_txt + strlen(STAT_SCOPE_PATTERN), scope_ptr, appctx->ctx.stats.scope_len);
-			scope_txt[strlen(STAT_SCOPE_PATTERN) + appctx->ctx.stats.scope_len] = 0;
+			memcpy(scope_txt + strlen(STAT_SCOPE_PATTERN), scope_ptr, ctx->scope_len);
+			scope_txt[strlen(STAT_SCOPE_PATTERN) + ctx->scope_len] = 0;
 		}
 
 		chunk_appendf(&trash,
@@ -2888,10 +2895,10 @@ static void stats_dump_html_px_hdr(struct conn_stream *cs, struct proxy *px)
 	              "<a name=\"%s\"></a>%s"
 	              "<a class=px href=\"#%s\">%s</a>",
 	              px->id,
-	              (appctx->ctx.stats.flags & STAT_SHLGNDS) ? "<u>":"",
+	              (ctx->flags & STAT_SHLGNDS) ? "<u>":"",
 	              px->id, px->id);
 
-	if (appctx->ctx.stats.flags & STAT_SHLGNDS) {
+	if (ctx->flags & STAT_SHLGNDS) {
 		/* cap, mode, id */
 		chunk_appendf(&trash, "<div class=tips>cap: %s, mode: %s, id: %d",
 		              proxy_cap_str(px->cap), proxy_mode_str(px->mode),
@@ -2906,10 +2913,10 @@ static void stats_dump_html_px_hdr(struct conn_stream *cs, struct proxy *px)
 	              "</table>\n"
 	              "<table class=\"tbl\" width=\"100%%\">\n"
 	              "<tr class=\"titre\">",
-	              (appctx->ctx.stats.flags & STAT_SHLGNDS) ? "</u>":"",
+	              (ctx->flags & STAT_SHLGNDS) ? "</u>":"",
 	              px->desc ? "desc" : "empty", px->desc ? px->desc : "");
 
-	if (appctx->ctx.stats.flags & STAT_ADMIN) {
+	if (ctx->flags & STAT_ADMIN) {
 		/* Column heading for Enable or Disable server */
 		if ((px->cap & PR_CAP_BE) && px->srv)
 			chunk_appendf(&trash,
@@ -2930,7 +2937,7 @@ static void stats_dump_html_px_hdr(struct conn_stream *cs, struct proxy *px)
 	              "<th colspan=3>Errors</th><th colspan=2>Warnings</th>"
 	              "<th colspan=9>Server</th>");
 
-	if (appctx->ctx.stats.flags & STAT_SHMODULES) {
+	if (ctx->flags & STAT_SHMODULES) {
 		// calculate the count of module for colspan attribute
 		list_for_each_entry(mod, &stats_module_list[STATS_DOMAIN_PROXY], list) {
 			++stats_module_len;
@@ -2951,7 +2958,7 @@ static void stats_dump_html_px_hdr(struct conn_stream *cs, struct proxy *px)
 	              "<th>Bck</th><th>Chk</th><th>Dwn</th><th>Dwntme</th>"
 	              "<th>Thrtle</th>\n");
 
-	if (appctx->ctx.stats.flags & STAT_SHMODULES) {
+	if (ctx->flags & STAT_SHMODULES) {
 		list_for_each_entry(mod, &stats_module_list[STATS_DOMAIN_PROXY], list) {
 			chunk_appendf(&trash, "<th>%s</th>", mod->name);
 		}
@@ -2966,10 +2973,11 @@ static void stats_dump_html_px_hdr(struct conn_stream *cs, struct proxy *px)
 static void stats_dump_html_px_end(struct conn_stream *cs, struct proxy *px)
 {
 	struct appctx *appctx = __cs_appctx(cs);
+	struct show_stat_ctx *ctx = appctx->svcctx;
 
 	chunk_appendf(&trash, "</table>");
 
-	if ((px->cap & PR_CAP_BE) && px->srv && (appctx->ctx.stats.flags & STAT_ADMIN)) {
+	if ((px->cap & PR_CAP_BE) && px->srv && (ctx->flags & STAT_ADMIN)) {
 		/* close the form used to enable/disable this proxy servers */
 		chunk_appendf(&trash,
 			      "Choose the action to perform on the checked servers : "
@@ -3009,6 +3017,7 @@ int stats_dump_proxy_to_buffer(struct conn_stream *cs, struct htx *htx,
 			       struct proxy *px, struct uri_auth *uri)
 {
 	struct appctx *appctx = __cs_appctx(cs);
+	struct show_stat_ctx *ctx = appctx->svcctx;
 	struct stream *s = __cs_strm(cs);
 	struct channel *rep = cs_ic(cs);
 	struct server *sv, *svs;	/* server and server-state, server-state=server or server->track */
@@ -3016,7 +3025,7 @@ int stats_dump_proxy_to_buffer(struct conn_stream *cs, struct htx *htx,
 
 	chunk_reset(&trash);
 
-	switch (appctx->ctx.stats.px_st) {
+	switch (ctx->px_st) {
 	case STAT_PX_ST_INIT:
 		/* we are on a new proxy */
 		if (uri && uri->scope) {
@@ -3046,29 +3055,29 @@ int stats_dump_proxy_to_buffer(struct conn_stream *cs, struct htx *htx,
 		/* if the user has requested a limited output and the proxy
 		 * name does not match, skip it.
 		 */
-		if (appctx->ctx.stats.scope_len) {
+		if (ctx->scope_len) {
 			const char *scope_ptr = stats_scope_ptr(appctx, cs);
 
-			if (strnistr(px->id, strlen(px->id), scope_ptr, appctx->ctx.stats.scope_len) == NULL)
+			if (strnistr(px->id, strlen(px->id), scope_ptr, ctx->scope_len) == NULL)
 				return 1;
 		}
 
-		if ((appctx->ctx.stats.flags & STAT_BOUND) &&
-		    (appctx->ctx.stats.iid != -1) &&
-		    (px->uuid != appctx->ctx.stats.iid))
+		if ((ctx->flags & STAT_BOUND) &&
+		    (ctx->iid != -1) &&
+		    (px->uuid != ctx->iid))
 			return 1;
 
-		appctx->ctx.stats.px_st = STAT_PX_ST_TH;
+		ctx->px_st = STAT_PX_ST_TH;
 		/* fall through */
 
 	case STAT_PX_ST_TH:
-		if (appctx->ctx.stats.flags & STAT_FMT_HTML) {
+		if (ctx->flags & STAT_FMT_HTML) {
 			stats_dump_html_px_hdr(cs, px);
 			if (!stats_putchk(rep, htx, &trash))
 				goto full;
 		}
 
-		appctx->ctx.stats.px_st = STAT_PX_ST_FE;
+		ctx->px_st = STAT_PX_ST_FE;
 		/* fall through */
 
 	case STAT_PX_ST_FE:
@@ -3078,13 +3087,13 @@ int stats_dump_proxy_to_buffer(struct conn_stream *cs, struct htx *htx,
 				goto full;
 		}
 
-		appctx->ctx.stats.obj2 = px->conf.listeners.n;
-		appctx->ctx.stats.px_st = STAT_PX_ST_LI;
+		ctx->obj2 = px->conf.listeners.n;
+		ctx->px_st = STAT_PX_ST_LI;
 		/* fall through */
 
 	case STAT_PX_ST_LI:
 		/* obj2 points to listeners list as initialized above */
-		for (; appctx->ctx.stats.obj2 != &px->conf.listeners; appctx->ctx.stats.obj2 = l->by_fe.n) {
+		for (; ctx->obj2 != &px->conf.listeners; ctx->obj2 = l->by_fe.n) {
 			if (htx) {
 				if (htx_almost_full(htx))
 					goto full;
@@ -3094,15 +3103,15 @@ int stats_dump_proxy_to_buffer(struct conn_stream *cs, struct htx *htx,
 					goto full;
 			}
 
-			l = LIST_ELEM(appctx->ctx.stats.obj2, struct listener *, by_fe);
+			l = LIST_ELEM(ctx->obj2, struct listener *, by_fe);
 			if (!l->counters)
 				continue;
 
-			if (appctx->ctx.stats.flags & STAT_BOUND) {
-				if (!(appctx->ctx.stats.type & (1 << STATS_TYPE_SO)))
+			if (ctx->flags & STAT_BOUND) {
+				if (!(ctx->type & (1 << STATS_TYPE_SO)))
 					break;
 
-				if (appctx->ctx.stats.sid != -1 && l->luid != appctx->ctx.stats.sid)
+				if (ctx->sid != -1 && l->luid != ctx->sid)
 					continue;
 			}
 
@@ -3113,8 +3122,8 @@ int stats_dump_proxy_to_buffer(struct conn_stream *cs, struct htx *htx,
 			}
 		}
 
-		appctx->ctx.stats.obj2 = px->srv; /* may be NULL */
-		appctx->ctx.stats.px_st = STAT_PX_ST_SV;
+		ctx->obj2 = px->srv; /* may be NULL */
+		ctx->px_st = STAT_PX_ST_SV;
 		/* fall through */
 
 	case STAT_PX_ST_SV:
@@ -3124,10 +3133,10 @@ int stats_dump_proxy_to_buffer(struct conn_stream *cs, struct htx *htx,
 		 * Temporarily increment its refcount to prevent its
 		 * anticipated cleaning. Call free_server to release it.
 		 */
-		for (; appctx->ctx.stats.obj2 != NULL;
-		       appctx->ctx.stats.obj2 = srv_drop(sv)) {
+		for (; ctx->obj2 != NULL;
+		       ctx->obj2 = srv_drop(sv)) {
 
-			sv = appctx->ctx.stats.obj2;
+			sv = ctx->obj2;
 			srv_take(sv);
 
 			if (htx) {
@@ -3139,18 +3148,18 @@ int stats_dump_proxy_to_buffer(struct conn_stream *cs, struct htx *htx,
 					goto full;
 			}
 
-			if (appctx->ctx.stats.flags & STAT_BOUND) {
-				if (!(appctx->ctx.stats.type & (1 << STATS_TYPE_SV))) {
+			if (ctx->flags & STAT_BOUND) {
+				if (!(ctx->type & (1 << STATS_TYPE_SV))) {
 					srv_drop(sv);
 					break;
 				}
 
-				if (appctx->ctx.stats.sid != -1 && sv->puid != appctx->ctx.stats.sid)
+				if (ctx->sid != -1 && sv->puid != ctx->sid)
 					continue;
 			}
 
 			/* do not report disabled servers */
-			if (appctx->ctx.stats.flags & STAT_HIDE_MAINT &&
+			if (ctx->flags & STAT_HIDE_MAINT &&
 			    sv->cur_admin & SRV_ADMF_MAINT) {
 				continue;
 			}
@@ -3160,7 +3169,7 @@ int stats_dump_proxy_to_buffer(struct conn_stream *cs, struct htx *htx,
 				svs = svs->track;
 
 			/* do not report servers which are DOWN and not changing state */
-			if ((appctx->ctx.stats.flags & STAT_HIDE_DOWN) &&
+			if ((ctx->flags & STAT_HIDE_DOWN) &&
 			    ((sv->cur_admin & SRV_ADMF_MAINT) || /* server is in maintenance */
 			     (sv->cur_state == SRV_ST_STOPPED && /* server is down */
 			      (!((svs->agent.state | svs->check.state) & CHK_ST_ENABLED) ||
@@ -3175,7 +3184,7 @@ int stats_dump_proxy_to_buffer(struct conn_stream *cs, struct htx *htx,
 			}
 		} /* for sv */
 
-		appctx->ctx.stats.px_st = STAT_PX_ST_BE;
+		ctx->px_st = STAT_PX_ST_BE;
 		/* fall through */
 
 	case STAT_PX_ST_BE:
@@ -3185,17 +3194,17 @@ int stats_dump_proxy_to_buffer(struct conn_stream *cs, struct htx *htx,
 				goto full;
 		}
 
-		appctx->ctx.stats.px_st = STAT_PX_ST_END;
+		ctx->px_st = STAT_PX_ST_END;
 		/* fall through */
 
 	case STAT_PX_ST_END:
-		if (appctx->ctx.stats.flags & STAT_FMT_HTML) {
+		if (ctx->flags & STAT_FMT_HTML) {
 			stats_dump_html_px_end(cs, px);
 			if (!stats_putchk(rep, htx, &trash))
 				goto full;
 		}
 
-		appctx->ctx.stats.px_st = STAT_PX_ST_FIN;
+		ctx->px_st = STAT_PX_ST_FIN;
 		/* fall through */
 
 	case STAT_PX_ST_FIN:
@@ -3216,6 +3225,8 @@ int stats_dump_proxy_to_buffer(struct conn_stream *cs, struct htx *htx,
  */
 static void stats_dump_html_head(struct appctx *appctx, struct uri_auth *uri)
 {
+	struct show_stat_ctx *ctx = appctx->svcctx;
+
 	/* WARNING! This must fit in the first buffer !!! */
 	chunk_appendf(&trash,
 	              "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01 Transitional//EN\"\n"
@@ -3372,8 +3383,8 @@ static void stats_dump_html_head(struct appctx *appctx, struct uri_auth *uri)
 	              "}\n"
 	              "-->\n"
 	              "</style></head>\n",
-	              (appctx->ctx.stats.flags & STAT_SHNODE) ? " on " : "",
-	              (appctx->ctx.stats.flags & STAT_SHNODE) ? (uri && uri->node ? uri->node : global.node) : ""
+	              (ctx->flags & STAT_SHNODE) ? " on " : "",
+	              (ctx->flags & STAT_SHNODE) ? (uri && uri->node ? uri->node : global.node) : ""
 	              );
 }
 
@@ -3384,6 +3395,7 @@ static void stats_dump_html_head(struct appctx *appctx, struct uri_auth *uri)
 static void stats_dump_html_info(struct conn_stream *cs, struct uri_auth *uri)
 {
 	struct appctx *appctx = __cs_appctx(cs);
+	struct show_stat_ctx *ctx = appctx->svcctx;
 	unsigned int up = (now.tv_sec - start_date.tv_sec);
 	char scope_txt[STAT_SCOPE_TXT_MAXLEN + sizeof STAT_SCOPE_PATTERN];
 	const char *scope_ptr = stats_scope_ptr(appctx, cs);
@@ -3440,11 +3452,11 @@ static void stats_dump_html_info(struct conn_stream *cs, struct uri_auth *uri)
 	              "<td align=\"left\" valign=\"top\" nowrap width=\"1%%\">"
 	              "<b>Display option:</b><ul style=\"margin-top: 0.25em;\">"
 	              "",
-	              (appctx->ctx.stats.flags & STAT_HIDEVER) ? "" : (stats_version_string),
-	              pid, (appctx->ctx.stats.flags & STAT_SHNODE) ? " on " : "",
-		      (appctx->ctx.stats.flags & STAT_SHNODE) ? (uri->node ? uri->node : global.node) : "",
-	              (appctx->ctx.stats.flags & STAT_SHDESC) ? ": " : "",
-		      (appctx->ctx.stats.flags & STAT_SHDESC) ? (uri->desc ? uri->desc : global.desc) : "",
+	              (ctx->flags & STAT_HIDEVER) ? "" : (stats_version_string),
+	              pid, (ctx->flags & STAT_SHNODE) ? " on " : "",
+		      (ctx->flags & STAT_SHNODE) ? (uri->node ? uri->node : global.node) : "",
+	              (ctx->flags & STAT_SHDESC) ? ": " : "",
+		      (ctx->flags & STAT_SHDESC) ? (uri->desc ? uri->desc : global.desc) : "",
 	              pid, 1, 1, global.nbthread,
 	              up / 86400, (up % 86400) / 3600,
 	              (up % 3600) / 60, (up % 60),
@@ -3458,51 +3470,51 @@ static void stats_dump_html_info(struct conn_stream *cs, struct uri_auth *uri)
 	              total_run_queues(), total_allocated_tasks(), clock_report_idle()
 	              );
 
-	/* scope_txt = search query, appctx->ctx.stats.scope_len is always <= STAT_SCOPE_TXT_MAXLEN */
-	memcpy(scope_txt, scope_ptr, appctx->ctx.stats.scope_len);
-	scope_txt[appctx->ctx.stats.scope_len] = '\0';
+	/* scope_txt = search query, ctx->scope_len is always <= STAT_SCOPE_TXT_MAXLEN */
+	memcpy(scope_txt, scope_ptr, ctx->scope_len);
+	scope_txt[ctx->scope_len] = '\0';
 
 	chunk_appendf(&trash,
 		      "<li><form method=\"GET\">Scope : <input value=\"%s\" name=\"" STAT_SCOPE_INPUT_NAME "\" size=\"8\" maxlength=\"%d\" tabindex=\"1\"/></form>\n",
-		      (appctx->ctx.stats.scope_len > 0) ? scope_txt : "",
+		      (ctx->scope_len > 0) ? scope_txt : "",
 		      STAT_SCOPE_TXT_MAXLEN);
 
-	/* scope_txt = search pattern + search query, appctx->ctx.stats.scope_len is always <= STAT_SCOPE_TXT_MAXLEN */
+	/* scope_txt = search pattern + search query, ctx->scope_len is always <= STAT_SCOPE_TXT_MAXLEN */
 	scope_txt[0] = 0;
-	if (appctx->ctx.stats.scope_len) {
+	if (ctx->scope_len) {
 		strcpy(scope_txt, STAT_SCOPE_PATTERN);
-		memcpy(scope_txt + strlen(STAT_SCOPE_PATTERN), scope_ptr, appctx->ctx.stats.scope_len);
-		scope_txt[strlen(STAT_SCOPE_PATTERN) + appctx->ctx.stats.scope_len] = 0;
+		memcpy(scope_txt + strlen(STAT_SCOPE_PATTERN), scope_ptr, ctx->scope_len);
+		scope_txt[strlen(STAT_SCOPE_PATTERN) + ctx->scope_len] = 0;
 	}
 
-	if (appctx->ctx.stats.flags & STAT_HIDE_DOWN)
+	if (ctx->flags & STAT_HIDE_DOWN)
 		chunk_appendf(&trash,
 		              "<li><a href=\"%s%s%s%s\">Show all servers</a><br>\n",
 		              uri->uri_prefix,
 		              "",
-		              (appctx->ctx.stats.flags & STAT_NO_REFRESH) ? ";norefresh" : "",
+		              (ctx->flags & STAT_NO_REFRESH) ? ";norefresh" : "",
 			      scope_txt);
 	else
 		chunk_appendf(&trash,
 		              "<li><a href=\"%s%s%s%s\">Hide 'DOWN' servers</a><br>\n",
 		              uri->uri_prefix,
 		              ";up",
-		              (appctx->ctx.stats.flags & STAT_NO_REFRESH) ? ";norefresh" : "",
+		              (ctx->flags & STAT_NO_REFRESH) ? ";norefresh" : "",
 			      scope_txt);
 
 	if (uri->refresh > 0) {
-		if (appctx->ctx.stats.flags & STAT_NO_REFRESH)
+		if (ctx->flags & STAT_NO_REFRESH)
 			chunk_appendf(&trash,
 			              "<li><a href=\"%s%s%s%s\">Enable refresh</a><br>\n",
 			              uri->uri_prefix,
-			              (appctx->ctx.stats.flags & STAT_HIDE_DOWN) ? ";up" : "",
+			              (ctx->flags & STAT_HIDE_DOWN) ? ";up" : "",
 			              "",
 				      scope_txt);
 		else
 			chunk_appendf(&trash,
 			              "<li><a href=\"%s%s%s%s\">Disable refresh</a><br>\n",
 			              uri->uri_prefix,
-			              (appctx->ctx.stats.flags & STAT_HIDE_DOWN) ? ";up" : "",
+			              (ctx->flags & STAT_HIDE_DOWN) ? ";up" : "",
 			              ";norefresh",
 				      scope_txt);
 	}
@@ -3510,8 +3522,8 @@ static void stats_dump_html_info(struct conn_stream *cs, struct uri_auth *uri)
 	chunk_appendf(&trash,
 	              "<li><a href=\"%s%s%s%s\">Refresh now</a><br>\n",
 	              uri->uri_prefix,
-	              (appctx->ctx.stats.flags & STAT_HIDE_DOWN) ? ";up" : "",
-	              (appctx->ctx.stats.flags & STAT_NO_REFRESH) ? ";norefresh" : "",
+	              (ctx->flags & STAT_HIDE_DOWN) ? ";up" : "",
+	              (ctx->flags & STAT_NO_REFRESH) ? ";norefresh" : "",
 		      scope_txt);
 
 	chunk_appendf(&trash,
@@ -3539,16 +3551,16 @@ static void stats_dump_html_info(struct conn_stream *cs, struct uri_auth *uri)
 	              ""
 	              );
 
-	if (appctx->ctx.stats.st_code) {
-		switch (appctx->ctx.stats.st_code) {
+	if (ctx->st_code) {
+		switch (ctx->st_code) {
 		case STAT_STATUS_DONE:
 			chunk_appendf(&trash,
 			              "<p><div class=active_up>"
 			              "<a class=lfsb href=\"%s%s%s%s\" title=\"Remove this message\">[X]</a> "
 			              "Action processed successfully."
 			              "</div>\n", uri->uri_prefix,
-			              (appctx->ctx.stats.flags & STAT_HIDE_DOWN) ? ";up" : "",
-			              (appctx->ctx.stats.flags & STAT_NO_REFRESH) ? ";norefresh" : "",
+			              (ctx->flags & STAT_HIDE_DOWN) ? ";up" : "",
+			              (ctx->flags & STAT_NO_REFRESH) ? ";norefresh" : "",
 			              scope_txt);
 			break;
 		case STAT_STATUS_NONE:
@@ -3557,8 +3569,8 @@ static void stats_dump_html_info(struct conn_stream *cs, struct uri_auth *uri)
 			              "<a class=lfsb href=\"%s%s%s%s\" title=\"Remove this message\">[X]</a> "
 			              "Nothing has changed."
 			              "</div>\n", uri->uri_prefix,
-			              (appctx->ctx.stats.flags & STAT_HIDE_DOWN) ? ";up" : "",
-			              (appctx->ctx.stats.flags & STAT_NO_REFRESH) ? ";norefresh" : "",
+			              (ctx->flags & STAT_HIDE_DOWN) ? ";up" : "",
+			              (ctx->flags & STAT_NO_REFRESH) ? ";norefresh" : "",
 			              scope_txt);
 			break;
 		case STAT_STATUS_PART:
@@ -3568,8 +3580,8 @@ static void stats_dump_html_info(struct conn_stream *cs, struct uri_auth *uri)
 			              "Action partially processed.<br>"
 			              "Some server names are probably unknown or ambiguous (duplicated names in the backend)."
 			              "</div>\n", uri->uri_prefix,
-			              (appctx->ctx.stats.flags & STAT_HIDE_DOWN) ? ";up" : "",
-			              (appctx->ctx.stats.flags & STAT_NO_REFRESH) ? ";norefresh" : "",
+			              (ctx->flags & STAT_HIDE_DOWN) ? ";up" : "",
+			              (ctx->flags & STAT_NO_REFRESH) ? ";norefresh" : "",
 			              scope_txt);
 			break;
 		case STAT_STATUS_ERRP:
@@ -3584,8 +3596,8 @@ static void stats_dump_html_info(struct conn_stream *cs, struct uri_auth *uri)
 			              "<li>Some server names are probably unknown or ambiguous (duplicated names in the backend).</li>"
 			              "</ul>"
 			              "</div>\n", uri->uri_prefix,
-			              (appctx->ctx.stats.flags & STAT_HIDE_DOWN) ? ";up" : "",
-			              (appctx->ctx.stats.flags & STAT_NO_REFRESH) ? ";norefresh" : "",
+			              (ctx->flags & STAT_HIDE_DOWN) ? ";up" : "",
+			              (ctx->flags & STAT_NO_REFRESH) ? ";norefresh" : "",
 			              scope_txt);
 			break;
 		case STAT_STATUS_EXCD:
@@ -3595,8 +3607,8 @@ static void stats_dump_html_info(struct conn_stream *cs, struct uri_auth *uri)
 			              "<b>Action not processed : the buffer couldn't store all the data.<br>"
 			              "You should retry with less servers at a time.</b>"
 			              "</div>\n", uri->uri_prefix,
-			              (appctx->ctx.stats.flags & STAT_HIDE_DOWN) ? ";up" : "",
-			              (appctx->ctx.stats.flags & STAT_NO_REFRESH) ? ";norefresh" : "",
+			              (ctx->flags & STAT_HIDE_DOWN) ? ";up" : "",
+			              (ctx->flags & STAT_NO_REFRESH) ? ";norefresh" : "",
 			              scope_txt);
 			break;
 		case STAT_STATUS_DENY:
@@ -3605,8 +3617,8 @@ static void stats_dump_html_info(struct conn_stream *cs, struct uri_auth *uri)
 			              "<a class=lfsb href=\"%s%s%s%s\" title=\"Remove this message\">[X]</a> "
 			              "<b>Action denied.</b>"
 			              "</div>\n", uri->uri_prefix,
-			              (appctx->ctx.stats.flags & STAT_HIDE_DOWN) ? ";up" : "",
-			              (appctx->ctx.stats.flags & STAT_NO_REFRESH) ? ";norefresh" : "",
+			              (ctx->flags & STAT_HIDE_DOWN) ? ";up" : "",
+			              (ctx->flags & STAT_NO_REFRESH) ? ";norefresh" : "",
 			              scope_txt);
 			break;
 		case STAT_STATUS_IVAL:
@@ -3615,8 +3627,8 @@ static void stats_dump_html_info(struct conn_stream *cs, struct uri_auth *uri)
 			              "<a class=lfsb href=\"%s%s%s%s\" title=\"Remove this message\">[X]</a> "
 			              "<b>Invalid requests (unsupported method or chunked encoded request).</b>"
 			              "</div>\n", uri->uri_prefix,
-			              (appctx->ctx.stats.flags & STAT_HIDE_DOWN) ? ";up" : "",
-			              (appctx->ctx.stats.flags & STAT_NO_REFRESH) ? ";norefresh" : "",
+			              (ctx->flags & STAT_HIDE_DOWN) ? ";up" : "",
+			              (ctx->flags & STAT_NO_REFRESH) ? ";norefresh" : "",
 			              scope_txt);
 			break;
 		default:
@@ -3625,8 +3637,8 @@ static void stats_dump_html_info(struct conn_stream *cs, struct uri_auth *uri)
 			              "<a class=lfsb href=\"%s%s%s%s\" title=\"Remove this message\">[X]</a> "
 			              "Unexpected result."
 			              "</div>\n", uri->uri_prefix,
-			              (appctx->ctx.stats.flags & STAT_HIDE_DOWN) ? ";up" : "",
-			              (appctx->ctx.stats.flags & STAT_NO_REFRESH) ? ";norefresh" : "",
+			              (ctx->flags & STAT_HIDE_DOWN) ? ";up" : "",
+			              (ctx->flags & STAT_NO_REFRESH) ? ";norefresh" : "",
 			              scope_txt);
 		}
 		chunk_appendf(&trash, "<p>\n");
@@ -3666,11 +3678,12 @@ static int stats_dump_proxies(struct conn_stream *cs,
                               struct uri_auth *uri)
 {
 	struct appctx *appctx = __cs_appctx(cs);
+	struct show_stat_ctx *ctx = appctx->svcctx;
 	struct channel *rep = cs_ic(cs);
 	struct proxy *px;
 
 	/* dump proxies */
-	while (appctx->ctx.stats.obj1) {
+	while (ctx->obj1) {
 		if (htx) {
 			if (htx_almost_full(htx))
 				goto full;
@@ -3680,7 +3693,7 @@ static int stats_dump_proxies(struct conn_stream *cs,
 				goto full;
 		}
 
-		px = appctx->ctx.stats.obj1;
+		px = ctx->obj1;
 		/* Skip the global frontend proxies and non-networked ones.
 		 * Also skip proxies that were disabled in the configuration
 		 * This change allows retrieving stats from "old" proxies after a reload.
@@ -3691,8 +3704,8 @@ static int stats_dump_proxies(struct conn_stream *cs,
 				return 0;
 		}
 
-		appctx->ctx.stats.obj1 = px->next;
-		appctx->ctx.stats.px_st = STAT_PX_ST_INIT;
+		ctx->obj1 = px->next;
+		ctx->px_st = STAT_PX_ST_INIT;
 	}
 
 	return 1;
@@ -3713,8 +3726,9 @@ static int stats_dump_stat_to_buffer(struct conn_stream *cs, struct htx *htx,
 				     struct uri_auth *uri)
 {
 	struct appctx *appctx = __cs_appctx(cs);
+	struct show_stat_ctx *ctx = appctx->svcctx;
 	struct channel *rep = cs_ic(cs);
-	enum stats_domain domain = appctx->ctx.stats.domain;
+	enum stats_domain domain = ctx->domain;
 
 	chunk_reset(&trash);
 
@@ -3724,19 +3738,19 @@ static int stats_dump_stat_to_buffer(struct conn_stream *cs, struct htx *htx,
 		/* fall through */
 
 	case STAT_ST_HEAD:
-		if (appctx->ctx.stats.flags & STAT_FMT_HTML)
+		if (ctx->flags & STAT_FMT_HTML)
 			stats_dump_html_head(appctx, uri);
-		else if (appctx->ctx.stats.flags & STAT_JSON_SCHM)
+		else if (ctx->flags & STAT_JSON_SCHM)
 			stats_dump_json_schema(&trash);
-		else if (appctx->ctx.stats.flags & STAT_FMT_JSON)
+		else if (ctx->flags & STAT_FMT_JSON)
 			stats_dump_json_header();
-		else if (!(appctx->ctx.stats.flags & STAT_FMT_TYPED))
-			stats_dump_csv_header(appctx->ctx.stats.domain);
+		else if (!(ctx->flags & STAT_FMT_TYPED))
+			stats_dump_csv_header(ctx->domain);
 
 		if (!stats_putchk(rep, htx, &trash))
 			goto full;
 
-		if (appctx->ctx.stats.flags & STAT_JSON_SCHM) {
+		if (ctx->flags & STAT_JSON_SCHM) {
 			appctx->st2 = STAT_ST_FIN;
 			return 1;
 		}
@@ -3744,16 +3758,16 @@ static int stats_dump_stat_to_buffer(struct conn_stream *cs, struct htx *htx,
 		/* fall through */
 
 	case STAT_ST_INFO:
-		if (appctx->ctx.stats.flags & STAT_FMT_HTML) {
+		if (ctx->flags & STAT_FMT_HTML) {
 			stats_dump_html_info(cs, uri);
 			if (!stats_putchk(rep, htx, &trash))
 				goto full;
 		}
 
 		if (domain == STATS_DOMAIN_PROXY)
-			appctx->ctx.stats.obj1 = proxies_list;
+			ctx->obj1 = proxies_list;
 
-		appctx->ctx.stats.px_st = STAT_PX_ST_INIT;
+		ctx->px_st = STAT_PX_ST_INIT;
 		appctx->st2 = STAT_ST_LIST;
 		/* fall through */
 
@@ -3779,8 +3793,8 @@ static int stats_dump_stat_to_buffer(struct conn_stream *cs, struct htx *htx,
 		/* fall through */
 
 	case STAT_ST_END:
-		if (appctx->ctx.stats.flags & (STAT_FMT_HTML|STAT_FMT_JSON)) {
-			if (appctx->ctx.stats.flags & STAT_FMT_HTML)
+		if (ctx->flags & (STAT_FMT_HTML|STAT_FMT_JSON)) {
+			if (ctx->flags & STAT_FMT_HTML)
 				stats_dump_html_end();
 			else
 				stats_dump_json_end();
@@ -3815,6 +3829,7 @@ static int stats_process_http_post(struct conn_stream *cs)
 {
 	struct stream *s = __cs_strm(cs);
 	struct appctx *appctx = __cs_appctx(cs);
+	struct show_stat_ctx *ctx = appctx->svcctx;
 
 	struct proxy *px = NULL;
 	struct server *sv = NULL;
@@ -3839,7 +3854,7 @@ static int stats_process_http_post(struct conn_stream *cs)
 	if (s->txn->req.msg_state < HTTP_MSG_DONE) {
 		/* check if we can receive more */
 		if (htx_free_data_space(htx) <= global.tune.maxrewrite) {
-			appctx->ctx.stats.st_code = STAT_STATUS_EXCD;
+			ctx->st_code = STAT_STATUS_EXCD;
 			goto out;
 		}
 		goto wait;
@@ -3856,7 +3871,7 @@ static int stats_process_http_post(struct conn_stream *cs)
 			struct ist v = htx_get_blk_value(htx, blk);
 
 			if (!chunk_memcat(temp, v.ptr, v.len)) {
-				appctx->ctx.stats.st_code = STAT_STATUS_EXCD;
+				ctx->st_code = STAT_STATUS_EXCD;
 				goto out;
 			}
 		}
@@ -3868,7 +3883,7 @@ static int stats_process_http_post(struct conn_stream *cs)
 	cur_param = next_param = end_params;
 	*end_params = '\0';
 
-	appctx->ctx.stats.st_code = STAT_STATUS_NONE;
+	ctx->st_code = STAT_STATUS_NONE;
 
 	/*
 	 * Parse the parameters in reverse order to only store the last value.
@@ -3889,7 +3904,7 @@ static int stats_process_http_post(struct conn_stream *cs)
 				strncpy(key, cur_param + poffset, plen);
 				key[plen - 1] = '\0';
 			} else {
-				appctx->ctx.stats.st_code = STAT_STATUS_ERRP;
+				ctx->st_code = STAT_STATUS_ERRP;
 				goto out;
 			}
 
@@ -3909,7 +3924,7 @@ static int stats_process_http_post(struct conn_stream *cs)
 			if (!px && (strcmp(key, "b") == 0)) {
 				if ((px = proxy_be_by_name(value)) == NULL) {
 					/* the backend name is unknown or ambiguous (duplicate names) */
-					appctx->ctx.stats.st_code = STAT_STATUS_ERRP;
+					ctx->st_code = STAT_STATUS_ERRP;
 					goto out;
 				}
 			}
@@ -3967,7 +3982,7 @@ static int stats_process_http_post(struct conn_stream *cs)
 					action = ST_ADM_ACTION_START;
 				}
 				else {
-					appctx->ctx.stats.st_code = STAT_STATUS_ERRP;
+					ctx->st_code = STAT_STATUS_ERRP;
 					goto out;
 				}
 			}
@@ -4127,21 +4142,21 @@ static int stats_process_http_post(struct conn_stream *cs)
 	}
 
 	if (total_servers == 0) {
-		appctx->ctx.stats.st_code = STAT_STATUS_NONE;
+		ctx->st_code = STAT_STATUS_NONE;
 	}
 	else if (altered_servers == 0) {
-		appctx->ctx.stats.st_code = STAT_STATUS_ERRP;
+		ctx->st_code = STAT_STATUS_ERRP;
 	}
 	else if (altered_servers == total_servers) {
-		appctx->ctx.stats.st_code = STAT_STATUS_DONE;
+		ctx->st_code = STAT_STATUS_DONE;
 	}
 	else {
-		appctx->ctx.stats.st_code = STAT_STATUS_PART;
+		ctx->st_code = STAT_STATUS_PART;
 	}
  out:
 	return 1;
  wait:
-	appctx->ctx.stats.st_code = STAT_STATUS_NONE;
+	ctx->st_code = STAT_STATUS_NONE;
 	return 0;
 }
 
@@ -4151,6 +4166,7 @@ static int stats_send_http_headers(struct conn_stream *cs, struct htx *htx)
 	struct stream *s = __cs_strm(cs);
 	struct uri_auth *uri = s->be->uri_auth;
 	struct appctx *appctx = __cs_appctx(cs);
+	struct show_stat_ctx *ctx = appctx->svcctx;
 	struct htx_sl *sl;
 	unsigned int flags;
 
@@ -4162,11 +4178,11 @@ static int stats_send_http_headers(struct conn_stream *cs, struct htx *htx)
 
 	if (!htx_add_header(htx, ist("Cache-Control"), ist("no-cache")))
 		goto full;
-	if (appctx->ctx.stats.flags & STAT_FMT_HTML) {
+	if (ctx->flags & STAT_FMT_HTML) {
 		if (!htx_add_header(htx, ist("Content-Type"), ist("text/html")))
 			goto full;
 	}
-	else if (appctx->ctx.stats.flags & (STAT_FMT_JSON|STAT_JSON_SCHM)) {
+	else if (ctx->flags & (STAT_FMT_JSON|STAT_JSON_SCHM)) {
 		if (!htx_add_header(htx, ist("Content-Type"), ist("application/json")))
 			goto full;
 	}
@@ -4175,13 +4191,13 @@ static int stats_send_http_headers(struct conn_stream *cs, struct htx *htx)
 			goto full;
 	}
 
-	if (uri->refresh > 0 && !(appctx->ctx.stats.flags & STAT_NO_REFRESH)) {
+	if (uri->refresh > 0 && !(ctx->flags & STAT_NO_REFRESH)) {
 		const char *refresh = U2A(uri->refresh);
 		if (!htx_add_header(htx, ist("Refresh"), ist(refresh)))
 			goto full;
 	}
 
-	if (appctx->ctx.stats.flags & STAT_CHUNKED) {
+	if (ctx->flags & STAT_CHUNKED) {
 		if (!htx_add_header(htx, ist("Transfer-Encoding"), ist("chunked")))
 			goto full;
 	}
@@ -4205,17 +4221,18 @@ static int stats_send_http_redirect(struct conn_stream *cs, struct htx *htx)
 	struct stream *s = __cs_strm(cs);
 	struct uri_auth *uri = s->be->uri_auth;
 	struct appctx *appctx = __cs_appctx(cs);
+	struct show_stat_ctx *ctx = appctx->svcctx;
 	struct htx_sl *sl;
 	unsigned int flags;
 
-	/* scope_txt = search pattern + search query, appctx->ctx.stats.scope_len is always <= STAT_SCOPE_TXT_MAXLEN */
+	/* scope_txt = search pattern + search query, ctx->scope_len is always <= STAT_SCOPE_TXT_MAXLEN */
 	scope_txt[0] = 0;
-	if (appctx->ctx.stats.scope_len) {
+	if (ctx->scope_len) {
 		const char *scope_ptr = stats_scope_ptr(appctx, cs);
 
 		strcpy(scope_txt, STAT_SCOPE_PATTERN);
-		memcpy(scope_txt + strlen(STAT_SCOPE_PATTERN), scope_ptr, appctx->ctx.stats.scope_len);
-		scope_txt[strlen(STAT_SCOPE_PATTERN) + appctx->ctx.stats.scope_len] = 0;
+		memcpy(scope_txt + strlen(STAT_SCOPE_PATTERN), scope_ptr, ctx->scope_len);
+		scope_txt[strlen(STAT_SCOPE_PATTERN) + ctx->scope_len] = 0;
 	}
 
 	/* We don't want to land on the posted stats page because a refresh will
@@ -4224,13 +4241,13 @@ static int stats_send_http_redirect(struct conn_stream *cs, struct htx *htx)
 	 */
 	chunk_printf(&trash, "%s;st=%s%s%s%s",
 		     uri->uri_prefix,
-		     ((appctx->ctx.stats.st_code > STAT_STATUS_INIT) &&
-		      (appctx->ctx.stats.st_code < STAT_STATUS_SIZE) &&
-		      stat_status_codes[appctx->ctx.stats.st_code]) ?
-		     stat_status_codes[appctx->ctx.stats.st_code] :
+		     ((ctx->st_code > STAT_STATUS_INIT) &&
+		      (ctx->st_code < STAT_STATUS_SIZE) &&
+		      stat_status_codes[ctx->st_code]) ?
+		     stat_status_codes[ctx->st_code] :
 		     stat_status_codes[STAT_STATUS_UNKN],
-		     (appctx->ctx.stats.flags & STAT_HIDE_DOWN) ? ";up" : "",
-		     (appctx->ctx.stats.flags & STAT_NO_REFRESH) ? ";norefresh" : "",
+		     (ctx->flags & STAT_HIDE_DOWN) ? ";up" : "",
+		     (ctx->flags & STAT_NO_REFRESH) ? ";norefresh" : "",
 		     scope_txt);
 
 	flags = (HTX_SL_F_IS_RESP|HTX_SL_F_VER_11|HTX_SL_F_XFER_LEN|HTX_SL_F_CHNK);
@@ -4265,6 +4282,7 @@ full:
  */
 static void http_stats_io_handler(struct appctx *appctx)
 {
+	struct show_stat_ctx *ctx = appctx->svcctx;
 	struct conn_stream *cs = appctx->owner;
 	struct stream *s = __cs_strm(cs);
 	struct channel *req = cs_oc(cs);
@@ -4272,7 +4290,7 @@ static void http_stats_io_handler(struct appctx *appctx)
 	struct htx *req_htx, *res_htx;
 
 	/* only proxy stats are available via http */
-	appctx->ctx.stats.domain = STATS_DOMAIN_PROXY;
+	ctx->domain = STATS_DOMAIN_PROXY;
 
 	res_htx = htx_from_buf(&res->buf);
 
@@ -4533,18 +4551,19 @@ int stats_fill_info(struct field *info, int len, uint flags)
 static int stats_dump_info_to_buffer(struct conn_stream *cs)
 {
 	struct appctx *appctx = __cs_appctx(cs);
+	struct show_stat_ctx *ctx = appctx->svcctx;
 
-	if (!stats_fill_info(info, INF_TOTAL_FIELDS, appctx->ctx.stats.flags))
+	if (!stats_fill_info(info, INF_TOTAL_FIELDS, ctx->flags))
 		return 0;
 
 	chunk_reset(&trash);
 
-	if (appctx->ctx.stats.flags & STAT_FMT_TYPED)
-		stats_dump_typed_info_fields(&trash, info, appctx->ctx.stats.flags);
-	else if (appctx->ctx.stats.flags & STAT_FMT_JSON)
-		stats_dump_json_info_fields(&trash, info, appctx->ctx.stats.flags);
+	if (ctx->flags & STAT_FMT_TYPED)
+		stats_dump_typed_info_fields(&trash, info, ctx->flags);
+	else if (ctx->flags & STAT_FMT_JSON)
+		stats_dump_json_info_fields(&trash, info, ctx->flags);
 	else
-		stats_dump_info_fields(&trash, info, appctx->ctx.stats.flags);
+		stats_dump_info_fields(&trash, info, ctx->flags);
 
 	if (ci_putchk(cs_ic(cs), &trash) == -1) {
 		cs_rx_room_blk(cs);
@@ -4898,21 +4917,22 @@ static int cli_parse_clear_counters(char **args, char *payload, struct appctx *a
 
 static int cli_parse_show_info(char **args, char *payload, struct appctx *appctx, void *private)
 {
+	struct show_stat_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
 	int arg = 2;
 
-	appctx->ctx.stats.scope_str = 0;
-	appctx->ctx.stats.scope_len = 0;
-	appctx->ctx.stats.flags = 0;
+	ctx->scope_str = 0;
+	ctx->scope_len = 0;
+	ctx->flags = 0;
 
 	while (*args[arg]) {
 		if (strcmp(args[arg], "typed") == 0)
-			appctx->ctx.stats.flags = (appctx->ctx.stats.flags & ~STAT_FMT_MASK) | STAT_FMT_TYPED;
+			ctx->flags = (ctx->flags & ~STAT_FMT_MASK) | STAT_FMT_TYPED;
 		else if (strcmp(args[arg], "json") == 0)
-			appctx->ctx.stats.flags = (appctx->ctx.stats.flags & ~STAT_FMT_MASK) | STAT_FMT_JSON;
+			ctx->flags = (ctx->flags & ~STAT_FMT_MASK) | STAT_FMT_JSON;
 		else if (strcmp(args[arg], "desc") == 0)
-			appctx->ctx.stats.flags |= STAT_SHOW_FDESC;
+			ctx->flags |= STAT_SHOW_FDESC;
 		else if (strcmp(args[arg], "float") == 0)
-			appctx->ctx.stats.flags |= STAT_USE_FLOAT;
+			ctx->flags |= STAT_USE_FLOAT;
 		arg++;
 	}
 	return 0;
@@ -4921,60 +4941,61 @@ static int cli_parse_show_info(char **args, char *payload, struct appctx *appctx
 
 static int cli_parse_show_stat(char **args, char *payload, struct appctx *appctx, void *private)
 {
+	struct show_stat_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
 	int arg = 2;
 
-	appctx->ctx.stats.scope_str = 0;
-	appctx->ctx.stats.scope_len = 0;
-	appctx->ctx.stats.flags = STAT_SHNODE | STAT_SHDESC;
+	ctx->scope_str = 0;
+	ctx->scope_len = 0;
+	ctx->flags = STAT_SHNODE | STAT_SHDESC;
 
 	if ((strm_li(__cs_strm(appctx->owner))->bind_conf->level & ACCESS_LVL_MASK) >= ACCESS_LVL_OPER)
-		appctx->ctx.stats.flags |= STAT_SHLGNDS;
+		ctx->flags |= STAT_SHLGNDS;
 
 	/* proxy is the default domain */
-	appctx->ctx.stats.domain = STATS_DOMAIN_PROXY;
+	ctx->domain = STATS_DOMAIN_PROXY;
 	if (strcmp(args[arg], "domain") == 0) {
 		++args;
 
 		if (strcmp(args[arg], "proxy") == 0) {
 			++args;
 		} else if (strcmp(args[arg], "resolvers") == 0) {
-			appctx->ctx.stats.domain = STATS_DOMAIN_RESOLVERS;
+			ctx->domain = STATS_DOMAIN_RESOLVERS;
 			++args;
 		} else {
 			return cli_err(appctx, "Invalid statistics domain.\n");
 		}
 	}
 
-	if (appctx->ctx.stats.domain == STATS_DOMAIN_PROXY
+	if (ctx->domain == STATS_DOMAIN_PROXY
 	    && *args[arg] && *args[arg+1] && *args[arg+2]) {
 		struct proxy *px;
 
 		px = proxy_find_by_name(args[arg], 0, 0);
 		if (px)
-			appctx->ctx.stats.iid = px->uuid;
+			ctx->iid = px->uuid;
 		else
-			appctx->ctx.stats.iid = atoi(args[arg]);
+			ctx->iid = atoi(args[arg]);
 
-		if (!appctx->ctx.stats.iid)
+		if (!ctx->iid)
 			return cli_err(appctx, "No such proxy.\n");
 
-		appctx->ctx.stats.flags |= STAT_BOUND;
-		appctx->ctx.stats.type = atoi(args[arg+1]);
-		appctx->ctx.stats.sid = atoi(args[arg+2]);
+		ctx->flags |= STAT_BOUND;
+		ctx->type = atoi(args[arg+1]);
+		ctx->sid = atoi(args[arg+2]);
 		arg += 3;
 	}
 
 	while (*args[arg]) {
 		if (strcmp(args[arg], "typed") == 0)
-			appctx->ctx.stats.flags = (appctx->ctx.stats.flags & ~STAT_FMT_MASK) | STAT_FMT_TYPED;
+			ctx->flags = (ctx->flags & ~STAT_FMT_MASK) | STAT_FMT_TYPED;
 		else if (strcmp(args[arg], "json") == 0)
-			appctx->ctx.stats.flags = (appctx->ctx.stats.flags & ~STAT_FMT_MASK) | STAT_FMT_JSON;
+			ctx->flags = (ctx->flags & ~STAT_FMT_MASK) | STAT_FMT_JSON;
 		else if (strcmp(args[arg], "desc") == 0)
-			appctx->ctx.stats.flags |= STAT_SHOW_FDESC;
+			ctx->flags |= STAT_SHOW_FDESC;
 		else if (strcmp(args[arg], "no-maint") == 0)
-			appctx->ctx.stats.flags |= STAT_HIDE_MAINT;
+			ctx->flags |= STAT_HIDE_MAINT;
 		else if (strcmp(args[arg], "up") == 0)
-			appctx->ctx.stats.flags |= STAT_HIDE_DOWN;
+			ctx->flags |= STAT_HIDE_DOWN;
 		arg++;
 	}
 

@@ -139,17 +139,6 @@ struct appctx {
 			 * keep the grouped together and avoid adding new ones.
 			 */
 			struct {
-				void *obj1;             /* context pointer used in stats dump */
-				void *obj2;             /* context pointer used in stats dump */
-				uint32_t domain;        /* set the stats to used, for now only proxy stats are supported */
-				int scope_str;		/* limit scope to a frontend/backend substring */
-				int scope_len;		/* length of the string above in the buffer */
-				int px_st;		/* STAT_PX_ST* */
-				unsigned int flags;	/* STAT_* */
-				int iid, type, sid;	/* proxy id, type and service id if bounding of stats is enabled */
-				int st_code;		/* the status code returned by an action */
-			} stats;
-			struct {
 				struct hlua *hlua;
 				struct task *task;
 				struct hlua_function *fcn;

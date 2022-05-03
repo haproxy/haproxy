@@ -2622,23 +2622,24 @@ int stats_dump_resolvers(struct conn_stream *cs,
                          struct list *stat_modules)
 {
 	struct appctx *appctx = __cs_appctx(cs);
+	struct show_stat_ctx *ctx = appctx->svcctx;
 	struct channel *rep = cs_ic(cs);
-	struct resolvers *resolver = appctx->ctx.stats.obj1;
-	struct dns_nameserver *ns = appctx->ctx.stats.obj2;
+	struct resolvers *resolver = ctx->obj1;
+	struct dns_nameserver *ns = ctx->obj2;
 
 	if (!resolver)
 		resolver = LIST_NEXT(&sec_resolvers, struct resolvers *, list);
 
 	/* dump resolvers */
 	list_for_each_entry_from(resolver, &sec_resolvers, list) {
-		appctx->ctx.stats.obj1 = resolver;
+		ctx->obj1 = resolver;
 
-		ns = appctx->ctx.stats.obj2 ?
-		     appctx->ctx.stats.obj2 :
+		ns = ctx->obj2 ?
+		     ctx->obj2 :
 		     LIST_NEXT(&resolver->nameservers, struct dns_nameserver *, list);
 
 		list_for_each_entry_from(ns, &resolver->nameservers, list) {
-			appctx->ctx.stats.obj2 = ns;
+			ctx->obj2 = ns;
 
 			if (buffer_almost_full(&rep->buf))
 				goto full;
@@ -2650,7 +2651,7 @@ int stats_dump_resolvers(struct conn_stream *cs,
 			}
 		}
 
-		appctx->ctx.stats.obj2 = NULL;
+		ctx->obj2 = NULL;
 	}
 
 	return 1;
