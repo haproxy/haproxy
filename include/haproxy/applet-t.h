@@ -150,13 +150,6 @@ struct appctx {
 				int st_code;		/* the status code returned by an action */
 			} stats;
 			struct {
-				unsigned int display_flags;
-				struct pat_ref *ref;
-				struct bref bref;	/* back-reference from the pat_ref_elt being dumped */
-				struct pattern_expr *expr;
-				struct buffer chunk;
-			} map;
-			struct {
 				struct hlua *hlua;
 				struct task *task;
 				struct hlua_function *fcn;
