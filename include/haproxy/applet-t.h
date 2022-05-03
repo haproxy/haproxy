@@ -150,14 +150,6 @@ struct appctx {
 				int st_code;		/* the status code returned by an action */
 			} stats;
 			struct {
-				int iid;		/* if >= 0, ID of the proxy to filter on */
-				struct proxy *px;	/* current proxy being dumped, NULL = not started yet. */
-				unsigned int flag;	/* bit0: buffer being dumped, 0 = req, 1 = resp ; bit1=skip req ; bit2=skip resp. */
-				unsigned int ev_id;	/* event ID of error being dumped */
-				int ptr;		/* <0: headers, >=0 : text pointer to restart from */
-				int bol;		/* pointer to beginning of current line */
-			} errors;
-			struct {
 				void *target;		/* table we want to dump, or NULL for all */
 				struct stktable *t;	/* table being currently dumped (first if NULL) */
 				struct stksess *entry;	/* last entry we were trying to dump (or first if NULL) */

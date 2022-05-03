@@ -21,7 +21,7 @@
 
 #include <haproxy/acl.h>
 #include <haproxy/api.h>
-#include <haproxy/applet-t.h>
+#include <haproxy/applet.h>
 #include <haproxy/capture-t.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/cli.h>
@@ -3083,11 +3083,23 @@ static int cli_parse_enable_frontend(char **args, char *payload, struct appctx *
 	return 1;
 }
 
+/* appctx context used during "show errors" */
+struct show_errors_ctx {
+	struct proxy *px;	/* current proxy being dumped, NULL = not started yet. */
+	unsigned int flag;	/* bit0: buffer being dumped, 0 = req, 1 = resp ; bit1=skip req ; bit2=skip resp. */
+	unsigned int ev_id;	/* event ID of error being dumped */
+	int iid;		/* if >= 0, ID of the proxy to filter on */
+	int ptr;		/* <0: headers, >=0 : text pointer to restart from */
+	int bol;		/* pointer to beginning of current line */
+};
+
 /* "show errors" handler for the CLI. Returns 0 if wants to continue, 1 to stop
  * now.
  */
 static int cli_parse_show_errors(char **args, char *payload, struct appctx *appctx, void *private)
 {
+	struct show_errors_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
+
 	if (!cli_has_level(appctx, ACCESS_LVL_OPER))
 		return 1;
 
@@ -3096,22 +3108,22 @@ static int cli_parse_show_errors(char **args, char *payload, struct appctx *appc
 
 		px = proxy_find_by_name(args[2], 0, 0);
 		if (px)
-			appctx->ctx.errors.iid = px->uuid;
+			ctx->iid = px->uuid;
 		else
-			appctx->ctx.errors.iid = atoi(args[2]);
+			ctx->iid = atoi(args[2]);
 
-		if (!appctx->ctx.errors.iid)
+		if (!ctx->iid)
 			return cli_err(appctx, "No such proxy.\n");
 	}
 	else
-		appctx->ctx.errors.iid	= -1; // dump all proxies
+		ctx->iid	= -1; // dump all proxies
 
-	appctx->ctx.errors.flag = 0;
+	ctx->flag = 0;
 	if (strcmp(args[3], "request") == 0)
-		appctx->ctx.errors.flag |= 4; // ignore response
+		ctx->flag |= 4; // ignore response
 	else if (strcmp(args[3], "response") == 0)
-		appctx->ctx.errors.flag |= 2; // ignore request
-	appctx->ctx.errors.px = NULL;
+		ctx->flag |= 2; // ignore request
+	ctx->px = NULL;
 	return 0;
 }
 
@@ -3121,6 +3133,7 @@ static int cli_parse_show_errors(char **args, char *payload, struct appctx *appc
  */
 static int cli_io_handler_show_errors(struct appctx *appctx)
 {
+	struct show_errors_ctx *ctx = appctx->svcctx;
 	struct conn_stream *cs = appctx->owner;
 	extern const char *monthname[12];
 
@@ -3129,7 +3142,7 @@ static int cli_io_handler_show_errors(struct appctx *appctx)
 
 	chunk_reset(&trash);
 
-	if (!appctx->ctx.errors.px) {
+	if (!ctx->px) {
 		/* the function had not been called yet, let's prepare the
 		 * buffer for a response.
 		 */
@@ -3144,39 +3157,39 @@ static int cli_io_handler_show_errors(struct appctx *appctx)
 		if (ci_putchk(cs_ic(cs), &trash) == -1)
 			goto cant_send;
 
-		appctx->ctx.errors.px = proxies_list;
-		appctx->ctx.errors.bol = 0;
-		appctx->ctx.errors.ptr = -1;
+		ctx->px = proxies_list;
+		ctx->bol = 0;
+		ctx->ptr = -1;
 	}
 
 	/* we have two inner loops here, one for the proxy, the other one for
 	 * the buffer.
 	 */
-	while (appctx->ctx.errors.px) {
+	while (ctx->px) {
 		struct error_snapshot *es;
 
-		HA_RWLOCK_RDLOCK(PROXY_LOCK, &appctx->ctx.errors.px->lock);
+		HA_RWLOCK_RDLOCK(PROXY_LOCK, &ctx->px->lock);
 
-		if ((appctx->ctx.errors.flag & 1) == 0) {
-			es = appctx->ctx.errors.px->invalid_req;
-			if (appctx->ctx.errors.flag & 2) // skip req
+		if ((ctx->flag & 1) == 0) {
+			es = ctx->px->invalid_req;
+			if (ctx->flag & 2) // skip req
 				goto next;
 		}
 		else {
-			es = appctx->ctx.errors.px->invalid_rep;
-			if (appctx->ctx.errors.flag & 4) // skip resp
+			es = ctx->px->invalid_rep;
+			if (ctx->flag & 4) // skip resp
 				goto next;
 		}
 
 		if (!es)
 			goto next;
 
-		if (appctx->ctx.errors.iid >= 0 &&
-		    appctx->ctx.errors.px->uuid != appctx->ctx.errors.iid &&
-		    (!es->oe || es->oe->uuid != appctx->ctx.errors.iid))
+		if (ctx->iid >= 0 &&
+		    ctx->px->uuid != ctx->iid &&
+		    (!es->oe || es->oe->uuid != ctx->iid))
 			goto next;
 
-		if (appctx->ctx.errors.ptr < 0) {
+		if (ctx->ptr < 0) {
 			/* just print headers now */
 
 			char pn[INET6_ADDRSTRLEN];
@@ -3197,12 +3210,12 @@ static int cli_io_handler_show_errors(struct appctx *appctx)
 				port = 0;
 			}
 
-			switch (appctx->ctx.errors.flag & 1) {
+			switch (ctx->flag & 1) {
 			case 0:
 				chunk_appendf(&trash,
 					     " frontend %s (#%d): invalid request\n"
 					     "  backend %s (#%d)",
-					     appctx->ctx.errors.px->id, appctx->ctx.errors.px->uuid,
+					     ctx->px->id, ctx->px->uuid,
 					     (es->oe && es->oe->cap & PR_CAP_BE) ? es->oe->id : "<NONE>",
 					     (es->oe && es->oe->cap & PR_CAP_BE) ? es->oe->uuid : -1);
 				break;
@@ -3210,7 +3223,7 @@ static int cli_io_handler_show_errors(struct appctx *appctx)
 				chunk_appendf(&trash,
 					     " backend %s (#%d): invalid response\n"
 					     "  frontend %s (#%d)",
-					     appctx->ctx.errors.px->id, appctx->ctx.errors.px->uuid,
+					     ctx->px->id, ctx->px->uuid,
 					     es->oe ? es->oe->id : "<NONE>" , es->oe ? es->oe->uuid : -1);
 				break;
 			}
@@ -3234,11 +3247,11 @@ static int cli_io_handler_show_errors(struct appctx *appctx)
 			if (ci_putchk(cs_ic(cs), &trash) == -1)
 				goto cant_send_unlock;
 
-			appctx->ctx.errors.ptr = 0;
-			appctx->ctx.errors.ev_id = es->ev_id;
+			ctx->ptr = 0;
+			ctx->ev_id = es->ev_id;
 		}
 
-		if (appctx->ctx.errors.ev_id != es->ev_id) {
+		if (ctx->ev_id != es->ev_id) {
 			/* the snapshot changed while we were dumping it */
 			chunk_appendf(&trash,
 				     "  WARNING! update detected on this snapshot, dump interrupted. Please re-check!\n");
@@ -3249,35 +3262,35 @@ static int cli_io_handler_show_errors(struct appctx *appctx)
 		}
 
 		/* OK, ptr >= 0, so we have to dump the current line */
-		while (appctx->ctx.errors.ptr < es->buf_len && appctx->ctx.errors.ptr < global.tune.bufsize) {
+		while (ctx->ptr < es->buf_len && ctx->ptr < global.tune.bufsize) {
 			int newptr;
 			int newline;
 
-			newline = appctx->ctx.errors.bol;
-			newptr = dump_text_line(&trash, es->buf, global.tune.bufsize, es->buf_len, &newline, appctx->ctx.errors.ptr);
-			if (newptr == appctx->ctx.errors.ptr)
+			newline = ctx->bol;
+			newptr = dump_text_line(&trash, es->buf, global.tune.bufsize, es->buf_len, &newline, ctx->ptr);
+			if (newptr == ctx->ptr)
 				goto cant_send_unlock;
 
 			if (ci_putchk(cs_ic(cs), &trash) == -1)
 				goto cant_send_unlock;
 
-			appctx->ctx.errors.ptr = newptr;
-			appctx->ctx.errors.bol = newline;
+			ctx->ptr = newptr;
+			ctx->bol = newline;
 		};
 	next:
-		HA_RWLOCK_RDUNLOCK(PROXY_LOCK, &appctx->ctx.errors.px->lock);
-		appctx->ctx.errors.bol = 0;
-		appctx->ctx.errors.ptr = -1;
-		appctx->ctx.errors.flag ^= 1;
-		if (!(appctx->ctx.errors.flag & 1))
-			appctx->ctx.errors.px = appctx->ctx.errors.px->next;
+		HA_RWLOCK_RDUNLOCK(PROXY_LOCK, &ctx->px->lock);
+		ctx->bol = 0;
+		ctx->ptr = -1;
+		ctx->flag ^= 1;
+		if (!(ctx->flag & 1))
+			ctx->px = ctx->px->next;
 	}
 
 	/* dump complete */
 	return 1;
 
  cant_send_unlock:
-	HA_RWLOCK_RDUNLOCK(PROXY_LOCK, &appctx->ctx.errors.px->lock);
+	HA_RWLOCK_RDUNLOCK(PROXY_LOCK, &ctx->px->lock);
  cant_send:
 	cs_rx_room_blk(cs);
 	return 0;
