@@ -3701,10 +3701,16 @@ int peers_register_table(struct peers *peers, struct stktable *table)
 
 /* context used by a "show peers" command */
 struct show_peers_ctx {
-	void *target;
+	void *target;           /* if non-null, dump only this section and stop */
 	struct peers *peers;    /* "peers" section being currently dumped. */
 	struct peer *peer;      /* "peer" being currently dumped. */
 	int flags;              /* non-zero if "dict" dump requested */
+	enum {
+		STATE_INIT = 0, /* initialization */
+		STATE_HEAD,     /* dump the section's header */
+		STATE_PEER,     /* dump the whole peer */
+		STATE_DONE,     /* finished */
+	} state;                /* parser's state */
 };
 
 /*
@@ -3946,21 +3952,21 @@ static int cli_io_handler_show_peers(struct appctx *appctx)
 
 	chunk_reset(&trash);
 
-	while (appctx->st2 != STAT_ST_FIN) {
-		switch (appctx->st2) {
-		case STAT_ST_INIT:
+	while (ctx->state != STATE_DONE) {
+		switch (ctx->state) {
+		case STATE_INIT:
 			if (show_all)
 				ctx->peers = cfg_peers;
 			else
 				ctx->peers = ctx->target;
 
-			appctx->st2 = STAT_ST_LIST;
+			ctx->state = STATE_HEAD;
 			/* fall through */
 
-		case STAT_ST_LIST:
+		case STATE_HEAD:
 			if (!ctx->peers) {
 				/* No more peers list. */
-				appctx->st2 = STAT_ST_END;
+				ctx->state = STATE_DONE;
 			}
 			else {
 				if (!first_peers)
@@ -3972,17 +3978,17 @@ static int cli_io_handler_show_peers(struct appctx *appctx)
 
 				ctx->peer = ctx->peers->remote;
 				ctx->peers = ctx->peers->next;
-				appctx->st2 = STAT_ST_INFO;
+				ctx->state = STATE_PEER;
 			}
 			break;
 
-		case STAT_ST_INFO:
+		case STATE_PEER:
 			if (!ctx->peer) {
 				/* End of peer list */
 				if (show_all)
-					appctx->st2 = STAT_ST_LIST;
+					ctx->state = STATE_HEAD;
 			    else
-					appctx->st2 = STAT_ST_END;
+					ctx->state = STATE_DONE;
 			}
 			else {
 				if (!peers_dump_peer(&trash, appctx->owner, ctx->peer, ctx->flags))
@@ -3990,10 +3996,9 @@ static int cli_io_handler_show_peers(struct appctx *appctx)
 
 				ctx->peer = ctx->peer->next;
 			}
-		    break;
+			break;
 
-		case STAT_ST_END:
-			appctx->st2 = STAT_ST_FIN;
+		default:
 			break;
 		}
 	}
