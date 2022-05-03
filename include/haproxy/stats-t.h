@@ -122,7 +122,7 @@ enum {
 
 
 /* data transmission states for the stats responses */
-enum {
+enum stat_state {
 	STAT_ST_INIT = 0,
 	STAT_ST_HEAD,
 	STAT_ST_INFO,
@@ -529,6 +529,7 @@ struct show_stat_ctx {
 	unsigned int flags;	/* STAT_* from stats-t.h */
 	int iid, type, sid;	/* proxy id, type and service id if bounding of stats is enabled */
 	int st_code;		/* the status code returned by an action */
+	enum stat_state state;  /* phase of output production */
 };
 
 extern THREAD_LOCAL void *trash_counters;

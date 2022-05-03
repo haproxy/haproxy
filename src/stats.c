@@ -3732,9 +3732,9 @@ static int stats_dump_stat_to_buffer(struct conn_stream *cs, struct htx *htx,
 
 	chunk_reset(&trash);
 
-	switch (appctx->st2) {
+	switch (ctx->state) {
 	case STAT_ST_INIT:
-		appctx->st2 = STAT_ST_HEAD; /* let's start producing data */
+		ctx->state = STAT_ST_HEAD; /* let's start producing data */
 		/* fall through */
 
 	case STAT_ST_HEAD:
@@ -3751,10 +3751,10 @@ static int stats_dump_stat_to_buffer(struct conn_stream *cs, struct htx *htx,
 			goto full;
 
 		if (ctx->flags & STAT_JSON_SCHM) {
-			appctx->st2 = STAT_ST_FIN;
+			ctx->state = STAT_ST_FIN;
 			return 1;
 		}
-		appctx->st2 = STAT_ST_INFO;
+		ctx->state = STAT_ST_INFO;
 		/* fall through */
 
 	case STAT_ST_INFO:
@@ -3768,7 +3768,7 @@ static int stats_dump_stat_to_buffer(struct conn_stream *cs, struct htx *htx,
 			ctx->obj1 = proxies_list;
 
 		ctx->px_st = STAT_PX_ST_INIT;
-		appctx->st2 = STAT_ST_LIST;
+		ctx->state = STAT_ST_LIST;
 		/* fall through */
 
 	case STAT_ST_LIST:
@@ -3789,7 +3789,7 @@ static int stats_dump_stat_to_buffer(struct conn_stream *cs, struct htx *htx,
 			break;
 		}
 
-		appctx->st2 = STAT_ST_END;
+		ctx->state = STAT_ST_END;
 		/* fall through */
 
 	case STAT_ST_END:
@@ -3802,7 +3802,7 @@ static int stats_dump_stat_to_buffer(struct conn_stream *cs, struct htx *htx,
 				goto full;
 		}
 
-		appctx->st2 = STAT_ST_FIN;
+		ctx->state = STAT_ST_FIN;
 		/* fall through */
 
 	case STAT_ST_FIN:
@@ -3810,7 +3810,7 @@ static int stats_dump_stat_to_buffer(struct conn_stream *cs, struct htx *htx,
 
 	default:
 		/* unknown state ! */
-		appctx->st2 = STAT_ST_FIN;
+		ctx->state = STAT_ST_FIN;
 		return -1;
 	}
 
