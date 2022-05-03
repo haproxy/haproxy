@@ -332,9 +332,11 @@ struct show_map_ctx {
 	struct pattern_expr *expr;
 	struct buffer chunk;
 	unsigned int display_flags;
+	unsigned int curr_gen;  /* current/latest generation, for show/clear */
+	unsigned int prev_gen;  /* prev generation, for clear */
 };
 
-/* expects the current generation ID in appctx->cli.cli.i0 */
+/* expects the current generation ID in ctx->curr_gen */
 static int cli_io_handler_pat_list(struct appctx *appctx)
 {
 	struct show_map_ctx *ctx = appctx->svcctx;
@@ -377,7 +379,7 @@ static int cli_io_handler_pat_list(struct appctx *appctx)
 
 			elt = LIST_ELEM(ctx->bref.ref, struct pat_ref_elt *, list);
 
-			if (elt->gen_id != appctx->ctx.cli.i0)
+			if (elt->gen_id != ctx->curr_gen)
 				goto skip;
 
 			/* build messages */
@@ -728,11 +730,11 @@ static int cli_parse_show_map(char **args, char *payload, struct appctx *appctx,
 				return cli_err(appctx, "Unknown ACL identifier. Please use #<id> or <file>.\n");
 		}
 
-		/* set the desired generation id in cli.i0 */
+		/* set the desired generation id in curr_gen */
 		if (gen)
-			appctx->ctx.cli.i0 = str2uic(gen);
+			ctx->curr_gen = str2uic(gen);
 		else
-			appctx->ctx.cli.i0 = ctx->ref->curr_gen;
+			ctx->curr_gen = ctx->ref->curr_gen;
 
 		LIST_INIT(&ctx->bref.users);
 		appctx->io_handler = cli_io_handler_pat_list;
@@ -1014,8 +1016,8 @@ static int cli_parse_del_map(char **args, char *payload, struct appctx *appctx, 
 }
 
 /* continue to clear a map which was started in the parser. The range of
- * generations this applies to is taken from appctx->ctx.cli.i0 for the oldest
- * and appctx->ctx.cli.i1 for the latest.
+ * generations this applies to is taken from ctx->curr_gen for the oldest
+ * and ctx->prev_gen for the latest.
  */
 static int cli_io_handler_clear_map(struct appctx *appctx)
 {
@@ -1023,7 +1025,7 @@ static int cli_io_handler_clear_map(struct appctx *appctx)
 	int finished;
 
 	HA_SPIN_LOCK(PATREF_LOCK, &ctx->ref->lock);
-	finished = pat_ref_purge_range(ctx->ref, appctx->ctx.cli.i0, appctx->ctx.cli.i1, 100);
+	finished = pat_ref_purge_range(ctx->ref, ctx->curr_gen, ctx->prev_gen, 100);
 	HA_SPIN_UNLOCK(PATREF_LOCK, &ctx->ref->lock);
 
 	if (!finished) {
@@ -1034,7 +1036,7 @@ static int cli_io_handler_clear_map(struct appctx *appctx)
 	return 1;
 }
 
-/* note: sets appctx->ctx.cli.i0 and appctx->ctx.cli.i1 to the oldest and
+/* note: sets ctx->curr_gen and ctx->prev_gen to the oldest and
  * latest generations to clear, respectively, and will call the clear_map
  * handler.
  */
@@ -1078,11 +1080,11 @@ static int cli_parse_clear_map(char **args, char *payload, struct appctx *appctx
 				return cli_err(appctx, "Unknown ACL identifier. Please use #<id> or <file>.\n");
 		}
 
-		/* set the desired generation id in cli.i0/i1 */
+		/* set the desired generation id in curr_gen/prev_gen */
 		if (gen)
-			appctx->ctx.cli.i1 = appctx->ctx.cli.i0 = str2uic(gen);
+			ctx->prev_gen = ctx->curr_gen = str2uic(gen);
 		else
-			appctx->ctx.cli.i1 = appctx->ctx.cli.i0 = ctx->ref->curr_gen;
+			ctx->prev_gen = ctx->curr_gen = ctx->ref->curr_gen;
 
 		/* delegate the clearing to the I/O handler which can yield */
 		return 0;
@@ -1090,7 +1092,7 @@ static int cli_parse_clear_map(char **args, char *payload, struct appctx *appctx
 	return 1;
 }
 
-/* note: sets appctx->ctx.cli.i0 and appctx->ctx.cli.i1 to the oldest and
+/* note: sets ctx->curr_gen and ctx->prev_gen to the oldest and
  * latest generations to clear, respectively, and will call the clear_map
  * handler.
  */
@@ -1118,8 +1120,8 @@ static int cli_parse_commit_map(char **args, char *payload, struct appctx *appct
 		 */
 		gen = args[2] + 1;
 		genid = str2uic(gen);
-		appctx->ctx.cli.i1 = genid - 1;
-		appctx->ctx.cli.i0 = appctx->ctx.cli.i1 - ((~0U) >> 1);
+		ctx->prev_gen = genid - 1;
+		ctx->curr_gen = ctx->prev_gen - ((~0U) >> 1);
 
 		/* no parameter */
 		if (!*args[3]) {
