@@ -3699,6 +3699,14 @@ int peers_register_table(struct peers *peers, struct stktable *table)
 	return retval;
 }
 
+/* context used by a "show peers" command */
+struct show_peers_ctx {
+	void *target;
+	struct peers *peers;    /* "peers" section being currently dumped. */
+	struct peer *peer;      /* "peer" being currently dumped. */
+	int flags;              /* non-zero if "dict" dump requested */
+};
+
 /*
  * Parse the "show peers" command arguments.
  * Returns 0 if succeeded, 1 if not with the ->msg of the appctx set as
@@ -3706,11 +3714,11 @@ int peers_register_table(struct peers *peers, struct stktable *table)
  */
 static int cli_parse_show_peers(char **args, char *payload, struct appctx *appctx, void *private)
 {
-	appctx->ctx.cfgpeers.target = NULL;
+	struct show_peers_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
 
 	if (strcmp(args[2], "dict") == 0) {
 		/* show the dictionaries (large dump) */
-		appctx->ctx.cfgpeers.flags |= PEERS_SHOW_F_DICT;
+		ctx->flags |= PEERS_SHOW_F_DICT;
 		args++;
 	} else if (strcmp(args[2], "-") == 0)
 		args++; // allows to show a section called "dict"
@@ -3720,7 +3728,7 @@ static int cli_parse_show_peers(char **args, char *payload, struct appctx *appct
 
 		for (p = cfg_peers; p; p = p->next) {
 			if (strcmp(p->id, args[2]) == 0) {
-				appctx->ctx.cfgpeers.target = p;
+				ctx->target = p;
 				break;
 			}
 		}
@@ -3928,12 +3936,13 @@ static int peers_dump_peer(struct buffer *msg, struct conn_stream *cs, struct pe
  */
 static int cli_io_handler_show_peers(struct appctx *appctx)
 {
+	struct show_peers_ctx *ctx = appctx->svcctx;
 	int show_all;
 	int ret = 0, first_peers = 1;
 
 	thread_isolate();
 
-	show_all = !appctx->ctx.cfgpeers.target;
+	show_all = !ctx->target;
 
 	chunk_reset(&trash);
 
@@ -3941,15 +3950,15 @@ static int cli_io_handler_show_peers(struct appctx *appctx)
 		switch (appctx->st2) {
 		case STAT_ST_INIT:
 			if (show_all)
-				appctx->ctx.cfgpeers.peers = cfg_peers;
+				ctx->peers = cfg_peers;
 			else
-				appctx->ctx.cfgpeers.peers = appctx->ctx.cfgpeers.target;
+				ctx->peers = ctx->target;
 
 			appctx->st2 = STAT_ST_LIST;
 			/* fall through */
 
 		case STAT_ST_LIST:
-			if (!appctx->ctx.cfgpeers.peers) {
+			if (!ctx->peers) {
 				/* No more peers list. */
 				appctx->st2 = STAT_ST_END;
 			}
@@ -3958,17 +3967,17 @@ static int cli_io_handler_show_peers(struct appctx *appctx)
 					chunk_appendf(&trash, "\n");
 				else
 					first_peers = 0;
-				if (!peers_dump_head(&trash, appctx->owner, appctx->ctx.cfgpeers.peers))
+				if (!peers_dump_head(&trash, appctx->owner, ctx->peers))
 					goto out;
 
-				appctx->ctx.cfgpeers.peer = appctx->ctx.cfgpeers.peers->remote;
-				appctx->ctx.cfgpeers.peers = appctx->ctx.cfgpeers.peers->next;
+				ctx->peer = ctx->peers->remote;
+				ctx->peers = ctx->peers->next;
 				appctx->st2 = STAT_ST_INFO;
 			}
 			break;
 
 		case STAT_ST_INFO:
-			if (!appctx->ctx.cfgpeers.peer) {
+			if (!ctx->peer) {
 				/* End of peer list */
 				if (show_all)
 					appctx->st2 = STAT_ST_LIST;
@@ -3976,10 +3985,10 @@ static int cli_io_handler_show_peers(struct appctx *appctx)
 					appctx->st2 = STAT_ST_END;
 			}
 			else {
-				if (!peers_dump_peer(&trash, appctx->owner, appctx->ctx.cfgpeers.peer, appctx->ctx.cfgpeers.flags))
+				if (!peers_dump_peer(&trash, appctx->owner, ctx->peer, ctx->flags))
 					goto out;
 
-				appctx->ctx.cfgpeers.peer = appctx->ctx.cfgpeers.peer->next;
+				ctx->peer = ctx->peer->next;
 			}
 		    break;
 
