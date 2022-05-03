@@ -345,27 +345,17 @@ static int cli_io_handler_pat_list(struct appctx *appctx)
 	switch (appctx->st2) {
 
 	case STAT_ST_INIT:
-		/* the function had not been called yet, let's prepare the
-		 * buffer for a response. We initialize the current stream
-		 * pointer to the first in the global list. When a target
-		 * stream is being destroyed, it is responsible for updating
-		 * this pointer. We know we have reached the end when this
-		 * pointer points back to the head of the streams list.
-		 */
-		HA_SPIN_LOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
-		LIST_INIT(&appctx->ctx.map.bref.users);
-		appctx->ctx.map.bref.ref = appctx->ctx.map.ref->head.n;
-		HA_SPIN_UNLOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
 		appctx->st2 = STAT_ST_LIST;
 		/* fall through */
 
 	case STAT_ST_LIST:
-
 		HA_SPIN_LOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
 
 		if (!LIST_ISEMPTY(&appctx->ctx.map.bref.users)) {
 			LIST_DELETE(&appctx->ctx.map.bref.users);
 			LIST_INIT(&appctx->ctx.map.bref.users);
+		} else {
+			appctx->ctx.map.bref.ref = appctx->ctx.map.ref->head.n;
 		}
 
 		while (appctx->ctx.map.bref.ref != &appctx->ctx.map.ref->head) {
@@ -718,6 +708,7 @@ static int cli_parse_show_map(char **args, char *payload, struct appctx *appctx,
 		else
 			appctx->ctx.cli.i0 = appctx->ctx.map.ref->curr_gen;
 
+		LIST_INIT(&appctx->ctx.map.bref.users);
 		appctx->io_handler = cli_io_handler_pat_list;
 		appctx->io_release = cli_release_show_map;
 		return 0;
