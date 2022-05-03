@@ -4396,8 +4396,7 @@ struct show_table_ctx {
 	signed char data_type[STKTABLE_FILTER_LEN]; /* type of data to compare, or -1 if none */
 	signed char data_op[STKTABLE_FILTER_LEN];   /* operator (STD_OP_*) when data_type set */
 	enum {
-		STATE_INIT = 0,                     /* first call, init needed */
-		STATE_NEXT,                         /* px points to next table, entry=NULL */
+		STATE_NEXT = 0,                     /* px points to next table, entry=NULL */
 		STATE_DUMP,                         /* px points to curr table, entry is valid, refcount held */
 		STATE_DONE,                         /* done dumping */
 	} state;
@@ -4629,11 +4628,12 @@ static int cli_parse_table_req(char **args, char *payload, struct appctx *appctx
 	ctx->action = (long)private; // keyword argument, one of STK_CLI_ACT_*
 
 	if (*args[2]) {
-		ctx->target = stktable_find_by_name(args[2]);
+		ctx->t = ctx->target = stktable_find_by_name(args[2]);
 		if (!ctx->target)
 			return cli_err(appctx, "No such table\n");
 	}
 	else {
+		ctx->t = stktables_list;
 		if (ctx->action != STK_CLI_ACT_SHOW)
 			goto err_args;
 		return 0;
@@ -4675,8 +4675,7 @@ static int cli_io_handler_table(struct appctx *appctx)
 	int show = ctx->action == STK_CLI_ACT_SHOW;
 
 	/*
-	 * We have 4 possible states in ctx->state :
-	 *   - STATE_INIT : the first call
+	 * We have 3 possible states in ctx->state :
 	 *   - STATE_NEXT : the proxy pointer points to the next table to
 	 *     dump, the entry pointer is NULL ;
 	 *   - STATE_DUMP : the proxy pointer points to the current table
@@ -4698,15 +4697,6 @@ static int cli_io_handler_table(struct appctx *appctx)
 
 	while (ctx->state != STATE_DONE) {
 		switch (ctx->state) {
-		case STATE_INIT:
-			ctx->t = ctx->target;
-			if (!ctx->t)
-				ctx->t = stktables_list;
-
-			ctx->entry = NULL;
-			ctx->state = STATE_NEXT;
-			break;
-
 		case STATE_NEXT:
 			if (!ctx->t ||
 			    (ctx->target &&
