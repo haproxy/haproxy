@@ -596,8 +596,8 @@ struct appctx *httpclient_start(struct httpclient *hc)
 	s->req.wto = hc->timeout_server;
 	s->res.rto = hc->timeout_server;
 
-	s->csb->dst = addr;
-	s->csb->flags |= CS_FL_NOLINGER;
+	s->csf->dst = addr;
+	s->csf->flags |= CS_FL_NOLINGER;
 	s->flags |= SF_ASSIGNED;
 	s->res.flags |= CF_READ_DONTWAIT;
 
@@ -1114,6 +1114,7 @@ static int httpclient_precheck()
 	httpclient_srv_raw->iweight = 0;
 	httpclient_srv_raw->uweight = 0;
 	httpclient_srv_raw->xprt = xprt_get(XPRT_RAW);
+	httpclient_srv_raw->flags |= SRV_F_MAPPORTS;  /* needed to apply the port change with resolving */
 	httpclient_srv_raw->id = strdup("<HTTPCLIENT>");
 	if (!httpclient_srv_raw->id)
 		goto err;
@@ -1130,6 +1131,7 @@ static int httpclient_precheck()
 	httpclient_srv_ssl->uweight = 0;
 	httpclient_srv_ssl->xprt = xprt_get(XPRT_SSL);
 	httpclient_srv_ssl->use_ssl = 1;
+	httpclient_srv_ssl->flags |= SRV_F_MAPPORTS;  /* needed to apply the port change with resolving */
 	httpclient_srv_ssl->id = strdup("<HTTPSCLIENT>");
 	if (!httpclient_srv_ssl->id)
 		goto err;
