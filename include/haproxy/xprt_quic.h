@@ -607,7 +607,6 @@ static inline int quic_transport_param_decode(struct quic_transport_params *p,
 {
 	const unsigned char *end = *buf + len;
 
-	quic_dflt_transport_params_cpy(p);
 	switch (type) {
 	case QUIC_TP_ORIGINAL_DESTINATION_CONNECTION_ID:
 		if (!server || len >= sizeof p->original_destination_connection_id.data)
