@@ -3156,7 +3156,6 @@ struct show_sess_ctx {
 	int pos;		/* last position of the current session's buffer */
 	enum {
 		STATE_LIST = 0,
-		STATE_FIN,
 	} state;                /* dump state */
 };
 
@@ -3545,6 +3544,11 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 
 	thread_isolate();
 
+	if (ctx->thr >= global.nbthread) {
+		/* already terminated */
+		goto done;
+	}
+
 	if (unlikely(cs_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW))) {
 		/* If we're forced to shut down, we might have to remove our
 		 * reference to the last stream being dumped.
@@ -3559,7 +3563,7 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 	chunk_reset(&trash);
 
 	switch (ctx->state) {
-	case STATE_LIST:
+	default:
 		/* first, let's detach the back-ref from a possible previous stream */
 		if (!LIST_ISEMPTY(&ctx->bref.users)) {
 			LIST_DELETE(&ctx->bref.users);
@@ -3744,11 +3748,6 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 			ctx->uid = 0;
 			goto done;
 		}
-		/* fall through */
-
-	default:
-		ctx->state = STATE_FIN;
-		goto done;
 	}
  done:
 	thread_release();
@@ -3763,7 +3762,7 @@ static void cli_release_show_sess(struct appctx *appctx)
 {
 	struct show_sess_ctx *ctx = appctx->svcctx;
 
-	if (ctx->state == STATE_LIST && ctx->thr < global.nbthread) {
+	if (ctx->thr < global.nbthread) {
 		/* a dump was aborted, either in error or timeout. We need to
 		 * safely detach from the target stream's list. It's mandatory
 		 * to lock because a stream on the target thread could be moving
