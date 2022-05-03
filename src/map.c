@@ -332,10 +332,12 @@ static int cli_io_handler_pat_list(struct appctx *appctx)
 		 * reference to the last ref_elt being dumped.
 		 */
 		if (appctx->st2 == STAT_ST_LIST) {
+			HA_SPIN_LOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
 			if (!LIST_ISEMPTY(&appctx->ctx.map.bref.users)) {
 				LIST_DELETE(&appctx->ctx.map.bref.users);
 				LIST_INIT(&appctx->ctx.map.bref.users);
 			}
+			HA_SPIN_UNLOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
 		}
 		return 1;
 	}
