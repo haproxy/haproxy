@@ -341,11 +341,11 @@ size_t qc_snd_buf(struct quic_conn *qc, const struct buffer *buf, size_t count,
 		}
 		else if (ret == 0 || errno == EAGAIN || errno == EWOULDBLOCK || errno == ENOTCONN || errno == EINPROGRESS) {
 			/* TODO must be handle properly. It is justified for UDP ? */
-			ABORT_NOW();
+			qc->sendto_err++;
 		}
 		else if (errno != EINTR) {
 			/* TODO must be handle properly. It is justified for UDP ? */
-			ABORT_NOW();
+			qc->sendto_err++;
 		}
 	}
 

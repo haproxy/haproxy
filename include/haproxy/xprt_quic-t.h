@@ -778,6 +778,7 @@ struct quic_conn {
 	unsigned int nb_pkt_since_cc;
 
 	const struct qcc_app_ops *app_ops;
+	unsigned int sendto_err;
 };
 
 #endif /* USE_QUIC */

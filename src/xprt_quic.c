@@ -552,7 +552,7 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 		if (mask & QUIC_EV_CONN_SPPKTS) {
 			const struct quic_tx_packet *pkt = a2;
 
-			chunk_appendf(&trace_buf, " cwnd=%llu ppif=%llu pif=%llu",
+			chunk_appendf(&trace_buf, " err=%u cwnd=%llu ppif=%llu pif=%llu", qc->sendto_err,
 			             (unsigned long long)qc->path->cwnd,
 			             (unsigned long long)qc->path->prep_in_flight,
 			             (unsigned long long)qc->path->in_flight);
@@ -3180,6 +3180,7 @@ int qc_send_ppkts(struct qring *qr, struct ssl_sock_ctx *ctx)
 
 	qc = ctx->qc;
 	cbuf = qr->cbuf;
+	TRACE_ENTER(QUIC_EV_CONN_SPPKTS, qc);
 	while (cb_contig_data(cbuf)) {
 		unsigned char *pos;
 		struct buffer tmpbuf = { };
@@ -3255,6 +3256,8 @@ int qc_send_ppkts(struct qring *qr, struct ssl_sock_ctx *ctx)
 			eb64_insert(&pkt->pktns->tx.pkts, &pkt->pn_node);
 		}
 	}
+
+	TRACE_LEAVE(QUIC_EV_CONN_SPPKTS, qc);
 
 	return 1;
 }
@@ -4392,6 +4395,7 @@ static struct quic_conn *qc_new_conn(unsigned int version, int ipv4,
 
 	qc->streams_by_id = EB_ROOT_UNIQUE;
 	qc->stream_buf_count = 0;
+	qc->sendto_err = 0;
 
 	TRACE_LEAVE(QUIC_EV_CONN_INIT, qc);
 
