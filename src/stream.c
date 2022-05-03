@@ -3154,6 +3154,11 @@ struct show_sess_ctx {
 	unsigned int uid;	/* if non-null, the uniq_id of the session being dumped */
 	int section;		/* section of the session being dumped */
 	int pos;		/* last position of the current session's buffer */
+	enum {
+		STATE_INIT = 0,
+		STATE_LIST,
+		STATE_FIN,
+	} state;                /* dump state */
 };
 
 /* This function dumps a complete stream state onto the conn-stream's
@@ -3540,7 +3545,7 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 		/* If we're forced to shut down, we might have to remove our
 		 * reference to the last stream being dumped.
 		 */
-		if (appctx->st2 == STAT_ST_LIST) {
+		if (ctx->state == STATE_LIST) {
 			if (!LIST_ISEMPTY(&ctx->bref.users)) {
 				LIST_DELETE(&ctx->bref.users);
 				LIST_INIT(&ctx->bref.users);
@@ -3551,8 +3556,8 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 
 	chunk_reset(&trash);
 
-	switch (appctx->st2) {
-	case STAT_ST_INIT:
+	switch (ctx->state) {
+	case STATE_INIT:
 		/* the function had not been called yet, let's prepare the
 		 * buffer for a response. We initialize the current stream
 		 * pointer to the first in the global list. When a target
@@ -3562,10 +3567,10 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 		 */
 		LIST_INIT(&ctx->bref.users);
 		ctx->bref.ref = ha_thread_ctx[ctx->thr].streams.n;
-		appctx->st2 = STAT_ST_LIST;
+		ctx->state = STATE_LIST;
 		/* fall through */
 
-	case STAT_ST_LIST:
+	case STATE_LIST:
 		/* first, let's detach the back-ref from a possible previous stream */
 		if (!LIST_ISEMPTY(&ctx->bref.users)) {
 			LIST_DELETE(&ctx->bref.users);
@@ -3750,7 +3755,7 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 		/* fall through */
 
 	default:
-		appctx->st2 = STAT_ST_FIN;
+		ctx->state = STATE_FIN;
 		goto done;
 	}
  done:
@@ -3766,7 +3771,7 @@ static void cli_release_show_sess(struct appctx *appctx)
 {
 	struct show_sess_ctx *ctx = appctx->svcctx;
 
-	if (appctx->st2 == STAT_ST_LIST && ctx->thr < global.nbthread) {
+	if (ctx->state == STATE_LIST && ctx->thr < global.nbthread) {
 		/* a dump was aborted, either in error or timeout. We need to
 		 * safely detach from the target stream's list. It's mandatory
 		 * to lock because a stream on the target thread could be moving
