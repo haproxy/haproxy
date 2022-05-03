@@ -3155,8 +3155,7 @@ struct show_sess_ctx {
 	int section;		/* section of the session being dumped */
 	int pos;		/* last position of the current session's buffer */
 	enum {
-		STATE_INIT = 0,
-		STATE_LIST,
+		STATE_LIST = 0,
 		STATE_FIN,
 	} state;                /* dump state */
 };
@@ -3521,6 +3520,11 @@ static int cli_parse_show_sess(char **args, char *payload, struct appctx *appctx
 	ctx->pos = 0;
 	ctx->thr = 0;
 
+	/* The back-ref must be reset, it will be detected and set by
+	 * the dump code upon first invocation.
+	 */
+	LIST_INIT(&ctx->bref.users);
+
 	/* let's set our own stream's epoch to the current one and increment
 	 * it so that we know which streams were already there before us.
 	 */
@@ -3545,11 +3549,9 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 		/* If we're forced to shut down, we might have to remove our
 		 * reference to the last stream being dumped.
 		 */
-		if (ctx->state == STATE_LIST) {
-			if (!LIST_ISEMPTY(&ctx->bref.users)) {
-				LIST_DELETE(&ctx->bref.users);
-				LIST_INIT(&ctx->bref.users);
-			}
+		if (!LIST_ISEMPTY(&ctx->bref.users)) {
+			LIST_DELETE(&ctx->bref.users);
+			LIST_INIT(&ctx->bref.users);
 		}
 		goto done;
 	}
@@ -3557,24 +3559,14 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 	chunk_reset(&trash);
 
 	switch (ctx->state) {
-	case STATE_INIT:
-		/* the function had not been called yet, let's prepare the
-		 * buffer for a response. We initialize the current stream
-		 * pointer to the first in the global list. When a target
-		 * stream is being destroyed, it is responsible for updating
-		 * this pointer. We know we have reached the end when this
-		 * pointer points back to the head of the streams list.
-		 */
-		LIST_INIT(&ctx->bref.users);
-		ctx->bref.ref = ha_thread_ctx[ctx->thr].streams.n;
-		ctx->state = STATE_LIST;
-		/* fall through */
-
 	case STATE_LIST:
 		/* first, let's detach the back-ref from a possible previous stream */
 		if (!LIST_ISEMPTY(&ctx->bref.users)) {
 			LIST_DELETE(&ctx->bref.users);
 			LIST_INIT(&ctx->bref.users);
+		} else if (!ctx->bref.ref) {
+			/* first call, start with first stream */
+			ctx->bref.ref = ha_thread_ctx[ctx->thr].streams.n;
 		}
 
 		/* and start from where we stopped */
