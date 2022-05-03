@@ -499,9 +499,6 @@ static void httpclient_spliturl(struct ist url, enum http_scheme *scheme,
  * Start the HTTP client
  * Create the appctx, session, stream and wakeup the applet
  *
- * FIXME: It also fill the sockaddr with the IP address, but currently only IP
- * in the URL are supported, it lacks a resolver.
- *
  * Return the <appctx> or NULL if it failed
  */
 struct appctx *httpclient_start(struct httpclient *hc)
