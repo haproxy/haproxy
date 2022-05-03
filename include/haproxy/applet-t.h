@@ -139,11 +139,6 @@ struct appctx {
 			 * keep the grouped together and avoid adding new ones.
 			 */
 			struct {
-				struct hlua *hlua;
-				struct task *task;
-				struct hlua_function *fcn;
-			} hlua_cli;
-			struct {
 				char *path;
 				struct ckch_store *old_ckchs;
 				struct ckch_store *new_ckchs;

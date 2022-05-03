@@ -242,6 +242,13 @@ struct hlua_flt_ctx {
 	unsigned int flags;      /* HLUA_FLT_CTX_FL_* */
 };
 
+/* used by registered CLI keywords */
+struct hlua_cli_ctx {
+	struct hlua *hlua;
+	struct task *task;
+	struct hlua_function *fcn;
+};
+
 DECLARE_STATIC_POOL(pool_head_hlua_flt_ctx, "hlua_flt_ctx", sizeof(struct hlua_flt_ctx));
 
 static int hlua_filter_from_payload(struct filter *filter);
@@ -9996,13 +10003,14 @@ __LJMP static int hlua_register_service(lua_State *L)
  */
 static int hlua_cli_parse_fct(char **args, char *payload, struct appctx *appctx, void *private)
 {
+	struct hlua_cli_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
 	struct hlua *hlua;
 	struct hlua_function *fcn;
 	int i;
 	const char *error;
 
 	fcn = private;
-	appctx->ctx.hlua_cli.fcn = private;
+	ctx->fcn = private;
 
 	hlua = pool_alloc(pool_head_hlua);
 	if (!hlua) {
@@ -10010,23 +10018,23 @@ static int hlua_cli_parse_fct(char **args, char *payload, struct appctx *appctx,
 		return 1;
 	}
 	HLUA_INIT(hlua);
-	appctx->ctx.hlua_cli.hlua = hlua;
+	ctx->hlua = hlua;
 
 	/* Create task used by signal to wakeup applets.
 	 * We use the same wakeup function than the Lua applet_tcp and
 	 * applet_http. It is absolutely compatible.
 	 */
-	appctx->ctx.hlua_cli.task = task_new_here();
-	if (!appctx->ctx.hlua_cli.task) {
+	ctx->task = task_new_here();
+	if (!ctx->task) {
 		SEND_ERR(NULL, "Lua cli '%s': out of memory.\n", fcn->name);
 		goto error;
 	}
-	appctx->ctx.hlua_cli.task->nice = 0;
-	appctx->ctx.hlua_cli.task->context = appctx;
-	appctx->ctx.hlua_cli.task->process = hlua_applet_wakeup;
+	ctx->task->nice = 0;
+	ctx->task->context = appctx;
+	ctx->task->process = hlua_applet_wakeup;
 
 	/* Initialises the Lua context */
-	if (!hlua_ctx_init(hlua, fcn_ref_to_stack_id(fcn), appctx->ctx.hlua_cli.task, 0)) {
+	if (!hlua_ctx_init(hlua, fcn_ref_to_stack_id(fcn), ctx->task, 0)) {
 		SEND_ERR(NULL, "Lua cli '%s': can't initialize Lua context.\n", fcn->name);
 		goto error;
 	}
@@ -10083,19 +10091,20 @@ static int hlua_cli_parse_fct(char **args, char *payload, struct appctx *appctx,
 error:
 	RESET_SAFE_LJMP(hlua);
 	hlua_ctx_destroy(hlua);
-	appctx->ctx.hlua_cli.hlua = NULL;
+	ctx->hlua = NULL;
 	return 1;
 }
 
 static int hlua_cli_io_handler_fct(struct appctx *appctx)
 {
+	struct hlua_cli_ctx *ctx = appctx->svcctx;
 	struct hlua *hlua;
 	struct conn_stream *cs;
 	struct hlua_function *fcn;
 
-	hlua = appctx->ctx.hlua_cli.hlua;
+	hlua = ctx->hlua;
 	cs = appctx->owner;
-	fcn = appctx->ctx.hlua_cli.fcn;
+	fcn = ctx->fcn;
 
 	/* If the stream is disconnect or closed, ldo nothing. */
 	if (unlikely(cs->state == CS_ST_DIS || cs->state == CS_ST_CLO))
@@ -10156,8 +10165,10 @@ static int hlua_cli_io_handler_fct(struct appctx *appctx)
 
 static void hlua_cli_io_release_fct(struct appctx *appctx)
 {
-	hlua_ctx_destroy(appctx->ctx.hlua_cli.hlua);
-	appctx->ctx.hlua_cli.hlua = NULL;
+	struct hlua_cli_ctx *ctx = appctx->svcctx;
+
+	hlua_ctx_destroy(ctx->hlua);
+	ctx->hlua = NULL;
 }
 
 /* This function is an LUA binding used for registering
