@@ -1084,14 +1084,15 @@ static int httpclient_resolve_init()
  */
 static int httpclient_precheck()
 {
-	int err_code = 0;
+	int err_code = ERR_NONE;
 	char *errmsg = NULL;
 
 	if (global.mode & MODE_MWORKER_WAIT)
-		return 0;
+		return ERR_NONE;
 
 	httpclient_proxy = alloc_new_proxy("<HTTPCLIENT>", PR_CAP_LISTEN|PR_CAP_INT, &errmsg);
 	if (!httpclient_proxy) {
+		memprintf(&errmsg, "couldn't allocate proxy.");
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto err;
 	}
@@ -1113,8 +1114,8 @@ static int httpclient_precheck()
 	/* clear HTTP server */
 	httpclient_srv_raw = new_server(httpclient_proxy);
 	if (!httpclient_srv_raw) {
-		err_code |= ERR_ALERT | ERR_FATAL;
 		memprintf(&errmsg, "out of memory.");
+		err_code |= ERR_ALERT | ERR_FATAL;
 		goto err;
 	}
 
@@ -1123,8 +1124,11 @@ static int httpclient_precheck()
 	httpclient_srv_raw->xprt = xprt_get(XPRT_RAW);
 	httpclient_srv_raw->flags |= SRV_F_MAPPORTS;  /* needed to apply the port change with resolving */
 	httpclient_srv_raw->id = strdup("<HTTPCLIENT>");
-	if (!httpclient_srv_raw->id)
+	if (!httpclient_srv_raw->id) {
+		memprintf(&errmsg, "out of memory.");
+		err_code |= ERR_ALERT | ERR_FATAL;
 		goto err;
+	}
 
 #ifdef USE_OPENSSL
 	/* SSL HTTP server */
@@ -1140,8 +1144,11 @@ static int httpclient_precheck()
 	httpclient_srv_ssl->use_ssl = 1;
 	httpclient_srv_ssl->flags |= SRV_F_MAPPORTS;  /* needed to apply the port change with resolving */
 	httpclient_srv_ssl->id = strdup("<HTTPSCLIENT>");
-	if (!httpclient_srv_ssl->id)
+	if (!httpclient_srv_ssl->id) {
+		memprintf(&errmsg, "out of memory.");
+		err_code |= ERR_ALERT | ERR_FATAL;
 		goto err;
+	}
 
 	httpclient_srv_ssl->ssl_ctx.verify = httpclient_ssl_verify;
 	/* if the verify is required, try to load the system CA */
@@ -1161,8 +1168,11 @@ static int httpclient_precheck()
 	httpclient_proxy->next = proxies_list;
 	proxies_list = httpclient_proxy;
 
-	if (httpclient_resolve_init() != 0)
+	if (httpclient_resolve_init() != 0) {
+		memprintf(&errmsg, "cannot initialize resolvers.");
+		err_code |= ERR_ALERT | ERR_FATAL;
 		goto err;
+	}
 
 	/* link the 2 servers in the proxy */
 	httpclient_srv_raw->next = httpclient_proxy->srv;
@@ -1176,34 +1186,36 @@ static int httpclient_precheck()
 #endif
 
 
-	return 0;
-
 err:
-	ha_alert("httpclient: cannot initialize.\n");
-	free(errmsg);
-	srv_drop(httpclient_srv_raw);
+	if (err_code & ERR_CODE) {
+		ha_alert("httpclient: cannot initialize: %s\n", errmsg);
+		free(errmsg);
+		srv_drop(httpclient_srv_raw);
 #ifdef USE_OPENSSL
-	srv_drop(httpclient_srv_ssl);
+		srv_drop(httpclient_srv_ssl);
 #endif
-	free_proxy(httpclient_proxy);
+		free_proxy(httpclient_proxy);
+	}
 	return err_code;
 }
 
 static int httpclient_postcheck()
 {
+	int err_code = ERR_NONE;
 	struct logsrv *logsrv;
 	struct proxy *curproxy = httpclient_proxy;
 	char *errmsg = NULL;
 
 	if (global.mode & MODE_MWORKER_WAIT)
-		return 0;
+		return ERR_NONE;
 
 	/* copy logs from "global" log list */
 	list_for_each_entry(logsrv, &global.logsrvs, list) {
 		struct logsrv *node = malloc(sizeof(*node));
 
 		if (!node) {
-			ha_alert("httpclient: cannot allocate memory.\n");
+			memprintf(&errmsg, "out of memory.");
+			err_code |= ERR_ALERT | ERR_FATAL;
 			goto err;
 		}
 
@@ -1218,8 +1230,8 @@ static int httpclient_postcheck()
 		if (!parse_logformat_string(curproxy->conf.logformat_string, curproxy, &curproxy->logformat,
 					    LOG_OPT_MANDATORY|LOG_OPT_MERGE_SPACES,
 					    SMP_VAL_FE_LOG_END, &errmsg)) {
-			ha_alert("httpclient: failed to parse log-format : %s.\n", errmsg);
-			free(errmsg);
+			memprintf(&errmsg, "failed to parse log-format : %s.", errmsg);
+			err_code |= ERR_ALERT | ERR_FATAL;
 			goto err;
 		}
 		curproxy->conf.args.file = NULL;
@@ -1228,23 +1240,24 @@ static int httpclient_postcheck()
 
 #ifdef USE_OPENSSL
 	if (httpclient_srv_ssl) {
-		int err_code = 0;
-
 		/* init the SNI expression */
 		/* always use the host header as SNI, without the port */
 		httpclient_srv_ssl->sni_expr = strdup("req.hdr(host),field(1,:)");
 		err_code |= server_parse_sni_expr(httpclient_srv_ssl, httpclient_proxy, &errmsg);
 		if (err_code & ERR_CODE) {
-			ha_alert("httpclient: failed to configure sni: %s.\n", errmsg);
-			free(errmsg);
+			memprintf(&errmsg, "failed to configure sni: %s.", errmsg);
 			goto err;
 		}
 	}
 #endif
 
-	return 0;
 err:
-	return 1;
+	if (err_code & ERR_CODE) {
+		ha_alert("httpclient: failed to initialize: %s\n", errmsg);
+		free(errmsg);
+
+	}
+	return err_code;
 }
 
 /* initialize the proxy and servers for the HTTP client */
