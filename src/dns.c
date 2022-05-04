@@ -405,11 +405,12 @@ out:
 
 /*
  * IO Handler to handle message push to dns tcp server
+ * It takes its context from appctx->svcctx.
  */
 static void dns_session_io_handler(struct appctx *appctx)
 {
 	struct conn_stream *cs = appctx->owner;
-	struct dns_session *ds = appctx->ctx.sft.ptr;
+	struct dns_session *ds = appctx->svcctx;
 	struct ring *ring = &ds->ring;
 	struct buffer *buf = &ring->buf;
 	uint64_t msg_len;
@@ -790,7 +791,7 @@ static struct appctx *dns_session_create(struct dns_session *ds);
  */
 static void dns_session_release(struct appctx *appctx)
 {
-	struct dns_session *ds = appctx->ctx.sft.ptr;
+	struct dns_session *ds = appctx->svcctx;
 	struct dns_stream_server *dss __maybe_unused;
 
 	if (!ds)
@@ -883,6 +884,7 @@ static struct applet dns_session_applet = {
 
 /*
  * Function used to create an appctx for a DNS session
+ * It sets its context into appctx->svcctx.
  */
 static struct appctx *dns_session_create(struct dns_session *ds)
 {
@@ -896,7 +898,7 @@ static struct appctx *dns_session_create(struct dns_session *ds)
 	appctx = appctx_new(applet, NULL);
 	if (!appctx)
 		goto out_close;
-	appctx->ctx.sft.ptr = (void *)ds;
+	appctx->svcctx = (void *)ds;
 
 	sess = session_new(ds->dss->srv->proxy, NULL, &appctx->obj_type);
 	if (!sess) {
