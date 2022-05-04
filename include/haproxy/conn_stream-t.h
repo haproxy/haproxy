@@ -64,6 +64,7 @@
 	CS_EP_MAY_SPLICE = 0x00040000,  /* The endpoint may use the kernel splicing to forward data to the other side (implies CS_EP_CAN_SPLICE) */
 	CS_EP_RCV_MORE   = 0x00080000,  /* Endpoint may have more bytes to transfer */
 	CS_EP_WANT_ROOM  = 0x00100000,  /* More bytes to transfer, but not enough room */
+	CS_EP_ENDP_MASK  = 0x001ff000,  /* Mask for flags set by the endpoint */
 
 	/* following flags are supposed to be set by the app layer and read by
 	 * the endpoint :
@@ -79,6 +80,7 @@
 	CS_EP_RXBLK_SHUT    = 0x20000000,  /* input is now closed, nothing new will ever come */
 	CS_EP_RXBLK_CONN    = 0x40000000,  /* other side is not connected */
 	CS_EP_RXBLK_ANY     = 0x7C000000,  /* any of the RXBLK flags above */
+	CS_EP_APP_MASK      = 0x7fe00000,  /* Mask for flags set by the app layer */
  };
 
 /* conn_stream flags */
