@@ -2117,6 +2117,11 @@ static void init(int argc, char **argv)
 	list_for_each_entry(prcf, &pre_check_list, list)
 		err_code |= prcf->fct();
 
+	if (err_code & (ERR_ABORT|ERR_FATAL)) {
+		ha_alert("Fatal errors found in configuration.\n");
+		exit(1);
+	}
+
 	err_code |= check_config_validity();
 	for (px = proxies_list; px; px = px->next) {
 		struct server *srv;
