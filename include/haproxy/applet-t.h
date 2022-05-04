@@ -179,6 +179,7 @@ struct appctx {
 			struct ckch_store *old_ckchs;
 			struct ckch_store *new_ckchs;
 			struct ckch_inst *next_ckchi;
+			struct ckch_store *cur_ckchs;
 
 			struct ckch_inst_link *next_ckchi_link;
 			struct cafile_entry *old_cafile_entry;

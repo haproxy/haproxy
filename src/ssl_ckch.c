@@ -1231,7 +1231,9 @@ static void cli_release_show_cert(struct appctx *appctx)
 	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
 }
 
-/* IO handler of "show ssl cert <filename>" */
+/* IO handler of "show ssl cert <filename>".
+ * It makes use of ctx.ssl.cur_ckchs, ctx.ssl.old_ckchs.
+ */
 static int cli_io_handler_show_cert(struct appctx *appctx)
 {
 	struct buffer *trash = alloc_trash_chunk();
@@ -1250,11 +1252,11 @@ static int cli_io_handler_show_cert(struct appctx *appctx)
 		}
 	}
 
-	if (!appctx->ctx.cli.p0) {
+	if (!appctx->ctx.ssl.cur_ckchs) {
 		chunk_appendf(trash, "# filename\n");
 		node = ebmb_first(&ckchs_tree);
 	} else {
-		node = &((struct ckch_store *)appctx->ctx.cli.p0)->node;
+		node = &((struct ckch_store *)appctx->ctx.ssl.cur_ckchs)->node;
 	}
 	while (node) {
 		ckchs = ebmb_entry(node, struct ckch_store, node);
@@ -1267,13 +1269,13 @@ static int cli_io_handler_show_cert(struct appctx *appctx)
 		}
 	}
 
-	appctx->ctx.cli.p0 = NULL;
+	appctx->ctx.ssl.cur_ckchs = NULL;
 	free_trash_chunk(trash);
 	return 1;
 yield:
 
 	free_trash_chunk(trash);
-	appctx->ctx.cli.p0 = ckchs;
+	appctx->ctx.ssl.cur_ckchs = ckchs;
 	return 0; /* should come back */
 }
 
@@ -1632,11 +1634,13 @@ static int ckch_store_show_ocsp_certid(struct ckch_store *ckch_store, struct buf
 }
 
 
-/* IO handler of the details "show ssl cert <filename>" */
+/* IO handler of the details "show ssl cert <filename>".
+ * It uses ctx.ssl.cur_ckchs.
+ */
 static int cli_io_handler_show_cert_detail(struct appctx *appctx)
 {
 	struct conn_stream *cs = appctx->owner;
-	struct ckch_store *ckchs = appctx->ctx.cli.p0;
+	struct ckch_store *ckchs = appctx->ctx.ssl.cur_ckchs;
 	struct buffer *out = alloc_trash_chunk();
 	int retval = 0;
 
@@ -1679,14 +1683,16 @@ yield:
 }
 
 
-/* IO handler of the details "show ssl cert <filename.ocsp>" */
+/* IO handler of the details "show ssl cert <filename.ocsp>".
+ * It uses ctx.ssl.cur_ckchs and ctx.ssl.index.
+ */
 static int cli_io_handler_show_cert_ocsp_detail(struct appctx *appctx)
 {
 #if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) && !defined OPENSSL_IS_BORINGSSL)
 	struct conn_stream *cs = appctx->owner;
-	struct ckch_store *ckchs = appctx->ctx.cli.p0;
+	struct ckch_store *ckchs = appctx->ctx.ssl.cur_ckchs;
 	struct buffer *out = alloc_trash_chunk();
-	int from_transaction = appctx->ctx.cli.i0;
+	int from_transaction = appctx->ctx.ssl.index;
 
 	if (!out)
 		goto end_no_putchk;
@@ -1769,10 +1775,10 @@ static int cli_parse_show_cert(char **args, char *payload, struct appctx *appctx
 
 		}
 
-		appctx->ctx.cli.p0 = ckchs;
+		appctx->ctx.ssl.cur_ckchs = ckchs;
 		/* use the IO handler that shows details */
 		if (show_ocsp_detail) {
-			appctx->ctx.cli.i0 = from_transaction;
+			appctx->ctx.ssl.index = from_transaction;
 			appctx->io_handler = cli_io_handler_show_cert_ocsp_detail;
 		}
 		else
