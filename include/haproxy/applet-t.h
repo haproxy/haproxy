@@ -139,9 +139,6 @@ struct appctx {
 			 * keep the grouped together and avoid adding new ones.
 			 */
 			struct {
-				void *ptr;
-			} sft; /* sink forward target */
-			struct {
 				struct httpclient *ptr;
 			} httpclient;
 

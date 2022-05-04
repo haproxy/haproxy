@@ -292,14 +292,15 @@ void sink_setup_proxy(struct proxy *px)
 }
 
 /*
- * IO Handler to handle message push to syslog tcp server
+ * IO Handler to handle message push to syslog tcp server.
+ * It takes its context from appctx->svcctx.
  */
 static void sink_forward_io_handler(struct appctx *appctx)
 {
 	struct conn_stream *cs = appctx->owner;
 	struct stream *s = __cs_strm(cs);
 	struct sink *sink = strm_fe(s)->parent;
-	struct sink_forward_target *sft = appctx->ctx.sft.ptr;
+	struct sink_forward_target *sft = appctx->svcctx;
 	struct ring *ring = sink->ctx.ring;
 	struct buffer *buf = &ring->buf;
 	uint64_t msg_len;
@@ -432,13 +433,14 @@ close:
 /*
  * IO Handler to handle message push to syslog tcp server
  * using octet counting frames
+ * It takes its context from appctx->svcctx.
  */
 static void sink_forward_oc_io_handler(struct appctx *appctx)
 {
 	struct conn_stream *cs = appctx->owner;
 	struct stream *s = __cs_strm(cs);
 	struct sink *sink = strm_fe(s)->parent;
-	struct sink_forward_target *sft = appctx->ctx.sft.ptr;
+	struct sink_forward_target *sft = appctx->svcctx;
 	struct ring *ring = sink->ctx.ring;
 	struct buffer *buf = &ring->buf;
 	uint64_t msg_len;
@@ -593,7 +595,7 @@ void __sink_forward_session_deinit(struct sink_forward_target *sft)
 
 static void sink_forward_session_release(struct appctx *appctx)
 {
-	struct sink_forward_target *sft = appctx->ctx.sft.ptr;
+	struct sink_forward_target *sft = appctx->svcctx;
 
 	if (!sft)
 		return;
@@ -620,6 +622,7 @@ static struct applet sink_forward_oc_applet = {
 
 /*
  * Create a new peer session in assigned state (connect will start automatically)
+ * It sets its context into appctx->svcctx.
  */
 static struct appctx *sink_forward_session_create(struct sink *sink, struct sink_forward_target *sft)
 {
@@ -638,7 +641,7 @@ static struct appctx *sink_forward_session_create(struct sink *sink, struct sink
 	if (!appctx)
 		goto out_close;
 
-	appctx->ctx.sft.ptr = (void *)sft;
+	appctx->svcctx = (void *)sft;
 
 	sess = session_new(p, NULL, &appctx->obj_type);
 	if (!sess) {
