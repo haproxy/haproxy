@@ -18,13 +18,14 @@
 #define NCB_BLK_NULL ((struct ncb_blk){ .st = NULL })
 
 #define NCB_BK_F_GAP  0x01  /* block represents a gap */
+#define NCB_BK_F_FIN  0x02  /* special reduced gap present at the end of the buffer */
 struct ncb_blk {
 	char *st;  /* first byte of the block */
 	char *end; /* first byte after this block */
 
-	char *sz_ptr; /* pointer to size element */
+	char *sz_ptr; /* pointer to size element - NULL for reduced gap */
 	ncb_sz_t sz; /* size of the block */
-	ncb_sz_t sz_data; /* size of the data following the block - only valid for GAP */
+	ncb_sz_t sz_data; /* size of the data following the block - invalid for reduced GAP */
 	ncb_sz_t off; /* offset of block in buffer */
 
 	char flag;
@@ -80,6 +81,12 @@ static ncb_sz_t ncb_read_off(const struct ncbuf *buf, char *st)
 	return off;
 }
 
+/* Returns true if a gap cannot be inserted at <off> : a reduced gap must be used. */
+static int ncb_off_reduced(const struct ncbuf *b, ncb_sz_t off)
+{
+	return off + NCB_GAP_MIN_SZ > ncb_size(b);
+}
+
 /* Returns true if <blk> is the special NULL block. */
 static int ncb_blk_is_null(const struct ncb_blk blk)
 {
@@ -127,10 +134,21 @@ static struct ncb_blk ncb_blk_next(const struct ncbuf *buf,
 	blk.flag = ~prev.flag & NCB_BK_F_GAP;
 
 	if (blk.flag & NCB_BK_F_GAP) {
-		blk.sz_ptr = ncb_peek(buf, blk.off + NCB_GAP_SZ_OFF);
-		blk.sz = ncb_read_off(buf, blk.sz_ptr);
-		BUG_ON_HOT(blk.sz < NCB_GAP_MIN_SZ);
-		blk.sz_data = ncb_read_off(buf, ncb_peek(buf, blk.off + NCB_GAP_SZ_DATA_OFF));
+		if (ncb_off_reduced(buf, blk.off)) {
+			blk.flag |= NCB_BK_F_FIN;
+			blk.sz_ptr = NULL;
+			blk.sz = ncb_size(buf) - blk.off;
+			blk.sz_data = 0;
+
+			/* A reduced gap can only be the last block. */
+			BUG_ON_HOT(!ncb_blk_is_last(buf, blk));
+		}
+		else {
+			blk.sz_ptr = ncb_peek(buf, blk.off + NCB_GAP_SZ_OFF);
+			blk.sz = ncb_read_off(buf, blk.sz_ptr);
+			blk.sz_data = ncb_read_off(buf, ncb_peek(buf, blk.off + NCB_GAP_SZ_DATA_OFF));
+			BUG_ON_HOT(blk.sz < NCB_GAP_MIN_SZ);
+		}
 	}
 	else {
 		blk.sz_ptr = ncb_peek(buf, prev.off + NCB_GAP_SZ_DATA_OFF);

@@ -54,6 +54,12 @@
  *        | -------- GAP-SZ -------------- > | --- DATA-SZ --->
  *
  * This means that a gap must be at least big enough to store two sizes.
+ * However, there is an optimization when the last block of the buffer is a
+ * gap. In this case, there is no minimal size for this block. If the gap is
+ * too small, the two sizes won't be stored in it. This block is considered
+ * to be a reduced gap. The block API will detect such a gap if stored at an
+ * offset near the end of the buffer.
+ *
  */
 
 #include <stdint.h>
