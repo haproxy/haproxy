@@ -6,6 +6,15 @@
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 #endif
 
+#ifdef STANDALONE
+#include <stdarg.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <unistd.h>
+
+#include <haproxy/list.h>
+#endif /* STANDALONE */
+
 #ifdef DEBUG_DEV
 # include <haproxy/bug.h>
 #else
@@ -655,3 +664,282 @@ enum ncb_ret ncb_advance(struct ncbuf *buf, ncb_sz_t off)
 
 	return NCB_RET_OK;
 }
+
+/* ******** testing API ******** */
+/* To build it :
+ *   gcc -DSTANDALONE -lasan -I./include -o ncbuf src/ncbuf.c
+ */
+#ifdef STANDALONE
+
+int ncb_print = 0;
+
+static void ncbuf_printf(char *str, ...)
+{
+	va_list args;
+
+	va_start(args, str);
+	if (ncb_print)
+		vfprintf(stderr, str, args);
+	va_end(args);
+}
+
+struct rand_off {
+	struct list el;
+	ncb_sz_t off;
+	ncb_sz_t len;
+};
+
+static struct rand_off *ncb_generate_rand_off(const struct ncbuf *buf)
+{
+	struct rand_off *roff;
+	roff = calloc(1, sizeof(struct rand_off));
+	BUG_ON(!roff);
+
+	roff->off = rand() % (ncb_size(buf));
+	if (roff->off > 0 && roff->off < NCB_GAP_MIN_SZ)
+		roff->off = 0;
+
+	roff->len = rand() % (ncb_size(buf) - roff->off + 1);
+
+	return roff;
+}
+
+static void ncb_print_blk(const struct ncb_blk blk)
+{
+	if (ncb_print) {
+		fprintf(stderr, "%s(%s): %2zu/%zu.\n",
+		        blk.flag & NCB_BK_F_GAP ? "GAP " : "DATA",
+		        blk.flag & NCB_BK_F_FIN ? "F" : "-", blk.off, blk.sz);
+	}
+}
+
+static inline int ncb_is_null_blk(const struct ncb_blk blk)
+{
+	return !blk.st;
+}
+
+static void ncb_loop(const struct ncbuf *buf)
+{
+	struct ncb_blk blk;
+
+	blk = ncb_blk_first(buf);
+	do {
+		ncb_print_blk(blk);
+		blk = ncb_blk_next(buf, blk);
+	} while (!ncb_is_null_blk(blk));
+
+	ncbuf_printf("\n");
+}
+
+static void ncbuf_print_buf(struct ncbuf *b, ncb_sz_t len,
+                            unsigned char *area, int line)
+{
+	int i;
+
+	ncbuf_printf("buffer status at line %d\n", line);
+	for (i = 0; i < len; ++i) {
+		ncbuf_printf("%02x.", area[i]);
+		if (i && i % 32 == 31)    ncbuf_printf("\n");
+		else if (i && i % 8 == 7) ncbuf_printf(" ");
+	}
+	ncbuf_printf("\n");
+
+	ncb_loop(b);
+
+	if (ncb_print)
+		getchar();
+}
+
+static struct ncbuf b;
+static unsigned char *bufarea = NULL;
+static ncb_sz_t bufsize = 16384;
+static ncb_sz_t bufhead = 15;
+
+#define NCB_INIT(buf) \
+  if ((reset)) { memset(bufarea, 0xaa, bufsize); } \
+  ncb_init(buf, bufhead); \
+  ncbuf_print_buf(&b, bufsize, bufarea, __LINE__);
+
+#define NCB_ADD_EQ(buf, off, data, sz, mode, ret) \
+  BUG_ON(ncb_add((buf), (off), (data), (sz), (mode)) != (ret)); \
+  ncbuf_print_buf(buf, bufsize, bufarea, __LINE__);
+
+#define NCB_ADD_NEQ(buf, off, data, sz, mode, ret) \
+  BUG_ON(ncb_add((buf), (off), (data), (sz), (mode)) == (ret)); \
+  ncbuf_print_buf(buf, bufsize, bufarea, __LINE__);
+
+#define NCB_ADVANCE_EQ(buf, off, ret) \
+  BUG_ON(ncb_advance((buf), (off)) != (ret)); \
+  ncbuf_print_buf(buf, bufsize, bufarea, __LINE__);
+
+#define NCB_TOTAL_DATA_EQ(buf, data) \
+  BUG_ON(ncb_total_data((buf)) != (data));
+
+#define NCB_DATA_EQ(buf, off, data) \
+  BUG_ON(ncb_data((buf), (off)) != (data));
+
+static int ncbuf_test(ncb_sz_t head, int reset, int print_delay)
+{
+	char *data0, data1[] = { 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f };
+	struct list list = LIST_HEAD_INIT(list);
+	struct rand_off *roff, *roff_tmp;
+	enum ncb_ret ret;
+
+	data0 = malloc(bufsize);
+	memset(data0, 0xff, bufsize);
+
+	bufarea = malloc(bufsize);
+
+	b.area = bufarea;
+	b.size = bufsize;
+	b.head = head;
+	NCB_INIT(&b);
+
+	fprintf(stderr, "running unit tests\n");
+
+	/* insertion test suite */
+	NCB_INIT(&b);
+	NCB_DATA_EQ(&b, 0, 0); NCB_DATA_EQ(&b, bufsize - NCB_RESERVED_SZ - 1, 0); /* first and last offset */
+	NCB_ADD_EQ(&b, 24, data0,  9, NCB_ADD_PRESERVE, NCB_RET_OK); NCB_DATA_EQ(&b, 24,  9);
+	/* insert new data at the same offset as old */
+	NCB_ADD_EQ(&b, 24, data0, 16, NCB_ADD_PRESERVE, NCB_RET_OK); NCB_DATA_EQ(&b, 24, 16);
+
+	NCB_INIT(&b); NCB_DATA_EQ(&b, 0, 0);
+	NCB_ADD_EQ(&b,  0, data0, 16, NCB_ADD_PRESERVE, NCB_RET_OK); NCB_DATA_EQ(&b, 0, 16);
+	NCB_ADD_EQ(&b, 24, data0, 16, NCB_ADD_PRESERVE, NCB_RET_OK); NCB_DATA_EQ(&b, 0, 16);
+	/* insert data overlapping two data blocks and a gap */
+	NCB_ADD_EQ(&b, 12, data0, 16, NCB_ADD_PRESERVE, NCB_RET_OK); NCB_DATA_EQ(&b, 0, 40);
+
+	NCB_INIT(&b);
+	NCB_ADD_EQ(&b, 32, data0, 16, NCB_ADD_PRESERVE, NCB_RET_OK); NCB_DATA_EQ(&b, 0,  0); NCB_DATA_EQ(&b, 16,  0); NCB_DATA_EQ(&b, 32, 16);
+	NCB_ADD_EQ(&b,  0, data0, 16, NCB_ADD_PRESERVE, NCB_RET_OK); NCB_DATA_EQ(&b, 0, 16); NCB_DATA_EQ(&b, 16,  0); NCB_DATA_EQ(&b, 32, 16);
+	/* insert data to exactly cover a gap between two data blocks */
+	NCB_ADD_EQ(&b, 16, data0, 16, NCB_ADD_PRESERVE, NCB_RET_OK); NCB_DATA_EQ(&b, 0, 48); NCB_DATA_EQ(&b, 16, 32); NCB_DATA_EQ(&b, 32, 16);
+
+	NCB_INIT(&b);
+	NCB_ADD_EQ(&b, 0,  data0, 8, NCB_ADD_PRESERVE, NCB_RET_OK);
+	/* this insertion must be rejected because of minimal gap size */
+	NCB_ADD_EQ(&b, 10, data0, 8, NCB_ADD_PRESERVE, NCB_RET_GAP_SIZE);
+
+	/* Test reduced gap support */
+	NCB_INIT(&b);
+	/* this insertion will form a reduced gap */
+	NCB_ADD_EQ(&b, 0, data0, bufsize - (NCB_GAP_MIN_SZ - 1), NCB_ADD_COMPARE, NCB_RET_OK);
+
+	/* Test the various insertion mode */
+	NCB_INIT(&b);
+	NCB_ADD_EQ(&b, 10, data1, 16, NCB_ADD_PRESERVE, NCB_RET_OK);
+	NCB_ADD_EQ(&b, 12, data1, 16, NCB_ADD_COMPARE,  NCB_RET_DATA_REJ);
+	NCB_ADD_EQ(&b, 12, data1, 16, NCB_ADD_PRESERVE, NCB_RET_OK); BUG_ON(*ncb_peek(&b, 12) != data1[2]);
+	NCB_ADD_EQ(&b, 12, data1, 16, NCB_ADD_OVERWRT,  NCB_RET_OK); BUG_ON(*ncb_peek(&b, 12) == data1[2]);
+
+	/* advance test suite */
+	NCB_INIT(&b);
+	NCB_ADVANCE_EQ(&b, 10, NCB_RET_OK); /* advance in an empty buffer; this ensures we do not leave an empty DATA in the middle of the buffer */
+	NCB_ADVANCE_EQ(&b, ncb_size(&b) - 2, NCB_RET_OK);
+
+	NCB_INIT(&b);
+	/* first fill the buffer */
+	NCB_ADD_EQ(&b, 0, data0, bufsize - NCB_RESERVED_SZ, NCB_ADD_COMPARE, NCB_RET_OK);
+	/* delete 2 bytes : a reduced gap must be created */
+	NCB_ADVANCE_EQ(&b, 2, NCB_RET_OK); NCB_TOTAL_DATA_EQ(&b, ncb_size(&b) - 2);
+	/* delete 1 byte : extend the reduced gap */
+	NCB_ADVANCE_EQ(&b, 1, NCB_RET_OK); NCB_TOTAL_DATA_EQ(&b, ncb_size(&b) - 3);
+	/* delete 5 bytes : a full gap must be present */
+	NCB_ADVANCE_EQ(&b, 5, NCB_RET_OK); NCB_TOTAL_DATA_EQ(&b, ncb_size(&b) - 8);
+	/* completely clear the buffer */
+	NCB_ADVANCE_EQ(&b, bufsize - NCB_RESERVED_SZ, NCB_RET_OK); NCB_TOTAL_DATA_EQ(&b, 0);
+
+
+	NCB_INIT(&b);
+	NCB_ADD_EQ(&b, 10, data0, 10, NCB_ADD_PRESERVE, NCB_RET_OK);
+	NCB_ADVANCE_EQ(&b,  2, NCB_RET_OK); /* reduce a gap in front of the buffer */
+	NCB_ADVANCE_EQ(&b,  1, NCB_RET_GAP_SIZE); /* reject */
+	NCB_ADVANCE_EQ(&b,  8, NCB_RET_OK); /* remove completely the gap */
+	NCB_ADVANCE_EQ(&b,  8, NCB_RET_OK); /* remove inside the data */
+	NCB_ADVANCE_EQ(&b, 10, NCB_RET_OK); /* remove completely the data */
+
+	fprintf(stderr, "first random pass\n");
+	NCB_INIT(&b);
+
+	/* generate randon data offsets until the buffer is full */
+	while (!ncb_is_full(&b)) {
+		roff = ncb_generate_rand_off(&b);
+		LIST_INSERT(&list, &roff->el);
+
+		ret = ncb_add(&b, roff->off, data0, roff->len, NCB_ADD_COMPARE);
+		BUG_ON(ret == NCB_RET_DATA_REJ);
+		ncbuf_print_buf(&b, bufsize, bufarea, __LINE__);
+		usleep(print_delay);
+	}
+
+	fprintf(stderr, "buf full, prepare for reverse random\n");
+	ncbuf_print_buf(&b, bufsize, bufarea, __LINE__);
+
+	/* insert the previously generated random offsets in the reverse order.
+	 * At the end, the buffer should be full.
+	 */
+	NCB_INIT(&b);
+	list_for_each_entry_safe(roff, roff_tmp, &list, el) {
+		int full = ncb_is_full(&b);
+		if (!full) {
+			ret = ncb_add(&b, roff->off, data0, roff->len, NCB_ADD_COMPARE);
+			BUG_ON(ret == NCB_RET_DATA_REJ);
+			ncbuf_print_buf(&b, bufsize, bufarea, __LINE__);
+			usleep(print_delay);
+		}
+
+		LIST_DELETE(&roff->el);
+		free(roff);
+	}
+
+	if (!ncb_is_full(&b))
+		abort();
+
+	fprintf(stderr, "done\n");
+
+	free(bufarea);
+	free(data0);
+
+	return 1;
+}
+
+int main(int argc, char **argv)
+{
+	int reset = 0;
+	int print_delay = 100000;
+	char c;
+
+	opterr = 0;
+	while ((c = getopt(argc, argv, "h:s:rp::")) != -1) {
+		switch (c) {
+		case 'h':
+			bufhead = atoi(optarg);
+			break;
+		case 's':
+			bufsize = atoi(optarg);
+			if (bufsize < 64) {
+				fprintf(stderr, "bufsize should be at least 64 bytes for unit test suite\n");
+				exit(127);
+			}
+			break;
+		case 'r':
+			reset = 1;
+			break;
+		case 'p':
+			if (optarg)
+				print_delay = atoi(optarg);
+			ncb_print = 1;
+			break;
+		case '?':
+		default:
+			fprintf(stderr, "usage: %s [-r] [-s bufsize] [-h bufhead] [-p <delay_msec>]\n", argv[0]);
+			exit(127);
+		}
+	}
+
+	ncbuf_test(bufhead, reset, print_delay);
+	return EXIT_SUCCESS;
+}
+
+#endif /* STANDALONE */
