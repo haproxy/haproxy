@@ -140,8 +140,6 @@ struct appctx {
 			 */
 			struct {
 				char *path;
-				struct ckch_store *old_ckchs;
-				struct ckch_store *new_ckchs;
 				struct ckch_inst *next_ckchi;
 
 				struct ckch_inst_link *next_ckchi_link;
