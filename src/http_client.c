@@ -527,10 +527,20 @@ struct appctx *httpclient_start(struct httpclient *hc)
 	/* parse the URL and  */
 	httpclient_spliturl(hc->req.url, &scheme, &host, &port);
 
-	ist2str(trash.area, host);
-	ss_dst = str2ip2(trash.area, &ss_url, 0);
-	if (!ss_dst)  /* couldn't get an IP from that, try to resolve */
-		doresolve = 1;
+	if (hc->dst) {
+		/* if httpclient_set_dst() was used, sets the alternative address */
+		ss_dst = hc->dst;
+	} else {
+		/* set the dst using the host, or 0.0.0.0 to resolve */
+
+		ist2str(trash.area, host);
+		ss_dst = str2ip2(trash.area, &ss_url, 0);
+		if (!ss_dst) { /* couldn't get an IP from that, try to resolve */
+			doresolve = 1;
+			ss_dst = str2ip2("0.0.0.0", &ss_url, 0);
+		}
+		sock_inet_set_port(ss_dst, port);
+	}
 
 	/* The HTTP client will be created in the same thread as the caller,
 	 * avoiding threading issues */
@@ -564,21 +574,12 @@ struct appctx *httpclient_start(struct httpclient *hc)
 			break;
 	}
 
-	/* if httpclient_set_dst() was used, sets the alternative address */
-	if (hc->dst)
-		ss_dst = hc->dst;
-
-	if (doresolve) /* when resolving, must set-dst from 0.0.0.0  */
-		ss_dst = str2ip2("0.0.0.0", &ss_url, 0);
-
-	sock_inet_set_port(&ss_url, port);
-
 	if (!ss_dst) {
 		ha_alert("httpclient: Failed to initialize address %s:%d.\n", __FUNCTION__, __LINE__);
 		goto out_free_sess;
 	}
 
-	if (!sockaddr_alloc(&addr, ss_dst, sizeof(*hc->dst)))
+	if (!sockaddr_alloc(&addr, ss_dst, sizeof(*ss_dst)))
 		goto out_free_sess;
 
 	cs = cs_new_from_applet(appctx->endp, sess, &hc->req.buf);
@@ -593,8 +594,17 @@ struct appctx *httpclient_start(struct httpclient *hc)
 	s->req.wto = hc->timeout_server;
 	s->res.rto = hc->timeout_server;
 
-	s->csf->dst = addr;
-	s->csf->flags |= CS_FL_NOLINGER;
+	if (doresolve) {
+		/* in order to do the set-dst we need to put the address on the front */
+		s->csf->dst = addr;
+	} else {
+		/* in cases we don't use the resolve we already have the address
+		 * and must put it on the backend side, some of the cases are
+		 * not meant to be used on the frontend (sockpair, unix socket etc.) */
+		s->csb->dst = addr;
+	}
+
+	s->csb->flags |= CS_FL_NOLINGER;
 	s->flags |= SF_ASSIGNED;
 	s->res.flags |= CF_READ_DONTWAIT;
 
