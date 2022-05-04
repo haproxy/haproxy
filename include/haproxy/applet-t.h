@@ -139,18 +139,6 @@ struct appctx {
 			 * keep the grouped together and avoid adding new ones.
 			 */
 			struct {
-				char *path;
-				struct ckch_inst *next_ckchi;
-
-				struct ckch_inst_link *next_ckchi_link;
-				struct cafile_entry *old_cafile_entry;
-				struct cafile_entry *new_cafile_entry;
-
-				struct cafile_entry *old_crlfile_entry;
-				struct cafile_entry *new_crlfile_entry;
-				int cafile_type; /* either CA or CRL, depending on the current command */
-			} ssl;
-			struct {
 				void *ptr;
 			} sft; /* sink forward target */
 			struct {

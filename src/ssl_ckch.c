@@ -118,6 +118,17 @@ struct set_crlfile_ctx {
 	char *path;
 };
 
+/* CLI context used by "commit cafile" and "commit crlfile" */
+struct commit_cacrlfile_ctx {
+	struct cafile_entry *old_cafile_entry;
+	struct cafile_entry *new_cafile_entry;
+	struct cafile_entry *old_crlfile_entry;
+	struct cafile_entry *new_crlfile_entry;
+	struct ckch_inst_link *next_ckchi_link;
+	struct ckch_inst *next_ckchi;
+	int cafile_type; /* either CA or CRL, depending on the current command */
+};
+
 
 /********************  cert_key_and_chain functions *************************
  * These are the functions that fills a cert_key_and_chain structure. For the
@@ -2687,10 +2698,12 @@ end:
 
 
 /*
- * Parsing function of 'commit ssl ca-file'
+ * Parsing function of 'commit ssl ca-file'.
+ * It uses a commit_cacrlfile_ctx that's also shared with "commit ssl crl-file".
  */
 static int cli_parse_commit_cafile(char **args, char *payload, struct appctx *appctx, void *private)
 {
+	struct commit_cacrlfile_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
 	char *err = NULL;
 
 	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
@@ -2715,10 +2728,10 @@ static int cli_parse_commit_cafile(char **args, char *payload, struct appctx *ap
 	}
 	/* init the appctx structure */
 	appctx->st2 = SETCERT_ST_INIT;
-	appctx->ctx.ssl.next_ckchi_link = NULL;
-	appctx->ctx.ssl.old_cafile_entry = cafile_transaction.old_cafile_entry;
-	appctx->ctx.ssl.new_cafile_entry = cafile_transaction.new_cafile_entry;
-	appctx->ctx.ssl.cafile_type = CAFILE_CERT;
+	ctx->next_ckchi_link = NULL;
+	ctx->old_cafile_entry = cafile_transaction.old_cafile_entry;
+	ctx->new_cafile_entry = cafile_transaction.new_cafile_entry;
+	ctx->cafile_type = CAFILE_CERT;
 
 	return 0;
 
@@ -2736,15 +2749,19 @@ enum {
 	CREATE_NEW_INST_ERR = -2
 };
 
+/* this is called by the I/O handler for "commit cafile"/"commit crlfile", and
+ * it uses a context from cmomit_cacrlfile_ctx.
+ */
 static inline int __create_new_instance(struct appctx *appctx, struct ckch_inst *ckchi, int *count,
 					struct buffer *trash, char **err)
 {
+	struct commit_cacrlfile_ctx *ctx = appctx->svcctx;
 	struct ckch_inst *new_inst;
 
 	/* it takes a lot of CPU to creates SSL_CTXs, so we yield every 10 CKCH instances */
 	if (*count >= 10) {
 		/* save the next ckchi to compute */
-		appctx->ctx.ssl.next_ckchi = ckchi;
+		ctx->next_ckchi = ckchi;
 		return CREATE_NEW_INST_YIELD;
 	}
 
@@ -2767,6 +2784,7 @@ static inline int __create_new_instance(struct appctx *appctx, struct ckch_inst 
  */
 static int cli_io_handler_commit_cafile_crlfile(struct appctx *appctx)
 {
+	struct commit_cacrlfile_ctx *ctx = appctx->svcctx;
 	struct conn_stream *cs = appctx->owner;
 	int y = 0;
 	char *err = NULL;
@@ -2784,7 +2802,7 @@ static int cli_io_handler_commit_cafile_crlfile(struct appctx *appctx)
 		switch (appctx->st2) {
 			case SETCERT_ST_INIT:
 				/* This state just print the update message */
-				switch (appctx->ctx.ssl.cafile_type) {
+				switch (ctx->cafile_type) {
 				case CAFILE_CERT:
 					chunk_printf(trash, "Committing %s", cafile_transaction.path);
 					break;
@@ -2808,21 +2826,21 @@ static int cli_io_handler_commit_cafile_crlfile(struct appctx *appctx)
 				 * Since the SSL_CTX generation can be CPU consumer, we
 				 * yield every 10 instances.
 				 */
-				switch (appctx->ctx.ssl.cafile_type) {
+				switch (ctx->cafile_type) {
 				case CAFILE_CERT:
-					old_cafile_entry = appctx->ctx.ssl.old_cafile_entry;
-					new_cafile_entry = appctx->ctx.ssl.new_cafile_entry;
+					old_cafile_entry = ctx->old_cafile_entry;
+					new_cafile_entry = ctx->new_cafile_entry;
 					break;
 				case CAFILE_CRL:
-					old_cafile_entry = appctx->ctx.ssl.old_crlfile_entry;
-					new_cafile_entry = appctx->ctx.ssl.new_crlfile_entry;
+					old_cafile_entry = ctx->old_crlfile_entry;
+					new_cafile_entry = ctx->new_crlfile_entry;
 					break;
 				}
 				if (!new_cafile_entry)
 					continue;
 
 				/* get the next ckchi to regenerate */
-				ckchi_link = appctx->ctx.ssl.next_ckchi_link;
+				ckchi_link = ctx->next_ckchi_link;
 				/* we didn't start yet, set it to the first elem */
 				if (ckchi_link == NULL) {
 					ckchi_link = LIST_ELEM(old_cafile_entry->ckch_inst_link.n, typeof(ckchi_link), list);
@@ -2835,7 +2853,7 @@ static int cli_io_handler_commit_cafile_crlfile(struct appctx *appctx)
 				list_for_each_entry_from(ckchi_link, &old_cafile_entry->ckch_inst_link, list) {
 					switch (__create_new_instance(appctx, ckchi_link->ckch_inst, &y, trash, &err)) {
 					case CREATE_NEW_INST_YIELD:
-						appctx->ctx.ssl.next_ckchi_link = ckchi_link;
+						ctx->next_ckchi_link = ckchi_link;
 						goto yield;
 					case CREATE_NEW_INST_ERR:
 						goto error;
@@ -2847,14 +2865,14 @@ static int cli_io_handler_commit_cafile_crlfile(struct appctx *appctx)
 				/* fallthrough */
 			case SETCERT_ST_INSERT:
 				/* The generation is finished, we can insert everything */
-				switch (appctx->ctx.ssl.cafile_type) {
+				switch (ctx->cafile_type) {
 				case CAFILE_CERT:
-					old_cafile_entry = appctx->ctx.ssl.old_cafile_entry;
-					new_cafile_entry = appctx->ctx.ssl.new_cafile_entry;
+					old_cafile_entry = ctx->old_cafile_entry;
+					new_cafile_entry = ctx->new_cafile_entry;
 					break;
 				case CAFILE_CRL:
-					old_cafile_entry = appctx->ctx.ssl.old_crlfile_entry;
-					new_cafile_entry = appctx->ctx.ssl.new_crlfile_entry;
+					old_cafile_entry = ctx->old_crlfile_entry;
+					new_cafile_entry = ctx->new_crlfile_entry;
 					break;
 				}
 				if (!new_cafile_entry)
@@ -2886,7 +2904,7 @@ static int cli_io_handler_commit_cafile_crlfile(struct appctx *appctx)
 				/* fallthrough */
 			case SETCERT_ST_FIN:
 				/* we achieved the transaction, we can set everything to NULL */
-				switch (appctx->ctx.ssl.cafile_type) {
+				switch (ctx->cafile_type) {
 				case CAFILE_CERT:
 					ha_free(&cafile_transaction.path);
 					cafile_transaction.old_cafile_entry = NULL;
@@ -2975,12 +2993,14 @@ error:
 }
 
 /* release function of the `commit ssl ca-file' command, free things and unlock the spinlock.
- * It uses ctx.ssl.new_cafile_entry.
+ * It uses a commit_cacrlfile_ctx context.
  */
 static void cli_release_commit_cafile(struct appctx *appctx)
 {
+	struct commit_cacrlfile_ctx *ctx = appctx->svcctx;
+
 	if (appctx->st2 != SETCERT_ST_FIN) {
-		struct cafile_entry *new_cafile_entry = appctx->ctx.ssl.new_cafile_entry;
+		struct cafile_entry *new_cafile_entry = ctx->new_cafile_entry;
 
 		/* Remove the uncommitted cafile_entry from the tree. */
 		ebmb_delete(&new_cafile_entry->node);
@@ -3426,9 +3446,12 @@ end:
 	}
 }
 
-/* Parsing function of 'commit ssl crl-file' */
+/* Parsing function of 'commit ssl crl-file'.
+ * It uses a commit_cacrlfile_ctx that's also shared with "commit ssl ca-file".
+ */
 static int cli_parse_commit_crlfile(char **args, char *payload, struct appctx *appctx, void *private)
 {
+	struct commit_cacrlfile_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
 	char *err = NULL;
 
 	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
@@ -3453,10 +3476,10 @@ static int cli_parse_commit_crlfile(char **args, char *payload, struct appctx *a
 	}
 	/* init the appctx structure */
 	appctx->st2 = SETCERT_ST_INIT;
-	appctx->ctx.ssl.next_ckchi = NULL;
-	appctx->ctx.ssl.old_crlfile_entry = crlfile_transaction.old_crlfile_entry;
-	appctx->ctx.ssl.new_crlfile_entry = crlfile_transaction.new_crlfile_entry;
-	appctx->ctx.ssl.cafile_type = CAFILE_CRL;
+	ctx->next_ckchi = NULL;
+	ctx->old_crlfile_entry = crlfile_transaction.old_crlfile_entry;
+	ctx->new_crlfile_entry = crlfile_transaction.new_crlfile_entry;
+	ctx->cafile_type = CAFILE_CRL;
 
 	return 0;
 
@@ -3469,11 +3492,15 @@ error:
 }
 
 
-/* release function of the `commit ssl crl-file' command, free things and unlock the spinlock */
+/* release function of the `commit ssl crl-file' command, free things and unlock the spinlock.
+ * it uses a commit_cacrlfile_ctx that's the same as for "commit ssl ca-file".
+ */
 static void cli_release_commit_crlfile(struct appctx *appctx)
 {
+	struct commit_cacrlfile_ctx *ctx = appctx->svcctx;
+
 	if (appctx->st2 != SETCERT_ST_FIN) {
-		struct cafile_entry *new_crlfile_entry = appctx->ctx.ssl.new_crlfile_entry;
+		struct cafile_entry *new_crlfile_entry = ctx->new_crlfile_entry;
 
 		/* Remove the uncommitted cafile_entry from the tree. */
 		ebmb_delete(&new_crlfile_entry->node);
