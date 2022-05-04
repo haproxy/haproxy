@@ -52,8 +52,10 @@ static char *httpclient_ssl_ca_file = NULL;
 #endif
 static struct applet httpclient_applet;
 
+/* if the httpclient is not configured, error are ignored and features are limited */
 static int hard_error_resolvers = 0;
 static char *resolvers_id = NULL;
+static char *resolvers_prefer = NULL;
 
 /* --- This part of the file implement an HTTP client over the CLI ---
  * The functions will be  starting by "hc_cli" for "httpclient cli"
@@ -1069,7 +1071,7 @@ static int httpclient_resolve_init()
 	if (!resolvers_id)
 		resolvers_id = strdup("default");
 
-	memprintf(&do_resolve, "do-resolve(txn.hc_ip,%s)", resolvers_id);
+	memprintf(&do_resolve, "do-resolve(txn.hc_ip,%s%s%s)", resolvers_id, resolvers_prefer ? "," : "", resolvers_prefer ? resolvers_prefer : "");
 	http_rules[1][0] = do_resolve;
 
 	/* if the resolver does not exist and no hard_error was set, simply ignore resolving */
@@ -1310,6 +1312,28 @@ static int httpclient_parse_global_resolvers(char **args, int section_type, stru
 	return 0;
 }
 
+static int httpclient_parse_global_prefer(char **args, int section_type, struct proxy *curpx,
+                                        const struct proxy *defpx, const char *file, int line,
+                                        char **err)
+{
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	/* any configuration should set the hard_error flag */
+	hard_error_resolvers = 1;
+
+
+	if (strcmp(args[1],"ipv4") == 0)
+		resolvers_prefer = "ipv4";
+	else if (strcmp(args[1],"ipv6") == 0)
+		resolvers_prefer = "ipv6";
+	else {
+		ha_alert("parsing [%s:%d] : '%s' expects 'ipv4' or 'ipv6' as argument.\n", file, line, args[0]);
+		return -1;
+	}
+
+	return 0;
+}
 
 
 #ifdef USE_OPENSSL
@@ -1354,6 +1378,7 @@ static int httpclient_parse_global_verify(char **args, int section_type, struct 
 
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "httpclient.resolvers.id", httpclient_parse_global_resolvers },
+	{ CFG_GLOBAL, "httpclient.resolvers.prefer", httpclient_parse_global_prefer },
 #ifdef USE_OPENSSL
 	{ CFG_GLOBAL, "httpclient.ssl.verify", httpclient_parse_global_verify },
 	{ CFG_GLOBAL, "httpclient.ssl.ca-file", httpclient_parse_global_ca_file },
