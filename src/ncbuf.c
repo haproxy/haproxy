@@ -554,3 +554,104 @@ enum ncb_ret ncb_add(struct ncbuf *buf, ncb_sz_t off,
 
 	return NCB_RET_OK;
 }
+
+/* Advance the head of <buf> to the offset <off>. Data at the start of buffer
+ * will be lost while some space will be formed at the end to be able to insert
+ * new data.
+ *
+ * Returns NCB_RET_OK on success.
+ */
+enum ncb_ret ncb_advance(struct ncbuf *buf, ncb_sz_t off)
+{
+	struct ncb_blk blk, last;
+	ncb_sz_t off_blk;
+	ncb_sz_t first_data_sz;
+
+	BUG_ON_HOT(off > ncb_size(buf));
+	if (!off)
+		return NCB_RET_OK;
+
+	/* Special case if off is full size. This is equivalent to a reset. */
+	if (off == ncb_size(buf)) {
+		ncb_init(buf, buf->head);
+		return NCB_RET_OK;
+	}
+
+	last = blk = ncb_blk_find(buf, off);
+	while (!ncb_blk_is_last(buf, last))
+		last = ncb_blk_next(buf, last);
+
+	off_blk = ncb_blk_off(blk, off);
+
+	/* If new head points in a GAP, the GAP size must be big enough. */
+	if (blk.flag & NCB_BK_F_GAP) {
+		if (blk.sz == off_blk) {
+			/* GAP si completely removed. */
+			first_data_sz = blk.sz_data;
+		}
+		else if (!ncb_blk_is_last(buf, blk) &&
+		         blk.sz - off_blk < NCB_GAP_MIN_SZ) {
+			return NCB_RET_GAP_SIZE;
+		}
+		else {
+			/* A GAP will be present at the front. */
+			first_data_sz = 0;
+		}
+	}
+	else {
+		/* If off_blk less than blk.sz, the data block will becomes the
+		 * first block. If equal, the data block is completely removed
+		 * and thus the following GAP will be the first block.
+		 */
+		first_data_sz = blk.sz - off_blk;
+	}
+
+	/* Insert a new GAP if :
+	 * - last block is DATA
+	 * - last block is GAP and but is not the same as blk
+	 *
+	 * In the the of last block is a GAP and is the same as blk, it means
+	 * that a GAP will be formed to recover the whole buffer content.
+	 */
+	if (last.flag & NCB_BK_F_GAP && !ncb_blk_is_last(buf, blk)) {
+		/* last block is a GAP : extends it unless this is a reduced
+		 * gap and the new gap size is still not big enough.
+		 */
+		if (!(last.flag & NCB_BK_F_FIN) || last.sz + off >= NCB_GAP_MIN_SZ) {
+			/* use .st instead of .sz_ptr which can be NULL if reduced gap */
+			ncb_write_off(buf, last.st, last.sz + off);
+			ncb_write_off(buf, ncb_peek(buf, last.off + NCB_GAP_SZ_DATA_OFF), 0);
+		}
+	}
+	else if (!(last.flag & NCB_BK_F_GAP)) {
+		/* last block DATA : insert a new gap after the deleted data.
+		 * If the gap is not big enough, it will be a reduced gap.
+		 */
+		if (off >= NCB_GAP_MIN_SZ) {
+			ncb_write_off(buf, ncb_peek(buf, last.off + last.sz + NCB_GAP_SZ_OFF), off);
+			ncb_write_off(buf, ncb_peek(buf, last.off + last.sz + NCB_GAP_SZ_DATA_OFF), 0);
+		}
+	}
+
+	/* Advance head and update the buffer reserved header which contains
+	 * the first data block size.
+	 */
+	buf->head += off;
+	if (buf->head >= buf->size)
+		buf->head -= buf->size;
+	ncb_write_off(buf, ncb_reserved(buf), first_data_sz);
+
+	/* Update the first block GAP size if needed. */
+	if (blk.flag & NCB_BK_F_GAP && !first_data_sz) {
+		/* If first block GAP is also last one, cover whole buf. */
+		if (ncb_blk_is_last(buf, blk))
+			ncb_write_off(buf, ncb_head(buf), ncb_size(buf));
+		else
+			ncb_write_off(buf, ncb_head(buf), blk.sz - off_blk);
+
+		/* Recopy the block sz_data at the new position. */
+		ncb_write_off(buf, ncb_peek(buf, NCB_GAP_SZ_DATA_OFF), blk.sz_data);
+	}
+
+	return NCB_RET_OK;
+}
