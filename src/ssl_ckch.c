@@ -70,6 +70,13 @@ struct show_cafile_ctx {
 	int show_all;
 };
 
+/* CLI context used by "show crlfile" */
+struct show_crlfile_ctx {
+	struct cafile_entry *cafile_entry;
+	struct crlfile_entry *old_crlfile_entry;
+	int index;
+};
+
 
 /********************  cert_key_and_chain functions *************************
  * These are the functions that fills a cert_key_and_chain structure. For the
@@ -3620,19 +3627,20 @@ end:
 }
 
 /* IO handler of details "show ssl crl-file <filename[:index]>".
- * It uses ctx.ssl.cur_cafile_entry, ctx.ssl.index, and
- * the global crlfile_transaction.new_cafile_entry in read-only.
+ * It uses show_crlfile_ctx and the global
+ * crlfile_transaction.new_cafile_entry in read-only.
  */
 static int cli_io_handler_show_crlfile_detail(struct appctx *appctx)
 {
+	struct show_crlfile_ctx *ctx = appctx->svcctx;
 	struct conn_stream *cs = appctx->owner;
-	struct cafile_entry *cafile_entry = appctx->ctx.ssl.cur_cafile_entry;
+	struct cafile_entry *cafile_entry = ctx->cafile_entry;
 	struct buffer *out = alloc_trash_chunk();
 	int i;
 	X509_CRL *crl;
 	STACK_OF(X509_OBJECT) *objs;
 	int retval = 0;
-	int index = appctx->ctx.ssl.index;
+	int index = ctx->index;
 
 	if (!out)
 		goto end_no_putchk;
@@ -3686,11 +3694,12 @@ yield:
 }
 
 /* parsing function for 'show ssl crl-file [crlfile[:index]]'.
- * It sets ctx.ssl.cur_cafile_entry, ctx.ssl.index, and the global
+ * It sets the context to a show_crlfile_ctx, and the global
  * cafile_transaction.new_crlfile_entry under the ckch_lock.
  */
 static int cli_parse_show_crlfile(char **args, char *payload, struct appctx *appctx, void *private)
 {
+	struct show_crlfile_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
 	struct cafile_entry *cafile_entry;
 	long index = 0;
 	char *colons;
@@ -3737,8 +3746,8 @@ static int cli_parse_show_crlfile(char **args, char *payload, struct appctx *app
 				goto error;
 		}
 
-		appctx->ctx.ssl.cur_cafile_entry = cafile_entry;
-		appctx->ctx.ssl.index = index;
+		ctx->cafile_entry = cafile_entry;
+		ctx->index = index;
 		/* use the IO handler that shows details */
 		appctx->io_handler = cli_io_handler_show_crlfile_detail;
 	}
@@ -3756,6 +3765,7 @@ error:
  * is managed in cli_io_handler_show_crlfile_detail. */
 static int cli_io_handler_show_crlfile(struct appctx *appctx)
 {
+	struct show_crlfile_ctx *ctx = appctx->svcctx;
 	struct buffer *trash = alloc_trash_chunk();
 	struct ebmb_node *node;
 	struct conn_stream *cs = appctx->owner;
@@ -3764,7 +3774,7 @@ static int cli_io_handler_show_crlfile(struct appctx *appctx)
 	if (trash == NULL)
 		return 1;
 
-	if (!appctx->ctx.ssl.old_crlfile_entry) {
+	if (!ctx->old_crlfile_entry) {
 		if (crlfile_transaction.old_crlfile_entry) {
 			chunk_appendf(trash, "# transaction\n");
 			chunk_appendf(trash, "*%s\n", crlfile_transaction.old_crlfile_entry->path);
@@ -3772,12 +3782,12 @@ static int cli_io_handler_show_crlfile(struct appctx *appctx)
 	}
 
 	/* First time in this io_handler. */
-	if (!appctx->ctx.ssl.cur_cafile_entry) {
+	if (!ctx->cafile_entry) {
 		chunk_appendf(trash, "# filename\n");
 		node = ebmb_first(&cafile_tree);
 	} else {
 		/* We yielded during a previous call. */
-		node = &appctx->ctx.ssl.cur_cafile_entry->node;
+		node = &ctx->cafile_entry->node;
 	}
 
 	while (node) {
@@ -3793,13 +3803,13 @@ static int cli_io_handler_show_crlfile(struct appctx *appctx)
 		}
 	}
 
-	appctx->ctx.ssl.cur_cafile_entry = NULL;
+	ctx->cafile_entry = NULL;
 	free_trash_chunk(trash);
 	return 1;
 yield:
 
 	free_trash_chunk(trash);
-	appctx->ctx.ssl.cur_cafile_entry = cafile_entry;
+	ctx->cafile_entry = cafile_entry;
 	return 0; /* should come back */
 }
 
