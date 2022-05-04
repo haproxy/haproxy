@@ -26,6 +26,7 @@
 #include <import/ebpttree.h>
 #include <import/ebsttree.h>
 
+#include <haproxy/applet.h>
 #include <haproxy/base64.h>
 #include <haproxy/channel.h>
 #include <haproxy/cli.h>
@@ -61,6 +62,13 @@ static struct {
 	char *path;
 } crlfile_transaction;
 
+/* CLI context used by "show cafile" */
+struct show_cafile_ctx {
+	struct cafile_entry *cur_cafile_entry;
+	struct cafile_entry *old_cafile_entry;
+	int ca_index;
+	int show_all;
+};
 
 
 /********************  cert_key_and_chain functions *************************
@@ -2931,20 +2939,21 @@ static void cli_release_commit_cafile(struct appctx *appctx)
 
 
 /* IO handler of details "show ssl ca-file <filename[:index]>".
- * It uses ctx.ssl.cur_cafile_entry, ctx.ssl.index, ctx.ssl.show_all,
- * and the global cafile_transaction.new_cafile_entry in read-only.
+ * It uses a show_cafile_ctx context, and the global
+ * cafile_transaction.new_cafile_entry in read-only.
  */
 static int cli_io_handler_show_cafile_detail(struct appctx *appctx)
 {
+	struct show_cafile_ctx *ctx = appctx->svcctx;
 	struct conn_stream *cs = appctx->owner;
-	struct cafile_entry *cafile_entry = appctx->ctx.ssl.cur_cafile_entry;
+	struct cafile_entry *cafile_entry = ctx->cur_cafile_entry;
 	struct buffer *out = alloc_trash_chunk();
 	int i = 0;
 	X509 *cert;
 	STACK_OF(X509_OBJECT) *objs;
 	int retval = 0;
-	int ca_index = appctx->ctx.ssl.index;
-	int show_all = appctx->ctx.ssl.show_all;
+	int ca_index = ctx->ca_index;
+	int show_all = ctx->show_all;
 
 	if (!out)
 		goto end_no_putchk;
@@ -2998,18 +3007,19 @@ end_no_putchk:
 	return 1;
 yield:
 	/* save the current state */
-	appctx->ctx.ssl.index = i;
+	ctx->ca_index = i;
 	free_trash_chunk(out);
 	return 0; /* should come back */
 }
 
 
 /* parsing function for 'show ssl ca-file [cafile[:index]]'.
- * It sets ctx.ssl.cur_cafile_entry, ctx.ssl.show_all and ctx.ssl.index
- * and checks the global cafile_transaction under the ckch_lock (read only).
+ * It prepares a show_cafile_ctx context, and checks the global
+ * cafile_transaction under the ckch_lock (read only).
  */
 static int cli_parse_show_cafile(char **args, char *payload, struct appctx *appctx, void *private)
 {
+	struct show_cafile_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
 	struct cafile_entry *cafile_entry;
 	int ca_index = 0;
 	char *colons;
@@ -3023,8 +3033,8 @@ static int cli_parse_show_cafile(char **args, char *payload, struct appctx *appc
 	if (HA_SPIN_TRYLOCK(CKCH_LOCK, &ckch_lock))
 		return cli_err(appctx, "Can't show!\nOperations on certificates are currently locked!\n");
 
-	appctx->ctx.ssl.show_all = 1; /* show all certificates */
-	appctx->ctx.ssl.index = 0;
+	ctx->show_all = 1; /* show all certificates */
+	ctx->ca_index = 0;
 	/* check if there is a certificate to lookup */
 	if (*args[3]) {
 
@@ -3040,8 +3050,8 @@ static int cli_parse_show_cafile(char **args, char *payload, struct appctx *appc
 				goto error;
 			}
 			*colons = '\0';
-			appctx->ctx.ssl.index = ca_index - 1; /* we start counting at 0 in the ca_store, but at 1 on the CLI */
-			appctx->ctx.ssl.show_all = 0; /* show only one certificate */
+			ctx->ca_index = ca_index - 1; /* we start counting at 0 in the ca_store, but at 1 on the CLI */
+			ctx->show_all = 0; /* show only one certificate */
 		}
 
 		if (*args[3] == '*') {
@@ -3060,7 +3070,7 @@ static int cli_parse_show_cafile(char **args, char *payload, struct appctx *appc
 				goto error;
 		}
 
-		appctx->ctx.ssl.cur_cafile_entry = cafile_entry;
+		ctx->cur_cafile_entry = cafile_entry;
 		/* use the IO handler that shows details */
 		appctx->io_handler = cli_io_handler_show_cafile_detail;
 	}
@@ -3098,11 +3108,12 @@ static int get_certificate_count(struct cafile_entry *cafile_entry)
 
 /* IO handler of "show ssl ca-file". The command taking a specific CA file name
  * is managed in cli_io_handler_show_cafile_detail.
- * It uses ctx.ssl.cur_cafile_entry, and the global
- * cafile_transaction.new_cafile_entry in read-only.
+ * It uses a show_cafile_ctx and the global cafile_transaction.new_cafile_entry
+ * in read-only.
  */
 static int cli_io_handler_show_cafile(struct appctx *appctx)
 {
+	struct show_cafile_ctx *ctx = appctx->svcctx;
 	struct buffer *trash = alloc_trash_chunk();
 	struct ebmb_node *node;
 	struct conn_stream *cs = appctx->owner;
@@ -3111,7 +3122,7 @@ static int cli_io_handler_show_cafile(struct appctx *appctx)
 	if (trash == NULL)
 		return 1;
 
-	if (!appctx->ctx.ssl.old_cafile_entry) {
+	if (!ctx->old_cafile_entry) {
 		if (cafile_transaction.old_cafile_entry) {
 			chunk_appendf(trash, "# transaction\n");
 			chunk_appendf(trash, "*%s", cafile_transaction.old_cafile_entry->path);
@@ -3121,12 +3132,12 @@ static int cli_io_handler_show_cafile(struct appctx *appctx)
 	}
 
 	/* First time in this io_handler. */
-	if (!appctx->ctx.ssl.cur_cafile_entry) {
+	if (!ctx->cur_cafile_entry) {
 		chunk_appendf(trash, "# filename\n");
 		node = ebmb_first(&cafile_tree);
 	} else {
 		/* We yielded during a previous call. */
-		node = &appctx->ctx.ssl.cur_cafile_entry->node;
+		node = &ctx->cur_cafile_entry->node;
 	}
 
 	while (node) {
@@ -3144,13 +3155,13 @@ static int cli_io_handler_show_cafile(struct appctx *appctx)
 		}
 	}
 
-	appctx->ctx.ssl.cur_cafile_entry = NULL;
+	ctx->cur_cafile_entry = NULL;
 	free_trash_chunk(trash);
 	return 1;
 yield:
 
 	free_trash_chunk(trash);
-	appctx->ctx.ssl.cur_cafile_entry = cafile_entry;
+	ctx->cur_cafile_entry = cafile_entry;
 	return 0; /* should come back */
 }
 
