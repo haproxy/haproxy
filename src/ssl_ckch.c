@@ -2925,8 +2925,8 @@ static void cli_release_commit_cafile(struct appctx *appctx)
 
 
 /* IO handler of details "show ssl ca-file <filename[:index]>".
- * It uses ctx.ssl.cur_cafile_entry, ctx.cli.i0, ctx.cli.i1, and
- * the global cafile_transaction.new_cafile_entry in read-only.
+ * It uses ctx.ssl.cur_cafile_entry, ctx.ssl.index, ctx.ssl.show_all,
+ * and the global cafile_transaction.new_cafile_entry in read-only.
  */
 static int cli_io_handler_show_cafile_detail(struct appctx *appctx)
 {
@@ -2937,8 +2937,8 @@ static int cli_io_handler_show_cafile_detail(struct appctx *appctx)
 	X509 *cert;
 	STACK_OF(X509_OBJECT) *objs;
 	int retval = 0;
-	int ca_index = appctx->ctx.cli.i0;
-	int show_all = appctx->ctx.cli.i1;
+	int ca_index = appctx->ctx.ssl.index;
+	int show_all = appctx->ctx.ssl.show_all;
 
 	if (!out)
 		goto end_no_putchk;
@@ -2992,13 +2992,16 @@ end_no_putchk:
 	return 1;
 yield:
 	/* save the current state */
-	appctx->ctx.cli.i0 = i;
+	appctx->ctx.ssl.index = i;
 	free_trash_chunk(out);
 	return 0; /* should come back */
 }
 
 
-/* parsing function for 'show ssl ca-file [cafile[:index]]' */
+/* parsing function for 'show ssl ca-file [cafile[:index]]'.
+ * It sets ctx.ssl.cur_cafile_entry, ctx.ssl.show_all and ctx.ssl.index
+ * and checks the global cafile_transaction under the ckch_lock (read only).
+ */
 static int cli_parse_show_cafile(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	struct cafile_entry *cafile_entry;
@@ -3014,8 +3017,8 @@ static int cli_parse_show_cafile(char **args, char *payload, struct appctx *appc
 	if (HA_SPIN_TRYLOCK(CKCH_LOCK, &ckch_lock))
 		return cli_err(appctx, "Can't show!\nOperations on certificates are currently locked!\n");
 
-	appctx->ctx.cli.i1 = 1; /* show all certificates */
-	appctx->ctx.cli.i0 = 0;
+	appctx->ctx.ssl.show_all = 1; /* show all certificates */
+	appctx->ctx.ssl.index = 0;
 	/* check if there is a certificate to lookup */
 	if (*args[3]) {
 
@@ -3031,8 +3034,8 @@ static int cli_parse_show_cafile(char **args, char *payload, struct appctx *appc
 				goto error;
 			}
 			*colons = '\0';
-			appctx->ctx.cli.i0 = ca_index - 1; /* we start counting at 0 in the ca_store, but at 1 on the CLI */
-			appctx->ctx.cli.i1 = 0; /* show only one certificate */
+			appctx->ctx.ssl.index = ca_index - 1; /* we start counting at 0 in the ca_store, but at 1 on the CLI */
+			appctx->ctx.ssl.show_all = 0; /* show only one certificate */
 		}
 
 		if (*args[3] == '*') {
