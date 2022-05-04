@@ -84,6 +84,13 @@ struct show_cert_ctx {
 	int transaction;
 };
 
+/* CLI context used by "commit cert" */
+struct commit_cert_ctx {
+	struct ckch_store *old_ckchs;
+	struct ckch_store *new_ckchs;
+	struct ckch_inst *next_ckchi;
+};
+
 
 
 /********************  cert_key_and_chain functions *************************
@@ -1822,13 +1829,14 @@ error:
 /* release function of the  `set ssl cert' command, free things and unlock the spinlock */
 static void cli_release_commit_cert(struct appctx *appctx)
 {
+	struct commit_cert_ctx *ctx = appctx->svcctx;
 	struct ckch_store *new_ckchs;
 
 	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
 
 	if (appctx->st2 != SETCERT_ST_FIN) {
 		/* free every new sni_ctx and the new store, which are not in the trees so no spinlock there */
-		new_ckchs = appctx->ctx.ssl.new_ckchs;
+		new_ckchs = ctx->new_ckchs;
 
 		/* if the allocation failed, we need to free everything from the temporary list */
 		ckch_store_free(new_ckchs);
@@ -1994,6 +2002,7 @@ void ckch_store_replace(struct ckch_store *old_ckchs, struct ckch_store *new_ckc
  */
 static int cli_io_handler_commit_cert(struct appctx *appctx)
 {
+	struct commit_cert_ctx *ctx = appctx->svcctx;
 	struct conn_stream *cs = appctx->owner;
 	int y = 0;
 	char *err = NULL;
@@ -2027,14 +2036,14 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 				 * yield every 10 instances.
 				 */
 
-				old_ckchs = appctx->ctx.ssl.old_ckchs;
-				new_ckchs = appctx->ctx.ssl.new_ckchs;
+				old_ckchs = ctx->old_ckchs;
+				new_ckchs = ctx->new_ckchs;
 
 				if (!new_ckchs)
 					continue;
 
 				/* get the next ckchi to regenerate */
-				ckchi = appctx->ctx.ssl.next_ckchi;
+				ckchi = ctx->next_ckchi;
 				/* we didn't start yet, set it to the first elem */
 				if (ckchi == NULL)
 					ckchi = LIST_ELEM(old_ckchs->ckch_inst.n, typeof(ckchi), by_ckchs);
@@ -2046,7 +2055,7 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 					/* it takes a lot of CPU to creates SSL_CTXs, so we yield every 10 CKCH instances */
 					if (y >= 10) {
 						/* save the next ckchi to compute */
-						appctx->ctx.ssl.next_ckchi = ckchi;
+						ctx->next_ckchi = ckchi;
 						goto yield;
 					}
 
@@ -2064,8 +2073,8 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 			case SETCERT_ST_INSERT:
 				/* The generation is finished, we can insert everything */
 
-				old_ckchs = appctx->ctx.ssl.old_ckchs;
-				new_ckchs = appctx->ctx.ssl.new_ckchs;
+				old_ckchs = ctx->old_ckchs;
+				new_ckchs = ctx->new_ckchs;
 
 				if (!new_ckchs)
 					continue;
@@ -2117,6 +2126,7 @@ error:
  */
 static int cli_parse_commit_cert(char **args, char *payload, struct appctx *appctx, void *private)
 {
+	struct commit_cert_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
 	char *err = NULL;
 
 	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
@@ -2153,9 +2163,9 @@ static int cli_parse_commit_cert(char **args, char *payload, struct appctx *appc
 
 	/* init the appctx structure */
 	appctx->st2 = SETCERT_ST_INIT;
-	appctx->ctx.ssl.next_ckchi = NULL;
-	appctx->ctx.ssl.new_ckchs = ckchs_transaction.new_ckchs;
-	appctx->ctx.ssl.old_ckchs = ckchs_transaction.old_ckchs;
+	ctx->next_ckchi = NULL;
+	ctx->new_ckchs = ckchs_transaction.new_ckchs;
+	ctx->old_ckchs = ckchs_transaction.old_ckchs;
 
 	/* we don't unlock there, it will be unlock after the IO handler, in the release handler */
 	return 0;
