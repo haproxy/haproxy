@@ -3603,7 +3603,7 @@ end:
 }
 
 /* IO handler of details "show ssl crl-file <filename[:index]>".
- * It uses ctx.ssl.cur_cafile_entry, ctx.cli.p1, ctx.cli.i1, and
+ * It uses ctx.ssl.cur_cafile_entry, ctx.ssl.index, and
  * the global crlfile_transaction.new_cafile_entry in read-only.
  */
 static int cli_io_handler_show_crlfile_detail(struct appctx *appctx)
@@ -3615,7 +3615,7 @@ static int cli_io_handler_show_crlfile_detail(struct appctx *appctx)
 	X509_CRL *crl;
 	STACK_OF(X509_OBJECT) *objs;
 	int retval = 0;
-	long index = (long)appctx->ctx.cli.p1;
+	int index = appctx->ctx.ssl.index;
 
 	if (!out)
 		goto end_no_putchk;
@@ -3669,7 +3669,7 @@ yield:
 }
 
 /* parsing function for 'show ssl crl-file [crlfile[:index]]'.
- * It sets ctx.ssl.cur_cafile_entry, ctx.cli.p1, and the global
+ * It sets ctx.ssl.cur_cafile_entry, ctx.ssl.index, and the global
  * cafile_transaction.new_crlfile_entry under the ckch_lock.
  */
 static int cli_parse_show_crlfile(char **args, char *payload, struct appctx *appctx, void *private)
@@ -3721,7 +3721,7 @@ static int cli_parse_show_crlfile(char **args, char *payload, struct appctx *app
 		}
 
 		appctx->ctx.ssl.cur_cafile_entry = cafile_entry;
-		appctx->ctx.cli.p1 = (void*)index;
+		appctx->ctx.ssl.index = index;
 		/* use the IO handler that shows details */
 		appctx->io_handler = cli_io_handler_show_crlfile_detail;
 	}
