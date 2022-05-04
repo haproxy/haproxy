@@ -1273,7 +1273,7 @@ static int httpclient_parse_global_verify(char **args, int section_type, struct 
 }
 
 static struct cfg_kw_list cfg_kws = {ILH, {
-	{ CFG_GLOBAL, "httpclient-ssl-verify", httpclient_parse_global_verify },
+	{ CFG_GLOBAL, "httpclient.ssl.verify", httpclient_parse_global_verify },
 	{ 0, NULL, NULL },
 }};
 
