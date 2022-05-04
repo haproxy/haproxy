@@ -48,6 +48,7 @@ static struct server *httpclient_srv_raw;
 static int hard_error_ssl = 0;
 static struct server *httpclient_srv_ssl;
 static int httpclient_ssl_verify = SSL_SOCK_VERIFY_REQUIRED;
+static char *httpclient_ssl_ca_file = NULL;
 #endif
 static struct applet httpclient_applet;
 
@@ -1156,7 +1157,11 @@ static int httpclient_precheck()
 	httpclient_srv_ssl->ssl_ctx.verify = httpclient_ssl_verify;
 	/* if the verify is required, try to load the system CA */
 	if (httpclient_ssl_verify == SSL_SOCK_VERIFY_REQUIRED) {
-		httpclient_srv_ssl->ssl_ctx.ca_file = strdup("@system-ca");
+
+		if (!httpclient_ssl_ca_file)
+			httpclient_ssl_ca_file = strdup("@system-ca");
+
+		httpclient_srv_ssl->ssl_ctx.ca_file = httpclient_ssl_ca_file;
 		if (!ssl_store_load_locations_file(httpclient_srv_ssl->ssl_ctx.ca_file, 1, CAFILE_CERT)) {
 			/* if we failed to load the ca-file, only quits in
 			 * error with hard_error, otherwise just disable the
@@ -1277,6 +1282,22 @@ REGISTER_PRE_CHECK(httpclient_precheck);
 REGISTER_POST_CHECK(httpclient_postcheck);
 
 #ifdef USE_OPENSSL
+static int httpclient_parse_global_ca_file(char **args, int section_type, struct proxy *curpx,
+                                        const struct proxy *defpx, const char *file, int line,
+                                        char **err)
+{
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	/* any configuration should set the hard_error flag */
+	hard_error_ssl = 1;
+
+	free(httpclient_ssl_ca_file);
+	httpclient_ssl_ca_file = strdup(args[1]);
+
+	return 0;
+}
+
 static int httpclient_parse_global_verify(char **args, int section_type, struct proxy *curpx,
                                         const struct proxy *defpx, const char *file, int line,
                                         char **err)
@@ -1301,6 +1322,7 @@ static int httpclient_parse_global_verify(char **args, int section_type, struct 
 
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "httpclient.ssl.verify", httpclient_parse_global_verify },
+	{ CFG_GLOBAL, "httpclient.ssl.ca-file", httpclient_parse_global_ca_file },
 	{ 0, NULL, NULL },
 }};
 
