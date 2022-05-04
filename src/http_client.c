@@ -42,7 +42,10 @@
 
 static struct proxy *httpclient_proxy;
 static struct server *httpclient_srv_raw;
+
 #ifdef USE_OPENSSL
+/* if the httpclient is not configured, error are ignored and features are limited */
+static int hard_error_ssl = 0;
 static struct server *httpclient_srv_ssl;
 static int httpclient_ssl_verify = SSL_SOCK_VERIFY_REQUIRED;
 #endif
@@ -1155,10 +1158,18 @@ static int httpclient_precheck()
 	if (httpclient_ssl_verify == SSL_SOCK_VERIFY_REQUIRED) {
 		httpclient_srv_ssl->ssl_ctx.ca_file = strdup("@system-ca");
 		if (!ssl_store_load_locations_file(httpclient_srv_ssl->ssl_ctx.ca_file, 1, CAFILE_CERT)) {
-			ha_warning("httpclient: cannot initialize SSL verify with 'ca-file \"%s\"'. Disabling SSL.\n", httpclient_srv_ssl->ssl_ctx.ca_file);
-			ha_free(&httpclient_srv_ssl->ssl_ctx.ca_file);
-			srv_drop(httpclient_srv_ssl);
-			httpclient_srv_ssl = NULL;
+			/* if we failed to load the ca-file, only quits in
+			 * error with hard_error, otherwise just disable the
+			 * feature. */
+			if (hard_error_ssl) {
+				memprintf(&errmsg, "cannot initialize SSL verify with 'ca-file \"%s\"'.", httpclient_srv_ssl->ssl_ctx.ca_file);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto err;
+			} else {
+				ha_free(&httpclient_srv_ssl->ssl_ctx.ca_file);
+				srv_drop(httpclient_srv_ssl);
+				httpclient_srv_ssl = NULL;
+			}
 		}
 	}
 
@@ -1272,6 +1283,9 @@ static int httpclient_parse_global_verify(char **args, int section_type, struct 
 {
 	if (too_many_args(1, args, err, NULL))
 		return -1;
+
+	/* any configuration should set the hard_error flag */
+	hard_error_ssl = 1;
 
 	if (strcmp(args[1],"none") == 0)
 		httpclient_ssl_verify = SSL_SOCK_VERIFY_NONE;
