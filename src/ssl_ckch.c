@@ -77,6 +77,14 @@ struct show_crlfile_ctx {
 	int index;
 };
 
+/* CLI context used by "show cert" */
+struct show_cert_ctx {
+	struct ckch_store *old_ckchs;
+	struct ckch_store *cur_ckchs;
+	int transaction;
+};
+
+
 
 /********************  cert_key_and_chain functions *************************
  * These are the functions that fills a cert_key_and_chain structure. For the
@@ -1247,10 +1255,11 @@ static void cli_release_show_cert(struct appctx *appctx)
 }
 
 /* IO handler of "show ssl cert <filename>".
- * It makes use of ctx.ssl.cur_ckchs, ctx.ssl.old_ckchs.
+ * It makes use of a show_cert_ctx context, and ckchs_transaction in read-only.
  */
 static int cli_io_handler_show_cert(struct appctx *appctx)
 {
+	struct show_cert_ctx *ctx = appctx->svcctx;
 	struct buffer *trash = alloc_trash_chunk();
 	struct ebmb_node *node;
 	struct conn_stream *cs = appctx->owner;
@@ -1259,7 +1268,7 @@ static int cli_io_handler_show_cert(struct appctx *appctx)
 	if (trash == NULL)
 		return 1;
 
-	if (!appctx->ctx.ssl.old_ckchs) {
+	if (!ctx->old_ckchs) {
 		if (ckchs_transaction.old_ckchs) {
 			ckchs = ckchs_transaction.old_ckchs;
 			chunk_appendf(trash, "# transaction\n");
@@ -1267,11 +1276,11 @@ static int cli_io_handler_show_cert(struct appctx *appctx)
 		}
 	}
 
-	if (!appctx->ctx.ssl.cur_ckchs) {
+	if (!ctx->cur_ckchs) {
 		chunk_appendf(trash, "# filename\n");
 		node = ebmb_first(&ckchs_tree);
 	} else {
-		node = &((struct ckch_store *)appctx->ctx.ssl.cur_ckchs)->node;
+		node = &ctx->cur_ckchs->node;
 	}
 	while (node) {
 		ckchs = ebmb_entry(node, struct ckch_store, node);
@@ -1284,13 +1293,13 @@ static int cli_io_handler_show_cert(struct appctx *appctx)
 		}
 	}
 
-	appctx->ctx.ssl.cur_ckchs = NULL;
+	ctx->cur_ckchs = NULL;
 	free_trash_chunk(trash);
 	return 1;
 yield:
 
 	free_trash_chunk(trash);
-	appctx->ctx.ssl.cur_ckchs = ckchs;
+	ctx->cur_ckchs = ckchs;
 	return 0; /* should come back */
 }
 
@@ -1650,12 +1659,13 @@ static int ckch_store_show_ocsp_certid(struct ckch_store *ckch_store, struct buf
 
 
 /* IO handler of the details "show ssl cert <filename>".
- * It uses ctx.ssl.cur_ckchs.
+ * It uses a struct show_cert_ctx and ckchs_transaction in read-only.
  */
 static int cli_io_handler_show_cert_detail(struct appctx *appctx)
 {
+	struct show_cert_ctx *ctx = appctx->svcctx;
 	struct conn_stream *cs = appctx->owner;
-	struct ckch_store *ckchs = appctx->ctx.ssl.cur_ckchs;
+	struct ckch_store *ckchs = ctx->cur_ckchs;
 	struct buffer *out = alloc_trash_chunk();
 	int retval = 0;
 
@@ -1699,15 +1709,16 @@ yield:
 
 
 /* IO handler of the details "show ssl cert <filename.ocsp>".
- * It uses ctx.ssl.cur_ckchs and ctx.ssl.index.
+ * It uses a show_cert_ctx.
  */
 static int cli_io_handler_show_cert_ocsp_detail(struct appctx *appctx)
 {
 #if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) && !defined OPENSSL_IS_BORINGSSL)
+	struct show_cert_ctx *ctx = appctx->svcctx;
 	struct conn_stream *cs = appctx->owner;
-	struct ckch_store *ckchs = appctx->ctx.ssl.cur_ckchs;
+	struct ckch_store *ckchs = ctx->cur_ckchs;
 	struct buffer *out = alloc_trash_chunk();
-	int from_transaction = appctx->ctx.ssl.index;
+	int from_transaction = ctx->transaction;
 
 	if (!out)
 		goto end_no_putchk;
@@ -1750,6 +1761,7 @@ yield:
 /* parsing function for 'show ssl cert [certfile]' */
 static int cli_parse_show_cert(char **args, char *payload, struct appctx *appctx, void *private)
 {
+	struct show_cert_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
 	struct ckch_store *ckchs;
 
 	if (!cli_has_level(appctx, ACCESS_LVL_OPER))
@@ -1790,10 +1802,10 @@ static int cli_parse_show_cert(char **args, char *payload, struct appctx *appctx
 
 		}
 
-		appctx->ctx.ssl.cur_ckchs = ckchs;
+		ctx->cur_ckchs = ckchs;
 		/* use the IO handler that shows details */
 		if (show_ocsp_detail) {
-			appctx->ctx.ssl.index = from_transaction;
+			ctx->transaction = from_transaction;
 			appctx->io_handler = cli_io_handler_show_cert_ocsp_detail;
 		}
 		else
