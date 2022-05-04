@@ -394,6 +394,7 @@ static void cs_detach_endp(struct conn_stream **csp)
 		/* the cs is the only one one the endpoint */
 		cs->endp->target = NULL;
 		cs->endp->ctx = NULL;
+		cs->endp->flags &= CS_EP_APP_MASK;
 		cs->endp->flags |= CS_EP_DETACHED;
 	}
 
@@ -471,7 +472,7 @@ int cs_reset_endp(struct conn_stream *cs)
 		cs->endp->flags |= CS_EP_ERROR;
 		return -1;
 	}
-	new_endp->flags = cs->endp->flags;
+	new_endp->flags = (cs->endp->flags & CS_EP_APP_MASK);
 
 	/* The app is still attached, the cs will not be released */
 	cs_detach_endp(&cs);
