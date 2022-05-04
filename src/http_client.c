@@ -52,6 +52,8 @@ static char *httpclient_ssl_ca_file = NULL;
 #endif
 static struct applet httpclient_applet;
 
+static int hard_error_resolvers = 0;
+static char *resolvers_id = NULL;
 
 /* --- This part of the file implement an HTTP client over the CLI ---
  * The functions will be  starting by "hc_cli" for "httpclient cli"
@@ -1054,29 +1056,40 @@ static int httpclient_resolve_init()
 {
 	struct act_rule *rule;
 	int i;
-	const char *http_rules[][11] = {
+	char *do_resolve = NULL;
+	char *http_rules[][11] = {
 	       { "set-var(txn.hc_ip)", "dst", "" },
-	       { "do-resolve(txn.hc_ip,default)", "hdr(Host),lower", "if", "{", "var(txn.hc_ip)", "-m", "ip", "0.0.0.0", "}", "" },
+	       { do_resolve, "hdr(Host),lower", "if", "{", "var(txn.hc_ip)", "-m", "ip", "0.0.0.0", "}", "" },
 	       { "return", "status", "503", "if", "{", "var(txn.hc_ip)", "-m", "ip", "0.0.0.0", "}", "" },
 	       { "capture", "var(txn.hc_ip)", "len", "40", "" },
 	       { "set-dst", "var(txn.hc_ip)", "" },
 	       { "" }
 	};
 
-	/* if the "default" resolver does not exist, simply ignore resolving */
-	if (!find_resolvers_by_id("default"))
+	if (!resolvers_id)
+		resolvers_id = strdup("default");
+
+	memprintf(&do_resolve, "do-resolve(txn.hc_ip,%s)", resolvers_id);
+	http_rules[1][0] = do_resolve;
+
+	/* if the resolver does not exist and no hard_error was set, simply ignore resolving */
+	if (!find_resolvers_by_id(resolvers_id) && !hard_error_resolvers) {
+		free(do_resolve);
 		return 0;
+	}
 
 
 	for (i = 0; *http_rules[i][0] != '\0'; i++) {
 		rule = parse_http_req_cond((const char **)http_rules[i], "httpclient", 0, httpclient_proxy);
 		if (!rule) {
+			free(do_resolve);
 			ha_alert("Couldn't setup the httpclient resolver.\n");
 			return 1;
 		}
 		LIST_APPEND(&httpclient_proxy->http_req_rules, &rule->list);
 	}
 
+	free(do_resolve);
 	return 0;
 }
 
@@ -1281,6 +1294,24 @@ err:
 REGISTER_PRE_CHECK(httpclient_precheck);
 REGISTER_POST_CHECK(httpclient_postcheck);
 
+static int httpclient_parse_global_resolvers(char **args, int section_type, struct proxy *curpx,
+                                        const struct proxy *defpx, const char *file, int line,
+                                        char **err)
+{
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	/* any configuration should set the hard_error flag */
+	hard_error_resolvers = 1;
+
+	free(resolvers_id);
+	resolvers_id = strdup(args[1]);
+
+	return 0;
+}
+
+
+
 #ifdef USE_OPENSSL
 static int httpclient_parse_global_ca_file(char **args, int section_type, struct proxy *curpx,
                                         const struct proxy *defpx, const char *file, int line,
@@ -1319,12 +1350,15 @@ static int httpclient_parse_global_verify(char **args, int section_type, struct 
 
 	return 0;
 }
+#endif /* ! USE_OPENSSL */
 
 static struct cfg_kw_list cfg_kws = {ILH, {
+	{ CFG_GLOBAL, "httpclient.resolvers.id", httpclient_parse_global_resolvers },
+#ifdef USE_OPENSSL
 	{ CFG_GLOBAL, "httpclient.ssl.verify", httpclient_parse_global_verify },
 	{ CFG_GLOBAL, "httpclient.ssl.ca-file", httpclient_parse_global_ca_file },
+#endif
 	{ 0, NULL, NULL },
 }};
 
 INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
-#endif
