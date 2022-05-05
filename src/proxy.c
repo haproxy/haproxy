@@ -2824,7 +2824,7 @@ static int cli_io_handler_servers_state(struct appctx *appctx)
 }
 
 /* Parses backend list and simply report backend names. It keeps the proxy
- * pointer in cli.p0.
+ * pointer in svcctx since there's nothing else to store there.
  */
 static int cli_io_handler_show_backend(struct appctx *appctx)
 {
@@ -2833,17 +2833,17 @@ static int cli_io_handler_show_backend(struct appctx *appctx)
 
 	chunk_reset(&trash);
 
-	if (!appctx->ctx.cli.p0) {
+	if (!appctx->svcctx) {
 		chunk_printf(&trash, "# name\n");
 		if (ci_putchk(cs_ic(cs), &trash) == -1) {
 			cs_rx_room_blk(cs);
 			return 0;
 		}
-		appctx->ctx.cli.p0 = proxies_list;
+		appctx->svcctx = proxies_list;
 	}
 
-	for (; appctx->ctx.cli.p0 != NULL; appctx->ctx.cli.p0 = curproxy->next) {
-		curproxy = appctx->ctx.cli.p0;
+	for (; appctx->svcctx != NULL; appctx->svcctx = curproxy->next) {
+		curproxy = appctx->svcctx;
 
 		/* looking for non-internal backends only */
 		if ((curproxy->cap & (PR_CAP_BE|PR_CAP_INT)) != PR_CAP_BE)
