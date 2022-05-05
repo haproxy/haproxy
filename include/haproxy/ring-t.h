@@ -92,6 +92,10 @@
  *                 removed
  */
 
+/* ring watch flags to be used when watching the ring */
+#define RING_WF_WAIT_MODE  0x00000001   /* wait for new contents */
+#define RING_WF_SEEK_NEW   0x00000002   /* seek to new contents  */
+
 struct ring {
 	struct buffer buf;   // storage area
 	size_t ofs;          // absolute offset in history of the buffer's head

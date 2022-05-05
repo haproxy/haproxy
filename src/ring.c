@@ -248,9 +248,9 @@ void ring_detach_appctx(struct ring *ring, struct appctx *appctx, size_t ofs)
  * meant to be used when registering a CLI function to dump a buffer, so it
  * returns zero on success, or non-zero on failure with a message in the appctx
  * CLI context. It automatically sets the io_handler and io_release callbacks if
- * they were not set.
+ * they were not set. The <flags> take a combination of RING_WF_*.
  */
-int ring_attach_cli(struct ring *ring, struct appctx *appctx)
+int ring_attach_cli(struct ring *ring, struct appctx *appctx, uint flags)
 {
 	if (!ring_attach(ring))
 		return cli_err(appctx,
@@ -263,6 +263,7 @@ int ring_attach_cli(struct ring *ring, struct appctx *appctx)
                 appctx->io_release = cli_io_release_show_ring;
 	appctx->ctx.cli.p0 = ring;
 	appctx->ctx.cli.o0 = ~0; // start from the oldest event
+	appctx->ctx.cli.i0 = flags;
 	return 0;
 }
 
@@ -306,7 +307,7 @@ int cli_io_handler_show_ring(struct appctx *appctx)
 		ofs = 0;
 
 		/* going to the end means looking at tail-1 */
-		if (appctx->ctx.cli.i0 & 2)
+		if (appctx->ctx.cli.i0 & RING_WF_SEEK_NEW)
 			ofs += b_data(buf) - 1;
 
 		HA_ATOMIC_INC(b_peek(buf, ofs));
@@ -357,7 +358,7 @@ int cli_io_handler_show_ring(struct appctx *appctx)
 	appctx->ctx.cli.o0 = ofs;
 	HA_RWLOCK_RDUNLOCK(LOGSRV_LOCK, &ring->lock);
 
-	if (ret && (appctx->ctx.cli.i0 & 1)) {
+	if (ret && (appctx->ctx.cli.i0 & RING_WF_WAIT_MODE)) {
 		/* we've drained everything and are configured to wait for more
 		 * data or an event (keypress, close)
 		 */

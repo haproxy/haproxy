@@ -356,7 +356,7 @@ static int cli_parse_show_startup_logs(char **args, char *payload, struct appctx
 	if (!startup_logs)
 		return cli_msg(appctx, LOG_INFO, "\n"); // nothing to print
 
-	return ring_attach_cli(startup_logs, appctx);
+	return ring_attach_cli(startup_logs, appctx, 0);
 }
 
 /* register cli keywords */

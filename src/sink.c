@@ -234,6 +234,7 @@ int sink_announce_dropped(struct sink *sink, int facility)
 static int cli_parse_show_events(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	struct sink *sink;
+	uint ring_flags;
 	int arg;
 
 	args++; // make args[1] the 1st arg
@@ -264,17 +265,18 @@ static int cli_parse_show_events(char **args, char *payload, struct appctx *appc
 	if (sink->type != SINK_TYPE_BUFFER)
 		return cli_msg(appctx, LOG_NOTICE, "Nothing to report for this sink");
 
+	ring_flags = 0;
 	for (arg = 2; *args[arg]; arg++) {
 		if (strcmp(args[arg], "-w") == 0)
-			appctx->ctx.cli.i0 |= 1; // wait mode
+			ring_flags |= RING_WF_WAIT_MODE;
 		else if (strcmp(args[arg], "-n") == 0)
-			appctx->ctx.cli.i0 |= 2; // seek to new
+			ring_flags |= RING_WF_SEEK_NEW;
 		else if (strcmp(args[arg], "-nw") == 0 || strcmp(args[arg], "-wn") == 0)
-			appctx->ctx.cli.i0 |= 3; // seek to new + wait
+			ring_flags |= RING_WF_WAIT_MODE | RING_WF_SEEK_NEW;
 		else
 			return cli_err(appctx, "unknown option");
 	}
-	return ring_attach_cli(sink->ctx.ring, appctx);
+	return ring_attach_cli(sink->ctx.ring, appctx, ring_flags);
 }
 
 /* Pre-configures a ring proxy to emit connections */
