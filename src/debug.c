@@ -1191,9 +1191,18 @@ static int debug_iohandler_fd(struct appctx *appctx)
 }
 
 #if defined(DEBUG_MEM_STATS)
-/* CLI parser for the "debug dev memstats" command */
+
+/* CLI state for "debug dev memstats" */
+struct dev_mem_ctx {
+	struct mem_stats *start, *stop; /* begin/end of dump */
+	int show_all;                   /* show all entries if non-null */
+};
+
+/* CLI parser for the "debug dev memstats" command. Sets a dev_mem_ctx shown above. */
 static int debug_parse_cli_memstats(char **args, char *payload, struct appctx *appctx, void *private)
 {
+	struct dev_mem_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
+
 	extern __attribute__((__weak__)) struct mem_stats __start_mem_stats;
 	extern __attribute__((__weak__)) struct mem_stats __stop_mem_stats;
 
@@ -1214,22 +1223,24 @@ static int debug_parse_cli_memstats(char **args, char *payload, struct appctx *a
 	}
 
 	if (strcmp(args[3], "all") == 0)
-		appctx->ctx.cli.i0 = 1;
+		ctx->show_all = 1;
 
 	/* otherwise proceed with the dump from p0 to p1 */
-	appctx->ctx.cli.p0 = &__start_mem_stats;
-	appctx->ctx.cli.p1 = &__stop_mem_stats;
+	ctx->start = &__start_mem_stats;
+	ctx->stop  = &__stop_mem_stats;
 	return 0;
 }
 
-/* CLI I/O handler for the "debug dev memstats" command. Dumps all mem_stats
- * structs referenced by pointers located between p0 and p1. Dumps all entries
- * if i0 > 0, otherwise only non-zero calls.
+/* CLI I/O handler for the "debug dev memstats" command using a dev_mem_ctx
+ * found in appctx->svcctx. Dumps all mem_stats structs referenced by pointers
+ * located between ->start and ->stop. Dumps all entries if ->show_all != 0,
+ * otherwise only non-zero calls.
  */
 static int debug_iohandler_memstats(struct appctx *appctx)
 {
+	struct dev_mem_ctx *ctx = appctx->svcctx;
 	struct conn_stream *cs = appctx->owner;
-	struct mem_stats *ptr = appctx->ctx.cli.p0;
+	struct mem_stats *ptr = ctx->start;
 	int ret = 1;
 
 	if (unlikely(cs_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
@@ -1240,12 +1251,12 @@ static int debug_iohandler_memstats(struct appctx *appctx)
 	/* we have two inner loops here, one for the proxy, the other one for
 	 * the buffer.
 	 */
-	for (ptr = appctx->ctx.cli.p0; ptr != appctx->ctx.cli.p1; ptr++) {
+	for (; ptr != ctx->stop; ptr++) {
 		const char *type;
 		const char *name;
 		const char *p;
 
-		if (!ptr->size && !ptr->calls && !appctx->ctx.cli.i0)
+		if (!ptr->size && !ptr->calls && !ctx->show_all)
 			continue;
 
 		/* basename only */
@@ -1279,7 +1290,7 @@ static int debug_iohandler_memstats(struct appctx *appctx)
 
 		if (ci_putchk(cs_ic(cs), &trash) == -1) {
 			cs_rx_room_blk(cs);
-			appctx->ctx.cli.p0 = ptr;
+			ctx->start = ptr;
 			ret = 0;
 			break;
 		}
