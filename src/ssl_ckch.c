@@ -3307,7 +3307,7 @@ static int cli_parse_new_crlfile(char **args, char *payload, struct appctx *appc
 	/* The operations on the CKCH architecture are locked so we can
 	 * manipulate ckch_store and ckch_inst */
 	if (HA_SPIN_TRYLOCK(CKCH_LOCK, &ckch_lock))
-		return cli_err(appctx, "Can't create a CA file!\nOperations on certificates are currently locked!\n");
+		return cli_err(appctx, "Can't create a CRL file!\nOperations on certificates are currently locked!\n");
 
 	cafile_entry = ssl_store_get_cafile_entry(path, 0);
 	if (cafile_entry) {
@@ -3347,7 +3347,7 @@ static int cli_parse_set_crlfile(char **args, char *payload, struct appctx *appc
 		return 1;
 
 	if (!*args[3] || !payload)
-		return cli_err(appctx, "'set ssl crl-file expects a filename and CAs as a payload\n");
+		return cli_err(appctx, "'set ssl crl-file expects a filename and CRLs as a payload\n");
 
 	/* The operations on the CKCH architecture are locked so we can
 	 * manipulate ckch_store and ckch_inst */
@@ -3421,13 +3421,13 @@ static int cli_parse_set_crlfile(char **args, char *payload, struct appctx *appc
 
 	/* we succeed, we can save the crl in the transaction */
 
-	/* if there wasn't a transaction, update the old CA */
+	/* if there wasn't a transaction, update the old CRL */
 	if (!crlfile_transaction.old_crlfile_entry) {
 		crlfile_transaction.old_crlfile_entry = ctx->old_crlfile_entry;
 		crlfile_transaction.path = ctx->path;
-		err = memprintf(&err, "transaction created for CA %s!\n", crlfile_transaction.path);
+		err = memprintf(&err, "transaction created for CRL %s!\n", crlfile_transaction.path);
 	} else {
-		err = memprintf(&err, "transaction updated for CA %s!\n", crlfile_transaction.path);
+		err = memprintf(&err, "transaction updated for CRL %s!\n", crlfile_transaction.path);
 	}
 
 	/* free the previous CRL file if there was a transaction */
@@ -3837,7 +3837,7 @@ error:
 	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
 	if (err)
 		return cli_dynerr(appctx, err);
-	return cli_err(appctx, "Can't display the CA file : Not found!\n");
+	return cli_err(appctx, "Can't display the CRL file : Not found!\n");
 }
 
 /* IO handler of "show ssl crl-file". The command taking a specific CRL file name
