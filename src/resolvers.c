@@ -3277,6 +3277,68 @@ resolv_out:
 	return err_code;
 }
 
+static int resolvers_new(struct resolvers **resolvers, const char *id, const char *file, int linenum)
+{
+	struct resolvers *r = NULL;
+	struct proxy *p = NULL;
+	int err_code = 0;
+
+	if ((r = calloc(1, sizeof(*r))) == NULL) {
+		err_code |= ERR_ALERT | ERR_ABORT;
+		goto out;
+	}
+
+	/* allocate new proxy to tcp servers */
+	p = calloc(1, sizeof *p);
+	if (!p) {
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
+	}
+
+	init_new_proxy(p);
+	resolvers_setup_proxy(p);
+	p->parent = r;
+	p->id = strdup(id);
+	p->conf.args.file = p->conf.file = strdup(file);
+	p->conf.args.line = p->conf.line = linenum;
+	r->px = p;
+
+	/* default values */
+	LIST_APPEND(&sec_resolvers, &r->list);
+	r->conf.file = strdup(file);
+	r->conf.line = linenum;
+	r->id = strdup(id);
+	r->query_ids = EB_ROOT;
+	/* default maximum response size */
+	r->accepted_payload_size = 512;
+	/* default hold period for nx, other, refuse and timeout is 30s */
+	r->hold.nx = 30000;
+	r->hold.other = 30000;
+	r->hold.refused = 30000;
+	r->hold.timeout = 30000;
+	r->hold.obsolete = 0;
+	/* default hold period for valid is 10s */
+	r->hold.valid = 10000;
+	r->timeout.resolve = 1000;
+	r->timeout.retry   = 1000;
+	r->resolve_retries = 3;
+	LIST_INIT(&r->nameservers);
+	LIST_INIT(&r->resolutions.curr);
+	LIST_INIT(&r->resolutions.wait);
+	HA_SPIN_INIT(&r->lock);
+
+	*resolvers = r;
+
+out:
+	if (err_code & (ERR_FATAL|ERR_ABORT)) {
+		ha_free(&r);
+		ha_free(&p);
+	}
+
+	return err_code;
+}
+
+
 /*
  * Parse a <resolvers> section.
  * Returns the error code, 0 if OK, or any combination of :
@@ -3293,7 +3355,6 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 	int err_code = 0;
 	char *errmsg = NULL;
 	char *warnmsg = NULL;
-	struct proxy *p;
 
 	if (strcmp(args[0], "resolvers") == 0) { /* new resolvers section */
 		if (!*args[1]) {
@@ -3319,51 +3380,12 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 			}
 		}
 
-		if ((curr_resolvers = calloc(1, sizeof(*curr_resolvers))) == NULL) {
+		err_code |= resolvers_new(&curr_resolvers, args[1], file, linenum);
+		if (err_code & ERR_ALERT) {
 			ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
-			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
 		}
 
-                /* allocate new proxy to tcp servers */
-                p = calloc(1, sizeof *p);
-                if (!p) {
-                        ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
-                        err_code |= ERR_ALERT | ERR_FATAL;
-                        goto out;
-                }
-
-                init_new_proxy(p);
-                resolvers_setup_proxy(p);
-                p->parent = curr_resolvers;
-                p->id = strdup(args[1]);
-                p->conf.args.file = p->conf.file = strdup(file);
-                p->conf.args.line = p->conf.line = linenum;
-                curr_resolvers->px = p;
-
-		/* default values */
-		LIST_APPEND(&sec_resolvers, &curr_resolvers->list);
-		curr_resolvers->conf.file = strdup(file);
-		curr_resolvers->conf.line = linenum;
-		curr_resolvers->id = strdup(args[1]);
-		curr_resolvers->query_ids = EB_ROOT;
-		/* default maximum response size */
-		curr_resolvers->accepted_payload_size = 512;
-		/* default hold period for nx, other, refuse and timeout is 30s */
-		curr_resolvers->hold.nx = 30000;
-		curr_resolvers->hold.other = 30000;
-		curr_resolvers->hold.refused = 30000;
-		curr_resolvers->hold.timeout = 30000;
-		curr_resolvers->hold.obsolete = 0;
-		/* default hold period for valid is 10s */
-		curr_resolvers->hold.valid = 10000;
-		curr_resolvers->timeout.resolve = 1000;
-		curr_resolvers->timeout.retry   = 1000;
-		curr_resolvers->resolve_retries = 3;
-		LIST_INIT(&curr_resolvers->nameservers);
-		LIST_INIT(&curr_resolvers->resolutions.curr);
-		LIST_INIT(&curr_resolvers->resolutions.wait);
-		HA_SPIN_INIT(&curr_resolvers->lock);
 	}
 	else if (strcmp(args[0], "nameserver") == 0) { /* nameserver definition */
 		struct dns_nameserver *newnameserver = NULL;
