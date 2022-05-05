@@ -38,6 +38,13 @@ struct show_crtlist_ctx {
 	int mode;                        /* 'd' for dump, 's' for show */
 };
 
+/* CLI context for "add ssl crt-list" */
+struct add_crtlist_ctx {
+	struct crtlist *crtlist;
+	struct crtlist_entry *entry;
+	struct bind_conf_list *bind_conf_node;
+};
+
 /* release ssl bind conf */
 void ssl_sock_free_ssl_conf(struct ssl_bind_conf *conf)
 {
@@ -1017,10 +1024,12 @@ static int cli_parse_dump_crtlist(char **args, char *payload, struct appctx *app
 }
 
 /* release function of the  "add ssl crt-list' command, free things and unlock
- the spinlock */
+ * the spinlock. It uses the add_crtlist_ctx.
+ */
 static void cli_release_add_crtlist(struct appctx *appctx)
 {
-	struct crtlist_entry *entry = appctx->ctx.cli.p1;
+	struct add_crtlist_ctx *ctx = appctx->svcctx;
+	struct crtlist_entry *entry = ctx->entry;
 
 	if (appctx->st2 != SETCERT_ST_FIN) {
 		struct ckch_inst *inst, *inst_s;
@@ -1047,13 +1056,16 @@ static void cli_release_add_crtlist(struct appctx *appctx)
  *
  * The logic is the same as the "commit ssl cert" command but without the
  * freeing of the old structures, because there are none.
+ *
+ * It uses the add_crtlist_ctx for the context.
  */
 static int cli_io_handler_add_crtlist(struct appctx *appctx)
 {
+	struct add_crtlist_ctx *ctx = appctx->svcctx;
 	struct bind_conf_list *bind_conf_node;
 	struct conn_stream *cs = appctx->owner;
-	struct crtlist *crtlist = appctx->ctx.cli.p0;
-	struct crtlist_entry *entry = appctx->ctx.cli.p1;
+	struct crtlist *crtlist = ctx->crtlist;
+	struct crtlist_entry *entry = ctx->entry;
 	struct ckch_store *store = entry->node.key;
 	struct buffer *trash = alloc_trash_chunk();
 	struct ckch_inst *new_inst;
@@ -1081,7 +1093,7 @@ static int cli_io_handler_add_crtlist(struct appctx *appctx)
 		appctx->st2 = SETCERT_ST_GEN;
 		/* fallthrough */
 	case SETCERT_ST_GEN:
-		bind_conf_node = appctx->ctx.cli.p2; /* get the previous ptr from the yield */
+		bind_conf_node = ctx->bind_conf_node; /* get the previous ptr from the yield */
 		if (bind_conf_node == NULL)
 			bind_conf_node = crtlist->bind_conf;
 		for (; bind_conf_node; bind_conf_node = bind_conf_node->next) {
@@ -1090,7 +1102,7 @@ static int cli_io_handler_add_crtlist(struct appctx *appctx)
 
 			/* yield every 10 generations */
 			if (i > 10) {
-				appctx->ctx.cli.p2 = bind_conf_node;
+				ctx->bind_conf_node = bind_conf_node;
 				goto yield;
 			}
 
@@ -1160,10 +1172,12 @@ error:
 
 /*
  * Parse a "add ssl crt-list <crt-list> <certfile>" line.
- * Filters and option must be passed through payload:
+ * Filters and option must be passed through payload.
+ * It sets a struct add_crtlist_ctx.
  */
 static int cli_parse_add_crtlist(char **args, char *payload, struct appctx *appctx, void *private)
 {
+	struct add_crtlist_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
 	int cfgerr = 0;
 	struct ckch_store *store;
 	char *err = NULL;
@@ -1283,8 +1297,8 @@ static int cli_parse_add_crtlist(char **args, char *payload, struct appctx *appc
 	LIST_APPEND(&store->crtlist_entry, &entry->by_ckch_store);
 
 	appctx->st2 = SETCERT_ST_INIT;
-	appctx->ctx.cli.p0 = crtlist;
-	appctx->ctx.cli.p1 = entry;
+	ctx->crtlist = crtlist;
+	ctx->entry = entry;
 
 	/* unlock is done in the release handler */
 	return 0;
