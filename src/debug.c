@@ -1017,25 +1017,33 @@ static int debug_parse_cli_sched(char **args, char *payload, struct appctx *appc
 	return cli_err(appctx, "Not enough memory");
 }
 
+/* CLI state for "debug dev fd" */
+struct dev_fd_ctx {
+	int start_fd;
+};
+
 /* CLI parser for the "debug dev fd" command. The current FD to restart from is
- * stored in i0.
+ * stored in a struct dev_fd_ctx pointed to by svcctx.
  */
 static int debug_parse_cli_fd(char **args, char *payload, struct appctx *appctx, void *private)
 {
+	struct dev_fd_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
+
 	if (!cli_has_level(appctx, ACCESS_LVL_OPER))
 		return 1;
 
 	/* start at fd #0 */
-	appctx->ctx.cli.i0 = 0;
+	ctx->start_fd = 0;
 	return 0;
 }
 
 /* CLI I/O handler for the "debug dev fd" command. Dumps all FDs that are
  * accessible from the process but not known from fdtab. The FD number to
- * restart from is stored in i0.
+ * restart from is stored in a struct dev_fd_ctx pointed to by svcctx.
  */
 static int debug_iohandler_fd(struct appctx *appctx)
 {
+	struct dev_fd_ctx *ctx = appctx->svcctx;
 	struct conn_stream *cs = appctx->owner;
 	struct sockaddr_storage sa;
 	struct stat statbuf;
@@ -1055,7 +1063,7 @@ static int debug_iohandler_fd(struct appctx *appctx)
 	/* we have two inner loops here, one for the proxy, the other one for
 	 * the buffer.
 	 */
-	for (fd = appctx->ctx.cli.i0; fd < global.maxsock; fd++) {
+	for (fd = ctx->start_fd; fd < global.maxsock; fd++) {
 		/* check for FD's existence */
 		ret1 = fcntl(fd, F_GETFD, 0);
 		if (ret1 == -1)
@@ -1171,7 +1179,7 @@ static int debug_iohandler_fd(struct appctx *appctx)
 
 		if (ci_putchk(cs_ic(cs), &trash) == -1) {
 			cs_rx_room_blk(cs);
-			appctx->ctx.cli.i0 = fd;
+			ctx->start_fd = fd;
 			ret = 0;
 			break;
 		}
