@@ -135,16 +135,6 @@ struct appctx {
 				unsigned int unused:31;
 				struct shared_block *next;  /* The next block of data to be sent for this cache entry. */
 			} cache;
-			/* all entries below are used by various CLI commands, please
-			 * keep the grouped together and avoid adding new ones.
-			 */
-			struct {
-				struct httpclient *ptr;
-			} httpclient;
-
-			/* NOTE: please add regular applet contexts (ie: not
-			 * CLI-specific ones) above, before "cli".
-			 */
 		} ctx;					/* context-specific variables used by any applet */
 	}; /* end of anon union */
 };

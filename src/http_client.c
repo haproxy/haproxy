@@ -639,7 +639,7 @@ struct appctx *httpclient_start(struct httpclient *hc)
 
 	hc->appctx = appctx;
 	hc->flags |= HTTPCLIENT_FS_STARTED;
-	appctx->ctx.httpclient.ptr = hc;
+	appctx->svcctx = hc;
 
 	/* The request was transferred when the stream was created. So switch
 	 * directly to REQ_BODY or RES_STLINE state
@@ -738,7 +738,7 @@ err:
 
 static void httpclient_applet_io_handler(struct appctx *appctx)
 {
-	struct httpclient *hc = appctx->ctx.httpclient.ptr;
+	struct httpclient *hc = appctx->svcctx;
 	struct conn_stream *cs = appctx->owner;
 	struct stream *s = __cs_strm(cs);
 	struct channel *req = &s->req;
@@ -1043,7 +1043,7 @@ end:
 
 static void httpclient_applet_release(struct appctx *appctx)
 {
-	struct httpclient *hc = appctx->ctx.httpclient.ptr;
+	struct httpclient *hc = appctx->svcctx;
 
 	/* mark the httpclient as ended */
 	hc->flags |= HTTPCLIENT_FS_ENDED;
