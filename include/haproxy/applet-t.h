@@ -92,9 +92,6 @@ struct appctx {
 		} svc;                         /* generic storage for most commands */
 		union {
 			struct {
-				void *ptr;              /* current peer or NULL, do not use for something else */
-			} peers;                        /* used by the peers applet */
-			struct {
 				int connected;
 				struct xref xref; /* cross reference with the Lua object owner. */
 				struct list wake_on_read;

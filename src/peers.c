@@ -1082,10 +1082,10 @@ void __peer_session_deinit(struct peer *peer)
  */
 static void peer_session_release(struct appctx *appctx)
 {
-	struct peer *peer = appctx->ctx.peers.ptr;
+	struct peer *peer = appctx->svcctx;
 
 	TRACE_PROTO("releasing peer session", PEERS_EV_SESSREL, NULL, peer);
-	/* appctx->ctx.peers.ptr is not a peer session */
+	/* appctx->svcctx is not a peer session */
 	if (appctx->st0 < PEER_SESS_ST_SENDSUCCESS)
 		return;
 
@@ -1286,7 +1286,7 @@ static inline int peer_send_updatemsg(struct shared_table *st, struct appctx *ap
 			.updateid = updateid,
 			.use_identifier = use_identifier,
 			.use_timed = use_timed,
-			.peer = appctx->ctx.peers.ptr,
+			.peer = appctx->svcctx,
 		},
 	};
 
@@ -2842,7 +2842,7 @@ switchstate:
 		switch(appctx->st0) {
 			case PEER_SESS_ST_ACCEPT:
 				prev_state = appctx->st0;
-				appctx->ctx.peers.ptr = NULL;
+				appctx->svcctx = NULL;
 				appctx->st0 = PEER_SESS_ST_GETVERSION;
 				/* fall through */
 			case PEER_SESS_ST_GETVERSION:
@@ -2904,7 +2904,7 @@ switchstate:
 				}
 				curpeer->appctx = appctx;
 				curpeer->flags |= PEER_F_ALIVE;
-				appctx->ctx.peers.ptr = curpeer;
+				appctx->svcctx = curpeer;
 				appctx->st0 = PEER_SESS_ST_SENDSUCCESS;
 				_HA_ATOMIC_INC(&active_peers);
 			}
@@ -2912,7 +2912,7 @@ switchstate:
 			case PEER_SESS_ST_SENDSUCCESS: {
 				prev_state = appctx->st0;
 				if (!curpeer) {
-					curpeer = appctx->ctx.peers.ptr;
+					curpeer = appctx->svcctx;
 					HA_SPIN_LOCK(PEER_LOCK, &curpeer->lock);
 					if (curpeer->appctx != appctx) {
 						appctx->st0 = PEER_SESS_ST_END;
@@ -2937,7 +2937,7 @@ switchstate:
 			case PEER_SESS_ST_CONNECT: {
 				prev_state = appctx->st0;
 				if (!curpeer) {
-					curpeer = appctx->ctx.peers.ptr;
+					curpeer = appctx->svcctx;
 					HA_SPIN_LOCK(PEER_LOCK, &curpeer->lock);
 					if (curpeer->appctx != appctx) {
 						appctx->st0 = PEER_SESS_ST_END;
@@ -2959,7 +2959,7 @@ switchstate:
 			case PEER_SESS_ST_GETSTATUS: {
 				prev_state = appctx->st0;
 				if (!curpeer) {
-					curpeer = appctx->ctx.peers.ptr;
+					curpeer = appctx->svcctx;
 					HA_SPIN_LOCK(PEER_LOCK, &curpeer->lock);
 					if (curpeer->appctx != appctx) {
 						appctx->st0 = PEER_SESS_ST_END;
@@ -3008,7 +3008,7 @@ switchstate:
 
 				prev_state = appctx->st0;
 				if (!curpeer) {
-					curpeer = appctx->ctx.peers.ptr;
+					curpeer = appctx->svcctx;
 					HA_SPIN_LOCK(PEER_LOCK, &curpeer->lock);
 					if (curpeer->appctx != appctx) {
 						appctx->st0 = PEER_SESS_ST_END;
@@ -3183,7 +3183,7 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 		goto out_close;
 
 	appctx->st0 = PEER_SESS_ST_CONNECT;
-	appctx->ctx.peers.ptr = (void *)peer;
+	appctx->svcctx = (void *)peer;
 
 	sess = session_new(p, NULL, &appctx->obj_type);
 	if (!sess) {
