@@ -28,6 +28,13 @@
 #include <haproxy/ring.h>
 #include <haproxy/thread.h>
 
+/* context used to dump the contents of a ring via "show events" or "show errors" */
+struct show_ring_ctx {
+	struct ring *ring; /* ring to be dumped */
+	size_t ofs;        /* offset to restart from, ~0 = end */
+	uint flags;        /* set of RING_WF_* */
+};
+
 /* Initialize a pre-allocated ring with the buffer area
  * of size */
 void ring_init(struct ring *ring, void *area, size_t size)
@@ -252,6 +259,8 @@ void ring_detach_appctx(struct ring *ring, struct appctx *appctx, size_t ofs)
  */
 int ring_attach_cli(struct ring *ring, struct appctx *appctx, uint flags)
 {
+	struct show_ring_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
+
 	if (!ring_attach(ring))
 		return cli_err(appctx,
 		               "Sorry, too many watchers (255) on this ring buffer. "
@@ -261,9 +270,11 @@ int ring_attach_cli(struct ring *ring, struct appctx *appctx, uint flags)
 		appctx->io_handler = cli_io_handler_show_ring;
 	if (!appctx->io_release)
                 appctx->io_release = cli_io_release_show_ring;
-	appctx->ctx.cli.p0 = ring;
-	appctx->ctx.cli.o0 = ~0; // start from the oldest event
-	appctx->ctx.cli.i0 = flags;
+
+	memset(ctx, 0, sizeof(*ctx));
+	ctx->ring  = ring;
+	ctx->ofs   = ~0; // start from the oldest event
+	ctx->flags = flags;
 	return 0;
 }
 
@@ -278,10 +289,11 @@ int ring_attach_cli(struct ring *ring, struct appctx *appctx, uint flags)
  */
 int cli_io_handler_show_ring(struct appctx *appctx)
 {
+	struct show_ring_ctx *ctx = appctx->svcctx;
 	struct conn_stream *cs = appctx->owner;
-	struct ring *ring = appctx->ctx.cli.p0;
+	struct ring *ring = ctx->ring;
 	struct buffer *buf = &ring->buf;
-	size_t ofs = appctx->ctx.cli.o0;
+	size_t ofs = ctx->ofs;
 	uint64_t msg_len;
 	size_t len, cnt;
 	int ret;
@@ -307,7 +319,7 @@ int cli_io_handler_show_ring(struct appctx *appctx)
 		ofs = 0;
 
 		/* going to the end means looking at tail-1 */
-		if (appctx->ctx.cli.i0 & RING_WF_SEEK_NEW)
+		if (ctx->flags & RING_WF_SEEK_NEW)
 			ofs += b_data(buf) - 1;
 
 		HA_ATOMIC_INC(b_peek(buf, ofs));
@@ -355,10 +367,10 @@ int cli_io_handler_show_ring(struct appctx *appctx)
 
 	HA_ATOMIC_INC(b_peek(buf, ofs));
 	ofs += ring->ofs;
-	appctx->ctx.cli.o0 = ofs;
+	ctx->ofs = ofs;
 	HA_RWLOCK_RDUNLOCK(LOGSRV_LOCK, &ring->lock);
 
-	if (ret && (appctx->ctx.cli.i0 & RING_WF_WAIT_MODE)) {
+	if (ret && (ctx->flags & RING_WF_WAIT_MODE)) {
 		/* we've drained everything and are configured to wait for more
 		 * data or an event (keypress, close)
 		 */
@@ -379,8 +391,9 @@ int cli_io_handler_show_ring(struct appctx *appctx)
 /* must be called after cli_io_handler_show_ring() above */
 void cli_io_release_show_ring(struct appctx *appctx)
 {
-	struct ring *ring = appctx->ctx.cli.p0;
-	size_t ofs = appctx->ctx.cli.o0;
+	struct show_ring_ctx *ctx = appctx->svcctx;
+	struct ring *ring = ctx->ring;
+	size_t ofs = ctx->ofs;
 
 	ring_detach_appctx(ring, appctx, ofs);
 }
