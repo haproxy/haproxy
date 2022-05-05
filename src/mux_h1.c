@@ -2464,13 +2464,8 @@ static size_t h1_process_mux(struct h1c *h1c, struct buffer *buf, size_t count)
 			  trailers:
 				h1m->state = H1_MSG_TRAILERS;
 
-				/* If the message is not chunked, ignore
-				 * trailers. It may happen with H2 messages. */
-				if (!(h1m->flags & H1_MF_CHNK)) {
-					if (type == HTX_BLK_EOT)
-						goto done;
-					break;
-				}
+				if (!(h1m->flags & H1_MF_CHNK))
+					goto done;
 
 				if ((h1m->flags & H1_MF_RESP) && (h1s->flags & H1S_F_BODYLESS_RESP)) {
 					TRACE_PROTO("Skip trailers for bodyless response", H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, chn_htx);
@@ -2499,15 +2494,15 @@ static size_t h1_process_mux(struct h1c *h1c, struct buffer *buf, size_t count)
 				break;
 
 			case H1_MSG_DONE:
+				/* If the message is not chunked, ignore
+				 * trailers. It may happen with H2 messages. */
+				if ((type == HTX_BLK_TLR || type == HTX_BLK_EOT) && !(h1m->flags & H1_MF_CHNK))
+					break;
+
 				TRACE_STATE("unexpected data xferred in done state", H1_EV_TX_DATA|H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
 				goto error; /* For now return an error */
 
 			  done:
-				if (!(chn_htx->flags & HTX_FL_EOM) && (!(h1m->flags & H1_MF_CLEN) || h1m->curr_len)) {
-					TRACE_STATE("No EOM flags in done state", H1_EV_TX_DATA|H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
-					goto error; /* For now return an error */
-				}
-
 				h1m->state = H1_MSG_DONE;
 				if (!(h1m->flags & H1_MF_RESP) && h1s->meth == HTTP_METH_CONNECT) {
 					h1s->flags |= H1S_F_TX_BLK;
