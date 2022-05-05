@@ -63,7 +63,7 @@
 #define FRAME_HDR_SIZE     32
 
 /* Helper to get SPOE ctx inside an appctx */
-#define SPOE_APPCTX(appctx) ((struct spoe_appctx *)((appctx)->ctx.spoe.ptr))
+#define SPOE_APPCTX(appctx) ((struct spoe_appctx *)((appctx)->svcctx))
 
 /* SPOE filter id. Used to identify SPOE filters */
 const char *spoe_filter_id = "SPOE filter";
@@ -1073,7 +1073,7 @@ spoe_prepare_healthcheck_request(char **req, int *len)
 	memset(&spoe_appctx, 0, sizeof(spoe_appctx));
 	memset(buf, 0, sizeof(buf));
 
-	appctx.ctx.spoe.ptr = &spoe_appctx;
+	appctx.svcctx = &spoe_appctx;
 	SPOE_APPCTX(&appctx)->max_frame_size = MAX_FRAME_SIZE;
 
 	frame = buf+4; /* Reserved the 4 first bytes for the frame size */
@@ -1112,7 +1112,7 @@ spoe_handle_healthcheck_response(char *frame, size_t size, char *err, int errlen
 	memset(&appctx, 0, sizeof(appctx));
 	memset(&spoe_appctx, 0, sizeof(spoe_appctx));
 
-	appctx.ctx.spoe.ptr = &spoe_appctx;
+	appctx.svcctx = &spoe_appctx;
 	SPOE_APPCTX(&appctx)->max_frame_size = MAX_FRAME_SIZE;
 
 	if (*frame == SPOE_FRM_T_AGENT_DISCON) {
@@ -1227,7 +1227,7 @@ spoe_release_appctx(struct appctx *appctx)
 	if (spoe_appctx == NULL)
 		return;
 
-	appctx->ctx.spoe.ptr = NULL;
+	appctx->svcctx = NULL;
 	agent = spoe_appctx->agent;
 
 	SPOE_PRINTF(stderr, "%d.%06d [SPOE/%-15s] %s: appctx=%p\n",
@@ -1996,7 +1996,7 @@ spoe_create_appctx(struct spoe_config *conf)
 	if ((appctx = appctx_new(&spoe_applet, NULL)) == NULL)
 		goto out_error;
 
-	appctx->ctx.spoe.ptr = pool_zalloc(pool_head_spoe_appctx);
+	appctx->svcctx = pool_zalloc(pool_head_spoe_appctx);
 	if (SPOE_APPCTX(appctx) == NULL)
 		goto out_free_appctx;
 
