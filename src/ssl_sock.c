@@ -44,6 +44,7 @@
 #include <import/lru.h>
 
 #include <haproxy/api.h>
+#include <haproxy/applet.h>
 #include <haproxy/arg.h>
 #include <haproxy/base64.h>
 #include <haproxy/channel.h>
@@ -184,6 +185,13 @@ static struct stats_module ssl_stats_module = {
 };
 
 INITCALL1(STG_REGISTER, stats_register_module, &ssl_stats_module);
+
+/* CLI context for "show tls-keys" */
+struct show_keys_ctx {
+	struct tls_keys_ref *next_ref; /* next reference to be dumped */
+	int names_only;                /* non-zero = only show file names */
+	int next_index;                /* next index to be dumped */
+};
 
 /* ssl_sock_io_cb is exported to see it resolved in "show fd" */
 struct task *ssl_sock_io_cb(struct task *, void *, unsigned int);
@@ -7212,11 +7220,10 @@ static inline int cli_io_handler_tlskeys_entries(struct appctx *appctx) {
 	return cli_io_handler_tlskeys_files(appctx);
 }
 
-/* dumps all tls keys. Relies on cli.i0 (non-null = only list file names), cli.i1
- * (next index to be dumped), and cli.p0 (next key reference).
- */
+/* dumps all tls keys. Relies on the show_keys_ctx context from the appctx. */
 static int cli_io_handler_tlskeys_files(struct appctx *appctx) {
 
+	struct show_keys_ctx *ctx = appctx->svcctx;
 	struct conn_stream *cs = appctx->owner;
 
 	switch (appctx->st2) {
@@ -7242,21 +7249,21 @@ static int cli_io_handler_tlskeys_files(struct appctx *appctx) {
 		 * available field of this pointer is <list>. It is used with the function
 		 * tlskeys_list_get_next() for retruning the first available entry
 		 */
-		if (appctx->ctx.cli.p0 == NULL)
-			appctx->ctx.cli.p0 = tlskeys_list_get_next(&tlskeys_reference, &tlskeys_reference);
+		if (ctx->next_ref == NULL)
+			ctx->next_ref = tlskeys_list_get_next(&tlskeys_reference, &tlskeys_reference);
 
 		appctx->st2 = STAT_ST_LIST;
 		/* fall through */
 
 	case STAT_ST_LIST:
-		while (appctx->ctx.cli.p0) {
-			struct tls_keys_ref *ref = appctx->ctx.cli.p0;
+		while (ctx->next_ref) {
+			struct tls_keys_ref *ref = ctx->next_ref;
 
 			chunk_reset(&trash);
-			if (appctx->io_handler == cli_io_handler_tlskeys_entries && appctx->ctx.cli.i1 == 0)
+			if (appctx->io_handler == cli_io_handler_tlskeys_entries && ctx->next_index == 0)
 				chunk_appendf(&trash, "# ");
 
-			if (appctx->ctx.cli.i1 == 0)
+			if (ctx->next_index == 0)
 				chunk_appendf(&trash, "%d (%s)\n", ref->unique_id, ref->filename);
 
 			if (appctx->io_handler == cli_io_handler_tlskeys_entries) {
@@ -7264,28 +7271,28 @@ static int cli_io_handler_tlskeys_files(struct appctx *appctx) {
 
 				HA_RWLOCK_RDLOCK(TLSKEYS_REF_LOCK, &ref->lock);
 				head = ref->tls_ticket_enc_index;
-				while (appctx->ctx.cli.i1 < TLS_TICKETS_NO) {
+				while (ctx->next_index < TLS_TICKETS_NO) {
 					struct buffer *t2 = get_trash_chunk();
 
 					chunk_reset(t2);
 					/* should never fail here because we dump only a key in the t2 buffer */
 					if (ref->key_size_bits == 128) {
-						t2->data = a2base64((char *)(ref->tlskeys + (head + 2 + appctx->ctx.cli.i1) % TLS_TICKETS_NO),
+						t2->data = a2base64((char *)(ref->tlskeys + (head + 2 + ctx->next_index) % TLS_TICKETS_NO),
 						                   sizeof(struct tls_sess_key_128),
 						                   t2->area, t2->size);
-						chunk_appendf(&trash, "%d.%d %s\n", ref->unique_id, appctx->ctx.cli.i1,
+						chunk_appendf(&trash, "%d.%d %s\n", ref->unique_id, ctx->next_index,
 							      t2->area);
 					}
 					else if (ref->key_size_bits == 256) {
-						t2->data = a2base64((char *)(ref->tlskeys + (head + 2 + appctx->ctx.cli.i1) % TLS_TICKETS_NO),
+						t2->data = a2base64((char *)(ref->tlskeys + (head + 2 + ctx->next_index) % TLS_TICKETS_NO),
 						                   sizeof(struct tls_sess_key_256),
 						                   t2->area, t2->size);
-						chunk_appendf(&trash, "%d.%d %s\n", ref->unique_id, appctx->ctx.cli.i1,
+						chunk_appendf(&trash, "%d.%d %s\n", ref->unique_id, ctx->next_index,
 							      t2->area);
 					}
 					else {
 						/* This case should never happen */
-						chunk_appendf(&trash, "%d.%d <unknown>\n", ref->unique_id, appctx->ctx.cli.i1);
+						chunk_appendf(&trash, "%d.%d <unknown>\n", ref->unique_id, ctx->next_index);
 					}
 
 					if (ci_putchk(cs_ic(cs), &trash) == -1) {
@@ -7296,10 +7303,10 @@ static int cli_io_handler_tlskeys_files(struct appctx *appctx) {
 						cs_rx_room_blk(cs);
 						return 0;
 					}
-					appctx->ctx.cli.i1++;
+					ctx->next_index++;
 				}
 				HA_RWLOCK_RDUNLOCK(TLSKEYS_REF_LOCK, &ref->lock);
-				appctx->ctx.cli.i1 = 0;
+				ctx->next_index = 0;
 			}
 			if (ci_putchk(cs_ic(cs), &trash) == -1) {
 				/* let's try again later from this stream. We add ourselves into
@@ -7309,11 +7316,11 @@ static int cli_io_handler_tlskeys_files(struct appctx *appctx) {
 				return 0;
 			}
 
-			if (appctx->ctx.cli.i0 == 0) /* don't display everything if not necessary */
+			if (ctx->names_only == 0) /* don't display everything if not necessary */
 				break;
 
 			/* get next list entry and check the end of the list */
-			appctx->ctx.cli.p0 = tlskeys_list_get_next(&ref->list, &tlskeys_reference);
+			ctx->next_ref = tlskeys_list_get_next(&ref->list, &tlskeys_reference);
 		}
 
 		appctx->st2 = STAT_ST_FIN;
@@ -7326,22 +7333,24 @@ static int cli_io_handler_tlskeys_files(struct appctx *appctx) {
 	return 0;
 }
 
-/* sets cli.i0 to non-zero if only file lists should be dumped */
+/* Prepares a "show_keys_ctx" and sets the appropriate io_handler if needed */
 static int cli_parse_show_tlskeys(char **args, char *payload, struct appctx *appctx, void *private)
 {
+	struct show_keys_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
+
 	/* no parameter, shows only file list */
 	if (!*args[2]) {
-		appctx->ctx.cli.i0 = 1;
+		ctx->names_only = 1;
 		appctx->io_handler = cli_io_handler_tlskeys_files;
 		return 0;
 	}
 
 	if (args[2][0] == '*') {
 		/* list every TLS ticket keys */
-		appctx->ctx.cli.i0 = 1;
+		ctx->names_only = 1;
 	} else {
-		appctx->ctx.cli.p0 = tlskeys_ref_lookup_ref(args[2]);
-		if (!appctx->ctx.cli.p0)
+		ctx->next_ref = tlskeys_ref_lookup_ref(args[2]);
+		if (!ctx->next_ref)
 			return cli_err(appctx, "'show tls-keys' unable to locate referenced filename\n");
 	}
 	appctx->io_handler = cli_io_handler_tlskeys_entries;
