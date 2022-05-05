@@ -127,6 +127,12 @@ struct commit_cacrlfile_ctx {
 	struct ckch_inst_link *next_ckchi_link;
 	struct ckch_inst *next_ckchi;
 	int cafile_type; /* either CA or CRL, depending on the current command */
+	enum {
+		CACRL_ST_INIT = 0,
+		CACRL_ST_GEN,
+		CACRL_ST_INSERT,
+		CACRL_ST_FIN,
+	} state;
 };
 
 
@@ -2727,7 +2733,7 @@ static int cli_parse_commit_cafile(char **args, char *payload, struct appctx *ap
 		goto error;
 	}
 	/* init the appctx structure */
-	appctx->st2 = SETCERT_ST_INIT;
+	ctx->state = CACRL_ST_INIT;
 	ctx->next_ckchi_link = NULL;
 	ctx->old_cafile_entry = cafile_transaction.old_cafile_entry;
 	ctx->new_cafile_entry = cafile_transaction.new_cafile_entry;
@@ -2799,8 +2805,8 @@ static int cli_io_handler_commit_cafile_crlfile(struct appctx *appctx)
 		goto error;
 
 	while (1) {
-		switch (appctx->st2) {
-			case SETCERT_ST_INIT:
+		switch (ctx->state) {
+			case CACRL_ST_INIT:
 				/* This state just print the update message */
 				switch (ctx->cafile_type) {
 				case CAFILE_CERT:
@@ -2816,9 +2822,9 @@ static int cli_io_handler_commit_cafile_crlfile(struct appctx *appctx)
 					cs_rx_room_blk(cs);
 					goto yield;
 				}
-				appctx->st2 = SETCERT_ST_GEN;
+				ctx->state = CACRL_ST_GEN;
 				/* fallthrough */
-			case SETCERT_ST_GEN:
+			case CACRL_ST_GEN:
 				/*
 				 * This state generates the ckch instances with their
 				 * sni_ctxs and SSL_CTX.
@@ -2861,9 +2867,9 @@ static int cli_io_handler_commit_cafile_crlfile(struct appctx *appctx)
 					}
 				}
 
-				appctx->st2 = SETCERT_ST_INSERT;
+				ctx->state = CACRL_ST_INSERT;
 				/* fallthrough */
-			case SETCERT_ST_INSERT:
+			case CACRL_ST_INSERT:
 				/* The generation is finished, we can insert everything */
 				switch (ctx->cafile_type) {
 				case CAFILE_CERT:
@@ -2900,9 +2906,9 @@ static int cli_io_handler_commit_cafile_crlfile(struct appctx *appctx)
 				ebmb_delete(&old_cafile_entry->node);
 				ssl_store_delete_cafile_entry(old_cafile_entry);
 
-				appctx->st2 = SETCERT_ST_FIN;
+				ctx->state = CACRL_ST_FIN;
 				/* fallthrough */
-			case SETCERT_ST_FIN:
+			case CACRL_ST_FIN:
 				/* we achieved the transaction, we can set everything to NULL */
 				switch (ctx->cafile_type) {
 				case CAFILE_CERT:
@@ -2999,7 +3005,7 @@ static void cli_release_commit_cafile(struct appctx *appctx)
 {
 	struct commit_cacrlfile_ctx *ctx = appctx->svcctx;
 
-	if (appctx->st2 != SETCERT_ST_FIN) {
+	if (ctx->state != CACRL_ST_FIN) {
 		struct cafile_entry *new_cafile_entry = ctx->new_cafile_entry;
 
 		/* Remove the uncommitted cafile_entry from the tree. */
@@ -3475,7 +3481,7 @@ static int cli_parse_commit_crlfile(char **args, char *payload, struct appctx *a
 		goto error;
 	}
 	/* init the appctx structure */
-	appctx->st2 = SETCERT_ST_INIT;
+	ctx->state = CACRL_ST_INIT;
 	ctx->next_ckchi = NULL;
 	ctx->old_crlfile_entry = crlfile_transaction.old_crlfile_entry;
 	ctx->new_crlfile_entry = crlfile_transaction.new_crlfile_entry;
@@ -3499,7 +3505,7 @@ static void cli_release_commit_crlfile(struct appctx *appctx)
 {
 	struct commit_cacrlfile_ctx *ctx = appctx->svcctx;
 
-	if (appctx->st2 != SETCERT_ST_FIN) {
+	if (ctx->state != CACRL_ST_FIN) {
 		struct cafile_entry *new_crlfile_entry = ctx->new_crlfile_entry;
 
 		/* Remove the uncommitted cafile_entry from the tree. */
