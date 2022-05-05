@@ -59,6 +59,14 @@ struct eb_root proxy_by_name = EB_ROOT; /* tree of proxies sorted by name */
 struct eb_root defproxy_by_name = EB_ROOT; /* tree of default proxies sorted by name (dups possible) */
 unsigned int error_snapshot_id = 0;     /* global ID assigned to each error then incremented */
 
+/* CLI context used during "show servers {state|conn}" */
+struct show_srv_ctx {
+	struct proxy *px;       /* current proxy to dump or NULL */
+	struct server *sv;      /* current server to dump or NULL */
+	uint only_pxid;         /* dump only this proxy ID when explicit */
+	int show_conn;          /* non-zero = "conn" otherwise "state" */
+};
+
 /* proxy->options */
 const struct cfg_opt cfg_opts[] =
 {
@@ -2647,14 +2655,15 @@ struct proxy *cli_find_backend(struct appctx *appctx, const char *arg)
 
 /* parse a "show servers [state|conn]" CLI line, returns 0 if it wants to start
  * the dump or 1 if it stops immediately. If an argument is specified, it will
- * set the proxy pointer into cli.p0 and its ID into cli.i0. It sets cli.o0 to
- * 0 for "state", or 1 for "conn".
+ * reserve a show_srv_ctx context and set the proxy pointer into ->px, its ID
+ * into ->only_pxid, and ->show_conn to 0 for "state", or 1 for "conn".
  */
 static int cli_parse_show_servers(char **args, char *payload, struct appctx *appctx, void *private)
 {
+	struct show_srv_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
 	struct proxy *px;
 
-	appctx->ctx.cli.o0 = *args[2] == 'c'; // "conn" vs "state"
+	ctx->show_conn = *args[2] == 'c'; // "conn" vs "state"
 
 	/* check if a backend name has been provided */
 	if (*args[3]) {
@@ -2664,8 +2673,8 @@ static int cli_parse_show_servers(char **args, char *payload, struct appctx *app
 		if (!px)
 			return cli_err(appctx, "Can't find backend.\n");
 
-		appctx->ctx.cli.p0 = px;
-		appctx->ctx.cli.i0 = px->uuid;
+		ctx->px = px;
+		ctx->only_pxid = px->uuid;
 	}
 	return 0;
 }
@@ -2687,15 +2696,17 @@ static void dump_server_addr(const struct sockaddr_storage *addr, char *addr_str
 
 /* dumps server state information for all the servers found in backend cli.p0.
  * These information are all the parameters which may change during HAProxy runtime.
- * By default, we only export to the last known server state file format.
- * These information can be used at next startup to recover same level of server state.
- * It uses the proxy pointer from cli.p0, the proxy's id from cli.i0 and the server's
- * pointer from cli.p1.
+ * By default, we only export to the last known server state file format. These
+ * information can be used at next startup to recover same level of server
+ * state. It takes its context from show_srv_ctx, with the proxy pointer from
+ * ->px, the proxy's id ->only_pxid, the server's pointer from ->sv, and the
+ * choice of what to dump from ->show_conn.
  */
 static int dump_servers_state(struct conn_stream *cs)
 {
 	struct appctx *appctx = __cs_appctx(cs);
-	struct proxy *px = appctx->ctx.cli.p0;
+	struct show_srv_ctx *ctx = appctx->svcctx;
+	struct proxy *px = ctx->px;
 	struct server *srv;
 	char srv_addr[INET6_ADDRSTRLEN + 1];
 	char srv_agent_addr[INET6_ADDRSTRLEN + 1];
@@ -2704,11 +2715,11 @@ static int dump_servers_state(struct conn_stream *cs)
 	int bk_f_forced_id, srv_f_forced_id;
 	char *srvrecord;
 
-	if (!appctx->ctx.cli.p1)
-		appctx->ctx.cli.p1 = px->srv;
+	if (!ctx->sv)
+		ctx->sv = px->srv;
 
-	for (; appctx->ctx.cli.p1 != NULL; appctx->ctx.cli.p1 = srv->next) {
-		srv = appctx->ctx.cli.p1;
+	for (; ctx->sv != NULL; ctx->sv = srv->next) {
+		srv = ctx->sv;
 
 		dump_server_addr(&srv->addr, srv_addr);
 		dump_server_addr(&srv->check.addr, srv_check_addr);
@@ -2722,7 +2733,7 @@ static int dump_servers_state(struct conn_stream *cs)
 		if (srv->srvrq && srv->srvrq->name)
 			srvrecord = srv->srvrq->name;
 
-		if (appctx->ctx.cli.o0 == 0) {
+		if (ctx->show_conn == 0) {
 			/* show servers state */
 			chunk_printf(&trash,
 			             "%d %s "
@@ -2766,24 +2777,25 @@ static int dump_servers_state(struct conn_stream *cs)
 }
 
 /* Parses backend list or simply use backend name provided by the user to return
- * states of servers to stdout. It dumps proxy <cli.p0> and stops if <cli.i0> is
- * non-null.
+ * states of servers to stdout. It takes its context from show_srv_ctx and dumps
+ * proxy ->px and stops if ->only_pxid is non-null.
  */
 static int cli_io_handler_servers_state(struct appctx *appctx)
 {
+	struct show_srv_ctx *ctx = appctx->svcctx;
 	struct conn_stream *cs = appctx->owner;
 	struct proxy *curproxy;
 
 	chunk_reset(&trash);
 
 	if (appctx->st2 == STAT_ST_INIT) {
-		if (!appctx->ctx.cli.p0)
-			appctx->ctx.cli.p0 = proxies_list;
+		if (!ctx->px)
+			ctx->px = proxies_list;
 		appctx->st2 = STAT_ST_HEAD;
 	}
 
 	if (appctx->st2 == STAT_ST_HEAD) {
-		if (appctx->ctx.cli.o0 == 0)
+		if (ctx->show_conn == 0)
 			chunk_printf(&trash, "%d\n# %s\n", SRV_STATE_FILE_VERSION, SRV_STATE_FILE_FIELD_NAMES);
 		else
 			chunk_printf(&trash,
@@ -2798,15 +2810,15 @@ static int cli_io_handler_servers_state(struct appctx *appctx)
 	}
 
 	/* STAT_ST_INFO */
-	for (; appctx->ctx.cli.p0 != NULL; appctx->ctx.cli.p0 = curproxy->next) {
-		curproxy = appctx->ctx.cli.p0;
+	for (; ctx->px != NULL; ctx->px = curproxy->next) {
+		curproxy = ctx->px;
 		/* servers are only in backends */
 		if ((curproxy->cap & PR_CAP_BE) && !(curproxy->cap & PR_CAP_INT)) {
 			if (!dump_servers_state(cs))
 				return 0;
 		}
 		/* only the selected proxy is dumped */
-		if (appctx->ctx.cli.i0)
+		if (ctx->only_pxid)
 			break;
 	}
 
