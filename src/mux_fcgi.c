@@ -3460,6 +3460,8 @@ static size_t fcgi_strm_parse_response(struct fcgi_strm *fstrm, struct buffer *b
 			if (!(h1m->flags & H1_MF_XFER_LEN) && fstrm->state != FCGI_SS_ERROR &&
 			    (fstrm->flags & FCGI_SF_ES_RCVD) && b_data(&fstrm->rxbuf) == total) {
 				TRACE_DEVEL("end of data", FCGI_EV_RSP_DATA, fconn->conn, fstrm);
+				if (htx_is_empty(htx) && !htx_add_endof(htx, HTX_BLK_EOT))
+					break;
 				htx->flags |= HTX_FL_EOM;
 				h1m->state = H1_MSG_DONE;
 				TRACE_USER("H1 response fully rcvd", FCGI_EV_RSP_DATA|FCGI_EV_RSP_EOM, fconn->conn, fstrm, htx);
