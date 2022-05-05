@@ -67,51 +67,64 @@ static char *resolvers_prefer = NULL;
 #define	HC_CLI_F_RES_BODY       0x04
 #define HC_CLI_F_RES_END        0x08
 
+/* the CLI context for the httpclient command */
+struct hcli_svc_ctx {
+	struct httpclient *hc;  /* the httpclient instance */
+	uint flags;             /* flags from HC_CLI_F_* above */
+};
 
 /* These are the callback used by the HTTP Client when it needs to notify new
- * data, we only sets a flag in the IO handler  */
-
+ * data, we only sets a flag in the IO handler via the svcctx.
+ */
 void hc_cli_res_stline_cb(struct httpclient *hc)
 {
 	struct appctx *appctx = hc->caller;
+	struct hcli_svc_ctx *ctx;
 
 	if (!appctx)
 		return;
 
-	appctx->ctx.cli.i0 |= HC_CLI_F_RES_STLINE;
+	ctx = appctx->svcctx;
+	ctx->flags |= HC_CLI_F_RES_STLINE;
 	appctx_wakeup(appctx);
 }
 
 void hc_cli_res_headers_cb(struct httpclient *hc)
 {
 	struct appctx *appctx = hc->caller;
+	struct hcli_svc_ctx *ctx;
 
 	if (!appctx)
 		return;
 
-	appctx->ctx.cli.i0 |= HC_CLI_F_RES_HDR;
+	ctx = appctx->svcctx;
+	ctx->flags |= HC_CLI_F_RES_HDR;
 	appctx_wakeup(appctx);
 }
 
 void hc_cli_res_body_cb(struct httpclient *hc)
 {
 	struct appctx *appctx = hc->caller;
+	struct hcli_svc_ctx *ctx;
 
 	if (!appctx)
 		return;
 
-	appctx->ctx.cli.i0 |= HC_CLI_F_RES_BODY;
+	ctx = appctx->svcctx;
+	ctx->flags |= HC_CLI_F_RES_BODY;
 	appctx_wakeup(appctx);
 }
 
 void hc_cli_res_end_cb(struct httpclient *hc)
 {
 	struct appctx *appctx = hc->caller;
+	struct hcli_svc_ctx *ctx;
 
 	if (!appctx)
 		return;
 
-	appctx->ctx.cli.i0 |= HC_CLI_F_RES_END;
+	ctx = appctx->svcctx;
+	ctx->flags |= HC_CLI_F_RES_END;
 	appctx_wakeup(appctx);
 }
 
@@ -121,6 +134,7 @@ void hc_cli_res_end_cb(struct httpclient *hc)
  */
 static int hc_cli_parse(char **args, char *payload, struct appctx *appctx, void *private)
 {
+	struct hcli_svc_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
 	struct httpclient *hc;
 	char *err = NULL;
 	enum http_meth_t meth;
@@ -155,8 +169,8 @@ static int hc_cli_parse(char **args, char *payload, struct appctx *appctx, void 
 	hc->ops.res_payload = hc_cli_res_body_cb;
 	hc->ops.res_end = hc_cli_res_end_cb;
 
-	appctx->ctx.cli.p0 = hc; /* store the httpclient ptr in the applet */
-	appctx->ctx.cli.i0 = 0;
+	ctx->hc = hc; /* store the httpclient ptr in the applet */
+	ctx->flags = 0;
 
 	if (httpclient_req_gen(hc, hc->req.url, hc->req.meth, NULL, body) != ERR_NONE)
 		goto err;
@@ -180,23 +194,25 @@ err:
  */
 static int hc_cli_io_handler(struct appctx *appctx)
 {
+	struct hcli_svc_ctx *ctx = appctx->svcctx;
 	struct conn_stream *cs = appctx->owner;
 	struct buffer *trash = alloc_trash_chunk();
-	struct httpclient *hc = appctx->ctx.cli.p0;
+	struct httpclient *hc = ctx->hc;
 	struct http_hdr *hdrs, *hdr;
 
 	if (!trash)
 		goto out;
-	if (appctx->ctx.cli.i0 & HC_CLI_F_RES_STLINE) {
+
+	if (ctx->flags & HC_CLI_F_RES_STLINE) {
 		chunk_appendf(trash, "%.*s %d %.*s\n", (unsigned int)istlen(hc->res.vsn), istptr(hc->res.vsn),
 			      hc->res.status, (unsigned int)istlen(hc->res.reason), istptr(hc->res.reason));
 		if (ci_putchk(cs_ic(cs), trash) == -1)
 			cs_rx_room_blk(cs);
-		appctx->ctx.cli.i0 &= ~HC_CLI_F_RES_STLINE;
+		ctx->flags &= ~HC_CLI_F_RES_STLINE;
 		goto out;
 	}
 
-	if (appctx->ctx.cli.i0 & HC_CLI_F_RES_HDR) {
+	if (ctx->flags & HC_CLI_F_RES_HDR) {
 		hdrs = hc->res.hdrs;
 		for (hdr = hdrs; isttest(hdr->v); hdr++) {
 			if (!h1_format_htx_hdr(hdr->n, hdr->v, trash))
@@ -206,33 +222,33 @@ static int hc_cli_io_handler(struct appctx *appctx)
 			goto out;
 		if (ci_putchk(cs_ic(cs), trash) == -1)
 			cs_rx_room_blk(cs);
-		appctx->ctx.cli.i0 &= ~HC_CLI_F_RES_HDR;
+		ctx->flags &= ~HC_CLI_F_RES_HDR;
 		goto out;
 	}
 
-	if (appctx->ctx.cli.i0 & HC_CLI_F_RES_BODY) {
+	if (ctx->flags & HC_CLI_F_RES_BODY) {
 		int ret;
 
 		ret = httpclient_res_xfer(hc, cs_ib(cs));
 		channel_add_input(cs_ic(cs), ret); /* forward what we put in the buffer channel */
 
 		if (!httpclient_data(hc)) {/* remove the flag if the buffer was emptied */
-			appctx->ctx.cli.i0 &= ~HC_CLI_F_RES_BODY;
+			ctx->flags &= ~HC_CLI_F_RES_BODY;
 		}
 		goto out;
 	}
 
 	/* we must close only if F_END is the last flag */
-	if (appctx->ctx.cli.i0 ==  HC_CLI_F_RES_END) {
+	if (ctx->flags ==  HC_CLI_F_RES_END) {
 		cs_shutw(cs);
 		cs_shutr(cs);
-		appctx->ctx.cli.i0 &= ~HC_CLI_F_RES_END;
+		ctx->flags &= ~HC_CLI_F_RES_END;
 		goto out;
 	}
 
 out:
 	/* we didn't clear every flags, we should come back to finish things */
-	if (appctx->ctx.cli.i0)
+	if (ctx->flags)
 		cs_rx_room_blk(cs);
 
 	free_trash_chunk(trash);
@@ -241,7 +257,8 @@ out:
 
 static void hc_cli_release(struct appctx *appctx)
 {
-	struct httpclient *hc = appctx->ctx.cli.p0;
+	struct hcli_svc_ctx *ctx = appctx->svcctx;
+	struct httpclient *hc = ctx->hc;
 
 	/* Everything possible was printed on the CLI, we can destroy the client */
 	httpclient_stop_and_destroy(hc);
