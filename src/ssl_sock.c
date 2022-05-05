@@ -192,6 +192,11 @@ struct show_keys_ctx {
 	int names_only;                /* non-zero = only show file names */
 	int next_index;                /* next index to be dumped */
 	int dump_entries;              /* dump entries also */
+	enum {
+		SHOW_KEYS_INIT = 0,
+		SHOW_KEYS_LIST,
+		SHOW_KEYS_DONE,
+	} state;                       /* phase of the current dump */
 };
 
 /* ssl_sock_io_cb is exported to see it resolved in "show fd" */
@@ -7221,11 +7226,11 @@ static int cli_io_handler_tlskeys_files(struct appctx *appctx)
 	struct show_keys_ctx *ctx = appctx->svcctx;
 	struct conn_stream *cs = appctx->owner;
 
-	switch (appctx->st2) {
-	case STAT_ST_INIT:
+	switch (ctx->state) {
+	case SHOW_KEYS_INIT:
 		/* Display the column headers. If the message cannot be sent,
 		 * quit the function with returning 0. The function is called
-		 * later and restart at the state "STAT_ST_INIT".
+		 * later and restart at the state "SHOW_KEYS_INIT".
 		 */
 		chunk_reset(&trash);
 
@@ -7247,10 +7252,10 @@ static int cli_io_handler_tlskeys_files(struct appctx *appctx)
 		if (ctx->next_ref == NULL)
 			ctx->next_ref = tlskeys_list_get_next(&tlskeys_reference, &tlskeys_reference);
 
-		appctx->st2 = STAT_ST_LIST;
+		ctx->state = SHOW_KEYS_LIST;
 		/* fall through */
 
-	case STAT_ST_LIST:
+	case SHOW_KEYS_LIST:
 		while (ctx->next_ref) {
 			struct tls_keys_ref *ref = ctx->next_ref;
 
@@ -7317,12 +7322,10 @@ static int cli_io_handler_tlskeys_files(struct appctx *appctx)
 			/* get next list entry and check the end of the list */
 			ctx->next_ref = tlskeys_list_get_next(&ref->list, &tlskeys_reference);
 		}
-
-		appctx->st2 = STAT_ST_FIN;
+		ctx->state = SHOW_KEYS_DONE;
 		/* fall through */
 
 	default:
-		appctx->st2 = STAT_ST_FIN;
 		return 1;
 	}
 	return 0;
