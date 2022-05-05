@@ -89,6 +89,12 @@ struct commit_cert_ctx {
 	struct ckch_store *old_ckchs;
 	struct ckch_store *new_ckchs;
 	struct ckch_inst *next_ckchi;
+	enum {
+		CERT_ST_INIT = 0,
+		CERT_ST_GEN,
+		CERT_ST_INSERT,
+		CERT_ST_FIN,
+	} state;
 };
 
 
@@ -1834,7 +1840,7 @@ static void cli_release_commit_cert(struct appctx *appctx)
 
 	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
 
-	if (appctx->st2 != SETCERT_ST_FIN) {
+	if (ctx->state != CERT_ST_FIN) {
 		/* free every new sni_ctx and the new store, which are not in the trees so no spinlock there */
 		new_ckchs = ctx->new_ckchs;
 
@@ -2017,17 +2023,17 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 		goto error;
 
 	while (1) {
-		switch (appctx->st2) {
-			case SETCERT_ST_INIT:
+		switch (ctx->state) {
+			case CERT_ST_INIT:
 				/* This state just print the update message */
 				chunk_printf(trash, "Committing %s", ckchs_transaction.path);
 				if (ci_putchk(cs_ic(cs), trash) == -1) {
 					cs_rx_room_blk(cs);
 					goto yield;
 				}
-				appctx->st2 = SETCERT_ST_GEN;
+				ctx->state = CERT_ST_GEN;
 				/* fallthrough */
-			case SETCERT_ST_GEN:
+			case CERT_ST_GEN:
 				/*
 				 * This state generates the ckch instances with their
 				 * sni_ctxs and SSL_CTX.
@@ -2068,9 +2074,9 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 					LIST_APPEND(&new_ckchs->ckch_inst, &new_inst->by_ckchs);
 					y++;
 				}
-				appctx->st2 = SETCERT_ST_INSERT;
+				ctx->state = CERT_ST_INSERT;
 				/* fallthrough */
-			case SETCERT_ST_INSERT:
+			case CERT_ST_INSERT:
 				/* The generation is finished, we can insert everything */
 
 				old_ckchs = ctx->old_ckchs;
@@ -2082,9 +2088,9 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 				/* insert everything and remove the previous objects */
 				ckch_store_replace(old_ckchs, new_ckchs);
 
-				appctx->st2 = SETCERT_ST_FIN;
+				ctx->state = CERT_ST_FIN;
 				/* fallthrough */
-			case SETCERT_ST_FIN:
+			case CERT_ST_FIN:
 				/* we achieved the transaction, we can set everything to NULL */
 				ha_free(&ckchs_transaction.path);
 				ckchs_transaction.new_ckchs = NULL;
@@ -2162,7 +2168,7 @@ static int cli_parse_commit_cert(char **args, char *payload, struct appctx *appc
 	}
 
 	/* init the appctx structure */
-	appctx->st2 = SETCERT_ST_INIT;
+	ctx->state = CERT_ST_INIT;
 	ctx->next_ckchi = NULL;
 	ctx->new_ckchs = ckchs_transaction.new_ckchs;
 	ctx->old_ckchs = ckchs_transaction.old_ckchs;
