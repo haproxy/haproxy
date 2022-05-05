@@ -3158,6 +3158,7 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 	const char *err;
 	int err_code = 0;
 	char *errmsg = NULL;
+	char *warnmsg = NULL;
 	struct proxy *p;
 
 	if (strcmp(args[0], "resolvers") == 0) { /* new resolvers section */
@@ -3324,23 +3325,20 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 		int duplicate_name = 0;
 
 		if ((resolv_line = malloc(sizeof(*resolv_line) * LINESIZE)) == NULL) {
-			ha_alert("parsing [%s:%d] : out of memory.\n",
-				 file, linenum);
+			memprintf(&errmsg, "out of memory.\n");
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto resolv_out;
 		}
 
 		if ((f = fopen("/etc/resolv.conf", "r")) == NULL) {
-			ha_alert("parsing [%s:%d] : failed to open /etc/resolv.conf.\n",
-				 file, linenum);
+			memprintf(&errmsg, "failed to open /etc/resolv.conf.");
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto resolv_out;
 		}
 
 		sk = calloc(1, sizeof(*sk));
 		if (sk == NULL) {
-			ha_alert("parsing [/etc/resolv.conf:%d] : out of memory.\n",
-				 resolv_linenum);
+			memprintf(&errmsg, "parsing [/etc/resolv.conf:%d] : out of memory.", resolv_linenum);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto resolv_out;
 		}
@@ -3355,8 +3353,8 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 				continue;
 
 			if (address == NULL) {
-				ha_warning("parsing [/etc/resolv.conf:%d] : nameserver line is missing address.\n",
-					   resolv_linenum);
+				memprintf(&warnmsg, "%sparsing [/etc/resolv.conf:%d] : nameserver line is missing address.\n",
+				          warnmsg ? warnmsg : "", resolv_linenum);
 				err_code |= ERR_WARN;
 				continue;
 			}
@@ -3364,8 +3362,8 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 			duplicate_name = 0;
 			list_for_each_entry(newnameserver, &curr_resolvers->nameservers, list) {
 				if (strcmp(newnameserver->id, address) == 0) {
-					ha_warning("Parsing [/etc/resolv.conf:%d] : generated name for /etc/resolv.conf nameserver '%s' conflicts with another nameserver (declared at %s:%d), it appears to be a duplicate and will be excluded.\n",
-						 resolv_linenum, address, newnameserver->conf.file, newnameserver->conf.line);
+					memprintf(&warnmsg, "%sParsing [/etc/resolv.conf:%d] : generated name for /etc/resolv.conf nameserver '%s' conflicts with another nameserver (declared at %s:%d), it appears to be a duplicate and will be excluded.\n",
+					          warnmsg ? warnmsg : "", resolv_linenum, address, newnameserver->conf.file, newnameserver->conf.line);
 					err_code |= ERR_WARN;
 					duplicate_name = 1;
 				}
@@ -3376,8 +3374,8 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 
 			memset(sk, 0, sizeof(*sk));
 			if (!str2ip2(address, sk, 1)) {
-				ha_warning("parsing [/etc/resolv.conf:%d] : address '%s' could not be recognized, nameserver will be excluded.\n",
-					   resolv_linenum, address);
+				memprintf(&warnmsg, "%sparsing [/etc/resolv.conf:%d] : address '%s' could not be recognized, nameserver will be excluded.\n",
+				          warnmsg ? warnmsg : "", resolv_linenum, address);
 				err_code |= ERR_WARN;
 				continue;
 			}
@@ -3386,20 +3384,20 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 
 			proto = protocol_lookup(sk->ss_family, PROTO_TYPE_STREAM, 0);
 			if (!proto || !proto->connect) {
-				ha_warning("parsing [/etc/resolv.conf:%d] : '%s' : connect() not supported for this address family.\n",
-					   resolv_linenum, address);
+				memprintf(&warnmsg, "%sparsing [/etc/resolv.conf:%d] : '%s' : connect() not supported for this address family.\n",
+				          warnmsg ? warnmsg : "", resolv_linenum, address);
 				err_code |= ERR_WARN;
 				continue;
 			}
 
 			if ((newnameserver = calloc(1, sizeof(*newnameserver))) == NULL) {
-				ha_alert("parsing [/etc/resolv.conf:%d] : out of memory.\n", resolv_linenum);
+				memprintf(&errmsg, "parsing [/etc/resolv.conf:%d] : out of memory.", resolv_linenum);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto resolv_out;
 			}
 
 			if (dns_dgram_init(newnameserver, sk) < 0) {
-				ha_alert("parsing [/etc/resolv.conf:%d] : out of memory.\n", resolv_linenum);
+				memprintf(&errmsg, "parsing [/etc/resolv.conf:%d] : out of memory.", resolv_linenum);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				free(newnameserver);
 				goto resolv_out;
@@ -3407,7 +3405,7 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 
 			newnameserver->conf.file = strdup("/etc/resolv.conf");
 			if (newnameserver->conf.file == NULL) {
-				ha_alert("parsing [/etc/resolv.conf:%d] : out of memory.\n", resolv_linenum);
+				memprintf(&errmsg, "parsing [/etc/resolv.conf:%d] : out of memory.", resolv_linenum);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				free(newnameserver);
 				goto resolv_out;
@@ -3415,7 +3413,7 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 
 			newnameserver->id = strdup(address);
 			if (newnameserver->id == NULL) {
-				ha_alert("parsing [/etc/resolv.conf:%d] : out of memory.\n", resolv_linenum);
+				memprintf(&errmsg, "parsing [/etc/resolv.conf:%d] : out of memory.", resolv_linenum);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				free((char *)newnameserver->conf.file);
 				free(newnameserver);
@@ -3429,6 +3427,18 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 		}
 
 resolv_out:
+		if (err_code & ERR_WARN) {
+			indent_msg(&warnmsg, 8);
+			ha_warning("parsing [%s:%d]: %s\n", file, linenum, warnmsg);
+			ha_free(&warnmsg);
+		}
+
+		if (err_code & ERR_ALERT) {
+			indent_msg(&errmsg, 8);
+			ha_alert("parsing [%s:%d]: %s\n", file, linenum, errmsg);
+			ha_free(&errmsg);
+		}
+
 		free(sk);
 		free(resolv_line);
 		if (f != NULL)
@@ -3574,8 +3584,9 @@ resolv_out:
 		goto out;
 	}
 
- out:
+out:
 	free(errmsg);
+	free(warnmsg);
 	return err_code;
 }
 int cfg_post_parse_resolvers()
