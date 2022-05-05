@@ -20,6 +20,7 @@
 #include <import/ebpttree.h>
 #include <import/ebsttree.h>
 
+#include <haproxy/applet.h>
 #include <haproxy/channel.h>
 #include <haproxy/cli.h>
 #include <haproxy/conn_stream.h>
@@ -30,6 +31,12 @@
 #include <haproxy/ssl_sock.h>
 #include <haproxy/tools.h>
 
+/* CLI context for "show ssl crt-list" or "dump ssl crt-list" */
+struct show_crtlist_ctx {
+	struct ebmb_node *crtlist_node;  /* ebmb_node for the current crtlist */
+	struct crtlist_entry *entry;     /* current entry */
+	int mode;                        /* 'd' for dump, 's' for show */
+};
 
 /* release ssl bind conf */
 void ssl_sock_free_ssl_conf(struct ssl_bind_conf *conf)
@@ -884,9 +891,12 @@ static void dump_crtlist_filters(struct buffer *buf, struct crtlist_entry *entry
 /************************** CLI functions ****************************/
 
 
-/* CLI IO handler for '(show|dump) ssl crt-list' */
+/* CLI IO handler for '(show|dump) ssl crt-list'.
+ * It uses show_crtlist_ctx for the context.
+ */
 static int cli_io_handler_dump_crtlist(struct appctx *appctx)
 {
+	struct show_crtlist_ctx *ctx = appctx->svcctx;
 	struct buffer *trash = alloc_trash_chunk();
 	struct conn_stream *cs = appctx->owner;
 	struct ebmb_node *lnode;
@@ -895,7 +905,7 @@ static int cli_io_handler_dump_crtlist(struct appctx *appctx)
 		return 1;
 
 	/* dump the list of crt-lists */
-	lnode = appctx->ctx.cli.p1;
+	lnode = ctx->crtlist_node;
 	if (lnode == NULL)
 		lnode = ebmb_first(&crtlists_tree);
 	while (lnode) {
@@ -909,7 +919,7 @@ static int cli_io_handler_dump_crtlist(struct appctx *appctx)
 	free_trash_chunk(trash);
 	return 1;
 yield:
-	appctx->ctx.cli.p1 = lnode;
+	ctx->crtlist_node = lnode;
 	free_trash_chunk(trash);
 	return 0;
 }
@@ -917,6 +927,7 @@ yield:
 /* CLI IO handler for '(show|dump) ssl crt-list <filename>' */
 static int cli_io_handler_dump_crtlist_entries(struct appctx *appctx)
 {
+	struct show_crtlist_ctx *ctx = appctx->svcctx;
 	struct buffer *trash = alloc_trash_chunk();
 	struct crtlist *crtlist;
 	struct conn_stream *cs = appctx->owner;
@@ -925,9 +936,9 @@ static int cli_io_handler_dump_crtlist_entries(struct appctx *appctx)
 	if (trash == NULL)
 		return 1;
 
-	crtlist = ebmb_entry(appctx->ctx.cli.p0, struct crtlist, node);
+	crtlist = ebmb_entry(ctx->crtlist_node, struct crtlist, node);
 
-	entry = appctx->ctx.cli.p1;
+	entry = ctx->entry;
 	if (entry == NULL) {
 		entry = LIST_ELEM((crtlist->ord_entries).n, typeof(entry), by_crtlist);
 		chunk_appendf(trash, "# %s\n", crtlist->node.key);
@@ -944,7 +955,7 @@ static int cli_io_handler_dump_crtlist_entries(struct appctx *appctx)
 		store = entry->node.key;
 		filename = store->path;
 		chunk_appendf(trash, "%s", filename);
-		if (appctx->ctx.cli.i0 == 's') /* show */
+		if (ctx->mode == 's') /* show */
 			chunk_appendf(trash, ":%d", entry->linenum);
 		dump_crtlist_sslconf(trash, entry->ssl_conf);
 		dump_crtlist_filters(trash, entry);
@@ -958,7 +969,7 @@ static int cli_io_handler_dump_crtlist_entries(struct appctx *appctx)
 	free_trash_chunk(trash);
 	return 1;
 yield:
-	appctx->ctx.cli.p1 = entry;
+	ctx->entry = entry;
 	free_trash_chunk(trash);
 	return 0;
 }
@@ -966,6 +977,7 @@ yield:
 /* CLI argument parser for '(show|dump) ssl crt-list' */
 static int cli_parse_dump_crtlist(char **args, char *payload, struct appctx *appctx, void *private)
 {
+	struct show_crtlist_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
 	struct ebmb_node *lnode;
 	char *filename = NULL;
 	int mode;
@@ -973,9 +985,6 @@ static int cli_parse_dump_crtlist(char **args, char *payload, struct appctx *app
 
 	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
 		return 1;
-
-	appctx->ctx.cli.p0 = NULL;
-	appctx->ctx.cli.p1 = NULL;
 
 	if (*args[3] && strcmp(args[3], "-n") == 0) {
 		mode = 's';
@@ -999,10 +1008,10 @@ static int cli_parse_dump_crtlist(char **args, char *payload, struct appctx *app
 		if (lnode == NULL)
 			return cli_err(appctx, "didn't find the specified filename\n");
 
-		appctx->ctx.cli.p0 = lnode;
+		ctx->crtlist_node = lnode;
 		appctx->io_handler = cli_io_handler_dump_crtlist_entries;
 	}
-	appctx->ctx.cli.i0 = mode;
+	ctx->mode = mode;
 
 	return 0;
 }
