@@ -191,6 +191,7 @@ struct show_keys_ctx {
 	struct tls_keys_ref *next_ref; /* next reference to be dumped */
 	int names_only;                /* non-zero = only show file names */
 	int next_index;                /* next index to be dumped */
+	int dump_entries;              /* dump entries also */
 };
 
 /* ssl_sock_io_cb is exported to see it resolved in "show fd" */
@@ -7214,15 +7215,9 @@ struct tls_keys_ref *tlskeys_ref_lookup_ref(const char *reference)
 
 #if (defined SSL_CTRL_SET_TLSEXT_TICKET_KEY_CB && TLS_TICKETS_NO > 0)
 
-static int cli_io_handler_tlskeys_files(struct appctx *appctx);
-
-static inline int cli_io_handler_tlskeys_entries(struct appctx *appctx) {
-	return cli_io_handler_tlskeys_files(appctx);
-}
-
 /* dumps all tls keys. Relies on the show_keys_ctx context from the appctx. */
-static int cli_io_handler_tlskeys_files(struct appctx *appctx) {
-
+static int cli_io_handler_tlskeys_files(struct appctx *appctx)
+{
 	struct show_keys_ctx *ctx = appctx->svcctx;
 	struct conn_stream *cs = appctx->owner;
 
@@ -7234,7 +7229,7 @@ static int cli_io_handler_tlskeys_files(struct appctx *appctx) {
 		 */
 		chunk_reset(&trash);
 
-		if (appctx->io_handler == cli_io_handler_tlskeys_entries)
+		if (ctx->dump_entries)
 			chunk_appendf(&trash, "# id secret\n");
 		else
 			chunk_appendf(&trash, "# id (file)\n");
@@ -7260,13 +7255,13 @@ static int cli_io_handler_tlskeys_files(struct appctx *appctx) {
 			struct tls_keys_ref *ref = ctx->next_ref;
 
 			chunk_reset(&trash);
-			if (appctx->io_handler == cli_io_handler_tlskeys_entries && ctx->next_index == 0)
+			if (ctx->dump_entries && ctx->next_index == 0)
 				chunk_appendf(&trash, "# ");
 
 			if (ctx->next_index == 0)
 				chunk_appendf(&trash, "%d (%s)\n", ref->unique_id, ref->filename);
 
-			if (appctx->io_handler == cli_io_handler_tlskeys_entries) {
+			if (ctx->dump_entries) {
 				int head;
 
 				HA_RWLOCK_RDLOCK(TLSKEYS_REF_LOCK, &ref->lock);
@@ -7341,7 +7336,6 @@ static int cli_parse_show_tlskeys(char **args, char *payload, struct appctx *app
 	/* no parameter, shows only file list */
 	if (!*args[2]) {
 		ctx->names_only = 1;
-		appctx->io_handler = cli_io_handler_tlskeys_files;
 		return 0;
 	}
 
@@ -7353,7 +7347,8 @@ static int cli_parse_show_tlskeys(char **args, char *payload, struct appctx *app
 		if (!ctx->next_ref)
 			return cli_err(appctx, "'show tls-keys' unable to locate referenced filename\n");
 	}
-	appctx->io_handler = cli_io_handler_tlskeys_entries;
+
+	ctx->dump_entries = 1;
 	return 0;
 }
 
@@ -7799,7 +7794,7 @@ yield:
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
 #if (defined SSL_CTRL_SET_TLSEXT_TICKET_KEY_CB && TLS_TICKETS_NO > 0)
-	{ { "show", "tls-keys", NULL },            "show tls-keys [id|*]                    : show tls keys references or dump tls ticket keys when id specified", cli_parse_show_tlskeys, NULL },
+	{ { "show", "tls-keys", NULL },            "show tls-keys [id|*]                    : show tls keys references or dump tls ticket keys when id specified", cli_parse_show_tlskeys, cli_io_handler_tlskeys_files },
 	{ { "set", "ssl", "tls-key", NULL },       "set ssl tls-key [id|file] <key>         : set the next TLS key for the <id> or <file> listener to <key>",      cli_parse_set_tlskeys, NULL },
 #endif
 	{ { "set", "ssl", "ocsp-response", NULL }, "set ssl ocsp-response <resp|payload>    : update a certificate's OCSP Response from a base64-encode DER",      cli_parse_set_ocspresponse, NULL },
