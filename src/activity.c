@@ -12,6 +12,7 @@
 
 #include <haproxy/activity-t.h>
 #include <haproxy/api.h>
+#include <haproxy/applet.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/clock.h>
 #include <haproxy/channel.h>
@@ -21,6 +22,14 @@
 #include <haproxy/freq_ctr.h>
 #include <haproxy/tools.h>
 #include <haproxy/xxhash.h>
+
+/* CLI context for the "show profiling" command */
+struct show_prof_ctx {
+	int dump_step;  /* 0,1,2,4,5,6; see cli_iohandler_show_profiling() */
+	int linenum;    /* next line to be dumped (starts at 0) */
+	int maxcnt;     /* max line count per step (0=not set)  */
+	int by_addr;    /* 0=sort by usage, 1=sort by address   */
+};
 
 #if defined(DEBUG_MEM_STATS)
 /* these ones are macros in bug.h when DEBUG_MEM_STATS is set, and will
@@ -590,21 +599,22 @@ struct sched_activity *sched_activity_entry(struct sched_activity *array, const 
 
 /* This function dumps all profiling settings. It returns 0 if the output
  * buffer is full and it needs to be called again, otherwise non-zero.
- * It dumps some parts depending on the following states:
- *    ctx.cli.i0:
+ * It dumps some parts depending on the following states from show_prof_ctx:
+ *    dump_step:
  *       0, 4: dump status, then jump to 1 if 0
  *       1, 5: dump tasks, then jump to 2 if 1
  *       2, 6: dump memory, then stop
- *    ctx.cli.i1:
+ *    linenum:
  *       restart line for each step (starts at zero)
- *    ctx.cli.o0:
+ *    maxcnt:
  *       may contain a configured max line count for each step (0=not set)
- *    ctx.cli.o1:
+ *    byaddr:
  *       0: sort by usage
  *       1: sort by address
  */
 static int cli_io_handler_show_profiling(struct appctx *appctx)
 {
+	struct show_prof_ctx *ctx = appctx->svcctx;
 	struct sched_activity tmp_activity[256] __attribute__((aligned(64)));
 #ifdef USE_MEMORY_PROFILING
 	struct memprof_stats tmp_memstats[MEMPROF_HASH_BUCKETS + 1];
@@ -629,7 +639,7 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 	default:                 str="off"; break;
 	}
 
-	if ((appctx->ctx.cli.i0 & 3) != 0)
+	if ((ctx->dump_step & 3) != 0)
 		goto skip_status;
 
 	chunk_printf(&trash,
@@ -643,30 +653,30 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 		return 0;
 	}
 
-	appctx->ctx.cli.i1 = 0; // reset first line to dump
-	if ((appctx->ctx.cli.i0 & 4) == 0)
-		appctx->ctx.cli.i0++; // next step
+	ctx->linenum = 0; // reset first line to dump
+	if ((ctx->dump_step & 4) == 0)
+		ctx->dump_step++; // next step
 
  skip_status:
-	if ((appctx->ctx.cli.i0 & 3) != 1)
+	if ((ctx->dump_step & 3) != 1)
 		goto skip_tasks;
 
 	memcpy(tmp_activity, sched_activity, sizeof(tmp_activity));
-	if (appctx->ctx.cli.o1)
+	if (ctx->by_addr)
 		qsort(tmp_activity, 256, sizeof(tmp_activity[0]), cmp_sched_activity_addr);
 	else
 		qsort(tmp_activity, 256, sizeof(tmp_activity[0]), cmp_sched_activity_calls);
 
-	if (!appctx->ctx.cli.i1)
+	if (!ctx->linenum)
 		chunk_appendf(&trash, "Tasks activity:\n"
 		                      "  function                      calls   cpu_tot   cpu_avg   lat_tot   lat_avg\n");
 
-	max_lines = appctx->ctx.cli.o0;
+	max_lines = ctx->maxcnt;
 	if (!max_lines)
 		max_lines = 256;
 
-	for (i = appctx->ctx.cli.i1; i < max_lines && tmp_activity[i].calls; i++) {
-		appctx->ctx.cli.i1 = i;
+	for (i = ctx->linenum; i < max_lines && tmp_activity[i].calls; i++) {
+		ctx->linenum = i;
 		chunk_reset(name_buffer);
 
 		if (!tmp_activity[i].func)
@@ -700,36 +710,36 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 		return 0;
 	}
 
-	appctx->ctx.cli.i1 = 0; // reset first line to dump
-	if ((appctx->ctx.cli.i0 & 4) == 0)
-		appctx->ctx.cli.i0++; // next step
+	ctx->linenum = 0; // reset first line to dump
+	if ((ctx->dump_step & 4) == 0)
+		ctx->dump_step++; // next step
 
  skip_tasks:
 
 #ifdef USE_MEMORY_PROFILING
-	if ((appctx->ctx.cli.i0 & 3) != 2)
+	if ((ctx->dump_step & 3) != 2)
 		goto skip_mem;
 
 	memcpy(tmp_memstats, memprof_stats, sizeof(tmp_memstats));
-	if (appctx->ctx.cli.o1)
+	if (ctx->by_addr)
 		qsort(tmp_memstats, MEMPROF_HASH_BUCKETS+1, sizeof(tmp_memstats[0]), cmp_memprof_addr);
 	else
 		qsort(tmp_memstats, MEMPROF_HASH_BUCKETS+1, sizeof(tmp_memstats[0]), cmp_memprof_stats);
 
-	if (!appctx->ctx.cli.i1)
+	if (!ctx->linenum)
 		chunk_appendf(&trash,
 		              "Alloc/Free statistics by call place:\n"
 		              "         Calls         |         Tot Bytes           |       Caller and method\n"
 		              "<- alloc -> <- free  ->|<-- alloc ---> <-- free ---->|\n");
 
-	max_lines = appctx->ctx.cli.o0;
+	max_lines = ctx->maxcnt;
 	if (!max_lines)
 		max_lines = MEMPROF_HASH_BUCKETS + 1;
 
-	for (i = appctx->ctx.cli.i1; i < max_lines; i++) {
+	for (i = ctx->linenum; i < max_lines; i++) {
 		struct memprof_stats *entry = &tmp_memstats[i];
 
-		appctx->ctx.cli.i1 = i;
+		ctx->linenum = i;
 		if (!entry->alloc_calls && !entry->free_calls)
 			continue;
 		chunk_appendf(&trash, "%11llu %11llu %14llu %14llu| %16p ",
@@ -784,9 +794,9 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 		return 0;
 	}
 
-	appctx->ctx.cli.i1 = 0; // reset first line to dump
-	if ((appctx->ctx.cli.i0 & 4) == 0)
-		appctx->ctx.cli.i0++; // next step
+	ctx->linenum = 0; // reset first line to dump
+	if ((ctx->dump_step & 4) == 0)
+		ctx->dump_step++; // next step
 
  skip_mem:
 #endif // USE_MEMORY_PROFILING
@@ -801,6 +811,7 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
  */
 static int cli_parse_show_profiling(char **args, char *payload, struct appctx *appctx, void *private)
 {
+	struct show_prof_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
 	int arg;
 
 	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
@@ -808,22 +819,22 @@ static int cli_parse_show_profiling(char **args, char *payload, struct appctx *a
 
 	for (arg = 2; *args[arg]; arg++) {
 		if (strcmp(args[arg], "all") == 0) {
-			appctx->ctx.cli.i0 = 0; // will cycle through 0,1,2; default
+			ctx->dump_step = 0; // will cycle through 0,1,2; default
 		}
 		else if (strcmp(args[arg], "status") == 0) {
-			appctx->ctx.cli.i0 = 4; // will visit status only
+			ctx->dump_step = 4; // will visit status only
 		}
 		else if (strcmp(args[arg], "tasks") == 0) {
-			appctx->ctx.cli.i0 = 5; // will visit tasks only
+			ctx->dump_step = 5; // will visit tasks only
 		}
 		else if (strcmp(args[arg], "memory") == 0) {
-			appctx->ctx.cli.i0 = 6; // will visit memory only
+			ctx->dump_step = 6; // will visit memory only
 		}
 		else if (strcmp(args[arg], "byaddr") == 0) {
-			appctx->ctx.cli.o1 = 1; // sort output by address instead of usage
+			ctx->by_addr = 1; // sort output by address instead of usage
 		}
 		else if (isdigit((unsigned char)*args[arg])) {
-			appctx->ctx.cli.o0 = atoi(args[arg]); // number of entries to dump
+			ctx->maxcnt = atoi(args[arg]); // number of entries to dump
 		}
 		else
 			return cli_err(appctx, "Expects either 'all', 'status', 'tasks', 'memory', 'byaddr' or a max number of output lines.\n");
