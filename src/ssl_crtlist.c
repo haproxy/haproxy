@@ -1061,68 +1061,64 @@ static int cli_io_handler_add_crtlist(struct appctx *appctx)
 	if (unlikely(cs_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
 		goto error;
 
-	while (1) {
-		switch (appctx->st2) {
-			case SETCERT_ST_INIT:
-				/* This state just print the update message */
-				chunk_printf(trash, "Inserting certificate '%s' in crt-list '%s'", store->path, crtlist->node.key);
-				if (ci_putchk(cs_ic(cs), trash) == -1) {
-					cs_rx_room_blk(cs);
-					goto yield;
-				}
-				appctx->st2 = SETCERT_ST_GEN;
-				/* fallthrough */
-			case SETCERT_ST_GEN:
-				bind_conf_node = appctx->ctx.cli.p2; /* get the previous ptr from the yield */
-				if (bind_conf_node == NULL)
-					bind_conf_node = crtlist->bind_conf;
-				for (; bind_conf_node; bind_conf_node = bind_conf_node->next) {
-					struct bind_conf *bind_conf = bind_conf_node->bind_conf;
-					struct sni_ctx *sni;
+	switch (appctx->st2) {
+	case SETCERT_ST_INIT:
+		/* This state just print the update message */
+		chunk_printf(trash, "Inserting certificate '%s' in crt-list '%s'", store->path, crtlist->node.key);
+		if (ci_putchk(cs_ic(cs), trash) == -1) {
+			cs_rx_room_blk(cs);
+			goto yield;
+		}
+		appctx->st2 = SETCERT_ST_GEN;
+		/* fallthrough */
+	case SETCERT_ST_GEN:
+		bind_conf_node = appctx->ctx.cli.p2; /* get the previous ptr from the yield */
+		if (bind_conf_node == NULL)
+			bind_conf_node = crtlist->bind_conf;
+		for (; bind_conf_node; bind_conf_node = bind_conf_node->next) {
+			struct bind_conf *bind_conf = bind_conf_node->bind_conf;
+			struct sni_ctx *sni;
 
-					/* yield every 10 generations */
-					if (i > 10) {
-						appctx->ctx.cli.p2 = bind_conf_node;
-						goto yield;
-					}
+			/* yield every 10 generations */
+			if (i > 10) {
+				appctx->ctx.cli.p2 = bind_conf_node;
+				goto yield;
+			}
 
-					/* we don't support multi-cert bundles, only simple ones */
-					errcode |= ckch_inst_new_load_store(store->path, store, bind_conf, entry->ssl_conf, entry->filters, entry->fcount, &new_inst, &err);
+			/* we don't support multi-cert bundles, only simple ones */
+			errcode |= ckch_inst_new_load_store(store->path, store, bind_conf, entry->ssl_conf, entry->filters, entry->fcount, &new_inst, &err);
+			if (errcode & ERR_CODE)
+				goto error;
+
+			/* we need to initialize the SSL_CTX generated */
+			/* this iterate on the newly generated SNIs in the new instance to prepare their SSL_CTX */
+			list_for_each_entry(sni, &new_inst->sni_ctx, by_ckch_inst) {
+				if (!sni->order) { /* we initialized only the first SSL_CTX because it's the same in the other sni_ctx's */
+					errcode |= ssl_sock_prep_ctx_and_inst(bind_conf, new_inst->ssl_conf, sni->ctx, sni->ckch_inst, &err);
 					if (errcode & ERR_CODE)
 						goto error;
-
-					/* we need to initialize the SSL_CTX generated */
-					/* this iterate on the newly generated SNIs in the new instance to prepare their SSL_CTX */
-					list_for_each_entry(sni, &new_inst->sni_ctx, by_ckch_inst) {
-						if (!sni->order) { /* we initialized only the first SSL_CTX because it's the same in the other sni_ctx's */
-							errcode |= ssl_sock_prep_ctx_and_inst(bind_conf, new_inst->ssl_conf, sni->ctx, sni->ckch_inst, &err);
-							if (errcode & ERR_CODE)
-								goto error;
-						}
-					}
-					/* display one dot for each new instance */
-					chunk_appendf(trash, ".");
-					i++;
-					LIST_APPEND(&store->ckch_inst, &new_inst->by_ckchs);
-					LIST_APPEND(&entry->ckch_inst, &new_inst->by_crtlist_entry);
-					new_inst->crtlist_entry = entry;
 				}
-				appctx->st2 = SETCERT_ST_INSERT;
-				/* fallthrough */
-			case SETCERT_ST_INSERT:
-				/* insert SNIs in bind_conf */
-				list_for_each_entry(new_inst, &store->ckch_inst, by_ckchs) {
-					HA_RWLOCK_WRLOCK(SNI_LOCK, &new_inst->bind_conf->sni_lock);
-					ssl_sock_load_cert_sni(new_inst, new_inst->bind_conf);
-					HA_RWLOCK_WRUNLOCK(SNI_LOCK, &new_inst->bind_conf->sni_lock);
-				}
-				entry->linenum = ++crtlist->linecount;
-				appctx->st2 = SETCERT_ST_FIN;
-				goto end;
+			}
+			/* display one dot for each new instance */
+			chunk_appendf(trash, ".");
+			i++;
+			LIST_APPEND(&store->ckch_inst, &new_inst->by_ckchs);
+			LIST_APPEND(&entry->ckch_inst, &new_inst->by_crtlist_entry);
+			new_inst->crtlist_entry = entry;
 		}
+		appctx->st2 = SETCERT_ST_INSERT;
+		/* fallthrough */
+	case SETCERT_ST_INSERT:
+		/* insert SNIs in bind_conf */
+		list_for_each_entry(new_inst, &store->ckch_inst, by_ckchs) {
+			HA_RWLOCK_WRLOCK(SNI_LOCK, &new_inst->bind_conf->sni_lock);
+			ssl_sock_load_cert_sni(new_inst, new_inst->bind_conf);
+			HA_RWLOCK_WRUNLOCK(SNI_LOCK, &new_inst->bind_conf->sni_lock);
+		}
+		entry->linenum = ++crtlist->linecount;
+		appctx->st2 = SETCERT_ST_FIN;
 	}
 
-end:
 	chunk_appendf(trash, "\n");
 	if (errcode & ERR_WARN)
 		chunk_appendf(trash, "%s", err);
