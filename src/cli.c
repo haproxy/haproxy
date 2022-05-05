@@ -86,6 +86,12 @@ extern const char *stat_status_codes[];
 
 struct proxy *mworker_proxy; /* CLI proxy of the master */
 
+/* CLI context for the "show fd" command */
+struct show_fd_ctx {
+	int fd;          /* first FD to show */
+	int show_one;    /* stop after showing one FD */
+};
+
 static int cmp_kw_entries(const void *a, const void *b)
 {
 	const struct cli_kw *l = *(const struct cli_kw **)a;
@@ -1235,13 +1241,15 @@ static int cli_io_handler_show_env(struct appctx *appctx)
 
 /* This function dumps all file descriptors states (or the requested one) to
  * the buffer. It returns 0 if the output buffer is full and it needs to be
- * called again, otherwise non-zero. Dumps only one entry if st2 == STAT_ST_END.
- * It uses cli.i0 as the fd number to restart from.
+ * called again, otherwise non-zero. It takes its context from the show_fd_ctx
+ * in svcctx, only dumps one entry if ->show_one is non-zero, and (re)starts
+ * from ->fd.
  */
 static int cli_io_handler_show_fd(struct appctx *appctx)
 {
 	struct conn_stream *cs = appctx->owner;
-	int fd = appctx->ctx.cli.i0;
+	struct show_fd_ctx *fdctx = appctx->svcctx;
+	int fd = fdctx->fd;
 	int ret = 1;
 
 	if (unlikely(cs_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
@@ -1413,12 +1421,12 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 
 		if (ci_putchk(cs_ic(cs), &trash) == -1) {
 			cs_rx_room_blk(cs);
-			appctx->ctx.cli.i0 = fd;
+			fdctx->fd = fd;
 			ret = 0;
 			break;
 		}
 	skip:
-		if (appctx->st2 == STAT_ST_END)
+		if (fdctx->show_one)
 			break;
 
 		fd++;
@@ -1654,19 +1662,19 @@ static int cli_parse_show_env(char **args, char *payload, struct appctx *appctx,
 }
 
 /* parse a "show fd" CLI request. Returns 0 if it needs to continue, 1 if it
- * wants to stop here. It puts the FD number into cli.i0 if a specific FD is
- * requested and sets st2 to STAT_ST_END, otherwise leaves 0 in i0.
+ * wants to stop here. It sets a show_fd_ctx context where, if a specific fd is
+ * requested, it puts the FD number into ->fd and sets ->show_one to 1.
  */
 static int cli_parse_show_fd(char **args, char *payload, struct appctx *appctx, void *private)
 {
+	struct show_fd_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
+
 	if (!cli_has_level(appctx, ACCESS_LVL_OPER))
 		return 1;
 
-	appctx->ctx.cli.i0 = 0;
-
 	if (*args[2]) {
-		appctx->ctx.cli.i0 = atoi(args[2]);
-		appctx->st2 = STAT_ST_END;
+		ctx->fd = atoi(args[2]);
+		ctx->show_one = 1;
 	}
 	return 0;
 }
