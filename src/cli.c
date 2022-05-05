@@ -86,6 +86,12 @@ extern const char *stat_status_codes[];
 
 struct proxy *mworker_proxy; /* CLI proxy of the master */
 
+/* CLI context for the "show env" command */
+struct show_env_ctx {
+	char **var;      /* first variable to show */
+	int show_one;    /* stop after showing the first one */
+};
+
 /* CLI context for the "show fd" command */
 struct show_fd_ctx {
 	int fd;          /* first FD to show */
@@ -1206,13 +1212,14 @@ static void cli_release_handler(struct appctx *appctx)
 
 /* This function dumps all environmnent variables to the buffer. It returns 0
  * if the output buffer is full and it needs to be called again, otherwise
- * non-zero. Dumps only one entry if st2 == STAT_ST_END. It uses cli.p0 as the
- * pointer to the current variable.
+ * non-zero. It takes its context from the show_env_ctx in svcctx, and will
+ * start from ->var and dump only one variable if ->show_one is set.
  */
 static int cli_io_handler_show_env(struct appctx *appctx)
 {
+	struct show_env_ctx *ctx = appctx->svcctx;
 	struct conn_stream *cs = appctx->owner;
-	char **var = appctx->ctx.cli.p0;
+	char **var = ctx->var;
 
 	if (unlikely(cs_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
 		return 1;
@@ -1229,10 +1236,10 @@ static int cli_io_handler_show_env(struct appctx *appctx)
 			cs_rx_room_blk(cs);
 			return 0;
 		}
-		if (appctx->st2 == STAT_ST_END)
+		if (ctx->show_one)
 			break;
 		var++;
-		appctx->ctx.cli.p0 = var;
+		ctx->var = var;
 	}
 
 	/* dump complete */
@@ -1631,11 +1638,13 @@ static int cli_io_handler_show_cli_sock(struct appctx *appctx)
 
 
 /* parse a "show env" CLI request. Returns 0 if it needs to continue, 1 if it
- * wants to stop here. It puts the variable to be dumped into cli.p0 if a single
- * variable is requested otherwise puts environ there.
+ * wants to stop here. It reserves a sohw_env_ctx where it puts the variable to
+ * be dumped as well as a flag if a single variable is requested, otherwise puts
+ * environ there.
  */
 static int cli_parse_show_env(char **args, char *payload, struct appctx *appctx, void *private)
 {
+	struct show_env_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
 	extern char **environ;
 	char **var;
 
@@ -1655,9 +1664,9 @@ static int cli_parse_show_env(char **args, char *payload, struct appctx *appctx,
 		if (!*var)
 			return cli_err(appctx, "Variable not found\n");
 
-		appctx->st2 = STAT_ST_END;
+		ctx->show_one = 1;
 	}
-	appctx->ctx.cli.p0 = var;
+	ctx->var = var;
 	return 0;
 }
 
