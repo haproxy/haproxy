@@ -2835,8 +2835,8 @@ static int cli_io_handler_show_backend(struct appctx *appctx)
 	for (; appctx->ctx.cli.p0 != NULL; appctx->ctx.cli.p0 = curproxy->next) {
 		curproxy = appctx->ctx.cli.p0;
 
-		/* looking for backends only */
-		if (!(curproxy->cap & PR_CAP_BE))
+		/* looking for non-internal backends only */
+		if ((curproxy->cap & (PR_CAP_BE|PR_CAP_INT)) != PR_CAP_BE)
 			continue;
 
 		chunk_appendf(&trash, "%s\n", curproxy->id);
