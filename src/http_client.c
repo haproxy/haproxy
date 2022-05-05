@@ -1074,6 +1074,9 @@ static int httpclient_resolve_init()
 	memprintf(&do_resolve, "do-resolve(txn.hc_ip,%s%s%s)", resolvers_id, resolvers_prefer ? "," : "", resolvers_prefer ? resolvers_prefer : "");
 	http_rules[1][0] = do_resolve;
 
+	/* Try to create the default resolvers section */
+	resolvers_create_default();
+
 	/* if the resolver does not exist and no hard_error was set, simply ignore resolving */
 	if (!find_resolvers_by_id(resolvers_id) && !hard_error_resolvers) {
 		free(do_resolve);

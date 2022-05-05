@@ -3628,6 +3628,25 @@ out:
 	free(warnmsg);
 	return err_code;
 }
+
+/* try to create a "default" resolvers section which uses "/etc/resolv.conf"
+ *
+ * This function is opportunistic and does not try to display errors or warnings.
+ */
+int resolvers_create_default()
+{
+	int err_code = 0;
+
+	if (find_resolvers_by_id("default"))
+		return 0;
+
+	err_code |= resolvers_new(&curr_resolvers, "default", "<internal>", 0);
+	if (!(err_code & ERR_CODE))
+		err_code |= parse_resolve_conf(NULL, NULL);
+
+	return 0;
+}
+
 int cfg_post_parse_resolvers()
 {
 	int err_code = 0;
@@ -3658,3 +3677,4 @@ int cfg_post_parse_resolvers()
 REGISTER_CONFIG_SECTION("resolvers",      cfg_parse_resolvers, cfg_post_parse_resolvers);
 REGISTER_POST_DEINIT(resolvers_deinit);
 REGISTER_CONFIG_POSTPARSER("dns runtime resolver", resolvers_finalize_config);
+REGISTER_PRE_CHECK(resolvers_create_default);
