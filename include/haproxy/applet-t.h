@@ -115,9 +115,14 @@ struct appctx {
 				const char *msg;        /* pointer to a persistent message to be returned in CLI_ST_PRINT state */
 				int severity;           /* severity of the message to be returned according to (syslog) rfc5424 */
 				char *err;              /* pointer to a 'must free' message to be returned in CLI_ST_PRINT_FREE state */
-				void *p0, *p1, *p2;     /* ...registered commands, initialized to 0 by the CLI before first... */
-				size_t o0, o1;          /* ...invocation of the keyword parser, except for the list element which... */
-				int i0, i1;             /* ...is initialized with LIST_INIT(). */
+				/* WARNING: the entries below are only kept for compatibility
+				 * with possible external code but will disappear in 2.7, you
+				 * must use the cleaner svcctx now (look at "show fd" for an
+				 * example).
+				 */
+				 __attribute__((deprecated)) void *p0, *p1, *p2;
+				 __attribute__((deprecated)) size_t o0, o1;
+				 __attribute__((deprecated)) int i0, i1;
 			} cli;                          /* context used by the CLI */
 			struct {
 				struct cache_entry *entry;  /* Entry to be sent from cache. */
