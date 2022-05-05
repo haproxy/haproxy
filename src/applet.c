@@ -26,25 +26,7 @@ unsigned int nb_applets = 0;
 
 DECLARE_POOL(pool_head_appctx,  "appctx",  sizeof(struct appctx));
 
-/* Initializes all required fields for a new appctx. Note that it does the
- * minimum acceptable initialization for an appctx. This means only the
- * 3 integer states st0, st1, st2 and the chunk used to gather unfinished
- * commands are zeroed
- */
-static inline void appctx_init(struct appctx *appctx)
-{
-	appctx->st0 = appctx->st1 = appctx->st2 = 0;
-	appctx->chunk = NULL;
-	appctx->io_release = NULL;
-	appctx->call_rate.curr_tick = 0;
-	appctx->call_rate.curr_ctr = 0;
-	appctx->call_rate.prev_ctr = 0;
-	appctx->state = 0;
-	memset(&appctx->svc, 0, sizeof(appctx->svc));
-	LIST_INIT(&appctx->wait_entry);
-}
-
-/* Tries to allocate a new appctx and initialize its main fields. The appctx
+/* Tries to allocate a new appctx and initialize all of its fields. The appctx
  * is returned on success, NULL on failure. The appctx must be released using
  * appctx_free(). <applet> is assigned as the applet, but it can be NULL. The
  * applet's task is always created on the current thread.
@@ -53,11 +35,11 @@ struct appctx *appctx_new(struct applet *applet, struct cs_endpoint *endp)
 {
 	struct appctx *appctx;
 
-	appctx = pool_alloc(pool_head_appctx);
+	appctx = pool_zalloc(pool_head_appctx);
 	if (unlikely(!appctx))
 		goto fail_appctx;
 
-	appctx_init(appctx);
+	LIST_INIT(&appctx->wait_entry);
 	appctx->obj_type = OBJ_TYPE_APPCTX;
 	appctx->applet = applet;
 
