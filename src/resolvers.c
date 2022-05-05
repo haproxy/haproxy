@@ -22,6 +22,7 @@
 
 #include <haproxy/action.h>
 #include <haproxy/api.h>
+#include <haproxy/applet.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/channel.h>
 #include <haproxy/check.h>
@@ -147,6 +148,13 @@ static struct stats_module rslv_stats_module = {
 };
 
 INITCALL1(STG_REGISTER, stats_register_module, &rslv_stats_module);
+
+/* CLI context used during "show resolvers" */
+struct show_resolvers_ctx {
+	struct resolvers *forced_section;
+	struct resolvers *resolvers;
+	struct dns_nameserver *ns;
+};
 
 /* Returns a pointer to the resolvers matching the id <id>. NULL is returned if
  * no match is found.
@@ -2722,19 +2730,22 @@ alloc_failed:
 	return 0;
 }
 
-/* if an arg is found, it sets the resolvers section pointer into cli.p0 */
+/* if an arg is found, it sets the optional resolvers section pointer into a
+ * show_resolvers_ctx struct pointed to by svcctx, or NULL when dumping all.
+ */
 static int cli_parse_stat_resolvers(char **args, char *payload, struct appctx *appctx, void *private)
 {
+	struct show_resolvers_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
 	struct resolvers *presolvers;
 
 	if (*args[2]) {
 		list_for_each_entry(presolvers, &sec_resolvers, list) {
 			if (strcmp(presolvers->id, args[2]) == 0) {
-				appctx->ctx.cli.p0 = presolvers;
+				ctx->forced_section = presolvers;
 				break;
 			}
 		}
-		if (appctx->ctx.cli.p0 == NULL)
+		if (ctx->forced_section == NULL)
 			return cli_err(appctx, "Can't find that resolvers section\n");
 	}
 	return 0;
@@ -2742,14 +2753,15 @@ static int cli_parse_stat_resolvers(char **args, char *payload, struct appctx *a
 
 /* Dumps counters from all resolvers section and associated name servers. It
  * returns 0 if the output buffer is full and it needs to be called again,
- * otherwise non-zero. It may limit itself to the resolver pointed to by
- * <cli.p0> if it's not null, and takes the current resolver section from p1
- * and the current resolver from p2.
+ * otherwise non-zero. It may limit itself to the resolver pointed to by the
+ * <resolvers> field of struct show_resolvers_ctx pointed to by <svcctx> if
+ * it's not null.
  */
 static int cli_io_handler_dump_resolvers_to_buffer(struct appctx *appctx)
 {
+	struct show_resolvers_ctx *ctx = appctx->svcctx;
 	struct conn_stream *cs = appctx->owner;
-	struct resolvers    *resolvers = appctx->ctx.cli.p1;
+	struct resolvers    *resolvers = ctx->resolvers;
 	struct dns_nameserver   *ns;
 
 	chunk_reset(&trash);
@@ -2769,11 +2781,11 @@ static int cli_io_handler_dump_resolvers_to_buffer(struct appctx *appctx)
 				resolvers = LIST_ELEM(sec_resolvers.n, typeof(resolvers), list);
 
 			list_for_each_entry_from(resolvers, &sec_resolvers, list) {
-				if (appctx->ctx.cli.p0 != NULL && appctx->ctx.cli.p0 != resolvers)
+				if (ctx->forced_section != NULL && ctx->forced_section != resolvers)
 					continue;
 
-				appctx->ctx.cli.p1 = resolvers;
-				ns = appctx->ctx.cli.p2;
+				ctx->resolvers = resolvers;
+				ns = ctx->ns;
 
 				if (!ns) {
 					chunk_printf(&trash, "Resolvers section %s\n", resolvers->id);
@@ -2781,7 +2793,7 @@ static int cli_io_handler_dump_resolvers_to_buffer(struct appctx *appctx)
 						goto full;
 
 					ns = LIST_ELEM(resolvers->nameservers.n, typeof(ns), list);
-					appctx->ctx.cli.p2 = ns;
+					ctx->ns = ns;
 				}
 
 				list_for_each_entry_from(ns, &resolvers->nameservers, list) {
@@ -2804,13 +2816,13 @@ static int cli_io_handler_dump_resolvers_to_buffer(struct appctx *appctx)
 					chunk_appendf(&trash, "  outdated:    %lld\n",  ns->counters->app.resolver.outdated);
 					if (ci_putchk(cs_ic(cs), &trash) == -1)
 						goto full;
-					appctx->ctx.cli.p2 = ns;
+					ctx->ns = ns;
 				}
 
-				appctx->ctx.cli.p2 = NULL;
+				ctx->ns = NULL;
 
 				/* was this the only section to dump ? */
-				if (appctx->ctx.cli.p0)
+				if (ctx->forced_section)
 					break;
 			}
 		}
