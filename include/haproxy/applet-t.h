@@ -60,7 +60,6 @@ struct appctx {
 	unsigned int st0;          /* CLI state for stats, session state for peers */
 	unsigned int st1;          /* prompt/payload (bitwise OR of APPCTX_CLI_ST1_*) for stats, session error for peers */
 	struct buffer *chunk;       /* used to store unfinished commands */
-	unsigned int st2;          /* output state for stats, unused by peers  */
 	struct applet *applet;     /* applet this context refers to */
 	struct conn_stream *owner;
 	struct cs_endpoint *endp;
@@ -74,6 +73,15 @@ struct appctx {
 	struct task *t;                  /* task associated to the applet */
 	struct freq_ctr call_rate;       /* appctx call rate */
 	struct list wait_entry;          /* entry in a list of waiters for an event (e.g. ring events) */
+
+	/* WARNING: the entries below are only kept for compatibility with
+	 * possible external code but will disappear in 2.7, you must use the
+	 * cleaner svcctx now (look at "show fd" for an example).
+	 */
+	union {
+		__attribute__((deprecated)) unsigned int st2;
+		unsigned int _st2;
+	};
 
 	/* This anonymous union is temporary for 2.6 to avoid a new API change
 	 * after 2.6 while keeping the compatibility with pre-2.7 code.

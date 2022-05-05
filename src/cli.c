@@ -745,7 +745,7 @@ static int cli_parse_request(struct appctx *appctx)
 	int i = 0;
 	struct cli_kw *kw;
 
-	appctx->st2 = 0;
+	appctx->_st2 = 0;
 
 	/* temporary for 2.6: let's make sure we clean the whole shared
 	 * context.
