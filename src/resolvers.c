@@ -2766,73 +2766,63 @@ static int cli_io_handler_dump_resolvers_to_buffer(struct appctx *appctx)
 
 	chunk_reset(&trash);
 
-	switch (appctx->st2) {
-	case STAT_ST_INIT:
-		appctx->st2 = STAT_ST_LIST; /* let's start producing data */
-		/* fall through */
-
-	case STAT_ST_LIST:
-		if (LIST_ISEMPTY(&sec_resolvers)) {
-			if (ci_putstr(cs_ic(cs), "No resolvers found\n") == -1)
-				goto full;
-		}
-		else {
-			if (!resolvers)
-				resolvers = LIST_ELEM(sec_resolvers.n, typeof(resolvers), list);
-
-			list_for_each_entry_from(resolvers, &sec_resolvers, list) {
-				if (ctx->forced_section != NULL && ctx->forced_section != resolvers)
-					continue;
-
-				ctx->resolvers = resolvers;
-				ns = ctx->ns;
-
-				if (!ns) {
-					chunk_printf(&trash, "Resolvers section %s\n", resolvers->id);
-					if (ci_putchk(cs_ic(cs), &trash) == -1)
-						goto full;
-
-					ns = LIST_ELEM(resolvers->nameservers.n, typeof(ns), list);
-					ctx->ns = ns;
-				}
-
-				list_for_each_entry_from(ns, &resolvers->nameservers, list) {
-					chunk_reset(&trash);
-					chunk_appendf(&trash, " nameserver %s:\n", ns->id);
-					chunk_appendf(&trash, "  sent:        %lld\n", ns->counters->sent);
-					chunk_appendf(&trash, "  snd_error:   %lld\n", ns->counters->snd_error);
-					chunk_appendf(&trash, "  valid:       %lld\n", ns->counters->app.resolver.valid);
-					chunk_appendf(&trash, "  update:      %lld\n", ns->counters->app.resolver.update);
-					chunk_appendf(&trash, "  cname:       %lld\n", ns->counters->app.resolver.cname);
-					chunk_appendf(&trash, "  cname_error: %lld\n", ns->counters->app.resolver.cname_error);
-					chunk_appendf(&trash, "  any_err:     %lld\n", ns->counters->app.resolver.any_err);
-					chunk_appendf(&trash, "  nx:          %lld\n", ns->counters->app.resolver.nx);
-					chunk_appendf(&trash, "  timeout:     %lld\n", ns->counters->app.resolver.timeout);
-					chunk_appendf(&trash, "  refused:     %lld\n", ns->counters->app.resolver.refused);
-					chunk_appendf(&trash, "  other:       %lld\n", ns->counters->app.resolver.other);
-					chunk_appendf(&trash, "  invalid:     %lld\n", ns->counters->app.resolver.invalid);
-					chunk_appendf(&trash, "  too_big:     %lld\n", ns->counters->app.resolver.too_big);
-					chunk_appendf(&trash, "  truncated:   %lld\n", ns->counters->app.resolver.truncated);
-					chunk_appendf(&trash, "  outdated:    %lld\n",  ns->counters->app.resolver.outdated);
-					if (ci_putchk(cs_ic(cs), &trash) == -1)
-						goto full;
-					ctx->ns = ns;
-				}
-
-				ctx->ns = NULL;
-
-				/* was this the only section to dump ? */
-				if (ctx->forced_section)
-					break;
-			}
-		}
-
-		/* fall through */
-
-	default:
-		appctx->st2 = STAT_ST_FIN;
-		return 1;
+	if (LIST_ISEMPTY(&sec_resolvers)) {
+		if (ci_putstr(cs_ic(cs), "No resolvers found\n") == -1)
+			goto full;
 	}
+	else {
+		if (!resolvers)
+			resolvers = LIST_ELEM(sec_resolvers.n, typeof(resolvers), list);
+
+		list_for_each_entry_from(resolvers, &sec_resolvers, list) {
+			if (ctx->forced_section != NULL && ctx->forced_section != resolvers)
+				continue;
+
+			ctx->resolvers = resolvers;
+			ns = ctx->ns;
+
+			if (!ns) {
+				chunk_printf(&trash, "Resolvers section %s\n", resolvers->id);
+				if (ci_putchk(cs_ic(cs), &trash) == -1)
+					goto full;
+
+				ns = LIST_ELEM(resolvers->nameservers.n, typeof(ns), list);
+				ctx->ns = ns;
+			}
+
+			list_for_each_entry_from(ns, &resolvers->nameservers, list) {
+				chunk_reset(&trash);
+				chunk_appendf(&trash, " nameserver %s:\n", ns->id);
+				chunk_appendf(&trash, "  sent:        %lld\n", ns->counters->sent);
+				chunk_appendf(&trash, "  snd_error:   %lld\n", ns->counters->snd_error);
+				chunk_appendf(&trash, "  valid:       %lld\n", ns->counters->app.resolver.valid);
+				chunk_appendf(&trash, "  update:      %lld\n", ns->counters->app.resolver.update);
+				chunk_appendf(&trash, "  cname:       %lld\n", ns->counters->app.resolver.cname);
+				chunk_appendf(&trash, "  cname_error: %lld\n", ns->counters->app.resolver.cname_error);
+				chunk_appendf(&trash, "  any_err:     %lld\n", ns->counters->app.resolver.any_err);
+				chunk_appendf(&trash, "  nx:          %lld\n", ns->counters->app.resolver.nx);
+				chunk_appendf(&trash, "  timeout:     %lld\n", ns->counters->app.resolver.timeout);
+				chunk_appendf(&trash, "  refused:     %lld\n", ns->counters->app.resolver.refused);
+				chunk_appendf(&trash, "  other:       %lld\n", ns->counters->app.resolver.other);
+				chunk_appendf(&trash, "  invalid:     %lld\n", ns->counters->app.resolver.invalid);
+				chunk_appendf(&trash, "  too_big:     %lld\n", ns->counters->app.resolver.too_big);
+				chunk_appendf(&trash, "  truncated:   %lld\n", ns->counters->app.resolver.truncated);
+				chunk_appendf(&trash, "  outdated:    %lld\n",  ns->counters->app.resolver.outdated);
+				if (ci_putchk(cs_ic(cs), &trash) == -1)
+					goto full;
+				ctx->ns = ns;
+			}
+
+			ctx->ns = NULL;
+
+			/* was this the only section to dump ? */
+			if (ctx->forced_section)
+				break;
+		}
+	}
+
+	/* done! */
+	return 1;
  full:
 	/* the output buffer is full, retry later */
 	cs_rx_room_blk(cs);
