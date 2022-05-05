@@ -22375,12 +22375,18 @@ easier finding and understanding.
           rare, that the proxy blocked a chunked-encoding request from the
           client due to an invalid syntax, before the server responded. In this
           case, an HTTP 400 error is sent to the client and reported in the
-          logs.
+          logs. Finally, it may be due to an HTTP header rewrite failure on the
+          response. In this case, an HTTP 500 error is sent (see
+          "tune.maxrewrite" and "http-response strict-mode" for more
+          inforomation).
 
      PR   The proxy blocked the client's HTTP request, either because of an
           invalid HTTP syntax, in which case it returned an HTTP 400 error to
           the client, or because a deny filter matched, in which case it
-          returned an HTTP 403 error.
+          returned an HTTP 403 error.  It may also be due to an HTTP header
+          rewrite failure on the request. In this case, an HTTP 500 error is
+          sent (see "tune.maxrewrite" and "http-request strict-mode" for more
+          inforomation).
 
      PT   The proxy blocked the client's request and has tarpitted its
           connection before returning it a 500 server error. Nothing was sent
