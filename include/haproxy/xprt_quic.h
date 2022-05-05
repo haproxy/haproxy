@@ -477,6 +477,15 @@ static inline unsigned int quic_ack_delay_ms(struct quic_ack *ack_frm,
 	return (ack_frm->ack_delay << conn->tx.params.ack_delay_exponent) / 1000;
 }
 
+/* Returns the <ack_delay> field value in microsecond to be set in an ACK frame
+ * depending on the time the packet with a new largest packet number was received.
+ */
+static inline uint64_t quic_compute_ack_delay_us(unsigned int time_received,
+                                                 struct quic_conn *conn)
+{
+	return ((now_ms - time_received) * 1000) >> conn->tx.params.ack_delay_exponent;
+}
+
 /* Initialize <dst> transport parameters with default values (when absent)
  * from <quic_dflt_trasports_params>.
  * Never fails.
@@ -981,6 +990,7 @@ static inline void quic_pktns_init(struct quic_pktns *pktns)
 	pktns->tx.time_of_last_eliciting = 0;
 	pktns->tx.loss_time = TICK_ETERNITY;
 	pktns->tx.in_flight = 0;
+	pktns->tx.ack_delay = 0;
 
 	pktns->rx.largest_pn = -1;
 	pktns->rx.largest_acked_pn = -1;
@@ -988,6 +998,7 @@ static inline void quic_pktns_init(struct quic_pktns *pktns)
 	pktns->rx.arngs.sz = 0;
 	pktns->rx.arngs.enc_sz = 0;
 	pktns->rx.nb_aepkts_since_last_ack = 0;
+	pktns->rx.largest_time_received = 0;
 
 	pktns->flags = 0;
 }

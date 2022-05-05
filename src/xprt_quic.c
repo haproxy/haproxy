@@ -3621,6 +3621,7 @@ int qc_treat_rx_pkts(struct quic_enc_level *cur_el, struct quic_enc_level *next_
 {
 	struct eb64_node *node;
 	int64_t largest_pn = -1;
+	unsigned int largest_pn_time_received = 0;
 	struct quic_conn *qc = ctx->qc;
 	struct quic_enc_level *qel = cur_el;
 
@@ -3657,8 +3658,10 @@ int qc_treat_rx_pkts(struct quic_enc_level *cur_el, struct quic_enc_level *next_
 					qel->pktns->rx.nb_aepkts_since_last_ack++;
 					qc_idle_timer_rearm(qc, 1);
 				}
-				if (pkt->pn > largest_pn)
+				if (pkt->pn > largest_pn) {
 					largest_pn = pkt->pn;
+					largest_pn_time_received = pkt->time_received;
+				}
 				/* Update the list of ranges to acknowledge. */
 				if (!quic_update_ack_ranges_list(&qel->pktns->rx.arngs, &ar))
 					TRACE_DEVEL("Could not update ack range list",
@@ -3671,9 +3674,14 @@ int qc_treat_rx_pkts(struct quic_enc_level *cur_el, struct quic_enc_level *next_
 	}
 	HA_RWLOCK_WRUNLOCK(QUIC_LOCK, &qel->rx.pkts_rwlock);
 
-	/* Update the largest packet number. */
-	if (largest_pn != -1 && largest_pn > qel->pktns->rx.largest_pn)
+	if (largest_pn != -1 && largest_pn > qel->pktns->rx.largest_pn) {
+		/* Update the largest packet number. */
 		qel->pktns->rx.largest_pn = largest_pn;
+		/* Update the largest acknowledged packet timestamps */
+		qel->pktns->rx.largest_time_received = largest_pn_time_received;
+		qel->pktns->flags |= QUIC_FL_PKTNS_NEW_LARGEST_PN;
+	}
+
 	if (!qc_treat_rx_crypto_frms(qel, ctx))
 		goto err;
 
@@ -5787,9 +5795,15 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 	/* Build an ACK frame if required. */
 	ack_frm_len = 0;
 	if ((qel->pktns->flags & QUIC_FL_PKTNS_ACK_REQUIRED) && !qel->pktns->tx.pto_probe) {
+	    struct quic_arngs *arngs = &qel->pktns->rx.arngs;
 	    BUG_ON(eb_is_empty(&qel->pktns->rx.arngs.root));
-		ack_frm.tx_ack.ack_delay = 0;
-		ack_frm.tx_ack.arngs = &qel->pktns->rx.arngs;
+		ack_frm.tx_ack.arngs = arngs;
+		if (qel->pktns->flags & QUIC_FL_PKTNS_NEW_LARGEST_PN) {
+			qel->pktns->tx.ack_delay =
+				quic_compute_ack_delay_us(qel->pktns->rx.largest_time_received, qc);
+			qel->pktns->flags &= ~QUIC_FL_PKTNS_NEW_LARGEST_PN;
+		}
+		ack_frm.tx_ack.ack_delay = qel->pktns->tx.ack_delay;
 		/* XXX BE CAREFUL XXX : here we reserved at least one byte for the
 		 * smallest frame (PING) and <*pn_len> more for the packet number. Note
 		 * that from here, we do not know if we will have to send a PING frame.
@@ -6201,6 +6215,7 @@ struct task *quic_lstnr_dghdlr(struct task *t, void *ctx, unsigned int state)
 			if (!pkt)
 				goto err;
 
+			pkt->time_received = now_ms;
 			quic_rx_packet_refinc(pkt);
 			qc_lstnr_pkt_rcv(pos, end, pkt, first_pkt, dgram);
 			first_pkt = 0;

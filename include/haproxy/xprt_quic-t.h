@@ -395,6 +395,10 @@ struct quic_arngs {
 #define QUIC_FL_PKTNS_ACK_REQUIRED  (1UL << 1)
 /* Flag the packet number space as needing probing */
 #define QUIC_FL_PKTNS_PROBE_NEEDED  (1UL << 2)
+/* Flag the packet number space as having received a packet with a new largest
+ * packet number, to be acknowledege
+ */
+#define QUIC_FL_PKTNS_NEW_LARGEST_PN (1UL << 3)
 
 /* The maximum number of dgrams which may be sent upon PTO expirations. */
 #define QUIC_MAX_NB_PTO_DGRAMS         2
@@ -416,6 +420,8 @@ struct quic_pktns {
 		unsigned int pto_probe;
 		/* In flight bytes for this packet number space. */
 		size_t in_flight;
+		/* The acknowledgement delay of the packet with the largest packet number */
+		uint64_t ack_delay;
 	} tx;
 	struct {
 		/* Largest packet number */
@@ -424,6 +430,8 @@ struct quic_pktns {
 		int64_t largest_acked_pn;
 		struct quic_arngs arngs;
 		unsigned int nb_aepkts_since_last_ack;
+		/* The time the packet with the largest packet number was received */
+		uint64_t largest_time_received;
 	} rx;
 	unsigned int flags;
 };
@@ -483,6 +491,7 @@ struct quic_rx_packet {
 	/* Source address of this packet. */
 	struct sockaddr_storage saddr;
 	unsigned int flags;
+	unsigned int time_received;
 };
 
 /* QUIC datagram handler */
