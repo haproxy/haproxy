@@ -18,15 +18,16 @@ jobs:
         - TARGET: linux-glibc
           CC: gcc
           os: ubuntu-latest
-    env:
-      H2SPEC_VERSION: '2.6.0'
     steps:
     - uses: actions/checkout@v3
     - name: Install h2spec
+      id: install-h2spec
       run: |
-        curl -fsSL https://github.com/summerwind/h2spec/releases/download/v${H2SPEC_VERSION}/h2spec_linux_amd64.tar.gz -o h2spec.tar.gz
+        H2SPEC_VERSION=`curl --silent "https://api.github.com/repos/summerwind/h2spec/releases/latest" | jq -r -j '.tag_name'`
+        curl -fsSL https://github.com/summerwind/h2spec/releases/download/${H2SPEC_VERSION}/h2spec_linux_amd64.tar.gz -o h2spec.tar.gz
         tar xvf h2spec.tar.gz
         sudo install -m755 h2spec /usr/local/bin/h2spec
+        echo "::set-output name=version::${H2SPEC_VERSION}"
     - name: Compile HAProxy with ${{ matrix.CC }}
       run: |
         make -j$(nproc) all \
@@ -52,5 +53,5 @@ jobs:
         echo "::set-output name=version::$(haproxy -v |awk 'NR==1{print $3}')"
     - name: Launch HAProxy ${{ steps.show-version.outputs.version }}
       run: haproxy -f .github/h2spec.config -D
-    - name: Run h2spec
+    - name: Run h2spec ${{ steps.install-h2spec.outputs.version }}
       run: h2spec -Svtk -h 127.0.0.1 -p 8443
