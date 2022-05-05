@@ -43,6 +43,12 @@ struct add_crtlist_ctx {
 	struct crtlist *crtlist;
 	struct crtlist_entry *entry;
 	struct bind_conf_list *bind_conf_node;
+	enum {
+		ADDCRT_ST_INIT = 0,
+		ADDCRT_ST_GEN,
+		ADDCRT_ST_INSERT,
+		ADDCRT_ST_FIN,
+	} state;
 };
 
 /* release ssl bind conf */
@@ -1031,7 +1037,7 @@ static void cli_release_add_crtlist(struct appctx *appctx)
 	struct add_crtlist_ctx *ctx = appctx->svcctx;
 	struct crtlist_entry *entry = ctx->entry;
 
-	if (appctx->st2 != SETCERT_ST_FIN) {
+	if (ctx->state != ADDCRT_ST_FIN) {
 		struct ckch_inst *inst, *inst_s;
 		/* upon error free the ckch_inst and everything inside */
 		ebpt_delete(&entry->node);
@@ -1082,17 +1088,17 @@ static int cli_io_handler_add_crtlist(struct appctx *appctx)
 	if (unlikely(cs_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
 		goto error;
 
-	switch (appctx->st2) {
-	case SETCERT_ST_INIT:
+	switch (ctx->state) {
+	case ADDCRT_ST_INIT:
 		/* This state just print the update message */
 		chunk_printf(trash, "Inserting certificate '%s' in crt-list '%s'", store->path, crtlist->node.key);
 		if (ci_putchk(cs_ic(cs), trash) == -1) {
 			cs_rx_room_blk(cs);
 			goto yield;
 		}
-		appctx->st2 = SETCERT_ST_GEN;
+		ctx->state = ADDCRT_ST_GEN;
 		/* fallthrough */
-	case SETCERT_ST_GEN:
+	case ADDCRT_ST_GEN:
 		bind_conf_node = ctx->bind_conf_node; /* get the previous ptr from the yield */
 		if (bind_conf_node == NULL)
 			bind_conf_node = crtlist->bind_conf;
@@ -1127,9 +1133,9 @@ static int cli_io_handler_add_crtlist(struct appctx *appctx)
 			LIST_APPEND(&entry->ckch_inst, &new_inst->by_crtlist_entry);
 			new_inst->crtlist_entry = entry;
 		}
-		appctx->st2 = SETCERT_ST_INSERT;
+		ctx->state = ADDCRT_ST_INSERT;
 		/* fallthrough */
-	case SETCERT_ST_INSERT:
+	case ADDCRT_ST_INSERT:
 		/* insert SNIs in bind_conf */
 		list_for_each_entry(new_inst, &store->ckch_inst, by_ckchs) {
 			HA_RWLOCK_WRLOCK(SNI_LOCK, &new_inst->bind_conf->sni_lock);
@@ -1137,7 +1143,10 @@ static int cli_io_handler_add_crtlist(struct appctx *appctx)
 			HA_RWLOCK_WRUNLOCK(SNI_LOCK, &new_inst->bind_conf->sni_lock);
 		}
 		entry->linenum = ++crtlist->linecount;
-		appctx->st2 = SETCERT_ST_FIN;
+		ctx->state = ADDCRT_ST_FIN;
+		/* fallthrough */
+	default:
+		break;
 	}
 
 	chunk_appendf(trash, "\n");
@@ -1296,7 +1305,7 @@ static int cli_parse_add_crtlist(char **args, char *payload, struct appctx *appc
 	entry->crtlist = crtlist;
 	LIST_APPEND(&store->crtlist_entry, &entry->by_ckch_store);
 
-	appctx->st2 = SETCERT_ST_INIT;
+	ctx->state = ADDCRT_ST_INIT;
 	ctx->crtlist = crtlist;
 	ctx->entry = entry;
 
