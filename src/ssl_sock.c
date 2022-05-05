@@ -7425,7 +7425,9 @@ static int cli_parse_set_ocspresponse(char **args, char *payload, struct appctx 
 static int cli_io_handler_show_ocspresponse_detail(struct appctx *appctx);
 #endif
 
-/* parsing function for 'show ssl ocsp-response [id]' */
+/* parsing function for 'show ssl ocsp-response [id]'. If an entry is forced,
+ * it's set into appctx->svcctx.
+ */
 static int cli_parse_show_ocspresponse(char **args, char *payload, struct appctx *appctx, void *private)
 {
 #if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) && !defined OPENSSL_IS_BORINGSSL)
@@ -7452,7 +7454,7 @@ static int cli_parse_show_ocspresponse(char **args, char *payload, struct appctx
 			return cli_err(appctx, "Certificate ID does not match any certificate.\n");
 		}
 
-		appctx->ctx.cli.p0 = ocsp;
+		appctx->svcctx = ocsp;
 		appctx->io_handler = cli_io_handler_show_ocspresponse_detail;
 	}
 
@@ -7493,6 +7495,7 @@ static inline int ocsp_certid_print(BIO *bp, OCSP_CERTID *certid, int indent)
 /*
  * IO handler of "show ssl ocsp-response". The command taking a specific ID
  * is managed in cli_io_handler_show_ocspresponse_detail.
+ * The current entry is taken from appctx->svcctx.
  */
 static int cli_io_handler_show_ocspresponse(struct appctx *appctx)
 {
@@ -7515,11 +7518,11 @@ static int cli_io_handler_show_ocspresponse(struct appctx *appctx)
 	if ((bio = BIO_new(BIO_s_mem())) == NULL)
 		goto end;
 
-	if (!appctx->ctx.cli.p0) {
+	if (!appctx->svcctx) {
 		chunk_appendf(trash, "# Certificate IDs\n");
 		node = ebmb_first(&cert_ocsp_tree);
 	} else {
-		node = &((struct certificate_ocsp *)appctx->ctx.cli.p0)->key;
+		node = &((struct certificate_ocsp *)appctx->svcctx)->key;
 	}
 
 	while (node) {
@@ -7562,7 +7565,7 @@ static int cli_io_handler_show_ocspresponse(struct appctx *appctx)
 	}
 
 end:
-	appctx->ctx.cli.p0 = NULL;
+	appctx->svcctx = NULL;
 	if (trash)
 		free_trash_chunk(trash);
 	if (tmp)
@@ -7579,7 +7582,7 @@ yield:
 		free_trash_chunk(tmp);
 	if (bio)
 		BIO_free(bio);
-	appctx->ctx.cli.p0 = ocsp;
+	appctx->svcctx = ocsp;
 	return 0;
 #else
 	return cli_err(appctx, "HAProxy was compiled against a version of OpenSSL that doesn't support OCSP stapling.\n");
@@ -7760,14 +7763,14 @@ int ssl_get_ocspresponse_detail(unsigned char *ocsp_certid, struct buffer *out)
 }
 
 
-/* IO handler of details "show ssl ocsp-response <id>". */
+/* IO handler of details "show ssl ocsp-response <id>".
+ * The current entry is taken from appctx->svcctx.
+ */
 static int cli_io_handler_show_ocspresponse_detail(struct appctx *appctx)
 {
 	struct buffer *trash = alloc_trash_chunk();
-	struct certificate_ocsp *ocsp = NULL;
+	struct certificate_ocsp *ocsp = appctx->svcctx;
 	struct conn_stream *cs = appctx->owner;
-
-	ocsp = appctx->ctx.cli.p0;
 
 	if (trash == NULL)
 		return 1;
@@ -7781,7 +7784,8 @@ static int cli_io_handler_show_ocspresponse_detail(struct appctx *appctx)
 		cs_rx_room_blk(cs);
 		goto yield;
 	}
-	appctx->ctx.cli.p0 = NULL;
+
+	appctx->svcctx = NULL;
 	if (trash)
 		free_trash_chunk(trash);
 	return 1;
