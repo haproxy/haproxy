@@ -65,6 +65,10 @@ struct show_srv_ctx {
 	struct server *sv;      /* current server to dump or NULL */
 	uint only_pxid;         /* dump only this proxy ID when explicit */
 	int show_conn;          /* non-zero = "conn" otherwise "state" */
+	enum {
+		SHOW_SRV_HEAD = 0,
+		SHOW_SRV_LIST,
+	} state;
 };
 
 /* proxy->options */
@@ -2786,15 +2790,7 @@ static int cli_io_handler_servers_state(struct appctx *appctx)
 	struct conn_stream *cs = appctx->owner;
 	struct proxy *curproxy;
 
-	chunk_reset(&trash);
-
-	if (appctx->st2 == STAT_ST_INIT) {
-		if (!ctx->px)
-			ctx->px = proxies_list;
-		appctx->st2 = STAT_ST_HEAD;
-	}
-
-	if (appctx->st2 == STAT_ST_HEAD) {
+	if (ctx->state == SHOW_SRV_HEAD) {
 		if (ctx->show_conn == 0)
 			chunk_printf(&trash, "%d\n# %s\n", SRV_STATE_FILE_VERSION, SRV_STATE_FILE_FIELD_NAMES);
 		else
@@ -2806,10 +2802,12 @@ static int cli_io_handler_servers_state(struct appctx *appctx)
 			cs_rx_room_blk(cs);
 			return 0;
 		}
-		appctx->st2 = STAT_ST_INFO;
+		ctx->state = SHOW_SRV_LIST;
+
+		if (!ctx->px)
+			ctx->px = proxies_list;
 	}
 
-	/* STAT_ST_INFO */
 	for (; ctx->px != NULL; ctx->px = curproxy->next) {
 		curproxy = ctx->px;
 		/* servers are only in backends */
