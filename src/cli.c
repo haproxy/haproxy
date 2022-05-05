@@ -1530,11 +1530,11 @@ static int cli_io_handler_show_activity(struct appctx *appctx)
 
 /*
  * CLI IO handler for `show cli sockets`.
- * Uses ctx.cli.p0 to store the restart pointer.
+ * Uses ctx.cli.p0 to store the bind_conf pointer, and cli.p1 for the listener.
  */
 static int cli_io_handler_show_cli_sock(struct appctx *appctx)
 {
-	struct bind_conf *bind_conf;
+	struct bind_conf *bind_conf = appctx->ctx.cli.p0;
 	struct conn_stream *cs = appctx->owner;
 
 	chunk_reset(&trash);
@@ -1551,23 +1551,16 @@ static int cli_io_handler_show_cli_sock(struct appctx *appctx)
 
 		case STAT_ST_LIST:
 			if (global.cli_fe) {
-				list_for_each_entry(bind_conf, &global.cli_fe->conf.bind, by_fe) {
-					struct listener *l;
+				if (!bind_conf)
+					bind_conf = LIST_ELEM(global.cli_fe->conf.bind.n, typeof(bind_conf), by_fe);
 
-					/*
-					 * get the latest dumped node in appctx->ctx.cli.p0
-					 * if the current node is the first of the list
-					 */
+				list_for_each_entry_from(bind_conf, &global.cli_fe->conf.bind, by_fe) {
+					struct listener *l = appctx->ctx.cli.p1;
 
-					if (appctx->ctx.cli.p0  &&
-					    &bind_conf->by_fe == (&global.cli_fe->conf.bind)->n) {
-						/* change the current node to the latest dumped and continue the loop */
-						bind_conf = LIST_ELEM(appctx->ctx.cli.p0, typeof(bind_conf), by_fe);
-						continue;
-					}
+					if (!l)
+						l = LIST_ELEM(bind_conf->listeners.n, typeof(l), by_bind);
 
-					list_for_each_entry(l, &bind_conf->listeners, by_bind) {
-
+					list_for_each_entry_from(l, &bind_conf->listeners, by_bind) {
 						char addr[46];
 						char port[6];
 
@@ -1605,11 +1598,13 @@ static int cli_io_handler_show_cli_sock(struct appctx *appctx)
 						chunk_appendf(&trash, "all\n");
 
 						if (ci_putchk(cs_ic(cs), &trash) == -1) {
+							/* buffer full, we must yield */
+							appctx->ctx.cli.p0 = bind_conf;
+							appctx->ctx.cli.p1 = l;
 							cs_rx_room_blk(cs);
 							return 0;
 						}
 					}
-					appctx->ctx.cli.p0 = &bind_conf->by_fe; /* store the latest list node dumped */
 				}
 			}
 			/* fall through */
