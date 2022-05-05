@@ -98,6 +98,12 @@ struct show_fd_ctx {
 	int show_one;    /* stop after showing one FD */
 };
 
+/* CLI context for the "show cli sockets" command */
+struct show_sock_ctx {
+	struct bind_conf *bind_conf;
+	struct listener *listener;
+};
+
 static int cmp_kw_entries(const void *a, const void *b)
 {
 	const struct cli_kw *l = *(const struct cli_kw **)a;
@@ -1552,11 +1558,13 @@ static int cli_io_handler_show_activity(struct appctx *appctx)
 
 /*
  * CLI IO handler for `show cli sockets`.
- * Uses ctx.cli.p0 to store the bind_conf pointer, and cli.p1 for the listener.
+ * Uses the svcctx as a show_sock_ctx to store/retrieve the bind_conf and the
+ * listener pointers.
  */
 static int cli_io_handler_show_cli_sock(struct appctx *appctx)
 {
-	struct bind_conf *bind_conf = appctx->ctx.cli.p0;
+	struct show_sock_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
+	struct bind_conf *bind_conf = ctx->bind_conf;
 	struct conn_stream *cs = appctx->owner;
 
 	if (!global.cli_fe)
@@ -1572,7 +1580,7 @@ static int cli_io_handler_show_cli_sock(struct appctx *appctx)
 	}
 
 	list_for_each_entry_from(bind_conf, &global.cli_fe->conf.bind, by_fe) {
-		struct listener *l = appctx->ctx.cli.p1;
+		struct listener *l = ctx->listener;
 
 		if (!l)
 			l = LIST_ELEM(bind_conf->listeners.n, typeof(l), by_bind);
@@ -1615,8 +1623,8 @@ static int cli_io_handler_show_cli_sock(struct appctx *appctx)
 			chunk_appendf(&trash, "all\n");
 
 			if (ci_putchk(cs_ic(cs), &trash) == -1) {
-				appctx->ctx.cli.p0 = bind_conf;
-				appctx->ctx.cli.p1 = l;
+				ctx->bind_conf = bind_conf;
+				ctx->listener  = l;
 				goto full;
 			}
 		}
