@@ -1559,81 +1559,73 @@ static int cli_io_handler_show_cli_sock(struct appctx *appctx)
 	struct bind_conf *bind_conf = appctx->ctx.cli.p0;
 	struct conn_stream *cs = appctx->owner;
 
+	if (!global.cli_fe)
+		goto done;
+
 	chunk_reset(&trash);
 
-	switch (appctx->st2) {
-		case STAT_ST_INIT:
-			chunk_printf(&trash, "# socket lvl processes\n");
-			if (ci_putchk(cs_ic(cs), &trash) == -1) {
-				cs_rx_room_blk(cs);
-				return 0;
-			}
-			appctx->st2 = STAT_ST_LIST;
-			/* fall through */
-
-		case STAT_ST_LIST:
-			if (global.cli_fe) {
-				if (!bind_conf)
-					bind_conf = LIST_ELEM(global.cli_fe->conf.bind.n, typeof(bind_conf), by_fe);
-
-				list_for_each_entry_from(bind_conf, &global.cli_fe->conf.bind, by_fe) {
-					struct listener *l = appctx->ctx.cli.p1;
-
-					if (!l)
-						l = LIST_ELEM(bind_conf->listeners.n, typeof(l), by_bind);
-
-					list_for_each_entry_from(l, &bind_conf->listeners, by_bind) {
-						char addr[46];
-						char port[6];
-
-						if (l->rx.addr.ss_family == AF_UNIX) {
-							const struct sockaddr_un *un;
-
-							un = (struct sockaddr_un *)&l->rx.addr;
-							if (un->sun_path[0] == '\0') {
-								chunk_appendf(&trash, "abns@%s ", un->sun_path+1);
-							} else {
-								chunk_appendf(&trash, "unix@%s ", un->sun_path);
-							}
-						} else if (l->rx.addr.ss_family == AF_INET) {
-							addr_to_str(&l->rx.addr, addr, sizeof(addr));
-							port_to_str(&l->rx.addr, port, sizeof(port));
-							chunk_appendf(&trash, "ipv4@%s:%s ", addr, port);
-						} else if (l->rx.addr.ss_family == AF_INET6) {
-							addr_to_str(&l->rx.addr, addr, sizeof(addr));
-							port_to_str(&l->rx.addr, port, sizeof(port));
-							chunk_appendf(&trash, "ipv6@[%s]:%s ", addr, port);
-						} else if (l->rx.addr.ss_family == AF_CUST_SOCKPAIR) {
-							chunk_appendf(&trash, "sockpair@%d ", ((struct sockaddr_in *)&l->rx.addr)->sin_addr.s_addr);
-						} else
-							chunk_appendf(&trash, "unknown ");
-
-						if ((bind_conf->level & ACCESS_LVL_MASK) == ACCESS_LVL_ADMIN)
-							chunk_appendf(&trash, "admin ");
-						else if ((bind_conf->level & ACCESS_LVL_MASK) == ACCESS_LVL_OPER)
-							chunk_appendf(&trash, "operator ");
-						else if ((bind_conf->level & ACCESS_LVL_MASK) == ACCESS_LVL_USER)
-							chunk_appendf(&trash, "user ");
-						else
-							chunk_appendf(&trash, "  ");
-
-						chunk_appendf(&trash, "all\n");
-
-						if (ci_putchk(cs_ic(cs), &trash) == -1) {
-							/* buffer full, we must yield */
-							appctx->ctx.cli.p0 = bind_conf;
-							appctx->ctx.cli.p1 = l;
-							cs_rx_room_blk(cs);
-							return 0;
-						}
-					}
-				}
-			}
-			/* fall through */
-		default:
-			appctx->st2 = STAT_ST_FIN;
-			return 1;
+	if (!bind_conf) {
+		/* first call */
+		if (ci_putstr(cs_ic(cs), "# socket lvl processes\n") == -1)
+			goto full;
+		bind_conf = LIST_ELEM(global.cli_fe->conf.bind.n, typeof(bind_conf), by_fe);
 	}
+
+	list_for_each_entry_from(bind_conf, &global.cli_fe->conf.bind, by_fe) {
+		struct listener *l = appctx->ctx.cli.p1;
+
+		if (!l)
+			l = LIST_ELEM(bind_conf->listeners.n, typeof(l), by_bind);
+
+		list_for_each_entry_from(l, &bind_conf->listeners, by_bind) {
+			char addr[46];
+			char port[6];
+
+			if (l->rx.addr.ss_family == AF_UNIX) {
+				const struct sockaddr_un *un;
+
+				un = (struct sockaddr_un *)&l->rx.addr;
+				if (un->sun_path[0] == '\0') {
+					chunk_appendf(&trash, "abns@%s ", un->sun_path+1);
+				} else {
+					chunk_appendf(&trash, "unix@%s ", un->sun_path);
+				}
+			} else if (l->rx.addr.ss_family == AF_INET) {
+				addr_to_str(&l->rx.addr, addr, sizeof(addr));
+				port_to_str(&l->rx.addr, port, sizeof(port));
+				chunk_appendf(&trash, "ipv4@%s:%s ", addr, port);
+			} else if (l->rx.addr.ss_family == AF_INET6) {
+				addr_to_str(&l->rx.addr, addr, sizeof(addr));
+				port_to_str(&l->rx.addr, port, sizeof(port));
+				chunk_appendf(&trash, "ipv6@[%s]:%s ", addr, port);
+			} else if (l->rx.addr.ss_family == AF_CUST_SOCKPAIR) {
+				chunk_appendf(&trash, "sockpair@%d ", ((struct sockaddr_in *)&l->rx.addr)->sin_addr.s_addr);
+			} else
+				chunk_appendf(&trash, "unknown ");
+
+			if ((bind_conf->level & ACCESS_LVL_MASK) == ACCESS_LVL_ADMIN)
+				chunk_appendf(&trash, "admin ");
+			else if ((bind_conf->level & ACCESS_LVL_MASK) == ACCESS_LVL_OPER)
+				chunk_appendf(&trash, "operator ");
+			else if ((bind_conf->level & ACCESS_LVL_MASK) == ACCESS_LVL_USER)
+				chunk_appendf(&trash, "user ");
+			else
+				chunk_appendf(&trash, "  ");
+
+			chunk_appendf(&trash, "all\n");
+
+			if (ci_putchk(cs_ic(cs), &trash) == -1) {
+				appctx->ctx.cli.p0 = bind_conf;
+				appctx->ctx.cli.p1 = l;
+				goto full;
+			}
+		}
+	}
+ done:
+	return 1;
+ full:
+	cs_rx_room_blk(cs);
+	return 0;
 }
 
 
