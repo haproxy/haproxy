@@ -15,6 +15,7 @@
 
 #include <haproxy/action-t.h>
 #include <haproxy/api.h>
+#include <haproxy/applet.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/channel.h>
 #include <haproxy/cli.h>
@@ -63,6 +64,12 @@ struct cache_flt_conf {
 		char *name;          /* cache name used during conf parsing */
 	} c;
 	unsigned int flags;   /* CACHE_FLT_F_* */
+};
+
+/* CLI context used during "show cache" */
+struct show_cache_ctx {
+	struct cache *cache;
+	uint next_key;
 };
 
 
@@ -2556,22 +2563,24 @@ parse_cache_flt(char **args, int *cur_arg, struct proxy *px,
 	return -1;
 }
 
+/* It reserves a struct show_cache_ctx for the local variables */
 static int cli_parse_show_cache(char **args, char *payload, struct appctx *appctx, void *private)
 {
+	struct show_cache_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
+
 	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
 		return 1;
 
+	ctx->cache = LIST_ELEM((caches).n, typeof(struct cache *), list);
 	return 0;
 }
 
+/* It uses a struct show_cache_ctx for the local variables */
 static int cli_io_handler_show_cache(struct appctx *appctx)
 {
-	struct cache* cache = appctx->ctx.cli.p0;
+	struct show_cache_ctx *ctx = appctx->svcctx;
+	struct cache* cache = ctx->cache;
 	struct conn_stream *cs = appctx->owner;
-
-	if (cache == NULL) {
-		cache = LIST_ELEM((caches).n, typeof(struct cache *), list);
-	}
 
 	list_for_each_entry_from(cache, &caches, list) {
 		struct eb32_node *node = NULL;
@@ -2579,7 +2588,7 @@ static int cli_io_handler_show_cache(struct appctx *appctx)
 		struct cache_entry *entry;
 		unsigned int i;
 
-		next_key = appctx->ctx.cli.i0;
+		next_key = ctx->next_key;
 		if (!next_key) {
 			chunk_printf(&trash, "%p: %s (shctx:%p, available blocks:%d)\n", cache, cache->id, shctx_ptr(cache), shctx_ptr(cache)->nbav);
 			if (ci_putchk(cs_ic(cs), &trash) == -1) {
@@ -2588,7 +2597,7 @@ static int cli_io_handler_show_cache(struct appctx *appctx)
 			}
 		}
 
-		appctx->ctx.cli.p0 = cache;
+		ctx->cache = cache;
 
 		while (1) {
 
@@ -2596,7 +2605,7 @@ static int cli_io_handler_show_cache(struct appctx *appctx)
 			node = eb32_lookup_ge(&cache->entries, next_key);
 			if (!node) {
 				shctx_unlock(shctx_ptr(cache));
-				appctx->ctx.cli.i0 = 0;
+				ctx->next_key = 0;
 				break;
 			}
 
@@ -2616,7 +2625,7 @@ static int cli_io_handler_show_cache(struct appctx *appctx)
 				entry->eb.key = 0;
 			}
 
-			appctx->ctx.cli.i0 = next_key;
+			ctx->next_key = next_key;
 
 			shctx_unlock(shctx_ptr(cache));
 
