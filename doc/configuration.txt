@@ -15572,6 +15572,11 @@ This section is dedicated to host information related to name resolution in
 HAProxy. There can be as many as resolvers section as needed. Each section can
 contain many name servers.
 
+At startup, HAProxy tries to generate a resolvers section named "default", if
+no section was named this way in the configuration. This section is used by
+default by the httpclient and uses the parse-resolv-conf keyword. If HAProxy
+failed to generate automatically this section, no error or warning are emitted.
+
 When multiple name servers are configured in a resolvers section, then HAProxy
 uses the first valid response. In case of invalid responses, only the last one
 is treated. Purpose is to give the chance to a slow server to deliver a valid
