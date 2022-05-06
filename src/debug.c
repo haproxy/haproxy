@@ -138,7 +138,7 @@ void ha_dump_backtrace(struct buffer *buf, const char *prefix, int dump)
 }
 
 /* dump a backtrace of current thread's stack to stderr. */
-void ha_backtrace_to_stderr()
+void ha_backtrace_to_stderr(void)
 {
 	char area[2048];
 	struct buffer b = b_make(area, sizeof(area), 0, 0);
