@@ -130,6 +130,7 @@ struct global {
 	char *log_send_hostname;   /* set hostname in syslog header */
 	char *server_state_base;   /* path to a directory where server state files can be found */
 	char *server_state_file;   /* path to the file where server states are loaded from */
+	char *cluster_secret;      /* Secret defined as ASCII string */
 	struct {
 		int maxpollevents; /* max number of poll events at once */
 		int maxaccept;     /* max number of consecutive accept() */

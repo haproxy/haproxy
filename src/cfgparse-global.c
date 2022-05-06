@@ -45,7 +45,7 @@ static const char *common_kw_list[] = {
 	"log-tag", "spread-checks", "max-spread-checks", "cpu-map", "setenv",
 	"presetenv", "unsetenv", "resetenv", "strict-limits", "localpeer",
 	"numa-cpu-mapping", "defaults", "listen", "frontend", "backend",
-	"peers", "resolvers",
+	"peers", "resolvers", "cluster-secret",
 	NULL /* must be last */
 };
 
@@ -485,6 +485,22 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
+	}
+	else if (strcmp(args[0], "cluster-secret") == 0) {
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
+		if (*args[1] == 0) {
+			ha_alert("parsing [%s:%d] : expects an ASCII string argument.\n", file, linenum);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		if (global.cluster_secret != NULL) {
+			ha_alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT;
+			goto out;
+		}
+		ha_free(&global.cluster_secret);
+		global.cluster_secret = strdup(args[1]);
 	}
 	else if (strcmp(args[0], "uid") == 0) {
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))

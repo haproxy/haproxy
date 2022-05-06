@@ -2664,6 +2664,7 @@ void deinit(void)
 	ha_free(&global.log_send_hostname);
 	chunk_destroy(&global.log_tag);
 	ha_free(&global.chroot);
+	ha_free(&global.cluster_secret);
 	ha_free(&global.pidfile);
 	ha_free(&global.node);
 	ha_free(&global.desc);

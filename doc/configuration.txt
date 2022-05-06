@@ -992,6 +992,7 @@ The following keywords are supported in the "global" section :
  * Process management and security
    - ca-base
    - chroot
+   - cluster-secret
    - crt-base
    - cpu-map
    - daemon
@@ -1160,6 +1161,13 @@ chroot <jail dir>
   attacker to exploit the system. This only works when the process is started
   with superuser privileges. It is important to ensure that <jail_dir> is both
   empty and non-writable to anyone.
+
+cluster-secret <secret>
+  Define an ASCII string secret shared between several nodes belonging to the
+  same cluster. It could be used for different usages. It is at least used to
+  derive stateless reset tokens for all the QUIC connections instantiated by
+  this process. If you do not set this parameter, the stateless reset QUIC
+  feature will be silently disabled.
 
 close-spread-time <time>
   Define a time window during which idle connections and active connections

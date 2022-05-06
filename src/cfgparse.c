@@ -2450,6 +2450,7 @@ int check_config_validity()
 	struct cfg_postparser *postparser;
 	struct resolvers *curr_resolvers = NULL;
 	int i;
+	int diag_no_cluster_secret = 0;
 
 	bind_conf = NULL;
 	/*
@@ -3947,6 +3948,8 @@ out_uri_auth_compat:
 #ifdef USE_QUIC
 			/* override the accept callback for QUIC listeners. */
 			if (listener->flags & LI_F_QUIC_LISTENER) {
+				if (!global.cluster_secret)
+					diag_no_cluster_secret = 1;
 				listener->accept = quic_session_accept;
 				li_init_per_thr(listener);
 			}
@@ -3986,6 +3989,10 @@ out_uri_auth_compat:
 			cfgerr++;
 		}
 	}
+
+	if (diag_no_cluster_secret)
+		ha_diag_warning("No cluster secret was set. The stateless reset feature"
+		                " is disabled for all QUIC bindings.\n");
 
 	/*
 	 * Recount currently required checks.
