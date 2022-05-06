@@ -259,6 +259,16 @@ struct hlua_tcp_ctx {
 	struct task *task;
 };
 
+/* appctx context used by HTTP services */
+struct hlua_http_ctx {
+	struct hlua *hlua;
+	int left_bytes;         /* The max amount of bytes that we can read. */
+	int flags;
+	int status;
+	const char *reason;
+	struct task *task;
+};
+
 /* used by registered CLI keywords */
 struct hlua_cli_ctx {
 	struct hlua *hlua;
@@ -4703,9 +4713,12 @@ __LJMP static struct hlua_appctx *hlua_checkapplet_http(lua_State *L, int ud)
 
 /* This function creates and push in the stack an Applet object
  * according with a current TXN.
+ * It relies on the caller to have already reserved the room in ctx->svcctx
+ * for the local storage of hlua_http_ctx.
  */
 static int hlua_applet_http_new(lua_State *L, struct appctx *ctx)
 {
+	struct hlua_http_ctx *http_ctx = ctx->svcctx;
 	struct hlua_appctx *luactx;
 	struct hlua_txn htxn;
 	struct stream *s = __cs_strm(ctx->owner);
@@ -4730,8 +4743,8 @@ static int hlua_applet_http_new(lua_State *L, struct appctx *ctx)
 	luactx = lua_newuserdata(L, sizeof(*luactx));
 	lua_rawseti(L, -2, 0);
 	luactx->appctx = ctx;
-	luactx->appctx->ctx.hlua_apphttp.status = 200; /* Default status code returned. */
-	luactx->appctx->ctx.hlua_apphttp.reason = NULL; /* Use default reason based on status */
+	http_ctx->status = 200; /* Default status code returned. */
+	http_ctx->reason = NULL; /* Use default reason based on status */
 	luactx->htxn.s = s;
 	luactx->htxn.p = px;
 
@@ -5221,9 +5234,10 @@ __LJMP static int hlua_applet_http_send_yield(lua_State *L, int status, lua_KCon
 __LJMP static int hlua_applet_http_send(lua_State *L)
 {
 	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_http(L, 1));
+	struct hlua_http_ctx *http_ctx = luactx->appctx->svcctx;
 
 	/* We want to send some data. Headers must be sent. */
-	if (!(luactx->appctx->ctx.hlua_apphttp.flags & APPLET_HDR_SENT)) {
+	if (!(http_ctx->flags & APPLET_HDR_SENT)) {
 		hlua_pusherror(L, "Lua: 'send' you must call start_response() before sending data.");
 		WILL_LJMP(lua_error(L));
 	}
@@ -5291,14 +5305,15 @@ __LJMP static int hlua_applet_http_status(lua_State *L)
 	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_http(L, 1));
 	int status = MAY_LJMP(luaL_checkinteger(L, 2));
 	const char *reason = MAY_LJMP(luaL_optlstring(L, 3, NULL, NULL));
+	struct hlua_http_ctx *http_ctx = luactx->appctx->svcctx;
 
 	if (status < 100 || status > 599) {
 		lua_pushboolean(L, 0);
 		return 1;
 	}
 
-	luactx->appctx->ctx.hlua_apphttp.status = status;
-	luactx->appctx->ctx.hlua_apphttp.reason = reason;
+	http_ctx->status = status;
+	http_ctx->reason = reason;
 	lua_pushboolean(L, 1);
 	return 1;
 }
@@ -5307,6 +5322,7 @@ __LJMP static int hlua_applet_http_status(lua_State *L)
 __LJMP static int hlua_applet_http_send_response(lua_State *L)
 {
 	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_http(L, 1));
+	struct hlua_http_ctx *http_ctx = luactx->appctx->svcctx;
 	struct conn_stream *cs = luactx->appctx->owner;
 	struct channel *res = cs_ic(cs);
 	struct htx *htx;
@@ -5322,11 +5338,11 @@ __LJMP static int hlua_applet_http_send_response(lua_State *L)
 	h1m_init_res(&h1m);
 
 	/* Use the same http version than the request. */
-	status = ultoa_r(luactx->appctx->ctx.hlua_apphttp.status, trash.area, trash.size);
-	reason = luactx->appctx->ctx.hlua_apphttp.reason;
+	status = ultoa_r(http_ctx->status, trash.area, trash.size);
+	reason = http_ctx->reason;
 	if (reason == NULL)
-		reason = http_get_reason(luactx->appctx->ctx.hlua_apphttp.status);
-	if (luactx->appctx->ctx.hlua_apphttp.flags & APPLET_HTTP11) {
+		reason = http_get_reason(http_ctx->status);
+	if (http_ctx->flags & APPLET_HTTP11) {
 		flags = (HTX_SL_F_IS_RESP|HTX_SL_F_VER_11);
 		sl = htx_add_stline(htx, HTX_BLK_RES_SL, flags, ist("HTTP/1.1"), ist(status), ist(reason));
 	}
@@ -5339,7 +5355,7 @@ __LJMP static int hlua_applet_http_send_response(lua_State *L)
 		               luactx->appctx->rule->arg.hlua_rule->fcn->name);
 		WILL_LJMP(lua_error(L));
 	}
-	sl->info.res.status = luactx->appctx->ctx.hlua_apphttp.status;
+	sl->info.res.status = http_ctx->status;
 
 	/* Get the array associated to the field "response" in the object AppletHTTP. */
 	lua_pushvalue(L, 0);
@@ -5466,9 +5482,7 @@ __LJMP static int hlua_applet_http_send_response(lua_State *L)
 	 * chunked itself, don't do anything.
 	 */
 	if ((flags & (HTX_SL_F_VER_11|HTX_SL_F_XFER_LEN)) == HTX_SL_F_VER_11 &&
-	    luactx->appctx->ctx.hlua_apphttp.status >= 200 &&
-	    luactx->appctx->ctx.hlua_apphttp.status != 204 &&
-	    luactx->appctx->ctx.hlua_apphttp.status != 304) {
+	    http_ctx->status >= 200 && http_ctx->status != 204 && http_ctx->status != 304) {
 		/* Add a new header */
 		sl->flags |= (HTX_SL_F_XFER_ENC|H1_MF_CHNK|H1_MF_XFER_LEN);
 		if (!htx_add_header(htx, ist("transfer-encoding"), ist("chunked"))) {
@@ -5495,7 +5509,7 @@ __LJMP static int hlua_applet_http_send_response(lua_State *L)
 	channel_add_input(res, htx->data);
 
 	/* Headers sent, set the flag. */
-	luactx->appctx->ctx.hlua_apphttp.flags |= APPLET_HDR_SENT;
+	http_ctx->flags |= APPLET_HDR_SENT;
 	return 0;
 
 }
@@ -9404,10 +9418,11 @@ static void hlua_applet_tcp_release(struct appctx *ctx)
 
 /* The function returns 1 if the initialisation is complete, 0 if
  * an errors occurs and -1 if more data are required for initializing
- * the applet.
+ * the applet. It also reserves the appctx for an hlua_http_ctx.
  */
 static int hlua_applet_http_init(struct appctx *ctx)
 {
+	struct hlua_http_ctx *http_ctx = applet_reserve_svcctx(ctx, sizeof(*http_ctx));
 	struct conn_stream *cs = ctx->owner;
 	struct stream *strm = __cs_strm(cs);
 	struct http_txn *txn;
@@ -9424,12 +9439,12 @@ static int hlua_applet_http_init(struct appctx *ctx)
 		return 0;
 	}
 	HLUA_INIT(hlua);
-	ctx->ctx.hlua_apphttp.hlua = hlua;
-	ctx->ctx.hlua_apphttp.left_bytes = -1;
-	ctx->ctx.hlua_apphttp.flags = 0;
+	http_ctx->hlua = hlua;
+	http_ctx->left_bytes = -1;
+	http_ctx->flags = 0;
 
 	if (txn->req.flags & HTTP_MSGF_VER_11)
-		ctx->ctx.hlua_apphttp.flags |= APPLET_HTTP11;
+		http_ctx->flags |= APPLET_HTTP11;
 
 	/* Create task used by signal to wakeup applets. */
 	task = task_new_here();
@@ -9441,7 +9456,7 @@ static int hlua_applet_http_init(struct appctx *ctx)
 	task->nice = 0;
 	task->context = ctx;
 	task->process = hlua_applet_wakeup;
-	ctx->ctx.hlua_apphttp.task = task;
+	http_ctx->task = task;
 
 	/* In the execution wrappers linked with a stream, the
 	 * Lua context can be not initialized. This behavior
@@ -9510,13 +9525,14 @@ static int hlua_applet_http_init(struct appctx *ctx)
 
 void hlua_applet_http_fct(struct appctx *ctx)
 {
+	struct hlua_http_ctx *http_ctx = ctx->svcctx;
 	struct conn_stream *cs = ctx->owner;
 	struct stream *strm = __cs_strm(cs);
 	struct channel *req = cs_oc(cs);
 	struct channel *res = cs_ic(cs);
 	struct act_rule *rule = ctx->rule;
 	struct proxy *px = strm->be;
-	struct hlua *hlua = ctx->ctx.hlua_apphttp.hlua;
+	struct hlua *hlua = http_ctx->hlua;
 	struct htx *req_htx, *res_htx;
 
 	res_htx = htx_from_buf(&res->buf);
@@ -9532,11 +9548,11 @@ void hlua_applet_http_fct(struct appctx *ctx)
 	}
 	/* check that the output is not closed */
 	if (res->flags & (CF_SHUTW|CF_SHUTW_NOW|CF_SHUTR))
-		ctx->ctx.hlua_apphttp.flags |= APPLET_DONE;
+		http_ctx->flags |= APPLET_DONE;
 
 	/* Set the currently running flag. */
 	if (!HLUA_IS_RUNNING(hlua) &&
-	    !(ctx->ctx.hlua_apphttp.flags & APPLET_DONE)) {
+	    !(http_ctx->flags & APPLET_DONE)) {
 		if (!co_data(req)) {
 			cs_cant_get(cs);
 			goto out;
@@ -9544,19 +9560,19 @@ void hlua_applet_http_fct(struct appctx *ctx)
 	}
 
 	/* Executes The applet if it is not done. */
-	if (!(ctx->ctx.hlua_apphttp.flags & APPLET_DONE)) {
+	if (!(http_ctx->flags & APPLET_DONE)) {
 
 		/* Execute the function. */
 		switch (hlua_ctx_resume(hlua, 1)) {
 		/* finished. */
 		case HLUA_E_OK:
-			ctx->ctx.hlua_apphttp.flags |= APPLET_DONE;
+			http_ctx->flags |= APPLET_DONE;
 			break;
 
 		/* yield. */
 		case HLUA_E_AGAIN:
 			if (hlua->wake_time != TICK_ETERNITY)
-				task_schedule(ctx->ctx.hlua_apphttp.task, hlua->wake_time);
+				task_schedule(http_ctx->task, hlua->wake_time);
 			goto out;
 
 		/* finished with error. */
@@ -9593,11 +9609,11 @@ void hlua_applet_http_fct(struct appctx *ctx)
 		}
 	}
 
-	if (ctx->ctx.hlua_apphttp.flags & APPLET_DONE) {
-		if (ctx->ctx.hlua_apphttp.flags & APPLET_RSP_SENT)
+	if (http_ctx->flags & APPLET_DONE) {
+		if (http_ctx->flags & APPLET_RSP_SENT)
 			goto done;
 
-		if (!(ctx->ctx.hlua_apphttp.flags & APPLET_HDR_SENT))
+		if (!(http_ctx->flags & APPLET_HDR_SENT))
 			goto error;
 
 		/* no more data are expected. If the response buffer is empty
@@ -9616,12 +9632,12 @@ void hlua_applet_http_fct(struct appctx *ctx)
 		res_htx->flags |= HTX_FL_EOM;
 		cs->endp->flags |= CS_EP_EOI;
 		res->flags |= CF_EOI;
-		strm->txn->status = ctx->ctx.hlua_apphttp.status;
-		ctx->ctx.hlua_apphttp.flags |= APPLET_RSP_SENT;
+		strm->txn->status = http_ctx->status;
+		http_ctx->flags |= APPLET_RSP_SENT;
 	}
 
   done:
-	if (ctx->ctx.hlua_apphttp.flags & APPLET_DONE) {
+	if (http_ctx->flags & APPLET_DONE) {
 		if (!(res->flags & CF_SHUTR)) {
 			res->flags |= CF_READ_NULL;
 			cs_shutr(cs);
@@ -9646,7 +9662,7 @@ void hlua_applet_http_fct(struct appctx *ctx)
 	 * if there is no room available in the buffer,
 	 * just close the connection.
 	 */
-	if (!(ctx->ctx.hlua_apphttp.flags & APPLET_HDR_SENT)) {
+	if (!(http_ctx->flags & APPLET_HDR_SENT)) {
 		struct buffer *err = &http_err_chunks[HTTP_ERR_500];
 
 		channel_erase(res);
@@ -9657,16 +9673,18 @@ void hlua_applet_http_fct(struct appctx *ctx)
 	}
 	if (!(strm->flags & SF_ERR_MASK))
 		strm->flags |= SF_ERR_RESOURCE;
-	ctx->ctx.hlua_apphttp.flags |= APPLET_DONE;
+	http_ctx->flags |= APPLET_DONE;
 	goto done;
 }
 
 static void hlua_applet_http_release(struct appctx *ctx)
 {
-	task_destroy(ctx->ctx.hlua_apphttp.task);
-	ctx->ctx.hlua_apphttp.task = NULL;
-	hlua_ctx_destroy(ctx->ctx.hlua_apphttp.hlua);
-	ctx->ctx.hlua_apphttp.hlua = NULL;
+	struct hlua_http_ctx *http_ctx = ctx->svcctx;
+
+	task_destroy(http_ctx->task);
+	http_ctx->task = NULL;
+	hlua_ctx_destroy(http_ctx->hlua);
+	http_ctx->hlua = NULL;
 }
 
 /* global {tcp|http}-request parser. Return ACT_RET_PRS_OK in

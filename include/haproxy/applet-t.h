@@ -100,14 +100,6 @@ struct appctx {
 		} svc;                         /* generic storage for most commands */
 		union {
 			struct {
-				struct hlua *hlua;
-				int left_bytes;         /* The max amount of bytes that we can read. */
-				int flags;
-				int status;
-				const char *reason;
-				struct task *task;
-			} hlua_apphttp;                 /* used by the Lua HTTP services */
-			struct {
 				const char *msg;        /* pointer to a persistent message to be returned in CLI_ST_PRINT state */
 				int severity;           /* severity of the message to be returned according to (syslog) rfc5424 */
 				char *err;              /* pointer to a 'must free' message to be returned in CLI_ST_PRINT_FREE state */
