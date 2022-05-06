@@ -123,6 +123,44 @@ int quic_hkdf_expand(const EVP_MD *md,
     EVP_PKEY_CTX_free(ctx);
     return 0;
 }
+
+/* Extracts a peudo-random secret key from <key> which is eventually not
+ * pseudo-random and expand it to a new pseudo-random key into
+ * <buf> with <buflen> as key length according to HKDF specifications
+ * (https://datatracker.ietf.org/doc/html/rfc5869).
+ * According to this specifications it is highly recommended to use
+ * a salt, even if optional (NULL value).
+ * Return 1 if succeeded, 0 if not.
+ */
+int quic_hkdf_extract_and_expand(const EVP_MD *md,
+                                 unsigned char *buf, size_t buflen,
+                                 const unsigned char *key, size_t keylen,
+                                 const unsigned char *salt, size_t saltlen,
+                                 const unsigned char *label, size_t labellen)
+{
+	EVP_PKEY_CTX *ctx;
+
+	ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_HKDF, NULL);
+	if (!ctx)
+		return 0;
+
+	if (EVP_PKEY_derive_init(ctx) <= 0 ||
+	    EVP_PKEY_CTX_hkdf_mode(ctx, EVP_PKEY_HKDEF_MODE_EXTRACT_AND_EXPAND) <= 0 ||
+	    EVP_PKEY_CTX_set_hkdf_md(ctx, md) <= 0 ||
+	    EVP_PKEY_CTX_set1_hkdf_salt(ctx, salt, saltlen) <= 0 ||
+	    EVP_PKEY_CTX_set1_hkdf_key(ctx, key, keylen) <= 0 ||
+	    EVP_PKEY_CTX_add1_hkdf_info(ctx, label, labellen) <= 0 ||
+	    EVP_PKEY_derive(ctx, buf, &buflen) <= 0)
+		goto err;
+
+	EVP_PKEY_CTX_free(ctx);
+	return 1;
+
+ err:
+	EVP_PKEY_CTX_free(ctx);
+	return 0;
+}
+
 #endif
 
 /* https://quicwg.org/base-drafts/draft-ietf-quic-tls.html#protection-keys
