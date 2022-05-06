@@ -252,6 +252,13 @@ struct hlua_csk_ctx {
 	int die;
 };
 
+/* appctx context used by TCP services */
+struct hlua_tcp_ctx {
+	struct hlua *hlua;
+	int flags;
+	struct task *task;
+};
+
 /* used by registered CLI keywords */
 struct hlua_cli_ctx {
 	struct hlua *hlua;
@@ -9209,6 +9216,7 @@ struct task *hlua_applet_wakeup(struct task *t, void *context, unsigned int stat
 
 static int hlua_applet_tcp_init(struct appctx *ctx)
 {
+	struct hlua_tcp_ctx *tcp_ctx = applet_reserve_svcctx(ctx, sizeof(*tcp_ctx));
 	struct conn_stream *cs = ctx->owner;
 	struct stream *strm = __cs_strm(cs);
 	struct hlua *hlua;
@@ -9223,8 +9231,8 @@ static int hlua_applet_tcp_init(struct appctx *ctx)
 		return 0;
 	}
 	HLUA_INIT(hlua);
-	ctx->ctx.hlua_apptcp.hlua = hlua;
-	ctx->ctx.hlua_apptcp.flags = 0;
+	tcp_ctx->hlua = hlua;
+	tcp_ctx->flags = 0;
 
 	/* Create task used by signal to wakeup applets. */
 	task = task_new_here();
@@ -9236,7 +9244,7 @@ static int hlua_applet_tcp_init(struct appctx *ctx)
 	task->nice = 0;
 	task->context = ctx;
 	task->process = hlua_applet_wakeup;
-	ctx->ctx.hlua_apptcp.task = task;
+	tcp_ctx->task = task;
 
 	/* In the execution wrappers linked with a stream, the
 	 * Lua context can be not initialized. This behavior
@@ -9306,15 +9314,16 @@ static int hlua_applet_tcp_init(struct appctx *ctx)
 
 void hlua_applet_tcp_fct(struct appctx *ctx)
 {
+	struct hlua_tcp_ctx *tcp_ctx = ctx->svcctx;
 	struct conn_stream *cs = ctx->owner;
 	struct stream *strm = __cs_strm(cs);
 	struct channel *res = cs_ic(cs);
 	struct act_rule *rule = ctx->rule;
 	struct proxy *px = strm->be;
-	struct hlua *hlua = ctx->ctx.hlua_apptcp.hlua;
+	struct hlua *hlua = tcp_ctx->hlua;
 
 	/* The applet execution is already done. */
-	if (ctx->ctx.hlua_apptcp.flags & APPLET_DONE) {
+	if (tcp_ctx->flags & APPLET_DONE) {
 		/* eat the whole request */
 		co_skip(cs_oc(cs), co_data(cs_oc(cs)));
 		return;
@@ -9328,7 +9337,7 @@ void hlua_applet_tcp_fct(struct appctx *ctx)
 	switch (hlua_ctx_resume(hlua, 1)) {
 	/* finished. */
 	case HLUA_E_OK:
-		ctx->ctx.hlua_apptcp.flags |= APPLET_DONE;
+		tcp_ctx->flags |= APPLET_DONE;
 
 		/* eat the whole request */
 		co_skip(cs_oc(cs), co_data(cs_oc(cs)));
@@ -9339,7 +9348,7 @@ void hlua_applet_tcp_fct(struct appctx *ctx)
 	/* yield. */
 	case HLUA_E_AGAIN:
 		if (hlua->wake_time != TICK_ETERNITY)
-			task_schedule(ctx->ctx.hlua_apptcp.task, hlua->wake_time);
+			task_schedule(tcp_ctx->task, hlua->wake_time);
 		return;
 
 	/* finished with error. */
@@ -9380,15 +9389,17 @@ error:
 	/* For all other cases, just close the stream. */
 	cs_shutw(cs);
 	cs_shutr(cs);
-	ctx->ctx.hlua_apptcp.flags |= APPLET_DONE;
+	tcp_ctx->flags |= APPLET_DONE;
 }
 
 static void hlua_applet_tcp_release(struct appctx *ctx)
 {
-	task_destroy(ctx->ctx.hlua_apptcp.task);
-	ctx->ctx.hlua_apptcp.task = NULL;
-	hlua_ctx_destroy(ctx->ctx.hlua_apptcp.hlua);
-	ctx->ctx.hlua_apptcp.hlua = NULL;
+	struct hlua_tcp_ctx *tcp_ctx = ctx->svcctx;
+
+	task_destroy(tcp_ctx->task);
+	tcp_ctx->task = NULL;
+	hlua_ctx_destroy(tcp_ctx->hlua);
+	tcp_ctx->hlua = NULL;
 }
 
 /* The function returns 1 if the initialisation is complete, 0 if

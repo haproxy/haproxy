@@ -267,7 +267,7 @@ void ha_task_dump(struct buffer *buf, const struct task *task, const char *pfx)
 		chunk_appendf(buf, "%sCurrent executing a Lua task -- ", pfx);
 	}
 	else if (task->process == task_run_applet && (appctx = task->context) &&
-		 (appctx->applet->fct == hlua_applet_tcp_fct && (hlua = appctx->ctx.hlua_apptcp.hlua))) {
+		 (appctx->applet->fct == hlua_applet_tcp_fct)) {
 		chunk_appendf(buf, "%sCurrent executing a Lua TCP service -- ", pfx);
 	}
 	else if (task->process == task_run_applet && (appctx = task->context) &&

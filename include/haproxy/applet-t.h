@@ -101,11 +101,6 @@ struct appctx {
 		union {
 			struct {
 				struct hlua *hlua;
-				int flags;
-				struct task *task;
-			} hlua_apptcp;                  /* used by the Lua TCP services */
-			struct {
-				struct hlua *hlua;
 				int left_bytes;         /* The max amount of bytes that we can read. */
 				int flags;
 				int status;
