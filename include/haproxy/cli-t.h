@@ -69,6 +69,12 @@ enum {
 	CLI_SEVERITY_STRING,        /* prepend informational cli messages with a severity as string */
 };
 
+/* CLI context for printing command responses. */
+struct cli_print_ctx {
+	const char *msg;        /* pointer to a persistent message to be returned in CLI_ST_PRINT state */
+	char *err;              /* pointer to a 'must free' message to be returned in CLI_ST_PRINT_FREE state */
+	int severity;           /* severity of the message to be returned according to (syslog) rfc5424 */
+};
 
 struct cli_kw {
 	const char *str_kw[CLI_PREFIX_KW_NB]; /* keywords ended by NULL, limited to CLI_PREFIX_KW_NB

@@ -308,10 +308,7 @@ static char *cli_gen_usage_msg(struct appctx *appctx, char * const *args)
 	chunk_dup(&out, tmp);
 	dynamic_usage_msg = out.area;
 
-	appctx->ctx.cli.severity = LOG_INFO;
-	appctx->ctx.cli.msg = dynamic_usage_msg;
-	appctx->st0 = CLI_ST_PRINT;
-
+	cli_msg(appctx, LOG_INFO, dynamic_usage_msg);
 	return dynamic_usage_msg;
 }
 
@@ -1057,6 +1054,7 @@ static void cli_io_handler(struct appctx *appctx)
 			req->flags |= CF_READ_DONTWAIT; /* we plan to read small requests */
 		}
 		else {	/* output functions */
+			struct cli_print_ctx *ctx;
 			const char *msg;
 			int sev;
 
@@ -1067,15 +1065,17 @@ static void cli_io_handler(struct appctx *appctx)
 			case CLI_ST_PRINT_ERR:   /* print const error in msg */
 			case CLI_ST_PRINT_DYN:   /* print dyn message in msg, free */
 			case CLI_ST_PRINT_FREE:  /* print dyn error in err, free */
+				/* the message is in the svcctx */
+				ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
 				if (appctx->st0 == CLI_ST_PRINT || appctx->st0 == CLI_ST_PRINT_ERR) {
 					sev = appctx->st0 == CLI_ST_PRINT_ERR ?
-						LOG_ERR : appctx->ctx.cli.severity;
-					msg = appctx->ctx.cli.msg;
+						LOG_ERR : ctx->severity;
+					msg = ctx->msg;
 				}
 				else if (appctx->st0 == CLI_ST_PRINT_DYN || appctx->st0 == CLI_ST_PRINT_FREE) {
 					sev = appctx->st0 == CLI_ST_PRINT_FREE ?
-						LOG_ERR : appctx->ctx.cli.severity;
-					msg = appctx->ctx.cli.err;
+						LOG_ERR : ctx->severity;
+					msg = ctx->err;
 					if (!msg) {
 						sev = LOG_ERR;
 						msg = "Out of memory.\n";
@@ -1089,7 +1089,7 @@ static void cli_io_handler(struct appctx *appctx)
 				if (cli_output_msg(res, msg, sev, cli_get_severity_output(appctx)) != -1) {
 					if (appctx->st0 == CLI_ST_PRINT_FREE ||
 					    appctx->st0 == CLI_ST_PRINT_DYN) {
-						ha_free(&appctx->ctx.cli.err);
+						ha_free(&ctx->err);
 					}
 					appctx->st0 = CLI_ST_PROMPT;
 				}
@@ -1212,7 +1212,9 @@ static void cli_release_handler(struct appctx *appctx)
 		appctx->io_release = NULL;
 	}
 	else if (appctx->st0 == CLI_ST_PRINT_FREE || appctx->st0 == CLI_ST_PRINT_DYN) {
-		ha_free(&appctx->ctx.cli.err);
+		struct cli_print_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
+
+		ha_free(&ctx->err);
 	}
 }
 

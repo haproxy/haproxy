@@ -38,15 +38,17 @@
  */
 static void cmn_cli_set_msg(struct appctx *appctx, char *err, char *msg, int cli_state)
 {
+	struct cli_print_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
+
 	FLT_OT_FUNC("%p, %p, %p, %d", appctx, err, msg, cli_state);
 
 	if ((appctx == NULL) || ((err == NULL) && (msg == NULL)))
 		FLT_OT_RETURN();
 
-	appctx->ctx.cli.err = (err == NULL) ? msg : err;
-	appctx->st0         = (appctx->ctx.cli.err == NULL) ? CLI_ST_PROMPT : cli_state;
+	ctx->err    = (err == NULL) ? msg : err;
+	appctx->st0 = (ctx->err == NULL) ? CLI_ST_PROMPT : cli_state;
 
-	FLT_OT_DBG(1, "err(%d): \"%s\"", appctx->st0, appctx->ctx.cli.err);
+	FLT_OT_DBG(1, "err(%d): \"%s\"", appctx->st0, ctx->err);
 
 	FLT_OT_RETURN();
 }

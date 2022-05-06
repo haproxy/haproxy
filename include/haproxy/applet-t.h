@@ -98,20 +98,29 @@ struct appctx {
 			void *shadow;          /* shadow of svcctx above, do not use! */
 			char storage[APPLET_MAX_SVCCTX]; /* storage of svcctx above */
 		} svc;                         /* generic storage for most commands */
-		union {
+
+		/* The "ctx" part below is kept only to help smooth transition
+		 * of legacy code and will disappear after 2.6. It ensures that
+		 * ctx.cli may safely map to a clean representation of the
+		 * "cli_print_ctx" struct mapped in "svc.storage" above.
+		 */
+		struct {
+			void *shadow;                   /* shadow of svcctx above for alignment, do not use! */
 			struct {
+				/* these 3 first fields must match EXACTLY "struct cli_print_ctx" */
 				const char *msg;        /* pointer to a persistent message to be returned in CLI_ST_PRINT state */
-				int severity;           /* severity of the message to be returned according to (syslog) rfc5424 */
 				char *err;              /* pointer to a 'must free' message to be returned in CLI_ST_PRINT_FREE state */
+				int severity;           /* severity of the message to be returned according to (syslog) rfc5424 */
+
 				/* WARNING: the entries below are only kept for compatibility
 				 * with possible external code but will disappear in 2.7, you
 				 * must use the cleaner svcctx now (look at "show fd" for an
 				 * example).
 				 */
-				 __attribute__((deprecated)) void *p0, *p1, *p2;
-				 __attribute__((deprecated)) size_t o0, o1;
-				 __attribute__((deprecated)) int i0, i1;
-			} cli;                          /* context used by the CLI */
+				 void *p0, *p1, *p2;
+				 size_t o0, o1;
+				 int i0, i1;
+			} cli __attribute__((deprecated)); /* context used by the CLI */
 		} ctx;					/* context-specific variables used by any applet */
 	}; /* end of anon union */
 };
