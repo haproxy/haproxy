@@ -3262,6 +3262,46 @@ int qc_send_ppkts(struct qring *qr, struct ssl_sock_ctx *ctx)
 	return 1;
 }
 
+/* Copy into <buf> buffer a stateless reset token depending on the
+ * <salt> salt input. This is the cluster secret which will be derived
+ * as HKDF input secret to generate this token.
+ * Return 1 if succeeded, 0 if not.
+ */
+static int quic_stateless_reset_token_cpy(unsigned char *buf, size_t len,
+                                          const unsigned char *salt, size_t saltlen)
+{
+	/* Input secret */
+	const unsigned char *key = (const unsigned char *)global.cluster_secret;
+	size_t keylen = strlen(global.cluster_secret);
+	/* Info */
+	const unsigned char label[] = "stateless token";
+	size_t labellen = sizeof label - 1;
+
+	return quic_hkdf_extract_and_expand(EVP_sha256(), buf, len,
+	                                    key, keylen, salt, saltlen, label, labellen);
+}
+
+/* Initialize the stateless reset token attached to <cid> connection ID.
+ * Returns 1 if succeeded, 0 if not.
+ */
+static int quic_stateless_reset_token_init(struct quic_connection_id *quic_cid)
+{
+	if (global.cluster_secret) {
+		/* Output secret */
+		unsigned char *token = quic_cid->stateless_reset_token;
+		size_t tokenlen = sizeof quic_cid->stateless_reset_token;
+		/* Salt */
+		const unsigned char *cid = quic_cid->cid.data;
+		size_t cidlen = quic_cid->cid.len;
+
+		return quic_stateless_reset_token_cpy(token, tokenlen, cid, cidlen);
+	}
+	else {
+		return RAND_bytes(quic_cid->stateless_reset_token,
+		                  sizeof quic_cid->stateless_reset_token) == 1;
+	}
+}
+
 /* Allocate a new CID with <seq_num> as sequence number and attach it to <root>
  * ebtree.
  *
@@ -3282,14 +3322,12 @@ static struct quic_connection_id *new_quic_cid(struct eb_root *root,
 		return NULL;
 
 	cid->cid.len = QUIC_HAP_CID_LEN;
-	if (RAND_bytes(cid->cid.data, cid->cid.len) != 1 ||
-	    RAND_bytes(cid->stateless_reset_token,
-	               sizeof cid->stateless_reset_token) != 1) {
-		fprintf(stderr, "Could not generate %d random bytes\n", cid->cid.len);
+	if (RAND_bytes(cid->cid.data, cid->cid.len) != 1)
 		goto err;
-	}
 
 	quic_pin_cid_to_tid(cid->cid.data, tid);
+	if (quic_stateless_reset_token_init(cid) != 1)
+		goto err;
 
 	cid->qc = qc;
 
