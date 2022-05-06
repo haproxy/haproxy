@@ -3262,6 +3262,49 @@ int qc_send_ppkts(struct qring *qr, struct ssl_sock_ctx *ctx)
 	return 1;
 }
 
+/* Allocate a new CID with <seq_num> as sequence number and attach it to <root>
+ * ebtree.
+ *
+ * The CID is randomly generated in part with the result altered to be
+ * associated with the current thread ID. This means this function must only
+ * be called by the quic_conn thread.
+ *
+ * Returns the new CID if succeeded, NULL if not.
+ */
+static struct quic_connection_id *new_quic_cid(struct eb_root *root,
+                                               struct quic_conn *qc,
+                                               int seq_num)
+{
+	struct quic_connection_id *cid;
+
+	cid = pool_alloc(pool_head_quic_connection_id);
+	if (!cid)
+		return NULL;
+
+	cid->cid.len = QUIC_HAP_CID_LEN;
+	if (RAND_bytes(cid->cid.data, cid->cid.len) != 1 ||
+	    RAND_bytes(cid->stateless_reset_token,
+	               sizeof cid->stateless_reset_token) != 1) {
+		fprintf(stderr, "Could not generate %d random bytes\n", cid->cid.len);
+		goto err;
+	}
+
+	quic_pin_cid_to_tid(cid->cid.data, tid);
+
+	cid->qc = qc;
+
+	cid->seq_num.key = seq_num;
+	cid->retire_prior_to = 0;
+	/* insert the allocated CID in the quic_conn tree */
+	eb64_insert(root, &cid->seq_num);
+
+	return cid;
+
+ err:
+	pool_free(pool_head_quic_connection_id, cid);
+	return NULL;
+}
+
 /* Build all the frames which must be sent just after the handshake have succeeded.
  * This is essentially NEW_CONNECTION_ID frames. A QUIC server must also send
  * a HANDSHAKE_DONE frame.
