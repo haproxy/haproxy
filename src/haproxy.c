@@ -1943,9 +1943,13 @@ static void init(int argc, char **argv)
 
 		char *args[MAX_LINE_ARGS+1];
 		int arg = sizeof(args) / sizeof(*args);
-		size_t outlen = strlen(check_condition) + 1;
+		size_t outlen;
 		char *w;
 
+		if (!check_condition)
+			usage(progname);
+
+		outlen = strlen(check_condition) + 1;
 		err = parse_line(check_condition, check_condition, &outlen, args, &arg,
 		                 PARSE_OPT_ENV | PARSE_OPT_WORD_EXPAND | PARSE_OPT_DQUOTE | PARSE_OPT_SQUOTE | PARSE_OPT_BKSLASH,
 		                 &errptr);
