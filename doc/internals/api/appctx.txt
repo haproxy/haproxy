@@ -1,0 +1,142 @@
+Instantiation of applet contexts (appctx) in 2.6.
+
+
+1. Background
+
+Most applets are in fact simplified services that are called by the CLI when a
+registered keyword is matched. Some of them only have a ->parse() function
+which immediately returns with a final result, while others will return zero
+asking for the->io_handler() one to be called till the end. For these ones, a
+context is generally needed between calls to know where to restart from.
+
+Other applets are completely autonomous applets with their init function and
+an I/O handler, and these ones also need a persistent context between calls to
+the I/O handler. These ones are typically instantiated by "use-service" or by
+other means.
+
+Originally a few integers were provided to keep a trivial state (st0, st1, st2)
+and these ones progressively proved insufficient, leading to a "ctx.cli" sub-
+context that was allowed to use extra fields of various types. Other applets
+preferred to use their own context definition.
+
+All this resulted in the appctx->ctx to contain a myriad of definitions of
+vairous service contexts, and in some services abusing other services'
+definitions by laziness, and others being extended to use their own definition
+after having run for a long time on the generic types, some of which were not
+noticed and mistakenly used the same storage locations by accident. A massive
+cleanup was needed.
+
+
+2. New approach in 2.6
+
+In 2.6, there's an "svcctx" pointer that's initialized to NULL before any
+instantiation of an applet or of a CLI keyword's function. Applets and keyword
+handlers are free to make it point wherever they want, and to find it unaltered
+between subsequent calls, including up to the ->release() call. The "st2" state
+that was totally abused with random enums is not used anymore and was marked as
+deprecated. It's still initialized to zero before the first call though.
+
+One special area, "svc.storage[]", is large enough to contain any of the
+contexts that used to be present under "appctx->ctx". The "svcctx" may be set
+to point to this area so that a small structure can be allocated for free and
+without requiring error checking. In order to make this easier, a specially
+purposed function is provided: "applet_reserve_svcctx()". This function will
+require the caller to indicate how large an area it needs, and will return a
+pointer to this area after checking that it fits. If it does not, haproxy will
+crash. This is purposely done so that it's known during development that if a
+small structure doesn't fit, a differnet approach is required.
+
+As such, for the vast majority of commands, the process is the following one:
+
+  struct foo_ctx {
+     int myfield1;
+     int myfield2;
+     char *myfield3;
+  };
+
+  int io_handler(struct appctx *appctx)
+  {
+      struct foo_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
+
+        if (!ctx->myfield1) {
+            /* first call */
+            ctx->myfield1++;
+        }
+        ...
+  }
+
+The pointer may be directly accessed from the I/O handler if it's known that it
+was already reserved by the init handler or parsing function. Otherwise it's
+guaranteed to be NULL so that can also serve as a test for a first call:
+
+  int parse_handler(struct appctx *appctx)
+  {
+      struct foo_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
+      ctx->myfield1 = 12;
+      return 0;
+  }
+
+  int io_handler(struct appctx *appctx)
+  {
+      struct foo_ctx *ctx = appctx->svcctx;
+
+      for (; !ctx->myfield1; ctx->myfield1--) {
+          do_something();
+      }
+      ...
+  }
+
+There is no need to free anything because that space is not allocated but just
+points to a reserved area.
+
+If it is too small (its size is APPLET_MAX_SVCCTX bytes), it is preferable to
+use it with dynamically allocated structures (pools, malloc, etc). For example:
+
+  int io_handler(struct appctx *appctx)
+  {
+      struct foo_ctx *ctx = appctx->svcctx;
+
+      if (!ctx) {
+          /* first call */
+          ctx = pool_alloc(pool_foo_ctx);
+          if (!ctx)
+              return 1;
+      }
+      ...
+  }
+
+  void io_release(struct appctx *appctx)
+  {
+      pool_free(pool_foo_ctx, appctx->svcctx);
+  }
+
+The CLI code itself uses this mechanism for the cli_print_*() functions. Since
+these functions are terminal (i.e. not meant to be used in the middle of an I/O
+handler as they share the same contextual space), they always reset the svcctx
+pointer to place it to the "cli_print_ctx" mapped in ->svc.storage.
+
+
+3. Transition for old code
+
+A lot of care was taken to make the transition as smooth as possible for
+out-of-tree code since that's an API change. A dummy "ctx.cli" struct still
+exists in the appctx struct, and it happens to map perfectly to the one set by
+cli_print_*, so that if some code uses a mix of both, it will still work.
+However, it will build with "deprecated" warnings allowing to spot the
+remaining places. It's a good exercise to rename "ctx.cli" in "appctx" and see
+if the code still compiles.
+
+Regarding the "st2" sub-state, it will disappear as well after 2.6, but is
+still provided and initialized so that code relying on it will still work even
+if it builds with deprecation warnings. The correct approach is to move this
+state into the newly defined applet's context, and to stop using the stats
+enums STAT_ST_* that often barely match the needs and result in code that is
+more complicated than desired (the STAT_ST_* enum values have also been marked
+as deprecated).
+
+The code dealing with "show fd", "show sess" and the peers applet show good
+examples of how to convert a registered keyword or an applet.
+
+All this transition code requires complex layouts that will be removed during
+2.7-dev so there is no other long-term option but to update the code (or better
+get it merged if it can be useful to other users).
