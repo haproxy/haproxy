@@ -100,13 +100,6 @@ struct appctx {
 		} svc;                         /* generic storage for most commands */
 		union {
 			struct {
-				int connected;
-				struct xref xref; /* cross reference with the Lua object owner. */
-				struct list wake_on_read;
-				struct list wake_on_write;
-				int die;
-			} hlua_cosocket;                /* used by the Lua cosockets */
-			struct {
 				struct hlua *hlua;
 				int flags;
 				struct task *task;
