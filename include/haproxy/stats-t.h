@@ -123,12 +123,24 @@ enum {
 
 /* data transmission states for the stats responses */
 enum stat_state {
-	STAT_ST_INIT = 0,
-	STAT_ST_HEAD,
-	STAT_ST_INFO,
-	STAT_ST_LIST,
-	STAT_ST_END,
-	STAT_ST_FIN,
+	STAT_STATE_INIT = 0,
+	STAT_STATE_HEAD,
+	STAT_STATE_INFO,
+	STAT_STATE_LIST,
+	STAT_STATE_END,
+	STAT_STATE_FIN,
+};
+
+/* kept in 2.6 only for compatibility with legacy code. Will be removed in 2.7,
+ * please do not use these values anymore and defined your own!
+ */
+enum obsolete_stat_state {
+	STAT_ST_INIT __attribute__((deprecated)) = 0,
+	STAT_ST_HEAD __attribute__((deprecated)),
+	STAT_ST_INFO __attribute__((deprecated)),
+	STAT_ST_LIST __attribute__((deprecated)),
+	STAT_ST_END  __attribute__((deprecated)),
+	STAT_ST_FIN  __attribute__((deprecated)),
 };
 
 /* data transmission states for the stats responses inside a proxy */

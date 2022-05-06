@@ -3733,11 +3733,11 @@ static int stats_dump_stat_to_buffer(struct conn_stream *cs, struct htx *htx,
 	chunk_reset(&trash);
 
 	switch (ctx->state) {
-	case STAT_ST_INIT:
-		ctx->state = STAT_ST_HEAD; /* let's start producing data */
+	case STAT_STATE_INIT:
+		ctx->state = STAT_STATE_HEAD; /* let's start producing data */
 		/* fall through */
 
-	case STAT_ST_HEAD:
+	case STAT_STATE_HEAD:
 		if (ctx->flags & STAT_FMT_HTML)
 			stats_dump_html_head(appctx, uri);
 		else if (ctx->flags & STAT_JSON_SCHM)
@@ -3751,13 +3751,13 @@ static int stats_dump_stat_to_buffer(struct conn_stream *cs, struct htx *htx,
 			goto full;
 
 		if (ctx->flags & STAT_JSON_SCHM) {
-			ctx->state = STAT_ST_FIN;
+			ctx->state = STAT_STATE_FIN;
 			return 1;
 		}
-		ctx->state = STAT_ST_INFO;
+		ctx->state = STAT_STATE_INFO;
 		/* fall through */
 
-	case STAT_ST_INFO:
+	case STAT_STATE_INFO:
 		if (ctx->flags & STAT_FMT_HTML) {
 			stats_dump_html_info(cs, uri);
 			if (!stats_putchk(rep, htx, &trash))
@@ -3768,10 +3768,10 @@ static int stats_dump_stat_to_buffer(struct conn_stream *cs, struct htx *htx,
 			ctx->obj1 = proxies_list;
 
 		ctx->px_st = STAT_PX_ST_INIT;
-		ctx->state = STAT_ST_LIST;
+		ctx->state = STAT_STATE_LIST;
 		/* fall through */
 
-	case STAT_ST_LIST:
+	case STAT_STATE_LIST:
 		switch (domain) {
 		case STATS_DOMAIN_RESOLVERS:
 			if (!stats_dump_resolvers(cs, stat_l[domain],
@@ -3789,10 +3789,10 @@ static int stats_dump_stat_to_buffer(struct conn_stream *cs, struct htx *htx,
 			break;
 		}
 
-		ctx->state = STAT_ST_END;
+		ctx->state = STAT_STATE_END;
 		/* fall through */
 
-	case STAT_ST_END:
+	case STAT_STATE_END:
 		if (ctx->flags & (STAT_FMT_HTML|STAT_FMT_JSON)) {
 			if (ctx->flags & STAT_FMT_HTML)
 				stats_dump_html_end();
@@ -3802,15 +3802,15 @@ static int stats_dump_stat_to_buffer(struct conn_stream *cs, struct htx *htx,
 				goto full;
 		}
 
-		ctx->state = STAT_ST_FIN;
+		ctx->state = STAT_STATE_FIN;
 		/* fall through */
 
-	case STAT_ST_FIN:
+	case STAT_STATE_FIN:
 		return 1;
 
 	default:
 		/* unknown state ! */
-		ctx->state = STAT_ST_FIN;
+		ctx->state = STAT_STATE_FIN;
 		return -1;
 	}
 

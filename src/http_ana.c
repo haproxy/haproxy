@@ -3928,7 +3928,7 @@ static int http_handle_stats(struct stream *s, struct channel *req)
 	struct htx_sl *sl;
 
 	appctx->st1 = 0;
-	ctx->state = STAT_ST_INIT;
+	ctx->state = STAT_STATE_INIT;
 	ctx->st_code = STAT_STATUS_INIT;
 	ctx->flags |= uri_auth->flags;
 	ctx->flags |= STAT_FMT_HTML; /* assume HTML mode by default */
