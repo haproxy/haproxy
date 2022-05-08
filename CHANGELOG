@@ -1,6 +1,130 @@
 ChangeLog :
 ===========
 
+2022/05/08 : 2.6-dev9
+    - MINOR: mux-quic: support full request channel buffer
+    - BUG/MINOR: h3: fix parsing of unknown frame type with null length
+    - CLEANUP: backend: make alloc_{bind,dst}_address() idempotent
+    - MEDIUM: stream: remove the confusing SF_ADDR_SET flag
+    - MINOR: conn_stream: remove the now unused CS_FL_ADDR_*_SET flags
+    - CLEANUP: protocol: make sure the connect_* functions always receive a dst
+    - MINOR: connection: get rid of the CO_FL_ADDR_*_SET flags
+    - MINOR: session: get rid of the now unused SESS_FL_ADDR_*_SET flags
+    - CLEANUP: mux: Useless xprt_quic-t.h inclusion
+    - MINOR: quic: Make the quic_conn be aware of the number of streams
+    - BUG/MINOR: quic: Dropped retransmitted STREAM frames
+    - BUG/MINOR: mux_quic: Dropped packet upon retransmission for closed streams
+    - MEDIUM: httpclient: remove url2sa to use a more flexible parser
+    - MEDIUM: httpclient: http-request rules for resolving
+    - MEDIUM: httpclient: allow address and port change for resolving
+    - CLEANUP: httpclient: remove the comment about resolving
+    - MINOR: httpclient: handle unix and other socket types in dst
+    - MINOR: httpclient: rename dash by dot in global option
+    - MINOR: init: exit() after pre-check upon error
+    - MINOR: httpclient: cleanup the error handling in init
+    - MEDIUM: httpclient: hard-error when SSL is configured
+    - MINOR: httpclient: allow to configure the ca-file
+    - MINOR: httpclient: configure the resolvers section to use
+    - MINOR: httpclient: allow ipv4 or ipv6 preference for resolving
+    - DOC: configuration: httpclient global option
+    - MINOR: conn-stream: Add mask from flags set by endpoint or app layer
+    - BUG/MEDIUM: conn-stream: Only keep app layer flags of the endpoint on reset
+    - BUG/MEDIUM: mux-fcgi: Be sure to never set EOM flag on an empty HTX message
+    - BUG/MEDIUM: mux-h1: Be able to handle trailers when C-L header was specified
+    - DOC: config: Update doc for PR/PH session states to warn about rewrite failures
+    - MINOR: resolvers: cleanup alert/warning in parse-resolve-conf
+    - MINOR: resolvers: move the resolv.conf parser in parse_resolv_conf()
+    - MINOR: resolvers: resolvers_new() create a resolvers with default values
+    - BUILD: debug: unify the definition of ha_backtrace_to_stderr()
+    - BUG/MINOR: tcp/http: release the expr of set-{src,dst}[-port]
+    - MEDIUM: resolvers: create a "default" resolvers section at startup
+    - DOC: resolvers: default resolvers section
+    - BUG/MINOR: startup: usage() when no -cc arguments
+    - BUG/MEDIUM: resolvers: make "show resolvers" properly yield
+    - BUG/MEDIUM: cli: make "show cli sockets" really yield
+    - BUG/MINOR: proxy/cli: don't enumerate internal proxies on "show backend"
+    - BUG/MINOR: map/cli: protect the backref list during "show map" errors
+    - BUG/MINOR: map/cli: make sure patterns don't vanish under "show map"'s init
+    - BUG/MINOR: ssl/cli: fix "show ssl ca-file/crl-file" not to mix cli+ssl contexts
+    - BUG/MINOR: ssl/cli: fix "show ssl ca-file <name>" not to mix cli+ssl contexts
+    - BUG/MINOR: ssl/cli: fix "show ssl crl-file" not to mix cli+ssl contexts
+    - BUG/MINOR: ssl/cli: fix "show ssl cert" not to mix cli+ssl contexts
+    - CLEANUP: ssl/cli: do not loop on unknown states in "add ssl crt-list" handler
+    - MINOR: applet: reserve some generic storage in the applet's context
+    - CLEANUP: applet: make appctx_new() initialize the whole appctx
+    - CLEANUP: stream/cli: take the "show sess" context definition out of the appctx
+    - CLEANUP: stream/cli: stop using appctx->st2 for the dump state
+    - CLEANUP: stream/cli: remove the unneeded init state from "show sess"
+    - CLEANUP: stream/cli: remove the unneeded STATE_FIN state from "show sess"
+    - CLEANUP: stream/cli: remove the now unneeded dump state from "show sess"
+    - CLEANUP: proxy/cli: take the "show errors" context definition out of the appctx
+    - CLEANUP: stick-table/cli: take the "show table" context definition out of the appctx
+    - CLEANUP: stick-table/cli: stop using appctx->st2 for the dump state
+    - CLEANUP: stick-table/cli: remove the unneeded STATE_INIT for "show table"
+    - CLEANUP: map/cli: take the "show map" context definition out of the appctx
+    - CLEANUP: map/cli: stop using cli.i0/i1 to store the generation numbers
+    - CLEANUP: map/cli: stop using appctx->st2 for the dump state
+    - CLEANUP: map/cli: always detach the backref from the list after "show map"
+    - CLEANUP: peers/cli: take the "show peers" context definition out of the appctx
+    - CLEANUP: peers/cli: stop using appctx->st2 for the dump state
+    - CLEANUP: peers/cli: remove unneeded state STATE_INIT
+    - CLEANUP: cli: initialize the whole appctx->ctx, not just the stats part
+    - CLEANUP: promex: make the applet use its own context
+    - CLEANUP: promex: stop using appctx->st2
+    - CLEANUP: stats/cli: take the "show stat" context definition out of the appctx
+    - CLEANUP: stats/cli: stop using appctx->st2
+    - CLEANUP: hlua/cli: take the hlua_cli context definition out of the appctx
+    - CLEANUP: ssl/cli: use a local context for "show cafile"
+    - CLEANUP: ssl/cli: use a local context for "show crlfile"
+    - CLEANUP: ssl/cli: use a local context for "show ssl cert"
+    - CLEANUP: ssl/cli: use a local context for "commit ssl cert"
+    - CLEANUP: ssl/cli: stop using appctx->st2 for "commit ssl cert"
+    - CLEANUP: ssl/cli: use a local context for "set ssl cert"
+    - CLEANUP: ssl/cli: use a local context for "set ssl cafile"
+    - CLEANUP: ssl/cli: use a local context for "set ssl crlfile"
+    - CLEANUP: ssl/cli: use a local context for "commit ssl {ca|crl}file"
+    - CLEANUP: ssl/cli: stop using appctx->st2 for "commit ssl ca/crl"
+    - CLEANUP: ssl/cli: stop using ctx.cli.i0/i1/p0 for "show tls-keys"
+    - CLEANUP: ssl/cli: add a new "dump_entries" field to "show_keys_ref"
+    - CLEANUP: ssl/cli: make "show tlskeys" not use appctx->st2 anymore
+    - CLEANUP: ssl/cli: make "show ssl ocsp-response" not use cli.p0 anymore
+    - CLEANUP: ssl/cli: make "{show|dump} ssl crtlist" use its own context
+    - CLEANUP: ssl/cli: make "add ssl crtlist" use its own context
+    - CLEANUP: ssl/cli: make "add ssl crtlist" not use st2 anymore
+    - CLEANUP: dns: stop abusing the sink forwarder's context
+    - CLEANUP: sink: use the generic context to store the forwarder's context
+    - CLEANUP: activity/cli: make "show profiling" not use ctx.cli anymore
+    - CLEANUP: debug/cli: make "debug dev fd" not use ctx.cli anymore
+    - CLEANUP: debug/cli: make "debug dev memstats" not use ctx.cli anymore
+    - CLEANUP: ring: pass the ring watch flags to ring_attach_cli(), not in ctx.cli
+    - CLEANUP: ring/cli: use a locally-defined context instead of using ctx.cli
+    - CLEANUP: resolvers/cli: make "show resolvers" use a locally-defined context
+    - CLEANUP: resolvers/cli: remove the unneeded appctx->st2 from "show resolvers"
+    - CLEANUP: cache/cli: make use of a locally defined context for "show cache"
+    - CLEANUP: proxy/cli: make use of a locally defined context for "show servers"
+    - CLEANUP: proxy/cli: get rid of appctx->st2 in "show servers"
+    - CLEANUP: proxy/cli: make "show backend" only use the generic context
+    - CLEANUP: cli: make "show fd" use its own context
+    - CLEANUP: cli: make "show env" use its own context
+    - CLEANUP: cli: simplify the "show cli sockets" I/O handler
+    - CLEANUP: cli: make "show cli sockets" use its own context
+    - CLEANUP: httpclient/cli: use a locally-defined context instead of ctx.cli
+    - CLEANUP: httpclient: do not use the appctx.ctx anymore
+    - CLEANUP: peers: do not use appctx.ctx anymore
+    - CLEANUP: spoe: do not use appctx.ctx anymore
+    - BUILD: applet: mark the CLI's generic variables as deprecated
+    - BUILD: applet: mark the appctx's st2 variable as deprecated
+    - CLEANUP: cache: take the context out of appctx.ctx
+    - MEDIUM: lua: move the cosocket storage outside of appctx.ctx
+    - MINOR: lua: move the tcp service storage outside of appctx.ctx
+    - MINOR: lua: move the http service context out of appctx.ctx
+    - CLEANUP: cli: move the status print context into its own context
+    - CLEANUP: stats: rename the stats state values an mark the old ones deprecated
+    - DOC: internal: document the new cleaner approach to the appctx
+    - MINOR: tcp: socket translate TCP_KEEPIDLE for macOs equivalent
+    - DOC: fix typo "ant" for "and" in INSTALL
+    - CI: dynamically determine actual version of h2spec
+
 2022/04/30 : 2.6-dev8
     - BUG/MINOR: quic: fix use-after-free with trace on ACK consume
     - BUG/MINOR: rules: Forbid captures in defaults section if used by a backend
