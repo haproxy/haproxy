@@ -12,7 +12,10 @@ char *ncb_head(const struct ncbuf *buf);
 char *ncb_wrap(const struct ncbuf *buf);
 
 ncb_sz_t ncb_size(const struct ncbuf *buf);
+ncb_sz_t ncb_total_data(const struct ncbuf *buf);
 int ncb_is_empty(const struct ncbuf *buf);
 int ncb_is_full(const struct ncbuf *buf);
+
+ncb_sz_t ncb_data(const struct ncbuf *buf, ncb_sz_t offset);
 
 #endif /* _HAPROXY_NCBUF_H */

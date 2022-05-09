@@ -26,6 +26,36 @@
  * where the number of formed gaps is kept minimal and evenly spread.
  */
 
+/* **** internal documentation ****
+ *
+ * This section is useful to users who need to understand how ncbuf are
+ * implemented.
+ *
+ * Public and internal functions all shared a common abstraction of the buffer.
+ * The buffer content is represented as a list of blocks, alternating between
+ * DATA and GAP blocks. This simplifies the buffer examination loop and
+ * insertion/deletion. Note that this list of blocks is not stored in the
+ * buffer structure.
+ *
+ * The buffer is considered to always start with a DATA block. The size of this
+ * block is stored just before <head> which is the pointer for offset 0. This
+ * space will always be reserved for this usage. It can be accessed through
+ * ncb_int_head(buf). If the buffer has no data at head, the reserved space
+ * will simply contains the value 0, and will be follow by a gap.
+ *
+ * A gap always contains the size of the gap itself and the size of the next
+ * data block. Here is a small representation of a gap stored at offset <x>
+ * before a data block at offset <y>.
+ *
+ *        x                                  y
+ * ------------------------------------------------------------
+ *  xxxxxx| GAP-SZ | DATA-SZ |               | xxxxxxxxxxxxx...
+ * ------------------------------------------------------------
+ *        | -------- GAP-SZ -------------- > | --- DATA-SZ --->
+ *
+ * This means that a gap must be at least big enough to store two sizes.
+ */
+
 #include <stdint.h>
 
 /* ncb_sz_t is the basic type used in ncbuf to represent data and gap sizes.
