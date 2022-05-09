@@ -659,11 +659,11 @@ static int bind_parse_crt(char **args, int cur_arg, struct proxy *px, struct bin
 	}
 
 	if ((*args[cur_arg + 1] != '/' ) && global_ssl.crt_base) {
-		if ((strlen(global_ssl.crt_base) + 1 + strlen(args[cur_arg + 1]) + 1) > MAXPATHLEN) {
+		if ((strlen(global_ssl.crt_base) + 1 + strlen(args[cur_arg + 1]) + 1) > sizeof(path) ||
+		    snprintf(path, sizeof(path), "%s/%s",  global_ssl.crt_base, args[cur_arg + 1]) > sizeof(path)) {
 			memprintf(err, "'%s' : path too long", args[cur_arg]);
 			return ERR_ALERT | ERR_FATAL;
 		}
-		snprintf(path, sizeof(path), "%s/%s",  global_ssl.crt_base, args[cur_arg + 1]);
 		return ssl_sock_load_cert(path, conf, err);
 	}
 
