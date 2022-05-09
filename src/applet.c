@@ -42,7 +42,7 @@ struct appctx *appctx_new(struct applet *applet, struct cs_endpoint *endp)
 	LIST_INIT(&appctx->wait_entry);
 	appctx->obj_type = OBJ_TYPE_APPCTX;
 	appctx->applet = applet;
-
+	appctx->sess = NULL;
 	if (!endp) {
 		endp = cs_endpoint_new();
 		if (!endp)

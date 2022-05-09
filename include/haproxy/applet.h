@@ -29,6 +29,7 @@
 #include <haproxy/conn_stream.h>
 #include <haproxy/list.h>
 #include <haproxy/pool.h>
+#include <haproxy/session.h>
 #include <haproxy/task.h>
 
 extern unsigned int nb_applets;
@@ -47,7 +48,8 @@ static inline void __appctx_free(struct appctx *appctx)
 	task_destroy(appctx->t);
 	if (LIST_INLIST(&appctx->buffer_wait.list))
 		LIST_DEL_INIT(&appctx->buffer_wait.list);
-
+	if (appctx->sess)
+		session_free(appctx->sess);
 	BUG_ON(appctx->endp && !(appctx->endp->flags & CS_EP_ORPHAN));
 	cs_endpoint_free(appctx->endp);
 	pool_free(pool_head_appctx, appctx);
