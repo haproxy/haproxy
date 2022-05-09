@@ -4391,12 +4391,16 @@ static int parse_retry_token(const unsigned char *token, uint64_t token_len,
  */
 static int qc_lstnr_params_init(struct quic_conn *qc, struct listener *l,
                                 const unsigned char *token, size_t token_len,
+                                const struct quic_connection_id *icid,
                                 const struct quic_cid *dcid)
 {
 	struct quic_cid *odcid = &qc->rx.params.original_destination_connection_id;
 
 	/* Copy the transport parameters. */
 	qc->rx.params = l->bind_conf->quic_params;
+	/* Copy the stateless reset token */
+	memcpy(qc->rx.params.stateless_reset_token, icid->stateless_reset_token,
+	       sizeof qc->rx.params.stateless_reset_token);
 	/* Copy original_destination_connection_id transport parameter. */
 	if (token_len) {
 		if (parse_retry_token(token, token_len, odcid)) {
@@ -4544,7 +4548,7 @@ static struct quic_conn *qc_new_conn(unsigned int version, int ipv4,
 	qc->sendto_err = 0;
 	memcpy(&qc->peer_addr, saddr, sizeof qc->peer_addr);
 
-	if (server && !qc_lstnr_params_init(qc, l, token, token_len, dcid))
+	if (server && !qc_lstnr_params_init(qc, l, token, token_len, icid, dcid))
 		goto err;
 
 	TRACE_LEAVE(QUIC_EV_CONN_INIT, qc);
