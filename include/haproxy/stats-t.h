@@ -135,12 +135,12 @@ enum stat_state {
  * please do not use these values anymore and defined your own!
  */
 enum obsolete_stat_state {
-	STAT_ST_INIT __attribute__((deprecated)) = 0,
-	STAT_ST_HEAD __attribute__((deprecated)),
-	STAT_ST_INFO __attribute__((deprecated)),
-	STAT_ST_LIST __attribute__((deprecated)),
-	STAT_ST_END  __attribute__((deprecated)),
-	STAT_ST_FIN  __attribute__((deprecated)),
+	STAT_ST_INIT ENUM_ATTRIBUTE((deprecated)) = 0,
+	STAT_ST_HEAD ENUM_ATTRIBUTE((deprecated)),
+	STAT_ST_INFO ENUM_ATTRIBUTE((deprecated)),
+	STAT_ST_LIST ENUM_ATTRIBUTE((deprecated)),
+	STAT_ST_END  ENUM_ATTRIBUTE((deprecated)),
+	STAT_ST_FIN  ENUM_ATTRIBUTE((deprecated)),
 };
 
 /* data transmission states for the stats responses inside a proxy */
