@@ -13833,13 +13833,14 @@ crt <cert>
 
   If a directory name is used instead of a PEM file, then all files found in
   that directory will be loaded in alphabetic order unless their name ends
-  with '.key', '.issuer', '.ocsp' or '.sctl' (reserved extensions). This
-  directive may be specified multiple times in order to load certificates from
-  multiple files or directories. The certificates will be presented to clients
-  who provide a valid TLS Server Name Indication field matching one of their
-  CN or alt subjects. Wildcards are supported, where a wildcard character '*'
-  is used instead of the first hostname component (e.g. *.example.org matches
-  www.example.org but not www.sub.example.org).
+  with '.key', '.issuer', '.ocsp' or '.sctl' (reserved extensions). Files
+  starting with a dot are also ignored. This directive may be specified multiple
+  times in order to load certificates from multiple files or directories. The
+  certificates will be presented to clients who provide a valid TLS Server Name
+  Indication field matching one of their CN or alt subjects. Wildcards are
+  supported, where a wildcard character '*' is used instead of the first
+  hostname component (e.g. *.example.org matches www.example.org but not
+  www.sub.example.org).
 
   If no SNI is provided by the client or if the SSL library does not support
   TLS extensions, or if the client provides an SNI hostname which does not

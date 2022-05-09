@@ -696,7 +696,9 @@ int crtlist_load_cert_dir(char *path, struct bind_conf *bind_conf, struct crtlis
 			struct dirent *de = de_list[i];
 
 			end = strrchr(de->d_name, '.');
-			if (end && (strcmp(end, ".issuer") == 0 || strcmp(end, ".ocsp") == 0 || strcmp(end, ".sctl") == 0 || strcmp(end, ".key") == 0))
+			if (end && (de->d_name[0] == '.' ||
+			            strcmp(end, ".issuer") == 0 || strcmp(end, ".ocsp") == 0 ||
+			            strcmp(end, ".sctl") == 0 || strcmp(end, ".key") == 0))
 				goto ignore_entry;
 
 			snprintf(fp, sizeof(fp), "%s/%s", path, de->d_name);
