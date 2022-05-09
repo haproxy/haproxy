@@ -183,6 +183,8 @@ enum quic_pkt_type {
 #define QUIC_CONN_MAX_PACKET  64
 
 #define QUIC_STATELESS_RESET_TOKEN_LEN 16
+#define QUIC_STATELESS_RESET_PACKET_HEADER_LEN 5
+#define QUIC_STATELESS_RESET_PACKET_MINLEN     (22 + QUIC_HAP_CID_LEN)
 
 #define           QUIC_EV_CONN_NEW       (1ULL << 0)
 #define           QUIC_EV_CONN_INIT      (1ULL << 1)
@@ -227,6 +229,7 @@ enum quic_pkt_type {
 #define           QUIC_EV_CONN_CLOSE     (1ULL << 40)
 #define           QUIC_EV_CONN_ACKSTRM   (1ULL << 41)
 #define           QUIC_EV_CONN_FRMLIST   (1ULL << 42)
+#define           QUIC_EV_STATELESS_RST  (1ULL << 43)
 
 /* Similar to kernel min()/max() definitions. */
 #define QUIC_MIN(a, b) ({ \

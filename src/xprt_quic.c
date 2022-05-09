@@ -121,6 +121,7 @@ static const struct trace_event quic_trace_events[] = {
 	{ .mask = QUIC_EV_CONN_CLOSE,    .name = "conn_close",       .desc = "closing conn." },
 	{ .mask = QUIC_EV_CONN_ACKSTRM,  .name = "ack_strm",         .desc = "STREAM ack."},
 	{ .mask = QUIC_EV_CONN_FRMLIST,  .name = "frm_list",         .desc = "frame list"},
+	{ .mask = QUIC_EV_STATELESS_RST, .name = "stateless_reset",  .desc = "stateless reset sent"},
 	{ /* end */ }
 };
 
@@ -609,6 +610,13 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 
 		if (len)
 			chunk_appendf(&trace_buf, " len=%llu", (ull)*len);
+	}
+
+	if (mask & QUIC_EV_STATELESS_RST) {
+		const struct quic_cid *cid = a2;
+
+		if (cid)
+			quic_cid_dump(&trace_buf, cid);
 	}
 
 }
@@ -4869,6 +4877,51 @@ static int send_version_negotiation(int fd, struct sockaddr_storage *addr,
 	return 0;
 }
 
+/* Send a stateless reset packet depending on <pkt> RX packet information
+ * from <fd> UDP socket to <dst>
+ * Return 1 if succeeded, 0 if not.
+ */
+static int send_stateless_reset(int fd, struct sockaddr_storage *dstaddr,
+                                struct quic_rx_packet *rxpkt)
+{
+	int pktlen, rndlen;
+	unsigned char pkt[64];
+	const socklen_t addrlen = get_addr_len(dstaddr);
+
+	/* 10.3 Stateless Reset (https://www.rfc-editor.org/rfc/rfc9000.html#section-10.3)
+	 * The resulting minimum size of 21 bytes does not guarantee that a Stateless
+	 * Reset is difficult to distinguish from other packets if the recipient requires
+	 * the use of a connection ID. To achieve that end, the endpoint SHOULD ensure
+	 * that all packets it sends are at least 22 bytes longer than the minimum
+	 * connection ID length that it requests the peer to include in its packets,
+	 * adding PADDING frames as necessary. This ensures that any Stateless Reset
+	 * sent by the peer is indistinguishable from a valid packet sent to the endpoint.
+	 * An endpoint that sends a Stateless Reset in response to a packet that is
+	 * 43 bytes or shorter SHOULD send a Stateless Reset that is one byte shorter
+	 * than the packet it responds to.
+	 */
+
+	/* Note that we build at most a 42 bytes QUIC packet to mimic a short packet */
+	pktlen = rxpkt->len <= 43 ? rxpkt->len - 1 : 0;
+	pktlen = QUIC_MAX(QUIC_STATELESS_RESET_PACKET_MINLEN, pktlen);
+	rndlen = pktlen - QUIC_STATELESS_RESET_TOKEN_LEN;
+	/* Put a header of random bytes */
+	if (RAND_bytes(pkt, rndlen) != 1)
+		return 0;
+
+	/* Clear the most significant bit, and set the second one */
+	*pkt = (*pkt & ~0x80) | 0x40;
+	if (!quic_stateless_reset_token_cpy(pkt + rndlen, QUIC_STATELESS_RESET_TOKEN_LEN,
+	                                    rxpkt->dcid.data, rxpkt->dcid.len))
+	    return 0;
+
+	if (sendto(fd, pkt, pktlen, 0, (struct sockaddr *)dstaddr, addrlen) < 0)
+		return 0;
+
+	TRACE_PROTO("stateless reset sent", QUIC_EV_STATELESS_RST, NULL, &rxpkt->dcid);
+	return 1;
+}
+
 /* Generate the token to be used in Retry packets. The token is written to
  * <buf> which is expected to be <len> bytes.
  *
@@ -5360,6 +5413,8 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 		if (!qc) {
 			size_t pktlen = end - buf;
 			TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT, NULL, pkt, &pktlen);
+			if (global.cluster_secret && !send_stateless_reset(l->rx.fd, &dgram->saddr, pkt))
+				TRACE_PROTO("stateless reset not sent", QUIC_EV_CONN_LPKT, qc);
 			goto err;
 		}
 
