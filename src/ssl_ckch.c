@@ -1216,13 +1216,15 @@ int ssl_store_load_locations_file(char *path, int create_if_none, enum cafile_ty
 				 * been loaded in an hashed directory loaded by
 				 * X509_LOOKUP_hash_dir, so according to "man 1
 				 * c_rehash", we should load  ".pem", ".crt",
-				 * ".cer", or ".crl"
+				 * ".cer", or ".crl". Files starting with a dot
+				 * are ignored.
 				 */
 				end = strrchr(de->d_name, '.');
-				if (!end || (strcmp(end, ".pem") != 0 &&
-				             strcmp(end, ".crt") != 0 &&
-				             strcmp(end, ".cer") != 0 &&
-				             strcmp(end, ".crl") != 0)) {
+				if (!end || de->d_name[0] == '.' ||
+				    (strcmp(end, ".pem") != 0 &&
+				     strcmp(end, ".crt") != 0 &&
+				     strcmp(end, ".cer") != 0 &&
+				     strcmp(end, ".crl") != 0)) {
 					free(de);
 					continue;
 				}

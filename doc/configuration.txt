@@ -13764,7 +13764,7 @@ ca-file <cafile>
   designates a PEM file from which to load CA certificates used to verify
   client's certificate. It is possible to load a directory containing multiple
   CAs, in this case HAProxy will try to load every ".pem", ".crt", ".cer", and
-  .crl" available in the directory.
+  .crl" available in the directory, files starting with a dot are ignored.
 
 ca-ignore-err [all|<errorID>,...]
   This setting is only available when support for OpenSSL was built in.
@@ -14552,7 +14552,7 @@ ca-file <cafile>
   designates a PEM file from which to load CA certificates used to verify
   server's certificate. It is possible to load a directory containing multiple
   CAs, in this case HAProxy will try to load every ".pem", ".crt", ".cer", and
-  .crl" available in the directory.
+  .crl" available in the directory, files starting with a dot are ignored.
 
   In order to use the trusted CAs of your system, the "@system-ca" parameter
   could be used in place of the cafile. The location of this directory could be
