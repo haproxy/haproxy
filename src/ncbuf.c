@@ -207,13 +207,16 @@ static ncb_sz_t ncb_blk_off(const struct ncb_blk blk, ncb_sz_t off)
 
 /* Simulate insertion in <buf> of <data> of length <len> at offset <off>. This
  * ensures that minimal block size are respected for newly formed gaps. <blk>
- * must be the block where the insert operation begins.
+ * must be the block where the insert operation begins. If <mode> is
+ * NCB_ADD_COMPARE, old and new overlapped data are compared to validate the
+ * insertion.
  *
  * Returns NCB_RET_OK if insertion can proceed.
  */
 static enum ncb_ret ncb_check_insert(const struct ncbuf *buf,
                                      struct ncb_blk blk, ncb_sz_t off,
-                                     const char *data, ncb_sz_t len)
+                                     const char *data, ncb_sz_t len,
+                                     enum ncb_add_mode mode)
 {
 	ncb_sz_t off_blk = ncb_blk_off(blk, off);
 	ncb_sz_t to_copy;
@@ -239,6 +242,24 @@ static enum ncb_ret ncb_check_insert(const struct ncbuf *buf,
 			if (gap_sz < NCB_GAP_MIN_SZ && !ncb_blk_is_last(buf, blk))
 				return NCB_RET_GAP_SIZE;
 		}
+		else if (!(blk.flag & NCB_BK_F_GAP) && mode == NCB_ADD_COMPARE) {
+			/* Compare memory of data block in NCB_ADD_COMPARE mode. */
+			const ncb_sz_t off_blk = ncb_blk_off(blk, off);
+			char *st = ncb_peek(buf, off);
+
+			to_copy = MIN(left, blk.sz - off_blk);
+			if (st + to_copy > ncb_wrap(buf)) {
+				const ncb_sz_t sz1 = ncb_wrap(buf) - st;
+				if (memcmp(st, data, sz1))
+					return NCB_RET_DATA_REJ;
+				if (memcmp(ncb_orig(buf), data + sz1, to_copy - sz1))
+					return NCB_RET_DATA_REJ;
+			}
+			else {
+				if (memcmp(st, data, to_copy))
+					return NCB_RET_DATA_REJ;
+			}
+		}
 
 		left -= to_copy;
 		data += to_copy;
@@ -252,13 +273,15 @@ static enum ncb_ret ncb_check_insert(const struct ncbuf *buf,
 
 /* Fill new <data> of length <len> inside an already existing data <blk> at
  * offset <off>. Offset is relative to <blk> so it cannot be greater than the
- * block size.
+ * block size. <mode> specifies if old data are preserved or overwritten.
  */
 static ncb_sz_t ncb_fill_data_blk(const struct ncbuf *buf,
                                   struct ncb_blk blk, ncb_sz_t off,
-                                  const char *data, ncb_sz_t len)
+                                  const char *data, ncb_sz_t len,
+                                  enum ncb_add_mode mode)
 {
 	const ncb_sz_t to_copy = MIN(len, blk.sz - off);
+	char *ptr = NULL;
 
 	BUG_ON_HOT(off > blk.sz);
 	/* This can happens due to previous ncb_blk_find() usage. In this
@@ -266,6 +289,19 @@ static ncb_sz_t ncb_fill_data_blk(const struct ncbuf *buf,
 	 */
 	if (off == blk.sz)
 		return 0;
+
+	if (mode == NCB_ADD_OVERWRT) {
+		ptr = ncb_peek(buf, blk.off + off);
+
+		if (ptr + to_copy >= ncb_wrap(buf)) {
+			const ncb_sz_t sz1 = ncb_wrap(buf) - ptr;
+			memcpy(ptr, data, sz1);
+			memcpy(ncb_orig(buf), data + sz1, to_copy - sz1);
+		}
+		else {
+			memcpy(ptr, data, to_copy);
+		}
+	}
 
 	return to_copy;
 }
@@ -438,9 +474,11 @@ ncb_sz_t ncb_data(const struct ncbuf *buf, ncb_sz_t off)
  *
  * Returns NCB_RET_OK on success. On error the following codes are returned :
  * - NCB_RET_GAP_SIZE : cannot add data because the gap formed is too small
+ * - NCB_RET_DATA_REJ : old data would be overwritten by different ones in
+ *                      NCB_ADD_COMPARE mode.
  */
 enum ncb_ret ncb_add(struct ncbuf *buf, ncb_sz_t off,
-                     const char *data, ncb_sz_t len)
+                     const char *data, ncb_sz_t len, enum ncb_add_mode mode)
 {
 	struct ncb_blk blk;
 	ncb_sz_t left = len;
@@ -456,7 +494,7 @@ enum ncb_ret ncb_add(struct ncbuf *buf, ncb_sz_t off,
 	blk = ncb_blk_find(buf, off);
 
 	/* Check if insertion is possible. */
-	ret = ncb_check_insert(buf, blk, off, data, len);
+	ret = ncb_check_insert(buf, blk, off, data, len, mode);
 	if (ret != NCB_RET_OK)
 		return ret;
 
@@ -503,7 +541,7 @@ enum ncb_ret ncb_add(struct ncbuf *buf, ncb_sz_t off,
 			}
 		}
 		else {
-			done = ncb_fill_data_blk(buf, blk, off_blk, data, left);
+			done = ncb_fill_data_blk(buf, blk, off_blk, data, left, mode);
 		}
 
 		BUG_ON_HOT(done > blk.sz || done > left);
