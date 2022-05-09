@@ -4363,16 +4363,73 @@ static struct task *process_timer(struct task *task, void *ctx, unsigned int sta
 	return task;
 }
 
-/* Initialize <conn> QUIC connection with <quic_initial_clients> as root of QUIC
- * connections used to identify the first Initial packets of client connecting
- * to listeners. This parameter must be NULL for QUIC connections attached
- * to listeners. <dcid> is the destination connection ID with <dcid_len> as length.
- * <scid> is the source connection ID with <scid_len> as length.
+/* Parse the Retry token from buffer <token> whose size is <token_len>. This
+ * will extract the parameters stored in the token : <odcid>.
+ *
+ * Returns 0 on success else non-zero.
+ */
+static int parse_retry_token(const unsigned char *token, uint64_t token_len,
+                             struct quic_cid *odcid)
+{
+	uint64_t odcid_len;
+
+	if (!quic_dec_int(&odcid_len, &token, token + token_len))
+		return 1;
+
+	if (odcid_len > QUIC_CID_MAXLEN)
+		return 1;
+
+	memcpy(odcid->data, token, odcid_len);
+	odcid->len = odcid_len;
+
+	return 0;
+}
+
+/* Initialize the transport parameters for <qc> QUIC connection attached
+ * to <l> listener from <pkt> Initial packet information.
  * Returns 1 if succeeded, 0 if not.
  */
+static int qc_lstnr_params_init(struct quic_conn *qc, struct listener *l,
+                                const unsigned char *token, size_t token_len,
+                                const struct quic_cid *dcid)
+{
+	struct quic_cid *odcid = &qc->rx.params.original_destination_connection_id;
+
+	/* Copy the transport parameters. */
+	qc->rx.params = l->bind_conf->quic_params;
+	/* Copy original_destination_connection_id transport parameter. */
+	if (token_len) {
+		if (parse_retry_token(token, token_len, odcid)) {
+			TRACE_PROTO("Error during Initial token parsing", QUIC_EV_CONN_LPKT, qc);
+			return 0;
+		}
+		/* Copy retry_source_connection_id transport parameter. */
+		quic_cid_cpy(&qc->rx.params.retry_source_connection_id, dcid);
+	}
+	else {
+		memcpy(odcid->data, dcid->data, dcid->len);
+		odcid->len = dcid->len;
+	}
+
+	/* Copy the initial source connection ID. */
+	quic_cid_cpy(&qc->rx.params.initial_source_connection_id, &qc->scid);
+
+	return 1;
+}
+
+/* Allocate a new QUIC connection with <version> as QUIC version. <ipv4>
+ * boolean is set to 1 for IPv4 connection, 0 for IPv6. <server> is set to 1
+ * for QUIC servers (or haproxy listeners).
+ * <dcid> is the destination connection ID, <scid> is the source connection ID,
+ * <token> the token found to be used for this connection with <token_len> as
+ * length. <saddr> is the source address.
+ * Returns the connection if succeeded, NULL if not.
+ */
 static struct quic_conn *qc_new_conn(unsigned int version, int ipv4,
-                                    unsigned char *dcid, size_t dcid_len, size_t dcid_addr_len,
-                                    unsigned char *scid, size_t scid_len, int server, void *owner)
+                                     struct quic_cid *dcid, struct quic_cid *scid,
+                                     struct sockaddr_storage *saddr,
+                                     const unsigned char *token, size_t token_len,
+                                     int server, void *owner)
 {
 	int i;
 	struct quic_conn *qc;
@@ -4402,23 +4459,23 @@ static struct quic_conn *qc_new_conn(unsigned int version, int ipv4,
 		qc->flags |= QUIC_FL_CONN_LISTENER;
 		qc->state = QUIC_HS_ST_SERVER_INITIAL;
 		/* Copy the initial DCID with the address. */
-		qc->odcid.len = dcid_len;
-		qc->odcid.addrlen = dcid_addr_len;
-		memcpy(qc->odcid.data, dcid, dcid_len + dcid_addr_len);
+		qc->odcid.len = dcid->len;
+		qc->odcid.addrlen = dcid->addrlen;
+		memcpy(qc->odcid.data, dcid->data, dcid->len + dcid->addrlen);
 
 		/* copy the packet SCID to reuse it as DCID for sending */
-		if (scid_len)
-			memcpy(qc->dcid.data, scid, scid_len);
-		qc->dcid.len = scid_len;
+		if (scid->len)
+			memcpy(qc->dcid.data, scid->data, scid->len);
+		qc->dcid.len = scid->len;
 		qc->tx.qring_list = &l->rx.tx_qring_list;
 		qc->li = l;
 	}
 	/* QUIC Client (outgoing connection to servers) */
 	else {
 		qc->state = QUIC_HS_ST_CLIENT_INITIAL;
-		if (dcid_len)
-			memcpy(qc->dcid.data, dcid, dcid_len);
-		qc->dcid.len = dcid_len;
+		if (dcid->len)
+			memcpy(qc->dcid.data, dcid->data, dcid->len);
+		qc->dcid.len = dcid->len;
 	}
 	qc->mux_state = QC_MUX_NULL;
 
@@ -4485,6 +4542,10 @@ static struct quic_conn *qc_new_conn(unsigned int version, int ipv4,
 	qc->streams_by_id = EB_ROOT_UNIQUE;
 	qc->stream_buf_count = 0;
 	qc->sendto_err = 0;
+	memcpy(&qc->peer_addr, saddr, sizeof qc->peer_addr);
+
+	if (server && !qc_lstnr_params_init(qc, l, token, token_len, dcid))
+		goto err;
 
 	TRACE_LEAVE(QUIC_EV_CONN_INIT, qc);
 
@@ -4941,28 +5002,6 @@ static struct quic_conn *retrieve_qc_conn_from_cid(struct quic_rx_packet *pkt,
 	return qc;
 }
 
-/* Parse the Retry token from buffer <token> whose size is <token_len>. This
- * will extract the parameters stored in the token : <odcid>.
- *
- * Returns 0 on success else non-zero.
- */
-static int parse_retry_token(const unsigned char *token, uint64_t token_len,
-                             struct quic_cid *odcid)
-{
-	uint64_t odcid_len;
-
-	if (!quic_dec_int(&odcid_len, &token, token + token_len))
-		return 1;
-
-	if (odcid_len > QUIC_CID_MAXLEN)
-		return 1;
-
-	memcpy(odcid->data, token, odcid_len);
-	odcid->len = odcid_len;
-
-	return 0;
-}
-
 /* Try to allocate the <*ssl> SSL session object for <qc> QUIC connection
  * with <ssl_ctx> as SSL context inherited settings. Also set the transport
  * parameters of this session.
@@ -5211,7 +5250,6 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 		qc = retrieve_qc_conn_from_cid(pkt, l, &dgram->saddr);
 		if (!qc) {
 			int ipv4;
-			struct quic_cid *odcid;
 			struct ebmb_node *n = NULL;
 			const unsigned char *salt = initial_salt_v1;
 			size_t salt_len = sizeof initial_salt_v1;
@@ -5228,35 +5266,11 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 
 			pkt->saddr = dgram->saddr;
 			ipv4 = dgram->saddr.ss_family == AF_INET;
-			qc = qc_new_conn(pkt->version, ipv4,
-			                 pkt->dcid.data, pkt->dcid.len, pkt->dcid.addrlen,
-			                 pkt->scid.data, pkt->scid.len, 1, l);
+			qc = qc_new_conn(pkt->version, ipv4, &pkt->dcid, &pkt->scid, &pkt->saddr,
+			                 pkt->token, pkt->token_len, 1, l);
 			if (qc == NULL)
 				goto err;
 
-			memcpy(&qc->peer_addr, &pkt->saddr, sizeof(pkt->saddr));
-
-			odcid = &qc->rx.params.original_destination_connection_id;
-			/* Copy the transport parameters. */
-			qc->rx.params = l->bind_conf->quic_params;
-
-			/* Copy original_destination_connection_id transport parameter. */
-			if (pkt->token_len) {
-				if (parse_retry_token(pkt->token, pkt->token_len, odcid)) {
-					TRACE_PROTO("Error during Initial token parsing", QUIC_EV_CONN_LPKT, qc);
-					goto err;
-				}
-				/* Copy retry_source_connection_id transport parameter. */
-				quic_cid_cpy(&qc->rx.params.retry_source_connection_id,
-				             &pkt->dcid);
-			}
-			else {
-				memcpy(odcid->data, &pkt->dcid.data, pkt->dcid.len);
-				odcid->len = pkt->dcid.len;
-			}
-
-			/* Copy the initial source connection ID. */
-			quic_cid_cpy(&qc->rx.params.initial_source_connection_id, &qc->scid);
 			qc->enc_params_len =
 				quic_transport_params_encode(qc->enc_params,
 				                             qc->enc_params + sizeof qc->enc_params,
