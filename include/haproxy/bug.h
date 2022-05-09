@@ -40,14 +40,28 @@
 
 #define DUMP_TRACE() do { extern void ha_backtrace_to_stderr(void); ha_backtrace_to_stderr(); } while (0)
 
+static inline __attribute((always_inline)) void ha_crash_now(void)
+{
+#if __GNUC_PREREQ__(5, 0)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Warray-bounds"
+#pragma GCC diagnostic ignored "-Wnull-dereference"
+#endif
+	*(volatile char *)1 = 0;
+#if __GNUC_PREREQ__(5, 0)
+#pragma GCC diagnostic pop
+#endif
+	my_unreachable();
+}
+
 #ifdef DEBUG_USE_ABORT
 /* abort() is better recognized by code analysis tools */
 #define ABORT_NOW() do { DUMP_TRACE(); abort(); } while (0)
 #else
 /* More efficient than abort() because it does not mangle the
-  * stack and stops at the exact location we need.
-  */
-#define ABORT_NOW() do { DUMP_TRACE(); (*(volatile int*)1=0); my_unreachable(); } while (0)
+ * stack and stops at the exact location we need.
+ */
+#define ABORT_NOW() do { DUMP_TRACE(); ha_crash_now(); } while (0)
 #endif
 
 /* This is the generic low-level macro dealing with conditional warnings and
