@@ -18,4 +18,7 @@ int ncb_is_full(const struct ncbuf *buf);
 
 ncb_sz_t ncb_data(const struct ncbuf *buf, ncb_sz_t offset);
 
+enum ncb_ret ncb_add(struct ncbuf *buf, ncb_sz_t off,
+                     const char *data, ncb_sz_t len);
+
 #endif /* _HAPROXY_NCBUF_H */

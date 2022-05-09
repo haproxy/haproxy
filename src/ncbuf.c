@@ -1,5 +1,11 @@
 #include <haproxy/ncbuf.h>
 
+#include <string.h>
+
+#ifndef MIN
+#define MIN(a, b) (((a) < (b)) ? (a) : (b))
+#endif
+
 #ifdef DEBUG_DEV
 # include <haproxy/bug.h>
 #else
@@ -79,6 +85,13 @@ static ncb_sz_t ncb_read_off(const struct ncbuf *buf, char *st)
 	}
 
 	return off;
+}
+
+/* Add <off> to the offset stored at <st> in <buf>. Support wrapping. */
+static void ncb_inc_off(const struct ncbuf *buf, char *st, ncb_sz_t off)
+{
+	const ncb_sz_t old = ncb_read_off(buf, st);
+	ncb_write_off(buf, st, old + off);
 }
 
 /* Returns true if a gap cannot be inserted at <off> : a reduced gap must be used. */
@@ -190,6 +203,120 @@ static ncb_sz_t ncb_blk_off(const struct ncb_blk blk, ncb_sz_t off)
 	BUG_ON_HOT(off < blk.off || off > blk.off + blk.sz);
 	BUG_ON_HOT(off - blk.off > blk.sz);
 	return off - blk.off;
+}
+
+/* Simulate insertion in <buf> of <data> of length <len> at offset <off>. This
+ * ensures that minimal block size are respected for newly formed gaps. <blk>
+ * must be the block where the insert operation begins.
+ *
+ * Returns NCB_RET_OK if insertion can proceed.
+ */
+static enum ncb_ret ncb_check_insert(const struct ncbuf *buf,
+                                     struct ncb_blk blk, ncb_sz_t off,
+                                     const char *data, ncb_sz_t len)
+{
+	ncb_sz_t off_blk = ncb_blk_off(blk, off);
+	ncb_sz_t to_copy;
+	ncb_sz_t left = len;
+
+	/* If insertion starts in a gap, it must leave enough space to keep the
+	 * gap header.
+	 */
+	if (left && (blk.flag & NCB_BK_F_GAP)) {
+		if (off_blk < NCB_GAP_MIN_SZ)
+			return NCB_RET_GAP_SIZE;
+	}
+
+	while (left) {
+		off_blk = ncb_blk_off(blk, off);
+		to_copy = MIN(left, blk.sz - off_blk);
+
+		if (blk.flag & NCB_BK_F_GAP && off_blk + to_copy < blk.sz) {
+			/* Insertion must leave enough space for a new gap
+			 * header if stopped in a middle of a gap.
+			 */
+			const ncb_sz_t gap_sz = blk.sz - (off_blk + to_copy);
+			if (gap_sz < NCB_GAP_MIN_SZ && !ncb_blk_is_last(buf, blk))
+				return NCB_RET_GAP_SIZE;
+		}
+
+		left -= to_copy;
+		data += to_copy;
+		off  += to_copy;
+
+		blk = ncb_blk_next(buf, blk);
+	}
+
+	return NCB_RET_OK;
+}
+
+/* Fill new <data> of length <len> inside an already existing data <blk> at
+ * offset <off>. Offset is relative to <blk> so it cannot be greater than the
+ * block size.
+ */
+static ncb_sz_t ncb_fill_data_blk(const struct ncbuf *buf,
+                                  struct ncb_blk blk, ncb_sz_t off,
+                                  const char *data, ncb_sz_t len)
+{
+	const ncb_sz_t to_copy = MIN(len, blk.sz - off);
+
+	BUG_ON_HOT(off > blk.sz);
+	/* This can happens due to previous ncb_blk_find() usage. In this
+	 * case the current fill is a noop.
+	 */
+	if (off == blk.sz)
+		return 0;
+
+	return to_copy;
+}
+
+/* Fill the gap <blk> starting at <off> with new <data> of length <len>. <off>
+ * is relative to <blk> so it cannot be greater than the block size.
+ */
+static ncb_sz_t ncb_fill_gap_blk(const struct ncbuf *buf,
+                                 struct ncb_blk blk, ncb_sz_t off,
+                                 const char *data, ncb_sz_t len)
+{
+	const ncb_sz_t to_copy = MIN(len, blk.sz - off);
+	char *ptr;
+
+	BUG_ON_HOT(off > blk.sz);
+	/* This can happens due to previous ncb_blk_find() usage. In this
+	 * case the current fill is a noop.
+	 */
+	if (off == blk.sz)
+		return 0;
+
+	/* A new gap must be created if insertion stopped before gap end. */
+	if (off + to_copy < blk.sz) {
+		const ncb_sz_t gap_off = blk.off + off + to_copy;
+		const ncb_sz_t gap_sz = blk.sz - off - to_copy;
+
+		BUG_ON_HOT(!ncb_off_reduced(buf, gap_off) &&
+		           blk.off + blk.sz - gap_off < NCB_GAP_MIN_SZ);
+
+		/* write the new gap header unless this is a reduced gap. */
+		if (!ncb_off_reduced(buf, gap_off)) {
+			char *gap_ptr = ncb_peek(buf, gap_off + NCB_GAP_SZ_OFF);
+			char *gap_data_ptr = ncb_peek(buf, gap_off + NCB_GAP_SZ_DATA_OFF);
+
+			ncb_write_off(buf, gap_ptr, gap_sz);
+			ncb_write_off(buf, gap_data_ptr, blk.sz_data);
+		}
+	}
+
+	/* fill the gap with new data */
+	ptr = ncb_peek(buf, blk.off + off);
+	if (ptr + to_copy >= ncb_wrap(buf)) {
+		ncb_sz_t sz1 = ncb_wrap(buf) - ptr;
+		memcpy(ptr, data, sz1);
+		memcpy(ncb_orig(buf), data + sz1, to_copy - sz1);
+	}
+	else {
+		memcpy(ptr, data, to_copy);
+	}
+
+	return to_copy;
 }
 
 /* ******** public API ******** */
@@ -305,4 +432,87 @@ ncb_sz_t ncb_data(const struct ncbuf *buf, ncb_sz_t off)
 		return 0;
 
 	return blk.sz - off_blk;
+}
+
+/* Add a new block at <data> of size <len> in <buf> at offset <off>.
+ *
+ * Returns NCB_RET_OK on success. On error the following codes are returned :
+ * - NCB_RET_GAP_SIZE : cannot add data because the gap formed is too small
+ */
+enum ncb_ret ncb_add(struct ncbuf *buf, ncb_sz_t off,
+                     const char *data, ncb_sz_t len)
+{
+	struct ncb_blk blk;
+	ncb_sz_t left = len;
+	enum ncb_ret ret;
+	char *new_sz;
+
+	if (!len)
+		return NCB_RET_OK;
+
+	BUG_ON_HOT(off + len > ncb_size(buf));
+
+	/* Get block where insertion begins. */
+	blk = ncb_blk_find(buf, off);
+
+	/* Check if insertion is possible. */
+	ret = ncb_check_insert(buf, blk, off, data, len);
+	if (ret != NCB_RET_OK)
+		return ret;
+
+	if (blk.flag & NCB_BK_F_GAP) {
+		/* Reduce gap size if insertion begins in a gap. Gap data size
+		 * is reset and will be recalculated during insertion.
+		 */
+		const ncb_sz_t gap_sz = off - blk.off;
+		BUG_ON_HOT(gap_sz < NCB_GAP_MIN_SZ);
+
+		/* pointer to data size to increase. */
+		new_sz = ncb_peek(buf, blk.off + NCB_GAP_SZ_DATA_OFF);
+
+		ncb_write_off(buf, blk.sz_ptr, gap_sz);
+		ncb_write_off(buf, new_sz, 0);
+	}
+	else {
+		/* pointer to data size to increase. */
+		new_sz = blk.sz_ptr;
+	}
+
+	/* insert data */
+	while (left) {
+		struct ncb_blk next;
+		const ncb_sz_t off_blk = ncb_blk_off(blk, off);
+		ncb_sz_t done;
+
+		/* retrieve the next block. This is necessary to do this
+		 * before overwritting a gap.
+		 */
+		next = ncb_blk_next(buf, blk);
+
+		if (blk.flag & NCB_BK_F_GAP) {
+			done = ncb_fill_gap_blk(buf, blk, off_blk, data, left);
+
+			/* update the inserted data block size */
+			if (off + done == blk.off + blk.sz) {
+				/* merge next data block if insertion reached gap end */
+				ncb_inc_off(buf, new_sz, done + blk.sz_data);
+			}
+			else {
+				/* insertion stopped before gap end */
+				ncb_inc_off(buf, new_sz, done);
+			}
+		}
+		else {
+			done = ncb_fill_data_blk(buf, blk, off_blk, data, left);
+		}
+
+		BUG_ON_HOT(done > blk.sz || done > left);
+		left -= done;
+		data += done;
+		off  += done;
+
+		blk = next;
+	}
+
+	return NCB_RET_OK;
 }

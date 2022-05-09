@@ -87,4 +87,10 @@ struct ncbuf {
 	ncb_sz_t head;
 };
 
+enum ncb_ret {
+	NCB_RET_OK = 0,   /* no error */
+
+	NCB_RET_GAP_SIZE, /* operation would create a too small gap */
+};
+
 #endif /* _HAPROXY_NCBUF_T_H */
