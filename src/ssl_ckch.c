@@ -339,6 +339,7 @@ int ssl_sock_load_files_into_ckch(const char *path, struct cert_key_and_chain *c
 {
 	struct buffer *fp = NULL;
 	int ret = 1;
+	struct stat st;
 
 	/* try to load the PEM */
 	if (ssl_sock_load_pem_into_ckch(path, NULL, ckch , err) != 0) {
@@ -373,34 +374,38 @@ int ssl_sock_load_files_into_ckch(const char *path, struct cert_key_and_chain *c
 
 	}
 
-	/* try to load an external private key if it wasn't in the PEM */
-	if ((ckch->key == NULL) && (global_ssl.extra_files & SSL_GF_KEY)) {
-		struct stat st;
-
-
-		if (!chunk_strcat(fp, ".key") || (b_data(fp) > MAXPATHLEN)) {
-			memprintf(err, "%s '%s' filename too long'.\n",
-			          err && *err ? *err : "", fp->area);
-			ret = 1;
-			goto end;
-		}
-
-		if (stat(fp->area, &st) == 0) {
-			if (ssl_sock_load_key_into_ckch(fp->area, NULL, ckch, err)) {
-				memprintf(err, "%s '%s' is present but cannot be read or parsed'.\n",
-					  err && *err ? *err : "", fp->area);
-				goto end;
-			}
-		}
-
-		if (ckch->key == NULL) {
-			memprintf(err, "%sNo Private Key found in '%s'.\n", err && *err ? *err : "", fp->area);
-			goto end;
-		}
-		/* remove the added extension */
-		*(fp->area + fp->data - strlen(".key")) = '\0';
-		b_sub(fp, strlen(".key"));
+	/* If no private key was found yet and we cannot look for it in extra
+	 * files, raise an error.
+	 */
+	if ((ckch->key == NULL) && !(global_ssl.extra_files & SSL_GF_KEY)) {
+		memprintf(err, "%sNo Private Key found in '%s'.\n", err && *err ? *err : "", fp->area);
+		goto end;
 	}
+
+	/* try to load an external private key if it wasn't in the PEM */
+	if (!chunk_strcat(fp, ".key") || (b_data(fp) > MAXPATHLEN)) {
+		memprintf(err, "%s '%s' filename too long'.\n",
+			  err && *err ? *err : "", fp->area);
+		ret = 1;
+		goto end;
+	}
+
+	if (stat(fp->area, &st) == 0) {
+		if (ssl_sock_load_key_into_ckch(fp->area, NULL, ckch, err)) {
+			memprintf(err, "%s '%s' is present but cannot be read or parsed'.\n",
+				  err && *err ? *err : "", fp->area);
+			goto end;
+		}
+	}
+
+	if (ckch->key == NULL) {
+		memprintf(err, "%sNo Private Key found in '%s'.\n", err && *err ? *err : "", fp->area);
+		goto end;
+	}
+	/* remove the added extension */
+	*(fp->area + fp->data - strlen(".key")) = '\0';
+	b_sub(fp, strlen(".key"));
+
 
 	if (!X509_check_private_key(ckch->cert, ckch->key)) {
 		memprintf(err, "%sinconsistencies between private key and certificate loaded '%s'.\n",
