@@ -1280,11 +1280,11 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 	}
 
 	if (ctrl_type == SOCK_STREAM && !(opts & PA_O_STREAM)) {
-		memprintf(err, "stream-type socket not acceptable in '%s'\n", str);
+		memprintf(err, "stream-type address not acceptable in '%s'\n", str);
 		goto out;
 	}
 	else if (ctrl_type == SOCK_DGRAM && !(opts & PA_O_DGRAM)) {
-		memprintf(err, "dgram-type socket not acceptable in '%s'\n", str);
+		memprintf(err, "dgram-type address not acceptable in '%s'\n", str);
 		goto out;
 	}
 
