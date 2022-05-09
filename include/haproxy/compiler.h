@@ -207,6 +207,14 @@
 	})
 #endif
 
+
+/* From gcc 6 and above, enum values may have attributes */
+#if __GNUC_PREREQ__(6, 0)
+#define ENUM_ATTRIBUTE(x) __attribute__(x)
+#else
+#define ENUM_ATTRIBUTE(x)
+#endif
+
 /* Some architectures have a double-word CAS, sometimes even dual-8 bytes.
  * Some architectures support unaligned accesses, others are fine with them
  * but only for non-atomic operations. Also mention those supporting unaligned
