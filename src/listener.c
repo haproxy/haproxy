@@ -964,10 +964,10 @@ void listener_accept(struct listener *l)
 		if (l->counters)
 			HA_ATOMIC_UPDATE_MAX(&l->counters->conn_max, next_conn);
 
-		if (p)
+		if (p) {
 			HA_ATOMIC_UPDATE_MAX(&p->fe_counters.conn_max, next_feconn);
-
-		proxy_inc_fe_conn_ctr(l, p);
+			proxy_inc_fe_conn_ctr(l, p);
+		}
 
 		if (!(l->options & LI_O_UNLIMITED)) {
 			count = update_freq_ctr(&global.conn_per_sec, 1);
