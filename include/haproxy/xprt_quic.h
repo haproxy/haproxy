@@ -137,7 +137,7 @@ static inline void free_quic_conn_cids(struct quic_conn *conn)
 	while (node) {
 		struct quic_connection_id *cid;
 
-		cid = eb64_entry(&node->node, struct quic_connection_id, seq_num);
+		cid = eb64_entry(node, struct quic_connection_id, seq_num);
 
 		/* remove the CID from the receiver tree */
 		ebmb_delete(&cid->node);
@@ -968,7 +968,7 @@ static inline int64_t quic_pktns_get_largest_acked_pn(struct quic_pktns *pktns)
 	if (!ar)
 		return -1;
 
-	return eb64_entry(&ar->node, struct quic_arng_node, first)->last;
+	return eb64_entry(ar, struct quic_arng_node, first)->last;
 }
 
 /* Increment the reference counter of <pkt> */
@@ -995,7 +995,7 @@ static inline void quic_pktns_tx_pkts_release(struct quic_pktns *pktns)
 		struct quic_tx_packet *pkt;
 		struct quic_frame *frm, *frmbak;
 
-		pkt = eb64_entry(&node->node, struct quic_tx_packet, pn_node);
+		pkt = eb64_entry(node, struct quic_tx_packet, pn_node);
 		node = eb64_next(node);
 		list_for_each_entry_safe(frm, frmbak, &pkt->frms, list) {
 			LIST_DELETE(&frm->list);
@@ -1171,7 +1171,7 @@ static inline void qc_el_rx_pkts_del(struct quic_enc_level *qel)
 	node = eb64_first(&qel->rx.pkts);
 	while (node) {
 		struct quic_rx_packet *pkt =
-			eb64_entry(&node->node, struct quic_rx_packet, pn_node);
+			eb64_entry(node, struct quic_rx_packet, pn_node);
 
 		node = eb64_next(node);
 		eb64_delete(&pkt->pn_node);
@@ -1189,7 +1189,7 @@ static inline void qc_list_qel_rx_pkts(struct quic_enc_level *qel)
 	while (node) {
 		struct quic_rx_packet *pkt;
 
-		pkt = eb64_entry(&node->node, struct quic_rx_packet, pn_node);
+		pkt = eb64_entry(node, struct quic_rx_packet, pn_node);
 		fprintf(stderr, "pkt@%p type=%d pn=%llu\n",
 		        pkt, pkt->type, (ull)pkt->pn_node.key);
 		node = eb64_next(node);

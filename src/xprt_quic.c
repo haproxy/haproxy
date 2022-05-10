@@ -1502,7 +1502,7 @@ static int quic_stream_try_to_consume(struct quic_conn *qc,
 		struct quic_frame *frm;
 		size_t offset, len;
 
-		strm = eb64_entry(&frm_node->node, struct quic_stream, offset);
+		strm = eb64_entry(frm_node, struct quic_stream, offset);
 		offset = strm->offset.key;
 		len = strm->len;
 
@@ -1635,7 +1635,7 @@ static inline struct eb64_node *qc_ackrng_pkts(struct quic_conn *qc,
 	while (node && node->key >= smallest) {
 		struct quic_frame *frm, *frmbak;
 
-		pkt = eb64_entry(&node->node, struct quic_tx_packet, pn_node);
+		pkt = eb64_entry(node, struct quic_tx_packet, pn_node);
 		*pkt_flags |= pkt->flags;
 		LIST_INSERT(newly_acked_pkts, &pkt->list);
 		TRACE_PROTO("Removing packet #", QUIC_EV_CONN_PRSAFRM, qc, NULL, &pkt->pn_node.key);
@@ -1784,7 +1784,7 @@ static void qc_treat_ack_of_ack(struct quic_pktns *pktns,
 		struct quic_arng_node *ar_node;
 
 		next_ar = eb64_next(ar);
-		ar_node = eb64_entry(&ar->node, struct quic_arng_node, first);
+		ar_node = eb64_entry(ar, struct quic_arng_node, first);
 		if ((int64_t)ar_node->first.key > largest_acked_pn)
 			break;
 
@@ -1960,7 +1960,7 @@ static inline int qc_parse_ack_frm(struct quic_conn *qc,
 			            QUIC_EV_CONN_PRSAFRM, qc);
 		}
 		else {
-			time_sent = eb64_entry(&largest_node->node,
+			time_sent = eb64_entry(largest_node,
 			                       struct quic_tx_packet, pn_node)->time_sent;
 		}
 	}
@@ -2250,7 +2250,7 @@ static int qc_handle_bidi_strm_frm(struct quic_rx_packet *pkt,
 	 */
 	frm_node = eb64_first(&qcs->rx.frms);
 	while (frm_node) {
-		frm = eb64_entry(&frm_node->node,
+		frm = eb64_entry(frm_node,
 		                 struct quic_rx_strm_frm, offset_node);
 
 		ret = qcc_recv(qc->qcc, qcs->id, frm->len,
@@ -2535,7 +2535,7 @@ static void qc_prep_hdshk_fast_retrans(struct quic_conn *qc,
 	node = eb64_first(pkts);
 	/* Skip the empty packet (they have already been retransmitted) */
 	while (node) {
-		pkt = eb64_entry(&node->node, struct quic_tx_packet, pn_node);
+		pkt = eb64_entry(node, struct quic_tx_packet, pn_node);
 		if (!LIST_ISEMPTY(&pkt->frms) && !(pkt->flags & QUIC_FL_TX_PACKET_COALESCED))
 			break;
 		node = eb64_next(node);
@@ -3412,7 +3412,7 @@ static int quic_build_post_handshake_frames(struct quic_conn *qc)
 		struct quic_connection_id *cid;
 
 
-		cid = eb64_entry(&node->node, struct quic_connection_id, seq_num);
+		cid = eb64_entry(node, struct quic_connection_id, seq_num);
 		if (cid->seq_num.key >= max)
 			break;
 
@@ -3438,7 +3438,7 @@ void quic_free_arngs(struct quic_arngs *arngs)
 	while (n) {
 		struct eb64_node *next;
 
-		ar = eb64_entry(&n->node, struct quic_arng_node, first);
+		ar = eb64_entry(n, struct quic_arng_node, first);
 		next = eb64_next(n);
 		eb64_delete(n);
 		pool_free(pool_head_quic_arng, ar);
@@ -3472,8 +3472,8 @@ static int quic_rm_last_ack_ranges(struct quic_arngs *arngs, size_t limit)
 		if (!prev)
 			return 0;
 
-		last_node = eb64_entry(&last->node, struct quic_arng_node, first);
-		prev_node = eb64_entry(&prev->node, struct quic_arng_node, first);
+		last_node = eb64_entry(last, struct quic_arng_node, first);
+		prev_node = eb64_entry(prev, struct quic_arng_node, first);
 		arngs->enc_sz -= quic_int_getsize(last_node->last - last_node->first.key);
 		arngs->enc_sz -= quic_int_getsize(sack_gap(prev_node, last_node));
 		arngs->enc_sz -= quic_decint_size_diff(arngs->sz);
@@ -3496,16 +3496,16 @@ static void quic_arngs_set_enc_sz(struct quic_arngs *arngs)
 	if (!node)
 		return;
 
-	ar = eb64_entry(&node->node, struct quic_arng_node, first);
+	ar = eb64_entry(node, struct quic_arng_node, first);
 	arngs->enc_sz = quic_int_getsize(ar->last) +
 		quic_int_getsize(ar->last - ar->first.key) + quic_int_getsize(arngs->sz - 1);
 
 	while ((next = eb64_prev(node))) {
-		ar_next = eb64_entry(&next->node, struct quic_arng_node, first);
+		ar_next = eb64_entry(next, struct quic_arng_node, first);
 		arngs->enc_sz += quic_int_getsize(sack_gap(ar, ar_next)) +
 			quic_int_getsize(ar_next->last - ar_next->first.key);
 		node = next;
-		ar = eb64_entry(&node->node, struct quic_arng_node, first);
+		ar = eb64_entry(node, struct quic_arng_node, first);
 	}
 }
 
@@ -3577,7 +3577,7 @@ int quic_update_ack_ranges_list(struct quic_arngs *arngs,
 	}
 	else {
 		struct quic_arng_node *le_ar =
-			eb64_entry(&le->node, struct quic_arng_node, first);
+			eb64_entry(le, struct quic_arng_node, first);
 
 		/* Already existing range */
 		if (le_ar->last >= ar->last)
@@ -3606,7 +3606,7 @@ int quic_update_ack_ranges_list(struct quic_arngs *arngs,
 
 		while ((next = eb64_next(new))) {
 			next_node =
-				eb64_entry(&next->node, struct quic_arng_node, first);
+				eb64_entry(next, struct quic_arng_node, first);
 			if (new_node->last + 1 < next_node->first.key)
 				break;
 
@@ -3681,7 +3681,7 @@ static inline int qc_treat_rx_crypto_frms(struct quic_enc_level *el,
 	while (node) {
 		struct quic_rx_crypto_frm *cf;
 
-		cf = eb64_entry(&node->node, struct quic_rx_crypto_frm, offset_node);
+		cf = eb64_entry(node, struct quic_rx_crypto_frm, offset_node);
 		if (cf->offset_node.key != el->rx.crypto.offset)
 			break;
 
@@ -3725,7 +3725,7 @@ int qc_treat_rx_pkts(struct quic_enc_level *cur_el, struct quic_enc_level *next_
 	while (node) {
 		struct quic_rx_packet *pkt;
 
-		pkt = eb64_entry(&node->node, struct quic_rx_packet, pn_node);
+		pkt = eb64_entry(node, struct quic_rx_packet, pn_node);
 		TRACE_PROTO("new packet", QUIC_EV_CONN_ELRXPKTS,
 		            ctx->qc, pkt, NULL, ctx->ssl);
 		if (!qc_pkt_decrypt(pkt, qel)) {
