@@ -3481,9 +3481,9 @@ static void h1_shutr(struct conn_stream *cs, enum co_shr_mode mode)
 
 	TRACE_ENTER(H1_EV_STRM_SHUT, h1c->conn, h1s, 0, (size_t[]){mode});
 
-	if (cs->endp->flags & CS_EP_SHR)
+	if (h1s->endp->flags & CS_EP_SHR)
 		goto end;
-	if (cs->endp->flags & CS_EP_KILL_CONN) {
+	if (h1s->endp->flags & CS_EP_KILL_CONN) {
 		TRACE_STATE("stream wants to kill the connection", H1_EV_STRM_SHUT, h1c->conn, h1s);
 		goto do_shutr;
 	}
@@ -3504,7 +3504,7 @@ static void h1_shutr(struct conn_stream *cs, enum co_shr_mode mode)
 
   do_shutr:
 	/* NOTE: Be sure to handle abort (cf. h2_shutr) */
-	if (cs->endp->flags & CS_EP_SHR)
+	if (h1s->endp->flags & CS_EP_SHR)
 		goto end;
 
 	if (conn_xprt_ready(h1c->conn) && h1c->conn->xprt->shutr)
@@ -3524,9 +3524,9 @@ static void h1_shutw(struct conn_stream *cs, enum co_shw_mode mode)
 
 	TRACE_ENTER(H1_EV_STRM_SHUT, h1c->conn, h1s, 0, (size_t[]){mode});
 
-	if (cs->endp->flags & CS_EP_SHW)
+	if (h1s->endp->flags & CS_EP_SHW)
 		goto end;
-	if (cs->endp->flags & CS_EP_KILL_CONN) {
+	if (h1s->endp->flags & CS_EP_KILL_CONN) {
 		TRACE_STATE("stream wants to kill the connection", H1_EV_STRM_SHUT, h1c->conn, h1s);
 		goto do_shutw;
 	}
