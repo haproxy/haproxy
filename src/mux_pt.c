@@ -460,18 +460,19 @@ static int mux_pt_avail_streams(struct connection *conn)
 static void mux_pt_shutr(struct conn_stream *cs, enum co_shr_mode mode)
 {
 	struct connection *conn = __cs_conn(cs);
+	struct mux_pt_ctx *ctx = conn->ctx;
 
 	TRACE_ENTER(PT_EV_STRM_SHUT, conn, cs);
 
-	if (cs->endp->flags & CS_EP_SHR)
+	if (ctx->endp->flags & CS_EP_SHR)
 		return;
-	cs->endp->flags &= ~(CS_EP_RCV_MORE | CS_EP_WANT_ROOM);
+	ctx->endp->flags &= ~(CS_EP_RCV_MORE | CS_EP_WANT_ROOM);
 	if (conn_xprt_ready(conn) && conn->xprt->shutr)
 		conn->xprt->shutr(conn, conn->xprt_ctx,
 		    (mode == CO_SHR_DRAIN));
 	else if (mode == CO_SHR_DRAIN)
 		conn_ctrl_drain(conn);
-	if (cs->endp->flags & CS_EP_SHW)
+	if (ctx->endp->flags & CS_EP_SHW)
 		conn_full_close(conn);
 
 	TRACE_LEAVE(PT_EV_STRM_SHUT, conn, cs);
@@ -480,15 +481,16 @@ static void mux_pt_shutr(struct conn_stream *cs, enum co_shr_mode mode)
 static void mux_pt_shutw(struct conn_stream *cs, enum co_shw_mode mode)
 {
 	struct connection *conn = __cs_conn(cs);
+	struct mux_pt_ctx *ctx = conn->ctx;
 
 	TRACE_ENTER(PT_EV_STRM_SHUT, conn, cs);
 
-	if (cs->endp->flags & CS_EP_SHW)
+	if (ctx->endp->flags & CS_EP_SHW)
 		return;
 	if (conn_xprt_ready(conn) && conn->xprt->shutw)
 		conn->xprt->shutw(conn, conn->xprt_ctx,
 		    (mode == CO_SHW_NORMAL));
-	if (!(cs->endp->flags & CS_EP_SHR))
+	if (!(ctx->endp->flags & CS_EP_SHR))
 		conn_sock_shutw(conn, (mode == CO_SHW_NORMAL));
 	else
 		conn_full_close(conn);
@@ -512,24 +514,25 @@ static void mux_pt_shutw(struct conn_stream *cs, enum co_shw_mode mode)
 static size_t mux_pt_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t count, int flags)
 {
 	struct connection *conn = __cs_conn(cs);
+	struct mux_pt_ctx *ctx = conn->ctx;
 	size_t ret = 0;
 
 	TRACE_ENTER(PT_EV_RX_DATA, conn, cs, buf, (size_t[]){count});
 
 	if (!count) {
-		cs->endp->flags |= (CS_EP_RCV_MORE | CS_EP_WANT_ROOM);
+		ctx->endp->flags |= (CS_EP_RCV_MORE | CS_EP_WANT_ROOM);
 		goto end;
 	}
 	b_realign_if_empty(buf);
 	ret = conn->xprt->rcv_buf(conn, conn->xprt_ctx, buf, count, flags);
 	if (conn_xprt_read0_pending(conn)) {
-		cs->endp->flags &= ~(CS_EP_RCV_MORE | CS_EP_WANT_ROOM);
-		cs->endp->flags |= CS_EP_EOS;
+		ctx->endp->flags &= ~(CS_EP_RCV_MORE | CS_EP_WANT_ROOM);
+		ctx->endp->flags |= CS_EP_EOS;
 		TRACE_DEVEL("read0 on connection", PT_EV_RX_DATA, conn, cs);
 	}
 	if (conn->flags & CO_FL_ERROR) {
-		cs->endp->flags &= ~(CS_EP_RCV_MORE | CS_EP_WANT_ROOM);
-		cs->endp->flags |= CS_EP_ERROR;
+		ctx->endp->flags &= ~(CS_EP_RCV_MORE | CS_EP_WANT_ROOM);
+		ctx->endp->flags |= CS_EP_ERROR;
 		TRACE_DEVEL("error on connection", PT_EV_RX_DATA|PT_EV_CONN_ERR, conn, cs);
 	}
   end:
@@ -541,6 +544,7 @@ static size_t mux_pt_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t 
 static size_t mux_pt_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t count, int flags)
 {
 	struct connection *conn = __cs_conn(cs);
+	struct mux_pt_ctx *ctx = conn->ctx;
 	size_t ret;
 
 	TRACE_ENTER(PT_EV_TX_DATA, conn, cs, buf, (size_t[]){count});
@@ -551,7 +555,7 @@ static size_t mux_pt_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t 
 		b_del(buf, ret);
 
 	if (conn->flags & CO_FL_ERROR) {
-		cs->endp->flags |= CS_EP_ERROR;
+		ctx->endp->flags |= CS_EP_ERROR;
 		TRACE_DEVEL("error on connection", PT_EV_TX_DATA|PT_EV_CONN_ERR, conn, cs);
 	}
 
@@ -589,17 +593,18 @@ static int mux_pt_unsubscribe(struct conn_stream *cs, int event_type, struct wai
 static int mux_pt_rcv_pipe(struct conn_stream *cs, struct pipe *pipe, unsigned int count)
 {
 	struct connection *conn = __cs_conn(cs);
+	struct mux_pt_ctx *ctx = conn->ctx;
 	int ret;
 
 	TRACE_ENTER(PT_EV_RX_DATA, conn, cs, 0, (size_t[]){count});
 
 	ret = conn->xprt->rcv_pipe(conn, conn->xprt_ctx, pipe, count);
 	if (conn_xprt_read0_pending(conn))  {
-		cs->endp->flags |= CS_EP_EOS;
+		ctx->endp->flags |= CS_EP_EOS;
 		TRACE_DEVEL("read0 on connection", PT_EV_RX_DATA, conn, cs);
 	}
 	if (conn->flags & CO_FL_ERROR) {
-		cs->endp->flags |= CS_EP_ERROR;
+		ctx->endp->flags |= CS_EP_ERROR;
 		TRACE_DEVEL("error on connection", PT_EV_RX_DATA|PT_EV_CONN_ERR, conn, cs);
 	}
 
@@ -610,6 +615,7 @@ static int mux_pt_rcv_pipe(struct conn_stream *cs, struct pipe *pipe, unsigned i
 static int mux_pt_snd_pipe(struct conn_stream *cs, struct pipe *pipe)
 {
 	struct connection *conn = __cs_conn(cs);
+	struct mux_pt_ctx *ctx = conn->ctx;
 	int ret;
 
 	TRACE_ENTER(PT_EV_TX_DATA, conn, cs, 0, (size_t[]){pipe->data});
@@ -617,7 +623,7 @@ static int mux_pt_snd_pipe(struct conn_stream *cs, struct pipe *pipe)
 	ret = conn->xprt->snd_pipe(conn, conn->xprt_ctx, pipe);
 
 	if (conn->flags & CO_FL_ERROR) {
-		cs->endp->flags |= CS_EP_ERROR;
+		ctx->endp->flags |= CS_EP_ERROR;
 		TRACE_DEVEL("error on connection", PT_EV_TX_DATA|PT_EV_CONN_ERR, conn, cs);
 	}
 
