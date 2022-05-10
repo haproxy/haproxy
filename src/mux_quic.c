@@ -1298,15 +1298,15 @@ static size_t qc_rcv_buf(struct conn_stream *cs, struct buffer *buf,
 
  end:
 	if (b_data(&qcs->rx.app_buf)) {
-		cs->endp->flags |= (CS_EP_RCV_MORE | CS_EP_WANT_ROOM);
+		qcs->endp->flags |= (CS_EP_RCV_MORE | CS_EP_WANT_ROOM);
 	}
 	else {
-		cs->endp->flags &= ~(CS_EP_RCV_MORE | CS_EP_WANT_ROOM);
-		if (cs->endp->flags & CS_EP_ERR_PENDING)
-			cs->endp->flags |= CS_EP_ERROR;
+		qcs->endp->flags &= ~(CS_EP_RCV_MORE | CS_EP_WANT_ROOM);
+		if (qcs->endp->flags & CS_EP_ERR_PENDING)
+			qcs->endp->flags |= CS_EP_ERROR;
 
 		if (fin)
-			cs->endp->flags |= CS_EP_EOI;
+			qcs->endp->flags |= CS_EP_EOI;
 
 		if (b_size(&qcs->rx.app_buf)) {
 			b_free(&qcs->rx.app_buf);
