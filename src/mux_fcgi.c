@@ -3521,13 +3521,13 @@ static size_t fcgi_strm_parse_response(struct fcgi_strm *fstrm, struct buffer *b
  * Attach a new stream to a connection
  * (Used for outgoing connections)
  */
-static int fcgi_attach(struct connection *conn, struct conn_stream *cs, struct session *sess)
+static int fcgi_attach(struct connection *conn, struct cs_endpoint *endp, struct session *sess)
 {
 	struct fcgi_strm *fstrm;
 	struct fcgi_conn *fconn = conn->ctx;
 
 	TRACE_ENTER(FCGI_EV_FSTRM_NEW, conn);
-	fstrm = fcgi_conn_stream_new(fconn, cs, sess);
+	fstrm = fcgi_conn_stream_new(fconn, endp->cs, sess);
 	if (!fstrm)
 		goto err;
 
@@ -3581,9 +3581,9 @@ static void fcgi_destroy(void *ctx)
 /*
  * Detach the stream from the connection and possibly release the connection.
  */
-static void fcgi_detach(struct conn_stream *cs)
+static void fcgi_detach(struct cs_endpoint *endp)
 {
-	struct fcgi_strm *fstrm = __cs_mux(cs);
+	struct fcgi_strm *fstrm = endp->target;
 	struct fcgi_conn *fconn;
 	struct session *sess;
 

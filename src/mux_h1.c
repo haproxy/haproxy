@@ -3303,7 +3303,7 @@ struct task *h1_timeout_task(struct task *t, void *context, unsigned int state)
  * Attach a new stream to a connection
  * (Used for outgoing connections)
  */
-static int h1_attach(struct connection *conn, struct conn_stream *cs, struct session *sess)
+static int h1_attach(struct connection *conn, struct cs_endpoint *endp, struct session *sess)
 {
 	struct h1c *h1c = conn->ctx;
 	struct h1s *h1s;
@@ -3314,7 +3314,7 @@ static int h1_attach(struct connection *conn, struct conn_stream *cs, struct ses
 		goto err;
 	}
 
-	h1s = h1c_bck_stream_new(h1c, cs, sess);
+	h1s = h1c_bck_stream_new(h1c, endp->cs, sess);
 	if (h1s == NULL) {
 		TRACE_ERROR("h1s creation failure", H1_EV_STRM_NEW|H1_EV_STRM_END|H1_EV_STRM_ERR, conn);
 		goto err;
@@ -3357,9 +3357,9 @@ static void h1_destroy(void *ctx)
 /*
  * Detach the stream from the connection and possibly release the connection.
  */
-static void h1_detach(struct conn_stream *cs)
+static void h1_detach(struct cs_endpoint *endp)
 {
-	struct h1s *h1s = __cs_mux(cs);
+	struct h1s *h1s = endp->target;
 	struct h1c *h1c;
 	struct session *sess;
 	int is_not_first;

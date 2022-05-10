@@ -4289,13 +4289,13 @@ do_leave:
  * Attach a new stream to a connection
  * (Used for outgoing connections)
  */
-static int h2_attach(struct connection *conn, struct conn_stream *cs, struct session *sess)
+static int h2_attach(struct connection *conn, struct cs_endpoint *endp, struct session *sess)
 {
 	struct h2s *h2s;
 	struct h2c *h2c = conn->ctx;
 
 	TRACE_ENTER(H2_EV_H2S_NEW, conn);
-	h2s = h2c_bck_stream_new(h2c, cs, sess);
+	h2s = h2c_bck_stream_new(h2c, endp->cs, sess);
 	if (!h2s) {
 		TRACE_DEVEL("leaving on stream creation failure", H2_EV_H2S_NEW|H2_EV_H2S_ERR, conn);
 		return -1;
@@ -4368,9 +4368,9 @@ static void h2_destroy(void *ctx)
 /*
  * Detach the stream from the connection and possibly release the connection.
  */
-static void h2_detach(struct conn_stream *cs)
+static void h2_detach(struct cs_endpoint *endp)
 {
-	struct h2s *h2s = __cs_mux(cs);
+	struct h2s *h2s = endp->target;
 	struct h2c *h2c;
 	struct session *sess;
 

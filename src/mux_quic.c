@@ -1220,9 +1220,9 @@ static void qc_destroy(void *ctx)
 	TRACE_LEAVE(QMUX_EV_QCC_END);
 }
 
-static void qc_detach(struct conn_stream *cs)
+static void qc_detach(struct cs_endpoint *endp)
 {
-	struct qcs *qcs = __cs_mux(cs);
+	struct qcs *qcs = __cs_mux(endp->cs);
 	struct qcc *qcc = qcs->qcc;
 
 	TRACE_ENTER(QMUX_EV_STRM_END, qcc->conn, qcs);

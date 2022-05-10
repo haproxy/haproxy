@@ -373,19 +373,19 @@ static int mux_pt_wake(struct connection *conn)
  * Attach a new stream to a connection
  * (Used for outgoing connections)
  */
-static int mux_pt_attach(struct connection *conn, struct conn_stream *cs, struct session *sess)
+static int mux_pt_attach(struct connection *conn, struct cs_endpoint *endp, struct session *sess)
 {
 	struct mux_pt_ctx *ctx = conn->ctx;
 
 	TRACE_ENTER(PT_EV_STRM_NEW, conn);
 	if (ctx->wait_event.events)
 		conn->xprt->unsubscribe(ctx->conn, conn->xprt_ctx, SUB_RETRY_RECV, &ctx->wait_event);
-	if (cs_attach_mux(cs, ctx, conn) < 0)
+	if (cs_attach_mux(endp->cs, ctx, conn) < 0)
 		return -1;
-	ctx->endp = cs->endp;
+	ctx->endp = endp;
 	ctx->endp->flags |= CS_EP_RCV_MORE;
 
-	TRACE_LEAVE(PT_EV_STRM_NEW, conn, cs);
+	TRACE_LEAVE(PT_EV_STRM_NEW, conn, endp->cs);
 	return 0;
 }
 
@@ -417,12 +417,12 @@ static void mux_pt_destroy_meth(void *ctx)
 /*
  * Detach the stream from the connection and possibly release the connection.
  */
-static void mux_pt_detach(struct conn_stream *cs)
+static void mux_pt_detach(struct cs_endpoint *endp)
 {
-	struct connection *conn = __cs_conn(cs);
+	struct connection *conn = endp->ctx;
 	struct mux_pt_ctx *ctx;
 
-	TRACE_ENTER(PT_EV_STRM_END, conn, cs);
+	TRACE_ENTER(PT_EV_STRM_END, conn, endp->cs);
 
 	ctx = conn->ctx;
 
@@ -432,7 +432,7 @@ static void mux_pt_detach(struct conn_stream *cs)
 		conn->xprt->subscribe(conn, conn->xprt_ctx, SUB_RETRY_RECV, &ctx->wait_event);
 	} else {
 		/* There's no session attached to that connection, destroy it */
-		TRACE_DEVEL("killing dead connection", PT_EV_STRM_END, conn, cs);
+		TRACE_DEVEL("killing dead connection", PT_EV_STRM_END, conn, endp->cs);
 		mux_pt_destroy(ctx);
 	}
 

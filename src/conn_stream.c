@@ -363,15 +363,16 @@ static void cs_detach_endp(struct conn_stream **csp)
 
 	if (cs->endp->flags & CS_EP_T_MUX) {
 		struct connection *conn = __cs_conn(cs);
+		struct cs_endpoint *endp = cs->endp;
 
 		if (conn->mux) {
 			/* TODO: handle unsubscribe for healthchecks too */
 			if (cs->wait_event.events != 0)
 				conn->mux->unsubscribe(cs, cs->wait_event.events, &cs->wait_event);
-			cs->endp->flags |= CS_EP_ORPHAN;
-			cs->endp->cs = NULL;
-			conn->mux->detach(cs);
+			endp->flags |= CS_EP_ORPHAN;
+			endp->cs = NULL;
 			cs->endp = NULL;
+			conn->mux->detach(endp);
 		}
 		else {
 			/* It's too early to have a mux, let's just destroy
