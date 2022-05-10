@@ -71,7 +71,7 @@ int quic_hkdf_expand(const EVP_MD *md,
 }
 #else
 int quic_hkdf_extract(const EVP_MD *md,
-                      unsigned char *buf, size_t *buflen,
+                      unsigned char *buf, size_t buflen,
                       const unsigned char *key, size_t keylen,
                       const unsigned char *salt, size_t saltlen)
 {
@@ -86,7 +86,7 @@ int quic_hkdf_extract(const EVP_MD *md,
         EVP_PKEY_CTX_set_hkdf_md(ctx, md) <= 0 ||
         EVP_PKEY_CTX_set1_hkdf_salt(ctx, salt, saltlen) <= 0 ||
         EVP_PKEY_CTX_set1_hkdf_key(ctx, key, keylen) <= 0 ||
-        EVP_PKEY_derive(ctx, buf, buflen) <= 0)
+        EVP_PKEY_derive(ctx, buf, &buflen) <= 0)
         goto err;
 
     EVP_PKEY_CTX_free(ctx);
@@ -256,7 +256,7 @@ int quic_derive_initial_secret(const EVP_MD *md,
                                unsigned char *initial_secret, size_t initial_secret_sz,
                                const unsigned char *secret, size_t secret_sz)
 {
-	if (!quic_hkdf_extract(md, initial_secret, &initial_secret_sz, secret, secret_sz,
+	if (!quic_hkdf_extract(md, initial_secret, initial_secret_sz, secret, secret_sz,
 	                       initial_salt, initial_salt_sz))
 		return 0;
 
