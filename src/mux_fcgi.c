@@ -917,7 +917,7 @@ static inline void fcgi_strm_error(struct fcgi_strm *fstrm)
 			TRACE_STATE("switching to ERROR", FCGI_EV_FSTRM_ERR, fstrm->fconn->conn, fstrm);
 		}
 		if (fstrm->cs)
-			cs_ep_set_error(fstrm->cs->endp);
+			cs_ep_set_error(fstrm->endp);
 	}
 }
 
@@ -3952,18 +3952,18 @@ static size_t fcgi_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t co
 		TRACE_STATE("fstrm rxbuf not allocated", FCGI_EV_STRM_RECV|FCGI_EV_FSTRM_BLK, fconn->conn, fstrm);
 
 	if (b_data(&fstrm->rxbuf))
-		cs->endp->flags |= (CS_EP_RCV_MORE | CS_EP_WANT_ROOM);
+		fstrm->endp->flags |= (CS_EP_RCV_MORE | CS_EP_WANT_ROOM);
 	else {
-		cs->endp->flags &= ~(CS_EP_RCV_MORE | CS_EP_WANT_ROOM);
+		fstrm->endp->flags &= ~(CS_EP_RCV_MORE | CS_EP_WANT_ROOM);
 		if (fstrm->state == FCGI_SS_ERROR || (fstrm->h1m.state == H1_MSG_DONE)) {
-			cs->endp->flags |= CS_EP_EOI;
+			fstrm->endp->flags |= CS_EP_EOI;
 			if (!(fstrm->h1m.flags & (H1_MF_VER_11|H1_MF_XFER_LEN)))
-				cs->endp->flags |= CS_EP_EOS;
+				fstrm->endp->flags |= CS_EP_EOS;
 		}
 		if (fcgi_conn_read0_pending(fconn))
-			cs->endp->flags |= CS_EP_EOS;
-		if (cs->endp->flags & CS_EP_ERR_PENDING)
-			cs->endp->flags |= CS_EP_ERROR;
+			fstrm->endp->flags |= CS_EP_EOS;
+		if (fstrm->endp->flags & CS_EP_ERR_PENDING)
+			fstrm->endp->flags |= CS_EP_ERROR;
 		fcgi_release_buf(fconn, &fstrm->rxbuf);
 	}
 
@@ -4016,7 +4016,7 @@ static size_t fcgi_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t co
 
 		if (id < 0) {
 			fcgi_strm_close(fstrm);
-			cs->endp->flags |= CS_EP_ERROR;
+			fstrm->endp->flags |= CS_EP_ERROR;
 			TRACE_DEVEL("couldn't get a stream ID, leaving in error", FCGI_EV_STRM_SEND|FCGI_EV_FSTRM_ERR|FCGI_EV_STRM_ERR, fconn->conn, fstrm);
 			return 0;
 		}
@@ -4113,7 +4113,7 @@ static size_t fcgi_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t co
 
 	if (fstrm->state == FCGI_SS_ERROR) {
 		TRACE_DEVEL("reporting error to the app-layer stream", FCGI_EV_STRM_SEND|FCGI_EV_FSTRM_ERR|FCGI_EV_STRM_ERR, fconn->conn, fstrm);
-		cs_ep_set_error(cs->endp);
+		cs_ep_set_error(fstrm->endp);
 		if (!(fstrm->flags & FCGI_SF_BEGIN_SENT) || fcgi_strm_send_abort(fconn, fstrm))
 			fcgi_strm_close(fstrm);
 	}
