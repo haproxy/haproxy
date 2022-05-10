@@ -6482,7 +6482,7 @@ static size_t h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 	if (h2s_htx->flags & HTX_FL_PARSING_ERROR) {
 		buf_htx->flags |= HTX_FL_PARSING_ERROR;
 		if (htx_is_empty(buf_htx))
-			cs->endp->flags |= CS_EP_EOI;
+			h2s->endp->flags |= CS_EP_EOI;
 	}
 	else if (htx_is_empty(h2s_htx))
 		buf_htx->flags |= (h2s_htx->flags & HTX_FL_EOM);
@@ -6494,19 +6494,19 @@ static size_t h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 
   end:
 	if (b_data(&h2s->rxbuf))
-		cs->endp->flags |= (CS_EP_RCV_MORE | CS_EP_WANT_ROOM);
+		h2s->endp->flags |= (CS_EP_RCV_MORE | CS_EP_WANT_ROOM);
 	else {
-		cs->endp->flags &= ~(CS_EP_RCV_MORE | CS_EP_WANT_ROOM);
+		h2s->endp->flags &= ~(CS_EP_RCV_MORE | CS_EP_WANT_ROOM);
 		if (h2s->flags & H2_SF_ES_RCVD) {
-			cs->endp->flags |= CS_EP_EOI;
+			h2s->endp->flags |= CS_EP_EOI;
 			/* Add EOS flag for tunnel */
 			if (h2s->flags & H2_SF_BODY_TUNNEL)
-				cs->endp->flags |= CS_EP_EOS;
+				h2s->endp->flags |= CS_EP_EOS;
 		}
 		if (h2c_read0_pending(h2c) || h2s->st == H2_SS_CLOSED)
-			cs->endp->flags |= CS_EP_EOS;
-		if (cs->endp->flags & CS_EP_ERR_PENDING)
-			cs->endp->flags |= CS_EP_ERROR;
+			h2s->endp->flags |= CS_EP_EOS;
+		if (h2s->endp->flags & CS_EP_ERR_PENDING)
+			h2s->endp->flags |= CS_EP_ERROR;
 		if (b_size(&h2s->rxbuf)) {
 			b_free(&h2s->rxbuf);
 			offer_buffers(NULL, 1);
@@ -6558,7 +6558,7 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 	}
 
 	if (h2s->h2c->st0 >= H2_CS_ERROR) {
-		cs->endp->flags |= CS_EP_ERROR;
+		h2s->endp->flags |= CS_EP_ERROR;
 		TRACE_DEVEL("connection is in error, leaving in error", H2_EV_H2S_SEND|H2_EV_H2S_BLK|H2_EV_H2S_ERR|H2_EV_STRM_ERR, h2s->h2c->conn, h2s);
 		return 0;
 	}
@@ -6572,7 +6572,7 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 		int32_t id = h2c_get_next_sid(h2s->h2c);
 
 		if (id < 0) {
-			cs->endp->flags |= CS_EP_ERROR;
+			h2s->endp->flags |= CS_EP_ERROR;
 			TRACE_DEVEL("couldn't get a stream ID, leaving in error", H2_EV_H2S_SEND|H2_EV_H2S_BLK|H2_EV_H2S_ERR|H2_EV_STRM_ERR, h2s->h2c->conn, h2s);
 			return 0;
 		}
@@ -6662,7 +6662,7 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 	/* RST are sent similarly to frame acks */
 	if (h2s->st == H2_SS_ERROR || h2s->flags & H2_SF_RST_RCVD) {
 		TRACE_DEVEL("reporting RST/error to the app-layer stream", H2_EV_H2S_SEND|H2_EV_H2S_ERR|H2_EV_STRM_ERR, h2s->h2c->conn, h2s);
-		cs_ep_set_error(cs->endp);
+		cs_ep_set_error(h2s->endp);
 		if (h2s_send_rst_stream(h2s->h2c, h2s) > 0)
 			h2s_close(h2s);
 	}
@@ -6684,10 +6684,10 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 	    !b_data(&h2s->h2c->dbuf) &&
 	    (h2s->flags & (H2_SF_BLK_SFCTL | H2_SF_BLK_MFCTL))) {
 		TRACE_DEVEL("fctl with shutr, reporting error to app-layer", H2_EV_H2S_SEND|H2_EV_STRM_SEND|H2_EV_STRM_ERR, h2s->h2c->conn, h2s);
-		if (cs->endp->flags & CS_EP_EOS)
-			cs->endp->flags |= CS_EP_ERROR;
+		if (h2s->endp->flags & CS_EP_EOS)
+			h2s->endp->flags |= CS_EP_ERROR;
 		else
-			cs->endp->flags |= CS_EP_ERR_PENDING;
+			h2s->endp->flags |= CS_EP_ERR_PENDING;
 	}
 
 	if (total > 0 && !(h2s->flags & H2_SF_BLK_SFCTL) &&
