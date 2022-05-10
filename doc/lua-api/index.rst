@@ -1357,7 +1357,7 @@ Channel class
 
   .. warning::
     It is not possible to read from the response in request action, and it is
-    not possible to read for the request channel in response action.
+    not possible to read from the request channel in response action.
 
   .. warning::
     It is forbidden to alter the Channels buffer from HTTP contexts.  So only
@@ -1368,7 +1368,7 @@ Channel class
   All the functions provided by this class are available in the
   **sample-fetches**, **actions** and **filters** contexts. For **filters**,
   incoming data (offset and length) are relative to the filter. Some functions
-  may yield, by only for **actions**. Yield is not possible for
+  may yield, but only for **actions**. Yield is not possible for
   **sample-fetches**, **converters** and **filters**.
 
 .. js:function:: Channel.append(channel, string)
@@ -1567,7 +1567,7 @@ Channel class
   **DEPRECATED**
 
   This function returns all incoming data found in the channel buffer. The data
-  are not remove from the buffer and can be reprocessed later.
+  are not removed from the buffer and can be reprocessed later.
 
   If there is no incoming data and the channel can't receive more data, a 'nil'
   value is returned.
@@ -1621,7 +1621,7 @@ Channel class
   :returns: a string containing the line found or nil.
 
   .. warning::
-     This function is depdrecated. :js:func:`Channel.line()` must be used to
+     This function is deprecated. :js:func:`Channel.line()` must be used to
      retrieve a line followed by a call to :js:func:`Channel:remove()` to remove
      data.
 
@@ -1634,7 +1634,7 @@ Channel class
 
 .. js:function:: Channel.get_in_len(channel)
 
-  **DEPDRECATED**
+  **DEPRECATED**
 
   This function returns the length of the input part of the buffer. When called
   by a filter, this value is relative to the filter.
@@ -1648,7 +1648,7 @@ Channel class
 
 .. js:function:: Channel.get_out_len(channel)
 
-  **DEPDRECATED**
+  **DEPRECATED**
 
   This function returns the length of the output part of the buffer. When called
   by a filter, this value is relative to the filter.
