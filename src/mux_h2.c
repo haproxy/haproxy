@@ -212,7 +212,6 @@ enum h2_ss {
  * it is being processed in the internal HTTP representation (HTX).
  */
 struct h2s {
-	struct conn_stream *cs;
 	struct cs_endpoint *endp;
 	struct session *sess;
 	struct h2c *h2c;
@@ -531,7 +530,6 @@ static const struct cs_endpoint closed_ep = {
 
 /* a dmumy closed stream */
 static const struct h2s *h2_closed_stream = &(const struct h2s){
-	.cs        = NULL,
 	.endp      = (struct cs_endpoint *)&closed_ep,
 	.h2c       = NULL,
 	.st        = H2_SS_CLOSED,
@@ -542,7 +540,6 @@ static const struct h2s *h2_closed_stream = &(const struct h2s){
 
 /* a dmumy closed stream returning a PROTOCOL_ERROR error */
 static const struct h2s *h2_error_stream = &(const struct h2s){
-	.cs        = NULL,
 	.endp      = (struct cs_endpoint *)&closed_ep,
 	.h2c       = NULL,
 	.st        = H2_SS_CLOSED,
@@ -553,7 +550,6 @@ static const struct h2s *h2_error_stream = &(const struct h2s){
 
 /* a dmumy closed stream returning a REFUSED_STREAM error */
 static const struct h2s *h2_refused_stream = &(const struct h2s){
-	.cs        = NULL,
 	.endp      = (struct cs_endpoint *)&closed_ep,
 	.h2c       = NULL,
 	.st        = H2_SS_CLOSED,
@@ -564,7 +560,6 @@ static const struct h2s *h2_refused_stream = &(const struct h2s){
 
 /* and a dummy idle stream for use with any unannounced stream */
 static const struct h2s *h2_idle_stream = &(const struct h2s){
-	.cs        = NULL,
 	.endp      = (struct cs_endpoint *)&closed_ep,
 	.h2c       = NULL,
 	.st        = H2_SS_IDLE,
@@ -887,7 +882,7 @@ static int h2_buf_available(void *target)
 	}
 
 	if ((h2c->flags & H2_CF_DEM_SALLOC) &&
-	    (h2s = h2c_st_by_id(h2c, h2c->dsi)) && h2s->cs &&
+	    (h2s = h2c_st_by_id(h2c, h2c->dsi)) && h2s->endp->cs &&
 	    b_alloc(&h2s->rxbuf)) {
 		h2c->flags &= ~H2_CF_DEM_SALLOC;
 		h2c_restart_reading(h2c, 1);
@@ -1283,8 +1278,7 @@ static inline __maybe_unused void h2s_error(struct h2s *h2s, enum h2_err err)
 		h2s->errcode = err;
 		if (h2s->st < H2_SS_ERROR)
 			h2s->st = H2_SS_ERROR;
-		if (h2s->cs)
-			cs_ep_set_error(h2s->endp);
+		cs_ep_set_error(h2s->endp);
 	}
 }
 
@@ -1334,9 +1328,9 @@ static void __maybe_unused h2s_alert(struct h2s *h2s)
 		h2s_notify_recv(h2s);
 		h2s_notify_send(h2s);
 	}
-	else if (h2s->cs && h2s->cs->data_cb->wake != NULL) {
+	else if (h2s->endp->cs && h2s->endp->cs->data_cb->wake != NULL) {
 		TRACE_POINT(H2_EV_STRM_WAKE, h2s->h2c->conn, h2s);
-		h2s->cs->data_cb->wake(h2s->cs);
+		h2s->endp->cs->data_cb->wake(h2s->endp->cs);
 	}
 
 	TRACE_LEAVE(H2_EV_H2S_WAKE, h2s->h2c->conn, h2s);
@@ -1490,7 +1484,7 @@ static inline void h2s_close(struct h2s *h2s)
 		h2s->h2c->nb_streams--;
 		if (!h2s->id)
 			h2s->h2c->nb_reserved--;
-		if (h2s->cs) {
+		if (h2s->endp->cs) {
 			if (!(h2s->endp->flags & CS_EP_EOS) && !b_data(&h2s->rxbuf))
 				h2s_notify_recv(h2s);
 		}
@@ -1563,7 +1557,6 @@ static struct h2s *h2s_new(struct h2c *h2c, int id)
 	h2s->shut_tl->context = h2s;
 	LIST_INIT(&h2s->list);
 	h2s->h2c       = h2c;
-	h2s->cs        = NULL;
 	h2s->endp      = NULL;
 	h2s->sws       = 0;
 	h2s->flags     = H2_SF_NONE;
@@ -1636,10 +1629,9 @@ static struct h2s *h2c_frt_stream_new(struct h2c *h2c, int id, struct buffer *in
 	 */
 	sess->t_idle = tv_ms_elapsed(&sess->tv_accept, &now) - sess->t_handshake;
 
-	h2s->cs = cs_new_from_mux(h2s->endp, sess, input);
-	if (!h2s->cs) {
+	if (!cs_new_from_mux(h2s->endp, sess, input))
 		goto out_close;
-	}
+
 	h2c->nb_cs++;
 
 	/* We want the accept date presented to the next stream to be the one
@@ -1701,7 +1693,6 @@ static struct h2s *h2c_bck_stream_new(struct h2c *h2c, struct conn_stream *cs, s
 		h2s = NULL;
 		goto out;
 	}
-	h2s->cs = cs;
 	h2s->endp = cs->endp;
 	h2s->sess = sess;
 	h2c->nb_cs++;
@@ -2205,7 +2196,7 @@ static void h2s_wake_one_stream(struct h2s *h2s)
 
 	TRACE_ENTER(H2_EV_H2S_WAKE, h2c->conn, h2s);
 
-	if (!h2s->cs) {
+	if (!h2s->endp->cs) {
 		/* this stream was already orphaned */
 		h2s_destroy(h2s);
 		TRACE_DEVEL("leaving with no h2s", H2_EV_H2S_WAKE, h2c->conn);
@@ -2758,7 +2749,7 @@ static int h2c_handle_rst_stream(struct h2c *h2c, struct h2s *h2s)
 	h2s->errcode = h2_get_n32(&h2c->dbuf, 0);
 	h2s_close(h2s);
 
-	if (h2s->cs) {
+	if (h2s->endp->cs) {
 		cs_ep_set_error(h2s->endp);
 		h2s_alert(h2s);
 	}
@@ -2987,7 +2978,7 @@ static struct h2s *h2c_bck_handle_headers(struct h2c *h2c, struct h2s *h2s)
 	if (h2c->dff & H2_F_HEADERS_END_STREAM)
 		h2s->flags |= H2_SF_ES_RCVD;
 
-	if (h2s->cs && (h2s->endp->flags & CS_EP_ERROR) && h2s->st < H2_SS_ERROR)
+	if (h2s->endp->flags & CS_EP_ERROR && h2s->st < H2_SS_ERROR)
 		h2s->st = H2_SS_ERROR;
 	else if (h2s->flags & H2_SF_ES_RCVD) {
 		if (h2s->st == H2_SS_OPEN)
@@ -3084,7 +3075,7 @@ static int h2c_handle_data(struct h2c *h2c, struct h2s *h2s)
 	/* call the upper layers to process the frame, then let the upper layer
 	 * notify the stream about any change.
 	 */
-	if (!h2s->cs) {
+	if (!h2s->endp->cs) {
 		/* The upper layer has already closed, this may happen on
 		 * 4xx/redirects during POST, or when receiving a response
 		 * from an H2 server after the client has aborted.
@@ -3483,7 +3474,7 @@ static void h2_process_demux(struct h2c *h2c)
 		 */
 		tmp_h2s = h2c_st_by_id(h2c, h2c->dsi);
 
-		if (tmp_h2s != h2s && h2s && h2s->cs &&
+		if (tmp_h2s != h2s && h2s && h2s->endp->cs &&
 		    (b_data(&h2s->rxbuf) ||
 		     h2c_read0_pending(h2c) ||
 		     h2s->st == H2_SS_CLOSED ||
@@ -3654,7 +3645,7 @@ static void h2_process_demux(struct h2c *h2c)
 			h2c->flags |= H2_CF_END_REACHED;
 	}
 
-	if (h2s && h2s->cs &&
+	if (h2s && h2s->endp->cs &&
 	    (b_data(&h2s->rxbuf) ||
 	     h2c_read0_pending(h2c) ||
 	     h2s->st == H2_SS_CLOSED ||
@@ -4111,7 +4102,7 @@ static int h2_process(struct h2c *h2c)
 
 		while (node) {
 			h2s = container_of(node, struct h2s, by_id);
-			if (h2s->cs && h2s->endp->flags & CS_EP_WAIT_FOR_HS)
+			if (h2s->endp->flags & CS_EP_WAIT_FOR_HS)
 				h2s_notify_recv(h2s);
 			node = eb32_next(node);
 		}
@@ -4332,8 +4323,8 @@ static struct conn_stream *h2_get_first_cs(const struct connection *conn)
 	node = eb32_first(&h2c->streams_by_id);
 	while (node) {
 		h2s = container_of(node, struct h2s, by_id);
-		if (h2s->cs)
-			return h2s->cs;
+		if (h2s->endp->cs)
+			return h2s->endp->cs;
 		node = eb32_next(node);
 	}
 	return NULL;
@@ -4395,7 +4386,6 @@ static void h2_detach(struct conn_stream *cs)
 
 	sess = h2s->sess;
 	h2c = h2s->h2c;
-	h2s->cs = NULL;
 	h2c->nb_cs--;
 	if (!h2c->nb_cs)
 		h2c->idle_start = now_ms;
@@ -4682,7 +4672,7 @@ struct task *h2_deferred_shut(struct task *t, void *ctx, unsigned int state)
 		/* We're done trying to send, remove ourself from the send_list */
 		LIST_DEL_INIT(&h2s->list);
 
-		if (!h2s->cs) {
+		if (!h2s->endp->cs) {
 			h2s_destroy(h2s);
 			if (h2c_is_dead(h2c)) {
 				h2_release(h2c);
@@ -5348,7 +5338,7 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, struct htx *htx)
 			break;
 	}
 
-	if (!h2s->cs || h2s->endp->flags & CS_EP_SHW) {
+	if (!h2s->endp->cs || h2s->endp->flags & CS_EP_SHW) {
 		/* Response already closed: add END_STREAM */
 		es_now = 1;
 	}
@@ -5768,7 +5758,7 @@ static size_t h2s_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 			break;
 	}
 
-	if (!h2s->cs || h2s->endp->flags & CS_EP_SHW) {
+	if (!h2s->endp->cs || h2s->endp->flags & CS_EP_SHW) {
 		/* Request already closed: add END_STREAM */
 		es_now = 1;
 	}
@@ -6737,7 +6727,7 @@ static int h2_show_fd(struct buffer *msg, struct connection *conn)
 	while (node) {
 		h2s = container_of(node, struct h2s, by_id);
 		tree_cnt++;
-		if (!h2s->cs)
+		if (!h2s->endp->cs)
 			orph_cnt++;
 		node = eb32_next(node);
 	}
@@ -6765,10 +6755,10 @@ static int h2_show_fd(struct buffer *msg, struct connection *conn)
 			      h2s, h2s->id, h2s_st_to_str(h2s->st), h2s->flags,
 			      (unsigned int)b_data(&h2s->rxbuf), b_orig(&h2s->rxbuf),
 			      (unsigned int)b_head_ofs(&h2s->rxbuf), (unsigned int)b_size(&h2s->rxbuf),
-			      h2s->cs);
-		if (h2s->cs)
+			      h2s->endp->cs);
+		if (h2s->endp->cs)
 			chunk_appendf(msg, "(.flg=0x%08x .app=%p)",
-				      h2s->cs->flags, h2s->cs->app);
+				      h2s->endp->cs->flags, h2s->endp->cs->app);
 
 		chunk_appendf(msg, "endp=%p", h2s->endp);
 		if (h2s->endp)
