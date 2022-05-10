@@ -1274,7 +1274,7 @@ static inline __maybe_unused void h2s_error(struct h2s *h2s, enum h2_err err)
 		if (h2s->st < H2_SS_ERROR)
 			h2s->st = H2_SS_ERROR;
 		if (h2s->cs)
-			cs_set_error(h2s->cs);
+			cs_ep_set_error(h2s->endp);
 	}
 }
 
@@ -2749,7 +2749,7 @@ static int h2c_handle_rst_stream(struct h2c *h2c, struct h2s *h2s)
 	h2s_close(h2s);
 
 	if (h2s->cs) {
-		cs_set_error(h2s->cs);
+		cs_ep_set_error(h2s->endp);
 		h2s_alert(h2s);
 	}
 
@@ -6662,7 +6662,7 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 	/* RST are sent similarly to frame acks */
 	if (h2s->st == H2_SS_ERROR || h2s->flags & H2_SF_RST_RCVD) {
 		TRACE_DEVEL("reporting RST/error to the app-layer stream", H2_EV_H2S_SEND|H2_EV_H2S_ERR|H2_EV_STRM_ERR, h2s->h2c->conn, h2s);
-		cs_set_error(cs);
+		cs_ep_set_error(cs->endp);
 		if (h2s_send_rst_stream(h2s->h2c, h2s) > 0)
 			h2s_close(h2s);
 	}
