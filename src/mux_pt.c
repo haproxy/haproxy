@@ -20,7 +20,6 @@
 #include <haproxy/trace.h>
 
 struct mux_pt_ctx {
-	struct conn_stream *cs;
 	struct cs_endpoint *endp;
 	struct connection *conn;
 	struct wait_event wait_event;
@@ -147,7 +146,7 @@ static void pt_trace(enum trace_level level, uint64_t mask, const struct trace_s
 		return;
 
 	if (!cs)
-		cs = ctx->cs;
+		cs = ctx->endp->cs;
 
 	/* Display the value to the 4th argument (level > STATE) */
 	if (src->level > TRACE_LEVEL_STATE && val)
@@ -247,8 +246,8 @@ struct task *mux_pt_io_cb(struct task *t, void *tctx, unsigned int status)
 			ctx->conn->subs->events = 0;
 			tasklet_wakeup(ctx->conn->subs->tasklet);
 			ctx->conn->subs = NULL;
-		} else if (ctx->cs->data_cb->wake)
-			ctx->cs->data_cb->wake(ctx->cs);
+		} else if (ctx->endp->cs->data_cb->wake)
+			ctx->endp->cs->data_cb->wake(ctx->endp->cs);
 		TRACE_DEVEL("leaving waking up CS", PT_EV_CONN_WAKE, ctx->conn);
 		return t;
 	}
@@ -316,7 +315,6 @@ static int mux_pt_init(struct connection *conn, struct proxy *prx, struct sessio
 		ctx->endp = cs->endp;
 	}
 	conn->ctx = ctx;
-	ctx->cs = cs;
 	ctx->endp->flags |= CS_EP_RCV_MORE;
 	if (global.tune.options & GTUNE_USE_SPLICE)
 		ctx->endp->flags |= CS_EP_MAY_SPLICE;
@@ -345,7 +343,7 @@ static int mux_pt_wake(struct connection *conn)
 
 	TRACE_ENTER(PT_EV_CONN_WAKE, ctx->conn);
 	if (!(ctx->endp->flags & CS_EP_ORPHAN)) {
-		ret = ctx->cs->data_cb->wake ? ctx->cs->data_cb->wake(ctx->cs) : 0;
+		ret = ctx->endp->cs->data_cb->wake ? ctx->endp->cs->data_cb->wake(ctx->endp->cs) : 0;
 
 		if (ret < 0) {
 			TRACE_DEVEL("leaving waking up CS", PT_EV_CONN_WAKE, ctx->conn);
@@ -384,7 +382,6 @@ static int mux_pt_attach(struct connection *conn, struct conn_stream *cs, struct
 		conn->xprt->unsubscribe(ctx->conn, conn->xprt_ctx, SUB_RETRY_RECV, &ctx->wait_event);
 	if (cs_attach_mux(cs, ctx, conn) < 0)
 		return -1;
-	ctx->cs = cs;
 	ctx->endp = cs->endp;
 	ctx->endp->flags |= CS_EP_RCV_MORE;
 
@@ -399,7 +396,7 @@ static struct conn_stream *mux_pt_get_first_cs(const struct connection *conn)
 {
 	struct mux_pt_ctx *ctx = conn->ctx;
 
-	return ctx->cs;
+	return ctx->endp->cs;
 }
 
 /* Destroy the mux and the associated connection if still attached to this mux
@@ -408,7 +405,7 @@ static void mux_pt_destroy_meth(void *ctx)
 {
 	struct mux_pt_ctx *pt = ctx;
 
-	TRACE_POINT(PT_EV_CONN_END, pt->conn, pt->cs);
+	TRACE_POINT(PT_EV_CONN_END, pt->conn, pt->endp->cs);
 	if ((pt->endp->flags & CS_EP_ORPHAN) || pt->conn->ctx != pt) {
 		if (pt->conn->ctx != pt) {
 			pt->endp = NULL;
@@ -428,7 +425,6 @@ static void mux_pt_detach(struct conn_stream *cs)
 	TRACE_ENTER(PT_EV_STRM_END, conn, cs);
 
 	ctx = conn->ctx;
-	ctx->cs = NULL;
 
 	/* Subscribe, to know if we got disconnected */
 	if (!conn_is_back(conn) && conn->owner != NULL &&
