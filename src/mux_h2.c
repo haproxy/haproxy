@@ -523,9 +523,16 @@ static int h2_settings_initial_window_size    = 65535; /* initial value */
 static unsigned int h2_settings_max_concurrent_streams = 100;
 static int h2_settings_max_frame_size         = 0;     /* unset */
 
+/* a dummy closed endpoint */
+static const struct cs_endpoint closed_ep = {
+	. cs       = NULL,
+	.flags     = CS_EP_DETACHED,
+};
+
 /* a dmumy closed stream */
 static const struct h2s *h2_closed_stream = &(const struct h2s){
 	.cs        = NULL,
+	.endp      = (struct cs_endpoint *)&closed_ep,
 	.h2c       = NULL,
 	.st        = H2_SS_CLOSED,
 	.errcode   = H2_ERR_STREAM_CLOSED,
@@ -536,6 +543,7 @@ static const struct h2s *h2_closed_stream = &(const struct h2s){
 /* a dmumy closed stream returning a PROTOCOL_ERROR error */
 static const struct h2s *h2_error_stream = &(const struct h2s){
 	.cs        = NULL,
+	.endp      = (struct cs_endpoint *)&closed_ep,
 	.h2c       = NULL,
 	.st        = H2_SS_CLOSED,
 	.errcode   = H2_ERR_PROTOCOL_ERROR,
@@ -546,6 +554,7 @@ static const struct h2s *h2_error_stream = &(const struct h2s){
 /* a dmumy closed stream returning a REFUSED_STREAM error */
 static const struct h2s *h2_refused_stream = &(const struct h2s){
 	.cs        = NULL,
+	.endp      = (struct cs_endpoint *)&closed_ep,
 	.h2c       = NULL,
 	.st        = H2_SS_CLOSED,
 	.errcode   = H2_ERR_REFUSED_STREAM,
@@ -556,6 +565,7 @@ static const struct h2s *h2_refused_stream = &(const struct h2s){
 /* and a dummy idle stream for use with any unannounced stream */
 static const struct h2s *h2_idle_stream = &(const struct h2s){
 	.cs        = NULL,
+	.endp      = (struct cs_endpoint *)&closed_ep,
 	.h2c       = NULL,
 	.st        = H2_SS_IDLE,
 	.errcode   = H2_ERR_STREAM_CLOSED,
