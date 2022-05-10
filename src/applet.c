@@ -93,6 +93,20 @@ void *applet_reserve_svcctx(struct appctx *appctx, size_t size)
 	return appctx->svcctx;
 }
 
+/* call the applet's release() function if any, and marks the endp as shut.
+ * Needs to be called upon close().
+ */
+void appctx_shut(struct appctx *appctx)
+{
+	if (appctx->endp->flags & (CS_EP_SHR|CS_EP_SHW))
+		return;
+
+	if (appctx->applet->release)
+		appctx->applet->release(appctx);
+
+	appctx->endp->flags |= CS_EP_SHRR | CS_EP_SHWN;
+}
+
 /* Callback used to wake up an applet when a buffer is available. The applet
  * <appctx> is woken up if an input buffer was requested for the associated
  * conn-stream. In this case the buffer is immediately allocated and the
