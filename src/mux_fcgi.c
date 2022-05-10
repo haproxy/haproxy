@@ -371,9 +371,16 @@ static void fcgi_strm_notify_send(struct fcgi_strm *fstrm);
 static void fcgi_strm_alert(struct fcgi_strm *fstrm);
 static int fcgi_strm_send_abort(struct fcgi_conn *fconn, struct fcgi_strm *fstrm);
 
+/* a dummy closed endpoint */
+static const struct cs_endpoint closed_ep = {
+	. cs       = NULL,
+	.flags     = CS_EP_DETACHED,
+};
+
 /* a dmumy management stream */
 static const struct fcgi_strm *fcgi_mgmt_stream = &(const struct fcgi_strm){
 	.cs        = NULL,
+	.endp      = (struct cs_endpoint*)&closed_ep,
 	.fconn     = NULL,
 	.state     = FCGI_SS_CLOSED,
 	.flags     = FCGI_SF_NONE,
@@ -383,6 +390,7 @@ static const struct fcgi_strm *fcgi_mgmt_stream = &(const struct fcgi_strm){
 /* and a dummy idle stream for use with any unknown stream */
 static const struct fcgi_strm *fcgi_unknown_stream = &(const struct fcgi_strm){
 	.cs        = NULL,
+	.endp      = (struct cs_endpoint*)&closed_ep,
 	.fconn     = NULL,
 	.state     = FCGI_SS_IDLE,
 	.flags     = FCGI_SF_NONE,
