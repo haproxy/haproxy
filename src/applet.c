@@ -106,7 +106,7 @@ int appctx_buf_available(void *arg)
 	struct conn_stream *cs = appctx->owner;
 
 	/* allocation requested ? */
-	if (!(cs->endp->flags & CS_EP_RXBLK_BUFF))
+	if (!(appctx->endp->flags & CS_EP_RXBLK_BUFF))
 		return 0;
 
 	cs_rx_buff_rdy(cs);
@@ -168,8 +168,8 @@ struct task *task_run_applet(struct task *t, void *context, unsigned int state)
 	/* measure the call rate and check for anomalies when too high */
 	rate = update_freq_ctr(&app->call_rate, 1);
 	if (rate >= 100000 && app->call_rate.prev_ctr && // looped more than 100k times over last second
-	    ((b_size(cs_ib(cs)) && cs->endp->flags & CS_EP_RXBLK_BUFF) || // asks for a buffer which is present
-	     (b_size(cs_ib(cs)) && !b_data(cs_ib(cs)) && cs->endp->flags & CS_EP_RXBLK_ROOM) || // asks for room in an empty buffer
+	    ((b_size(cs_ib(cs)) && app->endp->flags & CS_EP_RXBLK_BUFF) || // asks for a buffer which is present
+	     (b_size(cs_ib(cs)) && !b_data(cs_ib(cs)) && app->endp->flags & CS_EP_RXBLK_ROOM) || // asks for room in an empty buffer
 	     (b_data(cs_ob(cs)) && cs_tx_endp_ready(cs) && !cs_tx_blocked(cs)) || // asks for data already present
 	     (!b_data(cs_ib(cs)) && b_data(cs_ob(cs)) && // didn't return anything ...
 	      (cs_oc(cs)->flags & (CF_WRITE_PARTIAL|CF_SHUTW_NOW)) == CF_SHUTW_NOW))) { // ... and left data pending after a shut

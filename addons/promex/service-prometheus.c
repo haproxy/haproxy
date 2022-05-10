@@ -1563,8 +1563,8 @@ static void promex_appctx_handle_io(struct appctx *appctx)
 				channel_add_input(res, 1);
 			}
 		        res_htx->flags |= HTX_FL_EOM;
-			cs->endp->flags |= CS_EP_EOI;
 			res->flags |= CF_EOI;
+			appctx->endp->flags |= CS_EP_EOI;
 			appctx->st0 = PROMEX_ST_END;
 			/* fall through */
 

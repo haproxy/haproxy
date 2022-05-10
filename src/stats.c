@@ -4348,8 +4348,8 @@ static void http_stats_io_handler(struct appctx *appctx)
 			channel_add_input(res, 1);
 		}
 		res_htx->flags |= HTX_FL_EOM;
-		cs->endp->flags |= CS_EP_EOI;
 		res->flags |= CF_EOI;
+		appctx->endp->flags |= CS_EP_EOI;
 		appctx->st0 = STAT_HTTP_END;
 	}
 
