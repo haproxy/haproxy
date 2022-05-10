@@ -158,11 +158,13 @@ struct data_cb {
  *
  * <target> is the mux or the appctx
  * <ctx>    is the context set and used by <target>
+ * <cs>     is the conn_stream we're attached to, or NULL
  * <flags>  CS_EP_*
 */
 struct cs_endpoint {
 	void *target;
 	void *ctx;
+	struct conn_stream *cs;
 	unsigned int flags;
 };
 

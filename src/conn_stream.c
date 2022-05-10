@@ -86,6 +86,7 @@ void cs_endpoint_init(struct cs_endpoint *endp)
 {
 	endp->target = NULL;
 	endp->ctx = NULL;
+	endp->cs = NULL;
 	endp->flags = CS_EP_NONE;
 }
 
@@ -112,7 +113,7 @@ void cs_endpoint_free(struct cs_endpoint *endp)
 
 /* Tries to allocate a new conn_stream and initialize its main fields. On
  * failure, nothing is allocated and NULL is returned. It is an internal
- * function. The caller must, at least, set the CS_EP_ORPHAN or CS_EP_DETAC§HED
+ * function. The caller must, at least, set the CS_EP_ORPHAN or CS_EP_DETACHED
  * flag.
  */
 static struct conn_stream *cs_new(struct cs_endpoint *endp)
@@ -142,6 +143,7 @@ static struct conn_stream *cs_new(struct cs_endpoint *endp)
 			goto alloc_error;
 	}
 	cs->endp = endp;
+	endp->cs = cs;
 
 	return cs;
 
@@ -364,9 +366,10 @@ static void cs_detach_endp(struct conn_stream **csp)
 
 		if (conn->mux) {
 			/* TODO: handle unsubscribe for healthchecks too */
-			cs->endp->flags |= CS_EP_ORPHAN;
 			if (cs->wait_event.events != 0)
 				conn->mux->unsubscribe(cs, cs->wait_event.events, &cs->wait_event);
+			cs->endp->flags |= CS_EP_ORPHAN;
+			cs->endp->cs = NULL;
 			conn->mux->detach(cs);
 			cs->endp = NULL;
 		}
@@ -384,8 +387,9 @@ static void cs_detach_endp(struct conn_stream **csp)
 	else if (cs->endp->flags & CS_EP_T_APPLET) {
 		struct appctx *appctx = __cs_appctx(cs);
 
-		cs->endp->flags |= CS_EP_ORPHAN;
 		cs_applet_shut(cs);
+		cs->endp->flags |= CS_EP_ORPHAN;
+		cs->endp->cs = NULL;
 		appctx_free(appctx);
 		cs->endp = NULL;
 	}
@@ -478,6 +482,7 @@ int cs_reset_endp(struct conn_stream *cs)
 	cs_detach_endp(&cs);
 	BUG_ON(cs->endp);
 	cs->endp = new_endp;
+	cs->endp->cs = cs;
 	cs->endp->flags |= CS_EP_DETACHED;
 	return 0;
 }
