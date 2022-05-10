@@ -90,11 +90,15 @@ int dns_send_nameserver(struct dns_nameserver *ns, void *buf, size_t len)
 
 	if (ns->dgram) {
 		struct dgram_conn *dgram = &ns->dgram->conn;
-		int fd = dgram->t.sock.fd;
+		int fd;
 
-		if (dgram->t.sock.fd == -1) {
-			if (dns_connect_nameserver(ns) == -1)
+		HA_SPIN_LOCK(DNS_LOCK, &dgram->lock);
+		fd = dgram->t.sock.fd;
+		if (fd == -1) {
+			if (dns_connect_nameserver(ns) == -1) {
+				HA_SPIN_UNLOCK(DNS_LOCK, &dgram->lock);
 				return -1;
+			}
 			fd = dgram->t.sock.fd;
 		}
 
@@ -107,17 +111,21 @@ int dns_send_nameserver(struct dns_nameserver *ns, void *buf, size_t len)
 				ret = ring_write(ns->dgram->ring_req, DNS_TCP_MSG_MAX_SIZE, NULL, 0, &myist, 1);
 				if (!ret) {
 					ns->counters->snd_error++;
+					HA_SPIN_UNLOCK(DNS_LOCK, &dgram->lock);
 					return -1;
 				}
 				fd_cant_send(fd);
+				HA_SPIN_UNLOCK(DNS_LOCK, &dgram->lock);
 				return ret;
 			}
 			ns->counters->snd_error++;
 			fd_delete(fd);
 			dgram->t.sock.fd = -1;
+			HA_SPIN_UNLOCK(DNS_LOCK, &dgram->lock);
 			return -1;
 		}
 		ns->counters->sent++;
+		HA_SPIN_UNLOCK(DNS_LOCK, &dgram->lock);
 	}
 	else if (ns->stream) {
 		struct ist myist;
@@ -148,20 +156,27 @@ ssize_t dns_recv_nameserver(struct dns_nameserver *ns, void *data, size_t size)
 
 	if (ns->dgram) {
 		struct dgram_conn *dgram = &ns->dgram->conn;
-		int fd = dgram->t.sock.fd;
+		int fd;
 
-		if (fd == -1)
+		HA_SPIN_LOCK(DNS_LOCK, &dgram->lock);
+		fd = dgram->t.sock.fd;
+		if (fd == -1) {
+			HA_SPIN_UNLOCK(DNS_LOCK, &dgram->lock);
 			return -1;
+		}
 
 		if ((ret = recv(fd, data, size, 0)) < 0) {
 			if (errno == EAGAIN || errno == EWOULDBLOCK) {
 				fd_cant_recv(fd);
+				HA_SPIN_UNLOCK(DNS_LOCK, &dgram->lock);
 				return 0;
 			}
 			fd_delete(fd);
 			dgram->t.sock.fd = -1;
+			HA_SPIN_UNLOCK(DNS_LOCK, &dgram->lock);
 			return -1;
 		}
+		HA_SPIN_UNLOCK(DNS_LOCK, &dgram->lock);
 	}
 	else if (ns->stream) {
 		struct dns_stream_server *dss = ns->stream;
@@ -247,18 +262,25 @@ static void dns_resolve_recv(struct dgram_conn *dgram)
 	struct dns_nameserver *ns;
 	int fd;
 
+	HA_SPIN_LOCK(DNS_LOCK, &dgram->lock);
+
 	fd = dgram->t.sock.fd;
 
 	/* check if ready for reading */
-	if (!fd_recv_ready(fd))
+	if ((fd == -1) || !fd_recv_ready(fd)) {
+		HA_SPIN_UNLOCK(DNS_LOCK, &dgram->lock);
 		return;
+	}
 
 	/* no need to go further if we can't retrieve the nameserver */
 	if ((ns = dgram->owner) == NULL) {
 		_HA_ATOMIC_AND(&fdtab[fd].state, ~(FD_POLL_HUP|FD_POLL_ERR));
 		fd_stop_recv(fd);
+		HA_SPIN_UNLOCK(DNS_LOCK, &dgram->lock);
 		return;
 	}
+
+	HA_SPIN_UNLOCK(DNS_LOCK, &dgram->lock);
 
 	ns->process_responses(ns);
 }
@@ -273,16 +295,21 @@ static void dns_resolve_send(struct dgram_conn *dgram)
 	uint64_t msg_len;
 	size_t len, cnt, ofs;
 
+	HA_SPIN_LOCK(DNS_LOCK, &dgram->lock);
+
 	fd = dgram->t.sock.fd;
 
 	/* check if ready for sending */
-	if (!fd_send_ready(fd))
+	if ((fd == -1) || !fd_send_ready(fd)) {
+		HA_SPIN_UNLOCK(DNS_LOCK, &dgram->lock);
 		return;
+	}
 
 	/* no need to go further if we can't retrieve the nameserver */
 	if ((ns = dgram->owner) == NULL) {
 		_HA_ATOMIC_AND(&fdtab[fd].state, ~(FD_POLL_HUP|FD_POLL_ERR));
 		fd_stop_send(fd);
+		HA_SPIN_UNLOCK(DNS_LOCK, &dgram->lock);
 		return;
 	}
 
@@ -356,6 +383,7 @@ out:
 	ofs += ring->ofs;
 	ns->dgram->ofs_req = ofs;
 	HA_RWLOCK_RDUNLOCK(DNS_LOCK, &ring->lock);
+	HA_SPIN_UNLOCK(DNS_LOCK, &dgram->lock);
 
 }
 
@@ -378,6 +406,7 @@ int dns_dgram_init(struct dns_nameserver *ns, struct sockaddr_storage *sk)
 	dgram->conn.data      = &dns_dgram_cb;
 	dgram->conn.t.sock.fd = -1;
 	dgram->conn.addr.to = *sk;
+	HA_SPIN_INIT(&dgram->conn.lock);
 	ns->dgram = dgram;
 
 	dgram->ofs_req = ~0; /* init ring offset */
