@@ -95,7 +95,6 @@ struct qcc {
 
 struct qcs {
 	struct qcc *qcc;
-	struct conn_stream *cs;
 	struct cs_endpoint *endp;
 	uint32_t flags;      /* QC_SF_* */
 	void *ctx;           /* app-ops context */

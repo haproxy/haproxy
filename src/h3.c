@@ -112,7 +112,6 @@ static int h3_headers_to_htx(struct qcs *qcs, struct buffer *buf, uint64_t len,
 	struct htx *htx = NULL;
 	struct htx_sl *sl;
 	struct http_hdr list[global.tune.max_http_hdr];
-	struct conn_stream *cs;
 	unsigned int flags = HTX_SL_F_NONE;
 	struct ist meth = IST_NULL, path = IST_NULL;
 	//struct ist scheme = IST_NULL, authority = IST_NULL;
@@ -183,8 +182,7 @@ static int h3_headers_to_htx(struct qcs *qcs, struct buffer *buf, uint64_t len,
 	if (fin)
 		htx->flags |= HTX_FL_EOM;
 
-	cs = qc_attach_cs(qcs, &htx_buf);
-	if (!cs)
+	if (!qc_attach_cs(qcs, &htx_buf))
 		return -1;
 
 	/* buffer is transferred to conn_stream and set to NULL

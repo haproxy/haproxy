@@ -114,7 +114,7 @@ struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
 
 	qcs->stream = NULL;
 	qcs->qcc = qcc;
-	qcs->cs = NULL;
+	qcs->endp = NULL;
 	qcs->flags = QC_SF_NONE;
 	qcs->ctx = NULL;
 
@@ -1227,7 +1227,6 @@ static void qc_detach(struct conn_stream *cs)
 
 	TRACE_ENTER(QMUX_EV_STRM_END, qcc->conn, qcs);
 
-	qcs->cs = NULL;
 	--qcc->nb_cs;
 
 	if ((b_data(&qcs->tx.buf) || qcs->tx.offset > qcs->tx.sent_offset) &&
@@ -1384,7 +1383,7 @@ static int qc_wake_some_streams(struct qcc *qcc)
 	     node = eb64_next(node)) {
 		qcs = eb64_entry(node, struct qcs, by_id);
 
-		if (!qcs->cs)
+		if (!qcs->endp->cs)
 			continue;
 
 		if (qcc->conn->flags & CO_FL_ERROR) {
@@ -1396,8 +1395,8 @@ static int qc_wake_some_streams(struct qcc *qcc)
 				qcs_notify_recv(qcs);
 				qcs_notify_send(qcs);
 			}
-			else if (qcs->cs->data_cb->wake) {
-				qcs->cs->data_cb->wake(qcs->cs);
+			else if (qcs->endp->cs->data_cb->wake) {
+				qcs->endp->cs->data_cb->wake(qcs->endp->cs);
 			}
 		}
 	}

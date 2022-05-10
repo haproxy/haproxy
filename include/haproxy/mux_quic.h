@@ -91,15 +91,11 @@ static inline int qcc_install_app_ops(struct qcc *qcc,
 
 static inline struct conn_stream *qc_attach_cs(struct qcs *qcs, struct buffer *buf)
 {
-	struct conn_stream *cs;
-
-	cs = cs_new_from_mux(qcs->endp, qcs->qcc->conn->owner, buf);
-	if (!cs)
+	if (!cs_new_from_mux(qcs->endp, qcs->qcc->conn->owner, buf))
 		return NULL;
-	qcs->cs = cs;
-	++qcs->qcc->nb_cs;
 
-	return cs;
+	++qcs->qcc->nb_cs;
+	return qcs->endp->cs;
 }
 
 #endif /* USE_QUIC */
