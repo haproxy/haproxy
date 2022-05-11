@@ -3190,14 +3190,15 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 		ha_alert("out of memory in peer_session_create().\n");
 		goto out_free_appctx;
 	}
+	appctx->sess = sess;
 
 	if (!sockaddr_alloc(&addr, &peer->addr, sizeof(peer->addr)))
-		goto out_free_sess;
+		goto out_free_appctx;
 
 	cs = cs_new_from_endp(appctx->endp, sess, &BUF_NULL);
 	if (!cs) {
 		ha_alert("Failed to initialize stream in peer_session_create().\n");
-		goto out_free_addr;
+		goto out_free_appctx;
 	}
 
 	s = DISGUISE(cs_strm(cs));
@@ -3224,8 +3225,6 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 	/* Error unrolling */
  out_free_addr:
 	sockaddr_free(&addr);
- out_free_sess:
-	session_free(sess);
  out_free_appctx:
 	appctx_free(appctx);
  out_close:

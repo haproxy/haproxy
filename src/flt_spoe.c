@@ -2026,9 +2026,10 @@ spoe_create_appctx(struct spoe_config *conf)
 	if (!sess)
 		goto out_free_spoe;
 
+	appctx->sess = sess;
 	cs = cs_new_from_endp(appctx->endp, sess, &BUF_NULL);
 	if (!cs)
-		goto out_free_sess;
+		goto out_free_spoe;
 
 	strm = DISGUISE(cs_strm(cs));
 	stream_set_backend(strm, conf->agent->b.be);
@@ -2049,8 +2050,6 @@ spoe_create_appctx(struct spoe_config *conf)
 	return appctx;
 
 	/* Error unrolling */
- out_free_sess:
-	session_free(sess);
  out_free_spoe:
 	task_destroy(SPOE_APPCTX(appctx)->task);
  out_free_spoe_appctx:

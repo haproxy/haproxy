@@ -585,7 +585,6 @@ static void stream_free(struct stream *s)
 	struct session *sess = strm_sess(s);
 	struct proxy *fe = sess->fe;
 	struct bref *bref, *back;
-	int must_free_sess;
 	int i;
 
 	DBG_TRACE_POINT(STRM_EV_STRM_FREE, s);
@@ -709,17 +708,8 @@ static void stream_free(struct stream *s)
 	}
 	LIST_DELETE(&s->list);
 
-	/* applets do not release session yet */
-	/* FIXME: Handle it in appctx_free ??? */
-	must_free_sess = objt_appctx(sess->origin) && sess->origin == __cs_endp_target(s->csf);
-
 	cs_destroy(s->csb);
 	cs_destroy(s->csf);
-
-	if (must_free_sess) {
-		sess->origin = NULL;
-		session_free(sess);
-	}
 
 	pool_free(pool_head_stream, s);
 

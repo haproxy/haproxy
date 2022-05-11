@@ -578,6 +578,7 @@ struct appctx *httpclient_start(struct httpclient *hc)
 		ha_alert("httpclient: out of memory in %s:%d.\n", __FUNCTION__, __LINE__);
 		goto out_free_appctx;
 	}
+	appctx->sess = sess;
 
 	/* choose the SSL server or not */
 	switch (scheme) {
@@ -590,22 +591,22 @@ struct appctx *httpclient_start(struct httpclient *hc)
 				target = &httpclient_srv_ssl->obj_type;
 			} else {
 				ha_alert("httpclient: SSL was disabled (wrong verify/ca-file)!\n");
-				goto out_free_sess;
+				goto out_free_appctx;
 			}
 #else
 			ha_alert("httpclient: OpenSSL is not available %s:%d.\n", __FUNCTION__, __LINE__);
-			goto out_free_sess;
+			goto out_free_appctx;
 #endif
 			break;
 	}
 
 	if (!ss_dst) {
 		ha_alert("httpclient: Failed to initialize address %s:%d.\n", __FUNCTION__, __LINE__);
-		goto out_free_sess;
+		goto out_free_appctx;
 	}
 
 	if (!sockaddr_alloc(&addr, ss_dst, sizeof(*ss_dst)))
-		goto out_free_sess;
+		goto out_free_appctx;
 
 	cs = cs_new_from_endp(appctx->endp, sess, &hc->req.buf);
 	if (!cs) {
@@ -650,8 +651,6 @@ struct appctx *httpclient_start(struct httpclient *hc)
 
 out_free_addr:
 	sockaddr_free(&addr);
-out_free_sess:
-	session_free(sess);
 out_free_appctx:
 	appctx_free(appctx);
 out:

@@ -2994,10 +2994,11 @@ __LJMP static int hlua_socket_new(lua_State *L)
 		goto out_fail_appctx;
 	}
 
+	appctx->sess = sess;
 	cs = cs_new_from_endp(appctx->endp, sess, &BUF_NULL);
 	if (!cs) {
 		hlua_pusherror(L, "socket: out of memory");
-		goto out_fail_sess;
+		goto out_fail_appctx;
 	}
 
 	s = DISGUISE(cs_strm(cs));
@@ -3017,8 +3018,6 @@ __LJMP static int hlua_socket_new(lua_State *L)
 
 	return 1;
 
- out_fail_sess:
-	session_free(sess);
  out_fail_appctx:
 	appctx_free(appctx);
  out_fail_conf:

@@ -650,14 +650,15 @@ static struct appctx *sink_forward_session_create(struct sink *sink, struct sink
 		ha_alert("out of memory in sink_forward_session_create().\n");
 		goto out_free_appctx;
 	}
+	appctx->sess = sess;
 
 	if (!sockaddr_alloc(&addr, &sft->srv->addr, sizeof(sft->srv->addr)))
-		goto out_free_sess;
+		goto out_free_appctx;
 
 	cs = cs_new_from_endp(appctx->endp, sess, &BUF_NULL);
 	if (!cs) {
 		ha_alert("Failed to initialize stream in sink_forward_session_create().\n");
-		goto out_free_addr;
+		goto out_free_appctx;
 	}
 	s = DISGUISE(cs_strm(cs));
 
@@ -682,8 +683,6 @@ static struct appctx *sink_forward_session_create(struct sink *sink, struct sink
 	/* Error unrolling */
  out_free_addr:
 	sockaddr_free(&addr);
- out_free_sess:
-	session_free(sess);
  out_free_appctx:
 	appctx_free(appctx);
  out_close:
