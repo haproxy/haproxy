@@ -101,7 +101,7 @@ HAProxy requires a working GCC or Clang toolchain and GNU make :
     may want to retry with "gmake" which is the name commonly used for GNU make
     on BSD systems.
 
-  - GCC >= 3.4 (up to 11 tested). Older versions can be made to work with a
+  - GCC >= 4.2 (up to 12 tested). Older versions can be made to work with a
     few minor adaptations if really needed. Newer versions may sometimes break
     due to compiler regressions or behaviour changes. The version shipped with
     your operating system is very likely to work with no trouble. Clang >= 3.0
