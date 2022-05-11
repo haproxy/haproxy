@@ -558,7 +558,7 @@ static int promex_dump_global_metrics(struct appctx *appctx, struct htx *htx)
 	static struct ist prefix = IST("haproxy_process_");
 	struct promex_ctx *ctx = appctx->svcctx;
 	struct field val;
-	struct channel *chn = cs_ic(appctx->owner);
+	struct channel *chn = cs_ic(appctx_cs(appctx));
 	struct ist out = ist2(trash.area, 0);
 	size_t max = htx_get_max_blksz(htx, channel_htx_recv_max(chn, htx));
 	int ret = 1;
@@ -610,7 +610,7 @@ static int promex_dump_front_metrics(struct appctx *appctx, struct htx *htx)
 	struct promex_ctx *ctx = appctx->svcctx;
 	struct proxy *px;
 	struct field val;
-	struct channel *chn = cs_ic(appctx->owner);
+	struct channel *chn = cs_ic(appctx_cs(appctx));
 	struct ist out = ist2(trash.area, 0);
 	size_t max = htx_get_max_blksz(htx, channel_htx_recv_max(chn, htx));
 	struct field *stats = stat_l[STATS_DOMAIN_PROXY];
@@ -711,7 +711,7 @@ static int promex_dump_listener_metrics(struct appctx *appctx, struct htx *htx)
 	struct promex_ctx *ctx = appctx->svcctx;
 	struct proxy *px;
 	struct field val;
-	struct channel *chn = cs_ic(appctx->owner);
+	struct channel *chn = cs_ic(appctx_cs(appctx));
 	struct ist out = ist2(trash.area, 0);
 	size_t max = htx_get_max_blksz(htx, channel_htx_recv_max(chn, htx));
 	struct field *stats = stat_l[STATS_DOMAIN_PROXY];
@@ -803,7 +803,7 @@ static int promex_dump_back_metrics(struct appctx *appctx, struct htx *htx)
 	struct proxy *px;
 	struct server *sv;
 	struct field val;
-	struct channel *chn = cs_ic(appctx->owner);
+	struct channel *chn = cs_ic(appctx_cs(appctx));
 	struct ist out = ist2(trash.area, 0);
 	size_t max = htx_get_max_blksz(htx, channel_htx_recv_max(chn, htx));
 	struct field *stats = stat_l[STATS_DOMAIN_PROXY];
@@ -957,7 +957,7 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 	struct proxy *px;
 	struct server *sv;
 	struct field val;
-	struct channel *chn = cs_ic(appctx->owner);
+	struct channel *chn = cs_ic(appctx_cs(appctx));
 	struct ist out = ist2(trash.area, 0);
 	size_t max = htx_get_max_blksz(htx, channel_htx_recv_max(chn, htx));
 	struct field *stats = stat_l[STATS_DOMAIN_PROXY];
@@ -1127,7 +1127,7 @@ static int promex_dump_sticktable_metrics(struct appctx *appctx, struct htx *htx
 	static struct ist prefix = IST("haproxy_sticktable_");
 	struct promex_ctx *ctx = appctx->svcctx;
 	struct field val;
-	struct channel *chn = cs_ic(appctx->owner);
+	struct channel *chn = cs_ic(appctx_cs(appctx));
 	struct ist out = ist2(trash.area, 0);
 	size_t max = htx_get_max_blksz(htx, channel_htx_recv_max(chn, htx));
 	int ret = 1;
@@ -1503,7 +1503,7 @@ static int promex_appctx_init(struct appctx *appctx)
 /* The main I/O handler for the promex applet. */
 static void promex_appctx_handle_io(struct appctx *appctx)
 {
-	struct conn_stream *cs = appctx->owner;
+	struct conn_stream *cs = appctx_cs(appctx);
 	struct stream *s = __cs_strm(cs);
 	struct channel *req = cs_oc(cs);
 	struct channel *res = cs_ic(cs);

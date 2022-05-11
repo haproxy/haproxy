@@ -1011,7 +1011,7 @@ int pool_parse_debugging(const char *str, char **err)
  */
 static int cli_io_handler_dump_pools(struct appctx *appctx)
 {
-	struct conn_stream *cs = appctx->owner;
+	struct conn_stream *cs = appctx_cs(appctx);
 
 	dump_pools_to_trash();
 	if (ci_putchk(cs_ic(cs), &trash) == -1) {

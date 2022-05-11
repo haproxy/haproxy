@@ -1943,7 +1943,7 @@ __LJMP static struct hlua_socket *hlua_checksocket(lua_State *L, int ud)
 static void hlua_socket_handler(struct appctx *appctx)
 {
 	struct hlua_csk_ctx *ctx = appctx->svcctx;
-	struct conn_stream *cs = appctx->owner;
+	struct conn_stream *cs = appctx_cs(appctx);
 
 	if (ctx->die) {
 		cs_shutw(cs);
@@ -2143,7 +2143,7 @@ __LJMP static int hlua_socket_receive_yield(struct lua_State *L, int status, lua
 
 	csk_ctx = container_of(peer, struct hlua_csk_ctx, xref);
 	appctx = csk_ctx->appctx;
-	s = __cs_strm(appctx->owner);
+	s = appctx_strm(appctx);
 
 	oc = &s->res;
 	if (wanted == HLSR_READ_LINE) {
@@ -2384,7 +2384,7 @@ static int hlua_socket_write_yield(struct lua_State *L,int status, lua_KContext 
 
 	csk_ctx = container_of(peer, struct hlua_csk_ctx, xref);
 	appctx = csk_ctx->appctx;
-	cs = appctx->owner;
+	cs = appctx_cs(appctx);
 	s = __cs_strm(cs);
 
 	/* Check for connection close. */
@@ -2618,7 +2618,7 @@ __LJMP static int hlua_socket_getpeername(struct lua_State *L)
 	}
 
 	appctx = container_of(peer, struct hlua_csk_ctx, xref)->appctx;
-	cs = appctx->owner;
+	cs = appctx_cs(appctx);
 	dst = cs_dst(cs_opposite(cs));
 	if (!dst) {
 		xref_unlock(&socket->xref, peer);
@@ -2659,7 +2659,7 @@ static int hlua_socket_getsockname(struct lua_State *L)
 	}
 
 	appctx = container_of(peer, struct hlua_csk_ctx, xref)->appctx;
-	s = __cs_strm(appctx->owner);
+	s = appctx_strm(appctx);
 
 	conn = cs_conn(s->csb);
 	if (!conn || !conn_get_src(conn)) {
@@ -2711,7 +2711,7 @@ __LJMP static int hlua_socket_connect_yield(struct lua_State *L, int status, lua
 
 	csk_ctx = container_of(peer, struct hlua_csk_ctx, xref);
 	appctx = csk_ctx->appctx;
-	s = __cs_strm(appctx->owner);
+	s = appctx_strm(appctx);
 
 	/* Check if we run on the same thread than the xreator thread.
 	 * We cannot access to the socket if the thread is different.
@@ -2824,7 +2824,7 @@ __LJMP static int hlua_socket_connect(struct lua_State *L)
 
 	csk_ctx = container_of(peer, struct hlua_csk_ctx, xref);
 	appctx = csk_ctx->appctx;
-	cs = appctx->owner;
+	cs = appctx_cs(appctx);
 	s = __cs_strm(cs);
 
 	if (!sockaddr_alloc(&cs_opposite(cs)->dst, addr, sizeof(*addr))) {
@@ -2865,7 +2865,6 @@ __LJMP static int hlua_socket_connect_ssl(struct lua_State *L)
 {
 	struct hlua_socket *socket;
 	struct xref *peer;
-	struct appctx *appctx;
 	struct stream *s;
 
 	MAY_LJMP(check_args(L, 3, "connect_ssl"));
@@ -2878,8 +2877,7 @@ __LJMP static int hlua_socket_connect_ssl(struct lua_State *L)
 		return 1;
 	}
 
-	appctx = container_of(peer, struct hlua_csk_ctx, xref)->appctx;
-	s = __cs_strm(appctx->owner);
+	s = appctx_strm(container_of(peer, struct hlua_csk_ctx, xref)->appctx);
 
 	s->target = &socket_ssl->obj_type;
 	xref_unlock(&socket->xref, peer);
@@ -2898,7 +2896,6 @@ __LJMP static int hlua_socket_settimeout(struct lua_State *L)
 	int tmout;
 	double dtmout;
 	struct xref *peer;
-	struct appctx *appctx;
 	struct stream *s;
 
 	MAY_LJMP(check_args(L, 2, "settimeout"));
@@ -2933,8 +2930,7 @@ __LJMP static int hlua_socket_settimeout(struct lua_State *L)
 		return 0;
 	}
 
-	appctx = container_of(peer, struct hlua_csk_ctx, xref)->appctx;
-	s = __cs_strm(appctx->owner);
+	s = appctx_strm(container_of(peer, struct hlua_csk_ctx, xref)->appctx);
 
 	s->sess->fe->timeout.connect = tmout;
 	s->req.rto = tmout;
@@ -4310,7 +4306,7 @@ __LJMP static struct hlua_appctx *hlua_checkapplet_tcp(lua_State *L, int ud)
 static int hlua_applet_tcp_new(lua_State *L, struct appctx *ctx)
 {
 	struct hlua_appctx *luactx;
-	struct stream *s = __cs_strm(ctx->owner);
+	struct stream *s = appctx_strm(ctx);
 	struct proxy *p;
 
 	ALREADY_CHECKED(s);
@@ -4493,7 +4489,7 @@ __LJMP static int hlua_applet_tcp_get_priv(lua_State *L)
 __LJMP static int hlua_applet_tcp_getline_yield(lua_State *L, int status, lua_KContext ctx)
 {
 	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_tcp(L, 1));
-	struct conn_stream *cs = luactx->appctx->owner;
+	struct conn_stream *cs = appctx_cs(luactx->appctx);
 	int ret;
 	const char *blk1;
 	size_t len1;
@@ -4547,7 +4543,7 @@ __LJMP static int hlua_applet_tcp_getline(lua_State *L)
 __LJMP static int hlua_applet_tcp_recv_yield(lua_State *L, int status, lua_KContext ctx)
 {
 	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_tcp(L, 1));
-	struct conn_stream *cs = luactx->appctx->owner;
+	struct conn_stream *cs = appctx_cs(luactx->appctx);
 	size_t len = MAY_LJMP(luaL_checkinteger(L, 2));
 	int ret;
 	const char *blk1;
@@ -4655,7 +4651,7 @@ __LJMP static int hlua_applet_tcp_send_yield(lua_State *L, int status, lua_KCont
 	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_tcp(L, 1));
 	const char *str = MAY_LJMP(luaL_checklstring(L, 2, &len));
 	int l = MAY_LJMP(luaL_checkinteger(L, 3));
-	struct conn_stream *cs = luactx->appctx->owner;
+	struct conn_stream *cs = appctx_cs(luactx->appctx);
 	struct channel *chn = cs_ic(cs);
 	int max;
 
@@ -4721,7 +4717,7 @@ static int hlua_applet_http_new(lua_State *L, struct appctx *ctx)
 	struct hlua_http_ctx *http_ctx = ctx->svcctx;
 	struct hlua_appctx *luactx;
 	struct hlua_txn htxn;
-	struct stream *s = __cs_strm(ctx->owner);
+	struct stream *s = appctx_strm(ctx);
 	struct proxy *px = s->be;
 	struct htx *htx;
 	struct htx_blk *blk;
@@ -4982,7 +4978,7 @@ __LJMP static int hlua_applet_http_get_priv(lua_State *L)
 __LJMP static int hlua_applet_http_getline_yield(lua_State *L, int status, lua_KContext ctx)
 {
 	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_http(L, 1));
-	struct conn_stream *cs = luactx->appctx->owner;
+	struct conn_stream *cs = appctx_cs(luactx->appctx);
 	struct channel *req = cs_oc(cs);
 	struct htx *htx;
 	struct htx_blk *blk;
@@ -5077,7 +5073,7 @@ __LJMP static int hlua_applet_http_getline(lua_State *L)
 __LJMP static int hlua_applet_http_recv_yield(lua_State *L, int status, lua_KContext ctx)
 {
 	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_http(L, 1));
-	struct conn_stream *cs = luactx->appctx->owner;
+	struct conn_stream *cs = appctx_cs(luactx->appctx);
 	struct channel *req = cs_oc(cs);
 	struct htx *htx;
 	struct htx_blk *blk;
@@ -5186,7 +5182,7 @@ __LJMP static int hlua_applet_http_recv(lua_State *L)
 __LJMP static int hlua_applet_http_send_yield(lua_State *L, int status, lua_KContext ctx)
 {
 	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_http(L, 1));
-	struct conn_stream *cs = luactx->appctx->owner;
+	struct conn_stream *cs = appctx_cs(luactx->appctx);
 	struct channel *res = cs_ic(cs);
 	struct htx *htx = htx_from_buf(&res->buf);
 	const char *data;
@@ -5323,7 +5319,7 @@ __LJMP static int hlua_applet_http_send_response(lua_State *L)
 {
 	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_http(L, 1));
 	struct hlua_http_ctx *http_ctx = luactx->appctx->svcctx;
-	struct conn_stream *cs = luactx->appctx->owner;
+	struct conn_stream *cs = appctx_cs(luactx->appctx);
 	struct channel *res = cs_ic(cs);
 	struct htx *htx;
 	struct htx_sl *sl;
@@ -5520,7 +5516,7 @@ __LJMP static int hlua_applet_http_send_response(lua_State *L)
 __LJMP static int hlua_applet_http_start_response_yield(lua_State *L, int status, lua_KContext ctx)
 {
 	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_http(L, 1));
-	struct conn_stream *cs = luactx->appctx->owner;
+	struct conn_stream *cs = appctx_cs(luactx->appctx);
 	struct channel *res = cs_ic(cs);
 
 	if (co_data(res)) {
@@ -9230,7 +9226,7 @@ struct task *hlua_applet_wakeup(struct task *t, void *context, unsigned int stat
 static int hlua_applet_tcp_init(struct appctx *ctx)
 {
 	struct hlua_tcp_ctx *tcp_ctx = applet_reserve_svcctx(ctx, sizeof(*tcp_ctx));
-	struct conn_stream *cs = ctx->owner;
+	struct conn_stream *cs = appctx_cs(ctx);
 	struct stream *strm = __cs_strm(cs);
 	struct hlua *hlua;
 	struct task *task;
@@ -9328,7 +9324,7 @@ static int hlua_applet_tcp_init(struct appctx *ctx)
 void hlua_applet_tcp_fct(struct appctx *ctx)
 {
 	struct hlua_tcp_ctx *tcp_ctx = ctx->svcctx;
-	struct conn_stream *cs = ctx->owner;
+	struct conn_stream *cs = appctx_cs(ctx);
 	struct stream *strm = __cs_strm(cs);
 	struct channel *res = cs_ic(cs);
 	struct act_rule *rule = ctx->rule;
@@ -9422,7 +9418,7 @@ static void hlua_applet_tcp_release(struct appctx *ctx)
 static int hlua_applet_http_init(struct appctx *ctx)
 {
 	struct hlua_http_ctx *http_ctx = applet_reserve_svcctx(ctx, sizeof(*http_ctx));
-	struct conn_stream *cs = ctx->owner;
+	struct conn_stream *cs = appctx_cs(ctx);
 	struct stream *strm = __cs_strm(cs);
 	struct http_txn *txn;
 	struct hlua *hlua;
@@ -9525,7 +9521,7 @@ static int hlua_applet_http_init(struct appctx *ctx)
 void hlua_applet_http_fct(struct appctx *ctx)
 {
 	struct hlua_http_ctx *http_ctx = ctx->svcctx;
-	struct conn_stream *cs = ctx->owner;
+	struct conn_stream *cs = appctx_cs(ctx);
 	struct stream *strm = __cs_strm(cs);
 	struct channel *req = cs_oc(cs);
 	struct channel *res = cs_ic(cs);
@@ -10162,7 +10158,7 @@ static int hlua_cli_io_handler_fct(struct appctx *appctx)
 	struct hlua_function *fcn;
 
 	hlua = ctx->hlua;
-	cs = appctx->owner;
+	cs = appctx_cs(appctx);
 	fcn = ctx->fcn;
 
 	/* If the stream is disconnect or closed, ldo nothing. */

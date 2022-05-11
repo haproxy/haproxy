@@ -117,7 +117,7 @@ void appctx_shut(struct appctx *appctx)
 int appctx_buf_available(void *arg)
 {
 	struct appctx *appctx = arg;
-	struct conn_stream *cs = appctx->owner;
+	struct conn_stream *cs = appctx_cs(appctx);
 
 	/* allocation requested ? */
 	if (!(appctx->endp->flags & CS_EP_RXBLK_BUFF))
@@ -143,7 +143,7 @@ int appctx_buf_available(void *arg)
 struct task *task_run_applet(struct task *t, void *context, unsigned int state)
 {
 	struct appctx *app = context;
-	struct conn_stream *cs = app->owner;
+	struct conn_stream *cs = appctx_cs(app);
 	unsigned int rate;
 	size_t count;
 

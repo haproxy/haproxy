@@ -61,7 +61,6 @@ struct appctx {
 	unsigned int st1;          /* prompt/payload (bitwise OR of APPCTX_CLI_ST1_*) for stats, session error for peers */
 	struct buffer *chunk;       /* used to store unfinished commands */
 	struct applet *applet;     /* applet this context refers to */
-	struct conn_stream *owner;
 	struct cs_endpoint *endp;
 	struct act_rule *rule;     /* rule associated with the applet. */
 	int (*io_handler)(struct appctx *appctx);  /* used within the cli_io_handler when st0 = CLI_ST_CALLBACK */

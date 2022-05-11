@@ -2818,7 +2818,7 @@ void stream_dump_and_crash(enum obj_type *obj, int rate)
 		if (!appctx)
 			return;
 		ptr = appctx;
-		s = __cs_strm(appctx->owner);
+		s = appctx_strm(appctx);
 		if (!s)
 			return;
 	}
@@ -3524,7 +3524,7 @@ static int cli_parse_show_sess(char **args, char *payload, struct appctx *appctx
 	/* let's set our own stream's epoch to the current one and increment
 	 * it so that we know which streams were already there before us.
 	 */
-	__cs_strm(appctx->owner)->stream_epoch = _HA_ATOMIC_FETCH_ADD(&stream_epoch, 1);
+	appctx_strm(appctx)->stream_epoch = _HA_ATOMIC_FETCH_ADD(&stream_epoch, 1);
 	return 0;
 }
 
@@ -3536,7 +3536,7 @@ static int cli_parse_show_sess(char **args, char *payload, struct appctx *appctx
 static int cli_io_handler_dump_sess(struct appctx *appctx)
 {
 	struct show_sess_ctx *ctx = appctx->svcctx;
-	struct conn_stream *cs = appctx->owner;
+	struct conn_stream *cs = appctx_cs(appctx);
 	struct connection *conn;
 
 	thread_isolate();
@@ -3579,7 +3579,7 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 		else {
 			/* check if we've found a stream created after issuing the "show sess" */
 			curr_strm = LIST_ELEM(ctx->bref.ref, struct stream *, list);
-			if ((int)(curr_strm->stream_epoch - __cs_strm(appctx->owner)->stream_epoch) > 0)
+			if ((int)(curr_strm->stream_epoch - appctx_strm(appctx)->stream_epoch) > 0)
 				done = 1;
 		}
 

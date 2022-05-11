@@ -1314,7 +1314,7 @@ static int cli_io_handler_show_cert(struct appctx *appctx)
 	struct show_cert_ctx *ctx = appctx->svcctx;
 	struct buffer *trash = alloc_trash_chunk();
 	struct ebmb_node *node;
-	struct conn_stream *cs = appctx->owner;
+	struct conn_stream *cs = appctx_cs(appctx);
 	struct ckch_store *ckchs;
 
 	if (trash == NULL)
@@ -1716,7 +1716,7 @@ static int ckch_store_show_ocsp_certid(struct ckch_store *ckch_store, struct buf
 static int cli_io_handler_show_cert_detail(struct appctx *appctx)
 {
 	struct show_cert_ctx *ctx = appctx->svcctx;
-	struct conn_stream *cs = appctx->owner;
+	struct conn_stream *cs = appctx_cs(appctx);
 	struct ckch_store *ckchs = ctx->cur_ckchs;
 	struct buffer *out = alloc_trash_chunk();
 	int retval = 0;
@@ -1767,7 +1767,7 @@ static int cli_io_handler_show_cert_ocsp_detail(struct appctx *appctx)
 {
 #if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) && !defined OPENSSL_IS_BORINGSSL)
 	struct show_cert_ctx *ctx = appctx->svcctx;
-	struct conn_stream *cs = appctx->owner;
+	struct conn_stream *cs = appctx_cs(appctx);
 	struct ckch_store *ckchs = ctx->cur_ckchs;
 	struct buffer *out = alloc_trash_chunk();
 	int from_transaction = ctx->transaction;
@@ -2048,7 +2048,7 @@ void ckch_store_replace(struct ckch_store *old_ckchs, struct ckch_store *new_ckc
 static int cli_io_handler_commit_cert(struct appctx *appctx)
 {
 	struct commit_cert_ctx *ctx = appctx->svcctx;
-	struct conn_stream *cs = appctx->owner;
+	struct conn_stream *cs = appctx_cs(appctx);
 	int y = 0;
 	char *err = NULL;
 	struct ckch_store *old_ckchs, *new_ckchs = NULL;
@@ -2793,7 +2793,7 @@ static inline int __create_new_instance(struct appctx *appctx, struct ckch_inst 
 static int cli_io_handler_commit_cafile_crlfile(struct appctx *appctx)
 {
 	struct commit_cacrlfile_ctx *ctx = appctx->svcctx;
-	struct conn_stream *cs = appctx->owner;
+	struct conn_stream *cs = appctx_cs(appctx);
 	int y = 0;
 	char *err = NULL;
 	struct cafile_entry *old_cafile_entry = NULL, *new_cafile_entry = NULL;
@@ -3025,7 +3025,7 @@ static void cli_release_commit_cafile(struct appctx *appctx)
 static int cli_io_handler_show_cafile_detail(struct appctx *appctx)
 {
 	struct show_cafile_ctx *ctx = appctx->svcctx;
-	struct conn_stream *cs = appctx->owner;
+	struct conn_stream *cs = appctx_cs(appctx);
 	struct cafile_entry *cafile_entry = ctx->cur_cafile_entry;
 	struct buffer *out = alloc_trash_chunk();
 	int i = 0;
@@ -3196,7 +3196,7 @@ static int cli_io_handler_show_cafile(struct appctx *appctx)
 	struct show_cafile_ctx *ctx = appctx->svcctx;
 	struct buffer *trash = alloc_trash_chunk();
 	struct ebmb_node *node;
-	struct conn_stream *cs = appctx->owner;
+	struct conn_stream *cs = appctx_cs(appctx);
 	struct cafile_entry *cafile_entry;
 
 	if (trash == NULL)
@@ -3712,7 +3712,7 @@ end:
 static int cli_io_handler_show_crlfile_detail(struct appctx *appctx)
 {
 	struct show_crlfile_ctx *ctx = appctx->svcctx;
-	struct conn_stream *cs = appctx->owner;
+	struct conn_stream *cs = appctx_cs(appctx);
 	struct cafile_entry *cafile_entry = ctx->cafile_entry;
 	struct buffer *out = alloc_trash_chunk();
 	int i;
@@ -3847,7 +3847,7 @@ static int cli_io_handler_show_crlfile(struct appctx *appctx)
 	struct show_crlfile_ctx *ctx = appctx->svcctx;
 	struct buffer *trash = alloc_trash_chunk();
 	struct ebmb_node *node;
-	struct conn_stream *cs = appctx->owner;
+	struct conn_stream *cs = appctx_cs(appctx);
 	struct cafile_entry *cafile_entry;
 
 	if (trash == NULL)

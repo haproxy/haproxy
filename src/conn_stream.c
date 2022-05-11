@@ -179,12 +179,10 @@ struct conn_stream *cs_new_from_mux(struct cs_endpoint *endp, struct session *se
 struct conn_stream *cs_new_from_applet(struct cs_endpoint *endp, struct session *sess, struct buffer *input)
 {
 	struct conn_stream *cs;
-	struct appctx *appctx = endp->ctx;
 
 	cs = cs_new(endp);
 	if (unlikely(!cs))
 		return NULL;
-	appctx->owner = cs;
 	if (unlikely(!stream_new(sess, cs, input))) {
 		pool_free(pool_head_connstream, cs);
 		cs = NULL;
@@ -300,13 +298,10 @@ int cs_attach_mux(struct conn_stream *cs, void *target, void *ctx)
  */
 static void cs_attach_applet(struct conn_stream *cs, void *target, void *ctx)
 {
-	struct appctx *appctx = target;
-
 	cs->endp->target = target;
 	cs->endp->ctx = ctx;
 	cs->endp->flags |= CS_EP_T_APPLET;
 	cs->endp->flags &= ~CS_EP_DETACHED;
-	appctx->owner = cs;
 	if (cs_strm(cs)) {
 		cs->ops = &cs_app_applet_ops;
 		cs->data_cb = &cs_data_applet_cb;
@@ -505,7 +500,6 @@ struct appctx *cs_applet_create(struct conn_stream *cs, struct applet *app)
 	if (!appctx)
 		return NULL;
 	cs_attach_applet(cs, appctx, appctx);
-	appctx->owner = cs;
 	appctx->t->nice = __cs_strm(cs)->task->nice;
 	cs_cant_get(cs);
 	appctx_wakeup(appctx);

@@ -4283,7 +4283,7 @@ full:
 static void http_stats_io_handler(struct appctx *appctx)
 {
 	struct show_stat_ctx *ctx = appctx->svcctx;
-	struct conn_stream *cs = appctx->owner;
+	struct conn_stream *cs = appctx_cs(appctx);
 	struct stream *s = __cs_strm(cs);
 	struct channel *req = cs_oc(cs);
 	struct channel *res = cs_ic(cs);
@@ -4948,7 +4948,7 @@ static int cli_parse_show_stat(char **args, char *payload, struct appctx *appctx
 	ctx->scope_len = 0;
 	ctx->flags = STAT_SHNODE | STAT_SHDESC;
 
-	if ((strm_li(__cs_strm(appctx->owner))->bind_conf->level & ACCESS_LVL_MASK) >= ACCESS_LVL_OPER)
+	if ((strm_li(appctx_strm(appctx))->bind_conf->level & ACCESS_LVL_MASK) >= ACCESS_LVL_OPER)
 		ctx->flags |= STAT_SHLGNDS;
 
 	/* proxy is the default domain */
@@ -5004,7 +5004,7 @@ static int cli_parse_show_stat(char **args, char *payload, struct appctx *appctx
 
 static int cli_io_handler_dump_info(struct appctx *appctx)
 {
-	return stats_dump_info_to_buffer(appctx->owner);
+	return stats_dump_info_to_buffer(appctx_cs(appctx));
 }
 
 /* This I/O handler runs as an applet embedded in a conn-stream. It is
@@ -5012,12 +5012,12 @@ static int cli_io_handler_dump_info(struct appctx *appctx)
  */
 static int cli_io_handler_dump_stat(struct appctx *appctx)
 {
-	return stats_dump_stat_to_buffer(appctx->owner, NULL, NULL);
+	return stats_dump_stat_to_buffer(appctx_cs(appctx), NULL, NULL);
 }
 
 static int cli_io_handler_dump_json_schema(struct appctx *appctx)
 {
-	return stats_dump_json_schema_to_buffer(appctx->owner);
+	return stats_dump_json_schema_to_buffer(appctx_cs(appctx));
 }
 
 int stats_allocate_proxy_counters_internal(struct extra_counters **counters,

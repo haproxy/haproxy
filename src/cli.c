@@ -722,7 +722,7 @@ static int cli_get_severity_output(struct appctx *appctx)
 {
 	if (appctx->cli_severity_output)
 		return appctx->cli_severity_output;
-	return strm_li(__cs_strm(appctx->owner))->bind_conf->severity_output;
+	return strm_li(appctx_strm(appctx))->bind_conf->severity_output;
 }
 
 /* Processes the CLI interpreter on the stats socket. This function is called
@@ -897,7 +897,7 @@ static int cli_output_msg(struct channel *chn, const char *msg, int severity, in
  */
 static void cli_io_handler(struct appctx *appctx)
 {
-	struct conn_stream *cs = appctx->owner;
+	struct conn_stream *cs = appctx_cs(appctx);
 	struct channel *req = cs_oc(cs);
 	struct channel *res = cs_ic(cs);
 	struct bind_conf *bind_conf = strm_li(__cs_strm(cs))->bind_conf;
@@ -1226,7 +1226,7 @@ static void cli_release_handler(struct appctx *appctx)
 static int cli_io_handler_show_env(struct appctx *appctx)
 {
 	struct show_env_ctx *ctx = appctx->svcctx;
-	struct conn_stream *cs = appctx->owner;
+	struct conn_stream *cs = appctx_cs(appctx);
 	char **var = ctx->var;
 
 	if (unlikely(cs_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
@@ -1262,7 +1262,7 @@ static int cli_io_handler_show_env(struct appctx *appctx)
  */
 static int cli_io_handler_show_fd(struct appctx *appctx)
 {
-	struct conn_stream *cs = appctx->owner;
+	struct conn_stream *cs = appctx_cs(appctx);
 	struct show_fd_ctx *fdctx = appctx->svcctx;
 	int fd = fdctx->fd;
 	int ret = 1;
@@ -1462,7 +1462,7 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
  */
 static int cli_io_handler_show_activity(struct appctx *appctx)
 {
-	struct conn_stream *cs = appctx->owner;
+	struct conn_stream *cs = appctx_cs(appctx);
 	int thr;
 
 	if (unlikely(cs_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
@@ -1567,7 +1567,7 @@ static int cli_io_handler_show_cli_sock(struct appctx *appctx)
 {
 	struct show_sock_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
 	struct bind_conf *bind_conf = ctx->bind_conf;
-	struct conn_stream *cs = appctx->owner;
+	struct conn_stream *cs = appctx_cs(appctx);
 
 	if (!global.cli_fe)
 		goto done;
@@ -1693,7 +1693,7 @@ static int cli_parse_show_fd(char **args, char *payload, struct appctx *appctx, 
 /* parse a "set timeout" CLI request. It always returns 1. */
 static int cli_parse_set_timeout(char **args, char *payload, struct appctx *appctx, void *private)
 {
-	struct stream *s = __cs_strm(appctx->owner);
+	struct stream *s = appctx_strm(appctx);
 
 	if (strcmp(args[2], "cli") == 0) {
 		unsigned timeout;
@@ -1976,7 +1976,7 @@ static int _getsocks(char **args, char *payload, struct appctx *appctx, void *pr
 	char *cmsgbuf = NULL;
 	unsigned char *tmpbuf = NULL;
 	struct cmsghdr *cmsg;
-	struct conn_stream *cs = appctx->owner;
+	struct conn_stream *cs = appctx_cs(appctx);
 	struct stream *s = __cs_strm(cs);
 	struct connection *remote = cs_conn(cs_opposite(cs));
 	struct msghdr msghdr;

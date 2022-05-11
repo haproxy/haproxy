@@ -913,7 +913,7 @@ static int cli_io_handler_dump_crtlist(struct appctx *appctx)
 {
 	struct show_crtlist_ctx *ctx = appctx->svcctx;
 	struct buffer *trash = alloc_trash_chunk();
-	struct conn_stream *cs = appctx->owner;
+	struct conn_stream *cs = appctx_cs(appctx);
 	struct ebmb_node *lnode;
 
 	if (trash == NULL)
@@ -945,7 +945,7 @@ static int cli_io_handler_dump_crtlist_entries(struct appctx *appctx)
 	struct show_crtlist_ctx *ctx = appctx->svcctx;
 	struct buffer *trash = alloc_trash_chunk();
 	struct crtlist *crtlist;
-	struct conn_stream *cs = appctx->owner;
+	struct conn_stream *cs = appctx_cs(appctx);
 	struct crtlist_entry *entry;
 
 	if (trash == NULL)
@@ -1071,7 +1071,7 @@ static int cli_io_handler_add_crtlist(struct appctx *appctx)
 {
 	struct add_crtlist_ctx *ctx = appctx->svcctx;
 	struct bind_conf_list *bind_conf_node;
-	struct conn_stream *cs = appctx->owner;
+	struct conn_stream *cs = appctx_cs(appctx);
 	struct crtlist *crtlist = ctx->crtlist;
 	struct crtlist_entry *entry = ctx->entry;
 	struct ckch_store *store = entry->node.key;

@@ -1293,7 +1293,8 @@ static unsigned int htx_cache_dump_blk(struct appctx *appctx, struct htx *htx, e
 	unsigned int max, total;
 	uint32_t blksz;
 
-	max = htx_get_max_blksz(htx, channel_htx_recv_max(cs_ic(appctx->owner), htx));
+	max = htx_get_max_blksz(htx,
+				channel_htx_recv_max(cs_ic(appctx_cs(appctx)), htx));
 	if (!max)
 		return 0;
 	blksz = ((type == HTX_BLK_HDR || type == HTX_BLK_TLR)
@@ -1336,7 +1337,8 @@ static unsigned int htx_cache_dump_data_blk(struct appctx *appctx, struct htx *h
 	unsigned int max, total, rem_data;
 	uint32_t blksz;
 
-	max = htx_get_max_blksz(htx, channel_htx_recv_max(cs_ic(appctx->owner), htx));
+	max = htx_get_max_blksz(htx,
+				channel_htx_recv_max(cs_ic(appctx_cs(appctx)), htx));
 	if (!max)
 		return 0;
 
@@ -1453,7 +1455,7 @@ static void http_cache_io_handler(struct appctx *appctx)
 	struct cache_appctx *ctx = appctx->svcctx;
 	struct cache_entry *cache_ptr = ctx->entry;
 	struct shared_block *first = block_ptr(cache_ptr);
-	struct conn_stream *cs = appctx->owner;
+	struct conn_stream *cs = appctx_cs(appctx);
 	struct channel *req = cs_oc(cs);
 	struct channel *res = cs_ic(cs);
 	struct htx *req_htx, *res_htx;
@@ -2598,7 +2600,7 @@ static int cli_io_handler_show_cache(struct appctx *appctx)
 {
 	struct show_cache_ctx *ctx = appctx->svcctx;
 	struct cache* cache = ctx->cache;
-	struct conn_stream *cs = appctx->owner;
+	struct conn_stream *cs = appctx_cs(appctx);
 
 	list_for_each_entry_from(cache, &caches, list) {
 		struct eb32_node *node = NULL;

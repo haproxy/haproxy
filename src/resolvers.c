@@ -2760,7 +2760,7 @@ static int cli_parse_stat_resolvers(char **args, char *payload, struct appctx *a
 static int cli_io_handler_dump_resolvers_to_buffer(struct appctx *appctx)
 {
 	struct show_resolvers_ctx *ctx = appctx->svcctx;
-	struct conn_stream *cs = appctx->owner;
+	struct conn_stream *cs = appctx_cs(appctx);
 	struct resolvers    *resolvers = ctx->resolvers;
 	struct dns_nameserver   *ns;
 

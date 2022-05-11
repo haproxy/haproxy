@@ -4408,7 +4408,7 @@ struct show_table_ctx {
  */
 static int table_process_entry_per_key(struct appctx *appctx, char **args)
 {
-	struct conn_stream *cs = appctx->owner;
+	struct conn_stream *cs = appctx_cs(appctx);
 	struct show_table_ctx *ctx = appctx->svcctx;
 	struct stktable *t = ctx->target;
 	struct stksess *ts;
@@ -4668,7 +4668,7 @@ err_args:
 static int cli_io_handler_table(struct appctx *appctx)
 {
 	struct show_table_ctx *ctx = appctx->svcctx;
-	struct conn_stream *cs = appctx->owner;
+	struct conn_stream *cs = appctx_cs(appctx);
 	struct stream *s = __cs_strm(cs);
 	struct ebmb_node *eb;
 	int skip_entry;
