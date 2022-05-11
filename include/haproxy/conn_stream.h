@@ -50,8 +50,6 @@ void cs_destroy(struct conn_stream *cs);
 int cs_reset_endp(struct conn_stream *cs);
 
 struct appctx *cs_applet_create(struct conn_stream *cs, struct applet *app);
-void cs_applet_shut(struct conn_stream *cs);
-
 /* Returns the endpoint target without any control */
 static inline void *__cs_endp_target(const struct conn_stream *cs)
 {
