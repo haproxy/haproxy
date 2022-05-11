@@ -76,6 +76,20 @@ static inline void appctx_wakeup(struct appctx *appctx)
 	task_wakeup(appctx->t, TASK_WOKEN_OTHER);
 }
 
+/* returns the conn_stream the appctx is attached to, via the endp */
+static inline struct conn_stream *appctx_cs(const struct appctx *appctx)
+{
+	return appctx->endp->cs;
+}
+
+/* returns the stream the appctx is attached to. Note that a stream *must*
+ * be attached, as we use an unchecked dereference via __cs_strm().
+ */
+static inline struct stream *appctx_strm(const struct appctx *appctx)
+{
+	return __cs_strm(appctx->endp->cs);
+}
+
 #endif /* _HAPROXY_APPLET_H */
 
 /*
