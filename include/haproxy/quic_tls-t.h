@@ -41,6 +41,8 @@
 #define QUIC_TLS_IV_LEN     12 /* bytes */
 #define QUIC_TLS_KEY_LEN    32 /* bytes */
 #define QUIC_TLS_SECRET_LEN 64 /* bytes */
+/* The ciphersuites for AEAD QUIC-TLS have 16-bytes authentication tags */
+#define QUIC_TLS_TAG_LEN    16 /* bytes */
 
 /* The TLS extensions for QUIC transport parameters */
 #define TLS_EXTENSION_QUIC_TRANSPORT_PARAMETERS       0x0039
@@ -85,12 +87,6 @@ enum quic_tls_pktns {
 	/* Please do not insert any value after this following one */
 	QUIC_TLS_PKTNS_MAX,
 };
-
-/* The ciphersuites for AEAD QUIC-TLS have 16-bytes authentication tags and
- * 12 bytes for IVs.
- */
-#define QUIC_TLS_TAG_LEN             16
-#define QUIC_TLS_IV_LEN              12
 
 extern unsigned char initial_salt[20];
 
