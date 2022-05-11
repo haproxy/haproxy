@@ -219,7 +219,7 @@ REG_TEST_SCRIPT=./scripts/run-regtests.sh
 # to be sure we get the intended behavior.
 WARN_CFLAGS := -Wtype-limits -Wshift-negative-value -Wshift-overflow=2 \
                -Wduplicated-cond -Wnull-dereference
-SPEC_CFLAGS := -Wall -Wextra -Wundef -Wdeclaration-after-statement
+SPEC_CFLAGS := -Wall -Wextra -Wundef -Wdeclaration-after-statement -Wfatal-errors
 SPEC_CFLAGS += $(call cc-all-fast,$(WARN_CFLAGS))
 
 SPEC_CFLAGS += $(call cc-opt-alt,-fwrapv,-fno-strict-overflow)
