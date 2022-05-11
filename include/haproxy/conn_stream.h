@@ -38,8 +38,7 @@ struct check;
 struct cs_endpoint *cs_endpoint_new();
 void cs_endpoint_free(struct cs_endpoint *endp);
 
-struct conn_stream *cs_new_from_mux(struct cs_endpoint *endp, struct session *sess, struct buffer *input);
-struct conn_stream *cs_new_from_applet(struct cs_endpoint *endp, struct session *sess, struct buffer *input);
+struct conn_stream *cs_new_from_endp(struct cs_endpoint *endp, struct session *sess, struct buffer *input);
 struct conn_stream *cs_new_from_strm(struct stream *strm, unsigned int flags);
 struct conn_stream *cs_new_from_check(struct check *check, unsigned int flags);
 void cs_free(struct conn_stream *cs);

@@ -91,7 +91,7 @@ static inline int qcc_install_app_ops(struct qcc *qcc,
 
 static inline struct conn_stream *qc_attach_cs(struct qcs *qcs, struct buffer *buf)
 {
-	if (!cs_new_from_mux(qcs->endp, qcs->qcc->conn->owner, buf))
+	if (!cs_new_from_endp(qcs->endp, qcs->qcc->conn->owner, buf))
 		return NULL;
 
 	++qcs->qcc->nb_cs;

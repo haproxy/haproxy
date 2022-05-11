@@ -1629,7 +1629,7 @@ static struct h2s *h2c_frt_stream_new(struct h2c *h2c, int id, struct buffer *in
 	 */
 	sess->t_idle = tv_ms_elapsed(&sess->tv_accept, &now) - sess->t_handshake;
 
-	if (!cs_new_from_mux(h2s->endp, sess, input))
+	if (!cs_new_from_endp(h2s->endp, sess, input))
 		goto out_close;
 
 	h2c->nb_cs++;

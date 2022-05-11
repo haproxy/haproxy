@@ -938,7 +938,7 @@ static struct appctx *dns_session_create(struct dns_session *ds)
 	if (!sockaddr_alloc(&addr, &ds->dss->srv->addr, sizeof(ds->dss->srv->addr)))
 		goto out_free_sess;
 
-	cs = cs_new_from_applet(appctx->endp, sess, &BUF_NULL);
+	cs = cs_new_from_endp(appctx->endp, sess, &BUF_NULL);
 	if (!cs) {
 		ha_alert("Failed to initialize stream in dns_session_create().\n");
 		goto out_free_addr;

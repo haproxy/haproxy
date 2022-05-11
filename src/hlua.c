@@ -3004,7 +3004,7 @@ __LJMP static int hlua_socket_new(lua_State *L)
 		goto out_fail_appctx;
 	}
 
-	cs = cs_new_from_applet(appctx->endp, sess, &BUF_NULL);
+	cs = cs_new_from_endp(appctx->endp, sess, &BUF_NULL);
 	if (!cs) {
 		hlua_pusherror(L, "socket: out of memory");
 		goto out_fail_sess;

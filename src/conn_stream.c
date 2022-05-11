@@ -156,27 +156,7 @@ static struct conn_stream *cs_new(struct cs_endpoint *endp)
  * defined. It returns NULL on error. On success, the new conn-stream is
  * returned. In this case, CS_EP_ORPHAN flag is removed.
  */
-struct conn_stream *cs_new_from_mux(struct cs_endpoint *endp, struct session *sess, struct buffer *input)
-{
-	struct conn_stream *cs;
-
-	cs = cs_new(endp);
-	if (unlikely(!cs))
-		return NULL;
-	if (unlikely(!stream_new(sess, cs, input))) {
-		pool_free(pool_head_connstream, cs);
-		cs = NULL;
-	}
-	endp->flags &= ~CS_EP_ORPHAN;
-	return cs;
-}
-
-/* Creates a new conn-stream and its associated stream from an applet. <endp>
- * must be defined. It returns NULL on error. On success, the new conn-stream is
- * returned. In this case, CS_EP_ORPHAN flag is removed. The created CS is used
- * to set the appctx owner.
- */
-struct conn_stream *cs_new_from_applet(struct cs_endpoint *endp, struct session *sess, struct buffer *input)
+struct conn_stream *cs_new_from_endp(struct cs_endpoint *endp, struct session *sess, struct buffer *input)
 {
 	struct conn_stream *cs;
 

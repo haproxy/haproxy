@@ -302,7 +302,7 @@ static int mux_pt_init(struct connection *conn, struct proxy *prx, struct sessio
 		ctx->endp->ctx = conn;
 		ctx->endp->flags |= (CS_EP_T_MUX|CS_EP_ORPHAN);
 
-		cs = cs_new_from_mux(ctx->endp, sess, input);
+		cs = cs_new_from_endp(ctx->endp, sess, input);
 		if (!cs) {
 			TRACE_ERROR("CS allocation failure", PT_EV_STRM_NEW|PT_EV_STRM_END|PT_EV_STRM_ERR, conn);
 			goto fail_free_endp;

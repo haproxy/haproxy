@@ -607,7 +607,7 @@ struct appctx *httpclient_start(struct httpclient *hc)
 	if (!sockaddr_alloc(&addr, ss_dst, sizeof(*ss_dst)))
 		goto out_free_sess;
 
-	cs = cs_new_from_applet(appctx->endp, sess, &hc->req.buf);
+	cs = cs_new_from_endp(appctx->endp, sess, &hc->req.buf);
 	if (!cs) {
 		ha_alert("httpclient: Failed to initialize stream %s:%d.\n", __FUNCTION__, __LINE__);
 		goto out_free_addr;

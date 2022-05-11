@@ -3194,7 +3194,7 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 	if (!sockaddr_alloc(&addr, &peer->addr, sizeof(peer->addr)))
 		goto out_free_sess;
 
-	cs = cs_new_from_applet(appctx->endp, sess, &BUF_NULL);
+	cs = cs_new_from_endp(appctx->endp, sess, &BUF_NULL);
 	if (!cs) {
 		ha_alert("Failed to initialize stream in peer_session_create().\n");
 		goto out_free_addr;

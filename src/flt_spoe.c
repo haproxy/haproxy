@@ -2026,7 +2026,7 @@ spoe_create_appctx(struct spoe_config *conf)
 	if (!sess)
 		goto out_free_spoe;
 
-	cs = cs_new_from_applet(appctx->endp, sess, &BUF_NULL);
+	cs = cs_new_from_endp(appctx->endp, sess, &BUF_NULL);
 	if (!cs)
 		goto out_free_sess;
 

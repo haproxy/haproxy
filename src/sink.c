@@ -654,7 +654,7 @@ static struct appctx *sink_forward_session_create(struct sink *sink, struct sink
 	if (!sockaddr_alloc(&addr, &sft->srv->addr, sizeof(sft->srv->addr)))
 		goto out_free_sess;
 
-	cs = cs_new_from_applet(appctx->endp, sess, &BUF_NULL);
+	cs = cs_new_from_endp(appctx->endp, sess, &BUF_NULL);
 	if (!cs) {
 		ha_alert("Failed to initialize stream in sink_forward_session_create().\n");
 		goto out_free_addr;
