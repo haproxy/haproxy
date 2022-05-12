@@ -1067,6 +1067,43 @@ void __peer_session_deinit(struct peer *peer)
 	task_wakeup(peers->sync_task, TASK_WOKEN_MSG);
 }
 
+static int peer_session_init(struct appctx *appctx)
+{
+	struct peer *peer = appctx->svcctx;
+	struct stream *s;
+	struct sockaddr_storage *addr = NULL;
+
+	if (!sockaddr_alloc(&addr, &peer->addr, sizeof(peer->addr)))
+		goto out_error;
+
+	if (appctx_finalize_startup(appctx, peer->peers->peers_fe, &BUF_NULL) == -1)
+		goto out_free_addr;
+
+	s = appctx_strm(appctx);
+	/* applet is waiting for data */
+	cs_cant_get(s->csf);
+	appctx_wakeup(appctx);
+
+	/* initiate an outgoing connection */
+	s->csb->dst = addr;
+	s->csb->flags |= CS_FL_NOLINGER;
+	s->flags = SF_ASSIGNED;
+	s->target = peer_session_target(peer, s);
+
+	s->do_log = NULL;
+	s->uniq_id = 0;
+
+	s->res.flags |= CF_READ_DONTWAIT;
+
+	_HA_ATOMIC_INC(&active_peers);
+	return 0;
+
+ out_free_addr:
+	sockaddr_free(&addr);
+ out_error:
+	return -1;
+}
+
 /*
  * Callback to release a session with a peer
  */
@@ -3105,6 +3142,7 @@ static struct applet peer_applet = {
 	.obj_type = OBJ_TYPE_APPLET,
 	.name = "<PEER>", /* used for logging */
 	.fct = peer_io_handler,
+	.init = peer_session_init,
 	.release = peer_session_release,
 };
 
@@ -3153,69 +3191,30 @@ void peers_setup_frontend(struct proxy *fe)
  */
 static struct appctx *peer_session_create(struct peers *peers, struct peer *peer)
 {
-	struct proxy *p = peers->peers_fe; /* attached frontend */
 	struct appctx *appctx;
-	struct session *sess;
-	struct conn_stream *cs;
-	struct stream *s;
-	struct sockaddr_storage *addr = NULL;
 
 	peer->new_conn++;
 	peer->reconnect = tick_add(now_ms, MS_TO_TICKS(PEER_RECONNECT_TIMEOUT));
 	peer->heartbeat = TICK_ETERNITY;
 	peer->statuscode = PEER_SESS_SC_CONNECTCODE;
 	peer->last_hdshk = now_ms;
-	s = NULL;
 
 	appctx = appctx_new(&peer_applet, NULL);
 	if (!appctx)
 		goto out_close;
-
-	appctx->st0 = PEER_SESS_ST_CONNECT;
 	appctx->svcctx = (void *)peer;
 
-	sess = session_new(p, NULL, &appctx->obj_type);
-	if (!sess) {
-		ha_alert("out of memory in peer_session_create().\n");
-		goto out_free_appctx;
-	}
-	appctx->sess = sess;
-
-	if (!sockaddr_alloc(&addr, &peer->addr, sizeof(peer->addr)))
-		goto out_free_appctx;
-
-	cs = cs_new_from_endp(appctx->endp, sess, &BUF_NULL);
-	if (!cs) {
-		ha_alert("Failed to initialize stream in peer_session_create().\n");
-		goto out_free_appctx;
-	}
-
-	s = DISGUISE(cs_strm(cs));
-
-	/* applet is waiting for data */
-	cs_cant_get(s->csf);
-	appctx_wakeup(appctx);
-
-	/* initiate an outgoing connection */
-	s->csb->dst = addr;
-	s->csb->flags |= CS_FL_NOLINGER;
-	s->flags = SF_ASSIGNED;
-	s->target = peer_session_target(peer, s);
-
-	s->do_log = NULL;
-	s->uniq_id = 0;
-
-	s->res.flags |= CF_READ_DONTWAIT;
-
+	appctx->st0 = PEER_SESS_ST_CONNECT;
 	peer->appctx = appctx;
-	_HA_ATOMIC_INC(&active_peers);
+
+	if (appctx_init(appctx) == -1)
+		goto out_free_appctx;
+
 	return appctx;
 
 	/* Error unrolling */
- out_free_addr:
-	sockaddr_free(&addr);
  out_free_appctx:
-	appctx_free(appctx);
+	appctx_free_on_early_error(appctx);
  out_close:
 	return NULL;
 }
