@@ -1986,6 +1986,33 @@ static void hlua_socket_handler(struct appctx *appctx)
 		cs_rx_endp_more(cs);
 }
 
+static int hlua_socket_init(struct appctx *appctx)
+{
+	struct hlua_csk_ctx *ctx = appctx->svcctx;
+	struct stream *s;
+
+	if (appctx_finalize_startup(appctx, socket_proxy, &BUF_NULL) == -1)
+		goto error;
+
+	s = appctx_strm(appctx);
+
+	/* Configure "right" conn-stream. this "si" is used to connect
+	 * and retrieve data from the server. The connection is initialized
+	 * with the "struct server".
+	 */
+	cs_set_state(s->csb, CS_ST_ASS);
+
+	/* Force destination server. */
+	s->flags |= SF_DIRECT | SF_ASSIGNED | SF_BE_ASSIGNED;
+	s->target = &socket_tcp->obj_type;
+
+	ctx->appctx = appctx;
+	return 0;
+
+  error:
+	return -1;
+}
+
 /* This function is called when the "struct stream" is destroyed.
  * Remove the link from the object to this stream.
  * Wake all the pending signals.
@@ -1995,7 +2022,7 @@ static void hlua_socket_release(struct appctx *appctx)
 	struct hlua_csk_ctx *ctx = appctx->svcctx;
 	struct xref *peer;
 
-	/* Remove my link in the original object. */
+	/* Remove my link in the original objects. */
 	peer = xref_get_peer_and_lock(&ctx->xref);
 	if (peer)
 		xref_disconnect(&ctx->xref, peer);
@@ -2668,6 +2695,7 @@ static struct applet update_applet = {
 	.obj_type = OBJ_TYPE_APPLET,
 	.name = "<LUA_TCP>",
 	.fct = hlua_socket_handler,
+	.init = hlua_socket_init,
 	.release = hlua_socket_release,
 };
 
@@ -2946,9 +2974,6 @@ __LJMP static int hlua_socket_new(lua_State *L)
 	struct hlua_socket *socket;
 	struct hlua_csk_ctx *ctx;
 	struct appctx *appctx;
-	struct session *sess;
-	struct conn_stream *cs;
-	struct stream *s;
 
 	/* Check stack size. */
 	if (!lua_checkstack(L, 3)) {
@@ -2979,47 +3004,23 @@ __LJMP static int hlua_socket_new(lua_State *L)
 		hlua_pusherror(L, "socket: out of memory");
 		goto out_fail_conf;
 	}
-
 	ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
 	ctx->connected = 0;
-	ctx->appctx = appctx;
 	ctx->die = 0;
 	LIST_INIT(&ctx->wake_on_write);
 	LIST_INIT(&ctx->wake_on_read);
 
-	/* Now create a session, task and stream for this applet */
-	sess = session_new(socket_proxy, NULL, &appctx->obj_type);
-	if (!sess) {
-		hlua_pusherror(L, "socket: out of memory");
+	if (appctx_init(appctx) == -1) {
+		hlua_pusherror(L, "socket: fail to init applet.");
 		goto out_fail_appctx;
 	}
-
-	appctx->sess = sess;
-	cs = cs_new_from_endp(appctx->endp, sess, &BUF_NULL);
-	if (!cs) {
-		hlua_pusherror(L, "socket: out of memory");
-		goto out_fail_appctx;
-	}
-
-	s = DISGUISE(cs_strm(cs));
 
 	/* Initialise cross reference between stream and Lua socket object. */
 	xref_create(&socket->xref, &ctx->xref);
-
-	/* Configure "right" conn-stream. this "si" is used to connect
-	 * and retrieve data from the server. The connection is initialized
-	 * with the "struct server".
-	 */
-	cs_set_state(s->csb, CS_ST_ASS);
-
-	/* Force destination server. */
-	s->flags |= SF_DIRECT | SF_ASSIGNED | SF_BE_ASSIGNED;
-	s->target = &socket_tcp->obj_type;
-
 	return 1;
 
  out_fail_appctx:
-	appctx_free(appctx);
+	appctx_free_on_early_error(appctx);
  out_fail_conf:
 	WILL_LJMP(lua_error(L));
 	return 0;
