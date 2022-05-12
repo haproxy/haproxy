@@ -41,6 +41,7 @@ void *applet_reserve_svcctx(struct appctx *appctx, size_t size);
 void appctx_shut(struct appctx *appctx);
 
 struct appctx *appctx_new(struct applet *applet, struct cs_endpoint *endp);
+int appctx_finalize_startup(struct appctx *appctx, struct proxy *px, struct buffer *input);
 
 /* Helper function to call .init applet callback function, if it exists. Returns 0
  * on success and -1 on error.

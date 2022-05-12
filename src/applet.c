@@ -74,6 +74,32 @@ struct appctx *appctx_new(struct applet *applet, struct cs_endpoint *endp)
 	return NULL;
 }
 
+/* Finalize the frontend appctx startup. It must not be called for a backend
+ * appctx. This function is responsible to create the appctx's session and the
+ * frontend conn-stream. By transitivity, the stream is also created.
+ *
+ * It returns 0 on success and -1 on error. In this case, it is the caller
+ * responsibility to release the appctx. However, the session is released if it
+ * was created. On success, if an error is encountered in the caller function,
+ * the stream must be released instead of the appctx.
+ */
+int appctx_finalize_startup(struct appctx *appctx, struct proxy *px, struct buffer *input)
+{
+	struct session *sess;
+
+	BUG_ON(appctx->sess || !(appctx->endp->flags & CS_EP_ORPHAN));
+
+	sess = session_new(px, NULL, &appctx->obj_type);
+	if (!sess)
+		return -1;
+	if (!cs_new_from_endp(appctx->endp, sess, input)) {
+		session_free(sess);
+		return -1;
+	}
+	appctx->sess = sess;
+	return 0;
+}
+
 /* reserves a command context of at least <size> bytes in the <appctx>, for
  * use by a CLI command or any regular applet. The pointer to this context is
  * stored in ctx.svcctx and is returned. The caller doesn't need to release
