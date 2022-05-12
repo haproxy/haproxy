@@ -4221,20 +4221,35 @@ static struct task *process_timer(struct task *task, void *ctx, unsigned int sta
 	return task;
 }
 
-/* Parse the Retry token from buffer <token> whose size is <token_len>. This
- * will extract the parameters stored in the token : <odcid>.
+/* Parse the Retry token from buffer <token> with <end> a pointer to
+ * one byte past the end of this buffer. This will extract the ODCID
+ * which will be stored into <odcid>
  *
  * Returns 0 on success else non-zero.
  */
-static int parse_retry_token(const unsigned char *token, uint64_t token_len,
+static int parse_retry_token(const unsigned char *token, const unsigned char *end,
                              struct quic_cid *odcid)
 {
 	uint64_t odcid_len;
+	uint32_t timestamp;
 
-	if (!quic_dec_int(&odcid_len, &token, token + token_len))
+	if (!quic_dec_int(&odcid_len, &token, end))
 		return 1;
 
-	if (odcid_len > QUIC_CID_MAXLEN)
+	/* RFC 9000 7.2. Negotiating Connection IDs:
+	 * When an Initial packet is sent by a client that has not previously
+	 * received an Initial or Retry packet from the server, the client
+	 * populates the Destination Connection ID field with an unpredictable
+	 * value. This Destination Connection ID MUST be at least 8 bytes in length.
+	 */
+	if (odcid_len < QUIC_ODCID_MINLEN || odcid_len > QUIC_CID_MAXLEN)
+		return 1;
+
+	if (end - token < odcid_len + sizeof timestamp)
+		return 1;
+
+	timestamp = ntohl(read_u32(token + odcid_len));
+	if (timestamp + MS_TO_TICKS(QUIC_RETRY_DURATION_MS) <= now_ms)
 		return 1;
 
 	memcpy(odcid->data, token, odcid_len);
@@ -4250,9 +4265,9 @@ static int parse_retry_token(const unsigned char *token, uint64_t token_len,
 static int qc_lstnr_params_init(struct quic_conn *qc, struct listener *l,
                                 const unsigned char *token, size_t token_len,
                                 const struct quic_connection_id *icid,
-                                const struct quic_cid *dcid)
+                                const struct quic_cid *dcid, const struct quic_cid *odcid)
 {
-	struct quic_cid *odcid = &qc->rx.params.original_destination_connection_id;
+	struct quic_cid *odcid_param = &qc->rx.params.original_destination_connection_id;
 
 	/* Copy the transport parameters. */
 	qc->rx.params = l->bind_conf->quic_params;
@@ -4261,16 +4276,14 @@ static int qc_lstnr_params_init(struct quic_conn *qc, struct listener *l,
 	       sizeof qc->rx.params.stateless_reset_token);
 	/* Copy original_destination_connection_id transport parameter. */
 	if (token_len) {
-		if (parse_retry_token(token, token_len, odcid)) {
-			TRACE_PROTO("Error during Initial token parsing", QUIC_EV_CONN_LPKT, qc);
-			return 0;
-		}
+		memcpy(odcid_param->data, odcid->data, odcid->len);
+		odcid_param->len = odcid->len;
 		/* Copy retry_source_connection_id transport parameter. */
 		quic_cid_cpy(&qc->rx.params.retry_source_connection_id, dcid);
 	}
 	else {
-		memcpy(odcid->data, dcid->data, dcid->len);
-		odcid->len = dcid->len;
+		memcpy(odcid_param->data, dcid->data, dcid->len);
+		odcid_param->len = dcid->len;
 	}
 
 	/* Copy the initial source connection ID. */
@@ -4289,6 +4302,7 @@ static int qc_lstnr_params_init(struct quic_conn *qc, struct listener *l,
  */
 static struct quic_conn *qc_new_conn(unsigned int version, int ipv4,
                                      struct quic_cid *dcid, struct quic_cid *scid,
+                                     const struct quic_cid *odcid,
                                      struct sockaddr_storage *saddr,
                                      const unsigned char *token, size_t token_len,
                                      int server, void *owner)
@@ -4406,7 +4420,7 @@ static struct quic_conn *qc_new_conn(unsigned int version, int ipv4,
 	qc->sendto_err = 0;
 	memcpy(&qc->peer_addr, saddr, sizeof qc->peer_addr);
 
-	if (server && !qc_lstnr_params_init(qc, l, token, token_len, icid, dcid))
+	if (server && !qc_lstnr_params_init(qc, l, token, token_len, icid, dcid, odcid))
 		goto err;
 
 	TRACE_LEAVE(QUIC_EV_CONN_INIT, qc);
@@ -4772,31 +4786,154 @@ static int send_stateless_reset(int fd, struct sockaddr_storage *dstaddr,
 	return 1;
 }
 
-/* Generate the token to be used in Retry packets. The token is written to
- * <buf> which is expected to be <len> bytes.
- *
- * Various parameters are expected to be encoded in the token. For now, only
- * the DCID from <pkt> is stored. This is useful to implement a stateless Retry
- * as this CID must be repeated by the server in the transport parameters.
- *
- * TODO add the client address to validate the token origin.
- *
+/* QUIC server only function.
+ * Add AAD to <add> buffer from <cid> connection ID and <addr> socket address.
+ * This is the responsability of the caller to check <aad> size is big enough
+ * to contain these data.
+ * Return the number of bytes copied to <aad>.
+ */
+static int quic_generate_retry_token_aad(unsigned char *aad,
+                                         uint32_t version,
+                                         const struct quic_cid *cid,
+                                         const struct sockaddr_storage *addr)
+{
+	unsigned char *p;
+
+	p = aad;
+	memcpy(p, &version, sizeof version);
+	p += sizeof version;
+	p += quic_saddr_cpy(p, addr);
+	memcpy(p, cid->data, cid->len);
+	p += cid->len;
+
+	return p - aad;
+}
+
+/* QUIC server only function.
+ * Generate the token to be used in Retry packets. The token is written to
+ * <buf> whith <len> as length. <odcid> is the original destination connection
+ * ID and <dcid> is our side destination connection ID (or client source
+ * connection ID).
  * Returns the length of the encoded token or 0 on error.
  */
-static int generate_retry_token(unsigned char *buf, unsigned char len,
-                                struct quic_rx_packet *pkt)
+static int quic_generate_retry_token(unsigned char *buf, size_t len,
+                                     const uint32_t version,
+                                     const struct quic_cid *odcid,
+                                     const struct quic_cid *dcid,
+                                     struct sockaddr_storage *addr)
 {
-	const size_t token_len = 1 + pkt->dcid.len;
-	unsigned char i = 0;
+	unsigned char *p;
+	unsigned char aad[sizeof(uint32_t) + sizeof(in_port_t) +
+		sizeof(struct in6_addr) + QUIC_HAP_CID_LEN];
+	size_t aadlen;
+	unsigned char salt[QUIC_RETRY_TOKEN_SALTLEN];
+	unsigned char key[QUIC_TLS_KEY_LEN];
+	unsigned char iv[QUIC_TLS_IV_LEN];
+	const unsigned char *sec = (const unsigned char *)global.cluster_secret;
+	size_t seclen = strlen(global.cluster_secret);
+	EVP_CIPHER_CTX *ctx = NULL;
+	const EVP_CIPHER *aead = EVP_aes_128_gcm();
+	uint32_t timestamp = now_ms;
 
-	if (token_len > len)
+	/* We copy the odcid into the token, prefixed by its one byte
+	 * length, the format token byte. It is followed by an AEAD TAG, and finally
+	 * the random bytes used to derive the secret to encrypt the token.
+	 */
+	if (1 + dcid->len + 1 + QUIC_TLS_TAG_LEN + sizeof salt > len)
 		return 0;
 
-	buf[i++] = pkt->dcid.len;
-	memcpy(&buf[i], pkt->dcid.data, pkt->dcid.len);
-	i += pkt->dcid.len;
+	aadlen = quic_generate_retry_token_aad(aad, version, dcid, addr);
+	if (RAND_bytes(salt, sizeof salt) != 1)
+		goto err;
 
-	return i;
+	if (!quic_tls_derive_retry_token_secret(EVP_sha256(), key, sizeof key, iv, sizeof iv,
+	                                        salt, sizeof salt, sec, seclen))
+		goto err;
+
+	if (!quic_tls_tx_ctx_init(&ctx, aead, key))
+		goto err;
+
+	/* Token build */
+	p = buf;
+	*p++ = QUIC_TOKEN_FMT_RETRY,
+	*p++ = odcid->len;
+	memcpy(p, odcid->data, odcid->len);
+	p += odcid->len;
+	write_u32(p, htonl(timestamp));
+	p += sizeof timestamp;
+
+	/* Do not encrypt the QUIC_TOKEN_FMT_RETRY byte */
+	if (!quic_tls_encrypt(buf + 1, p - buf - 1, aad, aadlen, ctx, aead, key, iv))
+		goto err;
+
+	p += QUIC_TLS_TAG_LEN;
+	memcpy(p, salt, sizeof salt);
+	p += sizeof salt;
+	EVP_CIPHER_CTX_free(ctx);
+
+	return p - buf;
+
+ err:
+	if (ctx)
+		EVP_CIPHER_CTX_free(ctx);
+	return 0;
+}
+
+/* QUIC server only function.
+ * Check the validity of the Retry token from <token> buffer with <tokenlen>
+ * as length. If valid, the ODCID of <qc> QUIC connection will be put
+ * into <odcid> connection ID. <dcid> is our side destination connection ID
+ * of client source connection ID.
+ * Return 1 if succeeded, 0 if not.
+ */
+static int quic_retry_token_check(unsigned char *token, size_t tokenlen,
+                                  const uint32_t version,
+                                  struct quic_cid *odcid,
+                                  const struct quic_cid *dcid,
+                                  struct quic_conn *qc,
+                                  struct sockaddr_storage *addr)
+{
+	unsigned char buf[128];
+	unsigned char aad[sizeof(uint32_t) + sizeof(in_port_t) +
+		sizeof(struct in6_addr) + QUIC_HAP_CID_LEN];
+	size_t aadlen;
+	unsigned char *salt;
+	unsigned char key[QUIC_TLS_KEY_LEN];
+	unsigned char iv[QUIC_TLS_IV_LEN];
+	const unsigned char *sec = (const unsigned char *)global.cluster_secret;
+	size_t seclen = strlen(global.cluster_secret);
+	EVP_CIPHER_CTX *ctx = NULL;
+	const EVP_CIPHER *aead = EVP_aes_128_gcm();
+
+	if (sizeof buf < tokenlen)
+		return 0;
+
+	aadlen = quic_generate_retry_token_aad(aad, version, dcid, addr);
+	salt = token + tokenlen - QUIC_RETRY_TOKEN_SALTLEN;
+	if (!quic_tls_derive_retry_token_secret(EVP_sha256(), key, sizeof key, iv, sizeof iv,
+	                                        salt, QUIC_RETRY_TOKEN_SALTLEN, sec, seclen))
+		return 0;
+
+	if (!quic_tls_rx_ctx_init(&ctx, aead, key))
+		goto err;
+
+	/* Do not decrypt the QUIC_TOKEN_FMT_RETRY byte */
+	if (!quic_tls_decrypt2(buf, token + 1, tokenlen - QUIC_RETRY_TOKEN_SALTLEN - 1, aad, aadlen,
+	                       ctx, aead, key, iv))
+		goto err;
+
+	if (parse_retry_token(buf, buf + tokenlen - QUIC_RETRY_TOKEN_SALTLEN - 1, odcid)) {
+		TRACE_PROTO("Error during Initial token parsing", QUIC_EV_CONN_LPKT, qc);
+		goto err;
+	}
+
+	EVP_CIPHER_CTX_free(ctx);
+	return 1;
+
+ err:
+	if (ctx)
+		EVP_CIPHER_CTX_free(ctx);
+	return 0;
 }
 
 /* Generate a Retry packet and send it on <fd> socket to <addr> in response to
@@ -4835,7 +4972,8 @@ static int send_retry(int fd, struct sockaddr_storage *addr,
 	i += scid.len;
 
 	/* token */
-	if (!(token_len = generate_retry_token(&buf[i], sizeof(buf) - i, pkt)))
+	if (!(token_len = quic_generate_retry_token(&buf[i], sizeof(buf) - i, pkt->version,
+	                                            &pkt->dcid, &pkt->scid, addr)))
 		return 1;
 
 	i += token_len;
@@ -5058,6 +5196,7 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 	if (long_header) {
 		uint64_t len;
 		int drop_no_con = 0;
+		struct quic_cid odcid;
 
 		if (!quic_packet_read_long_header(&buf, end, pkt)) {
 			TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT);
@@ -5114,27 +5253,41 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 				goto err;
 			}
 
-			/* The token may be provided in a Retry packet or NEW_TOKEN frame
-			 * only by the QUIC server.
-			 */
-			pkt->token_len = token_len;
-
 			/* TODO Retry should be automatically activated if
 			 * suspect network usage is detected.
 			 */
-			if (!token_len && l->bind_conf->quic_force_retry) {
-				TRACE_PROTO("Initial without token, sending retry", QUIC_EV_CONN_LPKT);
-				if (send_retry(l->rx.fd, &dgram->saddr, pkt)) {
-					TRACE_PROTO("Error during Retry generation", QUIC_EV_CONN_LPKT);
-					goto err;
-				}
+			if (l->bind_conf->quic_force_retry && global.cluster_secret) {
+				if (!token_len) {
+					TRACE_PROTO("Initial without token, sending retry", QUIC_EV_CONN_LPKT);
+					if (send_retry(l->rx.fd, &dgram->saddr, pkt)) {
+						TRACE_PROTO("Error during Retry generation", QUIC_EV_CONN_LPKT);
+						goto err;
+					}
 
-				goto err;
+					drop_no_con = 1;
+				}
+				else {
+					if (*buf == QUIC_TOKEN_FMT_RETRY) {
+						if (!quic_retry_token_check(buf, token_len, pkt->version, &odcid,
+						                            &pkt->scid, qc, &dgram->saddr)) {
+							TRACE_PROTO("Wrong retry token", QUIC_EV_CONN_LPKT);
+							/* TODO: RFC 9000 8.1.2 A server SHOULD immediately close the connection
+							 * with an INVALID_TOKEN error.
+							 */
+							goto err;
+						}
+					}
+					else {
+						/* TODO: New token check */
+						TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT);
+						goto err;
+					}
+				}
 			}
-			else {
-				pkt->token = buf;
-				buf += pkt->token_len;
-			}
+
+			pkt->token = buf;
+			pkt->token_len = token_len;
+			buf += pkt->token_len;
 		}
 		else if (pkt->type != QUIC_PACKET_TYPE_0RTT) {
 			if (pkt->dcid.len != QUIC_HAP_CID_LEN) {
@@ -5166,6 +5319,12 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 				goto err;
 			}
 
+			/* RFC 9000 7.2. Negotiating Connection IDs:
+			 * When an Initial packet is sent by a client that has not previously
+			 * received an Initial or Retry packet from the server, the client
+			 * populates the Destination Connection ID field with an unpredictable
+			 * value. This Destination Connection ID MUST be at least 8 bytes in length.
+			 */
 			if (pkt->dcid.len < QUIC_ODCID_MINLEN) {
 				TRACE_PROTO("dropped packet", QUIC_EV_CONN_LPKT);
 				goto err;
@@ -5173,7 +5332,7 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 
 			pkt->saddr = dgram->saddr;
 			ipv4 = dgram->saddr.ss_family == AF_INET;
-			qc = qc_new_conn(pkt->version, ipv4, &pkt->dcid, &pkt->scid, &pkt->saddr,
+			qc = qc_new_conn(pkt->version, ipv4, &pkt->dcid, &pkt->scid, &odcid, &pkt->saddr,
 			                 pkt->token, pkt->token_len, 1, l);
 			if (qc == NULL)
 				goto err;
