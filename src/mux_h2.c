@@ -1597,12 +1597,14 @@ static struct h2s *h2c_frt_stream_new(struct h2c *h2c, int id, struct buffer *in
 
 	TRACE_ENTER(H2_EV_H2S_NEW, h2c->conn);
 
-	if (h2c->nb_streams >= h2_settings_max_concurrent_streams)
+	if (h2c->nb_streams >= h2_settings_max_concurrent_streams) {
+		TRACE_ERROR("HEADERS frame causing MAX_CONCURRENT_STREAMS to be exceeded", H2_EV_H2S_NEW|H2_EV_RX_FRAME|H2_EV_RX_HDR, h2c->conn);
 		goto out;
+	}
 
 	h2s = h2s_new(h2c, id);
 	if (!h2s)
-		goto out;
+		goto out_alloc;
 
 	h2s->endp = cs_endpoint_new();
 	if (!h2s->endp)
@@ -1648,6 +1650,8 @@ static struct h2s *h2c_frt_stream_new(struct h2c *h2c, int id, struct buffer *in
 
  out_close:
 	h2s_destroy(h2s);
+ out_alloc:
+	TRACE_ERROR("Failed to allocate a new stream", H2_EV_H2S_NEW|H2_EV_RX_FRAME|H2_EV_RX_HDR, h2c->conn);
  out:
 	sess_log(sess);
 	TRACE_LEAVE(H2_EV_H2S_NEW|H2_EV_H2S_ERR|H2_EV_H2S_END, h2c->conn);
@@ -1664,18 +1668,25 @@ static struct h2s *h2c_bck_stream_new(struct h2c *h2c, struct conn_stream *cs, s
 
 	TRACE_ENTER(H2_EV_H2S_NEW, h2c->conn);
 
-	if (h2c->nb_streams >= h2c->streams_limit)
+	if (h2c->nb_streams >= h2c->streams_limit) {
+		TRACE_ERROR("Aborting stream since negotiated limit is too low", H2_EV_H2S_NEW, h2c->conn);
 		goto out;
+	}
 
-	if (h2_streams_left(h2c) < 1)
+	if (h2_streams_left(h2c) < 1) {
+		TRACE_ERROR("Aborting stream since no more streams left", H2_EV_H2S_NEW, h2c->conn);
 		goto out;
+	}
 
 	/* Defer choosing the ID until we send the first message to create the stream */
 	h2s = h2s_new(h2c, 0);
-	if (!h2s)
+	if (!h2s) {
+		TRACE_ERROR("Failed to allocate a new stream", H2_EV_H2S_NEW, h2c->conn);
 		goto out;
+	}
 
 	if (cs_attach_mux(cs, h2s, h2c->conn) < 0) {
+		TRACE_ERROR("Failed to allocate a new stream", H2_EV_H2S_NEW, h2c->conn);
 		h2s_destroy(h2s);
 		h2s = NULL;
 		goto out;
