@@ -80,6 +80,7 @@ struct peer {
 	struct shared_table *tables;
 	struct server *srv;
 	struct dcache *dcache;        /* dictionary cache */
+	struct peers *peers;          /* associated peer section */
 	struct peer *next;            /* next peer in the list */
 };
 

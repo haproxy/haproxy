@@ -443,11 +443,8 @@ static void peers_trace(enum trace_level level, uint64_t mask,
 			const struct peer *peer = a2;
 			struct peers *peers = NULL;
 
-			if (peer->appctx) {
-				struct stream *s = appctx_strm(peer->appctx);
-
-				peers = strm_fe(s)->parent;
-			}
+			if (peer->appctx)
+				peers = peer->peers;
 
 			if (peers)
 				chunk_appendf(&trace_buf, " %s", peers->local->id);
@@ -1037,16 +1034,9 @@ static int peer_prepare_ackmsg(char *msg, size_t size, struct peer_prep_params *
  */
 void __peer_session_deinit(struct peer *peer)
 {
-	struct stream *s;
-	struct peers *peers;
+	struct peers *peers = peer->peers;
 
-	if (!peer->appctx)
-		return;
-
-	s = appctx_strm(peer->appctx);
-
-	peers = strm_fe(s)->parent;
-	if (!peers)
+	if (!peers || !peer->appctx)
 		return;
 
 	if (peer->appctx->st0 == PEER_SESS_ST_WAITMSG)
@@ -2373,8 +2363,7 @@ static inline int peer_recv_msg(struct appctx *appctx, char *msg_head, size_t ms
 static inline int peer_treat_awaited_msg(struct appctx *appctx, struct peer *peer, unsigned char *msg_head,
                                          char **msg_cur, char *msg_end, int msg_len, int totl)
 {
-	struct stream *s = appctx_strm(appctx);
-	struct peers *peers = strm_fe(s)->parent;
+	struct peers *peers = peer->peers;
 
 	if (msg_head[0] == PEER_MSG_CLASS_CONTROL) {
 		if (msg_head[1] == PEER_MSG_CTRL_RESYNCREQ) {
