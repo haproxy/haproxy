@@ -1497,7 +1497,7 @@ static int promex_appctx_init(struct appctx *appctx)
 {
 	applet_reserve_svcctx(appctx, sizeof(struct promex_ctx));
 	appctx->st0 = PROMEX_ST_INIT;
-	return 1;
+	return 0;
 }
 
 /* The main I/O handler for the promex applet. */
