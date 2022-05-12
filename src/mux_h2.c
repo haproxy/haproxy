@@ -2840,6 +2840,12 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 
 	TRACE_USER("rcvd H2 request  ", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_STRM_NEW, h2c->conn, 0, &rxbuf);
 
+	/* Now we cannot roll back and we won't come back here anymore for this
+	 * stream, this stream ID is open.
+	 */
+	if (h2c->dsi > h2c->max_id)
+		h2c->max_id = h2c->dsi;
+
 	/* Note: we don't emit any other logs below because ff we return
 	 * positively from h2c_frt_stream_new(), the stream will report the error,
 	 * and if we return in error, h2c_frt_stream_new() will emit the error.
@@ -2867,11 +2873,6 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 		else
 			h2s_close(h2s);
 	}
-
-	/* update the max stream ID if the request is being processed */
-	if (h2s->id > h2c->max_id)
-		h2c->max_id = h2s->id;
-
 	return h2s;
 
  conn_err:
