@@ -81,7 +81,8 @@ struct appctx *appctx_new(struct applet *applet, struct cs_endpoint *endp)
  * It returns 0 on success and -1 on error. In this case, it is the caller
  * responsibility to release the appctx. However, the session is released if it
  * was created. On success, if an error is encountered in the caller function,
- * the stream must be released instead of the appctx.
+ * the stream must be released instead of the appctx. To be sure,
+ * appctx_free_on_early_error() must be called in this case.
  */
 int appctx_finalize_startup(struct appctx *appctx, struct proxy *px, struct buffer *input)
 {
@@ -98,6 +99,21 @@ int appctx_finalize_startup(struct appctx *appctx, struct proxy *px, struct buff
 	}
 	appctx->sess = sess;
 	return 0;
+}
+
+/* Release function to call when an error occurred during init stage of a
+ * frontend appctx. For a backend appctx, it just calls appctx_free()
+ */
+void appctx_free_on_early_error(struct appctx *appctx)
+{
+	/* If a frontend apctx is attached to a conn-stream, release the stream
+	 * instead of the appctx.
+	 */
+	if (!(appctx->endp->flags & CS_EP_ORPHAN) && !(appctx_cs(appctx)->flags & CS_FL_ISBACK)) {
+		stream_free(appctx_strm(appctx));
+		return;
+	}
+	appctx_free(appctx);
 }
 
 /* reserves a command context of at least <size> bytes in the <appctx>, for

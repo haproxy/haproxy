@@ -42,6 +42,7 @@ void appctx_shut(struct appctx *appctx);
 
 struct appctx *appctx_new(struct applet *applet, struct cs_endpoint *endp);
 int appctx_finalize_startup(struct appctx *appctx, struct proxy *px, struct buffer *input);
+void appctx_free_on_early_error(struct appctx *appctx);
 
 /* Helper function to call .init applet callback function, if it exists. Returns 0
  * on success and -1 on error.
