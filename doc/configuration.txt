@@ -1008,6 +1008,10 @@ The following keywords are supported in the "global" section :
    - grace
    - group
    - hard-stop-after
+   - httpclient.resolvers.id
+   - httpclient.resolvers.prefer
+   - httpclient.ssl.ca-file
+   - httpclient.ssl.verify
    - h1-case-adjust
    - h1-case-adjust-file
    - insecure-fork-wanted
