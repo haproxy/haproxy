@@ -580,7 +580,7 @@ struct stream *stream_new(struct session *sess, struct conn_stream *cs, struct b
 /*
  * frees  the context associated to a stream. It must have been removed first.
  */
-static void stream_free(struct stream *s)
+void stream_free(struct stream *s)
 {
 	struct session *sess = strm_sess(s);
 	struct proxy *fe = sess->fe;

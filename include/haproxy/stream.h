@@ -60,6 +60,7 @@ extern struct pool_head *pool_head_uniqueid;
 extern struct data_cb sess_conn_cb;
 
 struct stream *stream_new(struct session *sess, struct conn_stream *cs, struct buffer *input);
+void stream_free(struct stream *s);
 int stream_upgrade_from_cs(struct conn_stream *cs, struct buffer *input);
 int stream_set_http_mode(struct stream *s, const struct mux_proto_list *mux_proto);
 
