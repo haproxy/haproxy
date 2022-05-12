@@ -79,6 +79,12 @@ int quic_tls_derive_keys(const EVP_CIPHER *aead, const EVP_CIPHER *hp,
                          unsigned char *hp_key, size_t hp_keylen,
                          const unsigned char *secret, size_t secretlen);
 
+int quic_tls_derive_retry_token_secret(const EVP_MD *md,
+                                       unsigned char *key, size_t keylen,
+                                       unsigned char *iv, size_t ivlen,
+                                       const unsigned char *salt, size_t saltlen,
+                                       const unsigned char *secret, size_t secretlen);
+
 int quic_hkdf_extract_and_expand(const EVP_MD *md,
                                  unsigned char *buf, size_t buflen,
                                  const unsigned char *key, size_t keylen,

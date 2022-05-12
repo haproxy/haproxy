@@ -490,6 +490,33 @@ int quic_tls_decrypt(unsigned char *buf, size_t len,
 	return 1;
 }
 
+/* Derive <key> and <iv> key and IV to be used to encrypt a retry token
+ * with <secret> which is not pseudo-random.
+ * Return 1 if succeeded, 0 if not.
+ */
+int quic_tls_derive_retry_token_secret(const EVP_MD *md,
+                                       unsigned char *key, size_t keylen,
+                                       unsigned char *iv, size_t ivlen,
+                                       const unsigned char *salt, size_t saltlen,
+                                       const unsigned char *secret, size_t secretlen)
+{
+	unsigned char tmpkey[QUIC_TLS_KEY_LEN];
+	const unsigned char tmpkey_label[] = "retry token";
+	const unsigned char key_label[] = "retry token key";
+	const unsigned char iv_label[] = "retry token iv";
+
+	if (!quic_hkdf_extract_and_expand(md, tmpkey, sizeof tmpkey,
+	                                  secret, secretlen, salt, saltlen,
+	                                  tmpkey_label, sizeof tmpkey_label - 1) ||
+	    !quic_hkdf_expand(md, key, keylen, tmpkey, sizeof tmpkey,
+	                      key_label, sizeof key_label - 1) ||
+	    !quic_hkdf_expand(md, iv, ivlen, secret, secretlen,
+	                      iv_label, sizeof iv_label - 1))
+		return 0;
+
+	return 1;
+}
+
 /* Generate the AEAD tag for the Retry packet <pkt> of <pkt_len> bytes and
  * write it to <tag>. The tag is written just after the <pkt> area. It should
  * be at least 16 bytes longs. <odcid> is the CID of the Initial packet
