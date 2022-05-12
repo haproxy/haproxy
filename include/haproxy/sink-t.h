@@ -40,6 +40,7 @@ struct sink_forward_target {
 	struct server *srv;    // used server
 	struct appctx *appctx; // appctx of current session
 	size_t ofs;            // ring buffer reader offset
+	struct sink *sink;     // the associated sink
 	struct sink_forward_target *next;
 	__decl_thread(HA_SPINLOCK_T lock); // lock to protect current struct
 };

@@ -1005,6 +1005,7 @@ struct sink *sink_new_from_logsrv(struct logsrv *logsrv)
 	/* insert into sink_forward_targets
 	 * list into sink
 	 */
+	sft->sink = sink;
 	sft->next = sink->sft;
 	sink->sft = sft;
 
