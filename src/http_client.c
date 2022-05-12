@@ -530,129 +530,29 @@ struct appctx *httpclient_start(struct httpclient *hc)
 {
 	struct applet *applet = &httpclient_applet;
 	struct appctx *appctx;
-	struct session *sess;
-	struct conn_stream *cs;
-	struct stream *s;
-	struct sockaddr_storage *addr = NULL;
-	struct sockaddr_storage ss_url = {};
-	struct sockaddr_storage *ss_dst;
-	enum obj_type *target = NULL;
-	struct ist host = IST_NULL;
-	enum http_scheme scheme;
-	int port;
-	int doresolve = 0;
 
 	/* if the client was started and not ended, an applet is already
 	 * running, we shouldn't try anything */
 	if (httpclient_started(hc) && !httpclient_ended(hc))
 		return NULL;
 
-	hc->flags = 0;
-
-	/* parse the URL and  */
-	httpclient_spliturl(hc->req.url, &scheme, &host, &port);
-
-	if (hc->dst) {
-		/* if httpclient_set_dst() was used, sets the alternative address */
-		ss_dst = hc->dst;
-	} else {
-		/* set the dst using the host, or 0.0.0.0 to resolve */
-
-		ist2str(trash.area, host);
-		ss_dst = str2ip2(trash.area, &ss_url, 0);
-		if (!ss_dst) { /* couldn't get an IP from that, try to resolve */
-			doresolve = 1;
-			ss_dst = str2ip2("0.0.0.0", &ss_url, 0);
-		}
-		sock_inet_set_port(ss_dst, port);
-	}
-
 	/* The HTTP client will be created in the same thread as the caller,
 	 * avoiding threading issues */
 	appctx = appctx_new(applet, NULL);
 	if (!appctx)
 		goto out;
-
-	sess = session_new(httpclient_proxy, NULL, &appctx->obj_type);
-	if (!sess) {
-		ha_alert("httpclient: out of memory in %s:%d.\n", __FUNCTION__, __LINE__);
-		goto out_free_appctx;
-	}
-	appctx->sess = sess;
-
-	/* choose the SSL server or not */
-	switch (scheme) {
-		case SCH_HTTP:
-			target = &httpclient_srv_raw->obj_type;
-			break;
-		case SCH_HTTPS:
-#ifdef USE_OPENSSL
-			if (httpclient_srv_ssl) {
-				target = &httpclient_srv_ssl->obj_type;
-			} else {
-				ha_alert("httpclient: SSL was disabled (wrong verify/ca-file)!\n");
-				goto out_free_appctx;
-			}
-#else
-			ha_alert("httpclient: OpenSSL is not available %s:%d.\n", __FUNCTION__, __LINE__);
-			goto out_free_appctx;
-#endif
-			break;
-	}
-
-	if (!ss_dst) {
-		ha_alert("httpclient: Failed to initialize address %s:%d.\n", __FUNCTION__, __LINE__);
-		goto out_free_appctx;
-	}
-
-	if (!sockaddr_alloc(&addr, ss_dst, sizeof(*ss_dst)))
-		goto out_free_appctx;
-
-	cs = cs_new_from_endp(appctx->endp, sess, &hc->req.buf);
-	if (!cs) {
-		ha_alert("httpclient: Failed to initialize stream %s:%d.\n", __FUNCTION__, __LINE__);
-		goto out_free_addr;
-	}
-	s = DISGUISE(cs_strm(cs));
-
-	s->target = target;
-	/* set the "timeout server" */
-	s->req.wto = hc->timeout_server;
-	s->res.rto = hc->timeout_server;
-
-	if (doresolve) {
-		/* in order to do the set-dst we need to put the address on the front */
-		s->csf->dst = addr;
-	} else {
-		/* in cases we don't use the resolve we already have the address
-		 * and must put it on the backend side, some of the cases are
-		 * not meant to be used on the frontend (sockpair, unix socket etc.) */
-		s->csb->dst = addr;
-	}
-
-	s->csb->flags |= CS_FL_NOLINGER;
-	s->flags |= SF_ASSIGNED;
-	s->res.flags |= CF_READ_DONTWAIT;
-
-	/* applet is waiting for data */
-	cs_cant_get(s->csf);
-	appctx_wakeup(appctx);
-
-	hc->appctx = appctx;
-	hc->flags |= HTTPCLIENT_FS_STARTED;
 	appctx->svcctx = hc;
+	hc->flags = 0;
 
-	/* The request was transferred when the stream was created. So switch
-	 * directly to REQ_BODY or RES_STLINE state
-	 */
-	appctx->st0 = (hc->ops.req_payload ? HTTPCLIENT_S_REQ_BODY : HTTPCLIENT_S_RES_STLINE);
+	if (appctx_init(appctx) == -1) {
+		ha_alert("httpclient: Failed to initialize appctx %s:%d.\n", __FUNCTION__, __LINE__);
+		goto out_free_appctx;
+	}
 
 	return appctx;
 
-out_free_addr:
-	sockaddr_free(&addr);
 out_free_appctx:
-	appctx_free(appctx);
+	appctx_free_on_early_error(appctx);
 out:
 
 	return NULL;
@@ -1040,6 +940,109 @@ end:
 	return;
 }
 
+static int httpclient_applet_init(struct appctx *appctx)
+{
+	struct httpclient *hc = appctx->svcctx;
+	struct stream *s;
+	struct sockaddr_storage *addr = NULL;
+	struct sockaddr_storage ss_url = {};
+	struct sockaddr_storage *ss_dst;
+	enum obj_type *target = NULL;
+	struct ist host = IST_NULL;
+	enum http_scheme scheme;
+	int port;
+	int doresolve = 0;
+
+
+	/* parse the URL and  */
+	httpclient_spliturl(hc->req.url, &scheme, &host, &port);
+
+	if (hc->dst) {
+		/* if httpclient_set_dst() was used, sets the alternative address */
+		ss_dst = hc->dst;
+	} else {
+		/* set the dst using the host, or 0.0.0.0 to resolve */
+		ist2str(trash.area, host);
+		ss_dst = str2ip2(trash.area, &ss_url, 0);
+		if (!ss_dst) { /* couldn't get an IP from that, try to resolve */
+			doresolve = 1;
+			ss_dst = str2ip2("0.0.0.0", &ss_url, 0);
+		}
+		sock_inet_set_port(ss_dst, port);
+	}
+
+	if (!ss_dst) {
+		ha_alert("httpclient: Failed to initialize address %s:%d.\n", __FUNCTION__, __LINE__);
+		goto out_error;
+	}
+
+	if (!sockaddr_alloc(&addr, ss_dst, sizeof(*ss_dst)))
+		goto out_error;
+
+	/* choose the SSL server or not */
+	switch (scheme) {
+		case SCH_HTTP:
+			target = &httpclient_srv_raw->obj_type;
+			break;
+		case SCH_HTTPS:
+#ifdef USE_OPENSSL
+			if (httpclient_srv_ssl) {
+				target = &httpclient_srv_ssl->obj_type;
+			} else {
+				ha_alert("httpclient: SSL was disabled (wrong verify/ca-file)!\n");
+				goto out_free_addr;
+			}
+#else
+			ha_alert("httpclient: OpenSSL is not available %s:%d.\n", __FUNCTION__, __LINE__);
+			goto out_free_addr;
+#endif
+			break;
+	}
+
+	if (appctx_finalize_startup(appctx, httpclient_proxy, &hc->req.buf) == -1) {
+		ha_alert("httpclient: Failed to initialize appctx %s:%d.\n", __FUNCTION__, __LINE__);
+		goto out_free_addr;
+	}
+
+	s = appctx_strm(appctx);
+	s->target = target;
+	/* set the "timeout server" */
+	s->req.wto = hc->timeout_server;
+	s->res.rto = hc->timeout_server;
+
+	if (doresolve) {
+		/* in order to do the set-dst we need to put the address on the front */
+		s->csf->dst = addr;
+	} else {
+		/* in cases we don't use the resolve we already have the address
+		 * and must put it on the backend side, some of the cases are
+		 * not meant to be used on the frontend (sockpair, unix socket etc.) */
+		s->csb->dst = addr;
+	}
+
+	s->csb->flags |= CS_FL_NOLINGER;
+	s->flags |= SF_ASSIGNED;
+	s->res.flags |= CF_READ_DONTWAIT;
+
+	/* applet is waiting for data */
+	cs_cant_get(s->csf);
+	appctx_wakeup(appctx);
+
+	hc->appctx = appctx;
+	hc->flags |= HTTPCLIENT_FS_STARTED;
+
+	/* The request was transferred when the stream was created. So switch
+	 * directly to REQ_BODY or RES_STLINE state
+	 */
+	appctx->st0 = (hc->ops.req_payload ? HTTPCLIENT_S_REQ_BODY : HTTPCLIENT_S_RES_STLINE);
+	return 0;
+
+ out_free_addr:
+	sockaddr_free(&addr);
+ out_error:
+	return -1;
+}
+
 static void httpclient_applet_release(struct appctx *appctx)
 {
 	struct httpclient *hc = appctx->svcctx;
@@ -1066,6 +1069,7 @@ static struct applet httpclient_applet = {
 	.obj_type = OBJ_TYPE_APPLET,
 	.name = "<HTTPCLIENT>",
 	.fct = httpclient_applet_io_handler,
+	.init = httpclient_applet_init,
 	.release = httpclient_applet_release,
 };
 
