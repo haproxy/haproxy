@@ -997,9 +997,8 @@ enum act_return process_use_service(struct act_rule *rule, struct proxy *px,
 			return ACT_RET_ERR;
 
 		/* Finish initialisation of the context. */
-		memset(&appctx->ctx, 0, sizeof(appctx->ctx));
 		appctx->rule = rule;
-		if (appctx->applet->init && !appctx->applet->init(appctx))
+		if (appctx_init(appctx) == -1)
 			return ACT_RET_ERR;
 	}
 	else

@@ -42,6 +42,16 @@ void appctx_shut(struct appctx *appctx);
 
 struct appctx *appctx_new(struct applet *applet, struct cs_endpoint *endp);
 
+/* Helper function to call .init applet callback function, if it exists. Returns 0
+ * on success and -1 on error.
+ */
+static inline int appctx_init(struct appctx *appctx)
+{
+	if (appctx->applet->init)
+		return appctx->applet->init(appctx);
+	return 0;
+}
+
 /* Releases an appctx previously allocated by appctx_new(). */
 static inline void __appctx_free(struct appctx *appctx)
 {
