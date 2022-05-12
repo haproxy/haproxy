@@ -288,8 +288,11 @@ static int h3_decode_qcs(struct qcs *qcs, int fin, void *ctx)
 
 		flen = h3s->demux_frame_len;
 		ftype = h3s->demux_frame_type;
-		if (flen > b_data(&b) && !ncb_is_full(rxbuf))
+		/* Do not demux HEADERS if frame incomplete. */
+		if (ftype == H3_FT_HEADERS && flen > b_data(&b)) {
+			BUG_ON(ncb_is_full(rxbuf)); /* TODO should define SETTINGS for max header size */
 			break;
+		}
 		last_stream_frame = (fin && flen == ncb_total_data(rxbuf));
 
 		switch (ftype) {
