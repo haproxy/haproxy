@@ -815,6 +815,41 @@ void dns_session_free(struct dns_session *ds)
 
 static struct appctx *dns_session_create(struct dns_session *ds);
 
+static int dns_session_init(struct appctx *appctx)
+{
+	struct dns_session *ds = appctx->svcctx;
+	struct stream *s;
+	struct sockaddr_storage *addr = NULL;
+
+	if (!sockaddr_alloc(&addr, &ds->dss->srv->addr, sizeof(ds->dss->srv->addr)))
+		goto error;
+
+	if (appctx_finalize_startup(appctx, ds->dss->srv->proxy, &BUF_NULL) == -1)
+		goto error;
+
+	s = appctx_strm(appctx);
+	s->csb->dst = addr;
+	s->csb->flags |= CS_FL_NOLINGER;
+	s->target = &ds->dss->srv->obj_type;
+	s->flags = SF_ASSIGNED;
+
+	s->do_log = NULL;
+	s->uniq_id = 0;
+
+	s->res.flags |= CF_READ_DONTWAIT;
+	/* for rto and rex to eternity to not expire on idle recv:
+	 * We are using a syslog server.
+	 */
+	s->res.rto = TICK_ETERNITY;
+	s->res.rex = TICK_ETERNITY;
+
+	ds->appctx = appctx;
+	return 0;
+
+  error:
+	return -1;
+}
+
 /*
  * Function to release a DNS tcp session
  */
@@ -908,6 +943,7 @@ static struct applet dns_session_applet = {
 	.obj_type = OBJ_TYPE_APPLET,
 	.name = "<STRMDNS>", /* used for logging */
 	.fct = dns_session_io_handler,
+	.init = dns_session_init,
 	.release = dns_session_release,
 };
 
@@ -918,56 +954,22 @@ static struct applet dns_session_applet = {
 static struct appctx *dns_session_create(struct dns_session *ds)
 {
 	struct appctx *appctx;
-	struct session *sess;
-	struct conn_stream *cs;
-	struct stream *s;
-	struct applet *applet = &dns_session_applet;
-	struct sockaddr_storage *addr = NULL;
 
-	appctx = appctx_new(applet, NULL);
+	appctx = appctx_new(&dns_session_applet, NULL);
 	if (!appctx)
 		goto out_close;
 	appctx->svcctx = (void *)ds;
 
-	sess = session_new(ds->dss->srv->proxy, NULL, &appctx->obj_type);
-	if (!sess) {
+	if (appctx_init(appctx) == -1) {
 		ha_alert("out of memory in dns_session_create().\n");
 		goto out_free_appctx;
 	}
-	appctx->sess = sess;
 
-	if (!sockaddr_alloc(&addr, &ds->dss->srv->addr, sizeof(ds->dss->srv->addr)))
-		goto out_free_appctx;
-
-	cs = cs_new_from_endp(appctx->endp, sess, &BUF_NULL);
-	if (!cs) {
-		ha_alert("Failed to initialize stream in dns_session_create().\n");
-		goto out_free_addr;
-	}
-
-	s = DISGUISE(cs_strm(cs));
-	s->csb->dst = addr;
-	s->csb->flags |= CS_FL_NOLINGER;
-	s->target = &ds->dss->srv->obj_type;
-	s->flags = SF_ASSIGNED;
-
-	s->do_log = NULL;
-	s->uniq_id = 0;
-
-	s->res.flags |= CF_READ_DONTWAIT;
-	/* for rto and rex to eternity to not expire on idle recv:
-	 * We are using a syslog server.
-	 */
-	s->res.rto = TICK_ETERNITY;
-	s->res.rex = TICK_ETERNITY;
-	ds->appctx = appctx;
 	return appctx;
 
 	/* Error unrolling */
- out_free_addr:
-	sockaddr_free(&addr);
  out_free_appctx:
-	appctx_free(appctx);
+	appctx_free_on_early_error(appctx);
  out_close:
 	return NULL;
 }
