@@ -74,6 +74,8 @@ enum {
 	EXTCHK_HAPROXY_SERVER_PORT,	/* the server port if available (or empty) */
 	EXTCHK_HAPROXY_SERVER_MAXCONN,	/* the server max connections */
 	EXTCHK_HAPROXY_SERVER_CURCONN,	/* the current number of connections on the server */
+	EXTCHK_HAPROXY_SERVER_SSL,	/* "1" if the server supports SSL, otherwise zero */
+	EXTCHK_HAPROXY_SERVER_PROTO,	/* the server's configured proto, if any */
 
 	EXTCHK_SIZE
 };
@@ -90,6 +92,8 @@ const struct extcheck_env extcheck_envs[EXTCHK_SIZE] = {
 	[EXTCHK_HAPROXY_SERVER_PORT]    = { "HAPROXY_SERVER_PORT",    EXTCHK_SIZE_UINT },
 	[EXTCHK_HAPROXY_SERVER_MAXCONN] = { "HAPROXY_SERVER_MAXCONN", EXTCHK_SIZE_EVAL_INIT },
 	[EXTCHK_HAPROXY_SERVER_CURCONN] = { "HAPROXY_SERVER_CURCONN", EXTCHK_SIZE_ULONG },
+	[EXTCHK_HAPROXY_SERVER_SSL]     = { "HAPROXY_SERVER_SSL",     EXTCHK_SIZE_UINT },
+	[EXTCHK_HAPROXY_SERVER_PROTO]   = { "HAPROXY_SERVER_PROTO",   EXTCHK_SIZE_EVAL_INIT },
 };
 
 void block_sigchld(void)
@@ -262,6 +266,7 @@ int prepare_external_check(struct check *check)
 	int i;
 	const char *path = px->check_path ? px->check_path : DEF_CHECK_PATH;
 	char buf[256];
+	const char *svmode = NULL;
 
 	list_for_each_entry(l, &px->conf.listeners, by_fe)
 		/* Use the first INET, INET6 or UNIX listener */
@@ -334,6 +339,18 @@ int prepare_external_check(struct check *check)
 	EXTCHK_SETENV(check, EXTCHK_HAPROXY_SERVER_PORT, check->argv[4], err);
 	EXTCHK_SETENV(check, EXTCHK_HAPROXY_SERVER_MAXCONN, ultoa_r(s->maxconn, buf, sizeof(buf)), err);
 	EXTCHK_SETENV(check, EXTCHK_HAPROXY_SERVER_CURCONN, ultoa_r(s->cur_sess, buf, sizeof(buf)), err);
+	EXTCHK_SETENV(check, EXTCHK_HAPROXY_SERVER_SSL, s->use_ssl ? "1" : "0", err);
+
+	switch (px->mode) {
+	case PR_MODE_CLI:    svmode = "cli"; break;
+	case PR_MODE_SYSLOG: svmode = "syslog"; break;
+	case PR_MODE_PEERS:  svmode = "peers"; break;
+	case PR_MODE_HTTP:   svmode = (s->mux_proto) ? s->mux_proto->token.ptr : "h1"; break;
+	case PR_MODE_TCP:    svmode = "tcp"; break;
+	/* all valid cases must be enumerated above, below is to avoid a warning */
+	case PR_MODES:       svmode = "?"; break;
+	}
+	EXTCHK_SETENV(check, EXTCHK_HAPROXY_SERVER_PROTO, svmode, err);
 
 	/* Ensure that we don't leave any hole in check->envp */
 	for (i = 0; i < EXTCHK_SIZE; i++)

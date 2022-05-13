@@ -10085,6 +10085,14 @@ external-check command <command>
     HAPROXY_SERVER_PORT     The server port if available (or empty for a UNIX
                             socket).
 
+    HAPROXY_SERVER_SSL      "0" when SSL is not used, "1" when it is used
+
+    HAPROXY_SERVER_PROTO    The protocol used by this server, which can be one
+                            of "cli" (the haproxy CLI), "syslog" (syslog TCP
+                            server), "peers" (peers TCP server), "h1" (HTTP/1.x
+                            server), "h2" (HTTP/2 server), or "tcp" (any other
+                            TCP server).
+
     PATH                    The PATH environment variable used when executing
                             the command may be set using "external-check path".
 
