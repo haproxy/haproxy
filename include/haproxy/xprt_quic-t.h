@@ -513,15 +513,6 @@ struct quic_rx_crypto_frm {
 	struct quic_rx_packet *pkt;
 };
 
-/* Structure to store information about RX STREAM frames. */
-struct quic_rx_strm_frm {
-	struct eb64_node offset_node;
-	uint64_t len;
-	const unsigned char *data;
-	int fin;
-	struct quic_rx_packet *pkt;
-};
-
 /* Flag a sent packet as being an ack-eliciting packet. */
 #define QUIC_FL_TX_PACKET_ACK_ELICITING (1UL << 0)
 /* Flag a sent packet as containing a PADDING frame. */

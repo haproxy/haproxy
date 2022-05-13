@@ -167,7 +167,6 @@ DECLARE_POOL(pool_head_quic_dgram, "quic_dgram", sizeof(struct quic_dgram));
 DECLARE_POOL(pool_head_quic_rx_packet, "quic_rx_packet_pool", sizeof(struct quic_rx_packet));
 DECLARE_POOL(pool_head_quic_tx_packet, "quic_tx_packet_pool", sizeof(struct quic_tx_packet));
 DECLARE_STATIC_POOL(pool_head_quic_rx_crypto_frm, "quic_rx_crypto_frm_pool", sizeof(struct quic_rx_crypto_frm));
-DECLARE_POOL(pool_head_quic_rx_strm_frm, "quic_rx_strm_frm", sizeof(struct quic_rx_strm_frm));
 DECLARE_STATIC_POOL(pool_head_quic_crypto_buf, "quic_crypto_buf_pool", sizeof(struct quic_crypto_buf));
 DECLARE_POOL(pool_head_quic_frame, "quic_frame_pool", sizeof(struct quic_frame));
 DECLARE_STATIC_POOL(pool_head_quic_arng, "quic_arng_pool", sizeof(struct quic_arng_node));
@@ -2147,28 +2146,6 @@ static inline int qc_provide_cdata(struct quic_enc_level *el,
  err:
 	TRACE_DEVEL("leaving in error", QUIC_EV_CONN_SSLDATA, qc);
 	return 0;
-}
-
-/* Allocate a new STREAM RX frame from <stream_fm> STREAM frame attached to
- * <pkt> RX packet.
- * Return it if succeeded, NULL if not.
- */
-static inline
-struct quic_rx_strm_frm *new_quic_rx_strm_frm(struct quic_stream *stream_frm,
-                                              struct quic_rx_packet *pkt)
-{
-	struct quic_rx_strm_frm *frm;
-
-	frm = pool_alloc(pool_head_quic_rx_strm_frm);
-	if (frm) {
-		frm->offset_node.key = stream_frm->offset.key;
-		frm->len = stream_frm->len;
-		frm->data = stream_frm->data;
-		frm->pkt = pkt;
-		frm->fin = stream_frm->fin;
-	}
-
-	return frm;
 }
 
 /* Handle <strm_frm> bidirectional STREAM frame. Depending on its ID, several
