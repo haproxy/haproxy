@@ -1222,7 +1222,7 @@ static void qc_destroy(void *ctx)
 
 static void qc_detach(struct cs_endpoint *endp)
 {
-	struct qcs *qcs = __cs_mux(endp->cs);
+	struct qcs *qcs = endp->target;
 	struct qcc *qcc = qcs->qcc;
 
 	TRACE_ENTER(QMUX_EV_STRM_END, qcc->conn, qcs);
