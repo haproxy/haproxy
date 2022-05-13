@@ -101,9 +101,7 @@ struct qcs {
 	void *ctx;           /* app-ops context */
 
 	struct {
-		struct eb_root frms; /* received frames ordered by their offsets */
 		uint64_t offset; /* absolute current base offset of ncbuf */
-		struct buffer buf; /* receive buffer, always valid (buf_empty or real buffer) */
 		struct ncbuf ncbuf; /* receive buffer - can handle out-of-order offset frames */
 		struct buffer app_buf; /* receive buffer used by conn_stream layer */
 		uint64_t msd; /* fctl bytes limit to enforce */

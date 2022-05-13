@@ -153,11 +153,9 @@ struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
 	qcs->tx.msd = quic_stream_is_local(qcc, id) ? qcc->rfctl.msd_bidi_r :
 	                                              qcc->rfctl.msd_bidi_l;
 
-	qcs->rx.buf = BUF_NULL;
 	qcs->rx.ncbuf = NCBUF_NULL;
 	qcs->rx.app_buf = BUF_NULL;
 	qcs->rx.offset = 0;
-	qcs->rx.frms = EB_ROOT_UNIQUE;
 
 	/* TODO use uni limit for unidirectional streams */
 	qcs->rx.msd = quic_stream_is_local(qcc, id) ? qcc->lfctl.msd_bidi_l :
@@ -202,7 +200,6 @@ static void qc_free_ncbuf(struct qcs *qcs, struct ncbuf *ncbuf)
  */
 void qcs_free(struct qcs *qcs)
 {
-	b_free(&qcs->rx.buf);
 	qc_free_ncbuf(qcs, &qcs->rx.ncbuf);
 	b_free(&qcs->tx.buf);
 
