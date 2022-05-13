@@ -1013,6 +1013,7 @@ The following keywords are supported in the "global" section :
    - httpclient.resolvers.prefer
    - httpclient.ssl.ca-file
    - httpclient.ssl.verify
+   - h1-accept-payload-with-any-method
    - h1-case-adjust
    - h1-case-adjust-file
    - insecure-fork-wanted
@@ -1449,6 +1450,20 @@ hard-stop-after <time>
       hard-stop-after 30s
 
   See also: grace
+
+h1-accept-payload-with-any-method
+  Does not reject HTTP/1.0 GET/HEAD/DELETE requests with a payload.
+
+  While It is explicitly allowed in HTTP/1.1, HTTP/1.0 is not clear on this
+  point and some old servers don't expect any payload and never look for body
+  length (via Content-Length or Transfer-Encoding headers). It means that some
+  intermediaries may properly handle the payload for HTTP/1.0 GET/HEAD/DELETE
+  requests, while some others may totally ignore it. That may lead to security
+  issues because a request smuggling attack is possible. Thus, by default,
+  HAProxy rejects HTTP/1.0 GET/HEAD/DELETE requests with a payload.
+
+  However, it may be an issue with some old clients. In this case, this global
+  option may be set.
 
 h1-case-adjust <from> <to>
   Defines the case adjustment to apply, when enabled, to the header name

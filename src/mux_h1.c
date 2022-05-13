@@ -149,7 +149,7 @@ struct h1_hdr_entry  {
 
 /* Declare the headers map */
 static struct h1_hdrs_map hdrs_map = { .name = NULL, .map  = EB_ROOT };
-
+static int accept_payload_with_any_method = 0;
 
 /* trace source and events */
 static void h1_trace(enum trace_level level, uint64_t mask,
@@ -1602,12 +1602,14 @@ static size_t h1_handle_headers(struct h1s *h1s, struct h1m *h1m, struct htx *ht
 	}
 
 
-	/* Reject HTTP/1.0 GET/HEAD/DELETE requests with a payload. There is a
-	 * payload if the c-l is not null or the the payload is chunk-encoded.
-	 * A parsing error is reported but a A 413-Payload-Too-Large is returned
-	 * instead of a 400-Bad-Request.
+	/* Reject HTTP/1.0 GET/HEAD/DELETE requests with a payload except if
+	 * accept_payload_with_any_method global option is set.
+	 *There is a payload if the c-l is not null or the the payload is
+	 * chunk-encoded.  A parsing error is reported but a A
+	 * 413-Payload-Too-Large is returned instead of a 400-Bad-Request.
 	 */
-	if (!(h1m->flags & (H1_MF_RESP|H1_MF_VER_11)) &&
+	if (!accept_payload_with_any_method &&
+	    !(h1m->flags & (H1_MF_RESP|H1_MF_VER_11)) &&
 	    (((h1m->flags & H1_MF_CLEN) && h1m->body_len) || (h1m->flags & H1_MF_CHNK)) &&
 	    (h1sl.rq.meth == HTTP_METH_GET || h1sl.rq.meth == HTTP_METH_HEAD || h1sl.rq.meth == HTTP_METH_DELETE)) {
 		h1s->flags |= H1S_F_PARSING_ERROR;
@@ -4137,6 +4139,17 @@ static int cfg_h1_headers_case_adjust_postparser()
 	return err_code;
 }
 
+/* config parser for global "h1-accept-payload_=-with-any-method" */
+static int cfg_parse_h1_accept_payload_with_any_method(char **args, int section_type, struct proxy *curpx,
+						       const struct proxy *defpx, const char *file, int line,
+						       char **err)
+{
+        if (too_many_args(0, args, err, NULL))
+                return -1;
+	accept_payload_with_any_method = 1;
+	return 0;
+}
+
 
 /* config parser for global "h1-outgoing-header-case-adjust" */
 static int cfg_parse_h1_header_case_adjust(char **args, int section_type, struct proxy *curpx,
@@ -4168,9 +4181,9 @@ static int cfg_parse_h1_headers_case_adjust_file(char **args, int section_type, 
         return 0;
 }
 
-
 /* config keyword parsers */
 static struct cfg_kw_list cfg_kws = {{ }, {
+		{ CFG_GLOBAL, "h1-accept-payload-with-any-method", cfg_parse_h1_accept_payload_with_any_method },
 		{ CFG_GLOBAL, "h1-case-adjust", cfg_parse_h1_header_case_adjust },
 		{ CFG_GLOBAL, "h1-case-adjust-file", cfg_parse_h1_headers_case_adjust_file },
 		{ 0, NULL, NULL },
