@@ -334,12 +334,12 @@ static int h3_decode_qcs(struct qcs *qcs, int fin, void *ctx)
  * <rxbuf> buffer. This function does not update this buffer.
  * Returns 0 if something wrong happened, 1 if not.
  */
-static int h3_parse_settings_frm(struct h3 *h3, const struct buffer *rxbuf, size_t flen)
+static int h3_parse_settings_frm(struct h3 *h3, const struct ncbuf *rxbuf, size_t flen)
 {
 	uint64_t id, value;
 	const unsigned char *buf, *end;
 
-	buf = (const unsigned char *)b_head(rxbuf);
+	buf = (const unsigned char *)ncb_head(rxbuf);
 	end = buf + flen;
 
 	while (buf <= end) {
@@ -376,20 +376,20 @@ static int h3_parse_settings_frm(struct h3 *h3, const struct buffer *rxbuf, size
  */
 static int h3_control_recv(struct h3_uqs *h3_uqs, void *ctx)
 {
-	struct buffer *rxbuf = &h3_uqs->qcs->rx.buf;
+	struct ncbuf *rxbuf = &h3_uqs->qcs->rx.ncbuf;
 	struct h3 *h3 = ctx;
 
 	h3_debug_printf(stderr, "%s STREAM ID: %lu\n", __func__,  h3_uqs->qcs->id);
-	if (!b_data(rxbuf))
+	if (!ncb_data(rxbuf, 0))
 		return 1;
 
-	while (b_data(rxbuf)) {
+	while (ncb_data(rxbuf, 0)) {
 		size_t hlen;
 		uint64_t ftype, flen;
 		struct buffer b;
 
 		/* Work on a copy of <rxbuf> */
-		b = b_make(rxbuf->area, rxbuf->size, rxbuf->head, rxbuf->data);
+		b = h3_b_dup(rxbuf);
 		hlen = h3_decode_frm_header(&ftype, &flen, &b);
 		if (!hlen)
 			break;
@@ -399,7 +399,8 @@ static int h3_control_recv(struct h3_uqs *h3_uqs, void *ctx)
 		if (flen > b_data(&b))
 			break;
 
-		b_del(rxbuf, hlen);
+		ncb_advance(rxbuf, hlen);
+		h3_uqs->qcs->rx.offset += hlen;
 		/* From here, a frame must not be truncated */
 		switch (ftype) {
 		case H3_FT_CANCEL_PUSH:
@@ -423,14 +424,15 @@ static int h3_control_recv(struct h3_uqs *h3_uqs, void *ctx)
 			h3->err = H3_FRAME_UNEXPECTED;
 			return 0;
 		}
-		b_del(rxbuf, flen);
+		ncb_advance(rxbuf, flen);
+		h3_uqs->qcs->rx.offset += flen;
 	}
 
 	/* Handle the case where remaining data are present in the buffer. This
 	 * can happen if there is an incomplete frame. In this case, subscribe
 	 * on the lower layer to restart receive operation.
 	 */
-	if (b_data(rxbuf))
+	if (ncb_data(rxbuf, 0))
 		qcs_subscribe(h3_uqs->qcs, SUB_RETRY_RECV, &h3_uqs->wait_event);
 
 	return 1;
@@ -773,11 +775,18 @@ static int h3_attach_ruqs(struct qcs *qcs, void *ctx)
 {
 	uint64_t strm_type;
 	struct h3 *h3 = ctx;
-	struct buffer *rxbuf = &qcs->rx.buf;
+	struct ncbuf *rxbuf = &qcs->rx.ncbuf;
+	struct buffer b;
+	size_t len = 0;
+
+	b = h3_b_dup(rxbuf);
 
 	/* First octets: the uni-stream type */
-	if (!b_quic_dec_int(&strm_type, rxbuf, NULL) || strm_type > H3_UNI_STRM_TP_MAX)
+	if (!b_quic_dec_int(&strm_type, &b, &len) || strm_type > H3_UNI_STRM_TP_MAX)
 		return 0;
+
+	ncb_advance(rxbuf, len);
+	qcs->rx.offset += len;
 
 	/* Note that for all the uni-streams below, this is an error to receive two times the
 	 * same type of uni-stream (even for Push stream which is not supported at this time.

@@ -38,6 +38,7 @@
 #include <haproxy/hq_interop.h>
 #include <haproxy/log.h>
 #include <haproxy/mux_quic.h>
+#include <haproxy/ncbuf.h>
 #include <haproxy/pipe.h>
 #include <haproxy/proxy.h>
 #include <haproxy/quic_cc.h>
@@ -2170,20 +2171,6 @@ struct quic_rx_strm_frm *new_quic_rx_strm_frm(struct quic_stream *stream_frm,
 	return frm;
 }
 
-/* Copy as most as possible STREAM data from <strm_frm> into <strm> stream.
- * Also update <strm_frm> frame to reflect the data which have been consumed.
- */
-static size_t qc_strm_cpy(struct buffer *buf, struct quic_stream *strm_frm)
-{
-	size_t ret;
-
-	ret = b_putblk(buf, (char *)strm_frm->data, strm_frm->len);
-	strm_frm->len -= ret;
-	strm_frm->offset.key += ret;
-
-	return ret;
-}
-
 /* Handle <strm_frm> bidirectional STREAM frame. Depending on its ID, several
  * streams may be open. The data are copied to the stream RX buffer if possible.
  * If not, the STREAM frame is stored to be treated again later.
@@ -2221,8 +2208,7 @@ static int qc_handle_uni_strm_frm(struct quic_rx_packet *pkt,
                                   struct quic_conn *qc)
 {
 	struct qcs *strm;
-	struct quic_rx_strm_frm *frm;
-	size_t strm_frm_len;
+	enum ncb_ret ret;
 
 	strm = qcc_get_qcs(qc->qcc, strm_frm->id);
 	if (!strm) {
@@ -2246,46 +2232,22 @@ static int qc_handle_uni_strm_frm(struct quic_rx_packet *pkt,
 		strm_frm->data += diff;
 	}
 
-	strm_frm_len = strm_frm->len;
-	if (strm_frm->offset.key == strm->rx.offset) {
-		int ret;
+	qc_get_ncbuf(strm, &strm->rx.ncbuf);
+	if (ncb_is_null(&strm->rx.ncbuf))
+		return 0;
 
-		if (!qc_get_buf(strm, &strm->rx.buf))
-		    goto store_frm;
+	ret = ncb_add(&strm->rx.ncbuf, strm_frm->offset.key - strm->rx.offset,
+	               (char *)strm_frm->data, strm_frm->len, NCB_ADD_COMPARE);
+	if (ret != NCB_RET_OK)
+		return 0;
 
-		/* qc_strm_cpy() will modify the offset, depending on the number
-		 * of bytes copied.
-		 */
-		ret = qc_strm_cpy(&strm->rx.buf, strm_frm);
-		/* Inform the application of the arrival of this new stream */
-		if (!strm->rx.offset && !qc->qcc->app_ops->attach_ruqs(strm, qc->qcc->ctx)) {
-			TRACE_PROTO("Could not set an uni-stream", QUIC_EV_CONN_PSTRM, qc);
-			return 0;
-		}
-
-		if (ret)
-			qcs_notify_recv(strm);
-
-		strm_frm->offset.key += ret;
-	}
-	/* Take this frame into an account for the stream flow control */
-	strm->rx.offset += strm_frm_len;
-	/* It all the data were provided to the application, there is no need to
-	 * store any more information for it.
-	 */
-	if (!strm_frm->len)
-		goto out;
-
- store_frm:
-	frm = new_quic_rx_strm_frm(strm_frm, pkt);
-	if (!frm) {
-		TRACE_PROTO("Could not alloc RX STREAM frame",
-		            QUIC_EV_CONN_PSTRM, qc);
+	/* Inform the application of the arrival of this new stream */
+	if (!strm->rx.offset && !qc->qcc->app_ops->attach_ruqs(strm, qc->qcc->ctx)) {
+		TRACE_PROTO("Could not set an uni-stream", QUIC_EV_CONN_PSTRM, qc);
 		return 0;
 	}
 
-	eb64_insert(&strm->rx.frms, &frm->offset_node);
-	quic_rx_packet_refinc(pkt);
+	qcs_notify_recv(strm);
 
  out:
 	return 1;

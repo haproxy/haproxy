@@ -27,6 +27,7 @@
 #include <haproxy/buf.h>
 #include <haproxy/chunk.h>
 #include <haproxy/h3.h>
+#include <haproxy/ncbuf.h>
 #include <haproxy/qpack-t.h>
 #include <haproxy/qpack-dec.h>
 #include <haproxy/qpack-tbl.h>
@@ -96,19 +97,19 @@ static uint64_t qpack_get_varint(const unsigned char **buf, uint64_t *len_in, in
 int qpack_decode_enc(struct h3_uqs *h3_uqs, void *ctx)
 {
 	size_t len;
-	struct buffer *rxbuf;
+	struct ncbuf *rxbuf;
 	unsigned char inst;
 
-	rxbuf = &h3_uqs->qcs->rx.buf;
-	len = b_data(rxbuf);
-	qpack_debug_hexdump(stderr, "[QPACK-DEC-ENC] ", b_head(rxbuf), 0, len);
+	rxbuf = &h3_uqs->qcs->rx.ncbuf;
+	len = ncb_data(rxbuf, 0);
+	qpack_debug_hexdump(stderr, "[QPACK-DEC-ENC] ", ncb_head(rxbuf), 0, len);
 
 	if (!len) {
 		qpack_debug_printf(stderr, "[QPACK-DEC-ENC] empty stream\n");
 		return 0;
 	}
 
-	inst = (unsigned char)*b_head(rxbuf) & QPACK_ENC_INST_BITMASK;
+	inst = (unsigned char)*ncb_head(rxbuf) & QPACK_ENC_INST_BITMASK;
 	if (inst == QPACK_ENC_INST_DUP) {
 		/* Duplicate */
 	}
@@ -129,19 +130,19 @@ int qpack_decode_enc(struct h3_uqs *h3_uqs, void *ctx)
 int qpack_decode_dec(struct h3_uqs *h3_uqs, void *ctx)
 {
 	size_t len;
-	struct buffer *rxbuf;
+	struct ncbuf *rxbuf;
 	unsigned char inst;
 
-	rxbuf = &h3_uqs->qcs->rx.buf;
-	len = b_data(rxbuf);
-	qpack_debug_hexdump(stderr, "[QPACK-DEC-DEC] ", b_head(rxbuf), 0, len);
+	rxbuf = &h3_uqs->qcs->rx.ncbuf;
+	len = ncb_data(rxbuf, 0);
+	qpack_debug_hexdump(stderr, "[QPACK-DEC-DEC] ", ncb_head(rxbuf), 0, len);
 
 	if (!len) {
 		qpack_debug_printf(stderr, "[QPACK-DEC-DEC] empty stream\n");
 		return 0;
 	}
 
-	inst = (unsigned char)*b_head(rxbuf) & QPACK_DEC_INST_BITMASK;
+	inst = (unsigned char)*ncb_head(rxbuf) & QPACK_DEC_INST_BITMASK;
 	if (inst == QPACK_DEC_INST_ICINC) {
 		/* Insert count increment */
 	}
