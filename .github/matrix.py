@@ -10,6 +10,8 @@
 
 import json
 import sys
+import urllib.request
+import re
 
 if len(sys.argv) == 2:
     build_type = sys.argv[1]
@@ -31,6 +33,13 @@ def clean_os(os):
 def clean_ssl(ssl):
     return ssl.replace("_VERSION", "").lower()
 
+def determine_latest_libressl(ssl):
+    libressl_download_list = urllib.request.urlopen("http://ftp.openbsd.org/pub/OpenBSD/LibreSSL/")
+    for line in libressl_download_list.readlines():
+        decoded_line = line.decode("utf-8")
+        if "libressl-" in decoded_line and ".tar.gz.asc" in decoded_line:
+             l = re.split("libressl-|.tar.gz.asc", decoded_line)[1]
+    return "LIBRESSL={}".format(l)
 
 def clean_compression(compression):
     return compression.replace("USE_", "").lower()
@@ -111,8 +120,7 @@ for CC in ["gcc", "clang"]:
         "stock",
         "OPENSSL_VERSION=1.0.2u",
         "OPENSSL_VERSION=3.0.2",
-        "LIBRESSL_VERSION=2.9.2",
-        "LIBRESSL_VERSION=3.5.2",
+        "LIBRESSL_VERSION=latest",
         "QUICTLS=yes",
 #        "BORINGSSL=yes",
     ]:
@@ -122,6 +130,8 @@ for CC in ["gcc", "clang"]:
         if ssl != "stock":
             flags.append("SSL_LIB=${HOME}/opt/lib")
             flags.append("SSL_INC=${HOME}/opt/include")
+        if "LIBRESSL" in ssl and "latest" in ssl:
+            ssl = determine_latest_libressl(ssl)
         matrix.append(
             {
                 "name": "{}, {}, ssl={}".format(clean_os(os), CC, clean_ssl(ssl)),
