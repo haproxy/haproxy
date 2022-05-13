@@ -33,6 +33,7 @@
 
 #include <haproxy/buf.h>
 #include <haproxy/chunk.h>
+#include <haproxy/ncbuf-t.h>
 #include <haproxy/net_helper.h>
 #include <haproxy/openssl-compat.h>
 #include <haproxy/ticks.h>
@@ -463,17 +464,21 @@ static inline void quic_dflt_transport_params_cpy(struct quic_transport_params *
 static inline void quic_transport_params_init(struct quic_transport_params *p,
                                               int server)
 {
+	const uint64_t ncb_size = global.tune.bufsize - NCB_RESERVED_SZ;
+	const int max_streams_bidi = 100;
+	const int max_streams_uni = 3;
+
 	/* Default values (when absent) */
 	quic_dflt_transport_params_cpy(p);
 
 	p->max_idle_timeout                    = 30000;
 
-	p->initial_max_data                    = 1 * 1024 * 1024;
-	p->initial_max_stream_data_bidi_local  = 256 * 1024;
-	p->initial_max_stream_data_bidi_remote = 256 * 1024;
-	p->initial_max_stream_data_uni         = 256 * 1024;
-	p->initial_max_streams_bidi            = 100;
-	p->initial_max_streams_uni             = 3;
+	p->initial_max_streams_bidi            = max_streams_bidi;
+	p->initial_max_streams_uni             = max_streams_uni;
+	p->initial_max_stream_data_bidi_local  = ncb_size;
+	p->initial_max_stream_data_bidi_remote = ncb_size;
+	p->initial_max_stream_data_uni         = ncb_size;
+	p->initial_max_data = (max_streams_bidi + max_streams_uni) * ncb_size;
 
 	if (server)
 		p->with_stateless_reset_token      = 1;
