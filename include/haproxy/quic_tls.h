@@ -537,7 +537,7 @@ static inline int qc_new_isecs(struct quic_conn *qc,
 		goto err;
 
 	ctx->flags |= QUIC_FL_TLS_SECRETS_SET;
-	TRACE_LEAVE(QUIC_EV_CONN_ISEC, NULL, rx_init_sec, tx_init_sec);
+	TRACE_LEAVE(QUIC_EV_CONN_ISEC, qc, rx_init_sec, tx_init_sec);
 
 	return 1;
 
