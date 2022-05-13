@@ -131,6 +131,7 @@ static struct ncb_blk ncb_blk_first(const struct ncbuf *buf)
 
 	blk.sz_ptr = ncb_reserved(buf);
 	blk.sz = ncb_read_off(buf, ncb_reserved(buf));
+	blk.sz_data = 0;
 	BUG_ON_HOT(blk.sz > ncb_size(buf));
 
 	blk.end = ncb_peek(buf, blk.sz);
