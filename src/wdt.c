@@ -74,8 +74,10 @@ void wdt_handler(int sig, siginfo_t *si, void *arg)
 		p = ha_thread_ctx[thr].prev_cpu_time;
 		n = now_cpu_time_thread(thr);
 
-		/* not yet reached the deadline of 1 sec */
-		if (n - p < 1000000000UL)
+		/* not yet reached the deadline of 1 sec,
+		 * or p wasn't initialized yet
+		 */
+		if (!p || n - p < 1000000000UL)
 			goto update_and_leave;
 
 		if ((threads_harmless_mask|sleeping_thread_mask|threads_to_dump) & (1UL << thr)) {
