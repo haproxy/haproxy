@@ -7,19 +7,20 @@
 #include <haproxy/htx.h>
 #include <haproxy/http.h>
 #include <haproxy/mux_quic.h>
+#include <haproxy/ncbuf.h>
 
 static int hq_interop_decode_qcs(struct qcs *qcs, int fin, void *ctx)
 {
-	struct buffer *rxbuf = &qcs->rx.buf;
+	struct ncbuf *rxbuf = &qcs->rx.ncbuf;
 	struct htx *htx;
 	struct htx_sl *sl;
 	struct conn_stream *cs;
 	struct buffer htx_buf = BUF_NULL;
 	struct ist path;
-	char *ptr = b_head(rxbuf);
-	char *end = b_wrap(rxbuf);
-	size_t size = b_size(rxbuf);
-	size_t data = b_data(rxbuf);
+	char *ptr = ncb_head(rxbuf);
+	char *end = ncb_wrap(rxbuf);
+	size_t size = ncb_size(rxbuf);
+	size_t data = ncb_data(rxbuf, 0);
 
 	b_alloc(&htx_buf);
 	htx = htx_from_buf(&htx_buf);
@@ -76,7 +77,8 @@ static int hq_interop_decode_qcs(struct qcs *qcs, int fin, void *ctx)
 		return -1;
 
 
-	b_del(rxbuf, b_data(rxbuf));
+	qcs->rx.offset += ncb_data(rxbuf, 0);
+	ncb_advance(rxbuf, ncb_data(rxbuf, 0));
 	b_free(&htx_buf);
 
 	if (fin)

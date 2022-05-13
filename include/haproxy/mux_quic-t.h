@@ -11,6 +11,7 @@
 #include <haproxy/buf-t.h>
 #include <haproxy/connection-t.h>
 #include <haproxy/list-t.h>
+#include <haproxy/ncbuf-t.h>
 #include <haproxy/quic_stream-t.h>
 #include <haproxy/conn_stream-t.h>
 
@@ -101,8 +102,9 @@ struct qcs {
 
 	struct {
 		struct eb_root frms; /* received frames ordered by their offsets */
-		uint64_t offset; /* the current offset of received data */
+		uint64_t offset; /* absolute current base offset of ncbuf */
 		struct buffer buf; /* receive buffer, always valid (buf_empty or real buffer) */
+		struct ncbuf ncbuf; /* receive buffer - can handle out-of-order offset frames */
 		struct buffer app_buf; /* receive buffer used by conn_stream layer */
 		uint64_t msd; /* fctl bytes limit to enforce */
 	} rx;

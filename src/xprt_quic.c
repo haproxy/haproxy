@@ -2194,105 +2194,19 @@ static int qc_handle_bidi_strm_frm(struct quic_rx_packet *pkt,
                                    struct quic_stream *strm_frm,
                                    struct quic_conn *qc)
 {
-	struct quic_rx_strm_frm *frm;
-	struct eb64_node *frm_node;
 	struct qcs *qcs = NULL;
-	size_t done, buf_was_full;
 	int ret;
 
 	ret = qcc_recv(qc->qcc, strm_frm->id, strm_frm->len,
 	               strm_frm->offset.key, strm_frm->fin,
-	               (char *)strm_frm->data, &qcs, &done);
+	               (char *)strm_frm->data, &qcs);
 
-	/* invalid frame */
-	if (ret == 1)
+	/* frame rejected - packet must not be acknowledeged */
+	if (ret)
 		return 0;
 
-	/* already fully received offset */
-	if (ret == 0 && done == 0)
-		return 1;
-
-	/* frame not handled (partially or completely) must be buffered */
-	if (ret == 2) {
-		frm = new_quic_rx_strm_frm(strm_frm, pkt);
-		if (!frm) {
-			TRACE_PROTO("Could not alloc RX STREAM frame",
-			            QUIC_EV_CONN_PSTRM, qc);
-			return 0;
-		}
-
-		/* frame partially handled by the MUX */
-		if (done) {
-			BUG_ON(done >= frm->len); /* must never happen */
-			frm->len -= done;
-			frm->data += done;
-			frm->offset_node.key += done;
-		}
-
-		eb64_insert(&qcs->rx.frms, &frm->offset_node);
-		quic_rx_packet_refinc(pkt);
-
-		/* interrupt only if frame was not received at all. */
-		if (!done)
-			return 1;
-	}
-
-	/* Decode the data if buffer is already full as it's not possible to
-	 * dequeue a frame in this condition.
-	 */
-	if (b_full(&qcs->rx.buf))
+	if (qcs)
 		qcc_decode_qcs(qc->qcc, qcs);
-
- retry:
-	/* Frame received (partially or not) by the mux.
-	 * If there is buffered frame for next offset, it may be possible to
-	 * receive them now.
-	 */
-	frm_node = eb64_first(&qcs->rx.frms);
-	while (frm_node) {
-		frm = eb64_entry(frm_node,
-		                 struct quic_rx_strm_frm, offset_node);
-
-		ret = qcc_recv(qc->qcc, qcs->id, frm->len,
-		               frm->offset_node.key, frm->fin,
-		               (char *)frm->data, &qcs, &done);
-
-		BUG_ON(ret == 1); /* must never happen for buffered frames */
-
-		/* interrupt the parsing if the frame cannot be handled
-		 * entirely for the moment only.
-		 */
-		if (ret == 2) {
-			if (done) {
-				BUG_ON(done >= frm->len); /* must never happen */
-				frm->len -= done;
-				frm->data += done;
-
-				eb64_delete(&frm->offset_node);
-				frm->offset_node.key += done;
-				eb64_insert(&qcs->rx.frms, &frm->offset_node);
-			}
-			break;
-		}
-
-		/* Remove a newly received frame or an invalid one. */
-		frm_node = eb64_next(frm_node);
-		eb64_delete(&frm->offset_node);
-		quic_rx_packet_refdec(frm->pkt);
-		pool_free(pool_head_quic_rx_strm_frm, frm);
-	}
-
-	buf_was_full = b_full(&qcs->rx.buf);
-	/* Decode the received data. */
-	qcc_decode_qcs(qc->qcc, qcs);
-
-	/* Buffer was full so the reception was stopped. Now the buffer has
-	 * space available thanks to qcc_decode_qcs(). We can now retry to
-	 * handle more data.
-	 */
-	if (buf_was_full && !b_full(&qcs->rx.buf))
-		goto retry;
-
 	return 1;
 }
 

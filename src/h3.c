@@ -25,6 +25,7 @@
 #include <haproxy/htx.h>
 #include <haproxy/istbuf.h>
 #include <haproxy/mux_quic.h>
+#include <haproxy/ncbuf.h>
 #include <haproxy/pool.h>
 #include <haproxy/qpack-dec.h>
 #include <haproxy/qpack-enc.h>
@@ -76,9 +77,9 @@ struct h3s {
 DECLARE_STATIC_POOL(pool_head_h3s, "h3s", sizeof(struct h3s));
 
 /* Simple function to duplicate a buffer */
-static inline struct buffer h3_b_dup(struct buffer *b)
+static inline struct buffer h3_b_dup(struct ncbuf *b)
 {
-	return b_make(b->area, b->size, b->head, b->data);
+	return b_make(ncb_orig(b), b->size, b->head, ncb_data(b, 0));
 }
 
 /* Decode a h3 frame header made of two QUIC varints from <b> buffer.
@@ -104,7 +105,7 @@ static inline size_t h3_decode_frm_header(uint64_t *ftype, uint64_t *flen,
  *
  * Returns the number of bytes handled or a negative error code.
  */
-static int h3_headers_to_htx(struct qcs *qcs, struct buffer *buf, uint64_t len,
+static int h3_headers_to_htx(struct qcs *qcs, struct ncbuf *buf, uint64_t len,
                              char fin)
 {
 	struct buffer htx_buf = BUF_NULL;
@@ -119,8 +120,8 @@ static int h3_headers_to_htx(struct qcs *qcs, struct buffer *buf, uint64_t len,
 	int hdr_idx;
 
 	/* TODO support buffer wrapping */
-	BUG_ON(b_contig_data(buf, 0) != b_data(buf));
-	if (qpack_decode_fs((const unsigned char *)b_head(buf), len, tmp, list) < 0)
+	BUG_ON(ncb_head(buf) + len >= ncb_wrap(buf));
+	if (qpack_decode_fs((const unsigned char *)ncb_head(buf), len, tmp, list) < 0)
 		return -1;
 
 	qc_get_buf(qcs, &htx_buf);
@@ -200,12 +201,12 @@ static int h3_headers_to_htx(struct qcs *qcs, struct buffer *buf, uint64_t len,
  *
  * Returns the number of bytes handled or a negative error code.
  */
-static int h3_data_to_htx(struct qcs *qcs, struct buffer *buf, uint64_t len,
+static int h3_data_to_htx(struct qcs *qcs, struct ncbuf *buf, uint64_t len,
                           char fin)
 {
 	struct buffer *appbuf;
 	struct htx *htx = NULL;
-	size_t contig = 0, htx_sent = 0;
+	size_t htx_sent = 0;
 	int htx_space;
 	char *head;
 
@@ -213,12 +214,12 @@ static int h3_data_to_htx(struct qcs *qcs, struct buffer *buf, uint64_t len,
 	BUG_ON(!appbuf);
 	htx = htx_from_buf(appbuf);
 
-	if (len > b_data(buf)) {
-		len = b_data(buf);
+	if (len > ncb_data(buf, 0)) {
+		len = ncb_data(buf, 0);
 		fin = 0;
 	}
 
-	head = b_head(buf);
+	head = ncb_head(buf);
  retry:
 	htx_space = htx_free_data_space(htx);
 	if (!htx_space) {
@@ -231,10 +232,10 @@ static int h3_data_to_htx(struct qcs *qcs, struct buffer *buf, uint64_t len,
 		fin = 0;
 	}
 
-	contig = b_contig_data(buf, contig);
-	if (len > contig) {
-		htx_sent = htx_add_data(htx, ist2(b_head(buf), contig));
-		head = b_orig(buf);
+	if (head + len > ncb_wrap(buf)) {
+		size_t contig = ncb_wrap(buf) - head;
+		htx_sent = htx_add_data(htx, ist2(ncb_head(buf), contig));
+		head = ncb_orig(buf);
 		len -= contig;
 		goto retry;
 	}
@@ -256,15 +257,15 @@ static int h3_data_to_htx(struct qcs *qcs, struct buffer *buf, uint64_t len,
  */
 static int h3_decode_qcs(struct qcs *qcs, int fin, void *ctx)
 {
-	struct buffer *rxbuf = &qcs->rx.buf;
+	struct ncbuf *rxbuf = &qcs->rx.ncbuf;
 	struct h3s *h3s = qcs->ctx;
 	ssize_t ret;
 
 	h3_debug_printf(stderr, "%s: STREAM ID: %lu\n", __func__, qcs->id);
-	if (!b_data(rxbuf))
+	if (!ncb_data(rxbuf, 0))
 		return 0;
 
-	while (b_data(rxbuf) && !(qcs->flags & QC_SF_DEM_FULL)) {
+	while (ncb_data(rxbuf, 0) && !(qcs->flags & QC_SF_DEM_FULL)) {
 		uint64_t ftype, flen;
 		struct buffer b;
 		char last_stream_frame = 0;
@@ -279,16 +280,17 @@ static int h3_decode_qcs(struct qcs *qcs, int fin, void *ctx)
 			h3_debug_printf(stderr, "%s: ftype: %lu, flen: %lu\n",
 			                __func__, ftype, flen);
 
-			b_del(rxbuf, hlen);
+			ncb_advance(rxbuf, hlen);
 			h3s->demux_frame_type = ftype;
 			h3s->demux_frame_len = flen;
+			qcs->rx.offset += hlen;
 		}
 
 		flen = h3s->demux_frame_len;
 		ftype = h3s->demux_frame_type;
-		if (flen > b_data(&b) && !b_full(rxbuf))
+		if (flen > b_data(&b) && !ncb_is_full(rxbuf))
 			break;
-		last_stream_frame = (fin && flen == b_data(rxbuf));
+		last_stream_frame = (fin && flen == ncb_total_data(rxbuf));
 
 		switch (ftype) {
 		case H3_FT_DATA:
@@ -303,20 +305,21 @@ static int h3_decode_qcs(struct qcs *qcs, int fin, void *ctx)
 			break;
 		case H3_FT_PUSH_PROMISE:
 			/* Not supported */
-			ret = MIN(b_data(rxbuf), flen);
+			ret = MIN(ncb_data(rxbuf, 0), flen);
 			break;
 		default:
 			/* draft-ietf-quic-http34 9. Extensions to HTTP/3
 			 * unknown frame types MUST be ignored
 			 */
 			h3_debug_printf(stderr, "ignore unknown frame type 0x%lx\n", ftype);
-			ret = MIN(b_data(rxbuf), flen);
+			ret = MIN(ncb_data(rxbuf, 0), flen);
 		}
 
 		if (ret) {
-			b_del(rxbuf, ret);
+			ncb_advance(rxbuf, ret);
 			BUG_ON(h3s->demux_frame_len < ret);
 			h3s->demux_frame_len -= ret;
+			qcs->rx.offset += ret;
 		}
 	}
 
@@ -386,7 +389,7 @@ static int h3_control_recv(struct h3_uqs *h3_uqs, void *ctx)
 		struct buffer b;
 
 		/* Work on a copy of <rxbuf> */
-		b = h3_b_dup(rxbuf);
+		b = b_make(rxbuf->area, rxbuf->size, rxbuf->head, rxbuf->data);
 		hlen = h3_decode_frm_header(&ftype, &flen, &b);
 		if (!hlen)
 			break;
