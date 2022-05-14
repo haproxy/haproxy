@@ -26,6 +26,7 @@
 #include <haproxy/cli-t.h>
 #include <haproxy/errors.h>
 #include <haproxy/hlua-t.h>
+#include <haproxy/hlua_fcn.h>
 #include <haproxy/http.h>
 #include <haproxy/net_helper.h>
 #include <haproxy/pattern-t.h>
