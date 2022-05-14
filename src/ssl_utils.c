@@ -17,6 +17,7 @@
 #include <haproxy/chunk.h>
 #include <haproxy/openssl-compat.h>
 #include <haproxy/ssl_sock.h>
+#include <haproxy/ssl_utils.h>
 
 /* fill a buffer with the algorithm and size of a public key */
 int cert_get_pkey_algo(X509 *crt, struct buffer *out)
