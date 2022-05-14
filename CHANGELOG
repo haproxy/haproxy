@@ -1,6 +1,82 @@
 ChangeLog :
 ===========
 
+2022/05/14 : 2.6-dev10
+    - MINOR: ssl: ignore dotfiles when loading a dir w/ ca-file
+    - MEDIUM: ssl: ignore dotfiles when loading a dir w/ crt
+    - BUG/MINOR: ssl: Fix typos in crl-file related CLI commands
+    - MINOR: compiler: add a new macro to set an attribute on an enum when possible
+    - BUILD: stats: conditionally mark obsolete stats states as deprecated
+    - BUILD: ssl: work around bogus warning in gcc 12's -Wformat-truncation
+    - BUILD: debug: work around gcc-12 excessive -Warray-bounds warnings
+    - BUILD: listener: shut report of possible null-deref in listener_accept()
+    - BUG/MEDIUM: ssl: fix the gcc-12 broken fix :-(
+    - DOC: install: update gcc version requirements
+    - BUILD: makefile: add -Wfatal-errors to the default flags
+    - BUG/MINOR: server: Make SRV_STATE_LINE_MAXLEN value from 512 to 2kB (2000 bytes).
+    - BUG/MAJOR: dns: multi-thread concurrency issue on UDP socket
+    - BUG/MINOR: mux-h2: mark the stream as open before processing it not after
+    - MINOR: mux-h2: report a trace event when failing to create a new stream
+    - DOC: configuration: add the httpclient keywords to the global keywords index
+    - MINOR: quic: Add a debug counter for sendto() errors
+    - BUG/MINOR: quic: Dropped peer transport parameters
+    - BUG/MINOR: quic: Wrong unit for ack delay for incoming ACK frames
+    - MINOR: quic: Congestion controller event trace fix (loss)
+    - MINOR: quic: Add correct ack delay values to ACK frames
+    - MINOR: config: Add "cluster-secret" new global keyword
+    - MINOR: quic-tls: Add quic_hkdf_extract_and_expand() for HKDF
+    - MINOR: quic: new_quic_cid() code moving
+    - MINOR: quic: Initialize stateless reset tokens with HKDF secrets
+    - MINOR: qc_new_conn() rework for stateless reset
+    - MINOR: quic: Stateless reset token copy to transport parameters
+    - MINOR: quic: Send stateless reset tokens
+    - MINOR: quic: Short packets always embed a trailing AEAD TAG
+    - CLEANUP: quic: wrong use of eb*entry() macro
+    - CLEANUP: quic: Useless use of pointer for quic_hkdf_extract()
+    - CLEANUP: quic_tls: QUIC_TLS_IV_LEN defined two times
+    - MINOR: ncbuf: define non-contiguous buffer
+    - MINOR: ncbuf: complete API and define block interal abstraction
+    - MINOR: ncbuf: optimize storage for the last gap
+    - MINOR: ncbuf: implement insertion
+    - MINOR: ncbuf: define various insertion modes
+    - MINOR: ncbuf: implement advance
+    - MINOR: ncbuf: write unit tests
+    - BUG/MEDIUM: lua: fix argument handling in data removal functions
+    - DOC/MINOR: fix typos in the lua-api document
+    - BUG/MEDIUM: wdt: don't trigger the watchdog when p is unitialized
+    - MINOR: mux-h1: Add global option accpet payload for any HTTP/1.0 requests
+    - CLEANUP: mux-h1: Fix comments and error messages for global options
+    - MINOR: conn_stream: make cs_set_error() work on the endpoint instead
+    - CLEANUP: mux-h1: always take the endp from the h1s not the cs
+    - CLEANUP: mux-h2: always take the endp from the h2s not the cs
+    - CLEANUP: mux-pt: always take the endp from the context not the cs
+    - CLEANUP: mux-fcgi: always take the endp from the fstrm not the cs
+    - CLEANUP: mux-quic: always take the endp from the qcs not the cs
+    - CLEANUP: applet: use the appctx's endp instead of cs->endp
+    - MINOR: conn_stream: add a pointer back to the cs from the endpoint
+    - MINOR: mux-h1: remove the now unneeded h1s->cs
+    - MINOR: mux-h2: make sure any h2s always has an endpoint
+    - MINOR: mux-h2: remove the now unneeded conn_stream from the h2s
+    - MINOR: mux-fcgi: make sure any stream always has an endpoint
+    - MINOR: mux-fcgi: remove the now unneeded conn_stream from the fcgi_strm
+    - MINOR: mux-quic: remove the now unneeded conn_stream from the qcs
+    - MINOR: mux-pt: remove the now unneeded conn_stream from the context
+    - CLEANUP: muxes: make mux->attach/detach take a conn_stream endpoint
+    - MINOR: applet: replace cs_applet_shut() with appctx_shut()
+    - MINOR: applet: add appctx_strm() and appctx_cs() to access common fields
+    - CLEANUP: applet: remove the unneeded appctx->owner
+    - CLEANUP: conn_stream: merge cs_new_from_{mux,applet} into cs_new_from_endp()
+    - MINOR: ext-check: indicate the transport and protocol of a server
+    - BUG/MEDIUM: mux-quic: fix a thinko in the latest cs/endpoint cleanup
+    - MINOR: tools: improve error message accuracy in str2sa_range
+    - MINOR: config: make sure never to mix dgram and stream protocols on a bind line
+    - BUG/MINOR: ncbuf: fix coverity warning on uninit sz_data
+    - MINOR: xprt_quic: adjust flow-control according to bufsize
+    - MEDIUM: mux-quic/h3/hq-interop: use ncbuf for bidir streams
+    - MEDIUM: mux-quic/h3/qpack: use ncbuf for uni streams
+    - CLEANUP: mux-quic: remove unused fields for Rx
+    - CLEANUP: quic: remove unused quic_rx_strm_frm
+
 2022/05/08 : 2.6-dev9
     - MINOR: mux-quic: support full request channel buffer
     - BUG/MINOR: h3: fix parsing of unknown frame type with null length
