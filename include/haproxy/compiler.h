@@ -58,10 +58,12 @@
 #endif
 #endif
 
+#ifndef __maybe_unused
 /* silence the "unused" warnings without having to place painful #ifdefs.
  * For use with variables or functions.
  */
 #define __maybe_unused __attribute__((unused))
+#endif
 
 /* These macros are used to declare a section name for a variable.
  * WARNING: keep section names short, as MacOS limits them to 16 characters.
