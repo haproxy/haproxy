@@ -498,16 +498,6 @@ __LJMP unsigned int hlua_checktable(lua_State *L, int argno)
 	return luaL_ref(L, LUA_REGISTRYINDEX);
 }
 
-/* Return the string that is of the top of the stack. */
-const char *hlua_get_top_error_string(lua_State *L)
-{
-	if (lua_gettop(L) < 1)
-		return "unknown error";
-	if (lua_type(L, -1) != LUA_TSTRING)
-		return "unknown error";
-	return lua_tostring(L, -1);
-}
-
 __LJMP const char *hlua_traceback(lua_State *L, const char* sep)
 {
 	lua_Debug ar;
