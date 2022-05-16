@@ -314,6 +314,21 @@ void qcs_consume(struct qcs *qcs, uint64_t bytes)
 		LIST_APPEND(&qcc->lfctl.frms, &frm->list);
 		tasklet_wakeup(qcc->wait_event.tasklet);
 	}
+
+	qcc->lfctl.sent_offsets += bytes;
+	if (qcc->lfctl.md - qcc->lfctl.sent_offsets < qcc->lfctl.md_init / 2) {
+		frm = pool_zalloc(pool_head_quic_frame);
+		BUG_ON(!frm); /* TODO handle this properly */
+
+		qcc->lfctl.md = qcc->lfctl.sent_offsets + qcc->lfctl.md_init;
+
+		LIST_INIT(&frm->reflist);
+		frm->type = QUIC_FT_MAX_DATA;
+		frm->max_data.max_data = qcc->lfctl.md;
+
+		LIST_APPEND(&qcs->qcc->lfctl.frms, &frm->list);
+		tasklet_wakeup(qcs->qcc->wait_event.tasklet);
+	}
 }
 
 /* Retrieve as an ebtree node the stream with <id> as ID, possibly allocates
@@ -1248,6 +1263,9 @@ static int qc_init(struct connection *conn, struct proxy *prx,
 	qcc->lfctl.msd_bidi_l = lparams->initial_max_stream_data_bidi_local;
 	qcc->lfctl.msd_bidi_r = lparams->initial_max_stream_data_bidi_remote;
 	qcc->lfctl.cl_bidi_r = 0;
+
+	qcc->lfctl.md = qcc->lfctl.md_init = lparams->initial_max_data;
+	qcc->lfctl.sent_offsets = 0;
 
 	rparams = &conn->handle.qc->tx.params;
 	qcc->rfctl.md = rparams->initial_max_data;
