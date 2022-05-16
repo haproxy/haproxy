@@ -1035,9 +1035,13 @@ static int peer_prepare_ackmsg(char *msg, size_t size, struct peer_prep_params *
 void __peer_session_deinit(struct peer *peer)
 {
 	struct peers *peers = peer->peers;
+	int thr;
 
 	if (!peers || !peer->appctx)
 		return;
+
+	thr = my_ffsl(peer->appctx->t->thread_mask) - 1;
+	HA_ATOMIC_DEC(&peers->applet_count[thr]);
 
 	if (peer->appctx->st0 == PEER_SESS_ST_WAITMSG)
 		HA_ATOMIC_DEC(&connected_peers);
@@ -3192,6 +3196,7 @@ void peers_setup_frontend(struct proxy *fe)
 static struct appctx *peer_session_create(struct peers *peers, struct peer *peer)
 {
 	struct appctx *appctx;
+	unsigned int thr = tid;
 
 	peer->new_conn++;
 	peer->reconnect = tick_add(now_ms, MS_TO_TICKS(PEER_RECONNECT_TIMEOUT));
@@ -3210,6 +3215,7 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 	if (appctx_init(appctx) == -1)
 		goto out_free_appctx;
 
+	HA_ATOMIC_INC(&peers->applet_count[thr]);
 	return appctx;
 
 	/* Error unrolling */
@@ -3492,6 +3498,7 @@ int peers_init_sync(struct peers *peers)
 	if (!peers->sync_task)
 		return 0;
 
+	memset(peers->applet_count, 0, sizeof(peers->applet_count));
 	peers->sync_task->process = process_peer_sync;
 	peers->sync_task->context = (void *)peers;
 	peers->sighandler = signal_register_task(0, peers->sync_task, 0);

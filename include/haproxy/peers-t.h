@@ -102,6 +102,7 @@ struct peers {
 	unsigned int resync_timeout;    /* resync timeout timer */
 	int count;                      /* total of peers */
 	int disabled;                   /* peers proxy disabled if >0 */
+	int applet_count[MAX_THREADS];  /* applet count per thread */
 };
 
 /* LRU cache for dictionaies */
