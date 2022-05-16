@@ -180,6 +180,28 @@ add_engine:
 }
 #endif
 
+#ifdef HAVE_SSL_PROVIDERS
+/* parse the "ssl-propquery" keyword in global section.
+ * Returns <0 on alert, >0 on warning, 0 on success.
+ */
+static int ssl_parse_global_ssl_propquery(char **args, int section_type, struct proxy *curpx,
+					  const struct proxy *defpx, const char *file, int line,
+					  char **err)
+{
+	int ret = -1;
+
+	if (*(args[1]) == 0) {
+		memprintf(err, "global statement '%s' expects a property string as an argument.", args[0]);
+		return ret;
+	}
+
+	if (EVP_set_default_properties(NULL, args[1]))
+		ret = 0;
+
+	return ret;
+}
+#endif
+
 /* parse the "ssl-default-bind-ciphers" / "ssl-default-server-ciphers" keywords
  * in global section. Returns <0 on alert, >0 on warning, 0 on success.
  */
@@ -1935,6 +1957,9 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "ssl-mode-async",  ssl_parse_global_ssl_async },
 #if defined(USE_ENGINE) && !defined(OPENSSL_NO_ENGINE)
 	{ CFG_GLOBAL, "ssl-engine",  ssl_parse_global_ssl_engine },
+#endif
+#ifdef HAVE_SSL_PROVIDERS
+	{ CFG_GLOBAL, "ssl-propquery",  ssl_parse_global_ssl_propquery },
 #endif
 	{ CFG_GLOBAL, "ssl-skip-self-issued-ca", ssl_parse_skip_self_issued_ca },
 	{ CFG_GLOBAL, "tune.ssl.cachesize", ssl_parse_global_int },
