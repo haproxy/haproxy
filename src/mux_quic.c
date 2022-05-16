@@ -1034,6 +1034,40 @@ static int qc_send(struct qcc *qcc)
 	return total;
 }
 
+/* Proceed on receiving. Loop through all streams from <qcc> and use decode_qcs
+ * operation.
+ *
+ * Returns 0 on success else non-zero.
+ */
+static int qc_recv(struct qcc *qcc)
+{
+	struct eb64_node *node;
+	struct qcs *qcs;
+
+	node = eb64_first(&qcc->streams_by_id);
+	while (node) {
+		qcs = eb64_entry(node, struct qcs, by_id);
+
+		/* TODO unidirectional streams have their own mechanism for Rx.
+		 * This should be unified.
+		 */
+		if (quic_stream_is_uni(qcs->id)) {
+			node = eb64_next(node);
+			continue;
+		}
+
+		if (!ncb_data(&qcs->rx.ncbuf, 0) || (qcs->flags & QC_SF_DEM_FULL)) {
+			node = eb64_next(node);
+			continue;
+		}
+
+		qcc_decode_qcs(qcc, qcs);
+		node = eb64_next(node);
+	}
+
+	return 0;
+}
+
 /* Release all streams that are already marked as detached. This is only done
  * if their TX buffers are empty or if a CONNECTION_CLOSE has been received.
  *
@@ -1085,6 +1119,8 @@ static struct task *qc_io_cb(struct task *t, void *ctx, unsigned int status)
 			task_queue(qcc->task);
 		}
 	}
+
+	qc_recv(qcc);
 
 	TRACE_LEAVE(QMUX_EV_QCC_WAKE);
 
@@ -1335,9 +1371,6 @@ static size_t qc_rcv_buf(struct conn_stream *cs, struct buffer *buf,
 		}
 	}
 
-	/* TODO QUIC MUX iocb does not treat RX : following wake-up is thus
-	 * useless for the moment. This may causes freezing transfer on POST.
-	 */
 	if (ret) {
 		qcs->flags &= ~QC_SF_DEM_FULL;
 		tasklet_wakeup(qcs->qcc->wait_event.tasklet);
