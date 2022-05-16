@@ -51,7 +51,6 @@ struct appctx *appctx_new(struct applet *applet, struct cs_endpoint *endp, unsig
 		if (!endp)
 			goto fail_endp;
 		endp->target = appctx;
-		endp->ctx = appctx;
 		endp->flags |= (CS_EP_T_APPLET|CS_EP_ORPHAN);
 	}
 	appctx->endp = endp;

@@ -276,10 +276,9 @@ int cs_attach_mux(struct conn_stream *cs, void *target, void *ctx)
  * removed. This function is called by a stream when a backend applet is
  * registered.
  */
-static void cs_attach_applet(struct conn_stream *cs, void *target, void *ctx)
+static void cs_attach_applet(struct conn_stream *cs, void *target)
 {
 	cs->endp->target = target;
-	cs->endp->ctx = ctx;
 	cs->endp->flags |= CS_EP_T_APPLET;
 	cs->endp->flags &= ~CS_EP_DETACHED;
 	if (cs_strm(cs)) {
@@ -479,7 +478,7 @@ struct appctx *cs_applet_create(struct conn_stream *cs, struct applet *app)
 	appctx = appctx_new_here(app, cs->endp);
 	if (!appctx)
 		return NULL;
-	cs_attach_applet(cs, appctx, appctx);
+	cs_attach_applet(cs, appctx);
 	appctx->t->nice = __cs_strm(cs)->task->nice;
 	cs_cant_get(cs);
 	appctx_wakeup(appctx);
