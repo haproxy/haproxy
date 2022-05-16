@@ -64,6 +64,13 @@ static inline struct appctx *appctx_new_anywhere(struct applet *applet, struct c
  */
 static inline int appctx_init(struct appctx *appctx)
 {
+	/* Set appctx affinity to the current thread. Because, after this call,
+	 * the appctx will be fully initialized. The session and the stream will
+	 * eventually be created. The affinity must be set now !
+	 */
+	BUG_ON((appctx->t->thread_mask & tid_bit) == 0);
+	task_set_affinity(appctx->t, tid_bit);
+
 	if (appctx->applet->init)
 		return appctx->applet->init(appctx);
 	return 0;

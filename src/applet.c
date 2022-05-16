@@ -35,8 +35,8 @@ struct appctx *appctx_new(struct applet *applet, struct cs_endpoint *endp, unsig
 {
 	struct appctx *appctx;
 
-	/* Disable the feature for now ! */
-	BUG_ON(thread_mask != tid_bit);
+	/* Backend appctx cannot be started on another thread than the local one */
+	BUG_ON(thread_mask != tid_bit && endp);
 
 	appctx = pool_zalloc(pool_head_appctx);
 	if (unlikely(!appctx))
@@ -91,7 +91,10 @@ int appctx_finalize_startup(struct appctx *appctx, struct proxy *px, struct buff
 {
 	struct session *sess;
 
-	BUG_ON(appctx->sess || !(appctx->endp->flags & CS_EP_ORPHAN));
+	/* async startup is only possible for frontend appctx. Thus for orphan
+	 * appctx. Because no backend appctx can be orphan.
+	 */
+	BUG_ON(!(appctx->endp->flags & CS_EP_ORPHAN));
 
 	sess = session_new(px, NULL, &appctx->obj_type);
 	if (!sess)
@@ -188,7 +191,7 @@ int appctx_buf_available(void *arg)
 struct task *task_run_applet(struct task *t, void *context, unsigned int state)
 {
 	struct appctx *app = context;
-	struct conn_stream *cs = appctx_cs(app);
+	struct conn_stream *cs;
 	unsigned int rate;
 	size_t count;
 
@@ -196,6 +199,21 @@ struct task *task_run_applet(struct task *t, void *context, unsigned int state)
 		__appctx_free(app);
 		return NULL;
 	}
+
+	if (app->endp->flags & CS_EP_ORPHAN) {
+		/* Finalize init of orphan appctx. .init callback function must
+		 * be defined and it must finalize appctx startup.
+		 */
+		BUG_ON(!app->applet->init);
+
+		if (appctx_init(app) == -1) {
+			appctx_free_on_early_error(app);
+			return NULL;
+		}
+		BUG_ON(!app->sess || !appctx_cs(app) || !appctx_strm(app));
+	}
+
+	cs = appctx_cs(app);
 
 	/* We always pretend the applet can't get and doesn't want to
 	 * put, it's up to it to change this if needed. This ensures
