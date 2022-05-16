@@ -3196,7 +3196,8 @@ void peers_setup_frontend(struct proxy *fe)
 static struct appctx *peer_session_create(struct peers *peers, struct peer *peer)
 {
 	struct appctx *appctx;
-	unsigned int thr = tid;
+	unsigned int thr = 0;
+	int idx;
 
 	peer->new_conn++;
 	peer->reconnect = tick_add(now_ms, MS_TO_TICKS(PEER_RECONNECT_TIMEOUT));
@@ -3204,7 +3205,9 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 	peer->statuscode = PEER_SESS_SC_CONNECTCODE;
 	peer->last_hdshk = now_ms;
 
-	appctx = appctx_new_here(&peer_applet, NULL);
+	for (idx = 0; idx < global.nbthread; idx++)
+		thr = peers->applet_count[idx] < peers->applet_count[thr] ? idx : thr;
+	appctx = appctx_new_on(&peer_applet, NULL, thr);
 	if (!appctx)
 		goto out_close;
 	appctx->svcctx = (void *)peer;
@@ -3212,10 +3215,8 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 	appctx->st0 = PEER_SESS_ST_CONNECT;
 	peer->appctx = appctx;
 
-	if (appctx_init(appctx) == -1)
-		goto out_free_appctx;
-
 	HA_ATOMIC_INC(&peers->applet_count[thr]);
+	appctx_wakeup(appctx);
 	return appctx;
 
 	/* Error unrolling */
