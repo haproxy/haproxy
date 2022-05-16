@@ -143,7 +143,12 @@ enum PR_SRV_STATE_FILE {
 #define PR_O2_SRC_ADDR	0x00100000	/* get the source ip and port for logs */
 
 #define PR_O2_FAKE_KA   0x00200000      /* pretend we do keep-alive with server even though we close */
-/* unused : 0x00400000..0x80000000 */
+
+#define PR_O2_RSTRICT_REQ_HDR_NAMES_BLK  0x00400000 /* reject request with header names containing chars ouside of [0-9a-zA-Z-] charset */
+#define PR_O2_RSTRICT_REQ_HDR_NAMES_DEL  0x00800000 /* remove request header names containing chars outside of [0-9a-zA-Z-] charset */
+#define PR_O2_RSTRICT_REQ_HDR_NAMES_NOOP 0x01000000 /* preserve request header names containing chars ouside of [0-9a-zA-Z-] charset */
+#define PR_O2_RSTRICT_REQ_HDR_NAMES_MASK 0x01c00000 /* mask for restrict-http-header-names option */
+/* unused : 0x0000000..0x80000000 */
 
 /* server health checks */
 #define PR_O2_CHK_NONE  0x00000000      /* no L7 health checks configured (TCP by default) */

@@ -1,0 +1,123 @@
+varnishtest "http-restrict-req-hdr-names option tests"
+#REQUIRE_VERSION=2.6
+
+# This config tests "http-restrict-req-hdr-names" option
+
+feature ignore_unknown_macro
+
+server s1 {
+    rxreq
+    expect req.http.x-my_hdr  == on
+    txresp
+} -start
+
+server s2 {
+    rxreq
+    expect req.http.x-my_hdr  == <undef>
+    txresp
+} -start
+
+server s3 {
+    rxreq
+    expect req.http.x-my_hdr  == on
+    txresp
+} -start
+
+server s4 {
+    rxreq
+    expect req.http.x-my_hdr  == <undef>
+    txresp
+} -start
+
+server s5 {
+    rxreq
+    expect req.http.x-my_hdr  == on
+    txresp
+} -start
+
+haproxy h1 -conf {
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe1
+        bind "fd@${fe1}"
+        use_backend be-http1 if { path /req1 }
+        use_backend be-http2 if { path /req2 }
+        use_backend be-http3 if { path /req3 }
+        use_backend be-fcgi1 if { path /req4 }
+        use_backend be-fcgi2 if { path /req5 }
+        use_backend be-fcgi3 if { path /req6 }
+
+    backend be-http1
+        server s1 ${s1_addr}:${s1_port}
+
+    backend be-http2
+        option http-restrict-req-hdr-names delete
+        server s2 ${s2_addr}:${s2_port}
+
+    backend be-http3
+        option http-restrict-req-hdr-names reject
+
+    backend be-fcgi1
+        option http-restrict-req-hdr-names preserve
+        server s3 ${s3_addr}:${s3_port}
+
+    backend be-fcgi2
+        option http-restrict-req-hdr-names delete
+        server s4 ${s4_addr}:${s4_port}
+
+    backend be-fcgi3
+        option http-restrict-req-hdr-names reject
+
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+        option http-restrict-req-hdr-names preserve
+
+    frontend fe2
+        bind "fd@${fe2}"
+        default_backend be-fcgi4
+
+    backend be-fcgi4
+        server s5 ${s5_addr}:${s5_port}
+
+    fcgi-app my-fcgi-app
+        docroot ${testdir}
+} -start
+
+client c1 -connect ${h1_fe1_sock} {
+    txreq -req GET -url /req1 -hdr "X-my_hdr: on"
+    rxresp
+    expect resp.status == 200
+
+    txreq -req GET -url /req2 -hdr "X-my_hdr: on"
+    rxresp
+    expect resp.status == 200
+
+    txreq -req GET -url /req3 -hdr "X-my_hdr: on"
+    rxresp
+    expect resp.status == 403
+
+    txreq -req GET -url /req4 -hdr "X-my_hdr: on"
+    rxresp
+    expect resp.status == 200
+
+    txreq -req GET -url /req5 -hdr "X-my_hdr: on"
+    rxresp
+    expect resp.status == 200
+
+    txreq -req GET -url /req6 -hdr "X-my_hdr: on"
+    rxresp
+    expect resp.status == 403
+} -run
+
+client c2 -connect ${h1_fe2_sock} {
+    txreq -req GET -url /req1 -hdr "X-my_hdr: on"
+    rxresp
+    expect resp.status == 200
+} -run

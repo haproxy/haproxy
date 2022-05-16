@@ -60,6 +60,7 @@ static void http_debug_hdr(const char *dir, struct stream *s, const struct ist n
 
 static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct list *def_rules, struct list *rules, struct stream *s);
 static enum rule_result http_res_get_intercept_rule(struct proxy *px, struct list *def_rules, struct list *rules, struct stream *s);
+static enum rule_result http_req_restrict_header_names(struct stream *s, struct htx *htx, struct proxy *px);
 
 static void http_manage_client_side_cookies(struct stream *s, struct channel *req);
 static void http_manage_server_side_cookies(struct stream *s, struct channel *res);
@@ -402,6 +403,12 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 		case HTTP_RULE_RES_ERROR: /* failed with a bad request */
 			goto return_int_err;
 		}
+	}
+
+	if (px->options2 & (PR_O2_RSTRICT_REQ_HDR_NAMES_BLK|PR_O2_RSTRICT_REQ_HDR_NAMES_DEL)) {
+		verdict = http_req_restrict_header_names(s, htx, px);
+		if (verdict == HTTP_RULE_RES_DENY)
+			goto deny;
 	}
 
 	if (conn && (conn->flags & CO_FL_EARLY_DATA) &&
@@ -2583,6 +2590,50 @@ int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s, struc
 	 * buffer */
 	channel_htx_truncate(res, htxbuf(&res->buf));
 	ret = 0;
+	goto out;
+}
+
+/* This function filters the request header names to only allow [0-9a-zA-Z-]
+ * characters. Depending on the proxy configuration, headers with a name not
+ * matching this charset are removed or the request is rejected with a
+ * 403-Forbidden response if such name are found. It returns HTTP_RULE_RES_CONT
+ * to continue the request processing or HTTP_RULE_RES_DENY if the request is
+ * rejected.
+ */
+static enum rule_result http_req_restrict_header_names(struct stream *s, struct htx *htx, struct proxy *px)
+{
+	struct htx_blk *blk;
+	enum rule_result rule_ret = HTTP_RULE_RES_CONT;
+
+	blk = htx_get_first_blk(htx);
+	while (blk) {
+		enum htx_blk_type type = htx_get_blk_type(blk);
+
+		if (type == HTX_BLK_HDR) {
+			struct ist n = htx_get_blk_name(htx, blk);
+			int i;
+
+			for (i = 0; i < istlen(n); i++) {
+				if (!isalnum((unsigned char)n.ptr[i]) && n.ptr[i] != '-') {
+					/* Block the request or remove the header */
+					if (px->options2 & PR_O2_RSTRICT_REQ_HDR_NAMES_BLK)
+						goto block;
+					blk = htx_remove_blk(htx, blk);
+					continue;
+				}
+			}
+		}
+		if (type == HTX_BLK_EOH)
+			break;
+
+		blk = htx_get_next_blk(htx, blk);
+	}
+  out:
+	return rule_ret;
+  block:
+	/* Block the request returning a 403-Forbidden response */
+	s->txn->status = 403;
+	rule_ret = HTTP_RULE_RES_DENY;
 	goto out;
 }
 

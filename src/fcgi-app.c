@@ -663,6 +663,12 @@ static int cfg_fcgi_apps_postparser()
 			goto end;
 		}
 
+		/* By default, for FCGI-ready backend, HTTP request header names
+		 * are restricted and the "delete" policy is set
+		 */
+		if (fcgi_conf && !(px->options2 & PR_O2_RSTRICT_REQ_HDR_NAMES_MASK))
+			px->options2 |= PR_O2_RSTRICT_REQ_HDR_NAMES_DEL;
+
 		for (srv = px->srv; srv; srv = srv->next) {
 			if (srv->mux_proto && isteq(srv->mux_proto->token, ist("fcgi"))) {
 				nb_fcgi_srv++;

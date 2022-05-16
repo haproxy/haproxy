@@ -2459,6 +2459,38 @@ stats_error_parsing:
 				}
 			} /* end while loop */
 		}
+		else if (strcmp(args[1], "http-restrict-req-hdr-names") == 0) {
+			if (kwm != KWM_STD) {
+				ha_alert("parsing [%s:%d]: negation/default is not supported for option '%s'.\n",
+					 file, linenum, args[1]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+
+			if (alertif_too_many_args(2, file, linenum, args, &err_code))
+				goto out;
+
+			if (*(args[2]) == 0) {
+				ha_alert("parsing [%s:%d] : missing parameter. option '%s' expects 'preserve', 'reject' or 'delete' option.\n",
+					 file, linenum, args[1]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+
+			curproxy->options2 &= ~PR_O2_RSTRICT_REQ_HDR_NAMES_MASK;
+			if (strcmp(args[2], "preserve") == 0)
+				curproxy->options2 |= PR_O2_RSTRICT_REQ_HDR_NAMES_NOOP;
+			else if (strcmp(args[2], "reject") == 0)
+				curproxy->options2 |= PR_O2_RSTRICT_REQ_HDR_NAMES_BLK;
+			else if (strcmp(args[2], "delete") == 0)
+				curproxy->options2 |= PR_O2_RSTRICT_REQ_HDR_NAMES_DEL;
+			else {
+				ha_alert("parsing [%s:%d] : invalid parameter '%s'. option '%s' expects 'preserve', 'reject' or 'delete' option.\n",
+					 file, linenum, args[2], args[1]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+		}
 		else {
 			const char *best = proxy_find_best_option(args[1], common_options);
 

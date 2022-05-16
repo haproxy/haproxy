@@ -3876,6 +3876,7 @@ option http-ignore-probes            (*)  X          X         X         -
 option http-keep-alive               (*)  X          X         X         X
 option http-no-delay                 (*)  X          X         X         X
 option http-pretend-keepalive        (*)  X          -         X         X
+option http-restrict-req-hdr-names        X          X         X         X
 option http-server-close             (*)  X          X         X         X
 option http-use-proxy-header         (*)  X          X         X         -
 option httpchk                            X          -         X         X
@@ -8904,6 +8905,33 @@ no option http-pretend-keepalive
   See also : "option httpclose", "option http-server-close", and
              "option http-keep-alive"
 
+option http-restrict-req-hdr-names { preserve | delete | reject }
+  Set HAProxy policy about HTTP request header names containing characters
+  outside the "[a-zA-Z0-9-]" charset
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    yes   |   yes  |   yes
+  Arguments :
+      preserve  disable the filtering. It is the default mode for HTTP proxies
+                with no FastCGI application configured.
+
+      delete    remove request headers with a name containing a character
+                outside the "[a-zA-Z0-9-]" charset. It is the default mode for
+                HTTP backends with a configured FastCGI application.
+
+      reject    reject the request with a 403-Forbidden response if it contains a
+                header name with a character outside the "[a-zA-Z0-9-]" charset.
+
+  This option may be used to restrict the request header names to alphanumeric
+  and hyphen characters ([A-Za-z0-9-]). This may be mandatory to interoperate
+  with non-HTTP compliant servers that fail to handle some characters in header
+  names. It may also be mandatory for FastCGI applications because all
+  non-alphanumeric characters in header names are replaced by an underscore
+  ('_'). Thus, it is easily possible to mix up header names and bypass some
+  rules. For instance, "X-Forwarded-For" and "X_Forwarded-For" headers are both
+  converted to "HTTP_X_FORWARDED_FOR" in FastCGI.
+
+  Note this option is evaluated per proxy and after the http-request rules
+  evaluation.
 
 option http-server-close
 no option http-server-close
