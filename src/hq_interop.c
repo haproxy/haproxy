@@ -76,9 +76,7 @@ static int hq_interop_decode_qcs(struct qcs *qcs, int fin, void *ctx)
 	if (!cs)
 		return -1;
 
-
-	qcs->rx.offset += ncb_data(rxbuf, 0);
-	ncb_advance(rxbuf, ncb_data(rxbuf, 0));
+	qcs_consume(qcs, ncb_data(rxbuf, 0));
 	b_free(&htx_buf);
 
 	if (fin)

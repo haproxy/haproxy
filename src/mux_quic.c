@@ -160,6 +160,7 @@ struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
 	/* TODO use uni limit for unidirectional streams */
 	qcs->rx.msd = quic_stream_is_local(qcc, id) ? qcc->lfctl.msd_bidi_l :
 	                                              qcc->lfctl.msd_bidi_r;
+	qcs->rx.msd_init = qcs->rx.msd;
 
 	qcs->tx.buf = BUF_NULL;
 	qcs->tx.offset = 0;
@@ -280,6 +281,38 @@ void qcs_notify_send(struct qcs *qcs)
 		qcs->subs->events &= ~SUB_RETRY_SEND;
 		if (!qcs->subs->events)
 			qcs->subs = NULL;
+	}
+}
+
+/* Remove <bytes> from <qcs> Rx buffer. This must be called by transcoders
+ * after STREAM parsing. Flow-control for received offsets may be allocated for
+ * the peer if needed.
+ */
+void qcs_consume(struct qcs *qcs, uint64_t bytes)
+{
+	struct qcc *qcc = qcs->qcc;
+	struct quic_frame *frm;
+	enum ncb_ret ret;
+
+	ret = ncb_advance(&qcs->rx.ncbuf, bytes);
+	if (ret) {
+		ABORT_NOW(); /* should not happens because removal only in data */
+	}
+
+	qcs->rx.offset += bytes;
+	if (qcs->rx.msd - qcs->rx.offset < qcs->rx.msd_init / 2) {
+		frm = pool_zalloc(pool_head_quic_frame);
+		BUG_ON(!frm); /* TODO handle this properly */
+
+		qcs->rx.msd = qcs->rx.offset + qcs->rx.msd_init;
+
+		LIST_INIT(&frm->reflist);
+		frm->type = QUIC_FT_MAX_STREAM_DATA;
+		frm->max_stream_data.id = qcs->id;
+		frm->max_stream_data.max_stream_data = qcs->rx.msd;
+
+		LIST_APPEND(&qcc->lfctl.frms, &frm->list);
+		tasklet_wakeup(qcc->wait_event.tasklet);
 	}
 }
 
@@ -448,9 +481,6 @@ int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
 		}
 		return 1;
 	}
-
-	/* TODO initial max-stream-data reached. Implement MAX_STREAM_DATA emission. */
-	BUG_ON(offset + len == qcs->rx.msd);
 
 	if (fin)
 		qcs->flags |= QC_SF_FIN_RECV;

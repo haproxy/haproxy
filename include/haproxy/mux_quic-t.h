@@ -105,7 +105,8 @@ struct qcs {
 		uint64_t offset; /* absolute current base offset of ncbuf */
 		struct ncbuf ncbuf; /* receive buffer - can handle out-of-order offset frames */
 		struct buffer app_buf; /* receive buffer used by conn_stream layer */
-		uint64_t msd; /* fctl bytes limit to enforce */
+		uint64_t msd; /* current max-stream-data limit to enforce */
+		uint64_t msd_init; /* initial max-stream-data */
 	} rx;
 	struct {
 		uint64_t offset; /* last offset of data ready to be sent */
