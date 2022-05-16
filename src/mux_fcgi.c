@@ -3583,7 +3583,7 @@ static void fcgi_destroy(void *ctx)
  */
 static void fcgi_detach(struct cs_endpoint *endp)
 {
-	struct fcgi_strm *fstrm = endp->target;
+	struct fcgi_strm *fstrm = endp->se;
 	struct fcgi_conn *fconn;
 	struct session *sess;
 

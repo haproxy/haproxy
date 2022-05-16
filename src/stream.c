@@ -3308,7 +3308,7 @@ static int stats_dump_full_strm_to_buffer(struct conn_stream *cs, struct stream 
 		chunk_appendf(&trash, "  csf=%p flags=0x%08x state=%s endp=%s,%p,0x%08x sub=%d\n",
 			      csf, csf->flags, cs_state_str(csf->state),
 			      (sc_ep_test(csf, SE_FL_T_MUX) ? "CONN" : (sc_ep_test(csf, SE_FL_T_APPLET) ? "APPCTX" : "NONE")),
-			      csf->endp->target, sc_ep_get(csf), csf->wait_event.events);
+			      csf->endp->se, sc_ep_get(csf), csf->wait_event.events);
 
 		if ((conn = cs_conn(csf)) != NULL) {
 			chunk_appendf(&trash,
@@ -3347,7 +3347,7 @@ static int stats_dump_full_strm_to_buffer(struct conn_stream *cs, struct stream 
 		chunk_appendf(&trash, "  csb=%p flags=0x%08x state=%s endp=%s,%p,0x%08x sub=%d\n",
 			      csb, csb->flags, cs_state_str(csb->state),
 			      (sc_ep_test(csb, SE_FL_T_MUX) ? "CONN" : (sc_ep_test(csb, SE_FL_T_APPLET) ? "APPCTX" : "NONE")),
-			      csb->endp->target, sc_ep_get(csb), csb->wait_event.events);
+			      csb->endp->se, sc_ep_get(csb), csb->wait_event.events);
 
 		if ((conn = cs_conn(csb)) != NULL) {
 			chunk_appendf(&trash,

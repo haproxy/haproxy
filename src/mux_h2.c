@@ -1612,7 +1612,7 @@ static struct h2s *h2c_frt_stream_new(struct h2c *h2c, int id, struct buffer *in
 	h2s->endp = cs_endpoint_new();
 	if (!h2s->endp)
 		goto out_close;
-	h2s->endp->target = h2s;
+	h2s->endp->se     = h2s;
 	h2s->endp->conn   = h2c->conn;
 	se_fl_set(h2s->endp, SE_FL_T_MUX | SE_FL_ORPHAN | SE_FL_NOT_FIRST);
 
@@ -4370,7 +4370,7 @@ static void h2_destroy(void *ctx)
  */
 static void h2_detach(struct cs_endpoint *endp)
 {
-	struct h2s *h2s = endp->target;
+	struct h2s *h2s = endp->se;
 	struct h2c *h2c;
 	struct session *sess;
 

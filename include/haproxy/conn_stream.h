@@ -127,7 +127,7 @@ static forceinline uint sc_ep_get(const struct conn_stream *sc)
 /* Returns the endpoint target without any control */
 static inline void *__cs_endp_target(const struct conn_stream *cs)
 {
-	return cs->endp->target;
+	return cs->endp->se;
 }
 
 /* Returns the connection from a cs if the endpoint is a mux stream. Otherwise

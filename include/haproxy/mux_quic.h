@@ -100,8 +100,8 @@ static inline struct conn_stream *qc_attach_cs(struct qcs *qcs, struct buffer *b
 	if (!qcs->endp)
 		return NULL;
 
-	qcs->endp->target = qcs;
-	qcs->endp->conn   = qcc->conn;
+	qcs->endp->se   = qcs;
+	qcs->endp->conn = qcc->conn;
 	se_fl_set(qcs->endp, SE_FL_T_MUX | SE_FL_ORPHAN | SE_FL_NOT_FIRST);
 
 	/* TODO duplicated from mux_h2 */

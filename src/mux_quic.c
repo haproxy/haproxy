@@ -1424,7 +1424,7 @@ static void qc_destroy(void *ctx)
 
 static void qc_detach(struct cs_endpoint *endp)
 {
-	struct qcs *qcs = endp->target;
+	struct qcs *qcs = endp->se;
 	struct qcc *qcc = qcs->qcc;
 
 	TRACE_ENTER(QMUX_EV_STRM_END, qcc->conn, qcs);

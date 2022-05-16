@@ -821,7 +821,7 @@ static struct h1s *h1c_frt_stream_new(struct h1c *h1c, struct conn_stream *cs, s
 		h1s->endp = cs_endpoint_new();
 		if (!h1s->endp)
 			goto fail;
-		h1s->endp->target = h1s;
+		h1s->endp->se     = h1s;
 		h1s->endp->conn   = h1c->conn;
 		se_fl_set(h1s->endp, SE_FL_T_MUX | SE_FL_ORPHAN);
 	}
@@ -3359,7 +3359,7 @@ static void h1_destroy(void *ctx)
  */
 static void h1_detach(struct cs_endpoint *endp)
 {
-	struct h1s *h1s = endp->target;
+	struct h1s *h1s = endp->se;
 	struct h1c *h1c;
 	struct session *sess;
 	int is_not_first;

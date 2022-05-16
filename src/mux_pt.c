@@ -298,7 +298,7 @@ static int mux_pt_init(struct connection *conn, struct proxy *prx, struct sessio
 			TRACE_ERROR("CS allocation failure", PT_EV_STRM_NEW|PT_EV_STRM_END|PT_EV_STRM_ERR, conn);
 			goto fail_free_ctx;
 		}
-		ctx->endp->target = ctx;
+		ctx->endp->se     = ctx;
 		ctx->endp->conn   = conn;
 		se_fl_set(ctx->endp, SE_FL_T_MUX | SE_FL_ORPHAN);
 

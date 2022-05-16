@@ -84,7 +84,7 @@ struct data_cb cs_data_applet_cb = {
 /* Initializes an endpoint */
 void cs_endpoint_init(struct cs_endpoint *endp)
 {
-	endp->target = NULL;
+	endp->se = NULL;
 	endp->conn = NULL;
 	endp->cs = NULL;
 	se_fl_setall(endp, SE_FL_NONE);
@@ -243,11 +243,11 @@ static void cs_free_cond(struct conn_stream **csp)
  * -1 on error and 0 on sucess. SE_FL_DETACHED flag is removed. This function is
  * called from a mux when it is attached to a stream or a health-check.
  */
-int cs_attach_mux(struct conn_stream *cs, void *target, void *ctx)
+int cs_attach_mux(struct conn_stream *cs, void *endp, void *ctx)
 {
 	struct connection *conn = ctx;
 
-	cs->endp->target = target;
+	cs->endp->se     = endp;
 	cs->endp->conn   = ctx;
 	sc_ep_set(cs, SE_FL_T_MUX);
 	sc_ep_clr(cs, SE_FL_DETACHED);
@@ -286,9 +286,9 @@ int cs_attach_mux(struct conn_stream *cs, void *target, void *ctx)
  * removed. This function is called by a stream when a backend applet is
  * registered.
  */
-static void cs_attach_applet(struct conn_stream *cs, void *target)
+static void cs_attach_applet(struct conn_stream *cs, void *endp)
 {
-	cs->endp->target = target;
+	cs->endp->se = endp;
 	sc_ep_set(cs, SE_FL_T_APPLET);
 	sc_ep_clr(cs, SE_FL_DETACHED);
 	if (cs_strm(cs)) {
@@ -380,7 +380,7 @@ static void cs_detach_endp(struct conn_stream **csp)
 
 	if (cs->endp) {
 		/* the cs is the only one one the endpoint */
-		cs->endp->target = NULL;
+		cs->endp->se     = NULL;
 		cs->endp->conn   = NULL;
 		sc_ep_clr(cs, ~SE_FL_APP_MASK);
 		sc_ep_set(cs, SE_FL_DETACHED);

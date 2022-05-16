@@ -50,7 +50,7 @@ struct appctx *appctx_new(struct applet *applet, struct cs_endpoint *endp, unsig
 		endp = cs_endpoint_new();
 		if (!endp)
 			goto fail_endp;
-		endp->target = appctx;
+		endp->se = appctx;
 		se_fl_set(endp, SE_FL_T_APPLET | SE_FL_ORPHAN);
 	}
 	appctx->endp = endp;
