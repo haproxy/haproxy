@@ -689,7 +689,7 @@ enum ncb_ret ncb_advance(struct ncbuf *buf, ncb_sz_t off)
 
 /* ******** testing API ******** */
 /* To build it :
- *   gcc -DSTANDALONE -lasan -I./include -o ncbuf src/ncbuf.c
+ *   gcc -Wall -DSTANDALONE -lasan -I./include -o ncbuf src/ncbuf.c
  */
 #ifdef STANDALONE
 
@@ -729,7 +729,7 @@ static struct rand_off *ncb_generate_rand_off(const struct ncbuf *buf)
 static void ncb_print_blk(const struct ncb_blk blk)
 {
 	if (ncb_print) {
-		fprintf(stderr, "%s(%s): %2zu/%zu.\n",
+		fprintf(stderr, "%s(%s): %2u/%u.\n",
 		        blk.flag & NCB_BK_F_GAP ? "GAP " : "DATA",
 		        blk.flag & NCB_BK_F_FIN ? "F" : "-", blk.off, blk.sz);
 	}
@@ -822,7 +822,7 @@ static int ncbuf_test(ncb_sz_t head, int reset, int print_delay)
 	BUG_ON(!ncb_is_empty(&b));
 	BUG_ON(ncb_is_full(&b));
 
-	b.area = bufarea;
+	b.area = (char *)bufarea;
 	b.size = bufsize;
 	b.head = head;
 	NCB_INIT(&b);
