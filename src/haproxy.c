@@ -1507,19 +1507,6 @@ static void init_early(int argc, char **argv)
 		exit(EXIT_FAILURE);
 	}
 
-	/* Initialize the random generators */
-#ifdef USE_OPENSSL
-	/* Initialize SSL random generator. Must be called before chroot for
-	 * access to /dev/urandom, and before ha_random_boot() which may use
-	 * RAND_bytes().
-	 */
-	if (!ssl_initialize_random()) {
-		ha_alert("OpenSSL random data generator initialization failed.\n");
-		exit(EXIT_FAILURE);
-	}
-#endif
-	ha_random_boot(argv); // the argv pointer brings some kernel-fed entropy
-
 	/* Some CPU affinity stuff may have to be initialized */
 #ifdef USE_CPU_AFFINITY
 	{
@@ -2228,6 +2215,19 @@ static void init(int argc, char **argv)
 	if (global.mode & MODE_DIAG) {
 		cfg_run_diagnostics();
 	}
+
+	/* Initialize the random generators */
+#ifdef USE_OPENSSL
+	/* Initialize SSL random generator. Must be called before chroot for
+	 * access to /dev/urandom, and before ha_random_boot() which may use
+	 * RAND_bytes().
+	 */
+	if (!ssl_initialize_random()) {
+		ha_alert("OpenSSL random data generator initialization failed.\n");
+		exit(EXIT_FAILURE);
+	}
+#endif
+	ha_random_boot(argv); // the argv pointer brings some kernel-fed entropy
 
 	/* now we know the buffer size, we can initialize the channels and buffers */
 	init_buffer();
