@@ -5315,6 +5315,12 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 	quic_rx_pkts_del(qc);
 	b_cspace = b_contig_space(&qc->rx.buf);
 	if (b_cspace < pkt->len) {
+		/* Do not consume buf if space not at the end. */
+		if (b_tail(&qc->rx.buf) + b_cspace < b_wrap(&qc->rx.buf)) {
+			TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT, qc);
+			goto err;
+		}
+
 		/* Let us consume the remaining contiguous space. */
 		if (b_cspace) {
 			b_putchr(&qc->rx.buf, 0x00);
