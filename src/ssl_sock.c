@@ -481,6 +481,14 @@ struct ssl_engine_list {
 };
 #endif
 
+#ifdef HAVE_SSL_PROVIDERS
+struct list openssl_providers = LIST_HEAD_INIT(openssl_providers);
+struct ssl_provider_list {
+	struct list list;
+	OSSL_PROVIDER *provider;
+};
+#endif
+
 #ifndef OPENSSL_NO_DH
 static int ssl_dh_ptr_index = -1;
 static HASSL_DH *global_dh = NULL;
@@ -697,6 +705,33 @@ fail_get:
 	return err_code;
 }
 #endif
+
+#ifdef HAVE_SSL_PROVIDERS
+int ssl_init_provider(const char *provider_name)
+{
+	int err_code = ERR_ABORT;
+	struct ssl_provider_list *prov = NULL;
+
+	prov = calloc(1, sizeof(*prov));
+	if (!prov) {
+		ha_alert("ssl-provider %s: memory allocation failure\n", provider_name);
+		goto error;
+	}
+
+	if ((prov->provider = OSSL_PROVIDER_load(NULL, provider_name)) == NULL) {
+		ha_alert("ssl-provider %s: unknown provider\n", provider_name);
+		goto error;
+	}
+
+	LIST_INSERT(&openssl_providers, &prov->list);
+
+	return 0;
+
+error:
+	ha_free(&prov);
+	return err_code;
+}
+#endif /* HAVE_SSL_PROVIDERS */
 
 #ifdef SSL_MODE_ASYNC
 /*
@@ -8024,6 +8059,9 @@ static void __ssl_sock_init(void)
 #if defined(USE_ENGINE) && !defined(OPENSSL_NO_ENGINE)
 	hap_register_post_deinit(ssl_free_engines);
 #endif
+#ifdef HAVE_SSL_PROVIDERS
+	hap_register_post_deinit(ssl_unload_providers);
+#endif
 #if HA_OPENSSL_VERSION_NUMBER < 0x3000000fL
 	/* Load SSL string for the verbose & debug mode. */
 	ERR_load_SSL_strings();
@@ -8124,6 +8162,17 @@ void ssl_free_engines(void) {
 		ENGINE_free(wl->e);
 		LIST_DELETE(&wl->list);
 		free(wl);
+	}
+}
+#endif
+
+#ifdef HAVE_SSL_PROVIDERS
+void ssl_unload_providers(void) {
+	struct ssl_provider_list *prov, *provb;
+	list_for_each_entry_safe(prov, provb, &openssl_providers, list) {
+		OSSL_PROVIDER_unload(prov->provider);
+		LIST_DELETE(&prov->list);
+		free(prov);
 	}
 }
 #endif

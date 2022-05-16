@@ -1051,6 +1051,7 @@ The following keywords are supported in the "global" section :
    - ssl-default-server-options
    - ssl-dh-param-file
    - ssl-propquery
+   - ssl-provider
    - ssl-server-verify
    - ssl-skip-self-issued-ca
    - unix-bind
@@ -2071,6 +2072,25 @@ ssl-propquery <query>
   "?provider=foo" allows to pick the algorithm implementations provided by the
   foo provider by default, and to fallback on the default provider's one if it
   was not found.
+
+ssl-provider <name>
+  This setting is only available when support for OpenSSL was built in and when
+  OpenSSL's version is at least 3.0. It allows to load a provider during init.
+  If loading is successful, any capabilities provided by the loaded provider
+  might be used by HAProxy. Multiple 'ssl-provider' options can be specified in
+  a configuration file. The providers will be loaded in their order of
+  appearance.
+  Please note that loading a provider explicitely prevents OpenSSL from loading
+  the 'default' provider automatically. OpenSSL also allows to define the
+  providers that should be loaded directly in its configuration file
+  (openssl.cnf for instance) so it is not necessary to use this 'ssl-provider'
+  option to load providers. The "show ssl providers" CLI command can be used to
+  show all the providers that were successfully loaded.
+  The default search path of OpenSSL provider can be found in the output of the
+  "openssl version -a" command. If the provider is in another directory, you
+  can set the OPENSSL_MODULES environment variable, which takes the directory
+  where your provider can be found.
+  See also "ssl-propquery".
 
 ssl-load-extra-del-ext
   This setting allows to configure the way HAProxy does the lookup for the

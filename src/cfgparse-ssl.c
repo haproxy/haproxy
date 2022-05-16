@@ -200,6 +200,26 @@ static int ssl_parse_global_ssl_propquery(char **args, int section_type, struct 
 
 	return ret;
 }
+
+/* parse the "ssl-provider" keyword in global section.
+ * Returns <0 on alert, >0 on warning, 0 on success.
+ */
+static int ssl_parse_global_ssl_provider(char **args, int section_type, struct proxy *curpx,
+					 const struct proxy *defpx, const char *file, int line,
+					 char **err)
+{
+	int ret = -1;
+
+	if (*(args[1]) == 0) {
+		memprintf(err, "global statement '%s' expects a valid engine provider name as an argument.", args[0]);
+		return ret;
+	}
+
+	if (ssl_init_provider(args[1]) == 0)
+		ret = 0;
+
+	return ret;
+}
 #endif
 
 /* parse the "ssl-default-bind-ciphers" / "ssl-default-server-ciphers" keywords
@@ -1960,6 +1980,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 #endif
 #ifdef HAVE_SSL_PROVIDERS
 	{ CFG_GLOBAL, "ssl-propquery",  ssl_parse_global_ssl_propquery },
+	{ CFG_GLOBAL, "ssl-provider",  ssl_parse_global_ssl_provider },
 #endif
 	{ CFG_GLOBAL, "ssl-skip-self-issued-ca", ssl_parse_skip_self_issued_ca },
 	{ CFG_GLOBAL, "tune.ssl.cachesize", ssl_parse_global_int },

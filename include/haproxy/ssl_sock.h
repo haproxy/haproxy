@@ -53,6 +53,7 @@ extern int ssl_keylog_index;
 extern int ssl_client_sni_index;
 extern struct pool_head *pool_head_ssl_keylog;
 extern struct pool_head *pool_head_ssl_keylog_str;
+extern struct list openssl_providers;
 
 int ssl_sock_prep_ctx_and_inst(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_conf,
 			       SSL_CTX *ctx, struct ckch_inst *ckch_inst, char **err);
@@ -100,6 +101,9 @@ int ssl_sock_load_global_dh_param_from_file(const char *filename);
 void ssl_free_dh(void);
 #endif
 void ssl_free_engines(void);
+#ifdef HAVE_SSL_PROVIDERS
+void ssl_unload_providers(void);
+#endif
 #ifdef HAVE_SSL_CLIENT_HELLO_CB
 int ssl_sock_switchctx_err_cbk(SSL *ssl, int *al, void *priv);
 #ifdef OPENSSL_IS_BORINGSSL
@@ -126,6 +130,9 @@ void ssl_free_global_issuers(void);
 int ssl_initialize_random(void);
 int ssl_sock_load_cert_list_file(char *file, int dir, struct bind_conf *bind_conf, struct proxy *curproxy, char **err);
 int ssl_init_single_engine(const char *engine_id, const char *def_algorithms);
+#ifdef HAVE_SSL_PROVIDERS
+int ssl_init_provider(const char *provider_name);
+#endif
 #if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) && !defined OPENSSL_IS_BORINGSSL)
 int ssl_get_ocspresponse_detail(unsigned char *ocsp_certid, struct buffer *out);
 int ssl_ocsp_response_print(struct buffer *ocsp_response, struct buffer *out);
