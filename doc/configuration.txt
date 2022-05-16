@@ -1170,8 +1170,9 @@ cluster-secret <secret>
   Define an ASCII string secret shared between several nodes belonging to the
   same cluster. It could be used for different usages. It is at least used to
   derive stateless reset tokens for all the QUIC connections instantiated by
-  this process. If you do not set this parameter, the stateless reset QUIC
-  feature will be silently disabled.
+  this process. This is also the case to derive secrets used to encrypt Retry
+  tokens. If you do not set this parameter, the stateless reset and Retry QUIC
+  features will be both silently disabled.
 
 close-spread-time <time>
   Define a time window during which idle connections and active connections

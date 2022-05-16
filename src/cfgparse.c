@@ -4010,8 +4010,8 @@ out_uri_auth_compat:
 	}
 
 	if (diag_no_cluster_secret)
-		ha_diag_warning("No cluster secret was set. The stateless reset feature"
-		                " is disabled for all QUIC bindings.\n");
+		ha_diag_warning("No cluster secret was set. The stateless reset and Retry"
+		                " features are disabled for all QUIC bindings.\n");
 
 	/*
 	 * Recount currently required checks.
