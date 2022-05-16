@@ -476,7 +476,7 @@ struct appctx *cs_applet_create(struct conn_stream *cs, struct applet *app)
 
 	DPRINTF(stderr, "registering handler %p for cs %p (was %p)\n", app, cs, cs_strm_task(cs));
 
-	appctx = appctx_new(app, cs->endp);
+	appctx = appctx_new_here(app, cs->endp);
 	if (!appctx)
 		return NULL;
 	cs_attach_applet(cs, appctx, appctx);

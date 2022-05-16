@@ -2053,7 +2053,7 @@ spoe_create_appctx(struct spoe_config *conf)
 	LIST_INIT(&spoe_appctx->waiting_queue);
 
 
-	if ((appctx = appctx_new(&spoe_applet, NULL)) == NULL)
+	if ((appctx = appctx_new_here(&spoe_applet, NULL)) == NULL)
 		goto out_free_spoe_appctx;
 
 	appctx->svcctx = spoe_appctx;

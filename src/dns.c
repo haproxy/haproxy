@@ -955,7 +955,7 @@ static struct appctx *dns_session_create(struct dns_session *ds)
 {
 	struct appctx *appctx;
 
-	appctx = appctx_new(&dns_session_applet, NULL);
+	appctx = appctx_new_here(&dns_session_applet, NULL);
 	if (!appctx)
 		goto out_close;
 	appctx->svcctx = (void *)ds;

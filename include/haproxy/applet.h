@@ -40,9 +40,24 @@ int appctx_buf_available(void *arg);
 void *applet_reserve_svcctx(struct appctx *appctx, size_t size);
 void appctx_shut(struct appctx *appctx);
 
-struct appctx *appctx_new(struct applet *applet, struct cs_endpoint *endp);
+struct appctx *appctx_new(struct applet *applet, struct cs_endpoint *endp, unsigned long thread_mask);
 int appctx_finalize_startup(struct appctx *appctx, struct proxy *px, struct buffer *input);
 void appctx_free_on_early_error(struct appctx *appctx);
+
+static inline struct appctx *appctx_new_on(struct applet *applet, struct cs_endpoint *endp, uint thr)
+{
+	return appctx_new(applet, endp, 1UL << thr);
+}
+
+static inline struct appctx *appctx_new_here(struct applet *applet, struct cs_endpoint *endp)
+{
+	return appctx_new(applet, endp, tid_bit);
+}
+
+static inline struct appctx *appctx_new_anywhere(struct applet *applet, struct cs_endpoint *endp)
+{
+	return appctx_new(applet, endp, MAX_THREADS_MASK);
+}
 
 /* Helper function to call .init applet callback function, if it exists. Returns 0
  * on success and -1 on error.

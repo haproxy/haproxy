@@ -31,9 +31,12 @@ DECLARE_POOL(pool_head_appctx,  "appctx",  sizeof(struct appctx));
  * appctx_free(). <applet> is assigned as the applet, but it can be NULL. The
  * applet's task is always created on the current thread.
  */
-struct appctx *appctx_new(struct applet *applet, struct cs_endpoint *endp)
+struct appctx *appctx_new(struct applet *applet, struct cs_endpoint *endp, unsigned long thread_mask)
 {
 	struct appctx *appctx;
+
+	/* Disable the feature for now ! */
+	BUG_ON(thread_mask != tid_bit);
 
 	appctx = pool_zalloc(pool_head_appctx);
 	if (unlikely(!appctx))
@@ -53,7 +56,7 @@ struct appctx *appctx_new(struct applet *applet, struct cs_endpoint *endp)
 	}
 	appctx->endp = endp;
 
-	appctx->t = task_new_here();
+	appctx->t = task_new(thread_mask);
 	if (unlikely(!appctx->t))
 		goto fail_task;
 	appctx->t->process = task_run_applet;

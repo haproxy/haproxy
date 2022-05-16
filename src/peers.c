@@ -3199,7 +3199,7 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 	peer->statuscode = PEER_SESS_SC_CONNECTCODE;
 	peer->last_hdshk = now_ms;
 
-	appctx = appctx_new(&peer_applet, NULL);
+	appctx = appctx_new_here(&peer_applet, NULL);
 	if (!appctx)
 		goto out_close;
 	appctx->svcctx = (void *)peer;

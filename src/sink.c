@@ -673,7 +673,7 @@ static struct appctx *sink_forward_session_create(struct sink *sink, struct sink
 	if (sft->srv->log_proto == SRV_LOG_PROTO_OCTET_COUNTING)
 		applet = &sink_forward_oc_applet;
 
-	appctx = appctx_new(applet, NULL);
+	appctx = appctx_new_here(applet, NULL);
 	if (!appctx)
 		goto out_close;
 	appctx->svcctx = (void *)sft;
