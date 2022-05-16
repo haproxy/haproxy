@@ -127,6 +127,9 @@ static struct ncb_blk ncb_blk_first(const struct ncbuf *buf)
 {
 	struct ncb_blk blk;
 
+	if (ncb_is_null(buf))
+		return NCB_BLK_NULL;
+
 	blk.st = ncb_head(buf);
 
 	blk.sz_ptr = ncb_reserved(buf);
@@ -197,6 +200,9 @@ static struct ncb_blk ncb_blk_next(const struct ncbuf *buf,
 static struct ncb_blk ncb_blk_find(const struct ncbuf *buf, ncb_sz_t off)
 {
 	struct ncb_blk blk;
+
+	if (ncb_is_null(buf))
+		return NCB_BLK_NULL;
 
 	BUG_ON_HOT(off >= ncb_size(buf));
 
@@ -373,10 +379,13 @@ int ncb_is_null(const struct ncbuf *buf)
 }
 
 /* Initialize or reset <buf> by clearing all data. Its size is untouched.
- * Buffer is positioned to <head> offset. Use 0 to realign it.
+ * Buffer is positioned to <head> offset. Use 0 to realign it. <buf> must not
+ * be NCBUF_NULL.
  */
 void ncb_init(struct ncbuf *buf, ncb_sz_t head)
 {
+	BUG_ON_HOT(ncb_is_null(buf));
+
 	BUG_ON_HOT(head >= buf->size);
 	buf->head = head;
 
@@ -425,6 +434,9 @@ char *ncb_wrap(const struct ncbuf *buf)
  */
 ncb_sz_t ncb_size(const struct ncbuf *buf)
 {
+	if (ncb_is_null(buf))
+		return 0;
+
 	return buf->size - NCB_RESERVED_SZ;
 }
 
@@ -445,6 +457,9 @@ ncb_sz_t ncb_total_data(const struct ncbuf *buf)
 /* Returns true if there is no data anywhere in <buf>. */
 int ncb_is_empty(const struct ncbuf *buf)
 {
+	if (ncb_is_null(buf))
+		return 1;
+
 	BUG_ON_HOT(*ncb_reserved(buf) + *ncb_head(buf) > ncb_size(buf));
 	return *ncb_reserved(buf) == 0 && *ncb_head(buf) == ncb_size(buf);
 }
@@ -452,6 +467,9 @@ int ncb_is_empty(const struct ncbuf *buf)
 /* Returns true if no more data can be inserted in <buf>. */
 int ncb_is_full(const struct ncbuf *buf)
 {
+	if (ncb_is_null(buf))
+		return 0;
+
 	BUG_ON_HOT(ncb_read_off(buf, ncb_reserved(buf)) > ncb_size(buf));
 	return ncb_read_off(buf, ncb_reserved(buf)) == ncb_size(buf);
 }
@@ -464,6 +482,9 @@ ncb_sz_t ncb_data(const struct ncbuf *buf, ncb_sz_t off)
 {
 	struct ncb_blk blk = ncb_blk_find(buf, off);
 	ncb_sz_t off_blk = ncb_blk_off(blk, off);
+
+	if (ncb_blk_is_null(blk))
+		return 0;
 
 	/* if <off> at the frontier between two and <blk> is gap, retrieve the
 	 * next data block.
@@ -791,12 +812,20 @@ static int ncbuf_test(ncb_sz_t head, int reset, int print_delay)
 
 	bufarea = malloc(bufsize);
 
+	fprintf(stderr, "running unit tests\n");
+
+	b = NCBUF_NULL;
+	BUG_ON(!ncb_is_null(&b));
+	NCB_DATA_EQ(&b, 0, 0);
+	NCB_TOTAL_DATA_EQ(&b, 0);
+	BUG_ON(ncb_size(&b) != 0);
+	BUG_ON(!ncb_is_empty(&b));
+	BUG_ON(ncb_is_full(&b));
+
 	b.area = bufarea;
 	b.size = bufsize;
 	b.head = head;
 	NCB_INIT(&b);
-
-	fprintf(stderr, "running unit tests\n");
 
 	/* insertion test suite */
 	NCB_INIT(&b);
