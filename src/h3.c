@@ -235,13 +235,21 @@ static int h3_data_to_htx(struct qcs *qcs, struct ncbuf *buf, uint64_t len,
 	if (head + len > ncb_wrap(buf)) {
 		size_t contig = ncb_wrap(buf) - head;
 		htx_sent = htx_add_data(htx, ist2(ncb_head(buf), contig));
-		head = ncb_orig(buf);
+		if (htx_sent < contig) {
+			qcs->flags |= QC_SF_DEM_FULL;
+			goto out;
+		}
+
 		len -= contig;
+		head = ncb_orig(buf);
 		goto retry;
 	}
 
 	htx_sent += htx_add_data(htx, ist2(head, len));
-	BUG_ON(htx_sent < len);
+	if (htx_sent < len) {
+		qcs->flags |= QC_SF_DEM_FULL;
+		goto out;
+	}
 
 	if (fin && len == htx_sent)
 		htx->flags |= HTX_FL_EOM;
