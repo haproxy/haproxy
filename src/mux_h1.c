@@ -822,7 +822,7 @@ static struct h1s *h1c_frt_stream_new(struct h1c *h1c, struct conn_stream *cs, s
 		if (!h1s->endp)
 			goto fail;
 		h1s->endp->target = h1s;
-		h1s->endp->ctx = h1c->conn;
+		h1s->endp->conn   = h1c->conn;
 		h1s->endp->flags |= (CS_EP_T_MUX|CS_EP_ORPHAN);
 	}
 

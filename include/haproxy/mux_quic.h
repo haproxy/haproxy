@@ -101,7 +101,7 @@ static inline struct conn_stream *qc_attach_cs(struct qcs *qcs, struct buffer *b
 		return NULL;
 
 	qcs->endp->target = qcs;
-	qcs->endp->ctx = qcc->conn;
+	qcs->endp->conn   = qcc->conn;
 	qcs->endp->flags |= (CS_EP_T_MUX|CS_EP_ORPHAN|CS_EP_NOT_FIRST);
 
 	/* TODO duplicated from mux_h2 */

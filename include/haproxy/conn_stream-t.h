@@ -157,13 +157,13 @@ struct data_cb {
  * new cs-endpoint (for instance on connection retries).
  *
  * <target> is the mux or the appctx
- * <ctx>    is the context set and used by <target>
+ * <conn>   is the connection for connection-based streams
  * <cs>     is the conn_stream we're attached to, or NULL
  * <flags>  CS_EP_*
 */
 struct cs_endpoint {
 	void *target;
-	void *ctx;
+	struct connection *conn;
 	struct conn_stream *cs;
 	unsigned int flags;
 };

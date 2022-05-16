@@ -85,7 +85,7 @@ struct data_cb cs_data_applet_cb = {
 void cs_endpoint_init(struct cs_endpoint *endp)
 {
 	endp->target = NULL;
-	endp->ctx = NULL;
+	endp->conn = NULL;
 	endp->cs = NULL;
 	endp->flags = CS_EP_NONE;
 }
@@ -248,7 +248,7 @@ int cs_attach_mux(struct conn_stream *cs, void *target, void *ctx)
 	struct connection *conn = ctx;
 
 	cs->endp->target = target;
-	cs->endp->ctx = ctx;
+	cs->endp->conn   = ctx;
 	cs->endp->flags |= CS_EP_T_MUX;
 	cs->endp->flags &= ~CS_EP_DETACHED;
 	if (!conn->ctx)
@@ -381,7 +381,7 @@ static void cs_detach_endp(struct conn_stream **csp)
 	if (cs->endp) {
 		/* the cs is the only one one the endpoint */
 		cs->endp->target = NULL;
-		cs->endp->ctx = NULL;
+		cs->endp->conn   = NULL;
 		cs->endp->flags &= CS_EP_APP_MASK;
 		cs->endp->flags |= CS_EP_DETACHED;
 	}

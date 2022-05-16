@@ -56,19 +56,13 @@ static inline void *__cs_endp_target(const struct conn_stream *cs)
 	return cs->endp->target;
 }
 
-/* Returns the endpoint context without any control */
-static inline void *__cs_endp_ctx(const struct conn_stream *cs)
-{
-	return cs->endp->ctx;
-}
-
 /* Returns the connection from a cs if the endpoint is a mux stream. Otherwise
  * NULL is returned. __cs_conn() returns the connection without any control
  * while cs_conn() check the endpoint type.
  */
 static inline struct connection *__cs_conn(const struct conn_stream *cs)
 {
-	return __cs_endp_ctx(cs);
+	return cs->endp->conn;
 }
 static inline struct connection *cs_conn(const struct conn_stream *cs)
 {

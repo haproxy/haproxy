@@ -299,7 +299,7 @@ static int mux_pt_init(struct connection *conn, struct proxy *prx, struct sessio
 			goto fail_free_ctx;
 		}
 		ctx->endp->target = ctx;
-		ctx->endp->ctx = conn;
+		ctx->endp->conn   = conn;
 		ctx->endp->flags |= (CS_EP_T_MUX|CS_EP_ORPHAN);
 
 		cs = cs_new_from_endp(ctx->endp, sess, input);
@@ -419,7 +419,7 @@ static void mux_pt_destroy_meth(void *ctx)
  */
 static void mux_pt_detach(struct cs_endpoint *endp)
 {
-	struct connection *conn = endp->ctx;
+	struct connection *conn = endp->conn;
 	struct mux_pt_ctx *ctx;
 
 	TRACE_ENTER(PT_EV_STRM_END, conn, endp->cs);

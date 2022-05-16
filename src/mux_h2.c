@@ -1613,7 +1613,7 @@ static struct h2s *h2c_frt_stream_new(struct h2c *h2c, int id, struct buffer *in
 	if (!h2s->endp)
 		goto out_close;
 	h2s->endp->target = h2s;
-	h2s->endp->ctx = h2c->conn;
+	h2s->endp->conn   = h2c->conn;
 	h2s->endp->flags |= (CS_EP_T_MUX|CS_EP_ORPHAN|CS_EP_NOT_FIRST);
 
 	/* FIXME wrong analogy between ext-connect and websocket, this need to
