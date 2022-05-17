@@ -1511,7 +1511,7 @@ static void promex_appctx_handle_io(struct appctx *appctx)
 	int ret;
 
 	res_htx = htx_from_buf(&res->buf);
-	if (unlikely(cs->state == CS_ST_DIS || cs->state == CS_ST_CLO))
+	if (unlikely(cs->state == SC_ST_DIS || cs->state == SC_ST_CLO))
 		goto out;
 
 	/* Check if the input buffer is available. */

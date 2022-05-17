@@ -433,7 +433,7 @@ static inline int channel_is_rewritable(const struct channel *chn)
  */
 static inline int channel_may_send(const struct channel *chn)
 {
-	return chn_cons(chn)->state == CS_ST_EST;
+	return chn_cons(chn)->state == SC_ST_EST;
 }
 
 /* HTX version of channel_may_recv(). Returns non-zero if the channel can still

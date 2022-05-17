@@ -904,7 +904,7 @@ static void cli_io_handler(struct appctx *appctx)
 	int reql;
 	int len;
 
-	if (unlikely(cs->state == CS_ST_DIS || cs->state == CS_ST_CLO))
+	if (unlikely(cs->state == SC_ST_DIS || cs->state == SC_ST_CLO))
 		goto out;
 
 	/* Check if the input buffer is available. */
@@ -1170,7 +1170,7 @@ static void cli_io_handler(struct appctx *appctx)
 		}
 	}
 
-	if ((res->flags & CF_SHUTR) && (cs->state == CS_ST_EST)) {
+	if ((res->flags & CF_SHUTR) && (cs->state == SC_ST_EST)) {
 		DPRINTF(stderr, "%s@%d: cs to buf closed. req=%08x, res=%08x, st=%d\n",
 			__FUNCTION__, __LINE__, req->flags, res->flags, cs->state);
 		/* Other side has closed, let's abort if we have no more processing to do
@@ -1181,7 +1181,7 @@ static void cli_io_handler(struct appctx *appctx)
 		cs_shutw(cs);
 	}
 
-	if ((req->flags & CF_SHUTW) && (cs->state == CS_ST_EST) && (appctx->st0 < CLI_ST_OUTPUT)) {
+	if ((req->flags & CF_SHUTW) && (cs->state == SC_ST_EST) && (appctx->st0 < CLI_ST_OUTPUT)) {
 		DPRINTF(stderr, "%s@%d: buf to cs closed. req=%08x, res=%08x, st=%d\n",
 			__FUNCTION__, __LINE__, req->flags, res->flags, cs->state);
 		/* We have no more processing to do, and nothing more to send, and
@@ -2787,7 +2787,7 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 
 		sockaddr_free(&s->scb->dst);
 
-		cs_set_state(s->scb, CS_ST_INI);
+		cs_set_state(s->scb, SC_ST_INI);
 		s->scb->flags &= SC_FL_ISBACK | SC_FL_DONT_WAKE; /* we're in the context of process_stream */
 		s->req.flags &= ~(CF_SHUTW|CF_SHUTW_NOW|CF_AUTO_CONNECT|CF_WRITE_ERROR|CF_STREAMER|CF_STREAMER_FAST|CF_NEVER_WAIT|CF_WROTE_DATA);
 		s->res.flags &= ~(CF_SHUTR|CF_SHUTR_NOW|CF_READ_ATTACHED|CF_READ_ERROR|CF_READ_NOEXP|CF_STREAMER|CF_STREAMER_FAST|CF_WRITE_PARTIAL|CF_NEVER_WAIT|CF_WROTE_DATA|CF_READ_NULL);

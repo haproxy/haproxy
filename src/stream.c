@@ -420,7 +420,7 @@ struct stream *stream_new(struct session *sess, struct stconn *cs, struct buffer
 	s->conn_retries = 0;
 	s->conn_exp = TICK_ETERNITY;
 	s->conn_err_type = STRM_ET_NONE;
-	s->prev_conn_state = CS_ST_INI;
+	s->prev_conn_state = SC_ST_INI;
 	t->process = process_stream;
 	t->context = s;
 	t->expire = TICK_ETERNITY;
@@ -453,7 +453,7 @@ struct stream *stream_new(struct session *sess, struct stconn *cs, struct buffer
 	if (!s->scb)
 		goto out_fail_alloc_scb;
 
-	cs_set_state(s->scf, CS_ST_EST);
+	cs_set_state(s->scf, SC_ST_EST);
 	s->scf->hcto = sess->fe->timeout.clientfin;
 
 	if (likely(sess->fe->options2 & PR_O2_INDEPSTR))
@@ -860,13 +860,13 @@ int stream_set_timeout(struct stream *s, enum act_timeout_name name, int timeout
 }
 
 /*
- * This function handles the transition between the CS_ST_CON state and the
- * CS_ST_EST state. It must only be called after switching from CS_ST_CON (or
- * CS_ST_INI or CS_ST_RDY) to CS_ST_EST, but only when a ->proto is defined.
- * Note that it will switch the interface to CS_ST_DIS if we already have
+ * This function handles the transition between the SC_ST_CON state and the
+ * SC_ST_EST state. It must only be called after switching from SC_ST_CON (or
+ * SC_ST_INI or SC_ST_RDY) to SC_ST_EST, but only when a ->proto is defined.
+ * Note that it will switch the interface to SC_ST_DIS if we already have
  * the CF_SHUTR flag, it means we were able to forward the request, and
  * receive the response, before process_stream() had the opportunity to
- * make the switch from CS_ST_CON to CS_ST_EST. When that happens, we want
+ * make the switch from SC_ST_CON to SC_ST_EST. When that happens, we want
  * to go through back_establish() anyway, to make sure the analysers run.
  * Timeouts are cleared. Error are reported on the channel so that analysers
  * can handle them.
@@ -940,9 +940,9 @@ static void back_establish(struct stream *s)
 	}
 	req->wex = TICK_ETERNITY;
 	/* If we managed to get the whole response, and we don't have anything
-	 * left to send, or can't, switch to CS_ST_DIS now. */
+	 * left to send, or can't, switch to SC_ST_DIS now. */
 	if (rep->flags & (CF_SHUTR | CF_SHUTW)) {
-		s->scb->state = CS_ST_DIS;
+		s->scb->state = SC_ST_DIS;
 		DBG_TRACE_STATE("response channel shutdwn for read/write", STRM_EV_STRM_PROC|STRM_EV_CS_ST|STRM_EV_STRM_ERR, s);
 	}
 
@@ -956,7 +956,7 @@ static void back_establish(struct stream *s)
 static void sess_set_term_flags(struct stream *s)
 {
 	if (!(s->flags & SF_FINST_MASK)) {
-		if (s->scb->state == CS_ST_INI) {
+		if (s->scb->state == SC_ST_INI) {
 			/* anything before REQ in fact */
 			_HA_ATOMIC_INC(&strm_fe(s)->fe_counters.failed_req);
 			if (strm_li(s) && strm_li(s)->counters)
@@ -964,11 +964,11 @@ static void sess_set_term_flags(struct stream *s)
 
 			s->flags |= SF_FINST_R;
 		}
-		else if (s->scb->state == CS_ST_QUE)
+		else if (s->scb->state == SC_ST_QUE)
 			s->flags |= SF_FINST_Q;
-		else if (cs_state_in(s->scb->state, CS_SB_REQ|CS_SB_TAR|CS_SB_ASS|CS_SB_CON|CS_SB_CER|CS_SB_RDY))
+		else if (cs_state_in(s->scb->state, SC_SB_REQ|SC_SB_TAR|SC_SB_ASS|SC_SB_CON|SC_SB_CER|SC_SB_RDY))
 			s->flags |= SF_FINST_C;
-		else if (s->scb->state == CS_ST_EST || s->prev_conn_state == CS_ST_EST)
+		else if (s->scb->state == SC_ST_EST || s->prev_conn_state == SC_ST_EST)
 			s->flags |= SF_FINST_D;
 		else
 			s->flags |= SF_FINST_L;
@@ -1533,10 +1533,10 @@ static void stream_update_both_cs(struct stream *s)
 	s->prev_conn_state = scb->state;
 
 	/* let's recompute both sides states */
-	if (cs_state_in(scf->state, CS_SB_RDY|CS_SB_EST))
+	if (cs_state_in(scf->state, SC_SB_RDY|SC_SB_EST))
 		cs_update(scf);
 
-	if (cs_state_in(scb->state, CS_SB_RDY|CS_SB_EST))
+	if (cs_state_in(scb->state, SC_SB_RDY|SC_SB_EST))
 		cs_update(scb);
 
 	/* stream connectors are processed outside of process_stream() and must be
@@ -1755,7 +1755,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	 */
 	srv = objt_server(s->target);
 	if (unlikely(sc_ep_test(scf, SE_FL_ERROR))) {
-		if (cs_state_in(scf->state, CS_SB_EST|CS_SB_DIS)) {
+		if (cs_state_in(scf->state, SC_SB_EST|SC_SB_DIS)) {
 			cs_shutr(scf);
 			cs_shutw(scf);
 			cs_report_error(scf);
@@ -1775,7 +1775,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	}
 
 	if (unlikely(sc_ep_test(scb, SE_FL_ERROR))) {
-		if (cs_state_in(scb->state, CS_SB_EST|CS_SB_DIS)) {
+		if (cs_state_in(scb->state, SC_SB_EST|SC_SB_DIS)) {
 			cs_shutr(scb);
 			cs_shutw(scb);
 			cs_report_error(scb);
@@ -1798,23 +1798,23 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		/* note: maybe we should process connection errors here ? */
 	}
 
-	if (cs_state_in(scb->state, CS_SB_CON|CS_SB_RDY)) {
+	if (cs_state_in(scb->state, SC_SB_CON|SC_SB_RDY)) {
 		/* we were trying to establish a connection on the server side,
 		 * maybe it succeeded, maybe it failed, maybe we timed out, ...
 		 */
-		if (scb->state == CS_ST_RDY)
+		if (scb->state == SC_ST_RDY)
 			back_handle_st_rdy(s);
-		else if (s->scb->state == CS_ST_CON)
+		else if (s->scb->state == SC_ST_CON)
 			back_handle_st_con(s);
 
-		if (scb->state == CS_ST_CER)
+		if (scb->state == SC_ST_CER)
 			back_handle_st_cer(s);
-		else if (scb->state == CS_ST_EST)
+		else if (scb->state == SC_ST_EST)
 			back_establish(s);
 
-		/* state is now one of CS_ST_CON (still in progress), CS_ST_EST
-		 * (established), CS_ST_DIS (abort), CS_ST_CLO (last error),
-		 * CS_ST_ASS/CS_ST_TAR/CS_ST_REQ for retryable errors.
+		/* state is now one of SC_ST_CON (still in progress), SC_ST_EST
+		 * (established), SC_ST_DIS (abort), SC_ST_CLO (last error),
+		 * SC_ST_ASS/SC_ST_TAR/SC_ST_REQ for retryable errors.
 		 */
 	}
 
@@ -1827,8 +1827,8 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	DBG_TRACE_POINT(STRM_EV_STRM_PROC, s);
 
 	/* nothing special to be done on client side */
-	if (unlikely(scf->state == CS_ST_DIS)) {
-		scf->state = CS_ST_CLO;
+	if (unlikely(scf->state == SC_ST_DIS)) {
+		scf->state = SC_ST_CLO;
 
 		/* This is needed only when debugging is enabled, to indicate
 		 * client-side close.
@@ -1847,8 +1847,8 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	/* When a server-side connection is released, we have to count it and
 	 * check for pending connections on this server.
 	 */
-	if (unlikely(scb->state == CS_ST_DIS)) {
-		scb->state = CS_ST_CLO;
+	if (unlikely(scb->state == SC_ST_DIS)) {
+		scb->state = SC_ST_CLO;
 		srv = objt_server(s->target);
 		if (srv) {
 			if (s->flags & SF_CURR_SESS) {
@@ -1866,7 +1866,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		if (unlikely((global.mode & MODE_DEBUG) &&
 			     (!(global.mode & MODE_QUIET) ||
 			      (global.mode & MODE_VERBOSE)))) {
-			if (s->prev_conn_state == CS_ST_EST) {
+			if (s->prev_conn_state == SC_ST_EST) {
 				chunk_printf(&trash, "%08x:%s.srvcls[%04x:%04x]\n",
 					     s->uniq_id, s->be->id,
 					     (unsigned short)conn_fd(cs_conn(scf)),
@@ -1891,7 +1891,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	    s->pending_events & TASK_WOKEN_MSG) {
 		unsigned int flags = req->flags;
 
-		if (cs_state_in(scf->state, CS_SB_EST|CS_SB_DIS|CS_SB_CLO)) {
+		if (cs_state_in(scf->state, SC_SB_EST|SC_SB_DIS|SC_SB_CLO)) {
 			int max_loops = global.tune.maxpollevents;
 			unsigned int ana_list;
 			unsigned int ana_back;
@@ -1992,7 +1992,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		 s->pending_events & TASK_WOKEN_MSG) {
 		unsigned int flags = res->flags;
 
-		if (cs_state_in(scb->state, CS_SB_EST|CS_SB_DIS|CS_SB_CLO)) {
+		if (cs_state_in(scb->state, SC_SB_EST|SC_SB_DIS|SC_SB_CLO)) {
 			int max_loops = global.tune.maxpollevents;
 			unsigned int ana_list;
 			unsigned int ana_back;
@@ -2105,11 +2105,11 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 			sess_set_term_flags(s);
 
 			/* Abort the request if a client error occurred while
-			 * the backend stream connector is in the CS_ST_INI
-			 * state. It is switched into the CS_ST_CLO state and
+			 * the backend stream connector is in the SC_ST_INI
+			 * state. It is switched into the SC_ST_CLO state and
 			 * the request channel is erased. */
-			if (scb->state == CS_ST_INI) {
-				s->scb->state = CS_ST_CLO;
+			if (scb->state == SC_ST_INI) {
+				s->scb->state = SC_ST_CLO;
 				channel_abort(req);
 				if (IS_HTX_STRM(s))
 					channel_htx_erase(req, htxbuf(&req->buf));
@@ -2173,7 +2173,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	 */
 	if (unlikely((!req->analysers || (req->analysers == AN_REQ_FLT_END && !(req->flags & CF_FLT_ANALYZE))) &&
 	    !(req->flags & (CF_SHUTW|CF_SHUTR_NOW)) &&
-	    (cs_state_in(scf->state, CS_SB_EST|CS_SB_DIS|CS_SB_CLO)) &&
+	    (cs_state_in(scf->state, SC_SB_EST|SC_SB_DIS|SC_SB_CLO)) &&
 	    (req->to_forward != CHN_INFINITE_FORWARD))) {
 		/* This buffer is freewheeling, there's no analyser
 		 * attached to it. If any data are left in, we'll permit them to
@@ -2226,14 +2226,14 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	 *  - there are data scheduled for emission in the buffer
 	 *  - the CF_AUTO_CONNECT flag is set (active connection)
 	 */
-	if (scb->state == CS_ST_INI) {
+	if (scb->state == SC_ST_INI) {
 		if (!(req->flags & CF_SHUTW)) {
 			if ((req->flags & CF_AUTO_CONNECT) || !channel_is_empty(req)) {
 				/* If we have an appctx, there is no connect method, so we
 				 * immediately switch to the connected state, otherwise we
 				 * perform a connection request.
 				 */
-				scb->state = CS_ST_REQ; /* new connection requested */
+				scb->state = SC_ST_REQ; /* new connection requested */
 				s->conn_retries = 0;
 				if ((s->be->retry_type &~ PR_RE_CONN_FAILED) &&
 				    (s->be->mode == PR_MODE_HTTP) &&
@@ -2242,7 +2242,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 			}
 		}
 		else {
-			s->scb->state = CS_ST_CLO; /* shutw+ini = abort */
+			s->scb->state = SC_ST_CLO; /* shutw+ini = abort */
 			channel_shutw_now(req);        /* fix buffer flags upon abort */
 			channel_shutr_now(res);
 		}
@@ -2252,7 +2252,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	/* we may have a pending connection request, or a connection waiting
 	 * for completion.
 	 */
-	if (cs_state_in(scb->state, CS_SB_REQ|CS_SB_QUE|CS_SB_TAR|CS_SB_ASS)) {
+	if (cs_state_in(scb->state, SC_SB_REQ|SC_SB_QUE|SC_SB_TAR|SC_SB_ASS)) {
 		/* prune the request variables and swap to the response variables. */
 		if (s->vars_reqres.scope != SCOPE_RES) {
 			if (!LIST_ISEMPTY(&s->vars_reqres.head))
@@ -2264,26 +2264,26 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 			/* nb: step 1 might switch from QUE to ASS, but we first want
 			 * to give a chance to step 2 to perform a redirect if needed.
 			 */
-			if (scb->state != CS_ST_REQ)
+			if (scb->state != SC_ST_REQ)
 				back_try_conn_req(s);
-			if (scb->state == CS_ST_REQ)
+			if (scb->state == SC_ST_REQ)
 				back_handle_st_req(s);
 
 			/* get a chance to complete an immediate connection setup */
-			if (scb->state == CS_ST_RDY)
+			if (scb->state == SC_ST_RDY)
 				goto resync_stconns;
 
 			/* applets directly go to the ESTABLISHED state. Similarly,
 			 * servers experience the same fate when their connection
 			 * is reused.
 			 */
-			if (unlikely(scb->state == CS_ST_EST))
+			if (unlikely(scb->state == SC_ST_EST))
 				back_establish(s);
 
 			srv = objt_server(s->target);
-			if (scb->state == CS_ST_ASS && srv && srv->rdr_len && (s->flags & SF_REDIRECTABLE))
+			if (scb->state == SC_ST_ASS && srv && srv->rdr_len && (s->flags & SF_REDIRECTABLE))
 				http_perform_server_redirect(s, scb);
-		} while (scb->state == CS_ST_ASS);
+		} while (scb->state == SC_ST_ASS);
 	}
 
 	/* Let's see if we can send the pending request now */
@@ -2301,7 +2301,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	 */
 	if (unlikely((req->flags & (CF_SHUTW|CF_SHUTW_NOW|CF_AUTO_CLOSE|CF_SHUTR)) ==
 		     (CF_AUTO_CLOSE|CF_SHUTR) &&
-		     (scb->state != CS_ST_CON || (s->be->options & PR_O_ABRT_CLOSE)))) {
+		     (scb->state != SC_ST_CON || (s->be->options & PR_O_ABRT_CLOSE)))) {
 		channel_shutw_now(req);
 	}
 
@@ -2326,10 +2326,10 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	}
 
 	/* Benchmarks have shown that it's optimal to do a full resync now */
-	if (scf->state == CS_ST_DIS ||
-	    cs_state_in(scb->state, CS_SB_RDY|CS_SB_DIS) ||
-	    (sc_ep_test(scf, SE_FL_ERROR) && scf->state != CS_ST_CLO) ||
-	    (sc_ep_test(scb, SE_FL_ERROR) && scb->state != CS_ST_CLO))
+	if (scf->state == SC_ST_DIS ||
+	    cs_state_in(scb->state, SC_SB_RDY|SC_SB_DIS) ||
+	    (sc_ep_test(scf, SE_FL_ERROR) && scf->state != SC_ST_CLO) ||
+	    (sc_ep_test(scb, SE_FL_ERROR) && scb->state != SC_ST_CLO))
 		goto resync_stconns;
 
 	/* otherwise we want to check if we need to resync the req buffer or not */
@@ -2345,7 +2345,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	 */
 	if (unlikely((!res->analysers || (res->analysers == AN_RES_FLT_END && !(res->flags & CF_FLT_ANALYZE))) &&
 	    !(res->flags & (CF_SHUTW|CF_SHUTR_NOW)) &&
-	    cs_state_in(scb->state, CS_SB_EST|CS_SB_DIS|CS_SB_CLO) &&
+	    cs_state_in(scb->state, SC_SB_EST|SC_SB_DIS|SC_SB_CLO) &&
 	    (res->to_forward != CHN_INFINITE_FORWARD))) {
 		/* This buffer is freewheeling, there's no analyser
 		 * attached to it. If any data are left in, we'll permit them to
@@ -2450,10 +2450,10 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		cs_shutr(scb);
 	}
 
-	if (scf->state == CS_ST_DIS ||
-	    cs_state_in(scb->state, CS_SB_RDY|CS_SB_DIS) ||
-	    (sc_ep_test(scf, SE_FL_ERROR) && scf->state != CS_ST_CLO) ||
-	    (sc_ep_test(scb, SE_FL_ERROR) && scb->state != CS_ST_CLO))
+	if (scf->state == SC_ST_DIS ||
+	    cs_state_in(scb->state, SC_SB_RDY|SC_SB_DIS) ||
+	    (sc_ep_test(scf, SE_FL_ERROR) && scf->state != SC_ST_CLO) ||
+	    (sc_ep_test(scb, SE_FL_ERROR) && scb->state != SC_ST_CLO))
 		goto resync_stconns;
 
 	if ((req->flags & ~rqf_last) & CF_MASK_ANALYSER)
@@ -2469,7 +2469,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	scf->flags &= ~SC_FL_DONT_WAKE;
 	scb->flags &= ~SC_FL_DONT_WAKE;
 
-	if (likely((scf->state != CS_ST_CLO) || !cs_state_in(scb->state, CS_SB_INI|CS_SB_CLO) ||
+	if (likely((scf->state != SC_ST_CLO) || !cs_state_in(scb->state, SC_SB_INI|SC_SB_CLO) ||
 		   (req->analysers & AN_REQ_FLT_END) || (res->analysers & AN_RES_FLT_END))) {
 		if ((sess->fe->options & PR_O_CONTSTATS) && (s->flags & SF_BE_ASSIGNED) && !(s->flags & SF_IGNORE))
 			stream_process_counters(s);

@@ -104,34 +104,34 @@ enum sc_flags {
  * do not last beyond process_session().
  */
 enum cs_state {
-	CS_ST_INI = 0,           /* CS not sollicitated yet */
-	CS_ST_REQ,               /* [transient] connection initiation desired and not started yet */
-	CS_ST_QUE,               /* CS waiting in queue */
-	CS_ST_TAR,               /* CS in turn-around state after failed connect attempt */
-	CS_ST_ASS,               /* server just assigned to this CS */
-	CS_ST_CON,               /* initiated connection request (resource exists) */
-	CS_ST_CER,               /* [transient] previous connection attempt failed (resource released) */
-	CS_ST_RDY,               /* [transient] ready proven after I/O success during CS_ST_CON */
-	CS_ST_EST,               /* connection established (resource exists) */
-	CS_ST_DIS,               /* [transient] disconnected from other side, but cleanup not done yet */
-	CS_ST_CLO,               /* CS closed, might not existing anymore. Buffers shut. */
+	SC_ST_INI = 0,           /* CS not sollicitated yet */
+	SC_ST_REQ,               /* [transient] connection initiation desired and not started yet */
+	SC_ST_QUE,               /* CS waiting in queue */
+	SC_ST_TAR,               /* CS in turn-around state after failed connect attempt */
+	SC_ST_ASS,               /* server just assigned to this CS */
+	SC_ST_CON,               /* initiated connection request (resource exists) */
+	SC_ST_CER,               /* [transient] previous connection attempt failed (resource released) */
+	SC_ST_RDY,               /* [transient] ready proven after I/O success during SC_ST_CON */
+	SC_ST_EST,               /* connection established (resource exists) */
+	SC_ST_DIS,               /* [transient] disconnected from other side, but cleanup not done yet */
+	SC_ST_CLO,               /* CS closed, might not existing anymore. Buffers shut. */
 } __attribute__((packed));
 
 /* state bits for use with lists of states */
 enum cs_state_bit {
-	CS_SB_NONE = 0,
-	CS_SB_INI = 1U << CS_ST_INI,
-	CS_SB_REQ = 1U << CS_ST_REQ,
-	CS_SB_QUE = 1U << CS_ST_QUE,
-	CS_SB_TAR = 1U << CS_ST_TAR,
-	CS_SB_ASS = 1U << CS_ST_ASS,
-	CS_SB_CON = 1U << CS_ST_CON,
-	CS_SB_CER = 1U << CS_ST_CER,
-	CS_SB_RDY = 1U << CS_ST_RDY,
-	CS_SB_EST = 1U << CS_ST_EST,
-	CS_SB_DIS = 1U << CS_ST_DIS,
-	CS_SB_CLO = 1U << CS_ST_CLO,
-	CS_SB_ALL = CS_SB_INI|CS_SB_REQ|CS_SB_QUE|CS_SB_TAR|CS_SB_ASS|CS_SB_CON|CS_SB_CER|CS_SB_RDY|CS_SB_EST|CS_SB_DIS|CS_SB_CLO,
+	SC_SB_NONE = 0,
+	SC_SB_INI = 1U << SC_ST_INI,
+	SC_SB_REQ = 1U << SC_ST_REQ,
+	SC_SB_QUE = 1U << SC_ST_QUE,
+	SC_SB_TAR = 1U << SC_ST_TAR,
+	SC_SB_ASS = 1U << SC_ST_ASS,
+	SC_SB_CON = 1U << SC_ST_CON,
+	SC_SB_CER = 1U << SC_ST_CER,
+	SC_SB_RDY = 1U << SC_ST_RDY,
+	SC_SB_EST = 1U << SC_ST_EST,
+	SC_SB_DIS = 1U << SC_ST_DIS,
+	SC_SB_CLO = 1U << SC_ST_CLO,
+	SC_SB_ALL = SC_SB_INI|SC_SB_REQ|SC_SB_QUE|SC_SB_TAR|SC_SB_ASS|SC_SB_CON|SC_SB_CER|SC_SB_RDY|SC_SB_EST|SC_SB_DIS|SC_SB_CLO,
 };
 
 struct stconn;

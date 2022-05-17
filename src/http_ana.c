@@ -4317,7 +4317,7 @@ void http_perform_server_redirect(struct stream *s, struct stconn *cs)
 	cs_shutr(cs);
 	cs_shutw(cs);
 	s->conn_err_type = STRM_ET_NONE;
-	cs->state = CS_ST_CLO;
+	cs->state = SC_ST_CLO;
 
 	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= SF_ERR_LOCAL;

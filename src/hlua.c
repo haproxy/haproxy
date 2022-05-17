@@ -1955,7 +1955,7 @@ static void hlua_socket_handler(struct appctx *appctx)
 	/* if the connection is not established, inform the stream that we want
 	 * to be notified whenever the connection completes.
 	 */
-	if (cs_opposite(cs)->state < CS_ST_EST) {
+	if (cs_opposite(cs)->state < SC_ST_EST) {
 		cs_cant_get(cs);
 		cs_rx_conn_blk(cs);
 		cs_rx_endp_more(cs);
@@ -2000,7 +2000,7 @@ static int hlua_socket_init(struct appctx *appctx)
 	 * and retrieve data from the server. The connection is initialized
 	 * with the "struct server".
 	 */
-	cs_set_state(s->scb, CS_ST_ASS);
+	cs_set_state(s->scb, SC_ST_ASS);
 
 	/* Force destination server. */
 	s->flags |= SF_DIRECT | SF_ASSIGNED | SF_BE_ASSIGNED;
@@ -9329,7 +9329,7 @@ void hlua_applet_tcp_fct(struct appctx *ctx)
 	}
 
 	/* If the stream is disconnect or closed, ldo nothing. */
-	if (unlikely(cs->state == CS_ST_DIS || cs->state == CS_ST_CLO))
+	if (unlikely(cs->state == SC_ST_DIS || cs->state == SC_ST_CLO))
 		return;
 
 	/* Execute the function. */
@@ -9522,7 +9522,7 @@ void hlua_applet_http_fct(struct appctx *ctx)
 	res_htx = htx_from_buf(&res->buf);
 
 	/* If the stream is disconnect or closed, ldo nothing. */
-	if (unlikely(cs->state == CS_ST_DIS || cs->state == CS_ST_CLO))
+	if (unlikely(cs->state == SC_ST_DIS || cs->state == SC_ST_CLO))
 		goto out;
 
 	/* Check if the input buffer is available. */
@@ -10151,7 +10151,7 @@ static int hlua_cli_io_handler_fct(struct appctx *appctx)
 	fcn = ctx->fcn;
 
 	/* If the stream is disconnect or closed, ldo nothing. */
-	if (unlikely(cs->state == CS_ST_DIS || cs->state == CS_ST_CLO))
+	if (unlikely(cs->state == SC_ST_DIS || cs->state == SC_ST_CLO))
 		return 1;
 
 	/* Execute the function. */

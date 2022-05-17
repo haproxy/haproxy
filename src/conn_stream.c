@@ -127,7 +127,7 @@ static struct stconn *cs_new(struct sedesc *sedesc)
 
 	cs->obj_type = OBJ_TYPE_CS;
 	cs->flags = SC_FL_NONE;
-	cs->state = CS_ST_INI;
+	cs->state = SC_ST_INI;
 	cs->hcto = TICK_ETERNITY;
 	cs->app = NULL;
 	cs->data_cb = NULL;
@@ -493,7 +493,7 @@ struct appctx *cs_applet_create(struct stconn *cs, struct applet *app)
 	cs_cant_get(cs);
 	appctx_wakeup(appctx);
 
-	cs->state = CS_ST_RDY;
+	cs->state = SC_ST_RDY;
 	return appctx;
 }
 
@@ -514,11 +514,11 @@ static void sc_app_shutr(struct stconn *cs)
 	ic->flags |= CF_SHUTR;
 	ic->rex = TICK_ETERNITY;
 
-	if (!cs_state_in(cs->state, CS_SB_CON|CS_SB_RDY|CS_SB_EST))
+	if (!cs_state_in(cs->state, SC_SB_CON|SC_SB_RDY|SC_SB_EST))
 		return;
 
 	if (cs_oc(cs)->flags & CF_SHUTW) {
-		cs->state = CS_ST_DIS;
+		cs->state = SC_ST_DIS;
 		__cs_strm(cs)->conn_exp = TICK_ETERNITY;
 	}
 	else if (cs->flags & SC_FL_NOHALF) {
@@ -556,8 +556,8 @@ static void sc_app_shutw(struct stconn *cs)
 	}
 
 	switch (cs->state) {
-	case CS_ST_RDY:
-	case CS_ST_EST:
+	case SC_ST_RDY:
+	case SC_ST_EST:
 		/* we have to shut before closing, otherwise some short messages
 		 * may never leave the system, especially when there are remaining
 		 * unread data in the socket input buffer, or when nolinger is set.
@@ -569,12 +569,12 @@ static void sc_app_shutw(struct stconn *cs)
 			return;
 
 		/* fall through */
-	case CS_ST_CON:
-	case CS_ST_CER:
-	case CS_ST_QUE:
-	case CS_ST_TAR:
+	case SC_ST_CON:
+	case SC_ST_CER:
+	case SC_ST_QUE:
+	case SC_ST_TAR:
 		/* Note that none of these states may happen with applets */
-		cs->state = CS_ST_DIS;
+		cs->state = SC_ST_DIS;
 		/* fall through */
 	default:
 		cs->flags &= ~SC_FL_NOLINGER;
@@ -618,7 +618,7 @@ static void sc_app_chk_snd(struct stconn *cs)
 		__FUNCTION__,
 		cs, cs->state, cs_ic(cs)->flags, oc->flags);
 
-	if (unlikely(cs->state != CS_ST_EST || (oc->flags & CF_SHUTW)))
+	if (unlikely(cs->state != SC_ST_EST || (oc->flags & CF_SHUTW)))
 		return;
 
 	if (!sc_ep_test(cs, SE_FL_WAIT_DATA) ||  /* not waiting for data */
@@ -658,12 +658,12 @@ static void sc_app_shutr_conn(struct stconn *cs)
 	ic->flags |= CF_SHUTR;
 	ic->rex = TICK_ETERNITY;
 
-	if (!cs_state_in(cs->state, CS_SB_CON|CS_SB_RDY|CS_SB_EST))
+	if (!cs_state_in(cs->state, SC_SB_CON|SC_SB_RDY|SC_SB_EST))
 		return;
 
 	if (cs_oc(cs)->flags & CF_SHUTW) {
 		cs_conn_shut(cs);
-		cs->state = CS_ST_DIS;
+		cs->state = SC_ST_DIS;
 		__cs_strm(cs)->conn_exp = TICK_ETERNITY;
 	}
 	else if (cs->flags & SC_FL_NOHALF) {
@@ -700,8 +700,8 @@ static void sc_app_shutw_conn(struct stconn *cs)
 	}
 
 	switch (cs->state) {
-	case CS_ST_RDY:
-	case CS_ST_EST:
+	case SC_ST_RDY:
+	case SC_ST_EST:
 		/* we have to shut before closing, otherwise some short messages
 		 * may never leave the system, especially when there are remaining
 		 * unread data in the socket input buffer, or when nolinger is set.
@@ -734,16 +734,16 @@ static void sc_app_shutw_conn(struct stconn *cs)
 		}
 
 		/* fall through */
-	case CS_ST_CON:
+	case SC_ST_CON:
 		/* we may have to close a pending connection, and mark the
 		 * response buffer as shutr
 		 */
 		cs_conn_shut(cs);
 		/* fall through */
-	case CS_ST_CER:
-	case CS_ST_QUE:
-	case CS_ST_TAR:
-		cs->state = CS_ST_DIS;
+	case SC_ST_CER:
+	case SC_ST_QUE:
+	case SC_ST_TAR:
+		cs->state = SC_ST_DIS;
 		/* fall through */
 	default:
 		cs->flags &= ~SC_FL_NOLINGER;
@@ -765,7 +765,7 @@ static void sc_app_chk_rcv_conn(struct stconn *cs)
 	BUG_ON(!cs_conn(cs));
 
 	/* (re)start reading */
-	if (cs_state_in(cs->state, CS_SB_CON|CS_SB_RDY|CS_SB_EST))
+	if (cs_state_in(cs->state, SC_SB_CON|SC_SB_RDY|SC_SB_EST))
 		tasklet_wakeup(cs->wait_event.tasklet);
 }
 
@@ -781,7 +781,7 @@ static void sc_app_chk_snd_conn(struct stconn *cs)
 
 	BUG_ON(!cs_conn(cs));
 
-	if (unlikely(!cs_state_in(cs->state, CS_SB_RDY|CS_SB_EST) ||
+	if (unlikely(!cs_state_in(cs->state, SC_SB_RDY|SC_SB_EST) ||
 	    (oc->flags & CF_SHUTW)))
 		return;
 
@@ -797,7 +797,7 @@ static void sc_app_chk_snd_conn(struct stconn *cs)
 
 	if (sc_ep_test(cs, SE_FL_ERROR | SE_FL_ERR_PENDING) || cs_is_conn_error(cs)) {
 		/* Write error on the file descriptor */
-		if (cs->state >= CS_ST_CON)
+		if (cs->state >= SC_ST_CON)
 			sc_ep_set(cs, SE_FL_ERROR);
 		goto out_wakeup;
 	}
@@ -813,7 +813,7 @@ static void sc_app_chk_snd_conn(struct stconn *cs)
 		 */
 		if (((oc->flags & (CF_SHUTW|CF_AUTO_CLOSE|CF_SHUTW_NOW)) ==
 		     (CF_AUTO_CLOSE|CF_SHUTW_NOW)) &&
-		    cs_state_in(cs->state, CS_SB_RDY|CS_SB_EST)) {
+		    cs_state_in(cs->state, SC_SB_RDY|SC_SB_EST)) {
 			cs_shutw(cs);
 			goto out_wakeup;
 		}
@@ -858,7 +858,7 @@ static void sc_app_chk_snd_conn(struct stconn *cs)
 	if (likely((oc->flags & (CF_WRITE_NULL|CF_WRITE_ERROR|CF_SHUTW)) ||
 	          ((oc->flags & CF_WAKE_WRITE) &&
 	           ((channel_is_empty(oc) && !oc->to_forward) ||
-	            !cs_state_in(cs->state, CS_SB_EST))))) {
+	            !cs_state_in(cs->state, SC_SB_EST))))) {
 	out_wakeup:
 		if (!(cs->flags & SC_FL_DONT_WAKE))
 			task_wakeup(cs_strm_task(cs), TASK_WOKEN_IO);
@@ -887,12 +887,12 @@ static void sc_app_shutr_applet(struct stconn *cs)
 
 	/* Note: on shutr, we don't call the applet */
 
-	if (!cs_state_in(cs->state, CS_SB_CON|CS_SB_RDY|CS_SB_EST))
+	if (!cs_state_in(cs->state, SC_SB_CON|SC_SB_RDY|SC_SB_EST))
 		return;
 
 	if (cs_oc(cs)->flags & CF_SHUTW) {
 		appctx_shut(__cs_appctx(cs));
-		cs->state = CS_ST_DIS;
+		cs->state = SC_ST_DIS;
 		__cs_strm(cs)->conn_exp = TICK_ETERNITY;
 	}
 	else if (cs->flags & SC_FL_NOHALF) {
@@ -931,8 +931,8 @@ static void sc_app_shutw_applet(struct stconn *cs)
 	appctx_wakeup(__cs_appctx(cs));
 
 	switch (cs->state) {
-	case CS_ST_RDY:
-	case CS_ST_EST:
+	case SC_ST_RDY:
+	case SC_ST_EST:
 		/* we have to shut before closing, otherwise some short messages
 		 * may never leave the system, especially when there are remaining
 		 * unread data in the socket input buffer, or when nolinger is set.
@@ -944,13 +944,13 @@ static void sc_app_shutw_applet(struct stconn *cs)
 			return;
 
 		/* fall through */
-	case CS_ST_CON:
-	case CS_ST_CER:
-	case CS_ST_QUE:
-	case CS_ST_TAR:
+	case SC_ST_CON:
+	case SC_ST_CER:
+	case SC_ST_QUE:
+	case SC_ST_TAR:
 		/* Note that none of these states may happen with applets */
 		appctx_shut(__cs_appctx(cs));
-		cs->state = CS_ST_DIS;
+		cs->state = SC_ST_DIS;
 		/* fall through */
 	default:
 		cs->flags &= ~SC_FL_NOLINGER;
@@ -989,7 +989,7 @@ static void sc_app_chk_snd_applet(struct stconn *cs)
 		__FUNCTION__,
 		cs, cs->state, cs_ic(cs)->flags, oc->flags);
 
-	if (unlikely(cs->state != CS_ST_EST || (oc->flags & CF_SHUTW)))
+	if (unlikely(cs->state != SC_ST_EST || (oc->flags & CF_SHUTW)))
 		return;
 
 	/* we only wake the applet up if it was waiting for some data */
@@ -1121,7 +1121,7 @@ static void cs_notify(struct stconn *cs)
 		struct connection *conn = cs_conn(cs);
 
 		if (((oc->flags & (CF_SHUTW|CF_SHUTW_NOW)) == CF_SHUTW_NOW) &&
-		    (cs->state == CS_ST_EST) && (!conn || !(conn->flags & (CO_FL_WAIT_XPRT | CO_FL_EARLY_SSL_HS))))
+		    (cs->state == SC_ST_EST) && (!conn || !(conn->flags & (CO_FL_WAIT_XPRT | CO_FL_EARLY_SSL_HS))))
 			cs_shutw(cs);
 		oc->wex = TICK_ETERNITY;
 	}
@@ -1202,10 +1202,10 @@ static void cs_notify(struct stconn *cs)
 	/* wake the task up only when needed */
 	if (/* changes on the production side */
 	    (ic->flags & (CF_READ_NULL|CF_READ_ERROR)) ||
-	    !cs_state_in(cs->state, CS_SB_CON|CS_SB_RDY|CS_SB_EST) ||
+	    !cs_state_in(cs->state, SC_SB_CON|SC_SB_RDY|SC_SB_EST) ||
 	    sc_ep_test(cs, SE_FL_ERROR) ||
 	    ((ic->flags & CF_READ_PARTIAL) &&
-	     ((ic->flags & CF_EOI) || !ic->to_forward || cso->state != CS_ST_EST)) ||
+	     ((ic->flags & CF_EOI) || !ic->to_forward || cso->state != SC_ST_EST)) ||
 
 	    /* changes on the consumption side */
 	    (oc->flags & (CF_WRITE_NULL|CF_WRITE_ERROR)) ||
@@ -1213,7 +1213,7 @@ static void cs_notify(struct stconn *cs)
 	     ((oc->flags & CF_SHUTW) ||
 	      (((oc->flags & CF_WAKE_WRITE) ||
 		!(oc->flags & (CF_AUTO_CLOSE|CF_SHUTW_NOW|CF_SHUTW))) &&
-	       (cso->state != CS_ST_EST ||
+	       (cso->state != SC_ST_EST ||
 	        (channel_is_empty(oc) && !oc->to_forward)))))) {
 		task_wakeup(task, TASK_WOKEN_IO);
 	}
@@ -1251,7 +1251,7 @@ static void cs_conn_read0(struct stconn *cs)
 	ic->flags |= CF_SHUTR;
 	ic->rex = TICK_ETERNITY;
 
-	if (!cs_state_in(cs->state, CS_SB_CON|CS_SB_RDY|CS_SB_EST))
+	if (!cs_state_in(cs->state, SC_SB_CON|SC_SB_RDY|SC_SB_EST))
 		return;
 
 	if (oc->flags & CF_SHUTW)
@@ -1277,7 +1277,7 @@ static void cs_conn_read0(struct stconn *cs)
 
 	cs_done_get(cs);
 
-	cs->state = CS_ST_DIS;
+	cs->state = SC_ST_DIS;
 	__cs_strm(cs)->conn_exp = TICK_ETERNITY;
 	return;
 }
@@ -1296,7 +1296,7 @@ static int cs_conn_recv(struct stconn *cs)
 	int flags = 0;
 
 	/* If not established yet, do nothing. */
-	if (cs->state != CS_ST_EST)
+	if (cs->state != SC_ST_EST)
 		return 0;
 
 	/* If another call to cs_conn_recv() failed, and we subscribed to
@@ -1620,7 +1620,7 @@ static int cs_conn_recv(struct stconn *cs)
  */
 int cs_conn_sync_recv(struct stconn *cs)
 {
-	if (!cs_state_in(cs->state, CS_SB_RDY|CS_SB_EST))
+	if (!cs_state_in(cs->state, SC_SB_RDY|SC_SB_EST))
 		return 0;
 
 	if (!cs_conn_mux(cs))
@@ -1652,11 +1652,11 @@ static int cs_conn_send(struct stconn *cs)
 	if (sc_ep_test(cs, SE_FL_ERROR | SE_FL_ERR_PENDING) || cs_is_conn_error(cs)) {
 		/* We're probably there because the tasklet was woken up,
 		 * but process_stream() ran before, detected there were an
-		 * error and put the CS back to CS_ST_TAR. There's still
+		 * error and put the CS back to SC_ST_TAR. There's still
 		 * CO_FL_ERROR on the connection but we don't want to add
 		 * SE_FL_ERROR back, so give up
 		 */
-		if (cs->state < CS_ST_CON)
+		if (cs->state < SC_ST_CON)
 			return 0;
 		sc_ep_set(cs, SE_FL_ERROR);
 		return 1;
@@ -1765,8 +1765,8 @@ static int cs_conn_send(struct stconn *cs)
  end:
 	if (did_send) {
 		oc->flags |= CF_WRITE_PARTIAL | CF_WROTE_DATA;
-		if (cs->state == CS_ST_CON)
-			cs->state = CS_ST_RDY;
+		if (cs->state == SC_ST_CON)
+			cs->state = SC_ST_RDY;
 
 		cs_rx_room_rdy(cs_opposite(cs));
 	}
@@ -1798,7 +1798,7 @@ void cs_conn_sync_send(struct stconn *cs)
 	if (channel_is_empty(oc))
 		return;
 
-	if (!cs_state_in(cs->state, CS_SB_CON|CS_SB_RDY|CS_SB_EST))
+	if (!cs_state_in(cs->state, SC_SB_CON|SC_SB_RDY|SC_SB_EST))
 		return;
 
 	if (!cs_conn_mux(cs))
@@ -1838,7 +1838,7 @@ static int cs_conn_process(struct stconn *cs)
 	 *       care of it.
 	 */
 
-	if (cs->state >= CS_ST_CON) {
+	if (cs->state >= SC_ST_CON) {
 		if (cs_is_conn_error(cs))
 			sc_ep_set(cs, SE_FL_ERROR);
 	}
@@ -1854,12 +1854,12 @@ static int cs_conn_process(struct stconn *cs)
 		task_wakeup(cs_strm_task(cs), TASK_WOKEN_MSG);
 	}
 
-	if (!cs_state_in(cs->state, CS_SB_EST|CS_SB_DIS|CS_SB_CLO) &&
+	if (!cs_state_in(cs->state, SC_SB_EST|SC_SB_DIS|SC_SB_CLO) &&
 	    (conn->flags & CO_FL_WAIT_XPRT) == 0) {
 		__cs_strm(cs)->conn_exp = TICK_ETERNITY;
 		oc->flags |= CF_WRITE_NULL;
-		if (cs->state == CS_ST_CON)
-			cs->state = CS_ST_RDY;
+		if (cs->state == SC_ST_CON)
+			cs->state = SC_ST_RDY;
 	}
 
 	/* Report EOS on the channel if it was reached from the mux point of

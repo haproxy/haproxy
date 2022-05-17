@@ -1390,13 +1390,13 @@ spoe_handle_connect_appctx(struct appctx *appctx)
 	char *frame, *buf;
 	int   ret;
 
-	if (cs_state_in(cs->state, CS_SB_CER|CS_SB_DIS|CS_SB_CLO)) {
+	if (cs_state_in(cs->state, SC_SB_CER|SC_SB_DIS|SC_SB_CLO)) {
 		/* closed */
 		SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_IO;
 		goto exit;
 	}
 
-	if (!cs_state_in(cs->state, CS_SB_RDY|CS_SB_EST)) {
+	if (!cs_state_in(cs->state, SC_SB_RDY|SC_SB_EST)) {
 		/* not connected yet */
 		cs_rx_endp_more(cs);
 		task_wakeup(__cs_strm(cs)->task, TASK_WOKEN_MSG);
@@ -1457,7 +1457,7 @@ spoe_handle_connecting_appctx(struct appctx *appctx)
 	int    ret;
 
 
-	if (cs->state == CS_ST_CLO || cs_opposite(cs)->state == CS_ST_CLO) {
+	if (cs->state == SC_ST_CLO || cs_opposite(cs)->state == SC_ST_CLO) {
 		SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_IO;
 		goto exit;
 	}
@@ -1709,7 +1709,7 @@ spoe_handle_processing_appctx(struct appctx *appctx)
 	struct spoe_agent       *agent = SPOE_APPCTX(appctx)->agent;
 	int ret, skip_sending = 0, skip_receiving = 0, active_s = 0, active_r = 0, close_asap = 0;
 
-	if (cs->state == CS_ST_CLO || cs_opposite(cs)->state == CS_ST_CLO) {
+	if (cs->state == SC_ST_CLO || cs_opposite(cs)->state == SC_ST_CLO) {
 		SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_IO;
 		goto exit;
 	}
@@ -1832,7 +1832,7 @@ spoe_handle_disconnect_appctx(struct appctx *appctx)
 	char *frame, *buf;
 	int   ret;
 
-	if (cs->state == CS_ST_CLO || cs_opposite(cs)->state == CS_ST_CLO)
+	if (cs->state == SC_ST_CLO || cs_opposite(cs)->state == SC_ST_CLO)
 		goto exit;
 
 	if (appctx->st1 == SPOE_APPCTX_ERR_TOUT)
@@ -1884,7 +1884,7 @@ spoe_handle_disconnecting_appctx(struct appctx *appctx)
 	char  *frame;
 	int    ret;
 
-	if (cs->state == CS_ST_CLO || cs_opposite(cs)->state == CS_ST_CLO) {
+	if (cs->state == SC_ST_CLO || cs_opposite(cs)->state == SC_ST_CLO) {
 		SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_IO;
 		goto exit;
 	}

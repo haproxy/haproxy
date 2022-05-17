@@ -85,7 +85,7 @@ static inline struct stconn *cs_opposite(struct stconn *cs)
 }
 
 
-/* to be called only when in CS_ST_DIS with SC_FL_ERR */
+/* to be called only when in SC_ST_DIS with SC_FL_ERR */
 static inline void cs_report_error(struct stconn *cs)
 {
 	if (!__cs_strm(cs)->conn_err_type)
@@ -103,17 +103,17 @@ static inline void cs_set_state(struct stconn *cs, int state)
 	cs->state = __cs_strm(cs)->prev_conn_state = state;
 }
 
-/* returns a bit for a stream connector state, to match against CS_SB_* */
+/* returns a bit for a stream connector state, to match against SC_SB_* */
 static inline enum cs_state_bit cs_state_bit(enum cs_state state)
 {
-	BUG_ON(state > CS_ST_CLO);
+	BUG_ON(state > SC_ST_CLO);
 	return 1U << state;
 }
 
-/* returns true if <state> matches one of the CS_SB_* bits in <mask> */
+/* returns true if <state> matches one of the SC_SB_* bits in <mask> */
 static inline int cs_state_in(enum cs_state state, enum cs_state_bit mask)
 {
-	BUG_ON(mask & ~CS_SB_ALL);
+	BUG_ON(mask & ~SC_SB_ALL);
 	return !!(cs_state_bit(state) & mask);
 }
 
@@ -130,7 +130,7 @@ static inline int cs_conn_ready(struct stconn *cs)
 
 /* The stream connector is only responsible for the connection during the early
  * states, before plugging a mux. Thus it should only care about CO_FL_ERROR
- * before CS_ST_EST, and after that it must absolutely ignore it since the mux
+ * before SC_ST_EST, and after that it must absolutely ignore it since the mux
  * may hold pending data. This function returns true if such an error was
  * reported. Both the CS and the CONN must be valid.
  */
@@ -138,7 +138,7 @@ static inline int cs_is_conn_error(const struct stconn *cs)
 {
 	struct connection *conn;
 
-	if (cs->state >= CS_ST_EST)
+	if (cs->state >= SC_ST_EST)
 		return 0;
 
 	conn = __cs_conn(cs);
@@ -292,13 +292,13 @@ static inline void cs_shutw(struct stconn *cs)
  */
 static inline void cs_chk_rcv(struct stconn *cs)
 {
-	if (sc_ep_test(cs, SE_FL_RXBLK_CONN) && cs_state_in(cs_opposite(cs)->state, CS_SB_RDY|CS_SB_EST|CS_SB_DIS|CS_SB_CLO))
+	if (sc_ep_test(cs, SE_FL_RXBLK_CONN) && cs_state_in(cs_opposite(cs)->state, SC_SB_RDY|SC_SB_EST|SC_SB_DIS|SC_SB_CLO))
 		cs_rx_conn_rdy(cs);
 
 	if (cs_rx_blocked(cs) || !cs_rx_endp_ready(cs))
 		return;
 
-	if (!cs_state_in(cs->state, CS_SB_RDY|CS_SB_EST))
+	if (!cs_state_in(cs->state, SC_SB_RDY|SC_SB_EST))
 		return;
 
 	sc_ep_set(cs, SE_FL_RX_WAIT_EP);
@@ -322,17 +322,17 @@ static inline void cs_update(struct stconn *cs)
 static inline const char *cs_state_str(int state)
 {
 	switch (state) {
-	case CS_ST_INI: return "INI";
-	case CS_ST_REQ: return "REQ";
-	case CS_ST_QUE: return "QUE";
-	case CS_ST_TAR: return "TAR";
-	case CS_ST_ASS: return "ASS";
-	case CS_ST_CON: return "CON";
-	case CS_ST_CER: return "CER";
-	case CS_ST_RDY: return "RDY";
-	case CS_ST_EST: return "EST";
-	case CS_ST_DIS: return "DIS";
-	case CS_ST_CLO: return "CLO";
+	case SC_ST_INI: return "INI";
+	case SC_ST_REQ: return "REQ";
+	case SC_ST_QUE: return "QUE";
+	case SC_ST_TAR: return "TAR";
+	case SC_ST_ASS: return "ASS";
+	case SC_ST_CON: return "CON";
+	case SC_ST_CER: return "CER";
+	case SC_ST_RDY: return "RDY";
+	case SC_ST_EST: return "EST";
+	case SC_ST_DIS: return "DIS";
+	case SC_ST_CLO: return "CLO";
 	default:        return "???";
 	}
 }
