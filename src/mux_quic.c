@@ -189,8 +189,12 @@ static void qc_free_ncbuf(struct qcs *qcs, struct ncbuf *ncbuf)
 {
 	struct buffer buf;
 
+	if (ncb_is_null(ncbuf))
+		return;
+
 	buf = b_make(ncbuf->area, ncbuf->size, 0, 0);
 	b_free(&buf);
+	offer_buffers(NULL, 1);
 
 	*ncbuf = NCBUF_NULL;
 }
