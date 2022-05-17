@@ -149,20 +149,24 @@ struct data_cb {
 };
 
 
-/* cs_endpoint is the link between the conn-stream and the endpoint (mux or
- * appctx). It is created by the mux/applet on the client side and share with
- * the conn-stream. On the server side, it is the opposite. A cs-endpoint
- * without conn-stream is called an orphan endpoint. A cs-endpoint with no
- * mux/applet is called a detached endpoint. On detach, the conn-stream
- * transfers the whole responsibility to the mux/applet and eventually create a
- * new cs-endpoint (for instance on connection retries).
+/* A Stream Endpoint Descriptor (sedesc) is the link between the stream
+ * connector (ex. conn_stream) and the Stream Endpoint (mux or appctx).
+ * It always exists for either of them, and binds them together. It also
+ * contains some shared information relative to the endpoint. It is created by
+ * the first one which needs it and is shared by the other one, i.e. on the
+ * client side, it's created the mux or applet and shared with the connector.
+ * An sedesc without stconn is called an ORPHANED descriptor. An sedesc with
+ * no mux/applet is called a DETACHED descriptor. Upon detach, the connector
+ * transfers the whole responsibility of the endpoint descriptor to the
+ * endpoint itself (mux/applet) and eventually creates a new sedesc (for
+ * instance on connection retries).
  *
  * <se>     is the stream endpoint, i.e. the mux stream or the appctx
  * <conn>   is the connection for connection-based streams
  * <cs>     is the conn_stream we're attached to, or NULL
  * <flags>  SE_FL_*
 */
-struct cs_endpoint {
+struct sedesc {
 	void *se;
 	struct connection *conn;
 	struct conn_stream *cs;
@@ -188,7 +192,7 @@ struct conn_stream {
 	unsigned int flags;                  /* CS_FL_* */
 	unsigned int hcto;                   /* half-closed timeout (0 = unset) */
 	struct wait_event wait_event;        /* We're in a wait list */
-	struct cs_endpoint *endp;            /* points to the end point (MUX stream or appctx) */
+	struct sedesc *endp;                 /* points to the end point (MUX stream or appctx) */
 	enum obj_type *app;                  /* points to the applicative point (stream or check) */
 	const struct data_cb *data_cb;       /* data layer callbacks. Must be set before xprt->init() */
 	struct cs_app_ops *ops;              /* general operations used at the app layer */

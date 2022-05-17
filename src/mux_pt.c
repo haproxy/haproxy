@@ -20,7 +20,7 @@
 #include <haproxy/trace.h>
 
 struct mux_pt_ctx {
-	struct cs_endpoint *endp;
+	struct sedesc *endp;
 	struct connection *conn;
 	struct wait_event wait_event;
 };
@@ -209,7 +209,7 @@ static void mux_pt_destroy(struct mux_pt_ctx *ctx)
 		conn->xprt->unsubscribe(conn, conn->xprt_ctx, ctx->wait_event.events,
 					&ctx->wait_event);
 	BUG_ON(ctx->endp && !se_fl_test(ctx->endp, SE_FL_ORPHAN));
-	cs_endpoint_free(ctx->endp);
+	sedesc_free(ctx->endp);
 	pool_free(pool_head_pt_ctx, ctx);
 
 	if (conn) {
@@ -293,7 +293,7 @@ static int mux_pt_init(struct connection *conn, struct proxy *prx, struct sessio
 	ctx->conn = conn;
 
 	if (!cs) {
-		ctx->endp = cs_endpoint_new();
+		ctx->endp = sedesc_new();
 		if (!ctx->endp) {
 			TRACE_ERROR("CS allocation failure", PT_EV_STRM_NEW|PT_EV_STRM_END|PT_EV_STRM_ERR, conn);
 			goto fail_free_ctx;
@@ -323,7 +323,7 @@ static int mux_pt_init(struct connection *conn, struct proxy *prx, struct sessio
 	return 0;
 
  fail_free_endp:
-	cs_endpoint_free(ctx->endp);
+	sedesc_free(ctx->endp);
  fail_free_ctx:
 	if (ctx->wait_event.tasklet)
 		tasklet_free(ctx->wait_event.tasklet);
@@ -373,7 +373,7 @@ static int mux_pt_wake(struct connection *conn)
  * Attach a new stream to a connection
  * (Used for outgoing connections)
  */
-static int mux_pt_attach(struct connection *conn, struct cs_endpoint *endp, struct session *sess)
+static int mux_pt_attach(struct connection *conn, struct sedesc *endp, struct session *sess)
 {
 	struct mux_pt_ctx *ctx = conn->ctx;
 
@@ -417,7 +417,7 @@ static void mux_pt_destroy_meth(void *ctx)
 /*
  * Detach the stream from the connection and possibly release the connection.
  */
-static void mux_pt_detach(struct cs_endpoint *endp)
+static void mux_pt_detach(struct sedesc *endp)
 {
 	struct connection *conn = endp->conn;
 	struct mux_pt_ctx *ctx;

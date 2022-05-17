@@ -41,7 +41,7 @@
 /* referenced below */
 struct connection;
 struct conn_stream;
-struct cs_endpoint;
+struct sedesc;
 struct cs_info;
 struct buffer;
 struct proxy;
@@ -396,9 +396,9 @@ struct mux_ops {
 	void (*shutr)(struct conn_stream *cs, enum co_shr_mode);     /* shutr function */
 	void (*shutw)(struct conn_stream *cs, enum co_shw_mode);     /* shutw function */
 
-	int (*attach)(struct connection *conn, struct cs_endpoint *, struct session *sess); /* attach a conn_stream to an outgoing connection */
+	int (*attach)(struct connection *conn, struct sedesc *, struct session *sess); /* attach a conn_stream to an outgoing connection */
 	struct conn_stream *(*get_first_cs)(const struct connection *); /* retrieves any valid conn_stream from this connection */
-	void (*detach)(struct cs_endpoint *); /* Detach a conn_stream from an outgoing connection, when the request is done */
+	void (*detach)(struct sedesc *); /* Detach a conn_stream from an outgoing connection, when the request is done */
 	int (*show_fd)(struct buffer *, struct connection *); /* append some data about connection into chunk for "show fd"; returns non-zero if suspicious */
 	int (*subscribe)(struct conn_stream *cs, int event_type,  struct wait_event *es); /* Subscribe <es> to events, such as "being able to send" */
 	int (*unsubscribe)(struct conn_stream *cs, int event_type,  struct wait_event *es); /* Unsubscribe <es> from events */

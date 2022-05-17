@@ -118,7 +118,7 @@ struct h1c {
 /* H1 stream descriptor */
 struct h1s {
 	struct h1c *h1c;
-	struct cs_endpoint *endp;
+	struct sedesc *endp;
 	uint32_t flags;                /* Connection flags: H1S_F_* */
 
 	struct wait_event *subs;      /* Address of the wait_event the conn_stream associated is waiting on */
@@ -818,7 +818,7 @@ static struct h1s *h1c_frt_stream_new(struct h1c *h1c, struct conn_stream *cs, s
 		h1s->endp = cs->endp;
 	}
 	else {
-		h1s->endp = cs_endpoint_new();
+		h1s->endp = sedesc_new();
 		if (!h1s->endp)
 			goto fail;
 		h1s->endp->se     = h1s;
@@ -912,7 +912,7 @@ static void h1s_destroy(struct h1s *h1s)
 
 		HA_ATOMIC_DEC(&h1c->px_counters->open_streams);
 		BUG_ON(h1s->endp && !se_fl_test(h1s->endp, SE_FL_ORPHAN));
-		cs_endpoint_free(h1s->endp);
+		sedesc_free(h1s->endp);
 		pool_free(pool_head_h1s, h1s);
 	}
 }
@@ -3303,7 +3303,7 @@ struct task *h1_timeout_task(struct task *t, void *context, unsigned int state)
  * Attach a new stream to a connection
  * (Used for outgoing connections)
  */
-static int h1_attach(struct connection *conn, struct cs_endpoint *endp, struct session *sess)
+static int h1_attach(struct connection *conn, struct sedesc *endp, struct session *sess)
 {
 	struct h1c *h1c = conn->ctx;
 	struct h1s *h1s;
@@ -3357,7 +3357,7 @@ static void h1_destroy(void *ctx)
 /*
  * Detach the stream from the connection and possibly release the connection.
  */
-static void h1_detach(struct cs_endpoint *endp)
+static void h1_detach(struct sedesc *endp)
 {
 	struct h1s *h1s = endp->se;
 	struct h1c *h1c;

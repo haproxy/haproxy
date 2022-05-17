@@ -35,10 +35,10 @@ struct check;
 
 #define IS_HTX_CS(cs)     (cs_conn(cs) && IS_HTX_CONN(__cs_conn(cs)))
 
-struct cs_endpoint *cs_endpoint_new();
-void cs_endpoint_free(struct cs_endpoint *endp);
+struct sedesc *sedesc_new();
+void sedesc_free(struct sedesc *sedesc);
 
-struct conn_stream *cs_new_from_endp(struct cs_endpoint *endp, struct session *sess, struct buffer *input);
+struct conn_stream *cs_new_from_endp(struct sedesc *sedesc, struct session *sess, struct buffer *input);
 struct conn_stream *cs_new_from_strm(struct stream *strm, unsigned int flags);
 struct conn_stream *cs_new_from_check(struct check *check, unsigned int flags);
 void cs_free(struct conn_stream *cs);
@@ -62,32 +62,32 @@ struct appctx *cs_applet_create(struct conn_stream *cs, struct applet *app);
  */
 
 /* stream endpoint version */
-static forceinline void se_fl_zero(struct cs_endpoint *se)
+static forceinline void se_fl_zero(struct sedesc *se)
 {
 	se->flags = 0;
 }
 
-static forceinline void se_fl_setall(struct cs_endpoint *se, uint all)
+static forceinline void se_fl_setall(struct sedesc *se, uint all)
 {
 	se->flags = all;
 }
 
-static forceinline void se_fl_set(struct cs_endpoint *se, uint on)
+static forceinline void se_fl_set(struct sedesc *se, uint on)
 {
 	se->flags |= on;
 }
 
-static forceinline void se_fl_clr(struct cs_endpoint *se, uint off)
+static forceinline void se_fl_clr(struct sedesc *se, uint off)
 {
 	se->flags &= ~off;
 }
 
-static forceinline uint se_fl_test(const struct cs_endpoint *se, uint test)
+static forceinline uint se_fl_test(const struct sedesc *se, uint test)
 {
 	return !!(se->flags & test);
 }
 
-static forceinline uint se_fl_get(const struct cs_endpoint *se)
+static forceinline uint se_fl_get(const struct sedesc *se)
 {
 	return se->flags;
 }
@@ -271,7 +271,7 @@ static inline void cs_conn_drain_and_shut(struct conn_stream *cs)
 }
 
 /* sets SE_FL_ERROR or SE_FL_ERR_PENDING on the endpoint */
-static inline void cs_ep_set_error(struct cs_endpoint *endp)
+static inline void cs_ep_set_error(struct sedesc *endp)
 {
 	if (se_fl_test(endp, SE_FL_EOS))
 		se_fl_set(endp, SE_FL_ERROR);

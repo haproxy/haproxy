@@ -212,7 +212,7 @@ enum h2_ss {
  * it is being processed in the internal HTTP representation (HTX).
  */
 struct h2s {
-	struct cs_endpoint *endp;
+	struct sedesc *endp;
 	struct session *sess;
 	struct h2c *h2c;
 	struct eb32_node by_id; /* place in h2c's streams_by_id */
@@ -523,14 +523,14 @@ static unsigned int h2_settings_max_concurrent_streams = 100;
 static int h2_settings_max_frame_size         = 0;     /* unset */
 
 /* a dummy closed endpoint */
-static const struct cs_endpoint closed_ep = {
+static const struct sedesc closed_ep = {
 	. cs       = NULL,
 	.flags     = SE_FL_DETACHED,
 };
 
 /* a dmumy closed stream */
 static const struct h2s *h2_closed_stream = &(const struct h2s){
-	.endp      = (struct cs_endpoint *)&closed_ep,
+	.endp      = (struct sedesc *)&closed_ep,
 	.h2c       = NULL,
 	.st        = H2_SS_CLOSED,
 	.errcode   = H2_ERR_STREAM_CLOSED,
@@ -540,7 +540,7 @@ static const struct h2s *h2_closed_stream = &(const struct h2s){
 
 /* a dmumy closed stream returning a PROTOCOL_ERROR error */
 static const struct h2s *h2_error_stream = &(const struct h2s){
-	.endp      = (struct cs_endpoint *)&closed_ep,
+	.endp      = (struct sedesc *)&closed_ep,
 	.h2c       = NULL,
 	.st        = H2_SS_CLOSED,
 	.errcode   = H2_ERR_PROTOCOL_ERROR,
@@ -550,7 +550,7 @@ static const struct h2s *h2_error_stream = &(const struct h2s){
 
 /* a dmumy closed stream returning a REFUSED_STREAM error */
 static const struct h2s *h2_refused_stream = &(const struct h2s){
-	.endp      = (struct cs_endpoint *)&closed_ep,
+	.endp      = (struct sedesc *)&closed_ep,
 	.h2c       = NULL,
 	.st        = H2_SS_CLOSED,
 	.errcode   = H2_ERR_REFUSED_STREAM,
@@ -560,7 +560,7 @@ static const struct h2s *h2_refused_stream = &(const struct h2s){
 
 /* and a dummy idle stream for use with any unannounced stream */
 static const struct h2s *h2_idle_stream = &(const struct h2s){
-	.endp      = (struct cs_endpoint *)&closed_ep,
+	.endp      = (struct sedesc *)&closed_ep,
 	.h2c       = NULL,
 	.st        = H2_SS_IDLE,
 	.errcode   = H2_ERR_STREAM_CLOSED,
@@ -1525,7 +1525,7 @@ static void h2s_destroy(struct h2s *h2s)
 	/* ditto, calling tasklet_free() here should be ok */
 	tasklet_free(h2s->shut_tl);
 	BUG_ON(h2s->endp && !se_fl_test(h2s->endp, SE_FL_ORPHAN));
-	cs_endpoint_free(h2s->endp);
+	sedesc_free(h2s->endp);
 	pool_free(pool_head_h2s, h2s);
 
 	TRACE_LEAVE(H2_EV_H2S_END, conn);
@@ -1609,7 +1609,7 @@ static struct h2s *h2c_frt_stream_new(struct h2c *h2c, int id, struct buffer *in
 	if (!h2s)
 		goto out_alloc;
 
-	h2s->endp = cs_endpoint_new();
+	h2s->endp = sedesc_new();
 	if (!h2s->endp)
 		goto out_close;
 	h2s->endp->se     = h2s;
@@ -4289,7 +4289,7 @@ do_leave:
  * Attach a new stream to a connection
  * (Used for outgoing connections)
  */
-static int h2_attach(struct connection *conn, struct cs_endpoint *endp, struct session *sess)
+static int h2_attach(struct connection *conn, struct sedesc *endp, struct session *sess)
 {
 	struct h2s *h2s;
 	struct h2c *h2c = conn->ctx;
@@ -4368,7 +4368,7 @@ static void h2_destroy(void *ctx)
 /*
  * Detach the stream from the connection and possibly release the connection.
  */
-static void h2_detach(struct cs_endpoint *endp)
+static void h2_detach(struct sedesc *endp)
 {
 	struct h2s *h2s = endp->se;
 	struct h2c *h2c;

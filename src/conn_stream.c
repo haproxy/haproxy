@@ -21,7 +21,7 @@
 #include <haproxy/pool.h>
 
 DECLARE_POOL(pool_head_connstream, "conn_stream", sizeof(struct conn_stream));
-DECLARE_POOL(pool_head_cs_endpoint, "cs_endpoint", sizeof(struct cs_endpoint));
+DECLARE_POOL(pool_head_sedesc, "sedesc", sizeof(struct sedesc));
 
 /* functions used by default on a detached conn-stream */
 static void cs_app_shutr(struct conn_stream *cs);
@@ -82,33 +82,33 @@ struct data_cb cs_data_applet_cb = {
 
 
 /* Initializes an endpoint */
-void cs_endpoint_init(struct cs_endpoint *endp)
+void sedesc_init(struct sedesc *sedesc)
 {
-	endp->se = NULL;
-	endp->conn = NULL;
-	endp->cs = NULL;
-	se_fl_setall(endp, SE_FL_NONE);
+	sedesc->se = NULL;
+	sedesc->conn = NULL;
+	sedesc->cs = NULL;
+	se_fl_setall(sedesc, SE_FL_NONE);
 }
 
 /* Tries to alloc an endpoint and initialize it. Returns NULL on failure. */
-struct cs_endpoint *cs_endpoint_new()
+struct sedesc *sedesc_new()
 {
-	struct cs_endpoint *endp;
+	struct sedesc *sedesc;
 
-	endp = pool_alloc(pool_head_cs_endpoint);
-	if (unlikely(!endp))
+	sedesc = pool_alloc(pool_head_sedesc);
+	if (unlikely(!sedesc))
 		return NULL;
 
-	cs_endpoint_init(endp);
-	return endp;
+	sedesc_init(sedesc);
+	return sedesc;
 }
 
 /* Releases an endpoint. It is the caller responsibility to be sure it is safe
  * and it is not shared with another entity
  */
-void cs_endpoint_free(struct cs_endpoint *endp)
+void sedesc_free(struct sedesc *sedesc)
 {
-	pool_free(pool_head_cs_endpoint, endp);
+	pool_free(pool_head_sedesc, sedesc);
 }
 
 /* Tries to allocate a new conn_stream and initialize its main fields. On
@@ -116,7 +116,7 @@ void cs_endpoint_free(struct cs_endpoint *endp)
  * function. The caller must, at least, set the SE_FL_ORPHAN or SE_FL_DETACHED
  * flag.
  */
-static struct conn_stream *cs_new(struct cs_endpoint *endp)
+static struct conn_stream *cs_new(struct sedesc *sedesc)
 {
 	struct conn_stream *cs;
 
@@ -137,13 +137,13 @@ static struct conn_stream *cs_new(struct cs_endpoint *endp)
 	cs->wait_event.events = 0;
 
 	/* If there is no endpoint, allocate a new one now */
-	if (!endp) {
-		endp = cs_endpoint_new();
-		if (unlikely(!endp))
+	if (!sedesc) {
+		sedesc = sedesc_new();
+		if (unlikely(!sedesc))
 			goto alloc_error;
 	}
-	cs->endp = endp;
-	endp->cs = cs;
+	cs->endp = sedesc;
+	sedesc->cs = cs;
 
 	return cs;
 
@@ -156,18 +156,18 @@ static struct conn_stream *cs_new(struct cs_endpoint *endp)
  * defined. It returns NULL on error. On success, the new conn-stream is
  * returned. In this case, SE_FL_ORPHAN flag is removed.
  */
-struct conn_stream *cs_new_from_endp(struct cs_endpoint *endp, struct session *sess, struct buffer *input)
+struct conn_stream *cs_new_from_endp(struct sedesc *sedesc, struct session *sess, struct buffer *input)
 {
 	struct conn_stream *cs;
 
-	cs = cs_new(endp);
+	cs = cs_new(sedesc);
 	if (unlikely(!cs))
 		return NULL;
 	if (unlikely(!stream_new(sess, cs, input))) {
 		pool_free(pool_head_connstream, cs);
 		cs = NULL;
 	}
-	se_fl_clr(endp, SE_FL_ORPHAN);
+	se_fl_clr(sedesc, SE_FL_ORPHAN);
 	return cs;
 }
 
@@ -217,7 +217,7 @@ void cs_free(struct conn_stream *cs)
 	sockaddr_free(&cs->dst);
 	if (cs->endp) {
 		BUG_ON(!sc_ep_test(cs, SE_FL_DETACHED));
-		cs_endpoint_free(cs->endp);
+		sedesc_free(cs->endp);
 	}
 	if (cs->wait_event.tasklet)
 		tasklet_free(cs->wait_event.tasklet);
@@ -347,7 +347,7 @@ static void cs_detach_endp(struct conn_stream **csp)
 
 	if (sc_ep_test(cs, SE_FL_T_MUX)) {
 		struct connection *conn = __cs_conn(cs);
-		struct cs_endpoint *endp = cs->endp;
+		struct sedesc *endp = cs->endp;
 
 		if (conn->mux) {
 			if (cs->wait_event.events != 0)
@@ -438,7 +438,7 @@ void cs_destroy(struct conn_stream *cs)
  */
 int cs_reset_endp(struct conn_stream *cs)
 {
-	struct cs_endpoint *new_endp;
+	struct sedesc *new_endp;
 
 	BUG_ON(!cs->app);
 
@@ -455,7 +455,7 @@ int cs_reset_endp(struct conn_stream *cs)
 
 	/* allocate the new endpoint first to be able to set error if it
 	 * fails */
-	new_endp = cs_endpoint_new();
+	new_endp = sedesc_new();
 	if (!unlikely(new_endp)) {
 		sc_ep_set(cs, SE_FL_ERROR);
 		return -1;

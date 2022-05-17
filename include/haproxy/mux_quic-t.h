@@ -104,7 +104,7 @@ struct qcc {
 
 struct qcs {
 	struct qcc *qcc;
-	struct cs_endpoint *endp;
+	struct sedesc *endp;
 	uint32_t flags;      /* QC_SF_* */
 	void *ctx;           /* app-ops context */
 

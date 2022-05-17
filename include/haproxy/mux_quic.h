@@ -96,7 +96,7 @@ static inline struct conn_stream *qc_attach_cs(struct qcs *qcs, struct buffer *b
 	struct qcc *qcc = qcs->qcc;
 	struct session *sess = qcc->conn->owner;
 
-	qcs->endp = cs_endpoint_new();
+	qcs->endp = sedesc_new();
 	if (!qcs->endp)
 		return NULL;
 

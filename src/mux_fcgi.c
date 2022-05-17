@@ -154,7 +154,7 @@ enum fcgi_strm_st {
 
 /* FCGI stream descriptor */
 struct fcgi_strm {
-	struct cs_endpoint *endp;
+	struct sedesc *endp;
 	struct session *sess;
 	struct fcgi_conn *fconn;
 
@@ -371,14 +371,14 @@ static void fcgi_strm_alert(struct fcgi_strm *fstrm);
 static int fcgi_strm_send_abort(struct fcgi_conn *fconn, struct fcgi_strm *fstrm);
 
 /* a dummy closed endpoint */
-static const struct cs_endpoint closed_ep = {
+static const struct sedesc closed_ep = {
 	. cs       = NULL,
 	.flags     = SE_FL_DETACHED,
 };
 
 /* a dmumy management stream */
 static const struct fcgi_strm *fcgi_mgmt_stream = &(const struct fcgi_strm){
-	.endp      = (struct cs_endpoint*)&closed_ep,
+	.endp      = (struct sedesc*)&closed_ep,
 	.fconn     = NULL,
 	.state     = FCGI_SS_CLOSED,
 	.flags     = FCGI_SF_NONE,
@@ -387,7 +387,7 @@ static const struct fcgi_strm *fcgi_mgmt_stream = &(const struct fcgi_strm){
 
 /* and a dummy idle stream for use with any unknown stream */
 static const struct fcgi_strm *fcgi_unknown_stream = &(const struct fcgi_strm){
-	.endp      = (struct cs_endpoint*)&closed_ep,
+	.endp      = (struct sedesc*)&closed_ep,
 	.fconn     = NULL,
 	.state     = FCGI_SS_IDLE,
 	.flags     = FCGI_SF_NONE,
@@ -1040,7 +1040,7 @@ static void fcgi_strm_destroy(struct fcgi_strm *fstrm)
 	LIST_DEL_INIT(&fstrm->send_list);
 	tasklet_free(fstrm->shut_tl);
 	BUG_ON(fstrm->endp && !se_fl_test(fstrm->endp, SE_FL_ORPHAN));
-	cs_endpoint_free(fstrm->endp);
+	sedesc_free(fstrm->endp);
 	pool_free(pool_head_fcgi_strm, fstrm);
 
 	TRACE_LEAVE(FCGI_EV_FSTRM_END, conn);
@@ -3521,7 +3521,7 @@ static size_t fcgi_strm_parse_response(struct fcgi_strm *fstrm, struct buffer *b
  * Attach a new stream to a connection
  * (Used for outgoing connections)
  */
-static int fcgi_attach(struct connection *conn, struct cs_endpoint *endp, struct session *sess)
+static int fcgi_attach(struct connection *conn, struct sedesc *endp, struct session *sess)
 {
 	struct fcgi_strm *fstrm;
 	struct fcgi_conn *fconn = conn->ctx;
@@ -3581,7 +3581,7 @@ static void fcgi_destroy(void *ctx)
 /*
  * Detach the stream from the connection and possibly release the connection.
  */
-static void fcgi_detach(struct cs_endpoint *endp)
+static void fcgi_detach(struct sedesc *endp)
 {
 	struct fcgi_strm *fstrm = endp->se;
 	struct fcgi_conn *fconn;

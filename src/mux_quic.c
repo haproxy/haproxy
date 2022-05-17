@@ -214,7 +214,7 @@ void qcs_free(struct qcs *qcs)
 	qc_stream_desc_release(qcs->stream);
 
 	BUG_ON(qcs->endp && !se_fl_test(qcs->endp, SE_FL_ORPHAN));
-	cs_endpoint_free(qcs->endp);
+	sedesc_free(qcs->endp);
 
 	eb64_delete(&qcs->by_id);
 	pool_free(pool_head_qcs, qcs);
@@ -1422,7 +1422,7 @@ static void qc_destroy(void *ctx)
 	TRACE_LEAVE(QMUX_EV_QCC_END);
 }
 
-static void qc_detach(struct cs_endpoint *endp)
+static void qc_detach(struct sedesc *endp)
 {
 	struct qcs *qcs = endp->se;
 	struct qcc *qcc = qcs->qcc;

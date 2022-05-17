@@ -40,21 +40,21 @@ int appctx_buf_available(void *arg);
 void *applet_reserve_svcctx(struct appctx *appctx, size_t size);
 void appctx_shut(struct appctx *appctx);
 
-struct appctx *appctx_new(struct applet *applet, struct cs_endpoint *endp, unsigned long thread_mask);
+struct appctx *appctx_new(struct applet *applet, struct sedesc *endp, unsigned long thread_mask);
 int appctx_finalize_startup(struct appctx *appctx, struct proxy *px, struct buffer *input);
 void appctx_free_on_early_error(struct appctx *appctx);
 
-static inline struct appctx *appctx_new_on(struct applet *applet, struct cs_endpoint *endp, uint thr)
+static inline struct appctx *appctx_new_on(struct applet *applet, struct sedesc *endp, uint thr)
 {
 	return appctx_new(applet, endp, 1UL << thr);
 }
 
-static inline struct appctx *appctx_new_here(struct applet *applet, struct cs_endpoint *endp)
+static inline struct appctx *appctx_new_here(struct applet *applet, struct sedesc *endp)
 {
 	return appctx_new(applet, endp, tid_bit);
 }
 
-static inline struct appctx *appctx_new_anywhere(struct applet *applet, struct cs_endpoint *endp)
+static inline struct appctx *appctx_new_anywhere(struct applet *applet, struct sedesc *endp)
 {
 	return appctx_new(applet, endp, MAX_THREADS_MASK);
 }
@@ -85,7 +85,7 @@ static inline void __appctx_free(struct appctx *appctx)
 	if (appctx->sess)
 		session_free(appctx->sess);
 	BUG_ON(appctx->endp && !se_fl_test(appctx->endp, SE_FL_ORPHAN));
-	cs_endpoint_free(appctx->endp);
+	sedesc_free(appctx->endp);
 	pool_free(pool_head_appctx, appctx);
 	_HA_ATOMIC_DEC(&nb_applets);
 }
