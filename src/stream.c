@@ -313,10 +313,10 @@ int stream_buf_available(void *arg)
 {
 	struct stream *s = arg;
 
-	if (!s->req.buf.size && !s->req.pipe && (s->csf->endp->flags & CS_EP_RXBLK_BUFF) &&
+	if (!s->req.buf.size && !s->req.pipe && sc_ep_test(s->csf, CS_EP_RXBLK_BUFF) &&
 	    b_alloc(&s->req.buf))
 		cs_rx_buff_rdy(s->csf);
-	else if (!s->res.buf.size && !s->res.pipe && (s->csb->endp->flags & CS_EP_RXBLK_BUFF) &&
+	else if (!s->res.buf.size && !s->res.pipe && sc_ep_test(s->csb, CS_EP_RXBLK_BUFF) &&
 		 b_alloc(&s->res.buf))
 		cs_rx_buff_rdy(s->csb);
 	else
@@ -463,7 +463,7 @@ struct stream *stream_new(struct session *sess, struct conn_stream *cs, struct b
 	if (likely(sess->fe->options2 & PR_O2_INDEPSTR))
 		s->csb->flags |= CS_FL_INDEP_STR;
 
-	if (cs->endp->flags & CS_EP_WEBSOCKET)
+	if (sc_ep_test(cs, CS_EP_WEBSOCKET))
 		s->flags |= SF_WEBSOCKET;
 	if (cs_conn(cs)) {
 		const struct mux_ops *mux = cs_conn_mux(cs);
@@ -886,7 +886,7 @@ static void back_establish(struct stream *s)
 	s->flags &= ~SF_CONN_EXP;
 
 	/* errors faced after sending data need to be reported */
-	if (s->csb->endp->flags & CS_EP_ERROR && req->flags & CF_WROTE_DATA) {
+	if (sc_ep_test(s->csb, CS_EP_ERROR) && req->flags & CF_WROTE_DATA) {
 		/* Don't add CF_WRITE_ERROR if we're here because
 		 * early data were rejected by the server, or
 		 * http_wait_for_response() will never be called
@@ -1716,7 +1716,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		      (CF_SHUTR|CF_READ_ACTIVITY|CF_READ_TIMEOUT|CF_SHUTW|
 		       CF_WRITE_ACTIVITY|CF_WRITE_TIMEOUT|CF_ANA_TIMEOUT)) &&
 		    !(s->flags & SF_CONN_EXP) &&
-		    !((csf->endp->flags | csb->flags) & CS_EP_ERROR) &&
+		    !((sc_ep_get(csf) | csb->flags) & CS_EP_ERROR) &&
 		    ((s->pending_events & TASK_WOKEN_ANY) == TASK_WOKEN_TIMER)) {
 			csf->flags &= ~CS_FL_DONT_WAKE;
 			csb->flags &= ~CS_FL_DONT_WAKE;
@@ -1735,10 +1735,10 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	 *       must be be reviewed too.
 	 */
 	if (!stream_alloc_work_buffer(s)) {
-		s->csf->endp->flags |= CS_EP_ERROR;
+		sc_ep_set(s->csf, CS_EP_ERROR);
 		s->conn_err_type = STRM_ET_CONN_RES;
 
-		s->csb->endp->flags |= CS_EP_ERROR;
+		sc_ep_set(s->csb, CS_EP_ERROR);
 		s->conn_err_type = STRM_ET_CONN_RES;
 
 		if (!(s->flags & SF_ERR_MASK))
@@ -1754,7 +1754,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	 * connection setup code must be able to deal with any type of abort.
 	 */
 	srv = objt_server(s->target);
-	if (unlikely(csf->endp->flags & CS_EP_ERROR)) {
+	if (unlikely(sc_ep_test(csf, CS_EP_ERROR))) {
 		if (cs_state_in(csf->state, CS_SB_EST|CS_SB_DIS)) {
 			cs_shutr(csf);
 			cs_shutw(csf);
@@ -1774,7 +1774,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		}
 	}
 
-	if (unlikely(csb->endp->flags & CS_EP_ERROR)) {
+	if (unlikely(sc_ep_test(csb, CS_EP_ERROR))) {
 		if (cs_state_in(csb->state, CS_SB_EST|CS_SB_DIS)) {
 			cs_shutr(csb);
 			cs_shutw(csb);
@@ -2328,8 +2328,8 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	/* Benchmarks have shown that it's optimal to do a full resync now */
 	if (csf->state == CS_ST_DIS ||
 	    cs_state_in(csb->state, CS_SB_RDY|CS_SB_DIS) ||
-	    (csf->endp->flags & CS_EP_ERROR && csf->state != CS_ST_CLO) ||
-	    (csb->endp->flags & CS_EP_ERROR && csb->state != CS_ST_CLO))
+	    (sc_ep_test(csf, CS_EP_ERROR) && csf->state != CS_ST_CLO) ||
+	    (sc_ep_test(csb, CS_EP_ERROR) && csb->state != CS_ST_CLO))
 		goto resync_conn_stream;
 
 	/* otherwise we want to check if we need to resync the req buffer or not */
@@ -2452,8 +2452,8 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 
 	if (csf->state == CS_ST_DIS ||
 	    cs_state_in(csb->state, CS_SB_RDY|CS_SB_DIS) ||
-	    (csf->endp->flags & CS_EP_ERROR && csf->state != CS_ST_CLO) ||
-	    (csb->endp->flags & CS_EP_ERROR && csb->state != CS_ST_CLO))
+	    (sc_ep_test(csf, CS_EP_ERROR) && csf->state != CS_ST_CLO) ||
+	    (sc_ep_test(csb, CS_EP_ERROR) && csb->state != CS_ST_CLO))
 		goto resync_conn_stream;
 
 	if ((req->flags & ~rqf_last) & CF_MASK_ANALYSER)
@@ -3307,8 +3307,9 @@ static int stats_dump_full_strm_to_buffer(struct conn_stream *cs, struct stream 
 		csf = strm->csf;
 		chunk_appendf(&trash, "  csf=%p flags=0x%08x state=%s endp=%s,%p,0x%08x sub=%d\n",
 			      csf, csf->flags, cs_state_str(csf->state),
-			      (csf->endp->flags & CS_EP_T_MUX ? "CONN" : (csf->endp->flags & CS_EP_T_APPLET ? "APPCTX" : "NONE")),
-			      csf->endp->target, csf->endp->flags, csf->wait_event.events);
+			      (sc_ep_test(csf, CS_EP_T_MUX) ? "CONN" : (sc_ep_test(csf, CS_EP_T_APPLET) ? "APPCTX" : "NONE")),
+			      csf->endp->target, sc_ep_get(csf),
+			      csf->wait_event.events);
 
 		if ((conn = cs_conn(csf)) != NULL) {
 			chunk_appendf(&trash,
@@ -3346,8 +3347,9 @@ static int stats_dump_full_strm_to_buffer(struct conn_stream *cs, struct stream 
 		csb = strm->csb;
 		chunk_appendf(&trash, "  csb=%p flags=0x%08x state=%s endp=%s,%p,0x%08x sub=%d\n",
 			      csb, csb->flags, cs_state_str(csb->state),
-			      (csb->endp->flags & CS_EP_T_MUX ? "CONN" : (csb->endp->flags & CS_EP_T_APPLET ? "APPCTX" : "NONE")),
-			      csb->endp->target, csb->endp->flags, csb->wait_event.events);
+			      (sc_ep_test(csb, CS_EP_T_MUX) ? "CONN" : (sc_ep_test(csb, CS_EP_T_APPLET) ? "APPCTX" : "NONE")),
+			      csb->endp->target, sc_ep_get(csb),
+			      csb->wait_event.events);
 		if ((conn = cs_conn(csb)) != NULL) {
 			chunk_appendf(&trash,
 			              "      co1=%p ctrl=%s xprt=%s mux=%s data=%s target=%s:%p\n",

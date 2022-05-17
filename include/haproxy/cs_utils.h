@@ -268,7 +268,7 @@ static inline int cs_get_dst(struct conn_stream *cs)
 /* Marks on the conn-stream that next shutw must kill the whole connection */
 static inline void cs_must_kill_conn(struct conn_stream *cs)
 {
-	cs->endp->flags |= CS_EP_KILL_CONN;
+	sc_ep_set(cs, CS_EP_KILL_CONN);
 }
 
 
@@ -292,7 +292,7 @@ static inline void cs_shutw(struct conn_stream *cs)
  */
 static inline void cs_chk_rcv(struct conn_stream *cs)
 {
-	if (cs->endp->flags & CS_EP_RXBLK_CONN && cs_state_in(cs_opposite(cs)->state, CS_SB_RDY|CS_SB_EST|CS_SB_DIS|CS_SB_CLO))
+	if (sc_ep_test(cs, CS_EP_RXBLK_CONN) && cs_state_in(cs_opposite(cs)->state, CS_SB_RDY|CS_SB_EST|CS_SB_DIS|CS_SB_CLO))
 		cs_rx_conn_rdy(cs);
 
 	if (cs_rx_blocked(cs) || !cs_rx_endp_ready(cs))
@@ -301,7 +301,7 @@ static inline void cs_chk_rcv(struct conn_stream *cs)
 	if (!cs_state_in(cs->state, CS_SB_RDY|CS_SB_EST))
 		return;
 
-	cs->endp->flags |= CS_EP_RX_WAIT_EP;
+	sc_ep_set(cs, CS_EP_RX_WAIT_EP);
 	cs->ops->chk_rcv(cs);
 }
 

@@ -1268,7 +1268,7 @@ static __inline int do_l7_retry(struct stream *s, struct conn_stream *cs)
 			s->flags |= SF_ERR_INTERNAL;
 		return -1;
 	}
-	cs->endp->flags &= ~CS_EP_RXBLK_SHUT;
+	sc_ep_clr(cs, CS_EP_RXBLK_SHUT);
 
 	b_free(&req->buf);
 	/* Swap the L7 buffer with the channel buffer */
@@ -5172,7 +5172,7 @@ struct http_txn *http_create_txn(struct stream *s)
 		return NULL;
 	s->txn = txn;
 
-	txn->flags = ((cs && cs->endp->flags & CS_EP_NOT_FIRST) ? TX_NOT_FIRST : 0);
+	txn->flags = ((cs && sc_ep_test(cs, CS_EP_NOT_FIRST)) ? TX_NOT_FIRST : 0);
 	txn->status = -1;
 	txn->http_reply = NULL;
 	txn->l7_buffer = BUF_NULL;
