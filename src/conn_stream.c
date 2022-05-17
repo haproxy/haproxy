@@ -142,7 +142,7 @@ static struct conn_stream *cs_new(struct sedesc *sedesc)
 		if (unlikely(!sedesc))
 			goto alloc_error;
 	}
-	cs->endp = sedesc;
+	cs->sedesc = sedesc;
 	sedesc->cs = cs;
 
 	return cs;
@@ -215,9 +215,9 @@ void cs_free(struct conn_stream *cs)
 {
 	sockaddr_free(&cs->src);
 	sockaddr_free(&cs->dst);
-	if (cs->endp) {
+	if (cs->sedesc) {
 		BUG_ON(!sc_ep_test(cs, SE_FL_DETACHED));
-		sedesc_free(cs->endp);
+		sedesc_free(cs->sedesc);
 	}
 	if (cs->wait_event.tasklet)
 		tasklet_free(cs->wait_event.tasklet);
@@ -232,7 +232,7 @@ static void cs_free_cond(struct conn_stream **csp)
 {
 	struct conn_stream *cs = *csp;
 
-	if (!cs->app && (!cs->endp || sc_ep_test(cs, SE_FL_DETACHED))) {
+	if (!cs->app && (!cs->sedesc || sc_ep_test(cs, SE_FL_DETACHED))) {
 		cs_free(cs);
 		*csp = NULL;
 	}
@@ -246,11 +246,12 @@ static void cs_free_cond(struct conn_stream **csp)
 int cs_attach_mux(struct conn_stream *cs, void *endp, void *ctx)
 {
 	struct connection *conn = ctx;
+	struct sedesc *sedesc = cs->sedesc;
 
-	cs->endp->se     = endp;
-	cs->endp->conn   = ctx;
-	sc_ep_set(cs, SE_FL_T_MUX);
-	sc_ep_clr(cs, SE_FL_DETACHED);
+	sedesc->se = endp;
+	sedesc->conn = ctx;
+	se_fl_set(sedesc, SE_FL_T_MUX);
+	se_fl_clr(sedesc, SE_FL_DETACHED);
 	if (!conn->ctx)
 		conn->ctx = cs;
 	if (cs_strm(cs)) {
@@ -288,7 +289,7 @@ int cs_attach_mux(struct conn_stream *cs, void *endp, void *ctx)
  */
 static void cs_attach_applet(struct conn_stream *cs, void *endp)
 {
-	cs->endp->se = endp;
+	cs->sedesc->se = endp;
 	sc_ep_set(cs, SE_FL_T_APPLET);
 	sc_ep_clr(cs, SE_FL_DETACHED);
 	if (cs_strm(cs)) {
@@ -342,20 +343,20 @@ static void cs_detach_endp(struct conn_stream **csp)
 	if (!cs)
 		return;
 
-	if (!cs->endp)
+	if (!cs->sedesc)
 		goto reset_cs;
 
 	if (sc_ep_test(cs, SE_FL_T_MUX)) {
 		struct connection *conn = __cs_conn(cs);
-		struct sedesc *endp = cs->endp;
+		struct sedesc *sedesc = cs->sedesc;
 
 		if (conn->mux) {
 			if (cs->wait_event.events != 0)
 				conn->mux->unsubscribe(cs, cs->wait_event.events, &cs->wait_event);
-			se_fl_set(endp, SE_FL_ORPHAN);
-			endp->cs = NULL;
-			cs->endp = NULL;
-			conn->mux->detach(endp);
+			se_fl_set(sedesc, SE_FL_ORPHAN);
+			sedesc->cs = NULL;
+			cs->sedesc = NULL;
+			conn->mux->detach(sedesc);
 		}
 		else {
 			/* It's too early to have a mux, let's just destroy
@@ -372,16 +373,16 @@ static void cs_detach_endp(struct conn_stream **csp)
 		struct appctx *appctx = __cs_appctx(cs);
 
 		sc_ep_set(cs, SE_FL_ORPHAN);
-		cs->endp->cs = NULL;
-		cs->endp = NULL;
+		cs->sedesc->cs = NULL;
+		cs->sedesc = NULL;
 		appctx_shut(appctx);
 		appctx_free(appctx);
 	}
 
-	if (cs->endp) {
+	if (cs->sedesc) {
 		/* the cs is the only one one the endpoint */
-		cs->endp->se     = NULL;
-		cs->endp->conn   = NULL;
+		cs->sedesc->se     = NULL;
+		cs->sedesc->conn   = NULL;
 		sc_ep_clr(cs, ~SE_FL_APP_MASK);
 		sc_ep_set(cs, SE_FL_DETACHED);
 	}
@@ -464,9 +465,9 @@ int cs_reset_endp(struct conn_stream *cs)
 
 	/* The app is still attached, the cs will not be released */
 	cs_detach_endp(&cs);
-	BUG_ON(cs->endp);
-	cs->endp = new_endp;
-	cs->endp->cs = cs;
+	BUG_ON(cs->sedesc);
+	cs->sedesc = new_endp;
+	cs->sedesc->cs = cs;
 	sc_ep_set(cs, SE_FL_DETACHED);
 	return 0;
 }
@@ -484,7 +485,7 @@ struct appctx *cs_applet_create(struct conn_stream *cs, struct applet *app)
 
 	DPRINTF(stderr, "registering handler %p for cs %p (was %p)\n", app, cs, cs_strm_task(cs));
 
-	appctx = appctx_new_here(app, cs->endp);
+	appctx = appctx_new_here(app, cs->sedesc);
 	if (!appctx)
 		return NULL;
 	cs_attach_applet(cs, appctx);

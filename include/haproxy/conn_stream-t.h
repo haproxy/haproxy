@@ -192,7 +192,7 @@ struct conn_stream {
 	unsigned int flags;                  /* CS_FL_* */
 	unsigned int hcto;                   /* half-closed timeout (0 = unset) */
 	struct wait_event wait_event;        /* We're in a wait list */
-	struct sedesc *endp;                 /* points to the end point (MUX stream or appctx) */
+	struct sedesc *sedesc;               /* points to the stream endpoint descriptor */
 	enum obj_type *app;                  /* points to the applicative point (stream or check) */
 	const struct data_cb *data_cb;       /* data layer callbacks. Must be set before xprt->init() */
 	struct cs_app_ops *ops;              /* general operations used at the app layer */

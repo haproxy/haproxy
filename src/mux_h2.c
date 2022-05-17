@@ -1693,7 +1693,7 @@ static struct h2s *h2c_bck_stream_new(struct h2c *h2c, struct conn_stream *cs, s
 		h2s = NULL;
 		goto out;
 	}
-	h2s->endp = cs->endp;
+	h2s->endp = cs->sedesc;
 	h2s->sess = sess;
 	h2c->nb_cs++;
 

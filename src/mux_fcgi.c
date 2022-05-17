@@ -1131,7 +1131,7 @@ static struct fcgi_strm *fcgi_conn_stream_new(struct fcgi_conn *fconn, struct co
 	}
 	if (cs_attach_mux(cs, fstrm, fconn->conn) < 0)
 		goto out;
-	fstrm->endp = cs->endp;
+	fstrm->endp = cs->sedesc;
 	fstrm->sess = sess;
 	fconn->nb_cs++;
 

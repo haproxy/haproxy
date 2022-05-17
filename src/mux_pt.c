@@ -312,7 +312,7 @@ static int mux_pt_init(struct connection *conn, struct proxy *prx, struct sessio
 	else {
 		if (cs_attach_mux(cs, ctx, conn) < 0)
 			goto fail_free_ctx;
-		ctx->endp = cs->endp;
+		ctx->endp = cs->sedesc;
 	}
 	conn->ctx = ctx;
 	se_fl_set(ctx->endp, SE_FL_RCV_MORE);

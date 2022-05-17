@@ -815,7 +815,7 @@ static struct h1s *h1c_frt_stream_new(struct h1c *h1c, struct conn_stream *cs, s
 	if (cs) {
 		if (cs_attach_mux(cs, h1s, h1c->conn) < 0)
 			goto fail;
-		h1s->endp = cs->endp;
+		h1s->endp = cs->sedesc;
 	}
 	else {
 		h1s->endp = sedesc_new();
@@ -856,7 +856,7 @@ static struct h1s *h1c_bck_stream_new(struct h1c *h1c, struct conn_stream *cs, s
 		goto fail;
 
 	h1s->flags |= H1S_F_RX_BLK;
-	h1s->endp = cs->endp;
+	h1s->endp = cs->sedesc;
 	h1s->sess = sess;
 
 	h1c->flags = (h1c->flags & ~H1C_F_ST_EMBRYONIC) | H1C_F_ST_ATTACHED | H1C_F_ST_READY;

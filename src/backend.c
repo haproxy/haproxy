@@ -1574,7 +1574,7 @@ static int connect_server(struct stream *s)
 			}
 
 			if (avail >= 1) {
-				if (srv_conn->mux->attach(srv_conn, s->csb->endp, s->sess) == -1) {
+				if (srv_conn->mux->attach(srv_conn, s->csb->sedesc, s->sess) == -1) {
 					srv_conn = NULL;
 					if (cs_reset_endp(s->csb) < 0)
 						return SF_ERR_INTERNAL;

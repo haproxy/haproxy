@@ -95,39 +95,39 @@ static forceinline uint se_fl_get(const struct sedesc *se)
 /* stream connector version */
 static forceinline void sc_ep_zero(struct conn_stream *sc)
 {
-	se_fl_zero(sc->endp);
+	se_fl_zero(sc->sedesc);
 }
 
 static forceinline void sc_ep_setall(struct conn_stream *sc, uint all)
 {
-	se_fl_setall(sc->endp, all);
+	se_fl_setall(sc->sedesc, all);
 }
 
 static forceinline void sc_ep_set(struct conn_stream *sc, uint on)
 {
-	se_fl_set(sc->endp, on);
+	se_fl_set(sc->sedesc, on);
 }
 
 static forceinline void sc_ep_clr(struct conn_stream *sc, uint off)
 {
-	se_fl_clr(sc->endp, off);
+	se_fl_clr(sc->sedesc, off);
 }
 
 static forceinline uint sc_ep_test(const struct conn_stream *sc, uint test)
 {
-	return se_fl_test(sc->endp, test);
+	return se_fl_test(sc->sedesc, test);
 }
 
 static forceinline uint sc_ep_get(const struct conn_stream *sc)
 {
-	return se_fl_get(sc->endp);
+	return se_fl_get(sc->sedesc);
 }
 
 
 /* Returns the endpoint target without any control */
 static inline void *__cs_endp_target(const struct conn_stream *cs)
 {
-	return cs->endp->se;
+	return cs->sedesc->se;
 }
 
 /* Returns the connection from a cs if the endpoint is a mux stream. Otherwise
@@ -136,7 +136,7 @@ static inline void *__cs_endp_target(const struct conn_stream *cs)
  */
 static inline struct connection *__cs_conn(const struct conn_stream *cs)
 {
-	return cs->endp->conn;
+	return cs->sedesc->conn;
 }
 static inline struct connection *cs_conn(const struct conn_stream *cs)
 {

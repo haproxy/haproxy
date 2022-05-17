@@ -2782,7 +2782,7 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 					s->srv_error(s, s->csb);
 				return 1;
 			}
-			se_fl_clr(s->csb->endp, ~SE_FL_DETACHED);
+			se_fl_clr(s->csb->sedesc, ~SE_FL_DETACHED);
 		}
 
 		sockaddr_free(&s->csb->dst);
