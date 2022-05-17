@@ -50,6 +50,80 @@ void cs_destroy(struct conn_stream *cs);
 int cs_reset_endp(struct conn_stream *cs);
 
 struct appctx *cs_applet_create(struct conn_stream *cs, struct applet *app);
+
+/* The se_fl_*() set of functions manipulate the stream endpoint flags from
+ * the stream endpoint itself. The sc_ep_*() set of functions manipulate the
+ * stream endpoint flags from the the stream connector (ex. conn_stream).
+ * _zero() clears all flags, _clr() clears a set of flags (&=~), _set() sets
+ * a set of flags (|=), _test() tests the presence of a set of flags, _get()
+ * retrieves the exact flags, _setall() replaces the flags with the new value.
+ * All functions are purposely marked "forceinline" to avoid slowing down
+ * debugging code too much. None of these functions is atomic-safe.
+ */
+
+/* stream endpoint version */
+static forceinline void se_fl_zero(struct cs_endpoint *se)
+{
+	se->flags = 0;
+}
+
+static forceinline void se_fl_setall(struct cs_endpoint *se, uint all)
+{
+	se->flags = all;
+}
+
+static forceinline void se_fl_set(struct cs_endpoint *se, uint on)
+{
+	se->flags |= on;
+}
+
+static forceinline void se_fl_clr(struct cs_endpoint *se, uint off)
+{
+	se->flags &= ~off;
+}
+
+static forceinline uint se_fl_test(const struct cs_endpoint *se, uint test)
+{
+	return !!(se->flags & test);
+}
+
+static forceinline uint se_fl_get(const struct cs_endpoint *se)
+{
+	return se->flags;
+}
+
+/* stream connector version */
+static forceinline void sc_ep_zero(struct conn_stream *sc)
+{
+	se_fl_zero(sc->endp);
+}
+
+static forceinline void sc_ep_setall(struct conn_stream *sc, uint all)
+{
+	se_fl_setall(sc->endp, all);
+}
+
+static forceinline void sc_ep_set(struct conn_stream *sc, uint on)
+{
+	se_fl_set(sc->endp, on);
+}
+
+static forceinline void sc_ep_clr(struct conn_stream *sc, uint off)
+{
+	se_fl_clr(sc->endp, off);
+}
+
+static forceinline uint sc_ep_test(const struct conn_stream *sc, uint test)
+{
+	return se_fl_test(sc->endp, test);
+}
+
+static forceinline uint sc_ep_get(const struct conn_stream *sc)
+{
+	return se_fl_get(sc->endp);
+}
+
+
 /* Returns the endpoint target without any control */
 static inline void *__cs_endp_target(const struct conn_stream *cs)
 {
