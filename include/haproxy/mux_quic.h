@@ -92,10 +92,22 @@ static inline int qcc_install_app_ops(struct qcc *qcc,
 
 static inline struct conn_stream *qc_attach_cs(struct qcs *qcs, struct buffer *buf)
 {
-	if (!cs_new_from_endp(qcs->endp, qcs->qcc->conn->owner, buf))
+	struct session *sess = qcs->qcc->conn->owner;
+
+	/* TODO duplicated from mux_h2 */
+	sess->t_idle = tv_ms_elapsed(&sess->tv_accept, &now) - sess->t_handshake;
+
+	if (!cs_new_from_endp(qcs->endp, sess, buf))
 		return NULL;
 
 	++qcs->qcc->nb_cs;
+
+	/* TODO duplicated from mux_h2 */
+	sess->accept_date = date;
+	sess->tv_accept   = now;
+	sess->t_handshake = 0;
+	sess->t_idle = 0;
+
 	return qcs->endp->cs;
 }
 
