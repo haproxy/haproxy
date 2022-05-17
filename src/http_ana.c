@@ -653,7 +653,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 
 		/* send unique ID if a "unique-id-header" is defined */
 		if (isttest(sess->fe->header_unique_id) &&
-		    unlikely(!http_add_header(htx, sess->fe->header_unique_id, s->unique_id)))
+		    unlikely(!http_add_header(htx, sess->fe->header_unique_id, unique_id)))
 				goto return_int_err;
 	}
 

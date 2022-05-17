@@ -2850,7 +2850,7 @@ INITCALL0(STG_INIT, init_stream);
 
 /* Generates a unique ID based on the given <format>, stores it in the given <strm> and
  * returns the unique ID.
-
+ *
  * If this function fails to allocate memory IST_NULL is returned.
  *
  * If an ID is already stored within the stream nothing happens existing unique ID is
