@@ -2460,13 +2460,6 @@ stats_error_parsing:
 			} /* end while loop */
 		}
 		else if (strcmp(args[1], "http-restrict-req-hdr-names") == 0) {
-			if (kwm != KWM_STD) {
-				ha_alert("parsing [%s:%d]: negation/default is not supported for option '%s'.\n",
-					 file, linenum, args[1]);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
-			}
-
 			if (alertif_too_many_args(2, file, linenum, args, &err_code))
 				goto out;
 
