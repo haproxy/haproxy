@@ -887,7 +887,7 @@ static int cli_output_msg(struct channel *chn, const char *msg, int severity, in
 	return ci_putblk(chn, tmp->area, strlen(tmp->area));
 }
 
-/* This I/O handler runs as an applet embedded in a conn-stream. It is
+/* This I/O handler runs as an applet embedded in a stream connector. It is
  * used to processes I/O from/to the stats unix socket. The system relies on a
  * state machine handling requests and various responses. We read a request,
  * then we process it and send the response, and we possibly display a prompt.
@@ -897,7 +897,7 @@ static int cli_output_msg(struct channel *chn, const char *msg, int severity, in
  */
 static void cli_io_handler(struct appctx *appctx)
 {
-	struct conn_stream *cs = appctx_cs(appctx);
+	struct stconn *cs = appctx_cs(appctx);
 	struct channel *req = cs_oc(cs);
 	struct channel *res = cs_ic(cs);
 	struct bind_conf *bind_conf = strm_li(__cs_strm(cs))->bind_conf;
@@ -1198,7 +1198,7 @@ static void cli_io_handler(struct appctx *appctx)
 		cs->state, req->flags, res->flags, ci_data(req), co_data(req), ci_data(res), co_data(res));
 }
 
-/* This is called when the conn-stream is closed. For instance, upon an
+/* This is called when the stream connector is closed. For instance, upon an
  * external abort, we won't call the i/o handler anymore so we may need to
  * remove back references to the stream currently being dumped.
  */
@@ -1226,7 +1226,7 @@ static void cli_release_handler(struct appctx *appctx)
 static int cli_io_handler_show_env(struct appctx *appctx)
 {
 	struct show_env_ctx *ctx = appctx->svcctx;
-	struct conn_stream *cs = appctx_cs(appctx);
+	struct stconn *cs = appctx_cs(appctx);
 	char **var = ctx->var;
 
 	if (unlikely(cs_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
@@ -1262,7 +1262,7 @@ static int cli_io_handler_show_env(struct appctx *appctx)
  */
 static int cli_io_handler_show_fd(struct appctx *appctx)
 {
-	struct conn_stream *cs = appctx_cs(appctx);
+	struct stconn *cs = appctx_cs(appctx);
 	struct show_fd_ctx *fdctx = appctx->svcctx;
 	int fd = fdctx->fd;
 	int ret = 1;
@@ -1462,7 +1462,7 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
  */
 static int cli_io_handler_show_activity(struct appctx *appctx)
 {
-	struct conn_stream *cs = appctx_cs(appctx);
+	struct stconn *cs = appctx_cs(appctx);
 	int thr;
 
 	if (unlikely(cs_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
@@ -1567,7 +1567,7 @@ static int cli_io_handler_show_cli_sock(struct appctx *appctx)
 {
 	struct show_sock_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
 	struct bind_conf *bind_conf = ctx->bind_conf;
-	struct conn_stream *cs = appctx_cs(appctx);
+	struct stconn *cs = appctx_cs(appctx);
 
 	if (!global.cli_fe)
 		goto done;
@@ -1976,7 +1976,7 @@ static int _getsocks(char **args, char *payload, struct appctx *appctx, void *pr
 	char *cmsgbuf = NULL;
 	unsigned char *tmpbuf = NULL;
 	struct cmsghdr *cmsg;
-	struct conn_stream *cs = appctx_cs(appctx);
+	struct stconn *cs = appctx_cs(appctx);
 	struct stream *s = __cs_strm(cs);
 	struct connection *remote = cs_conn(cs_opposite(cs));
 	struct msghdr msghdr;

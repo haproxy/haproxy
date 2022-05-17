@@ -58,7 +58,7 @@ static const struct h2s *h2_idle_stream;
 #define H2_CF_DEM_MROOM         0x00000020  // demux blocked on lack of room in mux buffer
 #define H2_CF_DEM_SALLOC        0x00000040  // demux blocked on lack of stream's request buffer
 #define H2_CF_DEM_SFULL         0x00000080  // demux blocked on stream request buffer full
-#define H2_CF_DEM_TOOMANY       0x00000100  // demux blocked waiting for some conn_streams to leave
+#define H2_CF_DEM_TOOMANY       0x00000100  // demux blocked waiting for some stream connectors to leave
 #define H2_CF_DEM_BLOCK_ANY     0x000001F0  // aggregate of the demux flags above except DALLOC/DFULL
                                             // (SHORT_READ is also excluded)
 
@@ -136,7 +136,7 @@ struct h2c {
 	int idle_start;     /* date of the last time the connection went idle */
 	/* 32-bit hole here */
 	unsigned int nb_streams;  /* number of streams in the tree */
-	unsigned int nb_cs;       /* number of attached conn_streams */
+	unsigned int nb_cs;       /* number of attached stream connectors */
 	unsigned int nb_reserved; /* number of reserved streams */
 	unsigned int stream_cnt;  /* total number of streams seen */
 	struct proxy *proxy; /* the proxy this connection was created for */
@@ -224,7 +224,7 @@ struct h2s {
 	uint16_t status;     /* HTTP response status */
 	unsigned long long body_len; /* remaining body length according to content-length if H2_SF_DATA_CLEN */
 	struct buffer rxbuf; /* receive buffer, always valid (buf_empty or real buffer) */
-	struct wait_event *subs;      /* recv wait_event the conn_stream associated is waiting on (via h2_subscribe) */
+	struct wait_event *subs;  /* recv wait_event the stream connector associated is waiting on (via h2_subscribe) */
 	struct list list; /* To be used when adding in h2c->send_list or h2c->fctl_lsit */
 	struct tasklet *shut_tl;  /* deferred shutdown tasklet, to retry to send an RST after we failed to,
 				   * in case there's no other subscription to do it */
@@ -577,7 +577,7 @@ static inline struct h2s *h2c_st_by_id(struct h2c *h2c, int id);
 static int h2c_decode_headers(struct h2c *h2c, struct buffer *rxbuf, uint32_t *flags, unsigned long long *body_len, char *upgrade_protocol);
 static int h2_frt_transfer_data(struct h2s *h2s);
 struct task *h2_deferred_shut(struct task *t, void *ctx, unsigned int state);
-static struct h2s *h2c_bck_stream_new(struct h2c *h2c, struct conn_stream *cs, struct session *sess);
+static struct h2s *h2c_bck_stream_new(struct h2c *h2c, struct stconn *cs, struct session *sess);
 static void h2s_alert(struct h2s *h2s);
 
 /* returns a h2c state as an abbreviated 3-letter string, or "???" if unknown */
@@ -849,7 +849,7 @@ static inline void h2c_restart_reading(const struct h2c *h2c, int consider_buffe
 }
 
 
-/* returns true if the front connection has too many conn_streams attached */
+/* returns true if the front connection has too many stream connectors attached */
 static inline int h2_frt_has_too_many_cs(const struct h2c *h2c)
 {
 	return h2c->nb_cs > h2_settings_max_concurrent_streams;
@@ -1317,7 +1317,7 @@ static void __maybe_unused h2s_notify_send(struct h2s *h2s)
  *   - if its subscribed to send, then it's woken up for send
  *   - if it was subscribed to neither, its ->wake() callback is called
  * It is safe to call this function with a closed stream which doesn't have a
- * conn_stream anymore.
+ * stream connector anymore.
  */
 static void __maybe_unused h2s_alert(struct h2s *h2s)
 {
@@ -1660,11 +1660,11 @@ static struct h2s *h2c_frt_stream_new(struct h2c *h2c, int id, struct buffer *in
 	return NULL;
 }
 
-/* allocates a new stream associated to conn_stream <cs> on the h2c connection
- * and returns it, or NULL in case of memory allocation error or if the highest
- * possible stream ID was reached.
+/* allocates a new stream associated to stream connector <cs> on the h2c
+ * connection and returns it, or NULL in case of memory allocation error or if
+ * the highest possible stream ID was reached.
  */
-static struct h2s *h2c_bck_stream_new(struct h2c *h2c, struct conn_stream *cs, struct session *sess)
+static struct h2s *h2c_bck_stream_new(struct h2c *h2c, struct stconn *cs, struct session *sess)
 {
 	struct h2s *h2s = NULL;
 
@@ -2185,8 +2185,8 @@ static int h2_send_empty_data_es(struct h2s *h2s)
 	return ret;
 }
 
-/* wake a specific stream and assign its conn_stream some SE_FL_* flags among
- * SE_FL_ERR_PENDING and SE_FL_ERROR if needed. The stream's state
+/* wake a specific stream and assign its stream connector some SE_FL_* flags
+ * among SE_FL_ERR_PENDING and SE_FL_ERROR if needed. The stream's state
  * is automatically updated accordingly. If the stream is orphaned, it is
  * destroyed.
  */
@@ -4309,12 +4309,12 @@ static int h2_attach(struct connection *conn, struct sedesc *endp, struct sessio
 	return 0;
 }
 
-/* Retrieves the first valid conn_stream from this connection, or returns NULL.
- * We have to scan because we may have some orphan streams. It might be
+/* Retrieves the first valid stream connector from this connection, or returns
+ * NULL. We have to scan because we may have some orphan streams. It might be
  * beneficial to scan backwards from the end to reduce the likeliness to find
  * orphans.
  */
-static struct conn_stream *h2_get_first_cs(const struct connection *conn)
+static struct stconn *h2_get_first_cs(const struct connection *conn)
 {
 	struct h2c *h2c = conn->ctx;
 	struct h2s *h2s;
@@ -4685,8 +4685,8 @@ struct task *h2_deferred_shut(struct task *t, void *ctx, unsigned int state)
 	return t;
 }
 
-/* shutr() called by the conn_stream (mux_ops.shutr) */
-static void h2_shutr(struct conn_stream *cs, enum co_shr_mode mode)
+/* shutr() called by the stream connector (mux_ops.shutr) */
+static void h2_shutr(struct stconn *cs, enum co_shr_mode mode)
 {
 	struct h2s *h2s = __cs_mux(cs);
 
@@ -4696,8 +4696,8 @@ static void h2_shutr(struct conn_stream *cs, enum co_shr_mode mode)
 	TRACE_LEAVE(H2_EV_STRM_SHUT, h2s->h2c->conn, h2s);
 }
 
-/* shutw() called by the conn_stream (mux_ops.shutw) */
-static void h2_shutw(struct conn_stream *cs, enum co_shw_mode mode)
+/* shutw() called by the stream connector (mux_ops.shutw) */
+static void h2_shutw(struct stconn *cs, enum co_shw_mode mode)
 {
 	struct h2s *h2s = __cs_mux(cs);
 
@@ -6371,7 +6371,7 @@ static size_t h2s_make_trailers(struct h2s *h2s, struct htx *htx)
  * as at least one event is still subscribed. The <event_type> must only be a
  * combination of SUB_RETRY_RECV and SUB_RETRY_SEND. It always returns 0.
  */
-static int h2_subscribe(struct conn_stream *cs, int event_type, struct wait_event *es)
+static int h2_subscribe(struct stconn *cs, int event_type, struct wait_event *es)
 {
 	struct h2s *h2s = __cs_mux(cs);
 	struct h2c *h2c = h2s->h2c;
@@ -6405,7 +6405,7 @@ static int h2_subscribe(struct conn_stream *cs, int event_type, struct wait_even
  * The <es> pointer is not allowed to differ from the one passed to the
  * subscribe() call. It always returns zero.
  */
-static int h2_unsubscribe(struct conn_stream *cs, int event_type, struct wait_event *es)
+static int h2_unsubscribe(struct stconn *cs, int event_type, struct wait_event *es)
 {
 	struct h2s *h2s = __cs_mux(cs);
 
@@ -6445,7 +6445,7 @@ static int h2_unsubscribe(struct conn_stream *cs, int event_type, struct wait_ev
  * mux it may optimize the data copy to <buf> if necessary. Otherwise, it should
  * copy as much data as possible.
  */
-static size_t h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t count, int flags)
+static size_t h2_rcv_buf(struct stconn *cs, struct buffer *buf, size_t count, int flags)
 {
 	struct h2s *h2s = __cs_mux(cs);
 	struct h2c *h2c = h2s->h2c;
@@ -6526,9 +6526,9 @@ static size_t h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 
 /* Called from the upper layer, to send data from buffer <buf> for no more than
  * <count> bytes. Returns the number of bytes effectively sent. Some status
- * flags may be updated on the conn_stream.
+ * flags may be updated on the stream connector.
  */
-static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t count, int flags)
+static size_t h2_snd_buf(struct stconn *cs, struct buffer *buf, size_t count, int flags)
 {
 	struct h2s *h2s = __cs_mux(cs);
 	size_t total = 0;
@@ -6678,7 +6678,7 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 	}
 	/* If we're waiting for flow control, and we got a shutr on the
 	 * connection, we will never be unlocked, so add an error on
-	 * the conn_stream.
+	 * the stream connector.
 	 */
 	if (conn_xprt_read0_pending(h2s->h2c->conn) &&
 	    !b_data(&h2s->h2c->dbuf) &&

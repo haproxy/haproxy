@@ -125,12 +125,12 @@ static inline struct appctx *objt_appctx(enum obj_type *t)
 	return __objt_appctx(t);
 }
 
-static inline struct conn_stream *__objt_cs(enum obj_type *t)
+static inline struct stconn *__objt_cs(enum obj_type *t)
 {
-	return (container_of(t, struct conn_stream, obj_type));
+	return (container_of(t, struct stconn, obj_type));
 }
 
-static inline struct conn_stream *objt_cs(enum obj_type *t)
+static inline struct stconn *objt_cs(enum obj_type *t)
 {
 	if (!t || *t != OBJ_TYPE_CS)
 		return NULL;

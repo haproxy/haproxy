@@ -32,7 +32,7 @@ enum qcs_type {
 
 struct qcc {
 	struct connection *conn;
-	uint64_t nb_cs; /* number of attached conn-streams */
+	uint64_t nb_cs; /* number of attached stream connectors */
 	uint32_t flags; /* QC_CF_* */
 
 	struct {
@@ -138,7 +138,7 @@ struct qcc_app_ops {
 	int (*init)(struct qcc *qcc);
 	int (*attach)(struct qcs *qcs);
 	int (*decode_qcs)(struct qcs *qcs, int fin, void *ctx);
-	size_t (*snd_buf)(struct conn_stream *cs, struct buffer *buf, size_t count, int flags);
+	size_t (*snd_buf)(struct stconn *cs, struct buffer *buf, size_t count, int flags);
 	void (*detach)(struct qcs *qcs);
 	int (*finalize)(void *ctx);
 	int (*is_active)(const struct qcc *qcc, void *ctx);

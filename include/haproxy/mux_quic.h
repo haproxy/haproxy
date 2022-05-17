@@ -91,7 +91,7 @@ static inline int qcc_install_app_ops(struct qcc *qcc,
 	return 0;
 }
 
-static inline struct conn_stream *qc_attach_cs(struct qcs *qcs, struct buffer *buf)
+static inline struct stconn *qc_attach_cs(struct qcs *qcs, struct buffer *buf)
 {
 	struct qcc *qcc = qcs->qcc;
 	struct session *sess = qcc->conn->owner;

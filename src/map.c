@@ -345,7 +345,7 @@ struct show_map_ctx {
 static int cli_io_handler_pat_list(struct appctx *appctx)
 {
 	struct show_map_ctx *ctx = appctx->svcctx;
-	struct conn_stream *cs = appctx_cs(appctx);
+	struct stconn *cs = appctx_cs(appctx);
 	struct pat_ref_elt *elt;
 
 	if (unlikely(cs_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW))) {
@@ -417,7 +417,7 @@ static int cli_io_handler_pat_list(struct appctx *appctx)
 static int cli_io_handler_pats_list(struct appctx *appctx)
 {
 	struct show_map_ctx *ctx = appctx->svcctx;
-	struct conn_stream *cs = appctx_cs(appctx);
+	struct stconn *cs = appctx_cs(appctx);
 
 	switch (ctx->state) {
 	case STATE_INIT:
@@ -480,7 +480,7 @@ static int cli_io_handler_pats_list(struct appctx *appctx)
 static int cli_io_handler_map_lookup(struct appctx *appctx)
 {
 	struct show_map_ctx *ctx = appctx->svcctx;
-	struct conn_stream *cs = appctx_cs(appctx);
+	struct stconn *cs = appctx_cs(appctx);
 	struct sample sample;
 	struct pattern *pat;
 	int match_method;

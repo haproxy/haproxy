@@ -1,5 +1,5 @@
 /*
- * HTT/1 mux-demux for connections
+ * HTTP/1 mux-demux for connections
  *
  * Copyright 2018 Christopher Faulet <cfaulet@haproxy.com>
  *
@@ -47,13 +47,13 @@
 #define H1C_F_IN_SALLOC      0x00000040 /* mux is blocked on lack of stream's request buffer */
 
 /* Flags indicating the connection state */
-#define H1C_F_ST_EMBRYONIC   0x00000100 /* Set when a H1 stream with no conn-stream is attached to the connection */
-#define H1C_F_ST_ATTACHED    0x00000200 /* Set when a H1 stream with a conn-stream is attached to the connection (may be not READY) */
+#define H1C_F_ST_EMBRYONIC   0x00000100 /* Set when a H1 stream with no stream connector is attached to the connection */
+#define H1C_F_ST_ATTACHED    0x00000200 /* Set when a H1 stream with a stream connector is attached to the connection (may be not READY) */
 #define H1C_F_ST_IDLE        0x00000400 /* connection is idle and may be reused
 					 * (exclusive to all H1C_F_ST flags and never set when an h1s is attached) */
-#define H1C_F_ST_ERROR       0x00000800 /* connection must be closed ASAP because an error occurred (conn-stream may still be attached) */
-#define H1C_F_ST_SHUTDOWN    0x00001000 /* connection must be shut down ASAP flushing output first (conn-stream may still be attached) */
-#define H1C_F_ST_READY       0x00002000 /* Set in ATTACHED state with a READY conn-stream. A conn-stream is not ready when
+#define H1C_F_ST_ERROR       0x00000800 /* connection must be closed ASAP because an error occurred (stream connector may still be attached) */
+#define H1C_F_ST_SHUTDOWN    0x00001000 /* connection must be shut down ASAP flushing output first (stream connector may still be attached) */
+#define H1C_F_ST_READY       0x00002000 /* Set in ATTACHED state with a READY stream connector. A stream connector is not ready when
 					 * a TCP>H1 upgrade is in progress Thus this flag is only set if ATTACHED is also set */
 #define H1C_F_ST_ALIVE       (H1C_F_ST_IDLE|H1C_F_ST_EMBRYONIC|H1C_F_ST_ATTACHED)
 #define H1C_F_ST_SILENT_SHUT 0x00004000 /* silent (or dirty) shutdown must be performed (implied ST_SHUTDOWN) */
@@ -121,7 +121,7 @@ struct h1s {
 	struct sedesc *endp;
 	uint32_t flags;                /* Connection flags: H1S_F_* */
 
-	struct wait_event *subs;      /* Address of the wait_event the conn_stream associated is waiting on */
+	struct wait_event *subs;      /* Address of the wait_event the stream connector associated is waiting on */
 
 	struct session *sess;         /* Associated session */
 	struct buffer rxbuf;          /* receive buffer, always valid (buf_empty or real buffer) */
@@ -620,7 +620,7 @@ static void h1_refresh_timeout(struct h1c *h1c)
 			is_idle_conn = 1;
 		}
 		else  {
-			/* alive back connections of front connections with a conn-stream attached */
+			/* alive back connections of front connections with a stream connector attached */
 			h1c->task->expire = TICK_ETERNITY;
 			TRACE_DEVEL("no connection timeout (alive back h1c or front h1c with a CS)", H1_EV_H1C_SEND|H1_EV_H1C_RECV, h1c->conn);
 		}
@@ -708,14 +708,14 @@ static inline size_t h1s_data_pending(const struct h1s *h1s)
 	return ((h1m->state == H1_MSG_DONE) ? 0 : b_data(&h1s->h1c->ibuf));
 }
 
-/* Creates a new conn-stream and the associate stream. <input> is used as input
+/* Creates a new stream connector and the associate stream. <input> is used as input
  * buffer for the stream. On success, it is transferred to the stream and the
  * mux is no longer responsible of it. On error, <input> is unchanged, thus the
  * mux must still take care of it. However, there is nothing special to do
  * because, on success, <input> is updated to points on BUF_NULL. Thus, calling
- * b_free() on it is always safe. This function returns the conn-stream on
+ * b_free() on it is always safe. This function returns the stream connector on
  * success or NULL on error. */
-static struct conn_stream *h1s_new_cs(struct h1s *h1s, struct buffer *input)
+static struct stconn *h1s_new_cs(struct h1s *h1s, struct buffer *input)
 {
 	struct h1c *h1c = h1s->h1c;
 
@@ -743,7 +743,7 @@ static struct conn_stream *h1s_new_cs(struct h1s *h1s, struct buffer *input)
 	return NULL;
 }
 
-static struct conn_stream *h1s_upgrade_cs(struct h1s *h1s, struct buffer *input)
+static struct stconn *h1s_upgrade_cs(struct h1s *h1s, struct buffer *input)
 {
 	TRACE_ENTER(H1_EV_STRM_NEW, h1s->h1c->conn, h1s);
 
@@ -802,7 +802,7 @@ static struct h1s *h1s_new(struct h1c *h1c)
 	return NULL;
 }
 
-static struct h1s *h1c_frt_stream_new(struct h1c *h1c, struct conn_stream *cs, struct session *sess)
+static struct h1s *h1c_frt_stream_new(struct h1c *h1c, struct stconn *cs, struct session *sess)
 {
 	struct h1s *h1s;
 
@@ -842,7 +842,7 @@ static struct h1s *h1c_frt_stream_new(struct h1c *h1c, struct conn_stream *cs, s
 	return NULL;
 }
 
-static struct h1s *h1c_bck_stream_new(struct h1c *h1c, struct conn_stream *cs, struct session *sess)
+static struct h1s *h1c_bck_stream_new(struct h1c *h1c, struct stconn *cs, struct session *sess)
 {
 	struct h1s *h1s;
 
@@ -919,8 +919,8 @@ static void h1s_destroy(struct h1s *h1s)
 
 /*
  * Initialize the mux once it's attached. It is expected that conn->ctx points
- * to the existing conn_stream (for outgoing connections or for incoming ones
- * during a mux upgrade) or NULL (for incoming ones during the connection
+ * to the existing stream connector (for outgoing connections or for incoming
+ * ones during a mux upgrade) or NULL (for incoming ones during the connection
  * establishment). <input> is always used as Input buffer and may contain
  * data. It is the caller responsibility to not reuse it anymore. Returns < 0 on
  * error.
@@ -1913,7 +1913,7 @@ static size_t h1_process_demux(struct h1c *h1c, struct buffer *buf, size_t count
 		se_fl_clr(h1s->endp, SE_FL_MAY_SPLICE);
 	}
 
-	/* Set EOI on conn-stream in DONE state iff:
+	/* Set EOI on stream connector in DONE state iff:
 	 *  - it is a response
 	 *  - it is a request but no a protocol upgrade nor a CONNECT
 	 *
@@ -1941,7 +1941,7 @@ static size_t h1_process_demux(struct h1c *h1c, struct buffer *buf, size_t count
 			se_fl_set(h1s->endp, SE_FL_EOS);
 			if (h1m->state >= H1_MSG_DONE || !(h1m->flags & H1_MF_XFER_LEN)) {
 				/* DONE or TUNNEL or SHUTR without XFER_LEN, set
-				 * EOI on the conn-stream */
+				 * EOI on the stream connector */
 				se_fl_set(h1s->endp, SE_FL_EOI);
 			}
 			else if (h1m->state > H1_MSG_LAST_LF && h1m->state < H1_MSG_DONE) {
@@ -2563,7 +2563,7 @@ static size_t h1_process_mux(struct h1c *h1c, struct buffer *buf, size_t count)
 	}
   end:
 	/* Both the request and the response reached the DONE state. So set EOI
-	 * flag on the conn-stream. Most of time, the flag will already be set,
+	 * flag on the stream connector. Most of time, the flag will already be set,
 	 * except for protocol upgrades. Report an error if data remains blocked
 	 * in the output buffer.
 	 */
@@ -3022,7 +3022,7 @@ static int h1_process(struct h1c * h1c)
 	    (h1c->flags & H1C_F_ST_ERROR) ||
 	    ((h1c->flags & H1C_F_ST_SILENT_SHUT) && !b_data(&h1c->obuf))) {
 		if (!(h1c->flags & H1C_F_ST_READY)) {
-			/* No conn-stream or not ready */
+			/* No stream connector or not ready */
 			/* shutdown for reads and error on the frontend connection: Send an error */
 			if (!(h1c->flags & (H1C_F_IS_BACK|H1C_F_ST_ERROR|H1C_F_ST_SHUTDOWN))) {
 				if (h1_handle_parsing_error(h1c))
@@ -3045,7 +3045,7 @@ static int h1_process(struct h1c * h1c)
 			goto release;
 		}
 		else {
-			/* Here there is still a H1 stream with a conn-stream.
+			/* Here there is still a H1 stream with a stream connector.
 			 * Report the connection state at the stream level
 			 */
 			if (conn_xprt_read0_pending(conn)) {
@@ -3237,7 +3237,7 @@ struct task *h1_timeout_task(struct task *t, void *context, unsigned int state)
 			return t;
 		}
 
-		/* If a conn-stream is still attached and ready to the mux, wait for the
+		/* If a stream connector is still attached and ready to the mux, wait for the
 		 * stream's timeout
 		 */
 		if (h1c->flags & H1C_F_ST_READY) {
@@ -3331,10 +3331,10 @@ static int h1_attach(struct connection *conn, struct sedesc *endp, struct sessio
 	return -1;
 }
 
-/* Retrieves a valid conn_stream from this connection, or returns NULL. For
- * this mux, it's easy as we can only store a single conn_stream.
+/* Retrieves a valid stream connector from this connection, or returns NULL.
+ * For this mux, it's easy as we can only store a single stream connector.
  */
-static struct conn_stream *h1_get_first_cs(const struct connection *conn)
+static struct stconn *h1_get_first_cs(const struct connection *conn)
 {
 	struct h1c *h1c = conn->ctx;
 	struct h1s *h1s = h1c->h1s;
@@ -3464,7 +3464,7 @@ static void h1_detach(struct sedesc *endp)
 }
 
 
-static void h1_shutr(struct conn_stream *cs, enum co_shr_mode mode)
+static void h1_shutr(struct stconn *cs, enum co_shr_mode mode)
 {
 	struct h1s *h1s = __cs_mux(cs);
 	struct h1c *h1c;
@@ -3507,7 +3507,7 @@ static void h1_shutr(struct conn_stream *cs, enum co_shr_mode mode)
 	TRACE_LEAVE(H1_EV_STRM_SHUT, h1c->conn, h1s);
 }
 
-static void h1_shutw(struct conn_stream *cs, enum co_shw_mode mode)
+static void h1_shutw(struct stconn *cs, enum co_shw_mode mode)
 {
 	struct h1s *h1s = __cs_mux(cs);
 	struct h1c *h1c;
@@ -3567,7 +3567,7 @@ static void h1_shutw_conn(struct connection *conn)
  * The <es> pointer is not allowed to differ from the one passed to the
  * subscribe() call. It always returns zero.
  */
-static int h1_unsubscribe(struct conn_stream *cs, int event_type, struct wait_event *es)
+static int h1_unsubscribe(struct stconn *cs, int event_type, struct wait_event *es)
 {
 	struct h1s *h1s = __cs_mux(cs);
 
@@ -3594,9 +3594,10 @@ static int h1_unsubscribe(struct conn_stream *cs, int event_type, struct wait_ev
  * event subscriber <es> is not allowed to change from a previous call as long
  * as at least one event is still subscribed. The <event_type> must only be a
  * combination of SUB_RETRY_RECV and SUB_RETRY_SEND. It always returns 0, unless
- * the conn_stream <cs> was already detached, in which case it will return -1.
+ * the stream connector <cs> was already detached, in which case it will return
+ * -1.
  */
-static int h1_subscribe(struct conn_stream *cs, int event_type, struct wait_event *es)
+static int h1_subscribe(struct stconn *cs, int event_type, struct wait_event *es)
 {
 	struct h1s *h1s = __cs_mux(cs);
 	struct h1c *h1c;
@@ -3617,7 +3618,7 @@ static int h1_subscribe(struct conn_stream *cs, int event_type, struct wait_even
 	if (event_type & SUB_RETRY_SEND) {
 		TRACE_DEVEL("subscribe(send)", H1_EV_STRM_SEND, h1s->h1c->conn, h1s);
 		/*
-		 * If the conn_stream attempt to subscribe, and the
+		 * If the stconn attempts to subscribe, and the
 		 * mux isn't subscribed to the connection, then it
 		 * probably means the connection wasn't established
 		 * yet, so we have to subscribe.
@@ -3644,7 +3645,7 @@ static int h1_subscribe(struct conn_stream *cs, int event_type, struct wait_even
  * mux it may optimize the data copy to <buf> if necessary. Otherwise, it should
  * copy as much data as possible.
  */
-static size_t h1_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t count, int flags)
+static size_t h1_rcv_buf(struct stconn *cs, struct buffer *buf, size_t count, int flags)
 {
 	struct h1s *h1s = __cs_mux(cs);
 	struct h1c *h1c = h1s->h1c;
@@ -3680,7 +3681,7 @@ static size_t h1_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 
 
 /* Called from the upper layer, to send data */
-static size_t h1_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t count, int flags)
+static size_t h1_snd_buf(struct stconn *cs, struct buffer *buf, size_t count, int flags)
 {
 	struct h1s *h1s = __cs_mux(cs);
 	struct h1c *h1c;
@@ -3745,7 +3746,7 @@ static size_t h1_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 
 #if defined(USE_LINUX_SPLICE)
 /* Send and get, using splicing */
-static int h1_rcv_pipe(struct conn_stream *cs, struct pipe *pipe, unsigned int count)
+static int h1_rcv_pipe(struct stconn *cs, struct pipe *pipe, unsigned int count)
 {
 	struct h1s *h1s = __cs_mux(cs);
 	struct h1c *h1c = h1s->h1c;
@@ -3815,7 +3816,7 @@ static int h1_rcv_pipe(struct conn_stream *cs, struct pipe *pipe, unsigned int c
 	return ret;
 }
 
-static int h1_snd_pipe(struct conn_stream *cs, struct pipe *pipe)
+static int h1_snd_pipe(struct stconn *cs, struct pipe *pipe)
 {
 	struct h1s *h1s = __cs_mux(cs);
 	struct h1c *h1c = h1s->h1c;

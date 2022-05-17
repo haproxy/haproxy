@@ -61,7 +61,7 @@ int conn_create_mux(struct connection *conn)
 {
 	if (conn_is_back(conn)) {
 		struct server *srv;
-		struct conn_stream *cs = conn->ctx;
+		struct stconn *cs = conn->ctx;
 		struct session *sess = conn->owner;
 
 		if (conn->flags & CO_FL_ERROR)
@@ -1157,7 +1157,7 @@ int conn_recv_proxy(struct connection *conn, int flag)
  * flags (the bit is provided in <flag> by the caller). It is designed to be
  * called by the connection handler and relies on it to commit polling changes.
  * Note that it can emit a PROXY line by relying on the other end's address
- * when the connection is attached to a conn-stream, or by resolving the
+ * when the connection is attached to a stream connector, or by resolving the
  * local address otherwise (also called a LOCAL line).
  */
 int conn_send_proxy(struct connection *conn, unsigned int flag)
@@ -1170,11 +1170,11 @@ int conn_send_proxy(struct connection *conn, unsigned int flag)
 	 * we've sent the whole proxy line. Otherwise we use connect().
 	 */
 	if (conn->send_proxy_ofs) {
-		struct conn_stream *cs;
+		struct stconn *cs;
 		int ret;
 
 		/* If there is no mux attached to the connection, it means the
-		 * connection context is a conn-stream.
+		 * connection context is a stream connector.
 		 */
 		cs = (conn->mux ? cs_conn_get_first(conn) : conn->ctx);
 
@@ -1184,7 +1184,7 @@ int conn_send_proxy(struct connection *conn, unsigned int flag)
 		 * (which is recomputed every time since it's constant). If
 		 * it is positive, it means we have to send from the start.
 		 * We can only send a "normal" PROXY line when the connection
-		 * is attached to a conn-stream. Otherwise we can only
+		 * is attached to a stream connector. Otherwise we can only
 		 * send a LOCAL line (eg: for use with health checks).
 		 */
 

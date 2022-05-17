@@ -1933,7 +1933,7 @@ __LJMP static struct hlua_socket *hlua_checksocket(lua_State *L, int ud)
 static void hlua_socket_handler(struct appctx *appctx)
 {
 	struct hlua_csk_ctx *ctx = appctx->svcctx;
-	struct conn_stream *cs = appctx_cs(appctx);
+	struct stconn *cs = appctx_cs(appctx);
 
 	if (ctx->die) {
 		cs_shutw(cs);
@@ -1996,7 +1996,7 @@ static int hlua_socket_init(struct appctx *appctx)
 
 	s = appctx_strm(appctx);
 
-	/* Configure "right" conn-stream. this "si" is used to connect
+	/* Configure "right" stream connector. This stconn is used to connect
 	 * and retrieve data from the server. The connection is initialized
 	 * with the "struct server".
 	 */
@@ -2371,7 +2371,7 @@ static int hlua_socket_write_yield(struct lua_State *L,int status, lua_KContext 
 	int sent;
 	struct xref *peer;
 	struct stream *s;
-	struct conn_stream *cs;
+	struct stconn *cs;
 
 	/* Get hlua struct, or NULL if we execute from main lua state */
 	hlua = hlua_gethlua(L);
@@ -2613,7 +2613,7 @@ __LJMP static int hlua_socket_getpeername(struct lua_State *L)
 	struct hlua_socket *socket;
 	struct xref *peer;
 	struct appctx *appctx;
-	struct conn_stream *cs;
+	struct stconn *cs;
 	const struct sockaddr_storage *dst;
 	int ret;
 
@@ -2777,7 +2777,7 @@ __LJMP static int hlua_socket_connect(struct lua_State *L)
 	int low, high;
 	struct sockaddr_storage *addr;
 	struct xref *peer;
-	struct conn_stream *cs;
+	struct stconn *cs;
 	struct stream *s;
 
 	if (lua_gettop(L) < 2)
@@ -4479,7 +4479,7 @@ __LJMP static int hlua_applet_tcp_get_priv(lua_State *L)
 __LJMP static int hlua_applet_tcp_getline_yield(lua_State *L, int status, lua_KContext ctx)
 {
 	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_tcp(L, 1));
-	struct conn_stream *cs = appctx_cs(luactx->appctx);
+	struct stconn *cs = appctx_cs(luactx->appctx);
 	int ret;
 	const char *blk1;
 	size_t len1;
@@ -4533,7 +4533,7 @@ __LJMP static int hlua_applet_tcp_getline(lua_State *L)
 __LJMP static int hlua_applet_tcp_recv_yield(lua_State *L, int status, lua_KContext ctx)
 {
 	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_tcp(L, 1));
-	struct conn_stream *cs = appctx_cs(luactx->appctx);
+	struct stconn *cs = appctx_cs(luactx->appctx);
 	size_t len = MAY_LJMP(luaL_checkinteger(L, 2));
 	int ret;
 	const char *blk1;
@@ -4641,7 +4641,7 @@ __LJMP static int hlua_applet_tcp_send_yield(lua_State *L, int status, lua_KCont
 	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_tcp(L, 1));
 	const char *str = MAY_LJMP(luaL_checklstring(L, 2, &len));
 	int l = MAY_LJMP(luaL_checkinteger(L, 3));
-	struct conn_stream *cs = appctx_cs(luactx->appctx);
+	struct stconn *cs = appctx_cs(luactx->appctx);
 	struct channel *chn = cs_ic(cs);
 	int max;
 
@@ -4968,7 +4968,7 @@ __LJMP static int hlua_applet_http_get_priv(lua_State *L)
 __LJMP static int hlua_applet_http_getline_yield(lua_State *L, int status, lua_KContext ctx)
 {
 	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_http(L, 1));
-	struct conn_stream *cs = appctx_cs(luactx->appctx);
+	struct stconn *cs = appctx_cs(luactx->appctx);
 	struct channel *req = cs_oc(cs);
 	struct htx *htx;
 	struct htx_blk *blk;
@@ -5063,7 +5063,7 @@ __LJMP static int hlua_applet_http_getline(lua_State *L)
 __LJMP static int hlua_applet_http_recv_yield(lua_State *L, int status, lua_KContext ctx)
 {
 	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_http(L, 1));
-	struct conn_stream *cs = appctx_cs(luactx->appctx);
+	struct stconn *cs = appctx_cs(luactx->appctx);
 	struct channel *req = cs_oc(cs);
 	struct htx *htx;
 	struct htx_blk *blk;
@@ -5172,7 +5172,7 @@ __LJMP static int hlua_applet_http_recv(lua_State *L)
 __LJMP static int hlua_applet_http_send_yield(lua_State *L, int status, lua_KContext ctx)
 {
 	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_http(L, 1));
-	struct conn_stream *cs = appctx_cs(luactx->appctx);
+	struct stconn *cs = appctx_cs(luactx->appctx);
 	struct channel *res = cs_ic(cs);
 	struct htx *htx = htx_from_buf(&res->buf);
 	const char *data;
@@ -5309,7 +5309,7 @@ __LJMP static int hlua_applet_http_send_response(lua_State *L)
 {
 	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_http(L, 1));
 	struct hlua_http_ctx *http_ctx = luactx->appctx->svcctx;
-	struct conn_stream *cs = appctx_cs(luactx->appctx);
+	struct stconn *cs = appctx_cs(luactx->appctx);
 	struct channel *res = cs_ic(cs);
 	struct htx *htx;
 	struct htx_sl *sl;
@@ -5506,7 +5506,7 @@ __LJMP static int hlua_applet_http_send_response(lua_State *L)
 __LJMP static int hlua_applet_http_start_response_yield(lua_State *L, int status, lua_KContext ctx)
 {
 	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_http(L, 1));
-	struct conn_stream *cs = appctx_cs(luactx->appctx);
+	struct stconn *cs = appctx_cs(luactx->appctx);
 	struct channel *res = cs_ic(cs);
 
 	if (co_data(res)) {
@@ -9216,7 +9216,7 @@ struct task *hlua_applet_wakeup(struct task *t, void *context, unsigned int stat
 static int hlua_applet_tcp_init(struct appctx *ctx)
 {
 	struct hlua_tcp_ctx *tcp_ctx = applet_reserve_svcctx(ctx, sizeof(*tcp_ctx));
-	struct conn_stream *cs = appctx_cs(ctx);
+	struct stconn *cs = appctx_cs(ctx);
 	struct stream *strm = __cs_strm(cs);
 	struct hlua *hlua;
 	struct task *task;
@@ -9314,7 +9314,7 @@ static int hlua_applet_tcp_init(struct appctx *ctx)
 void hlua_applet_tcp_fct(struct appctx *ctx)
 {
 	struct hlua_tcp_ctx *tcp_ctx = ctx->svcctx;
-	struct conn_stream *cs = appctx_cs(ctx);
+	struct stconn *cs = appctx_cs(ctx);
 	struct stream *strm = __cs_strm(cs);
 	struct channel *res = cs_ic(cs);
 	struct act_rule *rule = ctx->rule;
@@ -9407,7 +9407,7 @@ static void hlua_applet_tcp_release(struct appctx *ctx)
 static int hlua_applet_http_init(struct appctx *ctx)
 {
 	struct hlua_http_ctx *http_ctx = applet_reserve_svcctx(ctx, sizeof(*http_ctx));
-	struct conn_stream *cs = appctx_cs(ctx);
+	struct stconn *cs = appctx_cs(ctx);
 	struct stream *strm = __cs_strm(cs);
 	struct http_txn *txn;
 	struct hlua *hlua;
@@ -9510,7 +9510,7 @@ static int hlua_applet_http_init(struct appctx *ctx)
 void hlua_applet_http_fct(struct appctx *ctx)
 {
 	struct hlua_http_ctx *http_ctx = ctx->svcctx;
-	struct conn_stream *cs = appctx_cs(ctx);
+	struct stconn *cs = appctx_cs(ctx);
 	struct stream *strm = __cs_strm(cs);
 	struct channel *req = cs_oc(cs);
 	struct channel *res = cs_ic(cs);
@@ -10143,7 +10143,7 @@ static int hlua_cli_io_handler_fct(struct appctx *appctx)
 {
 	struct hlua_cli_ctx *ctx = appctx->svcctx;
 	struct hlua *hlua;
-	struct conn_stream *cs;
+	struct stconn *cs;
 	struct hlua_function *fcn;
 
 	hlua = ctx->hlua;

@@ -1455,7 +1455,7 @@ static void http_cache_io_handler(struct appctx *appctx)
 	struct cache_appctx *ctx = appctx->svcctx;
 	struct cache_entry *cache_ptr = ctx->entry;
 	struct shared_block *first = block_ptr(cache_ptr);
-	struct conn_stream *cs = appctx_cs(appctx);
+	struct stconn *cs = appctx_cs(appctx);
 	struct channel *req = cs_oc(cs);
 	struct channel *res = cs_ic(cs);
 	struct htx *req_htx, *res_htx;
@@ -2600,7 +2600,7 @@ static int cli_io_handler_show_cache(struct appctx *appctx)
 {
 	struct show_cache_ctx *ctx = appctx->svcctx;
 	struct cache* cache = ctx->cache;
-	struct conn_stream *cs = appctx_cs(appctx);
+	struct stconn *cs = appctx_cs(appctx);
 
 	list_for_each_entry_from(cache, &caches, list) {
 		struct eb32_node *node = NULL;
@@ -2690,7 +2690,7 @@ smp_fetch_res_cache_name(const struct arg *args, struct sample *smp,
 	if (!smp->strm || smp->strm->target != &http_cache_applet.obj_type)
 		return 0;
 
-	/* Get appctx from the conn-stream. */
+	/* Get appctx from the stream connector. */
 	appctx = cs_appctx(smp->strm->csb);
 	if (appctx && appctx->rule) {
 		cconf = appctx->rule->arg.act.p[0];

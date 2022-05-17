@@ -2587,7 +2587,7 @@ static int resolvers_finalize_config(void)
 
 }
 
-static int stats_dump_resolv_to_buffer(struct conn_stream *cs,
+static int stats_dump_resolv_to_buffer(struct stconn *cs,
                                     struct dns_nameserver *ns,
                                     struct field *stats, size_t stats_count,
                                     struct list *stat_modules)
@@ -2622,7 +2622,7 @@ static int stats_dump_resolv_to_buffer(struct conn_stream *cs,
 /* Uses <appctx.ctx.stats.obj1> as a pointer to the current resolver and <obj2>
  * as a pointer to the current nameserver.
  */
-int stats_dump_resolvers(struct conn_stream *cs,
+int stats_dump_resolvers(struct stconn *cs,
                          struct field *stats, size_t stats_count,
                          struct list *stat_modules)
 {
@@ -2757,7 +2757,7 @@ static int cli_parse_stat_resolvers(char **args, char *payload, struct appctx *a
 static int cli_io_handler_dump_resolvers_to_buffer(struct appctx *appctx)
 {
 	struct show_resolvers_ctx *ctx = appctx->svcctx;
-	struct conn_stream *cs = appctx_cs(appctx);
+	struct stconn *cs = appctx_cs(appctx);
 	struct resolvers    *resolvers = ctx->resolvers;
 	struct dns_nameserver   *ns;
 

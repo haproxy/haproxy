@@ -309,7 +309,7 @@ int stats_putchk(struct channel *chn, struct htx *htx, struct buffer *chk)
 	return 1;
 }
 
-static const char *stats_scope_ptr(struct appctx *appctx, struct conn_stream *cs)
+static const char *stats_scope_ptr(struct appctx *appctx, struct stconn *cs)
 {
 	struct show_stat_ctx *ctx = appctx->svcctx;
 	struct channel *req = cs_oc(cs);
@@ -1809,10 +1809,10 @@ int stats_fill_fe_stats(struct proxy *px, struct field *stats, int len,
 }
 
 /* Dumps a frontend's line to the trash for the current proxy <px> and uses
- * the state from conn-stream <cs>. The caller is responsible for clearing
+ * the state from stream connector <cs>. The caller is responsible for clearing
  * the trash if needed. Returns non-zero if it emits anything, zero otherwise.
  */
-static int stats_dump_fe_stats(struct conn_stream *cs, struct proxy *px)
+static int stats_dump_fe_stats(struct stconn *cs, struct proxy *px)
 {
 	struct appctx *appctx = __cs_appctx(cs);
 	struct show_stat_ctx *ctx = appctx->svcctx;
@@ -1977,10 +1977,10 @@ int stats_fill_li_stats(struct proxy *px, struct listener *l, int flags,
 }
 
 /* Dumps a line for listener <l> and proxy <px> to the trash and uses the state
- * from conn-stream <cs>. The caller is responsible for clearing the trash
+ * from stream connector <cs>. The caller is responsible for clearing the trash
  * if needed. Returns non-zero if it emits anything, zero otherwise.
  */
-static int stats_dump_li_stats(struct conn_stream *cs, struct proxy *px, struct listener *l)
+static int stats_dump_li_stats(struct stconn *cs, struct proxy *px, struct listener *l)
 {
 	struct appctx *appctx = __cs_appctx(cs);
 	struct show_stat_ctx *ctx = appctx->svcctx;
@@ -2488,11 +2488,11 @@ int stats_fill_sv_stats(struct proxy *px, struct server *sv, int flags,
 }
 
 /* Dumps a line for server <sv> and proxy <px> to the trash and uses the state
- * from conn-stream <cs>, and server state <state>. The caller is
+ * from stream connector <cs>, and server state <state>. The caller is
  * responsible for clearing the trash if needed. Returns non-zero if it emits
  * anything, zero otherwise.
  */
-static int stats_dump_sv_stats(struct conn_stream *cs, struct proxy *px, struct server *sv)
+static int stats_dump_sv_stats(struct stconn *cs, struct proxy *px, struct server *sv)
 {
 	struct appctx *appctx = __cs_appctx(cs);
 	struct show_stat_ctx *ctx = appctx->svcctx;
@@ -2818,7 +2818,7 @@ int stats_fill_be_stats(struct proxy *px, int flags, struct field *stats, int le
  * interface <si>. The caller is responsible for clearing the trash if needed.
  * Returns non-zero if it emits anything, zero otherwise.
  */
-static int stats_dump_be_stats(struct conn_stream *cs, struct proxy *px)
+static int stats_dump_be_stats(struct stconn *cs, struct proxy *px)
 {
 	struct appctx *appctx = __cs_appctx(cs);
 	struct show_stat_ctx *ctx = appctx->svcctx;
@@ -2857,10 +2857,10 @@ static int stats_dump_be_stats(struct conn_stream *cs, struct proxy *px)
 }
 
 /* Dumps the HTML table header for proxy <px> to the trash for and uses the state from
- * conn-stream <cs> and per-uri parameters <uri>. The caller is responsible
+ * stream connector <cs> and per-uri parameters <uri>. The caller is responsible
  * for clearing the trash if needed.
  */
-static void stats_dump_html_px_hdr(struct conn_stream *cs, struct proxy *px)
+static void stats_dump_html_px_hdr(struct stconn *cs, struct proxy *px)
 {
 	struct appctx *appctx = __cs_appctx(cs);
 	struct show_stat_ctx *ctx = appctx->svcctx;
@@ -2968,9 +2968,9 @@ static void stats_dump_html_px_hdr(struct conn_stream *cs, struct proxy *px)
 }
 
 /* Dumps the HTML table trailer for proxy <px> to the trash for and uses the state from
- * conn_stream <cs>. The caller is responsible for clearing the trash if needed.
+ * stream connector <cs>. The caller is responsible for clearing the trash if needed.
  */
-static void stats_dump_html_px_end(struct conn_stream *cs, struct proxy *px)
+static void stats_dump_html_px_end(struct stconn *cs, struct proxy *px)
 {
 	struct appctx *appctx = __cs_appctx(cs);
 	struct show_stat_ctx *ctx = appctx->svcctx;
@@ -3007,13 +3007,13 @@ static void stats_dump_html_px_end(struct conn_stream *cs, struct proxy *px)
 }
 
 /*
- * Dumps statistics for a proxy. The output is sent to the conn-stream's
+ * Dumps statistics for a proxy. The output is sent to the stream connector's
  * input buffer. Returns 0 if it had to stop dumping data because of lack of
  * buffer space, or non-zero if everything completed. This function is used
  * both by the CLI and the HTTP entry points, and is able to dump the output
  * in HTML or CSV formats. If the later, <uri> must be NULL.
  */
-int stats_dump_proxy_to_buffer(struct conn_stream *cs, struct htx *htx,
+int stats_dump_proxy_to_buffer(struct stconn *cs, struct htx *htx,
 			       struct proxy *px, struct uri_auth *uri)
 {
 	struct appctx *appctx = __cs_appctx(cs);
@@ -3389,10 +3389,10 @@ static void stats_dump_html_head(struct appctx *appctx, struct uri_auth *uri)
 }
 
 /* Dumps the HTML stats information block to the trash for and uses the state from
- * conn-stream <cs> and per-uri parameters <uri>. The caller is responsible
+ * stream connector <cs> and per-uri parameters <uri>. The caller is responsible
  * for clearing the trash if needed.
  */
-static void stats_dump_html_info(struct conn_stream *cs, struct uri_auth *uri)
+static void stats_dump_html_info(struct stconn *cs, struct uri_auth *uri)
 {
 	struct appctx *appctx = __cs_appctx(cs);
 	struct show_stat_ctx *ctx = appctx->svcctx;
@@ -3673,7 +3673,7 @@ static void stats_dump_json_end()
 /* Uses <appctx.ctx.stats.obj1> as a pointer to the current proxy and <obj2> as
  * a pointer to the current server/listener.
  */
-static int stats_dump_proxies(struct conn_stream *cs,
+static int stats_dump_proxies(struct stconn *cs,
                               struct htx *htx,
                               struct uri_auth *uri)
 {
@@ -3715,14 +3715,14 @@ static int stats_dump_proxies(struct conn_stream *cs,
 	return 0;
 }
 
-/* This function dumps statistics onto the conn-stream's read buffer in
+/* This function dumps statistics onto the stream connector's read buffer in
  * either CSV or HTML format. <uri> contains some HTML-specific parameters that
  * are ignored for CSV format (hence <uri> may be NULL there). It returns 0 if
  * it had to stop writing data and an I/O is needed, 1 if the dump is finished
  * and the stream must be closed, or -1 in case of any error. This function is
  * used by both the CLI and the HTTP handlers.
  */
-static int stats_dump_stat_to_buffer(struct conn_stream *cs, struct htx *htx,
+static int stats_dump_stat_to_buffer(struct stconn *cs, struct htx *htx,
 				     struct uri_auth *uri)
 {
 	struct appctx *appctx = __cs_appctx(cs);
@@ -3825,7 +3825,7 @@ static int stats_dump_stat_to_buffer(struct conn_stream *cs, struct htx *htx,
  * Parse the posted data and enable/disable servers if necessary.
  * Returns 1 if request was parsed or zero if it needs more data.
  */
-static int stats_process_http_post(struct conn_stream *cs)
+static int stats_process_http_post(struct stconn *cs)
 {
 	struct stream *s = __cs_strm(cs);
 	struct appctx *appctx = __cs_appctx(cs);
@@ -4161,7 +4161,7 @@ static int stats_process_http_post(struct conn_stream *cs)
 }
 
 
-static int stats_send_http_headers(struct conn_stream *cs, struct htx *htx)
+static int stats_send_http_headers(struct stconn *cs, struct htx *htx)
 {
 	struct stream *s = __cs_strm(cs);
 	struct uri_auth *uri = s->be->uri_auth;
@@ -4215,7 +4215,7 @@ static int stats_send_http_headers(struct conn_stream *cs, struct htx *htx)
 }
 
 
-static int stats_send_http_redirect(struct conn_stream *cs, struct htx *htx)
+static int stats_send_http_redirect(struct stconn *cs, struct htx *htx)
 {
 	char scope_txt[STAT_SCOPE_TXT_MAXLEN + sizeof STAT_SCOPE_PATTERN];
 	struct stream *s = __cs_strm(cs);
@@ -4275,7 +4275,7 @@ full:
 }
 
 
-/* This I/O handler runs as an applet embedded in a conn-stream. It is
+/* This I/O handler runs as an applet embedded in a stream connector. It is
  * used to send HTTP stats over a TCP socket. The mechanism is very simple.
  * appctx->st0 contains the operation in progress (dump, done). The handler
  * automatically unregisters itself once transfer is complete.
@@ -4283,7 +4283,7 @@ full:
 static void http_stats_io_handler(struct appctx *appctx)
 {
 	struct show_stat_ctx *ctx = appctx->svcctx;
-	struct conn_stream *cs = appctx_cs(appctx);
+	struct stconn *cs = appctx_cs(appctx);
 	struct stream *s = __cs_strm(cs);
 	struct channel *req = cs_oc(cs);
 	struct channel *res = cs_ic(cs);
@@ -4544,11 +4544,11 @@ int stats_fill_info(struct field *info, int len, uint flags)
 	return 1;
 }
 
-/* This function dumps information onto the conn-stream's read buffer.
+/* This function dumps information onto the stream connector's read buffer.
  * It returns 0 as long as it does not complete, non-zero upon completion.
  * No state is used.
  */
-static int stats_dump_info_to_buffer(struct conn_stream *cs)
+static int stats_dump_info_to_buffer(struct stconn *cs)
 {
 	struct appctx *appctx = __cs_appctx(cs);
 	struct show_stat_ctx *ctx = appctx->svcctx;
@@ -4573,7 +4573,7 @@ static int stats_dump_info_to_buffer(struct conn_stream *cs)
 	return 1;
 }
 
-/* This function dumps the schema onto the conn-stream's read buffer.
+/* This function dumps the schema onto the stream connector's read buffer.
  * It returns 0 as long as it does not complete, non-zero upon completion.
  * No state is used.
  *
@@ -4783,11 +4783,11 @@ static void stats_dump_json_schema(struct buffer *out)
 	}
 }
 
-/* This function dumps the schema onto the conn-stream's read buffer.
+/* This function dumps the schema onto the stream connector's read buffer.
  * It returns 0 as long as it does not complete, non-zero upon completion.
  * No state is used.
  */
-static int stats_dump_json_schema_to_buffer(struct conn_stream *cs)
+static int stats_dump_json_schema_to_buffer(struct stconn *cs)
 {
 	chunk_reset(&trash);
 
@@ -5007,7 +5007,7 @@ static int cli_io_handler_dump_info(struct appctx *appctx)
 	return stats_dump_info_to_buffer(appctx_cs(appctx));
 }
 
-/* This I/O handler runs as an applet embedded in a conn-stream. It is
+/* This I/O handler runs as an applet embedded in a stream connector. It is
  * used to send raw stats over a socket.
  */
 static int cli_io_handler_dump_stat(struct appctx *appctx)

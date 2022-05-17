@@ -124,7 +124,7 @@ static inline void pt_trace_buf(const struct buffer *buf, size_t ofs, size_t len
 
 /* the PT traces always expect that arg1, if non-null, is of type connection
  * (from which we can derive the pt context), that arg2, if non-null, is a
- * conn-stream, and that arg3, if non-null, is a buffer.
+ * stream connector, and that arg3, if non-null, is a buffer.
  */
 static void pt_trace(enum trace_level level, uint64_t mask, const struct trace_source *src,
                      const struct ist where, const struct ist func,
@@ -132,7 +132,7 @@ static void pt_trace(enum trace_level level, uint64_t mask, const struct trace_s
 {
 	const struct connection *conn = a1;
 	const struct mux_pt_ctx *ctx = conn ? conn->ctx : NULL;
-	const struct conn_stream *cs = a2;
+	const struct stconn *cs = a2;
 	const struct buffer *buf = a3;
 	const size_t *val = a4;
 
@@ -266,15 +266,15 @@ struct task *mux_pt_io_cb(struct task *t, void *tctx, unsigned int status)
 	return t;
 }
 
-/* Initialize the mux once it's attached. It is expected that conn->ctx
- * points to the existing conn_stream (for outgoing connections) or NULL (for
+/* Initialize the mux once it's attached. It is expected that conn->ctx points
+ * to the existing stream connector (for outgoing connections) or NULL (for
  * incoming ones, in which case one will be allocated and a new stream will be
  * instantiated). Returns < 0 on error.
  */
 static int mux_pt_init(struct connection *conn, struct proxy *prx, struct session *sess,
 		       struct buffer *input)
 {
-	struct conn_stream *cs = conn->ctx;
+	struct stconn *cs = conn->ctx;
 	struct mux_pt_ctx *ctx = pool_alloc(pool_head_pt_ctx);
 
 	TRACE_ENTER(PT_EV_CONN_NEW);
@@ -389,10 +389,10 @@ static int mux_pt_attach(struct connection *conn, struct sedesc *endp, struct se
 	return 0;
 }
 
-/* Retrieves a valid conn_stream from this connection, or returns NULL. For
- * this mux, it's easy as we can only store a single conn_stream.
+/* Retrieves a valid stream connector from this connection, or returns NULL.
+ * For this mux, it's easy as we can only store a single stream connector.
  */
-static struct conn_stream *mux_pt_get_first_cs(const struct connection *conn)
+static struct stconn *mux_pt_get_first_cs(const struct connection *conn)
 {
 	struct mux_pt_ctx *ctx = conn->ctx;
 
@@ -453,7 +453,7 @@ static int mux_pt_avail_streams(struct connection *conn)
 	return 1 - mux_pt_used_streams(conn);
 }
 
-static void mux_pt_shutr(struct conn_stream *cs, enum co_shr_mode mode)
+static void mux_pt_shutr(struct stconn *cs, enum co_shr_mode mode)
 {
 	struct connection *conn = __cs_conn(cs);
 	struct mux_pt_ctx *ctx = conn->ctx;
@@ -474,7 +474,7 @@ static void mux_pt_shutr(struct conn_stream *cs, enum co_shr_mode mode)
 	TRACE_LEAVE(PT_EV_STRM_SHUT, conn, cs);
 }
 
-static void mux_pt_shutw(struct conn_stream *cs, enum co_shw_mode mode)
+static void mux_pt_shutw(struct stconn *cs, enum co_shw_mode mode)
 {
 	struct connection *conn = __cs_conn(cs);
 	struct mux_pt_ctx *ctx = conn->ctx;
@@ -507,7 +507,7 @@ static void mux_pt_shutw(struct conn_stream *cs, enum co_shw_mode mode)
  * mux it may optimize the data copy to <buf> if necessary. Otherwise, it should
  * copy as much data as possible.
  */
-static size_t mux_pt_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t count, int flags)
+static size_t mux_pt_rcv_buf(struct stconn *cs, struct buffer *buf, size_t count, int flags)
 {
 	struct connection *conn = __cs_conn(cs);
 	struct mux_pt_ctx *ctx = conn->ctx;
@@ -537,7 +537,7 @@ static size_t mux_pt_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t 
 }
 
 /* Called from the upper layer, to send data */
-static size_t mux_pt_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t count, int flags)
+static size_t mux_pt_snd_buf(struct stconn *cs, struct buffer *buf, size_t count, int flags)
 {
 	struct connection *conn = __cs_conn(cs);
 	struct mux_pt_ctx *ctx = conn->ctx;
@@ -564,7 +564,7 @@ static size_t mux_pt_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t 
  * as at least one event is still subscribed. The <event_type> must only be a
  * combination of SUB_RETRY_RECV and SUB_RETRY_SEND. It always returns 0.
  */
-static int mux_pt_subscribe(struct conn_stream *cs, int event_type, struct wait_event *es)
+static int mux_pt_subscribe(struct stconn *cs, int event_type, struct wait_event *es)
 {
 	struct connection *conn = __cs_conn(cs);
 
@@ -576,7 +576,7 @@ static int mux_pt_subscribe(struct conn_stream *cs, int event_type, struct wait_
  * The <es> pointer is not allowed to differ from the one passed to the
  * subscribe() call. It always returns zero.
  */
-static int mux_pt_unsubscribe(struct conn_stream *cs, int event_type, struct wait_event *es)
+static int mux_pt_unsubscribe(struct stconn *cs, int event_type, struct wait_event *es)
 {
 	struct connection *conn = __cs_conn(cs);
 
@@ -586,7 +586,7 @@ static int mux_pt_unsubscribe(struct conn_stream *cs, int event_type, struct wai
 
 #if defined(USE_LINUX_SPLICE)
 /* Send and get, using splicing */
-static int mux_pt_rcv_pipe(struct conn_stream *cs, struct pipe *pipe, unsigned int count)
+static int mux_pt_rcv_pipe(struct stconn *cs, struct pipe *pipe, unsigned int count)
 {
 	struct connection *conn = __cs_conn(cs);
 	struct mux_pt_ctx *ctx = conn->ctx;
@@ -608,7 +608,7 @@ static int mux_pt_rcv_pipe(struct conn_stream *cs, struct pipe *pipe, unsigned i
 	return (ret);
 }
 
-static int mux_pt_snd_pipe(struct conn_stream *cs, struct pipe *pipe)
+static int mux_pt_snd_pipe(struct stconn *cs, struct pipe *pipe)
 {
 	struct connection *conn = __cs_conn(cs);
 	struct mux_pt_ctx *ctx = conn->ctx;

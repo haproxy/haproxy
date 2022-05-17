@@ -1228,9 +1228,9 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 	return 0;
 }
 
-/* Reset the stream and the backend conn_stream to a situation suitable for attemption connection */
+/* Reset the stream and the backend stream connector to a situation suitable for attemption connection */
 /* Returns 0 if we can attempt to retry, -1 otherwise */
-static __inline int do_l7_retry(struct stream *s, struct conn_stream *cs)
+static __inline int do_l7_retry(struct stream *s, struct stconn *cs)
 {
 	struct channel *req, *res;
 	int co_data;
@@ -4251,7 +4251,7 @@ enum rule_result http_wait_for_msg_body(struct stream *s, struct channel *chn,
 	goto end;
 }
 
-void http_perform_server_redirect(struct stream *s, struct conn_stream *cs)
+void http_perform_server_redirect(struct stream *s, struct stconn *cs)
 {
 	struct channel *req = &s->req;
 	struct channel *res = &s->res;
@@ -4640,7 +4640,7 @@ int http_forward_proxy_resp(struct stream *s, int final)
 	return 1;
 }
 
-void http_server_error(struct stream *s, struct conn_stream *cs, int err,
+void http_server_error(struct stream *s, struct stconn *cs, int err,
 		       int finst, struct http_reply *msg)
 {
 	http_reply_and_close(s, s->txn->status, msg);
@@ -4862,7 +4862,7 @@ int http_reply_message(struct stream *s, struct http_reply *reply)
  * Note that connection errors appearing on the second request of a keep-alive
  * connection are not reported since this allows the client to retry.
  */
-void http_return_srv_error(struct stream *s, struct conn_stream *cs)
+void http_return_srv_error(struct stream *s, struct stconn *cs)
 {
 	int err_type = s->conn_err_type;
 
@@ -5165,7 +5165,7 @@ void http_txn_reset_res(struct http_txn *txn)
 struct http_txn *http_create_txn(struct stream *s)
 {
 	struct http_txn *txn;
-	struct conn_stream *cs = s->csf;
+	struct stconn *cs = s->csf;
 
 	txn = pool_alloc(pool_head_http_txn);
 	if (!txn)

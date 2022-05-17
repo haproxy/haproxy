@@ -1167,7 +1167,7 @@ static int peer_get_version(const char *str,
  */
 static inline int peer_getline(struct appctx  *appctx)
 {
-	struct conn_stream *cs = appctx_cs(appctx);
+	struct stconn *cs = appctx_cs(appctx);
 	int n;
 
 	n = co_getline(cs_oc(cs), trash.area, trash.size);
@@ -1201,7 +1201,7 @@ static inline int peer_send_msg(struct appctx *appctx,
                                 struct peer_prep_params *params)
 {
 	int ret, msglen;
-	struct conn_stream *cs = appctx_cs(appctx);
+	struct stconn *cs = appctx_cs(appctx);
 
 	msglen = peer_prepare_msg(trash.area, trash.size, params);
 	if (!msglen) {
@@ -1681,7 +1681,7 @@ static inline int peer_send_teach_stage2_msgs(struct appctx *appctx, struct peer
 static int peer_treat_updatemsg(struct appctx *appctx, struct peer *p, int updt, int exp,
                                 char **msg_cur, char *msg_end, int msg_len, int totl)
 {
-	struct conn_stream *cs = appctx_cs(appctx);
+	struct stconn *cs = appctx_cs(appctx);
 	struct shared_table *st = p->remote_table;
 	struct stksess *ts, *newts;
 	uint32_t update;
@@ -2133,7 +2133,7 @@ static inline int peer_treat_switchmsg(struct appctx *appctx, struct peer *p,
 static inline int peer_treat_definemsg(struct appctx *appctx, struct peer *p,
                                       char **msg_cur, char *msg_end, int totl)
 {
-	struct conn_stream *cs = appctx_cs(appctx);
+	struct stconn *cs = appctx_cs(appctx);
 	int table_id_len;
 	struct shared_table *st;
 	int table_type;
@@ -2332,7 +2332,7 @@ static inline int peer_recv_msg(struct appctx *appctx, char *msg_head, size_t ms
                                 uint32_t *msg_len, int *totl)
 {
 	int reql;
-	struct conn_stream *cs = appctx_cs(appctx);
+	struct stconn *cs = appctx_cs(appctx);
 	char *cur;
 
 	reql = co_getblk(cs_oc(cs), msg_head, 2 * sizeof(char), *totl);
@@ -2850,7 +2850,7 @@ static inline void init_connected_peer(struct peer *peer, struct peers *peers)
  */
 static void peer_io_handler(struct appctx *appctx)
 {
-	struct conn_stream *cs = appctx_cs(appctx);
+	struct stconn *cs = appctx_cs(appctx);
 	struct stream *s = __cs_strm(cs);
 	struct peers *curpeers = strm_fe(s)->parent;
 	struct peer *curpeer = NULL;
@@ -3744,7 +3744,7 @@ static int cli_parse_show_peers(char **args, char *payload, struct appctx *appct
  * Returns 0 if the output buffer is full and needs to be called again, non-zero if not.
  * Dedicated to be called by cli_io_handler_show_peers() cli I/O handler.
  */
-static int peers_dump_head(struct buffer *msg, struct conn_stream *cs, struct peers *peers)
+static int peers_dump_head(struct buffer *msg, struct stconn *cs, struct peers *peers)
 {
 	struct tm tm;
 
@@ -3773,11 +3773,11 @@ static int peers_dump_head(struct buffer *msg, struct conn_stream *cs, struct pe
  * Returns 0 if the output buffer is full and needs to be called again, non-zero
  * if not. Dedicated to be called by cli_io_handler_show_peers() cli I/O handler.
  */
-static int peers_dump_peer(struct buffer *msg, struct conn_stream *cs, struct peer *peer, int flags)
+static int peers_dump_peer(struct buffer *msg, struct stconn *cs, struct peer *peer, int flags)
 {
 	struct connection *conn;
 	char pn[INET6_ADDRSTRLEN];
-	struct conn_stream *peer_cs;
+	struct stconn *peer_cs;
 	struct stream *peer_s;
 	struct appctx *appctx;
 	struct shared_table *st;

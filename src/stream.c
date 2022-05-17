@@ -79,7 +79,7 @@ static void strm_trace(enum trace_level level, uint64_t mask,
 
 /* The event representation is split like this :
  *   strm  - stream
- *   cs    - conn-stream
+ *   cs    - stream connector
  *   http  - http analyzis
  *   tcp   - tcp analyzis
  *
@@ -92,7 +92,7 @@ static const struct trace_event strm_trace_events[] = {
 	{ .mask = STRM_EV_STRM_ANA,     .name = "strm_ana",     .desc = "stream analyzers" },
 	{ .mask = STRM_EV_STRM_PROC,    .name = "strm_proc",    .desc = "stream processing" },
 
-	{ .mask = STRM_EV_CS_ST,        .name = "cs_state",     .desc = "processing conn-stream states" },
+	{ .mask = STRM_EV_CS_ST,        .name = "cs_state",     .desc = "processing connector states" },
 
 	{ .mask = STRM_EV_HTTP_ANA,     .name = "http_ana",     .desc = "HTTP analyzers" },
 	{ .mask = STRM_EV_HTTP_ERR,     .name = "http_err",     .desc = "error during HTTP analyzis" },
@@ -116,7 +116,7 @@ static const struct name_desc strm_trace_decoding[] = {
 #define STRM_VERB_CLEAN    1
 	{ .name="clean",    .desc="only user-friendly stuff, generally suitable for level \"user\"" },
 #define STRM_VERB_MINIMAL  2
-	{ .name="minimal",  .desc="report info on stream and conn-streams" },
+	{ .name="minimal",  .desc="report info on streams and connectors" },
 #define STRM_VERB_SIMPLE   3
 	{ .name="simple",   .desc="add info on request and response channels" },
 #define STRM_VERB_ADVANCED 4
@@ -171,7 +171,7 @@ static void strm_trace(enum trace_level level, uint64_t mask, const struct trace
 		b_putist(&trace_buf, s->unique_id);
 	}
 
-	/* Front and back conn-stream state */
+	/* Front and back stream connector state */
 	chunk_appendf(&trace_buf, " CS=(%s,%s)",
 		      cs_state_str(s->csf->state), cs_state_str(s->csb->state));
 
@@ -268,14 +268,14 @@ static void strm_trace(enum trace_level level, uint64_t mask, const struct trace
 	}
 }
 
-/* Upgrade an existing stream for conn-stream <cs>. Return < 0 on error. This
+/* Upgrade an existing stream for stream connector <cs>. Return < 0 on error. This
  * is only valid right after a TCP to H1 upgrade. The stream should be
  * "reativated" by removing SF_IGNORE flag. And the right mode must be set.  On
  * success, <input> buffer is transferred to the stream and thus points to
  * BUF_NULL. On error, it is unchanged and it is the caller responsibility to
  * release it (this never happens for now).
  */
-int stream_upgrade_from_cs(struct conn_stream *cs, struct buffer *input)
+int stream_upgrade_from_cs(struct stconn *cs, struct buffer *input)
 {
 	struct stream *s = __cs_strm(cs);
 	const struct mux_ops *mux = cs_conn_mux(cs);
@@ -303,7 +303,7 @@ int stream_upgrade_from_cs(struct conn_stream *cs, struct buffer *input)
 }
 
 /* Callback used to wake up a stream when an input buffer is available. The
- * stream <s>'s conn-streams are checked for a failed buffer allocation
+ * stream <s>'s stream connectors are checked for a failed buffer allocation
  * as indicated by the presence of the SE_FL_RXBLK_ROOM flag and the lack of a
  * buffer, and and input buffer is assigned there (at most one). The function
  * returns 1 and wakes the stream up if a buffer was taken, otherwise zero.
@@ -339,7 +339,7 @@ int stream_buf_available(void *arg)
  * transfer to the stream and <input> is set to BUF_NULL. On error, <input>
  * buffer is unchanged and it is the caller responsibility to release it.
  */
-struct stream *stream_new(struct session *sess, struct conn_stream *cs, struct buffer *input)
+struct stream *stream_new(struct session *sess, struct stconn *cs, struct buffer *input)
 {
 	struct stream *s;
 	struct task *t;
@@ -1462,7 +1462,7 @@ static int process_store_rules(struct stream *s, struct channel *rep, int an_bit
  */
 int stream_set_http_mode(struct stream *s, const struct mux_proto_list *mux_proto)
 {
-	struct conn_stream *cs = s->csf;
+	struct stconn *cs = s->csf;
 	struct connection  *conn;
 
 	/* Already an HTTP stream */
@@ -1495,7 +1495,7 @@ int stream_set_http_mode(struct stream *s, const struct mux_proto_list *mux_prot
 		s->req.total = 0;
 		s->flags |= SF_IGNORE;
 		if (strcmp(conn->mux->name, "H2") == 0) {
-			/* For HTTP/2, destroy the conn_stream, disable logging,
+			/* For HTTP/2, destroy the stream connector, disable logging,
 			 * and abort the stream process. Thus it will be
 			 * silently destroyed. The new mux will create new
 			 * streams.
@@ -1513,17 +1513,17 @@ int stream_set_http_mode(struct stream *s, const struct mux_proto_list *mux_prot
 }
 
 
-/* Updates at once the channel flags, and timers of both conn-streams of a
+/* Updates at once the channel flags, and timers of both stream connectors of a
  * same stream, to complete the work after the analysers, then updates the data
  * layer below. This will ensure that any synchronous update performed at the
- * data layer will be reflected in the channel flags and/or conn-stream.
- * Note that this does not change the conn-stream's current state, though
+ * data layer will be reflected in the channel flags and/or stream connector.
+ * Note that this does not change the stream connector's current state, though
  * it updates the previous state to the current one.
  */
 static void stream_update_both_cs(struct stream *s)
 {
-	struct conn_stream *csf = s->csf;
-	struct conn_stream *csb = s->csb;
+	struct stconn *csf = s->csf;
+	struct stconn *csb = s->csb;
 	struct channel *req = &s->req;
 	struct channel *res = &s->res;
 
@@ -1539,7 +1539,7 @@ static void stream_update_both_cs(struct stream *s)
 	if (cs_state_in(csb->state, CS_SB_RDY|CS_SB_EST))
 		cs_update(csb);
 
-	/* conn-streams are processed outside of process_stream() and must be
+	/* stream connectors are processed outside of process_stream() and must be
 	 * handled at the latest moment.
 	 */
 	if (cs_appctx(csf)) {
@@ -1620,7 +1620,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	unsigned int rp_cons_last, rp_prod_last;
 	unsigned int req_ana_back;
 	struct channel *req, *res;
-	struct conn_stream *csf, *csb;
+	struct stconn *csf, *csb;
 	unsigned int rate;
 
 	DBG_TRACE_ENTER(STRM_EV_STRM_PROC, s);
@@ -1659,7 +1659,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	rqf_last = req->flags & ~CF_MASK_ANALYSER;
 	rpf_last = res->flags & ~CF_MASK_ANALYSER;
 
-	/* we don't want the conn-stream functions to recursively wake us up */
+	/* we don't want the stream connector functions to recursively wake us up */
 	csf->flags |= CS_FL_DONT_WAKE;
 	csb->flags |= CS_FL_DONT_WAKE;
 
@@ -1667,12 +1667,12 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	s->pending_events |= (state & TASK_WOKEN_ANY);
 
 	/* 1a: Check for low level timeouts if needed. We just set a flag on
-	 * conn-streams when their timeouts have expired.
+	 * stream connectors when their timeouts have expired.
 	 */
 	if (unlikely(s->pending_events & TASK_WOKEN_TIMER)) {
 		stream_check_conn_timeout(s);
 
-		/* check channel timeouts, and close the corresponding conn-streams
+		/* check channel timeouts, and close the corresponding stream connectors
 		 * for future reads or writes. Note: this will also concern upper layers
 		 * but we do not touch any other flag. We must be careful and correctly
 		 * detect state changes when calling them.
@@ -1724,7 +1724,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		}
 	}
 
- resync_conn_stream:
+ resync_stconns:
 	/* below we may emit error messages so we have to ensure that we have
 	 * our buffers properly allocated. If the allocation failed, an error is
 	 * triggered.
@@ -1746,7 +1746,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		sess_set_term_flags(s);
 	}
 
-	/* 1b: check for low-level errors reported at the conn-stream.
+	/* 1b: check for low-level errors reported at the stream connector.
 	 * First we check if it's a retryable error (in which case we don't
 	 * want to tell the buffer). Otherwise we report the error one level
 	 * upper by setting flags into the buffers. Note that the side towards
@@ -2105,7 +2105,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 			sess_set_term_flags(s);
 
 			/* Abort the request if a client error occurred while
-			 * the backend conn-stream is in the CS_ST_INI
+			 * the backend stream connector is in the CS_ST_INI
 			 * state. It is switched into the CS_ST_CLO state and
 			 * the request channel is erased. */
 			if (csb->state == CS_ST_INI) {
@@ -2271,7 +2271,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 
 			/* get a chance to complete an immediate connection setup */
 			if (csb->state == CS_ST_RDY)
-				goto resync_conn_stream;
+				goto resync_stconns;
 
 			/* applets directly go to the ESTABLISHED state. Similarly,
 			 * servers experience the same fate when their connection
@@ -2330,7 +2330,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	    cs_state_in(csb->state, CS_SB_RDY|CS_SB_DIS) ||
 	    (sc_ep_test(csf, SE_FL_ERROR) && csf->state != CS_ST_CLO) ||
 	    (sc_ep_test(csb, SE_FL_ERROR) && csb->state != CS_ST_CLO))
-		goto resync_conn_stream;
+		goto resync_stconns;
 
 	/* otherwise we want to check if we need to resync the req buffer or not */
 	if ((req->flags ^ rqf_last) & (CF_SHUTR|CF_SHUTW))
@@ -2454,7 +2454,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	    cs_state_in(csb->state, CS_SB_RDY|CS_SB_DIS) ||
 	    (sc_ep_test(csf, SE_FL_ERROR) && csf->state != CS_ST_CLO) ||
 	    (sc_ep_test(csb, SE_FL_ERROR) && csb->state != CS_ST_CLO))
-		goto resync_conn_stream;
+		goto resync_stconns;
 
 	if ((req->flags & ~rqf_last) & CF_MASK_ANALYSER)
 		goto resync_request;
@@ -2664,9 +2664,9 @@ void sess_change_server(struct stream *strm, struct server *newsrv)
 /* Handle server-side errors for default protocols. It is called whenever a a
  * connection setup is aborted or a request is aborted in queue. It sets the
  * stream termination flags so that the caller does not have to worry about
- * them. It's installed as ->srv_error for the server-side conn_stream.
+ * them. It's installed as ->srv_error for the server-side stream connector.
  */
-void default_srv_error(struct stream *s, struct conn_stream *cs)
+void default_srv_error(struct stream *s, struct stconn *cs)
 {
 	int err_type = s->conn_err_type;
 	int err = 0, fin = 0;
@@ -2730,7 +2730,7 @@ void stream_shutdown(struct stream *stream, int why)
  */
 void stream_dump(struct buffer *buf, const struct stream *s, const char *pfx, char eol)
 {
-	const struct conn_stream *csf, *csb;
+	const struct stconn *csf, *csb;
 	const struct connection  *cof, *cob;
 	const struct appctx      *acf, *acb;
 	const struct server      *srv;
@@ -3145,16 +3145,16 @@ struct show_sess_ctx {
 	int pos;		/* last position of the current session's buffer */
 };
 
-/* This function dumps a complete stream state onto the conn-stream's
+/* This function dumps a complete stream state onto the stream connector's
  * read buffer. The stream has to be set in strm. It returns 0 if the output
  * buffer is full and it needs to be called again, otherwise non-zero. It is
  * designed to be called from stats_dump_strm_to_buffer() below.
  */
-static int stats_dump_full_strm_to_buffer(struct conn_stream *cs, struct stream *strm)
+static int stats_dump_full_strm_to_buffer(struct stconn *cs, struct stream *strm)
 {
 	struct appctx *appctx = __cs_appctx(cs);
 	struct show_sess_ctx *ctx = appctx->svcctx;
-	struct conn_stream *csf, *csb;
+	struct stconn *csf, *csb;
 	struct tm tm;
 	extern const char *monthname[12];
 	char pn[INET6_ADDRSTRLEN];
@@ -3518,7 +3518,7 @@ static int cli_parse_show_sess(char **args, char *payload, struct appctx *appctx
 	return 0;
 }
 
-/* This function dumps all streams' states onto the conn-stream's
+/* This function dumps all streams' states onto the stream connector's
  * read buffer. It returns 0 if the output buffer is full and it needs
  * to be called again, otherwise non-zero. It proceeds in an isolated
  * thread so there is no thread safety issue here.
@@ -3526,7 +3526,7 @@ static int cli_parse_show_sess(char **args, char *payload, struct appctx *appctx
 static int cli_io_handler_dump_sess(struct appctx *appctx)
 {
 	struct show_sess_ctx *ctx = appctx->svcctx;
-	struct conn_stream *cs = appctx_cs(appctx);
+	struct stconn *cs = appctx_cs(appctx);
 	struct connection *conn;
 
 	thread_isolate();

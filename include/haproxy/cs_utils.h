@@ -1,6 +1,6 @@
 /*
  * include/haproxy/cs_utils.h
- * This file contains conn-stream util functions prototypes
+ * This file contains stream connector util functions prototypes
  *
  * Copyright 2022 Christopher Faulet <cfaulet@haproxy.com>
  *
@@ -33,51 +33,51 @@
 #include <haproxy/session.h>
 #include <haproxy/stream.h>
 
-void cs_update_rx(struct conn_stream *cs);
-void cs_update_tx(struct conn_stream *cs);
+void cs_update_rx(struct stconn *cs);
+void cs_update_tx(struct stconn *cs);
 
 struct task *cs_conn_io_cb(struct task *t, void *ctx, unsigned int state);
-int cs_conn_sync_recv(struct conn_stream *cs);
-void cs_conn_sync_send(struct conn_stream *cs);
+int cs_conn_sync_recv(struct stconn *cs);
+void cs_conn_sync_send(struct stconn *cs);
 
 
-/* returns the channel which receives data from this conn-stream (input channel) */
-static inline struct channel *cs_ic(struct conn_stream *cs)
+/* returns the channel which receives data from this stream connector (input channel) */
+static inline struct channel *cs_ic(struct stconn *cs)
 {
 	struct stream *strm = __cs_strm(cs);
 
 	return ((cs->flags & CS_FL_ISBACK) ? &(strm->res) : &(strm->req));
 }
 
-/* returns the channel which feeds data to this conn-stream (output channel) */
-static inline struct channel *cs_oc(struct conn_stream *cs)
+/* returns the channel which feeds data to this stream connector (output channel) */
+static inline struct channel *cs_oc(struct stconn *cs)
 {
 	struct stream *strm = __cs_strm(cs);
 
 	return ((cs->flags & CS_FL_ISBACK) ? &(strm->req) : &(strm->res));
 }
 
-/* returns the buffer which receives data from this conn-stream (input channel's buffer) */
-static inline struct buffer *cs_ib(struct conn_stream *cs)
+/* returns the buffer which receives data from this stream connector (input channel's buffer) */
+static inline struct buffer *cs_ib(struct stconn *cs)
 {
 	return &cs_ic(cs)->buf;
 }
 
-/* returns the buffer which feeds data to this conn-stream (output channel's buffer) */
-static inline struct buffer *cs_ob(struct conn_stream *cs)
+/* returns the buffer which feeds data to this stream connector (output channel's buffer) */
+static inline struct buffer *cs_ob(struct stconn *cs)
 {
 	return &cs_oc(cs)->buf;
 }
-/* returns the stream's task associated to this conn-stream */
-static inline struct task *cs_strm_task(struct conn_stream *cs)
+/* returns the stream's task associated to this stream connector */
+static inline struct task *cs_strm_task(struct stconn *cs)
 {
 	struct stream *strm = __cs_strm(cs);
 
 	return strm->task;
 }
 
-/* returns the conn-stream on the other side. Used during forwarding. */
-static inline struct conn_stream *cs_opposite(struct conn_stream *cs)
+/* returns the stream connector on the other side. Used during forwarding. */
+static inline struct stconn *cs_opposite(struct stconn *cs)
 {
 	struct stream *strm = __cs_strm(cs);
 
@@ -86,7 +86,7 @@ static inline struct conn_stream *cs_opposite(struct conn_stream *cs)
 
 
 /* to be called only when in CS_ST_DIS with CS_FL_ERR */
-static inline void cs_report_error(struct conn_stream *cs)
+static inline void cs_report_error(struct stconn *cs)
 {
 	if (!__cs_strm(cs)->conn_err_type)
 		__cs_strm(cs)->conn_err_type = STRM_ET_DATA_ERR;
@@ -95,15 +95,15 @@ static inline void cs_report_error(struct conn_stream *cs)
 	cs_ic(cs)->flags |= CF_READ_ERROR;
 }
 
-/* sets the current and previous state of a conn-stream to <state>. This is
+/* sets the current and previous state of a stream connector to <state>. This is
  * mainly used to create one in the established state on incoming conncetions.
  */
-static inline void cs_set_state(struct conn_stream *cs, int state)
+static inline void cs_set_state(struct stconn *cs, int state)
 {
 	cs->state = __cs_strm(cs)->prev_conn_state = state;
 }
 
-/* returns a bit for a conn-stream state, to match against CS_SB_* */
+/* returns a bit for a stream connector state, to match against CS_SB_* */
 static inline enum cs_state_bit cs_state_bit(enum cs_state state)
 {
 	BUG_ON(state > CS_ST_CLO);
@@ -117,10 +117,10 @@ static inline int cs_state_in(enum cs_state state, enum cs_state_bit mask)
 	return !!(cs_state_bit(state) & mask);
 }
 
-/* Returns true if a connection is attached to the conn-stream <cs> and if this
+/* Returns true if a connection is attached to the stream connector <cs> and if this
  * connection is ready.
  */
-static inline int cs_conn_ready(struct conn_stream *cs)
+static inline int cs_conn_ready(struct stconn *cs)
 {
 	struct connection *conn = cs_conn(cs);
 
@@ -128,13 +128,13 @@ static inline int cs_conn_ready(struct conn_stream *cs)
 }
 
 
-/* The conn-stream is only responsible for the connection during the early
+/* The stream connector is only responsible for the connection during the early
  * states, before plugging a mux. Thus it should only care about CO_FL_ERROR
  * before CS_ST_EST, and after that it must absolutely ignore it since the mux
  * may hold pending data. This function returns true if such an error was
  * reported. Both the CS and the CONN must be valid.
  */
-static inline int cs_is_conn_error(const struct conn_stream *cs)
+static inline int cs_is_conn_error(const struct stconn *cs)
 {
 	struct connection *conn;
 
@@ -146,15 +146,15 @@ static inline int cs_is_conn_error(const struct conn_stream *cs)
 	return !!(conn->flags & CO_FL_ERROR);
 }
 
-/* Try to allocate a buffer for the conn-stream's input channel. It relies on
+/* Try to allocate a buffer for the stream connector's input channel. It relies on
  * channel_alloc_buffer() for this so it abides by its rules. It returns 0 on
  * failure, non-zero otherwise. If no buffer is available, the requester,
  * represented by the <wait> pointer, will be added in the list of objects
  * waiting for an available buffer, and SE_FL_RXBLK_BUFF will be set on the
- * conn-stream and SE_FL_RX_WAIT_EP cleared. The requester will be responsible
+ * stream connector and SE_FL_RX_WAIT_EP cleared. The requester will be responsible
  * for calling this function to try again once woken up.
  */
-static inline int cs_alloc_ibuf(struct conn_stream *cs, struct buffer_wait *wait)
+static inline int cs_alloc_ibuf(struct stconn *cs, struct buffer_wait *wait)
 {
 	int ret;
 
@@ -165,11 +165,11 @@ static inline int cs_alloc_ibuf(struct conn_stream *cs, struct buffer_wait *wait
 }
 
 
-/* Returns the source address of the conn-stream and, if not set, fallbacks on
+/* Returns the source address of the stream connector and, if not set, fallbacks on
  * the session for frontend CS and the server connection for the backend CS. It
  * returns a const address on success or NULL on failure.
  */
-static inline const struct sockaddr_storage *cs_src(struct conn_stream *cs)
+static inline const struct sockaddr_storage *cs_src(struct stconn *cs)
 {
 	if (cs->src)
 		return cs->src;
@@ -185,11 +185,11 @@ static inline const struct sockaddr_storage *cs_src(struct conn_stream *cs)
 }
 
 
-/* Returns the destination address of the conn-stream and, if not set, fallbacks
+/* Returns the destination address of the stream connector and, if not set, fallbacks
  * on the session for frontend CS and the server connection for the backend
  * CS. It returns a const address on success or NULL on failure.
  */
-static inline const struct sockaddr_storage *cs_dst(struct conn_stream *cs)
+static inline const struct sockaddr_storage *cs_dst(struct stconn *cs)
 {
 	if (cs->dst)
 		return cs->dst;
@@ -204,13 +204,13 @@ static inline const struct sockaddr_storage *cs_dst(struct conn_stream *cs)
 	return NULL;
 }
 
-/* Retrieves the source address of the conn-stream. Returns non-zero on success
+/* Retrieves the source address of the stream connector. Returns non-zero on success
  * or zero on failure. The operation is only performed once and the address is
- * stored in the conn-stream for future use. On the first call, the conn-stream
+ * stored in the stream connector for future use. On the first call, the stream connector
  * source address is copied from the session one for frontend CS and the server
  * connection for the backend CS.
  */
-static inline int cs_get_src(struct conn_stream *cs)
+static inline int cs_get_src(struct stconn *cs)
 {
 	const struct sockaddr_storage *src = NULL;
 
@@ -234,13 +234,13 @@ static inline int cs_get_src(struct conn_stream *cs)
 	return 1;
 }
 
-/* Retrieves the destination address of the conn-stream. Returns non-zero on
+/* Retrieves the destination address of the stream connector. Returns non-zero on
  * success or zero on failure. The operation is only performed once and the
- * address is stored in the conn-stream for future use. On the first call, the
- * conn-stream destination address is copied from the session one for frontend
+ * address is stored in the stream connector for future use. On the first call, the
+ * stream connector destination address is copied from the session one for frontend
  * CS and the server connection for the backend CS.
  */
-static inline int cs_get_dst(struct conn_stream *cs)
+static inline int cs_get_dst(struct stconn *cs)
 {
 	const struct sockaddr_storage *dst = NULL;
 
@@ -265,32 +265,32 @@ static inline int cs_get_dst(struct conn_stream *cs)
 }
 
 
-/* Marks on the conn-stream that next shutw must kill the whole connection */
-static inline void cs_must_kill_conn(struct conn_stream *cs)
+/* Marks on the stream connector that next shutw must kill the whole connection */
+static inline void cs_must_kill_conn(struct stconn *cs)
 {
 	sc_ep_set(cs, SE_FL_KILL_CONN);
 }
 
 
 /* Sends a shutr to the endpoint using the data layer */
-static inline void cs_shutr(struct conn_stream *cs)
+static inline void cs_shutr(struct stconn *cs)
 {
 	cs->ops->shutr(cs);
 }
 
 /* Sends a shutw to the endpoint using the data layer */
-static inline void cs_shutw(struct conn_stream *cs)
+static inline void cs_shutw(struct stconn *cs)
 {
 	cs->ops->shutw(cs);
 }
 
 /* This is to be used after making some room available in a channel. It will
- * return without doing anything if the conn-stream's RX path is blocked.
- * It will automatically mark the conn-stream as busy processing the end
+ * return without doing anything if the stream connector's RX path is blocked.
+ * It will automatically mark the stream connector as busy processing the end
  * point in order to avoid useless repeated wakeups.
  * It will then call ->chk_rcv() to enable receipt of new data.
  */
-static inline void cs_chk_rcv(struct conn_stream *cs)
+static inline void cs_chk_rcv(struct stconn *cs)
 {
 	if (sc_ep_test(cs, SE_FL_RXBLK_CONN) && cs_state_in(cs_opposite(cs)->state, CS_SB_RDY|CS_SB_EST|CS_SB_DIS|CS_SB_CLO))
 		cs_rx_conn_rdy(cs);
@@ -306,19 +306,19 @@ static inline void cs_chk_rcv(struct conn_stream *cs)
 }
 
 /* Calls chk_snd on the endpoint using the data layer */
-static inline void cs_chk_snd(struct conn_stream *cs)
+static inline void cs_chk_snd(struct stconn *cs)
 {
 	cs->ops->chk_snd(cs);
 }
 
 /* Combines both cs_update_rx() and cs_update_tx() at once */
-static inline void cs_update(struct conn_stream *cs)
+static inline void cs_update(struct stconn *cs)
 {
 	cs_update_rx(cs);
 	cs_update_tx(cs);
 }
 
-/* for debugging, reports the conn-stream state name */
+/* for debugging, reports the stream connector state name */
 static inline const char *cs_state_str(int state)
 {
 	switch (state) {

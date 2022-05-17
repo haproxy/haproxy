@@ -290,7 +290,7 @@ int ring_attach_cli(struct ring *ring, struct appctx *appctx, uint flags)
 int cli_io_handler_show_ring(struct appctx *appctx)
 {
 	struct show_ring_ctx *ctx = appctx->svcctx;
-	struct conn_stream *cs = appctx_cs(appctx);
+	struct stconn *cs = appctx_cs(appctx);
 	struct ring *ring = ctx->ring;
 	struct buffer *buf = &ring->buf;
 	size_t ofs = ctx->ofs;

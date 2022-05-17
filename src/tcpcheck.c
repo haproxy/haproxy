@@ -1097,7 +1097,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 			chunk_appendf(&trash, " comment: '%s'", rule->comment);
 		set_server_check_status(check, HCHK_STATUS_SOCKERR, trash.area);
 		ret = TCPCHK_EVAL_STOP;
-		TRACE_ERROR("conn-stream allocation error", CHK_EV_TCPCHK_CONN|CHK_EV_TCPCHK_ERR, check);
+		TRACE_ERROR("stconn allocation error", CHK_EV_TCPCHK_CONN|CHK_EV_TCPCHK_ERR, check);
 		goto out;
 	}
 	if (cs_attach_mux(check->cs, NULL, conn) < 0) {
@@ -1324,7 +1324,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_send(struct check *check, struct tcpcheck_r
 {
 	enum tcpcheck_eval_ret ret = TCPCHK_EVAL_CONTINUE;
 	struct tcpcheck_send *send = &rule->send;
-	struct conn_stream *cs = check->cs;
+	struct stconn *cs = check->cs;
 	struct connection *conn = __cs_conn(cs);
 	struct buffer *tmp = NULL;
 	struct htx *htx = NULL;
@@ -1534,7 +1534,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_send(struct check *check, struct tcpcheck_r
  */
 enum tcpcheck_eval_ret tcpcheck_eval_recv(struct check *check, struct tcpcheck_rule *rule)
 {
-	struct conn_stream *cs = check->cs;
+	struct stconn *cs = check->cs;
 	struct connection *conn = __cs_conn(cs);
 	enum tcpcheck_eval_ret ret = TCPCHK_EVAL_CONTINUE;
 	size_t max, read, cur_read = 0;
@@ -1562,7 +1562,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_recv(struct check *check, struct tcpcheck_r
 		goto wait_more_data;
 	}
 
-	/* errors on the connection and the conn-stream were already checked */
+	/* errors on the connection and the stream connector were already checked */
 
 	/* prepare to detect if the mux needs more room */
 	sc_ep_clr(cs, SE_FL_WANT_ROOM);
@@ -2125,7 +2125,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_action_kw(struct check *check, struct tcpch
 int tcpcheck_main(struct check *check)
 {
 	struct tcpcheck_rule *rule;
-	struct conn_stream *cs = check->cs;
+	struct stconn *cs = check->cs;
 	struct connection *conn = cs_conn(cs);
 	int must_read = 1, last_read = 0;
 	int retcode = 0;
@@ -2137,9 +2137,9 @@ int tcpcheck_main(struct check *check)
 
 	TRACE_ENTER(CHK_EV_TCPCHK_EVAL, check);
 
-	/* Note: the conn-stream and the connection may only be undefined before
+	/* Note: the stream connector and the connection may only be undefined before
 	 * the first rule evaluation (it is always a connect rule) or when the
-	 * conn-stream allocation failed on a connect rule, during cs allocation.
+	 * stream connector allocation failed on a connect rule, during cs allocation.
 	 */
 
 	/* 1- check for connection error, if any */

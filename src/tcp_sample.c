@@ -321,9 +321,10 @@ static inline int get_tcp_info(const struct arg *args, struct sample *smp,
 	if (!smp->strm)
 		return 0;
 
-	/* get the object associated with the conn-stream.The
+	/* get the object associated with the stream connector.The
 	 * object can be other thing than a connection. For example,
-	 * it be a appctx. */
+	 * it be a appctx.
+	 */
 	conn = (dir == 0 ? cs_conn(smp->strm->csf) : cs_conn(smp->strm->csb));
 	if (!conn)
 		return 0;

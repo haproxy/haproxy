@@ -1,6 +1,6 @@
 /*
  * include/haproxy/conn_stream-t.h
- * This file describes the conn-stream struct and associated constants.
+ * This file describes the stream connector struct and associated constants.
  *
  * Copyright 2021 Christopher Faulet <cfaulet@haproxy.com>
  *
@@ -36,9 +36,9 @@ enum se_flags {
 
 	 /* unused: 0x00000004 .. 0x00000008 */
 
-	 /* Endpoint states: none == attached to a mux with a conn-stream */
+	 /* Endpoint states: none == attached to a mux with a stream connector */
 	SE_FL_DETACHED   = 0x00000010, /* The endpoint is detached (no mux/no applet) */
-	SE_FL_ORPHAN     = 0x00000020, /* The endpoint is orphan (no conn-stream) */
+	SE_FL_ORPHAN     = 0x00000020, /* The endpoint is orphan (no stream connector) */
 
 	 /* unused: 0x00000040 .. 0x00000080 */
 
@@ -55,7 +55,7 @@ enum se_flags {
 	 */
 
 	 /* Permanent flags */
-	SE_FL_NOT_FIRST  = 0x00001000,  /* This conn-stream is not the first one for the endpoint */
+	SE_FL_NOT_FIRST  = 0x00001000,  /* This stream connector is not the first one for the endpoint */
 	SE_FL_WEBSOCKET  = 0x00002000,  /* The endpoint uses the websocket proto */
 	SE_FL_EOI        = 0x00004000,  /* end-of-input reached */
 	SE_FL_EOS        = 0x00008000,  /* End of stream delivered to data layer */
@@ -84,7 +84,7 @@ enum se_flags {
 	SE_FL_APP_MASK      = 0x7fe00000,  /* Mask for flags set by the app layer */
 };
 
-/* conn_stream flags */
+/* stconn flags */
 enum {
 	CS_FL_NONE          = 0x00000000,  /* Just for initialization purposes */
 	CS_FL_ISBACK        = 0x00000001,  /* Set for CS on back-side */
@@ -134,7 +134,7 @@ enum cs_state_bit {
 	CS_SB_ALL = CS_SB_INI|CS_SB_REQ|CS_SB_QUE|CS_SB_TAR|CS_SB_ASS|CS_SB_CON|CS_SB_CER|CS_SB_RDY|CS_SB_EST|CS_SB_DIS|CS_SB_CLO,
 };
 
-struct conn_stream;
+struct stconn;
 
 /* cs_data_cb describes the data layer's recv and send callbacks which are called
  * when I/O activity was detected after the transport layer is ready. These
@@ -144,7 +144,7 @@ struct conn_stream;
  * data movement. It may abort a connection by returning < 0.
  */
 struct data_cb {
-	int  (*wake)(struct conn_stream *cs);  /* data-layer callback to report activity */
+	int  (*wake)(struct stconn *sc);        /* data-layer callback to report activity */
 	char name[8];                           /* data layer name, zero-terminated */
 };
 
@@ -163,28 +163,28 @@ struct data_cb {
  *
  * <se>     is the stream endpoint, i.e. the mux stream or the appctx
  * <conn>   is the connection for connection-based streams
- * <cs>     is the conn_stream we're attached to, or NULL
+ * <cs>     is the stream connector we're attached to, or NULL
  * <flags>  SE_FL_*
 */
 struct sedesc {
 	void *se;
 	struct connection *conn;
-	struct conn_stream *cs;
+	struct stconn *cs;
 	unsigned int flags;
 };
 
 /* operations available on a stream connector */
 struct sc_app_ops {
-	void (*chk_rcv)(struct conn_stream *); /* chk_rcv function, may not be null */
-	void (*chk_snd)(struct conn_stream *); /* chk_snd function, may not be null */
-	void (*shutr)(struct conn_stream *);   /* shut read function, may not be null */
-	void (*shutw)(struct conn_stream *);   /* shut write function, may not be null */
+	void (*chk_rcv)(struct stconn *);    /* chk_rcv function, may not be null */
+	void (*chk_snd)(struct stconn *);    /* chk_snd function, may not be null */
+	void (*shutr)(struct stconn *);      /* shut read function, may not be null */
+	void (*shutw)(struct stconn *);      /* shut write function, may not be null */
 };
 
 /*
  * This structure describes the elements of a connection relevant to a stream
  */
-struct conn_stream {
+struct stconn {
 	enum obj_type obj_type;              /* differentiates connection from applet context */
 	enum cs_state state;                 /* CS_ST* */
 	/* 2 bytes hole here */

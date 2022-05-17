@@ -1326,7 +1326,7 @@ static int do_connect_server(struct stream *s, struct connection *conn)
  *  - SF_ERR_RESOURCE if a system resource is lacking (eg: fd limits, ports, ...)
  *  - SF_ERR_INTERNAL for any other purely internal errors
  * Additionally, in the case of SF_ERR_RESOURCE, an emergency log will be emitted.
- * The server-facing conn-stream is expected to hold a pre-allocated connection.
+ * The server-facing stream connector is expected to hold a pre-allocated connection.
  */
 static int connect_server(struct stream *s)
 {
@@ -1630,7 +1630,7 @@ skip_reuse:
 	srv_conn->proxy_netns = cli_conn ? cli_conn->proxy_netns : NULL;
 
 	if (!srv_conn->xprt) {
-		/* set the correct protocol on the output conn-stream */
+		/* set the correct protocol on the output stream connector */
 		if (srv) {
 			if (conn_prepare(srv_conn, protocol_lookup(srv_conn->dst->ss_family, PROTO_TYPE_STREAM, 0), srv->xprt)) {
 				conn_free(srv_conn);
@@ -1820,7 +1820,7 @@ skip_reuse:
 			s->be->lbprm.server_take_conn(srv);
 	}
 
-	/* Now handle synchronously connected sockets. We know the conn-stream
+	/* Now handle synchronously connected sockets. We know the stream connector
 	 * is at least in state CS_ST_CON. These ones typically are UNIX
 	 * sockets, socket pairs, andoccasionally TCP connections on the
 	 * loopback on a heavily loaded system.
@@ -1961,7 +1961,7 @@ static int back_may_abort_req(struct channel *req, struct stream *s)
 	         (channel_is_empty(req) || (s->be->options & PR_O_ABRT_CLOSE))));
 }
 
-/* Update back conn-stream status for input states CS_ST_ASS, CS_ST_QUE,
+/* Update back stream connector status for input states CS_ST_ASS, CS_ST_QUE,
  * CS_ST_TAR. Other input states are simply ignored.
  * Possible output states are CS_ST_CLO, CS_ST_TAR, CS_ST_ASS, CS_ST_REQ, CS_ST_CON
  * and CS_ST_EST. Flags must have previously been updated for timeouts and other
@@ -1970,7 +1970,7 @@ static int back_may_abort_req(struct channel *req, struct stream *s)
 void back_try_conn_req(struct stream *s)
 {
 	struct server *srv = objt_server(s->target);
-	struct conn_stream *cs = s->csb;
+	struct stconn *cs = s->csb;
 	struct channel *req = &s->req;
 
 	DBG_TRACE_ENTER(STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
@@ -2152,7 +2152,7 @@ abort_connection:
 	return;
 }
 
-/* This function initiates a server connection request on a conn-stream
+/* This function initiates a server connection request on a stream connector
  * already in CS_ST_REQ state. Upon success, the state goes to CS_ST_ASS for
  * a real connection to a server, indicating that a server has been assigned,
  * or CS_ST_RDY for a successful connection to an applet. It may also return
@@ -2160,7 +2160,7 @@ abort_connection:
  */
 void back_handle_st_req(struct stream *s)
 {
-	struct conn_stream *cs = s->csb;
+	struct stconn *cs = s->csb;
 
 	if (cs->state != CS_ST_REQ)
 		return;
@@ -2240,7 +2240,7 @@ void back_handle_st_req(struct stream *s)
  */
 void back_handle_st_con(struct stream *s)
 {
-	struct conn_stream *cs = s->csb;
+	struct stconn *cs = s->csb;
 	struct channel *req = &s->req;
 	struct channel *rep = &s->res;
 
@@ -2289,7 +2289,7 @@ void back_handle_st_con(struct stream *s)
  */
 void back_handle_st_cer(struct stream *s)
 {
-	struct conn_stream *cs = s->csb;
+	struct stconn *cs = s->csb;
 	int must_tar = sc_ep_test(cs, SE_FL_ERROR);
 
 	DBG_TRACE_ENTER(STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
@@ -2366,7 +2366,7 @@ void back_handle_st_cer(struct stream *s)
 	 * resources as soon as possible and to not catch errors from the lower
 	 * layers in an unexpected state (i.e < ST_CONN).
 	 *
-	 * Note: the conn-stream will be switched to ST_REQ, ST_ASS or
+	 * Note: the stream connector will be switched to ST_REQ, ST_ASS or
 	 * ST_TAR and SE_FL_ERROR and SF_CONN_EXP flags will be unset.
 	 */
 	if (cs_reset_endp(cs) < 0) {
@@ -2437,7 +2437,7 @@ void back_handle_st_cer(struct stream *s)
  */
 void back_handle_st_rdy(struct stream *s)
 {
-	struct conn_stream *cs = s->csb;
+	struct stconn *cs = s->csb;
 	struct channel *req = &s->req;
 	struct channel *rep = &s->res;
 

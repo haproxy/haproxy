@@ -1005,13 +1005,13 @@ int pool_parse_debugging(const char *str, char **err)
 	return 1;
 }
 
-/* This function dumps memory usage information onto the conn-stream's
+/* This function dumps memory usage information onto the stream connector's
  * read buffer. It returns 0 as long as it does not complete, non-zero upon
  * completion. No state is used.
  */
 static int cli_io_handler_dump_pools(struct appctx *appctx)
 {
-	struct conn_stream *cs = appctx_cs(appctx);
+	struct stconn *cs = appctx_cs(appctx);
 
 	dump_pools_to_trash();
 	if (ci_putchk(cs_ic(cs), &trash) == -1) {

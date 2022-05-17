@@ -115,7 +115,7 @@ static const struct name_desc check_trace_decoding[] = {
 #define CHK_VERB_CLEAN    1
 	{ .name="clean",    .desc="only user-friendly stuff, generally suitable for level \"user\"" },
 #define CHK_VERB_MINIMAL  2
-	{ .name="minimal",  .desc="report info on stream and conn-streams" },
+	{ .name="minimal",  .desc="report info on streams and connectors" },
 #define CHK_VERB_SIMPLE   3
 	{ .name="simple",   .desc="add info on request and response channels" },
 #define CHK_VERB_ADVANCED 4
@@ -140,7 +140,7 @@ struct trace_source trace_check = {
 INITCALL1(STG_REGISTER, trace_register_source, TRACE_SOURCE);
 
 
-static int wake_srv_chk(struct conn_stream *cs);
+static int wake_srv_chk(struct stconn *cs);
 struct data_cb check_conn_cb = {
 	.wake = wake_srv_chk,
 	.name = "CHCK",
@@ -778,7 +778,7 @@ static int retrieve_errno_from_socket(struct connection *conn)
  */
 void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 {
-	struct conn_stream *cs = check->cs;
+	struct stconn *cs = check->cs;
 	struct connection *conn = cs_conn(cs);
 	const char *err_msg;
 	struct buffer *chk;
@@ -1016,7 +1016,7 @@ int httpchk_build_status_header(struct server *s, struct buffer *buf)
  * It returns 0 on normal cases, <0 if at least one close() has happened on the
  * connection (eg: reconnect). It relies on tcpcheck_main().
  */
-static int wake_srv_chk(struct conn_stream *cs)
+static int wake_srv_chk(struct stconn *cs)
 {
 	struct connection *conn;
 	struct check *check = __cs_check(cs);
@@ -1070,7 +1070,7 @@ static int wake_srv_chk(struct conn_stream *cs)
 /* This function checks if any I/O is wanted, and if so, attempts to do so */
 struct task *srv_chk_io_cb(struct task *t, void *ctx, unsigned int state)
 {
-	struct conn_stream *cs = ctx;
+	struct stconn *cs = ctx;
 
 	wake_srv_chk(cs);
 	return NULL;
@@ -1086,7 +1086,7 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 {
 	struct check *check = context;
 	struct proxy *proxy = check->proxy;
-	struct conn_stream *cs;
+	struct stconn *cs;
 	struct connection *conn;
 	int rv;
 	int expired = tick_is_expired(t->expire, now_ms);

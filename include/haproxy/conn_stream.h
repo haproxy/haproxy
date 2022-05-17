@@ -1,6 +1,6 @@
 /*
  * include/haproxy/conn_stream.h
- * This file contains conn-stream function prototypes
+ * This file contains stream connector function prototypes
  *
  * Copyright 2021 Christopher Faulet <cfaulet@haproxy.com>
  *
@@ -38,18 +38,18 @@ struct check;
 struct sedesc *sedesc_new();
 void sedesc_free(struct sedesc *sedesc);
 
-struct conn_stream *cs_new_from_endp(struct sedesc *sedesc, struct session *sess, struct buffer *input);
-struct conn_stream *cs_new_from_strm(struct stream *strm, unsigned int flags);
-struct conn_stream *cs_new_from_check(struct check *check, unsigned int flags);
-void cs_free(struct conn_stream *cs);
+struct stconn *cs_new_from_endp(struct sedesc *sedesc, struct session *sess, struct buffer *input);
+struct stconn *cs_new_from_strm(struct stream *strm, unsigned int flags);
+struct stconn *cs_new_from_check(struct check *check, unsigned int flags);
+void cs_free(struct stconn *cs);
 
-int cs_attach_mux(struct conn_stream *cs, void *target, void *ctx);
-int cs_attach_strm(struct conn_stream *cs, struct stream *strm);
+int cs_attach_mux(struct stconn *cs, void *target, void *ctx);
+int cs_attach_strm(struct stconn *cs, struct stream *strm);
 
-void cs_destroy(struct conn_stream *cs);
-int cs_reset_endp(struct conn_stream *cs);
+void cs_destroy(struct stconn *cs);
+int cs_reset_endp(struct stconn *cs);
 
-struct appctx *cs_applet_create(struct conn_stream *cs, struct applet *app);
+struct appctx *cs_applet_create(struct stconn *cs, struct applet *app);
 
 /* The se_fl_*() set of functions manipulate the stream endpoint flags from
  * the stream endpoint itself. The sc_ep_*() set of functions manipulate the
@@ -93,39 +93,39 @@ static forceinline uint se_fl_get(const struct sedesc *se)
 }
 
 /* stream connector version */
-static forceinline void sc_ep_zero(struct conn_stream *sc)
+static forceinline void sc_ep_zero(struct stconn *sc)
 {
 	se_fl_zero(sc->sedesc);
 }
 
-static forceinline void sc_ep_setall(struct conn_stream *sc, uint all)
+static forceinline void sc_ep_setall(struct stconn *sc, uint all)
 {
 	se_fl_setall(sc->sedesc, all);
 }
 
-static forceinline void sc_ep_set(struct conn_stream *sc, uint on)
+static forceinline void sc_ep_set(struct stconn *sc, uint on)
 {
 	se_fl_set(sc->sedesc, on);
 }
 
-static forceinline void sc_ep_clr(struct conn_stream *sc, uint off)
+static forceinline void sc_ep_clr(struct stconn *sc, uint off)
 {
 	se_fl_clr(sc->sedesc, off);
 }
 
-static forceinline uint sc_ep_test(const struct conn_stream *sc, uint test)
+static forceinline uint sc_ep_test(const struct stconn *sc, uint test)
 {
 	return se_fl_test(sc->sedesc, test);
 }
 
-static forceinline uint sc_ep_get(const struct conn_stream *sc)
+static forceinline uint sc_ep_get(const struct stconn *sc)
 {
 	return se_fl_get(sc->sedesc);
 }
 
 
 /* Returns the endpoint target without any control */
-static inline void *__cs_endp_target(const struct conn_stream *cs)
+static inline void *__cs_endp_target(const struct stconn *cs)
 {
 	return cs->sedesc->se;
 }
@@ -134,11 +134,11 @@ static inline void *__cs_endp_target(const struct conn_stream *cs)
  * NULL is returned. __cs_conn() returns the connection without any control
  * while cs_conn() check the endpoint type.
  */
-static inline struct connection *__cs_conn(const struct conn_stream *cs)
+static inline struct connection *__cs_conn(const struct stconn *cs)
 {
 	return cs->sedesc->conn;
 }
-static inline struct connection *cs_conn(const struct conn_stream *cs)
+static inline struct connection *cs_conn(const struct stconn *cs)
 {
 	if (sc_ep_test(cs, SE_FL_T_MUX))
 		return __cs_conn(cs);
@@ -148,7 +148,7 @@ static inline struct connection *cs_conn(const struct conn_stream *cs)
 /* Returns the mux ops of the connection from a cs if the endpoint is a
  * mux stream. Otherwise NULL is returned.
  */
-static inline const struct mux_ops *cs_conn_mux(const struct conn_stream *cs)
+static inline const struct mux_ops *cs_conn_mux(const struct stconn *cs)
 {
 	const struct connection *conn = cs_conn(cs);
 
@@ -159,11 +159,11 @@ static inline const struct mux_ops *cs_conn_mux(const struct conn_stream *cs)
  * NULL is returned. __cs_mux() returns the mux without any control
  * while cs_mux() check the endpoint type.
  */
-static inline void *__cs_mux(const struct conn_stream *cs)
+static inline void *__cs_mux(const struct stconn *cs)
 {
 	return __cs_endp_target(cs);
 }
-static inline struct appctx *cs_mux(const struct conn_stream *cs)
+static inline struct appctx *cs_mux(const struct stconn *cs)
 {
 	if (sc_ep_test(cs, SE_FL_T_MUX))
 		return __cs_mux(cs);
@@ -174,11 +174,11 @@ static inline struct appctx *cs_mux(const struct conn_stream *cs)
  * NULL is returned. __cs_appctx() returns the appctx without any control
  * while cs_appctx() check the endpoint type.
  */
-static inline struct appctx *__cs_appctx(const struct conn_stream *cs)
+static inline struct appctx *__cs_appctx(const struct stconn *cs)
 {
 	return __cs_endp_target(cs);
 }
-static inline struct appctx *cs_appctx(const struct conn_stream *cs)
+static inline struct appctx *cs_appctx(const struct stconn *cs)
 {
 	if (sc_ep_test(cs, SE_FL_T_APPLET))
 		return __cs_appctx(cs);
@@ -189,12 +189,12 @@ static inline struct appctx *cs_appctx(const struct conn_stream *cs)
  * NULL is returned. __cs_strm() returns the stream without any control
  * while cs_strm() check the application type.
  */
-static inline struct stream *__cs_strm(const struct conn_stream *cs)
+static inline struct stream *__cs_strm(const struct stconn *cs)
 {
 	return __objt_stream(cs->app);
 }
 
-static inline struct stream *cs_strm(const struct conn_stream *cs)
+static inline struct stream *cs_strm(const struct stconn *cs)
 {
 	if (obj_type(cs->app) == OBJ_TYPE_STREAM)
 		return __cs_strm(cs);
@@ -205,17 +205,17 @@ static inline struct stream *cs_strm(const struct conn_stream *cs)
  * healthcheck. Otherwise NULL is returned. __cs_check() returns the healthcheck
  * without any control while cs_check() check the application type.
  */
-static inline struct check *__cs_check(const struct conn_stream *cs)
+static inline struct check *__cs_check(const struct stconn *cs)
 {
 	return __objt_check(cs->app);
 }
-static inline struct check *cs_check(const struct conn_stream *cs)
+static inline struct check *cs_check(const struct stconn *cs)
 {
 	if (obj_type(cs->app) == OBJ_TYPE_CHECK)
 		return __objt_check(cs->app);
 	return NULL;
 }
-static inline const char *cs_get_data_name(const struct conn_stream *cs)
+static inline const char *cs_get_data_name(const struct stconn *cs)
 {
 	if (!cs->data_cb)
 		return "NONE";
@@ -223,7 +223,7 @@ static inline const char *cs_get_data_name(const struct conn_stream *cs)
 }
 
 /* shut read */
-static inline void cs_conn_shutr(struct conn_stream *cs, enum co_shr_mode mode)
+static inline void cs_conn_shutr(struct stconn *cs, enum co_shr_mode mode)
 {
 	const struct mux_ops *mux;
 
@@ -240,7 +240,7 @@ static inline void cs_conn_shutr(struct conn_stream *cs, enum co_shr_mode mode)
 }
 
 /* shut write */
-static inline void cs_conn_shutw(struct conn_stream *cs, enum co_shw_mode mode)
+static inline void cs_conn_shutw(struct stconn *cs, enum co_shw_mode mode)
 {
 	const struct mux_ops *mux;
 
@@ -256,15 +256,15 @@ static inline void cs_conn_shutw(struct conn_stream *cs, enum co_shw_mode mode)
 	sc_ep_set(cs, (mode == CO_SHW_NORMAL) ? SE_FL_SHWN : SE_FL_SHWS);
 }
 
-/* completely close a conn_stream (but do not detach it) */
-static inline void cs_conn_shut(struct conn_stream *cs)
+/* completely close a stream connector (but do not detach it) */
+static inline void cs_conn_shut(struct stconn *cs)
 {
 	cs_conn_shutw(cs, CO_SHW_SILENT);
 	cs_conn_shutr(cs, CO_SHR_RESET);
 }
 
-/* completely close a conn_stream after draining possibly pending data (but do not detach it) */
-static inline void cs_conn_drain_and_shut(struct conn_stream *cs)
+/* completely close a stream connector after draining possibly pending data (but do not detach it) */
+static inline void cs_conn_drain_and_shut(struct stconn *cs)
 {
 	cs_conn_shutw(cs, CO_SHW_SILENT);
 	cs_conn_shutr(cs, CO_SHR_DRAIN);
@@ -279,16 +279,16 @@ static inline void cs_ep_set_error(struct sedesc *endp)
 		se_fl_set(endp, SE_FL_ERR_PENDING);
 }
 
-/* Retrieves any valid conn_stream from this connection, preferably the first
+/* Retrieves any valid stream connector from this connection, preferably the first
  * valid one. The purpose is to be able to figure one other end of a private
  * connection for purposes like source binding or proxy protocol header
- * emission. In such cases, any conn_stream is expected to be valid so the
+ * emission. In such cases, any stream connector is expected to be valid so the
  * mux is encouraged to return the first one it finds. If the connection has
  * no mux or the mux has no get_first_cs() method or the mux has no valid
- * conn_stream, NULL is returned. The output pointer is purposely marked
+ * stream connector, NULL is returned. The output pointer is purposely marked
  * const to discourage the caller from modifying anything there.
  */
-static inline struct conn_stream *cs_conn_get_first(const struct connection *conn)
+static inline struct stconn *cs_conn_get_first(const struct connection *conn)
 {
 	BUG_ON(!conn || !conn->mux);
 
@@ -298,136 +298,136 @@ static inline struct conn_stream *cs_conn_get_first(const struct connection *con
 }
 
 
-/* Returns non-zero if the conn-stream's Rx path is blocked */
-static inline int cs_rx_blocked(const struct conn_stream *cs)
+/* Returns non-zero if the stream connector's Rx path is blocked */
+static inline int cs_rx_blocked(const struct stconn *cs)
 {
 	return !!sc_ep_test(cs, SE_FL_RXBLK_ANY);
 }
 
 
-/* Returns non-zero if the conn-stream's Rx path is blocked because of lack
+/* Returns non-zero if the stream connector's Rx path is blocked because of lack
  * of room in the input buffer.
  */
-static inline int cs_rx_blocked_room(const struct conn_stream *cs)
+static inline int cs_rx_blocked_room(const struct stconn *cs)
 {
 	return !!sc_ep_test(cs, SE_FL_RXBLK_ROOM);
 }
 
-/* Returns non-zero if the conn-stream's endpoint is ready to receive */
-static inline int cs_rx_endp_ready(const struct conn_stream *cs)
+/* Returns non-zero if the stream connector's endpoint is ready to receive */
+static inline int cs_rx_endp_ready(const struct stconn *cs)
 {
 	return !sc_ep_test(cs, SE_FL_RX_WAIT_EP);
 }
 
-/* The conn-stream announces it is ready to try to deliver more data to the input buffer */
-static inline void cs_rx_endp_more(struct conn_stream *cs)
+/* The stream connector announces it is ready to try to deliver more data to the input buffer */
+static inline void cs_rx_endp_more(struct stconn *cs)
 {
 	sc_ep_clr(cs, SE_FL_RX_WAIT_EP);
 }
 
-/* The conn-stream announces it doesn't have more data for the input buffer */
-static inline void cs_rx_endp_done(struct conn_stream *cs)
+/* The stream connector announces it doesn't have more data for the input buffer */
+static inline void cs_rx_endp_done(struct stconn *cs)
 {
 	sc_ep_set(cs, SE_FL_RX_WAIT_EP);
 }
 
-/* Tell a conn-stream the input channel is OK with it sending it some data */
-static inline void cs_rx_chan_rdy(struct conn_stream *cs)
+/* Tell a stream connector the input channel is OK with it sending it some data */
+static inline void cs_rx_chan_rdy(struct stconn *cs)
 {
 	sc_ep_clr(cs, SE_FL_RXBLK_CHAN);
 }
 
-/* Tell a conn-stream the input channel is not OK with it sending it some data */
-static inline void cs_rx_chan_blk(struct conn_stream *cs)
+/* Tell a stream connector the input channel is not OK with it sending it some data */
+static inline void cs_rx_chan_blk(struct stconn *cs)
 {
 	sc_ep_set(cs, SE_FL_RXBLK_CHAN);
 }
 
-/* Tell a conn-stream the other side is connected */
-static inline void cs_rx_conn_rdy(struct conn_stream *cs)
+/* Tell a stream connector the other side is connected */
+static inline void cs_rx_conn_rdy(struct stconn *cs)
 {
 	sc_ep_clr(cs, SE_FL_RXBLK_CONN);
 }
 
-/* Tell a conn-stream it must wait for the other side to connect */
-static inline void cs_rx_conn_blk(struct conn_stream *cs)
+/* Tell a stream connector it must wait for the other side to connect */
+static inline void cs_rx_conn_blk(struct stconn *cs)
 {
 	sc_ep_set(cs, SE_FL_RXBLK_CONN);
 }
 
-/* The conn-stream just got the input buffer it was waiting for */
-static inline void cs_rx_buff_rdy(struct conn_stream *cs)
+/* The stream connector just got the input buffer it was waiting for */
+static inline void cs_rx_buff_rdy(struct stconn *cs)
 {
 	sc_ep_clr(cs, SE_FL_RXBLK_BUFF);
 }
 
-/* The conn-stream failed to get an input buffer and is waiting for it.
+/* The stream connector failed to get an input buffer and is waiting for it.
  * Since it indicates a willingness to deliver data to the buffer that will
  * have to be retried, we automatically clear RXBLK_ENDP to be called again
  * as soon as RXBLK_BUFF is cleared.
  */
-static inline void cs_rx_buff_blk(struct conn_stream *cs)
+static inline void cs_rx_buff_blk(struct stconn *cs)
 {
 	sc_ep_set(cs, SE_FL_RXBLK_BUFF);
 }
 
-/* Tell a conn-stream some room was made in the input buffer */
-static inline void cs_rx_room_rdy(struct conn_stream *cs)
+/* Tell a stream connector some room was made in the input buffer */
+static inline void cs_rx_room_rdy(struct stconn *cs)
 {
 	sc_ep_clr(cs, SE_FL_RXBLK_ROOM);
 }
 
-/* The conn-stream announces it failed to put data into the input buffer
+/* The stream connector announces it failed to put data into the input buffer
  * by lack of room. Since it indicates a willingness to deliver data to the
  * buffer that will have to be retried, we automatically clear RXBLK_ENDP to
  * be called again as soon as RXBLK_ROOM is cleared.
  */
-static inline void cs_rx_room_blk(struct conn_stream *cs)
+static inline void cs_rx_room_blk(struct stconn *cs)
 {
 	sc_ep_set(cs, SE_FL_RXBLK_ROOM);
 }
 
-/* The conn-stream announces it will never put new data into the input
+/* The stream connector announces it will never put new data into the input
  * buffer and that it's not waiting for its endpoint to deliver anything else.
  * This function obviously doesn't have a _rdy equivalent.
  */
-static inline void cs_rx_shut_blk(struct conn_stream *cs)
+static inline void cs_rx_shut_blk(struct stconn *cs)
 {
 	sc_ep_set(cs, SE_FL_RXBLK_SHUT);
 }
 
-/* Returns non-zero if the conn-stream's Tx path is blocked */
-static inline int cs_tx_blocked(const struct conn_stream *cs)
+/* Returns non-zero if the stream connector's Tx path is blocked */
+static inline int cs_tx_blocked(const struct stconn *cs)
 {
 	return !!sc_ep_test(cs, SE_FL_WAIT_DATA);
 }
 
-/* Returns non-zero if the conn-stream's endpoint is ready to transmit */
-static inline int cs_tx_endp_ready(const struct conn_stream *cs)
+/* Returns non-zero if the stream connector's endpoint is ready to transmit */
+static inline int cs_tx_endp_ready(const struct stconn *cs)
 {
 	return sc_ep_test(cs, SE_FL_WANT_GET);
 }
 
-/* Report that a conn-stream wants to get some data from the output buffer */
-static inline void cs_want_get(struct conn_stream *cs)
+/* Report that a stream connector wants to get some data from the output buffer */
+static inline void cs_want_get(struct stconn *cs)
 {
 	sc_ep_set(cs, SE_FL_WANT_GET);
 }
 
-/* Report that a conn-stream failed to get some data from the output buffer */
-static inline void cs_cant_get(struct conn_stream *cs)
+/* Report that a stream connector failed to get some data from the output buffer */
+static inline void cs_cant_get(struct stconn *cs)
 {
 	sc_ep_set(cs, SE_FL_WANT_GET | SE_FL_WAIT_DATA);
 }
 
-/* Report that a conn-stream doesn't want to get data from the output buffer */
-static inline void cs_stop_get(struct conn_stream *cs)
+/* Report that a stream connector doesn't want to get data from the output buffer */
+static inline void cs_stop_get(struct stconn *cs)
 {
 	sc_ep_clr(cs, SE_FL_WANT_GET);
 }
 
-/* Report that a conn-stream won't get any more data from the output buffer */
-static inline void cs_done_get(struct conn_stream *cs)
+/* Report that a stream connector won't get any more data from the output buffer */
+static inline void cs_done_get(struct stconn *cs)
 {
 	sc_ep_clr(cs, SE_FL_WANT_GET | SE_FL_WAIT_DATA);
 }

@@ -1455,7 +1455,7 @@ static void qc_detach(struct sedesc *endp)
 }
 
 /* Called from the upper layer, to receive data */
-static size_t qc_rcv_buf(struct conn_stream *cs, struct buffer *buf,
+static size_t qc_rcv_buf(struct stconn *cs, struct buffer *buf,
                          size_t count, int flags)
 {
 	struct qcs *qcs = __cs_mux(cs);
@@ -1525,7 +1525,7 @@ static size_t qc_rcv_buf(struct conn_stream *cs, struct buffer *buf,
 	return ret;
 }
 
-static size_t qc_snd_buf(struct conn_stream *cs, struct buffer *buf,
+static size_t qc_snd_buf(struct stconn *cs, struct buffer *buf,
                          size_t count, int flags)
 {
 	struct qcs *qcs = __cs_mux(cs);
@@ -1545,7 +1545,7 @@ static size_t qc_snd_buf(struct conn_stream *cs, struct buffer *buf,
  * as at least one event is still subscribed. The <event_type> must only be a
  * combination of SUB_RETRY_RECV and SUB_RETRY_SEND. It always returns 0.
  */
-static int qc_subscribe(struct conn_stream *cs, int event_type,
+static int qc_subscribe(struct stconn *cs, int event_type,
                         struct wait_event *es)
 {
 	return qcs_subscribe(__cs_mux(cs), event_type, es);
@@ -1555,7 +1555,7 @@ static int qc_subscribe(struct conn_stream *cs, int event_type,
  * The <es> pointer is not allowed to differ from the one passed to the
  * subscribe() call. It always returns zero.
  */
-static int qc_unsubscribe(struct conn_stream *cs, int event_type, struct wait_event *es)
+static int qc_unsubscribe(struct stconn *cs, int event_type, struct wait_event *es)
 {
 	struct qcs *qcs = __cs_mux(cs);
 
@@ -1570,8 +1570,8 @@ static int qc_unsubscribe(struct conn_stream *cs, int event_type, struct wait_ev
 }
 
 /* Loop through all qcs from <qcc>. If CO_FL_ERROR is set on the connection,
- * report SE_FL_ERR_PENDING|SE_FL_ERROR on the attached conn-streams and wake
- * them.
+ * report SE_FL_ERR_PENDING|SE_FL_ERROR on the attached stream connectors and
+ * wake them.
  */
 static int qc_wake_some_streams(struct qcc *qcc)
 {

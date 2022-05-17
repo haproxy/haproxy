@@ -1189,7 +1189,7 @@ static int promex_dump_sticktable_metrics(struct appctx *appctx, struct htx *htx
  * Uses <appctx.ctx.stats.px> as a pointer to the current proxy and <sv>/<li>
  * as pointers to the current server/listener respectively.
  */
-static int promex_dump_metrics(struct appctx *appctx, struct conn_stream *cs, struct htx *htx)
+static int promex_dump_metrics(struct appctx *appctx, struct stconn *cs, struct htx *htx)
 {
 	struct promex_ctx *ctx = appctx->svcctx;
 	int ret;
@@ -1353,7 +1353,7 @@ static int promex_dump_metrics(struct appctx *appctx, struct conn_stream *cs, st
 
 /* Parse the query string of request URI to filter the metrics. It returns 1 on
  * success and -1 on error. */
-static int promex_parse_uri(struct appctx *appctx, struct conn_stream *cs)
+static int promex_parse_uri(struct appctx *appctx, struct stconn *cs)
 {
 	struct promex_ctx *ctx = appctx->svcctx;
 	struct channel *req = cs_oc(cs);
@@ -1464,7 +1464,7 @@ static int promex_parse_uri(struct appctx *appctx, struct conn_stream *cs)
 
 /* Send HTTP headers of the response. It returns 1 on success and 0 if <htx> is
  * full. */
-static int promex_send_headers(struct appctx *appctx, struct conn_stream *cs, struct htx *htx)
+static int promex_send_headers(struct appctx *appctx, struct stconn *cs, struct htx *htx)
 {
 	struct channel *chn = cs_ic(cs);
 	struct htx_sl *sl;
@@ -1503,7 +1503,7 @@ static int promex_appctx_init(struct appctx *appctx)
 /* The main I/O handler for the promex applet. */
 static void promex_appctx_handle_io(struct appctx *appctx)
 {
-	struct conn_stream *cs = appctx_cs(appctx);
+	struct stconn *cs = appctx_cs(appctx);
 	struct stream *s = __cs_strm(cs);
 	struct channel *req = cs_oc(cs);
 	struct channel *res = cs_ic(cs);

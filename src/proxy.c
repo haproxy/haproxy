@@ -2706,7 +2706,7 @@ static void dump_server_addr(const struct sockaddr_storage *addr, char *addr_str
  * ->px, the proxy's id ->only_pxid, the server's pointer from ->sv, and the
  * choice of what to dump from ->show_conn.
  */
-static int dump_servers_state(struct conn_stream *cs)
+static int dump_servers_state(struct stconn *cs)
 {
 	struct appctx *appctx = __cs_appctx(cs);
 	struct show_srv_ctx *ctx = appctx->svcctx;
@@ -2787,7 +2787,7 @@ static int dump_servers_state(struct conn_stream *cs)
 static int cli_io_handler_servers_state(struct appctx *appctx)
 {
 	struct show_srv_ctx *ctx = appctx->svcctx;
-	struct conn_stream *cs = appctx_cs(appctx);
+	struct stconn *cs = appctx_cs(appctx);
 	struct proxy *curproxy;
 
 	if (ctx->state == SHOW_SRV_HEAD) {
@@ -2828,7 +2828,7 @@ static int cli_io_handler_servers_state(struct appctx *appctx)
  */
 static int cli_io_handler_show_backend(struct appctx *appctx)
 {
-	struct conn_stream *cs = appctx_cs(appctx);
+	struct stconn *cs = appctx_cs(appctx);
 	struct proxy *curproxy;
 
 	chunk_reset(&trash);
@@ -3137,14 +3137,14 @@ static int cli_parse_show_errors(char **args, char *payload, struct appctx *appc
 	return 0;
 }
 
-/* This function dumps all captured errors onto the conn-stream's
+/* This function dumps all captured errors onto the stream connector's
  * read buffer. It returns 0 if the output buffer is full and it needs
  * to be called again, otherwise non-zero.
  */
 static int cli_io_handler_show_errors(struct appctx *appctx)
 {
 	struct show_errors_ctx *ctx = appctx->svcctx;
-	struct conn_stream *cs = appctx_cs(appctx);
+	struct stconn *cs = appctx_cs(appctx);
 	extern const char *monthname[12];
 
 	if (unlikely(cs_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW)))

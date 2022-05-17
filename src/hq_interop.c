@@ -14,7 +14,7 @@ static int hq_interop_decode_qcs(struct qcs *qcs, int fin, void *ctx)
 	struct ncbuf *rxbuf = &qcs->rx.ncbuf;
 	struct htx *htx;
 	struct htx_sl *sl;
-	struct conn_stream *cs;
+	struct stconn *cs;
 	struct buffer htx_buf = BUF_NULL;
 	struct ist path;
 	char *ptr = ncb_head(rxbuf);
@@ -93,7 +93,7 @@ static struct buffer *mux_get_buf(struct qcs *qcs)
 	return &qcs->tx.buf;
 }
 
-static size_t hq_interop_snd_buf(struct conn_stream *cs, struct buffer *buf,
+static size_t hq_interop_snd_buf(struct stconn *cs, struct buffer *buf,
                                  size_t count, int flags)
 {
 	struct qcs *qcs = __cs_mux(cs);

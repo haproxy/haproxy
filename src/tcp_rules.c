@@ -472,7 +472,7 @@ resume_execution:
 /* This function performs the TCP layer4 analysis on the current request. It
  * returns 0 if a reject rule matches, otherwise 1 if either an accept rule
  * matches or if no more rule matches. It can only use rules which don't need
- * any data. This only works on connection-based client-facing conn-streams.
+ * any data. This only works on connection-based client-facing stream connectors.
  */
 int tcp_exec_l4_rules(struct session *sess)
 {
@@ -569,7 +569,7 @@ int tcp_exec_l4_rules(struct session *sess)
 /* This function performs the TCP layer5 analysis on the current request. It
  * returns 0 if a reject rule matches, otherwise 1 if either an accept rule
  * matches or if no more rule matches. It can only use rules which don't need
- * any data. This only works on session-based client-facing conn-streams.
+ * any data. This only works on session-based client-facing stream connectors.
  * An example of valid use case is to track a stick-counter on the source
  * address extracted from the proxy protocol.
  */

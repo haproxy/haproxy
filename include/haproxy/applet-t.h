@@ -37,7 +37,7 @@
 
 struct appctx;
 struct proxy;
-struct conn_stream;
+struct stconn;
 struct sedesc;
 struct session;
 

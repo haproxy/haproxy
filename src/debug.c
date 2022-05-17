@@ -253,7 +253,7 @@ void ha_task_dump(struct buffer *buf, const struct task *task, const char *pfx)
 	else if (task->process == task_run_applet && task->context)
 		s = cs_strm(appctx_cs((struct appctx *)task->context));
 	else if (task->process == cs_conn_io_cb && task->context)
-		s = cs_strm(((struct conn_stream *)task->context));
+		s = cs_strm(((struct stconn *)task->context));
 
 	if (s)
 		stream_dump(buf, s, pfx, '\n');
@@ -290,7 +290,7 @@ void ha_task_dump(struct buffer *buf, const struct task *task, const char *pfx)
  */
 static int cli_io_handler_show_threads(struct appctx *appctx)
 {
-	struct conn_stream *cs = appctx_cs(appctx);
+	struct stconn *cs = appctx_cs(appctx);
 	int thr;
 
 	if (unlikely(cs_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
@@ -1044,7 +1044,7 @@ static int debug_parse_cli_fd(char **args, char *payload, struct appctx *appctx,
 static int debug_iohandler_fd(struct appctx *appctx)
 {
 	struct dev_fd_ctx *ctx = appctx->svcctx;
-	struct conn_stream *cs = appctx_cs(appctx);
+	struct stconn *cs = appctx_cs(appctx);
 	struct sockaddr_storage sa;
 	struct stat statbuf;
 	socklen_t salen, vlen;
@@ -1239,7 +1239,7 @@ static int debug_parse_cli_memstats(char **args, char *payload, struct appctx *a
 static int debug_iohandler_memstats(struct appctx *appctx)
 {
 	struct dev_mem_ctx *ctx = appctx->svcctx;
-	struct conn_stream *cs = appctx_cs(appctx);
+	struct stconn *cs = appctx_cs(appctx);
 	struct mem_stats *ptr = ctx->start;
 	int ret = 1;
 

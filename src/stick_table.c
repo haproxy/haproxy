@@ -4234,12 +4234,12 @@ enum {
 	STK_CLI_ACT_SHOW,
 };
 
-/* Dump the status of a table to a conn-stream's
+/* Dump the status of a table to a stream connector's
  * read buffer. It returns 0 if the output buffer is full
  * and needs to be called again, otherwise non-zero.
  */
 static int table_dump_head_to_buffer(struct buffer *msg,
-                                     struct conn_stream *cs,
+                                     struct stconn *cs,
                                      struct stktable *t, struct stktable *target)
 {
 	struct stream *s = __cs_strm(cs);
@@ -4260,12 +4260,12 @@ static int table_dump_head_to_buffer(struct buffer *msg,
 	return 1;
 }
 
-/* Dump a table entry to a conn-stream's
+/* Dump a table entry to a stream connector's
  * read buffer. It returns 0 if the output buffer is full
  * and needs to be called again, otherwise non-zero.
  */
 static int table_dump_entry_to_buffer(struct buffer *msg,
-                                      struct conn_stream *cs,
+                                      struct stconn *cs,
                                       struct stktable *t, struct stksess *entry)
 {
 	int dt;
@@ -4408,7 +4408,7 @@ struct show_table_ctx {
  */
 static int table_process_entry_per_key(struct appctx *appctx, char **args)
 {
-	struct conn_stream *cs = appctx_cs(appctx);
+	struct stconn *cs = appctx_cs(appctx);
 	struct show_table_ctx *ctx = appctx->svcctx;
 	struct stktable *t = ctx->target;
 	struct stksess *ts;
@@ -4668,7 +4668,7 @@ err_args:
 static int cli_io_handler_table(struct appctx *appctx)
 {
 	struct show_table_ctx *ctx = appctx->svcctx;
-	struct conn_stream *cs = appctx_cs(appctx);
+	struct stconn *cs = appctx_cs(appctx);
 	struct stream *s = __cs_strm(cs);
 	struct ebmb_node *eb;
 	int skip_entry;

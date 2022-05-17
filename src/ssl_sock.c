@@ -7259,7 +7259,7 @@ struct tls_keys_ref *tlskeys_ref_lookup_ref(const char *reference)
 static int cli_io_handler_tlskeys_files(struct appctx *appctx)
 {
 	struct show_keys_ctx *ctx = appctx->svcctx;
-	struct conn_stream *cs = appctx_cs(appctx);
+	struct stconn *cs = appctx_cs(appctx);
 
 	switch (ctx->state) {
 	case SHOW_KEYS_INIT:
@@ -7538,7 +7538,7 @@ static int cli_io_handler_show_ocspresponse(struct appctx *appctx)
 	struct buffer *trash = alloc_trash_chunk();
 	struct buffer *tmp = NULL;
 	struct ebmb_node *node;
-	struct conn_stream *cs = appctx_cs(appctx);
+	struct stconn *cs = appctx_cs(appctx);
 	struct certificate_ocsp *ocsp = NULL;
 	BIO *bio = NULL;
 	int write = -1;
@@ -7674,7 +7674,7 @@ static void ssl_provider_clear_name_list(struct list *provider_names)
 static int cli_io_handler_show_providers(struct appctx *appctx)
 {
 	struct buffer *trash = get_trash_chunk();
-	struct conn_stream *cs = appctx_cs(appctx);
+	struct stconn *cs = appctx_cs(appctx);
 	struct list provider_names;
 	struct provider_name *name;
 
@@ -7805,7 +7805,7 @@ static int cli_io_handler_show_ocspresponse_detail(struct appctx *appctx)
 {
 	struct buffer *trash = alloc_trash_chunk();
 	struct certificate_ocsp *ocsp = appctx->svcctx;
-	struct conn_stream *cs = appctx_cs(appctx);
+	struct stconn *cs = appctx_cs(appctx);
 
 	if (trash == NULL)
 		return 1;
@@ -7882,7 +7882,7 @@ enum act_return ssl_action_wait_for_hs(struct act_rule *rule, struct proxy *px,
                                        struct session *sess, struct stream *s, int flags)
 {
 	struct connection *conn;
-	struct conn_stream *cs;
+	struct stconn *cs;
 
 	conn = objt_conn(sess->origin);
 	cs = s->csf;

@@ -56,7 +56,7 @@
 #define FCGI_CF_DEM_MROOM       0x00000010  /* demux blocked on lack of room in mux buffer */
 #define FCGI_CF_DEM_SALLOC      0x00000020  /* demux blocked on lack of stream's rx buffer */
 #define FCGI_CF_DEM_SFULL       0x00000040  /* demux blocked on stream request buffer full */
-#define FCGI_CF_DEM_TOOMANY     0x00000080  /* demux blocked waiting for some conn_streams to leave */
+#define FCGI_CF_DEM_TOOMANY     0x00000080  /* demux blocked waiting for some stream connectors to leave */
 #define FCGI_CF_DEM_BLOCK_ANY   0x000000F0  /* aggregate of the demux flags above except DALLOC/DFULL */
 
 /* Other flags */
@@ -104,7 +104,7 @@ struct fcgi_conn {
 	int timeout;                         /* idle timeout duration in ticks */
 	int shut_timeout;                    /* idle timeout duration in ticks after shutdown */
 	unsigned int nb_streams;             /* number of streams in the tree */
-	unsigned int nb_cs;                  /* number of attached conn_streams */
+	unsigned int nb_cs;                  /* number of attached stream connectors */
 	unsigned int nb_reserved;            /* number of reserved streams */
 	unsigned int stream_cnt;             /* total number of streams seen */
 
@@ -169,7 +169,7 @@ struct fcgi_strm {
 	struct buffer rxbuf;          /* receive buffer, always valid (buf_empty or real buffer) */
 
 	struct eb32_node by_id;       /* place in fcgi_conn's streams_by_id */
-	struct wait_event *subs;      /* Address of the wait_event the conn_stream associated is waiting on */
+	struct wait_event *subs;      /* Address of the wait_event the stream connector associated is waiting on */
 	struct list send_list;        /* To be used when adding in fcgi_conn->send_list */
 	struct tasklet *shut_tl;      /* deferred shutdown tasklet, to retry to close after we failed to by lack of space */
 };
@@ -364,7 +364,7 @@ static int fcgi_process(struct fcgi_conn *fconn);
 struct task *fcgi_io_cb(struct task *t, void *ctx, unsigned int state);
 static inline struct fcgi_strm *fcgi_conn_st_by_id(struct fcgi_conn *fconn, int id);
 struct task *fcgi_deferred_shut(struct task *t, void *ctx, unsigned int state);
-static struct fcgi_strm *fcgi_conn_stream_new(struct fcgi_conn *fconn, struct conn_stream *cs, struct session *sess);
+static struct fcgi_strm *fcgi_stconn_new(struct fcgi_conn *fconn, struct stconn *cs, struct session *sess);
 static void fcgi_strm_notify_recv(struct fcgi_strm *fstrm);
 static void fcgi_strm_notify_send(struct fcgi_strm *fstrm);
 static void fcgi_strm_alert(struct fcgi_strm *fstrm);
@@ -789,7 +789,7 @@ static int fcgi_init(struct connection *conn, struct proxy *px, struct session *
 	 * caller calls ->attach(). For now the outgoing cs is stored as
 	 * conn->ctx by the caller and saved in conn_ctx.
 	 */
-	fstrm = fcgi_conn_stream_new(fconn, conn_ctx, sess);
+	fstrm = fcgi_stconn_new(fconn, conn_ctx, sess);
 	if (!fstrm)
 		goto fail;
 
@@ -961,7 +961,7 @@ static void fcgi_strm_notify_send(struct fcgi_strm *fstrm)
  *   - if its subscribed to send, then it's woken up for send
  *   - if it was subscribed to neither, its ->wake() callback is called
  * It is safe to call this function with a closed stream which doesn't have a
- * conn_stream anymore.
+ * stream connector anymore.
  */
 static void fcgi_strm_alert(struct fcgi_strm *fstrm)
 {
@@ -1103,12 +1103,12 @@ static struct fcgi_strm *fcgi_strm_new(struct fcgi_conn *fconn, int id)
 	return NULL;
 }
 
-/* Allocates a new stream associated to conn_stream <cs> on the FCGI connection
+/* Allocates a new stream associated to stream connector <cs> on the FCGI connection
  * <fconn> and returns it, or NULL in case of memory allocation error or if the
  * highest possible stream ID was reached.
  */
-static struct fcgi_strm *fcgi_conn_stream_new(struct fcgi_conn *fconn, struct conn_stream *cs,
-					      struct session *sess)
+static struct fcgi_strm *fcgi_stconn_new(struct fcgi_conn *fconn, struct stconn *cs,
+					 struct session *sess)
 {
 	struct fcgi_strm *fstrm = NULL;
 
@@ -1144,7 +1144,7 @@ static struct fcgi_strm *fcgi_conn_stream_new(struct fcgi_conn *fconn, struct co
 	return NULL;
 }
 
-/* Wakes a specific stream and assign its conn_stream some SE_FL_* flags among
+/* Wakes a specific stream and assign its stream connector some SE_FL_* flags among
  * SE_FL_ERR_PENDING and SE_FL_ERROR if needed. The stream's state is
  * automatically updated accordingly. If the stream is orphaned, it is
  * destroyed.
@@ -3527,7 +3527,7 @@ static int fcgi_attach(struct connection *conn, struct sedesc *endp, struct sess
 	struct fcgi_conn *fconn = conn->ctx;
 
 	TRACE_ENTER(FCGI_EV_FSTRM_NEW, conn);
-	fstrm = fcgi_conn_stream_new(fconn, endp->cs, sess);
+	fstrm = fcgi_stconn_new(fconn, endp->cs, sess);
 	if (!fstrm)
 		goto err;
 
@@ -3543,12 +3543,12 @@ static int fcgi_attach(struct connection *conn, struct sedesc *endp, struct sess
 	return -1;
 }
 
-/* Retrieves the first valid conn_stream from this connection, or returns NULL.
+/* Retrieves the first valid stream connector from this connection, or returns NULL.
  * We have to scan because we may have some orphan streams. It might be
  * beneficial to scan backwards from the end to reduce the likeliness to find
  * orphans.
  */
-static struct conn_stream *fcgi_get_first_cs(const struct connection *conn)
+static struct stconn *fcgi_get_first_cs(const struct connection *conn)
 {
 	struct fcgi_conn *fconn = conn->ctx;
 	struct fcgi_strm *fstrm;
@@ -3852,8 +3852,8 @@ struct task *fcgi_deferred_shut(struct task *t, void *ctx, unsigned int state)
 	return NULL;
 }
 
-/* shutr() called by the conn_stream (mux_ops.shutr) */
-static void fcgi_shutr(struct conn_stream *cs, enum co_shr_mode mode)
+/* shutr() called by the stream conector (mux_ops.shutr) */
+static void fcgi_shutr(struct stconn *cs, enum co_shr_mode mode)
 {
 	struct fcgi_strm *fstrm = __cs_mux(cs);
 
@@ -3863,8 +3863,8 @@ static void fcgi_shutr(struct conn_stream *cs, enum co_shr_mode mode)
 	fcgi_do_shutr(fstrm);
 }
 
-/* shutw() called by the conn_stream (mux_ops.shutw) */
-static void fcgi_shutw(struct conn_stream *cs, enum co_shw_mode mode)
+/* shutw() called by the stream connector (mux_ops.shutw) */
+static void fcgi_shutw(struct stconn *cs, enum co_shw_mode mode)
 {
 	struct fcgi_strm *fstrm = __cs_mux(cs);
 
@@ -3877,7 +3877,7 @@ static void fcgi_shutw(struct conn_stream *cs, enum co_shw_mode mode)
  * as at least one event is still subscribed. The <event_type> must only be a
  * combination of SUB_RETRY_RECV and SUB_RETRY_SEND. It always returns 0.
  */
-static int fcgi_subscribe(struct conn_stream *cs, int event_type, struct wait_event *es)
+static int fcgi_subscribe(struct stconn *cs, int event_type, struct wait_event *es)
 {
 	struct fcgi_strm *fstrm = __cs_mux(cs);
 	struct fcgi_conn *fconn = fstrm->fconn;
@@ -3903,7 +3903,7 @@ static int fcgi_subscribe(struct conn_stream *cs, int event_type, struct wait_ev
  * (undo fcgi_subscribe). The <es> pointer is not allowed to differ from the one
  * passed to the subscribe() call. It always returns zero.
  */
-static int fcgi_unsubscribe(struct conn_stream *cs, int event_type, struct wait_event *es)
+static int fcgi_unsubscribe(struct stconn *cs, int event_type, struct wait_event *es)
 {
 	struct fcgi_strm *fstrm = __cs_mux(cs);
 	struct fcgi_conn *fconn = fstrm->fconn;
@@ -3939,7 +3939,7 @@ static int fcgi_unsubscribe(struct conn_stream *cs, int event_type, struct wait_
  * mux it may optimize the data copy to <buf> if necessary. Otherwise, it should
  * copy as much data as possible.
  */
-static size_t fcgi_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t count, int flags)
+static size_t fcgi_rcv_buf(struct stconn *cs, struct buffer *buf, size_t count, int flags)
 {
 	struct fcgi_strm *fstrm = __cs_mux(cs);
 	struct fcgi_conn *fconn = fstrm->fconn;
@@ -3981,9 +3981,9 @@ static size_t fcgi_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t co
 
 /* Called from the upper layer, to send data from buffer <buf> for no more than
  * <count> bytes. Returns the number of bytes effectively sent. Some status
- * flags may be updated on the conn_stream.
+ * flags may be updated on the stream connector.
  */
-static size_t fcgi_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t count, int flags)
+static size_t fcgi_snd_buf(struct stconn *cs, struct buffer *buf, size_t count, int flags)
 {
 	struct fcgi_strm *fstrm = __cs_mux(cs);
 	struct fcgi_conn *fconn = fstrm->fconn;

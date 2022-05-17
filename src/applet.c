@@ -78,7 +78,7 @@ struct appctx *appctx_new(struct applet *applet, struct sedesc *sedesc, unsigned
 
 /* Finalize the frontend appctx startup. It must not be called for a backend
  * appctx. This function is responsible to create the appctx's session and the
- * frontend conn-stream. By transitivity, the stream is also created.
+ * frontend stream connector. By transitivity, the stream is also created.
  *
  * It returns 0 on success and -1 on error. In this case, it is the caller
  * responsibility to release the appctx. However, the session is released if it
@@ -111,7 +111,7 @@ int appctx_finalize_startup(struct appctx *appctx, struct proxy *px, struct buff
  */
 void appctx_free_on_early_error(struct appctx *appctx)
 {
-	/* If a frontend apctx is attached to a conn-stream, release the stream
+	/* If a frontend appctx is attached to a stream connector, release the stream
 	 * instead of the appctx.
 	 */
 	if (!se_fl_test(appctx->sedesc, SE_FL_ORPHAN) && !(appctx_cs(appctx)->flags & CS_FL_ISBACK)) {
@@ -156,7 +156,7 @@ void appctx_shut(struct appctx *appctx)
 
 /* Callback used to wake up an applet when a buffer is available. The applet
  * <appctx> is woken up if an input buffer was requested for the associated
- * conn-stream. In this case the buffer is immediately allocated and the
+ * stream connector. In this case the buffer is immediately allocated and the
  * function returns 1. Otherwise it returns 0. Note that this automatically
  * covers multiple wake-up attempts by ensuring that the same buffer will not
  * be accounted for multiple times.
@@ -164,7 +164,7 @@ void appctx_shut(struct appctx *appctx)
 int appctx_buf_available(void *arg)
 {
 	struct appctx *appctx = arg;
-	struct conn_stream *cs = appctx_cs(appctx);
+	struct stconn *cs = appctx_cs(appctx);
 
 	/* allocation requested ? */
 	if (!se_fl_test(appctx->sedesc, SE_FL_RXBLK_BUFF))
@@ -190,7 +190,7 @@ int appctx_buf_available(void *arg)
 struct task *task_run_applet(struct task *t, void *context, unsigned int state)
 {
 	struct appctx *app = context;
-	struct conn_stream *cs;
+	struct stconn *cs;
 	unsigned int rate;
 	size_t count;
 

@@ -258,7 +258,7 @@ static int h3_is_frame_valid(struct h3c *h3c, struct qcs *qcs, uint64_t ftype)
 }
 
 /* Parse from buffer <buf> a H3 HEADERS frame of length <len>. Data are copied
- * in a local HTX buffer and transfer to the conn-stream layer. <fin> must be
+ * in a local HTX buffer and transfer to the stream connector layer. <fin> must be
  * set if this is the last data to transfer from this stream.
  *
  * Returns the number of bytes handled or a negative error code.
@@ -344,7 +344,7 @@ static int h3_headers_to_htx(struct qcs *qcs, struct ncbuf *buf, uint64_t len,
 	if (!qc_attach_cs(qcs, &htx_buf))
 		return -1;
 
-	/* buffer is transferred to conn_stream and set to NULL
+	/* buffer is transferred to the stream connector and set to NULL
 	 * except on stream creation error.
 	 */
 	b_free(&htx_buf);
@@ -828,8 +828,8 @@ static int h3_resp_data_send(struct qcs *qcs, struct buffer *buf, size_t count)
 	}
 
 	/* Not enough room for headers and at least one data byte, block the
-	 * stream. It is expected that the conn-stream layer will subscribe on
-	 * SEND.
+	 * stream. It is expected that the stream connector layer will subscribe
+	 * on SEND.
 	 */
 	if (b_size(&outbuf) <= hsize) {
 		qcs->flags |= QC_SF_BLK_MROOM;
@@ -860,7 +860,7 @@ static int h3_resp_data_send(struct qcs *qcs, struct buffer *buf, size_t count)
 	return total;
 }
 
-size_t h3_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t count, int flags)
+size_t h3_snd_buf(struct stconn *cs, struct buffer *buf, size_t count, int flags)
 {
 	size_t total = 0;
 	struct qcs *qcs = __cs_mux(cs);
