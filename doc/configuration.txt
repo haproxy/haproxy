@@ -1052,6 +1052,7 @@ The following keywords are supported in the "global" section :
    - ssl-dh-param-file
    - ssl-propquery
    - ssl-provider
+   - ssl-provider-path
    - ssl-server-verify
    - ssl-skip-self-issued-ca
    - unix-bind
@@ -2090,7 +2091,16 @@ ssl-provider <name>
   "openssl version -a" command. If the provider is in another directory, you
   can set the OPENSSL_MODULES environment variable, which takes the directory
   where your provider can be found.
-  See also "ssl-propquery".
+  See also "ssl-propquery" and "ssl-provider-path".
+
+ssl-provider-path <path>
+  This setting is only available when support for OpenSSL was built in and when
+  OpenSSL's version is at least 3.0. It allows to specify the search path that
+  is to be used by OpenSSL for looking for providers. It behaves the same way
+  as the OPENSSL_MODULES environment variable. It will be used for any
+  following 'ssl-provider' option or until a new 'ssl-provider-path' is
+  defined.
+  See also "ssl-provider".
 
 ssl-load-extra-del-ext
   This setting allows to configure the way HAProxy does the lookup for the
