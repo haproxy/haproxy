@@ -733,7 +733,7 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 					if (htx->flags & HTX_FL_EOM) {
 						req->flags |= CF_EOI;
 						se_fl_set(appctx->endp,
-							  CS_EP_EOI);
+							  SE_FL_EOI);
 						appctx->st0 = HTTPCLIENT_S_RES_STLINE;
 					}
 

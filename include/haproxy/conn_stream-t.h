@@ -26,62 +26,63 @@
 #include <haproxy/obj_type-t.h>
 #include <haproxy/connection-t.h>
 
-/* CS endpoint flags */
- enum {
-	 CS_EP_NONE       = 0x00000000, /* For initialization purposes */
+/* Stream Endpoint Flags */
+enum se_flags {
+	SE_FL_NONE       = 0x00000000, /* For initialization purposes */
 
 	 /* Endpoint types */
-	 CS_EP_T_MUX      = 0x00000001, /* The endpoint is a mux (the target may be NULL before the mux init) */
-	 CS_EP_T_APPLET   = 0x00000002, /* The endpoint is an applet */
+	SE_FL_T_MUX      = 0x00000001, /* The endpoint is a mux (the target may be NULL before the mux init) */
+	SE_FL_T_APPLET   = 0x00000002, /* The endpoint is an applet */
 
 	 /* unused: 0x00000004 .. 0x00000008 */
 
 	 /* Endpoint states: none == attached to a mux with a conn-stream */
-	 CS_EP_DETACHED   = 0x00000010, /* The endpoint is detached (no mux/no applet) */
-	 CS_EP_ORPHAN     = 0x00000020, /* The endpoint is orphan (no conn-stream) */
+	SE_FL_DETACHED   = 0x00000010, /* The endpoint is detached (no mux/no applet) */
+	SE_FL_ORPHAN     = 0x00000020, /* The endpoint is orphan (no conn-stream) */
 
 	 /* unused: 0x00000040 .. 0x00000080 */
 
-	 CS_EP_SHRD       = 0x00000100,  /* read shut, draining extra data */
-	 CS_EP_SHRR       = 0x00000200,  /* read shut, resetting extra data */
-	 CS_EP_SHR        = CS_EP_SHRD | CS_EP_SHRR, /* read shut status */
+	SE_FL_SHRD       = 0x00000100,  /* read shut, draining extra data */
+	SE_FL_SHRR       = 0x00000200,  /* read shut, resetting extra data */
+	SE_FL_SHR        = SE_FL_SHRD | SE_FL_SHRR, /* read shut status */
 
-	 CS_EP_SHWN       = 0x00000400,  /* write shut, verbose mode */
-	 CS_EP_SHWS       = 0x00000800,  /* write shut, silent mode */
-	 CS_EP_SHW        = CS_EP_SHWN | CS_EP_SHWS, /* write shut status */
+	SE_FL_SHWN       = 0x00000400,  /* write shut, verbose mode */
+	SE_FL_SHWS       = 0x00000800,  /* write shut, silent mode */
+	SE_FL_SHW        = SE_FL_SHWN | SE_FL_SHWS, /* write shut status */
 
 	/* following flags are supposed to be set by the endpoint and read by
 	 * the app layer :
 	 */
+
 	 /* Permanent flags */
-	CS_EP_NOT_FIRST  = 0x00001000,  /* This conn-stream is not the first one for the endpoint */
-	CS_EP_WEBSOCKET  = 0x00002000,  /* The endpoint uses the websocket proto */
-	CS_EP_EOI        = 0x00004000,  /* end-of-input reached */
-	CS_EP_EOS        = 0x00008000,  /* End of stream delivered to data layer */
-	CS_EP_ERROR      = 0x00010000,  /* a fatal error was reported */
+	SE_FL_NOT_FIRST  = 0x00001000,  /* This conn-stream is not the first one for the endpoint */
+	SE_FL_WEBSOCKET  = 0x00002000,  /* The endpoint uses the websocket proto */
+	SE_FL_EOI        = 0x00004000,  /* end-of-input reached */
+	SE_FL_EOS        = 0x00008000,  /* End of stream delivered to data layer */
+	SE_FL_ERROR      = 0x00010000,  /* a fatal error was reported */
 	/* Transient flags */
-	CS_EP_ERR_PENDING= 0x00020000,  /* An error is pending, but there's still data to be read */
-	CS_EP_MAY_SPLICE = 0x00040000,  /* The endpoint may use the kernel splicing to forward data to the other side (implies CS_EP_CAN_SPLICE) */
-	CS_EP_RCV_MORE   = 0x00080000,  /* Endpoint may have more bytes to transfer */
-	CS_EP_WANT_ROOM  = 0x00100000,  /* More bytes to transfer, but not enough room */
-	CS_EP_ENDP_MASK  = 0x001ff000,  /* Mask for flags set by the endpoint */
+	SE_FL_ERR_PENDING= 0x00020000,  /* An error is pending, but there's still data to be read */
+	SE_FL_MAY_SPLICE = 0x00040000,  /* The endpoint may use the kernel splicing to forward data to the other side (implies SE_FL_CAN_SPLICE) */
+	SE_FL_RCV_MORE   = 0x00080000,  /* Endpoint may have more bytes to transfer */
+	SE_FL_WANT_ROOM  = 0x00100000,  /* More bytes to transfer, but not enough room */
+	SE_FL_ENDP_MASK  = 0x001ff000,  /* Mask for flags set by the endpoint */
 
 	/* following flags are supposed to be set by the app layer and read by
 	 * the endpoint :
 	 */
-	CS_EP_WAIT_FOR_HS   = 0x00200000,  /* This stream is waiting for handhskae */
-	CS_EP_KILL_CONN     = 0x00400000,  /* must kill the connection when the CS closes */
-	CS_EP_WAIT_DATA     = 0x00800000,  /* CS waits for more outgoing data to send */
-	CS_EP_WANT_GET      = 0x01000000,  /* CS would like to get some data from the buffer */
-	CS_EP_RX_WAIT_EP    = 0x02000000,  /* CS waits for more data from the end point */
-	CS_EP_RXBLK_CHAN    = 0x04000000,  /* the channel doesn't want the CS to introduce data */
-	CS_EP_RXBLK_BUFF    = 0x08000000,  /* CS waits for a buffer allocation to complete */
-	CS_EP_RXBLK_ROOM    = 0x10000000,  /* CS waits for more buffer room to store incoming data */
-	CS_EP_RXBLK_SHUT    = 0x20000000,  /* input is now closed, nothing new will ever come */
-	CS_EP_RXBLK_CONN    = 0x40000000,  /* other side is not connected */
-	CS_EP_RXBLK_ANY     = 0x7C000000,  /* any of the RXBLK flags above */
-	CS_EP_APP_MASK      = 0x7fe00000,  /* Mask for flags set by the app layer */
- };
+	SE_FL_WAIT_FOR_HS   = 0x00200000,  /* This stream is waiting for handhskae */
+	SE_FL_KILL_CONN     = 0x00400000,  /* must kill the connection when the CS closes */
+	SE_FL_WAIT_DATA     = 0x00800000,  /* CS waits for more outgoing data to send */
+	SE_FL_WANT_GET      = 0x01000000,  /* CS would like to get some data from the buffer */
+	SE_FL_RX_WAIT_EP    = 0x02000000,  /* CS waits for more data from the end point */
+	SE_FL_RXBLK_CHAN    = 0x04000000,  /* the channel doesn't want the CS to introduce data */
+	SE_FL_RXBLK_BUFF    = 0x08000000,  /* CS waits for a buffer allocation to complete */
+	SE_FL_RXBLK_ROOM    = 0x10000000,  /* CS waits for more buffer room to store incoming data */
+	SE_FL_RXBLK_SHUT    = 0x20000000,  /* input is now closed, nothing new will ever come */
+	SE_FL_RXBLK_CONN    = 0x40000000,  /* other side is not connected */
+	SE_FL_RXBLK_ANY     = 0x7C000000,  /* any of the RXBLK flags above */
+	SE_FL_APP_MASK      = 0x7fe00000,  /* Mask for flags set by the app layer */
+};
 
 /* conn_stream flags */
 enum {
@@ -159,7 +160,7 @@ struct data_cb {
  * <target> is the mux or the appctx
  * <conn>   is the connection for connection-based streams
  * <cs>     is the conn_stream we're attached to, or NULL
- * <flags>  CS_EP_*
+ * <flags>  SE_FL_*
 */
 struct cs_endpoint {
 	void *target;

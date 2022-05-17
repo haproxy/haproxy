@@ -9615,7 +9615,7 @@ void hlua_applet_http_fct(struct appctx *ctx)
 
 		res_htx->flags |= HTX_FL_EOM;
 		res->flags |= CF_EOI;
-		se_fl_set(ctx->endp, CS_EP_EOI);
+		se_fl_set(ctx->endp, SE_FL_EOI);
 		strm->txn->status = http_ctx->status;
 		http_ctx->flags |= APPLET_RSP_SENT;
 	}

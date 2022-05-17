@@ -150,8 +150,8 @@ static inline int cs_is_conn_error(const struct conn_stream *cs)
  * channel_alloc_buffer() for this so it abides by its rules. It returns 0 on
  * failure, non-zero otherwise. If no buffer is available, the requester,
  * represented by the <wait> pointer, will be added in the list of objects
- * waiting for an available buffer, and CS_EP_RXBLK_BUFF will be set on the
- * conn-stream and CS_EP_RX_WAIT_EP cleared. The requester will be responsible
+ * waiting for an available buffer, and SE_FL_RXBLK_BUFF will be set on the
+ * conn-stream and SE_FL_RX_WAIT_EP cleared. The requester will be responsible
  * for calling this function to try again once woken up.
  */
 static inline int cs_alloc_ibuf(struct conn_stream *cs, struct buffer_wait *wait)
@@ -268,7 +268,7 @@ static inline int cs_get_dst(struct conn_stream *cs)
 /* Marks on the conn-stream that next shutw must kill the whole connection */
 static inline void cs_must_kill_conn(struct conn_stream *cs)
 {
-	sc_ep_set(cs, CS_EP_KILL_CONN);
+	sc_ep_set(cs, SE_FL_KILL_CONN);
 }
 
 
@@ -292,7 +292,7 @@ static inline void cs_shutw(struct conn_stream *cs)
  */
 static inline void cs_chk_rcv(struct conn_stream *cs)
 {
-	if (sc_ep_test(cs, CS_EP_RXBLK_CONN) && cs_state_in(cs_opposite(cs)->state, CS_SB_RDY|CS_SB_EST|CS_SB_DIS|CS_SB_CLO))
+	if (sc_ep_test(cs, SE_FL_RXBLK_CONN) && cs_state_in(cs_opposite(cs)->state, CS_SB_RDY|CS_SB_EST|CS_SB_DIS|CS_SB_CLO))
 		cs_rx_conn_rdy(cs);
 
 	if (cs_rx_blocked(cs) || !cs_rx_endp_ready(cs))
@@ -301,7 +301,7 @@ static inline void cs_chk_rcv(struct conn_stream *cs)
 	if (!cs_state_in(cs->state, CS_SB_RDY|CS_SB_EST))
 		return;
 
-	sc_ep_set(cs, CS_EP_RX_WAIT_EP);
+	sc_ep_set(cs, SE_FL_RX_WAIT_EP);
 	cs->ops->chk_rcv(cs);
 }
 

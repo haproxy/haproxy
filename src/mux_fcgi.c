@@ -373,7 +373,7 @@ static int fcgi_strm_send_abort(struct fcgi_conn *fconn, struct fcgi_strm *fstrm
 /* a dummy closed endpoint */
 static const struct cs_endpoint closed_ep = {
 	. cs       = NULL,
-	.flags     = CS_EP_DETACHED,
+	.flags     = SE_FL_DETACHED,
 };
 
 /* a dmumy management stream */
@@ -1007,7 +1007,7 @@ static inline void fcgi_strm_close(struct fcgi_strm *fstrm)
 		if (!fstrm->id)
 			fstrm->fconn->nb_reserved--;
 		if (fstrm->endp->cs) {
-			if (!se_fl_test(fstrm->endp, CS_EP_EOS) && !b_data(&fstrm->rxbuf))
+			if (!se_fl_test(fstrm->endp, SE_FL_EOS) && !b_data(&fstrm->rxbuf))
 				fcgi_strm_notify_recv(fstrm);
 		}
 		fstrm->state = FCGI_SS_CLOSED;
@@ -1039,7 +1039,7 @@ static void fcgi_strm_destroy(struct fcgi_strm *fstrm)
 	 */
 	LIST_DEL_INIT(&fstrm->send_list);
 	tasklet_free(fstrm->shut_tl);
-	BUG_ON(fstrm->endp && !se_fl_test(fstrm->endp, CS_EP_ORPHAN));
+	BUG_ON(fstrm->endp && !se_fl_test(fstrm->endp, SE_FL_ORPHAN));
 	cs_endpoint_free(fstrm->endp);
 	pool_free(pool_head_fcgi_strm, fstrm);
 
@@ -1144,8 +1144,8 @@ static struct fcgi_strm *fcgi_conn_stream_new(struct fcgi_conn *fconn, struct co
 	return NULL;
 }
 
-/* Wakes a specific stream and assign its conn_stream some CS_EP_* flags among
- * CS_EP_ERR_PENDING and CS_EP_ERROR if needed. The stream's state is
+/* Wakes a specific stream and assign its conn_stream some SE_FL_* flags among
+ * SE_FL_ERR_PENDING and SE_FL_ERROR if needed. The stream's state is
  * automatically updated accordingly. If the stream is orphaned, it is
  * destroyed.
  */
@@ -1172,9 +1172,9 @@ static void fcgi_strm_wake_one_stream(struct fcgi_strm *fstrm)
 	}
 
 	if ((fconn->state == FCGI_CS_CLOSED || fconn->conn->flags & CO_FL_ERROR)) {
-		se_fl_set(fstrm->endp, CS_EP_ERR_PENDING);
-		if (se_fl_test(fstrm->endp, CS_EP_EOS))
-			se_fl_set(fstrm->endp, CS_EP_ERROR);
+		se_fl_set(fstrm->endp, SE_FL_ERR_PENDING);
+		if (se_fl_test(fstrm->endp, SE_FL_EOS))
+			se_fl_set(fstrm->endp, SE_FL_ERROR);
 
 		if (fstrm->state < FCGI_SS_ERROR) {
 			fstrm->state = FCGI_SS_ERROR;
@@ -2622,10 +2622,10 @@ static void fcgi_process_demux(struct fcgi_conn *fconn)
 		     fcgi_conn_read0_pending(fconn) ||
 		     fstrm->state == FCGI_SS_CLOSED ||
 		     (fstrm->flags & FCGI_SF_ES_RCVD) ||
-		     se_fl_test(fstrm->endp, CS_EP_ERROR | CS_EP_ERR_PENDING | CS_EP_EOS))) {
+		     se_fl_test(fstrm->endp, SE_FL_ERROR | SE_FL_ERR_PENDING | SE_FL_EOS))) {
 			/* we may have to signal the upper layers */
 			TRACE_DEVEL("notifying stream before switching SID", FCGI_EV_RX_RECORD|FCGI_EV_STRM_WAKE, fconn->conn, fstrm);
-			se_fl_set(fstrm->endp, CS_EP_RCV_MORE);
+			se_fl_set(fstrm->endp, SE_FL_RCV_MORE);
 			fcgi_strm_notify_recv(fstrm);
 		}
 		fstrm = tmp_fstrm;
@@ -2703,10 +2703,10 @@ static void fcgi_process_demux(struct fcgi_conn *fconn)
 	     fcgi_conn_read0_pending(fconn) ||
 	     fstrm->state == FCGI_SS_CLOSED ||
 	     (fstrm->flags & FCGI_SF_ES_RCVD) ||
-	     se_fl_test(fstrm->endp, CS_EP_ERROR | CS_EP_ERR_PENDING | CS_EP_EOS))) {
+	     se_fl_test(fstrm->endp, SE_FL_ERROR | SE_FL_ERR_PENDING | SE_FL_EOS))) {
 		/* we may have to signal the upper layers */
 		TRACE_DEVEL("notifying stream before switching SID", FCGI_EV_RX_RECORD|FCGI_EV_STRM_WAKE, fconn->conn, fstrm);
-		se_fl_set(fstrm->endp, CS_EP_RCV_MORE);
+		se_fl_set(fstrm->endp, SE_FL_RCV_MORE);
 		fcgi_strm_notify_recv(fstrm);
 	}
 
@@ -3118,7 +3118,7 @@ static int fcgi_process(struct fcgi_conn *fconn)
 
 		while (node) {
 			fstrm = container_of(node, struct fcgi_strm, by_id);
-			if (fstrm->endp->cs && se_fl_test(fstrm->endp, CS_EP_WAIT_FOR_HS))
+			if (fstrm->endp->cs && se_fl_test(fstrm->endp, SE_FL_WAIT_FOR_HS))
 				fcgi_strm_notify_recv(fstrm);
 			node = eb32_next(node);
 		}
@@ -3722,7 +3722,7 @@ static void fcgi_do_shutr(struct fcgi_strm *fstrm)
 	 * for example because of a "tcp-request content reject" rule that is
 	 * normally used to limit abuse.
 	 */
-	if (se_fl_test(fstrm->endp, CS_EP_KILL_CONN) &&
+	if (se_fl_test(fstrm->endp, SE_FL_KILL_CONN) &&
 	    !(fconn->flags & (FCGI_CF_ABRTS_SENT|FCGI_CF_ABRTS_FAILED))) {
 		TRACE_STATE("stream wants to kill the connection", FCGI_EV_STRM_SHUT, fconn->conn, fstrm);
 		fconn->state = FCGI_CS_CLOSED;
@@ -3783,7 +3783,7 @@ static void fcgi_do_shutw(struct fcgi_strm *fstrm)
 		 * for example because of a "tcp-request content reject" rule that is
 		 * normally used to limit abuse.
 		 */
-		if (se_fl_test(fstrm->endp, CS_EP_KILL_CONN) &&
+		if (se_fl_test(fstrm->endp, SE_FL_KILL_CONN) &&
 		    !(fconn->flags & (FCGI_CF_ABRTS_SENT|FCGI_CF_ABRTS_FAILED))) {
 			TRACE_STATE("stream wants to kill the connection", FCGI_EV_STRM_SHUT, fconn->conn, fstrm);
 			fconn->state = FCGI_CS_CLOSED;
@@ -3953,18 +3953,18 @@ static size_t fcgi_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t co
 		TRACE_STATE("fstrm rxbuf not allocated", FCGI_EV_STRM_RECV|FCGI_EV_FSTRM_BLK, fconn->conn, fstrm);
 
 	if (b_data(&fstrm->rxbuf))
-		se_fl_set(fstrm->endp, CS_EP_RCV_MORE | CS_EP_WANT_ROOM);
+		se_fl_set(fstrm->endp, SE_FL_RCV_MORE | SE_FL_WANT_ROOM);
 	else {
-		se_fl_clr(fstrm->endp, CS_EP_RCV_MORE | CS_EP_WANT_ROOM);
+		se_fl_clr(fstrm->endp, SE_FL_RCV_MORE | SE_FL_WANT_ROOM);
 		if (fstrm->state == FCGI_SS_ERROR || (fstrm->h1m.state == H1_MSG_DONE)) {
-			se_fl_set(fstrm->endp, CS_EP_EOI);
+			se_fl_set(fstrm->endp, SE_FL_EOI);
 			if (!(fstrm->h1m.flags & (H1_MF_VER_11|H1_MF_XFER_LEN)))
-				se_fl_set(fstrm->endp, CS_EP_EOS);
+				se_fl_set(fstrm->endp, SE_FL_EOS);
 		}
 		if (fcgi_conn_read0_pending(fconn))
-			se_fl_set(fstrm->endp, CS_EP_EOS);
-		if (se_fl_test(fstrm->endp, CS_EP_ERR_PENDING))
-			se_fl_set(fstrm->endp, CS_EP_ERROR);
+			se_fl_set(fstrm->endp, SE_FL_EOS);
+		if (se_fl_test(fstrm->endp, SE_FL_ERR_PENDING))
+			se_fl_set(fstrm->endp, SE_FL_ERROR);
 		fcgi_release_buf(fconn, &fstrm->rxbuf);
 	}
 
@@ -4017,7 +4017,7 @@ static size_t fcgi_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t co
 
 		if (id < 0) {
 			fcgi_strm_close(fstrm);
-			se_fl_set(fstrm->endp, CS_EP_ERROR);
+			se_fl_set(fstrm->endp, SE_FL_ERROR);
 			TRACE_DEVEL("couldn't get a stream ID, leaving in error", FCGI_EV_STRM_SEND|FCGI_EV_FSTRM_ERR|FCGI_EV_STRM_ERR, fconn->conn, fstrm);
 			return 0;
 		}
@@ -4188,7 +4188,7 @@ static int fcgi_show_fd(struct buffer *msg, struct connection *conn)
 			      fstrm->endp->cs);
 		if (fstrm->endp) {
 			chunk_appendf(msg, " .endp.flg=0x%08x", se_fl_get(fstrm->endp));
-			if (!se_fl_test(fstrm->endp, CS_EP_ORPHAN))
+			if (!se_fl_test(fstrm->endp, SE_FL_ORPHAN))
 				chunk_appendf(msg, " .cs.flg=0x%08x .cs.app=%p",
 					      fstrm->endp->cs->flags, fstrm->endp->cs->app);
 		}

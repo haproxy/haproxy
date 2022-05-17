@@ -1108,7 +1108,7 @@ static void cli_io_handler(struct appctx *appctx)
 					}
 				break;
 			default: /* abnormal state */
-				se_fl_set(appctx->endp, CS_EP_ERROR);
+				se_fl_set(appctx->endp, SE_FL_ERROR);
 				break;
 			}
 
@@ -2782,7 +2782,7 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 					s->srv_error(s, s->csb);
 				return 1;
 			}
-			se_fl_clr(s->csb->endp, ~CS_EP_DETACHED);
+			se_fl_clr(s->csb->endp, ~SE_FL_DETACHED);
 		}
 
 		sockaddr_free(&s->csb->dst);

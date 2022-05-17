@@ -793,7 +793,7 @@ void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 		retrieve_errno_from_socket(conn);
 
 	if (conn && !(conn->flags & CO_FL_ERROR) &&
-	    cs && !sc_ep_test(cs, CS_EP_ERROR) && !expired)
+	    cs && !sc_ep_test(cs, SE_FL_ERROR) && !expired)
 		return;
 
 	TRACE_ENTER(CHK_EV_HCHK_END|CHK_EV_HCHK_ERR, check, 0, 0, (size_t[]){expired});
@@ -912,7 +912,7 @@ void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 	}
 	else if (conn->flags & CO_FL_WAIT_L4_CONN) {
 		/* L4 not established (yet) */
-		if (conn->flags & CO_FL_ERROR || sc_ep_test(cs, CS_EP_ERROR))
+		if (conn->flags & CO_FL_ERROR || sc_ep_test(cs, SE_FL_ERROR))
 			set_server_check_status(check, HCHK_STATUS_L4CON, err_msg);
 		else if (expired)
 			set_server_check_status(check, HCHK_STATUS_L4TOUT, err_msg);
@@ -927,12 +927,12 @@ void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 	}
 	else if (conn->flags & CO_FL_WAIT_L6_CONN) {
 		/* L6 not established (yet) */
-		if (conn->flags & CO_FL_ERROR || sc_ep_test(cs, CS_EP_ERROR))
+		if (conn->flags & CO_FL_ERROR || sc_ep_test(cs, SE_FL_ERROR))
 			set_server_check_status(check, HCHK_STATUS_L6RSP, err_msg);
 		else if (expired)
 			set_server_check_status(check, HCHK_STATUS_L6TOUT, err_msg);
 	}
-	else if (conn->flags & CO_FL_ERROR || sc_ep_test(cs, CS_EP_ERROR)) {
+	else if (conn->flags & CO_FL_ERROR || sc_ep_test(cs, SE_FL_ERROR)) {
 		/* I/O error after connection was established and before we could diagnose */
 		set_server_check_status(check, HCHK_STATUS_SOCKERR, err_msg);
 	}
@@ -1038,7 +1038,7 @@ static int wake_srv_chk(struct conn_stream *cs)
 	cs = check->cs;
 	conn = cs_conn(cs);
 
-	if (unlikely(!conn || !cs || conn->flags & CO_FL_ERROR || sc_ep_test(cs, CS_EP_ERROR))) {
+	if (unlikely(!conn || !cs || conn->flags & CO_FL_ERROR || sc_ep_test(cs, SE_FL_ERROR))) {
 		/* We may get error reports bypassing the I/O handlers, typically
 		 * the case when sending a pure TCP check which fails, then the I/O
 		 * handlers above are not called. This is completely handled by the
@@ -1146,7 +1146,7 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 		/* Here the connection must be defined. Otherwise the
 		 * error would have already been detected
 		 */
-		if ((conn && ((conn->flags & CO_FL_ERROR) || sc_ep_test(cs, CS_EP_ERROR))) || expired) {
+		if ((conn && ((conn->flags & CO_FL_ERROR) || sc_ep_test(cs, SE_FL_ERROR))) || expired) {
 			TRACE_ERROR("report connection error", CHK_EV_TASK_WAKE|CHK_EV_HCHK_END|CHK_EV_HCHK_ERR, check);
 			chk_report_conn_err(check, 0, expired);
 		}
@@ -1157,9 +1157,9 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 				conn = NULL;
 				if (!cs_reset_endp(check->cs)) {
 					/* error will be handled by tcpcheck_main().
-					 * On success, remove all flags except CS_EP_DETACHED
+					 * On success, remove all flags except SE_FL_DETACHED
 					 */
-					sc_ep_clr(check->cs, ~CS_EP_DETACHED);
+					sc_ep_clr(check->cs, ~SE_FL_DETACHED);
 				}
 				tcpcheck_main(check);
 			}

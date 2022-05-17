@@ -1527,7 +1527,7 @@ static void http_cache_io_handler(struct appctx *appctx)
 		 /* no more data are expected. */
 		res_htx->flags |= HTX_FL_EOM;
 		res->flags |= CF_EOI;
-		se_fl_set(appctx->endp, CS_EP_EOI);
+		se_fl_set(appctx->endp, SE_FL_EOI);
 		appctx->st0 = HTX_CACHE_END;
 	}
 

@@ -1578,7 +1578,7 @@ static int connect_server(struct stream *s)
 					srv_conn = NULL;
 					if (cs_reset_endp(s->csb) < 0)
 						return SF_ERR_INTERNAL;
-					sc_ep_clr(s->csb, ~CS_EP_DETACHED);
+					sc_ep_clr(s->csb, ~SE_FL_DETACHED);
 				}
 			}
 			else
@@ -1826,7 +1826,7 @@ skip_reuse:
 	 * loopback on a heavily loaded system.
 	 */
 	if (srv_conn->flags & CO_FL_ERROR)
-		sc_ep_set(s->csb, CS_EP_ERROR);
+		sc_ep_set(s->csb, SE_FL_ERROR);
 
 	/* If we had early data, and the handshake ended, then
 	 * we can remove the flag, and attempt to wake the task up,
@@ -1834,7 +1834,7 @@ skip_reuse:
 	 * the handshake.
 	 */
 	if (!(srv_conn->flags & (CO_FL_WAIT_XPRT | CO_FL_EARLY_SSL_HS)))
-		sc_ep_clr(s->csb, CS_EP_WAIT_FOR_HS);
+		sc_ep_clr(s->csb, SE_FL_WAIT_FOR_HS);
 
 	if (!cs_state_in(s->csb->state, CS_SB_EST|CS_SB_DIS|CS_SB_CLO) &&
 	    (srv_conn->flags & CO_FL_WAIT_XPRT) == 0) {
@@ -1851,7 +1851,7 @@ skip_reuse:
 	 *       wake callback. Otherwise si_cs_recv()/si_cs_send() already take
 	 *       care of it.
 	 */
-	if (sc_ep_test(s->csb, CS_EP_EOI) && !(cs_ic(s->csb)->flags & CF_EOI))
+	if (sc_ep_test(s->csb, SE_FL_EOI) && !(cs_ic(s->csb)->flags & CF_EOI))
 		cs_ic(s->csb)->flags |= (CF_EOI|CF_READ_PARTIAL);
 
 	/* catch all sync connect while the mux is not already installed */
@@ -2045,7 +2045,7 @@ void back_try_conn_req(struct stream *s)
 		 * allocation problem, so we want to retry now.
 		 */
 		cs->state = CS_ST_CER;
-		sc_ep_clr(cs, CS_EP_ERROR);
+		sc_ep_clr(cs, SE_FL_ERROR);
 		back_handle_st_cer(s);
 
 		DBG_TRACE_STATE("connection error, retry", STRM_EV_STRM_PROC|STRM_EV_CS_ST|STRM_EV_STRM_ERR, s);
@@ -2262,9 +2262,9 @@ void back_handle_st_con(struct stream *s)
 
  done:
 	/* retryable error ? */
-	if ((s->flags & SF_CONN_EXP) || sc_ep_test(cs, CS_EP_ERROR)) {
+	if ((s->flags & SF_CONN_EXP) || sc_ep_test(cs, SE_FL_ERROR)) {
 		if (!s->conn_err_type) {
-			if (sc_ep_test(cs, CS_EP_ERROR))
+			if (sc_ep_test(cs, SE_FL_ERROR))
 				s->conn_err_type = STRM_ET_CONN_ERR;
 			else
 				s->conn_err_type = STRM_ET_CONN_TO;
@@ -2290,7 +2290,7 @@ void back_handle_st_con(struct stream *s)
 void back_handle_st_cer(struct stream *s)
 {
 	struct conn_stream *cs = s->csb;
-	int must_tar = sc_ep_test(cs, CS_EP_ERROR);
+	int must_tar = sc_ep_test(cs, SE_FL_ERROR);
 
 	DBG_TRACE_ENTER(STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 
@@ -2310,7 +2310,7 @@ void back_handle_st_cer(struct stream *s)
 			_HA_ATOMIC_DEC(&__objt_server(s->target)->cur_sess);
 		}
 
-		if (sc_ep_test(cs, CS_EP_ERROR) &&
+		if (sc_ep_test(cs, SE_FL_ERROR) &&
 		    conn && conn->err_code == CO_ER_SSL_MISMATCH_SNI) {
 			/* We tried to connect to a server which is configured
 			 * with "verify required" and which doesn't have the
@@ -2367,7 +2367,7 @@ void back_handle_st_cer(struct stream *s)
 	 * layers in an unexpected state (i.e < ST_CONN).
 	 *
 	 * Note: the conn-stream will be switched to ST_REQ, ST_ASS or
-	 * ST_TAR and CS_EP_ERROR and SF_CONN_EXP flags will be unset.
+	 * ST_TAR and SE_FL_ERROR and SF_CONN_EXP flags will be unset.
 	 */
 	if (cs_reset_endp(cs) < 0) {
 		if (!s->conn_err_type)
@@ -2489,7 +2489,7 @@ void back_handle_st_rdy(struct stream *s)
 		}
 
 		/* retryable error ? */
-		if (sc_ep_test(cs, CS_EP_ERROR)) {
+		if (sc_ep_test(cs, SE_FL_ERROR)) {
 			if (!s->conn_err_type)
 				s->conn_err_type = STRM_ET_CONN_ERR;
 			cs->state = CS_ST_CER;
