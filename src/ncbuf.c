@@ -457,21 +457,35 @@ ncb_sz_t ncb_total_data(const struct ncbuf *buf)
 /* Returns true if there is no data anywhere in <buf>. */
 int ncb_is_empty(const struct ncbuf *buf)
 {
+	int first_data, first_gap;
+
 	if (ncb_is_null(buf))
 		return 1;
 
-	BUG_ON_HOT(*ncb_reserved(buf) + *ncb_head(buf) > ncb_size(buf));
-	return *ncb_reserved(buf) == 0 && *ncb_head(buf) == ncb_size(buf);
+	first_data = ncb_read_off(buf, ncb_reserved(buf));
+	BUG_ON_HOT(first_data > ncb_size(buf));
+	/* Buffer is not empty if first data block is not nul. */
+	if (first_data)
+		return 0;
+
+	/* Head contains the first gap size if first data block is empty. */
+	first_gap  = ncb_read_off(buf, ncb_head(buf));
+	BUG_ON_HOT(first_gap > ncb_size(buf));
+	return first_gap == ncb_size(buf);
 }
 
 /* Returns true if no more data can be inserted in <buf>. */
 int ncb_is_full(const struct ncbuf *buf)
 {
+	int first_data;
+
 	if (ncb_is_null(buf))
 		return 0;
 
-	BUG_ON_HOT(ncb_read_off(buf, ncb_reserved(buf)) > ncb_size(buf));
-	return ncb_read_off(buf, ncb_reserved(buf)) == ncb_size(buf);
+	/* First data block must cover whole buffer if full. */
+	first_data = ncb_read_off(buf, ncb_reserved(buf));
+	BUG_ON_HOT(first_data > ncb_size(buf));
+	return first_data == ncb_size(buf);
 }
 
 /* Returns the number of bytes of data avaiable in <buf> starting at offset
