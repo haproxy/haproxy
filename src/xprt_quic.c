@@ -6411,8 +6411,8 @@ struct task *quic_lstnr_dghdlr(struct task *t, void *ctx, unsigned int state)
 /* Retreive the DCID from a QUIC datagram or packet with <buf> as first octet.
  * Returns 1 if succeeded, 0 if not.
  */
-static int quic_get_dgram_dcid(unsigned char *buf, const unsigned char *end,
-                               unsigned char **dcid, size_t *dcid_len)
+int quic_get_dgram_dcid(unsigned char *buf, const unsigned char *end,
+                        unsigned char **dcid, size_t *dcid_len)
 {
 	int long_header;
 	size_t minlen, skip;
@@ -6438,47 +6438,6 @@ static int quic_get_dgram_dcid(unsigned char *buf, const unsigned char *end,
 
  err:
 	TRACE_PROTO("wrong datagram", QUIC_EV_CONN_LPKT);
-	return 0;
-}
-
-/* Retrieve the DCID from the datagram found in <buf> and deliver it to the
- * correct datagram handler.
- * Return 1 if a correct datagram could be found, 0 if not.
- */
-int quic_lstnr_dgram_dispatch(unsigned char *buf, size_t len, void *owner,
-                              struct sockaddr_storage *saddr,
-                              struct quic_dgram *new_dgram, struct list *dgrams)
-{
-	struct quic_dgram *dgram;
-	unsigned char *dcid;
-	size_t dcid_len;
-	int cid_tid;
-
-	if (!len || !quic_get_dgram_dcid(buf, buf + len, &dcid, &dcid_len))
-		goto err;
-
-	dgram = new_dgram ? new_dgram : pool_alloc(pool_head_quic_dgram);
-	if (!dgram)
-		goto err;
-
-	cid_tid = quic_get_cid_tid(dcid);
-
-	/* All the members must be initialized! */
-	dgram->owner = owner;
-	dgram->buf = buf;
-	dgram->len = len;
-	dgram->dcid = dcid;
-	dgram->dcid_len = dcid_len;
-	dgram->saddr = *saddr;
-	dgram->qc = NULL;
-	LIST_APPEND(dgrams, &dgram->list);
-	MT_LIST_APPEND(&quic_dghdlrs[cid_tid].dgrams, &dgram->mt_list);
-
-	tasklet_wakeup(quic_dghdlrs[cid_tid].task);
-
-	return 1;
-
- err:
 	return 0;
 }
 

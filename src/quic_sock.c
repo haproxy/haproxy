@@ -17,6 +17,7 @@
 
 #include <haproxy/connection.h>
 #include <haproxy/listener.h>
+#include <haproxy/proto_quic.h>
 #include <haproxy/quic_sock.h>
 #include <haproxy/session.h>
 #include <haproxy/tools.h>
@@ -215,6 +216,47 @@ struct connection *quic_sock_accept_conn(struct listener *l, int *status)
 
 	*status = CO_AC_PAUSE;
 	return NULL;
+}
+
+/* Retrieve the DCID from the datagram found in <buf> and deliver it to the
+ * correct datagram handler.
+ * Return 1 if a correct datagram could be found, 0 if not.
+ */
+static int quic_lstnr_dgram_dispatch(unsigned char *buf, size_t len, void *owner,
+                                     struct sockaddr_storage *saddr,
+                                     struct quic_dgram *new_dgram, struct list *dgrams)
+{
+	struct quic_dgram *dgram;
+	unsigned char *dcid;
+	size_t dcid_len;
+	int cid_tid;
+
+	if (!len || !quic_get_dgram_dcid(buf, buf + len, &dcid, &dcid_len))
+		goto err;
+
+	dgram = new_dgram ? new_dgram : pool_alloc(pool_head_quic_dgram);
+	if (!dgram)
+		goto err;
+
+	cid_tid = quic_get_cid_tid(dcid);
+
+	/* All the members must be initialized! */
+	dgram->owner = owner;
+	dgram->buf = buf;
+	dgram->len = len;
+	dgram->dcid = dcid;
+	dgram->dcid_len = dcid_len;
+	dgram->saddr = *saddr;
+	dgram->qc = NULL;
+	LIST_APPEND(dgrams, &dgram->list);
+	MT_LIST_APPEND(&quic_dghdlrs[cid_tid].dgrams, &dgram->mt_list);
+
+	tasklet_wakeup(quic_dghdlrs[cid_tid].task);
+
+	return 1;
+
+ err:
+	return 0;
 }
 
 /* Function called on a read event from a listening socket. It tries
