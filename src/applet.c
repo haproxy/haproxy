@@ -51,7 +51,7 @@ struct appctx *appctx_new(struct applet *applet, struct cs_endpoint *endp, unsig
 		if (!endp)
 			goto fail_endp;
 		endp->target = appctx;
-		endp->flags |= (CS_EP_T_APPLET|CS_EP_ORPHAN);
+		se_fl_set(endp, CS_EP_T_APPLET | CS_EP_ORPHAN);
 	}
 	appctx->endp = endp;
 
@@ -93,7 +93,7 @@ int appctx_finalize_startup(struct appctx *appctx, struct proxy *px, struct buff
 	/* async startup is only possible for frontend appctx. Thus for orphan
 	 * appctx. Because no backend appctx can be orphan.
 	 */
-	BUG_ON(!(appctx->endp->flags & CS_EP_ORPHAN));
+	BUG_ON(!se_fl_test(appctx->endp, CS_EP_ORPHAN));
 
 	sess = session_new(px, NULL, &appctx->obj_type);
 	if (!sess)
@@ -114,7 +114,7 @@ void appctx_free_on_early_error(struct appctx *appctx)
 	/* If a frontend apctx is attached to a conn-stream, release the stream
 	 * instead of the appctx.
 	 */
-	if (!(appctx->endp->flags & CS_EP_ORPHAN) && !(appctx_cs(appctx)->flags & CS_FL_ISBACK)) {
+	if (!se_fl_test(appctx->endp, CS_EP_ORPHAN) && !(appctx_cs(appctx)->flags & CS_FL_ISBACK)) {
 		stream_free(appctx_strm(appctx));
 		return;
 	}
@@ -145,13 +145,13 @@ void *applet_reserve_svcctx(struct appctx *appctx, size_t size)
  */
 void appctx_shut(struct appctx *appctx)
 {
-	if (appctx->endp->flags & (CS_EP_SHR|CS_EP_SHW))
+	if (se_fl_test(appctx->endp, CS_EP_SHR | CS_EP_SHW))
 		return;
 
 	if (appctx->applet->release)
 		appctx->applet->release(appctx);
 
-	appctx->endp->flags |= CS_EP_SHRR | CS_EP_SHWN;
+	se_fl_set(appctx->endp, CS_EP_SHRR | CS_EP_SHWN);
 }
 
 /* Callback used to wake up an applet when a buffer is available. The applet
@@ -167,7 +167,7 @@ int appctx_buf_available(void *arg)
 	struct conn_stream *cs = appctx_cs(appctx);
 
 	/* allocation requested ? */
-	if (!(appctx->endp->flags & CS_EP_RXBLK_BUFF))
+	if (!se_fl_test(appctx->endp, CS_EP_RXBLK_BUFF))
 		return 0;
 
 	cs_rx_buff_rdy(cs);
@@ -199,7 +199,7 @@ struct task *task_run_applet(struct task *t, void *context, unsigned int state)
 		return NULL;
 	}
 
-	if (app->endp->flags & CS_EP_ORPHAN) {
+	if (se_fl_test(app->endp, CS_EP_ORPHAN)) {
 		/* Finalize init of orphan appctx. .init callback function must
 		 * be defined and it must finalize appctx startup.
 		 */
@@ -244,8 +244,8 @@ struct task *task_run_applet(struct task *t, void *context, unsigned int state)
 	/* measure the call rate and check for anomalies when too high */
 	rate = update_freq_ctr(&app->call_rate, 1);
 	if (rate >= 100000 && app->call_rate.prev_ctr && // looped more than 100k times over last second
-	    ((b_size(cs_ib(cs)) && app->endp->flags & CS_EP_RXBLK_BUFF) || // asks for a buffer which is present
-	     (b_size(cs_ib(cs)) && !b_data(cs_ib(cs)) && app->endp->flags & CS_EP_RXBLK_ROOM) || // asks for room in an empty buffer
+	    ((b_size(cs_ib(cs)) && se_fl_test(app->endp, CS_EP_RXBLK_BUFF)) || // asks for a buffer which is present
+	     (b_size(cs_ib(cs)) && !b_data(cs_ib(cs)) && se_fl_test(app->endp, CS_EP_RXBLK_ROOM)) || // asks for room in an empty buffer
 	     (b_data(cs_ob(cs)) && cs_tx_endp_ready(cs) && !cs_tx_blocked(cs)) || // asks for data already present
 	     (!b_data(cs_ib(cs)) && b_data(cs_ob(cs)) && // didn't return anything ...
 	      (cs_oc(cs)->flags & (CF_WRITE_PARTIAL|CF_SHUTW_NOW)) == CF_SHUTW_NOW))) { // ... and left data pending after a shut

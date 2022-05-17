@@ -87,7 +87,7 @@ void cs_endpoint_init(struct cs_endpoint *endp)
 	endp->target = NULL;
 	endp->conn = NULL;
 	endp->cs = NULL;
-	endp->flags = CS_EP_NONE;
+	se_fl_setall(endp, CS_EP_NONE);
 }
 
 /* Tries to alloc an endpoint and initialize it. Returns NULL on failure. */
@@ -167,7 +167,7 @@ struct conn_stream *cs_new_from_endp(struct cs_endpoint *endp, struct session *s
 		pool_free(pool_head_connstream, cs);
 		cs = NULL;
 	}
-	endp->flags &= ~CS_EP_ORPHAN;
+	se_fl_clr(endp, CS_EP_ORPHAN);
 	return cs;
 }
 
@@ -352,7 +352,7 @@ static void cs_detach_endp(struct conn_stream **csp)
 		if (conn->mux) {
 			if (cs->wait_event.events != 0)
 				conn->mux->unsubscribe(cs, cs->wait_event.events, &cs->wait_event);
-			endp->flags |= CS_EP_ORPHAN;
+			se_fl_set(endp, CS_EP_ORPHAN);
 			endp->cs = NULL;
 			cs->endp = NULL;
 			conn->mux->detach(endp);
@@ -460,7 +460,7 @@ int cs_reset_endp(struct conn_stream *cs)
 		sc_ep_set(cs, CS_EP_ERROR);
 		return -1;
 	}
-	new_endp->flags = sc_ep_get(cs) & CS_EP_APP_MASK;
+	se_fl_setall(new_endp, sc_ep_get(cs) & CS_EP_APP_MASK);
 
 	/* The app is still attached, the cs will not be released */
 	cs_detach_endp(&cs);

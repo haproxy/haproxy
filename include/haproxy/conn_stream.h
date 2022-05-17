@@ -273,10 +273,10 @@ static inline void cs_conn_drain_and_shut(struct conn_stream *cs)
 /* sets CS_EP_ERROR or CS_EP_ERR_PENDING on the endpoint */
 static inline void cs_ep_set_error(struct cs_endpoint *endp)
 {
-	if (endp->flags & CS_EP_EOS)
-		endp->flags |= CS_EP_ERROR;
+	if (se_fl_test(endp, CS_EP_EOS))
+		se_fl_set(endp, CS_EP_ERROR);
 	else
-		endp->flags |= CS_EP_ERR_PENDING;
+		se_fl_set(endp, CS_EP_ERR_PENDING);
 }
 
 /* Retrieves any valid conn_stream from this connection, preferably the first

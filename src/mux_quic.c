@@ -213,7 +213,7 @@ void qcs_free(struct qcs *qcs)
 
 	qc_stream_desc_release(qcs->stream);
 
-	BUG_ON(qcs->endp && !(qcs->endp->flags & CS_EP_ORPHAN));
+	BUG_ON(qcs->endp && !se_fl_test(qcs->endp, CS_EP_ORPHAN));
 	cs_endpoint_free(qcs->endp);
 
 	eb64_delete(&qcs->by_id);
@@ -1499,15 +1499,15 @@ static size_t qc_rcv_buf(struct conn_stream *cs, struct buffer *buf,
 
  end:
 	if (b_data(&qcs->rx.app_buf)) {
-		qcs->endp->flags |= (CS_EP_RCV_MORE | CS_EP_WANT_ROOM);
+		se_fl_set(qcs->endp, CS_EP_RCV_MORE | CS_EP_WANT_ROOM);
 	}
 	else {
-		qcs->endp->flags &= ~(CS_EP_RCV_MORE | CS_EP_WANT_ROOM);
-		if (qcs->endp->flags & CS_EP_ERR_PENDING)
-			qcs->endp->flags |= CS_EP_ERROR;
+		se_fl_clr(qcs->endp, CS_EP_RCV_MORE | CS_EP_WANT_ROOM);
+		if (se_fl_test(qcs->endp, CS_EP_ERR_PENDING))
+			se_fl_set(qcs->endp, CS_EP_ERROR);
 
 		if (fin)
-			qcs->endp->flags |= CS_EP_EOI;
+			se_fl_set(qcs->endp, CS_EP_EOI);
 
 		if (b_size(&qcs->rx.app_buf)) {
 			b_free(&qcs->rx.app_buf);
@@ -1586,9 +1586,9 @@ static int qc_wake_some_streams(struct qcc *qcc)
 			continue;
 
 		if (qcc->conn->flags & CO_FL_ERROR) {
-			qcs->endp->flags |= CS_EP_ERR_PENDING;
-			if (qcs->endp->flags & CS_EP_EOS)
-				qcs->endp->flags |= CS_EP_ERROR;
+			se_fl_set(qcs->endp, CS_EP_ERR_PENDING);
+			if (se_fl_test(qcs->endp, CS_EP_EOS))
+				se_fl_set(qcs->endp, CS_EP_ERROR);
 
 			if (qcs->subs) {
 				qcs_notify_recv(qcs);

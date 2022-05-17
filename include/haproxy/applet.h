@@ -84,7 +84,7 @@ static inline void __appctx_free(struct appctx *appctx)
 		LIST_DEL_INIT(&appctx->buffer_wait.list);
 	if (appctx->sess)
 		session_free(appctx->sess);
-	BUG_ON(appctx->endp && !(appctx->endp->flags & CS_EP_ORPHAN));
+	BUG_ON(appctx->endp && !se_fl_test(appctx->endp, CS_EP_ORPHAN));
 	cs_endpoint_free(appctx->endp);
 	pool_free(pool_head_appctx, appctx);
 	_HA_ATOMIC_DEC(&nb_applets);

@@ -102,7 +102,7 @@ static inline struct conn_stream *qc_attach_cs(struct qcs *qcs, struct buffer *b
 
 	qcs->endp->target = qcs;
 	qcs->endp->conn   = qcc->conn;
-	qcs->endp->flags |= (CS_EP_T_MUX|CS_EP_ORPHAN|CS_EP_NOT_FIRST);
+	se_fl_set(qcs->endp, CS_EP_T_MUX | CS_EP_ORPHAN | CS_EP_NOT_FIRST);
 
 	/* TODO duplicated from mux_h2 */
 	sess->t_idle = tv_ms_elapsed(&sess->tv_accept, &now) - sess->t_handshake;
