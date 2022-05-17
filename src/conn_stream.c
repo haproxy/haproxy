@@ -23,46 +23,46 @@
 DECLARE_POOL(pool_head_connstream, "conn_stream", sizeof(struct conn_stream));
 DECLARE_POOL(pool_head_sedesc, "sedesc", sizeof(struct sedesc));
 
-/* functions used by default on a detached conn-stream */
-static void cs_app_shutr(struct conn_stream *cs);
-static void cs_app_shutw(struct conn_stream *cs);
-static void cs_app_chk_rcv(struct conn_stream *cs);
-static void cs_app_chk_snd(struct conn_stream *cs);
+/* functions used by default on a detached stream connector */
+static void sc_app_shutr(struct conn_stream *cs);
+static void sc_app_shutw(struct conn_stream *cs);
+static void sc_app_chk_rcv(struct conn_stream *cs);
+static void sc_app_chk_snd(struct conn_stream *cs);
 
-/* functions used on a mux-based conn-stream */
-static void cs_app_shutr_conn(struct conn_stream *cs);
-static void cs_app_shutw_conn(struct conn_stream *cs);
-static void cs_app_chk_rcv_conn(struct conn_stream *cs);
-static void cs_app_chk_snd_conn(struct conn_stream *cs);
+/* functions used on a mux-based stream connector */
+static void sc_app_shutr_conn(struct conn_stream *cs);
+static void sc_app_shutw_conn(struct conn_stream *cs);
+static void sc_app_chk_rcv_conn(struct conn_stream *cs);
+static void sc_app_chk_snd_conn(struct conn_stream *cs);
 
-/* functions used on an applet-based conn-stream */
-static void cs_app_shutr_applet(struct conn_stream *cs);
-static void cs_app_shutw_applet(struct conn_stream *cs);
-static void cs_app_chk_rcv_applet(struct conn_stream *cs);
-static void cs_app_chk_snd_applet(struct conn_stream *cs);
+/* functions used on an applet-based stream connector */
+static void sc_app_shutr_applet(struct conn_stream *cs);
+static void sc_app_shutw_applet(struct conn_stream *cs);
+static void sc_app_chk_rcv_applet(struct conn_stream *cs);
+static void sc_app_chk_snd_applet(struct conn_stream *cs);
 
-/* conn-stream operations for connections */
-struct cs_app_ops cs_app_conn_ops = {
-	.chk_rcv = cs_app_chk_rcv_conn,
-	.chk_snd = cs_app_chk_snd_conn,
-	.shutr   = cs_app_shutr_conn,
-	.shutw   = cs_app_shutw_conn,
+/* stream connector operations for connections */
+struct sc_app_ops sc_app_conn_ops = {
+	.chk_rcv = sc_app_chk_rcv_conn,
+	.chk_snd = sc_app_chk_snd_conn,
+	.shutr   = sc_app_shutr_conn,
+	.shutw   = sc_app_shutw_conn,
 };
 
-/* conn-stream operations for embedded tasks */
-struct cs_app_ops cs_app_embedded_ops = {
-	.chk_rcv = cs_app_chk_rcv,
-	.chk_snd = cs_app_chk_snd,
-	.shutr   = cs_app_shutr,
-	.shutw   = cs_app_shutw,
+/* stream connector operations for embedded tasks */
+struct sc_app_ops sc_app_embedded_ops = {
+	.chk_rcv = sc_app_chk_rcv,
+	.chk_snd = sc_app_chk_snd,
+	.shutr   = sc_app_shutr,
+	.shutw   = sc_app_shutw,
 };
 
-/* conn-stream operations for connections */
-struct cs_app_ops cs_app_applet_ops = {
-	.chk_rcv = cs_app_chk_rcv_applet,
-	.chk_snd = cs_app_chk_snd_applet,
-	.shutr   = cs_app_shutr_applet,
-	.shutw   = cs_app_shutw_applet,
+/* stream connector operations for connections */
+struct sc_app_ops sc_app_applet_ops = {
+	.chk_rcv = sc_app_chk_rcv_applet,
+	.chk_snd = sc_app_chk_snd_applet,
+	.shutr   = sc_app_shutr_applet,
+	.shutw   = sc_app_shutw_applet,
 };
 
 static int cs_conn_process(struct conn_stream *cs);
@@ -185,7 +185,7 @@ struct conn_stream *cs_new_from_strm(struct stream *strm, unsigned int flags)
 	cs->flags |= flags;
 	sc_ep_set(cs, SE_FL_DETACHED);
 	cs->app = &strm->obj_type;
-	cs->ops = &cs_app_embedded_ops;
+	cs->ops = &sc_app_embedded_ops;
 	cs->data_cb = NULL;
 	return cs;
 }
@@ -264,7 +264,7 @@ int cs_attach_mux(struct conn_stream *cs, void *endp, void *ctx)
 			cs->wait_event.events = 0;
 		}
 
-		cs->ops = &cs_app_conn_ops;
+		cs->ops = &sc_app_conn_ops;
 		cs->data_cb = &cs_data_conn_cb;
 	}
 	else if (cs_check(cs)) {
@@ -293,7 +293,7 @@ static void cs_attach_applet(struct conn_stream *cs, void *endp)
 	sc_ep_set(cs, SE_FL_T_APPLET);
 	sc_ep_clr(cs, SE_FL_DETACHED);
 	if (cs_strm(cs)) {
-		cs->ops = &cs_app_applet_ops;
+		cs->ops = &sc_app_applet_ops;
 		cs->data_cb = &cs_data_applet_cb;
 	}
 }
@@ -315,15 +315,15 @@ int cs_attach_strm(struct conn_stream *cs, struct stream *strm)
 		cs->wait_event.tasklet->context = cs;
 		cs->wait_event.events = 0;
 
-		cs->ops = &cs_app_conn_ops;
+		cs->ops = &sc_app_conn_ops;
 		cs->data_cb = &cs_data_conn_cb;
 	}
 	else if (sc_ep_test(cs, SE_FL_T_APPLET)) {
-		cs->ops = &cs_app_applet_ops;
+		cs->ops = &sc_app_applet_ops;
 		cs->data_cb = &cs_data_applet_cb;
 	}
 	else {
-		cs->ops = &cs_app_embedded_ops;
+		cs->ops = &sc_app_embedded_ops;
 		cs->data_cb = NULL;
 	}
 	return 0;
@@ -393,7 +393,7 @@ static void cs_detach_endp(struct conn_stream **csp)
 	 */
 	cs->flags &= CS_FL_ISBACK;
 	if (cs_strm(cs))
-		cs->ops = &cs_app_embedded_ops;
+		cs->ops = &sc_app_embedded_ops;
 	cs->data_cb = NULL;
 	cs_free_cond(csp);
 }
@@ -504,7 +504,7 @@ struct appctx *cs_applet_create(struct conn_stream *cs, struct applet *app)
  * reflect the new state. If the conn-stream has CS_FL_NOHALF, we also
  * forward the close to the write side. The owner task is woken up if it exists.
  */
-static void cs_app_shutr(struct conn_stream *cs)
+static void sc_app_shutr(struct conn_stream *cs)
 {
 	struct channel *ic = cs_ic(cs);
 
@@ -523,7 +523,7 @@ static void cs_app_shutr(struct conn_stream *cs)
 	}
 	else if (cs->flags & CS_FL_NOHALF) {
 		/* we want to immediately forward this close to the write side */
-		return cs_app_shutw(cs);
+		return sc_app_shutw(cs);
 	}
 
 	/* note that if the task exists, it must unregister itself once it runs */
@@ -538,7 +538,7 @@ static void cs_app_shutr(struct conn_stream *cs)
  * reflect the new state. It does also close everything if the CS was marked as
  * being in error state. The owner task is woken up if it exists.
  */
-static void cs_app_shutw(struct conn_stream *cs)
+static void sc_app_shutw(struct conn_stream *cs)
 {
 	struct channel *ic = cs_ic(cs);
 	struct channel *oc = cs_oc(cs);
@@ -590,7 +590,7 @@ static void cs_app_shutw(struct conn_stream *cs)
 }
 
 /* default chk_rcv function for scheduled tasks */
-static void cs_app_chk_rcv(struct conn_stream *cs)
+static void sc_app_chk_rcv(struct conn_stream *cs)
 {
 	struct channel *ic = cs_ic(cs);
 
@@ -610,7 +610,7 @@ static void cs_app_chk_rcv(struct conn_stream *cs)
 }
 
 /* default chk_snd function for scheduled tasks */
-static void cs_app_chk_snd(struct conn_stream *cs)
+static void sc_app_chk_snd(struct conn_stream *cs)
 {
 	struct channel *oc = cs_oc(cs);
 
@@ -637,16 +637,16 @@ static void cs_app_chk_snd(struct conn_stream *cs)
 }
 
 /*
- * This function performs a shutdown-read on a conn-stream attached to
+ * This function performs a shutdown-read on a stream connector attached to
  * a connection in a connected or init state (it does nothing for other
  * states). It either shuts the read side or marks itself as closed. The buffer
- * flags are updated to reflect the new state. If the conn-stream has
+ * flags are updated to reflect the new state. If the stream connector has
  * CS_FL_NOHALF, we also forward the close to the write side. If a control
  * layer is defined, then it is supposed to be a socket layer and file
  * descriptors are then shutdown or closed accordingly. The function
  * automatically disables polling if needed.
  */
-static void cs_app_shutr_conn(struct conn_stream *cs)
+static void sc_app_shutr_conn(struct conn_stream *cs)
 {
 	struct channel *ic = cs_ic(cs);
 
@@ -668,19 +668,19 @@ static void cs_app_shutr_conn(struct conn_stream *cs)
 	}
 	else if (cs->flags & CS_FL_NOHALF) {
 		/* we want to immediately forward this close to the write side */
-		return cs_app_shutw_conn(cs);
+		return sc_app_shutw_conn(cs);
 	}
 }
 
 /*
- * This function performs a shutdown-write on a conn-stream attached to
+ * This function performs a shutdown-write on a stream connector attached to
  * a connection in a connected or init state (it does nothing for other
  * states). It either shuts the write side or marks itself as closed. The
  * buffer flags are updated to reflect the new state.  It does also close
  * everything if the CS was marked as being in error state. If there is a
  * data-layer shutdown, it is called.
  */
-static void cs_app_shutw_conn(struct conn_stream *cs)
+static void sc_app_shutw_conn(struct conn_stream *cs)
 {
 	struct channel *ic = cs_ic(cs);
 	struct channel *oc = cs_oc(cs);
@@ -754,13 +754,13 @@ static void cs_app_shutw_conn(struct conn_stream *cs)
 	}
 }
 
-/* This function is used for inter-conn-stream calls. It is called by the
+/* This function is used for inter-stream connector calls. It is called by the
  * consumer to inform the producer side that it may be interested in checking
  * for free space in the buffer. Note that it intentionally does not update
  * timeouts, so that we can still check them later at wake-up. This function is
- * dedicated to connection-based conn-streams.
+ * dedicated to connection-based stream connectors.
  */
-static void cs_app_chk_rcv_conn(struct conn_stream *cs)
+static void sc_app_chk_rcv_conn(struct conn_stream *cs)
 {
 	BUG_ON(!cs_conn(cs));
 
@@ -770,12 +770,12 @@ static void cs_app_chk_rcv_conn(struct conn_stream *cs)
 }
 
 
-/* This function is used for inter-conn-stream calls. It is called by the
+/* This function is used for inter-stream connector calls. It is called by the
  * producer to inform the consumer side that it may be interested in checking
  * for data in the buffer. Note that it intentionally does not update timeouts,
  * so that we can still check them later at wake-up.
  */
-static void cs_app_chk_snd_conn(struct conn_stream *cs)
+static void sc_app_chk_snd_conn(struct conn_stream *cs)
 {
 	struct channel *oc = cs_oc(cs);
 
@@ -866,14 +866,14 @@ static void cs_app_chk_snd_conn(struct conn_stream *cs)
 }
 
 /*
- * This function performs a shutdown-read on a conn-stream attached to an
+ * This function performs a shutdown-read on a stream connector attached to an
  * applet in a connected or init state (it does nothing for other states). It
  * either shuts the read side or marks itself as closed. The buffer flags are
- * updated to reflect the new state. If the conn-stream has CS_FL_NOHALF,
+ * updated to reflect the new state. If the stream connector has CS_FL_NOHALF,
  * we also forward the close to the write side. The owner task is woken up if
  * it exists.
  */
-static void cs_app_shutr_applet(struct conn_stream *cs)
+static void sc_app_shutr_applet(struct conn_stream *cs)
 {
 	struct channel *ic = cs_ic(cs);
 
@@ -897,18 +897,18 @@ static void cs_app_shutr_applet(struct conn_stream *cs)
 	}
 	else if (cs->flags & CS_FL_NOHALF) {
 		/* we want to immediately forward this close to the write side */
-		return cs_app_shutw_applet(cs);
+		return sc_app_shutw_applet(cs);
 	}
 }
 
 /*
- * This function performs a shutdown-write on a conn-stream attached to an
+ * This function performs a shutdown-write on a stream connector attached to an
  * applet in a connected or init state (it does nothing for other states). It
  * either shuts the write side or marks itself as closed. The buffer flags are
  * updated to reflect the new state. It does also close everything if the SI
  * was marked as being in error state. The owner task is woken up if it exists.
  */
-static void cs_app_shutw_applet(struct conn_stream *cs)
+static void sc_app_shutw_applet(struct conn_stream *cs)
 {
 	struct channel *ic = cs_ic(cs);
 	struct channel *oc = cs_oc(cs);
@@ -962,7 +962,7 @@ static void cs_app_shutw_applet(struct conn_stream *cs)
 }
 
 /* chk_rcv function for applets */
-static void cs_app_chk_rcv_applet(struct conn_stream *cs)
+static void sc_app_chk_rcv_applet(struct conn_stream *cs)
 {
 	struct channel *ic = cs_ic(cs);
 
@@ -979,7 +979,7 @@ static void cs_app_chk_rcv_applet(struct conn_stream *cs)
 }
 
 /* chk_snd function for applets */
-static void cs_app_chk_snd_applet(struct conn_stream *cs)
+static void sc_app_chk_snd_applet(struct conn_stream *cs)
 {
 	struct channel *oc = cs_oc(cs);
 
