@@ -20,6 +20,6 @@ ncb_sz_t ncb_data(const struct ncbuf *buf, ncb_sz_t offset);
 
 enum ncb_ret ncb_add(struct ncbuf *buf, ncb_sz_t off,
                      const char *data, ncb_sz_t len, enum ncb_add_mode mode);
-enum ncb_ret ncb_advance(struct ncbuf *buf, ncb_sz_t off);
+enum ncb_ret ncb_advance(struct ncbuf *buf, ncb_sz_t adv);
 
 #endif /* _HAPROXY_NCBUF_H */
