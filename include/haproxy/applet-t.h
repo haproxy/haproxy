@@ -63,7 +63,7 @@ struct appctx {
 	struct buffer *chunk;       /* used to store unfinished commands */
 	struct applet *applet;     /* applet this context refers to */
 	struct session *sess;      /* session for frontend applets (NULL for backend applets) */
-	struct sedesc *endp;
+	struct sedesc *sedesc;     /* stream endpoint descriptor the applet is attached to */
 	struct act_rule *rule;     /* rule associated with the applet. */
 	int (*io_handler)(struct appctx *appctx);  /* used within the cli_io_handler when st0 = CLI_ST_CALLBACK */
 	void (*io_release)(struct appctx *appctx);  /* used within the cli_io_handler when st0 = CLI_ST_CALLBACK,

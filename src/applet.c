@@ -31,12 +31,12 @@ DECLARE_POOL(pool_head_appctx,  "appctx",  sizeof(struct appctx));
  * appctx_free(). <applet> is assigned as the applet, but it can be NULL. The
  * applet's task is always created on the current thread.
  */
-struct appctx *appctx_new(struct applet *applet, struct sedesc *endp, unsigned long thread_mask)
+struct appctx *appctx_new(struct applet *applet, struct sedesc *sedesc, unsigned long thread_mask)
 {
 	struct appctx *appctx;
 
 	/* Backend appctx cannot be started on another thread than the local one */
-	BUG_ON(thread_mask != tid_bit && endp);
+	BUG_ON(thread_mask != tid_bit && sedesc);
 
 	appctx = pool_zalloc(pool_head_appctx);
 	if (unlikely(!appctx))
@@ -46,14 +46,14 @@ struct appctx *appctx_new(struct applet *applet, struct sedesc *endp, unsigned l
 	appctx->obj_type = OBJ_TYPE_APPCTX;
 	appctx->applet = applet;
 	appctx->sess = NULL;
-	if (!endp) {
-		endp = sedesc_new();
-		if (!endp)
+	if (!sedesc) {
+		sedesc = sedesc_new();
+		if (!sedesc)
 			goto fail_endp;
-		endp->se = appctx;
-		se_fl_set(endp, SE_FL_T_APPLET | SE_FL_ORPHAN);
+		sedesc->se = appctx;
+		se_fl_set(sedesc, SE_FL_T_APPLET | SE_FL_ORPHAN);
 	}
-	appctx->endp = endp;
+	appctx->sedesc = sedesc;
 
 	appctx->t = task_new(thread_mask);
 	if (unlikely(!appctx->t))
@@ -69,7 +69,7 @@ struct appctx *appctx_new(struct applet *applet, struct sedesc *endp, unsigned l
 	return appctx;
 
   fail_task:
-	sedesc_free(appctx->endp);
+	sedesc_free(appctx->sedesc);
   fail_endp:
 	pool_free(pool_head_appctx, appctx);
   fail_appctx:
@@ -93,12 +93,12 @@ int appctx_finalize_startup(struct appctx *appctx, struct proxy *px, struct buff
 	/* async startup is only possible for frontend appctx. Thus for orphan
 	 * appctx. Because no backend appctx can be orphan.
 	 */
-	BUG_ON(!se_fl_test(appctx->endp, SE_FL_ORPHAN));
+	BUG_ON(!se_fl_test(appctx->sedesc, SE_FL_ORPHAN));
 
 	sess = session_new(px, NULL, &appctx->obj_type);
 	if (!sess)
 		return -1;
-	if (!cs_new_from_endp(appctx->endp, sess, input)) {
+	if (!cs_new_from_endp(appctx->sedesc, sess, input)) {
 		session_free(sess);
 		return -1;
 	}
@@ -114,7 +114,7 @@ void appctx_free_on_early_error(struct appctx *appctx)
 	/* If a frontend apctx is attached to a conn-stream, release the stream
 	 * instead of the appctx.
 	 */
-	if (!se_fl_test(appctx->endp, SE_FL_ORPHAN) && !(appctx_cs(appctx)->flags & CS_FL_ISBACK)) {
+	if (!se_fl_test(appctx->sedesc, SE_FL_ORPHAN) && !(appctx_cs(appctx)->flags & CS_FL_ISBACK)) {
 		stream_free(appctx_strm(appctx));
 		return;
 	}
@@ -140,18 +140,18 @@ void *applet_reserve_svcctx(struct appctx *appctx, size_t size)
 	return appctx->svcctx;
 }
 
-/* call the applet's release() function if any, and marks the endp as shut.
+/* call the applet's release() function if any, and marks the sedesc as shut.
  * Needs to be called upon close().
  */
 void appctx_shut(struct appctx *appctx)
 {
-	if (se_fl_test(appctx->endp, SE_FL_SHR | SE_FL_SHW))
+	if (se_fl_test(appctx->sedesc, SE_FL_SHR | SE_FL_SHW))
 		return;
 
 	if (appctx->applet->release)
 		appctx->applet->release(appctx);
 
-	se_fl_set(appctx->endp, SE_FL_SHRR | SE_FL_SHWN);
+	se_fl_set(appctx->sedesc, SE_FL_SHRR | SE_FL_SHWN);
 }
 
 /* Callback used to wake up an applet when a buffer is available. The applet
@@ -167,7 +167,7 @@ int appctx_buf_available(void *arg)
 	struct conn_stream *cs = appctx_cs(appctx);
 
 	/* allocation requested ? */
-	if (!se_fl_test(appctx->endp, SE_FL_RXBLK_BUFF))
+	if (!se_fl_test(appctx->sedesc, SE_FL_RXBLK_BUFF))
 		return 0;
 
 	cs_rx_buff_rdy(cs);
@@ -199,7 +199,7 @@ struct task *task_run_applet(struct task *t, void *context, unsigned int state)
 		return NULL;
 	}
 
-	if (se_fl_test(app->endp, SE_FL_ORPHAN)) {
+	if (se_fl_test(app->sedesc, SE_FL_ORPHAN)) {
 		/* Finalize init of orphan appctx. .init callback function must
 		 * be defined and it must finalize appctx startup.
 		 */
@@ -244,8 +244,8 @@ struct task *task_run_applet(struct task *t, void *context, unsigned int state)
 	/* measure the call rate and check for anomalies when too high */
 	rate = update_freq_ctr(&app->call_rate, 1);
 	if (rate >= 100000 && app->call_rate.prev_ctr && // looped more than 100k times over last second
-	    ((b_size(cs_ib(cs)) && se_fl_test(app->endp, SE_FL_RXBLK_BUFF)) || // asks for a buffer which is present
-	     (b_size(cs_ib(cs)) && !b_data(cs_ib(cs)) && se_fl_test(app->endp, SE_FL_RXBLK_ROOM)) || // asks for room in an empty buffer
+	    ((b_size(cs_ib(cs)) && se_fl_test(app->sedesc, SE_FL_RXBLK_BUFF)) || // asks for a buffer which is present
+	     (b_size(cs_ib(cs)) && !b_data(cs_ib(cs)) && se_fl_test(app->sedesc, SE_FL_RXBLK_ROOM)) || // asks for room in an empty buffer
 	     (b_data(cs_ob(cs)) && cs_tx_endp_ready(cs) && !cs_tx_blocked(cs)) || // asks for data already present
 	     (!b_data(cs_ib(cs)) && b_data(cs_ob(cs)) && // didn't return anything ...
 	      (cs_oc(cs)->flags & (CF_WRITE_PARTIAL|CF_SHUTW_NOW)) == CF_SHUTW_NOW))) { // ... and left data pending after a shut

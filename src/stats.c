@@ -4349,7 +4349,7 @@ static void http_stats_io_handler(struct appctx *appctx)
 		}
 		res_htx->flags |= HTX_FL_EOM;
 		res->flags |= CF_EOI;
-		se_fl_set(appctx->endp, SE_FL_EOI);
+		se_fl_set(appctx->sedesc, SE_FL_EOI);
 		appctx->st0 = STAT_HTTP_END;
 	}
 

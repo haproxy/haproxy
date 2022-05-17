@@ -1108,7 +1108,7 @@ static void cli_io_handler(struct appctx *appctx)
 					}
 				break;
 			default: /* abnormal state */
-				se_fl_set(appctx->endp, SE_FL_ERROR);
+				se_fl_set(appctx->sedesc, SE_FL_ERROR);
 				break;
 			}
 

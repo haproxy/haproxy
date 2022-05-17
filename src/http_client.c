@@ -732,8 +732,7 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 					/* if the request contains the HTX_FL_EOM, we finished the request part. */
 					if (htx->flags & HTX_FL_EOM) {
 						req->flags |= CF_EOI;
-						se_fl_set(appctx->endp,
-							  SE_FL_EOI);
+						se_fl_set(appctx->sedesc, SE_FL_EOI);
 						appctx->st0 = HTTPCLIENT_S_RES_STLINE;
 					}
 

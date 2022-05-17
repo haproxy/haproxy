@@ -40,23 +40,23 @@ int appctx_buf_available(void *arg);
 void *applet_reserve_svcctx(struct appctx *appctx, size_t size);
 void appctx_shut(struct appctx *appctx);
 
-struct appctx *appctx_new(struct applet *applet, struct sedesc *endp, unsigned long thread_mask);
+struct appctx *appctx_new(struct applet *applet, struct sedesc *sedesc, unsigned long thread_mask);
 int appctx_finalize_startup(struct appctx *appctx, struct proxy *px, struct buffer *input);
 void appctx_free_on_early_error(struct appctx *appctx);
 
-static inline struct appctx *appctx_new_on(struct applet *applet, struct sedesc *endp, uint thr)
+static inline struct appctx *appctx_new_on(struct applet *applet, struct sedesc *sedesc, uint thr)
 {
-	return appctx_new(applet, endp, 1UL << thr);
+	return appctx_new(applet, sedesc, 1UL << thr);
 }
 
-static inline struct appctx *appctx_new_here(struct applet *applet, struct sedesc *endp)
+static inline struct appctx *appctx_new_here(struct applet *applet, struct sedesc *sedesc)
 {
-	return appctx_new(applet, endp, tid_bit);
+	return appctx_new(applet, sedesc, tid_bit);
 }
 
-static inline struct appctx *appctx_new_anywhere(struct applet *applet, struct sedesc *endp)
+static inline struct appctx *appctx_new_anywhere(struct applet *applet, struct sedesc *sedesc)
 {
-	return appctx_new(applet, endp, MAX_THREADS_MASK);
+	return appctx_new(applet, sedesc, MAX_THREADS_MASK);
 }
 
 /* Helper function to call .init applet callback function, if it exists. Returns 0
@@ -84,8 +84,8 @@ static inline void __appctx_free(struct appctx *appctx)
 		LIST_DEL_INIT(&appctx->buffer_wait.list);
 	if (appctx->sess)
 		session_free(appctx->sess);
-	BUG_ON(appctx->endp && !se_fl_test(appctx->endp, SE_FL_ORPHAN));
-	sedesc_free(appctx->endp);
+	BUG_ON(appctx->sedesc && !se_fl_test(appctx->sedesc, SE_FL_ORPHAN));
+	sedesc_free(appctx->sedesc);
 	pool_free(pool_head_appctx, appctx);
 	_HA_ATOMIC_DEC(&nb_applets);
 }
@@ -112,10 +112,10 @@ static inline void appctx_wakeup(struct appctx *appctx)
 	task_wakeup(appctx->t, TASK_WOKEN_OTHER);
 }
 
-/* returns the conn_stream the appctx is attached to, via the endp */
+/* returns the conn_stream the appctx is attached to, via the sedesc */
 static inline struct conn_stream *appctx_cs(const struct appctx *appctx)
 {
-	return appctx->endp->cs;
+	return appctx->sedesc->cs;
 }
 
 /* returns the stream the appctx is attached to. Note that a stream *must*
@@ -123,7 +123,7 @@ static inline struct conn_stream *appctx_cs(const struct appctx *appctx)
  */
 static inline struct stream *appctx_strm(const struct appctx *appctx)
 {
-	return __cs_strm(appctx->endp->cs);
+	return __cs_strm(appctx->sedesc->cs);
 }
 
 #endif /* _HAPROXY_APPLET_H */
