@@ -68,18 +68,18 @@ static inline struct stream *chn_strm(const struct channel *chn)
 static inline struct stconn *chn_prod(const struct channel *chn)
 {
 	if (chn->flags & CF_ISRESP)
-		return LIST_ELEM(chn, struct stream *, res)->csb;
+		return LIST_ELEM(chn, struct stream *, res)->scb;
 	else
-		return LIST_ELEM(chn, struct stream *, req)->csf;
+		return LIST_ELEM(chn, struct stream *, req)->scf;
 }
 
 /* returns a pointer to the stream connector consuming the channel (producer) */
 static inline struct stconn *chn_cons(const struct channel *chn)
 {
 	if (chn->flags & CF_ISRESP)
-		return LIST_ELEM(chn, struct stream *, res)->csf;
+		return LIST_ELEM(chn, struct stream *, res)->scf;
 	else
-		return LIST_ELEM(chn, struct stream *, req)->csb;
+		return LIST_ELEM(chn, struct stream *, req)->scb;
 }
 
 /* c_orig() : returns the pointer to the channel buffer's origin */

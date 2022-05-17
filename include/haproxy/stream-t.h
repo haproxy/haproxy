@@ -187,8 +187,8 @@ struct stream {
 	struct vars vars_txn;                   /* list of variables for the txn scope. */
 	struct vars vars_reqres;                /* list of variables for the request and resp scope. */
 
-	struct stconn *csf;                     /* frontend stream connector */
-	struct stconn *csb;                     /* backend stream connector */
+	struct stconn *scf;                     /* frontend stream connector */
+	struct stconn *scb;                     /* backend stream connector */
 
 	struct strm_logs logs;                  /* logs for this stream */
 

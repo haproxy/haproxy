@@ -1007,20 +1007,20 @@ static int httpclient_applet_init(struct appctx *appctx)
 
 	if (doresolve) {
 		/* in order to do the set-dst we need to put the address on the front */
-		s->csf->dst = addr;
+		s->scf->dst = addr;
 	} else {
 		/* in cases we don't use the resolve we already have the address
 		 * and must put it on the backend side, some of the cases are
 		 * not meant to be used on the frontend (sockpair, unix socket etc.) */
-		s->csb->dst = addr;
+		s->scb->dst = addr;
 	}
 
-	s->csb->flags |= CS_FL_NOLINGER;
+	s->scb->flags |= CS_FL_NOLINGER;
 	s->flags |= SF_ASSIGNED;
 	s->res.flags |= CF_READ_DONTWAIT;
 
 	/* applet is waiting for data */
-	cs_cant_get(s->csf);
+	cs_cant_get(s->scf);
 	appctx_wakeup(appctx);
 
 	hc->appctx = appctx;

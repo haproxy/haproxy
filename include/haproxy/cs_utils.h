@@ -81,7 +81,7 @@ static inline struct stconn *cs_opposite(struct stconn *cs)
 {
 	struct stream *strm = __cs_strm(cs);
 
-	return ((cs->flags & CS_FL_ISBACK) ? strm->csf : strm->csb);
+	return ((cs->flags & CS_FL_ISBACK) ? strm->scf : strm->scb);
 }
 
 

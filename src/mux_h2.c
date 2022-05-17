@@ -5040,20 +5040,20 @@ static int h2_frt_transfer_data(struct h2s *h2s)
 	int block;
 	unsigned int flen = 0;
 	struct htx *htx = NULL;
-	struct buffer *csbuf;
+	struct buffer *scbuf;
 	unsigned int sent;
 
 	TRACE_ENTER(H2_EV_RX_FRAME|H2_EV_RX_DATA, h2c->conn, h2s);
 
 	h2c->flags &= ~H2_CF_DEM_SFULL;
 
-	csbuf = h2_get_buf(h2c, &h2s->rxbuf);
-	if (!csbuf) {
+	scbuf = h2_get_buf(h2c, &h2s->rxbuf);
+	if (!scbuf) {
 		h2c->flags |= H2_CF_DEM_SALLOC;
 		TRACE_STATE("waiting for an h2s rxbuf", H2_EV_RX_FRAME|H2_EV_RX_DATA|H2_EV_H2S_BLK, h2c->conn, h2s);
 		goto fail;
 	}
-	htx = htx_from_buf(csbuf);
+	htx = htx_from_buf(scbuf);
 
 try_again:
 	flen = h2c->dfl - h2c->dpl;
@@ -5132,12 +5132,12 @@ try_again:
 	h2c->rcvd_s += h2c->dpl;
 	h2c->dpl = 0;
 	h2c->st0 = H2_CS_FRAME_A; // send the corresponding window update
-	htx_to_buf(htx, csbuf);
+	htx_to_buf(htx, scbuf);
 	TRACE_LEAVE(H2_EV_RX_FRAME|H2_EV_RX_DATA, h2c->conn, h2s);
 	return 1;
  fail:
 	if (htx)
-		htx_to_buf(htx, csbuf);
+		htx_to_buf(htx, scbuf);
 	TRACE_LEAVE(H2_EV_RX_FRAME|H2_EV_RX_DATA, h2c->conn, h2s);
 	return 0;
 }

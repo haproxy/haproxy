@@ -733,7 +733,7 @@ int assign_server(struct stream *s)
 				const struct sockaddr_storage *src;
 
 			case BE_LB_HASH_SRC:
-				src = cs_src(s->csf);
+				src = cs_src(s->scf);
 				if (src && src->ss_family == AF_INET) {
 					srv = get_server_sh(s->be,
 							    (void *)&((struct sockaddr_in *)src)->sin_addr,
@@ -894,7 +894,7 @@ static int alloc_dst_address(struct sockaddr_storage **ss,
 			 * locally on multiple addresses at once. Nothing is done
 			 * for AF_UNIX addresses.
 			 */
-			dst = cs_dst(s->csf);
+			dst = cs_dst(s->scf);
 			if (dst && dst->ss_family == AF_INET) {
 				((struct sockaddr_in *)*ss)->sin_family = AF_INET;
 				((struct sockaddr_in *)*ss)->sin_addr =
@@ -911,7 +911,7 @@ static int alloc_dst_address(struct sockaddr_storage **ss,
 		if ((srv->flags & SRV_F_MAPPORTS)) {
 			int base_port;
 
-			dst = cs_dst(s->csf);
+			dst = cs_dst(s->scf);
 			if (dst) {
 				/* First, retrieve the port from the incoming connection */
 				base_port = get_host_port(dst);
@@ -934,7 +934,7 @@ static int alloc_dst_address(struct sockaddr_storage **ss,
 			return SRV_STATUS_INTERNAL;
 
 		/* in transparent mode, use the original dest addr if no dispatch specified */
-		dst = cs_dst(s->csf);
+		dst = cs_dst(s->scf);
 		if (dst && (dst->ss_family == AF_INET || dst->ss_family == AF_INET6))
 			**ss = *dst;
 	}
@@ -1111,7 +1111,7 @@ static int alloc_bind_address(struct sockaddr_storage **ss,
 	case CO_SRC_TPROXY_CLI:
 	case CO_SRC_TPROXY_CIP:
 		/* FIXME: what can we do if the client connects in IPv6 or unix socket ? */
-		addr = cs_src(s->csf);
+		addr = cs_src(s->scf);
 		if (!addr)
 			return SRV_STATUS_INTERNAL;
 
@@ -1294,7 +1294,7 @@ static int do_connect_server(struct stream *s, struct connection *conn)
 			return ret;
 
 		/* we're in the process of establishing a connection */
-		s->csb->state = CS_ST_CON;
+		s->scb->state = CS_ST_CON;
 	}
 	else {
 		/* try to reuse the existing connection, it will be
@@ -1302,9 +1302,9 @@ static int do_connect_server(struct stream *s, struct connection *conn)
 		 */
 		/* Is the connection really ready ? */
 		if (conn->mux->ctl(conn, MUX_STATUS, NULL) & MUX_STATUS_READY)
-			s->csb->state = CS_ST_RDY;
+			s->scb->state = CS_ST_RDY;
 		else
-			s->csb->state = CS_ST_CON;
+			s->scb->state = CS_ST_CON;
 	}
 
 	/* needs src ip/port for logging */
@@ -1316,7 +1316,7 @@ static int do_connect_server(struct stream *s, struct connection *conn)
 
 /*
  * This function initiates a connection to the server assigned to this stream
- * (s->target, (s->csb)->addr.to). It will assign a server if none
+ * (s->target, (s->scb)->addr.to). It will assign a server if none
  * is assigned yet.
  * It can return one of :
  *  - SF_ERR_NONE if everything's OK
@@ -1349,7 +1349,7 @@ static int connect_server(struct stream *s)
 	 * it can be NULL for dispatch mode or transparent backend */
 	srv = objt_server(s->target);
 
-	err = alloc_dst_address(&s->csb->dst, srv, s);
+	err = alloc_dst_address(&s->scb->dst, srv, s);
 	if (err != SRV_STATUS_OK)
 		return SF_ERR_INTERNAL;
 
@@ -1401,7 +1401,7 @@ static int connect_server(struct stream *s)
 
 	/* 3. destination address */
 	if (srv && (!is_addr(&srv->addr) || srv->flags & SRV_F_MAPPORTS))
-		hash_params.dst_addr = s->csb->dst;
+		hash_params.dst_addr = s->scb->dst;
 
 	/* 4. source address */
 	hash_params.src_addr = bind_addr;
@@ -1574,11 +1574,11 @@ static int connect_server(struct stream *s)
 			}
 
 			if (avail >= 1) {
-				if (srv_conn->mux->attach(srv_conn, s->csb->sedesc, s->sess) == -1) {
+				if (srv_conn->mux->attach(srv_conn, s->scb->sedesc, s->sess) == -1) {
 					srv_conn = NULL;
-					if (cs_reset_endp(s->csb) < 0)
+					if (cs_reset_endp(s->scb) < 0)
 						return SF_ERR_INTERNAL;
-					sc_ep_clr(s->csb, ~SE_FL_DETACHED);
+					sc_ep_clr(s->scb, ~SE_FL_DETACHED);
 				}
 			}
 			else
@@ -1624,7 +1624,7 @@ skip_reuse:
 		return SF_ERR_RESOURCE;
 
 	/* copy the target address into the connection */
-	*srv_conn->dst = *s->csb->dst;
+	*srv_conn->dst = *s->scb->dst;
 
 	/* Copy network namespace from client connection */
 	srv_conn->proxy_netns = cli_conn ? cli_conn->proxy_netns : NULL;
@@ -1651,11 +1651,11 @@ skip_reuse:
 			return SF_ERR_INTERNAL;  /* how did we get there ? */
 		}
 
-		if (cs_attach_mux(s->csb, NULL, srv_conn) < 0) {
+		if (cs_attach_mux(s->scb, NULL, srv_conn) < 0) {
 			conn_free(srv_conn);
 			return SF_ERR_INTERNAL;  /* how did we get there ? */
 		}
-		srv_conn->ctx = s->csb;
+		srv_conn->ctx = s->scb;
 
 #if defined(USE_OPENSSL) && defined(TLSEXT_TYPE_application_layer_protocol_negotiation)
 		if (!srv ||
@@ -1722,7 +1722,7 @@ skip_reuse:
 
 	/* disable lingering */
 	if (s->be->options & PR_O_TCP_NOLING)
-		s->csb->flags |= CS_FL_NOLINGER;
+		s->scb->flags |= CS_FL_NOLINGER;
 
 	if (s->flags & SF_SRV_REUSED) {
 		_HA_ATOMIC_INC(&s->be->be_counters.reuse);
@@ -1764,7 +1764,7 @@ skip_reuse:
 	if (init_mux) {
 		const struct mux_ops *alt_mux =
 		  likely(!(s->flags & SF_WEBSOCKET)) ? NULL : srv_get_ws_proto(srv);
-		if (conn_install_mux_be(srv_conn, s->csb, s->sess, alt_mux) < 0) {
+		if (conn_install_mux_be(srv_conn, s->scb, s->sess, alt_mux) < 0) {
 			conn_full_close(srv_conn);
 			return SF_ERR_INTERNAL;
 		}
@@ -1802,7 +1802,7 @@ skip_reuse:
 	     */
 	    ((cli_conn->flags & CO_FL_EARLY_DATA) ||
 	     ((s->be->retry_type & PR_RE_EARLY_ERROR) && !s->conn_retries)) &&
-	    !channel_is_empty(cs_oc(s->csb)) &&
+	    !channel_is_empty(cs_oc(s->scb)) &&
 	    srv_conn->flags & CO_FL_SSL_WAIT_HS)
 		srv_conn->flags &= ~(CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN);
 #endif
@@ -1826,7 +1826,7 @@ skip_reuse:
 	 * loopback on a heavily loaded system.
 	 */
 	if (srv_conn->flags & CO_FL_ERROR)
-		sc_ep_set(s->csb, SE_FL_ERROR);
+		sc_ep_set(s->scb, SE_FL_ERROR);
 
 	/* If we had early data, and the handshake ended, then
 	 * we can remove the flag, and attempt to wake the task up,
@@ -1834,14 +1834,14 @@ skip_reuse:
 	 * the handshake.
 	 */
 	if (!(srv_conn->flags & (CO_FL_WAIT_XPRT | CO_FL_EARLY_SSL_HS)))
-		sc_ep_clr(s->csb, SE_FL_WAIT_FOR_HS);
+		sc_ep_clr(s->scb, SE_FL_WAIT_FOR_HS);
 
-	if (!cs_state_in(s->csb->state, CS_SB_EST|CS_SB_DIS|CS_SB_CLO) &&
+	if (!cs_state_in(s->scb->state, CS_SB_EST|CS_SB_DIS|CS_SB_CLO) &&
 	    (srv_conn->flags & CO_FL_WAIT_XPRT) == 0) {
 		s->conn_exp = TICK_ETERNITY;
-		cs_oc(s->csb)->flags |= CF_WRITE_NULL;
-		if (s->csb->state == CS_ST_CON)
-			s->csb->state = CS_ST_RDY;
+		cs_oc(s->scb)->flags |= CF_WRITE_NULL;
+		if (s->scb->state == CS_ST_CON)
+			s->scb->state = CS_ST_RDY;
 	}
 
 	/* Report EOI on the channel if it was reached from the mux point of
@@ -1851,8 +1851,8 @@ skip_reuse:
 	 *       wake callback. Otherwise si_cs_recv()/si_cs_send() already take
 	 *       care of it.
 	 */
-	if (sc_ep_test(s->csb, SE_FL_EOI) && !(cs_ic(s->csb)->flags & CF_EOI))
-		cs_ic(s->csb)->flags |= (CF_EOI|CF_READ_PARTIAL);
+	if (sc_ep_test(s->scb, SE_FL_EOI) && !(cs_ic(s->scb)->flags & CF_EOI))
+		cs_ic(s->scb)->flags |= (CF_EOI|CF_READ_PARTIAL);
 
 	/* catch all sync connect while the mux is not already installed */
 	if (!srv_conn->mux && !(srv_conn->flags & CO_FL_WAIT_XPRT)) {
@@ -1901,7 +1901,7 @@ int srv_redispatch_connect(struct stream *s)
 		if (((s->flags & (SF_DIRECT|SF_FORCE_PRST)) == SF_DIRECT) &&
 		    (s->be->options & PR_O_REDISP)) {
 			s->flags &= ~(SF_DIRECT | SF_ASSIGNED);
-			sockaddr_free(&s->csb->dst);
+			sockaddr_free(&s->scb->dst);
 			goto redispatch;
 		}
 
@@ -1924,7 +1924,7 @@ int srv_redispatch_connect(struct stream *s)
 
 	case SRV_STATUS_QUEUED:
 		s->conn_exp = tick_add_ifset(now_ms, s->be->timeout.queue);
-		s->csb->state = CS_ST_QUE;
+		s->scb->state = CS_ST_QUE;
 		/* do nothing else and do not wake any other stream up */
 		return 1;
 
@@ -1970,7 +1970,7 @@ static int back_may_abort_req(struct channel *req, struct stream *s)
 void back_try_conn_req(struct stream *s)
 {
 	struct server *srv = objt_server(s->target);
-	struct stconn *cs = s->csb;
+	struct stconn *cs = s->scb;
 	struct channel *req = &s->req;
 
 	DBG_TRACE_ENTER(STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
@@ -2160,7 +2160,7 @@ abort_connection:
  */
 void back_handle_st_req(struct stream *s)
 {
-	struct stconn *cs = s->csb;
+	struct stconn *cs = s->scb;
 
 	if (cs->state != CS_ST_REQ)
 		return;
@@ -2240,7 +2240,7 @@ void back_handle_st_req(struct stream *s)
  */
 void back_handle_st_con(struct stream *s)
 {
-	struct stconn *cs = s->csb;
+	struct stconn *cs = s->scb;
 	struct channel *req = &s->req;
 	struct channel *rep = &s->res;
 
@@ -2289,7 +2289,7 @@ void back_handle_st_con(struct stream *s)
  */
 void back_handle_st_cer(struct stream *s)
 {
-	struct stconn *cs = s->csb;
+	struct stconn *cs = s->scb;
 	int must_tar = sc_ep_test(cs, SE_FL_ERROR);
 
 	DBG_TRACE_ENTER(STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
@@ -2437,7 +2437,7 @@ void back_handle_st_cer(struct stream *s)
  */
 void back_handle_st_rdy(struct stream *s)
 {
-	struct stconn *cs = s->csb;
+	struct stconn *cs = s->scb;
 	struct channel *req = &s->req;
 	struct channel *rep = &s->res;
 
@@ -2447,7 +2447,7 @@ void back_handle_st_rdy(struct stream *s)
 		/* Here the appctx must exists because the CS was set to
 		 * CS_ST_RDY state when the appctx was created.
 		 */
-		BUG_ON(!cs_appctx(s->csb));
+		BUG_ON(!cs_appctx(s->scb));
 
 		if (tv_iszero(&s->logs.tv_request))
 			s->logs.tv_request = now;

@@ -1085,12 +1085,12 @@ static int peer_session_init(struct appctx *appctx)
 
 	s = appctx_strm(appctx);
 	/* applet is waiting for data */
-	cs_cant_get(s->csf);
+	cs_cant_get(s->scf);
 	appctx_wakeup(appctx);
 
 	/* initiate an outgoing connection */
-	s->csb->dst = addr;
-	s->csb->flags |= CS_FL_NOLINGER;
+	s->scb->dst = addr;
+	s->scb->flags |= CS_FL_NOLINGER;
 	s->flags = SF_ASSIGNED;
 	s->target = peer_session_target(peer, s);
 

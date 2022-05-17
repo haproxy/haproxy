@@ -2176,7 +2176,7 @@ static int cli_parse_simple(char **args, char *payload, struct appctx *appctx, v
 void pcli_write_prompt(struct stream *s)
 {
 	struct buffer *msg = get_trash_chunk();
-	struct channel *oc = cs_oc(s->csf);
+	struct channel *oc = cs_oc(s->scf);
 
 	if (!(s->pcli_flags & PCLI_F_PROMPT))
 		return;
@@ -2704,9 +2704,9 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 
 		pcli_write_prompt(s);
 
-		s->csb->flags |= CS_FL_NOLINGER | CS_FL_NOHALF;
-		cs_shutr(s->csb);
-		cs_shutw(s->csb);
+		s->scb->flags |= CS_FL_NOLINGER | CS_FL_NOHALF;
+		cs_shutr(s->scb);
+		cs_shutw(s->scb);
 
 		/*
 		 * starting from there this the same code as
@@ -2773,22 +2773,22 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		/* only release our endpoint if we don't intend to reuse the
 		 * connection.
 		 */
-		if (!cs_conn_ready(s->csb)) {
+		if (!cs_conn_ready(s->scb)) {
 			s->srv_conn = NULL;
-			if (cs_reset_endp(s->csb) < 0) {
+			if (cs_reset_endp(s->scb) < 0) {
 				if (!s->conn_err_type)
 					s->conn_err_type = STRM_ET_CONN_OTHER;
 				if (s->srv_error)
-					s->srv_error(s, s->csb);
+					s->srv_error(s, s->scb);
 				return 1;
 			}
-			se_fl_clr(s->csb->sedesc, ~SE_FL_DETACHED);
+			se_fl_clr(s->scb->sedesc, ~SE_FL_DETACHED);
 		}
 
-		sockaddr_free(&s->csb->dst);
+		sockaddr_free(&s->scb->dst);
 
-		cs_set_state(s->csb, CS_ST_INI);
-		s->csb->flags &= CS_FL_ISBACK | CS_FL_DONT_WAKE; /* we're in the context of process_stream */
+		cs_set_state(s->scb, CS_ST_INI);
+		s->scb->flags &= CS_FL_ISBACK | CS_FL_DONT_WAKE; /* we're in the context of process_stream */
 		s->req.flags &= ~(CF_SHUTW|CF_SHUTW_NOW|CF_AUTO_CONNECT|CF_WRITE_ERROR|CF_STREAMER|CF_STREAMER_FAST|CF_NEVER_WAIT|CF_WROTE_DATA);
 		s->res.flags &= ~(CF_SHUTR|CF_SHUTR_NOW|CF_READ_ATTACHED|CF_READ_ERROR|CF_READ_NOEXP|CF_STREAMER|CF_STREAMER_FAST|CF_WRITE_PARTIAL|CF_NEVER_WAIT|CF_WROTE_DATA|CF_READ_NULL);
 		s->flags &= ~(SF_DIRECT|SF_ASSIGNED|SF_BE_ASSIGNED|SF_FORCE_PRST|SF_IGNORE_PRST);
@@ -2843,7 +2843,7 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		s->res.rex = TICK_ETERNITY;
 		s->res.wex = TICK_ETERNITY;
 		s->res.analyse_exp = TICK_ETERNITY;
-		s->csb->hcto = TICK_ETERNITY;
+		s->scb->hcto = TICK_ETERNITY;
 
 		/* we're removing the analysers, we MUST re-enable events detection.
 		 * We don't enable close on the response channel since it's either

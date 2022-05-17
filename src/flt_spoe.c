@@ -1241,7 +1241,7 @@ spoe_init_appctx(struct appctx *appctx)
 	stream_set_backend(s, agent->b.be);
 
 	/* applet is waiting for data */
-	cs_cant_get(s->csf);
+	cs_cant_get(s->scf);
 
 	s->do_log = NULL;
 	s->res.flags |= CF_READ_DONTWAIT;

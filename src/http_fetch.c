@@ -1186,7 +1186,7 @@ static int smp_fetch_base32(const struct arg *args, struct sample *smp, const ch
  */
 static int smp_fetch_base32_src(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	const struct sockaddr_storage *src = (smp->strm ? cs_src(smp->strm->csf) : NULL);
+	const struct sockaddr_storage *src = (smp->strm ? cs_src(smp->strm->scf) : NULL);
 	struct buffer *temp;
 
 	if (!src)
@@ -2053,7 +2053,7 @@ static int smp_fetch_url32(const struct arg *args, struct sample *smp, const cha
  */
 static int smp_fetch_url32_src(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	const struct sockaddr_storage *src = (smp->strm ? cs_src(smp->strm->csf) : NULL);
+	const struct sockaddr_storage *src = (smp->strm ? cs_src(smp->strm->scf) : NULL);
 	struct buffer *temp;
 
 	if (!src)

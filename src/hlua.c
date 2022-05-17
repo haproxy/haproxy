@@ -2000,7 +2000,7 @@ static int hlua_socket_init(struct appctx *appctx)
 	 * and retrieve data from the server. The connection is initialized
 	 * with the "struct server".
 	 */
-	cs_set_state(s->csb, CS_ST_ASS);
+	cs_set_state(s->scb, CS_ST_ASS);
 
 	/* Force destination server. */
 	s->flags |= SF_DIRECT | SF_ASSIGNED | SF_BE_ASSIGNED;
@@ -2678,7 +2678,7 @@ static int hlua_socket_getsockname(struct lua_State *L)
 	appctx = container_of(peer, struct hlua_csk_ctx, xref)->appctx;
 	s = appctx_strm(appctx);
 
-	conn = cs_conn(s->csb);
+	conn = cs_conn(s->scb);
 	if (!conn || !conn_get_src(conn)) {
 		xref_unlock(&socket->xref, peer);
 		lua_pushnil(L);
@@ -2747,7 +2747,7 @@ __LJMP static int hlua_socket_connect_yield(struct lua_State *L, int status, lua
 		return 2;
 	}
 
-	appctx = __cs_appctx(s->csf);
+	appctx = __cs_appctx(s->scf);
 
 	/* Check for connection established. */
 	if (csk_ctx->connected) {
@@ -2858,8 +2858,8 @@ __LJMP static int hlua_socket_connect(struct lua_State *L)
 	/* inform the stream that we want to be notified whenever the
 	 * connection completes.
 	 */
-	cs_cant_get(s->csf);
-	cs_rx_endp_more(s->csf);
+	cs_cant_get(s->scf);
+	cs_rx_endp_more(s->scf);
 	appctx_wakeup(appctx);
 
 	hlua->gc_count++;

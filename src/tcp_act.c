@@ -67,9 +67,9 @@ static enum act_return tcp_action_req_set_src(struct act_rule *rule, struct prox
 
 	case ACT_F_TCP_REQ_CNT:
 	case ACT_F_HTTP_REQ:
-		if (!cs_get_src(s->csf))
+		if (!cs_get_src(s->scf))
 			goto end;
-		src = s->csf->src;
+		src = s->scf->src;
 		break;
 
 	default:
@@ -123,9 +123,9 @@ static enum act_return tcp_action_req_set_dst(struct act_rule *rule, struct prox
 
 	case ACT_F_TCP_REQ_CNT:
 	case ACT_F_HTTP_REQ:
-		if (!cs_get_dst(s->csf))
+		if (!cs_get_dst(s->scf))
 			goto end;
-		dst = s->csf->dst;
+		dst = s->scf->dst;
 		break;
 
 	default:
@@ -180,9 +180,9 @@ static enum act_return tcp_action_req_set_src_port(struct act_rule *rule, struct
 
 	case ACT_F_TCP_REQ_CNT:
 	case ACT_F_HTTP_REQ:
-		if (!cs_get_src(s->csf))
+		if (!cs_get_src(s->scf))
 			goto end;
-		src = s->csf->src;
+		src = s->scf->src;
 		break;
 
 	default:
@@ -235,9 +235,9 @@ static enum act_return tcp_action_req_set_dst_port(struct act_rule *rule, struct
 
 	case ACT_F_TCP_REQ_CNT:
 	case ACT_F_HTTP_REQ:
-		if (!cs_get_dst(s->csf))
+		if (!cs_get_dst(s->scf))
 			goto end;
-		dst = s->csf->dst;
+		dst = s->scf->dst;
 		break;
 
 	default:
@@ -287,7 +287,7 @@ static enum act_return tcp_exec_action_silent_drop(struct act_rule *rule, struct
 	 * is present, returning with ERR will cause lingering to be disabled.
 	 */
 	if (strm)
-		strm->csf->flags |= CS_FL_NOLINGER;
+		strm->scf->flags |= CS_FL_NOLINGER;
 
 	if (conn->flags & CO_FL_FDLESS)
 		goto out;

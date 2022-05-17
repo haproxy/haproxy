@@ -1826,8 +1826,8 @@ static int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct
 	memcpy(hdr->sig, pp2_signature, PP2_SIGNATURE_LEN);
 
 	if (strm) {
-		src = cs_src(strm->csf);
-		dst = cs_dst(strm->csf);
+		src = cs_src(strm->scf);
+		dst = cs_dst(strm->scf);
 	}
 	else if (remote && conn_get_src(remote) && conn_get_dst(remote)) {
 		src = conn_src(remote);
@@ -2025,8 +2025,8 @@ int make_proxy_line(char *buf, int buf_len, struct server *srv, struct connectio
 		const struct sockaddr_storage *dst = NULL;
 
 		if (strm) {
-			src = cs_src(strm->csf);
-			dst = cs_dst(strm->csf);
+			src = cs_src(strm->scf);
+			dst = cs_dst(strm->scf);
 		}
 		else if (remote && conn_get_src(remote) && conn_get_dst(remote)) {
 			src = conn_src(remote);
@@ -2106,7 +2106,7 @@ smp_fetch_fc_http_major(const struct arg *args, struct sample *smp, const char *
                 conn = (kw[0] == 'b') ? cs_conn(__objt_check(smp->sess->origin)->cs) : NULL;
         else
                 conn = (kw[0] != 'b') ? objt_conn(smp->sess->origin) :
-			smp->strm ? cs_conn(smp->strm->csb) : NULL;
+			smp->strm ? cs_conn(smp->strm->scb) : NULL;
 
 	/* No connection or a connection with a RAW muxx */
 	if (!conn || (conn->mux && !(conn->mux->flags & MX_FL_HTX)))
@@ -2203,7 +2203,7 @@ int smp_fetch_fc_err(const struct arg *args, struct sample *smp, const char *kw,
                 conn = (kw[0] == 'b') ? cs_conn(__objt_check(smp->sess->origin)->cs) : NULL;
         else
                 conn = (kw[0] != 'b') ? objt_conn(smp->sess->origin) :
-			smp->strm ? cs_conn(smp->strm->csb) : NULL;
+			smp->strm ? cs_conn(smp->strm->scb) : NULL;
 
 	if (!conn)
 		return 0;
@@ -2230,7 +2230,7 @@ int smp_fetch_fc_err_str(const struct arg *args, struct sample *smp, const char 
                 conn = (kw[0] == 'b') ? cs_conn(__objt_check(smp->sess->origin)->cs) : NULL;
         else
                 conn = (kw[0] != 'b') ? objt_conn(smp->sess->origin) :
-			smp->strm ? cs_conn(smp->strm->csb) : NULL;
+			smp->strm ? cs_conn(smp->strm->scb) : NULL;
 
 	if (!conn)
 		return 0;

@@ -430,7 +430,7 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 	 */
 	if (!s->target && http_stats_check_uri(s, txn, px)) {
 		s->target = &http_stats_applet.obj_type;
-		if (unlikely(!cs_applet_create(s->csb, objt_applet(s->target)))) {
+		if (unlikely(!cs_applet_create(s->scb, objt_applet(s->target)))) {
 			s->logs.tv_request = now;
 			if (!(s->flags & SF_ERR_MASK))
 				s->flags |= SF_ERR_RESOURCE;
@@ -662,7 +662,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 	 * asks for it.
 	 */
 	if ((sess->fe->options | s->be->options) & PR_O_FWDFOR) {
-		const struct sockaddr_storage *src = cs_src(s->csf);
+		const struct sockaddr_storage *src = cs_src(s->scf);
 		struct http_hdr_ctx ctx = { .blk = NULL };
 		struct ist hdr = isttest(s->be->fwdfor_hdr_name) ? s->be->fwdfor_hdr_name : sess->fe->fwdfor_hdr_name;
 
@@ -719,7 +719,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 	 * asks for it.
 	 */
 	if ((sess->fe->options | s->be->options) & PR_O_ORGTO) {
-		const struct sockaddr_storage *dst = cs_dst(s->csf);
+		const struct sockaddr_storage *dst = cs_dst(s->scf);
 		struct ist hdr = isttest(s->be->orgto_hdr_name) ? s->be->orgto_hdr_name : sess->fe->orgto_hdr_name;
 
 		if (dst && dst->ss_family == AF_INET) {
@@ -1119,7 +1119,7 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 	if (s->be->options & PR_O_ABRT_CLOSE) {
 		channel_auto_read(req);
 		if ((req->flags & (CF_SHUTR|CF_READ_NULL)) && !(txn->flags & TX_CON_WANT_TUN))
-			s->csb->flags |= CS_FL_NOLINGER;
+			s->scb->flags |= CS_FL_NOLINGER;
 		channel_auto_close(req);
 	}
 	else if (s->txn->meth == HTTP_METH_POST) {
@@ -1263,7 +1263,7 @@ static __inline int do_l7_retry(struct stream *s, struct stconn *cs)
 	res->analyse_exp = TICK_ETERNITY;
 	res->total = 0;
 
-	if (cs_reset_endp(s->csb) < 0) {
+	if (cs_reset_endp(s->scb) < 0) {
 		if (!(s->flags & SF_ERR_MASK))
 			s->flags |= SF_ERR_INTERNAL;
 		return -1;
@@ -1335,13 +1335,13 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	if (unlikely(htx_is_empty(htx) || htx->first == -1)) {
 		/* 1: have we encountered a read error ? */
 		if (rep->flags & CF_READ_ERROR) {
-			struct connection *conn = cs_conn(s->csb);
+			struct connection *conn = cs_conn(s->scb);
 
 			/* Perform a L7 retry because server refuses the early data. */
 			if ((txn->flags & TX_L7_RETRY) &&
 			    (s->be->retry_type & PR_RE_EARLY_ERROR) &&
 			    conn && conn->err_code == CO_ER_SSL_EARLY_FAILED &&
-			    do_l7_retry(s, s->csb) == 0) {
+			    do_l7_retry(s, s->scb) == 0) {
 				DBG_TRACE_DEVEL("leaving on L7 retry",
 						STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
 				return 0;
@@ -1364,7 +1364,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 				stream_inc_http_fail_ctr(s);
 			}
 
-			s->csb->flags |= CS_FL_NOLINGER;
+			s->scb->flags |= CS_FL_NOLINGER;
 			http_reply_and_close(s, txn->status, http_error_message(s));
 
 			if (!(s->flags & SF_ERR_MASK))
@@ -1380,7 +1380,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		else if (rep->flags & CF_READ_TIMEOUT) {
 			if ((txn->flags & TX_L7_RETRY) &&
 			    (s->be->retry_type & PR_RE_TIMEOUT)) {
-				if (co_data(rep) || do_l7_retry(s, s->csb) == 0) {
+				if (co_data(rep) || do_l7_retry(s, s->scb) == 0) {
 					DBG_TRACE_DEVEL("leaving on L7 retry",
 							STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
 					return 0;
@@ -1394,7 +1394,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 
 			txn->status = 504;
 			stream_inc_http_fail_ctr(s);
-			s->csb->flags |= CS_FL_NOLINGER;
+			s->scb->flags |= CS_FL_NOLINGER;
 			http_reply_and_close(s, txn->status, http_error_message(s));
 
 			if (!(s->flags & SF_ERR_MASK))
@@ -1433,7 +1433,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		else if (rep->flags & CF_SHUTR) {
 			if ((txn->flags & TX_L7_RETRY) &&
 			    (s->be->retry_type & PR_RE_DISCONNECTED)) {
-				if (co_data(rep) || do_l7_retry(s, s->csb) == 0) {
+				if (co_data(rep) || do_l7_retry(s, s->scb) == 0) {
 					DBG_TRACE_DEVEL("leaving on L7 retry",
 							STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
 					return 0;
@@ -1451,7 +1451,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 
 			txn->status = 502;
 			stream_inc_http_fail_ctr(s);
-			s->csb->flags |= CS_FL_NOLINGER;
+			s->scb->flags |= CS_FL_NOLINGER;
 			http_reply_and_close(s, txn->status, http_error_message(s));
 
 			if (!(s->flags & SF_ERR_MASK))
@@ -1501,7 +1501,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	/* Perform a L7 retry because of the status code */
 	if ((txn->flags & TX_L7_RETRY) &&
 	    l7_status_match(s->be, sl->info.res.status) &&
-	    do_l7_retry(s, s->csb) == 0) {
+	    do_l7_retry(s, s->scb) == 0) {
 		DBG_TRACE_DEVEL("leaving on L7 retry", STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
 		return 0;
 	}
@@ -1666,7 +1666,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	/* check for NTML authentication headers in 401 (WWW-Authenticate) and
 	 * 407 (Proxy-Authenticate) responses and set the connection to private
 	 */
-	srv_conn = cs_conn(s->csb);
+	srv_conn = cs_conn(s->scb);
 	if (srv_conn) {
 		struct ist hdr;
 		struct http_hdr_ctx ctx;
@@ -1729,7 +1729,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	}
 	if ((s->be->retry_type & PR_RE_JUNK_REQUEST) &&
 	    (txn->flags & TX_L7_RETRY) &&
-	    do_l7_retry(s, s->csb) == 0) {
+	    do_l7_retry(s, s->scb) == 0) {
 		DBG_TRACE_DEVEL("leaving on L7 retry",
 				STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
 		return 0;
@@ -1746,7 +1746,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	if (!(s->flags & SF_FINST_MASK))
 		s->flags |= SF_FINST_H;
 
-	s->csb->flags |= CS_FL_NOLINGER;
+	s->scb->flags |= CS_FL_NOLINGER;
 	DBG_TRACE_DEVEL("leaving on error",
 			STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_HTTP_ERR, s, txn);
 	return 0;
@@ -2056,7 +2056,7 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 
  return_prx_cond:
 	s->logs.t_data = -1; /* was not a valid response */
-	s->csb->flags |= CS_FL_NOLINGER;
+	s->scb->flags |= CS_FL_NOLINGER;
 
 	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= SF_ERR_PRXCOND;
@@ -3973,7 +3973,7 @@ static int http_handle_stats(struct stream *s, struct channel *req)
 	struct http_msg *msg = &txn->req;
 	struct uri_auth *uri_auth = s->be->uri_auth;
 	const char *h, *lookup, *end;
-	struct appctx *appctx = __cs_appctx(s->csb);
+	struct appctx *appctx = __cs_appctx(s->scb);
 	struct show_stat_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
 	struct htx *htx;
 	struct htx_sl *sl;
@@ -4372,7 +4372,7 @@ static void http_end_request(struct stream *s)
 		/* if the server closes the connection, we want to immediately react
 		 * and close the socket to save packets and syscalls.
 		 */
-		s->csb->flags |= CS_FL_NOHALF;
+		s->scb->flags |= CS_FL_NOHALF;
 
 		/* In any case we've finished parsing the request so we must
 		 * disable Nagle when sending data because 1) we're not going
@@ -4447,7 +4447,7 @@ static void http_end_request(struct stream *s)
 	  http_msg_closed:
 		/* if we don't know whether the server will close, we need to hard close */
 		if (txn->rsp.flags & HTTP_MSGF_XFER_LEN)
-			s->csb->flags |= CS_FL_NOLINGER;  /* we want to close ASAP */
+			s->scb->flags |= CS_FL_NOLINGER;  /* we want to close ASAP */
 		/* see above in MSG_DONE why we only do this in these states */
 		if (!(s->be->options & PR_O_ABRT_CLOSE))
 			channel_dont_read(chn);
@@ -5098,7 +5098,7 @@ static void http_debug_stline(const char *dir, struct stream *s, const struct ht
         chunk_printf(&trash, "%08x:%s.%s[%04x:%04x]: ", s->uniq_id, s->be->id,
                      dir,
                      objt_conn(sess->origin) ? (unsigned short)__objt_conn(sess->origin)->handle.fd : -1,
-                     cs_conn(s->csb) ? (unsigned short)(__cs_conn(s->csb))->handle.fd : -1);
+                     cs_conn(s->scb) ? (unsigned short)(__cs_conn(s->scb))->handle.fd : -1);
 
         max = HTX_SL_P1_LEN(sl);
         UBOUND(max, trash.size - trash.data - 3);
@@ -5129,7 +5129,7 @@ static void http_debug_hdr(const char *dir, struct stream *s, const struct ist n
         chunk_printf(&trash, "%08x:%s.%s[%04x:%04x]: ", s->uniq_id, s->be->id,
                      dir,
                      objt_conn(sess->origin) ? (unsigned short)__objt_conn(sess->origin)->handle.fd : -1,
-                     cs_conn(s->csb) ? (unsigned short)(__cs_conn(s->csb))->handle.fd : -1);
+                     cs_conn(s->scb) ? (unsigned short)(__cs_conn(s->scb))->handle.fd : -1);
 
         max = n.len;
         UBOUND(max, trash.size - trash.data - 3);
@@ -5165,7 +5165,7 @@ void http_txn_reset_res(struct http_txn *txn)
 struct http_txn *http_create_txn(struct stream *s)
 {
 	struct http_txn *txn;
-	struct stconn *cs = s->csf;
+	struct stconn *cs = s->scf;
 
 	txn = pool_alloc(pool_head_http_txn);
 	if (!txn)

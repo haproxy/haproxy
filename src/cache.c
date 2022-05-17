@@ -1840,7 +1840,7 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 		}
 
 		s->target = &http_cache_applet.obj_type;
-		if ((appctx = cs_applet_create(s->csb, objt_applet(s->target)))) {
+		if ((appctx = cs_applet_create(s->scb, objt_applet(s->target)))) {
 			struct cache_appctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
 
 			appctx->st0 = HTX_CACHE_INIT;
@@ -2691,7 +2691,7 @@ smp_fetch_res_cache_name(const struct arg *args, struct sample *smp,
 		return 0;
 
 	/* Get appctx from the stream connector. */
-	appctx = cs_appctx(smp->strm->csb);
+	appctx = cs_appctx(smp->strm->scb);
 	if (appctx && appctx->rule) {
 		cconf = appctx->rule->arg.act.p[0];
 		if (cconf) {

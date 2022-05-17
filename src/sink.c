@@ -607,8 +607,8 @@ static int sink_forward_session_init(struct appctx *appctx)
 		goto out_free_addr;
 
 	s = appctx_strm(appctx);
-	s->csb->dst = addr;
-	s->csb->flags |= CS_FL_NOLINGER;
+	s->scb->dst = addr;
+	s->scb->flags |= CS_FL_NOLINGER;
 
 	s->target = &sft->srv->obj_type;
 	s->flags = SF_ASSIGNED;
