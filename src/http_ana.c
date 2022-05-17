@@ -1119,7 +1119,7 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 	if (s->be->options & PR_O_ABRT_CLOSE) {
 		channel_auto_read(req);
 		if ((req->flags & (CF_SHUTR|CF_READ_NULL)) && !(txn->flags & TX_CON_WANT_TUN))
-			s->scb->flags |= CS_FL_NOLINGER;
+			s->scb->flags |= SC_FL_NOLINGER;
 		channel_auto_close(req);
 	}
 	else if (s->txn->meth == HTTP_METH_POST) {
@@ -1364,7 +1364,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 				stream_inc_http_fail_ctr(s);
 			}
 
-			s->scb->flags |= CS_FL_NOLINGER;
+			s->scb->flags |= SC_FL_NOLINGER;
 			http_reply_and_close(s, txn->status, http_error_message(s));
 
 			if (!(s->flags & SF_ERR_MASK))
@@ -1394,7 +1394,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 
 			txn->status = 504;
 			stream_inc_http_fail_ctr(s);
-			s->scb->flags |= CS_FL_NOLINGER;
+			s->scb->flags |= SC_FL_NOLINGER;
 			http_reply_and_close(s, txn->status, http_error_message(s));
 
 			if (!(s->flags & SF_ERR_MASK))
@@ -1451,7 +1451,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 
 			txn->status = 502;
 			stream_inc_http_fail_ctr(s);
-			s->scb->flags |= CS_FL_NOLINGER;
+			s->scb->flags |= SC_FL_NOLINGER;
 			http_reply_and_close(s, txn->status, http_error_message(s));
 
 			if (!(s->flags & SF_ERR_MASK))
@@ -1746,7 +1746,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	if (!(s->flags & SF_FINST_MASK))
 		s->flags |= SF_FINST_H;
 
-	s->scb->flags |= CS_FL_NOLINGER;
+	s->scb->flags |= SC_FL_NOLINGER;
 	DBG_TRACE_DEVEL("leaving on error",
 			STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_HTTP_ERR, s, txn);
 	return 0;
@@ -2056,7 +2056,7 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 
  return_prx_cond:
 	s->logs.t_data = -1; /* was not a valid response */
-	s->scb->flags |= CS_FL_NOLINGER;
+	s->scb->flags |= SC_FL_NOLINGER;
 
 	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= SF_ERR_PRXCOND;
@@ -4372,7 +4372,7 @@ static void http_end_request(struct stream *s)
 		/* if the server closes the connection, we want to immediately react
 		 * and close the socket to save packets and syscalls.
 		 */
-		s->scb->flags |= CS_FL_NOHALF;
+		s->scb->flags |= SC_FL_NOHALF;
 
 		/* In any case we've finished parsing the request so we must
 		 * disable Nagle when sending data because 1) we're not going
@@ -4447,7 +4447,7 @@ static void http_end_request(struct stream *s)
 	  http_msg_closed:
 		/* if we don't know whether the server will close, we need to hard close */
 		if (txn->rsp.flags & HTTP_MSGF_XFER_LEN)
-			s->scb->flags |= CS_FL_NOLINGER;  /* we want to close ASAP */
+			s->scb->flags |= SC_FL_NOLINGER;  /* we want to close ASAP */
 		/* see above in MSG_DONE why we only do this in these states */
 		if (!(s->be->options & PR_O_ABRT_CLOSE))
 			channel_dont_read(chn);

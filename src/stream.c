@@ -449,7 +449,7 @@ struct stream *stream_new(struct session *sess, struct stconn *cs, struct buffer
 	if (cs_attach_strm(s->scf, s) < 0)
 		goto out_fail_attach_scf;
 
-	s->scb = cs_new_from_strm(s, CS_FL_ISBACK);
+	s->scb = cs_new_from_strm(s, SC_FL_ISBACK);
 	if (!s->scb)
 		goto out_fail_alloc_scb;
 
@@ -457,11 +457,11 @@ struct stream *stream_new(struct session *sess, struct stconn *cs, struct buffer
 	s->scf->hcto = sess->fe->timeout.clientfin;
 
 	if (likely(sess->fe->options2 & PR_O2_INDEPSTR))
-		s->scf->flags |= CS_FL_INDEP_STR;
+		s->scf->flags |= SC_FL_INDEP_STR;
 
 	s->scb->hcto = TICK_ETERNITY;
 	if (likely(sess->fe->options2 & PR_O2_INDEPSTR))
-		s->scb->flags |= CS_FL_INDEP_STR;
+		s->scb->flags |= SC_FL_INDEP_STR;
 
 	if (sc_ep_test(cs, SE_FL_WEBSOCKET))
 		s->flags |= SF_WEBSOCKET;
@@ -1660,8 +1660,8 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	rpf_last = res->flags & ~CF_MASK_ANALYSER;
 
 	/* we don't want the stream connector functions to recursively wake us up */
-	scf->flags |= CS_FL_DONT_WAKE;
-	scb->flags |= CS_FL_DONT_WAKE;
+	scf->flags |= SC_FL_DONT_WAKE;
+	scb->flags |= SC_FL_DONT_WAKE;
 
 	/* update pending events */
 	s->pending_events |= (state & TASK_WOKEN_ANY);
@@ -1681,26 +1681,26 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		channel_check_timeouts(req);
 
 		if (unlikely((req->flags & (CF_SHUTW|CF_WRITE_TIMEOUT)) == CF_WRITE_TIMEOUT)) {
-			scb->flags |= CS_FL_NOLINGER;
+			scb->flags |= SC_FL_NOLINGER;
 			cs_shutw(scb);
 		}
 
 		if (unlikely((req->flags & (CF_SHUTR|CF_READ_TIMEOUT)) == CF_READ_TIMEOUT)) {
-			if (scf->flags & CS_FL_NOHALF)
-				scf->flags |= CS_FL_NOLINGER;
+			if (scf->flags & SC_FL_NOHALF)
+				scf->flags |= SC_FL_NOLINGER;
 			cs_shutr(scf);
 		}
 
 		channel_check_timeouts(res);
 
 		if (unlikely((res->flags & (CF_SHUTW|CF_WRITE_TIMEOUT)) == CF_WRITE_TIMEOUT)) {
-			scf->flags |= CS_FL_NOLINGER;
+			scf->flags |= SC_FL_NOLINGER;
 			cs_shutw(scf);
 		}
 
 		if (unlikely((res->flags & (CF_SHUTR|CF_READ_TIMEOUT)) == CF_READ_TIMEOUT)) {
-			if (scb->flags & CS_FL_NOHALF)
-				scb->flags |= CS_FL_NOLINGER;
+			if (scb->flags & SC_FL_NOHALF)
+				scb->flags |= SC_FL_NOLINGER;
 			cs_shutr(scb);
 		}
 
@@ -1718,8 +1718,8 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		    !(s->flags & SF_CONN_EXP) &&
 		    !((sc_ep_get(scf) | scb->flags) & SE_FL_ERROR) &&
 		    ((s->pending_events & TASK_WOKEN_ANY) == TASK_WOKEN_TIMER)) {
-			scf->flags &= ~CS_FL_DONT_WAKE;
-			scb->flags &= ~CS_FL_DONT_WAKE;
+			scf->flags &= ~SC_FL_DONT_WAKE;
+			scb->flags &= ~SC_FL_DONT_WAKE;
 			goto update_exp_and_leave;
 		}
 	}
@@ -2309,7 +2309,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	if (unlikely((req->flags & (CF_SHUTW|CF_SHUTW_NOW)) == CF_SHUTW_NOW &&
 		     channel_is_empty(req))) {
 		if (req->flags & CF_READ_ERROR)
-			scb->flags |= CS_FL_NOLINGER;
+			scb->flags |= SC_FL_NOLINGER;
 		cs_shutw(scb);
 	}
 
@@ -2320,8 +2320,8 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 
 	/* shutdown(read) pending */
 	if (unlikely((req->flags & (CF_SHUTR|CF_SHUTR_NOW)) == CF_SHUTR_NOW)) {
-		if (scf->flags & CS_FL_NOHALF)
-			scf->flags |= CS_FL_NOLINGER;
+		if (scf->flags & SC_FL_NOHALF)
+			scf->flags |= SC_FL_NOLINGER;
 		cs_shutr(scf);
 	}
 
@@ -2445,8 +2445,8 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 
 	/* shutdown(read) pending */
 	if (unlikely((res->flags & (CF_SHUTR|CF_SHUTR_NOW)) == CF_SHUTR_NOW)) {
-		if (scb->flags & CS_FL_NOHALF)
-			scb->flags |= CS_FL_NOLINGER;
+		if (scb->flags & SC_FL_NOHALF)
+			scb->flags |= SC_FL_NOLINGER;
 		cs_shutr(scb);
 	}
 
@@ -2466,8 +2466,8 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		goto resync_request;
 
 	/* we're interested in getting wakeups again */
-	scf->flags &= ~CS_FL_DONT_WAKE;
-	scb->flags &= ~CS_FL_DONT_WAKE;
+	scf->flags &= ~SC_FL_DONT_WAKE;
+	scb->flags &= ~SC_FL_DONT_WAKE;
 
 	if (likely((scf->state != CS_ST_CLO) || !cs_state_in(scb->state, CS_SB_INI|CS_SB_CLO) ||
 		   (req->analysers & AN_REQ_FLT_END) || (res->analysers & AN_RES_FLT_END))) {
@@ -2494,7 +2494,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		s->pending_events = 0;
 
 	update_exp_and_leave:
-		/* Note: please ensure that if you branch here you disable CS_FL_DONT_WAKE */
+		/* Note: please ensure that if you branch here you disable SC_FL_DONT_WAKE */
 		t->expire = tick_first((tick_is_expired(t->expire, now_ms) ? 0 : t->expire),
 				       tick_first(tick_first(req->rex, req->wex),
 						  tick_first(res->rex, res->wex)));

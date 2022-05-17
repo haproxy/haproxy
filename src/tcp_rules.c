@@ -391,7 +391,7 @@ resume_execution:
 				goto deny;
 			}
 			else if (rule->action == ACT_TCP_CLOSE) {
-				chn_prod(rep)->flags |= CS_FL_NOLINGER | CS_FL_NOHALF;
+				chn_prod(rep)->flags |= SC_FL_NOLINGER | SC_FL_NOHALF;
 				cs_must_kill_conn(chn_prod(rep));
 				cs_shutr(chn_prod(rep));
 				cs_shutw(chn_prod(rep));

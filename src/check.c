@@ -1126,7 +1126,7 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 
 		check->current_step = NULL;
 
-		check->cs = cs_new_from_check(check, CS_FL_NONE);
+		check->cs = cs_new_from_check(check, SC_FL_NONE);
 		if (!check->cs) {
 			set_server_check_status(check, HCHK_STATUS_SOCKERR, NULL);
 			goto end;

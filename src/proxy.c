@@ -2358,9 +2358,9 @@ int stream_set_backend(struct stream *s, struct proxy *be)
 	proxy_inc_be_ctr(be);
 
 	/* assign new parameters to the stream from the new backend */
-	s->scb->flags &= ~CS_FL_INDEP_STR;
+	s->scb->flags &= ~SC_FL_INDEP_STR;
 	if (be->options2 & PR_O2_INDEPSTR)
-		s->scb->flags |= CS_FL_INDEP_STR;
+		s->scb->flags |= SC_FL_INDEP_STR;
 
 	if (tick_isset(be->timeout.serverfin))
 		s->scb->hcto = be->timeout.serverfin;

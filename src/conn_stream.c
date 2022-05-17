@@ -126,7 +126,7 @@ static struct stconn *cs_new(struct sedesc *sedesc)
 		goto alloc_error;
 
 	cs->obj_type = OBJ_TYPE_CS;
-	cs->flags = CS_FL_NONE;
+	cs->flags = SC_FL_NONE;
 	cs->state = CS_ST_INI;
 	cs->hcto = TICK_ETERNITY;
 	cs->app = NULL;
@@ -391,7 +391,7 @@ static void cs_detach_endp(struct stconn **csp)
 	/* FIXME: Rest CS for now but must be reviewed. CS flags are only
 	 *        connection related for now but this will evolved
 	 */
-	cs->flags &= CS_FL_ISBACK;
+	cs->flags &= SC_FL_ISBACK;
 	if (cs_strm(cs))
 		cs->ops = &sc_app_embedded_ops;
 	cs->data_cb = NULL;
@@ -501,7 +501,7 @@ struct appctx *cs_applet_create(struct stconn *cs, struct applet *app)
  * This function performs a shutdown-read on a detached stream connector in a
  * connected or init state (it does nothing for other states). It either shuts
  * the read side or marks itself as closed. The buffer flags are updated to
- * reflect the new state. If the stream connector has CS_FL_NOHALF, we also
+ * reflect the new state. If the stream connector has SC_FL_NOHALF, we also
  * forward the close to the write side. The owner task is woken up if it exists.
  */
 static void sc_app_shutr(struct stconn *cs)
@@ -521,13 +521,13 @@ static void sc_app_shutr(struct stconn *cs)
 		cs->state = CS_ST_DIS;
 		__cs_strm(cs)->conn_exp = TICK_ETERNITY;
 	}
-	else if (cs->flags & CS_FL_NOHALF) {
+	else if (cs->flags & SC_FL_NOHALF) {
 		/* we want to immediately forward this close to the write side */
 		return sc_app_shutw(cs);
 	}
 
 	/* note that if the task exists, it must unregister itself once it runs */
-	if (!(cs->flags & CS_FL_DONT_WAKE))
+	if (!(cs->flags & SC_FL_DONT_WAKE))
 		task_wakeup(cs_strm_task(cs), TASK_WOKEN_IO);
 }
 
@@ -561,10 +561,10 @@ static void sc_app_shutw(struct stconn *cs)
 		/* we have to shut before closing, otherwise some short messages
 		 * may never leave the system, especially when there are remaining
 		 * unread data in the socket input buffer, or when nolinger is set.
-		 * However, if CS_FL_NOLINGER is explicitly set, we know there is
+		 * However, if SC_FL_NOLINGER is explicitly set, we know there is
 		 * no risk so we close both sides immediately.
 		 */
-		if (!sc_ep_test(cs, SE_FL_ERROR) && !(cs->flags & CS_FL_NOLINGER) &&
+		if (!sc_ep_test(cs, SE_FL_ERROR) && !(cs->flags & SC_FL_NOLINGER) &&
 		    !(ic->flags & (CF_SHUTR|CF_DONT_READ)))
 			return;
 
@@ -577,7 +577,7 @@ static void sc_app_shutw(struct stconn *cs)
 		cs->state = CS_ST_DIS;
 		/* fall through */
 	default:
-		cs->flags &= ~CS_FL_NOLINGER;
+		cs->flags &= ~SC_FL_NOLINGER;
 		cs_rx_shut_blk(cs);
 		ic->flags |= CF_SHUTR;
 		ic->rex = TICK_ETERNITY;
@@ -585,7 +585,7 @@ static void sc_app_shutw(struct stconn *cs)
 	}
 
 	/* note that if the task exists, it must unregister itself once it runs */
-	if (!(cs->flags & CS_FL_DONT_WAKE))
+	if (!(cs->flags & SC_FL_DONT_WAKE))
 		task_wakeup(cs_strm_task(cs), TASK_WOKEN_IO);
 }
 
@@ -604,7 +604,7 @@ static void sc_app_chk_rcv(struct stconn *cs)
 	}
 	else {
 		/* (re)start reading */
-		if (!(cs->flags & CS_FL_DONT_WAKE))
+		if (!(cs->flags & SC_FL_DONT_WAKE))
 			task_wakeup(cs_strm_task(cs), TASK_WOKEN_IO);
 	}
 }
@@ -632,7 +632,7 @@ static void sc_app_chk_snd(struct stconn *cs)
 	if (!tick_isset(oc->wex))
 		oc->wex = tick_add_ifset(now_ms, oc->wto);
 
-	if (!(cs->flags & CS_FL_DONT_WAKE))
+	if (!(cs->flags & SC_FL_DONT_WAKE))
 		task_wakeup(cs_strm_task(cs), TASK_WOKEN_IO);
 }
 
@@ -641,7 +641,7 @@ static void sc_app_chk_snd(struct stconn *cs)
  * a connection in a connected or init state (it does nothing for other
  * states). It either shuts the read side or marks itself as closed. The buffer
  * flags are updated to reflect the new state. If the stream connector has
- * CS_FL_NOHALF, we also forward the close to the write side. If a control
+ * SC_FL_NOHALF, we also forward the close to the write side. If a control
  * layer is defined, then it is supposed to be a socket layer and file
  * descriptors are then shutdown or closed accordingly. The function
  * automatically disables polling if needed.
@@ -666,7 +666,7 @@ static void sc_app_shutr_conn(struct stconn *cs)
 		cs->state = CS_ST_DIS;
 		__cs_strm(cs)->conn_exp = TICK_ETERNITY;
 	}
-	else if (cs->flags & CS_FL_NOHALF) {
+	else if (cs->flags & SC_FL_NOHALF) {
 		/* we want to immediately forward this close to the write side */
 		return sc_app_shutw_conn(cs);
 	}
@@ -705,14 +705,14 @@ static void sc_app_shutw_conn(struct stconn *cs)
 		/* we have to shut before closing, otherwise some short messages
 		 * may never leave the system, especially when there are remaining
 		 * unread data in the socket input buffer, or when nolinger is set.
-		 * However, if CS_FL_NOLINGER is explicitly set, we know there is
+		 * However, if SC_FL_NOLINGER is explicitly set, we know there is
 		 * no risk so we close both sides immediately.
 		 */
 
 		if (sc_ep_test(cs, SE_FL_ERROR)) {
 			/* quick close, the socket is already shut anyway */
 		}
-		else if (cs->flags & CS_FL_NOLINGER) {
+		else if (cs->flags & SC_FL_NOLINGER) {
 			/* unclean data-layer shutdown, typically an aborted request
 			 * or a forwarded shutdown from a client to a server due to
 			 * option abortonclose. No need for the TLS layer to try to
@@ -746,7 +746,7 @@ static void sc_app_shutw_conn(struct stconn *cs)
 		cs->state = CS_ST_DIS;
 		/* fall through */
 	default:
-		cs->flags &= ~CS_FL_NOLINGER;
+		cs->flags &= ~SC_FL_NOLINGER;
 		cs_rx_shut_blk(cs);
 		ic->flags |= CF_SHUTR;
 		ic->rex = TICK_ETERNITY;
@@ -839,7 +839,7 @@ static void sc_app_chk_snd_conn(struct stconn *cs)
 		    !channel_is_empty(oc))
 			oc->wex = tick_add_ifset(now_ms, oc->wto);
 
-		if (tick_isset(ic->rex) && !(cs->flags & CS_FL_INDEP_STR)) {
+		if (tick_isset(ic->rex) && !(cs->flags & SC_FL_INDEP_STR)) {
 			/* Note: to prevent the client from expiring read timeouts
 			 * during writes, we refresh it. We only do this if the
 			 * interface is not configured for "independent streams",
@@ -860,7 +860,7 @@ static void sc_app_chk_snd_conn(struct stconn *cs)
 	           ((channel_is_empty(oc) && !oc->to_forward) ||
 	            !cs_state_in(cs->state, CS_SB_EST))))) {
 	out_wakeup:
-		if (!(cs->flags & CS_FL_DONT_WAKE))
+		if (!(cs->flags & SC_FL_DONT_WAKE))
 			task_wakeup(cs_strm_task(cs), TASK_WOKEN_IO);
 	}
 }
@@ -869,7 +869,7 @@ static void sc_app_chk_snd_conn(struct stconn *cs)
  * This function performs a shutdown-read on a stream connector attached to an
  * applet in a connected or init state (it does nothing for other states). It
  * either shuts the read side or marks itself as closed. The buffer flags are
- * updated to reflect the new state. If the stream connector has CS_FL_NOHALF,
+ * updated to reflect the new state. If the stream connector has SC_FL_NOHALF,
  * we also forward the close to the write side. The owner task is woken up if
  * it exists.
  */
@@ -895,7 +895,7 @@ static void sc_app_shutr_applet(struct stconn *cs)
 		cs->state = CS_ST_DIS;
 		__cs_strm(cs)->conn_exp = TICK_ETERNITY;
 	}
-	else if (cs->flags & CS_FL_NOHALF) {
+	else if (cs->flags & SC_FL_NOHALF) {
 		/* we want to immediately forward this close to the write side */
 		return sc_app_shutw_applet(cs);
 	}
@@ -936,10 +936,10 @@ static void sc_app_shutw_applet(struct stconn *cs)
 		/* we have to shut before closing, otherwise some short messages
 		 * may never leave the system, especially when there are remaining
 		 * unread data in the socket input buffer, or when nolinger is set.
-		 * However, if CS_FL_NOLINGER is explicitly set, we know there is
+		 * However, if SC_FL_NOLINGER is explicitly set, we know there is
 		 * no risk so we close both sides immediately.
 		 */
-		if (!sc_ep_test(cs, SE_FL_ERROR) && !(cs->flags & CS_FL_NOLINGER) &&
+		if (!sc_ep_test(cs, SE_FL_ERROR) && !(cs->flags & SC_FL_NOLINGER) &&
 		    !(ic->flags & (CF_SHUTR|CF_DONT_READ)))
 			return;
 
@@ -953,7 +953,7 @@ static void sc_app_shutw_applet(struct stconn *cs)
 		cs->state = CS_ST_DIS;
 		/* fall through */
 	default:
-		cs->flags &= ~CS_FL_NOLINGER;
+		cs->flags &= ~SC_FL_NOLINGER;
 		cs_rx_shut_blk(cs);
 		ic->flags |= CF_SHUTR;
 		ic->rex = TICK_ETERNITY;
@@ -1087,7 +1087,7 @@ void cs_update_tx(struct stconn *cs)
 	sc_ep_clr(cs, SE_FL_WAIT_DATA);
 	if (!tick_isset(oc->wex)) {
 		oc->wex = tick_add_ifset(now_ms, oc->wto);
-		if (tick_isset(ic->rex) && !(cs->flags & CS_FL_INDEP_STR)) {
+		if (tick_isset(ic->rex) && !(cs->flags & SC_FL_INDEP_STR)) {
 			/* Note: depending on the protocol, we don't know if we're waiting
 			 * for incoming data or not. So in order to prevent the socket from
 			 * expiring read timeouts during writes, we refresh the read timeout,
@@ -1141,7 +1141,7 @@ static void cs_notify(struct stconn *cs)
 			if (tick_isset(oc->wex))
 				oc->wex = tick_add_ifset(now_ms, oc->wto);
 
-		if (!(cs->flags & CS_FL_INDEP_STR))
+		if (!(cs->flags & SC_FL_INDEP_STR))
 			if (tick_isset(ic->rex))
 				ic->rex = tick_add_ifset(now_ms, ic->rto);
 	}
@@ -1235,7 +1235,7 @@ static void cs_notify(struct stconn *cs)
 
 /*
  * This function propagates a null read received on a socket-based connection.
- * It updates the stream connector. If the stream connector has CS_FL_NOHALF,
+ * It updates the stream connector. If the stream connector has SC_FL_NOHALF,
  * the close is also forwarded to the write side as an abort.
  */
 static void cs_conn_read0(struct stconn *cs)
@@ -1257,7 +1257,7 @@ static void cs_conn_read0(struct stconn *cs)
 	if (oc->flags & CF_SHUTW)
 		goto do_close;
 
-	if (cs->flags & CS_FL_NOHALF) {
+	if (cs->flags & SC_FL_NOHALF) {
 		/* we want to immediately forward this close to the write side */
 		/* force flag on ssl to keep stream in cache */
 		cs_conn_shutw(cs, CO_SHW_SILENT);

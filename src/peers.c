@@ -1090,7 +1090,7 @@ static int peer_session_init(struct appctx *appctx)
 
 	/* initiate an outgoing connection */
 	s->scb->dst = addr;
-	s->scb->flags |= CS_FL_NOLINGER;
+	s->scb->flags |= SC_FL_NOLINGER;
 	s->flags = SF_ASSIGNED;
 	s->target = peer_session_target(peer, s);
 

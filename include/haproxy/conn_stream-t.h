@@ -85,17 +85,17 @@ enum se_flags {
 };
 
 /* stconn flags */
-enum {
-	CS_FL_NONE          = 0x00000000,  /* Just for initialization purposes */
-	CS_FL_ISBACK        = 0x00000001,  /* Set for CS on back-side */
+enum sc_flags {
+	SC_FL_NONE          = 0x00000000,  /* Just for initialization purposes */
+	SC_FL_ISBACK        = 0x00000001,  /* Set for SC on back-side */
 
 	/* not used: 0x00000002 */
 	/* not used: 0x00000004 */
 
-	CS_FL_NOLINGER      = 0x00000008,  /* may close without lingering. One-shot. */
-	CS_FL_NOHALF        = 0x00000010,  /* no half close, close both sides at once */
-	CS_FL_DONT_WAKE     = 0x00000020,  /* resync in progress, don't wake up */
-	CS_FL_INDEP_STR     = 0x00000040,  /* independent streams = don't update rex on write */
+	SC_FL_NOLINGER      = 0x00000008,  /* may close without lingering. One-shot. */
+	SC_FL_NOHALF        = 0x00000010,  /* no half close, close both sides at once */
+	SC_FL_DONT_WAKE     = 0x00000020,  /* resync in progress, don't wake up */
+	SC_FL_INDEP_STR     = 0x00000040,  /* independent streams = don't update rex on write */
 };
 
 /* A conn stream must have its own errors independently of the buffer's, so that
@@ -189,7 +189,7 @@ struct stconn {
 	enum cs_state state;                 /* CS_ST* */
 	/* 2 bytes hole here */
 
-	unsigned int flags;                  /* CS_FL_* */
+	unsigned int flags;                  /* SC_FL_* */
 	unsigned int hcto;                   /* half-closed timeout (0 = unset) */
 	struct wait_event wait_event;        /* We're in a wait list */
 	struct sedesc *sedesc;               /* points to the stream endpoint descriptor */

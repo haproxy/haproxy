@@ -1015,7 +1015,7 @@ static int httpclient_applet_init(struct appctx *appctx)
 		s->scb->dst = addr;
 	}
 
-	s->scb->flags |= CS_FL_NOLINGER;
+	s->scb->flags |= SC_FL_NOLINGER;
 	s->flags |= SF_ASSIGNED;
 	s->res.flags |= CF_READ_DONTWAIT;
 

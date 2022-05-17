@@ -287,7 +287,7 @@ static enum act_return tcp_exec_action_silent_drop(struct act_rule *rule, struct
 	 * is present, returning with ERR will cause lingering to be disabled.
 	 */
 	if (strm)
-		strm->scf->flags |= CS_FL_NOLINGER;
+		strm->scf->flags |= SC_FL_NOLINGER;
 
 	if (conn->flags & CO_FL_FDLESS)
 		goto out;

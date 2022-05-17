@@ -46,7 +46,7 @@ static inline struct channel *cs_ic(struct stconn *cs)
 {
 	struct stream *strm = __cs_strm(cs);
 
-	return ((cs->flags & CS_FL_ISBACK) ? &(strm->res) : &(strm->req));
+	return ((cs->flags & SC_FL_ISBACK) ? &(strm->res) : &(strm->req));
 }
 
 /* returns the channel which feeds data to this stream connector (output channel) */
@@ -54,7 +54,7 @@ static inline struct channel *cs_oc(struct stconn *cs)
 {
 	struct stream *strm = __cs_strm(cs);
 
-	return ((cs->flags & CS_FL_ISBACK) ? &(strm->req) : &(strm->res));
+	return ((cs->flags & SC_FL_ISBACK) ? &(strm->req) : &(strm->res));
 }
 
 /* returns the buffer which receives data from this stream connector (input channel's buffer) */
@@ -81,11 +81,11 @@ static inline struct stconn *cs_opposite(struct stconn *cs)
 {
 	struct stream *strm = __cs_strm(cs);
 
-	return ((cs->flags & CS_FL_ISBACK) ? strm->scf : strm->scb);
+	return ((cs->flags & SC_FL_ISBACK) ? strm->scf : strm->scb);
 }
 
 
-/* to be called only when in CS_ST_DIS with CS_FL_ERR */
+/* to be called only when in CS_ST_DIS with SC_FL_ERR */
 static inline void cs_report_error(struct stconn *cs)
 {
 	if (!__cs_strm(cs)->conn_err_type)
@@ -173,7 +173,7 @@ static inline const struct sockaddr_storage *cs_src(struct stconn *cs)
 {
 	if (cs->src)
 		return cs->src;
-	if (!(cs->flags & CS_FL_ISBACK))
+	if (!(cs->flags & SC_FL_ISBACK))
 		return sess_src(strm_sess(__cs_strm(cs)));
 	else {
 		struct connection *conn = cs_conn(cs);
@@ -193,7 +193,7 @@ static inline const struct sockaddr_storage *cs_dst(struct stconn *cs)
 {
 	if (cs->dst)
 		return cs->dst;
-	if (!(cs->flags & CS_FL_ISBACK))
+	if (!(cs->flags & SC_FL_ISBACK))
 		return sess_dst(strm_sess(__cs_strm(cs)));
 	else {
 		struct connection *conn = cs_conn(cs);
@@ -217,7 +217,7 @@ static inline int cs_get_src(struct stconn *cs)
 	if (cs->src)
 		return 1;
 
-	if (!(cs->flags & CS_FL_ISBACK))
+	if (!(cs->flags & SC_FL_ISBACK))
 		src = sess_src(strm_sess(__cs_strm(cs)));
 	else {
 		struct connection *conn = cs_conn(cs);
@@ -247,7 +247,7 @@ static inline int cs_get_dst(struct stconn *cs)
 	if (cs->dst)
 		return 1;
 
-	if (!(cs->flags & CS_FL_ISBACK))
+	if (!(cs->flags & SC_FL_ISBACK))
 		dst = sess_dst(strm_sess(__cs_strm(cs)));
 	else {
 		struct connection *conn = cs_conn(cs);

@@ -224,11 +224,11 @@ void show_cs_flags(unsigned int f)
 		printf("0\n");
 		return;
 	}
-	SHOW_FLAG(f, CS_FL_INDEP_STR);
-	SHOW_FLAG(f, CS_FL_DONT_WAKE);
-	SHOW_FLAG(f, CS_FL_NOLINGER);
-	SHOW_FLAG(f, CS_FL_NOHALF);
-	SHOW_FLAG(f, CS_FL_ISBACK);
+	SHOW_FLAG(f, SC_FL_INDEP_STR);
+	SHOW_FLAG(f, SC_FL_DONT_WAKE);
+	SHOW_FLAG(f, SC_FL_NOLINGER);
+	SHOW_FLAG(f, SC_FL_NOHALF);
+	SHOW_FLAG(f, SC_FL_ISBACK);
 
 	if (f) {
 		printf("EXTRA(0x%08x)", f);

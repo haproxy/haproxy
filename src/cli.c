@@ -2704,7 +2704,7 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 
 		pcli_write_prompt(s);
 
-		s->scb->flags |= CS_FL_NOLINGER | CS_FL_NOHALF;
+		s->scb->flags |= SC_FL_NOLINGER | SC_FL_NOHALF;
 		cs_shutr(s->scb);
 		cs_shutw(s->scb);
 
@@ -2788,7 +2788,7 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		sockaddr_free(&s->scb->dst);
 
 		cs_set_state(s->scb, CS_ST_INI);
-		s->scb->flags &= CS_FL_ISBACK | CS_FL_DONT_WAKE; /* we're in the context of process_stream */
+		s->scb->flags &= SC_FL_ISBACK | SC_FL_DONT_WAKE; /* we're in the context of process_stream */
 		s->req.flags &= ~(CF_SHUTW|CF_SHUTW_NOW|CF_AUTO_CONNECT|CF_WRITE_ERROR|CF_STREAMER|CF_STREAMER_FAST|CF_NEVER_WAIT|CF_WROTE_DATA);
 		s->res.flags &= ~(CF_SHUTR|CF_SHUTR_NOW|CF_READ_ATTACHED|CF_READ_ERROR|CF_READ_NOEXP|CF_STREAMER|CF_STREAMER_FAST|CF_WRITE_PARTIAL|CF_NEVER_WAIT|CF_WROTE_DATA|CF_READ_NULL);
 		s->flags &= ~(SF_DIRECT|SF_ASSIGNED|SF_BE_ASSIGNED|SF_FORCE_PRST|SF_IGNORE_PRST);
