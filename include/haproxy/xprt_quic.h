@@ -1149,6 +1149,9 @@ static inline void quic_rx_pkts_del(struct quic_conn *qc)
 		LIST_DELETE(&pkt->qc_rx_pkt_list);
 		pool_free(pool_head_quic_rx_packet, pkt);
 	}
+
+	/* In frequent cases the buffer will be emptied at this stage. */
+	b_realign_if_empty(&qc->rx.buf);
 }
 
 /* Increment the reference counter of <pkt> */
