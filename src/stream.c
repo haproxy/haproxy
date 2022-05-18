@@ -465,7 +465,7 @@ struct stream *stream_new(struct session *sess, struct stconn *cs, struct buffer
 
 	if (sc_ep_test(cs, SE_FL_WEBSOCKET))
 		s->flags |= SF_WEBSOCKET;
-	if (cs_conn(cs)) {
+	if (sc_conn(cs)) {
 		const struct mux_ops *mux = cs_conn_mux(cs);
 
 		if (mux && mux->flags & MX_FL_HTX)
@@ -873,7 +873,7 @@ int stream_set_timeout(struct stream *s, enum act_timeout_name name, int timeout
  */
 static void back_establish(struct stream *s)
 {
-	struct connection *conn = cs_conn(s->scb);
+	struct connection *conn = sc_conn(s->scb);
 	struct channel *req = &s->req;
 	struct channel *rep = &s->res;
 
@@ -1474,7 +1474,7 @@ int stream_set_http_mode(struct stream *s, const struct mux_proto_list *mux_prot
 	if (unlikely(!s->txn && !http_create_txn(s)))
 		return 0;
 
-	conn = cs_conn(cs);
+	conn = sc_conn(cs);
 	if (conn) {
 		cs_rx_endp_more(s->scf);
 		/* Make sure we're unsubscribed, the the new
@@ -1838,8 +1838,8 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 			      (global.mode & MODE_VERBOSE)))) {
 			chunk_printf(&trash, "%08x:%s.clicls[%04x:%04x]\n",
 				     s->uniq_id, s->be->id,
-				     (unsigned short)conn_fd(cs_conn(scf)),
-				     (unsigned short)conn_fd(cs_conn(scb)));
+				     (unsigned short)conn_fd(sc_conn(scf)),
+				     (unsigned short)conn_fd(sc_conn(scb)));
 			DISGUISE(write(1, trash.area, trash.data));
 		}
 	}
@@ -1869,8 +1869,8 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 			if (s->prev_conn_state == SC_ST_EST) {
 				chunk_printf(&trash, "%08x:%s.srvcls[%04x:%04x]\n",
 					     s->uniq_id, s->be->id,
-					     (unsigned short)conn_fd(cs_conn(scf)),
-					     (unsigned short)conn_fd(cs_conn(scb)));
+					     (unsigned short)conn_fd(sc_conn(scf)),
+					     (unsigned short)conn_fd(sc_conn(scb)));
 				DISGUISE(write(1, trash.area, trash.data));
 			}
 		}
@@ -2207,10 +2207,10 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	if (!(req->flags & (CF_KERN_SPLICING|CF_SHUTR)) &&
 	    req->to_forward &&
 	    (global.tune.options & GTUNE_USE_SPLICE) &&
-	    (cs_conn(scf) && __cs_conn(scf)->xprt && __cs_conn(scf)->xprt->rcv_pipe &&
-	     __cs_conn(scf)->mux && __cs_conn(scf)->mux->rcv_pipe) &&
-	    (cs_conn(scb) && __cs_conn(scb)->xprt && __cs_conn(scb)->xprt->snd_pipe &&
-	     __cs_conn(scb)->mux && __cs_conn(scb)->mux->snd_pipe) &&
+	    (sc_conn(scf) && __sc_conn(scf)->xprt && __sc_conn(scf)->xprt->rcv_pipe &&
+	     __sc_conn(scf)->mux && __sc_conn(scf)->mux->rcv_pipe) &&
+	    (sc_conn(scb) && __sc_conn(scb)->xprt && __sc_conn(scb)->xprt->snd_pipe &&
+	     __sc_conn(scb)->mux && __sc_conn(scb)->mux->snd_pipe) &&
 	    (pipes_used < global.maxpipes) &&
 	    (((sess->fe->options2|s->be->options2) & PR_O2_SPLIC_REQ) ||
 	     (((sess->fe->options2|s->be->options2) & PR_O2_SPLIC_AUT) &&
@@ -2401,10 +2401,10 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	if (!(res->flags & (CF_KERN_SPLICING|CF_SHUTR)) &&
 	    res->to_forward &&
 	    (global.tune.options & GTUNE_USE_SPLICE) &&
-	    (cs_conn(scf) && __cs_conn(scf)->xprt && __cs_conn(scf)->xprt->snd_pipe &&
-	     __cs_conn(scf)->mux && __cs_conn(scf)->mux->snd_pipe) &&
-	    (cs_conn(scb) && __cs_conn(scb)->xprt && __cs_conn(scb)->xprt->rcv_pipe &&
-	     __cs_conn(scb)->mux && __cs_conn(scb)->mux->rcv_pipe) &&
+	    (sc_conn(scf) && __sc_conn(scf)->xprt && __sc_conn(scf)->xprt->snd_pipe &&
+	     __sc_conn(scf)->mux && __sc_conn(scf)->mux->snd_pipe) &&
+	    (sc_conn(scb) && __sc_conn(scb)->xprt && __sc_conn(scb)->xprt->rcv_pipe &&
+	     __sc_conn(scb)->mux && __sc_conn(scb)->mux->rcv_pipe) &&
 	    (pipes_used < global.maxpipes) &&
 	    (((sess->fe->options2|s->be->options2) & PR_O2_SPLIC_RTR) ||
 	     (((sess->fe->options2|s->be->options2) & PR_O2_SPLIC_AUT) &&
@@ -2527,8 +2527,8 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		     (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)))) {
 		chunk_printf(&trash, "%08x:%s.closed[%04x:%04x]\n",
 			     s->uniq_id, s->be->id,
-			     (unsigned short)conn_fd(cs_conn(scf)),
-			     (unsigned short)conn_fd(cs_conn(scb)));
+			     (unsigned short)conn_fd(sc_conn(scf)),
+			     (unsigned short)conn_fd(sc_conn(scb)));
 		DISGUISE(write(1, trash.area, trash.data));
 	}
 
@@ -2754,7 +2754,7 @@ void stream_dump(struct buffer *buf, const struct stream *s, const char *pfx, ch
 	res = &s->res;
 
 	scf = s->scf;
-	cof = cs_conn(scf);
+	cof = sc_conn(scf);
 	acf = cs_appctx(scf);
 	if (cof && cof->src && addr_to_str(cof->src, pn, sizeof(pn)) >= 0)
 		src = pn;
@@ -2762,7 +2762,7 @@ void stream_dump(struct buffer *buf, const struct stream *s, const char *pfx, ch
 		src = acf->applet->name;
 
 	scb = s->scb;
-	cob = cs_conn(scb);
+	cob = sc_conn(scb);
 	acb = cs_appctx(scb);
 	srv = objt_server(s->target);
 	if (srv)
@@ -3242,7 +3242,7 @@ static int stats_dump_full_strm_to_buffer(struct stconn *cs, struct stream *strm
 		else
 			chunk_appendf(&trash, "  backend=<NONE> (id=-1 mode=-)");
 
-		conn = cs_conn(strm->scb);
+		conn = sc_conn(strm->scb);
 		switch (conn && conn_get_src(conn) ? addr_to_str(conn->src, pn, sizeof(pn)) : AF_UNSPEC) {
 		case AF_INET:
 		case AF_INET6:
@@ -3310,7 +3310,7 @@ static int stats_dump_full_strm_to_buffer(struct stconn *cs, struct stream *strm
 			      (sc_ep_test(scf, SE_FL_T_MUX) ? "CONN" : (sc_ep_test(scf, SE_FL_T_APPLET) ? "APPCTX" : "NONE")),
 			      scf->sedesc->se, sc_ep_get(scf), scf->wait_event.events);
 
-		if ((conn = cs_conn(scf)) != NULL) {
+		if ((conn = sc_conn(scf)) != NULL) {
 			chunk_appendf(&trash,
 			              "      co0=%p ctrl=%s xprt=%s mux=%s data=%s target=%s:%p\n",
 				      conn,
@@ -3349,7 +3349,7 @@ static int stats_dump_full_strm_to_buffer(struct stconn *cs, struct stream *strm
 			      (sc_ep_test(scb, SE_FL_T_MUX) ? "CONN" : (sc_ep_test(scb, SE_FL_T_APPLET) ? "APPCTX" : "NONE")),
 			      scb->sedesc->se, sc_ep_get(scb), scb->wait_event.events);
 
-		if ((conn = cs_conn(scb)) != NULL) {
+		if ((conn = sc_conn(scb)) != NULL) {
 			chunk_appendf(&trash,
 			              "      co1=%p ctrl=%s xprt=%s mux=%s data=%s target=%s:%p\n",
 				      conn,
@@ -3679,14 +3679,14 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 			     human_time(TICKS_TO_MS(curr_strm->res.analyse_exp - now_ms),
 					TICKS_TO_MS(1000)) : "");
 
-		conn = cs_conn(curr_strm->scf);
+		conn = sc_conn(curr_strm->scf);
 		chunk_appendf(&trash,
 			     " scf=[%d,%1xh,fd=%d]",
 			      curr_strm->scf->state,
 			     curr_strm->scf->flags,
 			     conn_fd(conn));
 
-		conn = cs_conn(curr_strm->scb);
+		conn = sc_conn(curr_strm->scb);
 		chunk_appendf(&trash,
 			     " scb=[%d,%1xh,fd=%d]",
 			      curr_strm->scb->state,

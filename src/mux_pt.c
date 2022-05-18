@@ -461,7 +461,7 @@ static int mux_pt_avail_streams(struct connection *conn)
 
 static void mux_pt_shutr(struct stconn *cs, enum co_shr_mode mode)
 {
-	struct connection *conn = __cs_conn(cs);
+	struct connection *conn = __sc_conn(cs);
 	struct mux_pt_ctx *ctx = conn->ctx;
 
 	TRACE_ENTER(PT_EV_STRM_SHUT, conn, cs);
@@ -482,7 +482,7 @@ static void mux_pt_shutr(struct stconn *cs, enum co_shr_mode mode)
 
 static void mux_pt_shutw(struct stconn *cs, enum co_shw_mode mode)
 {
-	struct connection *conn = __cs_conn(cs);
+	struct connection *conn = __sc_conn(cs);
 	struct mux_pt_ctx *ctx = conn->ctx;
 
 	TRACE_ENTER(PT_EV_STRM_SHUT, conn, cs);
@@ -515,7 +515,7 @@ static void mux_pt_shutw(struct stconn *cs, enum co_shw_mode mode)
  */
 static size_t mux_pt_rcv_buf(struct stconn *cs, struct buffer *buf, size_t count, int flags)
 {
-	struct connection *conn = __cs_conn(cs);
+	struct connection *conn = __sc_conn(cs);
 	struct mux_pt_ctx *ctx = conn->ctx;
 	size_t ret = 0;
 
@@ -545,7 +545,7 @@ static size_t mux_pt_rcv_buf(struct stconn *cs, struct buffer *buf, size_t count
 /* Called from the upper layer, to send data */
 static size_t mux_pt_snd_buf(struct stconn *cs, struct buffer *buf, size_t count, int flags)
 {
-	struct connection *conn = __cs_conn(cs);
+	struct connection *conn = __sc_conn(cs);
 	struct mux_pt_ctx *ctx = conn->ctx;
 	size_t ret;
 
@@ -572,7 +572,7 @@ static size_t mux_pt_snd_buf(struct stconn *cs, struct buffer *buf, size_t count
  */
 static int mux_pt_subscribe(struct stconn *cs, int event_type, struct wait_event *es)
 {
-	struct connection *conn = __cs_conn(cs);
+	struct connection *conn = __sc_conn(cs);
 
 	TRACE_POINT(PT_EV_RX_DATA|PT_EV_TX_DATA, conn, cs, 0, (size_t[]){event_type});
 	return conn->xprt->subscribe(conn, conn->xprt_ctx, event_type, es);
@@ -584,7 +584,7 @@ static int mux_pt_subscribe(struct stconn *cs, int event_type, struct wait_event
  */
 static int mux_pt_unsubscribe(struct stconn *cs, int event_type, struct wait_event *es)
 {
-	struct connection *conn = __cs_conn(cs);
+	struct connection *conn = __sc_conn(cs);
 
 	TRACE_POINT(PT_EV_RX_DATA|PT_EV_TX_DATA, conn, cs, 0, (size_t[]){event_type});
 	return conn->xprt->unsubscribe(conn, conn->xprt_ctx, event_type, es);
@@ -594,7 +594,7 @@ static int mux_pt_unsubscribe(struct stconn *cs, int event_type, struct wait_eve
 /* Send and get, using splicing */
 static int mux_pt_rcv_pipe(struct stconn *cs, struct pipe *pipe, unsigned int count)
 {
-	struct connection *conn = __cs_conn(cs);
+	struct connection *conn = __sc_conn(cs);
 	struct mux_pt_ctx *ctx = conn->ctx;
 	int ret;
 
@@ -616,7 +616,7 @@ static int mux_pt_rcv_pipe(struct stconn *cs, struct pipe *pipe, unsigned int co
 
 static int mux_pt_snd_pipe(struct stconn *cs, struct pipe *pipe)
 {
-	struct connection *conn = __cs_conn(cs);
+	struct connection *conn = __sc_conn(cs);
 	struct mux_pt_ctx *ctx = conn->ctx;
 	int ret;
 

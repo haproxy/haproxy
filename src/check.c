@@ -224,7 +224,7 @@ static void check_trace(enum trace_level level, uint64_t mask,
 
 
 	if (check->cs) {
-		struct connection *conn = cs_conn(check->cs);
+		struct connection *conn = sc_conn(check->cs);
 
 		chunk_appendf(&trace_buf, " - conn=%p(0x%08x)", conn, conn ? conn->flags : 0);
 		chunk_appendf(&trace_buf, " cs=%p(0x%08x)", check->cs, check->cs->flags);
@@ -772,7 +772,7 @@ static int retrieve_errno_from_socket(struct connection *conn)
 void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 {
 	struct stconn *cs = check->cs;
-	struct connection *conn = cs_conn(cs);
+	struct connection *conn = sc_conn(cs);
 	const char *err_msg;
 	struct buffer *chk;
 	int step;
@@ -1029,7 +1029,7 @@ int wake_srv_chk(struct stconn *cs)
 	ret = tcpcheck_main(check);
 
 	cs = check->cs;
-	conn = cs_conn(cs);
+	conn = sc_conn(cs);
 
 	if (unlikely(!conn || !cs || conn->flags & CO_FL_ERROR || sc_ep_test(cs, SE_FL_ERROR))) {
 		/* We may get error reports bypassing the I/O handlers, typically
@@ -1134,7 +1134,7 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 	 */
 	if (check->result == CHK_RES_UNKNOWN && likely(!(check->state & CHK_ST_PURGE))) {
 		cs = check->cs;
-		conn = (cs ? cs_conn(cs) : NULL);
+		conn = (cs ? sc_conn(cs) : NULL);
 
 		/* Here the connection must be defined. Otherwise the
 		 * error would have already been detected
@@ -1168,7 +1168,7 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 
 	check->current_step = NULL;
 	cs = check->cs;
-	conn = (cs ? cs_conn(cs) : NULL);
+	conn = (cs ? sc_conn(cs) : NULL);
 
 	if (conn && conn->xprt) {
 		/* The check was aborted and the connection was not yet closed.

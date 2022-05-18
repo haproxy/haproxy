@@ -1056,7 +1056,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 	struct proxy *proxy = check->proxy;
 	struct server *s = check->server;
 	struct task *t = check->task;
-	struct connection *conn = cs_conn(check->cs);
+	struct connection *conn = sc_conn(check->cs);
 	struct protocol *proto;
 	struct xprt_ops *xprt;
 	struct tcpcheck_rule *next;
@@ -1325,7 +1325,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_send(struct check *check, struct tcpcheck_r
 	enum tcpcheck_eval_ret ret = TCPCHK_EVAL_CONTINUE;
 	struct tcpcheck_send *send = &rule->send;
 	struct stconn *cs = check->cs;
-	struct connection *conn = __cs_conn(cs);
+	struct connection *conn = __sc_conn(cs);
 	struct buffer *tmp = NULL;
 	struct htx *htx = NULL;
 	int connection_hdr = 0;
@@ -1535,7 +1535,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_send(struct check *check, struct tcpcheck_r
 enum tcpcheck_eval_ret tcpcheck_eval_recv(struct check *check, struct tcpcheck_rule *rule)
 {
 	struct stconn *cs = check->cs;
-	struct connection *conn = __cs_conn(cs);
+	struct connection *conn = __sc_conn(cs);
 	enum tcpcheck_eval_ret ret = TCPCHK_EVAL_CONTINUE;
 	size_t max, read, cur_read = 0;
 	int is_empty;
@@ -2126,7 +2126,7 @@ int tcpcheck_main(struct check *check)
 {
 	struct tcpcheck_rule *rule;
 	struct stconn *cs = check->cs;
-	struct connection *conn = cs_conn(cs);
+	struct connection *conn = sc_conn(cs);
 	int must_read = 1, last_read = 0;
 	int retcode = 0;
 	enum tcpcheck_eval_ret eval_ret;
@@ -2188,7 +2188,7 @@ int tcpcheck_main(struct check *check)
 		switch (rule->action) {
 		case TCPCHK_ACT_CONNECT:
 			/* Not the first connection, release it first */
-			if (cs_conn(cs) && check->current_step != rule) {
+			if (sc_conn(cs) && check->current_step != rule) {
 				check->state |= CHK_ST_CLOSE_CONN;
 				retcode = -1;
 			}
@@ -2206,7 +2206,7 @@ int tcpcheck_main(struct check *check)
 			eval_ret = tcpcheck_eval_connect(check, rule);
 
 			/* Refresh connection */
-			conn = cs_conn(cs);
+			conn = sc_conn(cs);
 			last_read = 0;
 			must_read = (IS_HTX_CS(cs) ? htx_is_empty(htxbuf(&check->bi)) : !b_data(&check->bi));
 			break;

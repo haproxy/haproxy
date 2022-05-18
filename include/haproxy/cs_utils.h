@@ -122,7 +122,7 @@ static inline int cs_state_in(enum cs_state state, enum cs_state_bit mask)
  */
 static inline int cs_conn_ready(struct stconn *cs)
 {
-	struct connection *conn = cs_conn(cs);
+	struct connection *conn = sc_conn(cs);
 
 	return conn && conn_ctrl_ready(conn) && conn_xprt_ready(conn);
 }
@@ -141,7 +141,7 @@ static inline int cs_is_conn_error(const struct stconn *cs)
 	if (cs->state >= SC_ST_EST)
 		return 0;
 
-	conn = __cs_conn(cs);
+	conn = __sc_conn(cs);
 	BUG_ON(!conn);
 	return !!(conn->flags & CO_FL_ERROR);
 }
@@ -176,7 +176,7 @@ static inline const struct sockaddr_storage *cs_src(struct stconn *cs)
 	if (!(cs->flags & SC_FL_ISBACK))
 		return sess_src(strm_sess(__sc_strm(cs)));
 	else {
-		struct connection *conn = cs_conn(cs);
+		struct connection *conn = sc_conn(cs);
 
 		if (conn)
 			return conn_src(conn);
@@ -196,7 +196,7 @@ static inline const struct sockaddr_storage *cs_dst(struct stconn *cs)
 	if (!(cs->flags & SC_FL_ISBACK))
 		return sess_dst(strm_sess(__sc_strm(cs)));
 	else {
-		struct connection *conn = cs_conn(cs);
+		struct connection *conn = sc_conn(cs);
 
 		if (conn)
 			return conn_dst(conn);
@@ -220,7 +220,7 @@ static inline int cs_get_src(struct stconn *cs)
 	if (!(cs->flags & SC_FL_ISBACK))
 		src = sess_src(strm_sess(__sc_strm(cs)));
 	else {
-		struct connection *conn = cs_conn(cs);
+		struct connection *conn = sc_conn(cs);
 
 		if (conn)
 			src = conn_src(conn);
@@ -250,7 +250,7 @@ static inline int cs_get_dst(struct stconn *cs)
 	if (!(cs->flags & SC_FL_ISBACK))
 		dst = sess_dst(strm_sess(__sc_strm(cs)));
 	else {
-		struct connection *conn = cs_conn(cs);
+		struct connection *conn = sc_conn(cs);
 
 		if (conn)
 			dst = conn_dst(conn);

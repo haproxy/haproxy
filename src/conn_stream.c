@@ -345,7 +345,7 @@ static void cs_detach_endp(struct stconn **csp)
 		goto reset_cs;
 
 	if (sc_ep_test(cs, SE_FL_T_MUX)) {
-		struct connection *conn = __cs_conn(cs);
+		struct connection *conn = __sc_conn(cs);
 		struct sedesc *sedesc = cs->sedesc;
 
 		if (conn->mux) {
@@ -649,7 +649,7 @@ static void sc_app_shutr_conn(struct stconn *cs)
 {
 	struct channel *ic = sc_ic(cs);
 
-	BUG_ON(!cs_conn(cs));
+	BUG_ON(!sc_conn(cs));
 
 	cs_rx_shut_blk(cs);
 	if (ic->flags & CF_SHUTR)
@@ -684,7 +684,7 @@ static void sc_app_shutw_conn(struct stconn *cs)
 	struct channel *ic = sc_ic(cs);
 	struct channel *oc = sc_oc(cs);
 
-	BUG_ON(!cs_conn(cs));
+	BUG_ON(!sc_conn(cs));
 
 	oc->flags &= ~CF_SHUTW_NOW;
 	if (oc->flags & CF_SHUTW)
@@ -761,7 +761,7 @@ static void sc_app_shutw_conn(struct stconn *cs)
  */
 static void sc_app_chk_rcv_conn(struct stconn *cs)
 {
-	BUG_ON(!cs_conn(cs));
+	BUG_ON(!sc_conn(cs));
 
 	/* (re)start reading */
 	if (cs_state_in(cs->state, SC_SB_CON|SC_SB_RDY|SC_SB_EST))
@@ -778,7 +778,7 @@ static void sc_app_chk_snd_conn(struct stconn *cs)
 {
 	struct channel *oc = sc_oc(cs);
 
-	BUG_ON(!cs_conn(cs));
+	BUG_ON(!sc_conn(cs));
 
 	if (unlikely(!cs_state_in(cs->state, SC_SB_RDY|SC_SB_EST) ||
 	    (oc->flags & CF_SHUTW)))
@@ -1117,7 +1117,7 @@ static void cs_notify(struct stconn *cs)
 
 	/* process consumer side */
 	if (channel_is_empty(oc)) {
-		struct connection *conn = cs_conn(cs);
+		struct connection *conn = sc_conn(cs);
 
 		if (((oc->flags & (CF_SHUTW|CF_SHUTW_NOW)) == CF_SHUTW_NOW) &&
 		    (cs->state == SC_ST_EST) && (!conn || !(conn->flags & (CO_FL_WAIT_XPRT | CO_FL_EARLY_SSL_HS))))
@@ -1242,7 +1242,7 @@ static void cs_conn_read0(struct stconn *cs)
 	struct channel *ic = sc_ic(cs);
 	struct channel *oc = sc_oc(cs);
 
-	BUG_ON(!cs_conn(cs));
+	BUG_ON(!sc_conn(cs));
 
 	cs_rx_shut_blk(cs);
 	if (ic->flags & CF_SHUTR)
@@ -1288,7 +1288,7 @@ static void cs_conn_read0(struct stconn *cs)
  */
 static int cs_conn_recv(struct stconn *cs)
 {
-	struct connection *conn = __cs_conn(cs);
+	struct connection *conn = __sc_conn(cs);
 	struct channel *ic = sc_ic(cs);
 	int ret, max, cur_read = 0;
 	int read_poll = MAX_READ_POLL_LOOPS;
@@ -1642,7 +1642,7 @@ int cs_conn_sync_recv(struct stconn *cs)
  */
 static int cs_conn_send(struct stconn *cs)
 {
-	struct connection *conn = __cs_conn(cs);
+	struct connection *conn = __sc_conn(cs);
 	struct stream *s = __sc_strm(cs);
 	struct channel *oc = sc_oc(cs);
 	int ret;
@@ -1814,7 +1814,7 @@ void cs_conn_sync_send(struct stconn *cs)
  */
 static int cs_conn_process(struct stconn *cs)
 {
-	struct connection *conn = __cs_conn(cs);
+	struct connection *conn = __sc_conn(cs);
 	struct channel *ic = sc_ic(cs);
 	struct channel *oc = sc_oc(cs);
 
@@ -1905,7 +1905,7 @@ struct task *cs_conn_io_cb(struct task *t, void *ctx, unsigned int state)
 	struct stconn *cs = ctx;
 	int ret = 0;
 
-	if (!cs_conn(cs))
+	if (!sc_conn(cs))
 		return t;
 
 	if (!(cs->wait_event.events & SUB_RETRY_SEND) && !channel_is_empty(sc_oc(cs)))

@@ -1982,7 +1982,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 	if (likely(s)) {
 		be = s->be;
 		txn = s->txn;
-		be_conn = cs_conn(s->scb);
+		be_conn = sc_conn(s->scb);
 		status = (txn ? txn->status : 0);
 		s_flags = s->flags;
 		uniq_id = s->uniq_id;
@@ -1998,7 +1998,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 		be = ((obj_type(sess->origin) == OBJ_TYPE_CHECK) ? __objt_check(sess->origin)->proxy : fe);
 		txn = NULL;
 		fe_conn = objt_conn(sess->origin);
-		be_conn = ((obj_type(sess->origin) == OBJ_TYPE_CHECK) ? cs_conn(__objt_check(sess->origin)->cs) : NULL);
+		be_conn = ((obj_type(sess->origin) == OBJ_TYPE_CHECK) ? sc_conn(__objt_check(sess->origin)->cs) : NULL);
 		status = 0;
 		s_flags = SF_ERR_PRXCOND | SF_FINST_R;
 		uniq_id = _HA_ATOMIC_FETCH_ADD(&global.req_count, 1);

@@ -2678,7 +2678,7 @@ static int hlua_socket_getsockname(struct lua_State *L)
 	appctx = container_of(peer, struct hlua_csk_ctx, xref)->appctx;
 	s = appctx_strm(appctx);
 
-	conn = cs_conn(s->scb);
+	conn = sc_conn(s->scb);
 	if (!conn || !conn_get_src(conn)) {
 		xref_unlock(&socket->xref, peer);
 		lua_pushnil(L);

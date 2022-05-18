@@ -1335,7 +1335,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	if (unlikely(htx_is_empty(htx) || htx->first == -1)) {
 		/* 1: have we encountered a read error ? */
 		if (rep->flags & CF_READ_ERROR) {
-			struct connection *conn = cs_conn(s->scb);
+			struct connection *conn = sc_conn(s->scb);
 
 			/* Perform a L7 retry because server refuses the early data. */
 			if ((txn->flags & TX_L7_RETRY) &&
@@ -1666,7 +1666,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	/* check for NTML authentication headers in 401 (WWW-Authenticate) and
 	 * 407 (Proxy-Authenticate) responses and set the connection to private
 	 */
-	srv_conn = cs_conn(s->scb);
+	srv_conn = sc_conn(s->scb);
 	if (srv_conn) {
 		struct ist hdr;
 		struct http_hdr_ctx ctx;
@@ -5098,7 +5098,7 @@ static void http_debug_stline(const char *dir, struct stream *s, const struct ht
         chunk_printf(&trash, "%08x:%s.%s[%04x:%04x]: ", s->uniq_id, s->be->id,
                      dir,
                      objt_conn(sess->origin) ? (unsigned short)__objt_conn(sess->origin)->handle.fd : -1,
-                     cs_conn(s->scb) ? (unsigned short)(__cs_conn(s->scb))->handle.fd : -1);
+                     sc_conn(s->scb) ? (unsigned short)(__sc_conn(s->scb))->handle.fd : -1);
 
         max = HTX_SL_P1_LEN(sl);
         UBOUND(max, trash.size - trash.data - 3);
@@ -5129,7 +5129,7 @@ static void http_debug_hdr(const char *dir, struct stream *s, const struct ist n
         chunk_printf(&trash, "%08x:%s.%s[%04x:%04x]: ", s->uniq_id, s->be->id,
                      dir,
                      objt_conn(sess->origin) ? (unsigned short)__objt_conn(sess->origin)->handle.fd : -1,
-                     cs_conn(s->scb) ? (unsigned short)(__cs_conn(s->scb))->handle.fd : -1);
+                     sc_conn(s->scb) ? (unsigned short)(__sc_conn(s->scb))->handle.fd : -1);
 
         max = n.len;
         UBOUND(max, trash.size - trash.data - 3);

@@ -2301,7 +2301,7 @@ void back_handle_st_cer(struct stream *s)
 
 	/* we probably have to release last stream from the server */
 	if (objt_server(s->target)) {
-		struct connection *conn = cs_conn(cs);
+		struct connection *conn = sc_conn(cs);
 
 		health_adjust(__objt_server(s->target), HANA_STATUS_L4_ERR);
 

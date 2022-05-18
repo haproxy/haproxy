@@ -1191,7 +1191,7 @@ int conn_send_proxy(struct connection *conn, unsigned int flag)
 		if (cs && sc_strm(cs)) {
 			ret = make_proxy_line(trash.area, trash.size,
 					      objt_server(conn->target),
-					      cs_conn(cs_opposite(cs)),
+					      sc_conn(cs_opposite(cs)),
 					      __sc_strm(cs));
 		}
 		else {
@@ -2103,10 +2103,10 @@ smp_fetch_fc_http_major(const struct arg *args, struct sample *smp, const char *
 	struct connection *conn = NULL;
 
 	if (obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
-                conn = (kw[0] == 'b') ? cs_conn(__objt_check(smp->sess->origin)->cs) : NULL;
+                conn = (kw[0] == 'b') ? sc_conn(__objt_check(smp->sess->origin)->cs) : NULL;
         else
                 conn = (kw[0] != 'b') ? objt_conn(smp->sess->origin) :
-			smp->strm ? cs_conn(smp->strm->scb) : NULL;
+			smp->strm ? sc_conn(smp->strm->scb) : NULL;
 
 	/* No connection or a connection with a RAW muxx */
 	if (!conn || (conn->mux && !(conn->mux->flags & MX_FL_HTX)))
@@ -2200,10 +2200,10 @@ int smp_fetch_fc_err(const struct arg *args, struct sample *smp, const char *kw,
 	struct connection *conn;
 
 	if (obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
-                conn = (kw[0] == 'b') ? cs_conn(__objt_check(smp->sess->origin)->cs) : NULL;
+                conn = (kw[0] == 'b') ? sc_conn(__objt_check(smp->sess->origin)->cs) : NULL;
         else
                 conn = (kw[0] != 'b') ? objt_conn(smp->sess->origin) :
-			smp->strm ? cs_conn(smp->strm->scb) : NULL;
+			smp->strm ? sc_conn(smp->strm->scb) : NULL;
 
 	if (!conn)
 		return 0;
@@ -2227,10 +2227,10 @@ int smp_fetch_fc_err_str(const struct arg *args, struct sample *smp, const char 
 	const char *err_code_str;
 
 	if (obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
-                conn = (kw[0] == 'b') ? cs_conn(__objt_check(smp->sess->origin)->cs) : NULL;
+                conn = (kw[0] == 'b') ? sc_conn(__objt_check(smp->sess->origin)->cs) : NULL;
         else
                 conn = (kw[0] != 'b') ? objt_conn(smp->sess->origin) :
-			smp->strm ? cs_conn(smp->strm->scb) : NULL;
+			smp->strm ? sc_conn(smp->strm->scb) : NULL;
 
 	if (!conn)
 		return 0;

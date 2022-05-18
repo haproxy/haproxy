@@ -33,7 +33,7 @@ struct appctx;
 struct stream;
 struct check;
 
-#define IS_HTX_CS(cs)     (cs_conn(cs) && IS_HTX_CONN(__cs_conn(cs)))
+#define IS_HTX_CS(cs)     (sc_conn(cs) && IS_HTX_CONN(__sc_conn(cs)))
 
 struct sedesc *sedesc_new();
 void sedesc_free(struct sedesc *sedesc);
@@ -131,17 +131,17 @@ static inline void *__cs_endp_target(const struct stconn *cs)
 }
 
 /* Returns the connection from a cs if the endpoint is a mux stream. Otherwise
- * NULL is returned. __cs_conn() returns the connection without any control
- * while cs_conn() check the endpoint type.
+ * NULL is returned. __sc_conn() returns the connection without any control
+ * while sc_conn() check the endpoint type.
  */
-static inline struct connection *__cs_conn(const struct stconn *cs)
+static inline struct connection *__sc_conn(const struct stconn *cs)
 {
 	return cs->sedesc->conn;
 }
-static inline struct connection *cs_conn(const struct stconn *cs)
+static inline struct connection *sc_conn(const struct stconn *cs)
 {
 	if (sc_ep_test(cs, SE_FL_T_MUX))
-		return __cs_conn(cs);
+		return __sc_conn(cs);
 	return NULL;
 }
 
@@ -150,7 +150,7 @@ static inline struct connection *cs_conn(const struct stconn *cs)
  */
 static inline const struct mux_ops *cs_conn_mux(const struct stconn *cs)
 {
-	const struct connection *conn = cs_conn(cs);
+	const struct connection *conn = sc_conn(cs);
 
 	return (conn ? conn->mux : NULL);
 }
@@ -227,7 +227,7 @@ static inline void cs_conn_shutr(struct stconn *cs, enum co_shr_mode mode)
 {
 	const struct mux_ops *mux;
 
-	BUG_ON(!cs_conn(cs));
+	BUG_ON(!sc_conn(cs));
 
 	if (sc_ep_test(cs, SE_FL_SHR))
 		return;
@@ -244,7 +244,7 @@ static inline void cs_conn_shutw(struct stconn *cs, enum co_shw_mode mode)
 {
 	const struct mux_ops *mux;
 
-	BUG_ON(!cs_conn(cs));
+	BUG_ON(!sc_conn(cs));
 
 	if (sc_ep_test(cs, SE_FL_SHW))
 		return;
