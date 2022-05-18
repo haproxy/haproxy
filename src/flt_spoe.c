@@ -1223,12 +1223,12 @@ spoe_init_appctx(struct appctx *appctx)
 	struct stream *s;
 
 	if ((task = task_new_here()) == NULL)
-		goto out_free_task;
+		goto out_error;
 	task->process = spoe_process_appctx;
 	task->context = appctx;
 
 	if (appctx_finalize_startup(appctx, &agent->spoe_conf->agent_fe, &BUF_NULL) == -1)
-		goto out_error;
+		goto out_free_task;
 
 	spoe_appctx->owner = appctx;
 	spoe_appctx->task  = task;
