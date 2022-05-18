@@ -1458,7 +1458,7 @@ static void qc_detach(struct sedesc *endp)
 static size_t qc_rcv_buf(struct stconn *cs, struct buffer *buf,
                          size_t count, int flags)
 {
-	struct qcs *qcs = __cs_mux(cs);
+	struct qcs *qcs = __sc_mux_strm(cs);
 	struct htx *qcs_htx = NULL;
 	struct htx *cs_htx = NULL;
 	size_t ret = 0;
@@ -1528,7 +1528,7 @@ static size_t qc_rcv_buf(struct stconn *cs, struct buffer *buf,
 static size_t qc_snd_buf(struct stconn *cs, struct buffer *buf,
                          size_t count, int flags)
 {
-	struct qcs *qcs = __cs_mux(cs);
+	struct qcs *qcs = __sc_mux_strm(cs);
 	size_t ret;
 
 	TRACE_ENTER(QMUX_EV_STRM_SEND, qcs->qcc->conn, qcs);
@@ -1548,7 +1548,7 @@ static size_t qc_snd_buf(struct stconn *cs, struct buffer *buf,
 static int qc_subscribe(struct stconn *cs, int event_type,
                         struct wait_event *es)
 {
-	return qcs_subscribe(__cs_mux(cs), event_type, es);
+	return qcs_subscribe(__sc_mux_strm(cs), event_type, es);
 }
 
 /* Called from the upper layer, to unsubscribe <es> from events <event_type>.
@@ -1557,7 +1557,7 @@ static int qc_subscribe(struct stconn *cs, int event_type,
  */
 static int qc_unsubscribe(struct stconn *cs, int event_type, struct wait_event *es)
 {
-	struct qcs *qcs = __cs_mux(cs);
+	struct qcs *qcs = __sc_mux_strm(cs);
 
 	BUG_ON(event_type & ~(SUB_RETRY_SEND|SUB_RETRY_RECV));
 	BUG_ON(qcs->subs && qcs->subs != es);

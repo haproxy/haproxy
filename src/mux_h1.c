@@ -3472,7 +3472,7 @@ static void h1_detach(struct sedesc *endp)
 
 static void h1_shutr(struct stconn *cs, enum co_shr_mode mode)
 {
-	struct h1s *h1s = __cs_mux(cs);
+	struct h1s *h1s = __sc_mux_strm(cs);
 	struct h1c *h1c;
 
 	if (!h1s)
@@ -3515,7 +3515,7 @@ static void h1_shutr(struct stconn *cs, enum co_shr_mode mode)
 
 static void h1_shutw(struct stconn *cs, enum co_shw_mode mode)
 {
-	struct h1s *h1s = __cs_mux(cs);
+	struct h1s *h1s = __sc_mux_strm(cs);
 	struct h1c *h1c;
 
 	if (!h1s)
@@ -3575,7 +3575,7 @@ static void h1_shutw_conn(struct connection *conn)
  */
 static int h1_unsubscribe(struct stconn *cs, int event_type, struct wait_event *es)
 {
-	struct h1s *h1s = __cs_mux(cs);
+	struct h1s *h1s = __sc_mux_strm(cs);
 
 	if (!h1s)
 		return 0;
@@ -3605,7 +3605,7 @@ static int h1_unsubscribe(struct stconn *cs, int event_type, struct wait_event *
  */
 static int h1_subscribe(struct stconn *cs, int event_type, struct wait_event *es)
 {
-	struct h1s *h1s = __cs_mux(cs);
+	struct h1s *h1s = __sc_mux_strm(cs);
 	struct h1c *h1c;
 
 	if (!h1s)
@@ -3653,7 +3653,7 @@ static int h1_subscribe(struct stconn *cs, int event_type, struct wait_event *es
  */
 static size_t h1_rcv_buf(struct stconn *cs, struct buffer *buf, size_t count, int flags)
 {
-	struct h1s *h1s = __cs_mux(cs);
+	struct h1s *h1s = __sc_mux_strm(cs);
 	struct h1c *h1c = h1s->h1c;
 	struct h1m *h1m = (!(h1c->flags & H1C_F_IS_BACK) ? &h1s->req : &h1s->res);
 	size_t ret = 0;
@@ -3689,7 +3689,7 @@ static size_t h1_rcv_buf(struct stconn *cs, struct buffer *buf, size_t count, in
 /* Called from the upper layer, to send data */
 static size_t h1_snd_buf(struct stconn *cs, struct buffer *buf, size_t count, int flags)
 {
-	struct h1s *h1s = __cs_mux(cs);
+	struct h1s *h1s = __sc_mux_strm(cs);
 	struct h1c *h1c;
 	size_t total = 0;
 
@@ -3754,7 +3754,7 @@ static size_t h1_snd_buf(struct stconn *cs, struct buffer *buf, size_t count, in
 /* Send and get, using splicing */
 static int h1_rcv_pipe(struct stconn *cs, struct pipe *pipe, unsigned int count)
 {
-	struct h1s *h1s = __cs_mux(cs);
+	struct h1s *h1s = __sc_mux_strm(cs);
 	struct h1c *h1c = h1s->h1c;
 	struct h1m *h1m = (!(h1c->flags & H1C_F_IS_BACK) ? &h1s->req : &h1s->res);
 	int ret = 0;
@@ -3824,7 +3824,7 @@ static int h1_rcv_pipe(struct stconn *cs, struct pipe *pipe, unsigned int count)
 
 static int h1_snd_pipe(struct stconn *cs, struct pipe *pipe)
 {
-	struct h1s *h1s = __cs_mux(cs);
+	struct h1s *h1s = __sc_mux_strm(cs);
 	struct h1c *h1c = h1s->h1c;
 	struct h1m *h1m = (!(h1c->flags & H1C_F_IS_BACK) ? &h1s->res : &h1s->req);
 	int ret = 0;

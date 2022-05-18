@@ -155,18 +155,18 @@ static inline const struct mux_ops *cs_conn_mux(const struct stconn *cs)
 	return (conn ? conn->mux : NULL);
 }
 
-/* Returns the mux from a cs if the endpoint is a mux. Otherwise
- * NULL is returned. __cs_mux() returns the mux without any control
- * while cs_mux() check the endpoint type.
+/* Returns a pointer to the mux stream from a connector if the endpoint is
+ * a mux. Otherwise NULL is returned. __sc_mux_strm() returns the mux without
+ * any control while sc_mux_strm() checks the endpoint type.
  */
-static inline void *__cs_mux(const struct stconn *cs)
+static inline void *__sc_mux_strm(const struct stconn *cs)
 {
 	return __cs_endp_target(cs);
 }
-static inline struct appctx *cs_mux(const struct stconn *cs)
+static inline struct appctx *sc_mux_strm(const struct stconn *cs)
 {
 	if (sc_ep_test(cs, SE_FL_T_MUX))
-		return __cs_mux(cs);
+		return __sc_mux_strm(cs);
 	return NULL;
 }
 

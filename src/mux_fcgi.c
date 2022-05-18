@@ -3861,7 +3861,7 @@ struct task *fcgi_deferred_shut(struct task *t, void *ctx, unsigned int state)
 /* shutr() called by the stream conector (mux_ops.shutr) */
 static void fcgi_shutr(struct stconn *cs, enum co_shr_mode mode)
 {
-	struct fcgi_strm *fstrm = __cs_mux(cs);
+	struct fcgi_strm *fstrm = __sc_mux_strm(cs);
 
 	TRACE_POINT(FCGI_EV_STRM_SHUT, fstrm->fconn->conn, fstrm);
 	if (!mode)
@@ -3872,7 +3872,7 @@ static void fcgi_shutr(struct stconn *cs, enum co_shr_mode mode)
 /* shutw() called by the stream connector (mux_ops.shutw) */
 static void fcgi_shutw(struct stconn *cs, enum co_shw_mode mode)
 {
-	struct fcgi_strm *fstrm = __cs_mux(cs);
+	struct fcgi_strm *fstrm = __sc_mux_strm(cs);
 
 	TRACE_POINT(FCGI_EV_STRM_SHUT, fstrm->fconn->conn, fstrm);
 	fcgi_do_shutw(fstrm);
@@ -3885,7 +3885,7 @@ static void fcgi_shutw(struct stconn *cs, enum co_shw_mode mode)
  */
 static int fcgi_subscribe(struct stconn *cs, int event_type, struct wait_event *es)
 {
-	struct fcgi_strm *fstrm = __cs_mux(cs);
+	struct fcgi_strm *fstrm = __sc_mux_strm(cs);
 	struct fcgi_conn *fconn = fstrm->fconn;
 
 	BUG_ON(event_type & ~(SUB_RETRY_SEND|SUB_RETRY_RECV));
@@ -3911,7 +3911,7 @@ static int fcgi_subscribe(struct stconn *cs, int event_type, struct wait_event *
  */
 static int fcgi_unsubscribe(struct stconn *cs, int event_type, struct wait_event *es)
 {
-	struct fcgi_strm *fstrm = __cs_mux(cs);
+	struct fcgi_strm *fstrm = __sc_mux_strm(cs);
 	struct fcgi_conn *fconn = fstrm->fconn;
 
 	BUG_ON(event_type & ~(SUB_RETRY_SEND|SUB_RETRY_RECV));
@@ -3947,7 +3947,7 @@ static int fcgi_unsubscribe(struct stconn *cs, int event_type, struct wait_event
  */
 static size_t fcgi_rcv_buf(struct stconn *cs, struct buffer *buf, size_t count, int flags)
 {
-	struct fcgi_strm *fstrm = __cs_mux(cs);
+	struct fcgi_strm *fstrm = __sc_mux_strm(cs);
 	struct fcgi_conn *fconn = fstrm->fconn;
 	size_t ret = 0;
 
@@ -3991,7 +3991,7 @@ static size_t fcgi_rcv_buf(struct stconn *cs, struct buffer *buf, size_t count, 
  */
 static size_t fcgi_snd_buf(struct stconn *cs, struct buffer *buf, size_t count, int flags)
 {
-	struct fcgi_strm *fstrm = __cs_mux(cs);
+	struct fcgi_strm *fstrm = __sc_mux_strm(cs);
 	struct fcgi_conn *fconn = fstrm->fconn;
 	size_t total = 0;
 	size_t ret;

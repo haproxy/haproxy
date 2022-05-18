@@ -4694,7 +4694,7 @@ struct task *h2_deferred_shut(struct task *t, void *ctx, unsigned int state)
 /* shutr() called by the stream connector (mux_ops.shutr) */
 static void h2_shutr(struct stconn *cs, enum co_shr_mode mode)
 {
-	struct h2s *h2s = __cs_mux(cs);
+	struct h2s *h2s = __sc_mux_strm(cs);
 
 	TRACE_ENTER(H2_EV_STRM_SHUT, h2s->h2c->conn, h2s);
 	if (mode)
@@ -4705,7 +4705,7 @@ static void h2_shutr(struct stconn *cs, enum co_shr_mode mode)
 /* shutw() called by the stream connector (mux_ops.shutw) */
 static void h2_shutw(struct stconn *cs, enum co_shw_mode mode)
 {
-	struct h2s *h2s = __cs_mux(cs);
+	struct h2s *h2s = __sc_mux_strm(cs);
 
 	TRACE_ENTER(H2_EV_STRM_SHUT, h2s->h2c->conn, h2s);
 	h2_do_shutw(h2s);
@@ -6379,7 +6379,7 @@ static size_t h2s_make_trailers(struct h2s *h2s, struct htx *htx)
  */
 static int h2_subscribe(struct stconn *cs, int event_type, struct wait_event *es)
 {
-	struct h2s *h2s = __cs_mux(cs);
+	struct h2s *h2s = __sc_mux_strm(cs);
 	struct h2c *h2c = h2s->h2c;
 
 	TRACE_ENTER(H2_EV_STRM_SEND|H2_EV_STRM_RECV, h2c->conn, h2s);
@@ -6413,7 +6413,7 @@ static int h2_subscribe(struct stconn *cs, int event_type, struct wait_event *es
  */
 static int h2_unsubscribe(struct stconn *cs, int event_type, struct wait_event *es)
 {
-	struct h2s *h2s = __cs_mux(cs);
+	struct h2s *h2s = __sc_mux_strm(cs);
 
 	TRACE_ENTER(H2_EV_STRM_SEND|H2_EV_STRM_RECV, h2s->h2c->conn, h2s);
 
@@ -6453,7 +6453,7 @@ static int h2_unsubscribe(struct stconn *cs, int event_type, struct wait_event *
  */
 static size_t h2_rcv_buf(struct stconn *cs, struct buffer *buf, size_t count, int flags)
 {
-	struct h2s *h2s = __cs_mux(cs);
+	struct h2s *h2s = __sc_mux_strm(cs);
 	struct h2c *h2c = h2s->h2c;
 	struct htx *h2s_htx = NULL;
 	struct htx *buf_htx = NULL;
@@ -6536,7 +6536,7 @@ static size_t h2_rcv_buf(struct stconn *cs, struct buffer *buf, size_t count, in
  */
 static size_t h2_snd_buf(struct stconn *cs, struct buffer *buf, size_t count, int flags)
 {
-	struct h2s *h2s = __cs_mux(cs);
+	struct h2s *h2s = __sc_mux_strm(cs);
 	size_t total = 0;
 	size_t ret;
 	struct htx *htx;
