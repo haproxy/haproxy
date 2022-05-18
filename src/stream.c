@@ -3317,7 +3317,7 @@ static int stats_dump_full_strm_to_buffer(struct stconn *cs, struct stream *strm
 				      conn_get_ctrl_name(conn),
 				      conn_get_xprt_name(conn),
 				      conn_get_mux_name(conn),
-				      cs_get_data_name(scf),
+				      sc_get_data_name(scf),
 			              obj_type_name(conn->target),
 			              obj_base_ptr(conn->target));
 
@@ -3356,7 +3356,7 @@ static int stats_dump_full_strm_to_buffer(struct stconn *cs, struct stream *strm
 				      conn_get_ctrl_name(conn),
 				      conn_get_xprt_name(conn),
 				      conn_get_mux_name(conn),
-				      cs_get_data_name(scb),
+				      sc_get_data_name(scb),
 			              obj_type_name(conn->target),
 			              obj_base_ptr(conn->target));
 

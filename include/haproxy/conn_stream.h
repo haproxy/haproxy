@@ -215,7 +215,11 @@ static inline struct check *sc_check(const struct stconn *cs)
 		return __objt_check(cs->app);
 	return NULL;
 }
-static inline const char *cs_get_data_name(const struct stconn *cs)
+
+/* Returns the name of the application layer's name for the stconn,
+ * or "NONE" when none is attached.
+ */
+static inline const char *sc_get_data_name(const struct stconn *cs)
 {
 	if (!cs->app_ops)
 		return "NONE";
