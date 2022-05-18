@@ -26,7 +26,9 @@
 
 #include <haproxy/api.h>
 #include <haproxy/applet-t.h>
+#include <haproxy/channel.h>
 #include <haproxy/conn_stream.h>
+#include <haproxy/cs_utils.h>
 #include <haproxy/list.h>
 #include <haproxy/pool.h>
 #include <haproxy/session.h>
@@ -124,6 +126,71 @@ static inline struct stconn *appctx_cs(const struct appctx *appctx)
 static inline struct stream *appctx_strm(const struct appctx *appctx)
 {
 	return __cs_strm(appctx->sedesc->sc);
+}
+
+/* writes chunk <chunk> into the input channel of the stream attached to this
+ * appctx's endpoint, and marks the RXBLK_ROOM on a channel full error. See
+ * ci_putchk() for the list of return codes.
+ */
+static inline int applet_putchk(struct appctx *appctx, struct buffer *chunk)
+{
+	struct sedesc *se = appctx->sedesc;
+	int ret;
+
+	ret = ci_putchk(cs_ic(se->sc), chunk);
+	if (ret == -1)
+		se_fl_set(se, SE_FL_RXBLK_ROOM);
+
+	return ret;
+}
+
+/* writes <len> chars from <blk> into the input channel of the stream attached
+ * to this appctx's endpoint, and marks the RXBLK_ROOM on a channel full error.
+ * See ci_putblk() for the list of return codes.
+ */
+static inline int applet_putblk(struct appctx *appctx, const char *blk, int len)
+{
+	struct sedesc *se = appctx->sedesc;
+	int ret;
+
+	ret = ci_putblk(cs_ic(se->sc), blk, len);
+	if (ret == -1)
+		se_fl_set(se, SE_FL_RXBLK_ROOM);
+
+	return ret;
+}
+
+/* writes chars from <str> up to the trailing zero (excluded) into the input
+ * channel of the stream attached to this appctx's endpoint, and marks the
+ * RXBLK_ROOM on a channel full error. See ci_putstr() for the list of return
+ * codes.
+ */
+static inline int applet_putstr(struct appctx *appctx, const char *str)
+{
+	struct sedesc *se = appctx->sedesc;
+	int ret;
+
+	ret = ci_putstr(cs_ic(se->sc), str);
+	if (ret == -1)
+		se_fl_set(se, SE_FL_RXBLK_ROOM);
+
+	return ret;
+}
+
+/* writes character <chr> into the input channel of the stream attached to this
+ * appctx's endpoint, and marks the RXBLK_ROOM on a channel full error. See
+ * ci_putchr() for the list of return codes.
+ */
+static inline int applet_putchr(struct appctx *appctx, char chr)
+{
+	struct sedesc *se = appctx->sedesc;
+	int ret;
+
+	ret = ci_putchr(cs_ic(se->sc), chr);
+	if (ret == -1)
+		se_fl_set(se, SE_FL_RXBLK_ROOM);
+
+	return ret;
 }
 
 #endif /* _HAPROXY_APPLET_H */
