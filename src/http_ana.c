@@ -3973,7 +3973,7 @@ static int http_handle_stats(struct stream *s, struct channel *req)
 	struct http_msg *msg = &txn->req;
 	struct uri_auth *uri_auth = s->be->uri_auth;
 	const char *h, *lookup, *end;
-	struct appctx *appctx = __cs_appctx(s->scb);
+	struct appctx *appctx = __sc_appctx(s->scb);
 	struct show_stat_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
 	struct htx *htx;
 	struct htx_sl *sl;

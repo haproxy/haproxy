@@ -2708,7 +2708,7 @@ static void dump_server_addr(const struct sockaddr_storage *addr, char *addr_str
  */
 static int dump_servers_state(struct stconn *cs)
 {
-	struct appctx *appctx = __cs_appctx(cs);
+	struct appctx *appctx = __sc_appctx(cs);
 	struct show_srv_ctx *ctx = appctx->svcctx;
 	struct proxy *px = ctx->px;
 	struct server *srv;

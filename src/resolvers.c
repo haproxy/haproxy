@@ -2592,7 +2592,7 @@ static int stats_dump_resolv_to_buffer(struct stconn *cs,
                                     struct field *stats, size_t stats_count,
                                     struct list *stat_modules)
 {
-	struct appctx *appctx = __cs_appctx(cs);
+	struct appctx *appctx = __sc_appctx(cs);
 	struct channel *rep = sc_ic(cs);
 	struct stats_module *mod;
 	size_t idx = 0;
@@ -2626,7 +2626,7 @@ int stats_dump_resolvers(struct stconn *cs,
                          struct field *stats, size_t stats_count,
                          struct list *stat_modules)
 {
-	struct appctx *appctx = __cs_appctx(cs);
+	struct appctx *appctx = __sc_appctx(cs);
 	struct show_stat_ctx *ctx = appctx->svcctx;
 	struct channel *rep = sc_ic(cs);
 	struct resolvers *resolver = ctx->obj1;

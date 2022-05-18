@@ -1814,7 +1814,7 @@ int stats_fill_fe_stats(struct proxy *px, struct field *stats, int len,
  */
 static int stats_dump_fe_stats(struct stconn *cs, struct proxy *px)
 {
-	struct appctx *appctx = __cs_appctx(cs);
+	struct appctx *appctx = __sc_appctx(cs);
 	struct show_stat_ctx *ctx = appctx->svcctx;
 	struct field *stats = stat_l[STATS_DOMAIN_PROXY];
 	struct stats_module *mod;
@@ -1982,7 +1982,7 @@ int stats_fill_li_stats(struct proxy *px, struct listener *l, int flags,
  */
 static int stats_dump_li_stats(struct stconn *cs, struct proxy *px, struct listener *l)
 {
-	struct appctx *appctx = __cs_appctx(cs);
+	struct appctx *appctx = __sc_appctx(cs);
 	struct show_stat_ctx *ctx = appctx->svcctx;
 	struct field *stats = stat_l[STATS_DOMAIN_PROXY];
 	struct stats_module *mod;
@@ -2494,7 +2494,7 @@ int stats_fill_sv_stats(struct proxy *px, struct server *sv, int flags,
  */
 static int stats_dump_sv_stats(struct stconn *cs, struct proxy *px, struct server *sv)
 {
-	struct appctx *appctx = __cs_appctx(cs);
+	struct appctx *appctx = __sc_appctx(cs);
 	struct show_stat_ctx *ctx = appctx->svcctx;
 	struct stats_module *mod;
 	struct field *stats = stat_l[STATS_DOMAIN_PROXY];
@@ -2820,7 +2820,7 @@ int stats_fill_be_stats(struct proxy *px, int flags, struct field *stats, int le
  */
 static int stats_dump_be_stats(struct stconn *cs, struct proxy *px)
 {
-	struct appctx *appctx = __cs_appctx(cs);
+	struct appctx *appctx = __sc_appctx(cs);
 	struct show_stat_ctx *ctx = appctx->svcctx;
 	struct field *stats = stat_l[STATS_DOMAIN_PROXY];
 	struct stats_module *mod;
@@ -2862,7 +2862,7 @@ static int stats_dump_be_stats(struct stconn *cs, struct proxy *px)
  */
 static void stats_dump_html_px_hdr(struct stconn *cs, struct proxy *px)
 {
-	struct appctx *appctx = __cs_appctx(cs);
+	struct appctx *appctx = __sc_appctx(cs);
 	struct show_stat_ctx *ctx = appctx->svcctx;
 	char scope_txt[STAT_SCOPE_TXT_MAXLEN + sizeof STAT_SCOPE_PATTERN];
 	struct stats_module *mod;
@@ -2972,7 +2972,7 @@ static void stats_dump_html_px_hdr(struct stconn *cs, struct proxy *px)
  */
 static void stats_dump_html_px_end(struct stconn *cs, struct proxy *px)
 {
-	struct appctx *appctx = __cs_appctx(cs);
+	struct appctx *appctx = __sc_appctx(cs);
 	struct show_stat_ctx *ctx = appctx->svcctx;
 
 	chunk_appendf(&trash, "</table>");
@@ -3016,7 +3016,7 @@ static void stats_dump_html_px_end(struct stconn *cs, struct proxy *px)
 int stats_dump_proxy_to_buffer(struct stconn *cs, struct htx *htx,
 			       struct proxy *px, struct uri_auth *uri)
 {
-	struct appctx *appctx = __cs_appctx(cs);
+	struct appctx *appctx = __sc_appctx(cs);
 	struct show_stat_ctx *ctx = appctx->svcctx;
 	struct stream *s = __sc_strm(cs);
 	struct channel *rep = sc_ic(cs);
@@ -3394,7 +3394,7 @@ static void stats_dump_html_head(struct appctx *appctx, struct uri_auth *uri)
  */
 static void stats_dump_html_info(struct stconn *cs, struct uri_auth *uri)
 {
-	struct appctx *appctx = __cs_appctx(cs);
+	struct appctx *appctx = __sc_appctx(cs);
 	struct show_stat_ctx *ctx = appctx->svcctx;
 	unsigned int up = (now.tv_sec - start_date.tv_sec);
 	char scope_txt[STAT_SCOPE_TXT_MAXLEN + sizeof STAT_SCOPE_PATTERN];
@@ -3677,7 +3677,7 @@ static int stats_dump_proxies(struct stconn *cs,
                               struct htx *htx,
                               struct uri_auth *uri)
 {
-	struct appctx *appctx = __cs_appctx(cs);
+	struct appctx *appctx = __sc_appctx(cs);
 	struct show_stat_ctx *ctx = appctx->svcctx;
 	struct channel *rep = sc_ic(cs);
 	struct proxy *px;
@@ -3725,7 +3725,7 @@ static int stats_dump_proxies(struct stconn *cs,
 static int stats_dump_stat_to_buffer(struct stconn *cs, struct htx *htx,
 				     struct uri_auth *uri)
 {
-	struct appctx *appctx = __cs_appctx(cs);
+	struct appctx *appctx = __sc_appctx(cs);
 	struct show_stat_ctx *ctx = appctx->svcctx;
 	struct channel *rep = sc_ic(cs);
 	enum stats_domain domain = ctx->domain;
@@ -3828,7 +3828,7 @@ static int stats_dump_stat_to_buffer(struct stconn *cs, struct htx *htx,
 static int stats_process_http_post(struct stconn *cs)
 {
 	struct stream *s = __sc_strm(cs);
-	struct appctx *appctx = __cs_appctx(cs);
+	struct appctx *appctx = __sc_appctx(cs);
 	struct show_stat_ctx *ctx = appctx->svcctx;
 
 	struct proxy *px = NULL;
@@ -4165,7 +4165,7 @@ static int stats_send_http_headers(struct stconn *cs, struct htx *htx)
 {
 	struct stream *s = __sc_strm(cs);
 	struct uri_auth *uri = s->be->uri_auth;
-	struct appctx *appctx = __cs_appctx(cs);
+	struct appctx *appctx = __sc_appctx(cs);
 	struct show_stat_ctx *ctx = appctx->svcctx;
 	struct htx_sl *sl;
 	unsigned int flags;
@@ -4220,7 +4220,7 @@ static int stats_send_http_redirect(struct stconn *cs, struct htx *htx)
 	char scope_txt[STAT_SCOPE_TXT_MAXLEN + sizeof STAT_SCOPE_PATTERN];
 	struct stream *s = __sc_strm(cs);
 	struct uri_auth *uri = s->be->uri_auth;
-	struct appctx *appctx = __cs_appctx(cs);
+	struct appctx *appctx = __sc_appctx(cs);
 	struct show_stat_ctx *ctx = appctx->svcctx;
 	struct htx_sl *sl;
 	unsigned int flags;
@@ -4550,7 +4550,7 @@ int stats_fill_info(struct field *info, int len, uint flags)
  */
 static int stats_dump_info_to_buffer(struct stconn *cs)
 {
-	struct appctx *appctx = __cs_appctx(cs);
+	struct appctx *appctx = __sc_appctx(cs);
 	struct show_stat_ctx *ctx = appctx->svcctx;
 
 	if (!stats_fill_info(info, INF_TOTAL_FIELDS, ctx->flags))

@@ -536,7 +536,7 @@ struct stream *stream_new(struct session *sess, struct stconn *cs, struct buffer
 		goto out_fail_accept;
 
 	/* finish initialization of the accepted file descriptor */
-	if (cs_appctx(cs))
+	if (sc_appctx(cs))
 		cs_want_get(s->scf);
 
 	if (sess->fe->accept && sess->fe->accept(s) < 0)
@@ -1002,7 +1002,7 @@ enum act_return process_use_service(struct act_rule *rule, struct proxy *px,
 			return ACT_RET_ERR;
 	}
 	else
-		appctx = __cs_appctx(s->scb);
+		appctx = __sc_appctx(s->scb);
 
 	if (rule->from != ACT_F_HTTP_REQ) {
 		if (sess->fe == s->be) /* report it if the request was intercepted by the frontend */
@@ -1542,15 +1542,15 @@ static void stream_update_both_cs(struct stream *s)
 	/* stream connectors are processed outside of process_stream() and must be
 	 * handled at the latest moment.
 	 */
-	if (cs_appctx(scf)) {
+	if (sc_appctx(scf)) {
 		if ((cs_rx_endp_ready(scf) && !cs_rx_blocked(scf)) ||
 		    (cs_tx_endp_ready(scf) && !cs_tx_blocked(scf)))
-			appctx_wakeup(__cs_appctx(scf));
+			appctx_wakeup(__sc_appctx(scf));
 	}
-	if (cs_appctx(scb)) {
+	if (sc_appctx(scb)) {
 		if ((cs_rx_endp_ready(scb) && !cs_rx_blocked(scb)) ||
 		    (cs_tx_endp_ready(scb) && !cs_tx_blocked(scb)))
-			appctx_wakeup(__cs_appctx(scb));
+			appctx_wakeup(__sc_appctx(scb));
 	}
 }
 
@@ -2755,7 +2755,7 @@ void stream_dump(struct buffer *buf, const struct stream *s, const char *pfx, ch
 
 	scf = s->scf;
 	cof = sc_conn(scf);
-	acf = cs_appctx(scf);
+	acf = sc_appctx(scf);
 	if (cof && cof->src && addr_to_str(cof->src, pn, sizeof(pn)) >= 0)
 		src = pn;
 	else if (acf)
@@ -2763,7 +2763,7 @@ void stream_dump(struct buffer *buf, const struct stream *s, const char *pfx, ch
 
 	scb = s->scb;
 	cob = sc_conn(scb);
-	acb = cs_appctx(scb);
+	acb = sc_appctx(scb);
 	srv = objt_server(s->target);
 	if (srv)
 		dst = srv->id;
@@ -3152,7 +3152,7 @@ struct show_sess_ctx {
  */
 static int stats_dump_full_strm_to_buffer(struct stconn *cs, struct stream *strm)
 {
-	struct appctx *appctx = __cs_appctx(cs);
+	struct appctx *appctx = __sc_appctx(cs);
 	struct show_sess_ctx *ctx = appctx->svcctx;
 	struct stconn *scf, *scb;
 	struct tm tm;
@@ -3330,7 +3330,7 @@ static int stats_dump_full_strm_to_buffer(struct stconn *cs, struct stream *strm
 				      conn_fd(conn) >= 0 ? fdtab[conn->handle.fd].thread_mask: 0);
 
 		}
-		else if ((tmpctx = cs_appctx(scf)) != NULL) {
+		else if ((tmpctx = sc_appctx(scf)) != NULL) {
 			chunk_appendf(&trash,
 			              "      app0=%p st0=%d st1=%d st2=%d applet=%s tmask=0x%lx nice=%d calls=%u rate=%u cpu=%llu lat=%llu\n",
 				      tmpctx,
@@ -3369,7 +3369,7 @@ static int stats_dump_full_strm_to_buffer(struct stconn *cs, struct stream *strm
 				      conn_fd(conn) >= 0 ? fdtab[conn->handle.fd].thread_mask: 0);
 
 		}
-		else if ((tmpctx = cs_appctx(scb)) != NULL) {
+		else if ((tmpctx = sc_appctx(scb)) != NULL) {
 			chunk_appendf(&trash,
 			              "      app1=%p st0=%d st1=%d st2=%d applet=%s tmask=0x%lx nice=%d calls=%u rate=%u cpu=%llu lat=%llu\n",
 				      tmpctx,

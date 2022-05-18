@@ -2174,7 +2174,7 @@ void back_handle_st_req(struct stream *s)
 		 * means no appctx are attached to the CS. Otherwise, it will be
 		 * in SC_ST_RDY state. So, try to create the appctx now.
 		 */
-		BUG_ON(cs_appctx(cs));
+		BUG_ON(sc_appctx(cs));
 		appctx = cs_applet_create(cs, objt_applet(s->target));
 		if (!appctx) {
 			/* No more memory, let's immediately abort. Force the
@@ -2447,7 +2447,7 @@ void back_handle_st_rdy(struct stream *s)
 		/* Here the appctx must exists because the CS was set to
 		 * SC_ST_RDY state when the appctx was created.
 		 */
-		BUG_ON(!cs_appctx(s->scb));
+		BUG_ON(!sc_appctx(s->scb));
 
 		if (tv_iszero(&s->logs.tv_request))
 			s->logs.tv_request = now;

@@ -171,17 +171,17 @@ static inline struct appctx *sc_mux_strm(const struct stconn *cs)
 }
 
 /* Returns the appctx from a cs if the endpoint is an appctx. Otherwise
- * NULL is returned. __cs_appctx() returns the appctx without any control
- * while cs_appctx() check the endpoint type.
+ * NULL is returned. __sc_appctx() returns the appctx without any control
+ * while sc_appctx() checks the endpoint type.
  */
-static inline struct appctx *__cs_appctx(const struct stconn *cs)
+static inline struct appctx *__sc_appctx(const struct stconn *cs)
 {
 	return __cs_endp_target(cs);
 }
-static inline struct appctx *cs_appctx(const struct stconn *cs)
+static inline struct appctx *sc_appctx(const struct stconn *cs)
 {
 	if (sc_ep_test(cs, SE_FL_T_APPLET))
-		return __cs_appctx(cs);
+		return __sc_appctx(cs);
 	return NULL;
 }
 

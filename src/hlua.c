@@ -2747,7 +2747,7 @@ __LJMP static int hlua_socket_connect_yield(struct lua_State *L, int status, lua
 		return 2;
 	}
 
-	appctx = __cs_appctx(s->scf);
+	appctx = __sc_appctx(s->scf);
 
 	/* Check for connection established. */
 	if (csk_ctx->connected) {

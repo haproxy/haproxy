@@ -2686,7 +2686,7 @@ smp_fetch_res_cache_name(const struct arg *args, struct sample *smp,
 		return 0;
 
 	/* Get appctx from the stream connector. */
-	appctx = cs_appctx(smp->strm->scb);
+	appctx = sc_appctx(smp->strm->scb);
 	if (appctx && appctx->rule) {
 		cconf = appctx->rule->arg.act.p[0];
 		if (cconf) {

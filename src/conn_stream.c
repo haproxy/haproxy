@@ -368,7 +368,7 @@ static void cs_detach_endp(struct stconn **csp)
 		}
 	}
 	else if (sc_ep_test(cs, SE_FL_T_APPLET)) {
-		struct appctx *appctx = __cs_appctx(cs);
+		struct appctx *appctx = __sc_appctx(cs);
 
 		sc_ep_set(cs, SE_FL_ORPHAN);
 		cs->sedesc->sc = NULL;
@@ -876,7 +876,7 @@ static void sc_app_shutr_applet(struct stconn *cs)
 {
 	struct channel *ic = sc_ic(cs);
 
-	BUG_ON(!cs_appctx(cs));
+	BUG_ON(!sc_appctx(cs));
 
 	cs_rx_shut_blk(cs);
 	if (ic->flags & CF_SHUTR)
@@ -890,7 +890,7 @@ static void sc_app_shutr_applet(struct stconn *cs)
 		return;
 
 	if (sc_oc(cs)->flags & CF_SHUTW) {
-		appctx_shut(__cs_appctx(cs));
+		appctx_shut(__sc_appctx(cs));
 		cs->state = SC_ST_DIS;
 		__sc_strm(cs)->conn_exp = TICK_ETERNITY;
 	}
@@ -912,7 +912,7 @@ static void sc_app_shutw_applet(struct stconn *cs)
 	struct channel *ic = sc_ic(cs);
 	struct channel *oc = sc_oc(cs);
 
-	BUG_ON(!cs_appctx(cs));
+	BUG_ON(!sc_appctx(cs));
 
 	oc->flags &= ~CF_SHUTW_NOW;
 	if (oc->flags & CF_SHUTW)
@@ -927,7 +927,7 @@ static void sc_app_shutw_applet(struct stconn *cs)
 	}
 
 	/* on shutw we always wake the applet up */
-	appctx_wakeup(__cs_appctx(cs));
+	appctx_wakeup(__sc_appctx(cs));
 
 	switch (cs->state) {
 	case SC_ST_RDY:
@@ -948,7 +948,7 @@ static void sc_app_shutw_applet(struct stconn *cs)
 	case SC_ST_QUE:
 	case SC_ST_TAR:
 		/* Note that none of these states may happen with applets */
-		appctx_shut(__cs_appctx(cs));
+		appctx_shut(__sc_appctx(cs));
 		cs->state = SC_ST_DIS;
 		/* fall through */
 	default:
@@ -965,7 +965,7 @@ static void sc_app_chk_rcv_applet(struct stconn *cs)
 {
 	struct channel *ic = sc_ic(cs);
 
-	BUG_ON(!cs_appctx(cs));
+	BUG_ON(!sc_appctx(cs));
 
 	DPRINTF(stderr, "%s: cs=%p, cs->state=%d ic->flags=%08x oc->flags=%08x\n",
 		__FUNCTION__,
@@ -973,7 +973,7 @@ static void sc_app_chk_rcv_applet(struct stconn *cs)
 
 	if (!ic->pipe) {
 		/* (re)start reading */
-		appctx_wakeup(__cs_appctx(cs));
+		appctx_wakeup(__sc_appctx(cs));
 	}
 }
 
@@ -982,7 +982,7 @@ static void sc_app_chk_snd_applet(struct stconn *cs)
 {
 	struct channel *oc = sc_oc(cs);
 
-	BUG_ON(!cs_appctx(cs));
+	BUG_ON(!sc_appctx(cs));
 
 	DPRINTF(stderr, "%s: cs=%p, cs->state=%d ic->flags=%08x oc->flags=%08x\n",
 		__FUNCTION__,
@@ -1001,7 +1001,7 @@ static void sc_app_chk_snd_applet(struct stconn *cs)
 
 	if (!channel_is_empty(oc)) {
 		/* (re)start sending */
-		appctx_wakeup(__cs_appctx(cs));
+		appctx_wakeup(__sc_appctx(cs));
 	}
 }
 
@@ -1928,7 +1928,7 @@ static int cs_applet_process(struct stconn *cs)
 {
 	struct channel *ic = sc_ic(cs);
 
-	BUG_ON(!cs_appctx(cs));
+	BUG_ON(!sc_appctx(cs));
 
 	/* If the applet wants to write and the channel is closed, it's a
 	 * broken pipe and it must be reported.
@@ -1953,6 +1953,6 @@ static int cs_applet_process(struct stconn *cs)
 	 */
 	if ((cs_rx_endp_ready(cs) && !cs_rx_blocked(cs)) ||
 	    (cs_tx_endp_ready(cs) && !cs_tx_blocked(cs)))
-		appctx_wakeup(__cs_appctx(cs));
+		appctx_wakeup(__sc_appctx(cs));
 	return 0;
 }
