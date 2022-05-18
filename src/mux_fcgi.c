@@ -372,7 +372,7 @@ static int fcgi_strm_send_abort(struct fcgi_conn *fconn, struct fcgi_strm *fstrm
 
 /* a dummy closed endpoint */
 static const struct sedesc closed_ep = {
-	. cs       = NULL,
+	.sc        = NULL,
 	.flags     = SE_FL_DETACHED,
 };
 
@@ -425,7 +425,7 @@ static inline const char *fstrm_st_to_str(enum fcgi_strm_st st)
 /* returns the stconn associated to the FCGI stream */
 static forceinline struct stconn *fcgi_strm_sc(const struct fcgi_strm *fstrm)
 {
-	return fstrm->endp->cs;
+	return fstrm->endp->sc;
 }
 
 
@@ -3533,7 +3533,7 @@ static int fcgi_attach(struct connection *conn, struct sedesc *endp, struct sess
 	struct fcgi_conn *fconn = conn->ctx;
 
 	TRACE_ENTER(FCGI_EV_FSTRM_NEW, conn);
-	fstrm = fcgi_stconn_new(fconn, endp->cs, sess);
+	fstrm = fcgi_stconn_new(fconn, endp->sc, sess);
 	if (!fstrm)
 		goto err;
 

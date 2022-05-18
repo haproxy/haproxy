@@ -115,7 +115,7 @@ static inline void appctx_wakeup(struct appctx *appctx)
 /* returns the stream connector the appctx is attached to, via the sedesc */
 static inline struct stconn *appctx_cs(const struct appctx *appctx)
 {
-	return appctx->sedesc->cs;
+	return appctx->sedesc->sc;
 }
 
 /* returns the stream the appctx is attached to. Note that a stream *must*
@@ -123,7 +123,7 @@ static inline struct stconn *appctx_cs(const struct appctx *appctx)
  */
 static inline struct stream *appctx_strm(const struct appctx *appctx)
 {
-	return __cs_strm(appctx->sedesc->cs);
+	return __cs_strm(appctx->sedesc->sc);
 }
 
 #endif /* _HAPROXY_APPLET_H */

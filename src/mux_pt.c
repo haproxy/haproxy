@@ -94,7 +94,7 @@ INITCALL1(STG_REGISTER, trace_register_source, TRACE_SOURCE);
 /* returns the stconn associated to the stream */
 static forceinline struct stconn *pt_sc(const struct mux_pt_ctx *pt)
 {
-	return pt->endp->cs;
+	return pt->endp->sc;
 }
 
 static inline void pt_trace_buf(const struct buffer *buf, size_t ofs, size_t len)
@@ -386,12 +386,12 @@ static int mux_pt_attach(struct connection *conn, struct sedesc *endp, struct se
 	TRACE_ENTER(PT_EV_STRM_NEW, conn);
 	if (ctx->wait_event.events)
 		conn->xprt->unsubscribe(ctx->conn, conn->xprt_ctx, SUB_RETRY_RECV, &ctx->wait_event);
-	if (cs_attach_mux(endp->cs, ctx, conn) < 0)
+	if (cs_attach_mux(endp->sc, ctx, conn) < 0)
 		return -1;
 	ctx->endp = endp;
 	se_fl_set(ctx->endp, SE_FL_RCV_MORE);
 
-	TRACE_LEAVE(PT_EV_STRM_NEW, conn, endp->cs);
+	TRACE_LEAVE(PT_EV_STRM_NEW, conn, endp->sc);
 	return 0;
 }
 
@@ -428,7 +428,7 @@ static void mux_pt_detach(struct sedesc *endp)
 	struct connection *conn = endp->conn;
 	struct mux_pt_ctx *ctx;
 
-	TRACE_ENTER(PT_EV_STRM_END, conn, endp->cs);
+	TRACE_ENTER(PT_EV_STRM_END, conn, endp->sc);
 
 	ctx = conn->ctx;
 
@@ -438,7 +438,7 @@ static void mux_pt_detach(struct sedesc *endp)
 		conn->xprt->subscribe(conn, conn->xprt_ctx, SUB_RETRY_RECV, &ctx->wait_event);
 	} else {
 		/* There's no session attached to that connection, destroy it */
-		TRACE_DEVEL("killing dead connection", PT_EV_STRM_END, conn, endp->cs);
+		TRACE_DEVEL("killing dead connection", PT_EV_STRM_END, conn, endp->sc);
 		mux_pt_destroy(ctx);
 	}
 

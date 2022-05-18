@@ -163,13 +163,13 @@ struct data_cb {
  *
  * <se>     is the stream endpoint, i.e. the mux stream or the appctx
  * <conn>   is the connection for connection-based streams
- * <cs>     is the stream connector we're attached to, or NULL
+ * <sc>     is the stream connector we're attached to, or NULL
  * <flags>  SE_FL_*
 */
 struct sedesc {
 	void *se;
 	struct connection *conn;
-	struct stconn *cs;
+	struct stconn *sc;
 	unsigned int flags;
 };
 

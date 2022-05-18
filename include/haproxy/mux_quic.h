@@ -118,7 +118,7 @@ static inline struct stconn *qc_attach_cs(struct qcs *qcs, struct buffer *buf)
 	sess->t_handshake = 0;
 	sess->t_idle = 0;
 
-	return qcs->endp->cs;
+	return qcs->endp->sc;
 }
 
 #endif /* USE_QUIC */

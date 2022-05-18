@@ -86,7 +86,7 @@ void sedesc_init(struct sedesc *sedesc)
 {
 	sedesc->se = NULL;
 	sedesc->conn = NULL;
-	sedesc->cs = NULL;
+	sedesc->sc = NULL;
 	se_fl_setall(sedesc, SE_FL_NONE);
 }
 
@@ -143,7 +143,7 @@ static struct stconn *cs_new(struct sedesc *sedesc)
 			goto alloc_error;
 	}
 	cs->sedesc = sedesc;
-	sedesc->cs = cs;
+	sedesc->sc = cs;
 
 	return cs;
 
@@ -354,7 +354,7 @@ static void cs_detach_endp(struct stconn **csp)
 			if (cs->wait_event.events != 0)
 				conn->mux->unsubscribe(cs, cs->wait_event.events, &cs->wait_event);
 			se_fl_set(sedesc, SE_FL_ORPHAN);
-			sedesc->cs = NULL;
+			sedesc->sc = NULL;
 			cs->sedesc = NULL;
 			conn->mux->detach(sedesc);
 		}
@@ -373,7 +373,7 @@ static void cs_detach_endp(struct stconn **csp)
 		struct appctx *appctx = __cs_appctx(cs);
 
 		sc_ep_set(cs, SE_FL_ORPHAN);
-		cs->sedesc->cs = NULL;
+		cs->sedesc->sc = NULL;
 		cs->sedesc = NULL;
 		appctx_shut(appctx);
 		appctx_free(appctx);
@@ -467,7 +467,7 @@ int cs_reset_endp(struct stconn *cs)
 	cs_detach_endp(&cs);
 	BUG_ON(cs->sedesc);
 	cs->sedesc = new_endp;
-	cs->sedesc->cs = cs;
+	cs->sedesc->sc = cs;
 	sc_ep_set(cs, SE_FL_DETACHED);
 	return 0;
 }

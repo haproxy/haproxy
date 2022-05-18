@@ -367,7 +367,7 @@ static void h1_wake_stream_for_send(struct h1s *h1s);
 /* returns the stconn associated to the H1 stream */
 static forceinline struct stconn *h1s_sc(const struct h1s *h1s)
 {
-	return h1s->endp->cs;
+	return h1s->endp->sc;
 }
 
 /* the H1 traces always expect that arg1, if non-null, is of type connection
@@ -3320,7 +3320,7 @@ static int h1_attach(struct connection *conn, struct sedesc *endp, struct sessio
 		goto err;
 	}
 
-	h1s = h1c_bck_stream_new(h1c, endp->cs, sess);
+	h1s = h1c_bck_stream_new(h1c, endp->sc, sess);
 	if (h1s == NULL) {
 		TRACE_ERROR("h1s creation failure", H1_EV_STRM_NEW|H1_EV_STRM_END|H1_EV_STRM_ERR, conn);
 		goto err;

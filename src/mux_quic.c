@@ -1582,7 +1582,7 @@ static int qc_wake_some_streams(struct qcc *qcc)
 	     node = eb64_next(node)) {
 		qcs = eb64_entry(node, struct qcs, by_id);
 
-		if (!qcs->endp || !qcs->endp->cs)
+		if (!qcs->endp || !qcs->endp->sc)
 			continue;
 
 		if (qcc->conn->flags & CO_FL_ERROR) {
@@ -1594,8 +1594,8 @@ static int qc_wake_some_streams(struct qcc *qcc)
 				qcs_notify_recv(qcs);
 				qcs_notify_send(qcs);
 			}
-			else if (qcs->endp->cs->data_cb->wake) {
-				qcs->endp->cs->data_cb->wake(qcs->endp->cs);
+			else if (qcs->endp->sc->data_cb->wake) {
+				qcs->endp->sc->data_cb->wake(qcs->endp->sc);
 			}
 		}
 	}

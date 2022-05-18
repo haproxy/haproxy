@@ -524,7 +524,7 @@ static int h2_settings_max_frame_size         = 0;     /* unset */
 
 /* a dummy closed endpoint */
 static const struct sedesc closed_ep = {
-	. cs       = NULL,
+	.sc        = NULL,
 	.flags     = SE_FL_DETACHED,
 };
 
@@ -615,7 +615,7 @@ static inline const char *h2s_st_to_str(enum h2_ss st)
 /* returns the stconn associated to the H2 stream */
 static forceinline struct stconn *h2s_sc(const struct h2s *h2s)
 {
-	return h2s->endp->cs;
+	return h2s->endp->sc;
 }
 
 /* the H2 traces always expect that arg1, if non-null, is of type connection
@@ -4301,7 +4301,7 @@ static int h2_attach(struct connection *conn, struct sedesc *endp, struct sessio
 	struct h2c *h2c = conn->ctx;
 
 	TRACE_ENTER(H2_EV_H2S_NEW, conn);
-	h2s = h2c_bck_stream_new(h2c, endp->cs, sess);
+	h2s = h2c_bck_stream_new(h2c, endp->sc, sess);
 	if (!h2s) {
 		TRACE_DEVEL("leaving on stream creation failure", H2_EV_H2S_NEW|H2_EV_H2S_ERR, conn);
 		return -1;
