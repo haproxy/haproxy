@@ -1024,6 +1024,9 @@ static int wake_srv_chk(struct conn_stream *cs)
 	int ret = 0;
 
 	TRACE_ENTER(CHK_EV_HCHK_WAKE, check);
+	if (check->result != CHK_RES_UNKNOWN)
+		goto end;
+
 	if (check->server)
 		HA_SPIN_LOCK(SERVER_LOCK, &check->server->lock);
 	else
@@ -1048,21 +1051,9 @@ static int wake_srv_chk(struct conn_stream *cs)
 	}
 
 	if (check->result != CHK_RES_UNKNOWN || ret == -1) {
-		/* Check complete or aborted. If connection not yet closed do it
-		 * now and wake the check task up to be sure the result is
-		 * handled ASAP. */
+		/* Check complete or aborted. Wake the check task up to be sure
+		 * the result is handled ASAP. */
 		ret = -1;
-		if (conn)  {
-			cs_conn_drain_and_shut(cs);
-			if (check->wait_list.events)
-				conn->mux->unsubscribe(cs, check->wait_list.events, &check->wait_list);
-		}
-
-		/* We may have been scheduled to run, and the
-		 * I/O handler expects to have a cs, so remove
-		 * the tasklet
-		 */
-		tasklet_remove_from_tasklet_list(check->wait_list.tasklet);
 		task_wakeup(check->task, TASK_WOKEN_IO);
 	}
 
@@ -1071,6 +1062,7 @@ static int wake_srv_chk(struct conn_stream *cs)
 	else
 		HA_SPIN_UNLOCK(EMAIL_ALERTS_LOCK, &q->lock);
 
+  end:
 	TRACE_LEAVE(CHK_EV_HCHK_WAKE, check);
 	return ret;
 }
