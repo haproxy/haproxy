@@ -2851,7 +2851,7 @@ static inline void init_connected_peer(struct peer *peer, struct peers *peers)
 static void peer_io_handler(struct appctx *appctx)
 {
 	struct stconn *cs = appctx_cs(appctx);
-	struct stream *s = __cs_strm(cs);
+	struct stream *s = __sc_strm(cs);
 	struct peers *curpeers = strm_fe(s)->parent;
 	struct peer *curpeer = NULL;
 	int reql = 0;
@@ -3818,7 +3818,7 @@ static int peers_dump_peer(struct buffer *msg, struct stconn *cs, struct peer *p
 	                                                                appctx->t ? appctx->t->calls : 0);
 
 	peer_cs = appctx_cs(peer->appctx);
-	peer_s = __cs_strm(peer_cs);
+	peer_s = __sc_strm(peer_cs);
 
 	chunk_appendf(&trash, " state=%s", cs_state_str(cs_opposite(peer_cs)->state));
 

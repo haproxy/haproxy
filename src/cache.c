@@ -1505,7 +1505,7 @@ static void http_cache_io_handler(struct appctx *appctx)
 
 		/* Skip response body for HEAD requests or in case of "304 Not
 		 * Modified" response. */
-		if (__cs_strm(cs)->txn->meth == HTTP_METH_HEAD || ctx->send_notmodified)
+		if (__sc_strm(cs)->txn->meth == HTTP_METH_HEAD || ctx->send_notmodified)
 			appctx->st0 = HTX_CACHE_EOM;
 		else
 			appctx->st0 = HTX_CACHE_DATA;

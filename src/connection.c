@@ -1188,11 +1188,11 @@ int conn_send_proxy(struct connection *conn, unsigned int flag)
 		 * send a LOCAL line (eg: for use with health checks).
 		 */
 
-		if (cs && cs_strm(cs)) {
+		if (cs && sc_strm(cs)) {
 			ret = make_proxy_line(trash.area, trash.size,
 					      objt_server(conn->target),
 					      cs_conn(cs_opposite(cs)),
-					      __cs_strm(cs));
+					      __sc_strm(cs));
 		}
 		else {
 			/* The target server expects a LOCAL line to be sent first. Retrieving

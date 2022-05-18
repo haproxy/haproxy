@@ -1504,7 +1504,7 @@ static int promex_appctx_init(struct appctx *appctx)
 static void promex_appctx_handle_io(struct appctx *appctx)
 {
 	struct stconn *cs = appctx_cs(appctx);
-	struct stream *s = __cs_strm(cs);
+	struct stream *s = __sc_strm(cs);
 	struct channel *req = sc_oc(cs);
 	struct channel *res = sc_ic(cs);
 	struct htx *req_htx, *res_htx;

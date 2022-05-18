@@ -1941,7 +1941,7 @@ static void hlua_socket_handler(struct appctx *appctx)
 		sc_ic(cs)->flags |= CF_READ_NULL;
 		notification_wake(&ctx->wake_on_read);
 		notification_wake(&ctx->wake_on_write);
-		stream_shutdown(__cs_strm(cs), SF_ERR_KILLED);
+		stream_shutdown(__sc_strm(cs), SF_ERR_KILLED);
 	}
 
 	/* If we can't write, wakeup the pending write signals. */
@@ -2402,7 +2402,7 @@ static int hlua_socket_write_yield(struct lua_State *L,int status, lua_KContext 
 	csk_ctx = container_of(peer, struct hlua_csk_ctx, xref);
 	appctx = csk_ctx->appctx;
 	cs = appctx_cs(appctx);
-	s = __cs_strm(cs);
+	s = __sc_strm(cs);
 
 	/* Check for connection close. */
 	if (channel_output_closed(&s->req)) {
@@ -2843,7 +2843,7 @@ __LJMP static int hlua_socket_connect(struct lua_State *L)
 	csk_ctx = container_of(peer, struct hlua_csk_ctx, xref);
 	appctx = csk_ctx->appctx;
 	cs = appctx_cs(appctx);
-	s = __cs_strm(cs);
+	s = __sc_strm(cs);
 
 	if (!sockaddr_alloc(&cs_opposite(cs)->dst, addr, sizeof(*addr))) {
 		xref_unlock(&socket->xref, peer);
@@ -9217,7 +9217,7 @@ static int hlua_applet_tcp_init(struct appctx *ctx)
 {
 	struct hlua_tcp_ctx *tcp_ctx = applet_reserve_svcctx(ctx, sizeof(*tcp_ctx));
 	struct stconn *cs = appctx_cs(ctx);
-	struct stream *strm = __cs_strm(cs);
+	struct stream *strm = __sc_strm(cs);
 	struct hlua *hlua;
 	struct task *task;
 	char **arg;
@@ -9315,7 +9315,7 @@ void hlua_applet_tcp_fct(struct appctx *ctx)
 {
 	struct hlua_tcp_ctx *tcp_ctx = ctx->svcctx;
 	struct stconn *cs = appctx_cs(ctx);
-	struct stream *strm = __cs_strm(cs);
+	struct stream *strm = __sc_strm(cs);
 	struct channel *res = sc_ic(cs);
 	struct act_rule *rule = ctx->rule;
 	struct proxy *px = strm->be;
@@ -9408,7 +9408,7 @@ static int hlua_applet_http_init(struct appctx *ctx)
 {
 	struct hlua_http_ctx *http_ctx = applet_reserve_svcctx(ctx, sizeof(*http_ctx));
 	struct stconn *cs = appctx_cs(ctx);
-	struct stream *strm = __cs_strm(cs);
+	struct stream *strm = __sc_strm(cs);
 	struct http_txn *txn;
 	struct hlua *hlua;
 	char **arg;
@@ -9511,7 +9511,7 @@ void hlua_applet_http_fct(struct appctx *ctx)
 {
 	struct hlua_http_ctx *http_ctx = ctx->svcctx;
 	struct stconn *cs = appctx_cs(ctx);
-	struct stream *strm = __cs_strm(cs);
+	struct stream *strm = __sc_strm(cs);
 	struct channel *req = sc_oc(cs);
 	struct channel *res = sc_ic(cs);
 	struct act_rule *rule = ctx->rule;

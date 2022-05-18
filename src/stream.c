@@ -277,7 +277,7 @@ static void strm_trace(enum trace_level level, uint64_t mask, const struct trace
  */
 int stream_upgrade_from_cs(struct stconn *cs, struct buffer *input)
 {
-	struct stream *s = __cs_strm(cs);
+	struct stream *s = __sc_strm(cs);
 	const struct mux_ops *mux = cs_conn_mux(cs);
 
 	if (mux) {

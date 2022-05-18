@@ -44,7 +44,7 @@ void cs_conn_sync_send(struct stconn *cs);
 /* returns the channel which receives data from this stream connector (input channel) */
 static inline struct channel *sc_ic(struct stconn *cs)
 {
-	struct stream *strm = __cs_strm(cs);
+	struct stream *strm = __sc_strm(cs);
 
 	return ((cs->flags & SC_FL_ISBACK) ? &(strm->res) : &(strm->req));
 }
@@ -52,7 +52,7 @@ static inline struct channel *sc_ic(struct stconn *cs)
 /* returns the channel which feeds data to this stream connector (output channel) */
 static inline struct channel *sc_oc(struct stconn *cs)
 {
-	struct stream *strm = __cs_strm(cs);
+	struct stream *strm = __sc_strm(cs);
 
 	return ((cs->flags & SC_FL_ISBACK) ? &(strm->req) : &(strm->res));
 }
@@ -69,9 +69,9 @@ static inline struct buffer *sc_ob(struct stconn *cs)
 	return &sc_oc(cs)->buf;
 }
 /* returns the stream's task associated to this stream connector */
-static inline struct task *cs_strm_task(struct stconn *cs)
+static inline struct task *sc_strm_task(struct stconn *cs)
 {
-	struct stream *strm = __cs_strm(cs);
+	struct stream *strm = __sc_strm(cs);
 
 	return strm->task;
 }
@@ -79,7 +79,7 @@ static inline struct task *cs_strm_task(struct stconn *cs)
 /* returns the stream connector on the other side. Used during forwarding. */
 static inline struct stconn *cs_opposite(struct stconn *cs)
 {
-	struct stream *strm = __cs_strm(cs);
+	struct stream *strm = __sc_strm(cs);
 
 	return ((cs->flags & SC_FL_ISBACK) ? strm->scf : strm->scb);
 }
@@ -88,8 +88,8 @@ static inline struct stconn *cs_opposite(struct stconn *cs)
 /* to be called only when in SC_ST_DIS with SC_FL_ERR */
 static inline void cs_report_error(struct stconn *cs)
 {
-	if (!__cs_strm(cs)->conn_err_type)
-		__cs_strm(cs)->conn_err_type = STRM_ET_DATA_ERR;
+	if (!__sc_strm(cs)->conn_err_type)
+		__sc_strm(cs)->conn_err_type = STRM_ET_DATA_ERR;
 
 	sc_oc(cs)->flags |= CF_WRITE_ERROR;
 	sc_ic(cs)->flags |= CF_READ_ERROR;
@@ -100,7 +100,7 @@ static inline void cs_report_error(struct stconn *cs)
  */
 static inline void cs_set_state(struct stconn *cs, int state)
 {
-	cs->state = __cs_strm(cs)->prev_conn_state = state;
+	cs->state = __sc_strm(cs)->prev_conn_state = state;
 }
 
 /* returns a bit for a stream connector state, to match against SC_SB_* */
@@ -174,7 +174,7 @@ static inline const struct sockaddr_storage *cs_src(struct stconn *cs)
 	if (cs->src)
 		return cs->src;
 	if (!(cs->flags & SC_FL_ISBACK))
-		return sess_src(strm_sess(__cs_strm(cs)));
+		return sess_src(strm_sess(__sc_strm(cs)));
 	else {
 		struct connection *conn = cs_conn(cs);
 
@@ -194,7 +194,7 @@ static inline const struct sockaddr_storage *cs_dst(struct stconn *cs)
 	if (cs->dst)
 		return cs->dst;
 	if (!(cs->flags & SC_FL_ISBACK))
-		return sess_dst(strm_sess(__cs_strm(cs)));
+		return sess_dst(strm_sess(__sc_strm(cs)));
 	else {
 		struct connection *conn = cs_conn(cs);
 
@@ -218,7 +218,7 @@ static inline int cs_get_src(struct stconn *cs)
 		return 1;
 
 	if (!(cs->flags & SC_FL_ISBACK))
-		src = sess_src(strm_sess(__cs_strm(cs)));
+		src = sess_src(strm_sess(__sc_strm(cs)));
 	else {
 		struct connection *conn = cs_conn(cs);
 
@@ -248,7 +248,7 @@ static inline int cs_get_dst(struct stconn *cs)
 		return 1;
 
 	if (!(cs->flags & SC_FL_ISBACK))
-		dst = sess_dst(strm_sess(__cs_strm(cs)));
+		dst = sess_dst(strm_sess(__sc_strm(cs)));
 	else {
 		struct connection *conn = cs_conn(cs);
 

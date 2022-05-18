@@ -3018,7 +3018,7 @@ int stats_dump_proxy_to_buffer(struct stconn *cs, struct htx *htx,
 {
 	struct appctx *appctx = __cs_appctx(cs);
 	struct show_stat_ctx *ctx = appctx->svcctx;
-	struct stream *s = __cs_strm(cs);
+	struct stream *s = __sc_strm(cs);
 	struct channel *rep = sc_ic(cs);
 	struct server *sv, *svs;	/* server and server-state, server-state=server or server->track */
 	struct listener *l;
@@ -3827,7 +3827,7 @@ static int stats_dump_stat_to_buffer(struct stconn *cs, struct htx *htx,
  */
 static int stats_process_http_post(struct stconn *cs)
 {
-	struct stream *s = __cs_strm(cs);
+	struct stream *s = __sc_strm(cs);
 	struct appctx *appctx = __cs_appctx(cs);
 	struct show_stat_ctx *ctx = appctx->svcctx;
 
@@ -4163,7 +4163,7 @@ static int stats_process_http_post(struct stconn *cs)
 
 static int stats_send_http_headers(struct stconn *cs, struct htx *htx)
 {
-	struct stream *s = __cs_strm(cs);
+	struct stream *s = __sc_strm(cs);
 	struct uri_auth *uri = s->be->uri_auth;
 	struct appctx *appctx = __cs_appctx(cs);
 	struct show_stat_ctx *ctx = appctx->svcctx;
@@ -4218,7 +4218,7 @@ static int stats_send_http_headers(struct stconn *cs, struct htx *htx)
 static int stats_send_http_redirect(struct stconn *cs, struct htx *htx)
 {
 	char scope_txt[STAT_SCOPE_TXT_MAXLEN + sizeof STAT_SCOPE_PATTERN];
-	struct stream *s = __cs_strm(cs);
+	struct stream *s = __sc_strm(cs);
 	struct uri_auth *uri = s->be->uri_auth;
 	struct appctx *appctx = __cs_appctx(cs);
 	struct show_stat_ctx *ctx = appctx->svcctx;
@@ -4284,7 +4284,7 @@ static void http_stats_io_handler(struct appctx *appctx)
 {
 	struct show_stat_ctx *ctx = appctx->svcctx;
 	struct stconn *cs = appctx_cs(appctx);
-	struct stream *s = __cs_strm(cs);
+	struct stream *s = __sc_strm(cs);
 	struct channel *req = sc_oc(cs);
 	struct channel *res = sc_ic(cs);
 	struct htx *req_htx, *res_htx;

@@ -1400,7 +1400,7 @@ spoe_handle_connect_appctx(struct appctx *appctx)
 	if (!cs_state_in(cs->state, SC_SB_RDY|SC_SB_EST)) {
 		/* not connected yet */
 		cs_rx_endp_more(cs);
-		task_wakeup(__cs_strm(cs)->task, TASK_WOKEN_MSG);
+		task_wakeup(__sc_strm(cs)->task, TASK_WOKEN_MSG);
 		goto stop;
 	}
 
@@ -1706,7 +1706,7 @@ static int
 spoe_handle_processing_appctx(struct appctx *appctx)
 {
 	struct stconn      *cs    = appctx_cs(appctx);
-	struct server           *srv   = objt_server(__cs_strm(cs)->target);
+	struct server           *srv   = objt_server(__sc_strm(cs)->target);
 	struct spoe_agent       *agent = SPOE_APPCTX(appctx)->agent;
 	int ret, skip_sending = 0, skip_receiving = 0, active_s = 0, active_r = 0, close_asap = 0;
 

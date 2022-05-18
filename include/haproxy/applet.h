@@ -121,11 +121,11 @@ static inline struct stconn *appctx_cs(const struct appctx *appctx)
 }
 
 /* returns the stream the appctx is attached to. Note that a stream *must*
- * be attached, as we use an unchecked dereference via __cs_strm().
+ * be attached, as we use an unchecked dereference via __sc_strm().
  */
 static inline struct stream *appctx_strm(const struct appctx *appctx)
 {
-	return __cs_strm(appctx->sedesc->sc);
+	return __sc_strm(appctx->sedesc->sc);
 }
 
 /* writes chunk <chunk> into the input channel of the stream attached to this

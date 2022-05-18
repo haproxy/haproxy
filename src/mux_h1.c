@@ -1418,11 +1418,11 @@ static void h1_capture_bad_message(struct h1c *h1c, struct h1s *h1s,
 	struct proxy *other_end;
 	union error_snapshot_ctx ctx;
 
-	if ((h1c->flags & H1C_F_ST_ATTACHED) && cs_strm(h1s_sc(h1s))) {
+	if ((h1c->flags & H1C_F_ST_ATTACHED) && sc_strm(h1s_sc(h1s))) {
 		if (sess == NULL)
-			sess = __cs_strm(h1s_sc(h1s))->sess;
+			sess = __sc_strm(h1s_sc(h1s))->sess;
 		if (!(h1m->flags & H1_MF_RESP))
-			other_end = __cs_strm(h1s_sc(h1s))->be;
+			other_end = __sc_strm(h1s_sc(h1s))->be;
 		else
 			other_end = sess->fe;
 	} else

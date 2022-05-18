@@ -186,30 +186,30 @@ static inline struct appctx *cs_appctx(const struct stconn *cs)
 }
 
 /* Returns the stream from a cs if the application is a stream. Otherwise
- * NULL is returned. __cs_strm() returns the stream without any control
- * while cs_strm() check the application type.
+ * NULL is returned. __sc_strm() returns the stream without any control
+ * while sc_strm() check the application type.
  */
-static inline struct stream *__cs_strm(const struct stconn *cs)
+static inline struct stream *__sc_strm(const struct stconn *cs)
 {
 	return __objt_stream(cs->app);
 }
 
-static inline struct stream *cs_strm(const struct stconn *cs)
+static inline struct stream *sc_strm(const struct stconn *cs)
 {
 	if (obj_type(cs->app) == OBJ_TYPE_STREAM)
-		return __cs_strm(cs);
+		return __sc_strm(cs);
 	return NULL;
 }
 
 /* Returns the healthcheck from a cs if the application is a
- * healthcheck. Otherwise NULL is returned. __cs_check() returns the healthcheck
- * without any control while cs_check() check the application type.
+ * healthcheck. Otherwise NULL is returned. __sc_check() returns the healthcheck
+ * without any control while sc_check() check the application type.
  */
-static inline struct check *__cs_check(const struct stconn *cs)
+static inline struct check *__sc_check(const struct stconn *cs)
 {
 	return __objt_check(cs->app);
 }
-static inline struct check *cs_check(const struct stconn *cs)
+static inline struct check *sc_check(const struct stconn *cs)
 {
 	if (obj_type(cs->app) == OBJ_TYPE_CHECK)
 		return __objt_check(cs->app);

@@ -900,7 +900,7 @@ static void cli_io_handler(struct appctx *appctx)
 	struct stconn *cs = appctx_cs(appctx);
 	struct channel *req = sc_oc(cs);
 	struct channel *res = sc_ic(cs);
-	struct bind_conf *bind_conf = strm_li(__cs_strm(cs))->bind_conf;
+	struct bind_conf *bind_conf = strm_li(__sc_strm(cs))->bind_conf;
 	int reql;
 	int len;
 
@@ -1970,7 +1970,7 @@ static int _getsocks(char **args, char *payload, struct appctx *appctx, void *pr
 	unsigned char *tmpbuf = NULL;
 	struct cmsghdr *cmsg;
 	struct stconn *cs = appctx_cs(appctx);
-	struct stream *s = __cs_strm(cs);
+	struct stream *s = __sc_strm(cs);
 	struct connection *remote = cs_conn(cs_opposite(cs));
 	struct msghdr msghdr;
 	struct iovec iov;

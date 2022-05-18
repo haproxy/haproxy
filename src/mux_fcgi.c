@@ -1236,8 +1236,8 @@ static int fcgi_set_default_param(struct fcgi_conn *fconn, struct fcgi_strm *fst
 				  struct fcgi_strm_params *params)
 {
 	struct connection *cli_conn = objt_conn(fstrm->sess->origin);
-	const struct sockaddr_storage *src = (cs_check(fcgi_strm_sc(fstrm)) ? conn_src(fconn->conn) : cs_src(cs_opposite(fcgi_strm_sc(fstrm))));
-	const struct sockaddr_storage *dst = (cs_check(fcgi_strm_sc(fstrm)) ? conn_dst(fconn->conn) : cs_dst(cs_opposite(fcgi_strm_sc(fstrm))));
+	const struct sockaddr_storage *src = (sc_check(fcgi_strm_sc(fstrm)) ? conn_src(fconn->conn) : cs_src(cs_opposite(fcgi_strm_sc(fstrm))));
+	const struct sockaddr_storage *dst = (sc_check(fcgi_strm_sc(fstrm)) ? conn_dst(fconn->conn) : cs_dst(cs_opposite(fcgi_strm_sc(fstrm))));
 	struct ist p;
 
 	if (!sl)
@@ -3319,11 +3319,11 @@ static void fcgi_strm_capture_bad_message(struct fcgi_conn *fconn, struct fcgi_s
 	struct proxy *other_end;
 	union error_snapshot_ctx ctx;
 
-	if (fcgi_strm_sc(fstrm) && cs_strm(fcgi_strm_sc(fstrm))) {
+	if (fcgi_strm_sc(fstrm) && sc_strm(fcgi_strm_sc(fstrm))) {
 		if (sess == NULL)
-			sess = __cs_strm(fcgi_strm_sc(fstrm))->sess;
+			sess = __sc_strm(fcgi_strm_sc(fstrm))->sess;
 		if (!(h1m->flags & H1_MF_RESP))
-			other_end = __cs_strm(fcgi_strm_sc(fstrm))->be;
+			other_end = __sc_strm(fcgi_strm_sc(fstrm))->be;
 		else
 			other_end = sess->fe;
 	} else

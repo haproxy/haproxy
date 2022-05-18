@@ -637,7 +637,7 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 {
 	struct httpclient *hc = appctx->svcctx;
 	struct stconn *cs = appctx_cs(appctx);
-	struct stream *s = __cs_strm(cs);
+	struct stream *s = __sc_strm(cs);
 	struct channel *req = &s->req;
 	struct channel *res = &s->res;
 	struct htx_blk *blk = NULL;
