@@ -971,11 +971,6 @@ static int httpclient_applet_init(struct appctx *appctx)
 		sock_inet_set_port(ss_dst, port);
 	}
 
-	if (!ss_dst) {
-		ha_alert("httpclient: Failed to initialize address %s:%d.\n", __FUNCTION__, __LINE__);
-		goto out_error;
-	}
-
 	if (!sockaddr_alloc(&addr, ss_dst, sizeof(*ss_dst)))
 		goto out_error;
 
