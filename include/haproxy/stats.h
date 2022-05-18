@@ -24,7 +24,9 @@
 #define _HAPROXY_STATS_H
 
 #include <haproxy/api.h>
+#include <haproxy/listener-t.h>
 #include <haproxy/stats-t.h>
+#include <haproxy/tools-t.h>
 
 struct channel;
 struct buffer;
