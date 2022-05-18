@@ -1862,6 +1862,7 @@ next_line:
 						 file, linenum);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					fatal++;
+					outlinesize = 0;
 					goto next_line;
 				}
 				/* try again */
