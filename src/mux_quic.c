@@ -296,12 +296,16 @@ void qcs_consume(struct qcs *qcs, uint64_t bytes)
 {
 	struct qcc *qcc = qcs->qcc;
 	struct quic_frame *frm;
+	struct ncbuf *buf = &qcs->rx.ncbuf;
 	enum ncb_ret ret;
 
-	ret = ncb_advance(&qcs->rx.ncbuf, bytes);
+	ret = ncb_advance(buf, bytes);
 	if (ret) {
 		ABORT_NOW(); /* should not happens because removal only in data */
 	}
+
+	if (ncb_is_empty(buf))
+		qc_free_ncbuf(qcs, buf);
 
 	qcs->rx.offset += bytes;
 	if (qcs->rx.msd - qcs->rx.offset < qcs->rx.msd_init / 2) {
