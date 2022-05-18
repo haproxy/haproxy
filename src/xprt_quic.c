@@ -2158,19 +2158,16 @@ static int qc_handle_bidi_strm_frm(struct quic_rx_packet *pkt,
                                    struct quic_stream *strm_frm,
                                    struct quic_conn *qc)
 {
-	struct qcs *qcs = NULL;
 	int ret;
 
 	ret = qcc_recv(qc->qcc, strm_frm->id, strm_frm->len,
 	               strm_frm->offset.key, strm_frm->fin,
-	               (char *)strm_frm->data, &qcs);
+	               (char *)strm_frm->data);
 
 	/* frame rejected - packet must not be acknowledeged */
 	if (ret)
 		return 0;
 
-	if (qcs)
-		qcc_decode_qcs(qc->qcc, qcs);
 	return 1;
 }
 

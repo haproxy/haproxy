@@ -364,22 +364,40 @@ struct qcs *qcc_get_qcs(struct qcc *qcc, uint64_t id)
 	return NULL;
 }
 
-/* Handle a new STREAM frame <strm_frm>. The frame content will be copied in
- * the buffer of the stream instance. The stream instance will be stored in
- * <out_qcs>. In case of success, the caller can immediatly call qcc_decode_qcs
- * to process the frame content.
+/* Decode the content of STREAM frames already received on the stream instance
+ * <qcs>.
+ *
+ * Returns 0 on success else non-zero.
+ */
+static int qcc_decode_qcs(struct qcc *qcc, struct qcs *qcs)
+{
+	TRACE_ENTER(QMUX_EV_QCS_RECV, qcc->conn, qcs);
+
+	if (qcc->app_ops->decode_qcs(qcs, qcs->flags & QC_SF_FIN_RECV, qcc->ctx) < 0) {
+		TRACE_DEVEL("leaving on decoding error", QMUX_EV_QCS_RECV, qcc->conn, qcs);
+		return 1;
+	}
+
+	qcs_notify_recv(qcs);
+
+	TRACE_LEAVE(QMUX_EV_QCS_RECV, qcc->conn, qcs);
+
+	return 0;
+}
+
+/* Handle a new STREAM frame for stream with id <id>. Payload is pointed by
+ * <data> with length <len> and represents the offset <offset>. <fin> is set if
+ * the QUIC frame FIN bit is set.
  *
  * Returns 0 on success else non-zero.
  */
 int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
-             char fin, char *data, struct qcs **out_qcs)
+             char fin, char *data)
 {
 	struct qcs *qcs;
 	enum ncb_ret ret;
 
 	TRACE_ENTER(QMUX_EV_QCC_RECV, qcc->conn);
-
-	*out_qcs = NULL;
 
 	qcs = qcc_get_qcs(qcc, id);
 	if (!qcs) {
@@ -392,8 +410,6 @@ int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
 			return 1;
 		}
 	}
-
-	*out_qcs = qcs;
 
 	if (offset + len <= qcs->rx.offset) {
 		TRACE_DEVEL("leaving on already received offset", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV, qcc->conn, qcs);
@@ -439,6 +455,9 @@ int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
 	if (fin)
 		qcs->flags |= QC_SF_FIN_RECV;
 
+	if (ncb_data(&qcs->rx.ncbuf, 0) && !(qcs->flags & QC_SF_DEM_FULL))
+		qcc_decode_qcs(qcc, qcs);
+
 	TRACE_LEAVE(QMUX_EV_QCC_RECV, qcc->conn);
 	return 0;
 }
@@ -483,27 +502,6 @@ int qcc_recv_max_stream_data(struct qcc *qcc, uint64_t id, uint64_t max)
 			}
 		}
 	}
-
-	return 0;
-}
-
-/* Decode the content of STREAM frames already received on the stream instance
- * <qcs>.
- *
- * Returns 0 on success else non-zero.
- */
-int qcc_decode_qcs(struct qcc *qcc, struct qcs *qcs)
-{
-	TRACE_ENTER(QMUX_EV_QCS_RECV, qcc->conn, qcs);
-
-	if (qcc->app_ops->decode_qcs(qcs, qcs->flags & QC_SF_FIN_RECV, qcc->ctx) < 0) {
-		TRACE_DEVEL("leaving on decoding error", QMUX_EV_QCS_RECV, qcc->conn, qcs);
-		return 1;
-	}
-
-	qcs_notify_recv(qcs);
-
-	TRACE_LEAVE(QMUX_EV_QCS_RECV, qcc->conn, qcs);
 
 	return 0;
 }

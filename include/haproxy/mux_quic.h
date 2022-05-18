@@ -25,10 +25,9 @@ void qcs_notify_recv(struct qcs *qcs);
 void qcs_notify_send(struct qcs *qcs);
 
 int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
-             char fin, char *data, struct qcs **out_qcs);
+             char fin, char *data);
 int qcc_recv_max_data(struct qcc *qcc, uint64_t max);
 int qcc_recv_max_stream_data(struct qcc *qcc, uint64_t id, uint64_t max);
-int qcc_decode_qcs(struct qcc *qcc, struct qcs *qcs);
 void qcc_streams_sent_done(struct qcs *qcs, uint64_t data, uint64_t offset);
 
 /* Bit shift to get the stream sub ID for internal use which is obtained
