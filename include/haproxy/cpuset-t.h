@@ -26,7 +26,7 @@
 
 # define CPUSET_REPR cpuset_t
 
-# if defined(__FreeBSD__) && __FreeBSD_version >= 1400046
+# if defined(__FreeBSD__) && __FreeBSD_version >= 1301000
 #  define CPUSET_USE_CPUSET
 # else
 #  define CPUSET_USE_FREEBSD_CPUSET
