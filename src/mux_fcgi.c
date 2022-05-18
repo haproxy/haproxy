@@ -422,6 +422,12 @@ static inline const char *fstrm_st_to_str(enum fcgi_strm_st st)
 	}
 }
 
+/* returns the stconn associated to the FCGI stream */
+static forceinline struct stconn *fcgi_strm_sc(const struct fcgi_strm *fstrm)
+{
+	return fstrm->endp->cs;
+}
+
 
 /* the FCGI traces always expect that arg1, if non-null, is of type connection
  * (from which we can derive fconn), that arg2, if non-null, is of type fstrm,
@@ -599,7 +605,7 @@ static int fcgi_buf_available(void *target)
 	}
 
 	if ((fconn->flags & FCGI_CF_DEM_SALLOC) &&
-	    (fstrm = fcgi_conn_st_by_id(fconn, fconn->dsi)) && fstrm->endp->cs &&
+	    (fstrm = fcgi_conn_st_by_id(fconn, fconn->dsi)) && fcgi_strm_sc(fstrm) &&
 	    b_alloc(&fstrm->rxbuf)) {
 		TRACE_STATE("unblocking fstrm, rxbuf allocated", FCGI_EV_STRM_RECV|FCGI_EV_FSTRM_BLK|FCGI_EV_STRM_WAKE, fconn->conn, fstrm);
 		fconn->flags &= ~FCGI_CF_DEM_SALLOC;
@@ -971,9 +977,9 @@ static void fcgi_strm_alert(struct fcgi_strm *fstrm)
 		fcgi_strm_notify_recv(fstrm);
 		fcgi_strm_notify_send(fstrm);
 	}
-	else if (fstrm->endp->cs && fstrm->endp->cs->data_cb->wake != NULL) {
+	else if (fcgi_strm_sc(fstrm) && fcgi_strm_sc(fstrm)->data_cb->wake != NULL) {
 		TRACE_POINT(FCGI_EV_STRM_WAKE, fstrm->fconn->conn, fstrm);
-		fstrm->endp->cs->data_cb->wake(fstrm->endp->cs);
+		fcgi_strm_sc(fstrm)->data_cb->wake(fcgi_strm_sc(fstrm));
 	}
 }
 
@@ -1006,7 +1012,7 @@ static inline void fcgi_strm_close(struct fcgi_strm *fstrm)
 		fstrm->fconn->nb_streams--;
 		if (!fstrm->id)
 			fstrm->fconn->nb_reserved--;
-		if (fstrm->endp->cs) {
+		if (fcgi_strm_sc(fstrm)) {
 			if (!se_fl_test(fstrm->endp, SE_FL_EOS) && !b_data(&fstrm->rxbuf))
 				fcgi_strm_notify_recv(fstrm);
 		}
@@ -1155,7 +1161,7 @@ static void fcgi_strm_wake_one_stream(struct fcgi_strm *fstrm)
 
 	TRACE_ENTER(FCGI_EV_STRM_WAKE, fconn->conn, fstrm);
 
-	if (!fstrm->endp->cs) {
+	if (!fcgi_strm_sc(fstrm)) {
 		/* this stream was already orphaned */
 		fcgi_strm_destroy(fstrm);
 		TRACE_DEVEL("leaving with no fstrm", FCGI_EV_STRM_WAKE, fconn->conn);
@@ -1230,8 +1236,8 @@ static int fcgi_set_default_param(struct fcgi_conn *fconn, struct fcgi_strm *fst
 				  struct fcgi_strm_params *params)
 {
 	struct connection *cli_conn = objt_conn(fstrm->sess->origin);
-	const struct sockaddr_storage *src = (cs_check(fstrm->endp->cs) ? conn_src(fconn->conn) : cs_src(cs_opposite(fstrm->endp->cs)));
-	const struct sockaddr_storage *dst = (cs_check(fstrm->endp->cs) ? conn_dst(fconn->conn) : cs_dst(cs_opposite(fstrm->endp->cs)));
+	const struct sockaddr_storage *src = (cs_check(fcgi_strm_sc(fstrm)) ? conn_src(fconn->conn) : cs_src(cs_opposite(fcgi_strm_sc(fstrm))));
+	const struct sockaddr_storage *dst = (cs_check(fcgi_strm_sc(fstrm)) ? conn_dst(fconn->conn) : cs_dst(cs_opposite(fcgi_strm_sc(fstrm))));
 	struct ist p;
 
 	if (!sl)
@@ -2617,7 +2623,7 @@ static void fcgi_process_demux(struct fcgi_conn *fconn)
 		/* Only FCGI_CS_RECORD_D or FCGI_CS_RECORD_P */
 		tmp_fstrm = fcgi_conn_st_by_id(fconn, fconn->dsi);
 
-		if (tmp_fstrm != fstrm && fstrm && fstrm->endp->cs &&
+		if (tmp_fstrm != fstrm && fstrm && fcgi_strm_sc(fstrm) &&
 		    (b_data(&fstrm->rxbuf) ||
 		     fcgi_conn_read0_pending(fconn) ||
 		     fstrm->state == FCGI_SS_CLOSED ||
@@ -2698,7 +2704,7 @@ static void fcgi_process_demux(struct fcgi_conn *fconn)
 
  fail:
 	/* we can go here on missing data, blocked response or error */
-	if (fstrm && fstrm->endp->cs &&
+	if (fstrm && fcgi_strm_sc(fstrm) &&
 	    (b_data(&fstrm->rxbuf) ||
 	     fcgi_conn_read0_pending(fconn) ||
 	     fstrm->state == FCGI_SS_CLOSED ||
@@ -3118,7 +3124,7 @@ static int fcgi_process(struct fcgi_conn *fconn)
 
 		while (node) {
 			fstrm = container_of(node, struct fcgi_strm, by_id);
-			if (fstrm->endp->cs && se_fl_test(fstrm->endp, SE_FL_WAIT_FOR_HS))
+			if (fcgi_strm_sc(fstrm) && se_fl_test(fstrm->endp, SE_FL_WAIT_FOR_HS))
 				fcgi_strm_notify_recv(fstrm);
 			node = eb32_next(node);
 		}
@@ -3313,11 +3319,11 @@ static void fcgi_strm_capture_bad_message(struct fcgi_conn *fconn, struct fcgi_s
 	struct proxy *other_end;
 	union error_snapshot_ctx ctx;
 
-	if (fstrm->endp->cs && cs_strm(fstrm->endp->cs)) {
+	if (fcgi_strm_sc(fstrm) && cs_strm(fcgi_strm_sc(fstrm))) {
 		if (sess == NULL)
-			sess = __cs_strm(fstrm->endp->cs)->sess;
+			sess = __cs_strm(fcgi_strm_sc(fstrm))->sess;
 		if (!(h1m->flags & H1_MF_RESP))
-			other_end = __cs_strm(fstrm->endp->cs)->be;
+			other_end = __cs_strm(fcgi_strm_sc(fstrm))->be;
 		else
 			other_end = sess->fe;
 	} else
@@ -3557,8 +3563,8 @@ static struct stconn *fcgi_get_first_cs(const struct connection *conn)
 	node = eb32_first(&fconn->streams_by_id);
 	while (node) {
 		fstrm = container_of(node, struct fcgi_strm, by_id);
-		if (fstrm->endp->cs)
-			return fstrm->endp->cs;
+		if (fcgi_strm_sc(fstrm))
+			return fcgi_strm_sc(fstrm);
 		node = eb32_next(node);
 	}
 	return NULL;
@@ -3841,7 +3847,7 @@ struct task *fcgi_deferred_shut(struct task *t, void *ctx, unsigned int state)
 		/* We're done trying to send, remove ourself from the send_list */
 		LIST_DEL_INIT(&fstrm->send_list);
 
-		if (!fstrm->endp->cs) {
+		if (!fcgi_strm_sc(fstrm)) {
 			fcgi_strm_destroy(fstrm);
 			if (fcgi_conn_is_dead(fconn))
 				fcgi_release(fconn);
@@ -4159,7 +4165,7 @@ static int fcgi_show_fd(struct buffer *msg, struct connection *conn)
 	while (node) {
 		fstrm = container_of(node, struct fcgi_strm, by_id);
 		tree_cnt++;
-		if (!fstrm->endp->cs)
+		if (!fcgi_strm_sc(fstrm))
 			orph_cnt++;
 		node = eb32_next(node);
 	}
@@ -4185,12 +4191,12 @@ static int fcgi_show_fd(struct buffer *msg, struct connection *conn)
 			      fstrm, fstrm->id, fstrm->flags,
 			      (unsigned int)b_data(&fstrm->rxbuf), b_orig(&fstrm->rxbuf),
 			      (unsigned int)b_head_ofs(&fstrm->rxbuf), (unsigned int)b_size(&fstrm->rxbuf),
-			      fstrm->endp->cs);
+			      fcgi_strm_sc(fstrm));
 		if (fstrm->endp) {
 			chunk_appendf(msg, " .endp.flg=0x%08x", se_fl_get(fstrm->endp));
 			if (!se_fl_test(fstrm->endp, SE_FL_ORPHAN))
 				chunk_appendf(msg, " .cs.flg=0x%08x .cs.app=%p",
-					      fstrm->endp->cs->flags, fstrm->endp->cs->app);
+					      fcgi_strm_sc(fstrm)->flags, fcgi_strm_sc(fstrm)->app);
 		}
 		chunk_appendf(&trash, " .subs=%p", fstrm->subs);
 		if (fstrm->subs) {
