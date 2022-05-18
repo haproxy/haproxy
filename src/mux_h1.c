@@ -364,6 +364,12 @@ static void h1_shutw_conn(struct connection *conn);
 static void h1_wake_stream_for_recv(struct h1s *h1s);
 static void h1_wake_stream_for_send(struct h1s *h1s);
 
+/* returns the stconn associated to the H1 stream */
+static forceinline struct stconn *h1s_sc(const struct h1s *h1s)
+{
+	return h1s->endp->cs;
+}
+
 /* the H1 traces always expect that arg1, if non-null, is of type connection
  * (from which we can derive h1c), that arg2, if non-null, is of type h1s, and
  * that arg3, if non-null, is a htx for rx/tx headers.
@@ -429,8 +435,8 @@ static void h1_trace(enum trace_level level, uint64_t mask, const struct trace_s
 		chunk_appendf(&trace_buf, " h1s=%p(0x%08x)", h1s, h1s->flags);
 		if (h1s->endp)
 			chunk_appendf(&trace_buf, " endp=%p(0x%08x)", h1s->endp, se_fl_get(h1s->endp));
-		if (h1s->endp && h1s->endp->cs)
-			chunk_appendf(&trace_buf, " cs=%p(0x%08x)", h1s->endp->cs, h1s->endp->cs->flags);
+		if (h1s->endp && h1s_sc(h1s))
+			chunk_appendf(&trace_buf, " cs=%p(0x%08x)", h1s_sc(h1s), h1s_sc(h1s)->flags);
 	}
 
 	if (src->verbosity == H1_VERB_MINIMAL)
@@ -736,7 +742,7 @@ static struct stconn *h1s_new_cs(struct h1s *h1s, struct buffer *input)
 
 	h1c->flags = (h1c->flags & ~H1C_F_ST_EMBRYONIC) | H1C_F_ST_ATTACHED | H1C_F_ST_READY;
 	TRACE_LEAVE(H1_EV_STRM_NEW, h1c->conn, h1s);
-	return h1s->endp->cs;
+	return h1s_sc(h1s);
 
   err:
 	TRACE_DEVEL("leaving on error", H1_EV_STRM_NEW|H1_EV_STRM_ERR, h1c->conn, h1s);
@@ -747,14 +753,14 @@ static struct stconn *h1s_upgrade_cs(struct h1s *h1s, struct buffer *input)
 {
 	TRACE_ENTER(H1_EV_STRM_NEW, h1s->h1c->conn, h1s);
 
-	if (stream_upgrade_from_cs(h1s->endp->cs, input) < 0) {
+	if (stream_upgrade_from_cs(h1s_sc(h1s), input) < 0) {
 		TRACE_ERROR("stream upgrade failure", H1_EV_STRM_NEW|H1_EV_STRM_END|H1_EV_STRM_ERR, h1s->h1c->conn, h1s);
 		goto err;
 	}
 
 	h1s->h1c->flags |= H1C_F_ST_READY;
 	TRACE_LEAVE(H1_EV_STRM_NEW, h1s->h1c->conn, h1s);
-	return h1s->endp->cs;
+	return h1s_sc(h1s);
 
   err:
 	TRACE_DEVEL("leaving on error", H1_EV_STRM_NEW|H1_EV_STRM_ERR, h1s->h1c->conn, h1s);
@@ -1412,11 +1418,11 @@ static void h1_capture_bad_message(struct h1c *h1c, struct h1s *h1s,
 	struct proxy *other_end;
 	union error_snapshot_ctx ctx;
 
-	if ((h1c->flags & H1C_F_ST_ATTACHED) && cs_strm(h1s->endp->cs)) {
+	if ((h1c->flags & H1C_F_ST_ATTACHED) && cs_strm(h1s_sc(h1s))) {
 		if (sess == NULL)
-			sess = __cs_strm(h1s->endp->cs)->sess;
+			sess = __cs_strm(h1s_sc(h1s))->sess;
 		if (!(h1m->flags & H1_MF_RESP))
-			other_end = __cs_strm(h1s->endp->cs)->be;
+			other_end = __cs_strm(h1s_sc(h1s))->be;
 		else
 			other_end = sess->fe;
 	} else
@@ -1886,7 +1892,7 @@ static size_t h1_process_demux(struct h1c *h1c, struct buffer *buf, size_t count
 
 		if (!(h1c->flags & H1C_F_ST_ATTACHED)) {
 			TRACE_DEVEL("request headers fully parsed, create and attach the CS", H1_EV_RX_DATA, h1c->conn, h1s);
-			BUG_ON(h1s->endp->cs);
+			BUG_ON(h1s_sc(h1s));
 			if (!h1s_new_cs(h1s, buf)) {
 				h1c->flags |= H1C_F_ST_ERROR;
 				goto err;
@@ -1894,7 +1900,7 @@ static size_t h1_process_demux(struct h1c *h1c, struct buffer *buf, size_t count
 		}
 		else {
 			TRACE_DEVEL("request headers fully parsed, upgrade the inherited CS", H1_EV_RX_DATA, h1c->conn, h1s);
-			BUG_ON(h1s->endp->cs == NULL);
+			BUG_ON(h1s_sc(h1s) == NULL);
 			if (!h1s_upgrade_cs(h1s, buf)) {
 				h1c->flags |= H1C_F_ST_ERROR;
 				TRACE_ERROR("H1S upgrade failure", H1_EV_RX_DATA|H1_EV_H1S_ERR, h1c->conn, h1s);
@@ -1903,7 +1909,7 @@ static size_t h1_process_demux(struct h1c *h1c, struct buffer *buf, size_t count
 		}
 	}
 
-	/* Here h1s->endp->cs is always defined */
+	/* Here h1s_sc(h1s) is always defined */
 	if (!(h1m->flags & H1_MF_CHNK) && (h1m->state == H1_MSG_DATA || (h1m->state == H1_MSG_TUNNEL))) {
 		TRACE_STATE("notify the mux can use splicing", H1_EV_RX_DATA|H1_EV_RX_BODY, h1c->conn, h1s);
 		se_fl_set(h1s->endp, SE_FL_MAY_SPLICE);
@@ -2619,9 +2625,9 @@ static void h1_alert(struct h1s *h1s)
 		h1_wake_stream_for_recv(h1s);
 		h1_wake_stream_for_send(h1s);
 	}
-	else if (h1s->endp->cs && h1s->endp->cs->data_cb->wake != NULL) {
+	else if (h1s_sc(h1s) && h1s_sc(h1s)->data_cb->wake != NULL) {
 		TRACE_POINT(H1_EV_STRM_WAKE, h1s->h1c->conn, h1s);
-		h1s->endp->cs->data_cb->wake(h1s->endp->cs);
+		h1s_sc(h1s)->data_cb->wake(h1s_sc(h1s));
 	}
 }
 
@@ -3340,7 +3346,7 @@ static struct stconn *h1_get_first_cs(const struct connection *conn)
 	struct h1s *h1s = h1c->h1s;
 
 	if (h1s)
-		return h1s->endp->cs;
+		return h1s_sc(h1s);
 
 	return NULL;
 }
@@ -3913,7 +3919,7 @@ static int h1_show_fd(struct buffer *msg, struct connection *conn)
 				      se_fl_get(h1s->endp));
 			if (!se_fl_test(h1s->endp, SE_FL_ORPHAN))
 				chunk_appendf(msg, " .cs.flg=0x%08x .cs.app=%p",
-					      h1s->endp->cs->flags, h1s->endp->cs->app);
+					      h1s_sc(h1s)->flags, h1s_sc(h1s)->app);
 		}
 		chunk_appendf(&trash, " .subs=%p", h1s->subs);
 		if (h1s->subs) {
