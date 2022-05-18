@@ -1071,8 +1071,8 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 		if (conn->flags & CO_FL_WAIT_XPRT) {
 			/* We are still waiting for the connection establishment */
 			if (next && next->action == TCPCHK_ACT_SEND) {
-				if (!(check->wait_list.events & SUB_RETRY_SEND))
-					conn->mux->subscribe(check->cs, SUB_RETRY_SEND, &check->wait_list);
+				if (!(check->cs->wait_event.events & SUB_RETRY_SEND))
+					conn->mux->subscribe(check->cs, SUB_RETRY_SEND, &check->cs->wait_event);
 				ret = TCPCHK_EVAL_WAIT;
 				TRACE_DEVEL("not connected yet", CHK_EV_TCPCHK_CONN, check);
 			}
@@ -1108,11 +1108,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 		goto fail_check;
 	}
 	conn->ctx = check->cs;
-	tasklet_set_tid(check->wait_list.tasklet, tid);
 	conn_set_owner(conn, check->sess, NULL);
-
-	/* Maybe there were an older connection we were waiting on */
-	check->wait_list.events = 0;
 
 	/* no client address */
 	if (!sockaddr_alloc(&conn->dst, NULL, 0)) {
@@ -1298,9 +1294,9 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 	if (conn->flags & CO_FL_WAIT_XPRT) {
 		if (conn->mux) {
 			if (next && next->action == TCPCHK_ACT_SEND)
-				conn->mux->subscribe(check->cs, SUB_RETRY_SEND, &check->wait_list);
+				conn->mux->subscribe(check->cs, SUB_RETRY_SEND, &check->cs->wait_event);
 			else
-				conn->mux->subscribe(check->cs, SUB_RETRY_RECV, &check->wait_list);
+				conn->mux->subscribe(check->cs, SUB_RETRY_RECV, &check->cs->wait_event);
 		}
 		ret = TCPCHK_EVAL_WAIT;
 		TRACE_DEVEL("not connected yet", CHK_EV_TCPCHK_CONN, check);
@@ -1495,7 +1491,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_send(struct check *check, struct tcpcheck_r
 		}
 	}
 	if ((IS_HTX_CONN(conn) && !htx_is_empty(htxbuf(&check->bo))) || (!IS_HTX_CONN(conn) && b_data(&check->bo))) {
-		conn->mux->subscribe(cs, SUB_RETRY_SEND, &check->wait_list);
+		conn->mux->subscribe(cs, SUB_RETRY_SEND, &cs->wait_event);
 		ret = TCPCHK_EVAL_WAIT;
 		TRACE_DEVEL("data not fully sent, wait", CHK_EV_TCPCHK_SND|CHK_EV_TX_DATA, check);
 		goto out;
@@ -1547,7 +1543,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_recv(struct check *check, struct tcpcheck_r
 
 	TRACE_ENTER(CHK_EV_RX_DATA, check);
 
-	if (check->wait_list.events & SUB_RETRY_RECV) {
+	if (cs->wait_event.events & SUB_RETRY_RECV) {
 		TRACE_DEVEL("waiting for response", CHK_EV_RX_DATA, check);
 		goto wait_more_data;
 	}
@@ -1600,7 +1596,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_recv(struct check *check, struct tcpcheck_r
 			goto out;
 		}
 		if (!(cs->endp->flags & (CS_EP_WANT_ROOM|CS_EP_ERROR|CS_EP_EOS))) {
-			conn->mux->subscribe(cs, SUB_RETRY_RECV, &check->wait_list);
+			conn->mux->subscribe(cs, SUB_RETRY_RECV, &cs->wait_event);
 			TRACE_DEVEL("waiting for response", CHK_EV_RX_DATA, check);
 			goto wait_more_data;
 		}
@@ -2237,8 +2233,8 @@ int tcpcheck_main(struct check *check)
 
 			if (eval_ret == TCPCHK_EVAL_WAIT) {
 				check->current_step = rule->expect.head;
-				if (!(check->wait_list.events & SUB_RETRY_RECV))
-					conn->mux->subscribe(cs, SUB_RETRY_RECV, &check->wait_list);
+				if (!(cs->wait_event.events & SUB_RETRY_RECV))
+					conn->mux->subscribe(cs, SUB_RETRY_RECV, &cs->wait_event);
 			}
 			break;
 		case TCPCHK_ACT_ACTION_KW:

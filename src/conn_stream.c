@@ -266,8 +266,18 @@ int cs_attach_mux(struct conn_stream *cs, void *target, void *ctx)
 		cs->ops = &cs_app_conn_ops;
 		cs->data_cb = &cs_data_conn_cb;
 	}
-	else if (cs_check(cs))
+	else if (cs_check(cs)) {
+		if (!cs->wait_event.tasklet) {
+			cs->wait_event.tasklet = tasklet_new();
+			if (!cs->wait_event.tasklet)
+				return -1;
+			cs->wait_event.tasklet->process = srv_chk_io_cb;
+			cs->wait_event.tasklet->context = cs;
+			cs->wait_event.events = 0;
+		}
+
 		cs->data_cb = &check_conn_cb;
+	}
 	return 0;
 }
 
@@ -340,7 +350,6 @@ static void cs_detach_endp(struct conn_stream **csp)
 		struct cs_endpoint *endp = cs->endp;
 
 		if (conn->mux) {
-			/* TODO: handle unsubscribe for healthchecks too */
 			if (cs->wait_event.events != 0)
 				conn->mux->unsubscribe(cs, cs->wait_event.events, &cs->wait_event);
 			endp->flags |= CS_EP_ORPHAN;
