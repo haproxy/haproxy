@@ -927,7 +927,7 @@ static inline void fcgi_strm_error(struct fcgi_strm *fstrm)
 			fstrm->state = FCGI_SS_ERROR;
 			TRACE_STATE("switching to ERROR", FCGI_EV_FSTRM_ERR, fstrm->fconn->conn, fstrm);
 		}
-		cs_ep_set_error(fstrm->endp);
+		se_fl_set_error(fstrm->endp);
 	}
 }
 
@@ -4120,7 +4120,7 @@ static size_t fcgi_snd_buf(struct stconn *cs, struct buffer *buf, size_t count, 
 
 	if (fstrm->state == FCGI_SS_ERROR) {
 		TRACE_DEVEL("reporting error to the app-layer stream", FCGI_EV_STRM_SEND|FCGI_EV_FSTRM_ERR|FCGI_EV_STRM_ERR, fconn->conn, fstrm);
-		cs_ep_set_error(fstrm->endp);
+		se_fl_set_error(fstrm->endp);
 		if (!(fstrm->flags & FCGI_SF_BEGIN_SENT) || fcgi_strm_send_abort(fconn, fstrm))
 			fcgi_strm_close(fstrm);
 	}

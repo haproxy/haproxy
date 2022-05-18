@@ -92,6 +92,15 @@ static forceinline uint se_fl_get(const struct sedesc *se)
 	return se->flags;
 }
 
+/* sets SE_FL_ERROR or SE_FL_ERR_PENDING on the endpoint */
+static inline void se_fl_set_error(struct sedesc *se)
+{
+	if (se_fl_test(se, SE_FL_EOS))
+		se_fl_set(se, SE_FL_ERROR);
+	else
+		se_fl_set(se, SE_FL_ERR_PENDING);
+}
+
 /* stream connector version */
 static forceinline void sc_ep_zero(struct stconn *sc)
 {
@@ -272,15 +281,6 @@ static inline void sc_conn_drain_and_shut(struct stconn *cs)
 {
 	sc_conn_shutw(cs, CO_SHW_SILENT);
 	sc_conn_shutr(cs, CO_SHR_DRAIN);
-}
-
-/* sets SE_FL_ERROR or SE_FL_ERR_PENDING on the endpoint */
-static inline void cs_ep_set_error(struct sedesc *endp)
-{
-	if (se_fl_test(endp, SE_FL_EOS))
-		se_fl_set(endp, SE_FL_ERROR);
-	else
-		se_fl_set(endp, SE_FL_ERR_PENDING);
 }
 
 /* Returns non-zero if the stream connector's Rx path is blocked */
