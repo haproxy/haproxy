@@ -2757,14 +2757,13 @@ static int cli_parse_stat_resolvers(char **args, char *payload, struct appctx *a
 static int cli_io_handler_dump_resolvers_to_buffer(struct appctx *appctx)
 {
 	struct show_resolvers_ctx *ctx = appctx->svcctx;
-	struct stconn *cs = appctx_cs(appctx);
 	struct resolvers    *resolvers = ctx->resolvers;
 	struct dns_nameserver   *ns;
 
 	chunk_reset(&trash);
 
 	if (LIST_ISEMPTY(&sec_resolvers)) {
-		if (ci_putstr(cs_ic(cs), "No resolvers found\n") == -1)
+		if (applet_putstr(appctx, "No resolvers found\n") == -1)
 			goto full;
 	}
 	else {
@@ -2780,7 +2779,7 @@ static int cli_io_handler_dump_resolvers_to_buffer(struct appctx *appctx)
 
 			if (!ns) {
 				chunk_printf(&trash, "Resolvers section %s\n", resolvers->id);
-				if (ci_putchk(cs_ic(cs), &trash) == -1)
+				if (applet_putchk(appctx, &trash) == -1)
 					goto full;
 
 				ns = LIST_ELEM(resolvers->nameservers.n, typeof(ns), list);
@@ -2805,7 +2804,7 @@ static int cli_io_handler_dump_resolvers_to_buffer(struct appctx *appctx)
 				chunk_appendf(&trash, "  too_big:     %lld\n", ns->counters->app.resolver.too_big);
 				chunk_appendf(&trash, "  truncated:   %lld\n", ns->counters->app.resolver.truncated);
 				chunk_appendf(&trash, "  outdated:    %lld\n",  ns->counters->app.resolver.outdated);
-				if (ci_putchk(cs_ic(cs), &trash) == -1)
+				if (applet_putchk(appctx, &trash) == -1)
 					goto full;
 				ctx->ns = ns;
 			}
@@ -2822,7 +2821,6 @@ static int cli_io_handler_dump_resolvers_to_buffer(struct appctx *appctx)
 	return 1;
  full:
 	/* the output buffer is full, retry later */
-	cs_rx_room_blk(cs);
 	return 0;
 }
 

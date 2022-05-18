@@ -1145,9 +1145,10 @@ spoe_send_frame(struct appctx *appctx, char *buf, size_t framesz)
 	 * length. */
 	netint = htonl(framesz);
 	memcpy(buf, (char *)&netint, 4);
-	ret = ci_putblk(cs_ic(cs), buf, framesz+4);
+	ret = applet_putblk(appctx, buf, framesz+4);
 	if (ret <= 0) {
 		if ((ret == -3 && b_is_null(&cs_ic(cs)->buf)) || ret == -1) {
+			/* WT: is this still needed for the case ret==-3 ? */
 			cs_rx_room_blk(cs);
 			return 1; /* retry */
 		}

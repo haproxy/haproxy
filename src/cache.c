@@ -2600,7 +2600,6 @@ static int cli_io_handler_show_cache(struct appctx *appctx)
 {
 	struct show_cache_ctx *ctx = appctx->svcctx;
 	struct cache* cache = ctx->cache;
-	struct stconn *cs = appctx_cs(appctx);
 
 	list_for_each_entry_from(cache, &caches, list) {
 		struct eb32_node *node = NULL;
@@ -2611,10 +2610,8 @@ static int cli_io_handler_show_cache(struct appctx *appctx)
 		next_key = ctx->next_key;
 		if (!next_key) {
 			chunk_printf(&trash, "%p: %s (shctx:%p, available blocks:%d)\n", cache, cache->id, shctx_ptr(cache), shctx_ptr(cache)->nbav);
-			if (ci_putchk(cs_ic(cs), &trash) == -1) {
-				cs_rx_room_blk(cs);
+			if (applet_putchk(appctx, &trash) == -1)
 				return 0;
-			}
 		}
 
 		ctx->cache = cache;
@@ -2649,10 +2646,8 @@ static int cli_io_handler_show_cache(struct appctx *appctx)
 
 			shctx_unlock(shctx_ptr(cache));
 
-			if (ci_putchk(cs_ic(cs), &trash) == -1) {
-				cs_rx_room_blk(cs);
+			if (applet_putchk(appctx, &trash) == -1)
 				return 0;
-			}
 		}
 
 	}

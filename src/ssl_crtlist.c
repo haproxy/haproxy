@@ -913,7 +913,6 @@ static int cli_io_handler_dump_crtlist(struct appctx *appctx)
 {
 	struct show_crtlist_ctx *ctx = appctx->svcctx;
 	struct buffer *trash = alloc_trash_chunk();
-	struct stconn *cs = appctx_cs(appctx);
 	struct ebmb_node *lnode;
 
 	if (trash == NULL)
@@ -925,10 +924,8 @@ static int cli_io_handler_dump_crtlist(struct appctx *appctx)
 		lnode = ebmb_first(&crtlists_tree);
 	while (lnode) {
 		chunk_appendf(trash, "%s\n", lnode->key);
-		if (ci_putchk(cs_ic(cs), trash) == -1) {
-			cs_rx_room_blk(cs);
+		if (applet_putchk(appctx, trash) == -1)
 			goto yield;
-		}
 		lnode = ebmb_next(lnode);
 	}
 	free_trash_chunk(trash);
@@ -945,7 +942,6 @@ static int cli_io_handler_dump_crtlist_entries(struct appctx *appctx)
 	struct show_crtlist_ctx *ctx = appctx->svcctx;
 	struct buffer *trash = alloc_trash_chunk();
 	struct crtlist *crtlist;
-	struct stconn *cs = appctx_cs(appctx);
 	struct crtlist_entry *entry;
 
 	if (trash == NULL)
@@ -957,10 +953,8 @@ static int cli_io_handler_dump_crtlist_entries(struct appctx *appctx)
 	if (entry == NULL) {
 		entry = LIST_ELEM((crtlist->ord_entries).n, typeof(entry), by_crtlist);
 		chunk_appendf(trash, "# %s\n", crtlist->node.key);
-		if (ci_putchk(cs_ic(cs), trash) == -1) {
-			cs_rx_room_blk(cs);
+		if (applet_putchk(appctx, trash) == -1)
 			goto yield;
-		}
 	}
 
 	list_for_each_entry_from(entry, &crtlist->ord_entries, by_crtlist) {
@@ -976,10 +970,8 @@ static int cli_io_handler_dump_crtlist_entries(struct appctx *appctx)
 		dump_crtlist_filters(trash, entry);
 		chunk_appendf(trash, "\n");
 
-		if (ci_putchk(cs_ic(cs), trash) == -1) {
-			cs_rx_room_blk(cs);
+		if (applet_putchk(appctx, trash) == -1)
 			goto yield;
-		}
 	}
 	free_trash_chunk(trash);
 	return 1;
@@ -1094,10 +1086,8 @@ static int cli_io_handler_add_crtlist(struct appctx *appctx)
 	case ADDCRT_ST_INIT:
 		/* This state just print the update message */
 		chunk_printf(trash, "Inserting certificate '%s' in crt-list '%s'", store->path, crtlist->node.key);
-		if (ci_putchk(cs_ic(cs), trash) == -1) {
-			cs_rx_room_blk(cs);
+		if (applet_putchk(appctx, trash) == -1)
 			goto yield;
-		}
 		ctx->state = ADDCRT_ST_GEN;
 		/* fallthrough */
 	case ADDCRT_ST_GEN:
@@ -1155,15 +1145,13 @@ static int cli_io_handler_add_crtlist(struct appctx *appctx)
 	if (errcode & ERR_WARN)
 		chunk_appendf(trash, "%s", err);
 	chunk_appendf(trash, "Success!\n");
-	if (ci_putchk(cs_ic(cs), trash) == -1)
-		cs_rx_room_blk(cs);
+	applet_putchk(appctx, trash);
 	free_trash_chunk(trash);
 	/* success: call the release function and don't come back */
 	return 1;
 yield:
 	/* store the state */
-	if (ci_putchk(cs_ic(cs), trash) == -1)
-		cs_rx_room_blk(cs);
+	applet_putchk(appctx, trash);
 	free_trash_chunk(trash);
 	cs_rx_endp_more(cs); /* let's come back later */
 	return 0; /* should come back */
@@ -1172,8 +1160,7 @@ error:
 	/* spin unlock and free are done in the release function */
 	if (trash) {
 		chunk_appendf(trash, "\n%sFailed!\n", err);
-		if (ci_putchk(cs_ic(cs), trash) == -1)
-			cs_rx_room_blk(cs);
+		applet_putchk(appctx, trash);
 		free_trash_chunk(trash);
 	}
 	/* error: call the release function and don't come back */

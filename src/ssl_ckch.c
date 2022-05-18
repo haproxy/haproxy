@@ -1319,7 +1319,6 @@ static int cli_io_handler_show_cert(struct appctx *appctx)
 	struct show_cert_ctx *ctx = appctx->svcctx;
 	struct buffer *trash = alloc_trash_chunk();
 	struct ebmb_node *node;
-	struct stconn *cs = appctx_cs(appctx);
 	struct ckch_store *ckchs;
 
 	if (trash == NULL)
@@ -1344,10 +1343,8 @@ static int cli_io_handler_show_cert(struct appctx *appctx)
 		chunk_appendf(trash, "%s\n", ckchs->path);
 
 		node = ebmb_next(node);
-		if (ci_putchk(cs_ic(cs), trash) == -1) {
-			cs_rx_room_blk(cs);
+		if (applet_putchk(appctx, trash) == -1)
 			goto yield;
-		}
 	}
 
 	ctx->cur_ckchs = NULL;
@@ -1721,7 +1718,6 @@ static int ckch_store_show_ocsp_certid(struct ckch_store *ckch_store, struct buf
 static int cli_io_handler_show_cert_detail(struct appctx *appctx)
 {
 	struct show_cert_ctx *ctx = appctx->svcctx;
-	struct stconn *cs = appctx_cs(appctx);
 	struct ckch_store *ckchs = ctx->cur_ckchs;
 	struct buffer *out = alloc_trash_chunk();
 	int retval = 0;
@@ -1751,10 +1747,8 @@ static int cli_io_handler_show_cert_detail(struct appctx *appctx)
 	ckch_store_show_ocsp_certid(ckchs, out);
 
 end:
-	if (ci_putchk(cs_ic(cs), out) == -1) {
-		cs_rx_room_blk(cs);
+	if (applet_putchk(appctx, out) == -1)
 		goto yield;
-	}
 
 end_no_putchk:
 	free_trash_chunk(out);
@@ -1772,7 +1766,6 @@ static int cli_io_handler_show_cert_ocsp_detail(struct appctx *appctx)
 {
 #if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) && !defined OPENSSL_IS_BORINGSSL)
 	struct show_cert_ctx *ctx = appctx->svcctx;
-	struct stconn *cs = appctx_cs(appctx);
 	struct ckch_store *ckchs = ctx->cur_ckchs;
 	struct buffer *out = alloc_trash_chunk();
 	int from_transaction = ctx->transaction;
@@ -1799,10 +1792,8 @@ static int cli_io_handler_show_cert_ocsp_detail(struct appctx *appctx)
 			goto end_no_putchk;
 	}
 
-	if (ci_putchk(cs_ic(cs), out) == -1) {
-		cs_rx_room_blk(cs);
+	if (applet_putchk(appctx, out) == -1)
 		goto yield;
-	}
 
 end_no_putchk:
 	free_trash_chunk(out);
@@ -2071,10 +2062,9 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 			case CERT_ST_INIT:
 				/* This state just print the update message */
 				chunk_printf(trash, "Committing %s", ckchs_transaction.path);
-				if (ci_putchk(cs_ic(cs), trash) == -1) {
-					cs_rx_room_blk(cs);
+				if (applet_putchk(appctx, trash) == -1)
 					goto yield;
-				}
+
 				ctx->state = CERT_ST_GEN;
 				/* fallthrough */
 			case CERT_ST_GEN:
@@ -2146,15 +2136,13 @@ end:
 
 	chunk_appendf(trash, "\n");
 	chunk_appendf(trash, "Success!\n");
-	if (ci_putchk(cs_ic(cs), trash) == -1)
-		cs_rx_room_blk(cs);
+	applet_putchk(appctx, trash);
 	free_trash_chunk(trash);
 	/* success: call the release function and don't come back */
 	return 1;
 yield:
 	/* store the state */
-	if (ci_putchk(cs_ic(cs), trash) == -1)
-		cs_rx_room_blk(cs);
+	applet_putchk(appctx, trash);
 	free_trash_chunk(trash);
 	cs_rx_endp_more(cs); /* let's come back later */
 	return 0; /* should come back */
@@ -2163,8 +2151,7 @@ error:
 	/* spin unlock and free are done in the release  function */
 	if (trash) {
 		chunk_appendf(trash, "\n%sFailed!\n", err);
-		if (ci_putchk(cs_ic(cs), trash) == -1)
-			cs_rx_room_blk(cs);
+		applet_putchk(appctx, trash);
 		free_trash_chunk(trash);
 	}
 	/* error: call the release function and don't come back */
@@ -2825,10 +2812,9 @@ static int cli_io_handler_commit_cafile_crlfile(struct appctx *appctx)
 				default:
 					goto error;
 				}
-				if (ci_putchk(cs_ic(cs), trash) == -1) {
-					cs_rx_room_blk(cs);
+				if (applet_putchk(appctx, trash) == -1)
 					goto yield;
-				}
+
 				ctx->state = CACRL_ST_GEN;
 				/* fallthrough */
 			case CACRL_ST_GEN:
@@ -2936,15 +2922,13 @@ end:
 
 	chunk_appendf(trash, "\n");
 	chunk_appendf(trash, "Success!\n");
-	if (ci_putchk(cs_ic(cs), trash) == -1)
-		cs_rx_room_blk(cs);
+	applet_putchk(appctx, trash);
 	free_trash_chunk(trash);
 	/* success: call the release function and don't come back */
 	return 1;
 yield:
 	/* store the state */
-	if (ci_putchk(cs_ic(cs), trash) == -1)
-		cs_rx_room_blk(cs);
+	applet_putchk(appctx, trash);
 	free_trash_chunk(trash);
 	cs_rx_endp_more(cs); /* let's come back later */
 	return 0; /* should come back */
@@ -2953,8 +2937,7 @@ error:
 	/* spin unlock and free are done in the release function */
 	if (trash) {
 		chunk_appendf(trash, "\n%sFailed!\n", err);
-		if (ci_putchk(cs_ic(cs), trash) == -1)
-			cs_rx_room_blk(cs);
+		applet_putchk(appctx, trash);
 		free_trash_chunk(trash);
 	}
 	/* error: call the release function and don't come back */
@@ -3030,7 +3013,6 @@ static void cli_release_commit_cafile(struct appctx *appctx)
 static int cli_io_handler_show_cafile_detail(struct appctx *appctx)
 {
 	struct show_cafile_ctx *ctx = appctx->svcctx;
-	struct stconn *cs = appctx_cs(appctx);
 	struct cafile_entry *cafile_entry = ctx->cur_cafile_entry;
 	struct buffer *out = alloc_trash_chunk();
 	int i = 0;
@@ -3074,10 +3056,8 @@ static int cli_io_handler_show_cafile_detail(struct appctx *appctx)
 		else if (retval)
 			goto yield;
 
-		if (ci_putchk(cs_ic(cs), out) == -1) {
-			cs_rx_room_blk(cs);
+		if (applet_putchk(appctx, out) == -1)
 			goto yield;
-		}
 
 		if (!show_all)   /* only need to dump one certificate */
 			goto end;
@@ -3201,7 +3181,6 @@ static int cli_io_handler_show_cafile(struct appctx *appctx)
 	struct show_cafile_ctx *ctx = appctx->svcctx;
 	struct buffer *trash = alloc_trash_chunk();
 	struct ebmb_node *node;
-	struct stconn *cs = appctx_cs(appctx);
 	struct cafile_entry *cafile_entry;
 
 	if (trash == NULL)
@@ -3234,10 +3213,8 @@ static int cli_io_handler_show_cafile(struct appctx *appctx)
 		}
 
 		node = ebmb_next(node);
-		if (ci_putchk(cs_ic(cs), trash) == -1) {
-			cs_rx_room_blk(cs);
+		if (applet_putchk(appctx, trash) == -1)
 			goto yield;
-		}
 	}
 
 	ctx->cur_cafile_entry = NULL;
@@ -3717,7 +3694,6 @@ end:
 static int cli_io_handler_show_crlfile_detail(struct appctx *appctx)
 {
 	struct show_crlfile_ctx *ctx = appctx->svcctx;
-	struct stconn *cs = appctx_cs(appctx);
 	struct cafile_entry *cafile_entry = ctx->cafile_entry;
 	struct buffer *out = alloc_trash_chunk();
 	int i;
@@ -3764,10 +3740,8 @@ static int cli_io_handler_show_crlfile_detail(struct appctx *appctx)
 	}
 
 end:
-	if (ci_putchk(cs_ic(cs), out) == -1) {
-		cs_rx_room_blk(cs);
+	if (applet_putchk(appctx, out) == -1)
 		goto yield;
-	}
 
 end_no_putchk:
 	free_trash_chunk(out);
@@ -3852,7 +3826,6 @@ static int cli_io_handler_show_crlfile(struct appctx *appctx)
 	struct show_crlfile_ctx *ctx = appctx->svcctx;
 	struct buffer *trash = alloc_trash_chunk();
 	struct ebmb_node *node;
-	struct stconn *cs = appctx_cs(appctx);
 	struct cafile_entry *cafile_entry;
 
 	if (trash == NULL)
@@ -3881,10 +3854,8 @@ static int cli_io_handler_show_crlfile(struct appctx *appctx)
 		}
 
 		node = ebmb_next(node);
-		if (ci_putchk(cs_ic(cs), trash) == -1) {
-			cs_rx_room_blk(cs);
+		if (applet_putchk(appctx, trash) == -1)
 			goto yield;
-		}
 	}
 
 	ctx->cafile_entry = NULL;

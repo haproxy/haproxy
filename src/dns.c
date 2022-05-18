@@ -544,7 +544,7 @@ static void dns_session_io_handler(struct appctx *appctx)
 				/* put msg len into then channel */
 				slen = (uint16_t)msg_len;
 				slen = htons(slen);
-				ci_putblk(cs_ic(cs), (char *)&slen, sizeof(slen));
+				applet_putblk(appctx, (char *)&slen, sizeof(slen));
 				available_room -= sizeof(slen);
 
 				/* backup original query id */
@@ -562,7 +562,7 @@ static void dns_session_io_handler(struct appctx *appctx)
 				new_qid = htons(new_qid);
 
 				/* put new query id into the channel */
-				ci_putblk(cs_ic(cs), (char *)&new_qid, sizeof(new_qid));
+				applet_putblk(appctx, (char *)&new_qid, sizeof(new_qid));
 				available_room -= sizeof(new_qid);
 
 				/* keep query id mapping */
@@ -617,12 +617,11 @@ static void dns_session_io_handler(struct appctx *appctx)
 			}
 			trash.data += len;
 
-			if (ci_putchk(cs_ic(cs), &trash) == -1) {
+			if (applet_putchk(appctx, &trash) == -1) {
 				/* should never happen since we
 				 * check available_room is large
 				 * enough here.
 				 */
-				cs_rx_room_blk(cs);
 				ret = 0;
 				break;
 			}

@@ -206,8 +206,7 @@ static int hc_cli_io_handler(struct appctx *appctx)
 	if (ctx->flags & HC_CLI_F_RES_STLINE) {
 		chunk_appendf(trash, "%.*s %d %.*s\n", (unsigned int)istlen(hc->res.vsn), istptr(hc->res.vsn),
 			      hc->res.status, (unsigned int)istlen(hc->res.reason), istptr(hc->res.reason));
-		if (ci_putchk(cs_ic(cs), trash) == -1)
-			cs_rx_room_blk(cs);
+		applet_putchk(appctx, trash);
 		ctx->flags &= ~HC_CLI_F_RES_STLINE;
 		goto out;
 	}
@@ -220,8 +219,7 @@ static int hc_cli_io_handler(struct appctx *appctx)
 		}
 		if (!chunk_memcat(trash, "\r\n", 2))
 			goto out;
-		if (ci_putchk(cs_ic(cs), trash) == -1)
-			cs_rx_room_blk(cs);
+		applet_putchk(appctx, trash);
 		ctx->flags &= ~HC_CLI_F_RES_HDR;
 		goto out;
 	}

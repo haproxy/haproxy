@@ -3744,7 +3744,7 @@ static int cli_parse_show_peers(char **args, char *payload, struct appctx *appct
  * Returns 0 if the output buffer is full and needs to be called again, non-zero if not.
  * Dedicated to be called by cli_io_handler_show_peers() cli I/O handler.
  */
-static int peers_dump_head(struct buffer *msg, struct stconn *cs, struct peers *peers)
+static int peers_dump_head(struct buffer *msg, struct appctx *appctx, struct peers *peers)
 {
 	struct tm tm;
 
@@ -3760,10 +3760,8 @@ static int peers_dump_head(struct buffer *msg, struct stconn *cs, struct peers *
 			                     TICKS_TO_MS(1000)) : "<NEVER>",
 	              peers->sync_task ? peers->sync_task->calls : 0);
 
-	if (ci_putchk(cs_ic(cs), msg) == -1) {
-		cs_rx_room_blk(cs);
+	if (applet_putchk(appctx, msg) == -1)
 		return 0;
-	}
 
 	return 1;
 }
@@ -3919,10 +3917,8 @@ static int peers_dump_peer(struct buffer *msg, struct stconn *cs, struct peer *p
 
  end:
 	chunk_appendf(&trash, "\n");
-	if (ci_putchk(cs_ic(cs), msg) == -1) {
-		cs_rx_room_blk(cs);
+	if (applet_putchk(appctx, msg) == -1)
 		return 0;
-	}
 
 	return 1;
 }
@@ -3954,7 +3950,7 @@ static int cli_io_handler_show_peers(struct appctx *appctx)
 					chunk_appendf(&trash, "\n");
 				else
 					first_peers = 0;
-				if (!peers_dump_head(&trash, appctx_cs(appctx), ctx->peers))
+				if (!peers_dump_head(&trash, appctx, ctx->peers))
 					goto out;
 
 				ctx->peer = ctx->peers->remote;

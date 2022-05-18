@@ -1131,10 +1131,8 @@ static void cli_io_handler(struct appctx *appctx)
 						prompt = "\n";
 				}
 
-				if (ci_putstr(cs_ic(cs), prompt) != -1)
+				if (applet_putstr(appctx, prompt) != -1)
 					appctx->st0 = CLI_ST_GETREQ;
-				else
-					cs_rx_room_blk(cs);
 			}
 
 			/* If the output functions are still there, it means they require more room. */
@@ -1240,10 +1238,9 @@ static int cli_io_handler_show_env(struct appctx *appctx)
 	while (*var) {
 		chunk_printf(&trash, "%s\n", *var);
 
-		if (ci_putchk(cs_ic(cs), &trash) == -1) {
-			cs_rx_room_blk(cs);
+		if (applet_putchk(appctx, &trash) == -1)
 			return 0;
-		}
+
 		if (ctx->show_one)
 			break;
 		var++;
@@ -1434,8 +1431,7 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 #endif
 		chunk_appendf(&trash, "%s\n", suspicious ? " !" : "");
 
-		if (ci_putchk(cs_ic(cs), &trash) == -1) {
-			cs_rx_room_blk(cs);
+		if (applet_putchk(appctx, &trash) == -1) {
 			fdctx->fd = fd;
 			ret = 0;
 			break;
@@ -1546,10 +1542,9 @@ static int cli_io_handler_show_activity(struct appctx *appctx)
 	chunk_appendf(&trash, "ctr2:");         SHOW_TOT(thr, activity[thr].ctr2);
 #endif
 
-	if (ci_putchk(cs_ic(cs), &trash) == -1) {
+	if (applet_putchk(appctx, &trash) == -1) {
 		chunk_reset(&trash);
 		chunk_printf(&trash, "[output too large, cannot dump]\n");
-		cs_rx_room_blk(cs);
 	}
 
 #undef SHOW_AVG
@@ -1567,7 +1562,6 @@ static int cli_io_handler_show_cli_sock(struct appctx *appctx)
 {
 	struct show_sock_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
 	struct bind_conf *bind_conf = ctx->bind_conf;
-	struct stconn *cs = appctx_cs(appctx);
 
 	if (!global.cli_fe)
 		goto done;
@@ -1576,7 +1570,7 @@ static int cli_io_handler_show_cli_sock(struct appctx *appctx)
 
 	if (!bind_conf) {
 		/* first call */
-		if (ci_putstr(cs_ic(cs), "# socket lvl processes\n") == -1)
+		if (applet_putstr(appctx, "# socket lvl processes\n") == -1)
 			goto full;
 		bind_conf = LIST_ELEM(global.cli_fe->conf.bind.n, typeof(bind_conf), by_fe);
 	}
@@ -1624,7 +1618,7 @@ static int cli_io_handler_show_cli_sock(struct appctx *appctx)
 
 			chunk_appendf(&trash, "all\n");
 
-			if (ci_putchk(cs_ic(cs), &trash) == -1) {
+			if (applet_putchk(appctx, &trash) == -1) {
 				ctx->bind_conf = bind_conf;
 				ctx->listener  = l;
 				goto full;
@@ -1634,7 +1628,6 @@ static int cli_io_handler_show_cli_sock(struct appctx *appctx)
  done:
 	return 1;
  full:
-	cs_rx_room_blk(cs);
 	return 0;
 }
 

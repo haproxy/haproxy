@@ -3166,7 +3166,7 @@ static int stats_dump_full_strm_to_buffer(struct stconn *cs, struct stream *strm
 	if (ctx->section > 0 && ctx->uid != strm->uniq_id) {
 		/* stream changed, no need to go any further */
 		chunk_appendf(&trash, "  *** session terminated while we were watching it ***\n");
-		if (ci_putchk(cs_ic(cs), &trash) == -1)
+		if (applet_putchk(appctx, &trash) == -1)
 			goto full;
 		goto done;
 	}
@@ -3475,7 +3475,7 @@ static int stats_dump_full_strm_to_buffer(struct stconn *cs, struct stream *strm
 			chunk_appendf(&trash, "  current_rule=\"%s\" [%s:%d]\n", rule->kw->kw, rule->conf.file, rule->conf.line);
 		}
 
-		if (ci_putchk(cs_ic(cs), &trash) == -1)
+		if (applet_putchk(appctx, &trash) == -1)
 			goto full;
 
 		/* use other states to dump the contents */
@@ -3707,7 +3707,7 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 
 		chunk_appendf(&trash, "\n");
 
-		if (ci_putchk(cs_ic(cs), &trash) == -1) {
+		if (applet_putchk(appctx, &trash) == -1) {
 			/* let's try again later from this stream. We add ourselves into
 			 * this stream's users so that it can remove us upon termination.
 			 */
@@ -3726,7 +3726,7 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 		else
 			chunk_appendf(&trash, "Session not found.\n");
 
-		if (ci_putchk(cs_ic(cs), &trash) == -1)
+		if (applet_putchk(appctx, &trash) == -1)
 			goto full;
 
 		ctx->target = NULL;
@@ -3739,7 +3739,6 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 	return 1;
  full:
 	thread_release();
-	cs_rx_room_blk(cs);
 	return 0;
 }
 

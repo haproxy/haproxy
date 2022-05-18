@@ -399,8 +399,7 @@ static void sink_forward_io_handler(struct appctx *appctx)
 			trash.data += len;
 			trash.area[trash.data++] = '\n';
 
-			if (ci_putchk(cs_ic(cs), &trash) == -1) {
-				cs_rx_room_blk(cs);
+			if (applet_putchk(appctx, &trash) == -1) {
 				ret = 0;
 				break;
 			}
@@ -544,8 +543,7 @@ static void sink_forward_oc_io_handler(struct appctx *appctx)
 
 			trash.data += b_getblk(buf, p + 1, msg_len, ofs + cnt);
 
-			if (ci_putchk(cs_ic(cs), &trash) == -1) {
-				cs_rx_room_blk(cs);
+			if (applet_putchk(appctx, &trash) == -1) {
 				ret = 0;
 				break;
 			}

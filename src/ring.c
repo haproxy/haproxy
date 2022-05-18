@@ -357,8 +357,7 @@ int cli_io_handler_show_ring(struct appctx *appctx)
 		trash.data += len;
 		trash.area[trash.data++] = '\n';
 
-		if (ci_putchk(cs_ic(cs), &trash) == -1) {
-			cs_rx_room_blk(cs);
+		if (applet_putchk(appctx, &trash) == -1) {
 			ret = 0;
 			break;
 		}

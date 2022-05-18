@@ -2772,8 +2772,7 @@ static int dump_servers_state(struct stconn *cs)
 			chunk_appendf(&trash, "\n");
 		}
 
-		if (ci_putchk(cs_ic(cs), &trash) == -1) {
-			cs_rx_room_blk(cs);
+		if (applet_putchk(appctx, &trash) == -1) {
 			return 0;
 		}
 	}
@@ -2798,10 +2797,9 @@ static int cli_io_handler_servers_state(struct appctx *appctx)
 			             "# bkname/svname bkid/svid addr port - purge_delay used_cur used_max need_est unsafe_nb safe_nb idle_lim idle_cur idle_per_thr[%d]\n",
 			             global.nbthread);
 
-		if (ci_putchk(cs_ic(cs), &trash) == -1) {
-			cs_rx_room_blk(cs);
+		if (applet_putchk(appctx, &trash) == -1)
 			return 0;
-		}
+
 		ctx->state = SHOW_SRV_LIST;
 
 		if (!ctx->px)
@@ -2828,17 +2826,15 @@ static int cli_io_handler_servers_state(struct appctx *appctx)
  */
 static int cli_io_handler_show_backend(struct appctx *appctx)
 {
-	struct stconn *cs = appctx_cs(appctx);
 	struct proxy *curproxy;
 
 	chunk_reset(&trash);
 
 	if (!appctx->svcctx) {
 		chunk_printf(&trash, "# name\n");
-		if (ci_putchk(cs_ic(cs), &trash) == -1) {
-			cs_rx_room_blk(cs);
+		if (applet_putchk(appctx, &trash) == -1)
 			return 0;
-		}
+
 		appctx->svcctx = proxies_list;
 	}
 
@@ -2850,10 +2846,8 @@ static int cli_io_handler_show_backend(struct appctx *appctx)
 			continue;
 
 		chunk_appendf(&trash, "%s\n", curproxy->id);
-		if (ci_putchk(cs_ic(cs), &trash) == -1) {
-			cs_rx_room_blk(cs);
+		if (applet_putchk(appctx, &trash) == -1)
 			return 0;
-		}
 	}
 
 	return 1;
@@ -3164,7 +3158,7 @@ static int cli_io_handler_show_errors(struct appctx *appctx)
 			     tm.tm_hour, tm.tm_min, tm.tm_sec, (int)(date.tv_usec/1000),
 			     error_snapshot_id);
 
-		if (ci_putchk(cs_ic(cs), &trash) == -1)
+		if (applet_putchk(appctx, &trash) == -1)
 			goto cant_send;
 
 		ctx->px = proxies_list;
@@ -3254,7 +3248,7 @@ static int cli_io_handler_show_errors(struct appctx *appctx)
 
 			chunk_appendf(&trash, "  \n");
 
-			if (ci_putchk(cs_ic(cs), &trash) == -1)
+			if (applet_putchk(appctx, &trash) == -1)
 				goto cant_send_unlock;
 
 			ctx->ptr = 0;
@@ -3265,7 +3259,7 @@ static int cli_io_handler_show_errors(struct appctx *appctx)
 			/* the snapshot changed while we were dumping it */
 			chunk_appendf(&trash,
 				     "  WARNING! update detected on this snapshot, dump interrupted. Please re-check!\n");
-			if (ci_putchk(cs_ic(cs), &trash) == -1)
+			if (applet_putchk(appctx, &trash) == -1)
 				goto cant_send_unlock;
 
 			goto next;
@@ -3281,7 +3275,7 @@ static int cli_io_handler_show_errors(struct appctx *appctx)
 			if (newptr == ctx->ptr)
 				goto cant_send_unlock;
 
-			if (ci_putchk(cs_ic(cs), &trash) == -1)
+			if (applet_putchk(appctx, &trash) == -1)
 				goto cant_send_unlock;
 
 			ctx->ptr = newptr;

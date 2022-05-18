@@ -4565,10 +4565,8 @@ static int stats_dump_info_to_buffer(struct stconn *cs)
 	else
 		stats_dump_info_fields(&trash, info, ctx->flags);
 
-	if (ci_putchk(cs_ic(cs), &trash) == -1) {
-		cs_rx_room_blk(cs);
+	if (applet_putchk(appctx, &trash) == -1)
 		return 0;
-	}
 
 	return 1;
 }
@@ -4787,16 +4785,14 @@ static void stats_dump_json_schema(struct buffer *out)
  * It returns 0 as long as it does not complete, non-zero upon completion.
  * No state is used.
  */
-static int stats_dump_json_schema_to_buffer(struct stconn *cs)
+static int stats_dump_json_schema_to_buffer(struct appctx *appctx)
 {
 	chunk_reset(&trash);
 
 	stats_dump_json_schema(&trash);
 
-	if (ci_putchk(cs_ic(cs), &trash) == -1) {
-		cs_rx_room_blk(cs);
+	if (applet_putchk(appctx, &trash) == -1)
 		return 0;
-	}
 
 	return 1;
 }
@@ -5017,7 +5013,7 @@ static int cli_io_handler_dump_stat(struct appctx *appctx)
 
 static int cli_io_handler_dump_json_schema(struct appctx *appctx)
 {
-	return stats_dump_json_schema_to_buffer(appctx_cs(appctx));
+	return stats_dump_json_schema_to_buffer(appctx);
 }
 
 int stats_allocate_proxy_counters_internal(struct extra_counters **counters,

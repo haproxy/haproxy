@@ -4239,10 +4239,10 @@ enum {
  * and needs to be called again, otherwise non-zero.
  */
 static int table_dump_head_to_buffer(struct buffer *msg,
-                                     struct stconn *cs,
+                                     struct appctx *appctx,
                                      struct stktable *t, struct stktable *target)
 {
-	struct stream *s = __cs_strm(cs);
+	struct stream *s = __cs_strm(appctx_cs(appctx));
 
 	chunk_appendf(msg, "# table: %s, type: %s, size:%d, used:%d\n",
 		     t->id, stktable_types[t->type].kw, t->size, t->current);
@@ -4252,10 +4252,8 @@ static int table_dump_head_to_buffer(struct buffer *msg,
 	if (target && (strm_li(s)->bind_conf->level & ACCESS_LVL_MASK) < ACCESS_LVL_OPER)
 		chunk_appendf(msg, "# contents not dumped due to insufficient privileges\n");
 
-	if (ci_putchk(cs_ic(cs), msg) == -1) {
-		cs_rx_room_blk(cs);
+	if (applet_putchk(appctx, msg) == -1)
 		return 0;
-	}
 
 	return 1;
 }
@@ -4265,7 +4263,7 @@ static int table_dump_head_to_buffer(struct buffer *msg,
  * and needs to be called again, otherwise non-zero.
  */
 static int table_dump_entry_to_buffer(struct buffer *msg,
-                                      struct stconn *cs,
+                                      struct appctx *appctx,
                                       struct stktable *t, struct stksess *entry)
 {
 	int dt;
@@ -4379,10 +4377,8 @@ static int table_dump_entry_to_buffer(struct buffer *msg,
 	}
 	chunk_appendf(msg, "\n");
 
-	if (ci_putchk(cs_ic(cs), msg) == -1) {
-		cs_rx_room_blk(cs);
+	if (applet_putchk(appctx, msg) == -1)
 		return 0;
-	}
 
 	return 1;
 }
@@ -4408,7 +4404,6 @@ struct show_table_ctx {
  */
 static int table_process_entry_per_key(struct appctx *appctx, char **args)
 {
-	struct stconn *cs = appctx_cs(appctx);
 	struct show_table_ctx *ctx = appctx->svcctx;
 	struct stktable *t = ctx->target;
 	struct stksess *ts;
@@ -4475,12 +4470,12 @@ static int table_process_entry_per_key(struct appctx *appctx, char **args)
 		if (!ts)
 			return 1;
 		chunk_reset(&trash);
-		if (!table_dump_head_to_buffer(&trash, cs, t, t)) {
+		if (!table_dump_head_to_buffer(&trash, appctx, t, t)) {
 			stktable_release(t, ts);
 			return 0;
 		}
 		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &ts->lock);
-		if (!table_dump_entry_to_buffer(&trash, cs, t, ts)) {
+		if (!table_dump_entry_to_buffer(&trash, appctx, t, ts)) {
 			HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &ts->lock);
 			stktable_release(t, ts);
 			return 0;
@@ -4706,7 +4701,7 @@ static int cli_io_handler_table(struct appctx *appctx)
 			}
 
 			if (ctx->t->size) {
-				if (show && !table_dump_head_to_buffer(&trash, cs, ctx->t, ctx->target))
+				if (show && !table_dump_head_to_buffer(&trash, appctx, ctx->t, ctx->target))
 					return 0;
 
 				if (ctx->target &&
@@ -4782,7 +4777,7 @@ static int cli_io_handler_table(struct appctx *appctx)
 			}
 
 			if (show && !skip_entry &&
-			    !table_dump_entry_to_buffer(&trash, cs, ctx->t, ctx->entry)) {
+			    !table_dump_entry_to_buffer(&trash, appctx, ctx->t, ctx->entry)) {
 				HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &ctx->entry->lock);
 				return 0;
 			}

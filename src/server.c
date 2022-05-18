@@ -4315,7 +4315,6 @@ static int cli_parse_set_server(char **args, char *payload, struct appctx *appct
 
 static int cli_parse_get_weight(char **args, char *payload, struct appctx *appctx, void *private)
 {
-	struct stconn *cs = appctx_cs(appctx);
 	struct proxy *px;
 	struct server *sv;
 	char *line;
@@ -4337,10 +4336,8 @@ static int cli_parse_get_weight(char **args, char *payload, struct appctx *appct
 	/* return server's effective weight at the moment */
 	snprintf(trash.area, trash.size, "%d (initial %d)\n", sv->uweight,
 		 sv->iweight);
-	if (ci_putstr(cs_ic(cs), trash.area) == -1) {
-		cs_rx_room_blk(cs);
+	if (applet_putstr(appctx, trash.area) == -1)
 		return 0;
-	}
 	return 1;
 }
 
