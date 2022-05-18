@@ -74,6 +74,8 @@ void check_notify_stopping(struct check *check);
 void check_notify_success(struct check *check);
 struct task *process_chk(struct task *t, void *context, unsigned int state);
 
+struct task *srv_chk_io_cb(struct task *t, void *ctx, unsigned int state);
+
 int check_buf_available(void *target);
 struct buffer *check_get_buf(struct check *check, struct buffer *bptr);
 void check_release_buf(struct check *check, struct buffer *bptr);

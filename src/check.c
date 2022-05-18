@@ -1068,7 +1068,7 @@ static int wake_srv_chk(struct conn_stream *cs)
 }
 
 /* This function checks if any I/O is wanted, and if so, attempts to do so */
-struct task *event_srv_chk_io(struct task *t, void *ctx, unsigned int state)
+struct task *srv_chk_io_cb(struct task *t, void *ctx, unsigned int state)
 {
 	struct check *check = ctx;
 	struct conn_stream *cs = check->cs;
@@ -1336,7 +1336,7 @@ const char *init_check(struct check *check, int type)
 	if (!check->wait_list.tasklet)
 		return "out of memory while allocating check tasklet";
 	check->wait_list.events = 0;
-	check->wait_list.tasklet->process = event_srv_chk_io;
+	check->wait_list.tasklet->process = srv_chk_io_cb;
 	check->wait_list.tasklet->context = check;
 	return NULL;
 }
