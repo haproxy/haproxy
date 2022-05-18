@@ -1176,7 +1176,7 @@ int conn_send_proxy(struct connection *conn, unsigned int flag)
 		/* If there is no mux attached to the connection, it means the
 		 * connection context is a stream connector.
 		 */
-		cs = (conn->mux ? cs_conn_get_first(conn) : conn->ctx);
+		cs = conn->mux ? conn_get_first_sc(conn) : conn->ctx;
 
 		/* The target server expects a PROXY line to be sent first.
 		 * If the send_proxy_ofs is negative, it corresponds to the

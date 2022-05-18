@@ -283,25 +283,6 @@ static inline void cs_ep_set_error(struct sedesc *endp)
 		se_fl_set(endp, SE_FL_ERR_PENDING);
 }
 
-/* Retrieves any valid stream connector from this connection, preferably the first
- * valid one. The purpose is to be able to figure one other end of a private
- * connection for purposes like source binding or proxy protocol header
- * emission. In such cases, any stream connector is expected to be valid so the
- * mux is encouraged to return the first one it finds. If the connection has
- * no mux or the mux has no get_first_cs() method or the mux has no valid
- * stream connector, NULL is returned. The output pointer is purposely marked
- * const to discourage the caller from modifying anything there.
- */
-static inline struct stconn *cs_conn_get_first(const struct connection *conn)
-{
-	BUG_ON(!conn || !conn->mux);
-
-	if (!conn->mux->get_first_cs)
-		return NULL;
-	return conn->mux->get_first_cs(conn);
-}
-
-
 /* Returns non-zero if the stream connector's Rx path is blocked */
 static inline int cs_rx_blocked(const struct stconn *cs)
 {
