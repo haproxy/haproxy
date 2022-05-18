@@ -1594,8 +1594,8 @@ static int qc_wake_some_streams(struct qcc *qcc)
 				qcs_notify_recv(qcs);
 				qcs_notify_send(qcs);
 			}
-			else if (qcs->endp->sc->data_cb->wake) {
-				qcs->endp->sc->data_cb->wake(qcs->endp->sc);
+			else if (qcs->endp->sc->app_ops->wake) {
+				qcs->endp->sc->app_ops->wake(qcs->endp->sc);
 			}
 		}
 	}

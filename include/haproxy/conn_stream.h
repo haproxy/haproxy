@@ -217,9 +217,9 @@ static inline struct check *cs_check(const struct stconn *cs)
 }
 static inline const char *cs_get_data_name(const struct stconn *cs)
 {
-	if (!cs->data_cb)
+	if (!cs->app_ops)
 		return "NONE";
-	return cs->data_cb->name;
+	return cs->app_ops->name;
 }
 
 /* shut read */

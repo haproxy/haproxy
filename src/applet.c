@@ -252,7 +252,7 @@ struct task *task_run_applet(struct task *t, void *context, unsigned int state)
 		stream_dump_and_crash(&app->obj_type, read_freq_ctr(&app->call_rate));
 	}
 
-	cs->data_cb->wake(cs);
+	cs->app_ops->wake(cs);
 	channel_release_buffer(cs_ic(cs), &app->buffer_wait);
 	return t;
 }

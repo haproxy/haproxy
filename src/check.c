@@ -140,12 +140,6 @@ struct trace_source trace_check = {
 INITCALL1(STG_REGISTER, trace_register_source, TRACE_SOURCE);
 
 
-struct data_cb check_conn_cb = {
-	.wake = wake_srv_chk,
-	.name = "CHCK",
-};
-
-
 /* Dummy frontend used to create all checks sessions. */
 struct proxy checks_fe;
 

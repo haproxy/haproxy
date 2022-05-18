@@ -136,19 +136,6 @@ enum cs_state_bit {
 
 struct stconn;
 
-/* cs_data_cb describes the data layer's recv and send callbacks which are called
- * when I/O activity was detected after the transport layer is ready. These
- * callbacks are supposed to make use of the xprt_ops above to exchange data
- * from/to buffers and pipes. The <wake> callback is used to report activity
- * at the transport layer, which can be a connection opening/close, or any
- * data movement. It may abort a connection by returning < 0.
- */
-struct data_cb {
-	int  (*wake)(struct stconn *sc);        /* data-layer callback to report activity */
-	char name[8];                           /* data layer name, zero-terminated */
-};
-
-
 /* A Stream Endpoint Descriptor (sedesc) is the link between the stream
  * connector (ex. conn_stream) and the Stream Endpoint (mux or appctx).
  * It always exists for either of them, and binds them together. It also
@@ -173,12 +160,17 @@ struct sedesc {
 	unsigned int flags;
 };
 
-/* operations available on a stream connector */
+/* sc_app_ops describes the application layer's operations and notification
+ * callbacks when I/O activity is reported and to use to perform shutr/shutw.
+ * There are very few combinations in practice (strm/chk <-> none/mux/applet).
+ */
 struct sc_app_ops {
 	void (*chk_rcv)(struct stconn *);    /* chk_rcv function, may not be null */
 	void (*chk_snd)(struct stconn *);    /* chk_snd function, may not be null */
 	void (*shutr)(struct stconn *);      /* shut read function, may not be null */
 	void (*shutw)(struct stconn *);      /* shut write function, may not be null */
+	int  (*wake)(struct stconn *);       /* data-layer callback to report activity */
+	char name[8];                        /* data layer name, zero-terminated */
 };
 
 /*
@@ -194,8 +186,7 @@ struct stconn {
 	struct wait_event wait_event;        /* We're in a wait list */
 	struct sedesc *sedesc;               /* points to the stream endpoint descriptor */
 	enum obj_type *app;                  /* points to the applicative point (stream or check) */
-	const struct data_cb *data_cb;       /* data layer callbacks. Must be set before xprt->init() */
-	struct sc_app_ops *ops;              /* general operations used at the app layer */
+	const struct sc_app_ops *app_ops;    /* general operations used at the app layer */
 	struct sockaddr_storage *src;        /* source address (pool), when known, otherwise NULL */
 	struct sockaddr_storage *dst;        /* destination address (pool), when known, otherwise NULL */
 };

@@ -1334,9 +1334,9 @@ static void __maybe_unused h2s_alert(struct h2s *h2s)
 		h2s_notify_recv(h2s);
 		h2s_notify_send(h2s);
 	}
-	else if (h2s_sc(h2s) && h2s_sc(h2s)->data_cb->wake != NULL) {
+	else if (h2s_sc(h2s) && h2s_sc(h2s)->app_ops->wake != NULL) {
 		TRACE_POINT(H2_EV_STRM_WAKE, h2s->h2c->conn, h2s);
-		h2s_sc(h2s)->data_cb->wake(h2s_sc(h2s));
+		h2s_sc(h2s)->app_ops->wake(h2s_sc(h2s));
 	}
 
 	TRACE_LEAVE(H2_EV_H2S_WAKE, h2s->h2c->conn, h2s);

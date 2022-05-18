@@ -41,12 +41,19 @@ static void sc_app_shutw_applet(struct stconn *cs);
 static void sc_app_chk_rcv_applet(struct stconn *cs);
 static void sc_app_chk_snd_applet(struct stconn *cs);
 
+static int cs_conn_process(struct stconn *cs);
+static int cs_conn_recv(struct stconn *cs);
+static int cs_conn_send(struct stconn *cs);
+static int cs_applet_process(struct stconn *cs);
+
 /* stream connector operations for connections */
 struct sc_app_ops sc_app_conn_ops = {
 	.chk_rcv = sc_app_chk_rcv_conn,
 	.chk_snd = sc_app_chk_snd_conn,
 	.shutr   = sc_app_shutr_conn,
 	.shutw   = sc_app_shutw_conn,
+	.wake    = cs_conn_process,
+	.name    = "STRM",
 };
 
 /* stream connector operations for embedded tasks */
@@ -55,31 +62,29 @@ struct sc_app_ops sc_app_embedded_ops = {
 	.chk_snd = sc_app_chk_snd,
 	.shutr   = sc_app_shutr,
 	.shutw   = sc_app_shutw,
+	.wake    = NULL,   /* may never be used */
+	.name    = "NONE", /* may never be used */
 };
 
-/* stream connector operations for connections */
+/* stream connector operations for applets */
 struct sc_app_ops sc_app_applet_ops = {
 	.chk_rcv = sc_app_chk_rcv_applet,
 	.chk_snd = sc_app_chk_snd_applet,
 	.shutr   = sc_app_shutr_applet,
 	.shutw   = sc_app_shutw_applet,
-};
-
-static int cs_conn_process(struct stconn *cs);
-static int cs_conn_recv(struct stconn *cs);
-static int cs_conn_send(struct stconn *cs);
-static int cs_applet_process(struct stconn *cs);
-
-struct data_cb cs_data_conn_cb = {
-	.wake    = cs_conn_process,
-	.name    = "STRM",
-};
-
-struct data_cb cs_data_applet_cb = {
 	.wake    = cs_applet_process,
 	.name    = "STRM",
 };
 
+/* stream connector for health checks on connections */
+struct sc_app_ops sc_app_check_ops = {
+	.chk_rcv = NULL,
+	.chk_snd = NULL,
+	.shutr   = NULL,
+	.shutw   = NULL,
+	.wake    = wake_srv_chk,
+	.name    = "CHCK",
+};
 
 /* Initializes an endpoint */
 void sedesc_init(struct sedesc *sedesc)
@@ -130,7 +135,7 @@ static struct stconn *cs_new(struct sedesc *sedesc)
 	cs->state = SC_ST_INI;
 	cs->hcto = TICK_ETERNITY;
 	cs->app = NULL;
-	cs->data_cb = NULL;
+	cs->app_ops = NULL;
 	cs->src = NULL;
 	cs->dst = NULL;
 	cs->wait_event.tasklet = NULL;
@@ -185,8 +190,7 @@ struct stconn *cs_new_from_strm(struct stream *strm, unsigned int flags)
 	cs->flags |= flags;
 	sc_ep_set(cs, SE_FL_DETACHED);
 	cs->app = &strm->obj_type;
-	cs->ops = &sc_app_embedded_ops;
-	cs->data_cb = NULL;
+	cs->app_ops = &sc_app_embedded_ops;
 	return cs;
 }
 
@@ -204,7 +208,7 @@ struct stconn *cs_new_from_check(struct check *check, unsigned int flags)
 	cs->flags |= flags;
 	sc_ep_set(cs, SE_FL_DETACHED);
 	cs->app = &check->obj_type;
-	cs->data_cb = &check_conn_cb;
+	cs->app_ops = &sc_app_check_ops;
 	return cs;
 }
 
@@ -264,8 +268,7 @@ int cs_attach_mux(struct stconn *cs, void *endp, void *ctx)
 			cs->wait_event.events = 0;
 		}
 
-		cs->ops = &sc_app_conn_ops;
-		cs->data_cb = &cs_data_conn_cb;
+		cs->app_ops = &sc_app_conn_ops;
 	}
 	else if (cs_check(cs)) {
 		if (!cs->wait_event.tasklet) {
@@ -277,7 +280,7 @@ int cs_attach_mux(struct stconn *cs, void *endp, void *ctx)
 			cs->wait_event.events = 0;
 		}
 
-		cs->data_cb = &check_conn_cb;
+		cs->app_ops = &sc_app_check_ops;
 	}
 	return 0;
 }
@@ -292,10 +295,8 @@ static void cs_attach_applet(struct stconn *cs, void *endp)
 	cs->sedesc->se = endp;
 	sc_ep_set(cs, SE_FL_T_APPLET);
 	sc_ep_clr(cs, SE_FL_DETACHED);
-	if (cs_strm(cs)) {
-		cs->ops = &sc_app_applet_ops;
-		cs->data_cb = &cs_data_applet_cb;
-	}
+	if (cs_strm(cs))
+		cs->app_ops = &sc_app_applet_ops;
 }
 
 /* Attaches a stconn to a app layer and sets the relevant
@@ -315,16 +316,13 @@ int cs_attach_strm(struct stconn *cs, struct stream *strm)
 		cs->wait_event.tasklet->context = cs;
 		cs->wait_event.events = 0;
 
-		cs->ops = &sc_app_conn_ops;
-		cs->data_cb = &cs_data_conn_cb;
+		cs->app_ops = &sc_app_conn_ops;
 	}
 	else if (sc_ep_test(cs, SE_FL_T_APPLET)) {
-		cs->ops = &sc_app_applet_ops;
-		cs->data_cb = &cs_data_applet_cb;
+		cs->app_ops = &sc_app_applet_ops;
 	}
 	else {
-		cs->ops = &sc_app_embedded_ops;
-		cs->data_cb = NULL;
+		cs->app_ops = &sc_app_embedded_ops;
 	}
 	return 0;
 }
@@ -393,8 +391,9 @@ static void cs_detach_endp(struct stconn **csp)
 	 */
 	cs->flags &= SC_FL_ISBACK;
 	if (cs_strm(cs))
-		cs->ops = &sc_app_embedded_ops;
-	cs->data_cb = NULL;
+		cs->app_ops = &sc_app_embedded_ops;
+	else
+		cs->app_ops = NULL;
 	cs_free_cond(csp);
 }
 
@@ -409,7 +408,7 @@ static void cs_detach_app(struct stconn **csp)
 		return;
 
 	cs->app = NULL;
-	cs->data_cb = NULL;
+	cs->app_ops = NULL;
 	sockaddr_free(&cs->src);
 	sockaddr_free(&cs->dst);
 

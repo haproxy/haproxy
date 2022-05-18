@@ -977,9 +977,9 @@ static void fcgi_strm_alert(struct fcgi_strm *fstrm)
 		fcgi_strm_notify_recv(fstrm);
 		fcgi_strm_notify_send(fstrm);
 	}
-	else if (fcgi_strm_sc(fstrm) && fcgi_strm_sc(fstrm)->data_cb->wake != NULL) {
+	else if (fcgi_strm_sc(fstrm) && fcgi_strm_sc(fstrm)->app_ops->wake != NULL) {
 		TRACE_POINT(FCGI_EV_STRM_WAKE, fstrm->fconn->conn, fstrm);
-		fcgi_strm_sc(fstrm)->data_cb->wake(fcgi_strm_sc(fstrm));
+		fcgi_strm_sc(fstrm)->app_ops->wake(fcgi_strm_sc(fstrm));
 	}
 }
 

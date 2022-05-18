@@ -252,8 +252,8 @@ struct task *mux_pt_io_cb(struct task *t, void *tctx, unsigned int status)
 			ctx->conn->subs->events = 0;
 			tasklet_wakeup(ctx->conn->subs->tasklet);
 			ctx->conn->subs = NULL;
-		} else if (pt_sc(ctx)->data_cb->wake)
-			pt_sc(ctx)->data_cb->wake(pt_sc(ctx));
+		} else if (pt_sc(ctx)->app_ops->wake)
+			pt_sc(ctx)->app_ops->wake(pt_sc(ctx));
 		TRACE_DEVEL("leaving waking up CS", PT_EV_CONN_WAKE, ctx->conn);
 		return t;
 	}
@@ -349,7 +349,7 @@ static int mux_pt_wake(struct connection *conn)
 
 	TRACE_ENTER(PT_EV_CONN_WAKE, ctx->conn);
 	if (!se_fl_test(ctx->endp, SE_FL_ORPHAN)) {
-		ret = pt_sc(ctx)->data_cb->wake ? pt_sc(ctx)->data_cb->wake(pt_sc(ctx)) : 0;
+		ret = pt_sc(ctx)->app_ops->wake ? pt_sc(ctx)->app_ops->wake(pt_sc(ctx)) : 0;
 
 		if (ret < 0) {
 			TRACE_DEVEL("leaving waking up CS", PT_EV_CONN_WAKE, ctx->conn);
