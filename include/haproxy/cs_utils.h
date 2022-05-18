@@ -36,9 +36,9 @@
 void cs_update_rx(struct stconn *cs);
 void cs_update_tx(struct stconn *cs);
 
-struct task *cs_conn_io_cb(struct task *t, void *ctx, unsigned int state);
-int cs_conn_sync_recv(struct stconn *cs);
-void cs_conn_sync_send(struct stconn *cs);
+struct task *sc_conn_io_cb(struct task *t, void *ctx, unsigned int state);
+int sc_conn_sync_recv(struct stconn *cs);
+void sc_conn_sync_send(struct stconn *cs);
 
 
 /* returns the channel which receives data from this stream connector (input channel) */
@@ -120,7 +120,7 @@ static inline int cs_state_in(enum cs_state state, enum cs_state_bit mask)
 /* Returns true if a connection is attached to the stream connector <cs> and if this
  * connection is ready.
  */
-static inline int cs_conn_ready(struct stconn *cs)
+static inline int sc_conn_ready(struct stconn *cs)
 {
 	struct connection *conn = sc_conn(cs);
 

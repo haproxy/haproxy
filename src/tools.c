@@ -4936,7 +4936,7 @@ const void *resolve_sym_name(struct buffer *buf, const char *pfx, const void *ad
 	} fcts[] = {
 		{ .func = process_stream, .name = "process_stream" },
 		{ .func = task_run_applet, .name = "task_run_applet" },
-		{ .func = cs_conn_io_cb, .name = "cs_conn_io_cb" },
+		{ .func = sc_conn_io_cb, .name = "sc_conn_io_cb" },
 		{ .func = sock_conn_iocb, .name = "sock_conn_iocb" },
 		{ .func = dgram_fd_handler, .name = "dgram_fd_handler" },
 		{ .func = listener_accept, .name = "listener_accept" },

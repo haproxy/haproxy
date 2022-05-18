@@ -41,9 +41,9 @@ static void sc_app_shutw_applet(struct stconn *cs);
 static void sc_app_chk_rcv_applet(struct stconn *cs);
 static void sc_app_chk_snd_applet(struct stconn *cs);
 
-static int cs_conn_process(struct stconn *cs);
-static int cs_conn_recv(struct stconn *cs);
-static int cs_conn_send(struct stconn *cs);
+static int sc_conn_process(struct stconn *cs);
+static int sc_conn_recv(struct stconn *cs);
+static int sc_conn_send(struct stconn *cs);
 static int cs_applet_process(struct stconn *cs);
 
 /* stream connector operations for connections */
@@ -52,7 +52,7 @@ struct sc_app_ops sc_app_conn_ops = {
 	.chk_snd = sc_app_chk_snd_conn,
 	.shutr   = sc_app_shutr_conn,
 	.shutw   = sc_app_shutw_conn,
-	.wake    = cs_conn_process,
+	.wake    = sc_conn_process,
 	.name    = "STRM",
 };
 
@@ -263,7 +263,7 @@ int cs_attach_mux(struct stconn *cs, void *endp, void *ctx)
 			cs->wait_event.tasklet = tasklet_new();
 			if (!cs->wait_event.tasklet)
 				return -1;
-			cs->wait_event.tasklet->process = cs_conn_io_cb;
+			cs->wait_event.tasklet->process = sc_conn_io_cb;
 			cs->wait_event.tasklet->context = cs;
 			cs->wait_event.events = 0;
 		}
@@ -312,7 +312,7 @@ int cs_attach_strm(struct stconn *cs, struct stream *strm)
 		cs->wait_event.tasklet = tasklet_new();
 		if (!cs->wait_event.tasklet)
 			return -1;
-		cs->wait_event.tasklet->process = cs_conn_io_cb;
+		cs->wait_event.tasklet->process = sc_conn_io_cb;
 		cs->wait_event.tasklet->context = cs;
 		cs->wait_event.events = 0;
 
@@ -661,7 +661,7 @@ static void sc_app_shutr_conn(struct stconn *cs)
 		return;
 
 	if (sc_oc(cs)->flags & CF_SHUTW) {
-		cs_conn_shut(cs);
+		sc_conn_shut(cs);
 		cs->state = SC_ST_DIS;
 		__sc_strm(cs)->conn_exp = TICK_ETERNITY;
 	}
@@ -717,7 +717,7 @@ static void sc_app_shutw_conn(struct stconn *cs)
 			 * option abortonclose. No need for the TLS layer to try to
 			 * emit a shutdown message.
 			 */
-			cs_conn_shutw(cs, CO_SHW_SILENT);
+			sc_conn_shutw(cs, CO_SHW_SILENT);
 		}
 		else {
 			/* clean data-layer shutdown. This only happens on the
@@ -726,7 +726,7 @@ static void sc_app_shutw_conn(struct stconn *cs)
 			 * while option abortonclose is set. We want the TLS
 			 * layer to try to signal it to the peer before we close.
 			 */
-			cs_conn_shutw(cs, CO_SHW_NORMAL);
+			sc_conn_shutw(cs, CO_SHW_NORMAL);
 
 			if (!(ic->flags & (CF_SHUTR|CF_DONT_READ)))
 				return;
@@ -737,7 +737,7 @@ static void sc_app_shutw_conn(struct stconn *cs)
 		/* we may have to close a pending connection, and mark the
 		 * response buffer as shutr
 		 */
-		cs_conn_shut(cs);
+		sc_conn_shut(cs);
 		/* fall through */
 	case SC_ST_CER:
 	case SC_ST_QUE:
@@ -792,7 +792,7 @@ static void sc_app_chk_snd_conn(struct stconn *cs)
 		return;
 
 	if (!(cs->wait_event.events & SUB_RETRY_SEND) && !channel_is_empty(sc_oc(cs)))
-		cs_conn_send(cs);
+		sc_conn_send(cs);
 
 	if (sc_ep_test(cs, SE_FL_ERROR | SE_FL_ERR_PENDING) || cs_is_conn_error(cs)) {
 		/* Write error on the file descriptor */
@@ -1237,7 +1237,7 @@ static void cs_notify(struct stconn *cs)
  * It updates the stream connector. If the stream connector has SC_FL_NOHALF,
  * the close is also forwarded to the write side as an abort.
  */
-static void cs_conn_read0(struct stconn *cs)
+static void sc_conn_read0(struct stconn *cs)
 {
 	struct channel *ic = sc_ic(cs);
 	struct channel *oc = sc_oc(cs);
@@ -1259,7 +1259,7 @@ static void cs_conn_read0(struct stconn *cs)
 	if (cs->flags & SC_FL_NOHALF) {
 		/* we want to immediately forward this close to the write side */
 		/* force flag on ssl to keep stream in cache */
-		cs_conn_shutw(cs, CO_SHW_SILENT);
+		sc_conn_shutw(cs, CO_SHW_SILENT);
 		goto do_close;
 	}
 
@@ -1268,7 +1268,7 @@ static void cs_conn_read0(struct stconn *cs)
 
  do_close:
 	/* OK we completely close the socket here just as if we went through cs_shut[rw]() */
-	cs_conn_shut(cs);
+	sc_conn_shut(cs);
 
 	oc->flags &= ~CF_SHUTW_NOW;
 	oc->flags |= CF_SHUTW;
@@ -1286,7 +1286,7 @@ static void cs_conn_read0(struct stconn *cs)
  * into the buffer from the connection. It iterates over the mux layer's
  * rcv_buf function.
  */
-static int cs_conn_recv(struct stconn *cs)
+static int sc_conn_recv(struct stconn *cs)
 {
 	struct connection *conn = __sc_conn(cs);
 	struct channel *ic = sc_ic(cs);
@@ -1298,7 +1298,7 @@ static int cs_conn_recv(struct stconn *cs)
 	if (cs->state != SC_ST_EST)
 		return 0;
 
-	/* If another call to cs_conn_recv() failed, and we subscribed to
+	/* If another call to sc_conn_recv() failed, and we subscribed to
 	 * recv events already, give up now.
 	 */
 	if (cs->wait_event.events & SUB_RETRY_RECV)
@@ -1596,7 +1596,7 @@ static int cs_conn_recv(struct stconn *cs)
 		ic->flags |= CF_READ_NULL;
 		if (ic->flags & CF_AUTO_CLOSE)
 			channel_shutw_now(ic);
-		cs_conn_read0(cs);
+		sc_conn_read0(cs);
 		ret = 1;
 	}
 	else if (!cs_rx_blocked(cs)) {
@@ -1617,7 +1617,7 @@ static int cs_conn_recv(struct stconn *cs)
  * to be programmed and performed later, though it doesn't provide any
  * such guarantee.
  */
-int cs_conn_sync_recv(struct stconn *cs)
+int sc_conn_sync_recv(struct stconn *cs)
 {
 	if (!cs_state_in(cs->state, SC_SB_RDY|SC_SB_EST))
 		return 0;
@@ -1631,7 +1631,7 @@ int cs_conn_sync_recv(struct stconn *cs)
 	if (!cs_rx_endp_ready(cs) || cs_rx_blocked(cs))
 		return 0; // already failed
 
-	return cs_conn_recv(cs);
+	return sc_conn_recv(cs);
 }
 
 /*
@@ -1640,7 +1640,7 @@ int cs_conn_sync_recv(struct stconn *cs)
  * caller to commit polling changes. The caller should check conn->flags
  * for errors.
  */
-static int cs_conn_send(struct stconn *cs)
+static int sc_conn_send(struct stconn *cs)
 {
 	struct connection *conn = __sc_conn(cs);
 	struct stream *s = __sc_strm(cs);
@@ -1785,7 +1785,7 @@ static int cs_conn_send(struct stconn *cs)
  * CF_WRITE_PARTIAL flags are cleared prior to the attempt, and will possibly
  * be updated in case of success.
  */
-void cs_conn_sync_send(struct stconn *cs)
+void sc_conn_sync_send(struct stconn *cs)
 {
 	struct channel *oc = sc_oc(cs);
 
@@ -1803,7 +1803,7 @@ void cs_conn_sync_send(struct stconn *cs)
 	if (!sc_mux_ops(cs))
 		return;
 
-	cs_conn_send(cs);
+	sc_conn_send(cs);
 }
 
 /* Called by I/O handlers after completion.. It propagates
@@ -1812,7 +1812,7 @@ void cs_conn_sync_send(struct stconn *cs)
  * connection's polling based on the channels and stream connector's final
  * states. The function always returns 0.
  */
-static int cs_conn_process(struct stconn *cs)
+static int sc_conn_process(struct stconn *cs)
 {
 	struct connection *conn = __sc_conn(cs);
 	struct channel *ic = sc_ic(cs);
@@ -1822,7 +1822,7 @@ static int cs_conn_process(struct stconn *cs)
 
 	/* If we have data to send, try it now */
 	if (!channel_is_empty(oc) && !(cs->wait_event.events & SUB_RETRY_SEND))
-		cs_conn_send(cs);
+		sc_conn_send(cs);
 
 	/* First step, report to the stream connector what was detected at the
 	 * connection layer : errors and connection establishment.
@@ -1832,8 +1832,8 @@ static int cs_conn_process(struct stconn *cs)
 	 * to retry to connect, the connection may still have CO_FL_ERROR,
 	 * and we don't want to add SE_FL_ERROR back
 	 *
-	 * Note: This test is only required because cs_conn_process is also the SI
-	 *       wake callback. Otherwise cs_conn_recv()/cs_conn_send() already take
+	 * Note: This test is only required because sc_conn_process is also the SI
+	 *       wake callback. Otherwise sc_conn_recv()/sc_conn_send() already take
 	 *       care of it.
 	 */
 
@@ -1864,8 +1864,8 @@ static int cs_conn_process(struct stconn *cs)
 	/* Report EOS on the channel if it was reached from the mux point of
 	 * view.
 	 *
-	 * Note: This test is only required because cs_conn_process is also the SI
-	 *       wake callback. Otherwise cs_conn_recv()/cs_conn_send() already take
+	 * Note: This test is only required because sc_conn_process is also the SI
+	 *       wake callback. Otherwise sc_conn_recv()/sc_conn_send() already take
 	 *       care of it.
 	 */
 	if (sc_ep_test(cs, SE_FL_EOS) && !(ic->flags & CF_SHUTR)) {
@@ -1873,14 +1873,14 @@ static int cs_conn_process(struct stconn *cs)
 		ic->flags |= CF_READ_NULL;
 		if (ic->flags & CF_AUTO_CLOSE)
 			channel_shutw_now(ic);
-		cs_conn_read0(cs);
+		sc_conn_read0(cs);
 	}
 
 	/* Report EOI on the channel if it was reached from the mux point of
 	 * view.
 	 *
-	 * Note: This test is only required because cs_conn_process is also the SI
-	 *       wake callback. Otherwise cs_conn_recv()/cs_conn_send() already take
+	 * Note: This test is only required because sc_conn_process is also the SI
+	 *       wake callback. Otherwise sc_conn_recv()/sc_conn_send() already take
 	 *       care of it.
 	 */
 	if (sc_ep_test(cs, SE_FL_EOI) && !(ic->flags & CF_EOI))
@@ -1900,7 +1900,7 @@ static int cs_conn_process(struct stconn *cs)
  * stream connector. Thus it is always safe to perform a tasklet_wakeup() on a
  * stream connector, as the presence of the CS is checked there.
  */
-struct task *cs_conn_io_cb(struct task *t, void *ctx, unsigned int state)
+struct task *sc_conn_io_cb(struct task *t, void *ctx, unsigned int state)
 {
 	struct stconn *cs = ctx;
 	int ret = 0;
@@ -1909,11 +1909,11 @@ struct task *cs_conn_io_cb(struct task *t, void *ctx, unsigned int state)
 		return t;
 
 	if (!(cs->wait_event.events & SUB_RETRY_SEND) && !channel_is_empty(sc_oc(cs)))
-		ret = cs_conn_send(cs);
+		ret = sc_conn_send(cs);
 	if (!(cs->wait_event.events & SUB_RETRY_RECV))
-		ret |= cs_conn_recv(cs);
+		ret |= sc_conn_recv(cs);
 	if (ret != 0)
-		cs_conn_process(cs);
+		sc_conn_process(cs);
 
 	stream_release_buffers(__sc_strm(cs));
 	return t;

@@ -1176,7 +1176,7 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 		 * as a failed response coupled with "observe layer7" caused the
 		 * server state to be suddenly changed.
 		 */
-		cs_conn_drain_and_shut(cs);
+		sc_conn_drain_and_shut(cs);
 	}
 
 	if (cs) {

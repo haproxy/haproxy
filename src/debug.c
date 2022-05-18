@@ -252,7 +252,7 @@ void ha_task_dump(struct buffer *buf, const struct task *task, const char *pfx)
 		s = (struct stream *)task->context;
 	else if (task->process == task_run_applet && task->context)
 		s = sc_strm(appctx_cs((struct appctx *)task->context));
-	else if (task->process == cs_conn_io_cb && task->context)
+	else if (task->process == sc_conn_io_cb && task->context)
 		s = sc_strm(((struct stconn *)task->context));
 
 	if (s)

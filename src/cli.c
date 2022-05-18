@@ -2766,7 +2766,7 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		/* only release our endpoint if we don't intend to reuse the
 		 * connection.
 		 */
-		if (!cs_conn_ready(s->scb)) {
+		if (!sc_conn_ready(s->scb)) {
 			s->srv_conn = NULL;
 			if (cs_reset_endp(s->scb) < 0) {
 				if (!s->conn_err_type)

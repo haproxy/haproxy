@@ -227,7 +227,7 @@ static inline const char *sc_get_data_name(const struct stconn *cs)
 }
 
 /* shut read */
-static inline void cs_conn_shutr(struct stconn *cs, enum co_shr_mode mode)
+static inline void sc_conn_shutr(struct stconn *cs, enum co_shr_mode mode)
 {
 	const struct mux_ops *mux;
 
@@ -244,7 +244,7 @@ static inline void cs_conn_shutr(struct stconn *cs, enum co_shr_mode mode)
 }
 
 /* shut write */
-static inline void cs_conn_shutw(struct stconn *cs, enum co_shw_mode mode)
+static inline void sc_conn_shutw(struct stconn *cs, enum co_shw_mode mode)
 {
 	const struct mux_ops *mux;
 
@@ -261,17 +261,17 @@ static inline void cs_conn_shutw(struct stconn *cs, enum co_shw_mode mode)
 }
 
 /* completely close a stream connector (but do not detach it) */
-static inline void cs_conn_shut(struct stconn *cs)
+static inline void sc_conn_shut(struct stconn *cs)
 {
-	cs_conn_shutw(cs, CO_SHW_SILENT);
-	cs_conn_shutr(cs, CO_SHR_RESET);
+	sc_conn_shutw(cs, CO_SHW_SILENT);
+	sc_conn_shutr(cs, CO_SHR_RESET);
 }
 
 /* completely close a stream connector after draining possibly pending data (but do not detach it) */
-static inline void cs_conn_drain_and_shut(struct stconn *cs)
+static inline void sc_conn_drain_and_shut(struct stconn *cs)
 {
-	cs_conn_shutw(cs, CO_SHW_SILENT);
-	cs_conn_shutr(cs, CO_SHR_DRAIN);
+	sc_conn_shutw(cs, CO_SHW_SILENT);
+	sc_conn_shutr(cs, CO_SHR_DRAIN);
 }
 
 /* sets SE_FL_ERROR or SE_FL_ERR_PENDING on the endpoint */
