@@ -91,6 +91,12 @@ static struct trace_source trace_pt __read_mostly = {
 #define TRACE_SOURCE &trace_pt
 INITCALL1(STG_REGISTER, trace_register_source, TRACE_SOURCE);
 
+/* returns the stconn associated to the stream */
+static forceinline struct stconn *pt_sc(const struct mux_pt_ctx *pt)
+{
+	return pt->endp->cs;
+}
+
 static inline void pt_trace_buf(const struct buffer *buf, size_t ofs, size_t len)
 {
 	size_t block1, block2;
@@ -146,7 +152,7 @@ static void pt_trace(enum trace_level level, uint64_t mask, const struct trace_s
 		return;
 
 	if (!cs)
-		cs = ctx->endp->cs;
+		cs = pt_sc(ctx);
 
 	/* Display the value to the 4th argument (level > STATE) */
 	if (src->level > TRACE_LEVEL_STATE && val)
@@ -246,8 +252,8 @@ struct task *mux_pt_io_cb(struct task *t, void *tctx, unsigned int status)
 			ctx->conn->subs->events = 0;
 			tasklet_wakeup(ctx->conn->subs->tasklet);
 			ctx->conn->subs = NULL;
-		} else if (ctx->endp->cs->data_cb->wake)
-			ctx->endp->cs->data_cb->wake(ctx->endp->cs);
+		} else if (pt_sc(ctx)->data_cb->wake)
+			pt_sc(ctx)->data_cb->wake(pt_sc(ctx));
 		TRACE_DEVEL("leaving waking up CS", PT_EV_CONN_WAKE, ctx->conn);
 		return t;
 	}
@@ -343,7 +349,7 @@ static int mux_pt_wake(struct connection *conn)
 
 	TRACE_ENTER(PT_EV_CONN_WAKE, ctx->conn);
 	if (!se_fl_test(ctx->endp, SE_FL_ORPHAN)) {
-		ret = ctx->endp->cs->data_cb->wake ? ctx->endp->cs->data_cb->wake(ctx->endp->cs) : 0;
+		ret = pt_sc(ctx)->data_cb->wake ? pt_sc(ctx)->data_cb->wake(pt_sc(ctx)) : 0;
 
 		if (ret < 0) {
 			TRACE_DEVEL("leaving waking up CS", PT_EV_CONN_WAKE, ctx->conn);
@@ -396,7 +402,7 @@ static struct stconn *mux_pt_get_first_cs(const struct connection *conn)
 {
 	struct mux_pt_ctx *ctx = conn->ctx;
 
-	return ctx->endp->cs;
+	return pt_sc(ctx);
 }
 
 /* Destroy the mux and the associated connection if still attached to this mux
@@ -405,7 +411,7 @@ static void mux_pt_destroy_meth(void *ctx)
 {
 	struct mux_pt_ctx *pt = ctx;
 
-	TRACE_POINT(PT_EV_CONN_END, pt->conn, pt->endp->cs);
+	TRACE_POINT(PT_EV_CONN_END, pt->conn, pt_sc(pt));
 	if (se_fl_test(pt->endp, SE_FL_ORPHAN) || pt->conn->ctx != pt) {
 		if (pt->conn->ctx != pt) {
 			pt->endp = NULL;
