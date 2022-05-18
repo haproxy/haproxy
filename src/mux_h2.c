@@ -612,6 +612,12 @@ static inline const char *h2s_st_to_str(enum h2_ss st)
 	}
 }
 
+/* returns the stconn associated to the H2 stream */
+static forceinline struct stconn *h2s_sc(const struct h2s *h2s)
+{
+	return h2s->endp->cs;
+}
+
 /* the H2 traces always expect that arg1, if non-null, is of type connection
  * (from which we can derive h2c), that arg2, if non-null, is of type h2s, and
  * that arg3, if non-null, is either of type htx for tx headers, or of type
@@ -882,7 +888,7 @@ static int h2_buf_available(void *target)
 	}
 
 	if ((h2c->flags & H2_CF_DEM_SALLOC) &&
-	    (h2s = h2c_st_by_id(h2c, h2c->dsi)) && h2s->endp->cs &&
+	    (h2s = h2c_st_by_id(h2c, h2c->dsi)) && h2s_sc(h2s) &&
 	    b_alloc(&h2s->rxbuf)) {
 		h2c->flags &= ~H2_CF_DEM_SALLOC;
 		h2c_restart_reading(h2c, 1);
@@ -1328,9 +1334,9 @@ static void __maybe_unused h2s_alert(struct h2s *h2s)
 		h2s_notify_recv(h2s);
 		h2s_notify_send(h2s);
 	}
-	else if (h2s->endp->cs && h2s->endp->cs->data_cb->wake != NULL) {
+	else if (h2s_sc(h2s) && h2s_sc(h2s)->data_cb->wake != NULL) {
 		TRACE_POINT(H2_EV_STRM_WAKE, h2s->h2c->conn, h2s);
-		h2s->endp->cs->data_cb->wake(h2s->endp->cs);
+		h2s_sc(h2s)->data_cb->wake(h2s_sc(h2s));
 	}
 
 	TRACE_LEAVE(H2_EV_H2S_WAKE, h2s->h2c->conn, h2s);
@@ -1484,7 +1490,7 @@ static inline void h2s_close(struct h2s *h2s)
 		h2s->h2c->nb_streams--;
 		if (!h2s->id)
 			h2s->h2c->nb_reserved--;
-		if (h2s->endp->cs) {
+		if (h2s_sc(h2s)) {
 			if (!se_fl_test(h2s->endp, SE_FL_EOS) && !b_data(&h2s->rxbuf))
 				h2s_notify_recv(h2s);
 		}
@@ -2196,7 +2202,7 @@ static void h2s_wake_one_stream(struct h2s *h2s)
 
 	TRACE_ENTER(H2_EV_H2S_WAKE, h2c->conn, h2s);
 
-	if (!h2s->endp->cs) {
+	if (!h2s_sc(h2s)) {
 		/* this stream was already orphaned */
 		h2s_destroy(h2s);
 		TRACE_DEVEL("leaving with no h2s", H2_EV_H2S_WAKE, h2c->conn);
@@ -2749,7 +2755,7 @@ static int h2c_handle_rst_stream(struct h2c *h2c, struct h2s *h2s)
 	h2s->errcode = h2_get_n32(&h2c->dbuf, 0);
 	h2s_close(h2s);
 
-	if (h2s->endp->cs) {
+	if (h2s_sc(h2s)) {
 		cs_ep_set_error(h2s->endp);
 		h2s_alert(h2s);
 	}
@@ -3075,7 +3081,7 @@ static int h2c_handle_data(struct h2c *h2c, struct h2s *h2s)
 	/* call the upper layers to process the frame, then let the upper layer
 	 * notify the stream about any change.
 	 */
-	if (!h2s->endp->cs) {
+	if (!h2s_sc(h2s)) {
 		/* The upper layer has already closed, this may happen on
 		 * 4xx/redirects during POST, or when receiving a response
 		 * from an H2 server after the client has aborted.
@@ -3474,7 +3480,7 @@ static void h2_process_demux(struct h2c *h2c)
 		 */
 		tmp_h2s = h2c_st_by_id(h2c, h2c->dsi);
 
-		if (tmp_h2s != h2s && h2s && h2s->endp->cs &&
+		if (tmp_h2s != h2s && h2s && h2s_sc(h2s) &&
 		    (b_data(&h2s->rxbuf) ||
 		     h2c_read0_pending(h2c) ||
 		     h2s->st == H2_SS_CLOSED ||
@@ -3645,7 +3651,7 @@ static void h2_process_demux(struct h2c *h2c)
 			h2c->flags |= H2_CF_END_REACHED;
 	}
 
-	if (h2s && h2s->endp->cs &&
+	if (h2s && h2s_sc(h2s) &&
 	    (b_data(&h2s->rxbuf) ||
 	     h2c_read0_pending(h2c) ||
 	     h2s->st == H2_SS_CLOSED ||
@@ -4323,8 +4329,8 @@ static struct stconn *h2_get_first_cs(const struct connection *conn)
 	node = eb32_first(&h2c->streams_by_id);
 	while (node) {
 		h2s = container_of(node, struct h2s, by_id);
-		if (h2s->endp->cs)
-			return h2s->endp->cs;
+		if (h2s_sc(h2s))
+			return h2s_sc(h2s);
 		node = eb32_next(node);
 	}
 	return NULL;
@@ -4672,7 +4678,7 @@ struct task *h2_deferred_shut(struct task *t, void *ctx, unsigned int state)
 		/* We're done trying to send, remove ourself from the send_list */
 		LIST_DEL_INIT(&h2s->list);
 
-		if (!h2s->endp->cs) {
+		if (!h2s_sc(h2s)) {
 			h2s_destroy(h2s);
 			if (h2c_is_dead(h2c)) {
 				h2_release(h2c);
@@ -5338,7 +5344,7 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, struct htx *htx)
 			break;
 	}
 
-	if (!h2s->endp->cs || se_fl_test(h2s->endp, SE_FL_SHW)) {
+	if (!h2s_sc(h2s) || se_fl_test(h2s->endp, SE_FL_SHW)) {
 		/* Response already closed: add END_STREAM */
 		es_now = 1;
 	}
@@ -5758,7 +5764,7 @@ static size_t h2s_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 			break;
 	}
 
-	if (!h2s->endp->cs || se_fl_test(h2s->endp, SE_FL_SHW)) {
+	if (!h2s_sc(h2s) || se_fl_test(h2s->endp, SE_FL_SHW)) {
 		/* Request already closed: add END_STREAM */
 		es_now = 1;
 	}
@@ -6727,7 +6733,7 @@ static int h2_show_fd(struct buffer *msg, struct connection *conn)
 	while (node) {
 		h2s = container_of(node, struct h2s, by_id);
 		tree_cnt++;
-		if (!h2s->endp->cs)
+		if (!h2s_sc(h2s))
 			orph_cnt++;
 		node = eb32_next(node);
 	}
@@ -6755,10 +6761,10 @@ static int h2_show_fd(struct buffer *msg, struct connection *conn)
 			      h2s, h2s->id, h2s_st_to_str(h2s->st), h2s->flags,
 			      (unsigned int)b_data(&h2s->rxbuf), b_orig(&h2s->rxbuf),
 			      (unsigned int)b_head_ofs(&h2s->rxbuf), (unsigned int)b_size(&h2s->rxbuf),
-			      h2s->endp->cs);
-		if (h2s->endp->cs)
+			      h2s_sc(h2s));
+		if (h2s_sc(h2s))
 			chunk_appendf(msg, "(.flg=0x%08x .app=%p)",
-				      h2s->endp->cs->flags, h2s->endp->cs->app);
+				      h2s_sc(h2s)->flags, h2s_sc(h2s)->app);
 
 		chunk_appendf(msg, "endp=%p", h2s->endp);
 		if (h2s->endp)
