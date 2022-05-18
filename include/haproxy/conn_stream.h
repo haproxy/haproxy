@@ -124,8 +124,8 @@ static forceinline uint sc_ep_get(const struct stconn *sc)
 }
 
 
-/* Returns the endpoint target without any control */
-static inline void *__cs_endp_target(const struct stconn *cs)
+/* Returns the stream endpoint from an connector, without any control */
+static inline void *__sc_endp(const struct stconn *cs)
 {
 	return cs->sedesc->se;
 }
@@ -161,7 +161,7 @@ static inline const struct mux_ops *sc_mux_ops(const struct stconn *cs)
  */
 static inline void *__sc_mux_strm(const struct stconn *cs)
 {
-	return __cs_endp_target(cs);
+	return __sc_endp(cs);
 }
 static inline struct appctx *sc_mux_strm(const struct stconn *cs)
 {
@@ -176,7 +176,7 @@ static inline struct appctx *sc_mux_strm(const struct stconn *cs)
  */
 static inline struct appctx *__sc_appctx(const struct stconn *cs)
 {
-	return __cs_endp_target(cs);
+	return __sc_endp(cs);
 }
 static inline struct appctx *sc_appctx(const struct stconn *cs)
 {

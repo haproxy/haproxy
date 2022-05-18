@@ -443,7 +443,7 @@ int cs_reset_endp(struct stconn *cs)
 	BUG_ON(!cs->app);
 
 	sc_ep_clr(cs, SE_FL_ERROR);
-	if (!__cs_endp_target(cs)) {
+	if (!__sc_endp(cs)) {
 		/* endpoint not attached or attached to a mux with no
 		 * target. Thus the endpoint will not be release but just
 		 * reset. The app is still attached, the cs will not be
