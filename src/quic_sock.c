@@ -339,14 +339,18 @@ size_t qc_snd_buf(struct quic_conn *qc, const struct buffer *buf, size_t count,
 			if (ret < try)
 				break;
 		}
+		else if (errno == EINTR) {
+			/* try again */
+			continue;
+		}
 		else if (ret == 0 || errno == EAGAIN || errno == EWOULDBLOCK || errno == ENOTCONN || errno == EINPROGRESS) {
 			/* TODO must be handle properly. It is justified for UDP ? */
 			qc->sendto_err++;
 			break;
 		}
-		else if (errno != EINTR) {
-			/* TODO must be handle properly. It is justified for UDP ? */
-			qc->sendto_err++;
+		else if (errno) {
+			/* TODO unlisted errno : handle it explicitely. */
+			ABORT_NOW();
 		}
 	}
 
