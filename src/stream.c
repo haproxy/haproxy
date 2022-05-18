@@ -278,7 +278,7 @@ static void strm_trace(enum trace_level level, uint64_t mask, const struct trace
 int stream_upgrade_from_cs(struct stconn *cs, struct buffer *input)
 {
 	struct stream *s = __sc_strm(cs);
-	const struct mux_ops *mux = cs_conn_mux(cs);
+	const struct mux_ops *mux = sc_mux_ops(cs);
 
 	if (mux) {
 		if (mux->flags & MX_FL_HTX)
@@ -466,7 +466,7 @@ struct stream *stream_new(struct session *sess, struct stconn *cs, struct buffer
 	if (sc_ep_test(cs, SE_FL_WEBSOCKET))
 		s->flags |= SF_WEBSOCKET;
 	if (sc_conn(cs)) {
-		const struct mux_ops *mux = cs_conn_mux(cs);
+		const struct mux_ops *mux = sc_mux_ops(cs);
 
 		if (mux && mux->flags & MX_FL_HTX)
 			s->flags |= SF_HTX;

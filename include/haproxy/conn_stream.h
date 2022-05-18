@@ -145,10 +145,10 @@ static inline struct connection *sc_conn(const struct stconn *cs)
 	return NULL;
 }
 
-/* Returns the mux ops of the connection from a cs if the endpoint is a
+/* Returns the mux ops of the connection from an stconn if the endpoint is a
  * mux stream. Otherwise NULL is returned.
  */
-static inline const struct mux_ops *cs_conn_mux(const struct stconn *cs)
+static inline const struct mux_ops *sc_mux_ops(const struct stconn *cs)
 {
 	const struct connection *conn = sc_conn(cs);
 
@@ -233,7 +233,7 @@ static inline void cs_conn_shutr(struct stconn *cs, enum co_shr_mode mode)
 		return;
 
 	/* clean data-layer shutdown */
-	mux = cs_conn_mux(cs);
+	mux = sc_mux_ops(cs);
 	if (mux && mux->shutr)
 		mux->shutr(cs, mode);
 	sc_ep_set(cs, (mode == CO_SHR_DRAIN) ? SE_FL_SHRD : SE_FL_SHRR);
@@ -250,7 +250,7 @@ static inline void cs_conn_shutw(struct stconn *cs, enum co_shw_mode mode)
 		return;
 
 	/* clean data-layer shutdown */
-	mux = cs_conn_mux(cs);
+	mux = sc_mux_ops(cs);
 	if (mux && mux->shutw)
 		mux->shutw(cs, mode);
 	sc_ep_set(cs, (mode == CO_SHW_NORMAL) ? SE_FL_SHWN : SE_FL_SHWS);

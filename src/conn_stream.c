@@ -1622,7 +1622,7 @@ int cs_conn_sync_recv(struct stconn *cs)
 	if (!cs_state_in(cs->state, SC_SB_RDY|SC_SB_EST))
 		return 0;
 
-	if (!cs_conn_mux(cs))
+	if (!sc_mux_ops(cs))
 		return 0; // only stconns are supported
 
 	if (cs->wait_event.events & SUB_RETRY_RECV)
@@ -1800,7 +1800,7 @@ void cs_conn_sync_send(struct stconn *cs)
 	if (!cs_state_in(cs->state, SC_SB_CON|SC_SB_RDY|SC_SB_EST))
 		return;
 
-	if (!cs_conn_mux(cs))
+	if (!sc_mux_ops(cs))
 		return;
 
 	cs_conn_send(cs);
