@@ -3219,9 +3219,6 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 	appctx_wakeup(appctx);
 	return appctx;
 
-	/* Error unrolling */
- out_free_appctx:
-	appctx_free_on_early_error(appctx);
  out_close:
 	return NULL;
 }
