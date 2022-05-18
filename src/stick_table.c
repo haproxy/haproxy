@@ -4680,7 +4680,7 @@ static int cli_io_handler_table(struct appctx *appctx)
 	 *     data though.
 	 */
 
-	if (unlikely(cs_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW))) {
+	if (unlikely(sc_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW))) {
 		/* in case of abort, remove any refcount we might have set on an entry */
 		if (ctx->state == STATE_DUMP) {
 			stksess_kill_if_expired(ctx->t, ctx->entry, 1);

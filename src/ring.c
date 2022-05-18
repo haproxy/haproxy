@@ -298,7 +298,7 @@ int cli_io_handler_show_ring(struct appctx *appctx)
 	size_t len, cnt;
 	int ret;
 
-	if (unlikely(cs_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
+	if (unlikely(sc_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
 		return 1;
 
 	HA_RWLOCK_WRLOCK(LOGSRV_LOCK, &ring->lock);
@@ -373,7 +373,7 @@ int cli_io_handler_show_ring(struct appctx *appctx)
 		/* we've drained everything and are configured to wait for more
 		 * data or an event (keypress, close)
 		 */
-		if (!cs_oc(cs)->output && !(cs_oc(cs)->flags & CF_SHUTW)) {
+		if (!sc_oc(cs)->output && !(sc_oc(cs)->flags & CF_SHUTW)) {
 			/* let's be woken up once new data arrive */
 			HA_RWLOCK_WRLOCK(LOGSRV_LOCK, &ring->lock);
 			LIST_APPEND(&ring->waiters, &appctx->wait_entry);
@@ -382,7 +382,7 @@ int cli_io_handler_show_ring(struct appctx *appctx)
 			ret = 0;
 		}
 		/* always drain all the request */
-		co_skip(cs_oc(cs), cs_oc(cs)->output);
+		co_skip(sc_oc(cs), sc_oc(cs)->output);
 	}
 	return ret;
 }

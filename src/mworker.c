@@ -516,7 +516,7 @@ static int cli_io_handler_show_proc(struct appctx *appctx)
 	char *uptime = NULL;
 	char *reloadtxt = NULL;
 
-	if (unlikely(cs_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
+	if (unlikely(sc_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
 		return 1;
 
 	chunk_reset(&trash);

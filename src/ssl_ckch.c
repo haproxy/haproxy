@@ -2054,7 +2054,7 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 	if (trash == NULL)
 		goto error;
 
-	if (unlikely(cs_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
+	if (unlikely(sc_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
 		goto error;
 
 	while (1) {
@@ -2795,7 +2795,7 @@ static int cli_io_handler_commit_cafile_crlfile(struct appctx *appctx)
 	if (trash == NULL)
 		goto error;
 
-	if (unlikely(cs_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
+	if (unlikely(sc_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
 		goto error;
 
 	while (1) {

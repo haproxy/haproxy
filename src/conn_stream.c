@@ -505,7 +505,7 @@ struct appctx *cs_applet_create(struct stconn *cs, struct applet *app)
  */
 static void sc_app_shutr(struct stconn *cs)
 {
-	struct channel *ic = cs_ic(cs);
+	struct channel *ic = sc_ic(cs);
 
 	cs_rx_shut_blk(cs);
 	if (ic->flags & CF_SHUTR)
@@ -516,7 +516,7 @@ static void sc_app_shutr(struct stconn *cs)
 	if (!cs_state_in(cs->state, SC_SB_CON|SC_SB_RDY|SC_SB_EST))
 		return;
 
-	if (cs_oc(cs)->flags & CF_SHUTW) {
+	if (sc_oc(cs)->flags & CF_SHUTW) {
 		cs->state = SC_ST_DIS;
 		__cs_strm(cs)->conn_exp = TICK_ETERNITY;
 	}
@@ -539,8 +539,8 @@ static void sc_app_shutr(struct stconn *cs)
  */
 static void sc_app_shutw(struct stconn *cs)
 {
-	struct channel *ic = cs_ic(cs);
-	struct channel *oc = cs_oc(cs);
+	struct channel *ic = sc_ic(cs);
+	struct channel *oc = sc_oc(cs);
 
 	oc->flags &= ~CF_SHUTW_NOW;
 	if (oc->flags & CF_SHUTW)
@@ -591,11 +591,11 @@ static void sc_app_shutw(struct stconn *cs)
 /* default chk_rcv function for scheduled tasks */
 static void sc_app_chk_rcv(struct stconn *cs)
 {
-	struct channel *ic = cs_ic(cs);
+	struct channel *ic = sc_ic(cs);
 
 	DPRINTF(stderr, "%s: cs=%p, cs->state=%d ic->flags=%08x oc->flags=%08x\n",
 		__FUNCTION__,
-		cs, cs->state, ic->flags, cs_oc(cs)->flags);
+		cs, cs->state, ic->flags, sc_oc(cs)->flags);
 
 	if (ic->pipe) {
 		/* stop reading */
@@ -611,11 +611,11 @@ static void sc_app_chk_rcv(struct stconn *cs)
 /* default chk_snd function for scheduled tasks */
 static void sc_app_chk_snd(struct stconn *cs)
 {
-	struct channel *oc = cs_oc(cs);
+	struct channel *oc = sc_oc(cs);
 
 	DPRINTF(stderr, "%s: cs=%p, cs->state=%d ic->flags=%08x oc->flags=%08x\n",
 		__FUNCTION__,
-		cs, cs->state, cs_ic(cs)->flags, oc->flags);
+		cs, cs->state, sc_ic(cs)->flags, oc->flags);
 
 	if (unlikely(cs->state != SC_ST_EST || (oc->flags & CF_SHUTW)))
 		return;
@@ -647,7 +647,7 @@ static void sc_app_chk_snd(struct stconn *cs)
  */
 static void sc_app_shutr_conn(struct stconn *cs)
 {
-	struct channel *ic = cs_ic(cs);
+	struct channel *ic = sc_ic(cs);
 
 	BUG_ON(!cs_conn(cs));
 
@@ -660,7 +660,7 @@ static void sc_app_shutr_conn(struct stconn *cs)
 	if (!cs_state_in(cs->state, SC_SB_CON|SC_SB_RDY|SC_SB_EST))
 		return;
 
-	if (cs_oc(cs)->flags & CF_SHUTW) {
+	if (sc_oc(cs)->flags & CF_SHUTW) {
 		cs_conn_shut(cs);
 		cs->state = SC_ST_DIS;
 		__cs_strm(cs)->conn_exp = TICK_ETERNITY;
@@ -681,8 +681,8 @@ static void sc_app_shutr_conn(struct stconn *cs)
  */
 static void sc_app_shutw_conn(struct stconn *cs)
 {
-	struct channel *ic = cs_ic(cs);
-	struct channel *oc = cs_oc(cs);
+	struct channel *ic = sc_ic(cs);
+	struct channel *oc = sc_oc(cs);
 
 	BUG_ON(!cs_conn(cs));
 
@@ -776,7 +776,7 @@ static void sc_app_chk_rcv_conn(struct stconn *cs)
  */
 static void sc_app_chk_snd_conn(struct stconn *cs)
 {
-	struct channel *oc = cs_oc(cs);
+	struct channel *oc = sc_oc(cs);
 
 	BUG_ON(!cs_conn(cs));
 
@@ -791,7 +791,7 @@ static void sc_app_chk_snd_conn(struct stconn *cs)
 	    !sc_ep_test(cs, SE_FL_WAIT_DATA))       /* not waiting for data */
 		return;
 
-	if (!(cs->wait_event.events & SUB_RETRY_SEND) && !channel_is_empty(cs_oc(cs)))
+	if (!(cs->wait_event.events & SUB_RETRY_SEND) && !channel_is_empty(sc_oc(cs)))
 		cs_conn_send(cs);
 
 	if (sc_ep_test(cs, SE_FL_ERROR | SE_FL_ERR_PENDING) || cs_is_conn_error(cs)) {
@@ -831,7 +831,7 @@ static void sc_app_chk_snd_conn(struct stconn *cs)
 	}
 
 	if (likely(oc->flags & CF_WRITE_ACTIVITY)) {
-		struct channel *ic = cs_ic(cs);
+		struct channel *ic = sc_ic(cs);
 
 		/* update timeout if we have written something */
 		if ((oc->flags & (CF_SHUTW|CF_WRITE_PARTIAL)) == CF_WRITE_PARTIAL &&
@@ -874,7 +874,7 @@ static void sc_app_chk_snd_conn(struct stconn *cs)
  */
 static void sc_app_shutr_applet(struct stconn *cs)
 {
-	struct channel *ic = cs_ic(cs);
+	struct channel *ic = sc_ic(cs);
 
 	BUG_ON(!cs_appctx(cs));
 
@@ -889,7 +889,7 @@ static void sc_app_shutr_applet(struct stconn *cs)
 	if (!cs_state_in(cs->state, SC_SB_CON|SC_SB_RDY|SC_SB_EST))
 		return;
 
-	if (cs_oc(cs)->flags & CF_SHUTW) {
+	if (sc_oc(cs)->flags & CF_SHUTW) {
 		appctx_shut(__cs_appctx(cs));
 		cs->state = SC_ST_DIS;
 		__cs_strm(cs)->conn_exp = TICK_ETERNITY;
@@ -909,8 +909,8 @@ static void sc_app_shutr_applet(struct stconn *cs)
  */
 static void sc_app_shutw_applet(struct stconn *cs)
 {
-	struct channel *ic = cs_ic(cs);
-	struct channel *oc = cs_oc(cs);
+	struct channel *ic = sc_ic(cs);
+	struct channel *oc = sc_oc(cs);
 
 	BUG_ON(!cs_appctx(cs));
 
@@ -963,13 +963,13 @@ static void sc_app_shutw_applet(struct stconn *cs)
 /* chk_rcv function for applets */
 static void sc_app_chk_rcv_applet(struct stconn *cs)
 {
-	struct channel *ic = cs_ic(cs);
+	struct channel *ic = sc_ic(cs);
 
 	BUG_ON(!cs_appctx(cs));
 
 	DPRINTF(stderr, "%s: cs=%p, cs->state=%d ic->flags=%08x oc->flags=%08x\n",
 		__FUNCTION__,
-		cs, cs->state, ic->flags, cs_oc(cs)->flags);
+		cs, cs->state, ic->flags, sc_oc(cs)->flags);
 
 	if (!ic->pipe) {
 		/* (re)start reading */
@@ -980,13 +980,13 @@ static void sc_app_chk_rcv_applet(struct stconn *cs)
 /* chk_snd function for applets */
 static void sc_app_chk_snd_applet(struct stconn *cs)
 {
-	struct channel *oc = cs_oc(cs);
+	struct channel *oc = sc_oc(cs);
 
 	BUG_ON(!cs_appctx(cs));
 
 	DPRINTF(stderr, "%s: cs=%p, cs->state=%d ic->flags=%08x oc->flags=%08x\n",
 		__FUNCTION__,
-		cs, cs->state, cs_ic(cs)->flags, oc->flags);
+		cs, cs->state, sc_ic(cs)->flags, oc->flags);
 
 	if (unlikely(cs->state != SC_ST_EST || (oc->flags & CF_SHUTW)))
 		return;
@@ -1017,7 +1017,7 @@ static void sc_app_chk_snd_applet(struct stconn *cs)
  */
 void cs_update_rx(struct stconn *cs)
 {
-	struct channel *ic = cs_ic(cs);
+	struct channel *ic = sc_ic(cs);
 
 	if (ic->flags & CF_SHUTR) {
 		cs_rx_shut_blk(cs);
@@ -1061,8 +1061,8 @@ void cs_update_rx(struct stconn *cs)
  */
 void cs_update_tx(struct stconn *cs)
 {
-	struct channel *oc = cs_oc(cs);
-	struct channel *ic = cs_ic(cs);
+	struct channel *oc = sc_oc(cs);
+	struct channel *ic = sc_ic(cs);
 
 	if (oc->flags & CF_SHUTW)
 		return;
@@ -1110,8 +1110,8 @@ void cs_update_tx(struct stconn *cs)
  */
 static void cs_notify(struct stconn *cs)
 {
-	struct channel *ic = cs_ic(cs);
-	struct channel *oc = cs_oc(cs);
+	struct channel *ic = sc_ic(cs);
+	struct channel *oc = sc_oc(cs);
 	struct stconn *cso = cs_opposite(cs);
 	struct task *task = cs_strm_task(cs);
 
@@ -1239,8 +1239,8 @@ static void cs_notify(struct stconn *cs)
  */
 static void cs_conn_read0(struct stconn *cs)
 {
-	struct channel *ic = cs_ic(cs);
-	struct channel *oc = cs_oc(cs);
+	struct channel *ic = sc_ic(cs);
+	struct channel *oc = sc_oc(cs);
 
 	BUG_ON(!cs_conn(cs));
 
@@ -1289,7 +1289,7 @@ static void cs_conn_read0(struct stconn *cs)
 static int cs_conn_recv(struct stconn *cs)
 {
 	struct connection *conn = __cs_conn(cs);
-	struct channel *ic = cs_ic(cs);
+	struct channel *ic = sc_ic(cs);
 	int ret, max, cur_read = 0;
 	int read_poll = MAX_READ_POLL_LOOPS;
 	int flags = 0;
@@ -1644,7 +1644,7 @@ static int cs_conn_send(struct stconn *cs)
 {
 	struct connection *conn = __cs_conn(cs);
 	struct stream *s = __cs_strm(cs);
-	struct channel *oc = cs_oc(cs);
+	struct channel *oc = sc_oc(cs);
 	int ret;
 	int did_send = 0;
 
@@ -1787,7 +1787,7 @@ static int cs_conn_send(struct stconn *cs)
  */
 void cs_conn_sync_send(struct stconn *cs)
 {
-	struct channel *oc = cs_oc(cs);
+	struct channel *oc = sc_oc(cs);
 
 	oc->flags &= ~(CF_WRITE_NULL|CF_WRITE_PARTIAL);
 
@@ -1815,8 +1815,8 @@ void cs_conn_sync_send(struct stconn *cs)
 static int cs_conn_process(struct stconn *cs)
 {
 	struct connection *conn = __cs_conn(cs);
-	struct channel *ic = cs_ic(cs);
-	struct channel *oc = cs_oc(cs);
+	struct channel *ic = sc_ic(cs);
+	struct channel *oc = sc_oc(cs);
 
 	BUG_ON(!conn);
 
@@ -1908,7 +1908,7 @@ struct task *cs_conn_io_cb(struct task *t, void *ctx, unsigned int state)
 	if (!cs_conn(cs))
 		return t;
 
-	if (!(cs->wait_event.events & SUB_RETRY_SEND) && !channel_is_empty(cs_oc(cs)))
+	if (!(cs->wait_event.events & SUB_RETRY_SEND) && !channel_is_empty(sc_oc(cs)))
 		ret = cs_conn_send(cs);
 	if (!(cs->wait_event.events & SUB_RETRY_RECV))
 		ret |= cs_conn_recv(cs);
@@ -1926,7 +1926,7 @@ struct task *cs_conn_io_cb(struct task *t, void *ctx, unsigned int state)
  */
 static int cs_applet_process(struct stconn *cs)
 {
-	struct channel *ic = cs_ic(cs);
+	struct channel *ic = sc_ic(cs);
 
 	BUG_ON(!cs_appctx(cs));
 

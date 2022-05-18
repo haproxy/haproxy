@@ -137,7 +137,7 @@ static inline int applet_putchk(struct appctx *appctx, struct buffer *chunk)
 	struct sedesc *se = appctx->sedesc;
 	int ret;
 
-	ret = ci_putchk(cs_ic(se->sc), chunk);
+	ret = ci_putchk(sc_ic(se->sc), chunk);
 	if (ret == -1)
 		se_fl_set(se, SE_FL_RXBLK_ROOM);
 
@@ -153,7 +153,7 @@ static inline int applet_putblk(struct appctx *appctx, const char *blk, int len)
 	struct sedesc *se = appctx->sedesc;
 	int ret;
 
-	ret = ci_putblk(cs_ic(se->sc), blk, len);
+	ret = ci_putblk(sc_ic(se->sc), blk, len);
 	if (ret == -1)
 		se_fl_set(se, SE_FL_RXBLK_ROOM);
 
@@ -170,7 +170,7 @@ static inline int applet_putstr(struct appctx *appctx, const char *str)
 	struct sedesc *se = appctx->sedesc;
 	int ret;
 
-	ret = ci_putstr(cs_ic(se->sc), str);
+	ret = ci_putstr(sc_ic(se->sc), str);
 	if (ret == -1)
 		se_fl_set(se, SE_FL_RXBLK_ROOM);
 
@@ -186,7 +186,7 @@ static inline int applet_putchr(struct appctx *appctx, char chr)
 	struct sedesc *se = appctx->sedesc;
 	int ret;
 
-	ret = ci_putchr(cs_ic(se->sc), chr);
+	ret = ci_putchr(sc_ic(se->sc), chr);
 	if (ret == -1)
 		se_fl_set(se, SE_FL_RXBLK_ROOM);
 

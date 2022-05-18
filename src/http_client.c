@@ -227,8 +227,8 @@ static int hc_cli_io_handler(struct appctx *appctx)
 	if (ctx->flags & HC_CLI_F_RES_BODY) {
 		int ret;
 
-		ret = httpclient_res_xfer(hc, cs_ib(cs));
-		channel_add_input(cs_ic(cs), ret); /* forward what we put in the buffer channel */
+		ret = httpclient_res_xfer(hc, sc_ib(cs));
+		channel_add_input(sc_ic(cs), ret); /* forward what we put in the buffer channel */
 
 		if (!httpclient_data(hc)) {/* remove the flag if the buffer was emptied */
 			ctx->flags &= ~HC_CLI_F_RES_BODY;

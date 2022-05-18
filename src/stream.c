@@ -3536,7 +3536,7 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 		goto done;
 	}
 
-	if (unlikely(cs_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW))) {
+	if (unlikely(sc_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW))) {
 		/* If we're forced to shut down, we might have to remove our
 		 * reference to the last stream being dumped.
 		 */

@@ -2593,7 +2593,7 @@ static int stats_dump_resolv_to_buffer(struct stconn *cs,
                                     struct list *stat_modules)
 {
 	struct appctx *appctx = __cs_appctx(cs);
-	struct channel *rep = cs_ic(cs);
+	struct channel *rep = sc_ic(cs);
 	struct stats_module *mod;
 	size_t idx = 0;
 
@@ -2628,7 +2628,7 @@ int stats_dump_resolvers(struct stconn *cs,
 {
 	struct appctx *appctx = __cs_appctx(cs);
 	struct show_stat_ctx *ctx = appctx->svcctx;
-	struct channel *rep = cs_ic(cs);
+	struct channel *rep = sc_ic(cs);
 	struct resolvers *resolver = ctx->obj1;
 	struct dns_nameserver *ns = ctx->obj2;
 

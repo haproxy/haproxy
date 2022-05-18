@@ -460,11 +460,11 @@ static void dns_session_io_handler(struct appctx *appctx)
 		goto close;
 
 	/* an error was detected */
-	if (unlikely(cs_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
+	if (unlikely(sc_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
 		goto close;
 
 	/* con closed by server side, we will skip data write and drain data from channel */
-	if ((cs_oc(cs)->flags & CF_SHUTW)) {
+	if ((sc_oc(cs)->flags & CF_SHUTW)) {
 		goto read;
 	}
 
@@ -528,7 +528,7 @@ static void dns_session_io_handler(struct appctx *appctx)
 			BUG_ON(msg_len + ofs + cnt + 1 > b_data(buf));
 
 			/* retrieve available room on output channel */
-			available_room = channel_recv_max(cs_ic(cs));
+			available_room = channel_recv_max(sc_ic(cs));
 
 			/* tx_msg_offset null means we are at the start of a new message */
 			if (!ds->tx_msg_offset) {
@@ -669,35 +669,35 @@ read:
 
 			if (!ds->rx_msg.len) {
 				/* next message len is not fully available into the channel */
-				if (co_data(cs_oc(cs)) < 2)
+				if (co_data(sc_oc(cs)) < 2)
 					break;
 
 				/* retrieve message len */
-				co_getblk(cs_oc(cs), (char *)&msg_len, 2, 0);
+				co_getblk(sc_oc(cs), (char *)&msg_len, 2, 0);
 
 				/* mark as consumed */
-				co_skip(cs_oc(cs), 2);
+				co_skip(sc_oc(cs), 2);
 
 				/* store message len */
 				ds->rx_msg.len = ntohs(msg_len);
 			}
 
-			if (!co_data(cs_oc(cs))) {
+			if (!co_data(sc_oc(cs))) {
 				/* we need more data but nothing is available */
 				break;
 			}
 
-			if (co_data(cs_oc(cs)) + ds->rx_msg.offset < ds->rx_msg.len) {
+			if (co_data(sc_oc(cs)) + ds->rx_msg.offset < ds->rx_msg.len) {
 				/* message only partially available */
 
 				/* read available data */
-				co_getblk(cs_oc(cs), ds->rx_msg.area + ds->rx_msg.offset, co_data(cs_oc(cs)), 0);
+				co_getblk(sc_oc(cs), ds->rx_msg.area + ds->rx_msg.offset, co_data(sc_oc(cs)), 0);
 
 				/* update message offset */
-				ds->rx_msg.offset += co_data(cs_oc(cs));
+				ds->rx_msg.offset += co_data(sc_oc(cs));
 
 				/* consume all pending data from the channel */
-				co_skip(cs_oc(cs), co_data(cs_oc(cs)));
+				co_skip(sc_oc(cs), co_data(sc_oc(cs)));
 
 				/* we need to wait for more data */
 				break;
@@ -706,10 +706,10 @@ read:
 			/* enough data is available into the channel to read the message until the end */
 
 			/* read from the channel until the end of the message */
-			co_getblk(cs_oc(cs), ds->rx_msg.area + ds->rx_msg.offset, ds->rx_msg.len - ds->rx_msg.offset, 0);
+			co_getblk(sc_oc(cs), ds->rx_msg.area + ds->rx_msg.offset, ds->rx_msg.len - ds->rx_msg.offset, 0);
 
 			/* consume all data until the end of the message from the channel */
-			co_skip(cs_oc(cs), ds->rx_msg.len - ds->rx_msg.offset);
+			co_skip(sc_oc(cs), ds->rx_msg.len - ds->rx_msg.offset);
 
 			/* reset reader offset to 0 for next message reand */
 			ds->rx_msg.offset = 0;
@@ -755,7 +755,7 @@ read:
 
 		if (!LIST_INLIST(&ds->waiter)) {
 			/* there is no more pending data to read and the con was closed by the server side */
-			if (!co_data(cs_oc(cs)) && (cs_oc(cs)->flags & CF_SHUTW)) {
+			if (!co_data(sc_oc(cs)) && (sc_oc(cs)->flags & CF_SHUTW)) {
 				goto close;
 			}
 		}
@@ -766,7 +766,7 @@ read:
 close:
 	cs_shutw(cs);
 	cs_shutr(cs);
-	cs_ic(cs)->flags |= CF_READ_NULL;
+	sc_ic(cs)->flags |= CF_READ_NULL;
 }
 
 void dns_queries_flush(struct dns_session *ds)

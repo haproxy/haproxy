@@ -42,7 +42,7 @@ void cs_conn_sync_send(struct stconn *cs);
 
 
 /* returns the channel which receives data from this stream connector (input channel) */
-static inline struct channel *cs_ic(struct stconn *cs)
+static inline struct channel *sc_ic(struct stconn *cs)
 {
 	struct stream *strm = __cs_strm(cs);
 
@@ -50,7 +50,7 @@ static inline struct channel *cs_ic(struct stconn *cs)
 }
 
 /* returns the channel which feeds data to this stream connector (output channel) */
-static inline struct channel *cs_oc(struct stconn *cs)
+static inline struct channel *sc_oc(struct stconn *cs)
 {
 	struct stream *strm = __cs_strm(cs);
 
@@ -58,15 +58,15 @@ static inline struct channel *cs_oc(struct stconn *cs)
 }
 
 /* returns the buffer which receives data from this stream connector (input channel's buffer) */
-static inline struct buffer *cs_ib(struct stconn *cs)
+static inline struct buffer *sc_ib(struct stconn *cs)
 {
-	return &cs_ic(cs)->buf;
+	return &sc_ic(cs)->buf;
 }
 
 /* returns the buffer which feeds data to this stream connector (output channel's buffer) */
-static inline struct buffer *cs_ob(struct stconn *cs)
+static inline struct buffer *sc_ob(struct stconn *cs)
 {
-	return &cs_oc(cs)->buf;
+	return &sc_oc(cs)->buf;
 }
 /* returns the stream's task associated to this stream connector */
 static inline struct task *cs_strm_task(struct stconn *cs)
@@ -91,8 +91,8 @@ static inline void cs_report_error(struct stconn *cs)
 	if (!__cs_strm(cs)->conn_err_type)
 		__cs_strm(cs)->conn_err_type = STRM_ET_DATA_ERR;
 
-	cs_oc(cs)->flags |= CF_WRITE_ERROR;
-	cs_ic(cs)->flags |= CF_READ_ERROR;
+	sc_oc(cs)->flags |= CF_WRITE_ERROR;
+	sc_ic(cs)->flags |= CF_READ_ERROR;
 }
 
 /* sets the current and previous state of a stream connector to <state>. This is
@@ -158,7 +158,7 @@ static inline int cs_alloc_ibuf(struct stconn *cs, struct buffer_wait *wait)
 {
 	int ret;
 
-	ret = channel_alloc_buffer(cs_ic(cs), wait);
+	ret = channel_alloc_buffer(sc_ic(cs), wait);
 	if (!ret)
 		cs_rx_buff_blk(cs);
 	return ret;

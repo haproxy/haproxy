@@ -317,16 +317,16 @@ static void sink_forward_io_handler(struct appctx *appctx)
 	 * and we don't want expire on this case
 	 * with a syslog server
 	 */
-	cs_oc(cs)->rex = TICK_ETERNITY;
+	sc_oc(cs)->rex = TICK_ETERNITY;
 	/* rto should not change but it seems the case */
-	cs_oc(cs)->rto = TICK_ETERNITY;
+	sc_oc(cs)->rto = TICK_ETERNITY;
 
 	/* an error was detected */
-	if (unlikely(cs_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
+	if (unlikely(sc_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
 		goto close;
 
 	/* con closed by server side */
-	if ((cs_oc(cs)->flags & CF_SHUTW))
+	if ((sc_oc(cs)->flags & CF_SHUTW))
 		goto close;
 
 	/* if the connection is not established, inform the stream that we want
@@ -422,13 +422,13 @@ static void sink_forward_io_handler(struct appctx *appctx)
 	HA_SPIN_UNLOCK(SFT_LOCK, &sft->lock);
 
 	/* always drain data from server */
-	co_skip(cs_oc(cs), cs_oc(cs)->output);
+	co_skip(sc_oc(cs), sc_oc(cs)->output);
 	return;
 
 close:
 	cs_shutw(cs);
 	cs_shutr(cs);
-	cs_ic(cs)->flags |= CF_READ_NULL;
+	sc_ic(cs)->flags |= CF_READ_NULL;
 }
 
 /*
@@ -457,16 +457,16 @@ static void sink_forward_oc_io_handler(struct appctx *appctx)
 	 * and we don't want expire on this case
 	 * with a syslog server
 	 */
-	cs_oc(cs)->rex = TICK_ETERNITY;
+	sc_oc(cs)->rex = TICK_ETERNITY;
 	/* rto should not change but it seems the case */
-	cs_oc(cs)->rto = TICK_ETERNITY;
+	sc_oc(cs)->rto = TICK_ETERNITY;
 
 	/* an error was detected */
-	if (unlikely(cs_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
+	if (unlikely(sc_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
 		goto close;
 
 	/* con closed by server side */
-	if ((cs_oc(cs)->flags & CF_SHUTW))
+	if ((sc_oc(cs)->flags & CF_SHUTW))
 		goto close;
 
 	/* if the connection is not established, inform the stream that we want
@@ -566,13 +566,13 @@ static void sink_forward_oc_io_handler(struct appctx *appctx)
 	HA_SPIN_UNLOCK(SFT_LOCK, &sft->lock);
 
 	/* always drain data from server */
-	co_skip(cs_oc(cs), cs_oc(cs)->output);
+	co_skip(sc_oc(cs), sc_oc(cs)->output);
 	return;
 
 close:
 	cs_shutw(cs);
 	cs_shutr(cs);
-	cs_ic(cs)->flags |= CF_READ_NULL;
+	sc_ic(cs)->flags |= CF_READ_NULL;
 }
 
 void __sink_forward_session_deinit(struct sink_forward_target *sft)

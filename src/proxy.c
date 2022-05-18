@@ -3141,7 +3141,7 @@ static int cli_io_handler_show_errors(struct appctx *appctx)
 	struct stconn *cs = appctx_cs(appctx);
 	extern const char *monthname[12];
 
-	if (unlikely(cs_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
+	if (unlikely(sc_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
 		return 1;
 
 	chunk_reset(&trash);

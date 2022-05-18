@@ -898,8 +898,8 @@ static int cli_output_msg(struct channel *chn, const char *msg, int severity, in
 static void cli_io_handler(struct appctx *appctx)
 {
 	struct stconn *cs = appctx_cs(appctx);
-	struct channel *req = cs_oc(cs);
-	struct channel *res = cs_ic(cs);
+	struct channel *req = sc_oc(cs);
+	struct channel *res = sc_ic(cs);
 	struct bind_conf *bind_conf = strm_li(__cs_strm(cs))->bind_conf;
 	int reql;
 	int len;
@@ -950,7 +950,7 @@ static void cli_io_handler(struct appctx *appctx)
 			/* ensure we have some output room left in the event we
 			 * would want to return some info right after parsing.
 			 */
-			if (buffer_almost_full(cs_ib(cs))) {
+			if (buffer_almost_full(sc_ib(cs))) {
 				cs_rx_room_blk(cs);
 				break;
 			}
@@ -962,10 +962,10 @@ static void cli_io_handler(struct appctx *appctx)
 			 */
 
 			if (appctx->st1 & APPCTX_CLI_ST1_PAYLOAD)
-				reql = co_getline(cs_oc(cs), str,
+				reql = co_getline(sc_oc(cs), str,
 				                  appctx->chunk->size - appctx->chunk->data - 1);
 			else
-				reql = co_getdelim(cs_oc(cs), str,
+				reql = co_getdelim(sc_oc(cs), str,
 				                   appctx->chunk->size - appctx->chunk->data - 1,
 				                   "\n;", '\\');
 
@@ -1050,7 +1050,7 @@ static void cli_io_handler(struct appctx *appctx)
 			}
 
 			/* re-adjust req buffer */
-			co_skip(cs_oc(cs), reql);
+			co_skip(sc_oc(cs), reql);
 			req->flags |= CF_READ_DONTWAIT; /* we plan to read small requests */
 		}
 		else {	/* output functions */
@@ -1161,7 +1161,7 @@ static void cli_io_handler(struct appctx *appctx)
 			 * refills the buffer with new bytes in non-interactive
 			 * mode, avoiding to close on apparently empty commands.
 			 */
-			if (co_data(cs_oc(cs))) {
+			if (co_data(sc_oc(cs))) {
 				appctx_wakeup(appctx);
 				goto out;
 			}
@@ -1227,7 +1227,7 @@ static int cli_io_handler_show_env(struct appctx *appctx)
 	struct stconn *cs = appctx_cs(appctx);
 	char **var = ctx->var;
 
-	if (unlikely(cs_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
+	if (unlikely(sc_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
 		return 1;
 
 	chunk_reset(&trash);
@@ -1264,7 +1264,7 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 	int fd = fdctx->fd;
 	int ret = 1;
 
-	if (unlikely(cs_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
+	if (unlikely(sc_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
 		goto end;
 
 	chunk_reset(&trash);
@@ -1461,7 +1461,7 @@ static int cli_io_handler_show_activity(struct appctx *appctx)
 	struct stconn *cs = appctx_cs(appctx);
 	int thr;
 
-	if (unlikely(cs_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
+	if (unlikely(sc_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
 		return 1;
 
 	chunk_reset(&trash);
@@ -2169,7 +2169,7 @@ static int cli_parse_simple(char **args, char *payload, struct appctx *appctx, v
 void pcli_write_prompt(struct stream *s)
 {
 	struct buffer *msg = get_trash_chunk();
-	struct channel *oc = cs_oc(s->scf);
+	struct channel *oc = sc_oc(s->scf);
 
 	if (!(s->pcli_flags & PCLI_F_PROMPT))
 		return;

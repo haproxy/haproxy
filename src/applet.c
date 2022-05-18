@@ -173,11 +173,11 @@ int appctx_buf_available(void *arg)
 	cs_rx_buff_rdy(cs);
 
 	/* was already allocated another way ? if so, don't take this one */
-	if (c_size(cs_ic(cs)) || cs_ic(cs)->pipe)
+	if (c_size(sc_ic(cs)) || sc_ic(cs)->pipe)
 		return 0;
 
 	/* allocation possible now ? */
-	if (!b_alloc(&cs_ic(cs)->buf)) {
+	if (!b_alloc(&sc_ic(cs)->buf)) {
 		cs_rx_buff_blk(cs);
 		return 0;
 	}
@@ -230,29 +230,29 @@ struct task *task_run_applet(struct task *t, void *context, unsigned int state)
 	if (!cs_alloc_ibuf(cs, &app->buffer_wait))
 		cs_rx_endp_more(cs);
 
-	count = co_data(cs_oc(cs));
+	count = co_data(sc_oc(cs));
 	app->applet->fct(app);
 
 	/* now check if the applet has released some room and forgot to
 	 * notify the other side about it.
 	 */
-	if (count != co_data(cs_oc(cs))) {
-		cs_oc(cs)->flags |= CF_WRITE_PARTIAL | CF_WROTE_DATA;
+	if (count != co_data(sc_oc(cs))) {
+		sc_oc(cs)->flags |= CF_WRITE_PARTIAL | CF_WROTE_DATA;
 		cs_rx_room_rdy(cs_opposite(cs));
 	}
 
 	/* measure the call rate and check for anomalies when too high */
 	rate = update_freq_ctr(&app->call_rate, 1);
 	if (rate >= 100000 && app->call_rate.prev_ctr && // looped more than 100k times over last second
-	    ((b_size(cs_ib(cs)) && se_fl_test(app->sedesc, SE_FL_RXBLK_BUFF)) || // asks for a buffer which is present
-	     (b_size(cs_ib(cs)) && !b_data(cs_ib(cs)) && se_fl_test(app->sedesc, SE_FL_RXBLK_ROOM)) || // asks for room in an empty buffer
-	     (b_data(cs_ob(cs)) && cs_tx_endp_ready(cs) && !cs_tx_blocked(cs)) || // asks for data already present
-	     (!b_data(cs_ib(cs)) && b_data(cs_ob(cs)) && // didn't return anything ...
-	      (cs_oc(cs)->flags & (CF_WRITE_PARTIAL|CF_SHUTW_NOW)) == CF_SHUTW_NOW))) { // ... and left data pending after a shut
+	    ((b_size(sc_ib(cs)) && se_fl_test(app->sedesc, SE_FL_RXBLK_BUFF)) || // asks for a buffer which is present
+	     (b_size(sc_ib(cs)) && !b_data(sc_ib(cs)) && se_fl_test(app->sedesc, SE_FL_RXBLK_ROOM)) || // asks for room in an empty buffer
+	     (b_data(sc_ob(cs)) && cs_tx_endp_ready(cs) && !cs_tx_blocked(cs)) || // asks for data already present
+	     (!b_data(sc_ib(cs)) && b_data(sc_ob(cs)) && // didn't return anything ...
+	      (sc_oc(cs)->flags & (CF_WRITE_PARTIAL|CF_SHUTW_NOW)) == CF_SHUTW_NOW))) { // ... and left data pending after a shut
 		stream_dump_and_crash(&app->obj_type, read_freq_ctr(&app->call_rate));
 	}
 
 	cs->app_ops->wake(cs);
-	channel_release_buffer(cs_ic(cs), &app->buffer_wait);
+	channel_release_buffer(sc_ic(cs), &app->buffer_wait);
 	return t;
 }

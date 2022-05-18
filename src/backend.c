@@ -1802,7 +1802,7 @@ skip_reuse:
 	     */
 	    ((cli_conn->flags & CO_FL_EARLY_DATA) ||
 	     ((s->be->retry_type & PR_RE_EARLY_ERROR) && !s->conn_retries)) &&
-	    !channel_is_empty(cs_oc(s->scb)) &&
+	    !channel_is_empty(sc_oc(s->scb)) &&
 	    srv_conn->flags & CO_FL_SSL_WAIT_HS)
 		srv_conn->flags &= ~(CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN);
 #endif
@@ -1839,7 +1839,7 @@ skip_reuse:
 	if (!cs_state_in(s->scb->state, SC_SB_EST|SC_SB_DIS|SC_SB_CLO) &&
 	    (srv_conn->flags & CO_FL_WAIT_XPRT) == 0) {
 		s->conn_exp = TICK_ETERNITY;
-		cs_oc(s->scb)->flags |= CF_WRITE_NULL;
+		sc_oc(s->scb)->flags |= CF_WRITE_NULL;
 		if (s->scb->state == SC_ST_CON)
 			s->scb->state = SC_ST_RDY;
 	}
@@ -1851,8 +1851,8 @@ skip_reuse:
 	 *       wake callback. Otherwise si_cs_recv()/si_cs_send() already take
 	 *       care of it.
 	 */
-	if (sc_ep_test(s->scb, SE_FL_EOI) && !(cs_ic(s->scb)->flags & CF_EOI))
-		cs_ic(s->scb)->flags |= (CF_EOI|CF_READ_PARTIAL);
+	if (sc_ep_test(s->scb, SE_FL_EOI) && !(sc_ic(s->scb)->flags & CF_EOI))
+		sc_ic(s->scb)->flags |= (CF_EOI|CF_READ_PARTIAL);
 
 	/* catch all sync connect while the mux is not already installed */
 	if (!srv_conn->mux && !(srv_conn->flags & CO_FL_WAIT_XPRT)) {

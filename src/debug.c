@@ -293,7 +293,7 @@ static int cli_io_handler_show_threads(struct appctx *appctx)
 	struct stconn *cs = appctx_cs(appctx);
 	int thr;
 
-	if (unlikely(cs_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
+	if (unlikely(sc_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
 		return 1;
 
 	if (appctx->st0)
@@ -1052,7 +1052,7 @@ static int debug_iohandler_fd(struct appctx *appctx)
 	int ret = 1;
 	int i, fd;
 
-	if (unlikely(cs_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
+	if (unlikely(sc_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
 		goto end;
 
 	chunk_reset(&trash);
@@ -1241,7 +1241,7 @@ static int debug_iohandler_memstats(struct appctx *appctx)
 	struct mem_stats *ptr = ctx->start;
 	int ret = 1;
 
-	if (unlikely(cs_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
+	if (unlikely(sc_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
 		goto end;
 
 	chunk_reset(&trash);

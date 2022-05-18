@@ -627,7 +627,7 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 	int max_lines;
 	int i, max;
 
-	if (unlikely(cs_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
+	if (unlikely(sc_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
 		return 1;
 
 	chunk_reset(&trash);
@@ -851,7 +851,7 @@ static int cli_io_handler_show_tasks(struct appctx *appctx)
 	int thr, queue;
 	int i, max;
 
-	if (unlikely(cs_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
+	if (unlikely(sc_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
 		return 1;
 
 	/* It's not possible to scan queues in small chunks and yield in the

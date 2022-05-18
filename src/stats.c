@@ -312,7 +312,7 @@ int stats_putchk(struct channel *chn, struct htx *htx, struct buffer *chk)
 static const char *stats_scope_ptr(struct appctx *appctx, struct stconn *cs)
 {
 	struct show_stat_ctx *ctx = appctx->svcctx;
-	struct channel *req = cs_oc(cs);
+	struct channel *req = sc_oc(cs);
 	struct htx *htx = htxbuf(&req->buf);
 	struct htx_blk *blk;
 	struct ist uri;
@@ -3019,7 +3019,7 @@ int stats_dump_proxy_to_buffer(struct stconn *cs, struct htx *htx,
 	struct appctx *appctx = __cs_appctx(cs);
 	struct show_stat_ctx *ctx = appctx->svcctx;
 	struct stream *s = __cs_strm(cs);
-	struct channel *rep = cs_ic(cs);
+	struct channel *rep = sc_ic(cs);
 	struct server *sv, *svs;	/* server and server-state, server-state=server or server->track */
 	struct listener *l;
 
@@ -3679,7 +3679,7 @@ static int stats_dump_proxies(struct stconn *cs,
 {
 	struct appctx *appctx = __cs_appctx(cs);
 	struct show_stat_ctx *ctx = appctx->svcctx;
-	struct channel *rep = cs_ic(cs);
+	struct channel *rep = sc_ic(cs);
 	struct proxy *px;
 
 	/* dump proxies */
@@ -3727,7 +3727,7 @@ static int stats_dump_stat_to_buffer(struct stconn *cs, struct htx *htx,
 {
 	struct appctx *appctx = __cs_appctx(cs);
 	struct show_stat_ctx *ctx = appctx->svcctx;
-	struct channel *rep = cs_ic(cs);
+	struct channel *rep = sc_ic(cs);
 	enum stats_domain domain = ctx->domain;
 
 	chunk_reset(&trash);
@@ -4285,8 +4285,8 @@ static void http_stats_io_handler(struct appctx *appctx)
 	struct show_stat_ctx *ctx = appctx->svcctx;
 	struct stconn *cs = appctx_cs(appctx);
 	struct stream *s = __cs_strm(cs);
-	struct channel *req = cs_oc(cs);
-	struct channel *res = cs_ic(cs);
+	struct channel *req = sc_oc(cs);
+	struct channel *res = sc_ic(cs);
 	struct htx *req_htx, *res_htx;
 
 	/* only proxy stats are available via http */

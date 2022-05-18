@@ -1147,7 +1147,7 @@ spoe_send_frame(struct appctx *appctx, char *buf, size_t framesz)
 	memcpy(buf, (char *)&netint, 4);
 	ret = applet_putblk(appctx, buf, framesz+4);
 	if (ret <= 0) {
-		if ((ret == -3 && b_is_null(&cs_ic(cs)->buf)) || ret == -1) {
+		if ((ret == -3 && b_is_null(&sc_ic(cs)->buf)) || ret == -1) {
 			/* WT: is this still needed for the case ret==-3 ? */
 			cs_rx_room_blk(cs);
 			return 1; /* retry */
@@ -1168,14 +1168,14 @@ spoe_recv_frame(struct appctx *appctx, char *buf, size_t framesz)
 	int      ret;
 	uint32_t netint;
 
-	ret = co_getblk(cs_oc(cs), (char *)&netint, 4, 0);
+	ret = co_getblk(sc_oc(cs), (char *)&netint, 4, 0);
 	if (ret > 0) {
 		framesz = ntohl(netint);
 		if (framesz > SPOE_APPCTX(appctx)->max_frame_size) {
 			SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_TOO_BIG;
 			return -1;
 		}
-		ret = co_getblk(cs_oc(cs), buf, framesz, 4);
+		ret = co_getblk(sc_oc(cs), buf, framesz, 4);
 	}
 	if (ret <= 0) {
 		if (ret == 0) {
@@ -1303,7 +1303,7 @@ spoe_release_appctx(struct appctx *appctx)
 
 		cs_shutw(cs);
 		cs_shutr(cs);
-		cs_ic(cs)->flags |= CF_READ_NULL;
+		sc_ic(cs)->flags |= CF_READ_NULL;
 	}
 
 	/* Destroy the task attached to this applet */
@@ -1507,7 +1507,7 @@ spoe_handle_connecting_appctx(struct appctx *appctx)
   next:
 	/* Do not forget to remove processed frame from the output buffer */
 	if (trash.data)
-		co_skip(cs_oc(cs), trash.data);
+		co_skip(sc_oc(cs), trash.data);
 
 	SPOE_APPCTX(appctx)->task->expire =
 		tick_add_ifset(now_ms, agent->timeout.idle);
@@ -1697,7 +1697,7 @@ spoe_handle_receiving_frame_appctx(struct appctx *appctx, int *skip)
 
 	/* Do not forget to remove processed frame from the output buffer */
 	if (trash.data)
-		co_skip(cs_oc(appctx_cs(appctx)), trash.data);
+		co_skip(sc_oc(appctx_cs(appctx)), trash.data);
   end:
 	return ret;
 }
@@ -1932,7 +1932,7 @@ spoe_handle_disconnecting_appctx(struct appctx *appctx)
   next:
 	/* Do not forget to remove processed frame from the output buffer */
 	if (trash.data)
-		co_skip(cs_oc(cs), trash.data);
+		co_skip(sc_oc(cs), trash.data);
 
 	return 0;
   stop:
@@ -2009,7 +2009,7 @@ spoe_handle_appctx(struct appctx *appctx)
 
 			cs_shutw(cs);
 			cs_shutr(cs);
-			cs_ic(cs)->flags |= CF_READ_NULL;
+			sc_ic(cs)->flags |= CF_READ_NULL;
 			/* fall through */
 
 		case SPOE_APPCTX_ST_END:
