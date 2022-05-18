@@ -140,7 +140,6 @@ struct trace_source trace_check = {
 INITCALL1(STG_REGISTER, trace_register_source, TRACE_SOURCE);
 
 
-static int wake_srv_chk(struct stconn *cs);
 struct data_cb check_conn_cb = {
 	.wake = wake_srv_chk,
 	.name = "CHCK",
@@ -1016,7 +1015,7 @@ int httpchk_build_status_header(struct server *s, struct buffer *buf)
  * It returns 0 on normal cases, <0 if at least one close() has happened on the
  * connection (eg: reconnect). It relies on tcpcheck_main().
  */
-static int wake_srv_chk(struct stconn *cs)
+int wake_srv_chk(struct stconn *cs)
 {
 	struct connection *conn;
 	struct check *check = __cs_check(cs);
