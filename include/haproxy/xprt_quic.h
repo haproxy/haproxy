@@ -456,9 +456,13 @@ static inline void quic_dflt_transport_params_cpy(struct quic_transport_params *
 	dst->active_connection_id_limit = quic_dflt_transport_params.active_connection_id_limit;
 }
 
-/* Initialize <p> transport parameters depending <server> boolean value which
- * must be set to 1 for a server (haproxy listener), 0 for a client (connection
- * to haproxy server).
+/* Initialize <p> transport parameters. <server> is a boolean, set if TPs are
+ * used by a server (haproxy frontend) else this is for a client (haproxy
+ * backend).
+ *
+ * This must only be used for haproxy local parameters. To initialize peer
+ * parameters, see quic_dflt_transport_params_cpy().
+ *
  * Never fails.
  */
 static inline void quic_transport_params_init(struct quic_transport_params *p,
@@ -885,7 +889,6 @@ static inline int quic_transport_params_decode(struct quic_transport_params *p, 
 
 	pos = buf;
 
-	quic_transport_params_init(p, server);
 	while (pos != end) {
 		uint64_t type, len;
 
@@ -924,6 +927,9 @@ static inline int quic_transport_params_store(struct quic_conn *conn, int server
 {
 	struct quic_transport_params *tx_params = &conn->tx.params;
 	struct quic_transport_params *rx_params = &conn->rx.params;
+
+	/* initialize peer TPs to RFC default value */
+	quic_dflt_transport_params_cpy(tx_params);
 
 	if (!quic_transport_params_decode(tx_params, server, buf, end))
 		return 0;
