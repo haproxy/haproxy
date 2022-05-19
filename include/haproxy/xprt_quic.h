@@ -445,7 +445,7 @@ static inline uint64_t quic_compute_ack_delay_us(unsigned int time_received,
 }
 
 /* Initialize <dst> transport parameters with default values (when absent)
- * from <quic_dflt_trasports_params>.
+ * from <quic_dflt_transport_params>.
  * Never fails.
  */
 static inline void quic_dflt_transport_params_cpy(struct quic_transport_params *dst)
@@ -472,7 +472,7 @@ static inline void quic_transport_params_init(struct quic_transport_params *p,
 	const int max_streams_bidi = 100;
 	const int max_streams_uni = 3;
 
-	/* Default values (when absent) */
+	/* Set RFC default values for unspecified parameters. */
 	quic_dflt_transport_params_cpy(p);
 
 	p->max_idle_timeout                    = 30000;
@@ -485,11 +485,11 @@ static inline void quic_transport_params_init(struct quic_transport_params *p,
 	p->initial_max_data = (max_streams_bidi + max_streams_uni) * ncb_size;
 
 	if (server)
-		p->with_stateless_reset_token      = 1;
+		p->with_stateless_reset_token  = 1;
+
 	p->active_connection_id_limit          = 8;
 
 	p->retry_source_connection_id.len = 0;
-
 }
 
 /* Encode <addr> preferred address transport parameter in <buf> without its
