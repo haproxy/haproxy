@@ -343,7 +343,7 @@ size_t qc_snd_buf(struct quic_conn *qc, const struct buffer *buf, size_t count,
 			/* try again */
 			continue;
 		}
-		else if (ret == 0 || errno == EAGAIN || errno == EWOULDBLOCK || errno == ENOTCONN || errno == EINPROGRESS) {
+		else if (ret == 0 || errno == EAGAIN || errno == EWOULDBLOCK || errno == ENOTCONN || errno == EINPROGRESS || errno == EBADF) {
 			/* TODO must be handle properly. It is justified for UDP ? */
 			qc->sendto_err++;
 			break;
