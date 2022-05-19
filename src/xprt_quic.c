@@ -179,6 +179,9 @@ static struct quic_tx_packet *qc_build_pkt(unsigned char **pos, const unsigned c
 static struct task *quic_conn_app_io_cb(struct task *t, void *context, unsigned int state);
 static void qc_idle_timer_do_rearm(struct quic_conn *qc);
 static void qc_idle_timer_rearm(struct quic_conn *qc, int read);
+static int qc_conn_alloc_ssl_ctx(struct quic_conn *qc);
+static int quic_conn_init_timer(struct quic_conn *qc);
+static int quic_conn_init_idle_timer_task(struct quic_conn *qc);
 
 /* Only for debug purpose */
 struct enc_debug_info {
@@ -4314,6 +4317,8 @@ static struct quic_conn *qc_new_conn(unsigned int version, int ipv4,
 	struct quic_connection_id *icid;
 	char *buf_area = NULL;
 	struct listener *l = NULL;
+	const unsigned char *salt = initial_salt_v1;
+	size_t salt_len = sizeof initial_salt_v1;
 
 	TRACE_ENTER(QUIC_EV_CONN_INIT);
 	qc = pool_zalloc(pool_head_quic_conn);
@@ -4427,6 +4432,26 @@ static struct quic_conn *qc_new_conn(unsigned int version, int ipv4,
 	memcpy(&qc->peer_addr, saddr, sizeof qc->peer_addr);
 
 	if (server && !qc_lstnr_params_init(qc, l, token, token_len, icid, dcid, odcid))
+		goto err;
+
+	qc->enc_params_len =
+		quic_transport_params_encode(qc->enc_params,
+		                             qc->enc_params + sizeof qc->enc_params,
+		                             &qc->rx.params, 1);
+	if (!qc->enc_params_len)
+		goto err;
+
+	if (qc_conn_alloc_ssl_ctx(qc) ||
+	    !quic_conn_init_timer(qc) ||
+	    !quic_conn_init_idle_timer_task(qc))
+		goto err;
+
+	if (version == QUIC_PROTOCOL_VERSION_DRAFT_29) {
+		salt = initial_salt_draft_29;
+		salt_len = sizeof initial_salt_draft_29;
+	}
+
+	if (!qc_new_isecs(qc, salt, salt_len, dcid->data, dcid->len, 1))
 		goto err;
 
 	TRACE_LEAVE(QUIC_EV_CONN_INIT, qc);
@@ -5102,7 +5127,7 @@ static int qc_ssl_sess_init(struct quic_conn *qc, SSL_CTX *ssl_ctx, SSL **ssl,
  *
  * Returns 0 on success else non-zero.
  */
-int qc_conn_alloc_ssl_ctx(struct quic_conn *qc)
+static int qc_conn_alloc_ssl_ctx(struct quic_conn *qc)
 {
 	struct bind_conf *bc = qc->li->bind_conf;
 	struct ssl_sock_ctx *ctx = NULL;
@@ -5317,8 +5342,6 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 		if (!qc) {
 			int ipv4;
 			struct ebmb_node *n = NULL;
-			const unsigned char *salt = initial_salt_v1;
-			size_t salt_len = sizeof initial_salt_v1;
 
 			if (pkt->type != QUIC_PACKET_TYPE_INITIAL) {
 				TRACE_PROTO("Non Initial packet", QUIC_EV_CONN_LPKT);
@@ -5342,35 +5365,6 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 			                 pkt->token, pkt->token_len, 1, l);
 			if (qc == NULL)
 				goto err;
-
-			qc->enc_params_len =
-				quic_transport_params_encode(qc->enc_params,
-				                             qc->enc_params + sizeof qc->enc_params,
-				                             &qc->rx.params, 1);
-			if (!qc->enc_params_len)
-				goto err;
-
-			if (qc_conn_alloc_ssl_ctx(qc))
-				goto err;
-
-			if (!quic_conn_init_timer(qc))
-				goto err;
-
-			if (!quic_conn_init_idle_timer_task(qc))
-				goto err;
-
-			/* NOTE: the socket address has been concatenated to the destination ID
-			 * chosen by the client for Initial packets.
-			 */
-			if (pkt->version == QUIC_PROTOCOL_VERSION_DRAFT_29) {
-				salt = initial_salt_draft_29;
-				salt_len = sizeof initial_salt_draft_29;
-			}
-			if (!qc_new_isecs(qc, salt, salt_len,
-			                  pkt->dcid.data, pkt->dcid.len, 1)) {
-				TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT, qc);
-				goto err;
-			}
 
 			/* Insert the DCID the QUIC client has chosen (only for listeners) */
 			n = ebmb_insert(&quic_dghdlrs[tid].odcids, &qc->odcid_node,
