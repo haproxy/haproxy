@@ -45,6 +45,7 @@
 #include <haproxy/quic_frame.h>
 #include <haproxy/quic_loss.h>
 #include <haproxy/quic_sock.h>
+#include <haproxy/quic_stats-t.h>
 #include <haproxy/quic_stream.h>
 #include <haproxy/cbuf.h>
 #include <haproxy/proto_quic.h>
@@ -4330,8 +4331,13 @@ static struct quic_conn *qc_new_conn(unsigned int version, int ipv4,
 	qc->cids = EB_ROOT;
 	/* QUIC Server (or listener). */
 	if (server) {
-		l = owner;
+		struct proxy *prx;
 
+		l = owner;
+		prx = l->bind_conf->frontend;
+
+		qc->prx_counters = EXTRA_COUNTERS_GET(prx->extra_counters_fe,
+		                                      &quic_stats_module);
 		qc->flags |= QUIC_FL_CONN_LISTENER;
 		qc->state = QUIC_HS_ST_SERVER_INITIAL;
 		/* Copy the initial DCID with the address. */

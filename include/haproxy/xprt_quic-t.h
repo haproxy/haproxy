@@ -792,6 +792,7 @@ struct quic_conn {
 
 	const struct qcc_app_ops *app_ops;
 	unsigned int sendto_err;
+	struct quic_counters *prx_counters;
 };
 
 #endif /* USE_QUIC */
