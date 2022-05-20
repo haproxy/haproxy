@@ -102,6 +102,16 @@ struct trace_source trace_qmux = {
 #define TRACE_SOURCE    &trace_qmux
 INITCALL1(STG_REGISTER, trace_register_source, TRACE_SOURCE);
 
+/* Emit a CONNECTION_CLOSE with error <err>. This will interrupt all future
+ * send operations.
+ */
+static void qcc_emit_cc(struct qcc *qcc, int err)
+{
+	quic_set_connection_close(qcc->conn->handle.qc, err);
+	qcc->flags |= QC_CF_CC_EMIT;
+	tasklet_wakeup(qcc->wait_event.tasklet);
+}
+
 /* Allocate a new QUIC streams with id <id> and type <type>. */
 struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
 {
@@ -1009,7 +1019,7 @@ static int qc_send(struct qcc *qcc)
 
 	TRACE_ENTER(QMUX_EV_QCC_SEND);
 
-	if (qcc->conn->flags & CO_FL_SOCK_WR_SH) {
+	if (qcc->conn->flags & CO_FL_SOCK_WR_SH || qcc->flags & QC_CF_CC_EMIT) {
 		qcc->conn->flags |= CO_FL_ERROR;
 		TRACE_DEVEL("leaving on error", QMUX_EV_QCC_SEND, qcc->conn);
 		return 0;

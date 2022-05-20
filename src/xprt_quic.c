@@ -1107,13 +1107,24 @@ static int quic_crypto_data_cpy(struct quic_enc_level *qel,
 	return len == 0;
 }
 
+/* Prepare the emission of CONNECTION_CLOSE with error <err>. All send/receive
+ * activity for <qc> will be interrupted.
+ */
+void quic_set_connection_close(struct quic_conn *qc, int err)
+{
+	if (qc->flags & QUIC_FL_CONN_IMMEDIATE_CLOSE)
+		return;
+
+	qc->err_code = err;
+	qc->flags |= QUIC_FL_CONN_IMMEDIATE_CLOSE;
+}
 
 /* Set <alert> TLS alert as QUIC CRYPTO_ERROR error */
 void quic_set_tls_alert(struct quic_conn *qc, int alert)
 {
 	HA_ATOMIC_DEC(&qc->prx_counters->conn_opening);
-	qc->err_code = QC_ERR_CRYPTO_ERROR | alert;
-	qc->flags |= QUIC_FL_CONN_IMMEDIATE_CLOSE | QUIC_FL_CONN_TLS_ALERT;
+	quic_set_connection_close(qc, QC_ERR_CRYPTO_ERROR | alert);
+	qc->flags |= QUIC_FL_CONN_TLS_ALERT;
 	TRACE_PROTO("Alert set", QUIC_EV_CONN_SSLDATA, qc);
 }
 
