@@ -113,6 +113,7 @@ enum li_status {
  * maxconn setting to the global.maxsock value so that its resources are reserved.
  */
 
+/* flags used with bind_conf->ssl_options */
 #ifdef USE_OPENSSL
 #define BC_SSL_O_NONE           0x0000
 #define BC_SSL_O_NO_TLS_TICKETS 0x0100	/* disable session resumption tickets */
