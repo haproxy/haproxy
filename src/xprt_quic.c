@@ -5315,16 +5315,18 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 			/* TODO Retry should be automatically activated if
 			 * suspect network usage is detected.
 			 */
-			if (l->bind_conf->quic_force_retry && global.cluster_secret) {
+			if (global.cluster_secret) {
 				if (!token_len) {
-					TRACE_PROTO("Initial without token, sending retry", QUIC_EV_CONN_LPKT);
-					if (send_retry(l->rx.fd, &dgram->saddr, pkt)) {
-						TRACE_PROTO("Error during Retry generation", QUIC_EV_CONN_LPKT);
+					if (l->bind_conf->quic_force_retry) {
+						TRACE_PROTO("Initial without token, sending retry", QUIC_EV_CONN_LPKT);
+						if (send_retry(l->rx.fd, &dgram->saddr, pkt)) {
+							TRACE_PROTO("Error during Retry generation", QUIC_EV_CONN_LPKT);
+							goto err;
+						}
+
+						HA_ATOMIC_INC(&prx_counters->retry_sent);
 						goto err;
 					}
-
-					HA_ATOMIC_INC(&prx_counters->retry_sent);
-					goto err;
 				}
 				else {
 					if (*buf == QUIC_TOKEN_FMT_RETRY) {
@@ -5378,6 +5380,18 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 			if (pkt->type != QUIC_PACKET_TYPE_INITIAL) {
 				TRACE_PROTO("Non Initial packet", QUIC_EV_CONN_LPKT);
 				goto drop;
+			}
+
+			if (global.cluster_secret && !pkt->token_len && !l->bind_conf->quic_force_retry &&
+			    HA_ATOMIC_LOAD(&prx_counters->conn_opening) >= global.tune.quic_retry_threshold) {
+				TRACE_PROTO("Initial without token, sending retry", QUIC_EV_CONN_LPKT);
+				if (send_retry(l->rx.fd, &dgram->saddr, pkt)) {
+					TRACE_PROTO("Error during Retry generation", QUIC_EV_CONN_LPKT);
+					goto err;
+				}
+
+				HA_ATOMIC_INC(&prx_counters->retry_sent);
+				goto err;
 			}
 
 			/* RFC 9000 7.2. Negotiating Connection IDs:
