@@ -2557,7 +2557,7 @@ int ssl_sock_switchctx_err_cbk(SSL *ssl, int *al, void *priv)
 	struct bind_conf *s = priv;
 	(void)al; /* shut gcc stupid warning */
 
-	if (SSL_get_servername(ssl, TLSEXT_NAMETYPE_host_name) || s->generate_certs)
+	if (SSL_get_servername(ssl, TLSEXT_NAMETYPE_host_name) || (s->options & BC_O_GENERATE_CERTS))
 		return SSL_TLSEXT_ERR_OK;
 	return SSL_TLSEXT_ERR_NOACK;
 }
@@ -2664,7 +2664,7 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 		servername_len = len;
 	} else {
 #if (!defined SSL_NO_GENERATE_CERTIFICATES)
-		if (s->generate_certs && ssl_sock_generate_certificate_from_conn(s, ssl)) {
+		if (s->options & BC_O_GENERATE_CERTS && ssl_sock_generate_certificate_from_conn(s, ssl)) {
 			goto allow_early;
 		}
 #endif
@@ -2827,7 +2827,7 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 
 	HA_RWLOCK_RDUNLOCK(SNI_LOCK, &s->sni_lock);
 #if (!defined SSL_NO_GENERATE_CERTIFICATES)
-	if (s->generate_certs && ssl_sock_generate_certificate(trash.area, s, ssl)) {
+	if (s->options & BC_O_GENERATE_CERTS && ssl_sock_generate_certificate(trash.area, s, ssl)) {
 		/* switch ctx done in ssl_sock_generate_certificate */
 		goto allow_early;
 	}
@@ -2897,7 +2897,7 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *priv)
 	servername = SSL_get_servername(ssl, TLSEXT_NAMETYPE_host_name);
 	if (!servername) {
 #if (!defined SSL_NO_GENERATE_CERTIFICATES)
-		if (s->generate_certs && ssl_sock_generate_certificate_from_conn(s, ssl))
+		if (s->options & BC_O_GENERATE_CERTS && ssl_sock_generate_certificate_from_conn(s, ssl))
 			return SSL_TLSEXT_ERR_OK;
 #endif
 		if (s->strict_sni)
@@ -2939,7 +2939,7 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *priv)
 	}
 	if (!node) {
 #if (!defined SSL_NO_GENERATE_CERTIFICATES)
-		if (s->generate_certs && ssl_sock_generate_certificate(servername, s, ssl)) {
+		if (s->options & BC_O_GENERATE_CERTS && ssl_sock_generate_certificate(servername, s, ssl)) {
 			/* switch ctx done in ssl_sock_generate_certificate */
 			HA_RWLOCK_RDUNLOCK(SNI_LOCK, &s->sni_lock);
 			return SSL_TLSEXT_ERR_OK;
@@ -5453,7 +5453,7 @@ int ssl_sock_prepare_bind_conf(struct bind_conf *bind_conf)
 		return 0;
 	}
 	if (!bind_conf->default_ctx) {
-		if (bind_conf->strict_sni && !bind_conf->generate_certs) {
+		if (bind_conf->strict_sni && !(bind_conf->options & BC_O_GENERATE_CERTS)) {
 			ha_warning("Proxy '%s': no SSL certificate specified for bind '%s' at [%s:%d], ssl connections will fail (use 'crt').\n",
 				   px->id, bind_conf->arg, bind_conf->file, bind_conf->line);
 		}
@@ -5606,7 +5606,7 @@ ssl_sock_load_ca(struct bind_conf *bind_conf)
 	int ret = 0;
 	char *err = NULL;
 
-	if (!bind_conf->generate_certs)
+	if (!(bind_conf->options & BC_O_GENERATE_CERTS))
 		return ret;
 
 #if (defined SSL_CTRL_SET_TLSEXT_HOSTNAME && !defined SSL_NO_GENERATE_CERTIFICATES)
@@ -5657,7 +5657,7 @@ ssl_sock_load_ca(struct bind_conf *bind_conf)
 		free(ckch);
 	}
 
-	bind_conf->generate_certs = 0;
+	bind_conf->options &= ~BC_O_GENERATE_CERTS;
 	ret++;
 	return ret;
 }

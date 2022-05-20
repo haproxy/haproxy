@@ -1151,7 +1151,7 @@ static int bind_parse_pcc(char **args, int cur_arg, struct proxy *px, struct bin
 static int bind_parse_generate_certs(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
 #if (defined SSL_CTRL_SET_TLSEXT_HOSTNAME && !defined SSL_NO_GENERATE_CERTIFICATES)
-	conf->generate_certs = 1;
+	conf->options |= BC_O_GENERATE_CERTS;
 #else
 	memprintf(err, "%sthis version of openssl cannot generate SSL certificates.\n",
 		  err && *err ? *err : "");
