@@ -1,6 +1,114 @@
 ChangeLog :
 ===========
 
+2022/05/20 : 2.6-dev11
+    - CI: determine actual LibreSSL version dynamically
+    - BUG/MEDIUM: ncbuf: fix null buffer usage
+    - MINOR: ncbuf: fix warnings for testing build
+    - MEDIUM: http-ana: Add a proxy option to restrict chars in request header names
+    - MEDIUM: ssl: Delay random generator initialization after config parsing
+    - MINOR: ssl: Add 'ssl-propquery' global option
+    - MINOR: ssl: Add 'ssl-provider' global option
+    - CLEANUP: Add missing header to ssl_utils.c
+    - CLEANUP: Add missing header to hlua_fcn.c
+    - CLEANUP: Remove unused function hlua_get_top_error_string
+    - BUILD: fix build warning on solaris based systems with __maybe_unused.
+    - MINOR: tools: add get_exec_path implementation for solaris based systems.
+    - BUG/MINOR: ssl: Fix crash when no private key is found in pem
+    - CLEANUP: conn-stream: Remove cs_applet_shut declaration from header file
+    - MINOR: applet: Prepare appctx to own the session on frontend side
+    - MINOR: applet: Let the frontend appctx release the session
+    - MINOR: applet: Change return value for .init callback function
+    - MINOR: stream: Export stream_free()
+    - MINOR: applet: Add appctx_init() helper fnuction
+    - MINOR: applet: Add a function to finalize frontend appctx startup
+    - MINOR: applet: Add function to release appctx on error during init stage
+    - MEDIUM: dns: Refactor dns appctx creation
+    - MEDIUM: spoe: Refactor SPOE appctx creation
+    - MEDIUM: lua: Refactor cosocket appctx creation
+    - MEDIUM: httpclient: Refactor http-client appctx creation
+    - MINOR: sink: Add a ref to sink in the sink_forward_target structure
+    - MEDIUM: sink: Refactor sink forwarder appctx creation
+    - MINOR: peers: Add a ref to peers section in the peer structure
+    - MEDIUM: peers: Refactor peer appctx creation
+    - MINOR: applet: Add API to start applet on a thread subset
+    - MEDIUM: applet: Add support for async appctx startup on a thread subset
+    - MINOR: peers: Track number of applets run by thread
+    - MEDIUM: peers: Balance applets across threads
+    - MINOR: conn-stream/applet: Stop setting appctx as the endpoint context
+    - CLEANUP: proxy: Remove dead code when parsing "http-restrict-req-hdr-names" option
+    - REGTESTS: abortonclose: Fix some race conditions
+    - MINOR: ssl: Add 'ssl-provider-path' global option
+    - CLEANUP: http_ana: Make use of the return value of stream_generate_unique_id()
+    - BUG/MINOR: spoe: Fix error handling in spoe_init_appctx()
+    - CLEANUP: peers: Remove unreachable code in peer_session_create()
+    - CLEANUP: httpclient: Remove useless test on ss_dst in httpclient_applet_init()
+    - BUG/MEDIUM: quic: fix Rx buffering
+    - OPTIM: quic: realign empty Rx buffer
+    - BUG/MINOR: ncbuf: fix ncb_is_empty()
+    - MINOR: ncbuf: refactor ncb_advance()
+    - BUG/MINOR: mux-quic: update session's idle delay before stream creation
+    - MINOR: h3: do not wait a complete frame for demuxing
+    - MINOR: h3: flag demux as full on HTX full
+    - MEDIUM: mux-quic: implement recv on io-cb
+    - MINOR: mux-quic: remove qcc_decode_qcs() call in XPRT
+    - MINOR: mux-quic: reorganize flow-control frames emission
+    - MINOR: mux-quic: implement MAX_STREAM_DATA emission
+    - MINOR: mux-quic: implement MAX_DATA emission
+    - BUG/MINOR: mux-quic: support nul buffer with qc_free_ncbuf()
+    - MINOR: mux-quic: free RX buf if empty
+    - BUG/MEDIUM: config: Reset outline buffer size on realloc error in readcfgfile()
+    - BUG/MINOR: check: Reinit the buffer wait list at the end of a check
+    - MEDIUM: check: No longer shutdown the connection in .wake callback function
+    - REORG: check: Rename and export I/O callback function
+    - MEDIUM: check: Use the CS to handle subscriptions for read/write events
+    - BUG/MINOR: quic: break for error on sendto
+    - MINOR: quic: abort on unlisted errno on sendto()
+    - MINOR: quic: detect EBADF on sendto()
+    - BUG/MEDIUM: quic: fix initialization for local/remote TPs
+    - CLEANUP: quic: adjust comment/coding style for TPs init
+    - BUG/MINOR: cfgparse: abort earlier in case of allocation error
+    - MINOR: quic: Dump initial derived secrets
+    - MINOR: quic_tls: Add quic_tls_derive_retry_token_secret()
+    - MINOR: quic_tls: Add quic_tls_decrypt2() implementation
+    - MINOR: quic: Retry implementation
+    - MINOR: cfgparse: Update for "cluster-secret" keyword for QUIC Retry
+    - MINOR: quic: Move quic_lstnr_dgram_dispatch() out of xprt_quic.c
+    - BUILD: stats: Missing headers inclusions from stats.h
+    - MINOR: quic_stats: Add a new stats module for QUIC
+    - MINOR: quic: Attach proxy QUIC stats counters to the QUIC connection
+    - BUG/MINOR: quic: Fix potential memory leak during QUIC connection allocations
+    - MINOR: quic: QUIC stats counters handling
+    - MINOR: quic: Add tune.quic.retry-threshold keyword
+    - MINOR: quic: Dynamic Retry implementation
+    - MINOR: quic/mux-quic: define CONNECTION_CLOSE send API
+    - MINOR: mux-quic: emit FLOW_CONTROL_ERROR
+    - MINOR: mux-quic: emit STREAM_LIMIT_ERROR
+    - MINOR: mux-quic: close connection on error if different data at offset
+    - BUG/MINOR: peers: fix error reporting of "bind" lines
+    - CLEANUP: config: improve address parser error report for unmatched protocols
+    - CLEANUP: config: provide cleare hints about unsupported QUIC addresses
+    - MINOR: protocol: replace ctrl_type with xprt_type and clarify it
+    - MINOR: listener: provide a function to process all of a bind_conf's arguments
+    - MINOR: config: use the new bind_parse_args_list() to parse a "bind" line
+    - CLEANUP: listener: add a comment about what the BC_SSL_O_* flags are for
+    - MINOR: listener: add a new "options" entry in bind_conf
+    - CLEANUP: listener: replace all uses of bind_conf->is_ssl with BC_O_USE_SSL
+    - CLEANUP: listener: replace bind_conf->generate_cers with BC_O_GENERATE_CERTS
+    - CLEANUP: listener: replace bind_conf->quic_force_retry with BC_O_QUIC_FORCE_RETRY
+    - CLEANUP: listener: store stream vs dgram at the bind_conf level
+    - MINOR: listener: detect stream vs dgram conflict during parsing
+    - MINOR: listener: set the QUIC xprt layer immediately after parsing the args
+    - MINOR: listener/ssl: set the SSL xprt layer only once the whole config is known
+    - MINOR: connection: add flag MX_FL_FRAMED to mark muxes relying on framed xprt
+    - MINOR: config: detect and report mux and transport incompatibilities
+    - MINOR: listener: automatically select a QUIC mux with a QUIC transport
+    - MINOR: listener: automatically enable SSL if a QUIC transport is found
+    - BUG/MINOR: quic: Fixe a typo in qc_idle_timer_task()
+    - BUG/MINOR: quic: Missing <conn_opening> stats counter decrementation
+    - BUILD/MINOR: cpuset fix build for FreeBSD 13.1
+    - CI: determine actual OpenSSL version dynamically
+
 2022/05/14 : 2.6-dev10
     - MINOR: ssl: ignore dotfiles when loading a dir w/ ca-file
     - MEDIUM: ssl: ignore dotfiles when loading a dir w/ crt
