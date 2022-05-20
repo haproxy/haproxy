@@ -65,7 +65,7 @@ struct protocol proto_sockpair = {
 	.name           = "sockpair",
 
 	/* connection layer */
-	.ctrl_type      = SOCK_STREAM,
+	.xprt_type      = PROTO_TYPE_STREAM,
 	.listen         = sockpair_bind_listener,
 	.enable         = sockpair_enable_listener,
 	.disable        = sockpair_disable_listener,

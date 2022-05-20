@@ -65,7 +65,7 @@ struct protocol proto_quic4 = {
 	.name           = "quic4",
 
 	/* connection layer */
-	.ctrl_type      = SOCK_STREAM,
+	.xprt_type      = PROTO_TYPE_STREAM,
 	.listen         = quic_bind_listener,
 	.enable         = quic_enable_listener,
 	.disable        = quic_disable_listener,
@@ -105,7 +105,7 @@ struct protocol proto_quic6 = {
 	.name            = "quic6",
 
 	/* connection layer */
-	.ctrl_type      = SOCK_STREAM,
+	.xprt_type      = PROTO_TYPE_STREAM,
 	.listen         = quic_bind_listener,
 	.enable         = quic_enable_listener,
 	.disable        = quic_disable_listener,

@@ -44,7 +44,7 @@ void protocol_register(struct protocol *proto)
 	LIST_APPEND(&protocols, &proto->list);
 	__protocol_by_family[sock_domain]
 	                    [proto->proto_type]
-	                    [proto->ctrl_type == SOCK_DGRAM] = proto;
+	                    [proto->xprt_type == PROTO_TYPE_DGRAM] = proto;
 	HA_SPIN_UNLOCK(PROTO_LOCK, &proto_lock);
 }
 

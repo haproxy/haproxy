@@ -54,7 +54,7 @@ struct protocol proto_tcpv4 = {
 	.name           = "tcpv4",
 
 	/* connection layer */
-	.ctrl_type      = SOCK_STREAM,
+	.xprt_type      = PROTO_TYPE_STREAM,
 	.listen         = tcp_bind_listener,
 	.enable         = tcp_enable_listener,
 	.disable        = tcp_disable_listener,
@@ -97,7 +97,7 @@ struct protocol proto_tcpv6 = {
 	.name           = "tcpv6",
 
 	/* connection layer */
-	.ctrl_type      = SOCK_STREAM,
+	.xprt_type      = PROTO_TYPE_STREAM,
 	.listen         = tcp_bind_listener,
 	.enable         = tcp_enable_listener,
 	.disable        = tcp_disable_listener,

@@ -49,7 +49,7 @@ struct protocol proto_udp4 = {
 	.name           = "udp4",
 
 	/* connection layer */
-	.ctrl_type      = SOCK_DGRAM,
+	.xprt_type      = PROTO_TYPE_DGRAM,
 	.listen         = udp_bind_listener,
 	.enable         = udp_enable_listener,
 	.disable        = udp_disable_listener,
@@ -83,7 +83,7 @@ struct protocol proto_udp6 = {
 	.name           = "udp6",
 
 	/* connection layer */
-	.ctrl_type      = SOCK_DGRAM,
+	.xprt_type      = PROTO_TYPE_DGRAM,
 	.listen         = udp_bind_listener,
 	.enable         = udp_enable_listener,
 	.disable        = udp_disable_listener,

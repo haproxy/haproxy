@@ -161,7 +161,7 @@ int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bind_conf,
 		 * is selected, regardless of bind_conf settings. We then need
 		 * to initialize QUIC params.
 		 */
-		if (proto->proto_type == PROTO_TYPE_DGRAM && proto->ctrl_type == SOCK_STREAM) {
+		if (proto->proto_type == PROTO_TYPE_DGRAM && proto->xprt_type == PROTO_TYPE_STREAM) {
 			bind_conf->xprt = xprt_get(XPRT_QUIC);
 			quic_transport_params_init(&bind_conf->quic_params, 1);
 		}

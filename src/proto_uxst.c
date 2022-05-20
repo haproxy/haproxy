@@ -50,7 +50,7 @@ struct protocol proto_uxst = {
 	.name           = "unix_stream",
 
 	/* connection layer */
-	.ctrl_type      = SOCK_STREAM,
+	.xprt_type      = PROTO_TYPE_STREAM,
 	.listen         = uxst_bind_listener,
 	.enable         = uxst_enable_listener,
 	.disable        = uxst_disable_listener,

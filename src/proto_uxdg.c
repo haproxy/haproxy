@@ -40,7 +40,7 @@ struct protocol proto_uxdg = {
 	.name           = "uxdg",
 
 	/* connection layer */
-	.ctrl_type      = SOCK_DGRAM,
+	.xprt_type      = PROTO_TYPE_DGRAM,
 	.listen         = uxdg_bind_listener,
 	.enable         = uxdg_enable_listener,
 	.disable        = uxdg_disable_listener,

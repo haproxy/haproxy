@@ -3455,7 +3455,7 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		if (proto && proto->ctrl_type == SOCK_STREAM) {
+		if (proto && proto->xprt_type == PROTO_TYPE_STREAM) {
 			err_code |= parse_server(file, linenum, args, curr_resolvers->px, NULL,
 			                         SRV_PARSE_PARSE_ADDR|SRV_PARSE_INITIAL_RESOLVE);
 			if (err_code & (ERR_FATAL|ERR_ABORT)) {
