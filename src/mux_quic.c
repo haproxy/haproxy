@@ -384,7 +384,14 @@ struct qcs *qcc_get_qcs(struct qcc *qcc, uint64_t id)
 		/* TODO also checks max-streams for uni streams */
 		if (quic_stream_is_bidi(id)) {
 			if (sub_id + 1 > qcc->lfctl.ms_bidi) {
-				/* streams limit reached */
+				/* RFC 9000 4.6. Controlling Concurrency
+				 *
+				 * An endpoint that receives a frame with a
+				 * stream ID exceeding the limit it has sent
+				 * MUST treat this as a connection error of
+				 * type STREAM_LIMIT_ERROR
+				 */
+				qcc_emit_cc(qcc, QC_ERR_STREAM_LIMIT_ERROR);
 				goto out;
 			}
 		}
