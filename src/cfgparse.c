@@ -1860,10 +1860,10 @@ next_line:
 				if (outline == NULL) {
 					ha_alert("parsing [%s:%d]: line too long, cannot allocate memory.\n",
 						 file, linenum);
-					err_code |= ERR_ALERT | ERR_FATAL;
+					err_code |= ERR_ALERT | ERR_FATAL | ERR_ABORT;
 					fatal++;
 					outlinesize = 0;
-					goto next_line;
+					goto err;
 				}
 				/* try again */
 				continue;
