@@ -36,6 +36,7 @@
 #include <haproxy/task.h>
 #include <haproxy/ticks.h>
 #include <haproxy/tools.h>
+#include <haproxy/xprt_quic.h>
 
 
 /* List head of all known bind keywords */
@@ -1638,6 +1639,22 @@ int bind_parse_args_list(struct bind_conf *bind_conf, char **args, int cur_arg, 
 			 file, linenum, args[0], args[1], section);
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto out;
+	}
+
+	/* The transport layer automatically switches to QUIC when QUIC is
+	 * selected, regardless of bind_conf settings. We then need to
+	 * initialize QUIC params.
+	 */
+	if ((bind_conf->options & (BC_O_USE_SOCK_DGRAM|BC_O_USE_XPRT_STREAM)) == (BC_O_USE_SOCK_DGRAM|BC_O_USE_XPRT_STREAM)) {
+#ifdef USE_QUIC
+		bind_conf->xprt = xprt_get(XPRT_QUIC);
+		quic_transport_params_init(&bind_conf->quic_params, 1);
+#else
+		ha_alert("parsing [%s:%d] : '%s %s' in section '%s' : QUIC protocol selected but support not compiled in (check build options).\n",
+			 file, linenum, args[0], args[1], section);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
+#endif
 	}
 
  out:
