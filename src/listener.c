@@ -1631,6 +1631,15 @@ int bind_parse_args_list(struct bind_conf *bind_conf, char **args, int cur_arg, 
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto out;
 	}
+
+	if ((bind_conf->options & (BC_O_USE_SOCK_DGRAM|BC_O_USE_SOCK_STREAM)) == (BC_O_USE_SOCK_DGRAM|BC_O_USE_SOCK_STREAM) ||
+	    (bind_conf->options & (BC_O_USE_XPRT_DGRAM|BC_O_USE_XPRT_STREAM)) == (BC_O_USE_XPRT_DGRAM|BC_O_USE_XPRT_STREAM)) {
+		ha_alert("parsing [%s:%d] : '%s %s' in section '%s' : cannot mix datagram and stream protocols.\n",
+			 file, linenum, args[0], args[1], section);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
+	}
+
  out:
 	return err_code;
 }

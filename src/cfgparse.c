@@ -3762,23 +3762,6 @@ out_uri_auth_compat:
 		list_for_each_entry(bind_conf, &curproxy->conf.bind, by_fe) {
 			int mode = (1 << (curproxy->mode == PR_MODE_HTTP));
 			const struct mux_proto_list *mux_ent;
-			const struct listener *l;
-			int types = 0;
-
-			/* check that the mux is compatible with all listeners'
-			 * protocol types (dgram or stream).
-			 */
-			list_for_each_entry(l, &bind_conf->listeners, by_bind)
-				types |= 1 << l->rx.proto->proto_type;
-
-			if (atleast2(types)) {
-				ha_alert("%s '%s' : cannot mix datagram and stream protocols "
-					 "for 'bind %s' at [%s:%d].\n",
-					 proxy_type_str(curproxy), curproxy->id,
-					 bind_conf->arg, bind_conf->file, bind_conf->line);
-				cfgerr++;
-				continue;
-			}
 
 			if (!bind_conf->mux_proto)
 				continue;
