@@ -116,6 +116,7 @@ enum li_status {
 /* flags used with bind_conf->options */
 #define BC_O_USE_SSL            0x00000001 /* SSL is being used on this bind_conf */
 #define BC_O_GENERATE_CERTS     0x00000002 /* 1 if generate-certificates option is set, else 0 */
+#define BC_O_QUIC_FORCE_RETRY   0x00000004 /* always send Retry on reception of Initial without token */
 
 
 /* flags used with bind_conf->ssl_options */
@@ -176,7 +177,6 @@ struct bind_conf {
 #endif
 #ifdef USE_QUIC
 	struct quic_transport_params quic_params; /* QUIC transport parameters. */
-	unsigned int quic_force_retry:1;          /* always send Retry on reception of Initial without token */
 #endif
 	struct proxy *frontend;    /* the frontend all these listeners belong to, or NULL */
 	const struct mux_proto_list *mux_proto; /* the mux to use for all incoming connections (specified by the "proto" keyword) */

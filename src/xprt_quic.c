@@ -5328,7 +5328,7 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 			 */
 			if (global.cluster_secret) {
 				if (!token_len) {
-					if (l->bind_conf->quic_force_retry) {
+					if (l->bind_conf->options & BC_O_QUIC_FORCE_RETRY) {
 						TRACE_PROTO("Initial without token, sending retry", QUIC_EV_CONN_LPKT);
 						if (send_retry(l->rx.fd, &dgram->saddr, pkt)) {
 							TRACE_PROTO("Error during Retry generation", QUIC_EV_CONN_LPKT);
@@ -5393,7 +5393,7 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 				goto drop;
 			}
 
-			if (global.cluster_secret && !pkt->token_len && !l->bind_conf->quic_force_retry &&
+			if (global.cluster_secret && !pkt->token_len && !(l->bind_conf->options & BC_O_QUIC_FORCE_RETRY) &&
 			    HA_ATOMIC_LOAD(&prx_counters->conn_opening) >= global.tune.quic_retry_threshold) {
 				TRACE_PROTO("Initial without token, sending retry", QUIC_EV_CONN_LPKT);
 				if (send_retry(l->rx.fd, &dgram->saddr, pkt)) {

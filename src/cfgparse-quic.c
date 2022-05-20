@@ -7,7 +7,7 @@
 
 static int bind_parse_quic_force_retry(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
-	conf->quic_force_retry = 1;
+	conf->options |= BC_O_QUIC_FORCE_RETRY;
 	return 0;
 }
 
