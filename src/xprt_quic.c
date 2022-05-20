@@ -1111,8 +1111,9 @@ static int quic_crypto_data_cpy(struct quic_enc_level *qel,
 /* Set <alert> TLS alert as QUIC CRYPTO_ERROR error */
 void quic_set_tls_alert(struct quic_conn *qc, int alert)
 {
+	HA_ATOMIC_DEC(&qc->prx_counters->conn_opening);
 	qc->err_code = QC_ERR_CRYPTO_ERROR | alert;
-	qc->flags |= QUIC_FL_CONN_IMMEDIATE_CLOSE;
+	qc->flags |= QUIC_FL_CONN_IMMEDIATE_CLOSE | QUIC_FL_CONN_TLS_ALERT;
 	TRACE_PROTO("Alert set", QUIC_EV_CONN_SSLDATA, qc);
 }
 
@@ -2098,6 +2099,8 @@ static inline int qc_provide_cdata(struct quic_enc_level *el,
 				goto out;
 			}
 
+			HA_ATOMIC_INC(&qc->prx_counters->hdshk_fail);
+			HA_ATOMIC_DEC(&qc->prx_counters->conn_opening);
 			TRACE_DEVEL("SSL handshake error",
 			            QUIC_EV_CONN_IO_CB, qc, &state, &ssl_err);
 			qc_ssl_dump_errors(ctx->conn);
@@ -2114,6 +2117,7 @@ static inline int qc_provide_cdata(struct quic_enc_level *el,
 			goto err;
 		}
 
+		HA_ATOMIC_DEC(&qc->prx_counters->conn_opening);
 		/* I/O callback switch */
 		ctx->wait_event.tasklet->process = quic_conn_app_io_cb;
 		if (qc_is_listener(ctx->qc)) {
@@ -2591,10 +2595,18 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct ssl_sock_ctx *ct
 			break;
 		case QUIC_FT_MAX_STREAMS_BIDI:
 		case QUIC_FT_MAX_STREAMS_UNI:
+			break;
 		case QUIC_FT_DATA_BLOCKED:
+			HA_ATOMIC_INC(&qc->prx_counters->data_blocked);
+			break;
 		case QUIC_FT_STREAM_DATA_BLOCKED:
+			HA_ATOMIC_INC(&qc->prx_counters->stream_data_blocked);
+			break;
 		case QUIC_FT_STREAMS_BLOCKED_BIDI:
+			HA_ATOMIC_INC(&qc->prx_counters->streams_data_blocked_bidi);
+			break;
 		case QUIC_FT_STREAMS_BLOCKED_UNI:
+			HA_ATOMIC_INC(&qc->prx_counters->streams_data_blocked_uni);
 			break;
 		case QUIC_FT_NEW_CONNECTION_ID:
 		case QUIC_FT_RETIRE_CONNECTION_ID:
@@ -4511,6 +4523,9 @@ static void qc_idle_timer_rearm(struct quic_conn *qc, int read)
 static struct task *qc_idle_timer_task(struct task *t, void *ctx, unsigned int state)
 {
 	struct quic_conn *qc = ctx;
+	struct quic_counters *prx_counters = qc->prx_counters;
+	int qc_state = qc->state;
+	unsigned int qc_flags = qc->flags;
 
 	/* Notify the MUX before settings QUIC_FL_CONN_EXP_TIMER or the MUX
 	 * might free the quic-conn too early via quic_close().
@@ -4527,6 +4542,14 @@ static struct task *qc_idle_timer_task(struct task *t, void *ctx, unsigned int s
 	/* TODO if the quic-conn cannot be freed because of the MUX, we may at
 	 * least clean some parts of it such as the tasklet.
 	 */
+
+	/* If the connection did not reached the handshake complete state,
+	 * the <conn_opening> counter was not decremented. Note that if
+	 * a TLS alert was received from the TLS stack, this counter
+	 * has already been decremented.
+	 */
+	if (qc_state < QUIC_HS_ST_COMPLETE && !(qc_flags|QUIC_FL_CONN_TLS_ALERT))
+		HA_ATOMIC_DEC(&prx_counters->conn_opening);
 
 	return NULL;
 }
@@ -5197,8 +5220,10 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 	unsigned char *beg, *payload;
 	struct quic_conn *qc, *qc_to_purge = NULL;
 	struct listener *l;
+	struct proxy *prx;
+	struct quic_counters *prx_counters;
 	struct ssl_sock_ctx *conn_ctx;
-	int long_header = 0, io_cb_wakeup = 0;
+	int drop_no_conn = 0, long_header = 0, io_cb_wakeup = 0;
 	size_t b_cspace;
 	struct quic_enc_level *qel;
 
@@ -5207,41 +5232,44 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 	conn_ctx = NULL;
 	qel = NULL;
 	TRACE_ENTER(QUIC_EV_CONN_LPKT);
+	l = dgram->owner;
+	prx = l->bind_conf->frontend;
+	prx_counters = EXTRA_COUNTERS_GET(prx->extra_counters_fe, &quic_stats_module);
 	/* This ist only to please to traces and distinguish the
 	 * packet with parsed packet number from others.
 	 */
 	pkt->pn_node.key = (uint64_t)-1;
-	if (end <= buf)
-		goto err;
+	if (end <= buf) {
+		TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT);
+		goto drop;
+	}
 
 	/* Fixed bit */
 	if (!(*buf & QUIC_PACKET_FIXED_BIT)) {
 		/* XXX TO BE DISCARDED */
 		TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT);
-		goto err;
+		goto drop;
 	}
 
-	l = dgram->owner;
 	/* Header form */
 	qc_parse_hd_form(pkt, *buf++, &long_header);
 	if (long_header) {
 		uint64_t len;
-		int drop_no_con = 0;
 		struct quic_cid odcid;
 
 		if (!quic_packet_read_long_header(&buf, end, pkt)) {
 			TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT);
-			goto err;
+			goto drop;
 		}
 
 		if (pkt->type == QUIC_PACKET_TYPE_0RTT && !l->bind_conf->ssl_conf.early_data) {
 			TRACE_PROTO("0-RTT packet not supported", QUIC_EV_CONN_LPKT, qc);
-			drop_no_con = 1;
+			drop_no_conn = 1;
 		}
 		else if (pkt->type == QUIC_PACKET_TYPE_INITIAL &&
 		         dgram->len < QUIC_INITIAL_PACKET_MINLEN) {
 			TRACE_PROTO("Too short datagram with an Initial packet", QUIC_EV_CONN_LPKT, qc);
-			drop_no_con = 1;
+			drop_no_conn = 1;
 		}
 
 		/* When multiple QUIC packets are coalesced on the same UDP datagram,
@@ -5251,13 +5279,13 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 		    (pkt->dcid.len != dgram->dcid_len ||
 		     memcmp(dgram->dcid, pkt->dcid.data, pkt->dcid.len))) {
 			TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT, qc);
-			goto err;
+			goto drop;
 		}
 
 		/* Retry of Version Negotiation packets are only sent by servers */
 		if (pkt->type == QUIC_PACKET_TYPE_RETRY || !pkt->version) {
 			TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT);
-			goto err;
+			goto drop;
 		}
 
 		/* RFC9000 6. Version Negotiation */
@@ -5281,7 +5309,7 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 			if (!quic_dec_int(&token_len, (const unsigned char **)&buf, end) ||
 				end - buf < token_len) {
 				TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT);
-				goto err;
+				goto drop;
 			}
 
 			/* TODO Retry should be automatically activated if
@@ -5295,23 +5323,27 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 						goto err;
 					}
 
-					drop_no_con = 1;
+					HA_ATOMIC_INC(&prx_counters->retry_sent);
+					goto err;
 				}
 				else {
 					if (*buf == QUIC_TOKEN_FMT_RETRY) {
 						if (!quic_retry_token_check(buf, token_len, pkt->version, &odcid,
 						                            &pkt->scid, qc, &dgram->saddr)) {
+							HA_ATOMIC_INC(&prx_counters->retry_error);
 							TRACE_PROTO("Wrong retry token", QUIC_EV_CONN_LPKT);
 							/* TODO: RFC 9000 8.1.2 A server SHOULD immediately close the connection
 							 * with an INVALID_TOKEN error.
 							 */
-							goto err;
+							goto drop;
 						}
+
+						HA_ATOMIC_INC(&prx_counters->retry_validated);
 					}
 					else {
 						/* TODO: New token check */
 						TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT);
-						goto err;
+						goto drop;
 					}
 				}
 			}
@@ -5323,20 +5355,20 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 		else if (pkt->type != QUIC_PACKET_TYPE_0RTT) {
 			if (pkt->dcid.len != QUIC_HAP_CID_LEN) {
 				TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT);
-				goto err;
+				goto drop;
 			}
 		}
 
 		if (!quic_dec_int(&len, (const unsigned char **)&buf, end) ||
 			end - buf < len) {
 			TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT);
-			goto err;
+			goto drop;
 		}
 
 		payload = buf;
 		pkt->len = len + payload - beg;
-		if (drop_no_con)
-			goto drop_no_con;
+		if (drop_no_conn)
+			goto drop_no_conn;
 
 		qc = retrieve_qc_conn_from_cid(pkt, l, &dgram->saddr);
 		if (!qc) {
@@ -5345,7 +5377,7 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 
 			if (pkt->type != QUIC_PACKET_TYPE_INITIAL) {
 				TRACE_PROTO("Non Initial packet", QUIC_EV_CONN_LPKT);
-				goto err;
+				goto drop;
 			}
 
 			/* RFC 9000 7.2. Negotiating Connection IDs:
@@ -5356,7 +5388,7 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 			 */
 			if (pkt->dcid.len < QUIC_ODCID_MINLEN) {
 				TRACE_PROTO("dropped packet", QUIC_EV_CONN_LPKT);
-				goto err;
+				goto drop;
 			}
 
 			pkt->saddr = dgram->saddr;
@@ -5364,8 +5396,9 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 			qc = qc_new_conn(pkt->version, ipv4, &pkt->dcid, &pkt->scid, &odcid, &pkt->saddr,
 			                 pkt->token, pkt->token_len, 1, l);
 			if (qc == NULL)
-				goto err;
+				goto drop;
 
+			HA_ATOMIC_INC(&prx_counters->conn_opening);
 			/* Insert the DCID the QUIC client has chosen (only for listeners) */
 			n = ebmb_insert(&quic_dghdlrs[tid].odcids, &qc->odcid_node,
 			                qc->odcid.len + qc->odcid.addrlen);
@@ -5396,7 +5429,7 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 	else {
 		if (end - buf < QUIC_HAP_CID_LEN) {
 			TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT);
-			goto err;
+			goto drop;
 		}
 
 		memcpy(pkt->dcid.data, buf, QUIC_HAP_CID_LEN);
@@ -5409,7 +5442,7 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 		    (pkt->dcid.len != dgram->dcid_len ||
 		     memcmp(dgram->dcid, pkt->dcid.data, pkt->dcid.len))) {
 			TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT, qc);
-			goto err;
+			goto drop;
 		}
 
 		buf += QUIC_HAP_CID_LEN;
@@ -5424,7 +5457,7 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 			TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT, NULL, pkt, &pktlen);
 			if (global.cluster_secret && !send_stateless_reset(l->rx.fd, &dgram->saddr, pkt))
 				TRACE_PROTO("stateless reset not sent", QUIC_EV_CONN_LPKT, qc);
-			goto err;
+			goto drop;
 		}
 
 		pkt->qc = qc;
@@ -5439,7 +5472,7 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 		/* Skip the entire datagram */
 		pkt->len = end - beg;
 		TRACE_PROTO("Closing state connection", QUIC_EV_CONN_LPKT, pkt->qc);
-		goto out;
+		goto drop;
 	}
 
 	/* When multiple QUIC packets are coalesced on the same UDP datagram,
@@ -5486,13 +5519,13 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 		if (b_contig_space(&qc->rx.buf) < pkt->len) {
 			TRACE_PROTO("Too big packet", QUIC_EV_CONN_LPKT, qc, pkt, &pkt->len);
 			qc_list_all_rx_pkts(qc);
-			goto err;
+			goto drop;
 		}
 	}
 
 	if (!qc_try_rm_hp(qc, pkt, payload, beg, end, &qel)) {
 		TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT, qc);
-		goto err;
+		goto drop;
 	}
 
 	TRACE_PROTO("New packet", QUIC_EV_CONN_LPKT, qc, pkt);
@@ -5509,11 +5542,15 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 	if (conn_ctx)
 		tasklet_wakeup(conn_ctx->wait_event.tasklet);
 
- drop_no_con:
+ drop_no_conn:
+	if (drop_no_conn)
+		HA_ATOMIC_INC(&prx_counters->dropped_pkt);
 	TRACE_LEAVE(QUIC_EV_CONN_LPKT, qc ? qc : NULL, pkt);
 
 	return;
 
+ drop:
+	HA_ATOMIC_INC(&prx_counters->dropped_pkt);
  err:
 	/* Wakeup the I/O handler callback if the PTO timer must be armed.
 	 * This cannot be done by this thread.
