@@ -1300,7 +1300,11 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 					    ctrl_type == SOCK_DGRAM);
 
 		if (!new_proto && (!fqdn || !*fqdn) && (ss.ss_family != AF_CUST_EXISTING_FD)) {
-			memprintf(err, "unsupported protocol family %d for address '%s'", ss.ss_family, str);
+			memprintf(err, "unsupported %s protocol for %s family %d address '%s'",
+				  (ctrl_type == SOCK_DGRAM) ? "datagram" : "stream",
+				  (proto_type == PROTO_TYPE_DGRAM) ? "datagram" : "stream",
+				  ss.ss_family,
+				  str);
 			goto out;
 		}
 
