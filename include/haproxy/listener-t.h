@@ -117,6 +117,10 @@ enum li_status {
 #define BC_O_USE_SSL            0x00000001 /* SSL is being used on this bind_conf */
 #define BC_O_GENERATE_CERTS     0x00000002 /* 1 if generate-certificates option is set, else 0 */
 #define BC_O_QUIC_FORCE_RETRY   0x00000004 /* always send Retry on reception of Initial without token */
+#define BC_O_USE_SOCK_DGRAM     0x00000008 /* at least one datagram-type listener is used */
+#define BC_O_USE_SOCK_STREAM    0x00000010 /* at least one stream-type listener is used */
+#define BC_O_USE_XPRT_DGRAM     0x00000020 /* at least one dgram-only xprt listener is used */
+#define BC_O_USE_XPRT_STREAM    0x00000040 /* at least one stream-only xprt listener is used */
 
 
 /* flags used with bind_conf->ssl_options */

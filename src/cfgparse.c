@@ -155,6 +155,15 @@ int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bind_conf,
 			goto fail;
 
 		/* OK the address looks correct */
+		if (proto->proto_type == PROTO_TYPE_DGRAM)
+			bind_conf->options |= BC_O_USE_SOCK_DGRAM;
+		else
+			bind_conf->options |= BC_O_USE_SOCK_STREAM;
+
+		if (proto->xprt_type == PROTO_TYPE_DGRAM)
+			bind_conf->options |= BC_O_USE_XPRT_DGRAM;
+		else
+			bind_conf->options |= BC_O_USE_XPRT_STREAM;
 
 #ifdef USE_QUIC
 		/* The transport layer automatically switches to QUIC when QUIC
