@@ -92,6 +92,8 @@ typedef unsigned long long ull;
 #define QUIC_RETRY_TOKEN_SALTLEN       16 /* bytes */
 /* Retry token duration */
 #define QUIC_RETRY_DURATION_MS      10000
+/* Default Retry threshold */
+#define QUIC_DFLT_RETRY_THRESHOLD     100 /* in connection openings */
 
 /*
  *  0                   1                   2                   3

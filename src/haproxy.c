@@ -138,6 +138,7 @@
 #include <haproxy/uri_auth-t.h>
 #include <haproxy/vars.h>
 #include <haproxy/version.h>
+#include <haproxy/xprt_quic-t.h>
 
 
 /* array of init calls for older platforms */
@@ -204,6 +205,7 @@ struct global global = {
 		.idle_timer = 1000, /* 1 second */
 #endif
 #ifdef USE_QUIC
+		.quic_retry_threshold = QUIC_DFLT_RETRY_THRESHOLD,
 		.quic_streams_buf = 30,
 #endif /* USE_QUIC */
 	},

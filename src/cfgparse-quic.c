@@ -18,12 +18,16 @@ static struct bind_kw_list bind_kws = { "QUIC", { }, {
 
 INITCALL1(STG_REGISTER, bind_register_keywords, &bind_kws);
 
-static int cfg_parse_quic_conn_buf_limit(char **args, int section_type,
-                                         struct proxy *curpx,
-                                         const struct proxy *defpx,
-                                         const char *file, int line, char **err)
+/* Parse any tune.quic.* setting with strictly positive integer values.
+ * Return -1 on alert, or 0 if succeeded.
+ */
+static int cfg_parse_quic_tune_setting(char **args, int section_type,
+                                       struct proxy *curpx,
+                                       const struct proxy *defpx,
+                                       const char *file, int line, char **err)
 {
 	unsigned int arg = 0;
+	int prefix_len = strlen("tune.quic.");
 
 	if (too_many_args(1, args, err, NULL))
 		return -1;
@@ -36,13 +40,21 @@ static int cfg_parse_quic_conn_buf_limit(char **args, int section_type,
 		return -1;
 	}
 
-	global.tune.quic_streams_buf = arg;
+	if (strcmp(args[0] + prefix_len, "conn-buf-limit") == 0)
+		global.tune.quic_streams_buf = arg;
+	else if (strcmp(args[0] + prefix_len, "retry-threshold") == 0)
+		global.tune.quic_retry_threshold = arg;
+	else {
+		memprintf(err, "'%s' keyword not unhandled (please report this bug).", args[0]);
+		return -1;
+	}
 
 	return 0;
 }
 
 static struct cfg_kw_list cfg_kws = {ILH, {
-	{ CFG_GLOBAL, "tune.quic.conn-buf-limit", cfg_parse_quic_conn_buf_limit },
+	{ CFG_GLOBAL, "tune.quic.conn-buf-limit", cfg_parse_quic_tune_setting },
+	{ CFG_GLOBAL, "tune.quic.retry-threshold", cfg_parse_quic_tune_setting },
 	{ 0, NULL, NULL }
 }};
 
