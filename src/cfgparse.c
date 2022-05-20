@@ -3753,6 +3753,15 @@ out_uri_auth_compat:
 			int mode = (1 << (curproxy->mode == PR_MODE_HTTP));
 			const struct mux_proto_list *mux_ent;
 
+			if (!bind_conf->mux_proto) {
+				/* No protocol was specified. If we're using QUIC at the transport
+				 * layer, we'll instantiate it as a mux as well. If QUIC is not
+				 * compiled in, this wil remain NULL.
+				 */
+				if (bind_conf->xprt && bind_conf->xprt == xprt_get(XPRT_QUIC))
+					bind_conf->mux_proto = get_mux_proto(ist("quic"));
+			}
+
 			if (!bind_conf->mux_proto)
 				continue;
 
