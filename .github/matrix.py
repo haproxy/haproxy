@@ -33,6 +33,17 @@ def clean_os(os):
 def clean_ssl(ssl):
     return ssl.replace("_VERSION", "").lower()
 
+def determine_latest_openssl(ssl):
+    openssl_tags = urllib.request.urlopen("https://api.github.com/repos/openssl/openssl/tags")
+    tags = json.loads(openssl_tags.read().decode('utf-8'))
+    latest_tag = ''
+    for tag in tags:
+        name = tag['name']
+        if "openssl-" in name:
+            if name > latest_tag:
+               latest_tag = name
+    return "OPENSSL={}".format(latest_tag[8:])
+
 def determine_latest_libressl(ssl):
     libressl_download_list = urllib.request.urlopen("http://ftp.openbsd.org/pub/OpenBSD/LibreSSL/")
     for line in libressl_download_list.readlines():
@@ -119,7 +130,7 @@ for CC in ["gcc", "clang"]:
     for ssl in [
         "stock",
         "OPENSSL_VERSION=1.0.2u",
-        "OPENSSL_VERSION=3.0.2",
+        "OPENSSL_VERSION=latest",
         "LIBRESSL_VERSION=latest",
         "QUICTLS=yes",
 #        "BORINGSSL=yes",
@@ -132,6 +143,9 @@ for CC in ["gcc", "clang"]:
             flags.append("SSL_INC=${HOME}/opt/include")
         if "LIBRESSL" in ssl and "latest" in ssl:
             ssl = determine_latest_libressl(ssl)
+        if "OPENSSL" in ssl and "latest" in ssl:
+            ssl = determine_latest_openssl(ssl)
+
         matrix.append(
             {
                 "name": "{}, {}, ssl={}".format(clean_os(os), CC, clean_ssl(ssl)),
