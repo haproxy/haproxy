@@ -3769,6 +3769,23 @@ out_uri_auth_compat:
 					 bind_conf->mux_proto->token.ptr,
 					 bind_conf->arg, bind_conf->file, bind_conf->line);
 				cfgerr++;
+			} else {
+				if ((mux_ent->mux->flags & MX_FL_FRAMED) && !(bind_conf->options & BC_O_USE_SOCK_DGRAM)) {
+					ha_alert("%s '%s' : frame-based MUX protocol '%.*s' is incompatible with stream transport of 'bind %s' at [%s:%d].\n",
+						 proxy_type_str(curproxy), curproxy->id,
+						 (int)bind_conf->mux_proto->token.len,
+						 bind_conf->mux_proto->token.ptr,
+						 bind_conf->arg, bind_conf->file, bind_conf->line);
+					cfgerr++;
+				}
+				else if (!(mux_ent->mux->flags & MX_FL_FRAMED) && !(bind_conf->options & BC_O_USE_SOCK_STREAM)) {
+					ha_alert("%s '%s' : stream-based MUX protocol '%.*s' is incompatible with framed transport of 'bind %s' at [%s:%d].\n",
+						 proxy_type_str(curproxy), curproxy->id,
+						 (int)bind_conf->mux_proto->token.len,
+						 bind_conf->mux_proto->token.ptr,
+						 bind_conf->arg, bind_conf->file, bind_conf->line);
+					cfgerr++;
+				}
 			}
 
 			/* update the mux */
