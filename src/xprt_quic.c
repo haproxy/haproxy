@@ -2626,6 +2626,13 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct ssl_sock_ctx *ct
 		case QUIC_FT_CONNECTION_CLOSE:
 		case QUIC_FT_CONNECTION_CLOSE_APP:
 			if (!(qc->flags & QUIC_FL_CONN_DRAINING)) {
+				/* If the connection did not reached the handshake complete state,
+				 * the <conn_opening> counter was not decremented. Note that if
+				 * a TLS alert was received from the TLS stack, this counter
+				 * has already been decremented.
+				 */
+				if (qc->state < QUIC_HS_ST_COMPLETE && !(qc->flags & QUIC_FL_CONN_TLS_ALERT))
+					HA_ATOMIC_DEC(&qc->prx_counters->conn_opening);
 				TRACE_PROTO("Entering draining state", QUIC_EV_CONN_PRSHPKT, qc);
 				/* RFC 9000 10.2. Immediate Close:
 				 * The closing and draining connection states exist to ensure
