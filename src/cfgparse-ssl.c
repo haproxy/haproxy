@@ -1115,9 +1115,6 @@ static int bind_parse_alpn(char **args, int cur_arg, struct proxy *px, struct bi
 /* parse the "ssl" bind keyword */
 static int bind_parse_ssl(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
-	/* Do not change the xprt for QUIC. */
-	if (conf->xprt != xprt_get(XPRT_QUIC))
-		conf->xprt = &ssl_sock;
 	conf->options |= BC_O_USE_SSL;
 
 	if (global_ssl.listen_default_ciphers && !conf->ssl_conf.ciphers)

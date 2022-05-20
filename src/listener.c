@@ -1656,6 +1656,9 @@ int bind_parse_args_list(struct bind_conf *bind_conf, char **args, int cur_arg, 
 		goto out;
 #endif
 	}
+	else if (bind_conf->options & BC_O_USE_SSL) {
+		bind_conf->xprt = xprt_get(XPRT_SSL);
+	}
 
  out:
 	return err_code;
