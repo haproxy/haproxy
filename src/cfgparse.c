@@ -720,7 +720,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 				}
 				else
 					ha_alert("parsing [%s:%d] : '%s %s' : error encountered while parsing listening address %s.\n",
-							 file, linenum, args[0], args[1], args[2]);
+							 file, linenum, args[0], args[1], args[1]);
 				err_code |= ERR_FATAL;
 				goto out;
 			}
