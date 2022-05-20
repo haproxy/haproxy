@@ -3960,14 +3960,14 @@ out_uri_auth_compat:
 
 			/* smart accept mode is automatic in HTTP mode */
 			if ((curproxy->options2 & PR_O2_SMARTACC) ||
-			    ((curproxy->mode == PR_MODE_HTTP || listener->bind_conf->is_ssl) &&
+			    ((curproxy->mode == PR_MODE_HTTP || (listener->bind_conf->options & BC_O_USE_SSL)) &&
 			     !(curproxy->no_options2 & PR_O2_SMARTACC)))
 				listener->options |= LI_O_NOQUICKACK;
 		}
 
 		/* Release unused SSL configs */
 		list_for_each_entry(bind_conf, &curproxy->conf.bind, by_fe) {
-			if (!bind_conf->is_ssl && bind_conf->xprt->destroy_bind_conf)
+			if (!(bind_conf->options & BC_O_USE_SSL) && bind_conf->xprt->destroy_bind_conf)
 				bind_conf->xprt->destroy_bind_conf(bind_conf);
 		}
 

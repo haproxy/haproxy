@@ -366,7 +366,7 @@ int conn_update_alpn(struct connection *conn, const struct ist alpn, int force)
 			struct session *sess = conn->owner;
 			struct listener *li = sess->listener;
 
-			if (li->bind_conf && li->bind_conf->is_ssl) {
+			if (li->bind_conf && li->bind_conf->options & BC_O_USE_SSL) {
 				ctx_alpn_str = li->bind_conf->ssl_conf.alpn_str;
 				ctx_alpn_len = li->bind_conf->ssl_conf.alpn_len;
 			}

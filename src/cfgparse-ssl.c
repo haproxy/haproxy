@@ -1118,7 +1118,7 @@ static int bind_parse_ssl(char **args, int cur_arg, struct proxy *px, struct bin
 	/* Do not change the xprt for QUIC. */
 	if (conf->xprt != xprt_get(XPRT_QUIC))
 		conf->xprt = &ssl_sock;
-	conf->is_ssl = 1;
+	conf->options |= BC_O_USE_SSL;
 
 	if (global_ssl.listen_default_ciphers && !conf->ssl_conf.ciphers)
 		conf->ssl_conf.ciphers = strdup(global_ssl.listen_default_ciphers);

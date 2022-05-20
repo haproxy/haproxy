@@ -152,7 +152,7 @@ struct task *accept_queue_process(struct task *t, void *context, unsigned int st
 		if (!(li->options & LI_O_UNLIMITED)) {
 			HA_ATOMIC_UPDATE_MAX(&global.sps_max,
 			                     update_freq_ctr(&global.sess_per_sec, 1));
-			if (li->bind_conf && li->bind_conf->is_ssl) {
+			if (li->bind_conf && li->bind_conf->options & BC_O_USE_SSL) {
 				HA_ATOMIC_UPDATE_MAX(&global.ssl_max,
 				                     update_freq_ctr(&global.ssl_per_sec, 1));
 			}
@@ -843,7 +843,8 @@ void listener_accept(struct listener *l)
 			max_accept = max;
 	}
 #ifdef USE_OPENSSL
-	if (!(l->options & LI_O_UNLIMITED) && global.ssl_lim && l->bind_conf && l->bind_conf->is_ssl) {
+	if (!(l->options & LI_O_UNLIMITED) && global.ssl_lim &&
+	    l->bind_conf && l->bind_conf->options & BC_O_USE_SSL) {
 		int max = freq_ctr_remain(&global.ssl_per_sec, global.ssl_lim, 0);
 
 		if (unlikely(!max)) {
@@ -1126,7 +1127,8 @@ void listener_accept(struct listener *l)
 			HA_ATOMIC_UPDATE_MAX(&global.sps_max, count);
 		}
 #ifdef USE_OPENSSL
-		if (!(l->options & LI_O_UNLIMITED) && l->bind_conf && l->bind_conf->is_ssl) {
+		if (!(l->options & LI_O_UNLIMITED) &&
+		    l->bind_conf && l->bind_conf->options & BC_O_USE_SSL) {
 			count = update_freq_ctr(&global.ssl_per_sec, 1);
 			HA_ATOMIC_UPDATE_MAX(&global.ssl_max, count);
 		}
