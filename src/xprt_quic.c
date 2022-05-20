@@ -4559,7 +4559,7 @@ static struct task *qc_idle_timer_task(struct task *t, void *ctx, unsigned int s
 	 * a TLS alert was received from the TLS stack, this counter
 	 * has already been decremented.
 	 */
-	if (qc_state < QUIC_HS_ST_COMPLETE && !(qc_flags|QUIC_FL_CONN_TLS_ALERT))
+	if (qc_state < QUIC_HS_ST_COMPLETE && !(qc_flags & QUIC_FL_CONN_TLS_ALERT))
 		HA_ATOMIC_DEC(&prx_counters->conn_opening);
 
 	return NULL;
