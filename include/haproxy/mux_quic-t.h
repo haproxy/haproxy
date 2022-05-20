@@ -60,7 +60,8 @@ struct qcc {
 
 		uint64_t md; /* current max-data allowed for the peer */
 		uint64_t md_init; /* initial max-data */
-		uint64_t sent_offsets; /* sum of all offsets received */
+		uint64_t offsets_recv; /* sum of offsets received */
+		uint64_t offsets_consume; /* sum of offsets consumed */
 	} lfctl;
 
 	/* flow-control fields set by the peer which we must respect. */
@@ -108,6 +109,7 @@ struct qcs {
 
 	struct {
 		uint64_t offset; /* absolute current base offset of ncbuf */
+		uint64_t offset_max; /* maximum absolute offset received */
 		struct ncbuf ncbuf; /* receive buffer - can handle out-of-order offset frames */
 		struct buffer app_buf; /* receive buffer used by conn_stream layer */
 		uint64_t msd; /* current max-stream-data limit to enforce */

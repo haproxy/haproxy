@@ -165,7 +165,7 @@ struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
 
 	qcs->rx.ncbuf = NCBUF_NULL;
 	qcs->rx.app_buf = BUF_NULL;
-	qcs->rx.offset = 0;
+	qcs->rx.offset = qcs->rx.offset_max = 0;
 
 	/* TODO use uni limit for unidirectional streams */
 	qcs->rx.msd = quic_stream_is_local(qcc, id) ? qcc->lfctl.msd_bidi_l :
@@ -333,12 +333,12 @@ void qcs_consume(struct qcs *qcs, uint64_t bytes)
 		tasklet_wakeup(qcc->wait_event.tasklet);
 	}
 
-	qcc->lfctl.sent_offsets += bytes;
-	if (qcc->lfctl.md - qcc->lfctl.sent_offsets < qcc->lfctl.md_init / 2) {
+	qcc->lfctl.offsets_consume += bytes;
+	if (qcc->lfctl.md - qcc->lfctl.offsets_consume < qcc->lfctl.md_init / 2) {
 		frm = pool_zalloc(pool_head_quic_frame);
 		BUG_ON(!frm); /* TODO handle this properly */
 
-		qcc->lfctl.md = qcc->lfctl.sent_offsets + qcc->lfctl.md_init;
+		qcc->lfctl.md = qcc->lfctl.offsets_consume + qcc->lfctl.md_init;
 
 		LIST_INIT(&frm->reflist);
 		frm->type = QUIC_FT_MAX_DATA;
@@ -486,8 +486,25 @@ int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
 	 * Else send FINAL_SIZE_ERROR.
 	 */
 
-	/* TODO initial max-stream-data overflow. Implement FLOW_CONTROL_ERROR emission. */
-	BUG_ON(offset + len > qcs->rx.msd);
+	if (offset + len > qcs->rx.offset_max) {
+		uint64_t diff = offset + len - qcs->rx.offset_max;
+		qcs->rx.offset_max = offset + len;
+		qcc->lfctl.offsets_recv += diff;
+
+		if (offset + len > qcs->rx.msd ||
+		    qcc->lfctl.offsets_recv > qcc->lfctl.md) {
+			/* RFC 9000 4.1. Data Flow Control
+			 *
+			 * A receiver MUST close the connection with an error
+			 * of type FLOW_CONTROL_ERROR if the sender violates
+			 * the advertised connection or stream data limits
+			 */
+			TRACE_DEVEL("leaving on flow control error", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV,
+				    qcc->conn, qcs);
+			qcc_emit_cc(qcc, QC_ERR_FLOW_CONTROL_ERROR);
+			return 1;
+		}
+	}
 
 	if (!qc_get_ncbuf(qcs, &qcs->rx.ncbuf) || ncb_is_null(&qcs->rx.ncbuf)) {
 		/* TODO should mark qcs as full */
@@ -1283,7 +1300,7 @@ static int qc_init(struct connection *conn, struct proxy *prx,
 	qcc->lfctl.cl_bidi_r = 0;
 
 	qcc->lfctl.md = qcc->lfctl.md_init = lparams->initial_max_data;
-	qcc->lfctl.sent_offsets = 0;
+	qcc->lfctl.offsets_recv = qcc->lfctl.offsets_consume = 0;
 
 	rparams = &conn->handle.qc->tx.params;
 	qcc->rfctl.md = rparams->initial_max_data;
