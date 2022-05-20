@@ -1648,6 +1648,11 @@ int bind_parse_args_list(struct bind_conf *bind_conf, char **args, int cur_arg, 
 	if ((bind_conf->options & (BC_O_USE_SOCK_DGRAM|BC_O_USE_XPRT_STREAM)) == (BC_O_USE_SOCK_DGRAM|BC_O_USE_XPRT_STREAM)) {
 #ifdef USE_QUIC
 		bind_conf->xprt = xprt_get(XPRT_QUIC);
+		if (!(bind_conf->options & BC_O_USE_SSL)) {
+			bind_conf->options |= BC_O_USE_SSL;
+			ha_warning("parsing [%s:%d] : '%s %s' in section '%s' : QUIC protocol detected, enabling ssl. Use 'ssl' to shut this warning.\n",
+				 file, linenum, args[0], args[1], section);
+		}
 		quic_transport_params_init(&bind_conf->quic_params, 1);
 #else
 		ha_alert("parsing [%s:%d] : '%s %s' in section '%s' : QUIC protocol selected but support not compiled in (check build options).\n",
