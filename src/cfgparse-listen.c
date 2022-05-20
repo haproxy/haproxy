@@ -507,59 +507,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		}
 
 		cur_arg = 2;
-		while (*(args[cur_arg])) {
-			struct bind_kw *kw;
-			const char *best;
-
-			kw = bind_find_kw(args[cur_arg]);
-			if (kw) {
-				char *err = NULL;
-				int code;
-
-				if (!kw->parse) {
-					ha_alert("parsing [%s:%d] : '%s %s' : '%s' option is not implemented in this version (check build options).\n",
-						 file, linenum, args[0], args[1], args[cur_arg]);
-					cur_arg += 1 + kw->skip ;
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-
-				code = kw->parse(args, cur_arg, curproxy, bind_conf, &err);
-				err_code |= code;
-
-				if (code) {
-					if (err && *err) {
-						indent_msg(&err, 2);
-						if (((code & (ERR_WARN|ERR_ALERT)) == ERR_WARN))
-							ha_warning("parsing [%s:%d] : '%s %s' : %s\n", file, linenum, args[0], args[1], err);
-						else
-							ha_alert("parsing [%s:%d] : '%s %s' : %s\n", file, linenum, args[0], args[1], err);
-					}
-					else
-						ha_alert("parsing [%s:%d] : '%s %s' : error encountered while processing '%s'.\n",
-							 file, linenum, args[0], args[1], args[cur_arg]);
-					if (code & ERR_FATAL) {
-						free(err);
-						cur_arg += 1 + kw->skip;
-						goto out;
-					}
-				}
-				free(err);
-				cur_arg += 1 + kw->skip;
-				continue;
-			}
-
-			best = bind_find_best_kw(args[cur_arg]);
-			if (best)
-				ha_alert("parsing [%s:%d] : '%s %s' unknown keyword '%s'; did you mean '%s' maybe ?\n",
-					 file, linenum, args[0], args[1], args[cur_arg], best);
-			else
-				ha_alert("parsing [%s:%d] : '%s %s' unknown keyword '%s'.\n",
-					 file, linenum, args[0], args[1], args[cur_arg]);
-
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
+		err_code |= bind_parse_args_list(bind_conf, args, cur_arg, cursection, file, linenum);
 		goto out;
 	}
 	else if (strcmp(args[0], "monitor-net") == 0) {  /* set the range of IPs to ignore */
