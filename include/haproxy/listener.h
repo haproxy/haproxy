@@ -172,6 +172,8 @@ struct bind_kw *bind_find_kw(const char *kw);
 /* Dumps all registered "bind" keywords to the <out> string pointer. */
 void bind_dump_kws(char **out);
 const char *bind_find_best_kw(const char *word);
+int bind_parse_args_list(struct bind_conf *bind_conf, char **args, int cur_arg,
+                         const char *section, const char *file, int linenum);
 
 void bind_recount_thread_bits(struct bind_conf *conf);
 unsigned int bind_map_thread_id(const struct bind_conf *conf, unsigned int r);

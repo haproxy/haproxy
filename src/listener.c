@@ -1565,6 +1565,74 @@ static int bind_parse_id(char **args, int cur_arg, struct proxy *px, struct bind
 	return 0;
 }
 
+/* Complete a bind_conf by parsing the args after the address. <args> is the
+ * arguments array, <cur_arg> is the first one to be considered. <section> is
+ * the section name to report in error messages, and <file> and <linenum> are
+ * the file name and line number respectively. Note that args[0..1] are used
+ * in error messages to provide some context. The return value is an error
+ * code, zero on success or an OR of ERR_{FATAL,ABORT,ALERT,WARN}.
+ */
+int bind_parse_args_list(struct bind_conf *bind_conf, char **args, int cur_arg, const char *section, const char *file, int linenum)
+{
+	int err_code = 0;
+
+	while (*(args[cur_arg])) {
+		struct bind_kw *kw;
+		const char *best;
+
+		kw = bind_find_kw(args[cur_arg]);
+		if (kw) {
+			char *err = NULL;
+			int code;
+
+			if (!kw->parse) {
+				ha_alert("parsing [%s:%d] : '%s %s' in section '%s' : '%s' option is not implemented in this version (check build options).\n",
+					 file, linenum, args[0], args[1], section, args[cur_arg]);
+				cur_arg += 1 + kw->skip ;
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+
+			code = kw->parse(args, cur_arg, bind_conf->frontend, bind_conf, &err);
+			err_code |= code;
+
+			if (code) {
+				if (err && *err) {
+					indent_msg(&err, 2);
+					if (((code & (ERR_WARN|ERR_ALERT)) == ERR_WARN))
+						ha_warning("parsing [%s:%d] : '%s %s' in section '%s' : %s\n", file, linenum, args[0], args[1], section, err);
+					else
+						ha_alert("parsing [%s:%d] : '%s %s' in section '%s' : %s\n", file, linenum, args[0], args[1], section, err);
+				}
+				else
+					ha_alert("parsing [%s:%d] : '%s %s' in section '%s' : error encountered while processing '%s'.\n",
+						 file, linenum, args[0], args[1], section, args[cur_arg]);
+				if (code & ERR_FATAL) {
+					free(err);
+					cur_arg += 1 + kw->skip;
+					goto out;
+				}
+			}
+			free(err);
+			cur_arg += 1 + kw->skip;
+			continue;
+		}
+
+		best = bind_find_best_kw(args[cur_arg]);
+		if (best)
+			ha_alert("parsing [%s:%d] : '%s %s' in section '%s': unknown keyword '%s'; did you mean '%s' maybe ?\n",
+				 file, linenum, args[0], args[1], section, args[cur_arg], best);
+		else
+			ha_alert("parsing [%s:%d] : '%s %s' in section '%s': unknown keyword '%s'.\n",
+				 file, linenum, args[0], args[1], section, args[cur_arg]);
+
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
+	}
+ out:
+	return err_code;
+}
+
 /* parse the "maxconn" bind keyword */
 static int bind_parse_maxconn(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
