@@ -528,9 +528,19 @@ int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
 	ret = ncb_add(&qcs->rx.ncbuf, offset - qcs->rx.offset, data, len, NCB_ADD_COMPARE);
 	if (ret != NCB_RET_OK) {
 		if (ret == NCB_RET_DATA_REJ) {
-			/* TODO generate PROTOCOL_VIOLATION error */
+			/* RFC 9000 2.2. Sending and Receiving Data
+			 *
+			 * An endpoint could receive data for a stream at the
+			 * same stream offset multiple times. Data that has
+			 * already been received can be discarded. The data at
+			 * a given offset MUST NOT change if it is sent
+			 * multiple times; an endpoint MAY treat receipt of
+			 * different data at the same offset within a stream as
+			 * a connection error of type PROTOCOL_VIOLATION.
+			 */
 			TRACE_DEVEL("leaving on data rejected", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV,
 			            qcc->conn, qcs);
+			qcc_emit_cc(qcc, QC_ERR_PROTOCOL_VIOLATION);
 		}
 		else if (ret == NCB_RET_GAP_SIZE) {
 			TRACE_DEVEL("cannot bufferize frame due to gap size limit", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV,
