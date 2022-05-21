@@ -676,7 +676,6 @@ enum qc_mux_state {
 
 /* The number of buffers for outgoing packets (must be a power of two). */
 #define QUIC_CONN_TX_BUFS_NB 8
-#define QUIC_CONN_TX_BUF_SZ  QUIC_PACKET_MAXLEN
 
 /* Flags at connection level */
 #define QUIC_FL_CONN_ANTI_AMPLIFICATION_REACHED  (1U << 0)
