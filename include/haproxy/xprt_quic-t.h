@@ -727,11 +727,6 @@ struct quic_conn {
 
 	/* Used only to reach the tasklet for the I/O handler from this quic_conn object. */
 	struct connection *conn;
-	/* Output buffer used during the handshakes. */
-	struct {
-		unsigned char data[QUIC_PACKET_MAXLEN];
-		unsigned char *pos;
-	} obuf;
 
 	struct {
 		/* The remaining frames to send. */

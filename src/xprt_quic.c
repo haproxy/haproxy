@@ -4327,9 +4327,6 @@ static struct quic_conn *qc_new_conn(unsigned int version, int ipv4,
 	}
 	qc->mux_state = QC_MUX_NULL;
 
-	/* Initialize the output buffer */
-	qc->obuf.pos = qc->obuf.data;
-
 	icid = new_quic_cid(&qc->cids, qc, 0);
 	if (!icid) {
 		TRACE_PROTO("Could not allocate a new connection ID", QUIC_EV_CONN_INIT, qc);
