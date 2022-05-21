@@ -5152,6 +5152,20 @@ static int qc_conn_alloc_ssl_ctx(struct quic_conn *qc)
 	return 1;
 }
 
+/* Check that all the bytes between <buf> included and <end> address
+ * excluded are null. This is the responsability of the caller to
+ * check that there is at least one byte between <buf> end <end>.
+ * Return 1 if this all the bytes are null, 0 if not.
+ */
+static inline int quic_padding_check(const unsigned char *buf,
+                                     const unsigned char *end)
+{
+	while (buf < end && !*buf)
+		buf++;
+
+	return buf == end;
+}
+
 /* Parse a QUIC packet from UDP datagram found in <buf> buffer with <end> the
  * end of this buffer past one byte and populate <pkt> RX packet structure
  * with the information collected from the packet.
@@ -5195,7 +5209,16 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 
 	/* Fixed bit */
 	if (!(*buf & QUIC_PACKET_FIXED_BIT)) {
-		/* XXX TO BE DISCARDED */
+		if (!first_pkt && quic_padding_check(buf, end)) {
+			/* Some browsers may pad the remaining datagram space with null bytes.
+			 * That is what we called add padding out of QUIC packets. Such
+			 * datagrams must be considered as valid. But we can only consume
+			 * the remaining space.
+			 */
+			pkt->len = end - buf;
+			goto drop_no_conn;
+		}
+
 		TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT);
 		goto drop;
 	}
