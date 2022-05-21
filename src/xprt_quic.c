@@ -47,6 +47,7 @@
 #include <haproxy/quic_sock.h>
 #include <haproxy/quic_stats-t.h>
 #include <haproxy/quic_stream.h>
+#include <haproxy/quic_tp.h>
 #include <haproxy/cbuf.h>
 #include <haproxy/proto_quic.h>
 #include <haproxy/quic_tls.h>
@@ -62,17 +63,6 @@ static int quic_supported_version[] = {
 
 	/* placeholder, do not add entry after this */
 	0x0
-};
-
-/* This is the values of some QUIC transport parameters when absent.
- * Should be used to initialize any transport parameters (local or remote)
- * before updating them with customized values.
- */
-struct quic_transport_params quic_dflt_transport_params = {
-	.max_udp_payload_size = QUIC_PACKET_MAXLEN,
-	.ack_delay_exponent   = QUIC_DFLT_ACK_DELAY_COMPONENT,
-	.max_ack_delay        = QUIC_DFLT_MAX_ACK_DELAY,
-	.active_connection_id_limit = QUIC_ACTIVE_CONNECTION_ID_LIMIT,
 };
 
 /* trace source and events */
@@ -4223,40 +4213,6 @@ static int parse_retry_token(const unsigned char *token, const unsigned char *en
 	return 0;
 }
 
-/* Initialize the transport parameters for <qc> QUIC connection attached
- * to <l> listener from <pkt> Initial packet information.
- * Returns 1 if succeeded, 0 if not.
- */
-static int qc_lstnr_params_init(struct quic_conn *qc, struct listener *l,
-                                const unsigned char *token, size_t token_len,
-                                const struct quic_connection_id *icid,
-                                const struct quic_cid *dcid, const struct quic_cid *odcid)
-{
-	struct quic_cid *odcid_param = &qc->rx.params.original_destination_connection_id;
-
-	/* Copy the transport parameters. */
-	qc->rx.params = l->bind_conf->quic_params;
-	/* Copy the stateless reset token */
-	memcpy(qc->rx.params.stateless_reset_token, icid->stateless_reset_token,
-	       sizeof qc->rx.params.stateless_reset_token);
-	/* Copy original_destination_connection_id transport parameter. */
-	if (token_len) {
-		memcpy(odcid_param->data, odcid->data, odcid->len);
-		odcid_param->len = odcid->len;
-		/* Copy retry_source_connection_id transport parameter. */
-		quic_cid_cpy(&qc->rx.params.retry_source_connection_id, dcid);
-	}
-	else {
-		memcpy(odcid_param->data, dcid->data, dcid->len);
-		odcid_param->len = dcid->len;
-	}
-
-	/* Copy the initial source connection ID. */
-	quic_cid_cpy(&qc->rx.params.initial_source_connection_id, &qc->scid);
-
-	return 1;
-}
-
 /* Allocate a new QUIC connection with <version> as QUIC version. <ipv4>
  * boolean is set to 1 for IPv4 connection, 0 for IPv6. <server> is set to 1
  * for QUIC servers (or haproxy listeners).
@@ -4269,8 +4225,7 @@ static struct quic_conn *qc_new_conn(unsigned int version, int ipv4,
                                      struct quic_cid *dcid, struct quic_cid *scid,
                                      const struct quic_cid *odcid,
                                      struct sockaddr_storage *saddr,
-                                     const unsigned char *token, size_t token_len,
-                                     int server, void *owner)
+                                     int server, int token, void *owner)
 {
 	int i;
 	struct quic_conn *qc;
@@ -4389,7 +4344,11 @@ static struct quic_conn *qc_new_conn(unsigned int version, int ipv4,
 	qc->sendto_err = 0;
 	memcpy(&qc->peer_addr, saddr, sizeof qc->peer_addr);
 
-	if (server && !qc_lstnr_params_init(qc, l, token, token_len, icid, dcid, odcid))
+	if (server && !qc_lstnr_params_init(qc, &l->bind_conf->quic_params,
+	                                    icid->stateless_reset_token,
+	                                    dcid->data, dcid->len,
+	                                    qc->scid.data, qc->scid.len,
+	                                    odcid->data, odcid->len, token))
 		goto err;
 
 	qc->enc_params_len =
@@ -5376,8 +5335,8 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 
 			pkt->saddr = dgram->saddr;
 			ipv4 = dgram->saddr.ss_family == AF_INET;
-			qc = qc_new_conn(pkt->version, ipv4, &pkt->dcid, &pkt->scid, &odcid, &pkt->saddr,
-			                 pkt->token, pkt->token_len, 1, l);
+			qc = qc_new_conn(pkt->version, ipv4, &pkt->dcid, &pkt->scid, &odcid,
+			                 &pkt->saddr, 1, !!pkt->token_len, l);
 			if (qc == NULL)
 				goto drop;
 

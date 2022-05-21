@@ -10,6 +10,7 @@
 #include <haproxy/ncbuf.h>
 #include <haproxy/pool.h>
 #include <haproxy/quic_stream.h>
+#include <haproxy/quic_tp-t.h>
 #include <haproxy/ssl_sock-t.h>
 #include <haproxy/stconn.h>
 #include <haproxy/trace.h>

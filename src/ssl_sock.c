@@ -65,6 +65,7 @@
 #include <haproxy/proxy.h>
 #include <haproxy/sample.h>
 #include <haproxy/sc_strm.h>
+#include <haproxy/quic_tp.h>
 #include <haproxy/server.h>
 #include <haproxy/shctx.h>
 #include <haproxy/ssl_ckch.h>

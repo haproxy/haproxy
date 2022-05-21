@@ -40,6 +40,7 @@
 #include <haproxy/proto_tcp.h>
 #include <haproxy/proxy.h>
 #include <haproxy/sc_strm.h>
+#include <haproxy/quic_tp.h>
 #include <haproxy/server-t.h>
 #include <haproxy/signal.h>
 #include <haproxy/stats-t.h>
@@ -49,7 +50,6 @@
 #include <haproxy/tcpcheck.h>
 #include <haproxy/time.h>
 #include <haproxy/tools.h>
-#include <haproxy/xprt_quic.h>
 
 
 int listeners;	/* # of proxy listeners, set by cfgparse */

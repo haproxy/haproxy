@@ -31,12 +31,12 @@
 #include <haproxy/log.h>
 #include <haproxy/protocol.h>
 #include <haproxy/proxy.h>
+#include <haproxy/quic_tp.h>
 #include <haproxy/sample.h>
 #include <haproxy/stream.h>
 #include <haproxy/task.h>
 #include <haproxy/ticks.h>
 #include <haproxy/tools.h>
-#include <haproxy/xprt_quic.h>
 
 
 /* List head of all known bind keywords */
