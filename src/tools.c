@@ -1305,13 +1305,14 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 				  (proto_type == PROTO_TYPE_DGRAM) ? "datagram" : "stream",
 				  ss.ss_family,
 				  str,
-				  (ctrl_type == SOCK_STREAM && proto_type == PROTO_TYPE_DGRAM) ?
 #ifndef USE_QUIC
-				  "; QUIC is not compiled in if this is what you were looking for."
+				  (ctrl_type == SOCK_STREAM && proto_type == PROTO_TYPE_DGRAM)
+				  ? "; QUIC is not compiled in if this is what you were looking for."
+				  : ""
 #else
 				  ""
 #endif
-				  :"");
+				);
 			goto out;
 		}
 
