@@ -1375,7 +1375,7 @@ char * sa2str(const struct sockaddr_storage *addr, int port, int map_ports)
 	default:
 		return NULL;
 	}
-	inet_ntop(addr->ss_family, ptr, buffer, get_addr_len(addr));
+	inet_ntop(addr->ss_family, ptr, buffer, sizeof(buffer));
 	if (map_ports)
 		return memprintf(&out, "%s:%+d", buffer, port);
 	else
