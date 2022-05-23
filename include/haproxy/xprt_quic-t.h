@@ -684,10 +684,12 @@ enum qc_mux_state {
 #define QUIC_FL_CONN_POST_HANDSHAKE_FRAMES_BUILT (1U << 2)
 #define QUIC_FL_CONN_LISTENER                    (1U << 3)
 #define QUIC_FL_CONN_ACCEPT_REGISTERED           (1U << 4)
+/* gap here */
 #define QUIC_FL_CONN_IDLE_TIMER_RESTARTED_AFTER_READ (1U << 6)
 #define QUIC_FL_CONN_RETRANS_NEEDED              (1U << 7)
 #define QUIC_FL_CONN_RETRANS_OLD_DATA            (1U << 8)
 #define QUIC_FL_CONN_TLS_ALERT                   (1U << 9)
+#define QUIC_FL_CONN_APP_ALERT                   (1U << 10) /* A connection error of type CONNECTION_CLOSE_APP must be emitted. */
 #define QUIC_FL_CONN_NOTIFY_CLOSE                (1U << 27) /* MUX notified about quic-conn imminent closure (idle-timeout or CONNECTION_CLOSE emission/reception) */
 #define QUIC_FL_CONN_EXP_TIMER                   (1U << 28) /* timer has expired, quic-conn can be freed */
 #define QUIC_FL_CONN_CLOSING                     (1U << 29)

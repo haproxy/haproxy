@@ -25,6 +25,7 @@ void qcs_notify_recv(struct qcs *qcs);
 void qcs_notify_send(struct qcs *qcs);
 void qcs_consume(struct qcs *qcs, uint64_t bytes);
 
+void qcc_emit_cc_app(struct qcc *qcc, int err);
 int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
              char fin, char *data);
 int qcc_recv_max_data(struct qcc *qcc, uint64_t max);

@@ -1109,20 +1109,23 @@ static int quic_crypto_data_cpy(struct quic_enc_level *qel,
 /* Prepare the emission of CONNECTION_CLOSE with error <err>. All send/receive
  * activity for <qc> will be interrupted.
  */
-void quic_set_connection_close(struct quic_conn *qc, int err)
+void quic_set_connection_close(struct quic_conn *qc, int err, int app)
 {
 	if (qc->flags & QUIC_FL_CONN_IMMEDIATE_CLOSE)
 		return;
 
 	qc->err_code = err;
 	qc->flags |= QUIC_FL_CONN_IMMEDIATE_CLOSE;
+
+	if (app)
+		qc->flags |= QUIC_FL_CONN_APP_ALERT;
 }
 
 /* Set <alert> TLS alert as QUIC CRYPTO_ERROR error */
 void quic_set_tls_alert(struct quic_conn *qc, int alert)
 {
 	HA_ATOMIC_DEC(&qc->prx_counters->conn_opening);
-	quic_set_connection_close(qc, QC_ERR_CRYPTO_ERROR | alert);
+	quic_set_connection_close(qc, QC_ERR_CRYPTO_ERROR | alert, 0);
 	qc->flags |= QUIC_FL_CONN_TLS_ALERT;
 	TRACE_PROTO("Alert set", QUIC_EV_CONN_SSLDATA, qc);
 }
@@ -5985,7 +5988,7 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 	size_t len, len_sz, len_frms, padding_len;
 	struct quic_frame frm = { .type = QUIC_FT_CRYPTO, };
 	struct quic_frame ack_frm = { .type = QUIC_FT_ACK, };
-	struct quic_frame cc_frm = { . type = QUIC_FT_CONNECTION_CLOSE, };
+	struct quic_frame cc_frm = { };
 	size_t ack_frm_len, head_len;
 	int64_t rx_largest_acked_pn;
 	int add_ping_frm;
@@ -6084,9 +6087,10 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 		len += QUIC_TLS_TAG_LEN;
 	/* CONNECTION_CLOSE frame */
 	if (cc) {
-		struct quic_connection_close *cc = &cc_frm.connection_close;
+		cc_frm.type = qc->flags & QUIC_FL_CONN_APP_ALERT ?
+		  QUIC_FT_CONNECTION_CLOSE_APP : QUIC_FT_CONNECTION_CLOSE;
 
-		cc->error_code = qc->err_code;
+		cc_frm.connection_close.error_code = qc->err_code;
 		len += qc_frm_len(&cc_frm);
 	}
 	add_ping_frm = 0;

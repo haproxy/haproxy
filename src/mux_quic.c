@@ -106,7 +106,7 @@ INITCALL1(STG_REGISTER, trace_register_source, TRACE_SOURCE);
  */
 static void qcc_emit_cc(struct qcc *qcc, int err)
 {
-	quic_set_connection_close(qcc->conn->handle.qc, err);
+	quic_set_connection_close(qcc->conn->handle.qc, err, 0);
 	qcc->flags |= QC_CF_CC_EMIT;
 	tasklet_wakeup(qcc->wait_event.tasklet);
 }
@@ -443,6 +443,16 @@ static int qcc_decode_qcs(struct qcc *qcc, struct qcs *qcs)
 	TRACE_LEAVE(QMUX_EV_QCS_RECV, qcc->conn, qcs);
 
 	return 0;
+}
+
+/* Emit a CONNECTION_CLOSE_APP with error <err>. Reserved for application error
+ * code. This will interrupt all future send/receive operations.
+ */
+void qcc_emit_cc_app(struct qcc *qcc, int err)
+{
+	quic_set_connection_close(qcc->conn->handle.qc, err, 1);
+	qcc->flags |= QC_CF_CC_EMIT;
+	tasklet_wakeup(qcc->wait_event.tasklet);
 }
 
 /* Handle a new STREAM frame for stream with id <id>. Payload is pointed by
