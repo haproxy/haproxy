@@ -1119,6 +1119,7 @@ The following keywords are supported in the "global" section :
    - tune.pool-high-fd-ratio
    - tune.pool-low-fd-ratio
    - tune.quic.conn-buf-limit
+   - tune.quic.retry-threshold
    - tune.rcvbuf.client
    - tune.rcvbuf.server
    - tune.recv_enough
@@ -2937,6 +2938,23 @@ tune.quic.conn-buf-limit <number>
   drained on ACK reception. This setting has a direct impact on the throughput
   and memory consumption and can be adjusted according to an estimated round
   time-trip.
+
+tune.quic.retry-threshold <number>
+  Warning: QUIC support in HAProxy is currently experimental. Configuration may
+  change without deprecation in the future.
+
+  Dynamically enables the Retry feature for all the configured QUIC listeners
+  as soon as this number of opening connections is reached. By opening connection
+  we mean a connection the handshake of which has not already successfully
+  completed or failed. To be functional this setting needs a cluster secret to
+  be set, if not it will be silently ignored (see "cluster-secret" setting).
+  This setting will be also silenty ignored if the use of QUIC Retry was forced
+  (see "quic-force-retry").
+
+  The default value is 100.
+
+  See https://www.rfc-editor.org/rfc/rfc9000.html#section-8.1.2 for more
+  information about QUIC retry.
 
 tune.rcvbuf.client <number>
 tune.rcvbuf.server <number>
@@ -14342,6 +14360,24 @@ proto <name>
   protocol for all connections instantiated from this listening socket. For
   instance, it is possible to force the http/2 on clear TCP by specifying "proto
   h2" on the bind line.
+
+quic-force-retry
+  Warning: QUIC support in HAProxy is currently experimental. Configuration may
+  change without deprecation in the future.
+
+  This is a QUIC specific setting which forces the use of the QUIC Retry feature
+  for all the connection attempts to the configured QUIC listeners. It consists
+  in veryfying the peers are able to receive packets at the transport address
+  they used to initiate a new connection, sending them a Retry packet which
+  contains a token. This token must be sent back to the Retry packet sender,
+  this latter being the only one to be able to validate the token. Note that QUIC
+  Retry will always be used even if a Retry threshold was set (see
+  "tune.quic.retry-threshold" setting). To be functional this setting needs a
+  cluster secret to be set, if not it will be silently ignored (see "cluster-secret"
+  setting).
+
+  See https://www.rfc-editor.org/rfc/rfc9000.html#section-8.1.2 for more
+  information about QUIC retry.
 
 shards <number> | by-thread
   In multi-threaded mode, on operating systems supporting multiple listeners on
