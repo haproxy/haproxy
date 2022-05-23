@@ -3,9 +3,12 @@
 #include <haproxy/net_helper.h>
 #include <haproxy/quic_enc.h>
 #include <haproxy/quic_tp.h>
+#include <haproxy/trace.h>
 #include <haproxy/xprt_quic-t.h>
 
 #define QUIC_MAX_UDP_PAYLOAD_SIZE     2048
+
+#define TRACE_SOURCE       &trace_quic
 
 /* This is the values of some QUIC transport parameters when absent.
  * Should be used to initialize any transport parameters (local or remote)
@@ -523,6 +526,8 @@ int quic_transport_params_store(struct quic_conn *qc, int server,
 		qc->max_idle_timeout =
 			QUIC_MAX(tx_params->max_idle_timeout, rx_params->max_idle_timeout);
 
+	TRACE_PROTO("\nTX(remote) transp. params.", QUIC_EV_TRANSP_PARAMS, qc, tx_params);
+
 	return 1;
 }
 
@@ -564,6 +569,7 @@ int qc_lstnr_params_init(struct quic_conn *qc,
 	/* Copy the initial source connection ID. */
 	memcpy(rx_params->initial_source_connection_id.data, scid, scidlen);
 	rx_params->initial_source_connection_id.len = scidlen;
+	TRACE_PROTO("\nRX(local) transp. params.", QUIC_EV_TRANSP_PARAMS, qc, rx_params);
 
 	return 1;
 }

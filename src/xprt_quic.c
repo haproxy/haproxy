@@ -113,6 +113,7 @@ static const struct trace_event quic_trace_events[] = {
 	{ .mask = QUIC_EV_CONN_ACKSTRM,  .name = "ack_strm",         .desc = "STREAM ack."},
 	{ .mask = QUIC_EV_CONN_FRMLIST,  .name = "frm_list",         .desc = "frame list"},
 	{ .mask = QUIC_EV_STATELESS_RST, .name = "stateless_reset",  .desc = "stateless reset sent"},
+	{ .mask = QUIC_EV_TRANSP_PARAMS, .name = "transport_params", .desc = "transport parameters"},
 	{ /* end */ }
 };
 
@@ -213,6 +214,11 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 			quic_cid_dump(&trace_buf, &qc->dcid);
 			chunk_appendf(&trace_buf, "\n   scid");
 			quic_cid_dump(&trace_buf, &qc->scid);
+		}
+
+		if (mask & QUIC_EV_TRANSP_PARAMS) {
+			const struct quic_transport_params *p = a2;
+			quic_transport_params_dump(&trace_buf, p);
 		}
 
 		if (mask & QUIC_EV_CONN_ADDDATA) {
