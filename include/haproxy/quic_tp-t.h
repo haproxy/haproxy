@@ -30,6 +30,8 @@ struct tp_preferred_address {
 #define QUIC_DFLT_MAX_UDP_PAYLOAD_SIZE   65527 /* bytes */
 #define QUIC_DFLT_ACK_DELAY_COMPONENT        3 /* milliseconds */
 #define QUIC_DFLT_MAX_ACK_DELAY             25 /* milliseconds */
+#define QUIC_DFLT_FRONT_MAX_IDLE_TIMEOUT 30000 /* milliseconds */
+#define QUIC_DFLT_BACK_MAX_IDLE_TIMEOUT  30000 /* milliseconds */
 #define QUIC_ACTIVE_CONNECTION_ID_LIMIT      2 /* number of connections */
 
 /* Types of QUIC transport parameters */

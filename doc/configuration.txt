@@ -1119,6 +1119,7 @@ The following keywords are supported in the "global" section :
    - tune.pool-high-fd-ratio
    - tune.pool-low-fd-ratio
    - tune.quic.conn-buf-limit
+   - tune.quic.frontend.max-idle-timeout
    - tune.quic.retry-threshold
    - tune.rcvbuf.client
    - tune.rcvbuf.server
@@ -2938,6 +2939,20 @@ tune.quic.conn-buf-limit <number>
   drained on ACK reception. This setting has a direct impact on the throughput
   and memory consumption and can be adjusted according to an estimated round
   time-trip.
+
+tune.quic.frontend.max-idle-timeout <timeout>
+  Warning: QUIC support in HAProxy is currently experimental. Configuration may
+  change without deprecation in the future.
+
+  Sets the QUIC max_idle_timeout transport parameters in milliseconds for
+  frontends which determines the period of time after which a connection silently
+  closes if it has remained inactive during an effective period of time deduced
+  from the two max_idle_timeout values announced by the two endpoints:
+    - the minimum of the two values if both are not null,
+    - the maximum if only one of them is not null,
+    - if both values are null, this feature is disabled.
+
+  The default value is 30000.
 
 tune.quic.retry-threshold <number>
   Warning: QUIC support in HAProxy is currently experimental. Configuration may

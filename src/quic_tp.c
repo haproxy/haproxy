@@ -51,7 +51,10 @@ void quic_transport_params_init(struct quic_transport_params *p, int server)
 	/* Set RFC default values for unspecified parameters. */
 	quic_dflt_transport_params_cpy(p);
 
-	p->max_idle_timeout                    = 30000;
+	if (server)
+		p->max_idle_timeout = global.tune.quic_frontend_max_idle_timeout;
+	else
+		p->max_idle_timeout = global.tune.quic_backend_max_idle_timeout;
 
 	p->initial_max_streams_bidi            = max_streams_bidi;
 	p->initial_max_streams_uni             = max_streams_uni;

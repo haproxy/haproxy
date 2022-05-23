@@ -115,6 +115,7 @@
 #include <haproxy/namespace.h>
 #include <haproxy/net_helper.h>
 #include <haproxy/openssl-compat.h>
+#include <haproxy/quic_tp-t.h>
 #include <haproxy/pattern.h>
 #include <haproxy/peers.h>
 #include <haproxy/pool.h>
@@ -205,6 +206,8 @@ struct global global = {
 		.idle_timer = 1000, /* 1 second */
 #endif
 #ifdef USE_QUIC
+		.quic_backend_max_idle_timeout = QUIC_DFLT_BACK_MAX_IDLE_TIMEOUT,
+		.quic_frontend_max_idle_timeout = QUIC_DFLT_FRONT_MAX_IDLE_TIMEOUT,
 		.quic_retry_threshold = QUIC_DFLT_RETRY_THRESHOLD,
 		.quic_streams_buf = 30,
 #endif /* USE_QUIC */
