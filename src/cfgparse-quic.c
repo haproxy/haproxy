@@ -76,6 +76,7 @@ static int cfg_parse_quic_tune_setting(char **args, int section_type,
 {
 	unsigned int arg = 0;
 	int prefix_len = strlen("tune.quic.");
+	const char *suffix;
 
 	if (too_many_args(1, args, err, NULL))
 		return -1;
@@ -88,9 +89,12 @@ static int cfg_parse_quic_tune_setting(char **args, int section_type,
 		return -1;
 	}
 
-	if (strcmp(args[0] + prefix_len, "conn-buf-limit") == 0)
+	suffix = args[0] + prefix_len;
+	if (strcmp(suffix, "conn-buf-limit") == 0)
 		global.tune.quic_streams_buf = arg;
-	else if (strcmp(args[0] + prefix_len, "retry-threshold") == 0)
+	else if (strcmp(suffix, "frontend.max-streams-bidi") == 0)
+		global.tune.quic_frontend_max_streams_bidi = arg;
+	else if (strcmp(suffix, "retry-threshold") == 0)
 		global.tune.quic_retry_threshold = arg;
 	else {
 		memprintf(err, "'%s' keyword not unhandled (please report this bug).", args[0]);
@@ -103,6 +107,7 @@ static int cfg_parse_quic_tune_setting(char **args, int section_type,
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.quic.backend.max-idle-timeou", cfg_parse_quic_time },
 	{ CFG_GLOBAL, "tune.quic.conn-buf-limit", cfg_parse_quic_tune_setting },
+	{ CFG_GLOBAL, "tune.quic.frontend.max-streams-bidi", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.frontend.max-idle-timeout", cfg_parse_quic_time },
 	{ CFG_GLOBAL, "tune.quic.retry-threshold", cfg_parse_quic_tune_setting },
 	{ 0, NULL, NULL }

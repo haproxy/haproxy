@@ -45,7 +45,7 @@ static void quic_dflt_transport_params_cpy(struct quic_transport_params *dst)
 void quic_transport_params_init(struct quic_transport_params *p, int server)
 {
 	const uint64_t ncb_size = global.tune.bufsize - NCB_RESERVED_SZ;
-	const int max_streams_bidi = 100;
+	const int max_streams_bidi = global.tune.quic_frontend_max_streams_bidi;
 	const int max_streams_uni = 3;
 
 	/* Set RFC default values for unspecified parameters. */

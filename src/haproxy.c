@@ -208,6 +208,7 @@ struct global global = {
 #ifdef USE_QUIC
 		.quic_backend_max_idle_timeout = QUIC_DFLT_BACK_MAX_IDLE_TIMEOUT,
 		.quic_frontend_max_idle_timeout = QUIC_DFLT_FRONT_MAX_IDLE_TIMEOUT,
+		.quic_frontend_max_streams_bidi = QUIC_DFLT_FRONT_MAX_STREAMS_BIDI,
 		.quic_retry_threshold = QUIC_DFLT_RETRY_THRESHOLD,
 		.quic_streams_buf = 30,
 #endif /* USE_QUIC */

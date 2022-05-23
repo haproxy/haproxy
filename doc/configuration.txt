@@ -1120,6 +1120,7 @@ The following keywords are supported in the "global" section :
    - tune.pool-low-fd-ratio
    - tune.quic.conn-buf-limit
    - tune.quic.frontend.max-idle-timeout
+   - tune.quic.frontend.max-streams-bidi
    - tune.quic.retry-threshold
    - tune.rcvbuf.client
    - tune.rcvbuf.server
@@ -2953,6 +2954,17 @@ tune.quic.frontend.max-idle-timeout <timeout>
     - if both values are null, this feature is disabled.
 
   The default value is 30000.
+
+tune.quic.frontend.max-streams-bidi <number>
+  Warning: QUIC support in HAProxy is currently experimental. Configuration may
+  change without deprecation in the future.
+
+  Sets the QUIC initial_max_streams_bidi transport parameter for frontends.
+  This is the initial maximum number of bidirectional streams the remote peer
+  will be authorized to open. This determines the number of concurrent client
+  requests.
+
+  The default value is 100.
 
 tune.quic.retry-threshold <number>
   Warning: QUIC support in HAProxy is currently experimental. Configuration may
