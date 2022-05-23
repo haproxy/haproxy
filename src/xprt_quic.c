@@ -50,7 +50,6 @@
 #include <haproxy/cbuf.h>
 #include <haproxy/proto_quic.h>
 #include <haproxy/quic_tls.h>
-#include <haproxy/sink.h>
 #include <haproxy/ssl_sock.h>
 #include <haproxy/task.h>
 #include <haproxy/trace.h>
@@ -6522,20 +6521,6 @@ void qc_notify_close(struct quic_conn *qc)
 	if (qc->mux_state == QC_MUX_READY && qc->conn->mux->wake)
 		qc->conn->mux->wake(qc->conn);
 }
-
-/* Function to automatically activate QUIC traces on stdout.
- * Activated via the compilation flag -DENABLE_QUIC_STDOUT_TRACES.
- * Main use for now is in the docker image for QUIC interop testing.
- */
-static void quic_init_stdout_traces(void)
-{
-#ifdef ENABLE_QUIC_STDOUT_TRACES
-	trace_quic.sink = sink_find("stdout");
-	trace_quic.level = TRACE_LEVEL_DEVELOPER;
-	trace_quic.state = TRACE_STATE_RUNNING;
-#endif
-}
-INITCALL0(STG_INIT, quic_init_stdout_traces);
 
 /*
  * Local variables:
