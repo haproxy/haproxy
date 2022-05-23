@@ -27,13 +27,15 @@
 #include <haproxy/buf-t.h>
 #include <haproxy/mux_quic-t.h>
 
-/* H3 unidirectional stream types (does not exist for bidirectional streams) */
-#define H3_UNI_STRM_TP_CONTROL_STREAM 0x00
-#define H3_UNI_STRM_TP_PUSH_STREAM    0x01
-#define H3_UNI_STRM_TP_QPACK_ENCODER  0x02
-#define H3_UNI_STRM_TP_QPACK_DECODER  0x03
+/* H3 unidirecational stream types
+ * Emitted as the first byte on the stream to differentiate it.
+ */
+#define H3_UNI_S_T_CTRL       0x00
+#define H3_UNI_S_T_PUSH       0x01
+#define H3_UNI_S_T_QPACK_ENC  0x02
+#define H3_UNI_S_T_QPACK_DEC  0x03
 /* Must be the last one */
-#define H3_UNI_STRM_TP_MAX            H3_UNI_STRM_TP_QPACK_DECODER
+#define H3_UNI_S_T_MAX        H3_UNI_S_T_QPACK_DEC
 
 /* Settings */
 #define H3_SETTINGS_QPACK_MAX_TABLE_CAPACITY 0x01

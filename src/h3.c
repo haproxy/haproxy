@@ -480,7 +480,7 @@ static int h3_control_send(struct h3_uqs *h3_uqs, void *ctx)
 			quic_int_getsize(h3_settings_max_field_section_size);
 		}
 
-		b_quic_enc_int(&pos, H3_UNI_STRM_TP_CONTROL_STREAM);
+		b_quic_enc_int(&pos, H3_UNI_S_T_CTRL);
 		/* Build a SETTINGS frame */
 		b_quic_enc_int(&pos, H3_FT_SETTINGS);
 		b_quic_enc_int(&pos, frm_len);
@@ -790,7 +790,7 @@ static int h3_attach_ruqs(struct qcs *qcs, void *ctx)
 	b = h3_b_dup(rxbuf);
 
 	/* First octets: the uni-stream type */
-	if (!b_quic_dec_int(&strm_type, &b, &len) || strm_type > H3_UNI_STRM_TP_MAX)
+	if (!b_quic_dec_int(&strm_type, &b, &len) || strm_type > H3_UNI_S_T_MAX)
 		return 0;
 
 	qcs_consume(qcs, len);
@@ -799,7 +799,7 @@ static int h3_attach_ruqs(struct qcs *qcs, void *ctx)
 	 * same type of uni-stream (even for Push stream which is not supported at this time.
 	 */
 	switch (strm_type) {
-	case H3_UNI_STRM_TP_CONTROL_STREAM:
+	case H3_UNI_S_T_CTRL:
 		if (h3c->rctrl.qcs) {
 			h3c->err = H3_STREAM_CREATION_ERROR;
 			return 0;
@@ -809,10 +809,10 @@ static int h3_attach_ruqs(struct qcs *qcs, void *ctx)
 		h3c->rctrl.cb = h3_control_recv;
 		qcs_subscribe(qcs, SUB_RETRY_RECV, &h3c->rctrl.wait_event);
 		break;
-	case H3_UNI_STRM_TP_PUSH_STREAM:
+	case H3_UNI_S_T_PUSH:
 		/* NOT SUPPORTED */
 		break;
-	case H3_UNI_STRM_TP_QPACK_ENCODER:
+	case H3_UNI_S_T_QPACK_ENC:
 		if (h3c->rqpack_enc.qcs) {
 			h3c->err = H3_STREAM_CREATION_ERROR;
 			return 0;
@@ -822,7 +822,7 @@ static int h3_attach_ruqs(struct qcs *qcs, void *ctx)
 		h3c->rqpack_enc.cb = qpack_decode_enc;
 		qcs_subscribe(qcs, SUB_RETRY_RECV, &h3c->rqpack_enc.wait_event);
 		break;
-	case H3_UNI_STRM_TP_QPACK_DECODER:
+	case H3_UNI_S_T_QPACK_DEC:
 		if (h3c->rqpack_dec.qcs) {
 			h3c->err = H3_STREAM_CREATION_ERROR;
 			return 0;
