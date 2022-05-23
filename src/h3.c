@@ -398,12 +398,12 @@ static int h3_parse_settings_frm(struct h3c *h3c, const struct ncbuf *rxbuf, siz
  * there is not enough received data.
  * Returns 0 if something wrong happened, 1 if not.
  */
-static int h3_control_recv(struct h3_uqs *h3_uqs, void *ctx)
+static int h3_control_recv(struct qcs *qcs, void *ctx)
 {
-	struct ncbuf *rxbuf = &h3_uqs->qcs->rx.ncbuf;
+	struct ncbuf *rxbuf = &qcs->rx.ncbuf;
 	struct h3c *h3c = ctx;
 
-	h3_debug_printf(stderr, "%s STREAM ID: %lu\n", __func__,  h3_uqs->qcs->id);
+	h3_debug_printf(stderr, "%s STREAM ID: %lu\n", __func__,  qcs->id);
 	if (!ncb_data(rxbuf, 0))
 		return 1;
 
@@ -423,7 +423,7 @@ static int h3_control_recv(struct h3_uqs *h3_uqs, void *ctx)
 		if (flen > b_data(&b))
 			break;
 
-		qcs_consume(h3_uqs->qcs, hlen);
+		qcs_consume(qcs, hlen);
 		/* From here, a frame must not be truncated */
 		switch (ftype) {
 		case H3_FT_CANCEL_PUSH:
@@ -447,15 +447,8 @@ static int h3_control_recv(struct h3_uqs *h3_uqs, void *ctx)
 			h3c->err = H3_FRAME_UNEXPECTED;
 			return 0;
 		}
-		qcs_consume(h3_uqs->qcs, flen);
+		qcs_consume(qcs, flen);
 	}
-
-	/* Handle the case where remaining data are present in the buffer. This
-	 * can happen if there is an incomplete frame. In this case, subscribe
-	 * on the lower layer to restart receive operation.
-	 */
-	if (ncb_data(rxbuf, 0))
-		qcs_subscribe(h3_uqs->qcs, SUB_RETRY_RECV, &h3_uqs->wait_event);
 
 	return 1;
 }
@@ -471,15 +464,14 @@ static struct buffer *mux_get_buf(struct qcs *qcs)
 	return &qcs->tx.buf;
 }
 
-/* Function used to emit stream data from <h3_uqs> control uni-stream */
-static int h3_control_send(struct h3_uqs *h3_uqs, void *ctx)
+/* Function used to emit stream data from <qcs> control uni-stream */
+static int h3_control_send(struct qcs *qcs, void *ctx)
 {
 	int ret;
 	struct h3c *h3c = ctx;
 	unsigned char data[(2 + 3) * 2 * QUIC_VARINT_MAX_SIZE]; /* enough for 3 settings */
 	struct buffer pos, *res;
 	size_t frm_len;
-	struct qcs *qcs = h3_uqs->qcs;
 
 	BUG_ON_HOT(h3c->flags & H3_CF_SETTINGS_SENT);
 
@@ -870,7 +862,7 @@ static int h3_finalize(void *ctx)
 	if (!h3c->lctrl.qcs)
 		return 0;
 
-	h3_control_send(&h3c->lctrl, h3c);
+	h3_control_send(h3c->lctrl.qcs, h3c);
 
 	return 1;
 }
@@ -881,7 +873,7 @@ static struct task *h3_uqs_task(struct task *t, void *ctx, unsigned int state)
 	struct h3_uqs *h3_uqs = ctx;
 	struct h3c *h3c = h3_uqs->qcs->qcc->ctx;
 
-	h3_uqs->cb(h3_uqs, h3c);
+	h3_uqs->cb(h3_uqs->qcs, h3c);
 	return NULL;
 }
 
@@ -909,13 +901,13 @@ static struct task *h3_uqs_send_task(struct task *t, void *ctx, unsigned int sta
 	struct h3_uqs *h3_uqs = ctx;
 	struct h3c *h3c = h3_uqs->qcs->qcc->ctx;
 
-	h3_uqs->cb(h3_uqs, h3c);
+	h3_uqs->cb(h3_uqs->qcs, h3c);
 	return NULL;
 }
 
 /* Initialize <h3_uqs> uni-stream with <t> as tasklet */
 static int h3_uqs_init(struct h3_uqs *h3_uqs, struct h3c *h3c,
-                       int (*cb)(struct h3_uqs *h3_uqs, void *ctx),
+                       int (*cb)(struct qcs *qcs, void *ctx),
                        struct task *(*t)(struct task *, void *, unsigned int))
 {
 	h3_uqs->qcs = NULL;

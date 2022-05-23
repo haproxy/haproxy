@@ -89,7 +89,7 @@ struct h3_uqs {
 	/* Underlying incoming QUIC uni-stream */
 	struct qcs *qcs;
 	/* Callback to tx/rx bytes */
-	int (*cb)(struct h3_uqs *h3_uqs, void *ctx);
+	int (*cb)(struct qcs *qcs, void *ctx);
 	struct wait_event wait_event;
 };
 

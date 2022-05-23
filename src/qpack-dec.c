@@ -94,13 +94,13 @@ static uint64_t qpack_get_varint(const unsigned char **buf, uint64_t *len_in, in
 }
 
 /* Decode an encoder stream */
-int qpack_decode_enc(struct h3_uqs *h3_uqs, void *ctx)
+int qpack_decode_enc(struct qcs *qcs, void *ctx)
 {
 	size_t len;
 	struct ncbuf *rxbuf;
 	unsigned char inst;
 
-	rxbuf = &h3_uqs->qcs->rx.ncbuf;
+	rxbuf = &qcs->rx.ncbuf;
 	len = ncb_data(rxbuf, 0);
 	qpack_debug_hexdump(stderr, "[QPACK-DEC-ENC] ", ncb_head(rxbuf), 0, len);
 
@@ -127,13 +127,13 @@ int qpack_decode_enc(struct h3_uqs *h3_uqs, void *ctx)
 }
 
 /* Decode an decoder stream */
-int qpack_decode_dec(struct h3_uqs *h3_uqs, void *ctx)
+int qpack_decode_dec(struct qcs *qcs, void *ctx)
 {
 	size_t len;
 	struct ncbuf *rxbuf;
 	unsigned char inst;
 
-	rxbuf = &h3_uqs->qcs->rx.ncbuf;
+	rxbuf = &qcs->rx.ncbuf;
 	len = ncb_data(rxbuf, 0);
 	qpack_debug_hexdump(stderr, "[QPACK-DEC-DEC] ", ncb_head(rxbuf), 0, len);
 
