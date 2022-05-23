@@ -1126,6 +1126,8 @@ static int qc_recv(struct qcc *qcc)
 	struct eb64_node *node;
 	struct qcs *qcs;
 
+	TRACE_ENTER(QMUX_EV_QCC_RECV);
+
 	node = eb64_first(&qcc->streams_by_id);
 	while (node) {
 		qcs = eb64_entry(node, struct qcs, by_id);
@@ -1147,6 +1149,7 @@ static int qc_recv(struct qcc *qcc)
 		node = eb64_next(node);
 	}
 
+	TRACE_LEAVE(QMUX_EV_QCC_RECV);
 	return 0;
 }
 
