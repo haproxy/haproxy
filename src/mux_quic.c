@@ -474,6 +474,19 @@ int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
 		return 0;
 	}
 
+	/* RFC 9000 19.8. STREAM Frames
+	 *
+	 * An endpoint MUST terminate the connection with error
+	 * STREAM_STATE_ERROR if it receives a STREAM frame for a locally
+	 * initiated stream that has not yet been created, or for a send-only
+	 * stream.
+	 */
+	if (quic_stream_is_local(qcc, id) && quic_stream_is_uni(id)) {
+		qcc_emit_cc(qcc, QC_ERR_STREAM_STATE_ERROR);
+		TRACE_DEVEL("leaving on invalid reception for a send-only stream", QMUX_EV_QCC_RECV|QMUX_EV_QCC_NQCS, qcc->conn, NULL, &id);
+		return 1;
+	}
+
 	qcs = qcc_get_qcs(qcc, id);
 	if (!qcs) {
 		if ((id >> QCS_ID_TYPE_SHIFT) <= qcc->strms[qcs_id_type(id)].largest_id) {
@@ -481,8 +494,22 @@ int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
 			return 0;
 		}
 		else {
-			TRACE_DEVEL("leaving on stream not found", QMUX_EV_QCC_RECV|QMUX_EV_QCC_NQCS, qcc->conn, NULL, &id);
-			return 1;
+			/* RFC 9000 19.8. STREAM Frames
+			 *
+			 * An endpoint MUST terminate the connection with error
+			 * STREAM_STATE_ERROR if it receives a STREAM frame for a locally
+			 * initiated stream that has not yet been created, or for a send-only
+			 * stream.
+			 */
+			if (quic_stream_is_local(qcc, id)) {
+				TRACE_DEVEL("leaving on locally initiated stream not yet created", QMUX_EV_QCC_RECV|QMUX_EV_QCC_NQCS, qcc->conn, NULL, &id);
+				qcc_emit_cc(qcc, QC_ERR_STREAM_STATE_ERROR);
+				return 1;
+			}
+			else {
+				TRACE_DEVEL("leaving on stream not found", QMUX_EV_QCC_RECV|QMUX_EV_QCC_NQCS, qcc->conn, NULL, &id);
+				return 1;
+			}
 		}
 	}
 
