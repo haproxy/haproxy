@@ -1104,14 +1104,12 @@ static int qc_send(struct qcc *qcc)
 	node = eb64_first(&qcc->streams_by_id);
 	while (node) {
 		int ret;
-		qcs = eb64_entry(node, struct qcs, by_id);
+		uint64_t id;
 
-		/* TODO
-		 * for the moment, unidirectional streams have their own
-		 * mechanism for sending. This should be unified in the future,
-		 * in this case the next check will be removed.
-		 */
-		if (quic_stream_is_uni(qcs->id)) {
+		qcs = eb64_entry(node, struct qcs, by_id);
+		id = qcs->id;
+
+		if (quic_stream_is_uni(id) && quic_stream_is_remote(qcc, id)) {
 			node = eb64_next(node);
 			continue;
 		}

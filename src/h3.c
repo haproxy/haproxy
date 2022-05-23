@@ -870,7 +870,6 @@ static int h3_finalize(void *ctx)
 	if (!h3c->lctrl.qcs)
 		return 0;
 
-	/* Wakeup ->lctrl uni-stream */
 	h3_control_send(&h3c->lctrl, h3c);
 
 	return 1;
@@ -967,7 +966,7 @@ static int h3_init(struct qcc *qcc)
 	    !h3_uqs_init(&h3c->rctrl, h3c, h3_control_recv, h3_uqs_task))
 		goto fail_no_h3_ruqs;
 
-	if (!h3_uqs_init(&h3c->lctrl, h3c, h3_control_send, h3_uqs_task) ||
+	if (!h3_uqs_init(&h3c->lctrl, h3c, NULL, h3_uqs_task) ||
 	    !h3_uqs_init(&h3c->lqpack_enc, h3c, NULL, h3_uqs_task) ||
 	    !h3_uqs_init(&h3c->lqpack_dec, h3c, NULL, h3_uqs_task))
 		goto fail_no_h3_luqs;
