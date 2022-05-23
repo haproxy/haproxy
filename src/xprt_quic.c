@@ -45,7 +45,7 @@
 #include <haproxy/quic_frame.h>
 #include <haproxy/quic_loss.h>
 #include <haproxy/quic_sock.h>
-#include <haproxy/quic_stats-t.h>
+#include <haproxy/quic_stats.h>
 #include <haproxy/quic_stream.h>
 #include <haproxy/quic_tp.h>
 #include <haproxy/cbuf.h>
@@ -2367,6 +2367,15 @@ static void qc_prep_hdshk_fast_retrans(struct quic_conn *qc,
 	LIST_SPLICE(hfrms, &htmp);
 }
 
+static void qc_cc_err_count_inc(struct quic_counters *ctrs,
+                                enum quic_frame_type frm_type, unsigned int error_code)
+{
+	if (frm_type == QUIC_FT_CONNECTION_CLOSE)
+		quic_stats_transp_err_count_inc(ctrs, error_code);
+	else if (frm_type == QUIC_FT_CONNECTION_CLOSE_APP)
+		return;
+}
+
 /* Parse all the frames of <pkt> QUIC packet for QUIC connection with <ctx>
  * as I/O handler context and <qel> as encryption level.
  * Returns 1 if succeeded, 0 if failed.
@@ -2552,6 +2561,7 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct ssl_sock_ctx *ct
 			break;
 		case QUIC_FT_CONNECTION_CLOSE:
 		case QUIC_FT_CONNECTION_CLOSE_APP:
+			qc_cc_err_count_inc(qc->prx_counters, frm.type, frm.connection_close.error_code);
 			if (!(qc->flags & QUIC_FL_CONN_DRAINING)) {
 				/* If the connection did not reached the handshake complete state,
 				 * the <conn_opening> counter was not decremented. Note that if
@@ -5203,7 +5213,7 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 		else if (pkt->type == QUIC_PACKET_TYPE_INITIAL &&
 		         dgram->len < QUIC_INITIAL_PACKET_MINLEN) {
 			TRACE_PROTO("Too short datagram with an Initial packet", QUIC_EV_CONN_LPKT, qc);
-			drop_no_conn = 1;
+			HA_ATOMIC_INC(&prx_counters->too_short_initial_dgram);
 		}
 
 		/* When multiple QUIC packets are coalesced on the same UDP datagram,
