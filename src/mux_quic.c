@@ -1566,12 +1566,15 @@ static int qc_wake(struct connection *conn)
 	TRACE_ENTER(QMUX_EV_QCC_WAKE, conn);
 
 	/* Check if a soft-stop is in progress.
-	 * Release idling front connection if this is the case.
 	 *
 	 * TODO this is revelant for frontend connections only.
+	 *
+	 * TODO Client should be notified with a H3 GOAWAY and then a
+	 * CONNECTION_CLOSE. However, quic-conn uses the listener socket for
+	 * sending which at this stage is already closed.
 	 */
 	if (unlikely(prx->flags & (PR_FL_DISABLED|PR_FL_STOPPED)))
-		goto release;
+		qcc->conn->flags |= (CO_FL_SOCK_RD_SH|CO_FL_SOCK_WR_SH);
 
 	if (conn->handle.qc->flags & QUIC_FL_CONN_NOTIFY_CLOSE)
 		qcc->conn->flags |= (CO_FL_SOCK_RD_SH|CO_FL_SOCK_WR_SH);
