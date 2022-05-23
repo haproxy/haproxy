@@ -1,5 +1,5 @@
 varnishtest "http-restrict-req-hdr-names option tests"
-#REQUIRE_VERSION=2.6
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.6-dev0)'"
 
 # This config tests "http-restrict-req-hdr-names" option
 
