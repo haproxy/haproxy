@@ -15,10 +15,10 @@
  * before updating them with customized values.
  */
 struct quic_transport_params quic_dflt_transport_params = {
-	.max_udp_payload_size = QUIC_MAX_UDP_PAYLOAD_SIZE,
-	.ack_delay_exponent   = QUIC_DFLT_ACK_DELAY_COMPONENT,
-	.max_ack_delay        = QUIC_DFLT_MAX_ACK_DELAY,
-	.active_connection_id_limit = QUIC_ACTIVE_CONNECTION_ID_LIMIT,
+	.max_udp_payload_size = QUIC_TP_DFLT_MAX_UDP_PAYLOAD_SIZE,
+	.ack_delay_exponent   = QUIC_TP_DFLT_ACK_DELAY_COMPONENT,
+	.max_ack_delay        = QUIC_TP_DFLT_MAX_ACK_DELAY,
+	.active_connection_id_limit = QUIC_TP_DFLT_ACTIVE_CONNECTION_ID_LIMIT,
 };
 
 /* Initialize <dst> transport parameters with default values (when absent)
@@ -51,6 +51,10 @@ void quic_transport_params_init(struct quic_transport_params *p, int server)
 	/* Set RFC default values for unspecified parameters. */
 	quic_dflt_transport_params_cpy(p);
 
+	/* Set the max_udp_payload_size value. If not would equal to
+	 * QUIC_TP_DFLT_MAX_UDP_PAYLOAD_SIZE
+	 */
+	p->max_udp_payload_size = QUIC_MAX_UDP_PAYLOAD_SIZE;
 	if (server)
 		p->max_idle_timeout = global.tune.quic_frontend_max_idle_timeout;
 	else
@@ -398,7 +402,7 @@ int quic_transport_params_encode(unsigned char *buf,
 	 * "max_packet_size" transport parameter must be transmitted only if different
 	 * of the default value.
 	 */
-	if (p->max_udp_payload_size != QUIC_DFLT_MAX_UDP_PAYLOAD_SIZE &&
+	if (p->max_udp_payload_size != QUIC_TP_DFLT_MAX_UDP_PAYLOAD_SIZE &&
 	    !quic_transport_param_enc_int(&pos, end, QUIC_TP_MAX_UDP_PAYLOAD_SIZE, p->max_udp_payload_size))
 		return 0;
 
@@ -435,7 +439,7 @@ int quic_transport_params_encode(unsigned char *buf,
 	 * "ack_delay_exponent" transport parameter must be transmitted only if different
 	 * of the default value.
 	 */
-	if (p->ack_delay_exponent != QUIC_DFLT_ACK_DELAY_COMPONENT  &&
+	if (p->ack_delay_exponent != QUIC_TP_DFLT_ACK_DELAY_COMPONENT  &&
 	    !quic_transport_param_enc_int(&pos, end, QUIC_TP_ACK_DELAY_EXPONENT, p->ack_delay_exponent))
 	    return 0;
 
@@ -443,7 +447,7 @@ int quic_transport_params_encode(unsigned char *buf,
 	 * "max_ack_delay" transport parameter must be transmitted only if different
 	 * of the default value.
 	 */
-	if (p->max_ack_delay != QUIC_DFLT_MAX_ACK_DELAY &&
+	if (p->max_ack_delay != QUIC_TP_DFLT_MAX_ACK_DELAY &&
 	    !quic_transport_param_enc_int(&pos, end, QUIC_TP_MAX_ACK_DELAY, p->max_ack_delay))
 	    return 0;
 
@@ -453,7 +457,7 @@ int quic_transport_params_encode(unsigned char *buf,
 		return 0;
 
 	if (p->active_connection_id_limit &&
-	    p->active_connection_id_limit != QUIC_ACTIVE_CONNECTION_ID_LIMIT &&
+	    p->active_connection_id_limit != QUIC_TP_DFLT_ACTIVE_CONNECTION_ID_LIMIT &&
 	    !quic_transport_param_enc_int(&pos, end, QUIC_TP_ACTIVE_CONNECTION_ID_LIMIT,
 	                                  p->active_connection_id_limit))
 	    return 0;
