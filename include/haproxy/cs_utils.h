@@ -294,8 +294,13 @@ static inline void cs_shutw(struct stconn *cs)
  */
 static inline void cs_chk_rcv(struct stconn *cs)
 {
+	struct channel *ic = sc_ic(cs);
+
 	if (sc_ep_test(cs, SE_FL_RXBLK_CONN) && cs_state_in(cs_opposite(cs)->state, SC_SB_RDY|SC_SB_EST|SC_SB_DIS|SC_SB_CLO))
 		cs_rx_conn_rdy(cs);
+
+	if (ic->flags & CF_SHUTR)
+		return;
 
 	if (cs_rx_blocked(cs) || !cs_rx_endp_ready(cs))
 		return;

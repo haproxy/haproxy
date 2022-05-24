@@ -1186,7 +1186,7 @@ static void cs_notify(struct stconn *cs)
 	cs_chk_rcv(cs);
 	cs_chk_rcv(cso);
 
-	if (cs_rx_blocked(cs)) {
+	if (ic->flags & CF_SHUTR || cs_rx_blocked(cs)) {
 		ic->rex = TICK_ETERNITY;
 	}
 	else if ((ic->flags & (CF_SHUTR|CF_READ_PARTIAL)) == CF_READ_PARTIAL) {
@@ -1594,7 +1594,7 @@ static int sc_conn_recv(struct stconn *cs)
 		sc_conn_read0(cs);
 		ret = 1;
 	}
-	else if (!cs_rx_blocked(cs)) {
+	else if (!cs_rx_blocked(cs) && !(ic->flags & CF_SHUTR)) {
 		/* Subscribe to receive events if we're blocking on I/O */
 		conn->mux->subscribe(cs, SUB_RETRY_RECV, &cs->wait_event);
 		cs_rx_endp_done(cs);
@@ -1946,7 +1946,8 @@ static int cs_applet_process(struct stconn *cs)
 	 * appctx but in the case the task is not in runqueue we may have to
 	 * wakeup the appctx immediately.
 	 */
-	if ((cs_rx_endp_ready(cs) && !cs_rx_blocked(cs)) || sc_is_send_allowed(cs))
+	if ((cs_rx_endp_ready(cs) && !cs_rx_blocked(cs) && !(ic->flags & CF_SHUTR)) ||
+	    sc_is_send_allowed(cs))
 		appctx_wakeup(__sc_appctx(cs));
 	return 0;
 }
