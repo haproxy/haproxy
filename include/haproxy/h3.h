@@ -84,6 +84,20 @@ enum h3_ft       {
 	H3_FT_MAX_PUSH_ID  = 0x07,
 };
 
+/* Stream types */
+enum h3s_t {
+	/* unidirectional streams */
+	H3S_T_CTRL,
+	H3S_T_PUSH,
+	H3S_T_QPACK_DEC,
+	H3S_T_QPACK_ENC,
+
+	/* bidirectional streams */
+	H3S_T_REQ,
+
+	H3S_T_UNKNOWN
+};
+
 /* H3 unidirectional QUIC stream */
 struct h3_uqs {
 	/* Underlying incoming QUIC uni-stream */

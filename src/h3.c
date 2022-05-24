@@ -70,6 +70,7 @@ struct h3c {
 DECLARE_STATIC_POOL(pool_head_h3c, "h3c", sizeof(struct h3c));
 
 struct h3s {
+	enum h3s_t type;
 	int demux_frame_len;
 	int demux_frame_type;
 };
@@ -777,6 +778,14 @@ static int h3_attach(struct qcs *qcs)
 	qcs->ctx = h3s;
 	h3s->demux_frame_len = 0;
 	h3s->demux_frame_type = 0;
+
+	if (quic_stream_is_bidi(qcs->id)) {
+		h3s->type = H3S_T_REQ;
+	}
+	else {
+		/* stream type must be decoded for unidirectional streams */
+		h3s->type = H3S_T_UNKNOWN;
+	}
 
 	return 0;
 }

@@ -136,12 +136,12 @@ struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
 			goto err;
 	}
 
+	qcs->id = qcs->by_id.key = id;
 	if (qcc->app_ops->attach) {
 		if (qcc->app_ops->attach(qcs))
 			goto err;
 	}
 
-	qcs->id = qcs->by_id.key = id;
 	/* store transport layer stream descriptor in qcc tree */
 	eb64_insert(&qcc->streams_by_id, &qcs->by_id);
 
