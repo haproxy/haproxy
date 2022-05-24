@@ -79,7 +79,7 @@ enum se_flags {
 	SE_FL_RXBLK_BUFF    = 0x08000000,  /* CS waits for a buffer allocation to complete */
 	SE_FL_RXBLK_ROOM    = 0x10000000,  /* CS waits for more buffer room to store incoming data */
 	/* unused             0x20000000,*/
-	SE_FL_RXBLK_CONN    = 0x40000000,  /* other side is not connected */
+	SE_FL_APPLET_NEED_CONN = 0x40000000,  /* applet is waiting for the other side to (fail to) connect */
 	SE_FL_RXBLK_ANY     = 0x5C000000,  /* any of the RXBLK flags above */
 	SE_FL_APP_MASK      = 0x5fe00000,  /* Mask for flags set by the app layer */
 };

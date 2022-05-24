@@ -328,16 +328,14 @@ static inline void cs_rx_chan_blk(struct stconn *cs)
 	sc_ep_set(cs, SE_FL_RXBLK_CHAN);
 }
 
-/* Tell a stream connector the other side is connected */
-static inline void cs_rx_conn_rdy(struct stconn *cs)
+/* An frontend (applet) stream endpoint tells the connector it needs the other
+ * side to connect or fail before continuing to work. This is used for example
+ * to allow an applet not to deliver data to a request channel before a
+ * connection is confirmed.
+ */
+static inline void se_need_remote_conn(struct sedesc *se)
 {
-	sc_ep_clr(cs, SE_FL_RXBLK_CONN);
-}
-
-/* Tell a stream connector it must wait for the other side to connect */
-static inline void cs_rx_conn_blk(struct stconn *cs)
-{
-	sc_ep_set(cs, SE_FL_RXBLK_CONN);
+	se_fl_set(se, SE_FL_APPLET_NEED_CONN);
 }
 
 /* The stream connector just got the input buffer it was waiting for */

@@ -334,7 +334,7 @@ static void sink_forward_io_handler(struct appctx *appctx)
 	 */
 	if (cs_opposite(cs)->state < SC_ST_EST) {
 		cs_cant_get(cs);
-		cs_rx_conn_blk(cs);
+		se_need_remote_conn(appctx->sedesc);
 		cs_rx_endp_more(cs);
 		return;
 	}
@@ -474,7 +474,7 @@ static void sink_forward_oc_io_handler(struct appctx *appctx)
 	 */
 	if (cs_opposite(cs)->state < SC_ST_EST) {
 		cs_cant_get(cs);
-		cs_rx_conn_blk(cs);
+		se_need_remote_conn(appctx->sedesc);
 		cs_rx_endp_more(cs);
 		return;
 	}
