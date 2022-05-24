@@ -2169,18 +2169,25 @@ static inline int qc_provide_cdata(struct quic_enc_level *el,
 	return 0;
 }
 
-/* Handle <strm_frm> bidirectional STREAM frame. Depending on its ID, several
- * streams may be open. The data are copied to the stream RX buffer if possible.
- * If not, the STREAM frame is stored to be treated again later.
- * We rely on the flow control so that not to store too much STREAM frames.
- * Return 1 if succeeded, 0 if not.
+/* Parse a STREAM frame <strm_frm>
+ *
+ * Return 1 on success. On error, 0 is returned. In this case, the packet
+ * containing the frame must not be acknowledged.
  */
-static int qc_handle_bidi_strm_frm(struct quic_rx_packet *pkt,
-                                   struct quic_stream *strm_frm,
-                                   struct quic_conn *qc)
+static inline int qc_handle_strm_frm(struct quic_rx_packet *pkt,
+                                     struct quic_stream *strm_frm,
+                                     struct quic_conn *qc)
 {
 	int ret;
 
+	/* RFC9000 13.1.  Packet Processing
+	 *
+	 * A packet MUST NOT be acknowledged until packet protection has been
+	 * successfully removed and all frames contained in the packet have
+	 * been processed. For STREAM frames, this means the data has been
+	 * enqueued in preparation to be received by the application protocol,
+	 * but it does not require that data be delivered and consumed.
+	 */
 	ret = qcc_recv(qc->qcc, strm_frm->id, strm_frm->len,
 	               strm_frm->offset.key, strm_frm->fin,
 	               (char *)strm_frm->data);
@@ -2190,84 +2197,6 @@ static int qc_handle_bidi_strm_frm(struct quic_rx_packet *pkt,
 		return 0;
 
 	return 1;
-}
-
-/* Handle <strm_frm> unidirectional STREAM frame. Depending on its ID, several
- * streams may be open. The data are copied to the stream RX buffer if possible.
- * If not, the STREAM frame is stored to be treated again later.
- * We rely on the flow control so that not to store too much STREAM frames.
- * Return 1 if succeeded, 0 if not.
- */
-static int qc_handle_uni_strm_frm(struct quic_rx_packet *pkt,
-                                  struct quic_stream *strm_frm,
-                                  struct quic_conn *qc)
-{
-	struct qcs *strm;
-	enum ncb_ret ret;
-
-	strm = qcc_get_qcs(qc->qcc, strm_frm->id);
-	if (!strm) {
-		TRACE_PROTO("Stream not found", QUIC_EV_CONN_PSTRM, qc);
-		return 0;
-	}
-
-	if (strm_frm->offset.key < strm->rx.offset) {
-		size_t diff;
-
-		if (strm_frm->offset.key + strm_frm->len <= strm->rx.offset) {
-			TRACE_PROTO("Already received STREAM data",
-			            QUIC_EV_CONN_PSTRM, qc);
-			goto out;
-		}
-
-		TRACE_PROTO("Partially already received STREAM data", QUIC_EV_CONN_PSTRM, qc);
-		diff = strm->rx.offset - strm_frm->offset.key;
-		strm_frm->offset.key = strm->rx.offset;
-		strm_frm->len -= diff;
-		strm_frm->data += diff;
-	}
-
-	qc_get_ncbuf(strm, &strm->rx.ncbuf);
-	if (ncb_is_null(&strm->rx.ncbuf))
-		return 0;
-
-	ret = ncb_add(&strm->rx.ncbuf, strm_frm->offset.key - strm->rx.offset,
-	               (char *)strm_frm->data, strm_frm->len, NCB_ADD_COMPARE);
-	if (ret != NCB_RET_OK)
-		return 0;
-
-	/* Inform the application of the arrival of this new stream */
-	if (!strm->rx.offset && !qc->qcc->app_ops->attach_ruqs(strm, qc->qcc->ctx)) {
-		TRACE_PROTO("Could not set an uni-stream", QUIC_EV_CONN_PSTRM, qc);
-		return 0;
-	}
-
-	qcs_notify_recv(strm);
-
- out:
-	return 1;
-}
-
-/* Returns 1 on success or 0 on error. On error, the packet containing the
- * frame must not be acknowledged.
- */
-static inline int qc_handle_strm_frm(struct quic_rx_packet *pkt,
-                                     struct quic_stream *strm_frm,
-                                     struct quic_conn *qc)
-{
-	/* RFC9000 13.1.  Packet Processing
-	 *
-	 * A packet MUST NOT be acknowledged until packet protection has been
-	 * successfully removed and all frames contained in the packet have
-	 * been processed. For STREAM frames, this means the data has been
-	 * enqueued in preparation to be received by the application protocol,
-	 * but it does not require that data be delivered and consumed.
-	 */
-
-	if (strm_frm->id & QCS_ID_DIR_BIT)
-		return qc_handle_uni_strm_frm(pkt, strm_frm, qc);
-	else
-		return qc_handle_bidi_strm_frm(pkt, strm_frm, qc);
 }
 
 /* Duplicate all frames from <pkt_frm_list> list into <out_frm_list> list

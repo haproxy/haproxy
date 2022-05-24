@@ -1175,17 +1175,17 @@ static int qc_recv(struct qcc *qcc)
 
 	node = eb64_first(&qcc->streams_by_id);
 	while (node) {
-		qcs = eb64_entry(node, struct qcs, by_id);
+		uint64_t id;
 
-		/* TODO unidirectional streams have their own mechanism for Rx.
-		 * This should be unified.
-		 */
-		if (quic_stream_is_uni(qcs->id)) {
+		qcs = eb64_entry(node, struct qcs, by_id);
+		id = qcs->id;
+
+		if (!ncb_data(&qcs->rx.ncbuf, 0) || (qcs->flags & QC_SF_DEM_FULL)) {
 			node = eb64_next(node);
 			continue;
 		}
 
-		if (!ncb_data(&qcs->rx.ncbuf, 0) || (qcs->flags & QC_SF_DEM_FULL)) {
+		if (quic_stream_is_uni(id) && quic_stream_is_local(qcc, id)) {
 			node = eb64_next(node);
 			continue;
 		}
