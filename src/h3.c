@@ -144,8 +144,13 @@ static int h3_init_uni_stream(struct h3c *h3c, struct qcs *qcs,
 		break;
 
 	default:
-		h3s->flags |= H3_SF_UNI_NO_H3;
-		break;
+		/* draft-ietf-quic-http34 9. Extensions to HTTP/3
+		 *
+		 * Implementations MUST [...] abort reading on unidirectional
+		 * streams that have unknown or unsupported types.
+		 */
+		qcs->flags |= QC_SF_READ_ABORTED;
+		return 1;
 	};
 
 	h3s->flags |= H3_SF_UNI_INIT;
@@ -175,10 +180,10 @@ static int h3_parse_uni_stream_no_h3(struct qcs *qcs, struct ncbuf *rxbuf)
 		if (!qpack_decode_enc(qcs, NULL))
 			return 1;
 		break;
+	case H3S_T_UNKNOWN:
 	default:
-		/* unknown uni stream : just consume it. */
-		qcs_consume(qcs, ncb_data(rxbuf, 0));
-		break;
+		/* Unknown stream should be flagged with QC_SF_READ_ABORTED. */
+		ABORT_NOW();
 	}
 
 	return 0;

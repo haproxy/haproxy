@@ -584,6 +584,11 @@ int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
 	if (ncb_data(&qcs->rx.ncbuf, 0) && !(qcs->flags & QC_SF_DEM_FULL))
 		qcc_decode_qcs(qcc, qcs);
 
+	if (qcs->flags & QC_SF_READ_ABORTED) {
+		/* TODO should send a STOP_SENDING */
+		qcs_free(qcs);
+	}
+
 	TRACE_LEAVE(QMUX_EV_QCC_RECV, qcc->conn);
 	return 0;
 }
@@ -1192,6 +1197,11 @@ static int qc_recv(struct qcc *qcc)
 
 		qcc_decode_qcs(qcc, qcs);
 		node = eb64_next(node);
+
+		if (qcs->flags & QC_SF_READ_ABORTED) {
+			/* TODO should send a STOP_SENDING */
+			qcs_free(qcs);
+		}
 	}
 
 	TRACE_LEAVE(QMUX_EV_QCC_RECV);
