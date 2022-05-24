@@ -38,6 +38,7 @@
 #define H3_UNI_S_T_MAX        H3_UNI_S_T_QPACK_DEC
 
 /* Settings */
+#define H3_SETTINGS_RESERVED_0               0x00
 #define H3_SETTINGS_QPACK_MAX_TABLE_CAPACITY 0x01
 /* there is a hole here of reserved settings, matching the h2 settings */
 #define H3_SETTINGS_RESERVED_2               0x02

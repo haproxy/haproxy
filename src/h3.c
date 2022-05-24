@@ -23,6 +23,7 @@
 #include <haproxy/h3.h>
 #include <haproxy/http.h>
 #include <haproxy/htx.h>
+#include <haproxy/intops.h>
 #include <haproxy/istbuf.h>
 #include <haproxy/mux_quic.h>
 #include <haproxy/ncbuf.h>
@@ -416,25 +417,46 @@ static int h3_data_to_htx(struct qcs *qcs, struct ncbuf *buf, uint64_t len,
 	return htx_sent;
 }
 
-/* Parse a SETTINGS frame which must not be truncated with <flen> as length from
- * <rxbuf> buffer. This function does not update this buffer.
+/* Parse a SETTINGS frame of length <len> of payload <rxbuf>.
  *
- * Returns 0 on success else non-zero.
+ * Returns the number of bytes handled or a negative error code.
  */
-static int h3_parse_settings_frm(struct h3c *h3c, const struct ncbuf *rxbuf, size_t flen)
+static size_t h3_parse_settings_frm(struct h3c *h3c, const struct ncbuf *rxbuf,
+                                    size_t len)
 {
+	struct buffer b;
 	uint64_t id, value;
-	const unsigned char *buf, *end;
+	size_t ret = 0;
+	long mask = 0;   /* used to detect duplicated settings identifier */
 
-	buf = (const unsigned char *)ncb_head(rxbuf);
-	end = buf + flen;
+	b = h3_b_dup(rxbuf);
+	b_set_data(&b, len);
 
-	while (buf < end) {
-		if (!quic_dec_int(&id, &buf, end) || !quic_dec_int(&value, &buf, end))
-			return 1;
+	while (b_data(&b)) {
+		if (!b_quic_dec_int(&id, &b, &ret) || !b_quic_dec_int(&value, &b, &ret)) {
+			h3c->err = H3_FRAME_ERROR;
+			return -1;
+		}
 
 		h3_debug_printf(stderr, "%s id: %llu value: %llu\n",
 		                __func__, (unsigned long long)id, (unsigned long long)value);
+
+		/* draft-ietf-quic-http34 7.2.4. SETTINGS
+		 *
+		 * The same setting identifier MUST NOT occur more than once in the
+		 * SETTINGS frame.  A receiver MAY treat the presence of duplicate
+		 * setting identifiers as a connection error of type H3_SETTINGS_ERROR.
+		 */
+
+		/* Ignore duplicate check for ID too big used for GREASE. */
+		if (id < sizeof(mask)) {
+			if (ha_bit_test(id, &mask)) {
+				h3c->err = H3_SETTINGS_ERROR;
+				return -1;
+			}
+			ha_bit_set(id, &mask);
+		}
+
 		switch (id) {
 		case H3_SETTINGS_QPACK_MAX_TABLE_CAPACITY:
 			h3c->qpack_max_table_capacity = value;
@@ -445,16 +467,29 @@ static int h3_parse_settings_frm(struct h3c *h3c, const struct ncbuf *rxbuf, siz
 		case H3_SETTINGS_QPACK_BLOCKED_STREAMS:
 			h3c->qpack_blocked_streams = value;
 			break;
-		case H3_SETTINGS_RESERVED_2 ... H3_SETTINGS_RESERVED_5:
+
+		case H3_SETTINGS_RESERVED_0:
+		case H3_SETTINGS_RESERVED_2:
+		case H3_SETTINGS_RESERVED_3:
+		case H3_SETTINGS_RESERVED_4:
+		case H3_SETTINGS_RESERVED_5:
+			/* draft-ietf-quic-http34 7.2.4.1. Defined SETTINGS Parameters
+			 *
+			 * Setting identifiers which were defined in [HTTP2] where there is no
+			 * corresponding HTTP/3 setting have also been reserved
+			 * (Section 11.2.2).  These reserved settings MUST NOT be sent, and
+			 * their receipt MUST be treated as a connection error of type
+			 * H3_SETTINGS_ERROR.
+			 */
 			h3c->err = H3_SETTINGS_ERROR;
-			return 1;
+			return -1;
 		default:
 			/* MUST be ignored */
 			break;
 		}
 	}
 
-	return 0;
+	return ret;
 }
 
 /* Decode <qcs> remotely initiated bidi-stream. <fin> must be set to indicate
@@ -551,9 +586,12 @@ static int h3_decode_qcs(struct qcs *qcs, int fin, void *ctx)
 			ret = flen;
 			break;
 		case H3_FT_SETTINGS:
-			if (h3_parse_settings_frm(qcs->qcc->ctx, rxbuf, flen))
+			ret = h3_parse_settings_frm(qcs->qcc->ctx, rxbuf, flen);
+			if (ret < 0) {
+				qcc_emit_cc_app(qcs->qcc, h3c->err);
 				return 1;
-			ret = flen;
+			}
+			h3c->flags |= H3_CF_SETTINGS_RECV;
 			break;
 		default:
 			/* draft-ietf-quic-http34 9. Extensions to HTTP/3
