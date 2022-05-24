@@ -64,7 +64,7 @@ static int hq_interop_decode_qcs(struct qcs *qcs, int fin, void *ctx)
 
 	sl = htx_add_stline(htx, HTX_BLK_REQ_SL, 0, ist("GET"), path, ist("HTTP/1.0"));
 	if (!sl)
-		return -1;
+		return 1;
 
 	sl->flags |= HTX_SL_F_BODYLESS;
 	sl->info.req.meth = find_http_meth("GET", 3);
@@ -74,7 +74,7 @@ static int hq_interop_decode_qcs(struct qcs *qcs, int fin, void *ctx)
 
 	cs = qc_attach_cs(qcs, &htx_buf);
 	if (!cs)
-		return -1;
+		return 1;
 
 	qcs_consume(qcs, ncb_data(rxbuf, 0));
 	b_free(&htx_buf);

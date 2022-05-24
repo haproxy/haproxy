@@ -261,7 +261,8 @@ static int h3_data_to_htx(struct qcs *qcs, struct ncbuf *buf, uint64_t len,
 
 /* Decode <qcs> remotely initiated bidi-stream. <fin> must be set to indicate
  * that we received the last data of the stream.
- * Returns <0 on error else 0.
+ *
+ * Returns 0 on success else non-zero.
  */
 static int h3_decode_qcs(struct qcs *qcs, int fin, void *ctx)
 {
