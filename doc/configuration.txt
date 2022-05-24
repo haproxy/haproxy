@@ -8372,8 +8372,8 @@ no option accept-invalid-http-request
   not allowed at all. HAProxy always blocks a number of them (0..32, 127). The
   remaining ones are blocked by default unless this option is enabled. This
   option also relaxes the test on the HTTP version, it allows HTTP/0.9 requests
-  to pass through (no version specified) and multiple digits for both the major
-  and the minor version.
+  to pass through (no version specified), as well as different protocol names
+  (e.g. RTSP), and multiple digits for both the major and the minor version.
 
   This option should never be enabled by default as it hides application bugs
   and open security breaches. It should only be deployed after a problem has
