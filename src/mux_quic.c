@@ -102,7 +102,7 @@ struct trace_source trace_qmux = {
 INITCALL1(STG_REGISTER, trace_register_source, TRACE_SOURCE);
 
 /* Emit a CONNECTION_CLOSE with error <err>. This will interrupt all future
- * send operations.
+ * send/receive operations.
  */
 static void qcc_emit_cc(struct qcc *qcc, int err)
 {
@@ -468,6 +468,11 @@ int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
 	enum ncb_ret ret;
 
 	TRACE_ENTER(QMUX_EV_QCC_RECV, qcc->conn);
+
+	if (qcc->flags & QC_CF_CC_EMIT) {
+		TRACE_DEVEL("leaving on error", QMUX_EV_QCC_RECV, qcc->conn);
+		return 0;
+	}
 
 	qcs = qcc_get_qcs(qcc, id);
 	if (!qcs) {
@@ -1137,6 +1142,11 @@ static int qc_recv(struct qcc *qcc)
 	struct qcs *qcs;
 
 	TRACE_ENTER(QMUX_EV_QCC_RECV);
+
+	if (qcc->flags & QC_CF_CC_EMIT) {
+		TRACE_DEVEL("leaving on error", QMUX_EV_QCC_RECV, qcc->conn);
+		return 0;
+	}
 
 	node = eb64_first(&qcc->streams_by_id);
 	while (node) {
