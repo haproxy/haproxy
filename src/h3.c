@@ -296,11 +296,24 @@ static int h3_decode_qcs(struct qcs *qcs, int fin, void *ctx)
 
 		flen = h3s->demux_frame_len;
 		ftype = h3s->demux_frame_type;
-		/* Do not demux HEADERS if frame incomplete. */
-		if (ftype == H3_FT_HEADERS && flen > b_data(&b)) {
-			BUG_ON(ncb_is_full(rxbuf)); /* TODO should define SETTINGS for max header size */
+
+		/* Do not demux incomplete frames except H3 DATA which can be
+		 * fragmented in multiple HTX blocks.
+		 */
+		if (flen > b_data(&b) && ftype != H3_FT_DATA) {
+			/* Reject frames bigger than bufsize.
+			 *
+			 * TODO HEADERS should in complement be limited with H3
+			 * SETTINGS_MAX_FIELD_SECTION_SIZE parameter to prevent
+			 * excessive decompressed size.
+			 */
+			if (flen > ncb_size(rxbuf)) {
+				qcc_emit_cc_app(qcs->qcc, H3_EXCESSIVE_LOAD);
+				return 1;
+			}
 			break;
 		}
+
 		last_stream_frame = (fin && flen == ncb_total_data(rxbuf));
 
 		switch (ftype) {
@@ -316,14 +329,15 @@ static int h3_decode_qcs(struct qcs *qcs, int fin, void *ctx)
 			break;
 		case H3_FT_PUSH_PROMISE:
 			/* Not supported */
-			ret = MIN(ncb_data(rxbuf, 0), flen);
+			ret = flen;
 			break;
 		default:
 			/* draft-ietf-quic-http34 9. Extensions to HTTP/3
 			 * unknown frame types MUST be ignored
 			 */
 			h3_debug_printf(stderr, "ignore unknown frame type 0x%lx\n", ftype);
-			ret = MIN(ncb_data(rxbuf, 0), flen);
+			ret = flen;
+			break;
 		}
 
 		if (ret) {
