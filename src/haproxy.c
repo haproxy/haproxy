@@ -2302,7 +2302,7 @@ static void init(int argc, char **argv)
 		int64_t mem = global.rlimit_memmax * 1048576ULL;
 		int retried = 0;
 
-		mem -= global.tune.sslcachesize * 200; // about 200 bytes per SSL cache entry
+		mem -= global.tune.sslcachesize * 200ULL; // about 200 bytes per SSL cache entry
 		mem -= global.maxzlibmem;
 		mem = mem * MEM_USABLE_RATIO;
 
