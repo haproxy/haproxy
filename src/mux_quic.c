@@ -128,14 +128,13 @@ struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
 	qcs->flags = QC_SF_NONE;
 	qcs->ctx = NULL;
 
-	/* allocate transport layer stream descriptor
-	 *
-	 * TODO qc_stream_desc is only useful for Tx buffering. It should not
-	 * be required for unidirectional remote streams.
-	 */
-	qcs->stream = qc_stream_desc_new(id, type, qcs, qcc->conn->handle.qc);
-	if (!qcs->stream)
-		goto err;
+	/* Allocate transport layer stream descriptor. Only needed for TX. */
+	if (!quic_stream_is_uni(id) || !quic_stream_is_remote(qcc, id)) {
+		struct quic_conn *qc = qcc->conn->handle.qc;
+		qcs->stream = qc_stream_desc_new(id, type, qcs, qc);
+		if (!qcs->stream)
+			goto err;
+	}
 
 	if (qcc->app_ops->attach) {
 		if (qcc->app_ops->attach(qcs))
@@ -187,9 +186,7 @@ struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
 	if (qcs->ctx && qcc->app_ops->detach)
 		qcc->app_ops->detach(qcs);
 
-	if (qcs->stream)
-		qc_stream_desc_release(qcs->stream);
-
+	qc_stream_desc_release(qcs->stream);
 	pool_free(pool_head_qcs, qcs);
 	return NULL;
 }
