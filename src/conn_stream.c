@@ -1042,7 +1042,7 @@ void cs_update_rx(struct conn_stream *cs)
 		 */
 		cs_rx_room_rdy(cs);
 	}
-	if (cs->endp->flags & CS_EP_RXBLK_ANY & ~CS_EP_RX_WAIT_EP)
+	if (cs->endp->flags & CS_EP_RXBLK_ANY)
 		ic->rex = TICK_ETERNITY;
 	else if (!(ic->flags & CF_READ_NOEXP) && !tick_isset(ic->rex))
 		ic->rex = tick_add_ifset(now_ms, ic->rto);
