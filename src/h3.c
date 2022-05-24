@@ -74,6 +74,7 @@ struct h3c {
 DECLARE_STATIC_POOL(pool_head_h3c, "h3c", sizeof(struct h3c));
 
 #define H3_SF_UNI_INIT  0x00000001  /* stream type not parsed for unidirectional stream */
+#define H3_SF_UNI_NO_H3 0x00000002  /* unidirectional stream does not carry H3 frames */
 
 struct h3s {
 	enum h3s_t type;
@@ -135,6 +136,7 @@ static int h3_init_uni_stream(struct h3c *h3c, struct qcs *qcs,
 		}
 		h3c->flags |= H3_CF_UNI_QPACK_DEC_SET;
 		h3s->type = H3S_T_QPACK_DEC;
+		h3s->flags |= H3_SF_UNI_NO_H3;
 		break;
 
 	case H3_UNI_S_T_QPACK_ENC:
@@ -144,14 +146,47 @@ static int h3_init_uni_stream(struct h3c *h3c, struct qcs *qcs,
 		}
 		h3c->flags |= H3_CF_UNI_QPACK_ENC_SET;
 		h3s->type = H3S_T_QPACK_ENC;
+		h3s->flags |= H3_SF_UNI_NO_H3;
 		break;
 
 	default:
+		h3s->flags |= H3_SF_UNI_NO_H3;
 		break;
 	};
 
 	h3s->flags |= H3_SF_UNI_INIT;
 	qcs_consume(qcs, len);
+
+	return 0;
+}
+
+/* Parse an uni-stream <qcs> from <rxbuf> which does not contains H3 frames.
+ * This may be used for QPACK encoder/decoder streams for example.
+ *
+ * Returns 0 on success else non-zero.
+ */
+static int h3_parse_uni_stream_no_h3(struct qcs *qcs, void *ctx)
+{
+	struct ncbuf *rxbuf = &qcs->rx.ncbuf;
+	struct h3s *h3s = qcs->ctx;
+
+	BUG_ON_HOT(!quic_stream_is_uni(qcs->id) ||
+	           !(h3s->flags & H3_SF_UNI_NO_H3));
+
+	switch (h3s->type) {
+	case H3S_T_QPACK_DEC:
+		if (!qpack_decode_dec(qcs, NULL))
+			return 1;
+		break;
+	case H3S_T_QPACK_ENC:
+		if (!qpack_decode_enc(qcs, NULL))
+			return 1;
+		break;
+	default:
+		/* unknown uni stream : just consume it. */
+		qcs_consume(qcs, ncb_data(rxbuf, 0));
+		break;
+	}
 
 	return 0;
 }
@@ -949,12 +984,12 @@ static int h3_attach_ruqs(struct qcs *qcs, void *ctx)
 		break;
 	case H3S_T_QPACK_ENC:
 		h3c->rqpack_enc.qcs = qcs;
-		h3c->rqpack_enc.cb = qpack_decode_enc;
+		h3c->rqpack_enc.cb = h3_parse_uni_stream_no_h3;
 		qcs_subscribe(qcs, SUB_RETRY_RECV, &h3c->rqpack_enc.wait_event);
 		break;
 	case H3S_T_QPACK_DEC:
 		h3c->rqpack_dec.qcs = qcs;
-		h3c->rqpack_dec.cb = qpack_decode_dec;
+		h3c->rqpack_dec.cb = h3_parse_uni_stream_no_h3;
 		qcs_subscribe(qcs, SUB_RETRY_RECV, &h3c->rqpack_dec.wait_event);
 		break;
 	default:
