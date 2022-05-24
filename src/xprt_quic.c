@@ -3598,6 +3598,7 @@ int qc_treat_rx_pkts(struct quic_enc_level *cur_el, struct quic_enc_level *next_
 	if (qel == cur_el) {
 		BUG_ON(qel == next_el);
 		qel = next_el;
+		largest_pn = -1;
 		goto next_tel;
 	}
 
