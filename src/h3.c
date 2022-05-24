@@ -77,7 +77,7 @@ struct h3s {
 DECLARE_STATIC_POOL(pool_head_h3s, "h3s", sizeof(struct h3s));
 
 /* Simple function to duplicate a buffer */
-static inline struct buffer h3_b_dup(struct ncbuf *b)
+static inline struct buffer h3_b_dup(const struct ncbuf *b)
 {
 	return b_make(ncb_orig(b), b->size, b->head, ncb_data(b, 0));
 }
