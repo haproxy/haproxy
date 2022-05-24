@@ -92,7 +92,16 @@ static inline int qcc_install_app_ops(struct qcc *qcc,
 
 static inline struct conn_stream *qc_attach_cs(struct qcs *qcs, struct buffer *buf)
 {
-	struct session *sess = qcs->qcc->conn->owner;
+	struct qcc *qcc = qcs->qcc;
+	struct session *sess = qcc->conn->owner;
+
+	qcs->endp = cs_endpoint_new();
+	if (!qcs->endp)
+		return NULL;
+
+	qcs->endp->target = qcs;
+	qcs->endp->ctx = qcc->conn;
+	qcs->endp->flags |= (CS_EP_T_MUX|CS_EP_ORPHAN|CS_EP_NOT_FIRST);
 
 	/* TODO duplicated from mux_h2 */
 	sess->t_idle = tv_ms_elapsed(&sess->tv_accept, &now) - sess->t_handshake;
@@ -100,7 +109,7 @@ static inline struct conn_stream *qc_attach_cs(struct qcs *qcs, struct buffer *b
 	if (!cs_new_from_endp(qcs->endp, sess, buf))
 		return NULL;
 
-	++qcs->qcc->nb_cs;
+	++qcc->nb_cs;
 
 	/* TODO duplicated from mux_h2 */
 	sess->accept_date = date;

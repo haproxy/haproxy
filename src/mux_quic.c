@@ -141,15 +141,6 @@ struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
 			goto err;
 	}
 
-	qcs->endp = cs_endpoint_new();
-	if (!qcs->endp) {
-		pool_free(pool_head_qcs, qcs);
-		goto err;
-	}
-	qcs->endp->target = qcs;
-	qcs->endp->ctx = qcc->conn;
-	qcs->endp->flags |= (CS_EP_T_MUX|CS_EP_ORPHAN|CS_EP_NOT_FIRST);
-
 	qcs->id = qcs->by_id.key = id;
 	/* store transport layer stream descriptor in qcc tree */
 	eb64_insert(&qcc->streams_by_id, &qcs->by_id);
@@ -1533,7 +1524,7 @@ static int qc_wake_some_streams(struct qcc *qcc)
 	     node = eb64_next(node)) {
 		qcs = eb64_entry(node, struct qcs, by_id);
 
-		if (!qcs->endp->cs)
+		if (!qcs->endp || !qcs->endp->cs)
 			continue;
 
 		if (qcc->conn->flags & CO_FL_ERROR) {
