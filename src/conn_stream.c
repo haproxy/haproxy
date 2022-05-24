@@ -507,7 +507,6 @@ static void sc_app_shutr(struct stconn *cs)
 {
 	struct channel *ic = sc_ic(cs);
 
-	cs_rx_shut_blk(cs);
 	if (ic->flags & CF_SHUTR)
 		return;
 	ic->flags |= CF_SHUTR;
@@ -576,7 +575,6 @@ static void sc_app_shutw(struct stconn *cs)
 		/* fall through */
 	default:
 		cs->flags &= ~SC_FL_NOLINGER;
-		cs_rx_shut_blk(cs);
 		ic->flags |= CF_SHUTR;
 		ic->rex = TICK_ETERNITY;
 		__sc_strm(cs)->conn_exp = TICK_ETERNITY;
@@ -650,7 +648,6 @@ static void sc_app_shutr_conn(struct stconn *cs)
 
 	BUG_ON(!sc_conn(cs));
 
-	cs_rx_shut_blk(cs);
 	if (ic->flags & CF_SHUTR)
 		return;
 	ic->flags |= CF_SHUTR;
@@ -744,7 +741,6 @@ static void sc_app_shutw_conn(struct stconn *cs)
 		/* fall through */
 	default:
 		cs->flags &= ~SC_FL_NOLINGER;
-		cs_rx_shut_blk(cs);
 		ic->flags |= CF_SHUTR;
 		ic->rex = TICK_ETERNITY;
 		__sc_strm(cs)->conn_exp = TICK_ETERNITY;
@@ -876,7 +872,6 @@ static void sc_app_shutr_applet(struct stconn *cs)
 
 	BUG_ON(!sc_appctx(cs));
 
-	cs_rx_shut_blk(cs);
 	if (ic->flags & CF_SHUTR)
 		return;
 	ic->flags |= CF_SHUTR;
@@ -950,7 +945,6 @@ static void sc_app_shutw_applet(struct stconn *cs)
 		/* fall through */
 	default:
 		cs->flags &= ~SC_FL_NOLINGER;
-		cs_rx_shut_blk(cs);
 		ic->flags |= CF_SHUTR;
 		ic->rex = TICK_ETERNITY;
 		__sc_strm(cs)->conn_exp = TICK_ETERNITY;
@@ -1016,10 +1010,8 @@ void cs_update_rx(struct stconn *cs)
 {
 	struct channel *ic = sc_ic(cs);
 
-	if (ic->flags & CF_SHUTR) {
-		cs_rx_shut_blk(cs);
+	if (ic->flags & CF_SHUTR)
 		return;
-	}
 
 	/* Read not closed, update FD status and timeout for reads */
 	if (ic->flags & CF_DONT_READ)
@@ -1241,7 +1233,6 @@ static void sc_conn_read0(struct stconn *cs)
 
 	BUG_ON(!sc_conn(cs));
 
-	cs_rx_shut_blk(cs);
 	if (ic->flags & CF_SHUTR)
 		return;
 	ic->flags |= CF_SHUTR;

@@ -1268,7 +1268,6 @@ static __inline int do_l7_retry(struct stream *s, struct stconn *cs)
 			s->flags |= SF_ERR_INTERNAL;
 		return -1;
 	}
-	sc_ep_clr(cs, SE_FL_RXBLK_SHUT);
 
 	b_free(&req->buf);
 	/* Swap the L7 buffer with the channel buffer */

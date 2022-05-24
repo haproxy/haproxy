@@ -372,15 +372,6 @@ static inline void cs_rx_room_blk(struct stconn *cs)
 	sc_ep_set(cs, SE_FL_RXBLK_ROOM);
 }
 
-/* The stream connector announces it will never put new data into the input
- * buffer and that it's not waiting for its endpoint to deliver anything else.
- * This function obviously doesn't have a _rdy equivalent.
- */
-static inline void cs_rx_shut_blk(struct stconn *cs)
-{
-	sc_ep_set(cs, SE_FL_RXBLK_SHUT);
-}
-
 /* Returns non-zero if the stream connector's Tx path is blocked */
 static inline int cs_tx_blocked(const struct stconn *cs)
 {
