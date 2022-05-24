@@ -341,4 +341,14 @@ static inline const char *cs_state_str(int state)
 	}
 }
 
+/* indicates if the connector may send data to the endpoint, that is, the
+ * endpoint is both willing to receive data and ready to do so. This is only
+ * used with applets so there's always a stream attached to this connector.
+ */
+__attribute__((warn_unused_result))
+static inline int sc_is_send_allowed(const struct stconn *sc)
+{
+	return cs_tx_endp_ready(sc) && !cs_tx_blocked(sc);
+}
+
 #endif /* _HAPROXY_CS_UTILS_H */

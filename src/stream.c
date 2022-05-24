@@ -1543,13 +1543,11 @@ static void stream_update_both_cs(struct stream *s)
 	 * handled at the latest moment.
 	 */
 	if (sc_appctx(scf)) {
-		if ((cs_rx_endp_ready(scf) && !cs_rx_blocked(scf)) ||
-		    (cs_tx_endp_ready(scf) && !cs_tx_blocked(scf)))
+		if ((cs_rx_endp_ready(scf) && !cs_rx_blocked(scf)) || sc_is_send_allowed(scf))
 			appctx_wakeup(__sc_appctx(scf));
 	}
 	if (sc_appctx(scb)) {
-		if ((cs_rx_endp_ready(scb) && !cs_rx_blocked(scb)) ||
-		    (cs_tx_endp_ready(scb) && !cs_tx_blocked(scb)))
+		if ((cs_rx_endp_ready(scb) && !cs_rx_blocked(scb)) || sc_is_send_allowed(scb))
 			appctx_wakeup(__sc_appctx(scb));
 	}
 }

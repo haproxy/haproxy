@@ -1951,8 +1951,7 @@ static int cs_applet_process(struct stconn *cs)
 	 * appctx but in the case the task is not in runqueue we may have to
 	 * wakeup the appctx immediately.
 	 */
-	if ((cs_rx_endp_ready(cs) && !cs_rx_blocked(cs)) ||
-	    (cs_tx_endp_ready(cs) && !cs_tx_blocked(cs)))
+	if ((cs_rx_endp_ready(cs) && !cs_rx_blocked(cs)) || sc_is_send_allowed(cs))
 		appctx_wakeup(__sc_appctx(cs));
 	return 0;
 }

@@ -246,7 +246,7 @@ struct task *task_run_applet(struct task *t, void *context, unsigned int state)
 	if (rate >= 100000 && app->call_rate.prev_ctr && // looped more than 100k times over last second
 	    ((b_size(sc_ib(cs)) && se_fl_test(app->sedesc, SE_FL_RXBLK_BUFF)) || // asks for a buffer which is present
 	     (b_size(sc_ib(cs)) && !b_data(sc_ib(cs)) && se_fl_test(app->sedesc, SE_FL_RXBLK_ROOM)) || // asks for room in an empty buffer
-	     (b_data(sc_ob(cs)) && cs_tx_endp_ready(cs) && !cs_tx_blocked(cs)) || // asks for data already present
+	     (b_data(sc_ob(cs)) && sc_is_send_allowed(cs)) || // asks for data already present
 	     (!b_data(sc_ib(cs)) && b_data(sc_ob(cs)) && // didn't return anything ...
 	      (sc_oc(cs)->flags & (CF_WRITE_PARTIAL|CF_SHUTW_NOW)) == CF_SHUTW_NOW))) { // ... and left data pending after a shut
 		stream_dump_and_crash(&app->obj_type, read_freq_ctr(&app->call_rate));
