@@ -411,10 +411,4 @@ static inline void cs_stop_get(struct stconn *cs)
 	sc_ep_clr(cs, SE_FL_WANT_GET);
 }
 
-/* Report that a stream connector won't get any more data from the output buffer */
-static inline void cs_done_get(struct stconn *cs)
-{
-	sc_ep_clr(cs, SE_FL_WANT_GET | SE_FL_WAIT_DATA);
-}
-
 #endif /* _HAPROXY_CONN_STREAM_H */

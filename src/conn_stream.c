@@ -547,7 +547,6 @@ static void sc_app_shutw(struct stconn *cs)
 		return;
 	oc->flags |= CF_SHUTW;
 	oc->wex = TICK_ETERNITY;
-	cs_done_get(cs);
 
 	if (tick_isset(cs->hcto)) {
 		ic->rto = cs->hcto;
@@ -691,7 +690,6 @@ static void sc_app_shutw_conn(struct stconn *cs)
 		return;
 	oc->flags |= CF_SHUTW;
 	oc->wex = TICK_ETERNITY;
-	cs_done_get(cs);
 
 	if (tick_isset(cs->hcto)) {
 		ic->rto = cs->hcto;
@@ -919,7 +917,6 @@ static void sc_app_shutw_applet(struct stconn *cs)
 		return;
 	oc->flags |= CF_SHUTW;
 	oc->wex = TICK_ETERNITY;
-	cs_done_get(cs);
 
 	if (tick_isset(cs->hcto)) {
 		ic->rto = cs->hcto;
@@ -1273,8 +1270,6 @@ static void sc_conn_read0(struct stconn *cs)
 	oc->flags &= ~CF_SHUTW_NOW;
 	oc->flags |= CF_SHUTW;
 	oc->wex = TICK_ETERNITY;
-
-	cs_done_get(cs);
 
 	cs->state = SC_ST_DIS;
 	__sc_strm(cs)->conn_exp = TICK_ETERNITY;
