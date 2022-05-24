@@ -275,13 +275,15 @@ static inline void cs_must_kill_conn(struct stconn *cs)
 /* Sends a shutr to the endpoint using the data layer */
 static inline void cs_shutr(struct stconn *cs)
 {
-	cs->ops->shutr(cs);
+	if (likely(cs->ops->shutr))
+		cs->ops->shutr(cs);
 }
 
 /* Sends a shutw to the endpoint using the data layer */
 static inline void cs_shutw(struct stconn *cs)
 {
-	cs->ops->shutw(cs);
+	if (likely(cs->ops->shutw))
+		cs->ops->shutw(cs);
 }
 
 /* This is to be used after making some room available in a channel. It will
@@ -302,13 +304,15 @@ static inline void cs_chk_rcv(struct stconn *cs)
 		return;
 
 	sc_ep_set(cs, SE_FL_RX_WAIT_EP);
-	cs->ops->chk_rcv(cs);
+	if (likely(cs->ops->chk_rcv))
+		cs->ops->chk_rcv(cs);
 }
 
 /* Calls chk_snd on the endpoint using the data layer */
 static inline void cs_chk_snd(struct stconn *cs)
 {
-	cs->ops->chk_snd(cs);
+	if (likely(cs->ops->chk_snd))
+		cs->ops->chk_snd(cs);
 }
 
 /* Combines both cs_update_rx() and cs_update_tx() at once */
