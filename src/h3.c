@@ -41,10 +41,11 @@
 #define h3_debug_hexdump(...) do { } while (0)
 #endif
 
-#define H3_CF_SETTINGS_SENT     0x00000001
-#define H3_CF_UNI_CTRL_SET      0x00000002  /* Remote H3 Control stream opened */
-#define H3_CF_UNI_QPACK_DEC_SET 0x00000004  /* Remote QPACK decoder stream opened */
-#define H3_CF_UNI_QPACK_ENC_SET 0x00000008  /* Remote QPACK encoder stream opened */
+#define H3_CF_SETTINGS_SENT     0x00000001  /* SETTINGS frame already sent on local control stream */
+#define H3_CF_SETTINGS_RECV     0x00000002  /* SETTINGS frame already received on remote control stream */
+#define H3_CF_UNI_CTRL_SET      0x00000004  /* Remote H3 Control stream opened */
+#define H3_CF_UNI_QPACK_DEC_SET 0x00000008  /* Remote QPACK decoder stream opened */
+#define H3_CF_UNI_QPACK_ENC_SET 0x00000010  /* Remote QPACK encoder stream opened */
 
 /* Default settings */
 static uint64_t h3_settings_qpack_max_table_capacity = 0;
@@ -170,6 +171,56 @@ static inline size_t h3_decode_frm_header(uint64_t *ftype, uint64_t *flen,
 		return 0;
 
 	return hlen;
+}
+
+/* Check if H3 frame of type <ftype> is valid when received on stream <qcs>.
+ *
+ * Returns a boolean. If false, a connection error H3_FRAME_UNEXPECTED should
+ * be reported.
+ */
+static int h3_is_frame_valid(struct h3c *h3c, struct qcs *qcs, uint64_t ftype)
+{
+	struct h3s *h3s = qcs->ctx;
+	const uint64_t id = qcs->id;
+
+	BUG_ON_HOT(h3s->type == H3S_T_UNKNOWN);
+
+	switch (ftype) {
+	case H3_FT_DATA:
+	case H3_FT_HEADERS:
+		return h3s->type != H3S_T_CTRL;
+
+	case H3_FT_CANCEL_PUSH:
+	case H3_FT_GOAWAY:
+	case H3_FT_MAX_PUSH_ID:
+		/* Only allowed for control stream. First frame of control
+		 * stream MUST be SETTINGS.
+		 */
+		return h3s->type == H3S_T_CTRL &&
+		       (h3c->flags & H3_CF_SETTINGS_RECV);
+
+	case H3_FT_SETTINGS:
+		/* draft-ietf-quic-http34 7.2.4. SETTINGS
+		 *
+		 * If an endpoint receives a second SETTINGS frame on the control
+		 * stream, the endpoint MUST respond with a connection error of type
+		 * H3_FRAME_UNEXPECTED.
+		 */
+		return h3s->type == H3S_T_CTRL &&
+		       !(h3c->flags & H3_CF_SETTINGS_RECV);
+
+	case H3_FT_PUSH_PROMISE:
+		return h3s->type != H3S_T_CTRL &&
+		       (id & QCS_ID_SRV_INTIATOR_BIT);
+
+	default:
+		/* draft-ietf-quic-http34 9. Extensions to HTTP/3
+		 *
+		 * Implementations MUST discard frames [...] that have unknown
+		 * or unsupported types.
+		 */
+		return h3s->type != H3S_T_CTRL || (h3c->flags & H3_CF_SETTINGS_RECV);
+	}
 }
 
 /* Parse from buffer <buf> a H3 HEADERS frame of length <len>. Data are copied
@@ -340,6 +391,7 @@ static int h3_data_to_htx(struct qcs *qcs, struct ncbuf *buf, uint64_t len,
 static int h3_decode_qcs(struct qcs *qcs, int fin, void *ctx)
 {
 	struct ncbuf *rxbuf = &qcs->rx.ncbuf;
+	struct h3c *h3c = ctx;
 	struct h3s *h3s = qcs->ctx;
 	ssize_t ret;
 
@@ -369,6 +421,11 @@ static int h3_decode_qcs(struct qcs *qcs, int fin, void *ctx)
 
 		flen = h3s->demux_frame_len;
 		ftype = h3s->demux_frame_type;
+
+		if (!h3_is_frame_valid(h3c, qcs, ftype)) {
+			qcc_emit_cc_app(qcs->qcc, H3_FRAME_UNEXPECTED);
+			return 1;
+		}
 
 		/* Do not demux incomplete frames except H3 DATA which can be
 		 * fragmented in multiple HTX blocks.
@@ -406,7 +463,9 @@ static int h3_decode_qcs(struct qcs *qcs, int fin, void *ctx)
 			break;
 		default:
 			/* draft-ietf-quic-http34 9. Extensions to HTTP/3
-			 * unknown frame types MUST be ignored
+			 *
+			 * Implementations MUST discard frames [...] that have unknown
+			 * or unsupported types.
 			 */
 			h3_debug_printf(stderr, "ignore unknown frame type 0x%lx\n", ftype);
 			ret = flen;
