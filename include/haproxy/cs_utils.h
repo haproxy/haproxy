@@ -42,7 +42,7 @@ void sc_conn_sync_send(struct stconn *cs);
 
 
 /* returns the channel which receives data from this stream connector (input channel) */
-static inline struct channel *sc_ic(struct stconn *cs)
+static inline struct channel *sc_ic(const struct stconn *cs)
 {
 	struct stream *strm = __sc_strm(cs);
 
@@ -50,7 +50,7 @@ static inline struct channel *sc_ic(struct stconn *cs)
 }
 
 /* returns the channel which feeds data to this stream connector (output channel) */
-static inline struct channel *sc_oc(struct stconn *cs)
+static inline struct channel *sc_oc(const struct stconn *cs)
 {
 	struct stream *strm = __sc_strm(cs);
 
@@ -58,18 +58,18 @@ static inline struct channel *sc_oc(struct stconn *cs)
 }
 
 /* returns the buffer which receives data from this stream connector (input channel's buffer) */
-static inline struct buffer *sc_ib(struct stconn *cs)
+static inline struct buffer *sc_ib(const struct stconn *cs)
 {
 	return &sc_ic(cs)->buf;
 }
 
 /* returns the buffer which feeds data to this stream connector (output channel's buffer) */
-static inline struct buffer *sc_ob(struct stconn *cs)
+static inline struct buffer *sc_ob(const struct stconn *cs)
 {
 	return &sc_oc(cs)->buf;
 }
 /* returns the stream's task associated to this stream connector */
-static inline struct task *sc_strm_task(struct stconn *cs)
+static inline struct task *sc_strm_task(const struct stconn *cs)
 {
 	struct stream *strm = __sc_strm(cs);
 
@@ -77,7 +77,7 @@ static inline struct task *sc_strm_task(struct stconn *cs)
 }
 
 /* returns the stream connector on the other side. Used during forwarding. */
-static inline struct stconn *cs_opposite(struct stconn *cs)
+static inline struct stconn *cs_opposite(const struct stconn *cs)
 {
 	struct stream *strm = __sc_strm(cs);
 
@@ -120,9 +120,9 @@ static inline int cs_state_in(enum cs_state state, enum cs_state_bit mask)
 /* Returns true if a connection is attached to the stream connector <cs> and if this
  * connection is ready.
  */
-static inline int sc_conn_ready(struct stconn *cs)
+static inline int sc_conn_ready(const struct stconn *cs)
 {
-	struct connection *conn = sc_conn(cs);
+	const struct connection *conn = sc_conn(cs);
 
 	return conn && conn_ctrl_ready(conn) && conn_xprt_ready(conn);
 }
@@ -136,7 +136,7 @@ static inline int sc_conn_ready(struct stconn *cs)
  */
 static inline int cs_is_conn_error(const struct stconn *cs)
 {
-	struct connection *conn;
+	const struct connection *conn;
 
 	if (cs->state >= SC_ST_EST)
 		return 0;
@@ -169,7 +169,7 @@ static inline int cs_alloc_ibuf(struct stconn *cs, struct buffer_wait *wait)
  * the session for frontend CS and the server connection for the backend CS. It
  * returns a const address on success or NULL on failure.
  */
-static inline const struct sockaddr_storage *cs_src(struct stconn *cs)
+static inline const struct sockaddr_storage *cs_src(const struct stconn *cs)
 {
 	if (cs->src)
 		return cs->src;
@@ -189,7 +189,7 @@ static inline const struct sockaddr_storage *cs_src(struct stconn *cs)
  * on the session for frontend CS and the server connection for the backend
  * CS. It returns a const address on success or NULL on failure.
  */
-static inline const struct sockaddr_storage *cs_dst(struct stconn *cs)
+static inline const struct sockaddr_storage *cs_dst(const struct stconn *cs)
 {
 	if (cs->dst)
 		return cs->dst;
