@@ -296,13 +296,15 @@ static inline void cs_chk_rcv(struct stconn *cs)
 {
 	struct channel *ic = sc_ic(cs);
 
-	if (sc_ep_test(cs, SE_FL_APPLET_NEED_CONN) && cs_state_in(cs_opposite(cs)->state, SC_SB_RDY|SC_SB_EST|SC_SB_DIS|SC_SB_CLO))
+	if (sc_ep_test(cs, SE_FL_APPLET_NEED_CONN) &&
+	    cs_state_in(cs_opposite(cs)->state, SC_SB_RDY|SC_SB_EST|SC_SB_DIS|SC_SB_CLO))
 		sc_ep_clr(cs, SE_FL_APPLET_NEED_CONN);
 
 	if (ic->flags & CF_SHUTR)
 		return;
 
-	if (cs_rx_blocked(cs) || !cs_rx_endp_ready(cs))
+	if (sc_ep_test(cs, SE_FL_APPLET_NEED_CONN) ||
+	    cs_rx_blocked(cs) || !cs_rx_endp_ready(cs))
 		return;
 
 	if (!cs_state_in(cs->state, SC_SB_RDY|SC_SB_EST))

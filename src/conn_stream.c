@@ -1178,7 +1178,7 @@ static void cs_notify(struct stconn *cs)
 	cs_chk_rcv(cs);
 	cs_chk_rcv(cso);
 
-	if (ic->flags & CF_SHUTR || cs_rx_blocked(cs)) {
+	if (ic->flags & CF_SHUTR || sc_ep_test(cs, SE_FL_APPLET_NEED_CONN) || cs_rx_blocked(cs)) {
 		ic->rex = TICK_ETERNITY;
 	}
 	else if ((ic->flags & (CF_SHUTR|CF_READ_PARTIAL)) == CF_READ_PARTIAL) {
@@ -1925,7 +1925,7 @@ static int cs_applet_process(struct stconn *cs)
 	/* automatically mark the applet having data available if it reported
 	 * begin blocked by the channel.
 	 */
-	if (cs_rx_blocked(cs))
+	if (cs_rx_blocked(cs) || sc_ep_test(cs, SE_FL_APPLET_NEED_CONN))
 		cs_rx_endp_more(cs);
 
 	/* update the stream connector, channels, and possibly wake the stream up */
@@ -1937,7 +1937,8 @@ static int cs_applet_process(struct stconn *cs)
 	 * appctx but in the case the task is not in runqueue we may have to
 	 * wakeup the appctx immediately.
 	 */
-	if ((cs_rx_endp_ready(cs) && !cs_rx_blocked(cs) && !(ic->flags & CF_SHUTR)) ||
+	if ((cs_rx_endp_ready(cs) && !cs_rx_blocked(cs) &&
+	     !sc_ep_test(cs, SE_FL_APPLET_NEED_CONN) && !(ic->flags & CF_SHUTR)) ||
 	    sc_is_send_allowed(cs))
 		appctx_wakeup(__sc_appctx(cs));
 	return 0;
