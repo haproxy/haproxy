@@ -41,7 +41,10 @@
 #define h3_debug_hexdump(...) do { } while (0)
 #endif
 
-#define H3_CF_SETTINGS_SENT  0x00000001
+#define H3_CF_SETTINGS_SENT     0x00000001
+#define H3_CF_UNI_CTRL_SET      0x00000002  /* Remote H3 Control stream opened */
+#define H3_CF_UNI_QPACK_DEC_SET 0x00000004  /* Remote QPACK decoder stream opened */
+#define H3_CF_UNI_QPACK_ENC_SET 0x00000008  /* Remote QPACK encoder stream opened */
 
 /* Default settings */
 static uint64_t h3_settings_qpack_max_table_capacity = 0;
@@ -69,10 +72,14 @@ struct h3c {
 
 DECLARE_STATIC_POOL(pool_head_h3c, "h3c", sizeof(struct h3c));
 
+#define H3_SF_UNI_INIT  0x00000001  /* stream type not parsed for unidirectional stream */
+
 struct h3s {
 	enum h3s_t type;
 	int demux_frame_len;
 	int demux_frame_type;
+
+	int flags;
 };
 
 DECLARE_STATIC_POOL(pool_head_h3s, "h3s", sizeof(struct h3s));
@@ -81,6 +88,71 @@ DECLARE_STATIC_POOL(pool_head_h3s, "h3s", sizeof(struct h3s));
 static inline struct buffer h3_b_dup(const struct ncbuf *b)
 {
 	return b_make(ncb_orig(b), b->size, b->head, ncb_data(b, 0));
+}
+
+/* Initialize an uni-stream <qcs> by reading its type from <rxbuf>.
+ *
+ * Returns 0 on success else non-zero.
+ */
+static int h3_init_uni_stream(struct h3c *h3c, struct qcs *qcs,
+                              struct ncbuf *rxbuf)
+{
+	/* decode unidirectional stream type */
+	struct h3s *h3s = qcs->ctx;
+	struct buffer b;
+	uint64_t type;
+	size_t len = 0, ret;
+
+	BUG_ON_HOT(!quic_stream_is_uni(qcs->id) ||
+	           h3s->flags & H3_SF_UNI_INIT);
+
+	b = h3_b_dup(rxbuf);
+	ret = b_quic_dec_int(&type, &b, &len);
+	if (!ret) {
+		ABORT_NOW();
+	}
+
+	switch (type) {
+	case H3_UNI_S_T_CTRL:
+		if (h3c->flags & H3_CF_UNI_CTRL_SET) {
+			qcc_emit_cc_app(qcs->qcc, H3_STREAM_CREATION_ERROR);
+			return 1;
+		}
+		h3c->flags |= H3_CF_UNI_CTRL_SET;
+		h3s->type = H3S_T_CTRL;
+		break;
+
+	case H3_UNI_S_T_PUSH:
+		/* TODO not supported for the moment */
+		h3s->type = H3S_T_PUSH;
+		break;
+
+	case H3_UNI_S_T_QPACK_DEC:
+		if (h3c->flags & H3_CF_UNI_QPACK_DEC_SET) {
+			qcc_emit_cc_app(qcs->qcc, H3_STREAM_CREATION_ERROR);
+			return 1;
+		}
+		h3c->flags |= H3_CF_UNI_QPACK_DEC_SET;
+		h3s->type = H3S_T_QPACK_DEC;
+		break;
+
+	case H3_UNI_S_T_QPACK_ENC:
+		if (h3c->flags & H3_CF_UNI_QPACK_ENC_SET) {
+			qcc_emit_cc_app(qcs->qcc, H3_STREAM_CREATION_ERROR);
+			return 1;
+		}
+		h3c->flags |= H3_CF_UNI_QPACK_ENC_SET;
+		h3s->type = H3S_T_QPACK_ENC;
+		break;
+
+	default:
+		break;
+	};
+
+	h3s->flags |= H3_SF_UNI_INIT;
+	qcs_consume(qcs, len);
+
+	return 0;
 }
 
 /* Decode a h3 frame header made of two QUIC varints from <b> buffer.
@@ -778,6 +850,7 @@ static int h3_attach(struct qcs *qcs)
 	qcs->ctx = h3s;
 	h3s->demux_frame_len = 0;
 	h3s->demux_frame_type = 0;
+	h3s->flags = 0;
 
 	if (quic_stream_is_bidi(qcs->id)) {
 		h3s->type = H3S_T_REQ;
@@ -796,53 +869,31 @@ static int h3_attach(struct qcs *qcs)
  */
 static int h3_attach_ruqs(struct qcs *qcs, void *ctx)
 {
-	uint64_t strm_type;
 	struct h3c *h3c = ctx;
+	struct h3s *h3s = qcs->ctx;
 	struct ncbuf *rxbuf = &qcs->rx.ncbuf;
-	struct buffer b;
-	size_t len = 0;
 
-	b = h3_b_dup(rxbuf);
-
-	/* First octets: the uni-stream type */
-	if (!b_quic_dec_int(&strm_type, &b, &len) || strm_type > H3_UNI_S_T_MAX)
+	if (h3_init_uni_stream(h3c, qcs, rxbuf))
 		return 0;
-
-	qcs_consume(qcs, len);
 
 	/* Note that for all the uni-streams below, this is an error to receive two times the
 	 * same type of uni-stream (even for Push stream which is not supported at this time.
 	 */
-	switch (strm_type) {
-	case H3_UNI_S_T_CTRL:
-		if (h3c->rctrl.qcs) {
-			h3c->err = H3_STREAM_CREATION_ERROR;
-			return 0;
-		}
-
+	switch (h3s->type) {
+	case H3S_T_CTRL:
 		h3c->rctrl.qcs = qcs;
 		h3c->rctrl.cb = h3_control_recv;
 		qcs_subscribe(qcs, SUB_RETRY_RECV, &h3c->rctrl.wait_event);
 		break;
-	case H3_UNI_S_T_PUSH:
+	case H3S_T_PUSH:
 		/* NOT SUPPORTED */
 		break;
-	case H3_UNI_S_T_QPACK_ENC:
-		if (h3c->rqpack_enc.qcs) {
-			h3c->err = H3_STREAM_CREATION_ERROR;
-			return 0;
-		}
-
+	case H3S_T_QPACK_ENC:
 		h3c->rqpack_enc.qcs = qcs;
 		h3c->rqpack_enc.cb = qpack_decode_enc;
 		qcs_subscribe(qcs, SUB_RETRY_RECV, &h3c->rqpack_enc.wait_event);
 		break;
-	case H3_UNI_S_T_QPACK_DEC:
-		if (h3c->rqpack_dec.qcs) {
-			h3c->err = H3_STREAM_CREATION_ERROR;
-			return 0;
-		}
-
+	case H3S_T_QPACK_DEC:
 		h3c->rqpack_dec.qcs = qcs;
 		h3c->rqpack_dec.cb = qpack_decode_dec;
 		qcs_subscribe(qcs, SUB_RETRY_RECV, &h3c->rqpack_dec.wait_event);
