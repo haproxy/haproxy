@@ -1120,7 +1120,7 @@ void quic_set_connection_close(struct quic_conn *qc, int err, int app)
 /* Set <alert> TLS alert as QUIC CRYPTO_ERROR error */
 void quic_set_tls_alert(struct quic_conn *qc, int alert)
 {
-	HA_ATOMIC_DEC(&qc->prx_counters->conn_opening);
+	HA_ATOMIC_DEC(&qc->prx_counters->half_open_conn);
 	quic_set_connection_close(qc, QC_ERR_CRYPTO_ERROR | alert, 0);
 	qc->flags |= QUIC_FL_CONN_TLS_ALERT;
 	TRACE_PROTO("Alert set", QUIC_EV_CONN_SSLDATA, qc);
@@ -2109,7 +2109,7 @@ static inline int qc_provide_cdata(struct quic_enc_level *el,
 			}
 
 			HA_ATOMIC_INC(&qc->prx_counters->hdshk_fail);
-			HA_ATOMIC_DEC(&qc->prx_counters->conn_opening);
+			HA_ATOMIC_DEC(&qc->prx_counters->half_open_conn);
 			TRACE_DEVEL("SSL handshake error",
 			            QUIC_EV_CONN_IO_CB, qc, &state, &ssl_err);
 			qc_ssl_dump_errors(ctx->conn);
@@ -2126,7 +2126,7 @@ static inline int qc_provide_cdata(struct quic_enc_level *el,
 			goto err;
 		}
 
-		HA_ATOMIC_DEC(&qc->prx_counters->conn_opening);
+		HA_ATOMIC_DEC(&qc->prx_counters->half_open_conn);
 		/* I/O callback switch */
 		ctx->wait_event.tasklet->process = quic_conn_app_io_cb;
 		if (qc_is_listener(ctx->qc)) {
@@ -2564,12 +2564,12 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct ssl_sock_ctx *ct
 			qc_cc_err_count_inc(qc->prx_counters, frm.type, frm.connection_close.error_code);
 			if (!(qc->flags & QUIC_FL_CONN_DRAINING)) {
 				/* If the connection did not reached the handshake complete state,
-				 * the <conn_opening> counter was not decremented. Note that if
+				 * the <half_open_conn> counter was not decremented. Note that if
 				 * a TLS alert was received from the TLS stack, this counter
 				 * has already been decremented.
 				 */
 				if (qc->state < QUIC_HS_ST_COMPLETE && !(qc->flags & QUIC_FL_CONN_TLS_ALERT))
-					HA_ATOMIC_DEC(&qc->prx_counters->conn_opening);
+					HA_ATOMIC_DEC(&qc->prx_counters->half_open_conn);
 				TRACE_PROTO("Entering draining state", QUIC_EV_CONN_PRSHPKT, qc);
 				/* RFC 9000 10.2. Immediate Close:
 				 * The closing and draining connection states exist to ensure
@@ -3559,6 +3559,7 @@ int qc_treat_rx_pkts(struct quic_enc_level *cur_el, struct quic_enc_level *next_
 				/* Drop the packet */
 				TRACE_PROTO("packet parsing failed -> dropped",
 				            QUIC_EV_CONN_ELRXPKTS, ctx->qc, pkt);
+				HA_ATOMIC_INC(&qc->prx_counters->dropped_parsing);
 			}
 			else {
 				struct quic_arng ar = { .first = pkt->pn, .last = pkt->pn };
@@ -4466,12 +4467,12 @@ static struct task *qc_idle_timer_task(struct task *t, void *ctx, unsigned int s
 	 */
 
 	/* If the connection did not reached the handshake complete state,
-	 * the <conn_opening> counter was not decremented. Note that if
+	 * the <half_open_conn> counter was not decremented. Note that if
 	 * a TLS alert was received from the TLS stack, this counter
 	 * has already been decremented.
 	 */
 	if (qc_state < QUIC_HS_ST_COMPLETE && !(qc_flags & QUIC_FL_CONN_TLS_ALERT))
-		HA_ATOMIC_DEC(&prx_counters->conn_opening);
+		HA_ATOMIC_DEC(&prx_counters->half_open_conn);
 
 	return NULL;
 }
@@ -4721,13 +4722,17 @@ static int send_version_negotiation(int fd, struct sockaddr_storage *addr,
  * from <fd> UDP socket to <dst>
  * Return 1 if succeeded, 0 if not.
  */
-static int send_stateless_reset(int fd, struct sockaddr_storage *dstaddr,
+static int send_stateless_reset(struct listener *l, struct sockaddr_storage *dstaddr,
                                 struct quic_rx_packet *rxpkt)
 {
 	int pktlen, rndlen;
 	unsigned char pkt[64];
 	const socklen_t addrlen = get_addr_len(dstaddr);
+	struct proxy *prx;
+	struct quic_counters *prx_counters;
 
+	prx = l->bind_conf->frontend;
+	prx_counters = EXTRA_COUNTERS_GET(prx->extra_counters_fe, &quic_stats_module);
 	/* 10.3 Stateless Reset (https://www.rfc-editor.org/rfc/rfc9000.html#section-10.3)
 	 * The resulting minimum size of 21 bytes does not guarantee that a Stateless
 	 * Reset is difficult to distinguish from other packets if the recipient requires
@@ -4755,9 +4760,10 @@ static int send_stateless_reset(int fd, struct sockaddr_storage *dstaddr,
 	                                    rxpkt->dcid.data, rxpkt->dcid.len))
 	    return 0;
 
-	if (sendto(fd, pkt, pktlen, 0, (struct sockaddr *)dstaddr, addrlen) < 0)
+	if (sendto(l->rx.fd, pkt, pktlen, 0, (struct sockaddr *)dstaddr, addrlen) < 0)
 		return 0;
 
+	HA_ATOMIC_INC(&prx_counters->stateless_reset_sent);
 	TRACE_PROTO("stateless reset sent", QUIC_EV_STATELESS_RST, NULL, &rxpkt->dcid);
 	return 1;
 }
@@ -5328,7 +5334,7 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 			}
 
 			if (global.cluster_secret && !pkt->token_len && !(l->bind_conf->options & BC_O_QUIC_FORCE_RETRY) &&
-			    HA_ATOMIC_LOAD(&prx_counters->conn_opening) >= global.tune.quic_retry_threshold) {
+			    HA_ATOMIC_LOAD(&prx_counters->half_open_conn) >= global.tune.quic_retry_threshold) {
 				TRACE_PROTO("Initial without token, sending retry", QUIC_EV_CONN_LPKT);
 				if (send_retry(l->rx.fd, &dgram->saddr, pkt)) {
 					TRACE_PROTO("Error during Retry generation", QUIC_EV_CONN_LPKT);
@@ -5357,7 +5363,7 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 			if (qc == NULL)
 				goto drop;
 
-			HA_ATOMIC_INC(&prx_counters->conn_opening);
+			HA_ATOMIC_INC(&prx_counters->half_open_conn);
 			/* Insert the DCID the QUIC client has chosen (only for listeners) */
 			n = ebmb_insert(&quic_dghdlrs[tid].odcids, &qc->odcid_node,
 			                qc->odcid.len + qc->odcid.addrlen);
@@ -5414,7 +5420,7 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 		if (!qc) {
 			size_t pktlen = end - buf;
 			TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT, NULL, pkt, &pktlen);
-			if (global.cluster_secret && !send_stateless_reset(l->rx.fd, &dgram->saddr, pkt))
+			if (global.cluster_secret && !send_stateless_reset(l, &dgram->saddr, pkt))
 				TRACE_PROTO("stateless reset not sent", QUIC_EV_CONN_LPKT, qc);
 			goto drop;
 		}

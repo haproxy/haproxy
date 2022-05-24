@@ -1,7 +1,9 @@
 #include <import/eb64tree.h>
 
 #include <haproxy/quic_loss.h>
+#include <haproxy/xprt_quic-t.h>
 
+#include <haproxy/atomic.h>
 #include <haproxy/ticks.h>
 #include <haproxy/trace.h>
 
@@ -175,6 +177,7 @@ void qc_packet_loss_lookup(struct quic_pktns *pktns, struct quic_conn *qc,
 			(int64_t)largest_acked_pn >= pkt->pn_node.key + QUIC_LOSS_PACKET_THRESHOLD) {
 			eb64_delete(&pkt->pn_node);
 			LIST_APPEND(lost_pkts, &pkt->list);
+			HA_ATOMIC_INC(&qc->prx_counters->lost_pkt);
 		}
 		else {
 			if (tick_isset(pktns->tx.loss_time))

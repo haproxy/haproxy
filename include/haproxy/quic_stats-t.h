@@ -9,13 +9,16 @@
 extern struct stats_module quic_stats_module;
 
 enum {
-	QUIC_ST_DROPPED_PACKETS,
+	QUIC_ST_DROPPED_PACKET,
+	QUIC_ST_DROPPED_PARSING,
+	QUIC_ST_LOST_PACKET,
 	QUIC_ST_TOO_SHORT_INITIAL_DGRAM,
 	QUIC_ST_RETRY_SENT,
 	QUIC_ST_RETRY_VALIDATED,
 	QUIC_ST_RETRY_ERRORS,
-	QUIC_ST_CONN_OPENINGS,
-	QUIC_ST_HDSHK_FAILS,
+	QUIC_ST_HALF_OPEN_CONN,
+	QUIC_ST_HDSHK_FAIL,
+	QUIC_ST_STATELESS_RESET_SENT,
 	/* Transport errors */
 	QUIC_ST_TRANSP_ERR_NO_ERROR,
 	QUIC_ST_TRANSP_ERR_INTERNAL_ERROR,
@@ -46,12 +49,15 @@ enum {
 
 struct quic_counters {
 	long long dropped_pkt;       /* total number of dropped packets */
+	long long dropped_parsing;   /* total number of dropped packets upon parsing errors */
+	long long lost_pkt;          /* total number of lost packets */
 	long long too_short_initial_dgram; /* total number of too short datagrams with Initial packets */
 	long long retry_sent;        /* total number of Retry sent */
 	long long retry_validated;   /* total number of validated Retry tokens */
 	long long retry_error;       /* total number of Retry token errors */
-	long long conn_opening;      /* total number of connection openings */
+	long long half_open_conn;    /* total number of half open connections */
 	long long hdshk_fail;        /* total number of handshake failures */
+	long long stateless_reset_sent; /* total number of handshake failures */
 	/* Transport errors */
 	long long quic_transp_err_no_error; /* total number of NO_ERROR connection errors */
 	long long quic_transp_err_internal_error; /* total number of INTERNAL_ERROR connection errors */

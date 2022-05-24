@@ -2,8 +2,12 @@
 #include <haproxy/stats.h>
 
 static struct name_desc quic_stats[] = {
-	[QUIC_ST_DROPPED_PACKETS]     = { .name = "quic_dropped_pkt",
+	[QUIC_ST_DROPPED_PACKET]      = { .name = "quic_dropped_pkt",
 	                                  .desc = "Total number of dropped packets" },
+	[QUIC_ST_DROPPED_PARSING]     = { .name = "quic_dropped_parsing_pkt",
+	                                  .desc = "Total number of dropped packets upon parsing error" },
+	[QUIC_ST_LOST_PACKET]         = { .name = "quic_lost_pkt",
+	                                  .desc = "Total number of lost sent packets" },
 	[QUIC_ST_TOO_SHORT_INITIAL_DGRAM] = { .name = "quic_too_short_dgram",
 	                                  .desc = "Total number of too short dgrams with Initial packets" },
 	[QUIC_ST_RETRY_SENT]          = { .name = "quic_retry_sent",
@@ -12,10 +16,12 @@ static struct name_desc quic_stats[] = {
 	                                  .desc = "Total number of validated Retry tokens" },
 	[QUIC_ST_RETRY_ERRORS]        = { .name = "quic_retry_error",
 	                                  .desc = "Total number of Retry tokens errors" },
-	[QUIC_ST_CONN_OPENINGS]       = { .name = "quic_conn_opening",
-	                                  .desc = "Total number of connection openings" },
-	[QUIC_ST_HDSHK_FAILS]         = { .name = "quic_hdshk_fail",
+	[QUIC_ST_HALF_OPEN_CONN]      = { .name = "quic_half_open_conn",
+	                                  .desc = "Total number of half open connections" },
+	[QUIC_ST_HDSHK_FAIL]          = { .name = "quic_hdshk_fail",
 	                                  .desc = "Total number of handshake failures" },
+	[QUIC_ST_STATELESS_RESET_SENT] = { .name = "quic_stless_rst_sent",
+	                                  .desc = "Total number of stateless reset packet sent" },
 	/* Transport errors */
 	[QUIC_ST_TRANSP_ERR_NO_ERROR] = { .name = "quic_transp_err_no_error",
 	                                  .desc = "Total number of NO_ERROR errors received" },
@@ -57,13 +63,13 @@ static struct name_desc quic_stats[] = {
 	                                        .desc = "Total number of UNKNOWN_ERROR errors received" },
 	/* Streams related counters */
 	[QUIC_ST_DATA_BLOCKED]              = { .name = "quic_data_blocked",
-	                                        .desc = "Total number of times DATA_BLOCKED frame was received" },
+	                                        .desc = "Total number of received DATA_BLOCKED frames" },
 	[QUIC_ST_STREAM_DATA_BLOCKED]       = { .name = "quic_stream_data_blocked",
-	                                        .desc = "Total number of times STREAMS_BLOCKED frame was received" },
+	                                        .desc = "Total number of received STREAMS_BLOCKED frames" },
 	[QUIC_ST_STREAMS_DATA_BLOCKED_BIDI] = { .name = "quic_streams_data_blocked_bidi",
-	                                        .desc = "Total number of times STREAM_DATA_BLOCKED_BIDI frame was received" },
+	                                        .desc = "Total number of received STREAM_DATA_BLOCKED_BIDI frames" },
 	[QUIC_ST_STREAMS_DATA_BLOCKED_UNI]  = { .name = "quic_streams_data_blocked_bidi",
-	                                        .desc = "Total number of times STREAM_DATA_BLOCKED_UNI frame was received" },
+	                                        .desc = "Total number of received STREAM_DATA_BLOCKED_UNI frames" },
 };
 
 struct quic_counters quic_counters;
@@ -72,13 +78,16 @@ static void quic_fill_stats(void *data, struct field *stats)
 {
 	struct quic_counters *counters = data;
 
-	stats[QUIC_ST_DROPPED_PACKETS]   = mkf_u64(FN_COUNTER, counters->dropped_pkt);
+	stats[QUIC_ST_DROPPED_PACKET]    = mkf_u64(FN_COUNTER, counters->dropped_pkt);
+	stats[QUIC_ST_DROPPED_PARSING]   = mkf_u64(FN_COUNTER, counters->dropped_parsing);
+	stats[QUIC_ST_LOST_PACKET]       = mkf_u64(FN_COUNTER, counters->lost_pkt);
 	stats[QUIC_ST_TOO_SHORT_INITIAL_DGRAM] = mkf_u64(FN_COUNTER, counters->too_short_initial_dgram);
 	stats[QUIC_ST_RETRY_SENT]        = mkf_u64(FN_COUNTER, counters->retry_sent);
 	stats[QUIC_ST_RETRY_VALIDATED]   = mkf_u64(FN_COUNTER, counters->retry_validated);
 	stats[QUIC_ST_RETRY_ERRORS]      = mkf_u64(FN_COUNTER, counters->retry_error);
-	stats[QUIC_ST_CONN_OPENINGS]     = mkf_u64(FN_GAUGE, counters->conn_opening);
-	stats[QUIC_ST_HDSHK_FAILS]       = mkf_u64(FN_COUNTER, counters->hdshk_fail);
+	stats[QUIC_ST_HALF_OPEN_CONN]    = mkf_u64(FN_GAUGE, counters->half_open_conn);
+	stats[QUIC_ST_HDSHK_FAIL]        = mkf_u64(FN_COUNTER, counters->hdshk_fail);
+	stats[QUIC_ST_STATELESS_RESET_SENT] = mkf_u64(FN_COUNTER, counters->stateless_reset_sent);
 	/* Transport errors */
 	stats[QUIC_ST_TRANSP_ERR_NO_ERROR]           = mkf_u64(FN_COUNTER, counters->quic_transp_err_no_error);
 	stats[QUIC_ST_TRANSP_ERR_INTERNAL_ERROR]     = mkf_u64(FN_COUNTER, counters->quic_transp_err_internal_error);
