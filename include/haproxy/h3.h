@@ -98,15 +98,6 @@ enum h3s_t {
 	H3S_T_UNKNOWN
 };
 
-/* H3 unidirectional QUIC stream */
-struct h3_uqs {
-	/* Underlying incoming QUIC uni-stream */
-	struct qcs *qcs;
-	/* Callback to tx/rx bytes */
-	int (*cb)(struct qcs *qcs, void *ctx);
-	struct wait_event wait_event;
-};
-
 extern const struct qcc_app_ops h3_ops;
 
 size_t h3_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t count, int flags);

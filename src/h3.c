@@ -56,18 +56,12 @@ struct h3c {
 	struct qcc *qcc;
 	enum h3_err err;
 	uint32_t flags;
-	/* Locally initiated uni-streams */
-	struct h3_uqs lqpack_enc;
-	struct h3_uqs lqpack_dec;
-	struct h3_uqs lctrl;
-	/* Remotely initiated uni-streams */
-	struct h3_uqs rqpack_enc;
-	struct h3_uqs rqpack_dec;
-	struct h3_uqs rctrl;
+
 	/* Settings */
 	uint64_t qpack_max_table_capacity;
 	uint64_t qpack_blocked_streams;
 	uint64_t max_field_section_size;
+
 	struct buffer_wait buf_wait; /* wait list for buffer allocations */
 };
 
@@ -928,85 +922,15 @@ static void h3_detach(struct qcs *qcs)
 static int h3_finalize(void *ctx)
 {
 	struct h3c *h3c = ctx;
+	struct qcs *qcs;
 
-	h3c->lctrl.qcs = qcs_new(h3c->qcc, 0x3, QCS_SRV_UNI);
-	if (!h3c->lctrl.qcs)
+	qcs = qcs_new(h3c->qcc, 0x3, QCS_SRV_UNI);
+	if (!qcs)
 		return 0;
 
-	h3_control_send(h3c->lctrl.qcs, h3c);
+	h3_control_send(qcs, h3c);
 
 	return 1;
-}
-
-/* Tasklet dedicated to h3 incoming uni-streams */
-static struct task *h3_uqs_task(struct task *t, void *ctx, unsigned int state)
-{
-	struct h3_uqs *h3_uqs = ctx;
-	struct h3c *h3c = h3_uqs->qcs->qcc->ctx;
-
-	h3_uqs->cb(h3_uqs->qcs, h3c);
-	return NULL;
-}
-
-/* Release all the tasklet attached to <h3_uqs> uni-stream */
-static inline void h3_uqs_tasklet_release(struct h3_uqs *h3_uqs)
-{
-	struct tasklet *t = h3_uqs->wait_event.tasklet;
-
-	if (t)
-		tasklet_free(t);
-}
-
-/* Release all the tasklet attached to <h3c> uni-streams */
-static void h3_uqs_tasklets_release(struct h3c *h3c)
-{
-	h3_uqs_tasklet_release(&h3c->rqpack_enc);
-	h3_uqs_tasklet_release(&h3c->rqpack_dec);
-	h3_uqs_tasklet_release(&h3c->rctrl);
-}
-
-/* Tasklet dedicated to h3 outgoing uni-streams */
-__maybe_unused
-static struct task *h3_uqs_send_task(struct task *t, void *ctx, unsigned int state)
-{
-	struct h3_uqs *h3_uqs = ctx;
-	struct h3c *h3c = h3_uqs->qcs->qcc->ctx;
-
-	h3_uqs->cb(h3_uqs->qcs, h3c);
-	return NULL;
-}
-
-/* Initialize <h3_uqs> uni-stream with <t> as tasklet */
-static int h3_uqs_init(struct h3_uqs *h3_uqs, struct h3c *h3c,
-                       int (*cb)(struct qcs *qcs, void *ctx),
-                       struct task *(*t)(struct task *, void *, unsigned int))
-{
-	h3_uqs->qcs = NULL;
-	h3_uqs->cb = cb;
-	h3_uqs->wait_event.tasklet = tasklet_new();
-	if (!h3_uqs->wait_event.tasklet)
-		return 0;
-
-	h3_uqs->wait_event.tasklet->process = t;
-	h3_uqs->wait_event.tasklet->context = h3_uqs;
-	h3_uqs->wait_event.events = 0;
-	return 1;
-}
-
-static inline void h3_uqs_release(struct h3_uqs *h3_uqs)
-{
-	if (h3_uqs->qcs)
-		qcs_free(h3_uqs->qcs);
-}
-
-static inline void h3_uqs_release_all(struct h3c *h3c)
-{
-	h3_uqs_tasklet_release(&h3c->lctrl);
-	h3_uqs_release(&h3c->lctrl);
-	h3_uqs_tasklet_release(&h3c->lqpack_enc);
-	h3_uqs_release(&h3c->lqpack_enc);
-	h3_uqs_tasklet_release(&h3c->lqpack_dec);
-	h3_uqs_release(&h3c->lqpack_dec);
 }
 
 /* Initialize the HTTP/3 context for <qcc> mux.
@@ -1024,26 +948,11 @@ static int h3_init(struct qcc *qcc)
 	h3c->err = H3_NO_ERROR;
 	h3c->flags = 0;
 
-	if (!h3_uqs_init(&h3c->rqpack_enc, h3c, NULL, h3_uqs_task) ||
-	    !h3_uqs_init(&h3c->rqpack_dec, h3c, NULL, h3_uqs_task) ||
-	    !h3_uqs_init(&h3c->rctrl, h3c, NULL, h3_uqs_task))
-		goto fail_no_h3_ruqs;
-
-	if (!h3_uqs_init(&h3c->lctrl, h3c, NULL, h3_uqs_task) ||
-	    !h3_uqs_init(&h3c->lqpack_enc, h3c, NULL, h3_uqs_task) ||
-	    !h3_uqs_init(&h3c->lqpack_dec, h3c, NULL, h3_uqs_task))
-		goto fail_no_h3_luqs;
-
 	qcc->ctx = h3c;
 	LIST_INIT(&h3c->buf_wait.list);
 
 	return 1;
 
- fail_no_h3_ruqs:
-	h3_uqs_release_all(h3c);
- fail_no_h3_luqs:
-	h3_uqs_tasklets_release(h3c);
-	pool_free(pool_head_h3c, h3c);
  fail_no_h3:
 	return 0;
 }
@@ -1051,9 +960,6 @@ static int h3_init(struct qcc *qcc)
 static void h3_release(void *ctx)
 {
 	struct h3c *h3c = ctx;
-
-	h3_uqs_release_all(h3c);
-	h3_uqs_tasklets_release(h3c);
 	pool_free(pool_head_h3c, h3c);
 }
 
