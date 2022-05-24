@@ -352,7 +352,7 @@ static int h3_parse_settings_frm(struct h3c *h3c, const struct ncbuf *rxbuf, siz
 	buf = (const unsigned char *)ncb_head(rxbuf);
 	end = buf + flen;
 
-	while (buf <= end) {
+	while (buf < end) {
 		if (!quic_dec_int(&id, &buf, end) || !quic_dec_int(&value, &buf, end))
 			return 0;
 
