@@ -464,48 +464,48 @@ static int h3_control_send(struct h3_uqs *h3_uqs, void *ctx)
 	struct h3c *h3c = ctx;
 	unsigned char data[(2 + 3) * 2 * QUIC_VARINT_MAX_SIZE]; /* enough for 3 settings */
 	struct buffer pos, *res;
+	size_t frm_len;
+	struct qcs *qcs = h3_uqs->qcs;
+
+	BUG_ON_HOT(h3c->flags & H3_CF_SETTINGS_SENT);
 
 	ret = 0;
 	pos = b_make((char *)data, sizeof(data), 0, 0);
-	if (!(h3c->flags & H3_CF_SETTINGS_SENT)) {
-		struct qcs *qcs = h3_uqs->qcs;
-		size_t frm_len;
 
-		frm_len = quic_int_getsize(H3_SETTINGS_QPACK_MAX_TABLE_CAPACITY) +
-			quic_int_getsize(h3_settings_qpack_max_table_capacity) +
-			quic_int_getsize(H3_SETTINGS_QPACK_BLOCKED_STREAMS) +
-			quic_int_getsize(h3_settings_qpack_blocked_streams);
-		if (h3_settings_max_field_section_size) {
-			frm_len += quic_int_getsize(H3_SETTINGS_MAX_FIELD_SECTION_SIZE) +
-			quic_int_getsize(h3_settings_max_field_section_size);
-		}
+	frm_len = quic_int_getsize(H3_SETTINGS_QPACK_MAX_TABLE_CAPACITY) +
+		quic_int_getsize(h3_settings_qpack_max_table_capacity) +
+		quic_int_getsize(H3_SETTINGS_QPACK_BLOCKED_STREAMS) +
+		quic_int_getsize(h3_settings_qpack_blocked_streams);
+	if (h3_settings_max_field_section_size) {
+		frm_len += quic_int_getsize(H3_SETTINGS_MAX_FIELD_SECTION_SIZE) +
+		quic_int_getsize(h3_settings_max_field_section_size);
+	}
 
-		b_quic_enc_int(&pos, H3_UNI_S_T_CTRL);
-		/* Build a SETTINGS frame */
-		b_quic_enc_int(&pos, H3_FT_SETTINGS);
-		b_quic_enc_int(&pos, frm_len);
-		b_quic_enc_int(&pos, H3_SETTINGS_QPACK_MAX_TABLE_CAPACITY);
-		b_quic_enc_int(&pos, h3_settings_qpack_max_table_capacity);
-		b_quic_enc_int(&pos, H3_SETTINGS_QPACK_BLOCKED_STREAMS);
-		b_quic_enc_int(&pos, h3_settings_qpack_blocked_streams);
-		if (h3_settings_max_field_section_size) {
-			b_quic_enc_int(&pos, H3_SETTINGS_MAX_FIELD_SECTION_SIZE);
-			b_quic_enc_int(&pos, h3_settings_max_field_section_size);
-		}
+	b_quic_enc_int(&pos, H3_UNI_S_T_CTRL);
+	/* Build a SETTINGS frame */
+	b_quic_enc_int(&pos, H3_FT_SETTINGS);
+	b_quic_enc_int(&pos, frm_len);
+	b_quic_enc_int(&pos, H3_SETTINGS_QPACK_MAX_TABLE_CAPACITY);
+	b_quic_enc_int(&pos, h3_settings_qpack_max_table_capacity);
+	b_quic_enc_int(&pos, H3_SETTINGS_QPACK_BLOCKED_STREAMS);
+	b_quic_enc_int(&pos, h3_settings_qpack_blocked_streams);
+	if (h3_settings_max_field_section_size) {
+		b_quic_enc_int(&pos, H3_SETTINGS_MAX_FIELD_SECTION_SIZE);
+		b_quic_enc_int(&pos, h3_settings_max_field_section_size);
+	}
 
-		res = mux_get_buf(qcs);
-		if (b_room(res) < b_data(&pos)) {
-			// TODO the mux should be put in blocked state, with
-			// the stream in state waiting for settings to be sent
-			ABORT_NOW();
-		}
+	res = mux_get_buf(qcs);
+	if (b_room(res) < b_data(&pos)) {
+		// TODO the mux should be put in blocked state, with
+		// the stream in state waiting for settings to be sent
+		ABORT_NOW();
+	}
 
-		ret = b_force_xfer(res, &pos, b_data(&pos));
-		if (ret > 0) {
-			h3c->flags |= H3_CF_SETTINGS_SENT;
-			if (!(qcs->qcc->wait_event.events & SUB_RETRY_SEND))
-				tasklet_wakeup(qcs->qcc->wait_event.tasklet);
-		}
+	ret = b_force_xfer(res, &pos, b_data(&pos));
+	if (ret > 0) {
+		h3c->flags |= H3_CF_SETTINGS_SENT;
+		if (!(qcs->qcc->wait_event.events & SUB_RETRY_SEND))
+			tasklet_wakeup(qcs->qcc->wait_event.tasklet);
 	}
 
 	return ret;
