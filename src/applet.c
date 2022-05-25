@@ -218,7 +218,7 @@ struct task *task_run_applet(struct task *t, void *context, unsigned int state)
 	 * put, it's up to it to change this if needed. This ensures
 	 * that one applet which ignores any event will not spin.
 	 */
-	cs_cant_get(cs);
+	applet_need_more_data(app);
 	applet_have_no_more_data(app);
 
 	/* Now we'll try to allocate the input buffer. We wake up the applet in

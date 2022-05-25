@@ -472,7 +472,7 @@ static void dns_session_io_handler(struct appctx *appctx)
 	 * to be notified whenever the connection completes.
 	 */
 	if (cs_opposite(cs)->state < SC_ST_EST) {
-		cs_cant_get(cs);
+		applet_need_more_data(appctx);
 		se_need_remote_conn(appctx->sedesc);
 		applet_have_more_data(appctx);
 		return;

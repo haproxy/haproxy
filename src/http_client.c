@@ -1018,7 +1018,7 @@ static int httpclient_applet_init(struct appctx *appctx)
 	s->res.flags |= CF_READ_DONTWAIT;
 
 	/* applet is waiting for data */
-	cs_cant_get(s->scf);
+	applet_need_more_data(appctx);
 	appctx_wakeup(appctx);
 
 	hc->appctx = appctx;

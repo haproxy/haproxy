@@ -160,6 +160,15 @@ static inline void applet_wont_consume(struct appctx *appctx)
 	se_fl_clr(appctx->sedesc, SE_FL_WILL_CONSUME);
 }
 
+/* The applet indicates that it's willing to consume data from the stream's
+ * output buffer, but that there's not enough, so it doesn't want to be woken
+ * up until more are presented.
+ */
+static inline void applet_need_more_data(struct appctx *appctx)
+{
+	se_fl_set(appctx->sedesc, SE_FL_WILL_CONSUME | SE_FL_WAIT_DATA);
+}
+
 /* writes chunk <chunk> into the input channel of the stream attached to this
  * appctx's endpoint, and marks the SC_FL_NEED_ROOM on a channel full error.
  * See ci_putchk() for the list of return codes.

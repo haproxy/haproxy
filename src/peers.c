@@ -1085,7 +1085,7 @@ static int peer_session_init(struct appctx *appctx)
 
 	s = appctx_strm(appctx);
 	/* applet is waiting for data */
-	cs_cant_get(s->scf);
+	applet_need_more_data(appctx);
 	appctx_wakeup(appctx);
 
 	/* initiate an outgoing connection */

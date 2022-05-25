@@ -1013,7 +1013,7 @@ enum act_return process_use_service(struct act_rule *rule, struct proxy *px,
 	}
 
 	/* Now we can schedule the applet. */
-	cs_cant_get(s->scb);
+	applet_need_more_data(appctx);
 	appctx_wakeup(appctx);
 	return ACT_RET_STOP;
 }

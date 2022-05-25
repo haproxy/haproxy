@@ -489,7 +489,7 @@ struct appctx *cs_applet_create(struct stconn *cs, struct applet *app)
 		return NULL;
 	cs_attach_applet(cs, appctx);
 	appctx->t->nice = __sc_strm(cs)->task->nice;
-	cs_cant_get(cs);
+	applet_need_more_data(appctx);
 	appctx_wakeup(appctx);
 
 	cs->state = SC_ST_RDY;

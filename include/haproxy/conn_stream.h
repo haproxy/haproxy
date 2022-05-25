@@ -389,10 +389,13 @@ static inline void se_wont_consume(struct sedesc *se)
 	se_fl_clr(se, SE_FL_WILL_CONSUME);
 }
 
-/* Report that a stream connector failed to get some data from the output buffer */
-static inline void cs_cant_get(struct stconn *cs)
+/* The stream endpoint indicates that it's willing to consume data from the
+ * stream's output buffer, but that there's not enough, so it doesn't want to
+ * be woken up until more are presented.
+ */
+static inline void se_need_more_data(struct sedesc *se)
 {
-	sc_ep_set(cs, SE_FL_WILL_CONSUME | SE_FL_WAIT_DATA);
+	se_fl_set(se, SE_FL_WILL_CONSUME | SE_FL_WAIT_DATA);
 }
 
 #endif /* _HAPROXY_CONN_STREAM_H */
