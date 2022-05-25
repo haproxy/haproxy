@@ -373,18 +373,6 @@ static inline void sc_need_room(struct stconn *sc)
 	sc->flags |= SC_FL_NEED_ROOM;
 }
 
-/* Returns non-zero if the stream connector's Tx path is blocked */
-static inline int cs_tx_blocked(const struct stconn *cs)
-{
-	return !!sc_ep_test(cs, SE_FL_WAIT_DATA);
-}
-
-/* Returns non-zero if the stream connector's endpoint is ready to transmit */
-static inline int cs_tx_endp_ready(const struct stconn *cs)
-{
-	return sc_ep_test(cs, SE_FL_WILL_CONSUME);
-}
-
 /* Report that a stream connector wants to get some data from the output buffer */
 static inline void cs_want_get(struct stconn *cs)
 {
