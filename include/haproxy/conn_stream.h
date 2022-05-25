@@ -289,11 +289,12 @@ static inline int cs_rx_blocked(const struct stconn *cs)
 	return !!sc_ep_test(cs, SE_FL_RXBLK_ANY);
 }
 
-
-/* Returns non-zero if the stream connector's Rx path is blocked because of lack
- * of room in the input buffer.
+/* Returns non-zero if the stream connector's Rx path is blocked because of
+ * lack of room in the input buffer. This usually happens after applets failed
+ * to deliver data into the channel's buffer and reported it via sc_need_room().
  */
-static inline int cs_rx_blocked_room(const struct stconn *cs)
+__attribute__((warn_unused_result))
+static inline int sc_waiting_room(const struct stconn *cs)
 {
 	return !!sc_ep_test(cs, SE_FL_RXBLK_ROOM);
 }
@@ -354,18 +355,21 @@ static inline void cs_rx_buff_blk(struct stconn *cs)
 	sc_ep_set(cs, SE_FL_RXBLK_BUFF);
 }
 
-/* Tell a stream connector some room was made in the input buffer */
-static inline void cs_rx_room_rdy(struct stconn *cs)
+/* Tell a stream connector some room was made in the input buffer and any
+ * failed attempt to inject data into it may be tried again. This is usually
+ * called after a successful transfer of buffer contents to the other side.
+ */
+static inline void sc_have_room(struct stconn *cs)
 {
 	sc_ep_clr(cs, SE_FL_RXBLK_ROOM);
 }
 
 /* The stream connector announces it failed to put data into the input buffer
  * by lack of room. Since it indicates a willingness to deliver data to the
- * buffer that will have to be retried, we automatically clear RXBLK_ENDP to
- * be called again as soon as RXBLK_ROOM is cleared.
+ * buffer that will have to be retried. Usually the caller will also clear
+ * RXBLK_ENDP to be called again as soon as RXBLK_ROOM is cleared.
  */
-static inline void cs_rx_room_blk(struct stconn *cs)
+static inline void sc_need_room(struct stconn *cs)
 {
 	sc_ep_set(cs, SE_FL_RXBLK_ROOM);
 }

@@ -3296,7 +3296,7 @@ static int cli_io_handler_show_errors(struct appctx *appctx)
  cant_send_unlock:
 	HA_RWLOCK_RDUNLOCK(PROXY_LOCK, &ctx->px->lock);
  cant_send:
-	cs_rx_room_blk(cs);
+	sc_need_room(cs);
 	return 0;
 }
 

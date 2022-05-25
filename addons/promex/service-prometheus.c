@@ -1337,7 +1337,7 @@ static int promex_dump_metrics(struct appctx *appctx, struct stconn *cs, struct 
 	return 1;
 
   full:
-	cs_rx_room_blk(cs);
+	sc_need_room(cs);
 	return 0;
   error:
 	/* unrecoverable error */
@@ -1485,7 +1485,7 @@ static int promex_send_headers(struct appctx *appctx, struct stconn *cs, struct 
 	return 1;
   full:
 	htx_reset(htx);
-	cs_rx_room_blk(cs);
+	sc_need_room(cs);
 	return 0;
 }
 
@@ -1516,7 +1516,7 @@ static void promex_appctx_handle_io(struct appctx *appctx)
 
 	/* Check if the input buffer is available. */
 	if (!b_size(&res->buf)) {
-		cs_rx_room_blk(cs);
+		sc_need_room(cs);
 		goto out;
 	}
 
@@ -1557,7 +1557,7 @@ static void promex_appctx_handle_io(struct appctx *appctx)
 			 */
 			if (htx_is_empty(res_htx)) {
 				if (!htx_add_endof(res_htx, HTX_BLK_EOT)) {
-					cs_rx_room_blk(cs);
+					sc_need_room(cs);
 					goto out;
 				}
 				channel_add_input(res, 1);

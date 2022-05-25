@@ -117,7 +117,7 @@ int tcp_inspect_request(struct stream *s, struct channel *req, int an_bit)
 	 */
 
 	if ((req->flags & (CF_EOI|CF_SHUTR|CF_READ_ERROR)) || channel_full(req, global.tune.maxrewrite) ||
-	    cs_rx_blocked_room(chn_prod(req)) ||
+	    sc_waiting_room(chn_prod(req)) ||
 	    !s->be->tcp_req.inspect_delay || tick_is_expired(s->rules_exp, now_ms))
 		partial = SMP_OPT_FINAL;
 	else
@@ -300,7 +300,7 @@ int tcp_inspect_response(struct stream *s, struct channel *rep, int an_bit)
 	 * - if one rule returns KO, then return KO
 	 */
 	if ((rep->flags & (CF_EOI|CF_SHUTR|CF_READ_ERROR)) || channel_full(rep, global.tune.maxrewrite) ||
-	    cs_rx_blocked_room(chn_prod(rep)) ||
+	    sc_waiting_room(chn_prod(rep)) ||
 	    !s->be->tcp_rep.inspect_delay || tick_is_expired(s->rules_exp, now_ms))
 		partial = SMP_OPT_FINAL;
 	else

@@ -536,7 +536,7 @@ static void dns_session_io_handler(struct appctx *appctx)
 
 				/* check if there is enough room to put message len and query id */
 				if (available_room < sizeof(slen) + sizeof(new_qid)) {
-					cs_rx_room_blk(cs);
+					sc_need_room(cs);
 					ret = 0;
 					break;
 				}
@@ -594,7 +594,7 @@ static void dns_session_io_handler(struct appctx *appctx)
 
 			/* check if it remains available room on output chan */
 			if (unlikely(!available_room)) {
-				cs_rx_room_blk(cs);
+				sc_need_room(cs);
 				ret = 0;
 				break;
 			}
@@ -629,7 +629,7 @@ static void dns_session_io_handler(struct appctx *appctx)
 			if (ds->tx_msg_offset) {
 				/* msg was not fully processed, we must  be awake to drain pending data */
 
-				cs_rx_room_blk(cs);
+				sc_need_room(cs);
 				ret = 0;
 				break;
 			}

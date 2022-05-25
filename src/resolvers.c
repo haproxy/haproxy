@@ -2615,7 +2615,7 @@ static int stats_dump_resolv_to_buffer(struct stconn *cs,
 	return 1;
 
   full:
-	cs_rx_room_rdy(cs);
+	sc_have_room(cs);
 	return 0;
 }
 
@@ -2662,7 +2662,7 @@ int stats_dump_resolvers(struct stconn *cs,
 	return 1;
 
   full:
-	cs_rx_room_blk(cs);
+	sc_need_room(cs);
 	return 0;
 }
 

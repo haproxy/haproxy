@@ -951,7 +951,7 @@ static void cli_io_handler(struct appctx *appctx)
 			 * would want to return some info right after parsing.
 			 */
 			if (buffer_almost_full(sc_ib(cs))) {
-				cs_rx_room_blk(cs);
+				sc_need_room(cs);
 				break;
 			}
 
@@ -1094,7 +1094,7 @@ static void cli_io_handler(struct appctx *appctx)
 					appctx->st0 = CLI_ST_PROMPT;
 				}
 				else
-					cs_rx_room_blk(cs);
+					sc_need_room(cs);
 				break;
 
 			case CLI_ST_CALLBACK: /* use custom pointer */

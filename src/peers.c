@@ -1215,7 +1215,7 @@ static inline int peer_send_msg(struct appctx *appctx,
 	if (ret <= 0) {
 		if (ret == -1) {
 			/* No more write possible */
-			cs_rx_room_blk(cs);
+			sc_need_room(cs);
 			return -1;
 		}
 		appctx->st0 = PEER_SESS_ST_END;
@@ -2861,7 +2861,7 @@ static void peer_io_handler(struct appctx *appctx)
 
 	/* Check if the input buffer is available. */
 	if (sc_ib(cs)->size == 0) {
-		cs_rx_room_blk(cs);
+		sc_need_room(cs);
 		goto out;
 	}
 

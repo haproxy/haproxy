@@ -1149,7 +1149,7 @@ spoe_send_frame(struct appctx *appctx, char *buf, size_t framesz)
 	if (ret <= 0) {
 		if ((ret == -3 && b_is_null(&sc_ic(cs)->buf)) || ret == -1) {
 			/* WT: is this still needed for the case ret==-3 ? */
-			cs_rx_room_blk(cs);
+			sc_need_room(cs);
 			return 1; /* retry */
 		}
 		SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_IO;

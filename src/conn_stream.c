@@ -596,7 +596,7 @@ static void sc_app_chk_rcv(struct stconn *cs)
 
 	if (ic->pipe) {
 		/* stop reading */
-		cs_rx_room_blk(cs);
+		sc_need_room(cs);
 	}
 	else {
 		/* (re)start reading */
@@ -1021,7 +1021,7 @@ void cs_update_rx(struct stconn *cs)
 
 	if (!channel_is_empty(ic) || !channel_may_recv(ic)) {
 		/* stop reading, imposed by channel's policy or contents */
-		cs_rx_room_blk(cs);
+		sc_need_room(cs);
 	}
 	else {
 		/* (re)start reading and update timeout. Note: we don't recompute the timeout
@@ -1029,7 +1029,7 @@ void cs_update_rx(struct stconn *cs)
 		 * update it if is was not yet set. The stream socket handler will already
 		 * have updated it if there has been a completed I/O.
 		 */
-		cs_rx_room_rdy(cs);
+		sc_have_room(cs);
 	}
 	if (sc_ep_test(cs, SE_FL_RXBLK_ANY))
 		ic->rex = TICK_ETERNITY;
@@ -1169,7 +1169,7 @@ static void cs_notify(struct stconn *cs)
 		 * buffer or in the pipe.
 		 */
 		if (new_len < last_len)
-			cs_rx_room_rdy(cs);
+			sc_have_room(cs);
 	}
 
 	if (!(ic->flags & CF_DONT_READ))
@@ -1375,7 +1375,7 @@ static int sc_conn_recv(struct stconn *cs)
 			/* the pipe is full or we have read enough data that it
 			 * could soon be full. Let's stop before needing to poll.
 			 */
-			cs_rx_room_blk(cs);
+			sc_need_room(cs);
 			goto done_recv;
 		}
 
@@ -1445,7 +1445,7 @@ static int sc_conn_recv(struct stconn *cs)
 			 */
 			BUG_ON(c_empty(ic));
 
-			cs_rx_room_blk(cs);
+			sc_need_room(cs);
 			/* Add READ_PARTIAL because some data are pending but
 			 * cannot be xferred to the channel
 			 */
@@ -1459,7 +1459,7 @@ static int sc_conn_recv(struct stconn *cs)
 			 * here to proceed.
 			 */
 			if (flags & CO_RFL_BUF_FLUSH)
-				cs_rx_room_blk(cs);
+				sc_need_room(cs);
 			break;
 		}
 
@@ -1753,7 +1753,7 @@ static int sc_conn_send(struct stconn *cs)
 		if (cs->state == SC_ST_CON)
 			cs->state = SC_ST_RDY;
 
-		cs_rx_room_rdy(cs_opposite(cs));
+		sc_have_room(cs_opposite(cs));
 	}
 
 	if (sc_ep_test(cs, SE_FL_ERROR | SE_FL_ERR_PENDING)) {

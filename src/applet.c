@@ -238,7 +238,7 @@ struct task *task_run_applet(struct task *t, void *context, unsigned int state)
 	 */
 	if (count != co_data(sc_oc(cs))) {
 		sc_oc(cs)->flags |= CF_WRITE_PARTIAL | CF_WROTE_DATA;
-		cs_rx_room_rdy(cs_opposite(cs));
+		sc_have_room(cs_opposite(cs));
 	}
 
 	/* measure the call rate and check for anomalies when too high */

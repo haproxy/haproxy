@@ -3216,7 +3216,7 @@ int stats_dump_proxy_to_buffer(struct stconn *cs, struct htx *htx,
 	}
 
   full:
-	cs_rx_room_blk(cs);
+	sc_need_room(cs);
 	return 0;
 }
 
@@ -3711,7 +3711,7 @@ static int stats_dump_proxies(struct stconn *cs,
 	return 1;
 
   full:
-	cs_rx_room_blk(cs);
+	sc_need_room(cs);
 	return 0;
 }
 
@@ -3815,7 +3815,7 @@ static int stats_dump_stat_to_buffer(struct stconn *cs, struct htx *htx,
 	}
 
   full:
-	cs_rx_room_blk(cs);
+	sc_need_room(cs);
 	return 0;
 
 }
@@ -4210,7 +4210,7 @@ static int stats_send_http_headers(struct stconn *cs, struct htx *htx)
 
   full:
 	htx_reset(htx);
-	cs_rx_room_blk(cs);
+	sc_need_room(cs);
 	return 0;
 }
 
@@ -4270,7 +4270,7 @@ static int stats_send_http_redirect(struct stconn *cs, struct htx *htx)
 
 full:
 	htx_reset(htx);
-	cs_rx_room_blk(cs);
+	sc_need_room(cs);
 	return 0;
 }
 
@@ -4299,7 +4299,7 @@ static void http_stats_io_handler(struct appctx *appctx)
 
 	/* Check if the input buffer is available. */
 	if (!b_size(&res->buf)) {
-		cs_rx_room_blk(cs);
+		sc_need_room(cs);
 		goto out;
 	}
 
@@ -4342,7 +4342,7 @@ static void http_stats_io_handler(struct appctx *appctx)
 		 */
 		if (htx_is_empty(res_htx)) {
 			if (!htx_add_endof(res_htx, HTX_BLK_EOT)) {
-				cs_rx_room_blk(cs);
+				sc_need_room(cs);
 				goto out;
 			}
 			channel_add_input(res, 1);

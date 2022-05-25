@@ -247,7 +247,7 @@ static int hc_cli_io_handler(struct appctx *appctx)
 out:
 	/* we didn't clear every flags, we should come back to finish things */
 	if (ctx->flags)
-		cs_rx_room_blk(cs);
+		sc_need_room(cs);
 
 	free_trash_chunk(trash);
 	return 0;
@@ -917,7 +917,7 @@ process_data:
 more:
 	/* There was not enough data in the response channel */
 
-	cs_rx_room_blk(cs);
+	sc_need_room(cs);
 
 	if (appctx->st0 == HTTPCLIENT_S_RES_END)
 		goto end;
