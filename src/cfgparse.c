@@ -729,7 +729,10 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 				err_code |= ERR_FATAL;
 				goto out;
 			}
-			l = LIST_ELEM(bind_conf->listeners.n, typeof(l), by_bind);
+			/*
+			 * Newly allocated listener is at the end of the list
+			 */
+			l = LIST_ELEM(bind_conf->listeners.p, typeof(l), by_bind);
 			l->maxaccept = 1;
 			l->accept = session_accept_fd;
 			l->analysers |=  curpeers->peers_fe->fe_req_ana;
@@ -933,7 +936,10 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		l = LIST_ELEM(bind_conf->listeners.n, typeof(l), by_bind);
+		/*
+		 * Newly allocated listener is at the end of the list
+		 */
+		l = LIST_ELEM(bind_conf->listeners.p, typeof(l), by_bind);
 		l->maxaccept = 1;
 		l->accept = session_accept_fd;
 		l->analysers |=  curpeers->peers_fe->fe_req_ana;
