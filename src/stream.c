@@ -537,7 +537,7 @@ struct stream *stream_new(struct session *sess, struct stconn *cs, struct buffer
 
 	/* finish initialization of the accepted file descriptor */
 	if (sc_appctx(cs))
-		cs_want_get(s->scf);
+		se_will_consume(s->scf->sedesc);
 
 	if (sess->fe->accept && sess->fe->accept(s) < 0)
 		goto out_fail_accept;

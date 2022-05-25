@@ -373,22 +373,26 @@ static inline void sc_need_room(struct stconn *sc)
 	sc->flags |= SC_FL_NEED_ROOM;
 }
 
-/* Report that a stream connector wants to get some data from the output buffer */
-static inline void cs_want_get(struct stconn *cs)
+/* The stream endpoint indicates that it's ready to consume data from the
+ * stream's output buffer.
+ */
+static inline void se_will_consume(struct sedesc *se)
 {
-	sc_ep_set(cs, SE_FL_WILL_CONSUME);
+	se_fl_set(se, SE_FL_WILL_CONSUME);
+}
+
+/* The stream endpoint indicates that it's not willing to consume data from the
+ * stream's output buffer.
+ */
+static inline void se_wont_consume(struct sedesc *se)
+{
+	se_fl_clr(se, SE_FL_WILL_CONSUME);
 }
 
 /* Report that a stream connector failed to get some data from the output buffer */
 static inline void cs_cant_get(struct stconn *cs)
 {
 	sc_ep_set(cs, SE_FL_WILL_CONSUME | SE_FL_WAIT_DATA);
-}
-
-/* Report that a stream connector doesn't want to get data from the output buffer */
-static inline void cs_stop_get(struct stconn *cs)
-{
-	sc_ep_clr(cs, SE_FL_WILL_CONSUME);
 }
 
 #endif /* _HAPROXY_CONN_STREAM_H */

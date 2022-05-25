@@ -4377,7 +4377,7 @@ static void http_stats_io_handler(struct appctx *appctx)
 	 */
 	htx_to_buf(res_htx, &res->buf);
 	if (!channel_is_empty(res))
-		cs_stop_get(cs);
+		applet_wont_consume(appctx);
 }
 
 /* Dump all fields from <info> into <out> using the "show info" format (name: value) */

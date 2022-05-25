@@ -144,6 +144,22 @@ static inline void applet_have_no_more_data(struct appctx *appctx)
 	se_fl_set(appctx->sedesc, SE_FL_HAVE_NO_DATA);
 }
 
+/* The applet indicates that it's ready to consume data from the stream's
+ * output buffer.
+ */
+static inline void applet_will_consume(struct appctx *appctx)
+{
+	se_fl_set(appctx->sedesc, SE_FL_WILL_CONSUME);
+}
+
+/* The applet indicates that it's not willing to consume data from the stream's
+ * output buffer.
+ */
+static inline void applet_wont_consume(struct appctx *appctx)
+{
+	se_fl_clr(appctx->sedesc, SE_FL_WILL_CONSUME);
+}
+
 /* writes chunk <chunk> into the input channel of the stream attached to this
  * appctx's endpoint, and marks the SC_FL_NEED_ROOM on a channel full error.
  * See ci_putchk() for the list of return codes.
