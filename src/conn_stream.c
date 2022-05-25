@@ -1015,9 +1015,9 @@ void cs_update_rx(struct stconn *cs)
 
 	/* Read not closed, update FD status and timeout for reads */
 	if (ic->flags & CF_DONT_READ)
-		cs_rx_chan_blk(cs);
+		sc_wont_read(cs);
 	else
-		cs_rx_chan_rdy(cs);
+		sc_will_read(cs);
 
 	if (!channel_is_empty(ic) || !channel_may_recv(ic)) {
 		/* stop reading, imposed by channel's policy or contents */
@@ -1135,9 +1135,9 @@ static void cs_notify(struct stconn *cs)
 	}
 
 	if (oc->flags & CF_DONT_READ)
-		cs_rx_chan_blk(cso);
+		sc_wont_read(cso);
 	else
-		cs_rx_chan_rdy(cso);
+		sc_will_read(cso);
 
 	/* Notify the other side when we've injected data into the IC that
 	 * needs to be forwarded. We can do fast-forwarding as soon as there
@@ -1173,7 +1173,7 @@ static void cs_notify(struct stconn *cs)
 	}
 
 	if (!(ic->flags & CF_DONT_READ))
-		cs_rx_chan_rdy(cs);
+		sc_will_read(cs);
 
 	cs_chk_rcv(cs);
 	cs_chk_rcv(cso);
@@ -1489,7 +1489,7 @@ static int sc_conn_recv(struct stconn *cs)
 
 		if ((ic->flags & CF_READ_DONTWAIT) || --read_poll <= 0) {
 			/* we're stopped by the channel's policy */
-			cs_rx_chan_blk(cs);
+			sc_wont_read(cs);
 			break;
 		}
 
@@ -1504,7 +1504,7 @@ static int sc_conn_recv(struct stconn *cs)
 			 */
 			if (ic->flags & CF_STREAMER) {
 				/* we're stopped by the channel's policy */
-				cs_rx_chan_blk(cs);
+				sc_wont_read(cs);
 				break;
 			}
 
@@ -1513,7 +1513,7 @@ static int sc_conn_recv(struct stconn *cs)
 			 */
 			if (ret >= global.tune.recv_enough) {
 				/* we're stopped by the channel's policy */
-				cs_rx_chan_blk(cs);
+				sc_wont_read(cs);
 				break;
 			}
 		}

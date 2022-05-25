@@ -911,7 +911,7 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 
 process_data:
 
-	cs_rx_chan_rdy(cs);
+	sc_will_read(cs);
 
 	return;
 more:

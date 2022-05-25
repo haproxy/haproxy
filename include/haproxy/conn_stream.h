@@ -317,14 +317,19 @@ static inline void cs_rx_endp_done(struct stconn *cs)
 	sc_ep_set(cs, SE_FL_RX_WAIT_EP);
 }
 
-/* Tell a stream connector the input channel is OK with it sending it some data */
-static inline void cs_rx_chan_rdy(struct stconn *cs)
+/* The application layer informs a stream connector that it's willing to
+ * receive data from the endpoint.
+ */
+static inline void sc_will_read(struct stconn *cs)
 {
 	sc_ep_clr(cs, SE_FL_RXBLK_CHAN);
 }
 
-/* Tell a stream connector the input channel is not OK with it sending it some data */
-static inline void cs_rx_chan_blk(struct stconn *cs)
+/* The application layer informs a stream connector that it will not receive
+ * data from the endpoint (e.g. need to flush, bw limitations etc). Usually
+ * it corresponds to the channel's CF_DONT_READ flag.
+ */
+static inline void sc_wont_read(struct stconn *cs)
 {
 	sc_ep_set(cs, SE_FL_RXBLK_CHAN);
 }
