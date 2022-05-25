@@ -151,7 +151,7 @@ static inline int cs_is_conn_error(const struct stconn *cs)
  * failure, non-zero otherwise. If no buffer is available, the requester,
  * represented by the <wait> pointer, will be added in the list of objects
  * waiting for an available buffer, and SE_FL_RXBLK_BUFF will be set on the
- * stream connector and SE_FL_RX_WAIT_EP cleared. The requester will be responsible
+ * stream connector and SE_FL_HAVE_NO_DATA cleared. The requester will be responsible
  * for calling this function to try again once woken up.
  */
 static inline int cs_alloc_ibuf(struct stconn *cs, struct buffer_wait *wait)
@@ -304,7 +304,10 @@ static inline int sc_is_recv_allowed(const struct stconn *sc)
 	if (sc_ep_test(sc, SE_FL_APPLET_NEED_CONN))
 		return 0;
 
-	return cs_rx_endp_ready(sc) && !cs_rx_blocked(sc);
+	if (sc_ep_test(sc, SE_FL_HAVE_NO_DATA))
+		return 0;
+
+	return !cs_rx_blocked(sc);
 }
 
 /* This is to be used after making some room available in a channel. It will
@@ -325,7 +328,7 @@ static inline void cs_chk_rcv(struct stconn *cs)
 	if (!cs_state_in(cs->state, SC_SB_RDY|SC_SB_EST))
 		return;
 
-	sc_ep_set(cs, SE_FL_RX_WAIT_EP);
+	sc_ep_set(cs, SE_FL_HAVE_NO_DATA);
 	if (likely(cs->app_ops->chk_rcv))
 		cs->app_ops->chk_rcv(cs);
 }

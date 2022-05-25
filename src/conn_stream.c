@@ -1919,7 +1919,7 @@ static int cs_applet_process(struct stconn *cs)
 	/* If the applet wants to write and the channel is closed, it's a
 	 * broken pipe and it must be reported.
 	 */
-	if (!sc_ep_test(cs, SE_FL_RX_WAIT_EP) && (ic->flags & CF_SHUTR))
+	if (!sc_ep_test(cs, SE_FL_HAVE_NO_DATA) && (ic->flags & CF_SHUTR))
 		sc_ep_set(cs, SE_FL_ERROR);
 
 	/* automatically mark the applet having data available if it reported

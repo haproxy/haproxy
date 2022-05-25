@@ -133,7 +133,7 @@ static inline struct stream *appctx_strm(const struct appctx *appctx)
  */
 static inline void applet_have_more_data(struct appctx *appctx)
 {
-	se_fl_clr(appctx->sedesc, SE_FL_RX_WAIT_EP);
+	se_fl_clr(appctx->sedesc, SE_FL_HAVE_NO_DATA);
 }
 
 /* The applet announces it doesn't have more data for the stream's input
@@ -141,7 +141,7 @@ static inline void applet_have_more_data(struct appctx *appctx)
  */
 static inline void applet_have_no_more_data(struct appctx *appctx)
 {
-	se_fl_set(appctx->sedesc, SE_FL_RX_WAIT_EP);
+	se_fl_set(appctx->sedesc, SE_FL_HAVE_NO_DATA);
 }
 
 /* writes chunk <chunk> into the input channel of the stream attached to this

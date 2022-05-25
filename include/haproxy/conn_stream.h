@@ -299,18 +299,12 @@ static inline int sc_waiting_room(const struct stconn *cs)
 	return !!sc_ep_test(cs, SE_FL_RXBLK_ROOM);
 }
 
-/* Returns non-zero if the stream connector's endpoint is ready to receive */
-static inline int cs_rx_endp_ready(const struct stconn *cs)
-{
-	return !sc_ep_test(cs, SE_FL_RX_WAIT_EP);
-}
-
 /* The stream endpoint announces it has more data to deliver to the stream's
  * input buffer.
  */
 static inline void se_have_more_data(struct sedesc *se)
 {
-	se_fl_clr(se, SE_FL_RX_WAIT_EP);
+	se_fl_clr(se, SE_FL_HAVE_NO_DATA);
 }
 
 /* The stream endpoint announces it doesn't have more data for the stream's
@@ -318,7 +312,7 @@ static inline void se_have_more_data(struct sedesc *se)
  */
 static inline void se_have_no_more_data(struct sedesc *se)
 {
-	se_fl_set(se, SE_FL_RX_WAIT_EP);
+	se_fl_set(se, SE_FL_HAVE_NO_DATA);
 }
 
 /* The application layer informs a stream connector that it's willing to
@@ -358,7 +352,7 @@ static inline void sc_have_buff(struct stconn *cs)
 
 /* The stream connector failed to get an input buffer and is waiting for it.
  * It indicates a willingness to deliver data to the buffer that will have to
- * be retried, as such, callers will often automatically clear RXBLK_ENDP to be
+ * be retried. As such, callers will often automatically clear SE_FL_HAVE_NO_DATA
  * called again as soon as RXBLK_BUFF is cleared.
  */
 static inline void sc_need_buff(struct stconn *cs)
@@ -378,7 +372,7 @@ static inline void sc_have_room(struct stconn *cs)
 /* The stream connector announces it failed to put data into the input buffer
  * by lack of room. Since it indicates a willingness to deliver data to the
  * buffer that will have to be retried. Usually the caller will also clear
- * RXBLK_ENDP to be called again as soon as RXBLK_ROOM is cleared.
+ * SE_FL_HAVE_NO_DATA to be called again as soon as RXBLK_ROOM is cleared.
  */
 static inline void sc_need_room(struct stconn *cs)
 {

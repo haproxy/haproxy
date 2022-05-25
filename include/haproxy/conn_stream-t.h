@@ -74,7 +74,7 @@ enum se_flags {
 	SE_FL_KILL_CONN     = 0x00400000,  /* must kill the connection when the CS closes */
 	SE_FL_WAIT_DATA     = 0x00800000,  /* CS waits for more outgoing data to send */
 	SE_FL_WANT_GET      = 0x01000000,  /* CS would like to get some data from the buffer */
-	SE_FL_RX_WAIT_EP    = 0x02000000,  /* CS waits for more data from the end point */
+	SE_FL_HAVE_NO_DATA  = 0x02000000,  /* the endpoint has no more data to deliver to the stream */
 	SE_FL_RXBLK_CHAN    = 0x04000000,  /* the channel doesn't want the CS to introduce data */
 	SE_FL_RXBLK_BUFF    = 0x08000000,  /* CS waits for a buffer allocation to complete */
 	SE_FL_RXBLK_ROOM    = 0x10000000,  /* CS waits for more buffer room to store incoming data */
