@@ -2367,13 +2367,16 @@ static void qc_prep_hdshk_fast_retrans(struct quic_conn *qc,
 	LIST_SPLICE(hfrms, &htmp);
 }
 
-static void qc_cc_err_count_inc(struct quic_counters *ctrs,
-                                enum quic_frame_type frm_type, unsigned int error_code)
+static void qc_cc_err_count_inc(struct quic_conn *qc, struct quic_frame *frm)
 {
-	if (frm_type == QUIC_FT_CONNECTION_CLOSE)
-		quic_stats_transp_err_count_inc(ctrs, error_code);
-	else if (frm_type == QUIC_FT_CONNECTION_CLOSE_APP)
-		return;
+	if (frm->type == QUIC_FT_CONNECTION_CLOSE)
+		quic_stats_transp_err_count_inc(qc->prx_counters, frm->connection_close.error_code);
+	else if (frm->type == QUIC_FT_CONNECTION_CLOSE_APP) {
+		if (qc->mux_state != QC_MUX_READY || !qc->qcc->app_ops->inc_err_cnt)
+			return;
+
+		qc->qcc->app_ops->inc_err_cnt(qc->qcc->ctx, frm->connection_close_app.error_code);
+	}
 }
 
 /* Parse all the frames of <pkt> QUIC packet for QUIC connection with <ctx>
@@ -2561,7 +2564,8 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct ssl_sock_ctx *ct
 			break;
 		case QUIC_FT_CONNECTION_CLOSE:
 		case QUIC_FT_CONNECTION_CLOSE_APP:
-			qc_cc_err_count_inc(qc->prx_counters, frm.type, frm.connection_close.error_code);
+			/* Increment the error counters */
+			qc_cc_err_count_inc(qc, &frm);
 			if (!(qc->flags & QUIC_FL_CONN_DRAINING)) {
 				/* If the connection did not reached the handshake complete state,
 				 * the <half_open_conn> counter was not decremented. Note that if

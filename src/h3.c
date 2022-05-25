@@ -20,6 +20,7 @@
 #include <haproxy/connection.h>
 #include <haproxy/dynbuf.h>
 #include <haproxy/h3.h>
+#include <haproxy/h3_stats.h>
 #include <haproxy/http.h>
 #include <haproxy/htx.h>
 #include <haproxy/intops.h>
@@ -64,6 +65,8 @@ struct h3c {
 	uint64_t max_field_section_size;
 
 	struct buffer_wait buf_wait; /* wait list for buffer allocations */
+	/* Stats counters */
+	struct h3_counters *prx_counters;
 };
 
 DECLARE_STATIC_POOL(pool_head_h3c, "h3c", sizeof(struct h3c));
@@ -567,6 +570,7 @@ static int h3_decode_qcs(struct qcs *qcs, int fin, void *ctx)
 
 		last_stream_frame = (fin && flen == ncb_total_data(rxbuf));
 
+		h3_inc_frame_type_cnt(h3c->prx_counters, ftype);
 		switch (ftype) {
 		case H3_FT_DATA:
 			ret = h3_data_to_htx(qcs, rxbuf, flen, last_stream_frame);
@@ -982,6 +986,7 @@ static int h3_finalize(void *ctx)
 static int h3_init(struct qcc *qcc)
 {
 	struct h3c *h3c;
+	struct quic_conn *qc = qcc->conn->handle.qc;
 
 	h3c = pool_alloc(pool_head_h3c);
 	if (!h3c)
@@ -992,6 +997,9 @@ static int h3_init(struct qcc *qcc)
 	h3c->flags = 0;
 
 	qcc->ctx = h3c;
+	h3c->prx_counters =
+		EXTRA_COUNTERS_GET(qc->li->bind_conf->frontend->extra_counters_fe,
+		                   &h3_stats_module);
 	LIST_INIT(&h3c->buf_wait.list);
 
 	return 1;
@@ -1018,6 +1026,14 @@ static int h3_is_active(const struct qcc *qcc, void *ctx)
 	return 0;
 }
 
+/* Increment the h3 error code counters for <error_code> value */
+static void h3_stats_inc_err_cnt(void *ctx, int err_code)
+{
+	struct h3c *h3c = ctx;
+
+	h3_inc_err_cnt(h3c->prx_counters, err_code);
+}
+
 /* HTTP/3 application layer operations */
 const struct qcc_app_ops h3_ops = {
 	.init        = h3_init,
@@ -1028,4 +1044,5 @@ const struct qcc_app_ops h3_ops = {
 	.finalize    = h3_finalize,
 	.is_active   = h3_is_active,
 	.release     = h3_release,
+	.inc_err_cnt = h3_stats_inc_err_cnt,
 };
