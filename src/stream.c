@@ -315,10 +315,10 @@ int stream_buf_available(void *arg)
 
 	if (!s->req.buf.size && !s->req.pipe && sc_ep_test(s->scf, SE_FL_RXBLK_BUFF) &&
 	    b_alloc(&s->req.buf))
-		cs_rx_buff_rdy(s->scf);
+		sc_have_buff(s->scf);
 	else if (!s->res.buf.size && !s->res.pipe && sc_ep_test(s->scb, SE_FL_RXBLK_BUFF) &&
 		 b_alloc(&s->res.buf))
-		cs_rx_buff_rdy(s->scb);
+		sc_have_buff(s->scb);
 	else
 		return 0;
 

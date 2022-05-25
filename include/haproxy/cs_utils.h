@@ -160,7 +160,7 @@ static inline int cs_alloc_ibuf(struct stconn *cs, struct buffer_wait *wait)
 
 	ret = channel_alloc_buffer(sc_ic(cs), wait);
 	if (!ret)
-		cs_rx_buff_blk(cs);
+		sc_need_buff(cs);
 	return ret;
 }
 

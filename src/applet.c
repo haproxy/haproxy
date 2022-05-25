@@ -170,7 +170,7 @@ int appctx_buf_available(void *arg)
 	if (!se_fl_test(appctx->sedesc, SE_FL_RXBLK_BUFF))
 		return 0;
 
-	cs_rx_buff_rdy(cs);
+	sc_have_buff(cs);
 
 	/* was already allocated another way ? if so, don't take this one */
 	if (c_size(sc_ic(cs)) || sc_ic(cs)->pipe)
@@ -178,7 +178,7 @@ int appctx_buf_available(void *arg)
 
 	/* allocation possible now ? */
 	if (!b_alloc(&sc_ic(cs)->buf)) {
-		cs_rx_buff_blk(cs);
+		sc_need_buff(cs);
 		return 0;
 	}
 

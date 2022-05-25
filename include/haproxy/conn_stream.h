@@ -344,18 +344,20 @@ static inline void se_need_remote_conn(struct sedesc *se)
 	se_fl_set(se, SE_FL_APPLET_NEED_CONN);
 }
 
-/* The stream connector just got the input buffer it was waiting for */
-static inline void cs_rx_buff_rdy(struct stconn *cs)
+/* The application layer tells the stream connector that it just got the input
+ * buffer it was waiting for.
+ */
+static inline void sc_have_buff(struct stconn *cs)
 {
 	sc_ep_clr(cs, SE_FL_RXBLK_BUFF);
 }
 
 /* The stream connector failed to get an input buffer and is waiting for it.
- * Since it indicates a willingness to deliver data to the buffer that will
- * have to be retried, we automatically clear RXBLK_ENDP to be called again
- * as soon as RXBLK_BUFF is cleared.
+ * It indicates a willingness to deliver data to the buffer that will have to
+ * be retried, as such, callers will often automatically clear RXBLK_ENDP to be
+ * called again as soon as RXBLK_BUFF is cleared.
  */
-static inline void cs_rx_buff_blk(struct stconn *cs)
+static inline void sc_need_buff(struct stconn *cs)
 {
 	sc_ep_set(cs, SE_FL_RXBLK_BUFF);
 }
