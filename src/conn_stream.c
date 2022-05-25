@@ -1614,7 +1614,7 @@ int sc_conn_sync_recv(struct stconn *cs)
 	if (cs->wait_event.events & SUB_RETRY_RECV)
 		return 0; // already subscribed
 
-	if (!cs_rx_endp_ready(cs) || cs_rx_blocked(cs))
+	if (!sc_is_recv_allowed(cs))
 		return 0; // already failed
 
 	return sc_conn_recv(cs);
@@ -1937,9 +1937,7 @@ static int cs_applet_process(struct stconn *cs)
 	 * appctx but in the case the task is not in runqueue we may have to
 	 * wakeup the appctx immediately.
 	 */
-	if ((cs_rx_endp_ready(cs) && !cs_rx_blocked(cs) &&
-	     !sc_ep_test(cs, SE_FL_APPLET_NEED_CONN) && !(ic->flags & CF_SHUTR)) ||
-	    sc_is_send_allowed(cs))
+	if (sc_is_recv_allowed(cs) || sc_is_send_allowed(cs))
 		appctx_wakeup(__sc_appctx(cs));
 	return 0;
 }

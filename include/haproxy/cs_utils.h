@@ -286,6 +286,27 @@ static inline void cs_shutw(struct stconn *cs)
 		cs->app_ops->shutw(cs);
 }
 
+/* Returns non-zero if the stream connector is allowed to receive from the
+ * endpoint, which means that no flag indicating a blocked channel, lack of
+ * buffer or room is set, and that the endpoint is not waiting for the
+ * application to complete a connection setup on the other side, and that
+ * the stream's channel is not shut for reads. This is only used by stream
+ * applications.
+ */
+__attribute__((warn_unused_result))
+static inline int sc_is_recv_allowed(const struct stconn *sc)
+{
+	struct channel *ic = sc_ic(sc);
+
+	if (ic->flags & CF_SHUTR)
+		return 0;
+
+	if (sc_ep_test(sc, SE_FL_APPLET_NEED_CONN))
+		return 0;
+
+	return cs_rx_endp_ready(sc) && !cs_rx_blocked(sc);
+}
+
 /* This is to be used after making some room available in a channel. It will
  * return without doing anything if the stream connector's RX path is blocked.
  * It will automatically mark the stream connector as busy processing the end
@@ -294,17 +315,11 @@ static inline void cs_shutw(struct stconn *cs)
  */
 static inline void cs_chk_rcv(struct stconn *cs)
 {
-	struct channel *ic = sc_ic(cs);
-
 	if (sc_ep_test(cs, SE_FL_APPLET_NEED_CONN) &&
 	    cs_state_in(cs_opposite(cs)->state, SC_SB_RDY|SC_SB_EST|SC_SB_DIS|SC_SB_CLO))
 		sc_ep_clr(cs, SE_FL_APPLET_NEED_CONN);
 
-	if (ic->flags & CF_SHUTR)
-		return;
-
-	if (sc_ep_test(cs, SE_FL_APPLET_NEED_CONN) ||
-	    cs_rx_blocked(cs) || !cs_rx_endp_ready(cs))
+	if (!sc_is_recv_allowed(cs))
 		return;
 
 	if (!cs_state_in(cs->state, SC_SB_RDY|SC_SB_EST))
