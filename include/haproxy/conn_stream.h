@@ -382,25 +382,25 @@ static inline int cs_tx_blocked(const struct stconn *cs)
 /* Returns non-zero if the stream connector's endpoint is ready to transmit */
 static inline int cs_tx_endp_ready(const struct stconn *cs)
 {
-	return sc_ep_test(cs, SE_FL_WANT_GET);
+	return sc_ep_test(cs, SE_FL_WILL_CONSUME);
 }
 
 /* Report that a stream connector wants to get some data from the output buffer */
 static inline void cs_want_get(struct stconn *cs)
 {
-	sc_ep_set(cs, SE_FL_WANT_GET);
+	sc_ep_set(cs, SE_FL_WILL_CONSUME);
 }
 
 /* Report that a stream connector failed to get some data from the output buffer */
 static inline void cs_cant_get(struct stconn *cs)
 {
-	sc_ep_set(cs, SE_FL_WANT_GET | SE_FL_WAIT_DATA);
+	sc_ep_set(cs, SE_FL_WILL_CONSUME | SE_FL_WAIT_DATA);
 }
 
 /* Report that a stream connector doesn't want to get data from the output buffer */
 static inline void cs_stop_get(struct stconn *cs)
 {
-	sc_ep_clr(cs, SE_FL_WANT_GET);
+	sc_ep_clr(cs, SE_FL_WILL_CONSUME);
 }
 
 #endif /* _HAPROXY_CONN_STREAM_H */
