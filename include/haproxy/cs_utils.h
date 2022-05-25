@@ -150,7 +150,7 @@ static inline int cs_is_conn_error(const struct stconn *cs)
  * channel_alloc_buffer() for this so it abides by its rules. It returns 0 on
  * failure, non-zero otherwise. If no buffer is available, the requester,
  * represented by the <wait> pointer, will be added in the list of objects
- * waiting for an available buffer, and SE_FL_RXBLK_BUFF will be set on the
+ * waiting for an available buffer, and SC_FL_NEED_BUFF will be set on the
  * stream connector and SE_FL_HAVE_NO_DATA cleared. The requester will be responsible
  * for calling this function to try again once woken up.
  */
@@ -307,7 +307,7 @@ static inline int sc_is_recv_allowed(const struct stconn *sc)
 	if (sc_ep_test(sc, SE_FL_HAVE_NO_DATA))
 		return 0;
 
-	return !cs_rx_blocked(sc);
+	return !(sc->flags & (SC_FL_WONT_READ|SC_FL_NEED_BUFF|SC_FL_NEED_ROOM));
 }
 
 /* This is to be used after making some room available in a channel. It will

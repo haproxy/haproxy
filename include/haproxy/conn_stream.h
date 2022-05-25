@@ -283,20 +283,14 @@ static inline void sc_conn_drain_and_shut(struct stconn *cs)
 	sc_conn_shutr(cs, CO_SHR_DRAIN);
 }
 
-/* Returns non-zero if the stream connector's Rx path is blocked */
-static inline int cs_rx_blocked(const struct stconn *cs)
-{
-	return !!sc_ep_test(cs, SE_FL_RXBLK_ANY);
-}
-
 /* Returns non-zero if the stream connector's Rx path is blocked because of
  * lack of room in the input buffer. This usually happens after applets failed
  * to deliver data into the channel's buffer and reported it via sc_need_room().
  */
 __attribute__((warn_unused_result))
-static inline int sc_waiting_room(const struct stconn *cs)
+static inline int sc_waiting_room(const struct stconn *sc)
 {
-	return !!sc_ep_test(cs, SE_FL_RXBLK_ROOM);
+	return !!(sc->flags & SC_FL_NEED_ROOM);
 }
 
 /* The stream endpoint announces it has more data to deliver to the stream's
@@ -318,18 +312,18 @@ static inline void se_have_no_more_data(struct sedesc *se)
 /* The application layer informs a stream connector that it's willing to
  * receive data from the endpoint.
  */
-static inline void sc_will_read(struct stconn *cs)
+static inline void sc_will_read(struct stconn *sc)
 {
-	sc_ep_clr(cs, SE_FL_RXBLK_CHAN);
+	sc->flags &= ~SC_FL_WONT_READ;
 }
 
 /* The application layer informs a stream connector that it will not receive
  * data from the endpoint (e.g. need to flush, bw limitations etc). Usually
  * it corresponds to the channel's CF_DONT_READ flag.
  */
-static inline void sc_wont_read(struct stconn *cs)
+static inline void sc_wont_read(struct stconn *sc)
 {
-	sc_ep_set(cs, SE_FL_RXBLK_CHAN);
+	sc->flags |= SC_FL_WONT_READ;
 }
 
 /* An frontend (applet) stream endpoint tells the connector it needs the other
@@ -345,38 +339,38 @@ static inline void se_need_remote_conn(struct sedesc *se)
 /* The application layer tells the stream connector that it just got the input
  * buffer it was waiting for.
  */
-static inline void sc_have_buff(struct stconn *cs)
+static inline void sc_have_buff(struct stconn *sc)
 {
-	sc_ep_clr(cs, SE_FL_RXBLK_BUFF);
+	sc->flags &= ~SC_FL_NEED_BUFF;
 }
 
 /* The stream connector failed to get an input buffer and is waiting for it.
  * It indicates a willingness to deliver data to the buffer that will have to
  * be retried. As such, callers will often automatically clear SE_FL_HAVE_NO_DATA
- * called again as soon as RXBLK_BUFF is cleared.
+ * to be called again as soon as SC_FL_NEED_BUFF is cleared.
  */
-static inline void sc_need_buff(struct stconn *cs)
+static inline void sc_need_buff(struct stconn *sc)
 {
-	sc_ep_set(cs, SE_FL_RXBLK_BUFF);
+	sc->flags |= SC_FL_NEED_BUFF;
 }
 
 /* Tell a stream connector some room was made in the input buffer and any
  * failed attempt to inject data into it may be tried again. This is usually
  * called after a successful transfer of buffer contents to the other side.
  */
-static inline void sc_have_room(struct stconn *cs)
+static inline void sc_have_room(struct stconn *sc)
 {
-	sc_ep_clr(cs, SE_FL_RXBLK_ROOM);
+	sc->flags &= ~SC_FL_NEED_ROOM;
 }
 
 /* The stream connector announces it failed to put data into the input buffer
  * by lack of room. Since it indicates a willingness to deliver data to the
  * buffer that will have to be retried. Usually the caller will also clear
- * SE_FL_HAVE_NO_DATA to be called again as soon as RXBLK_ROOM is cleared.
+ * SE_FL_HAVE_NO_DATA to be called again as soon as SC_FL_NEED_ROOM is cleared.
  */
-static inline void sc_need_room(struct stconn *cs)
+static inline void sc_need_room(struct stconn *sc)
 {
-	sc_ep_set(cs, SE_FL_RXBLK_ROOM);
+	sc->flags |= SC_FL_NEED_ROOM;
 }
 
 /* Returns non-zero if the stream connector's Tx path is blocked */

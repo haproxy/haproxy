@@ -75,11 +75,10 @@ enum se_flags {
 	SE_FL_WAIT_DATA     = 0x00800000,  /* CS waits for more outgoing data to send */
 	SE_FL_WANT_GET      = 0x01000000,  /* CS would like to get some data from the buffer */
 	SE_FL_HAVE_NO_DATA  = 0x02000000,  /* the endpoint has no more data to deliver to the stream */
-	SE_FL_RXBLK_CHAN    = 0x04000000,  /* the channel doesn't want the CS to introduce data */
-	SE_FL_RXBLK_BUFF    = 0x08000000,  /* CS waits for a buffer allocation to complete */
-	SE_FL_RXBLK_ROOM    = 0x10000000,  /* CS waits for more buffer room to store incoming data */
-	SE_FL_RXBLK_ANY     = 0x1C000000,  /* any of the RXBLK flags above */
-	SE_FL_APP_MASK      = 0x1fe00000,  /* Mask for flags set by the app layer */
+	SE_FL_APP_MASK      = 0x02e00000,  /* Mask for flags set by the app layer */
+	/* unused             0x04000000,*/
+	/* unused             0x08000000,*/
+	/* unused             0x10000000,*/
 	/* unused             0x20000000,*/
 	SE_FL_APPLET_NEED_CONN = 0x40000000,  /* applet is waiting for the other side to (fail to) connect */
 };
@@ -96,6 +95,10 @@ enum sc_flags {
 	SC_FL_NOHALF        = 0x00000010,  /* no half close, close both sides at once */
 	SC_FL_DONT_WAKE     = 0x00000020,  /* resync in progress, don't wake up */
 	SC_FL_INDEP_STR     = 0x00000040,  /* independent streams = don't update rex on write */
+
+	SC_FL_WONT_READ     = 0x00000080,  /* SC doesn't want to read data */
+	SC_FL_NEED_BUFF     = 0x00000100,  /* SC waits for an rx buffer allocation to complete */
+	SC_FL_NEED_ROOM     = 0x00000200,  /* SC needs more room in the rx buffer to store incoming data */
 };
 
 /* A conn stream must have its own errors independently of the buffer's, so that

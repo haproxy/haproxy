@@ -1031,7 +1031,7 @@ void cs_update_rx(struct stconn *cs)
 		 */
 		sc_have_room(cs);
 	}
-	if (sc_ep_test(cs, SE_FL_RXBLK_ANY))
+	if (cs->flags & (SC_FL_WONT_READ|SC_FL_NEED_BUFF|SC_FL_NEED_ROOM))
 		ic->rex = TICK_ETERNITY;
 	else if (!(ic->flags & CF_READ_NOEXP) && !tick_isset(ic->rex))
 		ic->rex = tick_add_ifset(now_ms, ic->rto);
@@ -1092,7 +1092,7 @@ void cs_update_tx(struct stconn *cs)
  * layers (applets, connections) after I/O completion. After updating the stream
  * interface and timeouts, it will try to forward what can be forwarded, then to
  * wake the associated task up if an important event requires special handling.
- * It may update SE_FL_WAIT_DATA and/or SE_FL_RXBLK_ROOM, that the callers are
+ * It may update SE_FL_WAIT_DATA and/or SC_FL_NEED_ROOM, that the callers are
  * encouraged to watch to take appropriate action.
  * It should not be called from within the stream itself, cs_update()
  * is designed for this.
@@ -1144,11 +1144,12 @@ static void cs_notify(struct stconn *cs)
 	 * are output data, but we avoid doing this if some of the data are
 	 * not yet scheduled for being forwarded, because it is very likely
 	 * that it will be done again immediately afterwards once the following
-	 * data are parsed (eg: HTTP chunking). We only SE_FL_RXBLK_ROOM once
-	 * we've emptied *some* of the output buffer, and not just when there
-	 * is available room, because applets are often forced to stop before
-	 * the buffer is full. We must not stop based on input data alone because
-	 * an HTTP parser might need more data to complete the parsing.
+	 * data are parsed (eg: HTTP chunking). We only clear SC_FL_NEED_ROOM
+	 * once we've emptied *some* of the output buffer, and not just when
+	 * there is available room, because applets are often forced to stop
+	 * before the buffer is full. We must not stop based on input data
+	 * alone because an HTTP parser might need more data to complete the
+	 * parsing.
 	 */
 	if (!channel_is_empty(ic) &&
 	    sc_ep_test(cso, SE_FL_WAIT_DATA) &&
@@ -1178,7 +1179,8 @@ static void cs_notify(struct stconn *cs)
 	cs_chk_rcv(cs);
 	cs_chk_rcv(cso);
 
-	if (ic->flags & CF_SHUTR || sc_ep_test(cs, SE_FL_APPLET_NEED_CONN) || cs_rx_blocked(cs)) {
+	if (ic->flags & CF_SHUTR || sc_ep_test(cs, SE_FL_APPLET_NEED_CONN) ||
+	    (cs->flags & (SC_FL_WONT_READ|SC_FL_NEED_BUFF|SC_FL_NEED_ROOM))) {
 		ic->rex = TICK_ETERNITY;
 	}
 	else if ((ic->flags & (CF_SHUTR|CF_READ_PARTIAL)) == CF_READ_PARTIAL) {
@@ -1521,7 +1523,7 @@ static int sc_conn_recv(struct stconn *cs)
 		/* if we are waiting for more space, don't try to read more data
 		 * right now.
 		 */
-		if (cs_rx_blocked(cs))
+		if (cs->flags & (SC_FL_WONT_READ|SC_FL_NEED_BUFF|SC_FL_NEED_ROOM))
 			break;
 	} /* while !flags */
 
@@ -1585,7 +1587,8 @@ static int sc_conn_recv(struct stconn *cs)
 		sc_conn_read0(cs);
 		ret = 1;
 	}
-	else if (!cs_rx_blocked(cs) && !(ic->flags & CF_SHUTR)) {
+	else if (!(cs->flags & (SC_FL_WONT_READ|SC_FL_NEED_BUFF|SC_FL_NEED_ROOM)) &&
+		 !(ic->flags & CF_SHUTR)) {
 		/* Subscribe to receive events if we're blocking on I/O */
 		conn->mux->subscribe(cs, SUB_RETRY_RECV, &cs->wait_event);
 		se_have_no_more_data(cs->sedesc);
@@ -1925,15 +1928,16 @@ static int cs_applet_process(struct stconn *cs)
 	/* automatically mark the applet having data available if it reported
 	 * begin blocked by the channel.
 	 */
-	if (cs_rx_blocked(cs) || sc_ep_test(cs, SE_FL_APPLET_NEED_CONN))
+	if ((cs->flags & (SC_FL_WONT_READ|SC_FL_NEED_BUFF|SC_FL_NEED_ROOM)) ||
+	    sc_ep_test(cs, SE_FL_APPLET_NEED_CONN))
 		applet_have_more_data(__sc_appctx(cs));
 
 	/* update the stream connector, channels, and possibly wake the stream up */
 	cs_notify(cs);
 	stream_release_buffers(__sc_strm(cs));
 
-	/* cs_notify may have passed through chk_snd and released some
-	 * RXBLK flags. Process_stream will consider those flags to wake up the
+	/* cs_notify may have passed through chk_snd and released some blocking
+	 * flags. Process_stream will consider those flags to wake up the
 	 * appctx but in the case the task is not in runqueue we may have to
 	 * wakeup the appctx immediately.
 	 */

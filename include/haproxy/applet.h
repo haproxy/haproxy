@@ -145,8 +145,8 @@ static inline void applet_have_no_more_data(struct appctx *appctx)
 }
 
 /* writes chunk <chunk> into the input channel of the stream attached to this
- * appctx's endpoint, and marks the RXBLK_ROOM on a channel full error. See
- * ci_putchk() for the list of return codes.
+ * appctx's endpoint, and marks the SC_FL_NEED_ROOM on a channel full error.
+ * See ci_putchk() for the list of return codes.
  */
 static inline int applet_putchk(struct appctx *appctx, struct buffer *chunk)
 {
@@ -155,14 +155,14 @@ static inline int applet_putchk(struct appctx *appctx, struct buffer *chunk)
 
 	ret = ci_putchk(sc_ic(se->sc), chunk);
 	if (ret == -1)
-		se_fl_set(se, SE_FL_RXBLK_ROOM);
+		sc_need_room(se->sc);
 
 	return ret;
 }
 
 /* writes <len> chars from <blk> into the input channel of the stream attached
- * to this appctx's endpoint, and marks the RXBLK_ROOM on a channel full error.
- * See ci_putblk() for the list of return codes.
+ * to this appctx's endpoint, and marks the SC_FL_NEED_ROOM on a channel full
+ * error. See ci_putblk() for the list of return codes.
  */
 static inline int applet_putblk(struct appctx *appctx, const char *blk, int len)
 {
@@ -171,15 +171,15 @@ static inline int applet_putblk(struct appctx *appctx, const char *blk, int len)
 
 	ret = ci_putblk(sc_ic(se->sc), blk, len);
 	if (ret == -1)
-		se_fl_set(se, SE_FL_RXBLK_ROOM);
+		sc_need_room(se->sc);
 
 	return ret;
 }
 
 /* writes chars from <str> up to the trailing zero (excluded) into the input
  * channel of the stream attached to this appctx's endpoint, and marks the
- * RXBLK_ROOM on a channel full error. See ci_putstr() for the list of return
- * codes.
+ * SC_FL_NEED_ROOM on a channel full error. See ci_putstr() for the list of
+ * return codes.
  */
 static inline int applet_putstr(struct appctx *appctx, const char *str)
 {
@@ -188,14 +188,14 @@ static inline int applet_putstr(struct appctx *appctx, const char *str)
 
 	ret = ci_putstr(sc_ic(se->sc), str);
 	if (ret == -1)
-		se_fl_set(se, SE_FL_RXBLK_ROOM);
+		sc_need_room(se->sc);
 
 	return ret;
 }
 
 /* writes character <chr> into the input channel of the stream attached to this
- * appctx's endpoint, and marks the RXBLK_ROOM on a channel full error. See
- * ci_putchr() for the list of return codes.
+ * appctx's endpoint, and marks the SC_FL_NEED_ROOM on a channel full error.
+ * See ci_putchr() for the list of return codes.
  */
 static inline int applet_putchr(struct appctx *appctx, char chr)
 {
@@ -204,7 +204,7 @@ static inline int applet_putchr(struct appctx *appctx, char chr)
 
 	ret = ci_putchr(sc_ic(se->sc), chr);
 	if (ret == -1)
-		se_fl_set(se, SE_FL_RXBLK_ROOM);
+		sc_need_room(se->sc);
 
 	return ret;
 }

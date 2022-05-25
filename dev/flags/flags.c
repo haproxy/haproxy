@@ -184,9 +184,6 @@ void show_endp_flags(unsigned int f)
 		return;
 	}
 
-	SHOW_FLAG(f, SE_FL_RXBLK_CHAN);
-	SHOW_FLAG(f, SE_FL_RXBLK_BUFF);
-	SHOW_FLAG(f, SE_FL_RXBLK_ROOM);
 	SHOW_FLAG(f, SE_FL_APPLET_NEED_CONN);
 	SHOW_FLAG(f, SE_FL_HAVE_NO_DATA);
 	SHOW_FLAG(f, SE_FL_WANT_GET);
@@ -223,6 +220,9 @@ void show_cs_flags(unsigned int f)
 		printf("0\n");
 		return;
 	}
+	SHOW_FLAG(f, SC_FL_NEED_ROOM);
+	SHOW_FLAG(f, SC_FL_NEED_BUFF);
+	SHOW_FLAG(f, SC_FL_WONT_READ);
 	SHOW_FLAG(f, SC_FL_INDEP_STR);
 	SHOW_FLAG(f, SC_FL_DONT_WAKE);
 	SHOW_FLAG(f, SC_FL_NOLINGER);

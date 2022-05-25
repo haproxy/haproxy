@@ -167,7 +167,7 @@ int appctx_buf_available(void *arg)
 	struct stconn *cs = appctx_cs(appctx);
 
 	/* allocation requested ? */
-	if (!se_fl_test(appctx->sedesc, SE_FL_RXBLK_BUFF))
+	if (!(cs->flags & SC_FL_NEED_BUFF))
 		return 0;
 
 	sc_have_buff(cs);
@@ -244,8 +244,8 @@ struct task *task_run_applet(struct task *t, void *context, unsigned int state)
 	/* measure the call rate and check for anomalies when too high */
 	rate = update_freq_ctr(&app->call_rate, 1);
 	if (rate >= 100000 && app->call_rate.prev_ctr && // looped more than 100k times over last second
-	    ((b_size(sc_ib(cs)) && se_fl_test(app->sedesc, SE_FL_RXBLK_BUFF)) || // asks for a buffer which is present
-	     (b_size(sc_ib(cs)) && !b_data(sc_ib(cs)) && se_fl_test(app->sedesc, SE_FL_RXBLK_ROOM)) || // asks for room in an empty buffer
+	    ((b_size(sc_ib(cs)) && cs->flags & SC_FL_NEED_ROOM) || // asks for a buffer which is present
+	     (b_size(sc_ib(cs)) && !b_data(sc_ib(cs)) && cs->flags & SC_FL_NEED_ROOM) || // asks for room in an empty buffer
 	     (b_data(sc_ob(cs)) && sc_is_send_allowed(cs)) || // asks for data already present
 	     (!b_data(sc_ib(cs)) && b_data(sc_ob(cs)) && // didn't return anything ...
 	      (sc_oc(cs)->flags & (CF_WRITE_PARTIAL|CF_SHUTW_NOW)) == CF_SHUTW_NOW))) { // ... and left data pending after a shut
