@@ -305,16 +305,20 @@ static inline int cs_rx_endp_ready(const struct stconn *cs)
 	return !sc_ep_test(cs, SE_FL_RX_WAIT_EP);
 }
 
-/* The stream connector announces it is ready to try to deliver more data to the input buffer */
-static inline void cs_rx_endp_more(struct stconn *cs)
+/* The stream endpoint announces it has more data to deliver to the stream's
+ * input buffer.
+ */
+static inline void se_have_more_data(struct sedesc *se)
 {
-	sc_ep_clr(cs, SE_FL_RX_WAIT_EP);
+	se_fl_clr(se, SE_FL_RX_WAIT_EP);
 }
 
-/* The stream connector announces it doesn't have more data for the input buffer */
-static inline void cs_rx_endp_done(struct stconn *cs)
+/* The stream endpoint announces it doesn't have more data for the stream's
+ * input buffer.
+ */
+static inline void se_have_no_more_data(struct sedesc *se)
 {
-	sc_ep_set(cs, SE_FL_RX_WAIT_EP);
+	se_fl_set(se, SE_FL_RX_WAIT_EP);
 }
 
 /* The application layer informs a stream connector that it's willing to

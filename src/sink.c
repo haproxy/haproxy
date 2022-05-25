@@ -335,7 +335,7 @@ static void sink_forward_io_handler(struct appctx *appctx)
 	if (cs_opposite(cs)->state < SC_ST_EST) {
 		cs_cant_get(cs);
 		se_need_remote_conn(appctx->sedesc);
-		cs_rx_endp_more(cs);
+		applet_have_more_data(appctx);
 		return;
 	}
 
@@ -417,7 +417,7 @@ static void sink_forward_io_handler(struct appctx *appctx)
 		HA_RWLOCK_WRLOCK(LOGSRV_LOCK, &ring->lock);
 		LIST_APPEND(&ring->waiters, &appctx->wait_entry);
 		HA_RWLOCK_WRUNLOCK(LOGSRV_LOCK, &ring->lock);
-		cs_rx_endp_done(cs);
+		applet_have_no_more_data(appctx);
 	}
 	HA_SPIN_UNLOCK(SFT_LOCK, &sft->lock);
 
@@ -475,7 +475,7 @@ static void sink_forward_oc_io_handler(struct appctx *appctx)
 	if (cs_opposite(cs)->state < SC_ST_EST) {
 		cs_cant_get(cs);
 		se_need_remote_conn(appctx->sedesc);
-		cs_rx_endp_more(cs);
+		applet_have_more_data(appctx);
 		return;
 	}
 
@@ -561,7 +561,7 @@ static void sink_forward_oc_io_handler(struct appctx *appctx)
 		HA_RWLOCK_WRLOCK(LOGSRV_LOCK, &ring->lock);
 		LIST_APPEND(&ring->waiters, &appctx->wait_entry);
 		HA_RWLOCK_WRUNLOCK(LOGSRV_LOCK, &ring->lock);
-		cs_rx_endp_done(cs);
+		applet_have_no_more_data(appctx);
 	}
 	HA_SPIN_UNLOCK(SFT_LOCK, &sft->lock);
 

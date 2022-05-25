@@ -474,7 +474,7 @@ static void dns_session_io_handler(struct appctx *appctx)
 	if (cs_opposite(cs)->state < SC_ST_EST) {
 		cs_cant_get(cs);
 		se_need_remote_conn(appctx->sedesc);
-		cs_rx_endp_more(cs);
+		applet_have_more_data(appctx);
 		return;
 	}
 
@@ -649,7 +649,7 @@ static void dns_session_io_handler(struct appctx *appctx)
 		BUG_ON(LIST_INLIST(&appctx->wait_entry));
 		LIST_APPEND(&ring->waiters, &appctx->wait_entry);
 		HA_RWLOCK_WRUNLOCK(DNS_LOCK, &ring->lock);
-		cs_rx_endp_done(cs);
+		applet_have_no_more_data(appctx);
 	}
 
 read:

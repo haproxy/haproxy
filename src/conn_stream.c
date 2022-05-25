@@ -1588,9 +1588,9 @@ static int sc_conn_recv(struct stconn *cs)
 	else if (!cs_rx_blocked(cs) && !(ic->flags & CF_SHUTR)) {
 		/* Subscribe to receive events if we're blocking on I/O */
 		conn->mux->subscribe(cs, SUB_RETRY_RECV, &cs->wait_event);
-		cs_rx_endp_done(cs);
+		se_have_no_more_data(cs->sedesc);
 	} else {
-		cs_rx_endp_more(cs);
+		se_have_more_data(cs->sedesc);
 		ret = 1;
 	}
 	return ret;
@@ -1926,7 +1926,7 @@ static int cs_applet_process(struct stconn *cs)
 	 * begin blocked by the channel.
 	 */
 	if (cs_rx_blocked(cs) || sc_ep_test(cs, SE_FL_APPLET_NEED_CONN))
-		cs_rx_endp_more(cs);
+		applet_have_more_data(__sc_appctx(cs));
 
 	/* update the stream connector, channels, and possibly wake the stream up */
 	cs_notify(cs);

@@ -1958,7 +1958,7 @@ static void hlua_socket_handler(struct appctx *appctx)
 	if (cs_opposite(cs)->state < SC_ST_EST) {
 		cs_cant_get(cs);
 		se_need_remote_conn(appctx->sedesc);
-		cs_rx_endp_more(cs);
+		applet_have_more_data(appctx);
 		return;
 	}
 
@@ -1983,7 +1983,7 @@ static void hlua_socket_handler(struct appctx *appctx)
 	 * to write, so we clear the blocking flag.
 	 */
 	if (notification_registered(&ctx->wake_on_write))
-		cs_rx_endp_more(cs);
+		applet_have_more_data(appctx);
 }
 
 static int hlua_socket_init(struct appctx *appctx)
@@ -2859,7 +2859,7 @@ __LJMP static int hlua_socket_connect(struct lua_State *L)
 	 * connection completes.
 	 */
 	cs_cant_get(s->scf);
-	cs_rx_endp_more(s->scf);
+	applet_have_more_data(appctx);
 	appctx_wakeup(appctx);
 
 	hlua->gc_count++;
@@ -9306,7 +9306,7 @@ static int hlua_applet_tcp_init(struct appctx *ctx)
 
 	/* Wakeup the applet ASAP. */
 	cs_cant_get(cs);
-	cs_rx_endp_more(cs);
+	applet_have_more_data(ctx);
 
 	return 0;
 }

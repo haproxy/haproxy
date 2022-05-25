@@ -219,7 +219,7 @@ struct task *task_run_applet(struct task *t, void *context, unsigned int state)
 	 * that one applet which ignores any event will not spin.
 	 */
 	cs_cant_get(cs);
-	cs_rx_endp_done(cs);
+	applet_have_no_more_data(app);
 
 	/* Now we'll try to allocate the input buffer. We wake up the applet in
 	 * all cases. So this is the applet's responsibility to check if this
@@ -228,7 +228,7 @@ struct task *task_run_applet(struct task *t, void *context, unsigned int state)
 	 * do if it needs the buffer, it will be called again upon readiness.
 	 */
 	if (!cs_alloc_ibuf(cs, &app->buffer_wait))
-		cs_rx_endp_more(cs);
+		applet_have_more_data(app);
 
 	count = co_data(sc_oc(cs));
 	app->applet->fct(app);

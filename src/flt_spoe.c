@@ -1194,7 +1194,7 @@ static int
 spoe_wakeup_appctx(struct appctx *appctx)
 {
 	cs_want_get(appctx_cs(appctx));
-	cs_rx_endp_more(appctx_cs(appctx));
+	applet_have_more_data(appctx);
 	appctx_wakeup(appctx);
 	return 1;
 }
@@ -1399,7 +1399,7 @@ spoe_handle_connect_appctx(struct appctx *appctx)
 
 	if (!cs_state_in(cs->state, SC_SB_RDY|SC_SB_EST)) {
 		/* not connected yet */
-		cs_rx_endp_more(cs);
+		applet_have_more_data(appctx);
 		task_wakeup(__sc_strm(cs)->task, TASK_WOKEN_MSG);
 		goto stop;
 	}

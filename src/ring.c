@@ -378,7 +378,7 @@ int cli_io_handler_show_ring(struct appctx *appctx)
 			HA_RWLOCK_WRLOCK(LOGSRV_LOCK, &ring->lock);
 			LIST_APPEND(&ring->waiters, &appctx->wait_entry);
 			HA_RWLOCK_WRUNLOCK(LOGSRV_LOCK, &ring->lock);
-			cs_rx_endp_done(cs);
+			applet_have_no_more_data(appctx);
 			ret = 0;
 		}
 		/* always drain all the request */

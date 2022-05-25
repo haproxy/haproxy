@@ -2144,7 +2144,7 @@ yield:
 	/* store the state */
 	applet_putchk(appctx, trash);
 	free_trash_chunk(trash);
-	cs_rx_endp_more(cs); /* let's come back later */
+	applet_have_more_data(appctx); /* let's come back later */
 	return 0; /* should come back */
 
 error:
@@ -2930,7 +2930,7 @@ yield:
 	/* store the state */
 	applet_putchk(appctx, trash);
 	free_trash_chunk(trash);
-	cs_rx_endp_more(cs); /* let's come back later */
+	applet_have_more_data(appctx); /* let's come back later */
 	return 0; /* should come back */
 
 error:

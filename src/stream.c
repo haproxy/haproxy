@@ -917,7 +917,7 @@ static void back_establish(struct stream *s)
 
 	rep->analysers |= strm_fe(s)->fe_rsp_ana | s->be->be_rsp_ana;
 
-	cs_rx_endp_more(s->scb);
+	se_have_more_data(s->scb->sedesc);
 	rep->flags |= CF_READ_ATTACHED; /* producer is now attached */
 	if (conn) {
 		/* real connections have timeouts
@@ -1476,7 +1476,7 @@ int stream_set_http_mode(struct stream *s, const struct mux_proto_list *mux_prot
 
 	conn = sc_conn(cs);
 	if (conn) {
-		cs_rx_endp_more(s->scf);
+		se_have_more_data(s->scf->sedesc);
 		/* Make sure we're unsubscribed, the the new
 		 * mux will probably want to subscribe to
 		 * the underlying XPRT

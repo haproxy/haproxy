@@ -1023,7 +1023,7 @@ static int cli_io_handler_clear_map(struct appctx *appctx)
 
 	if (!finished) {
 		/* let's come back later */
-		cs_rx_endp_more(appctx_cs(appctx));
+		applet_have_more_data(appctx);
 		return 0;
 	}
 	return 1;

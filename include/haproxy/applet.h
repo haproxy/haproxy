@@ -128,6 +128,22 @@ static inline struct stream *appctx_strm(const struct appctx *appctx)
 	return __sc_strm(appctx->sedesc->sc);
 }
 
+/* The applet announces it has more data to deliver to the stream's input
+ * buffer.
+ */
+static inline void applet_have_more_data(struct appctx *appctx)
+{
+	se_fl_clr(appctx->sedesc, SE_FL_RX_WAIT_EP);
+}
+
+/* The applet announces it doesn't have more data for the stream's input
+ * buffer.
+ */
+static inline void applet_have_no_more_data(struct appctx *appctx)
+{
+	se_fl_set(appctx->sedesc, SE_FL_RX_WAIT_EP);
+}
+
 /* writes chunk <chunk> into the input channel of the stream attached to this
  * appctx's endpoint, and marks the RXBLK_ROOM on a channel full error. See
  * ci_putchk() for the list of return codes.
