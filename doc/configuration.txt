@@ -1124,7 +1124,7 @@ The following keywords are supported in the "global" section :
    - tune.pipesize
    - tune.pool-high-fd-ratio
    - tune.pool-low-fd-ratio
-   - tune.quic.conn-buf-limit
+   - tune.quic.frontend.conn-tx-buffers.limit
    - tune.quic.frontend.max-idle-timeout
    - tune.quic.frontend.max-streams-bidi
    - tune.quic.retry-threshold
@@ -2937,7 +2937,7 @@ tune.pool-low-fd-ratio <number>
   use before we stop putting connection into the idle pool for reuse. The
   default is 20.
 
-tune.quic.conn-buf-limit <number>
+tune.quic.frontend.conn-tx-buffers.limit <number>
   Warning: QUIC support in HAProxy is currently experimental. Configuration may
   change without deprecation in the future.
 
@@ -2945,7 +2945,7 @@ tune.quic.conn-buf-limit <number>
   connection on data emission. By default, it is set to 30. QUIC buffers are
   drained on ACK reception. This setting has a direct impact on the throughput
   and memory consumption and can be adjusted according to an estimated round
-  time-trip.
+  time-trip. Each buffer is tune.bufsize.
 
 tune.quic.frontend.max-idle-timeout <timeout>
   Warning: QUIC support in HAProxy is currently experimental. Configuration may
