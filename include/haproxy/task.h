@@ -609,8 +609,8 @@ static inline void __task_free(struct task *t)
 }
 
 /* Destroys a task : it's unlinked from the wait queues and is freed if it's
- * the current task or not queued otherwise it's marked to be freed by the
- * scheduler. It does nothing if <t> is NULL.
+ * the current task or not queued or if HAProxy is stopping. Otherwise it's
+ * marked to be freed by the scheduler. It does nothing if <t> is NULL.
  */
 static inline void task_destroy(struct task *t)
 {
@@ -627,7 +627,7 @@ static inline void task_destroy(struct task *t)
 	/* There's no need to protect t->state with a lock, as the task
 	 * has to run on the current thread.
 	 */
-	if (t == th_ctx->current || !(t->state & (TASK_QUEUED | TASK_RUNNING)))
+	if (t == th_ctx->current || !(t->state & (TASK_QUEUED | TASK_RUNNING)) || (global.mode & MODE_STOPPING))
 		__task_free(t);
 	else
 		t->process = NULL;
