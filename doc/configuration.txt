@@ -188,11 +188,17 @@ correctly support pipelining since there is no way to associate a response with
 the corresponding request in HTTP. For this reason, it is mandatory for the
 server to reply in the exact same order as the requests were received.
 
-The next improvement is the multiplexed mode, as implemented in HTTP/2. This
-time, each transaction is assigned a single stream identifier, and all streams
-are multiplexed over an existing connection. Many requests can be sent in
+The next improvement is the multiplexed mode, as implemented in HTTP/2 and HTTP/3.
+This time, each transaction is assigned a single stream identifier, and all
+streams are multiplexed over an existing connection. Many requests can be sent in
 parallel by the client, and responses can arrive in any order since they also
 carry the stream identifier.
+
+
+HTTP/3 is implemented over QUIC, itself implemented over UDP. QUIC solves the
+head of line blocking at transport level by means of independantly treated
+streams. Indeed, when experiencing loss, an impacted stream does not affect the
+other streams.
 
 By default HAProxy operates in keep-alive mode with regards to persistent
 connections: for each connection it processes each request and response, and
@@ -2971,8 +2977,8 @@ tune.quic.retry-threshold <number>
   change without deprecation in the future.
 
   Dynamically enables the Retry feature for all the configured QUIC listeners
-  as soon as this number of opening connections is reached. By opening connection
-  we mean a connection the handshake of which has not already successfully
+  as soon as this number of half open connections is reached. A half open
+  connection is a connection whose handshake has not already successfully
   completed or failed. To be functional this setting needs a cluster secret to
   be set, if not it will be silently ignored (see "cluster-secret" setting).
   This setting will be also silenty ignored if the use of QUIC Retry was forced
@@ -4402,7 +4408,11 @@ bind /<path> [, ...] [param*]
                   address, or '*'. It designates the address the frontend will
                   listen on. If unset, all IPv4 addresses of the system will be
                   listened on. The same will apply for '*' or the system's
-                  special address "0.0.0.0". The IPv6 equivalent is '::'.
+                  special address "0.0.0.0". The IPv6 equivalent is '::'. Note
+                  that if you bind a frontend to multiple UDP addresses you have
+                  no guarantee about the address which will be used to respond.
+                  This is why "0.0.0.0" addresses and lists of comma-separated
+                  IP addresses have been forbidden to bind QUIC addresses.
                   Optionally, an address family prefix may be used before the
                   address to force the family regardless of the address format,
                   which can be useful to specify a path to a unix socket with
@@ -4427,6 +4437,11 @@ bind /<path> [, ...] [param*]
                       connected unix socket or of a socketpair. The bind waits
                       to receive a FD over the unix socket and uses it as if it
                       was the FD of an accept(). Should be used carefully.
+                    - 'quicv4@' -> address is resolved as IPv4 and protocol
+                      UDP is used.
+                    - 'quicv6@' -> address is resolved as IPv6 and protocol
+                      UDP is used.
+
                   You may want to reference some environment variables in the
                   address parameter, see section 2.3 about environment
                   variables.
@@ -4488,6 +4503,9 @@ bind /<path> [, ...] [param*]
 
         listen external_bind_app1
             bind "fd@${FD_APP1}"
+
+        listen h3_quic_proxy
+            bind quic@10.0.0.1:8888 ssl crt /etc/mycrt alpn h3
 
   Note: regarding Linux's abstract namespace sockets, HAProxy uses the whole
         sun_path length is used for the address length. Some other programs
@@ -13892,6 +13910,9 @@ alpn <protocols>
   preference, like below :
 
        bind :443 ssl crt pub.pem alpn h2,http/1.1
+
+  QUIC supports only h3 and hq-interop as ALPN. h3 is for HTTP/3 and hq-interop
+  is used for http/0.9 and QUIC interop runner (see https://interop.seemann.io).
 
 backlog <backlog>
   Sets the socket's backlog to this value. If unspecified or 0, the frontend's

@@ -418,7 +418,7 @@ list of options is :
     is a list of pids to signal (one per argument). The list ends on any
     option starting with a "-". It is not a problem if the list of pids is
     empty, so that it can be built on the fly based on the result of a command
-    like "pidof" or "pgrep".
+    like "pidof" or "pgrep". QUIC connections will be aborted.
 
   -st <pid>* : send the "terminate" signal (SIGTERM) to older processes after
     boot completion to terminate them immediately without finishing what they
@@ -654,6 +654,8 @@ don't have enough load to trigger the race conditions. And for most high traffic
 users, the failure rate is still fairly within the noise margin provided that at
 least SO_REUSEPORT is properly supported on their systems.
 
+QUIC limitations: soft-stop is not supported. In case of reload, QUIC connections
+will not be preserved.
 
 5. File-descriptor limitations
 ------------------------------
