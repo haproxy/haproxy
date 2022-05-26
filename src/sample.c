@@ -2596,12 +2596,13 @@ found:
 	if (!smp->data.u.str.data)
 		return 1;
 
-	smp->data.u.str.area = start;
 
 	/* Compute remaining size if needed
            Note: smp->data.u.str.size cannot be set to 0 */
 	if (smp->data.u.str.size)
 		smp->data.u.str.size -= start - smp->data.u.str.area;
+
+	smp->data.u.str.area = start;
 
 	return 1;
 }
