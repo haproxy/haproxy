@@ -11573,8 +11573,8 @@ __LJMP static int hlua_ckch_set(lua_State *L)
 		}
 
 		/* appply the change on the duplicate */
-		if (cert_exts->load(filename, payload, ckch, &err) != 0) {
-			memprintf(&err, "%sCan't load the payload\n", err ? err : "");
+		if (cert_ext->load(filename, payload, ckch, &err) != 0) {
+			memprintf(&err, "%sCan't load the payload for '%s'\n", err ? err : "", cert_ext->ext);
 			errcode |= ERR_ALERT | ERR_FATAL;
 			goto end;
 		}
