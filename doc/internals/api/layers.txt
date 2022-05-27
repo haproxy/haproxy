@@ -1,0 +1,190 @@
+2022-05-27 - Stream layers in HAProxy 2.6
+
+
+1. Background
+
+There are streams at plenty of levels in haproxy, essentially due to the
+introduction of multiplexed protocols which provide high-level streams on top
+of low-level streams, themselves either based on stream-oriented protocols or
+datagram-oriented protocols.
+
+The refactoring of the appctx and muxes that allowed to drop a lot of duplicate
+code between 2.5 and 2.6-dev6 raised another concern with some entities like
+"conn_stream" that were not specific to connections anymore, "endpoints" that
+became entities on their own, and "targets" whose life had been extended to
+last all along a connection.
+
+It was time to rename all such legacy entities introduced in 1.8 and which had
+turned particularly confusing over time as their roles evolved.
+
+
+2. Naming principles
+
+The global renaming of some entities between streams and connections was
+articulated around several principles:
+
+  - avoid the confusing use of "context" in shared places. For example, the
+    endpoint's connection is in "ctx" and nothing makes it obvious that the
+    endpoint's context is a connection, especially when an applet is there.
+
+  - reserve relative nouns for pointers and not for types. "endpoint", just
+    like "owner" or "peer" is relative, but when accessed from a different
+    layer it starts to make no sense at all, or to make one believe it's
+    something else, particularly with void*.
+
+  - avoid too generic terms that have multiple meanings, or words that are
+    synonyms in a same place (e.g. "peer" and "remote", or "endpoint" and
+    "target"). If two synonyms are needed to designate two distinct entities,
+    there's probably a problem elsewhere, or the problem is poorly defined.
+
+  - make it clearer that all that is manipulated is related to streams. This
+    particularly important in sample fetch functions for example, which tend
+    to require low-level access and could be mislead in trying to follow the
+    wrong chain when trying to get information about a connection.
+
+  - use easily spellable short names that abbreviate unambiguously when used
+    together in adjacent contexts
+
+
+3. Current state as of 2.6
+
+- when a name is required to designate the lower block that starts at the mux
+  stream or the appctx, it is spoken of as a "stream endpoint", and abbreviated
+  "se". It's okay because while "endpoint" itself is relative, "stream
+  endpoint" unequivocally designates one extremity of a stream. If a type is
+  needed for this in the future (e.g. via obj_type), then the type "stendp"
+  may be used. Before 2.6-dev6 there was no name for this, it was known as
+  conn_stream->ctx.
+
+- the 2.6-dev6 cs_endpoint which preserves the state of a mux stream or an
+  appctx and abstracts them in front of a conn_stream becomes a "stream
+  endpoint descriptor", of type "sedesc" and often abbreviated "sd", "sed"
+  or "ed". Its "target" pointer became "se" as per the rule above. Before
+  2.6-dev6, these elements were mixed with others inside conn_stream. From
+  the appctx it's called "sedesc" (few occurrences hence long name OK).
+
+- the conn_stream which is always attached to either a stream or a health check
+  and that is used to reach a mux or an applet becomes a "stream connector" of
+  type "stconn", generally abbreviated "sc". Its "endp" pointer becomes
+  "sedesc" as per the rule above, and that one has a back pointer "sc". The
+  stream uses "scf" and "scb" as the respective front and back pointers to the
+  stconns. Prior to 2.6-dev6, these parts were split between conn_stream and
+  stream_interface.
+
+- the sedesc's "ctx" which is solely used to store the connection as of now, is
+  renamed "conn" to void any doubt in the context of applets or even muxes. In
+  the future the connection should be attached to the "se" instead and this
+  pointer should disappear (or be recycled for anything else).
+
+The new 2.6 model looks like this:
+
+                  +------------------------+
+                  | stream or health check |
+                  +------------------------+
+                            ^   \ scf, scb
+                           /     \
+                          |       |
+                           \     /
+                        app \   v
+                         +----------+
+                         |  stconn  |
+                         +----------+
+                            ^   \ sedesc
+                           /     \
+                  . . . . | . . . | . . . . . split point (retries etc)
+                           \     /
+                         sc \   v
+                         +----------+
+                flags <--|  sedesc  |                      :  sedesc  :
+                         +----------+              ...     +----------+
+                   conn /   ^   \ se                           ^ \
+     +------------+    /   /     \                             |  \
+     | connection |<--'   |       |            ... OR ...      |   |
+     +------------+        \     /                              \  |
+      mux|  ^ |ctx       sd \   v                       : sedesc \ v
+         |  | |   +----------------------+  \           #  +----------+ svcctx
+         |  | |   | mux stream or appctx |   |          #  |  appctx  |--.
+         |  | |   +----------------------+   |          #  +----------+  |
+         |  | |           ^  |              /  private  #  :          :  |
+         v  | |           |  v              >  to the   #  +----------+  |
+   mux_ops  | |     +----------------+      \   mux     #  |  svcctx  |<-'
+            | +---->| mux connection |       )          #  +----------+
+            +------ +----------------+      /           #
+
+Stream descriptors may exist in the following modes:
+  - .conn = NULL, .se = NULL     : backend, not connection attempt yet
+  - .conn = NULL, .se = <appctx> : frontend or backend, applet
+  - .conn = <conn>, .se = NULL   : backend, connection in progress
+  - .conn = <conn>, .se = <muxs> : frontend or backend, connected
+
+Notes:
+  - for historical reasons (connect, forced protocol upgrades, etc), during a
+    connection setup or a rule-based protocol upgrade, the connection's "ctx"
+    may temporarily point to the stconn
+
+
+4. Invariants and cardinalities
+
+Usually a stream is created from an existing stconn from a mux or some applets,
+but may also be allocated first by other applets schedulers. After stream_new()
+a stream always has exactly one stconn per side (scf, scb), each of which has
+one ->sedesc. Each side is initialized with either one or no stream endpoint
+attached to the descriptor.
+
+Both applets and a mux stream always have a stream endpoint descriptor. AS SUCH
+IT IS NEVER NECESSARY TO TEST FOR THE EXISTENCE OF THE SEDESC FROM ANY SIDE, IT
+ALWAYS EXISTS. This explains why as much as possible it's preferable to use the
+sedesc to access flags and statuses from any side, rather than bouncing via the
+stconn.
+
+An applet's app layer is always a stream, which means that there are always
+channels accessible above, and there is always an opposite stream connector and
+a stream endpoint descriptor. As such, it's always safe for an applet to access
+the other side using sc_opposite().
+
+When an outgoing connection is in the process of being established, the backend
+side sedesc has its ->conn pointer pointing to the pending connection, and no
+->se. Once the connection is established and a mux is chosen, it's attached to
+the ->se. If an applet is used instead of a mux, the appctx is attached to the
+sedesc's ->se and ->conn remains NULL.
+
+If either side wants to detach from the other, it must allocate a new virgin
+sedesc to replace the existing one, and leave the existing one to the endpoint,
+since it continues to describe the stream endpoint. The stconn keeps its state
+(modulo the updates related to the disconnection). The previous sedesc points
+to a NULL stconn. For example, disconnecting from a backend mux will leave the
+entities like this:
+
+                                              +------------------------+
+                                              | stream or health check |
+                                              +------------------------+
+                                                        ^   \ scf, scb
+                                                       /     \
+                                                      |       |
+                                                       \     /
+                                                    app \   v
+                                                     +----------+
+                                                     |  stconn  |
+                                                     +----------+
+                                                        ^   \ sedesc
+                                                       /     \
+                             NULL                     |       |
+                              ^                        \     /
+                           sc |               /      sc \   v
+                         +----------+        /       +----------+
+                flags <--|  sedesc1 |   . . . . .    |  sedesc2 |--> flags
+                         +----------+      /         +----------+
+                   conn /   ^   \ se      /       conn /     \ se
+     +------------+    /   /     \                    |       |
+     | connection |<--'   |       |                   v       v
+     +------------+        \     /                  NULL     NULL
+      mux|  ^ |ctx       sd \   v
+         |  | |   +----------------------+
+         |  | |   | mux stream or appctx |
+         |  | |   +----------------------+
+         |  | |           ^  |
+         v  | |           |  v
+   mux_ops  | |     +----------------+
+            | +---->| mux connection |
+            +------ +----------------+
+
