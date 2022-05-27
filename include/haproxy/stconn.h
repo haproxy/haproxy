@@ -33,7 +33,7 @@ struct appctx;
 struct stream;
 struct check;
 
-#define IS_HTX_SC(cs)     (sc_conn(cs) && IS_HTX_CONN(__sc_conn(cs)))
+#define IS_HTX_SC(sc)     (sc_conn(sc) && IS_HTX_CONN(__sc_conn(sc)))
 
 struct sedesc *sedesc_new();
 void sedesc_free(struct sedesc *sedesc);
@@ -41,15 +41,15 @@ void sedesc_free(struct sedesc *sedesc);
 struct stconn *sc_new_from_endp(struct sedesc *sedesc, struct session *sess, struct buffer *input);
 struct stconn *sc_new_from_strm(struct stream *strm, unsigned int flags);
 struct stconn *sc_new_from_check(struct check *check, unsigned int flags);
-void sc_free(struct stconn *cs);
+void sc_free(struct stconn *sc);
 
-int sc_attach_mux(struct stconn *cs, void *target, void *ctx);
-int sc_attach_strm(struct stconn *cs, struct stream *strm);
+int sc_attach_mux(struct stconn *sc, void *target, void *ctx);
+int sc_attach_strm(struct stconn *sc, struct stream *strm);
 
-void sc_destroy(struct stconn *cs);
-int sc_reset_endp(struct stconn *cs);
+void sc_destroy(struct stconn *sc);
+int sc_reset_endp(struct stconn *sc);
 
-struct appctx *sc_applet_create(struct stconn *cs, struct applet *app);
+struct appctx *sc_applet_create(struct stconn *sc, struct applet *app);
 
 /* The se_fl_*() set of functions manipulate the stream endpoint flags from
  * the stream endpoint itself. The sc_ep_*() set of functions manipulate the
@@ -134,32 +134,32 @@ static forceinline uint sc_ep_get(const struct stconn *sc)
 
 
 /* Returns the stream endpoint from an connector, without any control */
-static inline void *__sc_endp(const struct stconn *cs)
+static inline void *__sc_endp(const struct stconn *sc)
 {
-	return cs->sedesc->se;
+	return sc->sedesc->se;
 }
 
-/* Returns the connection from a cs if the endpoint is a mux stream. Otherwise
+/* Returns the connection from a sc if the endpoint is a mux stream. Otherwise
  * NULL is returned. __sc_conn() returns the connection without any control
  * while sc_conn() check the endpoint type.
  */
-static inline struct connection *__sc_conn(const struct stconn *cs)
+static inline struct connection *__sc_conn(const struct stconn *sc)
 {
-	return cs->sedesc->conn;
+	return sc->sedesc->conn;
 }
-static inline struct connection *sc_conn(const struct stconn *cs)
+static inline struct connection *sc_conn(const struct stconn *sc)
 {
-	if (sc_ep_test(cs, SE_FL_T_MUX))
-		return __sc_conn(cs);
+	if (sc_ep_test(sc, SE_FL_T_MUX))
+		return __sc_conn(sc);
 	return NULL;
 }
 
 /* Returns the mux ops of the connection from an stconn if the endpoint is a
  * mux stream. Otherwise NULL is returned.
  */
-static inline const struct mux_ops *sc_mux_ops(const struct stconn *cs)
+static inline const struct mux_ops *sc_mux_ops(const struct stconn *sc)
 {
-	const struct connection *conn = sc_conn(cs);
+	const struct connection *conn = sc_conn(sc);
 
 	return (conn ? conn->mux : NULL);
 }
@@ -168,119 +168,119 @@ static inline const struct mux_ops *sc_mux_ops(const struct stconn *cs)
  * a mux. Otherwise NULL is returned. __sc_mux_strm() returns the mux without
  * any control while sc_mux_strm() checks the endpoint type.
  */
-static inline void *__sc_mux_strm(const struct stconn *cs)
+static inline void *__sc_mux_strm(const struct stconn *sc)
 {
-	return __sc_endp(cs);
+	return __sc_endp(sc);
 }
-static inline struct appctx *sc_mux_strm(const struct stconn *cs)
+static inline struct appctx *sc_mux_strm(const struct stconn *sc)
 {
-	if (sc_ep_test(cs, SE_FL_T_MUX))
-		return __sc_mux_strm(cs);
+	if (sc_ep_test(sc, SE_FL_T_MUX))
+		return __sc_mux_strm(sc);
 	return NULL;
 }
 
-/* Returns the appctx from a cs if the endpoint is an appctx. Otherwise
+/* Returns the appctx from a sc if the endpoint is an appctx. Otherwise
  * NULL is returned. __sc_appctx() returns the appctx without any control
  * while sc_appctx() checks the endpoint type.
  */
-static inline struct appctx *__sc_appctx(const struct stconn *cs)
+static inline struct appctx *__sc_appctx(const struct stconn *sc)
 {
-	return __sc_endp(cs);
+	return __sc_endp(sc);
 }
-static inline struct appctx *sc_appctx(const struct stconn *cs)
+static inline struct appctx *sc_appctx(const struct stconn *sc)
 {
-	if (sc_ep_test(cs, SE_FL_T_APPLET))
-		return __sc_appctx(cs);
+	if (sc_ep_test(sc, SE_FL_T_APPLET))
+		return __sc_appctx(sc);
 	return NULL;
 }
 
-/* Returns the stream from a cs if the application is a stream. Otherwise
+/* Returns the stream from a sc if the application is a stream. Otherwise
  * NULL is returned. __sc_strm() returns the stream without any control
  * while sc_strm() check the application type.
  */
-static inline struct stream *__sc_strm(const struct stconn *cs)
+static inline struct stream *__sc_strm(const struct stconn *sc)
 {
-	return __objt_stream(cs->app);
+	return __objt_stream(sc->app);
 }
 
-static inline struct stream *sc_strm(const struct stconn *cs)
+static inline struct stream *sc_strm(const struct stconn *sc)
 {
-	if (obj_type(cs->app) == OBJ_TYPE_STREAM)
-		return __sc_strm(cs);
+	if (obj_type(sc->app) == OBJ_TYPE_STREAM)
+		return __sc_strm(sc);
 	return NULL;
 }
 
-/* Returns the healthcheck from a cs if the application is a
+/* Returns the healthcheck from a sc if the application is a
  * healthcheck. Otherwise NULL is returned. __sc_check() returns the healthcheck
  * without any control while sc_check() check the application type.
  */
-static inline struct check *__sc_check(const struct stconn *cs)
+static inline struct check *__sc_check(const struct stconn *sc)
 {
-	return __objt_check(cs->app);
+	return __objt_check(sc->app);
 }
-static inline struct check *sc_check(const struct stconn *cs)
+static inline struct check *sc_check(const struct stconn *sc)
 {
-	if (obj_type(cs->app) == OBJ_TYPE_CHECK)
-		return __objt_check(cs->app);
+	if (obj_type(sc->app) == OBJ_TYPE_CHECK)
+		return __objt_check(sc->app);
 	return NULL;
 }
 
 /* Returns the name of the application layer's name for the stconn,
  * or "NONE" when none is attached.
  */
-static inline const char *sc_get_data_name(const struct stconn *cs)
+static inline const char *sc_get_data_name(const struct stconn *sc)
 {
-	if (!cs->app_ops)
+	if (!sc->app_ops)
 		return "NONE";
-	return cs->app_ops->name;
+	return sc->app_ops->name;
 }
 
 /* shut read */
-static inline void sc_conn_shutr(struct stconn *cs, enum co_shr_mode mode)
+static inline void sc_conn_shutr(struct stconn *sc, enum co_shr_mode mode)
 {
 	const struct mux_ops *mux;
 
-	BUG_ON(!sc_conn(cs));
+	BUG_ON(!sc_conn(sc));
 
-	if (sc_ep_test(cs, SE_FL_SHR))
+	if (sc_ep_test(sc, SE_FL_SHR))
 		return;
 
 	/* clean data-layer shutdown */
-	mux = sc_mux_ops(cs);
+	mux = sc_mux_ops(sc);
 	if (mux && mux->shutr)
-		mux->shutr(cs, mode);
-	sc_ep_set(cs, (mode == CO_SHR_DRAIN) ? SE_FL_SHRD : SE_FL_SHRR);
+		mux->shutr(sc, mode);
+	sc_ep_set(sc, (mode == CO_SHR_DRAIN) ? SE_FL_SHRD : SE_FL_SHRR);
 }
 
 /* shut write */
-static inline void sc_conn_shutw(struct stconn *cs, enum co_shw_mode mode)
+static inline void sc_conn_shutw(struct stconn *sc, enum co_shw_mode mode)
 {
 	const struct mux_ops *mux;
 
-	BUG_ON(!sc_conn(cs));
+	BUG_ON(!sc_conn(sc));
 
-	if (sc_ep_test(cs, SE_FL_SHW))
+	if (sc_ep_test(sc, SE_FL_SHW))
 		return;
 
 	/* clean data-layer shutdown */
-	mux = sc_mux_ops(cs);
+	mux = sc_mux_ops(sc);
 	if (mux && mux->shutw)
-		mux->shutw(cs, mode);
-	sc_ep_set(cs, (mode == CO_SHW_NORMAL) ? SE_FL_SHWN : SE_FL_SHWS);
+		mux->shutw(sc, mode);
+	sc_ep_set(sc, (mode == CO_SHW_NORMAL) ? SE_FL_SHWN : SE_FL_SHWS);
 }
 
 /* completely close a stream connector (but do not detach it) */
-static inline void sc_conn_shut(struct stconn *cs)
+static inline void sc_conn_shut(struct stconn *sc)
 {
-	sc_conn_shutw(cs, CO_SHW_SILENT);
-	sc_conn_shutr(cs, CO_SHR_RESET);
+	sc_conn_shutw(sc, CO_SHW_SILENT);
+	sc_conn_shutr(sc, CO_SHR_RESET);
 }
 
 /* completely close a stream connector after draining possibly pending data (but do not detach it) */
-static inline void sc_conn_drain_and_shut(struct stconn *cs)
+static inline void sc_conn_drain_and_shut(struct stconn *sc)
 {
-	sc_conn_shutw(cs, CO_SHW_SILENT);
-	sc_conn_shutr(cs, CO_SHR_DRAIN);
+	sc_conn_shutw(sc, CO_SHW_SILENT);
+	sc_conn_shutr(sc, CO_SHR_DRAIN);
 }
 
 /* Returns non-zero if the stream connector's Rx path is blocked because of
