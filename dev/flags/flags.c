@@ -21,7 +21,7 @@
 
 // command line names, must be in exact same order as the SHOW_AS_* flags above
 // so that show_as_words[i] matches flag 1U<<i.
-const char *show_as_words[] = { "ana", "chn", "conn", "sc", "siet", "strm", "task", "txn", "endp", };
+const char *show_as_words[] = { "ana", "chn", "conn", "sc", "stet", "strm", "task", "txn", "endp", };
 
 #define SHOW_FLAG(f,n)					\
 	do {				 		\
