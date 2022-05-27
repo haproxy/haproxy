@@ -52,7 +52,6 @@
 #include <haproxy/cli.h>
 #include <haproxy/connection.h>
 #include <haproxy/conn_stream.h>
-#include <haproxy/cs_utils.h>
 #include <haproxy/dynbuf.h>
 #include <haproxy/errors.h>
 #include <haproxy/fd.h>
@@ -65,13 +64,14 @@
 #include <haproxy/pattern-t.h>
 #include <haproxy/proto_tcp.h>
 #include <haproxy/proxy.h>
+#include <haproxy/sample.h>
+#include <haproxy/sc_strm.h>
 #include <haproxy/server.h>
 #include <haproxy/shctx.h>
 #include <haproxy/ssl_ckch.h>
 #include <haproxy/ssl_crtlist.h>
 #include <haproxy/ssl_sock.h>
 #include <haproxy/ssl_utils.h>
-#include <haproxy/sample.h>
 #include <haproxy/stats.h>
 #include <haproxy/stream-t.h>
 #include <haproxy/task.h>

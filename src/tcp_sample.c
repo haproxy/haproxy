@@ -32,13 +32,13 @@
 #include <haproxy/api.h>
 #include <haproxy/arg.h>
 #include <haproxy/connection.h>
-#include <haproxy/cs_utils.h>
 #include <haproxy/errors.h>
 #include <haproxy/global.h>
 #include <haproxy/listener-t.h>
 #include <haproxy/namespace.h>
 #include <haproxy/proxy-t.h>
 #include <haproxy/sample.h>
+#include <haproxy/sc_strm.h>
 #include <haproxy/session.h>
 #include <haproxy/tools.h>
 

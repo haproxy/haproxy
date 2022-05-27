@@ -23,7 +23,6 @@
 #include <haproxy/channel.h>
 #include <haproxy/chunk.h>
 #include <haproxy/connection.h>
-#include <haproxy/cs_utils.h>
 #include <haproxy/global.h>
 #include <haproxy/h1.h>
 #include <haproxy/h1_htx.h>
@@ -35,6 +34,7 @@
 #include <haproxy/obj_type.h>
 #include <haproxy/pool.h>
 #include <haproxy/sample.h>
+#include <haproxy/sc_strm.h>
 #include <haproxy/stream.h>
 #include <haproxy/tools.h>
 #include <haproxy/version.h>

@@ -29,12 +29,12 @@
 #include <haproxy/arg.h>
 #include <haproxy/channel.h>
 #include <haproxy/connection.h>
-#include <haproxy/cs_utils.h>
 #include <haproxy/global.h>
 #include <haproxy/http_rules.h>
 #include <haproxy/proto_tcp.h>
 #include <haproxy/proxy-t.h>
 #include <haproxy/sample.h>
+#include <haproxy/sc_strm.h>
 #include <haproxy/session.h>
 #include <haproxy/tcp_rules.h>
 #include <haproxy/tools.h>

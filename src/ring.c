@@ -24,8 +24,8 @@
 #include <haproxy/buf.h>
 #include <haproxy/cli.h>
 #include <haproxy/conn_stream.h>
-#include <haproxy/cs_utils.h>
 #include <haproxy/ring.h>
+#include <haproxy/sc_strm.h>
 #include <haproxy/thread.h>
 
 /* context used to dump the contents of a ring via "show events" or "show errors" */

@@ -35,7 +35,6 @@
 #include <haproxy/check.h>
 #include <haproxy/cli.h>
 #include <haproxy/conn_stream.h>
-#include <haproxy/cs_utils.h>
 #include <haproxy/compression.h>
 #include <haproxy/dns-t.h>
 #include <haproxy/errors.h>
@@ -54,6 +53,7 @@
 #include <haproxy/protocol.h>
 #include <haproxy/proxy.h>
 #include <haproxy/sample-t.h>
+#include <haproxy/sc_strm.h>
 #include <haproxy/server.h>
 #include <haproxy/session.h>
 #include <haproxy/sock.h>

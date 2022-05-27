@@ -22,7 +22,6 @@
 #include <haproxy/check.h>
 #include <haproxy/connection.h>
 #include <haproxy/conn_stream.h>
-#include <haproxy/cs_utils.h>
 #include <haproxy/errors.h>
 #include <haproxy/filters.h>
 #include <haproxy/http.h>
@@ -33,6 +32,7 @@
 #include <haproxy/net_helper.h>
 #include <haproxy/proxy.h>
 #include <haproxy/regex.h>
+#include <haproxy/sc_strm.h>
 #include <haproxy/server-t.h>
 #include <haproxy/stats.h>
 #include <haproxy/stream.h>

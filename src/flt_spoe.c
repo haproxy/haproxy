@@ -20,7 +20,6 @@
 #include <haproxy/cfgparse.h>
 #include <haproxy/check.h>
 #include <haproxy/conn_stream.h>
-#include <haproxy/cs_utils.h>
 #include <haproxy/filters.h>
 #include <haproxy/freq_ctr.h>
 #include <haproxy/frontend.h>
@@ -30,6 +29,7 @@
 #include <haproxy/pool.h>
 #include <haproxy/proxy.h>
 #include <haproxy/sample.h>
+#include <haproxy/sc_strm.h>
 #include <haproxy/session.h>
 #include <haproxy/signal.h>
 #include <haproxy/sink.h>

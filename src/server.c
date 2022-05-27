@@ -26,7 +26,6 @@
 #include <haproxy/cli.h>
 #include <haproxy/connection.h>
 #include <haproxy/conn_stream.h>
-#include <haproxy/cs_utils.h>
 #include <haproxy/dict-t.h>
 #include <haproxy/errors.h>
 #include <haproxy/global.h>
@@ -39,6 +38,7 @@
 #include <haproxy/queue.h>
 #include <haproxy/resolvers.h>
 #include <haproxy/sample.h>
+#include <haproxy/sc_strm.h>
 #include <haproxy/server.h>
 #include <haproxy/stats.h>
 #include <haproxy/stream.h>

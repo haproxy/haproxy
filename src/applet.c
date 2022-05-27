@@ -17,8 +17,8 @@
 #include <haproxy/applet.h>
 #include <haproxy/channel.h>
 #include <haproxy/conn_stream.h>
-#include <haproxy/cs_utils.h>
 #include <haproxy/list.h>
+#include <haproxy/sc_strm.h>
 #include <haproxy/stream.h>
 #include <haproxy/task.h>
 

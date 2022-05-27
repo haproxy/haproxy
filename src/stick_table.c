@@ -24,7 +24,6 @@
 #include <haproxy/cfgparse.h>
 #include <haproxy/cli.h>
 #include <haproxy/conn_stream.h>
-#include <haproxy/cs_utils.h>
 #include <haproxy/dict.h>
 #include <haproxy/errors.h>
 #include <haproxy/global.h>
@@ -37,6 +36,7 @@
 #include <haproxy/proto_tcp.h>
 #include <haproxy/proxy.h>
 #include <haproxy/sample.h>
+#include <haproxy/sc_strm.h>
 #include <haproxy/stats-t.h>
 #include <haproxy/stick_table.h>
 #include <haproxy/stream.h>

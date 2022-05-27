@@ -28,7 +28,6 @@
 #include <haproxy/check.h>
 #include <haproxy/cli.h>
 #include <haproxy/conn_stream.h>
-#include <haproxy/cs_utils.h>
 #include <haproxy/dns.h>
 #include <haproxy/errors.h>
 #include <haproxy/fd.h>
@@ -40,6 +39,7 @@
 #include <haproxy/resolvers.h>
 #include <haproxy/ring.h>
 #include <haproxy/sample.h>
+#include <haproxy/sc_strm.h>
 #include <haproxy/server.h>
 #include <haproxy/stats.h>
 #include <haproxy/task.h>

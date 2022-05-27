@@ -28,7 +28,6 @@
 #include <haproxy/channel.h>
 #include <haproxy/check.h>
 #include <haproxy/conn_stream.h>
-#include <haproxy/cs_utils.h>
 #include <haproxy/frontend.h>
 #include <haproxy/global.h>
 #include <haproxy/hash.h>
@@ -50,6 +49,7 @@
 #include <haproxy/proxy.h>
 #include <haproxy/queue.h>
 #include <haproxy/sample.h>
+#include <haproxy/sc_strm.h>
 #include <haproxy/server.h>
 #include <haproxy/session.h>
 #include <haproxy/ssl_sock.h>

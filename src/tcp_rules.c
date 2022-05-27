@@ -18,12 +18,12 @@
 #include <haproxy/channel.h>
 #include <haproxy/connection.h>
 #include <haproxy/conn_stream.h>
-#include <haproxy/cs_utils.h>
 #include <haproxy/global.h>
 #include <haproxy/list.h>
 #include <haproxy/log.h>
 #include <haproxy/proxy.h>
 #include <haproxy/sample.h>
+#include <haproxy/sc_strm.h>
 #include <haproxy/stick_table.h>
 #include <haproxy/stream-t.h>
 #include <haproxy/tcp_rules.h>

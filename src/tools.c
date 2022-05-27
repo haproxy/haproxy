@@ -54,7 +54,6 @@ extern void *__elf_aux_vector;
 #include <haproxy/applet.h>
 #include <haproxy/chunk.h>
 #include <haproxy/conn_stream.h>
-#include <haproxy/cs_utils.h>
 #include <haproxy/dgram.h>
 #include <haproxy/global.h>
 #include <haproxy/hlua.h>
@@ -63,6 +62,7 @@ extern void *__elf_aux_vector;
 #include <haproxy/net_helper.h>
 #include <haproxy/protocol.h>
 #include <haproxy/resolvers.h>
+#include <haproxy/sc_strm.h>
 #include <haproxy/sock.h>
 #include <haproxy/ssl_sock.h>
 #include <haproxy/ssl_utils.h>

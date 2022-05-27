@@ -14,11 +14,11 @@
 #include <haproxy/applet.h>
 #include <haproxy/connection.h>
 #include <haproxy/conn_stream.h>
-#include <haproxy/cs_utils.h>
 #include <haproxy/check.h>
 #include <haproxy/http_ana.h>
 #include <haproxy/pipe.h>
 #include <haproxy/pool.h>
+#include <haproxy/sc_strm.h>
 
 DECLARE_POOL(pool_head_connstream, "stconn", sizeof(struct stconn));
 DECLARE_POOL(pool_head_sedesc, "sedesc", sizeof(struct sedesc));

@@ -24,12 +24,12 @@
 #include <haproxy/cfgparse.h>
 #include <haproxy/cli.h>
 #include <haproxy/conn_stream.h>
-#include <haproxy/cs_utils.h>
 #include <haproxy/errors.h>
 #include <haproxy/list.h>
 #include <haproxy/log.h>
 #include <haproxy/proxy.h>
 #include <haproxy/ring.h>
+#include <haproxy/sc_strm.h>
 #include <haproxy/signal.h>
 #include <haproxy/sink.h>
 #include <haproxy/time.h>

@@ -35,7 +35,6 @@
 #include <haproxy/clock.h>
 #include <haproxy/connection.h>
 #include <haproxy/conn_stream.h>
-#include <haproxy/cs_utils.h>
 #include <haproxy/filters.h>
 #include <haproxy/h1.h>
 #include <haproxy/hlua.h>
@@ -53,6 +52,7 @@
 #include <haproxy/proxy.h>
 #include <haproxy/regex.h>
 #include <haproxy/sample.h>
+#include <haproxy/sc_strm.h>
 #include <haproxy/server.h>
 #include <haproxy/session.h>
 #include <haproxy/ssl_ckch.h>

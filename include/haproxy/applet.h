@@ -28,9 +28,9 @@
 #include <haproxy/applet-t.h>
 #include <haproxy/channel.h>
 #include <haproxy/conn_stream.h>
-#include <haproxy/cs_utils.h>
 #include <haproxy/list.h>
 #include <haproxy/pool.h>
+#include <haproxy/sc_strm.h>
 #include <haproxy/session.h>
 #include <haproxy/task.h>
 

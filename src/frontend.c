@@ -26,7 +26,6 @@
 #include <haproxy/arg.h>
 #include <haproxy/chunk.h>
 #include <haproxy/connection.h>
-#include <haproxy/cs_utils.h>
 #include <haproxy/fd.h>
 #include <haproxy/frontend.h>
 #include <haproxy/global.h>
@@ -35,6 +34,7 @@
 #include <haproxy/proto_tcp.h>
 #include <haproxy/proxy.h>
 #include <haproxy/sample.h>
+#include <haproxy/sc_strm.h>
 #include <haproxy/stream.h>
 #include <haproxy/task.h>
 #include <haproxy/ticks.h>

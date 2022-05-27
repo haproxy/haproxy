@@ -1,6 +1,6 @@
 /*
- * include/haproxy/cs_utils.h
- * This file contains stream connector util functions prototypes
+ * include/haproxy/sc_strm.h
+ * This file contains stream-specific stream-connector functions prototypes
  *
  * Copyright 2022 Christopher Faulet <cfaulet@haproxy.com>
  *
@@ -19,8 +19,8 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _HAPROXY_CS_UTILS_H
-#define _HAPROXY_CS_UTILS_H
+#ifndef _HAPROXY_SC_STRM_H
+#define _HAPROXY_SC_STRM_H
 
 #include <haproxy/api.h>
 #include <haproxy/buf-t.h>
@@ -381,4 +381,4 @@ static inline int sc_is_send_allowed(const struct stconn *sc)
 	return (sc_ep_get(sc) & (SE_FL_WAIT_DATA|SE_FL_WILL_CONSUME)) == SE_FL_WILL_CONSUME;
 }
 
-#endif /* _HAPROXY_CS_UTILS_H */
+#endif /* _HAPROXY_SC_STRM_H */

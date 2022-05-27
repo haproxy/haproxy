@@ -20,7 +20,6 @@
 #include <haproxy/channel.h>
 #include <haproxy/cli.h>
 #include <haproxy/conn_stream.h>
-#include <haproxy/cs_utils.h>
 #include <haproxy/errors.h>
 #include <haproxy/filters.h>
 #include <haproxy/hash.h>
@@ -32,6 +31,7 @@
 #include <haproxy/net_helper.h>
 #include <haproxy/proxy.h>
 #include <haproxy/sample.h>
+#include <haproxy/sc_strm.h>
 #include <haproxy/shctx.h>
 #include <haproxy/stream.h>
 #include <haproxy/tools.h>

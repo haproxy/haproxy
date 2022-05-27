@@ -26,7 +26,6 @@
 #include <haproxy/cfgparse.h>
 #include <haproxy/cli.h>
 #include <haproxy/conn_stream.h>
-#include <haproxy/cs_utils.h>
 #include <haproxy/errors.h>
 #include <haproxy/fd.h>
 #include <haproxy/filters.h>
@@ -41,6 +40,7 @@
 #include <haproxy/protocol.h>
 #include <haproxy/proto_tcp.h>
 #include <haproxy/proxy.h>
+#include <haproxy/sc_strm.h>
 #include <haproxy/server-t.h>
 #include <haproxy/signal.h>
 #include <haproxy/stats-t.h>

@@ -35,7 +35,6 @@
 #include <haproxy/clock.h>
 #include <haproxy/compression.h>
 #include <haproxy/conn_stream.h>
-#include <haproxy/cs_utils.h>
 #include <haproxy/debug.h>
 #include <haproxy/errors.h>
 #include <haproxy/fd.h>
@@ -55,6 +54,7 @@
 #include <haproxy/pool.h>
 #include <haproxy/proxy.h>
 #include <haproxy/resolvers.h>
+#include <haproxy/sc_strm.h>
 #include <haproxy/server.h>
 #include <haproxy/session.h>
 #include <haproxy/stats.h>

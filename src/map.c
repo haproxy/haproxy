@@ -18,11 +18,11 @@
 #include <haproxy/arg.h>
 #include <haproxy/cli.h>
 #include <haproxy/conn_stream.h>
-#include <haproxy/cs_utils.h>
 #include <haproxy/map.h>
 #include <haproxy/pattern.h>
 #include <haproxy/regex.h>
 #include <haproxy/sample.h>
+#include <haproxy/sc_strm.h>
 #include <haproxy/stats-t.h>
 #include <haproxy/tools.h>
 
