@@ -1,9 +1,8 @@
 /*
- * include/haproxy/conn_stream-t.h
+ * include/haproxy/stconn-t.h
  * This file describes the stream connector struct and associated constants.
  *
  * Copyright 2021 Christopher Faulet <cfaulet@haproxy.com>
- *
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -20,8 +19,8 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _HAPROXY_CONN_STREAM_T_H
-#define _HAPROXY_CONN_STREAM_T_H
+#ifndef _HAPROXY_STCONN_T_H
+#define _HAPROXY_STCONN_T_H
 
 #include <haproxy/obj_type-t.h>
 #include <haproxy/connection-t.h>
@@ -140,7 +139,7 @@ enum sc_state_bit {
 struct stconn;
 
 /* A Stream Endpoint Descriptor (sedesc) is the link between the stream
- * connector (ex. conn_stream) and the Stream Endpoint (mux or appctx).
+ * connector (ex. stconn) and the Stream Endpoint (mux or appctx).
  * It always exists for either of them, and binds them together. It also
  * contains some shared information relative to the endpoint. It is created by
  * the first one which needs it and is shared by the other one, i.e. on the
@@ -195,4 +194,4 @@ struct stconn {
 };
 
 
-#endif /* _HAPROXY_CONN_STREAM_T_H */
+#endif /* _HAPROXY_STCONN_T_H */

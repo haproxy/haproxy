@@ -24,13 +24,13 @@
 
 #include <haproxy/action-t.h>
 #include <haproxy/api.h>
-#include <haproxy/conn_stream.h>
 #include <haproxy/fd.h>
 #include <haproxy/freq_ctr.h>
 #include <haproxy/obj_type.h>
 #include <haproxy/pool-t.h>
 #include <haproxy/queue.h>
 #include <haproxy/session.h>
+#include <haproxy/stconn.h>
 #include <haproxy/stick_table.h>
 #include <haproxy/stream-t.h>
 #include <haproxy/task-t.h>

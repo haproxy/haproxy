@@ -27,7 +27,6 @@
 #include <haproxy/applet.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/clock.h>
-#include <haproxy/conn_stream.h>
 #include <haproxy/fd.h>
 #include <haproxy/frontend.h>
 #include <haproxy/global.h>
@@ -40,6 +39,7 @@
 #include <haproxy/sc_strm.h>
 #include <haproxy/sink.h>
 #include <haproxy/ssl_sock.h>
+#include <haproxy/stconn.h>
 #include <haproxy/stream.h>
 #include <haproxy/time.h>
 #include <haproxy/tools.h>

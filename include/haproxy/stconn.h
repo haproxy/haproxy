@@ -1,5 +1,5 @@
 /*
- * include/haproxy/conn_stream.h
+ * include/haproxy/stconn.h
  * This file contains stream connector function prototypes
  *
  * Copyright 2021 Christopher Faulet <cfaulet@haproxy.com>
@@ -19,13 +19,13 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _HAPROXY_CONN_STREAM_H
-#define _HAPROXY_CONN_STREAM_H
+#ifndef _HAPROXY_STCONN_H
+#define _HAPROXY_STCONN_H
 
 #include <haproxy/api.h>
 #include <haproxy/connection.h>
-#include <haproxy/conn_stream-t.h>
 #include <haproxy/obj_type.h>
+#include <haproxy/stconn-t.h>
 
 struct buffer;
 struct session;
@@ -53,7 +53,7 @@ struct appctx *sc_applet_create(struct stconn *cs, struct applet *app);
 
 /* The se_fl_*() set of functions manipulate the stream endpoint flags from
  * the stream endpoint itself. The sc_ep_*() set of functions manipulate the
- * stream endpoint flags from the the stream connector (ex. conn_stream).
+ * stream endpoint flags from the the stream connector (ex. stconn).
  * _zero() clears all flags, _clr() clears a set of flags (&=~), _set() sets
  * a set of flags (|=), _test() tests the presence of a set of flags, _get()
  * retrieves the exact flags, _setall() replaces the flags with the new value.
@@ -398,4 +398,4 @@ static inline void se_need_more_data(struct sedesc *se)
 	se_fl_set(se, SE_FL_WILL_CONSUME | SE_FL_WAIT_DATA);
 }
 
-#endif /* _HAPROXY_CONN_STREAM_H */
+#endif /* _HAPROXY_STCONN_H */

@@ -3,7 +3,7 @@
 
 #include <haproxy/channel-t.h>
 #include <haproxy/connection-t.h>
-#include <haproxy/conn_stream-t.h>
+#include <haproxy/stconn-t.h>
 #include <haproxy/http_ana-t.h>
 #include <haproxy/stream-t.h>
 #include <haproxy/task-t.h>

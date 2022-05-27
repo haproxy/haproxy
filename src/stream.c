@@ -28,7 +28,6 @@
 #include <haproxy/check.h>
 #include <haproxy/cli.h>
 #include <haproxy/connection.h>
-#include <haproxy/conn_stream.h>
 #include <haproxy/dict.h>
 #include <haproxy/dynbuf.h>
 #include <haproxy/fd.h>
@@ -52,6 +51,7 @@
 #include <haproxy/sample.h>
 #include <haproxy/session.h>
 #include <haproxy/stats-t.h>
+#include <haproxy/stconn.h>
 #include <haproxy/stick_table.h>
 #include <haproxy/stream.h>
 #include <haproxy/task.h>

@@ -19,13 +19,13 @@
 #include <haproxy/cfgparse.h>
 #include <haproxy/channel.h>
 #include <haproxy/cli.h>
-#include <haproxy/conn_stream.h>
 #include <haproxy/errors.h>
 #include <haproxy/global.h>
 #include <haproxy/list.h>
 #include <haproxy/pool.h>
 #include <haproxy/sc_strm.h>
 #include <haproxy/stats-t.h>
+#include <haproxy/stconn.h>
 #include <haproxy/thread.h>
 #include <haproxy/tools.h>
 

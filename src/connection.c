@@ -17,7 +17,6 @@
 #include <haproxy/api.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/connection.h>
-#include <haproxy/conn_stream.h>
 #include <haproxy/fd.h>
 #include <haproxy/frontend.h>
 #include <haproxy/hash.h>
@@ -30,6 +29,7 @@
 #include <haproxy/sc_strm.h>
 #include <haproxy/session.h>
 #include <haproxy/ssl_sock.h>
+#include <haproxy/stconn.h>
 #include <haproxy/tools.h>
 #include <haproxy/xxhash.h>
 

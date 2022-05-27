@@ -18,7 +18,6 @@
 
 #include <haproxy/buf.h>
 #include <haproxy/connection.h>
-#include <haproxy/conn_stream.h>
 #include <haproxy/dynbuf.h>
 #include <haproxy/h3.h>
 #include <haproxy/http.h>
@@ -31,6 +30,7 @@
 #include <haproxy/qpack-dec.h>
 #include <haproxy/qpack-enc.h>
 #include <haproxy/quic_enc.h>
+#include <haproxy/stconn.h>
 #include <haproxy/tools.h>
 #include <haproxy/xprt_quic.h>
 

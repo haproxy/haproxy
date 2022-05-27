@@ -4,7 +4,6 @@
 
 #include <haproxy/api.h>
 #include <haproxy/connection.h>
-#include <haproxy/conn_stream.h>
 #include <haproxy/dynbuf.h>
 #include <haproxy/htx.h>
 #include <haproxy/list.h>
@@ -12,6 +11,7 @@
 #include <haproxy/pool.h>
 #include <haproxy/quic_stream.h>
 #include <haproxy/ssl_sock-t.h>
+#include <haproxy/stconn.h>
 #include <haproxy/trace.h>
 #include <haproxy/xprt_quic.h>
 

@@ -23,7 +23,6 @@
 #include <haproxy/applet.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/cli.h>
-#include <haproxy/conn_stream.h>
 #include <haproxy/errors.h>
 #include <haproxy/list.h>
 #include <haproxy/log.h>
@@ -32,6 +31,7 @@
 #include <haproxy/sc_strm.h>
 #include <haproxy/signal.h>
 #include <haproxy/sink.h>
+#include <haproxy/stconn.h>
 #include <haproxy/time.h>
 #include <haproxy/tools.h>
 

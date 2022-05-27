@@ -26,7 +26,7 @@
 
 #include <haproxy/api-t.h>
 #include <haproxy/channel-t.h>
-#include <haproxy/conn_stream-t.h>
+#include <haproxy/stconn-t.h>
 #include <haproxy/dynbuf-t.h>
 #include <haproxy/filters-t.h>
 #include <haproxy/obj_type-t.h>

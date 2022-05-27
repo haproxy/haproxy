@@ -18,7 +18,6 @@
 #include <haproxy/ssl_ckch.h>
 #include <haproxy/dynbuf.h>
 #include <haproxy/cfgparse.h>
-#include <haproxy/conn_stream.h>
 #include <haproxy/global.h>
 #include <haproxy/istbuf.h>
 #include <haproxy/h1_htx.h>
@@ -35,6 +34,7 @@
 #include <haproxy/server.h>
 #include <haproxy/ssl_sock-t.h>
 #include <haproxy/sock_inet.h>
+#include <haproxy/stconn.h>
 #include <haproxy/tools.h>
 
 #include <string.h>

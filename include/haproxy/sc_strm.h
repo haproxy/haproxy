@@ -28,9 +28,9 @@
 #include <haproxy/stream-t.h>
 #include <haproxy/task-t.h>
 #include <haproxy/connection.h>
-#include <haproxy/conn_stream.h>
 #include <haproxy/channel.h>
 #include <haproxy/session.h>
+#include <haproxy/stconn.h>
 #include <haproxy/stream.h>
 
 void sc_update_rx(struct stconn *cs);

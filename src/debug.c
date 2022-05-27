@@ -30,7 +30,6 @@
 #include <haproxy/applet.h>
 #include <haproxy/buf.h>
 #include <haproxy/cli.h>
-#include <haproxy/conn_stream.h>
 #include <haproxy/clock.h>
 #include <haproxy/debug.h>
 #include <haproxy/fd.h>
@@ -40,6 +39,7 @@
 #include <haproxy/log.h>
 #include <haproxy/net_helper.h>
 #include <haproxy/sc_strm.h>
+#include <haproxy/stconn.h>
 #include <haproxy/task.h>
 #include <haproxy/thread.h>
 #include <haproxy/time.h>

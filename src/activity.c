@@ -17,9 +17,9 @@
 #include <haproxy/clock.h>
 #include <haproxy/channel.h>
 #include <haproxy/cli.h>
-#include <haproxy/conn_stream.h>
 #include <haproxy/freq_ctr.h>
 #include <haproxy/sc_strm.h>
+#include <haproxy/stconn.h>
 #include <haproxy/tools.h>
 #include <haproxy/xxhash.h>
 

@@ -30,12 +30,12 @@
 #include <haproxy/base64.h>
 #include <haproxy/channel.h>
 #include <haproxy/cli.h>
-#include <haproxy/conn_stream.h>
 #include <haproxy/errors.h>
 #include <haproxy/sc_strm.h>
 #include <haproxy/ssl_ckch.h>
 #include <haproxy/ssl_sock.h>
 #include <haproxy/ssl_utils.h>
+#include <haproxy/stconn.h>
 #include <haproxy/tools.h>
 
 /* Uncommitted CKCH transaction */

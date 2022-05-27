@@ -27,11 +27,11 @@
 #include <haproxy/api.h>
 #include <haproxy/applet-t.h>
 #include <haproxy/channel.h>
-#include <haproxy/conn_stream.h>
 #include <haproxy/list.h>
 #include <haproxy/pool.h>
 #include <haproxy/sc_strm.h>
 #include <haproxy/session.h>
+#include <haproxy/stconn.h>
 #include <haproxy/task.h>
 
 extern unsigned int nb_applets;

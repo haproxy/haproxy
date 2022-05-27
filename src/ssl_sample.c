@@ -25,12 +25,12 @@
 #include <haproxy/base64.h>
 #include <haproxy/buf-t.h>
 #include <haproxy/connection.h>
-#include <haproxy/conn_stream.h>
 #include <haproxy/obj_type.h>
 #include <haproxy/openssl-compat.h>
 #include <haproxy/sample.h>
 #include <haproxy/ssl_sock.h>
 #include <haproxy/ssl_utils.h>
+#include <haproxy/stconn.h>
 #include <haproxy/tools.h>
 #include <haproxy/vars.h>
 

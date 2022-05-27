@@ -23,7 +23,6 @@
 #include <haproxy/capture-t.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/chunk.h>
-#include <haproxy/conn_stream.h>
 #include <haproxy/global.h>
 #include <haproxy/http.h>
 #include <haproxy/http_ana.h>
@@ -35,6 +34,7 @@
 #include <haproxy/regex.h>
 #include <haproxy/sample.h>
 #include <haproxy/sc_strm.h>
+#include <haproxy/stconn.h>
 #include <haproxy/tools.h>
 #include <haproxy/uri_auth-t.h>
 #include <haproxy/uri_normalizer.h>

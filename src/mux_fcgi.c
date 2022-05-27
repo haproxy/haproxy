@@ -17,7 +17,6 @@
 #include <haproxy/api.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/connection.h>
-#include <haproxy/conn_stream.h>
 #include <haproxy/dynbuf.h>
 #include <haproxy/errors.h>
 #include <haproxy/fcgi-app.h>
@@ -33,6 +32,7 @@
 #include <haproxy/regex.h>
 #include <haproxy/sc_strm.h>
 #include <haproxy/session-t.h>
+#include <haproxy/stconn.h>
 #include <haproxy/stream.h>
 #include <haproxy/trace.h>
 #include <haproxy/version.h>

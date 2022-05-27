@@ -34,7 +34,6 @@
 #include <haproxy/channel.h>
 #include <haproxy/check.h>
 #include <haproxy/cli.h>
-#include <haproxy/conn_stream.h>
 #include <haproxy/compression.h>
 #include <haproxy/dns-t.h>
 #include <haproxy/errors.h>
@@ -58,6 +57,7 @@
 #include <haproxy/session.h>
 #include <haproxy/sock.h>
 #include <haproxy/stats-t.h>
+#include <haproxy/stconn.h>
 #include <haproxy/stream.h>
 #include <haproxy/task.h>
 #include <haproxy/ticks.h>

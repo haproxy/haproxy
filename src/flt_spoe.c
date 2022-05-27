@@ -19,7 +19,6 @@
 #include <haproxy/arg.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/check.h>
-#include <haproxy/conn_stream.h>
 #include <haproxy/filters.h>
 #include <haproxy/freq_ctr.h>
 #include <haproxy/frontend.h>
@@ -34,6 +33,7 @@
 #include <haproxy/signal.h>
 #include <haproxy/sink.h>
 #include <haproxy/spoe.h>
+#include <haproxy/stconn.h>
 #include <haproxy/stream.h>
 #include <haproxy/task.h>
 #include <haproxy/tcp_rules.h>

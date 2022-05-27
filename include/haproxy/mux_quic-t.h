@@ -13,7 +13,7 @@
 #include <haproxy/list-t.h>
 #include <haproxy/ncbuf-t.h>
 #include <haproxy/quic_stream-t.h>
-#include <haproxy/conn_stream-t.h>
+#include <haproxy/stconn-t.h>
 
 /* Stream types */
 enum qcs_type {
@@ -112,7 +112,7 @@ struct qcs {
 		uint64_t offset; /* absolute current base offset of ncbuf */
 		uint64_t offset_max; /* maximum absolute offset received */
 		struct ncbuf ncbuf; /* receive buffer - can handle out-of-order offset frames */
-		struct buffer app_buf; /* receive buffer used by conn_stream layer */
+		struct buffer app_buf; /* receive buffer used by stconn layer */
 		uint64_t msd; /* current max-stream-data limit to enforce */
 		uint64_t msd_init; /* initial max-stream-data */
 	} rx;

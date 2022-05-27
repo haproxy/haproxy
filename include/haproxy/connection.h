@@ -27,7 +27,7 @@
 #include <haproxy/api.h>
 #include <haproxy/buf.h>
 #include <haproxy/connection-t.h>
-#include <haproxy/conn_stream-t.h>
+#include <haproxy/stconn-t.h>
 #include <haproxy/fd.h>
 #include <haproxy/list.h>
 #include <haproxy/listener-t.h>

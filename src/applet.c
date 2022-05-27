@@ -16,9 +16,9 @@
 #include <haproxy/api.h>
 #include <haproxy/applet.h>
 #include <haproxy/channel.h>
-#include <haproxy/conn_stream.h>
 #include <haproxy/list.h>
 #include <haproxy/sc_strm.h>
+#include <haproxy/stconn.h>
 #include <haproxy/stream.h>
 #include <haproxy/task.h>
 
