@@ -436,7 +436,7 @@ static void h1_trace(enum trace_level level, uint64_t mask, const struct trace_s
 		if (h1s->endp)
 			chunk_appendf(&trace_buf, " endp=%p(0x%08x)", h1s->endp, se_fl_get(h1s->endp));
 		if (h1s->endp && h1s_sc(h1s))
-			chunk_appendf(&trace_buf, " cs=%p(0x%08x)", h1s_sc(h1s), h1s_sc(h1s)->flags);
+			chunk_appendf(&trace_buf, " sc=%p(0x%08x)", h1s_sc(h1s), h1s_sc(h1s)->flags);
 	}
 
 	if (src->verbosity == H1_VERB_MINIMAL)
@@ -721,7 +721,7 @@ static inline size_t h1s_data_pending(const struct h1s *h1s)
  * because, on success, <input> is updated to points on BUF_NULL. Thus, calling
  * b_free() on it is always safe. This function returns the stream connector on
  * success or NULL on error. */
-static struct stconn *h1s_new_cs(struct h1s *h1s, struct buffer *input)
+static struct stconn *h1s_new_sc(struct h1s *h1s, struct buffer *input)
 {
 	struct h1c *h1c = h1s->h1c;
 
@@ -749,7 +749,7 @@ static struct stconn *h1s_new_cs(struct h1s *h1s, struct buffer *input)
 	return NULL;
 }
 
-static struct stconn *h1s_upgrade_cs(struct h1s *h1s, struct buffer *input)
+static struct stconn *h1s_upgrade_sc(struct h1s *h1s, struct buffer *input)
 {
 	TRACE_ENTER(H1_EV_STRM_NEW, h1s->h1c->conn, h1s);
 
@@ -808,7 +808,7 @@ static struct h1s *h1s_new(struct h1c *h1c)
 	return NULL;
 }
 
-static struct h1s *h1c_frt_stream_new(struct h1c *h1c, struct stconn *cs, struct session *sess)
+static struct h1s *h1c_frt_stream_new(struct h1c *h1c, struct stconn *sc, struct session *sess)
 {
 	struct h1s *h1s;
 
@@ -818,10 +818,10 @@ static struct h1s *h1c_frt_stream_new(struct h1c *h1c, struct stconn *cs, struct
 	if (!h1s)
 		goto fail;
 
-	if (cs) {
-		if (sc_attach_mux(cs, h1s, h1c->conn) < 0)
+	if (sc) {
+		if (sc_attach_mux(sc, h1s, h1c->conn) < 0)
 			goto fail;
-		h1s->endp = cs->sedesc;
+		h1s->endp = sc->sedesc;
 	}
 	else {
 		h1s->endp = sedesc_new();
@@ -848,7 +848,7 @@ static struct h1s *h1c_frt_stream_new(struct h1c *h1c, struct stconn *cs, struct
 	return NULL;
 }
 
-static struct h1s *h1c_bck_stream_new(struct h1c *h1c, struct stconn *cs, struct session *sess)
+static struct h1s *h1c_bck_stream_new(struct h1c *h1c, struct stconn *sc, struct session *sess)
 {
 	struct h1s *h1s;
 
@@ -858,11 +858,11 @@ static struct h1s *h1c_bck_stream_new(struct h1c *h1c, struct stconn *cs, struct
 	if (!h1s)
 		goto fail;
 
-	if (sc_attach_mux(cs, h1s, h1c->conn) < 0)
+	if (sc_attach_mux(sc, h1s, h1c->conn) < 0)
 		goto fail;
 
 	h1s->flags |= H1S_F_RX_BLK;
-	h1s->endp = cs->sedesc;
+	h1s->endp = sc->sedesc;
 	h1s->sess = sess;
 
 	h1c->flags = (h1c->flags & ~H1C_F_ST_EMBRYONIC) | H1C_F_ST_ATTACHED | H1C_F_ST_READY;
@@ -1893,7 +1893,7 @@ static size_t h1_process_demux(struct h1c *h1c, struct buffer *buf, size_t count
 		if (!(h1c->flags & H1C_F_ST_ATTACHED)) {
 			TRACE_DEVEL("request headers fully parsed, create and attach the CS", H1_EV_RX_DATA, h1c->conn, h1s);
 			BUG_ON(h1s_sc(h1s));
-			if (!h1s_new_cs(h1s, buf)) {
+			if (!h1s_new_sc(h1s, buf)) {
 				h1c->flags |= H1C_F_ST_ERROR;
 				goto err;
 			}
@@ -1901,7 +1901,7 @@ static size_t h1_process_demux(struct h1c *h1c, struct buffer *buf, size_t count
 		else {
 			TRACE_DEVEL("request headers fully parsed, upgrade the inherited CS", H1_EV_RX_DATA, h1c->conn, h1s);
 			BUG_ON(h1s_sc(h1s) == NULL);
-			if (!h1s_upgrade_cs(h1s, buf)) {
+			if (!h1s_upgrade_sc(h1s, buf)) {
 				h1c->flags |= H1C_F_ST_ERROR;
 				TRACE_ERROR("H1S upgrade failure", H1_EV_RX_DATA|H1_EV_H1S_ERR, h1c->conn, h1s);
 				goto err;
@@ -3470,9 +3470,9 @@ static void h1_detach(struct sedesc *endp)
 }
 
 
-static void h1_shutr(struct stconn *cs, enum co_shr_mode mode)
+static void h1_shutr(struct stconn *sc, enum co_shr_mode mode)
 {
-	struct h1s *h1s = __sc_mux_strm(cs);
+	struct h1s *h1s = __sc_mux_strm(sc);
 	struct h1c *h1c;
 
 	if (!h1s)
@@ -3513,9 +3513,9 @@ static void h1_shutr(struct stconn *cs, enum co_shr_mode mode)
 	TRACE_LEAVE(H1_EV_STRM_SHUT, h1c->conn, h1s);
 }
 
-static void h1_shutw(struct stconn *cs, enum co_shw_mode mode)
+static void h1_shutw(struct stconn *sc, enum co_shw_mode mode)
 {
-	struct h1s *h1s = __sc_mux_strm(cs);
+	struct h1s *h1s = __sc_mux_strm(sc);
 	struct h1c *h1c;
 
 	if (!h1s)
@@ -3573,9 +3573,9 @@ static void h1_shutw_conn(struct connection *conn)
  * The <es> pointer is not allowed to differ from the one passed to the
  * subscribe() call. It always returns zero.
  */
-static int h1_unsubscribe(struct stconn *cs, int event_type, struct wait_event *es)
+static int h1_unsubscribe(struct stconn *sc, int event_type, struct wait_event *es)
 {
-	struct h1s *h1s = __sc_mux_strm(cs);
+	struct h1s *h1s = __sc_mux_strm(sc);
 
 	if (!h1s)
 		return 0;
@@ -3600,12 +3600,12 @@ static int h1_unsubscribe(struct stconn *cs, int event_type, struct wait_event *
  * event subscriber <es> is not allowed to change from a previous call as long
  * as at least one event is still subscribed. The <event_type> must only be a
  * combination of SUB_RETRY_RECV and SUB_RETRY_SEND. It always returns 0, unless
- * the stream connector <cs> was already detached, in which case it will return
+ * the stream connector <sc> was already detached, in which case it will return
  * -1.
  */
-static int h1_subscribe(struct stconn *cs, int event_type, struct wait_event *es)
+static int h1_subscribe(struct stconn *sc, int event_type, struct wait_event *es)
 {
-	struct h1s *h1s = __sc_mux_strm(cs);
+	struct h1s *h1s = __sc_mux_strm(sc);
 	struct h1c *h1c;
 
 	if (!h1s)
@@ -3651,9 +3651,9 @@ static int h1_subscribe(struct stconn *cs, int event_type, struct wait_event *es
  * mux it may optimize the data copy to <buf> if necessary. Otherwise, it should
  * copy as much data as possible.
  */
-static size_t h1_rcv_buf(struct stconn *cs, struct buffer *buf, size_t count, int flags)
+static size_t h1_rcv_buf(struct stconn *sc, struct buffer *buf, size_t count, int flags)
 {
-	struct h1s *h1s = __sc_mux_strm(cs);
+	struct h1s *h1s = __sc_mux_strm(sc);
 	struct h1c *h1c = h1s->h1c;
 	struct h1m *h1m = (!(h1c->flags & H1C_F_IS_BACK) ? &h1s->req : &h1s->res);
 	size_t ret = 0;
@@ -3687,9 +3687,9 @@ static size_t h1_rcv_buf(struct stconn *cs, struct buffer *buf, size_t count, in
 
 
 /* Called from the upper layer, to send data */
-static size_t h1_snd_buf(struct stconn *cs, struct buffer *buf, size_t count, int flags)
+static size_t h1_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, int flags)
 {
-	struct h1s *h1s = __sc_mux_strm(cs);
+	struct h1s *h1s = __sc_mux_strm(sc);
 	struct h1c *h1c;
 	size_t total = 0;
 
@@ -3752,9 +3752,9 @@ static size_t h1_snd_buf(struct stconn *cs, struct buffer *buf, size_t count, in
 
 #if defined(USE_LINUX_SPLICE)
 /* Send and get, using splicing */
-static int h1_rcv_pipe(struct stconn *cs, struct pipe *pipe, unsigned int count)
+static int h1_rcv_pipe(struct stconn *sc, struct pipe *pipe, unsigned int count)
 {
-	struct h1s *h1s = __sc_mux_strm(cs);
+	struct h1s *h1s = __sc_mux_strm(sc);
 	struct h1c *h1c = h1s->h1c;
 	struct h1m *h1m = (!(h1c->flags & H1C_F_IS_BACK) ? &h1s->req : &h1s->res);
 	int ret = 0;
@@ -3822,9 +3822,9 @@ static int h1_rcv_pipe(struct stconn *cs, struct pipe *pipe, unsigned int count)
 	return ret;
 }
 
-static int h1_snd_pipe(struct stconn *cs, struct pipe *pipe)
+static int h1_snd_pipe(struct stconn *sc, struct pipe *pipe)
 {
-	struct h1s *h1s = __sc_mux_strm(cs);
+	struct h1s *h1s = __sc_mux_strm(sc);
 	struct h1c *h1c = h1s->h1c;
 	struct h1m *h1m = (!(h1c->flags & H1C_F_IS_BACK) ? &h1s->res : &h1s->req);
 	int ret = 0;
@@ -3918,7 +3918,7 @@ static int h1_show_fd(struct buffer *msg, struct connection *conn)
 			chunk_appendf(msg, " .endp.flg=0x%08x",
 				      se_fl_get(h1s->endp));
 			if (!se_fl_test(h1s->endp, SE_FL_ORPHAN))
-				chunk_appendf(msg, " .cs.flg=0x%08x .cs.app=%p",
+				chunk_appendf(msg, " .sc.flg=0x%08x .sc.app=%p",
 					      h1s_sc(h1s)->flags, h1s_sc(h1s)->app);
 		}
 		chunk_appendf(&trash, " .subs=%p", h1s->subs);
