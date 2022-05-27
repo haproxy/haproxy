@@ -104,7 +104,7 @@ struct fcgi_conn {
 	int timeout;                         /* idle timeout duration in ticks */
 	int shut_timeout;                    /* idle timeout duration in ticks after shutdown */
 	unsigned int nb_streams;             /* number of streams in the tree */
-	unsigned int nb_cs;                  /* number of attached stream connectors */
+	unsigned int nb_sc;                  /* number of attached stream connectors */
 	unsigned int nb_reserved;            /* number of reserved streams */
 	unsigned int stream_cnt;             /* total number of streams seen */
 
@@ -364,7 +364,7 @@ static int fcgi_process(struct fcgi_conn *fconn);
 struct task *fcgi_io_cb(struct task *t, void *ctx, unsigned int state);
 static inline struct fcgi_strm *fcgi_conn_st_by_id(struct fcgi_conn *fconn, int id);
 struct task *fcgi_deferred_shut(struct task *t, void *ctx, unsigned int state);
-static struct fcgi_strm *fcgi_stconn_new(struct fcgi_conn *fconn, struct stconn *cs, struct session *sess);
+static struct fcgi_strm *fcgi_stconn_new(struct fcgi_conn *fconn, struct stconn *sc, struct session *sess);
 static void fcgi_strm_notify_recv(struct fcgi_strm *fstrm);
 static void fcgi_strm_notify_send(struct fcgi_strm *fstrm);
 static void fcgi_strm_alert(struct fcgi_strm *fstrm);
@@ -665,14 +665,14 @@ static inline int fcgi_streams_left(const struct fcgi_conn *fconn)
 }
 
 /* Returns the number of streams in use on a connection to figure if it's
- * idle or not. We check nb_cs and not nb_streams as the caller will want
+ * idle or not. We check nb_sc and not nb_streams as the caller will want
  * to know if it was the last one after a detach().
  */
 static int fcgi_used_streams(struct connection *conn)
 {
 	struct fcgi_conn *fconn = conn->ctx;
 
-	return fconn->nb_cs;
+	return fconn->nb_sc;
 }
 
 /* Returns the number of concurrent streams available on the connection */
@@ -773,7 +773,7 @@ static int fcgi_init(struct connection *conn, struct proxy *px, struct session *
 	fconn->streams_limit = app->maxreqs;
 	fconn->max_id = -1;
 	fconn->nb_streams = 0;
-	fconn->nb_cs = 0;
+	fconn->nb_sc = 0;
 	fconn->nb_reserved = 0;
 	fconn->stream_cnt = 0;
 
@@ -792,7 +792,7 @@ static int fcgi_init(struct connection *conn, struct proxy *px, struct session *
 
 	/* FIXME: this is temporary, for outgoing connections we need to
 	 * immediately allocate a stream until the code is modified so that the
-	 * caller calls ->attach(). For now the outgoing cs is stored as
+	 * caller calls ->attach(). For now the outgoing sc is stored as
 	 * conn->ctx by the caller and saved in conn_ctx.
 	 */
 	fstrm = fcgi_stconn_new(fconn, conn_ctx, sess);
@@ -1109,11 +1109,11 @@ static struct fcgi_strm *fcgi_strm_new(struct fcgi_conn *fconn, int id)
 	return NULL;
 }
 
-/* Allocates a new stream associated to stream connector <cs> on the FCGI connection
+/* Allocates a new stream associated to stream connector <sc> on the FCGI connection
  * <fconn> and returns it, or NULL in case of memory allocation error or if the
  * highest possible stream ID was reached.
  */
-static struct fcgi_strm *fcgi_stconn_new(struct fcgi_conn *fconn, struct stconn *cs,
+static struct fcgi_strm *fcgi_stconn_new(struct fcgi_conn *fconn, struct stconn *sc,
 					 struct session *sess)
 {
 	struct fcgi_strm *fstrm = NULL;
@@ -1135,11 +1135,11 @@ static struct fcgi_strm *fcgi_stconn_new(struct fcgi_conn *fconn, struct stconn 
 		TRACE_ERROR("fstream allocation failure", FCGI_EV_FSTRM_NEW|FCGI_EV_FSTRM_END|FCGI_EV_FSTRM_ERR, fconn->conn);
 		goto out;
 	}
-	if (sc_attach_mux(cs, fstrm, fconn->conn) < 0)
+	if (sc_attach_mux(sc, fstrm, fconn->conn) < 0)
 		goto out;
-	fstrm->endp = cs->sedesc;
+	fstrm->endp = sc->sedesc;
 	fstrm->sess = sess;
-	fconn->nb_cs++;
+	fconn->nb_sc++;
 
 	TRACE_LEAVE(FCGI_EV_FSTRM_NEW, fconn->conn, fstrm);
 	return fstrm;
@@ -3605,7 +3605,7 @@ static void fcgi_detach(struct sedesc *endp)
 
 	sess = fstrm->sess;
 	fconn = fstrm->fconn;
-	fconn->nb_cs--;
+	fconn->nb_sc--;
 
 	if (fstrm->proto_status == FCGI_PS_CANT_MPX_CONN) {
 		fconn->flags &= ~FCGI_CF_MPXS_CONNS;
@@ -3859,9 +3859,9 @@ struct task *fcgi_deferred_shut(struct task *t, void *ctx, unsigned int state)
 }
 
 /* shutr() called by the stream conector (mux_ops.shutr) */
-static void fcgi_shutr(struct stconn *cs, enum co_shr_mode mode)
+static void fcgi_shutr(struct stconn *sc, enum co_shr_mode mode)
 {
-	struct fcgi_strm *fstrm = __sc_mux_strm(cs);
+	struct fcgi_strm *fstrm = __sc_mux_strm(sc);
 
 	TRACE_POINT(FCGI_EV_STRM_SHUT, fstrm->fconn->conn, fstrm);
 	if (!mode)
@@ -3870,9 +3870,9 @@ static void fcgi_shutr(struct stconn *cs, enum co_shr_mode mode)
 }
 
 /* shutw() called by the stream connector (mux_ops.shutw) */
-static void fcgi_shutw(struct stconn *cs, enum co_shw_mode mode)
+static void fcgi_shutw(struct stconn *sc, enum co_shw_mode mode)
 {
-	struct fcgi_strm *fstrm = __sc_mux_strm(cs);
+	struct fcgi_strm *fstrm = __sc_mux_strm(sc);
 
 	TRACE_POINT(FCGI_EV_STRM_SHUT, fstrm->fconn->conn, fstrm);
 	fcgi_do_shutw(fstrm);
@@ -3883,9 +3883,9 @@ static void fcgi_shutw(struct stconn *cs, enum co_shw_mode mode)
  * as at least one event is still subscribed. The <event_type> must only be a
  * combination of SUB_RETRY_RECV and SUB_RETRY_SEND. It always returns 0.
  */
-static int fcgi_subscribe(struct stconn *cs, int event_type, struct wait_event *es)
+static int fcgi_subscribe(struct stconn *sc, int event_type, struct wait_event *es)
 {
-	struct fcgi_strm *fstrm = __sc_mux_strm(cs);
+	struct fcgi_strm *fstrm = __sc_mux_strm(sc);
 	struct fcgi_conn *fconn = fstrm->fconn;
 
 	BUG_ON(event_type & ~(SUB_RETRY_SEND|SUB_RETRY_RECV));
@@ -3909,9 +3909,9 @@ static int fcgi_subscribe(struct stconn *cs, int event_type, struct wait_event *
  * (undo fcgi_subscribe). The <es> pointer is not allowed to differ from the one
  * passed to the subscribe() call. It always returns zero.
  */
-static int fcgi_unsubscribe(struct stconn *cs, int event_type, struct wait_event *es)
+static int fcgi_unsubscribe(struct stconn *sc, int event_type, struct wait_event *es)
 {
-	struct fcgi_strm *fstrm = __sc_mux_strm(cs);
+	struct fcgi_strm *fstrm = __sc_mux_strm(sc);
 	struct fcgi_conn *fconn = fstrm->fconn;
 
 	BUG_ON(event_type & ~(SUB_RETRY_SEND|SUB_RETRY_RECV));
@@ -3945,9 +3945,9 @@ static int fcgi_unsubscribe(struct stconn *cs, int event_type, struct wait_event
  * mux it may optimize the data copy to <buf> if necessary. Otherwise, it should
  * copy as much data as possible.
  */
-static size_t fcgi_rcv_buf(struct stconn *cs, struct buffer *buf, size_t count, int flags)
+static size_t fcgi_rcv_buf(struct stconn *sc, struct buffer *buf, size_t count, int flags)
 {
-	struct fcgi_strm *fstrm = __sc_mux_strm(cs);
+	struct fcgi_strm *fstrm = __sc_mux_strm(sc);
 	struct fcgi_conn *fconn = fstrm->fconn;
 	size_t ret = 0;
 
@@ -3989,9 +3989,9 @@ static size_t fcgi_rcv_buf(struct stconn *cs, struct buffer *buf, size_t count, 
  * <count> bytes. Returns the number of bytes effectively sent. Some status
  * flags may be updated on the stream connector.
  */
-static size_t fcgi_snd_buf(struct stconn *cs, struct buffer *buf, size_t count, int flags)
+static size_t fcgi_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, int flags)
 {
-	struct fcgi_strm *fstrm = __sc_mux_strm(cs);
+	struct fcgi_strm *fstrm = __sc_mux_strm(sc);
 	struct fcgi_conn *fconn = fstrm->fconn;
 	size_t total = 0;
 	size_t ret;
@@ -4176,7 +4176,7 @@ static int fcgi_show_fd(struct buffer *msg, struct connection *conn)
 		      " .nbcs=%u .send_cnt=%d .tree_cnt=%d .orph_cnt=%d .sub=%d "
 		      ".dsi=%d .dbuf=%u@%p+%u/%u .mbuf=[%u..%u|%u],h=[%u@%p+%u/%u],t=[%u@%p+%u/%u]",
 		      fconn->state, fconn->max_id, fconn->flags,
-		      fconn->nb_streams, fconn->nb_cs, send_cnt, tree_cnt, orph_cnt,
+		      fconn->nb_streams, fconn->nb_sc, send_cnt, tree_cnt, orph_cnt,
 		      fconn->wait_event.events, fconn->dsi,
 		      (unsigned int)b_data(&fconn->dbuf), b_orig(&fconn->dbuf),
 		      (unsigned int)b_head_ofs(&fconn->dbuf), (unsigned int)b_size(&fconn->dbuf),
@@ -4187,7 +4187,7 @@ static int fcgi_show_fd(struct buffer *msg, struct connection *conn)
 		      (unsigned int)b_head_ofs(tmbuf), (unsigned int)b_size(tmbuf));
 
 	if (fstrm) {
-		chunk_appendf(msg, " last_fstrm=%p .id=%d .flg=0x%04x .rxbuf=%u@%p+%u/%u .cs=%p",
+		chunk_appendf(msg, " last_fstrm=%p .id=%d .flg=0x%04x .rxbuf=%u@%p+%u/%u .sc=%p",
 			      fstrm, fstrm->id, fstrm->flags,
 			      (unsigned int)b_data(&fstrm->rxbuf), b_orig(&fstrm->rxbuf),
 			      (unsigned int)b_head_ofs(&fstrm->rxbuf), (unsigned int)b_size(&fstrm->rxbuf),
@@ -4195,7 +4195,7 @@ static int fcgi_show_fd(struct buffer *msg, struct connection *conn)
 		if (fstrm->endp) {
 			chunk_appendf(msg, " .endp.flg=0x%08x", se_fl_get(fstrm->endp));
 			if (!se_fl_test(fstrm->endp, SE_FL_ORPHAN))
-				chunk_appendf(msg, " .cs.flg=0x%08x .cs.app=%p",
+				chunk_appendf(msg, " .sc.flg=0x%08x .sc.app=%p",
 					      fcgi_strm_sc(fstrm)->flags, fcgi_strm_sc(fstrm)->app);
 		}
 		chunk_appendf(&trash, " .subs=%p", fstrm->subs);
