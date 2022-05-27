@@ -67,7 +67,7 @@ static enum act_return tcp_action_req_set_src(struct act_rule *rule, struct prox
 
 	case ACT_F_TCP_REQ_CNT:
 	case ACT_F_HTTP_REQ:
-		if (!cs_get_src(s->scf))
+		if (!sc_get_src(s->scf))
 			goto end;
 		src = s->scf->src;
 		break;
@@ -123,7 +123,7 @@ static enum act_return tcp_action_req_set_dst(struct act_rule *rule, struct prox
 
 	case ACT_F_TCP_REQ_CNT:
 	case ACT_F_HTTP_REQ:
-		if (!cs_get_dst(s->scf))
+		if (!sc_get_dst(s->scf))
 			goto end;
 		dst = s->scf->dst;
 		break;
@@ -180,7 +180,7 @@ static enum act_return tcp_action_req_set_src_port(struct act_rule *rule, struct
 
 	case ACT_F_TCP_REQ_CNT:
 	case ACT_F_HTTP_REQ:
-		if (!cs_get_src(s->scf))
+		if (!sc_get_src(s->scf))
 			goto end;
 		src = s->scf->src;
 		break;
@@ -235,7 +235,7 @@ static enum act_return tcp_action_req_set_dst_port(struct act_rule *rule, struct
 
 	case ACT_F_TCP_REQ_CNT:
 	case ACT_F_HTTP_REQ:
-		if (!cs_get_dst(s->scf))
+		if (!sc_get_dst(s->scf))
 			goto end;
 		dst = s->scf->dst;
 		break;

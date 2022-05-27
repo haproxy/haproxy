@@ -169,7 +169,7 @@ static inline int cs_alloc_ibuf(struct stconn *cs, struct buffer_wait *wait)
  * the session for frontend CS and the server connection for the backend CS. It
  * returns a const address on success or NULL on failure.
  */
-static inline const struct sockaddr_storage *cs_src(const struct stconn *cs)
+static inline const struct sockaddr_storage *sc_src(const struct stconn *cs)
 {
 	if (cs->src)
 		return cs->src;
@@ -189,7 +189,7 @@ static inline const struct sockaddr_storage *cs_src(const struct stconn *cs)
  * on the session for frontend CS and the server connection for the backend
  * CS. It returns a const address on success or NULL on failure.
  */
-static inline const struct sockaddr_storage *cs_dst(const struct stconn *cs)
+static inline const struct sockaddr_storage *sc_dst(const struct stconn *cs)
 {
 	if (cs->dst)
 		return cs->dst;
@@ -210,7 +210,7 @@ static inline const struct sockaddr_storage *cs_dst(const struct stconn *cs)
  * source address is copied from the session one for frontend CS and the server
  * connection for the backend CS.
  */
-static inline int cs_get_src(struct stconn *cs)
+static inline int sc_get_src(struct stconn *cs)
 {
 	const struct sockaddr_storage *src = NULL;
 
@@ -240,7 +240,7 @@ static inline int cs_get_src(struct stconn *cs)
  * stream connector destination address is copied from the session one for frontend
  * CS and the server connection for the backend CS.
  */
-static inline int cs_get_dst(struct stconn *cs)
+static inline int sc_get_dst(struct stconn *cs)
 {
 	const struct sockaddr_storage *dst = NULL;
 

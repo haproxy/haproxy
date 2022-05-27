@@ -1826,8 +1826,8 @@ static int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct
 	memcpy(hdr->sig, pp2_signature, PP2_SIGNATURE_LEN);
 
 	if (strm) {
-		src = cs_src(strm->scf);
-		dst = cs_dst(strm->scf);
+		src = sc_src(strm->scf);
+		dst = sc_dst(strm->scf);
 	}
 	else if (remote && conn_get_src(remote) && conn_get_dst(remote)) {
 		src = conn_src(remote);
@@ -2025,8 +2025,8 @@ int make_proxy_line(char *buf, int buf_len, struct server *srv, struct connectio
 		const struct sockaddr_storage *dst = NULL;
 
 		if (strm) {
-			src = cs_src(strm->scf);
-			dst = cs_dst(strm->scf);
+			src = sc_src(strm->scf);
+			dst = sc_dst(strm->scf);
 		}
 		else if (remote && conn_get_src(remote) && conn_get_dst(remote)) {
 			src = conn_src(remote);

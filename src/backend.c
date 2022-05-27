@@ -733,7 +733,7 @@ int assign_server(struct stream *s)
 				const struct sockaddr_storage *src;
 
 			case BE_LB_HASH_SRC:
-				src = cs_src(s->scf);
+				src = sc_src(s->scf);
 				if (src && src->ss_family == AF_INET) {
 					srv = get_server_sh(s->be,
 							    (void *)&((struct sockaddr_in *)src)->sin_addr,
@@ -894,7 +894,7 @@ static int alloc_dst_address(struct sockaddr_storage **ss,
 			 * locally on multiple addresses at once. Nothing is done
 			 * for AF_UNIX addresses.
 			 */
-			dst = cs_dst(s->scf);
+			dst = sc_dst(s->scf);
 			if (dst && dst->ss_family == AF_INET) {
 				((struct sockaddr_in *)*ss)->sin_family = AF_INET;
 				((struct sockaddr_in *)*ss)->sin_addr =
@@ -911,7 +911,7 @@ static int alloc_dst_address(struct sockaddr_storage **ss,
 		if ((srv->flags & SRV_F_MAPPORTS)) {
 			int base_port;
 
-			dst = cs_dst(s->scf);
+			dst = sc_dst(s->scf);
 			if (dst) {
 				/* First, retrieve the port from the incoming connection */
 				base_port = get_host_port(dst);
@@ -934,7 +934,7 @@ static int alloc_dst_address(struct sockaddr_storage **ss,
 			return SRV_STATUS_INTERNAL;
 
 		/* in transparent mode, use the original dest addr if no dispatch specified */
-		dst = cs_dst(s->scf);
+		dst = sc_dst(s->scf);
 		if (dst && (dst->ss_family == AF_INET || dst->ss_family == AF_INET6))
 			**ss = *dst;
 	}
@@ -1111,7 +1111,7 @@ static int alloc_bind_address(struct sockaddr_storage **ss,
 	case CO_SRC_TPROXY_CLI:
 	case CO_SRC_TPROXY_CIP:
 		/* FIXME: what can we do if the client connects in IPv6 or unix socket ? */
-		addr = cs_src(s->scf);
+		addr = sc_src(s->scf);
 		if (!addr)
 			return SRV_STATUS_INTERNAL;
 

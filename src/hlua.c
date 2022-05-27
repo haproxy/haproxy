@@ -2636,7 +2636,7 @@ __LJMP static int hlua_socket_getpeername(struct lua_State *L)
 
 	appctx = container_of(peer, struct hlua_csk_ctx, xref)->appctx;
 	cs = appctx_cs(appctx);
-	dst = cs_dst(cs_opposite(cs));
+	dst = sc_dst(cs_opposite(cs));
 	if (!dst) {
 		xref_unlock(&socket->xref, peer);
 		lua_pushnil(L);

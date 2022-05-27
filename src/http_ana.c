@@ -662,7 +662,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 	 * asks for it.
 	 */
 	if ((sess->fe->options | s->be->options) & PR_O_FWDFOR) {
-		const struct sockaddr_storage *src = cs_src(s->scf);
+		const struct sockaddr_storage *src = sc_src(s->scf);
 		struct http_hdr_ctx ctx = { .blk = NULL };
 		struct ist hdr = isttest(s->be->fwdfor_hdr_name) ? s->be->fwdfor_hdr_name : sess->fe->fwdfor_hdr_name;
 
@@ -719,7 +719,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 	 * asks for it.
 	 */
 	if ((sess->fe->options | s->be->options) & PR_O_ORGTO) {
-		const struct sockaddr_storage *dst = cs_dst(s->scf);
+		const struct sockaddr_storage *dst = sc_dst(s->scf);
 		struct ist hdr = isttest(s->be->orgto_hdr_name) ? s->be->orgto_hdr_name : sess->fe->orgto_hdr_name;
 
 		if (dst && dst->ss_family == AF_INET) {
