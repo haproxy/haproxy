@@ -18126,7 +18126,7 @@ ipv4(<ipv4>) : ipv4
 ipv6(<ipv6>) : ipv6
   Returns an ipv6.
 
-last_rule_file: string
+last_rule_file : string
   This returns the name of the configuration file containing the last final
   rule that was matched during stream analysis. A final rule is one that
   terminates the evaluation of the rule set (like an "accept", "deny" or
@@ -18140,7 +18140,7 @@ last_rule_file: string
   logs where was the rule that gave the final verdict, in order to help
   figure why a request was denied for example. See also "last_rule_line".
 
-last_rule_line: integer
+last_rule_line : integer
   This returns the line number in the configuration file where is located the
   last final rule that was matched during stream analysis. A final rule is one
   that terminates the evaluation of the rule set (like an "accept", "deny" or
