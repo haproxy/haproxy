@@ -172,7 +172,7 @@ static void strm_trace(enum trace_level level, uint64_t mask, const struct trace
 	}
 
 	/* Front and back stream connector state */
-	chunk_appendf(&trace_buf, " CS=(%s,%s)",
+	chunk_appendf(&trace_buf, " SC=(%s,%s)",
 		      sc_state_str(s->scf->state), sc_state_str(s->scb->state));
 
 	/* If txn is defined, HTTP req/rep states */

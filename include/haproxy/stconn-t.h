@@ -70,7 +70,7 @@ enum se_flags {
 	 * the endpoint :
 	 */
 	SE_FL_WAIT_FOR_HS   = 0x00200000,  /* This stream is waiting for handhskae */
-	SE_FL_KILL_CONN     = 0x00400000,  /* must kill the connection when the CS closes */
+	SE_FL_KILL_CONN     = 0x00400000,  /* must kill the connection when the SC closes */
 	SE_FL_WAIT_DATA     = 0x00800000,  /* stream endpoint cannot work without more data from the stream's output */
 	SE_FL_WILL_CONSUME  = 0x01000000,  /* stream endpoint is interested in consuming more data */
 	SE_FL_HAVE_NO_DATA  = 0x02000000,  /* the endpoint has no more data to deliver to the stream */
@@ -106,17 +106,17 @@ enum sc_flags {
  * do not last beyond process_session().
  */
 enum sc_state {
-	SC_ST_INI = 0,           /* CS not sollicitated yet */
+	SC_ST_INI = 0,           /* SC not sollicitated yet */
 	SC_ST_REQ,               /* [transient] connection initiation desired and not started yet */
-	SC_ST_QUE,               /* CS waiting in queue */
-	SC_ST_TAR,               /* CS in turn-around state after failed connect attempt */
-	SC_ST_ASS,               /* server just assigned to this CS */
+	SC_ST_QUE,               /* SC waiting in queue */
+	SC_ST_TAR,               /* SC in turn-around state after failed connect attempt */
+	SC_ST_ASS,               /* server just assigned to this SC */
 	SC_ST_CON,               /* initiated connection request (resource exists) */
 	SC_ST_CER,               /* [transient] previous connection attempt failed (resource released) */
 	SC_ST_RDY,               /* [transient] ready proven after I/O success during SC_ST_CON */
 	SC_ST_EST,               /* connection established (resource exists) */
 	SC_ST_DIS,               /* [transient] disconnected from other side, but cleanup not done yet */
-	SC_ST_CLO,               /* CS closed, might not existing anymore. Buffers shut. */
+	SC_ST_CLO,               /* SC closed, might not existing anymore. Buffers shut. */
 } __attribute__((packed));
 
 /* state bits for use with lists of states */
@@ -180,7 +180,7 @@ struct sc_app_ops {
  */
 struct stconn {
 	enum obj_type obj_type;              /* differentiates connection from applet context */
-	enum sc_state state;                 /* CS_ST* */
+	enum sc_state state;                 /* SC_ST* */
 	/* 2 bytes hole here */
 
 	unsigned int flags;                  /* SC_FL_* */

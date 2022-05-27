@@ -628,7 +628,7 @@ static void h1_refresh_timeout(struct h1c *h1c)
 		else  {
 			/* alive back connections of front connections with a stream connector attached */
 			h1c->task->expire = TICK_ETERNITY;
-			TRACE_DEVEL("no connection timeout (alive back h1c or front h1c with a CS)", H1_EV_H1C_SEND|H1_EV_H1C_RECV, h1c->conn);
+			TRACE_DEVEL("no connection timeout (alive back h1c or front h1c with an SC)", H1_EV_H1C_SEND|H1_EV_H1C_RECV, h1c->conn);
 		}
 
 		/* Finally set the idle expiration date if shorter */
@@ -696,7 +696,7 @@ static void h1_set_idle_expiration(struct h1c *h1c)
 			TRACE_DEVEL("set idle expiration (http-request timeout)", H1_EV_H1C_RECV, h1c->conn);
 		}
 	}
-	else { // CS_ATTACHED or SHUTDOWN
+	else { // ST_ATTACHED or SHUTDOWN
 		h1c->idle_exp = TICK_ETERNITY;
 		TRACE_DEVEL("unset idle expiration (attached || shutdown)", H1_EV_H1C_RECV, h1c->conn);
 	}
@@ -733,7 +733,7 @@ static struct stconn *h1s_new_sc(struct h1s *h1s, struct buffer *input)
 		se_fl_set(h1s->endp, SE_FL_WEBSOCKET);
 
 	if (!sc_new_from_endp(h1s->endp, h1c->conn->owner, input)) {
-		TRACE_ERROR("CS allocation failure", H1_EV_STRM_NEW|H1_EV_STRM_END|H1_EV_STRM_ERR, h1c->conn, h1s);
+		TRACE_ERROR("SC allocation failure", H1_EV_STRM_NEW|H1_EV_STRM_END|H1_EV_STRM_ERR, h1c->conn, h1s);
 		goto err;
 	}
 
@@ -1009,9 +1009,9 @@ static int h1_init(struct connection *conn, struct proxy *proxy, struct session 
 		if (!h1c_frt_stream_new(h1c, conn_ctx, h1c->conn->owner))
 			goto fail;
 
-		/* Attach the CS but Not ready yet */
+		/* Attach the SC but Not ready yet */
 		h1c->flags = (h1c->flags & ~H1C_F_ST_EMBRYONIC) | H1C_F_ST_ATTACHED;
-		TRACE_DEVEL("Inherit the CS from TCP connection to perform an upgrade",
+		TRACE_DEVEL("Inherit the SC from TCP connection to perform an upgrade",
 			    H1_EV_H1C_NEW|H1_EV_STRM_NEW, h1c->conn, h1c->h1s);
 	}
 
@@ -1878,7 +1878,7 @@ static size_t h1_process_demux(struct h1c *h1c, struct buffer *buf, size_t count
 		h1_release_buf(h1c, &h1c->ibuf);
 
 	if (!(h1c->flags & H1C_F_ST_READY)) {
-		/* The H1 connection is not ready. Most of time, there is no CS
+		/* The H1 connection is not ready. Most of time, there is no SC
 		 * attached, except for TCP>H1 upgrade, from a TCP frontend. In both
 		 * cases, it is only possible on the client side.
 		 */
@@ -1891,7 +1891,7 @@ static size_t h1_process_demux(struct h1c *h1c, struct buffer *buf, size_t count
 		}
 
 		if (!(h1c->flags & H1C_F_ST_ATTACHED)) {
-			TRACE_DEVEL("request headers fully parsed, create and attach the CS", H1_EV_RX_DATA, h1c->conn, h1s);
+			TRACE_DEVEL("request headers fully parsed, create and attach the SC", H1_EV_RX_DATA, h1c->conn, h1s);
 			BUG_ON(h1s_sc(h1s));
 			if (!h1s_new_sc(h1s, buf)) {
 				h1c->flags |= H1C_F_ST_ERROR;
@@ -1899,7 +1899,7 @@ static size_t h1_process_demux(struct h1c *h1c, struct buffer *buf, size_t count
 			}
 		}
 		else {
-			TRACE_DEVEL("request headers fully parsed, upgrade the inherited CS", H1_EV_RX_DATA, h1c->conn, h1s);
+			TRACE_DEVEL("request headers fully parsed, upgrade the inherited SC", H1_EV_RX_DATA, h1c->conn, h1s);
 			BUG_ON(h1s_sc(h1s) == NULL);
 			if (!h1s_upgrade_sc(h1s, buf)) {
 				h1c->flags |= H1C_F_ST_ERROR;
@@ -1952,7 +1952,7 @@ static size_t h1_process_demux(struct h1c *h1c, struct buffer *buf, size_t count
 			}
 			else if (h1m->state > H1_MSG_LAST_LF && h1m->state < H1_MSG_DONE) {
 				se_fl_set(h1s->endp, SE_FL_ERROR);
-				TRACE_ERROR("message aborted, set error on CS", H1_EV_RX_DATA|H1_EV_H1S_ERR, h1c->conn, h1s);
+				TRACE_ERROR("message aborted, set error on SC", H1_EV_RX_DATA|H1_EV_H1S_ERR, h1c->conn, h1s);
 			}
 
 			if (h1s->flags & H1S_F_TX_BLK) {
@@ -2962,7 +2962,7 @@ static int h1_process(struct h1c * h1c)
 			if (b_isteq(&h1c->ibuf, 0, b_data(&h1c->ibuf), ist(H2_CONN_PREFACE)) > 0) {
 				h1c->flags |= H1C_F_UPG_H2C;
 				if (h1c->flags & H1C_F_ST_ATTACHED) {
-					/* Force the REOS here to be sure to release the CS.
+					/* Force the REOS here to be sure to release the SC.
 					   Here ATTACHED implies !READY, and h1s defined
 					*/
 					BUG_ON(!h1s ||  (h1c->flags & H1C_F_ST_READY));
@@ -3111,7 +3111,7 @@ static int h1_process(struct h1c * h1c)
   release:
 	if (h1c->flags & H1C_F_ST_ATTACHED) {
 		/* Don't release the H1 connection right now, we must destroy the
-		 * attached CS first. Here, the H1C must not be READY */
+		 * attached SC first. Here, the H1C must not be READY */
 		BUG_ON(!h1s || h1c->flags & H1C_F_ST_READY);
 
 		if (conn_xprt_read0_pending(conn) || (h1s->flags & H1S_F_REOS))
@@ -3119,7 +3119,7 @@ static int h1_process(struct h1c * h1c)
 		if ((h1c->flags & H1C_F_ST_ERROR) || (conn->flags & CO_FL_ERROR))
 			se_fl_set(h1s->endp, SE_FL_ERROR);
 		h1_alert(h1s);
-		TRACE_DEVEL("waiting to release the CS before releasing the connection", H1_EV_H1C_WAKE);
+		TRACE_DEVEL("waiting to release the SC before releasing the connection", H1_EV_H1C_WAKE);
 	}
 	else {
 		h1_release(h1c);
@@ -3249,7 +3249,7 @@ struct task *h1_timeout_task(struct task *t, void *context, unsigned int state)
 		if (h1c->flags & H1C_F_ST_READY) {
 			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 			t->expire = TICK_ETERNITY;
-			TRACE_DEVEL("leaving (CS still attached)", H1_EV_H1C_WAKE, h1c->conn, h1c->h1s);
+			TRACE_DEVEL("leaving (SC still attached)", H1_EV_H1C_WAKE, h1c->conn, h1c->h1s);
 			return t;
 		}
 
@@ -3268,12 +3268,12 @@ struct task *h1_timeout_task(struct task *t, void *context, unsigned int state)
 
 		if (h1c->flags & H1C_F_ST_ATTACHED) {
 			/* Don't release the H1 connection right now, we must destroy the
-			 * attached CS first. Here, the H1C must not be READY */
+			 * attached SC first. Here, the H1C must not be READY */
 			se_fl_set(h1c->h1s->endp, SE_FL_EOS | SE_FL_ERROR);
 			h1_alert(h1c->h1s);
 			h1_refresh_timeout(h1c);
 			HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[tid].idle_conns_lock);
-			TRACE_DEVEL("waiting to release the CS before releasing the connection", H1_EV_H1C_WAKE);
+			TRACE_DEVEL("waiting to release the SC before releasing the connection", H1_EV_H1C_WAKE);
 			return t;
 		}
 
@@ -3493,7 +3493,7 @@ static void h1_shutr(struct stconn *sc, enum co_shr_mode mode)
 	}
 
 	if (!(h1c->flags & (H1C_F_ST_READY|H1C_F_ST_ERROR))) {
-		/* Here attached is implicit because there is CS */
+		/* Here attached is implicit because there is SC */
 		TRACE_STATE("keep connection alive (ALIVE but not READY nor ERROR)", H1_EV_STRM_SHUT, h1c->conn, h1s);
 		goto end;
 	}
@@ -3536,7 +3536,7 @@ static void h1_shutw(struct stconn *sc, enum co_shw_mode mode)
 	}
 
 	if (!(h1c->flags & (H1C_F_ST_READY|H1C_F_ST_ERROR))) {
-		/* Here attached is implicit because there is CS */
+		/* Here attached is implicit because there is SC */
 		TRACE_STATE("keep connection alive (ALIVE but not READY nor ERROR)", H1_EV_STRM_SHUT, h1c->conn, h1s);
 		goto end;
 	}

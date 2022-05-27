@@ -2170,8 +2170,8 @@ void back_handle_st_req(struct stream *s)
 	if (unlikely(obj_type(s->target) == OBJ_TYPE_APPLET)) {
 		struct appctx *appctx;
 
-		/* The target is an applet but the CS is in SC_ST_REQ. Thus it
-		 * means no appctx are attached to the CS. Otherwise, it will be
+		/* The target is an applet but the SC is in SC_ST_REQ. Thus it
+		 * means no appctx are attached to the SC. Otherwise, it will be
 		 * in SC_ST_RDY state. So, try to create the appctx now.
 		 */
 		BUG_ON(sc_appctx(sc));
@@ -2444,7 +2444,7 @@ void back_handle_st_rdy(struct stream *s)
 	DBG_TRACE_ENTER(STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 
 	if (unlikely(obj_type(s->target) == OBJ_TYPE_APPLET)) {
-		/* Here the appctx must exists because the CS was set to
+		/* Here the appctx must exists because the SC was set to
 		 * SC_ST_RDY state when the appctx was created.
 		 */
 		BUG_ON(!sc_appctx(s->scb));

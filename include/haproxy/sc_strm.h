@@ -132,7 +132,7 @@ static inline int sc_conn_ready(const struct stconn *sc)
  * states, before plugging a mux. Thus it should only care about CO_FL_ERROR
  * before SC_ST_EST, and after that it must absolutely ignore it since the mux
  * may hold pending data. This function returns true if such an error was
- * reported. Both the CS and the CONN must be valid.
+ * reported. Both the SC and the CONN must be valid.
  */
 static inline int sc_is_conn_error(const struct stconn *sc)
 {
@@ -166,7 +166,7 @@ static inline int sc_alloc_ibuf(struct stconn *sc, struct buffer_wait *wait)
 
 
 /* Returns the source address of the stream connector and, if not set, fallbacks on
- * the session for frontend CS and the server connection for the backend CS. It
+ * the session for frontend SC and the server connection for the backend SC. It
  * returns a const address on success or NULL on failure.
  */
 static inline const struct sockaddr_storage *sc_src(const struct stconn *sc)
@@ -186,8 +186,8 @@ static inline const struct sockaddr_storage *sc_src(const struct stconn *sc)
 
 
 /* Returns the destination address of the stream connector and, if not set, fallbacks
- * on the session for frontend CS and the server connection for the backend
- * CS. It returns a const address on success or NULL on failure.
+ * on the session for frontend SC and the server connection for the backend
+ * SC. It returns a const address on success or NULL on failure.
  */
 static inline const struct sockaddr_storage *sc_dst(const struct stconn *sc)
 {
@@ -207,8 +207,8 @@ static inline const struct sockaddr_storage *sc_dst(const struct stconn *sc)
 /* Retrieves the source address of the stream connector. Returns non-zero on success
  * or zero on failure. The operation is only performed once and the address is
  * stored in the stream connector for future use. On the first call, the stream connector
- * source address is copied from the session one for frontend CS and the server
- * connection for the backend CS.
+ * source address is copied from the session one for frontend SC and the server
+ * connection for the backend SC.
  */
 static inline int sc_get_src(struct stconn *sc)
 {
@@ -238,7 +238,7 @@ static inline int sc_get_src(struct stconn *sc)
  * success or zero on failure. The operation is only performed once and the
  * address is stored in the stream connector for future use. On the first call, the
  * stream connector destination address is copied from the session one for frontend
- * CS and the server connection for the backend CS.
+ * SC and the server connection for the backend SC.
  */
 static inline int sc_get_dst(struct stconn *sc)
 {

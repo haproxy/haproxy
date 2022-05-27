@@ -254,7 +254,7 @@ struct task *mux_pt_io_cb(struct task *t, void *tctx, unsigned int status)
 			ctx->conn->subs = NULL;
 		} else if (pt_sc(ctx)->app_ops->wake)
 			pt_sc(ctx)->app_ops->wake(pt_sc(ctx));
-		TRACE_DEVEL("leaving waking up CS", PT_EV_CONN_WAKE, ctx->conn);
+		TRACE_DEVEL("leaving waking up SC", PT_EV_CONN_WAKE, ctx->conn);
 		return t;
 	}
 	conn_ctrl_drain(ctx->conn);
@@ -301,7 +301,7 @@ static int mux_pt_init(struct connection *conn, struct proxy *prx, struct sessio
 	if (!sc) {
 		ctx->endp = sedesc_new();
 		if (!ctx->endp) {
-			TRACE_ERROR("CS allocation failure", PT_EV_STRM_NEW|PT_EV_STRM_END|PT_EV_STRM_ERR, conn);
+			TRACE_ERROR("SC allocation failure", PT_EV_STRM_NEW|PT_EV_STRM_END|PT_EV_STRM_ERR, conn);
 			goto fail_free_ctx;
 		}
 		ctx->endp->se     = ctx;
@@ -310,7 +310,7 @@ static int mux_pt_init(struct connection *conn, struct proxy *prx, struct sessio
 
 		sc = sc_new_from_endp(ctx->endp, sess, input);
 		if (!sc) {
-			TRACE_ERROR("CS allocation failure", PT_EV_STRM_NEW|PT_EV_STRM_END|PT_EV_STRM_ERR, conn);
+			TRACE_ERROR("SC allocation failure", PT_EV_STRM_NEW|PT_EV_STRM_END|PT_EV_STRM_ERR, conn);
 			goto fail_free_endp;
 		}
 		TRACE_POINT(PT_EV_STRM_NEW, conn, sc);
@@ -352,7 +352,7 @@ static int mux_pt_wake(struct connection *conn)
 		ret = pt_sc(ctx)->app_ops->wake ? pt_sc(ctx)->app_ops->wake(pt_sc(ctx)) : 0;
 
 		if (ret < 0) {
-			TRACE_DEVEL("leaving waking up CS", PT_EV_CONN_WAKE, ctx->conn);
+			TRACE_DEVEL("leaving waking up SC", PT_EV_CONN_WAKE, ctx->conn);
 			return ret;
 		}
 	} else {

@@ -230,15 +230,15 @@ void sc_free(struct stconn *sc)
 
 /* Conditionally removes a stream connector if it is detached and if there is no app
  * layer defined. Except on error path, this one must be used. if release, the
- * pointer on the CS is set to NULL.
+ * pointer on the SC is set to NULL.
  */
-static void sc_free_cond(struct stconn **csp)
+static void sc_free_cond(struct stconn **scp)
 {
-	struct stconn *sc = *csp;
+	struct stconn *sc = *scp;
 
 	if (!sc->app && (!sc->sedesc || sc_ep_test(sc, SE_FL_DETACHED))) {
 		sc_free(sc);
-		*csp = NULL;
+		*scp = NULL;
 	}
 }
 
@@ -334,9 +334,9 @@ int sc_attach_strm(struct stconn *sc, struct stream *strm)
  * endpoint is reset and flag as detached. If the app layer is also detached,
  * the stream connector is released.
  */
-static void sc_detach_endp(struct stconn **csp)
+static void sc_detach_endp(struct stconn **scp)
 {
-	struct stconn *sc = *csp;
+	struct stconn *sc = *scp;
 
 	if (!sc)
 		return;
@@ -386,7 +386,7 @@ static void sc_detach_endp(struct stconn **csp)
 	}
 
   reset_cs:
-	/* FIXME: Rest CS for now but must be reviewed. CS flags are only
+	/* FIXME: Rest SC for now but must be reviewed. SC flags are only
 	 *        connection related for now but this will evolved
 	 */
 	sc->flags &= SC_FL_ISBACK;
@@ -394,15 +394,15 @@ static void sc_detach_endp(struct stconn **csp)
 		sc->app_ops = &sc_app_embedded_ops;
 	else
 		sc->app_ops = NULL;
-	sc_free_cond(csp);
+	sc_free_cond(scp);
 }
 
 /* Detaches the stconn from the app layer. If there is no endpoint attached
  * to the stconn
  */
-static void sc_detach_app(struct stconn **csp)
+static void sc_detach_app(struct stconn **scp)
 {
-	struct stconn *sc = *csp;
+	struct stconn *sc = *scp;
 
 	if (!sc)
 		return;
@@ -416,7 +416,7 @@ static void sc_detach_app(struct stconn **csp)
 		tasklet_free(sc->wait_event.tasklet);
 	sc->wait_event.tasklet = NULL;
 	sc->wait_event.events = 0;
-	sc_free_cond(csp);
+	sc_free_cond(scp);
 }
 
 /* Destroy the stconn. It is detached from its endpoint and its
@@ -472,7 +472,7 @@ int sc_reset_endp(struct stconn *sc)
 }
 
 
-/* Create an applet to handle a stream connector as a new appctx. The CS will
+/* Create an applet to handle a stream connector as a new appctx. The SC will
  * wake it up every time it is solicited. The appctx must be deleted by the task
  * handler using sc_detach_endp(), possibly from within the function itself.
  * It also pre-initializes the applet's context and returns it (or NULL in case
@@ -533,7 +533,7 @@ static void sc_app_shutr(struct stconn *sc)
  * This function performs a shutdown-write on a detached stream connector in a
  * connected or init state (it does nothing for other states). It either shuts
  * the write side or marks itself as closed. The buffer flags are updated to
- * reflect the new state. It does also close everything if the CS was marked as
+ * reflect the new state. It does also close everything if the SC was marked as
  * being in error state. The owner task is woken up if it exists.
  */
 static void sc_app_shutw(struct stconn *sc)
@@ -672,7 +672,7 @@ static void sc_app_shutr_conn(struct stconn *sc)
  * a connection in a connected or init state (it does nothing for other
  * states). It either shuts the write side or marks itself as closed. The
  * buffer flags are updated to reflect the new state.  It does also close
- * everything if the CS was marked as being in error state. If there is a
+ * everything if the SC was marked as being in error state. If there is a
  * data-layer shutdown, it is called.
  */
 static void sc_app_shutw_conn(struct stconn *sc)
@@ -1101,7 +1101,7 @@ static void sc_notify(struct stconn *sc)
 {
 	struct channel *ic = sc_ic(sc);
 	struct channel *oc = sc_oc(sc);
-	struct stconn *cso = sc_opposite(sc);
+	struct stconn *sco = sc_opposite(sc);
 	struct task *task = sc_strm_task(sc);
 
 	/* process consumer side */
@@ -1135,9 +1135,9 @@ static void sc_notify(struct stconn *sc)
 	}
 
 	if (oc->flags & CF_DONT_READ)
-		sc_wont_read(cso);
+		sc_wont_read(sco);
 	else
-		sc_will_read(cso);
+		sc_will_read(sco);
 
 	/* Notify the other side when we've injected data into the IC that
 	 * needs to be forwarded. We can do fast-forwarding as soon as there
@@ -1152,7 +1152,7 @@ static void sc_notify(struct stconn *sc)
 	 * parsing.
 	 */
 	if (!channel_is_empty(ic) &&
-	    sc_ep_test(cso, SE_FL_WAIT_DATA) &&
+	    sc_ep_test(sco, SE_FL_WAIT_DATA) &&
 	    (!(ic->flags & CF_EXPECT_MORE) || c_full(ic) || ci_data(ic) == 0 || ic->pipe)) {
 		int new_len, last_len;
 
@@ -1160,7 +1160,7 @@ static void sc_notify(struct stconn *sc)
 		if (ic->pipe)
 			last_len += ic->pipe->data;
 
-		sc_chk_snd(cso);
+		sc_chk_snd(sco);
 
 		new_len = co_data(ic);
 		if (ic->pipe)
@@ -1177,7 +1177,7 @@ static void sc_notify(struct stconn *sc)
 		sc_will_read(sc);
 
 	sc_chk_rcv(sc);
-	sc_chk_rcv(cso);
+	sc_chk_rcv(sco);
 
 	if (ic->flags & CF_SHUTR || sc_ep_test(sc, SE_FL_APPLET_NEED_CONN) ||
 	    (sc->flags & (SC_FL_WONT_READ|SC_FL_NEED_BUFF|SC_FL_NEED_ROOM))) {
@@ -1195,7 +1195,7 @@ static void sc_notify(struct stconn *sc)
 	    !sc_state_in(sc->state, SC_SB_CON|SC_SB_RDY|SC_SB_EST) ||
 	    sc_ep_test(sc, SE_FL_ERROR) ||
 	    ((ic->flags & CF_READ_PARTIAL) &&
-	     ((ic->flags & CF_EOI) || !ic->to_forward || cso->state != SC_ST_EST)) ||
+	     ((ic->flags & CF_EOI) || !ic->to_forward || sco->state != SC_ST_EST)) ||
 
 	    /* changes on the consumption side */
 	    (oc->flags & (CF_WRITE_NULL|CF_WRITE_ERROR)) ||
@@ -1203,7 +1203,7 @@ static void sc_notify(struct stconn *sc)
 	     ((oc->flags & CF_SHUTW) ||
 	      (((oc->flags & CF_WAKE_WRITE) ||
 		!(oc->flags & (CF_AUTO_CLOSE|CF_SHUTW_NOW|CF_SHUTW))) &&
-	       (cso->state != SC_ST_EST ||
+	       (sco->state != SC_ST_EST ||
 	        (channel_is_empty(oc) && !oc->to_forward)))))) {
 		task_wakeup(task, TASK_WOKEN_IO);
 	}
@@ -1436,7 +1436,7 @@ static int sc_conn_recv(struct stconn *sc)
 		}
 
 		/* <max> may be null. This is the mux responsibility to set
-		 * SE_FL_RCV_MORE on the CS if more space is needed.
+		 * SE_FL_RCV_MORE on the SC if more space is needed.
 		 */
 		max = channel_recv_max(ic);
 		ret = conn->mux->rcv_buf(sc, &ic->buf, max, cur_flags);
@@ -1482,7 +1482,7 @@ static int sc_conn_recv(struct stconn *sc)
 		ic->total += ret;
 
 		/* End-of-input reached, we can leave. In this case, it is
-		 * important to break the loop to not block the CS because of
+		 * important to break the loop to not block the SC because of
 		 * the channel's policies.This way, we are still able to receive
 		 * shutdowns.
 		 */
@@ -1640,7 +1640,7 @@ static int sc_conn_send(struct stconn *sc)
 	if (sc_ep_test(sc, SE_FL_ERROR | SE_FL_ERR_PENDING) || sc_is_conn_error(sc)) {
 		/* We're probably there because the tasklet was woken up,
 		 * but process_stream() ran before, detected there were an
-		 * error and put the CS back to SC_ST_TAR. There's still
+		 * error and put the SC back to SC_ST_TAR. There's still
 		 * CO_FL_ERROR on the connection but we don't want to add
 		 * SE_FL_ERROR back, so give up
 		 */
@@ -1887,7 +1887,7 @@ static int sc_conn_process(struct stconn *sc)
 /* This is the ->process() function for any stream connector's wait_event task.
  * It's assigned during the stream connector's initialization, for any type of
  * stream connector. Thus it is always safe to perform a tasklet_wakeup() on a
- * stream connector, as the presence of the CS is checked there.
+ * stream connector, as the presence of the SC is checked there.
  */
 struct task *sc_conn_io_cb(struct task *t, void *ctx, unsigned int state)
 {
