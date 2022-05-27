@@ -1189,7 +1189,7 @@ static int promex_dump_sticktable_metrics(struct appctx *appctx, struct htx *htx
  * Uses <appctx.ctx.stats.px> as a pointer to the current proxy and <sv>/<li>
  * as pointers to the current server/listener respectively.
  */
-static int promex_dump_metrics(struct appctx *appctx, struct stconn *cs, struct htx *htx)
+static int promex_dump_metrics(struct appctx *appctx, struct stconn *sc, struct htx *htx)
 {
 	struct promex_ctx *ctx = appctx->svcctx;
 	int ret;
@@ -1337,7 +1337,7 @@ static int promex_dump_metrics(struct appctx *appctx, struct stconn *cs, struct 
 	return 1;
 
   full:
-	sc_need_room(cs);
+	sc_need_room(sc);
 	return 0;
   error:
 	/* unrecoverable error */
@@ -1353,11 +1353,11 @@ static int promex_dump_metrics(struct appctx *appctx, struct stconn *cs, struct 
 
 /* Parse the query string of request URI to filter the metrics. It returns 1 on
  * success and -1 on error. */
-static int promex_parse_uri(struct appctx *appctx, struct stconn *cs)
+static int promex_parse_uri(struct appctx *appctx, struct stconn *sc)
 {
 	struct promex_ctx *ctx = appctx->svcctx;
-	struct channel *req = sc_oc(cs);
-	struct channel *res = sc_ic(cs);
+	struct channel *req = sc_oc(sc);
+	struct channel *res = sc_ic(sc);
 	struct htx *req_htx, *res_htx;
 	struct htx_sl *sl;
 	char *p, *key, *value;
@@ -1464,9 +1464,9 @@ static int promex_parse_uri(struct appctx *appctx, struct stconn *cs)
 
 /* Send HTTP headers of the response. It returns 1 on success and 0 if <htx> is
  * full. */
-static int promex_send_headers(struct appctx *appctx, struct stconn *cs, struct htx *htx)
+static int promex_send_headers(struct appctx *appctx, struct stconn *sc, struct htx *htx)
 {
-	struct channel *chn = sc_ic(cs);
+	struct channel *chn = sc_ic(sc);
 	struct htx_sl *sl;
 	unsigned int flags;
 
@@ -1485,7 +1485,7 @@ static int promex_send_headers(struct appctx *appctx, struct stconn *cs, struct 
 	return 1;
   full:
 	htx_reset(htx);
-	sc_need_room(cs);
+	sc_need_room(sc);
 	return 0;
 }
 
@@ -1503,26 +1503,26 @@ static int promex_appctx_init(struct appctx *appctx)
 /* The main I/O handler for the promex applet. */
 static void promex_appctx_handle_io(struct appctx *appctx)
 {
-	struct stconn *cs = appctx_cs(appctx);
-	struct stream *s = __sc_strm(cs);
-	struct channel *req = sc_oc(cs);
-	struct channel *res = sc_ic(cs);
+	struct stconn *sc = appctx_cs(appctx);
+	struct stream *s = __sc_strm(sc);
+	struct channel *req = sc_oc(sc);
+	struct channel *res = sc_ic(sc);
 	struct htx *req_htx, *res_htx;
 	int ret;
 
 	res_htx = htx_from_buf(&res->buf);
-	if (unlikely(cs->state == SC_ST_DIS || cs->state == SC_ST_CLO))
+	if (unlikely(sc->state == SC_ST_DIS || sc->state == SC_ST_CLO))
 		goto out;
 
 	/* Check if the input buffer is available. */
 	if (!b_size(&res->buf)) {
-		sc_need_room(cs);
+		sc_need_room(sc);
 		goto out;
 	}
 
 	switch (appctx->st0) {
 		case PROMEX_ST_INIT:
-			ret = promex_parse_uri(appctx, cs);
+			ret = promex_parse_uri(appctx, sc);
 			if (ret <= 0) {
 				if (ret == -1)
 					goto error;
@@ -1533,13 +1533,13 @@ static void promex_appctx_handle_io(struct appctx *appctx)
 			/* fall through */
 
 		case PROMEX_ST_HEAD:
-			if (!promex_send_headers(appctx, cs, res_htx))
+			if (!promex_send_headers(appctx, sc, res_htx))
 				goto out;
 			appctx->st0 = ((s->txn->meth == HTTP_METH_HEAD) ? PROMEX_ST_DONE : PROMEX_ST_DUMP);
 			/* fall through */
 
 		case PROMEX_ST_DUMP:
-			ret = promex_dump_metrics(appctx, cs, res_htx);
+			ret = promex_dump_metrics(appctx, sc, res_htx);
 			if (ret <= 0) {
 				if (ret == -1)
 					goto error;
@@ -1557,7 +1557,7 @@ static void promex_appctx_handle_io(struct appctx *appctx)
 			 */
 			if (htx_is_empty(res_htx)) {
 				if (!htx_add_endof(res_htx, HTX_BLK_EOT)) {
-					sc_need_room(cs);
+					sc_need_room(sc);
 					goto out;
 				}
 				channel_add_input(res, 1);
@@ -1571,7 +1571,7 @@ static void promex_appctx_handle_io(struct appctx *appctx)
 		case PROMEX_ST_END:
 			if (!(res->flags & CF_SHUTR)) {
 				res->flags |= CF_READ_NULL;
-				sc_shutr(cs);
+				sc_shutr(sc);
 			}
 	}
 
@@ -1587,8 +1587,8 @@ static void promex_appctx_handle_io(struct appctx *appctx)
 
   error:
 	res->flags |= CF_READ_NULL;
-	sc_shutr(cs);
-	sc_shutw(cs);
+	sc_shutr(sc);
+	sc_shutw(sc);
 }
 
 struct applet promex_applet = {
