@@ -2103,7 +2103,7 @@ smp_fetch_fc_http_major(const struct arg *args, struct sample *smp, const char *
 	struct connection *conn = NULL;
 
 	if (obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
-                conn = (kw[0] == 'b') ? sc_conn(__objt_check(smp->sess->origin)->cs) : NULL;
+                conn = (kw[0] == 'b') ? sc_conn(__objt_check(smp->sess->origin)->sc) : NULL;
         else
                 conn = (kw[0] != 'b') ? objt_conn(smp->sess->origin) :
 			smp->strm ? sc_conn(smp->strm->scb) : NULL;
@@ -2200,7 +2200,7 @@ int smp_fetch_fc_err(const struct arg *args, struct sample *smp, const char *kw,
 	struct connection *conn;
 
 	if (obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
-                conn = (kw[0] == 'b') ? sc_conn(__objt_check(smp->sess->origin)->cs) : NULL;
+                conn = (kw[0] == 'b') ? sc_conn(__objt_check(smp->sess->origin)->sc) : NULL;
         else
                 conn = (kw[0] != 'b') ? objt_conn(smp->sess->origin) :
 			smp->strm ? sc_conn(smp->strm->scb) : NULL;
@@ -2227,7 +2227,7 @@ int smp_fetch_fc_err_str(const struct arg *args, struct sample *smp, const char 
 	const char *err_code_str;
 
 	if (obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
-                conn = (kw[0] == 'b') ? sc_conn(__objt_check(smp->sess->origin)->cs) : NULL;
+                conn = (kw[0] == 'b') ? sc_conn(__objt_check(smp->sess->origin)->sc) : NULL;
         else
                 conn = (kw[0] != 'b') ? objt_conn(smp->sess->origin) :
 			smp->strm ? sc_conn(smp->strm->scb) : NULL;

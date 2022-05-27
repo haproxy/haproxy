@@ -52,7 +52,7 @@ smp_fetch_src(const struct arg *args, struct sample *smp, const char *kw, void *
 
 	if (kw[0] == 'b') { /* bc_src */
 		struct connection *conn = ((obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
-					   ? sc_conn(__objt_check(smp->sess->origin)->cs)
+					   ? sc_conn(__objt_check(smp->sess->origin)->sc)
 					   : (smp->strm ? sc_conn(smp->strm->scb): NULL));
 		if (conn && conn_get_src(conn))
 			src = conn_src(conn);
@@ -96,7 +96,7 @@ smp_fetch_sport(const struct arg *args, struct sample *smp, const char *kw, void
 
 	if (kw[0] == 'b') { /* bc_src_port */
 		struct connection *conn = ((obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
-					   ? sc_conn(__objt_check(smp->sess->origin)->cs)
+					   ? sc_conn(__objt_check(smp->sess->origin)->sc)
 					   : (smp->strm ? sc_conn(smp->strm->scb): NULL));
 		if (conn && conn_get_src(conn))
 			src = conn_src(conn);
@@ -131,7 +131,7 @@ smp_fetch_dst(const struct arg *args, struct sample *smp, const char *kw, void *
 
 	if (kw[0] == 'b') { /* bc_dst */
 		struct connection *conn = ((obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
-					   ? sc_conn(__objt_check(smp->sess->origin)->cs)
+					   ? sc_conn(__objt_check(smp->sess->origin)->sc)
 					   : (smp->strm ? sc_conn(smp->strm->scb): NULL));
 		if (conn && conn_get_dst(conn))
 			dst = conn_dst(conn);
@@ -227,7 +227,7 @@ smp_fetch_dport(const struct arg *args, struct sample *smp, const char *kw, void
 
 	if (kw[0] == 'b') { /* bc_dst_port */
 		struct connection *conn = ((obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
-					   ? sc_conn(__objt_check(smp->sess->origin)->cs)
+					   ? sc_conn(__objt_check(smp->sess->origin)->sc)
 					   : (smp->strm ? sc_conn(smp->strm->scb): NULL));
 		if (conn && conn_get_dst(conn))
 			dst = conn_dst(conn);

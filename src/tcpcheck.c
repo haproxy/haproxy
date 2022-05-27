@@ -821,7 +821,7 @@ enum tcpcheck_eval_ret tcpcheck_agent_expect_reply(struct check *check, struct t
 	const char *hs = NULL; /* health status      */
 	const char *as = NULL; /* admin status */
 	const char *ps = NULL; /* performance status */
-	const char *cs = NULL; /* maxconn */
+	const char *sc = NULL; /* maxconn */
 	const char *err = NULL; /* first error to report */
 	const char *wrn = NULL; /* first warning to report */
 	char *cmd, *p;
@@ -931,7 +931,7 @@ enum tcpcheck_eval_ret tcpcheck_agent_expect_reply(struct check *check, struct t
 		}
 		/* try to parse a maxconn here */
 		else if (strncasecmp(cmd, "maxconn:", strlen("maxconn:")) == 0) {
-			cs = cmd;
+			sc = cmd;
 		}
 		else {
 			/* keep a copy of the first error */
@@ -976,16 +976,16 @@ enum tcpcheck_eval_ret tcpcheck_agent_expect_reply(struct check *check, struct t
 			wrn = msg;
 	}
 
-	if (cs) {
+	if (sc) {
 		const char *msg;
 
-		cs += strlen("maxconn:");
+		sc += strlen("maxconn:");
 
 		TRACE_DEVEL("change server maxconn", CHK_EV_TCPCHK_EXP, check);
 		/* This is safe to call server_parse_maxconn_change_request
 		 * because the server lock is held during the check.
 		 */
-		msg = server_parse_maxconn_change_request(check->server, cs);
+		msg = server_parse_maxconn_change_request(check->server, sc);
 		if (!wrn || !*wrn)
 			wrn = msg;
 	}
@@ -1056,7 +1056,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 	struct proxy *proxy = check->proxy;
 	struct server *s = check->server;
 	struct task *t = check->task;
-	struct connection *conn = sc_conn(check->cs);
+	struct connection *conn = sc_conn(check->sc);
 	struct protocol *proto;
 	struct xprt_ops *xprt;
 	struct tcpcheck_rule *next;
@@ -1071,8 +1071,8 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 		if (conn->flags & CO_FL_WAIT_XPRT) {
 			/* We are still waiting for the connection establishment */
 			if (next && next->action == TCPCHK_ACT_SEND) {
-				if (!(check->cs->wait_event.events & SUB_RETRY_SEND))
-					conn->mux->subscribe(check->cs, SUB_RETRY_SEND, &check->cs->wait_event);
+				if (!(check->sc->wait_event.events & SUB_RETRY_SEND))
+					conn->mux->subscribe(check->sc, SUB_RETRY_SEND, &check->sc->wait_event);
 				ret = TCPCHK_EVAL_WAIT;
 				TRACE_DEVEL("not connected yet", CHK_EV_TCPCHK_CONN, check);
 			}
@@ -1082,7 +1082,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 		goto out;
 	}
 
-	/* Note: here check->cs = cs = conn = NULL */
+	/* Note: here check->sc = sc = conn = NULL */
 
 	/* Always release input and output buffer when a new connect is evaluated */
 	check_release_buf(check, &check->bi);
@@ -1100,14 +1100,14 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 		TRACE_ERROR("stconn allocation error", CHK_EV_TCPCHK_CONN|CHK_EV_TCPCHK_ERR, check);
 		goto out;
 	}
-	if (sc_attach_mux(check->cs, NULL, conn) < 0) {
+	if (sc_attach_mux(check->sc, NULL, conn) < 0) {
 		TRACE_ERROR("mux attach error", CHK_EV_TCPCHK_CONN|CHK_EV_TCPCHK_ERR, check);
 		conn_free(conn);
 		conn = NULL;
 		status = SF_ERR_RESOURCE;
 		goto fail_check;
 	}
-	conn->ctx = check->cs;
+	conn->ctx = check->sc;
 	conn_set_owner(conn, check->sess, NULL);
 
 	/* no client address */
@@ -1198,7 +1198,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 		goto fail_check;
 
 	conn_set_private(conn);
-	conn->ctx = check->cs;
+	conn->ctx = check->sc;
 
 #ifdef USE_OPENSSL
 	if (connect->sni)
@@ -1247,7 +1247,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 
 			mux_ops = conn_get_best_mux(conn, IST_NULL, PROTO_SIDE_BE, mode);
 		}
-		if (mux_ops && conn_install_mux(conn, mux_ops, check->cs, proxy, check->sess) < 0) {
+		if (mux_ops && conn_install_mux(conn, mux_ops, check->sc, proxy, check->sess) < 0) {
 			TRACE_ERROR("failed to install mux", CHK_EV_TCPCHK_CONN|CHK_EV_TCPCHK_ERR, check);
 			status = SF_ERR_INTERNAL;
 			goto fail_check;
@@ -1294,9 +1294,9 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 	if (conn->flags & CO_FL_WAIT_XPRT) {
 		if (conn->mux) {
 			if (next && next->action == TCPCHK_ACT_SEND)
-				conn->mux->subscribe(check->cs, SUB_RETRY_SEND, &check->cs->wait_event);
+				conn->mux->subscribe(check->sc, SUB_RETRY_SEND, &check->sc->wait_event);
 			else
-				conn->mux->subscribe(check->cs, SUB_RETRY_RECV, &check->cs->wait_event);
+				conn->mux->subscribe(check->sc, SUB_RETRY_RECV, &check->sc->wait_event);
 		}
 		ret = TCPCHK_EVAL_WAIT;
 		TRACE_DEVEL("not connected yet", CHK_EV_TCPCHK_CONN, check);
@@ -1324,8 +1324,8 @@ enum tcpcheck_eval_ret tcpcheck_eval_send(struct check *check, struct tcpcheck_r
 {
 	enum tcpcheck_eval_ret ret = TCPCHK_EVAL_CONTINUE;
 	struct tcpcheck_send *send = &rule->send;
-	struct stconn *cs = check->cs;
-	struct connection *conn = __sc_conn(cs);
+	struct stconn *sc = check->sc;
+	struct connection *conn = __sc_conn(sc);
 	struct buffer *tmp = NULL;
 	struct htx *htx = NULL;
 	int connection_hdr = 0;
@@ -1482,16 +1482,16 @@ enum tcpcheck_eval_ret tcpcheck_eval_send(struct check *check, struct tcpcheck_r
 
   do_send:
 	TRACE_DATA("send data", CHK_EV_TCPCHK_SND|CHK_EV_TX_DATA, check);
-	if (conn->mux->snd_buf(cs, &check->bo,
+	if (conn->mux->snd_buf(sc, &check->bo,
 			       (IS_HTX_CONN(conn) ? (htxbuf(&check->bo))->data: b_data(&check->bo)), 0) <= 0) {
-		if ((conn->flags & CO_FL_ERROR) || sc_ep_test(cs, SE_FL_ERROR)) {
+		if ((conn->flags & CO_FL_ERROR) || sc_ep_test(sc, SE_FL_ERROR)) {
 			ret = TCPCHK_EVAL_STOP;
 			TRACE_DEVEL("connection error during send", CHK_EV_TCPCHK_SND|CHK_EV_TX_DATA|CHK_EV_TX_ERR, check);
 			goto out;
 		}
 	}
 	if ((IS_HTX_CONN(conn) && !htx_is_empty(htxbuf(&check->bo))) || (!IS_HTX_CONN(conn) && b_data(&check->bo))) {
-		conn->mux->subscribe(cs, SUB_RETRY_SEND, &cs->wait_event);
+		conn->mux->subscribe(sc, SUB_RETRY_SEND, &sc->wait_event);
 		ret = TCPCHK_EVAL_WAIT;
 		TRACE_DEVEL("data not fully sent, wait", CHK_EV_TCPCHK_SND|CHK_EV_TX_DATA, check);
 		goto out;
@@ -1534,8 +1534,8 @@ enum tcpcheck_eval_ret tcpcheck_eval_send(struct check *check, struct tcpcheck_r
  */
 enum tcpcheck_eval_ret tcpcheck_eval_recv(struct check *check, struct tcpcheck_rule *rule)
 {
-	struct stconn *cs = check->cs;
-	struct connection *conn = __sc_conn(cs);
+	struct stconn *sc = check->sc;
+	struct connection *conn = __sc_conn(sc);
 	enum tcpcheck_eval_ret ret = TCPCHK_EVAL_CONTINUE;
 	size_t max, read, cur_read = 0;
 	int is_empty;
@@ -1543,12 +1543,12 @@ enum tcpcheck_eval_ret tcpcheck_eval_recv(struct check *check, struct tcpcheck_r
 
 	TRACE_ENTER(CHK_EV_RX_DATA, check);
 
-	if (cs->wait_event.events & SUB_RETRY_RECV) {
+	if (sc->wait_event.events & SUB_RETRY_RECV) {
 		TRACE_DEVEL("waiting for response", CHK_EV_RX_DATA, check);
 		goto wait_more_data;
 	}
 
-	if (sc_ep_test(cs, SE_FL_EOS))
+	if (sc_ep_test(sc, SE_FL_EOS))
 		goto end_recv;
 
 	if (check->state & CHK_ST_IN_ALLOC) {
@@ -1565,23 +1565,23 @@ enum tcpcheck_eval_ret tcpcheck_eval_recv(struct check *check, struct tcpcheck_r
 	/* errors on the connection and the stream connector were already checked */
 
 	/* prepare to detect if the mux needs more room */
-	sc_ep_clr(cs, SE_FL_WANT_ROOM);
+	sc_ep_clr(sc, SE_FL_WANT_ROOM);
 
-	while (sc_ep_test(cs, SE_FL_RCV_MORE) ||
-	       (!(conn->flags & CO_FL_ERROR) && !sc_ep_test(cs, SE_FL_ERROR | SE_FL_EOS))) {
-		max = (IS_HTX_SC(cs) ?  htx_free_space(htxbuf(&check->bi)) : b_room(&check->bi));
-		read = conn->mux->rcv_buf(cs, &check->bi, max, 0);
+	while (sc_ep_test(sc, SE_FL_RCV_MORE) ||
+	       (!(conn->flags & CO_FL_ERROR) && !sc_ep_test(sc, SE_FL_ERROR | SE_FL_EOS))) {
+		max = (IS_HTX_SC(sc) ?  htx_free_space(htxbuf(&check->bi)) : b_room(&check->bi));
+		read = conn->mux->rcv_buf(sc, &check->bi, max, 0);
 		cur_read += read;
 		if (!read ||
-		    sc_ep_test(cs, SE_FL_WANT_ROOM) ||
+		    sc_ep_test(sc, SE_FL_WANT_ROOM) ||
 		    (--read_poll <= 0) ||
 		    (read < max && read >= global.tune.recv_enough))
 			break;
 	}
 
   end_recv:
-	is_empty = (IS_HTX_SC(cs) ? htx_is_empty(htxbuf(&check->bi)) : !b_data(&check->bi));
-	if (is_empty && ((conn->flags & CO_FL_ERROR) || sc_ep_test(cs, SE_FL_ERROR))) {
+	is_empty = (IS_HTX_SC(sc) ? htx_is_empty(htxbuf(&check->bi)) : !b_data(&check->bi));
+	if (is_empty && ((conn->flags & CO_FL_ERROR) || sc_ep_test(sc, SE_FL_ERROR))) {
 		/* Report network errors only if we got no other data. Otherwise
 		 * we'll let the upper layers decide whether the response is OK
 		 * or not. It is very common that an RST sent by the server is
@@ -1591,13 +1591,13 @@ enum tcpcheck_eval_ret tcpcheck_eval_recv(struct check *check, struct tcpcheck_r
 		goto stop;
 	}
 	if (!cur_read) {
-		if (sc_ep_test(cs, SE_FL_EOI)) {
+		if (sc_ep_test(sc, SE_FL_EOI)) {
 			/* If EOI is set, it means there is a response or an error */
 			goto out;
 		}
 
-		if (!sc_ep_test(cs, SE_FL_WANT_ROOM | SE_FL_ERROR | SE_FL_EOS)) {
-			conn->mux->subscribe(cs, SUB_RETRY_RECV, &cs->wait_event);
+		if (!sc_ep_test(sc, SE_FL_WANT_ROOM | SE_FL_ERROR | SE_FL_EOS)) {
+			conn->mux->subscribe(sc, SUB_RETRY_RECV, &sc->wait_event);
 			TRACE_DEVEL("waiting for response", CHK_EV_RX_DATA, check);
 			goto wait_more_data;
 		}
@@ -2125,8 +2125,8 @@ enum tcpcheck_eval_ret tcpcheck_eval_action_kw(struct check *check, struct tcpch
 int tcpcheck_main(struct check *check)
 {
 	struct tcpcheck_rule *rule;
-	struct stconn *cs = check->cs;
-	struct connection *conn = sc_conn(cs);
+	struct stconn *sc = check->sc;
+	struct connection *conn = sc_conn(sc);
 	int must_read = 1, last_read = 0;
 	int retcode = 0;
 	enum tcpcheck_eval_ret eval_ret;
@@ -2139,11 +2139,11 @@ int tcpcheck_main(struct check *check)
 
 	/* Note: the stream connector and the connection may only be undefined before
 	 * the first rule evaluation (it is always a connect rule) or when the
-	 * stream connector allocation failed on a connect rule, during cs allocation.
+	 * stream connector allocation failed on a connect rule, during sc allocation.
 	 */
 
 	/* 1- check for connection error, if any */
-	if ((conn && conn->flags & CO_FL_ERROR) || sc_ep_test(cs, SE_FL_ERROR))
+	if ((conn && conn->flags & CO_FL_ERROR) || sc_ep_test(sc, SE_FL_ERROR))
 		goto out_end_tcpcheck;
 
 	/* 2- check if a rule must be resume. It happens if check->current_step
@@ -2188,7 +2188,7 @@ int tcpcheck_main(struct check *check)
 		switch (rule->action) {
 		case TCPCHK_ACT_CONNECT:
 			/* Not the first connection, release it first */
-			if (sc_conn(cs) && check->current_step != rule) {
+			if (sc_conn(sc) && check->current_step != rule) {
 				check->state |= CHK_ST_CLOSE_CONN;
 				retcode = -1;
 			}
@@ -2196,7 +2196,7 @@ int tcpcheck_main(struct check *check)
 			check->current_step = rule;
 
 			/* We are still waiting the connection gets closed */
-			if (cs && (check->state & CHK_ST_CLOSE_CONN)) {
+			if (sc && (check->state & CHK_ST_CLOSE_CONN)) {
 				TRACE_DEVEL("wait previous connection closure", CHK_EV_TCPCHK_EVAL|CHK_EV_TCPCHK_CONN, check);
 				eval_ret = TCPCHK_EVAL_WAIT;
 				break;
@@ -2206,9 +2206,9 @@ int tcpcheck_main(struct check *check)
 			eval_ret = tcpcheck_eval_connect(check, rule);
 
 			/* Refresh connection */
-			conn = sc_conn(cs);
+			conn = sc_conn(sc);
 			last_read = 0;
-			must_read = (IS_HTX_SC(cs) ? htx_is_empty(htxbuf(&check->bi)) : !b_data(&check->bi));
+			must_read = (IS_HTX_SC(sc) ? htx_is_empty(htxbuf(&check->bi)) : !b_data(&check->bi));
 			break;
 		case TCPCHK_ACT_SEND:
 			check->current_step = rule;
@@ -2225,7 +2225,7 @@ int tcpcheck_main(struct check *check)
 					goto out_end_tcpcheck;
 				else if (eval_ret == TCPCHK_EVAL_WAIT)
 					goto out;
-				last_read = ((conn->flags & CO_FL_ERROR) || sc_ep_test(cs, SE_FL_ERROR | SE_FL_EOS));
+				last_read = ((conn->flags & CO_FL_ERROR) || sc_ep_test(sc, SE_FL_ERROR | SE_FL_EOS));
 				must_read = 0;
 			}
 
@@ -2235,8 +2235,8 @@ int tcpcheck_main(struct check *check)
 
 			if (eval_ret == TCPCHK_EVAL_WAIT) {
 				check->current_step = rule->expect.head;
-				if (!(cs->wait_event.events & SUB_RETRY_RECV))
-					conn->mux->subscribe(cs, SUB_RETRY_RECV, &cs->wait_event);
+				if (!(sc->wait_event.events & SUB_RETRY_RECV))
+					conn->mux->subscribe(sc, SUB_RETRY_RECV, &sc->wait_event);
 			}
 			break;
 		case TCPCHK_ACT_ACTION_KW:
@@ -2306,7 +2306,7 @@ int tcpcheck_main(struct check *check)
 	TRACE_PROTO("tcp-check passed", CHK_EV_TCPCHK_EVAL, check);
 
   out_end_tcpcheck:
-	if ((conn && conn->flags & CO_FL_ERROR) || sc_ep_test(cs, SE_FL_ERROR)) {
+	if ((conn && conn->flags & CO_FL_ERROR) || sc_ep_test(sc, SE_FL_ERROR)) {
 		TRACE_ERROR("report connection error", CHK_EV_TCPCHK_EVAL|CHK_EV_TCPCHK_ERR, check);
 		chk_report_conn_err(check, errno, 0);
 	}
