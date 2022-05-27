@@ -195,7 +195,7 @@ err:
 static int hc_cli_io_handler(struct appctx *appctx)
 {
 	struct hcli_svc_ctx *ctx = appctx->svcctx;
-	struct stconn *cs = appctx_cs(appctx);
+	struct stconn *sc = appctx_cs(appctx);
 	struct buffer *trash = alloc_trash_chunk();
 	struct httpclient *hc = ctx->hc;
 	struct http_hdr *hdrs, *hdr;
@@ -227,8 +227,8 @@ static int hc_cli_io_handler(struct appctx *appctx)
 	if (ctx->flags & HC_CLI_F_RES_BODY) {
 		int ret;
 
-		ret = httpclient_res_xfer(hc, sc_ib(cs));
-		channel_add_input(sc_ic(cs), ret); /* forward what we put in the buffer channel */
+		ret = httpclient_res_xfer(hc, sc_ib(sc));
+		channel_add_input(sc_ic(sc), ret); /* forward what we put in the buffer channel */
 
 		if (!httpclient_data(hc)) {/* remove the flag if the buffer was emptied */
 			ctx->flags &= ~HC_CLI_F_RES_BODY;
@@ -238,8 +238,8 @@ static int hc_cli_io_handler(struct appctx *appctx)
 
 	/* we must close only if F_END is the last flag */
 	if (ctx->flags ==  HC_CLI_F_RES_END) {
-		sc_shutw(cs);
-		sc_shutr(cs);
+		sc_shutw(sc);
+		sc_shutr(sc);
 		ctx->flags &= ~HC_CLI_F_RES_END;
 		goto out;
 	}
@@ -247,7 +247,7 @@ static int hc_cli_io_handler(struct appctx *appctx)
 out:
 	/* we didn't clear every flags, we should come back to finish things */
 	if (ctx->flags)
-		sc_need_room(cs);
+		sc_need_room(sc);
 
 	free_trash_chunk(trash);
 	return 0;

@@ -509,14 +509,14 @@ void mworker_cleanup_proc()
 /*  Displays workers and processes  */
 static int cli_io_handler_show_proc(struct appctx *appctx)
 {
-	struct stconn *cs = appctx_cs(appctx);
+	struct stconn *sc = appctx_cs(appctx);
 	struct mworker_proc *child;
 	int old = 0;
 	int up = now.tv_sec - proc_self->timestamp;
 	char *uptime = NULL;
 	char *reloadtxt = NULL;
 
-	if (unlikely(sc_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
+	if (unlikely(sc_ic(sc)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
 		return 1;
 
 	chunk_reset(&trash);

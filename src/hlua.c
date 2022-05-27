@@ -10143,15 +10143,15 @@ static int hlua_cli_io_handler_fct(struct appctx *appctx)
 {
 	struct hlua_cli_ctx *ctx = appctx->svcctx;
 	struct hlua *hlua;
-	struct stconn *cs;
+	struct stconn *sc;
 	struct hlua_function *fcn;
 
 	hlua = ctx->hlua;
-	cs = appctx_cs(appctx);
+	sc = appctx_cs(appctx);
 	fcn = ctx->fcn;
 
 	/* If the stream is disconnect or closed, ldo nothing. */
-	if (unlikely(cs->state == SC_ST_DIS || cs->state == SC_ST_CLO))
+	if (unlikely(sc->state == SC_ST_DIS || sc->state == SC_ST_CLO))
 		return 1;
 
 	/* Execute the function. */
@@ -10165,7 +10165,7 @@ static int hlua_cli_io_handler_fct(struct appctx *appctx)
 	case HLUA_E_AGAIN:
 		/* We want write. */
 		if (HLUA_IS_WAKERESWR(hlua))
-			sc_need_room(cs);
+			sc_need_room(sc);
 		/* Set the timeout. */
 		if (hlua->wake_time != TICK_ETERNITY)
 			task_schedule(hlua->task, hlua->wake_time);

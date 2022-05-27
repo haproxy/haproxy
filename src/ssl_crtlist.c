@@ -1063,7 +1063,7 @@ static int cli_io_handler_add_crtlist(struct appctx *appctx)
 {
 	struct add_crtlist_ctx *ctx = appctx->svcctx;
 	struct bind_conf_list *bind_conf_node;
-	struct stconn *cs = appctx_cs(appctx);
+	struct stconn *sc = appctx_cs(appctx);
 	struct crtlist *crtlist = ctx->crtlist;
 	struct crtlist_entry *entry = ctx->entry;
 	struct ckch_store *store = entry->node.key;
@@ -1079,7 +1079,7 @@ static int cli_io_handler_add_crtlist(struct appctx *appctx)
 	/* for each bind_conf which use the crt-list, a new ckch_inst must be
 	 * created.
 	 */
-	if (unlikely(sc_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
+	if (unlikely(sc_ic(sc)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
 		goto error;
 
 	switch (ctx->state) {

@@ -621,13 +621,13 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 	unsigned long long tot_alloc_calls, tot_free_calls;
 	unsigned long long tot_alloc_bytes, tot_free_bytes;
 #endif
-	struct stconn *cs = appctx_cs(appctx);
+	struct stconn *sc = appctx_cs(appctx);
 	struct buffer *name_buffer = get_trash_chunk();
 	const char *str;
 	int max_lines;
 	int i, max;
 
-	if (unlikely(sc_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
+	if (unlikely(sc_ic(sc)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
 		return 1;
 
 	chunk_reset(&trash);
@@ -840,7 +840,7 @@ static int cli_parse_show_profiling(char **args, char *payload, struct appctx *a
 static int cli_io_handler_show_tasks(struct appctx *appctx)
 {
 	struct sched_activity tmp_activity[256] __attribute__((aligned(64)));
-	struct stconn *cs = appctx_cs(appctx);
+	struct stconn *sc = appctx_cs(appctx);
 	struct buffer *name_buffer = get_trash_chunk();
 	struct sched_activity *entry;
 	const struct tasklet *tl;
@@ -851,7 +851,7 @@ static int cli_io_handler_show_tasks(struct appctx *appctx)
 	int thr, queue;
 	int i, max;
 
-	if (unlikely(sc_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
+	if (unlikely(sc_ic(sc)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
 		return 1;
 
 	/* It's not possible to scan queues in small chunks and yield in the

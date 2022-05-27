@@ -2706,9 +2706,9 @@ static void dump_server_addr(const struct sockaddr_storage *addr, char *addr_str
  * ->px, the proxy's id ->only_pxid, the server's pointer from ->sv, and the
  * choice of what to dump from ->show_conn.
  */
-static int dump_servers_state(struct stconn *cs)
+static int dump_servers_state(struct stconn *sc)
 {
-	struct appctx *appctx = __sc_appctx(cs);
+	struct appctx *appctx = __sc_appctx(sc);
 	struct show_srv_ctx *ctx = appctx->svcctx;
 	struct proxy *px = ctx->px;
 	struct server *srv;
@@ -2786,7 +2786,7 @@ static int dump_servers_state(struct stconn *cs)
 static int cli_io_handler_servers_state(struct appctx *appctx)
 {
 	struct show_srv_ctx *ctx = appctx->svcctx;
-	struct stconn *cs = appctx_cs(appctx);
+	struct stconn *sc = appctx_cs(appctx);
 	struct proxy *curproxy;
 
 	if (ctx->state == SHOW_SRV_HEAD) {
@@ -2810,7 +2810,7 @@ static int cli_io_handler_servers_state(struct appctx *appctx)
 		curproxy = ctx->px;
 		/* servers are only in backends */
 		if ((curproxy->cap & PR_CAP_BE) && !(curproxy->cap & PR_CAP_INT)) {
-			if (!dump_servers_state(cs))
+			if (!dump_servers_state(sc))
 				return 0;
 		}
 		/* only the selected proxy is dumped */
@@ -3138,10 +3138,10 @@ static int cli_parse_show_errors(char **args, char *payload, struct appctx *appc
 static int cli_io_handler_show_errors(struct appctx *appctx)
 {
 	struct show_errors_ctx *ctx = appctx->svcctx;
-	struct stconn *cs = appctx_cs(appctx);
+	struct stconn *sc = appctx_cs(appctx);
 	extern const char *monthname[12];
 
-	if (unlikely(sc_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
+	if (unlikely(sc_ic(sc)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
 		return 1;
 
 	chunk_reset(&trash);
@@ -3296,7 +3296,7 @@ static int cli_io_handler_show_errors(struct appctx *appctx)
  cant_send_unlock:
 	HA_RWLOCK_RDUNLOCK(PROXY_LOCK, &ctx->px->lock);
  cant_send:
-	sc_need_room(cs);
+	sc_need_room(sc);
 	return 0;
 }
 

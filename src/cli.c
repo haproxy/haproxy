@@ -897,14 +897,14 @@ static int cli_output_msg(struct channel *chn, const char *msg, int severity, in
  */
 static void cli_io_handler(struct appctx *appctx)
 {
-	struct stconn *cs = appctx_cs(appctx);
-	struct channel *req = sc_oc(cs);
-	struct channel *res = sc_ic(cs);
-	struct bind_conf *bind_conf = strm_li(__sc_strm(cs))->bind_conf;
+	struct stconn *sc = appctx_cs(appctx);
+	struct channel *req = sc_oc(sc);
+	struct channel *res = sc_ic(sc);
+	struct bind_conf *bind_conf = strm_li(__sc_strm(sc))->bind_conf;
 	int reql;
 	int len;
 
-	if (unlikely(cs->state == SC_ST_DIS || cs->state == SC_ST_CLO))
+	if (unlikely(sc->state == SC_ST_DIS || sc->state == SC_ST_CLO))
 		goto out;
 
 	/* Check if the input buffer is available. */
@@ -928,7 +928,7 @@ static void cli_io_handler(struct appctx *appctx)
 			/* Let's close for real now. We just close the request
 			 * side, the conditions below will complete if needed.
 			 */
-			sc_shutw(cs);
+			sc_shutw(sc);
 			free_trash_chunk(appctx->chunk);
 			appctx->chunk = NULL;
 			break;
@@ -950,8 +950,8 @@ static void cli_io_handler(struct appctx *appctx)
 			/* ensure we have some output room left in the event we
 			 * would want to return some info right after parsing.
 			 */
-			if (buffer_almost_full(sc_ib(cs))) {
-				sc_need_room(cs);
+			if (buffer_almost_full(sc_ib(sc))) {
+				sc_need_room(sc);
 				break;
 			}
 
@@ -962,10 +962,10 @@ static void cli_io_handler(struct appctx *appctx)
 			 */
 
 			if (appctx->st1 & APPCTX_CLI_ST1_PAYLOAD)
-				reql = co_getline(sc_oc(cs), str,
+				reql = co_getline(sc_oc(sc), str,
 				                  appctx->chunk->size - appctx->chunk->data - 1);
 			else
-				reql = co_getdelim(sc_oc(cs), str,
+				reql = co_getdelim(sc_oc(sc), str,
 				                   appctx->chunk->size - appctx->chunk->data - 1,
 				                   "\n;", '\\');
 
@@ -1050,7 +1050,7 @@ static void cli_io_handler(struct appctx *appctx)
 			}
 
 			/* re-adjust req buffer */
-			co_skip(sc_oc(cs), reql);
+			co_skip(sc_oc(sc), reql);
 			req->flags |= CF_READ_DONTWAIT; /* we plan to read small requests */
 		}
 		else {	/* output functions */
@@ -1094,7 +1094,7 @@ static void cli_io_handler(struct appctx *appctx)
 					appctx->st0 = CLI_ST_PROMPT;
 				}
 				else
-					sc_need_room(cs);
+					sc_need_room(sc);
 				break;
 
 			case CLI_ST_CALLBACK: /* use custom pointer */
@@ -1161,39 +1161,39 @@ static void cli_io_handler(struct appctx *appctx)
 			 * refills the buffer with new bytes in non-interactive
 			 * mode, avoiding to close on apparently empty commands.
 			 */
-			if (co_data(sc_oc(cs))) {
+			if (co_data(sc_oc(sc))) {
 				appctx_wakeup(appctx);
 				goto out;
 			}
 		}
 	}
 
-	if ((res->flags & CF_SHUTR) && (cs->state == SC_ST_EST)) {
-		DPRINTF(stderr, "%s@%d: cs to buf closed. req=%08x, res=%08x, st=%d\n",
-			__FUNCTION__, __LINE__, req->flags, res->flags, cs->state);
+	if ((res->flags & CF_SHUTR) && (sc->state == SC_ST_EST)) {
+		DPRINTF(stderr, "%s@%d: sc to buf closed. req=%08x, res=%08x, st=%d\n",
+			__FUNCTION__, __LINE__, req->flags, res->flags, sc->state);
 		/* Other side has closed, let's abort if we have no more processing to do
 		 * and nothing more to consume. This is comparable to a broken pipe, so
 		 * we forward the close to the request side so that it flows upstream to
 		 * the client.
 		 */
-		sc_shutw(cs);
+		sc_shutw(sc);
 	}
 
-	if ((req->flags & CF_SHUTW) && (cs->state == SC_ST_EST) && (appctx->st0 < CLI_ST_OUTPUT)) {
-		DPRINTF(stderr, "%s@%d: buf to cs closed. req=%08x, res=%08x, st=%d\n",
-			__FUNCTION__, __LINE__, req->flags, res->flags, cs->state);
+	if ((req->flags & CF_SHUTW) && (sc->state == SC_ST_EST) && (appctx->st0 < CLI_ST_OUTPUT)) {
+		DPRINTF(stderr, "%s@%d: buf to sc closed. req=%08x, res=%08x, st=%d\n",
+			__FUNCTION__, __LINE__, req->flags, res->flags, sc->state);
 		/* We have no more processing to do, and nothing more to send, and
 		 * the client side has closed. So we'll forward this state downstream
 		 * on the response buffer.
 		 */
-		sc_shutr(cs);
+		sc_shutr(sc);
 		res->flags |= CF_READ_NULL;
 	}
 
  out:
 	DPRINTF(stderr, "%s@%d: st=%d, rqf=%x, rpf=%x, rqh=%lu, rqs=%lu, rh=%lu, rs=%lu\n",
 		__FUNCTION__, __LINE__,
-		cs->state, req->flags, res->flags, ci_data(req), co_data(req), ci_data(res), co_data(res));
+		sc->state, req->flags, res->flags, ci_data(req), co_data(req), ci_data(res), co_data(res));
 }
 
 /* This is called when the stream connector is closed. For instance, upon an
@@ -1224,10 +1224,10 @@ static void cli_release_handler(struct appctx *appctx)
 static int cli_io_handler_show_env(struct appctx *appctx)
 {
 	struct show_env_ctx *ctx = appctx->svcctx;
-	struct stconn *cs = appctx_cs(appctx);
+	struct stconn *sc = appctx_cs(appctx);
 	char **var = ctx->var;
 
-	if (unlikely(sc_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
+	if (unlikely(sc_ic(sc)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
 		return 1;
 
 	chunk_reset(&trash);
@@ -1259,12 +1259,12 @@ static int cli_io_handler_show_env(struct appctx *appctx)
  */
 static int cli_io_handler_show_fd(struct appctx *appctx)
 {
-	struct stconn *cs = appctx_cs(appctx);
+	struct stconn *sc = appctx_cs(appctx);
 	struct show_fd_ctx *fdctx = appctx->svcctx;
 	int fd = fdctx->fd;
 	int ret = 1;
 
-	if (unlikely(sc_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
+	if (unlikely(sc_ic(sc)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
 		goto end;
 
 	chunk_reset(&trash);
@@ -1458,10 +1458,10 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
  */
 static int cli_io_handler_show_activity(struct appctx *appctx)
 {
-	struct stconn *cs = appctx_cs(appctx);
+	struct stconn *sc = appctx_cs(appctx);
 	int thr;
 
-	if (unlikely(sc_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
+	if (unlikely(sc_ic(sc)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
 		return 1;
 
 	chunk_reset(&trash);
@@ -1969,9 +1969,9 @@ static int _getsocks(char **args, char *payload, struct appctx *appctx, void *pr
 	char *cmsgbuf = NULL;
 	unsigned char *tmpbuf = NULL;
 	struct cmsghdr *cmsg;
-	struct stconn *cs = appctx_cs(appctx);
-	struct stream *s = __sc_strm(cs);
-	struct connection *remote = sc_conn(sc_opposite(cs));
+	struct stconn *sc = appctx_cs(appctx);
+	struct stream *s = __sc_strm(sc);
+	struct connection *remote = sc_conn(sc_opposite(sc));
 	struct msghdr msghdr;
 	struct iovec iov;
 	struct timeval tv = { .tv_sec = 1, .tv_usec = 0 };

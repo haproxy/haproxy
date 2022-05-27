@@ -4663,8 +4663,8 @@ err_args:
 static int cli_io_handler_table(struct appctx *appctx)
 {
 	struct show_table_ctx *ctx = appctx->svcctx;
-	struct stconn *cs = appctx_cs(appctx);
-	struct stream *s = __sc_strm(cs);
+	struct stconn *sc = appctx_cs(appctx);
+	struct stream *s = __sc_strm(sc);
 	struct ebmb_node *eb;
 	int skip_entry;
 	int show = ctx->action == STK_CLI_ACT_SHOW;
@@ -4680,7 +4680,7 @@ static int cli_io_handler_table(struct appctx *appctx)
 	 *     data though.
 	 */
 
-	if (unlikely(sc_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW))) {
+	if (unlikely(sc_ic(sc)->flags & (CF_WRITE_ERROR|CF_SHUTW))) {
 		/* in case of abort, remove any refcount we might have set on an entry */
 		if (ctx->state == STATE_DUMP) {
 			stksess_kill_if_expired(ctx->t, ctx->entry, 1);
