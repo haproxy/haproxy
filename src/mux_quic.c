@@ -699,7 +699,7 @@ static inline int qcc_is_dead(const struct qcc *qcc)
 /* Return true if the mux timeout should be armed. */
 static inline int qcc_may_expire(struct qcc *qcc)
 {
-	return !qcc->nb_cs;
+	return !qcc->nb_sc;
 }
 
 /* release function. This one should be called to free all resources allocated
@@ -1316,7 +1316,7 @@ static int qc_init(struct connection *conn, struct proxy *prx,
 
 	qcc->conn = conn;
 	conn->ctx = qcc;
-	qcc->nb_cs = 0;
+	qcc->nb_sc = 0;
 	qcc->flags = 0;
 
 	qcc->app_ops = NULL;
@@ -1429,7 +1429,7 @@ static void qc_detach(struct sedesc *endp)
 
 	TRACE_ENTER(QMUX_EV_STRM_END, qcc->conn, qcs);
 
-	--qcc->nb_cs;
+	--qcc->nb_sc;
 
 	if ((b_data(&qcs->tx.buf) || qcs->tx.offset > qcs->tx.sent_offset) &&
 	    !(qcc->conn->flags & CO_FL_ERROR)) {
@@ -1455,10 +1455,10 @@ static void qc_detach(struct sedesc *endp)
 }
 
 /* Called from the upper layer, to receive data */
-static size_t qc_rcv_buf(struct stconn *cs, struct buffer *buf,
+static size_t qc_rcv_buf(struct stconn *sc, struct buffer *buf,
                          size_t count, int flags)
 {
-	struct qcs *qcs = __sc_mux_strm(cs);
+	struct qcs *qcs = __sc_mux_strm(sc);
 	struct htx *qcs_htx = NULL;
 	struct htx *cs_htx = NULL;
 	size_t ret = 0;
@@ -1525,15 +1525,15 @@ static size_t qc_rcv_buf(struct stconn *cs, struct buffer *buf,
 	return ret;
 }
 
-static size_t qc_snd_buf(struct stconn *cs, struct buffer *buf,
+static size_t qc_snd_buf(struct stconn *sc, struct buffer *buf,
                          size_t count, int flags)
 {
-	struct qcs *qcs = __sc_mux_strm(cs);
+	struct qcs *qcs = __sc_mux_strm(sc);
 	size_t ret;
 
 	TRACE_ENTER(QMUX_EV_STRM_SEND, qcs->qcc->conn, qcs);
 
-	ret = qcs->qcc->app_ops->snd_buf(cs, buf, count, flags);
+	ret = qcs->qcc->app_ops->snd_buf(sc, buf, count, flags);
 
 	TRACE_LEAVE(QMUX_EV_STRM_SEND, qcs->qcc->conn, qcs);
 
@@ -1545,19 +1545,19 @@ static size_t qc_snd_buf(struct stconn *cs, struct buffer *buf,
  * as at least one event is still subscribed. The <event_type> must only be a
  * combination of SUB_RETRY_RECV and SUB_RETRY_SEND. It always returns 0.
  */
-static int qc_subscribe(struct stconn *cs, int event_type,
+static int qc_subscribe(struct stconn *sc, int event_type,
                         struct wait_event *es)
 {
-	return qcs_subscribe(__sc_mux_strm(cs), event_type, es);
+	return qcs_subscribe(__sc_mux_strm(sc), event_type, es);
 }
 
 /* Called from the upper layer, to unsubscribe <es> from events <event_type>.
  * The <es> pointer is not allowed to differ from the one passed to the
  * subscribe() call. It always returns zero.
  */
-static int qc_unsubscribe(struct stconn *cs, int event_type, struct wait_event *es)
+static int qc_unsubscribe(struct stconn *sc, int event_type, struct wait_event *es)
 {
-	struct qcs *qcs = __sc_mux_strm(cs);
+	struct qcs *qcs = __sc_mux_strm(sc);
 
 	BUG_ON(event_type & ~(SUB_RETRY_SEND|SUB_RETRY_RECV));
 	BUG_ON(qcs->subs && qcs->subs != es);

@@ -101,7 +101,7 @@ enum h3s_t {
 
 extern const struct qcc_app_ops h3_ops;
 
-size_t h3_snd_buf(struct stconn *cs, struct buffer *buf, size_t count, int flags);
+size_t h3_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, int flags);
 
 #endif /* USE_QUIC */
 #endif /* _HAPROXY_H3_T_H */

@@ -32,7 +32,7 @@ enum qcs_type {
 
 struct qcc {
 	struct connection *conn;
-	uint64_t nb_cs; /* number of attached stream connectors */
+	uint64_t nb_sc; /* number of attached stream connectors */
 	uint32_t flags; /* QC_CF_* */
 
 	struct {
@@ -97,7 +97,7 @@ struct qcc {
 #define QC_SF_FIN_RECV          0x00000001  /* last frame received for this stream */
 #define QC_SF_FIN_STREAM        0x00000002  /* FIN bit must be set for last frame of the stream */
 #define QC_SF_BLK_MROOM         0x00000004  /* app layer is blocked waiting for room in the qcs.tx.buf */
-#define QC_SF_DETACH            0x00000008  /* cs is detached but there is remaining data to send */
+#define QC_SF_DETACH            0x00000008  /* sc is detached but there is remaining data to send */
 #define QC_SF_BLK_SFCTL         0x00000010  /* stream blocked due to stream flow control limit */
 #define QC_SF_DEM_FULL          0x00000020  /* demux blocked on request channel buffer full */
 #define QC_SF_READ_ABORTED      0x00000040  /* stream rejected by app layer */
@@ -138,7 +138,7 @@ struct qcc_app_ops {
 	int (*init)(struct qcc *qcc);
 	int (*attach)(struct qcs *qcs);
 	int (*decode_qcs)(struct qcs *qcs, int fin, void *ctx);
-	size_t (*snd_buf)(struct stconn *cs, struct buffer *buf, size_t count, int flags);
+	size_t (*snd_buf)(struct stconn *sc, struct buffer *buf, size_t count, int flags);
 	void (*detach)(struct qcs *qcs);
 	int (*finalize)(void *ctx);
 	int (*is_active)(const struct qcc *qcc, void *ctx);

@@ -341,7 +341,7 @@ static int h3_headers_to_htx(struct qcs *qcs, struct ncbuf *buf, uint64_t len,
 	if (fin)
 		htx->flags |= HTX_FL_EOM;
 
-	if (!qc_attach_cs(qcs, &htx_buf))
+	if (!qc_attach_sc(qcs, &htx_buf))
 		return -1;
 
 	/* buffer is transferred to the stream connector and set to NULL
@@ -860,10 +860,10 @@ static int h3_resp_data_send(struct qcs *qcs, struct buffer *buf, size_t count)
 	return total;
 }
 
-size_t h3_snd_buf(struct stconn *cs, struct buffer *buf, size_t count, int flags)
+size_t h3_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, int flags)
 {
 	size_t total = 0;
-	struct qcs *qcs = __sc_mux_strm(cs);
+	struct qcs *qcs = __sc_mux_strm(sc);
 	struct htx *htx;
 	enum htx_blk_type btype;
 	struct htx_blk *blk;

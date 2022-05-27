@@ -91,7 +91,7 @@ static inline int qcc_install_app_ops(struct qcc *qcc,
 	return 0;
 }
 
-static inline struct stconn *qc_attach_cs(struct qcs *qcs, struct buffer *buf)
+static inline struct stconn *qc_attach_sc(struct qcs *qcs, struct buffer *buf)
 {
 	struct qcc *qcc = qcs->qcc;
 	struct session *sess = qcc->conn->owner;
@@ -110,7 +110,7 @@ static inline struct stconn *qc_attach_cs(struct qcs *qcs, struct buffer *buf)
 	if (!sc_new_from_endp(qcs->endp, sess, buf))
 		return NULL;
 
-	++qcc->nb_cs;
+	++qcc->nb_sc;
 
 	/* TODO duplicated from mux_h2 */
 	sess->accept_date = date;
