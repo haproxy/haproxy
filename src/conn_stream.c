@@ -807,7 +807,7 @@ static void sc_app_chk_snd_conn(struct stconn *cs)
 		if (((oc->flags & (CF_SHUTW|CF_AUTO_CLOSE|CF_SHUTW_NOW)) ==
 		     (CF_AUTO_CLOSE|CF_SHUTW_NOW)) &&
 		    cs_state_in(cs->state, SC_SB_RDY|SC_SB_EST)) {
-			cs_shutw(cs);
+			sc_shutw(cs);
 			goto out_wakeup;
 		}
 
@@ -1036,7 +1036,7 @@ void sc_update_rx(struct stconn *cs)
 	else if (!(ic->flags & CF_READ_NOEXP) && !tick_isset(ic->rex))
 		ic->rex = tick_add_ifset(now_ms, ic->rto);
 
-	cs_chk_rcv(cs);
+	sc_chk_rcv(cs);
 }
 
 /* This function is designed to be called from within the stream handler to
@@ -1110,7 +1110,7 @@ static void sc_notify(struct stconn *cs)
 
 		if (((oc->flags & (CF_SHUTW|CF_SHUTW_NOW)) == CF_SHUTW_NOW) &&
 		    (cs->state == SC_ST_EST) && (!conn || !(conn->flags & (CO_FL_WAIT_XPRT | CO_FL_EARLY_SSL_HS))))
-			cs_shutw(cs);
+			sc_shutw(cs);
 		oc->wex = TICK_ETERNITY;
 	}
 
@@ -1160,7 +1160,7 @@ static void sc_notify(struct stconn *cs)
 		if (ic->pipe)
 			last_len += ic->pipe->data;
 
-		cs_chk_snd(cso);
+		sc_chk_snd(cso);
 
 		new_len = co_data(ic);
 		if (ic->pipe)
@@ -1176,15 +1176,15 @@ static void sc_notify(struct stconn *cs)
 	if (!(ic->flags & CF_DONT_READ))
 		sc_will_read(cs);
 
-	cs_chk_rcv(cs);
-	cs_chk_rcv(cso);
+	sc_chk_rcv(cs);
+	sc_chk_rcv(cso);
 
 	if (ic->flags & CF_SHUTR || sc_ep_test(cs, SE_FL_APPLET_NEED_CONN) ||
 	    (cs->flags & (SC_FL_WONT_READ|SC_FL_NEED_BUFF|SC_FL_NEED_ROOM))) {
 		ic->rex = TICK_ETERNITY;
 	}
 	else if ((ic->flags & (CF_SHUTR|CF_READ_PARTIAL)) == CF_READ_PARTIAL) {
-		/* we must re-enable reading if cs_chk_snd() has freed some space */
+		/* we must re-enable reading if sc_chk_snd() has freed some space */
 		if (!(ic->flags & CF_READ_NOEXP) && tick_isset(ic->rex))
 			ic->rex = tick_add_ifset(now_ms, ic->rto);
 	}
@@ -1257,7 +1257,7 @@ static void sc_conn_read0(struct stconn *cs)
 	return;
 
  do_close:
-	/* OK we completely close the socket here just as if we went through cs_shut[rw]() */
+	/* OK we completely close the socket here just as if we went through sc_shut[rw]() */
 	sc_conn_shut(cs);
 
 	oc->flags &= ~CF_SHUTW_NOW;

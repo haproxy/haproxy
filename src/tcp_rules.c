@@ -254,7 +254,7 @@ resume_execution:
 		_HA_ATOMIC_INC(&sess->listener->counters->failed_req);
 
  reject:
-	cs_must_kill_conn(chn_prod(req));
+	sc_must_kill_conn(chn_prod(req));
 	channel_abort(req);
 	channel_abort(&s->res);
 
@@ -392,9 +392,9 @@ resume_execution:
 			}
 			else if (rule->action == ACT_TCP_CLOSE) {
 				chn_prod(rep)->flags |= SC_FL_NOLINGER | SC_FL_NOHALF;
-				cs_must_kill_conn(chn_prod(rep));
-				cs_shutr(chn_prod(rep));
-				cs_shutw(chn_prod(rep));
+				sc_must_kill_conn(chn_prod(rep));
+				sc_shutr(chn_prod(rep));
+				sc_shutw(chn_prod(rep));
 				s->last_rule_file = rule->conf.file;
 				s->last_rule_line = rule->conf.line;
 				goto end;
@@ -451,7 +451,7 @@ resume_execution:
 		_HA_ATOMIC_INC(&__objt_server(s->target)->counters.failed_resp);
 
  reject:
-	cs_must_kill_conn(chn_prod(rep));
+	sc_must_kill_conn(chn_prod(rep));
 	channel_abort(rep);
 	channel_abort(&s->req);
 

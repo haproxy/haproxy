@@ -266,21 +266,21 @@ static inline int sc_get_dst(struct stconn *cs)
 
 
 /* Marks on the stream connector that next shutw must kill the whole connection */
-static inline void cs_must_kill_conn(struct stconn *cs)
+static inline void sc_must_kill_conn(struct stconn *cs)
 {
 	sc_ep_set(cs, SE_FL_KILL_CONN);
 }
 
 
 /* Sends a shutr to the endpoint using the data layer */
-static inline void cs_shutr(struct stconn *cs)
+static inline void sc_shutr(struct stconn *cs)
 {
 	if (likely(cs->app_ops->shutr))
 		cs->app_ops->shutr(cs);
 }
 
 /* Sends a shutw to the endpoint using the data layer */
-static inline void cs_shutw(struct stconn *cs)
+static inline void sc_shutw(struct stconn *cs)
 {
 	if (likely(cs->app_ops->shutw))
 		cs->app_ops->shutw(cs);
@@ -316,7 +316,7 @@ static inline int sc_is_recv_allowed(const struct stconn *sc)
  * point in order to avoid useless repeated wakeups.
  * It will then call ->chk_rcv() to enable receipt of new data.
  */
-static inline void cs_chk_rcv(struct stconn *cs)
+static inline void sc_chk_rcv(struct stconn *cs)
 {
 	if (sc_ep_test(cs, SE_FL_APPLET_NEED_CONN) &&
 	    cs_state_in(cs_opposite(cs)->state, SC_SB_RDY|SC_SB_EST|SC_SB_DIS|SC_SB_CLO))
@@ -334,7 +334,7 @@ static inline void cs_chk_rcv(struct stconn *cs)
 }
 
 /* Calls chk_snd on the endpoint using the data layer */
-static inline void cs_chk_snd(struct stconn *cs)
+static inline void sc_chk_snd(struct stconn *cs)
 {
 	if (likely(cs->app_ops->chk_snd))
 		cs->app_ops->chk_snd(cs);

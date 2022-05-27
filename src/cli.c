@@ -928,7 +928,7 @@ static void cli_io_handler(struct appctx *appctx)
 			/* Let's close for real now. We just close the request
 			 * side, the conditions below will complete if needed.
 			 */
-			cs_shutw(cs);
+			sc_shutw(cs);
 			free_trash_chunk(appctx->chunk);
 			appctx->chunk = NULL;
 			break;
@@ -1176,7 +1176,7 @@ static void cli_io_handler(struct appctx *appctx)
 		 * we forward the close to the request side so that it flows upstream to
 		 * the client.
 		 */
-		cs_shutw(cs);
+		sc_shutw(cs);
 	}
 
 	if ((req->flags & CF_SHUTW) && (cs->state == SC_ST_EST) && (appctx->st0 < CLI_ST_OUTPUT)) {
@@ -1186,7 +1186,7 @@ static void cli_io_handler(struct appctx *appctx)
 		 * the client side has closed. So we'll forward this state downstream
 		 * on the response buffer.
 		 */
-		cs_shutr(cs);
+		sc_shutr(cs);
 		res->flags |= CF_READ_NULL;
 	}
 
@@ -2698,8 +2698,8 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		pcli_write_prompt(s);
 
 		s->scb->flags |= SC_FL_NOLINGER | SC_FL_NOHALF;
-		cs_shutr(s->scb);
-		cs_shutw(s->scb);
+		sc_shutr(s->scb);
+		sc_shutw(s->scb);
 
 		/*
 		 * starting from there this the same code as

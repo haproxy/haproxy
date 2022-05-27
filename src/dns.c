@@ -764,8 +764,8 @@ read:
 
 	return;
 close:
-	cs_shutw(cs);
-	cs_shutr(cs);
+	sc_shutw(cs);
+	sc_shutr(cs);
 	sc_ic(cs)->flags |= CF_READ_NULL;
 }
 

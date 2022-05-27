@@ -3127,8 +3127,8 @@ send_msgs:
 					HA_SPIN_UNLOCK(PEER_LOCK, &curpeer->lock);
 					curpeer = NULL;
 				}
-				cs_shutw(cs);
-				cs_shutr(cs);
+				sc_shutw(cs);
+				sc_shutr(cs);
 				sc_ic(cs)->flags |= CF_READ_NULL;
 				goto out;
 			}

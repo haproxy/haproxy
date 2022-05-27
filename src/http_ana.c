@@ -4313,8 +4313,8 @@ void http_perform_server_redirect(struct stream *s, struct stconn *cs)
 		goto fail;
 
 	/* return without error. */
-	cs_shutr(cs);
-	cs_shutw(cs);
+	sc_shutr(cs);
+	sc_shutw(cs);
 	s->conn_err_type = STRM_ET_NONE;
 	cs->state = SC_ST_CLO;
 

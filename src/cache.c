@@ -1534,7 +1534,7 @@ static void http_cache_io_handler(struct appctx *appctx)
   end:
 	if (!(res->flags & CF_SHUTR) && appctx->st0 == HTX_CACHE_END) {
 		res->flags |= CF_READ_NULL;
-		cs_shutr(cs);
+		sc_shutr(cs);
 	}
 
   out:

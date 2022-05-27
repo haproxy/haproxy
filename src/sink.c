@@ -426,8 +426,8 @@ static void sink_forward_io_handler(struct appctx *appctx)
 	return;
 
 close:
-	cs_shutw(cs);
-	cs_shutr(cs);
+	sc_shutw(cs);
+	sc_shutr(cs);
 	sc_ic(cs)->flags |= CF_READ_NULL;
 }
 
@@ -570,8 +570,8 @@ static void sink_forward_oc_io_handler(struct appctx *appctx)
 	return;
 
 close:
-	cs_shutw(cs);
-	cs_shutr(cs);
+	sc_shutw(cs);
+	sc_shutr(cs);
 	sc_ic(cs)->flags |= CF_READ_NULL;
 }
 

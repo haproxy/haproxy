@@ -1571,7 +1571,7 @@ static void promex_appctx_handle_io(struct appctx *appctx)
 		case PROMEX_ST_END:
 			if (!(res->flags & CF_SHUTR)) {
 				res->flags |= CF_READ_NULL;
-				cs_shutr(cs);
+				sc_shutr(cs);
 			}
 	}
 
@@ -1587,8 +1587,8 @@ static void promex_appctx_handle_io(struct appctx *appctx)
 
   error:
 	res->flags |= CF_READ_NULL;
-	cs_shutr(cs);
-	cs_shutw(cs);
+	sc_shutr(cs);
+	sc_shutw(cs);
 }
 
 struct applet promex_applet = {

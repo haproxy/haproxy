@@ -719,7 +719,7 @@ static enum act_parse_ret parse_http_set_status(const char **args, int *orig_arg
 static enum act_return http_action_reject(struct act_rule *rule, struct proxy *px,
                                           struct session *sess, struct stream *s, int flags)
 {
-	cs_must_kill_conn(chn_prod(&s->req));
+	sc_must_kill_conn(chn_prod(&s->req));
 	channel_abort(&s->req);
 	channel_abort(&s->res);
 	s->req.analysers &= AN_REQ_FLT_END;
