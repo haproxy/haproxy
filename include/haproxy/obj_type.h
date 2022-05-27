@@ -51,7 +51,7 @@ static inline const char *obj_type_name(const enum obj_type *t)
 	case OBJ_TYPE_APPCTX:   return "APPCTX";
 	case OBJ_TYPE_CONN:     return "CONN";
 	case OBJ_TYPE_SRVRQ:    return "SRVRQ";
-	case OBJ_TYPE_CS:       return "CS";
+	case OBJ_TYPE_SC:       return "SC";
 	case OBJ_TYPE_STREAM:   return "STREAM";
 	case OBJ_TYPE_CHECK:    return "CHECK";
 	default:                return "!INVAL!";
@@ -125,16 +125,16 @@ static inline struct appctx *objt_appctx(enum obj_type *t)
 	return __objt_appctx(t);
 }
 
-static inline struct stconn *__objt_cs(enum obj_type *t)
+static inline struct stconn *__objt_sc(enum obj_type *t)
 {
 	return (container_of(t, struct stconn, obj_type));
 }
 
-static inline struct stconn *objt_cs(enum obj_type *t)
+static inline struct stconn *objt_sc(enum obj_type *t)
 {
-	if (!t || *t != OBJ_TYPE_CS)
+	if (!t || *t != OBJ_TYPE_SC)
 		return NULL;
-	return __objt_cs(t);
+	return __objt_sc(t);
 }
 
 static inline struct connection *__objt_conn(enum obj_type *t)
@@ -196,7 +196,7 @@ static inline void *obj_base_ptr(enum obj_type *t)
 	case OBJ_TYPE_APPCTX:   return __objt_appctx(t);
 	case OBJ_TYPE_CONN:     return __objt_conn(t);
 	case OBJ_TYPE_SRVRQ:    return __objt_resolv_srvrq(t);
-	case OBJ_TYPE_CS:       return __objt_cs(t);
+	case OBJ_TYPE_SC:       return __objt_sc(t);
 	case OBJ_TYPE_STREAM:   return __objt_stream(t);
 	case OBJ_TYPE_CHECK:    return __objt_check(t);
 	default:                return t; // exact pointer for invalid case

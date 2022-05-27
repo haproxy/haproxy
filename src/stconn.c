@@ -130,7 +130,7 @@ static struct stconn *sc_new(struct sedesc *sedesc)
 	if (unlikely(!sc))
 		goto alloc_error;
 
-	sc->obj_type = OBJ_TYPE_CS;
+	sc->obj_type = OBJ_TYPE_SC;
 	sc->flags = SC_FL_NONE;
 	sc->state = SC_ST_INI;
 	sc->hcto = TICK_ETERNITY;
