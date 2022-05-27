@@ -107,7 +107,7 @@ static inline struct stconn *qc_attach_cs(struct qcs *qcs, struct buffer *buf)
 	/* TODO duplicated from mux_h2 */
 	sess->t_idle = tv_ms_elapsed(&sess->tv_accept, &now) - sess->t_handshake;
 
-	if (!cs_new_from_endp(qcs->endp, sess, buf))
+	if (!sc_new_from_endp(qcs->endp, sess, buf))
 		return NULL;
 
 	++qcc->nb_cs;

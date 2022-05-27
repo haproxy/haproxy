@@ -1840,7 +1840,7 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 		}
 
 		s->target = &http_cache_applet.obj_type;
-		if ((appctx = cs_applet_create(s->scb, objt_applet(s->target)))) {
+		if ((appctx = sc_applet_create(s->scb, objt_applet(s->target)))) {
 			struct cache_appctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
 
 			appctx->st0 = HTX_CACHE_INIT;

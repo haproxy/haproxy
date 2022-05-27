@@ -38,18 +38,18 @@ struct check;
 struct sedesc *sedesc_new();
 void sedesc_free(struct sedesc *sedesc);
 
-struct stconn *cs_new_from_endp(struct sedesc *sedesc, struct session *sess, struct buffer *input);
-struct stconn *cs_new_from_strm(struct stream *strm, unsigned int flags);
-struct stconn *cs_new_from_check(struct check *check, unsigned int flags);
-void cs_free(struct stconn *cs);
+struct stconn *sc_new_from_endp(struct sedesc *sedesc, struct session *sess, struct buffer *input);
+struct stconn *sc_new_from_strm(struct stream *strm, unsigned int flags);
+struct stconn *sc_new_from_check(struct check *check, unsigned int flags);
+void sc_free(struct stconn *cs);
 
 int cs_attach_mux(struct stconn *cs, void *target, void *ctx);
 int cs_attach_strm(struct stconn *cs, struct stream *strm);
 
-void cs_destroy(struct stconn *cs);
+void sc_destroy(struct stconn *cs);
 int cs_reset_endp(struct stconn *cs);
 
-struct appctx *cs_applet_create(struct stconn *cs, struct applet *app);
+struct appctx *sc_applet_create(struct stconn *cs, struct applet *app);
 
 /* The se_fl_*() set of functions manipulate the stream endpoint flags from
  * the stream endpoint itself. The sc_ep_*() set of functions manipulate the

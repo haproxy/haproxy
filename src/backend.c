@@ -2175,7 +2175,7 @@ void back_handle_st_req(struct stream *s)
 		 * in SC_ST_RDY state. So, try to create the appctx now.
 		 */
 		BUG_ON(sc_appctx(cs));
-		appctx = cs_applet_create(cs, objt_applet(s->target));
+		appctx = sc_applet_create(cs, objt_applet(s->target));
 		if (!appctx) {
 			/* No more memory, let's immediately abort. Force the
 			 * error code to ignore the ERR_LOCAL which is not a

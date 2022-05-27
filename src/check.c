@@ -1119,7 +1119,7 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 
 		check->current_step = NULL;
 
-		check->cs = cs_new_from_check(check, SC_FL_NONE);
+		check->cs = sc_new_from_check(check, SC_FL_NONE);
 		if (!check->cs) {
 			set_server_check_status(check, HCHK_STATUS_SOCKERR, NULL);
 			goto end;
@@ -1180,7 +1180,7 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 	}
 
 	if (cs) {
-		cs_destroy(cs);
+		sc_destroy(cs);
 		cs = check->cs = NULL;
 		conn = NULL;
 	}
@@ -1341,7 +1341,7 @@ void free_check(struct check *check)
 	check_release_buf(check, &check->bi);
 	check_release_buf(check, &check->bo);
 	if (check->cs) {
-		cs_destroy(check->cs);
+		sc_destroy(check->cs);
 		check->cs = NULL;
 	}
 }

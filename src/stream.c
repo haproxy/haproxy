@@ -449,7 +449,7 @@ struct stream *stream_new(struct session *sess, struct stconn *cs, struct buffer
 	if (cs_attach_strm(s->scf, s) < 0)
 		goto out_fail_attach_scf;
 
-	s->scb = cs_new_from_strm(s, SC_FL_ISBACK);
+	s->scb = sc_new_from_strm(s, SC_FL_ISBACK);
 	if (!s->scb)
 		goto out_fail_alloc_scb;
 
@@ -568,7 +568,7 @@ struct stream *stream_new(struct session *sess, struct stconn *cs, struct buffer
 	flt_stream_release(s, 0);
 	LIST_DELETE(&s->list);
  out_fail_attach_scf:
-	cs_free(s->scb);
+	sc_free(s->scb);
  out_fail_alloc_scb:
 	task_destroy(t);
  out_fail_alloc:
@@ -708,8 +708,8 @@ void stream_free(struct stream *s)
 	}
 	LIST_DELETE(&s->list);
 
-	cs_destroy(s->scb);
-	cs_destroy(s->scf);
+	sc_destroy(s->scb);
+	sc_destroy(s->scf);
 
 	pool_free(pool_head_stream, s);
 
@@ -992,7 +992,7 @@ enum act_return process_use_service(struct act_rule *rule, struct proxy *px,
 	if (flags & ACT_OPT_FIRST) {
 		/* Register applet. this function schedules the applet. */
 		s->target = &rule->applet.obj_type;
-		appctx = cs_applet_create(s->scb, objt_applet(s->target));
+		appctx = sc_applet_create(s->scb, objt_applet(s->target));
 		if (unlikely(!appctx))
 			return ACT_RET_ERR;
 

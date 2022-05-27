@@ -121,7 +121,7 @@ void sedesc_free(struct sedesc *sedesc)
  * function. The caller must, at least, set the SE_FL_ORPHAN or SE_FL_DETACHED
  * flag.
  */
-static struct stconn *cs_new(struct sedesc *sedesc)
+static struct stconn *sc_new(struct sedesc *sedesc)
 {
 	struct stconn *cs;
 
@@ -161,11 +161,11 @@ static struct stconn *cs_new(struct sedesc *sedesc)
  * defined. It returns NULL on error. On success, the new stream connector is
  * returned. In this case, SE_FL_ORPHAN flag is removed.
  */
-struct stconn *cs_new_from_endp(struct sedesc *sedesc, struct session *sess, struct buffer *input)
+struct stconn *sc_new_from_endp(struct sedesc *sedesc, struct session *sess, struct buffer *input)
 {
 	struct stconn *cs;
 
-	cs = cs_new(sedesc);
+	cs = sc_new(sedesc);
 	if (unlikely(!cs))
 		return NULL;
 	if (unlikely(!stream_new(sess, cs, input))) {
@@ -177,14 +177,14 @@ struct stconn *cs_new_from_endp(struct sedesc *sedesc, struct session *sess, str
 }
 
 /* Creates a new stream connector from an stream. There is no endpoint here, thus it
- * will be created by cs_new(). So the SE_FL_DETACHED flag is set. It returns
+ * will be created by sc_new(). So the SE_FL_DETACHED flag is set. It returns
  * NULL on error. On success, the new stream connector is returned.
  */
-struct stconn *cs_new_from_strm(struct stream *strm, unsigned int flags)
+struct stconn *sc_new_from_strm(struct stream *strm, unsigned int flags)
 {
 	struct stconn *cs;
 
-	cs = cs_new(NULL);
+	cs = sc_new(NULL);
 	if (unlikely(!cs))
 		return NULL;
 	cs->flags |= flags;
@@ -195,14 +195,14 @@ struct stconn *cs_new_from_strm(struct stream *strm, unsigned int flags)
 }
 
 /* Creates a new stream connector from an health-check. There is no endpoint here,
- * thus it will be created by cs_new(). So the SE_FL_DETACHED flag is set. It
+ * thus it will be created by sc_new(). So the SE_FL_DETACHED flag is set. It
  * returns NULL on error. On success, the new stream connector is returned.
  */
-struct stconn *cs_new_from_check(struct check *check, unsigned int flags)
+struct stconn *sc_new_from_check(struct check *check, unsigned int flags)
 {
 	struct stconn *cs;
 
-	cs = cs_new(NULL);
+	cs = sc_new(NULL);
 	if (unlikely(!cs))
 		return NULL;
 	cs->flags |= flags;
@@ -212,10 +212,10 @@ struct stconn *cs_new_from_check(struct check *check, unsigned int flags)
 	return cs;
 }
 
-/* Releases a stconn previously allocated by cs_new(), as well as its
+/* Releases a stconn previously allocated by sc_new(), as well as its
  * endpoint, if it exists. This function is called internally or on error path.
  */
-void cs_free(struct stconn *cs)
+void sc_free(struct stconn *cs)
 {
 	sockaddr_free(&cs->src);
 	sockaddr_free(&cs->dst);
@@ -232,12 +232,12 @@ void cs_free(struct stconn *cs)
  * layer defined. Except on error path, this one must be used. if release, the
  * pointer on the CS is set to NULL.
  */
-static void cs_free_cond(struct stconn **csp)
+static void sc_free_cond(struct stconn **csp)
 {
 	struct stconn *cs = *csp;
 
 	if (!cs->app && (!cs->sedesc || sc_ep_test(cs, SE_FL_DETACHED))) {
-		cs_free(cs);
+		sc_free(cs);
 		*csp = NULL;
 	}
 }
@@ -394,7 +394,7 @@ static void cs_detach_endp(struct stconn **csp)
 		cs->app_ops = &sc_app_embedded_ops;
 	else
 		cs->app_ops = NULL;
-	cs_free_cond(csp);
+	sc_free_cond(csp);
 }
 
 /* Detaches the stconn from the app layer. If there is no endpoint attached
@@ -416,13 +416,13 @@ static void cs_detach_app(struct stconn **csp)
 		tasklet_free(cs->wait_event.tasklet);
 	cs->wait_event.tasklet = NULL;
 	cs->wait_event.events = 0;
-	cs_free_cond(csp);
+	sc_free_cond(csp);
 }
 
 /* Destroy the stconn. It is detached from its endpoint and its
  * application. After this call, the stconn must be considered as released.
  */
-void cs_destroy(struct stconn *cs)
+void sc_destroy(struct stconn *cs)
 {
 	cs_detach_endp(&cs);
 	cs_detach_app(&cs);
@@ -478,7 +478,7 @@ int cs_reset_endp(struct stconn *cs)
  * It also pre-initializes the applet's context and returns it (or NULL in case
  * it could not be allocated).
  */
-struct appctx *cs_applet_create(struct stconn *cs, struct applet *app)
+struct appctx *sc_applet_create(struct stconn *cs, struct applet *app)
 {
 	struct appctx *appctx;
 

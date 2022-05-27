@@ -98,7 +98,7 @@ int appctx_finalize_startup(struct appctx *appctx, struct proxy *px, struct buff
 	sess = session_new(px, NULL, &appctx->obj_type);
 	if (!sess)
 		return -1;
-	if (!cs_new_from_endp(appctx->sedesc, sess, input)) {
+	if (!sc_new_from_endp(appctx->sedesc, sess, input)) {
 		session_free(sess);
 		return -1;
 	}
