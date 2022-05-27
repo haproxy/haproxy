@@ -636,8 +636,8 @@ err:
 static void httpclient_applet_io_handler(struct appctx *appctx)
 {
 	struct httpclient *hc = appctx->svcctx;
-	struct stconn *cs = appctx_cs(appctx);
-	struct stream *s = __sc_strm(cs);
+	struct stconn *sc = appctx_cs(appctx);
+	struct stream *s = __sc_strm(sc);
 	struct channel *req = &s->req;
 	struct channel *res = &s->res;
 	struct htx_blk *blk = NULL;
@@ -911,13 +911,13 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 
 process_data:
 
-	sc_will_read(cs);
+	sc_will_read(sc);
 
 	return;
 more:
 	/* There was not enough data in the response channel */
 
-	sc_need_room(cs);
+	sc_need_room(sc);
 
 	if (appctx->st0 == HTTPCLIENT_S_RES_END)
 		goto end;
@@ -933,8 +933,8 @@ more:
 	return;
 
 end:
-	sc_shutw(cs);
-	sc_shutr(cs);
+	sc_shutw(sc);
+	sc_shutr(sc);
 	return;
 }
 
