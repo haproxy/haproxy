@@ -9,9 +9,9 @@
 #include <haproxy/pool.h>
 #include <haproxy/xprt_quic.h>
 
-DECLARE_STATIC_POOL(pool_head_quic_conn_stream, "qc_stream_desc",
+DECLARE_STATIC_POOL(pool_head_quic_stream_desc, "qc_stream_desc",
                     sizeof(struct qc_stream_desc));
-DECLARE_STATIC_POOL(pool_head_quic_conn_stream_buf, "qc_stream_buf",
+DECLARE_STATIC_POOL(pool_head_quic_stream_buf, "qc_stream_buf",
                     sizeof(struct qc_stream_buf));
 
 
@@ -25,7 +25,7 @@ struct qc_stream_desc *qc_stream_desc_new(uint64_t id, enum qcs_type type, void 
 {
 	struct qc_stream_desc *stream;
 
-	stream = pool_alloc(pool_head_quic_conn_stream);
+	stream = pool_alloc(pool_head_quic_stream_desc);
 	if (!stream)
 		return NULL;
 
@@ -117,7 +117,7 @@ int qc_stream_desc_ack(struct qc_stream_desc **stream, size_t offset, size_t len
 	}
 
 	b_free(buf);
-	pool_free(pool_head_quic_conn_stream_buf, stream_buf);
+	pool_free(pool_head_quic_stream_buf, stream_buf);
 	offer_buffers(NULL, 1);
 
 	/* notify MUX about available buffers. */
@@ -157,7 +157,7 @@ void qc_stream_desc_free(struct qc_stream_desc *stream)
 		if (!(b_data(&buf->buf))) {
 			b_free(&buf->buf);
 			LIST_DELETE(&buf->list);
-			pool_free(pool_head_quic_conn_stream_buf, buf);
+			pool_free(pool_head_quic_stream_buf, buf);
 
 			++free_count;
 		}
@@ -194,7 +194,7 @@ void qc_stream_desc_free(struct qc_stream_desc *stream)
 	}
 
 	eb64_delete(&stream->by_id);
-	pool_free(pool_head_quic_conn_stream, stream);
+	pool_free(pool_head_quic_stream_desc, stream);
 }
 
 /* Return the current buffer of <stream>. May be NULL if not allocated. */
@@ -235,7 +235,7 @@ struct buffer *qc_stream_buf_alloc(struct qc_stream_desc *stream,
 	++qc->stream_buf_count;
 
 	stream->buf_offset = offset;
-	stream->buf = pool_alloc(pool_head_quic_conn_stream_buf);
+	stream->buf = pool_alloc(pool_head_quic_stream_buf);
 	if (!stream->buf)
 		return NULL;
 
