@@ -389,19 +389,19 @@ struct xprt_ops {
 struct mux_ops {
 	int  (*init)(struct connection *conn, struct proxy *prx, struct session *sess, struct buffer *input);  /* early initialization */
 	int  (*wake)(struct connection *conn);        /* mux-layer callback to report activity, mandatory */
-	size_t (*rcv_buf)(struct stconn *cs, struct buffer *buf, size_t count, int flags); /* Called from the upper layer to get data */
-	size_t (*snd_buf)(struct stconn *cs, struct buffer *buf, size_t count, int flags); /* Called from the upper layer to send data */
-	int  (*rcv_pipe)(struct stconn *cs, struct pipe *pipe, unsigned int count); /* recv-to-pipe callback */
-	int  (*snd_pipe)(struct stconn *cs, struct pipe *pipe); /* send-to-pipe callback */
-	void (*shutr)(struct stconn *cs, enum co_shr_mode);     /* shutr function */
-	void (*shutw)(struct stconn *cs, enum co_shw_mode);     /* shutw function */
+	size_t (*rcv_buf)(struct stconn *sc, struct buffer *buf, size_t count, int flags); /* Called from the upper layer to get data */
+	size_t (*snd_buf)(struct stconn *sc, struct buffer *buf, size_t count, int flags); /* Called from the upper layer to send data */
+	int  (*rcv_pipe)(struct stconn *sc, struct pipe *pipe, unsigned int count); /* recv-to-pipe callback */
+	int  (*snd_pipe)(struct stconn *sc, struct pipe *pipe); /* send-to-pipe callback */
+	void (*shutr)(struct stconn *sc, enum co_shr_mode);     /* shutr function */
+	void (*shutw)(struct stconn *sc, enum co_shw_mode);     /* shutw function */
 
 	int (*attach)(struct connection *conn, struct sedesc *, struct session *sess); /* attach a stconn to an outgoing connection */
 	struct stconn *(*get_first_sc)(const struct connection *); /* retrieves any valid stconn from this connection */
 	void (*detach)(struct sedesc *); /* Detach an stconn from the stdesc from an outgoing connection, when the request is done */
 	int (*show_fd)(struct buffer *, struct connection *); /* append some data about connection into chunk for "show fd"; returns non-zero if suspicious */
-	int (*subscribe)(struct stconn *cs, int event_type,  struct wait_event *es); /* Subscribe <es> to events, such as "being able to send" */
-	int (*unsubscribe)(struct stconn *cs, int event_type,  struct wait_event *es); /* Unsubscribe <es> from events */
+	int (*subscribe)(struct stconn *sc, int event_type,  struct wait_event *es); /* Subscribe <es> to events, such as "being able to send" */
+	int (*unsubscribe)(struct stconn *sc, int event_type,  struct wait_event *es); /* Unsubscribe <es> from events */
 	int (*avail_streams)(struct connection *conn); /* Returns the number of streams still available for a connection */
 	int (*avail_streams_bidi)(struct connection *conn); /* Returns the number of bidirectional streams still available for a connection */
 	int (*avail_streams_uni)(struct connection *conn); /* Returns the number of unidirectional streams still available for a connection */

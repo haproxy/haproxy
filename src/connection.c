@@ -61,7 +61,7 @@ int conn_create_mux(struct connection *conn)
 {
 	if (conn_is_back(conn)) {
 		struct server *srv;
-		struct stconn *cs = conn->ctx;
+		struct stconn *sc = conn->ctx;
 		struct session *sess = conn->owner;
 
 		if (conn->flags & CO_FL_ERROR)
@@ -91,7 +91,7 @@ int conn_create_mux(struct connection *conn)
 		return 0;
 fail:
 		/* let the upper layer know the connection failed */
-		cs->app_ops->wake(cs);
+		sc->app_ops->wake(sc);
 		return -1;
 	} else
 		return conn_complete_session(conn);
@@ -1170,13 +1170,13 @@ int conn_send_proxy(struct connection *conn, unsigned int flag)
 	 * we've sent the whole proxy line. Otherwise we use connect().
 	 */
 	if (conn->send_proxy_ofs) {
-		struct stconn *cs;
+		struct stconn *sc;
 		int ret;
 
 		/* If there is no mux attached to the connection, it means the
 		 * connection context is a stream connector.
 		 */
-		cs = conn->mux ? conn_get_first_sc(conn) : conn->ctx;
+		sc = conn->mux ? conn_get_first_sc(conn) : conn->ctx;
 
 		/* The target server expects a PROXY line to be sent first.
 		 * If the send_proxy_ofs is negative, it corresponds to the
@@ -1188,11 +1188,11 @@ int conn_send_proxy(struct connection *conn, unsigned int flag)
 		 * send a LOCAL line (eg: for use with health checks).
 		 */
 
-		if (cs && sc_strm(cs)) {
+		if (sc && sc_strm(sc)) {
 			ret = make_proxy_line(trash.area, trash.size,
 					      objt_server(conn->target),
-					      sc_conn(sc_opposite(cs)),
-					      __sc_strm(cs));
+					      sc_conn(sc_opposite(sc)),
+					      __sc_strm(sc));
 		}
 		else {
 			/* The target server expects a LOCAL line to be sent first. Retrieving
