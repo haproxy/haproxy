@@ -398,7 +398,7 @@ static int mux_pt_attach(struct connection *conn, struct sedesc *endp, struct se
 /* Retrieves a valid stream connector from this connection, or returns NULL.
  * For this mux, it's easy as we can only store a single stream connector.
  */
-static struct stconn *mux_pt_get_first_cs(const struct connection *conn)
+static struct stconn *mux_pt_get_first_sc(const struct connection *conn)
 {
 	struct mux_pt_ctx *ctx = conn->ctx;
 
@@ -662,7 +662,7 @@ const struct mux_ops mux_tcp_ops = {
 	.snd_pipe = mux_pt_snd_pipe,
 #endif
 	.attach = mux_pt_attach,
-	.get_first_cs = mux_pt_get_first_cs,
+	.get_first_sc = mux_pt_get_first_sc,
 	.detach = mux_pt_detach,
 	.avail_streams = mux_pt_avail_streams,
 	.used_streams = mux_pt_used_streams,
@@ -687,7 +687,7 @@ const struct mux_ops mux_pt_ops = {
 	.snd_pipe = mux_pt_snd_pipe,
 #endif
 	.attach = mux_pt_attach,
-	.get_first_cs = mux_pt_get_first_cs,
+	.get_first_sc = mux_pt_get_first_sc,
 	.detach = mux_pt_detach,
 	.avail_streams = mux_pt_avail_streams,
 	.used_streams = mux_pt_used_streams,

@@ -4320,7 +4320,7 @@ static int h2_attach(struct connection *conn, struct sedesc *endp, struct sessio
  * beneficial to scan backwards from the end to reduce the likeliness to find
  * orphans.
  */
-static struct stconn *h2_get_first_cs(const struct connection *conn)
+static struct stconn *h2_get_first_sc(const struct connection *conn)
 {
 	struct h2c *h2c = conn->ctx;
 	struct h2s *h2s;
@@ -6928,7 +6928,7 @@ static const struct mux_ops h2_ops = {
 	.subscribe = h2_subscribe,
 	.unsubscribe = h2_unsubscribe,
 	.attach = h2_attach,
-	.get_first_cs = h2_get_first_cs,
+	.get_first_sc = h2_get_first_sc,
 	.detach = h2_detach,
 	.destroy = h2_destroy,
 	.avail_streams = h2_avail_streams,

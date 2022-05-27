@@ -3554,7 +3554,7 @@ static int fcgi_attach(struct connection *conn, struct sedesc *endp, struct sess
  * beneficial to scan backwards from the end to reduce the likeliness to find
  * orphans.
  */
-static struct stconn *fcgi_get_first_cs(const struct connection *conn)
+static struct stconn *fcgi_get_first_sc(const struct connection *conn)
 {
 	struct fcgi_conn *fconn = conn->ctx;
 	struct fcgi_strm *fstrm;
@@ -4280,7 +4280,7 @@ static const struct mux_ops mux_fcgi_ops = {
 	.init          = fcgi_init,
 	.wake          = fcgi_wake,
 	.attach        = fcgi_attach,
-	.get_first_cs  = fcgi_get_first_cs,
+	.get_first_sc  = fcgi_get_first_sc,
 	.detach        = fcgi_detach,
 	.destroy       = fcgi_destroy,
 	.avail_streams = fcgi_avail_streams,

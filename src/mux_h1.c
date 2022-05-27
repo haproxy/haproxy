@@ -3340,7 +3340,7 @@ static int h1_attach(struct connection *conn, struct sedesc *endp, struct sessio
 /* Retrieves a valid stream connector from this connection, or returns NULL.
  * For this mux, it's easy as we can only store a single stream connector.
  */
-static struct stconn *h1_get_first_cs(const struct connection *conn)
+static struct stconn *h1_get_first_sc(const struct connection *conn)
 {
 	struct h1c *h1c = conn->ctx;
 	struct h1s *h1s = h1c->h1s;
@@ -4205,7 +4205,7 @@ static const struct mux_ops mux_http_ops = {
 	.init        = h1_init,
 	.wake        = h1_wake,
 	.attach      = h1_attach,
-	.get_first_cs = h1_get_first_cs,
+	.get_first_sc = h1_get_first_sc,
 	.detach      = h1_detach,
 	.destroy     = h1_destroy,
 	.avail_streams = h1_avail_streams,
@@ -4231,7 +4231,7 @@ static const struct mux_ops mux_h1_ops = {
 	.init        = h1_init,
 	.wake        = h1_wake,
 	.attach      = h1_attach,
-	.get_first_cs = h1_get_first_cs,
+	.get_first_sc = h1_get_first_sc,
 	.detach      = h1_detach,
 	.destroy     = h1_destroy,
 	.avail_streams = h1_avail_streams,
