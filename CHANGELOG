@@ -1,6 +1,157 @@
 ChangeLog :
 ===========
 
+2022/05/27 : 2.6-dev12
+    - CLEANUP: tools: Clean up non-QUIC error message handling in str2sa_range()
+    - BUG/MEDIUM: tools: Fix `inet_ntop` usage in sa2str
+    - CLEANUP: tools: Crash if inet_ntop fails due to ENOSPC in sa2str
+    - BUG/MEDIUM: mux-quic: adjust buggy proxy closing support
+    - Revert "MINOR: quic: activate QUIC traces at compilation"
+    - Revert "MINOR: mux-quic: activate qmux traces on stdout via macro"
+    - CLEANUP: init: address a coverity warning about possible multiply overflow
+    - BUG/MEDIUM: http: Properly reject non-HTTP/1.x protocols
+    - MEDIUM: h1: enlarge the scope of accepted version chars with accept-invalid-http-request
+    - BUG/MEDIUM: resolvers: Don't defer resolutions release in deinit function
+    - BUG/MEDIUM: peers: fix segfault using multiple bind on peers sections
+    - BUG/MEDIUM: peers: prevent unitialized multiple listeners on peers section
+    - BUG/MINOR: task: Don't defer tasks release when HAProxy is stopping
+    - MINOR: h3: mark ncbuf as const on h3_b_dup
+    - MINOR: mux-quic: do not alloc quic_stream_desc for uni remote stream
+    - MINOR: mux-quic: delay cs_endpoint allocation
+    - MINOR: mux-quic: add traces in qc_recv()
+    - MINOR: mux-quic: adjust return value of decode_qcs
+    - CLEANUP: h3: rename struct h3 -> h3c
+    - CLEANUP: h3: rename uni stream type constants
+    - BUG/MINOR: h3: prevent overflow when parsing SETTINGS
+    - MINOR: h3: refactor h3_control_send()
+    - MINOR: quic: support CONNECTION_CLOSE_APP emission
+    - MINOR: mux-quic: disable read on CONNECTION_CLOSE emission
+    - MINOR: h3: reject too big frames
+    - MINOR: mux-quic: emit STREAM_STATE_ERROR in qcc_recv
+    - BUG/MINOR: mux-quic: refactor uni streams TX/send H3 SETTINGS
+    - MINOR: h3/qpack: use qcs as type in decode callbacks
+    - MINOR: h3: define stream type
+    - MINOR: h3: refactor uni streams initialization
+    - MINOR: h3: check if frame is valid for stream type
+    - MINOR: h3: define non-h3 generic parsing function
+    - MEDIUM: quic: refactor uni streams RX
+    - CLEANUP: h3: remove h3 uni tasklet
+    - MINOR: h3: abort read on unknown uni stream
+    - MINOR: h3: refactor SETTINGS parsing/error reporting
+    - Revert "BUG/MINOR: task: Don't defer tasks release when HAProxy is stopping"
+    - DOC: configuration: add a warning for @system-ca on bind
+    - CLEANUP: init: address another coverity warning about a possible multiply overflow
+    - BUG/MINOR: ssl/lua: use correctly cert_ext in CertCache.set()
+    - BUG/MEDIUM: sample: Fix adjusting size in word converter
+    - REGTESTS: Do not use REQUIRE_VERSION for HAProxy 2.5+ (2)
+    - CLEANUP: conn_stream: remove unneeded exclusion of RX_WAIT_EP from RXBLK_ANY
+    - CLEANUP: conn_stream: rename the cs_endpoint's context to "conn"
+    - MINOR: conn_stream: add new sets of functions to set/get endpoint flags
+    - DEV: coccinelle: add cs_endp_flags.cocci
+    - CLEANUP: conn_stream: apply cs_endp_flags.cocci tree-wide
+    - DEV: coccinelle: add endp_flags.cocci
+    - CLEANUP: conn_stream: apply endp_flags.cocci tree-wide
+    - CLEANUP: conn_stream: rename the stream endpoint flags CS_EP_* to  SE_FL_*
+    - CLEANUP: conn_stream: rename the cs_endpoint's target to "se"
+    - CLEANUP: conn_stream: rename cs_endpoint to sedesc (stream endpoint descriptor)
+    - CLEANUP: applet: rename the sedesc pointer from "endp" to "sedesc"
+    - CLEANUP: conn_stream: rename the conn_stream's endp to sedesc
+    - CLEANUP: conn_stream: rename cs_app_* to sc_app_*
+    - CLEANUP: conn_stream: tree-wide rename to stconn (stream connector)
+    - CLEANUP: mux-h1: add and use h1s_sc() to retrieve the stream connector
+    - CLEANUP: mux-h2: add and use h2s_sc() to retrieve the stream connector
+    - CLEANUP: mux-fcgi: add and use fcgi_strm_sc() to retrieve the stream connector
+    - CLEANUP: mux-pt: add and use pt_sc() to retrieve the stream connector
+    - CLEANUP: stdesc: rename the stream connector ->cs field to ->sc
+    - CLEANUP: stream: rename "csf" and "csb" to "scf" and "scb"
+    - CLEANUP: stconn: tree-wide rename stream connector flags CS_FL_* to SC_FL_*
+    - CLEANUP: stconn: tree-wide rename stconn states CS_ST/SB_* to SC_ST/SB_*
+    - MINOR: check: export wake_srv_chk()
+    - MINOR: conn_stream: test the various ops functions before calling them
+    - MEDIUM: stconn: merge the app_ops and the data_cb fields
+    - MINOR: applet: add new wrappers to put chk/blk/str/chr to channel from appctx
+    - CLEANUP: applet: use applet_put*() everywhere possible
+    - CLEANUP: stconn: rename cs_{i,o}{b,c} to sc_{i,o}{b,c}
+    - CLEANUP: stconn: rename cs_{check,strm,strm_task} to sc_strm_*
+    - CLEANUP: stconn: rename cs_conn() to sc_conn()
+    - CLEANUP: stconn: rename cs_mux() to sc_mux_strm()
+    - CLEANUP: stconn: rename cs_conn_mux() to sc_mux_ops()
+    - CLEANUP: stconn: rename cs_appctx() to sc_appctx()
+    - CLEANUP: stconn: rename __cs_endp_target() to __sc_endp()
+    - CLEANUP: stconn: rename cs_get_data_name() to sc_get_data_name()
+    - CLEANUP: stconn: rename cs_conn_*() to sc_conn_*()
+    - CLEANUP: stconn: rename cs_conn_get_first() to conn_get_first_sc()
+    - CLEANUP: stconn: rename cs_ep_set_error() to se_fl_set_error()
+    - CLEANUP: stconn: make a few functions take a const argument
+    - CLEANUP: stconn: use a single function to know if SC may send to SE
+    - MINOR: stconn: consider CF_SHUTW for sc_is_send_allowed()
+    - MINOR: stconn: remove calls to cs_done_get()
+    - MEDIUM: stconn: always rely on CF_SHUTR in addition to cs_rx_blocked()
+    - MEDIUM: stconn: remove SE_FL_RXBLK_SHUT
+    - MINOR: stconn: rename SE_FL_RXBLK_CONN to SE_FL_APPLET_NEED_CONN
+    - MEDIUM: stconn: take SE_FL_APPLET_NEED_CONN out of the RXBLK_ANY flags
+    - CLEANUP: stconn: rename cs_rx_room_{blk,rdy} to sc_{need,have}_room()
+    - CLEANUP: stconn: rename cs_rx_chan_{blk,rdy} to sc_{wont,will}_read()
+    - CLEANUP: stconn: rename cs_rx_buff_{blk,rdy} to sc_{need,have}_buff()
+    - MINOR: stconn: start to rename cs_rx_endp_{more,done}() to se_have_{no_,}more_data()
+    - MINOR: stconn: add sc_is_recv_allowed() to check for ability to receive
+    - CLEANUP: stconn: rename SE_FL_RX_WAIT_EP to SE_FL_HAVE_NO_DATA
+    - MEDIUM: stconn: move the RXBLK flags to the stream connector
+    - CLEANUP: stconn: rename SE_FL_WANT_GET to SE_FL_WILL_CONSUME
+    - CLEANUP: stconn: remove cs_tx_blocked() and cs_tx_endp_ready()
+    - CLEANUP: stconn: rename cs_{want,stop}_get() to se_{will,wont}_consume()
+    - CLEANUP: stconn: rename cs_cant_get() to se_need_more_data()
+    - CLEANUP: stconn: rename cs_{new,create,free,destroy}_* to sc_*
+    - CLEANUP: stconn: rename remaining management functions from cs_* to sc_*
+    - CLEANUP: stconn: rename cs{,_get}_{src,dst} to sc_*
+    - CLEANUP: stconn: rename cs_{shut,chk}* to sc_*
+    - CLEANUP: stconn: rename final state manipulation functions from cs_* to sc_*
+    - CLEANUP: quic: drop the name "conn_stream" from the pool variable names
+    - REORG: rename cs_utils.h to sc_strm.h
+    - REORG: stconn: rename conn_stream.{c,h} to stconn.{c,h}
+    - CLEANUP: muxes: rename "get_first_cs" to "get_first_sc"
+    - DEV: flags: use "sc" for stream conns instead of "cs"
+    - CLEANUP: check: rename all occurrences of stconn "cs" to "sc"
+    - CLEANUP: connection: rename all occurrences of stconn "cs" to "sc"
+    - CLEANUP: stconn: rename all occurrences of stconn "cs" to "sc"
+    - CLEANUP: quic/h3: rename all occurrences of stconn "cs" to "sc"
+    - CLEANUP: stream: rename all occurrences of stconn "cs" to "sc"
+    - CLEANUP: promex: rename all occurrences of stconn "cs" to "sc"
+    - CLEANUP: stats: rename all occurrences of stconn "cs" to "sc"
+    - CLEANUP: cli: rename all occurrences of stconn "cs" to "sc"
+    - CLEANUP: applet: rename all occurrences of stconn "cs" to "sc"
+    - CLEANUP: cache: rename all occurrences of stconn "cs" to "sc"
+    - CLEANUP: dns: rename all occurrences of stconn "cs" to "sc"
+    - CLEANUP: spoe: rename all occurrences of stconn "cs" to "sc"
+    - CLEANUP: hlua: rename all occurrences of stconn "cs" to "sc"
+    - CLEANUP: log-forward: rename all occurrences of stconn "cs" to "sc"
+    - CLEANUP: http-client: rename all occurrences of stconn "cs" to "sc"
+    - CLEANUP: mux-fcgi: rename all occurrences of stconn "cs" to "sc"
+    - CLEANUP: mux-h1: rename all occurrences of stconn "cs" to "sc"
+    - CLEANUP: mux-h2: rename all occurrences of stconn "cs" to "sc"
+    - CLEANUP: mux-pt: rename all occurrences of stconn "cs" to "sc"
+    - CLEANUP: peers: rename all occurrences of stconn "cs" to "sc"
+    - CLEANUP: sink: rename all occurrences of stconn "cs" to "sc"
+    - CLEANUP: sslsock: remove only occurrence of local variable "cs"
+    - CLEANUP: applet: rename appctx_cs() to appctx_sc()
+    - CLEANUP: stream: rename stream_upgrade_from_cs() to stream_upgrade_from_sc()
+    - CLEANUP: obj_type: rename OBJ_TYPE_CS to OBJ_TYPE_SC
+    - CLEANUP: stconn: replace a few remaining occurrences of CS in comments or traces
+    - DOC: internal: update the muxes doc to mention the stconn
+    - CLEANUP: mux-quic: rename the "endp" field to "sd"
+    - CLEANUP: mux-h1: rename the "endp" field to "sd"
+    - CLEANUP: mux-h2: rename the "endp" field to "sd"
+    - CLEANUP: mux-fcgi: rename the "endp" field to "sd"
+    - CLEANUP: mux-pt: rename the "endp" field to "sd"
+    - CLEANUP: stconn: rename a few "endp" arguments and variables to "sd"
+    - MINOR: stconn: turn SE_FL_WILL_CONSUME to SE_FL_WONT_CONSUME
+    - CLEANUP: stream: remove unneeded test on appctx during initialization
+    - CLEANUP: stconn: remove the new unneeded SE_FL_APP_MASK
+    - DEV: flags: fix "siet" shortcut name
+    - DEV: flags: rename the "endp" shortcut to "sd" for "stream descriptor"
+    - DEV: flags: reorder a few SC/SE flags
+    - DOC: internal: add a description of the stream connectors and descriptors
+
 2022/05/20 : 2.6-dev11
     - CI: determine actual LibreSSL version dynamically
     - BUG/MEDIUM: ncbuf: fix null buffer usage
