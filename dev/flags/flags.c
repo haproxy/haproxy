@@ -17,11 +17,11 @@
 #define SHOW_AS_STRM  0x00000020
 #define SHOW_AS_TASK  0x00000040
 #define SHOW_AS_TXN   0x00000080
-#define SHOW_AS_ENDP  0x00000100
+#define SHOW_AS_SD    0x00000100
 
 // command line names, must be in exact same order as the SHOW_AS_* flags above
 // so that show_as_words[i] matches flag 1U<<i.
-const char *show_as_words[] = { "ana", "chn", "conn", "sc", "stet", "strm", "task", "txn", "endp", };
+const char *show_as_words[] = { "ana", "chn", "conn", "sc", "stet", "strm", "task", "txn", "sd", };
 
 #define SHOW_FLAG(f,n)					\
 	do {				 		\
@@ -176,9 +176,9 @@ void show_conn_flags(unsigned int f)
 	putchar('\n');
 }
 
-void show_endp_flags(unsigned int f)
+void show_sd_flags(unsigned int f)
 {
-	printf("endp->flags = ");
+	printf("sd->flags   = ");
 	if (!f) {
 		printf("0\n");
 		return;
@@ -478,7 +478,7 @@ int main(int argc, char **argv)
 		if (show_as & SHOW_AS_CHN)   show_chn_flags(flags);
 		if (show_as & SHOW_AS_CONN)  show_conn_flags(flags);
 		if (show_as & SHOW_AS_SC)    show_sc_flags(flags);
-		if (show_as & SHOW_AS_ENDP)  show_endp_flags(flags);
+		if (show_as & SHOW_AS_SD)    show_sd_flags(flags);
 		if (show_as & SHOW_AS_SET)   show_strm_et(flags);
 		if (show_as & SHOW_AS_STRM)  show_strm_flags(flags);
 		if (show_as & SHOW_AS_TASK)  show_task_state(flags);
