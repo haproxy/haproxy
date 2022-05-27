@@ -157,22 +157,22 @@ static struct stconn *sc_new(struct sedesc *sedesc)
 	return NULL;
 }
 
-/* Creates a new stream connector and its associated stream from a mux. <endp> must be
- * defined. It returns NULL on error. On success, the new stream connector is
+/* Creates a new stream connector and its associated stream from a mux. <sd> must
+ * be defined. It returns NULL on error. On success, the new stream connector is
  * returned. In this case, SE_FL_ORPHAN flag is removed.
  */
-struct stconn *sc_new_from_endp(struct sedesc *sedesc, struct session *sess, struct buffer *input)
+struct stconn *sc_new_from_endp(struct sedesc *sd, struct session *sess, struct buffer *input)
 {
 	struct stconn *sc;
 
-	sc = sc_new(sedesc);
+	sc = sc_new(sd);
 	if (unlikely(!sc))
 		return NULL;
 	if (unlikely(!stream_new(sess, sc, input))) {
 		pool_free(pool_head_connstream, sc);
 		sc = NULL;
 	}
-	se_fl_clr(sedesc, SE_FL_ORPHAN);
+	se_fl_clr(sd, SE_FL_ORPHAN);
 	return sc;
 }
 
@@ -247,12 +247,12 @@ static void sc_free_cond(struct stconn **scp)
  * -1 on error and 0 on sucess. SE_FL_DETACHED flag is removed. This function is
  * called from a mux when it is attached to a stream or a health-check.
  */
-int sc_attach_mux(struct stconn *sc, void *endp, void *ctx)
+int sc_attach_mux(struct stconn *sc, void *sd, void *ctx)
 {
 	struct connection *conn = ctx;
 	struct sedesc *sedesc = sc->sedesc;
 
-	sedesc->se = endp;
+	sedesc->se = sd;
 	sedesc->conn = ctx;
 	se_fl_set(sedesc, SE_FL_T_MUX);
 	se_fl_clr(sedesc, SE_FL_DETACHED);
@@ -290,9 +290,9 @@ int sc_attach_mux(struct stconn *sc, void *endp, void *ctx)
  * removed. This function is called by a stream when a backend applet is
  * registered.
  */
-static void sc_attach_applet(struct stconn *sc, void *endp)
+static void sc_attach_applet(struct stconn *sc, void *sd)
 {
-	sc->sedesc->se = endp;
+	sc->sedesc->se = sd;
 	sc_ep_set(sc, SE_FL_T_APPLET);
 	sc_ep_clr(sc, SE_FL_DETACHED);
 	if (sc_strm(sc))
@@ -438,7 +438,7 @@ void sc_destroy(struct stconn *sc)
  */
 int sc_reset_endp(struct stconn *sc)
 {
-	struct sedesc *new_endp;
+	struct sedesc *new_sd;
 
 	BUG_ON(!sc->app);
 
@@ -455,17 +455,17 @@ int sc_reset_endp(struct stconn *sc)
 
 	/* allocate the new endpoint first to be able to set error if it
 	 * fails */
-	new_endp = sedesc_new();
-	if (!unlikely(new_endp)) {
+	new_sd = sedesc_new();
+	if (!unlikely(new_sd)) {
 		sc_ep_set(sc, SE_FL_ERROR);
 		return -1;
 	}
-	se_fl_setall(new_endp, sc_ep_get(sc) & SE_FL_APP_MASK);
+	se_fl_setall(new_sd, sc_ep_get(sc) & SE_FL_APP_MASK);
 
 	/* The app is still attached, the sc will not be released */
 	sc_detach_endp(&sc);
 	BUG_ON(sc->sedesc);
-	sc->sedesc = new_endp;
+	sc->sedesc = new_sd;
 	sc->sedesc->sc = sc;
 	sc_ep_set(sc, SE_FL_DETACHED);
 	return 0;
