@@ -1455,9 +1455,9 @@ static void http_cache_io_handler(struct appctx *appctx)
 	struct cache_appctx *ctx = appctx->svcctx;
 	struct cache_entry *cache_ptr = ctx->entry;
 	struct shared_block *first = block_ptr(cache_ptr);
-	struct stconn *cs = appctx_cs(appctx);
-	struct channel *req = sc_oc(cs);
-	struct channel *res = sc_ic(cs);
+	struct stconn *sc = appctx_cs(appctx);
+	struct channel *req = sc_oc(sc);
+	struct channel *res = sc_ic(sc);
 	struct htx *req_htx, *res_htx;
 	struct buffer *errmsg;
 	unsigned int len;
@@ -1466,12 +1466,12 @@ static void http_cache_io_handler(struct appctx *appctx)
 	res_htx = htx_from_buf(&res->buf);
 	total = res_htx->data;
 
-	if (unlikely(cs->state == SC_ST_DIS || cs->state == SC_ST_CLO))
+	if (unlikely(sc->state == SC_ST_DIS || sc->state == SC_ST_CLO))
 		goto out;
 
 	/* Check if the input buffer is available. */
 	if (!b_size(&res->buf)) {
-		sc_need_room(cs);
+		sc_need_room(sc);
 		goto out;
 	}
 
@@ -1505,7 +1505,7 @@ static void http_cache_io_handler(struct appctx *appctx)
 
 		/* Skip response body for HEAD requests or in case of "304 Not
 		 * Modified" response. */
-		if (__sc_strm(cs)->txn->meth == HTTP_METH_HEAD || ctx->send_notmodified)
+		if (__sc_strm(sc)->txn->meth == HTTP_METH_HEAD || ctx->send_notmodified)
 			appctx->st0 = HTX_CACHE_EOM;
 		else
 			appctx->st0 = HTX_CACHE_DATA;
@@ -1516,7 +1516,7 @@ static void http_cache_io_handler(struct appctx *appctx)
 		if (len) {
 			ret = htx_cache_dump_msg(appctx, res_htx, len, HTX_BLK_UNUSED);
 			if (ret < len) {
-				sc_need_room(cs);
+				sc_need_room(sc);
 				goto out;
 			}
 		}
@@ -1534,7 +1534,7 @@ static void http_cache_io_handler(struct appctx *appctx)
   end:
 	if (!(res->flags & CF_SHUTR) && appctx->st0 == HTX_CACHE_END) {
 		res->flags |= CF_READ_NULL;
-		sc_shutr(cs);
+		sc_shutr(sc);
 	}
 
   out:
