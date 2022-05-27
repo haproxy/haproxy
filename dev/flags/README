@@ -7,6 +7,6 @@ command line, either with values coming from stdin with "-" passed
 alone instead of the value.
 
 It is possible to restrict the decoding to certain fields only by
-specifying one of "ana", "chn", "conn", "cs", "si", "sierr", "strm",
+specifying one of "ana", "chn", "conn", "sc", "si", "sierr", "strm",
 "task", or "txn" before the value.
 

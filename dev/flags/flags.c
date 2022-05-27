@@ -12,7 +12,7 @@
 #define SHOW_AS_ANA   0x00000001
 #define SHOW_AS_CHN   0x00000002
 #define SHOW_AS_CONN  0x00000004
-#define SHOW_AS_CS    0x00000008
+#define SHOW_AS_SC    0x00000008
 #define SHOW_AS_SET   0x00000010
 #define SHOW_AS_STRM  0x00000020
 #define SHOW_AS_TASK  0x00000040
@@ -21,7 +21,7 @@
 
 // command line names, must be in exact same order as the SHOW_AS_* flags above
 // so that show_as_words[i] matches flag 1U<<i.
-const char *show_as_words[] = { "ana", "chn", "conn", "cs", "siet", "strm", "task", "txn", "endp", };
+const char *show_as_words[] = { "ana", "chn", "conn", "sc", "siet", "strm", "task", "txn", "endp", };
 
 #define SHOW_FLAG(f,n)					\
 	do {				 		\
@@ -213,9 +213,9 @@ void show_endp_flags(unsigned int f)
 	}
 	putchar('\n');
 }
-void show_cs_flags(unsigned int f)
+void show_sc_flags(unsigned int f)
 {
-	printf("cs->flags = ");
+	printf("sc->flags   = ");
 	if (!f) {
 		printf("0\n");
 		return;
@@ -408,7 +408,7 @@ void show_strm_flags(unsigned int f)
 
 void usage_exit(const char *name)
 {
-	fprintf(stderr, "Usage: %s [ana|chn|conn|cs|si|sierr|strm|task|txn]* { [+-][0x]value* | - }\n", name);
+	fprintf(stderr, "Usage: %s [ana|chn|conn|sc|si|sierr|strm|task|txn]* { [+-][0x]value* | - }\n", name);
 	exit(1);
 }
 
@@ -477,7 +477,7 @@ int main(int argc, char **argv)
 		if (show_as & SHOW_AS_ANA)   show_chn_ana(flags);
 		if (show_as & SHOW_AS_CHN)   show_chn_flags(flags);
 		if (show_as & SHOW_AS_CONN)  show_conn_flags(flags);
-		if (show_as & SHOW_AS_CS)    show_cs_flags(flags);
+		if (show_as & SHOW_AS_SC)    show_sc_flags(flags);
 		if (show_as & SHOW_AS_ENDP)  show_endp_flags(flags);
 		if (show_as & SHOW_AS_SET)   show_strm_et(flags);
 		if (show_as & SHOW_AS_STRM)  show_strm_flags(flags);
