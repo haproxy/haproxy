@@ -2587,13 +2587,13 @@ static int resolvers_finalize_config(void)
 
 }
 
-static int stats_dump_resolv_to_buffer(struct stconn *cs,
+static int stats_dump_resolv_to_buffer(struct stconn *sc,
                                     struct dns_nameserver *ns,
                                     struct field *stats, size_t stats_count,
                                     struct list *stat_modules)
 {
-	struct appctx *appctx = __sc_appctx(cs);
-	struct channel *rep = sc_ic(cs);
+	struct appctx *appctx = __sc_appctx(sc);
+	struct channel *rep = sc_ic(sc);
 	struct stats_module *mod;
 	size_t idx = 0;
 
@@ -2615,20 +2615,20 @@ static int stats_dump_resolv_to_buffer(struct stconn *cs,
 	return 1;
 
   full:
-	sc_have_room(cs);
+	sc_have_room(sc);
 	return 0;
 }
 
 /* Uses <appctx.ctx.stats.obj1> as a pointer to the current resolver and <obj2>
  * as a pointer to the current nameserver.
  */
-int stats_dump_resolvers(struct stconn *cs,
+int stats_dump_resolvers(struct stconn *sc,
                          struct field *stats, size_t stats_count,
                          struct list *stat_modules)
 {
-	struct appctx *appctx = __sc_appctx(cs);
+	struct appctx *appctx = __sc_appctx(sc);
 	struct show_stat_ctx *ctx = appctx->svcctx;
-	struct channel *rep = sc_ic(cs);
+	struct channel *rep = sc_ic(sc);
 	struct resolvers *resolver = ctx->obj1;
 	struct dns_nameserver *ns = ctx->obj2;
 
@@ -2649,7 +2649,7 @@ int stats_dump_resolvers(struct stconn *cs,
 			if (buffer_almost_full(&rep->buf))
 				goto full;
 
-			if (!stats_dump_resolv_to_buffer(cs, ns,
+			if (!stats_dump_resolv_to_buffer(sc, ns,
 			                                 stats, stats_count,
 			                                 stat_modules)) {
 				return 0;
@@ -2662,7 +2662,7 @@ int stats_dump_resolvers(struct stconn *cs,
 	return 1;
 
   full:
-	sc_need_room(cs);
+	sc_need_room(sc);
 	return 0;
 }
 

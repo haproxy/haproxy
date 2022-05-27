@@ -55,7 +55,7 @@ void resolv_trigger_resolution(struct resolv_requester *requester);
 enum act_parse_ret resolv_parse_do_resolve(const char **args, int *orig_arg, struct proxy *px, struct act_rule *rule, char **err);
 int check_action_do_resolve(struct act_rule *rule, struct proxy *px, char **err);
 
-int stats_dump_resolvers(struct stconn *cs,
+int stats_dump_resolvers(struct stconn *sc,
                          struct field *stats, size_t stats_count,
                          struct list *stat_modules);
 void resolv_stats_clear_counters(int clrall, struct list *stat_modules);
