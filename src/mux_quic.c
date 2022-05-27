@@ -124,7 +124,7 @@ struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
 
 	qcs->stream = NULL;
 	qcs->qcc = qcc;
-	qcs->endp = NULL;
+	qcs->sd = NULL;
 	qcs->flags = QC_SF_NONE;
 	qcs->ctx = NULL;
 
@@ -213,8 +213,8 @@ void qcs_free(struct qcs *qcs)
 
 	qc_stream_desc_release(qcs->stream);
 
-	BUG_ON(qcs->endp && !se_fl_test(qcs->endp, SE_FL_ORPHAN));
-	sedesc_free(qcs->endp);
+	BUG_ON(qcs->sd && !se_fl_test(qcs->sd, SE_FL_ORPHAN));
+	sedesc_free(qcs->sd);
 
 	eb64_delete(&qcs->by_id);
 	pool_free(pool_head_qcs, qcs);
@@ -1422,9 +1422,9 @@ static void qc_destroy(void *ctx)
 	TRACE_LEAVE(QMUX_EV_QCC_END);
 }
 
-static void qc_detach(struct sedesc *endp)
+static void qc_detach(struct sedesc *sd)
 {
-	struct qcs *qcs = endp->se;
+	struct qcs *qcs = sd->se;
 	struct qcc *qcc = qcs->qcc;
 
 	TRACE_ENTER(QMUX_EV_STRM_END, qcc->conn, qcs);
@@ -1499,15 +1499,15 @@ static size_t qc_rcv_buf(struct stconn *sc, struct buffer *buf,
 
  end:
 	if (b_data(&qcs->rx.app_buf)) {
-		se_fl_set(qcs->endp, SE_FL_RCV_MORE | SE_FL_WANT_ROOM);
+		se_fl_set(qcs->sd, SE_FL_RCV_MORE | SE_FL_WANT_ROOM);
 	}
 	else {
-		se_fl_clr(qcs->endp, SE_FL_RCV_MORE | SE_FL_WANT_ROOM);
-		if (se_fl_test(qcs->endp, SE_FL_ERR_PENDING))
-			se_fl_set(qcs->endp, SE_FL_ERROR);
+		se_fl_clr(qcs->sd, SE_FL_RCV_MORE | SE_FL_WANT_ROOM);
+		if (se_fl_test(qcs->sd, SE_FL_ERR_PENDING))
+			se_fl_set(qcs->sd, SE_FL_ERROR);
 
 		if (fin)
-			se_fl_set(qcs->endp, SE_FL_EOI);
+			se_fl_set(qcs->sd, SE_FL_EOI);
 
 		if (b_size(&qcs->rx.app_buf)) {
 			b_free(&qcs->rx.app_buf);
@@ -1582,20 +1582,20 @@ static int qc_wake_some_streams(struct qcc *qcc)
 	     node = eb64_next(node)) {
 		qcs = eb64_entry(node, struct qcs, by_id);
 
-		if (!qcs->endp || !qcs->endp->sc)
+		if (!qcs->sd || !qcs->sd->sc)
 			continue;
 
 		if (qcc->conn->flags & CO_FL_ERROR) {
-			se_fl_set(qcs->endp, SE_FL_ERR_PENDING);
-			if (se_fl_test(qcs->endp, SE_FL_EOS))
-				se_fl_set(qcs->endp, SE_FL_ERROR);
+			se_fl_set(qcs->sd, SE_FL_ERR_PENDING);
+			if (se_fl_test(qcs->sd, SE_FL_EOS))
+				se_fl_set(qcs->sd, SE_FL_ERROR);
 
 			if (qcs->subs) {
 				qcs_notify_recv(qcs);
 				qcs_notify_send(qcs);
 			}
-			else if (qcs->endp->sc->app_ops->wake) {
-				qcs->endp->sc->app_ops->wake(qcs->endp->sc);
+			else if (qcs->sd->sc->app_ops->wake) {
+				qcs->sd->sc->app_ops->wake(qcs->sd->sc);
 			}
 		}
 	}

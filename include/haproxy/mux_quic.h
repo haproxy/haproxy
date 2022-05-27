@@ -96,18 +96,18 @@ static inline struct stconn *qc_attach_sc(struct qcs *qcs, struct buffer *buf)
 	struct qcc *qcc = qcs->qcc;
 	struct session *sess = qcc->conn->owner;
 
-	qcs->endp = sedesc_new();
-	if (!qcs->endp)
+	qcs->sd = sedesc_new();
+	if (!qcs->sd)
 		return NULL;
 
-	qcs->endp->se   = qcs;
-	qcs->endp->conn = qcc->conn;
-	se_fl_set(qcs->endp, SE_FL_T_MUX | SE_FL_ORPHAN | SE_FL_NOT_FIRST);
+	qcs->sd->se   = qcs;
+	qcs->sd->conn = qcc->conn;
+	se_fl_set(qcs->sd, SE_FL_T_MUX | SE_FL_ORPHAN | SE_FL_NOT_FIRST);
 
 	/* TODO duplicated from mux_h2 */
 	sess->t_idle = tv_ms_elapsed(&sess->tv_accept, &now) - sess->t_handshake;
 
-	if (!sc_new_from_endp(qcs->endp, sess, buf))
+	if (!sc_new_from_endp(qcs->sd, sess, buf))
 		return NULL;
 
 	++qcc->nb_sc;
@@ -118,7 +118,7 @@ static inline struct stconn *qc_attach_sc(struct qcs *qcs, struct buffer *buf)
 	sess->t_handshake = 0;
 	sess->t_idle = 0;
 
-	return qcs->endp->sc;
+	return qcs->sd->sc;
 }
 
 #endif /* USE_QUIC */
