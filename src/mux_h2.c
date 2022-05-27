@@ -136,7 +136,7 @@ struct h2c {
 	int idle_start;     /* date of the last time the connection went idle */
 	/* 32-bit hole here */
 	unsigned int nb_streams;  /* number of streams in the tree */
-	unsigned int nb_cs;       /* number of attached stream connectors */
+	unsigned int nb_sc;       /* number of attached stream connectors */
 	unsigned int nb_reserved; /* number of reserved streams */
 	unsigned int stream_cnt;  /* total number of streams seen */
 	struct proxy *proxy; /* the proxy this connection was created for */
@@ -577,7 +577,7 @@ static inline struct h2s *h2c_st_by_id(struct h2c *h2c, int id);
 static int h2c_decode_headers(struct h2c *h2c, struct buffer *rxbuf, uint32_t *flags, unsigned long long *body_len, char *upgrade_protocol);
 static int h2_frt_transfer_data(struct h2s *h2s);
 struct task *h2_deferred_shut(struct task *t, void *ctx, unsigned int state);
-static struct h2s *h2c_bck_stream_new(struct h2c *h2c, struct stconn *cs, struct session *sess);
+static struct h2s *h2c_bck_stream_new(struct h2c *h2c, struct stconn *sc, struct session *sess);
 static void h2s_alert(struct h2s *h2s);
 
 /* returns a h2c state as an abbreviated 3-letter string, or "???" if unknown */
@@ -711,7 +711,7 @@ static inline int h2c_read0_pending(struct h2c *h2c)
  */
 static inline int h2c_may_expire(const struct h2c *h2c)
 {
-	return !h2c->nb_cs;
+	return !h2c->nb_sc;
 }
 
 /* update h2c timeout if needed */
@@ -856,9 +856,9 @@ static inline void h2c_restart_reading(const struct h2c *h2c, int consider_buffe
 
 
 /* returns true if the front connection has too many stream connectors attached */
-static inline int h2_frt_has_too_many_cs(const struct h2c *h2c)
+static inline int h2_frt_has_too_many_sc(const struct h2c *h2c)
 {
-	return h2c->nb_cs > h2_settings_max_concurrent_streams;
+	return h2c->nb_sc > h2_settings_max_concurrent_streams;
 }
 
 /* Tries to grab a buffer and to re-enable processing on mux <target>. The h2c
@@ -951,14 +951,14 @@ static inline int h2_streams_left(const struct h2c *h2c)
 }
 
 /* returns the number of streams in use on a connection to figure if it's
- * idle or not. We check nb_cs and not nb_streams as the caller will want
+ * idle or not. We check nb_sc and not nb_streams as the caller will want
  * to know if it was the last one after a detach().
  */
 static int h2_used_streams(struct connection *conn)
 {
 	struct h2c *h2c = conn->ctx;
 
-	return h2c->nb_cs;
+	return h2c->nb_sc;
 }
 
 /* returns the number of concurrent streams available on the connection */
@@ -1075,7 +1075,7 @@ static int h2_init(struct connection *conn, struct proxy *prx, struct session *s
 	h2c->rcvd_c = 0;
 	h2c->rcvd_s = 0;
 	h2c->nb_streams = 0;
-	h2c->nb_cs = 0;
+	h2c->nb_sc = 0;
 	h2c->nb_reserved = 0;
 	h2c->stream_cnt = 0;
 
@@ -1105,7 +1105,7 @@ static int h2_init(struct connection *conn, struct proxy *prx, struct session *s
 	if (h2c->flags & H2_CF_IS_BACK) {
 		/* FIXME: this is temporary, for outgoing connections we need
 		 * to immediately allocate a stream until the code is modified
-		 * so that the caller calls ->attach(). For now the outgoing cs
+		 * so that the caller calls ->attach(). For now the outgoing sc
 		 * is stored as conn->ctx by the caller and saved in conn_ctx.
 		 */
 		struct h2s *h2s;
@@ -1638,7 +1638,7 @@ static struct h2s *h2c_frt_stream_new(struct h2c *h2c, int id, struct buffer *in
 	if (!sc_new_from_endp(h2s->endp, sess, input))
 		goto out_close;
 
-	h2c->nb_cs++;
+	h2c->nb_sc++;
 
 	/* We want the accept date presented to the next stream to be the one
 	 * we have now, the handshake time to be null (since the next stream
@@ -1651,7 +1651,7 @@ static struct h2s *h2c_frt_stream_new(struct h2c *h2c, int id, struct buffer *in
 	sess->t_idle = 0;
 
 	/* OK done, the stream lives its own life now */
-	if (h2_frt_has_too_many_cs(h2c))
+	if (h2_frt_has_too_many_sc(h2c))
 		h2c->flags |= H2_CF_DEM_TOOMANY;
 	TRACE_LEAVE(H2_EV_H2S_NEW, h2c->conn);
 	return h2s;
@@ -1666,11 +1666,11 @@ static struct h2s *h2c_frt_stream_new(struct h2c *h2c, int id, struct buffer *in
 	return NULL;
 }
 
-/* allocates a new stream associated to stream connector <cs> on the h2c
+/* allocates a new stream associated to stream connector <sc> on the h2c
  * connection and returns it, or NULL in case of memory allocation error or if
  * the highest possible stream ID was reached.
  */
-static struct h2s *h2c_bck_stream_new(struct h2c *h2c, struct stconn *cs, struct session *sess)
+static struct h2s *h2c_bck_stream_new(struct h2c *h2c, struct stconn *sc, struct session *sess)
 {
 	struct h2s *h2s = NULL;
 
@@ -1693,15 +1693,15 @@ static struct h2s *h2c_bck_stream_new(struct h2c *h2c, struct stconn *cs, struct
 		goto out;
 	}
 
-	if (sc_attach_mux(cs, h2s, h2c->conn) < 0) {
+	if (sc_attach_mux(sc, h2s, h2c->conn) < 0) {
 		TRACE_ERROR("Failed to allocate a new stream", H2_EV_H2S_NEW, h2c->conn);
 		h2s_destroy(h2s);
 		h2s = NULL;
 		goto out;
 	}
-	h2s->endp = cs->sedesc;
+	h2s->endp = sc->sedesc;
 	h2s->sess = sess;
-	h2c->nb_cs++;
+	h2c->nb_sc++;
 
  out:
 	if (likely(h2s))
@@ -2833,7 +2833,7 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 		goto conn_err;
 	}
 	else if (h2c->flags & H2_CF_DEM_TOOMANY)
-		goto out; // IDLE but too many cs still present
+		goto out; // IDLE but too many sc still present
 
 	error = h2c_decode_headers(h2c, &rxbuf, &flags, &body_len, NULL);
 
@@ -4392,12 +4392,12 @@ static void h2_detach(struct sedesc *endp)
 
 	sess = h2s->sess;
 	h2c = h2s->h2c;
-	h2c->nb_cs--;
-	if (!h2c->nb_cs)
+	h2c->nb_sc--;
+	if (!h2c->nb_sc)
 		h2c->idle_start = now_ms;
 
 	if ((h2c->flags & (H2_CF_IS_BACK|H2_CF_DEM_TOOMANY)) == H2_CF_DEM_TOOMANY &&
-	    !h2_frt_has_too_many_cs(h2c)) {
+	    !h2_frt_has_too_many_sc(h2c)) {
 		/* frontend connection was blocking new streams creation */
 		h2c->flags &= ~H2_CF_DEM_TOOMANY;
 		h2c_restart_reading(h2c, 1);
@@ -4692,9 +4692,9 @@ struct task *h2_deferred_shut(struct task *t, void *ctx, unsigned int state)
 }
 
 /* shutr() called by the stream connector (mux_ops.shutr) */
-static void h2_shutr(struct stconn *cs, enum co_shr_mode mode)
+static void h2_shutr(struct stconn *sc, enum co_shr_mode mode)
 {
-	struct h2s *h2s = __sc_mux_strm(cs);
+	struct h2s *h2s = __sc_mux_strm(sc);
 
 	TRACE_ENTER(H2_EV_STRM_SHUT, h2s->h2c->conn, h2s);
 	if (mode)
@@ -4703,9 +4703,9 @@ static void h2_shutr(struct stconn *cs, enum co_shr_mode mode)
 }
 
 /* shutw() called by the stream connector (mux_ops.shutw) */
-static void h2_shutw(struct stconn *cs, enum co_shw_mode mode)
+static void h2_shutw(struct stconn *sc, enum co_shw_mode mode)
 {
-	struct h2s *h2s = __sc_mux_strm(cs);
+	struct h2s *h2s = __sc_mux_strm(sc);
 
 	TRACE_ENTER(H2_EV_STRM_SHUT, h2s->h2c->conn, h2s);
 	h2_do_shutw(h2s);
@@ -6377,9 +6377,9 @@ static size_t h2s_make_trailers(struct h2s *h2s, struct htx *htx)
  * as at least one event is still subscribed. The <event_type> must only be a
  * combination of SUB_RETRY_RECV and SUB_RETRY_SEND. It always returns 0.
  */
-static int h2_subscribe(struct stconn *cs, int event_type, struct wait_event *es)
+static int h2_subscribe(struct stconn *sc, int event_type, struct wait_event *es)
 {
-	struct h2s *h2s = __sc_mux_strm(cs);
+	struct h2s *h2s = __sc_mux_strm(sc);
 	struct h2c *h2c = h2s->h2c;
 
 	TRACE_ENTER(H2_EV_STRM_SEND|H2_EV_STRM_RECV, h2c->conn, h2s);
@@ -6411,9 +6411,9 @@ static int h2_subscribe(struct stconn *cs, int event_type, struct wait_event *es
  * The <es> pointer is not allowed to differ from the one passed to the
  * subscribe() call. It always returns zero.
  */
-static int h2_unsubscribe(struct stconn *cs, int event_type, struct wait_event *es)
+static int h2_unsubscribe(struct stconn *sc, int event_type, struct wait_event *es)
 {
-	struct h2s *h2s = __sc_mux_strm(cs);
+	struct h2s *h2s = __sc_mux_strm(sc);
 
 	TRACE_ENTER(H2_EV_STRM_SEND|H2_EV_STRM_RECV, h2s->h2c->conn, h2s);
 
@@ -6451,9 +6451,9 @@ static int h2_unsubscribe(struct stconn *cs, int event_type, struct wait_event *
  * mux it may optimize the data copy to <buf> if necessary. Otherwise, it should
  * copy as much data as possible.
  */
-static size_t h2_rcv_buf(struct stconn *cs, struct buffer *buf, size_t count, int flags)
+static size_t h2_rcv_buf(struct stconn *sc, struct buffer *buf, size_t count, int flags)
 {
-	struct h2s *h2s = __sc_mux_strm(cs);
+	struct h2s *h2s = __sc_mux_strm(sc);
 	struct h2c *h2c = h2s->h2c;
 	struct htx *h2s_htx = NULL;
 	struct htx *buf_htx = NULL;
@@ -6534,9 +6534,9 @@ static size_t h2_rcv_buf(struct stconn *cs, struct buffer *buf, size_t count, in
  * <count> bytes. Returns the number of bytes effectively sent. Some status
  * flags may be updated on the stream connector.
  */
-static size_t h2_snd_buf(struct stconn *cs, struct buffer *buf, size_t count, int flags)
+static size_t h2_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, int flags)
 {
-	struct h2s *h2s = __sc_mux_strm(cs);
+	struct h2s *h2s = __sc_mux_strm(sc);
 	size_t total = 0;
 	size_t ret;
 	struct htx *htx;
@@ -6745,7 +6745,7 @@ static int h2_show_fd(struct buffer *msg, struct connection *conn)
 		      " .orph_cnt=%d .sub=%d .dsi=%d .dbuf=%u@%p+%u/%u .msi=%d"
 		      " .mbuf=[%u..%u|%u],h=[%u@%p+%u/%u],t=[%u@%p+%u/%u]",
 		      h2c_st_to_str(h2c->st0), h2c->errcode, h2c->max_id, h2c->last_sid, h2c->flags,
-		      h2c->nb_streams, h2c->nb_cs, fctl_cnt, send_cnt, tree_cnt, orph_cnt,
+		      h2c->nb_streams, h2c->nb_sc, fctl_cnt, send_cnt, tree_cnt, orph_cnt,
 		      h2c->wait_event.events, h2c->dsi,
 		      (unsigned int)b_data(&h2c->dbuf), b_orig(&h2c->dbuf),
 		      (unsigned int)b_head_ofs(&h2c->dbuf), (unsigned int)b_size(&h2c->dbuf),
@@ -6757,7 +6757,7 @@ static int h2_show_fd(struct buffer *msg, struct connection *conn)
 		      (unsigned int)b_head_ofs(tmbuf), (unsigned int)b_size(tmbuf));
 
 	if (h2s) {
-		chunk_appendf(msg, " last_h2s=%p .id=%d .st=%s .flg=0x%04x .rxbuf=%u@%p+%u/%u .cs=%p",
+		chunk_appendf(msg, " last_h2s=%p .id=%d .st=%s .flg=0x%04x .rxbuf=%u@%p+%u/%u .sc=%p",
 			      h2s, h2s->id, h2s_st_to_str(h2s->st), h2s->flags,
 			      (unsigned int)b_data(&h2s->rxbuf), b_orig(&h2s->rxbuf),
 			      (unsigned int)b_head_ofs(&h2s->rxbuf), (unsigned int)b_size(&h2s->rxbuf),
