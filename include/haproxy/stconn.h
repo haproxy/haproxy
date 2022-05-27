@@ -378,7 +378,7 @@ static inline void sc_need_room(struct stconn *sc)
  */
 static inline void se_will_consume(struct sedesc *se)
 {
-	se_fl_set(se, SE_FL_WILL_CONSUME);
+	se_fl_clr(se, SE_FL_WONT_CONSUME);
 }
 
 /* The stream endpoint indicates that it's not willing to consume data from the
@@ -386,7 +386,7 @@ static inline void se_will_consume(struct sedesc *se)
  */
 static inline void se_wont_consume(struct sedesc *se)
 {
-	se_fl_clr(se, SE_FL_WILL_CONSUME);
+	se_fl_set(se, SE_FL_WONT_CONSUME);
 }
 
 /* The stream endpoint indicates that it's willing to consume data from the
@@ -395,7 +395,8 @@ static inline void se_wont_consume(struct sedesc *se)
  */
 static inline void se_need_more_data(struct sedesc *se)
 {
-	se_fl_set(se, SE_FL_WILL_CONSUME | SE_FL_WAIT_DATA);
+	se_fl_clr(se, SE_FL_WONT_CONSUME);
+	se_fl_set(se, SE_FL_WAIT_DATA);
 }
 
 #endif /* _HAPROXY_STCONN_H */

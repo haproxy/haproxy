@@ -378,7 +378,7 @@ static inline int sc_is_send_allowed(const struct stconn *sc)
 	if (oc->flags & CF_SHUTW)
 		return 0;
 
-	return (sc_ep_get(sc) & (SE_FL_WAIT_DATA|SE_FL_WILL_CONSUME)) == SE_FL_WILL_CONSUME;
+	return !sc_ep_test(sc, SE_FL_WAIT_DATA | SE_FL_WONT_CONSUME);
 }
 
 #endif /* _HAPROXY_SC_STRM_H */

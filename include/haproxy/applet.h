@@ -149,7 +149,7 @@ static inline void applet_have_no_more_data(struct appctx *appctx)
  */
 static inline void applet_will_consume(struct appctx *appctx)
 {
-	se_fl_set(appctx->sedesc, SE_FL_WILL_CONSUME);
+	se_fl_clr(appctx->sedesc, SE_FL_WONT_CONSUME);
 }
 
 /* The applet indicates that it's not willing to consume data from the stream's
@@ -157,7 +157,7 @@ static inline void applet_will_consume(struct appctx *appctx)
  */
 static inline void applet_wont_consume(struct appctx *appctx)
 {
-	se_fl_clr(appctx->sedesc, SE_FL_WILL_CONSUME);
+	se_fl_set(appctx->sedesc, SE_FL_WONT_CONSUME);
 }
 
 /* The applet indicates that it's willing to consume data from the stream's
@@ -166,7 +166,8 @@ static inline void applet_wont_consume(struct appctx *appctx)
  */
 static inline void applet_need_more_data(struct appctx *appctx)
 {
-	se_fl_set(appctx->sedesc, SE_FL_WILL_CONSUME | SE_FL_WAIT_DATA);
+	se_fl_clr(appctx->sedesc, SE_FL_WONT_CONSUME);
+	se_fl_set(appctx->sedesc, SE_FL_WAIT_DATA);
 }
 
 /* writes chunk <chunk> into the input channel of the stream attached to this

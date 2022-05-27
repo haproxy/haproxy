@@ -72,7 +72,7 @@ enum se_flags {
 	SE_FL_WAIT_FOR_HS   = 0x00200000,  /* This stream is waiting for handhskae */
 	SE_FL_KILL_CONN     = 0x00400000,  /* must kill the connection when the SC closes */
 	SE_FL_WAIT_DATA     = 0x00800000,  /* stream endpoint cannot work without more data from the stream's output */
-	SE_FL_WILL_CONSUME  = 0x01000000,  /* stream endpoint is interested in consuming more data */
+	SE_FL_WONT_CONSUME  = 0x01000000,  /* stream endpoint will not consume more data */
 	SE_FL_HAVE_NO_DATA  = 0x02000000,  /* the endpoint has no more data to deliver to the stream */
 	SE_FL_APP_MASK      = 0x02e00000,  /* Mask for flags set by the app layer */
 	/* unused             0x04000000,*/
