@@ -3559,8 +3559,8 @@ out:
 static void syslog_io_handler(struct appctx *appctx)
 {
 	static THREAD_LOCAL struct ist metadata[LOG_META_FIELDS];
-	struct stconn *cs = appctx_cs(appctx);
-	struct stream *s = __sc_strm(cs);
+	struct stconn *sc = appctx_cs(appctx);
+	struct stream *s = __sc_strm(sc);
 	struct proxy *frontend = strm_fe(s);
 	struct listener *l = strm_li(s);
 	struct buffer *buf = get_trash_chunk();
@@ -3572,14 +3572,14 @@ static void syslog_io_handler(struct appctx *appctx)
 	size_t size;
 
 	max_accept = l->maxaccept ? l->maxaccept : 1;
-	while (co_data(sc_oc(cs))) {
+	while (co_data(sc_oc(sc))) {
 		char c;
 
 		if (max_accept <= 0)
 			goto missing_budget;
 		max_accept--;
 
-		to_skip = co_getchar(sc_oc(cs), &c);
+		to_skip = co_getchar(sc_oc(sc), &c);
 		if (!to_skip)
 			goto missing_data;
 		else if (to_skip < 0)
@@ -3589,7 +3589,7 @@ static void syslog_io_handler(struct appctx *appctx)
 			/* rfc-6587, Non-Transparent-Framing: messages separated by
 			 * a trailing LF or CR LF
 			 */
-			to_skip = co_getline(sc_oc(cs), buf->area, buf->size);
+			to_skip = co_getline(sc_oc(sc), buf->area, buf->size);
 			if (!to_skip)
 				goto missing_data;
 			else if (to_skip < 0)
@@ -3613,7 +3613,7 @@ static void syslog_io_handler(struct appctx *appctx)
 			char *p = NULL;
 			int msglen;
 
-			to_skip = co_getword(sc_oc(cs), buf->area, buf->size, ' ');
+			to_skip = co_getword(sc_oc(sc), buf->area, buf->size, ' ');
 			if (!to_skip)
 				goto missing_data;
 			else if (to_skip < 0)
@@ -3630,7 +3630,7 @@ static void syslog_io_handler(struct appctx *appctx)
 			if (msglen > buf->size)
 				goto parse_error;
 
-			msglen = co_getblk(sc_oc(cs), buf->area, msglen, to_skip);
+			msglen = co_getblk(sc_oc(sc), buf->area, msglen, to_skip);
 			if (!msglen)
 				goto missing_data;
 			else if (msglen < 0)
@@ -3643,7 +3643,7 @@ static void syslog_io_handler(struct appctx *appctx)
 		else
 			goto parse_error;
 
-		co_skip(sc_oc(cs), to_skip);
+		co_skip(sc_oc(sc), to_skip);
 
 		/* update counters */
 		_HA_ATOMIC_INC(&cum_log_messages);
@@ -3657,7 +3657,7 @@ static void syslog_io_handler(struct appctx *appctx)
 
 missing_data:
 	/* we need more data to read */
-	sc_oc(cs)->flags |= CF_READ_DONTWAIT;
+	sc_oc(sc)->flags |= CF_READ_DONTWAIT;
 
 	return;
 
@@ -3680,10 +3680,10 @@ cli_abort:
 	_HA_ATOMIC_INC(&frontend->fe_counters.cli_aborts);
 
 close:
-	sc_shutw(cs);
-	sc_shutr(cs);
+	sc_shutw(sc);
+	sc_shutr(sc);
 
-	sc_ic(cs)->flags |= CF_READ_NULL;
+	sc_ic(sc)->flags |= CF_READ_NULL;
 
 	return;
 }
