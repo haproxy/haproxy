@@ -164,21 +164,21 @@ void appctx_shut(struct appctx *appctx)
 int appctx_buf_available(void *arg)
 {
 	struct appctx *appctx = arg;
-	struct stconn *cs = appctx_cs(appctx);
+	struct stconn *sc = appctx_cs(appctx);
 
 	/* allocation requested ? */
-	if (!(cs->flags & SC_FL_NEED_BUFF))
+	if (!(sc->flags & SC_FL_NEED_BUFF))
 		return 0;
 
-	sc_have_buff(cs);
+	sc_have_buff(sc);
 
 	/* was already allocated another way ? if so, don't take this one */
-	if (c_size(sc_ic(cs)) || sc_ic(cs)->pipe)
+	if (c_size(sc_ic(sc)) || sc_ic(sc)->pipe)
 		return 0;
 
 	/* allocation possible now ? */
-	if (!b_alloc(&sc_ic(cs)->buf)) {
-		sc_need_buff(cs);
+	if (!b_alloc(&sc_ic(sc)->buf)) {
+		sc_need_buff(sc);
 		return 0;
 	}
 
@@ -190,7 +190,7 @@ int appctx_buf_available(void *arg)
 struct task *task_run_applet(struct task *t, void *context, unsigned int state)
 {
 	struct appctx *app = context;
-	struct stconn *cs;
+	struct stconn *sc;
 	unsigned int rate;
 	size_t count;
 
@@ -212,7 +212,7 @@ struct task *task_run_applet(struct task *t, void *context, unsigned int state)
 		BUG_ON(!app->sess || !appctx_cs(app) || !appctx_strm(app));
 	}
 
-	cs = appctx_cs(app);
+	sc = appctx_cs(app);
 
 	/* We always pretend the applet can't get and doesn't want to
 	 * put, it's up to it to change this if needed. This ensures
@@ -227,32 +227,32 @@ struct task *task_run_applet(struct task *t, void *context, unsigned int state)
 	 * some other processing if needed. The applet doesn't have anything to
 	 * do if it needs the buffer, it will be called again upon readiness.
 	 */
-	if (!sc_alloc_ibuf(cs, &app->buffer_wait))
+	if (!sc_alloc_ibuf(sc, &app->buffer_wait))
 		applet_have_more_data(app);
 
-	count = co_data(sc_oc(cs));
+	count = co_data(sc_oc(sc));
 	app->applet->fct(app);
 
 	/* now check if the applet has released some room and forgot to
 	 * notify the other side about it.
 	 */
-	if (count != co_data(sc_oc(cs))) {
-		sc_oc(cs)->flags |= CF_WRITE_PARTIAL | CF_WROTE_DATA;
-		sc_have_room(sc_opposite(cs));
+	if (count != co_data(sc_oc(sc))) {
+		sc_oc(sc)->flags |= CF_WRITE_PARTIAL | CF_WROTE_DATA;
+		sc_have_room(sc_opposite(sc));
 	}
 
 	/* measure the call rate and check for anomalies when too high */
 	rate = update_freq_ctr(&app->call_rate, 1);
 	if (rate >= 100000 && app->call_rate.prev_ctr && // looped more than 100k times over last second
-	    ((b_size(sc_ib(cs)) && cs->flags & SC_FL_NEED_ROOM) || // asks for a buffer which is present
-	     (b_size(sc_ib(cs)) && !b_data(sc_ib(cs)) && cs->flags & SC_FL_NEED_ROOM) || // asks for room in an empty buffer
-	     (b_data(sc_ob(cs)) && sc_is_send_allowed(cs)) || // asks for data already present
-	     (!b_data(sc_ib(cs)) && b_data(sc_ob(cs)) && // didn't return anything ...
-	      (sc_oc(cs)->flags & (CF_WRITE_PARTIAL|CF_SHUTW_NOW)) == CF_SHUTW_NOW))) { // ... and left data pending after a shut
+	    ((b_size(sc_ib(sc)) && sc->flags & SC_FL_NEED_ROOM) || // asks for a buffer which is present
+	     (b_size(sc_ib(sc)) && !b_data(sc_ib(sc)) && sc->flags & SC_FL_NEED_ROOM) || // asks for room in an empty buffer
+	     (b_data(sc_ob(sc)) && sc_is_send_allowed(sc)) || // asks for data already present
+	     (!b_data(sc_ib(sc)) && b_data(sc_ob(sc)) && // didn't return anything ...
+	      (sc_oc(sc)->flags & (CF_WRITE_PARTIAL|CF_SHUTW_NOW)) == CF_SHUTW_NOW))) { // ... and left data pending after a shut
 		stream_dump_and_crash(&app->obj_type, read_freq_ctr(&app->call_rate));
 	}
 
-	cs->app_ops->wake(cs);
-	channel_release_buffer(sc_ic(cs), &app->buffer_wait);
+	sc->app_ops->wake(sc);
+	channel_release_buffer(sc_ic(sc), &app->buffer_wait);
 	return t;
 }
