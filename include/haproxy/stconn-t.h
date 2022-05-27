@@ -74,7 +74,6 @@ enum se_flags {
 	SE_FL_WAIT_DATA     = 0x00800000,  /* stream endpoint cannot work without more data from the stream's output */
 	SE_FL_WONT_CONSUME  = 0x01000000,  /* stream endpoint will not consume more data */
 	SE_FL_HAVE_NO_DATA  = 0x02000000,  /* the endpoint has no more data to deliver to the stream */
-	SE_FL_APP_MASK      = 0x02e00000,  /* Mask for flags set by the app layer */
 	/* unused             0x04000000,*/
 	/* unused             0x08000000,*/
 	/* unused             0x10000000,*/

@@ -378,10 +378,10 @@ static void sc_detach_endp(struct stconn **scp)
 	}
 
 	if (sc->sedesc) {
-		/* the sc is the only one one the endpoint */
+		/* the SD wasn't used and can be recycled */
 		sc->sedesc->se     = NULL;
 		sc->sedesc->conn   = NULL;
-		sc_ep_clr(sc, ~SE_FL_APP_MASK);
+		sc->sedesc->flags  = 0;
 		sc_ep_set(sc, SE_FL_DETACHED);
 	}
 
@@ -460,7 +460,6 @@ int sc_reset_endp(struct stconn *sc)
 		sc_ep_set(sc, SE_FL_ERROR);
 		return -1;
 	}
-	se_fl_setall(new_sd, sc_ep_get(sc) & SE_FL_APP_MASK);
 
 	/* The app is still attached, the sc will not be released */
 	sc_detach_endp(&sc);
