@@ -1100,7 +1100,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 		TRACE_ERROR("stconn allocation error", CHK_EV_TCPCHK_CONN|CHK_EV_TCPCHK_ERR, check);
 		goto out;
 	}
-	if (cs_attach_mux(check->cs, NULL, conn) < 0) {
+	if (sc_attach_mux(check->cs, NULL, conn) < 0) {
 		TRACE_ERROR("mux attach error", CHK_EV_TCPCHK_CONN|CHK_EV_TCPCHK_ERR, check);
 		conn_free(conn);
 		conn = NULL;
@@ -1569,7 +1569,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_recv(struct check *check, struct tcpcheck_r
 
 	while (sc_ep_test(cs, SE_FL_RCV_MORE) ||
 	       (!(conn->flags & CO_FL_ERROR) && !sc_ep_test(cs, SE_FL_ERROR | SE_FL_EOS))) {
-		max = (IS_HTX_CS(cs) ?  htx_free_space(htxbuf(&check->bi)) : b_room(&check->bi));
+		max = (IS_HTX_SC(cs) ?  htx_free_space(htxbuf(&check->bi)) : b_room(&check->bi));
 		read = conn->mux->rcv_buf(cs, &check->bi, max, 0);
 		cur_read += read;
 		if (!read ||
@@ -1580,7 +1580,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_recv(struct check *check, struct tcpcheck_r
 	}
 
   end_recv:
-	is_empty = (IS_HTX_CS(cs) ? htx_is_empty(htxbuf(&check->bi)) : !b_data(&check->bi));
+	is_empty = (IS_HTX_SC(cs) ? htx_is_empty(htxbuf(&check->bi)) : !b_data(&check->bi));
 	if (is_empty && ((conn->flags & CO_FL_ERROR) || sc_ep_test(cs, SE_FL_ERROR))) {
 		/* Report network errors only if we got no other data. Otherwise
 		 * we'll let the upper layers decide whether the response is OK
@@ -2208,7 +2208,7 @@ int tcpcheck_main(struct check *check)
 			/* Refresh connection */
 			conn = sc_conn(cs);
 			last_read = 0;
-			must_read = (IS_HTX_CS(cs) ? htx_is_empty(htxbuf(&check->bi)) : !b_data(&check->bi));
+			must_read = (IS_HTX_SC(cs) ? htx_is_empty(htxbuf(&check->bi)) : !b_data(&check->bi));
 			break;
 		case TCPCHK_ACT_SEND:
 			check->current_step = rule;

@@ -44,7 +44,7 @@ static void sc_app_chk_snd_applet(struct stconn *cs);
 static int sc_conn_process(struct stconn *cs);
 static int sc_conn_recv(struct stconn *cs);
 static int sc_conn_send(struct stconn *cs);
-static int cs_applet_process(struct stconn *cs);
+static int sc_applet_process(struct stconn *cs);
 
 /* stream connector operations for connections */
 struct sc_app_ops sc_app_conn_ops = {
@@ -72,7 +72,7 @@ struct sc_app_ops sc_app_applet_ops = {
 	.chk_snd = sc_app_chk_snd_applet,
 	.shutr   = sc_app_shutr_applet,
 	.shutw   = sc_app_shutw_applet,
-	.wake    = cs_applet_process,
+	.wake    = sc_applet_process,
 	.name    = "STRM",
 };
 
@@ -247,7 +247,7 @@ static void sc_free_cond(struct stconn **csp)
  * -1 on error and 0 on sucess. SE_FL_DETACHED flag is removed. This function is
  * called from a mux when it is attached to a stream or a health-check.
  */
-int cs_attach_mux(struct stconn *cs, void *endp, void *ctx)
+int sc_attach_mux(struct stconn *cs, void *endp, void *ctx)
 {
 	struct connection *conn = ctx;
 	struct sedesc *sedesc = cs->sedesc;
@@ -290,7 +290,7 @@ int cs_attach_mux(struct stconn *cs, void *endp, void *ctx)
  * removed. This function is called by a stream when a backend applet is
  * registered.
  */
-static void cs_attach_applet(struct stconn *cs, void *endp)
+static void sc_attach_applet(struct stconn *cs, void *endp)
 {
 	cs->sedesc->se = endp;
 	sc_ep_set(cs, SE_FL_T_APPLET);
@@ -304,7 +304,7 @@ static void cs_attach_applet(struct stconn *cs, void *endp)
  * removed. This function is called by a stream when it is created to attach it
  * on the stream connector on the client side.
  */
-int cs_attach_strm(struct stconn *cs, struct stream *strm)
+int sc_attach_strm(struct stconn *cs, struct stream *strm)
 {
 	cs->app = &strm->obj_type;
 	sc_ep_clr(cs, SE_FL_ORPHAN);
@@ -334,7 +334,7 @@ int cs_attach_strm(struct stconn *cs, struct stream *strm)
  * endpoint is reset and flag as detached. If the app layer is also detached,
  * the stream connector is released.
  */
-static void cs_detach_endp(struct stconn **csp)
+static void sc_detach_endp(struct stconn **csp)
 {
 	struct stconn *cs = *csp;
 
@@ -400,7 +400,7 @@ static void cs_detach_endp(struct stconn **csp)
 /* Detaches the stconn from the app layer. If there is no endpoint attached
  * to the stconn
  */
-static void cs_detach_app(struct stconn **csp)
+static void sc_detach_app(struct stconn **csp)
 {
 	struct stconn *cs = *csp;
 
@@ -424,8 +424,8 @@ static void cs_detach_app(struct stconn **csp)
  */
 void sc_destroy(struct stconn *cs)
 {
-	cs_detach_endp(&cs);
-	cs_detach_app(&cs);
+	sc_detach_endp(&cs);
+	sc_detach_app(&cs);
 	BUG_ON_HOT(cs);
 }
 
@@ -436,7 +436,7 @@ void sc_destroy(struct stconn *cs)
  * Only SE_FL_ERROR flag is removed on the endpoint. Orther flags are preserved.
  * It is the caller responsibility to remove other flags if needed.
  */
-int cs_reset_endp(struct stconn *cs)
+int sc_reset_endp(struct stconn *cs)
 {
 	struct sedesc *new_endp;
 
@@ -449,7 +449,7 @@ int cs_reset_endp(struct stconn *cs)
 		 * reset. The app is still attached, the cs will not be
 		 * released.
 		 */
-		cs_detach_endp(&cs);
+		sc_detach_endp(&cs);
 		return 0;
 	}
 
@@ -463,7 +463,7 @@ int cs_reset_endp(struct stconn *cs)
 	se_fl_setall(new_endp, sc_ep_get(cs) & SE_FL_APP_MASK);
 
 	/* The app is still attached, the cs will not be released */
-	cs_detach_endp(&cs);
+	sc_detach_endp(&cs);
 	BUG_ON(cs->sedesc);
 	cs->sedesc = new_endp;
 	cs->sedesc->sc = cs;
@@ -474,7 +474,7 @@ int cs_reset_endp(struct stconn *cs)
 
 /* Create an applet to handle a stream connector as a new appctx. The CS will
  * wake it up every time it is solicited. The appctx must be deleted by the task
- * handler using cs_detach_endp(), possibly from within the function itself.
+ * handler using sc_detach_endp(), possibly from within the function itself.
  * It also pre-initializes the applet's context and returns it (or NULL in case
  * it could not be allocated).
  */
@@ -487,7 +487,7 @@ struct appctx *sc_applet_create(struct stconn *cs, struct applet *app)
 	appctx = appctx_new_here(app, cs->sedesc);
 	if (!appctx)
 		return NULL;
-	cs_attach_applet(cs, appctx);
+	sc_attach_applet(cs, appctx);
 	appctx->t->nice = __sc_strm(cs)->task->nice;
 	applet_need_more_data(appctx);
 	appctx_wakeup(appctx);
@@ -1006,7 +1006,7 @@ static void sc_app_chk_snd_applet(struct stconn *cs)
  * handler, as what it does will be used to compute the stream task's
  * expiration.
  */
-void cs_update_rx(struct stconn *cs)
+void sc_update_rx(struct stconn *cs)
 {
 	struct channel *ic = sc_ic(cs);
 
@@ -1048,7 +1048,7 @@ void cs_update_rx(struct stconn *cs)
  * handler, as what it does will be used to compute the stream task's
  * expiration.
  */
-void cs_update_tx(struct stconn *cs)
+void sc_update_tx(struct stconn *cs)
 {
 	struct channel *oc = sc_oc(cs);
 	struct channel *ic = sc_ic(cs);
@@ -1087,17 +1087,17 @@ void cs_update_tx(struct stconn *cs)
 	}
 }
 
-/* This function is the equivalent to cs_update() except that it's
+/* This function is the equivalent to sc_update() except that it's
  * designed to be called from outside the stream handlers, typically the lower
  * layers (applets, connections) after I/O completion. After updating the stream
  * interface and timeouts, it will try to forward what can be forwarded, then to
  * wake the associated task up if an important event requires special handling.
  * It may update SE_FL_WAIT_DATA and/or SC_FL_NEED_ROOM, that the callers are
  * encouraged to watch to take appropriate action.
- * It should not be called from within the stream itself, cs_update()
+ * It should not be called from within the stream itself, sc_update()
  * is designed for this.
  */
-static void cs_notify(struct stconn *cs)
+static void sc_notify(struct stconn *cs)
 {
 	struct channel *ic = sc_ic(cs);
 	struct channel *oc = sc_oc(cs);
@@ -1879,7 +1879,7 @@ static int sc_conn_process(struct stconn *cs)
 	 * pending data, then possibly wake the stream up based on the new
 	 * stream connector status.
 	 */
-	cs_notify(cs);
+	sc_notify(cs);
 	stream_release_buffers(__sc_strm(cs));
 	return 0;
 }
@@ -1913,7 +1913,7 @@ struct task *sc_conn_io_cb(struct task *t, void *ctx, unsigned int state)
  * may re-enable the applet's based on the channels and stream connector's final
  * states.
  */
-static int cs_applet_process(struct stconn *cs)
+static int sc_applet_process(struct stconn *cs)
 {
 	struct channel *ic = sc_ic(cs);
 
@@ -1933,10 +1933,10 @@ static int cs_applet_process(struct stconn *cs)
 		applet_have_more_data(__sc_appctx(cs));
 
 	/* update the stream connector, channels, and possibly wake the stream up */
-	cs_notify(cs);
+	sc_notify(cs);
 	stream_release_buffers(__sc_strm(cs));
 
-	/* cs_notify may have passed through chk_snd and released some blocking
+	/* sc_notify may have passed through chk_snd and released some blocking
 	 * flags. Process_stream will consider those flags to wake up the
 	 * appctx but in the case the task is not in runqueue we may have to
 	 * wakeup the appctx immediately.

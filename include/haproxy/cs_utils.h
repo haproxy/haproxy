@@ -33,8 +33,8 @@
 #include <haproxy/session.h>
 #include <haproxy/stream.h>
 
-void cs_update_rx(struct stconn *cs);
-void cs_update_tx(struct stconn *cs);
+void sc_update_rx(struct stconn *cs);
+void sc_update_tx(struct stconn *cs);
 
 struct task *sc_conn_io_cb(struct task *t, void *ctx, unsigned int state);
 int sc_conn_sync_recv(struct stconn *cs);
@@ -340,11 +340,11 @@ static inline void cs_chk_snd(struct stconn *cs)
 		cs->app_ops->chk_snd(cs);
 }
 
-/* Combines both cs_update_rx() and cs_update_tx() at once */
-static inline void cs_update(struct stconn *cs)
+/* Combines both sc_update_rx() and sc_update_tx() at once */
+static inline void sc_update(struct stconn *cs)
 {
-	cs_update_rx(cs);
-	cs_update_tx(cs);
+	sc_update_rx(cs);
+	sc_update_tx(cs);
 }
 
 /* for debugging, reports the stream connector state name */

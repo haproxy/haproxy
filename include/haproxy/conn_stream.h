@@ -33,7 +33,7 @@ struct appctx;
 struct stream;
 struct check;
 
-#define IS_HTX_CS(cs)     (sc_conn(cs) && IS_HTX_CONN(__sc_conn(cs)))
+#define IS_HTX_SC(cs)     (sc_conn(cs) && IS_HTX_CONN(__sc_conn(cs)))
 
 struct sedesc *sedesc_new();
 void sedesc_free(struct sedesc *sedesc);
@@ -43,11 +43,11 @@ struct stconn *sc_new_from_strm(struct stream *strm, unsigned int flags);
 struct stconn *sc_new_from_check(struct check *check, unsigned int flags);
 void sc_free(struct stconn *cs);
 
-int cs_attach_mux(struct stconn *cs, void *target, void *ctx);
-int cs_attach_strm(struct stconn *cs, struct stream *strm);
+int sc_attach_mux(struct stconn *cs, void *target, void *ctx);
+int sc_attach_strm(struct stconn *cs, struct stream *strm);
 
 void sc_destroy(struct stconn *cs);
-int cs_reset_endp(struct stconn *cs);
+int sc_reset_endp(struct stconn *cs);
 
 struct appctx *sc_applet_create(struct stconn *cs, struct applet *app);
 

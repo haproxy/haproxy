@@ -1693,7 +1693,7 @@ static struct h2s *h2c_bck_stream_new(struct h2c *h2c, struct stconn *cs, struct
 		goto out;
 	}
 
-	if (cs_attach_mux(cs, h2s, h2c->conn) < 0) {
+	if (sc_attach_mux(cs, h2s, h2c->conn) < 0) {
 		TRACE_ERROR("Failed to allocate a new stream", H2_EV_H2S_NEW, h2c->conn);
 		h2s_destroy(h2s);
 		h2s = NULL;

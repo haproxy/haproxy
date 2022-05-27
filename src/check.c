@@ -1148,7 +1148,7 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 				TRACE_DEVEL("closing current connection", CHK_EV_TASK_WAKE|CHK_EV_HCHK_RUN, check);
 				check->state &= ~CHK_ST_CLOSE_CONN;
 				conn = NULL;
-				if (!cs_reset_endp(check->cs)) {
+				if (!sc_reset_endp(check->cs)) {
 					/* error will be handled by tcpcheck_main().
 					 * On success, remove all flags except SE_FL_DETACHED
 					 */

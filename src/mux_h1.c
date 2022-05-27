@@ -819,7 +819,7 @@ static struct h1s *h1c_frt_stream_new(struct h1c *h1c, struct stconn *cs, struct
 		goto fail;
 
 	if (cs) {
-		if (cs_attach_mux(cs, h1s, h1c->conn) < 0)
+		if (sc_attach_mux(cs, h1s, h1c->conn) < 0)
 			goto fail;
 		h1s->endp = cs->sedesc;
 	}
@@ -858,7 +858,7 @@ static struct h1s *h1c_bck_stream_new(struct h1c *h1c, struct stconn *cs, struct
 	if (!h1s)
 		goto fail;
 
-	if (cs_attach_mux(cs, h1s, h1c->conn) < 0)
+	if (sc_attach_mux(cs, h1s, h1c->conn) < 0)
 		goto fail;
 
 	h1s->flags |= H1S_F_RX_BLK;

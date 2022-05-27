@@ -446,7 +446,7 @@ struct stream *stream_new(struct session *sess, struct stconn *cs, struct buffer
 		s->flags |= SF_HTX;
 
 	s->scf = cs;
-	if (cs_attach_strm(s->scf, s) < 0)
+	if (sc_attach_strm(s->scf, s) < 0)
 		goto out_fail_attach_scf;
 
 	s->scb = sc_new_from_strm(s, SC_FL_ISBACK);
@@ -1534,10 +1534,10 @@ static void stream_update_both_cs(struct stream *s)
 
 	/* let's recompute both sides states */
 	if (cs_state_in(scf->state, SC_SB_RDY|SC_SB_EST))
-		cs_update(scf);
+		sc_update(scf);
 
 	if (cs_state_in(scb->state, SC_SB_RDY|SC_SB_EST))
-		cs_update(scb);
+		sc_update(scb);
 
 	/* stream connectors are processed outside of process_stream() and must be
 	 * handled at the latest moment.

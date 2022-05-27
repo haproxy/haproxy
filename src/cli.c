@@ -2768,7 +2768,7 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		 */
 		if (!sc_conn_ready(s->scb)) {
 			s->srv_conn = NULL;
-			if (cs_reset_endp(s->scb) < 0) {
+			if (sc_reset_endp(s->scb) < 0) {
 				if (!s->conn_err_type)
 					s->conn_err_type = STRM_ET_CONN_OTHER;
 				if (s->srv_error)

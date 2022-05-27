@@ -1576,7 +1576,7 @@ static int connect_server(struct stream *s)
 			if (avail >= 1) {
 				if (srv_conn->mux->attach(srv_conn, s->scb->sedesc, s->sess) == -1) {
 					srv_conn = NULL;
-					if (cs_reset_endp(s->scb) < 0)
+					if (sc_reset_endp(s->scb) < 0)
 						return SF_ERR_INTERNAL;
 					sc_ep_clr(s->scb, ~SE_FL_DETACHED);
 				}
@@ -1651,7 +1651,7 @@ skip_reuse:
 			return SF_ERR_INTERNAL;  /* how did we get there ? */
 		}
 
-		if (cs_attach_mux(s->scb, NULL, srv_conn) < 0) {
+		if (sc_attach_mux(s->scb, NULL, srv_conn) < 0) {
 			conn_free(srv_conn);
 			return SF_ERR_INTERNAL;  /* how did we get there ? */
 		}
@@ -2369,7 +2369,7 @@ void back_handle_st_cer(struct stream *s)
 	 * Note: the stream connector will be switched to ST_REQ, ST_ASS or
 	 * ST_TAR and SE_FL_ERROR and SF_CONN_EXP flags will be unset.
 	 */
-	if (cs_reset_endp(cs) < 0) {
+	if (sc_reset_endp(cs) < 0) {
 		if (!s->conn_err_type)
 			s->conn_err_type = STRM_ET_CONN_OTHER;
 

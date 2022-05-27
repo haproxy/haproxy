@@ -1263,7 +1263,7 @@ static __inline int do_l7_retry(struct stream *s, struct stconn *cs)
 	res->analyse_exp = TICK_ETERNITY;
 	res->total = 0;
 
-	if (cs_reset_endp(s->scb) < 0) {
+	if (sc_reset_endp(s->scb) < 0) {
 		if (!(s->flags & SF_ERR_MASK))
 			s->flags |= SF_ERR_INTERNAL;
 		return -1;

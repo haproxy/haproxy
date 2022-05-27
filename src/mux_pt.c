@@ -316,7 +316,7 @@ static int mux_pt_init(struct connection *conn, struct proxy *prx, struct sessio
 		TRACE_POINT(PT_EV_STRM_NEW, conn, cs);
 	}
 	else {
-		if (cs_attach_mux(cs, ctx, conn) < 0)
+		if (sc_attach_mux(cs, ctx, conn) < 0)
 			goto fail_free_ctx;
 		ctx->endp = cs->sedesc;
 	}
@@ -386,7 +386,7 @@ static int mux_pt_attach(struct connection *conn, struct sedesc *endp, struct se
 	TRACE_ENTER(PT_EV_STRM_NEW, conn);
 	if (ctx->wait_event.events)
 		conn->xprt->unsubscribe(ctx->conn, conn->xprt_ctx, SUB_RETRY_RECV, &ctx->wait_event);
-	if (cs_attach_mux(endp->sc, ctx, conn) < 0)
+	if (sc_attach_mux(endp->sc, ctx, conn) < 0)
 		return -1;
 	ctx->endp = endp;
 	se_fl_set(ctx->endp, SE_FL_RCV_MORE);
