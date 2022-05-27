@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<!-- Creator: fig2dev Version 3.2.7b -->
-<!-- CreationDate: 2021-02-24 09:03:04 -->
+<!-- Creator: fig2dev Version 3.2.8b -->
+<!-- CreationDate: 2022-05-27 11:37:43 -->
 <!-- Magnification: 1 -->
 <svg	xmlns="http://www.w3.org/2000/svg"
 	xmlns:xlink="http://www.w3.org/1999/xlink"
-	width="954pt" height="764pt"
-	viewBox="254 -90 15885 12723">
+	width="942pt" height="755pt"
+	viewBox="254 60 15690 12573">
 <g fill="none">
 <!-- Line -->
 <rect x="12000" y="10800" width="1800" height="600" rx="105" fill="#458dba"
@@ -107,9 +107,6 @@
 <ellipse cx="5325" cy="5175" rx="583" ry="250" fill="#ffe6cc"
 	stroke="#e9b000" stroke-width="45px"/>
 <!-- Ellipse -->
-<ellipse cx="8400" cy="600" rx="900" ry="210" fill="#ffc1e7"
-	stroke="#d10000" stroke-width="45px"/>
-<!-- Ellipse -->
 <ellipse cx="12333" cy="7025" rx="417" ry="250" fill="#87cfff"
 	stroke="#0000d1" stroke-width="45px"/>
 <!-- Ellipse -->
@@ -121,6 +118,9 @@
 <!-- Ellipse -->
 <ellipse cx="1800" cy="11925" rx="225" ry="150" fill="#ffe6cc"
 	stroke="#e9b000" stroke-width="45px"/>
+<!-- Ellipse -->
+<ellipse cx="8400" cy="600" rx="900" ry="210" fill="#ffc1e7"
+	stroke="#d10000" stroke-width="45px"/>
 <!-- Line -->
 <polyline points=" 2550,3300 2550,6150"
 	stroke="#000000" stroke-width="8px" stroke-linejoin="round" stroke-dasharray="40 40"/>
@@ -133,19 +133,19 @@
 <!-- Line -->
 <defs>
 <clipPath id="cp0">
-	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
-		M 645,11504 555,11504 582,11718 618,11718z"/>
+	<path clip-rule="evenodd" d="M 254,60 H 15944 V 12633 H 254 z
+		M 645,12029 555,12029 582,12243 618,12243z"/>
 </clipPath>
 </defs>
-<polyline points=" 600,8025 600,11700" clip-path="url(#cp0)"
+<polyline points=" 600,8025 600,12225" clip-path="url(#cp0)"
 	stroke="#000000" stroke-width="30px" stroke-linejoin="round"/>
-<!-- Forward arrow to point 600,11700 -->
-<polygon points=" 555,11504 600,11684 645,11504 555,11504"
+<!-- Forward arrow to point 600,12225 -->
+<polygon points=" 555,12029 600,12209 645,12029 555,12029"
 	stroke="#000000" stroke-width="8px" stroke-miterlimit="8" fill="#000000"/>
 <!-- Line -->
 <defs>
 <clipPath id="cp1">
-	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+	<path clip-rule="evenodd" d="M 254,60 H 15944 V 12633 H 254 z
 		M 555,1996 645,1996 618,1782 582,1782z"/>
 </clipPath>
 </defs>
@@ -157,7 +157,7 @@
 <!-- Line -->
 <defs>
 <clipPath id="cp2">
-	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+	<path clip-rule="evenodd" d="M 254,60 H 15944 V 12633 H 254 z
 		M 555,346 645,346 618,132 582,132z"/>
 </clipPath>
 </defs>
@@ -169,7 +169,7 @@
 <!-- Line -->
 <defs>
 <clipPath id="cp3">
-	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+	<path clip-rule="evenodd" d="M 254,60 H 15944 V 12633 H 254 z
 		M 7304,555 7304,645 7518,618 7518,582z
 		M 3045,3104 2955,3104 2982,3318 3018,3318z"/>
 </clipPath>
@@ -185,7 +185,7 @@
 <!-- Line -->
 <defs>
 <clipPath id="cp4">
-	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+	<path clip-rule="evenodd" d="M 254,60 H 15944 V 12633 H 254 z
 		M 6554,1455 6554,1545 6768,1518 6768,1482z
 		M 3045,3104 2955,3104 2982,3318 3018,3318z"/>
 </clipPath>
@@ -198,7 +198,7 @@
 <!-- Line -->
 <defs>
 <clipPath id="cp5">
-	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+	<path clip-rule="evenodd" d="M 254,60 H 15944 V 12633 H 254 z
 		M 11661,5428 11578,5465 11691,5649 11724,5634z
 		M 3045,3104 2955,3104 2982,3318 3018,3318z"/>
 </clipPath>
@@ -211,7 +211,7 @@
 <!-- Line -->
 <defs>
 <clipPath id="cp6">
-	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+	<path clip-rule="evenodd" d="M 254,60 H 15944 V 12633 H 254 z
 		M 10571,5541 10514,5611 10698,5725 10720,5697z
 		M 3045,3104 2955,3104 2982,3318 3018,3318z"/>
 </clipPath>
@@ -224,7 +224,7 @@
 <!-- Line -->
 <defs>
 <clipPath id="cp7">
-	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+	<path clip-rule="evenodd" d="M 254,60 H 15944 V 12633 H 254 z
 		M 12905,5461 12822,5427 12764,5635 12798,5649z
 		M 3045,3104 2955,3104 2982,3318 3018,3318z"/>
 </clipPath>
@@ -237,7 +237,7 @@
 <!-- Line -->
 <defs>
 <clipPath id="cp8">
-	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+	<path clip-rule="evenodd" d="M 254,60 H 15944 V 12633 H 254 z
 		M 14066,5607 14007,5539 13863,5700 13886,5727z
 		M 3045,3104 2955,3104 2982,3318 3018,3318z"/>
 </clipPath>
@@ -250,7 +250,7 @@
 <!-- Line -->
 <defs>
 <clipPath id="cp9">
-	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+	<path clip-rule="evenodd" d="M 254,60 H 15944 V 12633 H 254 z
 		M 9555,3689 9495,3689 9507,3843 9543,3843z
 		M 3045,3104 2955,3104 2982,3318 3018,3318z"/>
 </clipPath>
@@ -263,7 +263,7 @@
 <!-- Line -->
 <defs>
 <clipPath id="cp10">
-	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+	<path clip-rule="evenodd" d="M 254,60 H 15944 V 12633 H 254 z
 		M 13155,3689 13095,3689 13107,3843 13143,3843z
 		M 3045,3104 2955,3104 2982,3318 3018,3318z"/>
 </clipPath>
@@ -276,7 +276,7 @@
 <!-- Line -->
 <defs>
 <clipPath id="cp11">
-	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+	<path clip-rule="evenodd" d="M 254,60 H 15944 V 12633 H 254 z
 		M 15030,3689 14970,3689 14982,3843 15018,3843z
 		M 3045,3104 2955,3104 2982,3318 3018,3318z"/>
 </clipPath>
@@ -289,7 +289,7 @@
 <!-- Line -->
 <defs>
 <clipPath id="cp12">
-	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+	<path clip-rule="evenodd" d="M 254,60 H 15944 V 12633 H 254 z
 		M 10229,8355 10229,8445 10443,8418 10443,8382z
 		M 3045,3104 2955,3104 2982,3318 3018,3318z"/>
 </clipPath>
@@ -302,7 +302,7 @@
 <!-- Line -->
 <defs>
 <clipPath id="cp13">
-	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+	<path clip-rule="evenodd" d="M 254,60 H 15944 V 12633 H 254 z
 		M 12345,6629 12255,6629 12282,6843 12318,6843z
 		M 3045,3104 2955,3104 2982,3318 3018,3318z"/>
 </clipPath>
@@ -318,7 +318,7 @@
 <!-- Line -->
 <defs>
 <clipPath id="cp14">
-	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+	<path clip-rule="evenodd" d="M 254,60 H 15944 V 12633 H 254 z
 		M 12345,6629 12255,6629 12282,6843 12318,6843z
 		M 4051,7087 4124,7035 3979,6875 3950,6896z"/>
 </clipPath>
@@ -331,7 +331,7 @@
 <!-- Line -->
 <defs>
 <clipPath id="cp15">
-	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+	<path clip-rule="evenodd" d="M 254,60 H 15944 V 12633 H 254 z
 		M 12345,6629 12255,6629 12282,6843 12318,6843z
 		M 3450,5671 3540,5671 3513,5457 3477,5457z"/>
 </clipPath>
@@ -344,7 +344,7 @@
 <!-- Line -->
 <defs>
 <clipPath id="cp16">
-	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+	<path clip-rule="evenodd" d="M 254,60 H 15944 V 12633 H 254 z
 		M 12345,6629 12255,6629 12282,6843 12318,6843z
 		M 1650,5671 1740,5671 1713,5457 1677,5457z"/>
 </clipPath>
@@ -357,7 +357,7 @@
 <!-- Line -->
 <defs>
 <clipPath id="cp17">
-	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+	<path clip-rule="evenodd" d="M 254,60 H 15944 V 12633 H 254 z
 		M 12345,6629 12255,6629 12282,6843 12318,6843z
 		M 7168,5673 7258,5673 7231,5459 7195,5459z"/>
 </clipPath>
@@ -370,7 +370,7 @@
 <!-- Line -->
 <defs>
 <clipPath id="cp18">
-	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+	<path clip-rule="evenodd" d="M 254,60 H 15944 V 12633 H 254 z
 		M 1695,4711 1755,4711 1743,4557 1707,4557z
 		M 7168,5673 7258,5673 7231,5459 7195,5459z"/>
 </clipPath>
@@ -383,7 +383,7 @@
 <!-- Line -->
 <defs>
 <clipPath id="cp19">
-	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+	<path clip-rule="evenodd" d="M 254,60 H 15944 V 12633 H 254 z
 		M 3495,4711 3555,4711 3543,4557 3507,4557z
 		M 7168,5673 7258,5673 7231,5459 7195,5459z"/>
 </clipPath>
@@ -396,7 +396,7 @@
 <!-- Line -->
 <defs>
 <clipPath id="cp20">
-	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+	<path clip-rule="evenodd" d="M 254,60 H 15944 V 12633 H 254 z
 		M 5295,4711 5355,4711 5343,4557 5307,4557z
 		M 7168,5673 7258,5673 7231,5459 7195,5459z"/>
 </clipPath>
@@ -409,7 +409,7 @@
 <!-- Line -->
 <defs>
 <clipPath id="cp21">
-	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+	<path clip-rule="evenodd" d="M 254,60 H 15944 V 12633 H 254 z
 		M 7170,4711 7230,4711 7218,4557 7182,4557z
 		M 7168,5673 7258,5673 7231,5459 7195,5459z"/>
 </clipPath>
@@ -422,7 +422,7 @@
 <!-- Line -->
 <defs>
 <clipPath id="cp22">
-	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+	<path clip-rule="evenodd" d="M 254,60 H 15944 V 12633 H 254 z
 		M 7170,4711 7230,4711 7218,4557 7182,4557z
 		M 4455,8521 4545,8521 4518,8307 4482,8307z"/>
 </clipPath>
@@ -438,7 +438,7 @@
 <!-- Line -->
 <defs>
 <clipPath id="cp23">
-	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+	<path clip-rule="evenodd" d="M 254,60 H 15944 V 12633 H 254 z
 		M 3272,9646 3353,9605 3233,9426 3201,9442z
 		M 3853,10604 3772,10645 3892,10824 3924,10808z"/>
 </clipPath>
@@ -454,7 +454,7 @@
 <!-- Line -->
 <defs>
 <clipPath id="cp24">
-	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+	<path clip-rule="evenodd" d="M 254,60 H 15944 V 12633 H 254 z
 		M 4455,9946 4545,9946 4518,9732 4482,9732z
 		M 3853,10604 3772,10645 3892,10824 3924,10808z"/>
 </clipPath>
@@ -467,7 +467,7 @@
 <!-- Line -->
 <defs>
 <clipPath id="cp25">
-	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+	<path clip-rule="evenodd" d="M 254,60 H 15944 V 12633 H 254 z
 		M 12330,9646 12420,9646 12393,9432 12357,9432z
 		M 12420,10604 12330,10604 12357,10818 12393,10818z"/>
 </clipPath>
@@ -492,7 +492,7 @@
 <!-- Line -->
 <defs>
 <clipPath id="cp26">
-	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+	<path clip-rule="evenodd" d="M 254,60 H 15944 V 12633 H 254 z
 		M 11370,3629 11280,3629 11307,3843 11343,3843z
 		M 12420,10604 12330,10604 12357,10818 12393,10818z"/>
 </clipPath>
@@ -505,7 +505,7 @@
 <!-- Line -->
 <defs>
 <clipPath id="cp27">
-	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+	<path clip-rule="evenodd" d="M 254,60 H 15944 V 12633 H 254 z
 		M 11820,3104 11730,3104 11757,3318 11793,3318z
 		M 9496,645 9496,555 9282,582 9282,618z"/>
 </clipPath>
@@ -521,7 +521,7 @@
 <!-- Line -->
 <defs>
 <clipPath id="cp28">
-	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+	<path clip-rule="evenodd" d="M 254,60 H 15944 V 12633 H 254 z
 		M 11820,3104 11730,3104 11757,3318 11793,3318z
 		M 13245,10604 13155,10604 13182,10818 13218,10818z"/>
 </clipPath>
@@ -534,7 +534,7 @@
 <!-- Line -->
 <defs>
 <clipPath id="cp29">
-	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+	<path clip-rule="evenodd" d="M 254,60 H 15944 V 12633 H 254 z
 		M 11820,3104 11730,3104 11757,3318 11793,3318z
 		M 5280,5671 5370,5671 5343,5457 5307,5457z"/>
 </clipPath>
@@ -547,7 +547,7 @@
 <!-- Line -->
 <defs>
 <clipPath id="cp30">
-	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+	<path clip-rule="evenodd" d="M 254,60 H 15944 V 12633 H 254 z
 		M 555,3496 645,3496 618,3282 582,3282z
 		M 5280,5671 5370,5671 5343,5457 5307,5457z"/>
 </clipPath>
@@ -563,7 +563,7 @@
 <!-- Line -->
 <defs>
 <clipPath id="cp31">
-	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+	<path clip-rule="evenodd" d="M 254,60 H 15944 V 12633 H 254 z
 		M 12314,8370 12314,8430 12468,8418 12468,8382z
 		M 5280,5671 5370,5671 5343,5457 5307,5457z"/>
 </clipPath>
@@ -576,7 +576,7 @@
 <!-- Line -->
 <defs>
 <clipPath id="cp32">
-	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+	<path clip-rule="evenodd" d="M 254,60 H 15944 V 12633 H 254 z
 		M 11639,8370 11639,8430 11793,8418 11793,8382z
 		M 5280,5671 5370,5671 5343,5457 5307,5457z"/>
 </clipPath>
@@ -589,7 +589,7 @@
 <!-- Line -->
 <defs>
 <clipPath id="cp33">
-	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+	<path clip-rule="evenodd" d="M 254,60 H 15944 V 12633 H 254 z
 		M 10964,8370 10964,8430 11118,8418 11118,8382z
 		M 5280,5671 5370,5671 5343,5457 5307,5457z"/>
 </clipPath>
@@ -602,7 +602,7 @@
 <!-- Line -->
 <defs>
 <clipPath id="cp34">
-	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+	<path clip-rule="evenodd" d="M 254,60 H 15944 V 12633 H 254 z
 		M 12989,8370 12989,8430 13143,8418 13143,8382z
 		M 5280,5671 5370,5671 5343,5457 5307,5457z"/>
 </clipPath>
@@ -615,7 +615,7 @@
 <!-- Line -->
 <defs>
 <clipPath id="cp35">
-	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+	<path clip-rule="evenodd" d="M 254,60 H 15944 V 12633 H 254 z
 		M 13664,8370 13664,8430 13818,8418 13818,8382z
 		M 5280,5671 5370,5671 5343,5457 5307,5457z"/>
 </clipPath>
@@ -629,17 +629,8 @@
 <g transform="translate(450,825) rotate(-90)" >
 <text xml:space="preserve" x="0" y="0" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="168" text-anchor="middle">application</text>
 </g><!-- Text -->
-<g transform="translate(450,9450) rotate(-90)" >
-<text xml:space="preserve" x="0" y="0" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="168" text-anchor="middle">connection = cs-&gt;conn</text>
-</g><!-- Text -->
 <g transform="translate(2850,3225) rotate(-90)" >
 <text xml:space="preserve" x="0" y="0" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="start">mux-&gt;subscribe(SUB_RECV)</text>
-</g><!-- Text -->
-<g transform="translate(900,825) rotate(-90)" >
-<text xml:space="preserve" x="0" y="0" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="middle">(eg: checks,</text>
-</g><!-- Text -->
-<g transform="translate(1125,750) rotate(-90)" >
-<text xml:space="preserve" x="0" y="0" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="middle">stream-int)</text>
 </g><!-- Text -->
 <text xml:space="preserve" x="12300" y="7125" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="192" text-anchor="middle">MUX</text>
 <!-- Text -->
@@ -661,12 +652,6 @@
 <!-- Text -->
 <text xml:space="preserve" x="8400" y="2100" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="middle">HTX contents when mode==HTTP</text>
 <!-- Text -->
-<text xml:space="preserve" x="13125" y="675" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="start">snd_buf() will move the</text>
-<!-- Text -->
-<text xml:space="preserve" x="13125" y="975" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="start">buffer (zero-copy) when</text>
-<!-- Text -->
-<text xml:space="preserve" x="13125" y="1275" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="start">the destination is empty.</text>
-<!-- Text -->
 <text xml:space="preserve" x="7500" y="450" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="end">tasklet_wakeup()</text>
 <!-- Text -->
 <text xml:space="preserve" x="9300" y="450" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="start">tasklet_wakeup()</text>
@@ -680,25 +665,6 @@
 <g transform="translate(450,6750) rotate(-90)" >
 <text xml:space="preserve" x="0" y="0" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="168" text-anchor="middle">mux=conn-&gt;mux</text>
 </g><!-- Text -->
-<g transform="translate(450,2550) rotate(-90)" >
-<text xml:space="preserve" x="0" y="0" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="168" text-anchor="middle">conn_stream</text>
-</g><!-- Text -->
-<text xml:space="preserve" x="12900" y="75" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="start">Notes:</text>
-<!-- Text -->
-<text xml:space="preserve" x="12975" y="375" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="start">- mux-&gt;rcv_buf() and</text>
-<!-- Text -->
-<text xml:space="preserve" x="12975" y="1650" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="start">- the application is also</text>
-<!-- Text -->
-<text xml:space="preserve" x="13125" y="1950" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="start">called the data layer and</text>
-<!-- Text -->
-<text xml:space="preserve" x="13125" y="2250" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="start">is cs-&gt;data and cs-&gt;data_cb</text>
-<!-- Text -->
-<text xml:space="preserve" x="12975" y="2550" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="start">- transport layers (xprt) are</text>
-<!-- Text -->
-<text xml:space="preserve" x="13125" y="2775" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="start">stackable. conn-&gt;xprt is</text>
-<!-- Text -->
-<text xml:space="preserve" x="13125" y="3000" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="start">the topmost one.</text>
-<!-- Text -->
 <text xml:space="preserve" x="4500" y="11175" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="216" text-anchor="middle">Transport</text>
 <!-- Text -->
 <text xml:space="preserve" x="2250" y="12000" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="start">encoding/decoding function</text>
@@ -714,6 +680,37 @@
 <text xml:space="preserve" x="3675" y="10725" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="end">xprt-&gt;subscribe(SUB_RECV)</text>
 <!-- Text -->
 <text xml:space="preserve" x="12225" y="10725" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="end">xprt-&gt;subscribe(SUB_SEND)</text>
+<!-- Text -->
+<g transform="translate(450,2550) rotate(-90)" >
+<text xml:space="preserve" x="0" y="0" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="168" text-anchor="middle">stconn</text>
+</g><!-- Text -->
+<g transform="translate(900,1125) rotate(-90)" >
+<text xml:space="preserve" x="0" y="0" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="middle">(eg: checks, streams)</text>
+</g><!-- Text -->
+<g transform="translate(450,10125) rotate(-90)" >
+<text xml:space="preserve" x="0" y="0" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="168" text-anchor="middle">connection = sc-&gt;sedesc-&gt;conn</text>
+</g><!-- Text -->
+<text xml:space="preserve" x="12225" y="225" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="start">Notes:</text>
+<!-- Text -->
+<text xml:space="preserve" x="12975" y="675" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="start">snd_buf() will move the</text>
+<!-- Text -->
+<text xml:space="preserve" x="12975" y="975" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="start">buffer (zero-copy) when</text>
+<!-- Text -->
+<text xml:space="preserve" x="12975" y="1275" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="start">the destination is empty.</text>
+<!-- Text -->
+<text xml:space="preserve" x="12825" y="1650" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="start">- the application is also</text>
+<!-- Text -->
+<text xml:space="preserve" x="12975" y="2250" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="start">is sc-&gt;app with sc-&gt;app_ops</text>
+<!-- Text -->
+<text xml:space="preserve" x="12825" y="2550" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="start">- transport layers (xprt) are</text>
+<!-- Text -->
+<text xml:space="preserve" x="12975" y="2775" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="start">stackable. conn-&gt;xprt is</text>
+<!-- Text -->
+<text xml:space="preserve" x="12975" y="3000" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="start">the topmost one.</text>
+<!-- Text -->
+<text xml:space="preserve" x="12975" y="1950" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="start">called the app layer and</text>
+<!-- Text -->
+<text xml:space="preserve" x="12825" y="375" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="start">- mux-&gt;rcv_buf() and</text>
 <!-- Line -->
 <polyline points=" 4261,9751 4261,8751 4761,8751 4761,9751"
 	stroke="#458dba" stroke-width="45px"/>
@@ -754,8 +751,6 @@
 <polyline points=" 11157,12331 11614,12331 11614,12581 11157,12581"
 	stroke="#458dba" stroke-width="45px"/>
 <!-- Text -->
-<text xml:space="preserve" x="8409" y="657" fill="#1a1a1a" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="middle">si_cs_io_cb</text>
-<!-- Text -->
 <text xml:space="preserve" x="9534" y="4200" fill="#1a1a1a" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="middle">encode</text>
 <!-- Text -->
 <text xml:space="preserve" x="11325" y="4200" fill="#1a1a1a" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="middle">encode</text>
@@ -775,6 +770,8 @@
 <text xml:space="preserve" x="12375" y="9300" fill="#1a1a1a" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="middle">mux_io_cb</text>
 <!-- Text -->
 <text xml:space="preserve" x="3159" y="9300" fill="#1a1a1a" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="middle">mux_io_cb</text>
+<!-- Text -->
+<text xml:space="preserve" x="8409" y="657" fill="#1a1a1a" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="middle">sc_conn_io_cb</text>
 <!-- Line -->
 <polyline points=" 4261,8850 4761,8850"
 	stroke="#458dba" stroke-width="15px"/>
