@@ -77,7 +77,7 @@ static inline struct task *sc_strm_task(const struct stconn *cs)
 }
 
 /* returns the stream connector on the other side. Used during forwarding. */
-static inline struct stconn *cs_opposite(const struct stconn *cs)
+static inline struct stconn *sc_opposite(const struct stconn *cs)
 {
 	struct stream *strm = __sc_strm(cs);
 
@@ -86,7 +86,7 @@ static inline struct stconn *cs_opposite(const struct stconn *cs)
 
 
 /* to be called only when in SC_ST_DIS with SC_FL_ERR */
-static inline void cs_report_error(struct stconn *cs)
+static inline void sc_report_error(struct stconn *cs)
 {
 	if (!__sc_strm(cs)->conn_err_type)
 		__sc_strm(cs)->conn_err_type = STRM_ET_DATA_ERR;
@@ -98,23 +98,23 @@ static inline void cs_report_error(struct stconn *cs)
 /* sets the current and previous state of a stream connector to <state>. This is
  * mainly used to create one in the established state on incoming conncetions.
  */
-static inline void cs_set_state(struct stconn *cs, int state)
+static inline void sc_set_state(struct stconn *cs, int state)
 {
 	cs->state = __sc_strm(cs)->prev_conn_state = state;
 }
 
 /* returns a bit for a stream connector state, to match against SC_SB_* */
-static inline enum cs_state_bit cs_state_bit(enum cs_state state)
+static inline enum sc_state_bit sc_state_bit(enum sc_state state)
 {
 	BUG_ON(state > SC_ST_CLO);
 	return 1U << state;
 }
 
 /* returns true if <state> matches one of the SC_SB_* bits in <mask> */
-static inline int cs_state_in(enum cs_state state, enum cs_state_bit mask)
+static inline int sc_state_in(enum sc_state state, enum sc_state_bit mask)
 {
 	BUG_ON(mask & ~SC_SB_ALL);
-	return !!(cs_state_bit(state) & mask);
+	return !!(sc_state_bit(state) & mask);
 }
 
 /* Returns true if a connection is attached to the stream connector <cs> and if this
@@ -134,7 +134,7 @@ static inline int sc_conn_ready(const struct stconn *cs)
  * may hold pending data. This function returns true if such an error was
  * reported. Both the CS and the CONN must be valid.
  */
-static inline int cs_is_conn_error(const struct stconn *cs)
+static inline int sc_is_conn_error(const struct stconn *cs)
 {
 	const struct connection *conn;
 
@@ -154,7 +154,7 @@ static inline int cs_is_conn_error(const struct stconn *cs)
  * stream connector and SE_FL_HAVE_NO_DATA cleared. The requester will be responsible
  * for calling this function to try again once woken up.
  */
-static inline int cs_alloc_ibuf(struct stconn *cs, struct buffer_wait *wait)
+static inline int sc_alloc_ibuf(struct stconn *cs, struct buffer_wait *wait)
 {
 	int ret;
 
@@ -319,13 +319,13 @@ static inline int sc_is_recv_allowed(const struct stconn *sc)
 static inline void sc_chk_rcv(struct stconn *cs)
 {
 	if (sc_ep_test(cs, SE_FL_APPLET_NEED_CONN) &&
-	    cs_state_in(cs_opposite(cs)->state, SC_SB_RDY|SC_SB_EST|SC_SB_DIS|SC_SB_CLO))
+	    sc_state_in(sc_opposite(cs)->state, SC_SB_RDY|SC_SB_EST|SC_SB_DIS|SC_SB_CLO))
 		sc_ep_clr(cs, SE_FL_APPLET_NEED_CONN);
 
 	if (!sc_is_recv_allowed(cs))
 		return;
 
-	if (!cs_state_in(cs->state, SC_SB_RDY|SC_SB_EST))
+	if (!sc_state_in(cs->state, SC_SB_RDY|SC_SB_EST))
 		return;
 
 	sc_ep_set(cs, SE_FL_HAVE_NO_DATA);
@@ -348,7 +348,7 @@ static inline void sc_update(struct stconn *cs)
 }
 
 /* for debugging, reports the stream connector state name */
-static inline const char *cs_state_str(int state)
+static inline const char *sc_state_str(int state)
 {
 	switch (state) {
 	case SC_ST_INI: return "INI";

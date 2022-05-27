@@ -106,7 +106,7 @@ enum sc_flags {
  * performing some retries (eg: connection error). Some states are transient and
  * do not last beyond process_session().
  */
-enum cs_state {
+enum sc_state {
 	SC_ST_INI = 0,           /* CS not sollicitated yet */
 	SC_ST_REQ,               /* [transient] connection initiation desired and not started yet */
 	SC_ST_QUE,               /* CS waiting in queue */
@@ -121,7 +121,7 @@ enum cs_state {
 } __attribute__((packed));
 
 /* state bits for use with lists of states */
-enum cs_state_bit {
+enum sc_state_bit {
 	SC_SB_NONE = 0,
 	SC_SB_INI = 1U << SC_ST_INI,
 	SC_SB_REQ = 1U << SC_ST_REQ,
@@ -181,7 +181,7 @@ struct sc_app_ops {
  */
 struct stconn {
 	enum obj_type obj_type;              /* differentiates connection from applet context */
-	enum cs_state state;                 /* CS_ST* */
+	enum sc_state state;                 /* CS_ST* */
 	/* 2 bytes hole here */
 
 	unsigned int flags;                  /* SC_FL_* */

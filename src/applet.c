@@ -227,7 +227,7 @@ struct task *task_run_applet(struct task *t, void *context, unsigned int state)
 	 * some other processing if needed. The applet doesn't have anything to
 	 * do if it needs the buffer, it will be called again upon readiness.
 	 */
-	if (!cs_alloc_ibuf(cs, &app->buffer_wait))
+	if (!sc_alloc_ibuf(cs, &app->buffer_wait))
 		applet_have_more_data(app);
 
 	count = co_data(sc_oc(cs));
@@ -238,7 +238,7 @@ struct task *task_run_applet(struct task *t, void *context, unsigned int state)
 	 */
 	if (count != co_data(sc_oc(cs))) {
 		sc_oc(cs)->flags |= CF_WRITE_PARTIAL | CF_WROTE_DATA;
-		sc_have_room(cs_opposite(cs));
+		sc_have_room(sc_opposite(cs));
 	}
 
 	/* measure the call rate and check for anomalies when too high */

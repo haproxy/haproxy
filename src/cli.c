@@ -1971,7 +1971,7 @@ static int _getsocks(char **args, char *payload, struct appctx *appctx, void *pr
 	struct cmsghdr *cmsg;
 	struct stconn *cs = appctx_cs(appctx);
 	struct stream *s = __sc_strm(cs);
-	struct connection *remote = sc_conn(cs_opposite(cs));
+	struct connection *remote = sc_conn(sc_opposite(cs));
 	struct msghdr msghdr;
 	struct iovec iov;
 	struct timeval tv = { .tv_sec = 1, .tv_usec = 0 };
@@ -2780,7 +2780,7 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 
 		sockaddr_free(&s->scb->dst);
 
-		cs_set_state(s->scb, SC_ST_INI);
+		sc_set_state(s->scb, SC_ST_INI);
 		s->scb->flags &= SC_FL_ISBACK | SC_FL_DONT_WAKE; /* we're in the context of process_stream */
 		s->req.flags &= ~(CF_SHUTW|CF_SHUTW_NOW|CF_AUTO_CONNECT|CF_WRITE_ERROR|CF_STREAMER|CF_STREAMER_FAST|CF_NEVER_WAIT|CF_WROTE_DATA);
 		s->res.flags &= ~(CF_SHUTR|CF_SHUTR_NOW|CF_READ_ATTACHED|CF_READ_ERROR|CF_READ_NOEXP|CF_STREAMER|CF_STREAMER_FAST|CF_WRITE_PARTIAL|CF_NEVER_WAIT|CF_WROTE_DATA|CF_READ_NULL);

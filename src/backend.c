@@ -1836,7 +1836,7 @@ skip_reuse:
 	if (!(srv_conn->flags & (CO_FL_WAIT_XPRT | CO_FL_EARLY_SSL_HS)))
 		sc_ep_clr(s->scb, SE_FL_WAIT_FOR_HS);
 
-	if (!cs_state_in(s->scb->state, SC_SB_EST|SC_SB_DIS|SC_SB_CLO) &&
+	if (!sc_state_in(s->scb->state, SC_SB_EST|SC_SB_DIS|SC_SB_CLO) &&
 	    (srv_conn->flags & CO_FL_WAIT_XPRT) == 0) {
 		s->conn_exp = TICK_ETERNITY;
 		sc_oc(s->scb)->flags |= CF_WRITE_NULL;

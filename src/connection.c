@@ -1191,7 +1191,7 @@ int conn_send_proxy(struct connection *conn, unsigned int flag)
 		if (cs && sc_strm(cs)) {
 			ret = make_proxy_line(trash.area, trash.size,
 					      objt_server(conn->target),
-					      sc_conn(cs_opposite(cs)),
+					      sc_conn(sc_opposite(cs)),
 					      __sc_strm(cs));
 		}
 		else {

@@ -1955,7 +1955,7 @@ static void hlua_socket_handler(struct appctx *appctx)
 	/* if the connection is not established, inform the stream that we want
 	 * to be notified whenever the connection completes.
 	 */
-	if (cs_opposite(cs)->state < SC_ST_EST) {
+	if (sc_opposite(cs)->state < SC_ST_EST) {
 		applet_need_more_data(appctx);
 		se_need_remote_conn(appctx->sedesc);
 		applet_have_more_data(appctx);
@@ -2000,7 +2000,7 @@ static int hlua_socket_init(struct appctx *appctx)
 	 * and retrieve data from the server. The connection is initialized
 	 * with the "struct server".
 	 */
-	cs_set_state(s->scb, SC_ST_ASS);
+	sc_set_state(s->scb, SC_ST_ASS);
 
 	/* Force destination server. */
 	s->flags |= SF_DIRECT | SF_ASSIGNED | SF_BE_ASSIGNED;
@@ -2425,7 +2425,7 @@ static int hlua_socket_write_yield(struct lua_State *L,int status, lua_KContext 
 	 * the request buffer if its not required.
 	 */
 	if (s->req.buf.size == 0) {
-		if (!cs_alloc_ibuf(cs, &appctx->buffer_wait))
+		if (!sc_alloc_ibuf(cs, &appctx->buffer_wait))
 			goto hlua_socket_write_yield_return;
 	}
 
@@ -2636,7 +2636,7 @@ __LJMP static int hlua_socket_getpeername(struct lua_State *L)
 
 	appctx = container_of(peer, struct hlua_csk_ctx, xref)->appctx;
 	cs = appctx_cs(appctx);
-	dst = sc_dst(cs_opposite(cs));
+	dst = sc_dst(sc_opposite(cs));
 	if (!dst) {
 		xref_unlock(&socket->xref, peer);
 		lua_pushnil(L);
@@ -2845,7 +2845,7 @@ __LJMP static int hlua_socket_connect(struct lua_State *L)
 	cs = appctx_cs(appctx);
 	s = __sc_strm(cs);
 
-	if (!sockaddr_alloc(&cs_opposite(cs)->dst, addr, sizeof(*addr))) {
+	if (!sockaddr_alloc(&sc_opposite(cs)->dst, addr, sizeof(*addr))) {
 		xref_unlock(&socket->xref, peer);
 		WILL_LJMP(luaL_error(L, "connect: internal error"));
 	}

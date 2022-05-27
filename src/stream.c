@@ -92,7 +92,7 @@ static const struct trace_event strm_trace_events[] = {
 	{ .mask = STRM_EV_STRM_ANA,     .name = "strm_ana",     .desc = "stream analyzers" },
 	{ .mask = STRM_EV_STRM_PROC,    .name = "strm_proc",    .desc = "stream processing" },
 
-	{ .mask = STRM_EV_CS_ST,        .name = "cs_state",     .desc = "processing connector states" },
+	{ .mask = STRM_EV_CS_ST,        .name = "sc_state",     .desc = "processing connector states" },
 
 	{ .mask = STRM_EV_HTTP_ANA,     .name = "http_ana",     .desc = "HTTP analyzers" },
 	{ .mask = STRM_EV_HTTP_ERR,     .name = "http_err",     .desc = "error during HTTP analyzis" },
@@ -173,7 +173,7 @@ static void strm_trace(enum trace_level level, uint64_t mask, const struct trace
 
 	/* Front and back stream connector state */
 	chunk_appendf(&trace_buf, " CS=(%s,%s)",
-		      cs_state_str(s->scf->state), cs_state_str(s->scb->state));
+		      sc_state_str(s->scf->state), sc_state_str(s->scb->state));
 
 	/* If txn is defined, HTTP req/rep states */
 	if (txn)
@@ -453,7 +453,7 @@ struct stream *stream_new(struct session *sess, struct stconn *cs, struct buffer
 	if (!s->scb)
 		goto out_fail_alloc_scb;
 
-	cs_set_state(s->scf, SC_ST_EST);
+	sc_set_state(s->scf, SC_ST_EST);
 	s->scf->hcto = sess->fe->timeout.clientfin;
 
 	if (likely(sess->fe->options2 & PR_O2_INDEPSTR))
@@ -966,7 +966,7 @@ static void sess_set_term_flags(struct stream *s)
 		}
 		else if (s->scb->state == SC_ST_QUE)
 			s->flags |= SF_FINST_Q;
-		else if (cs_state_in(s->scb->state, SC_SB_REQ|SC_SB_TAR|SC_SB_ASS|SC_SB_CON|SC_SB_CER|SC_SB_RDY))
+		else if (sc_state_in(s->scb->state, SC_SB_REQ|SC_SB_TAR|SC_SB_ASS|SC_SB_CON|SC_SB_CER|SC_SB_RDY))
 			s->flags |= SF_FINST_C;
 		else if (s->scb->state == SC_ST_EST || s->prev_conn_state == SC_ST_EST)
 			s->flags |= SF_FINST_D;
@@ -1533,10 +1533,10 @@ static void stream_update_both_cs(struct stream *s)
 	s->prev_conn_state = scb->state;
 
 	/* let's recompute both sides states */
-	if (cs_state_in(scf->state, SC_SB_RDY|SC_SB_EST))
+	if (sc_state_in(scf->state, SC_SB_RDY|SC_SB_EST))
 		sc_update(scf);
 
-	if (cs_state_in(scb->state, SC_SB_RDY|SC_SB_EST))
+	if (sc_state_in(scb->state, SC_SB_RDY|SC_SB_EST))
 		sc_update(scb);
 
 	/* stream connectors are processed outside of process_stream() and must be
@@ -1753,10 +1753,10 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	 */
 	srv = objt_server(s->target);
 	if (unlikely(sc_ep_test(scf, SE_FL_ERROR))) {
-		if (cs_state_in(scf->state, SC_SB_EST|SC_SB_DIS)) {
+		if (sc_state_in(scf->state, SC_SB_EST|SC_SB_DIS)) {
 			sc_shutr(scf);
 			sc_shutw(scf);
-			cs_report_error(scf);
+			sc_report_error(scf);
 			if (!(req->analysers) && !(res->analysers)) {
 				_HA_ATOMIC_INC(&s->be->be_counters.cli_aborts);
 				_HA_ATOMIC_INC(&sess->fe->fe_counters.cli_aborts);
@@ -1773,10 +1773,10 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	}
 
 	if (unlikely(sc_ep_test(scb, SE_FL_ERROR))) {
-		if (cs_state_in(scb->state, SC_SB_EST|SC_SB_DIS)) {
+		if (sc_state_in(scb->state, SC_SB_EST|SC_SB_DIS)) {
 			sc_shutr(scb);
 			sc_shutw(scb);
-			cs_report_error(scb);
+			sc_report_error(scb);
 			_HA_ATOMIC_INC(&s->be->be_counters.failed_resp);
 			if (srv)
 				_HA_ATOMIC_INC(&srv->counters.failed_resp);
@@ -1796,7 +1796,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		/* note: maybe we should process connection errors here ? */
 	}
 
-	if (cs_state_in(scb->state, SC_SB_CON|SC_SB_RDY)) {
+	if (sc_state_in(scb->state, SC_SB_CON|SC_SB_RDY)) {
 		/* we were trying to establish a connection on the server side,
 		 * maybe it succeeded, maybe it failed, maybe we timed out, ...
 		 */
@@ -1889,7 +1889,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	    s->pending_events & TASK_WOKEN_MSG) {
 		unsigned int flags = req->flags;
 
-		if (cs_state_in(scf->state, SC_SB_EST|SC_SB_DIS|SC_SB_CLO)) {
+		if (sc_state_in(scf->state, SC_SB_EST|SC_SB_DIS|SC_SB_CLO)) {
 			int max_loops = global.tune.maxpollevents;
 			unsigned int ana_list;
 			unsigned int ana_back;
@@ -1990,7 +1990,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		 s->pending_events & TASK_WOKEN_MSG) {
 		unsigned int flags = res->flags;
 
-		if (cs_state_in(scb->state, SC_SB_EST|SC_SB_DIS|SC_SB_CLO)) {
+		if (sc_state_in(scb->state, SC_SB_EST|SC_SB_DIS|SC_SB_CLO)) {
 			int max_loops = global.tune.maxpollevents;
 			unsigned int ana_list;
 			unsigned int ana_back;
@@ -2171,7 +2171,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	 */
 	if (unlikely((!req->analysers || (req->analysers == AN_REQ_FLT_END && !(req->flags & CF_FLT_ANALYZE))) &&
 	    !(req->flags & (CF_SHUTW|CF_SHUTR_NOW)) &&
-	    (cs_state_in(scf->state, SC_SB_EST|SC_SB_DIS|SC_SB_CLO)) &&
+	    (sc_state_in(scf->state, SC_SB_EST|SC_SB_DIS|SC_SB_CLO)) &&
 	    (req->to_forward != CHN_INFINITE_FORWARD))) {
 		/* This buffer is freewheeling, there's no analyser
 		 * attached to it. If any data are left in, we'll permit them to
@@ -2250,7 +2250,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	/* we may have a pending connection request, or a connection waiting
 	 * for completion.
 	 */
-	if (cs_state_in(scb->state, SC_SB_REQ|SC_SB_QUE|SC_SB_TAR|SC_SB_ASS)) {
+	if (sc_state_in(scb->state, SC_SB_REQ|SC_SB_QUE|SC_SB_TAR|SC_SB_ASS)) {
 		/* prune the request variables and swap to the response variables. */
 		if (s->vars_reqres.scope != SCOPE_RES) {
 			if (!LIST_ISEMPTY(&s->vars_reqres.head))
@@ -2325,7 +2325,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 
 	/* Benchmarks have shown that it's optimal to do a full resync now */
 	if (scf->state == SC_ST_DIS ||
-	    cs_state_in(scb->state, SC_SB_RDY|SC_SB_DIS) ||
+	    sc_state_in(scb->state, SC_SB_RDY|SC_SB_DIS) ||
 	    (sc_ep_test(scf, SE_FL_ERROR) && scf->state != SC_ST_CLO) ||
 	    (sc_ep_test(scb, SE_FL_ERROR) && scb->state != SC_ST_CLO))
 		goto resync_stconns;
@@ -2343,7 +2343,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	 */
 	if (unlikely((!res->analysers || (res->analysers == AN_RES_FLT_END && !(res->flags & CF_FLT_ANALYZE))) &&
 	    !(res->flags & (CF_SHUTW|CF_SHUTR_NOW)) &&
-	    cs_state_in(scb->state, SC_SB_EST|SC_SB_DIS|SC_SB_CLO) &&
+	    sc_state_in(scb->state, SC_SB_EST|SC_SB_DIS|SC_SB_CLO) &&
 	    (res->to_forward != CHN_INFINITE_FORWARD))) {
 		/* This buffer is freewheeling, there's no analyser
 		 * attached to it. If any data are left in, we'll permit them to
@@ -2449,7 +2449,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	}
 
 	if (scf->state == SC_ST_DIS ||
-	    cs_state_in(scb->state, SC_SB_RDY|SC_SB_DIS) ||
+	    sc_state_in(scb->state, SC_SB_RDY|SC_SB_DIS) ||
 	    (sc_ep_test(scf, SE_FL_ERROR) && scf->state != SC_ST_CLO) ||
 	    (sc_ep_test(scb, SE_FL_ERROR) && scb->state != SC_ST_CLO))
 		goto resync_stconns;
@@ -2467,7 +2467,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	scf->flags &= ~SC_FL_DONT_WAKE;
 	scb->flags &= ~SC_FL_DONT_WAKE;
 
-	if (likely((scf->state != SC_ST_CLO) || !cs_state_in(scb->state, SC_SB_INI|SC_SB_CLO) ||
+	if (likely((scf->state != SC_ST_CLO) || !sc_state_in(scb->state, SC_SB_INI|SC_SB_CLO) ||
 		   (req->analysers & AN_REQ_FLT_END) || (res->analysers & AN_RES_FLT_END))) {
 		if ((sess->fe->options & PR_O_CONTSTATS) && (s->flags & SF_BE_ASSIGNED) && !(s->flags & SF_IGNORE))
 			stream_process_counters(s);
@@ -2782,7 +2782,7 @@ void stream_dump(struct buffer *buf, const struct stream *s, const char *pfx, ch
 		           (s->txn ? h1_msg_state_str(s->txn->req.msg_state): "-"), (s->txn ? s->txn->req.flags : 0),
 		           (s->txn ? h1_msg_state_str(s->txn->rsp.msg_state): "-"), (s->txn ? s->txn->rsp.flags : 0), eol,
 	              pfx, req->flags, req->analysers, res->flags, res->analysers, eol,
-		      pfx, scf, cs_state_str(scf->state), scf->flags, scb, cs_state_str(scb->state), scb->flags, eol,
+		      pfx, scf, sc_state_str(scf->state), scf->flags, scb, sc_state_str(scb->state), scb->flags, eol,
 	              pfx, acf, acf ? acf->st0   : 0, acb, acb ? acb->st0   : 0, eol,
 	              pfx, cof, cof ? cof->flags : 0, conn_get_mux_name(cof), cof?cof->ctx:0, conn_get_xprt_name(cof),
 		           cof ? cof->xprt_ctx : 0, conn_get_ctrl_name(cof), conn_fd(cof), eol,
@@ -3304,7 +3304,7 @@ static int stats_dump_full_strm_to_buffer(struct stconn *cs, struct stream *strm
 
 		scf = strm->scf;
 		chunk_appendf(&trash, "  scf=%p flags=0x%08x state=%s endp=%s,%p,0x%08x sub=%d\n",
-			      scf, scf->flags, cs_state_str(scf->state),
+			      scf, scf->flags, sc_state_str(scf->state),
 			      (sc_ep_test(scf, SE_FL_T_MUX) ? "CONN" : (sc_ep_test(scf, SE_FL_T_APPLET) ? "APPCTX" : "NONE")),
 			      scf->sedesc->se, sc_ep_get(scf), scf->wait_event.events);
 
@@ -3343,7 +3343,7 @@ static int stats_dump_full_strm_to_buffer(struct stconn *cs, struct stream *strm
 
 		scb = strm->scb;
 		chunk_appendf(&trash, "  scb=%p flags=0x%08x state=%s endp=%s,%p,0x%08x sub=%d\n",
-			      scb, scb->flags, cs_state_str(scb->state),
+			      scb, scb->flags, sc_state_str(scb->state),
 			      (sc_ep_test(scb, SE_FL_T_MUX) ? "CONN" : (sc_ep_test(scb, SE_FL_T_APPLET) ? "APPCTX" : "NONE")),
 			      scb->sedesc->se, sc_ep_get(scb), scb->wait_event.events);
 

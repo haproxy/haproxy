@@ -512,7 +512,7 @@ static void sc_app_shutr(struct stconn *cs)
 	ic->flags |= CF_SHUTR;
 	ic->rex = TICK_ETERNITY;
 
-	if (!cs_state_in(cs->state, SC_SB_CON|SC_SB_RDY|SC_SB_EST))
+	if (!sc_state_in(cs->state, SC_SB_CON|SC_SB_RDY|SC_SB_EST))
 		return;
 
 	if (sc_oc(cs)->flags & CF_SHUTW) {
@@ -653,7 +653,7 @@ static void sc_app_shutr_conn(struct stconn *cs)
 	ic->flags |= CF_SHUTR;
 	ic->rex = TICK_ETERNITY;
 
-	if (!cs_state_in(cs->state, SC_SB_CON|SC_SB_RDY|SC_SB_EST))
+	if (!sc_state_in(cs->state, SC_SB_CON|SC_SB_RDY|SC_SB_EST))
 		return;
 
 	if (sc_oc(cs)->flags & CF_SHUTW) {
@@ -758,7 +758,7 @@ static void sc_app_chk_rcv_conn(struct stconn *cs)
 	BUG_ON(!sc_conn(cs));
 
 	/* (re)start reading */
-	if (cs_state_in(cs->state, SC_SB_CON|SC_SB_RDY|SC_SB_EST))
+	if (sc_state_in(cs->state, SC_SB_CON|SC_SB_RDY|SC_SB_EST))
 		tasklet_wakeup(cs->wait_event.tasklet);
 }
 
@@ -774,7 +774,7 @@ static void sc_app_chk_snd_conn(struct stconn *cs)
 
 	BUG_ON(!sc_conn(cs));
 
-	if (unlikely(!cs_state_in(cs->state, SC_SB_RDY|SC_SB_EST) ||
+	if (unlikely(!sc_state_in(cs->state, SC_SB_RDY|SC_SB_EST) ||
 	    (oc->flags & CF_SHUTW)))
 		return;
 
@@ -788,7 +788,7 @@ static void sc_app_chk_snd_conn(struct stconn *cs)
 	if (!(cs->wait_event.events & SUB_RETRY_SEND) && !channel_is_empty(sc_oc(cs)))
 		sc_conn_send(cs);
 
-	if (sc_ep_test(cs, SE_FL_ERROR | SE_FL_ERR_PENDING) || cs_is_conn_error(cs)) {
+	if (sc_ep_test(cs, SE_FL_ERROR | SE_FL_ERR_PENDING) || sc_is_conn_error(cs)) {
 		/* Write error on the file descriptor */
 		if (cs->state >= SC_ST_CON)
 			sc_ep_set(cs, SE_FL_ERROR);
@@ -806,7 +806,7 @@ static void sc_app_chk_snd_conn(struct stconn *cs)
 		 */
 		if (((oc->flags & (CF_SHUTW|CF_AUTO_CLOSE|CF_SHUTW_NOW)) ==
 		     (CF_AUTO_CLOSE|CF_SHUTW_NOW)) &&
-		    cs_state_in(cs->state, SC_SB_RDY|SC_SB_EST)) {
+		    sc_state_in(cs->state, SC_SB_RDY|SC_SB_EST)) {
 			sc_shutw(cs);
 			goto out_wakeup;
 		}
@@ -851,7 +851,7 @@ static void sc_app_chk_snd_conn(struct stconn *cs)
 	if (likely((oc->flags & (CF_WRITE_NULL|CF_WRITE_ERROR|CF_SHUTW)) ||
 	          ((oc->flags & CF_WAKE_WRITE) &&
 	           ((channel_is_empty(oc) && !oc->to_forward) ||
-	            !cs_state_in(cs->state, SC_SB_EST))))) {
+	            !sc_state_in(cs->state, SC_SB_EST))))) {
 	out_wakeup:
 		if (!(cs->flags & SC_FL_DONT_WAKE))
 			task_wakeup(sc_strm_task(cs), TASK_WOKEN_IO);
@@ -879,7 +879,7 @@ static void sc_app_shutr_applet(struct stconn *cs)
 
 	/* Note: on shutr, we don't call the applet */
 
-	if (!cs_state_in(cs->state, SC_SB_CON|SC_SB_RDY|SC_SB_EST))
+	if (!sc_state_in(cs->state, SC_SB_CON|SC_SB_RDY|SC_SB_EST))
 		return;
 
 	if (sc_oc(cs)->flags & CF_SHUTW) {
@@ -1101,7 +1101,7 @@ static void sc_notify(struct stconn *cs)
 {
 	struct channel *ic = sc_ic(cs);
 	struct channel *oc = sc_oc(cs);
-	struct stconn *cso = cs_opposite(cs);
+	struct stconn *cso = sc_opposite(cs);
 	struct task *task = sc_strm_task(cs);
 
 	/* process consumer side */
@@ -1192,7 +1192,7 @@ static void sc_notify(struct stconn *cs)
 	/* wake the task up only when needed */
 	if (/* changes on the production side */
 	    (ic->flags & (CF_READ_NULL|CF_READ_ERROR)) ||
-	    !cs_state_in(cs->state, SC_SB_CON|SC_SB_RDY|SC_SB_EST) ||
+	    !sc_state_in(cs->state, SC_SB_CON|SC_SB_RDY|SC_SB_EST) ||
 	    sc_ep_test(cs, SE_FL_ERROR) ||
 	    ((ic->flags & CF_READ_PARTIAL) &&
 	     ((ic->flags & CF_EOI) || !ic->to_forward || cso->state != SC_ST_EST)) ||
@@ -1240,7 +1240,7 @@ static void sc_conn_read0(struct stconn *cs)
 	ic->flags |= CF_SHUTR;
 	ic->rex = TICK_ETERNITY;
 
-	if (!cs_state_in(cs->state, SC_SB_CON|SC_SB_RDY|SC_SB_EST))
+	if (!sc_state_in(cs->state, SC_SB_CON|SC_SB_RDY|SC_SB_EST))
 		return;
 
 	if (oc->flags & CF_SHUTW)
@@ -1398,7 +1398,7 @@ static int sc_conn_recv(struct stconn *cs)
 	}
 
 	/* now we'll need a input buffer for the stream */
-	if (!cs_alloc_ibuf(cs, &(__sc_strm(cs)->buffer_wait)))
+	if (!sc_alloc_ibuf(cs, &(__sc_strm(cs)->buffer_wait)))
 		goto end_recv;
 
 	/* For an HTX stream, if the buffer is stuck (no output data with some
@@ -1608,7 +1608,7 @@ static int sc_conn_recv(struct stconn *cs)
  */
 int sc_conn_sync_recv(struct stconn *cs)
 {
-	if (!cs_state_in(cs->state, SC_SB_RDY|SC_SB_EST))
+	if (!sc_state_in(cs->state, SC_SB_RDY|SC_SB_EST))
 		return 0;
 
 	if (!sc_mux_ops(cs))
@@ -1637,7 +1637,7 @@ static int sc_conn_send(struct stconn *cs)
 	int ret;
 	int did_send = 0;
 
-	if (sc_ep_test(cs, SE_FL_ERROR | SE_FL_ERR_PENDING) || cs_is_conn_error(cs)) {
+	if (sc_ep_test(cs, SE_FL_ERROR | SE_FL_ERR_PENDING) || sc_is_conn_error(cs)) {
 		/* We're probably there because the tasklet was woken up,
 		 * but process_stream() ran before, detected there were an
 		 * error and put the CS back to SC_ST_TAR. There's still
@@ -1756,7 +1756,7 @@ static int sc_conn_send(struct stconn *cs)
 		if (cs->state == SC_ST_CON)
 			cs->state = SC_ST_RDY;
 
-		sc_have_room(cs_opposite(cs));
+		sc_have_room(sc_opposite(cs));
 	}
 
 	if (sc_ep_test(cs, SE_FL_ERROR | SE_FL_ERR_PENDING)) {
@@ -1786,7 +1786,7 @@ void sc_conn_sync_send(struct stconn *cs)
 	if (channel_is_empty(oc))
 		return;
 
-	if (!cs_state_in(cs->state, SC_SB_CON|SC_SB_RDY|SC_SB_EST))
+	if (!sc_state_in(cs->state, SC_SB_CON|SC_SB_RDY|SC_SB_EST))
 		return;
 
 	if (!sc_mux_ops(cs))
@@ -1827,7 +1827,7 @@ static int sc_conn_process(struct stconn *cs)
 	 */
 
 	if (cs->state >= SC_ST_CON) {
-		if (cs_is_conn_error(cs))
+		if (sc_is_conn_error(cs))
 			sc_ep_set(cs, SE_FL_ERROR);
 	}
 
@@ -1842,7 +1842,7 @@ static int sc_conn_process(struct stconn *cs)
 		task_wakeup(sc_strm_task(cs), TASK_WOKEN_MSG);
 	}
 
-	if (!cs_state_in(cs->state, SC_SB_EST|SC_SB_DIS|SC_SB_CLO) &&
+	if (!sc_state_in(cs->state, SC_SB_EST|SC_SB_DIS|SC_SB_CLO) &&
 	    (conn->flags & CO_FL_WAIT_XPRT) == 0) {
 		__sc_strm(cs)->conn_exp = TICK_ETERNITY;
 		oc->flags |= CF_WRITE_NULL;

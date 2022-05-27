@@ -160,7 +160,7 @@ struct stream {
 	int conn_retries;               /* number of connect retries performed */
 	unsigned int conn_exp;          /* wake up time for connect, queue, turn-around, ... */
 	unsigned int conn_err_type;     /* first error detected, one of STRM_ET_* */
-	enum cs_state prev_conn_state;  /* CS_ST*, copy of previous state of the server stream connector */
+	enum sc_state prev_conn_state;  /* CS_ST*, copy of previous state of the server stream connector */
 
 	struct list list;               /* position in the thread's streams list */
 	struct mt_list by_srv;          /* position in server stream list */

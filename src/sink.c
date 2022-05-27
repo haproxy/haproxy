@@ -332,7 +332,7 @@ static void sink_forward_io_handler(struct appctx *appctx)
 	/* if the connection is not established, inform the stream that we want
 	 * to be notified whenever the connection completes.
 	 */
-	if (cs_opposite(cs)->state < SC_ST_EST) {
+	if (sc_opposite(cs)->state < SC_ST_EST) {
 		applet_need_more_data(appctx);
 		se_need_remote_conn(appctx->sedesc);
 		applet_have_more_data(appctx);
@@ -371,7 +371,7 @@ static void sink_forward_io_handler(struct appctx *appctx)
 	 * the message so that we can take our reference there if we have to
 	 * stop before the end (ret=0).
 	 */
-	if (cs_opposite(cs)->state == SC_ST_EST) {
+	if (sc_opposite(cs)->state == SC_ST_EST) {
 		/* we were already there, adjust the offset to be relative to
 		 * the buffer's head and remove us from the counter.
 		 */
@@ -472,7 +472,7 @@ static void sink_forward_oc_io_handler(struct appctx *appctx)
 	/* if the connection is not established, inform the stream that we want
 	 * to be notified whenever the connection completes.
 	 */
-	if (cs_opposite(cs)->state < SC_ST_EST) {
+	if (sc_opposite(cs)->state < SC_ST_EST) {
 		applet_need_more_data(appctx);
 		se_need_remote_conn(appctx->sedesc);
 		applet_have_more_data(appctx);
@@ -511,7 +511,7 @@ static void sink_forward_oc_io_handler(struct appctx *appctx)
 	 * the message so that we can take our reference there if we have to
 	 * stop before the end (ret=0).
 	 */
-	if (cs_opposite(cs)->state == SC_ST_EST) {
+	if (sc_opposite(cs)->state == SC_ST_EST) {
 		/* we were already there, adjust the offset to be relative to
 		 * the buffer's head and remove us from the counter.
 		 */
