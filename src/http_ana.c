@@ -1230,7 +1230,7 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 
 /* Reset the stream and the backend stream connector to a situation suitable for attemption connection */
 /* Returns 0 if we can attempt to retry, -1 otherwise */
-static __inline int do_l7_retry(struct stream *s, struct stconn *cs)
+static __inline int do_l7_retry(struct stream *s, struct stconn *sc)
 {
 	struct channel *req, *res;
 	int co_data;
@@ -4250,7 +4250,7 @@ enum rule_result http_wait_for_msg_body(struct stream *s, struct channel *chn,
 	goto end;
 }
 
-void http_perform_server_redirect(struct stream *s, struct stconn *cs)
+void http_perform_server_redirect(struct stream *s, struct stconn *sc)
 {
 	struct channel *req = &s->req;
 	struct channel *res = &s->res;
@@ -4313,10 +4313,10 @@ void http_perform_server_redirect(struct stream *s, struct stconn *cs)
 		goto fail;
 
 	/* return without error. */
-	sc_shutr(cs);
-	sc_shutw(cs);
+	sc_shutr(sc);
+	sc_shutw(sc);
 	s->conn_err_type = STRM_ET_NONE;
-	cs->state = SC_ST_CLO;
+	sc->state = SC_ST_CLO;
 
 	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= SF_ERR_LOCAL;
@@ -4639,7 +4639,7 @@ int http_forward_proxy_resp(struct stream *s, int final)
 	return 1;
 }
 
-void http_server_error(struct stream *s, struct stconn *cs, int err,
+void http_server_error(struct stream *s, struct stconn *sc, int err,
 		       int finst, struct http_reply *msg)
 {
 	http_reply_and_close(s, s->txn->status, msg);
@@ -4861,50 +4861,50 @@ int http_reply_message(struct stream *s, struct http_reply *reply)
  * Note that connection errors appearing on the second request of a keep-alive
  * connection are not reported since this allows the client to retry.
  */
-void http_return_srv_error(struct stream *s, struct stconn *cs)
+void http_return_srv_error(struct stream *s, struct stconn *sc)
 {
 	int err_type = s->conn_err_type;
 
 	/* set s->txn->status for http_error_message(s) */
 	if (err_type & STRM_ET_QUEUE_ABRT) {
 		s->txn->status = -1;
-		http_server_error(s, cs, SF_ERR_CLICL, SF_FINST_Q, NULL);
+		http_server_error(s, sc, SF_ERR_CLICL, SF_FINST_Q, NULL);
 	}
 	else if (err_type & STRM_ET_CONN_ABRT) {
 		s->txn->status = -1;
-		http_server_error(s, cs, SF_ERR_CLICL, SF_FINST_C, NULL);
+		http_server_error(s, sc, SF_ERR_CLICL, SF_FINST_C, NULL);
 	}
 	else if (err_type & STRM_ET_QUEUE_TO) {
 		s->txn->status = 503;
-		http_server_error(s, cs, SF_ERR_SRVTO, SF_FINST_Q,
+		http_server_error(s, sc, SF_ERR_SRVTO, SF_FINST_Q,
 				  http_error_message(s));
 	}
 	else if (err_type & STRM_ET_QUEUE_ERR) {
 		s->txn->status = 503;
-		http_server_error(s, cs, SF_ERR_SRVCL, SF_FINST_Q,
+		http_server_error(s, sc, SF_ERR_SRVCL, SF_FINST_Q,
 				  http_error_message(s));
 	}
 	else if (err_type & STRM_ET_CONN_TO) {
 		s->txn->status = 503;
-		http_server_error(s, cs, SF_ERR_SRVTO, SF_FINST_C,
+		http_server_error(s, sc, SF_ERR_SRVTO, SF_FINST_C,
 				  (s->txn->flags & TX_NOT_FIRST) ? NULL :
 				  http_error_message(s));
 	}
 	else if (err_type & STRM_ET_CONN_ERR) {
 		s->txn->status = 503;
-		http_server_error(s, cs, SF_ERR_SRVCL, SF_FINST_C,
+		http_server_error(s, sc, SF_ERR_SRVCL, SF_FINST_C,
 				  (s->flags & SF_SRV_REUSED) ? NULL :
 				  http_error_message(s));
 	}
 	else if (err_type & STRM_ET_CONN_RES) {
 		s->txn->status = 503;
-		http_server_error(s, cs, SF_ERR_RESOURCE, SF_FINST_C,
+		http_server_error(s, sc, SF_ERR_RESOURCE, SF_FINST_C,
 				  (s->txn->flags & TX_NOT_FIRST) ? NULL :
 				  http_error_message(s));
 	}
 	else { /* STRM_ET_CONN_OTHER and others */
 		s->txn->status = 500;
-		http_server_error(s, cs, SF_ERR_INTERNAL, SF_FINST_C,
+		http_server_error(s, sc, SF_ERR_INTERNAL, SF_FINST_C,
 				  http_error_message(s));
 	}
 }
@@ -5164,14 +5164,14 @@ void http_txn_reset_res(struct http_txn *txn)
 struct http_txn *http_create_txn(struct stream *s)
 {
 	struct http_txn *txn;
-	struct stconn *cs = s->scf;
+	struct stconn *sc = s->scf;
 
 	txn = pool_alloc(pool_head_http_txn);
 	if (!txn)
 		return NULL;
 	s->txn = txn;
 
-	txn->flags = ((cs && sc_ep_test(cs, SE_FL_NOT_FIRST)) ? TX_NOT_FIRST : 0);
+	txn->flags = ((sc && sc_ep_test(sc, SE_FL_NOT_FIRST)) ? TX_NOT_FIRST : 0);
 	txn->status = -1;
 	txn->http_reply = NULL;
 	txn->l7_buffer = BUF_NULL;

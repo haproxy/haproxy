@@ -50,10 +50,10 @@ int http_res_set_status(unsigned int status, struct ist reason, struct stream *s
 void http_check_request_for_cacheability(struct stream *s, struct channel *req);
 void http_check_response_for_cacheability(struct stream *s, struct channel *res);
 enum rule_result http_wait_for_msg_body(struct stream *s, struct channel *chn, unsigned int time, unsigned int bytes);
-void http_perform_server_redirect(struct stream *s, struct stconn *cs);
-void http_server_error(struct stream *s, struct stconn *cs, int err, int finst, struct http_reply *msg);
+void http_perform_server_redirect(struct stream *s, struct stconn *sc);
+void http_server_error(struct stream *s, struct stconn *sc, int err, int finst, struct http_reply *msg);
 void http_reply_and_close(struct stream *s, short status, struct http_reply *msg);
-void http_return_srv_error(struct stream *s, struct stconn *cs);
+void http_return_srv_error(struct stream *s, struct stconn *sc);
 struct http_reply *http_error_message(struct stream *s);
 int http_reply_to_htx(struct stream *s, struct htx *htx, struct http_reply *reply);
 int http_reply_message(struct stream *s, struct http_reply *reply);

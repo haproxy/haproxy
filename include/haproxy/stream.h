@@ -59,9 +59,9 @@ extern struct pool_head *pool_head_uniqueid;
 
 extern struct data_cb sess_conn_cb;
 
-struct stream *stream_new(struct session *sess, struct stconn *cs, struct buffer *input);
+struct stream *stream_new(struct session *sess, struct stconn *sc, struct buffer *input);
 void stream_free(struct stream *s);
-int stream_upgrade_from_cs(struct stconn *cs, struct buffer *input);
+int stream_upgrade_from_cs(struct stconn *sc, struct buffer *input);
 int stream_set_http_mode(struct stream *s, const struct mux_proto_list *mux_proto);
 
 /* kill a stream and set the termination flags to <why> (one of SF_ERR_*) */
@@ -74,7 +74,7 @@ struct ist stream_generate_unique_id(struct stream *strm, struct list *format);
 void stream_process_counters(struct stream *s);
 void sess_change_server(struct stream *strm, struct server *newsrv);
 struct task *process_stream(struct task *t, void *context, unsigned int state);
-void default_srv_error(struct stream *s, struct stconn *cs);
+void default_srv_error(struct stream *s, struct stconn *sc);
 
 /* Update the stream's backend and server time stats */
 void stream_update_time_stats(struct stream *s);

@@ -194,7 +194,7 @@ struct stream {
 
 	void (*do_log)(struct stream *s);       /* the function to call in order to log (or NULL) */
 	void (*srv_error)(struct stream *s,     /* the function to call upon unrecoverable server errors (or NULL) */
-			  struct stconn *cs);
+			  struct stconn *sc);
 
 	int pcli_next_pid;                      /* next target PID to use for the CLI proxy */
 	int pcli_flags;                         /* flags for CLI proxy */

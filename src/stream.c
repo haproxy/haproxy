@@ -79,7 +79,7 @@ static void strm_trace(enum trace_level level, uint64_t mask,
 
 /* The event representation is split like this :
  *   strm  - stream
- *   cs    - stream connector
+ *   sc    - stream connector
  *   http  - http analyzis
  *   tcp   - tcp analyzis
  *
@@ -268,17 +268,17 @@ static void strm_trace(enum trace_level level, uint64_t mask, const struct trace
 	}
 }
 
-/* Upgrade an existing stream for stream connector <cs>. Return < 0 on error. This
+/* Upgrade an existing stream for stream connector <sc>. Return < 0 on error. This
  * is only valid right after a TCP to H1 upgrade. The stream should be
  * "reativated" by removing SF_IGNORE flag. And the right mode must be set.  On
  * success, <input> buffer is transferred to the stream and thus points to
  * BUF_NULL. On error, it is unchanged and it is the caller responsibility to
  * release it (this never happens for now).
  */
-int stream_upgrade_from_cs(struct stconn *cs, struct buffer *input)
+int stream_upgrade_from_cs(struct stconn *sc, struct buffer *input)
 {
-	struct stream *s = __sc_strm(cs);
-	const struct mux_ops *mux = sc_mux_ops(cs);
+	struct stream *s = __sc_strm(sc);
+	const struct mux_ops *mux = sc_mux_ops(sc);
 
 	if (mux) {
 		if (mux->flags & MX_FL_HTX)
@@ -339,7 +339,7 @@ int stream_buf_available(void *arg)
  * transfer to the stream and <input> is set to BUF_NULL. On error, <input>
  * buffer is unchanged and it is the caller responsibility to release it.
  */
-struct stream *stream_new(struct session *sess, struct stconn *cs, struct buffer *input)
+struct stream *stream_new(struct session *sess, struct stconn *sc, struct buffer *input)
 {
 	struct stream *s;
 	struct task *t;
@@ -445,7 +445,7 @@ struct stream *stream_new(struct session *sess, struct stconn *cs, struct buffer
 	if (sess->fe->mode == PR_MODE_HTTP)
 		s->flags |= SF_HTX;
 
-	s->scf = cs;
+	s->scf = sc;
 	if (sc_attach_strm(s->scf, s) < 0)
 		goto out_fail_attach_scf;
 
@@ -463,10 +463,10 @@ struct stream *stream_new(struct session *sess, struct stconn *cs, struct buffer
 	if (likely(sess->fe->options2 & PR_O2_INDEPSTR))
 		s->scb->flags |= SC_FL_INDEP_STR;
 
-	if (sc_ep_test(cs, SE_FL_WEBSOCKET))
+	if (sc_ep_test(sc, SE_FL_WEBSOCKET))
 		s->flags |= SF_WEBSOCKET;
-	if (sc_conn(cs)) {
-		const struct mux_ops *mux = sc_mux_ops(cs);
+	if (sc_conn(sc)) {
+		const struct mux_ops *mux = sc_mux_ops(sc);
 
 		if (mux && mux->flags & MX_FL_HTX)
 			s->flags |= SF_HTX;
@@ -536,7 +536,7 @@ struct stream *stream_new(struct session *sess, struct stconn *cs, struct buffer
 		goto out_fail_accept;
 
 	/* finish initialization of the accepted file descriptor */
-	if (sc_appctx(cs))
+	if (sc_appctx(sc))
 		se_will_consume(s->scf->sedesc);
 
 	if (sess->fe->accept && sess->fe->accept(s) < 0)
@@ -1462,7 +1462,7 @@ static int process_store_rules(struct stream *s, struct channel *rep, int an_bit
  */
 int stream_set_http_mode(struct stream *s, const struct mux_proto_list *mux_proto)
 {
-	struct stconn *cs = s->scf;
+	struct stconn *sc = s->scf;
 	struct connection  *conn;
 
 	/* Already an HTTP stream */
@@ -1474,7 +1474,7 @@ int stream_set_http_mode(struct stream *s, const struct mux_proto_list *mux_prot
 	if (unlikely(!s->txn && !http_create_txn(s)))
 		return 0;
 
-	conn = sc_conn(cs);
+	conn = sc_conn(sc);
 	if (conn) {
 		se_have_more_data(s->scf->sedesc);
 		/* Make sure we're unsubscribed, the the new
@@ -1482,11 +1482,11 @@ int stream_set_http_mode(struct stream *s, const struct mux_proto_list *mux_prot
 		 * the underlying XPRT
 		 */
 		if (s->scf->wait_event.events)
-			conn->mux->unsubscribe(cs, s->scf->wait_event.events, &(s->scf->wait_event));
+			conn->mux->unsubscribe(sc, s->scf->wait_event.events, &(s->scf->wait_event));
 
 		if (conn->mux->flags & MX_FL_NO_UPG)
 			return 0;
-		if (conn_upgrade_mux_fe(conn, cs, &s->req.buf,
+		if (conn_upgrade_mux_fe(conn, sc, &s->req.buf,
 					(mux_proto ? mux_proto->token : ist("")),
 					PROTO_MODE_HTTP)  == -1)
 			return 0;
@@ -1520,7 +1520,7 @@ int stream_set_http_mode(struct stream *s, const struct mux_proto_list *mux_prot
  * Note that this does not change the stream connector's current state, though
  * it updates the previous state to the current one.
  */
-static void stream_update_both_cs(struct stream *s)
+static void stream_update_both_sc(struct stream *s)
 {
 	struct stconn *scf = s->scf;
 	struct stconn *scb = s->scb;
@@ -2472,7 +2472,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		if ((sess->fe->options & PR_O_CONTSTATS) && (s->flags & SF_BE_ASSIGNED) && !(s->flags & SF_IGNORE))
 			stream_process_counters(s);
 
-		stream_update_both_cs(s);
+		stream_update_both_sc(s);
 
 		/* Trick: if a request is being waiting for the server to respond,
 		 * and if we know the server can timeout, we don't want the timeout
@@ -2664,7 +2664,7 @@ void sess_change_server(struct stream *strm, struct server *newsrv)
  * stream termination flags so that the caller does not have to worry about
  * them. It's installed as ->srv_error for the server-side stream connector.
  */
-void default_srv_error(struct stream *s, struct stconn *cs)
+void default_srv_error(struct stream *s, struct stconn *sc)
 {
 	int err_type = s->conn_err_type;
 	int err = 0, fin = 0;
@@ -3148,9 +3148,9 @@ struct show_sess_ctx {
  * buffer is full and it needs to be called again, otherwise non-zero. It is
  * designed to be called from stats_dump_strm_to_buffer() below.
  */
-static int stats_dump_full_strm_to_buffer(struct stconn *cs, struct stream *strm)
+static int stats_dump_full_strm_to_buffer(struct stconn *sc, struct stream *strm)
 {
-	struct appctx *appctx = __sc_appctx(cs);
+	struct appctx *appctx = __sc_appctx(sc);
 	struct show_sess_ctx *ctx = appctx->svcctx;
 	struct stconn *scf, *scb;
 	struct tm tm;
@@ -3524,7 +3524,7 @@ static int cli_parse_show_sess(char **args, char *payload, struct appctx *appctx
 static int cli_io_handler_dump_sess(struct appctx *appctx)
 {
 	struct show_sess_ctx *ctx = appctx->svcctx;
-	struct stconn *cs = appctx_cs(appctx);
+	struct stconn *sc = appctx_cs(appctx);
 	struct connection *conn;
 
 	thread_isolate();
@@ -3534,7 +3534,7 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 		goto done;
 	}
 
-	if (unlikely(sc_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW))) {
+	if (unlikely(sc_ic(sc)->flags & (CF_WRITE_ERROR|CF_SHUTW))) {
 		/* If we're forced to shut down, we might have to remove our
 		 * reference to the last stream being dumped.
 		 */
@@ -3585,7 +3585,7 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 
 			LIST_APPEND(&curr_strm->back_refs, &ctx->bref.users);
 			/* call the proper dump() function and return if we're missing space */
-			if (!stats_dump_full_strm_to_buffer(cs, curr_strm))
+			if (!stats_dump_full_strm_to_buffer(sc, curr_strm))
 				goto full;
 
 			/* stream dump complete */
