@@ -753,7 +753,7 @@ static struct stconn *h1s_upgrade_sc(struct h1s *h1s, struct buffer *input)
 {
 	TRACE_ENTER(H1_EV_STRM_NEW, h1s->h1c->conn, h1s);
 
-	if (stream_upgrade_from_cs(h1s_sc(h1s), input) < 0) {
+	if (stream_upgrade_from_sc(h1s_sc(h1s), input) < 0) {
 		TRACE_ERROR("stream upgrade failure", H1_EV_STRM_NEW|H1_EV_STRM_END|H1_EV_STRM_ERR, h1s->h1c->conn, h1s);
 		goto err;
 	}

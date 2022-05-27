@@ -61,7 +61,7 @@ extern struct data_cb sess_conn_cb;
 
 struct stream *stream_new(struct session *sess, struct stconn *sc, struct buffer *input);
 void stream_free(struct stream *s);
-int stream_upgrade_from_cs(struct stconn *sc, struct buffer *input);
+int stream_upgrade_from_sc(struct stconn *sc, struct buffer *input);
 int stream_set_http_mode(struct stream *s, const struct mux_proto_list *mux_proto);
 
 /* kill a stream and set the termination flags to <why> (one of SF_ERR_*) */

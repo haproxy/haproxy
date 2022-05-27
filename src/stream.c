@@ -275,7 +275,7 @@ static void strm_trace(enum trace_level level, uint64_t mask, const struct trace
  * BUF_NULL. On error, it is unchanged and it is the caller responsibility to
  * release it (this never happens for now).
  */
-int stream_upgrade_from_cs(struct stconn *sc, struct buffer *input)
+int stream_upgrade_from_sc(struct stconn *sc, struct buffer *input)
 {
 	struct stream *s = __sc_strm(sc);
 	const struct mux_ops *mux = sc_mux_ops(sc);
