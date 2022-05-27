@@ -299,8 +299,8 @@ void sink_setup_proxy(struct proxy *px)
  */
 static void sink_forward_io_handler(struct appctx *appctx)
 {
-	struct stconn *cs = appctx_cs(appctx);
-	struct stream *s = __sc_strm(cs);
+	struct stconn *sc = appctx_cs(appctx);
+	struct stream *s = __sc_strm(sc);
 	struct sink *sink = strm_fe(s)->parent;
 	struct sink_forward_target *sft = appctx->svcctx;
 	struct ring *ring = sink->ctx.ring;
@@ -317,22 +317,22 @@ static void sink_forward_io_handler(struct appctx *appctx)
 	 * and we don't want expire on this case
 	 * with a syslog server
 	 */
-	sc_oc(cs)->rex = TICK_ETERNITY;
+	sc_oc(sc)->rex = TICK_ETERNITY;
 	/* rto should not change but it seems the case */
-	sc_oc(cs)->rto = TICK_ETERNITY;
+	sc_oc(sc)->rto = TICK_ETERNITY;
 
 	/* an error was detected */
-	if (unlikely(sc_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
+	if (unlikely(sc_ic(sc)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
 		goto close;
 
 	/* con closed by server side */
-	if ((sc_oc(cs)->flags & CF_SHUTW))
+	if ((sc_oc(sc)->flags & CF_SHUTW))
 		goto close;
 
 	/* if the connection is not established, inform the stream that we want
 	 * to be notified whenever the connection completes.
 	 */
-	if (sc_opposite(cs)->state < SC_ST_EST) {
+	if (sc_opposite(sc)->state < SC_ST_EST) {
 		applet_need_more_data(appctx);
 		se_need_remote_conn(appctx->sedesc);
 		applet_have_more_data(appctx);
@@ -371,7 +371,7 @@ static void sink_forward_io_handler(struct appctx *appctx)
 	 * the message so that we can take our reference there if we have to
 	 * stop before the end (ret=0).
 	 */
-	if (sc_opposite(cs)->state == SC_ST_EST) {
+	if (sc_opposite(sc)->state == SC_ST_EST) {
 		/* we were already there, adjust the offset to be relative to
 		 * the buffer's head and remove us from the counter.
 		 */
@@ -422,13 +422,13 @@ static void sink_forward_io_handler(struct appctx *appctx)
 	HA_SPIN_UNLOCK(SFT_LOCK, &sft->lock);
 
 	/* always drain data from server */
-	co_skip(sc_oc(cs), sc_oc(cs)->output);
+	co_skip(sc_oc(sc), sc_oc(sc)->output);
 	return;
 
 close:
-	sc_shutw(cs);
-	sc_shutr(cs);
-	sc_ic(cs)->flags |= CF_READ_NULL;
+	sc_shutw(sc);
+	sc_shutr(sc);
+	sc_ic(sc)->flags |= CF_READ_NULL;
 }
 
 /*
@@ -438,8 +438,8 @@ close:
  */
 static void sink_forward_oc_io_handler(struct appctx *appctx)
 {
-	struct stconn *cs = appctx_cs(appctx);
-	struct stream *s = __sc_strm(cs);
+	struct stconn *sc = appctx_cs(appctx);
+	struct stream *s = __sc_strm(sc);
 	struct sink *sink = strm_fe(s)->parent;
 	struct sink_forward_target *sft = appctx->svcctx;
 	struct ring *ring = sink->ctx.ring;
@@ -457,22 +457,22 @@ static void sink_forward_oc_io_handler(struct appctx *appctx)
 	 * and we don't want expire on this case
 	 * with a syslog server
 	 */
-	sc_oc(cs)->rex = TICK_ETERNITY;
+	sc_oc(sc)->rex = TICK_ETERNITY;
 	/* rto should not change but it seems the case */
-	sc_oc(cs)->rto = TICK_ETERNITY;
+	sc_oc(sc)->rto = TICK_ETERNITY;
 
 	/* an error was detected */
-	if (unlikely(sc_ic(cs)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
+	if (unlikely(sc_ic(sc)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
 		goto close;
 
 	/* con closed by server side */
-	if ((sc_oc(cs)->flags & CF_SHUTW))
+	if ((sc_oc(sc)->flags & CF_SHUTW))
 		goto close;
 
 	/* if the connection is not established, inform the stream that we want
 	 * to be notified whenever the connection completes.
 	 */
-	if (sc_opposite(cs)->state < SC_ST_EST) {
+	if (sc_opposite(sc)->state < SC_ST_EST) {
 		applet_need_more_data(appctx);
 		se_need_remote_conn(appctx->sedesc);
 		applet_have_more_data(appctx);
@@ -511,7 +511,7 @@ static void sink_forward_oc_io_handler(struct appctx *appctx)
 	 * the message so that we can take our reference there if we have to
 	 * stop before the end (ret=0).
 	 */
-	if (sc_opposite(cs)->state == SC_ST_EST) {
+	if (sc_opposite(sc)->state == SC_ST_EST) {
 		/* we were already there, adjust the offset to be relative to
 		 * the buffer's head and remove us from the counter.
 		 */
@@ -566,13 +566,13 @@ static void sink_forward_oc_io_handler(struct appctx *appctx)
 	HA_SPIN_UNLOCK(SFT_LOCK, &sft->lock);
 
 	/* always drain data from server */
-	co_skip(sc_oc(cs), sc_oc(cs)->output);
+	co_skip(sc_oc(sc), sc_oc(sc)->output);
 	return;
 
 close:
-	sc_shutw(cs);
-	sc_shutr(cs);
-	sc_ic(cs)->flags |= CF_READ_NULL;
+	sc_shutw(sc);
+	sc_shutr(sc);
+	sc_ic(sc)->flags |= CF_READ_NULL;
 }
 
 void __sink_forward_session_deinit(struct sink_forward_target *sft)
