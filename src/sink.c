@@ -299,7 +299,7 @@ void sink_setup_proxy(struct proxy *px)
  */
 static void sink_forward_io_handler(struct appctx *appctx)
 {
-	struct stconn *sc = appctx_cs(appctx);
+	struct stconn *sc = appctx_sc(appctx);
 	struct stream *s = __sc_strm(sc);
 	struct sink *sink = strm_fe(s)->parent;
 	struct sink_forward_target *sft = appctx->svcctx;
@@ -438,7 +438,7 @@ close:
  */
 static void sink_forward_oc_io_handler(struct appctx *appctx)
 {
-	struct stconn *sc = appctx_cs(appctx);
+	struct stconn *sc = appctx_sc(appctx);
 	struct stream *s = __sc_strm(sc);
 	struct sink *sink = strm_fe(s)->parent;
 	struct sink_forward_target *sft = appctx->svcctx;

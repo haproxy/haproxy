@@ -4242,7 +4242,7 @@ static int table_dump_head_to_buffer(struct buffer *msg,
                                      struct appctx *appctx,
                                      struct stktable *t, struct stktable *target)
 {
-	struct stream *s = __sc_strm(appctx_cs(appctx));
+	struct stream *s = __sc_strm(appctx_sc(appctx));
 
 	chunk_appendf(msg, "# table: %s, type: %s, size:%d, used:%d\n",
 		     t->id, stktable_types[t->type].kw, t->size, t->current);
@@ -4663,7 +4663,7 @@ err_args:
 static int cli_io_handler_table(struct appctx *appctx)
 {
 	struct show_table_ctx *ctx = appctx->svcctx;
-	struct stconn *sc = appctx_cs(appctx);
+	struct stconn *sc = appctx_sc(appctx);
 	struct stream *s = __sc_strm(sc);
 	struct ebmb_node *eb;
 	int skip_entry;

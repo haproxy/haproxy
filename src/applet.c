@@ -114,7 +114,7 @@ void appctx_free_on_early_error(struct appctx *appctx)
 	/* If a frontend appctx is attached to a stream connector, release the stream
 	 * instead of the appctx.
 	 */
-	if (!se_fl_test(appctx->sedesc, SE_FL_ORPHAN) && !(appctx_cs(appctx)->flags & SC_FL_ISBACK)) {
+	if (!se_fl_test(appctx->sedesc, SE_FL_ORPHAN) && !(appctx_sc(appctx)->flags & SC_FL_ISBACK)) {
 		stream_free(appctx_strm(appctx));
 		return;
 	}
@@ -164,7 +164,7 @@ void appctx_shut(struct appctx *appctx)
 int appctx_buf_available(void *arg)
 {
 	struct appctx *appctx = arg;
-	struct stconn *sc = appctx_cs(appctx);
+	struct stconn *sc = appctx_sc(appctx);
 
 	/* allocation requested ? */
 	if (!(sc->flags & SC_FL_NEED_BUFF))
@@ -209,10 +209,10 @@ struct task *task_run_applet(struct task *t, void *context, unsigned int state)
 			appctx_free_on_early_error(app);
 			return NULL;
 		}
-		BUG_ON(!app->sess || !appctx_cs(app) || !appctx_strm(app));
+		BUG_ON(!app->sess || !appctx_sc(app) || !appctx_strm(app));
 	}
 
-	sc = appctx_cs(app);
+	sc = appctx_sc(app);
 
 	/* We always pretend the applet can't get and doesn't want to
 	 * put, it's up to it to change this if needed. This ensures

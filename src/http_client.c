@@ -195,7 +195,7 @@ err:
 static int hc_cli_io_handler(struct appctx *appctx)
 {
 	struct hcli_svc_ctx *ctx = appctx->svcctx;
-	struct stconn *sc = appctx_cs(appctx);
+	struct stconn *sc = appctx_sc(appctx);
 	struct buffer *trash = alloc_trash_chunk();
 	struct httpclient *hc = ctx->hc;
 	struct http_hdr *hdrs, *hdr;
@@ -636,7 +636,7 @@ err:
 static void httpclient_applet_io_handler(struct appctx *appctx)
 {
 	struct httpclient *hc = appctx->svcctx;
-	struct stconn *sc = appctx_cs(appctx);
+	struct stconn *sc = appctx_sc(appctx);
 	struct stream *s = __sc_strm(sc);
 	struct channel *req = &s->req;
 	struct channel *res = &s->res;

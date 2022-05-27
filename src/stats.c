@@ -4283,7 +4283,7 @@ full:
 static void http_stats_io_handler(struct appctx *appctx)
 {
 	struct show_stat_ctx *ctx = appctx->svcctx;
-	struct stconn *sc = appctx_cs(appctx);
+	struct stconn *sc = appctx_sc(appctx);
 	struct stream *s = __sc_strm(sc);
 	struct channel *req = sc_oc(sc);
 	struct channel *res = sc_ic(sc);
@@ -5000,7 +5000,7 @@ static int cli_parse_show_stat(char **args, char *payload, struct appctx *appctx
 
 static int cli_io_handler_dump_info(struct appctx *appctx)
 {
-	return stats_dump_info_to_buffer(appctx_cs(appctx));
+	return stats_dump_info_to_buffer(appctx_sc(appctx));
 }
 
 /* This I/O handler runs as an applet embedded in a stream connector. It is
@@ -5008,7 +5008,7 @@ static int cli_io_handler_dump_info(struct appctx *appctx)
  */
 static int cli_io_handler_dump_stat(struct appctx *appctx)
 {
-	return stats_dump_stat_to_buffer(appctx_cs(appctx), NULL, NULL);
+	return stats_dump_stat_to_buffer(appctx_sc(appctx), NULL, NULL);
 }
 
 static int cli_io_handler_dump_json_schema(struct appctx *appctx)

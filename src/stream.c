@@ -3524,7 +3524,7 @@ static int cli_parse_show_sess(char **args, char *payload, struct appctx *appctx
 static int cli_io_handler_dump_sess(struct appctx *appctx)
 {
 	struct show_sess_ctx *ctx = appctx->svcctx;
-	struct stconn *sc = appctx_cs(appctx);
+	struct stconn *sc = appctx_sc(appctx);
 	struct connection *conn;
 
 	thread_isolate();

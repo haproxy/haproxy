@@ -2786,7 +2786,7 @@ static int dump_servers_state(struct stconn *sc)
 static int cli_io_handler_servers_state(struct appctx *appctx)
 {
 	struct show_srv_ctx *ctx = appctx->svcctx;
-	struct stconn *sc = appctx_cs(appctx);
+	struct stconn *sc = appctx_sc(appctx);
 	struct proxy *curproxy;
 
 	if (ctx->state == SHOW_SRV_HEAD) {
@@ -3138,7 +3138,7 @@ static int cli_parse_show_errors(char **args, char *payload, struct appctx *appc
 static int cli_io_handler_show_errors(struct appctx *appctx)
 {
 	struct show_errors_ctx *ctx = appctx->svcctx;
-	struct stconn *sc = appctx_cs(appctx);
+	struct stconn *sc = appctx_sc(appctx);
 	extern const char *monthname[12];
 
 	if (unlikely(sc_ic(sc)->flags & (CF_WRITE_ERROR|CF_SHUTW)))

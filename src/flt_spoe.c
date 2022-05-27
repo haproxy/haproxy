@@ -1137,7 +1137,7 @@ spoe_handle_healthcheck_response(char *frame, size_t size, char *err, int errlen
 static int
 spoe_send_frame(struct appctx *appctx, char *buf, size_t framesz)
 {
-	struct stconn *sc = appctx_cs(appctx);
+	struct stconn *sc = appctx_sc(appctx);
 	int      ret;
 	uint32_t netint;
 
@@ -1164,7 +1164,7 @@ spoe_send_frame(struct appctx *appctx, char *buf, size_t framesz)
 static int
 spoe_recv_frame(struct appctx *appctx, char *buf, size_t framesz)
 {
-	struct stconn *sc = appctx_cs(appctx);
+	struct stconn *sc = appctx_sc(appctx);
 	int      ret;
 	uint32_t netint;
 
@@ -1266,7 +1266,7 @@ spoe_init_appctx(struct appctx *appctx)
 static void
 spoe_release_appctx(struct appctx *appctx)
 {
-	struct stconn  *sc          = appctx_cs(appctx);
+	struct stconn  *sc          = appctx_sc(appctx);
 	struct spoe_appctx  *spoe_appctx = SPOE_APPCTX(appctx);
 	struct spoe_agent   *agent;
 	struct spoe_context *ctx, *back;
@@ -1386,7 +1386,7 @@ spoe_release_appctx(struct appctx *appctx)
 static int
 spoe_handle_connect_appctx(struct appctx *appctx)
 {
-	struct stconn *sc    = appctx_cs(appctx);
+	struct stconn *sc    = appctx_sc(appctx);
 	struct spoe_agent  *agent = SPOE_APPCTX(appctx)->agent;
 	char *frame, *buf;
 	int   ret;
@@ -1452,7 +1452,7 @@ spoe_handle_connect_appctx(struct appctx *appctx)
 static int
 spoe_handle_connecting_appctx(struct appctx *appctx)
 {
-	struct stconn *sc     = appctx_cs(appctx);
+	struct stconn *sc     = appctx_sc(appctx);
 	struct spoe_agent  *agent  = SPOE_APPCTX(appctx)->agent;
 	char  *frame;
 	int    ret;
@@ -1697,7 +1697,7 @@ spoe_handle_receiving_frame_appctx(struct appctx *appctx, int *skip)
 
 	/* Do not forget to remove processed frame from the output buffer */
 	if (trash.data)
-		co_skip(sc_oc(appctx_cs(appctx)), trash.data);
+		co_skip(sc_oc(appctx_sc(appctx)), trash.data);
   end:
 	return ret;
 }
@@ -1705,7 +1705,7 @@ spoe_handle_receiving_frame_appctx(struct appctx *appctx, int *skip)
 static int
 spoe_handle_processing_appctx(struct appctx *appctx)
 {
-	struct stconn      *sc    = appctx_cs(appctx);
+	struct stconn      *sc    = appctx_sc(appctx);
 	struct server           *srv   = objt_server(__sc_strm(sc)->target);
 	struct spoe_agent       *agent = SPOE_APPCTX(appctx)->agent;
 	int ret, skip_sending = 0, skip_receiving = 0, active_s = 0, active_r = 0, close_asap = 0;
@@ -1828,7 +1828,7 @@ spoe_handle_processing_appctx(struct appctx *appctx)
 static int
 spoe_handle_disconnect_appctx(struct appctx *appctx)
 {
-	struct stconn *sc    = appctx_cs(appctx);
+	struct stconn *sc    = appctx_sc(appctx);
 	struct spoe_agent  *agent = SPOE_APPCTX(appctx)->agent;
 	char *frame, *buf;
 	int   ret;
@@ -1881,7 +1881,7 @@ spoe_handle_disconnect_appctx(struct appctx *appctx)
 static int
 spoe_handle_disconnecting_appctx(struct appctx *appctx)
 {
-	struct stconn *sc = appctx_cs(appctx);
+	struct stconn *sc = appctx_sc(appctx);
 	char  *frame;
 	int    ret;
 
@@ -1946,7 +1946,7 @@ spoe_handle_disconnecting_appctx(struct appctx *appctx)
 static void
 spoe_handle_appctx(struct appctx *appctx)
 {
-	struct stconn *sc = appctx_cs(appctx);
+	struct stconn *sc = appctx_sc(appctx);
 	struct spoe_agent  *agent;
 
 	if (SPOE_APPCTX(appctx) == NULL)

@@ -345,7 +345,7 @@ struct show_map_ctx {
 static int cli_io_handler_pat_list(struct appctx *appctx)
 {
 	struct show_map_ctx *ctx = appctx->svcctx;
-	struct stconn *sc = appctx_cs(appctx);
+	struct stconn *sc = appctx_sc(appctx);
 	struct pat_ref_elt *elt;
 
 	if (unlikely(sc_ic(sc)->flags & (CF_WRITE_ERROR|CF_SHUTW))) {

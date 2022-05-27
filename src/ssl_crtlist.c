@@ -1063,7 +1063,7 @@ static int cli_io_handler_add_crtlist(struct appctx *appctx)
 {
 	struct add_crtlist_ctx *ctx = appctx->svcctx;
 	struct bind_conf_list *bind_conf_node;
-	struct stconn *sc = appctx_cs(appctx);
+	struct stconn *sc = appctx_sc(appctx);
 	struct crtlist *crtlist = ctx->crtlist;
 	struct crtlist_entry *entry = ctx->entry;
 	struct ckch_store *store = entry->node.key;

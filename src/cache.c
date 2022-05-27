@@ -1294,7 +1294,7 @@ static unsigned int htx_cache_dump_blk(struct appctx *appctx, struct htx *htx, e
 	uint32_t blksz;
 
 	max = htx_get_max_blksz(htx,
-				channel_htx_recv_max(sc_ic(appctx_cs(appctx)), htx));
+				channel_htx_recv_max(sc_ic(appctx_sc(appctx)), htx));
 	if (!max)
 		return 0;
 	blksz = ((type == HTX_BLK_HDR || type == HTX_BLK_TLR)
@@ -1338,7 +1338,7 @@ static unsigned int htx_cache_dump_data_blk(struct appctx *appctx, struct htx *h
 	uint32_t blksz;
 
 	max = htx_get_max_blksz(htx,
-				channel_htx_recv_max(sc_ic(appctx_cs(appctx)), htx));
+				channel_htx_recv_max(sc_ic(appctx_sc(appctx)), htx));
 	if (!max)
 		return 0;
 
@@ -1455,7 +1455,7 @@ static void http_cache_io_handler(struct appctx *appctx)
 	struct cache_appctx *ctx = appctx->svcctx;
 	struct cache_entry *cache_ptr = ctx->entry;
 	struct shared_block *first = block_ptr(cache_ptr);
-	struct stconn *sc = appctx_cs(appctx);
+	struct stconn *sc = appctx_sc(appctx);
 	struct channel *req = sc_oc(sc);
 	struct channel *res = sc_ic(sc);
 	struct htx *req_htx, *res_htx;

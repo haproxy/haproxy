@@ -897,7 +897,7 @@ static int cli_output_msg(struct channel *chn, const char *msg, int severity, in
  */
 static void cli_io_handler(struct appctx *appctx)
 {
-	struct stconn *sc = appctx_cs(appctx);
+	struct stconn *sc = appctx_sc(appctx);
 	struct channel *req = sc_oc(sc);
 	struct channel *res = sc_ic(sc);
 	struct bind_conf *bind_conf = strm_li(__sc_strm(sc))->bind_conf;
@@ -1224,7 +1224,7 @@ static void cli_release_handler(struct appctx *appctx)
 static int cli_io_handler_show_env(struct appctx *appctx)
 {
 	struct show_env_ctx *ctx = appctx->svcctx;
-	struct stconn *sc = appctx_cs(appctx);
+	struct stconn *sc = appctx_sc(appctx);
 	char **var = ctx->var;
 
 	if (unlikely(sc_ic(sc)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
@@ -1259,7 +1259,7 @@ static int cli_io_handler_show_env(struct appctx *appctx)
  */
 static int cli_io_handler_show_fd(struct appctx *appctx)
 {
-	struct stconn *sc = appctx_cs(appctx);
+	struct stconn *sc = appctx_sc(appctx);
 	struct show_fd_ctx *fdctx = appctx->svcctx;
 	int fd = fdctx->fd;
 	int ret = 1;
@@ -1458,7 +1458,7 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
  */
 static int cli_io_handler_show_activity(struct appctx *appctx)
 {
-	struct stconn *sc = appctx_cs(appctx);
+	struct stconn *sc = appctx_sc(appctx);
 	int thr;
 
 	if (unlikely(sc_ic(sc)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
@@ -1969,7 +1969,7 @@ static int _getsocks(char **args, char *payload, struct appctx *appctx, void *pr
 	char *cmsgbuf = NULL;
 	unsigned char *tmpbuf = NULL;
 	struct cmsghdr *cmsg;
-	struct stconn *sc = appctx_cs(appctx);
+	struct stconn *sc = appctx_sc(appctx);
 	struct stream *s = __sc_strm(sc);
 	struct connection *remote = sc_conn(sc_opposite(sc));
 	struct msghdr msghdr;

@@ -438,7 +438,7 @@ out:
  */
 static void dns_session_io_handler(struct appctx *appctx)
 {
-	struct stconn *sc = appctx_cs(appctx);
+	struct stconn *sc = appctx_sc(appctx);
 	struct dns_session *ds = appctx->svcctx;
 	struct ring *ring = &ds->ring;
 	struct buffer *buf = &ring->buf;

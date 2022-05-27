@@ -2044,7 +2044,7 @@ void ckch_store_replace(struct ckch_store *old_ckchs, struct ckch_store *new_ckc
 static int cli_io_handler_commit_cert(struct appctx *appctx)
 {
 	struct commit_cert_ctx *ctx = appctx->svcctx;
-	struct stconn *sc = appctx_cs(appctx);
+	struct stconn *sc = appctx_sc(appctx);
 	int y = 0;
 	char *err = NULL;
 	struct ckch_store *old_ckchs, *new_ckchs = NULL;
@@ -2785,7 +2785,7 @@ static inline int __create_new_instance(struct appctx *appctx, struct ckch_inst 
 static int cli_io_handler_commit_cafile_crlfile(struct appctx *appctx)
 {
 	struct commit_cacrlfile_ctx *ctx = appctx->svcctx;
-	struct stconn *sc = appctx_cs(appctx);
+	struct stconn *sc = appctx_sc(appctx);
 	int y = 0;
 	char *err = NULL;
 	struct cafile_entry *old_cafile_entry = NULL, *new_cafile_entry = NULL;
