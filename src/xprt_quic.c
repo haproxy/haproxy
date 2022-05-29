@@ -2379,6 +2379,35 @@ static void qc_cc_err_count_inc(struct quic_conn *qc, struct quic_frame *frm)
 	}
 }
 
+/* Enqueue a STOP_SENDING frame to send into 1RTT packet number space
+ * frame list to send.
+ * Return 1 if succeeded, 0 if not.
+ */
+static int qc_stop_sending_frm_enqueue(struct quic_conn *qc, uint64_t id)
+{
+	struct quic_frame *frm;
+	struct quic_enc_level *qel = &qc->els[QUIC_TLS_ENC_LEVEL_APP];
+	uint64_t app_error_code;
+
+	/* TODO: the mux may be released, we cannot have more
+	 * information about the application error code to send
+	 * at this time.
+	 */
+	app_error_code = H3_REQUEST_REJECTED;
+
+	frm = pool_zalloc(pool_head_quic_frame);
+	if (!frm)
+		return 0;
+
+	frm->type = QUIC_FT_STOP_SENDING;
+	frm->stop_sending.id = id;
+	frm->stop_sending.app_error_code = app_error_code;
+	LIST_INIT(&frm->reflist);
+	LIST_APPEND(&qel->pktns->tx.frms, &frm->list);
+
+	return 1;
+}
+
 /* Parse all the frames of <pkt> QUIC packet for QUIC connection with <ctx>
  * as I/O handler context and <qel> as encryption level.
  * Returns 1 if succeeded, 0 if failed.
@@ -2521,6 +2550,9 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct ssl_sock_ctx *ct
 				}
 				else {
 					TRACE_PROTO("Stream not found", QUIC_EV_CONN_PRSHPKT, qc);
+					if (!qc_stop_sending_frm_enqueue(qc, stream->id))
+						TRACE_PROTO("could not enqueue STOP_SENDING frame", QUIC_EV_CONN_PRSHPKT, qc);
+
 					goto err;
 				}
 			}
