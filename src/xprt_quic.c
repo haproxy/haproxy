@@ -2454,7 +2454,11 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct ssl_sock_ctx *ct
 			}
 			break;
 		}
+		case QUIC_FT_RESET_STREAM:
+		    /* TODO: handle this frame at STREAM level */
+		    break;
 		case QUIC_FT_STOP_SENDING:
+		    /* TODO: handle this frame at STREAM level */
 			break;
 		case QUIC_FT_CRYPTO:
 		{
