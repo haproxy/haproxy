@@ -321,7 +321,6 @@ static int h3_headers_to_htx(struct qcs *qcs, struct ncbuf *buf, uint64_t len,
 		sl->flags |= HTX_SL_F_BODYLESS;
 
 	sl->info.req.meth = find_http_meth(meth.ptr, meth.len);
-	BUG_ON(sl->info.req.meth == HTTP_METH_OTHER);
 
 	if (isttest(authority))
 		htx_add_header(htx, ist("host"), authority);
