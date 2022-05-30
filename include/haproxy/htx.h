@@ -189,6 +189,16 @@ static inline struct htx_blk *htx_get_head_blk(const struct htx *htx)
 	return ((head == -1) ? NULL : htx_get_blk(htx, head));
 }
 
+/* same as above but unchecked, may only be used when certain that a block
+ * exists.
+ */
+static inline struct htx_blk *__htx_get_head_blk(const struct htx *htx)
+{
+	int32_t head = htx_get_head(htx);
+
+	return htx_get_blk(htx, head);
+}
+
 /* Returns the type of the oldest HTX block (head) if the HTX message is not
  * empty. Otherwise it returns HTX_BLK_UNUSED.
  */
