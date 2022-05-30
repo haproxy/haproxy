@@ -51,6 +51,12 @@ static const struct trace_event h3_trace_events[] = {
 	{ .mask = H3_EV_RX_HDR,       .name = "rx_hdr",      .desc = "receipt of H3 HEADERS frame" },
 #define           H3_EV_RX_SETTINGS   (1ULL <<  3)
 	{ .mask = H3_EV_RX_SETTINGS,  .name = "rx_settings", .desc = "receipt of H3 SETTINGS frame" },
+#define           H3_EV_TX_DATA       (1ULL <<  4)
+	{ .mask = H3_EV_TX_DATA,      .name = "tx_data",     .desc = "transmission of H3 DATA frame" },
+#define           H3_EV_TX_HDR        (1ULL <<  5)
+	{ .mask = H3_EV_TX_HDR,       .name = "tx_hdr",      .desc = "transmission of H3 HEADERS frame" },
+#define           H3_EV_TX_SETTINGS   (1ULL <<  6)
+	{ .mask = H3_EV_TX_SETTINGS,  .name = "tx_settings", .desc = "transmission of H3 SETTINGS frame" },
 	{ }
 };
 
@@ -699,6 +705,8 @@ static int h3_control_send(struct qcs *qcs, void *ctx)
 	struct buffer pos, *res;
 	size_t frm_len;
 
+	TRACE_ENTER(H3_EV_TX_SETTINGS, qcs->qcc->conn, qcs);
+
 	BUG_ON_HOT(h3c->flags & H3_CF_SETTINGS_SENT);
 
 	ret = 0;
@@ -740,6 +748,7 @@ static int h3_control_send(struct qcs *qcs, void *ctx)
 			tasklet_wakeup(qcs->qcc->wait_event.tasklet);
 	}
 
+	TRACE_LEAVE(H3_EV_TX_SETTINGS, qcs->qcc->conn, qcs);
 	return ret;
 }
 
@@ -756,6 +765,8 @@ static int h3_resp_headers_send(struct qcs *qcs, struct htx *htx)
 	int ret = 0;
 	int hdr;
 	int status = 0;
+
+	TRACE_ENTER(H3_EV_TX_HDR, qcs->qcc->conn, qcs);
 
 	sl = NULL;
 	hdr = 0;
@@ -842,9 +853,11 @@ static int h3_resp_headers_send(struct qcs *qcs, struct htx *htx)
 			break;
 	}
 
+	TRACE_LEAVE(H3_EV_TX_HDR, qcs->qcc->conn, qcs);
 	return ret;
 
  err:
+	TRACE_DEVEL("leaving on error", H3_EV_TX_HDR, qcs->qcc->conn, qcs);
 	return 0;
 }
 
@@ -858,6 +871,8 @@ static int h3_resp_data_send(struct qcs *qcs, struct buffer *buf, size_t count)
 	int bsize, fsize, hsize;
 	struct htx_blk *blk;
 	enum htx_blk_type type;
+
+	TRACE_ENTER(H3_EV_TX_DATA, qcs->qcc->conn, qcs);
 
 	htx = htx_from_buf(buf);
 
@@ -918,6 +933,7 @@ static int h3_resp_data_send(struct qcs *qcs, struct buffer *buf, size_t count)
 	goto new_frame;
 
  end:
+	TRACE_LEAVE(H3_EV_TX_DATA, qcs->qcc->conn, qcs);
 	return total;
 }
 
