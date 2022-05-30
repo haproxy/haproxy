@@ -462,7 +462,7 @@ static void fcgi_trace(enum trace_level level, uint64_t mask, const struct trace
 
 	/* Display status-line if possible (verbosity > MINIMAL) */
 	if (src->verbosity > FCGI_VERB_MINIMAL && htx && htx_nbblks(htx)) {
-		const struct htx_blk *blk = htx_get_head_blk(htx);
+		const struct htx_blk *blk = __htx_get_head_blk(htx);
 		const struct htx_sl  *sl  = htx_get_blk_ptr(htx, blk);
 		enum htx_blk_type    type = htx_get_blk_type(blk);
 
