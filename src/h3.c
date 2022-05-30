@@ -57,6 +57,10 @@ static const struct trace_event h3_trace_events[] = {
 	{ .mask = H3_EV_TX_HDR,       .name = "tx_hdr",      .desc = "transmission of H3 HEADERS frame" },
 #define           H3_EV_TX_SETTINGS   (1ULL <<  6)
 	{ .mask = H3_EV_TX_SETTINGS,  .name = "tx_settings", .desc = "transmission of H3 SETTINGS frame" },
+#define           H3_EV_H3S_NEW       (1ULL <<  7)
+	{ .mask = H3_EV_H3S_NEW,      .name = "h3s_new",     .desc = "new H3 stream" },
+#define           H3_EV_H3S_END       (1ULL <<  8)
+	{ .mask = H3_EV_H3S_END,      .name = "h3s_end",     .desc = "H3 stream terminated" },
 	{ }
 };
 
@@ -157,6 +161,8 @@ static int h3_init_uni_stream(struct h3c *h3c, struct qcs *qcs,
 	uint64_t type;
 	size_t len = 0, ret;
 
+	TRACE_ENTER(H3_EV_H3S_NEW, qcs->qcc->conn, qcs);
+
 	BUG_ON_HOT(!quic_stream_is_uni(qcs->id) ||
 	           h3s->flags & H3_SF_UNI_INIT);
 
@@ -214,6 +220,7 @@ static int h3_init_uni_stream(struct h3c *h3c, struct qcs *qcs,
 	h3s->flags |= H3_SF_UNI_INIT;
 	qcs_consume(qcs, len);
 
+	TRACE_LEAVE(H3_EV_H3S_NEW, qcs->qcc->conn, qcs);
 	return 0;
 }
 
@@ -1012,6 +1019,8 @@ static int h3_attach(struct qcs *qcs)
 {
 	struct h3s *h3s;
 
+	TRACE_ENTER(H3_EV_H3S_NEW, qcs->qcc->conn, qcs);
+
 	h3s = pool_alloc(pool_head_h3s);
 	if (!h3s)
 		return 1;
@@ -1029,14 +1038,20 @@ static int h3_attach(struct qcs *qcs)
 		h3s->type = H3S_T_UNKNOWN;
 	}
 
+	TRACE_LEAVE(H3_EV_H3S_NEW, qcs->qcc->conn, qcs);
 	return 0;
 }
 
 static void h3_detach(struct qcs *qcs)
 {
 	struct h3s *h3s = qcs->ctx;
+
+	TRACE_ENTER(H3_EV_H3S_END, qcs->qcc->conn, qcs);
+
 	pool_free(pool_head_h3s, h3s);
 	qcs->ctx = NULL;
+
+	TRACE_LEAVE(H3_EV_H3S_END, qcs->qcc->conn, qcs);
 }
 
 static int h3_finalize(void *ctx)
