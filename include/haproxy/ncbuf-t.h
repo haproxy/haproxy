@@ -62,7 +62,7 @@
  *
  */
 
-#include <stdint.h>
+#include <inttypes.h>
 
 /* ncb_sz_t is the basic type used in ncbuf to represent data and gap sizes.
  * Use a bigger type to extend the maximum data size supported in the buffer.

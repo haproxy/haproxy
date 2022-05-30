@@ -26,8 +26,8 @@
 #error "Must define USE_OPENSSL"
 #endif
 
+#include <inttypes.h>
 #include <stddef.h> /* size_t */
-#include <stdint.h>
 
 #include <haproxy/buf-t.h>
 

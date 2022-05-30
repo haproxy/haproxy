@@ -26,7 +26,7 @@
 #error "Must define USE_OPENSSL"
 #endif
 
-#include <stdint.h>
+#include <inttypes.h>
 
 #include <haproxy/buf.h>
 #include <haproxy/chunk.h>

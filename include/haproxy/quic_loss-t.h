@@ -26,7 +26,7 @@
 #error "Must define USE_OPENSSL"
 #endif
 
-#include <stdint.h>
+#include <inttypes.h>
 
 /* Maximum reordering in packets. */
 #define QUIC_LOSS_PACKET_THRESHOLD         3

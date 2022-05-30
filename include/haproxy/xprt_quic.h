@@ -26,7 +26,7 @@
 #error "Must define USE_OPENSSL"
 #endif
 
-#include <stdint.h>
+#include <inttypes.h>
 
 #include <import/eb64tree.h>
 #include <import/ebmbtree.h>

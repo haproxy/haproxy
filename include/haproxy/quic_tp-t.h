@@ -5,7 +5,7 @@
 #error "Must define USE_OPENSSL"
 #endif
 
-#include <stdint.h>
+#include <inttypes.h>
 
 #define QUIC_STATELESS_RESET_TOKEN_LEN 16
 
