@@ -17,6 +17,7 @@ BRANCH=
 DEVEL=
 QUIET=
 AUTO=
+ARG0="$0"
 NEW=
 DIR=
 DOC=( )
@@ -177,6 +178,11 @@ for i in "${DOC[@]}"; do
 	git show "v$NEW:$i" > "$TARGET_DIR/doc/${i#doc/}"
 	$CMD_GZIP < "$TARGET_DIR/doc/${i#doc/}" > "$TARGET_DIR/doc/${i#doc/}.gz"
 done
+
+if [ -x "${ARG0%/*}/make-releases-json" ]; then
+        # regenerate versions
+        "${ARG0%/*}/make-releases-json" -o "$TARGET_DIR/src/releases.json" "$TARGET_DIR"
+fi
 
 echo "Done : ls -l ${TARGET_DIR}"
 ( cd "$TARGET_DIR" ;
