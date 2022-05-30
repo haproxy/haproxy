@@ -2196,7 +2196,7 @@ int tcpcheck_main(struct check *check)
 			check->current_step = rule;
 
 			/* We are still waiting the connection gets closed */
-			if (sc && (check->state & CHK_ST_CLOSE_CONN)) {
+			if (check->state & CHK_ST_CLOSE_CONN) {
 				TRACE_DEVEL("wait previous connection closure", CHK_EV_TCPCHK_EVAL|CHK_EV_TCPCHK_CONN, check);
 				eval_ret = TCPCHK_EVAL_WAIT;
 				break;
