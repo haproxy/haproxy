@@ -33,7 +33,47 @@
 #include <haproxy/quic_enc.h>
 #include <haproxy/stconn.h>
 #include <haproxy/tools.h>
+#include <haproxy/trace.h>
 #include <haproxy/xprt_quic.h>
+
+/* trace source and events */
+static void h3_trace(enum trace_level level, uint64_t mask,
+                     const struct trace_source *src,
+                     const struct ist where, const struct ist func,
+                     const void *a1, const void *a2, const void *a3, const void *a4);
+
+static const struct trace_event h3_trace_events[] = {
+	{ }
+};
+
+static const struct name_desc h3_trace_lockon_args[4] = {
+	/* arg1 */ { /* already used by the connection */ },
+	/* arg2 */ { .name="qcs", .desc="QUIC stream" },
+	/* arg3 */ { },
+	/* arg4 */ { }
+};
+
+static const struct name_desc h3_trace_decoding[] = {
+#define H3_VERB_CLEAN    1
+	{ .name="clean",    .desc="only user-friendly stuff, generally suitable for level \"user\"" },
+#define H3_VERB_MINIMAL  2
+	{ .name="minimal",  .desc="report only qcc/qcs state and flags, no real decoding" },
+	{ /* end */ }
+};
+
+struct trace_source trace_h3 = {
+	.name = IST("h3"),
+	.desc = "HTTP/3 transcoder",
+	.arg_def = TRC_ARG1_CONN,  /* TRACE()'s first argument is always a connection */
+	.default_cb = h3_trace,
+	.known_events = h3_trace_events,
+	.lockon_args = h3_trace_lockon_args,
+	.decoding = h3_trace_decoding,
+	.report_events = ~0,  /* report everything by default */
+};
+
+#define TRACE_SOURCE    &trace_h3
+INITCALL1(STG_REGISTER, trace_register_source, TRACE_SOURCE);
 
 #if defined(DEBUG_H3)
 #define h3_debug_printf fprintf
@@ -1031,6 +1071,24 @@ static void h3_stats_inc_err_cnt(void *ctx, int err_code)
 	struct h3c *h3c = ctx;
 
 	h3_inc_err_cnt(h3c->prx_counters, err_code);
+}
+
+/* h3 trace handler */
+static void h3_trace(enum trace_level level, uint64_t mask,
+                     const struct trace_source *src,
+                     const struct ist where, const struct ist func,
+                     const void *a1, const void *a2, const void *a3, const void *a4)
+{
+	const struct connection *conn = a1;
+	const struct qcc *qcc   = conn ? conn->ctx : NULL;
+	const struct qcs *qcs   = a2;
+
+	if (src->verbosity > H3_VERB_CLEAN) {
+		chunk_appendf(&trace_buf, " : qcc=%p(F)", qcc);
+
+		if (qcs)
+			chunk_appendf(&trace_buf, " qcs=%p(%lu)", qcs, qcs->id);
+	}
 }
 
 /* HTTP/3 application layer operations */
