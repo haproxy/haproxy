@@ -3914,13 +3914,12 @@ static int h1_show_fd(struct buffer *msg, struct connection *conn)
 			      h1s, h1s->flags, se_fl_get(h1s->sd),
 			      h1m_state_str(h1s->req.state),
 			      h1m_state_str(h1s->res.state), method, h1s->status);
-		if (h1s->sd) {
-			chunk_appendf(msg, " .sd.flg=0x%08x",
-				      se_fl_get(h1s->sd));
-			if (!se_fl_test(h1s->sd, SE_FL_ORPHAN))
-				chunk_appendf(msg, " .sc.flg=0x%08x .sc.app=%p",
-					      h1s_sc(h1s)->flags, h1s_sc(h1s)->app);
-		}
+
+		chunk_appendf(msg, " .sd.flg=0x%08x", se_fl_get(h1s->sd));
+		if (!se_fl_test(h1s->sd, SE_FL_ORPHAN))
+			chunk_appendf(msg, " .sc.flg=0x%08x .sc.app=%p",
+				      h1s_sc(h1s)->flags, h1s_sc(h1s)->app);
+
 		chunk_appendf(&trash, " .subs=%p", h1s->subs);
 		if (h1s->subs) {
 			chunk_appendf(&trash, "(ev=%d tl=%p", h1s->subs->events, h1s->subs->tasklet);

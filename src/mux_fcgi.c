@@ -4192,12 +4192,12 @@ static int fcgi_show_fd(struct buffer *msg, struct connection *conn)
 			      (unsigned int)b_data(&fstrm->rxbuf), b_orig(&fstrm->rxbuf),
 			      (unsigned int)b_head_ofs(&fstrm->rxbuf), (unsigned int)b_size(&fstrm->rxbuf),
 			      fcgi_strm_sc(fstrm));
-		if (fstrm->sd) {
-			chunk_appendf(msg, " .sd.flg=0x%08x", se_fl_get(fstrm->sd));
-			if (!se_fl_test(fstrm->sd, SE_FL_ORPHAN))
-				chunk_appendf(msg, " .sc.flg=0x%08x .sc.app=%p",
-					      fcgi_strm_sc(fstrm)->flags, fcgi_strm_sc(fstrm)->app);
-		}
+
+		chunk_appendf(msg, " .sd.flg=0x%08x", se_fl_get(fstrm->sd));
+		if (!se_fl_test(fstrm->sd, SE_FL_ORPHAN))
+			chunk_appendf(msg, " .sc.flg=0x%08x .sc.app=%p",
+				      fcgi_strm_sc(fstrm)->flags, fcgi_strm_sc(fstrm)->app);
+
 		chunk_appendf(&trash, " .subs=%p", fstrm->subs);
 		if (fstrm->subs) {
 			chunk_appendf(&trash, "(ev=%d tl=%p", fstrm->subs->events, fstrm->subs->tasklet);
