@@ -125,6 +125,15 @@ Note: William is the referent regarding Prometheus. He should be consulted for
       for the code itself. He should be consulted for questions regarding the
       exporter integration into HAProxy, as well as for the bugs.
 
+QUIC and HTTP/3
+Maintainer: Frédéric Lécaille <flecaille@haproxy.com>
+Maintainer: Amaury Denoyelle <adenoyelle@haproxy.com>
+Files: src/quic*.c, src/cfgparse-quic.c, include/haproxy/quic*.h
+Files: src/mux_quic.c, include/haproxy/mux_quic.h,
+Files: src/proto_quic.c, include/haproxy/proto_quic.h
+Files: src/xprt_quic.c, include/haproxy/xprt_quic.h
+Files: src/h3*.c, include/haproxy/h3*.h
+
 ScientiaMobile WURFL Device Detection
 Maintainer: Paul Borile, Massimiliano Bellomi <wurfl-haproxy-support@scientiamobile.com>
 Files: addons/wurfl, doc/WURFL-device-detection.txt
