@@ -1,0 +1,103 @@
+#!/usr/bin/env bash
+#
+# Scan a branch directory for source tarballs and rebuild the releases.json
+# file for that branch. md5 and sha256 are added if present. The highest
+# numberred version is referenced as the latest release.
+#
+# Usage: $0 [-b branch] [-o outfile] /path/to/download/branch
+#
+
+USAGE="Usage: ${0##*/} [-b branch] [-o outfile] DIR"
+OUTPUT=
+BRANCH=
+DIR=
+
+die() {
+	[ "$#" -eq 0 ] || echo "$*" >&2
+	exit 1
+}
+
+err() {
+	echo "$*" >&2
+}
+
+quit() {
+	[ "$#" -eq 0 -o -n "$QUIET" ] || echo "$*"
+	exit 0
+}
+
+emit_json() {
+	printf '{\n  "branch": "%s",\n' ${BRANCH}
+	latest=""
+	for file in $(find "$DIR/src" -name 'haproxy-[0-9]*.gz' -printf "%P\n" |grep -v '[0-9]-patches*' | sort -rV ); do
+		rel="${file##*haproxy-}"
+		rel="${rel%%.tar.*}"
+		if [ -z "$latest" ]; then
+			latest="$rel";
+			printf '  "latest_release": "%s",\n' ${latest}
+			printf '  "releases": {\n'
+		else
+			printf ",\n"
+		fi
+		printf '    "%s": {\n' ${rel}
+		printf '      "file": "%s"' ${file}
+		if [ -s "$DIR/src/$file.md5" ]; then
+			printf ',\n      "md5": "%s"' $(awk '{print $1}' "$DIR/src/$file.md5")
+		fi
+		if [ -s "$DIR/src/$file.sha256" ]; then
+			printf ',\n      "sha256": "%s"' $(awk '{print $1}' "$DIR/src/$file.sha256")
+		fi
+		printf '\n    }'
+	done
+
+	if [ -n "$latest" ]; then
+		printf "\n  }"  ## "releases"
+	fi
+
+	printf '\n}\n'
+}
+
+
+### main
+
+while [ -n "$1" -a -z "${1##-*}" ]; do
+	case "$1" in
+		-b)        BRANCH="$2"    ; shift 2 ;;
+		-o)        OUTPUT="$2"    ; shift 2 ;;
+		-h|--help) quit "$USAGE" ;;
+		*)         die  "$USAGE" ;;
+	esac
+done
+
+if [ $# -ne 1 ]; then
+	die "$USAGE"
+fi
+
+DIR="$1" ; shift
+if [ -z "$DIR" ]; then
+	die "Missing download directory name."
+fi
+
+if [ ! -d "$DIR/." ]; then
+	die "Download directory doesn't exist : $DIR"
+fi
+
+if [ ! -d "$DIR/src" ]; then
+	die "Download directory must contain 'src' : $DIR"
+fi
+
+if [ -z "$BRANCH" ]; then
+	BRANCH=${DIR##*/}
+	if [ -n "${BRANCH//[0-9.]}" ]; then
+		die "Couldn't determine branch number from dir name: $BRANCH"
+	fi
+fi
+
+# echo "debug: DIR=$DIR BRANCH=$BRANCH"
+if [ -n "$OUTPUT" ]; then
+	emit_json > "$OUTPUT.tmp"
+	mv -f "$OUTPUT.tmp" "$OUTPUT"
+	rm -f "$OUTPUT.tmp"
+else
+	emit_json
+fi
