@@ -33,13 +33,13 @@ static int qpack_encode_prefix_integer(struct buffer *out, int i, int prefix_siz
 	BUG_ON(!prefix_size);
 
 	if (i < (1 << prefix_size) - 1) {
-		if (b_data(out) < 1)
+		if (b_room(out) < 1)
 			return 1;
 
 		b_putchr(out, before_prefix | i);
 	}
 	else {
-		if (b_data(out) < 2)
+		if (b_room(out) < 2)
 			return 1;
 
 		b_putchr(out, before_prefix | ((1 << prefix_size) - 1));
