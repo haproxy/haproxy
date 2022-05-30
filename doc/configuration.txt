@@ -11619,13 +11619,16 @@ stick-table type {ip | integer | string [len <length>] | binary [len <length>]}
                soft restart.
 
     <expire>   defines the maximum duration of an entry in the table since it
-               was last created, refreshed or matched. The expiration delay is
+               was last created, refreshed using 'track-sc' or matched using
+               'stick match' or 'stick on' rule. The expiration delay is
                defined using the standard time format, similarly as the various
                timeouts. The maximum duration is slightly above 24 days. See
                section 2.5 for more information. If this delay is not specified,
                the session won't automatically expire, but older entries will
                be removed once full. Be sure not to use the "nopurge" parameter
                if not expiration delay is specified.
+               Note: 'table_*' converters performs lookups but won't update touch
+               expire since they don't require 'track-sc'.
 
     <srvkey>   specifies how each server is identified for the purposes of the
                stick table. The valid values are "name" and "addr". If "name" is
