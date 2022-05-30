@@ -28,22 +28,37 @@ static size_t qpack_get_prefix_int_size(int i, int prefix_size)
  *
  * Returns 0 if success else non-zero.
  */
-static int qpack_encode_prefix_integer(struct buffer *out, int i, int prefix_size, unsigned char before_prefix)
+static int qpack_encode_prefix_integer(struct buffer *out, int i,
+                                       int prefix_size,
+                                       unsigned char before_prefix)
 {
-	BUG_ON(!prefix_size);
+	const int mod = (1 << prefix_size) - 1;
+	BUG_ON_HOT(!prefix_size);
 
-	if (i < (1 << prefix_size) - 1) {
+	if (i < mod) {
 		if (b_room(out) < 1)
 			return 1;
 
 		b_putchr(out, before_prefix | i);
 	}
 	else {
-		if (b_room(out) < 2)
+		int to_encode = i - mod;
+		const size_t sz = to_encode / mod;
+
+		if (b_room(out) < sz)
 			return 1;
 
-		b_putchr(out, before_prefix | ((1 << prefix_size) - 1));
-		b_putchr(out, i - ((1 << prefix_size) - 1));
+		b_putchr(out, before_prefix | mod);
+		while (1) {
+			if (to_encode > 0x7f) {
+				b_putchr(out, 0x80 | (to_encode & 0x7f));
+				to_encode >>= 7;
+			}
+			else {
+				b_putchr(out, to_encode & 0x7f);
+				break;
+			}
+		}
 	}
 
 	return 0;
