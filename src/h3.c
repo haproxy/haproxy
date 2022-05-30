@@ -43,6 +43,14 @@ static void h3_trace(enum trace_level level, uint64_t mask,
                      const void *a1, const void *a2, const void *a3, const void *a4);
 
 static const struct trace_event h3_trace_events[] = {
+#define           H3_EV_RX_FRAME      (1ULL <<  0)
+	{ .mask = H3_EV_RX_FRAME,     .name = "rx_frame",    .desc = "receipt of any H3 frame" },
+#define           H3_EV_RX_DATA       (1ULL <<  1)
+	{ .mask = H3_EV_RX_DATA,      .name = "rx_data",     .desc = "receipt of H3 DATA frame" },
+#define           H3_EV_RX_HDR        (1ULL <<  2)
+	{ .mask = H3_EV_RX_HDR,       .name = "rx_hdr",      .desc = "receipt of H3 HEADERS frame" },
+#define           H3_EV_RX_SETTINGS   (1ULL <<  3)
+	{ .mask = H3_EV_RX_SETTINGS,  .name = "rx_settings", .desc = "receipt of H3 SETTINGS frame" },
 	{ }
 };
 
@@ -320,6 +328,8 @@ static int h3_headers_to_htx(struct qcs *qcs, struct ncbuf *buf, uint64_t len,
 	struct ist authority = IST_NULL;
 	int hdr_idx;
 
+	TRACE_ENTER(H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+
 	/* TODO support buffer wrapping */
 	BUG_ON(ncb_head(buf) + len >= ncb_wrap(buf));
 	if (qpack_decode_fs((const unsigned char *)ncb_head(buf), len, tmp, list) < 0)
@@ -392,6 +402,7 @@ static int h3_headers_to_htx(struct qcs *qcs, struct ncbuf *buf, uint64_t len,
 	b_free(&htx_buf);
 	offer_buffers(NULL, 1);
 
+	TRACE_LEAVE(H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
 	return len;
 }
 
@@ -409,6 +420,8 @@ static int h3_data_to_htx(struct qcs *qcs, struct ncbuf *buf, uint64_t len,
 	size_t htx_sent = 0;
 	int htx_space;
 	char *head;
+
+	TRACE_ENTER(H3_EV_RX_FRAME|H3_EV_RX_DATA, qcs->qcc->conn, qcs);
 
 	appbuf = qc_get_buf(qcs, &qcs->rx.app_buf);
 	BUG_ON(!appbuf);
@@ -456,6 +469,8 @@ static int h3_data_to_htx(struct qcs *qcs, struct ncbuf *buf, uint64_t len,
 
  out:
 	htx_to_buf(htx, appbuf);
+
+	TRACE_LEAVE(H3_EV_RX_FRAME|H3_EV_RX_DATA, qcs->qcc->conn, qcs);
 	return htx_sent;
 }
 
@@ -470,6 +485,8 @@ static size_t h3_parse_settings_frm(struct h3c *h3c, const struct ncbuf *rxbuf,
 	uint64_t id, value;
 	size_t ret = 0;
 	long mask = 0;   /* used to detect duplicated settings identifier */
+
+	TRACE_ENTER(H3_EV_RX_FRAME|H3_EV_RX_SETTINGS, h3c->qcc->conn);
 
 	b = h3_b_dup(rxbuf);
 	b_set_data(&b, len);
@@ -531,6 +548,7 @@ static size_t h3_parse_settings_frm(struct h3c *h3c, const struct ncbuf *rxbuf,
 		}
 	}
 
+	TRACE_LEAVE(H3_EV_RX_FRAME|H3_EV_RX_SETTINGS);
 	return ret;
 }
 
