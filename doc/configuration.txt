@@ -3381,10 +3381,11 @@ server <peername> [<ip>:<port>] [param*]
 
    Example:
      peers mypeers
-         bind 127.0.0.11:10001 ssl crt mycerts/pem
-         default-server ssl verify none
-         server hostA  127.0.0.10:10000
-         server hostB  #local peer
+        bind 192.168.0.1:1024 ssl crt mycerts/pem
+        default-server ssl verify none
+        server haproxy1 #local peer
+        server haproxy2 192.168.0.2:1024
+        server haproxy3 10.2.0.1:1024
 
 
 table <tablename> type {ip | integer | string [len <length>] | binary [len <length>]}
