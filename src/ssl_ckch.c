@@ -89,11 +89,14 @@ struct commit_cert_ctx {
 	struct ckch_store *old_ckchs;
 	struct ckch_store *new_ckchs;
 	struct ckch_inst *next_ckchi;
+	char *err;
 	enum {
 		CERT_ST_INIT = 0,
 		CERT_ST_GEN,
 		CERT_ST_INSERT,
+		CERT_ST_SUCCESS,
 		CERT_ST_FIN,
+		CERT_ST_ERROR,
 	} state;
 };
 
@@ -1868,17 +1871,12 @@ error:
 static void cli_release_commit_cert(struct appctx *appctx)
 {
 	struct commit_cert_ctx *ctx = appctx->svcctx;
-	struct ckch_store *new_ckchs;
 
 	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
-
-	if (ctx->state != CERT_ST_FIN) {
-		/* free every new sni_ctx and the new store, which are not in the trees so no spinlock there */
-		new_ckchs = ctx->new_ckchs;
-
-		/* if the allocation failed, we need to free everything from the temporary list */
-		ckch_store_free(new_ckchs);
-	}
+	/* free every new sni_ctx and the new store, which are not in the trees so no spinlock there */
+	if (ctx->new_ckchs)
+		ckch_store_free(ctx->new_ckchs);
+	ha_free(&ctx->err);
 }
 
 
@@ -2043,23 +2041,18 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 	struct commit_cert_ctx *ctx = appctx->svcctx;
 	struct stconn *sc = appctx_sc(appctx);
 	int y = 0;
-	char *err = NULL;
 	struct ckch_store *old_ckchs, *new_ckchs = NULL;
 	struct ckch_inst *ckchi;
-	struct buffer *trash = alloc_trash_chunk();
-
-	if (trash == NULL)
-		goto error;
 
 	if (unlikely(sc_ic(sc)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
-		goto error;
+		goto end;
 
 	while (1) {
 		switch (ctx->state) {
 			case CERT_ST_INIT:
 				/* This state just print the update message */
-				chunk_printf(trash, "Committing %s", ckchs_transaction.path);
-				if (applet_putchk(appctx, trash) == -1)
+				chunk_printf(&trash, "Committing %s", ckchs_transaction.path);
+				if (applet_putchk(appctx, &trash) == -1)
 					goto yield;
 
 				ctx->state = CERT_ST_GEN;
@@ -2076,9 +2069,6 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 				old_ckchs = ctx->old_ckchs;
 				new_ckchs = ctx->new_ckchs;
 
-				if (!new_ckchs)
-					continue;
-
 				/* get the next ckchi to regenerate */
 				ckchi = ctx->next_ckchi;
 				/* we didn't start yet, set it to the first elem */
@@ -2089,18 +2079,25 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 				list_for_each_entry_from(ckchi, &old_ckchs->ckch_inst, by_ckchs) {
 					struct ckch_inst *new_inst;
 
+					/* save the next ckchi to compute in case of yield */
+					ctx->next_ckchi = ckchi;
+
 					/* it takes a lot of CPU to creates SSL_CTXs, so we yield every 10 CKCH instances */
 					if (y >= 10) {
-						/* save the next ckchi to compute */
-						ctx->next_ckchi = ckchi;
+						applet_have_more_data(appctx); /* let's come back later */
 						goto yield;
 					}
 
-					if (ckch_inst_rebuild(new_ckchs, ckchi, &new_inst, &err))
-						goto error;
-
 					/* display one dot per new instance */
-					chunk_appendf(trash, ".");
+					if (applet_putstr(appctx, ".") == -1)
+						goto yield;
+
+					ctx->err = NULL;
+					if (ckch_inst_rebuild(new_ckchs, ckchi, &new_inst, &ctx->err)) {
+						ctx->state = CERT_ST_ERROR;
+						goto error;
+					}
+
 					/* link the new ckch_inst to the duplicate */
 					LIST_APPEND(&new_ckchs->ckch_inst, &new_inst->by_ckchs);
 					y++;
@@ -2113,12 +2110,14 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 				old_ckchs = ctx->old_ckchs;
 				new_ckchs = ctx->new_ckchs;
 
-				if (!new_ckchs)
-					continue;
-
 				/* insert everything and remove the previous objects */
 				ckch_store_replace(old_ckchs, new_ckchs);
-
+				ctx->new_ckchs = ctx->old_ckchs = NULL;
+				ctx->state = CERT_ST_SUCCESS;
+				/* fallthrough */
+			case CERT_ST_SUCCESS:
+				if (applet_putstr(appctx, "\nSuccess!\n") == -1)
+					goto yield;
 				ctx->state = CERT_ST_FIN;
 				/* fallthrough */
 			case CERT_ST_FIN:
@@ -2127,33 +2126,22 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 				ckchs_transaction.old_ckchs = NULL;
 				ckchs_transaction.path = NULL;
 				goto end;
+
+			case CERT_ST_ERROR:
+			  error:
+				chunk_printf(&trash, "\n%sFailed!\n", ctx->err);
+				if (applet_putchk(appctx, &trash) == -1)
+					goto yield;
+				ctx->state = CERT_ST_FIN;
+				break;
 		}
 	}
 end:
-
-	chunk_appendf(trash, "\n");
-	chunk_appendf(trash, "Success!\n");
-	applet_putchk(appctx, trash);
-	free_trash_chunk(trash);
 	/* success: call the release function and don't come back */
 	return 1;
-yield:
-	/* store the state */
-	applet_putchk(appctx, trash);
-	free_trash_chunk(trash);
-	applet_have_more_data(appctx); /* let's come back later */
-	return 0; /* should come back */
 
-error:
-	/* spin unlock and free are done in the release  function */
-	if (trash) {
-		chunk_appendf(trash, "\n%sFailed!\n", err);
-		applet_putchk(appctx, trash);
-		free_trash_chunk(trash);
-	}
-	free(err);
-	/* error: call the release function and don't come back */
-	return 1;
+yield:
+	return 0; /* should come back */
 }
 
 /*
