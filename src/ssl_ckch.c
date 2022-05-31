@@ -2941,6 +2941,7 @@ error:
 		applet_putchk(appctx, trash);
 		free_trash_chunk(trash);
 	}
+	free(err);
 	/* error: call the release function and don't come back */
 	return 1;
 }
