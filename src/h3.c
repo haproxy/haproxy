@@ -254,19 +254,23 @@ static int h3_parse_uni_stream_no_h3(struct qcs *qcs, struct ncbuf *rxbuf)
 	return 0;
 }
 
-/* Decode a h3 frame header made of two QUIC varints from <b> buffer.
- * Returns the number of bytes consumed if there was enough data in <b>, 0 if not.
- * Note that this function update <b> buffer to reflect the number of bytes consumed
- * to decode the h3 frame header.
+/* Decode a H3 frame header from <rxbuf> buffer. The frame type is stored in
+ * <ftype> and length in <flen>.
+ *
+ * Returns the size of the H3 frame header. Note that the input buffer is not
+ * consumed.
  */
 static inline size_t h3_decode_frm_header(uint64_t *ftype, uint64_t *flen,
-                                          struct buffer *b)
+                                          struct ncbuf *rxbuf)
 {
 	size_t hlen;
+	struct buffer b = h3_b_dup(rxbuf);
 
 	hlen = 0;
-	if (!b_quic_dec_int(ftype, b, &hlen) || !b_quic_dec_int(flen, b, &hlen))
+	if (!b_quic_dec_int(ftype, &b, &hlen) ||
+	    !b_quic_dec_int(flen, &b, &hlen)) {
 		return 0;
+	}
 
 	return hlen;
 }
@@ -595,13 +599,11 @@ static int h3_decode_qcs(struct qcs *qcs, int fin, void *ctx)
 
 	while (ncb_data(rxbuf, 0) && !(qcs->flags & QC_SF_DEM_FULL)) {
 		uint64_t ftype, flen;
-		struct buffer b;
 		char last_stream_frame = 0;
 
 		/* Work on a copy of <rxbuf> */
-		b = h3_b_dup(rxbuf);
 		if (!h3s->demux_frame_len) {
-			size_t hlen = h3_decode_frm_header(&ftype, &flen, &b);
+			size_t hlen = h3_decode_frm_header(&ftype, &flen, rxbuf);
 			if (!hlen)
 				break;
 
@@ -624,7 +626,7 @@ static int h3_decode_qcs(struct qcs *qcs, int fin, void *ctx)
 		/* Do not demux incomplete frames except H3 DATA which can be
 		 * fragmented in multiple HTX blocks.
 		 */
-		if (flen > b_data(&b) && ftype != H3_FT_DATA) {
+		if (flen > ncb_data(rxbuf, 0) && ftype != H3_FT_DATA) {
 			/* Reject frames bigger than bufsize.
 			 *
 			 * TODO HEADERS should in complement be limited with H3
