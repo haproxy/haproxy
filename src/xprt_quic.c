@@ -1694,7 +1694,7 @@ static inline void qc_requeue_nacked_pkt_tx_frms(struct quic_conn *qc,
 
 			node = eb64_lookup(&qc->streams_by_id, strm_frm->id);
 			if (!node) {
-				TRACE_PROTO("released stream", QUIC_EV_CONN_PRSAFRM, qc, strm_frm);
+				TRACE_PROTO("released stream", QUIC_EV_CONN_PRSAFRM, qc, frm);
 				TRACE_PROTO("freeing frame from packet", QUIC_EV_CONN_PRSAFRM,
 				            qc, frm, &pn);
 				pool_free(pool_head_quic_frame, frm);
@@ -2218,7 +2218,7 @@ static void qc_dup_pkt_frms(struct quic_conn *qc,
 
 			node = eb64_lookup(&qc->streams_by_id, strm_frm->id);
 			if (!node) {
-				TRACE_PROTO("released stream", QUIC_EV_CONN_PRSAFRM, qc, strm_frm);
+				TRACE_PROTO("released stream", QUIC_EV_CONN_PRSAFRM, qc, frm);
 				continue;
 			}
 
@@ -5787,7 +5787,7 @@ static inline int qc_build_frms(struct list *outlist, struct list *inlist,
 				 */
 				node = eb64_lookup(&qc->streams_by_id, strm->id);
 				if (!node) {
-					TRACE_PROTO("released stream", QUIC_EV_CONN_PRSAFRM, qc, strm);
+					TRACE_PROTO("released stream", QUIC_EV_CONN_PRSAFRM, qc, cf);
 					LIST_DELETE(&cf->list);
 					pool_free(pool_head_quic_frame, cf);
 					continue;
@@ -5796,7 +5796,7 @@ static inline int qc_build_frms(struct list *outlist, struct list *inlist,
 				stream_desc = eb64_entry(node, struct qc_stream_desc, by_id);
 				if (strm->offset.key + strm->len <= stream_desc->ack_offset) {
 					TRACE_PROTO("ignored frame frame in already acked range",
-					            QUIC_EV_CONN_PRSAFRM, qc, strm);
+					            QUIC_EV_CONN_PRSAFRM, qc, cf);
 					LIST_DELETE(&cf->list);
 					pool_free(pool_head_quic_frame, cf);
 					continue;
@@ -5804,7 +5804,7 @@ static inline int qc_build_frms(struct list *outlist, struct list *inlist,
 				else if (strm->offset.key < stream_desc->ack_offset) {
 					strm->offset.key = stream_desc->ack_offset;
 					TRACE_PROTO("updated partially acked frame",
-					            QUIC_EV_CONN_PRSAFRM, qc, strm);
+					            QUIC_EV_CONN_PRSAFRM, qc, cf);
 				}
 			}
 			/* Note that these frames are accepted in short packets only without
