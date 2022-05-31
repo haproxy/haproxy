@@ -2753,10 +2753,14 @@ static int _srv_parse_kw(struct server *srv, char **args, int *cur_arg,
 	if (!kw) {
 		best = srv_find_best_kw(args[*cur_arg]);
 		if (best)
-			ha_alert("unknown keyword '%s'; did you mean '%s' maybe ?\n",
-			         args[*cur_arg], best);
+			ha_alert("unknown keyword '%s'; did you mean '%s' maybe ?%s\n",
+			         args[*cur_arg], best,
+				 (parse_flags & SRV_PARSE_PARSE_ADDR) ? "" :
+				 " Hint: no address was expected for this server.");
 		else
-			ha_alert("unknown keyword '%s'.\n", args[*cur_arg]);
+			ha_alert("unknown keyword '%s'.%s\n", args[*cur_arg],
+				 (parse_flags & SRV_PARSE_PARSE_ADDR) ? "" :
+				 " Hint: no address was expected for this server.");
 
 		return ERR_ALERT | ERR_FATAL;
 	}
