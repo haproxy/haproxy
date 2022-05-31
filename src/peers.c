@@ -3771,7 +3771,7 @@ static int peers_dump_head(struct buffer *msg, struct appctx *appctx, struct pee
  * Returns 0 if the output buffer is full and needs to be called again, non-zero
  * if not. Dedicated to be called by cli_io_handler_show_peers() cli I/O handler.
  */
-static int peers_dump_peer(struct buffer *msg, struct stconn *sc, struct peer *peer, int flags)
+static int peers_dump_peer(struct buffer *msg, struct appctx *appctx, struct peer *peer, int flags)
 {
 	struct connection *conn;
 	char pn[INET6_ADDRSTRLEN];
@@ -3916,7 +3916,7 @@ static int peers_dump_peer(struct buffer *msg, struct stconn *sc, struct peer *p
 
  end:
 	chunk_appendf(&trash, "\n");
-	if (applet_putchk(sc_appctx(sc), msg) == -1)
+	if (applet_putchk(appctx, msg) == -1)
 		return 0;
 
 	return 1;
@@ -3967,7 +3967,7 @@ static int cli_io_handler_show_peers(struct appctx *appctx)
 					ctx->state = STATE_DONE;
 			}
 			else {
-				if (!peers_dump_peer(&trash, appctx_sc(appctx), ctx->peer, ctx->flags))
+				if (!peers_dump_peer(&trash, appctx, ctx->peer, ctx->flags))
 					goto out;
 
 				ctx->peer = ctx->peer->next;
