@@ -107,14 +107,12 @@ struct set_cert_ctx {
 struct set_cafile_ctx {
 	struct cafile_entry *old_cafile_entry;
 	struct cafile_entry *new_cafile_entry;
-	char *path;
 };
 
 /* CLI context used by "set crl-file" */
 struct set_crlfile_ctx {
 	struct cafile_entry *old_crlfile_entry;
 	struct cafile_entry *new_crlfile_entry;
-	char *path;
 };
 
 /* CLI context used by "commit cafile" and "commit crlfile" */
@@ -2625,21 +2623,11 @@ static int cli_parse_set_cafile(char **args, char *payload, struct appctx *appct
 		goto end;
 	}
 
-	if (!ctx->path) {
-		/* this is a new transaction, set the path of the transaction */
-		ctx->path = strdup(ctx->old_cafile_entry->path);
-		if (!ctx->path) {
-			memprintf(&err, "%sCan't allocate memory\n", err ? err : "");
-			errcode |= ERR_ALERT | ERR_FATAL;
-			goto end;
-		}
-	}
-
 	if (ctx->new_cafile_entry)
 		ssl_store_delete_cafile_entry(ctx->new_cafile_entry);
 
 	/* Create a new cafile_entry without adding it to the cafile tree. */
-	ctx->new_cafile_entry = ssl_store_create_cafile_entry(ctx->path, NULL, CAFILE_CERT);
+	ctx->new_cafile_entry = ssl_store_create_cafile_entry(ctx->old_cafile_entry->path, NULL, CAFILE_CERT);
 	if (!ctx->new_cafile_entry) {
 		memprintf(&err, "%sCannot allocate memory!\n",
 			  err ? err : "");
@@ -2659,7 +2647,7 @@ static int cli_parse_set_cafile(char **args, char *payload, struct appctx *appct
 	/* if there wasn't a transaction, update the old CA */
 	if (!cafile_transaction.old_cafile_entry) {
 		cafile_transaction.old_cafile_entry = ctx->old_cafile_entry;
-		cafile_transaction.path = ctx->path;
+		cafile_transaction.path = ctx->old_cafile_entry->path;
 		err = memprintf(&err, "transaction created for CA %s!\n", cafile_transaction.path);
 	} else {
 		err = memprintf(&err, "transaction updated for CA %s!\n", cafile_transaction.path);
@@ -2679,7 +2667,6 @@ end:
 		ssl_store_delete_cafile_entry(ctx->new_cafile_entry);
 		ctx->new_cafile_entry = NULL;
 		ctx->old_cafile_entry = NULL;
-		ha_free(&ctx->path);
 		HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
 		return cli_dynerr(appctx, memprintf(&err, "%sCan't update %s!\n", err ? err : "", args[3]));
 	} else {
@@ -2898,14 +2885,14 @@ static int cli_io_handler_commit_cafile_crlfile(struct appctx *appctx)
 				/* we achieved the transaction, we can set everything to NULL */
 				switch (ctx->cafile_type) {
 				case CAFILE_CERT:
-					ha_free(&cafile_transaction.path);
 					cafile_transaction.old_cafile_entry = NULL;
 					cafile_transaction.new_cafile_entry = NULL;
+					cafile_transaction.path = NULL;
 					break;
 				case CAFILE_CRL:
-					ha_free(&crlfile_transaction.path);
 					crlfile_transaction.old_crlfile_entry = NULL;
 					crlfile_transaction.new_crlfile_entry = NULL;
+					crlfile_transaction.path = NULL;
 					break;
 				}
 				goto end;
@@ -2969,7 +2956,7 @@ static int cli_parse_abort_cafile(char **args, char *payload, struct appctx *app
 	ssl_store_delete_cafile_entry(cafile_transaction.new_cafile_entry);
 	cafile_transaction.new_cafile_entry = NULL;
 	cafile_transaction.old_cafile_entry = NULL;
-	ha_free(&cafile_transaction.path);
+	cafile_transaction.path = NULL;
 
 	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
 
@@ -3372,21 +3359,11 @@ static int cli_parse_set_crlfile(char **args, char *payload, struct appctx *appc
 		goto end;
 	}
 
-	if (!ctx->path) {
-		/* this is a new transaction, set the path of the transaction */
-		ctx->path = strdup(ctx->old_crlfile_entry->path);
-		if (!ctx->path) {
-			memprintf(&err, "%sCan't allocate memory\n", err ? err : "");
-			errcode |= ERR_ALERT | ERR_FATAL;
-			goto end;
-		}
-	}
-
 	if (ctx->new_crlfile_entry)
 		ssl_store_delete_cafile_entry(ctx->new_crlfile_entry);
 
 	/* Create a new cafile_entry without adding it to the cafile tree. */
-	ctx->new_crlfile_entry = ssl_store_create_cafile_entry(ctx->path, NULL, CAFILE_CRL);
+	ctx->new_crlfile_entry = ssl_store_create_cafile_entry(ctx->old_crlfile_entry->path, NULL, CAFILE_CRL);
 	if (!ctx->new_crlfile_entry) {
 		memprintf(&err, "%sCannot allocate memory!\n", err ? err : "");
 		errcode |= ERR_ALERT | ERR_FATAL;
@@ -3405,7 +3382,7 @@ static int cli_parse_set_crlfile(char **args, char *payload, struct appctx *appc
 	/* if there wasn't a transaction, update the old CRL */
 	if (!crlfile_transaction.old_crlfile_entry) {
 		crlfile_transaction.old_crlfile_entry = ctx->old_crlfile_entry;
-		crlfile_transaction.path = ctx->path;
+		crlfile_transaction.path = ctx->old_crlfile_entry->path;
 		err = memprintf(&err, "transaction created for CRL %s!\n", crlfile_transaction.path);
 	} else {
 		err = memprintf(&err, "transaction updated for CRL %s!\n", crlfile_transaction.path);
@@ -3425,7 +3402,6 @@ end:
 		ssl_store_delete_cafile_entry(ctx->new_crlfile_entry);
 		ctx->new_crlfile_entry = NULL;
 		ctx->old_crlfile_entry = NULL;
-		ha_free(&ctx->path);
 		HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
 		return cli_dynerr(appctx, memprintf(&err, "%sCan't update %s!\n", err ? err : "", args[3]));
 	} else {
@@ -3581,7 +3557,7 @@ static int cli_parse_abort_crlfile(char **args, char *payload, struct appctx *ap
 	ssl_store_delete_cafile_entry(crlfile_transaction.new_crlfile_entry);
 	crlfile_transaction.new_crlfile_entry = NULL;
 	crlfile_transaction.old_crlfile_entry = NULL;
-	ha_free(&crlfile_transaction.path);
+	crlfile_transaction.path = NULL;
 
 	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
 
