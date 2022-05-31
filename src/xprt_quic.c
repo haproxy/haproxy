@@ -2540,12 +2540,6 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct ssl_sock_ctx *ct
 			struct quic_stream *stream = &frm.stream;
 			unsigned nb_streams = qc->rx.strms[qcs_id_type(stream->id)].nb_streams;
 
-			if (qc_is_listener(ctx->qc)) {
-				if (stream->id & QUIC_STREAM_FRAME_ID_INITIATOR_BIT)
-					goto err;
-			} else if (!(stream->id & QUIC_STREAM_FRAME_ID_INITIATOR_BIT))
-				goto err;
-
 			/* The upper layer may not be allocated. */
 			if (qc->mux_state != QC_MUX_READY) {
 				if ((stream->id >> QCS_ID_TYPE_SHIFT) < nb_streams) {
