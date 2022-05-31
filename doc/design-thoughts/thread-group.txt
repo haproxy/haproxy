@@ -228,7 +228,7 @@ FD Notes
     of running_mask to gauge a change or temporarily lock it during a
     removal could make sense.
 
-  - running should be conditionned by thread. Polled not (since deferred
+  - running should be conditioned by thread. Polled not (since deferred
     or migrated). In this case testing thread_mask can be enough most of
     the time, but this requires synchronization that will have to be
     extended to tgid.. But migration seems a different beast that we shouldn't
@@ -273,7 +273,7 @@ mux_takeover():                                   | fd_set_running():
      return fail;                                 |    new = {tid_bit, tid_bit};
    ...                                            |
 fd_takeover():                                    |    do {
-   atomic_or(runnning, tid_bit);                  |       if (!(old.thread & tid_bit))
+   atomic_or(running, tid_bit);                   |       if (!(old.thread & tid_bit))
    old = {running, thread};                       |          return -1;
    new = {tid_bit, tid_bit};                      |       new = { running | tid_bit, old.thread }	 
    if (owner != expected) {                       |    } while (!dwcas({running, thread}, &old, &new));

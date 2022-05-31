@@ -196,7 +196,7 @@ carry the stream identifier.
 
 
 HTTP/3 is implemented over QUIC, itself implemented over UDP. QUIC solves the
-head of line blocking at transport level by means of independantly treated
+head of line blocking at transport level by means of independently treated
 streams. Indeed, when experiencing loss, an impacted stream does not affect the
 other streams.
 
@@ -2091,16 +2091,19 @@ ssl-provider <name>
   might be used by HAProxy. Multiple 'ssl-provider' options can be specified in
   a configuration file. The providers will be loaded in their order of
   appearance.
-  Please note that loading a provider explicitely prevents OpenSSL from loading
+
+  Please note that loading a provider explicitly prevents OpenSSL from loading
   the 'default' provider automatically. OpenSSL also allows to define the
   providers that should be loaded directly in its configuration file
   (openssl.cnf for instance) so it is not necessary to use this 'ssl-provider'
   option to load providers. The "show ssl providers" CLI command can be used to
   show all the providers that were successfully loaded.
+
   The default search path of OpenSSL provider can be found in the output of the
   "openssl version -a" command. If the provider is in another directory, you
   can set the OPENSSL_MODULES environment variable, which takes the directory
   where your provider can be found.
+
   See also "ssl-propquery" and "ssl-provider-path".
 
 ssl-provider-path <path>
@@ -2981,8 +2984,8 @@ tune.quic.retry-threshold <number>
   connection is a connection whose handshake has not already successfully
   completed or failed. To be functional this setting needs a cluster secret to
   be set, if not it will be silently ignored (see "cluster-secret" setting).
-  This setting will be also silenty ignored if the use of QUIC Retry was forced
-  (see "quic-force-retry").
+  This setting will be also silently ignored if the use of QUIC Retry was
+  forced (see "quic-force-retry").
 
   The default value is 100.
 
@@ -14781,7 +14784,7 @@ check
   connection headers, "check-ssl" to use SSL/TLS.
 
   Note that the implicit configuration of ssl and PROXY protocol is not
-  performed for dynamic servers. In this case, it is required to explicitely
+  performed for dynamic servers. In this case, it is required to explicitly
   use "check-ssl" and "check-send-proxy" when wanted, even if the check port is
   not overridden.
 
