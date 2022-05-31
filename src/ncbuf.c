@@ -494,11 +494,14 @@ int ncb_is_full(const struct ncbuf *buf)
  */
 ncb_sz_t ncb_data(const struct ncbuf *buf, ncb_sz_t off)
 {
-	struct ncb_blk blk = ncb_blk_find(buf, off);
-	ncb_sz_t off_blk = ncb_blk_off(blk, off);
+	struct ncb_blk blk;
+	ncb_sz_t off_blk;
 
-	if (ncb_blk_is_null(blk))
+	if (ncb_is_null(buf))
 		return 0;
+
+	blk = ncb_blk_find(buf, off);
+	off_blk = ncb_blk_off(blk, off);
 
 	/* if <off> at the frontier between two and <blk> is gap, retrieve the
 	 * next data block.
