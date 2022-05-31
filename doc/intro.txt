@@ -40,22 +40,23 @@ Summary
 3.3.4.        High availability
 3.3.5.        Load balancing
 3.3.6.        Stickiness
-3.3.7.        Sampling and converting information
-3.3.8.        Maps
-3.3.9.        ACLs and conditions
-3.3.10.       Content switching
-3.3.11.       Stick-tables
-3.3.12.       Formatted strings
-3.3.13.       HTTP rewriting and redirection
-3.3.14.       Server protection
-3.3.15.       Logging
-3.3.16.       Statistics
-3.4.      Advanced features
-3.4.1.        Management
-3.4.2.        System-specific capabilities
-3.4.3.        Scripting
-3.5.      Sizing
-3.6.      How to get HAProxy
+3.3.7.        Logging
+3.4.      Standard features
+3.4.1.        Sampling and converting information
+3.4.2.        Maps
+3.4.3.        ACLs and conditions
+3.4.4.        Content switching
+3.4.5.        Stick-tables
+3.4.6.        Formatted strings
+3.4.7.        HTTP rewriting and redirection
+3.4.8.        Server protection
+3.4.9.        Statistics
+3.5.      Advanced features
+3.5.1.        Management
+3.5.2.        System-specific capabilities
+3.5.3.        Scripting
+3.6.      Sizing
+3.7.      How to get HAProxy
 
 4.    Companion products and alternatives
 4.1.      Apache HTTP server
@@ -776,8 +777,71 @@ multiple load balancing nodes in that they don't require any replication :
     to reach the server they've been assigned to but no new users will go there.
 
 
-3.3.7. Basic features : Sampling and converting information
------------------------------------------------------------
+3.3.7. Basic features : Logging
+-------------------------------
+
+Logging is an extremely important feature for a load balancer, first because a
+load balancer is often wrongly accused of causing the problems it reveals, and
+second because it is placed at a critical point in an infrastructure where all
+normal and abnormal activity needs to be analyzed and correlated with other
+components.
+
+HAProxy provides very detailed logs, with millisecond accuracy and the exact
+connection accept time that can be searched in firewalls logs (e.g. for NAT
+correlation). By default, TCP and HTTP logs are quite detailed and contain
+everything needed for troubleshooting, such as source IP address and port,
+frontend, backend, server, timers (request receipt duration, queue duration,
+connection setup time, response headers time, data transfer time), global
+process state, connection counts, queue status, retries count, detailed
+stickiness actions and disconnect reasons, header captures with a safe output
+encoding. It is then possible to extend or replace this format to include any
+sampled data, variables, captures, resulting in very detailed information. For
+example it is possible to log the number of cumulative requests or number of
+different URLs visited by a client.
+
+The log level may be adjusted per request using standard ACLs, so it is possible
+to automatically silent some logs considered as pollution and instead raise
+warnings when some abnormal behavior happen for a small part of the traffic
+(e.g. too many URLs or HTTP errors for a source address). Administrative logs
+are also emitted with their own levels to inform about the loss or recovery of a
+server for example.
+
+Each frontend and backend may use multiple independent log outputs, which eases
+multi-tenancy. Logs are preferably sent over UDP, maybe JSON-encoded, and are
+truncated after a configurable line length in order to guarantee delivery. But
+it is also possible to send them to stdout/stderr or any file descriptor, as
+well as to a ring buffer that a client can subscribe to in order to retrieve
+them.
+
+
+3.3.8. Basic features : Statistics
+----------------------------------
+
+HAProxy provides a web-based statistics reporting interface with authentication,
+security levels and scopes. It is thus possible to provide each hosted customer
+with his own page showing only his own instances. This page can be located in a
+hidden URL part of the regular web site so that no new port needs to be opened.
+This page may also report the availability of other HAProxy nodes so that it is
+easy to spot if everything works as expected at a glance. The view is synthetic
+with a lot of details accessible (such as error causes, last access and last
+change duration, etc), which are also accessible as a CSV table that other tools
+may import to draw graphs. The page may self-refresh to be used as a monitoring
+page on a large display. In administration mode, the page also allows to change
+server state to ease maintenance operations.
+
+A Prometheus exporter is also provided so that the statistics can be consumed
+in a different format depending on the deployment.
+
+
+3.4. Standard features
+----------------------
+
+In this section, some features that are very commonly used in HAProxy but are
+not necessarily present on other load balancers are enumerated.
+
+
+3.4.1. Standard features : Sampling and converting information
+--------------------------------------------------------------
 
 HAProxy supports information sampling using a wide set of "sample fetch
 functions". The principle is to extract pieces of information known as samples,
@@ -836,8 +900,8 @@ following ones are the most commonly used :
   - map-based key-to-value conversion from a file (mostly used for geolocation).
 
 
-3.3.8. Basic features : Maps
-----------------------------
+3.4.2. Standard features : Maps
+-------------------------------
 
 Maps are a powerful type of converter consisting in loading a two-columns file
 into memory at boot time, then looking up each input sample from the first
@@ -856,8 +920,8 @@ contain hundreds of thousands of entries, making geolocation very cheap and easy
 to set up.
 
 
-3.3.9. Basic features : ACLs and conditions
--------------------------------------------
+3.4.3. Standard features : ACLs and conditions
+----------------------------------------------
 
 Most operations in HAProxy can be made conditional. Conditions are built by
 combining multiple ACLs using logic operators (AND, OR, NOT). Each ACL is a
@@ -897,8 +961,8 @@ anonymous ACLs inline is easier as it requires less references out of the scope
 being analyzed.
 
 
-3.3.10. Basic features : Content switching
-------------------------------------------
+3.4.4. Standard features : Content switching
+--------------------------------------------
 
 HAProxy implements a mechanism known as content-based switching. The principle
 is that a connection or request arrives on a frontend, then the information
@@ -928,8 +992,8 @@ backend name and without making use of ACLs at all. Such configurations have
 been reported to work fine at least with 300000 backends in production.
 
 
-3.3.11. Basic features : Stick-tables
--------------------------------------
+3.4.5. Standard features : Stick-tables
+---------------------------------------
 
 Stick-tables are commonly used to store stickiness information, that is, to keep
 a reference to the server a certain visitor was directed to. The key is then the
@@ -967,8 +1031,8 @@ to build complex models to detect certain bad behaviors at a high processing
 speed.
 
 
-3.3.12. Basic features : Formatted strings
------------------------------------------
+3.4.6. Standard features : Formatted strings
+--------------------------------------------
 
 There are many places where HAProxy needs to manipulate character strings, such
 as logs, redirects, header additions, and so on. In order to provide the
@@ -983,8 +1047,8 @@ Additionally, in order to remain simple to build most common strings, about 50
 special tags are provided as shortcuts for information commonly used in logs.
 
 
-3.3.13. Basic features : HTTP rewriting and redirection
--------------------------------------------------------
+3.4.7. Standard features : HTTP rewriting and redirection
+---------------------------------------------------------
 
 Installing a load balancer in front of an application that was never designed
 for this can be a challenging task without the proper tools. One of the most
@@ -1030,8 +1094,8 @@ redirects, among which :
   - all operations support ACL-based conditions;
 
 
-3.3.14. Basic features : Server protection
-------------------------------------------
+3.4.8. Standard features : Server protection
+--------------------------------------------
 
 HAProxy does a lot to maximize service availability, and for this it takes
 large efforts to protect servers against overloading and attacks. The first
@@ -1090,66 +1154,10 @@ cacheable response and which may result in an intermediary cache to deliver it
 to another visitor, causing an accidental session sharing.
 
 
-3.3.15. Basic features : Logging
---------------------------------
-
-Logging is an extremely important feature for a load balancer, first because a
-load balancer is often wrongly accused of causing the problems it reveals, and
-second because it is placed at a critical point in an infrastructure where all
-normal and abnormal activity needs to be analyzed and correlated with other
-components.
-
-HAProxy provides very detailed logs, with millisecond accuracy and the exact
-connection accept time that can be searched in firewalls logs (e.g. for NAT
-correlation). By default, TCP and HTTP logs are quite detailed and contain
-everything needed for troubleshooting, such as source IP address and port,
-frontend, backend, server, timers (request receipt duration, queue duration,
-connection setup time, response headers time, data transfer time), global
-process state, connection counts, queue status, retries count, detailed
-stickiness actions and disconnect reasons, header captures with a safe output
-encoding. It is then possible to extend or replace this format to include any
-sampled data, variables, captures, resulting in very detailed information. For
-example it is possible to log the number of cumulative requests or number of
-different URLs visited by a client.
-
-The log level may be adjusted per request using standard ACLs, so it is possible
-to automatically silent some logs considered as pollution and instead raise
-warnings when some abnormal behavior happen for a small part of the traffic
-(e.g. too many URLs or HTTP errors for a source address). Administrative logs
-are also emitted with their own levels to inform about the loss or recovery of a
-server for example.
-
-Each frontend and backend may use multiple independent log outputs, which eases
-multi-tenancy. Logs are preferably sent over UDP, maybe JSON-encoded, and are
-truncated after a configurable line length in order to guarantee delivery. But
-it is also possible to send them to stdout/stderr or any file descriptor, as
-well as to a ring buffer that a client can subscribe to in order to retrieve
-them.
-
-
-3.3.16. Basic features : Statistics
------------------------------------
-
-HAProxy provides a web-based statistics reporting interface with authentication,
-security levels and scopes. It is thus possible to provide each hosted customer
-with his own page showing only his own instances. This page can be located in a
-hidden URL part of the regular web site so that no new port needs to be opened.
-This page may also report the availability of other HAProxy nodes so that it is
-easy to spot if everything works as expected at a glance. The view is synthetic
-with a lot of details accessible (such as error causes, last access and last
-change duration, etc), which are also accessible as a CSV table that other tools
-may import to draw graphs. The page may self-refresh to be used as a monitoring
-page on a large display. In administration mode, the page also allows to change
-server state to ease maintenance operations.
-
-A Prometheus exporter is also provided so that the statistics can be consumed
-in a different format depending on the deployment.
-
-
-3.4. Advanced features
+3.5. Advanced features
 ----------------------
 
-3.4.1. Advanced features : Management
+3.5.1. Advanced features : Management
 -------------------------------------
 
 HAProxy is designed to remain extremely stable and safe to manage in a regular
@@ -1230,7 +1238,7 @@ deployed :
     bug in HAProxy is suspected;
 
 
-3.4.2. Advanced features : System-specific capabilities
+3.5.2. Advanced features : System-specific capabilities
 -------------------------------------------------------
 
 Depending on the operating system HAProxy is deployed on, certain extra features
@@ -1279,7 +1287,7 @@ its listening file descriptors so that the listening sockets are never
 interrupted during the process's replacement.
 
 
-3.4.3. Advanced features : Scripting
+3.5.3. Advanced features : Scripting
 ------------------------------------
 
 HAProxy can be built with support for the Lua embedded language, which opens a
@@ -1291,7 +1299,7 @@ authentication system for example. Please refer to the documentation in the file
 "doc/lua-api/index.rst" for more information on how to use Lua.
 
 
-3.4.4. Advanced features: Tracing
+3.5.4. Advanced features: Tracing
 ---------------------------------
 
 At any moment an administrator may connect over the CLI and enable tracing in
@@ -1303,7 +1311,7 @@ event and watch it in detail. This is extremely convenient to diagnose protocol
 violations from faulty servers and clients, or denial of service attacks.
 
 
-3.5. Sizing
+3.6. Sizing
 -----------
 
 Typical CPU usage figures show 15% of the processing time spent in HAProxy
@@ -1397,15 +1405,17 @@ and two extra cores were dedicated to network interrupts :
   - about 5000 concurrent end-to-end TLS connections (both sides) per GB of
     RAM including the memory required for system buffers;
 
+A more recent benchmark featuring the multi-thread enabled HAProxy 2.4 on a
+64-core ARM Graviton2 processor in AWS reached 2 million HTTPS requests per
+second at sub-millisecond response time, and 100 Gbps of traffic:
+
+  https://www.haproxy.com/blog/haproxy-forwards-over-2-million-http-requests-per-second-on-a-single-aws-arm-instance/
+
 Thus a good rule of thumb to keep in mind is that the request rate is divided
 by 10 between TLS keep-alive and TLS resume, and between TLS resume and TLS
 renegotiation, while it's only divided by 3 between HTTP keep-alive and HTTP
 close. Another good rule of thumb is to remember that a high frequency core
-with AES instructions can do around 5 Gbps of AES-GCM per core.
-
-Having more cores rarely helps (except for TLS) and is even counter-productive
-due to the lower frequency. In general a small number of high frequency cores
-is better.
+with AES instructions can do around 20 Gbps of AES-GCM per core.
 
 Another good rule of thumb is to consider that on the same server, HAProxy will
 be able to saturate :
@@ -1417,7 +1427,7 @@ be able to saturate :
   - and about 100-1000 application servers depending on the technology in use.
 
 
-3.6. How to get HAProxy
+3.7. How to get HAProxy
 -----------------------
 
 HAProxy is an open source project covered by the GPLv2 license, meaning that
