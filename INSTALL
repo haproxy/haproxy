@@ -1,19 +1,14 @@
 Installation instructions for HAProxy
 =====================================
 
-HAProxy 2.6 is a long-term supported version, which means that it will get
-fixes for bugs as they are discovered till around Q2 2027 and will not receive
-new features. This version is suitable for general deployment as it is expected
-to receive less frequent updates than regular stable branches which have an odd
-digit in the minor version number. New users are encouraged to use long-term
-supported versions such as the ones provided by their software vendor, Linux
-distribution, or by a trusted package maintainer. Experienced users who manage
-a fleet of load balancers are encouraged to deploy at least one node with the
-latest weekly development version to get familiar with upcoming changes and
-possibly detect unwelcome changes or bugs before the release. This is also a
-great way to get new features implemented exactly as needed.
-
-If for any reason you would prefer a different version than the one packaged
+This is a development version, so it is expected to break from time to time,
+to add and remove features without prior notification and it should not be used
+in production, unless you're an experienced user and are willing to follow
+weekly updates. If you are not used to build from sources or if you are not
+used to follow updates then it is recommended that instead you use the packages
+provided by your software vendor or Linux distribution. Most of them are taking
+this task seriously and are doing a good job at backporting important fixes. If
+for any reason you'd prefer to use a different version than the one packaged
 for your system, you want to be certain to have all the fixes or to get some
 commercial support, other choices are available at http://www.haproxy.com/.
 
