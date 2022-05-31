@@ -3917,7 +3917,7 @@ static int peers_dump_peer(struct buffer *msg, struct stconn *sc, struct peer *p
 
  end:
 	chunk_appendf(&trash, "\n");
-	if (applet_putchk(appctx, msg) == -1)
+	if (applet_putchk(sc_appctx(sc), msg) == -1)
 		return 0;
 
 	return 1;
