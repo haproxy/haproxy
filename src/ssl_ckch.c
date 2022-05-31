@@ -2502,6 +2502,11 @@ static int cli_parse_del_cert(char **args, char *payload, struct appctx *appctx,
 
 	filename = args[3];
 
+	if (ckchs_transaction.path && strcmp(ckchs_transaction.path, filename) == 0) {
+		memprintf(&err, "ongoing transaction for the certificate '%s'", filename);
+		goto error;
+	}
+
 	store = ckchs_lookup(filename);
 	if (store == NULL) {
 		memprintf(&err, "certificate '%s' doesn't exist!\n", filename);
