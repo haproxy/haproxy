@@ -3310,9 +3310,10 @@ default-server [param*]
   Arguments:
     <param*>  is a list of parameters for this server. The "default-server"
               keyword accepts an important number of options and has a complete
-              section dedicated to it. Please refer to section 5 for more
-              details.
-
+              section dedicated to it. In a peers section, the transport
+              parameters of a "default-server" line are supported. Please refer
+              to section 5 for more details, and the "server" keyword below in
+              this section for some of the restrictions.
 
   See also: "server" and section 5 about server options
 
@@ -3351,12 +3352,16 @@ peer <peername> <ip>:<port> [param*]
 
 server <peername> [<ip>:<port>] [param*]
   As previously mentioned, "peer" keyword may be replaced by "server" keyword
-  with a support for all "server" parameters found in 5.2 paragraph.
-  If the underlying peer is local, <ip>:<port> parameters must not be present.
-  These parameters must be provided on a "bind" line (see "bind" keyword
-  of this "peers" section).
-  Some of these parameters are irrelevant for "peers" sections.
+  with a support for all "server" parameters found in 5.2 paragraph that are
+  related to transport settings. If the underlying peer is local, <ip>:<port>
+  parameters must not be present; these parameters must be provided on a "bind"
+  line (see "bind" keyword of this "peers" section).
 
+  A number of "server" parameters are irrelevant for "peers" sections. Peers by
+  nature do not support dynamic host name resolution nor health checks, hence
+  parameters like "init_addr", "resolvers", "check", "agent-check", or "track"
+  are not supported. Similarly, there is no load balancing nor stickiness, thus
+  parameters such as "weight" or "cookie" have no effect.
 
   Example:
     # The old way.
