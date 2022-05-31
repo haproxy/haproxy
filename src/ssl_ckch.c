@@ -101,7 +101,6 @@ struct commit_cert_ctx {
 struct set_cert_ctx {
 	struct ckch_store *old_ckchs;
 	struct ckch_store *new_ckchs;
-	char *path;
 };
 
 /* CLI context used by "set ca-file" */
@@ -2126,9 +2125,9 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 				/* fallthrough */
 			case CERT_ST_FIN:
 				/* we achieved the transaction, we can set everything to NULL */
-				ha_free(&ckchs_transaction.path);
 				ckchs_transaction.new_ckchs = NULL;
 				ckchs_transaction.old_ckchs = NULL;
+				ckchs_transaction.path = NULL;
 				goto end;
 		}
 	}
@@ -2326,16 +2325,6 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 		goto end;
 	}
 
-	if (!ctx->path) {
-	/* this is a new transaction, set the path of the transaction */
-		ctx->path = strdup(ctx->old_ckchs->path);
-		if (!ctx->path) {
-			memprintf(&err, "%sCan't allocate memory\n", err ? err : "");
-			errcode |= ERR_ALERT | ERR_FATAL;
-			goto end;
-		}
-	}
-
 	old_ckchs = ctx->old_ckchs;
 
 	/* duplicate the ckch store */
@@ -2363,7 +2352,7 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 	/* if there wasn't a transaction, update the old ckchs */
 	if (!ckchs_transaction.old_ckchs) {
 		ckchs_transaction.old_ckchs = ctx->old_ckchs;
-		ckchs_transaction.path = ctx->path;
+		ckchs_transaction.path = ctx->old_ckchs->path;
 		err = memprintf(&err, "Transaction created for certificate %s!\n", ckchs_transaction.path);
 	} else {
 		err = memprintf(&err, "Transaction updated for certificate %s!\n", ckchs_transaction.path);
@@ -2385,8 +2374,6 @@ end:
 		ckch_store_free(ctx->new_ckchs);
 		ctx->new_ckchs = NULL;
 		ctx->old_ckchs = NULL;
-		ha_free(&ctx->path);
-
 		HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
 		return cli_dynerr(appctx, memprintf(&err, "%sCan't update %s!\n", err ? err : "", args[3]));
 	} else {
@@ -2426,7 +2413,7 @@ static int cli_parse_abort_cert(char **args, char *payload, struct appctx *appct
 	ckch_store_free(ckchs_transaction.new_ckchs);
 	ckchs_transaction.new_ckchs = NULL;
 	ckchs_transaction.old_ckchs = NULL;
-	ha_free(&ckchs_transaction.path);
+	ckchs_transaction.path = NULL;
 
 	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
 
