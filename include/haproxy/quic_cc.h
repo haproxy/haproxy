@@ -65,5 +65,10 @@ static inline void quic_cc_event_trace(struct buffer *buf, const struct quic_cc_
 	}
 }
 
+static inline void *quic_cc_priv(const struct quic_cc *cc)
+{
+	return (void *)cc->priv;
+}
+
 #endif /* USE_QUIC */
 #endif /* _PROTO_QUIC_CC_H */
