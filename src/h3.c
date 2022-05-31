@@ -612,16 +612,19 @@ static int h3_decode_qcs(struct qcs *qcs, int fin, void *ctx)
 
 			h3s->demux_frame_type = ftype;
 			h3s->demux_frame_len = flen;
+
+			if (!h3_is_frame_valid(h3c, qcs, ftype)) {
+				qcc_emit_cc_app(qcs->qcc, H3_FRAME_UNEXPECTED);
+				return 1;
+			}
+
 			qcs_consume(qcs, hlen);
+			if (!ncb_data(rxbuf, 0))
+				break;
 		}
 
 		flen = h3s->demux_frame_len;
 		ftype = h3s->demux_frame_type;
-
-		if (!h3_is_frame_valid(h3c, qcs, ftype)) {
-			qcc_emit_cc_app(qcs->qcc, H3_FRAME_UNEXPECTED);
-			return 1;
-		}
 
 		/* Do not demux incomplete frames except H3 DATA which can be
 		 * fragmented in multiple HTX blocks.
