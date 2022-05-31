@@ -3777,7 +3777,6 @@ static int peers_dump_peer(struct buffer *msg, struct stconn *sc, struct peer *p
 	char pn[INET6_ADDRSTRLEN];
 	struct stconn *peer_cs;
 	struct stream *peer_s;
-	struct appctx *appctx;
 	struct shared_table *st;
 
 	addr_to_str(&peer->addr, pn, sizeof pn);
@@ -3810,12 +3809,12 @@ static int peers_dump_peer(struct buffer *msg, struct stconn *sc, struct peer *p
 
 	chunk_appendf(&trash, "        flags=0x%x", peer->flags);
 
-	appctx = peer->appctx;
-	if (!appctx)
+	if (!peer->appctx)
 		goto table_info;
 
-	chunk_appendf(&trash, " appctx:%p st0=%d st1=%d task_calls=%u", appctx, appctx->st0, appctx->st1,
-	                                                                appctx->t ? appctx->t->calls : 0);
+	chunk_appendf(&trash, " appctx:%p st0=%d st1=%d task_calls=%u",
+	              peer->appctx, peer->appctx->st0, peer->appctx->st1,
+	              peer->appctx->t ? peer->appctx->t->calls : 0);
 
 	peer_cs = appctx_sc(peer->appctx);
 	peer_s = __sc_strm(peer_cs);
