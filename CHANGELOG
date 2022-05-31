@@ -1,6 +1,65 @@
 ChangeLog :
 ===========
 
+2022/05/31 : 2.6.0
+    - DOC: Fix formatting in configuration.txt to fix dconv
+    - CLEANUP: tcpcheck: Remove useless test on the stream-connector in tcpcheck_main
+    - CLEANUP: muxes: Consider stream's sd as defined in .show_fd callback functions
+    - MINOR: quic: Ignore out of packet padding.
+    - CLEANUP: quic: Useless QUIC_CONN_TX_BUF_SZ definition
+    - CLEANUP: quic: No more used handshake output buffer
+    - MINOR: quic: QUIC transport parameters split.
+    - MINOR: quic: Transport parameters dump
+    - DOC: quic: Update documentation for QUIC Retry
+    - MINOR: quic: Tunable "max_idle_timeout" transport parameter
+    - MINOR: quic: Tunable "initial_max_streams_bidi" transport parameter
+    - MINOR: quic: Clarifications about transport parameters value
+    - MINOIR: quic_stats: add QUIC connection errors counters
+    - BUG/MINOR: quic: Largest RX packet numbers mixing
+    - MINOR: quic_stats: Add transport new counters (lost, stateless reset, drop)
+    - DOC: quic: Documentation update for QUIC
+    - MINOR: quic: Connection TX buffer setting renaming.
+    - MINOR: h3: Add a statistics module for h3
+    - MINOR: quic: Send STOP_SENDING frames if mux is released
+    - MINOR: quic: Do not drop packets with RESET_STREAM frames
+    - BUG/MINOR: qpack: fix buffer API usage on prefix integer encoding
+    - BUG/MINOR: qpack: support bigger prefix-integer encoding
+    - BUG/MINOR: h3: do not report bug on unknown method
+    - SCRIPTS: add make-releases-json to recreate a releases.json file in download dirs
+    - SCRIPTS: make publish-release try to launch make-releases-json
+    - MINOR: htx: add an unchecked version of htx_get_head_blk()
+    - BUILD: htx: use the unchecked version of htx_get_head_blk() where needed
+    - BUILD: quic: use inttypes.h instead of stdint.h
+    - DOC: internal: remove totally outdated diagrams
+    - DOC: remove the outdated ROADMAP file
+    - DOC: add maintainers for QUIC and HTTP/3
+    - MINOR: h3: define h3 trace module
+    - MINOR: h3: add traces on frame recv
+    - MINOR: h3: add traces on frame send
+    - MINOR: h3: add traces on h3s init/end
+    - EXAMPLES: remove completely outdated acl-content-sw.cfg
+    - BUILD: makefile: reorder objects by build time
+    - DOC: fix a few spelling mistakes in the docs
+    - BUG/MEDIUM: peers/cli: fix "show peers" crash
+    - CLEANUP: peers/cli: stop misusing the appctx local variable
+    - CLEANUP: peers/cli: make peers_dump_peer() take an appctx instead of an stconn
+    - BUG/MINOR: peers: set the proxy's name to the peers section name
+    - MINOR: server: indicate when no address was expected for a server
+    - BUG/MINOR: peers: detect and warn on init_addr/resolvers/check/agent-check
+    - DOC: peers: indicate that some server settings are not usable
+    - DOC: peers: clarify when entry expiration date is renewed.
+    - DOC: peers: fix port number and addresses on new peers section format
+    - DOC: gpc/gpt: add commments of gpc/gpt array definitions on stick tables.
+    - DOC: install: update supported OpenSSL versions in the INSTALL doc
+    - MINOR: ncbuf: adjust ncb_data with NCBUF_NULL
+    - BUG/MINOR: h3: fix frame demuxing
+    - BUG/MEDIUM: h3: fix H3_EXCESSIVE_LOAD when receiving H3 frame header only
+    - BUG/MINOR: quic: Fix QUIC_EV_CONN_PRSAFRM event traces
+    - CLEANUP: quic: remove useless check on local UNI stream reception
+    - BUG/MINOR: qpack: do not consider empty enc/dec stream as error
+    - DOC: intro: adjust the numbering of paragrams to keep the output ordered
+    - MINOR: version: mention that it's LTS now.
+
 2022/05/27 : 2.6-dev12
     - CLEANUP: tools: Clean up non-QUIC error message handling in str2sa_range()
     - BUG/MEDIUM: tools: Fix `inet_ntop` usage in sa2str
