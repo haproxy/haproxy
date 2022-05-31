@@ -238,11 +238,11 @@ static int h3_parse_uni_stream_no_h3(struct qcs *qcs, struct ncbuf *rxbuf)
 
 	switch (h3s->type) {
 	case H3S_T_QPACK_DEC:
-		if (!qpack_decode_dec(qcs, NULL))
+		if (qpack_decode_dec(qcs, NULL))
 			return 1;
 		break;
 	case H3S_T_QPACK_ENC:
-		if (!qpack_decode_enc(qcs, NULL))
+		if (qpack_decode_enc(qcs, NULL))
 			return 1;
 		break;
 	case H3S_T_UNKNOWN:

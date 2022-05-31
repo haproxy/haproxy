@@ -93,7 +93,10 @@ static uint64_t qpack_get_varint(const unsigned char **buf, uint64_t *len_in, in
 	return 0;
 }
 
-/* Decode an encoder stream */
+/* Decode an encoder stream.
+ *
+ * Returns 0 on success else non-zero.
+ */
 int qpack_decode_enc(struct qcs *qcs, void *ctx)
 {
 	size_t len;
@@ -123,10 +126,13 @@ int qpack_decode_enc(struct qcs *qcs, void *ctx)
 		/* Set dynamic table capacity */
 	}
 
-	return 1;
+	return 0;
 }
 
-/* Decode an decoder stream */
+/* Decode an decoder stream.
+ *
+ * Returns 0 on success else non-zero.
+ */
 int qpack_decode_dec(struct qcs *qcs, void *ctx)
 {
 	size_t len;
@@ -153,7 +159,7 @@ int qpack_decode_dec(struct qcs *qcs, void *ctx)
 		/* Stream cancellation */
 	}
 
-	return 1;
+	return 0;
 }
 
 /* Decode a field section prefix made of <enc_ric> and <db> two varints.
