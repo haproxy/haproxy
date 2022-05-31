@@ -3252,6 +3252,11 @@ static int cli_parse_del_cafile(char **args, char *payload, struct appctx *appct
 
 	filename = args[3];
 
+	if (cafile_transaction.path && strcmp(cafile_transaction.path, filename) == 0) {
+		memprintf(&err, "ongoing transaction for the CA file '%s'", filename);
+		goto error;
+	}
+
 	cafile_entry = ssl_store_get_cafile_entry(filename, 0);
 	if (!cafile_entry) {
 		memprintf(&err, "CA file '%s' doesn't exist!\n", filename);
@@ -3523,6 +3528,11 @@ static int cli_parse_del_crlfile(char **args, char *payload, struct appctx *appc
 		return cli_err(appctx, "Can't delete the CRL file!\nOperations on certificates are currently locked!\n");
 
 	filename = args[3];
+
+	if (crlfile_transaction.path && strcmp(crlfile_transaction.path, filename) == 0) {
+		memprintf(&err, "ongoing transaction for the CRL file '%s'", filename);
+		goto error;
+	}
 
 	cafile_entry = ssl_store_get_cafile_entry(filename, 0);
 	if (!cafile_entry) {
