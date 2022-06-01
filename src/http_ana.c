@@ -418,7 +418,7 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 		ctx.blk = NULL;
 		if (!http_find_header(htx, ist("Early-Data"), &ctx, 0)) {
 			if (unlikely(!http_add_header(htx, ist("Early-Data"), ist("1"))))
-				goto return_int_err;
+				goto return_fail_rewrite;
 		}
 	}
 
@@ -564,6 +564,18 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 		_HA_ATOMIC_INC(&sess->listener->counters->denied_req);
 	goto return_prx_err;
 
+ return_fail_rewrite:
+	if (!(s->flags & SF_ERR_MASK))
+		s->flags |= SF_ERR_PRXCOND;
+	_HA_ATOMIC_INC(&sess->fe->fe_counters.failed_rewrites);
+	if (s->flags & SF_BE_ASSIGNED)
+		_HA_ATOMIC_INC(&s->be->be_counters.failed_rewrites);
+	if (sess->listener && sess->listener->counters)
+		_HA_ATOMIC_INC(&sess->listener->counters->failed_rewrites);
+	if (objt_server(s->target))
+		_HA_ATOMIC_INC(&__objt_server(s->target)->counters.failed_rewrites);
+	/* fall through */
+
  return_int_err:
 	txn->status = 500;
 	if (!(s->flags & SF_ERR_MASK))
@@ -654,7 +666,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 		/* send unique ID if a "unique-id-header" is defined */
 		if (isttest(sess->fe->header_unique_id) &&
 		    unlikely(!http_add_header(htx, sess->fe->header_unique_id, unique_id)))
-				goto return_int_err;
+				goto return_fail_rewrite;
 	}
 
 	/*
@@ -687,7 +699,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 				 */
 				chunk_printf(&trash, "%d.%d.%d.%d", pn[0], pn[1], pn[2], pn[3]);
 				if (unlikely(!http_add_header(htx, hdr, ist2(trash.area, trash.data))))
-					goto return_int_err;
+					goto return_fail_rewrite;
 			}
 		}
 		else if (src && src->ss_family == AF_INET6) {
@@ -709,7 +721,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 				 */
 				chunk_printf(&trash, "%s", pn);
 				if (unlikely(!http_add_header(htx, hdr, ist2(trash.area, trash.data))))
-					goto return_int_err;
+					goto return_fail_rewrite;
 			}
 		}
 	}
@@ -737,7 +749,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 				 */
 				chunk_printf(&trash, "%d.%d.%d.%d", pn[0], pn[1], pn[2], pn[3]);
 				if (unlikely(!http_add_header(htx, hdr, ist2(trash.area, trash.data))))
-					goto return_int_err;
+					goto return_fail_rewrite;
 			}
 		}
 		else if (dst && dst->ss_family == AF_INET6) {
@@ -759,7 +771,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 				 */
 				chunk_printf(&trash, "%s", pn);
 				if (unlikely(!http_add_header(htx, hdr, ist2(trash.area, trash.data))))
-					goto return_int_err;
+					goto return_fail_rewrite;
 			}
 		}
 	}
@@ -803,6 +815,18 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 	/* OK let's go on with the BODY now */
 	DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
 	return 1;
+
+ return_fail_rewrite:
+	if (!(s->flags & SF_ERR_MASK))
+		s->flags |= SF_ERR_PRXCOND;
+	_HA_ATOMIC_INC(&sess->fe->fe_counters.failed_rewrites);
+	if (s->flags & SF_BE_ASSIGNED)
+		_HA_ATOMIC_INC(&s->be->be_counters.failed_rewrites);
+	if (sess->listener && sess->listener->counters)
+		_HA_ATOMIC_INC(&sess->listener->counters->failed_rewrites);
+	if (objt_server(s->target))
+		_HA_ATOMIC_INC(&__objt_server(s->target)->counters.failed_rewrites);
+	/* fall through */
 
  return_int_err:
 	txn->status = 500;
@@ -1938,7 +1962,7 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 			chunk_appendf(&trash, "; %s", s->be->cookie_attrs);
 
 		if (unlikely(!http_add_header(htx, ist("Set-Cookie"), ist2(trash.area, trash.data))))
-			goto return_int_err;
+			goto return_fail_rewrite;
 
 		txn->flags &= ~TX_SCK_MASK;
 		if (__objt_server(s->target)->cookie && (s->flags & SF_DIRECT))
@@ -1957,7 +1981,7 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 			txn->flags &= ~TX_CACHEABLE & ~TX_CACHE_COOK;
 
 			if (unlikely(!http_add_header(htx, ist("Cache-control"), ist("private"))))
-				goto return_int_err;
+				goto return_fail_rewrite;
 		}
 	}
 
@@ -2026,6 +2050,17 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 	if (objt_server(s->target))
 		_HA_ATOMIC_INC(&__objt_server(s->target)->counters.denied_resp);
 	goto return_prx_err;
+
+ return_fail_rewrite:
+	if (!(s->flags & SF_ERR_MASK))
+		s->flags |= SF_ERR_PRXCOND;
+	_HA_ATOMIC_INC(&sess->fe->fe_counters.failed_rewrites);
+	_HA_ATOMIC_INC(&s->be->be_counters.failed_rewrites);
+	if (sess->listener && sess->listener->counters)
+		_HA_ATOMIC_INC(&sess->listener->counters->failed_rewrites);
+	if (objt_server(s->target))
+		_HA_ATOMIC_INC(&__objt_server(s->target)->counters.failed_rewrites);
+	/* fall through */
 
  return_int_err:
 	txn->status = 500;
