@@ -726,7 +726,7 @@ struct rand_off {
 static struct rand_off *ncb_generate_rand_off(const struct ncbuf *buf)
 {
 	struct rand_off *roff;
-	roff = calloc(1, sizeof(struct rand_off));
+	roff = calloc(1, sizeof(*roff));
 	BUG_ON(!roff);
 
 	roff->off = rand() % (ncb_size(buf));

@@ -703,7 +703,7 @@ static int quic_alloc_dghdlrs(void)
 {
 	int i;
 
-	quic_dghdlrs = calloc(global.nbthread, sizeof(struct quic_dghdlr));
+	quic_dghdlrs = calloc(global.nbthread, sizeof(*quic_dghdlrs));
 	if (!quic_dghdlrs) {
 		ha_alert("Failed to allocate the quic datagram handlers.\n");
 		return 0;

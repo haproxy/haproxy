@@ -466,7 +466,8 @@ static int quic_alloc_accept_queues(void)
 {
 	int i;
 
-	quic_accept_queues = calloc(global.nbthread, sizeof(struct quic_accept_queue));
+	quic_accept_queues = calloc(global.nbthread,
+				    sizeof(*quic_accept_queues));
 	if (!quic_accept_queues) {
 		ha_alert("Failed to allocate the quic accept queues.\n");
 		return 0;
