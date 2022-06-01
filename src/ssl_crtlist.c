@@ -43,10 +43,13 @@ struct add_crtlist_ctx {
 	struct crtlist *crtlist;
 	struct crtlist_entry *entry;
 	struct bind_conf_list *bind_conf_node;
+	char *err;
 	enum {
 		ADDCRT_ST_INIT = 0,
 		ADDCRT_ST_GEN,
 		ADDCRT_ST_INSERT,
+		ADDCRT_ST_SUCCESS,
+		ADDCRT_ST_ERROR,
 		ADDCRT_ST_FIN,
 	} state;
 };
@@ -1031,8 +1034,9 @@ static void cli_release_add_crtlist(struct appctx *appctx)
 	struct add_crtlist_ctx *ctx = appctx->svcctx;
 	struct crtlist_entry *entry = ctx->entry;
 
-	if (ctx->state != ADDCRT_ST_FIN) {
+	if (entry) {
 		struct ckch_inst *inst, *inst_s;
+
 		/* upon error free the ckch_inst and everything inside */
 		ebpt_delete(&entry->node);
 		LIST_DELETE(&entry->by_crtlist);
@@ -1046,8 +1050,8 @@ static void cli_release_add_crtlist(struct appctx *appctx)
 		free(entry->ssl_conf);
 		free(entry);
 	}
-
 	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+	ha_free(&ctx->err);
 }
 
 
@@ -1067,26 +1071,21 @@ static int cli_io_handler_add_crtlist(struct appctx *appctx)
 	struct crtlist *crtlist = ctx->crtlist;
 	struct crtlist_entry *entry = ctx->entry;
 	struct ckch_store *store = entry->node.key;
-	struct buffer *trash = alloc_trash_chunk();
 	struct ckch_inst *new_inst;
-	char *err = NULL;
 	int i = 0;
 	int errcode = 0;
-
-	if (trash == NULL)
-		goto error;
 
 	/* for each bind_conf which use the crt-list, a new ckch_inst must be
 	 * created.
 	 */
 	if (unlikely(sc_ic(sc)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
-		goto error;
+		goto end;
 
 	switch (ctx->state) {
 	case ADDCRT_ST_INIT:
 		/* This state just print the update message */
-		chunk_printf(trash, "Inserting certificate '%s' in crt-list '%s'", store->path, crtlist->node.key);
-		if (applet_putchk(appctx, trash) == -1)
+		chunk_printf(&trash, "Inserting certificate '%s' in crt-list '%s'", store->path, crtlist->node.key);
+		if (applet_putchk(appctx, &trash) == -1)
 			goto yield;
 		ctx->state = ADDCRT_ST_GEN;
 		/* fallthrough */
@@ -1098,28 +1097,39 @@ static int cli_io_handler_add_crtlist(struct appctx *appctx)
 			struct bind_conf *bind_conf = bind_conf_node->bind_conf;
 			struct sni_ctx *sni;
 
+			ctx->bind_conf_node = bind_conf_node;
+
 			/* yield every 10 generations */
 			if (i > 10) {
-				ctx->bind_conf_node = bind_conf_node;
+				applet_have_more_data(appctx); /* let's come back later */
 				goto yield;
 			}
 
+			/* display one dot for each new instance */
+			if (applet_putstr(appctx, ".") == -1)
+				goto yield;
+
 			/* we don't support multi-cert bundles, only simple ones */
-			errcode |= ckch_inst_new_load_store(store->path, store, bind_conf, entry->ssl_conf, entry->filters, entry->fcount, &new_inst, &err);
-			if (errcode & ERR_CODE)
+			ctx->err = NULL;
+			errcode |= ckch_inst_new_load_store(store->path, store, bind_conf, entry->ssl_conf, entry->filters, entry->fcount, &new_inst, &ctx->err);
+			if (errcode & ERR_CODE) {
+				ctx->state = ADDCRT_ST_ERROR;
 				goto error;
+			}
 
 			/* we need to initialize the SSL_CTX generated */
 			/* this iterate on the newly generated SNIs in the new instance to prepare their SSL_CTX */
 			list_for_each_entry(sni, &new_inst->sni_ctx, by_ckch_inst) {
 				if (!sni->order) { /* we initialized only the first SSL_CTX because it's the same in the other sni_ctx's */
-					errcode |= ssl_sock_prep_ctx_and_inst(bind_conf, new_inst->ssl_conf, sni->ctx, sni->ckch_inst, &err);
-					if (errcode & ERR_CODE)
+					ctx->err = NULL;
+					errcode |= ssl_sock_prep_ctx_and_inst(bind_conf, new_inst->ssl_conf, sni->ctx, sni->ckch_inst, &ctx->err);
+					if (errcode & ERR_CODE) {
+						ctx->state = ADDCRT_ST_ERROR;
 						goto error;
+					}
 				}
 			}
-			/* display one dot for each new instance */
-			chunk_appendf(trash, ".");
+
 			i++;
 			LIST_APPEND(&store->ckch_inst, &new_inst->by_ckchs);
 			LIST_APPEND(&entry->ckch_inst, &new_inst->by_crtlist_entry);
@@ -1135,36 +1145,36 @@ static int cli_io_handler_add_crtlist(struct appctx *appctx)
 			HA_RWLOCK_WRUNLOCK(SNI_LOCK, &new_inst->bind_conf->sni_lock);
 		}
 		entry->linenum = ++crtlist->linecount;
-		ctx->state = ADDCRT_ST_FIN;
+		ctx->entry = NULL;
+		ctx->state = ADDCRT_ST_SUCCESS;
 		/* fallthrough */
+	case ADDCRT_ST_SUCCESS:
+		chunk_reset(&trash);
+		chunk_appendf(&trash, "\n");
+		if (ctx->err)
+			chunk_appendf(&trash, "%s", ctx->err);
+		chunk_appendf(&trash, "Success!\n");
+		if (applet_putchk(appctx, &trash) == -1)
+			goto yield;
+		ctx->state = ADDCRT_ST_FIN;
+		break;
+
+	case ADDCRT_ST_ERROR:
+	  error:
+		chunk_printf(&trash, "\n%sFailed!\n", ctx->err);
+		if (applet_putchk(appctx, &trash) == -1)
+			goto yield;
+		break;
+
 	default:
 		break;
 	}
 
-	chunk_appendf(trash, "\n");
-	if (errcode & ERR_WARN)
-		chunk_appendf(trash, "%s", err);
-	chunk_appendf(trash, "Success!\n");
-	applet_putchk(appctx, trash);
-	free_trash_chunk(trash);
+end:
 	/* success: call the release function and don't come back */
 	return 1;
 yield:
-	/* store the state */
-	applet_putchk(appctx, trash);
-	free_trash_chunk(trash);
-	applet_have_more_data(appctx); /* let's come back later */
 	return 0; /* should come back */
-
-error:
-	/* spin unlock and free are done in the release function */
-	if (trash) {
-		chunk_appendf(trash, "\n%sFailed!\n", err);
-		applet_putchk(appctx, trash);
-		free_trash_chunk(trash);
-	}
-	/* error: call the release function and don't come back */
-	return 1;
 }
 
 
