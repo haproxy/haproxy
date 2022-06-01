@@ -1136,8 +1136,10 @@ static void cli_io_handler(struct appctx *appctx)
 			}
 
 			/* If the output functions are still there, it means they require more room. */
-			if (appctx->st0 >= CLI_ST_OUTPUT)
+			if (appctx->st0 >= CLI_ST_OUTPUT) {
+				applet_wont_consume(appctx);
 				break;
+			}
 
 			/* Now we close the output if one of the writers did so,
 			 * or if we're not in interactive mode and the request
@@ -1152,6 +1154,8 @@ static void cli_io_handler(struct appctx *appctx)
 
 			/* switch state back to GETREQ to read next requests */
 			appctx->st0 = CLI_ST_GETREQ;
+			applet_will_consume(appctx);
+
 			/* reactivate the \n at the end of the response for the next command */
 			appctx->st1 &= ~APPCTX_CLI_ST1_NOLF;
 
