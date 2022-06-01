@@ -644,7 +644,8 @@ OPTIONS_OBJS += src/quic_sock.o src/proto_quic.o src/xprt_quic.o src/quic_tls.o 
                 src/quic_frame.o src/quic_cc.o src/quic_cc_newreno.o src/mux_quic.o \
                 src/cbuf.o src/qpack-dec.o src/qpack-tbl.o src/h3.o src/qpack-enc.o \
                 src/hq_interop.o src/cfgparse-quic.o src/quic_loss.o \
-                src/quic_tp.o src/quic_stream.o src/quic_stats.o src/h3_stats.o
+                src/quic_tp.o src/quic_stream.o src/quic_stats.o src/h3_stats.o \
+                src/quic_cc_cubic.o
 endif
 
 ifneq ($(USE_LUA),)

@@ -25,7 +25,7 @@
 #include <haproxy/xprt_quic-t.h>
 
 
-struct quic_cc_algo *default_quic_cc_algo = &quic_cc_algo_nr;
+struct quic_cc_algo *default_quic_cc_algo = &quic_cc_algo_cubic;
 
 /*
  * Initialize <cc> congestion control with <algo> as algorithm depending on <ipv4>

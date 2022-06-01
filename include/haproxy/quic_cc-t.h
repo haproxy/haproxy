@@ -34,7 +34,10 @@
 #define QUIC_CC_INFINITE_SSTHESH ((uint32_t)-1)
 
 extern struct quic_cc_algo quic_cc_algo_nr;
+extern struct quic_cc_algo quic_cc_algo_cubic;
 extern struct quic_cc_algo *default_quic_cc_algo;
+
+extern unsigned long long last_ts;
 
 enum quic_cc_algo_state_type {
 	/* Slow start. */
@@ -67,6 +70,7 @@ struct quic_cc_event {
 
 enum quic_cc_algo_type {
 	QUIC_CC_ALGO_TP_NEWRENO,
+	QUIC_CC_ALGO_TP_CUBIC,
 };
 
 struct quic_cc {
