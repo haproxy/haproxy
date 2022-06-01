@@ -792,11 +792,8 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 						uint32_t sz = htx_get_blksz(blk);
 
 						c_rew(res, sz);
-						blk = htx_remove_blk(htx, blk);
 
-						if (type == HTX_BLK_UNUSED)
-							continue;
-						else if (type == HTX_BLK_HDR) {
+						if (type == HTX_BLK_HDR) {
 							hdrs[hdr_num].n = istdup(htx_get_blk_name(htx, blk));
 							hdrs[hdr_num].v = istdup(htx_get_blk_value(htx, blk));
 							hdr_num++;
@@ -805,8 +802,10 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 							/* create a NULL end of array and leave the loop */
 							hdrs[hdr_num].n = IST_NULL;
 							hdrs[hdr_num].v = IST_NULL;
+							htx_remove_blk(htx, blk);
 							break;
 						}
+						blk = htx_remove_blk(htx, blk);
 					}
 
 					if (hdr_num) {
