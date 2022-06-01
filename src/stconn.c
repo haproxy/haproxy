@@ -981,9 +981,8 @@ static void sc_app_chk_snd_applet(struct stconn *sc)
 	if (unlikely(sc->state != SC_ST_EST || (oc->flags & CF_SHUTW)))
 		return;
 
-	/* we only wake the applet up if it was waiting for some data */
-
-	if (!sc_ep_test(sc, SE_FL_WAIT_DATA))
+	/* we only wake the applet up if it was waiting for some data  and is ready to consume it */
+	if (!sc_ep_test(sc, SE_FL_WAIT_DATA) || sc_ep_test(sc, SE_FL_WONT_CONSUME))
 		return;
 
 	if (!tick_isset(oc->wex))
