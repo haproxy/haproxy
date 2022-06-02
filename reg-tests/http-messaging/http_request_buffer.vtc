@@ -26,9 +26,9 @@ syslog S -level info {
 	recv
 	expect ~ "[^:\\[ ]*\\[[0-9]*\\]: .* .* fe1 be1/srv1 [0-9]*/[0-9]*/[0-9]*/[0-9]*/[0-9]* 200 .* - - ---- .* .* \"GET / HTTP/1\\.1\""
 	recv
-	expect ~ "[^:\\[ ]*\\[[0-9]*\\]: .* .* fe1 be1/srv1 [0-9]*/[0-9]*/[0-9]*/[0-9]*/[0-9]* 200 .* - - ---- .* .* \"POST /1 HTTP/1\\.1\""
+	expect ~ "[^:\\[ ]*\\[[0-9]*\\]: .* .* fe2 be1/srv1 [0-9]*/[0-9]*/[0-9]*/[0-9]*/[0-9]* 200 .* - - ---- .* .* \"POST /1 HTTP/1\\.1\""
 	recv
-	expect ~ "[^:\\[ ]*\\[[0-9]*\\]: .* .* fe1 be1/<NOSRV> [0-9]*/-1/-1/-1/[0-9]* -1 .* - - CR-- .* .* \"POST /2 HTTP/1\\.1\""
+	expect ~ "[^:\\[ ]*\\[[0-9]*\\]: .* .* fe2 be1/<NOSRV> [0-9]*/-1/-1/-1/[0-9]* -1 .* - - CR-- .* .* \"POST /2 HTTP/1\\.1\""
 } -start
 
 haproxy h1 -conf {
@@ -46,6 +46,14 @@ haproxy h1 -conf {
 		option http-buffer-request
 		log ${S_addr}:${S_port} local0 debug err
 		bind "fd@${fe1}"
+		use_backend be1
+
+	frontend fe2
+	        timeout client 10s
+		option httplog
+		option http-buffer-request
+		log ${S_addr}:${S_port} local0 debug err
+		bind "fd@${fe2}"
 		use_backend be1
 } -start
 
@@ -89,7 +97,7 @@ client c2 -connect ${h1_fe1_sock} {
 # Payload is fully sent in 2 steps (with a small delay, smaller than the client
 # timeout) and split on a chunk size.
 #   ==> Request must be sent to the server. A 200 must be received
-client c3 -connect ${h1_fe1_sock} {
+client c3 -connect ${h1_fe2_sock} {
 	send "POST /1  HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n1\r\n1\r\n1"
 	delay 0.01
 	send "\r\n1\r\n0\r\n\r\n"
@@ -101,7 +109,7 @@ client c3 -connect ${h1_fe1_sock} {
 # (with a small delay, smaller than the client timeout) and split on a chunk
 # size. The client aborts before sending the last CRLF.
 #   ==> Request must be handled as an error with 'CR--' termination state.
-client c4 -connect ${h1_fe1_sock} {
+client c4 -connect ${h1_fe2_sock} {
 	send "POST /2  HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n1\r\n1\r\n1"
 	delay 0.01
 	send "\r\n1\r\n0\r\n"
