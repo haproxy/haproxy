@@ -43,7 +43,7 @@ syslog S -level info {
     barrier b2 sync
     recv
     expect ~ "[^:\\[ ]*\\[[0-9]*\\]: .* .* fe1 be1_2/srv1 [0-9]*/[0-9]*/-1/-1/[0-9]* -1 .* - - CC-- .* .* \"GET /c2 HTTP/1\\.1\""
-
+    barrier b2 sync
     recv
     expect ~ "[^:\\[ ]*\\[[0-9]*\\]: .* .* fe2 be2/<NOSRV> [0-9]*/[0-9]*/-1/-1/[0-9]* -1 .* - - CQ-- .* .* \"GET /c4 HTTP/1\\.1\""
     barrier b2 sync
@@ -113,6 +113,9 @@ barrier b2 sync
 client  c2 -connect ${h1_fe1_sock} {
     txreq -url /c2
 } -run
+
+# Wait c2 log entry
+barrier b2 sync
 
 # server with maxconn=1, abort waiting the server reply : CH--
 client  c3 -connect ${h1_fe2_sock} {
