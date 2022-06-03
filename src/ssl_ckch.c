@@ -1327,12 +1327,13 @@ static int cli_io_handler_show_cert(struct appctx *appctx)
 	if (trash == NULL)
 		return 1;
 
-	if (!ctx->old_ckchs) {
-		if (ckchs_transaction.old_ckchs) {
-			ckchs = ckchs_transaction.old_ckchs;
-			chunk_appendf(trash, "# transaction\n");
-			chunk_appendf(trash, "*%s\n", ckchs->path);
-		}
+	if (!ctx->old_ckchs && ckchs_transaction.old_ckchs) {
+		ckchs = ckchs_transaction.old_ckchs;
+		chunk_appendf(trash, "# transaction\n");
+		chunk_appendf(trash, "*%s\n", ckchs->path);
+		if (applet_putchk(appctx, trash) == -1)
+			goto yield;
+		ctx->old_ckchs = ckchs_transaction.old_ckchs;
 	}
 
 	if (!ctx->cur_ckchs) {
