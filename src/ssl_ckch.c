@@ -120,10 +120,8 @@ struct set_crlfile_ctx {
 
 /* CLI context used by "commit cafile" and "commit crlfile" */
 struct commit_cacrlfile_ctx {
-	struct cafile_entry *old_cafile_entry;
-	struct cafile_entry *new_cafile_entry;
-	struct cafile_entry *old_crlfile_entry;
-	struct cafile_entry *new_crlfile_entry;
+	struct cafile_entry *old_entry;
+	struct cafile_entry *new_entry;
 	struct ckch_inst_link *next_ckchi_link;
 	enum cafile_type cafile_type; /* either CA or CRL, depending on the current command */
 	char *err;
@@ -2700,8 +2698,8 @@ static int cli_parse_commit_cafile(char **args, char *payload, struct appctx *ap
 	/* init the appctx structure */
 	ctx->state = CACRL_ST_INIT;
 	ctx->next_ckchi_link = NULL;
-	ctx->old_cafile_entry = cafile_transaction.old_cafile_entry;
-	ctx->new_cafile_entry = cafile_transaction.new_cafile_entry;
+	ctx->old_entry = cafile_transaction.old_cafile_entry;
+	ctx->new_entry = cafile_transaction.new_cafile_entry;
 	ctx->cafile_type = CAFILE_CERT;
 
 	return 0;
@@ -2724,7 +2722,8 @@ static int cli_io_handler_commit_cafile_crlfile(struct appctx *appctx)
 	struct commit_cacrlfile_ctx *ctx = appctx->svcctx;
 	struct stconn *sc = appctx_sc(appctx);
 	int y = 0;
-	struct cafile_entry *old_cafile_entry, *new_cafile_entry;
+	struct cafile_entry *old_cafile_entry = ctx->old_entry;
+	struct cafile_entry *new_cafile_entry = ctx->new_entry;
 	struct ckch_inst_link *ckchi_link;
 	char *path;
 
@@ -2737,13 +2736,9 @@ static int cli_io_handler_commit_cafile_crlfile(struct appctx *appctx)
 	 */
 	switch (ctx->cafile_type) {
 		case CAFILE_CERT:
-			old_cafile_entry = ctx->old_cafile_entry;
-			new_cafile_entry = ctx->new_cafile_entry;
 			path = cafile_transaction.path;
 			break;
 		case CAFILE_CRL:
-			old_cafile_entry = ctx->old_crlfile_entry;
-			new_cafile_entry = ctx->new_crlfile_entry;
 			path = crlfile_transaction.path;
 			break;
 	}
@@ -2835,8 +2830,7 @@ static int cli_io_handler_commit_cafile_crlfile(struct appctx *appctx)
 				ebmb_delete(&old_cafile_entry->node);
 				ssl_store_delete_cafile_entry(old_cafile_entry);
 
-				ctx->old_cafile_entry = ctx->new_cafile_entry = NULL;
-				ctx->old_crlfile_entry = ctx->new_crlfile_entry = NULL;
+				ctx->old_entry = ctx->new_entry = NULL;
 				ctx->state = CACRL_ST_SUCCESS;
 				/* fallthrough */
 			case CACRL_ST_SUCCESS:
@@ -2926,7 +2920,7 @@ error:
 static void cli_release_commit_cafile(struct appctx *appctx)
 {
 	struct commit_cacrlfile_ctx *ctx = appctx->svcctx;
-	struct cafile_entry *new_cafile_entry = ctx->new_cafile_entry;
+	struct cafile_entry *new_cafile_entry = ctx->new_entry;
 
 	/* Remove the uncommitted cafile_entry from the tree. */
 	if (new_cafile_entry) {
@@ -3393,8 +3387,8 @@ static int cli_parse_commit_crlfile(char **args, char *payload, struct appctx *a
 	/* init the appctx structure */
 	ctx->state = CACRL_ST_INIT;
 	ctx->next_ckchi_link = NULL;
-	ctx->old_crlfile_entry = crlfile_transaction.old_crlfile_entry;
-	ctx->new_crlfile_entry = crlfile_transaction.new_crlfile_entry;
+	ctx->old_entry = crlfile_transaction.old_crlfile_entry;
+	ctx->new_entry = crlfile_transaction.new_crlfile_entry;
 	ctx->cafile_type = CAFILE_CRL;
 
 	return 0;
@@ -3414,7 +3408,7 @@ error:
 static void cli_release_commit_crlfile(struct appctx *appctx)
 {
 	struct commit_cacrlfile_ctx *ctx = appctx->svcctx;
-	struct cafile_entry *new_crlfile_entry = ctx->new_crlfile_entry;
+	struct cafile_entry *new_crlfile_entry = ctx->new_entry;
 
 	/* Remove the uncommitted cafile_entry from the tree. */
 	if (new_crlfile_entry) {
