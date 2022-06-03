@@ -126,7 +126,7 @@ struct commit_cacrlfile_ctx {
 	struct cafile_entry *new_crlfile_entry;
 	struct ckch_inst_link *next_ckchi_link;
 	struct ckch_inst *next_ckchi;
-	int cafile_type; /* either CA or CRL, depending on the current command */
+	enum cafile_type cafile_type; /* either CA or CRL, depending on the current command */
 	char *err;
 	enum {
 		CACRL_ST_INIT = 0,
