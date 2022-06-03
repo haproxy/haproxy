@@ -3393,7 +3393,7 @@ static int cli_parse_commit_crlfile(char **args, char *payload, struct appctx *a
 	}
 	/* init the appctx structure */
 	ctx->state = CACRL_ST_INIT;
-	ctx->next_ckchi = NULL;
+	ctx->next_ckchi_link = NULL;
 	ctx->old_crlfile_entry = crlfile_transaction.old_crlfile_entry;
 	ctx->new_crlfile_entry = crlfile_transaction.new_crlfile_entry;
 	ctx->cafile_type = CAFILE_CRL;
