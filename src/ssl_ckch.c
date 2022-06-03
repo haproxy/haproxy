@@ -3118,13 +3118,13 @@ static int cli_io_handler_show_cafile(struct appctx *appctx)
 	if (trash == NULL)
 		return 1;
 
-	if (!ctx->old_cafile_entry) {
-		if (cafile_transaction.old_cafile_entry) {
-			chunk_appendf(trash, "# transaction\n");
-			chunk_appendf(trash, "*%s", cafile_transaction.old_cafile_entry->path);
-
-			chunk_appendf(trash, " - %d certificate(s)\n", get_certificate_count(cafile_transaction.new_cafile_entry));
-		}
+	if (!ctx->old_cafile_entry && cafile_transaction.old_cafile_entry) {
+		chunk_appendf(trash, "# transaction\n");
+		chunk_appendf(trash, "*%s", cafile_transaction.old_cafile_entry->path);
+		chunk_appendf(trash, " - %d certificate(s)\n", get_certificate_count(cafile_transaction.new_cafile_entry));
+		if (applet_putchk(appctx, trash) == -1)
+			goto yield;
+		ctx->old_cafile_entry = cafile_transaction.new_cafile_entry;
 	}
 
 	/* First time in this io_handler. */
