@@ -2724,24 +2724,35 @@ static int cli_io_handler_commit_cafile_crlfile(struct appctx *appctx)
 	struct commit_cacrlfile_ctx *ctx = appctx->svcctx;
 	struct stconn *sc = appctx_sc(appctx);
 	int y = 0;
-	struct cafile_entry *old_cafile_entry = NULL, *new_cafile_entry = NULL;
+	struct cafile_entry *old_cafile_entry, *new_cafile_entry;
 	struct ckch_inst_link *ckchi_link;
+	char *path;
 
 	if (unlikely(sc_ic(sc)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
 		goto end;
+
+	/* The ctx was already validated by the ca-file/crl-file parsing
+	 * function. Entries can only be NULL in CACRL_ST_SUCCESS or
+	 * CACRL_ST_FIN states
+	 */
+	switch (ctx->cafile_type) {
+		case CAFILE_CERT:
+			old_cafile_entry = ctx->old_cafile_entry;
+			new_cafile_entry = ctx->new_cafile_entry;
+			path = cafile_transaction.path;
+			break;
+		case CAFILE_CRL:
+			old_cafile_entry = ctx->old_crlfile_entry;
+			new_cafile_entry = ctx->new_crlfile_entry;
+			path = crlfile_transaction.path;
+			break;
+	}
 
 	while (1) {
 		switch (ctx->state) {
 			case CACRL_ST_INIT:
 				/* This state just print the update message */
-				switch (ctx->cafile_type) {
-				case CAFILE_CERT:
-					chunk_printf(&trash, "Committing %s", cafile_transaction.path);
-					break;
-				case CAFILE_CRL:
-					chunk_printf(&trash, "Committing %s", crlfile_transaction.path);
-					break;
-				}
+				chunk_printf(&trash, "Committing %s", path);
 				if (applet_putchk(appctx, &trash) == -1)
 					goto yield;
 
@@ -2755,16 +2766,6 @@ static int cli_io_handler_commit_cafile_crlfile(struct appctx *appctx)
 				 * Since the SSL_CTX generation can be CPU consumer, we
 				 * yield every 10 instances.
 				 */
-				switch (ctx->cafile_type) {
-				case CAFILE_CERT:
-					old_cafile_entry = ctx->old_cafile_entry;
-					new_cafile_entry = ctx->new_cafile_entry;
-					break;
-				case CAFILE_CRL:
-					old_cafile_entry = ctx->old_crlfile_entry;
-					new_cafile_entry = ctx->new_crlfile_entry;
-					break;
-				}
 
 				/* get the next ckchi to regenerate */
 				ckchi_link = ctx->next_ckchi_link;
@@ -2811,18 +2812,6 @@ static int cli_io_handler_commit_cafile_crlfile(struct appctx *appctx)
 				/* fallthrough */
 			case CACRL_ST_INSERT:
 				/* The generation is finished, we can insert everything */
-				switch (ctx->cafile_type) {
-				case CAFILE_CERT:
-					old_cafile_entry = ctx->old_cafile_entry;
-					new_cafile_entry = ctx->new_cafile_entry;
-					break;
-				case CAFILE_CRL:
-					old_cafile_entry = ctx->old_crlfile_entry;
-					new_cafile_entry = ctx->new_crlfile_entry;
-					break;
-				}
-				if (!new_cafile_entry)
-					continue;
 
 				/* insert the new ckch_insts in the crtlist_entry */
 				list_for_each_entry(ckchi_link, &new_cafile_entry->ckch_inst_link, list) {
@@ -2846,14 +2835,8 @@ static int cli_io_handler_commit_cafile_crlfile(struct appctx *appctx)
 				ebmb_delete(&old_cafile_entry->node);
 				ssl_store_delete_cafile_entry(old_cafile_entry);
 
-				switch (ctx->cafile_type) {
-				case CAFILE_CERT:
-					ctx->old_cafile_entry = ctx->new_cafile_entry = NULL;
-					break;
-				case CAFILE_CRL:
-					ctx->old_crlfile_entry = ctx->new_crlfile_entry = NULL;
-					break;
-				}
+				ctx->old_cafile_entry = ctx->new_cafile_entry = NULL;
+				ctx->old_crlfile_entry = ctx->new_crlfile_entry = NULL;
 				ctx->state = CACRL_ST_SUCCESS;
 				/* fallthrough */
 			case CACRL_ST_SUCCESS:
