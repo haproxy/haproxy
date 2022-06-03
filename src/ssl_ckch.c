@@ -3762,11 +3762,12 @@ static int cli_io_handler_show_crlfile(struct appctx *appctx)
 	if (trash == NULL)
 		return 1;
 
-	if (!ctx->old_crlfile_entry) {
-		if (crlfile_transaction.old_crlfile_entry) {
-			chunk_appendf(trash, "# transaction\n");
-			chunk_appendf(trash, "*%s\n", crlfile_transaction.old_crlfile_entry->path);
-		}
+	if (!ctx->old_crlfile_entry && crlfile_transaction.old_crlfile_entry) {
+		chunk_appendf(trash, "# transaction\n");
+		chunk_appendf(trash, "*%s\n", crlfile_transaction.old_crlfile_entry->path);
+		if (applet_putchk(appctx, trash) == -1)
+			goto yield;
+		ctx->old_crlfile_entry = crlfile_transaction.old_crlfile_entry;
 	}
 
 	/* First time in this io_handler. */
