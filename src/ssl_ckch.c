@@ -2709,6 +2709,8 @@ static int cli_io_handler_commit_cafile_crlfile(struct appctx *appctx)
 		case CAFILE_CRL:
 			path = crlfile_transaction.path;
 			break;
+		default:
+			goto error;
 	}
 
 	while (1) {
