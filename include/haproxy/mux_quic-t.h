@@ -102,6 +102,9 @@ struct qcc {
 #define QC_SF_DEM_FULL          0x00000020  /* demux blocked on request channel buffer full */
 #define QC_SF_READ_ABORTED      0x00000040  /* stream rejected by app layer */
 
+/* Maximum size of stream Rx buffer. */
+#define QC_S_RX_BUF_SZ   (global.tune.bufsize - NCB_RESERVED_SZ)
+
 struct qcs {
 	struct qcc *qcc;
 	struct sedesc *sd;
@@ -137,7 +140,7 @@ struct qcs {
 struct qcc_app_ops {
 	int (*init)(struct qcc *qcc);
 	int (*attach)(struct qcs *qcs, void *conn_ctx);
-	int (*decode_qcs)(struct qcs *qcs, int fin);
+	int (*decode_qcs)(struct qcs *qcs, struct buffer *b, int fin);
 	size_t (*snd_buf)(struct stconn *sc, struct buffer *buf, size_t count, int flags);
 	void (*detach)(struct qcs *qcs);
 	int (*finalize)(void *ctx);

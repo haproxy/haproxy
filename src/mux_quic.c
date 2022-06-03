@@ -286,57 +286,6 @@ void qcs_notify_send(struct qcs *qcs)
 	}
 }
 
-/* Remove <bytes> from <qcs> Rx buffer. This must be called by transcoders
- * after STREAM parsing. Flow-control for received offsets may be allocated for
- * the peer if needed.
- */
-void qcs_consume(struct qcs *qcs, uint64_t bytes)
-{
-	struct qcc *qcc = qcs->qcc;
-	struct quic_frame *frm;
-	struct ncbuf *buf = &qcs->rx.ncbuf;
-	enum ncb_ret ret;
-
-	ret = ncb_advance(buf, bytes);
-	if (ret) {
-		ABORT_NOW(); /* should not happens because removal only in data */
-	}
-
-	if (ncb_is_empty(buf))
-		qc_free_ncbuf(qcs, buf);
-
-	qcs->rx.offset += bytes;
-	if (qcs->rx.msd - qcs->rx.offset < qcs->rx.msd_init / 2) {
-		frm = pool_zalloc(pool_head_quic_frame);
-		BUG_ON(!frm); /* TODO handle this properly */
-
-		qcs->rx.msd = qcs->rx.offset + qcs->rx.msd_init;
-
-		LIST_INIT(&frm->reflist);
-		frm->type = QUIC_FT_MAX_STREAM_DATA;
-		frm->max_stream_data.id = qcs->id;
-		frm->max_stream_data.max_stream_data = qcs->rx.msd;
-
-		LIST_APPEND(&qcc->lfctl.frms, &frm->list);
-		tasklet_wakeup(qcc->wait_event.tasklet);
-	}
-
-	qcc->lfctl.offsets_consume += bytes;
-	if (qcc->lfctl.md - qcc->lfctl.offsets_consume < qcc->lfctl.md_init / 2) {
-		frm = pool_zalloc(pool_head_quic_frame);
-		BUG_ON(!frm); /* TODO handle this properly */
-
-		qcc->lfctl.md = qcc->lfctl.offsets_consume + qcc->lfctl.md_init;
-
-		LIST_INIT(&frm->reflist);
-		frm->type = QUIC_FT_MAX_DATA;
-		frm->max_data.max_data = qcc->lfctl.md;
-
-		LIST_APPEND(&qcs->qcc->lfctl.frms, &frm->list);
-		tasklet_wakeup(qcs->qcc->wait_event.tasklet);
-	}
-}
-
 /* Retrieve as an ebtree node the stream with <id> as ID, possibly allocates
  * several streams, depending on the already open ones.
  * Return this node if succeeded, NULL if not.
@@ -425,6 +374,63 @@ struct qcs *qcc_get_qcs(struct qcc *qcc, uint64_t id)
 	return NULL;
 }
 
+/* Simple function to duplicate a buffer */
+static inline struct buffer qcs_b_dup(const struct ncbuf *b)
+{
+	return b_make(ncb_orig(b), b->size, b->head, ncb_data(b, 0));
+}
+
+/* Remove <bytes> from <qcs> Rx buffer. This must be called by transcoders
+ * after STREAM parsing. Flow-control for received offsets may be allocated for
+ * the peer if needed.
+ */
+static void qcs_consume(struct qcs *qcs, uint64_t bytes)
+{
+	struct qcc *qcc = qcs->qcc;
+	struct quic_frame *frm;
+	struct ncbuf *buf = &qcs->rx.ncbuf;
+	enum ncb_ret ret;
+
+	ret = ncb_advance(buf, bytes);
+	if (ret) {
+		ABORT_NOW(); /* should not happens because removal only in data */
+	}
+
+	if (ncb_is_empty(buf))
+		qc_free_ncbuf(qcs, buf);
+
+	qcs->rx.offset += bytes;
+	if (qcs->rx.msd - qcs->rx.offset < qcs->rx.msd_init / 2) {
+		frm = pool_zalloc(pool_head_quic_frame);
+		BUG_ON(!frm); /* TODO handle this properly */
+
+		qcs->rx.msd = qcs->rx.offset + qcs->rx.msd_init;
+
+		LIST_INIT(&frm->reflist);
+		frm->type = QUIC_FT_MAX_STREAM_DATA;
+		frm->max_stream_data.id = qcs->id;
+		frm->max_stream_data.max_stream_data = qcs->rx.msd;
+
+		LIST_APPEND(&qcc->lfctl.frms, &frm->list);
+		tasklet_wakeup(qcc->wait_event.tasklet);
+	}
+
+	qcc->lfctl.offsets_consume += bytes;
+	if (qcc->lfctl.md - qcc->lfctl.offsets_consume < qcc->lfctl.md_init / 2) {
+		frm = pool_zalloc(pool_head_quic_frame);
+		BUG_ON(!frm); /* TODO handle this properly */
+
+		qcc->lfctl.md = qcc->lfctl.offsets_consume + qcc->lfctl.md_init;
+
+		LIST_INIT(&frm->reflist);
+		frm->type = QUIC_FT_MAX_DATA;
+		frm->max_data.max_data = qcc->lfctl.md;
+
+		LIST_APPEND(&qcs->qcc->lfctl.frms, &frm->list);
+		tasklet_wakeup(qcs->qcc->wait_event.tasklet);
+	}
+}
+
 /* Decode the content of STREAM frames already received on the stream instance
  * <qcs>.
  *
@@ -432,14 +438,27 @@ struct qcs *qcc_get_qcs(struct qcc *qcc, uint64_t id)
  */
 static int qcc_decode_qcs(struct qcc *qcc, struct qcs *qcs)
 {
+	struct buffer b;
+	size_t data, done;
+	int ret;
+
 	TRACE_ENTER(QMUX_EV_QCS_RECV, qcc->conn, qcs);
 
-	if (qcc->app_ops->decode_qcs(qcs, qcs->flags & QC_SF_FIN_RECV)) {
+	b = qcs_b_dup(&qcs->rx.ncbuf);
+	data = b_data(&b);
+
+	ret = qcc->app_ops->decode_qcs(qcs, &b, qcs->flags & QC_SF_FIN_RECV);
+	if (ret) {
 		TRACE_DEVEL("leaving on decoding error", QMUX_EV_QCS_RECV, qcc->conn, qcs);
 		return 1;
 	}
 
-	qcs_notify_recv(qcs);
+	BUG_ON_HOT(data < b_data(&b));
+	done = data - b_data(&b);
+	if (done) {
+		qcs_consume(qcs, done);
+		qcs_notify_recv(qcs);
+	}
 
 	TRACE_LEAVE(QMUX_EV_QCS_RECV, qcc->conn, qcs);
 
