@@ -100,12 +100,6 @@ struct commit_cert_ctx {
 	} state;
 };
 
-/* CLI context used by "set crl-file" */
-struct set_crlfile_ctx {
-	struct cafile_entry *old_crlfile_entry;
-	struct cafile_entry *new_crlfile_entry;
-};
-
 /* CLI context used by "commit cafile" and "commit crlfile" */
 struct commit_cacrlfile_ctx {
 	struct cafile_entry *old_entry;
@@ -3225,7 +3219,8 @@ error:
 /* Parsing function of `set ssl crl-file` */
 static int cli_parse_set_crlfile(char **args, char *payload, struct appctx *appctx, void *private)
 {
-	struct set_crlfile_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
+	struct cafile_entry *old_crlfile_entry;
+	struct cafile_entry *new_crlfile_entry;
 	char *err = NULL;
 	int errcode = 0;
 	struct buffer *buf;
@@ -3253,8 +3248,8 @@ static int cli_parse_set_crlfile(char **args, char *payload, struct appctx *appc
 		goto end;
 	}
 
-	ctx->old_crlfile_entry = NULL;
-	ctx->new_crlfile_entry = NULL;
+	old_crlfile_entry = NULL;
+	new_crlfile_entry = NULL;
 
 	/* if there is an ongoing transaction */
 	if (crlfile_transaction.path) {
@@ -3264,33 +3259,30 @@ static int cli_parse_set_crlfile(char **args, char *payload, struct appctx *appc
 			errcode |= ERR_ALERT | ERR_FATAL;
 			goto end;
 		}
-		ctx->old_crlfile_entry = crlfile_transaction.old_crlfile_entry;
+		old_crlfile_entry = crlfile_transaction.old_crlfile_entry;
 	}
 	else {
 		/* lookup for the certificate in the tree */
-		ctx->old_crlfile_entry = ssl_store_get_cafile_entry(buf->area, 0);
+		old_crlfile_entry = ssl_store_get_cafile_entry(buf->area, 0);
 	}
 
-	if (!ctx->old_crlfile_entry) {
+	if (!old_crlfile_entry) {
 		memprintf(&err, "%sCan't replace a CRL file which is not referenced by the configuration!\n",
 		          err ? err : "");
 		errcode |= ERR_ALERT | ERR_FATAL;
 		goto end;
 	}
 
-	if (ctx->new_crlfile_entry)
-		ssl_store_delete_cafile_entry(ctx->new_crlfile_entry);
-
 	/* Create a new cafile_entry without adding it to the cafile tree. */
-	ctx->new_crlfile_entry = ssl_store_create_cafile_entry(ctx->old_crlfile_entry->path, NULL, CAFILE_CRL);
-	if (!ctx->new_crlfile_entry) {
+	new_crlfile_entry = ssl_store_create_cafile_entry(old_crlfile_entry->path, NULL, CAFILE_CRL);
+	if (!new_crlfile_entry) {
 		memprintf(&err, "%sCannot allocate memory!\n", err ? err : "");
 		errcode |= ERR_ALERT | ERR_FATAL;
 		goto end;
 	}
 
 	/* Fill the new entry with the new CRL. */
-	if (ssl_store_load_ca_from_buf(ctx->new_crlfile_entry, payload)) {
+	if (ssl_store_load_ca_from_buf(new_crlfile_entry, payload)) {
 		memprintf(&err, "%sInvalid payload\n", err ? err : "");
 		errcode |= ERR_ALERT | ERR_FATAL;
 		goto end;
@@ -3300,8 +3292,8 @@ static int cli_parse_set_crlfile(char **args, char *payload, struct appctx *appc
 
 	/* if there wasn't a transaction, update the old CRL */
 	if (!crlfile_transaction.old_crlfile_entry) {
-		crlfile_transaction.old_crlfile_entry = ctx->old_crlfile_entry;
-		crlfile_transaction.path = ctx->old_crlfile_entry->path;
+		crlfile_transaction.old_crlfile_entry = old_crlfile_entry;
+		crlfile_transaction.path = old_crlfile_entry->path;
 		err = memprintf(&err, "transaction created for CRL %s!\n", crlfile_transaction.path);
 	} else {
 		err = memprintf(&err, "transaction updated for CRL %s!\n", crlfile_transaction.path);
@@ -3310,7 +3302,7 @@ static int cli_parse_set_crlfile(char **args, char *payload, struct appctx *appc
 	/* free the previous CRL file if there was a transaction */
 	ssl_store_delete_cafile_entry(crlfile_transaction.new_crlfile_entry);
 
-	crlfile_transaction.new_crlfile_entry = ctx->new_crlfile_entry;
+	crlfile_transaction.new_crlfile_entry = new_crlfile_entry;
 
 	/* creates the SNI ctxs later in the IO handler */
 
@@ -3318,9 +3310,7 @@ end:
 	free_trash_chunk(buf);
 
 	if (errcode & ERR_CODE) {
-		ssl_store_delete_cafile_entry(ctx->new_crlfile_entry);
-		ctx->new_crlfile_entry = NULL;
-		ctx->old_crlfile_entry = NULL;
+		ssl_store_delete_cafile_entry(new_crlfile_entry);
 		HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
 		return cli_dynerr(appctx, memprintf(&err, "%sCan't update %s!\n", err ? err : "", args[3]));
 	} else {
