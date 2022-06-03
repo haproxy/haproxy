@@ -3715,7 +3715,7 @@ static int cli_io_handler_show_crlfile(struct appctx *appctx)
 	struct show_crlfile_ctx *ctx = appctx->svcctx;
 	struct buffer *trash = alloc_trash_chunk();
 	struct ebmb_node *node;
-	struct cafile_entry *cafile_entry;
+	struct cafile_entry *cafile_entry = NULL;
 
 	if (trash == NULL)
 		return 1;
