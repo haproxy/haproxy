@@ -100,12 +100,6 @@ struct commit_cert_ctx {
 	} state;
 };
 
-/* CLI context used by "set ca-file" */
-struct set_cafile_ctx {
-	struct cafile_entry *old_cafile_entry;
-	struct cafile_entry *new_cafile_entry;
-};
-
 /* CLI context used by "set crl-file" */
 struct set_crlfile_ctx {
 	struct cafile_entry *old_crlfile_entry;
@@ -2543,7 +2537,8 @@ error:
  */
 static int cli_parse_set_cafile(char **args, char *payload, struct appctx *appctx, void *private)
 {
-	struct set_cafile_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
+	struct cafile_entry *old_cafile_entry = NULL;
+	struct cafile_entry *new_cafile_entry = NULL;
 	char *err = NULL;
 	int errcode = 0;
 	struct buffer *buf;
@@ -2571,8 +2566,8 @@ static int cli_parse_set_cafile(char **args, char *payload, struct appctx *appct
 		goto end;
 	}
 
-	ctx->old_cafile_entry = NULL;
-	ctx->new_cafile_entry = NULL;
+	old_cafile_entry = NULL;
+	new_cafile_entry = NULL;
 
 	/* if there is an ongoing transaction */
 	if (cafile_transaction.path) {
@@ -2582,26 +2577,23 @@ static int cli_parse_set_cafile(char **args, char *payload, struct appctx *appct
 			errcode |= ERR_ALERT | ERR_FATAL;
 			goto end;
 		}
-		ctx->old_cafile_entry = cafile_transaction.old_cafile_entry;
+		old_cafile_entry = cafile_transaction.old_cafile_entry;
 	}
 	else {
 		/* lookup for the certificate in the tree */
-		ctx->old_cafile_entry = ssl_store_get_cafile_entry(buf->area, 0);
+		old_cafile_entry = ssl_store_get_cafile_entry(buf->area, 0);
 	}
 
-	if (!ctx->old_cafile_entry) {
+	if (!old_cafile_entry) {
 		memprintf(&err, "%sCan't replace a CA file which is not referenced by the configuration!\n",
 		          err ? err : "");
 		errcode |= ERR_ALERT | ERR_FATAL;
 		goto end;
 	}
 
-	if (ctx->new_cafile_entry)
-		ssl_store_delete_cafile_entry(ctx->new_cafile_entry);
-
 	/* Create a new cafile_entry without adding it to the cafile tree. */
-	ctx->new_cafile_entry = ssl_store_create_cafile_entry(ctx->old_cafile_entry->path, NULL, CAFILE_CERT);
-	if (!ctx->new_cafile_entry) {
+	new_cafile_entry = ssl_store_create_cafile_entry(old_cafile_entry->path, NULL, CAFILE_CERT);
+	if (!new_cafile_entry) {
 		memprintf(&err, "%sCannot allocate memory!\n",
 			  err ? err : "");
 		errcode |= ERR_ALERT | ERR_FATAL;
@@ -2609,7 +2601,7 @@ static int cli_parse_set_cafile(char **args, char *payload, struct appctx *appct
 	}
 
 	/* Fill the new entry with the new CAs. */
-	if (ssl_store_load_ca_from_buf(ctx->new_cafile_entry, payload)) {
+	if (ssl_store_load_ca_from_buf(new_cafile_entry, payload)) {
 		memprintf(&err, "%sInvalid payload\n", err ? err : "");
 		errcode |= ERR_ALERT | ERR_FATAL;
 		goto end;
@@ -2619,8 +2611,8 @@ static int cli_parse_set_cafile(char **args, char *payload, struct appctx *appct
 
 	/* if there wasn't a transaction, update the old CA */
 	if (!cafile_transaction.old_cafile_entry) {
-		cafile_transaction.old_cafile_entry = ctx->old_cafile_entry;
-		cafile_transaction.path = ctx->old_cafile_entry->path;
+		cafile_transaction.old_cafile_entry = old_cafile_entry;
+		cafile_transaction.path = old_cafile_entry->path;
 		err = memprintf(&err, "transaction created for CA %s!\n", cafile_transaction.path);
 	} else {
 		err = memprintf(&err, "transaction updated for CA %s!\n", cafile_transaction.path);
@@ -2629,7 +2621,7 @@ static int cli_parse_set_cafile(char **args, char *payload, struct appctx *appct
 	/* free the previous CA if there was a transaction */
 	ssl_store_delete_cafile_entry(cafile_transaction.new_cafile_entry);
 
-	cafile_transaction.new_cafile_entry = ctx->new_cafile_entry;
+	cafile_transaction.new_cafile_entry = new_cafile_entry;
 
 	/* creates the SNI ctxs later in the IO handler */
 
@@ -2637,9 +2629,7 @@ end:
 	free_trash_chunk(buf);
 
 	if (errcode & ERR_CODE) {
-		ssl_store_delete_cafile_entry(ctx->new_cafile_entry);
-		ctx->new_cafile_entry = NULL;
-		ctx->old_cafile_entry = NULL;
+		ssl_store_delete_cafile_entry(new_cafile_entry);
 		HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
 		return cli_dynerr(appctx, memprintf(&err, "%sCan't update %s!\n", err ? err : "", args[3]));
 	} else {
