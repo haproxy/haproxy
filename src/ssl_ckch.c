@@ -100,12 +100,6 @@ struct commit_cert_ctx {
 	} state;
 };
 
-/* CLI context used by "set cert" */
-struct set_cert_ctx {
-	struct ckch_store *old_ckchs;
-	struct ckch_store *new_ckchs;
-};
-
 /* CLI context used by "set ca-file" */
 struct set_cafile_ctx {
 	struct cafile_entry *old_cafile_entry;
@@ -2211,7 +2205,6 @@ error:
  */
 static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx, void *private)
 {
-	struct set_cert_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
 	struct ckch_store *new_ckchs = NULL;
 	struct ckch_store *old_ckchs = NULL;
 	char *err = NULL;
@@ -2256,9 +2249,6 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 		}
 	}
 
-	ctx->old_ckchs = NULL;
-	ctx->new_ckchs = NULL;
-
 	/* if there is an ongoing transaction */
 	if (ckchs_transaction.path) {
 		/* if there is an ongoing transaction, check if this is the same file */
@@ -2285,14 +2275,14 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 			}
 		}
 
-		ctx->old_ckchs = ckchs_transaction.new_ckchs;
+		old_ckchs = ckchs_transaction.new_ckchs;
 
 	} else {
 
 		/* lookup for the certificate in the tree */
-		ctx->old_ckchs = ckchs_lookup(buf->area);
+		old_ckchs = ckchs_lookup(buf->area);
 
-		if (!ctx->old_ckchs) {
+		if (!old_ckchs) {
 			/* if the del-ext option is activated we should try to take a look at a ".crt" too. */
 			if (cert_ext->type != CERT_TYPE_PEM && global_ssl.extra_files_noext) {
 				if (!chunk_strcat(buf, ".crt")) {
@@ -2300,19 +2290,17 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 					errcode |= ERR_ALERT | ERR_FATAL;
 					goto end;
 				}
-				ctx->old_ckchs = ckchs_lookup(buf->area);
+				old_ckchs = ckchs_lookup(buf->area);
 			}
 		}
 	}
 
-	if (!ctx->old_ckchs) {
+	if (!old_ckchs) {
 		memprintf(&err, "%sCan't replace a certificate which is not referenced by the configuration!\n",
 		          err ? err : "");
 		errcode |= ERR_ALERT | ERR_FATAL;
 		goto end;
 	}
-
-	old_ckchs = ctx->old_ckchs;
 
 	/* duplicate the ckch store */
 	new_ckchs = ckchs_dup(old_ckchs);
@@ -2332,14 +2320,12 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 		goto end;
 	}
 
-	ctx->new_ckchs = new_ckchs;
-
 	/* we succeed, we can save the ckchs in the transaction */
 
 	/* if there wasn't a transaction, update the old ckchs */
 	if (!ckchs_transaction.old_ckchs) {
-		ckchs_transaction.old_ckchs = ctx->old_ckchs;
-		ckchs_transaction.path = ctx->old_ckchs->path;
+		ckchs_transaction.old_ckchs = old_ckchs;
+		ckchs_transaction.path = old_ckchs->path;
 		err = memprintf(&err, "Transaction created for certificate %s!\n", ckchs_transaction.path);
 	} else {
 		err = memprintf(&err, "Transaction updated for certificate %s!\n", ckchs_transaction.path);
@@ -2349,7 +2335,7 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 	/* free the previous ckchs if there was a transaction */
 	ckch_store_free(ckchs_transaction.new_ckchs);
 
-	ckchs_transaction.new_ckchs = ctx->new_ckchs;
+	ckchs_transaction.new_ckchs = new_ckchs;
 
 
 	/* creates the SNI ctxs later in the IO handler */
@@ -2358,9 +2344,7 @@ end:
 	free_trash_chunk(buf);
 
 	if (errcode & ERR_CODE) {
-		ckch_store_free(ctx->new_ckchs);
-		ctx->new_ckchs = NULL;
-		ctx->old_ckchs = NULL;
+		ckch_store_free(new_ckchs);
 		HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
 		return cli_dynerr(appctx, memprintf(&err, "%sCan't update %s!\n", err ? err : "", args[3]));
 	} else {
