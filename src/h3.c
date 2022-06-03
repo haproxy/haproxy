@@ -133,6 +133,8 @@ DECLARE_STATIC_POOL(pool_head_h3c, "h3c", sizeof(struct h3c));
 #define H3_SF_UNI_NO_H3 0x00000002  /* unidirectional stream does not carry H3 frames */
 
 struct h3s {
+	struct h3c *h3c;
+
 	enum h3s_t type;
 	int demux_frame_len;
 	int demux_frame_type;
@@ -574,11 +576,11 @@ static size_t h3_parse_settings_frm(struct h3c *h3c, const struct ncbuf *rxbuf,
  *
  * Returns 0 on success else non-zero.
  */
-static int h3_decode_qcs(struct qcs *qcs, int fin, void *ctx)
+static int h3_decode_qcs(struct qcs *qcs, int fin)
 {
 	struct ncbuf *rxbuf = &qcs->rx.ncbuf;
-	struct h3c *h3c = ctx;
 	struct h3s *h3s = qcs->ctx;
+	struct h3c *h3c = h3s->h3c;
 	ssize_t ret;
 
 	h3_debug_printf(stderr, "%s: STREAM ID: %lu\n", __func__, qcs->id);
@@ -1020,7 +1022,7 @@ size_t h3_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, int flags
 	return total;
 }
 
-static int h3_attach(struct qcs *qcs)
+static int h3_attach(struct qcs *qcs, void *conn_ctx)
 {
 	struct h3s *h3s;
 
@@ -1031,6 +1033,8 @@ static int h3_attach(struct qcs *qcs)
 		return 1;
 
 	qcs->ctx = h3s;
+	h3s->h3c = conn_ctx;
+
 	h3s->demux_frame_len = 0;
 	h3s->demux_frame_type = 0;
 	h3s->flags = 0;

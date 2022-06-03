@@ -139,7 +139,7 @@ struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
 
 	qcs->id = qcs->by_id.key = id;
 	if (qcc->app_ops->attach) {
-		if (qcc->app_ops->attach(qcs))
+		if (qcc->app_ops->attach(qcs, qcc->ctx))
 			goto err;
 	}
 
@@ -434,7 +434,7 @@ static int qcc_decode_qcs(struct qcc *qcc, struct qcs *qcs)
 {
 	TRACE_ENTER(QMUX_EV_QCS_RECV, qcc->conn, qcs);
 
-	if (qcc->app_ops->decode_qcs(qcs, qcs->flags & QC_SF_FIN_RECV, qcc->ctx)) {
+	if (qcc->app_ops->decode_qcs(qcs, qcs->flags & QC_SF_FIN_RECV)) {
 		TRACE_DEVEL("leaving on decoding error", QMUX_EV_QCS_RECV, qcc->conn, qcs);
 		return 1;
 	}

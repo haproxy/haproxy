@@ -9,7 +9,7 @@
 #include <haproxy/mux_quic.h>
 #include <haproxy/ncbuf.h>
 
-static int hq_interop_decode_qcs(struct qcs *qcs, int fin, void *ctx)
+static int hq_interop_decode_qcs(struct qcs *qcs, int fin)
 {
 	struct ncbuf *rxbuf = &qcs->rx.ncbuf;
 	struct htx *htx;
