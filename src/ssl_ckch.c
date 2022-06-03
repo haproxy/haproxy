@@ -73,7 +73,7 @@ struct show_cafile_ctx {
 /* CLI context used by "show crlfile" */
 struct show_crlfile_ctx {
 	struct cafile_entry *cafile_entry;
-	struct crlfile_entry *old_crlfile_entry;
+	struct cafile_entry *old_crlfile_entry;
 	int index;
 };
 
