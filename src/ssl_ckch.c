@@ -3221,8 +3221,8 @@ error:
 /* Parsing function of `set ssl crl-file` */
 static int cli_parse_set_crlfile(char **args, char *payload, struct appctx *appctx, void *private)
 {
-	struct cafile_entry *old_crlfile_entry;
-	struct cafile_entry *new_crlfile_entry;
+	struct cafile_entry *old_crlfile_entry = NULL;
+	struct cafile_entry *new_crlfile_entry = NULL;
 	char *err = NULL;
 	int errcode = 0;
 	struct buffer *buf;
