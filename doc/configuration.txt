@@ -2744,7 +2744,7 @@ tune.h2.initial-window-size <number>
   Sets the HTTP/2 initial window size, which is the number of bytes the client
   can upload before waiting for an acknowledgment from HAProxy. This setting
   only affects payload contents (i.e. the body of POST requests), not headers.
-  The default value is 65535, which roughly allows up to 5 Mbps of upload
+  The default value is 65536, which roughly allows up to 5 Mbps of upload
   bandwidth per client over a network showing a 100 ms ping time, or 500 Mbps
   over a 1-ms local network. It can make sense to increase this value to allow
   faster uploads, or to reduce it to increase fairness when dealing with many

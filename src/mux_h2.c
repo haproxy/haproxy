@@ -518,7 +518,7 @@ DECLARE_STATIC_POOL(pool_head_h2s, "h2s", sizeof(struct h2s));
 
 /* a few settings from the global section */
 static int h2_settings_header_table_size      =  4096; /* initial value */
-static int h2_settings_initial_window_size    = 65535; /* initial value */
+static int h2_settings_initial_window_size    = 65536; /* initial value */
 static unsigned int h2_settings_max_concurrent_streams = 100;
 static int h2_settings_max_frame_size         = 0;     /* unset */
 
