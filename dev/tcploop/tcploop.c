@@ -248,7 +248,7 @@ int addr_to_ss(const char *str, struct sockaddr_storage *ss, struct err_msg *err
 	 */
 	if ((port_str = strrchr(str, ':')) == NULL) {
 		port = atoi(str);
-		if (port <= 0 || port > 65535) {
+		if (port < 0 || port > 65535) {
 			err->len = snprintf(err->msg, err->size, "Missing/invalid port number: '%s'\n", str);
 			return -1;
 		}
