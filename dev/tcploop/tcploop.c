@@ -99,7 +99,7 @@ __attribute__((noreturn)) void usage(int code, const char *arg0)
 	    "actions :\n"
 	    "  A[<count>]   : Accepts <count> incoming sockets and closes count-1\n"
 	    "                 Note: fd=accept(fd)\n"
-	    "  C            : Connects to ip:port\n"
+	    "  C[[ip]:port] : Connects to ip:port or default ones if unspecified.\n"
 	    "                 Note: fd=socket,connect(fd)\n"
 	    "  D            : Disconnect (connect to AF_UNSPEC)\n"
 	    "  E[<size>]    : Echo this amount of bytes. 0=infinite. unset=any amount.\n"
@@ -236,7 +236,7 @@ void sig_handler(int sig)
 /* converts str in the form [[<ipv4>|<ipv6>|<hostname>]:]port to struct sockaddr_storage.
  * Returns < 0 with err set in case of error.
  */
-int addr_to_ss(char *str, struct sockaddr_storage *ss, struct err_msg *err)
+int addr_to_ss(const char *str, struct sockaddr_storage *ss, struct err_msg *err)
 {
 	char *port_str;
 	int port;
@@ -418,7 +418,16 @@ int tcp_accept(int sock, const char *arg)
 /* Try to establish a new connection to <sa>. Return the fd or -1 in case of error */
 int tcp_connect(const struct sockaddr_storage *sa, const char *arg)
 {
+	struct sockaddr_storage conn_addr;
 	int sock;
+
+	if (arg[1]) {
+		struct err_msg err;
+
+		if (addr_to_ss(arg + 1, &conn_addr, &err) < 0)
+			die(1, "%s\n", err.msg);
+		sa = &conn_addr;
+	}
 
 	sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	if (sock < 0)
