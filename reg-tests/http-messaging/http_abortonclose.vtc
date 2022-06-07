@@ -4,7 +4,7 @@ feature ignore_unknown_macro
 # NOTE : This test may fail if too many vtest are running in parallel because
 #        the port reserved for closed s1 server may be reused by another vtest
 
-feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.5-dev0)'"
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.0-dev0)'"
 #REGTEST_TYPE=slow
 
 # b0 : Wait s1 was detected as DOWN to be sure it is stopped
