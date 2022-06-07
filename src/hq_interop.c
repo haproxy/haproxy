@@ -8,7 +8,7 @@
 #include <haproxy/http.h>
 #include <haproxy/mux_quic.h>
 
-static int hq_interop_decode_qcs(struct qcs *qcs, struct buffer *b, int fin)
+static ssize_t hq_interop_decode_qcs(struct qcs *qcs, struct buffer *b, int fin)
 {
 	struct htx *htx;
 	struct htx_sl *sl;
@@ -62,7 +62,7 @@ static int hq_interop_decode_qcs(struct qcs *qcs, struct buffer *b, int fin)
 
 	sl = htx_add_stline(htx, HTX_BLK_REQ_SL, 0, ist("GET"), path, ist("HTTP/1.0"));
 	if (!sl)
-		return 1;
+		return -1;
 
 	sl->flags |= HTX_SL_F_BODYLESS;
 	sl->info.req.meth = find_http_meth("GET", 3);
@@ -72,15 +72,14 @@ static int hq_interop_decode_qcs(struct qcs *qcs, struct buffer *b, int fin)
 
 	sc = qc_attach_sc(qcs, &htx_buf);
 	if (!sc)
-		return 1;
+		return -1;
 
-	b_reset(b);
 	b_free(&htx_buf);
 
 	if (fin)
 		htx->flags |= HTX_FL_EOM;
 
-	return 0;
+	return b_data(b);
 }
 
 static struct buffer *mux_get_buf(struct qcs *qcs)

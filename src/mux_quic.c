@@ -439,24 +439,19 @@ static void qcs_consume(struct qcs *qcs, uint64_t bytes)
 static int qcc_decode_qcs(struct qcc *qcc, struct qcs *qcs)
 {
 	struct buffer b;
-	size_t data, done;
-	int ret;
+	ssize_t ret;
 
 	TRACE_ENTER(QMUX_EV_QCS_RECV, qcc->conn, qcs);
 
 	b = qcs_b_dup(&qcs->rx.ncbuf);
-	data = b_data(&b);
-
 	ret = qcc->app_ops->decode_qcs(qcs, &b, qcs->flags & QC_SF_FIN_RECV);
-	if (ret) {
+	if (ret < 0) {
 		TRACE_DEVEL("leaving on decoding error", QMUX_EV_QCS_RECV, qcc->conn, qcs);
 		return 1;
 	}
 
-	BUG_ON_HOT(data < b_data(&b));
-	done = data - b_data(&b);
-	if (done) {
-		qcs_consume(qcs, done);
+	if (ret) {
+		qcs_consume(qcs, ret);
 		qcs_notify_recv(qcs);
 	}
 
