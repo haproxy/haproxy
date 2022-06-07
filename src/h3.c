@@ -614,7 +614,7 @@ static ssize_t h3_decode_qcs(struct qcs *qcs, struct buffer *b, int fin)
 
 			if (!h3_is_frame_valid(h3c, qcs, ftype)) {
 				qcc_emit_cc_app(qcs->qcc, H3_FRAME_UNEXPECTED);
-				return 1;
+				return -1;
 			}
 
 			if (!b_data(b))
@@ -636,7 +636,7 @@ static ssize_t h3_decode_qcs(struct qcs *qcs, struct buffer *b, int fin)
 			 */
 			if (flen > QC_S_RX_BUF_SZ) {
 				qcc_emit_cc_app(qcs->qcc, H3_EXCESSIVE_LOAD);
-				return 1;
+				return -1;
 			}
 			break;
 		}
@@ -666,7 +666,7 @@ static ssize_t h3_decode_qcs(struct qcs *qcs, struct buffer *b, int fin)
 			ret = h3_parse_settings_frm(qcs->qcc->ctx, b, flen);
 			if (ret < 0) {
 				qcc_emit_cc_app(qcs->qcc, h3c->err);
-				return 1;
+				return -1;
 			}
 			h3c->flags |= H3_CF_SETTINGS_RECV;
 			break;
