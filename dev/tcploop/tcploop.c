@@ -331,11 +331,30 @@ int tcp_set_noquickack(int sock, const char *arg)
 #endif
 }
 
-/* Try to listen to address <sa>. Return the fd or -1 in case of error */
-int tcp_listen(const struct sockaddr_storage *sa, const char *arg)
+/* Create a new TCP socket for either listening or connecting */
+int tcp_socket()
 {
 	int sock;
+
+	sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	if (sock < 0) {
+		perror("socket()");
+		return -1;
+	}
+
+	return sock;
+}
+
+/* Try to listen to address <sa>. Return the fd or -1 in case of error */
+int tcp_listen(int sock, const struct sockaddr_storage *sa, const char *arg)
+{
 	int backlog;
+
+	if (sock < 0) {
+		sock = tcp_socket();
+		if (sock < 0)
+			return sock;
+	}
 
 	if (arg[1])
 		backlog = atoi(arg + 1);
@@ -344,13 +363,7 @@ int tcp_listen(const struct sockaddr_storage *sa, const char *arg)
 
 	if (backlog < 0 || backlog > 65535) {
 		fprintf(stderr, "backlog must be between 0 and 65535 inclusive (was %d)\n", backlog);
-		return -1;
-	}
-
-	sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-	if (sock < 0) {
-		perror("socket()");
-		return -1;
+		goto fail;
 	}
 
 	if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one)) == -1) {
@@ -416,10 +429,9 @@ int tcp_accept(int sock, const char *arg)
 }
 
 /* Try to establish a new connection to <sa>. Return the fd or -1 in case of error */
-int tcp_connect(const struct sockaddr_storage *sa, const char *arg)
+int tcp_connect(int sock, const struct sockaddr_storage *sa, const char *arg)
 {
 	struct sockaddr_storage conn_addr;
-	int sock;
 
 	if (arg[1]) {
 		struct err_msg err;
@@ -429,9 +441,11 @@ int tcp_connect(const struct sockaddr_storage *sa, const char *arg)
 		sa = &conn_addr;
 	}
 
-	sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-	if (sock < 0)
-		return -1;
+	if (sock < 0) {
+		sock = tcp_socket();
+		if (sock < 0)
+			return sock;
+	}
 
 	if (fcntl(sock, F_SETFL, O_NONBLOCK) == -1)
 		goto fail;
@@ -786,7 +800,7 @@ int main(int argc, char **argv)
 		case 'L':
 			/* silently ignore existing connections */
 			if (sock == -1)
-				sock = tcp_listen(&default_addr, argv[arg]);
+				sock = tcp_listen(sock, &default_addr, argv[arg]);
 			if (sock < 0)
 				die(1, "Fatal: tcp_listen() failed.\n");
 			break;
@@ -794,7 +808,7 @@ int main(int argc, char **argv)
 		case 'C':
 			/* silently ignore existing connections */
 			if (sock == -1)
-				sock = tcp_connect(&default_addr, argv[arg]);
+				sock = tcp_connect(sock, &default_addr, argv[arg]);
 			if (sock < 0)
 				die(1, "Fatal: tcp_connect() failed.\n");
 			dolog("connect\n");
