@@ -99,6 +99,8 @@ __attribute__((noreturn)) void usage(int code, const char *arg0)
 	    "actions :\n"
 	    "  A[<count>]   : Accepts <count> incoming sockets and closes count-1\n"
 	    "                 Note: fd=accept(fd)\n"
+	    "  B[[ip]:port] : Bind a new socket to ip:port or default one if unspecified.\n"
+	    "                 Note: fd=socket,bind(fd)\n"
 	    "  C[[ip]:port] : Connects to ip:port or default ones if unspecified.\n"
 	    "                 Note: fd=socket,connect(fd)\n"
 	    "  D            : Disconnect (connect to AF_UNSPEC)\n"
@@ -345,25 +347,26 @@ int tcp_socket()
 	return sock;
 }
 
-/* Try to listen to address <sa>. Return the fd or -1 in case of error */
-int tcp_listen(int sock, const struct sockaddr_storage *sa, const char *arg)
+/* Try to bind to local address <sa>. Return the fd or -1 in case of error.
+ * Supports being passed NULL for arg if none has to be passed.
+ */
+int tcp_bind(int sock, const struct sockaddr_storage *sa, const char *arg)
 {
-	int backlog;
+	struct sockaddr_storage conn_addr;
+
+	if (arg && arg[1]) {
+		struct err_msg err;
+
+		if (addr_to_ss(arg + 1, &conn_addr, &err) < 0)
+			die(1, "%s\n", err.msg);
+		sa = &conn_addr;
+	}
+
 
 	if (sock < 0) {
 		sock = tcp_socket();
 		if (sock < 0)
 			return sock;
-	}
-
-	if (arg[1])
-		backlog = atoi(arg + 1);
-	else
-		backlog = 1000;
-
-	if (backlog < 0 || backlog > 65535) {
-		fprintf(stderr, "backlog must be between 0 and 65535 inclusive (was %d)\n", backlog);
-		goto fail;
 	}
 
 	if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one)) == -1) {
@@ -380,6 +383,33 @@ int tcp_listen(int sock, const struct sockaddr_storage *sa, const char *arg)
 	if (bind(sock, (struct sockaddr *)sa, sa->ss_family == AF_INET6 ?
 		 sizeof(struct sockaddr_in6) : sizeof(struct sockaddr_in)) == -1) {
 		perror("bind");
+		goto fail;
+	}
+
+	return sock;
+ fail:
+	close(sock);
+	return -1;
+}
+
+/* Try to listen to address <sa>. Return the fd or -1 in case of error */
+int tcp_listen(int sock, const struct sockaddr_storage *sa, const char *arg)
+{
+	int backlog;
+
+	if (sock < 0) {
+		sock = tcp_bind(sock, sa, NULL);
+		if (sock < 0)
+			return sock;
+	}
+
+	if (arg[1])
+		backlog = atoi(arg + 1);
+	else
+		backlog = 1000;
+
+	if (backlog < 0 || backlog > 65535) {
+		fprintf(stderr, "backlog must be between 0 and 65535 inclusive (was %d)\n", backlog);
 		goto fail;
 	}
 
@@ -798,17 +828,21 @@ int main(int argc, char **argv)
 	for (arg = loop_arg; arg < argc; arg++) {
 		switch (argv[arg][0]) {
 		case 'L':
-			/* silently ignore existing connections */
-			if (sock == -1)
-				sock = tcp_listen(sock, &default_addr, argv[arg]);
+			sock = tcp_listen(sock, &default_addr, argv[arg]);
 			if (sock < 0)
 				die(1, "Fatal: tcp_listen() failed.\n");
 			break;
 
-		case 'C':
+		case 'B':
 			/* silently ignore existing connections */
-			if (sock == -1)
-				sock = tcp_connect(sock, &default_addr, argv[arg]);
+			sock = tcp_bind(sock, &default_addr, argv[arg]);
+			if (sock < 0)
+				die(1, "Fatal: tcp_connect() failed.\n");
+			dolog("connect\n");
+			break;
+
+		case 'C':
+			sock = tcp_connect(sock, &default_addr, argv[arg]);
 			if (sock < 0)
 				die(1, "Fatal: tcp_connect() failed.\n");
 			dolog("connect\n");
