@@ -732,7 +732,7 @@ int tcp_fork(int sock, const char *arg)
 
 int main(int argc, char **argv)
 {
-	struct sockaddr_storage ss;
+	struct sockaddr_storage default_addr;
 	struct err_msg err;
 	const char *arg0;
 	int loop_arg;
@@ -765,7 +765,7 @@ int main(int argc, char **argv)
 	pid = getpid();
 	signal(SIGCHLD, sig_handler);
 
-	if (addr_to_ss(argv[1], &ss, &err) < 0)
+	if (addr_to_ss(argv[1], &default_addr, &err) < 0)
 		die(1, "%s\n", err.msg);
 
 	gettimeofday(&start_time, NULL);
@@ -777,7 +777,7 @@ int main(int argc, char **argv)
 		case 'L':
 			/* silently ignore existing connections */
 			if (sock == -1)
-				sock = tcp_listen(&ss, argv[arg]);
+				sock = tcp_listen(&default_addr, argv[arg]);
 			if (sock < 0)
 				die(1, "Fatal: tcp_listen() failed.\n");
 			break;
@@ -785,7 +785,7 @@ int main(int argc, char **argv)
 		case 'C':
 			/* silently ignore existing connections */
 			if (sock == -1)
-				sock = tcp_connect(&ss, argv[arg]);
+				sock = tcp_connect(&default_addr, argv[arg]);
 			if (sock < 0)
 				die(1, "Fatal: tcp_connect() failed.\n");
 			dolog("connect\n");
