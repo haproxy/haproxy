@@ -72,6 +72,8 @@ static struct timeval start_time;
 static int showtime;
 static int verbose;
 static int pid;
+static int sock_type = SOCK_STREAM;
+static int sock_proto = IPPROTO_TCP;
 
 
 /* display the message and exit with the code */
@@ -95,6 +97,7 @@ __attribute__((noreturn)) void usage(int code, const char *arg0)
 	    "\n"
 	    "options :\n"
 	    "  -v           : verbose\n"
+	    "  -u           : use UDP instead of TCP (limited)\n"
 	    "  -t|-tt|-ttt  : show time (msec / relative / absolute)\n"
 	    "actions :\n"
 	    "  A[<count>]   : Accepts <count> incoming sockets and closes count-1\n"
@@ -338,7 +341,7 @@ int tcp_socket()
 {
 	int sock;
 
-	sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	sock = socket(AF_INET, sock_type, sock_proto);
 	if (sock < 0) {
 		perror("socket()");
 		return -1;
@@ -806,6 +809,10 @@ int main(int argc, char **argv)
 			showtime += 3;
 		else if (strcmp(argv[0], "-v") == 0)
 			verbose ++;
+		else if (strcmp(argv[0], "-u") == 0) {
+			sock_type = SOCK_DGRAM;
+			sock_proto = IPPROTO_UDP;
+		}
 		else if (strcmp(argv[0], "--") == 0)
 			break;
 		else
