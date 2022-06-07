@@ -2101,6 +2101,7 @@ static int
 smp_fetch_fc_http_major(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct connection *conn = NULL;
+	const char *mux_name = NULL;
 
 	if (obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
                 conn = (kw[0] == 'b') ? sc_conn(__objt_check(smp->sess->origin)->sc) : NULL;
@@ -2118,8 +2119,16 @@ smp_fetch_fc_http_major(const struct arg *args, struct sample *smp, const char *
 		return 0;
 	}
 
+	mux_name = conn_get_mux_name(conn);
+
 	smp->data.type = SMP_T_SINT;
-	smp->data.u.sint = (strcmp(conn_get_mux_name(conn), "H2") == 0) ? 2 : 1;
+	if (strcmp(mux_name, "QUIC") == 0)
+		smp->data.u.sint = 3;
+	else if (strcmp(mux_name, "H2") == 0)
+		smp->data.u.sint = 2;
+	else
+		smp->data.u.sint = 1;
+
 	return 1;
 }
 
