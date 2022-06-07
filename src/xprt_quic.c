@@ -4927,16 +4927,20 @@ static int quic_retry_token_check(unsigned char *token, size_t tokenlen,
 	aadlen = quic_generate_retry_token_aad(aad, version, dcid, addr);
 	salt = token + tokenlen - QUIC_RETRY_TOKEN_SALTLEN;
 	if (!quic_tls_derive_retry_token_secret(EVP_sha256(), key, sizeof key, iv, sizeof iv,
-	                                        salt, QUIC_RETRY_TOKEN_SALTLEN, sec, seclen))
+	                                        salt, QUIC_RETRY_TOKEN_SALTLEN, sec, seclen)) {
+		TRACE_PROTO("Could not derive retry secret", QUIC_EV_CONN_LPKT, qc);
 		return 0;
+	}
 
 	if (!quic_tls_rx_ctx_init(&ctx, aead, key))
 		goto err;
 
 	/* Do not decrypt the QUIC_TOKEN_FMT_RETRY byte */
 	if (!quic_tls_decrypt2(buf, token + 1, tokenlen - QUIC_RETRY_TOKEN_SALTLEN - 1, aad, aadlen,
-	                       ctx, aead, key, iv))
+	                       ctx, aead, key, iv)) {
+		TRACE_PROTO("Could not decrypt retry token", QUIC_EV_CONN_LPKT, qc);
 		goto err;
+	}
 
 	if (parse_retry_token(buf, buf + tokenlen - QUIC_RETRY_TOKEN_SALTLEN - 1, odcid)) {
 		TRACE_PROTO("Error during Initial token parsing", QUIC_EV_CONN_LPKT, qc);
@@ -4968,10 +4972,10 @@ static int send_retry(int fd, struct sockaddr_storage *addr,
 	/* long header + fixed bit + packet type 0x3 */
 	buf[i++] = 0xf0;
 	/* version */
-	buf[i++] = 0x00;
-	buf[i++] = 0x00;
-	buf[i++] = 0x00;
-	buf[i++] = 0x01;
+	buf[i++] = *((unsigned char *)&pkt->version + 3);
+	buf[i++] = *((unsigned char *)&pkt->version + 2);
+	buf[i++] = *((unsigned char *)&pkt->version + 1);
+	buf[i++] = *(unsigned char *)&pkt->version;
 
 	/* Use the SCID from <pkt> for Retry DCID. */
 	buf[i++] = pkt->scid.len;
