@@ -500,9 +500,6 @@ static ssize_t h3_parse_settings_frm(struct h3c *h3c, const struct buffer *buf,
 	/* Work on a copy of <buf>. */
 	b = b_make(b_orig(buf), b_size(buf), b_head_ofs(buf), b_data(buf));
 
-	/* TODO handle incomplete SETTINGS frame */
-	BUG_ON(len < b_data(&b));
-
 	while (b_data(&b)) {
 		if (!b_quic_dec_int(&id, &b, &ret) || !b_quic_dec_int(&value, &b, &ret)) {
 			h3c->err = H3_FRAME_ERROR;
