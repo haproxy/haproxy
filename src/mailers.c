@@ -120,6 +120,7 @@ int init_email_alert(struct mailers *mls, struct proxy *p, char **err)
 
 		LIST_INIT(&q->email_alerts);
 		HA_SPIN_INIT(&q->lock);
+		check->obj_type = OBJ_TYPE_CHECK;
 		check->inter = mls->timeout.mail;
 		check->rise = DEF_AGENT_RISETIME;
 		check->proxy = p;
