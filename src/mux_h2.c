@@ -106,7 +106,7 @@ struct h2c {
 	uint32_t streams_limit; /* maximum number of concurrent streams the peer supports */
 	int32_t max_id; /* highest ID known on this connection, <0 before preface */
 	uint32_t rcvd_c; /* newly received data to ACK for the connection */
-	uint32_t rcvd_s; /* newly received data to ACK for the current stream (dsi) */
+	uint32_t rcvd_s; /* newly received data to ACK for the current stream (dsi) or zero */
 
 	/* states for the demux direction */
 	struct hpack_dht *ddht; /* demux dynamic header table */
@@ -3379,8 +3379,6 @@ static void h2_process_demux(struct h2c *h2c)
 		}
 
 		if (h2c->st0 == H2_CS_FRAME_H) {
-			h2c->rcvd_s = 0;
-
 			TRACE_STATE("expecting H2 frame header", H2_EV_RX_FRAME|H2_EV_RX_FHDR, h2c->conn);
 			if (!h2_peek_frame_hdr(&h2c->dbuf, 0, &hdr)) {
 				h2c->flags |= H2_CF_DEM_SHORT_READ;
@@ -3396,6 +3394,16 @@ static void h2_process_demux(struct h2c *h2c)
 				}
 				HA_ATOMIC_INC(&h2c->px_counters->conn_proto_err);
 				break;
+			}
+
+			if (h2c->rcvd_s && h2c->dsi != hdr.sid) {
+				/* changed stream with a pending WU, need to
+				 * send it now.
+				 */
+				TRACE_PROTO("sending stream WINDOW_UPDATE frame on stream switch", H2_EV_TX_FRAME|H2_EV_TX_WU, h2c->conn);
+				ret = h2c_send_strm_wu(h2c);
+				if (ret <= 0)
+					break;
 			}
 
 			padlen = 0;
@@ -3568,8 +3576,8 @@ static void h2_process_demux(struct h2c *h2c)
 			HA_ATOMIC_INC(&h2c->px_counters->data_rcvd);
 
 			if (h2c->st0 == H2_CS_FRAME_A) {
-				TRACE_PROTO("sending stream WINDOW_UPDATE frame", H2_EV_TX_FRAME|H2_EV_TX_WU, h2c->conn, h2s);
-				ret = h2c_send_strm_wu(h2c);
+				/* rcvd_s will suffice to trigger the sending of a WU */
+				h2c->st0 = H2_CS_FRAME_H;
 			}
 			break;
 
@@ -3637,6 +3645,12 @@ static void h2_process_demux(struct h2c *h2c)
 				h2c->dsi = -1;
 			}
 		}
+	}
+
+	if (h2c->rcvd_s > 0 &&
+	    !(h2c->flags & (H2_CF_MUX_MFULL | H2_CF_DEM_MBUSY | H2_CF_DEM_MROOM))) {
+		TRACE_PROTO("sending stream WINDOW_UPDATE frame", H2_EV_TX_FRAME|H2_EV_TX_WU, h2c->conn, h2s);
+		h2c_send_strm_wu(h2c);
 	}
 
 	if (h2c->rcvd_c > 0 &&
