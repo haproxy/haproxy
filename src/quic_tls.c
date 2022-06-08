@@ -19,6 +19,37 @@ DECLARE_POOL(pool_head_quic_tls_secret, "quic_tls_secret", QUIC_TLS_SECRET_LEN);
 DECLARE_POOL(pool_head_quic_tls_iv,     "quic_tls_iv",     QUIC_TLS_IV_LEN);
 DECLARE_POOL(pool_head_quic_tls_key,    "quic_tls_key",    QUIC_TLS_KEY_LEN);
 
+/* key/nonce from rfc9001 5.8. Retry Packet Integrity */
+const unsigned char key_v1[] = {
+	0xbe, 0x0c, 0x69, 0x0b, 0x9f, 0x66, 0x57, 0x5a,
+	0x1d, 0x76, 0x6b, 0x54, 0xe3, 0x68, 0xc8, 0x4e,
+};
+
+const unsigned char nonce_v1[] = {
+	0x46, 0x15, 0x99, 0xd3, 0x5d, 0x63, 0x2b, 0xf2,
+	0x23, 0x98, 0x25, 0xbb,
+};
+
+const unsigned char key_v2[] = {
+	0xba, 0x85, 0x8d, 0xc7, 0xb4, 0x3d, 0xe5, 0xdb,
+	0xf8, 0x76, 0x17, 0xff, 0x4a, 0xb2, 0x53, 0xdb,
+};
+
+const unsigned char nonce_v2[] = {
+	0x14, 0x1b, 0x99, 0xc2, 0x39, 0xb0, 0x3e, 0x78,
+	0x5d, 0x6a, 0x2e, 0x9f,
+};
+
+const unsigned char key_draft[] = {
+	0xcc, 0xce, 0x18, 0x7e, 0xd0, 0x9a, 0x09, 0xd0,
+	0x57, 0x28, 0x15, 0x5a, 0x6c, 0xb9, 0x6b, 0xe1,
+};
+
+const unsigned char nonce_draft[] = {
+	0xe5, 0x49, 0x30, 0xf9, 0x7f, 0x21, 0x36, 0xf0,
+	0x53, 0x0a, 0x8c, 0x1c,
+};
+
 __attribute__((format (printf, 3, 4)))
 void hexdump(const void *buf, size_t buflen, const char *title_fmt, ...);
 
@@ -560,21 +591,13 @@ int quic_tls_derive_retry_token_secret(const EVP_MD *md,
  *
  * Returns non-zero on success else zero.
  */
-int quic_tls_generate_retry_integrity_tag(unsigned char *odcid,
-                                          unsigned char odcid_len,
-                                          unsigned char *pkt, size_t pkt_len)
+int quic_tls_generate_retry_integrity_tag(unsigned char *odcid, unsigned char odcid_len,
+                                          unsigned char *pkt, size_t pkt_len,
+                                          uint32_t version)
 {
 	const EVP_CIPHER *evp = EVP_aes_128_gcm();
 	EVP_CIPHER_CTX *ctx;
-
-	/* key/nonce from rfc9001 5.8. Retry Packet Integrity */
-	const unsigned char key[] = {
-	  0xbe, 0x0c, 0x69, 0x0b, 0x9f, 0x66, 0x57, 0x5a,
-	  0x1d, 0x76, 0x6b, 0x54, 0xe3, 0x68, 0xc8, 0x4e,
-	};
-	const unsigned char nonce[] = {
-	  0x46, 0x15, 0x99, 0xd3, 0x5d, 0x63, 0x2b, 0xf2, 0x23, 0x98, 0x25, 0xbb,
-	};
+	const unsigned char *key, *nonce;
 
 	/* encryption buffer - not used as only AEAD tag generation is proceed */
 	unsigned char *out = NULL;
@@ -585,6 +608,20 @@ int quic_tls_generate_retry_integrity_tag(unsigned char *odcid,
 	ctx = EVP_CIPHER_CTX_new();
 	if (!ctx)
 		return 0;
+
+	switch (version) {
+	case QUIC_PROTOCOL_VERSION_1:
+		key = key_v1;
+		nonce = nonce_v1;
+		break;
+	case QUIC_PROTOCOL_VERSION_2_DRAFT:
+		key = key_v2;
+		nonce = nonce_v2;
+		break;
+	default:
+		key = key_draft;
+		nonce = nonce_draft;
+	}
 
 	/* rfc9001 5.8. Retry Packet Integrity
 	 *

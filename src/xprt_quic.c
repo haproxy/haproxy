@@ -59,6 +59,7 @@
 /* list of supported QUIC versions by this implementation */
 static int quic_supported_version[] = {
 	0x00000001,
+	0x709a50c4, /* V2 draft */
 	0xff00001d, /* draft-29 */
 
 	/* placeholder, do not add entry after this */
@@ -5001,7 +5002,7 @@ static int send_retry(int fd, struct sockaddr_storage *addr,
 	/* token integrity tag */
 	if ((&buf[i] - buf < QUIC_TLS_TAG_LEN) ||
 	    !quic_tls_generate_retry_integrity_tag(pkt->dcid.data,
-	                                           pkt->dcid.len, buf, i)) {
+	                                           pkt->dcid.len, buf, i, pkt->version)) {
 		return 1;
 	}
 
