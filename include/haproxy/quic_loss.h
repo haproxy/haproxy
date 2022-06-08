@@ -68,7 +68,7 @@ static inline unsigned int quic_pto(struct quic_conn *qc)
 	struct quic_loss *ql = &qc->path->loss;
 
 	return (ql->srtt >> 3) + QUIC_MAX(ql->rtt_var, QUIC_TIMER_GRANULARITY) +
-		HA_ATOMIC_LOAD(&qc->state) >= QUIC_HS_ST_COMPLETE ? qc->max_ack_delay : 0;
+		(HA_ATOMIC_LOAD(&qc->state) >= QUIC_HS_ST_COMPLETE ? qc->max_ack_delay : 0);
 }
 
 void quic_loss_srtt_update(struct quic_loss *ql,
