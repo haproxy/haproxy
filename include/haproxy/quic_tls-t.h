@@ -52,6 +52,29 @@ extern struct pool_head *pool_head_quic_tls_secret;
 extern struct pool_head *pool_head_quic_tls_iv;
 extern struct pool_head *pool_head_quic_tls_key;
 
+#define QUIC_HKDF_KEY_LABEL_V1 "quic key"
+#define QUIC_HKDF_IV_LABEL_V1  "quic iv"
+#define QUIC_HKDF_HP_LABEL_V1  "quic hp"
+#define QUIC_HKDF_KU_LABEL_V1  "quic ku"
+
+#define QUIC_HKDF_KEY_LABEL_V2 "quicv2 key"
+#define QUIC_HKDF_IV_LABEL_V2  "quicv2 iv"
+#define QUIC_HKDF_HP_LABEL_V2  "quicv2 hp"
+#define QUIC_HKDF_KU_LABEL_V2  "quicv2 ku"
+
+#define QUIC_TLS_RETRY_KEY_DRAFT \
+	"\xcc\xce\x18\x7e\xd0\x9a\x09\xd0\x57\x28\x15\x5a\x6c\xb9\x6b\xe1"
+#define QUIC_TLS_RETRY_NONCE_DRAFT \
+	"\xe5\x49\x30\xf9\x7f\x21\x36\xf0\x53\x0a\x8c\x1c"
+#define QUIC_TLS_RETRY_KEY_V1 \
+	"\xbe\x0c\x69\x0b\x9f\x66\x57\x5a\x1d\x76\x6b\x54\xe3\x68\xc8\x4e"
+#define QUIC_TLS_RETRY_NONCE_V1 \
+	"\x46\x15\x99\xd3\x5d\x63\x2b\xf2\x23\x98\x25\xbb"
+#define QUIC_TLS_RETRY_KEY_V2_DRAFT \
+	"\xba\x85\x8d\xc7\xb4\x3d\xe5\xdb\xf8\x76\x17\xff\x4a\xb2\x53\xdb"
+#define QUIC_TLS_RETRY_NONCE_V2_DRAFT \
+	"\x14\x1b\x99\xc2\x39\xb0\x3e\x78\x5d\x6a\x2e\x9f"
+
 /* QUIC handshake states for both clients and servers. */
 enum quic_handshake_state {
 	QUIC_HS_ST_CLIENT_HANDSHAKE_FAILED,

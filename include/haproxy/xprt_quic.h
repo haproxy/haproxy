@@ -52,6 +52,26 @@ extern struct pool_head *pool_head_quic_connection_id;
 
 int ssl_quic_initial_ctx(struct bind_conf *bind_conf);
 
+/* Return the long packet type matching with <qv> version and <type> */
+static inline int quic_pkt_type(int type, uint32_t version)
+{
+	if (version != QUIC_PROTOCOL_VERSION_2_DRAFT)
+		return type;
+
+	switch (type) {
+	case QUIC_PACKET_TYPE_INITIAL:
+		return 1;
+	case QUIC_PACKET_TYPE_0RTT:
+		return 2;
+	case QUIC_PACKET_TYPE_HANDSHAKE:
+		return 3;
+	case QUIC_PACKET_TYPE_RETRY:
+		return 0;
+	}
+
+	return -1;
+}
+
 static inline int qc_is_listener(struct quic_conn *qc)
 {
 	return qc->flags & QUIC_FL_CONN_LISTENER;

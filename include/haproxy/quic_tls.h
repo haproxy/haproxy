@@ -30,16 +30,22 @@
 /* Initial salt depending on QUIC version to derive client/server initial secrets.
  * This one is for draft-29 QUIC version.
  */
-unsigned char initial_salt_draft_29[20] = {
+const unsigned char initial_salt_draft_29[20] = {
 	0xaf, 0xbf, 0xec, 0x28, 0x99, 0x93, 0xd2, 0x4c,
 	0x9e, 0x97, 0x86, 0xf1, 0x9c, 0x61, 0x11, 0xe0,
 	0x43, 0x90, 0xa8, 0x99
 };
 
-unsigned char initial_salt_v1[20] = {
+const unsigned char initial_salt_v1[20] = {
 	0x38, 0x76, 0x2c, 0xf7, 0xf5, 0x59, 0x34, 0xb3,
 	0x4d, 0x17, 0x9a, 0xe6, 0xa4, 0xc8, 0x0c, 0xad,
 	0xcc, 0xbb, 0x7f, 0x0a
+};
+
+const unsigned char initial_salt_v2_draft[20] = {
+	0xa7, 0x07, 0xc2, 0x03, 0xa5, 0x9b, 0x47, 0x18,
+	0x4a, 0x1d, 0x62, 0xca, 0x57, 0x04, 0x06, 0xea,
+	0x7a, 0xe3, 0xe5, 0xd3
 };
 
 void quic_tls_keys_hexdump(struct buffer *buf,
@@ -76,10 +82,11 @@ int quic_tls_decrypt(unsigned char *buf, size_t len,
                      const unsigned char *key, const unsigned char *iv);
 
 int quic_tls_generate_retry_integrity_tag(unsigned char *odcid, size_t odcid_len,
-                                          unsigned char *buf, size_t len, uint32_t version);
+                                          unsigned char *buf, size_t len,
+                                          const struct quic_version *qv);
 
 int quic_tls_derive_keys(const EVP_CIPHER *aead, const EVP_CIPHER *hp,
-                         const EVP_MD *md,
+                         const EVP_MD *md, const struct quic_version *qv,
                          unsigned char *key, size_t keylen,
                          unsigned char *iv, size_t ivlen,
                          unsigned char *hp_key, size_t hp_keylen,
@@ -102,7 +109,7 @@ int quic_tls_rx_ctx_init(EVP_CIPHER_CTX **rx_ctx,
 int quic_tls_tx_ctx_init(EVP_CIPHER_CTX **tx_ctx,
                          const EVP_CIPHER *aead, unsigned char *key);
 
-int quic_tls_sec_update(const EVP_MD *md,
+int quic_tls_sec_update(const EVP_MD *md, const struct quic_version *qv,
                         unsigned char *new_sec, size_t new_seclen,
                         const unsigned char *sec, size_t seclen);
 
@@ -498,7 +505,6 @@ static inline void quic_tls_discard_keys(struct quic_enc_level *qel)
  * Return 1 if succeeded or 0 if not.
  */
 static inline int qc_new_isecs(struct quic_conn *qc,
-                               const unsigned char *salt, size_t salt_len,
                                const unsigned char *cid, size_t cidlen, int server)
 {
 	unsigned char initial_secret[32];
@@ -515,7 +521,7 @@ static inline int qc_new_isecs(struct quic_conn *qc,
 		goto err;
 
 	if (!quic_derive_initial_secret(ctx->rx.md,
-	                                salt, salt_len,
+	                                qc->version->initial_salt, qc->version->initial_salt_len,
 	                                initial_secret, sizeof initial_secret,
 	                                cid, cidlen))
 		goto err;
@@ -528,7 +534,7 @@ static inline int qc_new_isecs(struct quic_conn *qc,
 
 	rx_ctx = &ctx->rx;
 	tx_ctx = &ctx->tx;
-	if (!quic_tls_derive_keys(ctx->rx.aead, ctx->rx.hp, ctx->rx.md,
+	if (!quic_tls_derive_keys(ctx->rx.aead, ctx->rx.hp, ctx->rx.md, qc->version,
 	                          rx_ctx->key, rx_ctx->keylen,
 	                          rx_ctx->iv, rx_ctx->ivlen,
 	                          rx_ctx->hp_key, sizeof rx_ctx->hp_key,
@@ -538,7 +544,7 @@ static inline int qc_new_isecs(struct quic_conn *qc,
 	if (!quic_tls_rx_ctx_init(&rx_ctx->ctx, rx_ctx->aead, rx_ctx->key))
 		goto err;
 
-	if (!quic_tls_derive_keys(ctx->tx.aead, ctx->tx.hp, ctx->tx.md,
+	if (!quic_tls_derive_keys(ctx->tx.aead, ctx->tx.hp, ctx->tx.md, qc->version,
 	                          tx_ctx->key, tx_ctx->keylen,
 	                          tx_ctx->iv, tx_ctx->ivlen,
 	                          tx_ctx->hp_key, sizeof tx_ctx->hp_key,

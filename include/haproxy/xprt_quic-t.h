@@ -269,6 +269,23 @@ extern struct pool_head *pool_head_quic_tx_packet;
 extern struct pool_head *pool_head_quic_frame;
 extern struct pool_head *pool_head_quic_dgram;
 
+struct quic_version {
+	uint32_t num;
+	const unsigned char *initial_salt;
+	size_t initial_salt_len;
+	const unsigned char *key_label;
+	size_t key_label_len;
+	const unsigned char *iv_label;
+	size_t iv_label_len;
+	const unsigned char *hp_label;
+	size_t hp_label_len;
+	const unsigned char *ku_label;
+	size_t ku_label_len;
+	/* Retry tag */
+	const unsigned char *retry_tag_key;
+	const unsigned char *retry_tag_nonce;
+};
+
 /* QUIC connection id data.
  *
  * This struct is used by ebmb_node structs as last member of flexible arrays.
@@ -397,7 +414,6 @@ struct quic_rx_packet {
 	struct list qc_rx_pkt_list;
 	struct quic_conn *qc;
 	unsigned char type;
-	uint32_t version;
 	/* Initial desctination connection ID. */
 	struct quic_cid dcid;
 	struct quic_cid scid;
@@ -609,7 +625,7 @@ enum qc_mux_state {
 #define QUIC_FL_CONN_DRAINING                    (1U << 30)
 #define QUIC_FL_CONN_IMMEDIATE_CLOSE             (1U << 31)
 struct quic_conn {
-	uint32_t version;
+	const struct quic_version *version;
 	/* QUIC transport parameters TLS extension */
 	int tps_tls_ext;
 	/* Thread ID this connection is attached to */

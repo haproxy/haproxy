@@ -57,14 +57,56 @@
 #include <haproxy/xprt_quic.h>
 
 /* list of supported QUIC versions by this implementation */
-static int quic_supported_version[] = {
-	0x00000001,
-	0x709a50c4, /* V2 draft */
-	0xff00001d, /* draft-29 */
-
-	/* placeholder, do not add entry after this */
-	0x0
+static const struct quic_version quic_versions[] = {
+	{
+		.num              = QUIC_PROTOCOL_VERSION_DRAFT_29,
+		.initial_salt     = initial_salt_draft_29,
+		.initial_salt_len = sizeof initial_salt_draft_29,
+		.key_label        = (const unsigned char *)QUIC_HKDF_KEY_LABEL_V1,
+		.key_label_len    = strlen(QUIC_HKDF_KEY_LABEL_V1),
+		.iv_label         = (const unsigned char *)QUIC_HKDF_IV_LABEL_V1,
+		.iv_label_len     = strlen(QUIC_HKDF_IV_LABEL_V1),
+		.hp_label         = (const unsigned char *)QUIC_HKDF_HP_LABEL_V1,
+		.hp_label_len     = strlen(QUIC_HKDF_HP_LABEL_V1),
+		.ku_label         = (const unsigned char *)QUIC_HKDF_KU_LABEL_V1,
+		.ku_label_len     = strlen(QUIC_HKDF_KU_LABEL_V1),
+		.retry_tag_key    = (const unsigned char *)QUIC_TLS_RETRY_KEY_DRAFT,
+		.retry_tag_nonce  = (const unsigned char *)QUIC_TLS_RETRY_NONCE_DRAFT,
+	},
+	{
+		.num              = QUIC_PROTOCOL_VERSION_1,
+		.initial_salt     = initial_salt_v1,
+		.initial_salt_len = sizeof initial_salt_v1,
+		.key_label        = (const unsigned char *)QUIC_HKDF_KEY_LABEL_V1,
+		.key_label_len    = strlen(QUIC_HKDF_KEY_LABEL_V1),
+		.iv_label         = (const unsigned char *)QUIC_HKDF_IV_LABEL_V1,
+		.iv_label_len     = strlen(QUIC_HKDF_IV_LABEL_V1),
+		.hp_label         = (const unsigned char *)QUIC_HKDF_HP_LABEL_V1,
+		.hp_label_len     = strlen(QUIC_HKDF_HP_LABEL_V1),
+		.ku_label         = (const unsigned char *)QUIC_HKDF_KU_LABEL_V1,
+		.ku_label_len     = strlen(QUIC_HKDF_KU_LABEL_V1),
+		.retry_tag_key    = (const unsigned char *)QUIC_TLS_RETRY_KEY_V1,
+		.retry_tag_nonce  = (const unsigned char *)QUIC_TLS_RETRY_NONCE_V1,
+	},
+	{
+		.num              = QUIC_PROTOCOL_VERSION_2_DRAFT,
+		.initial_salt     = initial_salt_v2_draft,
+		.initial_salt_len = sizeof initial_salt_v2_draft,
+		.key_label        = (const unsigned char *)QUIC_HKDF_KEY_LABEL_V2,
+		.key_label_len    = strlen(QUIC_HKDF_KEY_LABEL_V2),
+		.iv_label         = (const unsigned char *)QUIC_HKDF_IV_LABEL_V2,
+		.iv_label_len     = strlen(QUIC_HKDF_IV_LABEL_V2),
+		.hp_label         = (const unsigned char *)QUIC_HKDF_HP_LABEL_V2,
+		.hp_label_len     = strlen(QUIC_HKDF_HP_LABEL_V2),
+		.ku_label         = (const unsigned char *)QUIC_HKDF_KU_LABEL_V2,
+		.ku_label_len     = strlen(QUIC_HKDF_KU_LABEL_V2),
+		.retry_tag_key    = (const unsigned char *)QUIC_TLS_RETRY_KEY_V2_DRAFT,
+		.retry_tag_nonce  = (const unsigned char *)QUIC_TLS_RETRY_NONCE_V2_DRAFT,
+	},
 };
+
+/* The total number of supported versions */
+static size_t quic_versions_nb = sizeof quic_versions / sizeof *quic_versions;
 
 /* trace source and events */
 static void quic_trace(enum trace_level level, uint64_t mask, \
@@ -710,13 +752,13 @@ static int quic_tls_key_update(struct quic_conn *qc)
 	nxt_tx = &qc->ku.nxt_tx;
 
 	/* Prepare new RX secrets */
-	if (!quic_tls_sec_update(rx->md, nxt_rx->secret, nxt_rx->secretlen,
+	if (!quic_tls_sec_update(rx->md, qc->version, nxt_rx->secret, nxt_rx->secretlen,
 	                         rx->secret, rx->secretlen)) {
 		TRACE_DEVEL("New RX secret update failed", QUIC_EV_CONN_RWSEC, qc);
 		return 0;
 	}
 
-	if (!quic_tls_derive_keys(rx->aead, NULL, rx->md,
+	if (!quic_tls_derive_keys(rx->aead, NULL, rx->md, qc->version,
 	                          nxt_rx->key, nxt_rx->keylen,
 	                          nxt_rx->iv, nxt_rx->ivlen, NULL, 0,
 	                          nxt_rx->secret, nxt_rx->secretlen)) {
@@ -725,13 +767,13 @@ static int quic_tls_key_update(struct quic_conn *qc)
 	}
 
 	/* Prepare new TX secrets */
-	if (!quic_tls_sec_update(tx->md, nxt_tx->secret, nxt_tx->secretlen,
+	if (!quic_tls_sec_update(tx->md, qc->version, nxt_tx->secret, nxt_tx->secretlen,
 	                         tx->secret, tx->secretlen)) {
 		TRACE_DEVEL("New TX secret update failed", QUIC_EV_CONN_RWSEC, qc);
 		return 0;
 	}
 
-	if (!quic_tls_derive_keys(tx->aead, NULL, tx->md,
+	if (!quic_tls_derive_keys(tx->aead, NULL, tx->md, qc->version,
 	                          nxt_tx->key, nxt_tx->keylen,
 	                          nxt_tx->iv, nxt_tx->ivlen, NULL, 0,
 	                          nxt_tx->secret, nxt_tx->secretlen)) {
@@ -840,7 +882,7 @@ int ha_quic_set_encryption_secrets(SSL *ssl, enum ssl_encryption_level_t level,
 	rx->md   = tx->md   = tls_md(cipher);
 	rx->hp   = tx->hp   = tls_hp(cipher);
 
-	if (!quic_tls_derive_keys(rx->aead, rx->hp, rx->md, rx->key, rx->keylen,
+	if (!quic_tls_derive_keys(rx->aead, rx->hp, rx->md, qc->version, rx->key, rx->keylen,
 	                          rx->iv, rx->ivlen, rx->hp_key, sizeof rx->hp_key,
 	                          read_secret, secret_len)) {
 		TRACE_DEVEL("RX key derivation failed", QUIC_EV_CONN_RWSEC, qc);
@@ -862,7 +904,7 @@ int ha_quic_set_encryption_secrets(SSL *ssl, enum ssl_encryption_level_t level,
 	if (!write_secret)
 		goto out;
 
-	if (!quic_tls_derive_keys(tx->aead, tx->hp, tx->md, tx->key, tx->keylen,
+	if (!quic_tls_derive_keys(tx->aead, tx->hp, tx->md, qc->version, tx->key, tx->keylen,
 	                          tx->iv, tx->ivlen, tx->hp_key, sizeof tx->hp_key,
 	                          write_secret, secret_len)) {
 		TRACE_DEVEL("TX key derivation failed", QUIC_EV_CONN_RWSEC, qc);
@@ -4274,7 +4316,7 @@ static int parse_retry_token(const unsigned char *token, const unsigned char *en
  * length. <saddr> is the source address.
  * Returns the connection if succeeded, NULL if not.
  */
-static struct quic_conn *qc_new_conn(unsigned int version, int ipv4,
+static struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
                                      struct quic_cid *dcid, struct quic_cid *scid,
                                      const struct quic_cid *odcid,
                                      struct sockaddr_storage *saddr,
@@ -4286,8 +4328,6 @@ static struct quic_conn *qc_new_conn(unsigned int version, int ipv4,
 	struct quic_connection_id *icid;
 	char *buf_area = NULL;
 	struct listener *l = NULL;
-	const unsigned char *salt = initial_salt_v1;
-	size_t salt_len = sizeof initial_salt_v1;
 
 	TRACE_ENTER(QUIC_EV_CONN_INIT);
 	qc = pool_zalloc(pool_head_quic_conn);
@@ -4361,8 +4401,8 @@ static struct quic_conn *qc_new_conn(unsigned int version, int ipv4,
 		qc->els[i].pktns = &qc->pktns[quic_tls_pktns(i)];
 	}
 
-	qc->version = version;
-	qc->tps_tls_ext = qc->version & 0xff000000 ?
+	qc->version = qv;
+	qc->tps_tls_ext = qc->version->num & 0xff000000 ?
 		TLS_EXTENSION_QUIC_TRANSPORT_PARAMETERS_DRAFT:
 		TLS_EXTENSION_QUIC_TRANSPORT_PARAMETERS;
 	/* TX part. */
@@ -4416,12 +4456,7 @@ static struct quic_conn *qc_new_conn(unsigned int version, int ipv4,
 	    !quic_conn_init_idle_timer_task(qc))
 		goto err;
 
-	if (version == QUIC_PROTOCOL_VERSION_DRAFT_29) {
-		salt = initial_salt_draft_29;
-		salt_len = sizeof initial_salt_draft_29;
-	}
-
-	if (!qc_new_isecs(qc, salt, salt_len, dcid->data, dcid->len, 1))
+	if (!qc_new_isecs(qc, dcid->data, dcid->len, 1))
 		goto err;
 
 	TRACE_LEAVE(QUIC_EV_CONN_INIT, qc);
@@ -4662,11 +4697,12 @@ static inline int qc_try_rm_hp(struct quic_conn *qc,
 }
 
 /* Parse the header form from <byte0> first byte of <pkt> packet to set its type.
- * Also set <*long_header> to 1 if this form is long, 0 if not.
+ * Also set <*long_header> to 1 if this form is long, 0 if not and the version
+ * of this packet into <*version>.
  */
 static inline int qc_parse_hd_form(struct quic_rx_packet *pkt,
                                    unsigned char **buf, const unsigned char *end,
-                                   int *long_header)
+                                   int *long_header, uint32_t *version)
 {
 	const unsigned char byte0 = **buf;
 
@@ -4677,10 +4713,10 @@ static inline int qc_parse_hd_form(struct quic_rx_packet *pkt,
 
 		*long_header = 1;
 		/* Version */
-		if (!quic_read_uint32(&pkt->version, (const unsigned char **)buf, end))
+		if (!quic_read_uint32(version, (const unsigned char **)buf, end))
 			return 0;
 
-		if (pkt->version != QUIC_PROTOCOL_VERSION_2_DRAFT) {
+		if (*version != QUIC_PROTOCOL_VERSION_2_DRAFT) {
 			pkt->type = type;
 		}
 		else {
@@ -4708,22 +4744,18 @@ static inline int qc_parse_hd_form(struct quic_rx_packet *pkt,
 	return 1;
 }
 
-/*
- * Check if the QUIC version in packet <pkt> is supported. Returns a boolean.
+/* Return the QUIC version (quic_version struct) with <version> as version number
+ * if supported or NULL if not.
  */
-static inline int qc_pkt_is_supported_version(struct quic_rx_packet *pkt)
+static inline const struct quic_version *qc_supported_version(uint32_t version)
 {
-	int j = 0, version;
+	int i;
 
-	do {
-		version = quic_supported_version[j];
-		if (version == pkt->version)
-			return 1;
+	for (i = 0; i < quic_versions_nb; i++)
+		if (quic_versions[i].num == version)
+			return &quic_versions[i];
 
-		version = quic_supported_version[++j];
-	} while(version);
-
-	return 0;
+	return NULL;
 }
 
 /*
@@ -4739,7 +4771,8 @@ static int send_version_negotiation(int fd, struct sockaddr_storage *addr,
                                     struct quic_rx_packet *pkt)
 {
 	char buf[256];
-	int i = 0, j, version;
+	int i = 0, j;
+	uint32_t version;
 	const socklen_t addrlen = get_addr_len(addr);
 
 	/*
@@ -4767,14 +4800,12 @@ static int send_version_negotiation(int fd, struct sockaddr_storage *addr,
 	i += pkt->dcid.len;
 
 	/* supported version */
-	j = 0;
-	do {
-		version = htonl(quic_supported_version[j]);
+	for (j = 0; j < quic_versions_nb; j++) {
+		version = htonl(quic_versions[j].num);
 		memcpy(&buf[i], &version, sizeof(version));
 		i += sizeof(version);
+	}
 
-		version = quic_supported_version[++j];
-	} while (version);
 
 	if (sendto(fd, buf, i, 0, (struct sockaddr *)addr, addrlen) < 0)
 		return 1;
@@ -4992,20 +5023,21 @@ static int quic_retry_token_check(unsigned char *token, size_t tokenlen,
  * Returns 0 on success else non-zero.
  */
 static int send_retry(int fd, struct sockaddr_storage *addr,
-                      struct quic_rx_packet *pkt)
+                      struct quic_rx_packet *pkt, const struct quic_version *qv)
 {
 	unsigned char buf[128];
 	int i = 0, token_len;
 	const socklen_t addrlen = get_addr_len(addr);
 	struct quic_cid scid;
 
-	/* long header + fixed bit + packet type 0x3 */
-	buf[i++] = 0xf0;
+	/* long header + fixed bit + packet type QUIC_PACKET_TYPE_RETRY */
+	buf[i++] = (QUIC_PACKET_LONG_HEADER_BIT | QUIC_PACKET_FIXED_BIT) |
+		(quic_pkt_type(QUIC_PACKET_TYPE_RETRY, qv->num) << QUIC_PACKET_TYPE_SHIFT);
 	/* version */
-	buf[i++] = *((unsigned char *)&pkt->version + 3);
-	buf[i++] = *((unsigned char *)&pkt->version + 2);
-	buf[i++] = *((unsigned char *)&pkt->version + 1);
-	buf[i++] = *(unsigned char *)&pkt->version;
+	buf[i++] = *((unsigned char *)&qv->num + 3);
+	buf[i++] = *((unsigned char *)&qv->num + 2);
+	buf[i++] = *((unsigned char *)&qv->num + 1);
+	buf[i++] = *(unsigned char *)&qv->num;
 
 	/* Use the SCID from <pkt> for Retry DCID. */
 	buf[i++] = pkt->scid.len;
@@ -5022,7 +5054,7 @@ static int send_retry(int fd, struct sockaddr_storage *addr,
 	i += scid.len;
 
 	/* token */
-	if (!(token_len = quic_generate_retry_token(&buf[i], sizeof(buf) - i, pkt->version,
+	if (!(token_len = quic_generate_retry_token(&buf[i], sizeof(buf) - i, qv->num,
 	                                            &pkt->dcid, &pkt->scid, addr)))
 		return 1;
 
@@ -5031,7 +5063,7 @@ static int send_retry(int fd, struct sockaddr_storage *addr,
 	/* token integrity tag */
 	if ((&buf[i] - buf < QUIC_TLS_TAG_LEN) ||
 	    !quic_tls_generate_retry_integrity_tag(pkt->dcid.data,
-	                                           pkt->dcid.len, buf, i, pkt->version)) {
+	                                           pkt->dcid.len, buf, i, qv)) {
 		return 1;
 	}
 
@@ -5236,6 +5268,7 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 	int drop_no_conn = 0, long_header = 0, io_cb_wakeup = 0;
 	size_t b_cspace;
 	struct quic_enc_level *qel;
+	uint32_t version;
 
 	beg = buf;
 	qc = NULL;
@@ -5271,7 +5304,7 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 	}
 
 	/* Header form */
-	if (!qc_parse_hd_form(pkt, &buf, end, &long_header)) {
+	if (!qc_parse_hd_form(pkt, &buf, end, &long_header, &version)) {
 		TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT);
 		goto drop;
 	}
@@ -5279,6 +5312,7 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 	if (long_header) {
 		uint64_t len;
 		struct quic_cid odcid;
+		const struct quic_version *qv;
 
 		if (!quic_packet_read_long_header(&buf, end, pkt)) {
 			TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT);
@@ -5306,13 +5340,14 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 		}
 
 		/* Retry of Version Negotiation packets are only sent by servers */
-		if (pkt->type == QUIC_PACKET_TYPE_RETRY || !pkt->version) {
+		if (pkt->type == QUIC_PACKET_TYPE_RETRY || !version) {
 			TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT);
 			goto drop;
 		}
 
 		/* RFC9000 6. Version Negotiation */
-		if (!qc_pkt_is_supported_version(pkt)) {
+		qv = qc_supported_version(version);
+		if (!qv) {
 			 /* unsupported version, send Negotiation packet */
 			if (send_version_negotiation(l->rx.fd, &dgram->saddr, pkt)) {
 				TRACE_PROTO("Error on Version Negotiation sending", QUIC_EV_CONN_LPKT);
@@ -5342,7 +5377,7 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 				if (!token_len) {
 					if (l->bind_conf->options & BC_O_QUIC_FORCE_RETRY) {
 						TRACE_PROTO("Initial without token, sending retry", QUIC_EV_CONN_LPKT);
-						if (send_retry(l->rx.fd, &dgram->saddr, pkt)) {
+						if (send_retry(l->rx.fd, &dgram->saddr, pkt, qv)) {
 							TRACE_PROTO("Error during Retry generation", QUIC_EV_CONN_LPKT);
 							goto err;
 						}
@@ -5353,7 +5388,7 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 				}
 				else {
 					if (*buf == QUIC_TOKEN_FMT_RETRY) {
-						if (!quic_retry_token_check(buf, token_len, pkt->version, &odcid,
+						if (!quic_retry_token_check(buf, token_len, version, &odcid,
 						                            &pkt->scid, qc, &dgram->saddr)) {
 							HA_ATOMIC_INC(&prx_counters->retry_error);
 							TRACE_PROTO("Wrong retry token", QUIC_EV_CONN_LPKT);
@@ -5408,7 +5443,7 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 			if (global.cluster_secret && !pkt->token_len && !(l->bind_conf->options & BC_O_QUIC_FORCE_RETRY) &&
 			    HA_ATOMIC_LOAD(&prx_counters->half_open_conn) >= global.tune.quic_retry_threshold) {
 				TRACE_PROTO("Initial without token, sending retry", QUIC_EV_CONN_LPKT);
-				if (send_retry(l->rx.fd, &dgram->saddr, pkt)) {
+				if (send_retry(l->rx.fd, &dgram->saddr, pkt, qv)) {
 					TRACE_PROTO("Error during Retry generation", QUIC_EV_CONN_LPKT);
 					goto err;
 				}
@@ -5430,7 +5465,7 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 
 			pkt->saddr = dgram->saddr;
 			ipv4 = dgram->saddr.ss_family == AF_INET;
-			qc = qc_new_conn(pkt->version, ipv4, &pkt->dcid, &pkt->scid, &odcid,
+			qc = qc_new_conn(qv, ipv4, &pkt->dcid, &pkt->scid, &odcid,
 			                 &pkt->saddr, 1, !!pkt->token_len, l);
 			if (qc == NULL)
 				goto drop;
@@ -5613,11 +5648,12 @@ static int quic_build_packet_long_header(unsigned char **buf, const unsigned cha
 	if (end - *buf < sizeof conn->version + conn->dcid.len + conn->scid.len + 3)
 		return 0;
 
+	type = quic_pkt_type(type, conn->version->num);
 	/* #0 byte flags */
 	*(*buf)++ = QUIC_PACKET_FIXED_BIT | QUIC_PACKET_LONG_HEADER_BIT |
 		(type << QUIC_PACKET_TYPE_SHIFT) | (pn_len - 1);
 	/* Version */
-	quic_write_uint32(buf, end, conn->version);
+	quic_write_uint32(buf, end, conn->version->num);
 	*(*buf)++ = conn->dcid.len;
 	/* Destination connection ID */
 	if (conn->dcid.len) {
