@@ -189,14 +189,18 @@ static void check_trace(enum trace_level level, uint64_t mask,
 	if (!check || src->verbosity < CHK_VERB_CLEAN)
 		return;
 
-	chunk_appendf(&trace_buf, " : [%c] SRV=%s",
-		      ((check->type == PR_O2_EXT_CHK) ? 'E' : (check->state & CHK_ST_AGENT ? 'A' : 'H')),
-		      srv->id);
+	if (srv) {
+		chunk_appendf(&trace_buf, " : [%c] SRV=%s",
+			      ((check->type == PR_O2_EXT_CHK) ? 'E' : (check->state & CHK_ST_AGENT ? 'A' : 'H')),
+			      srv->id);
 
-	chunk_appendf(&trace_buf, " status=%d/%d %s",
-		      (check->health >= check->rise) ? check->health - check->rise + 1 : check->health,
-		      (check->health >= check->rise) ? check->fall : check->rise,
-		      (check->health >= check->rise) ? (srv->uweight ? "UP" : "DRAIN") : "DOWN");
+		chunk_appendf(&trace_buf, " status=%d/%d %s",
+			      (check->health >= check->rise) ? check->health - check->rise + 1 : check->health,
+			      (check->health >= check->rise) ? check->fall : check->rise,
+			      (check->health >= check->rise) ? (srv->uweight ? "UP" : "DRAIN") : "DOWN");
+	}
+	else
+		chunk_appendf(&trace_buf, " : [EMAIL]");
 
 	switch (check->result) {
 	case CHK_RES_NEUTRAL: res = "-";     break;
