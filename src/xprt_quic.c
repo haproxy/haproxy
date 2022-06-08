@@ -4537,8 +4537,7 @@ static inline int quic_packet_read_long_header(unsigned char **buf, const unsign
 {
 	unsigned char dcid_len, scid_len;
 
-	/* Version */
-	if (!quic_read_uint32(&pkt->version, (const unsigned char **)buf, end))
+	if (end == *buf)
 		return 0;
 
 	/* Destination Connection ID Length */
@@ -4662,21 +4661,51 @@ static inline int qc_try_rm_hp(struct quic_conn *qc,
 	return 0;
 }
 
-/* Parse the header form from <byte0> first byte of <pkt> pacekt to set type.
+/* Parse the header form from <byte0> first byte of <pkt> packet to set its type.
  * Also set <*long_header> to 1 if this form is long, 0 if not.
  */
-static inline void qc_parse_hd_form(struct quic_rx_packet *pkt,
-                                    unsigned char byte0, int *long_header)
+static inline int qc_parse_hd_form(struct quic_rx_packet *pkt,
+                                   unsigned char **buf, const unsigned char *end,
+                                   int *long_header)
 {
+	const unsigned char byte0 = **buf;
+
+	(*buf)++;
 	if (byte0 & QUIC_PACKET_LONG_HEADER_BIT) {
-		pkt->type =
+		unsigned char type =
 			(byte0 >> QUIC_PACKET_TYPE_SHIFT) & QUIC_PACKET_TYPE_BITMASK;
+
 		*long_header = 1;
+		/* Version */
+		if (!quic_read_uint32(&pkt->version, (const unsigned char **)buf, end))
+			return 0;
+
+		if (pkt->version != QUIC_PROTOCOL_VERSION_2_DRAFT) {
+			pkt->type = type;
+		}
+		else {
+			switch (type) {
+			case 0:
+				pkt->type = QUIC_PACKET_TYPE_RETRY;
+				break;
+			case 1:
+				pkt->type = QUIC_PACKET_TYPE_INITIAL;
+				break;
+			case 2:
+				pkt->type = QUIC_PACKET_TYPE_0RTT;
+				break;
+			case 3:
+				pkt->type = QUIC_PACKET_TYPE_HANDSHAKE;
+				break;
+			}
+		}
 	}
 	else {
 		pkt->type = QUIC_PACKET_TYPE_SHORT;
 		*long_header = 0;
 	}
+
+	return 1;
 }
 
 /*
@@ -5242,7 +5271,11 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 	}
 
 	/* Header form */
-	qc_parse_hd_form(pkt, *buf++, &long_header);
+	if (!qc_parse_hd_form(pkt, &buf, end, &long_header)) {
+		TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT);
+		goto drop;
+	}
+
 	if (long_header) {
 		uint64_t len;
 		struct quic_cid odcid;
