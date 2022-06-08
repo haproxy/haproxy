@@ -126,7 +126,7 @@
 #if defined(__GNUC__) && (__GNUC__ >= 5 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 5))
 #define my_unreachable() __builtin_unreachable()
 #else
-#define my_unreachable()
+#define my_unreachable() do { } while (1)
 #endif
 #endif
 
