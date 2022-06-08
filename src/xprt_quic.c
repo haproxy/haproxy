@@ -1900,10 +1900,10 @@ static inline void qc_release_lost_pkts(struct quic_conn *qc,
 
 	if (newest_lost) {
 		/* Sent a congestion event to the controller */
-		struct quic_cc_event ev = {
-			.type = QUIC_CC_EVT_LOSS,
-			.loss.time_sent = newest_lost->time_sent,
-		};
+		struct quic_cc_event ev = { };
+
+		ev.type = QUIC_CC_EVT_LOSS;
+		ev.loss.time_sent = newest_lost->time_sent;
 
 		quic_cc_event(&qc->path->cc, &ev);
 	}
