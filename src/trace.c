@@ -144,7 +144,7 @@ void __trace(enum trace_level level, uint64_t mask, struct trace_source *src,
 	}
 	if (check) {
 		srv = check->server;
-		be = srv->proxy;
+		be = (srv ? srv->proxy : NULL);
 	}
 
 	if (!srv && conn)
