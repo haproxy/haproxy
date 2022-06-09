@@ -4402,7 +4402,7 @@ static struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	}
 
 	qc->version = qv;
-	qc->tps_tls_ext = qc->version->num & 0xff000000 ?
+	qc->tps_tls_ext = (qc->version->num & 0xff000000) == 0xff000000 ?
 		TLS_EXTENSION_QUIC_TRANSPORT_PARAMETERS_DRAFT:
 		TLS_EXTENSION_QUIC_TRANSPORT_PARAMETERS;
 	/* TX part. */
