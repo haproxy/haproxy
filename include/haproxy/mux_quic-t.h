@@ -75,6 +75,7 @@ struct qcc {
 		uint64_t max_data; /* Maximum number of bytes which may be received */
 	} rx;
 	struct {
+		uint64_t offsets; /* sum of all offsets prepared */
 		uint64_t sent_offsets; /* sum of all offset sent */
 	} tx;
 
