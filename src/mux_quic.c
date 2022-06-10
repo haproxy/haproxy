@@ -809,6 +809,7 @@ static int qcs_xfer_data(struct qcs *qcs, struct buffer *out, struct buffer *in)
 
 	BUG_ON_HOT(qcs->tx.sent_offset < qcs->stream->ack_offset);
 	BUG_ON_HOT(qcs->tx.offset < qcs->tx.sent_offset);
+	BUG_ON_HOT(qcc->tx.offsets < qcc->tx.sent_offsets);
 
 	left = qcs->tx.offset - qcs->tx.sent_offset;
 	to_xfer = QUIC_MIN(b_data(in), b_room(out));
@@ -870,6 +871,7 @@ static int qcs_build_stream_frm(struct qcs *qcs, struct buffer *out, char fin,
 	}
 	BUG_ON(qcs->tx.sent_offset >= qcs->tx.offset);
 	BUG_ON(qcs->tx.sent_offset + total > qcs->tx.offset);
+	BUG_ON(qcc->tx.sent_offsets + total > qcc->rfctl.md);
 
 	frm = pool_zalloc(pool_head_quic_frame);
 	if (!frm)
@@ -923,7 +925,7 @@ void qcc_streams_sent_done(struct qcs *qcs, uint64_t data, uint64_t offset)
 	uint64_t diff;
 
 	BUG_ON(offset > qcs->tx.sent_offset);
-	BUG_ON(offset >= qcs->tx.offset);
+	BUG_ON(offset + data > qcs->tx.offset);
 
 	/* check if the STREAM frame has already been notified. It can happen
 	 * for retransmission.
@@ -1065,7 +1067,9 @@ static int _qc_send_qcs(struct qcs *qcs, struct list *frms)
 		}
 
 		qcs->tx.offset += xfer;
+		BUG_ON_HOT(qcs->tx.offset > qcs->tx.msd);
 		qcc->tx.offsets += xfer;
+		BUG_ON_HOT(qcc->tx.offsets > qcc->rfctl.md);
 	}
 
 	/* out buffer cannot be emptied if qcs offsets differ. */
