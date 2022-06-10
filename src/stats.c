@@ -3667,7 +3667,7 @@ static void stats_dump_json_header()
  */
 static void stats_dump_json_end()
 {
-	chunk_strcat(&trash, "]");
+	chunk_strcat(&trash, "]\n");
 }
 
 /* Uses <appctx.ctx.stats.obj1> as a pointer to the current proxy and <obj2> as
@@ -4779,6 +4779,7 @@ static void stats_dump_json_schema(struct buffer *out)
 		chunk_appendf(out,
 			      "{\"errorStr\":\"output buffer too short\"}");
 	}
+	chunk_appendf(out, "\n");
 }
 
 /* This function dumps the schema onto the stream connector's read buffer.
