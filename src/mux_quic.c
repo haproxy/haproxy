@@ -1173,6 +1173,15 @@ static int qc_send(struct qcc *qcc)
 		goto retry;
 
  out:
+	/* Deallocate frames that the transport layer has rejected. */
+	if (!LIST_ISEMPTY(&frms)) {
+		struct quic_frame *frm, *frm2;
+		list_for_each_entry_safe(frm, frm2, &frms, list) {
+			LIST_DELETE(&frm->list);
+			pool_free(pool_head_quic_frame, frm);
+		}
+	}
+
 	TRACE_LEAVE(QMUX_EV_QCC_SEND);
 
 	return total;
