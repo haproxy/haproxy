@@ -381,14 +381,23 @@ the FD, and all those with a bit in it ought to do it.
 2021-09-13 - tid / tgroups etc.
 ==========
 
-  - tid currently is the thread's global ID. It's essentially used as an index
+  * tid currently is the thread's global ID. It's essentially used as an index
     for arrays. It must be clearly stated that it works this way.
+
+  * tasklets use the global thread id, and __tasklet_wakeup_on() must use a
+    global ID as well. It's capital that tinfo[] provides instant access to
+    local/global bits/indexes/arrays
 
   - tid_bit makes no sense process-wide, so it must be redefined to represent
     the thread's tid within its group. The name is not much welcome though, but
     there are 286 of it that are not going to be changed that fast.
+    => now we have ltid and ltid_bit in thread_info. thread-local tid_bit still
+       not changed though. If renamed we must make sure the older one vanishes.
+       Why not rename "ptid, ptid_bit" for the process-wide tid and "gtid,
+       gtid_bit" for the group-wide ones ? This removes the ambiguity on "tid"
+       which is half the time not the one we expect.
 
-  - just like "ti" is the thread_info, we need to have "tg" pointing to the
+  * just like "ti" is the thread_info, we need to have "tg" pointing to the
     thread_group.
 
   - other less commonly used elements should be retrieved from ti->xxx. E.g.
@@ -396,8 +405,13 @@ the FD, and all those with a bit in it ought to do it.
 
   - lock debugging must reproduce tgid
 
-  - an offset might be placed in the tgroup so that even with 64 threads max
+  - task profiling must be made per-group (annoying), unless we want to add a
+    per-thread TH_FL_* flag and have the rare places where the bit is changed
+    iterate over all threads if needed. Sounds preferable overall.
+
+  * an offset might be placed in the tgroup so that even with 64 threads max
     we could have completely separate tid_bits over several groups.
+    => base and count now
 
 2021-09-15 - bind + listen() + rx
 ==========
