@@ -691,13 +691,13 @@ static int stats_dump_json_info_fields(struct buffer *out,
 			goto err;
 	}
 
-	if (!chunk_strcat(out, "]"))
+	if (!chunk_strcat(out, "]\n"))
 		goto err;
 	return 1;
 
 err:
 	chunk_reset(out);
-	chunk_appendf(out, "{\"errorStr\":\"output buffer too short\"}");
+	chunk_appendf(out, "{\"errorStr\":\"output buffer too short\"}\n");
 	return 0;
 }
 
