@@ -1601,6 +1601,11 @@ static void qc_release(struct qcc *qcc)
 		 * procedure.
 		 */
 		qcc->app_ops->release(qcc->ctx);
+
+		/* useful if application protocol should emit some closing
+		 * frames. For example HTTP/3 GOAWAY frame.
+		 */
+		qc_send(qcc);
 	}
 	else {
 		qcc_emit_cc_app(qcc, QC_ERR_NO_ERROR, 0);
