@@ -4442,7 +4442,7 @@ static struct quic_conn *qc_new_conn(unsigned int version, int ipv4,
 static int quic_conn_init_timer(struct quic_conn *qc)
 {
 	/* Attach this task to the same thread ID used for the connection */
-	qc->timer_task = task_new(1UL << qc->tid);
+	qc->timer_task = task_new_on(qc->tid);
 	if (!qc->timer_task)
 		return 0;
 
