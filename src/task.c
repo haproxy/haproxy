@@ -218,7 +218,7 @@ void __task_wakeup(struct task *t)
 		t->rq.key += offset;
 	}
 
-	if (task_profiling_mask & tid_bit)
+	if (th_ctx->flags & TH_FL_TASK_PROFILING)
 		t->call_date = now_mono_time();
 
 	eb32sc_insert(root, &t->rq, t->thread_mask);
@@ -562,7 +562,7 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 			LIST_DEL_INIT(&((struct tasklet *)t)->list);
 			__ha_barrier_store();
 
-			if (unlikely(task_profiling_mask & tid_bit)) {
+			if (unlikely(th_ctx->flags & TH_FL_TASK_PROFILING)) {
 				profile_entry = sched_activity_entry(sched_activity, t->process);
 				before = now_mono_time();
 #ifdef DEBUG_TASK
@@ -587,7 +587,7 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 				continue;
 			}
 
-			if (unlikely(task_profiling_mask & tid_bit)) {
+			if (unlikely(th_ctx->flags & TH_FL_TASK_PROFILING)) {
 				HA_ATOMIC_INC(&profile_entry->calls);
 				HA_ATOMIC_ADD(&profile_entry->cpu_time, now_mono_time() - before);
 			}

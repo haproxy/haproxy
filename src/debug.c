@@ -179,12 +179,12 @@ void ha_thread_dump(struct buffer *buf, int thr, int calling_tid)
 	              ha_thread_ctx[thr].rq_total,
 		      ha_thread_info[thr].tg->tgid, ha_thread_info[thr].ltid + 1,
 	              stuck,
-	              !!(task_profiling_mask & thr_bit));
+	              !!(th_ctx->flags & TH_FL_TASK_PROFILING));
 
 	chunk_appendf(buf,
 	              " harmless=%d wantrdv=%d",
 	              !!(threads_harmless_mask & thr_bit),
-	              !!(threads_want_rdv_mask & thr_bit));
+	              !!(th_ctx->flags & TH_FL_TASK_PROFILING));
 
 	chunk_appendf(buf, "\n");
 	chunk_appendf(buf, "             cpu_ns: poll=%llu now=%llu diff=%llu\n", p, n, n-p);

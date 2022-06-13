@@ -26,7 +26,6 @@
 #include <haproxy/api.h>
 
 extern unsigned int profiling;
-extern unsigned long task_profiling_mask;
 extern struct activity activity[MAX_THREADS];
 extern struct sched_activity sched_activity[256];
 

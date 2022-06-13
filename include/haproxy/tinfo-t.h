@@ -37,6 +37,7 @@ enum {
 
 /* thread_ctx flags, for ha_thread_ctx[].flags */
 #define TH_FL_STUCK             0x00000001
+#define TH_FL_TASK_PROFILING    0x00000002
 
 /* Thread group information. This defines a base and a count of global thread
  * IDs which belong to it, and which can be looked up into thread_info/ctx. It

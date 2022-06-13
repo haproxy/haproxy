@@ -60,10 +60,11 @@ Task creation currently takes a thread mask of either tid_bit, a specific
 mask, or MAX_THREADS_MASK. How to create a task able to run anywhere
 (checks, Lua, ...) ?
 
-Profiling
+Profiling -> completed
 ---------
 There should be one task_profiling_mask per thread group. Enabling or
 disabling profiling should be made per group (possibly by iterating).
+-> not needed anymore, one flag per thread in each thread's context.
 
 Thread isolation
 ----------------
@@ -405,7 +406,7 @@ the FD, and all those with a bit in it ought to do it.
 
   - lock debugging must reproduce tgid
 
-  - task profiling must be made per-group (annoying), unless we want to add a
+  * task profiling must be made per-group (annoying), unless we want to add a
     per-thread TH_FL_* flag and have the rare places where the bit is changed
     iterate over all threads if needed. Sounds preferable overall.
 

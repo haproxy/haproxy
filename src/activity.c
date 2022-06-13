@@ -42,7 +42,6 @@ struct show_prof_ctx {
 
 /* bit field of profiling options. Beware, may be modified at runtime! */
 unsigned int profiling __read_mostly = HA_PROF_TASKS_AOFF;
-unsigned long task_profiling_mask __read_mostly = 0;
 
 /* One struct per thread containing all collected measurements */
 struct activity activity[MAX_THREADS] __attribute__((aligned(64))) = { };
@@ -384,16 +383,16 @@ void activity_count_runtime(uint32_t run_time)
 	 * profiling to "on" when automatic, and going back below the "down"
 	 * threshold switches to off. The forced modes don't check the load.
 	 */
-	if (!(task_profiling_mask & tid_bit)) {
+	if (!(th_ctx->flags & TH_FL_TASK_PROFILING)) {
 		if (unlikely((profiling & HA_PROF_TASKS_MASK) == HA_PROF_TASKS_ON ||
 		             ((profiling & HA_PROF_TASKS_MASK) == HA_PROF_TASKS_AON &&
 		             swrate_avg(run_time, TIME_STATS_SAMPLES) >= up)))
-			_HA_ATOMIC_OR(&task_profiling_mask, tid_bit);
+			_HA_ATOMIC_OR(&th_ctx->flags, TH_FL_TASK_PROFILING);
 	} else {
 		if (unlikely((profiling & HA_PROF_TASKS_MASK) == HA_PROF_TASKS_OFF ||
 		             ((profiling & HA_PROF_TASKS_MASK) == HA_PROF_TASKS_AOFF &&
 		             swrate_avg(run_time, TIME_STATS_SAMPLES) <= down)))
-			_HA_ATOMIC_AND(&task_profiling_mask, ~tid_bit);
+			_HA_ATOMIC_AND(&th_ctx->flags, ~TH_FL_TASK_PROFILING);
 	}
 }
 
