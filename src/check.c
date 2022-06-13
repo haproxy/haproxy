@@ -789,8 +789,7 @@ void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 	if (conn && errno)
 		retrieve_errno_from_socket(conn);
 
-	if (conn && !(conn->flags & CO_FL_ERROR) &&
-	    sc && !sc_ep_test(sc, SE_FL_ERROR) && !expired)
+	if (conn && !(conn->flags & CO_FL_ERROR) && !sc_ep_test(sc, SE_FL_ERROR) && !expired)
 		return;
 
 	TRACE_ENTER(CHK_EV_HCHK_END|CHK_EV_HCHK_ERR, check, 0, 0, (size_t[]){expired});
@@ -903,7 +902,7 @@ void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 		set_server_check_status(check, HCHK_STATUS_SOCKERR, err_msg);
 	}
 
-	if (!sc || !conn || !conn->ctrl) {
+	if (!conn || !conn->ctrl) {
 		/* error before any connection attempt (connection allocation error or no control layer) */
 		set_server_check_status(check, HCHK_STATUS_SOCKERR, err_msg);
 	}
@@ -1035,7 +1034,7 @@ int wake_srv_chk(struct stconn *sc)
 	sc = check->sc;
 	conn = sc_conn(sc);
 
-	if (unlikely(!conn || !sc || conn->flags & CO_FL_ERROR || sc_ep_test(sc, SE_FL_ERROR))) {
+	if (unlikely(!conn || conn->flags & CO_FL_ERROR || sc_ep_test(sc, SE_FL_ERROR))) {
 		/* We may get error reports bypassing the I/O handlers, typically
 		 * the case when sending a pure TCP check which fails, then the I/O
 		 * handlers above are not called. This is completely handled by the
@@ -1138,7 +1137,7 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 	 */
 	if (check->result == CHK_RES_UNKNOWN && likely(!(check->state & CHK_ST_PURGE))) {
 		sc = check->sc;
-		conn = (sc ? sc_conn(sc) : NULL);
+		conn = sc_conn(sc);
 
 		/* Here the connection must be defined. Otherwise the
 		 * error would have already been detected
@@ -1170,6 +1169,7 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 	/* check complete or aborted */
 	TRACE_STATE("health-check complete or aborted", CHK_EV_TASK_WAKE|CHK_EV_HCHK_END, check);
 
+	/* check->sc may be NULL when the healthcheck is purged */
 	check->current_step = NULL;
 	sc = check->sc;
 	conn = (sc ? sc_conn(sc) : NULL);
