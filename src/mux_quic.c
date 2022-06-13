@@ -752,7 +752,7 @@ static void qc_release(struct qcc *qcc)
 	}
 
 	while (!LIST_ISEMPTY(&qcc->lfctl.frms)) {
-		struct quic_frame *frm = LIST_ELEM(&qcc->lfctl.frms, struct quic_frame *, list);
+		struct quic_frame *frm = LIST_ELEM(qcc->lfctl.frms.n, struct quic_frame *, list);
 		LIST_DELETE(&frm->list);
 		pool_free(pool_head_quic_frame, frm);
 	}
