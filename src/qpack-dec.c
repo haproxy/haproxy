@@ -181,8 +181,13 @@ static int qpack_decode_fs_pfx(uint64_t *enc_ric, uint64_t *db, int *sign_bit,
 	return 0;
 }
 
-/* Decode a field section from <len> bytes length <raw> buffer.
- * Produces the output into <tmp> buffer.
+/* Decode a field section from the <raw> buffer of <len> bytes. Each parsed
+ * header is inserted into <list> and uses <tmp> as a storage for some elements
+ * pointing into it. An end marker is inserted at the end of the list with
+ * empty strings as name/value.
+ *
+ * Returns 0 on success. In case of error, a negative code QPACK_ERR_* is
+ * returned.
  */
 int qpack_decode_fs(const unsigned char *raw, size_t len, struct buffer *tmp,
                     struct http_hdr *list)
@@ -195,6 +200,7 @@ int qpack_decode_fs(const unsigned char *raw, size_t len, struct buffer *tmp,
 
 	qpack_debug_hexdump(stderr, "[QPACK-DEC-FS] ", (const char *)raw, 0, len);
 
+	/* parse field section prefix */
 	ret = qpack_decode_fs_pfx(&enc_ric, &db, &s, &raw, &len);
 	if (ret < 0) {
 		qpack_debug_printf(stderr, "##ERR@%d(%d)\n", __LINE__, ret);
@@ -206,9 +212,10 @@ int qpack_decode_fs(const unsigned char *raw, size_t len, struct buffer *tmp,
 	                   (unsigned long long)enc_ric, (unsigned long long)db, !!s);
 	/* Decode field lines */
 	while (len) {
-		qpack_debug_hexdump(stderr, "raw ", (const char *)raw, 0, len);
+		/* parse field line representation */
 		efl_type = *raw & QPACK_EFL_BITMASK;
 		qpack_debug_printf(stderr, "efl_type=0x%02x\n", efl_type);
+
 		if (efl_type == QPACK_LFL_WPBNM) {
 			/* Literal field line with post-base name reference */
 			uint64_t index __maybe_unused, length;

@@ -29,11 +29,11 @@ struct http_hdr;
  *Nothing to see with the RFC.
  */
 enum {
-	QPACK_ERR_NONE = 0,
-	QPACK_ERR_RIC,
-	QPACK_ERR_DB,
-	QPACK_ERR_TRUNCATED,
-	QPACK_ERR_HUFFMAN,
+	QPACK_ERR_NONE = 0,  /* no error */
+	QPACK_ERR_RIC,       /* cannot decode Required Insert Count prefix field */
+	QPACK_ERR_DB,        /* cannot decode Delta Base prefix field */
+	QPACK_ERR_TRUNCATED, /* truncated stream */
+	QPACK_ERR_HUFFMAN,   /* huffman decoding error */
 };
 
 struct qpack_dec {
