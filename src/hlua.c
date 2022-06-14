@@ -8434,7 +8434,7 @@ struct task *hlua_process_task(struct task *task, void *context, unsigned int st
 	struct hlua *hlua = context;
 	enum hlua_exec status;
 
-	if (task->thread_mask == MAX_THREADS_MASK)
+	if (atleast2(task->thread_mask))
 		task_set_affinity(task, tid_bit);
 
 	/* If it is the first call to the task, we must initialize the
