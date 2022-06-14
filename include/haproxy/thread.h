@@ -223,14 +223,14 @@ extern THREAD_LOCAL unsigned int tgid;     /* The thread group id (starts at 1) 
 static inline void ha_set_thread(const struct thread_info *thr)
 {
 	if (thr) {
-		BUG_ON(!thr->tid_bit);
+		BUG_ON(!thr->ltid_bit);
 		BUG_ON(!thr->tg);
 		BUG_ON(!thr->tg->tgid);
 
 		ti      = thr;
 		tg      = thr->tg;
 		tid     = thr->tid;
-		tid_bit = thr->tid_bit;
+		tid_bit = thr->ltid_bit;
 		th_ctx  = &ha_thread_ctx[tid];
 		tgid    = tg->tgid;
 	} else {
