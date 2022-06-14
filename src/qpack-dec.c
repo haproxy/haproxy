@@ -177,15 +177,15 @@ static int qpack_decode_fs_pfx(uint64_t *enc_ric, uint64_t *db, int *sign_bit,
 }
 
 /* Decode a field section from the <raw> buffer of <len> bytes. Each parsed
- * header is inserted into <list> and uses <tmp> as a storage for some elements
- * pointing into it. An end marker is inserted at the end of the list with
- * empty strings as name/value.
+ * header is inserted into <list> of <list_size> entries max and uses <tmp> as
+ * a storage for some elements pointing into it. An end marker is inserted at
+ * the end of the list with empty strings as name/value.
  *
  * Returns 0 on success. In case of error, a negative code QPACK_ERR_* is
  * returned.
  */
 int qpack_decode_fs(const unsigned char *raw, size_t len, struct buffer *tmp,
-                    struct http_hdr *list)
+                    struct http_hdr *list, int list_size)
 {
 	uint64_t enc_ric, db;
 	int s;
@@ -207,6 +207,12 @@ int qpack_decode_fs(const unsigned char *raw, size_t len, struct buffer *tmp,
 	                   (unsigned long long)enc_ric, (unsigned long long)db, !!s);
 	/* Decode field lines */
 	while (len) {
+		if (hdr_idx >= list_size) {
+			qpack_debug_printf(stderr, "##ERR@%d\n", __LINE__);
+			ret = -QPACK_ERR_TOO_LARGE;
+			goto out;
+		}
+
 		/* parse field line representation */
 		efl_type = *raw & QPACK_EFL_BITMASK;
 		qpack_debug_printf(stderr, "efl_type=0x%02x\n", efl_type);
@@ -462,6 +468,12 @@ int qpack_decode_fs(const unsigned char *raw, size_t len, struct buffer *tmp,
 			++hdr_idx;
 		}
 		qpack_debug_printf(stderr, "\n");
+	}
+
+	if (hdr_idx >= list_size) {
+		qpack_debug_printf(stderr, "##ERR@%d\n", __LINE__);
+		ret = -QPACK_ERR_TOO_LARGE;
+		goto out;
 	}
 
 	/* put an end marker */

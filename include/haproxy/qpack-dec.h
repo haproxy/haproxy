@@ -33,6 +33,7 @@ enum {
 	QPACK_ERR_DB,        /* cannot decode Delta Base prefix field */
 	QPACK_ERR_TRUNCATED, /* truncated stream */
 	QPACK_ERR_HUFFMAN,   /* huffman decoding error */
+	QPACK_ERR_TOO_LARGE, /* decoded request/response is too large */
 };
 
 struct qpack_dec {
@@ -43,7 +44,7 @@ struct qpack_dec {
 };
 
 int qpack_decode_fs(const unsigned char *buf, uint64_t len, struct buffer *tmp,
-                    struct http_hdr *list);
+                    struct http_hdr *list, int list_size);
 int qpack_decode_enc(struct buffer *buf, void *ctx);
 int qpack_decode_dec(struct buffer *buf, void *ctx);
 
