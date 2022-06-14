@@ -21,8 +21,7 @@
 #ifndef _HAPROXY_QPACK_DEC_H
 #define _HAPROXY_QPACK_DEC_H
 
-#include <haproxy/mux_quic-t.h>
-
+struct buffer;
 struct http_hdr;
 
 /* Internal QPACK processing errors.
@@ -45,7 +44,7 @@ struct qpack_dec {
 
 int qpack_decode_fs(const unsigned char *buf, uint64_t len, struct buffer *tmp,
                     struct http_hdr *list);
-int qpack_decode_enc(struct qcs *qcs, void *ctx);
-int qpack_decode_dec(struct qcs *qcs, void *ctx);
+int qpack_decode_enc(struct buffer *buf, void *ctx);
+int qpack_decode_dec(struct buffer *buf, void *ctx);
 
 #endif /* _HAPROXY_QPACK_DEC_H */

@@ -230,11 +230,11 @@ static ssize_t h3_parse_uni_stream_no_h3(struct qcs *qcs, struct buffer *b)
 
 	switch (h3s->type) {
 	case H3S_T_QPACK_DEC:
-		if (qpack_decode_dec(qcs, NULL))
+		if (qpack_decode_dec(b, NULL))
 			return -1;
 		break;
 	case H3S_T_QPACK_ENC:
-		if (qpack_decode_enc(qcs, NULL))
+		if (qpack_decode_enc(b, NULL))
 			return -1;
 		break;
 	case H3S_T_UNKNOWN:

@@ -27,7 +27,6 @@
 #include <haproxy/buf.h>
 #include <haproxy/chunk.h>
 #include <haproxy/h3.h>
-#include <haproxy/ncbuf.h>
 #include <haproxy/qpack-t.h>
 #include <haproxy/qpack-dec.h>
 #include <haproxy/qpack-tbl.h>
@@ -97,22 +96,20 @@ static uint64_t qpack_get_varint(const unsigned char **buf, uint64_t *len_in, in
  *
  * Returns 0 on success else non-zero.
  */
-int qpack_decode_enc(struct qcs *qcs, void *ctx)
+int qpack_decode_enc(struct buffer *buf, void *ctx)
 {
 	size_t len;
-	struct ncbuf *rxbuf;
 	unsigned char inst;
 
-	rxbuf = &qcs->rx.ncbuf;
-	len = ncb_data(rxbuf, 0);
-	qpack_debug_hexdump(stderr, "[QPACK-DEC-ENC] ", ncb_head(rxbuf), 0, len);
+	len = b_data(buf);
+	qpack_debug_hexdump(stderr, "[QPACK-DEC-ENC] ", b_head(buf), 0, len);
 
 	if (!len) {
 		qpack_debug_printf(stderr, "[QPACK-DEC-ENC] empty stream\n");
 		return 0;
 	}
 
-	inst = (unsigned char)*ncb_head(rxbuf) & QPACK_ENC_INST_BITMASK;
+	inst = (unsigned char)*b_head(buf) & QPACK_ENC_INST_BITMASK;
 	if (inst == QPACK_ENC_INST_DUP) {
 		/* Duplicate */
 	}
@@ -133,22 +130,20 @@ int qpack_decode_enc(struct qcs *qcs, void *ctx)
  *
  * Returns 0 on success else non-zero.
  */
-int qpack_decode_dec(struct qcs *qcs, void *ctx)
+int qpack_decode_dec(struct buffer *buf, void *ctx)
 {
 	size_t len;
-	struct ncbuf *rxbuf;
 	unsigned char inst;
 
-	rxbuf = &qcs->rx.ncbuf;
-	len = ncb_data(rxbuf, 0);
-	qpack_debug_hexdump(stderr, "[QPACK-DEC-DEC] ", ncb_head(rxbuf), 0, len);
+	len = b_data(buf);
+	qpack_debug_hexdump(stderr, "[QPACK-DEC-DEC] ", b_head(buf), 0, len);
 
 	if (!len) {
 		qpack_debug_printf(stderr, "[QPACK-DEC-DEC] empty stream\n");
 		return 0;
 	}
 
-	inst = (unsigned char)*ncb_head(rxbuf) & QPACK_DEC_INST_BITMASK;
+	inst = (unsigned char)*b_head(buf) & QPACK_DEC_INST_BITMASK;
 	if (inst == QPACK_DEC_INST_ICINC) {
 		/* Insert count increment */
 	}
