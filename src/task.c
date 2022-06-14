@@ -902,10 +902,10 @@ void mworker_cleantasks()
 
 #ifdef USE_THREAD
 	/* cleanup the global run queue */
-	tmp_rq = eb32sc_first(&rqueue, MAX_THREADS_MASK);
+	tmp_rq = eb32sc_first(&rqueue, ~0UL);
 	while (tmp_rq) {
 		t = eb32sc_entry(tmp_rq, struct task, rq);
-		tmp_rq = eb32sc_next(tmp_rq, MAX_THREADS_MASK);
+		tmp_rq = eb32sc_next(tmp_rq, ~0UL);
 		task_destroy(t);
 	}
 	/* cleanup the timers queue */
@@ -918,10 +918,10 @@ void mworker_cleantasks()
 #endif
 	/* clean the per thread run queue */
 	for (i = 0; i < global.nbthread; i++) {
-		tmp_rq = eb32sc_first(&ha_thread_ctx[i].rqueue, MAX_THREADS_MASK);
+		tmp_rq = eb32sc_first(&ha_thread_ctx[i].rqueue, ~0UL);
 		while (tmp_rq) {
 			t = eb32sc_entry(tmp_rq, struct task, rq);
-			tmp_rq = eb32sc_next(tmp_rq, MAX_THREADS_MASK);
+			tmp_rq = eb32sc_next(tmp_rq, ~0UL);
 			task_destroy(t);
 		}
 		/* cleanup the per thread timers queue */

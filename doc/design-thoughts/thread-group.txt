@@ -536,7 +536,7 @@ broadcast it to any group.
 
 Right now in the code we have:
   - 18 calls of task_new(tid_bit)
-  - 18 calls of task_new(MAX_THREADS_MASK)
+  - 17 calls of task_new_anywhere()
   - 2 calls with a single bit
 
 Thus it looks like "task_new_anywhere()", "task_new_on()" and

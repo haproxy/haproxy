@@ -58,7 +58,7 @@ static inline struct appctx *appctx_new_here(struct applet *applet, struct sedes
 
 static inline struct appctx *appctx_new_anywhere(struct applet *applet, struct sedesc *sedesc)
 {
-	return appctx_new(applet, sedesc, MAX_THREADS_MASK);
+	return appctx_new(applet, sedesc, all_threads_mask);
 }
 
 /* Helper function to call .init applet callback function, if it exists. Returns 0

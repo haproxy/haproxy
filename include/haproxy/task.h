@@ -581,7 +581,7 @@ static inline struct task *task_new_here()
  */
 static inline struct task *task_new_anywhere()
 {
-	return task_new(MAX_THREADS_MASK);
+	return task_new(all_threads_mask);
 }
 
 /*
