@@ -49,6 +49,7 @@ dev/poll/poll
 dev/tcploop/tcploop
 dev/hpack/decode
 dev/hpack/gen-rht
+dev/qpack/decode
 /src/dlmalloc.c
 /tests/test_hashes
 doc/lua-api/_build
