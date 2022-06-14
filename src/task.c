@@ -297,8 +297,10 @@ void wake_expired_tasks()
 	struct eb32_node *eb;
 	__decl_thread(int key);
 
-	while (max_processed-- > 0) {
-  lookup_next_local:
+	while (1) {
+		if (max_processed-- <= 0)
+			goto leave;
+
 		eb = eb32_lookup_ge(&tt->timers, now_ms - TIMER_LOOK_BACK);
 		if (!eb) {
 			/* we might have reached the end of the tree, typically because
