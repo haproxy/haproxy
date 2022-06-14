@@ -230,7 +230,7 @@ static inline void ha_set_thread(const struct thread_info *thr)
 		ti      = thr;
 		tg      = thr->tg;
 		tid     = thr->tid;
-		tid_bit = thr->ltid_bit;
+		tid_bit = 1UL << tid; /* FIXME: must become thr->ltid_bit */
 		th_ctx  = &ha_thread_ctx[tid];
 		tgid    = tg->tgid;
 	} else {
