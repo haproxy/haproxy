@@ -345,7 +345,7 @@ int qpack_decode_fs(const unsigned char *raw, size_t len, struct buffer *tmp,
 		}
 		else if (efl_type & QPACK_LFL_WLN_BIT) {
 			/* Literal field line with literal name */
-			unsigned int n __maybe_unused, hname __maybe_unused, hvalue __maybe_unused;
+			unsigned int n __maybe_unused, hname, hvalue;
 			uint64_t name_len, value_len;
 
 			qpack_debug_printf(stderr, "Literal field line with literal name:");
@@ -367,6 +367,32 @@ int qpack_decode_fs(const unsigned char *raw, size_t len, struct buffer *tmp,
 				goto out;
 			}
 
+			if (hname) {
+				char *trash;
+				int nlen;
+
+				trash = chunk_newstr(tmp);
+				if (!trash) {
+					qpack_debug_printf(stderr, "##ERR@%d\n", __LINE__);
+					ret = -QPACK_DECOMPRESSION_FAILED;
+					goto out;
+				}
+				nlen = huff_dec(raw, name_len, trash, tmp->size - tmp->data);
+				if (nlen == (uint32_t)-1) {
+					qpack_debug_printf(stderr, " can't decode huffman.\n");
+					ret = -QPACK_ERR_HUFFMAN;
+					goto out;
+				}
+
+				qpack_debug_printf(stderr, " [name huff %d->%d '%s']", (int)name_len, (int)nlen, trash);
+				/* makes an ist from tmp storage */
+				b_add(tmp, nlen);
+				list[hdr_idx].n = ist2(trash, nlen);
+			}
+			else {
+				list[hdr_idx].n = ist2(raw, name_len);
+			}
+
 			raw += name_len;
 			len -= name_len;
 			hvalue = *raw & 0x80;
@@ -385,9 +411,36 @@ int qpack_decode_fs(const unsigned char *raw, size_t len, struct buffer *tmp,
 				goto out;
 			}
 
-			/* XXX Value string XXX */
+			if (hvalue) {
+				char *trash;
+				int nlen;
+
+				trash = chunk_newstr(tmp);
+				if (!trash) {
+					qpack_debug_printf(stderr, "##ERR@%d\n", __LINE__);
+					ret = -QPACK_DECOMPRESSION_FAILED;
+					goto out;
+				}
+				nlen = huff_dec(raw, value_len, trash, tmp->size - tmp->data);
+				if (nlen == (uint32_t)-1) {
+					qpack_debug_printf(stderr, " can't decode huffman.\n");
+					ret = -QPACK_ERR_HUFFMAN;
+					goto out;
+				}
+
+				qpack_debug_printf(stderr, " [name huff %d->%d '%s']", (int)value_len, (int)nlen, trash);
+				/* makes an ist from tmp storage */
+				b_add(tmp, nlen);
+				list[hdr_idx].v = ist2(trash, nlen);
+			}
+			else {
+				list[hdr_idx].v = ist2(raw, value_len);
+			}
+
 			raw += value_len;
 			len -= value_len;
+
+			++hdr_idx;
 		}
 		qpack_debug_printf(stderr, "\n");
 	}
