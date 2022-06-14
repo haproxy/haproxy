@@ -212,7 +212,15 @@ int qpack_decode_fs(const unsigned char *raw, size_t len, struct buffer *tmp,
 		qpack_debug_printf(stderr, "efl_type=0x%02x\n", efl_type);
 
 		if (efl_type == QPACK_LFL_WPBNM) {
-			/* Literal field line with post-base name reference */
+			/* Literal field line with post-base name reference
+			 *
+			 * TODO not implemented
+			 *
+			 * For the moment, this should never happen as
+			 * currently we do not support dynamic table insertion
+			 * and specify an empty table size.
+			 */
+#if 0
 			uint64_t index __maybe_unused, length;
 			unsigned int n __maybe_unused, h __maybe_unused;
 
@@ -242,12 +250,21 @@ int qpack_decode_fs(const unsigned char *raw, size_t len, struct buffer *tmp,
 				goto out;
 			}
 
-			/* XXX Value string XXX */
 			raw += length;
 			len -= length;
+#endif
+			ABORT_NOW(); /* dynamic table not supported */
 		}
 		else if (efl_type == QPACK_IFL_WPBI) {
-			/* Indexed field line with post-base index */
+			/* Indexed field line with post-base index
+			 *
+			 * TODO not implemented
+			 *
+			 * For the moment, this should never happen as
+			 * currently we do not support dynamic table insertion
+			 * and specify an empty table size.
+			 */
+#if 0
 			uint64_t index __maybe_unused;
 
 			qpack_debug_printf(stderr, "indexed field line with post-base index:");
@@ -259,6 +276,8 @@ int qpack_decode_fs(const unsigned char *raw, size_t len, struct buffer *tmp,
 			}
 
 			qpack_debug_printf(stderr, " index=%llu", (unsigned long long)index);
+#endif
+			ABORT_NOW(); /* dynamic table not supported */
 		}
 		else if (efl_type & QPACK_IFL_BIT) {
 			/* Indexed field line */
