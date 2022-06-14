@@ -71,7 +71,7 @@ int quic_tls_encrypt(unsigned char *buf, size_t len,
                      const unsigned char *key, const unsigned char *iv);
 
 int quic_tls_decrypt2(unsigned char *out,
-                      unsigned char *in, size_t ilen,
+                      const unsigned char *in, size_t ilen,
                       unsigned char *aad, size_t aad_len,
                       EVP_CIPHER_CTX *ctx, const EVP_CIPHER *aead,
                       const unsigned char *key, const unsigned char *iv);
@@ -505,6 +505,7 @@ static inline void quic_tls_discard_keys(struct quic_enc_level *qel)
  * Return 1 if succeeded or 0 if not.
  */
 static inline int qc_new_isecs(struct quic_conn *qc,
+                               struct quic_tls_ctx *ctx, const struct quic_version *ver,
                                const unsigned char *cid, size_t cidlen, int server)
 {
 	unsigned char initial_secret[32];
@@ -513,15 +514,13 @@ static inline int qc_new_isecs(struct quic_conn *qc,
 	/* Initial secret to be derived for outgoing packets */
 	unsigned char tx_init_sec[32];
 	struct quic_tls_secrets *rx_ctx, *tx_ctx;
-	struct quic_tls_ctx *ctx;
 
 	TRACE_ENTER(QUIC_EV_CONN_ISEC);
-	ctx = &qc->els[QUIC_TLS_ENC_LEVEL_INITIAL].tls_ctx;
 	if (!quic_initial_tls_ctx_init(ctx))
 		goto err;
 
 	if (!quic_derive_initial_secret(ctx->rx.md,
-	                                qc->version->initial_salt, qc->version->initial_salt_len,
+	                                ver->initial_salt, ver->initial_salt_len,
 	                                initial_secret, sizeof initial_secret,
 	                                cid, cidlen))
 		goto err;
@@ -534,7 +533,7 @@ static inline int qc_new_isecs(struct quic_conn *qc,
 
 	rx_ctx = &ctx->rx;
 	tx_ctx = &ctx->tx;
-	if (!quic_tls_derive_keys(ctx->rx.aead, ctx->rx.hp, ctx->rx.md, qc->version,
+	if (!quic_tls_derive_keys(ctx->rx.aead, ctx->rx.hp, ctx->rx.md, ver,
 	                          rx_ctx->key, rx_ctx->keylen,
 	                          rx_ctx->iv, rx_ctx->ivlen,
 	                          rx_ctx->hp_key, sizeof rx_ctx->hp_key,
@@ -544,7 +543,7 @@ static inline int qc_new_isecs(struct quic_conn *qc,
 	if (!quic_tls_rx_ctx_init(&rx_ctx->ctx, rx_ctx->aead, rx_ctx->key))
 		goto err;
 
-	if (!quic_tls_derive_keys(ctx->tx.aead, ctx->tx.hp, ctx->tx.md, qc->version,
+	if (!quic_tls_derive_keys(ctx->tx.aead, ctx->tx.hp, ctx->tx.md, ver,
 	                          tx_ctx->key, tx_ctx->keylen,
 	                          tx_ctx->iv, tx_ctx->ivlen,
 	                          tx_ctx->hp_key, sizeof tx_ctx->hp_key,

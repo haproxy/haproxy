@@ -26,6 +26,12 @@ struct tp_preferred_address {
 	uint8_t stateless_reset_token[QUIC_STATELESS_RESET_TOKEN_LEN];
 };
 
+struct tp_version_information {
+	uint32_t choosen;
+	const uint32_t *others;
+	const struct quic_version *negotiated_version;
+};
+
 /* Default values for the absent transport parameters */
 #define QUIC_TP_DFLT_MAX_UDP_PAYLOAD_SIZE        65527 /* bytes */
 #define QUIC_TP_DFLT_ACK_DELAY_COMPONENT             3 /* milliseconds */
@@ -39,23 +45,24 @@ struct tp_preferred_address {
 #define QUIC_TP_DFLT_BACK_MAX_IDLE_TIMEOUT       30000 /* milliseconds */
 
 /* Types of QUIC transport parameters */
-#define QUIC_TP_ORIGINAL_DESTINATION_CONNECTION_ID   0
-#define QUIC_TP_MAX_IDLE_TIMEOUT                     1
-#define QUIC_TP_STATELESS_RESET_TOKEN                2
-#define QUIC_TP_MAX_UDP_PAYLOAD_SIZE                 3
-#define QUIC_TP_INITIAL_MAX_DATA                     4
-#define QUIC_TP_INITIAL_MAX_STREAM_DATA_BIDI_LOCAL   5
-#define QUIC_TP_INITIAL_MAX_STREAM_DATA_BIDI_REMOTE  6
-#define QUIC_TP_INITIAL_MAX_STREAM_DATA_UNI          7
-#define QUIC_TP_INITIAL_MAX_STREAMS_BIDI             8
-#define QUIC_TP_INITIAL_MAX_STREAMS_UNI              9
-#define QUIC_TP_ACK_DELAY_EXPONENT                  10
-#define QUIC_TP_MAX_ACK_DELAY                       11
-#define QUIC_TP_DISABLE_ACTIVE_MIGRATION            12
-#define QUIC_TP_PREFERRED_ADDRESS                   13
-#define QUIC_TP_ACTIVE_CONNECTION_ID_LIMIT          14
-#define QUIC_TP_INITIAL_SOURCE_CONNECTION_ID        15
-#define QUIC_TP_RETRY_SOURCE_CONNECTION_ID          16
+#define QUIC_TP_ORIGINAL_DESTINATION_CONNECTION_ID  0x00
+#define QUIC_TP_MAX_IDLE_TIMEOUT                    0x01
+#define QUIC_TP_STATELESS_RESET_TOKEN               0x02
+#define QUIC_TP_MAX_UDP_PAYLOAD_SIZE                0x03
+#define QUIC_TP_INITIAL_MAX_DATA                    0x04
+#define QUIC_TP_INITIAL_MAX_STREAM_DATA_BIDI_LOCAL  0x05
+#define QUIC_TP_INITIAL_MAX_STREAM_DATA_BIDI_REMOTE 0x06
+#define QUIC_TP_INITIAL_MAX_STREAM_DATA_UNI         0x07
+#define QUIC_TP_INITIAL_MAX_STREAMS_BIDI            0x08
+#define QUIC_TP_INITIAL_MAX_STREAMS_UNI             0x09
+#define QUIC_TP_ACK_DELAY_EXPONENT                  0x0a
+#define QUIC_TP_MAX_ACK_DELAY                       0x0b
+#define QUIC_TP_DISABLE_ACTIVE_MIGRATION            0x0c
+#define QUIC_TP_PREFERRED_ADDRESS                   0x0d
+#define QUIC_TP_ACTIVE_CONNECTION_ID_LIMIT          0x0e
+#define QUIC_TP_INITIAL_SOURCE_CONNECTION_ID        0x0f
+#define QUIC_TP_RETRY_SOURCE_CONNECTION_ID          0x10
+#define QUIC_TP_DRAFT_VERSION_INFORMATION           0xff73db
 
 /*
  * These defines are not for transport parameter type, but the maximum accepted value for
@@ -103,6 +110,7 @@ struct quic_transport_params {
 	/* MUST be present both for servers and clients. */
 	struct tp_cid initial_source_connection_id;
 	struct tp_preferred_address preferred_address;                    /* Forbidden for clients */
+	struct tp_version_information version_information;
 };
 
 #endif /* USE_QUIC */

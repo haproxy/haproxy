@@ -13,6 +13,7 @@ void quic_transport_params_init(struct quic_transport_params *p, int server);
 int quic_transport_params_encode(unsigned char *buf,
                                  const unsigned char *end,
                                  struct quic_transport_params *p,
+                                 const struct quic_version *choosen_version,
                                  int server);
 
 int quic_transport_params_store(struct quic_conn *conn, int server,

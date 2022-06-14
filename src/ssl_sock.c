@@ -2621,7 +2621,8 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 		}
 
 		if (!quic_transport_params_store(qc, 0, extension_data,
-		                                 extension_data + extension_len))
+		                                 extension_data + extension_len) ||
+		    !qc_conn_finalize(qc, 0))
 			goto abort;
 	}
 #endif /* USE_QUIC */

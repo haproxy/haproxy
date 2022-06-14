@@ -155,6 +155,66 @@ static int quic_transport_param_dec_pref_addr(struct tp_preferred_address *addr,
 	return *buf == end;
 }
 
+/* Decode into <v> version information received transport parameters from <*buf>
+ * buffer. <server> must be set to 1 for QUIC clients which receive server
+ * transport parameters, and 0 for QUIC servers which receive client transport
+ * parameters.
+ * Also set the QUIC negotiated version into <tp>.
+ * Return 1 if succeeded, 0 if not.
+ */
+static int quic_transport_param_dec_version_info(struct tp_version_information *tp,
+                                                 const unsigned char **buf,
+                                                 const unsigned char *end, int server)
+{
+	size_t tp_len = end - *buf;
+	const uint32_t *ver;
+
+	/* <tp_len> must be a multiple of sizeof(uint32_t) */
+	if (tp_len < sizeof tp->choosen || (tp_len & 0x3))
+		return 0;
+
+	tp->choosen = ntohl(*(uint32_t *)*buf);
+	/* Must not be null */
+	if (!tp->choosen)
+		return 0;
+
+	*buf += sizeof tp->choosen;
+	tp->others = (const uint32_t *)*buf;
+
+	/* Others versions must not be null */
+	for (ver = tp->others; ver < (const uint32_t *)end; ver++) {
+		if (!*ver)
+			return 0;
+	}
+
+	if (server)
+		/* TODO: not supported */
+		return 0;
+
+	for (ver = tp->others; ver < (const uint32_t *)end; ver++) {
+		if (!tp->negotiated_version) {
+			int i;
+
+			for (i = 0; i < quic_versions_nb; i++) {
+				if (ntohl(*ver) == quic_versions[i].num) {
+					tp->negotiated_version = &quic_versions[i];
+					break;
+				}
+			}
+		}
+
+		if (preferred_version && ntohl(*ver) == preferred_version->num) {
+			tp->negotiated_version = preferred_version;
+			goto out;
+		}
+	}
+
+ out:
+	*buf = end;
+
+	return 1;
+}
+
 /* Decode into <p> struct a transport parameter found in <*buf> buffer with
  * <type> as type and <len> as length, depending on <server> boolean value which
  * must be set to 1 for a server (haproxy listener) or 0 for a client (connection
@@ -253,6 +313,11 @@ static int quic_transport_param_decode(struct quic_transport_params *p,
 		if (!quic_dec_int(&p->active_connection_id_limit, buf, end))
 			return 0;
 		break;
+	case QUIC_TP_DRAFT_VERSION_INFORMATION:
+		if (!quic_transport_param_dec_version_info(&p->version_information,
+		                                           buf, *buf + len, server))
+			return 0;
+		break;
 	default:
 		*buf += len;
 	};
@@ -349,6 +414,42 @@ static int quic_transport_param_enc_pref_addr(unsigned char **buf,
 	return 1;
 }
 
+/* Encode version information transport parameters with <choosen_version> as choosen
+ * version.
+ * Return 1 if succeeded, 0 if not.
+ */
+static int quic_transport_param_enc_version_info(unsigned char **buf,
+                                                 const unsigned char *end,
+                                                 const struct quic_version *choosen_version,
+                                                 int server)
+{
+	int i;
+	uint64_t tp_len;
+	uint32_t ver;
+
+	tp_len = sizeof choosen_version->num + quic_versions_nb * sizeof(uint32_t);
+	if (!quic_transport_param_encode_type_len(buf, end,
+	                                          QUIC_TP_DRAFT_VERSION_INFORMATION,
+	                                          tp_len))
+		return 0;
+
+	if (end - *buf < tp_len)
+		return 0;
+
+	/* First: choosen version */
+	ver = htonl(choosen_version->num);
+	memcpy(*buf, &ver, sizeof ver);
+	*buf += sizeof ver;
+	/* For servers: all supported version, choosen included */
+	for (i = 0; i < quic_versions_nb; i++) {
+		ver = htonl(quic_versions[i].num);
+		memcpy(*buf, &ver, sizeof ver);
+		*buf += sizeof ver;
+	}
+
+	return 1;
+}
+
 /* Encode <p> transport parameter into <buf> depending on <server> value which
  * must be set to 1 for a server (haproxy listener) or 0 for a client
  * (connection to a haproxy server).
@@ -357,6 +458,7 @@ static int quic_transport_param_enc_pref_addr(unsigned char **buf,
 int quic_transport_params_encode(unsigned char *buf,
                                  const unsigned char *end,
                                  struct quic_transport_params *p,
+                                 const struct quic_version *choosen_version,
                                  int server)
 {
 	unsigned char *head;
@@ -462,6 +564,9 @@ int quic_transport_params_encode(unsigned char *buf,
 	                                  p->active_connection_id_limit))
 	    return 0;
 
+	if (!quic_transport_param_enc_version_info(&pos, end, choosen_version, server))
+		return 0;
+
 	return pos - head;
 }
 
@@ -515,25 +620,12 @@ int quic_transport_params_store(struct quic_conn *qc, int server,
                                 const unsigned char *end)
 {
 	struct quic_transport_params *tx_params = &qc->tx.params;
-	struct quic_transport_params *rx_params = &qc->rx.params;
 
 	/* initialize peer TPs to RFC default value */
 	quic_dflt_transport_params_cpy(tx_params);
 
 	if (!quic_transport_params_decode(tx_params, server, buf, end))
 		return 0;
-
-	if (tx_params->max_ack_delay)
-		qc->max_ack_delay = tx_params->max_ack_delay;
-
-	if (tx_params->max_idle_timeout && rx_params->max_idle_timeout)
-		qc->max_idle_timeout =
-			QUIC_MIN(tx_params->max_idle_timeout, rx_params->max_idle_timeout);
-	else
-		qc->max_idle_timeout =
-			QUIC_MAX(tx_params->max_idle_timeout, rx_params->max_idle_timeout);
-
-	TRACE_PROTO("\nTX(remote) transp. params.", QUIC_EV_TRANSP_PARAMS, qc, tx_params);
 
 	return 1;
 }

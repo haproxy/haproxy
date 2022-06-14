@@ -57,7 +57,7 @@
 #include <haproxy/xprt_quic.h>
 
 /* list of supported QUIC versions by this implementation */
-static const struct quic_version quic_versions[] = {
+const struct quic_version quic_versions[] = {
 	{
 		.num              = QUIC_PROTOCOL_VERSION_DRAFT_29,
 		.initial_salt     = initial_salt_draft_29,
@@ -106,7 +106,9 @@ static const struct quic_version quic_versions[] = {
 };
 
 /* The total number of supported versions */
-static size_t quic_versions_nb = sizeof quic_versions / sizeof *quic_versions;
+const size_t quic_versions_nb = sizeof quic_versions / sizeof *quic_versions;
+/* Listener only preferred version */
+const struct quic_version *preferred_version;
 
 /* trace source and events */
 static void quic_trace(enum trace_level level, uint64_t mask, \
@@ -206,8 +208,9 @@ DECLARE_POOL(pool_head_quic_frame, "quic_frame_pool", sizeof(struct quic_frame))
 DECLARE_STATIC_POOL(pool_head_quic_arng, "quic_arng_pool", sizeof(struct quic_arng_node));
 
 static struct quic_tx_packet *qc_build_pkt(unsigned char **pos, const unsigned char *buf_end,
-                                           struct quic_enc_level *qel, struct list *frms,
-                                           struct quic_conn *qc, size_t dglen, int pkt_type,
+                                           struct quic_enc_level *qel, struct quic_tls_ctx *ctx,
+                                           struct list *frms, struct quic_conn *qc,
+                                           const struct quic_version *ver, size_t dglen, int pkt_type,
                                            int padding, int probe, int cc, int *err);
 static struct task *quic_conn_app_io_cb(struct task *t, void *context, unsigned int state);
 static void qc_idle_timer_do_rearm(struct quic_conn *qc);
@@ -642,6 +645,7 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 	if (mask & QUIC_EV_CONN_LPKT) {
 		const struct quic_rx_packet *pkt = a2;
 		const uint64_t *len = a3;
+		const struct quic_version *ver = a4;
 
 		if (pkt) {
 			chunk_appendf(&trace_buf, " pkt@%p type=0x%02x %s",
@@ -652,6 +656,9 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 
 		if (len)
 			chunk_appendf(&trace_buf, " len=%llu", (ull)*len);
+
+		if (ver)
+			chunk_appendf(&trace_buf, " ver=0x%08x", ver->num);
 	}
 
 	if (mask & QUIC_EV_STATELESS_RST) {
@@ -744,6 +751,8 @@ static int quic_tls_key_update(struct quic_conn *qc)
 	struct quic_tls_secrets *rx, *tx;
 	struct quic_tls_kp *nxt_rx = &qc->ku.nxt_rx;
 	struct quic_tls_kp *nxt_tx = &qc->ku.nxt_tx;
+	const struct quic_version *ver =
+		qc->negotiated_version ? qc->negotiated_version : qc->original_version;
 
 	tls_ctx = &qc->els[QUIC_TLS_ENC_LEVEL_APP].tls_ctx;
 	rx = &tls_ctx->rx;
@@ -752,13 +761,13 @@ static int quic_tls_key_update(struct quic_conn *qc)
 	nxt_tx = &qc->ku.nxt_tx;
 
 	/* Prepare new RX secrets */
-	if (!quic_tls_sec_update(rx->md, qc->version, nxt_rx->secret, nxt_rx->secretlen,
+	if (!quic_tls_sec_update(rx->md, ver, nxt_rx->secret, nxt_rx->secretlen,
 	                         rx->secret, rx->secretlen)) {
 		TRACE_DEVEL("New RX secret update failed", QUIC_EV_CONN_RWSEC, qc);
 		return 0;
 	}
 
-	if (!quic_tls_derive_keys(rx->aead, NULL, rx->md, qc->version,
+	if (!quic_tls_derive_keys(rx->aead, NULL, rx->md, ver,
 	                          nxt_rx->key, nxt_rx->keylen,
 	                          nxt_rx->iv, nxt_rx->ivlen, NULL, 0,
 	                          nxt_rx->secret, nxt_rx->secretlen)) {
@@ -767,13 +776,13 @@ static int quic_tls_key_update(struct quic_conn *qc)
 	}
 
 	/* Prepare new TX secrets */
-	if (!quic_tls_sec_update(tx->md, qc->version, nxt_tx->secret, nxt_tx->secretlen,
+	if (!quic_tls_sec_update(tx->md, ver, nxt_tx->secret, nxt_tx->secretlen,
 	                         tx->secret, tx->secretlen)) {
 		TRACE_DEVEL("New TX secret update failed", QUIC_EV_CONN_RWSEC, qc);
 		return 0;
 	}
 
-	if (!quic_tls_derive_keys(tx->aead, NULL, tx->md, qc->version,
+	if (!quic_tls_derive_keys(tx->aead, NULL, tx->md, ver,
 	                          nxt_tx->key, nxt_tx->keylen,
 	                          nxt_tx->iv, nxt_tx->ivlen, NULL, 0,
 	                          nxt_tx->secret, nxt_tx->secretlen)) {
@@ -862,6 +871,8 @@ int ha_quic_set_encryption_secrets(SSL *ssl, enum ssl_encryption_level_t level,
 	struct quic_tls_ctx *tls_ctx = &qc->els[ssl_to_quic_enc_level(level)].tls_ctx;
 	const SSL_CIPHER *cipher = SSL_get_current_cipher(ssl);
 	struct quic_tls_secrets *rx, *tx;
+	const struct quic_version *ver =
+		qc->negotiated_version ? qc->negotiated_version : qc->original_version;
 
 	TRACE_ENTER(QUIC_EV_CONN_RWSEC, qc);
 	BUG_ON(secret_len > QUIC_TLS_SECRET_LEN);
@@ -882,7 +893,7 @@ int ha_quic_set_encryption_secrets(SSL *ssl, enum ssl_encryption_level_t level,
 	rx->md   = tx->md   = tls_md(cipher);
 	rx->hp   = tx->hp   = tls_hp(cipher);
 
-	if (!quic_tls_derive_keys(rx->aead, rx->hp, rx->md, qc->version, rx->key, rx->keylen,
+	if (!quic_tls_derive_keys(rx->aead, rx->hp, rx->md, ver, rx->key, rx->keylen,
 	                          rx->iv, rx->ivlen, rx->hp_key, sizeof rx->hp_key,
 	                          read_secret, secret_len)) {
 		TRACE_DEVEL("RX key derivation failed", QUIC_EV_CONN_RWSEC, qc);
@@ -904,7 +915,7 @@ int ha_quic_set_encryption_secrets(SSL *ssl, enum ssl_encryption_level_t level,
 	if (!write_secret)
 		goto out;
 
-	if (!quic_tls_derive_keys(tx->aead, tx->hp, tx->md, qc->version, tx->key, tx->keylen,
+	if (!quic_tls_derive_keys(tx->aead, tx->hp, tx->md, ver, tx->key, tx->keylen,
 	                          tx->iv, tx->ivlen, tx->hp_key, sizeof tx->hp_key,
 	                          write_secret, secret_len)) {
 		TRACE_DEVEL("TX key derivation failed", QUIC_EV_CONN_RWSEC, qc);
@@ -2851,7 +2862,7 @@ static int qc_prep_app_pkts(struct quic_conn *qc, struct qring *qr,
 			end = pos + qc->path->mtu;
 		}
 
-		pkt = qc_build_pkt(&pos, end, qel, frms, qc, 0, 0,
+		pkt = qc_build_pkt(&pos, end, qel, &qel->tls_ctx, frms, qc, NULL, 0, 0,
 		                   QUIC_PACKET_TYPE_SHORT, probe, cc, &err);
 		switch (err) {
 		case -2:
@@ -2939,6 +2950,8 @@ static int qc_prep_pkts(struct quic_conn *qc, struct qring *qr,
 	while (end_buf - pos >= (int)qc->path->mtu + dg_headlen || prv_pkt) {
 		int err, probe, cc;
 		enum quic_pkt_type pkt_type;
+		struct quic_tls_ctx *tls_ctx;
+		const struct quic_version *ver;
 
 		TRACE_POINT(QUIC_EV_CONN_PHPKTS, qc, qel);
 		probe = 0;
@@ -2974,8 +2987,20 @@ static int qc_prep_pkts(struct quic_conn *qc, struct qring *qr,
 			}
 		}
 
-		cur_pkt = qc_build_pkt(&pos, end, qel, frms,
-		                       qc, dglen, padding, pkt_type, probe, cc, &err);
+		if (qc->negotiated_version) {
+			ver = qc->negotiated_version;
+			if (qel == &qc->els[QUIC_TLS_ENC_LEVEL_INITIAL])
+				tls_ctx = &qc->negotiated_ictx;
+			else
+				tls_ctx = &qel->tls_ctx;
+		}
+		else {
+			ver = qc->original_version;
+			tls_ctx = &qel->tls_ctx;
+		}
+
+		cur_pkt = qc_build_pkt(&pos, end, qel, tls_ctx, frms,
+		                       qc, ver, dglen, padding, pkt_type, probe, cc, &err);
 		switch (err) {
 		case -2:
 			goto err;
@@ -4173,6 +4198,7 @@ static void quic_conn_release(struct quic_conn *qc)
 		quic_tls_ctx_secs_free(&qc->els[i].tls_ctx);
 		quic_conn_enc_level_uninit(&qc->els[i]);
 	}
+	quic_tls_ctx_secs_free(&qc->negotiated_ictx);
 
 	app_tls_ctx = &qc->els[QUIC_TLS_ENC_LEVEL_APP].tls_ctx;
 	pool_free(pool_head_quic_tls_secret, app_tls_ctx->rx.secret);
@@ -4401,8 +4427,8 @@ static struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 		qc->els[i].pktns = &qc->pktns[quic_tls_pktns(i)];
 	}
 
-	qc->version = qv;
-	qc->tps_tls_ext = (qc->version->num & 0xff000000) == 0xff000000 ?
+	qc->original_version = qv;
+	qc->tps_tls_ext = (qc->original_version->num & 0xff000000) == 0xff000000 ?
 		TLS_EXTENSION_QUIC_TRANSPORT_PARAMETERS_DRAFT:
 		TLS_EXTENSION_QUIC_TRANSPORT_PARAMETERS;
 	/* TX part. */
@@ -4444,19 +4470,13 @@ static struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	                                    odcid->data, odcid->len, token))
 		goto err;
 
-	qc->enc_params_len =
-		quic_transport_params_encode(qc->enc_params,
-		                             qc->enc_params + sizeof qc->enc_params,
-		                             &qc->rx.params, 1);
-	if (!qc->enc_params_len)
-		goto err;
-
 	if (qc_conn_alloc_ssl_ctx(qc) ||
 	    !quic_conn_init_timer(qc) ||
 	    !quic_conn_init_idle_timer_task(qc))
 		goto err;
 
-	if (!qc_new_isecs(qc, dcid->data, dcid->len, 1))
+	if (!qc_new_isecs(qc, &qc->els[QUIC_TLS_ENC_LEVEL_INITIAL].tls_ctx,
+	                  qc->original_version, dcid->data, dcid->len, 1))
 		goto err;
 
 	TRACE_LEAVE(QUIC_EV_CONN_INIT, qc);
@@ -4963,8 +4983,8 @@ static int quic_generate_retry_token(unsigned char *buf, size_t len,
  * of client source connection ID.
  * Return 1 if succeeded, 0 if not.
  */
-static int quic_retry_token_check(unsigned char *token, size_t tokenlen,
-                                  const uint32_t version,
+static int quic_retry_token_check(const unsigned char *token, size_t tokenlen,
+                                  const struct quic_version *qv,
                                   struct quic_cid *odcid,
                                   const struct quic_cid *dcid,
                                   struct quic_conn *qc,
@@ -4974,7 +4994,7 @@ static int quic_retry_token_check(unsigned char *token, size_t tokenlen,
 	unsigned char aad[sizeof(uint32_t) + sizeof(in_port_t) +
 		sizeof(struct in6_addr) + QUIC_HAP_CID_LEN];
 	size_t aadlen;
-	unsigned char *salt;
+	const unsigned char *salt;
 	unsigned char key[QUIC_TLS_KEY_LEN];
 	unsigned char iv[QUIC_TLS_IV_LEN];
 	const unsigned char *sec = (const unsigned char *)global.cluster_secret;
@@ -4985,7 +5005,7 @@ static int quic_retry_token_check(unsigned char *token, size_t tokenlen,
 	if (sizeof buf < tokenlen)
 		return 0;
 
-	aadlen = quic_generate_retry_token_aad(aad, version, dcid, addr);
+	aadlen = quic_generate_retry_token_aad(aad, qv->num, dcid, addr);
 	salt = token + tokenlen - QUIC_RETRY_TOKEN_SALTLEN;
 	if (!quic_tls_derive_retry_token_secret(EVP_sha256(), key, sizeof key, iv, sizeof iv,
 	                                        salt, QUIC_RETRY_TOKEN_SALTLEN, sec, seclen)) {
@@ -5154,8 +5174,7 @@ static int qc_ssl_sess_init(struct quic_conn *qc, SSL_CTX *ssl_ctx, SSL **ssl,
 	}
 
 	if (!SSL_set_quic_method(*ssl, &ha_quic_method) ||
-	    !SSL_set_ex_data(*ssl, ssl_qc_app_data_index, qc) ||
-	    !SSL_set_quic_transport_params(*ssl, qc->enc_params, qc->enc_params_len)) {
+	    !SSL_set_ex_data(*ssl, ssl_qc_app_data_index, qc)) {
 		SSL_free(*ssl);
 		*ssl = NULL;
 		if (!retry--)
@@ -5170,6 +5189,61 @@ static int qc_ssl_sess_init(struct quic_conn *qc, SSL_CTX *ssl_ctx, SSL **ssl,
  err:
 	qc->conn->err_code = CO_ER_SSL_NO_MEM;
 	return -1;
+}
+
+/* Finalize <qc> QUIC connection:
+ * - initialize the Initial QUIC TLS context for negotiated version,
+ * - derive the secrets for this context,
+ * - encode the transport parameters to be sent,
+ * - set them into the TLS stack,
+ * - initialize ->max_ack_delay and max_idle_timeout,
+ *
+ * MUST be called after having received the remote transport parameters.
+ * Return 1 if succeeded, 0 if not.
+ */
+int qc_conn_finalize(struct quic_conn *qc, int server)
+{
+	struct quic_transport_params *tx_tp = &qc->tx.params;
+	struct quic_transport_params *rx_tp = &qc->rx.params;
+	const struct quic_version *ver;
+
+	if (tx_tp->version_information.negotiated_version &&
+	    tx_tp->version_information.negotiated_version != qc->original_version) {
+		qc->negotiated_version =
+			qc->tx.params.version_information.negotiated_version;
+		if (!qc_new_isecs(qc, &qc->negotiated_ictx, qc->negotiated_version,
+						  qc->odcid.data, qc->odcid.len, !server))
+			return 0;
+
+		ver = qc->negotiated_version;
+	}
+	else {
+		ver = qc->original_version;
+	}
+
+	qc->enc_params_len =
+		quic_transport_params_encode(qc->enc_params,
+		                             qc->enc_params + sizeof qc->enc_params,
+		                             &qc->rx.params, ver, 1);
+	if (!qc->enc_params_len)
+		return 0;
+
+	if (!SSL_set_quic_transport_params(qc->xprt_ctx->ssl, qc->enc_params, qc->enc_params_len))
+		return 0;
+
+	if (tx_tp->max_ack_delay)
+		qc->max_ack_delay = tx_tp->max_ack_delay;
+
+	if (tx_tp->max_idle_timeout && rx_tp->max_idle_timeout)
+		qc->max_idle_timeout =
+			QUIC_MIN(tx_tp->max_idle_timeout, rx_tp->max_idle_timeout);
+	else
+		qc->max_idle_timeout =
+			QUIC_MAX(tx_tp->max_idle_timeout, rx_tp->max_idle_timeout);
+
+	TRACE_PROTO("\nTX(remote) transp. params.", QUIC_EV_TRANSP_PARAMS, qc, tx_tp);
+
+	return 1;
 }
 
 /* Allocate the ssl_sock_ctx from connection <qc>. This creates the tasklet
@@ -5269,6 +5343,7 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 	size_t b_cspace;
 	struct quic_enc_level *qel;
 	uint32_t version;
+	const struct quic_version *qv = NULL;
 
 	beg = buf;
 	qc = NULL;
@@ -5312,7 +5387,7 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 	if (long_header) {
 		uint64_t len;
 		struct quic_cid odcid;
-		const struct quic_version *qv;
+		int check_token = 0;
 
 		if (!quic_packet_read_long_header(&buf, end, pkt)) {
 			TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT);
@@ -5350,11 +5425,11 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 		if (!qv) {
 			 /* unsupported version, send Negotiation packet */
 			if (send_version_negotiation(l->rx.fd, &dgram->saddr, pkt)) {
-				TRACE_PROTO("Error on Version Negotiation sending", QUIC_EV_CONN_LPKT);
+				TRACE_PROTO("VN packet not sent", QUIC_EV_CONN_LPKT);
 				goto err;
 			}
 
-			TRACE_PROTO("Unsupported QUIC version, send Version Negotiation packet", QUIC_EV_CONN_LPKT);
+			TRACE_PROTO("VN packet sent", QUIC_EV_CONN_LPKT);
 			goto err;
 		}
 
@@ -5366,7 +5441,8 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 
 			if (!quic_dec_int(&token_len, (const unsigned char **)&buf, end) ||
 				end - buf < token_len) {
-				TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT);
+				TRACE_PROTO("Packet dropped",
+				            QUIC_EV_CONN_LPKT, NULL, NULL, NULL, qv);
 				goto drop;
 			}
 
@@ -5376,9 +5452,11 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 			if (global.cluster_secret) {
 				if (!token_len) {
 					if (l->bind_conf->options & BC_O_QUIC_FORCE_RETRY) {
-						TRACE_PROTO("Initial without token, sending retry", QUIC_EV_CONN_LPKT);
+						TRACE_PROTO("Initial without token, sending retry",
+						            QUIC_EV_CONN_LPKT, NULL, NULL, NULL, qv);
 						if (send_retry(l->rx.fd, &dgram->saddr, pkt, qv)) {
-							TRACE_PROTO("Error during Retry generation", QUIC_EV_CONN_LPKT);
+							TRACE_PROTO("Error during Retry generation",
+							            QUIC_EV_CONN_LPKT, NULL, NULL, NULL, qv);
 							goto err;
 						}
 
@@ -5387,24 +5465,7 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 					}
 				}
 				else {
-					if (*buf == QUIC_TOKEN_FMT_RETRY) {
-						if (!quic_retry_token_check(buf, token_len, version, &odcid,
-						                            &pkt->scid, qc, &dgram->saddr)) {
-							HA_ATOMIC_INC(&prx_counters->retry_error);
-							TRACE_PROTO("Wrong retry token", QUIC_EV_CONN_LPKT);
-							/* TODO: RFC 9000 8.1.2 A server SHOULD immediately close the connection
-							 * with an INVALID_TOKEN error.
-							 */
-							goto drop;
-						}
-
-						HA_ATOMIC_INC(&prx_counters->retry_validated);
-					}
-					else {
-						/* TODO: New token check */
-						TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT);
-						goto drop;
-					}
+					check_token = 1;
 				}
 			}
 
@@ -5414,14 +5475,16 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 		}
 		else if (pkt->type != QUIC_PACKET_TYPE_0RTT) {
 			if (pkt->dcid.len != QUIC_HAP_CID_LEN) {
-				TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT);
+				TRACE_PROTO("Packet dropped",
+				            QUIC_EV_CONN_LPKT, NULL, NULL, NULL, qv);
 				goto drop;
 			}
 		}
 
 		if (!quic_dec_int(&len, (const unsigned char **)&buf, end) ||
 			end - buf < len) {
-			TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT);
+			TRACE_PROTO("Packet dropped",
+			            QUIC_EV_CONN_LPKT, NULL, NULL, NULL, qv);
 			goto drop;
 		}
 
@@ -5431,20 +5494,44 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 			goto drop_no_conn;
 
 		qc = retrieve_qc_conn_from_cid(pkt, l, &dgram->saddr);
+		if (check_token && pkt->token) {
+			if (*pkt->token == QUIC_TOKEN_FMT_RETRY) {
+				const struct quic_version *ver = qc ? qc->original_version : qv;
+				if (!quic_retry_token_check(pkt->token, pkt->token_len, ver, &odcid,
+											&pkt->scid, qc, &dgram->saddr)) {
+					HA_ATOMIC_INC(&prx_counters->retry_error);
+					TRACE_PROTO("Wrong retry token",
+								QUIC_EV_CONN_LPKT, qc, NULL, NULL, qv);
+					/* TODO: RFC 9000 8.1.2 A server SHOULD immediately close the connection
+					 * with an INVALID_TOKEN error.
+					 */
+					goto drop;
+				}
+
+				HA_ATOMIC_INC(&prx_counters->retry_validated);
+			}
+			else {
+				/* TODO: New token check */
+				TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT, qc, NULL, NULL, qv);
+				goto drop;
+			}
+		}
 		if (!qc) {
 			int ipv4;
 			struct ebmb_node *n = NULL;
 
 			if (pkt->type != QUIC_PACKET_TYPE_INITIAL) {
-				TRACE_PROTO("Non Initial packet", QUIC_EV_CONN_LPKT);
+				TRACE_PROTO("Non Initial packet", QUIC_EV_CONN_LPKT, NULL, NULL, NULL, qv);
 				goto drop;
 			}
 
 			if (global.cluster_secret && !pkt->token_len && !(l->bind_conf->options & BC_O_QUIC_FORCE_RETRY) &&
 			    HA_ATOMIC_LOAD(&prx_counters->half_open_conn) >= global.tune.quic_retry_threshold) {
-				TRACE_PROTO("Initial without token, sending retry", QUIC_EV_CONN_LPKT);
+				TRACE_PROTO("Initial without token, sending retry",
+				            QUIC_EV_CONN_LPKT, NULL, NULL, NULL, qv);
 				if (send_retry(l->rx.fd, &dgram->saddr, pkt, qv)) {
-					TRACE_PROTO("Error during Retry generation", QUIC_EV_CONN_LPKT);
+					TRACE_PROTO("Error during Retry generation", 
+					            QUIC_EV_CONN_LPKT, NULL, NULL, NULL, qv);
 					goto err;
 				}
 
@@ -5459,7 +5546,8 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 			 * value. This Destination Connection ID MUST be at least 8 bytes in length.
 			 */
 			if (pkt->dcid.len < QUIC_ODCID_MINLEN) {
-				TRACE_PROTO("dropped packet", QUIC_EV_CONN_LPKT);
+				TRACE_PROTO("dropped packet",
+				            QUIC_EV_CONN_LPKT, NULL, NULL, NULL, qv);
 				goto drop;
 			}
 
@@ -5543,7 +5631,8 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 		}
 		/* Skip the entire datagram */
 		pkt->len = end - beg;
-		TRACE_PROTO("Closing state connection", QUIC_EV_CONN_LPKT, pkt->qc);
+		TRACE_PROTO("Closing state connection",
+		            QUIC_EV_CONN_LPKT, pkt->qc, NULL, NULL, qv);
 		goto drop;
 	}
 
@@ -5556,7 +5645,7 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 	if (first_pkt && !quic_peer_validated_addr(qc) &&
 	    qc->flags & QUIC_FL_CONN_ANTI_AMPLIFICATION_REACHED) {
 		TRACE_PROTO("PTO timer must be armed after anti-amplication was reached",
-					QUIC_EV_CONN_LPKT, qc);
+					QUIC_EV_CONN_LPKT, qc, NULL, NULL, qv);
 		/* Reset the anti-amplification bit. It will be set again
 		 * when sending the next packet if reached again.
 		 */
@@ -5568,7 +5657,8 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 	dgram->qc = qc;
 
 	if (qc->err_code) {
-		TRACE_PROTO("Connection error", QUIC_EV_CONN_LPKT, qc);
+		TRACE_PROTO("Connection error",
+		            QUIC_EV_CONN_LPKT, qc, NULL, NULL, qv);
 		goto out;
 	}
 
@@ -5578,7 +5668,8 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 	if (b_cspace < pkt->len) {
 		/* Do not consume buf if space not at the end. */
 		if (b_tail(&qc->rx.buf) + b_cspace < b_wrap(&qc->rx.buf)) {
-			TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT, qc);
+			TRACE_PROTO("Packet dropped",
+			            QUIC_EV_CONN_LPKT, qc, NULL, NULL, qv);
 			goto err;
 		}
 
@@ -5589,18 +5680,19 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 		}
 		b_add(&qc->rx.buf, b_cspace);
 		if (b_contig_space(&qc->rx.buf) < pkt->len) {
-			TRACE_PROTO("Too big packet", QUIC_EV_CONN_LPKT, qc, pkt, &pkt->len);
+			TRACE_PROTO("Too big packet",
+			            QUIC_EV_CONN_LPKT, qc, pkt, &pkt->len, qv);
 			qc_list_all_rx_pkts(qc);
 			goto drop;
 		}
 	}
 
 	if (!qc_try_rm_hp(qc, pkt, payload, beg, end, &qel)) {
-		TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT, qc);
+		TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT, qc, NULL, NULL, qv);
 		goto drop;
 	}
 
-	TRACE_PROTO("New packet", QUIC_EV_CONN_LPKT, qc, pkt);
+	TRACE_PROTO("New packet", QUIC_EV_CONN_LPKT, qc, pkt, NULL, qv);
 	if (pkt->aad_len)
 		qc_pkt_insert(pkt, qel);
  out:
@@ -5617,7 +5709,7 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
  drop_no_conn:
 	if (drop_no_conn)
 		HA_ATOMIC_INC(&prx_counters->dropped_pkt);
-	TRACE_LEAVE(QUIC_EV_CONN_LPKT, qc ? qc : NULL, pkt);
+	TRACE_LEAVE(QUIC_EV_CONN_LPKT, qc ? qc : NULL, pkt, NULL, qv);
 
 	return;
 
@@ -5636,24 +5728,25 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 	if (!pkt->len)
 		pkt->len = end - beg;
 	TRACE_DEVEL("Leaving in error", QUIC_EV_CONN_LPKT,
-	            qc ? qc : NULL, pkt);
+	            qc ? qc : NULL, pkt, NULL, qv);
 }
 
 /* This function builds into <buf> buffer a QUIC long packet header.
  * Return 1 if enough room to build this header, 0 if not.
  */
 static int quic_build_packet_long_header(unsigned char **buf, const unsigned char *end,
-                                         int type, size_t pn_len, struct quic_conn *conn)
+                                         int type, size_t pn_len,
+                                         struct quic_conn *conn, const struct quic_version *ver)
 {
-	if (end - *buf < sizeof conn->version + conn->dcid.len + conn->scid.len + 3)
+	if (end - *buf < sizeof ver->num + conn->dcid.len + conn->scid.len + 3)
 		return 0;
 
-	type = quic_pkt_type(type, conn->version->num);
+	type = quic_pkt_type(type, ver->num);
 	/* #0 byte flags */
 	*(*buf)++ = QUIC_PACKET_FIXED_BIT | QUIC_PACKET_LONG_HEADER_BIT |
 		(type << QUIC_PACKET_TYPE_SHIFT) | (pn_len - 1);
 	/* Version */
-	quic_write_uint32(buf, end, conn->version->num);
+	quic_write_uint32(buf, end, ver->num);
 	*(*buf)++ = conn->dcid.len;
 	/* Destination connection ID */
 	if (conn->dcid.len) {
@@ -6021,7 +6114,7 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
                            int64_t pn, size_t *pn_len, unsigned char **buf_pn,
                            int padding, int cc, int probe,
                            struct quic_enc_level *qel, struct quic_conn *qc,
-                           struct list *frms)
+                           const struct quic_version *ver, struct list *frms)
 {
 	unsigned char *beg;
 	size_t len, len_sz, len_frms, padding_len;
@@ -6064,7 +6157,7 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 	if ((pkt->type == QUIC_PACKET_TYPE_SHORT &&
 	    !quic_build_packet_short_header(&pos, end, *pn_len, qc, qel->tls_ctx.flags)) ||
 	    (pkt->type != QUIC_PACKET_TYPE_SHORT &&
-		!quic_build_packet_long_header(&pos, end, pkt->type, *pn_len, qc)))
+		!quic_build_packet_long_header(&pos, end, pkt->type, *pn_len, qc, ver)))
 		goto no_room;
 
 	/* XXX FIXME XXX Encode the token length (0) for an Initial packet. */
@@ -6273,8 +6366,10 @@ static inline void quic_tx_packet_init(struct quic_tx_packet *pkt, int type)
  */
 static struct quic_tx_packet *qc_build_pkt(unsigned char **pos,
                                            const unsigned char *buf_end,
-                                           struct quic_enc_level *qel, struct list *frms,
-                                           struct quic_conn *qc, size_t dglen, int padding,
+                                           struct quic_enc_level *qel,
+                                           struct quic_tls_ctx *tls_ctx, struct list *frms,
+                                           struct quic_conn *qc, const struct quic_version *ver,
+                                           size_t dglen, int padding,
                                            int pkt_type, int probe, int cc, int *err)
 {
 	/* The pointer to the packet number field. */
@@ -6282,7 +6377,6 @@ static struct quic_tx_packet *qc_build_pkt(unsigned char **pos,
 	unsigned char *beg, *end, *payload;
 	int64_t pn;
 	size_t pn_len, payload_len, aad_len;
-	struct quic_tls_ctx *tls_ctx;
 	struct quic_tx_packet *pkt;
 
 	TRACE_ENTER(QUIC_EV_CONN_HPKT, qc, NULL, qel);
@@ -6301,7 +6395,7 @@ static struct quic_tx_packet *qc_build_pkt(unsigned char **pos,
 
 	pn = qel->pktns->tx.next_pn + 1;
 	if (!qc_do_build_pkt(*pos, buf_end, dglen, pkt, pn, &pn_len, &buf_pn,
-	                     padding, cc, probe, qel, qc, frms)) {
+	                     padding, cc, probe, qel, qc, ver, frms)) {
 		*err = -1;
 		goto err;
 	}
@@ -6311,7 +6405,6 @@ static struct quic_tx_packet *qc_build_pkt(unsigned char **pos,
 	payload_len = end - payload;
 	aad_len = payload - beg;
 
-	tls_ctx = &qel->tls_ctx;
 	if (!quic_packet_encrypt(payload, payload_len, beg, aad_len, pn, tls_ctx, qc)) {
 		*err = -2;
 		goto err;

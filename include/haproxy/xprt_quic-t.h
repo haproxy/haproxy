@@ -286,6 +286,10 @@ struct quic_version {
 	const unsigned char *retry_tag_nonce;
 };
 
+extern const struct quic_version quic_versions[];
+extern const size_t quic_versions_nb;
+extern const struct quic_version *preferred_version;
+
 /* QUIC connection id data.
  *
  * This struct is used by ebmb_node structs as last member of flexible arrays.
@@ -625,7 +629,10 @@ enum qc_mux_state {
 #define QUIC_FL_CONN_DRAINING                    (1U << 30)
 #define QUIC_FL_CONN_IMMEDIATE_CLOSE             (1U << 31)
 struct quic_conn {
-	const struct quic_version *version;
+	const struct quic_version *original_version;
+	const struct quic_version *negotiated_version;
+	/* Negotiated version Initial TLS context */
+	struct quic_tls_ctx negotiated_ictx;
 	/* QUIC transport parameters TLS extension */
 	int tps_tls_ext;
 	/* Thread ID this connection is attached to */
