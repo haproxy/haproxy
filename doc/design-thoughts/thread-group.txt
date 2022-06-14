@@ -471,6 +471,57 @@ And others to the global wait queue:
   struct eb_root timers;      /* sorted timers tree, global, accessed under wq_lock */
 
 
+2022-06-14 - progress on task affinity
+==========
+
+The particularity of the current global run queue is to be usable for remote
+wakeups because it's protected by a lock. There is no need for a global run
+queue beyond this, and there could already be a locked queue per thread for
+remote wakeups, with a random selection at wakeup time. It's just that picking
+a pending task in a run queue among a number is convenient (though it
+introduces some excessive locking). A task will either be tied to a single
+group or will be allowed to run on any group. As such it's pretty clear that we
+don't need a global run queue. When a run-anywhere task expires, either it runs
+on the current group's runqueue with any thread, or a target thread is selected
+during the wakeup and it's directly assigned.
+
+A global wait queue seems important for scheduled repetitive tasks however. But
+maybe it's more a task for a cron-like job and there's no need for the task
+itself to wake up anywhere, because once the task wakes up, it must be tied to
+one (or a set of) thread(s). One difficulty if the task is temporarily assigned
+a thread group is that it's impossible to know where it's running when trying
+to perform a second wakeup or when trying to kill it. Maybe we'll need to have
+two tgid for a task (desired, effective). Or maybe we can restrict the ability
+of such a task to stay in wait queue in case of wakeup, though that sounds
+difficult. Other approaches would be to set the GID to the current one when
+waking up the task, and to have a flag (or sign on the GID) indicating that the
+task is still queued in the global timers queue. We already have TASK_SHARED_WQ
+so it seems that antoher similar flag such as TASK_WAKE_ANYWHERE could make
+sense. But when is TASK_SHARED_WQ really used, except for the "anywhere" case ?
+All calls to task_new() use either 1<<thr, tid_bit, all_threads_mask, or come
+from appctx_new which does exactly the same. The only real user of non-global,
+non-unique task_new() call is debug_parse_cli_sched() which purposely allows to
+use an arbitrary mask.
+
+ +----------------------------------------------------------------------------+
+ | => we don't need one WQ per group, only a global and N local ones, hence   |
+ |    the TASK_SHARED_WQ flag can continue to be used for this purpose.       |
+ +----------------------------------------------------------------------------+
+
+Having TASK_SHARED_WQ should indicate that a task will always be queued to the
+shared queue and will always have a temporary gid and thread mask in the run
+queue.
+
+Going further, as we don't have any single case of a task bound to a small set
+of threads, we could decide to wake up only expired tasks for ourselves by
+looking them up using eb32sc and adopting them. Thus, there's no more need for
+a shared runqueue nor a global_runqueue_ticks counter, and we can simply have
+the ability to wake up a remote task. The task's thread_mask will then change
+so that it's only a thread ID, except when the task has TASK_SHARED_WQ, in
+which case it corresponds to the running thread. That's very close to what is
+already done with tasklets in fact.
+
+
 2021-09-29 - group designation and masks
 ==========
 
