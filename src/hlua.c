@@ -8465,6 +8465,9 @@ struct task *hlua_process_task(struct task *task, void *context, unsigned int st
 	if (atleast2(task->thread_mask))
 		task_set_affinity(task, tid_bit);
 
+	if (task->tid < 0)
+		task->tid = tid;
+
 	/* If it is the first call to the task, we must initialize the
 	 * execution timeouts.
 	 */

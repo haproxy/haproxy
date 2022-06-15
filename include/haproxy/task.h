@@ -333,13 +333,23 @@ static inline void task_queue(struct task *task)
  */
 static inline void task_set_affinity(struct task *t, unsigned long thread_mask)
 {
+	int thr;
+
+	if (atleast2(thread_mask))
+		thr = -1;
+	else
+		thr = my_ffsl(thread_mask) - 1;
+
 	if (unlikely(task_in_wq(t))) {
 		task_unlink_wq(t);
 		t->thread_mask = thread_mask;
+		t->tid = thr;
 		task_queue(t);
 	}
-	else
+	else {
 		t->thread_mask = thread_mask;
+		t->tid = thr;
+	}
 }
 
 /*
@@ -533,8 +543,12 @@ static inline struct task *task_init(struct task *t, unsigned long thread_mask)
 	t->rq.node.leaf_p = NULL;
 	t->state = TASK_SLEEPING;
 	t->thread_mask = thread_mask;
-	if (atleast2(thread_mask))
+	if (atleast2(thread_mask)) {
 		t->state |= TASK_SHARED_WQ;
+		t->tid = -1;
+	}
+	else
+		t->tid = my_ffsl(thread_mask) - 1;
 	t->nice = 0;
 	t->calls = 0;
 	t->call_date = 0;

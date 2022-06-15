@@ -112,7 +112,7 @@ struct task {
 	struct eb32_node wq;		/* ebtree node used to hold the task in the wait queue */
 	int expire;			/* next expiration date for this task, in ticks */
 	short nice;                     /* task prio from -1024 to +1024 */
-	/* 16-bit hole here */
+	short tid;                      /* TID where it's allowed to run, <0 if anywhere */
 	unsigned long thread_mask;	/* mask of thread IDs authorized to process the task */
 	uint64_t call_date;		/* date of the last task wakeup or call */
 	uint64_t lat_time;		/* total latency time experienced */
