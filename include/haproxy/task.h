@@ -279,7 +279,7 @@ static inline struct task *task_unlink_wq(struct task *t)
 
 	if (likely(task_in_wq(t))) {
 		locked = t->state & TASK_SHARED_WQ;
-		BUG_ON(!locked && t->thread_mask != tid_bit);
+		BUG_ON(!locked && t->tid != tid);
 		if (locked)
 			HA_RWLOCK_WRLOCK(TASK_WQ_LOCK, &wq_lock);
 		__task_unlink_wq(t);
@@ -318,7 +318,7 @@ static inline void task_queue(struct task *task)
 	} else
 #endif
 	{
-		BUG_ON(task->thread_mask != tid_bit); // should have TASK_SHARED_WQ
+		BUG_ON(task->tid != tid); // should have TASK_SHARED_WQ
 		if (!task_in_wq(task) || tick_is_lt(task->expire, task->wq.key))
 			__task_queue(task, &th_ctx->timers);
 	}
@@ -731,7 +731,7 @@ static inline void task_schedule(struct task *task, int when)
 	} else
 #endif
 	{
-		BUG_ON((task->thread_mask & tid_bit) == 0); // should have TASK_SHARED_WQ
+		BUG_ON(task->tid != tid);
 		if (task_in_wq(task))
 			when = tick_first(when, task->expire);
 
