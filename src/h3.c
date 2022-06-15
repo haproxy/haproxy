@@ -798,7 +798,7 @@ static int h3_resp_headers_send(struct qcs *qcs, struct htx *htx)
 		}
 		else if (type == HTX_BLK_HDR) {
 			if (unlikely(hdr >= sizeof(list) / sizeof(list[0]) - 1))
-				goto fail;
+				goto err;
 			list[hdr].n = htx_get_blk_name(htx, blk);
 			list[hdr].v = htx_get_blk_value(htx, blk);
 			hdr++;
