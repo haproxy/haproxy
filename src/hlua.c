@@ -8462,9 +8462,6 @@ struct task *hlua_process_task(struct task *task, void *context, unsigned int st
 	struct hlua *hlua = context;
 	enum hlua_exec status;
 
-	if (atleast2(task->thread_mask))
-		task_set_affinity(task, tid_bit);
-
 	if (task->tid < 0)
 		task->tid = tid;
 

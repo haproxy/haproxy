@@ -342,12 +342,10 @@ static inline void task_set_affinity(struct task *t, unsigned long thread_mask)
 
 	if (unlikely(task_in_wq(t))) {
 		task_unlink_wq(t);
-		t->thread_mask = thread_mask;
 		t->tid = thr;
 		task_queue(t);
 	}
 	else {
-		t->thread_mask = thread_mask;
 		t->tid = thr;
 	}
 }
@@ -545,7 +543,6 @@ static inline struct task *task_init(struct task *t, unsigned long thread_mask)
 	t->wq.node.leaf_p = NULL;
 	t->rq.node.leaf_p = NULL;
 	t->state = TASK_SLEEPING;
-	t->thread_mask = thread_mask;
 	if (atleast2(thread_mask)) {
 		t->state |= TASK_SHARED_WQ;
 		t->tid = -1;
