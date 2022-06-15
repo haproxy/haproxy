@@ -57,11 +57,7 @@ struct appctx *appctx_new_on(struct applet *applet, struct sedesc *sedesc, int t
 	}
 	appctx->sedesc = sedesc;
 
-	if (thr >= 0)
-		appctx->t = task_new_on(thr);
-	else
-		appctx->t = task_new_anywhere();
-
+	appctx->t = task_new_on(thr);
 	if (unlikely(!appctx->t))
 		goto fail_task;
 	appctx->t->process = task_run_applet;
