@@ -535,20 +535,20 @@ static inline void tasklet_remove_from_tasklet_list(struct tasklet *t)
 /*
  * Initialize a new task. The bare minimum is performed (queue pointers and
  * state).  The task is returned. This function should not be used outside of
- * task_new(). If the thread mask contains more than one thread, TASK_SHARED_WQ
- * is set.
+ * task_new(). If the thread ID is < 0, the task may run on any thread.
  */
-static inline struct task *task_init(struct task *t, unsigned long thread_mask)
+static inline struct task *task_init(struct task *t, int tid)
 {
 	t->wq.node.leaf_p = NULL;
 	t->rq.node.leaf_p = NULL;
 	t->state = TASK_SLEEPING;
-	if (atleast2(thread_mask)) {
+#ifndef USE_THREAD
+	/* no shared wq without threads */
+	tid = 0;
+#endif
+	t->tid = tid;
+	if (tid < 0)
 		t->state |= TASK_SHARED_WQ;
-		t->tid = -1;
-	}
-	else
-		t->tid = my_ffsl(thread_mask) - 1;
 	t->nice = 0;
 	t->calls = 0;
 	t->call_date = 0;
@@ -591,29 +591,20 @@ static inline struct tasklet *tasklet_new(void)
 }
 
 /*
- * Allocate and initialise a new task. The new task is returned, or NULL in
- * case of lack of memory. The task count is incremented. This API might change
- * in the near future, so prefer one of the task_new_*() wrappers below which
- * are usually more suitable. Tasks must be freed using task_free().
+ * Allocate and initialize a new task, to run on global thread <thr>, or any
+ * thread if negative. The task count is incremented. The new task is returned,
+ * or NULL in case of lack of memory. It's up to the caller to pass a valid
+ * thread number (in tid space, 0 to nbthread-1, or <0 for any). Tasks created
+ * this way must be freed using task_destroy().
  */
-static inline struct task *task_new(unsigned long thread_mask)
+static inline struct task *task_new_on(int thr)
 {
 	struct task *t = pool_alloc(pool_head_task);
 	if (t) {
 		th_ctx->nb_tasks++;
-		task_init(t, thread_mask);
+		task_init(t, thr);
 	}
 	return t;
-}
-
-/* Allocate and initialize a new task, to run on global thread <thr>. The new
- * task is returned, or NULL in case of lack of memory. It's up to the caller
- * to pass a valid thread number (in tid space, 0 to nbthread-1). The task
- * count is incremented.
- */
-static inline struct task *task_new_on(uint thr)
-{
-	return task_new(1UL << thr);
 }
 
 /* Allocate and initialize a new task, to run on the calling thread. The new
@@ -622,7 +613,7 @@ static inline struct task *task_new_on(uint thr)
  */
 static inline struct task *task_new_here()
 {
-	return task_new(tid_bit);
+	return task_new_on(tid);
 }
 
 /* Allocate and initialize a new task, to run on any thread. The new task is
@@ -630,7 +621,7 @@ static inline struct task *task_new_here()
  */
 static inline struct task *task_new_anywhere()
 {
-	return task_new(all_threads_mask);
+	return task_new_on(-1);
 }
 
 /*
