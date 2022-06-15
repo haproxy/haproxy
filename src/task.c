@@ -239,7 +239,10 @@ void __task_wakeup(struct task *t)
 		_HA_ATOMIC_INC(&grq_total);
 		HA_SPIN_LOCK(TASK_RQ_LOCK, &rq_lock);
 
-		global_tasks_mask |= t->thread_mask;
+		if (t->tid < 0)
+			global_tasks_mask = all_threads_mask;
+		else
+			global_tasks_mask |= 1UL << thr;
 		t->rq.key = ++global_rqueue_ticks;
 		__ha_barrier_store();
 	} else
@@ -260,7 +263,7 @@ void __task_wakeup(struct task *t)
 	if (th_ctx->flags & TH_FL_TASK_PROFILING)
 		t->call_date = now_mono_time();
 
-	eb32sc_insert(root, &t->rq, t->thread_mask);
+	eb32sc_insert(root, &t->rq, 1UL << thr);
 
 #ifdef USE_THREAD
 	if (thr != tid) {
@@ -270,9 +273,8 @@ void __task_wakeup(struct task *t)
 		/* If all threads that are supposed to handle this task are sleeping,
 		 * wake one.
 		 */
-		if ((((t->thread_mask & all_threads_mask) & sleeping_thread_mask) ==
-		     (t->thread_mask & all_threads_mask))) {
-			unsigned long m = (t->thread_mask & all_threads_mask) &~ tid_bit;
+		if (sleeping_thread_mask & (1UL << thr)) {
+			unsigned long m = 1UL << thr;
 
 			_HA_ATOMIC_AND(&sleeping_thread_mask, ~m);
 			wake_thread(thr);
