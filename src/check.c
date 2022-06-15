@@ -1118,7 +1118,7 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 		check->state |= CHK_ST_INPROGRESS;
 		TRACE_STATE("init new health-check", CHK_EV_TASK_WAKE|CHK_EV_HCHK_START, check);
 
-		task_set_affinity(t, tid_bit);
+		task_set_thread(t, tid);
 
 		check->current_step = NULL;
 
@@ -1217,7 +1217,7 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
         if (LIST_INLIST(&check->buf_wait.list))
                 LIST_DEL_INIT(&check->buf_wait.list);
 
-	task_set_affinity(t, all_threads_mask);
+	task_set_thread(t, -1);
 	check_release_buf(check, &check->bi);
 	check_release_buf(check, &check->bo);
 	check->state &= ~(CHK_ST_INPROGRESS|CHK_ST_IN_ALLOC|CHK_ST_OUT_ALLOC);

@@ -91,10 +91,12 @@ void task_queue(t)
         function for local tasks or for shared tasks who have the calling
         thread in their thread mask.
 
-void task_set_affinity(t, m)
-        Change task <t>'s thread_mask to new value <m>. This may only be
+void task_set_thread(t, id)
+        Change task <t>'s thread ID to new value <id>. This may only be
         performed by the task itself while running. This is only used to let a
-        task voluntarily migrate to another thread.
+        task voluntarily migrate to another thread. Thread id -1 is used to
+        indicate "any thread". It's ignored and replaced by zero when threads
+        are disabled.
 
 void tasklet_wakeup(tl)
         Make sure that tasklet <tl> will wake up, that is, will execute at

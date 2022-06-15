@@ -66,7 +66,7 @@ static inline int appctx_init(struct appctx *appctx)
 	 * eventually be created. The affinity must be set now !
 	 */
 	BUG_ON(appctx->t->tid != tid);
-	task_set_affinity(appctx->t, tid_bit);
+	task_set_thread(appctx->t, tid);
 
 	if (appctx->applet->init)
 		return appctx->applet->init(appctx);

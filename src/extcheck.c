@@ -525,7 +525,7 @@ struct task *process_chk_proc(struct task *t, void *context, unsigned int state)
 				int t_con = tick_add(now_ms, s->proxy->timeout.connect);
 				t->expire = tick_first(t->expire, t_con);
 			}
-			task_set_affinity(t, tid_bit);
+			task_set_thread(t, tid);
 			goto reschedule;
 		}
 
@@ -588,7 +588,7 @@ struct task *process_chk_proc(struct task *t, void *context, unsigned int state)
 			/* a success was detected */
 			check_notify_success(check);
 		}
-		task_set_affinity(t, 1);
+		task_set_thread(t, 0);
 		check->state &= ~CHK_ST_INPROGRESS;
 
 		pid_list_del(check->curpid);

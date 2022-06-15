@@ -324,22 +324,22 @@ static inline void task_queue(struct task *task)
 	}
 }
 
-/* change the thread affinity of a task to <thread_mask>.
+/* Change the thread affinity of a task to <thr>, which may either be a valid
+ * thread number from 0 to nbthread-1, or a negative value to allow the task
+ * to run on any thread.
+ *
  * This may only be done from within the running task itself or during its
  * initialization. It will unqueue and requeue the task from the wait queue
  * if it was in it. This is safe against a concurrent task_queue() call because
  * task_queue() itself will unlink again if needed after taking into account
  * the new thread_mask.
  */
-static inline void task_set_affinity(struct task *t, unsigned long thread_mask)
+static inline void task_set_thread(struct task *t, int thr)
 {
-	int thr;
-
-	if (atleast2(thread_mask))
-		thr = -1;
-	else
-		thr = my_ffsl(thread_mask) - 1;
-
+#ifndef USE_THREAD
+	/* no shared queue without threads */
+	thr = 0;
+#endif
 	if (unlikely(task_in_wq(t))) {
 		task_unlink_wq(t);
 		t->tid = thr;
