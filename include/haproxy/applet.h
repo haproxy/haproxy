@@ -42,23 +42,18 @@ int appctx_buf_available(void *arg);
 void *applet_reserve_svcctx(struct appctx *appctx, size_t size);
 void appctx_shut(struct appctx *appctx);
 
-struct appctx *appctx_new(struct applet *applet, struct sedesc *sedesc, unsigned long thread_mask);
+struct appctx *appctx_new_on(struct applet *applet, struct sedesc *sedesc, int thr);
 int appctx_finalize_startup(struct appctx *appctx, struct proxy *px, struct buffer *input);
 void appctx_free_on_early_error(struct appctx *appctx);
 
-static inline struct appctx *appctx_new_on(struct applet *applet, struct sedesc *sedesc, uint thr)
-{
-	return appctx_new(applet, sedesc, 1UL << thr);
-}
-
 static inline struct appctx *appctx_new_here(struct applet *applet, struct sedesc *sedesc)
 {
-	return appctx_new(applet, sedesc, tid_bit);
+	return appctx_new_on(applet, sedesc, tid);
 }
 
 static inline struct appctx *appctx_new_anywhere(struct applet *applet, struct sedesc *sedesc)
 {
-	return appctx_new(applet, sedesc, all_threads_mask);
+	return appctx_new_on(applet, sedesc, -1);
 }
 
 /* Helper function to call .init applet callback function, if it exists. Returns 0

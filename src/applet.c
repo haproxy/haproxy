@@ -28,15 +28,17 @@ DECLARE_POOL(pool_head_appctx,  "appctx",  sizeof(struct appctx));
 
 /* Tries to allocate a new appctx and initialize all of its fields. The appctx
  * is returned on success, NULL on failure. The appctx must be released using
- * appctx_free(). <applet> is assigned as the applet, but it can be NULL. The
- * applet's task is always created on the current thread.
+ * appctx_free(). <applet> is assigned as the applet, but it can be NULL. <thr>
+ * is the thread ID to start the applet on, and a negative value allows the
+ * applet to start anywhere. Backend applets may only be created on the current
+ * thread.
  */
-struct appctx *appctx_new(struct applet *applet, struct sedesc *sedesc, unsigned long thread_mask)
+struct appctx *appctx_new_on(struct applet *applet, struct sedesc *sedesc, int thr)
 {
 	struct appctx *appctx;
 
 	/* Backend appctx cannot be started on another thread than the local one */
-	BUG_ON(thread_mask != tid_bit && sedesc);
+	BUG_ON(thr != tid && sedesc);
 
 	appctx = pool_zalloc(pool_head_appctx);
 	if (unlikely(!appctx))
@@ -55,7 +57,11 @@ struct appctx *appctx_new(struct applet *applet, struct sedesc *sedesc, unsigned
 	}
 	appctx->sedesc = sedesc;
 
-	appctx->t = task_new(thread_mask);
+	if (thr >= 0)
+		appctx->t = task_new_on(thr);
+	else
+		appctx->t = task_new_anywhere();
+
 	if (unlikely(!appctx->t))
 		goto fail_task;
 	appctx->t->process = task_run_applet;
