@@ -34,8 +34,7 @@
 #define TASK_RUNNING      0x00000001  /* the task is currently running */
 #define TASK_GLOBAL       0x00000002  /* The task is currently in the global runqueue */
 #define TASK_QUEUED       0x00000004  /* The task has been (re-)added to the run queue */
-#define TASK_SHARED_WQ    0x00000008  /* The task's expiration may be updated by other
-                                       * threads, must be set before first queue/wakeup */
+/* unused                 0x00000008 */
 #define TASK_SELF_WAKING  0x00000010  /* task/tasklet found waking itself */
 #define TASK_KILLED       0x00000020  /* task/tasklet killed, may now be freed */
 #define TASK_IN_LIST      0x00000040  /* tasklet is in a tasklet list */
@@ -59,7 +58,7 @@
 /* unused: 0x20000..0x80000000 */
 
 /* These flags are persistent across scheduler calls */
-#define TASK_PERSISTENT   (TASK_SHARED_WQ | TASK_SELF_WAKING | TASK_KILLED | \
+#define TASK_PERSISTENT   (TASK_SELF_WAKING | TASK_KILLED | \
                            TASK_HEAVY | TASK_F_TASKLET | TASK_F_USR1)
 
 struct notification {

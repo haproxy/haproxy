@@ -278,8 +278,8 @@ static inline struct task *task_unlink_wq(struct task *t)
 	unsigned long locked;
 
 	if (likely(task_in_wq(t))) {
-		locked = t->state & TASK_SHARED_WQ;
-		BUG_ON(!locked && t->tid != tid);
+		locked = t->tid < 0;
+		BUG_ON(t->tid >= 0 && t->tid != tid);
 		if (locked)
 			HA_RWLOCK_WRLOCK(TASK_WQ_LOCK, &wq_lock);
 		__task_unlink_wq(t);
@@ -310,7 +310,7 @@ static inline void task_queue(struct task *task)
 		return;
 
 #ifdef USE_THREAD
-	if (task->state & TASK_SHARED_WQ) {
+	if (task->tid < 0) {
 		HA_RWLOCK_WRLOCK(TASK_WQ_LOCK, &wq_lock);
 		if (!task_in_wq(task) || tick_is_lt(task->expire, task->wq.key))
 			__task_queue(task, &timers);
@@ -318,7 +318,7 @@ static inline void task_queue(struct task *task)
 	} else
 #endif
 	{
-		BUG_ON(task->tid != tid); // should have TASK_SHARED_WQ
+		BUG_ON(task->tid != tid);
 		if (!task_in_wq(task) || tick_is_lt(task->expire, task->wq.key))
 			__task_queue(task, &th_ctx->timers);
 	}
@@ -547,8 +547,6 @@ static inline struct task *task_init(struct task *t, int tid)
 	tid = 0;
 #endif
 	t->tid = tid;
-	if (tid < 0)
-		t->state |= TASK_SHARED_WQ;
 	t->nice = 0;
 	t->calls = 0;
 	t->call_date = 0;
@@ -709,7 +707,7 @@ static inline void task_schedule(struct task *task, int when)
 		return;
 
 #ifdef USE_THREAD
-	if (task->state & TASK_SHARED_WQ) {
+	if (task->tid < 0) {
 		/* FIXME: is it really needed to lock the WQ during the check ? */
 		HA_RWLOCK_WRLOCK(TASK_WQ_LOCK, &wq_lock);
 		if (task_in_wq(task))

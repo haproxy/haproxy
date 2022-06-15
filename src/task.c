@@ -302,8 +302,8 @@ void __task_wakeup(struct task *t)
 void __task_queue(struct task *task, struct eb_root *wq)
 {
 #ifdef USE_THREAD
-	BUG_ON((wq == &timers && !(task->state & TASK_SHARED_WQ)) ||
-	       (wq == &th_ctx->timers && (task->state & TASK_SHARED_WQ)) ||
+	BUG_ON((wq == &timers && task->tid >= 0) ||
+	       (wq == &th_ctx->timers && task->tid < 0) ||
 	       (wq != &timers && wq != &th_ctx->timers));
 #endif
 	/* if this happens the process is doomed anyway, so better catch it now
