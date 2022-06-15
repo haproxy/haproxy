@@ -438,8 +438,11 @@ static inline void _tasklet_wakeup_on(struct tasklet *tl, int thr, const char *f
 static inline void _task_instant_wakeup(struct task *t, unsigned int f, const char *file, int line)
 {
 	struct tasklet *tl = (struct tasklet *)t;
-	int thr = my_ffsl(t->thread_mask) - 1;
+	int thr = t->tid;
 	unsigned int state;
+
+	if (thr < 0)
+		thr = tid;
 
 	/* first, let's update the task's state with the wakeup condition */
 	state = _HA_ATOMIC_OR_FETCH(&tl->state, f);

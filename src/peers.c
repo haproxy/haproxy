@@ -1040,7 +1040,7 @@ void __peer_session_deinit(struct peer *peer)
 	if (!peers || !peer->appctx)
 		return;
 
-	thr = my_ffsl(peer->appctx->t->thread_mask) - 1;
+	thr = peer->appctx->t->tid;
 	HA_ATOMIC_DEC(&peers->applet_count[thr]);
 
 	if (peer->appctx->st0 == PEER_SESS_ST_WAITMSG)
