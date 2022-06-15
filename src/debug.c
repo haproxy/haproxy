@@ -868,24 +868,21 @@ static int debug_parse_cli_sched(char **args, char *payload, struct appctx *appc
 	char *endarg;
 	unsigned long long new;
 	unsigned long count = 0;
-	unsigned long thrid = 0;
+	unsigned long thrid = tid;
 	unsigned int inter = 0;
-	unsigned long mask, tmask;
 	unsigned long i;
 	int mode = 0; // 0 = tasklet; 1 = task
-	int single = 0;
 	unsigned long *tctx; // [0] = #tasks, [1] = inter, [2+] = { tl | (tsk+1) }
 
 	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
 		return 1;
 
 	ptr = NULL; size = 0;
-	mask = all_threads_mask;
 
 	if (strcmp(args[3], "task") != 0 && strcmp(args[3], "tasklet") != 0) {
 		return cli_err(appctx,
 			       "Usage: debug dev sched {task|tasklet} { <obj> = <value> }*\n"
-			       "     <obj>   = {count | mask | inter | single }\n"
+			       "     <obj>   = {count | tid | inter }\n"
 			       "     <value> = 64-bit dec/hex integer (0x prefix supported)\n"
 			       );
 	}
@@ -900,14 +897,10 @@ static int debug_parse_cli_sched(char **args, char *payload, struct appctx *appc
 		name = ist2(word, end - word);
 		if (isteq(name, ist("count"))) {
 			ptr = &count; size = sizeof(count);
-		} else if (isteq(name, ist("mask"))) {
-			ptr = &mask; size = sizeof(mask);
 		} else if (isteq(name, ist("tid"))) {
 			ptr = &thrid; size = sizeof(thrid);
 		} else if (isteq(name, ist("inter"))) {
 			ptr = &inter; size = sizeof(inter);
-		} else if (isteq(name, ist("single"))) {
-			ptr = &single; size = sizeof(single);
 		} else
 			return cli_dynerr(appctx, memprintf(&msg, "Unsupported setting: '%s'.\n", word));
 
@@ -938,25 +931,10 @@ static int debug_parse_cli_sched(char **args, char *payload, struct appctx *appc
 	tctx[0] = (unsigned long)count;
 	tctx[1] = (unsigned long)inter;
 
-	mask &= all_threads_mask;
-	if (!mask)
-		mask = tid_bit;
+	if (thrid >= global.nbthread)
+		thrid = tid;
 
-	tmask = 0;
 	for (i = 0; i < count; i++) {
-		if (single || mode == 0) {
-			/* look for next bit matching a bit in mask or loop back to zero */
-			for (tmask <<= 1; !(mask & tmask); ) {
-				if (!(mask & -tmask))
-					tmask = 1;
-				else
-					tmask <<= 1;
-			}
-		} else {
-			/* multi-threaded task */
-			tmask = mask;
-		}
-
 		/* now, if poly or mask was set, tmask corresponds to the
 		 * valid thread mask to use, otherwise it remains zero.
 		 */
@@ -967,13 +945,12 @@ static int debug_parse_cli_sched(char **args, char *payload, struct appctx *appc
 			if (!tl)
 				goto fail;
 
-			if (tmask)
-				tl->tid = my_ffsl(tmask) - 1;
+			tl->tid = thrid;
 			tl->process = debug_tasklet_handler;
 			tl->context = tctx;
 			tctx[i + 2] = (unsigned long)tl;
 		} else {
-			struct task *task = task_new(tmask ? tmask : tid_bit);
+			struct task *task = task_new_on(thrid);
 
 			if (!task)
 				goto fail;
