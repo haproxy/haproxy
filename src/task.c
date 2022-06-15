@@ -126,7 +126,7 @@ void tasklet_kill(struct tasklet *t)
 		 * as soon as possible.
 		 */
 		if (_HA_ATOMIC_CAS(&t->state, &state, state | TASK_IN_LIST | TASK_KILLED)) {
-			thr = t->tid > 0 ? t->tid: tid;
+			thr = t->tid >= 0 ? t->tid : tid;
 			MT_LIST_APPEND(&ha_thread_ctx[thr].shared_tasklet_list,
 			               list_to_mt_list(&t->list));
 			_HA_ATOMIC_INC(&ha_thread_ctx[thr].rq_total);
