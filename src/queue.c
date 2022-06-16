@@ -322,7 +322,7 @@ static int pendconn_process_next_strm(struct server *srv, struct proxy *px, int 
 	 * under us since the task will need to take the lock anyway and to wait
 	 * if it wakes up on a different thread.
 	 */
-	task_instant_wakeup(pp->strm->task, TASK_WOKEN_RES);
+	task_wakeup(pp->strm->task, TASK_WOKEN_RES);
 	HA_SPIN_UNLOCK(QUEUE_LOCK, &pp->del_lock);
 
 	_HA_ATOMIC_DEC(&px->queue.length);
@@ -343,7 +343,7 @@ static int pendconn_process_next_strm(struct server *srv, struct proxy *px, int 
 	 * under us since the task will need to take the lock anyway and to wait
 	 * if it wakes up on a different thread.
 	 */
-	task_instant_wakeup(p->strm->task, TASK_WOKEN_RES);
+	task_wakeup(p->strm->task, TASK_WOKEN_RES);
 	__pendconn_unlink_srv(p);
 
 	_HA_ATOMIC_DEC(&srv->queue.length);
@@ -497,7 +497,7 @@ int pendconn_redistribute(struct server *s)
 		__pendconn_unlink_srv(p);
 		p->strm_flags &= ~(SF_DIRECT | SF_ASSIGNED);
 
-		task_instant_wakeup(p->strm->task, TASK_WOKEN_RES);
+		task_wakeup(p->strm->task, TASK_WOKEN_RES);
 		xferred++;
 	}
 	HA_SPIN_UNLOCK(QUEUE_LOCK, &s->queue.lock);
@@ -541,7 +541,7 @@ int pendconn_grab_from_px(struct server *s)
 		__pendconn_unlink_prx(p);
 		p->target = s;
 
-		task_instant_wakeup(p->strm->task, TASK_WOKEN_RES);
+		task_wakeup(p->strm->task, TASK_WOKEN_RES);
 		xferred++;
 	}
 	HA_SPIN_UNLOCK(QUEUE_LOCK, &s->proxy->queue.lock);
