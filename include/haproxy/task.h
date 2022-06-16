@@ -25,7 +25,6 @@
 
 #include <sys/time.h>
 
-#include <import/eb32sctree.h>
 #include <import/eb32tree.h>
 
 #include <haproxy/activity.h>

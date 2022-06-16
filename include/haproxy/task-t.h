@@ -102,7 +102,7 @@ struct notification {
 /* The base for all tasks */
 struct task {
 	TASK_COMMON;			/* must be at the beginning! */
-	struct eb32sc_node rq;		/* ebtree node used to hold the task in the run queue */
+	struct eb32_node rq;		/* ebtree node used to hold the task in the run queue */
 	/* WARNING: the struct task is often aliased as a struct tasklet when
 	 * it is NOT in the run queue. The tasklet has its struct list here
 	 * where rq starts and this works because both are exclusive. Never

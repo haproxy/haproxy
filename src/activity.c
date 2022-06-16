@@ -845,7 +845,7 @@ static int cli_io_handler_show_tasks(struct appctx *appctx)
 	const struct tasklet *tl;
 	const struct task *t;
 	uint64_t now_ns, lat;
-	struct eb32sc_node *rqnode;
+	struct eb32_node *rqnode;
 	uint64_t tot_calls;
 	int thr, queue;
 	int i, max;
@@ -875,9 +875,9 @@ static int cli_io_handler_show_tasks(struct appctx *appctx)
 #ifdef USE_THREAD
 	for (thr = 0; thr < global.nbthread; thr++) {
 		/* task run queue */
-		rqnode = eb32sc_first(&ha_thread_ctx[thr].rqueue_shared, ~0UL);
+		rqnode = eb32_first(&ha_thread_ctx[thr].rqueue_shared);
 		while (rqnode) {
-			t = eb32sc_entry(rqnode, struct task, rq);
+			t = eb32_entry(rqnode, struct task, rq);
 			entry = sched_activity_entry(tmp_activity, t->process);
 			if (t->call_date) {
 				lat = now_ns - t->call_date;
@@ -885,16 +885,16 @@ static int cli_io_handler_show_tasks(struct appctx *appctx)
 					entry->lat_time += lat;
 			}
 			entry->calls++;
-			rqnode = eb32sc_next(rqnode, ~0UL);
+			rqnode = eb32_next(rqnode);
 		}
 	}
 #endif
 	/* 2. all threads's local run queues */
 	for (thr = 0; thr < global.nbthread; thr++) {
 		/* task run queue */
-		rqnode = eb32sc_first(&ha_thread_ctx[thr].rqueue, ~0UL);
+		rqnode = eb32_first(&ha_thread_ctx[thr].rqueue);
 		while (rqnode) {
-			t = eb32sc_entry(rqnode, struct task, rq);
+			t = eb32_entry(rqnode, struct task, rq);
 			entry = sched_activity_entry(tmp_activity, t->process);
 			if (t->call_date) {
 				lat = now_ns - t->call_date;
@@ -902,7 +902,7 @@ static int cli_io_handler_show_tasks(struct appctx *appctx)
 					entry->lat_time += lat;
 			}
 			entry->calls++;
-			rqnode = eb32sc_next(rqnode, ~0UL);
+			rqnode = eb32_next(rqnode);
 		}
 
 		/* shared tasklet list */
