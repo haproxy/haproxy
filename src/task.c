@@ -42,7 +42,6 @@ __decl_aligned_rwlock(wq_lock);   /* RW lock related to the wait queue */
 
 #ifdef USE_THREAD
 struct eb_root timers;      /* sorted timers tree, global, accessed under wq_lock */
-unsigned int grq_total;     /* total number of entries in the global run queue, atomic */
 #endif
 
 
@@ -233,7 +232,7 @@ void __task_wakeup(struct task *t)
 	if (thr != tid) {
 		root = &ha_thread_ctx[thr].rqueue_shared;
 
-		_HA_ATOMIC_INC(&grq_total);
+		_HA_ATOMIC_INC(&ha_thread_ctx[thr].rq_total);
 		HA_SPIN_LOCK(TASK_RQ_LOCK, &ha_thread_ctx[thr].rqsh_lock);
 
 		if (t->tid < 0)
@@ -897,12 +896,6 @@ void process_runnable_tasks()
 	if (lpicked + gpicked) {
 		tt->tl_class_mask |= 1 << TL_NORMAL;
 		_HA_ATOMIC_ADD(&tt->tasks_in_list, lpicked + gpicked);
-#ifdef USE_THREAD
-		if (gpicked) {
-			_HA_ATOMIC_SUB(&grq_total, gpicked);
-			_HA_ATOMIC_ADD(&tt->rq_total, gpicked);
-		}
-#endif
 		activity[tid].tasksw += lpicked + gpicked;
 	}
 

@@ -90,7 +90,6 @@
 
 /* a few exported variables */
 extern volatile unsigned long global_tasks_mask; /* Mask of threads with tasks in the global runqueue */
-extern unsigned int grq_total;    /* total number of entries in the global run queue, atomic */
 extern unsigned int niced_tasks;  /* number of niced tasks in the run queue */
 
 extern struct pool_head *pool_head_task;
@@ -147,9 +146,6 @@ static inline int total_run_queues()
 {
 	int thr, ret = 0;
 
-#ifdef USE_THREAD
-	ret = _HA_ATOMIC_LOAD(&grq_total);
-#endif
 	for (thr = 0; thr < global.nbthread; thr++)
 		ret += _HA_ATOMIC_LOAD(&ha_thread_ctx[thr].rq_total);
 	return ret;
