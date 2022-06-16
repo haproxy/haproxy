@@ -249,7 +249,7 @@ void __task_wakeup(struct task *t)
 #endif
 	{
 		_HA_ATOMIC_INC(&th_ctx->rq_total);
-		t->rq.key = ++th_ctx->rqueue_ticks;
+		t->rq.key = _HA_ATOMIC_ADD_FETCH(&th_ctx->rqueue_ticks, 1);
 	}
 
 	if (likely(t->nice)) {
@@ -854,7 +854,7 @@ void process_runnable_tasks()
 		 */
 
 		if (!lrq) {
-			lrq = eb32sc_lookup_ge(&tt->rqueue, tt->rqueue_ticks - TIMER_LOOK_BACK, tid_bit);
+			lrq = eb32sc_lookup_ge(&tt->rqueue, _HA_ATOMIC_LOAD(&tt->rqueue_ticks) - TIMER_LOOK_BACK, tid_bit);
 			if (unlikely(!lrq))
 				lrq = eb32sc_first(&tt->rqueue, tid_bit);
 		}

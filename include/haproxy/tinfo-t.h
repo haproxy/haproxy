@@ -79,7 +79,6 @@ struct thread_ctx {
 	struct eb_root timers;              /* tree constituting the per-thread wait queue */
 	struct eb_root rqueue;              /* tree constituting the per-thread run queue */
 	struct task *current;               /* current task (not tasklet) */
-	unsigned int rqueue_ticks;          /* Insertion counter for the run queue */
 	int current_queue;                  /* points to current tasklet list being run, -1 if none */
 	unsigned int nb_tasks;              /* number of tasks allocated on this thread */
 	uint flags;                         /* thread flags, TH_FL_* */
@@ -96,11 +95,13 @@ struct thread_ctx {
 	// third cache line here on 64 bits: accessed mostly using atomic ops
 	ALWAYS_ALIGN(64);
 	struct mt_list shared_tasklet_list; /* Tasklet to be run, woken up by other threads */
+	unsigned int rqueue_ticks;          /* Insertion counter for the run queue */
 	unsigned int rq_total;              /* total size of the run queue, prio_tree + tasklets */
 	int tasks_in_list;                  /* Number of tasks in the per-thread tasklets list */
+	uint idle_pct;                      /* idle to total ratio over last sample (percent) */
+
 	uint64_t prev_cpu_time;             /* previous per thread CPU time */
 	uint64_t prev_mono_time;            /* previous system wide monotonic time  */
-	uint idle_pct;                      /* idle to total ratio over last sample (percent) */
 	ALWAYS_ALIGN(128);
 };
 
