@@ -89,7 +89,6 @@
 
 
 /* a few exported variables */
-extern volatile unsigned long global_tasks_mask; /* Mask of threads with tasks in the global runqueue */
 extern unsigned int niced_tasks;  /* number of niced tasks in the run queue */
 
 extern struct pool_head *pool_head_task;
@@ -182,8 +181,8 @@ static inline int task_in_wq(struct task *t)
 /* returns true if the current thread has some work to do */
 static inline int thread_has_tasks(void)
 {
-	return ((int)!!(global_tasks_mask & tid_bit) |
-		(int)!eb_is_empty(&th_ctx->rqueue) |
+	return ((int)!eb_is_empty(&th_ctx->rqueue) |
+	        (int)!eb_is_empty(&th_ctx->rqueue_shared) |
 	        (int)!!th_ctx->tl_class_mask |
 		(int)!MT_LIST_ISEMPTY(&th_ctx->shared_tasklet_list));
 }

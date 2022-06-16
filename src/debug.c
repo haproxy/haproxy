@@ -168,7 +168,7 @@ void ha_thread_dump(struct buffer *buf, int thr, int calling_tid)
 	              (thr == calling_tid) ? '*' : ' ', stuck ? '>' : ' ', thr + 1,
 		      ha_get_pthread_id(thr),
 		      thread_has_tasks(),
-	              !!(global_tasks_mask & thr_bit),
+	              !eb_is_empty(&ha_thread_ctx[thr].rqueue_shared),
 	              !eb_is_empty(&ha_thread_ctx[thr].timers),
 	              !eb_is_empty(&ha_thread_ctx[thr].rqueue),
 	              !(LIST_ISEMPTY(&ha_thread_ctx[thr].tasklets[TL_URGENT]) &&

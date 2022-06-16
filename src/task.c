@@ -35,7 +35,6 @@ DECLARE_POOL(pool_head_tasklet, "tasklet", sizeof(struct tasklet));
  */
 DECLARE_POOL(pool_head_notification, "notification", sizeof(struct notification));
 
-volatile unsigned long global_tasks_mask = 0; /* Mask of threads with tasks in the global runqueue */
 unsigned int niced_tasks = 0;      /* number of niced tasks in the run queue */
 
 __decl_aligned_rwlock(wq_lock);   /* RW lock related to the wait queue */
@@ -235,10 +234,6 @@ void __task_wakeup(struct task *t)
 		_HA_ATOMIC_INC(&ha_thread_ctx[thr].rq_total);
 		HA_SPIN_LOCK(TASK_RQ_LOCK, &ha_thread_ctx[thr].rqsh_lock);
 
-		if (t->tid < 0)
-			global_tasks_mask = all_threads_mask;
-		else
-			global_tasks_mask |= 1UL << thr;
 		t->rq.key = _HA_ATOMIC_ADD_FETCH(&ha_thread_ctx[thr].rqueue_ticks, 1);
 		__ha_barrier_store();
 	} else
@@ -562,8 +557,7 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 
 			if (unlikely(queue > TL_NORMAL &&
 				     budget_mask & (1 << TL_NORMAL) &&
-				     (!eb_is_empty(&th_ctx->rqueue) ||
-				      (global_tasks_mask & tid_bit)))) {
+				     (!eb_is_empty(&th_ctx->rqueue) || !eb_is_empty(&th_ctx->rqueue_shared)))) {
 				/* a task was woken up by a bulk tasklet or another thread */
 				break;
 			}
@@ -784,7 +778,7 @@ void process_runnable_tasks()
 
 	/* normal tasklets list gets a default weight of ~37% */
 	if ((tt->tl_class_mask & (1 << TL_NORMAL)) ||
-	    !eb_is_empty(&th_ctx->rqueue) || (global_tasks_mask & tid_bit))
+	    !eb_is_empty(&th_ctx->rqueue) || !eb_is_empty(&th_ctx->rqueue_shared))
 		max[TL_NORMAL] = default_weights[TL_NORMAL];
 
 	/* bulk tasklets list gets a default weight of ~13% */
@@ -831,16 +825,14 @@ void process_runnable_tasks()
 	lpicked = gpicked = 0;
 	budget = max[TL_NORMAL] - tt->tasks_in_list;
 	while (lpicked + gpicked < budget) {
-		if ((global_tasks_mask & tid_bit) && !grq) {
+		if (!eb_is_empty(&th_ctx->rqueue_shared) && !grq) {
 #ifdef USE_THREAD
 			HA_SPIN_LOCK(TASK_RQ_LOCK, &th_ctx->rqsh_lock);
 			grq = eb32sc_lookup_ge(&th_ctx->rqueue_shared, _HA_ATOMIC_LOAD(&tt->rqueue_ticks) - TIMER_LOOK_BACK, tid_bit);
 			if (unlikely(!grq)) {
 				grq = eb32sc_first(&th_ctx->rqueue_shared, tid_bit);
-				if (!grq) {
-					global_tasks_mask &= ~tid_bit;
+				if (!grq)
 					HA_SPIN_UNLOCK(TASK_RQ_LOCK, &th_ctx->rqsh_lock);
-				}
 			}
 #endif
 		}
@@ -872,10 +864,8 @@ void process_runnable_tasks()
 
 			if (unlikely(!grq)) {
 				grq = eb32sc_first(&th_ctx->rqueue_shared, tid_bit);
-				if (!grq) {
-					global_tasks_mask &= ~tid_bit;
+				if (!grq)
 					HA_SPIN_UNLOCK(TASK_RQ_LOCK, &th_ctx->rqsh_lock);
-				}
 			}
 			gpicked++;
 		}
