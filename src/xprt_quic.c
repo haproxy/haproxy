@@ -862,7 +862,6 @@ static void quic_tls_rotate_keys(struct quic_conn *qc)
 	qc->ku.nxt_tx.key    = curr_key;
 }
 
-#ifndef OPENSSL_IS_BORINGSSL
 int ha_quic_set_encryption_secrets(SSL *ssl, enum ssl_encryption_level_t level,
                                    const uint8_t *read_secret,
                                    const uint8_t *write_secret, size_t secret_len)
@@ -960,107 +959,6 @@ int ha_quic_set_encryption_secrets(SSL *ssl, enum ssl_encryption_level_t level,
 	TRACE_DEVEL("leaving in error", QUIC_EV_CONN_RWSEC, qc);
 	return 0;
 }
-#else
-/* ->set_read_secret callback to derive the RX secrets at <level> encryption
- * level.
- * Returns 1 if succeeded, 0 if not.
- */
-int ha_set_rsec(SSL *ssl, enum ssl_encryption_level_t level,
-                const SSL_CIPHER *cipher,
-                const uint8_t *secret, size_t secret_len)
-{
-	struct quic_conn *qc = SSL_get_ex_data(ssl, ssl_qc_app_data_index);
-	struct quic_tls_ctx *tls_ctx =
-		&qc->els[ssl_to_quic_enc_level(level)].tls_ctx;
-
-	TRACE_ENTER(QUIC_EV_CONN_RSEC, qc);
-	if (qc->flags & QUIC_FL_CONN_IMMEDIATE_CLOSE) {
-		TRACE_PROTO("CC required", QUIC_EV_CONN_RSEC, qc);
-		goto out;
-	}
-
-	tls_ctx->rx.aead = tls_aead(cipher);
-	tls_ctx->rx.md = tls_md(cipher);
-	tls_ctx->rx.hp = tls_hp(cipher);
-
-	if (!(ctx->rx.key = pool_alloc(pool_head_quic_tls_key)))
-		goto err;
-
-	if (!quic_tls_derive_keys(tls_ctx->rx.aead, tls_ctx->rx.hp, tls_ctx->rx.md,
-	                          tls_ctx->rx.key, tls_ctx->rx.keylen,
-	                          tls_ctx->rx.iv, tls_ctx->rx.ivlen,
-	                          tls_ctx->rx.hp_key, sizeof tls_ctx->rx.hp_key,
-	                          secret, secret_len)) {
-		TRACE_DEVEL("RX key derivation failed", QUIC_EV_CONN_RSEC, qc);
-		goto err;
-	}
-
-	if (!qc_is_listener(qc) && level == ssl_encryption_application) {
-		const unsigned char *buf;
-		size_t buflen;
-
-		SSL_get_peer_quic_transport_params(ssl, &buf, &buflen);
-		if (!buflen)
-			goto err;
-
-		if (!quic_transport_params_store(qc, 1, buf, buf + buflen))
-			goto err;
-	}
-
-	tls_ctx->rx.flags |= QUIC_FL_TLS_SECRETS_SET;
- out:
-	TRACE_LEAVE(QUIC_EV_CONN_RSEC, qc, &level, secret, &secret_len);
-
-	return 1;
-
- err:
-	TRACE_DEVEL("leaving in error", QUIC_EV_CONN_RSEC, qc);
-	return 0;
-}
-
-/* ->set_write_secret callback to derive the TX secrets at <level>
- * encryption level.
- * Returns 1 if succeeded, 0 if not.
- */
-int ha_set_wsec(SSL *ssl, enum ssl_encryption_level_t level,
-                const SSL_CIPHER *cipher,
-                const uint8_t *secret, size_t secret_len)
-{
-	struct quic_conn *qc = SSL_get_ex_data(ssl, ssl_qc_app_data_index);
-	struct quic_tls_ctx *tls_ctx = &qc->els[ssl_to_quic_enc_level(level)].tls_ctx;
-
-	TRACE_ENTER(QUIC_EV_CONN_WSEC, qc);
-	if (qc->flags & QUIC_FL_CONN_IMMEDIATE_CLOSE) {
-		TRACE_PROTO("CC required", QUIC_EV_CONN_WSEC, qc);
-		goto out;
-	}
-
-	if (!(ctx->tx.key = pool_alloc(pool_head_quic_tls_key)))
-		goto err;
-
-	tls_ctx->tx.aead = tls_aead(cipher);
-	tls_ctx->tx.md = tls_md(cipher);
-	tls_ctx->tx.hp = tls_hp(cipher);
-
-	if (!quic_tls_derive_keys(tls_ctx->tx.aead, tls_ctx->tx.hp, tls_ctx->tx.md,
-	                          tls_ctx->tx.key, tls_ctx->tx.keylen,
-	                          tls_ctx->tx.iv, tls_ctx->tx.ivlen,
-	                          tls_ctx->tx.hp_key, sizeof tls_ctx->tx.hp_key,
-	                          secret, secret_len)) {
-		TRACE_DEVEL("TX key derivation failed", QUIC_EV_CONN_WSEC, qc);
-		goto err;
-	}
-
-	tls_ctx->tx.flags |= QUIC_FL_TLS_SECRETS_SET;
-	TRACE_LEAVE(QUIC_EV_CONN_WSEC, qc, &level, secret, &secret_len);
- out:
-	return 1;
-
- err:
-	TRACE_DEVEL("leaving in error", QUIC_EV_CONN_WSEC, qc);
-	return 0;
-}
-#endif
 
 /* This function copies the CRYPTO data provided by the TLS stack found at <data>
  * with <len> as size in CRYPTO buffers dedicated to store the information about
@@ -1259,12 +1157,7 @@ int ha_quic_send_alert(SSL *ssl, enum ssl_encryption_level_t level, uint8_t aler
 
 /* QUIC TLS methods */
 static SSL_QUIC_METHOD ha_quic_method = {
-#ifdef OPENSSL_IS_BORINGSSL
-	.set_read_secret        = ha_set_rsec,
-	.set_write_secret       = ha_set_wsec,
-#else
 	.set_encryption_secrets = ha_quic_set_encryption_secrets,
-#endif
 	.add_handshake_data     = ha_quic_add_handshake_data,
 	.flush_flight           = ha_quic_flush_flight,
 	.send_alert             = ha_quic_send_alert,
@@ -1293,10 +1186,7 @@ int ssl_quic_initial_ctx(struct bind_conf *bind_conf)
 	SSL_CTX_set_max_proto_version(ctx, TLS1_3_VERSION);
 
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
-#ifdef OPENSSL_IS_BORINGSSL
-	SSL_CTX_set_select_certificate_cb(ctx, ssl_sock_switchctx_cbk);
-	SSL_CTX_set_tlsext_servername_callback(ctx, ssl_sock_switchctx_err_cbk);
-#elif (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
 	if (bind_conf->ssl_conf.early_data) {
 		SSL_CTX_set_options(ctx, SSL_OP_NO_ANTI_REPLAY);
 		SSL_CTX_set_max_early_data(ctx, 0xffffffff);

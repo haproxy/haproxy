@@ -123,16 +123,10 @@ static inline const EVP_CIPHER *tls_aead(const SSL_CIPHER *cipher)
 		return EVP_aes_128_gcm();
 	case TLS1_3_CK_AES_256_GCM_SHA384:
 		return EVP_aes_256_gcm();
-#ifndef OPENSSL_IS_BORINGSSL
-	/* XXX TO DO XXX */
-    /* Note that for chacha20_poly1305, there exists EVP_AEAD_chacha20_poly135() function
-     * which returns a pointer to const EVP_AEAD.
-     */
 	case TLS1_3_CK_CHACHA20_POLY1305_SHA256:
 		return EVP_chacha20_poly1305();
 	case TLS1_3_CK_AES_128_CCM_SHA256:
 		return EVP_aes_128_ccm();
-#endif
 	default:
 		return NULL;
 	}
@@ -142,14 +136,8 @@ static inline const EVP_MD *tls_md(const SSL_CIPHER *cipher)
 {
 	switch (SSL_CIPHER_get_id(cipher)) {
 	case TLS1_3_CK_AES_128_GCM_SHA256:
-#ifndef OPENSSL_IS_BORINGSSL
-	/* XXX TO DO XXX */
-    /* Note that for chacha20_poly1305, there exists EVP_AEAD_chacha20_poly135() function
-     * which returns a pointer to const EVP_AEAD.
-     */
 	case TLS1_3_CK_AES_128_CCM_SHA256:
 	case TLS1_3_CK_CHACHA20_POLY1305_SHA256:
-#endif
 		return EVP_sha256();
 	case TLS1_3_CK_AES_256_GCM_SHA384:
 		return EVP_sha384();
@@ -161,15 +149,9 @@ static inline const EVP_MD *tls_md(const SSL_CIPHER *cipher)
 static inline const EVP_CIPHER *tls_hp(const SSL_CIPHER *cipher)
 {
 	switch (SSL_CIPHER_get_id(cipher)) {
-#ifndef OPENSSL_IS_BORINGSSL
-	/* XXX TO DO XXX */
-    /* Note that for chacha20_poly1305, there exists EVP_AEAD_chacha20_poly135() function
-     * which returns a pointer to const EVP_AEAD.
-     */
 	case TLS1_3_CK_CHACHA20_POLY1305_SHA256:
 		return EVP_chacha20();
 	case TLS1_3_CK_AES_128_CCM_SHA256:
-#endif
 	case TLS1_3_CK_AES_128_GCM_SHA256:
 		return EVP_aes_128_ctr();
 	case TLS1_3_CK_AES_256_GCM_SHA384:
@@ -265,14 +247,12 @@ static inline const char *ssl_error_str(int err)
 		return "WANT_CONNECT";
 	case SSL_ERROR_WANT_ACCEPT:
 		return "WANT_ACCEPT";
-#ifndef OPENSSL_IS_BORINGSSL
 	case SSL_ERROR_WANT_ASYNC:
 		return "WANT_ASYNC";
 	case SSL_ERROR_WANT_ASYNC_JOB:
 		return "WANT_ASYNC_JOB";
 	case SSL_ERROR_WANT_CLIENT_HELLO_CB:
 		return "WANT_CLIENT_HELLO_CB";
-#endif
 	default:
 		return "UNKNOWN";
 	}

@@ -2,16 +2,11 @@
 
 #include <openssl/ssl.h>
 
-#if defined(OPENSSL_IS_BORINGSSL)
-#include <openssl/hkdf.h>
-#else
 #include <openssl/evp.h>
 #include <openssl/kdf.h>
-#endif
 
 #include <haproxy/buf.h>
 #include <haproxy/chunk.h>
-//#include <haproxy/quic_tls-t.h>
 #include <haproxy/xprt_quic.h>
 
 
@@ -53,23 +48,6 @@ void quic_tls_secret_hexdump(struct buffer *buf,
 		chunk_appendf(buf, "%02x", secret[i]);
 }
 
-#if defined(OPENSSL_IS_BORINGSSL)
-int quic_hkdf_extract(const EVP_MD *md,
-                      unsigned char *buf, size_t *buflen,
-                      const unsigned char *key, size_t keylen,
-                      const unsigned char *salt, size_t saltlen)
-{
-	return HKDF_extract(buf, buflen, md, key, keylen, salt, saltlen);
-}
-
-int quic_hkdf_expand(const EVP_MD *md,
-                     unsigned char *buf, size_t buflen,
-                     const unsigned char *key, size_t keylen,
-                     const unsigned char *label, size_t labellen)
-{
-	return HKDF_expand(buf, buflen, md, key, keylen, label, labellen);
-}
-#else
 int quic_hkdf_extract(const EVP_MD *md,
                       unsigned char *buf, size_t buflen,
                       const unsigned char *key, size_t keylen,
@@ -160,8 +138,6 @@ int quic_hkdf_extract_and_expand(const EVP_MD *md,
 	EVP_PKEY_CTX_free(ctx);
 	return 0;
 }
-
-#endif
 
 /* https://quicwg.org/base-drafts/draft-ietf-quic-tls.html#protection-keys
  * refers to:
