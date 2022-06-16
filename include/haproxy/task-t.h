@@ -32,7 +32,7 @@
 /* values for task->state (32 bits) */
 #define TASK_SLEEPING     0x00000000  /* task sleeping */
 #define TASK_RUNNING      0x00000001  /* the task is currently running */
-#define TASK_GLOBAL       0x00000002  /* The task is currently in the global runqueue */
+/* unused                 0x00000002 */
 #define TASK_QUEUED       0x00000004  /* The task has been (re-)added to the run queue */
 /* unused                 0x00000008 */
 #define TASK_SELF_WAKING  0x00000010  /* task/tasklet found waking itself */

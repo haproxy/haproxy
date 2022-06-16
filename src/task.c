@@ -267,7 +267,6 @@ void __task_wakeup(struct task *t)
 
 #ifdef USE_THREAD
 	if (thr != tid) {
-		_HA_ATOMIC_OR(&t->state, TASK_GLOBAL);
 		HA_SPIN_UNLOCK(TASK_RQ_LOCK, &rq_lock);
 
 		/* If all threads that are supposed to handle this task are sleeping,
@@ -873,7 +872,6 @@ void process_runnable_tasks()
 		else {
 			t = eb32sc_entry(grq, struct task, rq);
 			grq = eb32sc_next(grq, tid_bit);
-			_HA_ATOMIC_AND(&t->state, ~TASK_GLOBAL);
 			eb32sc_delete(&t->rq);
 
 			if (unlikely(!grq)) {

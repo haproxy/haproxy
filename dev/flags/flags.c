@@ -284,7 +284,6 @@ void show_task_state(unsigned int f)
 	SHOW_FLAG(f, TASK_KILLED);
 	SHOW_FLAG(f, TASK_SELF_WAKING);
 	SHOW_FLAG(f, TASK_QUEUED);
-	SHOW_FLAG(f, TASK_GLOBAL);
 	SHOW_FLAG(f, TASK_RUNNING);
 
 	if (f) {
