@@ -51,6 +51,10 @@ int sc_reset_endp(struct stconn *sc);
 
 struct appctx *sc_applet_create(struct stconn *sc, struct applet *app);
 
+void sc_conn_prepare_endp_upgrade(struct stconn *sc);
+void sc_conn_abort_endp_upgrade(struct stconn *sc);
+void sc_conn_commit_endp_upgrade(struct stconn *sc);
+
 /* The se_fl_*() set of functions manipulate the stream endpoint flags from
  * the stream endpoint itself. The sc_ep_*() set of functions manipulate the
  * stream endpoint flags from the the stream connector (ex. stconn).

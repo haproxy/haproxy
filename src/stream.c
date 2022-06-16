@@ -1485,10 +1485,15 @@ int stream_set_http_mode(struct stream *s, const struct mux_proto_list *mux_prot
 
 		if (conn->mux->flags & MX_FL_NO_UPG)
 			return 0;
+
+		sc_conn_prepare_endp_upgrade(sc);
 		if (conn_upgrade_mux_fe(conn, sc, &s->req.buf,
 					(mux_proto ? mux_proto->token : ist("")),
-					PROTO_MODE_HTTP)  == -1)
+					PROTO_MODE_HTTP)  == -1) {
+			sc_conn_abort_endp_upgrade(sc);
 			return 0;
+		}
+		sc_conn_commit_endp_upgrade(sc);
 
 		s->req.flags &= ~(CF_READ_PARTIAL|CF_AUTO_CONNECT);
 		s->req.total = 0;
