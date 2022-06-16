@@ -350,41 +350,6 @@ static inline void task_set_thread(struct task *t, int thr)
 	}
 }
 
-/*
- * Unlink the task <t> from the run queue if it's in it. The run queue size and
- * number of niced tasks are updated too. A pointer to the task itself is
- * returned. If the task is in the global run queue, the global run queue's
- * lock will be used during the operation.
- */
-static inline struct task *task_unlink_rq(struct task *t)
-{
-	int is_global = t->state & TASK_GLOBAL;
-	int done = 0;
-
-	if (is_global)
-		HA_SPIN_LOCK(TASK_RQ_LOCK, &rq_lock);
-
-	if (likely(task_in_rq(t))) {
-		eb32sc_delete(&t->rq);
-		done = 1;
-	}
-
-	if (is_global)
-		HA_SPIN_UNLOCK(TASK_RQ_LOCK, &rq_lock);
-
-	if (done) {
-		if (is_global) {
-			_HA_ATOMIC_AND(&t->state, ~TASK_GLOBAL);
-			_HA_ATOMIC_DEC(&grq_total);
-		}
-		else
-			_HA_ATOMIC_DEC(&th_ctx->rq_total);
-		if (t->nice)
-			_HA_ATOMIC_DEC(&niced_tasks);
-	}
-	return t;
-}
-
 /* schedules tasklet <tl> to run onto thread <thr> or the current thread if
  * <thr> is negative. Note that it is illegal to wakeup a foreign tasklet if
  * its tid is negative and it is illegal to self-assign a tasklet that was
