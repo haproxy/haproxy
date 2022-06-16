@@ -873,17 +873,20 @@ static int cli_io_handler_show_tasks(struct appctx *appctx)
 	/* 1. global run queue */
 
 #ifdef USE_THREAD
-	rqnode = eb32sc_first(&rqueue, ~0UL);
-	while (rqnode) {
-		t = eb32sc_entry(rqnode, struct task, rq);
-		entry = sched_activity_entry(tmp_activity, t->process);
-		if (t->call_date) {
-			lat = now_ns - t->call_date;
-			if ((int64_t)lat > 0)
-				entry->lat_time += lat;
+	for (thr = 0; thr < global.nbthread; thr++) {
+		/* task run queue */
+		rqnode = eb32sc_first(&ha_thread_ctx[thr].rqueue_shared, ~0UL);
+		while (rqnode) {
+			t = eb32sc_entry(rqnode, struct task, rq);
+			entry = sched_activity_entry(tmp_activity, t->process);
+			if (t->call_date) {
+				lat = now_ns - t->call_date;
+				if ((int64_t)lat > 0)
+					entry->lat_time += lat;
+			}
+			entry->calls++;
+			rqnode = eb32sc_next(rqnode, ~0UL);
 		}
-		entry->calls++;
-		rqnode = eb32sc_next(rqnode, ~0UL);
 	}
 #endif
 	/* 2. all threads's local run queues */

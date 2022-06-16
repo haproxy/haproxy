@@ -43,9 +43,7 @@ __decl_aligned_rwlock(wq_lock);   /* RW lock related to the wait queue */
 
 #ifdef USE_THREAD
 struct eb_root timers;      /* sorted timers tree, global, accessed under wq_lock */
-struct eb_root rqueue;      /* tree constituting the global run queue, accessed under rq_lock */
 unsigned int grq_total;     /* total number of entries in the global run queue, atomic */
-static unsigned int global_rqueue_ticks;  /* insertion count in the grq, use rq_lock */
 #endif
 
 
@@ -234,7 +232,7 @@ void __task_wakeup(struct task *t)
 
 #ifdef USE_THREAD
 	if (thr != tid) {
-		root = &rqueue;
+		root = &ha_thread_ctx[thr].rqueue_shared;
 
 		_HA_ATOMIC_INC(&grq_total);
 		HA_SPIN_LOCK(TASK_RQ_LOCK, &rq_lock);
@@ -243,7 +241,7 @@ void __task_wakeup(struct task *t)
 			global_tasks_mask = all_threads_mask;
 		else
 			global_tasks_mask |= 1UL << thr;
-		t->rq.key = ++global_rqueue_ticks;
+		t->rq.key = _HA_ATOMIC_ADD_FETCH(&ha_thread_ctx[thr].rqueue_ticks, 1);
 		__ha_barrier_store();
 	} else
 #endif
@@ -838,9 +836,9 @@ void process_runnable_tasks()
 		if ((global_tasks_mask & tid_bit) && !grq) {
 #ifdef USE_THREAD
 			HA_SPIN_LOCK(TASK_RQ_LOCK, &rq_lock);
-			grq = eb32sc_lookup_ge(&rqueue, global_rqueue_ticks - TIMER_LOOK_BACK, tid_bit);
+			grq = eb32sc_lookup_ge(&th_ctx->rqueue_shared, _HA_ATOMIC_LOAD(&tt->rqueue_ticks) - TIMER_LOOK_BACK, tid_bit);
 			if (unlikely(!grq)) {
-				grq = eb32sc_first(&rqueue, tid_bit);
+				grq = eb32sc_first(&th_ctx->rqueue_shared, tid_bit);
 				if (!grq) {
 					global_tasks_mask &= ~tid_bit;
 					HA_SPIN_UNLOCK(TASK_RQ_LOCK, &rq_lock);
@@ -875,7 +873,7 @@ void process_runnable_tasks()
 			eb32sc_delete(&t->rq);
 
 			if (unlikely(!grq)) {
-				grq = eb32sc_first(&rqueue, tid_bit);
+				grq = eb32sc_first(&th_ctx->rqueue_shared, tid_bit);
 				if (!grq) {
 					global_tasks_mask &= ~tid_bit;
 					HA_SPIN_UNLOCK(TASK_RQ_LOCK, &rq_lock);
@@ -942,7 +940,7 @@ void mworker_cleantasks()
 
 #ifdef USE_THREAD
 	/* cleanup the global run queue */
-	tmp_rq = eb32sc_first(&rqueue, ~0UL);
+	tmp_rq = eb32sc_first(&th_ctx->rqueue_shared, ~0UL);
 	while (tmp_rq) {
 		t = eb32sc_entry(tmp_rq, struct task, rq);
 		tmp_rq = eb32sc_next(tmp_rq, ~0UL);
@@ -981,7 +979,6 @@ static void init_task()
 
 #ifdef USE_THREAD
 	memset(&timers, 0, sizeof(timers));
-	memset(&rqueue, 0, sizeof(rqueue));
 #endif
 	for (i = 0; i < MAX_THREADS; i++) {
 		for (q = 0; q < TL_CLASSES; q++)

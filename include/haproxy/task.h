@@ -99,7 +99,6 @@ extern struct pool_head *pool_head_notification;
 
 #ifdef USE_THREAD
 extern struct eb_root timers;      /* sorted timers tree, global */
-extern struct eb_root rqueue;      /* tree constituting the run queue */
 #endif
 
 __decl_thread(extern HA_SPINLOCK_T rq_lock);  /* spin lock related to run queue */

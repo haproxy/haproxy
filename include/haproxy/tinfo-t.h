@@ -102,6 +102,9 @@ struct thread_ctx {
 
 	uint64_t prev_cpu_time;             /* previous per thread CPU time */
 	uint64_t prev_mono_time;            /* previous system wide monotonic time  */
+
+	struct eb_root rqueue_shared;       /* run queue fed by other threads */
+
 	ALWAYS_ALIGN(128);
 };
 
