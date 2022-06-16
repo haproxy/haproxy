@@ -38,7 +38,6 @@ DECLARE_POOL(pool_head_notification, "notification", sizeof(struct notification)
 volatile unsigned long global_tasks_mask = 0; /* Mask of threads with tasks in the global runqueue */
 unsigned int niced_tasks = 0;      /* number of niced tasks in the run queue */
 
-__decl_aligned_spinlock(rq_lock); /* spin lock related to run queue */
 __decl_aligned_rwlock(wq_lock);   /* RW lock related to the wait queue */
 
 #ifdef USE_THREAD
@@ -235,7 +234,7 @@ void __task_wakeup(struct task *t)
 		root = &ha_thread_ctx[thr].rqueue_shared;
 
 		_HA_ATOMIC_INC(&grq_total);
-		HA_SPIN_LOCK(TASK_RQ_LOCK, &rq_lock);
+		HA_SPIN_LOCK(TASK_RQ_LOCK, &ha_thread_ctx[thr].rqsh_lock);
 
 		if (t->tid < 0)
 			global_tasks_mask = all_threads_mask;
@@ -265,7 +264,7 @@ void __task_wakeup(struct task *t)
 
 #ifdef USE_THREAD
 	if (thr != tid) {
-		HA_SPIN_UNLOCK(TASK_RQ_LOCK, &rq_lock);
+		HA_SPIN_UNLOCK(TASK_RQ_LOCK, &ha_thread_ctx[thr].rqsh_lock);
 
 		/* If all threads that are supposed to handle this task are sleeping,
 		 * wake one.
@@ -835,13 +834,13 @@ void process_runnable_tasks()
 	while (lpicked + gpicked < budget) {
 		if ((global_tasks_mask & tid_bit) && !grq) {
 #ifdef USE_THREAD
-			HA_SPIN_LOCK(TASK_RQ_LOCK, &rq_lock);
+			HA_SPIN_LOCK(TASK_RQ_LOCK, &th_ctx->rqsh_lock);
 			grq = eb32sc_lookup_ge(&th_ctx->rqueue_shared, _HA_ATOMIC_LOAD(&tt->rqueue_ticks) - TIMER_LOOK_BACK, tid_bit);
 			if (unlikely(!grq)) {
 				grq = eb32sc_first(&th_ctx->rqueue_shared, tid_bit);
 				if (!grq) {
 					global_tasks_mask &= ~tid_bit;
-					HA_SPIN_UNLOCK(TASK_RQ_LOCK, &rq_lock);
+					HA_SPIN_UNLOCK(TASK_RQ_LOCK, &th_ctx->rqsh_lock);
 				}
 			}
 #endif
@@ -876,7 +875,7 @@ void process_runnable_tasks()
 				grq = eb32sc_first(&th_ctx->rqueue_shared, tid_bit);
 				if (!grq) {
 					global_tasks_mask &= ~tid_bit;
-					HA_SPIN_UNLOCK(TASK_RQ_LOCK, &rq_lock);
+					HA_SPIN_UNLOCK(TASK_RQ_LOCK, &th_ctx->rqsh_lock);
 				}
 			}
 			gpicked++;
@@ -891,7 +890,7 @@ void process_runnable_tasks()
 
 	/* release the rqueue lock */
 	if (grq) {
-		HA_SPIN_UNLOCK(TASK_RQ_LOCK, &rq_lock);
+		HA_SPIN_UNLOCK(TASK_RQ_LOCK, &th_ctx->rqsh_lock);
 		grq = NULL;
 	}
 

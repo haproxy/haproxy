@@ -25,6 +25,7 @@
 #include <import/ebtree-t.h>
 
 #include <haproxy/api-t.h>
+#include <haproxy/thread-t.h>
 
 /* tasklet classes */
 enum {
@@ -104,6 +105,7 @@ struct thread_ctx {
 	uint64_t prev_mono_time;            /* previous system wide monotonic time  */
 
 	struct eb_root rqueue_shared;       /* run queue fed by other threads */
+	__decl_thread(HA_SPINLOCK_T rqsh_lock); /* lock protecting the shared runqueue */
 
 	ALWAYS_ALIGN(128);
 };

@@ -101,7 +101,6 @@ extern struct pool_head *pool_head_notification;
 extern struct eb_root timers;      /* sorted timers tree, global */
 #endif
 
-__decl_thread(extern HA_SPINLOCK_T rq_lock);  /* spin lock related to run queue */
 __decl_thread(extern HA_RWLOCK_T wq_lock);    /* RW lock related to the wait queue */
 
 void __tasklet_wakeup_on(struct tasklet *tl, int thr);
