@@ -1498,11 +1498,12 @@ int stream_set_http_mode(struct stream *s, const struct mux_proto_list *mux_prot
 		s->req.flags &= ~(CF_READ_PARTIAL|CF_AUTO_CONNECT);
 		s->req.total = 0;
 		s->flags |= SF_IGNORE;
-		if (strcmp(conn->mux->name, "H2") == 0) {
-			/* For HTTP/2, destroy the stream connector, disable logging,
-			 * and abort the stream process. Thus it will be
-			 * silently destroyed. The new mux will create new
-			 * streams.
+		if (sc_ep_test(sc, SE_FL_DETACHED)) {
+			/* If stream connector is detached, it means it was not
+			 * reused by the new mux. Son destroy it, disable
+			 * logging, and abort the stream process. Thus the
+			 * stream will be silently destroyed. The new mux will
+			 * create new streams.
 			 */
 			s->logs.logwait = 0;
 			s->logs.level = 0;
