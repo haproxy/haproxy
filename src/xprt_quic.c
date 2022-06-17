@@ -1072,7 +1072,10 @@ void quic_set_connection_close(struct quic_conn *qc, int err, int app)
 /* Set <alert> TLS alert as QUIC CRYPTO_ERROR error */
 void quic_set_tls_alert(struct quic_conn *qc, int alert)
 {
-	HA_ATOMIC_DEC(&qc->prx_counters->half_open_conn);
+	if (!(qc->flags & QUIC_FL_CONN_HALF_OPEN_CNT_DECREMENTED)) {
+		qc->flags |= QUIC_FL_CONN_HALF_OPEN_CNT_DECREMENTED;
+		HA_ATOMIC_DEC(&qc->prx_counters->half_open_conn);
+	}
 	quic_set_connection_close(qc, QC_ERR_CRYPTO_ERROR | alert, 0);
 	qc->flags |= QUIC_FL_CONN_TLS_ALERT;
 	TRACE_PROTO("Alert set", QUIC_EV_CONN_SSLDATA, qc);
@@ -2052,8 +2055,12 @@ static inline int qc_provide_cdata(struct quic_enc_level *el,
 				goto out;
 			}
 
-			HA_ATOMIC_INC(&qc->prx_counters->hdshk_fail);
-			HA_ATOMIC_DEC(&qc->prx_counters->half_open_conn);
+			/* TODO: Should close the connection asap */
+			if (!(qc->flags & QUIC_FL_CONN_HALF_OPEN_CNT_DECREMENTED)) {
+				qc->flags |= QUIC_FL_CONN_HALF_OPEN_CNT_DECREMENTED;
+				HA_ATOMIC_DEC(&qc->prx_counters->half_open_conn);
+				HA_ATOMIC_INC(&qc->prx_counters->hdshk_fail);
+			}
 			TRACE_DEVEL("SSL handshake error",
 			            QUIC_EV_CONN_IO_CB, qc, &state, &ssl_err);
 			qc_ssl_dump_errors(ctx->conn);
@@ -2070,7 +2077,10 @@ static inline int qc_provide_cdata(struct quic_enc_level *el,
 			goto err;
 		}
 
-		HA_ATOMIC_DEC(&qc->prx_counters->half_open_conn);
+		if (!(qc->flags & QUIC_FL_CONN_HALF_OPEN_CNT_DECREMENTED)) {
+			qc->flags |= QUIC_FL_CONN_HALF_OPEN_CNT_DECREMENTED;
+			HA_ATOMIC_DEC(&qc->prx_counters->half_open_conn);
+		}
 		/* I/O callback switch */
 		ctx->wait_event.tasklet->process = quic_conn_app_io_cb;
 		if (qc_is_listener(ctx->qc)) {
@@ -2541,13 +2551,10 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct ssl_sock_ctx *ct
 			/* Increment the error counters */
 			qc_cc_err_count_inc(qc, &frm);
 			if (!(qc->flags & QUIC_FL_CONN_DRAINING)) {
-				/* If the connection did not reached the handshake complete state,
-				 * the <half_open_conn> counter was not decremented. Note that if
-				 * a TLS alert was received from the TLS stack, this counter
-				 * has already been decremented.
-				 */
-				if (qc->state < QUIC_HS_ST_COMPLETE && !(qc->flags & QUIC_FL_CONN_TLS_ALERT))
+				if (!(qc->flags & QUIC_FL_CONN_HALF_OPEN_CNT_DECREMENTED)) {
+					qc->flags |= QUIC_FL_CONN_HALF_OPEN_CNT_DECREMENTED;
 					HA_ATOMIC_DEC(&qc->prx_counters->half_open_conn);
+				}
 				TRACE_PROTO("Entering draining state", QUIC_EV_CONN_PRSHPKT, qc);
 				/* RFC 9000 10.2. Immediate Close:
 				 * The closing and draining connection states exist to ensure
@@ -4427,7 +4434,6 @@ static struct task *qc_idle_timer_task(struct task *t, void *ctx, unsigned int s
 {
 	struct quic_conn *qc = ctx;
 	struct quic_counters *prx_counters = qc->prx_counters;
-	int qc_state = qc->state;
 	unsigned int qc_flags = qc->flags;
 
 	/* Notify the MUX before settings QUIC_FL_CONN_EXP_TIMER or the MUX
@@ -4446,13 +4452,10 @@ static struct task *qc_idle_timer_task(struct task *t, void *ctx, unsigned int s
 	 * least clean some parts of it such as the tasklet.
 	 */
 
-	/* If the connection did not reached the handshake complete state,
-	 * the <half_open_conn> counter was not decremented. Note that if
-	 * a TLS alert was received from the TLS stack, this counter
-	 * has already been decremented.
-	 */
-	if (qc_state < QUIC_HS_ST_COMPLETE && !(qc_flags & QUIC_FL_CONN_TLS_ALERT))
+	if (!(qc_flags & QUIC_FL_CONN_HALF_OPEN_CNT_DECREMENTED)) {
+		qc_flags |= QUIC_FL_CONN_HALF_OPEN_CNT_DECREMENTED;
 		HA_ATOMIC_DEC(&prx_counters->half_open_conn);
+	}
 
 	return NULL;
 }
