@@ -341,9 +341,6 @@ static void sc_detach_endp(struct stconn **scp)
 	if (!sc)
 		return;
 
-	if (!sc->sedesc)
-		goto reset_cs;
-
 	if (sc_ep_test(sc, SE_FL_T_MUX)) {
 		struct connection *conn = __sc_conn(sc);
 		struct sedesc *sedesc = sc->sedesc;
@@ -385,7 +382,6 @@ static void sc_detach_endp(struct stconn **scp)
 		sc_ep_set(sc, SE_FL_DETACHED);
 	}
 
-  reset_cs:
 	/* FIXME: Rest SC for now but must be reviewed. SC flags are only
 	 *        connection related for now but this will evolved
 	 */
