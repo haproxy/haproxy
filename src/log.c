@@ -3074,8 +3074,7 @@ void strm_log(struct stream *s)
 	/* if we don't want to log normal traffic, return now */
 	err = (s->flags & SF_REDISP) ||
               ((s->flags & SF_ERR_MASK) > SF_ERR_LOCAL) ||
-	      (((s->flags & SF_ERR_MASK) == SF_ERR_NONE) &&
-	       (s->conn_retries != s->be->conn_retries)) ||
+	      (((s->flags & SF_ERR_MASK) == SF_ERR_NONE) && s->conn_retries) ||
 	      ((sess->fe->mode == PR_MODE_HTTP) && s->txn && s->txn->status >= 500);
 
 	if (!err && (sess->fe->options2 & PR_O2_NOLOGNORM))
