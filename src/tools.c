@@ -5802,6 +5802,36 @@ int openssl_compare_current_name(const char *name)
 	return 1;
 }
 
+#if defined(RTLD_DEFAULT) || defined(RTLD_NEXT)
+/* redefine dlopen() so that we can detect unexpected replacement of some
+ * critical symbols, typically init/alloc/free functions coming from alternate
+ * libraries. When called, a tainted flag is set (TAINTED_SHARED_LIBS).
+ */
+void *dlopen(const char *filename, int flags)
+{
+	static void *(*_dlopen)(const char *filename, int flags);
+	void *ret;
+
+	if (!_dlopen) {
+		_dlopen = get_sym_next_addr("dlopen");
+		if (!_dlopen || _dlopen == dlopen) {
+			_dlopen = NULL;
+			return NULL;
+		}
+	}
+
+
+	/* now open the requested lib */
+	ret = _dlopen(filename, flags);
+	if (!ret)
+		return ret;
+
+	mark_tainted(TAINTED_SHARED_LIBS);
+
+	return ret;
+}
+#endif
+
 static int init_tools_per_thread()
 {
 	/* Let's make each thread start from a different position */
