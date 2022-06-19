@@ -1124,6 +1124,31 @@ static inline void hlua_sethlua(struct hlua *hlua)
 	*hlua_store = hlua;
 }
 
+/* Will return a non-NULL string indicating the Lua call trace if the caller
+ * currently is executing from within a Lua function. One line per entry will
+ * be emitted, and each extra line will be prefixed with <pfx>. If a current
+ * Lua function is not detected, NULL is returned.
+ */
+const char *hlua_show_current_location(const char *pfx)
+{
+	lua_State *L;
+	lua_Debug ar;
+
+	/* global or per-thread stack initializing ? */
+	if (hlua_state_id != -1 && (L = hlua_states[hlua_state_id]) && lua_getstack(L, 0, &ar))
+		return hlua_traceback(L, pfx);
+
+	/* per-thread stack running ? */
+	if (hlua_states[tid + 1] && (L = hlua_states[tid + 1]) && lua_getstack(L, 0, &ar))
+		return hlua_traceback(L, pfx);
+
+	/* global stack running ? */
+	if (hlua_states[0] && (L = hlua_states[0]) && lua_getstack(L, 0, &ar))
+		return hlua_traceback(L, pfx);
+
+	return NULL;
+}
+
 /* This function is used to send logs. It try to send on screen (stderr)
  * and on the default syslog server.
  */

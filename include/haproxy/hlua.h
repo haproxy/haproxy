@@ -54,6 +54,7 @@ int hlua_post_init();
 void hlua_applet_tcp_fct(struct appctx *ctx);
 void hlua_applet_http_fct(struct appctx *ctx);
 struct task *hlua_process_task(struct task *task, void *context, unsigned int state);
+const char *hlua_show_current_location(const char *pfx);
 
 #else /* USE_LUA */
 
@@ -67,6 +68,7 @@ struct task *hlua_process_task(struct task *task, void *context, unsigned int st
 static inline void hlua_init() { }
 static inline int hlua_post_init() { return 1; }
 static inline void hlua_ctx_destroy(struct hlua *lua) { }
+static inline const char *hlua_show_current_location(const char *pfx) { return NULL; }
 
 #endif /* USE_LUA */
 
