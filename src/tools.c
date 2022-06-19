@@ -5810,7 +5810,21 @@ int openssl_compare_current_name(const char *name)
 void *dlopen(const char *filename, int flags)
 {
 	static void *(*_dlopen)(const char *filename, int flags);
+	struct {
+		const char *name;
+		void *curr, *next;
+	} check_syms[] = {
+		{ .name = "malloc", },
+		{ .name = "free", },
+		{ .name = "SSL_library_init", },
+		{ .name = "X509_free", },
+		/* insert only above, 0 must be the last one */
+		{ 0 },
+	};
+	const char *trace;
+	void *addr;
 	void *ret;
+	int sym = 0;
 
 	if (!_dlopen) {
 		_dlopen = get_sym_next_addr("dlopen");
@@ -5820,6 +5834,16 @@ void *dlopen(const char *filename, int flags)
 		}
 	}
 
+	/* save a few pointers to critical symbols. We keep a copy of both the
+	 * current and the next value, because we might already have replaced
+	 * some of them (e.g. malloc/free with DEBUG_MEM_STATS), and we're only
+	 * interested in verifying that a loaded library doesn't come with a
+	 * completely different definition that would be incompatible.
+	 */
+	for (sym = 0; check_syms[sym].name; sym++) {
+		check_syms[sym].curr = get_sym_curr_addr(check_syms[sym].name);
+		check_syms[sym].next = get_sym_next_addr(check_syms[sym].name);
+	}
 
 	/* now open the requested lib */
 	ret = _dlopen(filename, flags);
@@ -5827,6 +5851,25 @@ void *dlopen(const char *filename, int flags)
 		return ret;
 
 	mark_tainted(TAINTED_SHARED_LIBS);
+
+	/* and check that critical symbols didn't change */
+	for (sym = 0; check_syms[sym].name; sym++) {
+		if (!check_syms[sym].curr && !check_syms[sym].next)
+			continue;
+
+		addr = dlsym(ret, check_syms[sym].name);
+		if (!addr || addr == check_syms[sym].curr || addr == check_syms[sym].next)
+			continue;
+
+		/* OK it's clear that this symbol was redefined */
+		mark_tainted(TAINTED_REDEFINITION);
+
+		trace = hlua_show_current_location("\n    ");
+		ha_warning("dlopen(): shared library '%s' brings a different definition of symbol '%s'. The process cannot be trusted anymore!%s%s\n",
+		           filename, check_syms[sym].name,
+		           trace ? " Suspected call location: \n    " : "",
+		           trace ? trace : "");
+	}
 
 	return ret;
 }

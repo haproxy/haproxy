@@ -201,6 +201,7 @@ enum tainted_flags {
 	TAINTED_WARN                   = 0x00000010, /* a WARN_ON triggered */
 	TAINTED_BUG                    = 0x00000020, /* a BUG_ON triggered */
 	TAINTED_SHARED_LIBS            = 0x00000040, /* a shared library was loaded */
+	TAINTED_REDEFINITION           = 0x00000080, /* symbol redefinition detected */
 };
 
 /* this is a bit field made of TAINTED_*, and is declared in haproxy.c */
