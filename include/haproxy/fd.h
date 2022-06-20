@@ -375,10 +375,8 @@ static inline void wake_thread(int thr)
 {
 	struct thread_ctx *ctx = &ha_thread_ctx[thr];
 
-	if (sleeping_thread_mask & (1UL << thr) &&
-	    (_HA_ATOMIC_LOAD(&ctx->flags) & TH_FL_NOTIFIED) == 0) {
+	if ((_HA_ATOMIC_FETCH_OR(&ctx->flags, TH_FL_NOTIFIED) & (TH_FL_SLEEPING|TH_FL_NOTIFIED)) == TH_FL_SLEEPING) {
 		char c = 'c';
-		_HA_ATOMIC_OR(&ctx->flags, TH_FL_NOTIFIED);
 		DISGUISE(write(poller_wr_pipe[thr], &c, 1));
 	}
 }

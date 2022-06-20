@@ -43,7 +43,6 @@ extern int killed;	/* >0 means a hard-stop is triggered, >1 means hard-stop imme
 extern char hostname[MAX_HOSTNAME_LEN];
 extern char *localpeer;
 extern unsigned int warned;     /* bitfield of a few warnings to emit just once */
-extern volatile unsigned long sleeping_thread_mask;
 extern struct list proc_list; /* list of process in mworker mode */
 extern int master; /* 1 if in master, 0 otherwise */
 extern unsigned int rlim_fd_cur_at_boot;

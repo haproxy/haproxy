@@ -1365,7 +1365,8 @@ void debug_handler(int sig, siginfo_t *si, void *arg)
 	/* mark the current thread as stuck to detect it upon next invocation
 	 * if it didn't move.
 	 */
-	if (!((threads_harmless_mask|sleeping_thread_mask) & tid_bit))
+	if (!(threads_harmless_mask & tid_bit) &&
+	    !(_HA_ATOMIC_LOAD(&th_ctx->flags) & TH_FL_SLEEPING))
 		_HA_ATOMIC_OR(&th_ctx->flags, TH_FL_STUCK);
 }
 

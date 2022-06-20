@@ -770,8 +770,7 @@ void fd_leaving_poll(int wait_time, int status)
 	thread_harmless_end();
 	thread_idle_end();
 
-	if (sleeping_thread_mask & tid_bit)
-		_HA_ATOMIC_AND(&sleeping_thread_mask, ~tid_bit);
+	_HA_ATOMIC_AND(&th_ctx->flags, ~TH_FL_SLEEPING);
 }
 
 /* disable the specified poller */

@@ -43,6 +43,7 @@ enum {
 #define TH_FL_STUCK             0x00000001
 #define TH_FL_TASK_PROFILING    0x00000002
 #define TH_FL_NOTIFIED          0x00000004  /* task was notified about the need to wake up */
+#define TH_FL_SLEEPING          0x00000008  /* thread won't check its task list before next wakeup */
 
 
 /* Thread group information. This defines a base and a count of global thread

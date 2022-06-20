@@ -165,7 +165,6 @@ const char *build_features = "";
 static struct list cfg_cfgfiles = LIST_HEAD_INIT(cfg_cfgfiles);
 int  pid;			/* current process id */
 
-volatile unsigned long sleeping_thread_mask = 0; /* Threads that are about to sleep in poll() */
 volatile unsigned long stopping_thread_mask = 0; /* Threads acknowledged stopping */
 
 /* global options */
@@ -2804,12 +2803,12 @@ void run_poll_loop()
 		if (thread_has_tasks())
 			activity[tid].wake_tasks++;
 		else {
-			_HA_ATOMIC_OR(&sleeping_thread_mask, tid_bit);
+			_HA_ATOMIC_OR(&th_ctx->flags, TH_FL_SLEEPING);
 			_HA_ATOMIC_AND(&th_ctx->flags, ~TH_FL_NOTIFIED);
 			__ha_barrier_atomic_store();
 			if (thread_has_tasks()) {
 				activity[tid].wake_tasks++;
-				_HA_ATOMIC_AND(&sleeping_thread_mask, ~tid_bit);
+				_HA_ATOMIC_AND(&th_ctx->flags, ~TH_FL_SLEEPING);
 			} else
 				wake = 0;
 		}
