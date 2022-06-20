@@ -50,6 +50,7 @@ haproxy h1 -conf {
         bind "${tmpdir}/ssl.sock" ssl strict-sni crt-list ${testdir}/localhost.crt-list
 
         server s1 ${s1_addr}:${s1_port}
+        server s2 ${s1_addr}:${s1_port} ssl crt "${testdir}/common.pem" weight 0 verify none
 } -start
 
 
@@ -68,6 +69,7 @@ shell {
     echo "new ssl cert ${testdir}/ecdsa.pem" | socat "${tmpdir}/h1/stats" -
     printf "set ssl cert ${testdir}/ecdsa.pem <<\n$(cat ${testdir}/ecdsa.pem)\n\n" | socat "${tmpdir}/h1/stats" -
     echo "commit ssl cert ${testdir}/ecdsa.pem" | socat "${tmpdir}/h1/stats" -
+    printf "add ssl crt-list ${testdir}/localhost.crt-list/ <<\n${testdir}/common.pem [ssl-min-ver SSLv3 verify none allow-0rtt] !*\n\n" | socat "${tmpdir}/h1/stats" -
     printf "add ssl crt-list ${testdir}/localhost.crt-list/ <<\n${testdir}/ecdsa.pem [ssl-min-ver SSLv3 verify none allow-0rtt] localhost !www.test1.com\n\n" | socat "${tmpdir}/h1/stats" -
     printf "add ssl crt-list ${testdir}/localhost.crt-list <<\n${testdir}/ecdsa.pem [verify none allow-0rtt]\n\n" | socat "${tmpdir}/h1/stats" -
     printf "add ssl crt-list ${testdir}/localhost.crt-list/// <<\n${testdir}/ecdsa.pem localhost !www.test1.com\n\n" | socat "${tmpdir}/h1/stats" -

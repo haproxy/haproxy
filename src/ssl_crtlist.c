@@ -1138,8 +1138,15 @@ static int cli_io_handler_add_crtlist(struct appctx *appctx)
 		ctx->state = ADDCRT_ST_INSERT;
 		/* fallthrough */
 	case ADDCRT_ST_INSERT:
-		/* insert SNIs in bind_conf */
+		/* the insertion is called for every instance of the store, not
+		 * only the one we generated.
+		 * But the ssl_sock_load_cert_sni() skip the sni already
+		 * inserted. Not every instance has a bind_conf, it could be
+		 * the store of a server so we should be careful */
+
 		list_for_each_entry(new_inst, &store->ckch_inst, by_ckchs) {
+			if (!new_inst->bind_conf) /* this is a server instance */
+				continue;
 			HA_RWLOCK_WRLOCK(SNI_LOCK, &new_inst->bind_conf->sni_lock);
 			ssl_sock_load_cert_sni(new_inst, new_inst->bind_conf);
 			HA_RWLOCK_WRUNLOCK(SNI_LOCK, &new_inst->bind_conf->sni_lock);
