@@ -2681,11 +2681,12 @@ static inline void qc_set_dg(struct cbuf *cbuf,
  * with <frms> as ack-eliciting frame list to send, 0 if not.
  * <cc> must equal to 1 if an immediate close was asked, 0 if not.
  * <probe> must equalt to 1 if a probing packet is required, 0 if not.
+ * <force_ack> may be set to 1 if you want to force an ack.
  */
 static int qc_may_build_pkt(struct quic_conn *qc, struct list *frms,
-                            struct quic_enc_level *qel, int cc, int probe)
+                            struct quic_enc_level *qel, int cc, int probe, int force_ack)
 {
-	unsigned int must_ack =
+	unsigned int must_ack = force_ack ||
 		qel->pktns->rx.nb_aepkts_since_last_ack >= QUIC_MAX_RX_AEPKTS_SINCE_LAST_ACK;
 
 	/* Do not build any more packet if the TX secrets are not available or
@@ -2747,7 +2748,7 @@ static int qc_prep_app_pkts(struct quic_conn *qc, struct qring *qr,
 		if (!cc)
 			probe = qel->pktns->tx.pto_probe;
 
-		if (!qc_may_build_pkt(qc, frms, qel, cc, probe))
+		if (!qc_may_build_pkt(qc, frms, qel, cc, probe, 0))
 			break;
 
 		/* Leave room for the datagram header */
@@ -2849,6 +2850,9 @@ static int qc_prep_pkts(struct quic_conn *qc, struct qring *qr,
 		enum quic_pkt_type pkt_type;
 		struct quic_tls_ctx *tls_ctx;
 		const struct quic_version *ver;
+		int force_ack = (qel->pktns->flags & QUIC_FL_PKTNS_ACK_REQUIRED) &&
+			(qel == &qc->els[QUIC_TLS_ENC_LEVEL_INITIAL] ||
+			 qel == &qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE]);
 
 		TRACE_POINT(QUIC_EV_CONN_PHPKTS, qc, qel);
 		probe = 0;
@@ -2857,7 +2861,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct qring *qr,
 		if (!cc)
 			probe = qel->pktns->tx.pto_probe;
 
-		if (!qc_may_build_pkt(qc, frms, qel, cc, probe)) {
+		if (!qc_may_build_pkt(qc, frms, qel, cc, probe, force_ack)) {
 			if (prv_pkt)
 				qc_set_dg(cbuf, dglen, first_pkt);
 			/* Let's select the next encryption level */
