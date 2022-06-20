@@ -68,7 +68,7 @@ static struct name_desc quic_stats[] = {
 	                                        .desc = "Total number of received STREAMS_BLOCKED frames" },
 	[QUIC_ST_STREAMS_DATA_BLOCKED_BIDI] = { .name = "quic_streams_data_blocked_bidi",
 	                                        .desc = "Total number of received STREAM_DATA_BLOCKED_BIDI frames" },
-	[QUIC_ST_STREAMS_DATA_BLOCKED_UNI]  = { .name = "quic_streams_data_blocked_bidi",
+	[QUIC_ST_STREAMS_DATA_BLOCKED_UNI]  = { .name = "quic_streams_data_blocked_uni",
 	                                        .desc = "Total number of received STREAM_DATA_BLOCKED_UNI frames" },
 };
 
