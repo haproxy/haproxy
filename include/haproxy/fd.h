@@ -369,11 +369,13 @@ static inline unsigned int hap_fd_isset(int fd, unsigned int *evts)
 	return evts[fd / (8*sizeof(*evts))] & (1U << (fd & (8*sizeof(*evts) - 1)));
 }
 
-static inline void wake_thread(int tid)
+static inline void wake_thread(int thr)
 {
-	char c = 'c';
-
-	DISGUISE(write(poller_wr_pipe[tid], &c, 1));
+	if (sleeping_thread_mask & (1UL << thr)) {
+		char c = 'c';
+		_HA_ATOMIC_AND(&sleeping_thread_mask, ~(1UL << thr));
+		DISGUISE(write(poller_wr_pipe[thr], &c, 1));
+	}
 }
 
 

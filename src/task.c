@@ -86,10 +86,7 @@ void task_kill(struct task *t)
 			               list_to_mt_list(&((struct tasklet *)t)->list));
 			_HA_ATOMIC_INC(&ha_thread_ctx[thr].rq_total);
 			_HA_ATOMIC_INC(&ha_thread_ctx[thr].tasks_in_list);
-			if (sleeping_thread_mask & (1UL << thr)) {
-				_HA_ATOMIC_AND(&sleeping_thread_mask, ~(1UL << thr));
-				wake_thread(thr);
-			}
+			wake_thread(thr);
 			return;
 		}
 	}
@@ -124,10 +121,7 @@ void tasklet_kill(struct tasklet *t)
 			MT_LIST_APPEND(&ha_thread_ctx[thr].shared_tasklet_list,
 			               list_to_mt_list(&t->list));
 			_HA_ATOMIC_INC(&ha_thread_ctx[thr].rq_total);
-			if (sleeping_thread_mask & (1UL << thr)) {
-				_HA_ATOMIC_AND(&sleeping_thread_mask, ~(1UL << thr));
-				wake_thread(thr);
-			}
+			wake_thread(thr);
 			return;
 		}
 	}
@@ -168,10 +162,7 @@ void __tasklet_wakeup_on(struct tasklet *tl, int thr)
 		/* this tasklet runs on a specific thread. */
 		MT_LIST_APPEND(&ha_thread_ctx[thr].shared_tasklet_list, list_to_mt_list(&tl->list));
 		_HA_ATOMIC_INC(&ha_thread_ctx[thr].rq_total);
-		if (sleeping_thread_mask & (1UL << thr)) {
-			_HA_ATOMIC_AND(&sleeping_thread_mask, ~(1UL << thr));
-			wake_thread(thr);
-		}
+		wake_thread(thr);
 	}
 }
 
@@ -262,12 +253,7 @@ void __task_wakeup(struct task *t)
 		/* If all threads that are supposed to handle this task are sleeping,
 		 * wake one.
 		 */
-		if (sleeping_thread_mask & (1UL << thr)) {
-			unsigned long m = 1UL << thr;
-
-			_HA_ATOMIC_AND(&sleeping_thread_mask, ~m);
-			wake_thread(thr);
-		}
+		wake_thread(thr);
 	}
 #endif
 	return;

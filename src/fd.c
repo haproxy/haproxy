@@ -454,7 +454,6 @@ void updt_fd_polling(const int fd)
 			/* we need to wake up one thread to handle it immediately */
 			int thr = my_ffsl(fdtab[fd].thread_mask & ~tid_bit & all_threads_mask) - 1;
 
-			_HA_ATOMIC_AND(&sleeping_thread_mask, ~(1UL << thr));
 			wake_thread(thr);
 		}
 	}
