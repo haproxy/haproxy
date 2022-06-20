@@ -43,9 +43,35 @@ static inline void quic_tp_cid_dump(struct buffer *buf,
 	chunk_appendf(buf, ")");
 }
 
+static inline void quic_tp_version_info_dump(struct buffer *b,
+                                             const struct tp_version_information *tp, int local)
+{
+	if (!tp->choosen)
+		return;
+
+	chunk_appendf(b, "\n\tversion_information:(choosen=0x%08x", tp->choosen);
+	if (tp->nb_others) {
+		int i = 0;
+		const uint32_t *ver;
+		chunk_appendf(b, ",others=");
+		for (ver = tp->others; i < tp->nb_others; i++, ver++) {
+			if (i != 0)
+				chunk_appendf(b, ",");
+			if (local)
+				chunk_appendf(b, "0x%08x", *ver);
+			else
+				chunk_appendf(b, "0x%08x", ntohl(*ver));
+		}
+		chunk_appendf(b, ")\n");
+	}
+}
+
 static inline void quic_transport_params_dump(struct buffer *b,
+                                              const struct quic_conn *qc,
                                               const struct quic_transport_params *p)
 {
+	int local = p == &qc->rx.params;
+
 	chunk_appendf(b, "\n\toriginal_destination_connection_id:");
 	quic_tp_cid_dump(b, &p->original_destination_connection_id);
 	chunk_appendf(b, "\n\tinitial_source_connection_id:");
@@ -70,6 +96,7 @@ static inline void quic_transport_params_dump(struct buffer *b,
 	chunk_appendf(b, "\n\tdisable_active_migration? %s", p->disable_active_migration ? "yes" : "no");
 	chunk_appendf(b, "\n\twith_stateless_reset_token? %s", p->with_stateless_reset_token ? "yes" : "no");
 	chunk_appendf(b, "\n\twith_preferred_address? %s", p->with_preferred_address ? "yes" : "no");
+	quic_tp_version_info_dump(b, &p->version_information, local);
 }
 
 #endif /* USE_QUIC */

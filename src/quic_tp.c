@@ -191,6 +191,7 @@ static int quic_transport_param_dec_version_info(struct tp_version_information *
 		/* TODO: not supported */
 		return 0;
 
+	tp->nb_others = (end - (const unsigned char *)tp->others) / sizeof *tp->others;
 	for (ver = tp->others; ver < (const uint32_t *)end; ver++) {
 		if (!tp->negotiated_version) {
 			int i;

@@ -264,7 +264,7 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 
 		if (mask & QUIC_EV_TRANSP_PARAMS) {
 			const struct quic_transport_params *p = a2;
-			quic_transport_params_dump(&trace_buf, p);
+			quic_transport_params_dump(&trace_buf, qc, p);
 		}
 
 		if (mask & QUIC_EV_CONN_ADDDATA) {
