@@ -4049,6 +4049,7 @@ static void quic_conn_release(struct quic_conn *qc)
 	struct ssl_sock_ctx *conn_ctx;
 	struct eb64_node *node;
 	struct quic_tls_ctx *app_tls_ctx;
+	struct quic_rx_packet *pkt, *pktback;
 
 	/* We must not free the quic-conn if the MUX is still allocated. */
 	BUG_ON(qc->mux_state == QC_MUX_READY);
@@ -4066,6 +4067,12 @@ static void quic_conn_release(struct quic_conn *qc)
 		 */
 		BUG_ON(!stream->release);
 		qc_stream_desc_free(stream);
+	}
+
+	/* Purge Rx packet list. */
+	list_for_each_entry_safe(pkt, pktback, &qc->rx.pkt_list, qc_rx_pkt_list) {
+		LIST_DELETE(&pkt->qc_rx_pkt_list);
+		pool_free(pool_head_quic_rx_packet, pkt);
 	}
 
 	if (qc->idle_timer_task) {
