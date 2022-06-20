@@ -6488,12 +6488,19 @@ struct task *quic_lstnr_dghdlr(struct task *t, void *ctx, unsigned int state)
 			if (!pkt)
 				goto err;
 
+			LIST_INIT(&pkt->qc_rx_pkt_list);
 			pkt->time_received = now_ms;
 			quic_rx_packet_refinc(pkt);
 			qc_lstnr_pkt_rcv(pos, end, pkt, first_pkt, dgram);
 			first_pkt = 0;
 			pos += pkt->len;
 			quic_rx_packet_refdec(pkt);
+
+			/* Free rejected packets */
+			if (!pkt->refcnt) {
+				BUG_ON(LIST_INLIST(&pkt->qc_rx_pkt_list));
+				pool_free(pool_head_quic_rx_packet, pkt);
+			}
 		} while (pos < end);
 
 		/* Increasing the received bytes counter by the UDP datagram length
