@@ -69,6 +69,8 @@ haproxy h1 -conf {
     listen ssl-lst
         bind "${tmpdir}/ssl.sock" ssl crt ${testdir}/common.pem strict-sni
         server s1 ${s1_addr}:${s1_port}
+	# dummy server used to test a change when the same crt is used as server and bind
+        server s2 ${s1_addr}:${s1_port} ssl crt ${testdir}/common.pem verify none weight 0
 
     listen other-ssl-lst
         bind "${tmpdir}/other-ssl.sock" ssl crt-list ${testdir}/set_default_cert.crt-list
