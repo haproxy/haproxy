@@ -211,7 +211,7 @@ static struct quic_tx_packet *qc_build_pkt(unsigned char **pos, const unsigned c
                                            struct quic_enc_level *qel, struct quic_tls_ctx *ctx,
                                            struct list *frms, struct quic_conn *qc,
                                            const struct quic_version *ver, size_t dglen, int pkt_type,
-                                           int padding, int probe, int cc, int *err);
+                                           int force_ack, int padding, int probe, int cc, int *err);
 static struct task *quic_conn_app_io_cb(struct task *t, void *context, unsigned int state);
 static void qc_idle_timer_do_rearm(struct quic_conn *qc);
 static void qc_idle_timer_rearm(struct quic_conn *qc, int read);
@@ -2687,7 +2687,7 @@ static int qc_may_build_pkt(struct quic_conn *qc, struct list *frms,
                             struct quic_enc_level *qel, int cc, int probe, int force_ack)
 {
 	unsigned int must_ack = force_ack ||
-		qel->pktns->rx.nb_aepkts_since_last_ack >= QUIC_MAX_RX_AEPKTS_SINCE_LAST_ACK;
+		(LIST_ISEMPTY(frms) && (qel->pktns->flags & QUIC_FL_PKTNS_ACK_REQUIRED));
 
 	/* Do not build any more packet if the TX secrets are not available or
 	 * if there is nothing to send, i.e. if no CONNECTION_CLOSE or ACK are required
@@ -2760,8 +2760,8 @@ static int qc_prep_app_pkts(struct quic_conn *qc, struct qring *qr,
 			end = pos + qc->path->mtu;
 		}
 
-		pkt = qc_build_pkt(&pos, end, qel, &qel->tls_ctx, frms, qc, NULL, 0, 0,
-		                   QUIC_PACKET_TYPE_SHORT, probe, cc, &err);
+		pkt = qc_build_pkt(&pos, end, qel, &qel->tls_ctx, frms, qc, NULL, 0,
+		                   QUIC_PACKET_TYPE_SHORT, 0, 0, probe, cc, &err);
 		switch (err) {
 		case -2:
 			goto err;
@@ -2901,7 +2901,8 @@ static int qc_prep_pkts(struct quic_conn *qc, struct qring *qr,
 		}
 
 		cur_pkt = qc_build_pkt(&pos, end, qel, tls_ctx, frms,
-		                       qc, ver, dglen, padding, pkt_type, probe, cc, &err);
+		                       qc, ver, dglen, pkt_type,
+		                       force_ack, padding, probe, cc, &err);
 		switch (err) {
 		case -2:
 			goto err;
@@ -6016,7 +6017,7 @@ static inline int qc_build_frms(struct list *outlist, struct list *inlist,
 static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
                            size_t dglen, struct quic_tx_packet *pkt,
                            int64_t pn, size_t *pn_len, unsigned char **buf_pn,
-                           int padding, int cc, int probe,
+                           int force_ack, int padding, int cc, int probe,
                            struct quic_enc_level *qel, struct quic_conn *qc,
                            const struct quic_version *ver, struct list *frms)
 {
@@ -6030,6 +6031,8 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 	int add_ping_frm;
 	struct list frm_list = LIST_HEAD_INIT(frm_list);
 	struct quic_frame *cf;
+	int must_ack;
+	int nb_aepkts_since_last_ack;
 
 	/* Length field value with CRYPTO frames if present. */
 	len_frms = 0;
@@ -6070,7 +6073,11 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 	head_len = pos - beg;
 	/* Build an ACK frame if required. */
 	ack_frm_len = 0;
-	if ((qel->pktns->flags & QUIC_FL_PKTNS_ACK_REQUIRED) && !qel->pktns->tx.pto_probe) {
+	nb_aepkts_since_last_ack = qel->pktns->rx.nb_aepkts_since_last_ack;
+	must_ack = !qel->pktns->tx.pto_probe &&
+		(force_ack || ((qel->pktns->flags & QUIC_FL_PKTNS_ACK_REQUIRED) &&
+		 (LIST_ISEMPTY(frms) || nb_aepkts_since_last_ack >= QUIC_MAX_RX_AEPKTS_SINCE_LAST_ACK)));
+	if (force_ack || must_ack) {
 	    struct quic_arngs *arngs = &qel->pktns->rx.arngs;
 	    BUG_ON(eb_is_empty(&qel->pktns->rx.arngs.root));
 		ack_frm.tx_ack.arngs = arngs;
@@ -6273,8 +6280,8 @@ static struct quic_tx_packet *qc_build_pkt(unsigned char **pos,
                                            struct quic_enc_level *qel,
                                            struct quic_tls_ctx *tls_ctx, struct list *frms,
                                            struct quic_conn *qc, const struct quic_version *ver,
-                                           size_t dglen, int padding,
-                                           int pkt_type, int probe, int cc, int *err)
+                                           size_t dglen, int pkt_type, int force_ack,
+                                           int padding, int probe, int cc, int *err)
 {
 	/* The pointer to the packet number field. */
 	unsigned char *buf_pn;
@@ -6299,7 +6306,7 @@ static struct quic_tx_packet *qc_build_pkt(unsigned char **pos,
 
 	pn = qel->pktns->tx.next_pn + 1;
 	if (!qc_do_build_pkt(*pos, buf_end, dglen, pkt, pn, &pn_len, &buf_pn,
-	                     padding, cc, probe, qel, qc, ver, frms)) {
+	                     force_ack, padding, cc, probe, qel, qc, ver, frms)) {
 		*err = -1;
 		goto err;
 	}
