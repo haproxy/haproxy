@@ -47,6 +47,7 @@ unsigned int mask_find_rank_bit_fast(unsigned int r, unsigned long m,
 void mask_prep_rank_map(unsigned long m,
                         unsigned long *a, unsigned long *b,
                         unsigned long *c, unsigned long *d);
+int one_among_mask(unsigned long v, int bit);
 
 
 /* Multiply the two 32-bit operands and shift the 64-bit result right 32 bits.

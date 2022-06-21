@@ -3156,6 +3156,60 @@ void mask_prep_rank_map(unsigned long m,
 	*d = (*c + (*c >> 8)) & ~0UL/0x101;
 }
 
+/* Returns the position of one bit set in <v>, starting at position <bit>, and
+ * searching in other halves if not found. This is intended to be used to
+ * report the position of one bit set among several based on a counter or a
+ * random generator while preserving a relatively good distribution so that
+ * values made of holes in the middle do not see one of the bits around the
+ * hole being returned much more often than the other one. It can be seen as a
+ * disturbed ffsl() where the initial search starts at bit <bit>. The look up
+ * is performed in O(logN) time for N bit words, yielding a bit among 64 in
+ * about 16 cycles. Its usage differs from the rank find function in that the
+ * bit passed doesn't need to be limited to the value's popcount, making the
+ * function easier to use for random picking, and twice as fast. Passing value
+ * 0 for <v> makes no sense and -1 is returned in this case.
+ */
+int one_among_mask(unsigned long v, int bit)
+{
+	/* note, these masks may be produced by ~0UL/((1UL<<scale)+1) but
+	 * that's more expensive.
+	 */
+	static const unsigned long halves[] = {
+		(unsigned long)0x5555555555555555ULL,
+		(unsigned long)0x3333333333333333ULL,
+		(unsigned long)0x0F0F0F0F0F0F0F0FULL,
+		(unsigned long)0x00FF00FF00FF00FFULL,
+		(unsigned long)0x0000FFFF0000FFFFULL,
+		(unsigned long)0x00000000FFFFFFFFULL
+	};
+	unsigned long halfword = ~0UL;
+	int scope = 0;
+	int mirror;
+	int scale;
+
+	if (!v)
+		return -1;
+
+	/* we check if the exact bit is set or if it's present in a mirror
+	 * position based on the current scale we're checking, in which case
+	 * it's returned with its current (or mirrored) value. Otherwise we'll
+	 * make sure there's at least one bit in the half we're in, and will
+	 * scale down to a smaller scope and try again, until we find the
+	 * closest bit.
+	 */
+	for (scale = (sizeof(long) > 4) ? 5 : 4; scale >= 0; scale--) {
+		halfword >>= (1UL << scale);
+		scope |= (1UL << scale);
+		mirror = bit ^ (1UL << scale);
+		if (v & ((1UL << bit) | (1UL << mirror)))
+			return (v & (1UL << bit)) ? bit : mirror;
+
+		if (!((v >> (bit & scope)) & halves[scale] & halfword))
+			bit = mirror;
+	}
+	return bit;
+}
+
 /* Return non-zero if IPv4 address is part of the network,
  * otherwise zero. Note that <addr> may not necessarily be aligned
  * while the two other ones must.
