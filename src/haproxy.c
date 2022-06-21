@@ -2244,6 +2244,10 @@ static void init(int argc, char **argv)
 			exit(1);
 	}
 
+	/* set the default maxconn in the master, but let it be rewritable with -n */
+	if (global.mode & MODE_MWORKER_WAIT)
+		global.maxconn = DEFAULT_MAXCONN;
+
 	if (cfg_maxconn > 0)
 		global.maxconn = cfg_maxconn;
 
