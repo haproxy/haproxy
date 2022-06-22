@@ -5206,6 +5206,7 @@ struct http_txn *http_create_txn(struct stream *s)
 		return NULL;
 	s->txn = txn;
 
+	txn->meth = HTTP_METH_OTHER;
 	txn->flags = ((sc && sc_ep_test(sc, SE_FL_NOT_FIRST)) ? TX_NOT_FIRST : 0);
 	txn->status = -1;
 	txn->http_reply = NULL;
