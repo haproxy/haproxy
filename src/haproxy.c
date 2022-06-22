@@ -2805,6 +2805,7 @@ void run_poll_loop()
 			activity[tid].wake_tasks++;
 		else {
 			_HA_ATOMIC_OR(&sleeping_thread_mask, tid_bit);
+			_HA_ATOMIC_AND(&th_ctx->flags, ~TH_FL_NOTIFIED);
 			__ha_barrier_atomic_store();
 			if (thread_has_tasks()) {
 				activity[tid].wake_tasks++;

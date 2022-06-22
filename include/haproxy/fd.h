@@ -370,11 +370,15 @@ static inline unsigned int hap_fd_isset(int fd, unsigned int *evts)
 	return evts[fd / (8*sizeof(*evts))] & (1U << (fd & (8*sizeof(*evts) - 1)));
 }
 
+/* send a wake-up event to this thread, only if it's asleep and not notified yet */
 static inline void wake_thread(int thr)
 {
-	if (sleeping_thread_mask & (1UL << thr)) {
+	struct thread_ctx *ctx = &ha_thread_ctx[thr];
+
+	if (sleeping_thread_mask & (1UL << thr) &&
+	    (_HA_ATOMIC_LOAD(&ctx->flags) & TH_FL_NOTIFIED) == 0) {
 		char c = 'c';
-		_HA_ATOMIC_AND(&sleeping_thread_mask, ~(1UL << thr));
+		_HA_ATOMIC_OR(&ctx->flags, TH_FL_NOTIFIED);
 		DISGUISE(write(poller_wr_pipe[thr], &c, 1));
 	}
 }
