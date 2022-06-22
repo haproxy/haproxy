@@ -334,27 +334,24 @@ static int smp_fetch_meth(const struct arg *args, struct sample *smp, const char
 {
 	struct channel *chn = SMP_REQ_CHN(smp);
 	struct http_txn *txn;
+	struct htx *htx;
 	int meth;
 
 	txn = smp->strm->txn;
 	if (!txn)
 		return 0;
 
+	if (txn->meth == HTTP_METH_OTHER) {
+		htx = smp_prefetch_htx(smp, chn, NULL, 1);
+		if (!htx)
+			return 0;
+	}
+
 	meth = txn->meth;
 	smp->data.type = SMP_T_METH;
 	smp->data.u.meth.meth = meth;
 	if (meth == HTTP_METH_OTHER) {
-		struct htx *htx;
 		struct htx_sl *sl;
-
-		if ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) {
-			/* ensure the indexes are not affected */
-			return 0;
-		}
-
-		htx = smp_prefetch_htx(smp, chn, NULL, 1);
-		if (!htx)
-			return 0;
 
 		sl = http_get_stline(htx);
 		smp->flags |= SMP_F_CONST;
