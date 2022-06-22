@@ -205,13 +205,8 @@ static void _do_poll(struct poller *p, int exp, int wake)
 	clock_entering_poll();
 	status = poll(poll_events, nbfd, wait_time);
 	clock_update_date(wait_time, status);
-	clock_leaving_poll(wait_time, status);
 
-	thread_harmless_end();
-	thread_idle_end();
-
-	if (sleeping_thread_mask & tid_bit)
-		_HA_ATOMIC_AND(&sleeping_thread_mask, ~tid_bit);
+	fd_leaving_poll(wait_time, status);
 
 	if (status > 0)
 		activity[tid].poll_io++;

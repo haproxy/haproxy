@@ -180,13 +180,7 @@ static void _do_poll(struct poller *p, int exp, int wake)
 			NULL,
 			&delta);
 	clock_update_date(delta_ms, status);
-	clock_leaving_poll(delta_ms, status);
-
-	thread_harmless_end();
-	thread_idle_end();
-
-	if (sleeping_thread_mask & tid_bit)
-		_HA_ATOMIC_AND(&sleeping_thread_mask, ~tid_bit);
+	fd_leaving_poll(delta_ms, status);
 
 	if (status <= 0)
 		return;

@@ -208,13 +208,7 @@ static void _do_poll(struct poller *p, int exp, int wake)
 			break;
 	} while (1);
 
-	clock_leaving_poll(wait_time, status);
-
-	thread_harmless_end();
-	thread_idle_end();
-
-	if (sleeping_thread_mask & tid_bit)
-		_HA_ATOMIC_AND(&sleeping_thread_mask, ~tid_bit);
+	fd_leaving_poll(wait_time, status);
 
 	/* process polled events */
 

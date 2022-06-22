@@ -759,6 +759,21 @@ int compute_poll_timeout(int next)
 	return wait_time;
 }
 
+/* Handle the return of the poller, which consists in calculating the idle
+ * time, saving a few clocks, marking the thread harmful again etc. All that
+ * is some boring stuff that all pollers have to do anyway.
+ */
+void fd_leaving_poll(int wait_time, int status)
+{
+	clock_leaving_poll(wait_time, status);
+
+	thread_harmless_end();
+	thread_idle_end();
+
+	if (sleeping_thread_mask & tid_bit)
+		_HA_ATOMIC_AND(&sleeping_thread_mask, ~tid_bit);
+}
+
 /* disable the specified poller */
 void disable_poller(const char *poller_name)
 {
