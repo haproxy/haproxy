@@ -36,7 +36,10 @@ enum {
 	TL_CLASSES       /* must be last */
 };
 
-/* thread_ctx flags, for ha_thread_ctx[].flags */
+/* thread_ctx flags, for ha_thread_ctx[].flags. These flags describe the
+ * thread's state and are visible to other threads, so they must be used
+ * with atomic ops.
+ */
 #define TH_FL_STUCK             0x00000001
 #define TH_FL_TASK_PROFILING    0x00000002
 
@@ -82,7 +85,6 @@ struct thread_ctx {
 	struct task *current;               /* current task (not tasklet) */
 	int current_queue;                  /* points to current tasklet list being run, -1 if none */
 	unsigned int nb_tasks;              /* number of tasks allocated on this thread */
-	uint flags;                         /* thread flags, TH_FL_* */
 	uint8_t tl_class_mask;              /* bit mask of non-empty tasklets classes */
 
 	// 7 bytes hole here
@@ -100,6 +102,8 @@ struct thread_ctx {
 	unsigned int rq_total;              /* total size of the run queue, prio_tree + tasklets */
 	int tasks_in_list;                  /* Number of tasks in the per-thread tasklets list */
 	uint idle_pct;                      /* idle to total ratio over last sample (percent) */
+	uint flags;                         /* thread flags, TH_FL_*, atomic! */
+	/* 32-bit hole here */
 
 	uint64_t prev_cpu_time;             /* previous per thread CPU time */
 	uint64_t prev_mono_time;            /* previous system wide monotonic time  */
