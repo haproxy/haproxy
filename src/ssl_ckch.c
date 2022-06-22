@@ -2710,6 +2710,7 @@ static int cli_io_handler_commit_cafile_crlfile(struct appctx *appctx)
 			path = crlfile_transaction.path;
 			break;
 		default:
+			path = NULL;
 			goto error;
 	}
 
