@@ -96,6 +96,64 @@ ullong freq_ctr_total(const struct freq_ctr *ctr, uint period, int pend)
 	return past * remain + (curr + pend) * period;
 }
 
+/* Returns the excess of events (may be negative) over the current period for
+ * target frequency <freq>. It returns 0 if the counter is in the future. The
+ * result considers the position of the current time within the current period.
+ *
+ * The caller may safely add new events if result is negative or null.
+ */
+int freq_ctr_overshoot_period(const struct freq_ctr *ctr, uint period, uint freq)
+{
+	uint curr, old_curr;
+	uint tick, old_tick;
+	int elapsed;
+
+	tick = HA_ATOMIC_LOAD(&ctr->curr_tick);
+	curr = HA_ATOMIC_LOAD(&ctr->curr_ctr);
+
+	while (1) {
+		if (tick & 0x1) // change in progress
+			goto redo0;
+
+		old_tick = tick;
+		old_curr = curr;
+
+		/* now let's load the values a second time and make sure they
+		 * did not change, which will indicate it was a stable reading.
+		 */
+
+		tick = HA_ATOMIC_LOAD(&ctr->curr_tick);
+		if (tick & 0x1) // change in progress
+			goto redo0;
+
+		if (tick != old_tick)
+			goto redo1;
+
+		curr = HA_ATOMIC_LOAD(&ctr->curr_ctr);
+		if (curr != old_curr)
+			goto redo2;
+
+		/* all values match between two loads, they're stable, let's
+		 * quit now.
+		 */
+		break;
+	redo0:
+		tick = HA_ATOMIC_LOAD(&ctr->curr_tick);
+	redo1:
+		curr = HA_ATOMIC_LOAD(&ctr->curr_ctr);
+	redo2:
+		__ha_cpu_relax();
+	};
+
+	elapsed = HA_ATOMIC_LOAD(&global_now_ms) - tick;
+	if (unlikely(elapsed < 0)) {
+		/* The counter is in the future, there is no overshoot */
+		return 0;
+	}
+
+	return curr - div64_32((uint64_t)elapsed * freq, period);
+}
+
 /*
  * Local variables:
  *  c-indent-level: 8
