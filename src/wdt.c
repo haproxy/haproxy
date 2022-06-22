@@ -99,7 +99,7 @@ void wdt_handler(int sig, siginfo_t *si, void *arg)
 		 * If it's already set, then it's our second call with no
 		 * progress and the thread is dead.
 		 */
-		if (!(ha_thread_ctx[thr].flags & TH_FL_STUCK)) {
+		if (!(_HA_ATOMIC_LOAD(&ha_thread_ctx[thr].flags) & TH_FL_STUCK)) {
 			_HA_ATOMIC_OR(&ha_thread_ctx[thr].flags, TH_FL_STUCK);
 			goto update_and_leave;
 		}

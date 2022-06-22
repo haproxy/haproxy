@@ -241,7 +241,7 @@ void __task_wakeup(struct task *t)
 		t->rq.key += offset;
 	}
 
-	if (th_ctx->flags & TH_FL_TASK_PROFILING)
+	if (_HA_ATOMIC_LOAD(&th_ctx->flags) & TH_FL_TASK_PROFILING)
 		t->call_date = now_mono_time();
 
 	eb32_insert(root, &t->rq);
@@ -568,7 +568,7 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 		process = t->process;
 		t->calls++;
 		th_ctx->current = t;
-		th_ctx->flags &= ~TH_FL_STUCK; // this thread is still running
+		_HA_ATOMIC_AND(&th_ctx->flags, ~TH_FL_STUCK); // this thread is still running
 
 		_HA_ATOMIC_DEC(&th_ctx->rq_total);
 
@@ -578,7 +578,7 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 			LIST_DEL_INIT(&((struct tasklet *)t)->list);
 			__ha_barrier_store();
 
-			if (unlikely(th_ctx->flags & TH_FL_TASK_PROFILING)) {
+			if (unlikely(_HA_ATOMIC_LOAD(&th_ctx->flags) & TH_FL_TASK_PROFILING)) {
 				profile_entry = sched_activity_entry(sched_activity, t->process);
 				before = now_mono_time();
 #ifdef DEBUG_TASK
@@ -603,7 +603,7 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 				continue;
 			}
 
-			if (unlikely(th_ctx->flags & TH_FL_TASK_PROFILING)) {
+			if (unlikely(_HA_ATOMIC_LOAD(&th_ctx->flags) & TH_FL_TASK_PROFILING)) {
 				HA_ATOMIC_INC(&profile_entry->calls);
 				HA_ATOMIC_ADD(&profile_entry->cpu_time, now_mono_time() - before);
 			}
@@ -734,7 +734,7 @@ void process_runnable_tasks()
 	int heavy_queued = 0;
 	int budget;
 
-	th_ctx->flags &= ~TH_FL_STUCK; // this thread is still running
+	_HA_ATOMIC_AND(&th_ctx->flags, ~TH_FL_STUCK); // this thread is still running
 
 	if (!thread_has_tasks()) {
 		activity[tid].empty_rq++;

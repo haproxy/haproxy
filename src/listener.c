@@ -1135,7 +1135,7 @@ void listener_accept(struct listener *l)
 		}
 #endif
 
-		th_ctx->flags &= ~TH_FL_STUCK; // this thread is still running
+		_HA_ATOMIC_AND(&th_ctx->flags, ~TH_FL_STUCK); // this thread is still running
 	} /* end of for (max_accept--) */
 
  end:

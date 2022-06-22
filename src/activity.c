@@ -383,7 +383,7 @@ void activity_count_runtime(uint32_t run_time)
 	 * profiling to "on" when automatic, and going back below the "down"
 	 * threshold switches to off. The forced modes don't check the load.
 	 */
-	if (!(th_ctx->flags & TH_FL_TASK_PROFILING)) {
+	if (!(_HA_ATOMIC_LOAD(&th_ctx->flags) & TH_FL_TASK_PROFILING)) {
 		if (unlikely((profiling & HA_PROF_TASKS_MASK) == HA_PROF_TASKS_ON ||
 		             ((profiling & HA_PROF_TASKS_MASK) == HA_PROF_TASKS_AON &&
 		             swrate_avg(run_time, TIME_STATS_SAMPLES) >= up)))

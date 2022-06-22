@@ -154,6 +154,7 @@ void ha_backtrace_to_stderr(void)
  * The calling thread ID needs to be passed in <calling_tid> to display a star
  * in front of the calling thread's line (usually it's tid). Any stuck thread
  * is also prefixed with a '>'.
+ * It must be called under thread isolation.
  */
 void ha_thread_dump(struct buffer *buf, int thr, int calling_tid)
 {
@@ -1365,7 +1366,7 @@ void debug_handler(int sig, siginfo_t *si, void *arg)
 	 * if it didn't move.
 	 */
 	if (!((threads_harmless_mask|sleeping_thread_mask) & tid_bit))
-		th_ctx->flags |= TH_FL_STUCK;
+		_HA_ATOMIC_OR(&th_ctx->flags, TH_FL_STUCK);
 }
 
 static int init_debug_per_thread()

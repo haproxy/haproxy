@@ -367,7 +367,7 @@ static inline void _tasklet_wakeup_on(struct tasklet *tl, int thr, const char *f
 	tl->debug.caller_idx = !tl->debug.caller_idx;
 	tl->debug.caller_file[tl->debug.caller_idx] = file;
 	tl->debug.caller_line[tl->debug.caller_idx] = line;
-	if (th_ctx->flags & TH_FL_TASK_PROFILING)
+	if (_HA_ATOMIC_LOAD(&th_ctx->flags) & TH_FL_TASK_PROFILING)
 		tl->call_date = now_mono_time();
 #endif
 	__tasklet_wakeup_on(tl, thr);
@@ -421,7 +421,7 @@ static inline void _task_instant_wakeup(struct task *t, unsigned int f, const ch
 	tl->debug.caller_idx = !tl->debug.caller_idx;
 	tl->debug.caller_file[tl->debug.caller_idx] = file;
 	tl->debug.caller_line[tl->debug.caller_idx] = line;
-	if (th_ctx->flags & TH_FL_TASK_PROFILING)
+	if (_HA_ATOMIC_LOAD(&th_ctx->flags) & TH_FL_TASK_PROFILING)
 		tl->call_date = now_mono_time();
 #endif
 	__tasklet_wakeup_on(tl, thr);
