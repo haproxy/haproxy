@@ -120,6 +120,7 @@ Summary
 9.4.      Cache
 9.5.      fcgi-app
 9.6.      OpenTracing
+9.7.      Bandwidth limitation
 
 10.   FastCGI applications
 10.1.     Setup
@@ -6322,6 +6323,7 @@ http-request <action> [options...] [ { if | unless } <condition> ]
     - sc-inc-gpc1(<sc-id>)
     - sc-set-gpt(<idx>,<sc-id>) { <int> | <expr> }
     - sc-set-gpt0(<sc-id>) { <int> | <expr> }
+    - set-bandwidth-limit <name> [limit <expr>] [period <expr>]
     - set-dst <expr>
     - set-dst-port <expr>
     - set-header <name> <fmt>
@@ -6991,6 +6993,33 @@ http-request send-spoe-group <engine-name> <group-name>
     <group-name>   The SPOE group name as specified in the engine
                    configuration.
 
+http-request set-bandwidth-limit <name> [limit <expr>] [period <expr>] [ { if | unless } <condition> ]
+
+  This action is used to enable the bandwidth limitation filter <name>, either
+  on the upload or download direction depending on the filter type. Custom
+  limit and period may be defined, if and only if <name> references a
+  per-stream bandwidth limitation filter. When a set-bandwidth-limit rule is
+  executed, it first resets all settings of the filter to their defaults prior
+  to enabling it. As a consequence, if several "set-bandwidth-limit" actions
+  are executed for the same filter, only the last one is considered. Several
+  bandwidth limitation filters can be enabled on the same stream.
+
+  Note that this action cannot be used in a defaults section because bandwidth
+  limitation filters cannot be defined in defaults sections. In addition, only
+  the HTTP payload transfer is limited. The HTTP headers are not considered.
+
+  Arguments:
+    <expr>  Is a standard HAProxy expression formed by a sample-fetch followed
+            by some converters. The result is converted to an integer. It is
+            interpreted as a size in bytes for the "limit" parameter and as a
+            duration in milliseconds for the "period" parameter.
+
+  Example:
+    http-request set-bandwidth-limit global-limit
+    http-request set-bandwidth-limit my-limit limit 1m period 10s
+
+  See section 9.7 about bandwidth limitation filter setup.
+
 http-request set-dst <expr> [ { if | unless } <condition> ]
 
   This is used to set the destination IP address to the value of specified
@@ -7462,6 +7491,7 @@ http-response <action> <options...> [ { if | unless } <condition> ]
     - sc-set-gpt(<idx>,<sc-id>) { <int> | <expr> }
     - sc-set-gpt0(<sc-id>) { <int> | <expr> }
     - send-spoe-group <engine-name> <group-name>
+    - set-bandwidth-limit <name> [limit <expr>] [period <expr>]
     - set-header <name> <fmt>
     - set-log-level <level>
     - set-map(<file-name>) <key fmt> <value fmt>
@@ -7658,6 +7688,12 @@ http-response send-spoe-group <engine-name> <group-name>
 
   This action is used to trigger sending of a group of SPOE messages. Please
   refer to "http-request send-spoe-group" for a complete description.
+
+http-response set-bandwidth-limit <name> [limit <expr>] [period <expr>] [ { if | unless } <condition> ]
+
+  This action is used to enable the bandwidth limitation filter <name>, either
+  on the upload or download direction depending on the filter type. Please
+  refer to "http-request set-bandwidth-limit" for a complete description.
 
 http-response set-header <name> <fmt> [ { if | unless } <condition> ]
 
@@ -12587,6 +12623,7 @@ tcp-request content <action> [{if | unless} <condition>]
     - sc-set-gpt(<idx>,<sc-id>) { <int> | <expr> }
     - sc-set-gpt0(<sc-id>) { <int> | <expr> }
     - send-spoe-group <engine-name> <group-name>
+    - set-bandwidth-limit <name> [limit <expr>] [period <expr>]
     - set-dst <expr>
     - set-dst-port <expr>
     - set-log-level <level>
@@ -12779,6 +12816,13 @@ tcp-request content send-spoe-group <engine-name> <group-name>
 
   Thaction is is used to trigger sending of a group of SPOE messages. Please
   refer to "http-request send-spoe-group" for a complete description.
+
+tcp-request content set-bandwidth-limit <name> [limit <expr>] [period <expr>]
+                    [ { if | unless } <condition> ]
+
+  This action is used to enable the bandwidth limitation filter <name>, either
+  on the upload or download direction depending on the filter type. Please
+  refer to "http-request set-bandwidth-limit" for a complete description.
 
 tcp-request content set-dst <expr> [ { if | unless } <condition> ]
 tcp-request content set-dst-port <expr> [ { if | unless } <condition> ]
@@ -13147,6 +13191,7 @@ tcp-response content <action> [{if | unless} <condition>]
     - sc-set-gpt(<idx>,<sc-id>) { <int> | <expr> }
     - sc-set-gpt0(<sc-id>) { <int> | <expr> }
     - send-spoe-group <engine-name> <group-name>
+    - set-bandwidth-limit <name> [limit <expr>] [period <expr>]
     - set-log-level <level>
     - set-mark <mark>
     - set-nice <nice>
@@ -13223,6 +13268,14 @@ tcp-response content send-spoe-group <engine-name> <group-name>
 
   Thaction is is used to trigger sending of a group of SPOE messages. Please
   refer to "http-request send-spoe-group" for a complete description.
+
+
+tcp-response content set-bandwidth-limit <name> [limit <expr>] [period <expr>]
+                     [ { if | unless } <condition> ]
+
+  This action is used to enable the bandwidth limitation filter <name>, either
+  on the upload or download direction depending on the filter type. Please
+  refer to "http-request set-bandwidth-limit" for a complete description.
 
 tcp-response content set-log-level <level>  [ { if | unless } <condition> ]
 
@@ -23023,6 +23076,129 @@ filter opentracing [id <id>] config <file>
 More detailed documentation related to the operation, configuration and use
 of the filter can be found in the addons/ot directory.
 
+9.7. Bandwidth limitation
+--------------------------
+
+filter bwlim-in  <name> default-limit <size> default-period <time> [min-size <sz>]
+filter bwlim-out <name> default-limit <size> default-period <time> [min-size <sz>]
+filter bwlim-in  <name> limit <size> key <pattern> [table <table>] [min-size <sz>]
+filter bwlim-out <name> limit <size> key <pattern> [table <table>] [min-size <sz>]
+
+  Arguments :
+
+    <name>      is the filter name that will be used by 'set-bandwidth-limit'
+                actions to reference a specific bandwidth limitation filter.
+
+    <size>      is max number of bytes that can be forwarded over the period.
+                The value must be specified for per-stream and shared bandwidth
+                limitation filters. It follows the HAProxy size format and is
+                expressed in bytes.
+
+    <pattern>   is a sample expression rule as described in section 7.3. It
+                describes what elements will be analyzed, extracted, combined,
+                and used to select which table entry to update the counters. It
+                must be specified for shared bandwidth limitation filters only.
+
+    <table>     is an optional table to be used instead of the default one,
+                which is the stick-table declared in the current proxy. It can
+                be specified for shared bandwidth limitation filters only.
+
+    <time>      is the default time period used to evaluate the bandwidth
+                limitation rate. It can be speficied for per-stream bandwidth
+                limitation filters only. It follows the HAProxy time format and
+                is expressed in milliseconds.
+
+    <min-size>  is the optional minimum number of bytes forwarded at a time by
+                a stream excluding the last packet that may be smaller. This
+                value can be specified for per-stream and shared bandwidth
+                limitation filters. It follows the HAProxy size format and is
+                expressed in bytes.
+
+Bandwidth limitation filters should be used to restrict the data forwarding
+speed at the stream level. By extension, such filters limit the network
+bandwidth consumed by a resource. Several bandwidth limitation filters can be
+used. For instance, it is possible to define a limit per source address to be
+sure a client will never consume all the network bandwidth, thereby penalizing
+other clients, and another one per stream to be able to fairly handle several
+connections for a given client.
+
+The definition order of these filters is important. If several bandwidth
+filters are enabled on a stream, the filtering will be applied in their
+definition order. It is also important to understand the definition order of
+the other filters have an influence. For instance, depending on the HTTP
+compression filter is defined before or after a bandwidth limitation filter,
+the limit will be applied on the compressed payload or not. The same is true
+for the cache filter.
+
+There are two kinds of bandwidth limitation filters. The first one enforces a
+default limit and is applied per stream. The second one uses a stickiness table
+to enfore a limit equally divided between all streams sharing the same entry in
+the table.
+
+In addition, for a given filter, depending on the filter keyword used, the
+limitation can be applied on incoming data, received from the client and
+forwarded to a server, or on outgoing data, received from a server and sent to
+the client. To apply a limit on incoming data, "bwlim-in" keyword must be
+used. To apply it on outgoing data, "bwlim-out" keyword must be used. In both
+cases, the bandwidth limitation is applied on forwarded data, at the stream
+level.
+
+The bandwidth limitation is applied at the stream level and not at the
+connection level. For multiplexed protocols (H2, H3 and FastCGI), the streams
+of the same connection may have different limits.
+
+For a per-stream bandwidth limitation filter, default period and limit must be
+defined. As their names suggest, they are the default values used to setup the
+bandwidth limitation rate for a stream. However, for this kind of filter and
+only this one, it is possible to redefine these values using sample expressions
+when the filter is enabled with a TCP/HTTP "set-bandwidth-limit" action.
+
+For a shared bandwidth limitation filter, depending on whether it is applied on
+incoming or outgoing data, the stickiness table used must store the
+corresponding bytes rate information. "bytes_in_rate(<period>)" counter must be
+stored to limit incoming data and "bytes_out_rate(<period>)" counter must be
+used to limit outgoing data.
+
+Finally, it is possible to set the minimum number of bytes that a bandwidth
+limitation filter can forward at a time for a given stream. It should be used
+to not forward too small amount of data, to reduce the CPU usage. It must
+carefully be defined. Too small, a value can increase the CPU usage. Too high,
+it can increase the latency. It is also highly linked to the defined bandwidth
+limit. If it is too close to the bandwidth limit, some pauses may be
+experienced to not exceed the limit because too many bytes will be consumed at
+a time. It is highly dependent on the filter configuration. A good idea is to
+start with something around 2 TCP MSS, typically 2896 bytes, and tune it after
+some experimentations.
+
+  Example:
+    frontend http
+        bind *:80
+        mode http
+
+        # If this filter is enabled, the stream will share the download limit
+        # of 10m/s with all other streams with the same source address.
+        filter bwlim-out limit-by-src key src table limit-by-src limit 10m
+
+        # If this filter is enalbed, the stream will be limited to download at 1m/s,
+        # independently of all other streams.
+        filter bwlim-out limit-by-strm default-limit 1m default-period 1s
+
+        # Limit all streams to 1m/s (the default limit) and those accessing the
+        # internal API to 100k/s. Limit each source address to 10m/s. The shared
+        # limit is applied first. Both are limiting the download rate.
+        http-request set-bandwidth-limit limit-by-strm
+        http-request set-bandwidth-limit limit-by-strm limit 100k if { path_beg /internal }
+        http-request set-bandwidth-limit limit-by-src
+        ...
+
+    backend limit-by-src
+        # The stickiness table used by <limit-by-src> filter
+        stick-table type ip size 1m expire 3600s store bytes_out_rate(1s)
+
+See also : "tcp-request content set-bandwidth-limit",
+           "tcp-response content set-bandwidth-limit",
+           "http-request set-bandwidth-limit" and
+           "http-response set-bandwidth-limit".
 
 10. FastCGI applications
 -------------------------
