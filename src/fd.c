@@ -449,9 +449,11 @@ void updt_fd_polling(const int fd)
 		fd_add_to_fd_list(&update_list, fd, offsetof(struct fdtab, update));
 
 		if (fd_active(fd) && !(fdtab[fd].thread_mask & tid_bit)) {
-			/* we need to wake up one thread to handle it immediately */
-			int thr = my_ffsl(fdtab[fd].thread_mask & ~tid_bit & all_threads_mask) - 1;
-
+			/* we need to wake up another thread to handle it immediately, any will fit,
+			 * so let's pick a random one so that it doesn't always end up on the same.
+			 */
+			int thr = one_among_mask(fdtab[fd].thread_mask & all_threads_mask,
+			                         statistical_prng_range(MAX_THREADS));
 			wake_thread(thr);
 		}
 	}
