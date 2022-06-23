@@ -1269,6 +1269,8 @@ static int debug_iohandler_memstats(struct appctx *appctx)
 		case MEM_STATS_TYPE_MALLOC:  type = "MALLOC";  break;
 		case MEM_STATS_TYPE_REALLOC: type = "REALLOC"; break;
 		case MEM_STATS_TYPE_STRDUP:  type = "STRDUP";  break;
+		case MEM_STATS_TYPE_P_ALLOC: type = "P_ALLOC"; break;
+		case MEM_STATS_TYPE_P_FREE:  type = "P_FREE";  break;
 		default:                     type = "UNSET";   break;
 		}
 

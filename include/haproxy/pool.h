@@ -224,6 +224,8 @@ static inline void *pool_get_from_cache(struct pool_head *pool, const void *call
 
 /****************** Common high-level code ******************/
 
+#if !defined(DEBUG_MEM_STATS)
+
 /*
  * Returns a pointer to type <type> taken from the pool <pool_type> or
  * dynamically allocated. Memory poisonning is performed if enabled.
@@ -246,6 +248,55 @@ static inline void *pool_get_from_cache(struct pool_head *pool, const void *call
 		if (likely((__ptr) != NULL))		\
 			__pool_free(pool, __ptr);	\
 	} while (0)
+
+
+#else /* DEBUG_MEM_STATS is set below */
+
+#define pool_free(pool, ptr)  ({					\
+	struct pool_head *__pool = (pool);				\
+	typeof(ptr) __ptr = (ptr);					\
+	static struct mem_stats _ __attribute__((used,__section__("mem_stats"))) = { \
+		.file = __FILE__, .line = __LINE__,			\
+		.type = MEM_STATS_TYPE_P_FREE,				\
+	};								\
+	HA_WEAK("__start_mem_stats");					\
+	HA_WEAK("__stop_mem_stats");					\
+	if (__ptr)  {							\
+		_HA_ATOMIC_INC(&_.calls);				\
+		_HA_ATOMIC_ADD(&_.size, __pool->size);			\
+		__pool_free(__pool, __ptr);				\
+	}								\
+})
+
+#define pool_alloc(pool)  ({						\
+	struct pool_head *__pool = (pool);				\
+	size_t __x = __pool->size;					\
+	static struct mem_stats _ __attribute__((used,__section__("mem_stats"))) = { \
+		.file = __FILE__, .line = __LINE__,			\
+		.type = MEM_STATS_TYPE_P_ALLOC,				\
+	};								\
+	HA_WEAK("__start_mem_stats");					\
+	HA_WEAK("__stop_mem_stats");					\
+	_HA_ATOMIC_INC(&_.calls);					\
+	_HA_ATOMIC_ADD(&_.size, __x);					\
+	__pool_alloc(__pool, 0);					\
+})
+
+#define pool_zalloc(pool)  ({						\
+	struct pool_head *__pool = (pool);				\
+	size_t __x = __pool->size;					\
+	static struct mem_stats _ __attribute__((used,__section__("mem_stats"))) = { \
+		.file = __FILE__, .line = __LINE__,			\
+		.type = MEM_STATS_TYPE_P_ALLOC,				\
+	};								\
+	HA_WEAK("__start_mem_stats");					\
+	HA_WEAK("__stop_mem_stats");					\
+	_HA_ATOMIC_INC(&_.calls);					\
+	_HA_ATOMIC_ADD(&_.size, __x);					\
+	__pool_alloc(__pool, POOL_F_MUST_ZERO);				\
+})
+
+#endif /* DEBUG_MEM_STATS */
 
 #endif /* _HAPROXY_POOL_H */
 
