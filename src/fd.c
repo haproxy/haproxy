@@ -448,9 +448,7 @@ void updt_fd_polling(const int fd)
 
 		fd_add_to_fd_list(&update_list, fd, offsetof(struct fdtab, update));
 
-		if (fd_active(fd) &&
-		    !(fdtab[fd].thread_mask & tid_bit) &&
-		    (fdtab[fd].thread_mask & ~tid_bit & all_threads_mask & ~sleeping_thread_mask) == 0) {
+		if (fd_active(fd) && !(fdtab[fd].thread_mask & tid_bit)) {
 			/* we need to wake up one thread to handle it immediately */
 			int thr = my_ffsl(fdtab[fd].thread_mask & ~tid_bit & all_threads_mask) - 1;
 
