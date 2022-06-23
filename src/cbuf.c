@@ -22,7 +22,7 @@
 #include <haproxy/pool.h>
 #include <haproxy/cbuf-t.h>
 
-DECLARE_POOL(pool_head_cbuf, "cbuf_pool", sizeof(struct cbuf));
+DECLARE_POOL(pool_head_cbuf, "cbuf", sizeof(struct cbuf));
 
 /* Allocate and return a new circular buffer with <buf> as <sz> byte internal buffer
  * if succeeded, NULL if not.

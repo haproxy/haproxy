@@ -20,7 +20,7 @@ struct xprt_handshake_ctx {
 	void *xprt_ctx;
 };
 
-DECLARE_STATIC_POOL(xprt_handshake_ctx_pool, "xprt_handshake_ctx_pool", sizeof(struct xprt_handshake_ctx));
+DECLARE_STATIC_POOL(xprt_handshake_ctx_pool, "xprt_handshake_ctx", sizeof(struct xprt_handshake_ctx));
 
 /* This XPRT doesn't take care of sending or receiving data, once its handshake
  * is done, it just removes itself
