@@ -278,6 +278,7 @@ void quic_sock_fd_iocb(int fd)
 
 	BUG_ON(!l);
 
+	new_dgram = NULL;
 	if (!l)
 		return;
 
@@ -290,8 +291,7 @@ void quic_sock_fd_iocb(int fd)
 
 	buf = &rxbuf->buf;
 
-	new_dgram = NULL;
-	/* Remove all consumed datagrams of this buffer */
+	/* Try to reuse an existing dgram */
 	list_for_each_entry_safe(dgram, dgramp, &rxbuf->dgrams, list) {
 		if (HA_ATOMIC_LOAD(&dgram->buf))
 			break;
@@ -300,8 +300,6 @@ void quic_sock_fd_iocb(int fd)
 		b_del(buf, dgram->len);
 		if (!new_dgram)
 			new_dgram = dgram;
-		else
-			pool_free(pool_head_quic_dgram, dgram);
 	}
 
 	params = &l->bind_conf->quic_params;
@@ -349,7 +347,9 @@ void quic_sock_fd_iocb(int fd)
 		/* If wrong, consume this datagram */
 		b_del(buf, ret);
 	}
+	new_dgram = NULL;
  out:
+	pool_free(pool_head_quic_dgram, new_dgram);
 	MT_LIST_APPEND(&l->rx.rxbuf_list, &rxbuf->mt_list);
 }
 
