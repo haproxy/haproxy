@@ -310,6 +310,12 @@ void quic_sock_fd_iocb(int fd)
 	if (cspace < max_sz) {
 		struct quic_dgram *dgram;
 
+		/* Do no mark <buf> as full, and do not try to consume it
+		 * if the contiguous remmaining space is not at the end
+		 */
+		if (b_tail(buf) + cspace < b_wrap(buf))
+			goto out;
+
 		/* Allocate a fake datagram, without data to locate
 		 * the end of the RX buffer (required during purging).
 		 */
@@ -319,11 +325,11 @@ void quic_sock_fd_iocb(int fd)
 
 		dgram->len = cspace;
 		LIST_APPEND(&rxbuf->dgrams, &dgram->list);
+
 		/* Consume the remaining space */
 		b_add(buf, cspace);
 		if (b_contig_space(buf) < max_sz)
 			goto out;
-
 	}
 
 	dgram_buf = (unsigned char *)b_tail(buf);
