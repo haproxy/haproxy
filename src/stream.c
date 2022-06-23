@@ -672,16 +672,15 @@ void stream_free(struct stream *s)
 			struct cap_hdr *h;
 			for (h = fe->req_cap; h; h = h->next)
 				pool_free(h->pool, s->req_cap[h->index]);
+			pool_free(fe->req_cap_pool, s->req_cap);
 		}
 
 		if (s->res_cap) {
 			struct cap_hdr *h;
 			for (h = fe->rsp_cap; h; h = h->next)
 				pool_free(h->pool, s->res_cap[h->index]);
+			pool_free(fe->rsp_cap_pool, s->res_cap);
 		}
-
-		pool_free(fe->rsp_cap_pool, s->res_cap);
-		pool_free(fe->req_cap_pool, s->req_cap);
 	}
 
 	/* Cleanup all variable contexts. */
