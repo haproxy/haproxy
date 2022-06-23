@@ -273,7 +273,7 @@ void quic_sock_fd_iocb(int fd)
 	struct sockaddr_storage saddr = {0};
 	size_t max_sz, cspace;
 	socklen_t saddrlen;
-	struct quic_dgram *dgram, *dgramp, *new_dgram;
+	struct quic_dgram *new_dgram;
 	unsigned char *dgram_buf;
 
 	BUG_ON(!l);
@@ -291,15 +291,19 @@ void quic_sock_fd_iocb(int fd)
 
 	buf = &rxbuf->buf;
 
-	/* Try to reuse an existing dgram */
-	list_for_each_entry_safe(dgram, dgramp, &rxbuf->dgrams, list) {
-		if (HA_ATOMIC_LOAD(&dgram->buf))
-			break;
+	/* Try to reuse an existing dgram. Note that there is alway at
+	 * least one datagram to pick, except the first time we enter
+	 * this function for this <rxbuf> buffer.
+	 */
+	if (!LIST_ISEMPTY(&rxbuf->dgrams)) {
+		struct quic_dgram *dg =
+			LIST_ELEM(rxbuf->dgrams.n, struct quic_dgram *, list);
 
-		LIST_DELETE(&dgram->list);
-		b_del(buf, dgram->len);
-		if (!new_dgram)
-			new_dgram = dgram;
+		if (!dg->buf) {
+			LIST_DELETE(&dg->list);
+			b_del(buf, dg->len);
+			new_dgram = dg;
+		}
 	}
 
 	params = &l->bind_conf->quic_params;
