@@ -76,12 +76,6 @@ static inline int already_warned(unsigned int warning)
 	return 0;
 }
 
-/* returns a mask if set, otherwise 1 */
-static inline unsigned long proc_mask(unsigned long mask)
-{
-	return mask ? mask : 1;
-}
-
 extern unsigned int experimental_directives_allowed;
 
 struct cfg_keyword;
