@@ -52,6 +52,7 @@ enum {
  * at 1 so tgroup[0] describes thread group 1.
  */
 struct tgroup_info {
+	ulong threads_enabled;     /* mask of threads enabled in this group */
 	uint base;                 /* first thread in this group */
 	uint count;                /* number of threads in this group */
 	ulong tgid_bit;            /* bit corresponding to the tgroup ID */

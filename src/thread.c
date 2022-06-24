@@ -1082,6 +1082,11 @@ int thread_map_to_groups()
 		ha_thread_info[t].ltid_bit = 1UL << ha_thread_info[t].ltid;
 	}
 
+	for (g = 0; g < global.nbtgroups; g++) {
+		ha_tgroup_info[g].threads_enabled = nbits(ha_tgroup_info[g].count);
+
+	}
+
 	return 0;
 }
 
