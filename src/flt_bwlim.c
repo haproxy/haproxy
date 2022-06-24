@@ -191,9 +191,10 @@ static void bwlim_deinit(struct proxy *px, struct flt_conf *fconf)
 	struct bwlim_config *conf = fconf->conf;
 
 	if (conf) {
-		free(conf->name);
+		ha_free(&conf->name);
 		release_sample_expr(conf->expr);
-		free(conf);
+		conf->expr = NULL;
+		ha_free(&fconf->conf);
 	}
 }
 
@@ -241,7 +242,7 @@ static int bwlim_check(struct proxy *px, struct flt_conf *fconf)
 			px->next_stkt_ref = target->proxies_list;
 			target->proxies_list = px;
 		}
-		free(conf->table.n);
+		ha_free(&conf->table.n);
 		conf->table.t = target;
 	}
 
@@ -485,11 +486,16 @@ int check_bwlim_action(struct act_rule *rule, struct proxy *px, char **err)
 /* Release memory allocated by "set-bandwidth-limit" action. */
 static void release_bwlim_action(struct act_rule *rule)
 {
-	free(rule->arg.act.p[0]);
-	if (rule->arg.act.p[1])
-	    release_sample_expr(rule->arg.act.p[1]);
-	if (rule->arg.act.p[2])
-	    release_sample_expr(rule->arg.act.p[2]);
+	ha_free(&rule->arg.act.p[0]);
+	if (rule->arg.act.p[1]) {
+		release_sample_expr(rule->arg.act.p[1]);
+		rule->arg.act.p[1] = NULL;
+	}
+	if (rule->arg.act.p[2]) {
+		release_sample_expr(rule->arg.act.p[2]);
+		rule->arg.act.p[2] = NULL;
+	}
+	rule->arg.act.p[3] = NULL; /* points on the filter's config */
 }
 
 /* Parse "set-bandwidth-limit" action. The filter name must be specified. For
@@ -798,11 +804,13 @@ static int parse_bwlim_flt(char **args, int *cur_arg, struct proxy *px, struct f
 
  error:
 	if (conf->name)
-		free(conf->name);
-	if (conf->expr)
+		ha_free(&conf->name);
+	if (conf->expr) {
 		release_sample_expr(conf->expr);
+		conf->expr = NULL;
+	}
 	if (conf->table.n)
-		free(conf->table.n);
+		ha_free(&conf->table.n);
 	free(conf);
 	return -1;
 }
