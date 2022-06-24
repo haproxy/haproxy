@@ -189,7 +189,7 @@ void chunk_frm_appendf(struct buffer *buf, const struct quic_frame *frm)
 	case QUIC_FT_CONNECTION_CLOSE:
 	{
 		const struct quic_connection_close *cc = &frm->connection_close;
-		size_t plen = QUIC_MIN(cc->reason_phrase_len, sizeof cc->reason_phrase);
+		size_t plen = QUIC_MIN((size_t)cc->reason_phrase_len, sizeof cc->reason_phrase);
 		chunk_appendf(&trace_buf,
 		              " error_code=%llu frame_type=%llu reason_phrase_len=%llu",
 		              (ull)cc->error_code, (ull)cc->frame_type,
@@ -201,7 +201,7 @@ void chunk_frm_appendf(struct buffer *buf, const struct quic_frame *frm)
 	case QUIC_FT_CONNECTION_CLOSE_APP:
 	{
 		const struct quic_connection_close_app *cc = &frm->connection_close_app;
-		size_t plen = QUIC_MIN(cc->reason_phrase_len, sizeof cc->reason_phrase);
+		size_t plen = QUIC_MIN((size_t)cc->reason_phrase_len, sizeof cc->reason_phrase);
 		chunk_appendf(&trace_buf,
 		              " error_code=%llu reason_phrase_len=%llu",
 		              (ull)cc->error_code, (ull)cc->reason_phrase_len);
@@ -925,7 +925,7 @@ static int quic_parse_connection_close_frame(struct quic_frame *frm, struct quic
 	    end - *buf < cc->reason_phrase_len)
 		return 0;
 
-	plen = QUIC_MIN(cc->reason_phrase_len, sizeof cc->reason_phrase);
+	plen = QUIC_MIN((size_t)cc->reason_phrase_len, sizeof cc->reason_phrase);
 	memcpy(cc->reason_phrase, *buf, plen);
 	*buf += cc->reason_phrase_len;
 
@@ -969,7 +969,7 @@ static int quic_parse_connection_close_app_frame(struct quic_frame *frm, struct 
 	    end - *buf < cc->reason_phrase_len)
 		return 0;
 
-	plen = QUIC_MIN(cc->reason_phrase_len, sizeof cc->reason_phrase);
+	plen = QUIC_MIN((size_t)cc->reason_phrase_len, sizeof cc->reason_phrase);
 	memcpy(cc->reason_phrase, *buf, plen);
 	*buf += cc->reason_phrase_len;
 

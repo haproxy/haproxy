@@ -1143,7 +1143,7 @@ static void h3_trace(enum trace_level level, uint64_t mask,
 		chunk_appendf(&trace_buf, " : qcc=%p(F)", qcc);
 
 		if (qcs)
-			chunk_appendf(&trace_buf, " qcs=%p(%lu)", qcs, qcs->id);
+			chunk_appendf(&trace_buf, " qcs=%p(%llu)", qcs, (ull)qcs->id);
 	}
 }
 

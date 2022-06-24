@@ -162,7 +162,7 @@ int qpack_decode_dec(struct buffer *buf, void *ctx)
  * Return a negative error if failed, 0 if not.
  */
 static int qpack_decode_fs_pfx(uint64_t *enc_ric, uint64_t *db, int *sign_bit,
-                               const unsigned char **raw, size_t *len)
+                               const unsigned char **raw, uint64_t *len)
 {
 	*enc_ric = qpack_get_varint(raw, len, 8);
 	if (*len == (uint64_t)-1)
@@ -184,7 +184,7 @@ static int qpack_decode_fs_pfx(uint64_t *enc_ric, uint64_t *db, int *sign_bit,
  * Returns the number of headers inserted into list excluding the end marker.
  * In case of error, a negative code QPACK_ERR_* is returned.
  */
-int qpack_decode_fs(const unsigned char *raw, size_t len, struct buffer *tmp,
+int qpack_decode_fs(const unsigned char *raw, uint64_t len, struct buffer *tmp,
                     struct http_hdr *list, int list_size)
 {
 	struct ist name, value;

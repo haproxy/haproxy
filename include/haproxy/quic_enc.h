@@ -89,7 +89,7 @@ static inline size_t quic_int_getsize(uint64_t val)
 }
 
 /* Returns the maximum integer which may be encoded with <size> bytes */
-static inline size_t quic_max_int_by_size(int size)
+static inline uint64_t quic_max_int_by_size(int size)
 {
 	switch (size) {
 	case 1:

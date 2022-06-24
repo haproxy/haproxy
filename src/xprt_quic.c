@@ -2754,7 +2754,7 @@ static int qc_prep_app_pkts(struct quic_conn *qc, struct qring *qr,
 		/* Leave room for the datagram header */
 		pos += dg_headlen;
 		if (!quic_peer_validated_addr(qc) && qc_is_listener(qc)) {
-			end = pos + QUIC_MIN(qc->path->mtu, 3 * qc->rx.bytes - qc->tx.prep_bytes);
+			end = pos + QUIC_MIN((uint64_t)qc->path->mtu, 3 * qc->rx.bytes - qc->tx.prep_bytes);
 		}
 		else {
 			end = pos + qc->path->mtu;
@@ -2881,7 +2881,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct qring *qr,
 			/* Leave room for the datagram header */
 			pos += dg_headlen;
 			if (!quic_peer_validated_addr(qc) && qc_is_listener(qc)) {
-				end = pos + QUIC_MIN(qc->path->mtu, 3 * qc->rx.bytes - qc->tx.prep_bytes);
+				end = pos + QUIC_MIN((uint64_t)qc->path->mtu, 3 * qc->rx.bytes - qc->tx.prep_bytes);
 			}
 			else {
 				end = pos + qc->path->mtu;
@@ -5898,7 +5898,7 @@ static inline int qc_build_frms(struct list *outlist, struct list *inlist,
 				flen = hlen + dlen_sz + dlen;
 			}
 			else {
-				dlen = QUIC_MIN(avail_room, cf->stream.len);
+				dlen = QUIC_MIN((uint64_t)avail_room, cf->stream.len);
 				flen = hlen + dlen;
 			}
 			TRACE_PROTO(" STREAM data length (hlen, stream.len, dlen)",
