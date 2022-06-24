@@ -1,6 +1,139 @@
 ChangeLog :
 ===========
 
+2022/06/24 : 2.7-dev1
+    - BUG/MINOR: ssl_ckch: Free error msg if commit changes on a cert entry fails
+    - BUG/MINOR: ssl_ckch: Free error msg if commit changes on a CA/CRL entry fails
+    - BUG/MEDIUM: ssl_ckch: Don't delete a cert entry if it is being modified
+    - BUG/MEDIUM: ssl_ckch: Don't delete CA/CRL entry if it is being modified
+    - BUG/MINOR: ssl_ckch: Don't duplicate path when replacing a cert entry
+    - BUG/MINOR: ssl_ckch: Don't duplicate path when replacing a CA/CRL entry
+    - BUG/MEDIUM: ssl_ckch: Rework 'commit ssl cert' to handle full buffer cases
+    - BUG/MEDIUM: ssl_ckch: Rework 'commit ssl ca-file' to handle full buffer cases
+    - BUG/MEDIUM: ssl/crt-list: Rework 'add ssl crt-list' to handle full buffer cases
+    - BUG/MEDIUM: httpclient: Don't remove HTX header blocks before duplicating them
+    - BUG/MEDIUM: httpclient: Rework CLI I/O handler to handle full buffer cases
+    - MEDIUM: httpclient: Don't close CLI applet at the end of a response
+    - MEDIUM: http-ana: Always report rewrite failures as PRXCOND in logs
+    - CLEANUP: Re-apply xalloc_size.cocci (2)
+    - REGTESTS: abortonclose: Add a barrier to not mix up log messages
+    - REGTESTS: http_request_buffer: Increase client timeout to wait "slow" clients
+    - CLEANUP: ssl_ckch: Use corresponding enum for commit_cacrlfile_ctx.cafile_type
+    - MINOR: ssl_ckch: Simplify I/O handler to commit changes on CA/CRL entry
+    - BUG/MINOR: ssl_ckch: Use right type for old entry in show_crlfile_ctx
+    - BUG/MINOR: ssl_ckch: Dump CRL transaction only once if show command yield
+    - BUG/MINOR: ssl_ckch: Dump CA transaction only once if show command yield
+    - BUG/MINOR: ssl_ckch: Dump cert transaction only once if show command yield
+    - BUG/MINOR: ssl_ckch: Init right field when parsing "commit ssl crl-file" cmd
+    - CLEANUP: ssl_ckch: Remove unused field in commit_cacrlfile_ctx structure
+    - MINOR: ssl_ckch: Simplify structure used to commit changes on CA/CRL entries
+    - MINOR: ssl_ckch: Remove service context for "set ssl cert" command
+    - MINOR: ssl_ckch: Remove service context for "set ssl ca-file" command
+    - MINOR: ssl_ckch: Remove service context for "set ssl crl-file" command
+    - BUG/MINOR: ssl_ckch: Fix possible uninitialized value in show_cert I/O handler
+    - BUG/MINOR: ssl_ckch: Fix possible uninitialized value in show_cafile I/O handler
+    - BUG/MINOR: ssl_ckch: Fix possible uninitialized value in show_crlfile I/O handler
+    - BUILD: ssl_ckch: Fix build error about a possible uninitialized value
+    - BUG/MINOR: ssl_ckch: Fix another possible uninitialized value
+    - REGTESTS: http_abortonclose: Extend supported versions
+    - REGTESTS: restrict_req_hdr_names: Extend supported versions
+    - MINOR: connection: support HTTP/3.0 for smp_*_http_major fetch
+    - MINOR: h3: add h3c pointer into h3s instance
+    - MINOR: mux-quic: simplify decode_qcs API
+    - MINOR: mux-quic/h3: adjust demuxing function return values
+    - BUG/MINOR: h3: fix return value on decode_qcs on error
+    - BUILD: quic: fix anonymous union for gcc-4.4
+    - BUILD: compiler: implement unreachable for older compilers too
+    - DEV: tcploop: reorder options in the usage message
+    - DEV: tcploop: make the current address the default address
+    - DEV: tcploop: make it possible to change the target address of a connect()
+    - DEV: tcploop: factor out the socket creation
+    - DEV: tcploop: permit port 0 to ease handling of default options
+    - DEV: tcploop: add a new "bind" command to bind to ip/port.
+    - DEV: tcploop: add minimal UDP support
+    - BUG/MINOR: trace: Test server existence for health-checks to get proxy
+    - BUG/MINOR: checks: Properly handle email alerts in trace messages
+    - BUG/MEDIUM: mailers: Set the object type for check attached to an email alert
+    - REGTESTS: healthcheckmail: Update the test to be functionnal again
+    - REGTESTS: healthcheckmail: Relax health-check failure condition
+    - BUG/MINOR: h3: fix incorrect BUG_ON assert on SETTINGS parsing
+    - MEDIUM: mux-h2: try to coalesce outgoing WINDOW_UPDATE frames
+    - OPTIM: mux-h2: increase h2_settings_initial_window_size default to 64k
+    - BUG/MINOR: h3: fix frame type definition
+    - BUG/MEDIUM: h3: fix SETTINGS parsing
+    - BUG/MINOR: cli/stats: add missing trailing LF after JSON outputs
+    - BUG/MINOR: server: do not enable DNS resolution on disabled proxies
+    - BUG/MINOR: cli/stats: add missing trailing LF after "show info json"
+    - DOC: design: update the notes on thread groups
+    - BUG/MEDIUM: mux-quic: fix flow control connection Tx level
+    - MINOR: mux-quic: complete BUG_ON on TX flow-control enforcing
+    - BUG/MINOR: mux-quic: fix memleak on frames rejected by transport
+    - BUG/MINOR: tcp-rules: Make action call final on read error and delay expiration
+    - CLEANUP: check: Remove useless tests on check's stream-connector
+    - BUG/MEDIUM: stconn: Don't wakeup applet for send if it won't consume data
+    - BUG/MEDIUM: cli: Notify cli applet won't consume data during request processing
+    - BUG/MEDIUM: mux-quic: fix segfault on flow-control frame cleanup
+    - MINOR: task: move profiling bit to per-thread
+    - CLEANUP: quic: use task_new_on() for single-threaded tasks
+    - MINOR: tinfo: remove the global thread ID bit (tid_bit)
+    - CLEANUP: hlua: check for at least 2 threads on a task
+    - MINOR: thread: get rid of MAX_THREADS_MASK
+    - OPTIM: task: do not consult shared WQ when we're already full
+    - DOC: design: update the task vs thread affinity requirements
+    - MINOR: qpack: add comments and remove a useless trace
+    - MINOR: qpack: reduce dependencies on other modules
+    - BUG/MINOR: qpack: support header litteral name decoding
+    - MINOR: qpack: add ABORT_NOW on unimplemented decoding
+    - BUG/MINOR: h3/qpack: deal with too many headers
+    - MINOR: qpack: improve decoding function
+    - MINOR: qpack: implement standalone decoder tool
+    - BUG/BUILD: h3: fix wrong label name
+    - BUG/MINOR: quic: Stop hardcoding Retry packet Version field
+    - MINOR: quic: Add several nonce and key definitions for Retry tag
+    - BUG/MINOR: quic: Wrong PTO calculation
+    - MINOR: quic: Parse long packet version from qc_parse_hd_form()
+    - CLEANUP: quid: QUIC draft-28 no more supported
+    - MEDIUM: quic: Add QUIC v2 draft support
+    - MINOR: quic: Released QUIC TLS extension for QUIC v2 draft
+    - MEDIUM: quic: Compatible version negotiation implementation (draft-08)
+    - CLEANUP: quic: Remove any reference to boringssl
+    - BUG/MINOR: task: fix thread assignment in tasklet_kill()
+    - BUG/MEDIUM: stream: Properly handle destructive client connection upgrades
+    - MINOR: stream: Rely on stconn flags to abort stream destructive upgrade
+    - CLEANUP: stconn: Don't expect to have no sedesc on detach
+    - BUG/MINOR: log: Properly test connection retries to fix dontlog-normal option
+    - MINOR: hlua: don't dump empty entries in hlua_traceback()
+    - MINOR: hlua: add a new hlua_show_current_location() function
+    - MEDIUM: debug: add a tainted flag when a shared library is loaded
+    - MEDIUM: debug: detect redefinition of symbols upon dlopen()
+    - BUILD: quic: Wrong HKDF label constant variable initializations
+    - BUG/MINOR: quic: Unexpected half open connection counter wrapping
+    - BUG/MINOR: quic_stats: Duplicate "quic_streams_data_blocked_bidi" field name
+    - BUG/MINOR: quic: purge conn Rx packet list on release
+    - BUG/MINOR: quic: free rejected Rx packets
+    - BUG/MINOR: qpack: abort on dynamic index field line decoding
+    - BUG/MEDIUM: ssl/cli: crash when crt inserted into a crt-list
+    - REGTESTS: ssl: add the same cert for client/server
+    - BUG/MINOR: quic: Acknowledgement must be forced during handshake
+    - MINOR: quic: Dump version_information transport parameter
+    - BUG/MEDIUM: mworker: use default maxconn in wait mode
+    - MINOR: intops: add a function to return a valid bit position from a mask
+    - TESTS: add a unit test for one_among_mask()
+    - BUILD: ssl_ckch: fix "maybe-uninitialized" build error on gcc-9.4 + ARM
+    - BUG/MINOR: ssl: Do not look for key in extra files if already in pem
+    - BUG/MINOR: quic: Missing acknowledgments for trailing packets
+    - BUG/MINOR: http-ana: Set method to HTTP_METH_OTHER when an HTTP txn is created
+    - BUG/MINOR: http-fetch: Use integer value when possible in "method" sample fetch
+    - MINOR: freq_ctr: Add a function to get events excess over the current period
+    - BUG/MINOR: stream: only free the req/res captures when set
+    - CLEANUP: pool/tree-wide: remove suffix "_pool" from certain pool names
+    - MEDIUM: debug: improve DEBUG_MEM_STATS to also report pool alloc/free
+    - BUG/MINOR: quic: Wrong reuse of fulfilled dgram RX buffer
+    - BUG/MAJOR: quic: Big RX dgrams leak when fulfilling a buffer
+    - BUG/MAJOR: quic: Big RX dgrams leak with POST requests
+    - BUILD: quic+h3: 32-bit compilation errors fixes
+    - MEDIUM: bwlim: Add support of bandwith limitation at the stream level
+
 2022/05/31 : 2.7-dev0
     - MINOR: version: it's development again
 
