@@ -65,6 +65,7 @@ volatile unsigned long threads_harmless_mask = 0;
 volatile unsigned long threads_idle_mask = 0;
 volatile unsigned long threads_sync_mask = 0;
 volatile unsigned long all_threads_mask __read_mostly  = 1; // nbthread 1 assumed by default
+volatile unsigned long all_tgroups_mask __read_mostly  = 1; // nbtgroup 1 assumed by default
 THREAD_LOCAL unsigned int  tgid          = 1; // thread ID starts at 1
 THREAD_LOCAL unsigned int  tid           = 0;
 THREAD_LOCAL unsigned long tid_bit       = (1UL << 0);
@@ -1008,6 +1009,7 @@ int thread_map_to_groups()
 {
 	int t, g, ut, ug;
 	int q, r;
+	ulong m __maybe_unused;
 
 	ut = ug = 0; // unassigned threads & groups
 
@@ -1082,11 +1084,18 @@ int thread_map_to_groups()
 		ha_thread_info[t].ltid_bit = 1UL << ha_thread_info[t].ltid;
 	}
 
+	m = 0;
 	for (g = 0; g < global.nbtgroups; g++) {
 		ha_tgroup_info[g].threads_enabled = nbits(ha_tgroup_info[g].count);
+		if (!ha_tgroup_info[g].count)
+			continue;
+		m |= 1UL << g;
 
 	}
 
+#ifdef USE_THREAD
+	all_tgroups_mask = m;
+#endif
 	return 0;
 }
 

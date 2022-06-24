@@ -56,6 +56,7 @@ extern int thread_cpus_enabled_at_boot;
  * at build time.
  */
 enum { all_threads_mask = 1UL };
+enum { all_tgroups_mask = 1UL };
 enum { threads_harmless_mask = 0 };
 enum { threads_idle_mask = 0 };
 enum { threads_sync_mask = 0 };
@@ -180,6 +181,7 @@ void set_thread_cpu_affinity();
 unsigned long long ha_get_pthread_id(unsigned int thr);
 
 extern volatile unsigned long all_threads_mask;
+extern volatile unsigned long all_tgroups_mask;
 extern volatile unsigned long threads_harmless_mask;
 extern volatile unsigned long threads_idle_mask;
 extern volatile unsigned long threads_sync_mask;
