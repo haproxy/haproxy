@@ -276,7 +276,8 @@ uint clock_report_idle(void)
 	uint thr;
 
 	for (thr = 0; thr < MAX_THREADS; thr++) {
-		if (!(all_threads_mask & (1UL << thr)))
+		if (!ha_thread_info[thr].tg ||
+		    !(ha_thread_info[thr].tg->threads_enabled & ha_thread_info[thr].ltid_bit))
 			continue;
 		total += HA_ATOMIC_LOAD(&ha_thread_ctx[thr].idle_pct);
 		rthr++;
