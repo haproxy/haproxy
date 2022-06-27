@@ -54,7 +54,7 @@ void wdt_handler(int sig, siginfo_t *si, void *arg)
 {
 	unsigned long long n, p;
 	ulong thr_bit;
-	int thr;
+	int thr, tgrp;
 
 	switch (si->si_code) {
 	case SI_TIMER:
@@ -72,6 +72,7 @@ void wdt_handler(int sig, siginfo_t *si, void *arg)
 		if (thr < 0 || thr >= global.nbthread)
 			break;
 
+		tgrp = ha_thread_info[thr].tgid;
 		thr_bit = ha_thread_info[thr].ltid_bit;
 		p = ha_thread_ctx[thr].prev_cpu_time;
 		n = now_cpu_time_thread(thr);
@@ -83,7 +84,7 @@ void wdt_handler(int sig, siginfo_t *si, void *arg)
 			goto update_and_leave;
 
 		if ((_HA_ATOMIC_LOAD(&th_ctx->flags) & TH_FL_SLEEPING) &&
-		    ((threads_harmless_mask|threads_to_dump) & thr_bit)) {
+		    ((_HA_ATOMIC_LOAD(&ha_tgroup_ctx[tgrp-1].threads_harmless) | threads_to_dump) & thr_bit)) {
 			/* This thread is currently doing exactly nothing
 			 * waiting in the poll loop (unlikely but possible),
 			 * waiting for all other threads to join the rendez-vous

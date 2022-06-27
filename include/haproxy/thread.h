@@ -57,9 +57,6 @@ extern int thread_cpus_enabled_at_boot;
  */
 enum { all_threads_mask = 1UL };
 enum { all_tgroups_mask = 1UL };
-enum { threads_harmless_mask = 0 };
-enum { threads_idle_mask = 0 };
-enum { threads_want_rdv_mask = 0 };
 enum { tid_bit = 1UL };
 enum { tid = 0 };
 enum { tgid = 1 };
@@ -176,17 +173,14 @@ unsigned long long ha_get_pthread_id(unsigned int thr);
 
 extern volatile unsigned long all_threads_mask;
 extern volatile unsigned long all_tgroups_mask;
-extern volatile unsigned long threads_harmless_mask;
-extern volatile unsigned long threads_idle_mask;
-extern volatile unsigned long threads_want_rdv_mask;
 extern THREAD_LOCAL unsigned long tid_bit; /* The bit corresponding to the thread id */
 extern THREAD_LOCAL unsigned int tid;      /* The thread id */
 extern THREAD_LOCAL unsigned int tgid;     /* The thread group id (starts at 1) */
 
-/* explanation for threads_want_rdv_mask, and threads_harmless_mask:
- * - threads_want_rdv_mask is a bit field indicating all threads that have
+/* explanation for tg_ctx->threads_want_rdv, and tg_ctx->threads_harmless:
+ * - tg_ctx->threads_want_rdv is a bit field indicating all threads that have
  *   requested a rendez-vous of other threads using thread_isolate().
- * - threads_harmless_mask is a bit field indicating all threads that are
+ * - tg_ctx->threads_harmless is a bit field indicating all threads that are
  *   currently harmless in that they promise not to access a shared resource.
  *
  * For a given thread, its bits in want_rdv and harmless can be translated like
@@ -221,6 +215,7 @@ static inline void ha_set_thread(const struct thread_info *thr)
 		tgid    = thr->tgid;
 		tid_bit = 1UL << tid; /* FIXME: must become thr->ltid_bit */
 		th_ctx  = &ha_thread_ctx[tid];
+		tg_ctx  = &ha_tgroup_ctx[tgid-1];
 	} else {
 		tgid    = 1;
 		tid     = 0;
@@ -228,6 +223,7 @@ static inline void ha_set_thread(const struct thread_info *thr)
 		ti      = &ha_thread_info[0];
 		tg      = &ha_tgroup_info[0];
 		th_ctx  = &ha_thread_ctx[0];
+		tg_ctx  = &ha_tgroup_ctx[0];
 	}
 }
 
@@ -240,7 +236,7 @@ static inline void ha_set_thread(const struct thread_info *thr)
  */
 static inline void thread_idle_now()
 {
-	HA_ATOMIC_OR(&threads_idle_mask, tid_bit);
+	HA_ATOMIC_OR(&tg_ctx->threads_idle, ti->ltid_bit);
 }
 
 /* Ends the harmless period started by thread_idle_now(), i.e. the thread is
@@ -257,7 +253,7 @@ static inline void thread_idle_now()
  */
 static inline void thread_idle_end()
 {
-	HA_ATOMIC_AND(&threads_idle_mask, ~tid_bit);
+	HA_ATOMIC_AND(&tg_ctx->threads_idle, ~ti->ltid_bit);
 }
 
 
@@ -269,7 +265,7 @@ static inline void thread_idle_end()
  */
 static inline void thread_harmless_now()
 {
-	HA_ATOMIC_OR(&threads_harmless_mask, tid_bit);
+	HA_ATOMIC_OR(&tg_ctx->threads_harmless, ti->ltid_bit);
 }
 
 /* Ends the harmless period started by thread_harmless_now(). Usually this is
@@ -280,8 +276,9 @@ static inline void thread_harmless_now()
 static inline void thread_harmless_end()
 {
 	while (1) {
-		HA_ATOMIC_AND(&threads_harmless_mask, ~tid_bit);
-		if (likely((threads_want_rdv_mask & all_threads_mask & ~tid_bit) == 0))
+		HA_ATOMIC_AND(&tg_ctx->threads_harmless, ~tid_bit);
+		if (likely((_HA_ATOMIC_LOAD(&tg_ctx->threads_want_rdv) &
+			    tg->threads_enabled & ~ti->ltid_bit) == 0))
 			break;
 		thread_harmless_till_end();
 	}
@@ -290,7 +287,8 @@ static inline void thread_harmless_end()
 /* an isolated thread has harmless cleared and want_rdv set */
 static inline unsigned long thread_isolated()
 {
-	return threads_want_rdv_mask & ~threads_harmless_mask & tid_bit;
+	return _HA_ATOMIC_LOAD(&tg_ctx->threads_want_rdv) &
+		~_HA_ATOMIC_LOAD(&tg_ctx->threads_harmless) & ti->ltid_bit;
 }
 
 /* Returns 1 if the cpu set is currently restricted for the process else 0.

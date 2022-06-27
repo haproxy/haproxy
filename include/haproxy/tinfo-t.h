@@ -62,6 +62,18 @@ struct tgroup_info {
 	char __end[0] __attribute__((aligned(64)));
 };
 
+/* This structure describes the group-specific context (e.g. active threads
+ * etc). It uses one cache line per thread to limit false sharing.
+ */
+struct tgroup_ctx {
+	ulong threads_want_rdv;           /* mask of threads that wand a rendez-vous */
+	ulong threads_harmless;           /* mask of threads that are not modifying anything */
+	ulong threads_idle;               /* mask of threads idling in the poller */
+	/* pad to cache line (64B) */
+	char __pad[0];                    /* unused except to check remaining room */
+	char __end[0] __attribute__((aligned(64)));
+};
+
 /* This structure describes all the per-thread info we need. When threads are
  * disabled, it contains the same info for the single running thread. This is
  * stable across all of a thread's life, and is being pointed to by the
@@ -69,6 +81,7 @@ struct tgroup_info {
  */
 struct thread_info {
 	const struct tgroup_info *tg;     /* config of the thread-group this thread belongs to */
+	struct tgroup_ctx *tg_ctx;        /* context of the thread-group this thread belongs to */
 	uint tid, ltid;                   /* process-wide and group-wide thread ID (start at 0) */
 	ulong ltid_bit;                   /* bit masks for the tid/ltid */
 	uint tgid;                        /* ID of the thread group this thread belongs to (starts at 1; 0=unset) */

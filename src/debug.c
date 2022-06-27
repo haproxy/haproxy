@@ -162,6 +162,7 @@ void ha_thread_dump(struct buffer *buf, int thr, int calling_tid)
 	unsigned long long p = ha_thread_ctx[thr].prev_cpu_time;
 	unsigned long long n = now_cpu_time_thread(thr);
 	int stuck = !!(ha_thread_ctx[thr].flags & TH_FL_STUCK);
+	int tgrp  = ha_thread_info[thr].tgid;
 
 	chunk_appendf(buf,
 	              "%c%cThread %-2u: id=0x%llx act=%d glob=%d wq=%d rq=%d tl=%d tlsz=%d rqsz=%d\n"
@@ -184,7 +185,7 @@ void ha_thread_dump(struct buffer *buf, int thr, int calling_tid)
 
 	chunk_appendf(buf,
 	              " harmless=%d wantrdv=%d",
-	              !!(threads_harmless_mask & thr_bit),
+	              !!(_HA_ATOMIC_LOAD(&ha_tgroup_ctx[tgrp-1].threads_harmless) & thr_bit),
 	              !!(th_ctx->flags & TH_FL_TASK_PROFILING));
 
 	chunk_appendf(buf, "\n");
@@ -1365,7 +1366,7 @@ void debug_handler(int sig, siginfo_t *si, void *arg)
 	/* mark the current thread as stuck to detect it upon next invocation
 	 * if it didn't move.
 	 */
-	if (!(threads_harmless_mask & tid_bit) &&
+	if (!(_HA_ATOMIC_LOAD(&tg_ctx->threads_harmless) & ti->ltid_bit) &&
 	    !(_HA_ATOMIC_LOAD(&th_ctx->flags) & TH_FL_SLEEPING))
 		_HA_ATOMIC_OR(&th_ctx->flags, TH_FL_STUCK);
 }
