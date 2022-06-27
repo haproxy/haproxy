@@ -315,7 +315,7 @@ void ha_tkillall(int sig)
 	unsigned int thr;
 
 	for (thr = 0; thr < global.nbthread; thr++) {
-		if (!(all_threads_mask & (1UL << thr)))
+		if (!(tg->threads_enabled & ha_thread_info[thr].ltid_bit))
 			continue;
 		if (thr == tid)
 			continue;
