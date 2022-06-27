@@ -63,7 +63,6 @@ THREAD_LOCAL struct thread_ctx *th_ctx = &ha_thread_ctx[0];
 volatile unsigned long threads_want_rdv_mask __read_mostly = 0;
 volatile unsigned long threads_harmless_mask = 0;
 volatile unsigned long threads_idle_mask = 0;
-volatile unsigned long threads_sync_mask = 0;
 volatile unsigned long all_threads_mask __read_mostly  = 1; // nbthread 1 assumed by default
 volatile unsigned long all_tgroups_mask __read_mostly  = 1; // nbtgroup 1 assumed by default
 THREAD_LOCAL unsigned int  tgid          = 1; // thread ID starts at 1
@@ -168,34 +167,6 @@ void thread_isolate_full()
 void thread_release()
 {
 	_HA_ATOMIC_AND(&threads_want_rdv_mask, ~tid_bit);
-}
-
-/* Cancels the effect of thread_isolate() by releasing the current thread's bit
- * in threads_want_rdv_mask and by marking this thread as harmless until the
- * last worker finishes. The difference with thread_release() is that this one
- * will not leave the function before others are notified to do the same, so it
- * guarantees that the current thread will not pass through a subsequent call
- * to thread_isolate() before others finish.
- */
-void thread_sync_release()
-{
-	_HA_ATOMIC_OR(&threads_sync_mask, tid_bit);
-	__ha_barrier_atomic_store();
-	_HA_ATOMIC_AND(&threads_want_rdv_mask, ~tid_bit);
-
-	while (threads_want_rdv_mask & all_threads_mask) {
-		_HA_ATOMIC_OR(&threads_harmless_mask, tid_bit);
-		while (threads_want_rdv_mask & all_threads_mask)
-			ha_thread_relax();
-		HA_ATOMIC_AND(&threads_harmless_mask, ~tid_bit);
-	}
-
-	/* the current thread is not harmless anymore, thread_isolate()
-	 * is forced to wait till all waiters finish.
-	 */
-	_HA_ATOMIC_AND(&threads_sync_mask, ~tid_bit);
-	while (threads_sync_mask & all_threads_mask)
-		ha_thread_relax();
 }
 
 /* Sets up threads, signals and masks, and starts threads 2 and above.
