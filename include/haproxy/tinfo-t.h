@@ -69,6 +69,7 @@ struct tgroup_ctx {
 	ulong threads_want_rdv;           /* mask of threads that wand a rendez-vous */
 	ulong threads_harmless;           /* mask of threads that are not modifying anything */
 	ulong threads_idle;               /* mask of threads idling in the poller */
+	ulong stopping_threads;           /* mask of threads currently stopping */
 	/* pad to cache line (64B) */
 	char __pad[0];                    /* unused except to check remaining room */
 	char __end[0] __attribute__((aligned(64)));
