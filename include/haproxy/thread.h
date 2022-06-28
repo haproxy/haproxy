@@ -225,14 +225,14 @@ static inline void ha_set_thread(const struct thread_info *thr)
 	if (thr) {
 		BUG_ON(!thr->ltid_bit);
 		BUG_ON(!thr->tg);
-		BUG_ON(!thr->tg->tgid);
+		BUG_ON(!thr->tgid);
 
 		ti      = thr;
 		tg      = thr->tg;
 		tid     = thr->tid;
+		tgid    = thr->tgid;
 		tid_bit = 1UL << tid; /* FIXME: must become thr->ltid_bit */
 		th_ctx  = &ha_thread_ctx[tid];
-		tgid    = tg->tgid;
 	} else {
 		tgid    = 1;
 		tid     = 0;

@@ -1061,6 +1061,7 @@ int thread_map_to_groups()
 			}
 
 			ha_tgroup_info[g].count++;
+			ha_thread_info[t].tgid = g + 1;
 			ha_thread_info[t].tg = &ha_tgroup_info[g];
 
 			ut--;
@@ -1119,11 +1120,11 @@ int thread_resolve_group_mask(uint igid, ulong imask, uint *ogid, ulong *omask, 
 			imask &= all_threads_mask;
 			for (t = 0; t < global.nbthread; t++) {
 				if (imask & (1UL << t)) {
-					if (ha_thread_info[t].tg->tgid != igid) {
+					if (ha_thread_info[t].tgid != igid) {
 						if (!igid)
-							igid = ha_thread_info[t].tg->tgid;
+							igid = ha_thread_info[t].tgid;
 						else {
-							memprintf(err, "'thread' directive spans multiple groups (at least %u and %u)", igid, ha_thread_info[t].tg->tgid);
+							memprintf(err, "'thread' directive spans multiple groups (at least %u and %u)", igid, ha_thread_info[t].tgid);
 							return -1;
 						}
 					}
@@ -1259,8 +1260,10 @@ static int cfg_parse_thread_group(char **args, int section_type, struct proxy *c
 		for (tnum = ha_tgroup_info[tgroup-1].base;
 		     tnum < ha_tgroup_info[tgroup-1].base + ha_tgroup_info[tgroup-1].count;
 		     tnum++) {
-			if (ha_thread_info[tnum-1].tg == &ha_tgroup_info[tgroup-1])
+			if (ha_thread_info[tnum-1].tg == &ha_tgroup_info[tgroup-1]) {
 				ha_thread_info[tnum-1].tg = NULL;
+				ha_thread_info[tnum-1].tgid = 0;
+			}
 		}
 		ha_tgroup_info[tgroup-1].count = ha_tgroup_info[tgroup-1].base = 0;
 	}
@@ -1299,6 +1302,7 @@ static int cfg_parse_thread_group(char **args, int section_type, struct proxy *c
 				ha_tgroup_info[tgroup-1].base = tnum - 1;
 			}
 
+			ha_thread_info[tnum-1].tgid = tgroup;
 			ha_thread_info[tnum-1].tg = &ha_tgroup_info[tgroup-1];
 			tot++;
 		}

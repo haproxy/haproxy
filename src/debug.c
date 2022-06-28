@@ -178,7 +178,7 @@ void ha_thread_dump(struct buffer *buf, int thr, int calling_tid)
 			MT_LIST_ISEMPTY(&ha_thread_ctx[thr].shared_tasklet_list)),
 	              ha_thread_ctx[thr].tasks_in_list,
 	              ha_thread_ctx[thr].rq_total,
-		      ha_thread_info[thr].tg->tgid, ha_thread_info[thr].ltid + 1,
+		      ha_thread_info[thr].tgid, ha_thread_info[thr].ltid + 1,
 	              stuck,
 	              !!(th_ctx->flags & TH_FL_TASK_PROFILING));
 
