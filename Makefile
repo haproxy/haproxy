@@ -104,7 +104,7 @@
 #   LUA_LIB        : force the lib path to lua
 #   LUA_INC        : force the include path to lua
 #   LUA_LIB_NAME   : force the lib name (or automatically evaluated, by order of
-#                                        priority : lua5.3, lua53, lua).
+#                                        priority : lua5.4, lua54, lua5.3, lua53, lua).
 #   OT_DEBUG       : compile the OpenTracing filter in debug mode
 #   OT_INC         : force the include path to libopentracing-c-wrapper
 #   OT_LIB         : force the lib path to libopentracing-c-wrapper
@@ -648,11 +648,11 @@ OPTIONS_CFLAGS  += $(if $(LUA_INC),-I$(LUA_INC))
 LUA_LD_FLAGS := -Wl,$(if $(EXPORT_SYMBOL),$(EXPORT_SYMBOL),--export-dynamic) $(if $(LUA_LIB),-L$(LUA_LIB))
 ifeq ($(LUA_LIB_NAME),)
 # Try to automatically detect the Lua library
-LUA_LIB_NAME := $(firstword $(foreach lib,lua5.3 lua53 lua,$(call check_lua_lib,$(lib),$(LUA_LD_FLAGS))))
+LUA_LIB_NAME := $(firstword $(foreach lib,lua5.4 lua54 lua5.3 lua53 lua,$(call check_lua_lib,$(lib),$(LUA_LD_FLAGS))))
 ifeq ($(LUA_LIB_NAME),)
-$(error unable to automatically detect the Lua library name, you can enforce its name with LUA_LIB_NAME=<name> (where <name> can be lua5.3, lua53, lua, ...))
+$(error unable to automatically detect the Lua library name, you can enforce its name with LUA_LIB_NAME=<name> (where <name> can be lua5.4, lua54, lua, ...))
 endif
-LUA_INC := $(firstword $(foreach lib,lua5.3 lua53 lua,$(call check_lua_inc,$(lib),"/usr/include/")))
+LUA_INC := $(firstword $(foreach lib,lua5.4 lua54 lua5.3 lua53 lua,$(call check_lua_inc,$(lib),"/usr/include/")))
 ifneq ($(LUA_INC),)
 OPTIONS_CFLAGS  += -I$(LUA_INC)
 endif

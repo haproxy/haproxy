@@ -324,9 +324,9 @@ Lua is an embedded programming language supported by HAProxy to provide more
 advanced scripting capabilities. Only versions 5.3 and above are supported.
 In order to enable Lua support, please specify "USE_LUA=1" on the command line.
 Some systems provide this library under various names to avoid conflicts with
-previous versions. By default, HAProxy looks for "lua5.3", "lua53", "lua". If
-your system uses a different naming, you may need to set the library name in
-the "LUA_LIB_NAME" variable.
+previous versions. By default, HAProxy looks for "lua5.4", "lua54", "lua5.3",
+"lua53", "lua". If your system uses a different naming, you may need to set the
+library name in the "LUA_LIB_NAME" variable.
 
 If Lua is not provided on your system, it can be very simply built locally. It
 can be downloaded from https://www.lua.org/, extracted and built, for example :
