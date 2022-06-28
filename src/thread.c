@@ -1019,7 +1019,7 @@ int thread_map_to_groups()
 	for (g = 0; g < global.nbtgroups; g++) {
 		if (!ha_tgroup_info[g].count)
 			ug++;
-		ha_tgroup_info[g].tgid = g + 1;
+		ha_tgroup_info[g].tgid_bit = 1UL << g;
 	}
 
 	if (ug > ut) {
