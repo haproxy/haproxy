@@ -1133,16 +1133,17 @@ int thread_map_to_groups()
 	return 0;
 }
 
-/* converts a configuration thread group+mask to a global group+mask depending on
- * the configured thread group id. This is essentially for use with the "thread"
- * directive on "bind" lines, where "thread 2/1-3" might be turned to "4-6" for
- * the global ID. It cannot be used before the thread mapping above was completed
- * and the thread group number configured. Possible options:
+/* converts a configuration thread num or group+mask to a global group+mask
+ * depending on the configured thread group id. This is essentially for use
+ * with the "thread" directive on "bind" lines, where "thread 4-6" might be
+ * turned to "2/1-3". It cannot be used before the thread mapping above was
+ * completed and the thread group number configured. Possible options:
  *  - igid == 0: imask represents global IDs. We have to check that all
  *    configured threads in the mask belong to the same group. If imask is zero
  *    it means everything, so for now we only support this with a single group.
- *  - igid > 0, imask = 0: convert local values to global values for this thread
- *  - igid > 0, imask > 0: convert local values to global values
+ *  - igid > 0, imask = 0: convert global values to local values for this thread
+ *  - igid > 0, imask > 0: convert global values to local values
+ * Note that the output mask is always local to the group.
  *
  * Returns <0 on failure, >=0 on success.
  */
@@ -1159,13 +1160,11 @@ int thread_resolve_group_mask(uint igid, ulong imask, uint *ogid, ulong *omask, 
 				memprintf(err, "'thread' directive spans multiple groups");
 				return -1;
 			}
-			mask = 0;
 			*ogid = 1; // first and only group
-			*omask = all_threads_mask;
+			*omask = ha_tgroup_info[0].threads_enabled;
 			return 0;
 		} else {
 			/* some global threads */
-			imask &= all_threads_mask;
 			for (t = 0; t < global.nbthread; t++) {
 				if (imask & (1UL << t)) {
 					if (ha_thread_info[t].tgid != igid) {
@@ -1186,7 +1185,9 @@ int thread_resolve_group_mask(uint igid, ulong imask, uint *ogid, ulong *omask, 
 
 			/* we have a valid group, convert this to global thread IDs */
 			*ogid = igid;
-			*omask = imask & (ha_tgroup_info[igid - 1].threads_enabled << ha_tgroup_info[igid - 1].base);
+			imask = imask >> ha_tgroup_info[igid - 1].base;
+			imask &= ha_tgroup_info[igid - 1].threads_enabled;
+			*omask = imask;
 			return 0;
 		}
 	} else {
@@ -1199,15 +1200,12 @@ int thread_resolve_group_mask(uint igid, ulong imask, uint *ogid, ulong *omask, 
 		if (!imask) {
 			/* all threads of this groups. Let's make a mask from their count and base. */
 			*ogid = igid;
-			mask = 1UL << (ha_tgroup_info[igid - 1].count - 1);
-			mask |= mask - 1;
-			*omask = mask << ha_tgroup_info[igid - 1].base;
+			*omask = nbits(ha_tgroup_info[igid - 1].count);
 			return 0;
 		} else {
 			/* some local threads. Keep only existing ones for this group */
 
-			mask = 1UL << (ha_tgroup_info[igid - 1].count - 1);
-			mask |= mask - 1;
+			mask = nbits(ha_tgroup_info[igid - 1].count);
 
 			if (!(mask & imask)) {
 				/* no intersection between the thread group's
@@ -1227,8 +1225,7 @@ int thread_resolve_group_mask(uint igid, ulong imask, uint *ogid, ulong *omask, 
 #endif
 			}
 
-			mask &= imask;
-			*omask = mask << ha_tgroup_info[igid - 1].base;
+			*omask = mask & imask;
 			*ogid = igid;
 			return 0;
 		}
