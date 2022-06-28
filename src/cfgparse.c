@@ -2645,17 +2645,19 @@ int check_config_validity()
 					   curproxy->id, err, bind_conf->arg, bind_conf->file, bind_conf->line);
 				free(err);
 				cfgerr++;
-			} else if (!((mask = bind_conf->bind_thread) & all_threads_mask)) {
+			} else if (!((mask = bind_conf->bind_thread) & ha_tgroup_info[bind_conf->bind_tgroup-1].threads_enabled)) {
 				unsigned long new_mask = 0;
+				ulong thr_mask = ha_tgroup_info[bind_conf->bind_tgroup-1].threads_enabled;
 
 				while (mask) {
-					new_mask |= mask & all_threads_mask;
-					mask >>= global.nbthread;
+					new_mask |= mask & thr_mask;
+					mask >>= ha_tgroup_info[bind_conf->bind_tgroup-1].count;
 				}
 
 				bind_conf->bind_thread = new_mask;
-				ha_warning("Proxy '%s': the thread range specified on the 'thread' directive of 'bind %s' at [%s:%d] only refers to thread numbers out of the range defined by the global 'nbthread' directive. The thread numbers were remapped to existing threads instead (mask 0x%lx).\n",
-					   curproxy->id, bind_conf->arg, bind_conf->file, bind_conf->line, new_mask);
+				ha_warning("Proxy '%s': the thread range specified on the 'thread' directive of 'bind %s' at [%s:%d] only refers to thread numbers out of the range supported by thread group %d (%d). The thread numbers were remapped to existing threads instead (mask 0x%lx).\n",
+					   curproxy->id, bind_conf->arg, bind_conf->file, bind_conf->line,
+					   bind_conf->bind_tgroup, ha_tgroup_info[bind_conf->bind_tgroup-1].count, new_mask);
 			}
 
 			/* apply thread masks and groups to all receivers */
@@ -4102,17 +4104,19 @@ out_uri_auth_compat:
 							 curpeers->peers_fe->id, err, bind_conf->arg, bind_conf->file, bind_conf->line);
 						free(err);
 						cfgerr++;
-					} else if (!((mask = bind_conf->bind_thread) & all_threads_mask)) {
+					} else if (!((mask = bind_conf->bind_thread) & ha_tgroup_info[bind_conf->bind_tgroup-1].threads_enabled)) {
 						unsigned long new_mask = 0;
+						ulong thr_mask = ha_tgroup_info[bind_conf->bind_tgroup-1].threads_enabled;
 
 						while (mask) {
-							new_mask |= mask & all_threads_mask;
-							mask >>= global.nbthread;
+							new_mask |= mask & thr_mask;
+							mask >>= ha_tgroup_info[bind_conf->bind_tgroup-1].count;
 						}
 
 						bind_conf->bind_thread = new_mask;
-						ha_warning("Peers section '%s': the thread range specified on the 'thread' directive of 'bind %s' at [%s:%d] only refers to thread numbers out of the range defined by the global 'nbthread' directive. The thread numbers were remapped to existing threads instead (mask 0x%lx).\n",
-							   curpeers->peers_fe->id, bind_conf->arg, bind_conf->file, bind_conf->line, new_mask);
+						ha_warning("Peers section '%s': the thread range specified on the 'thread' directive of 'bind %s' at [%s:%d] only refers to thread numbers out of the range supported by thread group %d (%d). The thread numbers were remapped to existing threads instead (mask 0x%lx).\n",
+							   curpeers->peers_fe->id, bind_conf->arg, bind_conf->file, bind_conf->line,
+							   bind_conf->bind_tgroup, ha_tgroup_info[bind_conf->bind_tgroup-1].count, new_mask);
 					}
 
 					/* apply thread masks and groups to all receivers */
