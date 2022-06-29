@@ -181,6 +181,44 @@ void __tasklet_wakeup_on(struct tasklet *tl, int thr)
 	}
 }
 
+/* Do not call this one, please use tasklet_wakeup_after_on() instead, as this one is
+ * the slow path of tasklet_wakeup_after() which performs some preliminary checks
+ * and sets TASK_IN_LIST before calling this one.
+ */
+struct list *__tasklet_wakeup_after(struct list *head, struct tasklet *tl)
+{
+	BUG_ON(tid != tl->tid);
+	/* this tasklet runs on the caller thread */
+	if (!head) {
+		if (tl->state & TASK_HEAVY) {
+			LIST_INSERT(&th_ctx->tasklets[TL_HEAVY], &tl->list);
+			th_ctx->tl_class_mask |= 1 << TL_HEAVY;
+		}
+		else if (tl->state & TASK_SELF_WAKING) {
+			LIST_INSERT(&th_ctx->tasklets[TL_BULK], &tl->list);
+			th_ctx->tl_class_mask |= 1 << TL_BULK;
+		}
+		else if ((struct task *)tl == th_ctx->current) {
+			_HA_ATOMIC_OR(&tl->state, TASK_SELF_WAKING);
+			LIST_INSERT(&th_ctx->tasklets[TL_BULK], &tl->list);
+			th_ctx->tl_class_mask |= 1 << TL_BULK;
+		}
+		else if (th_ctx->current_queue < 0) {
+			LIST_INSERT(&th_ctx->tasklets[TL_URGENT], &tl->list);
+			th_ctx->tl_class_mask |= 1 << TL_URGENT;
+		}
+		else {
+			LIST_INSERT(&th_ctx->tasklets[th_ctx->current_queue], &tl->list);
+			th_ctx->tl_class_mask |= 1 << th_ctx->current_queue;
+		}
+	}
+	else {
+		LIST_APPEND(head, &tl->list);
+	}
+	_HA_ATOMIC_INC(&th_ctx->rq_total);
+	return &tl->list;
+}
+
 /* Puts the task <t> in run queue at a position depending on t->nice. <t> is
  * returned. The nice value assigns boosts in 32th of the run queue size. A
  * nice value of -1024 sets the task to -tasks_run_queue*32, while a nice value

@@ -106,6 +106,7 @@ __decl_thread(extern HA_SPINLOCK_T rq_lock);  /* spin lock related to run queue 
 __decl_thread(extern HA_RWLOCK_T wq_lock);    /* RW lock related to the wait queue */
 
 void __tasklet_wakeup_on(struct tasklet *tl, int thr);
+struct list *__tasklet_wakeup_after(struct list *head, struct tasklet *tl);
 void task_kill(struct task *t);
 void tasklet_kill(struct tasklet *t);
 void __task_wakeup(struct task *t);
@@ -456,6 +457,40 @@ static inline void _task_instant_wakeup(struct task *t, unsigned int f, const ch
 		tl->call_date = now_mono_time();
 #endif
 	__tasklet_wakeup_on(tl, thr);
+}
+
+/* schedules tasklet <tl> to run immediately after the current one is done
+ * <tl> will be queued after entry <head>, or at the head of the task list. Return
+ * the new head to be used to queue future tasks. This is used to insert multiple entries
+ * at the head of the tasklet list, typically to transfer processing from a tasklet
+ * to another one or a set of other ones. If <head> is NULL, the tasklet list of <thr>
+ * thread will be used.
+ * With DEBUG_TASK, the <file>:<line> from the call place are stored into the tasklet
+ * for tracing purposes.
+ */
+#define tasklet_wakeup_after(head, tl) _tasklet_wakeup_after(head, tl, __FILE__, __LINE__)
+static inline struct list *_tasklet_wakeup_after(struct list *head, struct tasklet *tl,
+                                                 const char *file, int line)
+{
+	unsigned int state = tl->state;
+
+	do {
+		/* do nothing if someone else already added it */
+		if (state & TASK_IN_LIST)
+			return head;
+	} while (!_HA_ATOMIC_CAS(&tl->state, &state, state | TASK_IN_LIST));
+
+	/* at this point we're the first one to add this task to the list */
+#ifdef DEBUG_TASK
+	if ((unsigned int)tl->debug.caller_idx > 1)
+		ABORT_NOW();
+	tl->debug.caller_idx = !tl->debug.caller_idx;
+	tl->debug.caller_file[tl->debug.caller_idx] = file;
+	tl->debug.caller_line[tl->debug.caller_idx] = line;
+	if (th_ctx->flags & TH_FL_TASK_PROFILING)
+		tl->call_date = now_mono_time();
+#endif
+	return __tasklet_wakeup_after(head, tl);
 }
 
 /* This macro shows the current function name and the last known caller of the
