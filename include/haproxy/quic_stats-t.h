@@ -10,6 +10,7 @@ extern struct stats_module quic_stats_module;
 
 enum {
 	QUIC_ST_DROPPED_PACKET,
+	QUIC_ST_DROPPED_PACKET_BUFOVERRUN,
 	QUIC_ST_DROPPED_PARSING,
 	QUIC_ST_LOST_PACKET,
 	QUIC_ST_TOO_SHORT_INITIAL_DGRAM,
@@ -49,6 +50,7 @@ enum {
 
 struct quic_counters {
 	long long dropped_pkt;       /* total number of dropped packets */
+	long long dropped_pkt_bufoverrun;/* total number of dropped packets because of buffer overrun */
 	long long dropped_parsing;   /* total number of dropped packets upon parsing errors */
 	long long lost_pkt;          /* total number of lost packets */
 	long long too_short_initial_dgram; /* total number of too short datagrams with Initial packets */

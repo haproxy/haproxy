@@ -4,6 +4,8 @@
 static struct name_desc quic_stats[] = {
 	[QUIC_ST_DROPPED_PACKET]      = { .name = "quic_dropped_pkt",
 	                                  .desc = "Total number of dropped packets" },
+	[QUIC_ST_DROPPED_PACKET_BUFOVERRUN] = { .name = "quic_dropped_pkt_bufoverrun",
+	                                  .desc = "Total number of dropped packets because of buffer overrun" },
 	[QUIC_ST_DROPPED_PARSING]     = { .name = "quic_dropped_parsing_pkt",
 	                                  .desc = "Total number of dropped packets upon parsing error" },
 	[QUIC_ST_LOST_PACKET]         = { .name = "quic_lost_pkt",
@@ -79,6 +81,7 @@ static void quic_fill_stats(void *data, struct field *stats)
 	struct quic_counters *counters = data;
 
 	stats[QUIC_ST_DROPPED_PACKET]    = mkf_u64(FN_COUNTER, counters->dropped_pkt);
+	stats[QUIC_ST_DROPPED_PACKET_BUFOVERRUN] = mkf_u64(FN_COUNTER, counters->dropped_pkt_bufoverrun);
 	stats[QUIC_ST_DROPPED_PARSING]   = mkf_u64(FN_COUNTER, counters->dropped_parsing);
 	stats[QUIC_ST_LOST_PACKET]       = mkf_u64(FN_COUNTER, counters->lost_pkt);
 	stats[QUIC_ST_TOO_SHORT_INITIAL_DGRAM] = mkf_u64(FN_COUNTER, counters->too_short_initial_dgram);
