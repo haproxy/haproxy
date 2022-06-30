@@ -258,7 +258,7 @@ enum quic_pkt_type {
 /* Size of the internal buffer of QUIC TX ring buffers (must be a power of 2) */
 #define QUIC_TX_RING_BUFSZ  (1UL << 12)
 /* Size of the QUIC RX buffer for the connections */
-#define QUIC_CONN_RX_BUFSZ (1UL << 14)
+#define QUIC_CONN_RX_BUFSZ (1UL << 16)
 
 extern struct trace_source trace_quic;
 extern struct pool_head *pool_head_quic_tx_ring;
