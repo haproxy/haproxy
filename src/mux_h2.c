@@ -6442,7 +6442,7 @@ static int h2_unsubscribe(struct stconn *sc, int event_type, struct wait_event *
 		TRACE_DEVEL("unsubscribe(recv)", H2_EV_STRM_RECV, h2s->h2c->conn, h2s);
 
 	if (event_type & SUB_RETRY_SEND) {
-		TRACE_DEVEL("subscribe(send)", H2_EV_STRM_SEND, h2s->h2c->conn, h2s);
+		TRACE_DEVEL("unsubscribe(send)", H2_EV_STRM_SEND, h2s->h2c->conn, h2s);
 		h2s->flags &= ~H2_SF_NOTIFIED;
 		if (!(h2s->flags & (H2_SF_WANT_SHUTR | H2_SF_WANT_SHUTW)))
 			LIST_DEL_INIT(&h2s->list);
