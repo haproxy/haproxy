@@ -275,6 +275,7 @@ void quic_sock_fd_iocb(int fd)
 	socklen_t saddrlen;
 	struct quic_dgram *new_dgram;
 	unsigned char *dgram_buf;
+	int max_dgrams;
 
 	BUG_ON(!l);
 
@@ -291,6 +292,8 @@ void quic_sock_fd_iocb(int fd)
 
 	buf = &rxbuf->buf;
 
+	max_dgrams = global.tune.maxpollevents;
+ start:
 	/* Try to reuse an existing dgram. Note that there is alway at
 	 * least one datagram to pick, except the first time we enter
 	 * this function for this <rxbuf> buffer.
@@ -352,6 +355,8 @@ void quic_sock_fd_iocb(int fd)
 		b_del(buf, ret);
 	}
 	new_dgram = NULL;
+	if (--max_dgrams > 0)
+		goto start;
  out:
 	pool_free(pool_head_quic_dgram, new_dgram);
 	MT_LIST_APPEND(&l->rx.rxbuf_list, &rxbuf->mt_list);

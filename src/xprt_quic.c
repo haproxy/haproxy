@@ -5236,7 +5236,7 @@ static inline int quic_padding_check(const unsigned char *buf,
  */
 static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
                              struct quic_rx_packet *pkt, int first_pkt,
-                             struct quic_dgram *dgram)
+                             struct quic_dgram *dgram, struct list **tasklist_head)
 {
 	unsigned char *beg, *payload;
 	struct quic_conn *qc, *qc_to_purge = NULL;
@@ -5610,7 +5610,7 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 	 */
 	conn_ctx = qc->xprt_ctx;
 	if (conn_ctx)
-		tasklet_wakeup(conn_ctx->wait_event.tasklet);
+		*tasklist_head = tasklet_wakeup_after(*tasklist_head, conn_ctx->wait_event.tasklet);
 
  drop_no_conn:
 	if (drop_no_conn)
@@ -6489,6 +6489,7 @@ struct task *quic_lstnr_dghdlr(struct task *t, void *ctx, unsigned int state)
 	struct quic_dghdlr *dghdlr = ctx;
 	struct quic_dgram *dgram;
 	int first_pkt = 1;
+	struct list *tasklist_head = NULL;
 
 	while ((dgram = MT_LIST_POP(&dghdlr->dgrams, typeof(dgram), mt_list))) {
 		pos = dgram->buf;
@@ -6503,7 +6504,7 @@ struct task *quic_lstnr_dghdlr(struct task *t, void *ctx, unsigned int state)
 			LIST_INIT(&pkt->qc_rx_pkt_list);
 			pkt->time_received = now_ms;
 			quic_rx_packet_refinc(pkt);
-			qc_lstnr_pkt_rcv(pos, end, pkt, first_pkt, dgram);
+			qc_lstnr_pkt_rcv(pos, end, pkt, first_pkt, dgram, &tasklist_head);
 			first_pkt = 0;
 			pos += pkt->len;
 			quic_rx_packet_refdec(pkt);
