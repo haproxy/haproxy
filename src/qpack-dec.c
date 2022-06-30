@@ -319,11 +319,11 @@ int qpack_decode_fs(const unsigned char *raw, uint64_t len, struct buffer *tmp,
 		else if (efl_type & QPACK_LFL_WNR_BIT) {
 			/* Literal field line with name reference */
 			uint64_t index, length;
-			unsigned int t, n __maybe_unused, h;
+			unsigned int static_tbl, n __maybe_unused, h;
 
 			qpack_debug_printf(stderr, "Literal field line with name reference:");
 			n = efl_type & 0x20;
-			t = efl_type & 0x10;
+			static_tbl = efl_type & 0x10;
 			index = qpack_get_varint(&raw, &len, 4);
 			if (len == (uint64_t)-1) {
 				qpack_debug_printf(stderr, "##ERR@%d\n", __LINE__);
@@ -331,10 +331,20 @@ int qpack_decode_fs(const unsigned char *raw, uint64_t len, struct buffer *tmp,
 				goto out;
 			}
 
-			if (t)
+			if (static_tbl) {
 				name = qpack_sht[index].n;
+			}
+			else {
+				/* TODO not implemented
+				 *
+				 * For the moment, this should never happen as
+				 * currently we do not support dynamic table insertion
+				 * and specify an empty table size.
+				 */
+				ABORT_NOW();
+			}
 
-			qpack_debug_printf(stderr, " n=%d t=%d index=%llu", !!n, !!t, (unsigned long long)index);
+			qpack_debug_printf(stderr, " n=%d t=%d index=%llu", !!n, !!static_tbl, (unsigned long long)index);
 			h = *raw & 0x80;
 			length = qpack_get_varint(&raw, &len, 7);
 			if (len == (uint64_t)-1) {
