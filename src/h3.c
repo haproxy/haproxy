@@ -326,6 +326,8 @@ static int h3_is_frame_valid(struct h3c *h3c, struct qcs *qcs, uint64_t ftype)
 static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
                                  uint64_t len, char fin)
 {
+	struct h3s *h3s = qcs->ctx;
+	struct h3c *h3c = h3s->h3c;
 	struct buffer htx_buf = BUF_NULL;
 	struct buffer *tmp = get_trash_chunk();
 	struct htx *htx = NULL;
@@ -335,14 +337,17 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 	struct ist meth = IST_NULL, path = IST_NULL;
 	//struct ist scheme = IST_NULL, authority = IST_NULL;
 	struct ist authority = IST_NULL;
-	int hdr_idx;
+	int hdr_idx, ret;
 
 	TRACE_ENTER(H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
 
 	/* TODO support buffer wrapping */
 	BUG_ON(b_head(buf) + len >= b_wrap(buf));
-	if (qpack_decode_fs((const unsigned char *)b_head(buf), len, tmp,
-	                    list, sizeof(list) / sizeof(list[0])) < 0) {
+	ret = qpack_decode_fs((const unsigned char *)b_head(buf), len, tmp,
+	                    list, sizeof(list) / sizeof(list[0]));
+	if (ret < 0) {
+		TRACE_ERROR("QPACK decoding error", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+		h3c->err = -ret;
 		return -1;
 	}
 
@@ -375,8 +380,10 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 	flags |= HTX_SL_F_XFER_LEN;
 
 	sl = htx_add_stline(htx, HTX_BLK_REQ_SL, flags, meth, path, ist("HTTP/3.0"));
-	if (!sl)
+	if (!sl) {
+		h3c->err = H3_INTERNAL_ERROR;
 		return -1;
+	}
 
 	if (fin)
 		sl->flags |= HTX_SL_F_BODYLESS;
@@ -404,8 +411,10 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 	if (fin)
 		htx->flags |= HTX_FL_EOM;
 
-	if (!qc_attach_sc(qcs, &htx_buf))
+	if (!qc_attach_sc(qcs, &htx_buf)) {
+		h3c->err = H3_INTERNAL_ERROR;
 		return -1;
+	}
 
 	/* buffer is transferred to the stream connector and set to NULL
 	 * except on stream creation error.
@@ -651,8 +660,14 @@ static ssize_t h3_decode_qcs(struct qcs *qcs, struct buffer *b, int fin)
 			break;
 		case H3_FT_HEADERS:
 			ret = h3_headers_to_htx(qcs, b, flen, last_stream_frame);
-			/* TODO handle error reporting. Stream closure required. */
-			if (ret < 0) { ABORT_NOW(); }
+			if (ret < 0) {
+				/* TODO for some error, it may be preferable to
+				 * only close the stream once RESET_STREAM is
+				 * supported.
+				 */
+				qcc_emit_cc_app(qcs->qcc, h3c->err);
+				return -1;
+			}
 			break;
 		case H3_FT_CANCEL_PUSH:
 		case H3_FT_PUSH_PROMISE:
