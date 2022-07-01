@@ -332,6 +332,8 @@ static inline void fd_insert(int fd, void *owner, void (*iocb)(int fd), unsigned
 	 * addition to overwriting some unexpected memory areas.
 	 */
 	BUG_ON(fd < 0 || fd >= global.maxsock);
+	BUG_ON(fdtab[fd].owner != NULL);
+	BUG_ON(fdtab[fd].state != 0);
 
 	fdtab[fd].owner = owner;
 	fdtab[fd].iocb = iocb;
