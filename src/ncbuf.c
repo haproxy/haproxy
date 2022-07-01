@@ -488,6 +488,24 @@ int ncb_is_full(const struct ncbuf *buf)
 	return first_data == ncb_size(buf);
 }
 
+/* Returns true if <buf> contains data fragmented by gaps. */
+int ncb_is_fragmented(const struct ncbuf *buf)
+{
+	struct ncb_blk data, gap;
+
+	if (ncb_is_null(buf))
+		return 0;
+
+	/* check if buffer is empty or full */
+	if (ncb_is_empty(buf) || ncb_is_full(buf))
+		return 0;
+
+	/* check that following gap is the last block */
+	data = ncb_blk_first(buf);
+	gap = ncb_blk_next(buf, data);
+	return !ncb_blk_is_last(buf, gap);
+}
+
 /* Returns the number of bytes of data avaiable in <buf> starting at offset
  * <off> until the next gap or the buffer end. The counted data may wrapped if
  * the buffer storage is not aligned.
@@ -833,6 +851,7 @@ static int ncbuf_test(ncb_sz_t head, int reset, int print_delay)
 	BUG_ON(ncb_size(&b) != 0);
 	BUG_ON(!ncb_is_empty(&b));
 	BUG_ON(ncb_is_full(&b));
+	BUG_ON(ncb_is_fragmented(&b));
 
 	b.area = (char *)bufarea;
 	b.size = bufsize;
@@ -848,15 +867,21 @@ static int ncbuf_test(ncb_sz_t head, int reset, int print_delay)
 
 	NCB_INIT(&b); NCB_DATA_EQ(&b, 0, 0);
 	NCB_ADD_EQ(&b,  0, data0, 16, NCB_ADD_PRESERVE, NCB_RET_OK); NCB_DATA_EQ(&b, 0, 16);
+	BUG_ON(ncb_is_fragmented(&b));
 	NCB_ADD_EQ(&b, 24, data0, 16, NCB_ADD_PRESERVE, NCB_RET_OK); NCB_DATA_EQ(&b, 0, 16);
+	BUG_ON(!ncb_is_fragmented(&b));
 	/* insert data overlapping two data blocks and a gap */
 	NCB_ADD_EQ(&b, 12, data0, 16, NCB_ADD_PRESERVE, NCB_RET_OK); NCB_DATA_EQ(&b, 0, 40);
+	BUG_ON(ncb_is_fragmented(&b));
 
 	NCB_INIT(&b);
 	NCB_ADD_EQ(&b, 32, data0, 16, NCB_ADD_PRESERVE, NCB_RET_OK); NCB_DATA_EQ(&b, 0,  0); NCB_DATA_EQ(&b, 16,  0); NCB_DATA_EQ(&b, 32, 16);
+	BUG_ON(!ncb_is_fragmented(&b));
 	NCB_ADD_EQ(&b,  0, data0, 16, NCB_ADD_PRESERVE, NCB_RET_OK); NCB_DATA_EQ(&b, 0, 16); NCB_DATA_EQ(&b, 16,  0); NCB_DATA_EQ(&b, 32, 16);
+	BUG_ON(!ncb_is_fragmented(&b));
 	/* insert data to exactly cover a gap between two data blocks */
 	NCB_ADD_EQ(&b, 16, data0, 16, NCB_ADD_PRESERVE, NCB_RET_OK); NCB_DATA_EQ(&b, 0, 48); NCB_DATA_EQ(&b, 16, 32); NCB_DATA_EQ(&b, 32, 16);
+	BUG_ON(ncb_is_fragmented(&b));
 
 	NCB_INIT(&b);
 	NCB_ADD_EQ(&b, 0,  data0, 8, NCB_ADD_PRESERVE, NCB_RET_OK);
