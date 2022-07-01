@@ -1311,7 +1311,7 @@ struct buffer *thread_dump_buffer = NULL;
 /* initiates a thread dump */
 void ha_thread_dump_all_to_trash()
 {
-	unsigned long old;
+	unsigned int old;
 
 	while (1) {
 		old = 0;
