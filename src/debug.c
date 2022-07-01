@@ -1323,6 +1323,8 @@ void ha_thread_dump_all_to_trash()
 /* handles DEBUGSIG to dump the state of the thread it's working on */
 void debug_handler(int sig, siginfo_t *si, void *arg)
 {
+	int harmless = is_thread_harmless();
+
 	/* first, let's check it's really for us and that we didn't just get
 	 * a spurious DEBUGSIG.
 	 */
@@ -1366,7 +1368,7 @@ void debug_handler(int sig, siginfo_t *si, void *arg)
 	/* mark the current thread as stuck to detect it upon next invocation
 	 * if it didn't move.
 	 */
-	if (!(_HA_ATOMIC_LOAD(&tg_ctx->threads_harmless) & ti->ltid_bit) &&
+	if (!harmless &&
 	    !(_HA_ATOMIC_LOAD(&th_ctx->flags) & TH_FL_SLEEPING))
 		_HA_ATOMIC_OR(&th_ctx->flags, TH_FL_STUCK);
 }

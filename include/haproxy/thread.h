@@ -116,6 +116,11 @@ static inline void thread_harmless_now()
 {
 }
 
+static inline int is_thread_harmless()
+{
+	return 1;
+}
+
 static inline void thread_harmless_end()
 {
 }
@@ -249,6 +254,12 @@ static inline void thread_idle_end()
 static inline void thread_harmless_now()
 {
 	HA_ATOMIC_OR(&tg_ctx->threads_harmless, ti->ltid_bit);
+}
+
+/* Returns non-zero if the current thread is already harmless */
+static inline int is_thread_harmless()
+{
+	return !!(HA_ATOMIC_LOAD(&tg_ctx->threads_harmless) & ti->ltid_bit);
 }
 
 /* Ends the harmless period started by thread_harmless_now(). Usually this is
