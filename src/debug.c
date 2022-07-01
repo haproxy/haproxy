@@ -1340,8 +1340,14 @@ void debug_handler(int sig, siginfo_t *si, void *arg)
 	 */
 
 	/* wait for all previous threads to finish first */
+	if (!harmless)
+		thread_harmless_now();
+
 	while (threads_to_dump & (tid_bit - 1))
 		ha_thread_relax();
+
+	if (!harmless)
+		thread_harmless_end();
 
 	/* dump if needed */
 	if (threads_to_dump & tid_bit) {
@@ -1361,8 +1367,15 @@ void debug_handler(int sig, siginfo_t *si, void *arg)
 	 * present again. This way the threads_to_dump variable never passes to
 	 * zero until all visitors have stopped waiting.
 	 */
+	if (!harmless)
+		thread_harmless_now();
+
 	while (!(threads_to_dump & tid_bit))
 		ha_thread_relax();
+
+	if (!harmless)
+		thread_harmless_end();
+
 	HA_ATOMIC_AND(&threads_to_dump, ~tid_bit);
 
 	/* mark the current thread as stuck to detect it upon next invocation
