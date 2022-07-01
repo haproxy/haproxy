@@ -54,7 +54,7 @@
  * adds 1<<16 and sets the lowest 15 bits to the ID of the next thread to
  * dump + 1. Only used when USE_THREAD_DUMP is set.
  */
-static volatile unsigned int thread_dump_state = 0;
+volatile unsigned int thread_dump_state = 0;
 unsigned int debug_commands_issued = 0;
 
 /* dumps a backtrace of the current thread that is appended to buffer <buf>.
