@@ -439,11 +439,19 @@ static int qcc_decode_qcs(struct qcc *qcc, struct qcs *qcs)
 {
 	struct buffer b;
 	ssize_t ret;
+	int fin = 0;
 
 	TRACE_ENTER(QMUX_EV_QCS_RECV, qcc->conn, qcs);
 
 	b = qcs_b_dup(&qcs->rx.ncbuf);
-	ret = qcc->app_ops->decode_qcs(qcs, &b, qcs->flags & QC_SF_FIN_RECV);
+
+	/* Signal FIN to application if STREAM FIN received and there is no gap
+	 * in the Rx buffer.
+	 */
+	if (qcs->flags & QC_SF_FIN_RECV && !ncb_is_fragmented(&qcs->rx.ncbuf))
+		fin = 1;
+
+	ret = qcc->app_ops->decode_qcs(qcs, &b, fin);
 	if (ret < 0) {
 		TRACE_DEVEL("leaving on decoding error", QMUX_EV_QCS_RECV, qcc->conn, qcs);
 		return 1;
