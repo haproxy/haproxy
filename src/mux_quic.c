@@ -380,9 +380,8 @@ static inline struct buffer qcs_b_dup(const struct ncbuf *b)
 	return b_make(ncb_orig(b), b->size, b->head, ncb_data(b, 0));
 }
 
-/* Remove <bytes> from <qcs> Rx buffer. This must be called by transcoders
- * after STREAM parsing. Flow-control for received offsets may be allocated for
- * the peer if needed.
+/* Remove <bytes> from <qcs> Rx buffer. Flow-control for received offsets may
+ * be allocated for the peer if needed.
  */
 static void qcs_consume(struct qcs *qcs, uint64_t bytes)
 {
