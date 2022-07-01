@@ -47,10 +47,14 @@
 #include <import/ist.h>
 
 
-/* mask of threads still having to dump, used to respect ordering. Only used
- * when USE_THREAD_DUMP is set.
+/* The dump state is madee of:
+ *   - num_thread+1 on the lowest 16 bits
+ *   - a counter of done on the 16 high bits
+ * Initiating a dump consists in setting it to 1. A thread finished dumping
+ * adds 1<<16 and sets the lowest 15 bits to the ID of the next thread to
+ * dump + 1. Only used when USE_THREAD_DUMP is set.
  */
-static volatile unsigned long threads_to_dump = 0;
+static volatile unsigned int thread_dump_state = 0;
 unsigned int debug_commands_issued = 0;
 
 /* dumps a backtrace of the current thread that is appended to buffer <buf>.
@@ -1304,13 +1308,14 @@ static unsigned int thread_dump_tid;
  */
 struct buffer *thread_dump_buffer = NULL;
 
+/* initiates a thread dump */
 void ha_thread_dump_all_to_trash()
 {
 	unsigned long old;
 
 	while (1) {
 		old = 0;
-		if (HA_ATOMIC_CAS(&threads_to_dump, &old, all_threads_mask))
+		if (HA_ATOMIC_CAS(&thread_dump_state, &old, 1))
 			break;
 		ha_thread_relax();
 	}
@@ -1324,11 +1329,13 @@ void ha_thread_dump_all_to_trash()
 void debug_handler(int sig, siginfo_t *si, void *arg)
 {
 	int harmless = is_thread_harmless();
+	uint next;
+	uint done;
 
 	/* first, let's check it's really for us and that we didn't just get
 	 * a spurious DEBUGSIG.
 	 */
-	if (!(threads_to_dump & tid_bit))
+	if (!_HA_ATOMIC_LOAD(&thread_dump_state))
 		return;
 
 	/* There are 4 phases in the dump process:
@@ -1343,40 +1350,51 @@ void debug_handler(int sig, siginfo_t *si, void *arg)
 	if (!harmless)
 		thread_harmless_now();
 
-	while (threads_to_dump & (tid_bit - 1))
+	while ((_HA_ATOMIC_LOAD(&thread_dump_state) & 0xFFFF) < (tid + 1))
 		ha_thread_relax();
 
 	if (!harmless)
 		thread_harmless_end();
 
 	/* dump if needed */
-	if (threads_to_dump & tid_bit) {
-		if (thread_dump_buffer)
-			ha_thread_dump(thread_dump_buffer, tid, thread_dump_tid);
-		if ((threads_to_dump & all_threads_mask) == tid_bit) {
-			/* last one */
-			HA_ATOMIC_STORE(&threads_to_dump, all_threads_mask);
-			thread_dump_buffer = NULL;
+	if (thread_dump_buffer)
+		ha_thread_dump(thread_dump_buffer, tid, thread_dump_tid);
+
+	/* figure which is the next thread ID to dump among enabled ones */
+	for (next = tid + 1; next < global.nbthread; next++) {
+		if (unlikely(next >= MAX_THREADS)) {
+			/* just to please gcc 6.5 who guesses the ranges wrong. */
+			continue;
 		}
-		else
-			HA_ATOMIC_AND(&threads_to_dump, ~tid_bit);
+
+		if (ha_thread_info[next].tg &&
+		    ha_thread_info[next].tg->threads_enabled & ha_thread_info[next].ltid_bit)
+			break;
 	}
 
-	/* now wait for all others to finish dumping. The last one will set all
-	 * bits again to broadcast the leaving condition so we'll see ourselves
-	 * present again. This way the threads_to_dump variable never passes to
-	 * zero until all visitors have stopped waiting.
+	/* atomically set the next to next+1 or 0, and increment the done counter */
+	done = (HA_ATOMIC_LOAD(&thread_dump_state) >> 16) + 1;
+	done <<= 16;
+	if (next < global.nbthread)
+		done += next + 1;
+	else
+		thread_dump_buffer = NULL; // was the last one
+
+	HA_ATOMIC_STORE(&thread_dump_state, done);
+
+	/* now wait for all others to finish dumping: the lowest part will turn
+	 * to zero. Then all others decrement the done part.
 	 */
 	if (!harmless)
 		thread_harmless_now();
 
-	while (!(threads_to_dump & tid_bit))
+	while ((_HA_ATOMIC_LOAD(&thread_dump_state) & 0xFFFF) != 0)
 		ha_thread_relax();
 
 	if (!harmless)
 		thread_harmless_end();
 
-	HA_ATOMIC_AND(&threads_to_dump, ~tid_bit);
+	HA_ATOMIC_SUB(&thread_dump_state, 0x10000);
 
 	/* mark the current thread as stuck to detect it upon next invocation
 	 * if it didn't move.
