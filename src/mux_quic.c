@@ -541,7 +541,7 @@ static int qcc_decode_qcs(struct qcc *qcc, struct qcs *qcs)
 	/* Signal FIN to application if STREAM FIN received and there is no gap
 	 * in the Rx buffer.
 	 */
-	if (qcs->flags & QC_SF_FIN_RECV && !ncb_is_fragmented(&qcs->rx.ncbuf))
+	if (qcs->flags & QC_SF_SIZE_KNOWN && !ncb_is_fragmented(&qcs->rx.ncbuf))
 		fin = 1;
 
 	ret = qcc->app_ops->decode_qcs(qcs, &b, fin);
@@ -672,7 +672,7 @@ int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
 	}
 
 	if (fin)
-		qcs->flags |= QC_SF_FIN_RECV;
+		qcs->flags |= QC_SF_SIZE_KNOWN;
 
 	if (ncb_data(&qcs->rx.ncbuf, 0) && !(qcs->flags & QC_SF_DEM_FULL))
 		qcc_decode_qcs(qcc, qcs);
