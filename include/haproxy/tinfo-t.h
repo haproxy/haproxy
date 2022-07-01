@@ -66,7 +66,6 @@ struct tgroup_info {
  * etc). It uses one cache line per thread to limit false sharing.
  */
 struct tgroup_ctx {
-	ulong threads_want_rdv;           /* mask of threads that wand a rendez-vous */
 	ulong threads_harmless;           /* mask of threads that are not modifying anything */
 	ulong threads_idle;               /* mask of threads idling in the poller */
 	ulong stopping_threads;           /* mask of threads currently stopping */

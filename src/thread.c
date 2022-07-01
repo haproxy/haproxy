@@ -65,6 +65,8 @@ THREAD_LOCAL struct thread_ctx *th_ctx = &ha_thread_ctx[0];
 
 volatile unsigned long all_threads_mask __read_mostly  = 1; // nbthread 1 assumed by default
 volatile unsigned long all_tgroups_mask __read_mostly  = 1; // nbtgroup 1 assumed by default
+volatile unsigned int rdv_requests       = 0;  // total number of threads requesting RDV
+volatile unsigned int isolated_thread    = ~0; // ID of the isolated thread, or ~0 when none
 THREAD_LOCAL unsigned int  tgid          = 1; // thread ID starts at 1
 THREAD_LOCAL unsigned int  tid           = 0;
 THREAD_LOCAL unsigned long tid_bit       = (1UL << 0);
@@ -72,15 +74,14 @@ int thread_cpus_enabled_at_boot          = 1;
 static pthread_t ha_pthread[MAX_THREADS] = { };
 
 /* Marks the thread as harmless until the last thread using the rendez-vous
- * point quits, excluding the current one. Thus an isolated thread may be safely
- * marked as harmless. Given that we can wait for a long time, sched_yield() is
+ * point quits. Given that we can wait for a long time, sched_yield() is
  * used when available to offer the CPU resources to competing threads if
  * needed.
  */
 void thread_harmless_till_end()
 {
 	_HA_ATOMIC_OR(&tg_ctx->threads_harmless, ti->ltid_bit);
-	while (_HA_ATOMIC_LOAD(&tg_ctx->threads_want_rdv) & tg->threads_enabled & ~ti->ltid_bit) {
+	while (_HA_ATOMIC_LOAD(&rdv_requests) != 0) {
 		ha_thread_relax();
 	}
 }
@@ -93,25 +94,42 @@ void thread_harmless_till_end()
  */
 void thread_isolate()
 {
-	unsigned long old;
+	uint tgrp, thr;
 
 	_HA_ATOMIC_OR(&tg_ctx->threads_harmless, ti->ltid_bit);
 	__ha_barrier_atomic_store();
-	_HA_ATOMIC_OR(&tg_ctx->threads_want_rdv, ti->ltid_bit);
+	_HA_ATOMIC_INC(&rdv_requests);
 
-	/* wait for all threads to become harmless */
-	old = _HA_ATOMIC_LOAD(&tg_ctx->threads_harmless);
+	/* wait for all threads to become harmless. They cannot change their
+	 * mind once seen thanks to rdv_requests above, unless they pass in
+	 * front of us.
+	 */
 	while (1) {
-		if (unlikely((old & tg->threads_enabled) != tg->threads_enabled))
-			old = _HA_ATOMIC_LOAD(&tg_ctx->threads_harmless);
-		else if (_HA_ATOMIC_CAS(&tg_ctx->threads_harmless, &old, old & ~ti->ltid_bit))
-			break;
+		for (tgrp = 0; tgrp < global.nbtgroups; tgrp++) {
+			while ((_HA_ATOMIC_LOAD(&ha_tgroup_ctx[tgrp].threads_harmless) &
+				ha_tgroup_info[tgrp].threads_enabled) != ha_tgroup_info[tgrp].threads_enabled)
+				ha_thread_relax();
+		}
 
+		/* Now we've seen all threads marked harmless, we can try to run
+		 * by competing with other threads to win the race of the isolated
+		 * thread. It eventually converges since winners will enventually
+		 * relax their request and go back to wait for this to be over.
+		 * Competing on this only after seeing all threads harmless limits
+		 * the write contention.
+		 */
+		thr = _HA_ATOMIC_LOAD(&isolated_thread);
+		if (thr == ~0U && _HA_ATOMIC_CAS(&isolated_thread, &thr, tid))
+			break; // we won!
 		ha_thread_relax();
 	}
-	/* one thread gets released at a time here, with its harmess bit off.
-	 * The loss of this bit makes the other one continue to spin while the
-	 * thread is working alone.
+
+	/* the thread is no longer harmless as it runs */
+	_HA_ATOMIC_AND(&tg_ctx->threads_harmless, ~ti->ltid_bit);
+
+	/* the thread is isolated until it calls thread_release() which will
+	 * 1) reset isolated_thread to ~0;
+	 * 2) decrement rdv_requests.
 	 */
 }
 
@@ -131,42 +149,56 @@ void thread_isolate()
  */
 void thread_isolate_full()
 {
-	unsigned long old;
+	uint tgrp, thr;
 
 	_HA_ATOMIC_OR(&tg_ctx->threads_idle, ti->ltid_bit);
 	_HA_ATOMIC_OR(&tg_ctx->threads_harmless, ti->ltid_bit);
 	__ha_barrier_atomic_store();
-	_HA_ATOMIC_OR(&tg_ctx->threads_want_rdv, ti->ltid_bit);
+	_HA_ATOMIC_INC(&rdv_requests);
 
-	/* wait for all threads to become harmless */
-	old = _HA_ATOMIC_LOAD(&tg_ctx->threads_harmless);
+	/* wait for all threads to become harmless. They cannot change their
+	 * mind once seen thanks to rdv_requests above, unless they pass in
+	 * front of us.
+	 */
 	while (1) {
-		unsigned long idle = _HA_ATOMIC_LOAD(&tg_ctx->threads_idle);
+		for (tgrp = 0; tgrp < global.nbtgroups; tgrp++) {
+			while ((_HA_ATOMIC_LOAD(&ha_tgroup_ctx[tgrp].threads_harmless) &
+				_HA_ATOMIC_LOAD(&ha_tgroup_ctx[tgrp].threads_idle) &
+				ha_tgroup_info[tgrp].threads_enabled) != ha_tgroup_info[tgrp].threads_enabled)
+				ha_thread_relax();
+		}
 
-		if (unlikely((old & tg->threads_enabled) != tg->threads_enabled))
-			old = _HA_ATOMIC_LOAD(&tg_ctx->threads_harmless);
-		else if ((idle & tg->threads_enabled) == tg->threads_enabled &&
-			 _HA_ATOMIC_CAS(&tg_ctx->threads_harmless, &old, old & ~ti->ltid_bit))
-			break;
-
+		/* Now we've seen all threads marked harmless and idle, we can
+		 * try to run by competing with other threads to win the race
+		 * of the isolated thread. It eventually converges since winners
+		 * will enventually relax their request and go back to wait for
+		 * this to be over. Competing on this only after seeing all
+		 * threads harmless+idle limits the write contention.
+		 */
+		thr = _HA_ATOMIC_LOAD(&isolated_thread);
+		if (thr == ~0U && _HA_ATOMIC_CAS(&isolated_thread, &thr, tid))
+			break; // we won!
 		ha_thread_relax();
 	}
 
-	/* we're not idle anymore at this point. Other threads waiting on this
-	 * condition will need to wait until out next pass to the poller, or
-	 * our next call to thread_isolate_full().
+	/* we're not idle nor harmless anymore at this point. Other threads
+	 * waiting on this condition will need to wait until out next pass to
+	 * the poller, or our next call to thread_isolate_full().
 	 */
 	_HA_ATOMIC_AND(&tg_ctx->threads_idle, ~ti->ltid_bit);
+	_HA_ATOMIC_AND(&tg_ctx->threads_harmless, ~ti->ltid_bit);
 }
 
-/* Cancels the effect of thread_isolate() by releasing the current thread's bit
- * in &tg_ctx->threads_want_rdv. This immediately allows other threads to expect be
- * executed, though they will first have to wait for this thread to become
- * harmless again (possibly by reaching the poller again).
+/* Cancels the effect of thread_isolate() by resetting the ID of the isolated
+ * thread and decrementing the number of RDV requesters. This immediately allows
+ * other threads to expect to be executed, though they will first have to wait
+ * for this thread to become harmless again (possibly by reaching the poller
+ * again).
  */
 void thread_release()
 {
-	_HA_ATOMIC_AND(&tg_ctx->threads_want_rdv, ~ti->ltid_bit);
+	HA_ATOMIC_STORE(&isolated_thread, ~0U);
+	HA_ATOMIC_DEC(&rdv_requests);
 }
 
 /* Sets up threads, signals and masks, and starts threads 2 and above.

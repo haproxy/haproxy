@@ -173,28 +173,11 @@ unsigned long long ha_get_pthread_id(unsigned int thr);
 
 extern volatile unsigned long all_threads_mask;
 extern volatile unsigned long all_tgroups_mask;
+extern volatile unsigned int rdv_requests;
+extern volatile unsigned int isolated_thread;
 extern THREAD_LOCAL unsigned long tid_bit; /* The bit corresponding to the thread id */
 extern THREAD_LOCAL unsigned int tid;      /* The thread id */
 extern THREAD_LOCAL unsigned int tgid;     /* The thread group id (starts at 1) */
-
-/* explanation for tg_ctx->threads_want_rdv, and tg_ctx->threads_harmless:
- * - tg_ctx->threads_want_rdv is a bit field indicating all threads that have
- *   requested a rendez-vous of other threads using thread_isolate().
- * - tg_ctx->threads_harmless is a bit field indicating all threads that are
- *   currently harmless in that they promise not to access a shared resource.
- *
- * For a given thread, its bits in want_rdv and harmless can be translated like
- * this :
- *
- *  ----------+----------+----------------------------------------------------
- *   want_rdv | harmless | description
- *  ----------+----------+----------------------------------------------------
- *       0    |     0    | thread not interested in RDV, possibly harmful
- *       0    |     1    | thread not interested in RDV but harmless
- *       1    |     1    | thread interested in RDV and waiting for its turn
- *       1    |     0    | thread currently working isolated from others
- *  ----------+----------+----------------------------------------------------
- */
 
 #define ha_sigmask(how, set, oldset)  pthread_sigmask(how, set, oldset)
 
@@ -276,19 +259,17 @@ static inline void thread_harmless_now()
 static inline void thread_harmless_end()
 {
 	while (1) {
-		HA_ATOMIC_AND(&tg_ctx->threads_harmless, ~tid_bit);
-		if (likely((_HA_ATOMIC_LOAD(&tg_ctx->threads_want_rdv) &
-			    tg->threads_enabled & ~ti->ltid_bit) == 0))
+		HA_ATOMIC_AND(&tg_ctx->threads_harmless, ~ti->ltid_bit);
+		if (likely(_HA_ATOMIC_LOAD(&rdv_requests) == 0))
 			break;
 		thread_harmless_till_end();
 	}
 }
 
-/* an isolated thread has harmless cleared and want_rdv set */
+/* an isolated thread has its ID in isolated_thread */
 static inline unsigned long thread_isolated()
 {
-	return _HA_ATOMIC_LOAD(&tg_ctx->threads_want_rdv) &
-		~_HA_ATOMIC_LOAD(&tg_ctx->threads_harmless) & ti->ltid_bit;
+	return _HA_ATOMIC_LOAD(&isolated_thread) == tid;
 }
 
 /* Returns 1 if the cpu set is currently restricted for the process else 0.
