@@ -50,7 +50,7 @@
 /* mask of threads still having to dump, used to respect ordering. Only used
  * when USE_THREAD_DUMP is set.
  */
-volatile unsigned long threads_to_dump = 0;
+static volatile unsigned long threads_to_dump = 0;
 unsigned int debug_commands_issued = 0;
 
 /* dumps a backtrace of the current thread that is appended to buffer <buf>.
