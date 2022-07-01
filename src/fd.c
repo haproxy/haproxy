@@ -306,6 +306,9 @@ done:
  */
 void _fd_delete_orphan(int fd)
 {
+	uint fd_disown;
+
+	fd_disown = fdtab[fd].state & FD_DISOWN;
 	if (fdtab[fd].state & FD_LINGER_RISK) {
 		/* this is generally set when connecting to servers */
 		DISGUISE(setsockopt(fd, SOL_SOCKET, SO_LINGER,
@@ -327,7 +330,8 @@ void _fd_delete_orphan(int fd)
 	/* perform the close() call last as it's what unlocks the instant reuse
 	 * of this FD by any other thread.
 	 */
-	close(fd);
+	if (!fd_disown)
+		close(fd);
 	_HA_ATOMIC_DEC(&ha_used_fds);
 }
 
