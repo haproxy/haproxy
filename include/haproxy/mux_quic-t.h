@@ -111,10 +111,33 @@ struct qcc {
 /* Maximum size of stream Rx buffer. */
 #define QC_S_RX_BUF_SZ   (global.tune.bufsize - NCB_RESERVED_SZ)
 
+/* QUIC stream states
+ *
+ * On initialization a stream is put on idle state. It is opened as soon as
+ * data has been successfully sent or received on it.
+ *
+ * A bidirectional stream has two channels which can be closed separately. The
+ * local channel is closed when the STREAM frame with FIN or a RESET_STREAM has
+ * been emitted. The remote channel is closed as soon as all data from the peer
+ * has been received. The stream goes instantely to the close state once both
+ * channels are closed.
+ *
+ * A unidirectional stream has only one channel of communication. Thus, it does
+ * not use half closed states and transition directly from open to close state.
+ */
+enum qcs_state {
+	QC_SS_IDLE = 0, /* initial state */
+	QC_SS_OPEN,     /* opened */
+	QC_SS_HLOC,     /* half-closed local */
+	QC_SS_HREM,     /* half-closed remote */
+	QC_SS_CLO,      /* closed */
+} __attribute__((packed));
+
 struct qcs {
 	struct qcc *qcc;
 	struct sedesc *sd;
 	uint32_t flags;      /* QC_SF_* */
+	enum qcs_state st;   /* QC_SS_* state */
 	void *ctx;           /* app-ops context */
 
 	struct {
