@@ -57,15 +57,12 @@ def clean_compression(compression):
 
 
 def get_asan_flags(cc):
-    if cc == "clang":
-        return [
-            "USE_OBSOLETE_LINKER=1",
-            'DEBUG_CFLAGS="-g -fsanitize=address"',
-            'LDFLAGS="-fsanitize=address"',
-            'CPU_CFLAGS.generic="-O1"',
-        ]
-
-    raise ValueError("ASAN is only supported for clang")
+    return [
+        "USE_OBSOLETE_LINKER=1",
+        'DEBUG_CFLAGS="-g -fsanitize=address"',
+        'LDFLAGS="-fsanitize=address"',
+        'CPU_CFLAGS.generic="-O1"',
+    ]
 
 
 matrix = []
@@ -160,37 +157,37 @@ for CC in ["gcc", "clang"]:
 # ASAN
 
 os = "ubuntu-latest"
-CC = "clang"
 TARGET = "linux-glibc"
-matrix.append(
-    {
-        "name": "{}, {}, ASAN, all features".format(clean_os(os), CC),
-        "os": os,
-        "TARGET": TARGET,
-        "CC": CC,
-        "FLAGS": get_asan_flags(CC)
-        + [
-            "USE_ZLIB=1",
-            "USE_OT=1",
-            "OT_INC=${HOME}/opt-ot/include",
-            "OT_LIB=${HOME}/opt-ot/lib",
-            "OT_RUNPATH=1",
-            "USE_PCRE=1",
-            "USE_PCRE_JIT=1",
-            "USE_LUA=1",
-            "USE_OPENSSL=1",
-            "USE_SYSTEMD=1",
-            "USE_WURFL=1",
-            "WURFL_INC=addons/wurfl/dummy",
-            "WURFL_LIB=addons/wurfl/dummy",
-            "USE_DEVICEATLAS=1",
-            "DEVICEATLAS_SRC=addons/deviceatlas/dummy",
-            "USE_PROMEX=1",
-            "USE_51DEGREES=1",
-            "51DEGREES_SRC=addons/51degrees/dummy/pattern",
-        ],
-    }
-)
+for CC in ["gcc","clang"]:
+    matrix.append(
+        {
+            "name": "{}, {}, ASAN, all features".format(clean_os(os), CC),
+            "os": os,
+            "TARGET": TARGET,
+            "CC": CC,
+            "FLAGS": get_asan_flags(CC)
+            + [
+                "USE_ZLIB=1",
+                "USE_OT=1",
+                "OT_INC=${HOME}/opt-ot/include",
+                "OT_LIB=${HOME}/opt-ot/lib",
+                "OT_RUNPATH=1",
+                "USE_PCRE=1",
+                "USE_PCRE_JIT=1",
+                "USE_LUA=1",
+                "USE_OPENSSL=1",
+                "USE_SYSTEMD=1",
+                "USE_WURFL=1",
+                "WURFL_INC=addons/wurfl/dummy",
+                "WURFL_LIB=addons/wurfl/dummy",
+                "USE_DEVICEATLAS=1",
+                "DEVICEATLAS_SRC=addons/deviceatlas/dummy",
+                "USE_PROMEX=1",
+                "USE_51DEGREES=1",
+                "51DEGREES_SRC=addons/51degrees/dummy/pattern",
+            ],
+        }
+    )
 
 # macOS
 
