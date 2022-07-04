@@ -107,6 +107,7 @@ struct qcc {
 #define QC_SF_BLK_SFCTL         0x00000010  /* stream blocked due to stream flow control limit */
 #define QC_SF_DEM_FULL          0x00000020  /* demux blocked on request channel buffer full */
 #define QC_SF_READ_ABORTED      0x00000040  /* stream rejected by app layer */
+#define QC_SF_TO_RESET          0x00000080  /* a RESET_STREAM must be sent */
 
 /* Maximum size of stream Rx buffer. */
 #define QC_S_RX_BUF_SZ   (global.tune.bufsize - NCB_RESERVED_SZ)
@@ -163,6 +164,8 @@ struct qcs {
 
 	struct wait_event wait_event;
 	struct wait_event *subs;
+
+	uint64_t err; /* error code to transmit via RESET_STREAM */
 };
 
 /* QUIC application layer operations */

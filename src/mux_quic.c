@@ -171,6 +171,8 @@ static struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
 	qcs->wait_event.events = 0;
 	qcs->subs = NULL;
 
+	qcs->err = 0;
+
  out:
 	TRACE_LEAVE(QMUX_EV_QCS_NEW, qcc->conn, qcs);
 	return qcs;
@@ -672,6 +674,20 @@ void qcc_emit_cc_app(struct qcc *qcc, int err)
 	quic_set_connection_close(qcc->conn->handle.qc, err, 1);
 	qcc->flags |= QC_CF_CC_EMIT;
 	tasklet_wakeup(qcc->wait_event.tasklet);
+}
+
+/* Prepare for the emission of RESET_STREAM on <qcs> with error code <err>. */
+void qcc_reset_stream(struct qcs *qcs, int err)
+{
+	struct qcc *qcc = qcs->qcc;
+
+	if ((qcs->flags & QC_SF_TO_RESET) || qcs_is_close_local(qcs))
+		return;
+
+	qcs->flags |= QC_SF_TO_RESET;
+	qcs->err = err;
+	tasklet_wakeup(qcc->wait_event.tasklet);
+	TRACE_DEVEL("reset stream", QMUX_EV_QCS_END, qcc->conn, qcs);
 }
 
 /* Handle a new STREAM frame for stream with id <id>. Payload is pointed by
@@ -1275,6 +1291,46 @@ static int qc_send_frames(struct qcc *qcc, struct list *frms)
 	return 0;
 }
 
+/* Emit a RESET_STREAM on <qcs>.
+ *
+ * Returns 0 if the frame has been successfully sent else non-zero.
+ */
+static int qcs_send_reset(struct qcs *qcs)
+{
+	struct list frms = LIST_HEAD_INIT(frms);
+	struct quic_frame *frm;
+
+	TRACE_ENTER(QMUX_EV_QCS_SEND, qcs->qcc->conn, qcs);
+
+	frm = pool_zalloc(pool_head_quic_frame);
+	if (!frm)
+		return 1;
+
+	LIST_INIT(&frm->reflist);
+	frm->type = QUIC_FT_RESET_STREAM;
+	frm->reset_stream.id = qcs->id;
+	frm->reset_stream.app_error_code = qcs->err;
+	frm->reset_stream.final_size = qcs->tx.sent_offset;
+
+	LIST_APPEND(&frms, &frm->list);
+	if (qc_send_frames(qcs->qcc, &frms)) {
+		pool_free(pool_head_quic_frame, frm);
+		TRACE_DEVEL("cannot send RESET_STREAM", QMUX_EV_QCS_SEND, qcs->qcc->conn, qcs);
+		return 1;
+	}
+
+	if (qcs_sc(qcs)) {
+		se_fl_set_error(qcs->sd);
+		qcs_alert(qcs);
+	}
+
+	qcs_close_local(qcs);
+	qcs->flags &= ~QC_SF_TO_RESET;
+
+	TRACE_LEAVE(QMUX_EV_QCS_SEND, qcs->qcc->conn, qcs);
+	return 0;
+}
+
 /* Used internally by qc_send function. Proceed to send for <qcs>. This will
  * transfer data from qcs buffer to its quic_stream counterpart. A STREAM frame
  * is then generated and inserted in <frms> list.
@@ -1374,6 +1430,12 @@ static int qc_send(struct qcc *qcc)
 		id = qcs->id;
 
 		if (quic_stream_is_uni(id) && quic_stream_is_remote(qcc, id)) {
+			node = eb64_next(node);
+			continue;
+		}
+
+		if (qcs->flags & QC_SF_TO_RESET) {
+			qcs_send_reset(qcs);
 			node = eb64_next(node);
 			continue;
 		}
@@ -1834,7 +1896,7 @@ static size_t qc_snd_buf(struct stconn *sc, struct buffer *buf,
 
 	TRACE_ENTER(QMUX_EV_STRM_SEND, qcs->qcc->conn, qcs);
 
-	if (qcs_is_close_local(qcs)) {
+	if (qcs_is_close_local(qcs) || (qcs->flags & QC_SF_TO_RESET)) {
 		ret = count;
 		goto end;
 	}
