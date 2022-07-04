@@ -228,7 +228,7 @@ struct buffer *qc_get_buf(struct qcs *qcs, struct buffer *bptr)
 	return buf;
 }
 
-struct ncbuf *qc_get_ncbuf(struct qcs *qcs, struct ncbuf *ncbuf)
+static struct ncbuf *qc_get_ncbuf(struct qcs *qcs, struct ncbuf *ncbuf)
 {
 	struct buffer buf = BUF_NULL;
 
