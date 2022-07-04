@@ -2985,7 +2985,7 @@ static void *run_thread_poll_loop(void *data)
 		ptff->fct();
 
 #ifdef USE_THREAD
-	if (!_HA_ATOMIC_AND_FETCH(&ha_tgroup_info[ti->tgid].threads_enabled, ~ti->ltid_bit))
+	if (!_HA_ATOMIC_AND_FETCH(&ha_tgroup_info[ti->tgid-1].threads_enabled, ~ti->ltid_bit))
 		_HA_ATOMIC_AND(&all_tgroups_mask, ~tg->tgid_bit);
 	_HA_ATOMIC_AND(&all_threads_mask, ~tid_bit);
 	if (tid > 0)
