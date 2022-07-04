@@ -789,7 +789,10 @@ int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
 
 	TRACE_DEVEL("newly received offset", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV, qcc->conn, qcs);
 	if (offset < qcs->rx.offset) {
-		len -= qcs->rx.offset - offset;
+		size_t diff = qcs->rx.offset - offset;
+
+		len -= diff;
+		data += diff;
 		offset = qcs->rx.offset;
 	}
 
