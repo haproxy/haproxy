@@ -2818,7 +2818,7 @@ void run_poll_loop()
 
 			if (stopping) {
 				/* stop muxes before acknowledging stopping */
-				if (!(tg_ctx->stopping_threads & tid_bit)) {
+				if (!(tg_ctx->stopping_threads & ti->ltid_bit)) {
 					task_wakeup(mux_stopping_data[tid].task, TASK_WOKEN_OTHER);
 					wake = 1;
 				}
