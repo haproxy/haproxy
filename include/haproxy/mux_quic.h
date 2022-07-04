@@ -14,9 +14,7 @@
 #include <haproxy/stream.h>
 #include <haproxy/xprt_quic-t.h>
 
-struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type);
-void qcs_free(struct qcs *qcs);
-
+struct qcs *qcc_open_stream_local(struct qcc *qcc, int bidi);
 struct buffer *qc_get_buf(struct qcs *qcs, struct buffer *bptr);
 
 int qcs_subscribe(struct qcs *qcs, int event_type, struct wait_event *es);
@@ -70,8 +68,6 @@ static inline int quic_stream_is_bidi(uint64_t id)
 {
 	return !quic_stream_is_uni(id);
 }
-
-struct qcs *qcc_get_qcs(struct qcc *qcc, uint64_t id);
 
 /* Install the <app_ops> applicative layer of a QUIC connection on mux <qcc>.
  * Returns 0 on success else non-zero.

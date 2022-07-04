@@ -37,7 +37,6 @@ struct qcc {
 
 	struct {
 		uint64_t max_streams; /* maximum number of concurrent streams */
-		uint64_t largest_id;  /* Largest ID of the open streams */
 		uint64_t nb_streams;  /* Number of open streams */
 		struct {
 			uint64_t max_data; /* Maximum number of bytes which may be received */
@@ -79,6 +78,11 @@ struct qcc {
 		uint64_t offsets; /* sum of all offsets prepared */
 		uint64_t sent_offsets; /* sum of all offset sent */
 	} tx;
+
+	uint64_t largest_bidi_r; /* largest remote bidi stream ID opened. */
+	uint64_t largest_uni_r;  /* largest remote uni stream ID opened. */
+	uint64_t next_bidi_l; /* next stream ID to use for local bidi stream */
+	uint64_t next_uni_l;  /* next stream ID to use for local uni stream */
 
 	struct eb_root streams_by_id; /* all active streams by their ID */
 
