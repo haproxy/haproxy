@@ -2412,8 +2412,16 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct ssl_sock_ctx *ct
 		    /* TODO: handle this frame at STREAM level */
 		    break;
 		case QUIC_FT_STOP_SENDING:
-		    /* TODO: handle this frame at STREAM level */
+		{
+			struct quic_stop_sending *stop_sending = &frm.stop_sending;
+			if (qc->mux_state == QC_MUX_READY) {
+				if (qcc_recv_stop_sending(qc->qcc, stop_sending->id,
+				                          stop_sending->app_error_code)) {
+				        goto err;
+				}
+			}
 			break;
+		}
 		case QUIC_FT_CRYPTO:
 		{
 			struct quic_rx_crypto_frm *cf;

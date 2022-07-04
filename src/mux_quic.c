@@ -888,6 +888,56 @@ int qcc_recv_max_stream_data(struct qcc *qcc, uint64_t id, uint64_t max)
 	return 0;
 }
 
+/* Handle a new STOP_SENDING frame for stream ID <id>. The error code should be
+ * specified in <err>.
+ *
+ * Returns 0 on success else non-zero. On error, the received frame should not
+ * be acknowledged.
+ */
+int qcc_recv_stop_sending(struct qcc *qcc, uint64_t id, uint64_t err)
+{
+	struct qcs *qcs;
+
+	TRACE_ENTER(QMUX_EV_QCC_RECV, qcc->conn);
+
+	/* RFC 9000 19.5. STOP_SENDING Frames
+	 *
+	 * Receiving a STOP_SENDING frame for a
+	 * locally initiated stream that has not yet been created MUST be
+	 * treated as a connection error of type STREAM_STATE_ERROR.  An
+	 * endpoint that receives a STOP_SENDING frame for a receive-only stream
+	 * MUST terminate the connection with error STREAM_STATE_ERROR.
+	 */
+	if (qcc_get_qcs(qcc, id, 0, 1, &qcs)) {
+		TRACE_LEAVE(QMUX_EV_QCC_RECV, qcc->conn);
+		return 1;
+	}
+
+	if (!qcs)
+		goto out;
+
+	/* RFC 9000 3.5. Solicited State Transitions
+	 *
+	 * An endpoint that receives a STOP_SENDING frame
+	 * MUST send a RESET_STREAM frame if the stream is in the "Ready" or
+	 * "Send" state.  If the stream is in the "Data Sent" state, the
+	 * endpoint MAY defer sending the RESET_STREAM frame until the packets
+	 * containing outstanding data are acknowledged or declared lost.  If
+	 * any outstanding data is declared lost, the endpoint SHOULD send a
+	 * RESET_STREAM frame instead of retransmitting the data.
+	 *
+	 * An endpoint SHOULD copy the error code from the STOP_SENDING frame to
+	 * the RESET_STREAM frame it sends, but it can use any application error
+	 * code.
+	 */
+	TRACE_DEVEL("receiving STOP_SENDING on stream", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV, qcc->conn, qcs);
+	qcc_reset_stream(qcs, err);
+
+ out:
+	TRACE_LEAVE(QMUX_EV_QCC_RECV, qcc->conn);
+	return 0;
+}
+
 /* Signal the closing of remote stream with id <id>. Flow-control for new
  * streams may be allocated for the peer if needed.
  */
