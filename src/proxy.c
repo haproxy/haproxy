@@ -2140,7 +2140,7 @@ struct task *hard_stop(struct task *t, void *context, unsigned int state)
 		send_log(NULL, LOG_WARNING, "Some tasks resisted to hard-stop, exiting now.\n");
 		killed = 2;
 		for (thr = 0; thr < global.nbthread; thr++)
-			if (((all_threads_mask & ~tid_bit) >> thr) & 1)
+			if (ha_thread_info[thr].tg->threads_enabled & ha_thread_info[thr].ltid_bit)
 				wake_thread(thr);
 		t->expire = TICK_ETERNITY;
 		return t;
