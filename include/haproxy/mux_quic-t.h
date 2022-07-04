@@ -54,9 +54,10 @@ struct qcc {
 		struct list frms; /* prepared frames related to flow-control  */
 		uint64_t ms_bidi_init; /* max initial sub-ID of bidi stream allowed for the peer */
 		uint64_t ms_bidi; /* max sub-ID of bidi stream allowed for the peer */
+		uint64_t cl_bidi_r; /* total count of closed remote bidi stream since last MAX_STREAMS emission */
+
 		uint64_t msd_bidi_l; /* initial max-stream-data on local streams */
 		uint64_t msd_bidi_r; /* initial max-stream-data on remote streams */
-		uint64_t cl_bidi_r; /* total count of closed remote bidi stream since last MAX_STREAMS emission */
 
 		uint64_t md; /* current max-data allowed for the peer */
 		uint64_t md_init; /* initial max-data */
