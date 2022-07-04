@@ -425,7 +425,7 @@ static int mworker_pipe_register_per_thread()
 	/* In multi-tread, we need only one thread to process
 	 * events on the pipe with master
 	 */
-	fd_insert(proc_self->ipc_fd[1], fdtab[proc_self->ipc_fd[1]].owner, mworker_accept_wrapper, tid_bit);
+	fdtab[proc_self->ipc_fd[1]].iocb = mworker_accept_wrapper;
 	fd_want_recv(proc_self->ipc_fd[1]);
 	return 1;
 }
