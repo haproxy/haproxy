@@ -606,14 +606,25 @@ int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
 	if (!qcs)
 		return 0;
 
+	/* RFC 9000 4.5. Stream Final Size
+	 *
+	 * Once a final size for a stream is known, it cannot change.  If a
+	 * RESET_STREAM or STREAM frame is received indicating a change in the
+	 * final size for the stream, an endpoint SHOULD respond with an error
+	 * of type FINAL_SIZE_ERROR; see Section 11 for details on error
+	 * handling.
+	 */
+	if (qcs->flags & QC_SF_SIZE_KNOWN &&
+	    (offset + len > qcs->rx.offset_max || (fin && offset + len < qcs->rx.offset_max))) {
+		TRACE_DEVEL("leaving on final size error", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV, qcc->conn, qcs);
+		qcc_emit_cc(qcc, QC_ERR_FINAL_SIZE_ERROR);
+		return 0;
+	}
+
 	if (offset + len <= qcs->rx.offset) {
 		TRACE_DEVEL("leaving on already received offset", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV, qcc->conn, qcs);
 		return 0;
 	}
-
-	/* TODO if last frame already received, stream size must not change.
-	 * Else send FINAL_SIZE_ERROR.
-	 */
 
 	if (offset + len > qcs->rx.offset_max) {
 		uint64_t diff = offset + len - qcs->rx.offset_max;
