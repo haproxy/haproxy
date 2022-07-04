@@ -221,6 +221,11 @@ void qcs_free(struct qcs *qcs)
 	pool_free(pool_head_qcs, qcs);
 }
 
+static forceinline struct stconn *qcs_sc(const struct qcs *qcs)
+{
+	return qcs->sd ? qcs->sd->sc : NULL;
+}
+
 struct buffer *qc_get_buf(struct qcs *qcs, struct buffer *bptr)
 {
 	struct buffer *buf = b_alloc(bptr);
@@ -1615,7 +1620,7 @@ static int qc_wake_some_streams(struct qcc *qcc)
 	     node = eb64_next(node)) {
 		qcs = eb64_entry(node, struct qcs, by_id);
 
-		if (!qcs->sd || !qcs->sd->sc)
+		if (!qcs_sc(qcs))
 			continue;
 
 		if (qcc->conn->flags & CO_FL_ERROR) {
