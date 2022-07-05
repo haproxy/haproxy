@@ -703,7 +703,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 		}
 
 		bind_conf = bind_conf_uniq_alloc(curpeers->peers_fe, file, linenum,
-		                                 NULL, xprt_get(XPRT_RAW));
+		                                 args[1], xprt_get(XPRT_RAW));
 		if (*args[0] == 'b') {
 			struct listener *l;
 
