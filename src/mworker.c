@@ -413,7 +413,7 @@ void mworker_accept_wrapper(int fd)
  * worker. It's only handled by worker thread #0. Other threads and master do
  * nothing here. It always returns 1 (success).
  */
-static int mworker_pipe_register_per_thread()
+static int mworker_sockpair_register_per_thread()
 {
 	if (!(global.mode & MODE_MWORKER) || master)
 		return 1;
@@ -422,15 +422,13 @@ static int mworker_pipe_register_per_thread()
 		return 1;
 
 	fd_set_nonblock(proc_self->ipc_fd[1]);
-	/* In multi-tread, we need only one thread to process
-	 * events on the pipe with master
-	 */
+	/* register the wrapper to handle read 0 when the master exits */
 	fdtab[proc_self->ipc_fd[1]].iocb = mworker_accept_wrapper;
 	fd_want_recv(proc_self->ipc_fd[1]);
 	return 1;
 }
 
-REGISTER_PER_THREAD_INIT(mworker_pipe_register_per_thread);
+REGISTER_PER_THREAD_INIT(mworker_sockpair_register_per_thread);
 
 /* ----- proxies ----- */
 /*
