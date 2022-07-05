@@ -459,14 +459,14 @@ int fd_takeover(int fd, void *expected_owner)
 void updt_fd_polling(const int fd)
 {
 	if (all_threads_mask == 1UL || (fdtab[fd].thread_mask & all_threads_mask) == tid_bit) {
-		if (HA_ATOMIC_BTS(&fdtab[fd].update_mask, tid))
+		if (HA_ATOMIC_BTS(&fdtab[fd].update_mask, ti->ltid))
 			return;
 
 		fd_updt[fd_nbupdt++] = fd;
 	} else {
 		unsigned long update_mask = fdtab[fd].update_mask;
 		do {
-			if (update_mask == fdtab[fd].thread_mask)
+			if (update_mask == fdtab[fd].thread_mask) // FIXME: this works only on thread-groups 1
 				return;
 		} while (!_HA_ATOMIC_CAS(&fdtab[fd].update_mask, &update_mask, fdtab[fd].thread_mask));
 
@@ -525,7 +525,7 @@ int fd_update_events(int fd, uint evts)
 			activity[tid].poll_skip_fd++;
 
 			/* Let the poller know this FD was lost */
-			if (!HA_ATOMIC_BTS(&fdtab[fd].update_mask, tid))
+			if (!HA_ATOMIC_BTS(&fdtab[fd].update_mask, ti->ltid))
 				fd_updt[fd_nbupdt++] = fd;
 
 			fd_drop_tgid(fd);
@@ -603,10 +603,10 @@ int fd_update_events(int fd, uint evts)
 	/* we had to stop this FD and it still must be stopped after the I/O
 	 * cb's changes, so let's program an update for this.
 	 */
-	if (must_stop && !(fdtab[fd].update_mask & tid_bit)) {
+	if (must_stop && !(fdtab[fd].update_mask & ti->ltid_bit)) {
 		if (((must_stop & FD_POLL_IN)  && !fd_recv_active(fd)) ||
 		    ((must_stop & FD_POLL_OUT) && !fd_send_active(fd)))
-			if (!HA_ATOMIC_BTS(&fdtab[fd].update_mask, tid))
+			if (!HA_ATOMIC_BTS(&fdtab[fd].update_mask, ti->ltid))
 				fd_updt[fd_nbupdt++] = fd;
 	}
 

@@ -131,17 +131,17 @@ static inline void done_update_polling(int fd)
 {
 	unsigned long update_mask;
 
-	update_mask = _HA_ATOMIC_AND_FETCH(&fdtab[fd].update_mask, ~tid_bit);
-	while ((update_mask & all_threads_mask)== 0) {
+	update_mask = _HA_ATOMIC_AND_FETCH(&fdtab[fd].update_mask, ~ti->ltid_bit);
+	while ((update_mask & tg->threads_enabled) == 0) {
 		/* If we were the last one that had to update that entry, remove it from the list */
 		fd_rm_from_fd_list(&update_list[tgid - 1], fd);
-		update_mask = (volatile unsigned long)fdtab[fd].update_mask;
-		if ((update_mask & all_threads_mask) != 0) {
+		update_mask = _HA_ATOMIC_LOAD(&fdtab[fd].update_mask);
+		if ((update_mask & tg->threads_enabled) != 0) {
 			/* Maybe it's been re-updated in the meanwhile, and we
 			 * wrongly removed it from the list, if so, re-add it
 			 */
 			fd_add_to_fd_list(&update_list[tgid - 1], fd);
-			update_mask = (volatile unsigned long)(fdtab[fd].update_mask);
+			update_mask = _HA_ATOMIC_LOAD(&fdtab[fd].update_mask);
 			/* And then check again, just in case after all it
 			 * should be removed, even if it's very unlikely, given
 			 * the current thread wouldn't have been able to take

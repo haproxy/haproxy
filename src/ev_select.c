@@ -108,7 +108,7 @@ static void _do_poll(struct poller *p, int exp, int wake)
 	for (updt_idx = 0; updt_idx < fd_nbupdt; updt_idx++) {
 		fd = fd_updt[updt_idx];
 
-		_HA_ATOMIC_AND(&fdtab[fd].update_mask, ~tid_bit);
+		_HA_ATOMIC_AND(&fdtab[fd].update_mask, ~ti->ltid_bit);
 		if (!fdtab[fd].owner) {
 			activity[tid].poll_drop_fd++;
 			continue;
@@ -125,12 +125,12 @@ static void _do_poll(struct poller *p, int exp, int wake)
 			fd = -fd -4;
 		if (fd == -1)
 			break;
-		if (fdtab[fd].update_mask & tid_bit) {
+		if (fdtab[fd].update_mask & ti->ltid_bit) {
 			/* Cheat a bit, as the state is global to all pollers
 			 * we don't need every thread to take care of the
 			 * update.
 			 */
-			_HA_ATOMIC_AND(&fdtab[fd].update_mask, ~all_threads_mask);
+			_HA_ATOMIC_AND(&fdtab[fd].update_mask, ~tg->threads_enabled);
 			done_update_polling(fd);
 		} else
 			continue;
