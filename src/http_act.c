@@ -1348,7 +1348,7 @@ static enum act_parse_ret parse_http_auth(const char **args, int *orig_arg, stru
 static enum act_return http_action_early_hint(struct act_rule *rule, struct proxy *px,
 					      struct session *sess, struct stream *s, int flags)
 {
-	struct act_rule *prev_rule, *next_rule;
+	struct act_rule *next_rule;
 	struct channel *res = &s->res;
 	struct htx *htx = htx_from_buf(&res->buf);
 	struct buffer *value = alloc_trash_chunk();
@@ -1363,13 +1363,10 @@ static enum act_return http_action_early_hint(struct act_rule *rule, struct prox
 		goto error;
 	}
 
-	/* get previous and next rules */
-	prev_rule = LIST_PREV(&rule->list, typeof(rule), list);
-	next_rule = LIST_NEXT(&rule->list, typeof(rule), list);
-
-	/* if no previous rule or previous rule is not early-hint, start a new response. Otherwise,
-	 * continue to add link to a previously started response */
-	if (&prev_rule->list == s->current_rule_list || prev_rule->action_ptr != http_action_early_hint) {
+	/* if there is no pending 103 response, start a new response. Otherwise,
+	 * continue to add link to a previously started response
+         */
+	if (s->txn->status != 103) {
 		struct htx_sl *sl;
 		unsigned int flags = (HTX_SL_F_IS_RESP|HTX_SL_F_VER_11|
 				      HTX_SL_F_XFER_LEN|HTX_SL_F_BODYLESS);
@@ -1379,6 +1376,7 @@ static enum act_return http_action_early_hint(struct act_rule *rule, struct prox
 		if (!sl)
 			goto error;
 		sl->info.res.status = 103;
+		s->txn->status = 103;
 	}
 
 	/* Add the HTTP Early Hint HTTP 103 response heade */
@@ -1386,18 +1384,16 @@ static enum act_return http_action_early_hint(struct act_rule *rule, struct prox
 	if (!htx_add_header(htx, rule->arg.http.str, ist2(b_head(value), b_data(value))))
 		goto error;
 
-	/* if it is the last rule or the next one is not an early-hint, terminate the current
-	 * response. */
-	if (&next_rule->list == s->current_rule_list || next_rule->action_ptr != http_action_early_hint) {
-		if (!htx_add_endof(htx, HTX_BLK_EOH)) {
-			/* If an error occurred during an Early-hint rule,
-			 * remove the incomplete HTTP 103 response from the
-			 * buffer */
+	/* if it is the last rule or the next one is not an early-hint or an
+	 * conditional early-hint, terminate the current response.
+	 */
+	next_rule = LIST_NEXT(&rule->list, typeof(rule), list);
+	if (&next_rule->list == s->current_rule_list || next_rule->action_ptr != http_action_early_hint || next_rule->cond) {
+		if (!htx_add_endof(htx, HTX_BLK_EOH))
 			goto error;
-		}
-
 		if (!http_forward_proxy_resp(s, 0))
 			goto error;
+		s->txn->status = 0;
 	}
 
   leave:
@@ -1409,6 +1405,7 @@ static enum act_return http_action_early_hint(struct act_rule *rule, struct prox
 	 * HTTP 103 response from the buffer */
 	channel_htx_truncate(res, htx);
 	ret = ACT_RET_ERR;
+	s->txn->status = 0;
 	goto leave;
 }
 
