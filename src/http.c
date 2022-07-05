@@ -478,6 +478,24 @@ const char *http_get_reason(unsigned int status)
 	}
 }
 
+/* Returns the ist string corresponding to port part (without ':') in the host
+ * <host> or IST_NULL if not found.
+*/
+struct ist http_get_host_port(const struct ist host)
+{
+	char *start, *end, *ptr;
+
+	start = istptr(host);
+	end = istend(host);
+	for (ptr = end; ptr > start && isdigit((unsigned char)*--ptr););
+
+	/* no port found */
+	if (likely(*ptr != ':' || ptr+1 == end || ptr == start))
+		return IST_NULL;
+
+	return istnext(ist2(ptr, end - ptr));
+}
+
 /* Returns non-zero if the scheme <schm> is syntactically correct according to
  * RFC3986#3.1, otherwise zero. It expects only the scheme and nothing else
  * (particularly not the following "://").
