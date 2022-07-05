@@ -1,0 +1,277 @@
+varnishtest "H1 authority validation and host normalizarion based on the scheme (rfc3982 6.3.2) or the method (connect)"
+
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.6-dev0)'"
+feature ignore_unknown_macro
+
+syslog S1 -level info {
+    # C1
+    recv
+    expect ~ "^.* uri: GET http://toto:poue@hostname/c1 HTTP/1.1; host: {hostname}$"
+
+    # C2
+    recv
+    expect ~ "^.* uri: GET http://hostname:8080/c2 HTTP/1.1; host: {hostname:8080}$"
+
+    # C3
+    recv
+    expect ~ "^.* uri: GET https://hostname/c3 HTTP/1.1; host: {hostname}$"
+
+    # C4
+    recv
+    expect ~ "^.* uri: GET https://hostname:80/c4 HTTP/1.1; host: {hostname:80}$"
+
+    # C5
+    recv
+    expect ~ "^.* uri: CONNECT toto:pouet@hostname:80 HTTP/1.1; host: {hostname}$"
+    recv
+    expect ~ "^.* uri: CONNECT toto:pouet@hostname:80 HTTP/1.1; host: {hostname}$"
+
+    # C6
+    recv
+    expect ~ "^.* uri: CONNECT hostname:443 HTTP/1.1; host: {hostname}$"
+    recv
+    expect ~ "^.* uri: CONNECT hostname:443 HTTP/1.1; host: {hostname}$"
+
+    recv
+    expect ~ "^.* uri: CONNECT hostname:8443 HTTP/1.1; host: {hostname:8443}$"
+} -start
+
+haproxy h1 -conf {
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe
+        bind "fd@${fe}"
+
+        http-request capture req.hdr(host) len 512
+        log-format "uri: %r; host: %hr"
+        log ${S1_addr}:${S1_port} len 2048 local0 debug err
+
+        http-request return status 200
+} -start
+
+# default port 80 with http scheme => should be normalized
+# Be sure userinfo are skipped
+client c1 -connect ${h1_fe_sock} {
+    txreq \
+      -req "GET" \
+      -url "http://toto:poue@hostname:80/c1" \
+      -hdr "host: hostname:80"
+
+    rxresp
+    expect resp.status == 200
+} -run
+
+# port 8080 with http scheme => no normalization
+client c2 -connect ${h1_fe_sock} {
+    txreq \
+      -req "GET" \
+      -url "http://hostname:8080/c2" \
+      -hdr "host: hostname:8080"
+
+    rxresp
+    expect resp.status == 200
+} -run
+
+# default port 443 with https scheme => should be normalized
+client c3 -connect ${h1_fe_sock} {
+    txreq \
+      -req "GET" \
+      -url "https://hostname:443/c3" \
+      -hdr "host: hostname:443"
+
+    rxresp
+    expect resp.status == 200
+} -run
+
+# port 80 with https scheme => no normalization
+client c4 -connect ${h1_fe_sock} {
+    txreq \
+      -req "GET" \
+      -url "https://hostname:80/c4" \
+      -hdr "host: hostname:80"
+
+    rxresp
+    expect resp.status == 200
+} -run
+
+# CONNECT on port 80 => should be normalized
+# Be sure userinfo are skipped
+client c5 -connect ${h1_fe_sock} {
+    txreq \
+      -req "CONNECT" \
+      -url "toto:pouet@hostname:80" \
+      -hdr "host: hostname:80"
+
+    rxresp
+    expect resp.status == 200
+} -run
+client c5 -connect ${h1_fe_sock} {
+
+    txreq \
+      -req "CONNECT" \
+      -url "toto:pouet@hostname:80" \
+      -hdr "host: hostname"
+
+    rxresp
+    expect resp.status == 200
+} -run
+
+# CONNECT on port 443 => should be normalized
+client c6 -connect ${h1_fe_sock} {
+    txreq \
+      -req "CONNECT" \
+      -url "hostname:443" \
+      -hdr "host: hostname:443"
+
+    rxresp
+    expect resp.status == 200
+} -run
+client c6 -connect ${h1_fe_sock} {
+    txreq \
+      -req "CONNECT" \
+      -url "hostname:443" \
+      -hdr "host: hostname"
+
+    rxresp
+    expect resp.status == 200
+} -run
+
+# CONNECT on port non-default port => no normalization
+client c7 -connect ${h1_fe_sock} {
+    txreq \
+      -req "CONNECT" \
+      -url "hostname:8443" \
+      -hdr "host: hostname:8443"
+
+    rxresp
+    expect resp.status == 200
+} -run
+
+# host miss-match => error
+client c8 -connect ${h1_fe_sock} {
+    txreq \
+      -req "GET" \
+      -url "http://hostname1/" \
+      -hdr "host: hostname2"
+
+    rxresp
+    expect resp.status == 400
+} -run
+
+# port miss-match => error
+client c9 -connect ${h1_fe_sock} {
+    txreq \
+      -req "GET" \
+      -url "http://hostname:80/" \
+      -hdr "host: hostname:81"
+
+    rxresp
+    expect resp.status == 400
+} -run
+
+# no host port with a non-default port in abs-uri  => error
+client c10 -connect ${h1_fe_sock} {
+    txreq \
+      -req "GET" \
+      -url "http://hostname:8080/" \
+      -hdr "host: hostname"
+
+    rxresp
+    expect resp.status == 400
+} -run
+
+# non-default host port with a default in abs-uri  => error
+client c11 -connect ${h1_fe_sock} {
+    txreq \
+      -req "GET" \
+      -url "http://hostname/" \
+      -hdr "host: hostname:81"
+
+    rxresp
+    expect resp.status == 400
+} -run
+
+# miss-match between host headers => error
+client c12 -connect ${h1_fe_sock} {
+    txreq \
+      -req "GET" \
+      -url "http://hostname1/" \
+      -hdr "host: hostname1" \
+      -hdr "host: hostname2"
+
+    rxresp
+    expect resp.status == 400
+} -run
+
+# miss-match between host headers but with a normalization => error
+client c13 -connect ${h1_fe_sock} {
+    txreq \
+      -req "GET" \
+      -url "http://hostname1/" \
+      -hdr "host: hostname1:80" \
+      -hdr "host: hostname1"
+
+    rxresp
+    expect resp.status == 400
+} -run
+
+# CONNECT authoriy without port => error
+client c14 -connect ${h1_fe_sock} {
+    txreq \
+      -req "CONNECT" \
+      -url "hostname" \
+      -hdr "host: hostname"
+
+    rxresp
+    expect resp.status == 400
+} -run
+
+# host miss-match with CONNECT => error
+client c15 -connect ${h1_fe_sock} {
+    txreq \
+      -req "CONNECT" \
+      -url "hostname1:80" \
+      -hdr "host: hostname2:80"
+
+    rxresp
+    expect resp.status == 400
+} -run
+
+# port miss-match with CONNECT => error
+client c16 -connect ${h1_fe_sock} {
+    txreq \
+      -req "CONNECT" \
+      -url "hostname:80" \
+      -hdr "host: hostname:443"
+
+    rxresp
+    expect resp.status == 400
+} -run
+
+# no host port with non-default port in CONNECT authority => error
+client c17 -connect ${h1_fe_sock} {
+    txreq \
+      -req "CONNECT" \
+      -url "hostname:8080" \
+      -hdr "host: hostname"
+
+    rxresp
+    expect resp.status == 400
+} -run
+
+# no authority => error
+client c18 -connect ${h1_fe_sock} {
+    txreq \
+      -req "CONNECT" \
+      -url "/" \
+      -hdr "host: hostname"
+
+    rxresp
+    expect resp.status == 400
+} -run
+
+syslog S1 -wait
