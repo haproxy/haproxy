@@ -3534,10 +3534,12 @@ void tcpcheck_overwrite_send_http_rule(struct tcpcheck_rule *old, struct tcpchec
 		new->send.http.vsn = IST_NULL;
 	}
 
-	free_tcpcheck_http_hdrs(&old->send.http.hdrs);
-	list_for_each_entry_safe(hdr, bhdr, &new->send.http.hdrs, list) {
-		LIST_DELETE(&hdr->list);
-		LIST_APPEND(&old->send.http.hdrs, &hdr->list);
+	if (!LIST_ISEMPTY(&new->send.http.hdrs)) {
+		free_tcpcheck_http_hdrs(&old->send.http.hdrs);
+		list_for_each_entry_safe(hdr, bhdr, &new->send.http.hdrs, list) {
+			LIST_DELETE(&hdr->list);
+			LIST_APPEND(&old->send.http.hdrs, &hdr->list);
+		}
 	}
 
 	if (!(new->send.http.flags & TCPCHK_SND_HTTP_FL_BODY_FMT) && isttest(new->send.http.body)) {
