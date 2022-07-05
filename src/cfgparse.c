@@ -4079,9 +4079,38 @@ out_uri_auth_compat:
 				if (!LIST_ISEMPTY(&curpeers->peers_fe->conf.bind)) {
 					struct list *l;
 					struct bind_conf *bind_conf;
+					struct listener *li;
+					unsigned long mask;
 
 					l = &curpeers->peers_fe->conf.bind;
 					bind_conf = LIST_ELEM(l->n, typeof(bind_conf), by_fe);
+
+					err = NULL;
+					if (thread_resolve_group_mask(bind_conf->bind_tgroup, bind_conf->bind_thread,
+								      &bind_conf->bind_tgroup, &bind_conf->bind_thread, &err) < 0) {
+						ha_alert("Peers section '%s': %s in 'bind %s' at [%s:%d].\n",
+							 curpeers->peers_fe->id, err, bind_conf->arg, bind_conf->file, bind_conf->line);
+						free(err);
+						cfgerr++;
+					} else if (!((mask = bind_conf->bind_thread) & all_threads_mask)) {
+						unsigned long new_mask = 0;
+
+						while (mask) {
+							new_mask |= mask & all_threads_mask;
+							mask >>= global.nbthread;
+						}
+
+						bind_conf->bind_thread = new_mask;
+						ha_warning("Peers section '%s': the thread range specified on the 'thread' directive of 'bind %s' at [%s:%d] only refers to thread numbers out of the range defined by the global 'nbthread' directive. The thread numbers were remapped to existing threads instead (mask 0x%lx).\n",
+							   curpeers->peers_fe->id, bind_conf->arg, bind_conf->file, bind_conf->line, new_mask);
+					}
+
+					/* apply thread masks and groups to all receivers */
+					list_for_each_entry(li, &bind_conf->listeners, by_bind) {
+						li->rx.bind_thread = bind_conf->bind_thread;
+						li->rx.bind_tgroup = bind_conf->bind_tgroup;
+					}
+
 					if (bind_conf->xprt->prepare_bind_conf &&
 						bind_conf->xprt->prepare_bind_conf(bind_conf) < 0)
 						cfgerr++;
