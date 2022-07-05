@@ -703,7 +703,7 @@ void sock_accept_iocb(int fd)
 void sock_conn_ctrl_init(struct connection *conn)
 {
 	BUG_ON(conn->flags & CO_FL_FDLESS);
-	fd_insert(conn->handle.fd, conn, sock_conn_iocb, tid_bit);
+	fd_insert(conn->handle.fd, conn, sock_conn_iocb, tgid, tid_bit);
 }
 
 /* This completes the release of connection <conn> by removing its FD from the

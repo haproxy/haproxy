@@ -153,6 +153,11 @@ struct fdlist {
 
 /* info about one given fd. Note: only align on cache lines when using threads;
  * 32-bit small archs can put everything in 32-bytes when threads are disabled.
+ * refc_tgid is an atomic 32-bit composite value made of 16 higher bits
+ * containing a refcount on tgid and the running_mask, and 16 lower bits
+ * containing a thread group ID. The tgid may only be changed when refc is zero
+ * and running may only be checked/changed when refc is held and shows the
+ * reader is alone. An FD with tgid zero belongs to nobody.
  */
 struct fdtab {
 	unsigned long running_mask;          /* mask of thread IDs currently using the fd */
@@ -162,6 +167,7 @@ struct fdtab {
 	void (*iocb)(int fd);                /* I/O handler */
 	void *owner;                         /* the connection or listener associated with this fd, NULL if closed */
 	unsigned int state;                  /* FD state for read and write directions (FD_EV_*) + FD_POLL_* */
+	unsigned int refc_tgid;              /* refcounted tgid, updated atomically */
 #ifdef DEBUG_FD
 	unsigned int event_count;            /* number of events reported */
 #endif

@@ -314,6 +314,12 @@ static inline void fd_want_send(int fd)
 	updt_fd_polling(fd);
 }
 
+/* returns the tgid from an fd (masks the refcount) */
+static forceinline int fd_tgid(int fd)
+{
+	return _HA_ATOMIC_LOAD(&fdtab[fd].refc_tgid) & 0xFFFF;
+}
+
 /* remove tid_bit from the fd's running mask and returns the bits that remain
  * after the atomic operation.
  */
@@ -322,10 +328,10 @@ static inline long fd_clr_running(int fd)
 	return _HA_ATOMIC_AND_FETCH(&fdtab[fd].running_mask, ~tid_bit);
 }
 
-/* Prepares <fd> for being polled on all permitted threads (these will then be
- * refined to only cover running ones).
+/* Prepares <fd> for being polled on all permitted threads of this group ID
+ * (these will then be refined to only cover running ones).
 */
-static inline void fd_insert(int fd, void *owner, void (*iocb)(int fd), unsigned long thread_mask)
+static inline void fd_insert(int fd, void *owner, void (*iocb)(int fd), int tgid, unsigned long thread_mask)
 {
 	extern void sock_conn_iocb(int);
 
@@ -335,6 +341,7 @@ static inline void fd_insert(int fd, void *owner, void (*iocb)(int fd), unsigned
 	BUG_ON(fd < 0 || fd >= global.maxsock);
 	BUG_ON(fdtab[fd].owner != NULL);
 	BUG_ON(fdtab[fd].state != 0);
+	BUG_ON(fdtab[fd].refc_tgid != 0);
 
 	thread_mask &= all_threads_mask;
 	BUG_ON(thread_mask == 0);
@@ -342,6 +349,7 @@ static inline void fd_insert(int fd, void *owner, void (*iocb)(int fd), unsigned
 	fdtab[fd].owner = owner;
 	fdtab[fd].iocb = iocb;
 	fdtab[fd].state = 0;
+	fdtab[fd].refc_tgid = tgid;
 #ifdef DEBUG_FD
 	fdtab[fd].event_count = 0;
 #endif
