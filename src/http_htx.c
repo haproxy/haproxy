@@ -1726,12 +1726,6 @@ struct http_reply *http_parse_http_reply(const char **args, int *orig_arg, struc
 	return NULL;
 }
 
-static int uri_is_default_port(const struct ist scheme, const struct ist port)
-{
-	return (isteq(port, ist("443")) && isteqi(scheme, ist("https://"))) ||
-	        (isteq(port, ist("80")) && isteqi(scheme, ist("http://")));
-}
-
 /* Apply schemed-based normalization as described on rfc3986 on section 6.3.2.
  * Returns 0 if no error has been found else non-zero.
  *
@@ -1746,7 +1740,6 @@ int http_scheme_based_normalize(struct htx *htx)
 	struct http_hdr_ctx ctx;
 	struct htx_sl *sl;
 	struct ist uri, scheme, authority, host, port;
-	char *start, *end, *ptr;
 	struct http_uri_parser parser;
 
 	sl = http_get_stline(htx);
@@ -1762,25 +1755,16 @@ int http_scheme_based_normalize(struct htx *htx)
 	if (!isttest(scheme))
 		return 0;
 
-	/* Extract the port if present in authority. To properly support ipv6
-	 * hostnames, do a reverse search on the last ':' separator as long as
-	 * digits are found.
-	 */
-	authority = http_parse_authority(&parser, 0);
-	start = istptr(authority);
-	end = istend(authority);
-	for (ptr = end; ptr > start && isdigit((unsigned char)*--ptr); )
-		;
-
-	/* if no port found, no normalization to proceed */
-	if (likely(*ptr != ':'))
+	/* Extract the port if present in authority */
+	authority = http_parse_authority(&parser, 1);
+	port = http_get_host_port(authority);
+	if (!isttest(port)) {
+		/* if no port found, no normalization to proceed */
 		return 0;
+	}
+	host = isttrim(authority, istlen(authority) - istlen(port) - 1);
 
-	/* split host/port on the ':' separator found */
-	host = ist2(start, ptr - start);
-	port = istnext(ist2(ptr, end - ptr));
-
-	if (istlen(port) && uri_is_default_port(scheme, port)) {
+	if (istlen(port) && http_is_default_port(scheme, port)) {
 		/* reconstruct the uri with removal of the port */
 		struct buffer *temp = get_trash_chunk();
 		struct ist meth, vsn;
