@@ -118,10 +118,8 @@ int poller_wr_pipe[MAX_THREADS] __read_mostly; // Pipe to wake the threads
 volatile int ha_used_fds = 0; // Number of FD we're currently using
 static struct fdtab *fdtab_addr;  /* address of the allocated area containing fdtab */
 
-#define _GET_NEXT(fd, off) ((volatile struct fdlist_entry *)(void *)((char *)(&fdtab[fd]) + off))->next
-#define _GET_PREV(fd, off) ((volatile struct fdlist_entry *)(void *)((char *)(&fdtab[fd]) + off))->prev
 /* adds fd <fd> to fd list <list> if it was not yet in it */
-void fd_add_to_fd_list(volatile struct fdlist *list, int fd, int off)
+void fd_add_to_fd_list(volatile struct fdlist *list, int fd)
 {
 	int next;
 	int new;
@@ -129,13 +127,13 @@ void fd_add_to_fd_list(volatile struct fdlist *list, int fd, int off)
 	int last;
 
 redo_next:
-	next = _GET_NEXT(fd, off);
+	next = fdtab[fd].update.next;
 	/* Check that we're not already in the cache, and if not, lock us. */
 	if (next > -2)
 		goto done;
 	if (next == -2)
 		goto redo_next;
-	if (!_HA_ATOMIC_CAS(&_GET_NEXT(fd, off), &next, -2))
+	if (!_HA_ATOMIC_CAS(&fdtab[fd].update.next, &next, -2))
 		goto redo_next;
 	__ha_barrier_atomic_store();
 
@@ -145,7 +143,7 @@ redo_last:
 	last = list->last;
 	old = -1;
 
-	_GET_PREV(fd, off) = -2;
+	fdtab[fd].update.prev = -2;
 	/* Make sure the "prev" store is visible before we update the last entry */
 	__ha_barrier_store();
 
@@ -161,7 +159,7 @@ redo_last:
 		 * The CAS will only succeed if its next is -1,
 		 * which means it's in the cache, and the last element.
 		 */
-		if (unlikely(!_HA_ATOMIC_CAS(&_GET_NEXT(last, off), &old, new)))
+		if (unlikely(!_HA_ATOMIC_CAS(&fdtab[last].update.next, &old, new)))
 			goto redo_last;
 
 		/* Then, update the last entry */
@@ -171,15 +169,15 @@ redo_last:
 	/* since we're alone at the end of the list and still locked(-2),
 	 * we know no one tried to add past us. Mark the end of list.
 	 */
-	_GET_PREV(fd, off) = last;
-	_GET_NEXT(fd, off) = -1;
+	fdtab[fd].update.prev = last;
+	fdtab[fd].update.next = -1;
 	__ha_barrier_store();
 done:
 	return;
 }
 
 /* removes fd <fd> from fd list <list> */
-void fd_rm_from_fd_list(volatile struct fdlist *list, int fd, int off)
+void fd_rm_from_fd_list(volatile struct fdlist *list, int fd)
 {
 #if defined(HA_HAVE_CAS_DW) || defined(HA_CAS_IS_8B)
 	volatile union {
@@ -196,7 +194,7 @@ void fd_rm_from_fd_list(volatile struct fdlist *list, int fd, int off)
 lock_self:
 #if (defined(HA_CAS_IS_8B) || defined(HA_HAVE_CAS_DW))
 	next_list.ent.next = next_list.ent.prev = -2;
-	cur_list.ent = *(volatile struct fdlist_entry *)(((char *)&fdtab[fd]) + off);
+	cur_list.ent = fdtab[fd].update;
 	/* First, attempt to lock our own entries */
 	do {
 		/* The FD is not in the FD cache, give up */
@@ -206,9 +204,9 @@ lock_self:
 			goto lock_self;
 	} while (
 #ifdef HA_CAS_IS_8B
-		 unlikely(!_HA_ATOMIC_CAS(((uint64_t *)&_GET_NEXT(fd, off)), (uint64_t *)&cur_list.u64, next_list.u64))
+		 unlikely(!_HA_ATOMIC_CAS(((uint64_t *)&fdtab[fd].update), (uint64_t *)&cur_list.u64, next_list.u64))
 #else
-		 unlikely(!_HA_ATOMIC_DWCAS(((long *)&_GET_NEXT(fd, off)), (uint32_t *)&cur_list.u32, &next_list.u32))
+		 unlikely(!_HA_ATOMIC_DWCAS(((long *)&fdtab[fd].update), (uint32_t *)&cur_list.u32, &next_list.u32))
 #endif
 	    );
 	next = cur_list.ent.next;
@@ -216,18 +214,18 @@ lock_self:
 
 #else
 lock_self_next:
-	next = _GET_NEXT(fd, off);
+	next = fdtab[fd].update.next;
 	if (next == -2)
 		goto lock_self_next;
 	if (next <= -3)
 		goto done;
-	if (unlikely(!_HA_ATOMIC_CAS(&_GET_NEXT(fd, off), &next, -2)))
+	if (unlikely(!_HA_ATOMIC_CAS(&fdtab[fd].update.next, &next, -2)))
 		goto lock_self_next;
 lock_self_prev:
-	prev = _GET_PREV(fd, off);
+	prev = fdtab[fd].update.prev;
 	if (prev == -2)
 		goto lock_self_prev;
-	if (unlikely(!_HA_ATOMIC_CAS(&_GET_PREV(fd, off), &prev, -2)))
+	if (unlikely(!_HA_ATOMIC_CAS(&fdtab[fd].update.prev, &prev, -2)))
 		goto lock_self_prev;
 #endif
 	__ha_barrier_atomic_store();
@@ -237,14 +235,14 @@ lock_self_prev:
 redo_prev:
 		old = fd;
 
-		if (unlikely(!_HA_ATOMIC_CAS(&_GET_NEXT(prev, off), &old, new))) {
+		if (unlikely(!_HA_ATOMIC_CAS(&fdtab[prev].update.next, &old, new))) {
 			if (unlikely(old == -2)) {
 				/* Neighbour already locked, give up and
 				 * retry again once he's done
 				 */
-				_GET_PREV(fd, off) = prev;
+				fdtab[fd].update.prev = prev;
 				__ha_barrier_store();
-				_GET_NEXT(fd, off) = next;
+				fdtab[fd].update.next = next;
 				__ha_barrier_store();
 				goto lock_self;
 			}
@@ -254,18 +252,18 @@ redo_prev:
 	if (likely(next != -1)) {
 redo_next:
 		old = fd;
-		if (unlikely(!_HA_ATOMIC_CAS(&_GET_PREV(next, off), &old, new))) {
+		if (unlikely(!_HA_ATOMIC_CAS(&fdtab[next].update.prev, &old, new))) {
 			if (unlikely(old == -2)) {
 				/* Neighbour already locked, give up and
 				 * retry again once he's done
 				 */
 				if (prev != -1) {
-					_GET_NEXT(prev, off) = fd;
+					fdtab[prev].update.next = fd;
 					__ha_barrier_store();
 				}
-				_GET_PREV(fd, off) = prev;
+				fdtab[fd].update.prev = prev;
 				__ha_barrier_store();
-				_GET_NEXT(fd, off) = next;
+				fdtab[fd].update.next = next;
 				__ha_barrier_store();
 				goto lock_self;
 			}
@@ -283,20 +281,17 @@ redo_next:
 	 */
 	__ha_barrier_store();
 	if (likely(prev != -1))
-		_GET_NEXT(prev, off) = next;
+		fdtab[prev].update.next = next;
 	__ha_barrier_store();
 	if (likely(next != -1))
-		_GET_PREV(next, off) = prev;
+		fdtab[next].update.prev = prev;
 	__ha_barrier_store();
 	/* Ok, now we're out of the fd cache */
-	_GET_NEXT(fd, off) = -(next + 4);
+	fdtab[fd].update.next = -(next + 4);
 	__ha_barrier_store();
 done:
 	return;
 }
-
-#undef _GET_NEXT
-#undef _GET_PREV
 
 /* deletes the FD once nobody uses it anymore, as detected by the caller by its
  * thread_mask being zero and its running mask turning to zero. There is no
@@ -446,7 +441,7 @@ void updt_fd_polling(const int fd)
 				return;
 		} while (!_HA_ATOMIC_CAS(&fdtab[fd].update_mask, &update_mask, fdtab[fd].thread_mask));
 
-		fd_add_to_fd_list(&update_list, fd, offsetof(struct fdtab, update));
+		fd_add_to_fd_list(&update_list, fd);
 
 		if (fd_active(fd) && !(fdtab[fd].thread_mask & tid_bit)) {
 			/* we need to wake up another thread to handle it immediately, any will fit,

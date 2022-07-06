@@ -118,8 +118,8 @@ int list_pollers(FILE *out);
  */
 void run_poller();
 
-void fd_add_to_fd_list(volatile struct fdlist *list, int fd, int off);
-void fd_rm_from_fd_list(volatile struct fdlist *list, int fd, int off);
+void fd_add_to_fd_list(volatile struct fdlist *list, int fd);
+void fd_rm_from_fd_list(volatile struct fdlist *list, int fd);
 void updt_fd_polling(const int fd);
 int fd_update_events(int fd, uint evts);
 
@@ -134,13 +134,13 @@ static inline void done_update_polling(int fd)
 	update_mask = _HA_ATOMIC_AND_FETCH(&fdtab[fd].update_mask, ~tid_bit);
 	while ((update_mask & all_threads_mask)== 0) {
 		/* If we were the last one that had to update that entry, remove it from the list */
-		fd_rm_from_fd_list(&update_list, fd, offsetof(struct fdtab, update));
+		fd_rm_from_fd_list(&update_list, fd);
 		update_mask = (volatile unsigned long)fdtab[fd].update_mask;
 		if ((update_mask & all_threads_mask) != 0) {
 			/* Maybe it's been re-updated in the meanwhile, and we
 			 * wrongly removed it from the list, if so, re-add it
 			 */
-			fd_add_to_fd_list(&update_list, fd, offsetof(struct fdtab, update));
+			fd_add_to_fd_list(&update_list, fd);
 			update_mask = (volatile unsigned long)(fdtab[fd].update_mask);
 			/* And then check again, just in case after all it
 			 * should be removed, even if it's very unlikely, given
