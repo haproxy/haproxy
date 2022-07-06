@@ -337,7 +337,7 @@ static int smp_fetch_meth(const struct arg *args, struct sample *smp, const char
 	struct htx *htx;
 	int meth;
 
-	txn = smp->strm->txn;
+	txn = (smp->strm ? smp->strm->txn : NULL);
 	if (!txn)
 		return 0;
 
