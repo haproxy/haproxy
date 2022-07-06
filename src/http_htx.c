@@ -1783,7 +1783,7 @@ int http_scheme_based_normalize(struct htx *htx)
 	if (istlen(port) && uri_is_default_port(scheme, port)) {
 		/* reconstruct the uri with removal of the port */
 		struct buffer *temp = get_trash_chunk();
-		struct ist meth, vsn, path;
+		struct ist meth, vsn;
 
 		/* meth */
 		chunk_memcat(temp, HTX_SL_REQ_MPTR(sl), HTX_SL_REQ_MLEN(sl));
@@ -1794,12 +1794,10 @@ int http_scheme_based_normalize(struct htx *htx)
 		vsn = ist2(temp->area + meth.len, HTX_SL_REQ_VLEN(sl));
 
 		/* reconstruct uri without port */
-		path = http_parse_path(&parser);
-		chunk_istcat(temp, scheme);
+		chunk_memcat(temp, uri.ptr, authority.ptr - uri.ptr);
 		chunk_istcat(temp, host);
-		chunk_istcat(temp, path);
-		uri = ist2(temp->area + meth.len + vsn.len,
-		           scheme.len + host.len + path.len);
+		chunk_memcat(temp, istend(authority), istend(uri) - istend(authority));
+		uri = ist2(temp->area + meth.len + vsn.len, host.len + uri.len - authority.len); /* uri */
 
 		http_replace_stline(htx, meth, uri, vsn);
 
