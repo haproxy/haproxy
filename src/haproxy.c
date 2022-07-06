@@ -2840,7 +2840,8 @@ void run_poll_loop()
 			    (_HA_ATOMIC_LOAD(&stopping_tgroup_mask) & all_tgroups_mask) == all_tgroups_mask) {
 				/* check that all threads are aware of the stopping status */
 				for (i = 0; i < global.nbtgroups; i++)
-					if (_HA_ATOMIC_LOAD(&ha_tgroup_ctx[i].stopping_threads) != ha_tgroup_info[i].threads_enabled)
+					if ((_HA_ATOMIC_LOAD(&ha_tgroup_ctx[i].stopping_threads) & ha_tgroup_info[i].threads_enabled) !=
+					    ha_tgroup_info[i].threads_enabled)
 						break;
 #ifdef USE_THREAD
 				if (i == global.nbtgroups) {
