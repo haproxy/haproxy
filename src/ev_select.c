@@ -38,15 +38,18 @@ static void __fd_clo(int fd)
 static void _update_fd(int fd, int *max_add_fd)
 {
 	int en;
+	ulong pr, ps;
 
 	en = fdtab[fd].state;
+	pr = _HA_ATOMIC_LOAD(&polled_mask[fd].poll_recv);
+	ps = _HA_ATOMIC_LOAD(&polled_mask[fd].poll_send);
 
 	/* we have a single state for all threads, which is why we
 	 * don't check the tid_bit. First thread to see the update
 	 * takes it for every other one.
 	 */
 	if (!(en & FD_EV_ACTIVE_RW)) {
-		if (!(polled_mask[fd].poll_recv | polled_mask[fd].poll_send)) {
+		if (!(pr | ps)) {
 			/* fd was not watched, it's still not */
 			return;
 		}
@@ -60,22 +63,22 @@ static void _update_fd(int fd, int *max_add_fd)
 		/* OK fd has to be monitored, it was either added or changed */
 		if (!(en & FD_EV_ACTIVE_R)) {
 			hap_fd_clr(fd, fd_evts[DIR_RD]);
-			if (polled_mask[fd].poll_recv & tid_bit)
-				_HA_ATOMIC_AND(&polled_mask[fd].poll_recv, ~tid_bit);
+			if (pr & ti->ltid_bit)
+				_HA_ATOMIC_AND(&polled_mask[fd].poll_recv, ~ti->ltid_bit);
 		} else {
 			hap_fd_set(fd, fd_evts[DIR_RD]);
-			if (!(polled_mask[fd].poll_recv & tid_bit))
-				_HA_ATOMIC_OR(&polled_mask[fd].poll_recv, tid_bit);
+			if (!(pr & ti->ltid_bit))
+				_HA_ATOMIC_OR(&polled_mask[fd].poll_recv, ti->ltid_bit);
 		}
 
 		if (!(en & FD_EV_ACTIVE_W)) {
 			hap_fd_clr(fd, fd_evts[DIR_WR]);
-			if (polled_mask[fd].poll_send & tid_bit)
-				_HA_ATOMIC_AND(&polled_mask[fd].poll_send, ~tid_bit);
+			if (ps & ti->ltid_bit)
+				_HA_ATOMIC_AND(&polled_mask[fd].poll_send, ~ti->ltid_bit);
 		} else {
 			hap_fd_set(fd, fd_evts[DIR_WR]);
-			if (!(polled_mask[fd].poll_send & tid_bit))
-				_HA_ATOMIC_OR(&polled_mask[fd].poll_send, tid_bit);
+			if (!(ps & ti->ltid_bit))
+				_HA_ATOMIC_OR(&polled_mask[fd].poll_send, ti->ltid_bit);
 		}
 
 		if (fd > *max_add_fd)

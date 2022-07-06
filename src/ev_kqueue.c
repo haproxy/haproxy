@@ -36,46 +36,48 @@ static int _update_fd(int fd, int start)
 {
 	int en;
 	int changes = start;
+	ulong pr, ps;
 
 	en = fdtab[fd].state;
+	pr = _HA_ATOMIC_LOAD(&polled_mask[fd].poll_recv);
+	ps = _HA_ATOMIC_LOAD(&polled_mask[fd].poll_send);
 
 	if (!(fdtab[fd].thread_mask & tid_bit) || !(en & FD_EV_ACTIVE_RW)) {
-		if (!(polled_mask[fd].poll_recv & tid_bit) &&
-		    !(polled_mask[fd].poll_send & tid_bit)) {
+		if (!((pr | ps) & ti->ltid_bit)) {
 			/* fd was not watched, it's still not */
 			return changes;
 		}
 		/* fd totally removed from poll list */
 		EV_SET(&kev[changes++], fd, EVFILT_READ, EV_DELETE, 0, 0, NULL);
 		EV_SET(&kev[changes++], fd, EVFILT_WRITE, EV_DELETE, 0, 0, NULL);
-		if (polled_mask[fd].poll_recv & tid_bit)
-			_HA_ATOMIC_AND(&polled_mask[fd].poll_recv, ~tid_bit);
-		if (polled_mask[fd].poll_send & tid_bit)
-			_HA_ATOMIC_AND(&polled_mask[fd].poll_send, ~tid_bit);
+		if (pr & ti->ltid_bit)
+			_HA_ATOMIC_AND(&polled_mask[fd].poll_recv, ~ti->ltid_bit);
+		if (ps & ti->ltid_bit)
+			_HA_ATOMIC_AND(&polled_mask[fd].poll_send, ~ti->ltid_bit);
 	}
 	else {
 		/* OK fd has to be monitored, it was either added or changed */
 
 		if (en & FD_EV_ACTIVE_R) {
-			if (!(polled_mask[fd].poll_recv & tid_bit)) {
+			if (!(pr & ti->ltid_bit)) {
 				EV_SET(&kev[changes++], fd, EVFILT_READ, EV_ADD, 0, 0, NULL);
-				_HA_ATOMIC_OR(&polled_mask[fd].poll_recv, tid_bit);
+				_HA_ATOMIC_OR(&polled_mask[fd].poll_recv, ti->ltid_bit);
 			}
 		}
-		else if (polled_mask[fd].poll_recv & tid_bit) {
+		else if (pr & ti->ltid_bit) {
 			EV_SET(&kev[changes++], fd, EVFILT_READ, EV_DELETE, 0, 0, NULL);
-			HA_ATOMIC_AND(&polled_mask[fd].poll_recv, ~tid_bit);
+			HA_ATOMIC_AND(&polled_mask[fd].poll_recv, ~ti->ltid_bit);
 		}
 
 		if (en & FD_EV_ACTIVE_W) {
-			if (!(polled_mask[fd].poll_send & tid_bit)) {
+			if (!(ps & ti->ltid_bit)) {
 				EV_SET(&kev[changes++], fd, EVFILT_WRITE, EV_ADD, 0, 0, NULL);
-				_HA_ATOMIC_OR(&polled_mask[fd].poll_send, tid_bit);
+				_HA_ATOMIC_OR(&polled_mask[fd].poll_send, ti->ltid_bit);
 			}
 		}
-		else if (polled_mask[fd].poll_send & tid_bit) {
+		else if (ps & ti->ltid_bit) {
 			EV_SET(&kev[changes++], fd, EVFILT_WRITE, EV_DELETE, 0, 0, NULL);
-			_HA_ATOMIC_AND(&polled_mask[fd].poll_send, ~tid_bit);
+			_HA_ATOMIC_AND(&polled_mask[fd].poll_send, ~ti->ltid_bit);
 		}
 
 	}

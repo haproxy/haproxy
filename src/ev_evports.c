@@ -65,38 +65,40 @@ static void _update_fd(int fd)
 {
 	int en;
 	int events;
+	ulong pr, ps;
 
 	en = fdtab[fd].state;
+	pr = _HA_ATOMIC_LOAD(&polled_mask[fd].poll_recv);
+	ps = _HA_ATOMIC_LOAD(&polled_mask[fd].poll_send);
 
 	if (!(fdtab[fd].thread_mask & tid_bit) || !(en & FD_EV_ACTIVE_RW)) {
-		if (!(polled_mask[fd].poll_recv & tid_bit) &&
-		    !(polled_mask[fd].poll_send & tid_bit)) {
+		if (!((pr | ps) & ti->ltid_bit)) {
 			/* fd was not watched, it's still not */
 			return;
 		}
 		/* fd totally removed from poll list */
 		events = 0;
-		if (polled_mask[fd].poll_recv & tid_bit)
-			_HA_ATOMIC_AND(&polled_mask[fd].poll_recv, ~tid_bit);
-		if (polled_mask[fd].poll_send & tid_bit)
-			_HA_ATOMIC_AND(&polled_mask[fd].poll_send, ~tid_bit);
+		if (pr & ti->ltid_bit)
+			_HA_ATOMIC_AND(&polled_mask[fd].poll_recv, ~ti->ltid_bit);
+		if (ps & ti->ltid_bit)
+			_HA_ATOMIC_AND(&polled_mask[fd].poll_send, ~ti->ltid_bit);
 	}
 	else {
 		/* OK fd has to be monitored, it was either added or changed */
 		events = evports_state_to_events(en);
 		if (en & FD_EV_ACTIVE_R) {
-			if (!(polled_mask[fd].poll_recv & tid_bit))
-				_HA_ATOMIC_OR(&polled_mask[fd].poll_recv, tid_bit);
+			if (!(pr & ti->ltid_bit))
+				_HA_ATOMIC_OR(&polled_mask[fd].poll_recv, ti->ltid_bit);
 		} else {
-			if (polled_mask[fd].poll_recv & tid_bit)
-				_HA_ATOMIC_AND(&polled_mask[fd].poll_recv, ~tid_bit);
+			if (pr & ti->ltid_bit)
+				_HA_ATOMIC_AND(&polled_mask[fd].poll_recv, ~ti->ltid_bit);
 		}
 		if (en & FD_EV_ACTIVE_W) {
-			if (!(polled_mask[fd].poll_send & tid_bit))
-				_HA_ATOMIC_OR(&polled_mask[fd].poll_send, tid_bit);
+			if (!(ps & ti->ltid_bit))
+				_HA_ATOMIC_OR(&polled_mask[fd].poll_send, ti->ltid_bit);
 		} else {
-			if (polled_mask[fd].poll_send & tid_bit)
-				_HA_ATOMIC_AND(&polled_mask[fd].poll_send, ~tid_bit);
+			if (ps & ti->ltid_bit)
+				_HA_ATOMIC_AND(&polled_mask[fd].poll_send, ~ti->ltid_bit);
 		}
 
 	}
