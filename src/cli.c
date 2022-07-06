@@ -3009,6 +3009,7 @@ int mworker_cli_proxy_new_listener(char *line)
 	bind_conf->level &= ~ACCESS_LVL_MASK;
 	bind_conf->level |= ACCESS_LVL_ADMIN;
 	bind_conf->level |= ACCESS_MASTER | ACCESS_MASTER_ONLY;
+	bind_conf->bind_tgroup = 1; // bind to a single group in any case
 
 	if (!str2listener(args[0], mworker_proxy, bind_conf, "master-socket", 0, &err)) {
 		ha_alert("Cannot create the listener of the master CLI\n");
@@ -3106,6 +3107,7 @@ int mworker_cli_sockpair_new(struct mworker_proc *mworker_proc, int proc)
 	bind_conf->level &= ~ACCESS_LVL_MASK;
 	bind_conf->level |= ACCESS_LVL_ADMIN; /* TODO: need to lower the rights with a CLI keyword*/
 	bind_conf->level |= ACCESS_FD_LISTENERS;
+	bind_conf->bind_tgroup = 1; // bind to a single group in any case
 
 	if (!memprintf(&path, "sockpair@%d", mworker_proc->ipc_fd[1])) {
 		ha_alert("Cannot allocate listener.\n");
