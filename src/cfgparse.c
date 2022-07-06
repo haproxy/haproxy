@@ -704,6 +704,11 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 
 		bind_conf = bind_conf_uniq_alloc(curpeers->peers_fe, file, linenum,
 		                                 args[1], xprt_get(XPRT_RAW));
+		if (!bind_conf) {
+			ha_alert("parsing [%s:%d] : '%s %s' : cannot allocate memory.\n", file, linenum, args[0], args[1]);
+			err_code |= ERR_FATAL;
+			goto out;
+		}
 		if (*args[0] == 'b') {
 			struct listener *l;
 
@@ -923,6 +928,11 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 			goto out;
 
 		bind_conf = bind_conf_uniq_alloc(curpeers->peers_fe, file, linenum, args[2], xprt_get(XPRT_RAW));
+		if (!bind_conf) {
+			ha_alert("parsing [%s:%d] : '%s %s' : Cannot allocate memory.\n", file, linenum, args[0], args[1]);
+			err_code |= ERR_FATAL;
+			goto out;
+		}
 
 		if (!LIST_ISEMPTY(&bind_conf->listeners)) {
 			ha_alert("parsing [%s:%d] : One listener per \"peers\" section is authorized but another is already configured at [%s:%d].\n", file, linenum, bind_conf->file, bind_conf->line);
