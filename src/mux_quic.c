@@ -248,6 +248,20 @@ static struct ncbuf *qc_get_ncbuf(struct qcs *qcs, struct ncbuf *ncbuf)
 	return ncbuf;
 }
 
+/* Notify an eventual subscriber on <qcs> or else wakup up the stconn layer if
+ * initialized.
+ */
+static void qcs_alert(struct qcs *qcs)
+{
+	if (qcs->subs) {
+		qcs_notify_recv(qcs);
+		qcs_notify_send(qcs);
+	}
+	else if (qcs_sc(qcs) && qcs->sd->sc->app_ops->wake) {
+		qcs->sd->sc->app_ops->wake(qcs->sd->sc);
+	}
+}
+
 int qcs_subscribe(struct qcs *qcs, int event_type, struct wait_event *es)
 {
 	struct qcc *qcc = qcs->qcc;
@@ -1746,13 +1760,7 @@ static int qc_wake_some_streams(struct qcc *qcc)
 			if (se_fl_test(qcs->sd, SE_FL_EOS))
 				se_fl_set(qcs->sd, SE_FL_ERROR);
 
-			if (qcs->subs) {
-				qcs_notify_recv(qcs);
-				qcs_notify_send(qcs);
-			}
-			else if (qcs->sd->sc->app_ops->wake) {
-				qcs->sd->sc->app_ops->wake(qcs->sd->sc);
-			}
+			qcs_alert(qcs);
 		}
 	}
 
