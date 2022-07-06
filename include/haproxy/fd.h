@@ -322,7 +322,9 @@ static inline long fd_clr_running(int fd)
 	return _HA_ATOMIC_AND_FETCH(&fdtab[fd].running_mask, ~tid_bit);
 }
 
-/* Prepares <fd> for being polled */
+/* Prepares <fd> for being polled on all permitted threads (these will then be
+ * refined to only cover running ones).
+*/
 static inline void fd_insert(int fd, void *owner, void (*iocb)(int fd), unsigned long thread_mask)
 {
 	extern void sock_conn_iocb(int);
@@ -333,6 +335,8 @@ static inline void fd_insert(int fd, void *owner, void (*iocb)(int fd), unsigned
 	BUG_ON(fd < 0 || fd >= global.maxsock);
 	BUG_ON(fdtab[fd].owner != NULL);
 	BUG_ON(fdtab[fd].state != 0);
+
+	thread_mask &= all_threads_mask;
 	BUG_ON(thread_mask == 0);
 
 	fdtab[fd].owner = owner;

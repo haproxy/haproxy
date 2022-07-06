@@ -157,7 +157,7 @@ int sockpair_bind_receiver(struct receiver *rx, char **errmsg)
 
 	rx->flags |= RX_F_BOUND;
 
-	fd_insert(rx->fd, rx->owner, rx->iocb, rx->bind_thread & all_threads_mask);
+	fd_insert(rx->fd, rx->owner, rx->iocb, rx->bind_thread);
 	return err;
 
  bind_return:
