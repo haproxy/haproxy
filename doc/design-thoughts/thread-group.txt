@@ -261,6 +261,67 @@ should be updated before clearing running_mask there. Also, how about not
 creating an update on a close ? Not trivial if done before running, unless
 thread_mask==0.
 
+Note that one situation that is currently visible is that a thread closes a
+file descriptor that it's the last one to own and to have an update for. In
+fd_delete_orphan() it does call poller.clo() but this one is not sufficient
+as it doesn't drop the update_mask nor does it clear the polled_mask. The
+typical problem that arises is that the close() happens before processing
+the last update (e.g. a close() just after a partial read), thus it still
+has *at least* one bit set for the current thread in both update_mask and
+polled_mask, and it is present in the update_list. Not handling it would
+mean that the event is lost on update() from the concerned threads and
+that some resource might leak. Handling it means zeroing the update_mask
+and polled_mask, and deleting the update entry from the update_list, thus
+losing the update event. And as indicated above, if the FD switches twice
+between 2 groups, the finally called thread does not necessarily know that
+the FD isn't the same anymore, thus it's difficult to decide whether to
+delete it or not, because deleting the event might in fact mean deleting
+something that was just re-added for the same thread with the same FD but
+a different usage.
+
+Also it really seems unrealistic to scan a single shared update_list like
+this using write operations. There should likely be one per thread-group.
+But in this case there is no more choice than deleting the update event
+upon fd_delete_orphan(). This also means that poller->clo() must do the
+job for all of the group's threads at once. This would mean a synchronous
+removal before the close(), which doesn't seem ridiculously expensive. It
+just requires that any thread of a group may manipulate any other thread's
+status for an FD and a poller.
+
+Note about our currently supported pollers:
+
+  - epoll: our current code base relies on the modern version which
+           automatically removes closed FDs, so we don't have anything to do
+           when closing and we don't need the update.
+
+  - kqueue: according to https://www.freebsd.org/cgi/man.cgi?query=kqueue, just
+            like epoll, a close() implies a removal. Our poller doesn't perform
+            any bookkeeping either so it's OK to directly close.
+
+  - evports: https://docs.oracle.com/cd/E86824_01/html/E54766/port-dissociate-3c.html
+             says the same, i.e. close() implies a removal of all events. No local
+             processing nor bookkeeping either, we can close.
+
+  - poll: the fd_evts[] array is global, thus shared by all threads. As such,
+          a single removal is needed to flush it for all threads at once. The
+          operation is already performed like this.
+
+  - select: works exactly like poll() above, hence already handled.
+
+As a preliminary conclusion, it's safe to delete the event and reset
+update_mask just after calling poller->clo(). If extremely unlucky (changing
+thread mask due to takeover ?), the same FD may appear at the same time:
+  - in one or several thread-local fd_updt[] arrays. These ones are just work
+    queues, there's nothing to do to ignore them, just leave the holes with an
+    outdated FD which will be ignored once met. As a bonus, poller->clo() could
+    check if the last fd_updt[] points to this specific FD and decide to kill
+    it.
+
+  - in the global update_list. In this case, fd_rm_from_fd_list() already
+    performs an attachment check, so it's safe to always call it before closing
+    (since noone else may be in the process of changing anything).
+
+
 ###########################################################
 
 Current state:
