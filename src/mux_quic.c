@@ -430,16 +430,30 @@ static int qcc_stream_id_is_closed(struct qcc *qcc, uint64_t id)
 
 /* Retrieve the stream instance from <id> ID. This can be used when receiving
  * STREAM, STREAM_DATA_BLOCKED, RESET_STREAM, MAX_STREAM_DATA or STOP_SENDING
- * frames.
+ * frames. Set to false <receive_only> or <send_only> if these particular types
+ * of streams are not allowed.
  *
  * Return the stream instance or NULL if not found.
  */
-static struct qcs *qcc_get_qcs(struct qcc *qcc, uint64_t id)
+static struct qcs *qcc_get_qcs(struct qcc *qcc, uint64_t id,
+                               int receive_only, int send_only)
 {
 	struct eb64_node *node;
 	struct qcs *qcs = NULL;
 
 	TRACE_ENTER(QMUX_EV_QCC_RECV, qcc->conn);
+
+	if (!receive_only && quic_stream_is_uni(id) && quic_stream_is_remote(qcc, id)) {
+		TRACE_DEVEL("leaving on receive-only stream not allowed", QMUX_EV_QCC_RECV|QMUX_EV_QCC_NQCS, qcc->conn, NULL, &id);
+		qcc_emit_cc(qcc, QC_ERR_STREAM_STATE_ERROR);
+		return NULL;
+	}
+
+	if (!send_only && quic_stream_is_uni(id) && quic_stream_is_local(qcc, id)) {
+		TRACE_DEVEL("leaving on send-only stream not allowed", QMUX_EV_QCC_RECV|QMUX_EV_QCC_NQCS, qcc->conn, NULL, &id);
+		qcc_emit_cc(qcc, QC_ERR_STREAM_STATE_ERROR);
+		return NULL;
+	}
 
 	/* Search the stream in the connection tree. */
 	node = eb64_lookup(&qcc->streams_by_id, id);
@@ -610,13 +624,7 @@ int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
 	 * initiated stream that has not yet been created, or for a send-only
 	 * stream.
 	 */
-	if (quic_stream_is_local(qcc, id) && quic_stream_is_uni(id)) {
-		qcc_emit_cc(qcc, QC_ERR_STREAM_STATE_ERROR);
-		TRACE_DEVEL("leaving on invalid reception for a send-only stream", QMUX_EV_QCC_RECV|QMUX_EV_QCC_NQCS, qcc->conn, NULL, &id);
-		return 1;
-	}
-
-	qcs = qcc_get_qcs(qcc, id);
+	qcs = qcc_get_qcs(qcc, id, 1, 0);
 	if (!qcs)
 		return 0;
 
