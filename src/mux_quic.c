@@ -762,18 +762,29 @@ int qcc_recv_max_data(struct qcc *qcc, uint64_t max)
 /* Handle a new MAX_STREAM_DATA frame. <max> must contains the maximum data
  * field of the frame and <id> is the identifier of the QUIC stream.
  *
- * Returns 0 on success else non-zero.
+ * Returns 0 on success else non-zero. On error, the received frame should not
+ * be acknowledged.
  */
 int qcc_recv_max_stream_data(struct qcc *qcc, uint64_t id, uint64_t max)
 {
 	struct qcs *qcs;
-	struct eb64_node *node;
 
 	TRACE_ENTER(QMUX_EV_QCC_RECV, qcc->conn);
 
-	node = eb64_lookup(&qcc->streams_by_id, id);
-	if (node) {
-		qcs = eb64_entry(node, struct qcs, by_id);
+	/* RFC 9000 19.10. MAX_STREAM_DATA Frames
+	 *
+	 * Receiving a MAX_STREAM_DATA frame for a locally
+	 * initiated stream that has not yet been created MUST be treated as a
+	 * connection error of type STREAM_STATE_ERROR.  An endpoint that
+	 * receives a MAX_STREAM_DATA frame for a receive-only stream MUST
+	 * terminate the connection with error STREAM_STATE_ERROR.
+	 */
+	if (qcc_get_qcs(qcc, id, 0, 1, &qcs)) {
+		TRACE_LEAVE(QMUX_EV_QCC_RECV, qcc->conn);
+		return 1;
+	}
+
+	if (qcs) {
 		if (max > qcs->tx.msd) {
 			qcs->tx.msd = max;
 			TRACE_DEVEL("increase remote max-stream-data", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV, qcc->conn, qcs);
