@@ -992,7 +992,7 @@ void listener_accept(struct listener *l)
 		if (l->rx.flags & RX_F_LOCAL_ACCEPT)
 			goto local_accept;
 
-		mask = thread_mask(l->rx.bind_thread) & all_threads_mask;
+		mask = l->rx.bind_thread & all_threads_mask;
 		if (atleast2(mask) && (global.tune.options & GTUNE_LISTENER_MQ) && !stopping) {
 			struct accept_queue_ring *ring;
 			unsigned int t, t0, t1, t2;

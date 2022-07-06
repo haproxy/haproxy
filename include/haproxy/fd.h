@@ -334,6 +334,7 @@ static inline void fd_insert(int fd, void *owner, void (*iocb)(int fd), unsigned
 	BUG_ON(fd < 0 || fd >= global.maxsock);
 	BUG_ON(fdtab[fd].owner != NULL);
 	BUG_ON(fdtab[fd].state != 0);
+	BUG_ON(thread_mask == 0);
 
 	fdtab[fd].owner = owner;
 	fdtab[fd].iocb = iocb;

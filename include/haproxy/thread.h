@@ -469,10 +469,4 @@ void __spin_unlock(enum lock_label lbl, struct ha_spinlock *l,
 
 #endif /* USE_THREAD */
 
-/* returns a mask if set, otherwise all_threads_mask */
-static inline unsigned long thread_mask(unsigned long mask)
-{
-	return mask ? mask : all_threads_mask;
-}
-
 #endif /* _HAPROXY_THREAD_H */
