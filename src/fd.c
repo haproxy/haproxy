@@ -309,8 +309,19 @@ void _fd_delete_orphan(int fd)
 		DISGUISE(setsockopt(fd, SOL_SOCKET, SO_LINGER,
 			   (struct linger *) &nolinger, sizeof(struct linger)));
 	}
+
+	/* It's expected that a close() will result in the FD disappearing from
+	 * pollers, but some pollers may have some internal bookkeeping to be
+	 * done prior to the call (e.g. remove references from internal tables).
+	 */
 	if (cur_poller.clo)
 		cur_poller.clo(fd);
+
+	/* we don't want this FD anymore in the global list */
+	fd_rm_from_fd_list(&update_list, fd);
+
+	/* no more updates on this FD are relevant anymore */
+	HA_ATOMIC_STORE(&fdtab[fd].update_mask, 0);
 
 	port_range_release_port(fdinfo[fd].port_range, fdinfo[fd].local_port);
 	polled_mask[fd].poll_recv = polled_mask[fd].poll_send = 0;
@@ -322,6 +333,7 @@ void _fd_delete_orphan(int fd)
 #endif
 	fdinfo[fd].port_range = NULL;
 	fdtab[fd].owner = NULL;
+
 	/* perform the close() call last as it's what unlocks the instant reuse
 	 * of this FD by any other thread.
 	 */
