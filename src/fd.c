@@ -355,6 +355,11 @@ void fd_delete(int fd)
 	 */
 	BUG_ON(fd < 0 || fd >= global.maxsock);
 
+	/* the tgid cannot change before a complete close so we should never
+	 * face the situation where we try to close an fd that was reassigned.
+	 */
+	BUG_ON(fd_tgid(fd) != ti->tgid && !thread_isolated());
+
 	/* we must postpone removal of an FD that may currently be in use
 	 * by another thread. This can happen in the following two situations:
 	 *   - after a takeover, the owning thread closes the connection but
@@ -422,11 +427,17 @@ int fd_takeover(int fd, void *expected_owner)
 	/* we must be alone to work on this idle FD. If not, it means that its
 	 * poller is currently waking up and is about to use it, likely to
 	 * close it on shut/error, but maybe also to process any unexpectedly
-	 * pending data.
+	 * pending data. It's also possible that the FD was closed and
+	 * reassigned to another thread group, so let's be careful.
 	 */
-	old = 0;
-	if (!HA_ATOMIC_CAS(&fdtab[fd].running_mask, &old, tid_bit))
+	if (unlikely(!fd_grab_tgid(fd, ti->tgid)))
 		return -1;
+
+	old = 0;
+	if (!HA_ATOMIC_CAS(&fdtab[fd].running_mask, &old, tid_bit)) {
+		fd_drop_tgid(fd);
+		return -1;
+	}
 
 	/* success, from now on it's ours */
 	HA_ATOMIC_STORE(&fdtab[fd].thread_mask, tid_bit);
@@ -439,6 +450,9 @@ int fd_takeover(int fd, void *expected_owner)
 
 	/* we're done with it */
 	HA_ATOMIC_AND(&fdtab[fd].running_mask, ~tid_bit);
+
+	/* no more changes planned */
+	fd_drop_tgid(fd);
 	return 0;
 }
 
@@ -484,6 +498,17 @@ int fd_update_events(int fd, uint evts)
 
 	_HA_ATOMIC_AND(&th_ctx->flags, ~TH_FL_STUCK); // this thread is still running
 
+	if (unlikely(!fd_grab_tgid(fd, ti->tgid))) {
+		/* the FD changed to another tgid, we can't safely
+		 * check it anymore. The bits in the masks are not
+		 * ours anymore and we're not allowed to touch them.
+		 * Ours have already been cleared and the FD was
+		 * closed in between so we can safely leave now.
+		 */
+		activity[tid].poll_drop_fd++;
+		return FD_UPDT_CLOSED;
+	}
+
 	/* do nothing if the FD was taken over under us */
 	do {
 		/* make sure we read a synchronous copy of rmask and tmask
@@ -502,9 +527,14 @@ int fd_update_events(int fd, uint evts)
 			/* Let the poller know this FD was lost */
 			if (!HA_ATOMIC_BTS(&fdtab[fd].update_mask, tid))
 				fd_updt[fd_nbupdt++] = fd;
+
+			fd_drop_tgid(fd);
 			return FD_UPDT_MIGRATED;
 		}
 	} while (!HA_ATOMIC_CAS(&fdtab[fd].running_mask, &rmask, rmask | tid_bit));
+
+	/* with running we're safe now, we can drop the reference */
+	fd_drop_tgid(fd);
 
 	locked = (tmask != tid_bit);
 
