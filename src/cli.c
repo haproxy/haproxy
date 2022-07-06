@@ -492,6 +492,7 @@ static int cli_parse_global(char **args, int section_type, struct proxy *curpx,
 		}
 		bind_conf->level &= ~ACCESS_LVL_MASK;
 		bind_conf->level |= ACCESS_LVL_OPER; /* default access level */
+		bind_conf->bind_tgroup = 1; // bind to a single group in any case
 
 		if (!str2listener(args[2], global.cli_fe, bind_conf, file, line, err)) {
 			memprintf(err, "parsing [%s:%d] : '%s %s' : %s\n",
