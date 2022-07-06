@@ -320,6 +320,73 @@ static forceinline int fd_tgid(int fd)
 	return _HA_ATOMIC_LOAD(&fdtab[fd].refc_tgid) & 0xFFFF;
 }
 
+/* Release a tgid previously taken by fd_grab_tgid() */
+static forceinline void fd_drop_tgid(int fd)
+{
+	HA_ATOMIC_SUB(&fdtab[fd].refc_tgid, 0x10000);
+}
+
+/* Grab a reference to the FD's TGID, and return the tgid. Note that a TGID of
+ * zero indicates the FD was closed, thus also fails (i.e. no need to drop it).
+ * On non-zero (success), the caller must release it using fd_drop_tgid().
+ */
+static inline uint fd_take_tgid(int fd)
+{
+	uint old;
+
+	old = _HA_ATOMIC_FETCH_ADD(&fdtab[fd].refc_tgid, 0x10000) & 0xffff;
+	if (likely(old))
+		return old;
+	HA_ATOMIC_SUB(&fdtab[fd].refc_tgid, 0x10000);
+	return 0;
+}
+
+/* Reset a tgid without affecting the refcount */
+static forceinline void fd_reset_tgid(int fd)
+{
+	HA_ATOMIC_AND(&fdtab[fd].refc_tgid, 0xffff0000U);
+}
+
+/* Try to grab a reference to the FD's TGID, but only if it matches the
+ * requested one (i.e. it succeeds with TGID refcnt held, or fails). Note that
+ * a TGID of zero indicates the FD was closed, thus also fails. It returns
+ * non-zero on success, in which case the caller must then release it using
+ * fd_drop_tgid(), or zero on failure. The function is optimized for use
+ * when it's likely that the tgid matches the desired one as it's by far
+ * the most common.
+ */
+static inline uint fd_grab_tgid(int fd, uint desired_tgid)
+{
+	uint old;
+
+	old = _HA_ATOMIC_FETCH_ADD(&fdtab[fd].refc_tgid, 0x10000) & 0xffff;
+	if (likely(old == desired_tgid))
+		return 1;
+	HA_ATOMIC_SUB(&fdtab[fd].refc_tgid, 0x10000);
+	return 0;
+}
+
+/* Set the FD's TGID to the new value with a refcount of 1, waiting for the
+ * current refcount to become 0, to cover the rare possibly that a late
+ * competing thread would be touching the tgid or the running mask in parallel.
+ * The caller must call fd_drop_tgid() once done.
+ */
+static inline void fd_claim_tgid(int fd, uint desired_tgid)
+{
+	uint old;
+
+	BUG_ON(!desired_tgid);
+
+	desired_tgid += 0x10000; // refcount=1
+	old = desired_tgid;
+	while (1) {
+		old &= 0xffff;
+		if (_HA_ATOMIC_CAS(&fdtab[fd].refc_tgid, &old, desired_tgid))
+			break;
+		__ha_cpu_relax();
+	}
+}
+
 /* remove tid_bit from the fd's running mask and returns the bits that remain
  * after the atomic operation.
  */
