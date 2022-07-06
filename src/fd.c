@@ -322,6 +322,8 @@ void _fd_delete_orphan(int fd)
 
 	/* no more updates on this FD are relevant anymore */
 	HA_ATOMIC_STORE(&fdtab[fd].update_mask, 0);
+	if (fd_nbupdt > 0 && fd_updt[fd_nbupdt - 1] == fd)
+		fd_nbupdt--;
 
 	port_range_release_port(fdinfo[fd].port_range, fdinfo[fd].local_port);
 	polled_mask[fd].poll_recv = polled_mask[fd].poll_send = 0;
