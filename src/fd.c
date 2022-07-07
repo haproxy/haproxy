@@ -440,7 +440,7 @@ int fd_takeover(int fd, void *expected_owner)
 	}
 
 	/* success, from now on it's ours */
-	HA_ATOMIC_STORE(&fdtab[fd].thread_mask, tid_bit);
+	HA_ATOMIC_STORE(&fdtab[fd].thread_mask, ti->ltid_bit);
 
 	/* Make sure the FD doesn't have the active bit. It is possible that
 	 * the fd is polled by the thread that used to own it, the new thread
@@ -458,7 +458,7 @@ int fd_takeover(int fd, void *expected_owner)
 
 void updt_fd_polling(const int fd)
 {
-	if (all_threads_mask == 1UL || (fdtab[fd].thread_mask & all_threads_mask) == tid_bit) {
+	if (tg->threads_enabled == 1UL || (fdtab[fd].thread_mask & tg->threads_enabled) == ti->ltid_bit) {
 		if (HA_ATOMIC_BTS(&fdtab[fd].update_mask, ti->ltid))
 			return;
 
@@ -472,12 +472,13 @@ void updt_fd_polling(const int fd)
 
 		fd_add_to_fd_list(&update_list[tgid - 1], fd);
 
-		if (fd_active(fd) && !(fdtab[fd].thread_mask & tid_bit)) {
+		if (fd_active(fd) && !(fdtab[fd].thread_mask & ti->ltid_bit)) {
 			/* we need to wake up another thread to handle it immediately, any will fit,
 			 * so let's pick a random one so that it doesn't always end up on the same.
 			 */
-			int thr = one_among_mask(fdtab[fd].thread_mask & all_threads_mask,
+			int thr = one_among_mask(fdtab[fd].thread_mask & tg->threads_enabled,
 			                         statistical_prng_range(MAX_THREADS));
+			thr += ha_tgroup_info[tgid - 1].base;
 			wake_thread(thr);
 		}
 	}
@@ -520,7 +521,7 @@ int fd_update_events(int fd, uint evts)
 			tmask = _HA_ATOMIC_LOAD(&fdtab[fd].thread_mask);
 		} while (rmask & ~tmask);
 
-		if (!(tmask & tid_bit)) {
+		if (!(tmask & ti->ltid_bit)) {
 			/* a takeover has started */
 			activity[tid].poll_skip_fd++;
 
@@ -536,7 +537,7 @@ int fd_update_events(int fd, uint evts)
 	/* with running we're safe now, we can drop the reference */
 	fd_drop_tgid(fd);
 
-	locked = (tmask != tid_bit);
+	locked = (tmask != ti->ltid_bit);
 
 	/* OK now we are guaranteed that our thread_mask was present and
 	 * that we're allowed to update the FD.

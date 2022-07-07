@@ -99,7 +99,7 @@ static void _update_fd(int fd)
 		en |= FD_EV_ACTIVE_R;
 
 	if ((ps | pr) & ti->ltid_bit) {
-		if (!(fdtab[fd].thread_mask & tid_bit) || !(en & FD_EV_ACTIVE_RW)) {
+		if (!(fdtab[fd].thread_mask & ti->ltid_bit) || !(en & FD_EV_ACTIVE_RW)) {
 			/* fd removed from poll list */
 			opcode = EPOLL_CTL_DEL;
 			if (pr & ti->ltid_bit)
@@ -129,7 +129,7 @@ static void _update_fd(int fd)
 			opcode = EPOLL_CTL_MOD;
 		}
 	}
-	else if ((fdtab[fd].thread_mask & tid_bit) && (en & FD_EV_ACTIVE_RW)) {
+	else if ((fdtab[fd].thread_mask & ti->ltid_bit) && (en & FD_EV_ACTIVE_RW)) {
 		/* new fd in the poll list */
 		opcode = EPOLL_CTL_ADD;
 		if (en & FD_EV_ACTIVE_R)

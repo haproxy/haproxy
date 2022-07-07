@@ -71,7 +71,7 @@ static void _update_fd(int fd)
 	pr = _HA_ATOMIC_LOAD(&polled_mask[fd].poll_recv);
 	ps = _HA_ATOMIC_LOAD(&polled_mask[fd].poll_send);
 
-	if (!(fdtab[fd].thread_mask & tid_bit) || !(en & FD_EV_ACTIVE_RW)) {
+	if (!(fdtab[fd].thread_mask & ti->ltid_bit) || !(en & FD_EV_ACTIVE_RW)) {
 		if (!((pr | ps) & ti->ltid_bit)) {
 			/* fd was not watched, it's still not */
 			return;

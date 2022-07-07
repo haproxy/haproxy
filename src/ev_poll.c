@@ -192,7 +192,7 @@ static void _do_poll(struct poller *p, int exp, int wake)
 					continue;
 				}
 
-				if (!(fdtab[fd].thread_mask & tid_bit)) {
+				if (!(fdtab[fd].thread_mask & ti->ltid_bit)) {
 					continue;
 				}
 
