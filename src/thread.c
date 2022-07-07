@@ -995,13 +995,6 @@ static void __thread_init(void)
 {
 	char *ptr = NULL;
 
-	if (MAX_THREADS < 1 || MAX_THREADS > LONGBITS) {
-		ha_alert("MAX_THREADS value must be between 1 and %d inclusive; "
-		         "HAProxy was built with value %d, please fix it and rebuild.\n",
-			 LONGBITS, MAX_THREADS);
-		exit(1);
-	}
-
 	preload_libgcc_s();
 
 	thread_cpus_enabled_at_boot = thread_cpus_enabled();
