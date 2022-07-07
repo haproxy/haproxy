@@ -394,6 +394,7 @@ static struct qcs *qcc_init_stream_remote(struct qcc *qcc, uint64_t id)
 
 		qcs = qcs_new(qcc, *largest, type);
 		if (!qcs) {
+			/* TODO emit RESET_STREAM */
 			TRACE_DEVEL("leaving on stream fallocation failure", QMUX_EV_QCS_NEW, qcc->conn);
 			return NULL;
 		}
@@ -431,42 +432,46 @@ static int qcc_stream_id_is_closed(struct qcc *qcc, uint64_t id)
 /* Retrieve the stream instance from <id> ID. This can be used when receiving
  * STREAM, STREAM_DATA_BLOCKED, RESET_STREAM, MAX_STREAM_DATA or STOP_SENDING
  * frames. Set to false <receive_only> or <send_only> if these particular types
- * of streams are not allowed.
+ * of streams are not allowed. If the stream instance is found, it is stored in
+ * <out>.
  *
- * Return the stream instance or NULL if not found.
+ * Returns 0 on success else non-zero. On error, a RESET_STREAM or a
+ * CONNECTION_CLOSE is automatically emitted. Beware that <out> may be NULL
+ * on success if the stream has already been closed.
  */
-static struct qcs *qcc_get_qcs(struct qcc *qcc, uint64_t id,
-                               int receive_only, int send_only)
+int qcc_get_qcs(struct qcc *qcc, uint64_t id, int receive_only, int send_only,
+                struct qcs **out)
 {
 	struct eb64_node *node;
-	struct qcs *qcs = NULL;
 
 	TRACE_ENTER(QMUX_EV_QCC_RECV, qcc->conn);
+	*out = NULL;
 
 	if (!receive_only && quic_stream_is_uni(id) && quic_stream_is_remote(qcc, id)) {
 		TRACE_DEVEL("leaving on receive-only stream not allowed", QMUX_EV_QCC_RECV|QMUX_EV_QCC_NQCS, qcc->conn, NULL, &id);
 		qcc_emit_cc(qcc, QC_ERR_STREAM_STATE_ERROR);
-		return NULL;
+		return 1;
 	}
 
 	if (!send_only && quic_stream_is_uni(id) && quic_stream_is_local(qcc, id)) {
 		TRACE_DEVEL("leaving on send-only stream not allowed", QMUX_EV_QCC_RECV|QMUX_EV_QCC_NQCS, qcc->conn, NULL, &id);
 		qcc_emit_cc(qcc, QC_ERR_STREAM_STATE_ERROR);
-		return NULL;
+		return 1;
 	}
 
 	/* Search the stream in the connection tree. */
 	node = eb64_lookup(&qcc->streams_by_id, id);
 	if (node) {
-		qcs = eb64_entry(node, struct qcs, by_id);
-		TRACE_DEVEL("using stream from connection tree", QMUX_EV_QCC_RECV, qcc->conn, qcs);
-		return qcs;
+		*out = eb64_entry(node, struct qcs, by_id);
+		TRACE_DEVEL("using stream from connection tree", QMUX_EV_QCC_RECV, qcc->conn, *out);
+		return 0;
 	}
 
 	/* Check if stream is already closed. */
 	if (qcc_stream_id_is_closed(qcc, id)) {
 		TRACE_DEVEL("already released stream", QMUX_EV_QCC_RECV|QMUX_EV_QCC_NQCS, qcc->conn, NULL, &id);
-		return NULL;
+		/* Consider this as a success even if <out> is left NULL. */
+		return 0;
 	}
 
 	/* Create the stream. This is valid only for remote initiated one. A
@@ -483,16 +488,20 @@ static struct qcs *qcc_get_qcs(struct qcc *qcc, uint64_t id,
 		 */
 		TRACE_DEVEL("leaving on locally initiated stream not yet created", QMUX_EV_QCC_RECV|QMUX_EV_QCC_NQCS, qcc->conn, NULL, &id);
 		qcc_emit_cc(qcc, QC_ERR_STREAM_STATE_ERROR);
-		return NULL;
+		return 1;
 	}
 	else {
 		/* Remote stream not found - try to open it. */
-		qcs = qcc_init_stream_remote(qcc, id);
+		*out = qcc_init_stream_remote(qcc, id);
+		if (!*out) {
+			TRACE_DEVEL("leaving on stream creation error", QMUX_EV_QCC_RECV|QMUX_EV_QCC_NQCS, qcc->conn, NULL, &id);
+			return 1;
+		}
 	}
 
  out:
 	TRACE_LEAVE(QMUX_EV_QCC_RECV, qcc->conn);
-	return qcs;
+	return 0;
 }
 
 /* Simple function to duplicate a buffer */
@@ -602,7 +611,8 @@ void qcc_emit_cc_app(struct qcc *qcc, int err)
  * <data> with length <len> and represents the offset <offset>. <fin> is set if
  * the QUIC frame FIN bit is set.
  *
- * Returns 0 on success else non-zero.
+ * Returns 0 on success else non-zero. On error, the received frame should not
+ * be acknowledged.
  */
 int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
              char fin, char *data)
@@ -614,7 +624,7 @@ int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
 
 	if (qcc->flags & QC_CF_CC_EMIT) {
 		TRACE_DEVEL("leaving on error", QMUX_EV_QCC_RECV, qcc->conn);
-		return 0;
+		return 1;
 	}
 
 	/* RFC 9000 19.8. STREAM Frames
@@ -624,9 +634,16 @@ int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
 	 * initiated stream that has not yet been created, or for a send-only
 	 * stream.
 	 */
-	qcs = qcc_get_qcs(qcc, id, 1, 0);
-	if (!qcs)
+	if (qcc_get_qcs(qcc, id, 1, 0, &qcs)) {
+		TRACE_LEAVE(QMUX_EV_QCC_RECV, qcc->conn);
+		return 1;
+	}
+
+	if (!qcs) {
+		/* Already closed stream. */
+		TRACE_LEAVE(QMUX_EV_QCC_RECV, qcc->conn);
 		return 0;
+	}
 
 	/* RFC 9000 4.5. Stream Final Size
 	 *
@@ -640,7 +657,7 @@ int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
 	    (offset + len > qcs->rx.offset_max || (fin && offset + len < qcs->rx.offset_max))) {
 		TRACE_DEVEL("leaving on final size error", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV, qcc->conn, qcs);
 		qcc_emit_cc(qcc, QC_ERR_FINAL_SIZE_ERROR);
-		return 0;
+		return 1;
 	}
 
 	if (offset + len <= qcs->rx.offset) {
