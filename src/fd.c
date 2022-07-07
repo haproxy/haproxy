@@ -329,7 +329,7 @@ void _fd_delete_orphan(int fd)
 	polled_mask[fd].poll_recv = polled_mask[fd].poll_send = 0;
 
 	fdtab[fd].state = 0;
-	fdtab[fd].refc_tgid = 0;
+	fd_reset_tgid(fd);
 
 #ifdef DEBUG_FD
 	fdtab[fd].event_count = 0;

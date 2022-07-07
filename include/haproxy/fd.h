@@ -422,6 +422,12 @@ static inline long fd_clr_running(int fd)
 static inline void fd_insert(int fd, void *owner, void (*iocb)(int fd), int tgid, unsigned long thread_mask)
 {
 	extern void sock_conn_iocb(int);
+	int newstate;
+
+	/* conn_fd_handler should support edge-triggered FDs */
+	newstate = 0;
+	if ((global.tune.options & GTUNE_FD_ET) && iocb == sock_conn_iocb)
+		newstate |= FD_ET_POSSIBLE;
 
 	/* This must never happen and would definitely indicate a bug, in
 	 * addition to overwriting some unexpected memory areas.
@@ -429,24 +435,24 @@ static inline void fd_insert(int fd, void *owner, void (*iocb)(int fd), int tgid
 	BUG_ON(fd < 0 || fd >= global.maxsock);
 	BUG_ON(fdtab[fd].owner != NULL);
 	BUG_ON(fdtab[fd].state != 0);
-	BUG_ON(fdtab[fd].refc_tgid != 0);
 
 	thread_mask &= tg->threads_enabled;
 	BUG_ON(thread_mask == 0);
 
+	fd_claim_tgid(fd, tgid);
+
+	BUG_ON(fdtab[fd].running_mask);
+
 	fdtab[fd].owner = owner;
 	fdtab[fd].iocb = iocb;
 	fdtab[fd].state = 0;
-	fdtab[fd].refc_tgid = tgid;
+	fdtab[fd].thread_mask = thread_mask;
+	fd_drop_tgid(fd);
+
 #ifdef DEBUG_FD
 	fdtab[fd].event_count = 0;
 #endif
 
-	/* conn_fd_handler should support edge-triggered FDs */
-	if ((global.tune.options & GTUNE_FD_ET) && fdtab[fd].iocb == sock_conn_iocb)
-		fdtab[fd].state |= FD_ET_POSSIBLE;
-
-	fdtab[fd].thread_mask = thread_mask;
 	/* note: do not reset polled_mask here as it indicates which poller
 	 * still knows this FD from a possible previous round.
 	 */
