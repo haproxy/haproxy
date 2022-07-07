@@ -1204,12 +1204,13 @@ static struct connection *conn_backend_get(struct stream *s, struct server *srv,
 		goto done;
 
 	/* Lookup all other threads for an idle connection, starting from last
-	 * unvisited thread.
+	 * unvisited thread, but always staying in the same group.
 	 */
 	stop = srv->next_takeover;
-	if (stop >= global.nbthread)
-		stop = 0;
+	if (stop >= tg->count)
+		stop %= tg->count;
 
+	stop += tg->base;
 	i = stop;
 	do {
 		if (!srv->curr_idle_thr[i] || i == tid)
@@ -1244,13 +1245,13 @@ static struct connection *conn_backend_get(struct stream *s, struct server *srv,
 			}
 		}
 		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[i].idle_conns_lock);
-	} while (!found && (i = (i + 1 == global.nbthread) ? 0 : i + 1) != stop);
+	} while (!found && (i = (i + 1 == tg->base + tg->count) ? tg->base : i + 1) != stop);
 
 	if (!found)
 		conn = NULL;
  done:
 	if (conn) {
-		_HA_ATOMIC_STORE(&srv->next_takeover, (i + 1 == global.nbthread) ? 0 : i + 1);
+		_HA_ATOMIC_STORE(&srv->next_takeover, (i + 1 == tg->base + tg->count) ? tg->base : i + 1);
 
 		srv_use_conn(srv, conn);
 
