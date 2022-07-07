@@ -18,7 +18,7 @@ server s1 {
           -bodylen 1048576
 
         rxreq
-        expect req.url == "/"
+        expect req.url == "127.0.0.1:80"
         txresp \
           -hdr "Content-Length: 0"
         recv 36000
@@ -92,7 +92,7 @@ client c1 -connect ${h1_fe1_sock} {
 	gunzip
         expect resp.bodylen == 1048576
 
-        txreq -method "CONNECT" -url "/" -nolen
+        txreq -method "CONNECT" -url "127.0.0.1:80" -nolen
         rxresp
         expect resp.status == 200
         send_n 1000 "0123456789abcdefghijklmnopqrstuvwxyz"
