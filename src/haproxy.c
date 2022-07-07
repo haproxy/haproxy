@@ -682,10 +682,6 @@ static void mworker_reexec()
 	struct mworker_proc *current_child = NULL;
 
 	mworker_block_signals();
-#if defined(USE_SYSTEMD)
-	if (global.tune.options & GTUNE_USE_SYSTEMD)
-		sd_notify(0, "RELOADING=1");
-#endif
 	setenv("HAPROXY_MWORKER_REEXEC", "1", 1);
 
 	mworker_cleanup_proc();
@@ -802,16 +798,16 @@ void mworker_reload()
 		child->reloads++;
 	}
 
+#if defined(USE_SYSTEMD)
+	if (global.tune.options & GTUNE_USE_SYSTEMD)
+		sd_notify(0, "RELOADING=1\nSTATUS=Reloading Configuration.\n");
+#endif
 	mworker_reexec();
 }
 
 static void mworker_loop()
 {
 
-#if defined(USE_SYSTEMD)
-	if (global.tune.options & GTUNE_USE_SYSTEMD)
-		sd_notifyf(0, "READY=1\nMAINPID=%lu", (unsigned long)getpid());
-#endif
 	/* Busy polling makes no sense in the master :-) */
 	global.tune.options &= ~GTUNE_BUSY_POLLING;
 
@@ -877,6 +873,13 @@ void reexec_on_failure()
 
 	usermsgs_clr(NULL);
 	ha_warning("Loading failure!\n");
+#if defined(USE_SYSTEMD)
+	/* the sd_notify API is not able to send a reload failure signal. So
+	 * the READY=1 signal still need to be sent */
+	if (global.tune.options & GTUNE_USE_SYSTEMD)
+		sd_notify(0, "READY=1\nSTATUS=Reload failed!\n");
+#endif
+
 	mworker_reexec_waitmode();
 }
 
@@ -3440,6 +3443,10 @@ int main(int argc, char **argv)
 					mworker_loop();
 				} else {
 
+#if defined(USE_SYSTEMD)
+					if (global.tune.options & GTUNE_USE_SYSTEMD)
+						sd_notifyf(0, "READY=1\nMAINPID=%lu\nSTATUS=Ready.\n", (unsigned long)getpid());
+#endif
 					/* if not in wait mode, reload in wait mode to free the memory */
 					ha_notice("Loading success.\n");
 					proc_self->failedreloads = 0; /* reset the number of failure */
