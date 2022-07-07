@@ -413,7 +413,7 @@ static inline ulong fd_get_running(int fd, uint desired_tgid)
  */
 static inline long fd_clr_running(int fd)
 {
-	return _HA_ATOMIC_AND_FETCH(&fdtab[fd].running_mask, ~tid_bit);
+	return _HA_ATOMIC_AND_FETCH(&fdtab[fd].running_mask, ~ti->ltid_bit);
 }
 
 /* Prepares <fd> for being polled on all permitted threads of this group ID

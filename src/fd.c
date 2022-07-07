@@ -376,7 +376,7 @@ void fd_delete(int fd)
 	 * safely delete the FD. Most of the time it will be the current thread.
 	 */
 
-	HA_ATOMIC_OR(&fdtab[fd].running_mask, tid_bit);
+	HA_ATOMIC_OR(&fdtab[fd].running_mask, ti->ltid_bit);
 	HA_ATOMIC_STORE(&fdtab[fd].thread_mask, 0);
 	if (fd_clr_running(fd) == 0)
 		_fd_delete_orphan(fd);
@@ -434,7 +434,7 @@ int fd_takeover(int fd, void *expected_owner)
 		return -1;
 
 	old = 0;
-	if (!HA_ATOMIC_CAS(&fdtab[fd].running_mask, &old, tid_bit)) {
+	if (!HA_ATOMIC_CAS(&fdtab[fd].running_mask, &old, ti->ltid_bit)) {
 		fd_drop_tgid(fd);
 		return -1;
 	}
@@ -449,7 +449,7 @@ int fd_takeover(int fd, void *expected_owner)
 	fd_stop_recv(fd);
 
 	/* we're done with it */
-	HA_ATOMIC_AND(&fdtab[fd].running_mask, ~tid_bit);
+	HA_ATOMIC_AND(&fdtab[fd].running_mask, ~ti->ltid_bit);
 
 	/* no more changes planned */
 	fd_drop_tgid(fd);
@@ -531,7 +531,7 @@ int fd_update_events(int fd, uint evts)
 			fd_drop_tgid(fd);
 			return FD_UPDT_MIGRATED;
 		}
-	} while (!HA_ATOMIC_CAS(&fdtab[fd].running_mask, &rmask, rmask | tid_bit));
+	} while (!HA_ATOMIC_CAS(&fdtab[fd].running_mask, &rmask, rmask | ti->ltid_bit));
 
 	/* with running we're safe now, we can drop the reference */
 	fd_drop_tgid(fd);
@@ -594,7 +594,7 @@ int fd_update_events(int fd, uint evts)
 	 * This is detected by both thread_mask and running_mask being 0 after
 	 * we remove ourselves last.
 	 */
-	if ((fdtab[fd].running_mask & tid_bit) &&
+	if ((fdtab[fd].running_mask & ti->ltid_bit) &&
 	    fd_clr_running(fd) == 0 && !fdtab[fd].thread_mask) {
 		_fd_delete_orphan(fd);
 		return FD_UPDT_CLOSED;
