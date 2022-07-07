@@ -69,6 +69,10 @@ struct tgroup_ctx {
 	ulong threads_harmless;           /* mask of threads that are not modifying anything */
 	ulong threads_idle;               /* mask of threads idling in the poller */
 	ulong stopping_threads;           /* mask of threads currently stopping */
+
+	HA_RWLOCK_T wq_lock;              /* RW lock related to the wait queue below */
+	struct eb_root timers;            /* wait queue (sorted timers tree, global, accessed under wq_lock) */
+
 	/* pad to cache line (64B) */
 	char __pad[0];                    /* unused except to check remaining room */
 	char __end[0] __attribute__((aligned(64)));
