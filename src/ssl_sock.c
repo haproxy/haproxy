@@ -824,7 +824,7 @@ static inline void ssl_async_process_fds(struct ssl_sock_ctx *ctx)
 
 	/* We add new fds to the fdtab */
 	for (i=0 ; i < num_add_fds ; i++) {
-		fd_insert(add_fd[i], ctx, ssl_async_fd_handler, tgid, tid_bit);
+		fd_insert(add_fd[i], ctx, ssl_async_fd_handler, tgid, ti->ltid_bit);
 	}
 
 	num_add_fds = 0;

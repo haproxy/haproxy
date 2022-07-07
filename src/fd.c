@@ -855,8 +855,8 @@ static int init_pollers_per_thread()
 	poller_rd_pipe = mypipe[0];
 	poller_wr_pipe[tid] = mypipe[1];
 	fd_set_nonblock(poller_rd_pipe);
-	fd_insert(poller_rd_pipe, poller_pipe_io_handler, poller_pipe_io_handler, tgid, tid_bit);
-	fd_insert(poller_wr_pipe[tid], poller_pipe_io_handler, poller_pipe_io_handler, tgid, tid_bit);
+	fd_insert(poller_rd_pipe, poller_pipe_io_handler, poller_pipe_io_handler, tgid, ti->ltid_bit);
+	fd_insert(poller_wr_pipe[tid], poller_pipe_io_handler, poller_pipe_io_handler, tgid, ti->ltid_bit);
 	fd_want_recv(poller_rd_pipe);
 	fd_stop_both(poller_wr_pipe[tid]);
 	return 1;

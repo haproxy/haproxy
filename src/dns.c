@@ -74,7 +74,7 @@ static int dns_connect_nameserver(struct dns_nameserver *ns)
 
 	/* Add the fd in the fd list and update its parameters */
 	dgram->t.sock.fd = fd;
-	fd_insert(fd, dgram, dgram_fd_handler, tgid, all_threads_mask);
+	fd_insert(fd, dgram, dgram_fd_handler, tgid, tg->threads_enabled);
 	fd_want_recv(fd);
 	return 0;
 }
