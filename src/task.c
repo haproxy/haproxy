@@ -34,8 +34,6 @@ DECLARE_POOL(pool_head_tasklet, "tasklet", sizeof(struct tasklet));
  */
 DECLARE_POOL(pool_head_notification, "notification", sizeof(struct notification));
 
-unsigned int niced_tasks = 0;      /* number of niced tasks in the run queue */
-
 
 /* Flags the task <t> for immediate destruction and puts it into its first
  * thread's shared tasklet list if not yet queued/running. This will bypass
@@ -229,7 +227,7 @@ void __task_wakeup(struct task *t)
 	if (likely(t->nice)) {
 		int offset;
 
-		_HA_ATOMIC_INC(&niced_tasks);
+		_HA_ATOMIC_INC(&tg_ctx->niced_tasks);
 		offset = t->nice * (int)global.tune.runqueue_depth;
 		t->rq.key += offset;
 	}
@@ -736,7 +734,7 @@ void process_runnable_tasks()
 
 	max_processed = global.tune.runqueue_depth;
 
-	if (likely(niced_tasks))
+	if (likely(tg_ctx->niced_tasks))
 		max_processed = (max_processed + 3) / 4;
 
 	if (max_processed < th_ctx->rq_total && th_ctx->rq_total <= 2*max_processed) {
@@ -849,7 +847,7 @@ void process_runnable_tasks()
 		}
 #endif
 		if (t->nice)
-			_HA_ATOMIC_DEC(&niced_tasks);
+			_HA_ATOMIC_DEC(&tg_ctx->niced_tasks);
 
 		/* Add it to the local task list */
 		LIST_APPEND(&tt->tasklets[TL_NORMAL], &((struct tasklet *)t)->list);

@@ -88,8 +88,6 @@
 
 
 /* a few exported variables */
-extern unsigned int niced_tasks;  /* number of niced tasks in the run queue */
-
 extern struct pool_head *pool_head_task;
 extern struct pool_head *pool_head_tasklet;
 extern struct pool_head *pool_head_notification;

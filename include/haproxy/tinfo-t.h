@@ -73,6 +73,8 @@ struct tgroup_ctx {
 	HA_RWLOCK_T wq_lock;              /* RW lock related to the wait queue below */
 	struct eb_root timers;            /* wait queue (sorted timers tree, global, accessed under wq_lock) */
 
+	uint niced_tasks;                 /* number of niced tasks in this group's run queues */
+
 	/* pad to cache line (64B) */
 	char __pad[0];                    /* unused except to check remaining room */
 	char __end[0] __attribute__((aligned(64)));
