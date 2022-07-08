@@ -249,13 +249,13 @@ void set_thread_cpu_affinity()
 		return;
 
 	/* Now the CPU affinity for all threads */
-	if (ha_cpuset_count(&cpu_map.proc))
-		ha_cpuset_and(&cpu_map.thread[tid], &cpu_map.proc);
+	if (ha_cpuset_count(&cpu_map[tgid - 1].proc))
+		ha_cpuset_and(&cpu_map[tgid - 1].thread[ti->ltid], &cpu_map[tgid - 1].proc);
 
-	if (ha_cpuset_count(&cpu_map.thread[tid])) {/* only do this if the thread has a THREAD map */
+	if (ha_cpuset_count(&cpu_map[tgid - 1].thread[ti->ltid])) {/* only do this if the thread has a THREAD map */
 #  if defined(__APPLE__)
 		/* Note: this API is limited to the first 32/64 CPUs */
-		unsigned long set = cpu_map.thread[tid].cpuset;
+		unsigned long set = cpu_map[tgid - 1].thread[ti->ltid].cpuset;
 		int j;
 
 		while ((j = ffsl(set)) > 0) {
@@ -267,7 +267,7 @@ void set_thread_cpu_affinity()
 			set &= ~(1UL << (j - 1));
 		}
 #  else
-		struct hap_cpuset *set = &cpu_map.thread[tid];
+		struct hap_cpuset *set = &cpu_map[tgid - 1].thread[ti->ltid];
 
 		pthread_setaffinity_np(ha_pthread[tid], sizeof(set->cpuset), &set->cpuset);
 #  endif

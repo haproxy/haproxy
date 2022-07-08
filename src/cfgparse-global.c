@@ -1039,12 +1039,12 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		/* map a process list to a CPU set */
 #ifdef USE_CPU_AFFINITY
 		char *slash;
-		unsigned long proc = 0, thread = 0;
-		int j, n, autoinc;
+		unsigned long tgroup = 0, thread = 0;
+		int g, j, n, autoinc;
 		struct hap_cpuset cpus, cpus_copy;
 
 		if (!*args[1] || !*args[2]) {
-			ha_alert("parsing [%s:%d] : %s expects a process number "
+			ha_alert("parsing [%s:%d] : %s expects a thread group number "
 				 " ('all', 'odd', 'even', a number from 1 to %d or a range), "
 				 " followed by a list of CPU ranges with numbers from 0 to %d.\n",
 				 file, linenum, args[0], LONGBITS, LONGBITS - 1);
@@ -1055,11 +1055,11 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		if ((slash = strchr(args[1], '/')) != NULL)
 			*slash = 0;
 
-		/* note: we silently ignore processes over MAX_PROCS and
-		 * threads over MAX_THREADS so as not to make configurations a
+		/* note: we silently ignore thread group numbers over MAX_TGROUPS
+		 * and threads over MAX_THREADS so as not to make configurations a
 		 * pain to maintain.
 		 */
-		if (parse_process_number(args[1], &proc, LONGBITS, &autoinc, &errmsg)) {
+		if (parse_process_number(args[1], &tgroup, LONGBITS, &autoinc, &errmsg)) {
 			ha_alert("parsing [%s:%d] : %s : %s\n", file, linenum, args[0], errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
@@ -1081,9 +1081,9 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		}
 
 		if (autoinc &&
-		    my_popcountl(proc) != ha_cpuset_count(&cpus) &&
+		    my_popcountl(tgroup) != ha_cpuset_count(&cpus) &&
 		    my_popcountl(thread) != ha_cpuset_count(&cpus)) {
-			ha_alert("parsing [%s:%d] : %s : PROC/THREAD range and CPU sets "
+			ha_alert("parsing [%s:%d] : %s : TGROUP/THREAD range and CPU sets "
 				 "must have the same size to be automatically bound\n",
 				 file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -1091,10 +1091,9 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		}
 
 		/* we now have to deal with 3 real cases :
-		 *    cpu-map P-Q    => mapping for whole processes, numbers P to Q
-		 *    cpu-map P-Q/1  => mapping of first thread of processes P to Q
-		 *    cpu-map 1/T-U  => mapping of threads T to U of process 1
-		 * (note: P=Q=1 since 2.5).
+		 *    cpu-map P-Q    => mapping for whole tgroups, numbers P to Q
+		 *    cpu-map P-Q/1  => mapping of first thread of groups P to Q
+		 *    cpu-map P/T-U  => mapping of threads T to U of tgroup P
 		 * Otherwise other combinations are silently ignored since nbthread
 		 * and nbproc cannot both be >1 :
 		 *    cpu-map P-Q/T  => mapping for thread T for processes P to Q.
@@ -1103,37 +1102,48 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		 *                      one of P,U may be > 1, others ignored.
 		 */
 		if (!thread || thread == 0x1) {
-			/* mapping for whole process. E.g. cpu-map 1 0-3 or cpu-map 1/1 0-3 */
-			ha_cpuset_assign(&cpus_copy, &cpus);
-
-			if (!autoinc)
-				ha_cpuset_assign(&cpu_map.proc, &cpus);
-			else {
-				ha_cpuset_zero(&cpu_map.proc);
-				n = ha_cpuset_ffs(&cpus_copy) - 1;
-				ha_cpuset_clr(&cpus_copy, n);
-				ha_cpuset_set(&cpu_map.proc, n);
-			}
-		} else {
-			/* first process, iterate on threads. E.g. cpu-map 1/1-4 0-3 */
-			ha_cpuset_assign(&cpus_copy, &cpus);
-			for (j = n = 0; j < MAX_THREADS; j++) {
-				/* No mapping for this thread */
-				if (!(thread & (1UL << j)))
+			/* mapping for whole tgroups. E.g. cpu-map 1 0-3 or cpu-map 1/1 0-3 */
+			for (g = 0; g < MAX_TGROUPS; g++) {
+				/* No mapping for this tgroup */
+				if (!(tgroup & (1UL << g)))
 					continue;
 
+				ha_cpuset_assign(&cpus_copy, &cpus);
 				if (!autoinc)
-					ha_cpuset_assign(&cpu_map.thread[j], &cpus);
+					ha_cpuset_assign(&cpu_map[g].proc, &cpus);
 				else {
-					ha_cpuset_zero(&cpu_map.thread[j]);
+					ha_cpuset_zero(&cpu_map[g].proc);
 					n = ha_cpuset_ffs(&cpus_copy) - 1;
 					ha_cpuset_clr(&cpus_copy, n);
-					ha_cpuset_set(&cpu_map.thread[j], n);
+					ha_cpuset_set(&cpu_map[g].proc, n);
+				}
+			}
+		} else {
+			/* first tgroup, iterate on threads. E.g. cpu-map 1/1-4 0-3 */
+			for (g = 0; g < MAX_TGROUPS; g++) {
+				/* No mapping for this tgroup */
+				if (!(tgroup & (1UL << g)))
+					continue;
+
+				ha_cpuset_assign(&cpus_copy, &cpus);
+				for (j = n = 0; j < MAX_THREADS_PER_GROUP; j++) {
+					/* No mapping for this thread */
+					if (!(thread & (1UL << j)))
+						continue;
+
+					if (!autoinc)
+						ha_cpuset_assign(&cpu_map[g].thread[j], &cpus);
+					else {
+						ha_cpuset_zero(&cpu_map[g].thread[j]);
+						n = ha_cpuset_ffs(&cpus_copy) - 1;
+						ha_cpuset_clr(&cpus_copy, n);
+						ha_cpuset_set(&cpu_map[g].thread[j], n);
+					}
 				}
 			}
 
-			HA_DIAG_WARNING_COND(proc != 0x1 && thread != 0x1,
-			                     "parsing [%s:%d] : cpu-map statement is considered invalid and thus ignored as it addresses multiple processes and threads at the same time. At least one of them should be 1 and only 1.", file, linenum);
+			HA_DIAG_WARNING_COND(tgroup != 0x1 && thread != 0x1,
+			                     "parsing [%s:%d] : cpu-map statement is considered invalid and thus ignored as it addresses multiple groups and threads at the same time. At least one of them should be 1 and only 1.", file, linenum);
 		}
 #else
 		ha_alert("parsing [%s:%d] : '%s' is not enabled, please check build options for USE_CPU_AFFINITY.\n",

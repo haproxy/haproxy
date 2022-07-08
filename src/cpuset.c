@@ -5,7 +5,7 @@
 #include <haproxy/cpuset.h>
 #include <haproxy/intops.h>
 
-struct cpu_map cpu_map;
+struct cpu_map cpu_map[MAX_TGROUPS];
 
 void ha_cpuset_zero(struct hap_cpuset *set)
 {

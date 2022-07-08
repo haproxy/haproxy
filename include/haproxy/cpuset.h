@@ -3,7 +3,7 @@
 
 #include <haproxy/cpuset-t.h>
 
-extern struct cpu_map cpu_map;
+extern struct cpu_map cpu_map[MAX_TGROUPS];
 
 /* Unset all indexes in <set>.
  */
