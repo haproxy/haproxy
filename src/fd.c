@@ -590,12 +590,52 @@ int fd_update_events(int fd, uint evts)
 		fdtab[fd].iocb(fd);
 	}
 
+	/*
+	 * We entered iocb with running set and with the valid tgid.
+	 * Since then, this is what could have happened:
+	 *   - another thread tried to close the FD (e.g. timeout task from
+	 *     another one that owns it). We still have running set, but not
+	 *     tmask. We must call fd_clr_running() then _fd_delete_orphan()
+	 *     if we were the last one.
+	 *
+	 *   - the iocb tried to close the FD => bit no more present in running,
+	 *     nothing to do. If it managed to close it, the poller's ->clo()
+	 *     has already been called.
+	 *
+	 *   - after we closed, the FD was reassigned to another thread in
+	 *     another group => running not present, tgid differs, nothing to
+	 *     do because if it got reassigned it indicates it was already
+	 *     closed.
+	 *
+	 * There's no risk of takeover of the valid FD here during this period.
+	 * Also if we still have running, immediately after we release it, the
+	 * events above might instantly happen due to another thread taking
+	 * over.
+	 *
+	 * As such, the only cases where the FD is still relevant are:
+	 *   - tgid still set and running still set (most common)
+	 *   - tgid still valid but running cleared due to fd_delete(): we may
+	 *     still need to stop polling otherwise we may keep it enabled
+	 *     while waiting for other threads to close it.
+	 * And given that we may need to program a tentative update in case we
+	 * don't immediately close, it's easier to grab the tgid during the
+	 * whole check.
+	 */
+
+	if (!fd_grab_tgid(fd, tgid))
+		return FD_UPDT_CLOSED;
+
+	tmask = _HA_ATOMIC_LOAD(&fdtab[fd].thread_mask);
+
 	/* another thread might have attempted to close this FD in the mean
 	 * time (e.g. timeout task) striking on a previous thread and closing.
 	 * This is detected by both thread_mask and running_mask being 0 after
-	 * we remove ourselves last.
+	 * we remove ourselves last. There is no risk the FD gets reassigned
+	 * to a different group since it's not released until the real close()
+	 * in _fd_delete_orphan().
 	 */
-	if (fd_clr_running(fd) == ti->ltid_bit && !fdtab[fd].thread_mask) {
+	if (fd_clr_running(fd) == ti->ltid_bit && !tmask) {
+		fd_drop_tgid(fd);
 		_fd_delete_orphan(fd);
 		return FD_UPDT_CLOSED;
 	}
@@ -610,6 +650,7 @@ int fd_update_events(int fd, uint evts)
 				fd_updt[fd_nbupdt++] = fd;
 	}
 
+	fd_drop_tgid(fd);
 	return FD_UPDT_DONE;
 }
 
