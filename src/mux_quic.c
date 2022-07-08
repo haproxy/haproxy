@@ -1341,34 +1341,39 @@ static int qc_recv(struct qcc *qcc)
 	return 0;
 }
 
-/* Release all streams that are already marked as detached. This is only done
- * if their TX buffers are empty or if a CONNECTION_CLOSE has been received.
+
+/* Release all streams which have their transfer operation achieved.
  *
- * Return the number of released stream.
+ * Returns true if at least one stream is released.
  */
-static int qc_release_detached_streams(struct qcc *qcc)
+static int qc_purge_streams(struct qcc *qcc)
 {
 	struct eb64_node *node;
 	int release = 0;
+
+	TRACE_ENTER(QMUX_EV_QCC_WAKE);
 
 	node = eb64_first(&qcc->streams_by_id);
 	while (node) {
 		struct qcs *qcs = eb64_entry(node, struct qcs, by_id);
 		node = eb64_next(node);
 
+		/* Release detached streams with empty buffer. */
 		if (qcs->flags & QC_SF_DETACH) {
 			if (!b_data(&qcs->tx.buf) &&
 			    qcs->tx.offset == qcs->tx.sent_offset) {
+				TRACE_DEVEL("purging detached stream", QMUX_EV_QCC_WAKE, qcs->qcc->conn, qcs);
 				qcs_destroy(qcs);
 				release = 1;
+				continue;
 			}
-			else {
-				qcc->conn->xprt->subscribe(qcc->conn, qcc->conn->xprt_ctx,
-				                           SUB_RETRY_SEND, &qcc->wait_event);
-			}
+
+			qcc->conn->xprt->subscribe(qcc->conn, qcc->conn->xprt_ctx,
+			                           SUB_RETRY_SEND, &qcc->wait_event);
 		}
 	}
 
+	TRACE_LEAVE(QMUX_EV_QCC_WAKE);
 	return release;
 }
 
@@ -1380,7 +1385,7 @@ static struct task *qc_io_cb(struct task *t, void *ctx, unsigned int status)
 
 	qc_send(qcc);
 
-	if (qc_release_detached_streams(qcc)) {
+	if (qc_purge_streams(qcc)) {
 		if (qcc_is_dead(qcc)) {
 			qc_release(qcc);
 		}
