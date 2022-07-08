@@ -166,7 +166,7 @@ static void _do_poll(struct poller *p, int exp, int wake)
 	}
 	fd_nbupdt = 0;
 	/* Scan the global update list */
-	for (old_fd = fd = update_list.first; fd != -1; fd = fdtab[fd].update.next) {
+	for (old_fd = fd = update_list[tgid - 1].first; fd != -1; fd = fdtab[fd].update.next) {
 		if (fd == -2) {
 			fd = old_fd;
 			continue;

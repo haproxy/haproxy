@@ -113,7 +113,7 @@ static void _do_poll(struct poller *p, int exp, int wake)
 		_update_fd(fd, &max_add_fd);
 	}
 	/* Now scan the global update list */
-	for (old_fd = fd = update_list.first; fd != -1; fd = fdtab[fd].update.next) {
+	for (old_fd = fd = update_list[tgid - 1].first; fd != -1; fd = fdtab[fd].update.next) {
 		if (fd == -2) {
 			fd = old_fd;
 			continue;

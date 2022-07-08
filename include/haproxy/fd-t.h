@@ -145,11 +145,11 @@ struct fdlist_entry {
 	int prev;
 } ALIGNED(8);
 
-/* head of the fd cache */
+/* head of the fd cache, per-group */
 struct fdlist {
 	int first;
 	int last;
-} ALIGNED(8);
+} ALIGNED(64);
 
 /* info about one given fd. Note: only align on cache lines when using threads;
  * 32-bit small archs can put everything in 32-bytes when threads are disabled.

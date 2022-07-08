@@ -108,7 +108,7 @@ struct poller pollers[MAX_POLLERS] __read_mostly;
 struct poller cur_poller           __read_mostly;
 int nbpollers = 0;
 
-volatile struct fdlist update_list; // Global update list
+volatile struct fdlist update_list[MAX_TGROUPS]; // Global update list
 
 THREAD_LOCAL int *fd_updt  = NULL;  // FD updates list
 THREAD_LOCAL int  fd_nbupdt = 0;   // number of updates in the list
@@ -318,7 +318,7 @@ void _fd_delete_orphan(int fd)
 		cur_poller.clo(fd);
 
 	/* we don't want this FD anymore in the global list */
-	fd_rm_from_fd_list(&update_list, fd);
+	fd_rm_from_fd_list(&update_list[tgid - 1], fd);
 
 	/* no more updates on this FD are relevant anymore */
 	HA_ATOMIC_STORE(&fdtab[fd].update_mask, 0);
@@ -453,7 +453,7 @@ void updt_fd_polling(const int fd)
 				return;
 		} while (!_HA_ATOMIC_CAS(&fdtab[fd].update_mask, &update_mask, fdtab[fd].thread_mask));
 
-		fd_add_to_fd_list(&update_list, fd);
+		fd_add_to_fd_list(&update_list[tgid - 1], fd);
 
 		if (fd_active(fd) && !(fdtab[fd].thread_mask & tid_bit)) {
 			/* we need to wake up another thread to handle it immediately, any will fit,
@@ -875,7 +875,8 @@ int init_pollers()
 		goto fail_info;
 	}
 
-	update_list.first = update_list.last = -1;
+	for (p = 0; p < MAX_TGROUPS; p++)
+		update_list[p].first = update_list[p].last = -1;
 
 	for (p = 0; p < global.maxsock; p++) {
 		/* Mark the fd as out of the fd cache */
