@@ -1864,7 +1864,6 @@ static size_t h1_process_demux(struct h1c *h1c, struct buffer *buf, size_t count
 
 	b_del(&h1c->ibuf, total);
 
-	htx_to_buf(htx, buf);
 	TRACE_DEVEL("incoming data parsed", H1_EV_RX_DATA, h1c->conn, h1s, htx, (size_t[]){ret});
 
 	ret = htx->data - data;
@@ -1964,6 +1963,7 @@ static size_t h1_process_demux(struct h1c *h1c, struct buffer *buf, size_t count
 	}
 
   end:
+	htx_to_buf(htx, buf);
 	TRACE_LEAVE(H1_EV_RX_DATA, h1c->conn, h1s, htx, (size_t[]){ret});
 	return ret;
 
