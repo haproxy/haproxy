@@ -954,11 +954,13 @@ static int qcs_build_stream_frm(struct qcs *qcs, struct buffer *out, char fin,
 	total = b_data(out) - head;
 	BUG_ON(total < 0);
 
-	if (!total) {
+	if (!total && !fin) {
+		/* No need to send anything if total is NULL and no FIN to signal. */
 		TRACE_LEAVE(QMUX_EV_QCS_SEND, qcc->conn, qcs);
 		return 0;
 	}
-	BUG_ON(qcs->tx.sent_offset >= qcs->tx.offset);
+	BUG_ON((!total && qcs->tx.sent_offset > qcs->tx.offset) ||
+	       (total && qcs->tx.sent_offset >= qcs->tx.offset));
 	BUG_ON(qcs->tx.sent_offset + total > qcs->tx.offset);
 	BUG_ON(qcc->tx.sent_offsets + total > qcc->rfctl.md);
 
@@ -1004,6 +1006,16 @@ static int qcs_build_stream_frm(struct qcs *qcs, struct buffer *out, char fin,
 	return -1;
 }
 
+/* Check after transfering data from qcs.tx.buf if FIN must be set on the next
+ * STREAM frame for <qcs>.
+ *
+ * Returns true if FIN must be set else false.
+ */
+static int qcs_stream_fin(struct qcs *qcs)
+{
+	return qcs->flags & QC_SF_FIN_STREAM && !b_data(&qcs->tx.buf);
+}
+
 /* This function must be called by the upper layer to inform about the sending
  * of a STREAM frame for <qcs> instance. The frame is of <data> length and on
  * <offset>.
@@ -1019,29 +1031,36 @@ void qcc_streams_sent_done(struct qcs *qcs, uint64_t data, uint64_t offset)
 	/* check if the STREAM frame has already been notified. It can happen
 	 * for retransmission.
 	 */
-	if (offset + data <= qcs->tx.sent_offset)
+	if (offset + data < qcs->tx.sent_offset)
 		return;
 
 	diff = offset + data - qcs->tx.sent_offset;
+	if (diff) {
+		/* increase offset sum on connection */
+		qcc->tx.sent_offsets += diff;
+		BUG_ON_HOT(qcc->tx.sent_offsets > qcc->rfctl.md);
+		if (qcc->tx.sent_offsets == qcc->rfctl.md)
+			qcc->flags |= QC_CF_BLK_MFCTL;
 
-	/* increase offset sum on connection */
-	qcc->tx.sent_offsets += diff;
-	BUG_ON_HOT(qcc->tx.sent_offsets > qcc->rfctl.md);
-	if (qcc->tx.sent_offsets == qcc->rfctl.md)
-		qcc->flags |= QC_CF_BLK_MFCTL;
+		/* increase offset on stream */
+		qcs->tx.sent_offset += diff;
+		BUG_ON_HOT(qcs->tx.sent_offset > qcs->tx.msd);
+		BUG_ON_HOT(qcs->tx.sent_offset > qcs->tx.offset);
+		if (qcs->tx.sent_offset == qcs->tx.msd)
+			qcs->flags |= QC_SF_BLK_SFCTL;
 
-	/* increase offset on stream */
-	qcs->tx.sent_offset += diff;
-	BUG_ON_HOT(qcs->tx.sent_offset > qcs->tx.msd);
-	BUG_ON_HOT(qcs->tx.sent_offset > qcs->tx.offset);
-	if (qcs->tx.sent_offset == qcs->tx.msd)
-		qcs->flags |= QC_SF_BLK_SFCTL;
+		if (qcs->tx.offset == qcs->tx.sent_offset &&
+		    b_full(&qcs->stream->buf->buf)) {
+			qc_stream_buf_release(qcs->stream);
+			/* prepare qcs for immediate send retry if data to send */
+			if (b_data(&qcs->tx.buf))
+				LIST_APPEND(&qcc->send_retry_list, &qcs->el);
+		}
+	}
 
-	if (qcs->tx.offset == qcs->tx.sent_offset && b_full(&qcs->stream->buf->buf)) {
-		qc_stream_buf_release(qcs->stream);
-		/* prepare qcs for immediate send retry if data to send */
-		if (b_data(&qcs->tx.buf))
-			LIST_APPEND(&qcc->send_retry_list, &qcs->el);
+	if (qcs->tx.offset == qcs->tx.sent_offset && qcs_stream_fin(qcs)) {
+		/* Reset flag to not emit multiple FIN STREAM frames. */
+		qcs->flags &= ~QC_SF_FIN_STREAM;
 	}
 }
 
@@ -1134,6 +1153,7 @@ static int _qc_send_qcs(struct qcs *qcs, struct list *frms)
 	struct buffer *buf = &qcs->tx.buf;
 	struct buffer *out = qc_stream_buf_get(qcs->stream);
 	int xfer = 0;
+	char fin = 0;
 
 	/* Allocate <out> buffer if necessary. */
 	if (!out) {
@@ -1164,14 +1184,12 @@ static int _qc_send_qcs(struct qcs *qcs, struct list *frms)
 	/* out buffer cannot be emptied if qcs offsets differ. */
 	BUG_ON(!b_data(out) && qcs->tx.sent_offset != qcs->tx.offset);
 
+	/* FIN is set if all incoming data were transfered. */
+	fin = qcs_stream_fin(qcs);
+
 	/* Build a new STREAM frame with <out> buffer. */
-	if (qcs->tx.sent_offset != qcs->tx.offset) {
+	if (qcs->tx.sent_offset != qcs->tx.offset || fin) {
 		int ret;
-		char fin = !!(qcs->flags & QC_SF_FIN_STREAM);
-
-		/* FIN is set if all incoming data were transfered. */
-		fin = !!(fin && !b_data(buf));
-
 		ret = qcs_build_stream_frm(qcs, out, fin, frms);
 		if (ret < 0) { ABORT_NOW(); /* TODO handle this properly */ }
 	}
