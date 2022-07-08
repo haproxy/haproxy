@@ -1081,7 +1081,7 @@ static int h3_finalize(void *ctx)
 	struct h3c *h3c = ctx;
 	struct qcs *qcs;
 
-	qcs = qcc_open_stream_local(h3c->qcc, 0);
+	qcs = qcc_init_stream_local(h3c->qcc, 0);
 	if (!qcs)
 		return 0;
 

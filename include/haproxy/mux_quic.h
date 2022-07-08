@@ -14,7 +14,7 @@
 #include <haproxy/stream.h>
 #include <haproxy/xprt_quic-t.h>
 
-struct qcs *qcc_open_stream_local(struct qcc *qcc, int bidi);
+struct qcs *qcc_init_stream_local(struct qcc *qcc, int bidi);
 struct buffer *qc_get_buf(struct qcs *qcs, struct buffer *bptr);
 
 int qcs_subscribe(struct qcs *qcs, int event_type, struct wait_event *es);

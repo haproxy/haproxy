@@ -297,7 +297,7 @@ void qcs_notify_send(struct qcs *qcs)
  *
  * Returns the allocated stream instance or NULL on error.
  */
-struct qcs *qcc_open_stream_local(struct qcc *qcc, int bidi)
+struct qcs *qcc_init_stream_local(struct qcc *qcc, int bidi)
 {
 	struct qcs *qcs;
 	enum qcs_type type;
@@ -336,7 +336,7 @@ struct qcs *qcc_open_stream_local(struct qcc *qcc, int bidi)
  *
  * Returns the allocated stream instance or NULL on error.
  */
-static struct qcs *qcc_open_stream_remote(struct qcc *qcc, uint64_t id)
+static struct qcs *qcc_init_stream_remote(struct qcc *qcc, uint64_t id)
 {
 	struct qcs *qcs = NULL;
 	enum qcs_type type;
@@ -459,7 +459,7 @@ static struct qcs *qcc_get_qcs(struct qcc *qcc, uint64_t id)
 	}
 	else {
 		/* Remote stream not found - try to open it. */
-		qcs = qcc_open_stream_remote(qcc, id);
+		qcs = qcc_init_stream_remote(qcc, id);
 	}
 
  out:
