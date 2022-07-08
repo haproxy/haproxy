@@ -4433,10 +4433,6 @@ static void http_end_request(struct stream *s)
 			 * poll for reads.
 			 */
 			channel_auto_read(chn);
-			if (b_data(&chn->buf)) {
-				DBG_TRACE_DEVEL("waiting to flush the request", STRM_EV_HTTP_ANA, s, txn);
-				return;
-			}
 			txn->req.msg_state = HTTP_MSG_TUNNEL;
 		}
 		else {
@@ -4556,10 +4552,6 @@ static void http_end_response(struct stream *s)
 		 */
 		if (txn->flags & TX_CON_WANT_TUN) {
 			channel_auto_read(chn);
-			if (b_data(&chn->buf)) {
-				DBG_TRACE_DEVEL("waiting to flush the respone", STRM_EV_HTTP_ANA, s, txn);
-				return;
-			}
 			txn->rsp.msg_state = HTTP_MSG_TUNNEL;
 		}
 		else {
