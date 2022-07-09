@@ -279,8 +279,6 @@ static void _do_poll(struct poller *p, int exp, int wake)
 
 static int init_evports_per_thread()
 {
-	int fd;
-
 	evports_evlist_max = global.tune.maxpollevents;
 	evports_evlist = calloc(evports_evlist_max, sizeof(*evports_evlist));
 	if (evports_evlist == NULL) {
@@ -298,8 +296,7 @@ static int init_evports_per_thread()
 	 * fd for this thread. Let's just mark them as updated, the poller will
 	 * do the rest.
 	 */
-	for (fd = 0; fd < global.maxsock; fd++)
-		updt_fd_polling(fd);
+	fd_reregister_all(tgid, ti->ltid_bit);
 
 	return 1;
 

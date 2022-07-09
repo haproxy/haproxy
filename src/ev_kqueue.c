@@ -205,8 +205,6 @@ static void _do_poll(struct poller *p, int exp, int wake)
 
 static int init_kqueue_per_thread()
 {
-	int fd;
-
 	/* we can have up to two events per fd, so allocate enough to store
 	 * 2*fd event, and an extra one, in case EV_RECEIPT isn't defined,
 	 * so that we can add an invalid entry and get an error, to avoid
@@ -227,8 +225,7 @@ static int init_kqueue_per_thread()
 	 * fd for this thread. Let's just mark them as updated, the poller will
 	 * do the rest.
 	 */
-	for (fd = 0; fd < global.maxsock; fd++)
-		updt_fd_polling(fd);
+	fd_reregister_all(tgid, ti->ltid_bit);
 
 	return 1;
  fail_fd:

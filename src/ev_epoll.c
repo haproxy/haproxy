@@ -250,8 +250,6 @@ static void _do_poll(struct poller *p, int exp, int wake)
 
 static int init_epoll_per_thread()
 {
-	int fd;
-
 	epoll_events = calloc(1, sizeof(struct epoll_event) * global.tune.maxpollevents);
 	if (epoll_events == NULL)
 		goto fail_alloc;
@@ -267,8 +265,7 @@ static int init_epoll_per_thread()
 	 * fd for this thread. Let's just mark them as updated, the poller will
 	 * do the rest.
 	 */
-	for (fd = 0; fd < global.maxsock; fd++)
-		updt_fd_polling(fd);
+	fd_reregister_all(tgid, ti->ltid_bit);
 
 	return 1;
  fail_fd:
