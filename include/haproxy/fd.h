@@ -387,6 +387,27 @@ static inline void fd_claim_tgid(int fd, uint desired_tgid)
 	}
 }
 
+/* atomically read the running mask if the tgid matches, or returns zero if it
+ * does not match. This is meant for use in code paths where the bit is expected
+ * to be present and will be sufficient to protect against a short-term group
+ * migration (e.g. takss and return from iocb).
+ */
+static inline ulong fd_get_running(int fd, uint desired_tgid)
+{
+	ulong ret = 0;
+	uint old;
+
+	/* TODO: may also be checked using an atomic double-load from a DWCAS
+	 * on compatible architectures, which wouldn't require to modify nor
+	 * restore the original value.
+	 */
+	old = _HA_ATOMIC_ADD_FETCH(&fdtab[fd].refc_tgid, 0x10000);
+	if (likely((old & 0xffff) == desired_tgid))
+		ret = _HA_ATOMIC_LOAD(&fdtab[fd].running_mask);
+	_HA_ATOMIC_SUB(&fdtab[fd].refc_tgid, 0x10000);
+	return ret;
+}
+
 /* remove tid_bit from the fd's running mask and returns the bits that remain
  * after the atomic operation.
  */
