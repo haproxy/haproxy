@@ -122,6 +122,7 @@ void fd_add_to_fd_list(volatile struct fdlist *list, int fd);
 void fd_rm_from_fd_list(volatile struct fdlist *list, int fd);
 void updt_fd_polling(const int fd);
 int fd_update_events(int fd, uint evts);
+void fd_reregister_all(int tgrp, ulong mask);
 
 /* Called from the poller to acknowledge we read an entry from the global
  * update list, to remove our bit from the update_mask, and remove it from

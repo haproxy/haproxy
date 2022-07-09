@@ -654,6 +654,33 @@ int fd_update_events(int fd, uint evts)
 	return FD_UPDT_DONE;
 }
 
+/* This is used by pollers at boot time to re-register desired events for
+ * all FDs after new pollers have been created. It doesn't do much, it checks
+ * that their thread group matches the one in argument, and that the thread
+ * mask matches at least one of the bits in the mask, and if so, marks the FD
+ * as updated.
+ */
+void fd_reregister_all(int tgrp, ulong mask)
+{
+	int fd;
+
+	for (fd = 0; fd < global.maxsock; fd++) {
+		if (!fdtab[fd].owner)
+			continue;
+
+		/* make sure we don't register other tgroups' FDs. We just
+		 * avoid needlessly taking the lock if not needed.
+		 */
+		if (!(_HA_ATOMIC_LOAD(&fdtab[fd].thread_mask) & mask) ||
+		    !fd_grab_tgid(fd, tgrp))
+			continue;  // was not for us anyway
+
+		if (_HA_ATOMIC_LOAD(&fdtab[fd].thread_mask) & mask)
+			updt_fd_polling(fd);
+		fd_drop_tgid(fd);
+	}
+}
+
 /* Tries to send <npfx> parts from <prefix> followed by <nmsg> parts from <msg>
  * optionally followed by a newline if <nl> is non-null, to file descriptor
  * <fd>. The message is sent atomically using writev(). It may be truncated to
