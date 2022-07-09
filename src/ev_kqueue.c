@@ -102,12 +102,20 @@ static void _do_poll(struct poller *p, int exp, int wake)
 	for (updt_idx = 0; updt_idx < fd_nbupdt; updt_idx++) {
 		fd = fd_updt[updt_idx];
 
-		_HA_ATOMIC_AND(&fdtab[fd].update_mask, ~ti->ltid_bit);
-		if (!fdtab[fd].owner) {
+		if (!fd_grab_tgid(fd, tgid)) {
+			/* was reassigned */
 			activity[tid].poll_drop_fd++;
 			continue;
 		}
-		changes = _update_fd(fd, changes);
+
+		_HA_ATOMIC_AND(&fdtab[fd].update_mask, ~ti->ltid_bit);
+
+		if (fdtab[fd].owner)
+			changes = _update_fd(fd, changes);
+		else
+			activity[tid].poll_drop_fd++;
+
+		fd_drop_tgid(fd);
 	}
 	/* Scan the global update list */
 	for (old_fd = fd = update_list[tgid - 1].first; fd != -1; fd = fdtab[fd].update.next) {
@@ -119,13 +127,24 @@ static void _do_poll(struct poller *p, int exp, int wake)
 			fd = -fd -4;
 		if (fd == -1)
 			break;
-		if (fdtab[fd].update_mask & ti->ltid_bit)
-			done_update_polling(fd);
+
+		if (!fd_grab_tgid(fd, tgid)) {
+			/* was reassigned */
+			activity[tid].poll_drop_fd++;
+			continue;
+		}
+
+		if (!(fdtab[fd].update_mask & ti->ltid_bit))
+			continue;
+
+		done_update_polling(fd);
+
+		if (fdtab[fd].owner)
+			changes = _update_fd(fd, changes);
 		else
-			continue;
-		if (!fdtab[fd].owner)
-			continue;
-		changes = _update_fd(fd, changes);
+			activity[tid].poll_drop_fd++;
+
+		fd_drop_tgid(fd);
 	}
 
 	thread_idle_now();
