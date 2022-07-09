@@ -408,12 +408,12 @@ static inline ulong fd_get_running(int fd, uint desired_tgid)
 	return ret;
 }
 
-/* remove tid_bit from the fd's running mask and returns the bits that remain
- * after the atomic operation.
+/* remove tid_bit from the fd's running mask and returns the value before the
+ * atomic operation, so that the caller can know if it was present.
  */
 static inline long fd_clr_running(int fd)
 {
-	return _HA_ATOMIC_AND_FETCH(&fdtab[fd].running_mask, ~ti->ltid_bit);
+	return _HA_ATOMIC_FETCH_AND(&fdtab[fd].running_mask, ~ti->ltid_bit);
 }
 
 /* Prepares <fd> for being polled on all permitted threads of this group ID
