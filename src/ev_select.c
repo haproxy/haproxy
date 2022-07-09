@@ -247,6 +247,12 @@ static int _do_init(struct poller *p)
 
 	p->private = NULL;
 
+	/* this old poller uses a process-wide FD list that cannot work with
+	 * groups.
+	 */
+	if (global.nbtgroups > 1)
+		goto fail_srevt;
+
 	if (global.maxsock > FD_SETSIZE)
 		goto fail_srevt;
 

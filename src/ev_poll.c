@@ -264,6 +264,13 @@ static int _do_init(struct poller *p)
 	int fd_evts_bytes;
 
 	p->private = NULL;
+
+	/* this old poller uses a process-wide FD list that cannot work with
+	 * groups.
+	 */
+	if (global.nbtgroups > 1)
+		goto fail_srevt;
+
 	fd_evts_bytes = (global.maxsock + sizeof(**fd_evts) * 8 - 1) / (sizeof(**fd_evts) * 8) * sizeof(**fd_evts);
 
 	if ((fd_evts[DIR_RD] = calloc(1, fd_evts_bytes)) == NULL)
