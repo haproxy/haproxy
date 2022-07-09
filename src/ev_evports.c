@@ -244,12 +244,9 @@ static void _do_poll(struct poller *p, int exp, int wake)
 		 */
 		ret = fd_update_events(fd, n);
 
-		/* disable polling on this instance if the FD was migrated */
-		if (ret == FD_UPDT_MIGRATED) {
-			if (!HA_ATOMIC_BTS(&fdtab[fd].update_mask, tid))
-				fd_updt[fd_nbupdt++] = fd;
+		/* polling will be on this instance if the FD was migrated */
+		if (ret == FD_UPDT_MIGRATED)
 			continue;
-		}
 
 		/*
 		 * This file descriptor was closed during the processing of

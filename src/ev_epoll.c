@@ -214,7 +214,6 @@ static void _do_poll(struct poller *p, int exp, int wake)
 
 	for (count = 0; count < status; count++) {
 		unsigned int n, e;
-		int ret;
 
 		e = epoll_events[count].events;
 		fd = epoll_events[count].data.fd;
@@ -231,13 +230,7 @@ static void _do_poll(struct poller *p, int exp, int wake)
 		    ((e & EPOLLHUP)   ? FD_EV_SHUT_RW : 0) |
 		    ((e & EPOLLERR)   ? FD_EV_ERR_RW  : 0);
 
-		ret = fd_update_events(fd, n);
-
-		if (ret == FD_UPDT_MIGRATED) {
-			/* FD has been migrated */
-			if (!HA_ATOMIC_BTS(&fdtab[fd].update_mask, tid))
-				fd_updt[fd_nbupdt++] = fd;
-		}
+		fd_update_events(fd, n);
 	}
 	/* the caller will take care of cached events */
 }

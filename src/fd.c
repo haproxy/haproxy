@@ -483,6 +483,10 @@ int fd_update_events(int fd, uint evts)
 		if (!(tmask & tid_bit)) {
 			/* a takeover has started */
 			activity[tid].poll_skip_fd++;
+
+			/* Let the poller know this FD was lost */
+			if (!HA_ATOMIC_BTS(&fdtab[fd].update_mask, tid))
+				fd_updt[fd_nbupdt++] = fd;
 			return FD_UPDT_MIGRATED;
 		}
 	} while (!HA_ATOMIC_CAS(&fdtab[fd].running_mask, &rmask, rmask | tid_bit));

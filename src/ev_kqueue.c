@@ -178,7 +178,6 @@ static void _do_poll(struct poller *p, int exp, int wake)
 
 	for (count = 0; count < status; count++) {
 		unsigned int n = 0;
-		int ret;
 
 		fd = kev[count].ident;
 
@@ -197,13 +196,7 @@ static void _do_poll(struct poller *p, int exp, int wake)
 				n |= FD_EV_ERR_RW;
 		}
 
-		ret = fd_update_events(fd, n);
-
-		if (ret == FD_UPDT_MIGRATED) {
-			/* FD was migrated, let's stop polling it */
-			if (!HA_ATOMIC_BTS(&fdtab[fd].update_mask, tid))
-				fd_updt[fd_nbupdt++] = fd;
-		}
+		fd_update_events(fd, n);
 	}
 }
 
