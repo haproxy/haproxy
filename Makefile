@@ -56,6 +56,7 @@
 #   USE_OT               : enable the OpenTracing filter
 #   USE_MEMORY_PROFILING : enable the memory profiler. Linux-glibc only.
 #   USE_LIBATOMIC        : force to link with/without libatomic. Automatic.
+#   USE_PTHREAD_EMULATION: replace pthread's rwlocks with ours
 #
 # Options can be forced by specifying "USE_xxx=1" or can be disabled by using
 # "USE_xxx=" (empty string). The list of enabled and disabled options for a
@@ -337,7 +338,7 @@ LDFLAGS = $(ARCH_FLAGS) -g
 # the reported build options.
 use_opts = USE_EPOLL USE_KQUEUE USE_NETFILTER                                 \
            USE_PCRE USE_PCRE_JIT USE_PCRE2 USE_PCRE2_JIT USE_POLL             \
-           USE_THREAD USE_BACKTRACE                                           \
+           USE_THREAD USE_PTHREAD_EMULATION USE_BACKTRACE                     \
            USE_STATIC_PCRE USE_STATIC_PCRE2 USE_TPROXY USE_LINUX_TPROXY       \
            USE_LINUX_SPLICE USE_LIBCRYPT USE_CRYPT_H USE_ENGINE               \
            USE_GETADDRINFO USE_OPENSSL USE_LUA USE_ACCEPT4                    \
