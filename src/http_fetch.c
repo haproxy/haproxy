@@ -341,13 +341,13 @@ static int smp_fetch_meth(const struct arg *args, struct sample *smp, const char
 	if (!txn)
 		return 0;
 
-	if (txn->meth == HTTP_METH_OTHER) {
+	meth = txn->meth;
+	if (meth == HTTP_METH_OTHER) {
 		htx = smp_prefetch_htx(smp, chn, NULL, 1);
 		if (!htx)
 			return 0;
 	}
 
-	meth = txn->meth;
 	smp->data.type = SMP_T_METH;
 	smp->data.u.meth.meth = meth;
 	if (meth == HTTP_METH_OTHER) {
