@@ -45,7 +45,9 @@ static inline __attribute((always_inline)) void ha_crash_now(void)
 #if __GNUC_PREREQ__(5, 0)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Warray-bounds"
+#if __GNUC_PREREQ__(6, 0)
 #pragma GCC diagnostic ignored "-Wnull-dereference"
+#endif
 #endif
 	*(volatile char *)1 = 0;
 #if __GNUC_PREREQ__(5, 0)
