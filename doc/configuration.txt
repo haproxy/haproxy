@@ -14457,6 +14457,15 @@ proto <name>
   instance, it is possible to force the http/2 on clear TCP by specifying "proto
   h2" on the bind line.
 
+quic-cc-algo [ cubic | newreno ]
+  Warning: QUIC support in HAProxy is currently experimental. Configuration may
+
+  This is a QUIC specific setting to select the congestion control algorithm
+  for any connection attempts to the configured QUIC listeners. They are similar
+  to those used by TCP.
+
+  Default value: cubic
+
 quic-force-retry
   Warning: QUIC support in HAProxy is currently experimental. Configuration may
   change without deprecation in the future.

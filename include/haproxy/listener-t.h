@@ -181,6 +181,7 @@ struct bind_conf {
 #endif
 #ifdef USE_QUIC
 	struct quic_transport_params quic_params; /* QUIC transport parameters. */
+	struct quic_cc_algo *quic_cc_algo; /* QUIC control congestion algorithm */
 #endif
 	struct proxy *frontend;    /* the frontend all these listeners belong to, or NULL */
 	const struct mux_proto_list *mux_proto; /* the mux to use for all incoming connections (specified by the "proto" keyword) */

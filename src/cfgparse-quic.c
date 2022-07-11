@@ -2,9 +2,11 @@
 
 #include <haproxy/api.h>
 #include <haproxy/cfgparse.h>
+#include <haproxy/errors.h>
 #include <haproxy/global-t.h>
 #include <haproxy/listener.h>
 #include <haproxy/proxy-t.h>
+#include <haproxy/quic_cc-t.h>
 #include <haproxy/tools.h>
 
 static int bind_parse_quic_force_retry(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
@@ -13,8 +15,33 @@ static int bind_parse_quic_force_retry(char **args, int cur_arg, struct proxy *p
 	return 0;
 }
 
+/* parse "quic-cc-algo" bind keyword */
+static int bind_parse_quic_cc_algo(char **args, int cur_arg, struct proxy *px,
+                                   struct bind_conf *conf, char **err)
+{
+	struct quic_cc_algo *cc_algo;
+
+	if (!*args[cur_arg + 1]) {
+		memprintf(err, "'%s' : missing control congestion algorith", args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	if (!strcmp(args[cur_arg + 1], "newreno"))
+	    cc_algo = &quic_cc_algo_nr;
+	else if (!strcmp(args[cur_arg + 1], "cubic"))
+	    cc_algo = &quic_cc_algo_cubic;
+	else {
+		memprintf(err, "'%s' : unknown control congestion algorithm", args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	conf->quic_cc_algo = cc_algo;
+	return 0;
+}
+
 static struct bind_kw_list bind_kws = { "QUIC", { }, {
 	{ "quic-force-retry", bind_parse_quic_force_retry, 0 },
+	{ "quic-cc-algo", bind_parse_quic_cc_algo, 1 },
 	{ NULL, NULL, 0 },
 }};
 
