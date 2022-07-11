@@ -1508,8 +1508,7 @@ static int qc_purge_streams(struct qcc *qcc)
 
 		/* Release detached streams with empty buffer. */
 		if (qcs->flags & QC_SF_DETACH) {
-			if (!b_data(&qcs->tx.buf) &&
-			    qcs->tx.offset == qcs->tx.sent_offset) {
+			if (qcs_is_close_local(qcs)) {
 				TRACE_DEVEL("purging detached stream", QMUX_EV_QCC_WAKE, qcs->qcc->conn, qcs);
 				qcs_destroy(qcs);
 				release = 1;
@@ -1734,8 +1733,7 @@ static void qc_detach(struct sedesc *sd)
 	//BUG_ON_HOT(!qcs_is_close_remote(qcs));
 	--qcc->nb_sc;
 
-	if ((b_data(&qcs->tx.buf) || qcs->tx.offset > qcs->tx.sent_offset) &&
-	    !(qcc->conn->flags & CO_FL_ERROR)) {
+	if (!qcs_is_close_local(qcs) && !(qcc->conn->flags & CO_FL_ERROR)) {
 		TRACE_DEVEL("leaving with remaining data, detaching qcs", QMUX_EV_STRM_END, qcc->conn, qcs);
 		qcs->flags |= QC_SF_DETACH;
 		return;
@@ -1838,7 +1836,6 @@ static size_t qc_snd_buf(struct stconn *sc, struct buffer *buf,
 
 	if (qcs_is_close_local(qcs)) {
 		ret = count;
-		count = 0;
 		goto end;
 	}
 
