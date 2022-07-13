@@ -113,6 +113,7 @@ static uint64_t h3_settings_max_field_section_size = QUIC_VARINT_8_BYTE_MAX; /* 
 
 struct h3c {
 	struct qcc *qcc;
+	struct qcs *ctrl_strm; /* Control stream */
 	enum h3_err err;
 	uint32_t flags;
 
@@ -1086,6 +1087,7 @@ static int h3_finalize(void *ctx)
 		return 0;
 
 	h3_control_send(qcs, h3c);
+	h3c->ctrl_strm = qcs;
 
 	return 1;
 }
@@ -1103,6 +1105,7 @@ static int h3_init(struct qcc *qcc)
 		goto fail_no_h3;
 
 	h3c->qcc = qcc;
+	h3c->ctrl_strm = NULL;
 	h3c->err = H3_NO_ERROR;
 	h3c->flags = 0;
 
