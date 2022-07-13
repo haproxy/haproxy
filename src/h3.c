@@ -168,7 +168,7 @@ static ssize_t h3_init_uni_stream(struct h3c *h3c, struct qcs *qcs,
 	switch (type) {
 	case H3_UNI_S_T_CTRL:
 		if (h3c->flags & H3_CF_UNI_CTRL_SET) {
-			qcc_emit_cc_app(qcs->qcc, H3_STREAM_CREATION_ERROR);
+			qcc_emit_cc_app(qcs->qcc, H3_STREAM_CREATION_ERROR, 1);
 			return -1;
 		}
 		h3c->flags |= H3_CF_UNI_CTRL_SET;
@@ -182,7 +182,7 @@ static ssize_t h3_init_uni_stream(struct h3c *h3c, struct qcs *qcs,
 
 	case H3_UNI_S_T_QPACK_DEC:
 		if (h3c->flags & H3_CF_UNI_QPACK_DEC_SET) {
-			qcc_emit_cc_app(qcs->qcc, H3_STREAM_CREATION_ERROR);
+			qcc_emit_cc_app(qcs->qcc, H3_STREAM_CREATION_ERROR, 1);
 			return -1;
 		}
 		h3c->flags |= H3_CF_UNI_QPACK_DEC_SET;
@@ -192,7 +192,7 @@ static ssize_t h3_init_uni_stream(struct h3c *h3c, struct qcs *qcs,
 
 	case H3_UNI_S_T_QPACK_ENC:
 		if (h3c->flags & H3_CF_UNI_QPACK_ENC_SET) {
-			qcc_emit_cc_app(qcs->qcc, H3_STREAM_CREATION_ERROR);
+			qcc_emit_cc_app(qcs->qcc, H3_STREAM_CREATION_ERROR, 1);
 			return -1;
 		}
 		h3c->flags |= H3_CF_UNI_QPACK_ENC_SET;
@@ -621,7 +621,7 @@ static ssize_t h3_decode_qcs(struct qcs *qcs, struct buffer *b, int fin)
 			total += hlen;
 
 			if (!h3_is_frame_valid(h3c, qcs, ftype)) {
-				qcc_emit_cc_app(qcs->qcc, H3_FRAME_UNEXPECTED);
+				qcc_emit_cc_app(qcs->qcc, H3_FRAME_UNEXPECTED, 1);
 				return -1;
 			}
 
@@ -643,7 +643,7 @@ static ssize_t h3_decode_qcs(struct qcs *qcs, struct buffer *b, int fin)
 			 * excessive decompressed size.
 			 */
 			if (flen > QC_S_RX_BUF_SZ) {
-				qcc_emit_cc_app(qcs->qcc, H3_EXCESSIVE_LOAD);
+				qcc_emit_cc_app(qcs->qcc, H3_EXCESSIVE_LOAD, 1);
 				return -1;
 			}
 			break;
@@ -665,7 +665,7 @@ static ssize_t h3_decode_qcs(struct qcs *qcs, struct buffer *b, int fin)
 				 * only close the stream once RESET_STREAM is
 				 * supported.
 				 */
-				qcc_emit_cc_app(qcs->qcc, h3c->err);
+				qcc_emit_cc_app(qcs->qcc, h3c->err, 1);
 				return -1;
 			}
 			break;
@@ -679,7 +679,7 @@ static ssize_t h3_decode_qcs(struct qcs *qcs, struct buffer *b, int fin)
 		case H3_FT_SETTINGS:
 			ret = h3_parse_settings_frm(qcs->qcc->ctx, b, flen);
 			if (ret < 0) {
-				qcc_emit_cc_app(qcs->qcc, h3c->err);
+				qcc_emit_cc_app(qcs->qcc, h3c->err, 1);
 				return -1;
 			}
 			h3c->flags |= H3_CF_SETTINGS_RECV;

@@ -667,13 +667,24 @@ static int qcc_decode_qcs(struct qcc *qcc, struct qcs *qcs)
 }
 
 /* Emit a CONNECTION_CLOSE_APP with error <err>. Reserved for application error
- * code. This will interrupt all future send/receive operations.
+ * code. To close the connection right away, set <immediate> : this is useful
+ * when dealing with a connection fatal error. Else a graceful shutdown will be
+ * conducted : the error-code is only registered. The lower layer is
+ * responsible to close the connection when deemed suitable. Note that in this
+ * case the error code might be overwritten if an immediate close is requested
+ * in the interval.
  */
-void qcc_emit_cc_app(struct qcc *qcc, int err)
+void qcc_emit_cc_app(struct qcc *qcc, int err, int immediate)
 {
-	quic_set_connection_close(qcc->conn->handle.qc, quic_err_app(err));
-	qcc->flags |= QC_CF_CC_EMIT;
-	tasklet_wakeup(qcc->wait_event.tasklet);
+	if (immediate) {
+		quic_set_connection_close(qcc->conn->handle.qc, quic_err_app(err));
+		qcc->flags |= QC_CF_CC_EMIT;
+		tasklet_wakeup(qcc->wait_event.tasklet);
+	}
+	else {
+		/* Only register the error code for graceful shutdown. */
+		qcc->conn->handle.qc->err = quic_err_app(err);
+	}
 }
 
 /* Prepare for the emission of RESET_STREAM on <qcs> with error code <err>. */
