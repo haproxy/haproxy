@@ -5571,7 +5571,7 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 
 	dgram->qc = qc;
 
-	if (qc->err_code) {
+	if (qc->flags & QUIC_FL_CONN_IMMEDIATE_CLOSE) {
 		TRACE_PROTO("Connection error",
 		            QUIC_EV_CONN_LPKT, qc, NULL, NULL, qv);
 		goto out;
