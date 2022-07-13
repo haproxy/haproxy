@@ -1444,6 +1444,23 @@ void qc_release_frm(struct quic_conn *qc, struct quic_frame *frm)
 	pool_free(pool_head_quic_frame, frm);
 }
 
+/* Schedule a CONNECTION_CLOSE emission on <qc> if the MUX has been released
+ * and all STREAM data are acknowledged. The MUX is responsible to have set
+ * <qc.err> before as it is reused for the CONNECTION_CLOSE frame.
+ *
+ * TODO this should also be called on lost packet detection
+ */
+static void qc_check_close_on_released_mux(struct quic_conn *qc)
+{
+	struct ssl_sock_ctx *ctx = qc->xprt_ctx;
+
+	if (qc->mux_state == QC_MUX_RELEASED && eb_is_empty(&qc->streams_by_id)) {
+		/* Reuse errcode which should have been previously set by the MUX on release. */
+		quic_set_connection_close(qc, qc->err);
+		tasklet_wakeup(ctx->wait_event.tasklet);
+	}
+}
+
 /* Remove from <stream> the acknowledged frames.
  *
  * Returns 1 if at least one frame was removed else 0.
@@ -1479,8 +1496,10 @@ static int quic_stream_try_to_consume(struct quic_conn *qc,
 		 * has been freed. with the stream frames tree. Nothing to do
 		 * anymore in here.
 		 */
-		if (!stream)
+		if (!stream) {
+			qc_check_close_on_released_mux(qc);
 			return 1;
+		}
 
 		frm_node = eb64_next(frm_node);
 		eb64_delete(&strm->offset);
@@ -1537,6 +1556,7 @@ static inline void qc_treat_acked_tx_frm(struct quic_conn *qc,
 				/* no need to continue if stream freed. */
 				TRACE_PROTO("stream released and freed", QUIC_EV_CONN_ACKSTRM, qc);
 				qc_release_frm(qc, frm);
+				qc_check_close_on_released_mux(qc);
 				break;
 			}
 
@@ -4147,6 +4167,8 @@ static void quic_close(struct connection *conn, void *xprt_ctx)
 		TRACE_LEAVE(QUIC_EV_CONN_CLOSE);
 		return;
 	}
+
+	qc_check_close_on_released_mux(qc);
 
 	TRACE_LEAVE(QUIC_EV_CONN_CLOSE, qc);
 }
