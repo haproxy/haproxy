@@ -1313,12 +1313,11 @@ void ha_thread_dump_all_to_trash()
 {
 	unsigned int old;
 
-	while (1) {
-		old = 0;
-		if (HA_ATOMIC_CAS(&thread_dump_state, &old, 1))
-			break;
-		ha_thread_relax();
-	}
+	/* initiate a dump starting from first thread. Use a CAS
+	 * so that we don't wait if we're not the first one.
+	 */
+	old = 0;
+	HA_ATOMIC_CAS(&thread_dump_state, &old, 1);
 
 	thread_dump_buffer = &trash;
 	thread_dump_tid = tid;
