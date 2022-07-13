@@ -29,12 +29,15 @@
 #include <inttypes.h>
 #include <stdlib.h>
 
-#include <haproxy/list.h>
-
 #include <import/ebtree-t.h>
+#include <haproxy/buf-t.h>
+#include <haproxy/list.h>
+#include <haproxy/quic_stream-t.h>
 
-#include <haproxy/mux_quic-t.h>
-#include <haproxy/xprt_quic-t.h>
+/* forward declarations from xprt-quic */
+struct quic_arngs;
+struct quic_enc_level;
+struct quic_tx_packet;
 
 /* QUIC frame types. */
 enum quic_frame_type {
