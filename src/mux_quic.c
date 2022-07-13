@@ -107,7 +107,7 @@ INITCALL1(STG_REGISTER, trace_register_source, TRACE_SOURCE);
  */
 static void qcc_emit_cc(struct qcc *qcc, int err)
 {
-	quic_set_connection_close(qcc->conn->handle.qc, err, 0);
+	quic_set_connection_close(qcc->conn->handle.qc, quic_err_transport(err));
 	qcc->flags |= QC_CF_CC_EMIT;
 	tasklet_wakeup(qcc->wait_event.tasklet);
 }
@@ -671,7 +671,7 @@ static int qcc_decode_qcs(struct qcc *qcc, struct qcs *qcs)
  */
 void qcc_emit_cc_app(struct qcc *qcc, int err)
 {
-	quic_set_connection_close(qcc->conn->handle.qc, err, 1);
+	quic_set_connection_close(qcc->conn->handle.qc, quic_err_app(err));
 	qcc->flags |= QC_CF_CC_EMIT;
 	tasklet_wakeup(qcc->wait_event.tasklet);
 }

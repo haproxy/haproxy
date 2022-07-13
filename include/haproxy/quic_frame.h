@@ -160,5 +160,21 @@ static inline size_t qc_frm_len(struct quic_frame *frm)
 	return len;
 }
 
+static inline struct quic_err quic_err_transport(uint64_t code)
+{
+	return (struct quic_err){ .code = code, .app = 0 };
+}
+
+static inline struct quic_err quic_err_tls(uint64_t tls_alert)
+{
+	const uint64_t code = QC_ERR_CRYPTO_ERROR|tls_alert;
+	return (struct quic_err){ .code = code, .app = 0 };
+}
+
+static inline struct quic_err quic_err_app(uint64_t code)
+{
+	return (struct quic_err){ .code = code, .app = 1 };
+}
+
 #endif /* USE_QUIC */
 #endif /* _HAPROXY_QUIC_FRAME_H */

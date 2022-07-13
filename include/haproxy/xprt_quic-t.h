@@ -34,6 +34,7 @@
 
 #include <haproxy/mux_quic-t.h>
 #include <haproxy/quic_cc-t.h>
+#include <haproxy/quic_frame-t.h>
 #include <haproxy/quic_loss-t.h>
 #include <haproxy/quic_stats-t.h>
 #include <haproxy/quic_tls-t.h>
@@ -163,29 +164,6 @@ enum quic_pkt_type {
 #define QUIC_PACKET_RESERVED_BITS    0x18 /* (protected) */
 
 #define QUIC_PACKET_KEY_PHASE_BIT    0x04 /* (protected) */
-
-/*
- * Transport level error codes.
- */
-#define QC_ERR_NO_ERROR                     0x00
-#define QC_ERR_INTERNAL_ERROR               0x01
-#define QC_ERR_CONNECTION_REFUSED           0x02
-#define QC_ERR_FLOW_CONTROL_ERROR           0x03
-#define QC_ERR_STREAM_LIMIT_ERROR           0x04
-#define QC_ERR_STREAM_STATE_ERROR           0x05
-#define QC_ERR_FINAL_SIZE_ERROR             0x06
-#define QC_ERR_FRAME_ENCODING_ERROR         0x07
-#define QC_ERR_TRANSPORT_PARAMETER_ERROR    0x08
-#define QC_ERR_CONNECTION_ID_LIMIT_ERROR    0x09
-#define QC_ERR_PROTOCOL_VIOLATION           0x0a
-#define QC_ERR_INVALID_TOKEN                0x0b
-#define QC_ERR_APPLICATION_ERROR            0x0c
-#define QC_ERR_CRYPTO_BUFFER_EXCEEDED       0x0d
-#define QC_ERR_KEY_UPDATE_ERROR             0x0e
-#define QC_ERR_AEAD_LIMIT_REACHED           0x0f
-#define QC_ERR_NO_VIABLE_PATH               0x10
-/* 256 TLS reserved errors 0x100-0x1ff. */
-#define QC_ERR_CRYPTO_ERROR                0x100
 
 /* The maximum number of QUIC packets stored by the fd I/O handler by QUIC
  * connection. Must be a power of two.
@@ -619,7 +597,7 @@ enum qc_mux_state {
 #define QUIC_FL_CONN_RETRANS_NEEDED              (1U << 7)
 #define QUIC_FL_CONN_RETRANS_OLD_DATA            (1U << 8)
 #define QUIC_FL_CONN_TLS_ALERT                   (1U << 9)
-#define QUIC_FL_CONN_APP_ALERT                   (1U << 10) /* A connection error of type CONNECTION_CLOSE_APP must be emitted. */
+/* gap here */
 #define QUIC_FL_CONN_HALF_OPEN_CNT_DECREMENTED   (1U << 11) /* The half-open connection counter was decremented */
 #define QUIC_FL_CONN_NOTIFY_CLOSE                (1U << 27) /* MUX notified about quic-conn imminent closure (idle-timeout or CONNECTION_CLOSE emission/reception) */
 #define QUIC_FL_CONN_EXP_TIMER                   (1U << 28) /* timer has expired, quic-conn can be freed */
@@ -637,7 +615,7 @@ struct quic_conn {
 	int tid;
 	int state;
 	enum qc_mux_state mux_state; /* status of the connection/mux layer */
-	uint64_t err_code;
+	struct quic_err err;
 	unsigned char enc_params[QUIC_TP_MAX_ENCLEN]; /* encoded QUIC transport parameters */
 	size_t enc_params_len;
 
