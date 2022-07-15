@@ -1734,31 +1734,8 @@ static int bind_parse_nice(char **args, int cur_arg, struct proxy *px, struct bi
 /* parse the "process" bind keyword */
 static int bind_parse_process(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
-	char *slash;
-	unsigned long proc = 0, thread = 0;
-
-	if ((slash = strchr(args[cur_arg + 1], '/')) != NULL)
-		*slash = 0;
-
-	if (parse_process_number(args[cur_arg + 1], &proc, 1, NULL, err)) {
-		memprintf(err, "'%s' : %s", args[cur_arg], *err);
-		return ERR_ALERT | ERR_FATAL;
-	}
-
-	if (slash) {
-		if (parse_process_number(slash+1, &thread, MAX_THREADS, NULL, err)) {
-			memprintf(err, "'%s' : %s", args[cur_arg], *err);
-			return ERR_ALERT | ERR_FATAL;
-		}
-		*slash = '/';
-	}
-
-	conf->bind_thread |= thread;
-
-	memprintf(err, "'process %s' on 'bind' lines is deprecated and will be removed in 2.7.", args[cur_arg+1]);
-	if (slash)
-		memprintf(err, "%s Please use 'thread %s' instead.", *err, slash + 1);
-	return ERR_WARN;
+	memprintf(err, "'process %s' on 'bind' lines is not supported anymore, please use 'thread' instead.", args[cur_arg+1]);
+	return ERR_ALERT | ERR_FATAL;
 }
 
 /* parse the "proto" bind keyword */
