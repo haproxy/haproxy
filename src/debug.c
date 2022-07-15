@@ -457,6 +457,36 @@ static int debug_parse_cli_close(char **args, char *payload, struct appctx *appc
 	return 1;
 }
 
+/* this is meant to cause a deadlock when more than one task is running it or when run twice */
+static struct task *debug_run_cli_deadlock(struct task *task, void *ctx, unsigned int state)
+{
+	static HA_SPINLOCK_T lock __maybe_unused;
+
+	HA_SPIN_LOCK(OTHER_LOCK, &lock);
+	return NULL;
+}
+
+/* parse a "debug dev deadlock" command. It always returns 1. */
+static int debug_parse_cli_deadlock(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	int tasks;
+
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
+
+	_HA_ATOMIC_INC(&debug_commands_issued);
+	for (tasks = atoi(args[3]); tasks > 0; tasks--) {
+		struct task *t = task_new_on(tasks % global.nbthread);
+		if (!t)
+			continue;
+		t->process = debug_run_cli_deadlock;
+		t->context = NULL;
+		task_wakeup(t, TASK_WOKEN_INIT);
+	}
+
+	return 1;
+}
+
 /* parse a "debug dev delay" command. It always returns 1. */
 static int debug_parse_cli_delay(char **args, char *payload, struct appctx *appctx, void *private)
 {
@@ -1535,6 +1565,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{{ "debug", "dev", "bug", NULL },      "debug dev bug                           : call BUG_ON() and crash",                 debug_parse_cli_bug,   NULL, NULL, NULL, ACCESS_EXPERT },
 	{{ "debug", "dev", "check", NULL },    "debug dev check                         : call CHECK_IF() and possibly crash",      debug_parse_cli_check, NULL, NULL, NULL, ACCESS_EXPERT },
 	{{ "debug", "dev", "close", NULL },    "debug dev close  <fd>                   : close this file descriptor",              debug_parse_cli_close, NULL, NULL, NULL, ACCESS_EXPERT },
+	{{ "debug", "dev", "deadlock", NULL }, "debug dev deadlock [nbtask]             : deadlock between this number of tasks",   debug_parse_cli_deadlock, NULL, NULL, NULL, ACCESS_EXPERT },
 	{{ "debug", "dev", "delay", NULL },    "debug dev delay  [ms]                   : sleep this long",                         debug_parse_cli_delay, NULL, NULL, NULL, ACCESS_EXPERT },
 #if defined(DEBUG_DEV)
 	{{ "debug", "dev", "exec",  NULL },    "debug dev exec   [cmd] ...              : show this command's output",              debug_parse_cli_exec,  NULL, NULL, NULL, ACCESS_EXPERT },
