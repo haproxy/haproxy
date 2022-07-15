@@ -1156,7 +1156,7 @@ int thread_resolve_group_mask(uint igid, ulong imask, uint *ogid, ulong *omask, 
 
 			/* we have a valid group, convert this to global thread IDs */
 			*ogid = igid;
-			*omask = imask << ha_tgroup_info[igid - 1].base;
+			*omask = imask & (ha_tgroup_info[igid - 1].threads_enabled << ha_tgroup_info[igid - 1].base);
 			return 0;
 		}
 	} else {
