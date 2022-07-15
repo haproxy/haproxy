@@ -39,9 +39,14 @@
 #define MAX_THREADS LONGBITS
 #endif
 
-/* still limited to 1 group for now by default (note: group ids start at 1) */
+/* theoretical limit is 64, though we'd rather not push it too far for now
+ * as some structures might be enlarged to be indexed per group. Let's start
+ * with 16 groups max, allowing to experiment with dual-socket machines
+ * suffering from up to 8 loosely coupled L3 caches. It's a good start and
+ * doesn't engage us too far.
+ */
 #ifndef MAX_TGROUPS
-#define MAX_TGROUPS 1
+#define MAX_TGROUPS 16
 #endif
 #define MAX_THREADS_PER_GROUP LONGBITS
 #endif

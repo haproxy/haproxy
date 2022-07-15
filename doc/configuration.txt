@@ -2267,7 +2267,11 @@ thread-group <group> [<thread-range>...]
 thread-groups <number>
   This setting is only available when support for threads was built in. It
   makes HAProxy split its threads into <number> independent groups. At the
-  moment, the limit is 1 and is also the default value. See also "nbthread".
+  moment, the default value is 1. Thread groups make it possible to reduce
+  sharing between threads to limit contention, at the expense of some extra
+  configuration efforts. It is also the only way to use more than 64 threads
+  since up to 64 threads per group may be configured. The maximum number of
+  groups is configured at compile time and defaults to 16. See also "nbthread".
 
 uid <number>
   Changes the process's user ID to <number>. It is recommended that the user ID
