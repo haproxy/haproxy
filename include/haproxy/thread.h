@@ -55,7 +55,6 @@ extern int thread_cpus_enabled_at_boot;
 /* Only way found to replace variables with constants that are optimized away
  * at build time.
  */
-enum { all_threads_mask = 1UL };
 enum { all_tgroups_mask = 1UL };
 enum { tid_bit = 1UL };
 enum { tid = 0 };
@@ -176,11 +175,9 @@ void wait_for_threads_completion();
 void set_thread_cpu_affinity();
 unsigned long long ha_get_pthread_id(unsigned int thr);
 
-extern volatile unsigned long all_threads_mask;
 extern volatile unsigned long all_tgroups_mask;
 extern volatile unsigned int rdv_requests;
 extern volatile unsigned int isolated_thread;
-extern THREAD_LOCAL unsigned long tid_bit; /* The bit corresponding to the thread id */
 extern THREAD_LOCAL unsigned int tid;      /* The thread id */
 extern THREAD_LOCAL unsigned int tgid;     /* The thread group id (starts at 1) */
 
@@ -201,13 +198,11 @@ static inline void ha_set_thread(const struct thread_info *thr)
 		tg      = thr->tg;
 		tid     = thr->tid;
 		tgid    = thr->tgid;
-		tid_bit = 1UL << tid; /* FIXME: must become thr->ltid_bit */
 		th_ctx  = &ha_thread_ctx[tid];
 		tg_ctx  = &ha_tgroup_ctx[tgid-1];
 	} else {
 		tgid    = 1;
 		tid     = 0;
-		tid_bit = 1;
 		ti      = &ha_thread_info[0];
 		tg      = &ha_tgroup_info[0];
 		th_ctx  = &ha_thread_ctx[0];

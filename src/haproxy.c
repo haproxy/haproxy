@@ -835,11 +835,6 @@ static void mworker_loop()
 
 	global.nbthread = 1;
 
-#ifdef USE_THREAD
-	tid_bit = 1;
-	all_threads_mask = 1;
-#endif
-
 	jobs++; /* this is the "master" job, we want to take care of the
 		signals even if there is no listener so the poll loop don't
 		leave */
@@ -2997,7 +2992,6 @@ static void *run_thread_poll_loop(void *data)
 		_HA_ATOMIC_AND(&all_tgroups_mask, ~tg->tgid_bit);
 	if (!_HA_ATOMIC_AND_FETCH(&tg_ctx->stopping_threads, ~ti->ltid_bit))
 		_HA_ATOMIC_AND(&stopping_tgroup_mask, ~tg->tgid_bit);
-	_HA_ATOMIC_AND(&all_threads_mask, ~tid_bit);
 	if (tid > 0)
 		pthread_exit(NULL);
 #endif

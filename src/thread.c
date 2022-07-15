@@ -63,13 +63,11 @@ THREAD_LOCAL struct thread_ctx *th_ctx = &ha_thread_ctx[0];
 
 #ifdef USE_THREAD
 
-volatile unsigned long all_threads_mask __read_mostly  = 1; // nbthread 1 assumed by default
 volatile unsigned long all_tgroups_mask __read_mostly  = 1; // nbtgroup 1 assumed by default
 volatile unsigned int rdv_requests       = 0;  // total number of threads requesting RDV
 volatile unsigned int isolated_thread    = ~0; // ID of the isolated thread, or ~0 when none
 THREAD_LOCAL unsigned int  tgid          = 1; // thread ID starts at 1
 THREAD_LOCAL unsigned int  tid           = 0;
-THREAD_LOCAL unsigned long tid_bit       = (1UL << 0);
 int thread_cpus_enabled_at_boot          = 1;
 static pthread_t ha_pthread[MAX_THREADS] = { };
 
@@ -1261,8 +1259,6 @@ static int cfg_parse_nbthread(char **args, int section_type, struct proxy *curpx
 		memprintf(err, "'%s' value must be between 1 and %d (was %ld)", args[0], MAX_THREADS, nbthread);
 		return -1;
 	}
-
-	all_threads_mask = nbits(nbthread);
 #endif
 
 	HA_DIAG_WARNING_COND(global.nbthread,

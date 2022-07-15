@@ -2495,7 +2495,6 @@ int check_config_validity()
 			global.nbthread = numa_cores ? numa_cores :
 			                               thread_cpus_enabled_at_boot;
 		}
-		all_threads_mask = nbits(global.nbthread);
 #endif
 	}
 
