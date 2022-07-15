@@ -466,6 +466,36 @@ int fd_takeover(int fd, void *expected_owner)
 
 void updt_fd_polling(const int fd)
 {
+	uint tgrp = fd_take_tgid(fd);
+
+	/* closed ? may happen */
+	if (!tgrp)
+		return;
+
+	if (unlikely(tgrp != tgid && tgrp <= MAX_TGROUPS)) {
+		/* Hmmm delivered an update for another group... That may
+		 * happen on suspend/resume of a listener for example when
+		 * the FD was not even marked for running. Let's broadcast
+		 * the update.
+		 */
+		unsigned long update_mask = fdtab[fd].update_mask;
+		int thr;
+
+		while (!_HA_ATOMIC_CAS(&fdtab[fd].update_mask, &update_mask, ha_tgroup_info[tgrp - 1].threads_enabled))
+			__ha_cpu_relax();
+
+		fd_add_to_fd_list(&update_list[tgrp - 1], fd);
+
+		thr = one_among_mask(fdtab[fd].thread_mask & tg->threads_enabled, statistical_prng_range(MAX_THREADS));
+		thr += ha_tgroup_info[tgrp - 1].base;
+		wake_thread(thr);
+
+		fd_drop_tgid(fd);
+		return;
+	}
+
+	fd_drop_tgid(fd);
+
 	if (tg->threads_enabled == 1UL || (fdtab[fd].thread_mask & tg->threads_enabled) == ti->ltid_bit) {
 		if (HA_ATOMIC_BTS(&fdtab[fd].update_mask, ti->ltid))
 			return;
