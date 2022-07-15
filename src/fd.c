@@ -355,6 +355,14 @@ void fd_delete(int fd)
 	 */
 	BUG_ON(fd < 0 || fd >= global.maxsock);
 
+	/* NOTE: The master when going into reexec mode re-closes all FDs after
+	 * they were already dispatched. But we know we didn't start the polling
+	 * threads so we can still close them. The masks will probably not match
+	 * however so we force the value and erase the refcount if any.
+	 */
+	if (unlikely(global.mode & MODE_STARTING))
+		fdtab[fd].refc_tgid = ti->tgid;
+
 	/* the tgid cannot change before a complete close so we should never
 	 * face the situation where we try to close an fd that was reassigned.
 	 */
