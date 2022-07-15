@@ -2488,7 +2488,7 @@ user
   increased. It also drops expert and experimental mode. See also "show cli
   level".
 
-show activity
+show activity [-1 | 0 | thread_num]
   Reports some counters about internal events that will help developers and
   more generally people who know haproxy well enough to narrow down the causes
   of reports of abnormal behaviours. A typical example would be a properly
@@ -2498,7 +2498,14 @@ show activity
   is not a problem since calls to this command will typically be performed
   twice. The fields are purposely not documented so that their exact meaning is
   verified in the code where the counters are fed. These values are also reset
-  by the "clear counters" command.
+  by the "clear counters" command. On multi-threaded deployments, the first
+  column will indicate the total (or average depending on the nature of the
+  metric) for all threads, and the list of all threads' values will be
+  represented between square brackets in the thread order. Optionally the
+  thread number to be dumped may be specified in argument. The special value
+  "0" will report the aggregated value (first column), and "-1", which is the
+  default, will display all the columns. Note that just like in single-threaded
+  mode, there will be no brackets when a single column is requested.
 
 show cli sockets
   List CLI sockets. The output format is composed of 3 fields separated by

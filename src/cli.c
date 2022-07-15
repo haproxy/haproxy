@@ -86,6 +86,11 @@ extern const char *stat_status_codes[];
 
 struct proxy *mworker_proxy; /* CLI proxy of the master */
 
+/* CLI context for the "show activity" command */
+struct show_activity_ctx {
+	int thr;         /* thread ID to show or -1 for all */
+};
+
 /* CLI context for the "show env" command */
 struct show_env_ctx {
 	char **var;      /* first variable to show */
@@ -1463,6 +1468,8 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 static int cli_io_handler_show_activity(struct appctx *appctx)
 {
 	struct stconn *sc = appctx_sc(appctx);
+	struct show_activity_ctx *actctx = appctx->svcctx;
+	int tgt = actctx->thr; // target thread, -1 for all, 0 for total only
 	int thr;
 
 	if (unlikely(sc_ic(sc)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
@@ -1484,10 +1491,15 @@ static int cli_io_handler_show_activity(struct appctx *appctx)
 			chunk_appendf(&trash, " %u\n", _tot);		\
 			break;						\
 		}							\
-		chunk_appendf(&trash, " %u [", _tot);			\
-		for (t = 0; t < _nbt; t++)				\
-			chunk_appendf(&trash, " %u", _v[t]);		\
-		chunk_appendf(&trash, " ]\n");				\
+		if (tgt == -1) {					\
+			chunk_appendf(&trash, " %u [", _tot);		\
+			for (t = 0; t < _nbt; t++)			\
+				chunk_appendf(&trash, " %u", _v[t]);	\
+			chunk_appendf(&trash, " ]\n");			\
+		} else if (tgt == 0)					\
+				chunk_appendf(&trash, " %u\n", _tot);	\
+			else						\
+				chunk_appendf(&trash, " %u\n", _v[tgt-1]);\
 	} while (0)
 
 #undef SHOW_AVG
@@ -1504,10 +1516,15 @@ static int cli_io_handler_show_activity(struct appctx *appctx)
 			chunk_appendf(&trash, " %u\n", _tot);		\
 			break;						\
 		}							\
-		chunk_appendf(&trash, " %u [", (_tot + _nbt/2) / _nbt); \
-		for (t = 0; t < _nbt; t++)				\
-			chunk_appendf(&trash, " %u", _v[t]);		\
-		chunk_appendf(&trash, " ]\n");				\
+		if (tgt == -1) {					\
+			chunk_appendf(&trash, " %u [", (_tot + _nbt/2) / _nbt); \
+			for (t = 0; t < _nbt; t++)			\
+				chunk_appendf(&trash, " %u", _v[t]);	\
+			chunk_appendf(&trash, " ]\n");			\
+		} else if (tgt == 0)					\
+				chunk_appendf(&trash, " %u\n", (_tot + _nbt/2) / _nbt);	\
+			else						\
+				chunk_appendf(&trash, " %u\n", _v[tgt-1]);\
 	} while (0)
 
 	chunk_appendf(&trash, "thread_id: %u (%u..%u)\n", tid + 1, 1, global.nbthread);
@@ -1635,6 +1652,28 @@ static int cli_io_handler_show_cli_sock(struct appctx *appctx)
 	return 0;
 }
 
+
+/* parse a "show activity" CLI request. Returns 0 if it needs to continue, 1 if it
+ * wants to stop here. It sets a show_activity_ctx context where, if a specific
+ * thread is requested, it puts the thread number into ->thr otherwise sets it to
+ * -1.
+ */
+static int cli_parse_show_activity(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	struct show_activity_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
+
+	if (!cli_has_level(appctx, ACCESS_LVL_OPER))
+		return 1;
+
+	ctx->thr = -1; // show all by default
+	if (*args[2])
+		ctx->thr = atoi(args[2]);
+
+	if (ctx->thr < -1 || ctx->thr > global.nbthread)
+		return cli_err(appctx, "Thread ID number must be between -1 and nbthread\n");
+
+	return 0;
+}
 
 /* parse a "show env" CLI request. Returns 0 if it needs to continue, 1 if it
  * wants to stop here. It reserves a sohw_env_ctx where it puts the variable to
@@ -3164,7 +3203,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "show", "cli", "sockets",  NULL },   "show cli sockets                        : dump list of cli sockets",                                cli_parse_default, cli_io_handler_show_cli_sock, NULL, NULL, ACCESS_MASTER },
 	{ { "show", "cli", "level", NULL },      "show cli level                          : display the level of the current CLI session",            cli_parse_show_lvl, NULL, NULL, NULL, ACCESS_MASTER},
 	{ { "show", "fd", NULL },                "show fd [num]                           : dump list of file descriptors in use or a specific one",  cli_parse_show_fd, cli_io_handler_show_fd, NULL },
-	{ { "show", "activity", NULL },          "show activity                           : show per-thread activity stats (for support/developers)", cli_parse_default, cli_io_handler_show_activity, NULL },
+	{ { "show", "activity", NULL },          "show activity [-1|0|thread_num]         : show per-thread activity stats (for support/developers)", cli_parse_show_activity, cli_io_handler_show_activity, NULL },
 	{ { "show", "version", NULL },           "show version                            : show version of the current process",                     cli_parse_show_version, NULL, NULL, NULL, ACCESS_MASTER },
 	{ { "operator", NULL },                  "operator                                : lower the level of the current CLI session to operator",  cli_parse_set_lvl, NULL, NULL, NULL, ACCESS_MASTER},
 	{ { "user", NULL },                      "user                                    : lower the level of the current CLI session to user",      cli_parse_set_lvl, NULL, NULL, NULL, ACCESS_MASTER},
