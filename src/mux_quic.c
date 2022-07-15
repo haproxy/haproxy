@@ -1014,74 +1014,6 @@ static inline int qcc_may_expire(struct qcc *qcc)
 	return !qcc->nb_sc;
 }
 
-/* release function. This one should be called to free all resources allocated
- * to the mux.
- */
-static void qc_release(struct qcc *qcc)
-{
-	struct connection *conn = qcc->conn;
-	struct eb64_node *node;
-
-	TRACE_ENTER(QMUX_EV_QCC_END);
-
-	if (qcc->app_ops && qcc->app_ops->release) {
-		/* Application protocol with dedicated connection closing
-		 * procedure.
-		 */
-		qcc->app_ops->release(qcc->ctx);
-	}
-	else {
-		qcc_emit_cc_app(qcc, QC_ERR_NO_ERROR, 0);
-	}
-
-	if (qcc->task) {
-		task_destroy(qcc->task);
-		qcc->task = NULL;
-	}
-
-	if (qcc->wait_event.tasklet)
-		tasklet_free(qcc->wait_event.tasklet);
-	if (conn && qcc->wait_event.events) {
-		conn->xprt->unsubscribe(conn, conn->xprt_ctx,
-		                        qcc->wait_event.events,
-		                        &qcc->wait_event);
-	}
-
-	/* liberate remaining qcs instances */
-	node = eb64_first(&qcc->streams_by_id);
-	while (node) {
-		struct qcs *qcs = eb64_entry(node, struct qcs, by_id);
-		node = eb64_next(node);
-		qcs_free(qcs);
-	}
-
-	while (!LIST_ISEMPTY(&qcc->lfctl.frms)) {
-		struct quic_frame *frm = LIST_ELEM(qcc->lfctl.frms.n, struct quic_frame *, list);
-		LIST_DELETE(&frm->list);
-		pool_free(pool_head_quic_frame, frm);
-	}
-
-	pool_free(pool_head_qcc, qcc);
-
-	if (conn) {
-		LIST_DEL_INIT(&conn->stopping_list);
-
-		conn->handle.qc->conn = NULL;
-		conn->mux = NULL;
-		conn->ctx = NULL;
-
-		TRACE_DEVEL("freeing conn", QMUX_EV_QCC_END, conn);
-
-		conn_stop_tracking(conn);
-		conn_full_close(conn);
-		if (conn->destroy_cb)
-			conn->destroy_cb(conn);
-		conn_free(conn);
-	}
-
-	TRACE_LEAVE(QMUX_EV_QCC_END);
-}
-
 /* Transfer as much as possible data on <qcs> from <in> to <out>. This is done
  * in respect with available flow-control at stream and connection level.
  *
@@ -1652,6 +1584,74 @@ static int qc_purge_streams(struct qcc *qcc)
 
 	TRACE_LEAVE(QMUX_EV_QCC_WAKE);
 	return release;
+}
+
+/* release function. This one should be called to free all resources allocated
+ * to the mux.
+ */
+static void qc_release(struct qcc *qcc)
+{
+	struct connection *conn = qcc->conn;
+	struct eb64_node *node;
+
+	TRACE_ENTER(QMUX_EV_QCC_END);
+
+	if (qcc->app_ops && qcc->app_ops->release) {
+		/* Application protocol with dedicated connection closing
+		 * procedure.
+		 */
+		qcc->app_ops->release(qcc->ctx);
+	}
+	else {
+		qcc_emit_cc_app(qcc, QC_ERR_NO_ERROR, 0);
+	}
+
+	if (qcc->task) {
+		task_destroy(qcc->task);
+		qcc->task = NULL;
+	}
+
+	if (qcc->wait_event.tasklet)
+		tasklet_free(qcc->wait_event.tasklet);
+	if (conn && qcc->wait_event.events) {
+		conn->xprt->unsubscribe(conn, conn->xprt_ctx,
+		                        qcc->wait_event.events,
+		                        &qcc->wait_event);
+	}
+
+	/* liberate remaining qcs instances */
+	node = eb64_first(&qcc->streams_by_id);
+	while (node) {
+		struct qcs *qcs = eb64_entry(node, struct qcs, by_id);
+		node = eb64_next(node);
+		qcs_free(qcs);
+	}
+
+	while (!LIST_ISEMPTY(&qcc->lfctl.frms)) {
+		struct quic_frame *frm = LIST_ELEM(qcc->lfctl.frms.n, struct quic_frame *, list);
+		LIST_DELETE(&frm->list);
+		pool_free(pool_head_quic_frame, frm);
+	}
+
+	pool_free(pool_head_qcc, qcc);
+
+	if (conn) {
+		LIST_DEL_INIT(&conn->stopping_list);
+
+		conn->handle.qc->conn = NULL;
+		conn->mux = NULL;
+		conn->ctx = NULL;
+
+		TRACE_DEVEL("freeing conn", QMUX_EV_QCC_END, conn);
+
+		conn_stop_tracking(conn);
+		conn_full_close(conn);
+		if (conn->destroy_cb)
+			conn->destroy_cb(conn);
+		conn_free(conn);
+	}
+
+	TRACE_LEAVE(QMUX_EV_QCC_END);
 }
 
 static struct task *qc_io_cb(struct task *t, void *ctx, unsigned int status)
