@@ -226,6 +226,7 @@ void ha_task_dump(struct buffer *buf, const struct task *task, const char *pfx)
 	const struct stream *s = NULL;
 	const struct appctx __maybe_unused *appctx = NULL;
 	struct hlua __maybe_unused *hlua = NULL;
+	const struct stconn *sc;
 
 	if (!task) {
 		chunk_appendf(buf, "0\n");
@@ -256,8 +257,8 @@ void ha_task_dump(struct buffer *buf, const struct task *task, const char *pfx)
 
 	if (task->process == process_stream && task->context)
 		s = (struct stream *)task->context;
-	else if (task->process == task_run_applet && task->context)
-		s = sc_strm(appctx_sc((struct appctx *)task->context));
+	else if (task->process == task_run_applet && task->context && (sc = appctx_sc((struct appctx *)task->context)))
+		s = sc_strm(sc);
 	else if (task->process == sc_conn_io_cb && task->context)
 		s = sc_strm(((struct stconn *)task->context));
 
