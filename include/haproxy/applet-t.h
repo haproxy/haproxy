@@ -75,55 +75,18 @@ struct appctx {
 	struct freq_ctr call_rate;       /* appctx call rate */
 	struct list wait_entry;          /* entry in a list of waiters for an event (e.g. ring events) */
 
-	/* WARNING: the entries below are only kept for compatibility with
-	 * possible external code but will disappear in 2.7, you must use the
-	 * cleaner svcctx now (look at "show fd" for an example).
+	/* The pointer seen by application code is appctx->svcctx. In 2.7 the
+	 * anonymous union and the "ctx" struct disappeared, and the struct
+	 * "svc" became svc_storage, which is never accessed directly by
+	 * application code. Look at "show fd" for an example.
 	 */
-	union {
-		__attribute__((deprecated)) unsigned int st2;
-		unsigned int _st2;
-	};
 
-	/* This anonymous union is temporary for 2.6 to avoid a new API change
-	 * after 2.6 while keeping the compatibility with pre-2.7 code.
-	 * The pointer seen by application code is appctx->svcctx. In 2.7 the
-	 * anonymous union will disappear and the struct "svc" will become
-	 * svc_storage, which is never accessed directly by application code.
-	 * The compatibility with the old appctx->ctx.* is preserved for now
-	 * and this union will disappear in 2.7
-	 */
-	union {
-		/* here we have the service's context (CLI command, applet, etc) */
-		void *svcctx;                  /* pointer to a context used by the command, e.g. <storage> below */
-		struct {
-			void *shadow;          /* shadow of svcctx above, do not use! */
-			char storage[APPLET_MAX_SVCCTX]; /* storage of svcctx above */
-		} svc;                         /* generic storage for most commands */
-
-		/* The "ctx" part below is kept only to help smooth transition
-		 * of legacy code and will disappear after 2.6. It ensures that
-		 * ctx.cli may safely map to a clean representation of the
-		 * "cli_print_ctx" struct mapped in "svc.storage" above.
-		 */
-		struct {
-			void *shadow;                   /* shadow of svcctx above for alignment, do not use! */
-			struct {
-				/* these 3 first fields must match EXACTLY "struct cli_print_ctx" */
-				const char *msg;        /* pointer to a persistent message to be returned in CLI_ST_PRINT state */
-				char *err;              /* pointer to a 'must free' message to be returned in CLI_ST_PRINT_FREE state */
-				int severity;           /* severity of the message to be returned according to (syslog) rfc5424 */
-
-				/* WARNING: the entries below are only kept for compatibility
-				 * with possible external code but will disappear in 2.7, you
-				 * must use the cleaner svcctx now (look at "show fd" for an
-				 * example).
-				 */
-				 void *p0, *p1, *p2;
-				 size_t o0, o1;
-				 int i0, i1;
-			} cli __attribute__((deprecated)); /* context used by the CLI */
-		} ctx;					/* context-specific variables used by any applet */
-	}; /* end of anon union */
+	/* here we have the service's context (CLI command, applet, etc) */
+	void *svcctx;                            /* pointer to a context used by the command, e.g. <storage> below */
+	struct {
+		void *shadow;                    /* shadow of svcctx above, do not use! */
+		char storage[APPLET_MAX_SVCCTX]; /* storage of svcctx above */
+	} svc;                                   /* generic storage for most commands */
 };
 
 #endif /* _HAPROXY_APPLET_T_H */

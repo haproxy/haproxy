@@ -747,16 +747,6 @@ static int cli_parse_request(struct appctx *appctx)
 	int i = 0;
 	struct cli_kw *kw;
 
-	appctx->_st2 = 0;
-
-	/* temporary for 2.6: let's make sure we clean the whole shared
-	 * context.
-	 */
-	if (sizeof(appctx->ctx) > sizeof(appctx->svc))
-		memset(&appctx->ctx, 0, sizeof(appctx->ctx));
-	else
-		memset(&appctx->svc, 0, sizeof(appctx->svc));
-
 	p = appctx->chunk->area;
 	end = p + appctx->chunk->data;
 
@@ -922,8 +912,6 @@ static void cli_io_handler(struct appctx *appctx)
 
 	while (1) {
 		if (appctx->st0 == CLI_ST_INIT) {
-			/* CLI/stats not initialized yet */
-			memset(&appctx->ctx, 0, sizeof(appctx->ctx));
 			/* reset severity to default at init */
 			appctx->cli_severity_output = bind_conf->severity_output;
 			appctx->st0 = CLI_ST_GETREQ;

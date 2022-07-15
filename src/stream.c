@@ -3336,11 +3336,10 @@ static int stats_dump_full_strm_to_buffer(struct stconn *sc, struct stream *strm
 		}
 		else if ((tmpctx = sc_appctx(scf)) != NULL) {
 			chunk_appendf(&trash,
-			              "      app0=%p st0=%d st1=%d st2=%d applet=%s tid=%d nice=%d calls=%u rate=%u cpu=%llu lat=%llu\n",
+			              "      app0=%p st0=%d st1=%d applet=%s tid=%d nice=%d calls=%u rate=%u cpu=%llu lat=%llu\n",
 				      tmpctx,
 				      tmpctx->st0,
 				      tmpctx->st1,
-				      tmpctx->_st2,
 			              tmpctx->applet->name,
 			              tmpctx->t->tid,
 			              tmpctx->t->nice, tmpctx->t->calls, read_freq_ctr(&tmpctx->call_rate),
@@ -3375,11 +3374,10 @@ static int stats_dump_full_strm_to_buffer(struct stconn *sc, struct stream *strm
 		}
 		else if ((tmpctx = sc_appctx(scb)) != NULL) {
 			chunk_appendf(&trash,
-			              "      app1=%p st0=%d st1=%d st2=%d applet=%s tid=%d nice=%d calls=%u rate=%u cpu=%llu lat=%llu\n",
+			              "      app1=%p st0=%d st1=%d applet=%s tid=%d nice=%d calls=%u rate=%u cpu=%llu lat=%llu\n",
 				      tmpctx,
 				      tmpctx->st0,
 				      tmpctx->st1,
-				      tmpctx->_st2,
 			              tmpctx->applet->name,
 			              tmpctx->t->tid,
 			              tmpctx->t->nice, tmpctx->t->calls, read_freq_ctr(&tmpctx->call_rate),
