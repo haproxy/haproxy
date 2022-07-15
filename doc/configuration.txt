@@ -1224,7 +1224,7 @@ cpu-map [auto:]<process-set>[/<thread-set>] <cpu-set>...
   ignored. It is possible to specify a range with two such number delimited by
   a dash ('-'). It also is possible to specify all thraeds at once using
   "all", only odd numbers using "odd" or even numbers using "even", just like
-  with the "bind-process" directive. The second and forthcoming arguments are
+  with the bind "thread" directive. The second and forthcoming arguments are
   CPU sets. Each CPU set is either a unique number starting at 0 for the first
   CPU or a range with two such numbers delimited by a dash ('-'). Outside of
   Linux and BSDs, there may be a limitation on the maximum CPU index to either
@@ -1908,11 +1908,6 @@ resetenv [<name> ...]
   after complete validation. The changes immediately take effect so that the
   next line in the configuration file sees the new environment. See also
   "setenv", "presetenv", and "unsetenv".
-
-stats bind-process [ all | odd | even | <process_num>[-[process_num>]] ] ...
-  Deprecated. Before threads were supported, this was used to force some stats
-  instances on certain processes only. The default and only accepted value is
-  "1" (along with "all" and "odd" which alias it). Do not use this setting.
 
 server-state-base <directory>
   Specifies the directory prefix to be prepended in front of all servers state
@@ -3903,7 +3898,6 @@ acl                                       X (!)      X         X         X
 backlog                                   X          X         X         -
 balance                                   X          -         X         X
 bind                                      -          X         X         -
-bind-process                              X          X         X         X
 capture cookie                            -          X         X         -
 capture request header                    -          X         X         -
 capture response header                   -          X         X         -
@@ -4525,20 +4519,6 @@ bind /<path> [, ...] [param*]
 
   See also : "source", "option forwardfor", "unix-bind" and the PROXY protocol
              documentation, and section 5 about bind options.
-
-
-bind-process [ all | odd | even | <process_num>[-[<process_num>]] ] ...
-  May be used in sections :   defaults | frontend | listen | backend
-                                 yes   |    yes   |   yes  |   yes
-
-  Deprecated. Before threads were supported, this was used to force some
-  frontends on certain processes only, or to adjust backends so that they
-  could match the frontends that used them. The default and only accepted
-  value is "1" (along with "all" and "odd" which alias it). Do not use this
-  setting. Threads can still be bound per-socket using the "process" bind
-  keyword.
-
-  See also : "process" in section 5.1.
 
 
 capture cookie <name> len <length>

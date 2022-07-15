@@ -603,28 +603,9 @@ static int cli_parse_global(char **args, int section_type, struct proxy *curpx,
 		}
 		global.cli_fe->maxconn = maxconn;
 	}
-	else if (strcmp(args[1], "bind-process") == 0) {  /* enable the socket only on some processes */
-		int cur_arg = 2;
-		unsigned long set = 0;
-
-		if (!global.cli_fe) {
-			if ((global.cli_fe = cli_alloc_fe("GLOBAL", file, line)) == NULL) {
-				memprintf(err, "'%s %s' : out of memory trying to allocate a frontend", args[0], args[1]);
-				return -1;
-			}
-		}
-
-		while (*args[cur_arg]) {
-			if (strcmp(args[cur_arg], "all") == 0) {
-				set = 0;
-				break;
-			}
-			if (parse_process_number(args[cur_arg], &set, 1, NULL, err)) {
-				memprintf(err, "'%s %s' : %s", args[0], args[1], *err);
-				return -1;
-			}
-			cur_arg++;
-		}
+	else if (strcmp(args[1], "bind-process") == 0) {
+		memprintf(err, "'%s' is not supported anymore.", args[0]);
+		return -1;
 	}
 	else {
 		memprintf(err, "'%s' only supports 'socket', 'maxconn', 'bind-process' and 'timeout' (got '%s')", args[0], args[1]);

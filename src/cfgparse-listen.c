@@ -41,7 +41,7 @@ static const char *common_kw_list[] = {
 	"listen", "frontend", "backend", "defaults", "server",
 	"default-server", "server-template", "bind", "monitor-net",
 	"monitor-uri", "mode", "id", "description", "disabled", "enabled",
-	"bind-process", "acl", "dynamic-cookie-key", "cookie", "email-alert",
+	"acl", "dynamic-cookie-key", "cookie", "email-alert",
 	"persist", "appsession", "load-server-state-from-file",
 	"server-state-file-name", "max-session-srv-conns", "capture",
 	"retries", "http-request", "http-response", "http-after-response",
@@ -636,24 +636,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		curproxy->flags &= ~PR_FL_DISABLED;
 	}
 	else if (strcmp(args[0], "bind-process") == 0) {  /* enable this proxy only on some processes */
-		int cur_arg = 1;
-		unsigned long set = 0;
-
-		while (*args[cur_arg]) {
-			if (strcmp(args[cur_arg], "all") == 0) {
-				set = 0;
-				break;
-			}
-			if (parse_process_number(args[cur_arg], &set, 1, NULL, &errmsg)) {
-				ha_alert("parsing [%s:%d] : %s : %s\n", file, linenum, args[0], errmsg);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
-			}
-			cur_arg++;
-		}
-		ha_warning("parsing [%s:%d]: '%s' has no effect, is deprecated, and will be removed in version 2.7.\n",
-			   file, linenum, args[0]);
-		err_code |= ERR_WARN;
+		ha_alert("parsing [%s:%d]: '%s' is not supported anymore.\n", file, linenum, args[0]);
+		err_code |= ERR_ALERT | ERR_FATAL;
 	}
 	else if (strcmp(args[0], "acl") == 0) {  /* add an ACL */
 		if ((curproxy->cap & PR_CAP_DEF) && strlen(curproxy->id) == 0) {
