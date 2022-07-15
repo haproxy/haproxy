@@ -124,6 +124,7 @@ Q = @
 ifeq ($V,1)
 Q=
 endif
+IV = -v
 
 # WARNING: Do not change cc-opt, cc-opt-alt or cc-warning without checking if
 #          clang bug #49364 is fixed. stderr is redirected to /dev/null on
@@ -363,6 +364,7 @@ endif
 # generic system target has nothing specific
 ifeq ($(TARGET),generic)
   set_target_defaults = $(call default_opts,USE_POLL USE_TPROXY)
+  IV =
 endif
 
 # Haiku
@@ -404,6 +406,7 @@ ifeq ($(TARGET),solaris)
     USE_RT USE_OBSOLETE_LINKER USE_EVPORTS USE_CLOSEFROM)
   TARGET_CFLAGS  = -DFD_SETSIZE=65536 -D_REENTRANT -D_XOPEN_SOURCE=600 -D__EXTENSIONS__
   TARGET_LDFLAGS = -lnsl -lsocket
+  IV =
 endif
 
 # FreeBSD 10 and above
@@ -440,6 +443,7 @@ ifeq ($(TARGET),openbsd)
   set_target_defaults = $(call default_opts, \
     USE_POLL USE_TPROXY USE_LIBCRYPT USE_THREAD USE_KQUEUE USE_ACCEPT4        \
     USE_CLOSEFROM USE_GETADDRINFO)
+  IV =
 endif
 
 # NetBSD 8 and above
@@ -447,6 +451,7 @@ ifeq ($(TARGET),netbsd)
   set_target_defaults = $(call default_opts, \
     USE_POLL USE_TPROXY USE_THREAD USE_KQUEUE USE_ACCEPT4 USE_CLOSEFROM   \
     USE_GETADDRINFO)
+  IV =
 endif
 
 # AIX 5.1 only
@@ -455,6 +460,7 @@ ifeq ($(TARGET),aix51)
     USE_POLL USE_LIBCRYPT USE_OBSOLETE_LINKER)
   TARGET_CFLAGS   = -Dss_family=__ss_family -Dip6_hdr=ip6hdr -DSTEVENS_API -D_LINUX_SOURCE_COMPAT -Dunsetenv=my_unsetenv
   DEBUG_CFLAGS    =
+  IV =
 endif
 
 # AIX 5.2
@@ -463,6 +469,7 @@ ifeq ($(TARGET),aix52)
     USE_POLL USE_LIBCRYPT USE_OBSOLETE_LINKER)
   TARGET_CFLAGS   = -D_MSGQSUPPORT
   DEBUG_CFLAGS    =
+  IV =
 endif
 
 # AIX 7.2 and above
@@ -471,6 +478,7 @@ ifeq ($(TARGET),aix72-gcc)
     USE_POLL USE_THREAD USE_LIBCRYPT USE_OBSOLETE_LINKER USE_GETADDRINFO)
   TARGET_CFLAGS   = -D_H_XMEM -D_H_VAR
   TARGET_LDFLAGS  = -latomic
+  IV =
 endif
 
 # Cygwin
@@ -1043,16 +1051,16 @@ src/haproxy.o:	src/haproxy.c $(DEP)
 	       -c -o $@ $<
 
 install-man:
-	$(Q)install -v -d "$(DESTDIR)$(MANDIR)"/man1
-	$(Q)install -v -m 644 doc/haproxy.1 "$(DESTDIR)$(MANDIR)"/man1
+	$(Q)install $(IV) -d "$(DESTDIR)$(MANDIR)"/man1
+	$(Q)install $(IV) -m 644 doc/haproxy.1 "$(DESTDIR)$(MANDIR)"/man1
 
 EXCLUDE_DOCUMENTATION = lgpl gpl coding-style
 DOCUMENTATION = $(filter-out $(EXCLUDE_DOCUMENTATION),$(patsubst doc/%.txt,%,$(wildcard doc/*.txt)))
 
 install-doc:
-	$(Q)install -v -d "$(DESTDIR)$(DOCDIR)"
+	$(Q)install $(IV) -d "$(DESTDIR)$(DOCDIR)"
 	$(Q)for x in $(DOCUMENTATION); do \
-		install -v -m 644 doc/$$x.txt "$(DESTDIR)$(DOCDIR)" ; \
+		install $(IV) -m 644 doc/$$x.txt "$(DESTDIR)$(DOCDIR)" ; \
 	done
 
 install-bin:
@@ -1062,8 +1070,8 @@ install-bin:
 			exit 1; \
 		fi; \
 	done
-	$(Q)install -v -d "$(DESTDIR)$(SBINDIR)"
-	$(Q)install -v haproxy $(EXTRA) "$(DESTDIR)$(SBINDIR)"
+	$(Q)install $(IV) -d "$(DESTDIR)$(SBINDIR)"
+	$(Q)install $(IV) haproxy $(EXTRA) "$(DESTDIR)$(SBINDIR)"
 
 install: install-bin install-man install-doc
 
