@@ -2198,8 +2198,13 @@ static void do_soft_stop_now()
 		}
 	}
 
+	/* we isolate so that we have a chance of stopping listeners in other groups */
+	thread_isolate();
+
 	/* stop all stoppable listeners */
 	protocol_stop_now();
+
+	thread_release();
 
 	/* signal zero is used to broadcast the "stopping" event */
 	signal_handler(0);
