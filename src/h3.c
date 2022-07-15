@@ -1121,6 +1121,15 @@ static int h3_init(struct qcc *qcc)
 static void h3_release(void *ctx)
 {
 	struct h3c *h3c = ctx;
+
+	/* RFC 9114 5.2. Connection Shutdown
+	 *
+	 * An endpoint that completes a
+	 * graceful shutdown SHOULD use the H3_NO_ERROR error code when closing
+	 * the connection.
+	 */
+	qcc_emit_cc_app(h3c->qcc, H3_NO_ERROR, 0);
+
 	pool_free(pool_head_h3c, h3c);
 }
 

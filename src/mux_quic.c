@@ -1024,8 +1024,15 @@ static void qc_release(struct qcc *qcc)
 
 	TRACE_ENTER(QMUX_EV_QCC_END);
 
-	if (qcc->app_ops && qcc->app_ops->release)
+	if (qcc->app_ops && qcc->app_ops->release) {
+		/* Application protocol with dedicated connection closing
+		 * procedure.
+		 */
 		qcc->app_ops->release(qcc->ctx);
+	}
+	else {
+		qcc_emit_cc_app(qcc, QC_ERR_NO_ERROR, 0);
+	}
 
 	if (qcc->task) {
 		task_destroy(qcc->task);
