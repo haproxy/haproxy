@@ -122,11 +122,24 @@ struct lock_stat {
 	uint64_t num_seek_unlocked;
 };
 
+struct ha_spinlock_state {
+	unsigned long owner; /* a bit is set to 1 << tid for the lock owner */
+	unsigned long waiters; /* a bit is set to 1 << tid for waiting threads  */
+};
+
+struct ha_rwlock_state {
+	unsigned long cur_writer;   /* a bit is set to 1 << tid for the lock owner */
+	unsigned long wait_writers; /* a bit is set to 1 << tid for waiting writers */
+	unsigned long cur_readers;  /* a bit is set to 1 << tid for current readers */
+	unsigned long wait_readers; /* a bit is set to 1 << tid for waiting waiters */
+	unsigned long cur_seeker;   /* a bit is set to 1 << tid for the lock seekers */
+	unsigned long wait_seekers; /* a bit is set to 1 << tid for waiting seekers */
+};
+
 struct ha_spinlock {
 	__HA_SPINLOCK_T lock;
 	struct {
-		unsigned long owner; /* a bit is set to 1 << tid for the lock owner */
-		unsigned long waiters; /* a bit is set to 1 << tid for waiting threads  */
+		struct ha_spinlock_state st[MAX_TGROUPS];
 		struct {
 			const char *function;
 			const char *file;
@@ -138,12 +151,7 @@ struct ha_spinlock {
 struct ha_rwlock {
 	__HA_RWLOCK_T lock;
 	struct {
-		unsigned long cur_writer; /* a bit is set to 1 << tid for the lock owner */
-		unsigned long wait_writers; /* a bit is set to 1 << tid for waiting writers */
-		unsigned long cur_readers; /* a bit is set to 1 << tid for current readers */
-		unsigned long wait_readers; /* a bit is set to 1 << tid for waiting waiters */
-		unsigned long cur_seeker;   /* a bit is set to 1 << tid for the lock seekers */
-		unsigned long wait_seekers; /* a bit is set to 1 << tid for waiting seekers */
+		struct ha_rwlock_state st[MAX_TGROUPS];
 		struct {
 			const char *function;
 			const char *file;
