@@ -1808,8 +1808,8 @@ static int bind_parse_thread(char **args, int cur_arg, struct proxy *px, struct 
 		memprintf(err, "'%s' multiple thread-groups are not supported", args[cur_arg + 1]);
 		return ERR_ALERT | ERR_FATAL;
 	}
-	
-	if (parse_process_number(sep, &thread, MAX_THREADS, NULL, err)) {
+
+	if (parse_process_number(sep, &thread, LONGBITS, NULL, err)) {
 		memprintf(err, "'%s' : %s", sep, *err);
 		return ERR_ALERT | ERR_FATAL;
 	}
