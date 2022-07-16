@@ -81,6 +81,9 @@
 #   DESTDIR is not set by default and is used for installation only.
 #           It might be useful to set DESTDIR if you want to install haproxy
 #           in a sandbox.
+#   INSTALL is set to "install" by default and is used to provide the name of
+#           the install binary used by the install targets and any additional
+#           flags.
 #   PREFIX  is set to "/usr/local" by default and is used for installation only.
 #   SBINDIR is set to "$(PREFIX)/sbin" by default and is used for installation
 #           only.
@@ -170,6 +173,7 @@ cc-nowarn = $(if $(cc-anywno),-Wno-$(1),$(shell set -e; if $(CC) -Werror -W$(1) 
 
 #### Installation options.
 DESTDIR =
+INSTALL = install
 PREFIX = /usr/local
 SBINDIR = $(PREFIX)/sbin
 MANDIR = $(PREFIX)/share/man
@@ -378,6 +382,7 @@ ifeq ($(TARGET),linux-glibc)
     USE_CPU_AFFINITY USE_THREAD USE_EPOLL USE_LINUX_TPROXY                    \
     USE_ACCEPT4 USE_LINUX_SPLICE USE_PRCTL USE_THREAD_DUMP USE_NS USE_TFO     \
     USE_GETADDRINFO USE_BACKTRACE)
+  INSTALL = install -v
 endif
 
 # For linux >= 2.6.28, glibc without new features
@@ -386,6 +391,7 @@ ifeq ($(TARGET),linux-glibc-legacy)
     USE_POLL USE_TPROXY USE_LIBCRYPT USE_DL USE_RT USE_CRYPT_H USE_NETFILTER  \
     USE_CPU_AFFINITY USE_THREAD USE_EPOLL USE_LINUX_TPROXY                    \
     USE_ACCEPT4 USE_LINUX_SPLICE USE_PRCTL USE_THREAD_DUMP USE_GETADDRINFO)
+  INSTALL = install -v
 endif
 
 # For linux >= 2.6.28 and musl
@@ -395,6 +401,7 @@ ifeq ($(TARGET),linux-musl)
     USE_CPU_AFFINITY USE_THREAD USE_EPOLL USE_LINUX_TPROXY                    \
     USE_ACCEPT4 USE_LINUX_SPLICE USE_PRCTL USE_THREAD_DUMP USE_NS USE_TFO     \
     USE_GETADDRINFO)
+  INSTALL = install -v
 endif
 
 # Solaris 10 and above
@@ -1043,16 +1050,16 @@ src/haproxy.o:	src/haproxy.c $(DEP)
 	       -c -o $@ $<
 
 install-man:
-	$(Q)install -v -d "$(DESTDIR)$(MANDIR)"/man1
-	$(Q)install -v -m 644 doc/haproxy.1 "$(DESTDIR)$(MANDIR)"/man1
+	$(Q)$(INSTALL) -d "$(DESTDIR)$(MANDIR)"/man1
+	$(Q)$(INSTALL) -m 644 doc/haproxy.1 "$(DESTDIR)$(MANDIR)"/man1
 
 EXCLUDE_DOCUMENTATION = lgpl gpl coding-style
 DOCUMENTATION = $(filter-out $(EXCLUDE_DOCUMENTATION),$(patsubst doc/%.txt,%,$(wildcard doc/*.txt)))
 
 install-doc:
-	$(Q)install -v -d "$(DESTDIR)$(DOCDIR)"
+	$(Q)$(INSTALL) -d "$(DESTDIR)$(DOCDIR)"
 	$(Q)for x in $(DOCUMENTATION); do \
-		install -v -m 644 doc/$$x.txt "$(DESTDIR)$(DOCDIR)" ; \
+		$(INSTALL) -m 644 doc/$$x.txt "$(DESTDIR)$(DOCDIR)" ; \
 	done
 
 install-bin:
@@ -1062,8 +1069,8 @@ install-bin:
 			exit 1; \
 		fi; \
 	done
-	$(Q)install -v -d "$(DESTDIR)$(SBINDIR)"
-	$(Q)install -v haproxy $(EXTRA) "$(DESTDIR)$(SBINDIR)"
+	$(Q)$(INSTALL) -d "$(DESTDIR)$(SBINDIR)"
+	$(Q)$(INSTALL) haproxy $(EXTRA) "$(DESTDIR)$(SBINDIR)"
 
 install: install-bin install-man install-doc
 
