@@ -1,6 +1,184 @@
 ChangeLog :
 ===========
 
+2022/07/16 : 2.7-dev2
+    - BUG/MINOR: qpack: fix build with QPACK_DEBUG
+    - MINOR: h3: handle errors on HEADERS parsing/QPACK decoding
+    - BUG/MINOR: qpack: abort on dynamic index field line decoding
+    - MINOR: qpack: properly handle invalid dynamic table references
+    - MINOR: task: Add tasklet_wakeup_after()
+    - BUG/MINOR: quic: Dropped packets not counted (with RX buffers full)
+    - MINOR: quic: Add new stats counter to diagnose RX buffer overrun
+    - MINOR: quic: Duplicated QUIC_RX_BUFSZ definition
+    - MINOR: quic: Improvements for the datagrams receipt
+    - CLEANUP: h2: Typo fix in h2_unsubcribe() traces
+    - MINOR: quic: Increase the QUIC connections RX buffer size (upto 64Kb)
+    - CLEANUP: mux-quic: adjust comment on qcs_consume()
+    - MINOR: ncbuf: implement ncb_is_fragmented()
+    - BUG/MINOR: mux-quic: do not signal FIN if gap in buffer
+    - MINOR: fd: add a new FD_DISOWN flag to prevent from closing a deleted FD
+    - BUG/MEDIUM: ssl/fd: unexpected fd close using async engine
+    - MINOR: tinfo: make tid temporarily still reflect global ID
+    - CLEANUP: config: remove unused proc_mask()
+    - MINOR: debug: remove mask support from "debug dev sched"
+    - MEDIUM: task: add and preset a thread ID in the task struct
+    - MEDIUM: task/debug: move the ->thread_mask integrity checks to ->tid
+    - MAJOR: task: use t->tid instead of ffsl(t->thread_mask) to take the thread ID
+    - MAJOR: task: replace t->thread_mask with 1<<t->tid when thread mask is needed
+    - CLEANUP: task: remove thread_mask from the struct task
+    - MEDIUM: applet: only keep appctx_new_*() and drop appctx_new()
+    - MEDIUM: task: only keep task_new_*() and drop task_new()
+    - MINOR: applet: always use task_new_on() on applet creation
+    - MEDIUM: task: remove TASK_SHARED_WQ and only use t->tid
+    - MINOR: task: replace task_set_affinity() with task_set_thread()
+    - CLEANUP: task: remove the unused task_unlink_rq()
+    - CLEANUP: task: remove the now unused TASK_GLOBAL flag
+    - MINOR: task: make rqueue_ticks atomic
+    - MEDIUM: task: move the shared runqueue to one per thread
+    - MEDIUM: task: replace the global rq_lock with a per-rq one
+    - MINOR: task: remove grq_total and use rq_total instead
+    - MINOR: task: replace global_tasks_mask with a check for tree's emptiness
+    - MEDIUM: task: use regular eb32 trees for the run queues
+    - MEDIUM: queue: revert to regular inter-task wakeups
+    - MINOR: thread: make wake_thread() take care of the sleeping threads mask
+    - MINOR: thread: move the flags to the shared cache line
+    - MINOR: thread: only use atomic ops to touch the flags
+    - MINOR: poller: centralize poll return handling
+    - MEDIUM: polling: make update_fd_polling() not care about sleeping threads
+    - MINOR: poller: update_fd_polling: wake a random other thread
+    - MEDIUM: thread: add a new per-thread flag TH_FL_NOTIFIED to remember wakeups
+    - MEDIUM: tasks/fd: replace sleeping_thread_mask with a TH_FL_SLEEPING flag
+    - MINOR: tinfo: add the tgid to the thread_info struct
+    - MINOR: tinfo: replace the tgid with tgid_bit in tgroup_info
+    - MINOR: tinfo: add the mask of enabled threads in each group
+    - MINOR: debug: use ltid_bit in ha_thread_dump()
+    - MINOR: wdt: use ltid_bit in wdt_handler()
+    - MINOR: clock: use ltid_bit in clock_report_idle()
+    - MINOR: thread: use ltid_bit in ha_tkillall()
+    - MINOR: thread: add a new all_tgroups_mask variable to know about active tgroups
+    - CLEANUP: thread: remove thread_sync_release() and thread_sync_mask
+    - MEDIUM: tinfo: add a dynamic thread-group context
+    - MEDIUM: thread: make stopping_threads per-group and add stopping_tgroups
+    - MAJOR: threads: change thread_isolate to support inter-group synchronization
+    - MINOR: thread: add is_thread_harmless() to know if a thread already is harmless
+    - MINOR: debug: mark oneself harmless while waiting for threads to finish
+    - MINOR: wdt: do not rely on threads_to_dump anymore
+    - MEDIUM: debug: make the thread dumper not rely on a thread mask anymore
+    - BUILD: debug: fix build issue on clang with previous commit
+    - BUILD: debug: re-export thread_dump_state
+    - BUG/MEDIUM: threads: fix incorrect thread group being used on soft-stop
+    - BUG/MEDIUM: thread: check stopping thread against local bit and not global one
+    - MINOR: proxy: use tg->threads_enabled in hard_stop() to detect stopped threads
+    - BUILD: Makefile: Add Lua 5.4 autodetect
+    - CI: re-enable gcc asan builds
+    - MEDIUM: mworker: set the iocb of the socketpair without using fd_insert()
+    - MINOR: fd: Add BUG_ON checks on fd_insert()
+    - CLEANUP: mworker: rename mworker_pipe to mworker_sockpair
+    - CLEANUP: mux-quic: do not export qc_get_ncbuf
+    - REORG: mux-quic: reorganize flow-control fields
+    - MINOR: mux-quic: implement accessor for sedesc
+    - MEDIUM: mux-quic: refactor streams opening
+    - MINOR: mux-quic: rename qcs flag FIN_RECV to SIZE_KNOWN
+    - MINOR: mux-quic: emit FINAL_SIZE_ERROR on invalid STREAM size
+    - BUG/MINOR: peers/config: always fill the bind_conf's argument
+    - BUG/MEDIUM: peers/config: properly set the thread mask
+    - CLEANUP: bwlim: Set pointers to NULL when memory is released
+    - BUG/MINOR: http-check: Preserve headers if not redefined by an implicit rule
+    - BUG/MINOR: http-act: Properly generate 103 responses when several rules are used
+    - BUG/MEDIUM: thread: mask stopping_threads with threads_enabled when checking it
+    - CLEANUP: thread: also remove a thread's bit from stopping_threads on stop
+    - BUG/MINOR: peers: fix possible NULL dereferences at config parsing
+    - BUG/MINOR: http-htx: Fix scheme based normalization for URIs wih userinfo
+    - MINOR: http: Add function to get port part of a host
+    - MINOR: http: Add function to detect default port
+    - BUG/MEDIUM: h1: Improve authority validation for CONNCET request
+    - MINOR: http-htx: Use new HTTP functions for the scheme based normalization
+    - BUG/MEDIUM: http-fetch: Don't fetch the method if there is no stream
+    - REGTEESTS: filters: Fix CONNECT request in random-forwarding script
+    - MEDIUM: mworker/systemd: send STATUS over sd_notify
+    - BUG/MINOR: mux-h1: Be sure to commit htx changes in the demux buffer
+    - BUG/MEDIUM: http-ana: Don't wait to have an empty buf to switch in TUNNEL state
+    - BUG/MEDIUM: mux-h1: Handle connection error after a synchronous send
+    - MEDIUM: epoll: don't synchronously delete migrated FDs
+    - BUILD: debug: silence warning on gcc-5
+    - BUILD: http: silence an uninitialized warning affecting gcc-5
+    - BUG/MEDIUM: mux-quic: fix server chunked encoding response
+    - REORG: mux-quic: rename stream initialization function
+    - MINOR: mux-quic: rename stream purge function
+    - MINOR: mux-quic: add traces on frame parsing functions
+    - MINOR: mux-quic: implement qcs_alert()
+    - MINOR: mux-quic: filter send/receive-only streams on frame parsing
+    - MINOR: mux-quic: do not ack STREAM frames on unrecoverable error
+    - MINOR: mux-quic: support stream opening via MAX_STREAM_DATA
+    - MINOR: mux-quic: define basic stream states
+    - MINOR: mux-quic: use stream states to mark as detached
+    - MEDIUM: mux-quic: implement RESET_STREAM emission
+    - MEDIUM: mux-quic: implement STOP_SENDING handling
+    - BUG/MEDIUM: debug: fix possible hang when multiple threads dump at once
+    - BUG/MINOR: quic: fix closing state on NO_ERROR code sent
+    - CLEANUP: quic: clean up include on quic_frame-t.h
+    - MINOR: quic: define a generic QUIC error type
+    - MINOR: mux-quic: support app graceful shutdown
+    - MINOR: mux-quic/h3: prepare CONNECTION_CLOSE on release
+    - MEDIUM: quic: send CONNECTION_CLOSE on released MUX
+    - CLEANUP: mux-quic: move qc_release()
+    - MINOR: mux-quic: send one last time before release
+    - MINOR: h3: store control stream in h3c
+    - MINOR: h3: implement graceful shutdown with GOAWAY
+    - BUG/MINOR: threads: produce correct global mask for tgroup > 1
+    - BUG/MEDIUM: cli/threads: make "show threads" more robust on applets
+    - BUG/MINOR: thread: use the correct thread's group in ha_tkillall()
+    - BUG/MINOR: debug: enter ha_panic() only once
+    - BUG/MEDIUM: debug: fix parallel thread dumps again
+    - MINOR: cli/streams: show a stream's tgid next to its thread ID
+    - DEBUG: cli: add a new "debug dev deadlock" expert command
+    - MINOR: cli/activity: add a thread number argument to "show activity"
+    - CLEANUP: applet: remove the obsolete command context from the appctx
+    - MEDIUM: config: remove deprecated "bind-process" directives from frontends
+    - MEDIUM: config: remove the "process" keyword on "bind" lines
+    - MINOR: listener/config: make "thread" always support up to LONGBITS
+    - CLEANUP: fd: get rid of the __GET_{NEXT,PREV} macros
+    - MEDIUM: debug/threads: make the lock debugging take tgroups into account
+    - MEDIUM: proto: stop protocols under thread isolation during soft stop
+    - MEDIUM: poller: program the update in fd_update_events() for a migrated FD
+    - MEDIUM: poller: disable thread-groups for poll() and select()
+    - MINOR: thread: remove MAX_THREADS limitation
+    - MEDIUM: cpu-map: replace the process number with the thread group number
+    - MINOR: mworker/threads: limit the mworker sockets to group 1
+    - MINOR: cli/threads: always bind CLI to thread group 1
+    - MINOR: fd/thread: get rid of thread_mask()
+    - MEDIUM: task/thread: move the task shared wait queues per thread group
+    - MINOR: task: move the niced_tasks counter to the thread group context
+    - DOC: design: add some thoughts about how to handle the update_list
+    - MEDIUM: conn: make conn_backend_get always scan the same group
+    - MAJOR: fd: remove pending updates upon real close
+    - MEDIUM: fd/poller: make the update-list per-group
+    - MINOR: fd: delete unused updates on close()
+    - MINOR: fd: make fd_insert() apply the thread mask itself
+    - MEDIUM: fd: add the tgid to the fd and pass it to fd_insert()
+    - MINOR: cli/fd: show fd's tgid and refcount in "show fd"
+    - MINOR: fd: add functions to manipulate the FD's tgid
+    - MINOR: fd: add fd_get_running() to atomically return the running mask
+    - MAJOR: fd: grab the tgid before manipulating running
+    - MEDIUM: fd/poller: turn polled_mask to group-local IDs
+    - MEDIUM: fd/poller: turn update_mask to group-local IDs
+    - MEDIUM: fd/poller: turn running_mask to group-local IDs
+    - MINOR: fd: make fd_clr_running() return the previous value instead
+    - MEDIUM: fd: make thread_mask now represent group-local IDs
+    - MEDIUM: fd: make fd_insert() take local thread masks
+    - MEDIUM: fd: make fd_insert/fd_delete atomically update fd.tgid
+    - MEDIUM: fd: quit fd_update_events() when FD is closed
+    - MEDIUM: thread: change thread_resolve_group_mask() to return group-local values
+    - MEDIUM: listener: switch bind_thread from global to group-local
+    - MINOR: fd: add fd_reregister_all() to deal with boot-time FDs
+    - MEDIUM: fd: support stopping FDs during starting
+    - MAJOR: pollers: rely on fd_reregister_all() at boot time
+    - MAJOR: poller: only touch/inspect the update_mask under tgid protection
+    - MEDIUM: fd: support broadcasting updates for foreign groups in updt_fd_polling
+    - CLEANUP: threads: remove the now unused all_threads_mask and tid_bit
+    - MINOR: config: change default MAX_TGROUPS to 16
+    - BUG/MEDIUM: tools: avoid calling dlsym() in static builds
+
 2022/06/24 : 2.7-dev1
     - BUG/MINOR: ssl_ckch: Free error msg if commit changes on a cert entry fails
     - BUG/MINOR: ssl_ckch: Free error msg if commit changes on a CA/CRL entry fails
