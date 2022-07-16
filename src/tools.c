@@ -4920,6 +4920,23 @@ static int dladdr_and_size(const void *addr, Dl_info *dli, size_t *size)
 	return ret;
 }
 
+/* dlopen() support: 0=no/not yet checked, 1=ok */
+static int dlopen_usable = 0;
+
+/* Sets dlopen_usable to true if dlopen() works and is usable. We verify if
+ * we're in a static build because some old glibcs used to crash in dlsym()
+ * in this case.
+ */
+void check_if_dlopen_usable()
+{
+	/* dlopen(NULL) returns a handle to the main program or NULL
+	 * on static builds.
+	 */
+	dlopen_usable = dlopen(NULL, RTLD_LAZY) ? 1 : 0;
+}
+
+INITCALL0(STG_PREPARE, check_if_dlopen_usable);
+
 /* Tries to retrieve the address of the first occurrence symbol <name>.
  * Note that NULL in return is not always an error as a symbol may have that
  * address in special situations.
@@ -4929,7 +4946,8 @@ void *get_sym_curr_addr(const char *name)
 	void *ptr = NULL;
 
 #ifdef RTLD_DEFAULT
-	ptr = dlsym(RTLD_DEFAULT, name);
+	if (dlopen_usable)
+		ptr = dlsym(RTLD_DEFAULT, name);
 #endif
 	return ptr;
 }
@@ -4944,7 +4962,8 @@ void *get_sym_next_addr(const char *name)
 	void *ptr = NULL;
 
 #ifdef RTLD_NEXT
-	ptr = dlsym(RTLD_NEXT, name);
+	if (dlopen_usable)
+		ptr = dlsym(RTLD_NEXT, name);
 #endif
 	return ptr;
 }
