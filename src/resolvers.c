@@ -3671,13 +3671,31 @@ int resolvers_create_default()
 {
 	int err_code = 0;
 
+	/* if the section already exists, do nothing */
 	if (find_resolvers_by_id("default"))
 		return 0;
 
+	curr_resolvers = NULL;
 	err_code |= resolvers_new(&curr_resolvers, "default", "<internal>", 0);
-	if (!(err_code & ERR_CODE))
-		err_code |= parse_resolve_conf(NULL, NULL);
+	if (err_code & ERR_CODE)
+		goto err;
+	err_code |= parse_resolve_conf(NULL, NULL);
+	if (err_code & ERR_CODE)
+		goto err;
+	/* check if there was any nameserver in the resolvconf file */
+	if (LIST_ISEMPTY(&curr_resolvers->nameservers)) {
+		err_code |= ERR_FATAL;
+		goto err;
+	}
 
+err:
+	if (err_code & ERR_CODE) {
+		resolvers_destroy(curr_resolvers);
+		curr_resolvers = NULL;
+	}
+
+	/* we never return an error there, we only try to create this section
+	 * if that's possible */
 	return 0;
 }
 
