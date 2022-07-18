@@ -2403,64 +2403,72 @@ static struct task *process_resolvers(struct task *t, void *context, unsigned in
 	return t;
 }
 
+
+/* destroy a resolvers */
+static void resolvers_destroy(struct resolvers *resolvers)
+{
+	struct dns_nameserver *ns, *nsback;
+	struct resolv_resolution *res, *resback;
+	struct resolv_requester  *req, *reqback;
+
+	list_for_each_entry_safe(ns, nsback, &resolvers->nameservers, list) {
+		free(ns->id);
+		free((char *)ns->conf.file);
+		if (ns->dgram) {
+			if (ns->dgram->conn.t.sock.fd != -1) {
+				fd_delete(ns->dgram->conn.t.sock.fd);
+				close(ns->dgram->conn.t.sock.fd);
+			}
+			if (ns->dgram->ring_req)
+				ring_free(ns->dgram->ring_req);
+			free(ns->dgram);
+		}
+		if (ns->stream) {
+			if (ns->stream->ring_req)
+				ring_free(ns->stream->ring_req);
+			if (ns->stream->task_req)
+				task_destroy(ns->stream->task_req);
+			if (ns->stream->task_rsp)
+				task_destroy(ns->stream->task_rsp);
+			free(ns->stream);
+		}
+		LIST_DEL_INIT(&ns->list);
+		EXTRA_COUNTERS_FREE(ns->extra_counters);
+		free(ns);
+	}
+
+	list_for_each_entry_safe(res, resback, &resolvers->resolutions.curr, list) {
+		list_for_each_entry_safe(req, reqback, &res->requesters, list) {
+			LIST_DEL_INIT(&req->list);
+			pool_free(resolv_requester_pool, req);
+		}
+		resolv_free_resolution(res);
+	}
+
+	list_for_each_entry_safe(res, resback, &resolvers->resolutions.wait, list) {
+		list_for_each_entry_safe(req, reqback, &res->requesters, list) {
+			LIST_DEL_INIT(&req->list);
+			pool_free(resolv_requester_pool, req);
+		}
+		resolv_free_resolution(res);
+	}
+
+	free_proxy(resolvers->px);
+	free(resolvers->id);
+	free((char *)resolvers->conf.file);
+	task_destroy(resolvers->t);
+	LIST_DEL_INIT(&resolvers->list);
+	free(resolvers);
+}
+
 /* Release memory allocated by DNS */
 static void resolvers_deinit(void)
 {
 	struct resolvers  *resolvers, *resolversback;
-	struct dns_nameserver *ns, *nsback;
-	struct resolv_resolution *res, *resback;
-	struct resolv_requester  *req, *reqback;
 	struct resolv_srvrq    *srvrq, *srvrqback;
 
 	list_for_each_entry_safe(resolvers, resolversback, &sec_resolvers, list) {
-		list_for_each_entry_safe(ns, nsback, &resolvers->nameservers, list) {
-			free(ns->id);
-			free((char *)ns->conf.file);
-			if (ns->dgram) {
-				if (ns->dgram->conn.t.sock.fd != -1) {
-					fd_delete(ns->dgram->conn.t.sock.fd);
-					close(ns->dgram->conn.t.sock.fd);
-				}
-				if (ns->dgram->ring_req)
-					ring_free(ns->dgram->ring_req);
-				free(ns->dgram);
-			}
-			if (ns->stream) {
-				if (ns->stream->ring_req)
-					ring_free(ns->stream->ring_req);
-				if (ns->stream->task_req)
-					task_destroy(ns->stream->task_req);
-				if (ns->stream->task_rsp)
-					task_destroy(ns->stream->task_rsp);
-				free(ns->stream);
-			}
-			LIST_DEL_INIT(&ns->list);
-			EXTRA_COUNTERS_FREE(ns->extra_counters);
-			free(ns);
-		}
-
-		list_for_each_entry_safe(res, resback, &resolvers->resolutions.curr, list) {
-			list_for_each_entry_safe(req, reqback, &res->requesters, list) {
-				LIST_DEL_INIT(&req->list);
-				pool_free(resolv_requester_pool, req);
-			}
-			resolv_free_resolution(res);
-		}
-
-		list_for_each_entry_safe(res, resback, &resolvers->resolutions.wait, list) {
-			list_for_each_entry_safe(req, reqback, &res->requesters, list) {
-				LIST_DEL_INIT(&req->list);
-				pool_free(resolv_requester_pool, req);
-			}
-			resolv_free_resolution(res);
-		}
-
-		free_proxy(resolvers->px);
-		free(resolvers->id);
-		free((char *)resolvers->conf.file);
-		task_destroy(resolvers->t);
-		LIST_DEL_INIT(&resolvers->list);
-		free(resolvers);
+		resolvers_destroy(resolvers);
 	}
 
 	list_for_each_entry_safe(srvrq, srvrqback, &resolv_srvrq_list, list) {
