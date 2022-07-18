@@ -1201,6 +1201,8 @@ int ssl_store_load_locations_file(char *path, int create_if_none, enum cafile_ty
 				BIO *in = NULL;
 				X509 *ca = NULL;;
 
+				ERR_clear_error();
+
 				/* we try to load the files that would have
 				 * been loaded in an hashed directory loaded by
 				 * X509_LOOKUP_hash_dir, so according to "man 1
@@ -1229,8 +1231,12 @@ int ssl_store_load_locations_file(char *path, int create_if_none, enum cafile_ty
 				if (PEM_read_bio_X509_AUX(in, &ca, NULL, NULL) == NULL)
 					goto scandir_err;
 
-				if (X509_STORE_add_cert(store, ca) == 0)
-					goto scandir_err;
+				if (X509_STORE_add_cert(store, ca) == 0) {
+					/* only exits on error if the error is not about duplicate certificates */
+					 if (!(ERR_GET_REASON(ERR_get_error()) == X509_R_CERT_ALREADY_IN_HASH_TABLE)) {
+						 goto scandir_err;
+					 }
+				}
 
 				X509_free(ca);
 				BIO_free(in);
