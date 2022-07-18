@@ -70,6 +70,7 @@ extern int strlcpy2(char *dst, const char *src, int size);
  */
 extern THREAD_LOCAL int itoa_idx; /* index of next itoa_str to use */
 extern THREAD_LOCAL char itoa_str[][171];
+extern int build_is_static;
 extern char *ultoa_r(unsigned long n, char *buffer, int size);
 extern char *lltoa_r(long long int n, char *buffer, int size);
 extern char *sltoa_r(long n, char *buffer, int size);

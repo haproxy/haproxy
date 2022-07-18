@@ -98,6 +98,9 @@ THREAD_LOCAL int quoted_idx = 0;
  */
 THREAD_LOCAL unsigned int statistical_prng_state = 2463534242U;
 
+/* set to true if this is a static build */
+int build_is_static = 0;
+
 /*
  * unsigned long long ASCII representation
  *
@@ -4920,22 +4923,25 @@ static int dladdr_and_size(const void *addr, Dl_info *dli, size_t *size)
 	return ret;
 }
 
-/* dlopen() support: 0=no/not yet checked, 1=ok */
-static int dlopen_usable = 0;
-
-/* Sets dlopen_usable to true if dlopen() works and is usable. We verify if
- * we're in a static build because some old glibcs used to crash in dlsym()
- * in this case.
+/* Sets build_is_static to true if we detect a static build. Some older glibcs
+ * tend to crash inside dlsym() in static builds, but tests show that at least
+ * dladdr() still works (and will fail to resolve anything of course). Thus we
+ * try to determine if we're on a static build to avoid calling dlsym() in this
+ * case.
  */
-void check_if_dlopen_usable()
+void check_if_static_build()
 {
-	/* dlopen(NULL) returns a handle to the main program or NULL
-	 * on static builds.
-	 */
-	dlopen_usable = dlopen(NULL, RTLD_LAZY) ? 1 : 0;
+	Dl_info dli = { };
+	size_t size = 0;
+
+	/* Now let's try to be smarter */
+	if (!dladdr_and_size(&main, &dli, &size))
+		build_is_static = 1;
+	else
+		build_is_static = 0;
 }
 
-INITCALL0(STG_PREPARE, check_if_dlopen_usable);
+INITCALL0(STG_PREPARE, check_if_static_build);
 
 /* Tries to retrieve the address of the first occurrence symbol <name>.
  * Note that NULL in return is not always an error as a symbol may have that
@@ -4946,7 +4952,7 @@ void *get_sym_curr_addr(const char *name)
 	void *ptr = NULL;
 
 #ifdef RTLD_DEFAULT
-	if (dlopen_usable)
+	if (!build_is_static)
 		ptr = dlsym(RTLD_DEFAULT, name);
 #endif
 	return ptr;
@@ -4962,7 +4968,7 @@ void *get_sym_next_addr(const char *name)
 	void *ptr = NULL;
 
 #ifdef RTLD_NEXT
-	if (dlopen_usable)
+	if (!build_is_static)
 		ptr = dlsym(RTLD_NEXT, name);
 #endif
 	return ptr;
