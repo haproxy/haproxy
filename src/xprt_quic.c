@@ -6032,6 +6032,49 @@ static inline int qc_build_frms(struct list *outlist, struct list *inlist,
 	return ret;
 }
 
+/* Generate a CONNECTION_CLOSE frame for <qc> on <qel> encryption level. <out>
+ * is used as return parameter and should be zero'ed by the caller.
+ */
+static void qc_build_cc_frm(struct quic_conn *qc, struct quic_enc_level *qel,
+                            struct quic_frame *out)
+{
+	/* TODO improve CONNECTION_CLOSE on Initial/Handshake encryption levels
+	 *
+	 * A CONNECTION_CLOSE frame should be sent in several packets with
+	 * different encryption levels depending on the client context. This is
+	 * to ensure that the client can decrypt it. See RFC 9000 10.2.3 for
+	 * more details on how to implement it.
+	 */
+
+	if (qc->err.app) {
+		if (unlikely(qel == &qc->els[QUIC_TLS_ENC_LEVEL_INITIAL] ||
+		             qel == &qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE])) {
+			/* RFC 9000 10.2.3.  Immediate Close during the Handshake
+			 *
+			 * Sending a CONNECTION_CLOSE of type 0x1d in an Initial or Handshake
+			 * packet could expose application state or be used to alter application
+			 * state.  A CONNECTION_CLOSE of type 0x1d MUST be replaced by a
+			 * CONNECTION_CLOSE of type 0x1c when sending the frame in Initial or
+			 * Handshake packets.  Otherwise, information about the application
+			 * state might be revealed.  Endpoints MUST clear the value of the
+			 * Reason Phrase field and SHOULD use the APPLICATION_ERROR code when
+			 * converting to a CONNECTION_CLOSE of type 0x1c.
+			 */
+			out->type = QUIC_FT_CONNECTION_CLOSE;
+			out->connection_close.error_code = QC_ERR_APPLICATION_ERROR;
+			out->connection_close.reason_phrase_len = 0;
+		}
+		else {
+			out->type = QUIC_FT_CONNECTION_CLOSE_APP;
+			out->connection_close.error_code = qc->err.code;
+		}
+	}
+	else {
+		out->type = QUIC_FT_CONNECTION_CLOSE;
+		out->connection_close.error_code = qc->err.code;
+	}
+}
+
 /* This function builds a clear packet from <pkt> information (its type)
  * into a buffer with <pos> as position pointer and <qel> as QUIC TLS encryption
  * level for <conn> QUIC connection and <qel> as QUIC TLS encryption level,
@@ -6162,10 +6205,7 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 		len += QUIC_TLS_TAG_LEN;
 	/* CONNECTION_CLOSE frame */
 	if (cc) {
-		cc_frm.type = qc->err.app ?
-		  QUIC_FT_CONNECTION_CLOSE_APP : QUIC_FT_CONNECTION_CLOSE;
-
-		cc_frm.connection_close.error_code = qc->err.code;
+		qc_build_cc_frm(qc, qel, &cc_frm);
 		len += qc_frm_len(&cc_frm);
 	}
 	add_ping_frm = 0;
