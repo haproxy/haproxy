@@ -1063,7 +1063,7 @@ static inline unsigned int statistical_prng()
  */
 static inline uint statistical_prng_range(uint range)
 {
-	return mul32hi(statistical_prng(), range);
+	return mul32hi(statistical_prng(), range ? range - 1 : 0);
 }
 
 /* Update array <fp> with the character transition <prev> to <curr>. If <prev>
