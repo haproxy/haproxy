@@ -57,8 +57,9 @@ static void __fd_clo(int fd)
 		 * wrong thread or during startup, which is what we're checking
 		 * for. Regardless, it is not a problem to do so.
 		 */
-		if (unlikely(!(global.mode & MODE_STARTING)))
+		if (unlikely(!(global.mode & MODE_STARTING))) {
 			CHECK_IF(tgid != tgrp && !thread_isolated());
+		}
 
 		for (i = ha_tgroup_info[tgrp-1].base; i < ha_tgroup_info[tgrp-1].base + ha_tgroup_info[tgrp-1].count; i++)
 			if (m & ha_thread_info[i].ltid_bit)
