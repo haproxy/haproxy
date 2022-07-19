@@ -1122,6 +1122,7 @@ The following keywords are supported in the "global" section :
    - tune.maxpollevents
    - tune.maxrewrite
    - tune.pattern.cache-size
+   - tune.peers.max-updates-at-once
    - tune.pipesize
    - tune.pool-high-fd-ratio
    - tune.pool-low-fd-ratio
@@ -2930,6 +2931,15 @@ tune.pattern.cache-size <number>
   This is considered much lower than the risk of a memory corruption caused by
   aging components. If this is not acceptable, the cache can be disabled by
   setting this parameter to 0.
+
+tune.peers.max-updates-at-once <number>
+  Sets the maximum number of stick-table updates that haproxy will try to
+  process at once when sending messages. Retrieving the data for these updates
+  requires some locking operations which can be CPU intensive on highly
+  threaded machines if unbound, and may also increase the traffic latency
+  during the initial batched transfer between an older and a newer process.
+  Conversely low values may also incur higher CPU overhead, and take longer
+  to complete. The default value is 200 and it is suggested not to change it.
 
 tune.pipesize <number>
   Sets the kernel pipe buffer size to this size (in bytes). By default, pipes
