@@ -446,7 +446,7 @@ static inline void fd_insert(int fd, void *owner, void (*iocb)(int fd), int tgid
 
 	fdtab[fd].owner = owner;
 	fdtab[fd].iocb = iocb;
-	fdtab[fd].state = 0;
+	fdtab[fd].state = newstate;
 	fdtab[fd].thread_mask = thread_mask;
 	fd_drop_tgid(fd);
 
