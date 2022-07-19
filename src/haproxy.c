@@ -2222,8 +2222,10 @@ static void init(int argc, char **argv)
 		cfg_run_diagnostics();
 	}
 
-	/* Initialize the random generators */
 #ifdef USE_OPENSSL
+	/* Initialize the error strings of OpenSSL */
+	SSL_load_error_strings();
+
 	/* Initialize SSL random generator. Must be called before chroot for
 	 * access to /dev/urandom, and before ha_random_boot() which may use
 	 * RAND_bytes().
