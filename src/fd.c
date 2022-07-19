@@ -486,7 +486,7 @@ void updt_fd_polling(const int fd)
 
 		fd_add_to_fd_list(&update_list[tgrp - 1], fd);
 
-		thr = one_among_mask(fdtab[fd].thread_mask & tg->threads_enabled, statistical_prng_range(MAX_THREADS));
+		thr = one_among_mask(fdtab[fd].thread_mask & tg->threads_enabled, statistical_prng_range(tg->count));
 		thr += ha_tgroup_info[tgrp - 1].base;
 		wake_thread(thr);
 
