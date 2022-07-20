@@ -512,7 +512,8 @@ static void sc_app_shutr(struct stconn *sc)
 
 	if (sc_oc(sc)->flags & CF_SHUTW) {
 		sc->state = SC_ST_DIS;
-		__sc_strm(sc)->conn_exp = TICK_ETERNITY;
+		if (sc->flags & SC_FL_ISBACK)
+			__sc_strm(sc)->conn_exp = TICK_ETERNITY;
 	}
 	else if (sc->flags & SC_FL_NOHALF) {
 		/* we want to immediately forward this close to the write side */
@@ -572,7 +573,8 @@ static void sc_app_shutw(struct stconn *sc)
 		sc->flags &= ~SC_FL_NOLINGER;
 		ic->flags |= CF_SHUTR;
 		ic->rex = TICK_ETERNITY;
-		__sc_strm(sc)->conn_exp = TICK_ETERNITY;
+		if (sc->flags & SC_FL_ISBACK)
+			__sc_strm(sc)->conn_exp = TICK_ETERNITY;
 	}
 
 	/* note that if the task exists, it must unregister itself once it runs */
@@ -654,7 +656,8 @@ static void sc_app_shutr_conn(struct stconn *sc)
 	if (sc_oc(sc)->flags & CF_SHUTW) {
 		sc_conn_shut(sc);
 		sc->state = SC_ST_DIS;
-		__sc_strm(sc)->conn_exp = TICK_ETERNITY;
+		if (sc->flags & SC_FL_ISBACK)
+			__sc_strm(sc)->conn_exp = TICK_ETERNITY;
 	}
 	else if (sc->flags & SC_FL_NOHALF) {
 		/* we want to immediately forward this close to the write side */
@@ -738,7 +741,8 @@ static void sc_app_shutw_conn(struct stconn *sc)
 		sc->flags &= ~SC_FL_NOLINGER;
 		ic->flags |= CF_SHUTR;
 		ic->rex = TICK_ETERNITY;
-		__sc_strm(sc)->conn_exp = TICK_ETERNITY;
+		if (sc->flags & SC_FL_ISBACK)
+			__sc_strm(sc)->conn_exp = TICK_ETERNITY;
 	}
 }
 
@@ -880,7 +884,8 @@ static void sc_app_shutr_applet(struct stconn *sc)
 	if (sc_oc(sc)->flags & CF_SHUTW) {
 		appctx_shut(__sc_appctx(sc));
 		sc->state = SC_ST_DIS;
-		__sc_strm(sc)->conn_exp = TICK_ETERNITY;
+		if (sc->flags & SC_FL_ISBACK)
+			__sc_strm(sc)->conn_exp = TICK_ETERNITY;
 	}
 	else if (sc->flags & SC_FL_NOHALF) {
 		/* we want to immediately forward this close to the write side */
@@ -942,7 +947,8 @@ static void sc_app_shutw_applet(struct stconn *sc)
 		sc->flags &= ~SC_FL_NOLINGER;
 		ic->flags |= CF_SHUTR;
 		ic->rex = TICK_ETERNITY;
-		__sc_strm(sc)->conn_exp = TICK_ETERNITY;
+		if (sc->flags & SC_FL_ISBACK)
+			__sc_strm(sc)->conn_exp = TICK_ETERNITY;
 	}
 }
 
@@ -1259,7 +1265,8 @@ static void sc_conn_read0(struct stconn *sc)
 	oc->wex = TICK_ETERNITY;
 
 	sc->state = SC_ST_DIS;
-	__sc_strm(sc)->conn_exp = TICK_ETERNITY;
+	if (sc->flags & SC_FL_ISBACK)
+		__sc_strm(sc)->conn_exp = TICK_ETERNITY;
 	return;
 }
 
@@ -1838,7 +1845,8 @@ static int sc_conn_process(struct stconn *sc)
 
 	if (!sc_state_in(sc->state, SC_SB_EST|SC_SB_DIS|SC_SB_CLO) &&
 	    (conn->flags & CO_FL_WAIT_XPRT) == 0) {
-		__sc_strm(sc)->conn_exp = TICK_ETERNITY;
+		if (sc->flags & SC_FL_ISBACK)
+			__sc_strm(sc)->conn_exp = TICK_ETERNITY;
 		oc->flags |= CF_WRITE_NULL;
 		if (sc->state == SC_ST_CON)
 			sc->state = SC_ST_RDY;
