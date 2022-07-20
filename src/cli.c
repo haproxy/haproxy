@@ -2294,6 +2294,9 @@ static int pcli_prefix_to_pid(const char *prefix)
 		if (proc_pid == 0) /* return the master */
 			return 0;
 
+		if (proc_pid != 1) /* only the "@1" relative PID is supported */
+			return -1;
+
 		/* chose the right process, the current one is the one with the
 		 least number of reloads */
 		list_for_each_entry(child, &proc_list, list) {
