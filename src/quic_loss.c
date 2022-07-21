@@ -173,7 +173,7 @@ void qc_packet_loss_lookup(struct quic_pktns *pktns, struct quic_conn *qc,
 
 		time_sent = pkt->time_sent;
 		loss_time_limit = tick_add(time_sent, loss_delay);
-		if (tick_is_le(time_sent, now_ms) ||
+		if (tick_is_le(loss_time_limit, now_ms) ||
 			(int64_t)largest_acked_pn >= pkt->pn_node.key + QUIC_LOSS_PACKET_THRESHOLD) {
 			eb64_delete(&pkt->pn_node);
 			LIST_APPEND(lost_pkts, &pkt->list);
