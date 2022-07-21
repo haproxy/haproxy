@@ -3029,34 +3029,49 @@ int main(int argc, char **argv)
 	int pidfd = -1;
 	int intovf = (unsigned char)argc + 1; /* let the compiler know it's strictly positive */
 
-	/* Catch forced CFLAGS that miss 2-complement integer overflow */
-	if (intovf + 0x7FFFFFFF >= intovf) {
+	/* Catch broken toolchains */
+	if (sizeof(long) != sizeof(void *) || (intovf + 0x7FFFFFFF >= intovf)) {
+		const char *msg;
+
+		if (sizeof(long) != sizeof(void *))
+			/* Apparently MingW64 was not made for us and can also break openssl */
+			msg = "The compiler this program was built with uses unsupported integral type sizes.\n"
+			      "Most likely it follows the unsupported LLP64 model. Never try to link HAProxy\n"
+			      "against libraries built with that compiler either! Please only use a compiler\n"
+			      "producing ILP32 or LP64 programs for both programs and libraries.\n";
+		else if (intovf + 0x7FFFFFFF >= intovf)
+			/* Catch forced CFLAGS that miss 2-complement integer overflow */
+			msg = "The source code was miscompiled by the compiler, which usually indicates that\n"
+			      "some of the CFLAGS needed to work around overzealous compiler optimizations\n"
+			      "were overwritten at build time. Please do not force CFLAGS, and read Makefile\n"
+			      "and INSTALL files to decide on the best way to pass your local build options.\n";
+		else
+			msg = "Bug in the compiler bug detection code, please report it to developers!\n";
+
 		fprintf(stderr,
 		        "FATAL ERROR: invalid code detected -- cannot go further, please recompile!\n"
-			"The source code was miscompiled by the compiler, which usually indicates that\n"
-			"some of the CFLAGS needed to work around overzealous compiler optimizations\n"
-			"were overwritten at build time. Please do not force CFLAGS, and read Makefile\n"
-			"and INSTALL files to decide on the best way to pass your local build options.\n"
-		        "\nBuild options :"
+		        "%s"
+			"\nBuild options :"
 #ifdef BUILD_TARGET
-		       "\n  TARGET  = " BUILD_TARGET
+		        "\n  TARGET  = " BUILD_TARGET
 #endif
 #ifdef BUILD_CPU
-		       "\n  CPU     = " BUILD_CPU
+		        "\n  CPU     = " BUILD_CPU
 #endif
 #ifdef BUILD_CC
-		       "\n  CC      = " BUILD_CC
+		        "\n  CC      = " BUILD_CC
 #endif
 #ifdef BUILD_CFLAGS
-		       "\n  CFLAGS  = " BUILD_CFLAGS
+		        "\n  CFLAGS  = " BUILD_CFLAGS
 #endif
 #ifdef BUILD_OPTIONS
-		       "\n  OPTIONS = " BUILD_OPTIONS
+		        "\n  OPTIONS = " BUILD_OPTIONS
 #endif
 #ifdef BUILD_DEBUG
-		       "\n  DEBUG   = " BUILD_DEBUG
+		        "\n  DEBUG   = " BUILD_DEBUG
 #endif
-		       "\n\n");
+		        "\n\n", msg);
+
 		return 1;
 	}
 
