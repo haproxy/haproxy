@@ -184,6 +184,7 @@ void qc_packet_loss_lookup(struct quic_pktns *pktns, struct quic_conn *qc,
 				pktns->tx.loss_time = tick_first(pktns->tx.loss_time, loss_time_limit);
 			else
 				pktns->tx.loss_time = loss_time_limit;
+			break;
 		}
 	}
 
