@@ -744,11 +744,6 @@ int assign_server(struct stream *s)
 							    (void *)&((struct sockaddr_in6 *)src)->sin6_addr,
 							    16, prev_srv);
 				}
-				else {
-					/* unknown IP family */
-					err = SRV_STATUS_INTERNAL;
-					goto out;
-				}
 				break;
 
 			case BE_LB_HASH_URI:
