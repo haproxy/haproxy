@@ -91,6 +91,8 @@ struct qcc {
 	struct wait_event wait_event;  /* To be used if we're waiting for I/Os */
 	struct wait_event *subs;
 
+	struct proxy *proxy;
+
 	/* haproxy timeout management */
 	struct task *task;
 	int timeout;
