@@ -160,7 +160,7 @@ client c6 -connect ${h1_clearlst_sock} {
 # The curve with the highest priority is X25519 for OpenSSL 1.1.1 and later,
 # and P-256 for OpenSSL 1.0.2.
 shell {
-    echo "Q" | openssl s_client -unix "${tmpdir}/ssl.sock" -servername server.ecdsa.com -tls1_2 2>/dev/null | grep -E "Server Temp Key: (ECDH, P-256, 256 bits|X25519, 253 bits)"
+    echo "Q" | openssl s_client -unix "${tmpdir}/ssl.sock" -servername server.ecdsa.com -tls1_2 2>/dev/null | grep -E "Server Temp Key: (ECDH, P-256, 256 bits|ECDH, prime256v1, 256 bits|X25519, 253 bits)"
 }
 
 shell {
