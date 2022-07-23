@@ -3211,6 +3211,10 @@ static HASSL_DH *ssl_get_tmp_dh(EVP_PKEY *pkey)
 
 	type = pkey ? EVP_PKEY_base_id(pkey) : EVP_PKEY_NONE;
 
+	if (type == EVP_PKEY_EC) {
+		keylen = global_ssl.default_dh_param;
+	}
+
 	/* The keylen supplied by OpenSSL can only be 512 or 1024.
 	   See ssl3_send_server_key_exchange() in ssl/s3_srvr.c
 	 */
