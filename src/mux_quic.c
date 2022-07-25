@@ -229,6 +229,20 @@ static forceinline struct stconn *qcs_sc(const struct qcs *qcs)
 	return qcs->sd ? qcs->sd->sc : NULL;
 }
 
+/* Decrement <qcc> sc. */
+static forceinline void qcc_rm_sc(struct qcc *qcc)
+{
+	BUG_ON_HOT(!qcc->nb_sc);
+	--qcc->nb_sc;
+}
+
+/* Decrement <qcc> hreq. */
+static forceinline void qcc_rm_hreq(struct qcc *qcc)
+{
+	BUG_ON_HOT(!qcc->nb_hreq);
+	--qcc->nb_hreq;
+}
+
 /* Mark a stream as open if it was idle. This can be used on every
  * successful emission/reception operation to update the stream state.
  */
@@ -254,6 +268,7 @@ static void qcs_close_local(struct qcs *qcs)
 
 	if (quic_stream_is_bidi(qcs->id)) {
 		qcs->st = (qcs->st == QC_SS_HREM) ? QC_SS_CLO : QC_SS_HLOC;
+		qcc_rm_hreq(qcs->qcc);
 	}
 	else {
 		/* Only local uni streams are valid for this operation. */
@@ -1780,7 +1795,7 @@ static int qc_init(struct connection *conn, struct proxy *prx,
 
 	qcc->conn = conn;
 	conn->ctx = qcc;
-	qcc->nb_sc = 0;
+	qcc->nb_hreq = qcc->nb_sc = 0;
 	qcc->flags = 0;
 
 	qcc->app_ops = NULL;
@@ -1912,7 +1927,8 @@ static void qc_detach(struct sedesc *sd)
 	 * BUG_ON_HOT() statement can be adjusted.
 	 */
 	//BUG_ON_HOT(!qcs_is_close_remote(qcs));
-	--qcc->nb_sc;
+
+	qcc_rm_sc(qcc);
 
 	if (!qcs_is_close_local(qcs) && !(qcc->conn->flags & CO_FL_ERROR)) {
 		TRACE_DEVEL("leaving with remaining data, detaching qcs", QMUX_EV_STRM_END, qcc->conn, qcs);

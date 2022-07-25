@@ -107,6 +107,7 @@ static inline struct stconn *qc_attach_sc(struct qcs *qcs, struct buffer *buf)
 		return NULL;
 
 	++qcc->nb_sc;
+	++qcc->nb_hreq;
 
 	/* TODO duplicated from mux_h2 */
 	sess->accept_date = date;

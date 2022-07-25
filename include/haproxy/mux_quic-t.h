@@ -33,6 +33,7 @@ enum qcs_type {
 struct qcc {
 	struct connection *conn;
 	uint64_t nb_sc; /* number of attached stream connectors */
+	uint64_t nb_hreq; /* number of in-progress http requests */
 	uint32_t flags; /* QC_CF_* */
 
 	struct {
