@@ -229,11 +229,23 @@ static forceinline struct stconn *qcs_sc(const struct qcs *qcs)
 	return qcs->sd ? qcs->sd->sc : NULL;
 }
 
+/* Reset the <qcc> inactivity timeout for http-keep-alive timeout. */
+static forceinline void qcc_reset_idle_start(struct qcc *qcc)
+{
+	qcc->idle_start = now_ms;
+}
+
 /* Decrement <qcc> sc. */
 static forceinline void qcc_rm_sc(struct qcc *qcc)
 {
 	BUG_ON_HOT(!qcc->nb_sc);
 	--qcc->nb_sc;
+
+	/* Reset qcc idle start for http-keep-alive timeout. Timeout will be
+	 * refreshed after this on stream detach.
+	 */
+	if (!qcc->nb_sc && !qcc->nb_hreq)
+		qcc_reset_idle_start(qcc);
 }
 
 /* Decrement <qcc> hreq. */
@@ -241,6 +253,12 @@ static forceinline void qcc_rm_hreq(struct qcc *qcc)
 {
 	BUG_ON_HOT(!qcc->nb_hreq);
 	--qcc->nb_hreq;
+
+	/* Reset qcc idle start for http-keep-alive timeout. Timeout will be
+	 * refreshed after this on I/O handler.
+	 */
+	if (!qcc->nb_sc && !qcc->nb_hreq)
+		qcc_reset_idle_start(qcc);
 }
 
 /* Mark a stream as open if it was idle. This can be used on every
@@ -1036,6 +1054,8 @@ static inline int qcc_may_expire(struct qcc *qcc)
 /* Refresh the timeout on <qcc> if needed depending on its state. */
 static void qcc_refresh_timeout(struct qcc *qcc)
 {
+	const struct proxy *px = qcc->proxy;
+
 	TRACE_ENTER(QMUX_EV_QCC_WAKE, qcc->conn);
 
 	if (!qcc->task)
@@ -1044,12 +1064,28 @@ static void qcc_refresh_timeout(struct qcc *qcc)
 	/* Calculate the timeout. */
 	if (qcc_may_expire(qcc)) {
 		/* TODO implement specific timeouts
-		 * - http-keep-alive if connection is idle with no stream
 		 * - http-requset for waiting on incomplete streams
 		 * - client-fin for graceful shutdown
 		 */
-		TRACE_DEVEL("applying default timeout", QMUX_EV_QCC_WAKE, qcc->conn);
-		qcc->task->expire = tick_add_ifset(now_ms, qcc->timeout);
+		if (qcc->nb_hreq) {
+			/* detached streams left. */
+			TRACE_DEVEL("one or more requests still in progress", QMUX_EV_QCC_WAKE, qcc->conn);
+			qcc->task->expire = tick_add_ifset(now_ms, qcc->timeout);
+		}
+		else if (!conn_is_back(qcc->conn) && qcc->largest_bidi_r > 0x00) {
+			int timeout = tick_isset(px->timeout.httpka) ?
+			              px->timeout.httpka : px->timeout.httpreq;
+
+			TRACE_DEVEL("at least one request achieved but none currently in progress", QMUX_EV_QCC_WAKE, qcc->conn);
+			qcc->task->expire = tick_add_ifset(qcc->idle_start,
+			                                   timeout);
+		}
+
+		/* fallback to default timeout if none set. */
+		if (!tick_isset(qcc->task->expire)) {
+			TRACE_DEVEL("fallback to default timeout", QMUX_EV_QCC_WAKE, qcc->conn);
+			qcc->task->expire = tick_add_ifset(now_ms, qcc->timeout);
+		}
 
 		/* TODO if connection is idle on frontend and proxy is
 		 * disabled, remove it with global close_spread delay applied.
@@ -1881,6 +1917,7 @@ static int qc_init(struct connection *conn, struct proxy *prx,
 		qcc->task->context = qcc;
 		qcc->task->expire = tick_add(now_ms, qcc->timeout);
 	}
+	qcc_reset_idle_start(qcc);
 
 	if (!conn_is_back(conn)) {
 		if (!LIST_INLIST(&conn->stopping_list)) {
