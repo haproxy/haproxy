@@ -436,6 +436,7 @@ static inline void fd_insert(int fd, void *owner, void (*iocb)(int fd), int tgid
 	BUG_ON(fd < 0 || fd >= global.maxsock);
 	BUG_ON(fdtab[fd].owner != NULL);
 	BUG_ON(fdtab[fd].state != 0);
+	BUG_ON(tgid < 1 || tgid > MAX_TGROUPS);
 
 	thread_mask &= tg->threads_enabled;
 	BUG_ON(thread_mask == 0);
