@@ -1018,6 +1018,40 @@ static inline int qcc_may_expire(struct qcc *qcc)
 	return !qcc->nb_sc;
 }
 
+/* Refresh the timeout on <qcc> if needed depending on its state. */
+static void qcc_refresh_timeout(struct qcc *qcc)
+{
+	TRACE_ENTER(QMUX_EV_QCC_WAKE, qcc->conn);
+
+	if (!qcc->task)
+		goto leave;
+
+	/* Calculate the timeout. */
+	if (qcc_may_expire(qcc)) {
+		/* TODO implement specific timeouts
+		 * - http-keep-alive if connection is idle with no stream
+		 * - http-requset for waiting on incomplete streams
+		 * - client-fin for graceful shutdown
+		 */
+		TRACE_DEVEL("applying default timeout", QMUX_EV_QCC_WAKE, qcc->conn);
+		qcc->task->expire = tick_add_ifset(now_ms, qcc->timeout);
+
+		/* TODO if connection is idle on frontend and proxy is
+		 * disabled, remove it with global close_spread delay applied.
+		 */
+	}
+	else {
+		TRACE_DEVEL("not eligible for timeout", QMUX_EV_QCC_WAKE, qcc->conn);
+		qcc->task->expire = TICK_ETERNITY;
+	}
+
+	/* Enqueue the timeout task. */
+	task_queue(qcc->task);
+
+ leave:
+	TRACE_LEAVE(QMUX_EV_QCS_NEW, qcc->conn);
+}
+
 /* Transfer as much as possible data on <qcs> from <in> to <out>. This is done
  * in respect with available flow-control at stream and connection level.
  *
@@ -1676,16 +1710,15 @@ static struct task *qc_io_cb(struct task *t, void *ctx, unsigned int status)
 			qc_release(qcc);
 			goto end;
 		}
-		else if (qcc->task) {
-			if (qcc_may_expire(qcc))
-				qcc->task->expire = tick_add(now_ms, qcc->timeout);
-			else
-				qcc->task->expire = TICK_ETERNITY;
-			task_queue(qcc->task);
-		}
 	}
 
 	qc_recv(qcc);
+
+	/* TODO check if qcc proxy is disabled. If yes, use graceful shutdown
+	 * to close the connection.
+	 */
+
+	qcc_refresh_timeout(qcc);
 
  end:
 	TRACE_LEAVE(QMUX_EV_QCC_WAKE);
@@ -1722,6 +1755,11 @@ static struct task *qc_timeout_task(struct task *t, void *ctx, unsigned int stat
 
 	qcc->task = NULL;
 
+	/* TODO depending on the timeout condition, different shutdown mode
+	 * should be used. For http keep-alive or disabled proxy, a graceful
+	 * shutdown should occurs. For all other cases, an immediate close
+	 * seems legitimate.
+	 */
 	if (qcc_is_dead(qcc))
 		qc_release(qcc);
 
@@ -1879,23 +1917,23 @@ static void qc_detach(struct sedesc *sd)
 	if (!qcs_is_close_local(qcs) && !(qcc->conn->flags & CO_FL_ERROR)) {
 		TRACE_DEVEL("leaving with remaining data, detaching qcs", QMUX_EV_STRM_END, qcc->conn, qcs);
 		qcs->flags |= QC_SF_DETACH;
+		qcc_refresh_timeout(qcc);
 		return;
 	}
 
 	qcs_destroy(qcs);
 
 	if (qcc_is_dead(qcc)) {
+		TRACE_DEVEL("leaving and killing dead connection", QMUX_EV_STRM_END, qcc->conn);
 		qc_release(qcc);
 	}
 	else if (qcc->task) {
-		if (qcc_may_expire(qcc))
-			qcc->task->expire = tick_add(now_ms, qcc->timeout);
-		else
-			qcc->task->expire = TICK_ETERNITY;
-		task_queue(qcc->task);
+		TRACE_DEVEL("leaving, refreshing connection's timeout", QMUX_EV_STRM_END, qcc->conn);
+		qcc_refresh_timeout(qcc);
 	}
-
-	TRACE_LEAVE(QMUX_EV_STRM_END);
+	else {
+		TRACE_DEVEL("leaving", QMUX_EV_STRM_END, qcc->conn);
+	}
 }
 
 /* Called from the upper layer, to receive data */
@@ -2079,6 +2117,8 @@ static int qc_wake(struct connection *conn)
 
 	if (qcc_is_dead(qcc))
 		goto release;
+
+	qcc_refresh_timeout(qcc);
 
 	TRACE_LEAVE(QMUX_EV_QCC_WAKE, conn);
 
