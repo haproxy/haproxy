@@ -1818,7 +1818,8 @@ static int qc_init(struct connection *conn, struct proxy *prx,
 	qcc->proxy = prx;
 	/* haproxy timeouts */
 	qcc->task = NULL;
-	qcc->timeout = prx->timeout.client;
+	qcc->timeout = conn_is_back(qcc->conn) ? prx->timeout.server :
+	                                         prx->timeout.client;
 	if (tick_isset(qcc->timeout)) {
 		qcc->task = task_new_here();
 		if (!qcc->task)
