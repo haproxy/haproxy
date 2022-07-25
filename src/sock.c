@@ -322,7 +322,7 @@ int sock_get_old_sockets(const char *unixsocket)
 		}
 
 		if (send_fd_uxst(dst_fd, sv[0]) == -1) {
-			ha_alert("socketpair: cannot transfer socket.\n");
+			ha_alert("socketpair: Cannot transfer the fd %d over sockpair@%d. Giving up.\n", sv[0], dst_fd);
 			close(sv[0]);
 			close(sv[1]);
 			goto out;

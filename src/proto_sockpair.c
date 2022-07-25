@@ -245,7 +245,6 @@ int send_fd_uxst(int fd, int send_fd)
 	memcpy(fdptr, &send_fd, sizeof(send_fd));
 
 	if (sendmsg(fd, &msghdr, 0) != sizeof(iobuf)) {
-		ha_warning("Failed to transfer socket\n");
 		return -1;
 	}
 
@@ -341,6 +340,7 @@ static int sockpair_connect_server(struct connection *conn, int flags)
 	/* The new socket is sent on the other side, it should be retrieved and
 	 * considered as an 'accept' socket on the server side */
 	if (send_fd_uxst(dst_fd, sv[0]) == -1) {
+		ha_alert("socketpair: Cannot transfer the fd %d over sockpair@%d. Giving up.\n", sv[0], dst_fd);
 		close(sv[0]);
 		close(sv[1]);
 		conn->err_code = CO_ER_SOCK_ERR;
