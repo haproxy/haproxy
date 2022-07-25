@@ -246,7 +246,7 @@ int send_fd_uxst(int fd, int send_fd)
 
 	if (sendmsg(fd, &msghdr, 0) != sizeof(iobuf)) {
 		ha_warning("Failed to transfer socket\n");
-		return 1;
+		return -1;
 	}
 
 	return 0;
