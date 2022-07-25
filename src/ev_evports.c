@@ -160,8 +160,10 @@ static void _do_poll(struct poller *p, int exp, int wake)
 			continue;
 		}
 
-		if (!(fdtab[fd].update_mask & ti->ltid_bit))
+		if (!(fdtab[fd].update_mask & ti->ltid_bit)) {
+			fd_drop_tgid(fd);
 			continue;
+		}
 
 		done_update_polling(fd);
 
