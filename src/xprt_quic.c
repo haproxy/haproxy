@@ -3678,16 +3678,19 @@ int qc_send_app_pkts(struct quic_conn *qc, int old_data, struct list *frms)
 		/* Never happens */
 		return 1;
 
-	if (old_data)
-		qc->flags |= QUIC_FL_CONN_RETRANS_OLD_DATA;
-	ret = qc_prep_app_pkts(qc, qr, frms);
-	if (ret == -1)
-		goto err;
-	else if (ret == 0)
-		goto out;
+	/* Prepare and send packets until we could not further prepare packets. */
+	while (1) {
+		if (old_data)
+			qc->flags |= QUIC_FL_CONN_RETRANS_OLD_DATA;
+		ret = qc_prep_app_pkts(qc, qr, frms);
+		if (ret == -1)
+			goto err;
+		else if (ret == 0)
+			goto out;
 
-	if (!qc_send_ppkts(qr, qc->xprt_ctx))
-		goto err;
+		if (!qc_send_ppkts(qr, qc->xprt_ctx))
+			goto err;
+	}
 
  out:
 	qc->flags &= ~QUIC_FL_CONN_RETRANS_OLD_DATA;
