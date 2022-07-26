@@ -984,6 +984,7 @@ static void deinit_pollers_per_thread()
 /* Release the pollers per thread, to be called late */
 static void free_pollers_per_thread()
 {
+	fd_nbupdt = 0;
 	ha_free(&fd_updt);
 }
 
