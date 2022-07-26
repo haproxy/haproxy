@@ -2509,10 +2509,10 @@ static int resolvers_finalize_config(void)
 					continue;
 				}
 				if (connect(fd, (struct sockaddr*)&ns->dgram->conn.addr.to, get_addr_len(&ns->dgram->conn.addr.to)) == -1) {
-					ha_alert("resolvers '%s': can't connect socket for nameserver '%s'.\n",
+					ha_warning("resolvers '%s': can't connect socket for nameserver '%s'.\n",
 						 resolvers->id, ns->id);
 					close(fd);
-					err_code |= (ERR_ALERT|ERR_ABORT);
+					err_code |= ERR_WARN;
 					continue;
 				}
 				close(fd);
