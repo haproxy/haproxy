@@ -3421,6 +3421,10 @@ struct task *process_peer_sync(struct task * task, void *context, unsigned int s
 						peer_session_forceshutdown(ps);
 					}
 				}
+
+				/* Set resync timeout for the local peer and request a immediate reconnect */
+				peers->resync_timeout = tick_add(now_ms, MS_TO_TICKS(PEER_RESYNC_TIMEOUT));
+				peers->local->reconnect = now_ms;
 			}
 		}
 
@@ -3436,18 +3440,26 @@ struct task *process_peer_sync(struct task * task, void *context, unsigned int s
 		}
 		else if (!ps->appctx) {
 			/* If there's no active peer connection */
-			if (ps->statuscode == 0 ||
-			    ps->statuscode == PEER_SESS_SC_SUCCESSCODE ||
-			    ps->statuscode == PEER_SESS_SC_CONNECTEDCODE ||
-			    ps->statuscode == PEER_SESS_SC_TRYAGAIN) {
-				/* connection never tried
-				 * or previous peer connection was successfully established
-				 * or previous tcp connect succeeded but init state incomplete
-				 * or during previous connect, peer replies a try again statuscode */
+			if (!tick_is_expired(peers->resync_timeout, now_ms) &&
+			    (ps->statuscode == 0 ||
+			     ps->statuscode == PEER_SESS_SC_SUCCESSCODE ||
+			     ps->statuscode == PEER_SESS_SC_CONNECTEDCODE ||
+			     ps->statuscode == PEER_SESS_SC_TRYAGAIN)) {
+				/* The resync timeout is not expired and
+				 *   connection never tried
+				 *   or previous peer connection was successfully established
+				 *   or previous tcp connect succeeded but init state incomplete
+				 *   or during previous connect, peer replies a try again statuscode */
 
-				/* connect to the local peer if we must push a local sync */
-				if (peers->flags & PEERS_F_DONOTSTOP) {
-					peer_session_create(peers, ps);
+				if (!tick_is_expired(ps->reconnect, now_ms)) {
+					/* reconnection timer is not expired. reschedule task for reconnect */
+					task->expire = tick_first(task->expire, ps->reconnect);
+				}
+				else  {
+					/* connect to the local peer if we must push a local sync */
+					if (peers->flags & PEERS_F_DONOTSTOP) {
+						peer_session_create(peers, ps);
+					}
 				}
 			}
 			else {
