@@ -1981,7 +1981,6 @@ static int bind_parse_severity_output(char **args, int cur_arg, struct proxy *px
 /* Send all the bound sockets, always returns 1 */
 static int _getsocks(char **args, char *payload, struct appctx *appctx, void *private)
 {
-	static int already_sent = 0;
 	char *cmsgbuf = NULL;
 	unsigned char *tmpbuf = NULL;
 	struct cmsghdr *cmsg;
@@ -2008,11 +2007,6 @@ static int _getsocks(char **args, char *payload, struct appctx *appctx, void *pr
 	}
 
 	fd = remote->handle.fd;
-
-	if (already_sent) {
-		ha_warning("_getsocks: attempt to get sockets but they were already sent!\n");
-		goto out;
-	}
 
 	/* Temporary set the FD in blocking mode, that will make our life easier */
 	old_fcntl = fcntl(fd, F_GETFL);
@@ -2149,8 +2143,6 @@ static int _getsocks(char **args, char *payload, struct appctx *appctx, void *pr
 			nb_queued = 0;
 		}
 	}
-
-	already_sent = 1;
 
 	/* flush pending stuff */
 	if (nb_queued) {
