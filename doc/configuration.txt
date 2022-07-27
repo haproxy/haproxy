@@ -2840,6 +2840,11 @@ ssl-engine <name> [algo <comma-separated list of algorithms>]
   openssl configuration file uses:
   https://www.openssl.org/docs/man1.0.2/apps/config.html
 
+  HAProxy Version 2.6 disabled the support for engines in the default build.
+  This option is only available when HAProxy has been built with support for
+  it.  In case the ssl-engine is required HAProxy can be rebuild with the
+  USE_ENGINE=1 flag.
+
 ssl-mode-async
   Adds SSL_MODE_ASYNC mode to the SSL context. This enables asynchronous TLS
   I/O operations if asynchronous capable SSL engines are used. The current
