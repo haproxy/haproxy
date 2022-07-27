@@ -2998,7 +2998,7 @@ switchstate:
 					}
 				}
 
-				if (sc_ic(sc)->flags & CF_WRITE_PARTIAL)
+				if (sc_ic(sc)->flags & CF_WROTE_DATA)
 					curpeer->statuscode = PEER_SESS_SC_CONNECTEDCODE;
 
 				reql = peer_getline(appctx);
