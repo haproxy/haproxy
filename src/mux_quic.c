@@ -1001,7 +1001,12 @@ static void qcs_destroy(struct qcs *qcs)
 
 static inline int qcc_is_dead(const struct qcc *qcc)
 {
-	if ((qcc->conn->flags & CO_FL_ERROR) || !qcc->task)
+	/* Mux connection is considered dead if :
+	 * - all stream-desc are detached AND
+	 *   = connection is on error OR
+	 *   = mux timeout has already fired or is unset
+	 */
+	if (!qcc->nb_sc && ((qcc->conn->flags & CO_FL_ERROR) || !qcc->task))
 		return 1;
 
 	return 0;
