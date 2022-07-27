@@ -110,6 +110,7 @@ void mworker_proc_list_to_env()
 {
 	char *msg = NULL;
 	struct mworker_proc *child;
+	int minreloads = INT_MAX; /* minimum number of reloads to chose which processes are "current" ones */
 
 	list_for_each_entry(child, &proc_list, list) {
 		char type = '?';
@@ -121,11 +122,22 @@ void mworker_proc_list_to_env()
 		else if (child->options &= PROC_O_TYPE_WORKER)
 			type = 'w';
 
+		if (child->reloads < minreloads)
+			minreloads = child->reloads;
+
 		if (child->pid > -1)
 			memprintf(&msg, "%s|type=%c;fd=%d;pid=%d;reloads=%d;failedreloads=%d;timestamp=%d;id=%s;version=%s", msg ? msg : "", type, child->ipc_fd[0], child->pid, child->reloads, child->failedreloads, child->timestamp, child->id ? child->id : "", child->version);
 	}
 	if (msg)
 		setenv("HAPROXY_PROCESSES", msg, 1);
+
+	list_for_each_entry(child, &proc_list, list) {
+		if (child->reloads > minreloads && !(child->options & PROC_O_TYPE_MASTER)) {
+			child->options |= PROC_O_LEAVING;
+		}
+	}
+
+
 }
 
 struct mworker_proc *mworker_proc_new()
