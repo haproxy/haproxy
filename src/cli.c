@@ -1981,6 +1981,7 @@ static int bind_parse_severity_output(char **args, int cur_arg, struct proxy *px
 /* Send all the bound sockets, always returns 1 */
 static int _getsocks(char **args, char *payload, struct appctx *appctx, void *private)
 {
+	static int already_sent = 0;
 	char *cmsgbuf = NULL;
 	unsigned char *tmpbuf = NULL;
 	struct cmsghdr *cmsg;
@@ -2036,8 +2037,11 @@ static int _getsocks(char **args, char *payload, struct appctx *appctx, void *pr
 	for (cur_fd = 0;cur_fd < global.maxsock; cur_fd++)
 		tot_fd_nb += !!(fdtab[cur_fd].state & FD_EXPORTED);
 
-	if (tot_fd_nb == 0)
+	if (tot_fd_nb == 0) {
+		if (already_sent)
+			ha_warning("_getsocks: attempt to get sockets but they were already sent and closed in this process!\n");
 		goto out;
+	}
 
 	/* First send the total number of file descriptors, so that the
 	 * receiving end knows what to expect.
@@ -2143,6 +2147,8 @@ static int _getsocks(char **args, char *payload, struct appctx *appctx, void *pr
 			nb_queued = 0;
 		}
 	}
+
+	already_sent = 1;
 
 	/* flush pending stuff */
 	if (nb_queued) {
