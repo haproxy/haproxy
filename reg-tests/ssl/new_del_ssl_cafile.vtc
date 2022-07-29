@@ -81,6 +81,26 @@ shell {
     echo "commit ssl ca-file new_cafile.crt" | socat "${tmpdir}/h1/stats" -
 }
 
+# Remove the unliked CA file and create a new one with the "add ssl ca-file method"
+
+haproxy h1 -cli {
+    send "del ssl ca-file new_cafile.crt"
+    expect ~ "CA file 'new_cafile.crt' deleted!"
+
+    send "new ssl ca-file new_cafile.crt"
+    expect ~ "New CA file created 'new_cafile.crt'!"
+}
+
+shell {
+    printf "add ssl ca-file new_cafile.crt <<\n$(cat ${testdir}/set_cafile_interCA1.crt)\n\n" | socat "${tmpdir}/h1/stats" -
+    echo "commit ssl ca-file new_cafile.crt" | socat "${tmpdir}/h1/stats" -
+}
+
+shell {
+    printf "set ssl ca-file new_cafile.crt <<\n$(cat ${testdir}/set_cafile_interCA1.crt)\n\n" | socat "${tmpdir}/h1/stats" -
+    echo "commit ssl ca-file new_cafile.crt" | socat "${tmpdir}/h1/stats" -
+}
+
 haproxy h1 -cli {
     send "show ssl ca-file"
     expect ~ ".*new_cafile.crt - 1 certificate.*"

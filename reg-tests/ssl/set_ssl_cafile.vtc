@@ -138,7 +138,9 @@ client c1 -connect ${h1_clearverifiedlst_sock} {
 # Update the server line's ca-file. The server certificate should now be accepted by
 # the frontend. We replace the single CA by a list of CAs that includes the correct one.
 shell {
-    printf "set ssl ca-file ${testdir}/set_cafile_interCA1.crt <<\n$(cat ${testdir}/set_cafile_interCA1.crt)\n$(cat ${testdir}/set_cafile_interCA2.crt)\n$(cat ${testdir}/set_cafile_rootCA.crt)\n\n" | socat "${tmpdir}/h1/stats" -
+    printf "set ssl ca-file ${testdir}/set_cafile_interCA1.crt <<\n$(cat ${testdir}/set_cafile_interCA1.crt)\n\n" | socat "${tmpdir}/h1/stats" -
+    printf "add ssl ca-file ${testdir}/set_cafile_interCA1.crt <<\n$(cat ${testdir}/set_cafile_interCA2.crt)\n\n" | socat "${tmpdir}/h1/stats" -
+    printf "add ssl ca-file ${testdir}/set_cafile_interCA1.crt <<\n$(cat ${testdir}/set_cafile_rootCA.crt)\n\n" | socat "${tmpdir}/h1/stats" -
     echo "commit ssl ca-file ${testdir}/set_cafile_interCA1.crt" | socat "${tmpdir}/h1/stats" -
 }
 

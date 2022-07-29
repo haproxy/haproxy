@@ -1076,6 +1076,67 @@ struct cafile_entry *ssl_store_create_cafile_entry(char *path, X509_STORE *store
 	return ca_e;
 }
 
+
+/* Duplicate a cafile_entry
+ * Allocate the X509_STORE and copy the X509 and CRL inside.
+ *
+ * Return the newly allocated cafile_entry or NULL.
+ *
+ */
+struct cafile_entry *ssl_store_dup_cafile_entry(struct cafile_entry *src)
+{
+	struct cafile_entry *dst = NULL;
+	X509_STORE *store = NULL;
+	STACK_OF(X509_OBJECT) *objs;
+	int i;
+
+	if (!src)
+		return NULL;
+
+	if (src->ca_store) {
+		/* if there was a store in the src, copy it */
+		store = X509_STORE_new();
+		if (!store)
+			goto err;
+
+		objs = X509_STORE_get0_objects(src->ca_store);
+		for (i = 0; i < sk_X509_OBJECT_num(objs); i++) {
+			X509 *cert;
+			X509_CRL *crl;
+
+			cert = X509_OBJECT_get0_X509(sk_X509_OBJECT_value(objs, i));
+			if (cert) {
+				if (X509_STORE_add_cert(store, cert) == 0) {
+					/* only exits on error if the error is not about duplicate certificates */
+					if (!(ERR_GET_REASON(ERR_get_error()) == X509_R_CERT_ALREADY_IN_HASH_TABLE)) {
+						goto err;
+					}
+				}
+
+			}
+			crl = X509_OBJECT_get0_X509_CRL(sk_X509_OBJECT_value(objs, i));
+			if (crl) {
+				if (X509_STORE_add_crl(store, crl) == 0) {
+					/* only exits on error if the error is not about duplicate certificates */
+					if (!(ERR_GET_REASON(ERR_get_error()) == X509_R_CERT_ALREADY_IN_HASH_TABLE)) {
+						goto err;
+					}
+				}
+
+			}
+		}
+	}
+	dst = ssl_store_create_cafile_entry(src->path, store, src->type);
+
+	return dst;
+
+err:
+	X509_STORE_free(store);
+	ha_free(&dst);
+
+	return NULL;
+}
+
 /* Delete a cafile_entry. The caller is responsible from removing this entry
  * from the cafile_tree first if is was previously added into it. */
 void ssl_store_delete_cafile_entry(struct cafile_entry *ca_e)
@@ -2584,9 +2645,14 @@ static int cli_parse_set_cafile(char **args, char *payload, struct appctx *appct
 	char *err = NULL;
 	int errcode = 0;
 	struct buffer *buf;
+	int add_cmd = 0;
 
 	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
 		return 1;
+
+	/* this is "add ssl ca-file" */
+	if (*args[0] == 'a')
+		add_cmd = 1;
 
 	if (!*args[3] || !payload)
 		return cli_err(appctx, "'set ssl ca-file expects a filename and CAs as a payload\n");
@@ -2620,8 +2686,7 @@ static int cli_parse_set_cafile(char **args, char *payload, struct appctx *appct
 			goto end;
 		}
 		old_cafile_entry = cafile_transaction.old_cafile_entry;
-	}
-	else {
+	} else {
 		/* lookup for the certificate in the tree */
 		old_cafile_entry = ssl_store_get_cafile_entry(buf->area, 0);
 	}
@@ -2633,17 +2698,21 @@ static int cli_parse_set_cafile(char **args, char *payload, struct appctx *appct
 		goto end;
 	}
 
-	/* Create a new cafile_entry without adding it to the cafile tree. */
-	new_cafile_entry = ssl_store_create_cafile_entry(old_cafile_entry->path, NULL, CAFILE_CERT);
+	/* if the transaction is new, duplicate the old_ca_file_entry, otherwise duplicate the cafile in the current transaction */
+	if (cafile_transaction.new_cafile_entry)
+		new_cafile_entry = ssl_store_dup_cafile_entry(cafile_transaction.new_cafile_entry);
+	else
+		new_cafile_entry = ssl_store_dup_cafile_entry(old_cafile_entry);
+
 	if (!new_cafile_entry) {
-		memprintf(&err, "%sCannot allocate memory!\n",
-			  err ? err : "");
+		memprintf(&err, "%sCan't allocate memory\n", err ? err : "");
 		errcode |= ERR_ALERT | ERR_FATAL;
 		goto end;
 	}
 
-	/* Fill the new entry with the new CAs. */
-	if (ssl_store_load_ca_from_buf(new_cafile_entry, payload, 0)) {
+	/* Fill the new entry with the new CAs. The add_cmd variable determine
+	   if we flush the X509_STORE or not */
+	if (ssl_store_load_ca_from_buf(new_cafile_entry, payload, add_cmd)) {
 		memprintf(&err, "%sInvalid payload\n", err ? err : "");
 		errcode |= ERR_ALERT | ERR_FATAL;
 		goto end;
@@ -3853,6 +3922,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "show", "ssl", "cert", NULL },      "show ssl cert [<certfile>]              : display the SSL certificates used in memory, or the details of a file", cli_parse_show_cert, cli_io_handler_show_cert, cli_release_show_cert },
 
 	{ { "new", "ssl", "ca-file", NULL },    "new ssl ca-file <cafile>                : create a new CA file to be used in a crt-list",                         cli_parse_new_cafile, NULL, NULL },
+	{ { "add", "ssl", "ca-file", NULL },    "add ssl ca-file <cafile> <payload>      : add a certificate into the CA file",                                    cli_parse_set_cafile, NULL, NULL },
 	{ { "set", "ssl", "ca-file", NULL },    "set ssl ca-file <cafile> <payload>      : replace a CA file",                                                     cli_parse_set_cafile, NULL, NULL },
 	{ { "commit", "ssl", "ca-file", NULL }, "commit ssl ca-file <cafile>             : commit a CA file",                                                      cli_parse_commit_cafile, cli_io_handler_commit_cafile_crlfile, cli_release_commit_cafile },
 	{ { "abort", "ssl", "ca-file", NULL },  "abort ssl ca-file <cafile>              : abort a transaction for a CA file",                                     cli_parse_abort_cafile, NULL, NULL },
