@@ -1916,6 +1916,10 @@ static size_t qc_rcv_buf(struct stconn *sc, struct buffer *buf,
 
 	cs_htx = htx_from_buf(buf);
 	if (htx_is_empty(cs_htx) && htx_used_space(qcs_htx) <= count) {
+		/* EOM will be copied to cs_htx via b_xfer(). */
+		if (qcs_htx->flags & HTX_FL_EOM)
+			fin = 1;
+
 		htx_to_buf(cs_htx, buf);
 		htx_to_buf(qcs_htx, &qcs->rx.app_buf);
 		b_xfer(buf, &qcs->rx.app_buf, b_data(&qcs->rx.app_buf));
@@ -1945,6 +1949,7 @@ static size_t qc_rcv_buf(struct stconn *sc, struct buffer *buf,
 		if (se_fl_test(qcs->sd, SE_FL_ERR_PENDING))
 			se_fl_set(qcs->sd, SE_FL_ERROR);
 
+		/* Set end-of-input if FIN received and all data extracted. */
 		if (fin)
 			se_fl_set(qcs->sd, SE_FL_EOI);
 
