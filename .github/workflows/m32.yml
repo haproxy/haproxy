@@ -1,0 +1,42 @@
+#
+# special purpose CI: test build on x86_64 with "m32" flag enabled
+# let us run those builds weekly
+#
+# some details might be found at GH: https://github.com/haproxy/haproxy/issues/1760
+#
+
+name: 32 Bit
+
+on:
+  schedule:
+    - cron: "0 0 * * 5"
+
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Fedora
+    runs-on: ubuntu-latest
+    container:
+      image: fedora:rawhide
+    steps:
+    - uses: actions/checkout@v3
+    - name: Install dependencies
+      run: |
+        dnf -y groupinstall "Development Tools"
+        dnf -y install 'perl(FindBin)' 'perl(File::Compare)' perl-IPC-Cmd 'perl(File::Copy)' glibc-devel.i686
+    - name: Compile QUICTLS
+      run: |
+        QUICTLS=yes QUICTLS_EXTRA_ARGS="-m32 linux-generic32" ./scripts/build-ssl.sh
+    - name: Compile HAProxy
+      run: |
+        make -j$(nproc) CC=gcc ERR=1 \
+          TARGET=linux-glibc \
+          USE_OPENSSL=1 \
+          USE_QUIC=1 \
+          DEBUG_CFLAGS="-m32" \
+          LDFLAGS="-m32" \
+          SSL_LIB=${HOME}/opt/lib \
+          SSL_INC=${HOME}/opt/include
