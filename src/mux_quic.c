@@ -451,7 +451,7 @@ static struct ncbuf *qc_get_ncbuf(struct qcs *qcs, struct ncbuf *ncbuf)
 	return ncbuf;
 }
 
-/* Notify an eventual subscriber on <qcs> or else wakup up the stconn layer if
+/* Notify an eventual subscriber on <qcs> or else wakeup up the stconn layer if
  * initialized.
  */
 static void qcs_alert(struct qcs *qcs)
@@ -678,7 +678,7 @@ int qcc_get_qcs(struct qcc *qcc, uint64_t id, int receive_only, int send_only,
 	}
 
 	/* Create the stream. This is valid only for remote initiated one. A
-	 * local stream must have already been explicitely created by the
+	 * local stream must have already been explicitly created by the
 	 * application protocol layer.
 	 */
 	if (quic_stream_is_local(qcc, id)) {
@@ -1280,7 +1280,7 @@ static int qcs_build_stream_frm(struct qcs *qcs, struct buffer *out, char fin,
 	return -1;
 }
 
-/* Check after transfering data from qcs.tx.buf if FIN must be set on the next
+/* Check after transferring data from qcs.tx.buf if FIN must be set on the next
  * STREAM frame for <qcs>.
  *
  * Returns true if FIN must be set else false.
@@ -1502,7 +1502,7 @@ static int _qc_send_qcs(struct qcs *qcs, struct list *frms)
 	/* out buffer cannot be emptied if qcs offsets differ. */
 	BUG_ON(!b_data(out) && qcs->tx.sent_offset != qcs->tx.offset);
 
-	/* FIN is set if all incoming data were transfered. */
+	/* FIN is set if all incoming data were transferred. */
 	fin = qcs_stream_fin(qcs);
 
 	/* Build a new STREAM frame with <out> buffer. */

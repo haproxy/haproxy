@@ -106,7 +106,7 @@ static int bwlim_apply_limit(struct filter *filter, struct channel *chn, unsigne
 	else {
 		/* On per-stream mode, the freq-counter is private to the
 		 * stream. Get it from the filter state. Rely on the custom
-		 * limit/period if defined or use the defaut ones. In this mode,
+		 * limit/period if defined or use the default ones. In this mode,
 		 * there is only one user.
 		 */
 		bytes_rate = &st->bytes_rate;
@@ -141,7 +141,7 @@ static int bwlim_apply_limit(struct filter *filter, struct channel *chn, unsigne
 	if (tokens < len) {
 		/* The stream cannot forward all its data. But we will check if
 		 * it can perform a small burst if the global quota is large
-		 * enought. But, in this case, its waiting time will be
+		 * enough. But, in this case, its waiting time will be
 		 * increased accordingly.
 		 */
 		ret = tokens;
@@ -505,7 +505,7 @@ static void release_bwlim_action(struct act_rule *rule)
  *
  *   arg.act.p[0] will be the filter name (mandatory)
  *   arg.act.p[1] will be an expression for the custom limit (optional, may be NULL)
- *   arg.act.p[2] will be an expression for the custom period (optiona, may be NULLl)
+ *   arg.act.p[2] will be an expression for the custom period (optional, may be NULL)
  *
  * It returns ACT_RET_PRS_OK on success, ACT_RET_PRS_ERR on error.
  */

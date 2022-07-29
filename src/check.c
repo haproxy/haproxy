@@ -1574,7 +1574,7 @@ int init_srv_check(struct server *srv)
 	}
 	else {
 		/* For dynamic servers, check-ssl and check-send-proxy must be
-		 * explicitely defined even if the check port was not
+		 * explicitly defined even if the check port was not
 		 * overridden.
 		 */
 		if (srv->check.use_ssl == 1)

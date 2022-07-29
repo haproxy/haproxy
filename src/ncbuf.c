@@ -506,7 +506,7 @@ int ncb_is_fragmented(const struct ncbuf *buf)
 	return !ncb_blk_is_last(buf, gap);
 }
 
-/* Returns the number of bytes of data avaiable in <buf> starting at offset
+/* Returns the number of bytes of data available in <buf> starting at offset
  * <off> until the next gap or the buffer end. The counted data may wrapped if
  * the buffer storage is not aligned.
  */
@@ -589,7 +589,7 @@ enum ncb_ret ncb_add(struct ncbuf *buf, ncb_sz_t off,
 		ncb_sz_t done;
 
 		/* retrieve the next block. This is necessary to do this
-		 * before overwritting a gap.
+		 * before overwriting a gap.
 		 */
 		next = ncb_blk_next(buf, blk);
 

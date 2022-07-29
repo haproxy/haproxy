@@ -3790,7 +3790,7 @@ out_uri_auth_compat:
 			if (!bind_conf->mux_proto) {
 				/* No protocol was specified. If we're using QUIC at the transport
 				 * layer, we'll instantiate it as a mux as well. If QUIC is not
-				 * compiled in, this wil remain NULL.
+				 * compiled in, this will remain NULL.
 				 */
 				if (bind_conf->xprt && bind_conf->xprt == xprt_get(XPRT_QUIC))
 					bind_conf->mux_proto = get_mux_proto(ist("quic"));

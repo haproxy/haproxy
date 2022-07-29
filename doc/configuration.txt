@@ -23091,7 +23091,7 @@ filter bwlim-out <name> limit <size> key <pattern> [table <table>] [min-size <sz
                 be specified for shared bandwidth limitation filters only.
 
     <time>      is the default time period used to evaluate the bandwidth
-                limitation rate. It can be speficied for per-stream bandwidth
+                limitation rate. It can be specified for per-stream bandwidth
                 limitation filters only. It follows the HAProxy time format and
                 is expressed in milliseconds.
 
@@ -23166,7 +23166,7 @@ some experimentations.
         # of 10m/s with all other streams with the same source address.
         filter bwlim-out limit-by-src key src table limit-by-src limit 10m
 
-        # If this filter is enalbed, the stream will be limited to download at 1m/s,
+        # If this filter is enabled, the stream will be limited to download at 1m/s,
         # independently of all other streams.
         filter bwlim-out limit-by-strm default-limit 1m default-period 1s
 

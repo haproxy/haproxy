@@ -1710,7 +1710,7 @@ static inline void qc_requeue_nacked_pkt_tx_frms(struct quic_conn *qc,
 }
 
 /* Free <pkt> TX packet and its attached frames.
- * This is the responsability of the caller to remove this packet of
+ * This is the responsibility of the caller to remove this packet of
  * any data structure it was possibly attached to.
  */
 static inline void free_quic_tx_packet(struct quic_tx_packet *pkt)
@@ -2642,7 +2642,7 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct ssl_sock_ctx *ct
 /* Must be called only by a <cbuf> writer (packet builder).
  * Return 1 if <cbuf> may be reused to build packets, depending on its <rd> and
  * <wr> internal indexes, 0 if not. When this is the case, reset <wr> writer
- * index after having marked the end of written data. This the responsability
+ * index after having marked the end of written data. This the responsibility
  * of the caller to ensure there is enough room in <cbuf> to write the end of
  * data made of a uint16_t null field.
  *
@@ -4832,7 +4832,7 @@ static int send_stateless_reset(struct listener *l, struct sockaddr_storage *dst
 
 /* QUIC server only function.
  * Add AAD to <add> buffer from <cid> connection ID and <addr> socket address.
- * This is the responsability of the caller to check <aad> size is big enough
+ * This is the responsibility of the caller to check <aad> size is big enough
  * to contain these data.
  * Return the number of bytes copied to <aad>.
  */
@@ -5253,7 +5253,7 @@ static int qc_conn_alloc_ssl_ctx(struct quic_conn *qc)
 }
 
 /* Check that all the bytes between <buf> included and <end> address
- * excluded are null. This is the responsability of the caller to
+ * excluded are null. This is the responsibility of the caller to
  * check that there is at least one byte between <buf> end <end>.
  * Return 1 if this all the bytes are null, 0 if not.
  */
@@ -5271,7 +5271,7 @@ static inline int quic_padding_check(const unsigned char *buf,
  * with the information collected from the packet.
  * This function sets ->len <pkt> field value to the end of the packet past one
  * byte to enable the caller to run this function again to continue to parse
- * the remaing QUIC packets carried by the datagram.
+ * the remaining QUIC packets carried by the datagram.
  * Note that this function always sets this ->len value. If a paquet could
  * not be correctly found, ->len value will be set to the remaining number
  * bytes in the datagram to entirely consume this latter.
@@ -6623,7 +6623,7 @@ struct task *quic_lstnr_dghdlr(struct task *t, void *ctx, unsigned int state)
 	return t;
 }
 
-/* Retreive the DCID from a QUIC datagram or packet with <buf> as first octet.
+/* Retrieve the DCID from a QUIC datagram or packet with <buf> as first octet.
  * Returns 1 if succeeded, 0 if not.
  */
 int quic_get_dgram_dcid(unsigned char *buf, const unsigned char *end,

@@ -227,7 +227,7 @@ da_status_t da_atlas_open(da_atlas_t *atlas, da_property_decl_t *extra_props, co
  * @brief read from a mapped data which then replace da_atlas_compile call
  *
  * @param dumppath, anonymous if NULL
- * @param map for anonymous, it is the responsability of the caller to unmap it, ignored otherwise
+ * @param map for anonymous, it is the responsibility of the caller to unmap it, ignored otherwise
  * @param maplen for anonymous, it is the size of the mapped data, ignored otherwise
  * @param ptr Pointer dynamically allocated if the mapping happened normally
  * @param len size of the atlas image

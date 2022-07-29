@@ -90,7 +90,7 @@ static inline void quic_cid_cpy(struct quic_cid *dst, const struct quic_cid *src
 }
 
 /* Copy <saddr> socket address data into <buf> buffer.
- * This is the responsability of the caller to check the output buffer is big
+ * This is the responsibility of the caller to check the output buffer is big
  * enough to contain these socket address data.
  * Return the number of bytes copied.
  */

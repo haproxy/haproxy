@@ -468,7 +468,7 @@ int httpclient_set_dst(struct httpclient *hc, const char *dst)
 }
 
 /*
- * Return a splitted URL in <scheme>, <host>, <port>
+ * Return a split URL in <scheme>, <host>, <port>
  */
 static void httpclient_spliturl(struct ist url, enum http_scheme *scheme,
                                 struct ist *host, int *port)
@@ -877,7 +877,7 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 						if (hc->ops.res_payload)
 							hc->ops.res_payload(hc);
 
-						/* cannot copy everything, need to processs */
+						/* cannot copy everything, need to process */
 						if (vlen != blksz)
 							goto process_data;
 					} else {

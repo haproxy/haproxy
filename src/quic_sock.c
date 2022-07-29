@@ -295,7 +295,7 @@ void quic_sock_fd_iocb(int fd)
 
 	max_dgrams = global.tune.maxpollevents;
  start:
-	/* Try to reuse an existing dgram. Note that there is alway at
+	/* Try to reuse an existing dgram. Note that there is always at
 	 * least one datagram to pick, except the first time we enter
 	 * this function for this <rxbuf> buffer.
 	 */
@@ -397,7 +397,7 @@ int qc_snd_buf(struct quic_conn *qc, const struct buffer *buf, size_t sz,
 				HA_ATOMIC_INC(&prx_counters->sendto_err);
 		}
 		else if (errno) {
-			/* TODO unlisted errno : handle it explicitely. */
+			/* TODO unlisted errno : handle it explicitly. */
 			ABORT_NOW();
 		}
 

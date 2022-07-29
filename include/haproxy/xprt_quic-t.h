@@ -440,9 +440,9 @@ struct quic_rx_crypto_frm {
 #define QUIC_FL_TX_PACKET_PADDING       (1UL << 1)
 /* Flag a sent packet as being in flight. */
 #define QUIC_FL_TX_PACKET_IN_FLIGHT     (QUIC_FL_TX_PACKET_ACK_ELICITING | QUIC_FL_TX_PACKET_PADDING)
-/* Flag a sent packet as containg a CONNECTION_CLOSE frame */
+/* Flag a sent packet as containing a CONNECTION_CLOSE frame */
 #define QUIC_FL_TX_PACKET_CC            (1UL << 2)
-/* Flag a sent packet as containg an ACK frame */
+/* Flag a sent packet as containing an ACK frame */
 #define QUIC_FL_TX_PACKET_ACK           (1UL << 3)
 /* Flag a sent packet as being coalesced to another one in the same datagram */
 #define QUIC_FL_TX_PACKET_COALESCED     (1UL << 4)

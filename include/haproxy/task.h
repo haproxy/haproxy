@@ -209,7 +209,7 @@ static inline void _task_wakeup(struct task *t, unsigned int f, const char *file
  * happened since the flag was set will result in the task being queued (if
  * it wasn't already). This is used to safely drop the flag from within the
  * scheduler. The flag <f> is combined with existing flags before the test so
- * that it's possible to inconditionally wakeup the task and drop the RUNNING
+ * that it's possible to unconditionally wakeup the task and drop the RUNNING
  * flag if needed.
  */
 #define task_drop_running(t, f) _task_drop_running(t, f, __FILE__, __LINE__)

@@ -573,5 +573,5 @@ CONFIG_HAP_POOL_CLUSTER_SIZE
         This allows one to define the maximum number of objects that will be
         groupped together in an allocation from the shared pool. Values 4 to 8
         have experimentally shown good results with 16 threads. On systems with
-        more cores or losely coupled caches exhibiting slow atomic operations,
+        more cores or loosely coupled caches exhibiting slow atomic operations,
         it could possibly make sense to slightly increase this value.

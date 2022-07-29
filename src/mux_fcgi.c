@@ -3858,7 +3858,7 @@ struct task *fcgi_deferred_shut(struct task *t, void *ctx, unsigned int state)
 	return NULL;
 }
 
-/* shutr() called by the stream conector (mux_ops.shutr) */
+/* shutr() called by the stream connector (mux_ops.shutr) */
 static void fcgi_shutr(struct stconn *sc, enum co_shr_mode mode)
 {
 	struct fcgi_strm *fstrm = __sc_mux_strm(sc);

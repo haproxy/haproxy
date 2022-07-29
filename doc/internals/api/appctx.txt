@@ -20,7 +20,7 @@ context that was allowed to use extra fields of various types. Other applets
 preferred to use their own context definition.
 
 All this resulted in the appctx->ctx to contain a myriad of definitions of
-vairous service contexts, and in some services abusing other services'
+various service contexts, and in some services abusing other services'
 definitions by laziness, and others being extended to use their own definition
 after having run for a long time on the generic types, some of which were not
 noticed and mistakenly used the same storage locations by accident. A massive
@@ -44,7 +44,7 @@ purposed function is provided: "applet_reserve_svcctx()". This function will
 require the caller to indicate how large an area it needs, and will return a
 pointer to this area after checking that it fits. If it does not, haproxy will
 crash. This is purposely done so that it's known during development that if a
-small structure doesn't fit, a differnet approach is required.
+small structure doesn't fit, a different approach is required.
 
 As such, for the vast majority of commands, the process is the following one:
 

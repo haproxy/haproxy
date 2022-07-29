@@ -7,7 +7,7 @@
  * store data in a non-linear way with gaps between them. The buffer is
  * circular and so data may wrapped.
  *
- * The API of <ncbuf> is splitted in two parts. Please refer to the public API
+ * The API of <ncbuf> is split in two parts. Please refer to the public API
  * declared in this header file which should cover all the needs.
  *
  * To minimize the memory footprint, size of data and gaps are inserted in the

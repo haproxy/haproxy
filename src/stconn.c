@@ -244,7 +244,7 @@ static void sc_free_cond(struct stconn **scp)
 
 
 /* Attaches a stconn to a mux endpoint and sets the endpoint ctx. Returns
- * -1 on error and 0 on sucess. SE_FL_DETACHED flag is removed. This function is
+ * -1 on error and 0 on success. SE_FL_DETACHED flag is removed. This function is
  * called from a mux when it is attached to a stream or a health-check.
  */
 int sc_attach_mux(struct stconn *sc, void *sd, void *ctx)
@@ -286,7 +286,7 @@ int sc_attach_mux(struct stconn *sc, void *sd, void *ctx)
 }
 
 /* Attaches a stconn to an applet endpoint and sets the endpoint
- * ctx. Returns -1 on error and 0 on sucess. SE_FL_DETACHED flag is
+ * ctx. Returns -1 on error and 0 on success. SE_FL_DETACHED flag is
  * removed. This function is called by a stream when a backend applet is
  * registered.
  */
@@ -427,7 +427,7 @@ void sc_destroy(struct stconn *sc)
 
 /* Resets the stream connector endpoint. It happens when the app layer want to renew
  * its endpoint. For a connection retry for instance. If a mux or an applet is
- * attached, a new endpoint is created. Returns -1 on error and 0 on sucess.
+ * attached, a new endpoint is created. Returns -1 on error and 0 on success.
  *
  * Only SE_FL_ERROR flag is removed on the endpoint. Orther flags are preserved.
  * It is the caller responsibility to remove other flags if needed.
@@ -1960,7 +1960,7 @@ void sc_conn_prepare_endp_upgrade(struct stconn *sc)
 	sc_ep_set(sc, SE_FL_DETACHED);
 }
 
-/* Endpoint upgrade failed. Retore the stconn state. */
+/* Endpoint upgrade failed. Restore the stconn state. */
 void sc_conn_abort_endp_upgrade(struct stconn *sc)
 {
 	sc_ep_set(sc, SE_FL_T_MUX);
