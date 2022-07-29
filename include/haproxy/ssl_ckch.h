@@ -64,7 +64,7 @@ X509_STORE* ssl_store_get0_locations_file(char *path);
 int ssl_store_add_uncommitted_cafile_entry(struct cafile_entry *entry);
 struct cafile_entry *ssl_store_create_cafile_entry(char *path, X509_STORE *store, enum cafile_type type);
 void ssl_store_delete_cafile_entry(struct cafile_entry *ca_e);
-int ssl_store_load_ca_from_buf(struct cafile_entry *ca_e, char *cert_buf);
+int ssl_store_load_ca_from_buf(struct cafile_entry *ca_e, char *cert_buf, int append);
 int ssl_store_load_locations_file(char *path, int create_if_none, enum cafile_type type);
 
 extern struct cert_exts cert_exts[];
