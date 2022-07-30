@@ -373,9 +373,15 @@ void process_srv_queue(struct server *s)
 
 	/* let's repeat that under the lock on each round. Threads competing
 	 * for the same server will give up, knowing that at least one of
-	 * them will check the conditions again before quitting.
+	 * them will check the conditions again before quitting. In order
+	 * to avoid the deadly situation where one thread spends its time
+	 * dequeueing for others, we limit the number of rounds it does.
+	 * However we still re-enter the loop for one pass if there's no
+	 * more served, otherwise we could end up with no other thread
+	 * trying to dequeue them.
 	 */
-	while (!stop && s->served < (maxconn = srv_dynamic_maxconn(s))) {
+	while (!stop && (done < global.tune.maxpollevents || !s->served) &&
+	       s->served < (maxconn = srv_dynamic_maxconn(s))) {
 		if (HA_SPIN_TRYLOCK(QUEUE_LOCK, &s->queue.lock) != 0)
 			break;
 
@@ -385,6 +391,8 @@ void process_srv_queue(struct server *s)
 				break;
 			_HA_ATOMIC_INC(&s->served);
 			done++;
+			if (done >= global.tune.maxpollevents)
+				break;
 		}
 		HA_SPIN_UNLOCK(QUEUE_LOCK, &s->queue.lock);
 	}
