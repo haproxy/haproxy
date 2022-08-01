@@ -542,7 +542,7 @@ static inline void quic_tx_packet_refdec(struct quic_tx_packet *pkt)
 	}
 }
 
-static inline void quic_pktns_tx_pkts_release(struct quic_pktns *pktns)
+static inline void quic_pktns_tx_pkts_release(struct quic_pktns *pktns, struct quic_conn *qc)
 {
 	struct eb64_node *node;
 
@@ -553,6 +553,8 @@ static inline void quic_pktns_tx_pkts_release(struct quic_pktns *pktns)
 
 		pkt = eb64_entry(node, struct quic_tx_packet, pn_node);
 		node = eb64_next(node);
+		if (pkt->flags & QUIC_FL_TX_PACKET_ACK_ELICITING)
+			qc->path->ifae_pkts--;
 		list_for_each_entry_safe(frm, frmbak, &pkt->frms, list) {
 			LIST_DELETE(&frm->list);
 			quic_tx_packet_refdec(frm->pkt);
@@ -581,7 +583,7 @@ static inline void quic_pktns_discard(struct quic_pktns *pktns,
 	pktns->tx.loss_time = TICK_ETERNITY;
 	pktns->tx.pto_probe = 0;
 	pktns->tx.in_flight = 0;
-	quic_pktns_tx_pkts_release(pktns);
+	quic_pktns_tx_pkts_release(pktns, qc);
 }
 
 /* Initialize <p> QUIC network path depending on <ipv4> boolean

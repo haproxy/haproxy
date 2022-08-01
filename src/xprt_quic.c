@@ -4137,7 +4137,7 @@ static void quic_conn_release(struct quic_conn *qc)
 	pool_free(pool_head_quic_tls_secret, app_tls_ctx->tx.secret);
 
 	for (i = 0; i < QUIC_TLS_PKTNS_MAX; i++) {
-		quic_pktns_tx_pkts_release(&qc->pktns[i]);
+		quic_pktns_tx_pkts_release(&qc->pktns[i], qc);
 		quic_free_arngs(&qc->pktns[i].rx.arngs);
 	}
 
