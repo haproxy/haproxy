@@ -98,6 +98,59 @@ struct ebmb_node *ebmb_lookup_longest(struct eb_root *root, const void *x);
 struct ebmb_node *ebmb_lookup_prefix(struct eb_root *root, const void *x, unsigned int pfx);
 struct ebmb_node *ebmb_insert_prefix(struct eb_root *root, struct ebmb_node *new, unsigned int len);
 
+/* start from a valid leaf and find the next matching prefix that's either a
+ * duplicate, or immediately shorter than the node's current one and still
+ * matches it. The purpose is to permit a caller that is not satisfied with a
+ * result provided by ebmb_lookup_longest() to evaluate the next matching
+ * entry. Given that shorter keys are necessarily attached to nodes located
+ * above the current one, it's sufficient to restart from the current leaf and
+ * go up until we find a shorter prefix, or a non-matching one.
+ */
+static inline struct ebmb_node *ebmb_lookup_shorter(struct ebmb_node *start)
+{
+	eb_troot_t *t = start->node.leaf_p;
+	struct ebmb_node *node;
+
+	/* first, chcek for duplicates */
+	node = ebmb_next_dup(start);
+	if (node)
+		return node;
+
+	while (1) {
+		if (eb_gettag(t) == EB_LEFT) {
+			/* Walking up from left branch. We must ensure that we never
+			 * walk beyond root.
+			 */
+			if (unlikely(eb_clrtag((eb_untag(t, EB_LEFT))->b[EB_RGHT]) == NULL))
+				return NULL;
+			node = container_of(eb_root_to_node(eb_untag(t, EB_LEFT)), struct ebmb_node, node);
+		} else {
+			/* Walking up from right branch, so we cannot be below
+			 * root. However, if we end up on a node with an even
+			 * and positive bit, this is a cover node, which mandates
+			 * that the left branch only contains cover values, so we
+			 * must descend it.
+			 */
+			node = container_of(eb_root_to_node(eb_untag(t, EB_RGHT)), struct ebmb_node, node);
+			if (node->node.bit > 0 && !(node->node.bit & 1))
+				return ebmb_entry(eb_walk_down(t, EB_LEFT), struct ebmb_node, node);
+		}
+
+		/* Note that <t> cannot be NULL at this stage */
+		t = node->node.node_p;
+
+		/* this is a node attached to a deeper (and possibly different)
+		 * leaf, not interesting for us.
+		 */
+		if (node->node.pfx >= start->node.pfx)
+			continue;
+
+		if (check_bits(start->key, node->key, 0, node->node.pfx) == 0)
+			break;
+	}
+	return node;
+}
+
 /* The following functions are less likely to be used directly, because their
  * code is larger. The non-inlined version is preferred.
  */
