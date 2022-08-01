@@ -616,6 +616,10 @@ unsigned int get_next_id(struct eb_root *root, unsigned int key);
 void eb32sc_to_file(FILE *file, struct eb_root *root, const struct eb32sc_node *subj,
                     int op, const char *desc);
 
+/* same but for ebmb */
+void ebmb_to_file(FILE *file, struct eb_root *root, const struct ebmb_node *subj,
+                  int op, const char *desc);
+
 /* This function compares a sample word possibly followed by blanks to another
  * clean word. The compare is case-insensitive. 1 is returned if both are equal,
  * otherwise zero. This intends to be used when checking HTTP headers for some
