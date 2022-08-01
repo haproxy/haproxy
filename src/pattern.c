@@ -476,7 +476,7 @@ struct pattern *pat_match_str(struct sample *smp, struct pattern_expr *expr, int
 		while (node) {
 			elt = ebmb_entry(node, struct pattern_tree, node);
 			if (elt->ref->gen_id != expr->ref->curr_gen) {
-				node = ebmb_next(node);
+				node = ebmb_next_dup(node);
 				continue;
 			}
 			if (fill) {
@@ -671,7 +671,7 @@ struct pattern *pat_match_beg(struct sample *smp, struct pattern_expr *expr, int
 		while (node) {
 			elt = ebmb_entry(node, struct pattern_tree, node);
 			if (elt->ref->gen_id != expr->ref->curr_gen) {
-				node = ebmb_next(node);
+				node = ebmb_lookup_shorter(node);
 				continue;
 			}
 			if (fill) {
@@ -982,7 +982,7 @@ struct pattern *pat_match_ip(struct sample *smp, struct pattern_expr *expr, int 
 		while (node) {
 			elt = ebmb_entry(node, struct pattern_tree, node);
 			if (elt->ref->gen_id != expr->ref->curr_gen) {
-				node = ebmb_next(node);
+				node = ebmb_lookup_shorter(node);
 				continue;
 			}
 			if (fill) {
@@ -1008,7 +1008,7 @@ struct pattern *pat_match_ip(struct sample *smp, struct pattern_expr *expr, int 
 		while (node) {
 			elt = ebmb_entry(node, struct pattern_tree, node);
 			if (elt->ref->gen_id != expr->ref->curr_gen) {
-				node = ebmb_next(node);
+				node = ebmb_lookup_shorter(node);
 				continue;
 			}
 			if (fill) {
@@ -1032,7 +1032,7 @@ struct pattern *pat_match_ip(struct sample *smp, struct pattern_expr *expr, int 
 		while (node) {
 			elt = ebmb_entry(node, struct pattern_tree, node);
 			if (elt->ref->gen_id != expr->ref->curr_gen) {
-				node = ebmb_next(node);
+				node = ebmb_lookup_shorter(node);
 				continue;
 			}
 			if (fill) {
@@ -1069,7 +1069,7 @@ struct pattern *pat_match_ip(struct sample *smp, struct pattern_expr *expr, int 
 			while (node) {
 				elt = ebmb_entry(node, struct pattern_tree, node);
 				if (elt->ref->gen_id != expr->ref->curr_gen) {
-					node = ebmb_next(node);
+					node = ebmb_lookup_shorter(node);
 					continue;
 				}
 				if (fill) {
