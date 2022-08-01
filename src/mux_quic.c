@@ -290,42 +290,53 @@ static void qcc_refresh_timeout(struct qcc *qcc)
 	if (!qcc->task)
 		goto leave;
 
-	/* Calculate the timeout. */
-	if (qcc_may_expire(qcc)) {
-		/* TODO implement specific timeouts
-		 * - http-requset for waiting on incomplete streams
-		 * - client-fin for graceful shutdown
-		 */
-		if (qcc->nb_hreq) {
-			/* detached streams left. */
-			TRACE_DEVEL("one or more requests still in progress", QMUX_EV_QCC_WAKE, qcc->conn);
-			qcc->task->expire = tick_add_ifset(now_ms, qcc->timeout);
-		}
-		else if (!conn_is_back(qcc->conn) && qcc->largest_bidi_r > 0x00) {
-			int timeout = tick_isset(px->timeout.httpka) ?
-			              px->timeout.httpka : px->timeout.httpreq;
-
-			TRACE_DEVEL("at least one request achieved but none currently in progress", QMUX_EV_QCC_WAKE, qcc->conn);
-			qcc->task->expire = tick_add_ifset(qcc->idle_start,
-			                                   timeout);
-		}
-
-		/* fallback to default timeout if none set. */
-		if (!tick_isset(qcc->task->expire)) {
-			TRACE_DEVEL("fallback to default timeout", QMUX_EV_QCC_WAKE, qcc->conn);
-			qcc->task->expire = tick_add_ifset(now_ms, qcc->timeout);
-		}
-
-		/* TODO if connection is idle on frontend and proxy is
-		 * disabled, remove it with global close_spread delay applied.
-		 */
-	}
-	else {
+	/* Check if upper layer is responsible of timeout management. */
+	if (!qcc_may_expire(qcc)) {
 		TRACE_DEVEL("not eligible for timeout", QMUX_EV_QCC_WAKE, qcc->conn);
 		qcc->task->expire = TICK_ETERNITY;
+		task_queue(qcc->task);
+		goto leave;
 	}
 
-	/* Enqueue the timeout task. */
+	/* TODO if connection is idle on frontend and proxy is disabled, remove
+	 * it with global close_spread delay applied.
+	 */
+
+	/* TODO implement specific timeouts
+	 * - http-requset for waiting on incomplete streams
+	 * - client-fin for graceful shutdown
+	 */
+
+	/* Frontend timeout management
+	 * - detached streams with data left to send -> default timeout
+	 * - idle after stream processing -> timeout http-keep-alive
+	 */
+	if (!conn_is_back(qcc->conn)) {
+		int timeout;
+
+		if (qcc->nb_hreq) {
+			TRACE_DEVEL("one or more requests still in progress", QMUX_EV_QCC_WAKE, qcc->conn);
+			qcc->task->expire = tick_add_ifset(now_ms, qcc->timeout);
+			task_queue(qcc->task);
+			goto leave;
+		}
+
+		/* Use http-request timeout if keep-alive timeout not set */
+		timeout = tick_isset(px->timeout.httpka) ?
+		            px->timeout.httpka : px->timeout.httpreq;
+
+		TRACE_DEVEL("at least one request achieved but none currently in progress", QMUX_EV_QCC_WAKE, qcc->conn);
+		qcc->task->expire = tick_add_ifset(qcc->idle_start, timeout);
+	}
+
+	/* fallback to default timeout if frontend specific undefined or for
+	 * backend connections.
+	 */
+	if (!tick_isset(qcc->task->expire)) {
+		TRACE_DEVEL("fallback to default timeout", QMUX_EV_QCC_WAKE, qcc->conn);
+		qcc->task->expire = tick_add_ifset(now_ms, qcc->timeout);
+	}
+
 	task_queue(qcc->task);
 
  leave:
