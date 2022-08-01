@@ -176,7 +176,6 @@ struct qcc_app_ops {
 	size_t (*snd_buf)(struct stconn *sc, struct buffer *buf, size_t count, int flags);
 	void (*detach)(struct qcs *qcs);
 	int (*finalize)(void *ctx);
-	int (*is_active)(const struct qcc *qcc, void *ctx);
 	void (*release)(void *ctx);
 	void (*inc_err_cnt)(void *ctx, int err_code);
 };

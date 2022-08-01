@@ -1001,10 +1001,6 @@ static void qcs_destroy(struct qcs *qcs)
 
 static inline int qcc_is_dead(const struct qcc *qcc)
 {
-	if (qcc->app_ops && qcc->app_ops->is_active &&
-	    qcc->app_ops->is_active(qcc, qcc->ctx))
-		return 0;
-
 	if ((qcc->conn->flags & CO_FL_ERROR) || !qcc->task)
 		return 1;
 

@@ -1192,18 +1192,6 @@ static void h3_release(void *ctx)
 	pool_free(pool_head_h3c, h3c);
 }
 
-/* Check if the H3 connection can still be considered as active.
- *
- * Return true if active else false.
- */
-static int h3_is_active(const struct qcc *qcc, void *ctx)
-{
-	if (qcc->strms[QCS_CLT_BIDI].nb_streams)
-		return 1;
-
-	return 0;
-}
-
 /* Increment the h3 error code counters for <error_code> value */
 static void h3_stats_inc_err_cnt(void *ctx, int err_code)
 {
@@ -1238,7 +1226,6 @@ const struct qcc_app_ops h3_ops = {
 	.snd_buf     = h3_snd_buf,
 	.detach      = h3_detach,
 	.finalize    = h3_finalize,
-	.is_active   = h3_is_active,
 	.release     = h3_release,
 	.inc_err_cnt = h3_stats_inc_err_cnt,
 };
