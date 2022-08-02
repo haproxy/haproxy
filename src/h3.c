@@ -138,6 +138,7 @@ struct h3s {
 	struct h3c *h3c;
 
 	enum h3s_t type;
+	enum h3s_st_req st_req; /* only used for request streams */
 	int demux_frame_len;
 	int demux_frame_type;
 
@@ -284,8 +285,11 @@ static int h3_is_frame_valid(struct h3c *h3c, struct qcs *qcs, uint64_t ftype)
 
 	switch (ftype) {
 	case H3_FT_DATA:
+		return h3s->type != H3S_T_CTRL && (h3s->st_req == H3S_ST_REQ_HEADERS ||
+		                                   h3s->st_req == H3S_ST_REQ_DATA);
+
 	case H3_FT_HEADERS:
-		return h3s->type != H3S_T_CTRL;
+		return h3s->type != H3S_T_CTRL && h3s->st_req != H3S_ST_REQ_TRAILERS;
 
 	case H3_FT_CANCEL_PUSH:
 	case H3_FT_GOAWAY:
@@ -343,6 +347,8 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 	int hdr_idx, ret;
 
 	TRACE_ENTER(H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+
+	/* TODO support trailer parsing in this function */
 
 	/* TODO support buffer wrapping */
 	BUG_ON(b_head(buf) + len >= b_wrap(buf));
@@ -673,6 +679,7 @@ static ssize_t h3_decode_qcs(struct qcs *qcs, struct buffer *b, int fin)
 			ret = h3_data_to_htx(qcs, b, flen, last_stream_frame);
 			/* TODO handle error reporting. Stream closure required. */
 			if (ret < 0) { ABORT_NOW(); }
+			h3s->st_req = H3S_ST_REQ_DATA;
 			break;
 		case H3_FT_HEADERS:
 			ret = h3_headers_to_htx(qcs, b, flen, last_stream_frame);
@@ -684,6 +691,8 @@ static ssize_t h3_decode_qcs(struct qcs *qcs, struct buffer *b, int fin)
 				qcc_emit_cc_app(qcs->qcc, h3c->err, 1);
 				return -1;
 			}
+			h3s->st_req = (h3s->st_req == H3S_ST_REQ_BEFORE) ?
+			                H3S_ST_REQ_HEADERS : H3S_ST_REQ_TRAILERS;
 			break;
 		case H3_FT_CANCEL_PUSH:
 		case H3_FT_PUSH_PROMISE:
@@ -1070,6 +1079,7 @@ static int h3_attach(struct qcs *qcs, void *conn_ctx)
 
 	if (quic_stream_is_bidi(qcs->id)) {
 		h3s->type = H3S_T_REQ;
+		h3s->st_req = H3S_ST_REQ_BEFORE;
 	}
 	else {
 		/* stream type must be decoded for unidirectional streams */

@@ -101,6 +101,14 @@ enum h3s_t {
 	H3S_T_UNKNOWN
 };
 
+/* State for request streams */
+enum h3s_st_req {
+	H3S_ST_REQ_BEFORE = 0, /* initial state */
+	H3S_ST_REQ_HEADERS,    /* header section received */
+	H3S_ST_REQ_DATA,       /* first DATA frame for content received */
+	H3S_ST_REQ_TRAILERS,   /* trailer section received */
+};
+
 extern const struct qcc_app_ops h3_ops;
 
 size_t h3_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, int flags);
