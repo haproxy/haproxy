@@ -261,6 +261,77 @@ static forceinline void qcc_rm_hreq(struct qcc *qcc)
 		qcc_reset_idle_start(qcc);
 }
 
+static inline int qcc_is_dead(const struct qcc *qcc)
+{
+	/* Mux connection is considered dead if :
+	 * - all stream-desc are detached AND
+	 *   = connection is on error OR
+	 *   = mux timeout has already fired or is unset
+	 */
+	if (!qcc->nb_sc && ((qcc->conn->flags & CO_FL_ERROR) || !qcc->task))
+		return 1;
+
+	return 0;
+}
+
+/* Return true if the mux timeout should be armed. */
+static inline int qcc_may_expire(struct qcc *qcc)
+{
+	return !qcc->nb_sc;
+}
+
+/* Refresh the timeout on <qcc> if needed depending on its state. */
+static void qcc_refresh_timeout(struct qcc *qcc)
+{
+	const struct proxy *px = qcc->proxy;
+
+	TRACE_ENTER(QMUX_EV_QCC_WAKE, qcc->conn);
+
+	if (!qcc->task)
+		goto leave;
+
+	/* Calculate the timeout. */
+	if (qcc_may_expire(qcc)) {
+		/* TODO implement specific timeouts
+		 * - http-requset for waiting on incomplete streams
+		 * - client-fin for graceful shutdown
+		 */
+		if (qcc->nb_hreq) {
+			/* detached streams left. */
+			TRACE_DEVEL("one or more requests still in progress", QMUX_EV_QCC_WAKE, qcc->conn);
+			qcc->task->expire = tick_add_ifset(now_ms, qcc->timeout);
+		}
+		else if (!conn_is_back(qcc->conn) && qcc->largest_bidi_r > 0x00) {
+			int timeout = tick_isset(px->timeout.httpka) ?
+			              px->timeout.httpka : px->timeout.httpreq;
+
+			TRACE_DEVEL("at least one request achieved but none currently in progress", QMUX_EV_QCC_WAKE, qcc->conn);
+			qcc->task->expire = tick_add_ifset(qcc->idle_start,
+			                                   timeout);
+		}
+
+		/* fallback to default timeout if none set. */
+		if (!tick_isset(qcc->task->expire)) {
+			TRACE_DEVEL("fallback to default timeout", QMUX_EV_QCC_WAKE, qcc->conn);
+			qcc->task->expire = tick_add_ifset(now_ms, qcc->timeout);
+		}
+
+		/* TODO if connection is idle on frontend and proxy is
+		 * disabled, remove it with global close_spread delay applied.
+		 */
+	}
+	else {
+		TRACE_DEVEL("not eligible for timeout", QMUX_EV_QCC_WAKE, qcc->conn);
+		qcc->task->expire = TICK_ETERNITY;
+	}
+
+	/* Enqueue the timeout task. */
+	task_queue(qcc->task);
+
+ leave:
+	TRACE_LEAVE(QMUX_EV_QCS_NEW, qcc->conn);
+}
+
 /* Mark a stream as open if it was idle. This can be used on every
  * successful emission/reception operation to update the stream state.
  */
@@ -859,8 +930,10 @@ int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
 	if (qcs->flags & QC_SF_SIZE_KNOWN && !ncb_is_fragmented(&qcs->rx.ncbuf))
 		qcs_close_remote(qcs);
 
-	if (ncb_data(&qcs->rx.ncbuf, 0) && !(qcs->flags & QC_SF_DEM_FULL))
+	if (ncb_data(&qcs->rx.ncbuf, 0) && !(qcs->flags & QC_SF_DEM_FULL)) {
 		qcc_decode_qcs(qcc, qcs);
+		qcc_refresh_timeout(qcc);
+	}
 
 	if (qcs->flags & QC_SF_READ_ABORTED) {
 		/* TODO should send a STOP_SENDING */
@@ -1030,77 +1103,6 @@ static void qcs_destroy(struct qcs *qcs)
 	qcs_free(qcs);
 
 	TRACE_LEAVE(QMUX_EV_QCS_END, conn);
-}
-
-static inline int qcc_is_dead(const struct qcc *qcc)
-{
-	/* Mux connection is considered dead if :
-	 * - all stream-desc are detached AND
-	 *   = connection is on error OR
-	 *   = mux timeout has already fired or is unset
-	 */
-	if (!qcc->nb_sc && ((qcc->conn->flags & CO_FL_ERROR) || !qcc->task))
-		return 1;
-
-	return 0;
-}
-
-/* Return true if the mux timeout should be armed. */
-static inline int qcc_may_expire(struct qcc *qcc)
-{
-	return !qcc->nb_sc;
-}
-
-/* Refresh the timeout on <qcc> if needed depending on its state. */
-static void qcc_refresh_timeout(struct qcc *qcc)
-{
-	const struct proxy *px = qcc->proxy;
-
-	TRACE_ENTER(QMUX_EV_QCC_WAKE, qcc->conn);
-
-	if (!qcc->task)
-		goto leave;
-
-	/* Calculate the timeout. */
-	if (qcc_may_expire(qcc)) {
-		/* TODO implement specific timeouts
-		 * - http-requset for waiting on incomplete streams
-		 * - client-fin for graceful shutdown
-		 */
-		if (qcc->nb_hreq) {
-			/* detached streams left. */
-			TRACE_DEVEL("one or more requests still in progress", QMUX_EV_QCC_WAKE, qcc->conn);
-			qcc->task->expire = tick_add_ifset(now_ms, qcc->timeout);
-		}
-		else if (!conn_is_back(qcc->conn) && qcc->largest_bidi_r > 0x00) {
-			int timeout = tick_isset(px->timeout.httpka) ?
-			              px->timeout.httpka : px->timeout.httpreq;
-
-			TRACE_DEVEL("at least one request achieved but none currently in progress", QMUX_EV_QCC_WAKE, qcc->conn);
-			qcc->task->expire = tick_add_ifset(qcc->idle_start,
-			                                   timeout);
-		}
-
-		/* fallback to default timeout if none set. */
-		if (!tick_isset(qcc->task->expire)) {
-			TRACE_DEVEL("fallback to default timeout", QMUX_EV_QCC_WAKE, qcc->conn);
-			qcc->task->expire = tick_add_ifset(now_ms, qcc->timeout);
-		}
-
-		/* TODO if connection is idle on frontend and proxy is
-		 * disabled, remove it with global close_spread delay applied.
-		 */
-	}
-	else {
-		TRACE_DEVEL("not eligible for timeout", QMUX_EV_QCC_WAKE, qcc->conn);
-		qcc->task->expire = TICK_ETERNITY;
-	}
-
-	/* Enqueue the timeout task. */
-	task_queue(qcc->task);
-
- leave:
-	TRACE_LEAVE(QMUX_EV_QCS_NEW, qcc->conn);
 }
 
 /* Transfer as much as possible data on <qcs> from <in> to <out>. This is done
