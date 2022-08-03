@@ -2169,7 +2169,7 @@ int srv_prepare_for_resolution(struct server *srv, const char *hostname)
  * <srv_tmpl> distinguishes these two cases (must be 1 if <srv> is a template,
  * 0 if not).
  */
-static void srv_settings_cpy(struct server *srv, const struct server *src, int srv_tmpl)
+void srv_settings_cpy(struct server *srv, const struct server *src, int srv_tmpl)
 {
 	/* Connection source settings copy */
 	srv_conn_src_cpy(srv, src);
