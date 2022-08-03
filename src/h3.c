@@ -1080,6 +1080,7 @@ static int h3_attach(struct qcs *qcs, void *conn_ctx)
 	if (quic_stream_is_bidi(qcs->id)) {
 		h3s->type = H3S_T_REQ;
 		h3s->st_req = H3S_ST_REQ_BEFORE;
+		qcs_wait_http_req(qcs);
 	}
 	else {
 		/* stream type must be decoded for unidirectional streams */

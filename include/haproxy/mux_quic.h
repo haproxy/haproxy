@@ -115,7 +115,34 @@ static inline struct stconn *qc_attach_sc(struct qcs *qcs, struct buffer *buf)
 	sess->t_handshake = 0;
 	sess->t_idle = 0;
 
+	/* A stream must have been registered for HTTP wait before attaching
+	 * it to sedesc. See <qcs_wait_http_req> for more info.
+	 */
+	BUG_ON_HOT(!LIST_INLIST(&qcs->el_opening));
+	LIST_DELETE(&qcs->el_opening);
+
 	return qcs->sd->sc;
+}
+
+/* Register <qcs> stream for http-request timeout. If the stream is not yet
+ * attached in the configured delay, qcc timeout task will be triggered. This
+ * means the full header section was not received in time.
+ *
+ * This function should be called by the application protocol layer on request
+ * streams initialization.
+ */
+static inline void qcs_wait_http_req(struct qcs *qcs)
+{
+	struct qcc *qcc = qcs->qcc;
+
+	/* A stream cannot be registered several times. */
+	BUG_ON_HOT(tick_isset(qcs->start));
+	qcs->start = now_ms;
+
+	/* qcc.opening_list size is limited by flow-control so no custom
+	 * restriction is needed here.
+	 */
+	LIST_APPEND(&qcc->opening_list, &qcs->el_opening);
 }
 
 #endif /* USE_QUIC */

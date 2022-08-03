@@ -96,6 +96,7 @@ struct qcc {
 
 	/* haproxy timeout management */
 	struct task *task;
+	struct list opening_list; /* list of not already attached streams (http-request timeout) */
 	int timeout;
 	int idle_start; /* base time for http-keep-alive timeout */
 
@@ -165,11 +166,14 @@ struct qcs {
 	struct qc_stream_desc *stream;
 
 	struct list el; /* element of qcc.send_retry_list */
+	struct list el_opening; /* element of qcc.opening_list */
 
 	struct wait_event wait_event;
 	struct wait_event *subs;
 
 	uint64_t err; /* error code to transmit via RESET_STREAM */
+
+	int start; /* base timestamp for http-request timeout */
 };
 
 /* QUIC application layer operations */

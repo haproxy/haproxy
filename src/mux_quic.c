@@ -130,6 +130,12 @@ static struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
 	qcs->st = QC_SS_IDLE;
 	qcs->ctx = NULL;
 
+	/* App callback attach may register the stream for http-request wait.
+	 * These fields must be initialed before.
+	 */
+	LIST_INIT(&qcs->el_opening);
+	qcs->start = TICK_ETERNITY;
+
 	/* Allocate transport layer stream descriptor. Only needed for TX. */
 	if (!quic_stream_is_uni(id) || !quic_stream_is_remote(qcc, id)) {
 		struct quic_conn *qc = qcc->conn->handle.qc;
@@ -302,18 +308,14 @@ static void qcc_refresh_timeout(struct qcc *qcc)
 	 * it with global close_spread delay applied.
 	 */
 
-	/* TODO implement specific timeouts
-	 * - http-requset for waiting on incomplete streams
-	 * - client-fin for graceful shutdown
-	 */
+	/* TODO implement client/server-fin timeout for graceful shutdown */
 
 	/* Frontend timeout management
 	 * - detached streams with data left to send -> default timeout
+	 * - stream waiting on incomplete request or no stream yet activated -> timeout http-request
 	 * - idle after stream processing -> timeout http-keep-alive
 	 */
 	if (!conn_is_back(qcc->conn)) {
-		int timeout;
-
 		if (qcc->nb_hreq) {
 			TRACE_DEVEL("one or more requests still in progress", QMUX_EV_QCC_WAKE, qcc->conn);
 			qcc->task->expire = tick_add_ifset(now_ms, qcc->timeout);
@@ -321,12 +323,29 @@ static void qcc_refresh_timeout(struct qcc *qcc)
 			goto leave;
 		}
 
-		/* Use http-request timeout if keep-alive timeout not set */
-		timeout = tick_isset(px->timeout.httpka) ?
-		            px->timeout.httpka : px->timeout.httpreq;
+		if (!LIST_ISEMPTY(&qcc->opening_list) || unlikely(!qcc->largest_bidi_r)) {
+			int timeout = px->timeout.httpreq;
+			struct qcs *qcs = NULL;
+			int base_time;
 
-		TRACE_DEVEL("at least one request achieved but none currently in progress", QMUX_EV_QCC_WAKE, qcc->conn);
-		qcc->task->expire = tick_add_ifset(qcc->idle_start, timeout);
+			/* Use start time of first stream waiting on HTTP or
+			 * qcc idle if no stream not yet used.
+			 */
+			if (likely(!LIST_ISEMPTY(&qcc->opening_list)))
+				qcs = LIST_ELEM(qcc->opening_list.n, struct qcs *, el_opening);
+			base_time = qcs ? qcs->start : qcc->idle_start;
+
+			TRACE_DEVEL("waiting on http request", QMUX_EV_QCC_WAKE, qcc->conn, qcs);
+			qcc->task->expire = tick_add_ifset(base_time, timeout);
+		}
+		else {
+			/* Use http-request timeout if keep-alive timeout not set */
+			int timeout = tick_isset(px->timeout.httpka) ?
+			                px->timeout.httpka : px->timeout.httpreq;
+
+			TRACE_DEVEL("at least one request achieved but none currently in progress", QMUX_EV_QCC_WAKE, qcc->conn);
+			qcc->task->expire = tick_add_ifset(qcc->idle_start, timeout);
+		}
 	}
 
 	/* fallback to default timeout if frontend specific undefined or for
@@ -1015,6 +1034,9 @@ int qcc_recv_max_stream_data(struct qcc *qcc, uint64_t id, uint64_t max)
 		}
 	}
 
+	if (qcc_may_expire(qcc) && !qcc->nb_hreq)
+		qcc_refresh_timeout(qcc);
+
 	TRACE_LEAVE(QMUX_EV_QCC_RECV, qcc->conn);
 	return 0;
 }
@@ -1063,6 +1085,9 @@ int qcc_recv_stop_sending(struct qcc *qcc, uint64_t id, uint64_t err)
 	 */
 	TRACE_DEVEL("receiving STOP_SENDING on stream", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV, qcc->conn, qcs);
 	qcc_reset_stream(qcs, err);
+
+	if (qcc_may_expire(qcc) && !qcc->nb_hreq)
+		qcc_refresh_timeout(qcc);
 
  out:
 	TRACE_LEAVE(QMUX_EV_QCC_RECV, qcc->conn);
@@ -1931,6 +1956,7 @@ static int qc_init(struct connection *conn, struct proxy *prx,
 		qcc->task->expire = tick_add(now_ms, qcc->timeout);
 	}
 	qcc_reset_idle_start(qcc);
+	LIST_INIT(&qcc->opening_list);
 
 	if (!conn_is_back(conn)) {
 		if (!LIST_INLIST(&conn->stopping_list)) {
