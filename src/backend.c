@@ -2293,8 +2293,6 @@ void back_handle_st_cer(struct stream *s)
 	s->conn_exp = TICK_ETERNITY;
 	s->flags &= ~SF_CONN_EXP;
 
-	s->conn_retries++;
-
 	/* we probably have to release last stream from the server */
 	if (objt_server(s->target)) {
 		struct connection *conn = sc_conn(sc);
@@ -2389,6 +2387,7 @@ void back_handle_st_cer(struct stream *s)
 		goto end;
 	}
 
+	s->conn_retries++;
 	stream_choose_redispatch(s);
 
 	if (must_tar) {
