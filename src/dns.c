@@ -1049,7 +1049,7 @@ struct dns_session *dns_session_new(struct dns_stream_server *dss)
 	if (dss->maxconn && (dss->maxconn <= dss->cur_conns))
 		return NULL;
 
-	ds = pool_alloc(dns_session_pool);
+	ds = pool_zalloc(dns_session_pool);
 	if (!ds)
 		return NULL;
 
