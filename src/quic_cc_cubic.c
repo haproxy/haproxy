@@ -75,8 +75,7 @@ static uint32_t cubic_root(uint64_t val)
 		244,  245,  246,  248,  250,  251,  252,  254,
 	};
 
-	b = my_flsl(val);
-	if (b < 7) {
+	if (!val || (b = my_flsl(val)) < 7) {
 		/* val in [0..63] */
 		return ((uint32_t)v[(uint32_t)val] + 35) >> 6;
 	}
