@@ -1102,6 +1102,7 @@ int cfg_post_parse_ring()
 				sft->srv = srv;
 				sft->appctx = NULL;
 				sft->ofs = ~0; /* init ring offset */
+				sft->sink = cfg_sink;
 				sft->next = cfg_sink->sft;
 				HA_SPIN_INIT(&sft->lock);
 
