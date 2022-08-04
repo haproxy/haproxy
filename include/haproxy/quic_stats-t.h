@@ -12,6 +12,8 @@ enum {
 	QUIC_ST_DROPPED_PACKET,
 	QUIC_ST_DROPPED_PACKET_BUFOVERRUN,
 	QUIC_ST_DROPPED_PARSING,
+	QUIC_ST_SOCKET_FULL,
+	QUIC_ST_SENDTO_ERR,
 	QUIC_ST_LOST_PACKET,
 	QUIC_ST_TOO_SHORT_INITIAL_DGRAM,
 	QUIC_ST_RETRY_SENT,
@@ -52,6 +54,8 @@ struct quic_counters {
 	long long dropped_pkt;       /* total number of dropped packets */
 	long long dropped_pkt_bufoverrun;/* total number of dropped packets because of buffer overrun */
 	long long dropped_parsing;   /* total number of dropped packets upon parsing errors */
+	long long socket_full;       /* total number of EAGAIN errors on sendto() calls */
+	long long sendto_err;        /* total number of errors on sendto() calls, EAGAIN excepted */
 	long long lost_pkt;          /* total number of lost packets */
 	long long too_short_initial_dgram; /* total number of too short datagrams with Initial packets */
 	long long retry_sent;        /* total number of Retry sent */

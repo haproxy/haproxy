@@ -393,8 +393,14 @@ size_t qc_snd_buf(struct quic_conn *qc, const struct buffer *buf, size_t sz,
 	}
 	else if (ret == 0 || errno == EAGAIN || errno == EWOULDBLOCK ||
 	         errno == ENOTCONN || errno == EINPROGRESS || errno == EBADF) {
+		struct proxy *prx = qc->li->bind_conf->frontend;
+		struct quic_counters *prx_counters =
+			EXTRA_COUNTERS_GET(prx->extra_counters_fe, &quic_stats_module);
 		/* TODO must be handle properly. It is justified for UDP ? */
-		qc->sendto_err++;
+		if (errno == EAGAIN || errno == EWOULDBLOCK)
+			HA_ATOMIC_INC(&prx_counters->socket_full);
+		else
+			HA_ATOMIC_INC(&prx_counters->sendto_err);
 	}
 	else if (errno) {
 		/* TODO unlisted errno : handle it explicitely. */

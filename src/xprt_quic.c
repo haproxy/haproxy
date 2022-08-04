@@ -598,7 +598,7 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 		if (mask & QUIC_EV_CONN_SPPKTS) {
 			const struct quic_tx_packet *pkt = a2;
 
-			chunk_appendf(&trace_buf, " err=%u cwnd=%llu ppif=%llu pif=%llu", qc->sendto_err,
+			chunk_appendf(&trace_buf, " cwnd=%llu ppif=%llu pif=%llu",
 			             (unsigned long long)qc->path->cwnd,
 			             (unsigned long long)qc->path->prep_in_flight,
 			             (unsigned long long)qc->path->in_flight);
@@ -4397,7 +4397,6 @@ static struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 
 	qc->streams_by_id = EB_ROOT_UNIQUE;
 	qc->stream_buf_count = 0;
-	qc->sendto_err = 0;
 	memcpy(&qc->peer_addr, saddr, sizeof qc->peer_addr);
 
 	if (server && !qc_lstnr_params_init(qc, &l->bind_conf->quic_params,
