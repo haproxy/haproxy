@@ -657,8 +657,8 @@ struct quic_conn {
 		uint64_t prep_bytes;
 		/* Transport parameters sent by the peer */
 		struct quic_transport_params params;
-		/* A pointer to a list of TX ring buffers */
-		struct mt_list *qring_list;
+		/* Send buffer used to write datagrams. */
+		struct buffer buf;
 	} tx;
 	struct {
 		/* Number of received bytes. */
