@@ -364,13 +364,14 @@ void quic_sock_fd_iocb(int fd)
 
 /* Send a datagram stored into <buf> buffer with <sz> as size.
  * The caller must ensure there is at least <sz> bytes in this buffer.
- * Return the size of this datagram if succeeded, 0 if truncated and -1 in case of
- * any error.
+ *
+ * Returns 0 on success else non-zero.
+ *
  * TODO standardize this function for a generic UDP sendto wrapper. This can be
  * done by removing the <qc> arg and replace it with address/port.
  */
-size_t qc_snd_buf(struct quic_conn *qc, const struct buffer *buf, size_t sz,
-                  int flags)
+int qc_snd_buf(struct quic_conn *qc, const struct buffer *buf, size_t sz,
+               int flags)
 {
 	ssize_t ret;
 
@@ -380,34 +381,36 @@ size_t qc_snd_buf(struct quic_conn *qc, const struct buffer *buf, size_t sz,
 		             (struct sockaddr *)&qc->peer_addr, get_addr_len(&qc->peer_addr));
 	} while (ret < 0 && errno == EINTR);
 
-	if (ret > 0) {
-		if (ret != sz)
-			return 0;
+	if (ret < 0 || ret != sz) {
+		/* TODO adjust errno for UDP context. */
+		if (errno == EAGAIN || errno == EWOULDBLOCK ||
+		    errno == ENOTCONN || errno == EINPROGRESS || errno == EBADF) {
+			struct proxy *prx = qc->li->bind_conf->frontend;
+			struct quic_counters *prx_counters =
+			  EXTRA_COUNTERS_GET(prx->extra_counters_fe,
+			                     &quic_stats_module);
 
-		/* we count the total bytes sent, and the send rate for 32-byte
-		 * blocks. The reason for the latter is that freq_ctr are
-		 * limited to 4GB and that it's not enough per second.
-		 */
-		_HA_ATOMIC_ADD(&global.out_bytes, ret);
-		update_freq_ctr(&global.out_32bps, (ret + 16) / 32);
-	}
-	else if (ret == 0 || errno == EAGAIN || errno == EWOULDBLOCK ||
-	         errno == ENOTCONN || errno == EINPROGRESS || errno == EBADF) {
-		struct proxy *prx = qc->li->bind_conf->frontend;
-		struct quic_counters *prx_counters =
-			EXTRA_COUNTERS_GET(prx->extra_counters_fe, &quic_stats_module);
-		/* TODO must be handle properly. It is justified for UDP ? */
-		if (errno == EAGAIN || errno == EWOULDBLOCK)
-			HA_ATOMIC_INC(&prx_counters->socket_full);
-		else
-			HA_ATOMIC_INC(&prx_counters->sendto_err);
-	}
-	else if (errno) {
-		/* TODO unlisted errno : handle it explicitely. */
-		ABORT_NOW();
+			if (errno == EAGAIN || errno == EWOULDBLOCK)
+				HA_ATOMIC_INC(&prx_counters->socket_full);
+			else
+				HA_ATOMIC_INC(&prx_counters->sendto_err);
+		}
+		else if (errno) {
+			/* TODO unlisted errno : handle it explicitely. */
+			ABORT_NOW();
+		}
+
+		return 1;
 	}
 
-	return ret;
+	/* we count the total bytes sent, and the send rate for 32-byte blocks.
+	 * The reason for the latter is that freq_ctr are limited to 4GB and
+	 * that it's not enough per second.
+	 */
+	_HA_ATOMIC_ADD(&global.out_bytes, ret);
+	update_freq_ctr(&global.out_32bps, (ret + 16) / 32);
+
+	return 0;
 }
 
 
