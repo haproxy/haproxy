@@ -251,6 +251,7 @@ static int quic_lstnr_dgram_dispatch(unsigned char *buf, size_t len, void *owner
 	LIST_APPEND(dgrams, &dgram->list);
 	MT_LIST_APPEND(&quic_dghdlrs[cid_tid].dgrams, &dgram->mt_list);
 
+	/* typically quic_lstnr_dghdlr() */
 	tasklet_wakeup(quic_dghdlrs[cid_tid].task);
 
 	return 1;

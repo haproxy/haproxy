@@ -6572,6 +6572,7 @@ struct task *quic_lstnr_dghdlr(struct task *t, void *ctx, unsigned int state)
 	struct quic_dgram *dgram;
 	int first_pkt = 1;
 	struct list *tasklist_head = NULL;
+	int max_dgrams = global.tune.maxpollevents;
 
 	while ((dgram = MT_LIST_POP(&dghdlr->dgrams, typeof(dgram), mt_list))) {
 		pos = dgram->buf;
@@ -6606,9 +6607,17 @@ struct task *quic_lstnr_dghdlr(struct task *t, void *ctx, unsigned int state)
 
 		/* Mark this datagram as consumed */
 		HA_ATOMIC_STORE(&dgram->buf, NULL);
+
+		if (--max_dgrams <= 0)
+			goto stop_here;
 	}
 
 	return t;
+
+ stop_here:
+	/* too much work done at once, come back here later */
+	if (!MT_LIST_ISEMPTY(&dghdlr->dgrams))
+		tasklet_wakeup((struct tasklet *)t);
 
  err:
 	return t;
