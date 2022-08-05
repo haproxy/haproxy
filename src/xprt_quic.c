@@ -6615,7 +6615,7 @@ int quic_get_dgram_dcid(unsigned char *buf, const unsigned char *end,
 	minlen = long_header ? QUIC_LONG_PACKET_MINLEN :
 		QUIC_SHORT_PACKET_MINLEN + QUIC_HAP_CID_LEN + QUIC_TLS_TAG_LEN;
 	skip = long_header ? QUIC_LONG_PACKET_DCID_OFF : QUIC_SHORT_PACKET_DCID_OFF;
-	if (end - buf <= minlen)
+	if (end - buf < minlen)
 		goto err;
 
 	buf += skip;
