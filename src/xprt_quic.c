@@ -5334,6 +5334,7 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 		         dgram->len < QUIC_INITIAL_PACKET_MINLEN) {
 			TRACE_PROTO("Too short datagram with an Initial packet", QUIC_EV_CONN_LPKT, qc);
 			HA_ATOMIC_INC(&prx_counters->too_short_initial_dgram);
+			goto drop;
 		}
 
 		/* When multiple QUIC packets are coalesced on the same UDP datagram,
