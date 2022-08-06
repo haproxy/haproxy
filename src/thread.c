@@ -1066,8 +1066,8 @@ static void __thread_init(void)
 
 	thread_cpus_enabled_at_boot = thread_cpus_enabled();
 
-	memprintf(&ptr, "Built with multi-threading support (MAX_THREADS=%d, default=%d).",
-		  MAX_THREADS, thread_cpus_enabled_at_boot);
+	memprintf(&ptr, "Built with multi-threading support (MAX_TGROUPS=%d, MAX_THREADS=%d, default=%d).",
+		  MAX_TGROUPS, MAX_THREADS, thread_cpus_enabled_at_boot);
 	hap_register_build_opts(ptr, 1);
 
 #if defined(DEBUG_THREAD) || defined(DEBUG_FULL)
