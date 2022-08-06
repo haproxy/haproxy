@@ -164,5 +164,5 @@ shell {
 }
 
 shell {
-    echo "Q" | openssl s_client -unix "${tmpdir}/ssl_P-384.sock" -servername server.ecdsa.com 2>/dev/null| grep "Temp Key: ECDH,.+, 384 bits"
+    echo "Q" | openssl s_client -unix "${tmpdir}/ssl_P-384.sock" -servername server.ecdsa.com 2>/dev/null| grep -E "Temp Key: ECDH,.+, 384 bits"
 }
