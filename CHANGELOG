@@ -1,6 +1,96 @@
 ChangeLog :
 ===========
 
+2022/08/07 : 2.7-dev3
+    - BUILD: makefile: Fix install(1) handling for OpenBSD/NetBSD/Solaris/AIX
+    - BUG/MEDIUM: tools: avoid calling dlsym() in static builds (try 2)
+    - MINOR: resolvers: resolvers_destroy() deinit and free a resolver
+    - BUG/MINOR: resolvers: shut off the warning for the default resolvers
+    - BUG/MINOR: ssl: allow duplicate certificates in ca-file directories
+    - BUG/MINOR: tools: fix statistical_prng_range()'s output range
+    - BUG/MINOR: quic: do not send CONNECTION_CLOSE_APP in initial/handshake
+    - BUILD: debug: Add braces to if statement calling only CHECK_IF()
+    - BUG/MINOR: fd: Properly init the fd state in fd_insert()
+    - BUG/MEDIUM: fd/threads: fix incorrect thread selection in wakeup broadcast
+    - MINOR: init: load OpenSSL error strings
+    - MINOR: ssl: enhance ca-file error emitting
+    - BUG/MINOR: mworker/cli: relative pid prefix not validated anymore
+    - BUG/MAJOR: mux_quic: fix invalid PROTOCOL_VIOLATION on POST data overlap
+    - BUG/MEDIUM: mworker: proc_self incorrectly set crashes upon reload
+    - BUILD: add detection for unsupported compiler models
+    - BUG/MEDIUM: stconn: Only reset connect expiration when processing backend side
+    - BUG/MINOR: backend: Fallback on RR algo if balance on source is impossible
+    - BUG/MEDIUM: master: force the thread count earlier
+    - BUG/MAJOR: poller: drop FD's tgid when masks don't match
+    - DEBUG: fd: detect possibly invalid tgid in fd_insert()
+    - BUG/MINOR: sockpair: wrong return value for fd_send_uxst()
+    - MINOR: sockpair: move send_fd_uxst() error message in caller
+    - Revert "BUG/MINOR: peers: set the proxy's name to the peers section name"
+    - DEBUG: fd: split the fd check
+    - MEDIUM: resolvers: continue startup if network is unavailable
+    - BUG/MINOR: fd: always remove late updates when freeing fd_updt[]
+    - MINOR: cli: emit a warning when _getsocks was used more than once
+    - BUG/MINOR: mworker: PROC_O_LEAVING used but not updated
+    - Revert "MINOR: cli: emit a warning when _getsocks was used more than once"
+    - MINOR: cli: warning on _getsocks when socket were closed
+    - BUG/MEDIUM: mux-quic: fix missing EOI flag to prevent streams leaks
+    - MINOR: quic: Congestion control architecture refactoring
+    - MEDIUM: quic: Cubic congestion control algorithm implementation
+    - MINOR: quic: New "quic-cc-algo" bind keyword
+    - BUG/MINOR: quic: loss time limit variable computed but not used
+    - MINOR: quic: Stop looking for packet loss asap
+    - BUG/MAJOR: quic: Useless resource intensive loop qc_ackrng_pkts()
+    - MINOR: quic: Send packets as much as possible from qc_send_app_pkts()
+    - BUG/MEDIUM: queue/threads: limit the number of entries dequeued at once
+    - MAJOR: threads/plock: update the embedded library
+    - MINOR: thread: provide an alternative to pthread's rwlock
+    - DEBUG: tools: provide a tree dump function for ebmbtrees as well
+    - MINOR: ebtree: add ebmb_lookup_shorter() to pursue lookups
+    - BUG/MEDIUM: pattern: only visit equivalent nodes when skipping versions
+    - BUG/MINOR: mux-quic: prevent crash if conn released during IO callback
+    - CLEANUP: mux-quic: remove useless app_ops is_active callback
+    - BUG/MINOR: mux-quic: do not free conn if attached streams
+    - MINOR: mux-quic: save proxy instance into qcc
+    - MINOR: mux-quic: use timeout server for backend conns
+    - MEDIUM: mux-quic: adjust timeout refresh
+    - MINOR: mux-quic: count in-progress requests
+    - MEDIUM: mux-quic: implement http-keep-alive timeout
+    - MINOR: peers: Add a warning about incompatible SSL config for the local peer
+    - MINOR: peers: Use a dedicated reconnect timeout when stopping the local peer
+    - BUG/MEDIUM: peers: limit reconnect attempts of the old process on reload
+    - BUG/MINOR: peers: Use right channel flag to consider the peer as connected
+    - BUG/MEDIUM: dns: Properly initialize new DNS session
+    - BUG/MINOR: backend: Don't increment conn_retries counter too early
+    - MINOR: server: Constify source server to copy its settings
+    - REORG: server: Export srv_settings_cpy() function
+    - BUG/MEDIUM: proxy: Perform a custom copy for default server settings
+    - BUG/MINOR: quic: Missing in flight ack eliciting packet counter decrement
+    - BUG/MEDIUM: quic: Floating point exception in cubic_root()
+    - MINOR: h3: support HTTP request framing state
+    - MINOR: mux-quic: refresh timeout on frame decoding
+    - MINOR: mux-quic: refactor refresh timeout function
+    - MEDIUM: mux-quic: implement http-request timeout
+    - BUG/MINOR: quic: Avoid sending truncated datagrams
+    - BUG/MINOR: ring/cli: fix a race condition between the writer and the reader
+    - BUG/MEDIUM: sink: Set the sink ref for forwarders created during ring parsing
+    - BUG/MINOR: sink: fix a race condition between the writer and the reader
+    - BUG/MINOR: quic: do not reject datagrams matching minimum permitted size
+    - MINOR: quic: Add two new stats counters for sendto() errors
+    - BUG/MINOR: quic: Missing Initial packet dropping case
+    - MINOR: quic: explicitely ignore sendto error
+    - BUG/MINOR: quic: adjust errno handling on sendto
+    - BUG/MEDIUM: quic: break out of the loop in quic_lstnr_dghdlr
+    - MINOR: threads: report the number of thread groups in build options
+    - MINOR: config: automatically preset MAX_THREADS based on MAX_TGROUPS
+    - BUILD: SSL: allow to pass additional configure args to QUICTLS
+    - CI: enable weekly "m32" builds on x86_64
+    - CLEANUP: assorted typo fixes in the code and comments
+    - BUG/MEDIUM: fix DH length when EC key is used
+    - REGTESTS: ssl: adopt tests to OpenSSL-3.0.N
+    - REGTESTS: ssl: adopt tests to OpenSSL-3.0.N
+    - REGTESTS: ssl: fix grep invocation to use extended regex in ssl_generate_certificate.vtc
+    - BUILD: cfgparse: always defined _GNU_SOURCE for sched.h and crypt.h
+
 2022/07/16 : 2.7-dev2
     - BUG/MINOR: qpack: fix build with QPACK_DEBUG
     - MINOR: h3: handle errors on HEADERS parsing/QPACK decoding
