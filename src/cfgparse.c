@@ -10,10 +10,10 @@
  *
  */
 
-#ifdef USE_LIBCRYPT
-/* This is to have crypt() defined on Linux */
+/* This is to have crypt() and sched_setaffinity() defined on Linux */
 #define _GNU_SOURCE
 
+#ifdef USE_LIBCRYPT
 #ifdef USE_CRYPT_H
 /* some platforms such as Solaris need this */
 #include <crypt.h>
@@ -29,6 +29,9 @@
 #include <pwd.h>
 #include <grp.h>
 #include <errno.h>
+#ifdef USE_CPU_AFFINITY
+#include <sched.h>
+#endif
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
