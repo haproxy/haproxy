@@ -5925,11 +5925,11 @@ static inline int qc_build_frms(struct list *outlist, struct list *inlist,
 				((cf->type & QUIC_STREAM_FRAME_TYPE_OFF_BIT) ? quic_int_getsize(cf->stream.offset.key) : 0);
 			/* Compute the data length of this STREAM frame. */
 			avail_room = room - hlen - *len;
-			TRACE_PROTO("          New STREAM frame build (room, len)",
-			            QUIC_EV_CONN_BCFRMS, qc, &room, len);
 			if ((ssize_t)avail_room <= 0)
 				continue;
 
+			TRACE_PROTO("          New STREAM frame build (room, len)",
+			            QUIC_EV_CONN_BCFRMS, qc, &room, len);
 			if (cf->type & QUIC_STREAM_FRAME_TYPE_LEN_BIT) {
 				dlen = max_available_room(avail_room, &dlen_sz);
 				if (dlen > cf->stream.len) {
