@@ -1240,8 +1240,7 @@ static uint64_t decode_packet_number(uint64_t largest_pn,
  */
 static int qc_do_rm_hp(struct quic_conn *qc,
                        struct quic_rx_packet *pkt, struct quic_tls_ctx *tls_ctx,
-                       int64_t largest_pn, unsigned char *pn,
-                       unsigned char *byte0, const unsigned char *end)
+                       int64_t largest_pn, unsigned char *pn, unsigned char *byte0)
 {
 	int ret, outlen, i, pnlen;
 	uint64_t packet_number;
@@ -1252,7 +1251,7 @@ static int qc_do_rm_hp(struct quic_conn *qc,
 	unsigned char *hp_key;
 
 	/* Check there is enough data in this packet. */
-	if (end - pn < QUIC_PACKET_PN_MAXLEN + sizeof mask) {
+	if (pkt->len - (pn - byte0) < QUIC_PACKET_PN_MAXLEN + sizeof mask) {
 		TRACE_DEVEL("too short packet", QUIC_EV_CONN_RMHP, qc, pkt);
 		return 0;
 	}
@@ -3505,8 +3504,7 @@ static inline void qc_rm_hp_pkts(struct quic_conn *qc, struct quic_enc_level *el
 	tls_ctx = &el->tls_ctx;
 	mt_list_for_each_entry_safe(pqpkt, &el->rx.pqpkts, list, pkttmp1, pkttmp2) {
 		if (!qc_do_rm_hp(qc, pqpkt, tls_ctx, el->pktns->rx.largest_pn,
-		                 pqpkt->data + pqpkt->pn_offset,
-		                 pqpkt->data, pqpkt->data + pqpkt->len)) {
+		                 pqpkt->data + pqpkt->pn_offset, pqpkt->data)) {
 			TRACE_PROTO("hp removing error", QUIC_EV_CONN_ELRMHP, qc);
 			/* XXX TO DO XXX */
 		}
@@ -4598,7 +4596,6 @@ static void qc_pkt_insert(struct quic_rx_packet *pkt, struct quic_enc_level *qel
 static inline int qc_try_rm_hp(struct quic_conn *qc,
                                struct quic_rx_packet *pkt,
                                unsigned char *buf, unsigned char *beg,
-                               const unsigned char *end,
                                struct quic_enc_level **el)
 {
 	unsigned char *pn = NULL; /* Packet number field */
@@ -4624,7 +4621,7 @@ static inline int qc_try_rm_hp(struct quic_conn *qc,
 		 * packets.
 		 */
 		if (!qc_do_rm_hp(qc, pkt, &qel->tls_ctx,
-		                 qel->pktns->rx.largest_pn, pn, beg, end)) {
+		                 qel->pktns->rx.largest_pn, pn, beg)) {
 			TRACE_PROTO("hp error", QUIC_EV_CONN_TRMHP, qc);
 			goto err;
 		}
@@ -5636,7 +5633,7 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 		}
 	}
 
-	if (!qc_try_rm_hp(qc, pkt, payload, beg, end, &qel)) {
+	if (!qc_try_rm_hp(qc, pkt, payload, beg, &qel)) {
 		TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT, qc, NULL, NULL, qv);
 		goto drop;
 	}
