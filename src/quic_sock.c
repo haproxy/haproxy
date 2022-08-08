@@ -317,7 +317,7 @@ void quic_sock_fd_iocb(int fd)
 		struct quic_dgram *dgram;
 
 		/* Do no mark <buf> as full, and do not try to consume it
-		 * if the contiguous remmaining space is not at the end
+		 * if the contiguous remaining space is not at the end
 		 */
 		if (b_tail(buf) + cspace < b_wrap(buf))
 			goto out;
@@ -325,11 +325,16 @@ void quic_sock_fd_iocb(int fd)
 		/* Allocate a fake datagram, without data to locate
 		 * the end of the RX buffer (required during purging).
 		 */
-		dgram = pool_zalloc(pool_head_quic_dgram);
+		dgram = pool_alloc(pool_head_quic_dgram);
 		if (!dgram)
 			goto out;
 
+		/* Initialize only the useful members of this fake datagram. */
+		dgram->buf = NULL;
 		dgram->len = cspace;
+		/* Append this datagram only to the RX buffer list. It will
+		 * not be treated by any datagram handler.
+		 */
 		LIST_APPEND(&rxbuf->dgrams, &dgram->list);
 
 		/* Consume the remaining space */
