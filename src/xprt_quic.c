@@ -2650,6 +2650,36 @@ static inline void qc_set_dg(struct buffer *buf,
 	write_ptr(b_tail(buf) + sizeof(dglen), pkt);
 }
 
+/* Allocate Tx buffer from <qc> quic-conn if needed.
+ *
+ * Returns allocated buffer or NULL on error.
+ */
+static struct buffer *qc_txb_alloc(struct quic_conn *qc)
+{
+	struct buffer *buf = &qc->tx.buf;
+	if (!b_alloc(buf))
+		return NULL;
+
+	return buf;
+}
+
+/* Free Tx buffer from <qc> if it is empty. */
+static void qc_txb_release(struct quic_conn *qc)
+{
+	struct buffer *buf = &qc->tx.buf;
+
+	/* For the moment sending function is responsible to purge the buffer
+	 * entirely. It may change in the future but this requires to be able
+	 * to reuse old data.
+	 */
+	BUG_ON(buf && b_data(buf));
+
+	if (!b_data(buf)) {
+		b_free(buf);
+		offer_buffers(NULL, 1);
+	}
+}
+
 /* Returns 1 if a packet may be built for <qc> from <qel> encryption level
  * with <frms> as ack-eliciting frame list to send, 0 if not.
  * <cc> must equal to 1 if an immediate close was asked, 0 if not.
@@ -3617,7 +3647,7 @@ static int qc_qel_may_rm_hp(struct quic_conn *qc, struct quic_enc_level *qel)
 int qc_send_app_pkts(struct quic_conn *qc, int old_data, struct list *frms)
 {
 	int ret;
-	struct buffer *buf = b_alloc(&qc->tx.buf);
+	struct buffer *buf = qc_txb_alloc(qc);
 	if (!buf)
 		return 0;
 
@@ -3646,10 +3676,12 @@ int qc_send_app_pkts(struct quic_conn *qc, int old_data, struct list *frms)
 
  out:
 	qc->flags &= ~QUIC_FL_CONN_RETRANS_OLD_DATA;
+	qc_txb_release(qc);
 	return 1;
 
  err:
 	qc->flags &= ~QUIC_FL_CONN_RETRANS_OLD_DATA;
+	qc_txb_release(qc);
 	TRACE_DEVEL("leaving in error", QUIC_EV_CONN_IO_CB, qc);
 	return 0;
 }
@@ -3664,7 +3696,7 @@ int qc_send_hdshk_pkts(struct quic_conn *qc, int old_data,
                        enum quic_tls_enc_level next_tel, struct list *next_tel_frms)
 {
 	int ret;
-	struct buffer *buf = b_alloc(&qc->tx.buf);
+	struct buffer *buf = qc_txb_alloc(qc);
 	if (!buf)
 		return 0;
 
@@ -3689,10 +3721,12 @@ int qc_send_hdshk_pkts(struct quic_conn *qc, int old_data,
 
  out:
 	qc->flags &= ~QUIC_FL_CONN_RETRANS_OLD_DATA;
+	qc_txb_release(qc);
 	return 1;
 
  err:
 	qc->flags &= ~QUIC_FL_CONN_RETRANS_OLD_DATA;
+	qc_txb_release(qc);
 	TRACE_DEVEL("leaving in error", QUIC_EV_CONN_IO_CB, qc);
 	return 0;
 }
@@ -3924,7 +3958,7 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 	if (!quic_get_tls_enc_levels(&tel, &next_tel, st, 0))
 		goto err;
 
-	buf = b_alloc(&qc->tx.buf);
+	buf = qc_txb_alloc(qc);
 	if (!buf)
 		goto err;
 
@@ -3957,10 +3991,12 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 	}
 
  out:
+	qc_txb_release(qc);
 	TRACE_LEAVE(QUIC_EV_CONN_IO_CB, qc, &st);
 	return t;
 
  err:
+	qc_txb_release(qc);
 	TRACE_DEVEL("leaving in error", QUIC_EV_CONN_IO_CB, qc, &st, &ssl_err);
 	return t;
 }
@@ -4060,8 +4096,6 @@ static void quic_conn_release(struct quic_conn *qc)
 		LIST_DELETE(&pkt->qc_rx_pkt_list);
 		pool_free(pool_head_quic_rx_packet, pkt);
 	}
-
-	b_free(&qc->tx.buf);
 
 	if (qc->idle_timer_task) {
 		task_destroy(qc->idle_timer_task);
