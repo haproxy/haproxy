@@ -2638,18 +2638,6 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct ssl_sock_ctx *ct
 	return 0;
 }
 
-/* Write datagram header used for sending into <buf>. It is composed of the
- * datagram length and address of the first packet in datagram.
- *
- * Caller is responsible that there is enough space in the buffer.
- */
-static inline void qc_set_dg(struct buffer *buf,
-                             uint16_t dglen, struct quic_tx_packet *pkt)
-{
-	write_u16(b_tail(buf), dglen);
-	write_ptr(b_tail(buf) + sizeof(dglen), pkt);
-}
-
 /* Allocate Tx buffer from <qc> quic-conn if needed.
  *
  * Returns allocated buffer or NULL on error.
@@ -2672,12 +2660,28 @@ static void qc_txb_release(struct quic_conn *qc)
 	 * entirely. It may change in the future but this requires to be able
 	 * to reuse old data.
 	 */
-	BUG_ON(buf && b_data(buf));
+	BUG_ON_HOT(buf && b_data(buf));
 
 	if (!b_data(buf)) {
 		b_free(buf);
 		offer_buffers(NULL, 1);
 	}
+}
+
+/* Commit a datagram payload written into <buf> of length <length>. <first_pkt>
+ * must contains the address of the first packet stored in the payload.
+ *
+ * Caller is responsible that there is enough space in the buffer.
+ */
+static void qc_txb_store(struct buffer *buf, uint16_t length,
+                         struct quic_tx_packet *first_pkt)
+{
+	const size_t hdlen = sizeof(uint16_t) + sizeof(void *);
+	BUG_ON_HOT(b_contig_space(buf) < hdlen); /* this must not happen */
+
+	write_u16(b_tail(buf), length);
+	write_ptr(b_tail(buf) + sizeof(length), first_pkt);
+	b_add(buf, hdlen + length);
 }
 
 /* Returns 1 if a packet may be built for <qc> from <qel> encryption level
@@ -2721,7 +2725,7 @@ static int qc_prep_app_pkts(struct quic_conn *qc, struct buffer *buf,
                             struct list *frms)
 {
 	struct quic_enc_level *qel;
-	unsigned char *end, *pos, *beg;
+	unsigned char *end, *pos;
 	struct quic_tx_packet *pkt;
 	size_t total;
 	/* Each datagram is prepended with its length followed by the address
@@ -2733,7 +2737,7 @@ static int qc_prep_app_pkts(struct quic_conn *qc, struct buffer *buf,
 
 	qel = &qc->els[QUIC_TLS_ENC_LEVEL_APP];
 	total = 0;
-	beg = pos = (unsigned char *)b_tail(buf);
+	pos = (unsigned char *)b_tail(buf);
 	while (b_contig_space(buf) >= (int)qc->path->mtu + dg_headlen) {
 		int err, probe, cc;
 
@@ -2781,9 +2785,7 @@ static int qc_prep_app_pkts(struct quic_conn *qc, struct buffer *buf,
 		total += pkt->len;
 
 		/* Write datagram header. */
-		qc_set_dg(buf, pkt->len, pkt);
-		b_add(buf, pos - beg);
-		beg = pos;
+		qc_txb_store(buf, pkt->len, pkt);
 	}
 
  out:
@@ -2810,7 +2812,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
                         enum quic_tls_enc_level next_tel, struct list *next_tel_frms)
 {
 	struct quic_enc_level *qel;
-	unsigned char *end, *pos, *beg;
+	unsigned char *end, *pos;
 	struct quic_tx_packet *first_pkt, *cur_pkt, *prv_pkt;
 	/* length of datagrams */
 	uint16_t dglen;
@@ -2834,7 +2836,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 	frms = tel_frms;
 	dglen = 0;
 	padding = 0;
-	beg = pos = (unsigned char *)b_head(buf);
+	pos = (unsigned char *)b_head(buf);
 	first_pkt = prv_pkt = NULL;
 	while (b_contig_space(buf) >= (int)qc->path->mtu + dg_headlen || prv_pkt) {
 		int err, probe, cc;
@@ -2853,11 +2855,8 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 			probe = qel->pktns->tx.pto_probe;
 
 		if (!qc_may_build_pkt(qc, frms, qel, cc, probe, force_ack)) {
-			if (prv_pkt) {
-				qc_set_dg(buf, dglen, first_pkt);
-				b_add(buf, pos - beg);
-				beg = pos;
-			}
+			if (prv_pkt)
+				qc_txb_store(buf, dglen, first_pkt);
 			/* Let's select the next encryption level */
 			if (tel != next_tel && next_tel != QUIC_TLS_ENC_LEVEL_NONE) {
 				tel = next_tel;
@@ -2904,11 +2903,8 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 			/* If there was already a correct packet present, set the
 			 * current datagram as prepared into <cbuf>.
 			 */
-			if (prv_pkt) {
-				qc_set_dg(buf, dglen, first_pkt);
-				b_add(buf, pos - beg);
-				beg = pos;
-			}
+			if (prv_pkt)
+				qc_txb_store(buf, dglen, first_pkt);
 			goto out;
 		default:
 			break;
@@ -2972,9 +2968,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 		 * prepared into <cbuf>.
 		 */
 		if (!prv_pkt) {
-			qc_set_dg(buf, dglen, first_pkt);
-			b_add(buf, pos - beg);
-			beg = pos;
+			qc_txb_store(buf, dglen, first_pkt);
 			first_pkt = NULL;
 			dglen = 0;
 			padding = 0;
