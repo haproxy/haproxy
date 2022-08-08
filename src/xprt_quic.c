@@ -4628,6 +4628,11 @@ static inline int qc_try_rm_hp(struct quic_conn *qc,
 
 		/* The AAD includes the packet number field found at <pn>. */
 		pkt->aad_len = pn - beg + pkt->pnl;
+		if (pkt->len - pkt->aad_len < QUIC_TLS_TAG_LEN) {
+			TRACE_PROTO("Too short packet", QUIC_EV_CONN_TRMHP, qc);
+			goto err;
+		}
+
 		qpkt_trace = pkt;
 	}
 	else {
