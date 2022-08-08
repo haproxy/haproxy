@@ -3837,6 +3837,15 @@ out:
 	return t;
 }
 
+/* Returns a boolean if <qc> needs to emit frames for <qel> encryption level. */
+static int qc_need_sending(struct quic_conn *qc, struct quic_enc_level *qel)
+{
+	return (qc->flags & QUIC_FL_CONN_IMMEDIATE_CLOSE) ||
+	       (qel->pktns->flags & QUIC_FL_PKTNS_ACK_REQUIRED) ||
+	       qel->pktns->tx.pto_probe ||
+	       !LIST_ISEMPTY(&qel->pktns->tx.frms);
+}
+
 /* QUIC connection packet handler task. */
 struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 {
@@ -3951,6 +3960,9 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 	 */
 	if (!quic_get_tls_enc_levels(&tel, &next_tel, st, 0))
 		goto err;
+
+	if (!qc_need_sending(qc, qel) && !qc_need_sending(qc, next_qel))
+		goto skip_send;
 
 	buf = qc_txb_alloc(qc);
 	if (!buf)
