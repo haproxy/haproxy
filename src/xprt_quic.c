@@ -3961,8 +3961,10 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 	if (!quic_get_tls_enc_levels(&tel, &next_tel, st, 0))
 		goto err;
 
-	if (!qc_need_sending(qc, qel) && !qc_need_sending(qc, next_qel))
+	if (!qc_need_sending(qc, qel) &&
+	    (!next_qel || !qc_need_sending(qc, next_qel))) {
 		goto skip_send;
+	}
 
 	buf = qc_txb_alloc(qc);
 	if (!buf)
