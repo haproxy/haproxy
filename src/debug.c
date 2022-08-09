@@ -1229,6 +1229,7 @@ static int debug_iohandler_fd(struct appctx *appctx)
 struct dev_mem_ctx {
 	struct mem_stats *start, *stop; /* begin/end of dump */
 	int show_all;                   /* show all entries if non-null */
+	int width;
 };
 
 /* CLI parser for the "debug dev memstats" command. Sets a dev_mem_ctx shown above. */
@@ -1261,6 +1262,7 @@ static int debug_parse_cli_memstats(char **args, char *payload, struct appctx *a
 	/* otherwise proceed with the dump from p0 to p1 */
 	ctx->start = &__start_mem_stats;
 	ctx->stop  = &__stop_mem_stats;
+	ctx->width = 0;
 	return 0;
 }
 
@@ -1273,16 +1275,44 @@ static int debug_iohandler_memstats(struct appctx *appctx)
 {
 	struct dev_mem_ctx *ctx = appctx->svcctx;
 	struct stconn *sc = appctx_sc(appctx);
-	struct mem_stats *ptr = ctx->start;
+	struct mem_stats *ptr;
 	int ret = 1;
 
 	if (unlikely(sc_ic(sc)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
 		goto end;
 
+	if (!ctx->width) {
+		/* we don't know the first column's width, let's compute it
+		 * now based on a first pass on printable entries and their
+		 * expected width (approximated).
+		 */
+		for (ptr = ctx->start; ptr != ctx->stop; ptr++) {
+			const char *p, *name;
+			int w = 0;
+			char tmp;
+
+			if (!ptr->size && !ptr->calls && !ctx->show_all)
+				continue;
+
+			for (p = name = ptr->file; *p; p++) {
+				if (*p == '/')
+					name = p + 1;
+			}
+
+			if (ctx->show_all)
+				w = snprintf(&tmp, 0, "%s(%s:%d) ", ptr->func, name, ptr->line);
+			else
+				w = snprintf(&tmp, 0, "%s:%d ", name, ptr->line);
+
+			if (w > ctx->width)
+				ctx->width = w;
+		}
+	}
+
 	/* we have two inner loops here, one for the proxy, the other one for
 	 * the buffer.
 	 */
-	for (; ptr != ctx->stop; ptr++) {
+	for (ptr = ctx->start; ptr != ctx->stop; ptr++) {
 		const char *type;
 		const char *name;
 		const char *p;
@@ -1326,7 +1356,7 @@ static int debug_iohandler_memstats(struct appctx *appctx)
 		if (ctx->show_all)
 			chunk_appendf(&trash, ")");
 
-		while (trash.data < (ctx->show_all ? 45 : 25))
+		while (trash.data < ctx->width)
 			trash.area[trash.data++] = ' ';
 
 		chunk_appendf(&trash, "%7s  size: %12lu  calls: %9lu  size/call: %6lu %s\n",
