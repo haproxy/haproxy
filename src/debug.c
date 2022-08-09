@@ -1288,6 +1288,7 @@ static int debug_iohandler_memstats(struct appctx *appctx)
 		const char *type;
 		const char *name;
 		const char *p;
+		const char *info = NULL;
 
 		if (!ptr->size && !ptr->calls && !ctx->show_all)
 			continue;
@@ -1304,8 +1305,8 @@ static int debug_iohandler_memstats(struct appctx *appctx)
 		case MEM_STATS_TYPE_MALLOC:  type = "MALLOC";  break;
 		case MEM_STATS_TYPE_REALLOC: type = "REALLOC"; break;
 		case MEM_STATS_TYPE_STRDUP:  type = "STRDUP";  break;
-		case MEM_STATS_TYPE_P_ALLOC: type = "P_ALLOC"; break;
-		case MEM_STATS_TYPE_P_FREE:  type = "P_FREE";  break;
+		case MEM_STATS_TYPE_P_ALLOC: type = "P_ALLOC"; if (ptr->extra) info = ((const struct pool_head *)ptr->extra)->name; break;
+		case MEM_STATS_TYPE_P_FREE:  type = "P_FREE";  if (ptr->extra) info = ((const struct pool_head *)ptr->extra)->name; break;
 		default:                     type = "UNSET";   break;
 		}
 
@@ -1318,10 +1319,11 @@ static int debug_iohandler_memstats(struct appctx *appctx)
 		chunk_printf(&trash, "%s:%d", name, ptr->line);
 		while (trash.data < 25)
 			trash.area[trash.data++] = ' ';
-		chunk_appendf(&trash, "%7s  size: %12lu  calls: %9lu  size/call: %6lu\n",
+		chunk_appendf(&trash, "%7s  size: %12lu  calls: %9lu  size/call: %6lu %s\n",
 			     type,
 			     (unsigned long)ptr->size, (unsigned long)ptr->calls,
-			     (unsigned long)(ptr->calls ? (ptr->size / ptr->calls) : 0));
+		             (unsigned long)(ptr->calls ? (ptr->size / ptr->calls) : 0),
+			     info ? info : "");
 
 		if (applet_putchk(appctx, &trash) == -1) {
 			ctx->start = ptr;

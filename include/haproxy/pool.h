@@ -259,6 +259,7 @@ static inline void *pool_get_from_cache(struct pool_head *pool, const void *call
 		.file = __FILE__, .line = __LINE__,			\
 		.type = MEM_STATS_TYPE_P_FREE,				\
 	};								\
+	_.extra = __pool;						\
 	HA_WEAK("__start_mem_stats");					\
 	HA_WEAK("__stop_mem_stats");					\
 	if (__ptr)  {							\
@@ -275,6 +276,7 @@ static inline void *pool_get_from_cache(struct pool_head *pool, const void *call
 		.file = __FILE__, .line = __LINE__,			\
 		.type = MEM_STATS_TYPE_P_ALLOC,				\
 	};								\
+	_.extra = __pool;						\
 	HA_WEAK("__start_mem_stats");					\
 	HA_WEAK("__stop_mem_stats");					\
 	_HA_ATOMIC_INC(&_.calls);					\
@@ -289,6 +291,7 @@ static inline void *pool_get_from_cache(struct pool_head *pool, const void *call
 		.file = __FILE__, .line = __LINE__,			\
 		.type = MEM_STATS_TYPE_P_ALLOC,				\
 	};								\
+	_.extra = __pool;						\
 	HA_WEAK("__start_mem_stats");					\
 	HA_WEAK("__stop_mem_stats");					\
 	_HA_ATOMIC_INC(&_.calls);					\

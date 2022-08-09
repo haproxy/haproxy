@@ -245,6 +245,7 @@ struct mem_stats {
 	const char *file;
 	int line;
 	int type;
+	const void *extra; // extra info specific to this call (e.g. pool ptr)
 } __attribute__((aligned(sizeof(void*))));
 
 #undef calloc
