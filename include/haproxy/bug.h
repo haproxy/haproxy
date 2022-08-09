@@ -245,12 +245,12 @@ struct mem_stats {
 	const char *file;
 	int line;
 	int type;
-};
+} __attribute__((aligned(sizeof(void*))));
 
 #undef calloc
 #define calloc(x,y)  ({							\
 	size_t __x = (x); size_t __y = (y);				\
-	static struct mem_stats _ __attribute__((used,__section__("mem_stats"))) = { \
+	static struct mem_stats _ __attribute__((used,__section__("mem_stats"),__aligned__(sizeof(void*)))) = { \
 		.file = __FILE__, .line = __LINE__,			\
 		.type = MEM_STATS_TYPE_CALLOC,				\
 	};								\
@@ -267,7 +267,7 @@ struct mem_stats {
 #undef __free
 #define __free(x)  ({							\
 	void *__x = (x);						\
-	static struct mem_stats _ __attribute__((used,__section__("mem_stats"))) = { \
+	static struct mem_stats _ __attribute__((used,__section__("mem_stats"),__aligned__(sizeof(void*)))) = { \
 		.file = __FILE__, .line = __LINE__,			\
 		.type = MEM_STATS_TYPE_FREE,				\
 	};								\
@@ -281,7 +281,7 @@ struct mem_stats {
 #undef ha_free
 #define ha_free(x)  ({							\
 	typeof(x) __x = (x);						\
-	static struct mem_stats _ __attribute__((used,__section__("mem_stats"))) = { \
+	static struct mem_stats _ __attribute__((used,__section__("mem_stats"),__aligned__(sizeof(void*)))) = { \
 		.file = __FILE__, .line = __LINE__,			\
 		.type = MEM_STATS_TYPE_FREE,				\
 	};								\
@@ -299,7 +299,7 @@ struct mem_stats {
 #undef malloc
 #define malloc(x)  ({							\
 	size_t __x = (x);						\
-	static struct mem_stats _ __attribute__((used,__section__("mem_stats"))) = { \
+	static struct mem_stats _ __attribute__((used,__section__("mem_stats"),__aligned__(sizeof(void*)))) = { \
 		.file = __FILE__, .line = __LINE__,			\
 		.type = MEM_STATS_TYPE_MALLOC,				\
 	};								\
@@ -313,7 +313,7 @@ struct mem_stats {
 #undef realloc
 #define realloc(x,y)  ({						\
 	void *__x = (x); size_t __y = (y);				\
-	static struct mem_stats _ __attribute__((used,__section__("mem_stats"))) = { \
+	static struct mem_stats _ __attribute__((used,__section__("mem_stats"),__aligned__(sizeof(void*)))) = { \
 		.file = __FILE__, .line = __LINE__,			\
 		.type = MEM_STATS_TYPE_REALLOC,				\
 	};								\
@@ -327,7 +327,7 @@ struct mem_stats {
 #undef strdup
 #define strdup(x)  ({							\
 	const char *__x = (x); size_t __y = strlen(__x); 		\
-	static struct mem_stats _ __attribute__((used,__section__("mem_stats"))) = { \
+	static struct mem_stats _ __attribute__((used,__section__("mem_stats"),__aligned__(sizeof(void*)))) = { \
 		.file = __FILE__, .line = __LINE__,			\
 		.type = MEM_STATS_TYPE_STRDUP,				\
 	};								\

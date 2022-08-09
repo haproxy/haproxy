@@ -255,7 +255,7 @@ static inline void *pool_get_from_cache(struct pool_head *pool, const void *call
 #define pool_free(pool, ptr)  ({					\
 	struct pool_head *__pool = (pool);				\
 	typeof(ptr) __ptr = (ptr);					\
-	static struct mem_stats _ __attribute__((used,__section__("mem_stats"))) = { \
+	static struct mem_stats _ __attribute__((used,__section__("mem_stats"),__aligned__(sizeof(void*)))) = { \
 		.file = __FILE__, .line = __LINE__,			\
 		.type = MEM_STATS_TYPE_P_FREE,				\
 	};								\
@@ -271,7 +271,7 @@ static inline void *pool_get_from_cache(struct pool_head *pool, const void *call
 #define pool_alloc(pool)  ({						\
 	struct pool_head *__pool = (pool);				\
 	size_t __x = __pool->size;					\
-	static struct mem_stats _ __attribute__((used,__section__("mem_stats"))) = { \
+	static struct mem_stats _ __attribute__((used,__section__("mem_stats"),__aligned__(sizeof(void*)))) = { \
 		.file = __FILE__, .line = __LINE__,			\
 		.type = MEM_STATS_TYPE_P_ALLOC,				\
 	};								\
@@ -285,7 +285,7 @@ static inline void *pool_get_from_cache(struct pool_head *pool, const void *call
 #define pool_zalloc(pool)  ({						\
 	struct pool_head *__pool = (pool);				\
 	size_t __x = __pool->size;					\
-	static struct mem_stats _ __attribute__((used,__section__("mem_stats"))) = { \
+	static struct mem_stats _ __attribute__((used,__section__("mem_stats"),__aligned__(sizeof(void*)))) = { \
 		.file = __FILE__, .line = __LINE__,			\
 		.type = MEM_STATS_TYPE_P_ALLOC,				\
 	};								\
