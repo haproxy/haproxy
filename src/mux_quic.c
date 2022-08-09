@@ -1069,6 +1069,8 @@ int qcc_recv_stop_sending(struct qcc *qcc, uint64_t id, uint64_t err)
 	if (!qcs)
 		goto out;
 
+	qcs_idle_open(qcs);
+
 	/* RFC 9000 3.5. Solicited State Transitions
 	 *
 	 * An endpoint that receives a STOP_SENDING frame
