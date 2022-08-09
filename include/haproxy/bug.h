@@ -265,11 +265,14 @@ struct mem_stats {
 })
 
 /* note: we can't redefine free() because we have a few variables and struct
- * members called like this.
+ * members called like this. This one may be used before a call to free(),
+ * and when known, the size should be indicated, otherwise pass zero. The
+ * pointer is used to know whether the call should be accounted for (null is
+ * ignored).
  */
-#undef __free
-#define __free(x)  ({							\
-	void *__x = (x);						\
+#undef will_free
+#define will_free(x, y)  ({						\
+	void *__x = (x); size_t __y = (y);				\
 	static struct mem_stats _ __attribute__((used,__section__("mem_stats"),__aligned__(sizeof(void*)))) = { \
 		.file = __FILE__, .line = __LINE__,			\
 		.type = MEM_STATS_TYPE_FREE,				\
@@ -277,9 +280,10 @@ struct mem_stats {
 	};								\
 	HA_WEAK("__start_mem_stats");					\
 	HA_WEAK("__stop_mem_stats");					\
-	if (__x)							\
+	if (__x) {							\
 		_HA_ATOMIC_INC(&_.calls);				\
-	free(__x);							\
+		_HA_ATOMIC_ADD(&_.size, __y);				\
+	}								\
 })
 
 #undef ha_free
@@ -345,6 +349,10 @@ struct mem_stats {
 	_HA_ATOMIC_ADD(&_.size, __y);					\
 	strdup(__x);							\
 })
+#else // DEBUG_MEM_STATS
+
+#define will_free(x, y) do { } while (0)
+
 #endif /* DEBUG_MEM_STATS*/
 
 #endif /* _HAPROXY_BUG_H */

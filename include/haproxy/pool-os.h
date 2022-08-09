@@ -44,6 +44,7 @@ static forceinline void *pool_alloc_area(size_t size)
  */
 static forceinline void pool_free_area(void *area, size_t __maybe_unused size)
 {
+	will_free(area, size);
 	free(area);
 }
 
