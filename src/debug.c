@@ -1279,8 +1279,6 @@ static int debug_iohandler_memstats(struct appctx *appctx)
 	if (unlikely(sc_ic(sc)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
 		goto end;
 
-	chunk_reset(&trash);
-
 	/* we have two inner loops here, one for the proxy, the other one for
 	 * the buffer.
 	 */
@@ -1289,6 +1287,7 @@ static int debug_iohandler_memstats(struct appctx *appctx)
 		const char *name;
 		const char *p;
 		const char *info = NULL;
+		const char *func = NULL;
 
 		if (!ptr->size && !ptr->calls && !ctx->show_all)
 			continue;
@@ -1298,6 +1297,8 @@ static int debug_iohandler_memstats(struct appctx *appctx)
 			if (*p == '/')
 				name = p + 1;
 		}
+
+		func = ptr->func;
 
 		switch (ptr->type) {
 		case MEM_STATS_TYPE_CALLOC:  type = "CALLOC";  break;
@@ -1316,9 +1317,18 @@ static int debug_iohandler_memstats(struct appctx *appctx)
 		//	     (unsigned long)ptr->size, (unsigned long)ptr->calls,
 		//	     (unsigned long)(ptr->calls ? (ptr->size / ptr->calls) : 0));
 
-		chunk_printf(&trash, "%s:%d", name, ptr->line);
-		while (trash.data < 25)
+		chunk_reset(&trash);
+		if (ctx->show_all)
+			chunk_appendf(&trash, "%s(", func);
+
+		chunk_appendf(&trash, "%s:%d", name, ptr->line);
+
+		if (ctx->show_all)
+			chunk_appendf(&trash, ")");
+
+		while (trash.data < (ctx->show_all ? 45 : 25))
 			trash.area[trash.data++] = ' ';
+
 		chunk_appendf(&trash, "%7s  size: %12lu  calls: %9lu  size/call: %6lu %s\n",
 			     type,
 			     (unsigned long)ptr->size, (unsigned long)ptr->calls,

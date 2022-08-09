@@ -242,6 +242,7 @@ enum {
 struct mem_stats {
 	size_t calls;
 	size_t size;
+	const char *func;
 	const char *file;
 	int line;
 	int type;
@@ -254,6 +255,7 @@ struct mem_stats {
 	static struct mem_stats _ __attribute__((used,__section__("mem_stats"),__aligned__(sizeof(void*)))) = { \
 		.file = __FILE__, .line = __LINE__,			\
 		.type = MEM_STATS_TYPE_CALLOC,				\
+		.func = __func__,					\
 	};								\
 	HA_WEAK("__start_mem_stats");					\
 	HA_WEAK("__stop_mem_stats");					\
@@ -271,6 +273,7 @@ struct mem_stats {
 	static struct mem_stats _ __attribute__((used,__section__("mem_stats"),__aligned__(sizeof(void*)))) = { \
 		.file = __FILE__, .line = __LINE__,			\
 		.type = MEM_STATS_TYPE_FREE,				\
+		.func = __func__,					\
 	};								\
 	HA_WEAK("__start_mem_stats");					\
 	HA_WEAK("__stop_mem_stats");					\
@@ -285,6 +288,7 @@ struct mem_stats {
 	static struct mem_stats _ __attribute__((used,__section__("mem_stats"),__aligned__(sizeof(void*)))) = { \
 		.file = __FILE__, .line = __LINE__,			\
 		.type = MEM_STATS_TYPE_FREE,				\
+		.func = __func__,					\
 	};								\
 	HA_WEAK("__start_mem_stats");					\
 	HA_WEAK("__stop_mem_stats");					\
@@ -303,6 +307,7 @@ struct mem_stats {
 	static struct mem_stats _ __attribute__((used,__section__("mem_stats"),__aligned__(sizeof(void*)))) = { \
 		.file = __FILE__, .line = __LINE__,			\
 		.type = MEM_STATS_TYPE_MALLOC,				\
+		.func = __func__,					\
 	};								\
 	HA_WEAK("__start_mem_stats");					\
 	HA_WEAK("__stop_mem_stats");					\
@@ -317,6 +322,7 @@ struct mem_stats {
 	static struct mem_stats _ __attribute__((used,__section__("mem_stats"),__aligned__(sizeof(void*)))) = { \
 		.file = __FILE__, .line = __LINE__,			\
 		.type = MEM_STATS_TYPE_REALLOC,				\
+		.func = __func__,					\
 	};								\
 	HA_WEAK("__start_mem_stats");					\
 	HA_WEAK("__stop_mem_stats");					\
@@ -331,6 +337,7 @@ struct mem_stats {
 	static struct mem_stats _ __attribute__((used,__section__("mem_stats"),__aligned__(sizeof(void*)))) = { \
 		.file = __FILE__, .line = __LINE__,			\
 		.type = MEM_STATS_TYPE_STRDUP,				\
+		.func = __func__,					\
 	};								\
 	HA_WEAK("__start_mem_stats");					\
 	HA_WEAK("__stop_mem_stats");					\
