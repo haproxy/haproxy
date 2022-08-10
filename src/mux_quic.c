@@ -120,8 +120,10 @@ static struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
 	TRACE_ENTER(QMUX_EV_QCS_NEW, qcc->conn);
 
 	qcs = pool_alloc(pool_head_qcs);
-	if (!qcs)
+	if (!qcs) {
+		TRACE_DEVEL("alloc failure", QMUX_EV_QCS_NEW, qcc->conn);
 		return NULL;
+	}
 
 	qcs->stream = NULL;
 	qcs->qcc = qcc;
@@ -140,14 +142,18 @@ static struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
 	if (!quic_stream_is_uni(id) || !quic_stream_is_remote(qcc, id)) {
 		struct quic_conn *qc = qcc->conn->handle.qc;
 		qcs->stream = qc_stream_desc_new(id, type, qcs, qc);
-		if (!qcs->stream)
+		if (!qcs->stream) {
+			TRACE_DEVEL("qc_stream_desc alloc failure", QMUX_EV_QCS_NEW, qcc->conn, qcs);
 			goto err;
+		}
 	}
 
 	qcs->id = qcs->by_id.key = id;
 	if (qcc->app_ops->attach) {
-		if (qcc->app_ops->attach(qcs, qcc->ctx))
+		if (qcc->app_ops->attach(qcs, qcc->ctx)) {
+			TRACE_DEVEL("app proto failure", QMUX_EV_QCS_NEW, qcc->conn, qcs);
 			goto err;
+		}
 	}
 
 	/* store transport layer stream descriptor in qcc tree */
@@ -189,6 +195,8 @@ static struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
 
 	qc_stream_desc_release(qcs->stream);
 	pool_free(pool_head_qcs, qcs);
+
+	TRACE_LEAVE(QMUX_EV_QCS_NEW, qcc->conn, qcs);
 	return NULL;
 }
 
@@ -293,8 +301,10 @@ static void qcc_refresh_timeout(struct qcc *qcc)
 
 	TRACE_ENTER(QMUX_EV_QCC_WAKE, qcc->conn);
 
-	if (!qcc->task)
+	if (!qcc->task) {
+		TRACE_DEVEL("already expired", QMUX_EV_QCC_WAKE, qcc->conn);
 		goto leave;
+	}
 
 	/* Check if upper layer is responsible of timeout management. */
 	if (!qcc_may_expire(qcc)) {
@@ -536,13 +546,15 @@ struct qcs *qcc_init_stream_local(struct qcc *qcc, int bidi)
 	 */
 
 	qcs = qcs_new(qcc, *next, type);
-	if (!qcs)
+	if (!qcs) {
+		TRACE_LEAVE(QMUX_EV_QCS_NEW, qcc->conn);
 		return NULL;
+	}
 
 	TRACE_DEVEL("opening local stream",  QMUX_EV_QCS_NEW, qcc->conn, qcs);
 	*next += 4;
 
-	TRACE_LEAVE(QMUX_EV_QCS_NEW, qcc->conn);
+	TRACE_LEAVE(QMUX_EV_QCS_NEW, qcc->conn, qcs);
 	return qcs;
 }
 
@@ -582,9 +594,9 @@ static struct qcs *qcc_init_stream_remote(struct qcc *qcc, uint64_t id)
 			 * MUST treat this as a connection error of
 			 * type STREAM_LIMIT_ERROR
 			 */
-			TRACE_DEVEL("leaving on flow control error", QMUX_EV_QCS_NEW, qcc->conn);
+			TRACE_DEVEL("flow control error", QMUX_EV_QCS_NEW, qcc->conn);
 			qcc_emit_cc(qcc, QC_ERR_STREAM_LIMIT_ERROR);
-			return NULL;
+			goto err;
 		}
 	}
 
@@ -598,16 +610,21 @@ static struct qcs *qcc_init_stream_remote(struct qcc *qcc, uint64_t id)
 		qcs = qcs_new(qcc, *largest, type);
 		if (!qcs) {
 			/* TODO emit RESET_STREAM */
-			TRACE_DEVEL("leaving on stream fallocation failure", QMUX_EV_QCS_NEW, qcc->conn);
-			return NULL;
+			TRACE_DEVEL("stream fallocation failure", QMUX_EV_QCS_NEW, qcc->conn);
+			goto err;
 		}
 
 		TRACE_DEVEL(str, QMUX_EV_QCS_NEW, qcc->conn, qcs);
 		*largest += 4;
 	}
 
-	TRACE_LEAVE(QMUX_EV_QCS_NEW, qcc->conn);
+ out:
+	TRACE_LEAVE(QMUX_EV_QCS_NEW, qcc->conn, qcs);
 	return qcs;
+
+ err:
+	TRACE_LEAVE(QMUX_EV_QCS_NEW, qcc->conn);
+	return NULL;
 }
 
 /* Use this function for a stream <id> which is not in <qcc> stream tree. It
@@ -651,15 +668,15 @@ int qcc_get_qcs(struct qcc *qcc, uint64_t id, int receive_only, int send_only,
 	*out = NULL;
 
 	if (!receive_only && quic_stream_is_uni(id) && quic_stream_is_remote(qcc, id)) {
-		TRACE_DEVEL("leaving on receive-only stream not allowed", QMUX_EV_QCC_RECV|QMUX_EV_QCC_NQCS, qcc->conn, NULL, &id);
+		TRACE_PROTO("receive-only stream not allowed", QMUX_EV_QCC_RECV|QMUX_EV_QCC_NQCS, qcc->conn, NULL, &id);
 		qcc_emit_cc(qcc, QC_ERR_STREAM_STATE_ERROR);
-		return 1;
+		goto err;
 	}
 
 	if (!send_only && quic_stream_is_uni(id) && quic_stream_is_local(qcc, id)) {
-		TRACE_DEVEL("leaving on send-only stream not allowed", QMUX_EV_QCC_RECV|QMUX_EV_QCC_NQCS, qcc->conn, NULL, &id);
+		TRACE_PROTO("send-only stream not allowed", QMUX_EV_QCC_RECV|QMUX_EV_QCC_NQCS, qcc->conn, NULL, &id);
 		qcc_emit_cc(qcc, QC_ERR_STREAM_STATE_ERROR);
-		return 1;
+		goto err;
 	}
 
 	/* Search the stream in the connection tree. */
@@ -667,14 +684,14 @@ int qcc_get_qcs(struct qcc *qcc, uint64_t id, int receive_only, int send_only,
 	if (node) {
 		*out = eb64_entry(node, struct qcs, by_id);
 		TRACE_DEVEL("using stream from connection tree", QMUX_EV_QCC_RECV, qcc->conn, *out);
-		return 0;
+		goto out;
 	}
 
 	/* Check if stream is already closed. */
 	if (qcc_stream_id_is_closed(qcc, id)) {
-		TRACE_DEVEL("already released stream", QMUX_EV_QCC_RECV|QMUX_EV_QCC_NQCS, qcc->conn, NULL, &id);
+		TRACE_DEVEL("already closed stream", QMUX_EV_QCC_RECV|QMUX_EV_QCC_NQCS, qcc->conn, NULL, &id);
 		/* Consider this as a success even if <out> is left NULL. */
-		return 0;
+		goto out;
 	}
 
 	/* Create the stream. This is valid only for remote initiated one. A
@@ -689,22 +706,26 @@ int qcc_get_qcs(struct qcc *qcc, uint64_t id, int receive_only, int send_only,
 		 * initiated stream that has not yet been created, or for a send-only
 		 * stream.
 		 */
-		TRACE_DEVEL("leaving on locally initiated stream not yet created", QMUX_EV_QCC_RECV|QMUX_EV_QCC_NQCS, qcc->conn, NULL, &id);
+		TRACE_PROTO("locally initiated stream not yet created", QMUX_EV_QCC_RECV|QMUX_EV_QCC_NQCS, qcc->conn, NULL, &id);
 		qcc_emit_cc(qcc, QC_ERR_STREAM_STATE_ERROR);
-		return 1;
+		goto err;
 	}
 	else {
 		/* Remote stream not found - try to open it. */
 		*out = qcc_init_stream_remote(qcc, id);
 		if (!*out) {
-			TRACE_DEVEL("leaving on stream creation error", QMUX_EV_QCC_RECV|QMUX_EV_QCC_NQCS, qcc->conn, NULL, &id);
-			return 1;
+			TRACE_DEVEL("stream creation error", QMUX_EV_QCC_RECV|QMUX_EV_QCC_NQCS, qcc->conn, NULL, &id);
+			goto err;
 		}
 	}
 
  out:
-	TRACE_LEAVE(QMUX_EV_QCC_RECV, qcc->conn);
+	TRACE_LEAVE(QMUX_EV_QCC_RECV, qcc->conn, *out);
 	return 0;
+
+ err:
+	TRACE_LEAVE(QMUX_EV_QCC_RECV, qcc->conn);
+	return 1;
 }
 
 /* Simple function to duplicate a buffer */
@@ -786,8 +807,8 @@ static int qcc_decode_qcs(struct qcc *qcc, struct qcs *qcs)
 
 	ret = qcc->app_ops->decode_qcs(qcs, &b, fin);
 	if (ret < 0) {
-		TRACE_DEVEL("leaving on decoding error", QMUX_EV_QCS_RECV, qcc->conn, qcs);
-		return 1;
+		TRACE_DEVEL("decoding error", QMUX_EV_QCS_RECV, qcc->conn, qcs);
+		goto err;
 	}
 
 	if (ret) {
@@ -796,8 +817,11 @@ static int qcc_decode_qcs(struct qcc *qcc, struct qcs *qcs)
 	}
 
 	TRACE_LEAVE(QMUX_EV_QCS_RECV, qcc->conn, qcs);
-
 	return 0;
+
+ err:
+	TRACE_LEAVE(QMUX_EV_QCS_RECV, qcc->conn, qcs);
+	return 1;
 }
 
 /* Emit a CONNECTION_CLOSE_APP with error <err>. Reserved for application error
@@ -851,8 +875,8 @@ int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
 	TRACE_ENTER(QMUX_EV_QCC_RECV, qcc->conn);
 
 	if (qcc->flags & QC_CF_CC_EMIT) {
-		TRACE_DEVEL("leaving on error", QMUX_EV_QCC_RECV, qcc->conn);
-		return 1;
+		TRACE_DATA("connection closed", QMUX_EV_QCC_RECV, qcc->conn);
+		goto err;
 	}
 
 	/* RFC 9000 19.8. STREAM Frames
@@ -863,14 +887,13 @@ int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
 	 * stream.
 	 */
 	if (qcc_get_qcs(qcc, id, 1, 0, &qcs)) {
-		TRACE_LEAVE(QMUX_EV_QCC_RECV, qcc->conn);
-		return 1;
+		TRACE_DATA("qcs retrieval error", QMUX_EV_QCC_RECV, qcc->conn);
+		goto err;
 	}
 
 	if (!qcs) {
-		/* Already closed stream. */
-		TRACE_LEAVE(QMUX_EV_QCC_RECV, qcc->conn);
-		return 0;
+		TRACE_DATA("already closed stream", QMUX_EV_QCC_RECV, qcc->conn);
+		goto out;
 	}
 
 	/* RFC 9000 4.5. Stream Final Size
@@ -883,14 +906,14 @@ int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
 	 */
 	if (qcs->flags & QC_SF_SIZE_KNOWN &&
 	    (offset + len > qcs->rx.offset_max || (fin && offset + len < qcs->rx.offset_max))) {
-		TRACE_DEVEL("leaving on final size error", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV, qcc->conn, qcs);
+		TRACE_PROTO("final size error", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV, qcc->conn, qcs);
 		qcc_emit_cc(qcc, QC_ERR_FINAL_SIZE_ERROR);
-		return 1;
+		goto err;
 	}
 
 	if (offset + len <= qcs->rx.offset) {
-		TRACE_DEVEL("leaving on already received offset", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV, qcc->conn, qcs);
-		return 0;
+		TRACE_DATA("already received offset", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV, qcc->conn, qcs);
+		goto out;
 	}
 
 	qcs_idle_open(qcs);
@@ -908,10 +931,10 @@ int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
 			 * of type FLOW_CONTROL_ERROR if the sender violates
 			 * the advertised connection or stream data limits
 			 */
-			TRACE_DEVEL("leaving on flow control error", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV,
-				    qcc->conn, qcs);
+			TRACE_PROTO("flow control error", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV,
+			            qcc->conn, qcs);
 			qcc_emit_cc(qcc, QC_ERR_FLOW_CONTROL_ERROR);
-			return 1;
+			goto err;
 		}
 	}
 
@@ -943,7 +966,7 @@ int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
 			 * different data at the same offset within a stream as
 			 * a connection error of type PROTOCOL_VIOLATION.
 			 */
-			TRACE_DEVEL("leaving on data rejected", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV,
+			TRACE_PROTO("overlapping data rejected", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV,
 			            qcc->conn, qcs);
 			qcc_emit_cc(qcc, QC_ERR_PROTOCOL_VIOLATION);
 		}
@@ -970,8 +993,13 @@ int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
 		qcs_free(qcs);
 	}
 
+ out:
 	TRACE_LEAVE(QMUX_EV_QCC_RECV, qcc->conn);
 	return 0;
+
+ err:
+	TRACE_LEAVE(QMUX_EV_QCC_RECV, qcc->conn);
+	return 1;
 }
 
 /* Handle a new MAX_DATA frame. <max> must contains the maximum data field of
@@ -1278,7 +1306,7 @@ static int qcs_build_stream_frm(struct qcs *qcs, struct buffer *out, char fin,
 	return total;
 
  err:
-	TRACE_DEVEL("leaving in error", QMUX_EV_QCS_SEND, qcc->conn, qcs);
+	TRACE_LEAVE(QMUX_EV_QCS_SEND, qcc->conn, qcs);
 	return -1;
 }
 
@@ -1354,8 +1382,8 @@ static int qc_send_frames(struct qcc *qcc, struct list *frms)
 	TRACE_ENTER(QMUX_EV_QCC_SEND, qcc->conn);
 
 	if (LIST_ISEMPTY(frms)) {
-		TRACE_DEVEL("leaving with no frames to send", QMUX_EV_QCC_SEND, qcc->conn);
-		return 1;
+		TRACE_DEVEL("no frames to send", QMUX_EV_QCC_SEND, qcc->conn);
+		goto err;
 	}
 
 	LIST_INIT(&qcc->send_retry_list);
@@ -1366,15 +1394,18 @@ static int qc_send_frames(struct qcc *qcc, struct list *frms)
 	 * Subscribe on it to retry later.
 	 */
 	if (!LIST_ISEMPTY(frms)) {
-		TRACE_DEVEL("leaving with remaining frames to send, subscribing", QMUX_EV_QCC_SEND, qcc->conn);
+		TRACE_DEVEL("remaining frames to send, subscribing", QMUX_EV_QCC_SEND, qcc->conn);
 		qcc->conn->xprt->subscribe(qcc->conn, qcc->conn->xprt_ctx,
 		                           SUB_RETRY_SEND, &qcc->wait_event);
-		return 1;
+		goto err;
 	}
 
 	TRACE_LEAVE(QMUX_EV_QCC_SEND);
-
 	return 0;
+
+ err:
+	TRACE_LEAVE(QMUX_EV_QCC_SEND);
+	return 1;
 }
 
 /* Emit a RESET_STREAM on <qcs>.
@@ -1389,8 +1420,10 @@ static int qcs_send_reset(struct qcs *qcs)
 	TRACE_ENTER(QMUX_EV_QCS_SEND, qcs->qcc->conn, qcs);
 
 	frm = pool_zalloc(pool_head_quic_frame);
-	if (!frm)
+	if (!frm) {
+		TRACE_LEAVE(QMUX_EV_QCS_SEND, qcs->qcc->conn, qcs);
 		return 1;
+	}
 
 	LIST_INIT(&frm->reflist);
 	frm->type = QUIC_FT_RESET_STREAM;
@@ -1486,12 +1519,12 @@ static int qc_send(struct qcc *qcc)
 	struct qcs *qcs, *qcs_tmp;
 	int total = 0, tmp_total = 0;
 
-	TRACE_ENTER(QMUX_EV_QCC_SEND);
+	TRACE_ENTER(QMUX_EV_QCC_SEND, qcc->conn);
 
 	if (qcc->conn->flags & CO_FL_SOCK_WR_SH || qcc->flags & QC_CF_CC_EMIT) {
 		qcc->conn->flags |= CO_FL_ERROR;
-		TRACE_DEVEL("leaving on error", QMUX_EV_QCC_SEND, qcc->conn);
-		return 0;
+		TRACE_DEVEL("connection on error", QMUX_EV_QCC_SEND, qcc->conn);
+		goto err;
 	}
 
 	if (!LIST_ISEMPTY(&qcc->lfctl.frms)) {
@@ -1577,9 +1610,12 @@ static int qc_send(struct qcc *qcc)
 		}
 	}
 
-	TRACE_LEAVE(QMUX_EV_QCC_SEND);
-
+	TRACE_LEAVE(QMUX_EV_QCC_SEND, qcc->conn);
 	return total;
+
+ err:
+	TRACE_LEAVE(QMUX_EV_QCC_SEND, qcc->conn);
+	return 0;
 }
 
 /* Proceed on receiving. Loop through all streams from <qcc> and use decode_qcs
@@ -1592,10 +1628,10 @@ static int qc_recv(struct qcc *qcc)
 	struct eb64_node *node;
 	struct qcs *qcs;
 
-	TRACE_ENTER(QMUX_EV_QCC_RECV);
+	TRACE_ENTER(QMUX_EV_QCC_RECV, qcc->conn);
 
 	if (qcc->flags & QC_CF_CC_EMIT) {
-		TRACE_DEVEL("leaving on error", QMUX_EV_QCC_RECV, qcc->conn);
+		TRACE_LEAVE(QMUX_EV_QCC_RECV, qcc->conn);
 		return 0;
 	}
 
@@ -1625,7 +1661,7 @@ static int qc_recv(struct qcc *qcc)
 		}
 	}
 
-	TRACE_LEAVE(QMUX_EV_QCC_RECV);
+	TRACE_LEAVE(QMUX_EV_QCC_RECV, qcc->conn);
 	return 0;
 }
 
@@ -1783,22 +1819,22 @@ static struct task *qc_timeout_task(struct task *t, void *ctx, unsigned int stat
 
 	if (qcc) {
 		if (!expired) {
-			TRACE_DEVEL("leaving (not expired)", QMUX_EV_QCC_WAKE, qcc->conn);
-			return t;
+			TRACE_DEVEL("not expired", QMUX_EV_QCC_WAKE, qcc->conn);
+			goto requeue;
 		}
 
 		if (!qcc_may_expire(qcc)) {
-			TRACE_DEVEL("leaving (cannot expired)", QMUX_EV_QCC_WAKE, qcc->conn);
+			TRACE_DEVEL("cannot expired", QMUX_EV_QCC_WAKE, qcc->conn);
 			t->expire = TICK_ETERNITY;
-			return t;
+			goto requeue;
 		}
 	}
 
 	task_destroy(t);
 
 	if (!qcc) {
-		TRACE_DEVEL("leaving (not more qcc)", QMUX_EV_QCC_WAKE);
-		return NULL;
+		TRACE_DEVEL("no more qcc", QMUX_EV_QCC_WAKE);
+		goto out;
 	}
 
 	qcc->task = NULL;
@@ -1811,9 +1847,13 @@ static struct task *qc_timeout_task(struct task *t, void *ctx, unsigned int stat
 	if (qcc_is_dead(qcc))
 		qc_release(qcc);
 
+ out:
 	TRACE_LEAVE(QMUX_EV_QCC_WAKE);
-
 	return NULL;
+
+ requeue:
+	TRACE_LEAVE(QMUX_EV_QCC_WAKE);
+	return t;
 }
 
 static int qc_init(struct connection *conn, struct proxy *prx,
@@ -1966,25 +2006,29 @@ static void qc_detach(struct sedesc *sd)
 	qcc_rm_sc(qcc);
 
 	if (!qcs_is_close_local(qcs) && !(qcc->conn->flags & CO_FL_ERROR)) {
-		TRACE_DEVEL("leaving with remaining data, detaching qcs", QMUX_EV_STRM_END, qcc->conn, qcs);
+		TRACE_DEVEL("remaining data, detaching qcs", QMUX_EV_STRM_END, qcc->conn, qcs);
 		qcs->flags |= QC_SF_DETACH;
 		qcc_refresh_timeout(qcc);
+
+		TRACE_LEAVE(QMUX_EV_STRM_END, qcc->conn, qcs);
 		return;
 	}
 
 	qcs_destroy(qcs);
 
 	if (qcc_is_dead(qcc)) {
-		TRACE_DEVEL("leaving and killing dead connection", QMUX_EV_STRM_END, qcc->conn);
+		TRACE_DEVEL("killing dead connection", QMUX_EV_STRM_END, qcc->conn);
 		qc_release(qcc);
 	}
 	else if (qcc->task) {
-		TRACE_DEVEL("leaving, refreshing connection's timeout", QMUX_EV_STRM_END, qcc->conn);
+		TRACE_DEVEL("refreshing connection's timeout", QMUX_EV_STRM_END, qcc->conn);
 		qcc_refresh_timeout(qcc);
 	}
 	else {
-		TRACE_DEVEL("leaving", QMUX_EV_STRM_END, qcc->conn);
+		TRACE_DEVEL("completed", QMUX_EV_STRM_END, qcc->conn);
 	}
+
+	TRACE_LEAVE(QMUX_EV_STRM_END, qcc->conn);
 }
 
 /* Called from the upper layer, to receive data */
@@ -2172,12 +2216,11 @@ static int qc_wake(struct connection *conn)
 	qcc_refresh_timeout(qcc);
 
 	TRACE_LEAVE(QMUX_EV_QCC_WAKE, conn);
-
 	return 0;
 
  release:
 	qc_release(qcc);
-	TRACE_DEVEL("leaving after releasing the connection", QMUX_EV_QCC_WAKE);
+	TRACE_LEAVE(QMUX_EV_QCC_WAKE);
 	return 1;
 }
 
