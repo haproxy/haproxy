@@ -58,6 +58,8 @@ static const struct trace_event qmux_trace_events[] = {
 /* special event dedicated to qcs_build_stream_frm */
 #define           QMUX_EV_QCS_BUILD_STRM (1ULL << 15)
 	{ .mask = QMUX_EV_QCS_BUILD_STRM, .name = "qcs_build_stream_frm", .desc = "qcs_build_stream_frm" },
+#define           QMUX_EV_PROTO_ERR     (1ULL << 16)
+	{ .mask = QMUX_EV_PROTO_ERR,    .name = "proto_err",    .desc = "protocol error" },
 	{ }
 };
 
@@ -121,7 +123,7 @@ static struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
 
 	qcs = pool_alloc(pool_head_qcs);
 	if (!qcs) {
-		TRACE_DEVEL("alloc failure", QMUX_EV_QCS_NEW, qcc->conn);
+		TRACE_ERROR("alloc failure", QMUX_EV_QCS_NEW, qcc->conn);
 		return NULL;
 	}
 
@@ -143,7 +145,7 @@ static struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
 		struct quic_conn *qc = qcc->conn->handle.qc;
 		qcs->stream = qc_stream_desc_new(id, type, qcs, qc);
 		if (!qcs->stream) {
-			TRACE_DEVEL("qc_stream_desc alloc failure", QMUX_EV_QCS_NEW, qcc->conn, qcs);
+			TRACE_ERROR("qc_stream_desc alloc failure", QMUX_EV_QCS_NEW, qcc->conn, qcs);
 			goto err;
 		}
 	}
@@ -151,7 +153,7 @@ static struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
 	qcs->id = qcs->by_id.key = id;
 	if (qcc->app_ops->attach) {
 		if (qcc->app_ops->attach(qcs, qcc->ctx)) {
-			TRACE_DEVEL("app proto failure", QMUX_EV_QCS_NEW, qcc->conn, qcs);
+			TRACE_ERROR("app proto failure", QMUX_EV_QCS_NEW, qcc->conn, qcs);
 			goto err;
 		}
 	}
@@ -594,7 +596,7 @@ static struct qcs *qcc_init_stream_remote(struct qcc *qcc, uint64_t id)
 			 * MUST treat this as a connection error of
 			 * type STREAM_LIMIT_ERROR
 			 */
-			TRACE_DEVEL("flow control error", QMUX_EV_QCS_NEW, qcc->conn);
+			TRACE_ERROR("flow control error", QMUX_EV_QCS_NEW|QMUX_EV_PROTO_ERR, qcc->conn);
 			qcc_emit_cc(qcc, QC_ERR_STREAM_LIMIT_ERROR);
 			goto err;
 		}
@@ -610,7 +612,7 @@ static struct qcs *qcc_init_stream_remote(struct qcc *qcc, uint64_t id)
 		qcs = qcs_new(qcc, *largest, type);
 		if (!qcs) {
 			/* TODO emit RESET_STREAM */
-			TRACE_DEVEL("stream fallocation failure", QMUX_EV_QCS_NEW, qcc->conn);
+			TRACE_ERROR("stream fallocation failure", QMUX_EV_QCS_NEW, qcc->conn);
 			goto err;
 		}
 
@@ -668,13 +670,13 @@ int qcc_get_qcs(struct qcc *qcc, uint64_t id, int receive_only, int send_only,
 	*out = NULL;
 
 	if (!receive_only && quic_stream_is_uni(id) && quic_stream_is_remote(qcc, id)) {
-		TRACE_PROTO("receive-only stream not allowed", QMUX_EV_QCC_RECV|QMUX_EV_QCC_NQCS, qcc->conn, NULL, &id);
+		TRACE_ERROR("receive-only stream not allowed", QMUX_EV_QCC_RECV|QMUX_EV_QCC_NQCS|QMUX_EV_PROTO_ERR, qcc->conn, NULL, &id);
 		qcc_emit_cc(qcc, QC_ERR_STREAM_STATE_ERROR);
 		goto err;
 	}
 
 	if (!send_only && quic_stream_is_uni(id) && quic_stream_is_local(qcc, id)) {
-		TRACE_PROTO("send-only stream not allowed", QMUX_EV_QCC_RECV|QMUX_EV_QCC_NQCS, qcc->conn, NULL, &id);
+		TRACE_ERROR("send-only stream not allowed", QMUX_EV_QCC_RECV|QMUX_EV_QCC_NQCS|QMUX_EV_PROTO_ERR, qcc->conn, NULL, &id);
 		qcc_emit_cc(qcc, QC_ERR_STREAM_STATE_ERROR);
 		goto err;
 	}
@@ -706,7 +708,7 @@ int qcc_get_qcs(struct qcc *qcc, uint64_t id, int receive_only, int send_only,
 		 * initiated stream that has not yet been created, or for a send-only
 		 * stream.
 		 */
-		TRACE_PROTO("locally initiated stream not yet created", QMUX_EV_QCC_RECV|QMUX_EV_QCC_NQCS, qcc->conn, NULL, &id);
+		TRACE_ERROR("locally initiated stream not yet created", QMUX_EV_QCC_RECV|QMUX_EV_QCC_NQCS|QMUX_EV_PROTO_ERR, qcc->conn, NULL, &id);
 		qcc_emit_cc(qcc, QC_ERR_STREAM_STATE_ERROR);
 		goto err;
 	}
@@ -714,7 +716,7 @@ int qcc_get_qcs(struct qcc *qcc, uint64_t id, int receive_only, int send_only,
 		/* Remote stream not found - try to open it. */
 		*out = qcc_init_stream_remote(qcc, id);
 		if (!*out) {
-			TRACE_DEVEL("stream creation error", QMUX_EV_QCC_RECV|QMUX_EV_QCC_NQCS, qcc->conn, NULL, &id);
+			TRACE_ERROR("stream creation error", QMUX_EV_QCC_RECV|QMUX_EV_QCC_NQCS, qcc->conn, NULL, &id);
 			goto err;
 		}
 	}
@@ -807,7 +809,7 @@ static int qcc_decode_qcs(struct qcc *qcc, struct qcs *qcs)
 
 	ret = qcc->app_ops->decode_qcs(qcs, &b, fin);
 	if (ret < 0) {
-		TRACE_DEVEL("decoding error", QMUX_EV_QCS_RECV, qcc->conn, qcs);
+		TRACE_ERROR("decoding error", QMUX_EV_QCS_RECV, qcc->conn, qcs);
 		goto err;
 	}
 
@@ -906,7 +908,7 @@ int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
 	 */
 	if (qcs->flags & QC_SF_SIZE_KNOWN &&
 	    (offset + len > qcs->rx.offset_max || (fin && offset + len < qcs->rx.offset_max))) {
-		TRACE_PROTO("final size error", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV, qcc->conn, qcs);
+		TRACE_ERROR("final size error", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV|QMUX_EV_PROTO_ERR, qcc->conn, qcs);
 		qcc_emit_cc(qcc, QC_ERR_FINAL_SIZE_ERROR);
 		goto err;
 	}
@@ -931,7 +933,7 @@ int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
 			 * of type FLOW_CONTROL_ERROR if the sender violates
 			 * the advertised connection or stream data limits
 			 */
-			TRACE_PROTO("flow control error", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV,
+			TRACE_ERROR("flow control error", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV|QMUX_EV_PROTO_ERR,
 			            qcc->conn, qcs);
 			qcc_emit_cc(qcc, QC_ERR_FLOW_CONTROL_ERROR);
 			goto err;
@@ -966,7 +968,7 @@ int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
 			 * different data at the same offset within a stream as
 			 * a connection error of type PROTOCOL_VIOLATION.
 			 */
-			TRACE_PROTO("overlapping data rejected", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV,
+			TRACE_ERROR("overlapping data rejected", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV|QMUX_EV_PROTO_ERR,
 			            qcc->conn, qcs);
 			qcc_emit_cc(qcc, QC_ERR_PROTOCOL_VIOLATION);
 		}
