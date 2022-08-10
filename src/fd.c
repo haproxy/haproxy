@@ -974,9 +974,9 @@ static void deinit_pollers_per_thread()
 	/* rd and wr are init at the same place, but only rd is init to -1, so
 	  we rely to rd to close.   */
 	if (poller_rd_pipe > -1) {
-		close(poller_rd_pipe);
+		fd_delete(poller_rd_pipe);
 		poller_rd_pipe = -1;
-		close(poller_wr_pipe[tid]);
+		fd_delete(poller_wr_pipe[tid]);
 		poller_wr_pipe[tid] = -1;
 	}
 }
