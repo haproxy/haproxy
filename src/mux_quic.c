@@ -383,14 +383,16 @@ static void qcs_idle_open(struct qcs *qcs)
 	BUG_ON_HOT(qcs->st == QC_SS_CLO);
 
 	if (qcs->st == QC_SS_IDLE) {
+		TRACE_STATE("opening stream", QMUX_EV_QCS_NEW, qcs->qcc->conn, qcs);
 		qcs->st = QC_SS_OPEN;
-		TRACE_DEVEL("opening stream", QMUX_EV_QCS_NEW, qcs->qcc->conn, qcs);
 	}
 }
 
 /* Close the local channel of <qcs> instance. */
 static void qcs_close_local(struct qcs *qcs)
 {
+	TRACE_STATE("closing stream locally", QMUX_EV_QCS_SEND, qcs->qcc->conn, qcs);
+
 	/* The stream must have already been opened. */
 	BUG_ON_HOT(qcs->st == QC_SS_IDLE);
 
@@ -406,13 +408,13 @@ static void qcs_close_local(struct qcs *qcs)
 		BUG_ON_HOT(quic_stream_is_remote(qcs->qcc, qcs->id));
 		qcs->st = QC_SS_CLO;
 	}
-
-	TRACE_DEVEL("closing stream locally", QMUX_EV_QCS_END, qcs->qcc->conn, qcs);
 }
 
 /* Close the remote channel of <qcs> instance. */
 static void qcs_close_remote(struct qcs *qcs)
 {
+	TRACE_STATE("closing stream remotely", QMUX_EV_QCS_RECV, qcs->qcc->conn, qcs);
+
 	/* The stream must have already been opened. */
 	BUG_ON_HOT(qcs->st == QC_SS_IDLE);
 
@@ -427,8 +429,6 @@ static void qcs_close_remote(struct qcs *qcs)
 		BUG_ON_HOT(quic_stream_is_local(qcs->qcc, qcs->id));
 		qcs->st = QC_SS_CLO;
 	}
-
-	TRACE_DEVEL("closing stream remotely", QMUX_EV_QCS_END, qcs->qcc->conn, qcs);
 }
 
 static int qcs_is_close_local(struct qcs *qcs)
@@ -553,7 +553,7 @@ struct qcs *qcc_init_stream_local(struct qcc *qcc, int bidi)
 		return NULL;
 	}
 
-	TRACE_DEVEL("opening local stream",  QMUX_EV_QCS_NEW, qcc->conn, qcs);
+	TRACE_PROTO("opening local stream",  QMUX_EV_QCS_NEW, qcc->conn, qcs);
 	*next += 4;
 
 	TRACE_LEAVE(QMUX_EV_QCS_NEW, qcc->conn, qcs);
@@ -616,7 +616,7 @@ static struct qcs *qcc_init_stream_remote(struct qcc *qcc, uint64_t id)
 			goto err;
 		}
 
-		TRACE_DEVEL(str, QMUX_EV_QCS_NEW, qcc->conn, qcs);
+		TRACE_PROTO(str, QMUX_EV_QCS_NEW, qcc->conn, qcs);
 		*largest += 4;
 	}
 
@@ -691,7 +691,7 @@ int qcc_get_qcs(struct qcc *qcc, uint64_t id, int receive_only, int send_only,
 
 	/* Check if stream is already closed. */
 	if (qcc_stream_id_is_closed(qcc, id)) {
-		TRACE_DEVEL("already closed stream", QMUX_EV_QCC_RECV|QMUX_EV_QCC_NQCS, qcc->conn, NULL, &id);
+		TRACE_DATA("already closed stream", QMUX_EV_QCC_RECV|QMUX_EV_QCC_NQCS, qcc->conn, NULL, &id);
 		/* Consider this as a success even if <out> is left NULL. */
 		goto out;
 	}
@@ -855,10 +855,10 @@ void qcc_reset_stream(struct qcs *qcs, int err)
 	if ((qcs->flags & QC_SF_TO_RESET) || qcs_is_close_local(qcs))
 		return;
 
+	TRACE_STATE("reset stream", QMUX_EV_QCS_END, qcc->conn, qcs);
 	qcs->flags |= QC_SF_TO_RESET;
 	qcs->err = err;
 	tasklet_wakeup(qcc->wait_event.tasklet);
-	TRACE_DEVEL("reset stream", QMUX_EV_QCS_END, qcc->conn, qcs);
 }
 
 /* Handle a new STREAM frame for stream with id <id>. Payload is pointed by
@@ -946,7 +946,7 @@ int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
 		return 1;
 	}
 
-	TRACE_DEVEL("newly received offset", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV, qcc->conn, qcs);
+	TRACE_DATA("newly received offset", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV, qcc->conn, qcs);
 	if (offset < qcs->rx.offset) {
 		size_t diff = qcs->rx.offset - offset;
 
@@ -973,8 +973,8 @@ int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
 			qcc_emit_cc(qcc, QC_ERR_PROTOCOL_VIOLATION);
 		}
 		else if (ret == NCB_RET_GAP_SIZE) {
-			TRACE_DEVEL("cannot bufferize frame due to gap size limit", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV,
-			            qcc->conn, qcs);
+			TRACE_DATA("cannot bufferize frame due to gap size limit", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV,
+			           qcc->conn, qcs);
 		}
 		return 1;
 	}
@@ -1099,6 +1099,7 @@ int qcc_recv_stop_sending(struct qcc *qcc, uint64_t id, uint64_t err)
 	if (!qcs)
 		goto out;
 
+	TRACE_PROTO("receiving STOP_SENDING", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV, qcc->conn, qcs);
 	qcs_idle_open(qcs);
 
 	/* RFC 9000 3.5. Solicited State Transitions
@@ -1115,7 +1116,6 @@ int qcc_recv_stop_sending(struct qcc *qcc, uint64_t id, uint64_t err)
 	 * the RESET_STREAM frame it sends, but it can use any application error
 	 * code.
 	 */
-	TRACE_DEVEL("receiving STOP_SENDING on stream", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV, qcc->conn, qcs);
 	qcc_reset_stream(qcs, err);
 
 	if (qcc_may_expire(qcc) && !qcc->nb_hreq)
@@ -1686,7 +1686,7 @@ static int qc_purge_streams(struct qcc *qcc)
 
 		/* Release not attached closed streams. */
 		if (qcs->st == QC_SS_CLO && !qcs_sc(qcs)) {
-			TRACE_DEVEL("purging closed stream", QMUX_EV_QCC_WAKE, qcs->qcc->conn, qcs);
+			TRACE_STATE("purging closed stream", QMUX_EV_QCC_WAKE, qcs->qcc->conn, qcs);
 			qcs_destroy(qcs);
 			release = 1;
 			continue;
@@ -1695,7 +1695,7 @@ static int qc_purge_streams(struct qcc *qcc)
 		/* Release detached streams with empty buffer. */
 		if (qcs->flags & QC_SF_DETACH) {
 			if (qcs_is_close_local(qcs)) {
-				TRACE_DEVEL("purging detached stream", QMUX_EV_QCC_WAKE, qcs->qcc->conn, qcs);
+				TRACE_STATE("purging detached stream", QMUX_EV_QCC_WAKE, qcs->qcc->conn, qcs);
 				qcs_destroy(qcs);
 				release = 1;
 				continue;
@@ -2008,7 +2008,7 @@ static void qc_detach(struct sedesc *sd)
 	qcc_rm_sc(qcc);
 
 	if (!qcs_is_close_local(qcs) && !(qcc->conn->flags & CO_FL_ERROR)) {
-		TRACE_DEVEL("remaining data, detaching qcs", QMUX_EV_STRM_END, qcc->conn, qcs);
+		TRACE_STATE("remaining data, detaching qcs", QMUX_EV_STRM_END, qcc->conn, qcs);
 		qcs->flags |= QC_SF_DETACH;
 		qcc_refresh_timeout(qcc);
 
@@ -2019,7 +2019,7 @@ static void qc_detach(struct sedesc *sd)
 	qcs_destroy(qcs);
 
 	if (qcc_is_dead(qcc)) {
-		TRACE_DEVEL("killing dead connection", QMUX_EV_STRM_END, qcc->conn);
+		TRACE_STATE("killing dead connection", QMUX_EV_STRM_END, qcc->conn);
 		qc_release(qcc);
 	}
 	else if (qcc->task) {
