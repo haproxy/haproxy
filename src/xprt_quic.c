@@ -4084,6 +4084,11 @@ static void quic_conn_release(struct quic_conn *qc)
 	/* We must not free the quic-conn if the MUX is still allocated. */
 	BUG_ON(qc->mux_state == QC_MUX_READY);
 
+	/* in the unlikely (but possible) case the connection was just added to
+	 * the accept_list we must delete it from there.
+	 */
+	MT_LIST_DELETE(&qc->accept_list);
+
 	/* free remaining stream descriptors */
 	node = eb64_first(&qc->streams_by_id);
 	while (node) {
