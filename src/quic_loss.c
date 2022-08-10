@@ -17,7 +17,9 @@ void quic_loss_srtt_update(struct quic_loss *ql,
                            unsigned int rtt, unsigned int ack_delay,
                            struct quic_conn *qc)
 {
-	TRACE_PROTO("Loss info update", QUIC_EV_CONN_RTTUPDT, qc, &rtt, &ack_delay, ql);
+	TRACE_ENTER(QUIC_EV_CONN_RTTUPDT, qc);
+	TRACE_DEVEL("Loss info update", QUIC_EV_CONN_RTTUPDT, qc, &rtt, &ack_delay, ql);
+
 	ql->latest_rtt = rtt;
 	if (!ql->rtt_min) {
 		/* No previous measurement. */
@@ -41,7 +43,9 @@ void quic_loss_srtt_update(struct quic_loss *ql,
 		/* 8*srtt = 7*srtt + rtt */
 		ql->srtt += rtt - (ql->srtt >> 3);
 	}
-	TRACE_PROTO("Loss info update", QUIC_EV_CONN_RTTUPDT, qc,,, ql);
+
+	TRACE_DEVEL("Loss info update", QUIC_EV_CONN_RTTUPDT, qc,,, ql);
+	TRACE_LEAVE(QUIC_EV_CONN_RTTUPDT, qc);
 }
 
 /* Returns for <qc> QUIC connection the first packet number space which
@@ -53,14 +57,18 @@ struct quic_pktns *quic_loss_pktns(struct quic_conn *qc)
 	enum quic_tls_pktns i;
 	struct quic_pktns *pktns;
 
+	TRACE_ENTER(QUIC_EV_CONN_SPTO, qc);
+
 	pktns = &qc->pktns[QUIC_TLS_PKTNS_INITIAL];
-	TRACE_PROTO("pktns", QUIC_EV_CONN_SPTO, qc, pktns);
+	TRACE_DEVEL("pktns", QUIC_EV_CONN_SPTO, qc, pktns);
 	for (i = QUIC_TLS_PKTNS_HANDSHAKE; i < QUIC_TLS_PKTNS_MAX; i++) {
-		TRACE_PROTO("pktns", QUIC_EV_CONN_SPTO, qc, &qc->pktns[i]);
+		TRACE_DEVEL("pktns", QUIC_EV_CONN_SPTO, qc, &qc->pktns[i]);
 		if (!tick_isset(pktns->tx.loss_time) ||
 		    qc->pktns[i].tx.loss_time < pktns->tx.loss_time)
 			pktns = &qc->pktns[i];
 	}
+
+	TRACE_LEAVE(QUIC_EV_CONN_SPTO, qc);
 
 	return pktns;
 }
@@ -108,6 +116,7 @@ struct quic_pktns *quic_pto_pktns(struct quic_conn *qc,
 
 		if (i == QUIC_TLS_PKTNS_01RTT) {
 			if (!handshake_completed) {
+				TRACE_STATE("handshake not already completed", QUIC_EV_CONN_SPTO, qc);
 				pktns = p;
 				goto out;
 			}
@@ -121,7 +130,7 @@ struct quic_pktns *quic_pto_pktns(struct quic_conn *qc,
 			lpto = tmp_pto;
 			pktns = p;
 		}
-		TRACE_PROTO("pktns", QUIC_EV_CONN_SPTO, qc, p);
+		TRACE_DEVEL("pktns", QUIC_EV_CONN_SPTO, qc, p);
 	}
 
  out:
