@@ -71,21 +71,7 @@ static inline int quic_stream_is_bidi(uint64_t id)
 	return !quic_stream_is_uni(id);
 }
 
-/* Install the <app_ops> applicative layer of a QUIC connection on mux <qcc>.
- * Returns 0 on success else non-zero.
- */
-static inline int qcc_install_app_ops(struct qcc *qcc,
-                                      const struct qcc_app_ops *app_ops)
-{
-	qcc->app_ops = app_ops;
-	if (qcc->app_ops->init && !qcc->app_ops->init(qcc))
-		return 1;
-
-	if (qcc->app_ops->finalize)
-		qcc->app_ops->finalize(qcc->ctx);
-
-	return 0;
-}
+int qcc_install_app_ops(struct qcc *qcc, const struct qcc_app_ops *app_ops);
 
 static inline struct stconn *qc_attach_sc(struct qcs *qcs, struct buffer *buf)
 {
