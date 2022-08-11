@@ -760,7 +760,7 @@ int cfg_parse_ring(const char *file, int linenum, char **args, int kwm)
 	size_t size = BUFSIZE;
 	struct proxy *p;
 
-	if (strcmp(args[0], "ring") == 0) { /* new peers section */
+	if (strcmp(args[0], "ring") == 0) { /* new ring section */
 		if (!*args[1]) {
 			ha_alert("parsing [%s:%d] : missing ring name.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -804,6 +804,12 @@ int cfg_parse_ring(const char *file, int linenum, char **args, int kwm)
 		cfg_sink->forward_px = p;
 	}
 	else if (strcmp(args[0], "size") == 0) {
+		if (!cfg_sink || (cfg_sink->type != SINK_TYPE_BUFFER)) {
+			ha_alert("parsing [%s:%d] : 'size' directive not usable with this type of sink.\n", file, linenum);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto err;
+		}
+
 		size = atol(args[1]);
 		if (!size) {
 			ha_alert("parsing [%s:%d] : invalid size '%s' for new sink buffer.\n", file, linenum, args[1]);
@@ -811,9 +817,16 @@ int cfg_parse_ring(const char *file, int linenum, char **args, int kwm)
 			goto err;
 		}
 
-		if (!cfg_sink || (cfg_sink->type != SINK_TYPE_BUFFER)
-		              || !ring_resize(cfg_sink->ctx.ring, size)) {
-			ha_alert("parsing [%s:%d] : fail to set sink buffer size '%s'.\n", file, linenum, args[1]);
+		if (size < cfg_sink->ctx.ring->buf.size) {
+			ha_warning("parsing [%s:%d] : ignoring new size '%llu' that is smaller than current size '%llu' for ring '%s'.\n",
+				   file, linenum, (ullong)size, (ullong)cfg_sink->ctx.ring->buf.size, cfg_sink->name);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto err;
+		}
+
+		if (!ring_resize(cfg_sink->ctx.ring, size)) {
+			ha_alert("parsing [%s:%d] : fail to set sink buffer size '%llu' for ring '%s'.\n", file, linenum,
+				 (ullong)cfg_sink->ctx.ring->buf.size, cfg_sink->name);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto err;
 		}
