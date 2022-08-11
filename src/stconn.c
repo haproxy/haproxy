@@ -459,6 +459,7 @@ int sc_reset_endp(struct stconn *sc)
 
 	/* The app is still attached, the sc will not be released */
 	sc_detach_endp(&sc);
+	BUG_ON(!sc);
 	BUG_ON(sc->sedesc);
 	sc->sedesc = new_sd;
 	sc->sedesc->sc = sc;
@@ -1977,5 +1978,6 @@ void sc_conn_commit_endp_upgrade(struct stconn *sc)
 		return;
 	sc_detach_endp(&sc);
 	/* Because it was already set as detached, the sedesc must be preserved */
+	BUG_ON(!sc);
 	BUG_ON(!sc->sedesc);
 }
