@@ -3580,6 +3580,33 @@ servers or traces.
 ring <ringname>
   Creates a new ring-buffer with name <ringname>.
 
+backing-file <path>
+  This replaces the regular memory allocation by a RAM-mapped file to store the
+  ring. This can be useful for collecting traces or logs for post-mortem
+  analysis, without having to attach a slow client to the CLI. Newer contents
+  will automatically replace older ones so that the latest contents are always
+  available. The contents written to the ring will be visible in that file once
+  the process stops (most often they will even be seen very soon after but
+  there is no such guarantee since writes are not synchronous).
+
+  When this option is used, the total storage area is reduced by the size of
+  the "struct ring" that starts at the beginning of the area, and that is
+  required to recover the area's contents. The file will be created with the
+  starting user's ownership, with mode 0600 and will be of the size configured
+  by the "size" directive.
+
+  WARNING: there are stability and security implications in using this feature.
+  First, backing the ring to a slow device (e.g. physical hard drive) may cause
+  perceptible slowdowns during accesses, and possibly even panics if too many
+  threads compete for accesses. Second, an external process modifying the area
+  could cause the haproxy process to crash or to overwrite some of its own
+  memory with traces. Third, if the file system fills up before the ring,
+  writes to the ring may cause the process to crash.
+
+  The information present in this ring are structured and are NOT directly
+  readable using a text editor (even though most of it looks barely readable).
+  The output of this file is only intended for developers.
+
 description <text>
   The description is an optional description string of the ring. It will
   appear on CLI. By default, <name> is reused to fill this field.

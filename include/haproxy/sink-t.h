@@ -50,6 +50,7 @@ struct sink {
 	struct list sink_list;     // position in the sink list
 	char *name;                // sink name
 	char *desc;                // sink description
+	char *store;               // backing-store file when buffer
 	enum log_fmt fmt;          // format expected by the sink
 	enum sink_type type;       // type of storage
 	uint32_t maxlen;           // max message length (truncated above)
