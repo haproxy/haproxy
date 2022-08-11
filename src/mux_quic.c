@@ -229,7 +229,7 @@ static void qc_free_ncbuf(struct qcs *qcs, struct ncbuf *ncbuf)
  */
 static void qcs_free(struct qcs *qcs)
 {
-	TRACE_ENTER(QMUX_EV_QCS_END, qcs);
+	TRACE_ENTER(QMUX_EV_QCS_END, qcs->qcc->conn, qcs);
 
 	qc_free_ncbuf(qcs, &qcs->rx.ncbuf);
 	b_free(&qcs->tx.buf);
