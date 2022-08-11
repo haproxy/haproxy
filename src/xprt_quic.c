@@ -3374,14 +3374,19 @@ static int quic_build_post_handshake_frames(struct quic_conn *qc)
 	/* Only servers must send a HANDSHAKE_DONE frame. */
 	if (qc_is_listener(qc)) {
 		frm = pool_zalloc(pool_head_quic_frame);
-		if (!frm)
-			return 0;
+		if (!frm) {
+			TRACE_ERROR("frame allocation error", QUIC_EV_CONN_IO_CB, qc);
+			goto leave;
+		}
 
 		LIST_INIT(&frm->reflist);
 		frm->type = QUIC_FT_HANDSHAKE_DONE;
 		LIST_APPEND(&frm_list, &frm->list);
 	}
 
+	/* Initialize <max> connection IDs minus one: there is
+	 * already one connection ID used for the current connection.
+	 */
 	first = 1;
 	max = qc->tx.params.active_connection_id_limit;
 
@@ -3390,13 +3395,17 @@ static int quic_build_post_handshake_frames(struct quic_conn *qc)
 		struct quic_connection_id *cid;
 
 		frm = pool_zalloc(pool_head_quic_frame);
-		if (!frm)
+		if (!frm) {
+			TRACE_ERROR("frame allocation error", QUIC_EV_CONN_IO_CB, qc);
 			goto err;
+		}
 
 		LIST_INIT(&frm->reflist);
 		cid = new_quic_cid(&qc->cids, qc, i);
-		if (!cid)
+		if (!cid) {
+			TRACE_ERROR("CID allocation error", QUIC_EV_CONN_IO_CB, qc);
 			goto err;
+		}
 
 		/* insert the allocated CID in the receiver datagram handler tree */
 		ebmb_insert(&quic_dghdlrs[tid].cids, &cid->node, cid->cid.len);
@@ -3418,17 +3427,13 @@ static int quic_build_post_handshake_frames(struct quic_conn *qc)
 	list_for_each_entry_safe(frm, frmbak, &frm_list, list)
 		pool_free(pool_head_quic_frame, frm);
 
-	node = eb64_first(&qc->cids);
+	node = eb64_lookup_ge(&qc->cids, first);
 	while (node) {
 		struct quic_connection_id *cid;
-
 
 		cid = eb64_entry(node, struct quic_connection_id, seq_num);
 		if (cid->seq_num.key >= max)
 			break;
-
-		if (cid->seq_num.key < first)
-			continue;
 
 		node = eb64_next(node);
 		ebmb_delete(&cid->node);
