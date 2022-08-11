@@ -4158,7 +4158,7 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 		 *
 		 * TODO: this part should be removed. This was there because the
 		 * datagram parser was not executed by only one thread.
-		 */ 
+		 */
 		qc_set_timer(qc);
 		if (tick_isset(qc->timer) && tick_is_lt(qc->timer, now_ms))
 			task_wakeup(qc->timer_task, TASK_WOKEN_MSG);
@@ -5067,7 +5067,7 @@ static inline int qc_parse_hd_form(struct quic_rx_packet *pkt,
 	ret = 1;
  out:
 	TRACE_LEAVE(QUIC_EV_CONN_RXPKT);
-	return ret; 
+	return ret;
 }
 
 /* Return the QUIC version (quic_version struct) with <version> as version number
@@ -5919,7 +5919,7 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 				TRACE_PROTO("Initial without token, sending retry",
 				            QUIC_EV_CONN_LPKT, NULL, NULL, NULL, qv);
 				if (send_retry(l->rx.fd, &dgram->saddr, pkt, qv)) {
-					TRACE_ERROR("Error during Retry generation", 
+					TRACE_ERROR("Error during Retry generation",
 					            QUIC_EV_CONN_LPKT, NULL, NULL, NULL, qv);
 					goto err;
 				}
