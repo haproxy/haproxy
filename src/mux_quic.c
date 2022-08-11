@@ -229,16 +229,18 @@ static void qc_free_ncbuf(struct qcs *qcs, struct ncbuf *ncbuf)
  */
 static void qcs_free(struct qcs *qcs)
 {
-	TRACE_ENTER(QMUX_EV_QCS_END, qcs->qcc->conn, qcs);
+	struct qcc *qcc = qcs->qcc;
+
+	TRACE_ENTER(QMUX_EV_QCS_END, qcc->conn, qcs);
 
 	qc_free_ncbuf(qcs, &qcs->rx.ncbuf);
 	b_free(&qcs->tx.buf);
 
-	BUG_ON(!qcs->qcc->strms[qcs_id_type(qcs->id)].nb_streams);
-	--qcs->qcc->strms[qcs_id_type(qcs->id)].nb_streams;
+	BUG_ON(!qcc->strms[qcs_id_type(qcs->id)].nb_streams);
+	--qcc->strms[qcs_id_type(qcs->id)].nb_streams;
 
-	if (qcs->ctx && qcs->qcc->app_ops->detach)
-		qcs->qcc->app_ops->detach(qcs);
+	if (qcs->ctx && qcc->app_ops->detach)
+		qcc->app_ops->detach(qcs);
 
 	qc_stream_desc_release(qcs->stream);
 
@@ -248,7 +250,7 @@ static void qcs_free(struct qcs *qcs)
 	eb64_delete(&qcs->by_id);
 	pool_free(pool_head_qcs, qcs);
 
-	TRACE_LEAVE(QMUX_EV_QCS_END);
+	TRACE_LEAVE(QMUX_EV_QCS_END, qcc->conn);
 }
 
 static forceinline struct stconn *qcs_sc(const struct qcs *qcs)
@@ -1470,11 +1472,11 @@ static int qc_send_frames(struct qcc *qcc, struct list *frms)
 		goto err;
 	}
 
-	TRACE_LEAVE(QMUX_EV_QCC_SEND);
+	TRACE_LEAVE(QMUX_EV_QCC_SEND, qcc->conn);
 	return 0;
 
  err:
-	TRACE_LEAVE(QMUX_EV_QCC_SEND);
+	TRACE_LEAVE(QMUX_EV_QCC_SEND, qcc->conn);
 	return 1;
 }
 
@@ -1745,7 +1747,7 @@ static int qc_purge_streams(struct qcc *qcc)
 	struct eb64_node *node;
 	int release = 0;
 
-	TRACE_ENTER(QMUX_EV_QCC_WAKE);
+	TRACE_ENTER(QMUX_EV_QCC_WAKE, qcc->conn);
 
 	node = eb64_first(&qcc->streams_by_id);
 	while (node) {
@@ -1774,7 +1776,7 @@ static int qc_purge_streams(struct qcc *qcc)
 		}
 	}
 
-	TRACE_LEAVE(QMUX_EV_QCC_WAKE);
+	TRACE_LEAVE(QMUX_EV_QCC_WAKE, qcc->conn);
 	return release;
 }
 
@@ -1786,7 +1788,7 @@ static void qc_release(struct qcc *qcc)
 	struct connection *conn = qcc->conn;
 	struct eb64_node *node;
 
-	TRACE_ENTER(QMUX_EV_QCC_END);
+	TRACE_ENTER(QMUX_EV_QCC_END, conn);
 
 	if (qcc->app_ops && qcc->app_ops->release) {
 		/* Application protocol with dedicated connection closing
@@ -1802,7 +1804,7 @@ static void qc_release(struct qcc *qcc)
 	else {
 		qcc_emit_cc_app(qcc, QC_ERR_NO_ERROR, 0);
 	}
-	TRACE_PROTO("application layer released", QMUX_EV_QCC_END, qcc->conn);
+	TRACE_PROTO("application layer released", QMUX_EV_QCC_END, conn);
 
 	if (qcc->task) {
 		task_destroy(qcc->task);
@@ -1856,15 +1858,14 @@ static struct task *qc_io_cb(struct task *t, void *ctx, unsigned int status)
 {
 	struct qcc *qcc = ctx;
 
-	TRACE_ENTER(QMUX_EV_QCC_WAKE);
+	TRACE_ENTER(QMUX_EV_QCC_WAKE, qcc->conn);
 
 	qc_send(qcc);
 
 	if (qc_purge_streams(qcc)) {
 		if (qcc_is_dead(qcc)) {
 			TRACE_STATE("releasing dead connection", QMUX_EV_QCC_WAKE, qcc->conn);
-			qc_release(qcc);
-			goto end;
+			goto release;
 		}
 	}
 
@@ -1877,8 +1878,12 @@ static struct task *qc_io_cb(struct task *t, void *ctx, unsigned int status)
 	qcc_refresh_timeout(qcc);
 
  end:
-	TRACE_LEAVE(QMUX_EV_QCC_WAKE);
+	TRACE_LEAVE(QMUX_EV_QCC_WAKE, qcc->conn);
+	return NULL;
 
+ release:
+	qc_release(qcc);
+	TRACE_LEAVE(QMUX_EV_QCC_WAKE);
 	return NULL;
 }
 
