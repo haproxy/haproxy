@@ -4600,7 +4600,7 @@ static int parse_retry_token(struct quic_conn *qc,
  */
 static struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
                                      struct quic_cid *dcid, struct quic_cid *scid,
-                                     const struct quic_cid *odcid,
+                                     const struct quic_cid *token_odcid,
                                      struct sockaddr_storage *saddr,
                                      int server, int token, void *owner)
 {
@@ -4726,7 +4726,7 @@ static struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	                                    icid->stateless_reset_token,
 	                                    dcid->data, dcid->len,
 	                                    qc->scid.data, qc->scid.len,
-	                                    odcid->data, odcid->len, token))
+	                                    token_odcid->data, token_odcid->len))
 		goto err;
 
 	if (qc_conn_alloc_ssl_ctx(qc) ||
@@ -5774,7 +5774,7 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 	if (long_header) {
 		uint64_t len;
 		struct quic_cid odcid;
-		int check_token = 0;
+		struct quic_cid *token_odcid = NULL; // ODCID received from client token
 
 		TRACE_PROTO("long header packet received", QUIC_EV_CONN_LPKT, qc);
 		if (!quic_packet_read_long_header(&buf, end, pkt)) {
@@ -5838,24 +5838,27 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 			/* TODO Retry should be automatically activated if
 			 * suspect network usage is detected.
 			 */
-			if (global.cluster_secret) {
-				if (!token_len) {
-					if (l->bind_conf->options & BC_O_QUIC_FORCE_RETRY) {
-						TRACE_PROTO("Initial without token, sending retry",
-						            QUIC_EV_CONN_LPKT, NULL, NULL, NULL, qv);
-						if (send_retry(l->rx.fd, &dgram->saddr, pkt, qv)) {
-							TRACE_PROTO("Error during Retry generation",
-							            QUIC_EV_CONN_LPKT, NULL, NULL, NULL, qv);
-							goto err;
-						}
-
-						HA_ATOMIC_INC(&prx_counters->retry_sent);
+			if (global.cluster_secret && !token_len) {
+				if (l->bind_conf->options & BC_O_QUIC_FORCE_RETRY) {
+					TRACE_PROTO("Initial without token, sending retry",
+								QUIC_EV_CONN_LPKT, NULL, NULL, NULL, qv);
+					if (send_retry(l->rx.fd, &dgram->saddr, pkt, qv)) {
+						TRACE_PROTO("Error during Retry generation",
+									QUIC_EV_CONN_LPKT, NULL, NULL, NULL, qv);
 						goto err;
 					}
+
+					HA_ATOMIC_INC(&prx_counters->retry_sent);
+					goto err;
 				}
-				else {
-					check_token = 1;
-				}
+			}
+			else if (!global.cluster_secret && token_len) {
+				/* Impossible case: a token was received without configured
+				 * cluster secret.
+				 */
+				TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT,
+				            NULL, NULL, NULL, qv);
+				goto drop;
 			}
 
 			pkt->token = buf;
@@ -5883,7 +5886,7 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 			goto drop_no_conn;
 
 		qc = retrieve_qc_conn_from_cid(pkt, l, &dgram->saddr);
-		if (check_token && pkt->token) {
+		if (global.cluster_secret && pkt->token_len) {
 			if (*pkt->token == QUIC_TOKEN_FMT_RETRY) {
 				const struct quic_version *ver = qc ? qc->original_version : qv;
 				if (!quic_retry_token_check(pkt->token, pkt->token_len, ver, &odcid,
@@ -5897,6 +5900,7 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 					goto drop;
 				}
 
+				token_odcid = &odcid;
 				HA_ATOMIC_INC(&prx_counters->retry_validated);
 			}
 			else {
@@ -5943,7 +5947,7 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 			pkt->saddr = dgram->saddr;
 			ipv4 = dgram->saddr.ss_family == AF_INET;
 
-			qc = qc_new_conn(qv, ipv4, &pkt->dcid, &pkt->scid, &odcid,
+			qc = qc_new_conn(qv, ipv4, &pkt->dcid, &pkt->scid, token_odcid,
 			                 &pkt->saddr, 1, !!pkt->token_len, l);
 			if (qc == NULL)
 				goto drop;

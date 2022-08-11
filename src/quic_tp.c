@@ -634,8 +634,8 @@ int quic_transport_params_store(struct quic_conn *qc, int server,
 /* QUIC server (or haproxy listener) only function.
  * Initialize the local transport parameters <rx_params> from <listener_params>
  * coming from configuration and Initial packet information (destintation
- * connection ID, source connection ID, original destination connection ID,
- * and if a token was present denoted by <token> boolean value.
+ * connection ID, source connection ID, original destination connection ID from
+ * client token.
  * Returns 1 if succeeded, 0 if not.
  */
 int qc_lstnr_params_init(struct quic_conn *qc,
@@ -643,7 +643,7 @@ int qc_lstnr_params_init(struct quic_conn *qc,
                          const unsigned char *stateless_reset_token,
                          const unsigned char *dcid, size_t dcidlen,
                          const unsigned char *scid, size_t scidlen,
-                         const unsigned char *odcid, size_t odcidlen, int token)
+                         const unsigned char *token_odcid, size_t token_odcidlen)
 {
 	struct quic_transport_params *rx_params = &qc->rx.params;
 	struct tp_cid *odcid_param = &rx_params->original_destination_connection_id;
@@ -654,9 +654,9 @@ int qc_lstnr_params_init(struct quic_conn *qc,
 	memcpy(rx_params->stateless_reset_token, stateless_reset_token,
 	       sizeof rx_params->stateless_reset_token);
 	/* Copy original_destination_connection_id transport parameter. */
-	if (token) {
-		memcpy(odcid_param->data, odcid, odcidlen);
-		odcid_param->len = odcidlen;
+	if (token_odcid) {
+		memcpy(odcid_param->data, token_odcid, token_odcidlen);
+		odcid_param->len = token_odcidlen;
 		/* Copy retry_source_connection_id transport parameter. */
 		memcpy(rx_params->retry_source_connection_id.data, dcid, dcidlen);
 		rx_params->retry_source_connection_id.len = dcidlen;
