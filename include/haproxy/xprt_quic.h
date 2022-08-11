@@ -667,9 +667,7 @@ static inline int qc_el_rx_pkts(struct quic_enc_level *qel)
 {
 	int ret;
 
-	HA_RWLOCK_RDLOCK(QUIC_LOCK, &qel->rx.pkts_rwlock);
 	ret = !eb_is_empty(&qel->rx.pkts);
-	HA_RWLOCK_RDUNLOCK(QUIC_LOCK, &qel->rx.pkts_rwlock);
 
 	return ret;
 }
@@ -728,7 +726,6 @@ static inline void qc_el_rx_pkts_del(struct quic_enc_level *qel)
 {
 	struct eb64_node *node;
 
-	HA_RWLOCK_WRLOCK(QUIC_LOCK, &qel->rx.pkts_rwlock);
 	node = eb64_first(&qel->rx.pkts);
 	while (node) {
 		struct quic_rx_packet *pkt =
@@ -738,14 +735,12 @@ static inline void qc_el_rx_pkts_del(struct quic_enc_level *qel)
 		eb64_delete(&pkt->pn_node);
 		quic_rx_packet_refdec(pkt);
 	}
-	HA_RWLOCK_WRUNLOCK(QUIC_LOCK, &qel->rx.pkts_rwlock);
 }
 
 static inline void qc_list_qel_rx_pkts(struct quic_enc_level *qel)
 {
 	struct eb64_node *node;
 
-	HA_RWLOCK_RDLOCK(QUIC_LOCK, &qel->rx.pkts_rwlock);
 	node = eb64_first(&qel->rx.pkts);
 	while (node) {
 		struct quic_rx_packet *pkt;
@@ -755,7 +750,6 @@ static inline void qc_list_qel_rx_pkts(struct quic_enc_level *qel)
 		        pkt, pkt->type, (ull)pkt->pn_node.key);
 		node = eb64_next(node);
 	}
-	HA_RWLOCK_RDUNLOCK(QUIC_LOCK, &qel->rx.pkts_rwlock);
 }
 
 static inline void qc_list_all_rx_pkts(struct quic_conn *qc)

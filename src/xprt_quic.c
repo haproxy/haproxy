@@ -3697,10 +3697,8 @@ static inline void qc_rm_hp_pkts(struct quic_conn *qc, struct quic_enc_level *el
 			pqpkt->aad_len = pqpkt->pn_offset + pqpkt->pnl;
 			/* Store the packet into the tree of packets to decrypt. */
 			pqpkt->pn_node.key = pqpkt->pn;
-			HA_RWLOCK_WRLOCK(QUIC_LOCK, &el->rx.pkts_rwlock);
 			eb64_insert(&el->rx.pkts, &pqpkt->pn_node);
 			quic_rx_packet_refinc(pqpkt);
-			HA_RWLOCK_WRUNLOCK(QUIC_LOCK, &el->rx.pkts_rwlock);
 			TRACE_DEVEL("hp removed", QUIC_EV_CONN_ELRMHP, qc, pqpkt);
 		}
 		MT_LIST_DELETE_SAFE(pkttmp1);
@@ -3769,7 +3767,6 @@ int qc_treat_rx_pkts(struct quic_enc_level *cur_el, struct quic_enc_level *next_
 	if (!qel)
 		goto out;
 
-	HA_RWLOCK_WRLOCK(QUIC_LOCK, &qel->rx.pkts_rwlock);
 	node = eb64_first(&qel->rx.pkts);
 	while (node) {
 		struct quic_rx_packet *pkt;
@@ -3811,7 +3808,6 @@ int qc_treat_rx_pkts(struct quic_enc_level *cur_el, struct quic_enc_level *next_
 		eb64_delete(&pkt->pn_node);
 		quic_rx_packet_refdec(pkt);
 	}
-	HA_RWLOCK_WRUNLOCK(QUIC_LOCK, &qel->rx.pkts_rwlock);
 
 	if (largest_pn != -1 && largest_pn > qel->pktns->rx.largest_pn) {
 		/* Update the largest packet number. */
@@ -4325,7 +4321,6 @@ static int quic_conn_enc_level_init(struct quic_conn *qc,
 	qel->tls_ctx.flags = 0;
 
 	qel->rx.pkts = EB_ROOT;
-	HA_RWLOCK_INIT(&qel->rx.pkts_rwlock);
 	MT_LIST_INIT(&qel->rx.pqpkts);
 	qel->rx.crypto.offset = 0;
 	qel->rx.crypto.frms = EB_ROOT_UNIQUE;
@@ -4931,9 +4926,7 @@ static void qc_pkt_insert(struct quic_conn *qc,
 
 	pkt->pn_node.key = pkt->pn;
 	quic_rx_packet_refinc(pkt);
-	HA_RWLOCK_WRLOCK(QUIC_LOCK, &qel->rx.pkts_rwlock);
 	eb64_insert(&qel->rx.pkts, &pkt->pn_node);
-	HA_RWLOCK_WRUNLOCK(QUIC_LOCK, &qel->rx.pkts_rwlock);
 
 	TRACE_LEAVE(QUIC_EV_CONN_RXPKT, qc);
 }
