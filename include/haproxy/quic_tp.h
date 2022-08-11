@@ -25,7 +25,7 @@ int qc_lstnr_params_init(struct quic_conn *qc,
                          const unsigned char *stateless_reset_token,
                          const unsigned char *dcid, size_t dcidlen,
                          const unsigned char *scid, size_t scidlen,
-                         const unsigned char *token_odcid, size_t token_odcidlen);
+                         const struct quic_cid *token_odcid);
 
 /* Dump <cid> transport parameter connection ID value if present (non null length).
  * Used only for debugging purposes.

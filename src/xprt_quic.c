@@ -4725,8 +4725,7 @@ static struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	if (server && !qc_lstnr_params_init(qc, &l->bind_conf->quic_params,
 	                                    icid->stateless_reset_token,
 	                                    dcid->data, dcid->len,
-	                                    qc->scid.data, qc->scid.len,
-	                                    token_odcid->data, token_odcid->len))
+	                                    qc->scid.data, qc->scid.len, token_odcid))
 		goto err;
 
 	if (qc_conn_alloc_ssl_ctx(qc) ||
@@ -5774,7 +5773,7 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 	if (long_header) {
 		uint64_t len;
 		struct quic_cid odcid;
-		struct quic_cid *token_odcid = NULL; // ODCID received from client token
+		const struct quic_cid *token_odcid = NULL; // ODCID received from client token
 
 		TRACE_PROTO("long header packet received", QUIC_EV_CONN_LPKT, qc);
 		if (!quic_packet_read_long_header(&buf, end, pkt)) {
