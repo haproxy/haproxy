@@ -75,6 +75,30 @@ struct ring *ring_new(size_t size)
 	return NULL;
 }
 
+/* Creates a unified ring + storage area at address <area> for <size> bytes.
+ * If <area> is null, then it's allocated of the requested size. The ring
+ * struct is part of the area so the usable area is slightly reduced. However
+ * the ring storage is immediately adjacent to the struct. ring_free() will
+ * ignore such rings, so the caller is responsible for releasing them.
+ */
+struct ring *ring_make_from_area(void *area, size_t size)
+{
+	struct ring *ring = NULL;
+
+	if (size < sizeof(ring))
+		return NULL;
+
+	if (!area)
+		area = malloc(size);
+	if (!area)
+		return NULL;
+
+	ring = area;
+	area += sizeof(*ring);
+	ring_init(ring, area, size - sizeof(*ring));
+	return ring;
+}
+
 /* Resizes existing ring <ring> to <size> which must be larger, without losing
  * its contents. The new size must be at least as large as the previous one or
  * no change will be performed. The pointer to the ring is returned on success,
@@ -113,6 +137,11 @@ void ring_free(struct ring *ring)
 {
 	if (!ring)
 		return;
+
+	/* make sure it was not allocated by ring_make_from_area */
+	if (ring->buf.area == (void *)ring + sizeof(*ring))
+		return;
+
 	free(ring->buf.area);
 	free(ring);
 }
