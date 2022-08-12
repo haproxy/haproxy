@@ -2099,7 +2099,7 @@ static void qc_detach(struct sedesc *sd)
 
 	if (qcc_is_dead(qcc)) {
 		TRACE_STATE("killing dead connection", QMUX_EV_STRM_END, qcc->conn);
-		qc_release(qcc);
+		goto release;
 	}
 	else if (qcc->task) {
 		TRACE_DEVEL("refreshing connection's timeout", QMUX_EV_STRM_END, qcc->conn);
@@ -2110,6 +2110,12 @@ static void qc_detach(struct sedesc *sd)
 	}
 
 	TRACE_LEAVE(QMUX_EV_STRM_END, qcc->conn);
+	return;
+
+ release:
+	qc_release(qcc);
+	TRACE_LEAVE(QMUX_EV_STRM_END);
+	return;
 }
 
 /* Called from the upper layer, to receive data */
