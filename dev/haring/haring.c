@@ -36,6 +36,8 @@
 #include <haproxy/ring.h>
 
 int force = 0; // force access to a different layout
+int lfremap = 0; // remap LF in traces
+
 
 /* display the message and exit with the code */
 __attribute__((noreturn)) void die(int code, const char *format, ...)
@@ -58,6 +60,7 @@ __attribute__((noreturn)) void usage(int code, const char *arg0)
 	    "\n"
 	    "options :\n"
 	    "  -f           : force accessing a non-matching layout for 'ring struct'\n"
+	    "  -l           : replace LF in contents with CR VT\n"
 	    "\n"
 	    "", arg0);
 }
@@ -76,8 +79,8 @@ int dump_ring(struct ring *ring, size_t ofs, int flags)
 	struct buffer buf;
 	uint64_t msg_len = 0;
 	size_t len, cnt;
-	const char *blk1, *blk2;
-	size_t len1, len2;
+	const char *blk1 = NULL, *blk2 = NULL, *p;
+	size_t len1 = 0, len2 = 0, bl;
 
 	/* Explanation: the storage area in the writing process starts after
 	 * the end of the structure. Since the whole area is mmapped(), we know
@@ -155,12 +158,36 @@ int dump_ring(struct ring *ring, size_t ofs, int flags)
 			}
 
 			len = b_getblk_nc(&buf, &blk1, &len1, &blk2, &len2, ofs + cnt, msg_len);
-			if (len > 0 && len1)
-				fwrite(blk1, len1, 1, stdout);
-			if (len > 1 && len2)
-				fwrite(blk2, len2, 1, stdout);
-			if (len)
-				putchar('\n');
+			if (!lfremap) {
+				if (len > 0 && len1)
+					fwrite(blk1, len1, 1, stdout);
+				if (len > 1 && len2)
+					fwrite(blk2, len2, 1, stdout);
+			} else {
+				while (len > 0) {
+					for (; len1; p++) {
+						p = memchr(blk1, '\n', len1);
+						if (!p || p > blk1) {
+							bl = p ? p - blk1 : len1;
+							fwrite(blk1, bl, 1, stdout);
+							blk1 += bl;
+							len1 -= bl;
+						}
+
+						if (p) {
+							putchar('\r');
+							putchar('\v');
+							blk1++;
+							len1--;
+						}
+					}
+					len--;
+					blk1 = blk2;
+					len1 = len2;
+				}
+			}
+
+			putchar('\n');
 
 			ofs += cnt + msg_len;
 		}
@@ -190,6 +217,8 @@ int main(int argc, char **argv)
 		argc--; argv++;
 		if (strcmp(argv[0], "-f") == 0)
 			force = 1;
+		else if (strcmp(argv[0], "-l") == 0)
+			lfremap = 1;
 		else if (strcmp(argv[0], "--") == 0)
 			break;
 		else
