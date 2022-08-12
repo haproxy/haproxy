@@ -257,6 +257,7 @@ static int quic_lstnr_dgram_dispatch(unsigned char *buf, size_t len, void *owner
 	return 1;
 
  err:
+	pool_free(pool_head_quic_dgram, new_dgram);
 	return 0;
 }
 
