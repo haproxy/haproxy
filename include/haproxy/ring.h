@@ -26,6 +26,8 @@
 #include <import/ist.h>
 #include <haproxy/ring-t.h>
 
+struct appctx;
+
 struct ring *ring_new(size_t size);
 void ring_init(struct ring *ring, void* area, size_t size);
 struct ring *ring_resize(struct ring *ring, size_t size);
