@@ -1021,6 +1021,9 @@ admin/dyncookie/dyncookie: admin/dyncookie/dyncookie.o
 dev/flags/flags: dev/flags/flags.o
 	$(cmd_LD) $(LDFLAGS) -o $@ $^ $(LDOPTS)
 
+dev/haring/haring: dev/haring/haring.o
+	$(cmd_LD) $(LDFLAGS) -o $@ $^ $(LDOPTS)
+
 dev/hpack/%: dev/hpack/%.o
 	$(cmd_LD) $(LDFLAGS) -o $@ $^ $(LDOPTS)
 
@@ -1098,7 +1101,7 @@ clean:
 	$(Q)rm -f admin/iprange/iprange admin/iprange/ip6range admin/halog/halog
 	$(Q)rm -f admin/dyncookie/dyncookie
 	$(Q)rm -f dev/*/*.[oas]
-	$(Q)rm -f dev/flags/flags dev/poll/poll dev/tcploop/tcploop
+	$(Q)rm -f dev/flags/flags dev/haring/haring dev/poll/poll dev/tcploop/tcploop
 	$(Q)rm -f dev/hpack/decode dev/hpack/gen-enc dev/hpack/gen-rht
 	$(Q)rm -f dev/qpack/decode
 
