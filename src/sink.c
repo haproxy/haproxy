@@ -862,7 +862,7 @@ int cfg_parse_ring(const char *file, int linenum, char **args, int kwm)
 			goto err;
 		}
 
-		fd = open(backing, O_RDWR | O_CREAT, S_IRUSR|S_IWUSR);
+		fd = open(backing, O_RDWR | O_CREAT, 0600);
 		if (fd < 0) {
 			ha_alert("parsing [%s:%d] : cannot open backing-file '%s' for ring '%s': %s.\n", file, linenum, backing, cfg_sink->name, strerror(errno));
 			err_code |= ERR_ALERT | ERR_FATAL;
