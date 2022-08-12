@@ -592,10 +592,10 @@ enum qc_mux_state {
 #define QUIC_FL_CONN_POST_HANDSHAKE_FRAMES_BUILT (1U << 2)
 #define QUIC_FL_CONN_LISTENER                    (1U << 3)
 #define QUIC_FL_CONN_ACCEPT_REGISTERED           (1U << 4)
-/* gap here */
+#define QUIC_FL_CONN_RETRANS_LOST_DATA           (1U << 5) /* retransmission in progress for lost data */
 #define QUIC_FL_CONN_IDLE_TIMER_RESTARTED_AFTER_READ (1U << 6)
 #define QUIC_FL_CONN_RETRANS_NEEDED              (1U << 7)
-#define QUIC_FL_CONN_RETRANS_OLD_DATA            (1U << 8)
+#define QUIC_FL_CONN_RETRANS_OLD_DATA            (1U << 8) /* retransmission in progress for probing with already sent data */
 #define QUIC_FL_CONN_TLS_ALERT                   (1U << 9)
 /* gap here */
 #define QUIC_FL_CONN_HALF_OPEN_CNT_DECREMENTED   (1U << 11) /* The half-open connection counter was decremented */
