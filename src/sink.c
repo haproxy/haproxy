@@ -846,6 +846,7 @@ int cfg_parse_ring(const char *file, int linenum, char **args, int kwm)
 		 * for ring <ring>. Existing data are delete. NULL is returned on error.
 		 */
 		const char *backing = args[1];
+		char *oldback;
 		size_t size;
 		void *area;
 		int fd;
@@ -860,6 +861,19 @@ int cfg_parse_ring(const char *file, int linenum, char **args, int kwm)
 			ha_alert("parsing [%s:%d] : 'backing-file' already specified for ring '%s' (was '%s').\n", file, linenum, cfg_sink->name, cfg_sink->store);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto err;
+		}
+
+		oldback = NULL;
+		memprintf(&oldback, "%s.bak", backing);
+		if (oldback) {
+			/* try to rename any possibly existing ring file to
+			 * ".bak" and delete remains of older ones. This will
+			 * ensure we don't wipe useful debug info upon restart.
+			 */
+			unlink(oldback);
+			if (rename(backing, oldback) < 0)
+				unlink(oldback);
+			ha_free(&oldback);
 		}
 
 		fd = open(backing, O_RDWR | O_CREAT, 0600);

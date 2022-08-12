@@ -3593,7 +3593,12 @@ backing-file <path>
   the "struct ring" that starts at the beginning of the area, and that is
   required to recover the area's contents. The file will be created with the
   starting user's ownership, with mode 0600 and will be of the size configured
-  by the "size" directive.
+  by the "size" directive. Any previously existing file will be renamed with
+  the extra suffix ".bak", and any previously existing file with suffix ".bak"
+  will be removed. This ensures that instant restart of the process will not
+  wipe precious debugging information, and will leave time for an admin to spot
+  this new ".bak" file and to archive it if needed. This means that the total
+  storage capacity required will be double of the ring size.
 
   WARNING: there are stability and security implications in using this feature.
   First, backing the ring to a slow device (e.g. physical hard drive) may cause
