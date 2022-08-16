@@ -625,6 +625,18 @@ static ssize_t h3_decode_qcs(struct qcs *qcs, struct buffer *b, int fin)
 		return total;
 	}
 
+	/* RFC 9114 6.2.1. Control Streams
+	 *
+	 * The sender MUST NOT close the control stream, and the receiver MUST NOT
+	 * request that the sender close the control stream.  If either control
+	 * stream is closed at any point, this MUST be treated as a connection
+	 * error of type H3_CLOSED_CRITICAL_STREAM.
+	 */
+	if (h3s->type == H3S_T_CTRL && fin) {
+		qcc_emit_cc_app(qcs->qcc, H3_CLOSED_CRITICAL_STREAM, 1);
+		return -1;
+	}
+
 	while (b_data(b) && !(qcs->flags & QC_SF_DEM_FULL)) {
 		uint64_t ftype, flen;
 		char last_stream_frame = 0;
