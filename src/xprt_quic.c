@@ -1453,7 +1453,7 @@ static int qc_pkt_decrypt(struct quic_rx_packet *pkt, struct quic_enc_level *qel
 	ret = 1;
  leave:
 	TRACE_LEAVE(QUIC_EV_CONN_RXPKT, qc);
-	return 1;
+	return ret;
 }
 
 
