@@ -1783,7 +1783,7 @@ static inline void qc_requeue_nacked_pkt_tx_frms(struct quic_conn *qc,
 				/* Mark this STREAM frame as lost. A look up their stream descriptor
 				 * will be performed to check the stream is not consumed or released.
 				 */
-				frm->flags = QUIC_FL_TX_FRAME_LOST;
+				frm->flags |= QUIC_FL_TX_FRAME_LOST;
 			}
 			LIST_APPEND(&tmp, &frm->list);
 			TRACE_DEVEL("frame requeued", QUIC_EV_CONN_PRSAFRM, qc, frm);
