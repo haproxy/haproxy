@@ -220,12 +220,13 @@ static ssize_t h3_init_uni_stream(struct h3c *h3c, struct qcs *qcs,
 	return len;
 }
 
-/* Parse an uni-stream <qcs> from <rxbuf> which does not contains H3 frames.
- * This may be used for QPACK encoder/decoder streams for example.
+/* Parse a buffer <b> for a <qcs> uni-stream which does not contains H3 frames.
+ * This may be used for QPACK encoder/decoder streams for example. <fin> is set
+ * if this is the last frame of the stream.
  *
  * Returns the number of consumed bytes or a negative error code.
  */
-static ssize_t h3_parse_uni_stream_no_h3(struct qcs *qcs, struct buffer *b)
+static ssize_t h3_parse_uni_stream_no_h3(struct qcs *qcs, struct buffer *b, int fin)
 {
 	struct h3s *h3s = qcs->ctx;
 
@@ -234,11 +235,11 @@ static ssize_t h3_parse_uni_stream_no_h3(struct qcs *qcs, struct buffer *b)
 
 	switch (h3s->type) {
 	case H3S_T_QPACK_DEC:
-		if (qpack_decode_dec(b, NULL))
+		if (qpack_decode_dec(b, fin, qcs))
 			return -1;
 		break;
 	case H3S_T_QPACK_ENC:
-		if (qpack_decode_enc(b, NULL))
+		if (qpack_decode_enc(b, fin, qcs))
 			return -1;
 		break;
 	case H3S_T_UNKNOWN:
@@ -618,7 +619,7 @@ static ssize_t h3_decode_qcs(struct qcs *qcs, struct buffer *b, int fin)
 
 	if (quic_stream_is_uni(qcs->id) && (h3s->flags & H3_SF_UNI_NO_H3)) {
 		/* For non-h3 STREAM, parse it and return immediately. */
-		if ((ret = h3_parse_uni_stream_no_h3(qcs, b)) < 0)
+		if ((ret = h3_parse_uni_stream_no_h3(qcs, b, fin)) < 0)
 			return -1;
 
 		total += ret;

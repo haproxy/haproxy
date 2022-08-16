@@ -45,7 +45,7 @@ struct qpack_dec {
 
 int qpack_decode_fs(const unsigned char *buf, uint64_t len, struct buffer *tmp,
                     struct http_hdr *list, int list_size);
-int qpack_decode_enc(struct buffer *buf, void *ctx);
-int qpack_decode_dec(struct buffer *buf, void *ctx);
+int qpack_decode_enc(struct buffer *buf, int fin, void *ctx);
+int qpack_decode_dec(struct buffer *buf, int fin, void *ctx);
 
 #endif /* _HAPROXY_QPACK_DEC_H */

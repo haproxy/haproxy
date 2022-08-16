@@ -27,6 +27,7 @@
 #include <haproxy/buf.h>
 #include <haproxy/chunk.h>
 #include <haproxy/h3.h>
+#include <haproxy/mux_quic.h>
 #include <haproxy/qpack-t.h>
 #include <haproxy/qpack-dec.h>
 #include <haproxy/qpack-tbl.h>
@@ -96,10 +97,23 @@ static uint64_t qpack_get_varint(const unsigned char **buf, uint64_t *len_in, in
  *
  * Returns 0 on success else non-zero.
  */
-int qpack_decode_enc(struct buffer *buf, void *ctx)
+int qpack_decode_enc(struct buffer *buf, int fin, void *ctx)
 {
+	struct qcs *qcs = ctx;
 	size_t len;
 	unsigned char inst;
+
+	/* RFC 9204 4.2. Encoder and Decoder Streams
+	 *
+	 * The sender MUST NOT close either of these streams, and the receiver
+	 * MUST NOT request that the sender close either of these streams.
+	 * Closure of either unidirectional stream type MUST be treated as a
+	 * connection error of type H3_CLOSED_CRITICAL_STREAM.
+	 */
+	if (fin) {
+		qcc_emit_cc_app(qcs->qcc, H3_CLOSED_CRITICAL_STREAM, 1);
+		return -1;
+	}
 
 	len = b_data(buf);
 	qpack_debug_hexdump(stderr, "[QPACK-DEC-ENC] ", b_head(buf), 0, len);
@@ -130,10 +144,23 @@ int qpack_decode_enc(struct buffer *buf, void *ctx)
  *
  * Returns 0 on success else non-zero.
  */
-int qpack_decode_dec(struct buffer *buf, void *ctx)
+int qpack_decode_dec(struct buffer *buf, int fin, void *ctx)
 {
+	struct qcs *qcs = ctx;
 	size_t len;
 	unsigned char inst;
+
+	/* RFC 9204 4.2. Encoder and Decoder Streams
+	 *
+	 * The sender MUST NOT close either of these streams, and the receiver
+	 * MUST NOT request that the sender close either of these streams.
+	 * Closure of either unidirectional stream type MUST be treated as a
+	 * connection error of type H3_CLOSED_CRITICAL_STREAM.
+	 */
+	if (fin) {
+		qcc_emit_cc_app(qcs->qcc, H3_CLOSED_CRITICAL_STREAM, 1);
+		return -1;
+	}
 
 	len = b_data(buf);
 	qpack_debug_hexdump(stderr, "[QPACK-DEC-DEC] ", b_head(buf), 0, len);
