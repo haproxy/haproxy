@@ -52,9 +52,12 @@ struct qcc {
 	/* flow-control fields set by us enforced on our side. */
 	struct {
 		struct list frms; /* prepared frames related to flow-control  */
+
 		uint64_t ms_bidi_init; /* max initial sub-ID of bidi stream allowed for the peer */
 		uint64_t ms_bidi; /* max sub-ID of bidi stream allowed for the peer */
 		uint64_t cl_bidi_r; /* total count of closed remote bidi stream since last MAX_STREAMS emission */
+
+		uint64_t ms_uni; /* max sub-ID of uni stream allowed for the peer */
 
 		uint64_t msd_bidi_l; /* initial max-stream-data on local streams */
 		uint64_t msd_bidi_r; /* initial max-stream-data on remote streams */

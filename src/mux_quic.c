@@ -582,7 +582,7 @@ static struct qcs *qcc_init_stream_remote(struct qcc *qcc, uint64_t id)
 {
 	struct qcs *qcs = NULL;
 	enum qcs_type type;
-	uint64_t *largest;
+	uint64_t *largest, max_id;
 
 	TRACE_ENTER(QMUX_EV_QCS_NEW, qcc->conn);
 
@@ -597,20 +597,18 @@ static struct qcs *qcc_init_stream_remote(struct qcc *qcc, uint64_t id)
 		type = conn_is_back(qcc->conn) ? QCS_SRV_UNI : QCS_CLT_UNI;
 	}
 
-	/* TODO also checks max-streams for uni streams */
-	if (quic_stream_is_bidi(id)) {
-		if (id >= qcc->lfctl.ms_bidi * 4) {
-			/* RFC 9000 4.6. Controlling Concurrency
-			 *
-			 * An endpoint that receives a frame with a
-			 * stream ID exceeding the limit it has sent
-			 * MUST treat this as a connection error of
-			 * type STREAM_LIMIT_ERROR
-			 */
-			TRACE_ERROR("flow control error", QMUX_EV_QCS_NEW|QMUX_EV_PROTO_ERR, qcc->conn);
-			qcc_emit_cc(qcc, QC_ERR_STREAM_LIMIT_ERROR);
-			goto err;
-		}
+	/* RFC 9000 4.6. Controlling Concurrency
+	 *
+	 * An endpoint that receives a frame with a stream ID exceeding the
+	 * limit it has sent MUST treat this as a connection error of type
+	 * STREAM_LIMIT_ERROR
+	 */
+	max_id = quic_stream_is_bidi(id) ? qcc->lfctl.ms_bidi * 4 :
+	                                   qcc->lfctl.ms_uni * 4;
+	if (id >= max_id) {
+		TRACE_ERROR("flow control error", QMUX_EV_QCS_NEW|QMUX_EV_PROTO_ERR, qcc->conn);
+		qcc_emit_cc(qcc, QC_ERR_STREAM_LIMIT_ERROR);
+		goto err;
 	}
 
 	/* Only stream ID not already opened can be used. */
@@ -1204,7 +1202,12 @@ static int qcc_release_remote_stream(struct qcc *qcc, uint64_t id)
 		}
 	}
 	else {
-		/* TODO */
+		/* TODO in HTTP/3 unidirectional streams cannot be closed or a
+		 * H3_CLOSED_CRITICAL_STREAM will be triggered before
+		 * entering here. If a new application protocol is supported it
+		 * might be necessary to implement MAX_STREAMS_UNI emission.
+		 */
+		ABORT_NOW();
 	}
 
 	TRACE_LEAVE(QMUX_EV_QCS_END, qcc->conn);
@@ -1980,6 +1983,7 @@ static int qc_init(struct connection *conn, struct proxy *prx,
 
 	LIST_INIT(&qcc->lfctl.frms);
 	qcc->lfctl.ms_bidi = qcc->lfctl.ms_bidi_init = lparams->initial_max_streams_bidi;
+	qcc->lfctl.ms_uni = lparams->initial_max_streams_uni;
 	qcc->lfctl.msd_bidi_l = lparams->initial_max_stream_data_bidi_local;
 	qcc->lfctl.msd_bidi_r = lparams->initial_max_stream_data_bidi_remote;
 	qcc->lfctl.cl_bidi_r = 0;
