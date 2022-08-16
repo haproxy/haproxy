@@ -17710,6 +17710,14 @@ table_conn_rate(<table>)
   rate associated with the input sample in the designated table. See also the
   sc_conn_rate sample fetch keyword.
 
+table_expire(<table>[,<default_value>])
+  Uses the input sample to perform a look up in the specified table. If the key
+  is not found in the table, the converter fails except if <default_value> is
+  set: this makes the converter succeed and return <default_value>. If the key
+  is found the converter returns the key expiration delay associated with the
+  input sample in the designated table.
+  See also the table_idle sample fetch keyword.
+
 table_gpt(<idx>,<table>)
   Uses the string representation of the input sample to perform a lookup in
   the specified table. If the key is not found in the table, boolean value zero
@@ -17827,6 +17835,15 @@ table_http_req_rate(<table>)
   input sample in the designated table, measured in amount of requests over the
   period configured in the table. See also the sc_http_req_rate sample fetch
   keyword.
+
+table_idle(<table>)
+  Uses the input sample to perform a look up in the specified table. If the key
+  is not found in the table, the converter fails except if <default_value> is
+  set: this makes the converter succeed and return <default_value>. If the key
+  is found the converter returns the time the key entry associated with the
+  input sample in the designated table remained idle since the last time it was
+  updated.
+  See also the table_expire sample fetch keyword.
 
 table_kbytes_in(<table>)
   Uses the string representation of the input sample to perform a look up in

@@ -1393,6 +1393,82 @@ static int sample_conv_table_conn_rate(const struct arg *arg_p, struct sample *s
 }
 
 /* Casts sample <smp> to the type of the table specified in arg(0), and looks
+ * it up into this table. Returns the expiration delay for the key if the key is
+ * present in the table, otherwise the default value provided as second argument
+ * if any, if not (no default value), <not found> is returned.
+ */
+static int sample_conv_table_expire(const struct arg *arg_p, struct sample *smp, void *private)
+{
+	struct stktable *t;
+	struct stktable_key *key;
+	struct stksess *ts;
+
+	t = arg_p[0].data.t;
+
+	key = smp_to_stkey(smp, t);
+	if (!key)
+		return 0;
+
+	ts = stktable_lookup_key(t, key);
+
+	smp->flags = SMP_F_VOL_TEST;
+	smp->data.type = SMP_T_SINT;
+	smp->data.u.sint = 0;
+
+	if (!ts) { /* key not present */
+		if (arg_p[1].type == ARGT_STOP)
+			return 0;
+
+		/* default value */
+		smp->data.u.sint = arg_p[1].data.sint;
+		return 1;
+	}
+
+	smp->data.u.sint = tick_remain(now_ms, ts->expire);
+
+	stktable_release(t, ts);
+	return 1;
+}
+
+/* Casts sample <smp> to the type of the table specified in arg(0), and looks
+ * it up into this table. Returns the time the key remains unused if the key is
+ * present in the table,  otherwise the default value provided as second argument
+ * if any, if not (no default value), <not found> is returned.
+ */
+static int sample_conv_table_idle(const struct arg *arg_p, struct sample *smp, void *private)
+{
+	struct stktable *t;
+	struct stktable_key *key;
+	struct stksess *ts;
+
+	t = arg_p[0].data.t;
+
+	key = smp_to_stkey(smp, t);
+	if (!key)
+		return 0;
+
+	ts = stktable_lookup_key(t, key);
+
+	smp->flags = SMP_F_VOL_TEST;
+	smp->data.type = SMP_T_SINT;
+	smp->data.u.sint = 0;
+
+	if (!ts) { /* key not present */
+		if (arg_p[1].type == ARGT_STOP)
+			return 0;
+
+		/* default value */
+		smp->data.u.sint = arg_p[1].data.sint;
+		return 1;
+	}
+
+	smp->data.u.sint = tick_remain(tick_remain(now_ms, ts->expire), t->expire);
+
+	stktable_release(t, ts);
+	return 1;
+}
+
+/* Casts sample <smp> to the type of the table specified in arg(0), and looks
  * it up into this table. Returns the data rate sent to clients in bytes/s
  * if the key is present in the table, otherwise zero, so that comparisons can
  * be easily performed. If the inspected parameter is not stored in the table,
@@ -5074,6 +5150,7 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "table_conn_cnt",       sample_conv_table_conn_cnt,       ARG1(1,TAB),  NULL, SMP_T_ANY,  SMP_T_SINT  },
 	{ "table_conn_cur",       sample_conv_table_conn_cur,       ARG1(1,TAB),  NULL, SMP_T_ANY,  SMP_T_SINT  },
 	{ "table_conn_rate",      sample_conv_table_conn_rate,      ARG1(1,TAB),  NULL, SMP_T_ANY,  SMP_T_SINT  },
+	{ "table_expire",         sample_conv_table_expire,         ARG2(1,TAB,SINT),  NULL, SMP_T_ANY,  SMP_T_SINT  },
 	{ "table_gpt",            sample_conv_table_gpt,            ARG2(2,SINT,TAB),  NULL, SMP_T_ANY,  SMP_T_SINT  },
 	{ "table_gpt0",           sample_conv_table_gpt0,           ARG1(1,TAB),  NULL, SMP_T_ANY,  SMP_T_SINT  },
 	{ "table_gpc",            sample_conv_table_gpc,            ARG2(2,SINT,TAB),  NULL, SMP_T_ANY,  SMP_T_SINT  },
@@ -5088,6 +5165,7 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "table_http_fail_rate", sample_conv_table_http_fail_rate, ARG1(1,TAB),  NULL, SMP_T_ANY,  SMP_T_SINT  },
 	{ "table_http_req_cnt",   sample_conv_table_http_req_cnt,   ARG1(1,TAB),  NULL, SMP_T_ANY,  SMP_T_SINT  },
 	{ "table_http_req_rate",  sample_conv_table_http_req_rate,  ARG1(1,TAB),  NULL, SMP_T_ANY,  SMP_T_SINT  },
+	{ "table_idle",           sample_conv_table_idle,           ARG2(1,TAB,SINT),  NULL, SMP_T_ANY,  SMP_T_SINT  },
 	{ "table_kbytes_in",      sample_conv_table_kbytes_in,      ARG1(1,TAB),  NULL, SMP_T_ANY,  SMP_T_SINT  },
 	{ "table_kbytes_out",     sample_conv_table_kbytes_out,     ARG1(1,TAB),  NULL, SMP_T_ANY,  SMP_T_SINT  },
 	{ "table_server_id",      sample_conv_table_server_id,      ARG1(1,TAB),  NULL, SMP_T_ANY,  SMP_T_SINT  },
