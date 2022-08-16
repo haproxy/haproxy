@@ -6592,7 +6592,7 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
                            struct quic_enc_level *qel, struct quic_conn *qc,
                            const struct quic_version *ver, struct list *frms)
 {
-	unsigned char *beg;
+	unsigned char *beg, *payload;
 	size_t len, len_sz, len_frms, padding_len;
 	struct quic_frame frm = { .type = QUIC_FT_CRYPTO, };
 	struct quic_frame ack_frm = { .type = QUIC_FT_ACK, };
@@ -6743,6 +6743,8 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 	if (!quic_packet_number_encode(&pos, end, pn, *pn_len))
 		goto no_room;
 
+	/* payload building (ack-eliciting or not frames) */
+	payload = pos;
 	if (ack_frm_len) {
 		if (!qc_build_frm(&pos, end, &ack_frm, pkt, qc))
 			goto no_room;
@@ -6760,10 +6762,10 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 				ssize_t room = end - pos;
 				TRACE_DEVEL("Not enough room", QUIC_EV_CONN_TXPKT,
 				            qc, NULL, NULL, &room);
-				/* TODO: this should not have happened if qc_build_frms()
-				 * had correctly computed and sized the frames to be
-				 * added to this packet. Note that <cf> was added
-				 * from <frm_list> to <frms> list by qc_build_frms().
+				/* TODO: this should not have happened except if we
+				 * are limited by the congestion control.
+				 * Note that <cf> was added from <frm_list> to <frms> list by
+				 * qc_build_frms().
 				 */
 				LIST_DELETE(&cf->list);
 				LIST_INSERT(frms, &cf->list);
@@ -6797,6 +6799,12 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 		frm.padding.len = padding_len;
 		if (!qc_build_frm(&pos, end, &frm, pkt, qc))
 			goto no_room;
+	}
+
+	if (pos == payload) {
+		/* No payload was built because of congestion control */
+		TRACE_DEVEL("limited by congestion control", QUIC_EV_CONN_TXPKT, qc);
+		goto no_room;
 	}
 
 	/* If this packet is ack-eliciting and we are probing let's
