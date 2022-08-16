@@ -615,8 +615,8 @@ static struct qcs *qcc_init_stream_remote(struct qcc *qcc, uint64_t id)
 	BUG_ON(id < *largest);
 
 	while (id >= *largest) {
-		const char *str = *largest < id ? "opening intermediary stream" :
-		                                  "opening remote stream";
+		const char *str = *largest < id ? "initializing intermediary remote stream" :
+		                                  "initializing remote stream";
 
 		qcs = qcs_new(qcc, *largest, type);
 		if (!qcs) {
