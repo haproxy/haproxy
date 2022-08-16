@@ -47,6 +47,7 @@ dev/base64/base64rev-gen
 dev/flags/flags
 dev/poll/poll
 dev/tcploop/tcploop
+dev/haring/haring
 dev/hpack/decode
 dev/hpack/gen-rht
 dev/qpack/decode
