@@ -22,6 +22,7 @@
 #include <haproxy/h3.h>
 #include <haproxy/h3_stats.h>
 #include <haproxy/http.h>
+#include <haproxy/http_htx.h>
 #include <haproxy/htx.h>
 #include <haproxy/intops.h>
 #include <haproxy/istbuf.h>
@@ -346,6 +347,7 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 	//struct ist scheme = IST_NULL, authority = IST_NULL;
 	struct ist authority = IST_NULL;
 	int hdr_idx, ret;
+	int cookie = -1, last_cookie = -1;
 
 	TRACE_ENTER(H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
 
@@ -409,10 +411,22 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 		if (isteq(list[hdr_idx].n, ist("")))
 			break;
 
+		if (isteq(list[hdr_idx].n, ist("cookie"))) {
+			http_cookie_register(list, hdr_idx, &cookie, &last_cookie);
+			continue;
+		}
+
 		if (!istmatch(list[hdr_idx].n, ist(":")))
 			htx_add_header(htx, list[hdr_idx].n, list[hdr_idx].v);
 
 		++hdr_idx;
+	}
+
+	if (cookie >= 0) {
+		if (http_cookie_merge(htx, list, cookie)) {
+			h3c->err = H3_INTERNAL_ERROR;
+			return -1;
+		}
 	}
 
 	htx_add_endof(htx, HTX_BLK_EOH);
