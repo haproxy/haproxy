@@ -3885,9 +3885,7 @@ static int qc_qel_may_rm_hp(struct quic_conn *qc, struct quic_enc_level *qel)
 
 /* Try to send application frames from list <frms> on connection <qc>.
  *
- * For retransmission you must use wrapper depending on the sending condition :
- * - use qc_send_app_retransmit to send data detected as lost
- * - use qc_send_app_probing when probing with already sent data
+ * Use qc_send_app_probing wrapper when probing with old data.
  *
  * Returns 1 on success. Some data might not have been sent due to congestion,
  * in this case they are left in <frms> input list. The caller may subscribe on
@@ -3897,7 +3895,7 @@ static int qc_qel_may_rm_hp(struct quic_conn *qc, struct quic_enc_level *qel)
  * TODO review and classify more distinctly transient from definitive errors to
  * allow callers to properly handle it.
  */
-int qc_send_app_pkts(struct quic_conn *qc, struct list *frms)
+static int qc_send_app_pkts(struct quic_conn *qc, struct list *frms)
 {
 	int status = 0;
 	struct buffer *buf;
@@ -3944,27 +3942,6 @@ int qc_send_app_pkts(struct quic_conn *qc, struct list *frms)
 }
 
 /* Try to send application frames from list <frms> on connection <qc>. Use this
- * function when retransmitting lost frames.
- *
- * Returns the result from qc_send_app_pkts function.
- */
-static forceinline int qc_send_app_retransmit(struct quic_conn *qc,
-                                              struct list *frms)
-{
-	int ret;
-
-	TRACE_ENTER(QUIC_EV_CONN_TXPKT, qc);
-
-	TRACE_STATE("preparing lost data (retransmission)", QUIC_EV_CONN_TXPKT, qc);
-	qc->flags |= QUIC_FL_CONN_RETRANS_LOST_DATA;
-	ret = qc_send_app_pkts(qc, frms);
-	qc->flags &= ~QUIC_FL_CONN_RETRANS_LOST_DATA;
-
-	TRACE_LEAVE(QUIC_EV_CONN_TXPKT, qc);
-	return ret;
-}
-
-/* Try to send application frames from list <frms> on connection <qc>. Use this
  * function when probing is required.
  *
  * Returns the result from qc_send_app_pkts function.
@@ -3980,6 +3957,27 @@ static forceinline int qc_send_app_probing(struct quic_conn *qc,
 	qc->flags |= QUIC_FL_CONN_RETRANS_OLD_DATA;
 	ret = qc_send_app_pkts(qc, frms);
 	qc->flags &= ~QUIC_FL_CONN_RETRANS_OLD_DATA;
+
+	TRACE_LEAVE(QUIC_EV_CONN_TXPKT, qc);
+	return ret;
+}
+
+/* Try to send application frames from list <frms> on connection <qc>. This
+ * function is provided for MUX upper layer usage only.
+ *
+ * Returns the result from qc_send_app_pkts function.
+ */
+int qc_send_mux(struct quic_conn *qc, struct list *frms)
+{
+	int ret;
+
+	TRACE_ENTER(QUIC_EV_CONN_TXPKT, qc);
+	BUG_ON(qc->mux_state != QC_MUX_READY); /* Only MUX can uses this function so it must be ready. */
+
+	TRACE_STATE("preparing data (from MUX)", QUIC_EV_CONN_TXPKT, qc);
+	qc->flags |= QUIC_FL_CONN_TX_MUX_CONTEXT;
+	ret = qc_send_app_pkts(qc, frms);
+	qc->flags &= ~QUIC_FL_CONN_TX_MUX_CONTEXT;
 
 	TRACE_LEAVE(QUIC_EV_CONN_TXPKT, qc);
 	return ret;
@@ -4155,8 +4153,8 @@ static struct task *quic_conn_app_io_cb(struct task *t, void *context, unsigned 
 	}
 
 	/* XXX TODO: how to limit the list frames to send */
-	if (!qc_send_app_retransmit(qc, &qel->pktns->tx.frms)) {
-		TRACE_DEVEL("qc_send_app_retransmit() failed", QUIC_EV_CONN_IO_CB, qc);
+	if (!qc_send_app_pkts(qc, &qel->pktns->tx.frms)) {
+		TRACE_DEVEL("qc_send_app_pkts() failed", QUIC_EV_CONN_IO_CB, qc);
 		goto out;
 	}
 
@@ -6487,8 +6485,7 @@ static inline int qc_build_frms(struct list *outlist, struct list *inlist,
 				LIST_APPEND(outlist, &cf->list);
 
 				/* Do not notify MUX on retransmission. */
-				if (!(qc->flags & (QUIC_FL_CONN_RETRANS_LOST_DATA|QUIC_FL_CONN_RETRANS_OLD_DATA))) {
-					BUG_ON(qc->mux_state != QC_MUX_READY); /* MUX must be the caller if not on retransmission. */
+				if (qc->flags & QUIC_FL_CONN_TX_MUX_CONTEXT) {
 					qcc_streams_sent_done(cf->stream.stream->ctx,
 					                      cf->stream.len,
 					                      cf->stream.offset.key);
@@ -6527,8 +6524,7 @@ static inline int qc_build_frms(struct list *outlist, struct list *inlist,
 				cf->stream.data = (unsigned char *)b_peek(&cf_buf, dlen);
 
 				/* Do not notify MUX on retransmission. */
-				if (!(qc->flags & (QUIC_FL_CONN_RETRANS_LOST_DATA|QUIC_FL_CONN_RETRANS_OLD_DATA))) {
-					BUG_ON(qc->mux_state != QC_MUX_READY); /* MUX must be the caller if not on retransmission. */
+				if (qc->flags & QUIC_FL_CONN_TX_MUX_CONTEXT) {
 					qcc_streams_sent_done(new_cf->stream.stream->ctx,
 					                      new_cf->stream.len,
 					                      new_cf->stream.offset.key);

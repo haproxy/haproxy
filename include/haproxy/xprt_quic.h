@@ -769,7 +769,7 @@ int quic_set_app_ops(struct quic_conn *qc, const unsigned char *alpn, size_t alp
 struct task *quic_lstnr_dghdlr(struct task *t, void *ctx, unsigned int state);
 int quic_get_dgram_dcid(unsigned char *buf, const unsigned char *end,
                         unsigned char **dcid, size_t *dcid_len);
-int qc_send_app_pkts(struct quic_conn *qc, struct list *frms);
+int qc_send_mux(struct quic_conn *qc, struct list *frms);
 
 void qc_notify_close(struct quic_conn *qc);
 
