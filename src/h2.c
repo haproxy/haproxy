@@ -501,14 +501,7 @@ int h2_make_htx_request(struct http_hdr *list, struct htx *htx, unsigned int *ms
 
 		/* cookie requires special processing at the end */
 		if (isteq(list[idx].n, ist("cookie"))) {
-			list[idx].n.len = -1;
-
-			if (ck < 0)
-				ck = idx;
-			else
-				list[lck].n.len = idx;
-
-			lck = idx;
+			http_cookie_register(list, idx, &ck, &lck);
 			continue;
 		}
 
@@ -561,37 +554,8 @@ int h2_make_htx_request(struct http_hdr *list, struct htx *htx, unsigned int *ms
 	 * visited headers.
 	 */
 	if (ck >= 0) {
-		uint32_t fs; // free space
-		uint32_t bs; // block size
-		uint32_t vl; // value len
-		uint32_t tl; // total length
-		struct htx_blk *blk;
-
-		blk = htx_add_header(htx, ist("cookie"), list[ck].v);
-		if (!blk)
+		if (http_cookie_merge(htx, list, ck))
 			goto fail;
-
-		tl = list[ck].v.len;
-		fs = htx_free_data_space(htx);
-		bs = htx_get_blksz(blk);
-
-		/* for each extra cookie, we'll extend the cookie's value and
-		 * insert "; " before the new value.
-		 */
-		fs += tl; // first one is already counted
-		while ((ck = list[ck].n.len) >= 0) {
-			vl = list[ck].v.len;
-			tl += vl + 2;
-			if (tl > fs)
-				goto fail;
-
-			htx_change_blk_value_len(htx, blk, tl);
-			*(char *)(htx_get_blk_ptr(htx, blk) + bs + 0) = ';';
-			*(char *)(htx_get_blk_ptr(htx, blk) + bs + 1) = ' ';
-			memcpy(htx_get_blk_ptr(htx, blk) + bs + 2, list[ck].v.ptr, vl);
-			bs += vl + 2;
-		}
-
 	}
 
 	/* now send the end of headers marker */

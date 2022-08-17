@@ -25,6 +25,7 @@
 
 #include <import/ist.h>
 #include <haproxy/buf-t.h>
+#include <haproxy/http-hdr-t.h>
 #include <haproxy/http_htx-t.h>
 #include <haproxy/proxy-t.h>
 #include <haproxy/regex-t.h>
@@ -67,6 +68,9 @@ struct http_reply *http_parse_http_reply(const char **args, int *orig_arg, struc
 					 int default_status, char **errmsg);
 
 int http_scheme_based_normalize(struct htx *htx);
+
+void http_cookie_register(struct http_hdr *list, int idx, int *first, int *last);
+int http_cookie_merge(struct htx *htx, struct http_hdr *list, int first);
 
 struct buffer *http_load_errorfile(const char *file, char **errmsg);
 struct buffer *http_load_errormsg(const char *key, const struct ist msg, char **errmsg);

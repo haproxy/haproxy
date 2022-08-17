@@ -21,6 +21,7 @@
 #include <haproxy/global.h>
 #include <haproxy/h1.h>
 #include <haproxy/http.h>
+#include <haproxy/http-hdr.h>
 #include <haproxy/http_fetch.h>
 #include <haproxy/http_htx.h>
 #include <haproxy/htx.h>
@@ -1797,6 +1798,83 @@ int http_scheme_based_normalize(struct htx *htx)
 
  fail:
 	return 1;
+}
+
+/* First step function to merge multiple cookie headers in a single entry.
+ *
+ * Use it for each cookie header at <idx> index over HTTP headers in <list>.
+ * <first> and <last> are state variables used internally and must be
+ * initialized to -1 before the first invocation.
+ */
+void http_cookie_register(struct http_hdr *list, int idx, int *first, int *last)
+{
+	/* Build a linked list of cookie headers. Use header length to point to
+	 * the next one. The last entry will contains -1.
+	 */
+
+	/* Mark the current end of cookie linked list. */
+	list[idx].n.len = -1;
+	if (*first < 0) {
+		/* Save first found cookie for http_cookie_merge call. */
+		*first = idx;
+	}
+	else {
+		/* Update linked list of cookies. */
+		list[*last].n.len = idx;
+	}
+
+	*last = idx;
+}
+
+/* Second step to merge multiple cookie headers in a single entry.
+ *
+ * Use it when looping over HTTP headers is done and <htx> message is built.
+ * This will concatenate each cookie headers present from <list> directly into
+ * <htx> message. <first> is reused from previous http_cookie_register
+ * invocation.
+ *
+ * Returns 0 on success else non-zero.
+ */
+int http_cookie_merge(struct htx *htx, struct http_hdr *list, int first)
+{
+	uint32_t fs; /* free space */
+	uint32_t bs; /* block size */
+	uint32_t vl; /* value len */
+	uint32_t tl; /* total length */
+	struct htx_blk *blk;
+
+	if (first < 0)
+		return 0;
+
+	blk = htx_add_header(htx, ist("cookie"), list[first].v);
+	if (!blk)
+		return 1;
+
+	tl = list[first].v.len;
+	fs = htx_free_data_space(htx);
+	bs = htx_get_blksz(blk);
+
+	/* for each extra cookie, we'll extend the cookie's value and insert
+	 * ";" before the new value.
+	 */
+	fs += tl; /* first one is already counted */
+
+	/* Loop over cookies linked list built from http_cookie_register. */
+	while ((first = list[first].n.len) >= 0) {
+		vl = list[first].v.len;
+		tl += vl + 2;
+		if (tl > fs)
+			return 1;
+
+		htx_change_blk_value_len(htx, blk, tl);
+		*(char *)(htx_get_blk_ptr(htx, blk) + bs + 0) = ';';
+		*(char *)(htx_get_blk_ptr(htx, blk) + bs + 1) = ' ';
+		memcpy(htx_get_blk_ptr(htx, blk) + bs + 2,
+		       list[first].v.ptr, vl);
+		bs += vl + 2;
+	}
+
+	return 0;
 }
 
 /* Parses the "errorloc[302|303]" proxy keyword */
