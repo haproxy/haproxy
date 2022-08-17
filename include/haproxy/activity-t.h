@@ -48,6 +48,8 @@ enum memprof_method {
 	MEMPROF_METH_CALLOC,
 	MEMPROF_METH_REALLOC,
 	MEMPROF_METH_FREE,
+	MEMPROF_METH_P_ALLOC, // pool_alloc()
+	MEMPROF_METH_P_FREE,  // pool_free()
 	MEMPROF_METH_METHODS /* count, must be last */
 };
 

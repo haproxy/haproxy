@@ -727,6 +727,15 @@ void *__pool_alloc(struct pool_head *pool, unsigned int flags)
 		p = pool_alloc_nocache(pool);
 
 	if (likely(p)) {
+#ifdef USE_MEMORY_PROFILING
+		if (unlikely(profiling & HA_PROF_MEMORY)) {
+			struct memprof_stats *bin;
+
+			bin = memprof_get_bin(__builtin_return_address(0), MEMPROF_METH_P_ALLOC);
+			_HA_ATOMIC_ADD(&bin->alloc_calls, 1);
+			_HA_ATOMIC_ADD(&bin->alloc_tot, pool->size);
+		}
+#endif
 		if (unlikely(flags & POOL_F_MUST_ZERO))
 			memset(p, 0, pool->size);
 		else if (unlikely(!(flags & POOL_F_NO_POISON) && (pool_debugging & POOL_DBG_POISON)))
@@ -746,6 +755,16 @@ void __pool_free(struct pool_head *pool, void *ptr)
 	/* we'll get late corruption if we refill to the wrong pool or double-free */
 	POOL_DEBUG_CHECK_MARK(pool, ptr);
 	POOL_DEBUG_RESET_MARK(pool, ptr);
+
+#ifdef USE_MEMORY_PROFILING
+	if (unlikely(profiling & HA_PROF_MEMORY) && ptr) {
+		struct memprof_stats *bin;
+
+		bin = memprof_get_bin(__builtin_return_address(0), MEMPROF_METH_P_FREE);
+		_HA_ATOMIC_ADD(&bin->free_calls, 1);
+		_HA_ATOMIC_ADD(&bin->free_tot, pool->size);
+	}
+#endif
 
 	if (unlikely(pool_debugging & POOL_DBG_NO_CACHE)) {
 		pool_free_nocache(pool, ptr);

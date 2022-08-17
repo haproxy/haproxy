@@ -53,7 +53,7 @@ struct sched_activity sched_activity[256] __attribute__((aligned(64))) = { };
 #ifdef USE_MEMORY_PROFILING
 
 static const char *const memprof_methods[MEMPROF_METH_METHODS] = {
-	"unknown", "malloc", "calloc", "realloc", "free",
+	"unknown", "malloc", "calloc", "realloc", "free", "p_alloc", "p_free",
 };
 
 /* last one is for hash collisions ("others") and has no caller address */
