@@ -2645,16 +2645,20 @@ static enum rule_result http_req_restrict_header_names(struct stream *s, struct 
 
 		if (type == HTX_BLK_HDR) {
 			struct ist n = htx_get_blk_name(htx, blk);
-			int i;
+			int i, end = istlen(n);
 
-			for (i = 0; i < istlen(n); i++) {
+			for (i = 0; i < end; i++) {
 				if (!isalnum((unsigned char)n.ptr[i]) && n.ptr[i] != '-') {
-					/* Block the request or remove the header */
-					if (px->options2 & PR_O2_RSTRICT_REQ_HDR_NAMES_BLK)
-						goto block;
-					blk = htx_remove_blk(htx, blk);
-					continue;
+					break;
 				}
+			}
+
+			if (i < end) {
+				/* Disallowed character found - block the request or remove the header */
+				if (px->options2 & PR_O2_RSTRICT_REQ_HDR_NAMES_BLK)
+					goto block;
+				blk = htx_remove_blk(htx, blk);
+				continue;
 			}
 		}
 		if (type == HTX_BLK_EOH)

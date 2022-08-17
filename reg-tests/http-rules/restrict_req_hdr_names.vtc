@@ -35,6 +35,32 @@ server s5 {
     txresp
 } -start
 
+server s6 {
+    rxreq
+    expect req.http.x_my_hdr_with_lots_of_underscores  == <undef>
+    txresp
+} -start
+
+server s7 {
+    rxreq
+    expect req.http.x_my_hdr-1  == <undef>
+    expect req.http.x-my-hdr-2  == on
+    txresp
+} -start
+
+server s8 {
+    rxreq
+    expect req.http.x-my_hdr-1  == <undef>
+    expect req.http.x-my_hdr-2  == <undef>
+    txresp
+} -start
+
+server s9 {
+    rxreq
+    expect req.http.x-my-hdr-with-trailing-underscore_  == <undef>
+    txresp
+} -start
+
 haproxy h1 -conf {
     defaults
         mode http
@@ -50,6 +76,10 @@ haproxy h1 -conf {
         use_backend be-fcgi1 if { path /req4 }
         use_backend be-fcgi2 if { path /req5 }
         use_backend be-fcgi3 if { path /req6 }
+        use_backend be-http4 if { path /req7 }
+        use_backend be-http5 if { path /req8 }
+        use_backend be-http6 if { path /req9 }
+        use_backend be-http7 if { path /req10 }
 
     backend be-http1
         server s1 ${s1_addr}:${s1_port}
@@ -71,6 +101,22 @@ haproxy h1 -conf {
 
     backend be-fcgi3
         option http-restrict-req-hdr-names reject
+
+    backend be-http4
+        option http-restrict-req-hdr-names delete
+        server s6 ${s6_addr}:${s6_port}
+
+    backend be-http5
+        option http-restrict-req-hdr-names delete
+        server s7 ${s7_addr}:${s7_port}
+
+    backend be-http6
+        option http-restrict-req-hdr-names delete
+        server s8 ${s8_addr}:${s8_port}
+
+    backend be-http7
+        option http-restrict-req-hdr-names delete
+        server s9 ${s9_addr}:${s9_port}
 
     defaults
         mode http
@@ -114,6 +160,22 @@ client c1 -connect ${h1_fe1_sock} {
     txreq -req GET -url /req6 -hdr "X-my_hdr: on"
     rxresp
     expect resp.status == 403
+
+    txreq -req GET -url /req7 -hdr "X_my_hdr_with_lots_of_underscores: on"
+    rxresp
+    expect resp.status == 200
+
+    txreq -req GET -url /req8 -hdr "X_my_hdr-1: on" -hdr "X-my-hdr-2: on"
+    rxresp
+    expect resp.status == 200
+
+    txreq -req GET -url /req9 -hdr "X-my_hdr-1: on" -hdr "X-my_hdr-2: on"
+    rxresp
+    expect resp.status == 200
+
+    txreq -req GET -url /req10 -hdr "X-my-hdr-with-trailing-underscore_: on"
+    rxresp
+    expect resp.status == 200
 } -run
 
 client c2 -connect ${h1_fe2_sock} {
