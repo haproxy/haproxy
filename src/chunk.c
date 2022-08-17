@@ -99,26 +99,6 @@ int init_trash_buffers(int first)
 }
 
 /*
- * Allocate a trash chunk from the reentrant pool. The buffer starts at the
- * end of the chunk. This chunk must be freed using free_trash_chunk(). This
- * call may fail and the caller is responsible for checking that the returned
- * pointer is not NULL.
- */
-struct buffer *alloc_trash_chunk(void)
-{
-	struct buffer *chunk;
-
-	chunk = pool_alloc(pool_head_trash);
-	if (chunk) {
-		char *buf = (char *)chunk + sizeof(struct buffer);
-		*buf = 0;
-		chunk_init(chunk, buf,
-			   pool_head_trash->size - sizeof(struct buffer));
-	}
-	return chunk;
-}
-
-/*
  * Does an snprintf() at the beginning of chunk <chk>, respecting the limit of
  * at most chk->size chars. If the chk->len is over, nothing is added. Returns
  * the new chunk size, or < 0 in case of failure.

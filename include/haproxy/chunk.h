@@ -46,17 +46,7 @@ int chunk_asciiencode(struct buffer *dst, struct buffer *src, char qc);
 int chunk_strcmp(const struct buffer *chk, const char *str);
 int chunk_strcasecmp(const struct buffer *chk, const char *str);
 struct buffer *get_trash_chunk(void);
-struct buffer *alloc_trash_chunk(void);
 int init_trash_buffers(int first);
-
-/*
- * free a trash chunk allocated by alloc_trash_chunk(). NOP on NULL.
- */
-static inline void free_trash_chunk(struct buffer *chunk)
-{
-	pool_free(pool_head_trash, chunk);
-}
-
 
 static inline void chunk_reset(struct buffer *chk)
 {
@@ -94,6 +84,34 @@ static inline void chunk_initstr(struct buffer *chk, const char *str)
 	chk->head = 0;
 	chk->data = strlen(str);
 	chk->size = 0;			/* mark it read-only */
+}
+
+/*
+ * Allocate a trash chunk from the reentrant pool. The buffer starts at the
+ * end of the chunk. This chunk must be freed using free_trash_chunk(). This
+ * call may fail and the caller is responsible for checking that the returned
+ * pointer is not NULL.
+ */
+static forceinline struct buffer *alloc_trash_chunk(void)
+{
+	struct buffer *chunk;
+
+	chunk = pool_alloc(pool_head_trash);
+	if (chunk) {
+		char *buf = (char *)chunk + sizeof(struct buffer);
+		*buf = 0;
+		chunk_init(chunk, buf,
+			   pool_head_trash->size - sizeof(struct buffer));
+	}
+	return chunk;
+}
+
+/*
+ * free a trash chunk allocated by alloc_trash_chunk(). NOP on NULL.
+ */
+static forceinline void free_trash_chunk(struct buffer *chunk)
+{
+	pool_free(pool_head_trash, chunk);
 }
 
 /* copies chunk <src> into <chk>. Returns 0 in case of failure. */
