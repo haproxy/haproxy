@@ -51,39 +51,9 @@ struct sched_activity sched_activity[256] __attribute__((aligned(64))) = { };
 
 
 #ifdef USE_MEMORY_PROFILING
-/* determine the number of buckets to store stats */
-#define MEMPROF_HASH_BITS 10
-#define MEMPROF_HASH_BUCKETS (1U << MEMPROF_HASH_BITS)
-
-enum memprof_method {
-	MEMPROF_METH_UNKNOWN = 0,
-	MEMPROF_METH_MALLOC,
-	MEMPROF_METH_CALLOC,
-	MEMPROF_METH_REALLOC,
-	MEMPROF_METH_FREE,
-	MEMPROF_METH_METHODS /* count, must be last */
-};
 
 static const char *const memprof_methods[MEMPROF_METH_METHODS] = {
 	"unknown", "malloc", "calloc", "realloc", "free",
-};
-
-/* stats:
- *   - malloc increases alloc
- *   - free increases free (if non null)
- *   - realloc increases either depending on the size change.
- * when the real size is known (malloc_usable_size()), it's used in free_tot
- * and alloc_tot, otherwise the requested size is reported in alloc_tot and
- * zero in free_tot.
- */
-struct memprof_stats {
-	const void *caller;
-	enum memprof_method method;
-	/* 4-7 bytes hole here */
-	unsigned long long alloc_calls;
-	unsigned long long free_calls;
-	unsigned long long alloc_tot;
-	unsigned long long free_tot;
 };
 
 /* last one is for hash collisions ("others") and has no caller address */
@@ -210,7 +180,7 @@ static void  memprof_free_initial_handler(void *ptr)
  * case, returns a default bin). The caller address is atomically set except
  * for the default one which is never set.
  */
-static struct memprof_stats *memprof_get_bin(const void *ra, enum memprof_method meth)
+struct memprof_stats *memprof_get_bin(const void *ra, enum memprof_method meth)
 {
 	int retries = 16; // up to 16 consecutive entries may be tested.
 	const void *old;

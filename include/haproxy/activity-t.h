@@ -34,6 +34,42 @@
 
 #define HA_PROF_MEMORY      0x00000004     /* memory profiling */
 
+
+#ifdef USE_MEMORY_PROFILING
+/* Elements used by memory profiling. This determines the number of buckets to
+ * store stats.
+ */
+#define MEMPROF_HASH_BITS 10
+#define MEMPROF_HASH_BUCKETS (1U << MEMPROF_HASH_BITS)
+
+enum memprof_method {
+	MEMPROF_METH_UNKNOWN = 0,
+	MEMPROF_METH_MALLOC,
+	MEMPROF_METH_CALLOC,
+	MEMPROF_METH_REALLOC,
+	MEMPROF_METH_FREE,
+	MEMPROF_METH_METHODS /* count, must be last */
+};
+
+/* stats:
+ *   - malloc increases alloc
+ *   - free increases free (if non null)
+ *   - realloc increases either depending on the size change.
+ * when the real size is known (malloc_usable_size()), it's used in free_tot
+ * and alloc_tot, otherwise the requested size is reported in alloc_tot and
+ * zero in free_tot.
+ */
+struct memprof_stats {
+	const void *caller;
+	enum memprof_method method;
+	/* 4-7 bytes hole here */
+	unsigned long long alloc_calls;
+	unsigned long long free_calls;
+	unsigned long long alloc_tot;
+	unsigned long long free_tot;
+};
+#endif
+
 /* per-thread activity reports. It's important that it's aligned on cache lines
  * because some elements will be updated very often. Most counters are OK on
  * 32-bit since this will be used during debugging sessions for troubleshooting
