@@ -3882,8 +3882,19 @@ static int qc_qel_may_rm_hp(struct quic_conn *qc, struct quic_enc_level *qel)
 	return ret;
 }
 
-/* Sends application level packets from <qc> QUIC connection */
-int qc_send_app_pkts(struct quic_conn *qc, int old_data, struct list *frms)
+/* Try to send application frames from list <frms> on connection <qc>.
+ *
+ * Use qc_send_app_probing wrapper when probing with old data.
+ *
+ * Returns 1 on success. Some data might not have been sent due to congestion,
+ * in this case they are left in <frms> input list. The caller may subscribe on
+ * quic-conn to retry later.
+ *
+ * Returns 0 on critical error.
+ * TODO review and classify more distinctly transient from definitive errors to
+ * allow callers to properly handle it.
+ */
+int qc_send_app_pkts(struct quic_conn *qc, struct list *frms)
 {
 	int status = 0;
 	struct buffer *buf;
@@ -3894,11 +3905,6 @@ int qc_send_app_pkts(struct quic_conn *qc, int old_data, struct list *frms)
 	if (!buf) {
 		TRACE_ERROR("buffer allocation failed", QUIC_EV_CONN_TXPKT, qc);
 		goto leave;
-	}
-
-	if (old_data) {
-		TRACE_STATE("preparing old data (probing)", QUIC_EV_CONN_TXPKT, qc);
-		qc->flags |= QUIC_FL_CONN_RETRANS_OLD_DATA;
 	}
 
 	/* Prepare and send packets until we could not further prepare packets. */
@@ -3924,16 +3930,35 @@ int qc_send_app_pkts(struct quic_conn *qc, int old_data, struct list *frms)
 
  out:
 	status = 1;
-	qc->flags &= ~QUIC_FL_CONN_RETRANS_OLD_DATA;
 	qc_txb_release(qc);
  leave:
 	TRACE_LEAVE(QUIC_EV_CONN_TXPKT, qc);
 	return status;
 
  err:
-	qc->flags &= ~QUIC_FL_CONN_RETRANS_OLD_DATA;
 	qc_txb_release(qc);
 	goto leave;
+}
+
+/* Try to send application frames from list <frms> on connection <qc>. Use this
+ * function when probing is required.
+ *
+ * Returns the result from qc_send_app_pkts function.
+ */
+static forceinline int qc_send_app_probing(struct quic_conn *qc,
+                                           struct list *frms)
+{
+	int ret;
+
+	TRACE_ENTER(QUIC_EV_CONN_TXPKT, qc);
+
+	TRACE_STATE("preparing old data (probing)", QUIC_EV_CONN_TXPKT, qc);
+	qc->flags |= QUIC_FL_CONN_RETRANS_OLD_DATA;
+	ret = qc_send_app_pkts(qc, frms);
+	qc->flags &= ~QUIC_FL_CONN_RETRANS_OLD_DATA;
+
+	TRACE_LEAVE(QUIC_EV_CONN_TXPKT, qc);
+	return ret;
 }
 
 /* Sends handshake packets from up to two encryption levels <tel> and <next_te>
@@ -4055,11 +4080,11 @@ static void qc_dgrams_retransmit(struct quic_conn *qc)
 			TRACE_PROTO("Avail. ack eliciting frames", QUIC_EV_CONN_FRMLIST, qc, &frms2);
 			if (!LIST_ISEMPTY(&frms1)) {
 				aqel->pktns->tx.pto_probe = 1;
-				qc_send_app_pkts(qc, 1, &frms1);
+				qc_send_app_probing(qc, &frms1);
 			}
 			if (!LIST_ISEMPTY(&frms2)) {
 				aqel->pktns->tx.pto_probe = 1;
-				qc_send_app_pkts(qc, 1, &frms2);
+				qc_send_app_probing(qc, &frms2);
 			}
 			TRACE_STATE("no more need to probe 01RTT packet number space",
 			            QUIC_EV_CONN_TXPKT, qc);
@@ -4106,7 +4131,7 @@ static struct task *quic_conn_app_io_cb(struct task *t, void *context, unsigned 
 	}
 
 	/* XXX TODO: how to limit the list frames to send */
-	if (!qc_send_app_pkts(qc, 0, &qel->pktns->tx.frms)) {
+	if (!qc_send_app_pkts(qc, &qel->pktns->tx.frms)) {
 		TRACE_DEVEL("qc_send_app_pkts() failed", QUIC_EV_CONN_IO_CB, qc);
 		goto out;
 	}
