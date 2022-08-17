@@ -69,6 +69,8 @@ struct memprof_stats {
 	unsigned long long free_calls;
 	unsigned long long alloc_tot;
 	unsigned long long free_tot;
+	void *info; // for pools, ptr to the pool
+	void *pad;  // pad to 64
 };
 #endif
 

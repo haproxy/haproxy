@@ -734,6 +734,7 @@ void *__pool_alloc(struct pool_head *pool, unsigned int flags)
 			bin = memprof_get_bin(__builtin_return_address(0), MEMPROF_METH_P_ALLOC);
 			_HA_ATOMIC_ADD(&bin->alloc_calls, 1);
 			_HA_ATOMIC_ADD(&bin->alloc_tot, pool->size);
+			_HA_ATOMIC_STORE(&bin->info, pool);
 		}
 #endif
 		if (unlikely(flags & POOL_F_MUST_ZERO))
@@ -763,6 +764,7 @@ void __pool_free(struct pool_head *pool, void *ptr)
 		bin = memprof_get_bin(__builtin_return_address(0), MEMPROF_METH_P_FREE);
 		_HA_ATOMIC_ADD(&bin->free_calls, 1);
 		_HA_ATOMIC_ADD(&bin->free_tot, pool->size);
+		_HA_ATOMIC_STORE(&bin->info, pool);
 	}
 #endif
 

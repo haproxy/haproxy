@@ -726,6 +726,12 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 			chunk_appendf(&trash," [delta=%lld]", (long long)(entry->alloc_tot - entry->free_tot));
 		}
 
+		if (entry->info) {
+			/* that's a pool name */
+			const struct pool_head *pool = entry->info;
+			chunk_appendf(&trash," [pool=%s]", pool->name);
+		}
+
 		chunk_appendf(&trash, "\n");
 
 		if (applet_putchk(appctx, &trash) == -1)
