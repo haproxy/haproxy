@@ -1,0 +1,42 @@
+varnishtest "HTTP/2 cookie concatenation"
+feature ignore_unknown_macro
+
+server s1 {
+	rxreq
+	expect req.http.cookie == "c1=foo; c2=bar; c3=baz"
+	txresp
+} -start
+
+haproxy h1 -conf {
+	defaults
+		mode http
+
+	frontend fe1
+		bind "fd@${fe1}" proto h2
+		use_backend be1
+
+	backend be1
+		server srv1 ${s1_addr}:${s1_port}
+} -start
+
+client c1 -connect ${h1_fe1_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		txreq \
+		  -req "GET" \
+		  -scheme "http" \
+		  -url "/" \
+		  -hdr "cookie" "c1=foo" \
+		  -hdr "cookie" "c2=bar" \
+		  -hdr "cookie" "c3=baz"
+		rxhdrs
+	} -run
+} -run
