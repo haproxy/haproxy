@@ -1140,7 +1140,8 @@ int ssl_store_load_ca_from_buf(struct cafile_entry *ca_e, char *cert_buf)
 						retval = !X509_STORE_add_crl(ca_e->ca_store, info->crl);
 					}
 				}
-				retval = retval || (i != sk_X509_INFO_num(infos));
+				/* return an error if we didn't compute all the X509_INFO or if there was none */
+				retval = retval ||  (i != sk_X509_INFO_num(infos)) || ( sk_X509_INFO_num(infos) == 0);
 
 				/* Cleanup */
 				sk_X509_INFO_pop_free(infos, X509_INFO_free);
