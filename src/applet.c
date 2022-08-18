@@ -142,6 +142,15 @@ void *applet_reserve_svcctx(struct appctx *appctx, size_t size)
 	return appctx->svcctx;
 }
 
+/* This is used to reset an svcctx and the svc.storage without releasing the
+ * appctx. In fact this is only used by the CLI applet between commands.
+ */
+void applet_reset_svcctx(struct appctx *appctx)
+{
+	memset(&appctx->svc.storage, 0, APPLET_MAX_SVCCTX);
+	appctx->svcctx = NULL;
+}
+
 /* call the applet's release() function if any, and marks the sedesc as shut.
  * Needs to be called upon close().
  */
