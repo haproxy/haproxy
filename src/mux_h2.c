@@ -208,6 +208,7 @@ enum h2_ss {
 #define H2_SF_EXT_CONNECT_RCVD  0x00080000  // rfc 8441 an Extended CONNECT has been received and parsed
 
 #define H2_SF_TUNNEL_ABRT       0x00100000  // A tunnel attempt was aborted
+#define H2_SF_MORE_HTX_DATA     0x00200000  // more data expected from HTX
 
 /* H2 stream descriptor, describing the stream as it appears in the H2C, and as
  * it is being processed in the internal HTTP representation (HTX).
@@ -6589,6 +6590,11 @@ static size_t h2_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, in
 
 	if (!(h2s->flags & H2_SF_OUTGOING_DATA) && count)
 		h2s->flags |= H2_SF_OUTGOING_DATA;
+
+	if (htx->extra)
+		h2s->flags |= H2_SF_MORE_HTX_DATA;
+	else
+		h2s->flags &= ~H2_SF_MORE_HTX_DATA;
 
 	if (h2s->id == 0) {
 		int32_t id = h2c_get_next_sid(h2s->h2c);
