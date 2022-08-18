@@ -3312,8 +3312,8 @@ static void h2_process_demux(struct h2c *h2c)
 			TRACE_PROTO("received preface", H2_EV_RX_PREFACE, h2c->conn);
 
 			h2c->max_id = 0;
-			h2c->st0 = H2_CS_SETTINGS1;
 			TRACE_STATE("switching to SETTINGS1", H2_EV_RX_PREFACE, h2c->conn);
+			h2c->st0 = H2_CS_SETTINGS1;
 		}
 
 		if (h2c->st0 == H2_CS_SETTINGS1) {
