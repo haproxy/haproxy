@@ -1460,16 +1460,22 @@ static int qc_pkt_decrypt(struct quic_rx_packet *pkt, struct quic_enc_level *qel
 /* Remove references to <frm> frame */
 static void qc_frm_unref(struct quic_conn *qc, struct quic_frame *frm)
 {
-	uint64_t pn;
 	struct quic_frame *f, *tmp;
 
 	TRACE_ENTER(QUIC_EV_CONN_PRSAFRM, qc);
 
 	list_for_each_entry_safe(f, tmp, &frm->reflist, ref) {
-		pn = f->pkt->pn_node.key;
 		f->origin = NULL;
 		LIST_DELETE(&f->ref);
-		TRACE_DEVEL("remove frame reference", QUIC_EV_CONN_PRSAFRM, qc, f, &pn);
+		if (f->pkt) {
+			TRACE_DEVEL("remove frame reference",
+			            QUIC_EV_CONN_PRSAFRM, qc, f, &f->pkt->pn_node.key);
+		}
+		else {
+			/* XXX TODO: what must be done for such a frame */
+			TRACE_DEVEL("remove frame reference for unsent frame",
+			            QUIC_EV_CONN_PRSAFRM, qc, f);
+		}
 	}
 
 	TRACE_LEAVE(QUIC_EV_CONN_PRSAFRM, qc);
@@ -1495,9 +1501,16 @@ void qc_release_frm(struct quic_conn *qc, struct quic_frame *frm)
 	 * the current one.
 	 */
 	list_for_each_entry_safe(f, tmp, &origin->reflist, ref) {
-		pn = f->pkt->pn_node.key;
-		TRACE_DEVEL("mark frame as acked from packet",
-		            QUIC_EV_CONN_PRSAFRM, qc, f, &pn);
+		if (f->pkt) {
+			pn = f->pkt->pn_node.key;
+			TRACE_DEVEL("mark frame as acked from packet",
+			            QUIC_EV_CONN_PRSAFRM, qc, f, &pn);
+		}
+		else {
+			/* XXX TODO: what must be done for such a frame */
+			TRACE_DEVEL("remove frame reference for unsent frame",
+			            QUIC_EV_CONN_PRSAFRM, qc, f);
+		}
 		f->flags |= QUIC_FL_TX_FRAME_ACKED;
 		f->origin = NULL;
 		LIST_DELETE(&f->ref);
@@ -1712,17 +1725,14 @@ static inline void qc_requeue_nacked_pkt_tx_frms(struct quic_conn *qc,
 	struct quic_frame *frm, *frmbak;
 	struct list tmp = LIST_HEAD_INIT(tmp);
 	struct list *pkt_frm_list = &pkt->frms;
+	uint64_t pn = pkt->pn_node.key;
 
 	TRACE_ENTER(QUIC_EV_CONN_PRSAFRM, qc);
 
 	list_for_each_entry_safe(frm, frmbak, pkt_frm_list, list) {
-		/* Only for debug */
-		uint64_t pn;
-
 		/* First remove this frame from the packet it was attached to */
 		LIST_DELETE(&frm->list);
-		pn = frm->pkt->pn_node.key;
-		quic_tx_packet_refdec(frm->pkt);
+		quic_tx_packet_refdec(pkt);
 		/* At this time, this frame is not freed but removed from its packet */
 		frm->pkt = NULL;
 		/* Remove any reference to this frame */
