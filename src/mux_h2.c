@@ -4604,9 +4604,11 @@ static void h2_do_shutw(struct h2s *h2s)
 
 	TRACE_ENTER(H2_EV_STRM_SHUT, h2c->conn, h2s);
 
-	if (h2s->st != H2_SS_ERROR && (h2s->flags & H2_SF_HEADERS_SENT)) {
-		/* we can cleanly close using an empty data frame only after headers */
-
+	if (h2s->st != H2_SS_ERROR &&
+	    (h2s->flags & (H2_SF_HEADERS_SENT | H2_SF_MORE_HTX_DATA)) == H2_SF_HEADERS_SENT) {
+		/* we can cleanly close using an empty data frame only after headers
+		 * and if no more data is expected to be sent.
+		 */
 		if (!(h2s->flags & (H2_SF_ES_SENT|H2_SF_RST_SENT)) &&
 		    h2_send_empty_data_es(h2s) <= 0)
 			goto add_to_list;
@@ -4626,6 +4628,13 @@ static void h2_do_shutw(struct h2s *h2s)
 			TRACE_STATE("stream wants to kill the connection", H2_EV_STRM_SHUT, h2c->conn, h2s);
 			h2c_error(h2c, H2_ERR_ENHANCE_YOUR_CALM);
 			h2s_error(h2s, H2_ERR_ENHANCE_YOUR_CALM);
+		}
+		else if (h2s->flags & H2_SF_MORE_HTX_DATA) {
+			/* some unsent data were pending (e.g. abort during an upload),
+			 * let's send a CANCEL.
+			 */
+			TRACE_STATE("shutw before end of data, sending CANCEL", H2_EV_STRM_SHUT, h2c->conn, h2s);
+			h2s_error(h2s, H2_ERR_CANCEL);
 		}
 		else {
 			/* Nothing was never sent for this stream, so reset with
