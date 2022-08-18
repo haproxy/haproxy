@@ -63,6 +63,7 @@ static const struct h2s *h2_idle_stream;
                                             // (SHORT_READ is also excluded)
 
 #define H2_CF_DEM_SHORT_READ    0x00000200  // demux blocked on incomplete frame
+#define H2_CF_DEM_IN_PROGRESS   0x00000400  // demux in progress (dsi,dfl,dft are valid)
 
 /* other flags */
 #define H2_CF_GOAWAY_SENT       0x00001000  // a GOAWAY frame was successfully sent
@@ -646,7 +647,7 @@ static void h2_trace(enum trace_level level, uint64_t mask, const struct trace_s
 		if (h2c->errcode)
 			chunk_appendf(&trace_buf, " err=%s/%02x", h2_err_str(h2c->errcode), h2c->errcode);
 
-		if (h2c->dsi >= 0 &&
+		if (h2c->flags & H2_CF_DEM_IN_PROGRESS && // frame processing has started, type and length are valid
 		    (mask & (H2_EV_RX_FRAME|H2_EV_RX_FHDR)) == (H2_EV_RX_FRAME|H2_EV_RX_FHDR)) {
 			chunk_appendf(&trace_buf, " dft=%s/%02x dfl=%d", h2_ft_str(h2c->dft), h2c->dff, h2c->dfl);
 		}
@@ -3458,6 +3459,7 @@ static void h2_process_demux(struct h2c *h2c)
 			h2c->dft = hdr.ft;
 			h2c->dff = hdr.ff;
 			h2c->dpl = padlen;
+			h2c->flags |= H2_CF_DEM_IN_PROGRESS;
 			TRACE_STATE("rcvd H2 frame header, switching to FRAME_P state", H2_EV_RX_FRAME|H2_EV_RX_FHDR, h2c->conn);
 			h2c->st0 = H2_CS_FRAME_P;
 
@@ -3640,9 +3642,9 @@ static void h2_process_demux(struct h2c *h2c)
 			b_del(&h2c->dbuf, ret);
 			h2c->dfl -= ret;
 			if (!h2c->dfl) {
+				h2c->flags &= ~H2_CF_DEM_IN_PROGRESS;
 				TRACE_STATE("switching to FRAME_H", H2_EV_RX_FRAME|H2_EV_RX_FHDR, h2c->conn);
 				h2c->st0 = H2_CS_FRAME_H;
-				h2c->dsi = -1;
 			}
 		}
 	}
