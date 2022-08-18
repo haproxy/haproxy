@@ -896,6 +896,7 @@ static void cli_io_handler(struct appctx *appctx)
 		if (appctx->st0 == CLI_ST_INIT) {
 			/* reset severity to default at init */
 			appctx->cli_severity_output = bind_conf->severity_output;
+			applet_reset_svcctx(appctx);
 			appctx->st0 = CLI_ST_GETREQ;
 			appctx->cli_level = bind_conf->level;
 		}
@@ -1106,8 +1107,10 @@ static void cli_io_handler(struct appctx *appctx)
 						prompt = "\n";
 				}
 
-				if (applet_putstr(appctx, prompt) != -1)
+				if (applet_putstr(appctx, prompt) != -1) {
+					applet_reset_svcctx(appctx);
 					appctx->st0 = CLI_ST_GETREQ;
+				}
 			}
 
 			/* If the output functions are still there, it means they require more room. */
@@ -1128,6 +1131,7 @@ static void cli_io_handler(struct appctx *appctx)
 			}
 
 			/* switch state back to GETREQ to read next requests */
+			applet_reset_svcctx(appctx);
 			appctx->st0 = CLI_ST_GETREQ;
 			applet_will_consume(appctx);
 
