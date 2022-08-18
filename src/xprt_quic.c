@@ -2330,8 +2330,7 @@ static void qc_dup_pkt_frms(struct quic_conn *qc,
 			break;
 		}
 
-		// FIXME: zalloc
-		dup_frm = pool_zalloc(pool_head_quic_frame);
+		dup_frm = pool_alloc(pool_head_quic_frame);
 		if (!dup_frm) {
 			TRACE_ERROR("could not duplicate frame", QUIC_EV_CONN_PRSAFRM, qc, frm);
 			break;
@@ -2342,11 +2341,13 @@ static void qc_dup_pkt_frms(struct quic_conn *qc,
 		 */
 		origin = frm->origin ? frm->origin : frm;
 		TRACE_DEVEL("built probing frame", QUIC_EV_CONN_PRSAFRM, qc, origin);
-		*dup_frm = *origin;
-		LIST_INIT(&dup_frm->reflist);
 		TRACE_DEVEL("duplicated from packet", QUIC_EV_CONN_PRSAFRM,
 		            qc, NULL, &origin->pkt->pn_node.key);
+		*dup_frm = *origin;
+		dup_frm->pkt = NULL;
 		dup_frm->origin = origin;
+		dup_frm->flags = 0;
+		LIST_INIT(&dup_frm->reflist);
 		LIST_APPEND(&origin->reflist, &dup_frm->ref);
 		LIST_APPEND(&tmp, &dup_frm->list);
 	}
