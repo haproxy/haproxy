@@ -6415,6 +6415,13 @@ static inline int qc_build_frms(struct list *outlist, struct list *inlist,
 				new_cf->crypto.len = dlen;
 				new_cf->crypto.offset = cf->crypto.offset;
 				new_cf->crypto.qel = qel;
+				TRACE_DEVEL("splitted frame", QUIC_EV_CONN_PRSAFRM, qc, new_cf);
+				if (cf->origin) {
+					TRACE_DEVEL("duplicated frame", QUIC_EV_CONN_PRSAFRM, qc);
+					/* This <cf> frame was duplicated */
+					LIST_APPEND(&cf->origin->reflist, &new_cf->ref);
+					new_cf->origin = cf->origin;
+				}
 				LIST_APPEND(outlist, &new_cf->list);
 				/* Consume <dlen> bytes of the current frame. */
 				cf->crypto.len -= dlen;
@@ -6525,6 +6532,13 @@ static inline int qc_build_frms(struct list *outlist, struct list *inlist,
 				/* FIN bit reset */
 				new_cf->type &= ~QUIC_STREAM_FRAME_TYPE_FIN_BIT;
 				new_cf->stream.data = cf->stream.data;
+				TRACE_DEVEL("splitted frame", QUIC_EV_CONN_PRSAFRM, qc, new_cf);
+				if (cf->origin) {
+					TRACE_DEVEL("duplicated frame", QUIC_EV_CONN_PRSAFRM, qc);
+					/* This <cf> frame was duplicated */
+					LIST_APPEND(&cf->origin->reflist, &new_cf->ref);
+					new_cf->origin = cf->origin;
+				}
 				LIST_APPEND(outlist, &new_cf->list);
 				cf->type |= QUIC_STREAM_FRAME_TYPE_OFF_BIT;
 				/* Consume <dlen> bytes of the current frame. */
