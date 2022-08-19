@@ -920,6 +920,11 @@ int ha_quic_set_encryption_secrets(SSL *ssl, enum ssl_encryption_level_t level,
 		goto leave;
 	}
 
+	if (!quic_tls_dec_aes_ctx_init(&rx->hp_ctx, rx->hp, rx->hp_key)) {
+		TRACE_ERROR("could not initial RX TLS cipher context for HP", QUIC_EV_CONN_RWSEC, qc);
+		goto leave;
+	}
+
 	/* Enqueue this connection asap if we could derive O-RTT secrets as
 	 * listener. Note that a listener derives only RX secrets for this
 	 * level.
@@ -941,6 +946,11 @@ int ha_quic_set_encryption_secrets(SSL *ssl, enum ssl_encryption_level_t level,
 
 	if (!quic_tls_tx_ctx_init(&tx->ctx, tx->aead, tx->key)) {
 		TRACE_ERROR("could not initial RX TLS cipher context", QUIC_EV_CONN_RWSEC, qc);
+		goto leave;
+	}
+
+	if (!quic_tls_enc_aes_ctx_init(&tx->hp_ctx, tx->hp, tx->hp_key)) {
+		TRACE_ERROR("could not initial TX TLS cipher context for HP", QUIC_EV_CONN_RWSEC, qc);
 		goto leave;
 	}
 
@@ -1281,13 +1291,12 @@ static int qc_do_rm_hp(struct quic_conn *qc,
                        struct quic_rx_packet *pkt, struct quic_tls_ctx *tls_ctx,
                        int64_t largest_pn, unsigned char *pn, unsigned char *byte0)
 {
-	int ret, outlen, i, pnlen;
+	int ret, i, pnlen;
 	uint64_t packet_number;
 	uint32_t truncated_pn = 0;
 	unsigned char mask[5] = {0};
 	unsigned char *sample;
 	EVP_CIPHER_CTX *cctx = NULL;
-	unsigned char *hp_key;
 
 	TRACE_ENTER(QUIC_EV_CONN_RMHP, qc);
 
@@ -1307,11 +1316,8 @@ static int qc_do_rm_hp(struct quic_conn *qc,
 
 	sample = pn + QUIC_PACKET_PN_MAXLEN;
 
-	hp_key = tls_ctx->rx.hp_key;
-	if (!EVP_DecryptInit_ex(cctx, tls_ctx->rx.hp, NULL, hp_key, sample) ||
-	    !EVP_DecryptUpdate(cctx, mask, &outlen, mask, sizeof mask) ||
-	    !EVP_DecryptFinal_ex(cctx, mask, &outlen)) {
-		TRACE_ERROR("decryption failed", QUIC_EV_CONN_RMHP, qc, pkt);
+	if (!quic_tls_aes_decrypt(mask, sample, sizeof mask, tls_ctx->rx.hp_ctx)) {
+		TRACE_ERROR("HP removing failed", QUIC_EV_CONN_RMHP, qc, pkt);
 		goto leave;
 	}
 
@@ -4670,7 +4676,7 @@ static struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	char *buf_area = NULL;
 	struct listener *l = NULL;
 	struct quic_cc_algo *cc_algo = NULL;
-
+	struct quic_tls_ctx *ictx;
 	TRACE_ENTER(QUIC_EV_CONN_INIT);
 	qc = pool_zalloc(pool_head_quic_conn);
 	if (!qc) {
@@ -4792,9 +4798,13 @@ static struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	    !quic_conn_init_idle_timer_task(qc))
 		goto err;
 
-	if (!qc_new_isecs(qc, &qc->els[QUIC_TLS_ENC_LEVEL_INITIAL].tls_ctx,
-	                  qc->original_version, dcid->data, dcid->len, 1))
+	ictx = &qc->els[QUIC_TLS_ENC_LEVEL_INITIAL].tls_ctx;
+	if (!qc_new_isecs(qc, ictx,qc->original_version, dcid->data, dcid->len, 1))
 		goto err;
+
+	if (!quic_tls_dec_aes_ctx_init(&ictx->rx.hp_ctx, ictx->rx.hp, ictx->rx.hp_key) ||
+	    !quic_tls_enc_aes_ctx_init(&ictx->tx.hp_ctx, ictx->tx.hp, ictx->tx.hp_key))
+	    goto err;
 
 	TRACE_LEAVE(QUIC_EV_CONN_INIT, qc);
 
@@ -6261,37 +6271,28 @@ static int quic_build_packet_short_header(unsigned char **buf, const unsigned ch
  * with <aead> as AEAD cipher and <key> as secret key.
  * Returns 1 if succeeded or 0 if failed.
  */
-static int quic_apply_header_protection(struct quic_conn *qc,
-                                        unsigned char *buf, unsigned char *pn, size_t pnlen,
-                                        const EVP_CIPHER *aead, const unsigned char *key)
+static int quic_apply_header_protection(struct quic_conn *qc, unsigned char *buf,
+                                        unsigned char *pn, size_t pnlen,
+                                        struct quic_tls_ctx *tls_ctx)
+
 {
-	int i, outlen, ret = 0;
-	EVP_CIPHER_CTX *ctx;
+	int i, ret = 0;
 	/* We need an IV of at least 5 bytes: one byte for bytes #0
 	 * and at most 4 bytes for the packet number
 	 */
 	unsigned char mask[5] = {0};
+	EVP_CIPHER_CTX *aes_ctx = tls_ctx->tx.hp_ctx;
 
 	TRACE_ENTER(QUIC_EV_CONN_TXPKT, qc);
 
-	ctx = EVP_CIPHER_CTX_new();
-	if (!ctx) {
-		TRACE_ERROR("cipher context allocation failed", QUIC_EV_CONN_TXPKT, qc);
-		goto out;
-	}
-
-	if (!EVP_EncryptInit_ex(ctx, aead, NULL, key, pn + QUIC_PACKET_PN_MAXLEN) ||
-	    !EVP_EncryptUpdate(ctx, mask, &outlen, mask, sizeof mask) ||
-	    !EVP_EncryptFinal_ex(ctx, mask, &outlen)) {
-		TRACE_ERROR("cipher context allocation failed", QUIC_EV_CONN_TXPKT, qc);
+	if (!quic_tls_aes_encrypt(mask, pn + QUIC_PACKET_PN_MAXLEN, sizeof mask, aes_ctx)) {
+		TRACE_ERROR("could not apply header protection", QUIC_EV_CONN_TXPKT, qc);
 		goto out;
 	}
 
 	*buf ^= mask[0] & (*buf & QUIC_PACKET_LONG_HEADER_BIT ? 0xf : 0x1f);
 	for (i = 0; i < pnlen; i++)
 		pn[i] ^= mask[i + 1];
-
-	EVP_CIPHER_CTX_free(ctx);
 
 	ret = 1;
  out:
@@ -6971,8 +6972,7 @@ static struct quic_tx_packet *qc_build_pkt(unsigned char **pos,
 
 	end += QUIC_TLS_TAG_LEN;
 	pkt->len += QUIC_TLS_TAG_LEN;
-	if (!quic_apply_header_protection(qc, beg, buf_pn, pn_len,
-	                                  tls_ctx->tx.hp, tls_ctx->tx.hp_key)) {
+	if (!quic_apply_header_protection(qc, beg, buf_pn, pn_len, tls_ctx)) {
 		// trace already emitted by function above
 		*err = -2;
 		goto err;

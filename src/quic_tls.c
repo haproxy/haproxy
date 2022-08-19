@@ -341,6 +341,86 @@ int quic_tls_rx_ctx_init(EVP_CIPHER_CTX **rx_ctx,
 	return 0;
 }
 
+/* Initialize <*aes_ctx> AES cipher context with <key> as key for encryption */
+int quic_tls_enc_aes_ctx_init(EVP_CIPHER_CTX **aes_ctx,
+                              const EVP_CIPHER *aes, unsigned char *key)
+{
+	EVP_CIPHER_CTX *ctx;
+
+	ctx = EVP_CIPHER_CTX_new();
+	if (!ctx)
+		return 0;
+
+	if (!EVP_EncryptInit_ex(ctx, aes, NULL, key, NULL))
+		goto err;
+
+	*aes_ctx = ctx;
+	return 1;
+
+ err:
+	EVP_CIPHER_CTX_free(ctx);
+	return 0;
+}
+
+/* Encrypt <inlen> bytes from <in> buffer into <out> with <ctx> as AES
+ * cipher context. This is the responsability of the caller to check there
+ * is at least <inlen> bytes of available space in <out> buffer.
+ * Return 1 if succeeded, 0 if not.
+ */
+int quic_tls_aes_encrypt(unsigned char *out,
+                         const unsigned char *in, size_t inlen,
+                         EVP_CIPHER_CTX *ctx)
+{
+	int ret = 0;
+
+	if (!EVP_EncryptInit_ex(ctx, NULL, NULL, NULL, in) ||
+	    !EVP_EncryptUpdate(ctx, out, &ret, out, inlen) ||
+	    !EVP_EncryptFinal_ex(ctx, out, &ret))
+		return 0;
+
+	return 1;
+}
+
+/* Initialize <*aes_ctx> AES cipher context with <key> as key for decryption */
+int quic_tls_dec_aes_ctx_init(EVP_CIPHER_CTX **aes_ctx,
+                              const EVP_CIPHER *aes, unsigned char *key)
+{
+	EVP_CIPHER_CTX *ctx;
+
+	ctx = EVP_CIPHER_CTX_new();
+	if (!ctx)
+		return 0;
+
+	if (!EVP_DecryptInit_ex(ctx, aes, NULL, key, NULL))
+		goto err;
+
+	*aes_ctx = ctx;
+	return 1;
+
+ err:
+	EVP_CIPHER_CTX_free(ctx);
+	return 0;
+}
+
+/* Decrypt <in> data into <out> with <ctx> as AES cipher context.
+ * This is the responsability of the caller to check there is at least
+ * <outlen> bytes into <in> buffer.
+ * Return 1 if succeeded, 0 if not.
+ */
+int quic_tls_aes_decrypt(unsigned char *out,
+                         const unsigned char *in, size_t inlen,
+                         EVP_CIPHER_CTX *ctx)
+{
+	int ret = 0;
+
+	if (!EVP_DecryptInit_ex(ctx, NULL, NULL, NULL, in) ||
+	    !EVP_DecryptUpdate(ctx, out, &ret, out, inlen) ||
+	    !EVP_DecryptFinal_ex(ctx, out, &ret))
+		return 0;
+
+	return 1;
+}
+
 /* Initialize the cipher context for TX part of <tls_ctx> QUIC TLS context.
  * Return 1 if succeeded, 0 if not.
  */

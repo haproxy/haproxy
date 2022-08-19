@@ -116,6 +116,18 @@ int quic_tls_sec_update(const EVP_MD *md, const struct quic_version *qv,
 int quic_aead_iv_build(unsigned char *iv, size_t ivlen,
                        unsigned char *aead_iv, size_t aead_ivlen, uint64_t pn);
 
+/* HP protection (AES) */
+int quic_tls_dec_aes_ctx_init(EVP_CIPHER_CTX **aes_ctx,
+                              const EVP_CIPHER *aes, unsigned char *key);
+int quic_tls_enc_aes_ctx_init(EVP_CIPHER_CTX **aes_ctx,
+                              const EVP_CIPHER *aes, unsigned char *key);
+int quic_tls_aes_decrypt(unsigned char *out,
+                         const unsigned char *in, size_t inlen,
+                         EVP_CIPHER_CTX *ctx);
+int quic_tls_aes_encrypt(unsigned char *out,
+                         const unsigned char *in, size_t inlen,
+                         EVP_CIPHER_CTX *ctx);
+
 static inline const EVP_CIPHER *tls_aead(const SSL_CIPHER *cipher)
 {
 	switch (SSL_CIPHER_get_id(cipher)) {
@@ -381,10 +393,16 @@ static inline void quic_tls_ctx_secs_free(struct quic_tls_ctx *ctx)
 		ctx->tx.keylen = 0;
 	}
 
+	/* RX HP protection */
+	EVP_CIPHER_CTX_free(ctx->rx.hp_ctx);
+	/* RX AEAD decryption */
 	EVP_CIPHER_CTX_free(ctx->rx.ctx);
 	pool_free(pool_head_quic_tls_iv,  ctx->rx.iv);
 	pool_free(pool_head_quic_tls_key, ctx->rx.key);
 
+	/* TX HP protection */
+	EVP_CIPHER_CTX_free(ctx->tx.hp_ctx);
+	/* TX AEAD encryption */
 	EVP_CIPHER_CTX_free(ctx->tx.ctx);
 	pool_free(pool_head_quic_tls_iv,  ctx->tx.iv);
 	pool_free(pool_head_quic_tls_key, ctx->tx.key);

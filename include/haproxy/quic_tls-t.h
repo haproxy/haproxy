@@ -138,6 +138,7 @@ struct quic_tls_secrets {
 	EVP_CIPHER_CTX *ctx;
 	const EVP_CIPHER *aead;
 	const EVP_MD *md;
+	EVP_CIPHER_CTX *hp_ctx;
 	const EVP_CIPHER *hp;
 	unsigned char *secret;
 	size_t secretlen;
