@@ -2367,6 +2367,8 @@ static void qmux_trace(enum trace_level level, uint64_t mask,
 
 	if (src->verbosity > QMUX_VERB_CLEAN) {
 		chunk_appendf(&trace_buf, " : qcc=%p(F)", qcc);
+		if (qcc->conn->handle.qc)
+			chunk_appendf(&trace_buf, " qc=%p", qcc->conn->handle.qc);
 
 		if (qcs)
 			chunk_appendf(&trace_buf, " qcs=%p .id=%llu .st=%s",
