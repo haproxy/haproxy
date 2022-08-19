@@ -3790,8 +3790,8 @@ int cfg_parse_log_forward(const char *file, int linenum, char **args, int kwm)
 	else if (strcmp(args[0], "bind") == 0) {
 		int cur_arg;
 		struct bind_conf *bind_conf;
-		struct bind_kw *kw;
 		struct listener *l;
+		int ret;
 
 		cur_arg = 1;
 
@@ -3824,32 +3824,9 @@ int cfg_parse_log_forward(const char *file, int linenum, char **args, int kwm)
 		}
 		cur_arg++;
 
-		while (*args[cur_arg] && (kw = bind_find_kw(args[cur_arg]))) {
-			int ret;
-
-			ret = kw->parse(args, cur_arg, cfg_log_forward, bind_conf, &errmsg);
-			err_code |= ret;
-			if (ret) {
-				if (errmsg && *errmsg) {
-					indent_msg(&errmsg, 2);
-					ha_alert("parsing [%s:%d] : %s\n", file, linenum, errmsg);
-				}
-				else
-					ha_alert("parsing [%s:%d]: error encountered while processing '%s'\n",
-					         file, linenum, args[cur_arg]);
-				if (ret & ERR_FATAL)
-					goto out;
-			}
-			cur_arg += 1 + kw->skip;
-		}
-		if (*args[cur_arg] != 0) {
-			const char *best = bind_find_best_kw(args[cur_arg]);
-			if (best)
-				ha_alert("parsing [%s:%d] : unknown keyword '%s' in '%s' section; did you mean '%s' maybe ?\n",
-					 file, linenum, args[cur_arg], cursection, best);
-			else
-				ha_alert("parsing [%s:%d] : unknown keyword '%s' in '%s' section.\n",
-					 file, linenum, args[cur_arg], cursection);
+		ret = bind_parse_args_list(bind_conf, args, cur_arg, cursection, file, linenum);
+		err_code |= ret;
+		if (ret != 0) {
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
