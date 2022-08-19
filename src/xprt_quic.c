@@ -499,8 +499,10 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 			const unsigned long *val1 = a3;
 			const unsigned long *val2 = a4;
 
-			if (frm)
+			if (frm) {
+				chunk_appendf(&trace_buf, " frm@%p", frm);
 				chunk_frm_appendf(&trace_buf, frm);
+			}
 			if (val1)
 				chunk_appendf(&trace_buf, " %lu", *val1);
 			if (val2)
