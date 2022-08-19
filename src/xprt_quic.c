@@ -1510,7 +1510,7 @@ void qc_release_frm(struct quic_conn *qc, struct quic_frame *frm)
 		}
 		else {
 			/* XXX TODO: what must be done for such a frame */
-			TRACE_DEVEL("remove frame reference for unsent frame",
+			TRACE_DEVEL("mark frame as acked for unsent frame",
 			            QUIC_EV_CONN_PRSAFRM, qc, f);
 		}
 		f->flags |= QUIC_FL_TX_FRAME_ACKED;
