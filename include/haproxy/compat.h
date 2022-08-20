@@ -281,12 +281,17 @@ typedef struct { } empty_t;
 
 /* macOS has a call similar to malloc_usable_size */
 #if defined(__APPLE__)
+#include <AvailabilityMacros.h> /* Needed for MAC_OS_X_VERSION_MIN_REQUIRED to work */
 #include <malloc/malloc.h>
 #define malloc_usable_size malloc_size
+#if MAC_OS_X_VERSION_MIN_REQUIRED > 1060 /* Available in 10.7+ */
 #define HA_HAVE_MALLOC_ZONE
+#endif
 #define TCP_KEEPIDLE TCP_KEEPALIVE
+#if MAC_OS_X_VERSION_MIN_REQUIRED > 101003 /* Available in 10.11+ */
 #define TCP_INFO TCP_CONNECTION_INFO
 #define tcp_info tcp_connection_info
+#endif
 #endif
 
 /* Max number of file descriptors we send in one sendmsg(). Linux seems to be
