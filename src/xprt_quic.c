@@ -4457,7 +4457,7 @@ static void quic_conn_release(struct quic_conn *qc)
 		 * qc_stream_desc_free will liberate the stream instance.
 		 */
 		BUG_ON(!stream->release);
-		qc_stream_desc_free(stream);
+		qc_stream_desc_free(stream, 1);
 	}
 
 	/* Purge Rx packet list. */

@@ -63,7 +63,7 @@ void qc_stream_desc_release(struct qc_stream_desc *stream)
 
 	if (LIST_ISEMPTY(&stream->buf_list)) {
 		/* if no buffer left we can free the stream. */
-		qc_stream_desc_free(stream);
+		qc_stream_desc_free(stream, 0);
 	}
 	else {
 		/* A released stream does not use <stream.buf>. */
@@ -131,7 +131,7 @@ int qc_stream_desc_ack(struct qc_stream_desc **stream, size_t offset, size_t len
 
 	/* Free stream instance if already released and no buffers left. */
 	if (s->release && LIST_ISEMPTY(&s->buf_list)) {
-		qc_stream_desc_free(s);
+		qc_stream_desc_free(s, 0);
 		*stream = NULL;
 	}
 
@@ -139,10 +139,10 @@ int qc_stream_desc_ack(struct qc_stream_desc **stream, size_t offset, size_t len
 }
 
 /* Free the stream descriptor <stream> content. This function should be used
- * when all its data have been acknowledged or on full connection closing. It
- * must only be called after the stream is released.
+ * when all its data have been acknowledged or on full connection closing if <closing>
+ * boolean is set to 1. It must only be called after the stream is released.
  */
-void qc_stream_desc_free(struct qc_stream_desc *stream)
+void qc_stream_desc_free(struct qc_stream_desc *stream, int closing)
 {
 	struct qc_stream_buf *buf, *buf_back;
 	struct quic_conn *qc = stream->qc;
@@ -154,7 +154,7 @@ void qc_stream_desc_free(struct qc_stream_desc *stream)
 
 	/* free remaining stream buffers */
 	list_for_each_entry_safe(buf, buf_back, &stream->buf_list, list) {
-		if (!(b_data(&buf->buf))) {
+		if (!(b_data(&buf->buf)) || closing) {
 			b_free(&buf->buf);
 			LIST_DELETE(&buf->list);
 			pool_free(pool_head_quic_stream_buf, buf);
