@@ -1,6 +1,88 @@
 ChangeLog :
 ===========
 
+2022/08/20 : 2.7-dev4
+    - BUG/MEDIUM: quic: Wrong packet length check in qc_do_rm_hp()
+    - MINOR: quic: Too much useless traces in qc_build_frms()
+    - BUG/MEDIUM: quic: Missing AEAD TAG check after removing header protection
+    - MINOR: quic: Replace pool_zalloc() by pool_malloc() for fake datagrams
+    - MINOR: debug: make the mem_stats section aligned to void*
+    - MINOR: debug: store and report the pool's name in struct mem_stats
+    - MINOR: debug: also store the function name in struct mem_stats
+    - MINOR: debug/memstats: automatically determine first column size
+    - MINOR: debug/memstats: permit to pass the size to free()
+    - CLEANUP: mux-quic: remove loop on sending frames
+    - MINOR: quic: replace custom buf on Tx by default struct buffer
+    - MINOR: quic: release Tx buffer on each send
+    - MINOR: quic: refactor datagram commit in Tx buffer
+    - MINOR: quic: skip sending if no frame to send in io-cb
+    - BUG/MINOR: mux-quic: open stream on STOP_SENDING
+    - BUG/MINOR: quic: fix crash on handshake io-cb for null next enc level
+    - BUG/MEDIUM: quic: always remove the connection from the accept list on close
+    - BUG/MEDIUM: poller: use fd_delete() to release the poller pipes
+    - BUG/MEDIUM: task: relax one thread consistency check in task_unlink_wq()
+    - MEDIUM: quic: xprt traces rework
+    - BUILD: stconn: fix build warning at -O3 about possible null sc
+    - MINOR: quic: Remove useless lock for RX packets
+    - BUG/MINOR: quic: Possible infinite loop in quic_build_post_handshake_frames()
+    - CLEANUP: quic: Remove trailing spaces
+    - MINOR: mux-quic: adjust enter/leave traces
+    - MINOR: mux-quic: define protocol error traces
+    - CLEANUP: mux-quic: adjust traces level
+    - MINOR: mux-quic: define new traces
+    - BUG/MEDIUM: mux-quic: fix crash due to invalid trace arg
+    - BUG/MEDIUM: quic: Possible use of uninitialized <odcid> variable in qc_lstnr_params_init()
+    - BUG/MEDIUM: ring: fix too lax 'size' parser
+    - BUG/MEDIUM: quic: Wrong use of <token_odcid> in qc_lsntr_pkt_rcv()
+    - BUILD: ring: forward-declare struct appctx to avoid a build warning
+    - MINOR: ring: support creating a ring from a linear area
+    - MINOR: ring: add support for a backing-file
+    - DEV: haring: add a simple utility to read file-backed rings
+    - DEV: haring: support remapping LF in contents with CR VT
+    - BUG/MINOR: quic: memleak on wrong datagram receipt
+    - BUILD: sink: replace S_IRUSR, S_IWUSR with their octal value
+    - MINOR: ring: archive a previous file-backed ring on startup
+    - BUG/MINOR: mux-quic: fix crash with traces in qc_detach()
+    - BUG/MINOR: quic: MIssing check when building TX packets
+    - BUG/MINOR: quic: Wrong status returned by qc_pkt_decrypt()
+    - MINOR: memprof: export the minimum definitions for memory profiling
+    - MINOR: pool/memprof: report pool alloc/free in memory profiling
+    - MINOR: pools/memprof: store and report the pool's name in each bin
+    - MINOR: chunk: inline alloc_trash_chunk()
+    - MINOR: stick-table: Add table_expire() and table_idle() new converters
+    - CLEANUP: exclude haring with .gitignore
+    - MINOR: quic: adjust quic_frame flag manipulation
+    - MINOR: h3: report error on control stream close
+    - MINOR: qpack: report error on enc/dec stream close
+    - BUG/MEDIUM: mux-quic: reject uni stream ID exceeding flow control
+    - MINOR: mux-quic: adjust traces on stream init
+    - MINOR: mux-quic: add missing args on some traces
+    - MINOR: quic: refactor application send
+    - BUG/MINOR: quic: do not notify MUX on frame retransmit
+    - BUG/MEDIUM: http-ana: fix crash or wrong header deletion by http-restrict-req-hdr-names
+    - BUG/MINOR: quic: Missing initializations for ducplicated frames.
+    - BUG/MEDIUM: quic: fix crash on MUX send notification
+    - REORG: h2: extract cookies concat function in http_htx
+    - REGTESTS: add test for HTTP/2 cookies concatenation
+    - MEDIUM: h3: concatenate multiple cookie headers
+    - MINOR: applet: add a function to reset the svcctx of an applet
+    - BUG/MEDIUM: cli: always reset the service context between commands
+    - BUG/MEDIUM: mux-h2: do not fiddle with ->dsi to indicate demux is idle
+    - MINOR: mux-h2/traces: report transition to SETTINGS1 before not after
+    - MINOR: mux-h2: make streams know if they need to send more data
+    - BUG/MINOR: mux-h2: send a CANCEL instead of ES on truncated writes
+    - BUG/MINOR: quic: Possible crashes when dereferencing ->pkt quic_frame struct member
+    - MINOR: quic: Add frame addresses to QUIC_EV_CONN_PRSAFRM event traces
+    - BUG/MINOR: quic: Wrong splitted duplicated frames handling
+    - MINOR: quic: Add the QUIC connection to mux traces
+    - MINOR: quic: Trace fix in qc_release_frm()
+    - BUG/MAJOR: log-forward: Fix log-forward proxies not fully initialized
+    - BUG/MAJOR: log-forward: Fix ssl layer not initialized on bind even if configured
+    - MINOR: quic: Add reusable cipher contexts for header protection
+    - BUG/MINOR: ssl/cli: error when the ca-file is empty
+    - MINOR: ssl: handle ca-file appending in cafile_entry
+    - MINOR: ssl/cli: implement "add ssl ca-file"
+
 2022/08/07 : 2.7-dev3
     - BUILD: makefile: Fix install(1) handling for OpenBSD/NetBSD/Solaris/AIX
     - BUG/MEDIUM: tools: avoid calling dlsym() in static builds (try 2)
