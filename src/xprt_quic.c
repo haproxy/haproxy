@@ -3253,12 +3253,21 @@ int qc_send_ppkts(struct buffer *buf, struct ssl_sock_ctx *ctx)
 			}
 			qc->path->in_flight += pkt->in_flight_len;
 			pkt->pktns->tx.in_flight += pkt->in_flight_len;
-			if (pkt->in_flight_len)
-				qc_set_timer(qc);
-			TRACE_DATA("sent pkt", QUIC_EV_CONN_SPPKTS, qc, pkt);
 			next_pkt = pkt->next;
-			quic_tx_packet_refinc(pkt);
-			eb64_insert(&pkt->pktns->tx.pkts, &pkt->pn_node);
+			TRACE_DATA("sent pkt", QUIC_EV_CONN_SPPKTS, qc, pkt);
+			if (pkt->in_flight_len) {
+				/* Ack-eliciting packets or packets with a PADDING frame */
+				quic_tx_packet_refinc(pkt);
+				eb64_insert(&pkt->pktns->tx.pkts, &pkt->pn_node);
+				qc_set_timer(qc);
+			}
+			else {
+				/* Note that we can safely free this packet: There is no
+				 * ack-eliciting frame attached to it. This may be an ACK
+				 * or CONNECTION_CLOSE only packet for instance.
+				 */
+				pool_free(pool_head_quic_tx_packet, pkt);
+			}
 		}
 	}
 
