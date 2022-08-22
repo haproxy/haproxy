@@ -1094,21 +1094,19 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		 *    cpu-map P-Q    => mapping for whole tgroups, numbers P to Q
 		 *    cpu-map P-Q/1  => mapping of first thread of groups P to Q
 		 *    cpu-map P/T-U  => mapping of threads T to U of tgroup P
-		 * Otherwise other combinations are silently ignored since nbthread
-		 * and nbproc cannot both be >1 :
-		 *    cpu-map P-Q/T  => mapping for thread T for processes P to Q.
-		 *                      Only one of T,Q may be > 1, others ignored.
-		 *    cpu-map P/T-U  => mapping for threads T to U of process P. Only
-		 *                      one of P,U may be > 1, others ignored.
 		 */
-		if (!thread || thread == 0x1) {
-			/* mapping for whole tgroups. E.g. cpu-map 1 0-3 or cpu-map 1/1 0-3 */
-			for (g = 0; g < MAX_TGROUPS; g++) {
-				/* No mapping for this tgroup */
-				if (!(tgroup & (1UL << g)))
-					continue;
+		/* first tgroup, iterate on threads. E.g. cpu-map 1/1-4 0-3 */
+		for (g = 0; g < MAX_TGROUPS; g++) {
+			/* No mapping for this tgroup */
+			if (!(tgroup & (1UL << g)))
+				continue;
 
-				ha_cpuset_assign(&cpus_copy, &cpus);
+			ha_cpuset_assign(&cpus_copy, &cpus);
+
+			if (!thread) {
+				/* no thread set was specified, apply
+				 * the CPU set to the whole group.
+				 */
 				if (!autoinc)
 					ha_cpuset_assign(&cpu_map[g].proc, &cpus);
 				else {
@@ -1117,15 +1115,10 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 					ha_cpuset_clr(&cpus_copy, n);
 					ha_cpuset_set(&cpu_map[g].proc, n);
 				}
-			}
-		} else {
-			/* first tgroup, iterate on threads. E.g. cpu-map 1/1-4 0-3 */
-			for (g = 0; g < MAX_TGROUPS; g++) {
-				/* No mapping for this tgroup */
-				if (!(tgroup & (1UL << g)))
-					continue;
-
-				ha_cpuset_assign(&cpus_copy, &cpus);
+			} else {
+				/* a thread set is specified, apply the
+				 * CPU set to these threads.
+				 */
 				for (j = n = 0; j < MAX_THREADS_PER_GROUP; j++) {
 					/* No mapping for this thread */
 					if (!(thread & (1UL << j)))
