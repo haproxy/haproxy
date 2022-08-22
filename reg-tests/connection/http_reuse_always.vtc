@@ -4,7 +4,7 @@ varnishtest "Test the http-reuse always mode"
 
 feature ignore_unknown_macro
 
-haproxy h1 -conf {
+haproxy h1 -W -conf {
 	defaults
 		mode http
 
