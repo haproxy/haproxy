@@ -6830,7 +6830,8 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 
 	/* Ack-eliciting frames */
 	if (!LIST_ISEMPTY(&frm_list)) {
-		list_for_each_entry(cf, &frm_list, list) {
+		struct quic_frame *tmp_cf;
+		list_for_each_entry_safe(cf, tmp_cf, &frm_list, list) {
 			unsigned char *spos = pos;
 
 			if (!qc_build_frm(&spos, end, cf, pkt, qc)) {
