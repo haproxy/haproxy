@@ -255,7 +255,7 @@ struct task *task_run_applet(struct task *t, void *context, unsigned int state)
 	/* measure the call rate and check for anomalies when too high */
 	rate = update_freq_ctr(&app->call_rate, 1);
 	if (rate >= 100000 && app->call_rate.prev_ctr && // looped more than 100k times over last second
-	    ((b_size(sc_ib(sc)) && sc->flags & SC_FL_NEED_ROOM) || // asks for a buffer which is present
+	    ((b_size(sc_ib(sc)) && sc->flags & SC_FL_NEED_BUFF) || // asks for a buffer which is present
 	     (b_size(sc_ib(sc)) && !b_data(sc_ib(sc)) && sc->flags & SC_FL_NEED_ROOM) || // asks for room in an empty buffer
 	     (b_data(sc_ob(sc)) && sc_is_send_allowed(sc)) || // asks for data already present
 	     (!b_data(sc_ib(sc)) && b_data(sc_ob(sc)) && // didn't return anything ...
