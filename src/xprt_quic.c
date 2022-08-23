@@ -3707,8 +3707,7 @@ int quic_update_ack_ranges_list(struct quic_conn *qc,
 static inline void qc_rm_hp_pkts(struct quic_conn *qc, struct quic_enc_level *el)
 {
 	struct quic_tls_ctx *tls_ctx;
-	struct quic_rx_packet *pqpkt;
-	struct mt_list *pkttmp1, pkttmp2;
+	struct quic_rx_packet *pqpkt, *pkttmp;
 	struct quic_enc_level *app_qel;
 
 	TRACE_ENTER(QUIC_EV_CONN_ELRMHP, qc);
@@ -3720,7 +3719,7 @@ static inline void qc_rm_hp_pkts(struct quic_conn *qc, struct quic_enc_level *el
 		goto out;
 	}
 	tls_ctx = &el->tls_ctx;
-	mt_list_for_each_entry_safe(pqpkt, &el->rx.pqpkts, list, pkttmp1, pkttmp2) {
+	list_for_each_entry_safe(pqpkt, pkttmp, &el->rx.pqpkts, list) {
 		if (!qc_do_rm_hp(qc, pqpkt, tls_ctx, el->pktns->rx.largest_pn,
 		                 pqpkt->data + pqpkt->pn_offset, pqpkt->data)) {
 			TRACE_ERROR("hp removing error", QUIC_EV_CONN_ELRMHP, qc);
@@ -3734,7 +3733,7 @@ static inline void qc_rm_hp_pkts(struct quic_conn *qc, struct quic_enc_level *el
 			quic_rx_packet_refinc(pqpkt);
 			TRACE_DEVEL("hp removed", QUIC_EV_CONN_ELRMHP, qc, pqpkt);
 		}
-		MT_LIST_DELETE_SAFE(pkttmp1);
+		LIST_DELETE(&pqpkt->list);
 		quic_rx_packet_refdec(pqpkt);
 	}
 
@@ -4165,7 +4164,7 @@ static struct task *quic_conn_app_io_cb(struct task *t, void *context, unsigned 
 		qc_dgrams_retransmit(qc);
 	}
 
-	if (!MT_LIST_ISEMPTY(&qel->rx.pqpkts) && qc_qel_may_rm_hp(qc, qel))
+	if (!LIST_ISEMPTY(&qel->rx.pqpkts) && qc_qel_may_rm_hp(qc, qel))
 		qc_rm_hp_pkts(qc, qel);
 
 	if (!qc_treat_rx_pkts(qel, NULL, ctx, 0)) {
@@ -4239,7 +4238,7 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 	}
 	ssl_err = SSL_ERROR_NONE;
 	zero_rtt = st < QUIC_HS_ST_COMPLETE &&
-		(!MT_LIST_ISEMPTY(&qc->els[QUIC_TLS_ENC_LEVEL_EARLY_DATA].rx.pqpkts) ||
+		(!LIST_ISEMPTY(&qc->els[QUIC_TLS_ENC_LEVEL_EARLY_DATA].rx.pqpkts) ||
 		qc_el_rx_pkts(&qc->els[QUIC_TLS_ENC_LEVEL_EARLY_DATA]));
  start:
 	if (st >= QUIC_HS_ST_COMPLETE &&
@@ -4257,7 +4256,7 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 
  next_level:
 	/* Treat packets waiting for header packet protection decryption */
-	if (!MT_LIST_ISEMPTY(&qel->rx.pqpkts) && qc_qel_may_rm_hp(qc, qel))
+	if (!LIST_ISEMPTY(&qel->rx.pqpkts) && qc_qel_may_rm_hp(qc, qel))
 		qc_rm_hp_pkts(qc, qel);
 
 	force_ack = qel == &qc->els[QUIC_TLS_ENC_LEVEL_INITIAL] ||
@@ -4270,21 +4269,20 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 		goto out;
 
 	if (next_qel && next_qel == &qc->els[QUIC_TLS_ENC_LEVEL_EARLY_DATA] &&
-	    !MT_LIST_ISEMPTY(&next_qel->rx.pqpkts)) {
+	    !LIST_ISEMPTY(&next_qel->rx.pqpkts)) {
 	    if ((next_qel->tls_ctx.flags & QUIC_FL_TLS_SECRETS_SET)) {
 			qel = next_qel;
 			next_qel = NULL;
 			goto next_level;
 		}
 		else {
-			struct quic_rx_packet *pkt;
-			struct mt_list *elt1, elt2;
+			struct quic_rx_packet *pkt, *pkttmp;
 			struct quic_enc_level *aqel = &qc->els[QUIC_TLS_ENC_LEVEL_EARLY_DATA];
 
 			/* Drop these 0-RTT packets */
 			TRACE_DEVEL("drop all 0-RTT packets", QUIC_EV_CONN_PHPKTS, qc);
-			mt_list_for_each_entry_safe(pkt, &aqel->rx.pqpkts, list, elt1, elt2) {
-				MT_LIST_DELETE_SAFE(elt1);
+			list_for_each_entry_safe(pkt, pkttmp, &aqel->rx.pqpkts, list) {
+				LIST_DELETE(&pkt->list);
 				quic_rx_packet_refdec(pkt);
 			}
 		}
@@ -4350,7 +4348,7 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 	 */
 	if (next_qel && next_qel != qel &&
 	    (next_qel->tls_ctx.flags & QUIC_FL_TLS_SECRETS_SET) &&
-	    (!MT_LIST_ISEMPTY(&next_qel->rx.pqpkts) || qc_el_rx_pkts(next_qel))) {
+	    (!LIST_ISEMPTY(&next_qel->rx.pqpkts) || qc_el_rx_pkts(next_qel))) {
 		qel = next_qel;
 		next_qel = NULL;
 		goto next_level;
@@ -4400,7 +4398,7 @@ static int quic_conn_enc_level_init(struct quic_conn *qc,
 	qel->tls_ctx.flags = 0;
 
 	qel->rx.pkts = EB_ROOT;
-	MT_LIST_INIT(&qel->rx.pqpkts);
+	LIST_INIT(&qel->rx.pqpkts);
 	qel->rx.crypto.offset = 0;
 	qel->rx.crypto.frms = EB_ROOT_UNIQUE;
 
@@ -5074,7 +5072,7 @@ static inline int qc_try_rm_hp(struct quic_conn *qc,
 
 		TRACE_PROTO("hp not removed", QUIC_EV_CONN_TRMHP, qc, pkt);
 		pkt->pn_offset = pn - beg;
-		MT_LIST_APPEND(&qel->rx.pqpkts, &pkt->list);
+		LIST_APPEND(&qel->rx.pqpkts, &pkt->list);
 		quic_rx_packet_refinc(pkt);
 	}
 
