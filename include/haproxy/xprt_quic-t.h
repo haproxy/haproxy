@@ -391,7 +391,6 @@ struct quic_dgram {
 
 struct quic_rx_packet {
 	struct list list;
-	struct mt_list rx_list;
 	struct list qc_rx_pkt_list;
 	struct quic_conn *qc;
 	unsigned char type;
