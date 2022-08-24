@@ -1960,16 +1960,16 @@ static inline void qc_release_lost_pkts(struct quic_conn *qc,
                                         uint64_t now_us)
 {
 	struct quic_tx_packet *pkt, *tmp, *oldest_lost, *newest_lost;
-	uint64_t lost_bytes;
 
 	TRACE_ENTER(QUIC_EV_CONN_PRSAFRM, qc);
 
-	lost_bytes = 0;
+	if (LIST_ISEMPTY(pkts))
+		goto leave;
+
 	oldest_lost = newest_lost = NULL;
 	list_for_each_entry_safe(pkt, tmp, pkts, list) {
 		struct list tmp = LIST_HEAD_INIT(tmp);
 
-		lost_bytes += pkt->in_flight_len;
 		pkt->pktns->tx.in_flight -= pkt->in_flight_len;
 		qc->path->prep_in_flight -= pkt->in_flight_len;
 		qc->path->in_flight -= pkt->in_flight_len;
@@ -2011,12 +2011,11 @@ static inline void qc_release_lost_pkts(struct quic_conn *qc,
 			qc->path->cc.algo->slow_start(&qc->path->cc);
 	}
 
-	if (lost_bytes) {
-		quic_tx_packet_refdec(oldest_lost);
-		if (newest_lost != oldest_lost)
-			quic_tx_packet_refdec(newest_lost);
-	}
+	quic_tx_packet_refdec(oldest_lost);
+	if (newest_lost != oldest_lost)
+		quic_tx_packet_refdec(newest_lost);
 
+ leave:
 	TRACE_LEAVE(QUIC_EV_CONN_PRSAFRM, qc);
 }
 
@@ -2124,8 +2123,7 @@ static inline int qc_parse_ack_frm(struct quic_conn *qc,
 	if (!LIST_ISEMPTY(&newly_acked_pkts)) {
 		if (!eb_is_empty(&qel->pktns->tx.pkts)) {
 			qc_packet_loss_lookup(qel->pktns, qc, &lost_pkts);
-			if (!LIST_ISEMPTY(&lost_pkts))
-				qc_release_lost_pkts(qc, qel->pktns, &lost_pkts, now_ms);
+			qc_release_lost_pkts(qc, qel->pktns, &lost_pkts, now_ms);
 		}
 		qc_treat_newly_acked_pkts(qc, &newly_acked_pkts);
 		if (quic_peer_validated_addr(qc))
@@ -4547,8 +4545,7 @@ static struct task *process_timer(struct task *task, void *ctx, unsigned int sta
 		struct list lost_pkts = LIST_HEAD_INIT(lost_pkts);
 
 		qc_packet_loss_lookup(pktns, qc, &lost_pkts);
-		if (!LIST_ISEMPTY(&lost_pkts))
-			qc_release_lost_pkts(qc, pktns, &lost_pkts, now_ms);
+		qc_release_lost_pkts(qc, pktns, &lost_pkts, now_ms);
 		qc_set_timer(qc);
 		goto out;
 	}
