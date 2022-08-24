@@ -163,6 +163,7 @@ struct resolvers {
 	struct {
 		const char *file;           /* file where the section appears */
 		int         line;           /* line where the section appears */
+		int         implicit;       /* config was auto-generated and must be silent */
 	} conf;                             /* config information */
 };
 

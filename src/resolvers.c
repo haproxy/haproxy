@@ -2509,8 +2509,10 @@ static int resolvers_finalize_config(void)
 					continue;
 				}
 				if (connect(fd, (struct sockaddr*)&ns->dgram->conn.addr.to, get_addr_len(&ns->dgram->conn.addr.to)) == -1) {
-					ha_warning("resolvers '%s': can't connect socket for nameserver '%s'.\n",
-						 resolvers->id, ns->id);
+					if (!resolvers->conf.implicit) { /* emit a warning only if it was configured manually */
+						ha_warning("resolvers '%s': can't connect socket for nameserver '%s'.\n",
+						            resolvers->id, ns->id);
+					}
 					close(fd);
 					err_code |= ERR_WARN;
 					continue;
@@ -3682,6 +3684,9 @@ int resolvers_create_default()
 	err_code |= resolvers_new(&curr_resolvers, "default", "<internal>", 0);
 	if (err_code & ERR_CODE)
 		goto err;
+
+	curr_resolvers->conf.implicit = 1;
+
 	err_code |= parse_resolve_conf(NULL, NULL);
 	if (err_code & ERR_CODE)
 		goto err;
