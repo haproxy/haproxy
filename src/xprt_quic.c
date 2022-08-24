@@ -4545,6 +4545,8 @@ static struct task *process_timer(struct task *task, void *ctx, unsigned int sta
 		struct list lost_pkts = LIST_HEAD_INIT(lost_pkts);
 
 		qc_packet_loss_lookup(pktns, qc, &lost_pkts);
+		if (!LIST_ISEMPTY(&lost_pkts))
+		    tasklet_wakeup(conn_ctx->wait_event.tasklet);
 		qc_release_lost_pkts(qc, pktns, &lost_pkts, now_ms);
 		qc_set_timer(qc);
 		goto out;
