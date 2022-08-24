@@ -1688,6 +1688,13 @@ int init_srv_agent_check(struct server *srv)
 		LIST_INSERT(srv->agent.tcpcheck_rules->list, &chk->list);
 	}
 
+	/* <chk> is always defined here and it is a CONNECT action. If there is
+	 * a preset variable, it means there is an agent string defined and data
+	 * will be sent after the connect.
+	 */
+	if (!LIST_ISEMPTY(&srv->agent.tcpcheck_rules->preset_vars))
+		chk->connect.options |= TCPCHK_OPT_HAS_DATA;
+
 
 	err = init_check(&srv->agent, PR_O2_TCPCHK_CHK);
 	if (err) {
