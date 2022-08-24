@@ -3671,6 +3671,9 @@ int resolvers_create_default()
 {
 	int err_code = 0;
 
+	if (global.mode & MODE_MWORKER_WAIT) /* does not create the section if in wait mode */
+		return 0;
+
 	/* if the section already exists, do nothing */
 	if (find_resolvers_by_id("default"))
 		return 0;
