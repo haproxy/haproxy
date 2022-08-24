@@ -8,12 +8,12 @@ feature ignore_unknown_macro
 server s1 {
 	rxreq
 	txresp
-} -repeat 2 -start
+} -start
 
 server s2 {
 	rxreq
 	txresp
-} -repeat 2 -start
+}  -start
 
 haproxy h1 -conf {
     defaults
@@ -33,8 +33,9 @@ haproxy h1 -conf {
 
     backend be
 	stick-table type ip size 1m expire 10s store http_req_rate(10s)
+	option httpchk
 	server s1 ${s1_addr}:${s1_port}
-	server s2 ${s2_addr}:${s2_port} check maxqueue 10 maxconn 12 pool-max-conn 42
+	server s2 ${s2_addr}:${s2_port} check inter 5s maxqueue 10 maxconn 12 pool-max-conn 42
 } -start
 
 client c1 -connect ${h1_stats_sock} {
