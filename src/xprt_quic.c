@@ -1475,8 +1475,14 @@ static void qc_frm_unref(struct quic_conn *qc, struct quic_frame *frm)
 	list_for_each_entry_safe(f, tmp, &frm->reflist, ref) {
 		f->origin = NULL;
 		LIST_DELETE(&f->ref);
-		TRACE_DEVEL("remove frame reference",
-		            QUIC_EV_CONN_PRSAFRM, qc, f, &f->pkt->pn_node.key);
+		if (f->pkt) {
+			TRACE_DEVEL("remove frame reference",
+			            QUIC_EV_CONN_PRSAFRM, qc, f, &f->pkt->pn_node.key);
+		}
+		else {
+			TRACE_DEVEL("remove frame reference for unsent frame",
+			            QUIC_EV_CONN_PRSAFRM, qc, f);
+		}
 	}
 
 	TRACE_LEAVE(QUIC_EV_CONN_PRSAFRM, qc);
@@ -1502,9 +1508,15 @@ void qc_release_frm(struct quic_conn *qc, struct quic_frame *frm)
 	 * the current one.
 	 */
 	list_for_each_entry_safe(f, tmp, &origin->reflist, ref) {
-		pn = f->pkt->pn_node.key;
-		TRACE_DEVEL("mark frame as acked from packet",
-		            QUIC_EV_CONN_PRSAFRM, qc, f, &pn);
+		if (f->pkt) {
+			pn = f->pkt->pn_node.key;
+			TRACE_DEVEL("mark frame as acked from packet",
+			            QUIC_EV_CONN_PRSAFRM, qc, f, &pn);
+		}
+		else {
+			TRACE_DEVEL("mark unsend frame as acked",
+			            QUIC_EV_CONN_PRSAFRM, qc, f);
+		}
 		f->flags |= QUIC_FL_TX_FRAME_ACKED;
 		f->origin = NULL;
 		LIST_DELETE(&f->ref);
