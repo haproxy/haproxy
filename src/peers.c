@@ -3467,6 +3467,10 @@ struct task *process_peer_sync(struct task * task, void *context, unsigned int s
 			}
 		}
 		else if (!ps->appctx) {
+			/* Re-arm resync timeout if necessary */
+			if (!tick_isset(peers->resync_timeout))
+				peers->resync_timeout = tick_add(now_ms, MS_TO_TICKS(PEER_RESYNC_TIMEOUT));
+
 			/* If there's no active peer connection */
 			if (!tick_is_expired(peers->resync_timeout, now_ms) &&
 			    (ps->statuscode == 0 ||
@@ -3502,6 +3506,9 @@ struct task *process_peer_sync(struct task * task, void *context, unsigned int s
 			}
 		}
 		else if (ps->statuscode == PEER_SESS_SC_SUCCESSCODE ) {
+			/* Reset resync timeout during a resync */
+			peers->resync_timeout = TICK_ETERNITY;
+
 			/* current peer connection is active and established
 			 * wake up all peer handlers to push remaining local updates */
 			for (st = ps->tables; st ; st = st->next) {
