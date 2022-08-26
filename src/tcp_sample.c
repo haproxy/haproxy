@@ -373,7 +373,6 @@ static inline int get_tcp_info(const struct arg *args, struct sample *smp,
 	return 1;
 }
 
-#if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) || defined(__APPLE__)
 /* get the mean rtt of a client connection */
 static int
 smp_fetch_fc_rtt(const struct arg *args, struct sample *smp, const char *kw, void *private)
@@ -387,9 +386,7 @@ smp_fetch_fc_rtt(const struct arg *args, struct sample *smp, const char *kw, voi
 
 	return 1;
 }
-#endif
 
-#if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) || defined(__APPLE__)
 /* get the variance of the mean rtt of a client connection */
 static int
 smp_fetch_fc_rttvar(const struct arg *args, struct sample *smp, const char *kw, void *private)
@@ -403,8 +400,6 @@ smp_fetch_fc_rttvar(const struct arg *args, struct sample *smp, const char *kw, 
 
 	return 1;
 }
-#endif
-
 
 #if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) || defined(__APPLE__)
 /* get the unacked counter on a client connection */
