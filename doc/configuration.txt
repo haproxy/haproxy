@@ -6595,7 +6595,7 @@ http-request do-resolve(<var>,<resolvers>,[ipv4,ipv6]) <expr>
 
     frontend fe
       bind 10.42.0.1:80
-      http-request do-resolve(txn.myip,mydns,ipv4) hdr(Host),lower,regsub(:[0-9]*$,)
+      http-request do-resolve(txn.myip,mydns,ipv4) hdr(Host),host_only
       http-request capture var(txn.myip) len 40
 
       # return 503 when the variable is not set,
