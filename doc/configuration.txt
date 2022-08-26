@@ -17052,6 +17052,16 @@ hmac(<algorithm>,<key>)
   Please note that this converter is only available when HAProxy has been
   compiled with USE_OPENSSL.
 
+host_only
+  Converts a string which contains a Host header value and removes its port.
+  The input must respect the format of the host header value
+  (rfc9110#section-7.2). It will support that kind of input: hostname,
+  hostname:80, 127.0.0.1, 127.0.0.1:80, [::1], [::1]:80.
+
+  This converter also sets the string in lowercase.
+
+  See also: "port_only" converter which will return the port.
+
 http_date([<offset],[<unit>])
   Converts an integer supposed to contain a date since epoch to a string
   representing this date in a format suitable for use in HTTP header fields. If
@@ -17493,6 +17503,17 @@ or(<value>)
     "res"  : the variable is shared only during response processing
   This prefix is followed by a name. The separator is a '.'. The name may only
   contain characters 'a-z', 'A-Z', '0-9', '.' and '_'.
+
+port_only
+  Converts a string which contains a Host header value into an integer by
+  returning its port.
+  The input must respect the format of the host header value
+  (rfc9110#section-7.2). It will support that kind of input: hostname,
+  hostname:80, 127.0.0.1, 127.0.0.1:80, [::1], [::1]:80.
+
+  If no port were provided in the input, it will return 0.
+
+  See also: "host_only" converter which will return the host.
 
 protobuf(<field_number>,[<field_type>])
   This extracts the protocol buffers message field in raw mode of an input binary

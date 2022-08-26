@@ -3266,6 +3266,58 @@ static int sample_conv_strcmp(const struct arg *arg_p, struct sample *smp, void 
 	smp->data.type = SMP_T_SINT;
 	return 1;
 }
+/*
+ * This converter can takes a Host header value as defined by rfc9110#section-7.2
+ * Host = uri-host [ ":" port ] ;
+ * It returns the uri-host value in lowecase with the port stripped.
+ */
+static int sample_conv_host_only(const struct arg *arg_p, struct sample *smp, void *private)
+{
+	/* Working cases: hostname00, hostname00:80, 127.0.0.1, 127.0.0.1:80, [::1], [::1]:80 */
+	char *beg = smp->data.u.str.area;
+	char *end = smp->data.u.str.area + smp->data.u.str.data - 1;
+	char *p;
+
+	for (p = end; p >= beg; p--) {
+		if (*p == ':' || *p == ']')
+			break;
+	}
+
+	if (p >= beg && *p == ':')
+		smp->data.u.str.data = p - beg;
+	/* if no port part was found, the hostname is the whole string */
+
+	smp->data.type = SMP_T_STR;
+
+	return sample_conv_str2lower(arg_p, smp, NULL);
+}
+
+/*
+ * This converter can takes a Host header value as defined by rfc9110#section-7.2
+ * Host = uri-host [ ":" port ] ;
+ * It returns the port value as a int.
+ */
+static int sample_conv_port_only(const struct arg *arg_p, struct sample *smp, void *private)
+{
+	/* Working cases: hostname00, hostname00:80, 127.0.0.1, 127.0.0.1:80, [::1], [::1]:80 */
+	char *beg = smp->data.u.str.area;
+	char *end = smp->data.u.str.area + smp->data.u.str.data - 1;
+	char *p;
+
+	for (p = end; p >= beg; p--) {
+		if (*p == ':' || *p == ']')
+			break;
+	}
+
+	smp->data.type = SMP_T_SINT;
+	if (p >= beg && *p == ':' && ++p <= end) {
+		smp->data.u.sint = strl2ui(p, smp->data.u.str.data + smp->data.u.str.area - p);
+	} else {
+		smp->data.u.sint = 0;
+	}
+	return 1;
+}
+
 
 /* Takes a boolean as input. Returns the first argument if that boolean is true and
  * the second argument otherwise.
@@ -4350,6 +4402,8 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "regsub",  sample_conv_regsub,       ARG3(2,REG,STR,STR),   sample_conv_regsub_check, SMP_T_STR,  SMP_T_STR  },
 	{ "sha1",    sample_conv_sha1,         0,                     NULL,                     SMP_T_BIN,  SMP_T_BIN  },
 	{ "strcmp",  sample_conv_strcmp,       ARG1(1,STR),           smp_check_strcmp,         SMP_T_STR,  SMP_T_SINT },
+	{ "host_only", sample_conv_host_only,  0,                     NULL,                     SMP_T_STR,  SMP_T_STR  },
+	{ "port_only", sample_conv_port_only,  0,                     NULL,                     SMP_T_STR,  SMP_T_SINT },
 
 	/* gRPC converters. */
 	{ "ungrpc", sample_conv_ungrpc,    ARG2(1,PBUF_FNUM,STR), sample_conv_protobuf_check, SMP_T_BIN, SMP_T_BIN  },
