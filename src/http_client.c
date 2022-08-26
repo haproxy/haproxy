@@ -1070,7 +1070,7 @@ static int httpclient_resolve_init()
 	char *do_resolve = NULL;
 	char *http_rules[][11] = {
 	       { "set-var(txn.hc_ip)", "dst", "" },
-	       { do_resolve, "hdr(Host),lower", "if", "{", "var(txn.hc_ip)", "-m", "ip", "0.0.0.0", "}", "" },
+	       { do_resolve, "hdr(Host),host_only", "if", "{", "var(txn.hc_ip)", "-m", "ip", "0.0.0.0", "}", "" },
 	       { "return", "status", "503", "if", "{", "var(txn.hc_ip)", "-m", "ip", "0.0.0.0", "}", "" },
 	       { "capture", "var(txn.hc_ip)", "len", "40", "" },
 	       { "set-dst", "var(txn.hc_ip)", "" },
