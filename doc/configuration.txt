@@ -6579,7 +6579,8 @@ http-request do-resolve(<var>,<resolvers>,[ipv4,ipv6]) <expr>
   based on information found in the request (IE a Host header).
   If this action is used to find the server's IP address (using the
   "set-dst" action), then the server IP address in the backend must be set
-  to 0.0.0.0.
+  to 0.0.0.0. The do-resolve action takes an host-only parameter, any port must
+  be removed from the string.
 
   Example:
     resolvers mydns
@@ -6594,7 +6595,7 @@ http-request do-resolve(<var>,<resolvers>,[ipv4,ipv6]) <expr>
 
     frontend fe
       bind 10.42.0.1:80
-      http-request do-resolve(txn.myip,mydns,ipv4) hdr(Host),lower
+      http-request do-resolve(txn.myip,mydns,ipv4) hdr(Host),lower,regsub(:[0-9]*$,)
       http-request capture var(txn.myip) len 40
 
       # return 503 when the variable is not set,
