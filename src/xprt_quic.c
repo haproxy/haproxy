@@ -2355,8 +2355,13 @@ static void qc_dup_pkt_frms(struct quic_conn *qc,
 		 */
 		origin = frm->origin ? frm->origin : frm;
 		TRACE_DEVEL("built probing frame", QUIC_EV_CONN_PRSAFRM, qc, origin);
-		TRACE_DEVEL("duplicated from packet", QUIC_EV_CONN_PRSAFRM,
-		            qc, NULL, &origin->pkt->pn_node.key);
+		if (origin->pkt)
+			TRACE_DEVEL("duplicated from packet", QUIC_EV_CONN_PRSAFRM,
+			            qc, NULL, &origin->pkt->pn_node.key);
+		else {
+			/* <origin> is a frame which was sent from a packet detected as lost. */
+			TRACE_DEVEL("duplicated from lost packet", QUIC_EV_CONN_PRSAFRM, qc);
+		}
 		*dup_frm = *origin;
 		dup_frm->pkt = NULL;
 		dup_frm->origin = origin;
