@@ -989,6 +989,7 @@ void ckch_inst_free(struct ckch_inst *inst)
 	list_for_each_entry_safe(link_ref, link_ref_s, &inst->cafile_link_refs, list) {
 		LIST_DELETE(&link_ref->link->list);
 		LIST_DELETE(&link_ref->list);
+		free(link_ref->link);
 		free(link_ref);
 	}
 
