@@ -4802,10 +4802,6 @@ static struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	if (!qc_new_isecs(qc, ictx,qc->original_version, dcid->data, dcid->len, 1))
 		goto err;
 
-	if (!quic_tls_dec_aes_ctx_init(&ictx->rx.hp_ctx, ictx->rx.hp, ictx->rx.hp_key) ||
-	    !quic_tls_enc_aes_ctx_init(&ictx->tx.hp_ctx, ictx->tx.hp, ictx->tx.hp_key))
-	    goto err;
-
 	TRACE_LEAVE(QUIC_EV_CONN_INIT, qc);
 
 	return qc;

@@ -541,6 +541,9 @@ static inline int qc_new_isecs(struct quic_conn *qc,
 	if (!quic_tls_rx_ctx_init(&rx_ctx->ctx, rx_ctx->aead, rx_ctx->key))
 		goto err;
 
+	if (!quic_tls_enc_aes_ctx_init(&rx_ctx->hp_ctx, rx_ctx->hp, rx_ctx->hp_key))
+		goto err;
+
 	if (!quic_tls_derive_keys(ctx->tx.aead, ctx->tx.hp, ctx->tx.md, ver,
 	                          tx_ctx->key, tx_ctx->keylen,
 	                          tx_ctx->iv, tx_ctx->ivlen,
@@ -549,6 +552,9 @@ static inline int qc_new_isecs(struct quic_conn *qc,
 		goto err;
 
 	if (!quic_tls_tx_ctx_init(&tx_ctx->ctx, tx_ctx->aead, tx_ctx->key))
+		goto err;
+
+	if (!quic_tls_enc_aes_ctx_init(&tx_ctx->hp_ctx, tx_ctx->hp, tx_ctx->hp_key))
 		goto err;
 
 	ctx->flags |= QUIC_FL_TLS_SECRETS_SET;
