@@ -363,7 +363,7 @@ int quic_tls_enc_aes_ctx_init(EVP_CIPHER_CTX **aes_ctx,
 }
 
 /* Encrypt <inlen> bytes from <in> buffer into <out> with <ctx> as AES
- * cipher context. This is the responsability of the caller to check there
+ * cipher context. This is the responsibility of the caller to check there
  * is at least <inlen> bytes of available space in <out> buffer.
  * Return 1 if succeeded, 0 if not.
  */
@@ -403,7 +403,7 @@ int quic_tls_dec_aes_ctx_init(EVP_CIPHER_CTX **aes_ctx,
 }
 
 /* Decrypt <in> data into <out> with <ctx> as AES cipher context.
- * This is the responsability of the caller to check there is at least
+ * This is the responsibility of the caller to check there is at least
  * <outlen> bytes into <in> buffer.
  * Return 1 if succeeded, 0 if not.
  */

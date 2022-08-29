@@ -2131,7 +2131,7 @@ static int ssl_sock_advertise_alpn_protos(SSL *s, const unsigned char **out,
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
 #ifndef SSL_NO_GENERATE_CERTIFICATES
 
-/* Configure a DNS SAN extenion on a certificate. */
+/* Configure a DNS SAN extension on a certificate. */
 int ssl_sock_add_san_ext(X509V3_CTX* ctx, X509* cert, const char *servername) {
 	int failure = 0;
 	X509_EXTENSION *san_ext = NULL;

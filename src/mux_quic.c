@@ -2290,7 +2290,7 @@ static int qc_wake(struct connection *conn)
 
 	/* Check if a soft-stop is in progress.
 	 *
-	 * TODO this is revelant for frontend connections only.
+	 * TODO this is relevant for frontend connections only.
 	 *
 	 * TODO Client should be notified with a H3 GOAWAY and then a
 	 * CONNECTION_CLOSE. However, quic-conn uses the listener socket for
