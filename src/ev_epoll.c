@@ -95,7 +95,7 @@ static void _update_fd(int fd)
 	 * neither active nor ready, force it to be active so that we don't
 	 * needlessly unsubscribe then re-subscribe it.
 	 */
-	if (!(en & FD_EV_READY_R) &&
+	if (!(en & (FD_EV_READY_R | FD_EV_SHUT_R | FD_EV_ERR_RW | FD_POLL_ERR)) &&
 	    ((en & FD_EV_ACTIVE_W) || ((ps | pr) & ti->ltid_bit)))
 		en |= FD_EV_ACTIVE_R;
 
