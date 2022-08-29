@@ -360,6 +360,13 @@ static size_t raw_sock_from_buf(struct connection *conn, void *xprt_ctx, const s
 	if (!fd_send_ready(conn->handle.fd))
 		return 0;
 
+	if (unlikely(fdtab[conn->handle.fd].state & FD_POLL_ERR)) {
+		/* an error was reported on the FD, we can't send anymore */
+		conn->flags |= CO_FL_ERROR | CO_FL_SOCK_WR_SH | CO_FL_SOCK_RD_SH;
+		errno = EPIPE;
+		return 0;
+	}
+
 	if (conn->flags & CO_FL_SOCK_WR_SH) {
 		/* it's already closed */
 		conn->flags |= CO_FL_ERROR | CO_FL_SOCK_RD_SH;
