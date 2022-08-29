@@ -3908,6 +3908,7 @@ void ckch_deinit()
 
 		entry = ebmb_entry(canode, struct cafile_entry, node);
 		canode = ebmb_next(canode);
+		ebmb_delete(&entry->node);
 		ssl_store_delete_cafile_entry(entry);
 	}
 }
