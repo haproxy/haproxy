@@ -3211,7 +3211,9 @@ void peers_setup_frontend(struct proxy *fe)
 	fe->mode = PR_MODE_PEERS;
 	fe->maxconn = 0;
 	fe->conn_retries = CONN_RETRIES;
+	fe->timeout.connect = MS_TO_TICKS(1000);
 	fe->timeout.client = MS_TO_TICKS(5000);
+	fe->timeout.server = MS_TO_TICKS(5000);
 	fe->accept = frontend_accept;
 	fe->default_target = &peer_applet.obj_type;
 	fe->options2 |= PR_O2_INDEPSTR | PR_O2_SMARTCON | PR_O2_SMARTACC;
