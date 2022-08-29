@@ -3203,6 +3203,7 @@ int qc_send_ppkts(struct buffer *buf, struct ssl_sock_ctx *ctx)
 		tmpbuf.area = (char *)pos;
 		tmpbuf.size = tmpbuf.data = dglen;
 
+		TRACE_DATA("send dgram", QUIC_EV_CONN_SPPKTS, qc);
 		/* If sendto is on error just skip the call to it for the rest
 		 * of the loop but continue to purge the buffer. Data will be
 		 * transmitted when QUIC packets are detected as lost on our
