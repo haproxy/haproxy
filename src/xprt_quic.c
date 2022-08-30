@@ -366,9 +366,6 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 					chunk_appendf(&trace_buf, " pn=%llu",(ull)pkt->pn_node.key);
 				list_for_each_entry(frm, &pkt->frms, list)
 					chunk_frm_appendf(&trace_buf, frm);
-				chunk_appendf(&trace_buf, " rx.bytes=%llu tx.bytes=%llu",
-				              (unsigned long long)qc->rx.bytes,
-				              (unsigned long long)qc->tx.bytes);
 			}
 
 			if (room) {
@@ -612,6 +609,9 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 				              pkt->pktns == &qc->pktns[QUIC_TLS_PKTNS_INITIAL] ? "I" :
 				              pkt->pktns == &qc->pktns[QUIC_TLS_PKTNS_01RTT] ? "01RTT": "H",
 				              (unsigned long long)pkt->in_flight_len);
+				chunk_appendf(&trace_buf, " rx.bytes=%llu tx.bytes=%llu",
+				              (unsigned long long)qc->rx.bytes,
+				              (unsigned long long)qc->tx.bytes);
 			}
 		}
 
@@ -2409,18 +2409,18 @@ static void qc_prep_fast_retrans(struct quic_conn *qc,
 	 */
 	if (!quic_peer_validated_addr(qc) && qc_is_listener(qc) &&
 	    pkt->len + 4 > 3 * qc->rx.bytes - qc->tx.prep_bytes) {
-		TRACE_PROTO("anti-amplification limit would be reached", QUIC_EV_CONN_PRSAFRM, qc);
+		TRACE_PROTO("anti-amplification limit would be reached", QUIC_EV_CONN_SPPKTS, qc, pkt);
 		goto leave;
 	}
 
-	TRACE_DEVEL("duplicating packet", QUIC_EV_CONN_PRSAFRM, qc, NULL, &pkt->pn_node.key);
+	TRACE_DEVEL("duplicating packet", QUIC_EV_CONN_SPPKTS, qc, pkt);
 	qc_dup_pkt_frms(qc, &pkt->frms, frms);
 	if (frms == frms1 && frms2) {
 		frms = frms2;
 		goto start;
 	}
  leave:
-	TRACE_LEAVE(QUIC_EV_CONN_PRSAFRM, qc);
+	TRACE_LEAVE(QUIC_EV_CONN_SPPKTS, qc);
 }
 
 /* Prepare a fast retransmission during a handshake after a client
