@@ -1187,8 +1187,10 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 	if (proto && proto->connect) {
 		int flags = 0;
 
+		if (!next)
+			flags |= CONNECT_DELACK_ALWAYS;
 		if (connect->options & TCPCHK_OPT_HAS_DATA)
-			flags = (CONNECT_HAS_DATA|CONNECT_DELACK_ALWAYS);
+			flags |= (CONNECT_HAS_DATA|CONNECT_DELACK_ALWAYS);
 		status = proto->connect(conn, flags);
 	}
 
