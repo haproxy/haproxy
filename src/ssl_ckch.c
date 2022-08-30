@@ -2810,7 +2810,7 @@ static int cli_io_handler_commit_cafile_crlfile(struct appctx *appctx)
 	int y = 0;
 	struct cafile_entry *old_cafile_entry = ctx->old_entry;
 	struct cafile_entry *new_cafile_entry = ctx->new_entry;
-	struct ckch_inst_link *ckchi_link;
+	struct ckch_inst_link *ckchi_link, *ckchi_link_back;
 	char *path;
 
 	if (unlikely(sc_ic(sc)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
@@ -2910,7 +2910,7 @@ static int cli_io_handler_commit_cafile_crlfile(struct appctx *appctx)
 				}
 
 				/* delete the old sni_ctx, the old ckch_insts and the ckch_store */
-				list_for_each_entry(ckchi_link, &old_cafile_entry->ckch_inst_link, list) {
+				list_for_each_entry_safe(ckchi_link, ckchi_link_back, &old_cafile_entry->ckch_inst_link, list) {
 					__ckch_inst_free_locked(ckchi_link->ckch_inst);
 				}
 
