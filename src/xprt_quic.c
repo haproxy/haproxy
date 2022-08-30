@@ -6694,7 +6694,7 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 	must_ack = !qel->pktns->tx.pto_probe &&
 		(force_ack || ((qel->pktns->flags & QUIC_FL_PKTNS_ACK_REQUIRED) &&
 		 (LIST_ISEMPTY(frms) || nb_aepkts_since_last_ack >= QUIC_MAX_RX_AEPKTS_SINCE_LAST_ACK)));
-	if (force_ack || must_ack) {
+	if (must_ack) {
 	    struct quic_arngs *arngs = &qel->pktns->rx.arngs;
 	    BUG_ON(eb_is_empty(&qel->pktns->rx.arngs.root));
 		ack_frm.tx_ack.arngs = arngs;
