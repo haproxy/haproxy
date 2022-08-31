@@ -1764,6 +1764,7 @@ static inline void qc_requeue_nacked_pkt_tx_frms(struct quic_conn *qc,
 			if (strm_frm->offset.key + strm_frm->len <= stream_desc->ack_offset) {
 				TRACE_DEVEL("ignored frame in already acked range",
 				            QUIC_EV_CONN_PRSAFRM, qc, frm);
+				pool_free(pool_head_quic_frame, frm);
 				continue;
 			}
 			else if (strm_frm->offset.key < stream_desc->ack_offset) {
@@ -3424,6 +3425,7 @@ static int quic_build_post_handshake_frames(struct quic_conn *qc)
 		LIST_INIT(&frm->reflist);
 		cid = new_quic_cid(&qc->cids, qc, i);
 		if (!cid) {
+			pool_free(pool_head_quic_frame, frm);
 			TRACE_ERROR("CID allocation error", QUIC_EV_CONN_IO_CB, qc);
 			goto err;
 		}
