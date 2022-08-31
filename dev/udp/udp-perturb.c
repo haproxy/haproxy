@@ -193,7 +193,7 @@ int create_udp_listener(struct sockaddr_storage *addr, struct errmsg *err)
 		goto fail;
 	}
 #endif
-	if (bind(fd, (struct sockaddr *)&frt_addr, addr->ss_family == AF_INET6 ?
+	if (bind(fd, (struct sockaddr *)addr, addr->ss_family == AF_INET6 ?
 		 sizeof(struct sockaddr_in6) : sizeof(struct sockaddr_in)) == -1) {
 		err->len = snprintf(err->msg, err->size, "bind(): '%s'", strerror(errno));
 		goto fail;
@@ -297,6 +297,7 @@ int handle_frt(int fd, struct pollfd *pfd, struct conn *conns, int nbconn)
 		pktbuf = history[history_idx].buf;
 	}
 
+	addrlen = sizeof(addr);
 	ret = recvfrom(fd, pktbuf, MAXPKTSIZE, MSG_DONTWAIT | MSG_NOSIGNAL,
 		       (struct sockaddr *)&addr, &addrlen);
 
