@@ -1520,7 +1520,7 @@ void qc_release_frm(struct quic_conn *qc, struct quic_frame *frm)
 			            QUIC_EV_CONN_PRSAFRM, qc, f, &pn);
 		}
 		else {
-			TRACE_DEVEL("mark unsend frame as acked",
+			TRACE_DEVEL("mark unsent frame as acked",
 			            QUIC_EV_CONN_PRSAFRM, qc, f);
 		}
 		f->flags |= QUIC_FL_TX_FRAME_ACKED;
