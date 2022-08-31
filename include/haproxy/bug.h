@@ -140,9 +140,9 @@ static inline __attribute((always_inline)) void ha_crash_now(void)
 #  define CHECK_IF(cond)     _BUG_ON_ONCE(cond, __FILE__, __LINE__, 1, "FATAL: check ",   "")
 # endif
 #else
-#  define BUG_ON(cond)
-#  define WARN_ON(cond)
-#  define CHECK_IF(cond)
+#  define BUG_ON(cond)       do { } while (0)
+#  define WARN_ON(cond)      do { } while (0)
+#  define CHECK_IF(cond)     do { } while (0)
 #endif
 
 /* These macros are only for hot paths and remain disabled unless DEBUG_STRICT is 2 or above.
@@ -164,8 +164,8 @@ static inline __attribute((always_inline)) void ha_crash_now(void)
 #  define CHECK_IF_HOT(cond) _BUG_ON_ONCE(cond, __FILE__, __LINE__, 1, "FATAL: check ",   "")
 # endif
 #else
-#  define BUG_ON_HOT(cond)
-#  define CHECK_IF_HOT(cond)
+#  define BUG_ON_HOT(cond)   do { } while (0)
+#  define CHECK_IF_HOT(cond) do { } while (0)
 #endif
 
 
