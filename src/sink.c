@@ -751,6 +751,54 @@ int sink_init_forward(struct sink *sink)
 	task_wakeup(sink->forward_task, TASK_WOKEN_INIT);
 	return 1;
 }
+
+/* This tries to rotate a file-backed ring, but only if it contains contents.
+ * This way empty rings will not cause backups to be overwritten and it's safe
+ * to reload multiple times. That's only best effort, failures are silently
+ * ignored.
+ */
+void sink_rotate_file_backed_ring(const char *name)
+{
+	struct ring ring;
+	char *oldback;
+	int ret;
+	int fd;
+
+	fd = open(name, O_RDONLY);
+	if (fd < 0)
+		return;
+
+	/* check for contents validity */
+	ret = read(fd, &ring, sizeof(ring));
+	close(fd);
+
+	if (ret != sizeof(ring))
+		goto rotate;
+
+	/* contents are present, we want to keep them => rotate. Note that
+	 * an empty ring buffer has one byte (the marker).
+	 */
+	if (ring.buf.data > 1)
+		goto rotate;
+
+	/* nothing to keep, let's scratch the file and preserve the backup */
+	return;
+
+ rotate:
+	oldback = NULL;
+	memprintf(&oldback, "%s.bak", name);
+	if (oldback) {
+		/* try to rename any possibly existing ring file to
+		 * ".bak" and delete remains of older ones. This will
+		 * ensure we don't wipe useful debug info upon restart.
+		 */
+		unlink(oldback);
+		if (rename(name, oldback) < 0)
+			unlink(oldback);
+		ha_free(&oldback);
+	}
+}
+
 /*
  * Parse "ring" section and create corresponding sink buffer.
  *
@@ -846,7 +894,6 @@ int cfg_parse_ring(const char *file, int linenum, char **args, int kwm)
 		 * for ring <ring>. Existing data are delete. NULL is returned on error.
 		 */
 		const char *backing = args[1];
-		char *oldback;
 		size_t size;
 		void *area;
 		int fd;
@@ -863,18 +910,12 @@ int cfg_parse_ring(const char *file, int linenum, char **args, int kwm)
 			goto err;
 		}
 
-		oldback = NULL;
-		memprintf(&oldback, "%s.bak", backing);
-		if (oldback) {
-			/* try to rename any possibly existing ring file to
-			 * ".bak" and delete remains of older ones. This will
-			 * ensure we don't wipe useful debug info upon restart.
-			 */
-			unlink(oldback);
-			if (rename(backing, oldback) < 0)
-				unlink(oldback);
-			ha_free(&oldback);
-		}
+		/* let's check if the file exists and is not empty. That's the
+		 * only condition under which we'll trigger a rotate, so that
+		 * config checks, reloads, or restarts that don't emit anything
+		 * do not rotate it again.
+		 */
+		sink_rotate_file_backed_ring(backing);
 
 		fd = open(backing, O_RDWR | O_CREAT, 0600);
 		if (fd < 0) {

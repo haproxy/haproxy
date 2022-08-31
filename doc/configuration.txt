@@ -3603,12 +3603,18 @@ backing-file <path>
   the "struct ring" that starts at the beginning of the area, and that is
   required to recover the area's contents. The file will be created with the
   starting user's ownership, with mode 0600 and will be of the size configured
-  by the "size" directive. Any previously existing file will be renamed with
-  the extra suffix ".bak", and any previously existing file with suffix ".bak"
-  will be removed. This ensures that instant restart of the process will not
-  wipe precious debugging information, and will leave time for an admin to spot
-  this new ".bak" file and to archive it if needed. This means that the total
-  storage capacity required will be double of the ring size.
+  by the "size" directive. When the directive is parsed (thus even during
+  config checks), any existing non-empty file will first be renamed with the
+  extra suffix ".bak", and any previously existing file with suffix ".bak" will
+  be removed. This ensures that instant reload or restart of the process will
+  not wipe precious debugging information, and will leave time for an admin to
+  spot this new ".bak" file and to archive it if needed. As such, after a crash
+  the file designated by <path> will contain the freshest information, and if
+  the service is restarted, the "<path>.bak" file will have it instead. This
+  means that the total storage capacity required will be double of the ring
+  size. Failures to rotate the file are silently ignored, so placing the file
+  into a directory without write permissions will be sufficient to avoid the
+  backup file if not desired.
 
   WARNING: there are stability and security implications in using this feature.
   First, backing the ring to a slow device (e.g. physical hard drive) may cause
