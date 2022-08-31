@@ -339,8 +339,10 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 
 			if (l) {
 				const struct quic_frame *frm;
-				list_for_each_entry(frm, l, list)
+				list_for_each_entry(frm, l, list) {
+					chunk_appendf(&trace_buf, " frm@%p", frm);
 					chunk_frm_appendf(&trace_buf, frm);
+				}
 			}
 		}
 
@@ -364,8 +366,10 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 				const struct quic_frame *frm;
 				if (pkt->pn_node.key != (uint64_t)-1)
 					chunk_appendf(&trace_buf, " pn=%llu",(ull)pkt->pn_node.key);
-				list_for_each_entry(frm, &pkt->frms, list)
+				list_for_each_entry(frm, &pkt->frms, list) {
+					chunk_appendf(&trace_buf, " frm@%p", frm);
 					chunk_frm_appendf(&trace_buf, frm);
+				}
 			}
 
 			if (room) {
@@ -642,8 +646,10 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 		if (mask & QUIC_EV_CONN_PSTRM) {
 			const struct quic_frame *frm = a2;
 
-			if (frm)
+			if (frm) {
+				chunk_appendf(&trace_buf, " frm@%p", frm);
 				chunk_frm_appendf(&trace_buf, frm);
+			}
 		}
 	}
 	if (mask & QUIC_EV_CONN_LPKT) {
