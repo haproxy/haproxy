@@ -986,8 +986,15 @@ void ckch_inst_free(struct ckch_inst *inst)
 	LIST_DELETE(&inst->by_ckchs);
 	LIST_DELETE(&inst->by_crtlist_entry);
 
+	/* Free the cafile_link_refs list */
 	list_for_each_entry_safe(link_ref, link_ref_s, &inst->cafile_link_refs, list) {
-		LIST_DELETE(&link_ref->link->list);
+		if (link_ref->link && LIST_INLIST(&link_ref->link->list)) {
+			/* Try to detach and free the ckch_inst_link only if it
+			 * was attached, this way it can be used to loop from
+			 * the caller */
+			LIST_DEL_INIT(&link_ref->link->list);
+			ha_free(&link_ref->link);
+		}
 		LIST_DELETE(&link_ref->list);
 		free(link_ref);
 	}
@@ -2908,11 +2915,17 @@ static int cli_io_handler_commit_cafile_crlfile(struct appctx *appctx)
 					__ssl_sock_load_new_ckch_instance(ckchi_link->ckch_inst);
 				}
 
-				/* delete the old sni_ctx, the old ckch_insts and the ckch_store */
-				list_for_each_entry(ckchi_link, &old_cafile_entry->ckch_inst_link, list) {
-					__ckch_inst_free_locked(ckchi_link->ckch_inst);
-				}
+				/* delete the old sni_ctx, the old ckch_insts
+				 * and the ckch_store. ckch_inst_free() also
+				 * manipulates the list so it's cleaner to loop
+				 * until it's empty  */
+				while (!LIST_ISEMPTY(&old_cafile_entry->ckch_inst_link)) {
+					ckchi_link = LIST_ELEM(old_cafile_entry->ckch_inst_link.n, typeof(ckchi_link), list);
 
+					LIST_DEL_INIT(&ckchi_link->list); /* must reinit because ckch_inst checks the list */
+					__ckch_inst_free_locked(ckchi_link->ckch_inst);
+					free(ckchi_link);
+				}
 
 				/* Remove the old cafile entry from the tree */
 				ebmb_delete(&old_cafile_entry->node);
