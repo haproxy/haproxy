@@ -6773,17 +6773,18 @@ static int h2_dump_h2s_info(struct buffer *msg, const struct h2s *h2s)
 	return ret;
 }
 
-/* for debugging with CLI's "show fd" command */
-static int h2_show_fd(struct buffer *msg, struct connection *conn)
+/* appends some info about connection <h2c> to buffer <msg>, or does nothing if
+ * <h2c> is NULL. Returns non-zero if the connection is considered suspicious.
+ */
+static int h2_dump_h2c_info(struct buffer *msg, struct h2c *h2c)
 {
-	struct h2c *h2c = conn->ctx;
-	struct h2s *h2s = NULL;
+	const struct buffer *hmbuf, *tmbuf;
+	const struct h2s *h2s = NULL;
 	struct eb32_node *node;
 	int fctl_cnt = 0;
 	int send_cnt = 0;
 	int tree_cnt = 0;
 	int orph_cnt = 0;
-	struct buffer *hmbuf, *tmbuf;
 	int ret = 0;
 
 	if (!h2c)
@@ -6795,7 +6796,6 @@ static int h2_show_fd(struct buffer *msg, struct connection *conn)
 	list_for_each_entry(h2s, &h2c->send_list, list)
 		send_cnt++;
 
-	h2s = NULL;
 	node = eb32_first(&h2c->streams_by_id);
 	while (node) {
 		h2s = container_of(node, struct h2s, by_id);
@@ -6823,10 +6823,29 @@ static int h2_show_fd(struct buffer *msg, struct connection *conn)
 		      (unsigned int)b_data(tmbuf), b_orig(tmbuf),
 		      (unsigned int)b_head_ofs(tmbuf), (unsigned int)b_size(tmbuf));
 
-	if (h2s) {
+	return ret;
+}
+
+/* for debugging with CLI's "show fd" command */
+static int h2_show_fd(struct buffer *msg, struct connection *conn)
+{
+	struct h2c *h2c = conn->ctx;
+	const struct h2s *h2s;
+	struct eb32_node *node;
+	int ret = 0;
+
+	if (!h2c)
+		return ret;
+
+	ret |= h2_dump_h2c_info(msg, h2c);
+
+	node = eb32_last(&h2c->streams_by_id);
+	if (node) {
+		h2s = container_of(node, struct h2s, by_id);
 		chunk_appendf(msg, " last_h2s=%p", h2s);
 		ret |= h2_dump_h2s_info(msg, h2s);
 	}
+
 	return ret;
 }
 
