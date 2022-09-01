@@ -6800,16 +6800,16 @@ static int h2_show_fd(struct buffer *msg, struct connection *conn)
 		chunk_appendf(msg, "sd=%p", h2s->sd);
 		chunk_appendf(msg, "(.flg=0x%08x)", se_fl_get(h2s->sd));
 
-		chunk_appendf(&trash, " .subs=%p", h2s->subs);
+		chunk_appendf(msg, " .subs=%p", h2s->subs);
 		if (h2s->subs) {
-			chunk_appendf(&trash, "(ev=%d tl=%p", h2s->subs->events, h2s->subs->tasklet);
-			chunk_appendf(&trash, " tl.calls=%d tl.ctx=%p tl.fct=",
+			chunk_appendf(msg, "(ev=%d tl=%p", h2s->subs->events, h2s->subs->tasklet);
+			chunk_appendf(msg, " tl.calls=%d tl.ctx=%p tl.fct=",
 				      h2s->subs->tasklet->calls,
 				      h2s->subs->tasklet->context);
 			if (h2s->subs->tasklet->calls >= 1000000)
 				ret = 1;
-			resolve_sym_name(&trash, NULL, h2s->subs->tasklet->process);
-			chunk_appendf(&trash, ")");
+			resolve_sym_name(msg, NULL, h2s->subs->tasklet->process);
+			chunk_appendf(msg, ")");
 		}
 	}
 	return ret;
