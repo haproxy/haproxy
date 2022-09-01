@@ -259,12 +259,14 @@ static inline const char *ssl_error_str(int err)
 		return "WANT_CONNECT";
 	case SSL_ERROR_WANT_ACCEPT:
 		return "WANT_ACCEPT";
+#if !defined(LIBRESSL_VERSION_NUMBER)
 	case SSL_ERROR_WANT_ASYNC:
 		return "WANT_ASYNC";
 	case SSL_ERROR_WANT_ASYNC_JOB:
 		return "WANT_ASYNC_JOB";
 	case SSL_ERROR_WANT_CLIENT_HELLO_CB:
 		return "WANT_CLIENT_HELLO_CB";
+#endif
 	default:
 		return "UNKNOWN";
 	}
