@@ -567,8 +567,10 @@ void httpclient_stop_and_destroy(struct httpclient *hc)
 	if (hc->flags & HTTPCLIENT_FS_ENDED || !(hc->flags & HTTPCLIENT_FS_STARTED)) {
 		httpclient_destroy(hc);
 	} else {
-	/* if the client wasn't stopped, ask for a stop and destroy */
+		/* if the client wasn't stopped, ask for a stop and destroy */
 		hc->flags |= (HTTPCLIENT_FA_AUTOKILL | HTTPCLIENT_FA_STOP);
+		/* the calling applet doesn't exist anymore */
+		hc->caller = NULL;
 		if (hc->appctx)
 			appctx_wakeup(hc->appctx);
 	}
