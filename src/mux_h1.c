@@ -3315,6 +3315,9 @@ static int h1_attach(struct connection *conn, struct sedesc *sd, struct session 
 	struct h1c *h1c = conn->ctx;
 	struct h1s *h1s;
 
+	/* this connection is no more idle (if it was at all) */
+	h1c->flags &= ~H1C_F_ST_SILENT_SHUT;
+
 	TRACE_ENTER(H1_EV_STRM_NEW, conn);
 	if (h1c->flags & H1C_F_ST_ERROR) {
 		TRACE_ERROR("h1c on error", H1_EV_STRM_NEW|H1_EV_STRM_END|H1_EV_STRM_ERR, conn);
@@ -3390,6 +3393,11 @@ static void h1_detach(struct sedesc *sd)
 	h1s_destroy(h1s);
 
 	if ((h1c->flags & (H1C_F_IS_BACK|H1C_F_ST_IDLE)) == (H1C_F_IS_BACK|H1C_F_ST_IDLE)) {
+		/* this connection may be killed at any moment, we want it to
+		 * die "cleanly" (i.e. only an RST).
+		 */
+		h1c->flags |= H1C_F_ST_SILENT_SHUT;
+
 		/* If there are any excess server data in the input buffer,
 		 * release it and close the connection ASAP (some data may
 		 * remain in the output buffer). This happens if a server sends
