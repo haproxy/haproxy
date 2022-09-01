@@ -372,12 +372,16 @@ struct my_regex *regex_comp(const char *str, int cs, int cap, char **err)
 	 * We end if it is an error not related to lack of JIT support
 	 * in a case of JIT support missing pcre2_jit_compile is "no-op"
 	 */
-	if (jit < 0 && jit != PCRE2_ERROR_JIT_BADOPTION) {
-		pcre2_code_free(regex->reg);
-		memprintf(err, "regex '%s' jit compilation failed", str);
-		goto out_fail_alloc;
-	} else {
+	if (!jit)
 		regex->mfn = &pcre2_jit_match;
+	else {
+		if (jit != PCRE2_ERROR_JIT_BADOPTION) {
+			pcre2_code_free(regex->reg);
+			memprintf(err, "regex '%s' jit compilation failed", str);
+			goto out_fail_alloc;
+		}
+		else
+			regex->mfn = &pcre2_match;
 	}
 #endif
 
