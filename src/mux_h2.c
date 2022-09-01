@@ -6737,6 +6737,42 @@ static size_t h2_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, in
 	return total;
 }
 
+/* appends some info about stream <h2s> to buffer <msg>, or does nothing if
+ * <h2s> is NULL. Returns non-zero if the stream is considered suspicious.
+ */
+static int h2_dump_h2s_info(struct buffer *msg, const struct h2s *h2s)
+{
+	int ret = 0;
+
+	if (!h2s)
+		return ret;
+
+	chunk_appendf(msg, " h2s.id=%d .st=%s .flg=0x%04x .rxbuf=%u@%p+%u/%u .sc=%p",
+		      h2s->id, h2s_st_to_str(h2s->st), h2s->flags,
+		      (unsigned int)b_data(&h2s->rxbuf), b_orig(&h2s->rxbuf),
+		      (unsigned int)b_head_ofs(&h2s->rxbuf), (unsigned int)b_size(&h2s->rxbuf),
+		      h2s_sc(h2s));
+	if (h2s_sc(h2s))
+		chunk_appendf(msg, "(.flg=0x%08x .app=%p)",
+			      h2s_sc(h2s)->flags, h2s_sc(h2s)->app);
+
+	chunk_appendf(msg, " sd=%p", h2s->sd);
+	chunk_appendf(msg, "(.flg=0x%08x)", se_fl_get(h2s->sd));
+
+	chunk_appendf(msg, " .subs=%p", h2s->subs);
+	if (h2s->subs) {
+		chunk_appendf(msg, "(ev=%d tl=%p", h2s->subs->events, h2s->subs->tasklet);
+		chunk_appendf(msg, " tl.calls=%d tl.ctx=%p tl.fct=",
+			      h2s->subs->tasklet->calls,
+			      h2s->subs->tasklet->context);
+		if (h2s->subs->tasklet->calls >= 1000000)
+			ret = 1;
+		resolve_sym_name(msg, NULL, h2s->subs->tasklet->process);
+		chunk_appendf(msg, ")");
+	}
+	return ret;
+}
+
 /* for debugging with CLI's "show fd" command */
 static int h2_show_fd(struct buffer *msg, struct connection *conn)
 {
@@ -6788,29 +6824,8 @@ static int h2_show_fd(struct buffer *msg, struct connection *conn)
 		      (unsigned int)b_head_ofs(tmbuf), (unsigned int)b_size(tmbuf));
 
 	if (h2s) {
-		chunk_appendf(msg, " last_h2s=%p .id=%d .st=%s .flg=0x%04x .rxbuf=%u@%p+%u/%u .sc=%p",
-			      h2s, h2s->id, h2s_st_to_str(h2s->st), h2s->flags,
-			      (unsigned int)b_data(&h2s->rxbuf), b_orig(&h2s->rxbuf),
-			      (unsigned int)b_head_ofs(&h2s->rxbuf), (unsigned int)b_size(&h2s->rxbuf),
-			      h2s_sc(h2s));
-		if (h2s_sc(h2s))
-			chunk_appendf(msg, "(.flg=0x%08x .app=%p)",
-				      h2s_sc(h2s)->flags, h2s_sc(h2s)->app);
-
-		chunk_appendf(msg, "sd=%p", h2s->sd);
-		chunk_appendf(msg, "(.flg=0x%08x)", se_fl_get(h2s->sd));
-
-		chunk_appendf(msg, " .subs=%p", h2s->subs);
-		if (h2s->subs) {
-			chunk_appendf(msg, "(ev=%d tl=%p", h2s->subs->events, h2s->subs->tasklet);
-			chunk_appendf(msg, " tl.calls=%d tl.ctx=%p tl.fct=",
-				      h2s->subs->tasklet->calls,
-				      h2s->subs->tasklet->context);
-			if (h2s->subs->tasklet->calls >= 1000000)
-				ret = 1;
-			resolve_sym_name(msg, NULL, h2s->subs->tasklet->process);
-			chunk_appendf(msg, ")");
-		}
+		chunk_appendf(msg, " last_h2s=%p", h2s);
+		ret |= h2_dump_h2s_info(msg, h2s);
 	}
 	return ret;
 }
