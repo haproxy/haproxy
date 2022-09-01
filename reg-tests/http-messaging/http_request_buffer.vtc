@@ -8,6 +8,8 @@ feature ignore_unknown_macro
 # thanks to "http-buffer-request". If this was the case, c2 client
 # could not connect to s1 server and this would lead to make this test fail.
 
+barrier b1 cond 2 -cyclic
+
 server s1 {
 	rxreq
 	expect req.bodylen == 257
@@ -23,10 +25,16 @@ server s1 {
 syslog S -level info {
 	recv
 	expect ~ "[^:\\[ ]*\\[[0-9]*\\]: .* .* fe1 fe1/<NOSRV> .* 408 .* - - cD-- .* .* \"GET /this-is-a-long-url-this-is-a-long-url-this-is-a-long-url-this-is-a-long-url-this-is-a-long-url-this-is-a-long-url-this-is-a-long-url HTTP/1\\.1\""
+	barrier b1 sync
+
 	recv
 	expect ~ "[^:\\[ ]*\\[[0-9]*\\]: .* .* fe1 be1/srv1 [0-9]*/[0-9]*/[0-9]*/[0-9]*/[0-9]* 200 .* - - ---- .* .* \"GET / HTTP/1\\.1\""
+	barrier b1 sync
+
 	recv
 	expect ~ "[^:\\[ ]*\\[[0-9]*\\]: .* .* fe2 be1/srv1 [0-9]*/[0-9]*/[0-9]*/[0-9]*/[0-9]* 200 .* - - ---- .* .* \"POST /1 HTTP/1\\.1\""
+	barrier b1 sync
+
 	recv
 	expect ~ "[^:\\[ ]*\\[[0-9]*\\]: .* .* fe2 be1/<NOSRV> [0-9]*/-1/-1/-1/[0-9]* -1 .* - - CR-- .* .* \"POST /2 HTTP/1\\.1\""
 } -start
@@ -86,6 +94,9 @@ client c1 -connect ${h1_fe1_sock} {
 	expect resp.status == 408
 } -run
 
+# Wait matching on log message
+barrier b1 sync
+
 # Payload is fully sent
 #   ==> Request must be sent to the server. A 200 must be received
 client c2 -connect ${h1_fe1_sock} {
@@ -93,6 +104,9 @@ client c2 -connect ${h1_fe1_sock} {
 	rxresp
 	expect resp.status == 200
 } -run
+
+# Wait matching on log message
+barrier b1 sync
 
 # Payload is fully sent in 2 steps (with a small delay, smaller than the client
 # timeout) and split on a chunk size.
@@ -104,6 +118,9 @@ client c3 -connect ${h1_fe2_sock} {
 	rxresp
 	expect resp.status == 200
 } -run
+
+# Wait matching on log message
+barrier b1 sync
 
 # Last CRLF of the request payload is missing but payload is sent in 2 steps
 # (with a small delay, smaller than the client timeout) and split on a chunk
