@@ -1452,10 +1452,12 @@ static int connect_server(struct stream *s)
 			const int not_first_req = s->txn && s->txn->flags & TX_NOT_FIRST;
 			const int idle = srv->curr_idle_nb > 0;
 			const int safe = srv->curr_safe_nb > 0;
+			const int retry_safe = (s->be->retry_type & (PR_RE_CONN_FAILED | PR_RE_DISCONNECTED | PR_RE_TIMEOUT)) ==
+			                                            (PR_RE_CONN_FAILED | PR_RE_DISCONNECTED | PR_RE_TIMEOUT);
 
 			/* second column of the tables above,
 			 * search for an idle then safe conn */
-			if (not_first_req) {
+			if (not_first_req || retry_safe) {
 				if (idle || safe)
 					srv_conn = conn_backend_get(s, srv, 0, hash);
 			}
