@@ -608,6 +608,7 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 			             (unsigned long long)qc->path->prep_in_flight,
 			             (unsigned long long)qc->path->in_flight);
 			if (pkt) {
+				const struct quic_frame *frm;
 				chunk_appendf(&trace_buf, " pn=%lu(%s) iflen=%llu",
 				              (unsigned long)pkt->pn_node.key,
 				              pkt->pktns == &qc->pktns[QUIC_TLS_PKTNS_INITIAL] ? "I" :
@@ -616,6 +617,10 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 				chunk_appendf(&trace_buf, " rx.bytes=%llu tx.bytes=%llu",
 				              (unsigned long long)qc->rx.bytes,
 				              (unsigned long long)qc->tx.bytes);
+				list_for_each_entry(frm, &pkt->frms, list) {
+					chunk_appendf(&trace_buf, " frm@%p", frm);
+					chunk_frm_appendf(&trace_buf, frm);
+				}
 			}
 		}
 
