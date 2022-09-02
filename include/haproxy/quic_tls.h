@@ -135,8 +135,10 @@ static inline const EVP_CIPHER *tls_aead(const SSL_CIPHER *cipher)
 		return EVP_aes_128_gcm();
 	case TLS1_3_CK_AES_256_GCM_SHA384:
 		return EVP_aes_256_gcm();
+#if !defined(LIBRESSL_VERSION_NUMBER)
 	case TLS1_3_CK_CHACHA20_POLY1305_SHA256:
 		return EVP_chacha20_poly1305();
+#endif
 	case TLS1_3_CK_AES_128_CCM_SHA256:
 		return EVP_aes_128_ccm();
 	default:
