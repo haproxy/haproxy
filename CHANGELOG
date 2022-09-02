@@ -1,6 +1,87 @@
 ChangeLog :
 ===========
 
+2022/09/02 : 2.7-dev5
+    - BUG/MINOR: mux-quic: Fix memleak on QUIC stream buffer for unacknowledged data
+    - BUG/MEDIUM: cpu-map: fix thread 1's affinity affecting all threads
+    - MINOR: cpu-map: remove obsolete diag warning about combined ranges
+    - BUG/MAJOR: mworker: fix infinite loop on master with no proxies.
+    - REGTESTS: launch http_reuse_always in mworker mode
+    - BUG/MINOR: quix: Memleak for non in flight TX packets
+    - BUG/MINOR: quic: Wrong list_for_each_entry() use when building packets from qc_do_build_pkt()
+    - BUG/MINOR: quic: Safer QUIC frame builders
+    - MINOR: quic: Replace MT_LISTs by LISTs for RX packets.
+    - BUG/MEDIUM: applet: fix incorrect check for abnormal return condition from handler
+    - BUG/MINOR: applet: make the call_rate only count the no-progress calls
+    - MEDIUM: peers: limit the number of updates sent at once
+    - BUILD: tcp_sample: fix build of get_tcp_info() on OpenBSD
+    - BUG/MINOR: resolvers: return the correct value in resolvers_finalize_config()
+    - BUG/MINOR: mworker: does not create the "default" resolvers in wait mode
+    - BUG/MINOR: tcpcheck: Disable QUICKACK only if data should be sent after connect
+    - REGTESTS: Fix prometheus script to perform HTTP health-checks
+    - MINOR: resolvers: shut the warning when "default" resolvers is implicit
+    - Revert "BUG/MINOR: quix: Memleak for non in flight TX packets"
+    - BUG/MINOR: quic: Leak in qc_release_lost_pkts() for non in flight TX packets
+    - BUG/MINOR: quic: Stalled connections (missing I/O handler wakeup)
+    - CLEANUP: quic: No more use ->rx_list MT_LIST entry point (quic_rx_packet)
+    - CLEANUP: quic: Remove a useless check in qc_lstnr_pkt_rcv()
+    - MINOR: quic: Remove useless traces about references to TX packets
+    - Revert "MINOR: quic: Remove useless traces about references to TX packets"
+    - DOC: configuration: do-resolve doesn't work with a port in the string
+    - MINOR: sample: add the host_only and port_only converters
+    - BUG/MINOR: httpclient: fix resolution with port
+    - DOC: configuration.txt: do-resolve must use host_only to remove its port.
+    - BUG/MINOR: quic: Null packet dereferencing from qc_dup_pkt_frms() trace
+    - BUG/MINOR: quic: Frames added to packets even if not built.
+    - BUG/MEDIUM: spoe: Properly update streams waiting for a ACK in async mode
+    - BUG/MEDIUM: peers: Add connect and server timeut to peers proxy
+    - BUG/MEDIUM: peers: Don't use resync timer when local resync is in progress
+    - BUG/MEDIUM: peers: Don't start resync on reload if local peer is not up-to-date
+    - BUG/MINOR: hlua: Rely on CF_EOI to detect end of message in HTTP applets
+    - BUG/MEDIUM: mux-h1: do not refrain from signaling errors after end of input
+    - BUG/MINOR: epoll: do not actively poll for Rx after an error
+    - MINOR: raw-sock: don't try to send if an error was already reported
+    - BUG/MINOR: quic: Missing header protection AES cipher context initialisations (draft-v2)
+    - MINOR: quic: Add a trace to distinguish the datagram from the packets inside
+    - BUG/MINOR: ssl: fix deinit of the ca-file tree
+    - BUG/MINOR: ssl: leak of ckch_inst_link in ckch_inst_free()
+    - BUG/MINOR: tcpcheck: Disable QUICKACK for default tcp-check (with no rule)
+    - BUG/MEDIUM: ssl: Fix a UAF when old ckch instances are released
+    - BUG/MINOR: ssl: revert two wrong fixes with ckhi_link
+    - BUG/MINOR: dev/udp: properly preset the rx address size
+    - BUILD: debug: make sure debug macros are never empty
+    - MINOR: quic: Move traces about RX/TX bytes from QUIC_EV_CONN_PRSAFRM event
+    - BUG/MINOR: quic: TX frames memleak
+    - BUG/MINOR: ssl: leak of ckch_inst_link in ckch_inst_free() v2
+    - MINOR: sink/ring: rotate non-empty file-backed contents only
+    - BUG/MINOR: regex: Properly handle PCRE2 lib compiled without JIT support
+    - REGTESTS: http_request_buffer: Add a barrier to not mix up log messages
+    - BUG/MEDIUM: mux-h1: always use RST to kill idle connections in pools
+    - MINOR: backend: always satisfy the first req reuse rule with l7 retries
+    - BUG/MINOR: quic: Do not ack when probing
+    - MINOR: quic: Add TX frames addresses to traces to several trace events
+    - MINOR: quic: Trace typo fix in qc_release_frm()
+    - BUG/MINOR: quic: Frames leak during retransmissions
+    - BUG/MINOR: h2: properly set the direction flag on HTX response
+    - BUG/MEDIUM: httpclient: always detach the caller before self-killing
+    - BUG/MINOR: httpclient: only ask for more room on failed writes
+    - BUG/MINOR: httpclient: keep-alive was accidentely disabled
+    - MEDIUM: httpclient: enable ALPN support on outgoing https connections
+    - BUG/MINOR: mux-h2: fix the "show fd" dest buffer for the subscriber
+    - BUG/MINOR: mux-h1: fix the "show fd" dest buffer for the subscriber
+    - BUG/MINOR: mux-fcgi: fix the "show fd" dest buffer for the subscriber
+    - DEBUG: stream: minor rearrangement of a few fields in struct stream.
+    - MINOR: debug: report applet pointer and handler in crashes when known
+    - MINOR: mux-h2: extract the stream dump function out of h2_show_fd()
+    - MINOR: mux-h2: extract the connection dump function out of h2_show_fd()
+    - MINOR: muxes: add a "show_sd" helper to complete "show sess" dumps
+    - MINOR: mux-h2: provide a "show_sd" helper to output stream debugging info
+    - MINOR: mux-h2: insert line breaks in "show sess all" output for legibility
+    - MINOR: mux-quic: provide a "show_sd" helper to output stream debugging info
+    - MINOR: mux-h1: split "show_fd" into connection and stream
+    - MINOR: mux-h1: provide a "show_sd" helper to output stream debugging info
+    - BUG/MINOR: http-act: initialize http fmt head earlier
+
 2022/08/20 : 2.7-dev4
     - BUG/MEDIUM: quic: Wrong packet length check in qc_do_rm_hp()
     - MINOR: quic: Too much useless traces in qc_build_frms()
