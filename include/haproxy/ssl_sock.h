@@ -104,13 +104,16 @@ void ssl_free_engines(void);
 #ifdef HAVE_SSL_PROVIDERS
 void ssl_unload_providers(void);
 #endif
+
 #ifdef HAVE_SSL_CLIENT_HELLO_CB
 int ssl_sock_switchctx_err_cbk(SSL *ssl, int *al, void *priv);
-#ifdef OPENSSL_IS_BORINGSSL
+# ifdef OPENSSL_IS_BORINGSSL
 int ssl_sock_switchctx_cbk(const struct ssl_early_callback_ctx *ctx);
-#else
+# else /* ! OPENSSL_IS_BORINGSSL */
 int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg);
-#endif
+# endif
+#else /* ! HAVE_SSL_CLIENT_HELLO_CB */
+int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *priv);
 #endif
 
 SSL_CTX *ssl_sock_assign_generated_cert(unsigned int key, struct bind_conf *bind_conf, SSL *ssl);

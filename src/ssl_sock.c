@@ -2945,7 +2945,7 @@ allow_early:
  * warning when no match is found, which implies the default (first) cert
  * will keep being used.
  */
-static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *priv)
+int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *priv)
 {
 	const char *servername;
 	const char *wildp = NULL;
