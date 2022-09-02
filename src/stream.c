@@ -2829,6 +2829,18 @@ void stream_dump_and_crash(enum obj_type *obj, int rate)
 	}
 	chunk_appendf(&trash, "}");
 
+	if (ptr != s) { // that's an appctx
+		const struct appctx *appctx = ptr;
+
+		chunk_appendf(&trash, " applet=%p(", appctx->applet);
+		resolve_sym_name(&trash, NULL, appctx->applet);
+		chunk_appendf(&trash, ")");
+
+		chunk_appendf(&trash, " handler=%p(", appctx->applet->fct);
+		resolve_sym_name(&trash, NULL, appctx->applet->fct);
+		chunk_appendf(&trash, ")");
+	}
+
 	memprintf(&msg,
 	          "A bogus %s [%p] is spinning at %d calls per second and refuses to die, "
 	          "aborting now! Please report this error to developers "
