@@ -6849,6 +6849,28 @@ static int h2_show_fd(struct buffer *msg, struct connection *conn)
 	return ret;
 }
 
+/* for debugging with CLI's "show sess" command. May emit multiple lines, each
+ * new one being prefixed with <pfx>, if <pfx> is not NULL, otherwise a single
+ * line is used. Each field starts with a space so it's safe to print it after
+ * existing fields.
+ */
+static int h2_show_sd(struct buffer *msg, struct sedesc *sd, const char *pfx)
+{
+	struct h2s *h2s = sd->se;
+	int ret = 0;
+
+	if (!h2s)
+		return ret;
+
+	chunk_appendf(msg, " h2s=%p", h2s);
+	ret |= h2_dump_h2s_info(msg, h2s);
+	if (pfx)
+		chunk_appendf(msg, "\n%s", pfx);
+	chunk_appendf(msg, " h2c=%p", h2s->h2c);
+	ret |= h2_dump_h2c_info(msg, h2s->h2c);
+	return ret;
+}
+
 /* Migrate the the connection to the current thread.
  * Return 0 if successful, non-zero otherwise.
  * Expected to be called with the old thread lock held.
@@ -7000,6 +7022,7 @@ static const struct mux_ops h2_ops = {
 	.shutw = h2_shutw,
 	.ctl = h2_ctl,
 	.show_fd = h2_show_fd,
+	.show_sd = h2_show_sd,
 	.takeover = h2_takeover,
 	.flags = MX_FL_HTX|MX_FL_HOL_RISK|MX_FL_NO_UPG,
 	.name = "H2",
