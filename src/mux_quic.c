@@ -2334,6 +2334,33 @@ static char *qcs_st_to_str(enum qcs_state st)
 	}
 }
 
+/* for debugging with CLI's "show sess" command. May emit multiple lines, each
+ * new one being prefixed with <pfx>, if <pfx> is not NULL, otherwise a single
+ * line is used. Each field starts with a space so it's safe to print it after
+ * existing fields.
+ */
+static int qc_show_sd(struct buffer *msg, struct sedesc *sd, const char *pfx)
+{
+	struct qcs *qcs = sd->se;
+	struct qcc *qcc;
+	int ret = 0;
+
+	if (!qcs)
+		return ret;
+
+	chunk_appendf(msg, " qcs=%p .flg=%#x .id=%llu .st=%s .ctx=%p, .err=%#llx",
+		      qcs, qcs->flags, (ull)qcs->id, qcs_st_to_str(qcs->st), qcs->ctx, (ull)qcs->err);
+
+	if (pfx)
+		chunk_appendf(msg, "\n%s", pfx);
+
+	qcc = qcs->qcc;
+	chunk_appendf(msg, " qcc=%p .flg=%#x .nbsc=%llu .nbhreq=%llu, .task=%p",
+		      qcc, qcc->flags, (ull)qcc->nb_sc, (ull)qcc->nb_hreq, qcc->task);
+	return ret;
+}
+
+
 static void qmux_trace_frm(const struct quic_frame *frm)
 {
 	switch (frm->type) {
@@ -2407,6 +2434,7 @@ static const struct mux_ops qc_ops = {
 	.subscribe = qc_subscribe,
 	.unsubscribe = qc_unsubscribe,
 	.wake = qc_wake,
+	.show_sd = qc_show_sd,
 	.flags = MX_FL_HTX|MX_FL_NO_UPG|MX_FL_FRAMED,
 	.name = "QUIC",
 };
