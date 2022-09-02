@@ -3987,6 +3987,27 @@ static int h1_show_fd(struct buffer *msg, struct connection *conn)
 	return ret;
 }
 
+/* for debugging with CLI's "show sess" command. May emit multiple lines, each
+ * new one being prefixed with <pfx>, if <pfx> is not NULL, otherwise a single
+ * line is used. Each field starts with a space so it's safe to print it after
+ * existing fields.
+ */
+static int h1_show_sd(struct buffer *msg, struct sedesc *sd, const char *pfx)
+{
+	struct h1s *h1s = sd->se;
+	int ret = 0;
+
+	if (!h1s)
+		return ret;
+
+	ret |= h1_dump_h1s_info(msg, h1s, pfx);
+	if (pfx)
+		chunk_appendf(msg, "\n%s", pfx);
+	chunk_appendf(msg, " h1c=%p", h1s->h1c);
+	ret |= h1_dump_h1c_info(msg, h1s->h1c, pfx);
+	return ret;
+}
+
 
 /* Add an entry in the headers map. Returns -1 on error and 0 on success. */
 static int add_hdr_case_adjust(const char *from, const char *to, char **err)
@@ -4272,6 +4293,7 @@ static const struct mux_ops mux_http_ops = {
 	.shutr       = h1_shutr,
 	.shutw       = h1_shutw,
 	.show_fd     = h1_show_fd,
+	.show_sd     = h1_show_sd,
 	.ctl         = h1_ctl,
 	.takeover    = h1_takeover,
 	.flags       = MX_FL_HTX,
@@ -4298,6 +4320,7 @@ static const struct mux_ops mux_h1_ops = {
 	.shutr       = h1_shutr,
 	.shutw       = h1_shutw,
 	.show_fd     = h1_show_fd,
+	.show_sd     = h1_show_sd,
 	.ctl         = h1_ctl,
 	.takeover    = h1_takeover,
 	.flags       = MX_FL_HTX|MX_FL_NO_UPG,
