@@ -6738,26 +6738,35 @@ static size_t h2_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, in
 }
 
 /* appends some info about stream <h2s> to buffer <msg>, or does nothing if
- * <h2s> is NULL. Returns non-zero if the stream is considered suspicious.
+ * <h2s> is NULL. Returns non-zero if the stream is considered suspicious. May
+ * emit multiple lines, each new one being prefixed with <pfx>, if <pfx> is not
+ * NULL, otherwise a single line is used.
  */
-static int h2_dump_h2s_info(struct buffer *msg, const struct h2s *h2s)
+static int h2_dump_h2s_info(struct buffer *msg, const struct h2s *h2s, const char *pfx)
 {
 	int ret = 0;
 
 	if (!h2s)
 		return ret;
 
-	chunk_appendf(msg, " h2s.id=%d .st=%s .flg=0x%04x .rxbuf=%u@%p+%u/%u .sc=%p",
+	chunk_appendf(msg, " h2s.id=%d .st=%s .flg=0x%04x .rxbuf=%u@%p+%u/%u",
 		      h2s->id, h2s_st_to_str(h2s->st), h2s->flags,
 		      (unsigned int)b_data(&h2s->rxbuf), b_orig(&h2s->rxbuf),
-		      (unsigned int)b_head_ofs(&h2s->rxbuf), (unsigned int)b_size(&h2s->rxbuf),
-		      h2s_sc(h2s));
+		      (unsigned int)b_head_ofs(&h2s->rxbuf), (unsigned int)b_size(&h2s->rxbuf));
+
+	if (pfx)
+		chunk_appendf(msg, "\n%s", pfx);
+
+	chunk_appendf(msg, " .sc=%p", h2s_sc(h2s));
 	if (h2s_sc(h2s))
 		chunk_appendf(msg, "(.flg=0x%08x .app=%p)",
 			      h2s_sc(h2s)->flags, h2s_sc(h2s)->app);
 
-	chunk_appendf(msg, " sd=%p", h2s->sd);
+	chunk_appendf(msg, " .sd=%p", h2s->sd);
 	chunk_appendf(msg, "(.flg=0x%08x)", se_fl_get(h2s->sd));
+
+	if (pfx)
+		chunk_appendf(msg, "\n%s", pfx);
 
 	chunk_appendf(msg, " .subs=%p", h2s->subs);
 	if (h2s->subs) {
@@ -6775,8 +6784,10 @@ static int h2_dump_h2s_info(struct buffer *msg, const struct h2s *h2s)
 
 /* appends some info about connection <h2c> to buffer <msg>, or does nothing if
  * <h2c> is NULL. Returns non-zero if the connection is considered suspicious.
+ * May emit multiple lines, each new one being prefixed with <pfx>, if <pfx> is
+ * not NULL, otherwise a single line is used.
  */
-static int h2_dump_h2c_info(struct buffer *msg, struct h2c *h2c)
+static int h2_dump_h2c_info(struct buffer *msg, struct h2c *h2c, const char *pfx)
 {
 	const struct buffer *hmbuf, *tmbuf;
 	const struct h2s *h2s = NULL;
@@ -6808,20 +6819,32 @@ static int h2_dump_h2c_info(struct buffer *msg, struct h2c *h2c)
 	hmbuf = br_head(h2c->mbuf);
 	tmbuf = br_tail(h2c->mbuf);
 	chunk_appendf(msg, " h2c.st0=%s .err=%d .maxid=%d .lastid=%d .flg=0x%04x"
-		      " .nbst=%u .nbcs=%u .fctl_cnt=%d .send_cnt=%d .tree_cnt=%d"
-		      " .orph_cnt=%d .sub=%d .dsi=%d .dbuf=%u@%p+%u/%u .msi=%d"
-		      " .mbuf=[%u..%u|%u],h=[%u@%p+%u/%u],t=[%u@%p+%u/%u]",
+		      " .nbst=%u .nbsc=%u",
 		      h2c_st_to_str(h2c->st0), h2c->errcode, h2c->max_id, h2c->last_sid, h2c->flags,
-		      h2c->nb_streams, h2c->nb_sc, fctl_cnt, send_cnt, tree_cnt, orph_cnt,
+		      h2c->nb_streams, h2c->nb_sc);
+
+	if (pfx)
+		chunk_appendf(msg, "\n%s", pfx);
+
+	chunk_appendf(msg, " .fctl_cnt=%d .send_cnt=%d .tree_cnt=%d"
+		      " .orph_cnt=%d .sub=%d .dsi=%d .dbuf=%u@%p+%u/%u",
+		      fctl_cnt, send_cnt, tree_cnt, orph_cnt,
 		      h2c->wait_event.events, h2c->dsi,
 		      (unsigned int)b_data(&h2c->dbuf), b_orig(&h2c->dbuf),
-		      (unsigned int)b_head_ofs(&h2c->dbuf), (unsigned int)b_size(&h2c->dbuf),
+		      (unsigned int)b_head_ofs(&h2c->dbuf), (unsigned int)b_size(&h2c->dbuf));
+
+	if (pfx)
+		chunk_appendf(msg, "\n%s", pfx);
+
+	chunk_appendf(msg, " .msi=%d"
+		      " .mbuf=[%u..%u|%u],h=[%u@%p+%u/%u],t=[%u@%p+%u/%u]",
 		      h2c->msi,
 		      br_head_idx(h2c->mbuf), br_tail_idx(h2c->mbuf), br_size(h2c->mbuf),
 		      (unsigned int)b_data(hmbuf), b_orig(hmbuf),
 		      (unsigned int)b_head_ofs(hmbuf), (unsigned int)b_size(hmbuf),
 		      (unsigned int)b_data(tmbuf), b_orig(tmbuf),
 		      (unsigned int)b_head_ofs(tmbuf), (unsigned int)b_size(tmbuf));
+
 
 	return ret;
 }
@@ -6837,13 +6860,13 @@ static int h2_show_fd(struct buffer *msg, struct connection *conn)
 	if (!h2c)
 		return ret;
 
-	ret |= h2_dump_h2c_info(msg, h2c);
+	ret |= h2_dump_h2c_info(msg, h2c, NULL);
 
 	node = eb32_last(&h2c->streams_by_id);
 	if (node) {
 		h2s = container_of(node, struct h2s, by_id);
 		chunk_appendf(msg, " last_h2s=%p", h2s);
-		ret |= h2_dump_h2s_info(msg, h2s);
+		ret |= h2_dump_h2s_info(msg, h2s, NULL);
 	}
 
 	return ret;
@@ -6863,11 +6886,11 @@ static int h2_show_sd(struct buffer *msg, struct sedesc *sd, const char *pfx)
 		return ret;
 
 	chunk_appendf(msg, " h2s=%p", h2s);
-	ret |= h2_dump_h2s_info(msg, h2s);
+	ret |= h2_dump_h2s_info(msg, h2s, pfx);
 	if (pfx)
 		chunk_appendf(msg, "\n%s", pfx);
 	chunk_appendf(msg, " h2c=%p", h2s->h2c);
-	ret |= h2_dump_h2c_info(msg, h2s->h2c);
+	ret |= h2_dump_h2c_info(msg, h2s->h2c, pfx);
 	return ret;
 }
 
