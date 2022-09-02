@@ -582,7 +582,7 @@ int h2_make_htx_request(struct http_hdr *list, struct htx *htx, unsigned int *ms
  */
 static struct htx_sl *h2_prepare_htx_stsline(uint32_t fields, struct ist *phdr, struct htx *htx, unsigned int *msgf)
 {
-	unsigned int status, flags = HTX_SL_F_NONE;
+	unsigned int status, flags = HTX_SL_F_IS_RESP;
 	struct htx_sl *sl;
 	struct ist stat;
 
