@@ -660,14 +660,14 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 				 * request from the httpclient buffer */
 				ret = b_xfer(&req->buf, &hc->req.buf, b_data(&hc->req.buf));
 				if (!ret)
-					goto more;
+					goto full;
 
 				if (!b_data(&hc->req.buf))
 					b_free(&hc->req.buf);
 
 				htx = htx_from_buf(&req->buf);
 				if (!htx)
-					goto more;
+					goto full;
 
 				channel_add_input(req, htx->data);
 
@@ -912,11 +912,12 @@ process_data:
 	sc_will_read(sc);
 
 	return;
-more:
-	/* There was not enough data in the response channel */
-
+full:
+	/* There was not enough room in the response channel */
 	sc_need_room(sc);
 
+more:
+	/* we'll automatically be called again on missing data */
 	if (appctx->st0 == HTTPCLIENT_S_RES_END)
 		goto end;
 
