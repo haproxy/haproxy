@@ -135,16 +135,22 @@ struct strm_logs {
 };
 
 struct stream {
+	enum obj_type obj_type;         /* object type == OBJ_TYPE_STREAM */
+	enum sc_state prev_conn_state;  /* CS_ST*, copy of previous state of the server stream connector */
+
+	int16_t priority_class;         /* priority class of the stream for the pending queue */
+	int32_t priority_offset;        /* priority offset of the stream for the pending queue */
+
 	int flags;                      /* some flags describing the stream */
 	unsigned int uniq_id;           /* unique ID used for the traces */
 	enum obj_type *target;          /* target to use for this stream */
+
+	struct session *sess;           /* the session this stream is attached to */
 
 	struct channel req;             /* request channel */
 	struct channel res;             /* response channel */
 
 	struct proxy *be;               /* the proxy this stream depends on for the server side */
-
-	struct session *sess;           /* the session this stream is attached to */
 
 	struct server *srv_conn;        /* stream already has a slot on a server and is not in queue */
 	struct pendconn *pend_pos;      /* if not NULL, points to the pending position in the pending queue */
@@ -154,14 +160,9 @@ struct stream {
 	struct task *task;              /* the task associated with this stream */
 	unsigned int pending_events;	/* the pending events not yet processed by the stream.
 					 * This is a bit field of TASK_WOKEN_* */
-	int16_t priority_class;         /* priority class of the stream for the pending queue */
-	int32_t priority_offset;        /* priority offset of the stream for the pending queue */
-
 	int conn_retries;               /* number of connect retries performed */
 	unsigned int conn_exp;          /* wake up time for connect, queue, turn-around, ... */
 	unsigned int conn_err_type;     /* first error detected, one of STRM_ET_* */
-	enum sc_state prev_conn_state;  /* CS_ST*, copy of previous state of the server stream connector */
-
 	struct list list;               /* position in the thread's streams list */
 	struct mt_list by_srv;          /* position in server stream list */
 	struct list back_refs;          /* list of users tracking this stream */
@@ -170,8 +171,7 @@ struct stream {
 	struct freq_ctr call_rate;      /* stream task call rate without making progress */
 
 	short store_count;
-	enum obj_type obj_type;         /* object type == OBJ_TYPE_STREAM */
-	/* 1 unused bytes here */
+	/* 2 unused bytes here */
 
 	struct {
 		struct stksess *ts;
@@ -205,6 +205,7 @@ struct stream {
 	struct list *current_rule_list;         /* this is used to store the current executed rule list. */
 	void *current_rule;                     /* this is used to store the current rule to be resumed. */
 	int rules_exp;                          /* expiration date for current rules execution */
+	int tunnel_timeout;
 	const char *last_rule_file;             /* last evaluated final rule's file (def: NULL) */
 	int last_rule_line;                     /* last evaluated final rule's line (def: 0) */
 
@@ -214,13 +215,11 @@ struct stream {
 	/* Context */
 	struct {
 		struct resolv_requester *requester; /* owner of the resolution */
+		struct act_rule *parent;        /* rule which requested this resolution */
 		char *hostname_dn;              /* hostname being resolve, in domain name format */
 		int hostname_dn_len;            /* size of hostname_dn */
-		/* 4 unused bytes here */
-		struct act_rule *parent;        /* rule which requested this resolution */
+		/* 4 unused bytes here, recoverable via packing if needed */
 	} resolv_ctx;                           /* context information for DNS resolution */
-
-	int tunnel_timeout;
 };
 
 #endif /* _HAPROXY_STREAM_T_H */
