@@ -400,6 +400,7 @@ struct mux_ops {
 	struct stconn *(*get_first_sc)(const struct connection *); /* retrieves any valid stconn from this connection */
 	void (*detach)(struct sedesc *); /* Detach an stconn from the stdesc from an outgoing connection, when the request is done */
 	int (*show_fd)(struct buffer *, struct connection *); /* append some data about connection into chunk for "show fd"; returns non-zero if suspicious */
+	int (*show_sd)(struct buffer *, struct sedesc *, const char *pfx); /* append some data about the mux stream into chunk for "show sess"; returns non-zero if suspicious */
 	int (*subscribe)(struct stconn *sc, int event_type,  struct wait_event *es); /* Subscribe <es> to events, such as "being able to send" */
 	int (*unsubscribe)(struct stconn *sc, int event_type,  struct wait_event *es); /* Unsubscribe <es> from events */
 	int (*avail_streams)(struct connection *conn); /* Returns the number of streams still available for a connection */

@@ -3327,6 +3327,12 @@ static int stats_dump_full_strm_to_buffer(struct stconn *sc, struct stream *strm
 			      scf->sedesc->se, sc_ep_get(scf), scf->wait_event.events);
 
 		if ((conn = sc_conn(scf)) != NULL) {
+			if (conn->mux && conn->mux->show_sd) {
+				chunk_appendf(&trash, "     ");
+				conn->mux->show_sd(&trash, scf->sedesc, "     ");
+				chunk_appendf(&trash, "\n");
+			}
+
 			chunk_appendf(&trash,
 			              "      co0=%p ctrl=%s xprt=%s mux=%s data=%s target=%s:%p\n",
 				      conn,
@@ -3344,7 +3350,6 @@ static int stats_dump_full_strm_to_buffer(struct stconn *sc, struct stream *strm
 			              conn_fd(conn) >= 0 ? fdtab[conn->handle.fd].state : 0,
 			              conn_fd(conn) >= 0 ? !!(fdtab[conn->handle.fd].update_mask & ti->ltid_bit) : 0,
 				      conn_fd(conn) >= 0 ? fdtab[conn->handle.fd].thread_mask: 0);
-
 		}
 		else if ((tmpctx = sc_appctx(scf)) != NULL) {
 			chunk_appendf(&trash,
@@ -3365,6 +3370,12 @@ static int stats_dump_full_strm_to_buffer(struct stconn *sc, struct stream *strm
 			      scb->sedesc->se, sc_ep_get(scb), scb->wait_event.events);
 
 		if ((conn = sc_conn(scb)) != NULL) {
+			if (conn->mux && conn->mux->show_sd) {
+				chunk_appendf(&trash, "     ");
+				conn->mux->show_sd(&trash, scb->sedesc, "     ");
+				chunk_appendf(&trash, "\n");
+			}
+
 			chunk_appendf(&trash,
 			              "      co1=%p ctrl=%s xprt=%s mux=%s data=%s target=%s:%p\n",
 				      conn,
@@ -3382,7 +3393,6 @@ static int stats_dump_full_strm_to_buffer(struct stconn *sc, struct stream *strm
 			              conn_fd(conn) >= 0 ? fdtab[conn->handle.fd].state : 0,
 			              conn_fd(conn) >= 0 ? !!(fdtab[conn->handle.fd].update_mask & ti->ltid_bit) : 0,
 				      conn_fd(conn) >= 0 ? fdtab[conn->handle.fd].thread_mask: 0);
-
 		}
 		else if ((tmpctx = sc_appctx(scb)) != NULL) {
 			chunk_appendf(&trash,
