@@ -179,6 +179,7 @@ static enum act_parse_ret parse_set_req_line(const char **args, int *orig_arg, s
 	}
 	rule->action_ptr = http_action_set_req_line;
 	rule->release_ptr = release_http_action;
+	LIST_INIT(&rule->arg.http.fmt);
 
 	if (!*args[cur_arg] ||
 	    (*args[cur_arg + 1] && strcmp(args[cur_arg + 1], "if") != 0 && strcmp(args[cur_arg + 1], "unless") != 0)) {
@@ -186,7 +187,6 @@ static enum act_parse_ret parse_set_req_line(const char **args, int *orig_arg, s
 		return ACT_RET_PRS_ERR;
 	}
 
-	LIST_INIT(&rule->arg.http.fmt);
 	px->conf.args.ctx = ARGC_HRQ;
 	if (px->cap & PR_CAP_FE)
 		cap |= SMP_VAL_FE_HRQ_HDR;
@@ -616,6 +616,7 @@ static enum act_parse_ret parse_replace_uri(const char **args, int *orig_arg, st
 
 	rule->action_ptr = http_action_replace_uri;
 	rule->release_ptr = release_http_action;
+	LIST_INIT(&rule->arg.http.fmt);
 
 	if (!*args[cur_arg] || !*args[cur_arg+1] ||
 	    (*args[cur_arg+2] && strcmp(args[cur_arg+2], "if") != 0 && strcmp(args[cur_arg+2], "unless") != 0)) {
@@ -629,7 +630,6 @@ static enum act_parse_ret parse_replace_uri(const char **args, int *orig_arg, st
 		return ACT_RET_PRS_ERR;
 	}
 
-	LIST_INIT(&rule->arg.http.fmt);
 	px->conf.args.ctx = ARGC_HRQ;
 	if (px->cap & PR_CAP_FE)
 		cap |= SMP_VAL_FE_HRQ_HDR;
@@ -680,6 +680,7 @@ static enum act_parse_ret parse_http_set_status(const char **args, int *orig_arg
 	rule->action = ACT_CUSTOM;
 	rule->action_ptr = action_http_set_status;
 	rule->release_ptr = release_http_action;
+	LIST_INIT(&rule->arg.http.fmt);
 
 	/* Check if an argument is available */
 	if (!*args[*orig_arg]) {
@@ -705,7 +706,6 @@ static enum act_parse_ret parse_http_set_status(const char **args, int *orig_arg
 		(*orig_arg)++;
 	}
 
-	LIST_INIT(&rule->arg.http.fmt);
 	return ACT_RET_PRS_OK;
 }
 
@@ -1318,6 +1318,7 @@ static enum act_parse_ret parse_http_auth(const char **args, int *orig_arg, stru
 	rule->flags |= ACT_FLAG_FINAL;
 	rule->action_ptr = http_action_auth;
 	rule->release_ptr = release_http_action;
+	LIST_INIT(&rule->arg.http.fmt);
 
 	cur_arg = *orig_arg;
 	if (strcmp(args[cur_arg], "realm") == 0) {
@@ -1330,7 +1331,6 @@ static enum act_parse_ret parse_http_auth(const char **args, int *orig_arg, stru
 		cur_arg++;
 	}
 
-	LIST_INIT(&rule->arg.http.fmt);
 	*orig_arg = cur_arg;
 	return ACT_RET_PRS_OK;
 }
@@ -1497,6 +1497,7 @@ static enum act_parse_ret parse_http_set_header(const char **args, int *orig_arg
 		rule->action_ptr = http_action_set_header;
 	}
 	rule->release_ptr = release_http_action;
+	LIST_INIT(&rule->arg.http.fmt);
 
 	cur_arg = *orig_arg;
 	if (!*args[cur_arg] || !*args[cur_arg+1]) {
@@ -1506,7 +1507,6 @@ static enum act_parse_ret parse_http_set_header(const char **args, int *orig_arg
 
 
 	rule->arg.http.str = ist(strdup(args[cur_arg]));
-	LIST_INIT(&rule->arg.http.fmt);
 
 	if (rule->from == ACT_F_HTTP_REQ) {
 		px->conf.args.ctx = ARGC_HRQ;
@@ -1606,6 +1606,7 @@ static enum act_parse_ret parse_http_replace_header(const char **args, int *orig
 		rule->action = 1; // replace-value
 	rule->action_ptr = http_action_replace_header;
 	rule->release_ptr = release_http_action;
+	LIST_INIT(&rule->arg.http.fmt);
 
 	cur_arg = *orig_arg;
 	if (!*args[cur_arg] || !*args[cur_arg+1] || !*args[cur_arg+2]) {
@@ -1614,7 +1615,6 @@ static enum act_parse_ret parse_http_replace_header(const char **args, int *orig
 	}
 
 	rule->arg.http.str = ist(strdup(args[cur_arg]));
-	LIST_INIT(&rule->arg.http.fmt);
 
 	cur_arg++;
 	if (!(rule->arg.http.re = regex_comp(args[cur_arg], 1, 1, err))) {
@@ -1709,6 +1709,7 @@ static enum act_parse_ret parse_http_del_header(const char **args, int *orig_arg
 	rule->action = PAT_MATCH_STR;
 	rule->action_ptr = http_action_del_header;
 	rule->release_ptr = release_http_action;
+	LIST_INIT(&rule->arg.http.fmt);
 
 	cur_arg = *orig_arg;
 	if (!*args[cur_arg]) {
@@ -1719,7 +1720,6 @@ static enum act_parse_ret parse_http_del_header(const char **args, int *orig_arg
 	rule->arg.http.str = ist(strdup(args[cur_arg]));
 	px->conf.args.ctx = (rule->from == ACT_F_HTTP_REQ ? ARGC_HRQ : ARGC_HRS);
 
-	LIST_INIT(&rule->arg.http.fmt);
 	if (strcmp(args[cur_arg+1], "-m") == 0) {
 		cur_arg++;
 		if (!*args[cur_arg+1]) {
