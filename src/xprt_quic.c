@@ -5760,10 +5760,11 @@ static int qc_conn_alloc_ssl_ctx(struct quic_conn *qc)
 		                     qc->enc_params, qc->enc_params_len) == -1) {
 		        goto err;
 		}
-
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
 		/* Enabling 0-RTT */
 		if (bc->ssl_conf.early_data)
 			SSL_set_quic_early_data_enabled(ctx->ssl, 1);
+#endif
 
 		SSL_set_accept_state(ctx->ssl);
 	}
