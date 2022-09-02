@@ -32,7 +32,7 @@
 #include <haproxy/resolvers.h>
 #include <haproxy/sc_strm.h>
 #include <haproxy/server.h>
-#include <haproxy/ssl_sock-t.h>
+#include <haproxy/ssl_sock.h>
 #include <haproxy/sock_inet.h>
 #include <haproxy/stconn.h>
 #include <haproxy/tools.h>
@@ -1186,6 +1186,12 @@ static int httpclient_precheck()
 		goto err;
 	}
 
+#ifdef TLSEXT_TYPE_application_layer_protocol_negotiation
+	if (ssl_sock_parse_alpn("h2,http/1.1", &httpclient_srv_ssl->ssl_ctx.alpn_str, &httpclient_srv_ssl->ssl_ctx.alpn_len, &errmsg) != 0) {
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto err;
+	}
+#endif
 	httpclient_srv_ssl->ssl_ctx.verify = httpclient_ssl_verify;
 	/* if the verify is required, try to load the system CA */
 	if (httpclient_ssl_verify == SSL_SOCK_VERIFY_REQUIRED) {
