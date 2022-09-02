@@ -4198,14 +4198,14 @@ static int fcgi_show_fd(struct buffer *msg, struct connection *conn)
 			chunk_appendf(msg, " .sc.flg=0x%08x .sc.app=%p",
 				      fcgi_strm_sc(fstrm)->flags, fcgi_strm_sc(fstrm)->app);
 
-		chunk_appendf(&trash, " .subs=%p", fstrm->subs);
+		chunk_appendf(msg, " .subs=%p", fstrm->subs);
 		if (fstrm->subs) {
-			chunk_appendf(&trash, "(ev=%d tl=%p", fstrm->subs->events, fstrm->subs->tasklet);
-			chunk_appendf(&trash, " tl.calls=%d tl.ctx=%p tl.fct=",
+			chunk_appendf(msg, "(ev=%d tl=%p", fstrm->subs->events, fstrm->subs->tasklet);
+			chunk_appendf(msg, " tl.calls=%d tl.ctx=%p tl.fct=",
 				      fstrm->subs->tasklet->calls,
 				      fstrm->subs->tasklet->context);
-			resolve_sym_name(&trash, NULL, fstrm->subs->tasklet->process);
-			chunk_appendf(&trash, ")");
+			resolve_sym_name(msg, NULL, fstrm->subs->tasklet->process);
+			chunk_appendf(msg, ")");
 		}
 	}
 	return 0;
