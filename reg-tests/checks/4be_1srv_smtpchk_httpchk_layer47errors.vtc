@@ -65,7 +65,8 @@ haproxy h1 -conf {
     backend be2
         mode tcp
         log ${S2_addr}:${S2_port} daemon
-        option httpchk OPTIONS * HTTP/1.1\r\nHost:\ www
+        option httpchk OPTIONS * HTTP/1.1
+	http-check send hdr Host www
         server srv2  ${s2_addr}:${s2_port} check
 
     backend be3

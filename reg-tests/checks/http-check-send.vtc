@@ -28,7 +28,6 @@ server s3 {
     expect req.method == OPTIONS
     expect req.url == /
     expect req.proto == HTTP/1.0
-    expect req.http.hdr == <undef>
     expect req.http.host == <undef>
     expect req.http.x-test == <undef>
     expect req.bodylen == 0
@@ -41,7 +40,6 @@ server s4 {
     expect req.url == /status
     expect req.proto == HTTP/1.1
     expect req.http.connection == "close"
-    expect req.http.hdr == <undef>
     expect req.http.host == "my-www-host"
     expect req.http.x-test == true
     expect req.http.content-length == 4
@@ -55,7 +53,6 @@ server s5 {
     expect req.method == OPTIONS
     expect req.url == /
     expect req.proto == HTTP/1.0
-    expect req.http.hdr == <undef>
     expect req.http.host == "other-www-host"
     expect req.http.x-test == <undef>
     expect req.http.x-new-test == true
@@ -134,7 +131,7 @@ haproxy h1 -conf {
         timeout client "${HAPROXY_TEST_TIMEOUT-5s}"
         timeout server "${HAPROXY_TEST_TIMEOUT-5s}"
         timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
-        option httpchk GET /status HTTP/1.1\r\nHdr:\ must-be-removed
+        option httpchk GET /status HTTP/1.1
         option log-health-checks
         http-check send hdr Host "my-www-host" hdr X-test true body "test"
 

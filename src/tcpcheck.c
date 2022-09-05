@@ -4915,19 +4915,10 @@ static struct tcpcheck_rule *proxy_parse_httpchk_req(char **args, int cur_arg, s
 
 	hdrs = (*args[cur_arg+2] ? strstr(args[cur_arg+2], "\r\n") : NULL);
 	body = (*args[cur_arg+2] ? strstr(args[cur_arg+2], "\r\n\r\n") : NULL);
-	if (hdrs == body)
-		hdrs = NULL;
-	if (hdrs) {
-		*hdrs = '\0';
-		hdrs +=2;
-	}
-	if (body) {
-		*body = '\0';
-		body += 4;
-	}
 	if (hdrs || body) {
-		memprintf(errmsg, "hiding headers or body at the end of the version string is deprecated."
-			  " Please, consider to use 'http-check send' directive instead.");
+		memprintf(errmsg, "hiding headers or body at the end of the version string is unsupported."
+			  "Use 'http-check send' directive instead.");
+		goto error;
 	}
 
 	chk = calloc(1, sizeof(*chk));
@@ -4972,53 +4963,6 @@ static struct tcpcheck_rule *proxy_parse_httpchk_req(char **args, int cur_arg, s
 	if (vsn) {
 		chk->send.http.vsn = ist(strdup(vsn));
 		if (!isttest(chk->send.http.vsn)) {
-			memprintf(errmsg, "out of memory");
-			goto error;
-		}
-	}
-
-	/* Copy the header */
-	if (hdrs) {
-		struct http_hdr tmp_hdrs[global.tune.max_http_hdr];
-		struct h1m h1m;
-		int i, ret;
-
-		/* Build and parse the request */
-		chunk_printf(&trash, "%s\r\n\r\n", hdrs);
-
-		h1m.flags = H1_MF_HDRS_ONLY;
-		ret = h1_headers_to_hdr_list(b_orig(&trash), b_tail(&trash),
-					     tmp_hdrs, sizeof(tmp_hdrs)/sizeof(tmp_hdrs[0]),
-					     &h1m, NULL);
-		if (ret <= 0) {
-			memprintf(errmsg, "unable to parse the request '%s'.", b_orig(&trash));
-			goto error;
-		}
-
-		for (i = 0; istlen(tmp_hdrs[i].n); i++) {
-			hdr = calloc(1, sizeof(*hdr));
-			if (!hdr) {
-				memprintf(errmsg, "out of memory");
-				goto error;
-			}
-			LIST_INIT(&hdr->value);
-			hdr->name = istdup(tmp_hdrs[i].n);
-			if (!isttest(hdr->name)) {
-				memprintf(errmsg, "out of memory");
-				goto error;
-			}
-
-			ist0(tmp_hdrs[i].v);
-			if (!parse_logformat_string(istptr(tmp_hdrs[i].v), px, &hdr->value, 0, SMP_VAL_BE_CHK_RUL, errmsg))
-				goto error;
-			LIST_APPEND(&chk->send.http.hdrs, &hdr->list);
-		}
-	}
-
-	/* Copy the body */
-	if (body) {
-		chk->send.http.body = ist(strdup(body));
-		if (!isttest(chk->send.http.body)) {
 			memprintf(errmsg, "out of memory");
 			goto error;
 		}

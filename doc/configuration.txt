@@ -9247,11 +9247,6 @@ option httpchk <method> <uri> <version>
   internally relies on an HTX multiplexer. Thus, it means the request
   formatting and the response parsing will be strict.
 
-  Note : For a while, there was no way to add headers or body in the request
-         used for HTTP health checks. So a workaround was to hide it at the end
-         of the version string with a "\r\n" after the version. It is now
-	 deprecated. The directive "http-check send" must be used instead.
-
   Examples :
         # Relay HTTPS traffic to Apache instance and check service availability
         # using HTTP request "OPTIONS * HTTP/1.1" on port 80.

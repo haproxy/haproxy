@@ -95,7 +95,8 @@ haproxy h2 -conf {
 
     backend be2
         option log-health-checks
-        option httpchk OPTIONS * HTTP/1.1\r\nHost:\ www
+        option httpchk OPTIONS * HTTP/1.1
+        http-check send hdr Host www
         log ${S2_addr}:${S2_port} daemon
         server srv1 ${h1_fe1_addr}:${h1_fe1_port} ssl crt ${testdir}/common.pem verify none check
 
@@ -106,7 +107,8 @@ haproxy h2 -conf {
 
     backend be6
         option log-health-checks
-        option httpchk OPTIONS * HTTP/1.1\r\nHost:\ www
+        option httpchk OPTIONS * HTTP/1.1
+        http-check send hdr Host www
         log ${S6_addr}:${S6_port} daemon
         server srv3 127.0.0.1:80 crt ${testdir}/common.pem verify none check check-ssl port ${h1_fe3_port} addr ${h1_fe3_addr}:80
 } -start
