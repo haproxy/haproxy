@@ -104,11 +104,11 @@ static inline void appctx_free(struct appctx *appctx)
 	}
 }
 
-/* wakes up an applet when conditions have changed */
-static inline void appctx_wakeup(struct appctx *appctx)
-{
-	task_wakeup(appctx->t, TASK_WOKEN_OTHER);
-}
+/* wakes up an applet when conditions have changed. We're using a macro here in
+ * order to retrieve the caller's place.
+ */
+#define appctx_wakeup(ctx) \
+	_task_wakeup((ctx)->t, TASK_WOKEN_OTHER, MK_CALLER(WAKEUP_TYPE_APPCTX_WAKEUP, 0, 0))
 
 /* returns the stream connector the appctx is attached to, via the sedesc */
 static inline struct stconn *appctx_sc(const struct appctx *appctx)
