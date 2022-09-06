@@ -1294,15 +1294,15 @@ static int debug_iohandler_memstats(struct appctx *appctx)
 			if (!ptr->size && !ptr->calls && !ctx->show_all)
 				continue;
 
-			for (p = name = ptr->file; *p; p++) {
+			for (p = name = ptr->caller.file; *p; p++) {
 				if (*p == '/')
 					name = p + 1;
 			}
 
 			if (ctx->show_all)
-				w = snprintf(&tmp, 0, "%s(%s:%d) ", ptr->func, name, ptr->line);
+				w = snprintf(&tmp, 0, "%s(%s:%d) ", ptr->caller.func, name, ptr->caller.line);
 			else
-				w = snprintf(&tmp, 0, "%s:%d ", name, ptr->line);
+				w = snprintf(&tmp, 0, "%s:%d ", name, ptr->caller.line);
 
 			if (w > ctx->width)
 				ctx->width = w;
@@ -1323,14 +1323,14 @@ static int debug_iohandler_memstats(struct appctx *appctx)
 			continue;
 
 		/* basename only */
-		for (p = name = ptr->file; *p; p++) {
+		for (p = name = ptr->caller.file; *p; p++) {
 			if (*p == '/')
 				name = p + 1;
 		}
 
-		func = ptr->func;
+		func = ptr->caller.func;
 
-		switch (ptr->type) {
+		switch (ptr->caller.what) {
 		case MEM_STATS_TYPE_CALLOC:  type = "CALLOC";  break;
 		case MEM_STATS_TYPE_FREE:    type = "FREE";    break;
 		case MEM_STATS_TYPE_MALLOC:  type = "MALLOC";  break;
@@ -1351,7 +1351,7 @@ static int debug_iohandler_memstats(struct appctx *appctx)
 		if (ctx->show_all)
 			chunk_appendf(&trash, "%s(", func);
 
-		chunk_appendf(&trash, "%s:%d", name, ptr->line);
+		chunk_appendf(&trash, "%s:%d", name, ptr->caller.line);
 
 		if (ctx->show_all)
 			chunk_appendf(&trash, ")");
