@@ -126,9 +126,7 @@ struct tasklet {
 	 * list starts and this works because both are exclusive. Never ever
 	 * reorder these fields without taking this into account!
 	 */
-#ifdef DEBUG_TASK
-	uint64_t call_date;		/* date of the last tasklet wakeup or call */
-#endif
+	uint32_t call_date;		/* date of the last tasklet wakeup or call */
 	int tid;                        /* TID of the tasklet owner, <0 if local */
 };
 

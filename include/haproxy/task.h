@@ -359,9 +359,9 @@ static inline void _tasklet_wakeup_on(struct tasklet *tl, int thr, const char *f
 	tl->debug.caller_idx = !tl->debug.caller_idx;
 	tl->debug.caller_file[tl->debug.caller_idx] = file;
 	tl->debug.caller_line[tl->debug.caller_idx] = line;
+#endif
 	if (_HA_ATOMIC_LOAD(&th_ctx->flags) & TH_FL_TASK_PROFILING)
 		tl->call_date = now_mono_time();
-#endif
 	__tasklet_wakeup_on(tl, thr);
 }
 
@@ -446,9 +446,9 @@ static inline struct list *_tasklet_wakeup_after(struct list *head, struct taskl
 	tl->debug.caller_idx = !tl->debug.caller_idx;
 	tl->debug.caller_file[tl->debug.caller_idx] = file;
 	tl->debug.caller_line[tl->debug.caller_idx] = line;
+#endif
 	if (th_ctx->flags & TH_FL_TASK_PROFILING)
 		tl->call_date = now_mono_time();
-#endif
 	return __tasklet_wakeup_after(head, tl);
 }
 
@@ -517,8 +517,8 @@ static inline void tasklet_init(struct tasklet *t)
 	t->state = TASK_F_TASKLET;
 	t->process = NULL;
 	t->tid = -1;
-#ifdef DEBUG_TASK
 	t->call_date = 0;
+#ifdef DEBUG_TASK
 	t->debug.caller_idx = 0;
 #endif
 	LIST_INIT(&t->list);

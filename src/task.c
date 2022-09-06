@@ -572,12 +572,11 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 			if (unlikely(_HA_ATOMIC_LOAD(&th_ctx->flags) & TH_FL_TASK_PROFILING)) {
 				profile_entry = sched_activity_entry(sched_activity, t->process);
 				before = now_mono_time();
-#ifdef DEBUG_TASK
+
 				if (((struct tasklet *)t)->call_date) {
-					HA_ATOMIC_ADD(&profile_entry->lat_time, before - ((struct tasklet *)t)->call_date);
+					HA_ATOMIC_ADD(&profile_entry->lat_time, (uint32_t)(before - ((struct tasklet *)t)->call_date));
 					((struct tasklet *)t)->call_date = 0;
 				}
-#endif
 			}
 
 			state = _HA_ATOMIC_FETCH_AND(&t->state, TASK_PERSISTENT);
