@@ -193,11 +193,10 @@ static inline void _task_wakeup(struct task *t, unsigned int f, const struct ha_
 	state = _HA_ATOMIC_OR_FETCH(&t->state, f);
 	while (!(state & (TASK_RUNNING | TASK_QUEUED))) {
 		if (_HA_ATOMIC_CAS(&t->state, &state, state | TASK_QUEUED)) {
+			caller = HA_ATOMIC_XCHG(&t->caller, caller);
+			BUG_ON((ulong)caller & 1);
 #ifdef DEBUG_TASK
-			if ((unsigned int)t->debug.caller_idx > 1)
-				ABORT_NOW();
-			t->debug.caller_idx = !t->debug.caller_idx;
-			t->debug.caller[t->debug.caller_idx] = caller;
+			HA_ATOMIC_STORE(&t->debug.prev_caller, caller);
 #endif
 			__task_wakeup(t);
 			break;
@@ -232,11 +231,10 @@ static inline void _task_drop_running(struct task *t, unsigned int f, const stru
 	}
 
 	if ((new_state & ~state) & TASK_QUEUED) {
+		caller = HA_ATOMIC_XCHG(&t->caller, caller);
+		BUG_ON((ulong)caller & 1);
 #ifdef DEBUG_TASK
-		if ((unsigned int)t->debug.caller_idx > 1)
-			ABORT_NOW();
-		t->debug.caller_idx = !t->debug.caller_idx;
-		t->debug.caller[t->debug.caller_idx] = caller;
+		HA_ATOMIC_STORE(&t->debug.prev_caller, caller);
 #endif
 		__task_wakeup(t);
 	}
@@ -356,11 +354,10 @@ static inline void _tasklet_wakeup_on(struct tasklet *tl, int thr, const struct 
 	} while (!_HA_ATOMIC_CAS(&tl->state, &state, state | TASK_IN_LIST));
 
 	/* at this point we're the first ones to add this task to the list */
+	caller = HA_ATOMIC_XCHG(&tl->caller, caller);
+	BUG_ON((ulong)caller & 1);
 #ifdef DEBUG_TASK
-	if ((unsigned int)tl->debug.caller_idx > 1)
-		ABORT_NOW();
-	tl->debug.caller_idx = !tl->debug.caller_idx;
-	tl->debug.caller[tl->debug.caller_idx] = caller;
+	HA_ATOMIC_STORE(&tl->debug.prev_caller, caller);
 #endif
 	if (_HA_ATOMIC_LOAD(&th_ctx->flags) & TH_FL_TASK_PROFILING)
 		tl->wake_date = now_mono_time();
@@ -411,11 +408,10 @@ static inline void _task_instant_wakeup(struct task *t, unsigned int f, const st
 	BUG_ON_HOT(task_in_rq(t));
 
 	/* at this point we're the first ones to add this task to the list */
+	caller = HA_ATOMIC_XCHG(&t->caller, caller);
+	BUG_ON((ulong)caller & 1);
 #ifdef DEBUG_TASK
-	if ((unsigned int)t->debug.caller_idx > 1)
-		ABORT_NOW();
-	t->debug.caller_idx = !t->debug.caller_idx;
-	t->debug.caller[t->debug.caller_idx] = caller;
+	HA_ATOMIC_STORE(&t->debug.prev_caller, caller);
 #endif
 	if (_HA_ATOMIC_LOAD(&th_ctx->flags) & TH_FL_TASK_PROFILING)
 		t->wake_date = now_mono_time();
@@ -446,11 +442,10 @@ static inline struct list *_tasklet_wakeup_after(struct list *head, struct taskl
 	} while (!_HA_ATOMIC_CAS(&tl->state, &state, state | TASK_IN_LIST));
 
 	/* at this point we're the first one to add this task to the list */
+	caller = HA_ATOMIC_XCHG(&tl->caller, caller);
+	BUG_ON((ulong)caller & 1);
 #ifdef DEBUG_TASK
-	if ((unsigned int)tl->debug.caller_idx > 1)
-		ABORT_NOW();
-	tl->debug.caller_idx = !tl->debug.caller_idx;
-	tl->debug.caller[tl->debug.caller_idx] = caller;
+	HA_ATOMIC_STORE(&tl->debug.prev_caller, caller);
 #endif
 	if (th_ctx->flags & TH_FL_TASK_PROFILING)
 		tl->wake_date = now_mono_time();
@@ -462,7 +457,7 @@ static inline struct list *_tasklet_wakeup_after(struct list *head, struct taskl
  */
 #ifdef DEBUG_TASK
 #define DEBUG_TASK_PRINT_CALLER(t) do {						\
-	const struct ha_caller *__caller = (t)->debug.caller[(t)->debug.caller_idx];	\
+	const struct ha_caller *__caller = (t)->caller;			\
 	printf("%s woken up from %s(%s:%d)\n", __FUNCTION__,		\
 	       __caller ? __caller->func : NULL, \
 	       __caller ? __caller->file : NULL, \
@@ -506,9 +501,7 @@ static inline struct task *task_init(struct task *t, int tid)
 	t->calls = 0;
 	t->wake_date = 0;
 	t->expire = TICK_ETERNITY;
-#ifdef DEBUG_TASK
-	t->debug.caller_idx = 0;
-#endif
+	t->caller = NULL;
 	return t;
 }
 
@@ -523,9 +516,7 @@ static inline void tasklet_init(struct tasklet *t)
 	t->process = NULL;
 	t->tid = -1;
 	t->wake_date = 0;
-#ifdef DEBUG_TASK
-	t->debug.caller_idx = 0;
-#endif
+	t->caller = NULL;
 	LIST_INIT(&t->list);
 }
 
@@ -588,11 +579,11 @@ static inline void __task_free(struct task *t)
 	}
 	BUG_ON(task_in_wq(t) || task_in_rq(t));
 
+	BUG_ON((ulong)t->caller & 1);
 #ifdef DEBUG_TASK
-	if ((unsigned int)t->debug.caller_idx > 1)
-		ABORT_NOW();
-	t->debug.caller_idx |= 2; // keep parity and make sure to crash if used after free
+	HA_ATOMIC_STORE(&t->debug.prev_caller, HA_ATOMIC_LOAD(&t->caller));
 #endif
+	HA_ATOMIC_STORE(&t->caller, (void*)1); // make sure to crash if used after free
 
 	pool_free(pool_head_task, t);
 	th_ctx->nb_tasks--;
@@ -631,11 +622,11 @@ static inline void tasklet_free(struct tasklet *tl)
 	if (MT_LIST_DELETE(list_to_mt_list(&tl->list)))
 		_HA_ATOMIC_DEC(&ha_thread_ctx[tl->tid >= 0 ? tl->tid : tid].rq_total);
 
+	BUG_ON((ulong)tl->caller & 1);
 #ifdef DEBUG_TASK
-	if ((unsigned int)tl->debug.caller_idx > 1)
-		ABORT_NOW();
-	tl->debug.caller_idx |= 2; // keep parity and make sure to crash if used after free
+	HA_ATOMIC_STORE(&tl->debug.prev_caller, HA_ATOMIC_LOAD(&tl->caller));
 #endif
+	HA_ATOMIC_STORE(&tl->caller, (void*)1); // make sure to crash if used after free
 	pool_free(pool_head_tasklet, tl);
 	if (unlikely(stopping))
 		pool_flush(pool_head_tasklet);

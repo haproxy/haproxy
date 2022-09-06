@@ -84,10 +84,10 @@ struct notification {
 };
 
 #ifdef DEBUG_TASK
+/* prev_caller keeps a copy of the previous value of the <caller> field. */
 #define TASK_DEBUG_STORAGE                   \
 	struct {                             \
-		const struct ha_caller *caller[2]; \
-		int caller_idx;              \
+		const struct ha_caller *prev_caller; \
 	} debug
 #else
 #define TASK_DEBUG_STORAGE
@@ -108,6 +108,7 @@ struct notification {
 		unsigned int calls; /* number of times process was called */ \
 		struct task *(*process)(struct task *t, void *ctx, unsigned int state); /* the function which processes the task */ \
 		void *context; /* the task's context */			\
+		const struct ha_caller *caller;	 /* call place of last wakeup(); 0 on init, -1 on free */ \
 		TASK_DEBUG_STORAGE;					\
 	}
 
