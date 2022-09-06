@@ -61,6 +61,19 @@
 #define TASK_PERSISTENT   (TASK_SELF_WAKING | TASK_KILLED | \
                            TASK_HEAVY | TASK_F_TASKLET | TASK_F_USR1)
 
+/* these wakeup types are used to indicate how a task/tasklet was woken up, for
+ * debugging purposes.
+ */
+enum {
+	WAKEUP_TYPE_UNSET = 0,
+	WAKEUP_TYPE_TASK_WAKEUP,
+	WAKEUP_TYPE_TASK_INSTANT_WAKEUP,
+	WAKEUP_TYPE_TASKLET_WAKEUP,
+	WAKEUP_TYPE_TASKLET_WAKEUP_AFTER,
+	WAKEUP_TYPE_TASK_DROP_RUNNING,
+	WAKEUP_TYPE_APPCTX_WAKEUP,
+};
+
 struct notification {
 	struct list purge_me; /* Part of the list of signals to be purged in the
 	                         case of the LUA execution stack crash. */

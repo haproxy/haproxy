@@ -86,7 +86,6 @@
 /* tasklets are recognized with nice==-32768 */
 #define TASK_IS_TASKLET(t) ((t)->state & TASK_F_TASKLET)
 
-
 /* a few exported variables */
 extern struct pool_head *pool_head_task;
 extern struct pool_head *pool_head_tasklet;
@@ -674,6 +673,22 @@ static inline void task_schedule(struct task *task, int when)
 		task->expire = when;
 		if (!task_in_wq(task) || tick_is_lt(task->expire, task->wq.key))
 			__task_queue(task, &th_ctx->timers);
+	}
+}
+
+/* returns the string corresponding to a task type as found in the task caller
+ * locations.
+ */
+static inline const char *task_wakeup_type_str(uint t)
+{
+	switch (t) {
+	case WAKEUP_TYPE_TASK_WAKEUP          : return "task_wakeup";
+	case WAKEUP_TYPE_TASK_INSTANT_WAKEUP  : return "task_instant_wakeup";
+	case WAKEUP_TYPE_TASKLET_WAKEUP       : return "tasklet_wakeup";
+	case WAKEUP_TYPE_TASKLET_WAKEUP_AFTER : return "tasklet_wakeup_after";
+	case WAKEUP_TYPE_TASK_DROP_RUNNING    : return "task_drop_running";
+	case WAKEUP_TYPE_APPCTX_WAKEUP        : return "appctx_wakeup";
+	default                               : return "?";
 	}
 }
 
