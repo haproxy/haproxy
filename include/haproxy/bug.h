@@ -193,6 +193,23 @@ static inline __attribute((always_inline)) void ha_crash_now(void)
 		*__x = NULL;						\
 	} while (0)
 
+/* describes a call place in the code, for example for tracing memory
+ * allocations or task wakeups. These must be declared static const.
+ */
+struct ha_caller {
+	const char *func;  // function name
+	const char *file;  // file name
+	uint16_t line;     // line number
+	uint8_t what;      // description of the call, usage specific
+	uint8_t arg8;      // optional argument, usage specific
+	uint32_t arg32;    // optional argument, usage specific
+};
+
+#define MK_CALLER(_what, _arg8, _arg32)					\
+	({ static const struct ha_caller _ = {				\
+		.func = __func__, .file = __FILE__, .line = __LINE__,	\
+		.what = _what, .arg8 = _arg8, .arg32 = _arg32 };	\
+		&_; })
 
 /* handle 'tainted' status */
 enum tainted_flags {
