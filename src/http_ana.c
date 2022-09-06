@@ -673,7 +673,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 	 * 9: add X-Forwarded-For if either the frontend or the backend
 	 * asks for it.
 	 */
-	if ((sess->fe->options | s->be->options) & PR_O_FWDFOR) {
+	if ((sess->fe->options & s->be->options) & PR_O_FWDFOR) {
 		const struct sockaddr_storage *src = sc_src(s->scf);
 		struct http_hdr_ctx ctx = { .blk = NULL };
 		struct ist hdr = isttest(s->be->fwdfor_hdr_name) ? s->be->fwdfor_hdr_name : sess->fe->fwdfor_hdr_name;
