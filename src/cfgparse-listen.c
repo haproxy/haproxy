@@ -2068,6 +2068,82 @@ stats_error_parsing:
 			goto out;
 		}
 
+		if (strcmp(args[1], "forwardfor") == 0) {
+			if (kwm == KWM_NO) {
+				curproxy->options &= ~(PR_O_FWDFOR | PR_O_FF_ALWAYS);
+			}
+
+			if (kwm == KWM_STD) {
+				int cur_arg;
+
+				/* insert x-forwarded-for field, but not for the IP address listed as an except.
+				 * set default options (ie: bitfield, header name, etc)
+				 */
+
+				curproxy->options |= PR_O_FWDFOR | PR_O_FF_ALWAYS;
+
+				istfree(&curproxy->fwdfor_hdr_name);
+				curproxy->fwdfor_hdr_name = istdup(ist(DEF_XFORWARDFOR_HDR));
+				if (!isttest(curproxy->fwdfor_hdr_name))
+					goto alloc_error;
+				curproxy->except_xff_net.family = AF_UNSPEC;
+
+				/* loop to go through arguments - start at 2, since 0+1 = "option" "forwardfor" */
+				cur_arg = 2;
+				while (*(args[cur_arg])) {
+					if (strcmp(args[cur_arg], "except") == 0) {
+						unsigned char mask;
+						int i;
+
+						/* suboption except - needs additional argument for it */
+						if (*(args[cur_arg+1]) &&
+						    str2net(args[cur_arg+1], 1, &curproxy->except_xff_net.addr.v4.ip, &curproxy->except_xff_net.addr.v4.mask)) {
+							curproxy->except_xff_net.family = AF_INET;
+							curproxy->except_xff_net.addr.v4.ip.s_addr &= curproxy->except_xff_net.addr.v4.mask.s_addr;
+						}
+						else if (*(args[cur_arg+1]) &&
+							 str62net(args[cur_arg+1], &curproxy->except_xff_net.addr.v6.ip, &mask)) {
+							curproxy->except_xff_net.family = AF_INET6;
+							len2mask6(mask, &curproxy->except_xff_net.addr.v6.mask);
+							for (i = 0; i < 16; i++)
+								curproxy->except_xff_net.addr.v6.ip.s6_addr[i] &= curproxy->except_xff_net.addr.v6.mask.s6_addr[i];
+						}
+						else {
+							ha_alert("parsing [%s:%d] : '%s %s %s' expects <address>[/mask] as argument.\n",
+								 file, linenum, args[0], args[1], args[cur_arg]);
+							err_code |= ERR_ALERT | ERR_FATAL;
+							goto out;
+						}
+						/* flush useless bits */
+						cur_arg += 2;
+					} else if (strcmp(args[cur_arg], "header") == 0) {
+						/* suboption header - needs additional argument for it */
+						if (*(args[cur_arg+1]) == 0) {
+							ha_alert("parsing [%s:%d] : '%s %s %s' expects <header_name> as argument.\n",
+								 file, linenum, args[0], args[1], args[cur_arg]);
+							err_code |= ERR_ALERT | ERR_FATAL;
+							goto out;
+						}
+						istfree(&curproxy->fwdfor_hdr_name);
+						curproxy->fwdfor_hdr_name = istdup(ist(args[cur_arg+1]));
+						if (!isttest(curproxy->fwdfor_hdr_name))
+							goto alloc_error;
+						cur_arg += 2;
+					} else if (strcmp(args[cur_arg], "if-none") == 0) {
+						curproxy->options &= ~PR_O_FF_ALWAYS;
+						cur_arg += 1;
+					} else {
+						/* unknown suboption - catchall */
+						ha_alert("parsing [%s:%d] : '%s %s' only supports optional values: 'except', 'header' and 'if-none'.\n",
+							 file, linenum, args[0], args[1]);
+						err_code |= ERR_ALERT | ERR_FATAL;
+						goto out;
+					}
+				} /* end while loop */
+			}
+			goto out;
+		}
+
 		if (kwm != KWM_STD) {
 			ha_alert("parsing [%s:%d]: negation/default is not supported for option '%s'.\n",
 				 file, linenum, args[1]);
@@ -2258,74 +2334,6 @@ stats_error_parsing:
 			err_code |= proxy_parse_external_check_opt(args, 0, curproxy, curr_defproxy, file, linenum);
 			if (err_code & ERR_FATAL)
 				goto out;
-		}
-		else if (strcmp(args[1], "forwardfor") == 0) {
-			int cur_arg;
-
-			/* insert x-forwarded-for field, but not for the IP address listed as an except.
-			 * set default options (ie: bitfield, header name, etc)
-			 */
-
-			curproxy->options |= PR_O_FWDFOR | PR_O_FF_ALWAYS;
-
-			istfree(&curproxy->fwdfor_hdr_name);
-			curproxy->fwdfor_hdr_name = istdup(ist(DEF_XFORWARDFOR_HDR));
-			if (!isttest(curproxy->fwdfor_hdr_name))
-				goto alloc_error;
-			curproxy->except_xff_net.family = AF_UNSPEC;
-
-			/* loop to go through arguments - start at 2, since 0+1 = "option" "forwardfor" */
-			cur_arg = 2;
-			while (*(args[cur_arg])) {
-				if (strcmp(args[cur_arg], "except") == 0) {
-					unsigned char mask;
-					int i;
-
-					/* suboption except - needs additional argument for it */
-					if (*(args[cur_arg+1]) &&
-					    str2net(args[cur_arg+1], 1, &curproxy->except_xff_net.addr.v4.ip, &curproxy->except_xff_net.addr.v4.mask)) {
-						curproxy->except_xff_net.family = AF_INET;
-						curproxy->except_xff_net.addr.v4.ip.s_addr &= curproxy->except_xff_net.addr.v4.mask.s_addr;
-					}
-					else if (*(args[cur_arg+1]) &&
-						 str62net(args[cur_arg+1], &curproxy->except_xff_net.addr.v6.ip, &mask)) {
-						curproxy->except_xff_net.family = AF_INET6;
-						len2mask6(mask, &curproxy->except_xff_net.addr.v6.mask);
-						for (i = 0; i < 16; i++)
-							curproxy->except_xff_net.addr.v6.ip.s6_addr[i] &= curproxy->except_xff_net.addr.v6.mask.s6_addr[i];
-					}
-					else {
-						ha_alert("parsing [%s:%d] : '%s %s %s' expects <address>[/mask] as argument.\n",
-							 file, linenum, args[0], args[1], args[cur_arg]);
-						err_code |= ERR_ALERT | ERR_FATAL;
-						goto out;
-					}
-					/* flush useless bits */
-					cur_arg += 2;
-				} else if (strcmp(args[cur_arg], "header") == 0) {
-					/* suboption header - needs additional argument for it */
-					if (*(args[cur_arg+1]) == 0) {
-						ha_alert("parsing [%s:%d] : '%s %s %s' expects <header_name> as argument.\n",
-							 file, linenum, args[0], args[1], args[cur_arg]);
-						err_code |= ERR_ALERT | ERR_FATAL;
-						goto out;
-					}
-					istfree(&curproxy->fwdfor_hdr_name);
-					curproxy->fwdfor_hdr_name = istdup(ist(args[cur_arg+1]));
-					if (!isttest(curproxy->fwdfor_hdr_name))
-						goto alloc_error;
-					cur_arg += 2;
-				} else if (strcmp(args[cur_arg], "if-none") == 0) {
-					curproxy->options &= ~PR_O_FF_ALWAYS;
-					cur_arg += 1;
-				} else {
-					/* unknown suboption - catchall */
-					ha_alert("parsing [%s:%d] : '%s %s' only supports optional values: 'except', 'header' and 'if-none'.\n",
-						 file, linenum, args[0], args[1]);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-			} /* end while loop */
 		}
 		else if (strcmp(args[1], "originalto") == 0) {
 			int cur_arg;
