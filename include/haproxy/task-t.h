@@ -86,8 +86,7 @@ struct notification {
 #ifdef DEBUG_TASK
 #define TASK_DEBUG_STORAGE                   \
 	struct {                             \
-		const char *caller_file[2];  \
-		int caller_line[2];          \
+		const struct ha_caller *caller[2]; \
 		int caller_idx;              \
 	} debug
 #else

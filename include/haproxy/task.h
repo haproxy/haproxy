@@ -183,8 +183,10 @@ static inline int thread_has_tasks(void)
  * the <file>:<line> from the call place are stored into the task for tracing
  * purposes.
  */
-#define task_wakeup(t, f) _task_wakeup(t, f, __FILE__, __LINE__)
-static inline void _task_wakeup(struct task *t, unsigned int f, const char *file, int line)
+#define task_wakeup(t, f) \
+	_task_wakeup(t, f, MK_CALLER(WAKEUP_TYPE_TASK_WAKEUP, 0, 0))
+
+static inline void _task_wakeup(struct task *t, unsigned int f, const struct ha_caller *caller)
 {
 	unsigned int state;
 
@@ -195,8 +197,7 @@ static inline void _task_wakeup(struct task *t, unsigned int f, const char *file
 			if ((unsigned int)t->debug.caller_idx > 1)
 				ABORT_NOW();
 			t->debug.caller_idx = !t->debug.caller_idx;
-			t->debug.caller_file[t->debug.caller_idx] = file;
-			t->debug.caller_line[t->debug.caller_idx] = line;
+			t->debug.caller[t->debug.caller_idx] = caller;
 #endif
 			__task_wakeup(t);
 			break;
@@ -211,8 +212,10 @@ static inline void _task_wakeup(struct task *t, unsigned int f, const char *file
  * that it's possible to unconditionally wakeup the task and drop the RUNNING
  * flag if needed.
  */
-#define task_drop_running(t, f) _task_drop_running(t, f, __FILE__, __LINE__)
-static inline void _task_drop_running(struct task *t, unsigned int f, const char *file, int line)
+#define task_drop_running(t, f) \
+	_task_drop_running(t, f, MK_CALLER(WAKEUP_TYPE_TASK_DROP_RUNNING, 0, 0))
+
+static inline void _task_drop_running(struct task *t, unsigned int f, const struct ha_caller *caller)
 {
 	unsigned int state, new_state;
 
@@ -233,8 +236,7 @@ static inline void _task_drop_running(struct task *t, unsigned int f, const char
 		if ((unsigned int)t->debug.caller_idx > 1)
 			ABORT_NOW();
 		t->debug.caller_idx = !t->debug.caller_idx;
-		t->debug.caller_file[t->debug.caller_idx] = file;
-		t->debug.caller_line[t->debug.caller_idx] = line;
+		t->debug.caller[t->debug.caller_idx] = caller;
 #endif
 		__task_wakeup(t);
 	}
@@ -340,8 +342,10 @@ static inline void task_set_thread(struct task *t, int thr)
  * <file>:<line> from the call place are stored into the tasklet for tracing
  * purposes.
  */
-#define tasklet_wakeup_on(tl, thr) _tasklet_wakeup_on(tl, thr, __FILE__, __LINE__)
-static inline void _tasklet_wakeup_on(struct tasklet *tl, int thr, const char *file, int line)
+#define tasklet_wakeup_on(tl, thr) \
+	_tasklet_wakeup_on(tl, thr, MK_CALLER(WAKEUP_TYPE_TASKLET_WAKEUP, 0, 0))
+
+static inline void _tasklet_wakeup_on(struct tasklet *tl, int thr, const struct ha_caller *caller)
 {
 	unsigned int state = tl->state;
 
@@ -356,8 +360,7 @@ static inline void _tasklet_wakeup_on(struct tasklet *tl, int thr, const char *f
 	if ((unsigned int)tl->debug.caller_idx > 1)
 		ABORT_NOW();
 	tl->debug.caller_idx = !tl->debug.caller_idx;
-	tl->debug.caller_file[tl->debug.caller_idx] = file;
-	tl->debug.caller_line[tl->debug.caller_idx] = line;
+	tl->debug.caller[tl->debug.caller_idx] = caller;
 #endif
 	if (_HA_ATOMIC_LOAD(&th_ctx->flags) & TH_FL_TASK_PROFILING)
 		tl->wake_date = now_mono_time();
@@ -369,7 +372,8 @@ static inline void _tasklet_wakeup_on(struct tasklet *tl, int thr, const char *f
  * DEBUG_TASK is set, the <file>:<line> from the call place are stored into the
  * task for tracing purposes.
  */
-#define tasklet_wakeup(tl) _tasklet_wakeup_on(tl, (tl)->tid, __FILE__, __LINE__)
+#define tasklet_wakeup(tl) \
+	_tasklet_wakeup_on(tl, (tl)->tid, MK_CALLER(WAKEUP_TYPE_TASKLET_WAKEUP, 0, 0))
 
 /* instantly wakes up task <t> on its owner thread even if it's not the current
  * one, bypassing the run queue. The purpose is to be able to avoid contention
@@ -380,8 +384,10 @@ static inline void _tasklet_wakeup_on(struct tasklet *tl, int thr, const char *f
  * TL_URGENT. Great care is taken to be certain it's not queued nor running
  * already.
  */
-#define task_instant_wakeup(t, f) _task_instant_wakeup(t, f, __FILE__, __LINE__)
-static inline void _task_instant_wakeup(struct task *t, unsigned int f, const char *file, int line)
+#define task_instant_wakeup(t, f) \
+	_task_instant_wakeup(t, f, MK_CALLER(WAKEUP_TYPE_TASK_INSTANT_WAKEUP, 0, 0))
+
+static inline void _task_instant_wakeup(struct task *t, unsigned int f, const struct ha_caller *caller)
 {
 	int thr = t->tid;
 	unsigned int state;
@@ -409,8 +415,7 @@ static inline void _task_instant_wakeup(struct task *t, unsigned int f, const ch
 	if ((unsigned int)t->debug.caller_idx > 1)
 		ABORT_NOW();
 	t->debug.caller_idx = !t->debug.caller_idx;
-	t->debug.caller_file[t->debug.caller_idx] = file;
-	t->debug.caller_line[t->debug.caller_idx] = line;
+	t->debug.caller[t->debug.caller_idx] = caller;
 #endif
 	if (_HA_ATOMIC_LOAD(&th_ctx->flags) & TH_FL_TASK_PROFILING)
 		t->wake_date = now_mono_time();
@@ -426,9 +431,11 @@ static inline void _task_instant_wakeup(struct task *t, unsigned int f, const ch
  * With DEBUG_TASK, the <file>:<line> from the call place are stored into the tasklet
  * for tracing purposes.
  */
-#define tasklet_wakeup_after(head, tl) _tasklet_wakeup_after(head, tl, __FILE__, __LINE__)
+#define tasklet_wakeup_after(head, tl) \
+	_tasklet_wakeup_after(head, tl, MK_CALLER(WAKEUP_TYPE_TASKLET_WAKEUP_AFTER, 0, 0))
+
 static inline struct list *_tasklet_wakeup_after(struct list *head, struct tasklet *tl,
-                                                 const char *file, int line)
+                                                 const struct ha_caller *caller)
 {
 	unsigned int state = tl->state;
 
@@ -443,8 +450,7 @@ static inline struct list *_tasklet_wakeup_after(struct list *head, struct taskl
 	if ((unsigned int)tl->debug.caller_idx > 1)
 		ABORT_NOW();
 	tl->debug.caller_idx = !tl->debug.caller_idx;
-	tl->debug.caller_file[tl->debug.caller_idx] = file;
-	tl->debug.caller_line[tl->debug.caller_idx] = line;
+	tl->debug.caller[tl->debug.caller_idx] = caller;
 #endif
 	if (th_ctx->flags & TH_FL_TASK_PROFILING)
 		tl->wake_date = now_mono_time();
@@ -455,13 +461,15 @@ static inline struct list *_tasklet_wakeup_after(struct list *head, struct taskl
  * task (or tasklet) wakeup.
  */
 #ifdef DEBUG_TASK
-#define DEBUG_TASK_PRINT_CALLER(t) do {				\
-	printf("%s woken up from %s:%d\n", __FUNCTION__,		\
-	       (t)->debug.caller_file[(t)->debug.caller_idx],	\
-	       (t)->debug.caller_line[(t)->debug.caller_idx]);	\
+#define DEBUG_TASK_PRINT_CALLER(t) do {						\
+	const struct ha_caller *__caller = (t)->debug.caller[(t)->debug.caller_idx];	\
+	printf("%s woken up from %s(%s:%d)\n", __FUNCTION__,		\
+	       __caller ? __caller->func : NULL, \
+	       __caller ? __caller->file : NULL, \
+	       __caller ? __caller->line : 0); \
 } while (0)
 #else
-#define DEBUG_TASK_PRINT_CALLER(t)
+#define DEBUG_TASK_PRINT_CALLER(t) do { } while (0)
 #endif
 
 
