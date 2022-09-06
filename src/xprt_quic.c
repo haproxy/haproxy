@@ -1515,17 +1515,20 @@ void qc_release_frm(struct quic_conn *qc, struct quic_frame *frm)
 	 */
 	list_for_each_entry_safe(f, tmp, &origin->reflist, ref) {
 		if (f->pkt) {
+			f->flags |= QUIC_FL_TX_FRAME_ACKED;
+			f->origin = NULL;
+			LIST_DELETE(&f->ref);
 			pn = f->pkt->pn_node.key;
 			TRACE_DEVEL("mark frame as acked from packet",
 			            QUIC_EV_CONN_PRSAFRM, qc, f, &pn);
 		}
 		else {
-			TRACE_DEVEL("mark unsent frame as acked",
+			TRACE_DEVEL("freeing unsent frame",
 			            QUIC_EV_CONN_PRSAFRM, qc, f);
+			LIST_DELETE(&f->ref);
+			LIST_DELETE(&f->list);
+			pool_free(pool_head_quic_frame, f);
 		}
-		f->flags |= QUIC_FL_TX_FRAME_ACKED;
-		f->origin = NULL;
-		LIST_DELETE(&f->ref);
 	}
 	LIST_DELETE(&frm->list);
 	pn = frm->pkt->pn_node.key;
