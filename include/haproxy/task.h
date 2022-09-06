@@ -519,6 +519,7 @@ static inline void tasklet_init(struct tasklet *t)
 	t->process = NULL;
 	t->tid = -1;
 #ifdef DEBUG_TASK
+	t->call_date = 0;
 	t->debug.caller_idx = 0;
 #endif
 	LIST_INIT(&t->list);
