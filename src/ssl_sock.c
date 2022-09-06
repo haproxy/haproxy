@@ -1154,15 +1154,28 @@ static int ssl_hmac_init(MAC_CTX *hctx, unsigned char *key, int key_len, const E
 
 static int ssl_tlsext_ticket_key_cb(SSL *s, unsigned char key_name[16], unsigned char *iv, EVP_CIPHER_CTX *ectx, MAC_CTX *hctx, int enc)
 {
-	struct tls_keys_ref *ref;
+	struct tls_keys_ref *ref = NULL;
 	union tls_sess_key *keys;
-	struct connection *conn;
 	int head;
 	int i;
 	int ret = -1; /* error by default */
+	struct connection *conn = SSL_get_ex_data(s, ssl_app_data_index);
+#ifdef USE_QUIC
+	struct quic_conn *qc = SSL_get_ex_data(s, ssl_qc_app_data_index);
+#endif
 
-	conn = SSL_get_ex_data(s, ssl_app_data_index);
-	ref  = __objt_listener(conn->target)->bind_conf->keys_ref;
+	if (conn)
+		ref  = __objt_listener(conn->target)->bind_conf->keys_ref;
+#ifdef USE_QUIC
+	else if (qc)
+		ref =  qc->li->bind_conf->keys_ref;
+#endif
+
+	if (!ref) {
+		/* must never happen */
+		ABORT_NOW();
+	}
+
 	HA_RWLOCK_RDLOCK(TLSKEYS_REF_LOCK, &ref->lock);
 
 	keys = ref->tlskeys;
