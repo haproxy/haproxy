@@ -384,7 +384,6 @@ static inline void _tasklet_wakeup_on(struct tasklet *tl, int thr, const char *f
 #define task_instant_wakeup(t, f) _task_instant_wakeup(t, f, __FILE__, __LINE__)
 static inline void _task_instant_wakeup(struct task *t, unsigned int f, const char *file, int line)
 {
-	struct tasklet *tl = (struct tasklet *)t;
 	int thr = t->tid;
 	unsigned int state;
 
@@ -392,7 +391,7 @@ static inline void _task_instant_wakeup(struct task *t, unsigned int f, const ch
 		thr = tid;
 
 	/* first, let's update the task's state with the wakeup condition */
-	state = _HA_ATOMIC_OR_FETCH(&tl->state, f);
+	state = _HA_ATOMIC_OR_FETCH(&t->state, f);
 
 	/* next we need to make sure the task was not/will not be added to the
 	 * run queue because the tasklet list's mt_list uses the same storage
@@ -402,21 +401,21 @@ static inline void _task_instant_wakeup(struct task *t, unsigned int f, const ch
 		/* do nothing if someone else already added it */
 		if (state & (TASK_QUEUED|TASK_RUNNING))
 			return;
-	} while (!_HA_ATOMIC_CAS(&tl->state, &state, state | TASK_QUEUED));
+	} while (!_HA_ATOMIC_CAS(&t->state, &state, state | TASK_QUEUED));
 
 	BUG_ON_HOT(task_in_rq(t));
 
 	/* at this point we're the first ones to add this task to the list */
 #ifdef DEBUG_TASK
-	if ((unsigned int)tl->debug.caller_idx > 1)
+	if ((unsigned int)t->debug.caller_idx > 1)
 		ABORT_NOW();
-	tl->debug.caller_idx = !tl->debug.caller_idx;
-	tl->debug.caller_file[tl->debug.caller_idx] = file;
-	tl->debug.caller_line[tl->debug.caller_idx] = line;
-	if (_HA_ATOMIC_LOAD(&th_ctx->flags) & TH_FL_TASK_PROFILING)
-		tl->call_date = now_mono_time();
+	t->debug.caller_idx = !t->debug.caller_idx;
+	t->debug.caller_file[t->debug.caller_idx] = file;
+	t->debug.caller_line[t->debug.caller_idx] = line;
 #endif
-	__tasklet_wakeup_on(tl, thr);
+	if (_HA_ATOMIC_LOAD(&th_ctx->flags) & TH_FL_TASK_PROFILING)
+		t->call_date = now_mono_time();
+	__tasklet_wakeup_on((struct tasklet *)t, thr);
 }
 
 /* schedules tasklet <tl> to run immediately after the current one is done
