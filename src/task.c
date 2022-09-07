@@ -25,6 +25,7 @@
 #include <haproxy/tools.h>
 
 extern struct task *process_stream(struct task *t, void *context, unsigned int state);
+extern void stream_update_timings(struct task *t, uint64_t lat, uint64_t cpu);
 
 DECLARE_POOL(pool_head_task,    "task",    sizeof(struct task));
 DECLARE_POOL(pool_head_tasklet, "tasklet", sizeof(struct tasklet));
@@ -611,7 +612,6 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 			uint32_t now_ns = now_mono_time();
 			uint32_t lat = now_ns - t->wake_date;
 
-			t->lat_time += lat;
 			t->wake_date = 0;
 			th_ctx->sched_call_date = now_ns;
 			profile_entry = sched_activity_entry(sched_activity, t->process);
@@ -669,8 +669,6 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 		if (unlikely(th_ctx->sched_wake_date)) {
 			uint32_t cpu = (uint32_t)now_mono_time() - th_ctx->sched_call_date;
 
-			if (t)
-				t->cpu_time += cpu;
 			HA_ATOMIC_ADD(&profile_entry->cpu_time, cpu);
 		}
 

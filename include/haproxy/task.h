@@ -498,8 +498,6 @@ static inline struct task *task_init(struct task *t, int tid)
 	t->nice = 0;
 	t->calls = 0;
 	t->wake_date = 0;
-	t->cpu_time = 0;
-	t->lat_time = 0;
 	t->expire = TICK_ETERNITY;
 #ifdef DEBUG_TASK
 	t->debug.caller_idx = 0;
