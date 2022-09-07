@@ -559,28 +559,30 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 		ctx = t->context;
 		process = t->process;
 		t->calls++;
+
+		th_ctx->sched_wake_date = t->wake_date;
+		if (th_ctx->sched_wake_date) {
+			uint32_t now_ns = now_mono_time();
+			uint32_t lat = now_ns - th_ctx->sched_wake_date;
+
+			t->wake_date = 0;
+			th_ctx->sched_call_date = now_ns;
+			profile_entry = sched_activity_entry(sched_activity, t->process);
+			th_ctx->sched_profile_entry = profile_entry;
+			HA_ATOMIC_ADD(&profile_entry->lat_time, lat);
+			HA_ATOMIC_INC(&profile_entry->calls);
+		}
+		__ha_barrier_store();
+
 		th_ctx->current = t;
 		_HA_ATOMIC_AND(&th_ctx->flags, ~TH_FL_STUCK); // this thread is still running
 
 		_HA_ATOMIC_DEC(&th_ctx->rq_total);
+		LIST_DEL_INIT(&((struct tasklet *)t)->list);
+		__ha_barrier_store();
 
 		if (t->state & TASK_F_TASKLET) {
-			LIST_DEL_INIT(&((struct tasklet *)t)->list);
-			__ha_barrier_store();
-
-			th_ctx->sched_wake_date = ((struct tasklet *)t)->wake_date;
-			if (th_ctx->sched_wake_date) {
-				uint32_t now_ns = now_mono_time();
-				uint32_t lat = now_ns - th_ctx->sched_wake_date;
-
-				((struct tasklet *)t)->wake_date = 0;
-				th_ctx->sched_call_date = now_ns;
-				profile_entry = sched_activity_entry(sched_activity, t->process);
-				th_ctx->sched_profile_entry = profile_entry;
-				HA_ATOMIC_ADD(&profile_entry->lat_time, lat);
-				HA_ATOMIC_INC(&profile_entry->calls);
-			}
-
+			/* this is a tasklet */
 			state = _HA_ATOMIC_FETCH_AND(&t->state, TASK_PERSISTENT);
 			__ha_barrier_atomic_store();
 
@@ -594,98 +596,70 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 				__ha_barrier_store();
 				continue;
 			}
+		} else {
+			/* This is a regular task */
 
-			if (th_ctx->sched_wake_date)
-				HA_ATOMIC_ADD(&profile_entry->cpu_time, (uint32_t)(now_mono_time() - th_ctx->sched_call_date));
-
-			done++;
-			th_ctx->current = NULL;
-			__ha_barrier_store();
-			continue;
-		}
-
-		LIST_DEL_INIT(&((struct tasklet *)t)->list);
-		__ha_barrier_store();
-
-		th_ctx->sched_wake_date = t->wake_date;
-		if (unlikely(t->wake_date)) {
-			uint32_t now_ns = now_mono_time();
-			uint32_t lat = now_ns - t->wake_date;
-
-			t->wake_date = 0;
-			th_ctx->sched_call_date = now_ns;
-			profile_entry = sched_activity_entry(sched_activity, t->process);
-			th_ctx->sched_profile_entry = profile_entry;
-			HA_ATOMIC_ADD(&profile_entry->lat_time, lat);
-			HA_ATOMIC_INC(&profile_entry->calls);
-		}
-
-		__ha_barrier_store();
-
-		/* We must be the exclusive owner of the TASK_RUNNING bit, and
-		 * have to be careful that the task is not being manipulated on
-		 * another thread finding it expired in wake_expired_tasks().
-		 * The TASK_RUNNING bit will be set during these operations,
-		 * they are extremely rare and do not last long so the best to
-		 * do here is to wait.
-		 */
-		state = _HA_ATOMIC_LOAD(&t->state);
-		do {
-			while (unlikely(state & TASK_RUNNING)) {
-				__ha_cpu_relax();
-				state = _HA_ATOMIC_LOAD(&t->state);
-			}
-		} while (!_HA_ATOMIC_CAS(&t->state, &state, (state & TASK_PERSISTENT) | TASK_RUNNING));
-
-		__ha_barrier_atomic_store();
-
-		/* OK then this is a regular task */
-
-		_HA_ATOMIC_DEC(&ha_thread_ctx[tid].tasks_in_list);
-
-		/* Note for below: if TASK_KILLED arrived before we've read the state, we
-		 * directly free the task. Otherwise it will be seen after processing and
-		 * it's freed on the exit path.
-		 */
-		if (likely(!(state & TASK_KILLED) && process == process_stream))
-			t = process_stream(t, ctx, state);
-		else if (!(state & TASK_KILLED) && process != NULL)
-			t = process(t, ctx, state);
-		else {
-			task_unlink_wq(t);
-			__task_free(t);
-			th_ctx->current = NULL;
-			__ha_barrier_store();
-			/* We don't want max_processed to be decremented if
-			 * we're just freeing a destroyed task, we should only
-			 * do so if we really ran a task.
+			/* We must be the exclusive owner of the TASK_RUNNING bit, and
+			 * have to be careful that the task is not being manipulated on
+			 * another thread finding it expired in wake_expired_tasks().
+			 * The TASK_RUNNING bit will be set during these operations,
+			 * they are extremely rare and do not last long so the best to
+			 * do here is to wait.
 			 */
-			continue;
+			state = _HA_ATOMIC_LOAD(&t->state);
+			do {
+				while (unlikely(state & TASK_RUNNING)) {
+					__ha_cpu_relax();
+					state = _HA_ATOMIC_LOAD(&t->state);
+				}
+			} while (!_HA_ATOMIC_CAS(&t->state, &state, (state & TASK_PERSISTENT) | TASK_RUNNING));
+
+			__ha_barrier_atomic_store();
+
+			_HA_ATOMIC_DEC(&ha_thread_ctx[tid].tasks_in_list);
+
+			/* Note for below: if TASK_KILLED arrived before we've read the state, we
+			 * directly free the task. Otherwise it will be seen after processing and
+			 * it's freed on the exit path.
+			 */
+			if (likely(!(state & TASK_KILLED) && process == process_stream))
+				t = process_stream(t, ctx, state);
+			else if (!(state & TASK_KILLED) && process != NULL)
+				t = process(t, ctx, state);
+			else {
+				task_unlink_wq(t);
+				__task_free(t);
+				th_ctx->current = NULL;
+				__ha_barrier_store();
+				/* We don't want max_processed to be decremented if
+				 * we're just freeing a destroyed task, we should only
+				 * do so if we really ran a task.
+				 */
+				continue;
+			}
+
+			/* If there is a pending state  we have to wake up the task
+			 * immediately, else we defer it into wait queue
+			 */
+			if (t != NULL) {
+				state = _HA_ATOMIC_LOAD(&t->state);
+				if (unlikely(state & TASK_KILLED)) {
+					task_unlink_wq(t);
+					__task_free(t);
+				}
+				else {
+					task_queue(t);
+					task_drop_running(t, 0);
+				}
+			}
 		}
+
 		th_ctx->current = NULL;
 		__ha_barrier_store();
 
 		/* stats are only registered for non-zero wake dates */
-		if (unlikely(th_ctx->sched_wake_date)) {
-			uint32_t cpu = (uint32_t)now_mono_time() - th_ctx->sched_call_date;
-
-			HA_ATOMIC_ADD(&profile_entry->cpu_time, cpu);
-		}
-
-		/* If there is a pending state  we have to wake up the task
-		 * immediately, else we defer it into wait queue
-		 */
-		if (t != NULL) {
-			state = _HA_ATOMIC_LOAD(&t->state);
-			if (unlikely(state & TASK_KILLED)) {
-				task_unlink_wq(t);
-				__task_free(t);
-			}
-			else {
-				task_queue(t);
-				task_drop_running(t, 0);
-			}
-		}
+		if (unlikely(th_ctx->sched_wake_date))
+			HA_ATOMIC_ADD(&profile_entry->cpu_time, (uint32_t)(now_mono_time() - th_ctx->sched_call_date));
 		done++;
 	}
 	th_ctx->current_queue = -1;
