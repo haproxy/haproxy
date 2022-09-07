@@ -1556,6 +1556,27 @@ static void stream_update_both_sc(struct stream *s)
 	}
 }
 
+/* if the current task's wake_date was set, it's being profiled, thus we may
+ * report latencies and CPU usages in logs, so it's desirable to do that before
+ * logging in order to report accurate CPU usage. In this case we count that
+ * final part and reset the wake date so that the scheduler doesn't do it a
+ * second time, and by doing so we also avoid an extra call to clock_gettime().
+ * The CPU usage will be off by the little time needed to run over stream_free()
+ * but that's only marginal.
+ */
+static void stream_cond_update_cpu_usage(struct stream *s)
+{
+	uint32_t cpu;
+
+	/* stats are only registered for non-zero wake dates */
+	if (likely(!th_ctx->sched_wake_date))
+		return;
+
+	cpu = (uint32_t)now_mono_time() - th_ctx->sched_call_date;
+	s->task->cpu_time += cpu;
+	HA_ATOMIC_ADD(&th_ctx->sched_profile_entry->cpu_time, cpu);
+	th_ctx->sched_wake_date = 0;
+}
 
 /* This macro is very specific to the function below. See the comments in
  * process_stream() below to understand the logic and the tests.
@@ -2562,6 +2583,8 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		    (!(sess->fe->options & PR_O_NULLNOLOG) || req->total)) {
 			/* we may need to know the position in the queue */
 			pendconn_free(s);
+
+			stream_cond_update_cpu_usage(s);
 			s->do_log(s);
 		}
 
