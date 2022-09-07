@@ -598,6 +598,7 @@ enum qc_mux_state {
 #define QUIC_FL_CONN_TLS_ALERT                   (1U << 9)
 /* gap here */
 #define QUIC_FL_CONN_HALF_OPEN_CNT_DECREMENTED   (1U << 11) /* The half-open connection counter was decremented */
+#define QUIC_FL_CONN_HANDSHAKE_SPEED_UP          (1U << 12) /* Handshake speeding up was done */
 #define QUIC_FL_CONN_NOTIFY_CLOSE                (1U << 27) /* MUX notified about quic-conn imminent closure (idle-timeout or CONNECTION_CLOSE emission/reception) */
 #define QUIC_FL_CONN_EXP_TIMER                   (1U << 28) /* timer has expired, quic-conn can be freed */
 #define QUIC_FL_CONN_CLOSING                     (1U << 29)

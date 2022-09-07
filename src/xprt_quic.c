@@ -2651,7 +2651,8 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct ssl_sock_ctx *ct
 					TRACE_PROTO("Already received CRYPTO data",
 					            QUIC_EV_CONN_RXPKT, qc, pkt, &cfdebug);
 					if (qc_is_listener(ctx->qc) &&
-					    qel == &qc->els[QUIC_TLS_ENC_LEVEL_INITIAL])
+					    qel == &qc->els[QUIC_TLS_ENC_LEVEL_INITIAL] &&
+					    !(qc->flags & QUIC_FL_CONN_HANDSHAKE_SPEED_UP))
 						fast_retrans = 1;
 					break;
 				}
@@ -2810,7 +2811,9 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct ssl_sock_ctx *ct
 		struct quic_enc_level *iqel = &qc->els[QUIC_TLS_ENC_LEVEL_INITIAL];
 		struct quic_enc_level *hqel = &qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE];
 
+		TRACE_PROTO("speeding up handshake completion", QUIC_EV_CONN_PRSHPKT, qc);
 		qc_prep_hdshk_fast_retrans(qc, &iqel->pktns->tx.frms, &hqel->pktns->tx.frms);
+		qc->flags |= QUIC_FL_CONN_HANDSHAKE_SPEED_UP;
 	}
 
 	/* The server must switch from INITIAL to HANDSHAKE handshake state when it
