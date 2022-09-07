@@ -21,7 +21,6 @@
 #include <haproxy/sc_strm.h>
 #include <haproxy/stconn.h>
 #include <haproxy/tools.h>
-#include <haproxy/xxhash.h>
 
 /* CLI context for the "show profiling" command */
 struct show_prof_ctx {
@@ -532,14 +531,10 @@ static int cmp_memprof_addr(const void *a, const void *b)
  */
 struct sched_activity *sched_activity_entry(struct sched_activity *array, const void *func)
 {
-	uint64_t hash = XXH64_avalanche(XXH64_mergeRound((size_t)func, (size_t)func));
+	uint32_t hash = ptr_hash(func, 8);
 	struct sched_activity *ret;
 	const void *old = NULL;
 
-	hash ^= (hash >> 32);
-	hash ^= (hash >> 16);
-	hash ^= (hash >> 8);
-	hash &= 0xff;
 	ret = &array[hash];
 
 	if (likely(ret->func == func))
