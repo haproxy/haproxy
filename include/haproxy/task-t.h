@@ -112,7 +112,7 @@ struct task {
 	int expire;			/* next expiration date for this task, in ticks */
 	short nice;                     /* task prio from -1024 to +1024 */
 	short tid;                      /* TID where it's allowed to run, <0 if anywhere */
-	uint64_t wake_date;		/* date of the last task wakeup */
+	uint32_t wake_date;		/* date of the last task wakeup */
 	uint64_t lat_time;		/* total latency time experienced */
 	uint64_t cpu_time;              /* total CPU time consumed */
 };

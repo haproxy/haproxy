@@ -129,6 +129,9 @@ struct thread_ctx {
 	uint flags;                         /* thread flags, TH_FL_*, atomic! */
 	/* 32-bit hole here */
 
+	uint32_t sched_wake_date;           /* current task/tasklet's wake date or 0 */
+	uint32_t sched_call_date;           /* current task/tasklet's call date (valid if sched_wake_date > 0) */
+
 	uint64_t prev_cpu_time;             /* previous per thread CPU time */
 	uint64_t prev_mono_time;            /* previous system wide monotonic time  */
 

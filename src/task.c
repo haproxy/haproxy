@@ -564,19 +564,19 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 		_HA_ATOMIC_DEC(&th_ctx->rq_total);
 
 		if (t->state & TASK_F_TASKLET) {
-			uint64_t before = 0;
-
 			LIST_DEL_INIT(&((struct tasklet *)t)->list);
 			__ha_barrier_store();
 
-			if (unlikely(_HA_ATOMIC_LOAD(&th_ctx->flags) & TH_FL_TASK_PROFILING)) {
-				profile_entry = sched_activity_entry(sched_activity, t->process);
-				before = now_mono_time();
+			th_ctx->sched_wake_date = ((struct tasklet *)t)->wake_date;
+			if (th_ctx->sched_wake_date) {
+				uint32_t now_ns = now_mono_time();
+				uint32_t lat = now_ns - th_ctx->sched_wake_date;
 
-				if (((struct tasklet *)t)->wake_date) {
-					HA_ATOMIC_ADD(&profile_entry->lat_time, (uint32_t)(before - ((struct tasklet *)t)->wake_date));
-					((struct tasklet *)t)->wake_date = 0;
-				}
+				((struct tasklet *)t)->wake_date = 0;
+				th_ctx->sched_call_date = now_ns;
+				profile_entry = sched_activity_entry(sched_activity, t->process);
+				HA_ATOMIC_ADD(&profile_entry->lat_time, lat);
+				HA_ATOMIC_INC(&profile_entry->calls);
 			}
 
 			state = _HA_ATOMIC_FETCH_AND(&t->state, TASK_PERSISTENT);
@@ -593,10 +593,8 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 				continue;
 			}
 
-			if (unlikely(_HA_ATOMIC_LOAD(&th_ctx->flags) & TH_FL_TASK_PROFILING)) {
-				HA_ATOMIC_INC(&profile_entry->calls);
-				HA_ATOMIC_ADD(&profile_entry->cpu_time, now_mono_time() - before);
-			}
+			if (th_ctx->sched_wake_date)
+				HA_ATOMIC_ADD(&profile_entry->cpu_time, (uint32_t)(now_mono_time() - th_ctx->sched_call_date));
 
 			done++;
 			th_ctx->current = NULL;
@@ -605,6 +603,21 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 		}
 
 		LIST_DEL_INIT(&((struct tasklet *)t)->list);
+		__ha_barrier_store();
+
+		th_ctx->sched_wake_date = t->wake_date;
+		if (unlikely(t->wake_date)) {
+			uint32_t now_ns = now_mono_time();
+			uint32_t lat = now_ns - t->wake_date;
+
+			t->lat_time += lat;
+			t->wake_date = 0;
+			th_ctx->sched_call_date = now_ns;
+			profile_entry = sched_activity_entry(sched_activity, t->process);
+			HA_ATOMIC_ADD(&profile_entry->lat_time, lat);
+			HA_ATOMIC_INC(&profile_entry->calls);
+		}
+
 		__ha_barrier_store();
 
 		/* We must be the exclusive owner of the TASK_RUNNING bit, and
@@ -627,18 +640,6 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 		/* OK then this is a regular task */
 
 		_HA_ATOMIC_DEC(&ha_thread_ctx[tid].tasks_in_list);
-		if (unlikely(t->wake_date)) {
-			uint64_t now_ns = now_mono_time();
-			uint64_t lat = now_ns - t->wake_date;
-
-			t->lat_time += lat;
-			t->wake_date = now_ns;
-			profile_entry = sched_activity_entry(sched_activity, t->process);
-			HA_ATOMIC_ADD(&profile_entry->lat_time, lat);
-			HA_ATOMIC_INC(&profile_entry->calls);
-		}
-
-		__ha_barrier_store();
 
 		/* Note for below: if TASK_KILLED arrived before we've read the state, we
 		 * directly free the task. Otherwise it will be seen after processing and
@@ -661,18 +662,20 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 		}
 		th_ctx->current = NULL;
 		__ha_barrier_store();
+
+		/* stats are only registered for non-zero wake dates */
+		if (unlikely(th_ctx->sched_wake_date)) {
+			uint32_t cpu = (uint32_t)now_mono_time() - th_ctx->sched_call_date;
+
+			if (t)
+				t->cpu_time += cpu;
+			HA_ATOMIC_ADD(&profile_entry->cpu_time, cpu);
+		}
+
 		/* If there is a pending state  we have to wake up the task
 		 * immediately, else we defer it into wait queue
 		 */
 		if (t != NULL) {
-			if (unlikely(t->wake_date)) {
-				uint64_t cpu = now_mono_time() - t->wake_date;
-
-				t->cpu_time += cpu;
-				t->wake_date = 0;
-				HA_ATOMIC_ADD(&profile_entry->cpu_time, cpu);
-			}
-
 			state = _HA_ATOMIC_LOAD(&t->state);
 			if (unlikely(state & TASK_KILLED)) {
 				task_unlink_wq(t);
