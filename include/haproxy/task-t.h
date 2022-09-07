@@ -104,11 +104,12 @@ struct notification {
 #define TASK_COMMON							\
 	struct {							\
 		unsigned int state; /* task state : bitfield of TASK_	*/ \
-		/* 16-bit hole here */ \
-		unsigned int calls; /* number of times process was called */ \
+		int tid;            /* tid of task/tasklet. <0 = local for tasklet, unbound for task */ \
 		struct task *(*process)(struct task *t, void *ctx, unsigned int state); /* the function which processes the task */ \
 		void *context; /* the task's context */			\
 		const struct ha_caller *caller;	 /* call place of last wakeup(); 0 on init, -1 on free */ \
+		uint32_t wake_date;              /* date of the last task wakeup */ \
+		unsigned int calls;              /* number of times process was called */ \
 		TASK_DEBUG_STORAGE;					\
 	}
 
@@ -124,8 +125,7 @@ struct task {
 	struct eb32_node wq;		/* ebtree node used to hold the task in the wait queue */
 	int expire;			/* next expiration date for this task, in ticks */
 	short nice;                     /* task prio from -1024 to +1024 */
-	short tid;                      /* TID where it's allowed to run, <0 if anywhere */
-	uint32_t wake_date;		/* date of the last task wakeup */
+	/* 16-bit hole here */
 };
 
 /* lightweight tasks, without priority, mainly used for I/Os */
@@ -137,8 +137,6 @@ struct tasklet {
 	 * list starts and this works because both are exclusive. Never ever
 	 * reorder these fields without taking this into account!
 	 */
-	uint32_t wake_date;		/* date of the last tasklet wakeup */
-	int tid;                        /* TID of the tasklet owner, <0 if local */
 };
 
 /*
