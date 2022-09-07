@@ -4419,19 +4419,21 @@ ssl_sock_initial_ctx(struct bind_conf *bind_conf)
 		SSL_CTX_set_timeout(ctx, global_ssl.life_time);
 
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
-#ifdef OPENSSL_IS_BORINGSSL
+# ifdef OPENSSL_IS_BORINGSSL
 	SSL_CTX_set_select_certificate_cb(ctx, ssl_sock_switchctx_cbk);
 	SSL_CTX_set_tlsext_servername_callback(ctx, ssl_sock_switchctx_err_cbk);
-#elif defined(SSL_OP_NO_ANTI_REPLAY)
+# elif defined(HAVE_SSL_CLIENT_HELLO_CB)
+#  if defined(SSL_OP_NO_ANTI_REPLAY)
 	if (bind_conf->ssl_conf.early_data)
 		SSL_CTX_set_options(ctx, SSL_OP_NO_ANTI_REPLAY);
+#  endif /* ! SSL_OP_NO_ANTI_REPLAY */
 	SSL_CTX_set_client_hello_cb(ctx, ssl_sock_switchctx_cbk, NULL);
 	SSL_CTX_set_tlsext_servername_callback(ctx, ssl_sock_switchctx_err_cbk);
-#else
+# else /* ! OPENSSL_IS_BORINGSSL && ! HAVE_SSL_CLIENT_HELLO_CB */
 	SSL_CTX_set_tlsext_servername_callback(ctx, ssl_sock_switchctx_cbk);
-#endif
+# endif
 	SSL_CTX_set_tlsext_servername_arg(ctx, bind_conf);
-#endif
+#endif /* ! SSL_CTRL_SET_TLSEXT_HOSTNAME */
 	return cfgerr;
 }
 
