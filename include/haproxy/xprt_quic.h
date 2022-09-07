@@ -225,6 +225,7 @@ static inline unsigned long quic_get_cid_tid(const unsigned char *cid)
  */
 static inline void quic_pin_cid_to_tid(unsigned char *cid, int target_tid)
 {
+	cid[0] = MIN(cid[0], 255 - target_tid);
 	cid[0] = cid[0] - (cid[0] % global.nbthread) + target_tid;
 }
 
