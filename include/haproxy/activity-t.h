@@ -126,6 +126,7 @@ struct activity {
  */
 struct sched_activity {
 	const void *func;
+	const struct ha_caller *caller;
 	uint64_t calls;
 	uint64_t cpu_time;
 	uint64_t lat_time;

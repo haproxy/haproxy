@@ -31,7 +31,7 @@ extern struct sched_activity sched_activity[SCHED_ACT_HASH_BUCKETS];
 
 void report_stolen_time(uint64_t stolen);
 void activity_count_runtime(uint32_t run_time);
-struct sched_activity *sched_activity_entry(struct sched_activity *array, const void *func);
+struct sched_activity *sched_activity_entry(struct sched_activity *array, const void *func, const void *caller);
 
 #ifdef USE_MEMORY_PROFILING
 struct memprof_stats *memprof_get_bin(const void *ra, enum memprof_method meth);

@@ -445,6 +445,7 @@ static int cli_parse_set_profiling(char **args, char *payload, struct appctx *ap
 			HA_ATOMIC_STORE(&sched_activity[i].cpu_time, 0);
 			HA_ATOMIC_STORE(&sched_activity[i].lat_time, 0);
 			HA_ATOMIC_STORE(&sched_activity[i].func, NULL);
+			HA_ATOMIC_STORE(&sched_activity[i].caller, NULL);
 		}
 	}
 	else if (strcmp(args[3], "auto") == 0) {
@@ -482,6 +483,7 @@ static int cmp_sched_activity_calls(const void *a, const void *b)
 		return 0;
 }
 
+/* sort by address first, then by call count */
 static int cmp_sched_activity_addr(const void *a, const void *b)
 {
 	const struct sched_activity *l = (const struct sched_activity *)a;
@@ -490,6 +492,10 @@ static int cmp_sched_activity_addr(const void *a, const void *b)
 	if (l->func > r->func)
 		return -1;
 	else if (l->func < r->func)
+		return 1;
+	else if (l->calls > r->calls)
+		return -1;
+	else if (l->calls < r->calls)
 		return 1;
 	else
 		return 0;
@@ -524,23 +530,25 @@ static int cmp_memprof_addr(const void *a, const void *b)
 }
 #endif // USE_MEMORY_PROFILING
 
-/* Computes the index of function pointer <func> for use with sched_activity[]
- * or any other similar array passed in <array>, and returns a pointer to the
- * entry after having atomically assigned it to this function pointer. Note
- * that in case of collision, the first entry is returned instead ("other").
+/* Computes the index of function pointer <func> and caller <caller> for use
+ * with sched_activity[] or any other similar array passed in <array>, and
+ * returns a pointer to the entry after having atomically assigned it to this
+ * function pointer and caller combination. Note that in case of collision,
+ * the first entry is returned instead ("other").
  */
-struct sched_activity *sched_activity_entry(struct sched_activity *array, const void *func)
+struct sched_activity *sched_activity_entry(struct sched_activity *array, const void *func, const void *caller)
 {
-	uint32_t hash = ptr_hash(func, SCHED_ACT_HASH_BITS);
+	uint32_t hash = ptr2_hash(func, caller, SCHED_ACT_HASH_BITS);
 	struct sched_activity *ret;
 	const void *old = NULL;
 
 	ret = &array[hash];
 
-	if (likely(ret->func == func))
+	if (likely(ret->func == func && ret->caller == caller))
 		return ret;
 
-	if (HA_ATOMIC_CAS(&ret->func, &old, func))
+	if (HA_ATOMIC_CAS(&ret->func, &old, func) &&
+	    HA_ATOMIC_CAS(&ret->caller, &old, caller))
 		return ret;
 
 	return array;
@@ -572,6 +580,7 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 #endif
 	struct stconn *sc = appctx_sc(appctx);
 	struct buffer *name_buffer = get_trash_chunk();
+	const struct ha_caller *caller;
 	const char *str;
 	int max_lines;
 	int i, max;
@@ -626,6 +635,7 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 	for (i = ctx->linenum; i < max_lines && tmp_activity[i].calls; i++) {
 		ctx->linenum = i;
 		chunk_reset(name_buffer);
+		caller = HA_ATOMIC_LOAD(&tmp_activity[i].caller);
 
 		if (!tmp_activity[i].func)
 			chunk_printf(name_buffer, "other");
@@ -643,7 +653,14 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 		print_time_short(&trash, "   ", tmp_activity[i].cpu_time, "");
 		print_time_short(&trash, "   ", tmp_activity[i].cpu_time / tmp_activity[i].calls, "");
 		print_time_short(&trash, "   ", tmp_activity[i].lat_time, "");
-		print_time_short(&trash, "   ", tmp_activity[i].lat_time / tmp_activity[i].calls, "\n");
+		print_time_short(&trash, "   ", tmp_activity[i].lat_time / tmp_activity[i].calls, "");
+
+		if (caller && caller->what <= WAKEUP_TYPE_APPCTX_WAKEUP)
+			chunk_appendf(&trash, " <- %s@%s:%d %s",
+				      caller->func, caller->file, caller->line,
+				      task_wakeup_type_str(caller->what));
+
+		b_putchr(&trash, '\n');
 
 		if (applet_putchk(appctx, &trash) == -1) {
 			/* failed, try again */
@@ -834,7 +851,7 @@ static int cli_io_handler_show_tasks(struct appctx *appctx)
 		rqnode = eb32_first(&ha_thread_ctx[thr].rqueue_shared);
 		while (rqnode) {
 			t = eb32_entry(rqnode, struct task, rq);
-			entry = sched_activity_entry(tmp_activity, t->process);
+			entry = sched_activity_entry(tmp_activity, t->process, NULL);
 			if (t->wake_date) {
 				lat = now_ns - t->wake_date;
 				if ((int64_t)lat > 0)
@@ -851,7 +868,7 @@ static int cli_io_handler_show_tasks(struct appctx *appctx)
 		rqnode = eb32_first(&ha_thread_ctx[thr].rqueue);
 		while (rqnode) {
 			t = eb32_entry(rqnode, struct task, rq);
-			entry = sched_activity_entry(tmp_activity, t->process);
+			entry = sched_activity_entry(tmp_activity, t->process, NULL);
 			if (t->wake_date) {
 				lat = now_ns - t->wake_date;
 				if ((int64_t)lat > 0)
@@ -864,7 +881,7 @@ static int cli_io_handler_show_tasks(struct appctx *appctx)
 		/* shared tasklet list */
 		list_for_each_entry(tl, mt_list_to_list(&ha_thread_ctx[thr].shared_tasklet_list), list) {
 			t = (const struct task *)tl;
-			entry = sched_activity_entry(tmp_activity, t->process);
+			entry = sched_activity_entry(tmp_activity, t->process, NULL);
 			if (!TASK_IS_TASKLET(t) && t->wake_date) {
 				lat = now_ns - t->wake_date;
 				if ((int64_t)lat > 0)
@@ -877,7 +894,7 @@ static int cli_io_handler_show_tasks(struct appctx *appctx)
 		for (queue = 0; queue < TL_CLASSES; queue++) {
 			list_for_each_entry(tl, &ha_thread_ctx[thr].tasklets[queue], list) {
 				t = (const struct task *)tl;
-				entry = sched_activity_entry(tmp_activity, t->process);
+				entry = sched_activity_entry(tmp_activity, t->process, NULL);
 				if (!TASK_IS_TASKLET(t) && t->wake_date) {
 					lat = now_ns - t->wake_date;
 					if ((int64_t)lat > 0)
