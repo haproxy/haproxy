@@ -62,21 +62,6 @@ struct memprof_stats memprof_stats[MEMPROF_HASH_BUCKETS + 1] = { };
 /* used to detect recursive calls */
 static THREAD_LOCAL int in_memprof = 0;
 
-/* perform a pointer hash by scrambling its bits and retrieving the most
- * mixed ones (topmost ones in 32-bit, middle ones in 64-bit).
- */
-static unsigned int memprof_hash_ptr(const void *p)
-{
-	unsigned long long x = (unsigned long)p;
-
-	x = 0xcbda9653U * x;
-	if (sizeof(long) == 4)
-		x >>= 32;
-	else
-		x >>= 33 - MEMPROF_HASH_BITS / 2;
-	return x & (MEMPROF_HASH_BUCKETS - 1);
-}
-
 /* These ones are used by glibc and will be called early. They are in charge of
  * initializing the handlers with the original functions.
  */
@@ -186,7 +171,7 @@ struct memprof_stats *memprof_get_bin(const void *ra, enum memprof_method meth)
 	const void *old;
 	unsigned int bin;
 
-	bin = memprof_hash_ptr(ra);
+	bin = ptr_hash(ra, MEMPROF_HASH_BITS);
 	for (; memprof_stats[bin].caller != ra; bin = (bin + 1) & (MEMPROF_HASH_BUCKETS - 1)) {
 		if (!--retries) {
 			bin = MEMPROF_HASH_BUCKETS;
