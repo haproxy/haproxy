@@ -131,6 +131,7 @@ struct thread_ctx {
 
 	uint32_t sched_wake_date;           /* current task/tasklet's wake date or 0 */
 	uint32_t sched_call_date;           /* current task/tasklet's call date (valid if sched_wake_date > 0) */
+	struct sched_activity *sched_profile_entry; /* profile entry in use by the current task/tasklet, only if sched_wake_date>0 */
 
 	uint64_t prev_cpu_time;             /* previous per thread CPU time */
 	uint64_t prev_mono_time;            /* previous system wide monotonic time  */
