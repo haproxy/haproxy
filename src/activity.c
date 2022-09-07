@@ -855,8 +855,8 @@ static int cli_io_handler_show_tasks(struct appctx *appctx)
 		while (rqnode) {
 			t = eb32_entry(rqnode, struct task, rq);
 			entry = sched_activity_entry(tmp_activity, t->process);
-			if (t->call_date) {
-				lat = now_ns - t->call_date;
+			if (t->wake_date) {
+				lat = now_ns - t->wake_date;
 				if ((int64_t)lat > 0)
 					entry->lat_time += lat;
 			}
@@ -872,8 +872,8 @@ static int cli_io_handler_show_tasks(struct appctx *appctx)
 		while (rqnode) {
 			t = eb32_entry(rqnode, struct task, rq);
 			entry = sched_activity_entry(tmp_activity, t->process);
-			if (t->call_date) {
-				lat = now_ns - t->call_date;
+			if (t->wake_date) {
+				lat = now_ns - t->wake_date;
 				if ((int64_t)lat > 0)
 					entry->lat_time += lat;
 			}
@@ -885,8 +885,8 @@ static int cli_io_handler_show_tasks(struct appctx *appctx)
 		list_for_each_entry(tl, mt_list_to_list(&ha_thread_ctx[thr].shared_tasklet_list), list) {
 			t = (const struct task *)tl;
 			entry = sched_activity_entry(tmp_activity, t->process);
-			if (!TASK_IS_TASKLET(t) && t->call_date) {
-				lat = now_ns - t->call_date;
+			if (!TASK_IS_TASKLET(t) && t->wake_date) {
+				lat = now_ns - t->wake_date;
 				if ((int64_t)lat > 0)
 					entry->lat_time += lat;
 			}
@@ -898,8 +898,8 @@ static int cli_io_handler_show_tasks(struct appctx *appctx)
 			list_for_each_entry(tl, &ha_thread_ctx[thr].tasklets[queue], list) {
 				t = (const struct task *)tl;
 				entry = sched_activity_entry(tmp_activity, t->process);
-				if (!TASK_IS_TASKLET(t) && t->call_date) {
-					lat = now_ns - t->call_date;
+				if (!TASK_IS_TASKLET(t) && t->wake_date) {
+					lat = now_ns - t->wake_date;
 					if ((int64_t)lat > 0)
 						entry->lat_time += lat;
 				}

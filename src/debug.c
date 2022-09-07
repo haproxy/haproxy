@@ -256,8 +256,8 @@ void ha_task_dump(struct buffer *buf, const struct task *task, const char *pfx)
 		              "%p (task) calls=%u last=%llu%s\n",
 		              task,
 		              task->calls,
-		              task->call_date ? (unsigned long long)(now_mono_time() - task->call_date) : 0,
-		              task->call_date ? " ns ago" : "");
+		              task->wake_date ? (unsigned long long)(now_mono_time() - task->wake_date) : 0,
+		              task->wake_date ? " ns ago" : "");
 
 	chunk_appendf(buf, "%s  fct=%p(", pfx, task->process);
 	resolve_sym_name(buf, NULL, task->process);

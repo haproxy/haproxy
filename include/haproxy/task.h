@@ -361,7 +361,7 @@ static inline void _tasklet_wakeup_on(struct tasklet *tl, int thr, const char *f
 	tl->debug.caller_line[tl->debug.caller_idx] = line;
 #endif
 	if (_HA_ATOMIC_LOAD(&th_ctx->flags) & TH_FL_TASK_PROFILING)
-		tl->call_date = now_mono_time();
+		tl->wake_date = now_mono_time();
 	__tasklet_wakeup_on(tl, thr);
 }
 
@@ -414,7 +414,7 @@ static inline void _task_instant_wakeup(struct task *t, unsigned int f, const ch
 	t->debug.caller_line[t->debug.caller_idx] = line;
 #endif
 	if (_HA_ATOMIC_LOAD(&th_ctx->flags) & TH_FL_TASK_PROFILING)
-		t->call_date = now_mono_time();
+		t->wake_date = now_mono_time();
 	__tasklet_wakeup_on((struct tasklet *)t, thr);
 }
 
@@ -448,7 +448,7 @@ static inline struct list *_tasklet_wakeup_after(struct list *head, struct taskl
 	tl->debug.caller_line[tl->debug.caller_idx] = line;
 #endif
 	if (th_ctx->flags & TH_FL_TASK_PROFILING)
-		tl->call_date = now_mono_time();
+		tl->wake_date = now_mono_time();
 	return __tasklet_wakeup_after(head, tl);
 }
 
@@ -497,7 +497,7 @@ static inline struct task *task_init(struct task *t, int tid)
 	t->tid = tid;
 	t->nice = 0;
 	t->calls = 0;
-	t->call_date = 0;
+	t->wake_date = 0;
 	t->cpu_time = 0;
 	t->lat_time = 0;
 	t->expire = TICK_ETERNITY;
@@ -517,7 +517,7 @@ static inline void tasklet_init(struct tasklet *t)
 	t->state = TASK_F_TASKLET;
 	t->process = NULL;
 	t->tid = -1;
-	t->call_date = 0;
+	t->wake_date = 0;
 #ifdef DEBUG_TASK
 	t->debug.caller_idx = 0;
 #endif

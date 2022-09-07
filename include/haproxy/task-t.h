@@ -112,7 +112,7 @@ struct task {
 	int expire;			/* next expiration date for this task, in ticks */
 	short nice;                     /* task prio from -1024 to +1024 */
 	short tid;                      /* TID where it's allowed to run, <0 if anywhere */
-	uint64_t call_date;		/* date of the last task wakeup or call */
+	uint64_t wake_date;		/* date of the last task wakeup */
 	uint64_t lat_time;		/* total latency time experienced */
 	uint64_t cpu_time;              /* total CPU time consumed */
 };
@@ -126,7 +126,7 @@ struct tasklet {
 	 * list starts and this works because both are exclusive. Never ever
 	 * reorder these fields without taking this into account!
 	 */
-	uint32_t call_date;		/* date of the last tasklet wakeup or call */
+	uint32_t wake_date;		/* date of the last tasklet wakeup */
 	int tid;                        /* TID of the tasklet owner, <0 if local */
 };
 
