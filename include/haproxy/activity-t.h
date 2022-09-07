@@ -115,6 +115,9 @@ struct activity {
 	char __end[0] __attribute__((aligned(64))); // align size to 64.
 };
 
+/* 256 entries for callers * callees should be highly sufficient (~45 seen usually) */
+#define SCHED_ACT_HASH_BITS 8
+#define SCHED_ACT_HASH_BUCKETS (1U << SCHED_ACT_HASH_BITS)
 
 /* global profiling stats from the scheduler: each entry corresponds to a
  * task or tasklet ->process function pointer, with a number of calls and

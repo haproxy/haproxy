@@ -27,7 +27,7 @@
 
 extern unsigned int profiling;
 extern struct activity activity[MAX_THREADS];
-extern struct sched_activity sched_activity[256];
+extern struct sched_activity sched_activity[SCHED_ACT_HASH_BUCKETS];
 
 void report_stolen_time(uint64_t stolen);
 void activity_count_runtime(uint32_t run_time);

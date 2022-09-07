@@ -45,8 +45,8 @@ unsigned int profiling __read_mostly = HA_PROF_TASKS_AOFF;
 /* One struct per thread containing all collected measurements */
 struct activity activity[MAX_THREADS] __attribute__((aligned(64))) = { };
 
-/* One struct per function pointer hash entry (256 values, 0=collision) */
-struct sched_activity sched_activity[256] __attribute__((aligned(64))) = { };
+/* One struct per function pointer hash entry (SCHED_ACT_HASH_BUCKETS values, 0=collision) */
+struct sched_activity sched_activity[SCHED_ACT_HASH_BUCKETS] __attribute__((aligned(64))) = { };
 
 
 #ifdef USE_MEMORY_PROFILING
@@ -440,7 +440,7 @@ static int cli_parse_set_profiling(char **args, char *payload, struct appctx *ap
 		while (!_HA_ATOMIC_CAS(&profiling, &old, (old & ~HA_PROF_TASKS_MASK) | HA_PROF_TASKS_ON))
 			;
 		/* also flush current profiling stats */
-		for (i = 0; i < 256; i++) {
+		for (i = 0; i < SCHED_ACT_HASH_BUCKETS; i++) {
 			HA_ATOMIC_STORE(&sched_activity[i].calls, 0);
 			HA_ATOMIC_STORE(&sched_activity[i].cpu_time, 0);
 			HA_ATOMIC_STORE(&sched_activity[i].lat_time, 0);
@@ -531,7 +531,7 @@ static int cmp_memprof_addr(const void *a, const void *b)
  */
 struct sched_activity *sched_activity_entry(struct sched_activity *array, const void *func)
 {
-	uint32_t hash = ptr_hash(func, 8);
+	uint32_t hash = ptr_hash(func, SCHED_ACT_HASH_BITS);
 	struct sched_activity *ret;
 	const void *old = NULL;
 
@@ -564,7 +564,7 @@ struct sched_activity *sched_activity_entry(struct sched_activity *array, const 
 static int cli_io_handler_show_profiling(struct appctx *appctx)
 {
 	struct show_prof_ctx *ctx = appctx->svcctx;
-	struct sched_activity tmp_activity[256] __attribute__((aligned(64)));
+	struct sched_activity tmp_activity[SCHED_ACT_HASH_BUCKETS] __attribute__((aligned(64)));
 #ifdef USE_MEMORY_PROFILING
 	struct memprof_stats tmp_memstats[MEMPROF_HASH_BUCKETS + 1];
 	unsigned long long tot_alloc_calls, tot_free_calls;
@@ -611,9 +611,9 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 
 	memcpy(tmp_activity, sched_activity, sizeof(tmp_activity));
 	if (ctx->by_addr)
-		qsort(tmp_activity, 256, sizeof(tmp_activity[0]), cmp_sched_activity_addr);
+		qsort(tmp_activity, SCHED_ACT_HASH_BUCKETS, sizeof(tmp_activity[0]), cmp_sched_activity_addr);
 	else
-		qsort(tmp_activity, 256, sizeof(tmp_activity[0]), cmp_sched_activity_calls);
+		qsort(tmp_activity, SCHED_ACT_HASH_BUCKETS, sizeof(tmp_activity[0]), cmp_sched_activity_calls);
 
 	if (!ctx->linenum)
 		chunk_appendf(&trash, "Tasks activity:\n"
@@ -621,7 +621,7 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 
 	max_lines = ctx->maxcnt;
 	if (!max_lines)
-		max_lines = 256;
+		max_lines = SCHED_ACT_HASH_BUCKETS;
 
 	for (i = ctx->linenum; i < max_lines && tmp_activity[i].calls; i++) {
 		ctx->linenum = i;
@@ -794,7 +794,7 @@ static int cli_parse_show_profiling(char **args, char *payload, struct appctx *a
  */
 static int cli_io_handler_show_tasks(struct appctx *appctx)
 {
-	struct sched_activity tmp_activity[256] __attribute__((aligned(64)));
+	struct sched_activity tmp_activity[SCHED_ACT_HASH_BUCKETS] __attribute__((aligned(64)));
 	struct stconn *sc = appctx_sc(appctx);
 	struct buffer *name_buffer = get_trash_chunk();
 	struct sched_activity *entry;
@@ -894,16 +894,16 @@ static int cli_io_handler_show_tasks(struct appctx *appctx)
 	chunk_reset(&trash);
 
 	tot_calls = 0;
-	for (i = 0; i < 256; i++)
+	for (i = 0; i < SCHED_ACT_HASH_BUCKETS; i++)
 		tot_calls += tmp_activity[i].calls;
 
-	qsort(tmp_activity, 256, sizeof(tmp_activity[0]), cmp_sched_activity_calls);
+	qsort(tmp_activity, SCHED_ACT_HASH_BUCKETS, sizeof(tmp_activity[0]), cmp_sched_activity_calls);
 
 	chunk_appendf(&trash, "Running tasks: %d (%d threads)\n"
 		      "  function                     places     %%    lat_tot   lat_avg\n",
 		      (int)tot_calls, global.nbthread);
 
-	for (i = 0; i < 256 && tmp_activity[i].calls; i++) {
+	for (i = 0; i < SCHED_ACT_HASH_BUCKETS && tmp_activity[i].calls; i++) {
 		chunk_reset(name_buffer);
 
 		if (!tmp_activity[i].func)
