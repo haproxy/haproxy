@@ -2951,8 +2951,36 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *priv)
 	const char *wildp = NULL;
 	struct ebmb_node *node, *n;
 	struct bind_conf *s = priv;
+#ifdef USE_QUIC
+	const uint8_t *extension_data;
+	size_t extension_len;
+	struct quic_conn *qc = SSL_get_ex_data(ssl, ssl_qc_app_data_index);
+#endif /* USE_QUIC */
 	int i;
 	(void)al; /* shut gcc stupid warning */
+
+#ifdef USE_QUIC
+	if (qc) {
+
+		/* Look for the QUIC transport parameters. */
+		SSL_get_peer_quic_transport_params(ssl, &extension_data, &extension_len);
+		if (extension_len == 0) {
+			/* This is not redundant. It we only return 0 without setting
+			 * <*al>, this has as side effect to generate another TLS alert
+			 * which would be set after calling quic_set_tls_alert().
+			 */
+			*al = SSL_AD_MISSING_EXTENSION;
+			quic_set_tls_alert(qc, SSL_AD_MISSING_EXTENSION);
+			return SSL_TLSEXT_ERR_NOACK;
+		}
+
+		if (!quic_transport_params_store(qc, 0, extension_data,
+		                                 extension_data + extension_len) ||
+		    !qc_conn_finalize(qc, 0)) {
+			return SSL_TLSEXT_ERR_NOACK;
+		}
+	}
+#endif /* USE_QUIC */
 
 	servername = SSL_get_servername(ssl, TLSEXT_NAMETYPE_host_name);
 	if (!servername) {
