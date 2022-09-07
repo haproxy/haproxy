@@ -1242,16 +1242,18 @@ int ssl_quic_initial_ctx(struct bind_conf *bind_conf)
 	SSL_CTX_set_max_proto_version(ctx, TLS1_3_VERSION);
 
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
-#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
+# if defined(HAVE_SSL_CLIENT_HELLO_CB)
+#  if defined(SSL_OP_NO_ANTI_REPLAY)
 	if (bind_conf->ssl_conf.early_data) {
 		SSL_CTX_set_options(ctx, SSL_OP_NO_ANTI_REPLAY);
 		SSL_CTX_set_max_early_data(ctx, 0xffffffff);
 	}
+#  endif /* !SSL_OP_NO_ANTI_REPLAY */
 	SSL_CTX_set_client_hello_cb(ctx, ssl_sock_switchctx_cbk, NULL);
 	SSL_CTX_set_tlsext_servername_callback(ctx, ssl_sock_switchctx_err_cbk);
-#else
+# else /* ! HAVE_SSL_CLIENT_HELLO_CB */
 	SSL_CTX_set_tlsext_servername_callback(ctx, ssl_sock_switchctx_cbk);
-#endif
+# endif
 	SSL_CTX_set_tlsext_servername_arg(ctx, bind_conf);
 #endif
 	SSL_CTX_set_quic_method(ctx, &ha_quic_method);
