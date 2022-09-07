@@ -540,16 +540,30 @@ struct sched_activity *sched_activity_entry(struct sched_activity *array, const 
 {
 	uint32_t hash = ptr2_hash(func, caller, SCHED_ACT_HASH_BITS);
 	struct sched_activity *ret;
-	const void *old = NULL;
+	const void *old;
+	int tries = 16;
 
-	ret = &array[hash];
+	for (tries = 16; tries > 0; tries--, hash++) {
+		ret = &array[hash];
 
-	if (likely(ret->func == func && ret->caller == caller))
-		return ret;
+		while (1) {
+			if (likely(ret->func)) {
+				if (likely(ret->func == func && ret->caller == caller))
+					return ret;
+				break;
+			}
 
-	if (HA_ATOMIC_CAS(&ret->func, &old, func) &&
-	    HA_ATOMIC_CAS(&ret->caller, &old, caller))
-		return ret;
+			/* try to create the new entry. Func is sufficient to
+			 * reserve the node.
+			 */
+			old = NULL;
+			if (HA_ATOMIC_CAS(&ret->func, &old, func)) {
+				ret->caller = caller;
+				return ret;
+			}
+			/* changed in parallel, check again */
+		}
+	}
 
 	return array;
 }
