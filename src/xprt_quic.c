@@ -5608,7 +5608,7 @@ static struct quic_conn *retrieve_qc_conn_from_cid(struct quic_rx_packet *pkt,
 		ebmb_delete(&qc->odcid_node);
 
  end:
-	TRACE_ENTER(QUIC_EV_CONN_RXPKT, qc);
+	TRACE_LEAVE(QUIC_EV_CONN_RXPKT, qc);
 	return qc;
 }
 
