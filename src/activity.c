@@ -28,6 +28,7 @@ struct show_prof_ctx {
 	int linenum;    /* next line to be dumped (starts at 0) */
 	int maxcnt;     /* max line count per step (0=not set)  */
 	int by_addr;    /* 0=sort by usage, 1=sort by address   */
+	int aggr;       /* 0=dump raw, 1=aggregate on callee    */
 };
 
 #if defined(DEBUG_MEM_STATS)
@@ -597,7 +598,7 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 	const struct ha_caller *caller;
 	const char *str;
 	int max_lines;
-	int i, max;
+	int i, j, max;
 
 	if (unlikely(sc_ic(sc)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
 		return 1;
@@ -633,9 +634,23 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 		goto skip_tasks;
 
 	memcpy(tmp_activity, sched_activity, sizeof(tmp_activity));
-	if (ctx->by_addr)
-		qsort(tmp_activity, SCHED_ACT_HASH_BUCKETS, sizeof(tmp_activity[0]), cmp_sched_activity_addr);
-	else
+	/* for addr sort and for callee aggregation we have to first sort by address */
+	if (ctx->aggr || ctx->by_addr)
+		qsort(tmp_activity, SCHED_ACT_HASH_BUCKETS, sizeof(tmp_activity[0]), cmp_sched_activity_addr);	
+
+	if (ctx->aggr) {
+		/* merge entries for the same callee and reset their count */
+		for (i = j = 0; i < SCHED_ACT_HASH_BUCKETS; i = j) {
+			for (j = i + 1; j < SCHED_ACT_HASH_BUCKETS && tmp_activity[j].func == tmp_activity[i].func; j++) {
+				tmp_activity[i].calls    += tmp_activity[j].calls;
+				tmp_activity[i].cpu_time += tmp_activity[j].cpu_time;
+				tmp_activity[i].lat_time += tmp_activity[j].lat_time;
+				tmp_activity[j].calls = 0;
+			}
+		}
+	}
+
+	if (!ctx->by_addr)
 		qsort(tmp_activity, SCHED_ACT_HASH_BUCKETS, sizeof(tmp_activity[0]), cmp_sched_activity_calls);
 
 	if (!ctx->linenum)
@@ -646,7 +661,10 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 	if (!max_lines)
 		max_lines = SCHED_ACT_HASH_BUCKETS;
 
-	for (i = ctx->linenum; i < max_lines && tmp_activity[i].calls; i++) {
+	for (i = ctx->linenum; i < max_lines; i++) {
+		if (!tmp_activity[i].calls)
+			continue; // skip aggregated or empty entries
+
 		ctx->linenum = i;
 		chunk_reset(name_buffer);
 		caller = HA_ATOMIC_LOAD(&tmp_activity[i].caller);
@@ -669,7 +687,7 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 		print_time_short(&trash, "   ", tmp_activity[i].lat_time, "");
 		print_time_short(&trash, "   ", tmp_activity[i].lat_time / tmp_activity[i].calls, "");
 
-		if (caller && caller->what <= WAKEUP_TYPE_APPCTX_WAKEUP)
+		if (caller && !ctx->aggr && caller->what <= WAKEUP_TYPE_APPCTX_WAKEUP)
 			chunk_appendf(&trash, " <- %s@%s:%d %s",
 				      caller->func, caller->file, caller->line,
 				      task_wakeup_type_str(caller->what));
@@ -810,11 +828,14 @@ static int cli_parse_show_profiling(char **args, char *payload, struct appctx *a
 		else if (strcmp(args[arg], "byaddr") == 0) {
 			ctx->by_addr = 1; // sort output by address instead of usage
 		}
+		else if (strcmp(args[arg], "aggr") == 0) {
+			ctx->aggr = 1;    // aggregate output by callee
+		}
 		else if (isdigit((unsigned char)*args[arg])) {
 			ctx->maxcnt = atoi(args[arg]); // number of entries to dump
 		}
 		else
-			return cli_err(appctx, "Expects either 'all', 'status', 'tasks', 'memory', 'byaddr' or a max number of output lines.\n");
+			return cli_err(appctx, "Expects either 'all', 'status', 'tasks', 'memory', 'byaddr', 'aggr' or a max number of output lines.\n");
 	}
 	return 0;
 }
@@ -977,7 +998,7 @@ INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
 	{ { "set",  "profiling", NULL }, "set profiling <what> {auto|on|off}      : enable/disable resource profiling (tasks,memory)", cli_parse_set_profiling,  NULL },
-	{ { "show", "profiling", NULL }, "show profiling [<what>|<#lines>|byaddr]*: show profiling state (all,status,tasks,memory)",   cli_parse_show_profiling, cli_io_handler_show_profiling, NULL },
+	{ { "show", "profiling", NULL }, "show profiling [<what>|<#lines>|<opts>]*: show profiling state (all,status,tasks,memory)",   cli_parse_show_profiling, cli_io_handler_show_profiling, NULL },
 	{ { "show", "tasks", NULL },     "show tasks                              : show running tasks",                               NULL, cli_io_handler_show_tasks,     NULL },
 	{{},}
 }};
