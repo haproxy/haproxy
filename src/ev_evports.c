@@ -178,10 +178,10 @@ static void _do_poll(struct poller *p, int exp, int wake)
 	thread_idle_now();
 	thread_harmless_now();
 
-	/*
-	 * Determine how long to wait for events to materialise on the port.
-	 */
-	wait_time = wake ? 0 : compute_poll_timeout(exp);
+	/* Now let's wait for polled events.
+	 * Check if the signal queue is not empty in case we received a signal
+	 * before entering the loop, so we don't wait MAX_DELAY_MS for nothing */
+	wait_time = (wake | signal_queue_len) ? 0 : compute_poll_timeout(exp);
 	clock_entering_poll();
 
 	do {

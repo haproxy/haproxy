@@ -166,8 +166,10 @@ static void _do_poll(struct poller *p, int exp, int wake)
 	}
 	fd_nbupdt = 0;
 
-	/* now let's wait for events */
-	wait_time = wake ? 0 : compute_poll_timeout(exp);
+	/* Now let's wait for polled events.
+	 * Check if the signal queue is not empty in case we received a signal
+	 * before entering the loop, so we don't wait MAX_DELAY_MS for nothing */
+	wait_time = (wake | signal_queue_len) ? 0 : compute_poll_timeout(exp);
 	fd = global.tune.maxpollevents;
 	clock_entering_poll();
 
