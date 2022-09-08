@@ -819,11 +819,8 @@ static int h3_control_send(struct qcs *qcs, void *ctx)
 	}
 
 	ret = b_force_xfer(res, &pos, b_data(&pos));
-	if (ret > 0) {
+	if (ret > 0)
 		h3c->flags |= H3_CF_SETTINGS_SENT;
-		if (!(qcs->qcc->wait_event.events & SUB_RETRY_SEND))
-			tasklet_wakeup(qcs->qcc->wait_event.tasklet);
-	}
 
 	TRACE_LEAVE(H3_EV_TX_SETTINGS, qcs->qcc->conn, qcs);
 	return ret;

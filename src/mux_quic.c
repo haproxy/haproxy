@@ -897,9 +897,6 @@ int qcc_install_app_ops(struct qcc *qcc, const struct qcc_app_ops *app_ops)
 
 	TRACE_PROTO("application layer initialized", QMUX_EV_QCC_NEW, qcc->conn);
 
-	if (qcc->app_ops->finalize)
-		qcc->app_ops->finalize(qcc->ctx);
-
 	TRACE_LEAVE(QMUX_EV_QCC_NEW, qcc->conn);
 	return 0;
 
@@ -1608,6 +1605,15 @@ static int qc_send(struct qcc *qcc)
 
 	if (qcc->flags & QC_CF_BLK_MFCTL)
 		return 0;
+
+	if (!(qcc->flags & QC_CF_APP_FINAL) && !eb_is_empty(&qcc->streams_by_id) &&
+	    qcc->app_ops->finalize) {
+		/* Finalize the application layer before sending any stream.
+		 * For h3 this consists in preparing the control stream data (SETTINGS h3).
+		 */
+		qcc->app_ops->finalize(qcc->ctx);
+		qcc->flags |= QC_CF_APP_FINAL;
+	}
 
 	/* loop through all streams, construct STREAM frames if data available.
 	 * TODO optimize the loop to favor streams which are not too heavy.
