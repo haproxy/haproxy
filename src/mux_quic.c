@@ -1854,7 +1854,7 @@ static void qc_release(struct qcc *qcc)
 	TRACE_LEAVE(QMUX_EV_QCC_END);
 }
 
-static struct task *qc_io_cb(struct task *t, void *ctx, unsigned int status)
+struct task *qc_io_cb(struct task *t, void *ctx, unsigned int status)
 {
 	struct qcc *qcc = ctx;
 

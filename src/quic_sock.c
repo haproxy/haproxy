@@ -461,7 +461,7 @@ void quic_accept_push_qc(struct quic_conn *qc)
 /* Tasklet handler to accept QUIC connections. Call listener_accept on every
  * listener instances registered in the accept queue.
  */
-static struct task *quic_accept_run(struct task *t, void *ctx, unsigned int i)
+struct task *quic_accept_run(struct task *t, void *ctx, unsigned int i)
 {
 	struct li_per_thread *lthr;
 	struct mt_list *elt1, elt2;

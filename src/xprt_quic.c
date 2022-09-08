@@ -214,7 +214,7 @@ static struct quic_tx_packet *qc_build_pkt(unsigned char **pos, const unsigned c
                                            struct list *frms, struct quic_conn *qc,
                                            const struct quic_version *ver, size_t dglen, int pkt_type,
                                            int force_ack, int padding, int probe, int cc, int *err);
-static struct task *quic_conn_app_io_cb(struct task *t, void *context, unsigned int state);
+struct task *quic_conn_app_io_cb(struct task *t, void *context, unsigned int state);
 static void qc_idle_timer_do_rearm(struct quic_conn *qc);
 static void qc_idle_timer_rearm(struct quic_conn *qc, int read);
 static int qc_conn_alloc_ssl_ctx(struct quic_conn *qc);
@@ -4172,7 +4172,7 @@ static void qc_dgrams_retransmit(struct quic_conn *qc)
 }
 
 /* QUIC connection packet handler task (post handshake) */
-static struct task *quic_conn_app_io_cb(struct task *t, void *context, unsigned int state)
+struct task *quic_conn_app_io_cb(struct task *t, void *context, unsigned int state)
 {
 	struct ssl_sock_ctx *ctx;
 	struct quic_conn *qc;
@@ -4569,7 +4569,7 @@ static void quic_close(struct connection *conn, void *xprt_ctx)
 }
 
 /* Callback called upon loss detection and PTO timer expirations. */
-static struct task *process_timer(struct task *task, void *ctx, unsigned int state)
+struct task *qc_process_timer(struct task *task, void *ctx, unsigned int state)
 {
 	struct ssl_sock_ctx *conn_ctx;
 	struct quic_conn *qc;
@@ -4868,7 +4868,7 @@ static int quic_conn_init_timer(struct quic_conn *qc)
 	}
 
 	qc->timer = TICK_ETERNITY;
-	qc->timer_task->process = process_timer;
+	qc->timer_task->process = qc_process_timer;
 	qc->timer_task->context = qc->xprt_ctx;
 
 	ret = 1;
@@ -4905,7 +4905,7 @@ static void qc_idle_timer_rearm(struct quic_conn *qc, int read)
 }
 
 /* The task handling the idle timeout */
-static struct task *qc_idle_timer_task(struct task *t, void *ctx, unsigned int state)
+struct task *qc_idle_timer_task(struct task *t, void *ctx, unsigned int state)
 {
 	struct quic_conn *qc = ctx;
 	struct quic_counters *prx_counters = qc->prx_counters;
