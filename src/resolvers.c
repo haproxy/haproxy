@@ -65,7 +65,7 @@ DECLARE_POOL(resolv_requester_pool,  "resolv_requester",  sizeof(struct resolv_r
 
 static unsigned int resolution_uuid = 1;
 unsigned int resolv_failed_resolutions = 0;
-static struct task *process_resolvers(struct task *t, void *context, unsigned int state);
+struct task *process_resolvers(struct task *t, void *context, unsigned int state);
 static void resolv_free_resolution(struct resolv_resolution *resolution);
 static void _resolv_unlink_resolution(struct resolv_requester *requester);
 static void enter_resolver_code();
@@ -2299,7 +2299,7 @@ static int resolv_process_responses(struct dns_nameserver *ns)
  * resolutions and retry them if possible. Else a timeout is reported. Then, it
  * checks the wait list to trigger new resolutions.
  */
-static struct task *process_resolvers(struct task *t, void *context, unsigned int state)
+struct task *process_resolvers(struct task *t, void *context, unsigned int state)
 {
 	struct resolvers  *resolvers = context;
 	struct resolv_resolution *res, *resback;
