@@ -1036,6 +1036,9 @@ dev/qpack/decode: dev/qpack/decode.o
 dev/tcploop/tcploop:
 	$(Q)$(MAKE) -C dev/tcploop tcploop CC='$(cmd_CC)' OPTIMIZE='$(COPTS)'
 
+dev/udp/udp-perturb: dev/udp/udp-perturb.o
+	$(cmd_LD) $(LDFLAGS) -o $@ $^ $(LDOPTS)
+
 # rebuild it every time
 .PHONY: src/version.c
 
