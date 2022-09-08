@@ -10,6 +10,8 @@ server s1 {
   send "220 smtp-check.vtc SMTP Server\r\n"
   recv 16
   send "250 smtp-check.vtc\r\n"
+  recv 6
+  send "221 smtp-check.vtc closing\r\n"
 } -start
 
 server s2 {
@@ -18,6 +20,8 @@ server s2 {
   send "250-smtp-check.vtc\r\n"
   send "250-KEYWORD\r\n"
   send "250 LAST KEYWORD\r\n"
+  recv 6
+  send "221 smtp-check.vtc closing\r\n"
 } -start
 
 server s3 {
@@ -36,12 +40,12 @@ server s5 {
 
 syslog S1 -level notice {
     recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be1/srv succeeded, reason: Layer7 check passed.+code: 250.+info: \"smtp-check.vtc\".+check duration: [[:digit:]]+ms, status: 1/1 UP."
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be1/srv succeeded, reason: Layer7 check passed.+code: 221.+info: \"smtp-check.vtc closing\".+check duration: [[:digit:]]+ms, status: 1/1 UP."
 } -start
 
 syslog S2 -level notice {
     recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be2/srv succeeded, reason: Layer7 check passed.+code: 250.+info: \"smtp-check.vtc\".+check duration: [[:digit:]]+ms, status: 1/1 UP."
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be2/srv succeeded, reason: Layer7 check passed.+code: 221.+info: \"smtp-check.vtc closing\".+check duration: [[:digit:]]+ms, status: 1/1 UP."
 } -start
 
 syslog S3 -level notice {

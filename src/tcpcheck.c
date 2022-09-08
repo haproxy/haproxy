@@ -6,6 +6,7 @@
  * Copyright 2013 Baptiste Assmann <bedis9@gmail.com>
  * Copyright 2020 Gaetan Rivet <grive@u256.net>
  * Copyright 2020 Christopher Faulet <cfaulet@haproxy.com>
+ * Crown Copyright 2022 Defence Science and Technology Laboratory <dstlipgroup@dstl.gov.uk>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -4357,6 +4358,32 @@ int proxy_parse_smtpchk_opt(char **args, int cur_arg, struct proxy *curpx, const
 	}
 	chk->index = 4;
 	LIST_APPEND(&rs->rules, &chk->list);
+
+        /* Send an SMTP QUIT to ensure clean disconnect (issue 1812), and expect a 2xx response code */
+
+        chk = parse_tcpcheck_send((char *[]){"tcp-check", "send", "QUIT\r\n", ""},
+                                  1, curpx, &rs->rules, file, line, &errmsg);
+        if (!chk) {
+                ha_alert("parsing [%s:%d] : %s\n", file, line, errmsg);
+                goto error;
+        }
+        chk->index = 5;
+        LIST_APPEND(&rs->rules, &chk->list);
+
+        chk = parse_tcpcheck_expect((char *[]){"tcp-check", "expect", "rstring", "^2[0-9]{2}[- \r]",
+                                               "min-recv", "4",
+                                               "error-status", "L7STS",
+                                               "on-error", "%[res.payload(4,0),ltrim(' '),cut_crlf]",
+                                               "on-success", "%[res.payload(4,0),ltrim(' '),cut_crlf]",
+                                               "status-code", "res.payload(0,3)",
+                                               ""},
+                                    1, curpx, &rs->rules, TCPCHK_RULES_SMTP_CHK, file, line, &errmsg);
+        if (!chk) {
+                ha_alert("parsing [%s:%d] : %s\n", file, line, errmsg);
+                goto error;
+        }
+        chk->index = 6;
+        LIST_APPEND(&rs->rules, &chk->list);
 
   ruleset_found:
 	rules->list = &rs->rules;

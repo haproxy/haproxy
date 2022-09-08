@@ -8,7 +8,7 @@ barrier b cond 3
 
 syslog S1 -level notice {
     recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be1/srv1 succeeded.+reason: Layer7 check passed.+code: 2(20|48).+check duration: [[:digit:]]+ms.+status: 1/1 UP."
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be1/srv1 succeeded.+reason: Layer7 check passed.+code: 221.+check duration: [[:digit:]]+ms.+status: 1/1 UP."
     barrier b sync
     recv
     expect ~ "Health check for server be1/srv1 failed.+reason: Layer7 timeout.+check duration: [[:digit:]]+ms.+status: 0/1 DOWN"
@@ -42,6 +42,11 @@ server s1 {
     send "4"
     send "8"
     send "\r\n"
+    recv 6
+    send "2"
+    send "2"
+    send "1"
+    send " ok\r\n"
 } -start
 
 server s2 {
