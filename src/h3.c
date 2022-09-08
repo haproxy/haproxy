@@ -605,7 +605,7 @@ static ssize_t h3_parse_settings_frm(struct h3c *h3c, const struct buffer *buf,
 		}
 	}
 
-	TRACE_LEAVE(H3_EV_RX_FRAME|H3_EV_RX_SETTINGS);
+	TRACE_LEAVE(H3_EV_RX_FRAME|H3_EV_RX_SETTINGS, h3c->qcc->conn);
 	return ret;
 }
 
