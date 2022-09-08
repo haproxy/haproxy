@@ -27,7 +27,7 @@ struct show_prof_ctx {
 	int dump_step;  /* 0,1,2,4,5,6; see cli_iohandler_show_profiling() */
 	int linenum;    /* next line to be dumped (starts at 0) */
 	int maxcnt;     /* max line count per step (0=not set)  */
-	int by_addr;    /* 0=sort by usage, 1=sort by address   */
+	int by_what;    /* 0=sort by usage, 1=sort by address, 2=sort by time */
 	int aggr;       /* 0=dump raw, 1=aggregate on callee    */
 };
 
@@ -502,6 +502,24 @@ static int cmp_sched_activity_addr(const void *a, const void *b)
 		return 0;
 }
 
+/* sort by cpu time first, then by inverse call count (to spot highest offenders) */
+static int cmp_sched_activity_cpu(const void *a, const void *b)
+{
+	const struct sched_activity *l = (const struct sched_activity *)a;
+	const struct sched_activity *r = (const struct sched_activity *)b;
+
+	if (l->cpu_time > r->cpu_time)
+		return -1;
+	else if (l->cpu_time < r->cpu_time)
+		return 1;
+	else if (l->calls < r->calls)
+		return -1;
+	else if (l->calls > r->calls)
+		return 1;
+	else
+		return 0;
+}
+
 #ifdef USE_MEMORY_PROFILING
 /* used by qsort below */
 static int cmp_memprof_stats(const void *a, const void *b)
@@ -635,7 +653,7 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 
 	memcpy(tmp_activity, sched_activity, sizeof(tmp_activity));
 	/* for addr sort and for callee aggregation we have to first sort by address */
-	if (ctx->aggr || ctx->by_addr)
+	if (ctx->aggr || ctx->by_what == 1) // sort by addr
 		qsort(tmp_activity, SCHED_ACT_HASH_BUCKETS, sizeof(tmp_activity[0]), cmp_sched_activity_addr);	
 
 	if (ctx->aggr) {
@@ -650,8 +668,10 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 		}
 	}
 
-	if (!ctx->by_addr)
+	if (!ctx->by_what) // sort by usage
 		qsort(tmp_activity, SCHED_ACT_HASH_BUCKETS, sizeof(tmp_activity[0]), cmp_sched_activity_calls);
+	else if (ctx->by_what == 2) // by cpu_tot
+		qsort(tmp_activity, SCHED_ACT_HASH_BUCKETS, sizeof(tmp_activity[0]), cmp_sched_activity_cpu);
 
 	if (!ctx->linenum)
 		chunk_appendf(&trash, "Tasks activity:\n"
@@ -716,7 +736,7 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 		goto skip_mem;
 
 	memcpy(tmp_memstats, memprof_stats, sizeof(tmp_memstats));
-	if (ctx->by_addr)
+	if (ctx->by_what)
 		qsort(tmp_memstats, MEMPROF_HASH_BUCKETS+1, sizeof(tmp_memstats[0]), cmp_memprof_addr);
 	else
 		qsort(tmp_memstats, MEMPROF_HASH_BUCKETS+1, sizeof(tmp_memstats[0]), cmp_memprof_stats);
@@ -826,7 +846,10 @@ static int cli_parse_show_profiling(char **args, char *payload, struct appctx *a
 			ctx->dump_step = 6; // will visit memory only
 		}
 		else if (strcmp(args[arg], "byaddr") == 0) {
-			ctx->by_addr = 1; // sort output by address instead of usage
+			ctx->by_what = 1; // sort output by address instead of usage
+		}
+		else if (strcmp(args[arg], "bytime") == 0) {
+			ctx->by_what = 2; // sort output by total time instead of usage
 		}
 		else if (strcmp(args[arg], "aggr") == 0) {
 			ctx->aggr = 1;    // aggregate output by callee
@@ -835,7 +858,7 @@ static int cli_parse_show_profiling(char **args, char *payload, struct appctx *a
 			ctx->maxcnt = atoi(args[arg]); // number of entries to dump
 		}
 		else
-			return cli_err(appctx, "Expects either 'all', 'status', 'tasks', 'memory', 'byaddr', 'aggr' or a max number of output lines.\n");
+			return cli_err(appctx, "Expects either 'all', 'status', 'tasks', 'memory', 'byaddr', 'bytime', 'aggr' or a max number of output lines.\n");
 	}
 	return 0;
 }
