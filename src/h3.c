@@ -1248,6 +1248,9 @@ static void h3_trace(enum trace_level level, uint64_t mask,
 	const struct qcc *qcc   = conn ? conn->ctx : NULL;
 	const struct qcs *qcs   = a2;
 
+	if (!qcc)
+		return;
+
 	if (src->verbosity > H3_VERB_CLEAN) {
 		chunk_appendf(&trace_buf, " : qcc=%p(F)", qcc);
 
