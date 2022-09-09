@@ -21,10 +21,11 @@
 #define SHOW_AS_SD    0x00000100
 #define SHOW_AS_HSL   0x00000200
 #define SHOW_AS_HTX   0x00000400
+#define SHOW_AS_HMSG  0x00000800
 
 // command line names, must be in exact same order as the SHOW_AS_* flags above
 // so that show_as_words[i] matches flag 1U<<i.
-const char *show_as_words[] = { "ana", "chn", "conn", "sc", "stet", "strm", "task", "txn", "sd", "hsl", "htx", };
+const char *show_as_words[] = { "ana", "chn", "conn", "sc", "stet", "strm", "task", "txn", "sd", "hsl", "htx", "hmsg", };
 
 /* will be sufficient for even largest flag names */
 static char buf[4096];
@@ -129,6 +130,7 @@ int main(int argc, char **argv)
 		if (show_as & SHOW_AS_TXN)   printf("txn->flags = %s\n",  (txn_show_flags    (buf, bsz, " | ", flags), buf));
 		if (show_as & SHOW_AS_HSL)   printf("sl->flags = %s\n",   (hsl_show_flags    (buf, bsz, " | ", flags), buf));
 		if (show_as & SHOW_AS_HTX)   printf("htx->flags = %s\n",  (htx_show_flags    (buf, bsz, " | ", flags), buf));
+		if (show_as & SHOW_AS_HMSG)  printf("hmsg->flags = %s\n", (hmsg_show_flags   (buf, bsz, " | ", flags), buf));
 	}
 	return 0;
 }

@@ -110,7 +110,8 @@ static forceinline char *txn_show_flags(char *buf, size_t len, const char *delim
 
 
 /*
- * HTTP message status flags (msg->flags)
+ * HTTP message status flags (msg->flags).
+ * Please also update the txn_show_flags() function below in case of changes.
  */
 #define HTTP_MSGF_CNT_LEN     0x00000001  /* content-length was found in the message */
 #define HTTP_MSGF_TE_CHNK     0x00000002  /* transfer-encoding: chunked was found */
@@ -128,6 +129,26 @@ static forceinline char *txn_show_flags(char *buf, size_t len, const char *delim
 
 #define HTTP_MSGF_BODYLESS    0x00000040  /* The message has no body (content-length = 0) */
 #define HTTP_MSGF_CONN_UPG    0x00000080  /* The message contains "Connection: Upgrade" header */
+
+/* This function is used to report flags in debugging tools. Please reflect
+ * below any single-bit flag addition above in the same order via the
+ * __APPEND_FLAG macro. The new end of the buffer is returned.
+ */
+static forceinline char *hmsg_show_flags(char *buf, size_t len, const char *delim, uint flg)
+{
+#define _(f, ...)     __APPEND_FLAG(buf, len, delim, flg, f, #f, __VA_ARGS__)
+	/* prologue */
+	_(0);
+	/* flags */
+	_(HTTP_MSGF_CNT_LEN, _(HTTP_MSGF_TE_CHNK, _(HTTP_MSGF_XFER_LEN,
+	_(HTTP_MSGF_VER_11, _(HTTP_MSGF_SOFT_RW, _(HTTP_MSGF_COMPRESSING,
+	_(HTTP_MSGF_BODYLESS, _(HTTP_MSGF_CONN_UPG))))))));
+	/* epilogue */
+	_(~0U);
+	return buf;
+#undef _
+}
+
 
 /* Maximum length of the cache secondary key (sum of all the possible parts of
  * the secondary key). The actual keys might be smaller for some
