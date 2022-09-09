@@ -168,61 +168,9 @@ void show_txn_flags(unsigned int f)
 
 void show_strm_flags(unsigned int f)
 {
-	printf("strm->flags = ");
-
-	if (!f) {
-		printf("0\n");
-		return;
-	}
-
-	SHOW_FLAG(f, SF_SRC_ADDR);
-	SHOW_FLAG(f, SF_WEBSOCKET);
-	SHOW_FLAG(f, SF_SRV_REUSED_ANTICIPATED);
-	SHOW_FLAG(f, SF_SRV_REUSED);
-	SHOW_FLAG(f, SF_IGNORE_PRST);
-
-	//printf("%s", f ? "" : " | ");
-	switch (f & SF_FINST_MASK) {
-	case SF_FINST_R: f &= ~SF_FINST_MASK ; printf("SF_FINST_R%s", f ? " | " : ""); break;
-	case SF_FINST_C: f &= ~SF_FINST_MASK ; printf("SF_FINST_C%s", f ? " | " : ""); break;
-	case SF_FINST_H: f &= ~SF_FINST_MASK ; printf("SF_FINST_H%s", f ? " | " : ""); break;
-	case SF_FINST_D: f &= ~SF_FINST_MASK ; printf("SF_FINST_D%s", f ? " | " : ""); break;
-	case SF_FINST_L: f &= ~SF_FINST_MASK ; printf("SF_FINST_L%s", f ? " | " : ""); break;
-	case SF_FINST_Q: f &= ~SF_FINST_MASK ; printf("SF_FINST_Q%s", f ? " | " : ""); break;
-	case SF_FINST_T: f &= ~SF_FINST_MASK ; printf("SF_FINST_T%s", f ? " | " : ""); break;
-	}
-
-	switch (f & SF_ERR_MASK) {
-	case SF_ERR_LOCAL:    f &= ~SF_ERR_MASK ; printf("SF_ERR_LOCAL%s",    f ? " | " : ""); break;
-	case SF_ERR_CLITO:    f &= ~SF_ERR_MASK ; printf("SF_ERR_CLITO%s",    f ? " | " : ""); break;
-	case SF_ERR_CLICL:    f &= ~SF_ERR_MASK ; printf("SF_ERR_CLICL%s",    f ? " | " : ""); break;
-	case SF_ERR_SRVTO:    f &= ~SF_ERR_MASK ; printf("SF_ERR_SRVTO%s",    f ? " | " : ""); break;
-	case SF_ERR_SRVCL:    f &= ~SF_ERR_MASK ; printf("SF_ERR_SRVCL%s",    f ? " | " : ""); break;
-	case SF_ERR_PRXCOND:  f &= ~SF_ERR_MASK ; printf("SF_ERR_PRXCOND%s",  f ? " | " : ""); break;
-	case SF_ERR_RESOURCE: f &= ~SF_ERR_MASK ; printf("SF_ERR_RESOURCE%s", f ? " | " : ""); break;
-	case SF_ERR_INTERNAL: f &= ~SF_ERR_MASK ; printf("SF_ERR_INTERNAL%s", f ? " | " : ""); break;
-	case SF_ERR_DOWN:     f &= ~SF_ERR_MASK ; printf("SF_ERR_DOWN%s",     f ? " | " : ""); break;
-	case SF_ERR_KILLED:   f &= ~SF_ERR_MASK ; printf("SF_ERR_KILLED%s",   f ? " | " : ""); break;
-	case SF_ERR_UP:       f &= ~SF_ERR_MASK ; printf("SF_ERR_UP%s",       f ? " | " : ""); break;
-	case SF_ERR_CHK_PORT: f &= ~SF_ERR_MASK ; printf("SF_ERR_CHK_PORT%s",       f ? " | " : ""); break;
-	}
-
-	SHOW_FLAG(f, SF_HTX);
-	SHOW_FLAG(f, SF_REDIRECTABLE);
-	SHOW_FLAG(f, SF_IGNORE);
-	SHOW_FLAG(f, SF_REDISP);
-	SHOW_FLAG(f, SF_CONN_EXP);
-	SHOW_FLAG(f, SF_CURR_SESS);
-	SHOW_FLAG(f, SF_MONITOR);
-	SHOW_FLAG(f, SF_FORCE_PRST);
-	SHOW_FLAG(f, SF_BE_ASSIGNED);
-	SHOW_FLAG(f, SF_ASSIGNED);
-	SHOW_FLAG(f, SF_DIRECT);
-
-	if (f) {
-		printf("EXTRA(0x%08x)", f);
-	}
-	putchar('\n');
+	strm_show_flags(tmpbuf, sizeof(tmpbuf), " | ", f);
+	printf("strm->flags = %s\n", tmpbuf);
+	return;
 }
 
 void usage_exit(const char *name)

@@ -35,7 +35,9 @@
 #include <haproxy/vars-t.h>
 
 
-/* Various Stream Flags, bits values 0x01 to 0x100 (shift 0) */
+/* Various Stream Flags, bits values 0x01 to 0x100 (shift 0).
+ * Please also update the txn_show_flags() function below in case of changes.
+ */
 #define SF_DIRECT	0x00000001	/* connection made on the server matching the client cookie */
 #define SF_ASSIGNED	0x00000002	/* no need to assign a server to this stream */
 /* unused: 0x00000004 */
@@ -84,6 +86,45 @@
 #define SF_SRV_REUSED_ANTICIPATED  0x00200000  /* the connection was reused but the mux is not ready yet */
 #define SF_WEBSOCKET    0x00400000	/* websocket stream */ // TODO: must be removed
 #define SF_SRC_ADDR     0x00800000	/* get the source ip/port with getsockname */
+
+/* This function is used to report flags in debugging tools. Please reflect
+ * below any single-bit flag addition above in the same order via the
+ * __APPEND_FLAG and __APPEND_ENUM macros. The new end of the buffer is
+ * returned.
+ */
+static forceinline char *strm_show_flags(char *buf, size_t len, const char *delim, uint flg)
+{
+#define _(f, ...)     __APPEND_FLAG(buf, len, delim, flg, f, #f, __VA_ARGS__)
+#define _e(m, e, ...) __APPEND_ENUM(buf, len, delim, flg, m, e, #e, __VA_ARGS__)
+	/* prologue */
+	_(0);
+	/* flags & enums */
+	_(SF_IGNORE_PRST, _(SF_SRV_REUSED, _(SF_SRV_REUSED_ANTICIPATED,
+	_(SF_WEBSOCKET, _(SF_SRC_ADDR)))));
+
+	_e(SF_FINST_MASK, SF_FINST_R,    _e(SF_FINST_MASK, SF_FINST_C,
+	_e(SF_FINST_MASK, SF_FINST_H,    _e(SF_FINST_MASK, SF_FINST_D,
+	_e(SF_FINST_MASK, SF_FINST_L,    _e(SF_FINST_MASK, SF_FINST_Q,
+	_e(SF_FINST_MASK, SF_FINST_T)))))));
+
+	_e(SF_ERR_MASK, SF_ERR_LOCAL,    _e(SF_ERR_MASK, SF_ERR_CLITO,
+	_e(SF_ERR_MASK, SF_ERR_CLICL,    _e(SF_ERR_MASK, SF_ERR_SRVTO,
+	_e(SF_ERR_MASK, SF_ERR_SRVCL,    _e(SF_ERR_MASK, SF_ERR_PRXCOND,
+	_e(SF_ERR_MASK, SF_ERR_RESOURCE, _e(SF_ERR_MASK, SF_ERR_INTERNAL,
+	_e(SF_ERR_MASK, SF_ERR_DOWN,     _e(SF_ERR_MASK, SF_ERR_KILLED,
+	_e(SF_ERR_MASK, SF_ERR_UP,       _e(SF_ERR_MASK, SF_ERR_CHK_PORT))))))))))));
+
+	_(SF_DIRECT, _(SF_ASSIGNED, _(SF_BE_ASSIGNED, _(SF_FORCE_PRST,
+	_(SF_MONITOR, _(SF_CURR_SESS, _(SF_CONN_EXP, _(SF_REDISP,
+	_(SF_IGNORE, _(SF_REDIRECTABLE, _(SF_HTX)))))))))));
+
+	/* epilogue */
+	_(~0U);
+	return buf;
+#undef _e
+#undef _
+}
+
 
 /* flags for the proxy of the master CLI */
 /* 0x0001.. to 0x8000 are reserved for ACCESS_* flags from cli-t.h */
