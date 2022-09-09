@@ -1915,6 +1915,26 @@ struct proxy *parse_new_proxy(const char *name, unsigned int cap,
 	return curproxy;
 }
 
+/* to be called under the proxy lock after pausing some listeners. This will
+ * automatically update the p->flags flag
+ */
+void proxy_cond_pause(struct proxy *p)
+{
+	if (p->li_ready)
+		return;
+	p->flags |= PR_FL_PAUSED;
+}
+
+/* to be called under the proxy lock after resuming some listeners. This will
+ * automatically update the p->flags flag
+ */
+void proxy_cond_resume(struct proxy *p)
+{
+	if (!p->li_ready)
+		return;
+	p->flags &= ~PR_FL_PAUSED;
+}
+
 /* to be called under the proxy lock after stopping some listeners. This will
  * automatically update the p->flags flag after stopping the last one, and
  * will emit a log indicating the proxy's condition. The function is idempotent

@@ -481,6 +481,8 @@ int pause_listener(struct listener *l, int lpx)
 	listener_set_state(l, LI_PAUSED);
 
 	if (px && !px->li_ready) {
+		/* PROXY_LOCK is required */
+		proxy_cond_pause(px);
 		ha_warning("Paused %s %s.\n", proxy_cap_str(px->cap), px->id);
 		send_log(px, LOG_WARNING, "Paused %s %s.\n", proxy_cap_str(px->cap), px->id);
 	}
@@ -540,6 +542,8 @@ int resume_listener(struct listener *l, int lpx)
 
   done:
 	if (was_paused && !px->li_paused) {
+		/* PROXY_LOCK is required */
+		proxy_cond_resume(px);
 		ha_warning("Resumed %s %s.\n", proxy_cap_str(px->cap), px->id);
 		send_log(px, LOG_WARNING, "Resumed %s %s.\n", proxy_cap_str(px->cap), px->id);
 	}
