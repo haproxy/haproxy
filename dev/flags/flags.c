@@ -84,33 +84,8 @@ void show_strm_et(unsigned int f)
 
 void show_task_state(unsigned int f)
 {
-	printf("task->state = ");
-
-	if (!f) {
-		printf("TASK_SLEEPING\n");
-		return;
-	}
-
-	SHOW_FLAG(f, TASK_F_USR1);
-	SHOW_FLAG(f, TASK_F_TASKLET);
-	SHOW_FLAG(f, TASK_WOKEN_OTHER);
-	SHOW_FLAG(f, TASK_WOKEN_RES);
-	SHOW_FLAG(f, TASK_WOKEN_MSG);
-	SHOW_FLAG(f, TASK_WOKEN_SIGNAL);
-	SHOW_FLAG(f, TASK_WOKEN_IO);
-	SHOW_FLAG(f, TASK_WOKEN_TIMER);
-	SHOW_FLAG(f, TASK_WOKEN_INIT);
-	SHOW_FLAG(f, TASK_HEAVY);
-	SHOW_FLAG(f, TASK_IN_LIST);
-	SHOW_FLAG(f, TASK_KILLED);
-	SHOW_FLAG(f, TASK_SELF_WAKING);
-	SHOW_FLAG(f, TASK_QUEUED);
-	SHOW_FLAG(f, TASK_RUNNING);
-
-	if (f) {
-		printf("EXTRA(0x%08x)", f);
-	}
-	putchar('\n');
+	task_show_state(tmpbuf, sizeof(tmpbuf), " | ", f);
+	printf("task->state = %s\n", tmpbuf);
 }
 
 void show_txn_flags(unsigned int f)

@@ -27,9 +27,12 @@
 #include <import/ebtree-t.h>
 
 #include <haproxy/api-t.h>
+#include <haproxy/show_flags-t.h>
 #include <haproxy/thread-t.h>
 
-/* values for task->state (32 bits) */
+/* values for task->state (32 bits).
+ * Please also update the task_show_state() function below in case of changes.
+ */
 #define TASK_SLEEPING     0x00000000  /* task sleeping */
 #define TASK_RUNNING      0x00000001  /* the task is currently running */
 /* unused                 0x00000002 */
@@ -60,6 +63,27 @@
 /* These flags are persistent across scheduler calls */
 #define TASK_PERSISTENT   (TASK_SELF_WAKING | TASK_KILLED | \
                            TASK_HEAVY | TASK_F_TASKLET | TASK_F_USR1)
+
+/* This function is used to report state in debugging tools. Please reflect
+ * below any single-bit flag addition above in the same order via the
+ * __APPEND_FLAG macro. The new end of the buffer is returned.
+ */
+static forceinline char *task_show_state(char *buf, size_t len, const char *delim, uint flg)
+{
+#define _(f, ...) __APPEND_FLAG(buf, len, delim, flg, f, #f, __VA_ARGS__)
+	/* prologue */
+	_(0);
+	/* flags */
+	_(TASK_RUNNING, _(TASK_QUEUED, _(TASK_SELF_WAKING,
+	_(TASK_KILLED, _(TASK_IN_LIST, _(TASK_HEAVY, _(TASK_WOKEN_INIT,
+	_(TASK_WOKEN_TIMER, _(TASK_WOKEN_IO, _(TASK_WOKEN_SIGNAL,
+	_(TASK_WOKEN_MSG, _(TASK_WOKEN_RES, _(TASK_WOKEN_OTHER,
+	_(TASK_F_TASKLET, _(TASK_F_USR1)))))))))))))));
+	/* epilogue */
+	_(~0U);
+	return buf;
+#undef _
+}
 
 /* these wakeup types are used to indicate how a task/tasklet was woken up, for
  * debugging purposes.
