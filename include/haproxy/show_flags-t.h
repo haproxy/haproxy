@@ -91,8 +91,8 @@
 
 #else /* EOF not defined => no stdio, do nothing */
 
-#define __APPEND_FLAG(_buf, _len, _del, _flg, _val, _nam)   do { } while (0)
-#define __APPEND_ENUM(_buf, _len, _del, _flg, _msk, _val, _nam)   do { } while (0)
+#define __APPEND_FLAG(_buf, _len, _del, _flg, _val, _nam, ...)         do { } while (0)
+#define __APPEND_ENUM(_buf, _len, _del, _flg, _msk, _val, _nam, ...)   do { } while (0)
 
 #endif /* EOF */
 
