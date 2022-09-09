@@ -78,28 +78,8 @@ void show_sc_flags(unsigned int f)
 
 void show_strm_et(unsigned int f)
 {
-	printf("strm->et    = ");
-	if (!f) {
-		printf("STRM_ET_NONE\n");
-		return;
-	}
-
-	SHOW_FLAG(f, STRM_ET_QUEUE_TO);
-	SHOW_FLAG(f, STRM_ET_QUEUE_ERR);
-	SHOW_FLAG(f, STRM_ET_QUEUE_ABRT);
-	SHOW_FLAG(f, STRM_ET_CONN_TO);
-	SHOW_FLAG(f, STRM_ET_CONN_ERR);
-	SHOW_FLAG(f, STRM_ET_CONN_ABRT);
-	SHOW_FLAG(f, STRM_ET_CONN_RES);
-	SHOW_FLAG(f, STRM_ET_CONN_OTHER);
-	SHOW_FLAG(f, STRM_ET_DATA_TO);
-	SHOW_FLAG(f, STRM_ET_DATA_ERR);
-	SHOW_FLAG(f, STRM_ET_DATA_ABRT);
-
-	if (f) {
-		printf("EXTRA(0x%08x)", f);
-	}
-	putchar('\n');
+	strm_et_show_flags(tmpbuf, sizeof(tmpbuf), " | ", f);
+	printf("strm->et = %s\n", tmpbuf);
 }
 
 void show_task_state(unsigned int f)

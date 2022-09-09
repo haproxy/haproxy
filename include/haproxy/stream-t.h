@@ -30,6 +30,7 @@
 #include <haproxy/dynbuf-t.h>
 #include <haproxy/filters-t.h>
 #include <haproxy/obj_type-t.h>
+#include <haproxy/show_flags-t.h>
 #include <haproxy/stick_table-t.h>
 #include <haproxy/vars-t.h>
 
@@ -91,7 +92,9 @@
 #define PCLI_F_PAYLOAD  0x20000
 
 
-/* error types reported on the streams for more accurate reporting */
+/* error types reported on the streams for more accurate reporting.
+ * Please also update the strm_et_show_flags() function below in case of changes.
+ */
 enum {
 	STRM_ET_NONE       = 0x0000,  /* no error yet, leave it to zero */
 	STRM_ET_QUEUE_TO   = 0x0001,  /* queue timeout */
@@ -106,6 +109,26 @@ enum {
 	STRM_ET_DATA_ERR   = 0x0200,  /* error during data phase */
 	STRM_ET_DATA_ABRT  = 0x0400,  /* data phase aborted by external cause */
 };
+
+/* This function is used to report flags in debugging tools. Please reflect
+ * below any single-bit flag addition above in the same order via the
+ * __APPEND_FLAG macro. The new end of the buffer is returned.
+ */
+static forceinline char *strm_et_show_flags(char *buf, size_t len, const char *delim, uint flg)
+{
+#define _(f, ...) __APPEND_FLAG(buf, len, delim, flg, f, #f, __VA_ARGS__)
+	/* prologue */
+	_(0);
+	/* flags */
+	_(STRM_ET_QUEUE_TO, _(STRM_ET_QUEUE_ERR, _(STRM_ET_QUEUE_ABRT,
+	_(STRM_ET_CONN_TO, _(STRM_ET_CONN_ERR, _(STRM_ET_CONN_ABRT,
+	_(STRM_ET_CONN_RES, _(STRM_ET_CONN_OTHER, _(STRM_ET_DATA_TO,
+	_(STRM_ET_DATA_ERR, _(STRM_ET_DATA_ABRT)))))))))));
+	/* epilogue */
+	_(~0U);
+	return buf;
+#undef _
+}
 
 struct hlua;
 struct proxy;
