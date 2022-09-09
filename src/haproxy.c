@@ -2810,7 +2810,7 @@ void run_poll_loop()
 		if (killed > 1)
 			break;
 
-		/* expire immediately if events are pending */
+		/* expire immediately if events or signals are pending */
 		wake = 1;
 		if (thread_has_tasks())
 			activity[tid].wake_tasks++;
@@ -2820,6 +2820,10 @@ void run_poll_loop()
 			__ha_barrier_atomic_store();
 			if (thread_has_tasks()) {
 				activity[tid].wake_tasks++;
+				_HA_ATOMIC_AND(&th_ctx->flags, ~TH_FL_SLEEPING);
+			} else if (signal_queue_len) {
+				/* this check is required after setting TH_FL_SLEEPING to avoid
+				 * a race with wakeup on signals using wake_threads() */
 				_HA_ATOMIC_AND(&th_ctx->flags, ~TH_FL_SLEEPING);
 			} else
 				wake = 0;

@@ -56,6 +56,9 @@ void signal_handler(int sig)
 	signal_state[sig].count++;
 	if (sig)
 		signal(sig, signal_handler); /* re-arm signal */
+
+	/* If the thread is TH_FL_SLEEPING we need to wake it */
+	wake_thread(tid);
 }
 
 /* Call handlers of all pending signals and clear counts and queue length. The
