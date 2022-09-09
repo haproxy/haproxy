@@ -510,6 +510,21 @@ struct q_buf {
 	struct list pkts;
 };
 
+/* Crypto data stream (one by encryption level) */
+struct quic_cstream {
+	struct {
+		uint64_t offset;       /* absolute current base offset of ncbuf */
+		struct ncbuf ncbuf;    /* receive buffer - can handle out-of-order offset frames */
+	} rx;
+	struct {
+		uint64_t offset;      /* last offset of data ready to be sent */
+		uint64_t sent_offset; /* last offset sent by transport layer */
+		struct buffer buf;    /* transmit buffer before sending via xprt */
+	} tx;
+
+	struct qc_stream_desc *desc;
+};
+
 struct quic_enc_level {
 	enum ssl_encryption_level_t level;
 	struct quic_tls_ctx tls_ctx;
@@ -536,6 +551,8 @@ struct quic_enc_level {
 			uint64_t offset;
 		} crypto;
 	} tx;
+	/* Crypto data stream */
+	struct quic_cstream *cstream;
 	struct quic_pktns *pktns;
 };
 

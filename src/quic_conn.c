@@ -210,6 +210,7 @@ DECLARE_POOL(pool_head_quic_rx_packet, "quic_rx_packet", sizeof(struct quic_rx_p
 DECLARE_POOL(pool_head_quic_tx_packet, "quic_tx_packet", sizeof(struct quic_tx_packet));
 DECLARE_STATIC_POOL(pool_head_quic_rx_crypto_frm, "quic_rx_crypto_frm", sizeof(struct quic_rx_crypto_frm));
 DECLARE_STATIC_POOL(pool_head_quic_crypto_buf, "quic_crypto_buf", sizeof(struct quic_crypto_buf));
+DECLARE_STATIC_POOL(pool_head_quic_cstream, "quic_cstream", sizeof(struct quic_cstream));
 DECLARE_POOL(pool_head_quic_frame, "quic_frame", sizeof(struct quic_frame));
 DECLARE_STATIC_POOL(pool_head_quic_arng, "quic_arng", sizeof(struct quic_arng_node));
 
@@ -4396,6 +4397,55 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 	return t;
 }
 
+/* Release the memory allocated for <cs> CRYPTO stream */
+void quic_cstream_free(struct quic_cstream *cs)
+{
+	if (!cs) {
+		/* This is the case for ORTT encryption level */
+		return;
+	}
+
+	qc_stream_desc_release(cs->desc);
+	pool_free(pool_head_quic_cstream, cs);
+}
+
+/* Allocate a new QUIC stream for <qc>.
+ * Return it if succeeded, NULL if not.
+ */
+struct quic_cstream *quic_cstream_new(struct quic_conn *qc)
+{
+	struct quic_cstream *cs, *ret_cs = NULL;
+
+	TRACE_ENTER(QUIC_EV_CONN_LPKT, qc);
+	cs = pool_alloc(pool_head_quic_cstream);
+	if (!cs) {
+		TRACE_ERROR("crypto stream allocation failed", QUIC_EV_CONN_INIT, qc);
+		goto leave;
+	}
+
+	cs->rx.offset = 0;
+	cs->rx.ncbuf = NCBUF_NULL;
+	cs->rx.offset = 0;
+
+	cs->tx.offset = 0;
+	cs->tx.sent_offset = 0;
+	cs->tx.buf = BUF_NULL;
+	cs->desc = qc_stream_desc_new((uint64_t)-1, -1, cs, qc);
+	if (!cs->desc) {
+		TRACE_ERROR("crypto stream allocation failed", QUIC_EV_CONN_INIT, qc);
+		goto err;
+	}
+
+	ret_cs = cs;
+ leave:
+	TRACE_LEAVE(QUIC_EV_CONN_LPKT, qc);
+	return ret_cs;
+
+ err:
+	pool_free(pool_head_quic_cstream, cs);
+	goto leave;
+}
+
 /* Uninitialize <qel> QUIC encryption level. Never fails. */
 static void quic_conn_enc_level_uninit(struct quic_conn *qc, struct quic_enc_level *qel)
 {
@@ -4410,6 +4460,7 @@ static void quic_conn_enc_level_uninit(struct quic_conn *qc, struct quic_enc_lev
 		}
 	}
 	ha_free(&qel->tx.crypto.bufs);
+	quic_cstream_free(qel->cstream);
 
 	TRACE_LEAVE(QUIC_EV_CONN_CLOSE, qc);
 }
@@ -4453,6 +4504,14 @@ static int quic_conn_enc_level_init(struct quic_conn *qc,
 
 	qel->tx.crypto.sz = 0;
 	qel->tx.crypto.offset = 0;
+	/* No CRYPTO data for early data TLS encryption level */
+	if (level == QUIC_TLS_ENC_LEVEL_EARLY_DATA)
+		qel->cstream = NULL;
+	else {
+		qel->cstream = quic_cstream_new(qc);
+		if (!qel->cstream)
+			goto err;
+	}
 
 	ret = 1;
  leave:

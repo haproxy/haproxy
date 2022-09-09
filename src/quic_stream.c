@@ -18,7 +18,8 @@ DECLARE_STATIC_POOL(pool_head_quic_stream_buf, "qc_stream_buf",
 
 
 /* Allocate a new stream descriptor with id <id>. The caller is responsible to
- * store the stream in the appropriate tree.
+ * store the stream in the appropriate tree. -1 special value must be used for
+ * a CRYPTO data stream, the type being ignored.
  *
  * Returns the newly allocated instance on success or else NULL.
  */
@@ -31,9 +32,14 @@ struct qc_stream_desc *qc_stream_desc_new(uint64_t id, enum qcs_type type, void 
 	if (!stream)
 		return NULL;
 
-	stream->by_id.key = id;
-	eb64_insert(&qc->streams_by_id, &stream->by_id);
-	qc->rx.strms[type].nb_streams++;
+	if (id == (uint64_t)-1) {
+		stream->by_id.key = (uint64_t)-1;
+	}
+	else {
+		stream->by_id.key = id;
+		eb64_insert(&qc->streams_by_id, &stream->by_id);
+		qc->rx.strms[type].nb_streams++;
+	}
 	stream->qc = qc;
 
 	stream->buf = NULL;
@@ -195,7 +201,8 @@ void qc_stream_desc_free(struct qc_stream_desc *stream, int closing)
 		qc_release_frm(qc, frm);
 	}
 
-	eb64_delete(&stream->by_id);
+	if (stream->by_id.key != (uint64_t)-1)
+		eb64_delete(&stream->by_id);
 	pool_free(pool_head_quic_stream_desc, stream);
 }
 
