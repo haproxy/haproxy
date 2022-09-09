@@ -66,61 +66,14 @@ void show_conn_flags(unsigned int f)
 
 void show_sd_flags(unsigned int f)
 {
-	printf("sd->flags   = ");
-	if (!f) {
-		printf("0\n");
-		return;
-	}
-
-	SHOW_FLAG(f, SE_FL_APPLET_NEED_CONN);
-	SHOW_FLAG(f, SE_FL_HAVE_NO_DATA);
-	SHOW_FLAG(f, SE_FL_WONT_CONSUME);
-	SHOW_FLAG(f, SE_FL_WAIT_DATA);
-	SHOW_FLAG(f, SE_FL_KILL_CONN);
-	SHOW_FLAG(f, SE_FL_WAIT_FOR_HS);
-	SHOW_FLAG(f, SE_FL_WANT_ROOM);
-	SHOW_FLAG(f, SE_FL_RCV_MORE);
-	SHOW_FLAG(f, SE_FL_MAY_SPLICE);
-	SHOW_FLAG(f, SE_FL_ERR_PENDING);
-	SHOW_FLAG(f, SE_FL_ERROR);
-	SHOW_FLAG(f, SE_FL_EOS);
-	SHOW_FLAG(f, SE_FL_EOI);
-	SHOW_FLAG(f, SE_FL_WEBSOCKET);
-	SHOW_FLAG(f, SE_FL_NOT_FIRST);
-	SHOW_FLAG(f, SE_FL_SHWS);
-	SHOW_FLAG(f, SE_FL_SHWN);
-	SHOW_FLAG(f, SE_FL_SHRR);
-	SHOW_FLAG(f, SE_FL_SHRD);
-	SHOW_FLAG(f, SE_FL_ORPHAN);
-	SHOW_FLAG(f, SE_FL_DETACHED);
-	SHOW_FLAG(f, SE_FL_T_APPLET);
-	SHOW_FLAG(f, SE_FL_T_MUX);
-
-	if (f) {
-		printf("EXTRA(0x%08x)", f);
-	}
-	putchar('\n');
+	se_show_flags(tmpbuf, sizeof(tmpbuf), " | ", f);
+	printf("sd->flags = %s\n", tmpbuf);
 }
+
 void show_sc_flags(unsigned int f)
 {
-	printf("sc->flags   = ");
-	if (!f) {
-		printf("0\n");
-		return;
-	}
-	SHOW_FLAG(f, SC_FL_NEED_ROOM);
-	SHOW_FLAG(f, SC_FL_NEED_BUFF);
-	SHOW_FLAG(f, SC_FL_WONT_READ);
-	SHOW_FLAG(f, SC_FL_INDEP_STR);
-	SHOW_FLAG(f, SC_FL_DONT_WAKE);
-	SHOW_FLAG(f, SC_FL_NOHALF);
-	SHOW_FLAG(f, SC_FL_NOLINGER);
-	SHOW_FLAG(f, SC_FL_ISBACK);
-
-	if (f) {
-		printf("EXTRA(0x%08x)", f);
-	}
-	putchar('\n');
+	sc_show_flags(tmpbuf, sizeof(tmpbuf), " | ", f);
+	printf("sc->flags = %s\n", tmpbuf);
 }
 
 void show_strm_et(unsigned int f)

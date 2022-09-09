@@ -24,8 +24,11 @@
 
 #include <haproxy/obj_type-t.h>
 #include <haproxy/connection-t.h>
+#include <haproxy/show_flags-t.h>
 
-/* Stream Endpoint Flags */
+/* Stream Endpoint Flags.
+ * Please also update the se_show_flags() function below in case of changes.
+ */
 enum se_flags {
 	SE_FL_NONE       = 0x00000000, /* For initialization purposes */
 
@@ -81,7 +84,32 @@ enum se_flags {
 	SE_FL_APPLET_NEED_CONN = 0x40000000,  /* applet is waiting for the other side to (fail to) connect */
 };
 
-/* stconn flags */
+/* This function is used to report flags in debugging tools. Please reflect
+ * below any single-bit flag addition above in the same order via the
+ * __APPEND_FLAG macro. The new end of the buffer is returned.
+ */
+static forceinline char *se_show_flags(char *buf, size_t len, const char *delim, uint flg)
+{
+#define _(f, ...) __APPEND_FLAG(buf, len, delim, flg, f, #f, __VA_ARGS__)
+	/* prologue */
+	_(0);
+	/* flags */
+	_(SE_FL_T_MUX, _(SE_FL_T_APPLET, _(SE_FL_DETACHED, _(SE_FL_ORPHAN,
+	_(SE_FL_SHRD, _(SE_FL_SHRR, _(SE_FL_SHWN, _(SE_FL_SHWS,
+	_(SE_FL_NOT_FIRST, _(SE_FL_WEBSOCKET, _(SE_FL_EOI, _(SE_FL_EOS,
+	_(SE_FL_ERROR, _(SE_FL_ERR_PENDING, _(SE_FL_MAY_SPLICE,
+	_(SE_FL_RCV_MORE, _(SE_FL_WANT_ROOM, _(SE_FL_WAIT_FOR_HS,
+	_(SE_FL_KILL_CONN, _(SE_FL_WAIT_DATA, _(SE_FL_WONT_CONSUME,
+	_(SE_FL_HAVE_NO_DATA, _(SE_FL_APPLET_NEED_CONN)))))))))))))))))))))));
+	/* epilogue */
+	_(~0U);
+	return buf;
+#undef _
+}
+
+/* stconn flags.
+ * Please also update the sc_show_flags() function below in case of changes.
+ */
 enum sc_flags {
 	SC_FL_NONE          = 0x00000000,  /* Just for initialization purposes */
 	SC_FL_ISBACK        = 0x00000001,  /* Set for SC on back-side */
@@ -98,6 +126,25 @@ enum sc_flags {
 	SC_FL_NEED_BUFF     = 0x00000100,  /* SC waits for an rx buffer allocation to complete */
 	SC_FL_NEED_ROOM     = 0x00000200,  /* SC needs more room in the rx buffer to store incoming data */
 };
+
+/* This function is used to report flags in debugging tools. Please reflect
+ * below any single-bit flag addition above in the same order via the
+ * __APPEND_FLAG macro. The new end of the buffer is returned.
+ */
+static forceinline char *sc_show_flags(char *buf, size_t len, const char *delim, uint flg)
+{
+#define _(f, ...) __APPEND_FLAG(buf, len, delim, flg, f, #f, __VA_ARGS__)
+	/* prologue */
+	_(0);
+	/* flags */
+	_(SC_FL_ISBACK, _(SC_FL_NOLINGER, _(SC_FL_NOHALF,
+	_(SC_FL_DONT_WAKE, _(SC_FL_INDEP_STR, _(SC_FL_WONT_READ,
+	_(SC_FL_NEED_BUFF, _(SC_FL_NEED_ROOM))))))));
+	/* epilogue */
+	_(~0U);
+	return buf;
+#undef _
+}
 
 /* A conn stream must have its own errors independently of the buffer's, so that
  * applications can rely on what the buffer reports while the conn stream is
