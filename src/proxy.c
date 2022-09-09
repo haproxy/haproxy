@@ -2265,7 +2265,7 @@ int pause_proxy(struct proxy *p)
 		goto end;
 
 	list_for_each_entry(l, &p->conf.listeners, by_fe)
-		pause_listener(l);
+		pause_listener(l, 1);
 
 	if (p->li_ready) {
 		ha_warning("%s %s failed to enter pause mode.\n", proxy_cap_str(p->cap), p->id);
@@ -2294,7 +2294,7 @@ void stop_proxy(struct proxy *p)
 	HA_RWLOCK_WRLOCK(PROXY_LOCK, &p->lock);
 
 	list_for_each_entry(l, &p->conf.listeners, by_fe)
-		stop_listener(l, 1, 0, 0);
+		stop_listener(l, 1, 0);
 
 	if (!(p->flags & (PR_FL_DISABLED|PR_FL_STOPPED)) && !p->li_ready) {
 		/* might be just a backend */
@@ -2323,7 +2323,7 @@ int resume_proxy(struct proxy *p)
 
 	fail = 0;
 	list_for_each_entry(l, &p->conf.listeners, by_fe) {
-		if (!resume_listener(l)) {
+		if (!resume_listener(l, 1)) {
 			int port;
 
 			port = get_host_port(&l->rx.addr);
@@ -3012,7 +3012,7 @@ static int cli_parse_set_maxconn_frontend(char **args, char *payload, struct app
 	px->maxconn = v;
 	list_for_each_entry(l, &px->conf.listeners, by_fe) {
 		if (l->state == LI_FULL)
-			resume_listener(l);
+			resume_listener(l, 1);
 	}
 
 	if (px->maxconn > px->feconn)
