@@ -23,13 +23,6 @@
 // so that show_as_words[i] matches flag 1U<<i.
 const char *show_as_words[] = { "ana", "chn", "conn", "sc", "stet", "strm", "task", "txn", "sd", };
 
-#define SHOW_FLAG(f,n)					\
-	do {				 		\
-		if (!((f) & (n))) break; 		\
-		(f) &= ~(n);				\
-		printf(#n"%s", (f) ? " | " : "");	\
-	} while (0)
-
 /* will be sufficient for even largest flag names */
 static char tmpbuf[4096];
 
