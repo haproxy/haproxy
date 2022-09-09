@@ -24,6 +24,7 @@
 
 #include <haproxy/api.h>
 #include <haproxy/http-t.h>
+#include <haproxy/show_flags-t.h>
 
 /*
  * The internal representation of an HTTP message, called HTX, is a structure
@@ -122,7 +123,9 @@
  *
  */
 
-/* HTX start-line flags */
+/* HTX start-line flags.
+ * Please also update the se_show_flags() function below in case of changes.
+ */
 #define HTX_SL_F_NONE           0x00000000
 #define HTX_SL_F_IS_RESP        0x00000001 /* It is the response start-line (unset means the request one) */
 #define HTX_SL_F_XFER_LEN       0x00000002 /* The message xfer size can be dertermined */
@@ -138,7 +141,31 @@
 #define HTX_SL_F_NORMALIZED_URI 0x00000800 /* The received URI is normalized (an implicit absolute-uri form) */
 #define HTX_SL_F_CONN_UPG       0x00001000 /* The message contains "connection: upgrade" header */
 
-/* HTX flags */
+/* This function is used to report flags in debugging tools. Please reflect
+ * below any single-bit flag addition above in the same order via the
+ * __APPEND_FLAG macro. The new end of the buffer is returned.
+ */
+static forceinline char *hsl_show_flags(char *buf, size_t len, const char *delim, uint flg)
+{
+#define _(f, ...) __APPEND_FLAG(buf, len, delim, flg, f, #f, __VA_ARGS__)
+	/* prologue */
+	_(0);
+	/* flags */
+
+	_(HTX_SL_F_IS_RESP, _(HTX_SL_F_XFER_LEN, _(HTX_SL_F_XFER_ENC,
+	_(HTX_SL_F_CLEN, _(HTX_SL_F_CHNK, _(HTX_SL_F_VER_11,
+	_(HTX_SL_F_BODYLESS, _(HTX_SL_F_HAS_SCHM, _(HTX_SL_F_SCHM_HTTP,
+	_(HTX_SL_F_SCHM_HTTPS, _(HTX_SL_F_HAS_AUTHORITY,
+	_(HTX_SL_F_NORMALIZED_URI, _(HTX_SL_F_CONN_UPG)))))))))))));
+	/* epilogue */
+	_(~0U);
+	return buf;
+#undef _
+}
+
+/* HTX flags.
+ * Please also update the htx_show_flags() function below in case of changes.
+ */
 #define HTX_FL_NONE              0x00000000
 #define HTX_FL_PARSING_ERROR     0x00000001 /* Set when a parsing error occurred */
 #define HTX_FL_PROCESSING_ERROR  0x00000002 /* Set when a processing error occurred */
@@ -147,6 +174,24 @@
 #define HTX_FL_EOM               0x00000010 /* Set when end-of-message is reached from the HTTP point of view
 					     * (at worst, on the EOM block is missing)
 					     */
+/* This function is used to report flags in debugging tools. Please reflect
+ * below any single-bit flag addition above in the same order via the
+ * __APPEND_FLAG macro. The new end of the buffer is returned.
+ */
+static forceinline char *htx_show_flags(char *buf, size_t len, const char *delim, uint flg)
+{
+#define _(f, ...) __APPEND_FLAG(buf, len, delim, flg, f, #f, __VA_ARGS__)
+	/* prologue */
+	_(0);
+	/* flags */
+	_(HTX_FL_PARSING_ERROR, _(HTX_FL_PROCESSING_ERROR,
+	_(HTX_FL_FRAGMENTED, _(HTX_FL_PROXY_RESP, _(HTX_FL_EOM)))));
+	/* epilogue */
+	_(~0U);
+	return buf;
+#undef _
+}
+
 
 /* HTX block's type (max 15). */
 enum htx_blk_type {
