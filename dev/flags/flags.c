@@ -406,7 +406,14 @@ void show_strm_flags(unsigned int f)
 
 void usage_exit(const char *name)
 {
-	fprintf(stderr, "Usage: %s [ana|chn|conn|sc|si|sierr|strm|task|txn]* { [+-][0x]value* | - }\n", name);
+	int word, nbword;
+
+	fprintf(stderr, "Usage: %s [", name);
+
+	nbword = sizeof(show_as_words) / sizeof(*show_as_words);
+	for (word = 0; word < nbword; word++)
+		fprintf(stderr, "%s%s", word ? "|" : "", show_as_words[word]);
+	fprintf(stderr, "]* { [+-][0x]value* | - }\n");
 	exit(1);
 }
 
