@@ -90,55 +90,8 @@ void show_task_state(unsigned int f)
 
 void show_txn_flags(unsigned int f)
 {
-	printf("txn->flags  = ");
-
-	if (!f) {
-		printf("0\n");
-		return;
-	}
-
-	SHOW_FLAG(f, TX_L7_RETRY);
-	SHOW_FLAG(f, TX_D_L7_RETRY);
-	SHOW_FLAG(f, TX_NOT_FIRST);
-	SHOW_FLAG(f, TX_USE_PX_CONN);
-	SHOW_FLAG(f, TX_CACHE_HAS_SEC_KEY);
-	SHOW_FLAG(f, TX_CON_WANT_TUN);
-
-	SHOW_FLAG(f, TX_CACHE_IGNORE);
-	SHOW_FLAG(f, TX_CACHE_COOK);
-	SHOW_FLAG(f, TX_CACHEABLE);
-	SHOW_FLAG(f, TX_SCK_PRESENT);
-
-	//printf("%s", f ? "" : " | ");
-	switch (f & TX_SCK_MASK) {
-	case TX_SCK_NONE:                        f &= ~TX_SCK_MASK ; /*printf("TX_SCK_NONE%s",     f ? " | " : "");*/ break;
-	case TX_SCK_FOUND:                       f &= ~TX_SCK_MASK ; printf("TX_SCK_FOUND%s",    f ? " | " : ""); break;
-	case TX_SCK_DELETED:                     f &= ~TX_SCK_MASK ; printf("TX_SCK_DELETED%s",  f ? " | " : ""); break;
-	case TX_SCK_INSERTED:                    f &= ~TX_SCK_MASK ; printf("TX_SCK_INSERTED%s", f ? " | " : ""); break;
-	case TX_SCK_REPLACED:                    f &= ~TX_SCK_MASK ; printf("TX_SCK_REPLACED%s", f ? " | " : ""); break;
-	case TX_SCK_UPDATED:                     f &= ~TX_SCK_MASK ; printf("TX_SCK_UPDATED%s",  f ? " | " : ""); break;
-	default: printf("TX_SCK_MASK(%02x)", f); f &= ~TX_SCK_MASK ; printf("%s",                f ? " | " : ""); break;
-	}
-
-	//printf("%s", f ? "" : " | ");
-	switch (f & TX_CK_MASK) {
-	case TX_CK_NONE:                        f &= ~TX_CK_MASK ; /*printf("TX_CK_NONE%s",    f ? " | " : "");*/ break;
-	case TX_CK_INVALID:                     f &= ~TX_CK_MASK ; printf("TX_CK_INVALID%s", f ? " | " : ""); break;
-	case TX_CK_DOWN:                        f &= ~TX_CK_MASK ; printf("TX_CK_DOWN%s",    f ? " | " : ""); break;
-	case TX_CK_VALID:                       f &= ~TX_CK_MASK ; printf("TX_CK_VALID%s",   f ? " | " : ""); break;
-	case TX_CK_EXPIRED:                     f &= ~TX_CK_MASK ; printf("TX_CK_EXPIRED%s", f ? " | " : ""); break;
-	case TX_CK_OLD:                         f &= ~TX_CK_MASK ; printf("TX_CK_OLD%s",     f ? " | " : ""); break;
-	case TX_CK_UNUSED:                      f &= ~TX_CK_MASK ; printf("TX_CK_UNUSED%s",  f ? " | " : ""); break;
-	default: printf("TX_CK_MASK(%02x)", f); f &= ~TX_CK_MASK ; printf("%s",              f ? " | " : ""); break;
-	}
-
-	SHOW_FLAG(f, TX_CLTARPIT);
-	SHOW_FLAG(f, TX_CONST_REPLY);
-
-	if (f) {
-		printf("EXTRA(0x%08x)", f);
-	}
-	putchar('\n');
+	txn_show_flags(tmpbuf, sizeof(tmpbuf), " | ", f);
+	printf("txn->flags = %s\n", tmpbuf);
 }
 
 void show_strm_flags(unsigned int f)

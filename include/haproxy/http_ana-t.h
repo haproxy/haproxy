@@ -28,7 +28,9 @@
 
 /* These are the flags that are found in txn->flags */
 
-/* action flags */
+/* action flags.
+ * Please also update the txn_show_flags() function below in case of changes.
+ */
 /* Unusued: 0x00000001..0x00000004 */
 #define TX_CONST_REPLY  0x00000008      /* The http reply must not be rewritten (don't eval after-response ruleset) */
 #define TX_CLTARPIT	0x00000010	/* the transaction is tarpitted (anti-dos) */
@@ -73,6 +75,40 @@
 
 #define TX_L7_RETRY     0x000800000     /* The transaction may attempt L7 retries */
 #define TX_D_L7_RETRY   0x001000000     /* Disable L7 retries on this transaction, even if configured to do it */
+
+/* This function is used to report flags in debugging tools. Please reflect
+ * below any single-bit flag addition above in the same order via the
+ * __APPEND_FLAG and __APPEND_ENUM macros. The new end of the buffer is
+ * returned.
+ */
+static forceinline char *txn_show_flags(char *buf, size_t len, const char *delim, uint flg)
+{
+#define _(f, ...)     __APPEND_FLAG(buf, len, delim, flg, f, #f, __VA_ARGS__)
+#define _e(m, e, ...) __APPEND_ENUM(buf, len, delim, flg, m, e, #e, __VA_ARGS__)
+	/* prologue */
+	_(0);
+	/* flags & enums */
+	_(TX_SCK_PRESENT, _(TX_CACHEABLE, _(TX_CACHE_COOK, _(TX_CACHE_IGNORE,
+	_(TX_CON_WANT_TUN, _(TX_CACHE_HAS_SEC_KEY, _(TX_USE_PX_CONN,
+	_(TX_NOT_FIRST, _(TX_L7_RETRY, _(TX_D_L7_RETRY))))))))));
+
+	_e(TX_SCK_MASK, TX_SCK_FOUND,     _e(TX_SCK_MASK, TX_SCK_DELETED,
+	_e(TX_SCK_MASK, TX_SCK_INSERTED,  _e(TX_SCK_MASK, TX_SCK_REPLACED,
+	_e(TX_SCK_MASK, TX_SCK_UPDATED)))));
+
+	_e(TX_CK_MASK, TX_CK_INVALID,     _e(TX_CK_MASK, TX_CK_DOWN,
+	_e(TX_CK_MASK, TX_CK_VALID,       _e(TX_CK_MASK, TX_CK_EXPIRED,
+	_e(TX_CK_MASK, TX_CK_OLD,         _e(TX_CK_MASK, TX_CK_UNUSED))))));
+
+	_(TX_CONST_REPLY, _(TX_CLTARPIT));
+	/* epilogue */
+	_(~0U);
+	return buf;
+#undef _e
+#undef _
+}
+
+
 /*
  * HTTP message status flags (msg->flags)
  */
