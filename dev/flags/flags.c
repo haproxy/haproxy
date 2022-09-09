@@ -30,6 +30,9 @@ const char *show_as_words[] = { "ana", "chn", "conn", "sc", "stet", "strm", "tas
 		printf(#n"%s", (f) ? " | " : "");	\
 	} while (0)
 
+/* will be sufficient for even largest flag names */
+static char tmpbuf[4096];
+
 unsigned int get_show_as(const char *word)
 {
 	int w = 0;
@@ -45,97 +48,14 @@ unsigned int get_show_as(const char *word)
 
 void show_chn_ana(unsigned int f)
 {
-	printf("chn->ana    = ");
-
-	if (!f) {
-		printf("0\n");
-		return;
-	}
-
-	SHOW_FLAG(f, AN_REQ_FLT_START_FE);
-	SHOW_FLAG(f, AN_REQ_INSPECT_FE);
-	SHOW_FLAG(f, AN_REQ_WAIT_HTTP);
-	SHOW_FLAG(f, AN_REQ_HTTP_BODY);
-	SHOW_FLAG(f, AN_REQ_HTTP_PROCESS_FE);
-	SHOW_FLAG(f, AN_REQ_SWITCHING_RULES);
-	SHOW_FLAG(f, AN_REQ_FLT_START_BE);
-	SHOW_FLAG(f, AN_REQ_INSPECT_BE);
-	SHOW_FLAG(f, AN_REQ_HTTP_PROCESS_BE);
-	SHOW_FLAG(f, AN_REQ_HTTP_TARPIT);
-	SHOW_FLAG(f, AN_REQ_SRV_RULES);
-	SHOW_FLAG(f, AN_REQ_HTTP_INNER);
-	SHOW_FLAG(f, AN_REQ_PRST_RDP_COOKIE);
-	SHOW_FLAG(f, AN_REQ_STICKING_RULES);
-	SHOW_FLAG(f, AN_REQ_FLT_HTTP_HDRS);
-	SHOW_FLAG(f, AN_REQ_HTTP_XFER_BODY);
-	SHOW_FLAG(f, AN_REQ_WAIT_CLI);
-	SHOW_FLAG(f, AN_REQ_FLT_XFER_DATA);
-	SHOW_FLAG(f, AN_REQ_FLT_END);
-
-	SHOW_FLAG(f, AN_RES_FLT_START_FE);
-	SHOW_FLAG(f, AN_RES_FLT_START_BE);
-	SHOW_FLAG(f, AN_RES_INSPECT);
-	SHOW_FLAG(f, AN_RES_WAIT_HTTP);
-	SHOW_FLAG(f, AN_RES_STORE_RULES);
-	SHOW_FLAG(f, AN_RES_HTTP_PROCESS_FE);
-	SHOW_FLAG(f, AN_RES_HTTP_PROCESS_BE);
-	SHOW_FLAG(f, AN_RES_FLT_HTTP_HDRS);
-	SHOW_FLAG(f, AN_RES_HTTP_XFER_BODY);
-	SHOW_FLAG(f, AN_RES_WAIT_CLI);
-	SHOW_FLAG(f, AN_RES_FLT_XFER_DATA);
-	SHOW_FLAG(f, AN_RES_FLT_END);
-
-	if (f) {
-		printf("EXTRA(0x%08x)", f);
-	}
-	putchar('\n');
+	chn_show_analysers(tmpbuf, sizeof(tmpbuf), " | ", f);
+	printf("chn->ana    = %s\n", tmpbuf);
 }
 
 void show_chn_flags(unsigned int f)
 {
-	printf("chn->flags  = ");
-
-	if (!f) {
-		printf("0\n");
-		return;
-	}
-
-	SHOW_FLAG(f, CF_ISRESP);
-	SHOW_FLAG(f, CF_EOI);
-	SHOW_FLAG(f, CF_FLT_ANALYZE);
-	SHOW_FLAG(f, CF_WAKE_ONCE);
-	SHOW_FLAG(f, CF_NEVER_WAIT);
-	SHOW_FLAG(f, CF_SEND_DONTWAIT);
-	SHOW_FLAG(f, CF_EXPECT_MORE);
-	SHOW_FLAG(f, CF_DONT_READ);
-	SHOW_FLAG(f, CF_AUTO_CONNECT);
-	SHOW_FLAG(f, CF_READ_DONTWAIT);
-	SHOW_FLAG(f, CF_KERN_SPLICING);
-	SHOW_FLAG(f, CF_READ_ATTACHED);
-	SHOW_FLAG(f, CF_ANA_TIMEOUT);
-	SHOW_FLAG(f, CF_WROTE_DATA);
-	SHOW_FLAG(f, CF_STREAMER_FAST);
-	SHOW_FLAG(f, CF_STREAMER);
-	SHOW_FLAG(f, CF_AUTO_CLOSE);
-	SHOW_FLAG(f, CF_SHUTW_NOW);
-	SHOW_FLAG(f, CF_SHUTW);
-	SHOW_FLAG(f, CF_WAKE_WRITE);
-	SHOW_FLAG(f, CF_WRITE_ERROR);
-	SHOW_FLAG(f, CF_WRITE_TIMEOUT);
-	SHOW_FLAG(f, CF_WRITE_PARTIAL);
-	SHOW_FLAG(f, CF_WRITE_NULL);
-	SHOW_FLAG(f, CF_READ_NOEXP);
-	SHOW_FLAG(f, CF_SHUTR_NOW);
-	SHOW_FLAG(f, CF_SHUTR);
-	SHOW_FLAG(f, CF_READ_ERROR);
-	SHOW_FLAG(f, CF_READ_TIMEOUT);
-	SHOW_FLAG(f, CF_READ_PARTIAL);
-	SHOW_FLAG(f, CF_READ_NULL);
-
-	if (f) {
-		printf("EXTRA(0x%08x)", f);
-	}
-	putchar('\n');
+	chn_show_flags(tmpbuf, sizeof(tmpbuf), " | ", f);
+	printf("chn->flags  = %s\n", tmpbuf);
 }
 
 void show_conn_flags(unsigned int f)

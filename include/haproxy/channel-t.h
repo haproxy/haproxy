@@ -24,6 +24,7 @@
 
 #include <haproxy/api-t.h>
 #include <haproxy/buf-t.h>
+#include <haproxy/show_flags-t.h>
 
 /* The CF_* macros designate Channel Flags, which may be ORed in the bit field
  * member 'flags' in struct channel. Here we have several types of flags :
@@ -49,6 +50,7 @@
  * bits have the same position in a byte (read being the lower byte and write
  * the second one). All flag names are relative to the channel. For instance,
  * 'write' indicates the direction from the channel to the stream connector.
+ * Please also update the chn_show_flags() function below in case of changes.
  */
 
 #define CF_READ_NULL      0x00000001  /* last read detected on producer side */
@@ -126,6 +128,30 @@
 /* Mask for static flags which cause analysers to be woken up when they change */
 #define CF_MASK_STATIC    (CF_SHUTR|CF_SHUTW|CF_SHUTR_NOW|CF_SHUTW_NOW)
 
+/* This function is used to report flags in debugging tools. Please reflect
+ * below any single-bit flag addition above in the same order via the
+ * __APPEND_FLAG macro. The new end of the buffer is returned.
+ */
+static forceinline char *chn_show_flags(char *buf, size_t len, const char *delim, uint flg)
+{
+#define _(f, ...) __APPEND_FLAG(buf, len, delim, flg, f, #f, __VA_ARGS__)
+	/* prologue */
+	_(0);
+	/* flags */
+	_(CF_READ_NULL, _(CF_READ_PARTIAL, _(CF_READ_TIMEOUT, _(CF_READ_ERROR,
+	_(CF_SHUTR, _(CF_SHUTR_NOW, _(CF_READ_NOEXP, _(CF_WRITE_NULL,
+	_(CF_WRITE_PARTIAL, _(CF_WRITE_TIMEOUT, _(CF_WRITE_ERROR,
+	_(CF_WAKE_WRITE, _(CF_SHUTW, _(CF_SHUTW_NOW, _(CF_AUTO_CLOSE,
+	_(CF_STREAMER, _(CF_STREAMER_FAST, _(CF_WROTE_DATA, _(CF_ANA_TIMEOUT,
+	_(CF_READ_ATTACHED, _(CF_KERN_SPLICING, _(CF_READ_DONTWAIT,
+	_(CF_AUTO_CONNECT, _(CF_DONT_READ, _(CF_EXPECT_MORE,
+	_(CF_SEND_DONTWAIT, _(CF_NEVER_WAIT, _(CF_WAKE_ONCE, _(CF_FLT_ANALYZE,
+	_(CF_EOI, _(CF_ISRESP)))))))))))))))))))))))))))))));
+	/* epilogue */
+	_(~0U);
+	return buf;
+#undef _
+}
 
 /* Analysers (channel->analysers).
  * Those bits indicate that there are some processing to do on the buffer
@@ -133,6 +159,7 @@
  * analysers could be compared to higher level processors.
  * The field is blanked by channel_init() and only by analysers themselves
  * afterwards.
+ * Please also update the chn_show_analysers() function below in case of changes.
  */
 /* AN_REQ_FLT_START_FE:         0x00000001 */
 #define AN_REQ_INSPECT_FE       0x00000002  /* inspect request contents in the frontend */
@@ -182,6 +209,35 @@
 #define AN_RES_FLT_HTTP_HDRS    0x02000000
 #define AN_RES_FLT_XFER_DATA    0x10000000
 #define AN_RES_FLT_END          0x20000000
+
+/* This function is used to report flags in debugging tools. Please reflect
+ * below any single-bit flag addition above in the same order via the
+ * __APPEND_FLAG macro. The new end of the buffer is returned.
+ */
+static forceinline char *chn_show_analysers(char *buf, size_t len, const char *delim, uint flg)
+{
+#define _(f, ...) __APPEND_FLAG(buf, len, delim, flg, f, #f, __VA_ARGS__)
+	/* prologue */
+	_(0);
+	/* request flags */
+	_(AN_REQ_FLT_START_FE, _(AN_REQ_INSPECT_FE, _(AN_REQ_WAIT_HTTP,
+	_(AN_REQ_HTTP_BODY, _(AN_REQ_HTTP_PROCESS_FE, _(AN_REQ_SWITCHING_RULES,
+	_(AN_REQ_FLT_START_BE, _(AN_REQ_INSPECT_BE, _(AN_REQ_HTTP_PROCESS_BE,
+	_(AN_REQ_HTTP_TARPIT, _(AN_REQ_SRV_RULES, _(AN_REQ_HTTP_INNER,
+	_(AN_REQ_PRST_RDP_COOKIE, _(AN_REQ_STICKING_RULES,
+	_(AN_REQ_FLT_HTTP_HDRS, _(AN_REQ_HTTP_XFER_BODY, _(AN_REQ_WAIT_CLI,
+	_(AN_REQ_FLT_XFER_DATA, _(AN_REQ_FLT_END,
+	/* response flags */
+	_(AN_RES_FLT_START_FE, _(AN_RES_FLT_START_BE, _(AN_RES_INSPECT,
+	_(AN_RES_WAIT_HTTP, _(AN_RES_STORE_RULES, _(AN_RES_HTTP_PROCESS_FE,
+	_(AN_RES_HTTP_PROCESS_BE, _(AN_RES_FLT_HTTP_HDRS,
+	_(AN_RES_HTTP_XFER_BODY, _(AN_RES_WAIT_CLI, _(AN_RES_FLT_XFER_DATA,
+	_(AN_RES_FLT_END)))))))))))))))))))))))))))))));
+	/* epilogue */
+	_(~0U);
+	return buf;
+#undef _
+}
 
 /* Magic value to forward infinite size (TCP, ...), used with ->to_forward */
 #define CHN_INFINITE_FORWARD    MAX_RANGE(unsigned int)
