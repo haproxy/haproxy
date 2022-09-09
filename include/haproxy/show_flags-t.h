@@ -44,6 +44,10 @@
  *       _(X_FLAG1, _(X_FLAG2, _(X_FLAG3)));
  *       _(~0);
  *    #undef _
+ *
+ * __APPEND_ENUM() works a bit differently in that it takes an additional mask
+ * to isolate bits to compare to the enum's value, and will remove the mask's
+ * bits at once in case of match.
  */
 #ifdef EOF
 
@@ -70,9 +74,25 @@
 		}								\
 	} while (0)
 
+#define __APPEND_ENUM(_buf, _len, _del, _flg, _msk, _val, _nam, ...)	\
+	do {								\
+		size_t _ret = 0;					\
+		do { __VA_ARGS__; } while (0);				\
+		if (((_flg) & (_msk)) == (_val)) {			\
+			(_flg) &= ~(_msk);				\
+			_ret = snprintf(_buf, _len, _nam "%s",		\
+					(_flg) ? (_del) : "");		\
+		}							\
+		if (_ret < _len) {					\
+			_len -= _ret;					\
+			_buf += _ret;					\
+		}							\
+	} while (0)
+
 #else /* EOF not defined => no stdio, do nothing */
 
 #define __APPEND_FLAG(_buf, _len, _del, _flg, _val, _nam)   do { } while (0)
+#define __APPEND_ENUM(_buf, _len, _del, _flg, _msk, _val, _nam)   do { } while (0)
 
 #endif /* EOF */
 
