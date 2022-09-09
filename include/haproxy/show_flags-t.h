@@ -56,8 +56,8 @@
 		size_t _ret = 0;						\
 		unsigned int _flg0 = (_flg);					\
 		do { __VA_ARGS__; } while (0);					\
-		(_flg) &= ~(_val);						\
-		if (!(_val) && !(_flg))						\
+		(_flg) &= ~(unsigned int)(_val);				\
+		if (!((unsigned int)_val) && !(_flg))				\
 			_ret = snprintf(_buf, _len, "0%s",			\
 					(_flg) ? (_del) : "");			\
 		else if ((_flg0) & (_val)) {					\
