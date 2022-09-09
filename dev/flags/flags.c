@@ -60,41 +60,8 @@ void show_chn_flags(unsigned int f)
 
 void show_conn_flags(unsigned int f)
 {
-	printf("conn->flags = ");
-	if (!f) {
-		printf("0\n");
-		return;
-	}
-
-	SHOW_FLAG(f, CO_FL_XPRT_TRACKED);
-	SHOW_FLAG(f, CO_FL_SESS_IDLE);
-	SHOW_FLAG(f, CO_FL_RCVD_PROXY);
-	SHOW_FLAG(f, CO_FL_PRIVATE);
-	SHOW_FLAG(f, CO_FL_SSL_WAIT_HS);
-	SHOW_FLAG(f, CO_FL_ACCEPT_CIP);
-	SHOW_FLAG(f, CO_FL_ACCEPT_PROXY);
-	SHOW_FLAG(f, CO_FL_SEND_PROXY);
-	SHOW_FLAG(f, CO_FL_WAIT_L6_CONN);
-	SHOW_FLAG(f, CO_FL_WAIT_L4_CONN);
-	SHOW_FLAG(f, CO_FL_FDLESS);
-	SHOW_FLAG(f, CO_FL_ERROR);
-	SHOW_FLAG(f, CO_FL_SOCK_WR_SH);
-	SHOW_FLAG(f, CO_FL_SOCK_RD_SH);
-	SHOW_FLAG(f, CO_FL_SOCKS4_RECV);
-	SHOW_FLAG(f, CO_FL_SOCKS4_SEND);
-	SHOW_FLAG(f, CO_FL_EARLY_DATA);
-	SHOW_FLAG(f, CO_FL_EARLY_SSL_HS);
-	SHOW_FLAG(f, CO_FL_WAIT_ROOM);
-	SHOW_FLAG(f, CO_FL_WANT_DRAIN);
-	SHOW_FLAG(f, CO_FL_XPRT_READY);
-	SHOW_FLAG(f, CO_FL_CTRL_READY);
-	SHOW_FLAG(f, CO_FL_IDLE_LIST);
-	SHOW_FLAG(f, CO_FL_SAFE_LIST);
-
-	if (f) {
-		printf("EXTRA(0x%08x)", f);
-	}
-	putchar('\n');
+	conn_show_flags(tmpbuf, sizeof(tmpbuf), " | ", f);
+	printf("conn->flags = %s\n", tmpbuf);
 }
 
 void show_sd_flags(unsigned int f)

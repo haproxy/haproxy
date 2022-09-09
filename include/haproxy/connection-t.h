@@ -36,6 +36,7 @@
 #include <haproxy/obj_type-t.h>
 #include <haproxy/port_range-t.h>
 #include <haproxy/protocol-t.h>
+#include <haproxy/show_flags-t.h>
 #include <haproxy/thread-t.h>
 
 /* referenced below */
@@ -73,7 +74,9 @@ enum sub_event_type {
  * conn_cond_update_polling().
  */
 
-/* flags for use in connection->flags */
+/* flags for use in connection->flags. Please also update the conn_show_flags()
+ * function below in case of changes.
+ */
 enum {
 	CO_FL_NONE          = 0x00000000,  /* Just for initialization purposes */
 
@@ -156,6 +159,29 @@ enum {
 	/* below we have all SOCKS handshake flags grouped into one */
 	CO_FL_SOCKS4        = CO_FL_SOCKS4_SEND | CO_FL_SOCKS4_RECV,
 };
+
+/* This function is used to report flags in debugging tools. Please reflect
+ * below any single-bit flag addition above in the same order via the
+ * __APPEND_FLAG macro. The new end of the buffer is returned.
+ */
+static forceinline char *conn_show_flags(char *buf, size_t len, const char *delim, uint flg)
+{
+#define _(f, ...) __APPEND_FLAG(buf, len, delim, flg, f, #f, __VA_ARGS__)
+	/* prologue */
+	_(0);
+	/* flags */
+	_(CO_FL_SAFE_LIST, _(CO_FL_IDLE_LIST, _(CO_FL_CTRL_READY, _(CO_FL_XPRT_READY,
+	_(CO_FL_WANT_DRAIN, _(CO_FL_WAIT_ROOM, _(CO_FL_EARLY_SSL_HS, _(CO_FL_EARLY_DATA,
+	_(CO_FL_SOCKS4_SEND, _(CO_FL_SOCKS4_RECV, _(CO_FL_SOCK_RD_SH, _(CO_FL_SOCK_WR_SH,
+	_(CO_FL_ERROR, _(CO_FL_FDLESS, _(CO_FL_WAIT_L4_CONN, _(CO_FL_WAIT_L6_CONN,
+	_(CO_FL_SEND_PROXY, _(CO_FL_ACCEPT_PROXY, _(CO_FL_ACCEPT_CIP, _(CO_FL_SSL_WAIT_HS,
+	_(CO_FL_PRIVATE, _(CO_FL_RCVD_PROXY, _(CO_FL_SESS_IDLE, _(CO_FL_XPRT_TRACKED
+	))))))))))))))))))))))));
+	/* epilogue */
+	_(~0U);
+	return buf;
+#undef _
+}
 
 /* Possible connection error codes.
  * Warning: Do not reorder the codes, they are fetchable through the
