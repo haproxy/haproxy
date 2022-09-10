@@ -41,6 +41,7 @@ Summary
 3.3.5.        Load balancing
 3.3.6.        Stickiness
 3.3.7.        Logging
+3.3.8.        Statistics
 3.4.      Standard features
 3.4.1.        Sampling and converting information
 3.4.2.        Maps
@@ -50,7 +51,6 @@ Summary
 3.4.6.        Formatted strings
 3.4.7.        HTTP rewriting and redirection
 3.4.8.        Server protection
-3.4.9.        Statistics
 3.5.      Advanced features
 3.5.1.        Management
 3.5.2.        System-specific capabilities
