@@ -331,13 +331,13 @@ void enable_listener(struct listener *listener)
 }
 
 /*
- * This function completely stops a listener. It will need to operate under the
+ * This function completely stops a listener.
+ * The proxy's listeners count is updated and the proxy is
+ * disabled and woken up after the last one is gone.
  * It will need to operate under the proxy's lock and the protocol's lock.
  * The caller is responsible for indicating in lpx, lpr whether the
  * respective locks are already held (non-zero) or not (zero) so that the
  * function picks the missing ones, in this order.
- * The proxy's listeners count is updated and the proxy is
- * disabled and woken up after the last one is gone.
  */
 void stop_listener(struct listener *l, int lpx, int lpr)
 {
