@@ -5,7 +5,7 @@ feature ignore_unknown_macro
 
 syslog S1 -level notice {
     recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be1/srv1 failed.+reason: Socket error.+info: \".+\".+check duration: [[:digit:]]+ms.+status: 0/1 DOWN."
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be1/srv1 failed.+check duration: [[:digit:]]+ms.+status: 0/1 DOWN."
     recv info
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Result=SUCCESS Bytes=[[:digit:]]+"
 } -start
