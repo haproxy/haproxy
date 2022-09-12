@@ -2573,6 +2573,83 @@ static int qc_stop_sending_frm_enqueue(struct quic_conn *qc, uint64_t id)
 	return ret;
 }
 
+/* Parse <frm> CRYPTO frame coming with <pkt> packet at <qel> <qc> connectionn.
+ * Returns 1 if succeeded, 0 if not. Also set <*fast_retrans> to 1 if the
+ * speed up handshake completion may be run after having received duplicated
+ * CRYPTO data.
+ */
+static int qc_handle_crypto_frm(struct quic_conn *qc,
+                                struct quic_crypto *frm, struct quic_rx_packet *pkt,
+                                struct quic_enc_level *qel, int *fast_retrans)
+{
+	int ret = 0;
+	struct quic_rx_crypto_frm *cf;
+	/* XXX TO DO: <cfdebug> is used only for the traces. */
+	struct quic_rx_crypto_frm cfdebug = {
+		.offset_node.key = frm->offset,
+		.len = frm->len,
+	};
+
+	TRACE_ENTER(QUIC_EV_CONN_PRSHPKT, qc);
+	if (unlikely(qel->tls_ctx.flags & QUIC_FL_TLS_SECRETS_DCD)) {
+		TRACE_PROTO("CRYPTO data discarded",
+					QUIC_EV_CONN_RXPKT, qc, pkt, &cfdebug);
+		goto done;
+	}
+
+	if (unlikely(frm->offset < qel->rx.crypto.offset)) {
+		size_t diff;
+
+		if (frm->offset + frm->len <= qel->rx.crypto.offset) {
+			/* Nothing to do */
+			TRACE_PROTO("Already received CRYPTO data",
+						QUIC_EV_CONN_RXPKT, qc, pkt, &cfdebug);
+			if (qc_is_listener(qc) && qel == &qc->els[QUIC_TLS_ENC_LEVEL_INITIAL] &&
+				!(qc->flags & QUIC_FL_CONN_HANDSHAKE_SPEED_UP))
+				*fast_retrans = 1;
+			goto done;
+		}
+
+		TRACE_PROTO("Partially already received CRYPTO data",
+		            QUIC_EV_CONN_RXPKT, qc, pkt, &cfdebug);
+
+		diff = qel->rx.crypto.offset - frm->offset;
+		frm->len -= diff;
+		frm->data += diff;
+		frm->offset = qel->rx.crypto.offset;
+	}
+
+	if (frm->offset == qel->rx.crypto.offset) {
+		if (!qc_provide_cdata(qel, qc->xprt_ctx, frm->data, frm->len,
+		                      pkt, &cfdebug)) {
+			// trace already emitted by function above
+			goto leave;
+		}
+
+		goto done;
+	}
+
+	/* frm->offset > qel->rx.crypto.offset */
+	cf = pool_alloc(pool_head_quic_rx_crypto_frm);
+	if (!cf) {
+		TRACE_ERROR("CRYPTO frame allocation failed", QUIC_EV_CONN_PRSHPKT, qc);
+		goto leave;
+	}
+
+	cf->offset_node.key = frm->offset;
+	cf->len = frm->len;
+	cf->data = frm->data;
+	cf->pkt = pkt;
+	eb64_insert(&qel->rx.crypto.frms, &cf->offset_node);
+	quic_rx_packet_refinc(pkt);
+
+ done:
+	ret = 1;
+ leave:
+	TRACE_LEAVE(QUIC_EV_CONN_PRSHPKT, qc);
+	return ret;
+}
+
 /* Parse all the frames of <pkt> QUIC packet for QUIC connection <qc> and <qel>
  * as encryption level.
  * Returns 1 if succeeded, 0 if failed.
@@ -2638,83 +2715,9 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 			break;
 		}
 		case QUIC_FT_CRYPTO:
-		{
-			struct quic_rx_crypto_frm *cf;
-
-			if (unlikely(qel->tls_ctx.flags & QUIC_FL_TLS_SECRETS_DCD)) {
-				/* XXX TO DO: <cfdebug> is used only for the traces. */
-				struct quic_rx_crypto_frm cfdebug = { };
-
-				cfdebug.offset_node.key = frm.crypto.offset;
-				cfdebug.len = frm.crypto.len;
-				TRACE_PROTO("CRYPTO data discarded",
-				            QUIC_EV_CONN_RXPKT, qc, pkt, &cfdebug);
-				break;
-			}
-
-			if (unlikely(frm.crypto.offset < qel->rx.crypto.offset)) {
-				if (frm.crypto.offset + frm.crypto.len <= qel->rx.crypto.offset) {
-					/* XXX TO DO: <cfdebug> is used only for the traces. */
-					struct quic_rx_crypto_frm cfdebug = { };
-
-					cfdebug.offset_node.key = frm.crypto.offset;
-					cfdebug.len = frm.crypto.len;
-					/* Nothing to do */
-					TRACE_PROTO("Already received CRYPTO data",
-					            QUIC_EV_CONN_RXPKT, qc, pkt, &cfdebug);
-					if (qc_is_listener(qc) &&
-					    qel == &qc->els[QUIC_TLS_ENC_LEVEL_INITIAL] &&
-					    !(qc->flags & QUIC_FL_CONN_HANDSHAKE_SPEED_UP))
-						fast_retrans = 1;
-					break;
-				}
-				else {
-					size_t diff = qel->rx.crypto.offset - frm.crypto.offset;
-					/* XXX TO DO: <cfdebug> is used only for the traces. */
-					struct quic_rx_crypto_frm cfdebug = { };
-
-					cfdebug.offset_node.key = frm.crypto.offset;
-					cfdebug.len = frm.crypto.len;
-					TRACE_PROTO("Partially already received CRYPTO data",
-					            QUIC_EV_CONN_RXPKT, qc, pkt, &cfdebug);
-					frm.crypto.len -= diff;
-					frm.crypto.data += diff;
-					frm.crypto.offset = qel->rx.crypto.offset;
-				}
-			}
-
-			if (frm.crypto.offset == qel->rx.crypto.offset) {
-				/* XXX TO DO: <cf> is used only for the traces. */
-				struct quic_rx_crypto_frm cfdebug = { };
-
-				cfdebug.offset_node.key = frm.crypto.offset;
-				cfdebug.len = frm.crypto.len;
-				if (!qc_provide_cdata(qel, qc->xprt_ctx,
-				                      frm.crypto.data, frm.crypto.len,
-				                      pkt, &cfdebug)) {
-					// trace already emitted by function above
-					goto leave;
-				}
-
-				break;
-			}
-
-			/* frm.crypto.offset > qel->rx.crypto.offset */
-			cf = pool_alloc(pool_head_quic_rx_crypto_frm);
-			if (!cf) {
-				TRACE_ERROR("CRYPTO frame allocation failed",
-				            QUIC_EV_CONN_PRSHPKT, qc);
+			if (!qc_handle_crypto_frm(qc, &frm.crypto, pkt, qel, &fast_retrans))
 				goto leave;
-			}
-
-			cf->offset_node.key = frm.crypto.offset;
-			cf->len = frm.crypto.len;
-			cf->data = frm.crypto.data;
-			cf->pkt = pkt;
-			eb64_insert(&qel->rx.crypto.frms, &cf->offset_node);
-			quic_rx_packet_refinc(pkt);
 			break;
-		}
 		case QUIC_FT_STREAM_8 ... QUIC_FT_STREAM_F:
 		{
 			struct quic_stream *stream = &frm.stream;
