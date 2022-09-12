@@ -238,8 +238,6 @@ static void _do_poll(struct poller *p, int exp, int wake)
 		}
 		if (timeout || !wait_time)
 			break;
-		if (wake)
-			break;
 		if (tick_isset(exp) && tick_is_expired(exp, now_ms))
 			break;
 	} while (1);
