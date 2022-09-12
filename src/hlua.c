@@ -860,7 +860,11 @@ __LJMP int hlua_lua2arg_check(lua_State *L, int first, struct arg *argp,
 					break;
 
 				case ARGT_TAB:
-					argp[idx].data.prx = p;
+					if (!p->table) {
+						msg = "Mandatory argument expected";
+						goto error;
+					}
+					argp[idx].data.t = p->table;
 					argp[idx].type = ARGT_TAB;
 					argp[idx+1].type = ARGT_STOP;
 					break;
