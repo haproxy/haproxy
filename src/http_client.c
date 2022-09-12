@@ -1066,7 +1066,7 @@ static struct applet httpclient_applet = {
 };
 
 
-static int httpclient_resolve_init()
+static int httpclient_resolve_init(struct proxy *px)
 {
 	struct act_rule *rule;
 	int i;
@@ -1097,69 +1097,76 @@ static int httpclient_resolve_init()
 
 
 	for (i = 0; *http_rules[i][0] != '\0'; i++) {
-		rule = parse_http_req_cond((const char **)http_rules[i], "httpclient", 0, httpclient_proxy);
+		rule = parse_http_req_cond((const char **)http_rules[i], "httpclient", 0, px);
 		if (!rule) {
 			free(do_resolve);
 			ha_alert("Couldn't setup the httpclient resolver.\n");
 			return 1;
 		}
-		LIST_APPEND(&httpclient_proxy->http_req_rules, &rule->list);
+		LIST_APPEND(&px->http_req_rules, &rule->list);
 	}
 
 	free(do_resolve);
 	return 0;
 }
 
-
-
 /*
- * Initialize the proxy for the HTTP client with 2 servers, one for raw HTTP,
- * the other for HTTPS.
+ * Creates an internal proxy which will be used for httpclient.
+ * This will allocate 2 servers (raw and ssl) and 1 proxy.
+ *
+ * This function must be called from a precheck callback.
+ *
+ * Return a proxy or NULL.
  */
-static int httpclient_precheck()
+struct proxy *httpclient_create_proxy(const char *id)
 {
 	int err_code = ERR_NONE;
 	char *errmsg = NULL;
+	struct proxy *px = NULL;
+	struct server *srv_raw = NULL;
+#ifdef USE_OPENSSL
+	struct server *srv_ssl = NULL;
+#endif
 
 	if (global.mode & MODE_MWORKER_WAIT)
 		return ERR_NONE;
 
-	httpclient_proxy = alloc_new_proxy("<HTTPCLIENT>", PR_CAP_LISTEN|PR_CAP_INT, &errmsg);
-	if (!httpclient_proxy) {
+	px = alloc_new_proxy(id, PR_CAP_LISTEN|PR_CAP_INT|PR_CAP_HTTPCLIENT, &errmsg);
+	if (!px) {
 		memprintf(&errmsg, "couldn't allocate proxy.");
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto err;
 	}
 
-	proxy_preset_defaults(httpclient_proxy);
+	proxy_preset_defaults(px);
 
-	httpclient_proxy->options |= PR_O_WREQ_BODY;
-	httpclient_proxy->retry_type |= PR_RE_CONN_FAILED | PR_RE_DISCONNECTED | PR_RE_TIMEOUT;
-	httpclient_proxy->options2 |= PR_O2_INDEPSTR;
-	httpclient_proxy->mode = PR_MODE_HTTP;
-	httpclient_proxy->maxconn = 0;
-	httpclient_proxy->accept = NULL;
-	httpclient_proxy->conn_retries = CONN_RETRIES;
-	httpclient_proxy->timeout.client = TICK_ETERNITY;
+	px->options |= PR_O_WREQ_BODY;
+	px->retry_type |= PR_RE_CONN_FAILED | PR_RE_DISCONNECTED | PR_RE_TIMEOUT;
+	px->options2 |= PR_O2_INDEPSTR;
+	px->mode = PR_MODE_HTTP;
+	px->maxconn = 0;
+	px->accept = NULL;
+	px->conn_retries = CONN_RETRIES;
+	px->timeout.client = TICK_ETERNITY;
 	/* The HTTP Client use the "option httplog" with the global log server */
-	httpclient_proxy->conf.logformat_string = default_http_log_format;
-	httpclient_proxy->http_needed = 1;
+	px->conf.logformat_string = default_http_log_format;
+	px->http_needed = 1;
 
 	/* clear HTTP server */
-	httpclient_srv_raw = new_server(httpclient_proxy);
-	if (!httpclient_srv_raw) {
+	srv_raw = new_server(px);
+	if (!srv_raw) {
 		memprintf(&errmsg, "out of memory.");
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto err;
 	}
 
-	srv_settings_cpy(httpclient_srv_raw, &httpclient_proxy->defsrv, 0);
-	httpclient_srv_raw->iweight = 0;
-	httpclient_srv_raw->uweight = 0;
-	httpclient_srv_raw->xprt = xprt_get(XPRT_RAW);
-	httpclient_srv_raw->flags |= SRV_F_MAPPORTS;  /* needed to apply the port change with resolving */
-	httpclient_srv_raw->id = strdup("<HTTPCLIENT>");
-	if (!httpclient_srv_raw->id) {
+	srv_settings_cpy(srv_raw, &px->defsrv, 0);
+	srv_raw->iweight = 0;
+	srv_raw->uweight = 0;
+	srv_raw->xprt = xprt_get(XPRT_RAW);
+	srv_raw->flags |= SRV_F_MAPPORTS;  /* needed to apply the port change with resolving */
+	srv_raw->id = strdup("<HTTPCLIENT>");
+	if (!srv_raw->id) {
 		memprintf(&errmsg, "out of memory.");
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto err;
@@ -1167,51 +1174,51 @@ static int httpclient_precheck()
 
 #ifdef USE_OPENSSL
 	/* SSL HTTP server */
-	httpclient_srv_ssl = new_server(httpclient_proxy);
-	if (!httpclient_srv_ssl) {
+	srv_ssl = new_server(px);
+	if (!srv_ssl) {
 		memprintf(&errmsg, "out of memory.");
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto err;
 	}
-	srv_settings_cpy(httpclient_srv_ssl, &httpclient_proxy->defsrv, 0);
-	httpclient_srv_ssl->iweight = 0;
-	httpclient_srv_ssl->uweight = 0;
-	httpclient_srv_ssl->xprt = xprt_get(XPRT_SSL);
-	httpclient_srv_ssl->use_ssl = 1;
-	httpclient_srv_ssl->flags |= SRV_F_MAPPORTS;  /* needed to apply the port change with resolving */
-	httpclient_srv_ssl->id = strdup("<HTTPSCLIENT>");
-	if (!httpclient_srv_ssl->id) {
+	srv_settings_cpy(srv_ssl, &px->defsrv, 0);
+	srv_ssl->iweight = 0;
+	srv_ssl->uweight = 0;
+	srv_ssl->xprt = xprt_get(XPRT_SSL);
+	srv_ssl->use_ssl = 1;
+	srv_ssl->flags |= SRV_F_MAPPORTS;  /* needed to apply the port change with resolving */
+	srv_ssl->id = strdup("<HTTPSCLIENT>");
+	if (!srv_ssl->id) {
 		memprintf(&errmsg, "out of memory.");
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto err;
 	}
 
 #ifdef TLSEXT_TYPE_application_layer_protocol_negotiation
-	if (ssl_sock_parse_alpn("h2,http/1.1", &httpclient_srv_ssl->ssl_ctx.alpn_str, &httpclient_srv_ssl->ssl_ctx.alpn_len, &errmsg) != 0) {
+	if (ssl_sock_parse_alpn("h2,http/1.1", &srv_ssl->ssl_ctx.alpn_str, &srv_ssl->ssl_ctx.alpn_len, &errmsg) != 0) {
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto err;
 	}
 #endif
-	httpclient_srv_ssl->ssl_ctx.verify = httpclient_ssl_verify;
+	srv_ssl->ssl_ctx.verify = httpclient_ssl_verify;
 	/* if the verify is required, try to load the system CA */
 	if (httpclient_ssl_verify == SSL_SOCK_VERIFY_REQUIRED) {
 
 		if (!httpclient_ssl_ca_file)
 			httpclient_ssl_ca_file = strdup("@system-ca");
 
-		httpclient_srv_ssl->ssl_ctx.ca_file = httpclient_ssl_ca_file;
-		if (!ssl_store_load_locations_file(httpclient_srv_ssl->ssl_ctx.ca_file, 1, CAFILE_CERT)) {
+		srv_ssl->ssl_ctx.ca_file = httpclient_ssl_ca_file;
+		if (!ssl_store_load_locations_file(srv_ssl->ssl_ctx.ca_file, 1, CAFILE_CERT)) {
 			/* if we failed to load the ca-file, only quits in
 			 * error with hard_error, otherwise just disable the
 			 * feature. */
 			if (hard_error_ssl) {
-				memprintf(&errmsg, "cannot initialize SSL verify with 'ca-file \"%s\"'.", httpclient_srv_ssl->ssl_ctx.ca_file);
+				memprintf(&errmsg, "cannot initialize SSL verify with 'ca-file \"%s\"'.", srv_ssl->ssl_ctx.ca_file);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto err;
 			} else {
-				ha_free(&httpclient_srv_ssl->ssl_ctx.ca_file);
-				srv_drop(httpclient_srv_ssl);
-				httpclient_srv_ssl = NULL;
+				ha_free(&srv_ssl->ssl_ctx.ca_file);
+				srv_drop(srv_ssl);
+				srv_ssl = NULL;
 			}
 		}
 	}
@@ -1219,23 +1226,23 @@ static int httpclient_precheck()
 #endif
 
 	/* add the proxy in the proxy list only if everything is successful */
-	httpclient_proxy->next = proxies_list;
-	proxies_list = httpclient_proxy;
+	px->next = proxies_list;
+	proxies_list = px;
 
-	if (httpclient_resolve_init() != 0) {
+	if (httpclient_resolve_init(px) != 0) {
 		memprintf(&errmsg, "cannot initialize resolvers.");
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto err;
 	}
 
 	/* link the 2 servers in the proxy */
-	httpclient_srv_raw->next = httpclient_proxy->srv;
-	httpclient_proxy->srv = httpclient_srv_raw;
+	srv_raw->next = px->srv;
+	px->srv = srv_raw;
 
 #ifdef USE_OPENSSL
-	if (httpclient_srv_ssl) {
-		httpclient_srv_ssl->next = httpclient_proxy->srv;
-		httpclient_proxy->srv = httpclient_srv_ssl;
+	if (srv_ssl) {
+		srv_ssl->next = px->srv;
+		px->srv = srv_ssl;
 	}
 #endif
 
@@ -1244,13 +1251,50 @@ err:
 	if (err_code & ERR_CODE) {
 		ha_alert("httpclient: cannot initialize: %s\n", errmsg);
 		free(errmsg);
-		srv_drop(httpclient_srv_raw);
+		srv_drop(srv_raw);
 #ifdef USE_OPENSSL
-		srv_drop(httpclient_srv_ssl);
+		srv_drop(srv_ssl);
 #endif
-		free_proxy(httpclient_proxy);
+		free_proxy(px);
+
+		return NULL;
 	}
-	return err_code;
+	return px;
+}
+
+/*
+ * Initialize the proxy for the HTTP client with 2 servers, one for raw HTTP,
+ * the other for HTTPS.
+ */
+static int httpclient_precheck()
+{
+	struct server *srv;
+
+	/* initialize the default httpclient_proxy which is used for the CLI and the lua */
+
+	httpclient_proxy = httpclient_create_proxy("<HTTPCLIENT>");
+	if (!httpclient_proxy)
+		return 1;
+
+	/* store the ptr of the 2 servers */
+	for (srv = httpclient_proxy->srv; srv != NULL; srv = srv->next) {
+		if (srv->xprt == xprt_get(XPRT_RAW)) {
+			httpclient_srv_raw = srv;
+#ifdef USE_OPENSSL
+		} else if (srv->xprt == xprt_get(XPRT_SSL)) {
+			httpclient_srv_ssl = srv;
+#endif
+		}
+	}
+
+	if (!httpclient_srv_raw)
+		return 1;
+#ifdef USE_OPENSSL
+	if (!httpclient_srv_ssl)
+		return 1;
+#endif
+
+	return 0;
 }
 
 static int httpclient_postcheck()

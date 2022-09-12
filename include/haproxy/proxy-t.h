@@ -63,13 +63,14 @@ enum PR_SRV_STATE_FILE {
 
 
 /* flag values for proxy->cap. This is a bitmask of capabilities supported by the proxy */
-#define PR_CAP_NONE    0x0000
-#define PR_CAP_FE      0x0001
-#define PR_CAP_BE      0x0002
-#define PR_CAP_LISTEN  (PR_CAP_FE|PR_CAP_BE)
-#define PR_CAP_DEF     0x0004           /* defaults section */
-#define PR_CAP_INT     0x0008           /* internal proxy (used by lua engine) */
-#define PR_CAP_LB      0x0010           /* load-balancing capabilities, i.e. listen/frontend/backend proxies */
+#define PR_CAP_NONE         0x0000
+#define PR_CAP_FE           0x0001
+#define PR_CAP_BE           0x0002
+#define PR_CAP_LISTEN       (PR_CAP_FE|PR_CAP_BE)
+#define PR_CAP_DEF          0x0004      /* defaults section */
+#define PR_CAP_INT          0x0008      /* internal proxy (used by lua engine) */
+#define PR_CAP_LB           0x0010      /* load-balancing capabilities, i.e. listen/frontend/backend proxies */
+#define PR_CAP_HTTPCLIENT   0x0020      /* proxy used for httpclient */
 
 /* bits for proxy->options */
 #define PR_O_REDISP     0x00000001      /* allow reconnection to dispatch in case of errors */
