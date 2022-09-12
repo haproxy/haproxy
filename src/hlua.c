@@ -1101,6 +1101,7 @@ __LJMP int hlua_lua2arg_check(lua_State *L, int first, struct arg *argp,
 	return 0;
 
   error:
+	argp[idx].type = ARGT_STOP;
 	free_args(argp);
 	WILL_LJMP(luaL_argerror(L, first + idx, msg));
 	return 0; /* Never reached */
