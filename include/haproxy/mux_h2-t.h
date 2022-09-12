@@ -23,6 +23,7 @@
 #define _HAPROXY_MUX_H2_T_H
 
 #include <haproxy/api-t.h>
+#include <haproxy/show_flags-t.h>
 
 /**** Connection flags (32 bit), in h2c->flags ****/
 
@@ -65,6 +66,29 @@
 #define H2_CF_SHTS_UPDATED      0x00200000  // SETTINGS_HEADER_TABLE_SIZE updated
 #define H2_CF_DTSU_EMITTED      0x00400000  // HPACK Dynamic Table Size Update opcode emitted
 
+/* This function is used to report flags in debugging tools. Please reflect
+ * below any single-bit flag addition above in the same order via the
+ * __APPEND_FLAG macro. The new end of the buffer is returned.
+ */
+static forceinline char *h2c_show_flags(char *buf, size_t len, const char *delim, uint flg)
+{
+#define _(f, ...) __APPEND_FLAG(buf, len, delim, flg, f, #f, __VA_ARGS__)
+	/* prologue */
+	_(0);
+	/* flags */
+	_(H2_CF_MUX_MALLOC, _(H2_CF_MUX_MFULL, _(H2_CF_DEM_DALLOC,
+	_(H2_CF_DEM_DFULL, _(H2_CF_DEM_MBUSY, _(H2_CF_DEM_MROOM,
+	_(H2_CF_DEM_SALLOC, _(H2_CF_DEM_SFULL, _(H2_CF_DEM_TOOMANY,
+	_(H2_CF_DEM_SHORT_READ, _(H2_CF_DEM_IN_PROGRESS, _(H2_CF_GOAWAY_SENT,
+	_(H2_CF_GOAWAY_FAILED, _(H2_CF_WAIT_FOR_HS, _(H2_CF_IS_BACK,
+	_(H2_CF_WINDOW_OPENED, _(H2_CF_RCVD_SHUT, _(H2_CF_END_REACHED,
+	_(H2_CF_RCVD_RFC8441, _(H2_CF_SHTS_UPDATED, _(H2_CF_DTSU_EMITTED)))))))))))))))))))));
+	/* epilogue */
+	_(~0U);
+	return buf;
+#undef _
+}
+
 
 /**** HTTP/2 stream flags (32 bit), in h2s->flags ****/
 
@@ -101,6 +125,29 @@
 
 #define H2_SF_TUNNEL_ABRT       0x00100000  // A tunnel attempt was aborted
 #define H2_SF_MORE_HTX_DATA     0x00200000  // more data expected from HTX
+
+/* This function is used to report flags in debugging tools. Please reflect
+ * below any single-bit flag addition above in the same order via the
+ * __APPEND_FLAG macro. The new end of the buffer is returned.
+ */
+static forceinline char *h2s_show_flags(char *buf, size_t len, const char *delim, uint flg)
+{
+#define _(f, ...) __APPEND_FLAG(buf, len, delim, flg, f, #f, __VA_ARGS__)
+	/* prologue */
+	_(0);
+	/* flags */
+	_(H2_SF_ES_RCVD, _(H2_SF_ES_SENT, _(H2_SF_RST_RCVD, _(H2_SF_RST_SENT,
+	_(H2_SF_BLK_MBUSY, _(H2_SF_BLK_MROOM, _(H2_SF_BLK_MFCTL,
+	_(H2_SF_BLK_SFCTL, _(H2_SF_DATA_CLEN, _(H2_SF_BODYLESS_RESP,
+	_(H2_SF_BODY_TUNNEL, _(H2_SF_NOTIFIED, _(H2_SF_HEADERS_SENT,
+	_(H2_SF_OUTGOING_DATA, _(H2_SF_HEADERS_RCVD, _(H2_SF_WANT_SHUTR,
+	_(H2_SF_WANT_SHUTW, _(H2_SF_EXT_CONNECT_SENT, _(H2_SF_EXT_CONNECT_RCVD,
+	_(H2_SF_TUNNEL_ABRT, _(H2_SF_MORE_HTX_DATA)))))))))))))))))))));
+	/* epilogue */
+	_(~0U);
+	return buf;
+#undef _
+}
 
 
 /* H2 connection state, in h2c->st0 */
