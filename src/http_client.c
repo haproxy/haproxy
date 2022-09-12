@@ -610,6 +610,8 @@ void httpclient_destroy(struct httpclient *hc)
 }
 
 /* Allocate an httpclient and its buffers
+ * Use the default httpclient_proxy
+ *
  * Return NULL on failure */
 struct httpclient *httpclient_new(void *caller, enum http_meth_t meth, struct ist url)
 {
@@ -624,12 +626,56 @@ struct httpclient *httpclient_new(void *caller, enum http_meth_t meth, struct is
 	hc->caller = caller;
 	hc->req.url = istdup(url);
 	hc->req.meth = meth;
+	httpclient_set_proxy(hc, httpclient_proxy);
 
 	return hc;
 
 err:
 	httpclient_destroy(hc);
 	return NULL;
+}
+
+/* Allocate an httpclient and its buffers,
+ * Use the proxy <px>
+ *
+ * Return and httpclient or NULL.
+ */
+struct httpclient *httpclient_new_from_proxy(struct proxy *px, void *caller, enum http_meth_t meth, struct ist url)
+{
+	struct httpclient *hc;
+
+	hc = httpclient_new(caller, meth, url);
+	if (!hc)
+		return NULL;
+
+	httpclient_set_proxy(hc, px);
+
+	return hc;
+}
+
+/*
+ * Configure an httpclient with a specific proxy <px>
+ *
+ * The proxy <px> must contains 2 srv, one configured for clear connections, the other for SSL.
+ *
+ */
+int httpclient_set_proxy(struct httpclient *hc, struct proxy *px)
+{
+	struct server *srv;
+
+	hc->px = px;
+
+	for (srv = px->srv; srv != NULL; srv = srv->next) {
+		if (srv->xprt == xprt_get(XPRT_RAW)) {
+			hc->srv_raw = srv;
+#ifdef USE_OPENSSL
+		} else if (srv->xprt == xprt_get(XPRT_SSL)) {
+			hc->srv_ssl = srv;
+#endif
+		}
+	}
+
+	return 0;
 }
 
 static void httpclient_applet_io_handler(struct appctx *appctx)
@@ -974,12 +1020,12 @@ static int httpclient_applet_init(struct appctx *appctx)
 	/* choose the SSL server or not */
 	switch (scheme) {
 		case SCH_HTTP:
-			target = &httpclient_srv_raw->obj_type;
+			target = &hc->srv_raw->obj_type;
 			break;
 		case SCH_HTTPS:
 #ifdef USE_OPENSSL
-			if (httpclient_srv_ssl) {
-				target = &httpclient_srv_ssl->obj_type;
+			if (hc->srv_ssl) {
+				target = &hc->srv_ssl->obj_type;
 			} else {
 				ha_alert("httpclient: SSL was disabled (wrong verify/ca-file)!\n");
 				goto out_free_addr;
@@ -991,7 +1037,7 @@ static int httpclient_applet_init(struct appctx *appctx)
 			break;
 	}
 
-	if (appctx_finalize_startup(appctx, httpclient_proxy, &hc->req.buf) == -1) {
+	if (appctx_finalize_startup(appctx, hc->px, &hc->req.buf) == -1) {
 		ha_alert("httpclient: Failed to initialize appctx %s:%d.\n", __FUNCTION__, __LINE__);
 		goto out_free_addr;
 	}
@@ -1301,53 +1347,71 @@ static int httpclient_postcheck()
 {
 	int err_code = ERR_NONE;
 	struct logsrv *logsrv;
-	struct proxy *curproxy = httpclient_proxy;
+	struct proxy *curproxy = NULL;
 	char *errmsg = NULL;
+#ifdef USE_OPENSSL
+	struct server *srv = NULL;
+	struct server *srv_ssl = NULL;
+#endif
 
 	if (global.mode & MODE_MWORKER_WAIT)
 		return ERR_NONE;
 
-	/* copy logs from "global" log list */
-	list_for_each_entry(logsrv, &global.logsrvs, list) {
-		struct logsrv *node = malloc(sizeof(*node));
+	/* Initialize the logs for every proxy dedicated to the httpclient */
+	for (curproxy = proxies_list; curproxy; curproxy = curproxy->next) {
 
-		if (!node) {
-			memprintf(&errmsg, "out of memory.");
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto err;
-		}
+		if (!(curproxy->cap & PR_CAP_HTTPCLIENT))
+			continue;
 
-		memcpy(node, logsrv, sizeof(*node));
-		LIST_INIT(&node->list);
-		LIST_APPEND(&curproxy->logsrvs, &node->list);
-		node->ring_name = logsrv->ring_name ? strdup(logsrv->ring_name) : NULL;
-		node->conf.file = logsrv->conf.file ? strdup(logsrv->conf.file) : NULL;
-	}
-	if (curproxy->conf.logformat_string) {
-		curproxy->conf.args.ctx = ARGC_LOG;
-		if (!parse_logformat_string(curproxy->conf.logformat_string, curproxy, &curproxy->logformat,
-					    LOG_OPT_MANDATORY|LOG_OPT_MERGE_SPACES,
-					    SMP_VAL_FE_LOG_END, &errmsg)) {
-			memprintf(&errmsg, "failed to parse log-format : %s.", errmsg);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto err;
+		/* copy logs from "global" log list */
+		list_for_each_entry(logsrv, &global.logsrvs, list) {
+			struct logsrv *node = malloc(sizeof(*node));
+
+			if (!node) {
+				memprintf(&errmsg, "out of memory.");
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto err;
+			}
+
+			memcpy(node, logsrv, sizeof(*node));
+			LIST_INIT(&node->list);
+			LIST_APPEND(&curproxy->logsrvs, &node->list);
+			node->ring_name = logsrv->ring_name ? strdup(logsrv->ring_name) : NULL;
+			node->conf.file = logsrv->conf.file ? strdup(logsrv->conf.file) : NULL;
 		}
-		curproxy->conf.args.file = NULL;
-		curproxy->conf.args.line = 0;
-	}
+		if (curproxy->conf.logformat_string) {
+			curproxy->conf.args.ctx = ARGC_LOG;
+			if (!parse_logformat_string(curproxy->conf.logformat_string, curproxy, &curproxy->logformat,
+						    LOG_OPT_MANDATORY|LOG_OPT_MERGE_SPACES,
+						    SMP_VAL_FE_LOG_END, &errmsg)) {
+				memprintf(&errmsg, "failed to parse log-format : %s.", errmsg);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto err;
+			}
+			curproxy->conf.args.file = NULL;
+			curproxy->conf.args.line = 0;
+		}
 
 #ifdef USE_OPENSSL
-	if (httpclient_srv_ssl) {
-		/* init the SNI expression */
-		/* always use the host header as SNI, without the port */
-		httpclient_srv_ssl->sni_expr = strdup("req.hdr(host),field(1,:)");
-		err_code |= server_parse_sni_expr(httpclient_srv_ssl, httpclient_proxy, &errmsg);
-		if (err_code & ERR_CODE) {
-			memprintf(&errmsg, "failed to configure sni: %s.", errmsg);
-			goto err;
+		/* initialize the SNI for the SSL servers */
+
+		for (srv = curproxy->srv; srv != NULL; srv = srv->next) {
+			if (srv->xprt == xprt_get(XPRT_SSL)) {
+				srv_ssl = srv;
+			}
 		}
-	}
+		if (srv_ssl) {
+			/* init the SNI expression */
+			/* always use the host header as SNI, without the port */
+			srv_ssl->sni_expr = strdup("req.hdr(host),field(1,:)");
+			err_code |= server_parse_sni_expr(srv_ssl, curproxy, &errmsg);
+			if (err_code & ERR_CODE) {
+				memprintf(&errmsg, "failed to configure sni: %s.", errmsg);
+				goto err;
+			}
+		}
 #endif
+	}
 
 err:
 	if (err_code & ERR_CODE) {

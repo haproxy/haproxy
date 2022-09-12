@@ -6,6 +6,8 @@
 void httpclient_destroy(struct httpclient *hc);
 void httpclient_stop_and_destroy(struct httpclient *hc);
 struct httpclient *httpclient_new(void *caller, enum http_meth_t meth, struct ist url);
+struct httpclient *httpclient_new_from_proxy(struct proxy *px, void *caller, enum http_meth_t meth, struct ist url);
+int httpclient_set_proxy(struct httpclient *hc, struct proxy *px);
 
 struct appctx *httpclient_start(struct httpclient *hc);
 int httpclient_set_dst(struct httpclient *hc, const char *dst);

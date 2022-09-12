@@ -32,6 +32,11 @@ struct httpclient {
 	int timeout_server;                   /* server timeout in ms */
 	void *caller;                         /* ptr of the caller */
 	unsigned int flags;                   /* other flags */
+	struct proxy *px;                     /* proxy for special cases */
+	struct server *srv_raw;               /* server for clear connections */
+#ifdef USE_OPENSSL
+	struct server *srv_ssl;               /* server for SSL connections */
+#endif
 };
 
 /* Action (FA) to do */
