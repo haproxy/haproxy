@@ -737,9 +737,6 @@ static struct stconn *h1s_new_sc(struct h1s *h1s, struct buffer *input)
 		goto err;
 	}
 
-	HA_ATOMIC_INC(&h1c->px_counters->open_streams);
-	HA_ATOMIC_INC(&h1c->px_counters->total_streams);
-
 	h1c->flags = (h1c->flags & ~H1C_F_ST_EMBRYONIC) | H1C_F_ST_ATTACHED | H1C_F_ST_READY;
 	TRACE_LEAVE(H1_EV_STRM_NEW, h1c->conn, h1s);
 	return h1s_sc(h1s);
@@ -836,6 +833,9 @@ static struct h1s *h1c_frt_stream_new(struct h1c *h1c, struct stconn *sc, struct
 
 	if (h1c->px->options2 & PR_O2_REQBUG_OK)
 		h1s->req.err_pos = -1;
+
+	HA_ATOMIC_INC(&h1c->px_counters->open_streams);
+	HA_ATOMIC_INC(&h1c->px_counters->total_streams);
 
 	h1c->idle_exp = TICK_ETERNITY;
 	h1_set_idle_expiration(h1c);
