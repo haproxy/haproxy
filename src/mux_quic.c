@@ -1436,7 +1436,8 @@ void qcc_streams_sent_done(struct qcs *qcs, uint64_t data, uint64_t offset)
 		}
 	}
 
-	if (qcs->tx.offset == qcs->tx.sent_offset && qcs_stream_fin(qcs)) {
+	if (qcs->tx.offset == qcs->tx.sent_offset && !b_data(&qcs->tx.buf) &&
+	     qcs->flags & (QC_SF_FIN_STREAM|QC_SF_DETACH)) {
 		/* Close stream locally. */
 		qcs_close_local(qcs);
 		/* Reset flag to not emit multiple FIN STREAM frames. */
@@ -2225,6 +2226,9 @@ static size_t qc_snd_buf(struct stconn *sc, struct buffer *buf,
 	size_t ret;
 
 	TRACE_ENTER(QMUX_EV_STRM_SEND, qcs->qcc->conn, qcs);
+
+	/* stream layer has been detached so no transfer must occur after. */
+	BUG_ON_HOT(qcs->flags & QC_SF_DETACH);
 
 	if (qcs_is_close_local(qcs) || (qcs->flags & QC_SF_TO_RESET)) {
 		ret = count;
