@@ -1,0 +1,57 @@
+varnishtest "Test the TCP load-forward"
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.3-dev1)'"
+feature ignore_unknown_macro
+
+server s1 {
+    rxreq
+	txresp
+} -repeat 500 -start
+
+syslog Slg1 -level info {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: .* \"GET /client_c1 HTTP/1.1\""
+} -repeat 50 -start
+
+haproxy h1 -conf {
+	defaults
+		mode http
+		option httplog
+		timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+		timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+		timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+	frontend fe1
+		bind "fd@${fe_1}"
+		log 127.0.0.1:1514 local0
+#		log ${Slg1_addr}:${Slg1_port} local0
+		default_backend be
+
+	backend be
+		server app1 ${s1_addr}:${s1_port}
+
+	ring myring
+		description "My local buffer"
+		format rfc5424
+		maxlen 1200
+		size 32764
+		timeout connect 5s
+		timeout server 10s
+		# syslog tcp server
+		server mysyslogsrv 127.0.0.1:2514
+
+	log-forward syslog2tcp
+		dgram-bind 127.0.0.1:1514
+		log ring@myring local0 # To TCP log
+
+	log-forward syslog2local
+		bind 127.0.0.1:2514
+		log ${Slg1_addr}:${Slg1_port} local0 # To VTest syslog
+} -start
+
+client c1 -connect ${h1_fe_1_sock} {
+    txreq -url "/client_c1"
+    rxresp
+    expect resp.status == 200
+} -repeat 50 -start
+
+syslog Slg1 -wait
