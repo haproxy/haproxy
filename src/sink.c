@@ -41,6 +41,9 @@
 
 struct list sink_list = LIST_HEAD_INIT(sink_list);
 
+/* sink proxies list */
+struct proxy *sink_proxies_list;
+
 struct sink *cfg_sink;
 
 struct sink *sink_find(const char *name)
@@ -287,7 +290,7 @@ static int cli_parse_show_events(char **args, char *payload, struct appctx *appc
 void sink_setup_proxy(struct proxy *px)
 {
 	px->last_change = now.tv_sec;
-	px->cap = PR_CAP_FE | PR_CAP_BE;
+	px->cap = PR_CAP_FE | PR_CAP_BE | PR_CAP_INT;
 	px->maxconn = 0;
 	px->conn_retries = 1;
 	px->timeout.server = TICK_ETERNITY;
@@ -295,6 +298,8 @@ void sink_setup_proxy(struct proxy *px)
 	px->timeout.connect = TICK_ETERNITY;
 	px->accept = NULL;
 	px->options2 |= PR_O2_INDEPSTR | PR_O2_SMARTCON | PR_O2_SMARTACC;
+	px->next = sink_proxies_list;
+	sink_proxies_list = px;
 }
 
 /*
@@ -1223,13 +1228,6 @@ int cfg_post_parse_ring()
 			srv = cfg_sink->forward_px->srv;
 			while (srv) {
 				struct sink_forward_target *sft;
-				/* init ssl if needed */
-				if (srv->use_ssl == 1 && xprt_get(XPRT_SSL) && xprt_get(XPRT_SSL)->prepare_srv) {
-					if (xprt_get(XPRT_SSL)->prepare_srv(srv)) {
-						ha_alert("unable to prepare SSL for server '%s' in ring '%s'.\n", srv->id, cfg_sink->name);
-						err_code |= ERR_ALERT | ERR_FATAL;
-					}
-				}
 
 				/* allocate sink_forward_target descriptor */
 				sft = calloc(1, sizeof(*sft));
