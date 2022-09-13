@@ -534,11 +534,6 @@ struct quic_enc_level {
 		struct eb_root pkts;
 		/* Liste of QUIC packets with protected header. */
 		struct list pqpkts;
-		/* Crypto frames */
-		struct {
-			uint64_t offset;
-			struct eb_root frms;
-		} crypto;
 	} rx;
 	struct {
 		struct {

@@ -2203,6 +2203,7 @@ static inline int qc_provide_cdata(struct quic_enc_level *el,
 	int ssl_err, state;
 	struct quic_conn *qc;
 	int ret = 0;
+	struct ncbuf *ncbuf = &el->cstream->rx.ncbuf;
 
 	ssl_err = SSL_ERROR_NONE;
 	qc = ctx->qc;
@@ -2215,7 +2216,6 @@ static inline int qc_provide_cdata(struct quic_enc_level *el,
 		goto leave;
 	}
 
-	el->rx.crypto.offset += len;
 	TRACE_PROTO("in order CRYPTO data",
 	            QUIC_EV_CONN_SSLDATA, qc, NULL, cf, ctx->ssl);
 
@@ -2292,6 +2292,11 @@ static inline int qc_provide_cdata(struct quic_enc_level *el,
  out:
 	ret = 1;
  leave:
+	/* The CRYPTO data are consumed even in case of an error to release
+	 * the memory asap.
+	 */
+	if (!ncb_is_null(ncbuf))
+		ncb_advance(ncbuf, len);
 	TRACE_LEAVE(QUIC_EV_CONN_SSLDATA, qc);
 	return ret;
 }
@@ -2573,6 +2578,38 @@ static int qc_stop_sending_frm_enqueue(struct quic_conn *qc, uint64_t id)
 	return ret;
 }
 
+/* Release the underlying memory use by <ncbuf> non-contiguous buffer */
+static void quic_free_ncbuf(struct ncbuf *ncbuf)
+{
+	struct buffer buf;
+
+	if (ncb_is_null(ncbuf))
+		return;
+
+	buf = b_make(ncbuf->area, ncbuf->size, 0, 0);
+	b_free(&buf);
+	offer_buffers(NULL, 1);
+
+	*ncbuf = NCBUF_NULL;
+}
+
+/* Allocate the underlying required memory for <ncbuf> non-contiguous buffer */
+static struct ncbuf *quic_get_ncbuf(struct ncbuf *ncbuf)
+{
+	struct buffer buf = BUF_NULL;
+
+	if (!ncb_is_null(ncbuf))
+		return ncbuf;
+
+	b_alloc(&buf);
+	BUG_ON(b_is_null(&buf));
+
+	*ncbuf = ncb_make(buf.area, buf.size, 0);
+	ncb_init(ncbuf, 0);
+
+	return ncbuf;
+}
+
 /* Parse <frm> CRYPTO frame coming with <pkt> packet at <qel> <qc> connectionn.
  * Returns 1 if succeeded, 0 if not. Also set <*fast_retrans> to 1 if the
  * speed up handshake completion may be run after having received duplicated
@@ -2583,12 +2620,14 @@ static int qc_handle_crypto_frm(struct quic_conn *qc,
                                 struct quic_enc_level *qel, int *fast_retrans)
 {
 	int ret = 0;
-	struct quic_rx_crypto_frm *cf;
+	enum ncb_ret ncb_ret;
 	/* XXX TO DO: <cfdebug> is used only for the traces. */
 	struct quic_rx_crypto_frm cfdebug = {
 		.offset_node.key = frm->offset,
 		.len = frm->len,
 	};
+	struct quic_cstream *cstream = qel->cstream;
+	struct ncbuf *ncbuf = &qel->cstream->rx.ncbuf;
 
 	TRACE_ENTER(QUIC_EV_CONN_PRSHPKT, qc);
 	if (unlikely(qel->tls_ctx.flags & QUIC_FL_TLS_SECRETS_DCD)) {
@@ -2597,10 +2636,10 @@ static int qc_handle_crypto_frm(struct quic_conn *qc,
 		goto done;
 	}
 
-	if (unlikely(frm->offset < qel->rx.crypto.offset)) {
+	if (unlikely(frm->offset < cstream->rx.offset)) {
 		size_t diff;
 
-		if (frm->offset + frm->len <= qel->rx.crypto.offset) {
+		if (frm->offset + frm->len <= cstream->rx.offset) {
 			/* Nothing to do */
 			TRACE_PROTO("Already received CRYPTO data",
 						QUIC_EV_CONN_RXPKT, qc, pkt, &cfdebug);
@@ -2613,35 +2652,43 @@ static int qc_handle_crypto_frm(struct quic_conn *qc,
 		TRACE_PROTO("Partially already received CRYPTO data",
 		            QUIC_EV_CONN_RXPKT, qc, pkt, &cfdebug);
 
-		diff = qel->rx.crypto.offset - frm->offset;
+		diff = cstream->rx.offset - frm->offset;
 		frm->len -= diff;
 		frm->data += diff;
-		frm->offset = qel->rx.crypto.offset;
+		frm->offset = cstream->rx.offset;
 	}
 
-	if (frm->offset == qel->rx.crypto.offset) {
+	if (frm->offset == cstream->rx.offset) {
 		if (!qc_provide_cdata(qel, qc->xprt_ctx, frm->data, frm->len,
 		                      pkt, &cfdebug)) {
 			// trace already emitted by function above
 			goto leave;
 		}
 
+		cstream->rx.offset += frm->len;
 		goto done;
 	}
 
-	/* frm->offset > qel->rx.crypto.offset */
-	cf = pool_alloc(pool_head_quic_rx_crypto_frm);
-	if (!cf) {
-		TRACE_ERROR("CRYPTO frame allocation failed", QUIC_EV_CONN_PRSHPKT, qc);
+	if (!quic_get_ncbuf(ncbuf) ||
+	    ncb_is_null(ncbuf)) {
+		TRACE_ERROR("CRYPTO ncbuf allocation failed", QUIC_EV_CONN_PRSHPKT, qc);
 		goto leave;
 	}
 
-	cf->offset_node.key = frm->offset;
-	cf->len = frm->len;
-	cf->data = frm->data;
-	cf->pkt = pkt;
-	eb64_insert(&qel->rx.crypto.frms, &cf->offset_node);
-	quic_rx_packet_refinc(pkt);
+	/* frm->offset > cstream-trx.offset */
+	ncb_ret = ncb_add(ncbuf, frm->offset - cstream->rx.offset,
+	                  (const char *)frm->data, frm->len, NCB_ADD_COMPARE);
+	if (ncb_ret != NCB_RET_OK) {
+		if (ncb_ret == NCB_RET_DATA_REJ) {
+			TRACE_ERROR("overlapping data rejected", QUIC_EV_CONN_PRSHPKT, qc);
+			quic_set_connection_close(qc, quic_err_transport(QC_ERR_PROTOCOL_VIOLATION));
+		}
+		else if (ncb_ret == NCB_RET_GAP_SIZE) {
+			TRACE_ERROR("cannot bufferize frame due to gap size limit",
+			            QUIC_EV_CONN_PRSHPKT, qc);
+		}
+		goto leave;
+	}
 
  done:
 	ret = 1;
@@ -3771,7 +3818,9 @@ static inline void qc_rm_hp_pkts(struct quic_conn *qc, struct quic_enc_level *el
 	TRACE_LEAVE(QUIC_EV_CONN_ELRMHP, qc);
 }
 
-/* Process all the CRYPTO frame at <el> encryption level.
+/* Process all the CRYPTO frame at <el> encryption level. This is the
+ * responsability of the called to ensure there exists a CRYPTO data
+ * stream for this level.
  * Return 1 if succeeded, 0 if not.
  */
 static inline int qc_treat_rx_crypto_frms(struct quic_conn *qc,
@@ -3779,32 +3828,35 @@ static inline int qc_treat_rx_crypto_frms(struct quic_conn *qc,
                                           struct ssl_sock_ctx *ctx)
 {
 	int ret = 0;
-	struct eb64_node *node;
+	struct ncbuf *ncbuf;
+	struct quic_cstream *cstream = el->cstream;
+	ncb_sz_t data;
 
-	TRACE_ENTER(QUIC_EV_CONN_TRMHP, qc);
+	TRACE_ENTER(QUIC_EV_CONN_PHPKTS, qc, el);
 
-	node = eb64_first(&el->rx.crypto.frms);
-	while (node) {
-		struct quic_rx_crypto_frm *cf;
+	BUG_ON(!cstream);
+	ncbuf = &cstream->rx.ncbuf;
+	if (ncb_is_null(ncbuf))
+		goto done;
 
-		cf = eb64_entry(node, struct quic_rx_crypto_frm, offset_node);
-		if (cf->offset_node.key != el->rx.crypto.offset)
-			break;
+	while ((data = ncb_data(ncbuf, 0))) {
+		const unsigned char *cdata = (const unsigned char *)ncb_head(ncbuf);
 
-		if (!qc_provide_cdata(el, ctx, cf->data, cf->len, cf->pkt, cf)) {
-			TRACE_ERROR("qc_provide_cdata() failed", QUIC_EV_CONN_TRMHP);
+		if (!qc_provide_cdata(el, ctx, cdata, data, NULL, NULL))
 			goto leave;
-		}
 
-		node = eb64_next(node);
-		quic_rx_packet_refdec(cf->pkt);
-		eb64_delete(&cf->offset_node);
-		pool_free(pool_head_quic_rx_crypto_frm, cf);
+		TRACE_DEVEL("buffered crypto data were provided to TLS stack",
+		            QUIC_EV_CONN_PHPKTS, qc);
+
+		cstream->rx.offset += data;
 	}
 
+ done:
 	ret = 1;
  leave:
-	TRACE_LEAVE(QUIC_EV_CONN_TRMHP, qc);
+	if (ncb_is_empty(ncbuf))
+		quic_free_ncbuf(ncbuf);
+	TRACE_LEAVE(QUIC_EV_CONN_PHPKTS, qc);
 	return ret;
 }
 
@@ -3878,7 +3930,7 @@ int qc_treat_rx_pkts(struct quic_conn *qc, struct quic_enc_level *cur_el,
 		qel->pktns->flags |= QUIC_FL_PKTNS_NEW_LARGEST_PN;
 	}
 
-	if (!qc_treat_rx_crypto_frms(qc, qel, qc->xprt_ctx)) {
+	if (qel->cstream && !qc_treat_rx_crypto_frms(qc, qel, qc->xprt_ctx)) {
 		// trace already emitted by function above
 		goto leave;
 	}
@@ -4489,8 +4541,6 @@ static int quic_conn_enc_level_init(struct quic_conn *qc,
 
 	qel->rx.pkts = EB_ROOT;
 	LIST_INIT(&qel->rx.pqpkts);
-	qel->rx.crypto.offset = 0;
-	qel->rx.crypto.frms = EB_ROOT_UNIQUE;
 
 	/* Allocate only one buffer. */
 	/* TODO: use a pool */
