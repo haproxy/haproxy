@@ -57,6 +57,7 @@
 #include <haproxy/task.h>
 #include <haproxy/tcp_rules.h>
 #include <haproxy/thread.h>
+#include <haproxy/tools.h>
 #include <haproxy/trace.h>
 #include <haproxy/vars.h>
 
@@ -3277,7 +3278,7 @@ static int stats_dump_full_strm_to_buffer(struct stconn *sc, struct stream *strm
 
 		chunk_appendf(&trash,
 			     "  frontend=%s (id=%u mode=%s), listener=%s (id=%u)",
-			     strm_fe(strm)->id, strm_fe(strm)->uuid, proxy_mode_str(strm_fe(strm)->mode),
+			     HA_ANON_CLI(strm_fe(strm)->id), strm_fe(strm)->uuid, proxy_mode_str(strm_fe(strm)->mode),
 			     strm_li(strm) ? strm_li(strm)->name ? strm_li(strm)->name : "?" : "?",
 			     strm_li(strm) ? strm_li(strm)->luid : 0);
 
@@ -3285,7 +3286,7 @@ static int stats_dump_full_strm_to_buffer(struct stconn *sc, struct stream *strm
 		case AF_INET:
 		case AF_INET6:
 			chunk_appendf(&trash, " addr=%s:%d\n",
-				     pn, get_host_port(conn->dst));
+				     HA_ANON_CLI(pn), get_host_port(conn->dst));
 			break;
 		case AF_UNIX:
 			chunk_appendf(&trash, " addr=unix:%d\n", strm_li(strm)->luid);
@@ -3299,7 +3300,7 @@ static int stats_dump_full_strm_to_buffer(struct stconn *sc, struct stream *strm
 		if (strm->be->cap & PR_CAP_BE)
 			chunk_appendf(&trash,
 				     "  backend=%s (id=%u mode=%s)",
-				     strm->be->id,
+				     HA_ANON_CLI(strm->be->id),
 				     strm->be->uuid, proxy_mode_str(strm->be->mode));
 		else
 			chunk_appendf(&trash, "  backend=<NONE> (id=-1 mode=-)");
@@ -3309,7 +3310,7 @@ static int stats_dump_full_strm_to_buffer(struct stconn *sc, struct stream *strm
 		case AF_INET:
 		case AF_INET6:
 			chunk_appendf(&trash, " addr=%s:%d\n",
-				     pn, get_host_port(conn->src));
+				     HA_ANON_CLI(pn), get_host_port(conn->src));
 			break;
 		case AF_UNIX:
 			chunk_appendf(&trash, " addr=unix\n");
@@ -3323,7 +3324,7 @@ static int stats_dump_full_strm_to_buffer(struct stconn *sc, struct stream *strm
 		if (strm->be->cap & PR_CAP_BE)
 			chunk_appendf(&trash,
 				     "  server=%s (id=%u)",
-				     objt_server(strm->target) ? __objt_server(strm->target)->id : "<none>",
+				     objt_server(strm->target) ? HA_ANON_CLI(__objt_server(strm->target)->id) : "<none>",
 				     objt_server(strm->target) ? __objt_server(strm->target)->puid : 0);
 		else
 			chunk_appendf(&trash, "  server=<NONE> (id=-1)");
@@ -3332,7 +3333,7 @@ static int stats_dump_full_strm_to_buffer(struct stconn *sc, struct stream *strm
 		case AF_INET:
 		case AF_INET6:
 			chunk_appendf(&trash, " addr=%s:%d\n",
-				     pn, get_host_port(conn->dst));
+				     HA_ANON_CLI(pn), get_host_port(conn->dst));
 			break;
 		case AF_UNIX:
 			chunk_appendf(&trash, " addr=unix\n");
@@ -3682,20 +3683,20 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 		case AF_INET6:
 			chunk_appendf(&trash,
 				     " src=%s:%d fe=%s be=%s srv=%s",
-				     pn,
+				     HA_ANON_CLI(pn),
 				     get_host_port(conn->src),
-				     strm_fe(curr_strm)->id,
-				     (curr_strm->be->cap & PR_CAP_BE) ? curr_strm->be->id : "<NONE>",
-				     objt_server(curr_strm->target) ? __objt_server(curr_strm->target)->id : "<none>"
+				     HA_ANON_CLI(strm_fe(curr_strm)->id),
+				     (curr_strm->be->cap & PR_CAP_BE) ? HA_ANON_CLI(curr_strm->be->id) : "<NONE>",
+				     objt_server(curr_strm->target) ? HA_ANON_CLI(__objt_server(curr_strm->target)->id) : "<none>"
 				     );
 			break;
 		case AF_UNIX:
 			chunk_appendf(&trash,
 				     " src=unix:%d fe=%s be=%s srv=%s",
 				     strm_li(curr_strm)->luid,
-				     strm_fe(curr_strm)->id,
-				     (curr_strm->be->cap & PR_CAP_BE) ? curr_strm->be->id : "<NONE>",
-				     objt_server(curr_strm->target) ? __objt_server(curr_strm->target)->id : "<none>"
+				     HA_ANON_CLI(strm_fe(curr_strm)->id),
+				     (curr_strm->be->cap & PR_CAP_BE) ? HA_ANON_CLI(curr_strm->be->id) : "<NONE>",
+				     objt_server(curr_strm->target) ? HA_ANON_CLI(__objt_server(curr_strm->target)->id) : "<none>"
 				     );
 			break;
 		}
