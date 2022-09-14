@@ -45,6 +45,7 @@
 #include <haproxy/namespace-t.h>
 #include <haproxy/protocol-t.h>
 #include <haproxy/tools-t.h>
+#include <haproxy/xxhash.h>
 
 /****** string-specific macros and functions ******/
 /* if a > max, then bound <a> to <max>. The macro returns the new <a> */
@@ -54,6 +55,19 @@
 #define LBOUND(a, min)	({ typeof(a) b = (min); if ((a) < b) (a) = b; (a); })
 
 #define SWAP(a, b) do { typeof(a) t; t = a; a = b; b = t; } while(0)
+
+/* return the hash of a string and length for a given key. All keys are valid. */
+#define HA_ANON(key, str, len) (XXH32(str, len, key) & 0xFFFFFF)
+
+/* use if you want to return a simple hash. Key 0 doesn't hash. */
+#define HA_ANON_STR(key, str) hash_anon(key, str, "", "")
+
+/* use if you want to return a hash like : IP('hash'). Key 0 doesn't hash. */
+#define HA_ANON_ID(key, str) hash_anon(key, str, "ID(", ")")
+
+/* use if you want to return a hash like : PATH('hash'). Key 0 doesn't hash. */
+#define HA_ANON_PATH(key, str) hash_anon(key, str, "PATH(", ")")
+
 
 /*
  * copies at most <size-1> chars from <src> to <dst>. Last char is always
@@ -479,6 +493,12 @@ int url_decode(char *string, int in_form);
 unsigned int inetaddr_host(const char *text);
 unsigned int inetaddr_host_lim(const char *text, const char *stop);
 unsigned int inetaddr_host_lim_ret(char *text, char *stop, char **ret);
+
+/* Function that hashes or not a string according to the anonymizing key (scramble). */
+const char *hash_anon(uint32_t scramble, const char *string2hash, const char *prefix, const char *suffix);
+
+/* Function that hashes or not an ip according to the ipstring entered */
+const char * hash_ipanon(uint32_t scramble, char *ipstring);
 
 static inline char *cut_crlf(char *s) {
 

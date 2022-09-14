@@ -76,6 +76,9 @@ extern void *__elf_aux_vector;
  */
 #define RET0_UNLESS(__x) do { if (!(__x)) return 0; } while (0)
 
+/* Define the number of line of hash_word */
+#define NB_L_HASH_WORD 7
+
 /* enough to store NB_ITOA_STR integers of :
  *   2^64-1 = 18446744073709551615 or
  *    -2^63 = -9223372036854775808
@@ -101,6 +104,10 @@ THREAD_LOCAL unsigned int statistical_prng_state = 2463534242U;
 
 /* set to true if this is a static build */
 int build_is_static = 0;
+
+/* A global static table to store hashed words */
+static THREAD_LOCAL char hash_word[NB_L_HASH_WORD][20];
+static THREAD_LOCAL int index_hash = 0;
 
 /*
  * unsigned long long ASCII representation
@@ -5872,6 +5879,100 @@ void update_word_fingerprint(uint8_t *fp, const char *word)
 	}
 	to = 28; // end
 	fp[32 * from + to]++;
+}
+
+/* This function hashes a word, scramble is the anonymizing key, returns
+ * the hashed word when the key (scramble) != 0, else returns the word.
+ * This function can be called NB_L_HASH_WORD times in a row, don't call
+ * it if you called it more than NB_L_HASH_WORD.
+ */
+const char *hash_anon(uint32_t scramble, const char *string2hash, const char *prefix, const char *suffix)
+{
+	index_hash++;
+	if (index_hash > NB_L_HASH_WORD)
+		index_hash = 0;
+
+	/* don't hash empty strings */
+	if (!string2hash[0] || (string2hash[0] == ' ' && string2hash[1] == 0))
+		return string2hash;
+
+	if (scramble != 0) {
+		snprintf(hash_word[index_hash], sizeof(hash_word[index_hash]), "%s%06x%s",
+			 prefix, HA_ANON(scramble, string2hash, strlen(string2hash)), suffix);
+		return hash_word[index_hash];
+	}
+	else
+		return string2hash;
+}
+
+/* This function hashes or not an ip address ipstring, scramble is the anonymizing
+ * key, returns the hashed ip with his port or ipstring when there is nothing to hash.
+ */
+const char *hash_ipanon(uint32_t scramble, char *ipstring)
+{
+	char *errmsg = NULL;
+	struct sockaddr_storage *sa;
+	char addr[46];
+	int port;
+
+	index_hash++;
+        if (index_hash > NB_L_HASH_WORD) {
+                index_hash = 0;
+	}
+
+	if (strncmp(ipstring, "localhost", 1) == 0) {
+		return ipstring;
+	}
+	else {
+		sa = str2sa_range(ipstring, NULL, NULL, NULL, NULL, NULL, &errmsg, NULL, NULL,
+				  PA_O_PORT_OK | PA_O_STREAM | PA_O_XPRT | PA_O_CONNECT | PA_O_PORT_RANGE);
+		if (sa == NULL) {
+			return ipstring;
+		}
+		else {
+			addr_to_str(sa, addr, sizeof(addr));
+			port = get_host_port(sa);
+
+			switch(sa->ss_family) {
+				case AF_INET:
+					if (strncmp(addr, "127", 3) == 0 || strncmp(addr, "255", 3) == 0 || strncmp(addr, "0", 1) == 0) {
+						return ipstring;
+					}
+					else {
+						if (port != 0) {
+							snprintf(hash_word[index_hash], sizeof(hash_word[index_hash]), "IPV4(%06x):%d", HA_ANON(scramble, addr, strlen(addr)), port);
+							return hash_word[index_hash];
+						}
+						else {
+							snprintf(hash_word[index_hash], sizeof(hash_word[index_hash]), "IPV4(%06x)", HA_ANON(scramble, addr, strlen(addr)));
+							return hash_word[index_hash];
+						}
+					}
+					break;
+
+				case AF_INET6:
+					if (strcmp(addr, "::1") == 0) {
+						return ipstring;
+					}
+					else {
+						if (port != 0) {
+							snprintf(hash_word[index_hash], sizeof(hash_word[index_hash]), "IPV6(%06x):%d", HA_ANON(scramble, addr, strlen(addr)), port);
+							return hash_word[index_hash];
+						}
+						else {
+							snprintf(hash_word[index_hash], sizeof(hash_word[index_hash]), "IPV6(%06x)", HA_ANON(scramble, addr, strlen(addr)));
+							return hash_word[index_hash];
+						}
+					}
+					break;
+
+				default:
+					return ipstring;
+					break;
+			};
+		}
+	}
+	return ipstring;
 }
 
 /* Initialize array <fp> with the fingerprint of word <word> by counting the
