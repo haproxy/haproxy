@@ -70,6 +70,7 @@ struct appctx {
 	                                               if the command is terminated or the session released */
 	int cli_severity_output;        /* used within the cli_io_handler to format severity output of informational feedback */
 	int cli_level;              /* the level of CLI which can be lowered dynamically */
+	uint32_t cli_anon_key;       /* the key to anonymise with the hash in cli */
 	struct buffer_wait buffer_wait; /* position in the list of objects waiting for a buffer */
 	struct task *t;                  /* task associated to the applet */
 	struct freq_ctr call_rate;       /* appctx call rate */

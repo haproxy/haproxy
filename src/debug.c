@@ -701,6 +701,15 @@ static int debug_parse_cli_tkill(char **args, char *payload, struct appctx *appc
 	return 1;
 }
 
+/* hashes 'word' in "debug dev hash 'word' ". */
+static int debug_parse_cli_hash(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	char *msg = NULL;
+
+	cli_dynmsg(appctx, LOG_INFO, memprintf(&msg, "%s\n", HA_ANON_CLI(args[3])));
+	return 1;
+}
+
 /* parse a "debug dev write" command. It always returns 1. */
 static int debug_parse_cli_write(char **args, char *payload, struct appctx *appctx, void *private)
 {
@@ -1627,6 +1636,8 @@ static struct cli_kw_list cli_kws = {{ },{
 	{{ "debug", "dev", "tkill", NULL },    "debug dev tkill  [thr] [sig]            : send signal to thread",                   debug_parse_cli_tkill, NULL, NULL, NULL, ACCESS_EXPERT },
 	{{ "debug", "dev", "warn",  NULL },    "debug dev warn                          : call WARN_ON() and possibly crash",       debug_parse_cli_warn,  NULL, NULL, NULL, ACCESS_EXPERT },
 	{{ "debug", "dev", "write", NULL },    "debug dev write  [size]                 : write that many bytes in return",         debug_parse_cli_write, NULL, NULL, NULL, ACCESS_EXPERT },
+	{{ "debug", "dev", "hash", NULL },     "debug dev hash  [msg]                   : return msg hashed",                       debug_parse_cli_hash, NULL, NULL, NULL, ACCESS_EXPERT },
+
 #if defined(HA_HAVE_DUMP_LIBS)
 	{{ "show", "libs", NULL, NULL },       "show libs                               : show loaded object files and libraries", debug_parse_cli_show_libs, NULL, NULL },
 #endif

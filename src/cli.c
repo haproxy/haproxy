@@ -1874,6 +1874,50 @@ int cli_parse_default(char **args, char *payload, struct appctx *appctx, void *p
 	return 0;
 }
 
+/* enable or disable the anonymized mode, it returns 1 when it works or displays an error message if it doesn't. */
+static int cli_parse_set_anon(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	uint32_t tmp;
+	long long key;
+
+	if (strcmp(args[2], "on") == 0) {
+		if (appctx->cli_anon_key != 0)
+			return cli_err(appctx, "Mode already enabled\n");
+		else {
+			if (*args[3]) {
+				key = atoll(args[3]);
+				if (key < 1 || key > UINT_MAX)
+					return cli_err(appctx, "Value out of range (1 to 4294967295 expected).\n");
+				appctx->cli_anon_key = key;
+			}
+			else {
+				tmp = HA_ATOMIC_LOAD(&global.anon_key);
+				if (tmp != 0)
+					appctx->cli_anon_key = tmp;
+				else
+					appctx->cli_anon_key = ha_random32();
+			}
+		}
+	}
+	else if (strcmp(args[2], "off") == 0) {
+		if (appctx->cli_anon_key == 0)
+			return cli_err(appctx, "Mode already disabled\n");
+		else if (*args[3]) {
+			return cli_err(appctx, "Key can't be added while disabling anonymized mode\n");
+		}
+		else {
+			appctx->cli_anon_key = 0;
+		}
+	}
+	else {
+		return cli_err(appctx,
+			"'set anon' only supports :\n"
+                        "   - 'on' [key] to enable the anonymized mode\n"
+                        "   - 'off' to disable the anonymized mode");
+	}
+	return 1;
+}
+
 /* This function set the global anonyzing key, restricted to level 'admin' */
 static int cli_parse_set_global_key(char **args, char *payload, struct appctx *appctx, void *private)
 {
@@ -1889,6 +1933,28 @@ static int cli_parse_set_global_key(char **args, char *payload, struct appctx *a
 		return cli_err(appctx, "Value out of range (0 to 4294967295 expected).\n");
 
 	HA_ATOMIC_STORE(&global.anon_key, key);
+	return 1;
+}
+
+/* shows the anonymized mode state to everyone, and the key except for users, it always returns 1. */
+static int cli_parse_show_anon(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	char *msg = NULL;
+	char *anon_mode = NULL;
+	uint32_t c_key = appctx->cli_anon_key;
+
+	if (!c_key)
+		anon_mode = "Anonymized mode disabled";
+	else
+		anon_mode = "Anonymized mode enabled";
+
+	if ( !((appctx->cli_level & ACCESS_LVL_MASK) < ACCESS_LVL_OPER) && c_key != 0) {
+		cli_dynmsg(appctx, LOG_INFO, memprintf(&msg, "%s\nKey : %u\n", anon_mode, c_key));
+	}
+	else {
+		cli_dynmsg(appctx, LOG_INFO, memprintf(&msg, "%s\n", anon_mode));
+	}
+
 	return 1;
 }
 
@@ -3200,11 +3266,13 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "expert-mode", NULL },               NULL,                                                                                                cli_parse_expert_experimental_mode, NULL, NULL, NULL, ACCESS_MASTER }, // not listed
 	{ { "experimental-mode", NULL },         NULL,                                                                                                cli_parse_expert_experimental_mode, NULL, NULL, NULL, ACCESS_MASTER }, // not listed
 	{ { "mcli-debug-mode", NULL },         NULL,                                                                                                  cli_parse_expert_experimental_mode, NULL, NULL, NULL, ACCESS_MASTER_ONLY }, // not listed
+	{ { "set", "anon", NULL },               "set anon <setting> [value]              : change the anonymized mode setting",                      cli_parse_set_anon, NULL, NULL },
 	{ { "set", "global-key", NULL },         "set global-key <value>                  : change the global anonymizing key",                       cli_parse_set_global_key, NULL, NULL },
 	{ { "set", "maxconn", "global",  NULL }, "set maxconn global <value>              : change the per-process maxconn setting",                  cli_parse_set_maxconn_global, NULL },
 	{ { "set", "rate-limit", NULL },         "set rate-limit <setting> <value>        : change a rate limiting value",                            cli_parse_set_ratelimit, NULL },
 	{ { "set", "severity-output",  NULL },   "set severity-output [none|number|string]: set presence of severity level in feedback information",  cli_parse_set_severity_output, NULL, NULL },
 	{ { "set", "timeout",  NULL },           "set timeout [cli] <delay>               : change a timeout setting",                                cli_parse_set_timeout, NULL, NULL },
+	{ { "show", "anon", NULL },              "show anon                               : display the current state of anonymized mode",            cli_parse_show_anon, NULL },
 	{ { "show", "env",  NULL },              "show env [var]                          : dump environment variables known to the process",         cli_parse_show_env, cli_io_handler_show_env, NULL },
 	{ { "show", "cli", "sockets",  NULL },   "show cli sockets                        : dump list of cli sockets",                                cli_parse_default, cli_io_handler_show_cli_sock, NULL, NULL, ACCESS_MASTER },
 	{ { "show", "cli", "level", NULL },      "show cli level                          : display the level of the current CLI session",            cli_parse_show_lvl, NULL, NULL, NULL, ACCESS_MASTER},

@@ -2191,6 +2191,22 @@ prompt
 quit
   Close the connection when in interactive mode.
 
+set anon [on|off] [<key>]
+  This command enables or disables the "anonymized mode" for the current CLI
+  session, which replaces certain fields considered sensitive or confidential
+  in command outputs with hashes that preserve sufficient consistency between
+  elements to help developers identify relations between elements when trying
+  to spot bugs, but a low enough bit count (24) to make them non-reversible due
+  to the high number of possible matches. When turned on, if no key is
+  specified, the global key will be used (either specified in the configuration
+  file by "anonkey" or set via the CLI command "set global-key"). If no such
+  key was set, a random one will be generated. Otherwise it's possible to
+  specify the 32-bit key to be used for the current session, for example, to
+  reuse the key that was used in a previous dump to help compare outputs.
+  Developers will never need this key and it's recommended never to share it as
+  it could allow to confirm/infirm some guesses about what certain hashes could
+  be hiding.
+
 set dynamic-cookie-key backend <backend> <value>
   Modify the secret key used to generate the dynamic persistent cookies.
   This will break the existing sessions.
@@ -2478,6 +2494,10 @@ show acl [[@<ver>] <acl>]
   these patterns can be shared with maps. The 'entry_cnt' value represents the
   count of all the ACL entries, not just the active ones, which means that it
   also includes entries currently being added.
+
+show anon
+  Display the current state of the anonymized mode (enabled or disabled) and
+  the current session's key.
 
 show backend
   Dump the list of backends available in the running process

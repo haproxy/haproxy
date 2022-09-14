@@ -46,6 +46,7 @@
 #include <haproxy/protocol-t.h>
 #include <haproxy/tools-t.h>
 #include <haproxy/xxhash.h>
+#include <haproxy/cli.h>
 
 /****** string-specific macros and functions ******/
 /* if a > max, then bound <a> to <max>. The macro returns the new <a> */
@@ -67,6 +68,9 @@
 
 /* use if you want to return a hash like : PATH('hash'). Key 0 doesn't hash. */
 #define HA_ANON_PATH(key, str) hash_anon(key, str, "PATH(", ")")
+
+/* use only in a function that contains an appctx (key comes from appctx). */
+#define HA_ANON_CLI(str) hash_anon(appctx->cli_anon_key, str, "", "")
 
 
 /*
