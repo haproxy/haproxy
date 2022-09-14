@@ -204,6 +204,15 @@ list of options is :
     in foreground and to show incoming and outgoing events. It must never be
     used in an init script.
 
+  -dC[key] : dump the configuration file. It is performed after the lines are
+    tokenized, so comments are stripped and indenting is forced. If a non-zero
+    key is specified, lines are truncated before sensitive/confidential fields,
+    and identifiers and addresses are emitted hashed with this key using the
+    same algorithmm as the one used by the anonymized mode on the CLI. This
+    means that the output may safely be shared with a developer who needs it
+    to figure what's happening in a dump that was anonymized using the same
+    key. Please also see the CLI's "set anon" command.
+
   -dD : enable diagnostic mode. This mode will output extra warnings about
     suspicious configuration statements. This will never prevent startup even in
     "zero-warning" mode nor change the exit status code.

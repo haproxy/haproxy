@@ -1893,6 +1893,219 @@ next_line:
 			break;
 		}
 
+		/* dump cfg */
+		if (global.mode & MODE_DUMP_CFG) {
+			if (args[0] != NULL) {
+				struct cfg_section *sect;
+				int is_sect = 0;
+				int i = 0;
+				uint32_t g_key = HA_ATOMIC_LOAD(&global.anon_key);
+
+				qfprintf(stdout, "%d\t", linenum);
+
+				/* if a word is in sections list, is_sect = 1 */
+				list_for_each_entry(sect, &sections, list) {
+					if (strcmp(args[0], sect->section_name) == 0) {
+						is_sect = 1;
+						break;
+					}
+				}
+
+				if (g_key == 0) {
+					/* no anonymizing needed, dump the config as-is (but without comments).
+					 * Note: tabs were lost during tokenizing, so we reinsert for non-section
+					 * keywords.
+					 */
+					if (!is_sect)
+						qfprintf(stdout, "\t");
+
+					for (i = 0; i < arg; i++) {
+						qfprintf(stdout, "%s ", args[i]);
+					}
+					qfprintf(stdout, "\n");
+					continue;
+				}
+
+				/* We're anonymizing */
+
+				if (is_sect) {
+					/* new sections are optionally followed by an identifier */
+					if (arg >= 2) {
+						qfprintf(stdout, "%s %s\n", args[0], HA_ANON_ID(g_key, args[1]));
+					}
+					else {
+						qfprintf(stdout, "%s\n", args[0]);
+					}
+					continue;
+				}
+
+				/* non-section keywords start indented */
+				qfprintf(stdout, "\t");
+
+				/* some keywords deserve special treatment */
+				if (!*args[0]) {
+					qfprintf(stdout, "\n");
+				}
+
+				else if (strcmp(args[0], "anonkey") == 0) {
+					qfprintf(stdout, "%s [...]\n", args[0]);
+				}
+
+				else if (strcmp(args[0], "maxconn") == 0) {
+					qfprintf(stdout, "%s %s\n", args[0], args[1]);
+				}
+
+				else if (strcmp(args[0], "stats") == 0 &&
+					 (strcmp(args[1], "timeout") == 0 || strcmp(args[1], "maxconn") == 0)) {
+					qfprintf(stdout, "%s %s %s\n", args[0], args[1], args[2]);
+				}
+
+				else if (strcmp(args[0], "stats") == 0 && strcmp(args[1], "socket") == 0) {
+					qfprintf(stdout, "%s %s ", args[0], args[1]);
+
+					if (arg > 1) {
+						qfprintf(stdout, "%s ", args[2]);
+
+						if (arg > 2) {
+							qfprintf(stdout, "[...]\n");
+						}
+						else {
+							qfprintf(stdout, "\n");
+						}
+					}
+					else {
+						qfprintf(stdout, "\n");
+					}
+				}
+
+				else if (strcmp(args[0], "timeout") == 0) {
+					qfprintf(stdout, "%s %s %s\n", args[0], args[1], args[2]);
+				}
+
+				else if (strcmp(args[0], "mode") == 0) {
+					qfprintf(stdout, "%s %s\n", args[0], args[1]);
+				}
+
+				/* It concerns user in global secion and in userlist */
+				else if (strcmp(args[0], "user") == 0) {
+					qfprintf(stdout, "%s %s ", args[0], HA_ANON_ID(g_key, args[1]));
+
+					if (arg > 2) {
+						qfprintf(stdout, "[...]\n");
+					}
+					else {
+						qfprintf(stdout, "\n");
+					}
+				}
+
+				else if (strcmp(args[0], "bind") == 0) {
+					qfprintf(stdout, "%s ", args[0]);
+					qfprintf(stdout, "%s ", hash_ipanon(g_key, args[1]));
+					if (arg > 2) {
+						qfprintf(stdout, "[...]\n");
+					}
+					else {
+						qfprintf(stdout, "\n");
+					}
+				}
+
+				else if (strcmp(args[0], "server") == 0) {
+					qfprintf(stdout, "%s ", args[0]);
+
+					if (strcmp(args[1], "localhost") == 0) {
+						qfprintf(stdout, "%s ", args[1]);
+					}
+					else {
+						qfprintf(stdout, "%s ", HA_ANON_ID(g_key, args[1]));
+					}
+					if (arg > 2) {
+						qfprintf(stdout, "%s ", hash_ipanon(g_key, args[2]));
+					}
+					if (arg > 3) {
+						qfprintf(stdout, "[...]\n");
+					}
+					else {
+						qfprintf(stdout, "\n");
+					}
+				}
+
+				else if (strcmp(args[0], "redirect") == 0) {
+					qfprintf(stdout, "%s %s ", args[0], args[1]);
+
+					if (strcmp(args[1], "prefix") == 0 || strcmp(args[1], "location") == 0) {
+						qfprintf(stdout, "%s ", HA_ANON_PATH(g_key, args[2]));
+					}
+					else {
+						qfprintf(stdout, "%s ", args[2]);
+					}
+					if (arg > 3) {
+						qfprintf(stdout, "[...]");
+					}
+					qfprintf(stdout, "\n");
+				}
+
+				else if (strcmp(args[0], "acl") == 0) {
+					qfprintf(stdout, "%s %s %s ", args[0], HA_ANON_ID(g_key, args[1]), args[2]);
+
+					if (arg > 3) {
+						qfprintf(stdout, "[...]");
+					}
+					qfprintf(stdout, "\n");
+				}
+
+				else if (strcmp(args[0], "log") == 0) {
+					qfprintf(stdout, "log ");
+
+					if (strcmp(args[1], "global") == 0) {
+						qfprintf(stdout, "%s ", args[1]);
+					}
+					else {
+						qfprintf(stdout, "%s ", hash_ipanon(g_key, args[1]));
+					}
+					if (arg > 2) {
+						qfprintf(stdout, "[...]");
+					}
+					qfprintf(stdout, "\n");
+				}
+
+				else if (strcmp(args[0], "peer") == 0) {
+					qfprintf(stdout, "%s %s ", args[0], HA_ANON_ID(g_key, args[1]));
+					qfprintf(stdout, "%s ", hash_ipanon(g_key, args[2]));
+
+					if (arg > 3) {
+						qfprintf(stdout, "[...]");
+					}
+					qfprintf(stdout, "\n");
+				}
+
+				else if (strcmp(args[0], "use_backend") == 0) {
+					qfprintf(stdout, "%s %s ", args[0], HA_ANON_ID(g_key, args[1]));
+
+					if (arg > 2) {
+						qfprintf(stdout, "[...]");
+					}
+					qfprintf(stdout, "\n");
+				}
+
+				else if (strcmp(args[0], "default_backend") == 0) {
+					qfprintf(stdout, "%s %s\n", args[0], HA_ANON_ID(g_key, args[1]));
+				}
+
+				else {
+					/* display up to 3 words and mask the rest which might be confidential */
+					for (i = 0; i < MIN(arg, 3); i++) {
+						qfprintf(stdout, "%s ", args[i]);
+					}
+					if (arg > 3) {
+						qfprintf(stdout, "[...]");
+					}
+					qfprintf(stdout, "\n");
+				}
+			}
+			continue;
+		}
+		/* end of config dump */
+
 		/* empty line */
 		if (!**args)
 			continue;

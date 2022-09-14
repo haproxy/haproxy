@@ -590,6 +590,7 @@ static void usage(char *name)
 		"        -N sets the default, per-proxy maximum # of connections (%d)\n"
 		"        -L set local peer name (default to hostname)\n"
 		"        -p writes pids of all children to this file\n"
+		"        -dC[key] display the configure file, if there is a key, the file will be anonymise\n"
 #if defined(USE_EPOLL)
 		"        -de disables epoll() usage even when available\n"
 #endif
@@ -1633,6 +1634,10 @@ static void init_args(int argc, char **argv)
 				global.ssl_server_verify = SSL_SERVER_VERIFY_NONE;
 			else if (*flag == 'V')
 				arg_mode |= MODE_VERBOSE;
+			else if (*flag == 'd' && flag[1] == 'C') {
+				arg_mode |= MODE_DUMP_CFG;
+				HA_ATOMIC_STORE(&global.anon_key, atoll(flag + 2));
+			}
 			else if (*flag == 'd' && flag[1] == 'b')
 				arg_mode |= MODE_FOREGROUND;
 			else if (*flag == 'd' && flag[1] == 'D')
@@ -1904,7 +1909,7 @@ static void init(int argc, char **argv)
 
 	global.mode |= (arg_mode & (MODE_DAEMON | MODE_MWORKER | MODE_FOREGROUND | MODE_VERBOSE
 				    | MODE_QUIET | MODE_CHECK | MODE_DEBUG | MODE_ZERO_WARNING
-				    | MODE_DIAG | MODE_CHECK_CONDITION | MODE_DUMP_LIBS | MODE_DUMP_KWD));
+				    | MODE_DIAG | MODE_CHECK_CONDITION | MODE_DUMP_LIBS | MODE_DUMP_KWD | MODE_DUMP_CFG));
 
 	if (getenv("HAPROXY_MWORKER_WAIT_ONLY")) {
 		unsetenv("HAPROXY_MWORKER_WAIT_ONLY");
@@ -2225,6 +2230,9 @@ static void init(int argc, char **argv)
 		qfprintf(stdout, "Configuration file has no error but will not start (no listener) => exit(2).\n");
 		exit(2);
 	}
+
+	if (global.mode & MODE_DUMP_CFG)
+		deinit_and_exit(0);
 
 	if (global.mode & MODE_DIAG) {
 		cfg_run_diagnostics();
