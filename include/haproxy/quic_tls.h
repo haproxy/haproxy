@@ -420,14 +420,24 @@ static inline void quic_tls_ctx_secs_free(struct quic_tls_ctx *ctx)
  */
 static inline int quic_tls_ctx_keys_alloc(struct quic_tls_ctx *ctx)
 {
+	if (ctx->rx.key)
+		goto write;
+
 	if (!(ctx->rx.iv = pool_alloc(pool_head_quic_tls_iv)) ||
-	    !(ctx->rx.key = pool_alloc(pool_head_quic_tls_key)) ||
-	    !(ctx->tx.iv = pool_alloc(pool_head_quic_tls_iv)) ||
+	    !(ctx->rx.key = pool_alloc(pool_head_quic_tls_key)))
+		goto err;
+
+ write:
+	if (ctx->tx.key)
+		goto out;
+
+	if (!(ctx->tx.iv = pool_alloc(pool_head_quic_tls_iv)) ||
 	    !(ctx->tx.key = pool_alloc(pool_head_quic_tls_key)))
 		goto err;
 
 	ctx->rx.ivlen = ctx->tx.ivlen = QUIC_TLS_IV_LEN;
 	ctx->rx.keylen = ctx->tx.keylen = QUIC_TLS_KEY_LEN;
+out:
 	return 1;
 
  err:

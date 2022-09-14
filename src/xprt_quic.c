@@ -919,6 +919,9 @@ int ha_quic_set_encryption_secrets(SSL *ssl, enum ssl_encryption_level_t level,
 	rx->md   = tx->md   = tls_md(cipher);
 	rx->hp   = tx->hp   = tls_hp(cipher);
 
+	if (!read_secret)
+		goto write;
+
 	if (!quic_tls_derive_keys(rx->aead, rx->hp, rx->md, ver, rx->key, rx->keylen,
 	                          rx->iv, rx->ivlen, rx->hp_key, sizeof rx->hp_key,
 	                          read_secret, secret_len)) {
@@ -944,6 +947,8 @@ int ha_quic_set_encryption_secrets(SSL *ssl, enum ssl_encryption_level_t level,
 		TRACE_DEVEL("pushing connection into accept queue", QUIC_EV_CONN_RWSEC, qc);
 		quic_accept_push_qc(qc);
 	}
+
+write:
 
 	if (!write_secret)
 		goto out;
@@ -977,17 +982,17 @@ int ha_quic_set_encryption_secrets(SSL *ssl, enum ssl_encryption_level_t level,
 			goto leave;
 		}
 
-		memcpy(rx->secret, read_secret, secret_len);
-		rx->secretlen = secret_len;
-		memcpy(tx->secret, write_secret, secret_len);
-		tx->secretlen = secret_len;
+		if (read_secret) {
+			memcpy(rx->secret, read_secret, secret_len);
+			rx->secretlen = secret_len;
+		}
+		if (write_secret) {
+			memcpy(tx->secret, write_secret, secret_len);
+			tx->secretlen = secret_len;
+		}
 		/* Initialize all the secret keys lengths */
 		prv_rx->secretlen = nxt_rx->secretlen = nxt_tx->secretlen = secret_len;
 		/* Prepare the next key update */
-		if (!quic_tls_key_update(qc)) {
-			// trace already emitted by function above
-			goto leave;
-		}
 	}
 
  out:
@@ -2257,6 +2262,11 @@ static inline int qc_provide_cdata(struct quic_enc_level *el,
 		}
 		else {
 			qc->state = QUIC_HS_ST_COMPLETE;
+		}
+
+		if (!quic_tls_key_update(qc)) {
+			TRACE_ERROR("quic_tls_key_update() failed", QUIC_EV_CONN_IO_CB, qc);
+			goto leave;
 		}
 	} else {
 		ssl_err = SSL_process_quic_post_handshake(ctx->ssl);
