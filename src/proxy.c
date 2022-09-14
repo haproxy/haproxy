@@ -2789,10 +2789,12 @@ static int dump_servers_state(struct stconn *sc)
 				     "%s %d %d "
 				     "%s %s %d"
 			             "\n",
-			             px->uuid, px->id,
-			             srv->puid, srv->id, srv_addr,
-			             srv->cur_state, srv->cur_admin, srv->uweight, srv->iweight, (long int)srv_time_since_last_change,
-			             srv->check.status, srv->check.result, srv->check.health, srv->check.state, srv->agent.state,
+			             px->uuid, HA_ANON_CLI(px->id),
+			             srv->puid, HA_ANON_CLI(srv->id), HA_ANON_CLI(srv_addr),
+			             srv->cur_state, srv->cur_admin, srv->uweight, srv->iweight,
+				     (long int)srv_time_since_last_change,
+			             srv->check.status, srv->check.result, srv->check.health,
+				     srv->check.state, srv->agent.state,
 			             bk_f_forced_id, srv_f_forced_id, srv->hostname ? srv->hostname : "-", srv->svc_port,
 			             srvrecord ? srvrecord : "-", srv->use_ssl, srv->check.port,
 				     srv_check_addr, srv_agent_addr, srv->agent.port);
@@ -2802,8 +2804,9 @@ static int dump_servers_state(struct stconn *sc)
 
 			chunk_printf(&trash,
 			             "%s/%s %d/%d %s %u - %u %u %u %u %u %u %d %u",
-			             px->id, srv->id, px->uuid, srv->puid, srv_addr,srv->svc_port,
-			             srv->pool_purge_delay,
+			             HA_ANON_CLI(px->id), HA_ANON_CLI(srv->id),
+			             px->uuid, srv->puid, HA_ANON_CLI(srv_addr),
+			             srv->svc_port, srv->pool_purge_delay,
 			             srv->curr_used_conns, srv->max_used_conns, srv->est_need_conns,
 			             srv->curr_idle_nb, srv->curr_safe_nb, (int)srv->max_idle_conns, srv->curr_idle_conns);
 
