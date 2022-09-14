@@ -5,6 +5,8 @@
 
 void httpclient_destroy(struct httpclient *hc);
 void httpclient_stop_and_destroy(struct httpclient *hc);
+
+struct proxy *httpclient_create_proxy(const char *id);
 struct httpclient *httpclient_new(void *caller, enum http_meth_t meth, struct ist url);
 struct httpclient *httpclient_new_from_proxy(struct proxy *px, void *caller, enum http_meth_t meth, struct ist url);
 int httpclient_set_proxy(struct httpclient *hc, struct proxy *px);
