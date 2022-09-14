@@ -1796,11 +1796,11 @@ static void qc_release(struct qcc *qcc)
 
 	TRACE_ENTER(QMUX_EV_QCC_END, conn);
 
-	if (qcc->app_ops && qcc->app_ops->release) {
+	if (qcc->app_ops && qcc->app_ops->shutdown) {
 		/* Application protocol with dedicated connection closing
 		 * procedure.
 		 */
-		qcc->app_ops->release(qcc->ctx);
+		qcc->app_ops->shutdown(qcc->ctx);
 
 		/* useful if application protocol should emit some closing
 		 * frames. For example HTTP/3 GOAWAY frame.
@@ -1810,7 +1810,6 @@ static void qc_release(struct qcc *qcc)
 	else {
 		qcc_emit_cc_app(qcc, QC_ERR_NO_ERROR, 0);
 	}
-	TRACE_PROTO("application layer released", QMUX_EV_QCC_END, conn);
 
 	if (qcc->task) {
 		task_destroy(qcc->task);
@@ -1838,6 +1837,10 @@ static void qc_release(struct qcc *qcc)
 		LIST_DELETE(&frm->list);
 		pool_free(pool_head_quic_frame, frm);
 	}
+
+	if (qcc->app_ops && qcc->app_ops->release)
+		qcc->app_ops->release(qcc->ctx);
+	TRACE_PROTO("application layer released", QMUX_EV_QCC_END, conn);
 
 	pool_free(pool_head_qcc, qcc);
 

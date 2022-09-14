@@ -1203,7 +1203,8 @@ static int h3_init(struct qcc *qcc)
 	return 0;
 }
 
-static void h3_release(void *ctx)
+/* Send a HTTP/3 GOAWAY followed by a CONNECTION_CLOSE_APP. */
+static void h3_shutdown(void *ctx)
 {
 	struct h3c *h3c = ctx;
 
@@ -1223,7 +1224,11 @@ static void h3_release(void *ctx)
 	 * the connection.
 	 */
 	qcc_emit_cc_app(h3c->qcc, H3_NO_ERROR, 0);
+}
 
+static void h3_release(void *ctx)
+{
+	struct h3c *h3c = ctx;
 	pool_free(pool_head_h3c, h3c);
 }
 
@@ -1266,6 +1271,7 @@ const struct qcc_app_ops h3_ops = {
 	.snd_buf     = h3_snd_buf,
 	.detach      = h3_detach,
 	.finalize    = h3_finalize,
-	.release     = h3_release,
+	.shutdown    = h3_shutdown,
 	.inc_err_cnt = h3_stats_inc_err_cnt,
+	.release     = h3_release,
 };

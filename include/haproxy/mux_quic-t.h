@@ -188,6 +188,7 @@ struct qcc_app_ops {
 	size_t (*snd_buf)(struct stconn *sc, struct buffer *buf, size_t count, int flags);
 	void (*detach)(struct qcs *qcs);
 	int (*finalize)(void *ctx);
+	void (*shutdown)(void *ctx);                    /* Close a connection. */
 	void (*release)(void *ctx);
 	void (*inc_err_cnt)(void *ctx, int err_code);
 };
