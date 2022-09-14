@@ -1874,6 +1874,24 @@ int cli_parse_default(char **args, char *payload, struct appctx *appctx, void *p
 	return 0;
 }
 
+/* This function set the global anonyzing key, restricted to level 'admin' */
+static int cli_parse_set_global_key(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	long long key;
+
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return cli_err(appctx, "Permission denied\n");
+	if (!*args[2])
+                return cli_err(appctx, "Expects an integer value.\n");
+
+	key = atoll(args[2]);
+	if (key < 0 || key > UINT_MAX)
+		return cli_err(appctx, "Value out of range (0 to 4294967295 expected).\n");
+
+	HA_ATOMIC_STORE(&global.anon_key, key);
+	return 1;
+}
+
 /* parse a "set rate-limit" command. It always returns 1. */
 static int cli_parse_set_ratelimit(char **args, char *payload, struct appctx *appctx, void *private)
 {
@@ -3182,6 +3200,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "expert-mode", NULL },               NULL,                                                                                                cli_parse_expert_experimental_mode, NULL, NULL, NULL, ACCESS_MASTER }, // not listed
 	{ { "experimental-mode", NULL },         NULL,                                                                                                cli_parse_expert_experimental_mode, NULL, NULL, NULL, ACCESS_MASTER }, // not listed
 	{ { "mcli-debug-mode", NULL },         NULL,                                                                                                  cli_parse_expert_experimental_mode, NULL, NULL, NULL, ACCESS_MASTER_ONLY }, // not listed
+	{ { "set", "global-key", NULL },         "set global-key <value>                  : change the global anonymizing key",                       cli_parse_set_global_key, NULL, NULL },
 	{ { "set", "maxconn", "global",  NULL }, "set maxconn global <value>              : change the per-process maxconn setting",                  cli_parse_set_maxconn_global, NULL },
 	{ { "set", "rate-limit", NULL },         "set rate-limit <setting> <value>        : change a rate limiting value",                            cli_parse_set_ratelimit, NULL },
 	{ { "set", "severity-output",  NULL },   "set severity-output [none|number|string]: set presence of severity level in feedback information",  cli_parse_set_severity_output, NULL, NULL },

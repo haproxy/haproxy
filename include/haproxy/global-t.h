@@ -203,6 +203,7 @@ struct global {
 	unsigned int shctx_lookups, shctx_misses;
 	unsigned int req_count; /* request counter (HTTP or TCP session) for logs and unique_id */
 	int last_checks;
+	uint32_t anon_key;
 
 	/* leave this at the end to make sure we don't share this cache line by accident */
 	ALWAYS_ALIGN(64);

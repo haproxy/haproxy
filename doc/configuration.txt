@@ -1156,6 +1156,7 @@ The following keywords are supported in the "global" section :
    - tune.zlib.windowsize
 
  * Debugging
+   - anonkey
    - quiet
    - zero-warning
 
@@ -3220,6 +3221,12 @@ tune.zlib.windowsize <number>
 
 3.3. Debugging
 --------------
+
+anonkey <key>
+  This sets the global anonymizing key to <key>, which must be a 32-bit number
+  between 0 and 4294967295. This is the key that will be used by default by CLI
+  commands when anonymized mode is enabled. This key may also be set at runtime
+  from the CLI command "set global-key".
 
 quiet
   Do not display any message during startup. It is equivalent to the command-

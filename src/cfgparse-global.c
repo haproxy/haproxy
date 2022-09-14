@@ -1257,6 +1257,28 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 	else if (strcmp(args[0], "numa-cpu-mapping") == 0) {
 		global.numa_cpu_mapping = (kwm == KWM_NO) ? 0 : 1;
 	}
+	else if (strcmp(args[0], "anonkey") == 0) {
+		long long tmp = 0;
+
+		if (*args[1] == 0) {
+			ha_alert("parsing [%s:%d]: a key is expected after '%s'.\n",
+				 file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		if (HA_ATOMIC_LOAD(&global.anon_key) == 0) {
+			tmp = atoll(args[1]);
+			if (tmp < 0 || tmp > UINT_MAX) {
+				ha_alert("parsing [%s:%d]: '%s' value must be within range %u-%u (was '%s').\n",
+					 file, linenum, args[0], 0, UINT_MAX, args[1]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+
+			HA_ATOMIC_STORE(&global.anon_key, tmp);
+		}
+	}
 	else {
 		struct cfg_kw_list *kwl;
 		const char *best;

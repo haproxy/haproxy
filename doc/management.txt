@@ -2195,6 +2195,11 @@ set dynamic-cookie-key backend <backend> <value>
   Modify the secret key used to generate the dynamic persistent cookies.
   This will break the existing sessions.
 
+set global-key <key>
+  This sets the global anonymizing key to <key>, which must be a 32-bit
+  integer between 0 and 4294967295 (0 disables the global key). This command
+  requires admin privilege.
+
 set map <map> [<key>|#<ref>] <value>
   Modify the value corresponding to each key <key> in a map <map>. <map> is the
   #<id> or <file> returned by "show map". If the <ref> is used in place of
