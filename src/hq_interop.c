@@ -12,7 +12,6 @@ static ssize_t hq_interop_decode_qcs(struct qcs *qcs, struct buffer *b, int fin)
 {
 	struct htx *htx;
 	struct htx_sl *sl;
-	struct stconn *sc;
 	struct buffer htx_buf = BUF_NULL;
 	struct ist path;
 	char *ptr = b_head(b);
@@ -70,8 +69,7 @@ static ssize_t hq_interop_decode_qcs(struct qcs *qcs, struct buffer *b, int fin)
 	htx_add_endof(htx, HTX_BLK_EOH);
 	htx_to_buf(htx, &htx_buf);
 
-	sc = qc_attach_sc(qcs, &htx_buf);
-	if (!sc)
+	if (!qc_attach_sc(qcs, &htx_buf))
 		return -1;
 
 	b_free(&htx_buf);
@@ -90,10 +88,9 @@ static struct buffer *mux_get_buf(struct qcs *qcs)
 	return &qcs->tx.buf;
 }
 
-static size_t hq_interop_snd_buf(struct stconn *sc, struct buffer *buf,
+static size_t hq_interop_snd_buf(struct qcs *qcs, struct buffer *buf,
                                  size_t count, int flags)
 {
-	struct qcs *qcs = __sc_mux_strm(sc);
 	struct htx *htx;
 	enum htx_blk_type btype;
 	struct htx_blk *blk;

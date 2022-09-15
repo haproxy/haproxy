@@ -31,7 +31,6 @@
 #include <haproxy/qpack-dec.h>
 #include <haproxy/qpack-enc.h>
 #include <haproxy/quic_enc.h>
-#include <haproxy/stconn.h>
 #include <haproxy/tools.h>
 #include <haproxy/trace.h>
 #include <haproxy/xprt_quic.h>
@@ -1013,10 +1012,9 @@ static int h3_resp_data_send(struct qcs *qcs, struct buffer *buf, size_t count)
 	return total;
 }
 
-size_t h3_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, int flags)
+static size_t h3_snd_buf(struct qcs *qcs, struct buffer *buf, size_t count, int flags)
 {
 	size_t total = 0;
-	struct qcs *qcs = __sc_mux_strm(sc);
 	struct htx *htx;
 	enum htx_blk_type btype;
 	struct htx_blk *blk;

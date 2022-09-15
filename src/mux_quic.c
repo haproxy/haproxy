@@ -2225,7 +2225,7 @@ static size_t qc_snd_buf(struct stconn *sc, struct buffer *buf,
 		goto end;
 	}
 
-	ret = qcs->qcc->app_ops->snd_buf(sc, buf, count, flags);
+	ret = qcs->qcc->app_ops->snd_buf(qcs, buf, count, flags);
 
  end:
 	TRACE_LEAVE(QMUX_EV_STRM_SEND, qcs->qcc->conn, qcs);

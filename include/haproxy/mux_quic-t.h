@@ -185,7 +185,7 @@ struct qcc_app_ops {
 	int (*init)(struct qcc *qcc);
 	int (*attach)(struct qcs *qcs, void *conn_ctx);
 	ssize_t (*decode_qcs)(struct qcs *qcs, struct buffer *b, int fin);
-	size_t (*snd_buf)(struct stconn *sc, struct buffer *buf, size_t count, int flags);
+	size_t (*snd_buf)(struct qcs *qcs, struct buffer *buf, size_t count, int flags);
 	void (*detach)(struct qcs *qcs);
 	int (*finalize)(void *ctx);
 	void (*shutdown)(void *ctx);                    /* Close a connection. */
