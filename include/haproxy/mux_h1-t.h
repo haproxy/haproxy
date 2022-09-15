@@ -23,6 +23,7 @@
 #define _HAPROXY_MUX_H1_T_H
 
 #include <haproxy/api-t.h>
+#include <haproxy/show_flags-t.h>
 
 /**** Connection flags (32 bit), in h1c->flags ****/
 #define H1C_F_NONE           0x00000000
@@ -61,6 +62,30 @@
 #define H1C_F_IS_BACK        0x80000000 /* Set on outgoing connection */
 
 
+/* This function is used to report flags in debugging tools. Please reflect
+ * below any single-bit flag addition above in the same order via the
+ * __APPEND_FLAG macro. The new end of the buffer is returned.
+ */
+static forceinline char *h1c_show_flags(char *buf, size_t len, const char *delim, uint flg)
+{
+#define _(f, ...) __APPEND_FLAG(buf, len, delim, flg, f, #f, __VA_ARGS__)
+	/* prologue */
+	_(0);
+	/* flags */
+	_(H1C_F_OUT_ALLOC, _(H1C_F_OUT_FULL,
+	_(H1C_F_IN_ALLOC, _(H1C_F_IN_FULL, _(H1C_F_IN_SALLOC,
+	_(H1C_F_ST_EMBRYONIC, _(H1C_F_ST_ATTACHED, _(H1C_F_ST_IDLE,
+	_(H1C_F_ST_ERROR, _(H1C_F_ST_SHUTDOWN, _(H1C_F_ST_READY,
+	_(H1C_F_ST_SILENT_SHUT, _(H1C_F_WANT_SPLICE, _(H1C_F_ERR_PENDING,
+	_(H1C_F_WAIT_NEXT_REQ, _(H1C_F_UPG_H2C, _(H1C_F_CO_MSG_MORE,
+	_(H1C_F_CO_STREAMER, _(H1C_F_IS_BACK)))))))))))))))))));
+	/* epilogue */
+	_(~0U);
+	return buf;
+#undef _
+}
+
+
 /**** H1 stream flags (32 bit), in h1s->flags ****/
 #define H1S_F_NONE           0x00000000
 
@@ -84,6 +109,27 @@
 
 #define H1S_F_HAVE_SRV_NAME  0x00002000 /* Set during output process if the server name header was added to the request */
 #define H1S_F_HAVE_O_CONN    0x00004000 /* Set during output process to know connection mode was processed */
+
+/* This function is used to report flags in debugging tools. Please reflect
+ * below any single-bit flag addition above in the same order via the
+ * __APPEND_FLAG macro. The new end of the buffer is returned.
+ */
+static forceinline char *h1s_show_flags(char *buf, size_t len, const char *delim, uint flg)
+{
+#define _(f, ...) __APPEND_FLAG(buf, len, delim, flg, f, #f, __VA_ARGS__)
+	/* prologue */
+	_(0);
+	/* flags */
+	_(H1S_F_RX_BLK, _(H1S_F_TX_BLK, _(H1S_F_RX_CONGESTED,
+	_(H1S_F_REOS, _(H1S_F_WANT_KAL, _(H1S_F_WANT_TUN, _(H1S_F_WANT_CLO,
+	_(H1S_F_NOT_FIRST, _(H1S_F_BODYLESS_RESP,
+	_(H1S_F_NOT_IMPL_ERROR, _(H1S_F_PARSING_ERROR, _(H1S_F_PROCESSING_ERROR,
+	_(H1S_F_HAVE_SRV_NAME, _(H1S_F_HAVE_O_CONN))))))))))))));
+	/* epilogue */
+	_(~0U);
+	return buf;
+#undef _
+}
 
 
 #endif /* _HAPROXY_MUX_H1_T_H */

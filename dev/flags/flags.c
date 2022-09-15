@@ -7,6 +7,7 @@
 #include <haproxy/http_ana-t.h>
 #include <haproxy/htx-t.h>
 #include <haproxy/mux_h2-t.h>
+#include <haproxy/mux_h1-t.h>
 #include <haproxy/stconn-t.h>
 #include <haproxy/stream-t.h>
 #include <haproxy/task-t.h>
@@ -27,10 +28,12 @@
 #define SHOW_AS_FD    0x00001000
 #define SHOW_AS_H2C   0x00002000
 #define SHOW_AS_H2S   0x00004000
+#define SHOW_AS_H1C   0x00008000
+#define SHOW_AS_H1S   0x00010000
 
 // command line names, must be in exact same order as the SHOW_AS_* flags above
 // so that show_as_words[i] matches flag 1U<<i.
-const char *show_as_words[] = { "ana", "chn", "conn", "sc", "stet", "strm", "task", "txn", "sd", "hsl", "htx", "hmsg", "fd", "h2c", "h2s", };
+const char *show_as_words[] = { "ana", "chn", "conn", "sc", "stet", "strm", "task", "txn", "sd", "hsl", "htx", "hmsg", "fd", "h2c", "h2s",  "h1c", "h1s", };
 
 /* will be sufficient for even largest flag names */
 static char buf[4096];
@@ -139,6 +142,8 @@ int main(int argc, char **argv)
 		if (show_as & SHOW_AS_FD)    printf("fd->flags = %s\n",   (fd_show_flags     (buf, bsz, " | ", flags), buf));
 		if (show_as & SHOW_AS_H2C)   printf("h2c->flags = %s\n",  (h2c_show_flags    (buf, bsz, " | ", flags), buf));
 		if (show_as & SHOW_AS_H2S)   printf("h2s->flags = %s\n",  (h2s_show_flags    (buf, bsz, " | ", flags), buf));
+		if (show_as & SHOW_AS_H1C)   printf("h1c->flags = %s\n",  (h1c_show_flags    (buf, bsz, " | ", flags), buf));
+		if (show_as & SHOW_AS_H1S)   printf("h1s->flags = %s\n",  (h1s_show_flags    (buf, bsz, " | ", flags), buf));
 	}
 	return 0;
 }
