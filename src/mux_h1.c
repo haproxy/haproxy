@@ -3675,17 +3675,19 @@ static size_t h1_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, in
 		else
 			TRACE_DEVEL("h1c obuf not allocated", H1_EV_STRM_SEND|H1_EV_H1S_BLK, h1c->conn, h1s);
 
-		if ((h1c->conn->flags & (CO_FL_ERROR|CO_FL_SOCK_WR_SH)))
+		if (!ret)
 			break;
 
 		if ((count - ret) > 0)
 			h1c->flags |= H1C_F_CO_MSG_MORE;
 
-		if (!ret)
-			break;
 		total += ret;
 		count -= ret;
+
 		if ((h1c->wait_event.events & SUB_RETRY_SEND) || !h1_send(h1c))
+			break;
+
+		if ((h1c->conn->flags & (CO_FL_ERROR|CO_FL_SOCK_WR_SH)))
 			break;
 	}
 
