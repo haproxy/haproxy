@@ -2277,8 +2277,13 @@ static void init(int argc, char **argv)
 	}
 
 #ifdef USE_OPENSSL
-	/* Initialize the error strings of OpenSSL */
+#if (HA_OPENSSL_VERSION_NUMBER < 0x1010000fL)
+	/* Initialize the error strings of OpenSSL
+	 * It only needs to be done explicitely with older versions of the SSL
+	 * library. On newer versions, errors strings are loaded during start
+	 * up. */
 	SSL_load_error_strings();
+#endif
 
 	/* Initialize SSL random generator. Must be called before chroot for
 	 * access to /dev/urandom, and before ha_random_boot() which may use
