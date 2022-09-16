@@ -661,6 +661,20 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 				chunk_frm_appendf(&trace_buf, frm);
 			}
 		}
+
+		if (mask & QUIC_EV_CONN_ELEVELSEL) {
+			const enum quic_handshake_state *state = a2;
+			const enum quic_tls_enc_level *level = a3;
+			const enum quic_tls_enc_level *next_level = a4;
+
+			if (state)
+				chunk_appendf(&trace_buf, " state=%s", quic_hdshk_state_str(qc->state));
+			if (level)
+				chunk_appendf(&trace_buf, " level=%c", quic_enc_level_char(*level));
+			if (next_level)
+				chunk_appendf(&trace_buf, " next_level=%c", quic_enc_level_char(*next_level));
+
+		}
 	}
 	if (mask & QUIC_EV_CONN_LPKT) {
 		const struct quic_rx_packet *pkt = a2;
@@ -4300,10 +4314,13 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 	struct quic_conn *qc = context;
 	enum quic_tls_enc_level tel, next_tel;
 	struct quic_enc_level *qel, *next_qel;
+	/* Early-data encryption level */
+	struct quic_enc_level *eqel;
 	struct buffer *buf = NULL;
 	int st, force_ack, zero_rtt;
 
 	TRACE_ENTER(QUIC_EV_CONN_IO_CB, qc);
+	eqel = &qc->els[QUIC_TLS_ENC_LEVEL_EARLY_DATA];
 	st = qc->state;
 	TRACE_PROTO("connection state", QUIC_EV_CONN_IO_CB, qc, &st);
 
@@ -4330,8 +4347,8 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 	}
 	ssl_err = SSL_ERROR_NONE;
 	zero_rtt = st < QUIC_HS_ST_COMPLETE &&
-		(!LIST_ISEMPTY(&qc->els[QUIC_TLS_ENC_LEVEL_EARLY_DATA].rx.pqpkts) ||
-		qc_el_rx_pkts(&qc->els[QUIC_TLS_ENC_LEVEL_EARLY_DATA]));
+		(eqel->tls_ctx.flags & QUIC_FL_TLS_SECRETS_SET) &&
+		(!LIST_ISEMPTY(&eqel->rx.pqpkts) || qc_el_rx_pkts(eqel));
  start:
 	if (st >= QUIC_HS_ST_COMPLETE &&
 	    qc_el_rx_pkts(&qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE])) {
@@ -4340,7 +4357,7 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 		tel = QUIC_TLS_ENC_LEVEL_HANDSHAKE;
 		next_tel = QUIC_TLS_ENC_LEVEL_APP;
 	}
-	else if (!quic_get_tls_enc_levels(&tel, &next_tel, st, zero_rtt))
+	else if (!quic_get_tls_enc_levels(&tel, &next_tel, qc, st, zero_rtt))
 		goto out;
 
 	qel = &qc->els[tel];
@@ -4360,24 +4377,15 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 	    !(qc->flags & QUIC_FL_CONN_IMMEDIATE_CLOSE))
 		goto out;
 
-	if (next_qel && next_qel == &qc->els[QUIC_TLS_ENC_LEVEL_EARLY_DATA] &&
-	    !LIST_ISEMPTY(&next_qel->rx.pqpkts)) {
-	    if ((next_qel->tls_ctx.flags & QUIC_FL_TLS_SECRETS_SET)) {
-			qel = next_qel;
-			next_qel = NULL;
-			goto next_level;
-		}
-		else {
-			struct quic_rx_packet *pkt, *pkttmp;
-			struct quic_enc_level *aqel = &qc->els[QUIC_TLS_ENC_LEVEL_EARLY_DATA];
-
-			/* Drop these 0-RTT packets */
-			TRACE_DEVEL("drop all 0-RTT packets", QUIC_EV_CONN_PHPKTS, qc);
-			list_for_each_entry_safe(pkt, pkttmp, &aqel->rx.pqpkts, list) {
-				LIST_DELETE(&pkt->list);
-				quic_rx_packet_refdec(pkt);
-			}
-		}
+	zero_rtt = st < QUIC_HS_ST_COMPLETE &&
+		(eqel->tls_ctx.flags & QUIC_FL_TLS_SECRETS_SET) &&
+		(!LIST_ISEMPTY(&eqel->rx.pqpkts) || qc_el_rx_pkts(eqel));
+	if (next_qel && next_qel == eqel && zero_rtt) {
+		TRACE_DEVEL("select 0RTT as next encryption level",
+					QUIC_EV_CONN_PHPKTS, qc);
+		qel = next_qel;
+		next_qel = NULL;
+		goto next_level;
 	}
 
 	st = qc->state;
@@ -4406,7 +4414,7 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 	/* A listener does not send any O-RTT packet. O-RTT packet number space must not
 	 * be considered.
 	 */
-	if (!quic_get_tls_enc_levels(&tel, &next_tel, st, 0))
+	if (!quic_get_tls_enc_levels(&tel, &next_tel, qc, st, 0))
 		goto out;
 
 	if (!qc_need_sending(qc, qel) &&

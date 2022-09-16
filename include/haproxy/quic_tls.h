@@ -455,8 +455,12 @@ static inline int quic_tls_level_pkt_type(enum quic_tls_enc_level level)
 /* Set <*level> and <*next_level> depending on <state> QUIC handshake state. */
 static inline int quic_get_tls_enc_levels(enum quic_tls_enc_level *level,
                                           enum quic_tls_enc_level *next_level,
+                                          struct quic_conn *qc,
                                           enum quic_handshake_state state, int zero_rtt)
 {
+	int ret = 0;
+
+	TRACE_ENTER(QUIC_EV_CONN_ELEVELSEL, qc, &state, level, next_level);
 	switch (state) {
 	case QUIC_HS_ST_SERVER_INITIAL:
 	case QUIC_HS_ST_CLIENT_INITIAL:
@@ -477,10 +481,13 @@ static inline int quic_get_tls_enc_levels(enum quic_tls_enc_level *level,
 		*next_level = QUIC_TLS_ENC_LEVEL_NONE;
 		break;
 	default:
-		return 0;
+		goto leave;
 	}
 
-	return 1;
+	ret = 1;
+ leave:
+	TRACE_LEAVE(QUIC_EV_CONN_ELEVELSEL, qc, NULL, level, next_level);
+	return ret;
 }
 
 /* Flag the keys at <qel> encryption level as discarded.
