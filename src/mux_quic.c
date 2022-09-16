@@ -818,10 +818,8 @@ static int qcc_decode_qcs(struct qcc *qcc, struct qcs *qcs)
 
 	b = qcs_b_dup(&qcs->rx.ncbuf);
 
-	/* Signal FIN to application if STREAM FIN received and there is no gap
-	 * in the Rx buffer.
-	 */
-	if (qcs->flags & QC_SF_SIZE_KNOWN && !ncb_is_fragmented(&qcs->rx.ncbuf))
+	/* Signal FIN to application if STREAM FIN received with all data. */
+	if (qcs_is_close_remote(qcs))
 		fin = 1;
 
 	ret = qcc->app_ops->decode_qcs(qcs, &b, fin);
@@ -958,6 +956,10 @@ int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
 	}
 
 	if (offset + len <= qcs->rx.offset) {
+		/* TODO offset may have been received without FIN first and now
+		 * with it. In this case, it must be notified to be able to
+		 * close the stream.
+		 */
 		TRACE_DATA("already received offset", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV, qcc->conn, qcs);
 		goto out;
 	}
@@ -1027,8 +1029,10 @@ int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
 	if (fin)
 		qcs->flags |= QC_SF_SIZE_KNOWN;
 
-	if (qcs->flags & QC_SF_SIZE_KNOWN && !ncb_is_fragmented(&qcs->rx.ncbuf))
+	if (qcs->flags & QC_SF_SIZE_KNOWN &&
+	    qcs->rx.offset_max == qcs->rx.offset + ncb_data(&qcs->rx.ncbuf, 0)) {
 		qcs_close_remote(qcs);
+	}
 
 	if (ncb_data(&qcs->rx.ncbuf, 0) && !(qcs->flags & QC_SF_DEM_FULL)) {
 		qcc_decode_qcs(qcc, qcs);
