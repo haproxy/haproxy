@@ -2,7 +2,7 @@
 
 #include <haproxy/quic_conn-t.h>
 #include <haproxy/quic_loss.h>
-#include <haproxy/quic_tls-t.h>
+#include <haproxy/quic_tls.h>
 
 #include <haproxy/atomic.h>
 #include <haproxy/list.h>
@@ -97,7 +97,7 @@ struct quic_pktns *quic_pto_pktns(struct quic_conn *qc,
 		struct quic_enc_level *hel;
 
 		hel = &qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE];
-		if (hel->tls_ctx.flags & QUIC_FL_TLS_SECRETS_SET) {
+		if (quic_tls_has_tx_sec(hel)) {
 			pktns = &qc->pktns[QUIC_TLS_PKTNS_HANDSHAKE];
 		}
 		else {

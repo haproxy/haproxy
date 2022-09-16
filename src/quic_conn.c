@@ -293,48 +293,44 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 			const unsigned char *tx_sec = a3;
 
 			tls_ctx = &qc->els[level].tls_ctx;
-			if (tls_ctx->flags & QUIC_FL_TLS_SECRETS_SET) {
-				chunk_appendf(&trace_buf, "\n  RX el=%c", quic_enc_level_char(level));
-				if (rx_sec)
-					quic_tls_secret_hexdump(&trace_buf, rx_sec, 32);
-				quic_tls_keys_hexdump(&trace_buf, &tls_ctx->rx);
-				chunk_appendf(&trace_buf, "\n  TX el=%c", quic_enc_level_char(level));
-				if (tx_sec)
-					quic_tls_secret_hexdump(&trace_buf, tx_sec, 32);
-				quic_tls_keys_hexdump(&trace_buf, &tls_ctx->tx);
-			}
+			chunk_appendf(&trace_buf, "\n  RX el=%c", quic_enc_level_char(level));
+			if (rx_sec)
+				quic_tls_secret_hexdump(&trace_buf, rx_sec, 32);
+			quic_tls_keys_hexdump(&trace_buf, &tls_ctx->rx);
+			chunk_appendf(&trace_buf, "\n  TX el=%c", quic_enc_level_char(level));
+			if (tx_sec)
+				quic_tls_secret_hexdump(&trace_buf, tx_sec, 32);
+			quic_tls_keys_hexdump(&trace_buf, &tls_ctx->tx);
 		}
 		if (mask & (QUIC_EV_CONN_RSEC|QUIC_EV_CONN_RWSEC)) {
 			const enum ssl_encryption_level_t *level = a2;
-			const unsigned char *secret = a3;
-			const size_t *secret_len = a4;
 
 			if (level) {
 				enum quic_tls_enc_level lvl = ssl_to_quic_enc_level(*level);
 
 				chunk_appendf(&trace_buf, "\n  RX el=%c", quic_enc_level_char(lvl));
-				if (secret && secret_len)
-					quic_tls_secret_hexdump(&trace_buf, secret, *secret_len);
-				tls_ctx = &qc->els[lvl].tls_ctx;
-				if (tls_ctx->flags & QUIC_FL_TLS_SECRETS_SET)
+				if (quic_tls_has_rx_sec(&qc->els[lvl])) {
+					tls_ctx = &qc->els[lvl].tls_ctx;
 					quic_tls_keys_hexdump(&trace_buf, &tls_ctx->rx);
+				}
+				else
+					chunk_appendf(&trace_buf, " (none)");
 			}
 		}
 
 		if (mask & (QUIC_EV_CONN_WSEC|QUIC_EV_CONN_RWSEC)) {
 			const enum ssl_encryption_level_t *level = a2;
-			const unsigned char *secret = a3;
-			const size_t *secret_len = a4;
 
 			if (level) {
 				enum quic_tls_enc_level lvl = ssl_to_quic_enc_level(*level);
 
 				chunk_appendf(&trace_buf, "\n  TX el=%c", quic_enc_level_char(lvl));
-				if (secret && secret_len)
-					quic_tls_secret_hexdump(&trace_buf, secret, *secret_len);
-				tls_ctx = &qc->els[lvl].tls_ctx;
-				if (tls_ctx->flags & QUIC_FL_TLS_SECRETS_SET)
+				if (quic_tls_has_tx_sec(&qc->els[lvl])) {
+					tls_ctx = &qc->els[lvl].tls_ctx;
 					quic_tls_keys_hexdump(&trace_buf, &tls_ctx->tx);
+				}
+				else
+					chunk_appendf(&trace_buf, " (none)");
 			}
 
 		}
@@ -914,7 +910,7 @@ int ha_quic_set_encryption_secrets(SSL *ssl, enum ssl_encryption_level_t level,
 	struct quic_conn *qc = SSL_get_ex_data(ssl, ssl_qc_app_data_index);
 	struct quic_tls_ctx *tls_ctx = &qc->els[ssl_to_quic_enc_level(level)].tls_ctx;
 	const SSL_CIPHER *cipher = SSL_get_current_cipher(ssl);
-	struct quic_tls_secrets *rx, *tx;
+	struct quic_tls_secrets *rx = NULL, *tx = NULL;
 	const struct quic_version *ver =
 		qc->negotiated_version ? qc->negotiated_version : qc->original_version;
 	int ret = 0;
@@ -923,28 +919,26 @@ int ha_quic_set_encryption_secrets(SSL *ssl, enum ssl_encryption_level_t level,
 	BUG_ON(secret_len > QUIC_TLS_SECRET_LEN);
 	if (qc->flags & QUIC_FL_CONN_IMMEDIATE_CLOSE) {
 		TRACE_PROTO("CC required", QUIC_EV_CONN_RWSEC, qc);
-		goto no_secret;
+		goto out;
 	}
-
-	if (!quic_tls_ctx_keys_alloc(tls_ctx)) {
-		TRACE_ERROR("keys allocation failed", QUIC_EV_CONN_RWSEC, qc);
-		goto leave;
-	}
-
-	rx = &tls_ctx->rx;
-	tx = &tls_ctx->tx;
-
-	rx->aead = tx->aead = tls_aead(cipher);
-	rx->md   = tx->md   = tls_md(cipher);
-	rx->hp   = tx->hp   = tls_hp(cipher);
 
 	if (!read_secret)
 		goto write;
 
+	rx = &tls_ctx->rx;
+	if (!quic_tls_secrets_keys_alloc(rx)) {
+		TRACE_ERROR("RX keys allocation failed", QUIC_EV_CONN_RWSEC, qc);
+		goto leave;
+	}
+
+	rx->aead = tls_aead(cipher);
+	rx->md   = tls_md(cipher);
+	rx->hp   = tls_hp(cipher);
+
 	if (!quic_tls_derive_keys(rx->aead, rx->hp, rx->md, ver, rx->key, rx->keylen,
 	                          rx->iv, rx->ivlen, rx->hp_key, sizeof rx->hp_key,
 	                          read_secret, secret_len)) {
-		TRACE_ERROR("RX key derivation failed", QUIC_EV_CONN_RWSEC, qc);
+		TRACE_ERROR("TX key derivation failed", QUIC_EV_CONN_RWSEC, qc);
 		goto leave;
 	}
 
@@ -972,6 +966,16 @@ write:
 	if (!write_secret)
 		goto out;
 
+	tx = &tls_ctx->tx;
+	if (!quic_tls_secrets_keys_alloc(tx)) {
+		TRACE_ERROR("TX keys allocation failed", QUIC_EV_CONN_RWSEC, qc);
+		goto leave;
+	}
+
+	tx->aead = tls_aead(cipher);
+	tx->md   = tls_md(cipher);
+	tx->hp   = tls_hp(cipher);
+
 	if (!quic_tls_derive_keys(tx->aead, tx->hp, tx->md, ver, tx->key, tx->keylen,
 	                          tx->iv, tx->ivlen, tx->hp_key, sizeof tx->hp_key,
 	                          write_secret, secret_len)) {
@@ -994,29 +998,31 @@ write:
 		struct quic_tls_kp *nxt_rx = &qc->ku.nxt_rx;
 		struct quic_tls_kp *nxt_tx = &qc->ku.nxt_tx;
 
-		/* These secrets must be stored only for Application encryption level */
-		if (!(rx->secret = pool_alloc(pool_head_quic_tls_secret)) ||
-		    !(tx->secret = pool_alloc(pool_head_quic_tls_secret))) {
-			TRACE_ERROR("Could not allocate secrete keys", QUIC_EV_CONN_RWSEC, qc);
-			goto leave;
-		}
+		if (rx) {
+			if (!(rx->secret = pool_alloc(pool_head_quic_tls_secret))) {
+				TRACE_ERROR("Could not allocate RX Application secrete keys", QUIC_EV_CONN_RWSEC, qc);
+				goto leave;
+			}
 
-		if (read_secret) {
 			memcpy(rx->secret, read_secret, secret_len);
 			rx->secretlen = secret_len;
 		}
-		if (write_secret) {
+
+		if (tx) {
+			if (!(tx->secret = pool_alloc(pool_head_quic_tls_secret))) {
+				TRACE_ERROR("Could not allocate TX Application secrete keys", QUIC_EV_CONN_RWSEC, qc);
+				goto leave;
+			}
+
 			memcpy(tx->secret, write_secret, secret_len);
 			tx->secretlen = secret_len;
 		}
+
 		/* Initialize all the secret keys lengths */
 		prv_rx->secretlen = nxt_rx->secretlen = nxt_tx->secretlen = secret_len;
-		/* Prepare the next key update */
 	}
 
  out:
-	tls_ctx->flags |= QUIC_FL_TLS_SECRETS_SET;
- no_secret:
 	ret = 1;
  leave:
 	TRACE_LEAVE(QUIC_EV_CONN_RWSEC, qc, &level);
@@ -2281,6 +2287,7 @@ static inline int qc_provide_cdata(struct quic_enc_level *el,
 			qc->state = QUIC_HS_ST_COMPLETE;
 		}
 
+		/* Prepare the next key update */
 		if (!quic_tls_key_update(qc)) {
 			TRACE_ERROR("quic_tls_key_update() failed", QUIC_EV_CONN_IO_CB, qc);
 			goto leave;
@@ -2983,7 +2990,7 @@ static int qc_may_build_pkt(struct quic_conn *qc, struct list *frms,
 	 * and if there is no more ack-eliciting frames to send or in flight
 	 * congestion control limit is reached for prepared data
 	 */
-	if (!(qel->tls_ctx.flags & QUIC_FL_TLS_SECRETS_SET) ||
+	if (!quic_tls_has_tx_sec(qel) ||
 	    (!cc && !probe && !must_ack &&
 	     (LIST_ISEMPTY(frms) || qc->path->prep_in_flight >= qc->path->cwnd))) {
 		return 0;
@@ -3986,7 +3993,7 @@ static int qc_qel_may_rm_hp(struct quic_conn *qc, struct quic_enc_level *qel)
 		goto cant_rm_hp;
 	}
 
-	if (!(qel->tls_ctx.flags & QUIC_FL_TLS_SECRETS_SET)) {
+	if (!quic_tls_has_rx_sec(qel)) {
 		TRACE_DEVEL("non available secrets", QUIC_EV_CONN_TRMHP, qc);
 		goto cant_rm_hp;
 	}
@@ -4347,7 +4354,7 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 	}
 	ssl_err = SSL_ERROR_NONE;
 	zero_rtt = st < QUIC_HS_ST_COMPLETE &&
-		(eqel->tls_ctx.flags & QUIC_FL_TLS_SECRETS_SET) &&
+		quic_tls_has_rx_sec(eqel) &&
 		(!LIST_ISEMPTY(&eqel->rx.pqpkts) || qc_el_rx_pkts(eqel));
  start:
 	if (st >= QUIC_HS_ST_COMPLETE &&
@@ -4378,7 +4385,7 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 		goto out;
 
 	zero_rtt = st < QUIC_HS_ST_COMPLETE &&
-		(eqel->tls_ctx.flags & QUIC_FL_TLS_SECRETS_SET) &&
+		quic_tls_has_rx_sec(eqel) &&
 		(!LIST_ISEMPTY(&eqel->rx.pqpkts) || qc_el_rx_pkts(eqel));
 	if (next_qel && next_qel == eqel && zero_rtt) {
 		TRACE_DEVEL("select 0RTT as next encryption level",
@@ -4447,7 +4454,7 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 	/* Check if there is something to do for the next level.
 	 */
 	if (next_qel && next_qel != qel &&
-	    (next_qel->tls_ctx.flags & QUIC_FL_TLS_SECRETS_SET) &&
+	    quic_tls_has_rx_sec(next_qel) &&
 	    (!LIST_ISEMPTY(&next_qel->rx.pqpkts) || qc_el_rx_pkts(next_qel))) {
 		qel = next_qel;
 		next_qel = NULL;
@@ -4639,9 +4646,9 @@ struct task *qc_process_timer(struct task *task, void *ctx, unsigned int state)
 		struct quic_enc_level *iel = &qc->els[QUIC_TLS_ENC_LEVEL_INITIAL];
 		struct quic_enc_level *hel = &qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE];
 
-		if (hel->tls_ctx.flags == QUIC_FL_TLS_SECRETS_SET)
+		if (quic_tls_has_tx_sec(hel))
 			hel->pktns->tx.pto_probe = 1;
-		if (iel->tls_ctx.flags == QUIC_FL_TLS_SECRETS_SET)
+		if (quic_tls_has_tx_sec(iel))
 			iel->pktns->tx.pto_probe = 1;
 	}
 

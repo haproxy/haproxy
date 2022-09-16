@@ -426,6 +426,48 @@ out:
 	return 0;
 }
 
+/* Release the memory allocated for <secs> secrets */
+static inline void quic_tls_secrets_keys_free(struct quic_tls_secrets *secs)
+{
+	if (secs->iv) {
+		memset(secs->iv, 0, secs->ivlen);
+		secs->ivlen = 0;
+	}
+
+	if (secs->key) {
+		memset(secs->key, 0, secs->keylen);
+		secs->keylen = 0;
+	}
+
+	/* HP protection */
+	EVP_CIPHER_CTX_free(secs->hp_ctx);
+	/* AEAD decryption */
+	EVP_CIPHER_CTX_free(secs->ctx);
+	pool_free(pool_head_quic_tls_iv,  secs->iv);
+	pool_free(pool_head_quic_tls_key, secs->key);
+
+	secs->iv = secs->key = NULL;
+}
+
+/* Allocate the memory for the <secs> secrets.
+ * Return 1 if succeeded, 0 if not.
+ */
+static inline int quic_tls_secrets_keys_alloc(struct quic_tls_secrets *secs)
+{
+	if (!(secs->iv = pool_alloc(pool_head_quic_tls_iv)) ||
+	    !(secs->key = pool_alloc(pool_head_quic_tls_key)))
+		goto err;
+
+	secs->ivlen = QUIC_TLS_IV_LEN;
+	secs->keylen = QUIC_TLS_KEY_LEN;
+
+	return 1;
+
+ err:
+	quic_tls_secrets_keys_free(secs);
+	return 0;
+}
+
 /* Initialize a TLS cryptographic context for the Initial encryption level. */
 static inline int quic_initial_tls_ctx_init(struct quic_tls_ctx *ctx)
 {
@@ -559,7 +601,6 @@ static inline int qc_new_isecs(struct quic_conn *qc,
 	if (!quic_tls_enc_aes_ctx_init(&tx_ctx->hp_ctx, tx_ctx->hp, tx_ctx->hp_key))
 		goto err;
 
-	ctx->flags |= QUIC_FL_TLS_SECRETS_SET;
 	TRACE_LEAVE(QUIC_EV_CONN_ISEC, qc, rx_init_sec, tx_init_sec);
 
 	return 1;
@@ -629,6 +670,18 @@ static inline int quic_tls_ku_init(struct quic_conn *qc)
  err:
 	quic_tls_ku_free(qc);
 	return 0;
+}
+
+/* Return 1 if <qel> has RX secrets, 0 if not. */
+static inline int quic_tls_has_rx_sec(const struct quic_enc_level *qel)
+{
+	return !!qel->tls_ctx.rx.key;
+}
+
+/* Return 1 if <qel> has TX secrets, 0 if not. */
+static inline int quic_tls_has_tx_sec(const struct quic_enc_level *qel)
+{
+	return !!qel->tls_ctx.tx.key;
 }
 
 #endif /* USE_QUIC */
