@@ -4839,7 +4839,9 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 	/* insert the server in the backend trees */
 	eb32_insert(&be->conf.used_server_id, &srv->conf.id);
 	ebis_insert(&be->conf.used_server_name, &srv->conf.name);
-	ebis_insert(&be->used_server_addr, &srv->addr_node);
+	/* addr_node.key could be NULL if FQDN resolution is postponed (ie: add server from cli) */
+	if (srv->addr_node.key)
+		ebis_insert(&be->used_server_addr, &srv->addr_node);
 
 	thread_release();
 
@@ -5003,7 +5005,8 @@ static int cli_parse_delete_server(char **args, char *payload, struct appctx *ap
 	/* remove srv from addr_node tree */
 	eb32_delete(&srv->conf.id);
 	ebpt_delete(&srv->conf.name);
-	ebpt_delete(&srv->addr_node);
+	if (srv->addr_node.key)
+		ebpt_delete(&srv->addr_node);
 
 	/* remove srv from idle_node tree for idle conn cleanup */
 	eb32_delete(&srv->idle_node);
