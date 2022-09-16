@@ -51,6 +51,7 @@ dev/haring/haring
 dev/hpack/decode
 dev/hpack/gen-rht
 dev/qpack/decode
+dev/udp/udp-perturb
 /src/dlmalloc.c
 /tests/test_hashes
 doc/lua-api/_build
