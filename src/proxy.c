@@ -2546,8 +2546,8 @@ void proxy_capture_error(struct proxy *proxy, int is_back,
 	} else {
 		es = HA_ATOMIC_XCHG(&proxy->invalid_req, es);
 	}
-	free(es);
 	HA_RWLOCK_WRUNLOCK(PROXY_LOCK, &proxy->lock);
+	ha_free(&es);
 }
 
 /* Configure all proxies which lack a maxconn setting to use the global one by
