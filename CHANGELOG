@@ -1,6 +1,116 @@
 ChangeLog :
 ===========
 
+2022/09/17 : 2.7-dev6
+    - MINOR: Revert part of clarifying samples support per os commit
+    - BUILD: makefile: enable crypt(3) for NetBSD
+    - BUG/MINOR: quic: Retransmitted frames marked as acknowledged
+    - BUG/MINOR: quic: Possible crash with "tls-ticket-keys" on QUIC bind lines
+    - MINOR: http-check: Remove support for headers/body in "option httpchk" version
+    - BUG/MINOR: h1: Support headers case adjustment for TCP proxies
+    - BUG/MINOR: quic: Possible crash when verifying certificates
+    - BUILD: quic: add some ifdef around the SSL_ERROR_* for libressl
+    - BUILD: ssl: fix ssl_sock_switchtx_cbk when no client_hello_cb
+    - BUILD: quic: temporarly ignore chacha20_poly1305 for libressl
+    - BUILD: quic: enable early data only with >= openssl 1.1.1
+    - BUILD: ssl: fix the ifdef mess in ssl_sock_initial_ctx
+    - BUILD: quic: fix the #ifdef in ssl_quic_initial_ctx()
+    - MINOR: quic: add QUIC support when no client_hello_cb
+    - MINOR: quic: Add traces about sent or resent TX frames
+    - MINOR: quic: No TRACE_LEAVE() in retrieve_qc_conn_from_cid()
+    - BUG/MINOR: quic: Wrong connection ID to thread ID association
+    - BUG/MINOR: task: always reset a new tasklet's call date
+    - BUG/MINOR: task: make task_instant_wakeup() work on a task not a tasklet
+    - MINOR: task: permanently enable latency measurement on tasklets
+    - CLEANUP: task: rename ->call_date to ->wake_date
+    - BUG/MINOR: sched: properly account for the CPU time of dying tasks
+    - MINOR: sched: store the current profile entry in the thread context
+    - BUG/MINOR: stream/sched: take into account CPU profiling for the last call
+    - MINOR: tasks: do not keep cpu and latency times in struct task
+    - MINOR: tools: add generic pointer hashing functions
+    - CLEANUP: activity: make memprof use the generic ptr_hash() function
+    - CLEANUP: activity: make taskprof use ptr_hash()
+    - MINOR: debug: add struct ha_caller to describe a calling location
+    - CLEANUP: debug: use struct ha_caller for memstat
+    - DEBUG: task: define a series of wakeup types for tasks and tasklets
+    - DEBUG: task: use struct ha_caller instead of arrays of file:line
+    - DEBUG: applet: instrument appctx_wakeup() to log the caller's location
+    - DEBUG: task: simplify the caller recording in DEBUG_TASK
+    - CLEANUP: task: move tid and wake_date into the common part
+    - CLEANUP: sched: remove duplicate code in run_tasks_from_list()
+    - CLEANUP: activity: make the number of sched activity entries more configurable
+    - DEBUG: resolvers: unstatify process_resolvers() to make it appear in profiling
+    - DEBUG: quic: export the few task handlers that often appear in task dumps
+    - MEDIUM: tasks/activity: combine the called function with the caller
+    - MINOR: tasks/activity: improve the caller-callee activity hash
+    - MINOR: activity/cli: support aggregating task profiling outputs
+    - MINOR: activity/cli: support sorting task profiling by total CPU time
+    - BUG/MINOR: signals/poller: set the poller timeout to 0 when there are signals
+    - BUG/MINOR: quic: Speed up the handshake completion only one time
+    - BUG/MINOR: quic: Trace fix about packet number space information.
+    - BUG/MINOR: h3: Crash when h3 trace verbosity is "minimal"
+    - MINOR: h3: Add the quic_conn object to h3 traces
+    - MINOR: h3: Missing connection argument for a TRACE_LEAVE() argument
+    - MINOR: h3: Send the h3 settings with others streams (requests)
+    - MINOR: dev/udp: Apply the corruption to both directions
+    - BUILD: udp-perturb: Add a make target for udp-perturb tool
+    - BUG/MINOR: signals/poller: ensure wakeup from signals
+    - CI: cirrus-ci: bump FreeBSD image to 13-1
+    - DEV: flags: fix usage message to reflect available options
+    - DEV: flags: add missing CO_FL_FDLESS connection flag
+    - MINOR: flags: add a new file to host flag dumping macros
+    - MINOR: flags: implement a macro used to dump enums inside masks
+    - MINOR: flags/channel: use flag dumping for channel flags and analysers
+    - MINOR: flags/connection: use flag dumping for connection flags
+    - MINOR: flags/stconn: use flag dumping for stconn and sedesc flags
+    - MINOR: flags/stream: use flag dumping for stream error type
+    - MINOR: flags/stream: use flag dumping for stream flags
+    - MINOR: flags/task: use flag dumping for task state
+    - MINOR: flags/http_ana: use flag dumping for txn flags
+    - DEV: flags: remove the now unused SHOW_FLAG() definition
+    - DEV: flags: remove the now useless intermediary functions
+    - MINOR: flags/htx: use flag dumping to show htx and start-line flags
+    - MINOR: flags/http_ana: use flag dumping to show http msg states
+    - BUG/MEDIUM: proxy: ensure pause_proxy() and resume_proxy() own PROXY_LOCK
+    - MINOR: listener: small API change
+    - MINOR: proxy/listener: support for additional PAUSED state
+    - BUG/MINOR: stats: fixing stat shows disabled frontend status as 'OPEN'
+    - BUILD: flags: fix build warning in some macros used by show_flags
+    - BUILD: flags: fix the fallback macros for missing stdio
+    - CLEANUP: pollers: remove dead code in the polling loop
+    - BUG/MINOR: mux-h1: Increment open_streams counter when H1 stream is created
+    - REGTESTS: healthcheckmail: Relax matching on the healthcheck log message
+    - CLEANUP: listener: function comment typo in stop_listener()
+    - BUG/MINOR: listener: null pointer dereference suspected by coverity
+    - MINOR: flags/fd: decode FD flags states
+    - REORG: mux-h2: extract flags and enums into mux_h2-t.h
+    - MINOR: flags/mux-h2: decode H2C and H2S flags
+    - REGTESTS: log: test the log-forward feature
+    - BUG/MEDIUM: sink: bad init sequence on tcp sink from a ring.
+    - REGTESTS: ssl/log: test the log-forward with SSL
+    - MEDIUM: httpclient: httpclient_create_proxy() creates a proxy for httpclient
+    - MEDIUM: httpclient: allow to use another proxy
+    - DOC: fix TOC in starter guide for subsection 3.3.8. Statistics
+    - MINOR: httpclient: export httpclient_create_proxy()
+    - MEDIUM: quic: separate path for rx and tx with set_encryption_secrets
+    - BUG/MEDIUM: mux-quic: fix crash on early app-ops release
+    - REORG: mux-h1: extract flags and enums into mux_h1-t.h
+    - MINOR: flags/mux-h1: decode H1C and H1S flags
+    - CLEANUP: mux-quic: remove stconn usage in h3/hq
+    - BUG/MINOR: mux-quic: do not remotely close stream too early
+    - CLEANUP: exclude udp-perturb with .gitignore
+    - BUG/MEDIUM: server: segv when adding server with hostname from CLI
+    - CLEANUP: quic,ssl: fix tiny typos in C comments
+    - BUG/MEDIUM: captures: free() an error capture out of the proxy lock
+    - BUILD: fd: fix a build warning on the DWCAS
+    - MINOR: anon: add new macros and functions to anonymize contents
+    - MINOR: anon: store the anonymizing key in the global structure
+    - MINOR: anon: store the anonymizing key in the CLI's appctx
+    - MINOR: cli: anonymize commands 'show sess' and 'show sess all'
+    - MINOR: cli: anonymize 'show servers state' and 'show servers conn'
+    - MINOR: config: add command-line -dC to dump the configuration file
+    - SCRIPTS: announce-release: update some URLs to https
+
 2022/09/02 : 2.7-dev5
     - BUG/MINOR: mux-quic: Fix memleak on QUIC stream buffer for unacknowledged data
     - BUG/MEDIUM: cpu-map: fix thread 1's affinity affecting all threads
