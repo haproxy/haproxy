@@ -206,7 +206,7 @@ lock_self:
 #ifdef HA_CAS_IS_8B
 		 unlikely(!_HA_ATOMIC_CAS(((uint64_t *)&fdtab[fd].update), (uint64_t *)&cur_list.u64, next_list.u64))
 #else
-		 unlikely(!_HA_ATOMIC_DWCAS(((long *)&fdtab[fd].update), (uint32_t *)&cur_list.u32, &next_list.u32))
+		 unlikely(!_HA_ATOMIC_DWCAS(((long *)&fdtab[fd].update), (uint32_t *)&cur_list.u32, (const uint32_t *)&next_list.u32))
 #endif
 	    );
 	next = cur_list.ent.next;
