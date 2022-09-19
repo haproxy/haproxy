@@ -5,10 +5,10 @@
 #include <haproxy/api.h>
 #include <haproxy/connection.h>
 #include <haproxy/dynbuf.h>
-#include <haproxy/htx.h>
 #include <haproxy/list.h>
 #include <haproxy/ncbuf.h>
 #include <haproxy/pool.h>
+#include <haproxy/qmux_http.h>
 #include <haproxy/qmux_trace.h>
 #include <haproxy/quic_stream.h>
 #include <haproxy/quic_tp-t.h>
@@ -2062,49 +2062,13 @@ static size_t qc_rcv_buf(struct stconn *sc, struct buffer *buf,
                          size_t count, int flags)
 {
 	struct qcs *qcs = __sc_mux_strm(sc);
-	struct htx *qcs_htx = NULL;
-	struct htx *cs_htx = NULL;
 	size_t ret = 0;
 	char fin = 0;
 
 	TRACE_ENTER(QMUX_EV_STRM_RECV, qcs->qcc->conn, qcs);
 
-	qcs_htx = htx_from_buf(&qcs->rx.app_buf);
-	if (htx_is_empty(qcs_htx)) {
-		/* Set buffer data to 0 as HTX is empty. */
-		htx_to_buf(qcs_htx, &qcs->rx.app_buf);
-		goto end;
-	}
+	ret = qcs_http_rcv_buf(qcs, buf, count, &fin);
 
-	ret = qcs_htx->data;
-
-	cs_htx = htx_from_buf(buf);
-	if (htx_is_empty(cs_htx) && htx_used_space(qcs_htx) <= count) {
-		/* EOM will be copied to cs_htx via b_xfer(). */
-		if (qcs_htx->flags & HTX_FL_EOM)
-			fin = 1;
-
-		htx_to_buf(cs_htx, buf);
-		htx_to_buf(qcs_htx, &qcs->rx.app_buf);
-		b_xfer(buf, &qcs->rx.app_buf, b_data(&qcs->rx.app_buf));
-		goto end;
-	}
-
-	htx_xfer_blks(cs_htx, qcs_htx, count, HTX_BLK_UNUSED);
-	BUG_ON(qcs_htx->flags & HTX_FL_PARSING_ERROR);
-
-	/* Copy EOM from src to dst buffer if all data copied. */
-	if (htx_is_empty(qcs_htx) && (qcs_htx->flags & HTX_FL_EOM)) {
-		cs_htx->flags |= HTX_FL_EOM;
-		fin = 1;
-	}
-
-	cs_htx->extra = qcs_htx->extra ? (qcs_htx->data + qcs_htx->extra) : 0;
-	htx_to_buf(cs_htx, buf);
-	htx_to_buf(qcs_htx, &qcs->rx.app_buf);
-	ret -= qcs_htx->data;
-
- end:
 	if (b_data(&qcs->rx.app_buf)) {
 		se_fl_set(qcs->sd, SE_FL_RCV_MORE | SE_FL_WANT_ROOM);
 	}
