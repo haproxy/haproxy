@@ -117,6 +117,7 @@ struct qcc {
 #define QC_SF_DEM_FULL          0x00000020  /* demux blocked on request channel buffer full */
 #define QC_SF_READ_ABORTED      0x00000040  /* stream rejected by app layer */
 #define QC_SF_TO_RESET          0x00000080  /* a RESET_STREAM must be sent */
+#define QC_SF_HREQ_RECV         0x00000100  /* a full HTTP request has been received */
 
 /* Maximum size of stream Rx buffer. */
 #define QC_S_RX_BUF_SZ   (global.tune.bufsize - NCB_RESERVED_SZ)

@@ -414,7 +414,9 @@ static void qcs_close_local(struct qcs *qcs)
 
 	if (quic_stream_is_bidi(qcs->id)) {
 		qcs->st = (qcs->st == QC_SS_HREM) ? QC_SS_CLO : QC_SS_HLOC;
-		qcc_rm_hreq(qcs->qcc);
+
+		if (qcs->flags & QC_SF_HREQ_RECV)
+			qcc_rm_hreq(qcs->qcc);
 	}
 	else {
 		/* Only local uni streams are valid for this operation. */

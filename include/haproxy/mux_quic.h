@@ -92,6 +92,11 @@ static inline struct stconn *qc_attach_sc(struct qcs *qcs, struct buffer *buf)
 	if (!sc_new_from_endp(qcs->sd, sess, buf))
 		return NULL;
 
+	/* QC_SF_HREQ_RECV must be set once for a stream. Else, nb_hreq counter
+	 * will be incorrect for the connection.
+	 */
+	BUG_ON_HOT(qcs->flags & QC_SF_HREQ_RECV);
+	qcs->flags |= QC_SF_HREQ_RECV;
 	++qcc->nb_sc;
 	++qcc->nb_hreq;
 
