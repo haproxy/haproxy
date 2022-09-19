@@ -41,12 +41,10 @@
 
 
 static struct proxy *httpclient_proxy;
-static struct server *httpclient_srv_raw;
 
 #ifdef USE_OPENSSL
 /* if the httpclient is not configured, error are ignored and features are limited */
 static int hard_error_ssl = 0;
-static struct server *httpclient_srv_ssl;
 static int httpclient_ssl_verify = SSL_SOCK_VERIFY_REQUIRED;
 static char *httpclient_ssl_ca_file = NULL;
 #endif
@@ -1314,31 +1312,11 @@ err:
  */
 static int httpclient_precheck()
 {
-	struct server *srv;
-
 	/* initialize the default httpclient_proxy which is used for the CLI and the lua */
 
 	httpclient_proxy = httpclient_create_proxy("<HTTPCLIENT>");
 	if (!httpclient_proxy)
 		return 1;
-
-	/* store the ptr of the 2 servers */
-	for (srv = httpclient_proxy->srv; srv != NULL; srv = srv->next) {
-		if (srv->xprt == xprt_get(XPRT_RAW)) {
-			httpclient_srv_raw = srv;
-#ifdef USE_OPENSSL
-		} else if (srv->xprt == xprt_get(XPRT_SSL)) {
-			httpclient_srv_ssl = srv;
-#endif
-		}
-	}
-
-	if (!httpclient_srv_raw)
-		return 1;
-#ifdef USE_OPENSSL
-	if (!httpclient_srv_ssl)
-		return 1;
-#endif
 
 	return 0;
 }
