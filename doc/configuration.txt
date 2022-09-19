@@ -1795,7 +1795,7 @@ log-tag <string>
   Sometimes it can be useful to differentiate between multiple processes
   running on the same host. See also the per-proxy "log-tag" directive.
 
-lua-load <file>
+lua-load <file> [ <arg1> [ <arg2> [ ... ] ] ]
   This global directive loads and executes a Lua file in the shared context
   that is visible to all threads. Any variable set in such a context is visible
   from any thread. This is the easiest and recommended way to load Lua programs
@@ -1804,7 +1804,14 @@ lua-load <file>
   way will always see 0 in the "core.thread" variable. This directive can be
   used multiple times.
 
-lua-load-per-thread <file>
+  args are avalaible in the lua file using the code below in the body of the
+  file. Do not forget that Lua arrays start at index 1. A "local" variable
+  declared in a file is avalaible in the entire file and not avalaible on
+  other files.
+
+     local args = table.pack(...)
+
+lua-load-per-thread <file> [ <arg1> [ <arg2> [ ... ] ] ]
   This global directive loads and executes a Lua file into each started thread.
   Any global variable has a thread-local visibility so that each thread could
   see a different value. As such it is strongly recommended not to use global
@@ -1820,6 +1827,8 @@ lua-load-per-thread <file>
   even if only one thread is used and even if threads are disabled (in which
   case it will be equivalent to lua-load). This directive can be used multiple
   times.
+
+  See lua-load for usage of args.
 
 lua-prepend-path <string> [<type>]
   Prepends the given string followed by a semicolon to Lua's package.<type>

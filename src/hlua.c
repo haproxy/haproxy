@@ -145,7 +145,7 @@ static struct list referenced_functions = LIST_HEAD_INIT(referenced_functions);
 static int hlua_state_id;
 
 /* This is a NULL-terminated list of lua file which are referenced to load per thread */
-static char **per_thread_load = NULL;
+static char ***per_thread_load = NULL;
 
 lua_State *hlua_init_state(int thread_id);
 
@@ -11236,20 +11236,27 @@ static int hlua_parse_maxmem(char **args, int section_type, struct proxy *curpx,
  * We are in the configuration parsing process of HAProxy, this abort() is
  * tolerated.
  */
-static int hlua_load_state(char *filename, lua_State *L, char **err)
+static int hlua_load_state(char **args, lua_State *L, char **err)
 {
 	int error;
+	int nargs;
 
 	/* Just load and compile the file. */
-	error = luaL_loadfile(L, filename);
+	error = luaL_loadfile(L, args[0]);
 	if (error) {
-		memprintf(err, "error in Lua file '%s': %s", filename, lua_tostring(L, -1));
+		memprintf(err, "error in Lua file '%s': %s", args[0], lua_tostring(L, -1));
 		lua_pop(L, 1);
 		return -1;
 	}
 
+	/* Push args in the Lua stack, except the first one which is the filename */
+	for (nargs = 1; *(args[nargs]) != 0; nargs++) {
+		lua_pushstring(L, args[nargs]);
+	}
+	nargs--;
+
 	/* If no syntax error where detected, execute the code. */
-	error = lua_pcall(L, 0, LUA_MULTRET, 0);
+	error = lua_pcall(L, nargs, LUA_MULTRET, 0);
 	switch (error) {
 	case LUA_OK:
 		break;
@@ -11291,7 +11298,7 @@ static int hlua_load(char **args, int section_type, struct proxy *curpx,
 	/* loading for global state */
 	hlua_state_id = 0;
 	ha_set_thread(NULL);
-	return hlua_load_state(args[1], hlua_states[0], err);
+	return hlua_load_state(&args[1], hlua_states[0], err);
 }
 
 static int hlua_load_per_thread(char **args, int section_type, struct proxy *curpx,
@@ -11299,6 +11306,7 @@ static int hlua_load_per_thread(char **args, int section_type, struct proxy *cur
                                 char **err)
 {
 	int len;
+	int i;
 
 	if (*(args[1]) == 0) {
 		memprintf(err, "'%s' expects a file as parameter.", args[0]);
@@ -11323,11 +11331,24 @@ static int hlua_load_per_thread(char **args, int section_type, struct proxy *cur
 		memprintf(err, "out of memory error");
 		return -1;
 	}
-
-	per_thread_load[len]     = strdup(args[1]);
 	per_thread_load[len + 1] = NULL;
 
+	/* count args excepting the first, allocate array and copy args */
+	for (i = 0; *(args[i + 1]) != 0; i++);
+	per_thread_load[len] = calloc(i + 1, sizeof(per_thread_load[len]));
 	if (per_thread_load[len] == NULL) {
+		memprintf(err, "out of memory error");
+		return -1;
+	}
+	for (i = 1; *(args[i]) != 0; i++) {
+		per_thread_load[len][i - 1] = strdup(args[i]);
+		if (per_thread_load[len][i - 1] == NULL) {
+			memprintf(err, "out of memory error");
+			return -1;
+		}
+	}
+	per_thread_load[len][i - 1] = strdup("");
+	if (per_thread_load[len][i - 1]  == NULL) {
 		memprintf(err, "out of memory error");
 		return -1;
 	}
@@ -11335,7 +11356,7 @@ static int hlua_load_per_thread(char **args, int section_type, struct proxy *cur
 	/* loading for thread 1 only */
 	hlua_state_id = 1;
 	ha_set_thread(NULL);
-	return hlua_load_state(args[1], hlua_states[1], err);
+	return hlua_load_state(per_thread_load[len], hlua_states[1], err);
 }
 
 /* Prepend the given <path> followed by a semicolon to the `package.<type>` variable

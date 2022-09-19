@@ -116,6 +116,38 @@ On other terminal, you can test with telnet:
     #:~ telnet 127.0.0.1 10001
     hello world
 
+Usage of load parameters
+------------------------
+
+HAProxy lua-load(-per-thread) directives allow a list of paramaters after
+the lua file name. These parameters are accessible through an array of args
+using this code `local args = table.pack(...)` in the body of loaded file.
+
+Below, a new version of the hello world using load parameters
+
+HAProxy configuration file (`hello_world.conf`):
+
+::
+
+    global
+       lua-load hello_world.lua "this is not an hello world"
+
+    listen proxy
+       bind 127.0.0.1:10001
+       tcp-request inspect-delay 1s
+       tcp-request content use-service lua.hello_world
+
+HAProxy Lua file (`hello_world.lua`):
+
+.. code-block:: lua
+
+    local args = table.pack(...)
+
+    core.register_service("hello_world", "tcp", function(applet)
+       applet:send(args[1] .. "\n")
+    end)
+
+
 Core class
 ==========
 
