@@ -9,6 +9,7 @@
 #include <haproxy/list.h>
 #include <haproxy/ncbuf.h>
 #include <haproxy/pool.h>
+#include <haproxy/qmux_trace.h>
 #include <haproxy/quic_stream.h>
 #include <haproxy/quic_tp-t.h>
 #include <haproxy/ssl_sock-t.h>
@@ -18,93 +19,6 @@
 
 DECLARE_POOL(pool_head_qcc, "qcc", sizeof(struct qcc));
 DECLARE_POOL(pool_head_qcs, "qcs", sizeof(struct qcs));
-
-/* trace source and events */
-static void qmux_trace(enum trace_level level, uint64_t mask,
-                       const struct trace_source *src,
-                       const struct ist where, const struct ist func,
-                       const void *a1, const void *a2, const void *a3, const void *a4);
-
-static const struct trace_event qmux_trace_events[] = {
-#define           QMUX_EV_QCC_NEW       (1ULL << 0)
-	{ .mask = QMUX_EV_QCC_NEW ,     .name = "qcc_new",     .desc = "new QUIC connection" },
-#define           QMUX_EV_QCC_RECV      (1ULL << 1)
-	{ .mask = QMUX_EV_QCC_RECV,     .name = "qcc_recv",     .desc = "Rx on QUIC connection" },
-#define           QMUX_EV_QCC_SEND      (1ULL << 2)
-	{ .mask = QMUX_EV_QCC_SEND,     .name = "qcc_send",     .desc = "Tx on QUIC connection" },
-#define           QMUX_EV_QCC_WAKE      (1ULL << 3)
-	{ .mask = QMUX_EV_QCC_WAKE,     .name = "qcc_wake",     .desc = "QUIC connection woken up" },
-#define           QMUX_EV_QCC_END       (1ULL << 4)
-	{ .mask = QMUX_EV_QCC_END,      .name = "qcc_end",      .desc = "QUIC connection terminated" },
-#define           QMUX_EV_QCC_NQCS      (1ULL << 5)
-	{ .mask = QMUX_EV_QCC_NQCS,     .name = "qcc_no_qcs",   .desc = "QUIC stream not found" },
-#define           QMUX_EV_QCS_NEW       (1ULL << 6)
-	{ .mask = QMUX_EV_QCS_NEW,      .name = "qcs_new",      .desc = "new QUIC stream" },
-#define           QMUX_EV_QCS_RECV      (1ULL << 7)
-	{ .mask = QMUX_EV_QCS_RECV,     .name = "qcs_recv",     .desc = "Rx on QUIC stream" },
-#define           QMUX_EV_QCS_SEND      (1ULL << 8)
-	{ .mask = QMUX_EV_QCS_SEND,     .name = "qcs_send",     .desc = "Tx on QUIC stream" },
-#define           QMUX_EV_QCS_END       (1ULL << 9)
-	{ .mask = QMUX_EV_QCS_END,      .name = "qcs_end",      .desc = "QUIC stream terminated" },
-#define           QMUX_EV_STRM_RECV     (1ULL << 10)
-	{ .mask = QMUX_EV_STRM_RECV,    .name = "strm_recv",    .desc = "receiving data for stream" },
-#define           QMUX_EV_STRM_SEND     (1ULL << 11)
-	{ .mask = QMUX_EV_STRM_SEND,    .name = "strm_send",    .desc = "sending data for stream" },
-#define           QMUX_EV_STRM_END      (1ULL << 12)
-	{ .mask = QMUX_EV_STRM_END,     .name = "strm_end",     .desc = "detaching app-layer stream" },
-#define           QMUX_EV_SEND_FRM      (1ULL << 13)
-	{ .mask = QMUX_EV_SEND_FRM,     .name = "send_frm",     .desc = "sending QUIC frame" },
-/* special event dedicated to qcs_xfer_data */
-#define           QMUX_EV_QCS_XFER_DATA  (1ULL << 14)
-	{ .mask = QMUX_EV_QCS_XFER_DATA,  .name = "qcs_xfer_data", .desc = "qcs_xfer_data" },
-/* special event dedicated to qcs_build_stream_frm */
-#define           QMUX_EV_QCS_BUILD_STRM (1ULL << 15)
-	{ .mask = QMUX_EV_QCS_BUILD_STRM, .name = "qcs_build_stream_frm", .desc = "qcs_build_stream_frm" },
-#define           QMUX_EV_PROTO_ERR     (1ULL << 16)
-	{ .mask = QMUX_EV_PROTO_ERR,    .name = "proto_err",    .desc = "protocol error" },
-	{ }
-};
-
-/* custom arg for QMUX_EV_QCS_XFER_DATA */
-struct qcs_xfer_data_trace_arg {
-	size_t prep;
-	int xfer;
-};
-/* custom arg for QMUX_EV_QCS_BUILD_STRM */
-struct qcs_build_stream_trace_arg {
-	size_t len;
-	char fin;
-	uint64_t offset;
-};
-
-static const struct name_desc qmux_trace_lockon_args[4] = {
-	/* arg1 */ { /* already used by the connection */ },
-	/* arg2 */ { .name="qcs", .desc="QUIC stream" },
-	/* arg3 */ { },
-	/* arg4 */ { }
-};
-
-static const struct name_desc qmux_trace_decoding[] = {
-#define QMUX_VERB_CLEAN    1
-	{ .name="clean",    .desc="only user-friendly stuff, generally suitable for level \"user\"" },
-#define QMUX_VERB_MINIMAL  2
-	{ .name="minimal",  .desc="report only qcc/qcs state and flags, no real decoding" },
-	{ /* end */ }
-};
-
-struct trace_source trace_qmux = {
-	.name = IST("qmux"),
-	.desc = "QUIC multiplexer",
-	.arg_def = TRC_ARG1_CONN,  /* TRACE()'s first argument is always a connection */
-	.default_cb = qmux_trace,
-	.known_events = qmux_trace_events,
-	.lockon_args = qmux_trace_lockon_args,
-	.decoding = qmux_trace_decoding,
-	.report_events = ~0,  /* report everything by default */
-};
-
-#define TRACE_SOURCE    &trace_qmux
-INITCALL1(STG_REGISTER, trace_register_source, TRACE_SOURCE);
 
 /* Emit a CONNECTION_CLOSE with error <err>. This will interrupt all future
  * send/receive operations.
@@ -2341,18 +2255,6 @@ static int qc_wake(struct connection *conn)
 }
 
 
-static char *qcs_st_to_str(enum qcs_state st)
-{
-	switch (st) {
-	case QC_SS_IDLE: return "IDL";
-	case QC_SS_OPEN: return "OPN";
-	case QC_SS_HLOC: return "HCL";
-	case QC_SS_HREM: return "HCR";
-	case QC_SS_CLO:  return "CLO";
-	default:         return "???";
-	}
-}
-
 /* for debugging with CLI's "show sess" command. May emit multiple lines, each
  * new one being prefixed with <pfx>, if <pfx> is not NULL, otherwise a single
  * line is used. Each field starts with a space so it's safe to print it after
@@ -2377,70 +2279,6 @@ static int qc_show_sd(struct buffer *msg, struct sedesc *sd, const char *pfx)
 	chunk_appendf(msg, " qcc=%p .flg=%#x .nbsc=%llu .nbhreq=%llu, .task=%p",
 		      qcc, qcc->flags, (ull)qcc->nb_sc, (ull)qcc->nb_hreq, qcc->task);
 	return ret;
-}
-
-
-static void qmux_trace_frm(const struct quic_frame *frm)
-{
-	switch (frm->type) {
-	case QUIC_FT_MAX_STREAMS_BIDI:
-		chunk_appendf(&trace_buf, " max_streams=%llu",
-		              (ull)frm->max_streams_bidi.max_streams);
-		break;
-
-	case QUIC_FT_MAX_STREAMS_UNI:
-		chunk_appendf(&trace_buf, " max_streams=%llu",
-		              (ull)frm->max_streams_uni.max_streams);
-		break;
-
-	default:
-		break;
-	}
-}
-
-/* quic-mux trace handler */
-static void qmux_trace(enum trace_level level, uint64_t mask,
-                       const struct trace_source *src,
-                       const struct ist where, const struct ist func,
-                       const void *a1, const void *a2, const void *a3, const void *a4)
-{
-	const struct connection *conn = a1;
-	const struct qcc *qcc   = conn ? conn->ctx : NULL;
-	const struct qcs *qcs   = a2;
-
-	if (!qcc)
-		return;
-
-	if (src->verbosity > QMUX_VERB_CLEAN) {
-		chunk_appendf(&trace_buf, " : qcc=%p(F)", qcc);
-		if (qcc->conn->handle.qc)
-			chunk_appendf(&trace_buf, " qc=%p", qcc->conn->handle.qc);
-
-		if (qcs)
-			chunk_appendf(&trace_buf, " qcs=%p .id=%llu .st=%s",
-			              qcs, (ull)qcs->id,
-			              qcs_st_to_str(qcs->st));
-
-		if (mask & QMUX_EV_QCC_NQCS) {
-			const uint64_t *id = a3;
-			chunk_appendf(&trace_buf, " id=%llu", (ull)*id);
-		}
-
-		if (mask & QMUX_EV_SEND_FRM)
-			qmux_trace_frm(a3);
-
-		if (mask & QMUX_EV_QCS_XFER_DATA) {
-			const struct qcs_xfer_data_trace_arg *arg = a3;
-			chunk_appendf(&trace_buf, " prep=%llu xfer=%d",
-			              (ull)arg->prep, arg->xfer);
-		}
-
-		if (mask & QMUX_EV_QCS_BUILD_STRM) {
-			const struct qcs_build_stream_trace_arg *arg = a3;
-			chunk_appendf(&trace_buf, " len=%llu fin=%d offset=%llu",
-			              (ull)arg->len, arg->fin, (ull)arg->offset);
-		}
-	}
 }
 
 

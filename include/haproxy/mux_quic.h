@@ -71,6 +71,18 @@ static inline int quic_stream_is_bidi(uint64_t id)
 	return !quic_stream_is_uni(id);
 }
 
+static inline char *qcs_st_to_str(enum qcs_state st)
+{
+	switch (st) {
+	case QC_SS_IDLE: return "IDL";
+	case QC_SS_OPEN: return "OPN";
+	case QC_SS_HLOC: return "HCL";
+	case QC_SS_HREM: return "HCR";
+	case QC_SS_CLO:  return "CLO";
+	default:         return "???";
+	}
+}
+
 int qcc_install_app_ops(struct qcc *qcc, const struct qcc_app_ops *app_ops);
 
 static inline struct stconn *qc_attach_sc(struct qcs *qcs, struct buffer *buf)
