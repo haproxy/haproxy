@@ -1378,7 +1378,7 @@ static int httpclient_postcheck()
 				srv_ssl = srv;
 			}
 		}
-		if (srv_ssl) {
+		if (srv_ssl && !srv_ssl->sni_expr) {
 			/* init the SNI expression */
 			/* always use the host header as SNI, without the port */
 			srv_ssl->sni_expr = strdup("req.hdr(host),field(1,:)");
