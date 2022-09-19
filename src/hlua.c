@@ -11210,7 +11210,7 @@ static int hlua_parse_maxmem(char **args, int section_type, struct proxy *curpx,
 	char *error;
 
 	if (*(args[1]) == 0) {
-		memprintf(err, "'%s' expects an integer argument (Lua memory size in MB).\n", args[0]);
+		memprintf(err, "'%s' expects an integer argument (Lua memory size in MB).", args[0]);
 		return -1;
 	}
 	hlua_global_allocator.limit = strtoll(args[1], &error, 10) * 1024L * 1024L;
@@ -11254,24 +11254,24 @@ static int hlua_load_state(char *filename, lua_State *L, char **err)
 	case LUA_OK:
 		break;
 	case LUA_ERRRUN:
-		memprintf(err, "Lua runtime error: %s\n", lua_tostring(L, -1));
+		memprintf(err, "Lua runtime error: %s", lua_tostring(L, -1));
 		lua_pop(L, 1);
 		return -1;
 	case LUA_ERRMEM:
-		memprintf(err, "Lua out of memory error\n");
+		memprintf(err, "Lua out of memory error");
 		return -1;
 	case LUA_ERRERR:
-		memprintf(err, "Lua message handler error: %s\n", lua_tostring(L, -1));
+		memprintf(err, "Lua message handler error: %s", lua_tostring(L, -1));
 		lua_pop(L, 1);
 		return -1;
 #if defined(LUA_VERSION_NUM) && LUA_VERSION_NUM <= 503
 	case LUA_ERRGCMM:
-		memprintf(err, "Lua garbage collector error: %s\n", lua_tostring(L, -1));
+		memprintf(err, "Lua garbage collector error: %s", lua_tostring(L, -1));
 		lua_pop(L, 1);
 		return -1;
 #endif
 	default:
-		memprintf(err, "Lua unknown error: %s\n", lua_tostring(L, -1));
+		memprintf(err, "Lua unknown error: %s", lua_tostring(L, -1));
 		lua_pop(L, 1);
 		return -1;
 	}
@@ -11284,7 +11284,7 @@ static int hlua_load(char **args, int section_type, struct proxy *curpx,
                      char **err)
 {
 	if (*(args[1]) == 0) {
-		memprintf(err, "'%s' expects a file name as parameter.\n", args[0]);
+		memprintf(err, "'%s' expects a file name as parameter.", args[0]);
 		return -1;
 	}
 
@@ -11301,7 +11301,7 @@ static int hlua_load_per_thread(char **args, int section_type, struct proxy *cur
 	int len;
 
 	if (*(args[1]) == 0) {
-		memprintf(err, "'%s' expects a file as parameter.\n", args[0]);
+		memprintf(err, "'%s' expects a file as parameter.", args[0]);
 		return -1;
 	}
 
@@ -11548,7 +11548,7 @@ __LJMP static int hlua_ckch_set(lua_State *L)
 
 	ret = lua_getfield(L, -1, "filename");
 	if (ret != LUA_TSTRING) {
-		memprintf(&err, "%sNo filename specified!\n", err ? err : "");
+		memprintf(&err, "%sNo filename specified!", err ? err : "");
 		errcode |= ERR_ALERT | ERR_FATAL;
 		goto end;
 	}
@@ -11558,7 +11558,7 @@ __LJMP static int hlua_ckch_set(lua_State *L)
 	/* look for the filename in the tree */
 	old_ckchs = ckchs_lookup(filename);
 	if (!old_ckchs) {
-		memprintf(&err, "%sCan't replace a certificate which is not referenced by the configuration!\n", err ? err : "");
+		memprintf(&err, "%sCan't replace a certificate which is not referenced by the configuration!", err ? err : "");
 		errcode |= ERR_ALERT | ERR_FATAL;
 		goto end;
 	}
@@ -11566,7 +11566,7 @@ __LJMP static int hlua_ckch_set(lua_State *L)
 
 	new_ckchs = ckchs_dup(old_ckchs);
 	if (!new_ckchs) {
-		memprintf(&err, "%sCannot allocate memory!\n", err ? err : "");
+		memprintf(&err, "%sCannot allocate memory!", err ? err : "");
 		errcode |= ERR_ALERT | ERR_FATAL;
 		goto end;
 	}
@@ -11595,14 +11595,14 @@ __LJMP static int hlua_ckch_set(lua_State *L)
 
 		/* this is the default type, the field is not supported */
 		if (cert_ext == NULL) {
-			memprintf(&err, "%sUnsupported field '%s'\n", err ? err : "", field);
+			memprintf(&err, "%sUnsupported field '%s'", err ? err : "", field);
 			errcode |= ERR_ALERT | ERR_FATAL;
 			goto end;
 		}
 
 		/* appply the change on the duplicate */
 		if (cert_ext->load(filename, payload, ckch, &err) != 0) {
-			memprintf(&err, "%sCan't load the payload for '%s'\n", err ? err : "", cert_ext->ext);
+			memprintf(&err, "%sCan't load the payload for '%s'", err ? err : "", cert_ext->ext);
 			errcode |= ERR_ALERT | ERR_FATAL;
 			goto end;
 		}
