@@ -61,3 +61,29 @@ size_t qcs_http_rcv_buf(struct qcs *qcs, struct buffer *buf, size_t count,
 
 	return ret;
 }
+
+/* QUIC MUX snd_buf operation using HTX data. HTX data will be transferred from
+ * <buf> to <qcs> stream buffer. Input buffer is expected to be of length
+ * <count>. <fin> will be set to signal the last data to send for this stream.
+ *
+ * Return the size in bytes of transferred data.
+ */
+size_t qcs_http_snd_buf(struct qcs *qcs, struct buffer *buf, size_t count,
+                        char *fin)
+{
+	struct htx *htx;
+	size_t ret;
+
+	TRACE_ENTER(QMUX_EV_STRM_SEND, qcs->qcc->conn, qcs);
+
+	htx = htx_from_buf(buf);
+
+	ret = qcs->qcc->app_ops->snd_buf(qcs, htx, count);
+	*fin = (htx->flags & HTX_FL_EOM) && htx_is_empty(htx);
+
+	htx_to_buf(htx, buf);
+
+	TRACE_LEAVE(QMUX_EV_STRM_SEND, qcs->qcc->conn, qcs);
+
+	return ret;
+}

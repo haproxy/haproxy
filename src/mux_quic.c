@@ -2102,6 +2102,7 @@ static size_t qc_snd_buf(struct stconn *sc, struct buffer *buf,
 {
 	struct qcs *qcs = __sc_mux_strm(sc);
 	size_t ret;
+	char fin;
 
 	TRACE_ENTER(QMUX_EV_STRM_SEND, qcs->qcc->conn, qcs);
 
@@ -2113,7 +2114,14 @@ static size_t qc_snd_buf(struct stconn *sc, struct buffer *buf,
 		goto end;
 	}
 
-	ret = qcs->qcc->app_ops->snd_buf(qcs, buf, count, flags);
+	ret = qcs_http_snd_buf(qcs, buf, count, &fin);
+	if (fin)
+		qcs->flags |= QC_SF_FIN_STREAM;
+
+	if (ret) {
+		if (!(qcs->qcc->wait_event.events & SUB_RETRY_SEND))
+			tasklet_wakeup(qcs->qcc->wait_event.tasklet);
+	}
 
  end:
 	TRACE_LEAVE(QMUX_EV_STRM_SEND, qcs->qcc->conn, qcs);

@@ -88,10 +88,9 @@ static struct buffer *mux_get_buf(struct qcs *qcs)
 	return &qcs->tx.buf;
 }
 
-static size_t hq_interop_snd_buf(struct qcs *qcs, struct buffer *buf,
-                                 size_t count, int flags)
+static size_t hq_interop_snd_buf(struct qcs *qcs, struct htx *htx,
+                                 size_t count)
 {
-	struct htx *htx;
 	enum htx_blk_type btype;
 	struct htx_blk *blk;
 	int32_t idx;
@@ -99,7 +98,6 @@ static size_t hq_interop_snd_buf(struct qcs *qcs, struct buffer *buf,
 	struct buffer *res, outbuf;
 	size_t total = 0;
 
-	htx = htx_from_buf(buf);
 	res = mux_get_buf(qcs);
 	outbuf = b_make(b_tail(res), b_contig_space(res), 0, 0);
 
@@ -148,15 +146,7 @@ static size_t hq_interop_snd_buf(struct qcs *qcs, struct buffer *buf,
 	}
 
  end:
-	if ((htx->flags & HTX_FL_EOM) && htx_is_empty(htx))
-		qcs->flags |= QC_SF_FIN_STREAM;
-
 	b_add(res, b_data(&outbuf));
-
-	if (total) {
-		if (!(qcs->qcc->wait_event.events & SUB_RETRY_SEND))
-			tasklet_wakeup(qcs->qcc->wait_event.tasklet);
-	}
 
 	return total;
 }

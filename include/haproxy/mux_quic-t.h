@@ -10,6 +10,7 @@
 
 #include <haproxy/buf-t.h>
 #include <haproxy/connection-t.h>
+#include <haproxy/htx-t.h>
 #include <haproxy/list-t.h>
 #include <haproxy/ncbuf-t.h>
 #include <haproxy/quic_stream-t.h>
@@ -186,7 +187,7 @@ struct qcc_app_ops {
 	int (*init)(struct qcc *qcc);
 	int (*attach)(struct qcs *qcs, void *conn_ctx);
 	ssize_t (*decode_qcs)(struct qcs *qcs, struct buffer *b, int fin);
-	size_t (*snd_buf)(struct qcs *qcs, struct buffer *buf, size_t count, int flags);
+	size_t (*snd_buf)(struct qcs *qcs, struct htx *htx, size_t count);
 	void (*detach)(struct qcs *qcs);
 	int (*finalize)(void *ctx);
 	void (*shutdown)(void *ctx);                    /* Close a connection. */

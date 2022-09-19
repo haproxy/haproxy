@@ -937,19 +937,16 @@ static int h3_resp_headers_send(struct qcs *qcs, struct htx *htx)
 }
 
 /* Returns the total of bytes sent. */
-static int h3_resp_data_send(struct qcs *qcs, struct buffer *buf, size_t count)
+static int h3_resp_data_send(struct qcs *qcs, struct htx *htx, size_t count)
 {
 	struct buffer outbuf;
 	struct buffer *res;
 	size_t total = 0;
-	struct htx *htx;
 	int bsize, fsize, hsize;
 	struct htx_blk *blk;
 	enum htx_blk_type type;
 
 	TRACE_ENTER(H3_EV_TX_DATA, qcs->qcc->conn, qcs);
-
-	htx = htx_from_buf(buf);
 
  new_frame:
 	if (!count || htx_is_empty(htx))
@@ -1012,10 +1009,9 @@ static int h3_resp_data_send(struct qcs *qcs, struct buffer *buf, size_t count)
 	return total;
 }
 
-static size_t h3_snd_buf(struct qcs *qcs, struct buffer *buf, size_t count, int flags)
+static size_t h3_snd_buf(struct qcs *qcs, struct htx *htx, size_t count)
 {
 	size_t total = 0;
-	struct htx *htx;
 	enum htx_blk_type btype;
 	struct htx_blk *blk;
 	uint32_t bsize;
@@ -1023,8 +1019,6 @@ static size_t h3_snd_buf(struct qcs *qcs, struct buffer *buf, size_t count, int 
 	int ret;
 
 	h3_debug_printf(stderr, "%s\n", __func__);
-
-	htx = htx_from_buf(buf);
 
 	while (count && !htx_is_empty(htx) && !(qcs->flags & QC_SF_BLK_MROOM)) {
 		idx = htx_get_head(htx);
@@ -1048,9 +1042,8 @@ static size_t h3_snd_buf(struct qcs *qcs, struct buffer *buf, size_t count, int 
 			break;
 
 		case HTX_BLK_DATA:
-			ret = h3_resp_data_send(qcs, buf, count);
+			ret = h3_resp_data_send(qcs, htx, count);
 			if (ret > 0) {
-				htx = htx_from_buf(buf);
 				total += ret;
 				count -= ret;
 				if (ret < bsize)
@@ -1070,15 +1063,7 @@ static size_t h3_snd_buf(struct qcs *qcs, struct buffer *buf, size_t count, int 
 		}
 	}
 
-	if ((htx->flags & HTX_FL_EOM) && htx_is_empty(htx))
-		qcs->flags |= QC_SF_FIN_STREAM;
-
  out:
-	if (total) {
-		if (!(qcs->qcc->wait_event.events & SUB_RETRY_SEND))
-			tasklet_wakeup(qcs->qcc->wait_event.tasklet);
-	}
-
 	return total;
 }
 
