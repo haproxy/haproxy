@@ -2004,38 +2004,6 @@ char *escape_string(char *start, char *stop,
 	return start;
 }
 
-/*
- * Tries to prefix characters tagged in the <map> with the <escape>
- * character. <chunk> contains the input to be escaped. The result will be
- * stored between <start> (included) and <stop> (excluded). The function
- * will always try to terminate the resulting string with a '\0' before
- * <stop>, and will return its position if the conversion completes.
- */
-char *escape_chunk(char *start, char *stop,
-		   const char escape, const long *map,
-		   const struct buffer *chunk)
-{
-	char *str = chunk->area;
-	char *end = chunk->area + chunk->data;
-
-	if (start < stop) {
-		stop--; /* reserve one byte for the final '\0' */
-		while (start < stop && str < end) {
-			if (!ha_bit_test((unsigned char)(*str), map))
-				*start++ = *str;
-			else {
-				if (start + 2 >= stop)
-					break;
-				*start++ = escape;
-				*start++ = *str;
-			}
-			str++;
-		}
-		*start = '\0';
-	}
-	return start;
-}
-
 /* Check a string for using it in a CSV output format. If the string contains
  * one of the following four char <">, <,>, CR or LF, the string is
  * encapsulated between <"> and the <"> are escaped by a <""> sequence.
