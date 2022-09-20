@@ -424,7 +424,8 @@ char *encode_chunk(char *start, char *stop,
 
 /*
  * Tries to prefix characters tagged in the <map> with the <escape>
- * character. The input <string> must be zero-terminated. The result will
+ * character. The input <string> is processed until string_stop
+ * is reached or NULL-byte is encountered. The result will
  * be stored between <start> (included) and <stop> (excluded). This
  * function will always try to terminate the resulting string with a '\0'
  * before <stop>, and will return its position if the conversion
@@ -432,7 +433,7 @@ char *encode_chunk(char *start, char *stop,
  */
 char *escape_string(char *start, char *stop,
 		    const char escape, const long *map,
-		    const char *string);
+		    const char *string, const char *string_stop);
 
 /*
  * Tries to prefix characters tagged in the <map> with the <escape>

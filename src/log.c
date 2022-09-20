@@ -1184,17 +1184,21 @@ char *lf_text_len(char *dst, const char *src, size_t len, size_t size, const str
 	}
 
 	if (src && len) {
-		if (++len > size)
-			len = size;
+		/* escape_string and strlcpy2 will both try to add terminating NULL-byte
+		 * to dst, so we need to make sure that extra byte will fit into dst
+		 * before calling them
+		 */
 		if (node->options & LOG_OPT_ESC) {
 			char *ret;
 
-			ret = escape_string(dst, dst + len, '\\', rfc5424_escape_map, src);
+			ret = escape_string(dst, (dst + size - 1), '\\', rfc5424_escape_map, src, src + len);
 			if (ret == NULL || *ret != '\0')
 				return NULL;
 			len = ret - dst;
 		}
 		else {
+			if (++len > size)
+				len = size;
 			len = strlcpy2(dst, src, len);
 		}
 
@@ -1205,6 +1209,7 @@ char *lf_text_len(char *dst, const char *src, size_t len, size_t size, const str
 		if (size < 2)
 			return NULL;
 		*(dst++) = '-';
+		size -= 1;
 	}
 
 	if (node->options & LOG_OPT_QUOTE) {
