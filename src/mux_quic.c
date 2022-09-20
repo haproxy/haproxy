@@ -2110,7 +2110,7 @@ static size_t qc_snd_buf(struct stconn *sc, struct buffer *buf,
 	BUG_ON_HOT(qcs->flags & QC_SF_DETACH);
 
 	if (qcs_is_close_local(qcs) || (qcs->flags & QC_SF_TO_RESET)) {
-		ret = count;
+		ret = qcs_http_reset_buf(qcs, buf, count);
 		goto end;
 	}
 

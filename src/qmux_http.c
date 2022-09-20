@@ -87,3 +87,23 @@ size_t qcs_http_snd_buf(struct qcs *qcs, struct buffer *buf, size_t count,
 
 	return ret;
 }
+
+/* QUIC MUX snd_buf reset. HTX data stored in <buf> of length <count> will be
+ * cleared. This can be used when data should not be transmitted any longer.
+ *
+ * Return the size in bytes of cleared data.
+ */
+size_t qcs_http_reset_buf(struct qcs *qcs, struct buffer *buf, size_t count)
+{
+	struct htx *htx;
+
+	TRACE_ENTER(QMUX_EV_STRM_SEND, qcs->qcc->conn, qcs);
+
+	htx = htx_from_buf(buf);
+	htx_reset(htx);
+	htx_to_buf(htx, buf);
+
+	TRACE_LEAVE(QMUX_EV_STRM_SEND, qcs->qcc->conn, qcs);
+
+	return count;
+}
