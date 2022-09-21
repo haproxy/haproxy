@@ -147,14 +147,10 @@ int clock_setup_signal_timer(void *tmr, int sig, int val)
  * values for the tv_sec and tv_usec parts. The offset is made of two signed
  * ints so that the clock can be adjusted in the two directions.
  */
-void clock_update_date(int max_wait, int interrupted)
+void clock_update_local_date(int max_wait, int interrupted)
 {
-	struct timeval min_deadline, max_deadline, tmp_now;
-	uint old_now_ms;
-	ullong old_now;
-	ullong new_now;
-	ullong ofs, ofs_new;
-	uint sec_ofs, usec_ofs;
+	struct timeval min_deadline, max_deadline;
+	ullong ofs;
 
 	gettimeofday(&date, NULL);
 
@@ -194,6 +190,19 @@ void clock_update_date(int max_wait, int interrupted)
 			now.tv_sec  += 1;
 		}
 	}
+	now_ms = __tv_to_ms(&now);
+}
+
+void clock_update_global_date()
+{
+	struct timeval tmp_now;
+	uint old_now_ms;
+	ullong old_now;
+	ullong new_now;
+	ullong ofs, ofs_new;
+	uint sec_ofs, usec_ofs;
+
+	ofs = HA_ATOMIC_LOAD(&now_offset);
 
 	/* now that we have bounded the local time, let's check if it's
 	 * realistic regarding the global date, which only moves forward,

@@ -35,7 +35,8 @@ uint64_t now_cpu_time_thread(int thr);
 uint64_t now_mono_time(void);
 uint64_t now_cpu_time(void);
 void clock_set_local_source(void);
-void clock_update_date(int max_wait, int interrupted);
+void clock_update_local_date(int max_wait, int interrupted);
+void clock_update_global_date();
 void clock_init_process_date(void);
 void clock_init_thread_date(void);
 int clock_setup_signal_timer(void *timer, int sig, int val);
@@ -43,5 +44,11 @@ char *timeofday_as_iso_us(int pad);
 uint clock_report_idle(void);
 void clock_leaving_poll(int timeout, int interrupted);
 void clock_entering_poll(void);
+
+static inline void clock_update_date(int max_wait, int interrupted)
+{
+	clock_update_local_date(max_wait, interrupted);
+	clock_update_global_date();
+}
 
 #endif
