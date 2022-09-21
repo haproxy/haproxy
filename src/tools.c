@@ -5858,7 +5858,7 @@ void update_word_fingerprint(uint8_t *fp, const char *word)
 const char *hash_anon(uint32_t scramble, const char *string2hash, const char *prefix, const char *suffix)
 {
 	index_hash++;
-	if (index_hash > NB_L_HASH_WORD)
+	if (index_hash == NB_L_HASH_WORD)
 		index_hash = 0;
 
 	/* don't hash empty strings */
@@ -5885,7 +5885,7 @@ const char *hash_ipanon(uint32_t scramble, char *ipstring)
 	int port;
 
 	index_hash++;
-        if (index_hash > NB_L_HASH_WORD) {
+        if (index_hash == NB_L_HASH_WORD) {
                 index_hash = 0;
 	}
 
