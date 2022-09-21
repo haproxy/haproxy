@@ -4344,8 +4344,7 @@ int proxy_parse_smtpchk_opt(char **args, int cur_arg, struct proxy *curpx, const
 	chk->index = 3;
 	LIST_APPEND(&rs->rules, &chk->list);
 
-	chk = parse_tcpcheck_expect((char *[]){"tcp-check", "expect", "rstring", "^2[0-9]{2}[- \r]",
-				               "min-recv", "4",
+	chk = parse_tcpcheck_expect((char *[]){"tcp-check", "expect", "rstring", "^(2[0-9]{2}-[^\r]*\r\n)*2[0-9]{2}[ \r]",
 				               "error-status", "L7STS",
 				               "on-error", "%[res.payload(4,0),ltrim(' '),cut_crlf]",
 				               "on-success", "%[res.payload(4,0),ltrim(' '),cut_crlf]",
