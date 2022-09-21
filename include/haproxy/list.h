@@ -135,7 +135,7 @@
  * the list is passed in <list_head>. No temporary variable is needed. Note
  * that <item> must not be modified during the loop.
  * Example: list_for_each_entry(cur_acl, known_acl, list) { ... };
- */ 
+ */
 #define list_for_each_entry(item, list_head, member)                      \
 	for (item = LIST_ELEM((list_head)->n, typeof(item), member);     \
 	     &item->member != (list_head);                                \
@@ -158,7 +158,7 @@
  * the list is passed in <list_head>. A temporary variable <back> of same type
  * as <item> is needed so that <item> may safely be deleted if needed.
  * Example: list_for_each_entry_safe(cur_acl, tmp, known_acl, list) { ... };
- */ 
+ */
 #define list_for_each_entry_safe(item, back, list_head, member)           \
 	for (item = LIST_ELEM((list_head)->n, typeof(item), member),     \
 	     back = LIST_ELEM(item->member.n, typeof(item), member);     \
@@ -755,39 +755,80 @@
 /* Simpler FOREACH_ITEM_SAFE macro inspired from Linux sources.
  * Iterates <item> through a list of items of type "typeof(*item)" which are
  * linked via a "struct list" member named <member>. A pointer to the head of
- * the list is passed in <list_head>. A temporary variable <back> of same type
- * as <item> is needed so that <item> may safely be deleted if needed.
- * tmpelt1 is a temporary struct mt_list *, and tmpelt2 is a temporary
+ * the list is passed in <list_head>.
+ * tmpelt is a temporary struct mt_list *, and tmpelt2 is a temporary
  * struct mt_list, used internally, both are needed for MT_LIST_DELETE_SAFE.
- * Example: list_for_each_entry_safe(cur_acl, tmp, known_acl, list, elt1, elt2)
- * { ... };
+ *
+ * This macro is implemented using a nested loop:
+ * The inner loop will run for each element in the list, and the upper loop will run
+ * only once to do some cleanup when the end of the list is reached
+ * or user breaks from inner loop:
+ * you can safely break from this macro as the cleanup will be performed anyway,
+ * but it is strictly forbidden to goto from the loop because skipping the cleanup will
+ * lead to undefined behavior.
+ *
  * If you want to remove the current element, please use MT_LIST_DELETE_SAFE.
+ *
+ * Example: list_for_each_entry_safe(cur_acl, list_head, list_member, elt1, elt2)
+ * { ... };
  */
 #define mt_list_for_each_entry_safe(item, list_head, member, tmpelt, tmpelt2)           \
         for ((tmpelt) = NULL; (tmpelt) != MT_LIST_BUSY; ({                    \
-					if (tmpelt) {                         \
+				/* post loop cleanup:
+				 * gets executed only once to perform cleanup
+				 * after child loop has finished */			      \
+				if (tmpelt) { 	                              \
+					/* last elem still exists, unlocking it */		\
 					if (tmpelt2.prev)                     \
 						MT_LIST_UNLOCK_ELT(tmpelt, tmpelt2);           \
-					else                                  \
+					else {                                  \
+						/* special case: child loop did not run
+						 * so tmpelt2.prev == NULL
+						 * (empty list) */				\
 						_MT_LIST_UNLOCK_NEXT(tmpelt, tmpelt2.next); \
-				} else                                        \
-				_MT_LIST_RELINK_DELETED(tmpelt2);             \
+					}				      \
+				} else {                                      \
+					/* last elem was deleted by user, relink required:
+					 * prev->next = next
+					 * next->prev = prev */			\
+					_MT_LIST_RELINK_DELETED(tmpelt2);           \
+				}					      \
+				/* break parent loop
+				 * (this loop runs exactly one time) */ 	      \
 				(tmpelt) = MT_LIST_BUSY;                      \
 				}))                                           \
 	for ((tmpelt) = (list_head), (tmpelt2).prev = NULL, (tmpelt2).next = _MT_LIST_LOCK_NEXT(tmpelt); ({ \
+		      /* this gets executed before each user body loop */	    \
 	              (item) = MT_LIST_ELEM((tmpelt2.next), typeof(item), member);  \
 		      if (&item->member != (list_head)) {                     \
+		      		/* did not reach end of list
+				 * (back to list_head == end of list reached) */ \
 		                if (tmpelt2.prev != &item->member)            \
 					tmpelt2.next = _MT_LIST_LOCK_NEXT(&item->member); \
-				else \
+				else {					      \
+					/* FIXME: is this even supposed to happen??
+					 * I'm not understanding how
+					 * tmpelt2.prev could be equal to &item->member.
+					 * running 'test_list' multiple times with 8
+					 * concurrent threads: this never gets reached */ \
 					tmpelt2.next = tmpelt;                \
+				}					      \
 				if (tmpelt != NULL) {                         \
-					if (tmpelt2.prev)                     \
+					/* if tmpelt was not deleted by user */   \
+					if (tmpelt2.prev) {                   \
+						/* not executed on first run
+						 * (tmpelt2.prev == NULL on first run) */ \
 						_MT_LIST_UNLOCK_PREV(tmpelt, tmpelt2.prev); \
+						/* unlock_prev will implicitely relink:
+						 * elt->prev = prev
+						 * prev->next = elt
+						 */			      \
+					}				      \
 					tmpelt2.prev = tmpelt;                \
 				}                                             \
 				(tmpelt) = &item->member;                     \
-			}                                                     \
+			}						      \
+		        /* else: end of list reached (loop stop cond) */      \
 	    }),                                                               \
 	     &item->member != (list_head);)
 
