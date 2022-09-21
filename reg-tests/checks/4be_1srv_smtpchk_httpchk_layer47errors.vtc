@@ -36,12 +36,12 @@ server s1 {
     send "2"
     send "2"
     send "0"
-    send "\r\n\r\n"
+    send "\r\n"
     recv 16
     send "2"
     send "4"
     send "8"
-    send "\r\n\r\n"
+    send "\r\n"
 } -start
 
 server s2 {
