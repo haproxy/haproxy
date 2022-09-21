@@ -211,7 +211,7 @@ static void _do_poll(struct poller *p, int exp, int wake)
 				break;
 			}
 		}
-		clock_update_date(timeout, nevlist);
+		clock_update_local_date(timeout, nevlist);
 
 		if (nevlist || interrupted)
 			break;
@@ -221,6 +221,7 @@ static void _do_poll(struct poller *p, int exp, int wake)
 			break;
 	} while(1);
 
+	clock_update_global_date();
 	fd_leaving_poll(wait_time, nevlist);
 
 	if (nevlist > 0)

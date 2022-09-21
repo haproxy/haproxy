@@ -230,7 +230,7 @@ static void _do_poll(struct poller *p, int exp, int wake)
 		int timeout = (global.tune.options & GTUNE_BUSY_POLLING) ? 0 : wait_time;
 
 		status = epoll_wait(epoll_fd[tid], epoll_events, global.tune.maxpollevents, timeout);
-		clock_update_date(timeout, status);
+		clock_update_local_date(timeout, status);
 
 		if (status) {
 			activity[tid].poll_io++;
@@ -242,6 +242,7 @@ static void _do_poll(struct poller *p, int exp, int wake)
 			break;
 	} while (1);
 
+	clock_update_global_date();
 	fd_leaving_poll(wait_time, status);
 
 	/* process polled events */
