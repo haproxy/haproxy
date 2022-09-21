@@ -199,10 +199,8 @@ void clock_update_global_date()
 	uint old_now_ms;
 	ullong old_now;
 	ullong new_now;
-	ullong ofs, ofs_new;
+	ullong ofs_new;
 	uint sec_ofs, usec_ofs;
-
-	ofs = HA_ATOMIC_LOAD(&now_offset);
 
 	/* now that we have bounded the local time, let's check if it's
 	 * realistic regarding the global date, which only moves forward,
@@ -219,15 +217,28 @@ void clock_update_global_date()
 			now = tmp_now;
 
 		/* now <now> is expected to be the most accurate date,
-		 * equal to <global_now> or newer.
+		 * equal to <global_now> or newer. Updating the global
+		 * date too often causes extreme contention and is not
+		 * needed: it's only used to help threads run at the
+		 * same date in case of local drift, and the global date,
+		 * which changes, is only used by freq counters (a choice
+		 * which is debatable by the way since it changes under us).
+		 * Tests have seen that the contention can be reduced from
+		 * 37% in this function to almost 0% when keeping clocks
+		 * synchronized no better than 32 microseconds, so that's
+		 * what we're doing here.
 		 */
+
 		new_now = ((ullong)now.tv_sec << 32) + (uint)now.tv_usec;
 		now_ms = __tv_to_ms(&now);
+
+		if (!((new_now ^ old_now) & ~0x1FULL))
+			return;
 
 		/* let's try to update the global <now> (both in timeval
 		 * and ms forms) or loop again.
 		 */
-	} while (((new_now != old_now    && !_HA_ATOMIC_CAS(&global_now, &old_now, new_now)) ||
+	} while ((!_HA_ATOMIC_CAS(&global_now, &old_now, new_now) ||
 		  (now_ms  != old_now_ms && !_HA_ATOMIC_CAS(&global_now_ms, &old_now_ms, now_ms))) &&
 		 __ha_cpu_relax());
 
@@ -244,8 +255,7 @@ void clock_update_global_date()
 		sec_ofs  -= 1;
 	}
 	ofs_new = ((ullong)sec_ofs << 32) + usec_ofs;
-	if (ofs_new != ofs)
-		HA_ATOMIC_STORE(&now_offset, ofs_new);
+	HA_ATOMIC_STORE(&now_offset, ofs_new);
 }
 
 /* must be called once at boot to initialize some global variables */
