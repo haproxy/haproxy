@@ -709,8 +709,7 @@ static void mworker_reexec()
 	/* restore the initial FD limits */
 	limit.rlim_cur = rlim_fd_cur_at_boot;
 	limit.rlim_max = rlim_fd_max_at_boot;
-	if (setrlimit(RLIMIT_NOFILE, &limit) == -1) {
-		getrlimit(RLIMIT_NOFILE, &limit);
+	if (raise_rlim_nofile(&limit, &limit) != 0) {
 		ha_warning("Failed to restore initial FD limits (cur=%u max=%u), using cur=%u max=%u\n",
 			   rlim_fd_cur_at_boot, rlim_fd_max_at_boot,
 			   (unsigned int)limit.rlim_cur, (unsigned int)limit.rlim_max);
@@ -1452,14 +1451,14 @@ static int check_if_maxsock_permitted(int maxsock)
 		return 1;
 
 	/* don't go further if we can't even set to what we have */
-	if (setrlimit(RLIMIT_NOFILE, &orig_limit) != 0)
+	if (raise_rlim_nofile(NULL, &orig_limit) != 0)
 		return 1;
 
 	test_limit.rlim_max = MAX(maxsock, orig_limit.rlim_max);
 	test_limit.rlim_cur = test_limit.rlim_max;
-	ret = setrlimit(RLIMIT_NOFILE, &test_limit);
+	ret = raise_rlim_nofile(NULL, &test_limit);
 
-	if (setrlimit(RLIMIT_NOFILE, &orig_limit) != 0)
+	if (raise_rlim_nofile(NULL, &orig_limit) != 0)
 		return 1;
 
 	return ret == 0;
@@ -3180,7 +3179,7 @@ int main(int argc, char **argv)
 		limit.rlim_max = MAX(rlim_fd_max_at_boot, limit.rlim_cur);
 
 		if ((global.fd_hard_limit && limit.rlim_cur > global.fd_hard_limit) ||
-		    setrlimit(RLIMIT_NOFILE, &limit) == -1) {
+		    raise_rlim_nofile(NULL, &limit) != 0) {
 			getrlimit(RLIMIT_NOFILE, &limit);
 			if (global.fd_hard_limit && limit.rlim_cur > global.fd_hard_limit)
 				limit.rlim_cur = global.fd_hard_limit;
@@ -3196,7 +3195,7 @@ int main(int argc, char **argv)
 				if (global.fd_hard_limit && limit.rlim_cur > global.fd_hard_limit)
 					limit.rlim_cur = global.fd_hard_limit;
 
-				if (setrlimit(RLIMIT_NOFILE, &limit) != -1)
+				if (raise_rlim_nofile(&limit, &limit) == 0)
 					getrlimit(RLIMIT_NOFILE, &limit);
 
 				ha_warning("[%s.main()] Cannot raise FD limit to %d, limit is %d.\n",

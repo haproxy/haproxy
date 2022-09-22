@@ -419,7 +419,7 @@ static int connect_proc_chk(struct task *t)
 		/* restore the initial FD limits */
 		limit.rlim_cur = rlim_fd_cur_at_boot;
 		limit.rlim_max = rlim_fd_max_at_boot;
-		if (setrlimit(RLIMIT_NOFILE, &limit) == -1) {
+		if (raise_rlim_nofile(NULL, &limit) != 0) {
 			getrlimit(RLIMIT_NOFILE, &limit);
 			ha_warning("External check: failed to restore initial FD limits (cur=%u max=%u), using cur=%u max=%u\n",
 				   rlim_fd_cur_at_boot, rlim_fd_max_at_boot,
