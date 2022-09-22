@@ -13,10 +13,12 @@
 #define _GNU_SOURCE
 
 #include <errno.h>
+#include <fcntl.h>
 #include <signal.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/wait.h>
+#include <unistd.h>
 
 #if defined(USE_SYSTEMD)
 #include <systemd/sd-daemon.h>
@@ -32,6 +34,7 @@
 #include <haproxy/listener.h>
 #include <haproxy/mworker.h>
 #include <haproxy/peers.h>
+#include <haproxy/proto_sockpair.h>
 #include <haproxy/proxy.h>
 #include <haproxy/sc_strm.h>
 #include <haproxy/signal.h>
@@ -126,7 +129,7 @@ void mworker_proc_list_to_env()
 			minreloads = child->reloads;
 
 		if (child->pid > -1)
-			memprintf(&msg, "%s|type=%c;fd=%d;pid=%d;reloads=%d;failedreloads=%d;timestamp=%d;id=%s;version=%s", msg ? msg : "", type, child->ipc_fd[0], child->pid, child->reloads, child->failedreloads, child->timestamp, child->id ? child->id : "", child->version);
+			memprintf(&msg, "%s|type=%c;fd=%d;cfd=%d;pid=%d;reloads=%d;failedreloads=%d;timestamp=%d;id=%s;version=%s", msg ? msg : "", type, child->ipc_fd[0], child->ipc_fd[1], child->pid, child->reloads, child->failedreloads, child->timestamp, child->id ? child->id : "", child->version);
 	}
 	if (msg)
 		setenv("HAPROXY_PROCESSES", msg, 1);
@@ -203,6 +206,8 @@ int mworker_env_to_proc_list()
 
 			} else if (strncmp(subtoken, "fd=", 3) == 0) {
 				child->ipc_fd[0] = atoi(subtoken+3);
+			} else if (strncmp(subtoken, "cfd=", 4) == 0) {
+				child->ipc_fd[1] = atoi(subtoken+4);
 			} else if (strncmp(subtoken, "pid=", 4) == 0) {
 				child->pid = atoi(subtoken+4);
 			} else if (strncmp(subtoken, "reloads=", 8) == 0) {
@@ -623,9 +628,29 @@ static int cli_io_handler_show_proc(struct appctx *appctx)
 /* reload the master process */
 static int cli_parse_reload(char **args, char *payload, struct appctx *appctx, void *private)
 {
+	struct stconn *scb = NULL;
+	struct stream *strm = NULL;
+	struct connection *conn = NULL;
+	int fd = -1;
+
 	if (!cli_has_level(appctx, ACCESS_LVL_OPER))
 		return 1;
 
+	/* This ask for a synchronous reload, which means we will keep this FD
+	   instead of closing it. */
+
+	scb = appctx_sc(appctx);
+	if (scb)
+		strm = sc_strm(scb);
+	if (strm && strm->scf)
+		conn = sc_conn(strm->scf);
+	if (conn)
+		fd = conn_fd(conn);
+
+	/* Send the FD of the current session to the "cli_reload" FD, which won't be polled */
+	if (fd != -1 && send_fd_uxst(proc_self->ipc_fd[0], fd) == 0) {
+		close(fd); /* avoid the leak of the FD after sending it via the socketpair */
+	}
 	mworker_reload();
 
 	return 1;
