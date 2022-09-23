@@ -11335,7 +11335,7 @@ static int hlua_load_per_thread(char **args, int section_type, struct proxy *cur
 
 	/* count args excepting the first, allocate array and copy args */
 	for (i = 0; *(args[i + 1]) != 0; i++);
-	per_thread_load[len] = calloc(i + 1, sizeof(per_thread_load[len]));
+	per_thread_load[len] = calloc(i + 1, sizeof(*per_thread_load[len]));
 	if (per_thread_load[len] == NULL) {
 		memprintf(err, "out of memory error");
 		return -1;
