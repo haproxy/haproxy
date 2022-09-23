@@ -5750,7 +5750,10 @@ uint32_t parse_line(char *in, char *out, size_t *outlen, char **args, int *nbarg
 
 	/* end of output string */
 	EMIT_CHAR(0);
-	arg++;
+
+	/* don't add empty arg after trailing spaces */
+	if (arg < argsmax && args[arg] && *(args[arg]))
+		arg++;
 
 	if (quote) {
 		/* unmatched quote */
