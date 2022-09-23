@@ -649,7 +649,7 @@ static int cli_parse_reload(char **args, char *payload, struct appctx *appctx, v
 
 	/* Send the FD of the current session to the "cli_reload" FD, which won't be polled */
 	if (fd != -1 && send_fd_uxst(proc_self->ipc_fd[0], fd) == 0) {
-		close(fd); /* avoid the leak of the FD after sending it via the socketpair */
+		fd_delete(fd); /* avoid the leak of the FD after sending it via the socketpair */
 	}
 	mworker_reload();
 
