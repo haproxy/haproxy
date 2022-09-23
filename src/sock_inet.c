@@ -381,6 +381,25 @@ int sock_inet_bind_receiver(struct receiver *rx, char **errmsg)
 	}
 #endif
 
+#ifdef USE_QUIC
+	if (rx->proto->proto_type == PROTO_TYPE_DGRAM) {
+		switch (addr_inet.ss_family) {
+		case AF_INET:
+#if defined(IP_PKTINFO)
+			setsockopt(fd, IPPROTO_IP, IP_PKTINFO, &one, sizeof(one));
+#elif defined(IP_RECVDSTADDR)
+			setsockopt(fd, IPPROTO_IP, IP_RECVDSTADDR, &one, sizeof(one));
+#endif /* IP_PKTINFO || IP_RECVDSTADDR */
+			break;
+		case AF_INET6:
+#ifdef IPV6_RECVPKTINFO
+			setsockopt(fd, IPPROTO_IPV6, IPV6_RECVPKTINFO, &one, sizeof(one));
+#endif
+			break;
+		}
+	}
+#endif /* USE_QUIC */
+
 	if (!ext && bind(fd, (struct sockaddr *)&addr_inet, rx->proto->fam->sock_addrlen) == -1) {
 		err |= ERR_RETRYABLE | ERR_ALERT;
 		memprintf(errmsg, "cannot bind socket (%s)", strerror(errno));

@@ -4590,13 +4590,14 @@ static int parse_retry_token(struct quic_conn *qc,
  * for QUIC servers (or haproxy listeners).
  * <dcid> is the destination connection ID, <scid> is the source connection ID,
  * <token> the token found to be used for this connection with <token_len> as
- * length. <saddr> is the source address.
+ * length. Endpoints addresses are specified via <local_addr> and <peer_addr>.
  * Returns the connection if succeeded, NULL if not.
  */
 static struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
                                      struct quic_cid *dcid, struct quic_cid *scid,
                                      const struct quic_cid *token_odcid,
-                                     struct sockaddr_storage *saddr,
+                                     struct sockaddr_storage *local_addr,
+                                     struct sockaddr_storage *peer_addr,
                                      int server, int token, void *owner)
 {
 	int i;
@@ -4715,7 +4716,8 @@ static struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 
 	qc->streams_by_id = EB_ROOT_UNIQUE;
 	qc->stream_buf_count = 0;
-	memcpy(&qc->peer_addr, saddr, sizeof qc->peer_addr);
+	memcpy(&qc->local_addr, local_addr, sizeof(qc->local_addr));
+	memcpy(&qc->peer_addr, peer_addr, sizeof qc->peer_addr);
 
 	if (server && !qc_lstnr_params_init(qc, &l->bind_conf->quic_params,
 	                                    icid->stateless_reset_token,
@@ -6028,7 +6030,8 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 			ipv4 = dgram->saddr.ss_family == AF_INET;
 
 			qc = qc_new_conn(qv, ipv4, &pkt->dcid, &pkt->scid, token_odcid,
-			                 &pkt->saddr, 1, !!pkt->token_len, l);
+			                 &dgram->daddr, &pkt->saddr, 1,
+			                 !!pkt->token_len, l);
 			if (qc == NULL)
 				goto drop;
 

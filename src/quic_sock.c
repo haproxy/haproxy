@@ -10,10 +10,12 @@
  *
  */
 
+#define _GNU_SOURCE /* required for struct in6_pktinfo */
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
 
+#include <netinet/in.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 
@@ -142,14 +144,17 @@ int quic_sock_get_dst(struct connection *conn, struct sockaddr *addr, socklen_t 
 			len = sizeof(qc->peer_addr);
 		memcpy(addr, &qc->peer_addr, len);
 	} else {
-		/* FIXME: front connection, no local address for now, we'll
-		 * return the listener's address instead.
+		struct sockaddr_storage *from;
+
+		/* Return listener address if IP_PKTINFO or friends are not
+		 * supported by the socket.
 		 */
 		BUG_ON(!qc->li);
-
-		if (len > sizeof(qc->li->rx.addr))
-			len = sizeof(qc->li->rx.addr);
-		memcpy(addr, &qc->li->rx.addr, len);
+		from = is_addr(&qc->local_addr) ? &qc->local_addr :
+		                                  &qc->li->rx.addr;
+		if (len > sizeof(*from))
+			len = sizeof(*from);
+		memcpy(addr, from, len);
 	}
 	return 0;
 }
@@ -237,6 +242,7 @@ struct connection *quic_sock_accept_conn(struct listener *l, int *status)
  */
 static int quic_lstnr_dgram_dispatch(unsigned char *buf, size_t len, void *owner,
                                      struct sockaddr_storage *saddr,
+                                     struct sockaddr_storage *daddr,
                                      struct quic_dgram *new_dgram, struct list *dgrams)
 {
 	struct quic_dgram *dgram;
@@ -260,6 +266,7 @@ static int quic_lstnr_dgram_dispatch(unsigned char *buf, size_t len, void *owner
 	dgram->dcid = dcid;
 	dgram->dcid_len = dcid_len;
 	dgram->saddr = *saddr;
+	dgram->daddr = *daddr;
 	dgram->qc = NULL;
 	LIST_APPEND(dgrams, &dgram->list);
 	MT_LIST_APPEND(&quic_dghdlrs[cid_tid].dgrams, &dgram->mt_list);
@@ -274,6 +281,111 @@ static int quic_lstnr_dgram_dispatch(unsigned char *buf, size_t len, void *owner
 	return 0;
 }
 
+/* Receive data from datagram socket <fd>. Data are placed in <out> buffer of
+ * length <len>.
+ *
+ * Datagram addresses will be returned via the next arguments. <from> will be
+ * the peer address and <to> the reception one. Note that <to> can only be
+ * retrieved if the socket supports IP_PKTINFO or affiliated options. If not,
+ * <to> will be set as AF_UNSPEC. The caller must specify <to_port> to ensure
+ * that <to> address is completely filled.
+ *
+ * Returns value from recvmsg syscall.
+ */
+static ssize_t quic_recv(int fd, void *out, size_t len,
+                         struct sockaddr *from, socklen_t from_len,
+                         struct sockaddr *to, socklen_t to_len,
+                         uint16_t dst_port)
+{
+	union pktinfo {
+#ifdef IP_PKTINFO
+		struct in_pktinfo in;
+#else /* !IP_PKTINFO */
+		struct in_addr addr;
+#endif
+#ifdef IPV6_RECVPKTINFO
+		struct in6_pktinfo in6;
+#endif
+	};
+	char cdata[CMSG_SPACE(sizeof(union pktinfo))];
+	struct msghdr msg;
+	struct iovec vec;
+	struct cmsghdr *cmsg;
+	ssize_t ret;
+
+	vec.iov_base = out;
+	vec.iov_len  = len;
+
+	memset(&msg, 0, sizeof(msg));
+	msg.msg_name    = from;
+	msg.msg_namelen = from_len;
+	msg.msg_iov     = &vec;
+	msg.msg_iovlen  = 1;
+	msg.msg_control = &cdata;
+	msg.msg_controllen = sizeof(cdata);
+
+	clear_addr((struct sockaddr_storage *)to);
+
+	do {
+		ret = recvmsg(fd, &msg, 0);
+	} while (ret < 0 && errno == EINTR);
+
+	/* TODO handle errno. On EAGAIN/EWOULDBLOCK use fd_cant_recv() if
+	 * using dedicated connection socket.
+	 */
+
+	if (ret < 0)
+		goto end;
+
+	for (cmsg = CMSG_FIRSTHDR(&msg); cmsg; cmsg = CMSG_NXTHDR(&msg, cmsg)) {
+		switch (cmsg->cmsg_level) {
+		case IPPROTO_IP:
+#if defined(IP_PKTINFO)
+			if (cmsg->cmsg_type == IP_PKTINFO) {
+				struct sockaddr_in *in = (struct sockaddr_in *)to;
+				struct in_pktinfo *info = (struct in_pktinfo *)CMSG_DATA(cmsg);
+
+				if (to_len >= sizeof(struct sockaddr_in)) {
+					in->sin_family = AF_INET;
+					in->sin_addr = info->ipi_addr;
+					in->sin_port = dst_port;
+				}
+			}
+#elif defined(IP_RECVDSTADDR)
+			if (cmsg->cmsg_type == IP_RECVDSTADDR) {
+				struct sockaddr_in *in = (struct sockaddr_in *)to;
+				struct in_addr *info = (struct in_addr *)CMSG_DATA(cmsg);
+
+				if (to_len >= sizeof(struct sockaddr_in)) {
+					in->sin_family = AF_INET;
+					in->sin_addr.s_addr = info->s_addr;
+					in->sin_port = dst_port;
+				}
+			}
+#endif /* IP_PKTINFO || IP_RECVDSTADDR */
+			break;
+
+		case IPPROTO_IPV6:
+#ifdef IPV6_RECVPKTINFO
+			if (cmsg->cmsg_type == IPV6_PKTINFO) {
+				struct sockaddr_in6 *in6 = (struct sockaddr_in6 *)to;
+				struct in6_pktinfo *info6 = (struct in6_pktinfo *)CMSG_DATA(cmsg);
+
+				if (to_len >= sizeof(struct sockaddr_in6)) {
+					in6->sin6_family = AF_INET6;
+					memcpy(&in6->sin6_addr, &info6->ipi6_addr, sizeof(in6->sin6_addr));
+					in6->sin6_port = dst_port;
+				}
+			}
+#endif
+			break;
+		}
+	}
+
+ end:
+	return ret;
+}
+
 /* Function called on a read event from a listening socket. It tries
  * to handle as many connections as possible.
  */
@@ -285,9 +397,8 @@ void quic_sock_fd_iocb(int fd)
 	struct listener *l = objt_listener(fdtab[fd].owner);
 	struct quic_transport_params *params;
 	/* Source address */
-	struct sockaddr_storage saddr = {0};
+	struct sockaddr_storage saddr = {0}, daddr = {0};
 	size_t max_sz, cspace;
-	socklen_t saddrlen;
 	struct quic_dgram *new_dgram;
 	unsigned char *dgram_buf;
 	int max_dgrams;
@@ -358,18 +469,15 @@ void quic_sock_fd_iocb(int fd)
 	}
 
 	dgram_buf = (unsigned char *)b_tail(buf);
-	saddrlen = sizeof saddr;
-	do {
-		ret = recvfrom(fd, dgram_buf, max_sz, 0,
-		               (struct sockaddr *)&saddr, &saddrlen);
-		if (ret < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
-			fd_cant_recv(fd);
-			goto out;
-		}
-	} while (ret < 0 && errno == EINTR);
+	ret = quic_recv(fd, dgram_buf, max_sz,
+	                (struct sockaddr *)&saddr, sizeof(saddr),
+	                (struct sockaddr *)&daddr, sizeof(daddr),
+	                get_net_port(&l->rx.addr));
+	if (ret <= 0)
+		goto out;
 
 	b_add(buf, ret);
-	if (!quic_lstnr_dgram_dispatch(dgram_buf, ret, l, &saddr,
+	if (!quic_lstnr_dgram_dispatch(dgram_buf, ret, l, &saddr, &daddr,
 	                               new_dgram, &rxbuf->dgrams)) {
 		/* If wrong, consume this datagram */
 		b_del(buf, ret);

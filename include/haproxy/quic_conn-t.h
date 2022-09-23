@@ -374,6 +374,7 @@ struct quic_dgram {
 	unsigned char *dcid;
 	size_t dcid_len;
 	struct sockaddr_storage saddr;
+	struct sockaddr_storage daddr;
 	struct quic_conn *qc;
 	struct list list;
 	struct mt_list mt_list;
@@ -636,6 +637,7 @@ struct quic_conn {
 
 	struct ssl_sock_ctx *xprt_ctx;
 
+	struct sockaddr_storage local_addr;
 	struct sockaddr_storage peer_addr;
 
 	/* Used only to reach the tasklet for the I/O handler from this quic_conn object. */
