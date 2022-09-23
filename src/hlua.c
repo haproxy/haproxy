@@ -11274,6 +11274,11 @@ static int hlua_load_state(char **args, lua_State *L, char **err)
 
 	/* Push args in the Lua stack, except the first one which is the filename */
 	for (nargs = 1; *(args[nargs]) != 0; nargs++) {
+		/* Check stack size. */
+		if (!lua_checkstack(L, 1)) {
+			memprintf(err, "Lua runtime error while loading arguments: stack is full.");
+			return -1;
+		}
 		lua_pushstring(L, args[nargs]);
 	}
 	nargs--;
