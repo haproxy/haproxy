@@ -3886,11 +3886,24 @@ reload
   does the same as a `kill -USR2` on the master process, provided that the user
   has at least "operator" or "admin" privileges.
 
+  This command allows you to perform a synchronous reload, the command will
+  return a reload status, once the reload was performed. Be careful with the
+  timeout if a tool is used to parse it, it is only returned once the
+  configuration is parsed and the new worker is forked.
+
   Example:
 
     $ echo "reload" | socat /var/run/haproxy-master.sock stdin
+    Loading success.
 
-  Note that a reload will close the connection to the master CLI.
+    $ echo "reload" | socat /var/run/haproxy-master.sock stdin
+    Loading failure!
+
+  The reload command is the last executed on the master CLI, every other
+  command after it are ignored. Once the reload command returns its status, it
+  will close the connection to the CLI.
+
+  Note that a reload will close all connections to the master CLI.
 
 show proc
   The master CLI introduces a 'show proc' command to surpervise the
