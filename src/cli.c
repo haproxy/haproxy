@@ -3076,7 +3076,7 @@ error_proxy:
 /*
  * Create a new listener for the master CLI proxy
  */
-int mworker_cli_proxy_new_listener(char *line)
+struct bind_conf *mworker_cli_proxy_new_listener(char *line)
 {
 	struct bind_conf *bind_conf;
 	struct listener *l;
@@ -3165,13 +3165,13 @@ int mworker_cli_proxy_new_listener(char *line)
 	}
 	global.maxsock += mworker_proxy->maxconn;
 
-	return 0;
+	return bind_conf;
 
 err:
 	ha_alert("%s\n", err);
 	free(err);
 	free(bind_conf);
-	return -1;
+	return NULL;
 
 }
 
