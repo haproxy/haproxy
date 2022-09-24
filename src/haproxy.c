@@ -2131,7 +2131,8 @@ static void init(int argc, char **argv)
 			}
 			/* Create the mcli_reload listener from the proc_self struct */
 			memprintf(&path, "sockpair@%d", proc_self->ipc_fd[1]);
-			if (mworker_cli_proxy_new_listener(path) == NULL) {
+			mcli_reload_bind_conf = mworker_cli_proxy_new_listener(path);
+			if (mcli_reload_bind_conf == NULL) {
 				ha_alert("Cannot create the mcli_reload listener.\n");
 				exit(EXIT_FAILURE);
 			}

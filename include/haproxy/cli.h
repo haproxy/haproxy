@@ -46,6 +46,8 @@ struct bind_conf *mworker_cli_proxy_new_listener(char *line);
 int mworker_cli_sockpair_new(struct mworker_proc *mworker_proc, int proc);
 void mworker_cli_proxy_stop(void);
 
+extern struct bind_conf *mcli_reload_bind_conf;
+
 /* proxy mode cli functions */
 
 /* analyzers */

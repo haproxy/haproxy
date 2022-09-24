@@ -85,6 +85,7 @@ static struct cli_kw_list cli_keywords = {
 extern const char *stat_status_codes[];
 
 struct proxy *mworker_proxy; /* CLI proxy of the master */
+struct bind_conf *mcli_reload_bind_conf;
 
 /* CLI context for the "show activity" command */
 struct show_activity_ctx {
