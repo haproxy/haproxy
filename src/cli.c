@@ -2682,6 +2682,13 @@ int pcli_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	if ((s->pcli_flags & ACCESS_LVL_MASK) == ACCESS_LVL_NONE)
 		s->pcli_flags |= strm_li(s)->bind_conf->level & ACCESS_LVL_MASK;
 
+	/* stream that comes from the reload listener only responses the reload
+	 * status and quits */
+	if (!(s->pcli_flags & PCLI_F_RELOAD)
+	    && strm_li(s)->bind_conf == mcli_reload_bind_conf)
+		goto send_status;
+
+
 read_again:
 	/* if the channel is closed for read, we won't receive any more data
 	   from the client, but we don't want to forward this close to the
@@ -2753,6 +2760,13 @@ read_again:
 send_help:
 	b_reset(&req->buf);
 	b_putblk(&req->buf, "help\n", 5);
+	goto read_again;
+
+send_status:
+	s->pcli_flags |= PCLI_F_RELOAD;
+	/* dont' use ci_putblk here because SHUTW could have been sent */
+	b_reset(&req->buf);
+	b_putblk(&req->buf, "_loadstatus;quit\n", 17);
 	goto read_again;
 
 missing_data:
