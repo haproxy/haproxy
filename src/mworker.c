@@ -31,6 +31,7 @@
 #include <haproxy/fd.h>
 #include <haproxy/global.h>
 #include <haproxy/list.h>
+#include <haproxy/log.h>
 #include <haproxy/listener.h>
 #include <haproxy/mworker.h>
 #include <haproxy/peers.h>
@@ -656,6 +657,28 @@ static int cli_parse_reload(char **args, char *payload, struct appctx *appctx, v
 	return 1;
 }
 
+/* Displays if the current reload failed or succeed  */
+static int cli_parse_status(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	char *env;
+
+	if (!cli_has_level(appctx, ACCESS_LVL_OPER))
+		return 1;
+
+	env = getenv("HAPROXY_LOAD_SUCCESS");
+	if (!env)
+		return 1;
+
+	if (strcmp(env, "0") == 0) {
+		return cli_msg(appctx, LOG_INFO, "Loading failure!\n");
+	} else if (strcmp(env, "1") == 0) {
+		return cli_msg(appctx, LOG_INFO, "Loading success.\n");
+	}
+
+	return 1;
+}
+
+
 
 static int mworker_parse_global_max_reloads(char **args, int section_type, struct proxy *curpx,
            const struct proxy *defpx, const char *file, int linenum, char **err)
@@ -714,6 +737,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "@master", NULL },         "@master                                 : send a command to the master process", cli_parse_default, NULL, NULL, NULL, ACCESS_MASTER_ONLY},
 	{ { "show", "proc", NULL },    "show proc                               : show processes status", cli_parse_default, cli_io_handler_show_proc, NULL, NULL, ACCESS_MASTER_ONLY},
 	{ { "reload", NULL },          "reload                                  : reload haproxy", cli_parse_reload, NULL, NULL, NULL, ACCESS_MASTER_ONLY},
+	{ { "_loadstatus", NULL },     NULL,                                                             cli_parse_status, NULL, NULL, NULL, ACCESS_MASTER_ONLY},
 	{{},}
 }};
 

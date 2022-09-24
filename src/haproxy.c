@@ -866,6 +866,7 @@ void reexec_on_failure()
 	sock_drop_unused_old_sockets();
 
 	usermsgs_clr(NULL);
+	setenv("HAPROXY_LOAD_SUCCESS", "0", 1);
 	ha_warning("Loading failure!\n");
 #if defined(USE_SYSTEMD)
 	/* the sd_notify API is not able to send a reload failure signal. So
@@ -3507,6 +3508,7 @@ int main(int argc, char **argv)
 						sd_notifyf(0, "READY=1\nMAINPID=%lu\nSTATUS=Ready.\n", (unsigned long)getpid());
 #endif
 					/* if not in wait mode, reload in wait mode to free the memory */
+					setenv("HAPROXY_LOAD_SUCCESS", "1", 1);
 					ha_notice("Loading success.\n");
 					proc_self->failedreloads = 0; /* reset the number of failure */
 					mworker_reexec_waitmode();
