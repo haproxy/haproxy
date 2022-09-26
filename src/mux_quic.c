@@ -1399,7 +1399,8 @@ static int qc_send_frames(struct qcc *qcc, struct list *frms)
 
 	LIST_INIT(&qcc->send_retry_list);
 
-	qc_send_mux(qcc->conn->handle.qc, frms);
+	if (!qc_send_mux(qcc->conn->handle.qc, frms))
+		goto err;
 
 	/* If there is frames left at this stage, transport layer is blocked.
 	 * Subscribe on it to retry later.
