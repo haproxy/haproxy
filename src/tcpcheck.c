@@ -4517,7 +4517,7 @@ int proxy_parse_pgsql_check_opt(char **args, int cur_arg, struct proxy *curpx, c
 	chk->index = 2;
 	LIST_APPEND(&rs->rules, &chk->list);
 
-	chk = parse_tcpcheck_expect((char *[]){"tcp-check", "expect", "rbinary", "^52000000(08|0A|0C)000000(00|02|03|04|05|06)",
+	chk = parse_tcpcheck_expect((char *[]){"tcp-check", "expect", "rbinary", "^52000000[A-Z0-9]{2}000000(00|02|03|04|05|06|07|09|0A)",
 				               "min-recv", "9",
 				               "error-status", "L7STS",
 				               "on-success", "PostgreSQL server is ok",

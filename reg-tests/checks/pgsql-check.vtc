@@ -23,6 +23,11 @@ server s3 {
   send "Not a PostgreSQL response"
 } -start
 
+server s4 {
+  recv 23
+  sendhex "52000000170000000A534352414D2D5348412D3235360000"
+} -start
+
 syslog S1 -level notice {
     recv
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be1/srv succeeded, reason: Layer7 check passed.+info: \"PostgreSQL server is ok\".+check duration: [[:digit:]]+ms, status: 1/1 UP."
@@ -38,6 +43,10 @@ syslog S3 -level notice {
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be3/srv failed, reason: Layer7 wrong status.+info: \"PostgreSQL unknown error\".+check duration: [[:digit:]]+ms, status: 0/1 DOWN."
 } -start
 
+syslog S4 -level notice {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be4/srv succeeded, reason: Layer7 check passed.+info: \"PostgreSQL server is ok\".+check duration: [[:digit:]]+ms, status: 1/1 UP."
+} -start
 
 haproxy h1 -conf {
     defaults
@@ -64,6 +73,12 @@ haproxy h1 -conf {
         option pgsql-check user postgres
         server srv ${s3_addr}:${s3_port} check inter 1s rise 1 fall 1
 
+    backend be4
+        log ${S4_addr}:${S4_port} daemon
+        option log-health-checks
+        option pgsql-check user postgres
+        server srv ${s4_addr}:${s4_port} check inter 1s rise 1 fall 1
+
     listen pgsql1
         bind "fd@${pgsql}"
         tcp-request inspect-delay 100ms
@@ -75,3 +90,4 @@ haproxy h1 -conf {
 syslog S1 -wait
 syslog S2 -wait
 syslog S3 -wait
+syslog S4 -wait
