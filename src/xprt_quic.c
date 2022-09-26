@@ -118,7 +118,6 @@ static int qc_xprt_start(struct connection *conn, void *ctx)
 {
 	int ret = 0;
 	struct quic_conn *qc;
-	struct ssl_sock_ctx *qctx = ctx;
 
 	qc = conn->handle.qc;
 	TRACE_ENTER(QUIC_EV_CONN_NEW, qc);
@@ -132,7 +131,7 @@ static int qc_xprt_start(struct connection *conn, void *ctx)
 	/* mux-quic can now be considered ready. */
 	qc->mux_state = QC_MUX_READY;
 
-	tasklet_wakeup(qctx->wait_event.tasklet);
+	tasklet_wakeup(qc->wait_event.tasklet);
 
 	ret = 1;
  out:

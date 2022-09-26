@@ -689,6 +689,8 @@ struct quic_conn {
 	struct eb_root streams_by_id; /* qc_stream_desc tree */
 	int stream_buf_count; /* total count of allocated stream buffers for this connection */
 
+	struct wait_event wait_event;
+
 	/* MUX */
 	struct qcc *qcc;
 	struct task *timer_task;
