@@ -1909,6 +1909,8 @@ static void init(int argc, char **argv)
 	struct pre_check_fct *prcf;
 	int ideal_maxconn;
 
+	startup_logs_init();
+
 	if (!init_trash_buffers(1)) {
 		ha_alert("failed to initialize trash buffers.\n");
 		exit(1);
@@ -3431,9 +3433,13 @@ int main(int argc, char **argv)
 
 		/* the father launches the required number of processes */
 		if (!(global.mode & MODE_MWORKER_WAIT)) {
+			struct ring *tmp_startup_logs = NULL;
+
 			if (global.mode & MODE_MWORKER)
 				mworker_ext_launch_all();
 
+			/* at this point the worker must have his own startup_logs buffer */
+			tmp_startup_logs = startup_logs_dup(startup_logs);
 			ret = fork();
 			if (ret < 0) {
 				ha_alert("[%s.main()] Cannot fork.\n", argv[0]);
@@ -3441,6 +3447,8 @@ int main(int argc, char **argv)
 				exit(1); /* there has been an error */
 			}
 			else if (ret == 0) { /* child breaks here */
+				startup_logs_free(startup_logs);
+				startup_logs = tmp_startup_logs;
 				/* This one must not be exported, it's internal! */
 				unsetenv("HAPROXY_MWORKER_REEXEC");
 				ha_random_jump96(1);

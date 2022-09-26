@@ -100,7 +100,10 @@
 #define MAX_SYSLOG_LEN          1024
 #endif
 
-/* 64kB to archive startup-logs seems way more than enough */
+/* 64kB to archive startup-logs seems way more than enough
+ * /!\ Careful when changing this size, it is used in a shm when exec() from
+ * mworker to wait mode.
+ */
 #ifndef STARTUP_LOG_SIZE
 #define STARTUP_LOG_SIZE        65536
 #endif

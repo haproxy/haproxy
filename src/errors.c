@@ -1,5 +1,9 @@
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <syslog.h>
 
 #include <haproxy/api.h>
@@ -15,7 +19,10 @@
 
 /* A global buffer used to store all startup alerts/warnings. It will then be
  * retrieve on the CLI. */
-static struct ring *startup_logs = NULL;
+struct ring *startup_logs = NULL;
+#ifdef USE_SHM_OPEN
+static struct ring *shm_startup_logs = NULL;
+#endif
 
 /* A thread local buffer used to store all alerts/warnings. It can be used to
  * retrieve them for CLI commands after startup.
@@ -27,6 +34,185 @@ static THREAD_LOCAL struct buffer usermsgs_buf = BUF_NULL;
  */
 #define USERMSGS_CTX_BUFSIZE   PATH_MAX
 static THREAD_LOCAL struct usermsgs_ctx usermsgs_ctx = { .str = BUF_NULL, };
+
+#ifdef USE_SHM_OPEN
+
+/* initialise an SHM for the startup logs and return its fd */
+static int startup_logs_new_shm()
+{
+	char *path = NULL;
+	int fd = -1;
+	int flags;
+
+	/* create a unique path per PID so we don't collide with another
+	   process */
+	memprintf(&path, "/haproxy_startup_logs_%d", getpid());
+	fd = shm_open(path, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
+	if (fd == -1)
+		goto error;
+	shm_unlink(path);
+	ha_free(&path);
+
+	if (ftruncate(fd, STARTUP_LOG_SIZE) == -1)
+		goto error;
+
+	flags = fcntl(fd, F_GETFD);
+	if (flags == -1)
+		goto error;
+	flags &= ~FD_CLOEXEC;
+	flags = fcntl(fd, F_SETFD, flags);
+	if (flags == -1)
+		goto error;
+
+	return fd;
+error:
+	if (fd != -1) {
+		close(fd);
+		fd = -1;
+	}
+	return fd;
+}
+
+/* mmap a startup-logs from a <fd>.
+ * if <new> is set to one, initialize the buffer.
+ * Returns the ring.
+ */
+static struct ring *startup_logs_from_fd(int fd, int new)
+{
+	char *area;
+	struct ring *r = NULL;
+
+	if (fd == -1)
+		goto error;
+
+	area = mmap(NULL, STARTUP_LOG_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+	if (area == MAP_FAILED || area == NULL)
+		goto error;
+
+	if (new)
+		r = ring_make_from_area(area, STARTUP_LOG_SIZE);
+	else
+		r = ring_cast_from_area(area);
+
+	if (r == NULL)
+		goto error;
+
+	shm_startup_logs = r; /* save the ptr so we can unmap later */
+
+	return r;
+error:
+	return NULL;
+}
+
+/*
+ * Use a shm accross reexec of the master.
+ *
+ * During the startup of the master, a shm_open must be done and the FD saved
+ * into the HAPROXY_STARTUPLOGS_FD environment variable.
+ *
+ * When forking workers, the child must use a copy of the shm, not the shm itself.
+ *
+ * Once in wait mode, the shm must be copied and closed.
+ *
+ */
+void startup_logs_init()
+{
+	struct ring *r = NULL;
+	char *str_fd, *endptr;
+	int fd = -1;
+
+	str_fd = getenv("HAPROXY_STARTUPLOGS_FD");
+	if (str_fd) {
+		fd = strtol(str_fd, &endptr, 10);
+		if (*endptr != '\0')
+			goto error;
+		unsetenv("HAPROXY_STARTUPLOGS_FD");
+	}
+
+	/* during startup, or just after a reload.
+	 * Note: the WAIT_ONLY env variable must be
+	 * check in case of an early call  */
+	if (!(global.mode & MODE_MWORKER_WAIT) &&
+	    getenv("HAPROXY_MWORKER_WAIT_ONLY") == NULL) {
+		if (fd != -1)
+			close(fd);
+
+		fd = startup_logs_new_shm();
+		if (fd == -1)
+			goto error;
+
+		r = startup_logs_from_fd(fd, 1);
+		if (!r)
+			goto error;
+
+		memprintf(&str_fd, "%d", fd);
+		setenv("HAPROXY_STARTUPLOGS_FD", str_fd, 1);
+		ha_free(&str_fd);
+
+	} else {
+		/* in wait mode, copy the shm to an allocated buffer */
+		struct ring *prev = NULL;
+
+		if (fd == -1)
+			goto error;
+
+		prev = startup_logs_from_fd(fd, 0);
+		if (!prev)
+			goto error;
+
+		r = startup_logs_dup(prev);
+		if (!r)
+			goto error;
+		startup_logs_free(prev);
+		close(fd);
+	}
+
+	startup_logs = r;
+
+	return;
+error:
+	if (fd != -1)
+		close(fd);
+	/* couldn't get a mmap to work */
+	startup_logs = ring_new(STARTUP_LOG_SIZE);
+
+}
+
+#else /* ! USE_SHM_OPEN */
+
+void startup_logs_init()
+{
+	startup_logs = ring_new(STARTUP_LOG_SIZE);
+}
+
+#endif
+
+/* free the startup logs, unmap if it was an shm */
+void startup_logs_free(struct ring *r)
+{
+#ifdef USE_SHM_OPEN
+	if (r == shm_startup_logs)
+		munmap(r, STARTUP_LOG_SIZE);
+	else
+#endif /* ! USE_SHM_OPEN */
+		ring_free(r);
+}
+
+/* duplicate a startup logs which was previously allocated in a shm */
+struct ring *startup_logs_dup(struct ring *src)
+{
+	struct ring *dst = NULL;
+
+	/* must use the size of the previous buffer */
+	dst = ring_new(b_size(&src->buf));
+	if (!dst)
+		goto error;
+
+	b_reset(&dst->buf);
+	b_ncat(&dst->buf, &src->buf, b_data(&src->buf));
+error:
+	return dst;
+}
 
 /* Put msg in usermsgs_buf.
  *
@@ -200,7 +386,7 @@ static void print_message(int use_usermsgs_ctx, const char *label, const char *f
 
 	if (global.mode & MODE_STARTING) {
 		if (unlikely(!startup_logs))
-			startup_logs = ring_new(STARTUP_LOG_SIZE);
+			startup_logs_init();
 
 		if (likely(startup_logs)) {
 			struct ist m[3];
@@ -361,7 +547,7 @@ static int cli_parse_show_startup_logs(char **args, char *payload, struct appctx
 
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
-	{ { "show", "startup-logs",  NULL }, "show startup-logs                       : report logs emitted during HAProxy startup", cli_parse_show_startup_logs, NULL, NULL },
+	{ { "show", "startup-logs",  NULL }, "show startup-logs                       : report logs emitted during HAProxy startup", cli_parse_show_startup_logs, NULL, NULL, NULL, ACCESS_MASTER },
 	{{},}
 }};
 
