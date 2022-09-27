@@ -99,6 +99,25 @@ struct ring *ring_make_from_area(void *area, size_t size)
 	return ring;
 }
 
+/* Cast an unified ring + storage area to a ring from <area>, without
+ * reinitializing the data buffer.
+ *
+ * Reinitialize the waiters and the lock.
+ */
+struct ring *ring_cast_from_area(void *area)
+{
+	struct ring *ring = NULL;
+
+	ring = area;
+	ring->buf.area = area + sizeof(*ring);
+
+	HA_RWLOCK_INIT(&ring->lock);
+	LIST_INIT(&ring->waiters);
+	ring->readers_count = 0;
+
+	return ring;
+}
+
 /* Resizes existing ring <ring> to <size> which must be larger, without losing
  * its contents. The new size must be at least as large as the previous one or
  * no change will be performed. The pointer to the ring is returned on success,

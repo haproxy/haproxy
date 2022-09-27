@@ -30,6 +30,7 @@ struct appctx;
 
 struct ring *ring_new(size_t size);
 struct ring *ring_make_from_area(void *area, size_t size);
+struct ring *ring_cast_from_area(void *area);
 void ring_init(struct ring *ring, void* area, size_t size);
 struct ring *ring_resize(struct ring *ring, size_t size);
 void ring_free(struct ring *ring);
