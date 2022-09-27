@@ -36,7 +36,10 @@
 #include <haproxy/session.h>
 #include <haproxy/stats-t.h>
 #include <haproxy/task.h>
+#include <haproxy/trace.h>
 #include <haproxy/tools.h>
+
+#define TRACE_SOURCE    &trace_quic
 
 /* Retrieve a connection's source address. Returns -1 on failure. */
 int quic_sock_get_src(struct connection *conn, struct sockaddr *addr, socklen_t len)
@@ -158,6 +161,37 @@ struct connection *quic_sock_accept_conn(struct listener *l, int *status)
 
 	*status = CO_AC_PAUSE;
 	return NULL;
+}
+
+/* QUIC datagrams handler task. */
+struct task *quic_lstnr_dghdlr(struct task *t, void *ctx, unsigned int state)
+{
+	struct quic_dghdlr *dghdlr = ctx;
+	struct quic_dgram *dgram;
+	int max_dgrams = global.tune.maxpollevents;
+
+	TRACE_ENTER(QUIC_EV_CONN_LPKT);
+
+	while ((dgram = MT_LIST_POP(&dghdlr->dgrams, typeof(dgram), handler_list))) {
+		if (quic_dgram_parse(dgram, NULL, dgram->owner)) {
+			/* TODO should we requeue the datagram ? */
+			break;
+		}
+
+		if (--max_dgrams <= 0)
+			goto stop_here;
+	}
+
+	TRACE_LEAVE(QUIC_EV_CONN_LPKT);
+	return t;
+
+ stop_here:
+	/* too much work done at once, come back here later */
+	if (!MT_LIST_ISEMPTY(&dghdlr->dgrams))
+		tasklet_wakeup((struct tasklet *)t);
+
+	TRACE_LEAVE(QUIC_EV_CONN_LPKT);
+	return t;
 }
 
 /* Retrieve the DCID from the datagram found in <buf> and deliver it to the

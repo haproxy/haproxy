@@ -743,7 +743,6 @@ void chunk_frm_appendf(struct buffer *buf, const struct quic_frame *frm);
 void quic_set_connection_close(struct quic_conn *qc, const struct quic_err err);
 void quic_set_tls_alert(struct quic_conn *qc, int alert);
 int quic_set_app_ops(struct quic_conn *qc, const unsigned char *alpn, size_t alpn_len);
-struct task *quic_lstnr_dghdlr(struct task *t, void *ctx, unsigned int state);
 int quic_get_dgram_dcid(unsigned char *buf, const unsigned char *end,
                         unsigned char **dcid, size_t *dcid_len);
 int qc_send_mux(struct quic_conn *qc, struct list *frms);
@@ -755,6 +754,9 @@ void qc_release_frm(struct quic_conn *qc, struct quic_frame *frm);
 void qc_check_close_on_released_mux(struct quic_conn *qc);
 
 void quic_conn_release(struct quic_conn *qc);
+
+int quic_dgram_parse(struct quic_dgram *dgram, struct quic_conn *qc,
+                     struct listener *li);
 
 #endif /* USE_QUIC */
 #endif /* _HAPROXY_QUIC_CONN_H */

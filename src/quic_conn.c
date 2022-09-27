@@ -7242,99 +7242,110 @@ static void __quic_conn_deinit(void)
 }
 REGISTER_POST_DEINIT(__quic_conn_deinit);
 
-/* Read all the QUIC packets found in <buf> from QUIC connection with <owner>
- * as owner calling <func> function.
- * Return the number of bytes read if succeeded, -1 if not.
+/* Handle a new <dgram> received. Parse each QUIC packets and copied their
+ * content to a quic-conn instance. The datagram content can be released after
+ * this function.
+ *
+ * If datagram has been received on a quic-conn owned FD, <from_qc> must be set
+ * to the connection instance. <li> is the attached listener. The caller is
+ * responsible to ensure that the first packet is destined to this connection
+ * by comparing CIDs.
+ *
+ * If datagram has been received on a receiver FD, <from_qc> will be NULL. This
+ * function will thus retrieve the connection from the CID tree or allocate a
+ * new one if possible. <li> is the listener attached to the receiver.
+ *
+ * Returns 0 on success else non-zero. If an error happens, some packets from
+ * the datagram may not have been parsed.
  */
-struct task *quic_lstnr_dghdlr(struct task *t, void *ctx, unsigned int state)
+int quic_dgram_parse(struct quic_dgram *dgram, struct quic_conn *from_qc,
+                     struct listener *li)
 {
-	unsigned char *pos;
-	const unsigned char *end;
-	struct quic_dghdlr *dghdlr = ctx;
-	struct quic_dgram *dgram;
+	struct quic_rx_packet *pkt;
+	struct quic_conn *qc = NULL;
+	unsigned char *pos, *end;
 	struct list *tasklist_head = NULL;
-	int max_dgrams = global.tune.maxpollevents;
 
 	TRACE_ENTER(QUIC_EV_CONN_LPKT);
 
-	while ((dgram = MT_LIST_POP(&dghdlr->dgrams, typeof(dgram), handler_list))) {
-		pos = dgram->buf;
-		end = pos + dgram->len;
-		do {
-			struct quic_rx_packet *pkt;
-			struct quic_conn *qc;
+	pos = dgram->buf;
+	end = pos + dgram->len;
+	do {
+		/* TODO replace zalloc -> alloc. */
+		pkt = pool_zalloc(pool_head_quic_rx_packet);
+		if (!pkt) {
+			TRACE_ERROR("RX packet allocation failed", QUIC_EV_CONN_LPKT);
+			goto err;
+		}
 
-			/* TODO replace zalloc -> alloc. */
-			pkt = pool_zalloc(pool_head_quic_rx_packet);
-			if (!pkt) {
-				TRACE_ERROR("RX packet allocation failed", QUIC_EV_CONN_LPKT);
-				/* TODO count lost datagram. */
-				goto leave;
-			}
+		pkt->version = NULL;
+		pkt->pn_offset = 0;
 
-			pkt->version = NULL;
-			pkt->pn_offset = 0;
+		/* Set flag if pkt is the first one in dgram. */
+		if (pos == dgram->buf)
+			pkt->flags |= QUIC_FL_RX_PACKET_DGRAM_FIRST;
 
-			/* Set flag if pkt is the first one in dgram. */
-			if (pos == dgram->buf)
-				pkt->flags |= QUIC_FL_RX_PACKET_DGRAM_FIRST;
+		LIST_INIT(&pkt->qc_rx_pkt_list);
+		pkt->time_received = now_ms;
+		quic_rx_packet_refinc(pkt);
+		if (quic_rx_pkt_parse(pkt, pos, end, dgram, li))
+			goto next;
 
-			LIST_INIT(&pkt->qc_rx_pkt_list);
-			pkt->time_received = now_ms;
-			quic_rx_packet_refinc(pkt);
-			if (quic_rx_pkt_parse(pkt, pos, end, dgram, dgram->owner))
-				goto next;
-
-			qc = quic_rx_pkt_retrieve_conn(pkt, dgram, dgram->owner);
-			if (!qc)
-				goto next;
-
-			BUG_ON(dgram->qc && dgram->qc != qc);
-			dgram->qc = qc;
-
-			if (qc_rx_check_closing(qc, pkt)) {
+		/* Search quic-conn instance for first packet of the datagram.
+		 * quic_rx_packet_parse() is responsible to discard packets
+		 * with different DCID as the first one in the same datagram.
+		 */
+		if (!qc) {
+			qc = from_qc ? from_qc : quic_rx_pkt_retrieve_conn(pkt, dgram, li);
+			/* qc is NULL if receiving a non Initial packet for an
+			 * unknown connection.
+			 */
+			if (!qc) {
 				/* Skip the entire datagram. */
 				pkt->len = end - pos;
 				goto next;
 			}
 
-			qc_rx_pkt_handle(qc, pkt, dgram, pos, &tasklist_head);
+			dgram->qc = qc;
+		}
+
+		if (qc_rx_check_closing(qc, pkt)) {
+			/* Skip the entire datagram. */
+			pkt->len = end - pos;
+			goto next;
+		}
+
+		qc_rx_pkt_handle(qc, pkt, dgram, pos, &tasklist_head);
 
  next:
-			pos += pkt->len;
-			quic_rx_packet_refdec(pkt);
+		pos += pkt->len;
+		quic_rx_packet_refdec(pkt);
 
-			/* Free rejected packets */
-			if (!pkt->refcnt) {
-				BUG_ON(LIST_INLIST(&pkt->qc_rx_pkt_list));
-				pool_free(pool_head_quic_rx_packet, pkt);
-			}
-		} while (pos < end);
+		/* Free rejected packets */
+		if (!pkt->refcnt) {
+			BUG_ON(LIST_INLIST(&pkt->qc_rx_pkt_list));
+			pool_free(pool_head_quic_rx_packet, pkt);
+		}
+	} while (pos < end);
 
-		/* Increasing the received bytes counter by the UDP datagram length
-		 * if this datagram could be associated to a connection.
-		 */
-		if (dgram->qc)
-			dgram->qc->rx.bytes += dgram->len;
+	/* Increasing the received bytes counter by the UDP datagram length
+	 * if this datagram could be associated to a connection.
+	 */
+	if (dgram->qc)
+		dgram->qc->rx.bytes += dgram->len;
 
-		/* Mark this datagram as consumed */
-		HA_ATOMIC_STORE(&dgram->buf, NULL);
-
-		if (--max_dgrams <= 0)
-			goto stop_here;
-	}
+	/* This must never happen. */
+	BUG_ON(pos > end);
+	BUG_ON(pos < end || pos > dgram->buf + dgram->len);
+	/* Mark this datagram as consumed */
+	HA_ATOMIC_STORE(&dgram->buf, NULL);
 
 	TRACE_LEAVE(QUIC_EV_CONN_LPKT);
+	return 0;
 
-	return t;
-
- stop_here:
-	/* too much work done at once, come back here later */
-	if (!MT_LIST_ISEMPTY(&dghdlr->dgrams))
-		tasklet_wakeup((struct tasklet *)t);
- leave:
+ err:
 	TRACE_LEAVE(QUIC_EV_CONN_LPKT);
-	return t;
+	return -1;
 }
 
 /* Retrieve the DCID from a QUIC datagram or packet with <buf> as first octet.
