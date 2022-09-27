@@ -5922,10 +5922,10 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 			if (global.cluster_secret && !token_len) {
 				if (l->bind_conf->options & BC_O_QUIC_FORCE_RETRY) {
 					TRACE_PROTO("Initial without token, sending retry",
-								QUIC_EV_CONN_LPKT, NULL, NULL, NULL, qv);
+					            QUIC_EV_CONN_LPKT, NULL, NULL, NULL, qv);
 					if (send_retry(l->rx.fd, &dgram->saddr, pkt, qv)) {
 						TRACE_PROTO("Error during Retry generation",
-									QUIC_EV_CONN_LPKT, NULL, NULL, NULL, qv);
+						            QUIC_EV_CONN_LPKT, NULL, NULL, NULL, qv);
 						goto err;
 					}
 
@@ -5971,10 +5971,10 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 			if (*pkt->token == QUIC_TOKEN_FMT_RETRY) {
 				const struct quic_version *ver = qc ? qc->original_version : qv;
 				if (!quic_retry_token_check(pkt->token, pkt->token_len, ver, &odcid,
-											&pkt->scid, qc, &dgram->saddr)) {
+				                            &pkt->scid, qc, &dgram->saddr)) {
 					HA_ATOMIC_INC(&prx_counters->retry_error);
 					TRACE_PROTO("Wrong retry token",
-								QUIC_EV_CONN_LPKT, qc, NULL, NULL, qv);
+					            QUIC_EV_CONN_LPKT, qc, NULL, NULL, qv);
 					/* TODO: RFC 9000 8.1.2 A server SHOULD immediately close the connection
 					 * with an INVALID_TOKEN error.
 					 */
