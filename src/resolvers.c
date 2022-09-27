@@ -594,6 +594,11 @@ static void enter_resolver_code()
 /* Add a resolution to the death_row. */
 static void abort_resolution(struct resolv_resolution *res)
 {
+	/* Remove the resolution from query_ids tree and from any resolvers list */
+	eb32_delete(&res->qid);
+	res->query_id = 0;
+	res->qid.key   = 0;
+
 	LIST_DEL_INIT(&res->list);
 	LIST_APPEND(&death_row, &res->list);
 }
