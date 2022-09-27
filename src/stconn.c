@@ -170,7 +170,9 @@ struct stconn *sc_new_from_endp(struct sedesc *sd, struct session *sess, struct 
 		return NULL;
 	if (unlikely(!stream_new(sess, sc, input))) {
 		pool_free(pool_head_connstream, sc);
-		sc = NULL;
+		sd->sc = NULL;
+		se_fl_set(sd, SE_FL_ORPHAN);
+		return NULL;
 	}
 	se_fl_clr(sd, SE_FL_ORPHAN);
 	return sc;
