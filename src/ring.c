@@ -85,7 +85,7 @@ struct ring *ring_make_from_area(void *area, size_t size)
 {
 	struct ring *ring = NULL;
 
-	if (size < sizeof(ring))
+	if (size < sizeof(*ring))
 		return NULL;
 
 	if (!area)
