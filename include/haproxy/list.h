@@ -752,76 +752,84 @@
 		(_el) = NULL;                                              \
 	} while (0)
 
-/* Simpler FOREACH_ITEM_SAFE macro inspired from Linux sources.
- * Iterates <item> through a list of items of type "typeof(*item)" which are
- * linked via a "struct list" member named <member>. A pointer to the head of
- * the list is passed in <list_head>.
- * tmpelt is a temporary struct mt_list *, and tmpelt2 is a temporary
+/* Iterates <item> through a list of items of type "typeof(*item)" which are
+ * linked via a "struct mt_list" member named <member>. A pointer to the head
+ * of the list is passed in <list_head>.
+ *
+ * <tmpelt> is a temporary struct mt_list *, and <tmpelt2> is a temporary
  * struct mt_list, used internally, both are needed for MT_LIST_DELETE_SAFE.
  *
- * This macro is implemented using a nested loop:
- * The inner loop will run for each element in the list, and the upper loop will run
- * only once to do some cleanup when the end of the list is reached
- * or user breaks from inner loop:
- * you can safely break from this macro as the cleanup will be performed anyway,
- * but it is strictly forbidden to goto from the loop because skipping the cleanup will
- * lead to undefined behavior.
-q *
- * If you want to remove the current element, please use MT_LIST_DELETE_SAFE.
+ * This macro is implemented using a nested loop. The inner loop will run for
+ * each element in the list, and the upper loop will run only once to do some
+ * cleanup when the end of the list is reached or user breaks from inner loop.
+ * It's safe to break from this macro as the cleanup will be performed anyway,
+ * but it is strictly forbidden to goto from the loop because skipping the
+ * cleanup will lead to undefined behavior.
  *
- * Example: list_for_each_entry_safe(cur_acl, list_head, list_member, elt1, elt2)
- * { ... };
+ * In order to remove the current element, please use MT_LIST_DELETE_SAFE.
+ *
+ * Example:
+ *   mt_list_for_each_entry_safe(item, list_head, list_member, elt1, elt2) {
+ *     ...
+ *   }
  */
 #define mt_list_for_each_entry_safe(item, list_head, member, tmpelt, tmpelt2)                                       \
 	for ((tmpelt) = NULL; (tmpelt) != MT_LIST_BUSY; ({                                                          \
-				/* post loop cleanup:
-				 * gets executed only once to perform cleanup
-				 * after child loop has finished */                                                 \
+				/* post loop cleanup:                                                               \
+				 * gets executed only once to perform cleanup                                       \
+				 * after child loop has finished                                                    \
+				 */                                                                                 \
 				if (tmpelt) {                                                                       \
 					/* last elem still exists, unlocking it */                                  \
 					if (tmpelt2.prev)                                                           \
 						MT_LIST_UNLOCK_ELT(tmpelt, tmpelt2);                                \
 					else {                                                                      \
-						/* special case: child loop did not run
-						 * so tmpelt2.prev == NULL
-						 * (empty list) */                                                  \
+						/* special case: child loop did not run                             \
+						 * so tmpelt2.prev == NULL                                          \
+						 * (empty list)                                                     \
+						 */                                                                 \
 						_MT_LIST_UNLOCK_NEXT(tmpelt, tmpelt2.next);                         \
 					}                                                                           \
 				} else {                                                                            \
-					/* last elem was deleted by user, relink required: \
-					 * prev->next = next
-					 * next->prev = prev */                                                     \
+					/* last elem was deleted by user, relink required:                          \
+					 * prev->next = next                                                        \
+					 * next->prev = prev                                                        \
+					 */                                                                         \
 					_MT_LIST_RELINK_DELETED(tmpelt2);                                           \
 				}                                                                                   \
-				/* break parent loop
-				 * (this loop runs exactly one time) */                                             \
+				/* break parent loop                                                                \
+				 * (this loop runs exactly one time)                                                \
+				 */                                                                                 \
 				(tmpelt) = MT_LIST_BUSY;                                                            \
 			}))                                                                                         \
 		for ((tmpelt) = (list_head), (tmpelt2).prev = NULL, (tmpelt2).next = _MT_LIST_LOCK_NEXT(tmpelt); ({ \
 					/* this gets executed before each user body loop */                         \
 					(item) = MT_LIST_ELEM((tmpelt2.next), typeof(item), member);                \
 					if (&item->member != (list_head)) {                                         \
-						/* did not reach end of list
-						 * (back to list_head == end of list reached) */                    \
+						/* did not reach end of list                                        \
+						 * (back to list_head == end of list reached)                       \
+						 */                                                                 \
 						if (tmpelt2.prev != &item->member)                                  \
 							tmpelt2.next = _MT_LIST_LOCK_NEXT(&item->member);           \
 						else {                                                              \
-							/* FIXME: is this even supposed to happen??
-							 * I'm not understanding how
-							 * tmpelt2.prev could be equal to &item->member.
-							 * running 'test_list' multiple times with 8
-							 * concurrent threads: this never gets reached */           \
+							/* FIXME: is this even supposed to happen??                 \
+							 * I'm not understanding how                                \
+							 * tmpelt2.prev could be equal to &item->member.            \
+							 * running 'test_list' multiple times with 8                \
+							 * concurrent threads: this never gets reached              \
+							 */                                                         \
 							tmpelt2.next = tmpelt;                                      \
 						}                                                                   \
 						if (tmpelt != NULL) {                                               \
 							/* if tmpelt was not deleted by user */                     \
 							if (tmpelt2.prev) {                                         \
-								/* not executed on first run
-								 * (tmpelt2.prev == NULL on first run) */           \
+								/* not executed on first run                        \
+								 * (tmpelt2.prev == NULL on first run)              \
+								 */                                                 \
 								_MT_LIST_UNLOCK_PREV(tmpelt, tmpelt2.prev);         \
-								/* unlock_prev will implicitely relink:
-								 * elt->prev = prev
-								 * prev->next = elt
+								/* unlock_prev will implicitely relink:             \
+								 * elt->prev = prev                                 \
+								 * prev->next = elt                                 \
 								 */                                                 \
 							}                                                           \
 							tmpelt2.prev = tmpelt;                                      \
