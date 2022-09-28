@@ -6724,17 +6724,17 @@ __LJMP static int hlua_http_msg_del_data(lua_State *L)
 	if (msg->msg_state < HTTP_MSG_DATA)
 		WILL_LJMP(lua_error(L));
 
-	filter = hlua_http_msg_filter(L, 1, msg, &input, &output);
+	filter = hlua_http_msg_filter(L, 1, msg, &output, &input);
 	if (!filter || !hlua_filter_from_payload(filter))
 		WILL_LJMP(lua_error(L));
 
-	offset = input + output;
+	offset = output;
 	if (lua_gettop(L) > 1) {
 		offset = MAY_LJMP(luaL_checkinteger(L, 2));
 		if (offset < 0)
 			offset = MAX(0, (int)input + offset);
 		offset += output;
-		if (offset < output || offset > output + input) {
+		if (offset > output + input) {
 			lua_pushfstring(L, "offset out of range.");
 			WILL_LJMP(lua_error(L));
 		}
