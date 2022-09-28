@@ -6485,6 +6485,11 @@ static void _hlua_http_msg_delete(struct http_msg *msg, struct filter *filter, s
 
 	/* Be sure <len> is always the amount of DATA to remove */
 	if (htx->data == offset+len && htx_get_tail_type(htx) == HTX_BLK_DATA) {
+		/* When htx tail type == HTX_BLK_DATA, no need to take care
+		 * of special blocks like HTX_BLK_EOT.
+		 * We simply truncate after offset
+		 * (truncate targeted blk and discard the following ones)
+		 */
 		htx_truncate(htx, offset);
 		ret = len;
 		goto end;
@@ -6493,20 +6498,35 @@ static void _hlua_http_msg_delete(struct http_msg *msg, struct filter *filter, s
 	htxret = htx_find_offset(htx, offset);
 	blk = htxret.blk;
 	if (htxret.ret) {
+		/* dealing with offset: we need to trim targeted blk */
 		struct ist v;
 
 		if (htx_get_blk_type(blk) != HTX_BLK_DATA)
 			goto end;
+
 		v = htx_get_blk_value(htx, blk);
 		v.ptr += htxret.ret;
+		v.len -= htxret.ret;
+
 		v = isttrim(v, len);
+		/* trimming data in blk: discard everything after the offset
+		 * (replace 'v' with 'IST_NULL')
+		 */
 		blk = htx_replace_blk_value(htx, blk, v, IST_NULL);
+		if (blk && v.len < len) {
+			/* In this case, caller wants to keep removing data,
+			 * but we need to spare current blk
+			 * because it was already trimmed
+			 */
+			blk = htx_get_next_blk(htx, blk);
+		}
 		len -= v.len;
 		ret += v.len;
 	}
 
 
 	while (blk && len) {
+		/* there is more data that needs to be discarded */
 		enum htx_blk_type type = htx_get_blk_type(blk);
 		uint32_t sz = htx_get_blksz(blk);
 
@@ -6516,6 +6536,9 @@ static void _hlua_http_msg_delete(struct http_msg *msg, struct filter *filter, s
 
 			case HTX_BLK_DATA:
 				if (len < sz) {
+					/* don't discard whole blk, only part of it
+					 * (from the beginning)
+					 */
 					htx_cut_data_blk(htx, blk, len);
 					ret += len;
 					goto end;
@@ -6523,6 +6546,7 @@ static void _hlua_http_msg_delete(struct http_msg *msg, struct filter *filter, s
 				break;
 
 			default:
+				/* HTX_BLK_EOT blk won't be removed */
 				goto end;
 		}
 
