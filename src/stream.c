@@ -3255,7 +3255,7 @@ static int stats_dump_full_strm_to_buffer(struct stconn *sc, struct stream *strm
 		case AF_INET:
 		case AF_INET6:
 			chunk_appendf(&trash, " source=%s:%d\n",
-			              pn, get_host_port(conn->src));
+			              HA_ANON_CLI(pn), get_host_port(conn->src));
 			break;
 		case AF_UNIX:
 			chunk_appendf(&trash, " source=unix:%d\n", strm_li(strm)->luid);
