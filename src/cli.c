@@ -1882,28 +1882,24 @@ static int cli_parse_set_anon(char **args, char *payload, struct appctx *appctx,
 	long long key;
 
 	if (strcmp(args[2], "on") == 0) {
-		if (appctx->cli_anon_key != 0)
-			return cli_err(appctx, "Mode already enabled\n");
+
+		if (*args[3]) {
+			key = atoll(args[3]);
+			if (key < 1 || key > UINT_MAX)
+				return cli_err(appctx, "Value out of range (1 to 4294967295 expected).\n");
+			appctx->cli_anon_key = key;
+		}
 		else {
-			if (*args[3]) {
-				key = atoll(args[3]);
-				if (key < 1 || key > UINT_MAX)
-					return cli_err(appctx, "Value out of range (1 to 4294967295 expected).\n");
-				appctx->cli_anon_key = key;
-			}
-			else {
-				tmp = HA_ATOMIC_LOAD(&global.anon_key);
-				if (tmp != 0)
-					appctx->cli_anon_key = tmp;
-				else
-					appctx->cli_anon_key = ha_random32();
-			}
+			tmp = HA_ATOMIC_LOAD(&global.anon_key);
+			if (tmp != 0)
+				appctx->cli_anon_key = tmp;
+			else
+				appctx->cli_anon_key = ha_random32();
 		}
 	}
 	else if (strcmp(args[2], "off") == 0) {
-		if (appctx->cli_anon_key == 0)
-			return cli_err(appctx, "Mode already disabled\n");
-		else if (*args[3]) {
+
+		if (*args[3]) {
 			return cli_err(appctx, "Key can't be added while disabling anonymized mode\n");
 		}
 		else {
