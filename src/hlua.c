@@ -6676,24 +6676,23 @@ __LJMP static int hlua_http_msg_insert_data(lua_State *L)
 
 	if (lua_gettop(L) < 2 || lua_gettop(L) > 3)
 		WILL_LJMP(luaL_error(L, "'insert' expects at least 1 argument and at most 2 arguments"));
-	MAY_LJMP(check_args(L, 2, "insert"));
 	msg = MAY_LJMP(hlua_checkhttpmsg(L, 1));
 
 	if (msg->msg_state < HTTP_MSG_DATA)
 		WILL_LJMP(lua_error(L));
 
 	str = MAY_LJMP(luaL_checklstring(L, 2, &sz));
-	filter = hlua_http_msg_filter(L, 1, msg, &input, &output);
+	filter = hlua_http_msg_filter(L, 1, msg, &output, &input);
 	if (!filter || !hlua_filter_from_payload(filter))
 		WILL_LJMP(lua_error(L));
 
-	offset = input + output;
+	offset = output;
 	if (lua_gettop(L) > 2) {
 		offset = MAY_LJMP(luaL_checkinteger(L, 3));
 		if (offset < 0)
 			offset = MAX(0, (int)input + offset);
 		offset += output;
-		if (offset < output || offset > output + input) {
+		if (offset > output + input) {
 			lua_pushfstring(L, "offset out of range.");
 			WILL_LJMP(lua_error(L));
 		}
