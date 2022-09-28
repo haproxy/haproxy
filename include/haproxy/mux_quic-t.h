@@ -97,7 +97,6 @@ struct qcc {
 	struct list send_retry_list; /* list of qcs eligible to send retry */
 
 	struct wait_event wait_event;  /* To be used if we're waiting for I/Os */
-	struct wait_event *subs;
 
 	struct proxy *proxy;
 

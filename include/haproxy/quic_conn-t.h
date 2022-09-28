@@ -706,6 +706,7 @@ struct quic_conn {
 	int stream_buf_count; /* total count of allocated stream buffers for this connection */
 
 	struct wait_event wait_event;
+	struct wait_event *subs;
 
 	/* MUX */
 	struct qcc *qcc;

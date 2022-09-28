@@ -1990,7 +1990,6 @@ static int qc_init(struct connection *conn, struct proxy *prx,
 
 	LIST_INIT(&qcc->send_retry_list);
 
-	qcc->subs = NULL;
 	qcc->wait_event.tasklet->process = qc_io_cb;
 	qcc->wait_event.tasklet->context = qcc;
 	qcc->wait_event.events = 0;

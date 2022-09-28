@@ -1716,14 +1716,12 @@ static inline void qc_treat_acked_tx_frm(struct quic_conn *qc,
 		qc_release_frm(qc, frm);
 	}
 
-	if (stream_acked && qc->mux_state == QC_MUX_READY) {
-		struct qcc *qcc = qc->qcc;
-
-		if (qcc->subs && qcc->subs->events & SUB_RETRY_SEND) {
-			tasklet_wakeup(qcc->subs->tasklet);
-			qcc->subs->events &= ~SUB_RETRY_SEND;
-			if (!qcc->subs->events)
-				qcc->subs = NULL;
+	if (stream_acked) {
+		if (qc->subs && qc->subs->events & SUB_RETRY_SEND) {
+			tasklet_wakeup(qc->subs->tasklet);
+			qc->subs->events &= ~SUB_RETRY_SEND;
+			if (!qc->subs->events)
+				qc->subs = NULL;
 		}
 	}
  leave:
@@ -4614,15 +4612,12 @@ struct task *qc_process_timer(struct task *task, void *ctx, unsigned int state)
 
 	if (qc->path->in_flight) {
 		pktns = quic_pto_pktns(qc, qc->state >= QUIC_HS_ST_COMPLETE, NULL);
-		if (qc->mux_state == QC_MUX_READY && qc->qcc->subs &&
-		    qc->qcc->subs->events & SUB_RETRY_SEND) {
-			struct qcc *qcc = qc->qcc;
-
+		if (qc->subs && qc->subs->events & SUB_RETRY_SEND) {
 			pktns->tx.pto_probe = QUIC_MAX_NB_PTO_DGRAMS;
-			tasklet_wakeup(qcc->subs->tasklet);
-			qcc->subs->events &= ~SUB_RETRY_SEND;
-			if (!qcc->subs->events)
-				qcc->subs = NULL;
+			tasklet_wakeup(qc->subs->tasklet);
+			qc->subs->events &= ~SUB_RETRY_SEND;
+			if (!qc->subs->events)
+				qc->subs = NULL;
 		}
 		else {
 			qc->flags |= QUIC_FL_CONN_RETRANS_NEEDED;
@@ -4865,6 +4860,7 @@ static struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	 */
 	qc->tid = quic_get_cid_tid(qc->scid.data, l->bind_conf);
 	qc->wait_event.tasklet->tid = qc->tid;
+	qc->subs = NULL;
 
 	if (qc_conn_alloc_ssl_ctx(qc) ||
 	    !quic_conn_init_timer(qc) ||

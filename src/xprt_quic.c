@@ -47,21 +47,24 @@ static void quic_close(struct connection *conn, void *xprt_ctx)
 static int quic_conn_subscribe(struct connection *conn, void *xprt_ctx, int event_type, struct wait_event *es)
 {
 	struct quic_conn *qc = conn->handle.qc;
-	struct qcc *qcc = qc->qcc;
 
 	TRACE_ENTER(QUIC_EV_CONN_SUB, qc);
 
 	BUG_ON(event_type & ~(SUB_RETRY_SEND|SUB_RETRY_RECV));
-	BUG_ON(qcc->subs && qcc->subs != es);
+	BUG_ON(qc->subs && qc->subs != es);
 
 	es->events |= event_type;
-	qcc->subs = es;
+	qc->subs = es;
+
+	/* TODO implement a check_events to detect if subscriber should be
+	 * woken up immediately ?
+	 */
 
 	if (event_type & SUB_RETRY_RECV)
-		TRACE_DEVEL("subscribe(recv)", QUIC_EV_CONN_XPRTRECV, qc, qcc);
+		TRACE_DEVEL("subscribe(recv)", QUIC_EV_CONN_XPRTRECV, qc);
 
 	if (event_type & SUB_RETRY_SEND)
-		TRACE_DEVEL("subscribe(send)", QUIC_EV_CONN_XPRTSEND, qc, qcc);
+		TRACE_DEVEL("subscribe(send)", QUIC_EV_CONN_XPRTSEND, qc);
 
 	TRACE_LEAVE(QUIC_EV_CONN_SUB, qc);
 
@@ -74,22 +77,24 @@ static int quic_conn_subscribe(struct connection *conn, void *xprt_ctx, int even
  */
 static int quic_conn_unsubscribe(struct connection *conn, void *xprt_ctx, int event_type, struct wait_event *es)
 {
-	int ret;
 	struct quic_conn *qc = conn->handle.qc;
-	struct qcc *qcc = qc->qcc;
 
 	TRACE_ENTER(QUIC_EV_CONN_SUB, qc);
 
 	if (event_type & SUB_RETRY_RECV)
-		TRACE_DEVEL("unsubscribe(recv)", QUIC_EV_CONN_XPRTRECV, qc, qcc);
+		TRACE_DEVEL("unsubscribe(recv)", QUIC_EV_CONN_XPRTRECV, qc);
 	if (event_type & SUB_RETRY_SEND)
-		TRACE_DEVEL("unsubscribe(send)", QUIC_EV_CONN_XPRTSEND, qc, qcc);
+		TRACE_DEVEL("unsubscribe(send)", QUIC_EV_CONN_XPRTSEND, qc);
 
-	ret = conn_unsubscribe(conn, xprt_ctx, event_type, es);
+	es->events &= ~event_type;
+	if (!es->events)
+		qc->subs = NULL;
+
+	/* TODO implement ignore_events similar to conn_unsubscribe() ? */
 
 	TRACE_LEAVE(QUIC_EV_CONN_SUB, qc);
 
-	return ret;
+	return 0;
 }
 
 /* Store in <xprt_ctx> the context attached to <conn>.
