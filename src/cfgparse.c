@@ -2010,14 +2010,8 @@ next_line:
 				}
 
 				else if (strcmp(args[0], "server") == 0) {
-					qfprintf(stdout, "%s ", args[0]);
+					qfprintf(stdout, "%s %s ", args[0], HA_ANON_ID(g_key, args[1]));
 
-					if (strcmp(args[1], "localhost") == 0) {
-						qfprintf(stdout, "%s ", args[1]);
-					}
-					else {
-						qfprintf(stdout, "%s ", HA_ANON_ID(g_key, args[1]));
-					}
 					if (arg > 2) {
 						qfprintf(stdout, "%s ", hash_ipanon(g_key, args[2], 1));
 					}
@@ -2089,6 +2083,69 @@ next_line:
 
 				else if (strcmp(args[0], "default_backend") == 0) {
 					qfprintf(stdout, "%s %s\n", args[0], HA_ANON_ID(g_key, args[1]));
+				}
+
+				else if (strcmp(args[0], "source") == 0) {
+					qfprintf(stdout, "%s %s ", args[0], hash_ipanon(g_key, args[1], 1));
+
+					if (arg > 2) {
+						qfprintf(stdout, "[...]");
+					}
+					qfprintf(stdout, "\n");
+				}
+
+				else if (strcmp(args[0], "nameserver") == 0) {
+					qfprintf(stdout, "%s %s %s ", args[0],
+						HA_ANON_ID(g_key, args[1]), hash_ipanon(g_key, args[2], 1));
+					if (arg > 3) {
+						qfprintf(stdout, "[...]");
+					}
+					qfprintf(stdout, "\n");
+				}
+
+				else if (strcmp(args[0], "http-request") == 0) {
+					qfprintf(stdout, "%s %s ", args[0], args[1]);
+					if (arg > 2)
+						qfprintf(stdout, "[...]");
+					qfprintf(stdout, "\n");
+				}
+
+				else if (strcmp(args[0], "http-response") == 0) {
+					qfprintf(stdout, "%s %s ", args[0], args[1]);
+					if (arg > 2)
+						qfprintf(stdout, "[...]");
+					qfprintf(stdout, "\n");
+				}
+
+				else if (strcmp(args[0], "http-after-response") == 0) {
+					qfprintf(stdout, "%s %s ", args[0], args[1]);
+					if (arg > 2)
+						qfprintf(stdout, "[...]");
+					qfprintf(stdout, "\n");
+				}
+
+				else if (strcmp(args[0], "filter") == 0) {
+					qfprintf(stdout, "%s %s ", args[0], args[1]);
+					if (arg > 2)
+						qfprintf(stdout, "[...]");
+					qfprintf(stdout, "\n");
+				}
+
+				else if (strcmp(args[0], "errorfile") == 0) {
+					qfprintf(stdout, "%s %s %s\n", args[0], args[1], HA_ANON_PATH(g_key, args[2]));
+				}
+
+				else if (strcmp(args[0], "cookie") == 0) {
+					qfprintf(stdout, "%s %s ", args[0], HA_ANON_ID(g_key, args[1]));
+					if (arg > 2)
+						qfprintf(stdout, "%s ", args[2]);
+					if (arg > 3)
+						qfprintf(stdout, "[...]");
+					qfprintf(stdout, "\n");
+				}
+
+				else if (strcmp(args[0], "stats") == 0 && strcmp(args[1], "auth") == 0) {
+					qfprintf(stdout, "%s %s %s\n", args[0], args[1], HA_ANON_STR(g_key, args[2]));
 				}
 
 				else {
