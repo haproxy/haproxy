@@ -460,24 +460,6 @@ Core class
 	Sun Nov  6 08:49:37 1994
 ..
 
-.. js:function:: core.rfc850_date(date)
-
-  **context**: body, init, task, action
-
-  This function take a string representing http date, and returns an integer
-  containing the corresponding date with a epoch format.
-
-  :param string date: a date http-date formatted
-
-.. js:function:: core.asctime_date(date)
-
-  **context**: body, init, task, action
-
-  This function take a string representing http date, and returns an integer
-  containing the corresponding date with a epoch format.
-
-  :param string date: a date http-date formatted
-
 .. js:function:: core.msleep(milliseconds)
 
   **context**: body, init, task, action
