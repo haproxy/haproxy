@@ -5908,8 +5908,8 @@ const char *hash_ipanon(uint32_t scramble, char *ipstring, int hasport)
 		}
 		else {
 			sa = str2sa_range(ipstring, NULL, NULL, NULL, NULL, NULL, &errmsg, NULL, NULL,
-					  PA_O_PORT_OK | PA_O_STREAM | PA_O_XPRT | PA_O_CONNECT |
-					  PA_O_PORT_RANGE | PA_O_RESOLVE);
+					  PA_O_PORT_OK | PA_O_STREAM | PA_O_DGRAM | PA_O_XPRT | PA_O_CONNECT |
+					  PA_O_PORT_RANGE | PA_O_PORT_OFS | PA_O_RESOLVE);
 			if (sa == NULL) {
 				return HA_ANON_STR(scramble, ipstring);
 			}
