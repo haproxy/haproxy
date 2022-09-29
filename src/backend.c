@@ -1264,9 +1264,8 @@ static struct connection *conn_backend_get(struct stream *s, struct server *srv,
 			session_add_conn(s->sess, conn, conn->target);
 		}
 		else {
-			ebmb_insert(&srv->per_thr[tid].avail_conns,
-			            &conn->hash_node->node,
-			            sizeof(conn->hash_node->hash));
+			eb64_insert(&srv->per_thr[tid].avail_conns,
+			            &conn->hash_node->node);
 		}
 	}
 	return conn;
@@ -1610,7 +1609,7 @@ skip_reuse:
 				return SF_ERR_RESOURCE;
 			}
 
-			srv_conn->hash_node->hash = hash;
+			srv_conn->hash_node->node.key = hash;
 		}
 	}
 
@@ -1778,7 +1777,7 @@ skip_reuse:
 			if (srv && reuse_mode == PR_O_REUSE_ALWS &&
 			    !(srv_conn->flags & CO_FL_PRIVATE) &&
 			    srv_conn->mux->avail_streams(srv_conn) > 0) {
-				ebmb_insert(&srv->per_thr[tid].avail_conns, &srv_conn->hash_node->node, sizeof(srv_conn->hash_node->hash));
+				eb64_insert(&srv->per_thr[tid].avail_conns, &srv_conn->hash_node->node);
 			}
 			else if (srv_conn->flags & CO_FL_PRIVATE ||
 			         (reuse_mode == PR_O_REUSE_SAFE &&

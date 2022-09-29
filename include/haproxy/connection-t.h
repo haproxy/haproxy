@@ -484,7 +484,7 @@ enum conn_hash_params_t {
 #define CONN_HASH_PARAMS_TYPE_COUNT 6
 
 #define CONN_HASH_PAYLOAD_LEN \
-	(((sizeof(((struct conn_hash_node *)0)->hash)) * 8) - CONN_HASH_PARAMS_TYPE_COUNT)
+	(((sizeof(((struct conn_hash_node *)0)->node.key)) * 8) - CONN_HASH_PARAMS_TYPE_COUNT)
 
 #define CONN_HASH_GET_PAYLOAD(hash) \
 	(((hash) << CONN_HASH_PARAMS_TYPE_COUNT) >> CONN_HASH_PARAMS_TYPE_COUNT)
@@ -549,8 +549,7 @@ struct connection {
  * A connection is identified by a hash generated from its specific parameters
  */
 struct conn_hash_node {
-	struct ebmb_node node;
-	int64_t hash;            /* key for ebmb tree */
+	struct eb64_node node;   /* contains the hashing key */
 	struct connection *conn; /* connection owner of the node */
 };
 

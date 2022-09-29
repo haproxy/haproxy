@@ -5779,11 +5779,11 @@ void srv_release_conn(struct server *srv, struct connection *conn)
  */
 struct connection *srv_lookup_conn(struct eb_root *tree, uint64_t hash)
 {
-	struct ebmb_node *node = NULL;
+	struct eb64_node *node = NULL;
 	struct connection *conn = NULL;
 	struct conn_hash_node *hash_node = NULL;
 
-	node = ebmb_lookup(tree, &hash, sizeof(hash_node->hash));
+	node = eb64_lookup(tree, hash);
 	if (node) {
 		hash_node = ebmb_entry(node, struct conn_hash_node, node);
 		conn = hash_node->conn;
@@ -5797,13 +5797,13 @@ struct connection *srv_lookup_conn(struct eb_root *tree, uint64_t hash)
  */
 struct connection *srv_lookup_conn_next(struct connection *conn)
 {
-	struct ebmb_node *node = NULL;
+	struct eb64_node *node = NULL;
 	struct connection *next_conn = NULL;
 	struct conn_hash_node *hash_node = NULL;
 
-	node = ebmb_next_dup(&conn->hash_node->node);
+	node = eb64_next_dup(&conn->hash_node->node);
 	if (node) {
-		hash_node = ebmb_entry(node, struct conn_hash_node, node);
+		hash_node = eb64_entry(node, struct conn_hash_node, node);
 		next_conn = hash_node->conn;
 	}
 
@@ -5846,11 +5846,11 @@ int srv_add_to_idle_list(struct server *srv, struct connection *conn, int is_saf
 
 		if (is_safe) {
 			conn->flags = (conn->flags & ~CO_FL_LIST_MASK) | CO_FL_SAFE_LIST;
-			ebmb_insert(&srv->per_thr[tid].safe_conns, &conn->hash_node->node, sizeof(conn->hash_node->hash));
+			eb64_insert(&srv->per_thr[tid].safe_conns, &conn->hash_node->node);
 			_HA_ATOMIC_INC(&srv->curr_safe_nb);
 		} else {
 			conn->flags = (conn->flags & ~CO_FL_LIST_MASK) | CO_FL_IDLE_LIST;
-			ebmb_insert(&srv->per_thr[tid].idle_conns, &conn->hash_node->node, sizeof(conn->hash_node->hash));
+			eb64_insert(&srv->per_thr[tid].idle_conns, &conn->hash_node->node);
 			_HA_ATOMIC_INC(&srv->curr_idle_nb);
 		}
 		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);

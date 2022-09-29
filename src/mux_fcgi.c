@@ -3069,9 +3069,9 @@ struct task *fcgi_io_cb(struct task *t, void *ctx, unsigned int state)
 
 		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 		if (conn_in_list == CO_FL_SAFE_LIST)
-			ebmb_insert(&srv->per_thr[tid].safe_conns, &conn->hash_node->node, sizeof(conn->hash_node->hash));
+			eb64_insert(&srv->per_thr[tid].safe_conns, &conn->hash_node->node);
 		else
-			ebmb_insert(&srv->per_thr[tid].idle_conns, &conn->hash_node->node, sizeof(conn->hash_node->hash));
+			eb64_insert(&srv->per_thr[tid].idle_conns, &conn->hash_node->node);
 		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 	}
 	return t;
@@ -3689,9 +3689,8 @@ static void fcgi_detach(struct sedesc *sd)
 			else if (!fconn->conn->hash_node->node.node.leaf_p &&
 				 fcgi_avail_streams(fconn->conn) > 0 && objt_server(fconn->conn->target) &&
 				 !LIST_INLIST(&fconn->conn->session_list)) {
-				ebmb_insert(&__objt_server(fconn->conn->target)->per_thr[tid].avail_conns,
-				            &fconn->conn->hash_node->node,
-				            sizeof(fconn->conn->hash_node->hash));
+				eb64_insert(&__objt_server(fconn->conn->target)->per_thr[tid].avail_conns,
+				            &fconn->conn->hash_node->node);
 			}
 		}
 	}

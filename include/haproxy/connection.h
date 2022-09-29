@@ -81,7 +81,7 @@ int conn_install_mux_be(struct connection *conn, void *ctx, struct session *sess
                         const struct mux_ops *force_mux_ops);
 int conn_install_mux_chk(struct connection *conn, void *ctx, struct session *sess);
 
-void conn_delete_from_tree(struct ebmb_node *node);
+void conn_delete_from_tree(struct eb64_node *node);
 
 void conn_init(struct connection *conn, void *target);
 struct connection *conn_new(void *target);

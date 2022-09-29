@@ -213,7 +213,7 @@ static inline struct connection *session_get_conn(struct session *sess, void *ta
 	list_for_each_entry(srv_list, &sess->srv_list, srv_list) {
 		if (srv_list->target == target) {
 			list_for_each_entry(srv_conn, &srv_list->conn_list, session_list) {
-				if ((srv_conn->hash_node && srv_conn->hash_node->hash == hash) &&
+				if ((srv_conn->hash_node && srv_conn->hash_node->node.key == hash) &&
 				    srv_conn->mux &&
 				    (srv_conn->mux->avail_streams(srv_conn) > 0) &&
 				    !(srv_conn->flags & CO_FL_WAIT_XPRT)) {

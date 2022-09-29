@@ -52,9 +52,9 @@ struct mux_stopping_data mux_stopping_data[MAX_THREADS];
 /* disables sending of proxy-protocol-v2's LOCAL command */
 static int pp2_never_send_local;
 
-void conn_delete_from_tree(struct ebmb_node *node)
+void conn_delete_from_tree(struct eb64_node *node)
 {
-	ebmb_delete(node);
+	eb64_delete(node);
 }
 
 int conn_create_mux(struct connection *conn)
@@ -83,7 +83,7 @@ int conn_create_mux(struct connection *conn)
 		 */
 		if (srv && ((srv->proxy->options & PR_O_REUSE_MASK) == PR_O_REUSE_ALWS) &&
 		    !(conn->flags & CO_FL_PRIVATE) && conn->mux->avail_streams(conn) > 0)
-			ebmb_insert(&srv->per_thr[tid].avail_conns, &conn->hash_node->node, sizeof(conn->hash_node->hash));
+			eb64_insert(&srv->per_thr[tid].avail_conns, &conn->hash_node->node);
 		else if (conn->flags & CO_FL_PRIVATE) {
 			/* If it fail now, the same will be done in mux->detach() callback */
 			session_add_conn(sess, conn, conn->target);
@@ -165,7 +165,7 @@ int conn_notify_mux(struct connection *conn, int old_flags, int forced_wake)
 				&srv->per_thr[tid].idle_conns;
 
 			HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
-			ebmb_insert(root, &conn->hash_node->node, sizeof(conn->hash_node->hash));
+			eb64_insert(root, &conn->hash_node->node);
 			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 		}
 	}
