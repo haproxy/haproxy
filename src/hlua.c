@@ -5372,6 +5372,7 @@ __LJMP static int hlua_applet_http_send_response(lua_State *L)
 	sl->info.res.status = http_ctx->status;
 
 	/* Get the array associated to the field "response" in the object AppletHTTP. */
+	/* FIXME: according to Lua doc, 0 is considered to be invalid index? */
 	lua_pushvalue(L, 0);
 	if (lua_getfield(L, 1, "response") != LUA_TTABLE) {
 		hlua_pusherror(L, "Lua applet http '%s': AppletHTTP['response'] missing.\n",
