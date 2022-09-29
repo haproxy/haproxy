@@ -42,7 +42,7 @@
 #define	MODE_STOPPING   0x1000  /* the process is in the deinit phase, the event loop is not running anymore. */
 #define	MODE_DUMP_LIBS  0x2000  /* dump loaded libraries at the end of init phase */
 #define	MODE_DUMP_KWD   0x4000  /* dump registered keywords (see kwd_dump for the list) */
-#define	MODE_DUMP_CFG   0x8000 /* dump the configure file */
+#define	MODE_DUMP_CFG   0x8000  /* dump the configuration file */
 #define	MODE_DUMP_NB_L  0x10000 /* dump line numbers when the configuration file is dump */
 
 /* list of last checks to perform, depending on config options */

@@ -3278,7 +3278,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "experimental-mode", NULL },         NULL,                                                                                                cli_parse_expert_experimental_mode, NULL, NULL, NULL, ACCESS_MASTER }, // not listed
 	{ { "mcli-debug-mode", NULL },         NULL,                                                                                                  cli_parse_expert_experimental_mode, NULL, NULL, NULL, ACCESS_MASTER_ONLY }, // not listed
 	{ { "set", "anon", NULL },               "set anon <setting> [value]              : change the anonymized mode setting",                      cli_parse_set_anon, NULL, NULL },
-	{ { "set", "global-key", NULL },         "set global-key <value>                  : change the global anonymizing key",                       cli_parse_set_global_key, NULL, NULL },
+	{ { "set", "anon", "global-key", NULL }, "set anon global-key <value>             : change the global anonymizing key",                       cli_parse_set_global_key, NULL, NULL },
 	{ { "set", "maxconn", "global",  NULL }, "set maxconn global <value>              : change the per-process maxconn setting",                  cli_parse_set_maxconn_global, NULL },
 	{ { "set", "rate-limit", NULL },         "set rate-limit <setting> <value>        : change a rate limiting value",                            cli_parse_set_ratelimit, NULL },
 	{ { "set", "severity-output",  NULL },   "set severity-output [none|number|string]: set presence of severity level in feedback information",  cli_parse_set_severity_output, NULL, NULL },

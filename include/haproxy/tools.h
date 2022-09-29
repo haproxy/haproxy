@@ -63,7 +63,7 @@
 /* use if you want to return a simple hash. Key 0 doesn't hash. */
 #define HA_ANON_STR(key, str) hash_anon(key, str, "", "")
 
-/* use if you want to return a hash like : IP('hash'). Key 0 doesn't hash. */
+/* use if you want to return a hash like : ID('hash'). Key 0 doesn't hash. */
 #define HA_ANON_ID(key, str) hash_anon(key, str, "ID(", ")")
 
 /* use if you want to return a hash like : PATH('hash'). Key 0 doesn't hash. */
