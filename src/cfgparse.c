@@ -4326,7 +4326,7 @@ init_proxies_list_stage2:
 			if (listener->flags & LI_F_QUIC_LISTENER) {
 				if (!global.cluster_secret)
 					diag_no_cluster_secret = 1;
-				listener->accept = quic_session_accept;
+
 				li_init_per_thr(listener);
 			}
 #endif

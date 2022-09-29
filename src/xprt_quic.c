@@ -121,12 +121,6 @@ static int qc_xprt_start(struct connection *conn, void *ctx)
 
 	qc = conn->handle.qc;
 	TRACE_ENTER(QUIC_EV_CONN_NEW, qc);
-	if (qcc_install_app_ops(qc->qcc, qc->app_ops)) {
-		TRACE_PROTO("Cannot install app layer", QUIC_EV_CONN_LPKT, qc);
-		/* prepare a CONNECTION_CLOSE frame */
-		quic_set_connection_close(qc, quic_err_transport(QC_ERR_APPLICATION_ERROR));
-		goto out;
-	}
 
 	/* mux-quic can now be considered ready. */
 	qc->mux_state = QC_MUX_READY;

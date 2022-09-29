@@ -1915,6 +1915,12 @@ static int qc_init(struct connection *conn, struct proxy *prx,
 	qcc->flags = 0;
 
 	qcc->app_ops = NULL;
+	if (qcc_install_app_ops(qcc, conn->handle.qc->app_ops)) {
+		TRACE_PROTO("Cannot install app layer", QMUX_EV_QCC_NEW, qcc->conn);
+		/* prepare a CONNECTION_CLOSE frame */
+		quic_set_connection_close(conn->handle.qc, quic_err_transport(QC_ERR_APPLICATION_ERROR));
+		goto fail_no_tasklet;
+	}
 
 	qcc->streams_by_id = EB_ROOT_UNIQUE;
 
@@ -2024,6 +2030,8 @@ static int qc_init(struct connection *conn, struct proxy *prx,
  fail_no_timeout_task:
 	tasklet_free(qcc->wait_event.tasklet);
  fail_no_tasklet:
+	if (qcc->app_ops && qcc->app_ops->release)
+		qcc->app_ops->release(qcc->ctx);
 	pool_free(pool_head_qcc, qcc);
  fail_no_qcc:
 	TRACE_LEAVE(QMUX_EV_QCC_NEW);

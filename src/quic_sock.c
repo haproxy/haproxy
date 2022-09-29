@@ -38,76 +38,6 @@
 #include <haproxy/task.h>
 #include <haproxy/tools.h>
 
-/* This function is called from the protocol layer accept() in order to
- * instantiate a new session on behalf of a given listener and frontend. It
- * returns a positive value upon success, 0 if the connection can be ignored,
- * or a negative value upon critical failure. The accepted connection is
- * closed if we return <= 0. If no handshake is needed, it immediately tries
- * to instantiate a new stream. The connection must already have been filled
- * with the incoming connection handle (a fd), a target (the listener) and a
- * source address.
- */
-int quic_session_accept(struct connection *cli_conn)
-{
-	struct listener *l = __objt_listener(cli_conn->target);
-	struct proxy *p = l->bind_conf->frontend;
-	struct session *sess;
-
-	cli_conn->proxy_netns = l->rx.settings->netns;
-	/* This flag is ordinarily set by conn_ctrl_init() which cannot
-	 * be called for now.
-	 */
-	cli_conn->flags |= CO_FL_CTRL_READY;
-
-	/* wait for a PROXY protocol header */
-	if (l->options & LI_O_ACC_PROXY)
-		cli_conn->flags |= CO_FL_ACCEPT_PROXY;
-
-	/* wait for a NetScaler client IP insertion protocol header */
-	if (l->options & LI_O_ACC_CIP)
-		cli_conn->flags |= CO_FL_ACCEPT_CIP;
-
-	/* Add the handshake pseudo-XPRT */
-	if (cli_conn->flags & (CO_FL_ACCEPT_PROXY | CO_FL_ACCEPT_CIP)) {
-		if (xprt_add_hs(cli_conn) != 0)
-			goto out_free_conn;
-	}
-
-	sess = session_new(p, l, &cli_conn->obj_type);
-	if (!sess)
-		goto out_free_conn;
-
-	conn_set_owner(cli_conn, sess, NULL);
-
-	if (conn_complete_session(cli_conn) < 0)
-		goto out_free_sess;
-
-	if (conn_xprt_start(cli_conn) < 0) {
-		/* conn_complete_session has succeeded : conn is the owner of
-		 * the session and the MUX is initialized.
-		 * Let the MUX free all resources on error.
-		 */
-		cli_conn->mux->destroy(cli_conn->ctx);
-		return -1;
-	}
-
-	return 1;
-
- out_free_sess:
-	/* prevent call to listener_release during session_free. It will be
-	* done below, for all errors. */
-	sess->listener = NULL;
-	session_free(sess);
- out_free_conn:
-	cli_conn->handle.qc->conn = NULL;
-	conn_stop_tracking(cli_conn);
-	conn_xprt_close(cli_conn);
-	conn_free(cli_conn);
- out:
-
-	return -1;
-}
-
 /* Retrieve a connection's source address. Returns -1 on failure. */
 int quic_sock_get_src(struct connection *conn, struct sockaddr *addr, socklen_t len)
 {
@@ -181,12 +111,6 @@ static int new_quic_cli_conn(struct quic_conn *qc, struct listener *l,
 	cli_conn->handle.qc = qc;
 
 	cli_conn->target = &l->obj_type;
-
-	/* We need the xprt context before accepting (->accept()) the connection:
-	 * we may receive packet before this connection acception.
-	 */
-	if (conn_prepare(cli_conn, l->rx.proto, l->bind_conf->xprt) < 0)
-		goto out_free_conn;
 
 	return 1;
 
