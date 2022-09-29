@@ -2796,7 +2796,8 @@ static int dump_servers_state(struct stconn *sc)
 				     (long int)srv_time_since_last_change,
 			             srv->check.status, srv->check.result, srv->check.health,
 				     srv->check.state, srv->agent.state,
-			             bk_f_forced_id, srv_f_forced_id, srv->hostname ? srv->hostname : "-", srv->svc_port,
+			             bk_f_forced_id, srv_f_forced_id,
+				     srv->hostname ? HA_ANON_CLI(srv->hostname) : "-", srv->svc_port,
 			             srvrecord ? srvrecord : "-", srv->use_ssl, srv->check.port,
 				     srv_check_addr, srv_agent_addr, srv->agent.port);
 		} else {
