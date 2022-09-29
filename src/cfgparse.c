@@ -1901,7 +1901,8 @@ next_line:
 				int i = 0;
 				uint32_t g_key = HA_ATOMIC_LOAD(&global.anon_key);
 
-				qfprintf(stdout, "%d\t", linenum);
+				if (global.mode & MODE_DUMP_NB_L)
+					qfprintf(stdout, "%d\t", linenum);
 
 				/* if a word is in sections list, is_sect = 1 */
 				list_for_each_entry(sect, &sections, list) {

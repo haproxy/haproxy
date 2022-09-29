@@ -590,7 +590,7 @@ static void usage(char *name)
 		"        -N sets the default, per-proxy maximum # of connections (%d)\n"
 		"        -L set local peer name (default to hostname)\n"
 		"        -p writes pids of all children to this file\n"
-		"        -dC[key] display the configure file, if there is a key, the file will be anonymise\n"
+		"        -dC[[key],line] display the configuration file, if there is a key, the file will be anonymised\n"
 #if defined(USE_EPOLL)
 		"        -de disables epoll() usage even when available\n"
 #endif
@@ -1636,6 +1636,19 @@ static void init_args(int argc, char **argv)
 			else if (*flag == 'V')
 				arg_mode |= MODE_VERBOSE;
 			else if (*flag == 'd' && flag[1] == 'C') {
+				char *end;
+				char *key;
+
+				key = flag + 2;
+				for (;key && *key; key = end) {
+					end = strchr(key, ',');
+					if (end)
+						*(end++) = 0;
+
+					if (strcmp(key, "line") == 0)
+						arg_mode |= MODE_DUMP_NB_L;
+
+				}
 				arg_mode |= MODE_DUMP_CFG;
 				HA_ATOMIC_STORE(&global.anon_key, atoll(flag + 2));
 			}
@@ -1910,7 +1923,8 @@ static void init(int argc, char **argv)
 
 	global.mode |= (arg_mode & (MODE_DAEMON | MODE_MWORKER | MODE_FOREGROUND | MODE_VERBOSE
 				    | MODE_QUIET | MODE_CHECK | MODE_DEBUG | MODE_ZERO_WARNING
-				    | MODE_DIAG | MODE_CHECK_CONDITION | MODE_DUMP_LIBS | MODE_DUMP_KWD | MODE_DUMP_CFG));
+				    | MODE_DIAG | MODE_CHECK_CONDITION | MODE_DUMP_LIBS | MODE_DUMP_KWD
+				    | MODE_DUMP_CFG | MODE_DUMP_NB_L));
 
 	if (getenv("HAPROXY_MWORKER_WAIT_ONLY")) {
 		unsetenv("HAPROXY_MWORKER_WAIT_ONLY");
