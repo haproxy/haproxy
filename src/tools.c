@@ -5895,7 +5895,11 @@ const char *hash_ipanon(uint32_t scramble, char *ipstring, int hasport)
 	if (scramble == 0) {
 		return ipstring;
 	}
-	if (strcmp(ipstring, "localhost") == 0) {
+	if (strcmp(ipstring, "localhost") == 0 ||
+	    strcmp(ipstring, "stdout") == 0 ||
+	    strcmp(ipstring, "stderr") == 0 ||
+	    strncmp(ipstring, "fd@", 3) == 0 ||
+	    strncmp(ipstring, "sockpair@", 9) == 0) {
 		return ipstring;
 	}
 	else {
