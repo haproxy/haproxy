@@ -1963,10 +1963,10 @@ next_line:
 				else if (strcmp(args[0], "stats") == 0 && strcmp(args[1], "socket") == 0) {
 					qfprintf(stdout, "%s %s ", args[0], args[1]);
 
-					if (arg > 1) {
+					if (arg > 2) {
 						qfprintf(stdout, "%s ", hash_ipanon(g_key, args[2], 1));
 
-						if (arg > 2) {
+						if (arg > 3) {
 							qfprintf(stdout, "[...]\n");
 						}
 						else {
