@@ -1964,7 +1964,7 @@ next_line:
 					qfprintf(stdout, "%s %s ", args[0], args[1]);
 
 					if (arg > 1) {
-						qfprintf(stdout, "%s ", args[2]);
+						qfprintf(stdout, "%s ", hash_ipanon(g_key, args[2], 1));
 
 						if (arg > 2) {
 							qfprintf(stdout, "[...]\n");
@@ -2000,7 +2000,7 @@ next_line:
 
 				else if (strcmp(args[0], "bind") == 0) {
 					qfprintf(stdout, "%s ", args[0]);
-					qfprintf(stdout, "%s ", hash_ipanon(g_key, args[1]));
+					qfprintf(stdout, "%s ", hash_ipanon(g_key, args[1], 1));
 					if (arg > 2) {
 						qfprintf(stdout, "[...]\n");
 					}
@@ -2019,7 +2019,7 @@ next_line:
 						qfprintf(stdout, "%s ", HA_ANON_ID(g_key, args[1]));
 					}
 					if (arg > 2) {
-						qfprintf(stdout, "%s ", hash_ipanon(g_key, args[2]));
+						qfprintf(stdout, "%s ", hash_ipanon(g_key, args[2], 1));
 					}
 					if (arg > 3) {
 						qfprintf(stdout, "[...]\n");
@@ -2060,7 +2060,7 @@ next_line:
 						qfprintf(stdout, "%s ", args[1]);
 					}
 					else {
-						qfprintf(stdout, "%s ", hash_ipanon(g_key, args[1]));
+						qfprintf(stdout, "%s ", hash_ipanon(g_key, args[1], 1));
 					}
 					if (arg > 2) {
 						qfprintf(stdout, "[...]");
@@ -2070,7 +2070,7 @@ next_line:
 
 				else if (strcmp(args[0], "peer") == 0) {
 					qfprintf(stdout, "%s %s ", args[0], HA_ANON_ID(g_key, args[1]));
-					qfprintf(stdout, "%s ", hash_ipanon(g_key, args[2]));
+					qfprintf(stdout, "%s ", hash_ipanon(g_key, args[2], 1));
 
 					if (arg > 3) {
 						qfprintf(stdout, "[...]");

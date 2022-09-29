@@ -77,7 +77,7 @@ extern void *__elf_aux_vector;
 #define RET0_UNLESS(__x) do { if (!(__x)) return 0; } while (0)
 
 /* Define the number of line of hash_word */
-#define NB_L_HASH_WORD 7
+#define NB_L_HASH_WORD 15
 
 /* enough to store NB_ITOA_STR integers of :
  *   2^64-1 = 18446744073709551615 or
@@ -5876,11 +5876,14 @@ const char *hash_anon(uint32_t scramble, const char *string2hash, const char *pr
 
 /* This function hashes or not an ip address ipstring, scramble is the anonymizing
  * key, returns the hashed ip with his port or ipstring when there is nothing to hash.
+ * Put hasport equal 0 to point out ipstring has no port, else put an other int.
+ * Without port, return a simple hash or ipstring.
  */
-const char *hash_ipanon(uint32_t scramble, char *ipstring)
+const char *hash_ipanon(uint32_t scramble, char *ipstring, int hasport)
 {
 	char *errmsg = NULL;
 	struct sockaddr_storage *sa;
+	struct sockaddr_storage ss;
 	char addr[46];
 	int port;
 
@@ -5889,57 +5892,72 @@ const char *hash_ipanon(uint32_t scramble, char *ipstring)
                 index_hash = 0;
 	}
 
-	if (strncmp(ipstring, "localhost", 1) == 0) {
+	if (scramble == 0) {
+		return ipstring;
+	}
+	if (strcmp(ipstring, "localhost") == 0) {
 		return ipstring;
 	}
 	else {
-		sa = str2sa_range(ipstring, NULL, NULL, NULL, NULL, NULL, &errmsg, NULL, NULL,
-				  PA_O_PORT_OK | PA_O_STREAM | PA_O_XPRT | PA_O_CONNECT | PA_O_PORT_RANGE);
-		if (sa == NULL) {
-			return ipstring;
+		if (hasport == 0) {
+			memset(&ss, 0, sizeof(ss));
+			if (str2ip2(ipstring, &ss, 1) == NULL) {
+				return HA_ANON_STR(scramble, ipstring);
+			}
+			sa = &ss;
 		}
 		else {
-			addr_to_str(sa, addr, sizeof(addr));
-			port = get_host_port(sa);
-
-			switch(sa->ss_family) {
-				case AF_INET:
-					if (strncmp(addr, "127", 3) == 0 || strncmp(addr, "255", 3) == 0 || strncmp(addr, "0", 1) == 0) {
-						return ipstring;
-					}
-					else {
-						if (port != 0) {
-							snprintf(hash_word[index_hash], sizeof(hash_word[index_hash]), "IPV4(%06x):%d", HA_ANON(scramble, addr, strlen(addr)), port);
-							return hash_word[index_hash];
-						}
-						else {
-							snprintf(hash_word[index_hash], sizeof(hash_word[index_hash]), "IPV4(%06x)", HA_ANON(scramble, addr, strlen(addr)));
-							return hash_word[index_hash];
-						}
-					}
-					break;
-
-				case AF_INET6:
-					if (strcmp(addr, "::1") == 0) {
-						return ipstring;
-					}
-					else {
-						if (port != 0) {
-							snprintf(hash_word[index_hash], sizeof(hash_word[index_hash]), "IPV6(%06x):%d", HA_ANON(scramble, addr, strlen(addr)), port);
-							return hash_word[index_hash];
-						}
-						else {
-							snprintf(hash_word[index_hash], sizeof(hash_word[index_hash]), "IPV6(%06x)", HA_ANON(scramble, addr, strlen(addr)));
-							return hash_word[index_hash];
-						}
-					}
-					break;
-
-				default:
-					return ipstring;
-					break;
-			};
+			sa = str2sa_range(ipstring, NULL, NULL, NULL, NULL, NULL, &errmsg, NULL, NULL,
+					  PA_O_PORT_OK | PA_O_STREAM | PA_O_XPRT | PA_O_CONNECT |
+					  PA_O_PORT_RANGE | PA_O_RESOLVE);
+			if (sa == NULL) {
+				return HA_ANON_STR(scramble, ipstring);
+			}
 		}
+		addr_to_str(sa, addr, sizeof(addr));
+		port = get_host_port(sa);
+
+		switch(sa->ss_family) {
+			case AF_INET:
+				if (strncmp(addr, "127", 3) == 0 || strncmp(addr, "255", 3) == 0 || strncmp(addr, "0", 1) == 0) {
+					return ipstring;
+				}
+				else {
+					if (port != 0) {
+						snprintf(hash_word[index_hash], sizeof(hash_word[index_hash]), "IPV4(%06x):%d", HA_ANON(scramble, addr, strlen(addr)), port);
+						return hash_word[index_hash];
+					}
+					else {
+						snprintf(hash_word[index_hash], sizeof(hash_word[index_hash]), "IPV4(%06x)", HA_ANON(scramble, addr, strlen(addr)));
+						return hash_word[index_hash];
+					}
+				}
+				break;
+
+			case AF_INET6:
+				if (strcmp(addr, "::1") == 0) {
+					return ipstring;
+				}
+				else {
+					if (port != 0) {
+						snprintf(hash_word[index_hash], sizeof(hash_word[index_hash]), "IPV6(%06x):%d", HA_ANON(scramble, addr, strlen(addr)), port);
+						return hash_word[index_hash];
+					}
+					else {
+						snprintf(hash_word[index_hash], sizeof(hash_word[index_hash]), "IPV6(%06x)", HA_ANON(scramble, addr, strlen(addr)));
+						return hash_word[index_hash];
+					}
+				}
+				break;
+
+			case AF_UNIX:
+				return HA_ANON_STR(scramble, ipstring);
+				break;
+
+			default:
+				return ipstring;
+				break;
+		};
 	}
 	return ipstring;
 }

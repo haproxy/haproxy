@@ -491,7 +491,7 @@ unsigned int inetaddr_host_lim_ret(char *text, char *stop, char **ret);
 const char *hash_anon(uint32_t scramble, const char *string2hash, const char *prefix, const char *suffix);
 
 /* Function that hashes or not an ip according to the ipstring entered */
-const char * hash_ipanon(uint32_t scramble, char *ipstring);
+const char * hash_ipanon(uint32_t scramble, char *ipstring, int hasport);
 
 static inline char *cut_crlf(char *s) {
 
