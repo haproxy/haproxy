@@ -462,7 +462,7 @@ static int concat_tostring(lua_State *L)
 	return 1;
 }
 
-static int hlua_concat_init(lua_State *L)
+static void hlua_concat_init(lua_State *L)
 {
 	/* Creates the buffered concat object. */
 	lua_newtable(L);
@@ -484,8 +484,6 @@ static int hlua_concat_init(lua_State *L)
 
 	lua_settable(L, -3); /* Sets the __index entry. */
 	class_concat_ref = luaL_ref(L, LUA_REGISTRYINDEX);
-
-	return 1;
 }
 
 int hlua_fcn_new_stktable(lua_State *L, struct stktable *tbl)
@@ -1682,10 +1680,9 @@ static int hlua_regex_free(struct lua_State *L)
 	return 0;
 }
 
-int hlua_fcn_reg_core_fcn(lua_State *L)
+void hlua_fcn_reg_core_fcn(lua_State *L)
 {
-	if (!hlua_concat_init(L))
-		return 0;
+	hlua_concat_init(L);
 
 	hlua_class_function(L, "now", hlua_now);
 	hlua_class_function(L, "http_date", hlua_http_date);
@@ -1776,5 +1773,4 @@ int hlua_fcn_reg_core_fcn(lua_State *L)
 	lua_settable(L, -3); /* -> META["__index"] = TABLE */
 	class_proxy_ref = hlua_register_metatable(L, CLASS_PROXY);
 
-	return 5;
 }
