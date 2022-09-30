@@ -46,6 +46,7 @@ static int class_server_ref;
 static int class_listener_ref;
 static int class_regex_ref;
 static int class_stktable_ref;
+static int class_proxy_list_ref;
 
 #define STATS_LEN (MAX((int)ST_F_TOTAL_FIELDS, (int)INF_TOTAL_FIELDS))
 
@@ -1384,63 +1385,107 @@ int hlua_proxy_shut_bcksess(lua_State *L)
 	return 0;
 }
 
-int hlua_fcn_post_init(lua_State *L)
+static struct hlua_proxy_list *hlua_check_proxy_list(lua_State *L, int ud)
 {
+	return hlua_checkudata(L, ud, class_proxy_list_ref);
+}
+
+/* does nothing and returns 0, only prevents insertions in the
+ * table which represent list of proxies
+ */
+int hlua_listable_proxies_newindex(lua_State *L) {
+	return 0;
+}
+
+/* first arg is the table (struct hlua_proxy_list * in metadata)
+ * second arg is the required index
+ */
+int hlua_listable_proxies_index(lua_State *L)
+{
+	struct hlua_proxy_list *hlua_px;
+	const char *name;
 	struct proxy *px;
 
-	/* get core array. */
-	if (lua_getglobal(L, "core") != LUA_TTABLE)
-		lua_error(L);
+	hlua_px = hlua_check_proxy_list(L, 1);
+	name = luaL_checkstring(L, 2);
 
-	/* Create proxies entry. */
-	lua_pushstring(L, "proxies");
-	lua_newtable(L);
-
-	/* List all proxies. */
-	for (px = proxies_list; px; px = px->next) {
-		if (px->cap & PR_CAP_INT)
-			continue;
-		lua_pushstring(L, px->id);
-		hlua_fcn_new_proxy(L, px);
-		lua_settable(L, -3);
+	px = NULL;
+	if (hlua_px->capabilities & PR_CAP_FE) {
+		px = proxy_find_by_name(name, PR_CAP_FE, 0);
+	}
+	if (!px && hlua_px->capabilities & PR_CAP_BE) {
+		px = proxy_find_by_name(name, PR_CAP_BE, 0);
+	}
+	if (px == NULL) {
+		lua_pushnil(L);
+		return 1;
 	}
 
-	/* push "proxies" in "core" */
-	lua_settable(L, -3);
-
-	/* Create proxies entry. */
-	lua_pushstring(L, "frontends");
-	lua_newtable(L);
-
-	/* List all proxies. */
-	for (px = proxies_list; px; px = px->next) {
-		if (!(px->cap & PR_CAP_FE) || (px->cap & PR_CAP_INT))
-			continue;
-		lua_pushstring(L, px->id);
-		hlua_fcn_new_proxy(L, px);
-		lua_settable(L, -3);
-	}
-
-	/* push "frontends" in "core" */
-	lua_settable(L, -3);
-
-	/* Create proxies entry. */
-	lua_pushstring(L, "backends");
-	lua_newtable(L);
-
-	/* List all proxies. */
-	for (px = proxies_list; px; px = px->next) {
-		if (!(px->cap & PR_CAP_BE) || (px->cap & PR_CAP_INT))
-			continue;
-		lua_pushstring(L, px->id);
-		hlua_fcn_new_proxy(L, px);
-		lua_settable(L, -3);
-	}
-
-	/* push "backend" in "core" */
-	lua_settable(L, -3);
-
+	hlua_fcn_new_proxy(L, px);
 	return 1;
+}
+
+static inline int hlua_listable_proxies_match(struct proxy *px, char cap) {
+	return ((px->cap & cap) && !(px->cap & (PR_CAP_DEF | PR_CAP_INT)));
+}
+
+/* iterator must return key as string and value as proxy
+ * object, if we reach end of list, it returns nil
+ */
+int hlua_listable_proxies_pairs_iterator(lua_State *L)
+{
+	int context_index;
+	struct hlua_proxy_list_iterator_context *ctx;
+
+	context_index = lua_upvalueindex(1);
+	ctx = lua_touserdata(L, context_index);
+
+	if (ctx->next == NULL) {
+		lua_pushnil(L);
+		return 1;
+	}
+
+	lua_pushstring(L, ctx->next->id);
+	hlua_fcn_new_proxy(L, ctx->next);
+
+	for (ctx->next = ctx->next->next;
+	     ctx->next && !hlua_listable_proxies_match(ctx->next, ctx->capabilities);
+	     ctx->next = ctx->next->next);
+
+	return 2;
+}
+
+/* init the iterator context, return iterator function
+ * with context as closure. The only argument is a
+ * proxy object.
+ */
+int hlua_listable_proxies_pairs(lua_State *L)
+{
+	struct hlua_proxy_list_iterator_context *ctx;
+	struct hlua_proxy_list *hlua_px;
+
+	hlua_px = hlua_check_proxy_list(L, 1);
+
+	ctx = lua_newuserdata(L, sizeof(*ctx));
+
+	ctx->capabilities = hlua_px->capabilities;
+	for (ctx->next = proxies_list;
+	     ctx->next && !hlua_listable_proxies_match(ctx->next, ctx->capabilities);
+	     ctx->next = ctx->next->next);
+	lua_pushcclosure(L, hlua_listable_proxies_pairs_iterator, 1);
+	return 1;
+}
+
+void hlua_listable_proxies(lua_State *L, char capabilities)
+{
+	struct hlua_proxy_list *list;
+
+	lua_newtable(L);
+	list = lua_newuserdata(L, sizeof(*list));
+	list->capabilities = capabilities;
+	lua_rawseti(L, -2, 0);
+	lua_rawgeti(L, LUA_REGISTRYINDEX, class_proxy_list_ref);
+	lua_setmetatable(L, -2);
 }
 
 /* This Lua function take a string, a list of separators.
@@ -1773,4 +1818,34 @@ void hlua_fcn_reg_core_fcn(lua_State *L)
 	lua_settable(L, -3); /* -> META["__index"] = TABLE */
 	class_proxy_ref = hlua_register_metatable(L, CLASS_PROXY);
 
+	/* list of proxy objects. Instead of having a static array
+	 * of proxies, we use special metamethods that rely on internal
+	 * proxies list so that the array is resolved at runtime.
+	 *
+	 * To emulate the same behavior than Lua array, we implement some
+	 * metatable functions:
+	 *  - __newindex : prevent the insertion of a new item in the array
+	 *  - __index : find a proxy in the list using "name" index
+	 *  - __pairs : iterate through available proxies in the list
+	 */
+	lua_newtable(L);
+	hlua_class_function(L, "__index", hlua_listable_proxies_index);
+	hlua_class_function(L, "__newindex", hlua_listable_proxies_newindex);
+	hlua_class_function(L, "__pairs", hlua_listable_proxies_pairs);
+	class_proxy_list_ref = hlua_register_metatable(L, CLASS_PROXY_LIST);
+
+	/* Create proxies entry. */
+	lua_pushstring(L, "proxies");
+	hlua_listable_proxies(L, PR_CAP_LISTEN);
+	lua_settable(L, -3);
+
+	/* Create frontends entry. */
+	lua_pushstring(L, "frontends");
+	hlua_listable_proxies(L, PR_CAP_FE);
+	lua_settable(L, -3);
+
+	/* Create backends entry. */
+	lua_pushstring(L, "backends");
+	hlua_listable_proxies(L, PR_CAP_BE);
+	lua_settable(L, -3);
 }

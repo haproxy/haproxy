@@ -53,6 +53,7 @@
 #define CLASS_REGEX        "Regex"
 #define CLASS_STKTABLE     "StickTable"
 #define CLASS_CERTCACHE    "CertCache"
+#define CLASS_PROXY_LIST   "ProxyList"
 
 struct stream;
 
@@ -200,6 +201,15 @@ struct hlua_httpclient {
 	size_t sent; /* payload sent */
 	luaL_Buffer b; /* buffer used to prepare strings. */
 	struct mt_list by_hlua; /* linked in the current hlua task */
+};
+
+struct hlua_proxy_list {
+	char capabilities;
+};
+
+struct hlua_proxy_list_iterator_context {
+	struct proxy *next;
+	char capabilities;
 };
 
 #else /* USE_LUA */

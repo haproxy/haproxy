@@ -11810,8 +11810,6 @@ int hlua_post_init_state(lua_State *L)
 		lua_atpanic(L, hlua_panic_ljmp);
 	}
 
-	hlua_fcn_post_init(L);
-
 	list_for_each_entry(init, &hlua_init_functions[hlua_state_id], l) {
 		lua_rawgeti(L, LUA_REGISTRYINDEX, init->function_ref);
 
