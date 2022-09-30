@@ -88,10 +88,10 @@ static inline size_t quic_int_getsize(uint64_t val)
 	}
 }
 
-/* Returns the maximum integer which may be encoded with <size> bytes */
-static inline uint64_t quic_max_int_by_size(int size)
+/* Returns the maximum value of a QUIC variable-length integer with <sz> as size */
+static inline uint64_t quic_max_int(size_t sz)
 {
-	switch (size) {
+	switch (sz) {
 	case 1:
 		return QUIC_VARINT_1_BYTE_MAX;
 	case 2:
@@ -100,9 +100,9 @@ static inline uint64_t quic_max_int_by_size(int size)
 		return QUIC_VARINT_4_BYTE_MAX;
 	case 8:
 		return QUIC_VARINT_8_BYTE_MAX;
-	default:
-		return 0;
 	}
+
+	return -1;
 }
 
 /* Decode a QUIC variable-length integer from <buf> buffer into <val>.
@@ -233,6 +233,37 @@ static inline int b_quic_enc_int(struct buffer *b, uint64_t val)
 	b_add(b, save_len);
 
 	return 1;
+}
+
+static inline size_t quic_incint_size_diff(uint64_t val)
+{
+	switch (val) {
+	case QUIC_VARINT_1_BYTE_MAX:
+		return 1;
+	case QUIC_VARINT_2_BYTE_MAX:
+		return 2;
+	case QUIC_VARINT_4_BYTE_MAX:
+		return 4;
+	default:
+		return 0;
+	}
+}
+
+/* Return the difference between the encoded length of <val> and the encoded
+ * length of <val-1>.
+ */
+static inline size_t quic_decint_size_diff(uint64_t val)
+{
+	switch (val) {
+	case QUIC_VARINT_1_BYTE_MAX + 1:
+		return 1;
+	case QUIC_VARINT_2_BYTE_MAX + 1:
+		return 2;
+	case QUIC_VARINT_4_BYTE_MAX + 1:
+		return 4;
+	default:
+		return 0;
+	}
 }
 
 #endif /* USE_QUIC */

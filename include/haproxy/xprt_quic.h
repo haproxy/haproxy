@@ -229,24 +229,6 @@ static inline void quic_pin_cid_to_tid(unsigned char *cid, int target_tid)
 	cid[0] = cid[0] - (cid[0] % global.nbthread) + target_tid;
 }
 
-/* The maximum size of a variable-length QUIC integer encoded with 1 byte */
-#define QUIC_VARINT_1_BYTE_MAX       ((1UL <<  6) - 1)
-/* The maximum size of a variable-length QUIC integer encoded with 2 bytes */
-#define QUIC_VARINT_2_BYTE_MAX       ((1UL <<  14) - 1)
-/* The maximum size of a variable-length QUIC integer encoded with 4 bytes */
-#define QUIC_VARINT_4_BYTE_MAX       ((1UL <<  30) - 1)
-/* The maximum size of a variable-length QUIC integer encoded with 8 bytes */
-#define QUIC_VARINT_8_BYTE_MAX       ((1ULL <<  62) - 1)
-
-/* The maximum size of a variable-length QUIC integer */
-#define QUIC_VARINT_MAX_SIZE       8
-
-/* The two most significant bits of byte #0 from a QUIC packet gives the 2 
- * logarithm of the length of a variable length encoded integer.
- */
-#define QUIC_VARINT_BYTE_0_BITMASK 0x3f
-#define QUIC_VARINT_BYTE_0_SHIFT   6
-
 /* Return a 32-bits integer in <val> from QUIC packet with <buf> as address.
  * Makes <buf> point to the data after this 32-bits value if succeeded.
  * Note that these 32-bits integers are network bytes ordered.
@@ -282,57 +264,6 @@ static inline int quic_write_uint32(unsigned char **buf,
 	return 1;
 }
 
-/* Return the difference between the encoded length of <val> and the encoded
- * length of <val+1>.
- */
-static inline size_t quic_incint_size_diff(uint64_t val)
-{
-	switch (val) {
-	case QUIC_VARINT_1_BYTE_MAX:
-		return 1;
-	case QUIC_VARINT_2_BYTE_MAX:
-		return 2;
-	case QUIC_VARINT_4_BYTE_MAX:
-		return 4;
-	default:
-		return 0;
-	}
-}
-
-/* Return the difference between the encoded length of <val> and the encoded
- * length of <val-1>.
- */
-static inline size_t quic_decint_size_diff(uint64_t val)
-{
-	switch (val) {
-	case QUIC_VARINT_1_BYTE_MAX + 1:
-		return 1;
-	case QUIC_VARINT_2_BYTE_MAX + 1:
-		return 2;
-	case QUIC_VARINT_4_BYTE_MAX + 1:
-		return 4;
-	default:
-		return 0;
-	}
-}
-
-
-/* Returns the maximum value of a QUIC variable-length integer with <sz> as size */
-static inline uint64_t quic_max_int(size_t sz)
-{
-	switch (sz) {
-	case 1:
-		return QUIC_VARINT_1_BYTE_MAX;
-	case 2:
-		return QUIC_VARINT_2_BYTE_MAX;
-	case 4:
-		return QUIC_VARINT_4_BYTE_MAX;
-	case 8:
-		return QUIC_VARINT_8_BYTE_MAX;
-	}
-
-	return -1;
-}
 
 /* Return the maximum number of bytes we must use to completely fill a
  * buffer with <sz> as size for a data field of bytes prefixed by its QUIC
@@ -363,7 +294,7 @@ static inline size_t max_available_room(size_t sz, size_t *len_sz)
 		 *  +---------------------------+-----------....
 		 *  <--------------------------------> <sz>
 		 */
-		size_t max_int = quic_max_int_by_size(*len_sz);
+		size_t max_int = quic_max_int(*len_sz);
 
 		if (max_int + *len_sz <= sz)
 			ret = max_int;
