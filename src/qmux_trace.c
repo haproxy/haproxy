@@ -5,6 +5,7 @@
 #include <haproxy/connection.h>
 #include <haproxy/chunk.h>
 #include <haproxy/mux_quic.h>
+#include <haproxy/quic_frame-t.h>
 
 /* trace source and events */
 static void qmux_trace(enum trace_level level, uint64_t mask,

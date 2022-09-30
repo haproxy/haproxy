@@ -29,11 +29,11 @@
 
 #include <haproxy/api-t.h>
 #include <haproxy/obj_type-t.h>
+#include <haproxy/quic_cc-t.h>
+#include <haproxy/quic_tp-t.h>
 #include <haproxy/receiver-t.h>
 #include <haproxy/stats-t.h>
 #include <haproxy/thread.h>
-
-#include <haproxy/xprt_quic-t.h>
 
 /* Some pointer types reference below */
 struct task;

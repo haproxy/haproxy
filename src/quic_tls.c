@@ -2,13 +2,13 @@
 
 #include <string.h>
 
-#include <openssl/ssl.h>
-
 #include <openssl/evp.h>
 #include <openssl/kdf.h>
+#include <openssl/ssl.h>
 
 #include <haproxy/buf.h>
 #include <haproxy/chunk.h>
+#include <haproxy/pool.h>
 #include <haproxy/xprt_quic.h>
 
 

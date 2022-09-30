@@ -1,3 +1,6 @@
+#include <arpa/inet.h>
+#include <string.h>
+
 #include <haproxy/global.h>
 #include <haproxy/ncbuf-t.h>
 #include <haproxy/net_helper.h>

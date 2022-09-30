@@ -24,6 +24,8 @@
 #include <netinet/udp.h>
 #include <netinet/in.h>
 
+#include <import/ebtree-t.h>
+
 #include <haproxy/api.h>
 #include <haproxy/arg.h>
 #include <haproxy/cbuf.h>
@@ -40,9 +42,10 @@
 #include <haproxy/proto_quic.h>
 #include <haproxy/proto_udp.h>
 #include <haproxy/proxy-t.h>
-#include <haproxy/sock.h>
 #include <haproxy/quic_sock.h>
+#include <haproxy/sock.h>
 #include <haproxy/sock_inet.h>
+#include <haproxy/task.h>
 #include <haproxy/tools.h>
 #include <haproxy/xprt_quic.h>
 

@@ -27,6 +27,7 @@
 #endif
 
 #include <haproxy/api.h>
+#include <haproxy/buf.h>
 #include <haproxy/chunk.h>
 #include <haproxy/quic_cc-t.h>
 #include <haproxy/xprt_quic-t.h>

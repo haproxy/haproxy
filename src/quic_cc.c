@@ -20,10 +20,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#include <haproxy/buf.h>
-#include <haproxy/quic_cc-t.h>
-#include <haproxy/xprt_quic-t.h>
-
+#include <haproxy/quic_cc.h>
 
 struct quic_cc_algo *default_quic_cc_algo = &quic_cc_algo_cubic;
 

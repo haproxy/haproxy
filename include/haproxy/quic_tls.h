@@ -20,9 +20,11 @@
 #define TRACE_SOURCE &trace_quic
 
 #include <stdlib.h>
+#include <string.h>
 #include <openssl/ssl.h>
 
 #include <haproxy/dynbuf.h>
+#include <haproxy/pool.h>
 #include <haproxy/quic_tls-t.h>
 #include <haproxy/trace.h>
 #include <haproxy/xprt_quic.h>

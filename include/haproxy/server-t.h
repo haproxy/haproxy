@@ -35,11 +35,11 @@
 #include <haproxy/listener-t.h>
 #include <haproxy/obj_type-t.h>
 #include <haproxy/queue-t.h>
+#include <haproxy/quic_tp-t.h>
 #include <haproxy/resolvers-t.h>
 #include <haproxy/stats-t.h>
 #include <haproxy/task-t.h>
 #include <haproxy/thread-t.h>
-#include <haproxy/xprt_quic-t.h>
 
 
 /* server states. Only SRV_ST_STOPPED indicates a down server. */

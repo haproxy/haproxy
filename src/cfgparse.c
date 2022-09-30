@@ -89,7 +89,6 @@
 #include <haproxy/thread.h>
 #include <haproxy/tools.h>
 #include <haproxy/uri_auth-t.h>
-#include <haproxy/xprt_quic.h>
 
 
 /* Used to chain configuration sections definitions. This list

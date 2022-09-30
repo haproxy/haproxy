@@ -11,15 +11,28 @@
  */
 
 #include <errno.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include <sys/socket.h>
 #include <sys/types.h>
 
+#include <haproxy/api.h>
+#include <haproxy/buf.h>
 #include <haproxy/connection.h>
+#include <haproxy/fd.h>
+#include <haproxy/freq_ctr.h>
+#include <haproxy/global-t.h>
+#include <haproxy/list.h>
 #include <haproxy/listener.h>
+#include <haproxy/pool.h>
 #include <haproxy/proto_quic.h>
+#include <haproxy/proxy-t.h>
 #include <haproxy/quic_sock.h>
+#include <haproxy/quic_tp-t.h>
 #include <haproxy/session.h>
+#include <haproxy/stats-t.h>
+#include <haproxy/task.h>
 #include <haproxy/tools.h>
 #include <haproxy/xprt_quic.h>
 

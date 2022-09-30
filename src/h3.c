@@ -16,12 +16,17 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
+#include <import/ist.h>
+
+#include <haproxy/api.h>
 #include <haproxy/buf.h>
+#include <haproxy/chunk.h>
 #include <haproxy/connection.h>
 #include <haproxy/dynbuf.h>
 #include <haproxy/h3.h>
 #include <haproxy/h3_stats.h>
 #include <haproxy/http.h>
+#include <haproxy/http-hdr-t.h>
 #include <haproxy/http_htx.h>
 #include <haproxy/htx.h>
 #include <haproxy/intops.h>
@@ -31,6 +36,7 @@
 #include <haproxy/qpack-dec.h>
 #include <haproxy/qpack-enc.h>
 #include <haproxy/quic_enc.h>
+#include <haproxy/stats-t.h>
 #include <haproxy/tools.h>
 #include <haproxy/trace.h>
 #include <haproxy/xprt_quic.h>
@@ -1175,6 +1181,7 @@ static int h3_init(struct qcc *qcc)
 	h3c->id_goaway = 0;
 
 	qcc->ctx = h3c;
+	/* TODO cleanup only ref to quic_conn */
 	h3c->prx_counters =
 		EXTRA_COUNTERS_GET(qc->li->bind_conf->frontend->extra_counters_fe,
 		                   &h3_stats_module);

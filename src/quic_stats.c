@@ -1,3 +1,4 @@
+#include <haproxy/quic_frame-t.h>
 #include <haproxy/quic_stats-t.h>
 #include <haproxy/stats.h>
 

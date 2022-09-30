@@ -4,6 +4,7 @@
 #include <haproxy/xprt_quic-t.h>
 
 #include <haproxy/atomic.h>
+#include <haproxy/list.h>
 #include <haproxy/ticks.h>
 #include <haproxy/trace.h>
 

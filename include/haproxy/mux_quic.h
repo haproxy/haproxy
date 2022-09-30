@@ -6,13 +6,11 @@
 #error "Must define USE_OPENSSL"
 #endif
 
-#include <import/eb64tree.h>
-
 #include <haproxy/api.h>
 #include <haproxy/connection.h>
+#include <haproxy/list.h>
 #include <haproxy/mux_quic-t.h>
 #include <haproxy/stream.h>
-#include <haproxy/xprt_quic-t.h>
 
 struct qcs *qcc_init_stream_local(struct qcc *qcc, int bidi);
 struct buffer *qc_get_buf(struct qcs *qcs, struct buffer *bptr);

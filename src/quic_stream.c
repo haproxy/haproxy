@@ -4,9 +4,11 @@
 
 #include <haproxy/api.h>
 #include <haproxy/buf.h>
-#include <haproxy/list.h>
 #include <haproxy/dynbuf.h>
+#include <haproxy/list.h>
+#include <haproxy/mux_quic-t.h>
 #include <haproxy/pool.h>
+#include <haproxy/task.h>
 #include <haproxy/xprt_quic.h>
 
 DECLARE_STATIC_POOL(pool_head_quic_stream_desc, "qc_stream_desc",
