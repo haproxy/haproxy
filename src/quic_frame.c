@@ -10,11 +10,11 @@
 #include <string.h>
 
 #include <import/eb64tree.h>
+#include <haproxy/quic_conn-t.h>
 #include <haproxy/quic_enc.h>
 #include <haproxy/quic_frame.h>
 #include <haproxy/quic_tp-t.h>
 #include <haproxy/trace.h>
-#include <haproxy/xprt_quic.h>
 
 #define TRACE_SOURCE    &trace_quic
 

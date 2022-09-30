@@ -10,12 +10,12 @@
 #include <haproxy/pool.h>
 #include <haproxy/qmux_http.h>
 #include <haproxy/qmux_trace.h>
+#include <haproxy/quic_conn.h>
 #include <haproxy/quic_stream.h>
 #include <haproxy/quic_tp-t.h>
 #include <haproxy/ssl_sock-t.h>
 #include <haproxy/stconn.h>
 #include <haproxy/trace.h>
-#include <haproxy/xprt_quic.h>
 
 DECLARE_POOL(pool_head_qcc, "qcc", sizeof(struct qcc));
 DECLARE_POOL(pool_head_qcs, "qcs", sizeof(struct qcs));

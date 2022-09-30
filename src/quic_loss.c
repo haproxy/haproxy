@@ -1,7 +1,8 @@
 #include <import/eb64tree.h>
 
+#include <haproxy/quic_conn-t.h>
 #include <haproxy/quic_loss.h>
-#include <haproxy/xprt_quic-t.h>
+#include <haproxy/quic_tls-t.h>
 
 #include <haproxy/atomic.h>
 #include <haproxy/list.h>

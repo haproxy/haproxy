@@ -1,6 +1,5 @@
 /*
- * include/haproxy/xprt_quic-t.h
- * This file contains applet function prototypes
+ * include/haproxy/quic_conn-t.h
  *
  * Copyright 2019 HAProxy Technologies, Frederic Lecaille <flecaille@haproxy.com>
  *
@@ -19,8 +18,9 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _HAPROXY_XPRT_QUIC_T_H
-#define _HAPROXY_XPRT_QUIC_T_H
+#ifndef _HAPROXY_QUIC_CONN_T_H
+#define _HAPROXY_QUIC_CONN_T_H
+
 #ifdef USE_QUIC
 #ifndef USE_OPENSSL
 #error "Must define USE_OPENSSL"
@@ -707,4 +707,4 @@ struct quic_conn {
 };
 
 #endif /* USE_QUIC */
-#endif /* _HAPROXY_XPRT_QUIC_T_H */
+#endif /* _HAPROXY_QUIC_CONN_T_H */

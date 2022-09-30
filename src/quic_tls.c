@@ -9,7 +9,7 @@
 #include <haproxy/buf.h>
 #include <haproxy/chunk.h>
 #include <haproxy/pool.h>
-#include <haproxy/xprt_quic.h>
+#include <haproxy/quic_conn-t.h>
 
 
 DECLARE_POOL(pool_head_quic_tls_secret, "quic_tls_secret", QUIC_TLS_SECRET_LEN);

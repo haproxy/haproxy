@@ -26,9 +26,9 @@
 #error "Must define USE_OPENSSL"
 #endif
 
+#include <haproxy/quic_conn-t.h>
 #include <haproxy/quic_enc.h>
 #include <haproxy/quic_frame-t.h>
-#include <haproxy/xprt_quic-t.h>
 
 const char *quic_frame_type_string(enum quic_frame_type ft);
 

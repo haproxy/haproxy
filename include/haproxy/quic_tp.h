@@ -6,8 +6,8 @@
 #endif
 
 #include <haproxy/chunk.h>
+#include <haproxy/quic_conn-t.h>
 #include <haproxy/quic_tp-t.h>
-#include <haproxy/xprt_quic-t.h>
 
 void quic_transport_params_init(struct quic_transport_params *p, int server);
 int quic_transport_params_encode(unsigned char *buf,

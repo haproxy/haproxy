@@ -115,6 +115,7 @@
 #include <haproxy/namespace.h>
 #include <haproxy/net_helper.h>
 #include <haproxy/openssl-compat.h>
+#include <haproxy/quic_conn-t.h>
 #include <haproxy/quic_tp-t.h>
 #include <haproxy/pattern.h>
 #include <haproxy/peers.h>
@@ -139,7 +140,6 @@
 #include <haproxy/uri_auth-t.h>
 #include <haproxy/vars.h>
 #include <haproxy/version.h>
-#include <haproxy/xprt_quic-t.h>
 
 
 /* array of init calls for older platforms */

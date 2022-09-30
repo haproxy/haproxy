@@ -65,6 +65,7 @@
 #include <haproxy/proxy.h>
 #include <haproxy/sample.h>
 #include <haproxy/sc_strm.h>
+#include <haproxy/quic_conn.h>
 #include <haproxy/quic_tp.h>
 #include <haproxy/server.h>
 #include <haproxy/shctx.h>
@@ -80,7 +81,6 @@
 #include <haproxy/time.h>
 #include <haproxy/tools.h>
 #include <haproxy/vars.h>
-#include <haproxy/xprt_quic.h>
 #include <haproxy/xxhash.h>
 #include <haproxy/istbuf.h>
 

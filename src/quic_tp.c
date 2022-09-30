@@ -4,10 +4,10 @@
 #include <haproxy/global.h>
 #include <haproxy/ncbuf-t.h>
 #include <haproxy/net_helper.h>
+#include <haproxy/quic_conn-t.h>
 #include <haproxy/quic_enc.h>
 #include <haproxy/quic_tp.h>
 #include <haproxy/trace.h>
-#include <haproxy/xprt_quic-t.h>
 
 #define QUIC_MAX_UDP_PAYLOAD_SIZE     2048
 

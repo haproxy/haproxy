@@ -29,8 +29,8 @@
 #include <haproxy/quic_loss-t.h>
 
 #include <haproxy/api.h>
+#include <haproxy/quic_conn-t.h>
 #include <haproxy/quic_tls-t.h>
-#include <haproxy/xprt_quic-t.h>
 
 static inline void quic_loss_init(struct quic_loss *ql)
 {

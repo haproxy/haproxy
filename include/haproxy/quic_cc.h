@@ -30,7 +30,7 @@
 #include <haproxy/buf.h>
 #include <haproxy/chunk.h>
 #include <haproxy/quic_cc-t.h>
-#include <haproxy/xprt_quic-t.h>
+#include <haproxy/quic_conn-t.h>
 
 void quic_cc_init(struct quic_cc *cc, struct quic_cc_algo *algo, struct quic_conn *qc);
 void quic_cc_event(struct quic_cc *cc, struct quic_cc_event *ev);

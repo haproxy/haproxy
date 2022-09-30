@@ -25,9 +25,9 @@
 
 #include <haproxy/dynbuf.h>
 #include <haproxy/pool.h>
+#include <haproxy/quic_conn-t.h>
 #include <haproxy/quic_tls-t.h>
 #include <haproxy/trace.h>
-#include <haproxy/xprt_quic.h>
 
 void quic_tls_keys_hexdump(struct buffer *buf,
                            const struct quic_tls_secrets *secs);

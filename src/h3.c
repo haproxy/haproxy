@@ -35,11 +35,11 @@
 #include <haproxy/pool.h>
 #include <haproxy/qpack-dec.h>
 #include <haproxy/qpack-enc.h>
+#include <haproxy/quic_conn-t.h>
 #include <haproxy/quic_enc.h>
 #include <haproxy/stats-t.h>
 #include <haproxy/tools.h>
 #include <haproxy/trace.h>
-#include <haproxy/xprt_quic.h>
 
 /* trace source and events */
 static void h3_trace(enum trace_level level, uint64_t mask,

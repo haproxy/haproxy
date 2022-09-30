@@ -1,6 +1,5 @@
 /*
- * include/haproxy/xprt_quic.h
- * This file contains QUIC xprt function prototypes
+ * include/haproxy/quic_conn.h
  *
  * Copyright 2020 HAProxy Technologies, Frederic Lecaille <flecaille@haproxy.com>
  *
@@ -19,8 +18,8 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _HAPROXY_XPRT_QUIC_H
-#define _HAPROXY_XPRT_QUIC_H
+#ifndef _HAPROXY_QUIC_CONN_H
+#define _HAPROXY_QUIC_CONN_H
 #ifdef USE_QUIC
 #ifndef USE_OPENSSL
 #error "Must define USE_OPENSSL"
@@ -40,11 +39,11 @@
 
 #include <haproxy/listener.h>
 #include <haproxy/quic_cc.h>
+#include <haproxy/quic_conn-t.h>
 #include <haproxy/quic_enc.h>
 #include <haproxy/quic_frame.h>
 #include <haproxy/quic_loss.h>
 #include <haproxy/mux_quic.h>
-#include <haproxy/xprt_quic-t.h>
 
 #include <openssl/rand.h>
 
@@ -707,5 +706,9 @@ void qc_notify_close(struct quic_conn *qc);
 
 void qc_release_frm(struct quic_conn *qc, struct quic_frame *frm);
 
+void qc_check_close_on_released_mux(struct quic_conn *qc);
+
+void quic_conn_release(struct quic_conn *qc);
+
 #endif /* USE_QUIC */
-#endif /* _HAPROXY_XPRT_QUIC_H */
+#endif /* _HAPROXY_QUIC_CONN_H */
