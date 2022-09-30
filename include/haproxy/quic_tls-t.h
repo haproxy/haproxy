@@ -112,6 +112,9 @@ enum quic_tls_pktns {
 };
 
 extern unsigned char initial_salt[20];
+extern const unsigned char initial_salt_draft_29[20];
+extern const unsigned char initial_salt_v1[20];
+extern const unsigned char initial_salt_v2_draft[20];
 
 /* Key phase used for Key Update */
 struct quic_tls_kp {
