@@ -1,3 +1,5 @@
+#include <haproxy/quic_tls.h>
+
 #include <string.h>
 
 #include <openssl/ssl.h>

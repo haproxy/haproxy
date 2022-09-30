@@ -50,7 +50,7 @@ int quic_tls_encrypt(unsigned char *buf, size_t len,
                      const unsigned char *key, const unsigned char *iv);
 
 int quic_tls_decrypt2(unsigned char *out,
-                      const unsigned char *in, size_t ilen,
+                      unsigned char *in, size_t ilen,
                       unsigned char *aad, size_t aad_len,
                       EVP_CIPHER_CTX *ctx, const EVP_CIPHER *aead,
                       const unsigned char *key, const unsigned char *iv);
@@ -60,7 +60,7 @@ int quic_tls_decrypt(unsigned char *buf, size_t len,
                      EVP_CIPHER_CTX *tls_ctx, const EVP_CIPHER *aead,
                      const unsigned char *key, const unsigned char *iv);
 
-int quic_tls_generate_retry_integrity_tag(unsigned char *odcid, size_t odcid_len,
+int quic_tls_generate_retry_integrity_tag(unsigned char *odcid, unsigned char odcid_len,
                                           unsigned char *buf, size_t len,
                                           const struct quic_version *qv);
 

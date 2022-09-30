@@ -5433,7 +5433,7 @@ static int quic_generate_retry_token(unsigned char *buf, size_t len,
  * of client source connection ID.
  * Return 1 if succeeded, 0 if not.
  */
-static int quic_retry_token_check(const unsigned char *token, size_t tokenlen,
+static int quic_retry_token_check(unsigned char *token, size_t tokenlen,
                                   const struct quic_version *qv,
                                   struct quic_cid *odcid,
                                   const struct quic_cid *dcid,
