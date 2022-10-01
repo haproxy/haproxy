@@ -592,6 +592,8 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		goto out;
 	}
 	else if (strcmp(args[0], "maxconn") == 0) {
+		char *stop;
+
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
 		if (global.maxconn != 0) {
@@ -604,7 +606,12 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
-		global.maxconn = atol(args[1]);
+		global.maxconn = strtol(args[1], &stop, 10);
+		if (*stop != '\0') {
+			ha_alert("parsing [%s:%d] : cannot parse '%s' value '%s', an integer is expected.\n", file, linenum, args[0], args[1]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
 #ifdef SYSTEM_MAXCONN
 		if (global.maxconn > SYSTEM_MAXCONN && cfg_maxconn <= SYSTEM_MAXCONN) {
 			ha_alert("parsing [%s:%d] : maxconn value %d too high for this system.\nLimiting to %d. Please use '-n' to force the value.\n", file, linenum, global.maxconn, SYSTEM_MAXCONN);
