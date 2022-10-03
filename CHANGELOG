@@ -1,6 +1,70 @@
 ChangeLog :
 ===========
 
+2022/10/03 : 2.7-dev7
+    - BUG/MEDIUM: mux-quic: fix nb_hreq decrement
+    - CLEANUP: httpclient: deleted unused variables
+    - MINOR: httpclient: enabled the use of SNI presets
+    - OPTIM: hpack-huff: reduce the cache footprint of the huffman decoder
+    - BUG/MINOR: mux-quic: do not keep detached qcs with empty Tx buffers
+    - REORG: mux-quic: extract traces in a dedicated source file
+    - REORG: mux-quic: export HTTP related function in a dedicated file
+    - MINOR: mux-quic: refactor snd_buf
+    - BUG/MEDIUM: mux-quic: properly trim HTX buffer on snd_buf reset
+    - BUG/MINOR: mux-h1: Account consumed output data on synchronous connection error
+    - BUG/MINOR: log: improper behavior when escaping log data
+    - CLEANUP: tools: removing escape_chunk() function
+    - MINOR: clock: split local and global date updates
+    - MINOR: pollers: only update the local date during busy polling
+    - MINOR: clock: do not update the global date too often
+    - REGTESTS: 4be_1srv_smtpchk_httpchk_layer47errors: Return valid SMTP replies
+    - MINOR: smtpchk: Update expect rule to fully match replies to EHLO commands
+    - BUG/MINOR: smtpchk: SMTP Service check should gracefully close SMTP transaction
+    - MINOR: list: documenting mt_list_for_each_entry_safe() macro
+    - CLEANUP: list: Fix mt_list_for_each_entry_safe indentation
+    - BUG/MINOR: hlua: Remove \n in Lua error message built with memprintf
+    - MINOR: hlua: Allow argument on lua-lod(-per-thread) directives
+    - BUG/MINOR: anon: memory illegal accesses in tools.c with hash_anon and hash_ipanon
+    - MEDIUM: mworker/cli: keep the connection of the FD that ask for a reload
+    - BUG/MINOR: hlua: fixing ambiguous sizeof in hlua_load_per_thread
+    - MINOR: mworker/cli: replace close() by fd_delete()
+    - MINOR: mworker: store and shows loading status
+    - MINOR: mworker: mworker_cli_proxy_new_listener() returns a bind_conf
+    - MINOR: mworker: stores the mcli_reload bind_conf
+    - MINOR: mworker/cli: the mcli_reload bind_conf only send the reload status
+    - DOC: management: describe the new reload command behavior
+    - CLEANUP: list: fix again some style issues in the recent comments
+    - BUG/MINOR: stream: Perform errors handling in right order in stream_new()
+    - BUG/MEDIUM: stconn: Reset SE descriptor when we fail to create a stream
+    - BUG/MEDIUM: resolvers: Remove aborted resolutions from query_ids tree
+    - DOC: management: add timeout on the "reload" command
+    - BUG/MINOR: ring: fix the size check in ring_make_from_area()
+    - BUG/MINOR: config: don't count trailing spaces as empty arg
+    - Revert "BUG/MINOR: config: don't count trailing spaces as empty arg"
+    - BUG/MINOR: hlua: fixing hlua_http_msg_del_data behavior
+    - BUG/MINOR: hlua: fixing hlua_http_msg_insert_data behavior
+    - MINOR: cli: Add anonymization on a missed element for 'show sess all'
+    - MINOR: cli: remove error message with 'set anon on|off'
+    - MINOR: tools: modify hash_ipanon in order to use it in cli
+    - MINOR: cli: use hash_ipanon to anonymized address
+    - MINOR: cli: Add an anonymization on a missed element in 'show server state'
+    - MINOR: config: correct errors about argument number in condition in cfgparse.c
+    - MINOR: config: Add other keywords when dump the anonymized configuration file
+    - MINOR: config: Add option line when the configuration file is dumped
+    - MINOR: cli: correct commentary and replace 'set global-key' name
+    - MINOR: tools: Impprove hash_ipanon to support dgram sockets and port offsets
+    - MINOR: tools: Impprove hash_ipanon to not hash FD-based addresses
+    - BUG/MINOR: hlua: _hlua_http_msg_delete incorrect behavior when offset is used
+    - DOC: management: httpclient can resolve server names in URLs
+    - BUG/MINOR: hlua: prevent crash when loading numerous arguments using lua-load(per-thread)
+    - DOC/CLEANUP: lua-api: removing duplicate date functions doc
+    - MINOR: hlua: ambiguous lua_pushvalue with 0 index
+    - BUG/MINOR: config: don't count trailing spaces as empty arg (v2)
+    - BUG/MEDIUM: config: count line arguments without dereferencing the output
+    - BUG/MAJOR: conn-idle: fix hash indexing issues on idle conns
+    - BUG/MINOR: config: insufficient syntax check of the global "maxconn" value
+    - BUG/MINOR: backend: only enforce turn-around state when not redispatching
+
 2022/09/17 : 2.7-dev6
     - MINOR: Revert part of clarifying samples support per os commit
     - BUILD: makefile: enable crypt(3) for NetBSD
