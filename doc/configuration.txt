@@ -9717,7 +9717,7 @@ no option persist
   See also : "option redispatch", "retries", "force-persist"
 
 
-option pgsql-check [ user <username> ]
+option pgsql-check user <username>
   Use PostgreSQL health checks for server testing
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
