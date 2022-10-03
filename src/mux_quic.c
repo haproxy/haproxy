@@ -1067,6 +1067,27 @@ int qcc_recv_stop_sending(struct qcc *qcc, uint64_t id, uint64_t err)
 		goto out;
 
 	TRACE_PROTO("receiving STOP_SENDING", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV, qcc->conn, qcs);
+
+	/* RFC 9000 3.5. Solicited State Transitions
+	 *
+	 * An endpoint is expected to send another STOP_SENDING frame if a
+	 * packet containing a previous STOP_SENDING is lost.  However, once
+	 * either all stream data or a RESET_STREAM frame has been received for
+	 * the stream -- that is, the stream is in any state other than "Recv"
+	 * or "Size Known" -- sending a STOP_SENDING frame is unnecessary.
+	 */
+
+	/* TODO thanks to previous RFC clause, STOP_SENDING is ignored if current stream
+	 * has already been closed locally. This is useful to not emit multiple
+	 * RESET_STREAM for a single stream. This is functional if stream is
+	 * locally closed due to all data transmitted, but in this case the RFC
+	 * advices to use an explicit RESET_STREAM.
+	 */
+	if (qcs_is_close_local(qcs)) {
+		TRACE_STATE("ignoring STOP_SENDING", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV, qcc->conn, qcs);
+		goto out;
+	}
+
 	qcs_idle_open(qcs);
 
 	/* RFC 9000 3.5. Solicited State Transitions
