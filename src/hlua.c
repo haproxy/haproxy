@@ -3573,7 +3573,7 @@ __LJMP static int hlua_channel_prepend(lua_State *L)
 }
 
 /* Inserts a given amount of input data at the given offset by a string
- * content. By default the string is appended at the end of input data. It
+ * content. By default the string is appended in front of input data. It
  * returns the length of the written string, or -1 if the channel is closed or
  * if the buffer size is too little for the data.
  *
@@ -3599,13 +3599,13 @@ __LJMP static int hlua_channel_insert_data(lua_State *L)
 	if (filter && !hlua_filter_from_payload(filter))
 		WILL_LJMP(lua_error(L));
 
-	offset = input + output;
+	offset = output;
 	if (lua_gettop(L) > 2) {
 		offset = MAY_LJMP(luaL_checkinteger(L, 3));
 		if (offset < 0)
 			offset = MAX(0, (int)input + offset);
 		offset += output;
-		if (offset < output || offset > output + input) {
+		if (offset > output + input) {
 			lua_pushfstring(L, "offset out of range.");
 			WILL_LJMP(lua_error(L));
 		}
