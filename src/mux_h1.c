@@ -2589,7 +2589,7 @@ static void h1_alert(struct h1s *h1s)
 }
 
 /* Try to send an HTTP error with h1c->errcode status code. It returns 1 on success
- * and 0 on error. The flag H1C_F_ERR_PENDING is set on the H1 connection for
+ * and 0 on error. The flag H1C_F_ABRT_PENDING is set on the H1 connection for
  * retryable errors (allocation error or buffer full). On success, the error is
  * copied in the output buffer.
 */
@@ -2612,19 +2612,19 @@ static int h1_send_error(struct h1c *h1c)
 	}
 
 	if (h1c->flags & (H1C_F_OUT_ALLOC|H1C_F_OUT_FULL)) {
-		h1c->flags |= H1C_F_ERR_PENDING;
+		h1c->flags |= H1C_F_ABRT_PENDING;
 		goto out;
 	}
 
 	if (!h1_get_buf(h1c, &h1c->obuf)) {
-		h1c->flags |= (H1C_F_OUT_ALLOC|H1C_F_ERR_PENDING);
+		h1c->flags |= (H1C_F_OUT_ALLOC|H1C_F_ABRT_PENDING);
 		TRACE_STATE("waiting for h1c obuf allocation", H1_EV_H1C_ERR|H1_EV_H1C_BLK, h1c->conn);
 		goto out;
 	}
 	ret = b_istput(&h1c->obuf, ist(http_err_msgs[rc]));
 	if (unlikely(ret <= 0)) {
 		if (!ret) {
-			h1c->flags |= (H1C_F_OUT_FULL|H1C_F_ERR_PENDING);
+			h1c->flags |= (H1C_F_OUT_FULL|H1C_F_ABRT_PENDING);
 			TRACE_STATE("h1c obuf full", H1_EV_H1C_ERR|H1_EV_H1C_BLK, h1c->conn);
 			goto out;
 		}
@@ -2639,7 +2639,7 @@ static int h1_send_error(struct h1c *h1c)
 		h1s_destroy(h1c->h1s);
 	}
 
-	h1c->flags &= ~H1C_F_ERR_PENDING;
+	h1c->flags &= ~H1C_F_ABRT_PENDING;
 	h1c->state = H1_CS_CLOSING;
   out:
 	TRACE_LEAVE(H1_EV_H1C_ERR, h1c->conn);
@@ -3009,7 +3009,7 @@ static int h1_process(struct h1c * h1c)
 					h1_send(h1c);
 				h1c->flags = (h1c->flags & ~H1C_F_WAIT_NEXT_REQ) | H1C_F_ERROR;
 			}
-			else if (h1c->flags & H1C_F_ERR_PENDING) {
+			else if (h1c->flags & H1C_F_ABRT_PENDING) {
 				/* Handle pending error, if any (only possible on frontend connection) */
 				BUG_ON(h1c->flags & H1C_F_IS_BACK);
 				if (h1_send_error(h1c))
@@ -3021,7 +3021,7 @@ static int h1_process(struct h1c * h1c)
 			}
 
 			/* If there is some pending outgoing data or error, just wait */
-			if (h1c->state == H1_CS_CLOSING || (h1c->flags & H1C_F_ERR_PENDING))
+			if (h1c->state == H1_CS_CLOSING || (h1c->flags & H1C_F_ABRT_PENDING))
 				goto end;
 
 			/* Otherwise we can release the H1 connection */
@@ -3238,12 +3238,12 @@ struct task *h1_timeout_task(struct task *t, void *context, unsigned int state)
 		}
 
 		/* Try to send an error to the client */
-		if (h1c->state != H1_CS_CLOSING && !(h1c->flags & (H1C_F_IS_BACK|H1C_F_ERROR|H1C_F_ERR_PENDING))) {
+		if (h1c->state != H1_CS_CLOSING && !(h1c->flags & (H1C_F_IS_BACK|H1C_F_ERROR|H1C_F_ABRT_PENDING))) {
 			h1c->flags |= H1C_F_ERROR;
 			TRACE_DEVEL("timeout error detected", H1_EV_H1C_WAKE|H1_EV_H1C_ERR, h1c->conn, h1c->h1s);
 			if (h1_handle_req_tout(h1c))
 				h1_send(h1c);
-			if (b_data(&h1c->obuf) || (h1c->flags & H1C_F_ERR_PENDING)) {
+			if (b_data(&h1c->obuf) || (h1c->flags & H1C_F_ABRT_PENDING)) {
 				h1_refresh_timeout(h1c);
 				HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 				return t;
