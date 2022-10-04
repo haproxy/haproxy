@@ -35,21 +35,24 @@
 /* H1 connection descriptor */
 struct h1c {
 	struct connection *conn;
-	struct proxy *px;
-	uint32_t flags;                  /* Connection flags: H1C_F_* */
-	unsigned int errcode;            /* Status code when an error occurred at the H1 connection level */
-	struct buffer ibuf;              /* Input buffer to store data before parsing */
-	struct buffer obuf;              /* Output buffer to store data after reformatting */
-
-	struct buffer_wait buf_wait;     /* Wait list for buffer allocation */
-	struct wait_event wait_event;    /* To be used if we're waiting for I/Os */
-
 	struct h1s *h1s;                 /* H1 stream descriptor */
 	struct task *task;               /* timeout management task */
-	struct h1_counters *px_counters; /* h1 counters attached to proxy */
+
+	uint32_t flags;                  /* Connection flags: H1C_F_* */
+
+	struct buffer ibuf;              /* Input buffer to store data before parsing */
+	struct buffer obuf;              /* Output buffer to store data after reformatting */
+	struct proxy *px;
+
+	unsigned int errcode;            /* Status code when an error occurred at the H1 connection level */
+
 	int idle_exp;                    /* idle expiration date (http-keep-alive or http-request timeout) */
 	int timeout;                     /* client/server timeout duration */
 	int shut_timeout;                /* client-fin/server-fin timeout duration */
+
+	struct h1_counters *px_counters; /* h1 counters attached to proxy */
+	struct buffer_wait buf_wait;     /* Wait list for buffer allocation */
+	struct wait_event wait_event;    /* To be used if we're waiting for I/Os */
 };
 
 /* H1 stream descriptor */
