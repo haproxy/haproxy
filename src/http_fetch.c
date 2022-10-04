@@ -346,6 +346,7 @@ static int smp_fetch_meth(const struct arg *args, struct sample *smp, const char
 		htx = smp_prefetch_htx(smp, chn, NULL, 1);
 		if (!htx)
 			return 0;
+		meth = txn->meth;
 	}
 
 	smp->data.type = SMP_T_METH;
