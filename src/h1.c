@@ -1013,6 +1013,11 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 				if (ret < 0) {
 					if (h1m->err_pos < -1) {
 						state = H1_MSG_LAST_LF;
+						/* WT: gcc seems to see a path where sl.rq.u.ptr was used
+						 * uninitialized, but it doesn't know that the function is
+						 * called with initial states making this impossible.
+						 */
+						ALREADY_CHECKED(sl.rq.u.ptr);
 						ptr = ((ret == -1) ? sl.rq.u.ptr : host->ptr); /* Set ptr on the error */
 						goto http_msg_invalid;
 					}
