@@ -131,5 +131,33 @@ static forceinline char *h1s_show_flags(char *buf, size_t len, const char *delim
 #undef _
 }
 
+/* H1 connection state, in h1c->state */
+enum h1_cs {
+	H1_CS_IDLE,        /* IDLE connection. A freashly open or a reusable connection (H1S is NULL) */
+	H1_CS_EMBRYONIC,   /* Connection is waiting for the message headers (H1S is not NULL, not attached to a SC - Frontend connection only) */
+	H1_CS_UPGRADING,   /* TCP>H1 upgrade in-progress (H1S is not NULL and attached to a SC - Frontend connection only) */
+	H1_CS_RUNNING,     /* Connection fully established and the H1S is processing data (H1S is not NULL and attached to a SC) */
+	H1_CS_CLOSING,     /* Send pending outgoing data and close the connection ASAP  (H1S may be NULL) */
+	H1_CS_CLOSED,      /* Connection must be closed now and H1C must be released (H1S is NULL) */
+	H1_CS_ENTRIES,
+} __attribute__((packed));
+
+
+/**** tiny state decoding functions for debug helpers ****/
+
+/* returns a h1c state as an abbreviated 3-letter string, or "???" if unknown */
+static inline const char *h1c_st_to_str(enum h1_cs st)
+{
+	switch (st) {
+	case H1_CS_IDLE:      return "IDL";
+	case H1_CS_EMBRYONIC: return "EMB";
+	case H1_CS_UPGRADING: return "UPG";
+	case H1_CS_RUNNING:   return "RUN";
+	case H1_CS_CLOSING:   return "CLI";
+	case H1_CS_CLOSED:    return "CLD";
+	default:              return "???";
+	}
+}
+
 
 #endif /* _HAPROXY_MUX_H1_T_H */

@@ -39,6 +39,8 @@ struct h1c {
 	struct task *task;               /* timeout management task */
 
 	uint32_t flags;                  /* Connection flags: H1C_F_* */
+	enum h1_cs state;                /* Connection state */
+
 
 	struct buffer ibuf;              /* Input buffer to store data before parsing */
 	struct buffer obuf;              /* Output buffer to store data after reformatting */
@@ -331,7 +333,7 @@ static void h1_trace(enum trace_level level, uint64_t mask, const struct trace_s
 		return;
 
 	/* Display frontend/backend info by default */
-	chunk_appendf(&trace_buf, " : [%c]", ((h1c->flags & H1C_F_IS_BACK) ? 'B' : 'F'));
+	chunk_appendf(&trace_buf, " : [%c,%s]", ((h1c->flags & H1C_F_IS_BACK) ? 'B' : 'F'), h1c_st_to_str(h1c->state));
 
 	/* Display request and response states if h1s is defined */
 	if (h1s) {
@@ -516,6 +518,23 @@ static inline void h1_release_buf(struct h1c *h1c, struct buffer *bptr)
 		b_free(bptr);
 		offer_buffers(h1c->buf_wait.target, 1);
 	}
+}
+
+/* Returns 1 if the H1 connection is alive (IDLE, EMBRYONIC, RUNNING or
+ * RUNNING). Ortherwise 0 is returned.
+ */
+static inline int h1_is_alive(const struct h1c *h1c)
+{
+	return (h1c->state <= H1_CS_RUNNING);
+}
+
+/* Switch the H1 connection to CLOSING or CLOSED mode, depending on the output
+ * buffer state and if there is still a H1 stream or not. If there are sill
+ * pending outgoing data or if there is still a H1 stream, it is set to CLOSING
+ * state. Otherwise it is set to CLOSED mode. */
+static inline void h1_close(struct h1c *h1c)
+{
+	h1c->state = ((h1c->h1s || b_data(&h1c->obuf)) ? H1_CS_CLOSING : H1_CS_CLOSED);
 }
 
 /* returns the number of streams in use on a connection to figure if it's idle
@@ -888,6 +907,7 @@ static int h1_init(struct connection *conn, struct proxy *proxy, struct session 
 	h1c->conn = conn;
 	h1c->px   = proxy;
 
+	h1c->state = H1_CS_IDLE;
 	h1c->flags = H1C_F_ST_IDLE;
 	h1c->errcode = 0;
 	h1c->ibuf  = *input;
