@@ -334,7 +334,7 @@ static int smp_fetch_meth(const struct arg *args, struct sample *smp, const char
 {
 	struct channel *chn = SMP_REQ_CHN(smp);
 	struct http_txn *txn;
-	struct htx *htx;
+	struct htx *htx = NULL;
 	int meth;
 
 	txn = (smp->strm ? smp->strm->txn : NULL);
