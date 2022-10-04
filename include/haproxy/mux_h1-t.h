@@ -38,16 +38,9 @@
 #define H1C_F_IN_FULL        0x00000020 /* mux is blocked on input buffer full */
 #define H1C_F_IN_SALLOC      0x00000040 /* mux is blocked on lack of stream's request buffer */
 
-/* Flags indicating the connection state */
-#define H1C_F_ST_EMBRYONIC   0x00000100 /* Set when a H1 stream with no stream connector is attached to the connection */
-#define H1C_F_ST_ATTACHED    0x00000200 /* Set when a H1 stream with a stream connector is attached to the connection (may be not READY) */
-#define H1C_F_ST_IDLE        0x00000400 /* connection is idle and may be reused
-					 * (exclusive to all H1C_F_ST flags and never set when an h1s is attached) */
-#define H1C_F_ERROR          0x00000800 /* connection must be closed ASAP because an error occurred (stream connector may still be attached) */
-#define H1C_F_ST_SHUTDOWN    0x00001000 /* connection must be shut down ASAP flushing output first (stream connector may still be attached) */
-#define H1C_F_ST_READY       0x00002000 /* Set in ATTACHED state with a READY stream connector. A stream connector is not ready when
-					 * a TCP>H1 upgrade is in progress Thus this flag is only set if ATTACHED is also set */
-#define H1C_F_ST_ALIVE       (H1C_F_ST_IDLE|H1C_F_ST_EMBRYONIC|H1C_F_ST_ATTACHED)
+/* 0x00000100 - 0x00000400 unused */
+#define H1C_F_ERROR       0x00000800 /* connection must be closed ASAP because an error occurred (stream connector may still be attached) */
+/* 0x00001000 - 0x00002000 unused */
 #define H1C_F_SILENT_SHUT    0x00004000 /* if H1C is closed closed, silent (or dirty) shutdown must be performed */
 /* 0x00008000 unused */
 
@@ -74,11 +67,9 @@ static forceinline char *h1c_show_flags(char *buf, size_t len, const char *delim
 	/* flags */
 	_(H1C_F_OUT_ALLOC, _(H1C_F_OUT_FULL,
 	_(H1C_F_IN_ALLOC, _(H1C_F_IN_FULL, _(H1C_F_IN_SALLOC,
-	_(H1C_F_ST_EMBRYONIC, _(H1C_F_ST_ATTACHED, _(H1C_F_ST_IDLE,
-	_(H1C_F_ERROR, _(H1C_F_ST_SHUTDOWN, _(H1C_F_ST_READY,
-	_(H1C_F_SILENT_SHUT, _(H1C_F_WANT_SPLICE, _(H1C_F_ERR_PENDING,
+	_(H1C_F_ERROR, _(H1C_F_SILENT_SHUT, _(H1C_F_WANT_SPLICE, _(H1C_F_ERR_PENDING,
 	_(H1C_F_WAIT_NEXT_REQ, _(H1C_F_UPG_H2C, _(H1C_F_CO_MSG_MORE,
-	_(H1C_F_CO_STREAMER, _(H1C_F_IS_BACK)))))))))))))))))));
+	_(H1C_F_CO_STREAMER, _(H1C_F_IS_BACK))))))))))))));
 	/* epilogue */
 	_(~0U);
 	return buf;
