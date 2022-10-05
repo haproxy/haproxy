@@ -3425,38 +3425,7 @@ static void h1_shutr(struct stconn *sc, enum co_shr_mode mode)
 		return;
 	h1c = h1s->h1c;
 
-	TRACE_ENTER(H1_EV_STRM_SHUT, h1c->conn, h1s, 0, (size_t[]){mode});
-
-	if (se_fl_test(h1s->sd, SE_FL_SHR))
-		goto end;
-	if (se_fl_test(h1s->sd, SE_FL_KILL_CONN)) {
-		TRACE_STATE("stream wants to kill the connection", H1_EV_STRM_SHUT, h1c->conn, h1s);
-		goto do_shutr;
-	}
-	if (h1c->conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH)) {
-		TRACE_STATE("shutdown on connection (error|rd_sh|wr_sh)", H1_EV_STRM_SHUT, h1c->conn, h1s);
-		goto do_shutr;
-	}
-
-	if (!(h1c->flags & (H1C_F_ST_READY|H1C_F_ST_ERROR))) {
-		/* Here attached is implicit because there is SC */
-		TRACE_STATE("keep connection alive (ALIVE but not READY nor ERROR)", H1_EV_STRM_SHUT, h1c->conn, h1s);
-		goto end;
-	}
-	if (h1s->flags & H1S_F_WANT_KAL) {
-		TRACE_STATE("keep connection alive (want_kal)", H1_EV_STRM_SHUT, h1c->conn, h1s);
-		goto end;
-	}
-
-  do_shutr:
-	/* NOTE: Be sure to handle abort (cf. h2_shutr) */
-	if (se_fl_test(h1s->sd, SE_FL_SHR))
-		goto end;
-
-	if (conn_xprt_ready(h1c->conn) && h1c->conn->xprt->shutr)
-		h1c->conn->xprt->shutr(h1c->conn, h1c->conn->xprt_ctx, (mode == CO_SHR_DRAIN));
-  end:
-	TRACE_LEAVE(H1_EV_STRM_SHUT, h1c->conn, h1s);
+	TRACE_POINT(H1_EV_STRM_SHUT, h1c->conn, h1s, 0, (size_t[]){mode});
 }
 
 static void h1_shutw(struct stconn *sc, enum co_shw_mode mode)
