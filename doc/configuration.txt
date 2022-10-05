@@ -5773,8 +5773,8 @@ http-after-response set-status <status> [reason <str>]
   between 100 and 999. Please refer to "http-response set-status" for a complete
   description.
 
-http-after-response set-var(<var-name>[,<cond> ...]) <expr> [ { if | unless } <condition> ]
-http-after-response set-var-fmt(<var-name>[,<cond> ...]) <fmt> [ { if | unless } <condition> ]
+http-after-response set-var(<var-name>[,<cond>]) <expr> [ { if | unless } <condition> ]
+http-after-response set-var-fmt(<var-name>[,<cond>]) <fmt> [ { if | unless } <condition> ]
 
   This is used to set the contents of a variable. The variable is declared
   inline. Please refer to "http-request set-var" and "http-request set-var-fmt"
