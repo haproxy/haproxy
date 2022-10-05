@@ -8232,7 +8232,7 @@ __LJMP static int hlua_txn_reply_set_status(lua_State *L)
 	const char *reason = MAY_LJMP(luaL_optlstring(L, 3, NULL, NULL));
 
 	/* First argument (self) must be a table */
-	luaL_checktype(L, 1, LUA_TTABLE);
+	MAY_LJMP(luaL_checktype(L, 1, LUA_TTABLE));
 
 	if (status < 100 || status > 599) {
 		lua_pushboolean(L, 0);
@@ -8262,7 +8262,7 @@ __LJMP static int hlua_txn_reply_add_header(lua_State *L)
 	int ret;
 
 	/* First argument (self) must be a table */
-	luaL_checktype(L, 1, LUA_TTABLE);
+	MAY_LJMP(luaL_checktype(L, 1, LUA_TTABLE));
 
 	/* Push in the stack the "headers" entry. */
 	ret = lua_getfield(L, 1, "headers");
@@ -8308,7 +8308,7 @@ __LJMP static int hlua_txn_reply_del_header(lua_State *L)
 	int ret;
 
 	/* First argument (self) must be a table */
-	luaL_checktype(L, 1, LUA_TTABLE);
+	MAY_LJMP(luaL_checktype(L, 1, LUA_TTABLE));
 
 	/* Push in the stack the "headers" entry. */
 	ret = lua_getfield(L, 1, "headers");
@@ -8331,7 +8331,7 @@ __LJMP static int hlua_txn_reply_set_body(lua_State *L)
 	const char *payload = MAY_LJMP(luaL_checkstring(L, 2));
 
 	/* First argument (self) must be a table */
-	luaL_checktype(L, 1, LUA_TTABLE);
+	MAY_LJMP(luaL_checktype(L, 1, LUA_TTABLE));
 
 	lua_pushstring(L, payload);
 	lua_setfield(L, 1, "body");
