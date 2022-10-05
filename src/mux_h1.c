@@ -1836,18 +1836,15 @@ static size_t h1_process_demux(struct h1c *h1c, struct buffer *buf, size_t count
 	if (!b_data(&h1c->ibuf))
 		h1_release_buf(h1c, &h1c->ibuf);
 
+	if (h1m->state <= H1_MSG_LAST_LF)
+		goto out;
+
 	if (h1c->state < H1_CS_RUNNING) {
 		/* The H1 connection is not ready. Most of time, there is no SC
 		 * attached, except for TCP>H1 upgrade, from a TCP frontend. In both
 		 * cases, it is only possible on the client side.
 		 */
 		BUG_ON(h1c->flags & H1C_F_IS_BACK);
-
-		if (h1m->state <= H1_MSG_LAST_LF) {
-			TRACE_STATE("Incomplete message, subscribing", H1_EV_RX_DATA|H1_EV_H1C_BLK|H1_EV_H1C_WAKE, h1c->conn, h1s);
-			h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
-			goto end;
-		}
 
 		if (h1c->state == H1_CS_EMBRYONIC) {
 			TRACE_DEVEL("request headers fully parsed, create and attach the SC", H1_EV_RX_DATA, h1c->conn, h1s);
@@ -2987,6 +2984,10 @@ static int h1_process(struct h1c * h1c)
 			h1_handle_parsing_error(h1c);
 			h1c->flags = (h1c->flags & ~H1C_F_WAIT_NEXT_REQ) | H1C_F_ERROR;
 			TRACE_ERROR("parsing error detected", H1_EV_H1C_WAKE|H1_EV_H1C_ERR);
+		}
+		else if (h1c->state < H1_CS_RUNNING) {
+			TRACE_STATE("Incomplete message, subscribing", H1_EV_RX_DATA|H1_EV_H1C_BLK|H1_EV_H1C_WAKE, h1c->conn, h1s);
+			h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
 		}
 	}
 	h1_send(h1c);
