@@ -628,8 +628,37 @@ int qc_rcv_buf(struct quic_conn *qc)
 			 *
 			 * TODO count redispatch datagrams.
 			 */
-			TRACE_STATE("wrong datagram on quic-conn socket, prepare to requeue it", QUIC_EV_CONN_RCV, qc);
-			ABORT_NOW();
+			struct quic_receiver_buf *rxbuf;
+			struct quic_dgram *tmp_dgram;
+			unsigned char *rxbuf_tail;
+
+			TRACE_STATE("datagram for other connection on quic-conn socket, requeue it", QUIC_EV_CONN_RCV, qc);
+
+			rxbuf = MT_LIST_POP(&l->rx.rxbuf_list, typeof(rxbuf), rxbuf_el);
+
+			tmp_dgram = quic_rxbuf_purge_dgrams(rxbuf);
+			pool_free(pool_head_quic_dgram, tmp_dgram);
+
+			if (b_contig_space(&rxbuf->buf) < new_dgram->len) {
+				/* TODO count lost datagrams */
+				MT_LIST_APPEND(&l->rx.rxbuf_list, &rxbuf->rxbuf_el);
+				continue;
+			}
+
+			rxbuf_tail = (unsigned char *)b_tail(&rxbuf->buf);
+			__b_putblk(&rxbuf->buf, (char *)dgram_buf, new_dgram->len);
+			if (!quic_lstnr_dgram_dispatch(rxbuf_tail, ret, l, &qc->peer_addr, &daddr,
+			                               new_dgram, &rxbuf->dgram_list)) {
+				/* TODO count lost datagrams. */
+				b_sub(&buf, ret);
+			}
+			else {
+				/* datagram must not be freed as it was requeued. */
+				new_dgram = NULL;
+			}
+
+			MT_LIST_APPEND(&l->rx.rxbuf_list, &rxbuf->rxbuf_el);
+			continue;
 		}
 
 		quic_dgram_parse(new_dgram, qc, qc->li);
