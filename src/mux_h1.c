@@ -3760,6 +3760,11 @@ static int h1_rcv_pipe(struct stconn *sc, struct pipe *pipe, unsigned int count)
 		h1c->flags &= ~H1C_F_WANT_SPLICE;
 		TRACE_STATE("Allow xprt rcv_buf on read0", H1_EV_STRM_RECV, h1c->conn, h1s);
 	}
+	if (h1c->conn->flags & CO_FL_ERROR) {
+		se_fl_set(h1s->sd, SE_FL_ERROR);
+		h1c->flags = (h1c->flags & ~H1C_F_WANT_SPLICE) | H1C_F_ST_ERROR;
+		TRACE_DEVEL("connection error", H1_EV_STRM_ERR|H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
+	}
 
 	if (!(h1c->flags & H1C_F_WANT_SPLICE)) {
 		TRACE_STATE("notify the mux can't use splicing anymore", H1_EV_STRM_RECV, h1c->conn, h1s);
@@ -3811,6 +3816,12 @@ static int h1_snd_pipe(struct stconn *sc, struct pipe *pipe)
 	HA_ATOMIC_ADD(&h1c->px_counters->spliced_bytes_out, ret);
 
   end:
+	if (h1c->conn->flags & CO_FL_ERROR) {
+		se_fl_set(h1s->sd, SE_FL_ERROR);
+		h1c->flags = (h1c->flags & ~H1C_F_WANT_SPLICE) | H1C_F_ST_ERROR;
+		TRACE_DEVEL("connection error", H1_EV_STRM_ERR|H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
+	}
+
 	TRACE_LEAVE(H1_EV_STRM_SEND, h1c->conn, h1s, 0, (size_t[]){ret});
 	return ret;
 }
