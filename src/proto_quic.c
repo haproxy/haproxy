@@ -538,14 +538,14 @@ static void quic_add_listener(struct protocol *proto, struct listener *listener)
 static int quic_alloc_rxbufs_listener(struct listener *l)
 {
 	int i;
-	struct rxbuf *rxbuf;
+	struct quic_receiver_buf *tmp;
 
 	MT_LIST_INIT(&l->rx.rxbuf_list);
 	for (i = 0; i < global.nbthread; i++) {
+		struct quic_receiver_buf *rxbuf;
 		char *buf;
-		struct rxbuf *rxbuf;
 
-		rxbuf = calloc(1, sizeof *rxbuf);
+		rxbuf = calloc(1, sizeof(*rxbuf));
 		if (!rxbuf)
 			goto err;
 
@@ -556,16 +556,16 @@ static int quic_alloc_rxbufs_listener(struct listener *l)
 		}
 
 		rxbuf->buf = b_make(buf, QUIC_RX_BUFSZ, 0, 0);
-		LIST_INIT(&rxbuf->dgrams);
-		MT_LIST_APPEND(&l->rx.rxbuf_list, &rxbuf->mt_list);
+		LIST_INIT(&rxbuf->dgram_list);
+		MT_LIST_APPEND(&l->rx.rxbuf_list, &rxbuf->rxbuf_el);
 	}
 
 	return 1;
 
  err:
-	while ((rxbuf = MT_LIST_POP(&l->rx.rxbuf_list, typeof(rxbuf), mt_list))) {
-		pool_free(pool_head_quic_rxbuf, rxbuf->buf.area);
-		free(rxbuf);
+	while ((tmp = MT_LIST_POP(&l->rx.rxbuf_list, typeof(tmp), rxbuf_el))) {
+		pool_free(pool_head_quic_rxbuf, tmp->buf.area);
+		free(tmp);
 	}
 	return 0;
 }

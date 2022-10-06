@@ -268,8 +268,10 @@ static int quic_lstnr_dgram_dispatch(unsigned char *buf, size_t len, void *owner
 	dgram->saddr = *saddr;
 	dgram->daddr = *daddr;
 	dgram->qc = NULL;
-	LIST_APPEND(dgrams, &dgram->list);
-	MT_LIST_APPEND(&quic_dghdlrs[cid_tid].dgrams, &dgram->mt_list);
+
+	/* Attached datagram to its quic_receiver_buf and quic_dghdlrs. */
+	LIST_APPEND(dgrams, &dgram->recv_list);
+	MT_LIST_APPEND(&quic_dghdlrs[cid_tid].dgrams, &dgram->handler_list);
 
 	/* typically quic_lstnr_dghdlr() */
 	tasklet_wakeup(quic_dghdlrs[cid_tid].task);
@@ -392,7 +394,7 @@ static ssize_t quic_recv(int fd, void *out, size_t len,
 void quic_sock_fd_iocb(int fd)
 {
 	ssize_t ret;
-	struct rxbuf *rxbuf;
+	struct quic_receiver_buf *rxbuf;
 	struct buffer *buf;
 	struct listener *l = objt_listener(fdtab[fd].owner);
 	struct quic_transport_params *params;
@@ -412,7 +414,7 @@ void quic_sock_fd_iocb(int fd)
 	if (!(fdtab[fd].state & FD_POLL_IN) || !fd_recv_ready(fd))
 		return;
 
-	rxbuf = MT_LIST_POP(&l->rx.rxbuf_list, typeof(rxbuf), mt_list);
+	rxbuf = MT_LIST_POP(&l->rx.rxbuf_list, typeof(rxbuf), rxbuf_el);
 	if (!rxbuf)
 		goto out;
 
@@ -460,7 +462,7 @@ void quic_sock_fd_iocb(int fd)
 		/* Append this datagram only to the RX buffer list. It will
 		 * not be treated by any datagram handler.
 		 */
-		LIST_APPEND(&rxbuf->dgrams, &dgram->list);
+		LIST_APPEND(&rxbuf->dgram_list, &dgram->recv_list);
 
 		/* Consume the remaining space */
 		b_add(buf, cspace);
@@ -478,7 +480,7 @@ void quic_sock_fd_iocb(int fd)
 
 	b_add(buf, ret);
 	if (!quic_lstnr_dgram_dispatch(dgram_buf, ret, l, &saddr, &daddr,
-	                               new_dgram, &rxbuf->dgrams)) {
+	                               new_dgram, &rxbuf->dgram_list)) {
 		/* If wrong, consume this datagram */
 		b_del(buf, ret);
 	}
@@ -487,7 +489,7 @@ void quic_sock_fd_iocb(int fd)
 		goto start;
  out:
 	pool_free(pool_head_quic_dgram, new_dgram);
-	MT_LIST_APPEND(&l->rx.rxbuf_list, &rxbuf->mt_list);
+	MT_LIST_APPEND(&l->rx.rxbuf_list, &rxbuf->rxbuf_el);
 }
 
 /* Send a datagram stored into <buf> buffer with <sz> as size.

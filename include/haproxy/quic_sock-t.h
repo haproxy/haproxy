@@ -8,5 +8,14 @@ struct quic_accept_queue {
 	struct tasklet *tasklet;  /* task responsible to call listener_accept */
 };
 
+/* Buffer used to receive QUIC datagrams on random thread and redispatch them
+ * to the connection thread.
+ */
+struct quic_receiver_buf {
+	struct buffer buf; /* storage for datagrams received. */
+	struct list dgram_list; /* datagrams received with this rxbuf. */
+	struct mt_list rxbuf_el; /* list element into receiver.rxbuf_list. */
+};
+
 #endif /* USE_QUIC */
 #endif /* _HAPROXY_QUIC_SOCK_T_H */

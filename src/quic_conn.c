@@ -7160,7 +7160,7 @@ struct task *quic_lstnr_dghdlr(struct task *t, void *ctx, unsigned int state)
 
 	TRACE_ENTER(QUIC_EV_CONN_LPKT);
 
-	while ((dgram = MT_LIST_POP(&dghdlr->dgrams, typeof(dgram), mt_list))) {
+	while ((dgram = MT_LIST_POP(&dghdlr->dgrams, typeof(dgram), handler_list))) {
 		pos = dgram->buf;
 		end = pos + dgram->len;
 		do {

@@ -377,8 +377,9 @@ struct quic_dgram {
 	struct sockaddr_storage saddr;
 	struct sockaddr_storage daddr;
 	struct quic_conn *qc;
-	struct list list;
-	struct mt_list mt_list;
+
+	struct list recv_list; /* elemt to quic_receiver_buf <dgram_list>. */
+	struct mt_list handler_list; /* elem to quic_dghdlr <dgrams>. */
 };
 
 /* The QUIC packet numbers are 62-bits integers */
@@ -575,13 +576,6 @@ struct quic_path {
 /* QUIC ring buffer */
 struct qring {
 	struct cbuf *cbuf;
-	struct mt_list mt_list;
-};
-
-/* QUIC RX buffer */
-struct rxbuf {
-	struct buffer buf;
-	struct list dgrams;
 	struct mt_list mt_list;
 };
 
