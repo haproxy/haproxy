@@ -283,6 +283,38 @@ static int quic_lstnr_dgram_dispatch(unsigned char *buf, size_t len, void *owner
 	return 0;
 }
 
+/* This function is responsible to remove unused datagram attached in front of
+ * <buf>. Each instances will be freed until a not yet consumed datagram is
+ * found or end of the list is hit. The last unused datagram found is not freed
+ * and is instead returned so that the caller can reuse it if needed.
+ *
+ * Returns the last unused datagram or NULL if no occurence found.
+ */
+static struct quic_dgram *quic_rxbuf_purge_dgrams(struct quic_receiver_buf *buf)
+{
+	struct quic_dgram *cur, *prev = NULL;
+
+	while (!LIST_ISEMPTY(&buf->dgram_list)) {
+		cur = LIST_ELEM(buf->dgram_list.n, struct quic_dgram *, recv_list);
+
+		/* Loop until a not yet consumed datagram is found. */
+		if (cur->buf)
+			break;
+
+		/* Clear buffer of current unused datagram. */
+		LIST_DELETE(&cur->recv_list);
+		b_del(&buf->buf, cur->len);
+
+		/* Free last found unused datagram. */
+		if (prev)
+			pool_free(pool_head_quic_dgram, prev);
+		prev = cur;
+	}
+
+	/* Return last unused datagram found. */
+	return prev;
+}
+
 /* Receive data from datagram socket <fd>. Data are placed in <out> buffer of
  * length <len>.
  *
@@ -426,16 +458,7 @@ void quic_sock_fd_iocb(int fd)
 	 * least one datagram to pick, except the first time we enter
 	 * this function for this <rxbuf> buffer.
 	 */
-	if (!LIST_ISEMPTY(&rxbuf->dgrams)) {
-		struct quic_dgram *dg =
-			LIST_ELEM(rxbuf->dgrams.n, struct quic_dgram *, list);
-
-		if (!dg->buf) {
-			LIST_DELETE(&dg->list);
-			b_del(buf, dg->len);
-			new_dgram = dg;
-		}
-	}
+	new_dgram = quic_rxbuf_purge_dgrams(rxbuf);
 
 	params = &l->bind_conf->quic_params;
 	max_sz = params->max_udp_payload_size;
