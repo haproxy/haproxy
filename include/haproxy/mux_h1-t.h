@@ -105,7 +105,7 @@ static forceinline char *h1c_show_flags(char *buf, size_t len, const char *delim
 #define H1S_F_NOT_IMPL_ERROR 0x00000400 /* Set when a feature is not implemented during the message parsing */
 #define H1S_F_PARSING_ERROR  0x00000800 /* Set when an error occurred during the message parsing */
 #define H1S_F_PROCESSING_ERROR 0x00001000 /* Set when an error occurred during the message xfer */
-#define H1S_F_ERROR          0x00001800 /* stream error mask */
+#define H1S_F_ERROR_MASK     0x00001800 /* stream error mask */
 
 #define H1S_F_HAVE_SRV_NAME  0x00002000 /* Set during output process if the server name header was added to the request */
 #define H1S_F_HAVE_O_CONN    0x00004000 /* Set during output process to know connection mode was processed */

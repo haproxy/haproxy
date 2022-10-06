@@ -439,7 +439,7 @@ static inline int h1_recv_allowed(const struct h1c *h1c)
 		return 0;
 	}
 
-	if (h1c->h1s && (h1c->h1s->flags & H1S_F_ERROR)) {
+	if (h1c->h1s && (h1c->h1s->flags & H1S_F_ERROR_MASK)) {
 		TRACE_DEVEL("recv not allowed because of error on h1s", H1_EV_H1C_RECV|H1_EV_H1C_BLK, h1c->conn);
 		return 0;
 	}
@@ -836,7 +836,7 @@ static void h1s_destroy(struct h1s *h1s)
 				H1C_F_ST_EMBRYONIC|H1C_F_ST_ATTACHED|H1C_F_ST_READY|
 				H1C_F_OUT_FULL|H1C_F_OUT_ALLOC|H1C_F_IN_SALLOC|
 				H1C_F_CO_MSG_MORE|H1C_F_CO_STREAMER);
-		if (h1s->flags & H1S_F_ERROR) {
+		if (h1s->flags & H1S_F_ERROR_MASK) {
 			h1c->flags |= H1C_F_ST_ERROR;
 			TRACE_ERROR("h1s on error, set error on h1c", H1_EV_H1S_END|H1_EV_H1C_ERR, h1c->conn, h1s);
 		}
