@@ -982,6 +982,27 @@ int hlua_server_get_addr(lua_State *L)
 	return 1;
 }
 
+int hlua_server_get_puid(lua_State *L)
+{
+	struct server *srv;
+	char buffer[12];
+
+	srv = hlua_check_server(L, 1);
+
+	snprintf(buffer, sizeof(buffer), "%d", srv->puid);
+	lua_pushstring(L, buffer);
+	return 1;
+}
+
+int hlua_server_get_name(lua_State *L)
+{
+	struct server *srv;
+
+	srv = hlua_check_server(L, 1);
+	lua_pushstring(L, srv->id);
+	return 1;
+}
+
 int hlua_server_is_draining(lua_State *L)
 {
 	struct server *srv;
@@ -1303,6 +1324,26 @@ int hlua_fcn_new_proxy(lua_State *L, struct proxy *px)
 static struct proxy *hlua_check_proxy(lua_State *L, int ud)
 {
 	return hlua_checkudata(L, ud, class_proxy_ref);
+}
+
+int hlua_proxy_get_name(lua_State *L)
+{
+	struct proxy *px;
+
+	px = hlua_check_proxy(L, 1);
+	lua_pushstring(L, px->id);
+	return 1;
+}
+
+int hlua_proxy_get_uuid(lua_State *L)
+{
+	struct proxy *px;
+	char buffer[17];
+
+	px = hlua_check_proxy(L, 1);
+	snprintf(buffer, sizeof(buffer), "%d", px->uuid);
+	lua_pushstring(L, buffer);
+	return 1;
 }
 
 int hlua_proxy_pause(lua_State *L)
@@ -1780,6 +1821,8 @@ void hlua_fcn_reg_core_fcn(lua_State *L)
 	lua_newtable(L);
 	lua_pushstring(L, "__index");
 	lua_newtable(L);
+	hlua_class_function(L, "get_name", hlua_server_get_name);
+	hlua_class_function(L, "get_puid", hlua_server_get_puid);
 	hlua_class_function(L, "is_draining", hlua_server_is_draining);
 	hlua_class_function(L, "set_maxconn", hlua_server_set_maxconn);
 	hlua_class_function(L, "get_maxconn", hlua_server_get_maxconn);
@@ -1808,6 +1851,8 @@ void hlua_fcn_reg_core_fcn(lua_State *L)
 	lua_newtable(L);
 	lua_pushstring(L, "__index");
 	lua_newtable(L);
+	hlua_class_function(L, "get_name", hlua_proxy_get_name);
+	hlua_class_function(L, "get_uuid", hlua_proxy_get_uuid);
 	hlua_class_function(L, "pause", hlua_proxy_pause);
 	hlua_class_function(L, "resume", hlua_proxy_resume);
 	hlua_class_function(L, "stop", hlua_proxy_stop);

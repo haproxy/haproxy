@@ -919,9 +919,17 @@ Proxy class
 
   Contain the name of the proxy.
 
+.. js:function:: Proxy.get_name()
+
+  Returns the name of the proxy.
+
 .. js:attribute:: Proxy.uuid
 
   Contain the unique identifier of the proxy.
+
+.. js:function:: Proxy.get_uuid()
+
+  Returns the unique identifier of the proxy.
 
 .. js:attribute:: Proxy.servers
 
@@ -1006,9 +1014,17 @@ Server class
 
   Contain the name of the server.
 
+.. js:function:: Server.get_name(sv)
+
+  Returns the name of the server.
+
 .. js:attribute:: Server.puid
 
   Contain the proxy unique identifier of the server.
+
+.. js:function:: Server.get_puid(sv)
+
+  Returns the proxy unique identifier of the server.
 
 .. js:function:: Server.is_draining(sv)
 
