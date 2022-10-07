@@ -54,6 +54,7 @@
 #define CLASS_STKTABLE     "StickTable"
 #define CLASS_CERTCACHE    "CertCache"
 #define CLASS_PROXY_LIST   "ProxyList"
+#define CLASS_SERVER_LIST  "ServerList"
 
 struct stream;
 
@@ -210,6 +211,15 @@ struct hlua_proxy_list {
 struct hlua_proxy_list_iterator_context {
 	struct proxy *next;
 	char capabilities;
+};
+
+struct hlua_server_list {
+	struct proxy *px;
+};
+
+struct hlua_server_list_iterator_context {
+	struct server *cur;
+	struct proxy *px;
 };
 
 #else /* USE_LUA */

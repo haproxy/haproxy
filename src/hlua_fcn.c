@@ -47,6 +47,7 @@ static int class_listener_ref;
 static int class_regex_ref;
 static int class_stktable_ref;
 static int class_proxy_list_ref;
+static int class_server_list_ref;
 
 #define STATS_LEN (MAX((int)ST_F_TOTAL_FIELDS, (int)INF_TOTAL_FIELDS))
 
@@ -890,6 +891,9 @@ int hlua_fcn_new_server(lua_State *L, struct server *srv)
 
 	lua_newtable(L);
 
+	/* increment server refcount */
+	srv_take(srv);
+
 	/* Pop a class sesison metatable and affect it to the userdata. */
 	lua_rawgeti(L, LUA_REGISTRYINDEX, class_server_ref);
 	lua_setmetatable(L, -2);
@@ -911,10 +915,20 @@ int hlua_fcn_new_server(lua_State *L, struct server *srv)
 	return 1;
 }
 
+int hlua_server_gc(lua_State *L)
+{
+	struct server *srv = hlua_checkudata(L, 1, class_server_ref);
+
+	srv_drop(srv); /* srv_drop allows NULL srv */
+	return 0;
+}
+
 static struct server *hlua_check_server(lua_State *L, int ud)
 {
 	struct server *srv = hlua_checkudata(L, ud, class_server_ref);
-	srv->flags |= SRV_F_NON_PURGEABLE;
+	if (srv->flags & SRV_F_DELETED) {
+		return NULL;
+	}
 	return srv;
 }
 
@@ -924,6 +938,10 @@ int hlua_server_get_stats(lua_State *L)
 	int i;
 
 	srv = hlua_check_server(L, 1);
+	if (srv == NULL) {
+		lua_pushnil(L);
+		return 1;
+	}
 
 	if (!srv->proxy) {
 		lua_pushnil(L);
@@ -950,6 +968,10 @@ int hlua_server_get_addr(lua_State *L)
 	luaL_Buffer b;
 
 	srv = hlua_check_server(L, 1);
+	if (srv == NULL) {
+		lua_pushnil(L);
+		return 1;
+	}
 
 	luaL_buffinit(L, &b);
 
@@ -988,6 +1010,10 @@ int hlua_server_get_puid(lua_State *L)
 	char buffer[12];
 
 	srv = hlua_check_server(L, 1);
+	if (srv == NULL) {
+		lua_pushnil(L);
+		return 1;
+	}
 
 	snprintf(buffer, sizeof(buffer), "%d", srv->puid);
 	lua_pushstring(L, buffer);
@@ -999,6 +1025,11 @@ int hlua_server_get_name(lua_State *L)
 	struct server *srv;
 
 	srv = hlua_check_server(L, 1);
+	if (srv == NULL) {
+		lua_pushnil(L);
+		return 1;
+	}
+
 	lua_pushstring(L, srv->id);
 	return 1;
 }
@@ -1008,6 +1039,11 @@ int hlua_server_is_draining(lua_State *L)
 	struct server *srv;
 
 	srv = hlua_check_server(L, 1);
+	if (srv == NULL) {
+		lua_pushnil(L);
+		return 1;
+	}
+
 	lua_pushinteger(L, server_is_draining(srv));
 	return 1;
 }
@@ -1019,6 +1055,11 @@ int hlua_server_set_maxconn(lua_State *L)
 	const char *err;
 
 	srv = hlua_check_server(L, 1);
+	if (srv == NULL) {
+		lua_pushnil(L);
+		return 1;
+	}
+
 	maxconn = luaL_checkstring(L, 2);
 
 	HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
@@ -1036,6 +1077,11 @@ int hlua_server_get_maxconn(lua_State *L)
 	struct server *srv;
 
 	srv = hlua_check_server(L, 1);
+	if (srv == NULL) {
+		lua_pushnil(L);
+		return 1;
+	}
+
 	lua_pushinteger(L, srv->maxconn);
 	return 1;
 }
@@ -1047,6 +1093,11 @@ int hlua_server_set_weight(lua_State *L)
 	const char *err;
 
 	srv = hlua_check_server(L, 1);
+	if (srv == NULL) {
+		lua_pushnil(L);
+		return 1;
+	}
+
 	weight = luaL_checkstring(L, 2);
 
 	HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
@@ -1064,6 +1115,11 @@ int hlua_server_get_weight(lua_State *L)
 	struct server *srv;
 
 	srv = hlua_check_server(L, 1);
+	if (srv == NULL) {
+		lua_pushnil(L);
+		return 1;
+	}
+
 	lua_pushinteger(L, srv->uweight);
 	return 1;
 }
@@ -1076,6 +1132,11 @@ int hlua_server_set_addr(lua_State *L)
 	const char *err;
 
 	srv = hlua_check_server(L, 1);
+	if (srv == NULL) {
+		lua_pushnil(L);
+		return 1;
+	}
+
 	addr = luaL_checkstring(L, 2);
 	if (lua_gettop(L) >= 3)
 		port = luaL_checkstring(L, 3);
@@ -1097,6 +1158,9 @@ int hlua_server_shut_sess(lua_State *L)
 	struct server *srv;
 
 	srv = hlua_check_server(L, 1);
+	if (srv == NULL) {
+		return 0;
+	}
 	HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
 	srv_shutdown_streams(srv, SF_ERR_KILLED);
 	HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
@@ -1108,6 +1172,9 @@ int hlua_server_set_drain(lua_State *L)
 	struct server *srv;
 
 	srv = hlua_check_server(L, 1);
+	if (srv == NULL) {
+		return 0;
+	}
 	HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
 	srv_adm_set_drain(srv);
 	HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
@@ -1119,6 +1186,9 @@ int hlua_server_set_maint(lua_State *L)
 	struct server *srv;
 
 	srv = hlua_check_server(L, 1);
+	if (srv == NULL) {
+		return 0;
+	}
 	HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
 	srv_adm_set_maint(srv);
 	HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
@@ -1130,6 +1200,9 @@ int hlua_server_set_ready(lua_State *L)
 	struct server *srv;
 
 	srv = hlua_check_server(L, 1);
+	if (srv == NULL) {
+		return 0;
+	}
 	HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
 	srv_adm_set_ready(srv);
 	HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
@@ -1141,6 +1214,9 @@ int hlua_server_check_enable(lua_State *L)
 	struct server *sv;
 
 	sv = hlua_check_server(L, 1);
+	if (sv == NULL) {
+		return 0;
+	}
 	HA_SPIN_LOCK(SERVER_LOCK, &sv->lock);
 	if (sv->check.state & CHK_ST_CONFIGURED) {
 		sv->check.state |= CHK_ST_ENABLED;
@@ -1154,6 +1230,9 @@ int hlua_server_check_disable(lua_State *L)
 	struct server *sv;
 
 	sv = hlua_check_server(L, 1);
+	if (sv == NULL) {
+		return 0;
+	}
 	HA_SPIN_LOCK(SERVER_LOCK, &sv->lock);
 	if (sv->check.state & CHK_ST_CONFIGURED) {
 		sv->check.state &= ~CHK_ST_ENABLED;
@@ -1167,6 +1246,9 @@ int hlua_server_check_force_up(lua_State *L)
 	struct server *sv;
 
 	sv = hlua_check_server(L, 1);
+	if (sv == NULL) {
+		return 0;
+	}
 	HA_SPIN_LOCK(SERVER_LOCK, &sv->lock);
 	if (!(sv->track)) {
 		sv->check.health = sv->check.rise + sv->check.fall - 1;
@@ -1181,6 +1263,9 @@ int hlua_server_check_force_nolb(lua_State *L)
 	struct server *sv;
 
 	sv = hlua_check_server(L, 1);
+	if (sv == NULL) {
+		return 0;
+	}
 	HA_SPIN_LOCK(SERVER_LOCK, &sv->lock);
 	if (!(sv->track)) {
 		sv->check.health = sv->check.rise + sv->check.fall - 1;
@@ -1195,6 +1280,9 @@ int hlua_server_check_force_down(lua_State *L)
 	struct server *sv;
 
 	sv = hlua_check_server(L, 1);
+	if (sv == NULL) {
+		return 0;
+	}
 	HA_SPIN_LOCK(SERVER_LOCK, &sv->lock);
 	if (!(sv->track)) {
 		sv->check.health = 0;
@@ -1209,6 +1297,9 @@ int hlua_server_agent_enable(lua_State *L)
 	struct server *sv;
 
 	sv = hlua_check_server(L, 1);
+	if (sv == NULL) {
+		return 0;
+	}
 	HA_SPIN_LOCK(SERVER_LOCK, &sv->lock);
 	if (sv->agent.state & CHK_ST_CONFIGURED) {
 		sv->agent.state |= CHK_ST_ENABLED;
@@ -1222,6 +1313,9 @@ int hlua_server_agent_disable(lua_State *L)
 	struct server *sv;
 
 	sv = hlua_check_server(L, 1);
+	if (sv == NULL) {
+		return 0;
+	}
 	HA_SPIN_LOCK(SERVER_LOCK, &sv->lock);
 	if (sv->agent.state & CHK_ST_CONFIGURED) {
 		sv->agent.state &= ~CHK_ST_ENABLED;
@@ -1235,6 +1329,9 @@ int hlua_server_agent_force_up(lua_State *L)
 	struct server *sv;
 
 	sv = hlua_check_server(L, 1);
+	if (sv == NULL) {
+		return 0;
+	}
 	HA_SPIN_LOCK(SERVER_LOCK, &sv->lock);
 	if (sv->agent.state & CHK_ST_ENABLED) {
 		sv->agent.health = sv->agent.rise + sv->agent.fall - 1;
@@ -1249,6 +1346,9 @@ int hlua_server_agent_force_down(lua_State *L)
 	struct server *sv;
 
 	sv = hlua_check_server(L, 1);
+	if (sv == NULL) {
+		return 0;
+	}
 	HA_SPIN_LOCK(SERVER_LOCK, &sv->lock);
 	if (sv->agent.state & CHK_ST_ENABLED) {
 		sv->agent.health = 0;
@@ -1258,9 +1358,110 @@ int hlua_server_agent_force_down(lua_State *L)
 	return 0;
 }
 
+static struct hlua_server_list *hlua_check_server_list(lua_State *L, int ud)
+{
+	return hlua_checkudata(L, ud, class_server_list_ref);
+}
+
+/* does nothing and returns 0, only prevents insertions in the
+ * table which represents the list of servers
+ */
+int hlua_listable_servers_newindex(lua_State *L) {
+	return 0;
+}
+
+/* first arg is the table (struct hlua_server_list * in metadata)
+ * second arg is the required index
+ */
+int hlua_listable_servers_index(lua_State *L)
+{
+	struct hlua_server_list *hlua_srv;
+	const char *name;
+	struct server *srv;
+
+	hlua_srv = hlua_check_server_list(L, 1);
+	name = luaL_checkstring(L, 2);
+
+	/* Perform a server lookup in px list */
+	srv = server_find_by_name(hlua_srv->px, name);
+	if (srv == NULL) {
+		lua_pushnil(L);
+		return 1;
+	}
+
+	hlua_fcn_new_server(L, srv);
+	return 1;
+}
+
+/* iterator must return key as string and value as server
+ * object, if we reach end of list, it returns nil.
+ * The context knows the last returned server. if the
+ * context contains srv == NULL, we start enumeration.
+ * Then, use 'srv->next' ptr to iterate through the list
+ */
+int hlua_listable_servers_pairs_iterator(lua_State *L)
+{
+	int context_index;
+	struct hlua_server_list_iterator_context *ctx;
+
+	context_index = lua_upvalueindex(1);
+	ctx = lua_touserdata(L, context_index);
+
+	if (ctx->cur == NULL) {
+		/* First iteration, initialize list on the first server */
+		ctx->cur = ctx->px->srv;
+	} else {
+
+		/* Next server (next ptr is always valid, even if current
+		 * server has the SRV_F_DELETED flag set)
+		 */
+		ctx->cur = ctx->cur->next;
+	}
+
+	/* next server is null, end of iteration */
+	if (ctx->cur == NULL) {
+		lua_pushnil(L);
+		return 1;
+	}
+
+	lua_pushstring(L, ctx->cur->id);
+	hlua_fcn_new_server(L, ctx->cur);
+	return 2;
+}
+
+/* init the iterator context, return iterator function
+ * with context as closure. The only argument is a
+ * server list object.
+ */
+int hlua_listable_servers_pairs(lua_State *L)
+{
+	struct hlua_server_list_iterator_context *ctx;
+	struct hlua_server_list *hlua_srv_list;
+
+	hlua_srv_list = hlua_check_server_list(L, 1);
+
+	ctx = lua_newuserdata(L, sizeof(*ctx));
+	ctx->px = hlua_srv_list->px;
+	ctx->cur = NULL;
+
+	lua_pushcclosure(L, hlua_listable_servers_pairs_iterator, 1);
+	return 1;
+}
+
+void hlua_listable_servers(lua_State *L, struct proxy *px)
+{
+	struct hlua_server_list *list;
+
+	lua_newtable(L);
+	list = lua_newuserdata(L, sizeof(*list));
+	list->px = px;
+	lua_rawseti(L, -2, 0);
+	lua_rawgeti(L, LUA_REGISTRYINDEX, class_server_list_ref);
+	lua_setmetatable(L, -2);
+}
+
 int hlua_fcn_new_proxy(lua_State *L, struct proxy *px)
 {
-	struct server *srv;
 	struct listener *lst;
 	int lid;
 	char buffer[17];
@@ -1287,12 +1488,7 @@ int hlua_fcn_new_proxy(lua_State *L, struct proxy *px)
 
 	/* Browse and register servers. */
 	lua_pushstring(L, "servers");
-	lua_newtable(L);
-	for (srv = px->srv; srv; srv = srv->next) {
-		lua_pushstring(L, srv->id);
-		hlua_fcn_new_server(L, srv);
-		lua_settable(L, -3);
-	}
+	hlua_listable_servers(L, px);
 	lua_settable(L, -3);
 
 	/* Browse and register listeners. */
@@ -1819,6 +2015,7 @@ void hlua_fcn_reg_core_fcn(lua_State *L)
 
 	/* Create server object. */
 	lua_newtable(L);
+	hlua_class_function(L, "__gc", hlua_server_gc);
 	lua_pushstring(L, "__index");
 	lua_newtable(L);
 	hlua_class_function(L, "get_name", hlua_server_get_name);
@@ -1893,4 +2090,13 @@ void hlua_fcn_reg_core_fcn(lua_State *L)
 	lua_pushstring(L, "backends");
 	hlua_listable_proxies(L, PR_CAP_BE);
 	lua_settable(L, -3);
+
+	/* list of server. This object is similar to
+	 * CLASS_PROXY_LIST
+	 */
+	lua_newtable(L);
+	hlua_class_function(L, "__index", hlua_listable_servers_index);
+	hlua_class_function(L, "__newindex", hlua_listable_servers_newindex);
+	hlua_class_function(L, "__pairs", hlua_listable_servers_pairs);
+	class_server_list_ref = hlua_register_metatable(L, CLASS_SERVER_LIST);
 }
