@@ -26,9 +26,9 @@ static int bind_parse_quic_cc_algo(char **args, int cur_arg, struct proxy *px,
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	if (!strcmp(args[cur_arg + 1], "newreno"))
+	if (strcmp(args[cur_arg + 1], "newreno") == 0)
 	    cc_algo = &quic_cc_algo_nr;
-	else if (!strcmp(args[cur_arg + 1], "cubic"))
+	else if (strcmp(args[cur_arg + 1], "cubic") == 0)
 	    cc_algo = &quic_cc_algo_cubic;
 	else {
 		memprintf(err, "'%s' : unknown control congestion algorithm", args[cur_arg]);

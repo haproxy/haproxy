@@ -419,7 +419,7 @@ int check_bwlim_action(struct act_rule *rule, struct proxy *px, char **err)
 		conf = NULL;
 		if (fconf->id == bwlim_flt_id) {
 			conf = fconf->conf;
-			if (!strcmp(rule->arg.act.p[0], conf->name))
+			if (strcmp(rule->arg.act.p[0], conf->name) == 0)
 				break;
 		}
 	}
@@ -639,7 +639,7 @@ static int parse_bwlim_flt(char **args, int *cur_arg, struct proxy *px, struct f
 		if (fc->id == bwlim_flt_id) {
 			struct bwlim_config *c = fc->conf;
 
-			if (!strcmp(conf->name, c->name)) {
+			if (strcmp(conf->name, c->name) == 0) {
 				memprintf(err, "bwlim filter '%s' already declared for proxy '%s'\n",
 					  conf->name, px->id);
 				goto error;
