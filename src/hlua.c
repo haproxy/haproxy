@@ -6511,8 +6511,7 @@ static void _hlua_http_msg_delete(struct http_msg *msg, struct filter *filter, s
 			goto end;
 
 		v = htx_get_blk_value(htx, blk);
-		v.ptr += htxret.ret;
-		v.len -= htxret.ret;
+		v = istadv(v, htxret.ret);
 
 		v = isttrim(v, len);
 		/* trimming data in blk: discard everything after the offset
