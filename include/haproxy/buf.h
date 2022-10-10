@@ -614,11 +614,12 @@ static inline size_t b_xfer(struct buffer *dst, struct buffer *src, size_t count
 	return ret;
 }
 
-/* b_force_xfer() : same as b_xfer() but without zero copy.
- * The caller is responsible for ensuring that <count> is not
- * larger than b_room(dst).
+/* b_ncat() : Copy <count> from <src> buffer at the end of <dst> buffer.
+ * The caller is  responsible for  ensuring that <count> is not larger than
+ * b_room(dst).
+ * Returns the number of bytes copied.
  */
-static inline size_t b_force_xfer(struct buffer *dst, struct buffer *src, size_t count)
+static inline size_t b_ncat(struct buffer *dst, struct buffer *src, size_t count)
 {
 	size_t ret, block1, block2;
 
@@ -643,10 +644,25 @@ static inline size_t b_force_xfer(struct buffer *dst, struct buffer *src, size_t
 	if (block2)
 		__b_putblk(dst, b_peek(src, block1), block2);
 
-	b_del(src, ret);
  leave:
 	return ret;
 }
+
+/* b_force_xfer() : same as b_xfer() but without zero copy.
+ * The caller is responsible for ensuring that <count> is not
+ * larger than b_room(dst).
+ */
+static inline size_t b_force_xfer(struct buffer *dst, struct buffer *src, size_t count)
+{
+	size_t ret;
+
+	ret = b_ncat(dst, src, count);
+	b_del(src, ret);
+
+	return ret;
+}
+
+
 /* Moves <len> bytes from absolute position <src> of buffer <b> by <shift>
  * bytes, while supporting wrapping of both the source and the destination.
  * The position is relative to the buffer's origin and may overlap with the
