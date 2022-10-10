@@ -1881,12 +1881,12 @@ static size_t h1_process_demux(struct h1c *h1c, struct buffer *buf, size_t count
 		se_fl_clr(h1s->sd, SE_FL_RCV_MORE | SE_FL_WANT_ROOM);
 		if (h1s->flags & H1S_F_REOS) {
 			se_fl_set(h1s->sd, SE_FL_EOS);
-			if (h1m->state >= H1_MSG_DONE || !(h1m->flags & H1_MF_XFER_LEN)) {
+			if (h1m->state >= H1_MSG_DONE || (h1m->state > H1_MSG_LAST_LF && !(h1m->flags & H1_MF_XFER_LEN))) {
 				/* DONE or TUNNEL or SHUTR without XFER_LEN, set
 				 * EOI on the stream connector */
 				se_fl_set(h1s->sd, SE_FL_EOI);
 			}
-			else if (h1m->state > H1_MSG_LAST_LF && h1m->state < H1_MSG_DONE) {
+			else if (h1m->state < H1_MSG_DONE) {
 				se_fl_set(h1s->sd, SE_FL_ERROR);
 				TRACE_ERROR("message aborted, set error on SC", H1_EV_RX_DATA|H1_EV_H1S_ERR, h1c->conn, h1s);
 			}
@@ -2942,15 +2942,15 @@ static int h1_process(struct h1c * h1c)
 			h1c->flags &= ~(H1C_F_ST_IDLE|H1C_F_WAIT_NEXT_REQ);
 			TRACE_ERROR("internal error detected", H1_EV_H1C_WAKE|H1_EV_H1C_ERR);
 		}
-		else if (h1s->flags & H1S_F_PARSING_ERROR) {
-			h1_handle_parsing_error(h1c);
-			h1c->flags = (h1c->flags & ~(H1C_F_ST_IDLE|H1C_F_WAIT_NEXT_REQ)) | H1C_F_ST_ERROR;
-			TRACE_ERROR("parsing error detected", H1_EV_H1C_WAKE|H1_EV_H1C_ERR);
-		}
 		else if (h1s->flags & H1S_F_NOT_IMPL_ERROR) {
 			h1_handle_not_impl_err(h1c);
 			h1c->flags = (h1c->flags & ~(H1C_F_ST_IDLE|H1C_F_WAIT_NEXT_REQ)) | H1C_F_ST_ERROR;
 			TRACE_ERROR("not-implemented error detected", H1_EV_H1C_WAKE|H1_EV_H1C_ERR);
+		}
+		else if (h1s->flags & H1S_F_PARSING_ERROR || se_fl_test(h1s->sd, SE_FL_ERROR)) {
+			h1_handle_parsing_error(h1c);
+			h1c->flags = (h1c->flags & ~(H1C_F_ST_IDLE|H1C_F_WAIT_NEXT_REQ)) | H1C_F_ST_ERROR;
+			TRACE_ERROR("parsing error detected", H1_EV_H1C_WAKE|H1_EV_H1C_ERR);
 		}
 	}
 	h1_send(h1c);
