@@ -852,12 +852,8 @@ static void h1s_destroy(struct h1s *h1s)
 		h1c->flags &= ~(H1C_F_WANT_SPLICE|
 				H1C_F_OUT_FULL|H1C_F_OUT_ALLOC|H1C_F_IN_SALLOC|
 				H1C_F_CO_MSG_MORE|H1C_F_CO_STREAMER);
-		if (h1s->flags & H1S_F_ERROR_MASK) {
-			h1c->flags |= H1C_F_ERROR;
-			TRACE_ERROR("h1s on error, set error on h1c", H1_EV_H1S_END|H1_EV_H1C_ERR, h1c->conn, h1s);
-		}
 
-		if (!(h1c->flags & (H1C_F_EOS|H1C_F_ERR_PENDING|H1C_F_ERROR)) &&             /* No error/read0 */
+		if (!(h1c->flags & (H1C_F_EOS|H1C_F_ERR_PENDING|H1C_F_ERROR|H1C_F_ABRT_PENDING|H1C_F_ABRTED)) &&  /* No error/read0/abort */
 		    h1_is_alive(h1c) &&                                                      /* still alive */
 		    (h1s->flags & H1S_F_WANT_KAL) &&                                         /* K/A possible */
 		    h1s->req.state == H1_MSG_DONE && h1s->res.state == H1_MSG_DONE) {        /* req/res in DONE state */
@@ -2638,7 +2634,7 @@ static int h1_send_error(struct h1c *h1c)
 		h1s_destroy(h1c->h1s);
 	}
 
-	h1c->flags &= ~H1C_F_ABRT_PENDING;
+	h1c->flags = (h1c->flags & ~H1C_F_ABRT_PENDING) | H1C_F_ABRTED;
 	h1c->state = H1_CS_CLOSING;
   out:
 	TRACE_LEAVE(H1_EV_H1C_ERR, h1c->conn);
@@ -2678,6 +2674,7 @@ static int h1_handle_parsing_error(struct h1c *h1c)
 
 	if (!b_data(&h1c->ibuf) && ((h1c->flags & H1C_F_WAIT_NEXT_REQ) || (sess->fe->options & PR_O_IGNORE_PRB))) {
 		h1c->state = H1_CS_CLOSING;
+		h1c->flags |= H1C_F_ABRTED;
 		goto end;
 	}
 
@@ -2710,6 +2707,7 @@ static int h1_handle_not_impl_err(struct h1c *h1c)
 
 	if (!b_data(&h1c->ibuf) && ((h1c->flags & H1C_F_WAIT_NEXT_REQ) || (sess->fe->options & PR_O_IGNORE_PRB))) {
 		h1c->state = H1_CS_CLOSING;
+		h1c->flags |= H1C_F_ABRTED;
 		goto end;
 	}
 
@@ -2739,6 +2737,7 @@ static int h1_handle_req_tout(struct h1c *h1c)
 
 	if (!b_data(&h1c->ibuf) && ((h1c->flags & H1C_F_WAIT_NEXT_REQ) || (sess->fe->options & PR_O_IGNORE_PRB))) {
 		h1c->state = H1_CS_CLOSING;
+		h1c->flags |= H1C_F_ABRTED;
 		goto end;
 	}
 
@@ -3011,7 +3010,7 @@ static int h1_process(struct h1c * h1c)
 	 *  - a read0 was received or
 	 *  - a silent shutdown was emitted and all outgoing data sent
 	 */
-	if ((h1c->flags & (H1C_F_EOS|H1C_F_ERROR|H1C_F_ABRT_PENDING)) ||
+	if ((h1c->flags & (H1C_F_EOS|H1C_F_ERROR|H1C_F_ABRT_PENDING|H1C_F_ABRTED)) ||
 	    (h1c->state >= H1_CS_CLOSING && (h1c->flags & H1C_F_SILENT_SHUT) && !b_data(&h1c->obuf))) {
 		if (h1c->state != H1_CS_RUNNING) {
 			/* No stream connector or upgrading */
