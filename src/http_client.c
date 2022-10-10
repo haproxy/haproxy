@@ -476,10 +476,10 @@ int httpclient_set_dst(struct httpclient *hc, const char *dst)
 }
 
 /*
- * Return a split URL in <scheme>, <host>, <port>
+ * Split <url> in <scheme>, <host>, <port>
  */
-static void httpclient_spliturl(struct ist url, enum http_scheme *scheme,
-                                struct ist *host, int *port)
+static int httpclient_spliturl(struct ist url, enum http_scheme *scheme,
+                               struct ist *host, int *port)
 {
 	enum http_scheme scheme_tmp = SCH_HTTP;
 	int port_tmp = 0;
@@ -489,6 +489,9 @@ static void httpclient_spliturl(struct ist url, enum http_scheme *scheme,
 
 	parser = http_uri_parser_init(url);
 	scheme_ist = http_parse_scheme(&parser);
+	if (!isttest(scheme_ist)) {
+		return 0;
+	}
 
 	if (isteqi(scheme_ist, ist("http://"))){
 		scheme_tmp = SCH_HTTP;
@@ -499,6 +502,9 @@ static void httpclient_spliturl(struct ist url, enum http_scheme *scheme,
 	}
 
 	authority_ist = http_parse_authority(&parser, 1);
+	if (!isttest(authority_ist)) {
+		return 0;
+	}
 	p = end = istend(authority_ist);
 
 	/* look for a port at the end of the authority */
@@ -521,6 +527,7 @@ static void httpclient_spliturl(struct ist url, enum http_scheme *scheme,
 	if (port)
 		*port = port_tmp;
 
+	return 1;
 }
 
 /*
@@ -1006,7 +1013,8 @@ static int httpclient_applet_init(struct appctx *appctx)
 
 
 	/* parse the URL and  */
-	httpclient_spliturl(hc->req.url, &scheme, &host, &port);
+	if (!httpclient_spliturl(hc->req.url, &scheme, &host, &port))
+		goto out_error;
 
 	if (hc->dst) {
 		/* if httpclient_set_dst() was used, sets the alternative address */
