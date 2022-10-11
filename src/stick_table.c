@@ -519,45 +519,44 @@ struct stksess *__stktable_store(struct stktable *t, struct stksess *ts)
 
 /* Returns a valid or initialized stksess for the specified stktable_key in the
  * specified table, or NULL if the key was NULL, or if no entry was found nor
- * could be created. The entry's expiration is updated.
+ * could be created. The entry's expiration is updated. This function locks the
+ * table, and the refcount of the entry is increased.
  */
-struct stksess *__stktable_get_entry(struct stktable *table, struct stktable_key *key)
+struct stksess *stktable_get_entry(struct stktable *table, struct stktable_key *key)
 {
 	struct stksess *ts, *ts2;
 
 	if (!key)
 		return NULL;
 
-	ts = __stktable_lookup_key(table, key);
-	if (ts == NULL) {
-		/* entry does not exist, initialize a new one */
-		ts = __stksess_new(table, key);
-		if (!ts)
-			return NULL;
-		ts2 = __stktable_store(table, ts);
-		if (unlikely(ts2 != ts)) {
-			/* another entry was added in the mean time, let's
-			 * switch to it.
-			 */
-			__stksess_free(table, ts);
-			ts = ts2;
-		}
-	}
-	return ts;
-}
-/* Returns a valid or initialized stksess for the specified stktable_key in the
- * specified table, or NULL if the key was NULL, or if no entry was found nor
- * could be created. The entry's expiration is updated.
- * This function locks the table, and the refcount of the entry is increased.
- */
-struct stksess *stktable_get_entry(struct stktable *table, struct stktable_key *key)
-{
-	struct stksess *ts;
-
-	HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &table->lock);
-	ts = __stktable_get_entry(table, key);
+	ts = stktable_lookup_key(table, key);
 	if (ts)
-		ts->ref_cnt++;
+		return ts;
+
+	/* No such entry exists, let's try to create a new one. For this we'll
+	 * need an exclusive access. We don't need an atomic upgrade, this is
+	 * rare and an unlock+lock sequence will do the job fine. Given that
+	 * this will not be atomic, the missing entry might appear in the mean
+	 * tome so we have to be careful that the one we try to insert is the
+	 * one we find.
+	 */
+	HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &table->lock);
+
+	ts = __stksess_new(table, key);
+	if (!ts)
+		goto end;
+
+	ts2 = __stktable_store(table, ts);
+	if (unlikely(ts2 != ts)) {
+		/* another entry was added in the mean time, let's
+		 * switch to it.
+		 */
+		__stksess_free(table, ts);
+		ts = ts2;
+	}
+
+	HA_ATOMIC_INC(&ts->ref_cnt);
+ end:
 	HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &table->lock);
 
 	return ts;
