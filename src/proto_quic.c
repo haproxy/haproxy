@@ -592,7 +592,8 @@ static int quic_alloc_rxbufs_listener(struct listener *l)
  */
 static int quic_bind_listener(struct listener *listener, char *errmsg, int errlen)
 {
-	int err = ERR_NONE;
+	const struct sockaddr_storage addr = listener->rx.addr;
+	int fd, err = ERR_NONE;
 	char *msg = NULL;
 
 	/* ensure we never return garbage */
@@ -605,6 +606,25 @@ static int quic_bind_listener(struct listener *listener, char *errmsg, int errle
 	if (!(listener->rx.flags & RX_F_BOUND)) {
 		msg = "receiving socket not bound";
 		goto udp_return;
+	}
+
+	/* Set IP_PKTINFO to retrieve destination address on recv. */
+	fd = listener->rx.fd;
+	switch (addr.ss_family) {
+	case AF_INET:
+#if defined(IP_PKTINFO)
+		setsockopt(fd, IPPROTO_IP, IP_PKTINFO, &one, sizeof(one));
+#elif defined(IP_RECVDSTADDR)
+		setsockopt(fd, IPPROTO_IP, IP_RECVDSTADDR, &one, sizeof(one));
+#endif /* IP_PKTINFO || IP_RECVDSTADDR */
+		break;
+	case AF_INET6:
+#ifdef IPV6_RECVPKTINFO
+		setsockopt(fd, IPPROTO_IPV6, IPV6_RECVPKTINFO, &one, sizeof(one));
+#endif
+		break;
+	default:
+		break;
 	}
 
 	if (!quic_alloc_rxbufs_listener(listener)) {
