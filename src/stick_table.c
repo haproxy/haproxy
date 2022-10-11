@@ -103,9 +103,9 @@ void stksess_free(struct stktable *t, struct stksess *ts)
 		dict_entry_unref(&server_key_dict, stktable_data_cast(data, std_t_dict));
 		stktable_data_cast(data, std_t_dict) = NULL;
 	}
-	HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->lock);
+	HA_RWLOCK_RDLOCK(STK_TABLE_LOCK, &t->lock);
 	__stksess_free(t, ts);
-	HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->lock);
+	HA_RWLOCK_RDUNLOCK(STK_TABLE_LOCK, &t->lock);
 }
 
 /*
