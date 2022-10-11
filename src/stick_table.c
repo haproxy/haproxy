@@ -103,9 +103,9 @@ void stksess_free(struct stktable *t, struct stksess *ts)
 		dict_entry_unref(&server_key_dict, stktable_data_cast(data, std_t_dict));
 		stktable_data_cast(data, std_t_dict) = NULL;
 	}
-	HA_SPIN_LOCK(STK_TABLE_LOCK, &t->lock);
+	HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->lock);
 	__stksess_free(t, ts);
-	HA_SPIN_UNLOCK(STK_TABLE_LOCK, &t->lock);
+	HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->lock);
 }
 
 /*
@@ -132,11 +132,11 @@ int stksess_kill(struct stktable *t, struct stksess *ts, int decrefcnt)
 {
 	int ret;
 
-	HA_SPIN_LOCK(STK_TABLE_LOCK, &t->lock);
+	HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->lock);
 	if (decrefcnt)
 		ts->ref_cnt--;
 	ret = __stksess_kill(t, ts);
-	HA_SPIN_UNLOCK(STK_TABLE_LOCK, &t->lock);
+	HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->lock);
 
 	return ret;
 }
@@ -249,9 +249,9 @@ int stktable_trash_oldest(struct stktable *t, int to_batch)
 {
 	int ret;
 
-	HA_SPIN_LOCK(STK_TABLE_LOCK, &t->lock);
+	HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->lock);
 	ret = __stktable_trash_oldest(t, to_batch);
-	HA_SPIN_UNLOCK(STK_TABLE_LOCK, &t->lock);
+	HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->lock);
 
 	return ret;
 }
@@ -297,9 +297,9 @@ struct stksess *stksess_new(struct stktable *t, struct stktable_key *key)
 {
 	struct stksess *ts;
 
-	HA_SPIN_LOCK(STK_TABLE_LOCK, &t->lock);
+	HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->lock);
 	ts = __stksess_new(t, key);
-	HA_SPIN_UNLOCK(STK_TABLE_LOCK, &t->lock);
+	HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->lock);
 
 	return ts;
 }
@@ -335,11 +335,11 @@ struct stksess *stktable_lookup_key(struct stktable *t, struct stktable_key *key
 {
 	struct stksess *ts;
 
-	HA_SPIN_LOCK(STK_TABLE_LOCK, &t->lock);
+	HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->lock);
 	ts = __stktable_lookup_key(t, key);
 	if (ts)
 		ts->ref_cnt++;
-	HA_SPIN_UNLOCK(STK_TABLE_LOCK, &t->lock);
+	HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->lock);
 
 	return ts;
 }
@@ -373,11 +373,11 @@ struct stksess *stktable_lookup(struct stktable *t, struct stksess *ts)
 {
 	struct stksess *lts;
 
-	HA_SPIN_LOCK(STK_TABLE_LOCK, &t->lock);
+	HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->lock);
 	lts = __stktable_lookup(t, ts);
 	if (lts)
 		lts->ref_cnt++;
-	HA_SPIN_UNLOCK(STK_TABLE_LOCK, &t->lock);
+	HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->lock);
 
 	return lts;
 }
@@ -437,11 +437,11 @@ void __stktable_touch_with_exp(struct stktable *t, struct stksess *ts, int local
  */
 void stktable_touch_remote(struct stktable *t, struct stksess *ts, int decrefcnt)
 {
-	HA_SPIN_LOCK(STK_TABLE_LOCK, &t->lock);
+	HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->lock);
 	__stktable_touch_with_exp(t, ts, 0, ts->expire);
 	if (decrefcnt)
 		ts->ref_cnt--;
-	HA_SPIN_UNLOCK(STK_TABLE_LOCK, &t->lock);
+	HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->lock);
 }
 
 /* Update the expiration timer for <ts> but do not touch its expiration node.
@@ -454,20 +454,20 @@ void stktable_touch_local(struct stktable *t, struct stksess *ts, int decrefcnt)
 {
 	int expire = tick_add(now_ms, MS_TO_TICKS(t->expire));
 
-	HA_SPIN_LOCK(STK_TABLE_LOCK, &t->lock);
+	HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->lock);
 	__stktable_touch_with_exp(t, ts, 1, expire);
 	if (decrefcnt)
 		ts->ref_cnt--;
-	HA_SPIN_UNLOCK(STK_TABLE_LOCK, &t->lock);
+	HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->lock);
 }
 /* Just decrease the ref_cnt of the current session. Does nothing if <ts> is NULL */
 static void stktable_release(struct stktable *t, struct stksess *ts)
 {
 	if (!ts)
 		return;
-	HA_SPIN_LOCK(STK_TABLE_LOCK, &t->lock);
+	HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->lock);
 	ts->ref_cnt--;
-	HA_SPIN_UNLOCK(STK_TABLE_LOCK, &t->lock);
+	HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->lock);
 }
 
 /* Insert new sticky session <ts> in the table. It is assumed that it does not
@@ -516,11 +516,11 @@ struct stksess *stktable_get_entry(struct stktable *table, struct stktable_key *
 {
 	struct stksess *ts;
 
-	HA_SPIN_LOCK(STK_TABLE_LOCK, &table->lock);
+	HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &table->lock);
 	ts = __stktable_get_entry(table, key);
 	if (ts)
 		ts->ref_cnt++;
-	HA_SPIN_UNLOCK(STK_TABLE_LOCK, &table->lock);
+	HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &table->lock);
 
 	return ts;
 }
@@ -548,10 +548,10 @@ struct stksess *stktable_set_entry(struct stktable *table, struct stksess *nts)
 {
 	struct stksess *ts;
 
-	HA_SPIN_LOCK(STK_TABLE_LOCK, &table->lock);
+	HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &table->lock);
 	ts = __stktable_set_entry(table, nts);
 	ts->ref_cnt++;
-	HA_SPIN_UNLOCK(STK_TABLE_LOCK, &table->lock);
+	HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &table->lock);
 
 	return ts;
 }
@@ -565,7 +565,7 @@ static int stktable_trash_expired(struct stktable *t)
 	struct eb32_node *eb;
 	int looped = 0;
 
-	HA_SPIN_LOCK(STK_TABLE_LOCK, &t->lock);
+	HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->lock);
 	eb = eb32_lookup_ge(&t->exps, now_ms - TIMER_LOOK_BACK);
 
 	while (1) {
@@ -620,7 +620,7 @@ static int stktable_trash_expired(struct stktable *t)
 	/* We have found no task to expire in any tree */
 	t->exp_next = TICK_ETERNITY;
 out_unlock:
-	HA_SPIN_UNLOCK(STK_TABLE_LOCK, &t->lock);
+	HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->lock);
 	return t->exp_next;
 }
 
@@ -4783,16 +4783,16 @@ static int cli_io_handler_table(struct appctx *appctx)
 				if (ctx->target &&
 				    (strm_li(s)->bind_conf->level & ACCESS_LVL_MASK) >= ACCESS_LVL_OPER) {
 					/* dump entries only if table explicitly requested */
-					HA_SPIN_LOCK(STK_TABLE_LOCK, &ctx->t->lock);
+					HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &ctx->t->lock);
 					eb = ebmb_first(&ctx->t->keys);
 					if (eb) {
 						ctx->entry = ebmb_entry(eb, struct stksess, key);
 						ctx->entry->ref_cnt++;
 						ctx->state = STATE_DUMP;
-						HA_SPIN_UNLOCK(STK_TABLE_LOCK, &ctx->t->lock);
+						HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &ctx->t->lock);
 						break;
 					}
-					HA_SPIN_UNLOCK(STK_TABLE_LOCK, &ctx->t->lock);
+					HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &ctx->t->lock);
 				}
 			}
 			ctx->t = ctx->t->next;
@@ -4860,7 +4860,7 @@ static int cli_io_handler_table(struct appctx *appctx)
 
 			HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &ctx->entry->lock);
 
-			HA_SPIN_LOCK(STK_TABLE_LOCK, &ctx->t->lock);
+			HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &ctx->t->lock);
 			ctx->entry->ref_cnt--;
 
 			eb = ebmb_next(&ctx->entry->key);
@@ -4872,7 +4872,7 @@ static int cli_io_handler_table(struct appctx *appctx)
 				else if (!skip_entry && !ctx->entry->ref_cnt)
 					__stksess_kill(ctx->t, old);
 				ctx->entry->ref_cnt++;
-				HA_SPIN_UNLOCK(STK_TABLE_LOCK, &ctx->t->lock);
+				HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &ctx->t->lock);
 				break;
 			}
 
@@ -4882,7 +4882,7 @@ static int cli_io_handler_table(struct appctx *appctx)
 			else if (!skip_entry && !ctx->entry->ref_cnt)
 				__stksess_kill(ctx->t, ctx->entry);
 
-			HA_SPIN_UNLOCK(STK_TABLE_LOCK, &ctx->t->lock);
+			HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &ctx->t->lock);
 
 			ctx->t = ctx->t->next;
 			ctx->state = STATE_NEXT;

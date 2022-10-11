@@ -649,9 +649,9 @@ int hlua_stktable_lookup(lua_State *L)
 	lua_settable(L, -3);
 
 	hlua_stktable_entry(L, t, ts);
-	HA_SPIN_LOCK(STK_TABLE_LOCK, &t->lock);
+	HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->lock);
 	ts->ref_cnt--;
-	HA_SPIN_UNLOCK(STK_TABLE_LOCK, &t->lock);
+	HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->lock);
 
 	return 1;
 }
@@ -761,16 +761,16 @@ int hlua_stktable_dump(lua_State *L)
 
 	lua_newtable(L);
 
-	HA_SPIN_LOCK(STK_TABLE_LOCK, &t->lock);
+	HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->lock);
 	eb = ebmb_first(&t->keys);
 	for (n = eb; n; n = ebmb_next(n)) {
 		ts = ebmb_entry(n, struct stksess, key);
 		if (!ts) {
-			HA_SPIN_UNLOCK(STK_TABLE_LOCK, &t->lock);
+			HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->lock);
 			return 1;
 		}
 		ts->ref_cnt++;
-		HA_SPIN_UNLOCK(STK_TABLE_LOCK, &t->lock);
+		HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->lock);
 
 		/* multi condition/value filter */
 		skip_entry = 0;
@@ -810,7 +810,7 @@ int hlua_stktable_dump(lua_State *L)
 		}
 
 		if (skip_entry) {
-			HA_SPIN_LOCK(STK_TABLE_LOCK, &t->lock);
+			HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->lock);
 			ts->ref_cnt--;
 			continue;
 		}
@@ -834,10 +834,10 @@ int hlua_stktable_dump(lua_State *L)
 		lua_newtable(L);
 		hlua_stktable_entry(L, t, ts);
 		lua_settable(L, -3);
-		HA_SPIN_LOCK(STK_TABLE_LOCK, &t->lock);
+		HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->lock);
 		ts->ref_cnt--;
 	}
-	HA_SPIN_UNLOCK(STK_TABLE_LOCK, &t->lock);
+	HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->lock);
 
 	return 1;
 }

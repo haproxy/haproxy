@@ -1583,7 +1583,7 @@ static inline int peer_send_teachmsgs(struct appctx *appctx, struct peer *p,
 	new_pushed = 1;
 
 	if (!locked)
-		HA_SPIN_LOCK(STK_TABLE_LOCK, &st->table->lock);
+		HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &st->table->lock);
 
 	while (1) {
 		struct stksess *ts;
@@ -1598,16 +1598,16 @@ static inline int peer_send_teachmsgs(struct appctx *appctx, struct peer *p,
 
 		updateid = ts->upd.key;
 		ts->ref_cnt++;
-		HA_SPIN_UNLOCK(STK_TABLE_LOCK, &st->table->lock);
+		HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &st->table->lock);
 
 		ret = peer_send_updatemsg(st, appctx, ts, updateid, new_pushed, use_timed);
 		if (ret <= 0) {
-			HA_SPIN_LOCK(STK_TABLE_LOCK, &st->table->lock);
+			HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &st->table->lock);
 			ts->ref_cnt--;
 			break;
 		}
 
-		HA_SPIN_LOCK(STK_TABLE_LOCK, &st->table->lock);
+		HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &st->table->lock);
 		ts->ref_cnt--;
 		st->last_pushed = updateid;
 
@@ -1631,7 +1631,7 @@ static inline int peer_send_teachmsgs(struct appctx *appctx, struct peer *p,
 
  out:
 	if (!locked)
-		HA_SPIN_UNLOCK(STK_TABLE_LOCK, &st->table->lock);
+		HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &st->table->lock);
 	return ret;
 }
 
@@ -2585,17 +2585,17 @@ static inline int peer_send_msgs(struct appctx *appctx,
 			}
 
 			if (!(peer->flags & PEER_F_TEACH_PROCESS)) {
-				HA_SPIN_LOCK(STK_TABLE_LOCK, &st->table->lock);
+				HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &st->table->lock);
 				if (!(peer->flags & PEER_F_LEARN_ASSIGN) &&
 					(st->last_pushed != st->table->localupdate)) {
 
 					repl = peer_send_teach_process_msgs(appctx, peer, st);
 					if (repl <= 0) {
-						HA_SPIN_UNLOCK(STK_TABLE_LOCK, &st->table->lock);
+						HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &st->table->lock);
 						return repl;
 					}
 				}
-				HA_SPIN_UNLOCK(STK_TABLE_LOCK, &st->table->lock);
+				HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &st->table->lock);
 			}
 			else if (!(peer->flags & PEER_F_TEACH_FINISHED)) {
 				if (!(st->flags & SHTABLE_F_TEACH_STAGE1)) {
@@ -2774,7 +2774,7 @@ static inline void init_accepted_peer(struct peer *peer, struct peers *peers)
 	/* Init cursors */
 	for (st = peer->tables; st ; st = st->next) {
 		st->last_get = st->last_acked = 0;
-		HA_SPIN_LOCK(STK_TABLE_LOCK, &st->table->lock);
+		HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &st->table->lock);
 		/* if st->update appears to be in future it means
 		 * that the last acked value is very old and we
 		 * remain unconnected a too long time to use this
@@ -2790,7 +2790,7 @@ static inline void init_accepted_peer(struct peer *peer, struct peers *peers)
 		st->flags = 0;
 		if ((int)(st->last_pushed - st->table->commitupdate) > 0)
 			st->table->commitupdate = st->last_pushed;
-		HA_SPIN_UNLOCK(STK_TABLE_LOCK, &st->table->lock);
+		HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &st->table->lock);
 	}
 
 	/* reset teaching and learning flags to 0 */
@@ -2829,7 +2829,7 @@ static inline void init_connected_peer(struct peer *peer, struct peers *peers)
 	/* Init cursors */
 	for (st = peer->tables; st ; st = st->next) {
 		st->last_get = st->last_acked = 0;
-		HA_SPIN_LOCK(STK_TABLE_LOCK, &st->table->lock);
+		HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &st->table->lock);
 		/* if st->update appears to be in future it means
 		 * that the last acked value is very old and we
 		 * remain unconnected a too long time to use this
@@ -2845,7 +2845,7 @@ static inline void init_connected_peer(struct peer *peer, struct peers *peers)
 		st->flags = 0;
 		if ((int)(st->last_pushed - st->table->commitupdate) > 0)
 			st->table->commitupdate = st->last_pushed;
-		HA_SPIN_UNLOCK(STK_TABLE_LOCK, &st->table->lock);
+		HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &st->table->lock);
 	}
 
 	/* Init confirm counter */

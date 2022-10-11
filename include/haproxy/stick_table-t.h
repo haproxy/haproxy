@@ -199,7 +199,7 @@ struct stktable {
 		const char *file;     /* The file where the stick-table is declared. */
 		int line;             /* The line in this <file> the stick-table is declared. */
 	} conf;
-	__decl_thread(HA_SPINLOCK_T lock); /* spin lock related to the table */
+	__decl_thread(HA_RWLOCK_T lock); /* lock related to the table */
 };
 
 extern struct stktable_data_type stktable_data_types[STKTABLE_DATA_TYPES];
