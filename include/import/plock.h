@@ -58,8 +58,23 @@
  * enforces an exponential backoff using CPU pauses to limit the pollution to
  * the other threads' caches. The progression follows (1.5^N)-1, limited to
  * 16384 iterations, which is way sufficient even for very large numbers of
- * threads.
+ * threads. It's possible to disable exponential backoff (EBO) for debugging
+ * purposes by setting PLOCK_DISABLE_EBO, in which case the function will be
+ * replaced with a simpler macro. This may for example be useful to more
+ * easily track callers' CPU usage. The macro was not designed to be used
+ * outside of the functions defined here.
  */
+#if defined(PLOCK_DISABLE_EBO)
+#define pl_wait_unlock_long(lock, mask)           \
+	({                                        \
+		unsigned long _r;                 \
+		do {                              \
+			pl_cpu_relax();           \
+			_r = pl_deref_long(lock); \
+		} while (_r & mask);              \
+		_r; /* return value */            \
+	})
+#else
 __attribute__((unused,noinline,no_instrument_function))
 static unsigned long pl_wait_unlock_long(const unsigned long *lock, const unsigned long mask)
 {
@@ -94,6 +109,7 @@ static unsigned long pl_wait_unlock_long(const unsigned long *lock, const unsign
 
 	return ret;
 }
+#endif /* PLOCK_DISABLE_EBO */
 
 /* This function waits for <lock> to release all bits covered by <mask>, and
  * enforces an exponential backoff using CPU pauses to limit the pollution to
@@ -101,7 +117,23 @@ static unsigned long pl_wait_unlock_long(const unsigned long *lock, const unsign
  * iterations, which is way sufficient even for very large numbers of threads.
  * The function slightly benefits from size optimization under gcc, but Clang
  * cannot do it, so it's not done here, as it doesn't make a big difference.
+ * It is possible to disable exponential backoff (EBO) for debugging purposes
+ * by setting PLOCK_DISABLE_EBO, in which case the function will be replaced
+ * with a simpler macro. This may for example be useful to more easily track
+ * callers' CPU usage. The macro was not designed to be used outside of the
+ * functions defined here.
  */
+#if defined(PLOCK_DISABLE_EBO)
+#define pl_wait_unlock_int(lock, mask)            \
+	({                                        \
+		unsigned int _r;                  \
+		do {                              \
+			pl_cpu_relax();           \
+			_r = pl_deref_int(lock);  \
+		} while (_r & mask);              \
+		_r; /* return value */            \
+	})
+#else
 __attribute__((unused,noinline,no_instrument_function))
 static unsigned int pl_wait_unlock_int(const unsigned int *lock, const unsigned int mask)
 {
@@ -136,6 +168,7 @@ static unsigned int pl_wait_unlock_int(const unsigned int *lock, const unsigned 
 
 	return ret;
 }
+#endif /* PLOCK_DISABLE_EBO */
 
 /* This function waits for <lock> to change from value <prev> and returns the
  * new value. It enforces an exponential backoff using CPU pauses to limit the
