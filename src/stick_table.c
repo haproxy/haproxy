@@ -335,11 +335,11 @@ struct stksess *stktable_lookup_key(struct stktable *t, struct stktable_key *key
 {
 	struct stksess *ts;
 
-	HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->lock);
+	HA_RWLOCK_RDLOCK(STK_TABLE_LOCK, &t->lock);
 	ts = __stktable_lookup_key(t, key);
 	if (ts)
-		ts->ref_cnt++;
-	HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->lock);
+		HA_ATOMIC_INC(&ts->ref_cnt);
+	HA_RWLOCK_RDUNLOCK(STK_TABLE_LOCK, &t->lock);
 
 	return ts;
 }
@@ -373,11 +373,11 @@ struct stksess *stktable_lookup(struct stktable *t, struct stksess *ts)
 {
 	struct stksess *lts;
 
-	HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->lock);
+	HA_RWLOCK_RDLOCK(STK_TABLE_LOCK, &t->lock);
 	lts = __stktable_lookup(t, ts);
 	if (lts)
-		lts->ref_cnt++;
-	HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->lock);
+		HA_ATOMIC_INC(&lts->ref_cnt);
+	HA_RWLOCK_RDUNLOCK(STK_TABLE_LOCK, &t->lock);
 
 	return lts;
 }
