@@ -523,7 +523,7 @@ struct stksess *__stktable_store(struct stktable *t, struct stksess *ts)
  */
 struct stksess *__stktable_get_entry(struct stktable *table, struct stktable_key *key)
 {
-	struct stksess *ts;
+	struct stksess *ts, *ts2;
 
 	if (!key)
 		return NULL;
@@ -534,7 +534,14 @@ struct stksess *__stktable_get_entry(struct stktable *table, struct stktable_key
 		ts = __stksess_new(table, key);
 		if (!ts)
 			return NULL;
-		__stktable_store(table, ts);
+		ts2 = __stktable_store(table, ts);
+		if (unlikely(ts2 != ts)) {
+			/* another entry was added in the mean time, let's
+			 * switch to it.
+			 */
+			__stksess_free(table, ts);
+			ts = ts2;
+		}
 	}
 	return ts;
 }
