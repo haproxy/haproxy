@@ -654,11 +654,11 @@ static __inline int
 h2c_is_dead(const struct h2c *h2c)
 {
 	if (eb_is_empty(&h2c->streams_by_id) &&     /* don't close if streams exist */
-	    ((h2c->conn->flags & CO_FL_ERROR) ||    /* errors close immediately */
+	    ((h2c->flags & H2_CF_ERROR) ||          /* errors close immediately */
 	     (h2c->st0 >= H2_CS_ERROR && !h2c->task) || /* a timeout stroke earlier */
 	     (!(h2c->conn->owner)) || /* Nobody's left to take care of the connection, drop it now */
 	     (!br_data(h2c->mbuf) &&  /* mux buffer empty, also process clean events below */
-	      (conn_xprt_read0_pending(h2c->conn) ||
+	      ((h2c->flags & H2_CF_RCVD_SHUT) ||
 	       (h2c->last_sid >= 0 && h2c->max_id >= h2c->last_sid)))))
 		return 1;
 
@@ -688,9 +688,7 @@ h2c_is_dead(const struct h2c *h2c)
 static inline int h2_recv_allowed(const struct h2c *h2c)
 {
 	if (b_data(&h2c->dbuf) == 0 &&
-	    (h2c->st0 >= H2_CS_ERROR ||
-	     h2c->conn->flags & CO_FL_ERROR ||
-	     conn_xprt_read0_pending(h2c->conn)))
+	    ((h2c->flags & (H2_CF_RCVD_SHUT|H2_CF_ERROR)) || h2c->st0 >= H2_CS_ERROR))
 		return 0;
 
 	if (!(h2c->flags & H2_CF_DEM_DALLOC) &&
@@ -1690,7 +1688,7 @@ static int h2c_frt_recv_preface(struct h2c *h2c)
 	if (unlikely(ret1 <= 0)) {
 		if (!ret1)
 			h2c->flags |= H2_CF_DEM_SHORT_READ;
-		if (ret1 < 0 || conn_xprt_read0_pending(h2c->conn)) {
+		if (ret1 < 0 || (h2c->flags & H2_CF_RCVD_SHUT)) {
 			TRACE_ERROR("I/O error or short read", H2_EV_RX_FRAME|H2_EV_RX_PREFACE, h2c->conn);
 			h2c_error(h2c, H2_ERR_PROTOCOL_ERROR);
 			if (b_data(&h2c->dbuf) ||
@@ -2073,11 +2071,9 @@ static void h2s_wake_one_stream(struct h2s *h2s)
 			h2s_close(h2s);
 	}
 
-	if ((h2s->h2c->st0 >= H2_CS_ERROR || h2s->h2c->conn->flags & CO_FL_ERROR) ||
+	if (h2s->h2c->st0 >= H2_CS_ERROR || (h2s->h2c->flags & (H2_CF_ERR_PENDING|H2_CF_ERROR)) ||
 	    (h2s->h2c->last_sid > 0 && (!h2s->id || h2s->id > h2s->h2c->last_sid))) {
-		se_fl_set(h2s->sd, SE_FL_ERR_PENDING);
-		if (se_fl_test(h2s->sd, SE_FL_EOS))
-			se_fl_set(h2s->sd, SE_FL_ERROR);
+		se_fl_set_error(h2s->sd);
 
 		if (h2s->st < H2_SS_ERROR)
 			h2s->st = H2_SS_ERROR;
@@ -3678,11 +3674,6 @@ static int h2_recv(struct h2c *h2c)
 		return 0;
 	}
 
-	if (h2c->flags & H2_CF_RCVD_SHUT) {
-		TRACE_DEVEL("leaving on rcvd_shut", H2_EV_H2C_RECV, h2c->conn);
-		return 1;
-	}
-
 	if (!b_data(buf)) {
 		/* try to pre-align the buffer like the
 		 * rxbufs will be to optimize memory copies. We'll make
@@ -3712,11 +3703,14 @@ static int h2_recv(struct h2c *h2c)
 		TRACE_DATA("received read0", H2_EV_H2C_RECV, h2c->conn);
 		h2c->flags |= H2_CF_RCVD_SHUT;
 	}
+	if (h2c->conn->flags & CO_FL_ERROR) {
+		TRACE_DATA("connection error", H2_EV_H2C_RECV, h2c->conn);
+		h2c->flags |= H2_CF_ERROR;
+	}
 
 	if (!b_data(buf)) {
 		h2_release_buf(h2c, &h2c->dbuf);
-		TRACE_LEAVE(H2_EV_H2C_RECV, h2c->conn);
-		return (conn->flags & CO_FL_ERROR || conn_xprt_read0_pending(conn));
+		goto end;
 	}
 
 	if (b_data(buf) == buf->size) {
@@ -3724,8 +3718,9 @@ static int h2_recv(struct h2c *h2c)
 		TRACE_STATE("demux buffer full", H2_EV_H2C_RECV|H2_EV_H2C_BLK, h2c->conn);
 	}
 
+  end:
 	TRACE_LEAVE(H2_EV_H2C_RECV, h2c->conn);
-	return !!ret || (conn->flags & CO_FL_ERROR) || conn_xprt_read0_pending(conn);
+	return !!ret || (h2c->flags & (H2_CF_RCVD_SHUT|H2_CF_ERROR));
 }
 
 /* Try to send data if possible.
@@ -3739,8 +3734,11 @@ static int h2_send(struct h2c *h2c)
 
 	TRACE_ENTER(H2_EV_H2C_SEND, h2c->conn);
 
-	if (conn->flags & CO_FL_ERROR) {
+	if (h2c->flags & (H2_CF_ERROR|H2_CF_ERR_PENDING)) {
 		TRACE_DEVEL("leaving on error", H2_EV_H2C_SEND, h2c->conn);
+		if (h2c->flags & H2_CF_RCVD_SHUT)
+			h2c->flags |= H2_CF_ERROR;
+		b_reset(br_tail(h2c->mbuf));
 		return 1;
 	}
 
@@ -3815,10 +3813,13 @@ static int h2_send(struct h2c *h2c)
 			h2c->flags &= ~(H2_CF_MUX_MFULL | H2_CF_DEM_MROOM);
 	}
 
-	if (conn->flags & CO_FL_SOCK_WR_SH) {
-		/* output closed, nothing to send, clear the buffer to release it */
+	if (conn->flags & CO_FL_ERROR) {
+		h2c->flags |= H2_CF_ERR_PENDING;
+		if (h2c->flags & H2_CF_RCVD_SHUT)
+			h2c->flags |= H2_CF_ERROR;
 		b_reset(br_tail(h2c->mbuf));
 	}
+
 	/* We're not full anymore, so we can wake any task that are waiting
 	 * for us.
 	 */
@@ -3828,16 +3829,16 @@ static int h2_send(struct h2c *h2c)
 	/* We're done, no more to send */
 	if (!br_data(h2c->mbuf)) {
 		TRACE_DEVEL("leaving with everything sent", H2_EV_H2C_SEND, h2c->conn);
-		return sent;
+		goto end;
 	}
 schedule:
 	if (!(conn->flags & CO_FL_ERROR) && !(h2c->wait_event.events & SUB_RETRY_SEND)) {
 		TRACE_STATE("more data to send, subscribing", H2_EV_H2C_SEND, h2c->conn);
 		conn->xprt->subscribe(conn, conn->xprt_ctx, SUB_RETRY_SEND, &h2c->wait_event);
 	}
-
 	TRACE_DEVEL("leaving with some data left to send", H2_EV_H2C_SEND, h2c->conn);
-	return sent;
+end:
+	return sent || (h2c->flags & (H2_CF_ERR_PENDING|H2_CF_ERROR));
 }
 
 /* this is the tasklet referenced in h2c->wait_event.tasklet */
@@ -3928,7 +3929,7 @@ static int h2_process(struct h2c *h2c)
 	    (b_data(&h2c->dbuf) || (h2c->flags & H2_CF_RCVD_SHUT))) {
 		h2_process_demux(h2c);
 
-		if (h2c->st0 >= H2_CS_ERROR || conn->flags & CO_FL_ERROR)
+		if (h2c->st0 >= H2_CS_ERROR || (h2c->flags & H2_CF_ERROR))
 			b_reset(&h2c->dbuf);
 
 		if (!b_full(&h2c->dbuf))
@@ -3986,7 +3987,7 @@ static int h2_process(struct h2c *h2c)
 		}
 	}
 
-	if (conn->flags & CO_FL_ERROR || h2c_read0_pending(h2c) ||
+	if ((h2c->flags & H2_CF_ERROR) || h2c_read0_pending(h2c) ||
 	    h2c->st0 == H2_CS_ERROR2 || h2c->flags & H2_CF_GOAWAY_FAILED ||
 	    (eb_is_empty(&h2c->streams_by_id) && h2c->last_sid >= 0 &&
 	     h2c->max_id >= h2c->last_sid)) {
@@ -4018,8 +4019,7 @@ static int h2_process(struct h2c *h2c)
 	if (!b_data(&h2c->dbuf))
 		h2_release_buf(h2c, &h2c->dbuf);
 
-	if ((conn->flags & CO_FL_SOCK_WR_SH) ||
-	    h2c->st0 == H2_CS_ERROR2 || (h2c->flags & H2_CF_GOAWAY_FAILED) ||
+	if (h2c->st0 == H2_CS_ERROR2 || (h2c->flags & H2_CF_GOAWAY_FAILED) ||
 	    (h2c->st0 != H2_CS_ERROR &&
 	     !br_data(h2c->mbuf) &&
 	     (h2c->mws <= 0 || LIST_ISEMPTY(&h2c->fctl_list)) &&
@@ -4278,7 +4278,7 @@ static void h2_detach(struct sedesc *sd)
 	/* this stream may be blocked waiting for some data to leave (possibly
 	 * an ES or RST frame), so orphan it in this case.
 	 */
-	if (!(h2c->conn->flags & CO_FL_ERROR) &&
+	if (!(h2c->flags & (H2_CF_ERR_PENDING|H2_CF_ERROR)) &&
 	    (h2c->st0 < H2_CS_ERROR) &&
 	    (h2s->flags & (H2_SF_BLK_MBUSY | H2_SF_BLK_MROOM | H2_SF_BLK_MFCTL)) &&
 	    ((h2s->flags & (H2_SF_WANT_SHUTR | H2_SF_WANT_SHUTW)) || h2s->subs)) {
@@ -4304,8 +4304,7 @@ static void h2_detach(struct sedesc *sd)
 	h2s_destroy(h2s);
 
 	if (h2c->flags & H2_CF_IS_BACK) {
-		if (!(h2c->conn->flags &
-		    (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH))) {
+		if (!(h2c->flags & (H2_CF_RCVD_SHUT|H2_CF_ERR_PENDING|H2_CF_ERROR))) {
 			if (h2c->conn->flags & CO_FL_PRIVATE) {
 				/* Add the connection in the session server list, if not already done */
 				if (!session_add_conn(sess, h2c->conn, h2c->conn->target)) {
@@ -6571,7 +6570,7 @@ static size_t h2_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, in
 	 * connection, we will never be unlocked, so add an error on
 	 * the stream connector.
 	 */
-	if (conn_xprt_read0_pending(h2s->h2c->conn) &&
+	if ((h2s->h2c->flags & H2_CF_RCVD_SHUT) &&
 	    !b_data(&h2s->h2c->dbuf) &&
 	    (h2s->flags & (H2_SF_BLK_SFCTL | H2_SF_BLK_MFCTL))) {
 		TRACE_DEVEL("fctl with shutr, reporting error to app-layer", H2_EV_H2S_SEND|H2_EV_STRM_SEND|H2_EV_STRM_ERR, h2s->h2c->conn, h2s);

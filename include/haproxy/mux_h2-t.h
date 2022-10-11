@@ -66,6 +66,9 @@
 #define H2_CF_SHTS_UPDATED      0x00200000  // SETTINGS_HEADER_TABLE_SIZE updated
 #define H2_CF_DTSU_EMITTED      0x00400000  // HPACK Dynamic Table Size Update opcode emitted
 
+#define H2_CF_ERR_PENDING       0x00800000  // A write error was detected (block sends but not reads)
+#define H2_CF_ERROR             0x01000000  //A read error was detected (handled has an abort)
+
 /* This function is used to report flags in debugging tools. Please reflect
  * below any single-bit flag addition above in the same order via the
  * __APPEND_FLAG macro. The new end of the buffer is returned.
@@ -82,7 +85,8 @@ static forceinline char *h2c_show_flags(char *buf, size_t len, const char *delim
 	_(H2_CF_DEM_SHORT_READ, _(H2_CF_DEM_IN_PROGRESS, _(H2_CF_GOAWAY_SENT,
 	_(H2_CF_GOAWAY_FAILED, _(H2_CF_WAIT_FOR_HS, _(H2_CF_IS_BACK,
 	_(H2_CF_WINDOW_OPENED, _(H2_CF_RCVD_SHUT, _(H2_CF_END_REACHED,
-	_(H2_CF_RCVD_RFC8441, _(H2_CF_SHTS_UPDATED, _(H2_CF_DTSU_EMITTED)))))))))))))))))))));
+	_(H2_CF_RCVD_RFC8441, _(H2_CF_SHTS_UPDATED, _(H2_CF_DTSU_EMITTED,
+	_(H2_CF_ERR_PENDING, _(H2_CF_ERROR)))))))))))))))))))))));
 	/* epilogue */
 	_(~0U);
 	return buf;
