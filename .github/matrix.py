@@ -42,7 +42,7 @@ def determine_latest_openssl(ssl):
         if "openssl-" in name:
             if name > latest_tag:
                latest_tag = name
-    return "OPENSSL={}".format(latest_tag[8:])
+    return "OPENSSL_VERSION={}".format(latest_tag[8:])
 
 def determine_latest_libressl(ssl):
     libressl_download_list = urllib.request.urlopen("http://ftp.openbsd.org/pub/OpenBSD/LibreSSL/")
@@ -50,7 +50,7 @@ def determine_latest_libressl(ssl):
         decoded_line = line.decode("utf-8")
         if "libressl-" in decoded_line and ".tar.gz.asc" in decoded_line:
              l = re.split("libressl-|.tar.gz.asc", decoded_line)[1]
-    return "LIBRESSL={}".format(l)
+    return "LIBRESSL_VERSION={}".format(l)
 
 def clean_compression(compression):
     return compression.replace("USE_", "").lower()
