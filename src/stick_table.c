@@ -392,20 +392,29 @@ struct stksess *stktable_lookup(struct stktable *t, struct stksess *ts)
 void stktable_touch_with_exp(struct stktable *t, struct stksess *ts, int local, int expire, int decrefcnt)
 {
 	struct eb32_node * eb;
+	int locked = 0;
 
-	HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->lock);
-
-	ts->expire = expire;
-	if (t->expire) {
-		t->exp_task->expire = t->exp_next = tick_first(ts->expire, t->exp_next);
-		task_queue(t->exp_task);
+	if (expire != HA_ATOMIC_LOAD(&ts->expire)) {
+		/* we'll need to set the expiration and to wake up the expiration timer .*/
+		HA_ATOMIC_STORE(&ts->expire, expire);
+		if (t->expire) {
+			if (!locked++)
+				HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->lock);
+			t->exp_task->expire = t->exp_next = tick_first(expire, t->exp_next);
+			task_queue(t->exp_task);
+			/* keep the lock */
+		}
 	}
 
 	/* If sync is enabled */
 	if (t->sync_task) {
 		if (local) {
 			/* If this entry is not in the tree
-			   or not scheduled for at least one peer */
+			 * or not scheduled for at least one peer.
+			 */
+			if (!locked++)
+				HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->lock);
+
 			if (!ts->upd.node.leaf_p
 			    || (int)(t->commitupdate - ts->upd.key) >= 0
 			    || (int)(ts->upd.key - t->localupdate) >= 0) {
@@ -422,6 +431,9 @@ void stktable_touch_with_exp(struct stktable *t, struct stksess *ts, int local, 
 		}
 		else {
 			/* If this entry is not in the tree */
+			if (!locked++)
+				HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->lock);
+
 			if (!ts->upd.node.leaf_p) {
 				ts->upd.key= (++t->update)+(2147483648U);
 				eb = eb32_insert(&t->updates, &ts->upd);
@@ -433,9 +445,18 @@ void stktable_touch_with_exp(struct stktable *t, struct stksess *ts, int local, 
 		}
 	}
 
-	if (decrefcnt)
-		ts->ref_cnt--;
-	HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->lock);
+	if (decrefcnt) {
+		if (locked)
+			ts->ref_cnt--;
+		else {
+			HA_RWLOCK_RDLOCK(STK_TABLE_LOCK, &t->lock);
+			HA_ATOMIC_DEC(&ts->ref_cnt);
+			HA_RWLOCK_RDUNLOCK(STK_TABLE_LOCK, &t->lock);
+		}
+	}
+
+	if (locked)
+		HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->lock);
 }
 
 /* Update the expiration timer for <ts> but do not touch its expiration node.
