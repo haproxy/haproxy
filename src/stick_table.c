@@ -460,14 +460,18 @@ void stktable_touch_local(struct stktable *t, struct stksess *ts, int decrefcnt)
 		ts->ref_cnt--;
 	HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->lock);
 }
-/* Just decrease the ref_cnt of the current session. Does nothing if <ts> is NULL */
+/* Just decrease the ref_cnt of the current session. Does nothing if <ts> is NULL.
+ * Note that we still need to take the read lock because a number of other places
+ * (including in Lua and peers) update the ref_cnt non-atomically under the write
+ * lock.
+ */
 static void stktable_release(struct stktable *t, struct stksess *ts)
 {
 	if (!ts)
 		return;
-	HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->lock);
-	ts->ref_cnt--;
-	HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->lock);
+	HA_RWLOCK_RDLOCK(STK_TABLE_LOCK, &t->lock);
+	HA_ATOMIC_DEC(&ts->ref_cnt);
+	HA_RWLOCK_RDUNLOCK(STK_TABLE_LOCK, &t->lock);
 }
 
 /* Insert new sticky session <ts> in the table. It is assumed that it does not
