@@ -82,11 +82,11 @@ struct stktable *stktable_find_by_name(const char *name)
 
 /*
  * Free an allocated sticky session <ts>, and decrease sticky sessions counter
- * in table <t>.
+ * in table <t>. It's safe to call it under or out of a lock.
  */
 void __stksess_free(struct stktable *t, struct stksess *ts)
 {
-	t->current--;
+	HA_ATOMIC_DEC(&t->current);
 	pool_free(t->pool, (void *)ts - round_ptr_size(t->data_size));
 }
 
@@ -260,46 +260,31 @@ int stktable_trash_oldest(struct stktable *t, int to_batch)
  * The new sticky session is returned or NULL in case of lack of memory.
  * Sticky sessions should only be allocated this way, and must be freed using
  * stksess_free(). Table <t>'s sticky session counter is increased. If <key>
- * is not NULL, it is assigned to the new session.
+ * is not NULL, it is assigned to the new session. It must be called unlocked
+ * as it may rely on a lock to trash older entries.
  */
-struct stksess *__stksess_new(struct stktable *t, struct stktable_key *key)
+struct stksess *stksess_new(struct stktable *t, struct stktable_key *key)
 {
 	struct stksess *ts;
+	unsigned int current;
 
-	if (unlikely(t->current == t->size)) {
-		if ( t->nopurge )
-			return NULL;
+	current = HA_ATOMIC_FETCH_ADD(&t->current, 1);
 
-		if (!__stktable_trash_oldest(t, (t->size >> 8) + 1))
+	if (unlikely(current >= t->size)) {
+		/* the table was already full, we may have to purge entries */
+		if (t->nopurge || !stktable_trash_oldest(t, (t->size >> 8) + 1)) {
+			HA_ATOMIC_DEC(&t->current);
 			return NULL;
+		}
 	}
 
 	ts = pool_alloc(t->pool);
 	if (ts) {
-		t->current++;
 		ts = (void *)ts + round_ptr_size(t->data_size);
 		__stksess_init(t, ts);
 		if (key)
 			stksess_setkey(t, ts, key);
 	}
-
-	return ts;
-}
-/*
- * Allocate and initialise a new sticky session.
- * The new sticky session is returned or NULL in case of lack of memory.
- * Sticky sessions should only be allocated this way, and must be freed using
- * stksess_free(). Table <t>'s sticky session counter is increased. If <key>
- * is not NULL, it is assigned to the new session.
- * This function locks the table
- */
-struct stksess *stksess_new(struct stktable *t, struct stktable_key *key)
-{
-	struct stksess *ts;
-
-	HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->lock);
-	ts = __stksess_new(t, key);
-	HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->lock);
 
 	return ts;
 }
@@ -533,18 +518,23 @@ struct stksess *stktable_get_entry(struct stktable *table, struct stktable_key *
 	if (ts)
 		return ts;
 
-	/* No such entry exists, let's try to create a new one. For this we'll
+	/* No such entry exists, let's try to create a new one. this doesn't
+	 * require locking yet.
+	 */
+
+	ts = stksess_new(table, key);
+	if (!ts)
+		return NULL;
+
+	/* Now we're certain to have a ts. We need to store it. For this we'll
 	 * need an exclusive access. We don't need an atomic upgrade, this is
 	 * rare and an unlock+lock sequence will do the job fine. Given that
 	 * this will not be atomic, the missing entry might appear in the mean
 	 * tome so we have to be careful that the one we try to insert is the
 	 * one we find.
 	 */
-	HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &table->lock);
 
-	ts = __stksess_new(table, key);
-	if (!ts)
-		goto end;
+	HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &table->lock);
 
 	ts2 = __stktable_store(table, ts);
 	if (unlikely(ts2 != ts)) {
@@ -556,7 +546,6 @@ struct stksess *stktable_get_entry(struct stktable *table, struct stktable_key *
 	}
 
 	HA_ATOMIC_INC(&ts->ref_cnt);
- end:
 	HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &table->lock);
 
 	return ts;
