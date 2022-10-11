@@ -385,11 +385,16 @@ struct stksess *stktable_lookup(struct stktable *t, struct stksess *ts)
 /* Update the expiration timer for <ts> but do not touch its expiration node.
  * The table's expiration timer is updated if set.
  * The node will be also inserted into the update tree if needed, at a position
- * depending if the update is a local or coming from a remote node
+ * depending if the update is a local or coming from a remote node.
+ * If <decrefcnt> is set, the ts entry's ref_cnt will be decremented. The table's
+ * write lock may be taken.
  */
-void __stktable_touch_with_exp(struct stktable *t, struct stksess *ts, int local, int expire)
+void stktable_touch_with_exp(struct stktable *t, struct stksess *ts, int local, int expire, int decrefcnt)
 {
 	struct eb32_node * eb;
+
+	HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->lock);
+
 	ts->expire = expire;
 	if (t->expire) {
 		t->exp_task->expire = t->exp_next = tick_first(ts->expire, t->exp_next);
@@ -427,6 +432,10 @@ void __stktable_touch_with_exp(struct stktable *t, struct stksess *ts, int local
 			}
 		}
 	}
+
+	if (decrefcnt)
+		ts->ref_cnt--;
+	HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->lock);
 }
 
 /* Update the expiration timer for <ts> but do not touch its expiration node.
@@ -437,11 +446,7 @@ void __stktable_touch_with_exp(struct stktable *t, struct stksess *ts, int local
  */
 void stktable_touch_remote(struct stktable *t, struct stksess *ts, int decrefcnt)
 {
-	HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->lock);
-	__stktable_touch_with_exp(t, ts, 0, ts->expire);
-	if (decrefcnt)
-		ts->ref_cnt--;
-	HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->lock);
+	stktable_touch_with_exp(t, ts, 0, ts->expire, decrefcnt);
 }
 
 /* Update the expiration timer for <ts> but do not touch its expiration node.
@@ -454,11 +459,7 @@ void stktable_touch_local(struct stktable *t, struct stksess *ts, int decrefcnt)
 {
 	int expire = tick_add(now_ms, MS_TO_TICKS(t->expire));
 
-	HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->lock);
-	__stktable_touch_with_exp(t, ts, 1, expire);
-	if (decrefcnt)
-		ts->ref_cnt--;
-	HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->lock);
+	stktable_touch_with_exp(t, ts, 1, expire, decrefcnt);
 }
 /* Just decrease the ref_cnt of the current session. Does nothing if <ts> is NULL.
  * Note that we still need to take the read lock because a number of other places
