@@ -14,6 +14,56 @@
 #include <haproxy/freq_ctr.h>
 #include <haproxy/tools.h>
 
+/* Update a frequency counter by <inc> incremental units. It is automatically
+ * rotated if the period is over. It is important that it correctly initializes
+ * a null area. This one works on frequency counters which have a period
+ * different from one second. It relies on the process-wide clock that is
+ * guaranteed to be monotonic. It's important to avoid forced rotates between
+ * threads. A faster wrapper (update_freq_ctr_period) should be used instead,
+ * which uses the thread's local time whenever possible and falls back to this
+ * one when needed (less than 0.003% of the time).
+ */
+uint update_freq_ctr_period_slow(struct freq_ctr *ctr, uint period, uint inc)
+{
+	uint curr_tick;
+	uint32_t now_ms_tmp;
+
+	/* atomically update the counter if still within the period, even if
+	 * a rotation is in progress (no big deal).
+	 */
+	for (;; __ha_cpu_relax()) {
+		curr_tick  = HA_ATOMIC_LOAD(&ctr->curr_tick);
+		now_ms_tmp = HA_ATOMIC_LOAD(&global_now_ms);
+
+		if (now_ms_tmp - curr_tick < period)
+			return HA_ATOMIC_ADD_FETCH(&ctr->curr_ctr, inc);
+
+		/* a rotation is needed. While extremely rare, contention may
+		 * happen because it will be triggered on time, and all threads
+		 * see the time change simultaneously.
+		 */
+		if (!(curr_tick & 1) &&
+		    HA_ATOMIC_CAS(&ctr->curr_tick, &curr_tick, curr_tick | 0x1))
+			break;
+	}
+
+	/* atomically switch the new period into the old one without losing any
+	 * potential concurrent update. We're the only one performing the rotate
+	 * (locked above), others are only adding positive values to curr_ctr.
+	 */
+	HA_ATOMIC_STORE(&ctr->prev_ctr, HA_ATOMIC_XCHG(&ctr->curr_ctr, inc));
+	curr_tick += period;
+	if (likely(now_ms_tmp - curr_tick >= period)) {
+		/* we missed at least two periods */
+		HA_ATOMIC_STORE(&ctr->prev_ctr, 0);
+		curr_tick = now_ms_tmp;
+	}
+
+	/* release the lock and update the time in case of rotate. */
+	HA_ATOMIC_STORE(&ctr->curr_tick, curr_tick & ~1);
+	return inc;
+}
+
 /* Returns the total number of events over the current + last period, including
  * a number of already pending events <pend>. The average frequency will be
  * obtained by dividing the output by <period>. This is essentially made to

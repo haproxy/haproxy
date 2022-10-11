@@ -30,49 +30,29 @@
 /* exported functions from freq_ctr.c */
 ullong freq_ctr_total(const struct freq_ctr *ctr, uint period, int pend);
 int freq_ctr_overshoot_period(const struct freq_ctr *ctr, uint period, uint freq);
+uint update_freq_ctr_period_slow(struct freq_ctr *ctr, uint period, uint inc);
 
 /* Update a frequency counter by <inc> incremental units. It is automatically
  * rotated if the period is over. It is important that it correctly initializes
- * a null area. This one works on frequency counters which have a period
- * different from one second.
+ * a null area.
  */
-static inline unsigned int update_freq_ctr_period(struct freq_ctr *ctr,
-						  unsigned int period, unsigned int inc)
+static inline uint update_freq_ctr_period(struct freq_ctr *ctr, uint period, uint inc)
 {
-	unsigned int curr_tick;
-	uint32_t now_ms_tmp;
+	uint curr_tick;
 
-	/* atomically update the counter if still within the period, even if
-	 * a rotation is in progress (no big deal).
+	/* our local clock (now_ms) is most of the time strictly equal to
+	 * global_now_ms, and during the edge of the millisecond, global_now_ms
+	 * might have been pushed further by another thread. Given that
+	 * accessing this shared variable is extremely expensive, we first try
+	 * to use our local date, which will be good almost every time. And we
+	 * only switch to the global clock when we're out of the period so as
+	 * to never put a date in the past there.
 	 */
-	for (;; __ha_cpu_relax()) {
-		curr_tick  = HA_ATOMIC_LOAD(&ctr->curr_tick);
-		now_ms_tmp = HA_ATOMIC_LOAD(&global_now_ms);
+	curr_tick  = HA_ATOMIC_LOAD(&ctr->curr_tick);
+	if (likely(now_ms - curr_tick < period))
+		return HA_ATOMIC_ADD_FETCH(&ctr->curr_ctr, inc);
 
-		if (now_ms_tmp - curr_tick < period)
-			return HA_ATOMIC_ADD_FETCH(&ctr->curr_ctr, inc);
-
-		/* a rotation is needed */
-		if (!(curr_tick & 1) &&
-		    HA_ATOMIC_CAS(&ctr->curr_tick, &curr_tick, curr_tick | 0x1))
-			break;
-	}
-
-	/* atomically switch the new period into the old one without losing any
-	 * potential concurrent update. We're the only one performing the rotate
-	 * (locked above), others are only adding positive values to curr_ctr.
-	 */
-	HA_ATOMIC_STORE(&ctr->prev_ctr, HA_ATOMIC_XCHG(&ctr->curr_ctr, inc));
-	curr_tick += period;
-	if (likely(now_ms_tmp - curr_tick >= period)) {
-		/* we missed at least two periods */
-		HA_ATOMIC_STORE(&ctr->prev_ctr, 0);
-		curr_tick = now_ms_tmp;
-	}
-
-	/* release the lock and update the time in case of rotate. */
-	HA_ATOMIC_STORE(&ctr->curr_tick, curr_tick & ~1);
-	return inc;
+	return update_freq_ctr_period_slow(ctr, period, inc);
 }
 
 /* Update a 1-sec frequency counter by <inc> incremental units. It is automatically
