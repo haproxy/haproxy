@@ -532,56 +532,6 @@ static void quic_add_listener(struct protocol *proto, struct listener *listener)
 	default_add_listener(proto, listener);
 }
 
-/* Allocate the TX ring buffers for <l> listener.
- * Return 1 if succeeded, 0 if not.
- */
-static int quic_alloc_tx_rings_listener(struct listener *l)
-{
-	struct qring *qr;
-	int i;
-
-	l->rx.tx_qrings = calloc(global.nbthread, sizeof *l->rx.tx_qrings);
-	if (!l->rx.tx_qrings)
-		return 0;
-
-	MT_LIST_INIT(&l->rx.tx_qring_list);
-	for (i = 0; i < global.nbthread; i++) {
-		unsigned char *buf;
-		struct qring *qr;
-
-		qr = calloc(1, sizeof *qr);
-		if (!qr)
-			goto err;
-
-		buf = pool_alloc(pool_head_quic_tx_ring);
-		if (!buf) {
-			free(qr);
-			goto err;
-		}
-
-		qr->cbuf = cbuf_new(buf, QUIC_TX_RING_BUFSZ);
-		if (!qr->cbuf) {
-			pool_free(pool_head_quic_tx_ring, buf);
-			free(qr);
-			goto err;
-		}
-
-        l->rx.tx_qrings[i] = qr;
-		MT_LIST_APPEND(&l->rx.tx_qring_list, &qr->mt_list);
-	}
-
-	return 1;
-
- err:
-	while ((qr = MT_LIST_POP(&l->rx.tx_qring_list, typeof(qr), mt_list))) {
-		pool_free(pool_head_quic_tx_ring, qr->cbuf->buf);
-		cbuf_free(qr->cbuf);
-		free(qr);
-	}
-	free(l->rx.tx_qrings);
-	return 0;
-}
-
 /* Allocate the RX buffers for <l> listener.
  * Return 1 if succeeded, 0 if not.
  */
@@ -657,8 +607,7 @@ static int quic_bind_listener(struct listener *listener, char *errmsg, int errle
 		goto udp_return;
 	}
 
-	if (!quic_alloc_tx_rings_listener(listener) ||
-	    !quic_alloc_rxbufs_listener(listener)) {
+	if (!quic_alloc_rxbufs_listener(listener)) {
 		msg = "could not initialize tx/rx rings";
 		err |= ERR_WARN;
 		goto udp_return;
