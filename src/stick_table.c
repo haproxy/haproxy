@@ -498,18 +498,23 @@ static void stktable_release(struct stktable *t, struct stksess *ts)
 
 /* Insert new sticky session <ts> in the table. It is assumed that it does not
  * yet exist (the caller must check this). The table's timeout is updated if it
- * is set. <ts> is returned.
+ * is set. <ts> is returned if properly inserted, otherwise the one already
+ * present if any.
  */
-void __stktable_store(struct stktable *t, struct stksess *ts)
+struct stksess *__stktable_store(struct stktable *t, struct stksess *ts)
 {
+	struct ebmb_node *eb;
 
-	ebmb_insert(&t->keys, &ts->key, t->key_size);
-	ts->exp.key = ts->expire;
-	eb32_insert(&t->exps, &ts->exp);
+	eb = ebmb_insert(&t->keys, &ts->key, t->key_size);
+	if (likely(eb == &ts->key)) {
+		ts->exp.key = ts->expire;
+		eb32_insert(&t->exps, &ts->exp);
+	}
 	if (t->expire) {
 		t->exp_task->expire = t->exp_next = tick_first(ts->expire, t->exp_next);
 		task_queue(t->exp_task);
 	}
+	return ebmb_entry(eb, struct stksess, key); // most commonly this is <ts>
 }
 
 /* Returns a valid or initialized stksess for the specified stktable_key in the
