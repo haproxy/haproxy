@@ -1089,8 +1089,53 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 
 	TRACE_ENTER(CHK_EV_TASK_WAKE, check);
 
+	if (check->state & CHK_ST_SLEEPING) {
+		/* This check just restarted. It's still time to verify if
+		 * we're on an overloaded thread or if a more suitable one is
+		 * available. This helps spread the load over the available
+		 * threads, without migrating too often. For this we'll check
+		 * our load, and pick a random thread, check if it has less
+		 * than half of the current thread's load, and if so we'll
+		 * bounce the task there. It's possible because it's not yet
+		 * tied to the current thread. The other thread will not bounce
+		 * the task again because we're removing CHK_ST_SLEEPING.
+		 */
+		uint my_load = HA_ATOMIC_LOAD(&th_ctx->rq_total);
+
+		check->state &= ~CHK_ST_SLEEPING;
+
+		if (my_load >= 2) {
+			uint new_tid  = statistical_prng_range(global.nbthread);
+			uint new_load = HA_ATOMIC_LOAD(&ha_thread_ctx[new_tid].rq_total);
+
+			if (new_load <= my_load / 2) {
+				/* Found one. Let's migrate the task over there. We have to
+				 * remove it from the WQ first and kill its expire time
+				 * otherwise the scheduler will reinsert it and trigger a
+				 * BUG_ON() as we're not allowed to call task_queue() for a
+				 * foreign thread. The recipient will restore the expiration.
+				 */
+				task_unlink_wq(t);
+				t->expire = TICK_ETERNITY;
+				task_set_thread(t, new_tid);
+				task_wakeup(t, TASK_WOKEN_MSG);
+				TRACE_LEAVE(CHK_EV_TASK_WAKE, check);
+				return t;
+			}
+		}
+	}
+
 	if (check->server)
 		HA_SPIN_LOCK(SERVER_LOCK, &check->server->lock);
+
+	if (!(check->state & (CHK_ST_INPROGRESS|CHK_ST_IN_ALLOC|CHK_ST_OUT_ALLOC))) {
+		/* This task might have bounced from another overloaded thread, it
+		 * needs an expiration timer that was supposed to be now, but that
+		 * was erased during the bounce.
+		 */
+		if (!tick_isset(t->expire))
+			t->expire = now_ms;
+	}
 
 	if (unlikely(check->state & CHK_ST_PURGE)) {
 		TRACE_STATE("health-check state to purge", CHK_EV_TASK_WAKE, check);
@@ -1217,10 +1262,10 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
         if (LIST_INLIST(&check->buf_wait.list))
                 LIST_DEL_INIT(&check->buf_wait.list);
 
-	task_set_thread(t, -1);
 	check_release_buf(check, &check->bi);
 	check_release_buf(check, &check->bo);
 	check->state &= ~(CHK_ST_INPROGRESS|CHK_ST_IN_ALLOC|CHK_ST_OUT_ALLOC);
+	check->state |= CHK_ST_SLEEPING;
 
 	if (check->server) {
 		rv = 0;
