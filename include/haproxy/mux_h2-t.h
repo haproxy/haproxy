@@ -42,12 +42,12 @@
 #define H2_CF_DEM_DALLOC        0x00000004  // demux blocked on lack of connection's demux buffer
 #define H2_CF_DEM_DFULL         0x00000008  // demux blocked on connection's demux buffer full
 
-#define H2_CF_DEM_MBUSY         0x00000010  // demux blocked on connection's mux side busy
+/* 0x00000010  unused */
 #define H2_CF_DEM_MROOM         0x00000020  // demux blocked on lack of room in mux buffer
 #define H2_CF_DEM_SALLOC        0x00000040  // demux blocked on lack of stream's request buffer
 #define H2_CF_DEM_SFULL         0x00000080  // demux blocked on stream request buffer full
 #define H2_CF_DEM_TOOMANY       0x00000100  // demux blocked waiting for some stream connectors to leave
-#define H2_CF_DEM_BLOCK_ANY     0x000001F0  // aggregate of the demux flags above except DALLOC/DFULL
+#define H2_CF_DEM_BLOCK_ANY     0x000001E0  // aggregate of the demux flags above except DALLOC/DFULL
                                             // (SHORT_READ is also excluded)
 
 #define H2_CF_DEM_SHORT_READ    0x00000200  // demux blocked on incomplete frame
@@ -80,13 +80,13 @@ static forceinline char *h2c_show_flags(char *buf, size_t len, const char *delim
 	_(0);
 	/* flags */
 	_(H2_CF_MUX_MALLOC, _(H2_CF_MUX_MFULL, _(H2_CF_DEM_DALLOC,
-	_(H2_CF_DEM_DFULL, _(H2_CF_DEM_MBUSY, _(H2_CF_DEM_MROOM,
+	_(H2_CF_DEM_DFULL, _(H2_CF_DEM_MROOM,
 	_(H2_CF_DEM_SALLOC, _(H2_CF_DEM_SFULL, _(H2_CF_DEM_TOOMANY,
 	_(H2_CF_DEM_SHORT_READ, _(H2_CF_DEM_IN_PROGRESS, _(H2_CF_GOAWAY_SENT,
 	_(H2_CF_GOAWAY_FAILED, _(H2_CF_WAIT_FOR_HS, _(H2_CF_IS_BACK,
 	_(H2_CF_WINDOW_OPENED, _(H2_CF_RCVD_SHUT, _(H2_CF_END_REACHED,
 	_(H2_CF_RCVD_RFC8441, _(H2_CF_SHTS_UPDATED, _(H2_CF_DTSU_EMITTED,
-	_(H2_CF_ERR_PENDING, _(H2_CF_ERROR)))))))))))))))))))))));
+	_(H2_CF_ERR_PENDING, _(H2_CF_ERROR))))))))))))))))))))));
 	/* epilogue */
 	_(~0U);
 	return buf;
