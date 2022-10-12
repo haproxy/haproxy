@@ -1226,7 +1226,7 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 		rv = 0;
 		if (global.spread_checks > 0) {
 			rv = srv_getinter(check) * global.spread_checks / 100;
-			rv -= (int) (2 * rv * (ha_random32() / 4294967295.0));
+			rv -= (int) (2 * rv * (statistical_prng() / 4294967295.0));
 		}
 		t->expire = tick_add(now_ms, MS_TO_TICKS(srv_getinter(check) + rv));
 	}
