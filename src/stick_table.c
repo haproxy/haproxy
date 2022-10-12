@@ -510,11 +510,18 @@ struct stksess *__stktable_store(struct stktable *t, struct stksess *ts)
 		ts->exp.key = ts->expire;
 		eb32_insert(&t->exps, &ts->exp);
 	}
-	if (t->expire) {
-		t->exp_task->expire = t->exp_next = tick_first(ts->expire, t->exp_next);
-		task_queue(t->exp_task);
-	}
 	return ebmb_entry(eb, struct stksess, key); // most commonly this is <ts>
+}
+
+/* requeues the table's expiration task to take the recently added <ts> into
+ * account. This is performed atomically and doesn't require any lock.
+ */
+static void stktable_requeue_exp(struct stktable *t, const struct stksess *ts)
+{
+	if (!t->expire)
+		return;
+	t->exp_task->expire = t->exp_next = tick_first(ts->expire, t->exp_next);
+	task_queue(t->exp_task);
 }
 
 /* Returns a valid or initialized stksess for the specified stktable_key in the
@@ -560,6 +567,7 @@ struct stksess *stktable_get_entry(struct stktable *table, struct stktable_key *
 		ts = ts2;
 	}
 
+	stktable_requeue_exp(table, ts);
 	HA_ATOMIC_INC(&ts->ref_cnt);
 	HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &table->lock);
 
@@ -597,6 +605,7 @@ struct stksess *stktable_set_entry(struct stktable *table, struct stksess *nts)
 	/* now we're write-locked */
 
 	__stktable_store(table, ts);
+	stktable_requeue_exp(table, ts);
 	HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &table->lock);
 	return ts;
 }
