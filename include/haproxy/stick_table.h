@@ -50,6 +50,7 @@ int parse_stick_table(const char *file, int linenum, char **args,
                       struct stktable *t, char *id, char *nid, struct peers *peers);
 struct stksess *stktable_get_entry(struct stktable *table, struct stktable_key *key);
 struct stksess *stktable_set_entry(struct stktable *table, struct stksess *nts);
+void stktable_requeue_exp(struct stktable *t, const struct stksess *ts);
 void stktable_touch_with_exp(struct stktable *t, struct stksess *ts, int decrefcount, int expire, int decrefcnt);
 void stktable_touch_remote(struct stktable *t, struct stksess *ts, int decrefcnt);
 void stktable_touch_local(struct stktable *t, struct stksess *ts, int decrefccount);

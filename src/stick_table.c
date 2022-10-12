@@ -378,32 +378,11 @@ void stktable_touch_with_exp(struct stktable *t, struct stksess *ts, int local, 
 {
 	struct eb32_node * eb;
 	int locked = 0;
-	int old_exp, new_exp;
 
 	if (expire != HA_ATOMIC_LOAD(&ts->expire)) {
 		/* we'll need to set the expiration and to wake up the expiration timer .*/
 		HA_ATOMIC_STORE(&ts->expire, expire);
-		if (t->expire) {
-			/* set both t->exp_next and the task's expire to the newest
-			 * expiration date.
-			 */
-			old_exp = HA_ATOMIC_LOAD(&t->exp_next);
-			do {
-				new_exp = tick_first(expire, old_exp);
-			} while (new_exp != old_exp &&
-				 !HA_ATOMIC_CAS(&t->exp_next, &old_exp, new_exp) &&
-				 __ha_cpu_relax());
-
-			old_exp = HA_ATOMIC_LOAD(&t->exp_task->expire);
-			do {
-				new_exp = HA_ATOMIC_LOAD(&t->exp_next);
-			} while (new_exp != old_exp &&
-				 !HA_ATOMIC_CAS(&t->exp_task->expire, &old_exp, new_exp) &&
-				 __ha_cpu_relax());
-
-			task_queue(t->exp_task);
-			/* keep the lock */
-		}
+		stktable_requeue_exp(t, ts);
 	}
 
 	/* If sync is enabled */
@@ -516,11 +495,31 @@ struct stksess *__stktable_store(struct stktable *t, struct stksess *ts)
 /* requeues the table's expiration task to take the recently added <ts> into
  * account. This is performed atomically and doesn't require any lock.
  */
-static void stktable_requeue_exp(struct stktable *t, const struct stksess *ts)
+void stktable_requeue_exp(struct stktable *t, const struct stksess *ts)
 {
+	int old_exp, new_exp;
+	int expire = ts->expire;
+
 	if (!t->expire)
 		return;
-	t->exp_task->expire = t->exp_next = tick_first(ts->expire, t->exp_next);
+
+	/* set both t->exp_next and the task's expire to the newest
+	 * expiration date.
+	 */
+	old_exp = HA_ATOMIC_LOAD(&t->exp_next);
+	do {
+		new_exp = tick_first(expire, old_exp);
+	} while (new_exp != old_exp &&
+		 !HA_ATOMIC_CAS(&t->exp_next, &old_exp, new_exp) &&
+		 __ha_cpu_relax());
+
+	old_exp = HA_ATOMIC_LOAD(&t->exp_task->expire);
+	do {
+		new_exp = HA_ATOMIC_LOAD(&t->exp_next);
+	} while (new_exp != old_exp &&
+		 !HA_ATOMIC_CAS(&t->exp_task->expire, &old_exp, new_exp) &&
+		 __ha_cpu_relax());
+
 	task_queue(t->exp_task);
 }
 
