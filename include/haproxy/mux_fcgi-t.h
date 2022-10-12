@@ -54,6 +54,11 @@
 #define FCGI_CF_KEEP_CONN       0x00001000  /* HAProxy is responsible to close the connection */
 #define FCGI_CF_GET_VALUES      0x00002000  /* retrieve settings */
 
+#define FCGI_CF_EOS             0x00004000  /* End-of-stream seen on the H1 connection (read0 detected) */
+#define FCGI_CF_ERR_PENDING     0x00008000  /* A write error was detected (block sends but not reads) */
+#define FCGI_CF_ERROR           0x00010000  /* A read error was detected (handled has an abort) */
+
+
 /* This function is used to report flags in debugging tools. Please reflect
  * below any single-bit flag addition above in the same order via the
  * __APPEND_FLAG macro. The new end of the buffer is returned.
@@ -68,7 +73,8 @@ static forceinline char *fconn_show_flags(char *buf, size_t len, const char *del
 	_(FCGI_CF_DEM_DALLOC, _(FCGI_CF_DEM_DFULL, _(FCGI_CF_DEM_MROOM,
 	_(FCGI_CF_DEM_SALLOC, _(FCGI_CF_DEM_SFULL, _(FCGI_CF_DEM_TOOMANY,
 	_(FCGI_CF_MPXS_CONNS, _(FCGI_CF_ABRTS_SENT, _(FCGI_CF_ABRTS_FAILED,
-	_(FCGI_CF_WAIT_FOR_HS, _(FCGI_CF_KEEP_CONN, _(FCGI_CF_GET_VALUES))))))))))))));
+	_(FCGI_CF_WAIT_FOR_HS, _(FCGI_CF_KEEP_CONN, _(FCGI_CF_GET_VALUES,
+	_(FCGI_CF_EOS, _(FCGI_CF_ERR_PENDING, _(FCGI_CF_ERROR)))))))))))))))));
 	/* epilogue */
 	_(~0U);
 	return buf;
