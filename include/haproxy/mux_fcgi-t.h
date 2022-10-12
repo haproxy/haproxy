@@ -23,6 +23,7 @@
 #define _HAPROXY_MUX_FCGI_T_H
 
 #include <haproxy/api-t.h>
+#include <haproxy/show_flags-t.h>
 
 /**** FCGI connection flags (32 bit), in fcgi_conn->flags ****/
 #define FCGI_CF_NONE           0x00000000
@@ -53,6 +54,27 @@
 #define FCGI_CF_KEEP_CONN       0x00001000  /* HAProxy is responsible to close the connection */
 #define FCGI_CF_GET_VALUES      0x00002000  /* retrieve settings */
 
+/* This function is used to report flags in debugging tools. Please reflect
+ * below any single-bit flag addition above in the same order via the
+ * __APPEND_FLAG macro. The new end of the buffer is returned.
+ */
+static forceinline char *fconn_show_flags(char *buf, size_t len, const char *delim, uint flg)
+{
+#define _(f, ...) __APPEND_FLAG(buf, len, delim, flg, f, #f, __VA_ARGS__)
+	/* prologue */
+	_(0);
+	/* flags */
+	_(FCGI_CF_MUX_MALLOC, _(FCGI_CF_MUX_MFULL,
+	_(FCGI_CF_DEM_DALLOC, _(FCGI_CF_DEM_DFULL, _(FCGI_CF_DEM_MROOM,
+	_(FCGI_CF_DEM_SALLOC, _(FCGI_CF_DEM_SFULL, _(FCGI_CF_DEM_TOOMANY,
+	_(FCGI_CF_MPXS_CONNS, _(FCGI_CF_ABRTS_SENT, _(FCGI_CF_ABRTS_FAILED,
+	_(FCGI_CF_WAIT_FOR_HS, _(FCGI_CF_KEEP_CONN, _(FCGI_CF_GET_VALUES))))))))))))));
+	/* epilogue */
+	_(~0U);
+	return buf;
+#undef _
+}
+
 /**** FCGI stream flags (32 bit), in fcgi_strm->flags ****/
 #define FCGI_SF_NONE           0x00000000
 #define FCGI_SF_ES_RCVD        0x00000001 /* end-of-stream received (empty STDOUT or EDN_REQUEST record) */
@@ -71,6 +93,26 @@
 
 #define FCGI_SF_WANT_SHUTR     0x00001000  /* a stream couldn't shutr() (mux full/busy) */
 #define FCGI_SF_WANT_SHUTW     0x00002000  /* a stream couldn't shutw() (mux full/busy) */
+
+/* This function is used to report flags in debugging tools. Please reflect
+ * below any single-bit flag addition above in the same order via the
+ * __APPEND_FLAG macro. The new end of the buffer is returned.
+ */
+static forceinline char *fstrm_show_flags(char *buf, size_t len, const char *delim, uint flg)
+{
+#define _(f, ...) __APPEND_FLAG(buf, len, delim, flg, f, #f, __VA_ARGS__)
+	/* prologue */
+	_(0);
+	/* flags */
+	_(FCGI_SF_ES_RCVD, _(FCGI_SF_ES_SENT, _(FCGI_SF_EP_SENT, _(FCGI_SF_ABRT_SENT,
+	_(FCGI_SF_BLK_MBUSY, _(FCGI_SF_BLK_MROOM,
+	_(FCGI_SF_BEGIN_SENT, _(FCGI_SF_OUTGOING_DATA, _(FCGI_SF_NOTIFIED,
+	_(FCGI_SF_WANT_SHUTR, _(FCGI_SF_WANT_SHUTW)))))))))));
+	/* epilogue */
+	_(~0U);
+	return buf;
+#undef _
+}
 
 /* FCGI connection state (fcgi_conn->state) */
 enum fcgi_conn_st {
