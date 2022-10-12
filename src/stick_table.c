@@ -699,7 +699,7 @@ int stktable_init(struct stktable *t)
 		t->keys = EB_ROOT_UNIQUE;
 		memset(&t->exps, 0, sizeof(t->exps));
 		t->updates = EB_ROOT_UNIQUE;
-		HA_SPIN_INIT(&t->lock);
+		HA_RWLOCK_INIT(&t->lock);
 
 		t->pool = create_pool("sticktables", sizeof(struct stksess) + round_ptr_size(t->data_size) + t->key_size, MEM_F_SHARED);
 
