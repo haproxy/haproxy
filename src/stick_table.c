@@ -566,10 +566,10 @@ struct stksess *stktable_get_entry(struct stktable *table, struct stktable_key *
 		ts = ts2;
 	}
 
-	stktable_requeue_exp(table, ts);
 	HA_ATOMIC_INC(&ts->ref_cnt);
 	HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &table->lock);
 
+	stktable_requeue_exp(table, ts);
 	return ts;
 }
 
@@ -604,8 +604,9 @@ struct stksess *stktable_set_entry(struct stktable *table, struct stksess *nts)
 	/* now we're write-locked */
 
 	__stktable_store(table, ts);
-	stktable_requeue_exp(table, ts);
 	HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &table->lock);
+
+	stktable_requeue_exp(table, ts);
 	return ts;
 }
 
