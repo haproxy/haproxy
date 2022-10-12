@@ -552,35 +552,40 @@ struct stksess *stktable_get_entry(struct stktable *table, struct stktable_key *
 }
 
 /* Lookup for an entry with the same key and store the submitted
- * stksess if not found.
- */
-struct stksess *__stktable_set_entry(struct stktable *table, struct stksess *nts)
-{
-	struct stksess *ts;
-
-	ts = __stktable_lookup(table, nts);
-	if (ts == NULL) {
-		ts = nts;
-		__stktable_store(table, ts);
-	}
-	return ts;
-}
-
-/* Lookup for an entry with the same key and store the submitted
- * stksess if not found.
- * This function locks the table, and the refcount of the entry is increased.
+ * stksess if not found. This function locks the table either shared or
+ * exclusively, and the refcount of the entry is increased.
  */
 struct stksess *stktable_set_entry(struct stktable *table, struct stksess *nts)
 {
 	struct stksess *ts;
 
-	HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &table->lock);
-	ts = __stktable_set_entry(table, nts);
-	ts->ref_cnt++;
-	HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &table->lock);
+	HA_RWLOCK_RDLOCK(STK_TABLE_LOCK, &table->lock);
+	ts = __stktable_lookup(table, nts);
+	if (ts) {
+		HA_ATOMIC_INC(&ts->ref_cnt);
+		HA_RWLOCK_RDUNLOCK(STK_TABLE_LOCK, &table->lock);
+		return ts;
+	}
+	ts = nts;
 
+	/* let's increment it before switching to exclusive */
+	HA_ATOMIC_INC(&ts->ref_cnt);
+
+	if (HA_RWLOCK_TRYRDTOSK(STK_TABLE_LOCK, &table->lock) != 0) {
+		/* upgrade to seek lock failed, let's drop and take */
+		HA_RWLOCK_RDUNLOCK(STK_TABLE_LOCK, &table->lock);
+		HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &table->lock);
+	}
+	else
+		HA_RWLOCK_SKTOWR(STK_TABLE_LOCK, &table->lock);
+
+	/* now we're write-locked */
+
+	__stktable_store(table, ts);
+	HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &table->lock);
 	return ts;
 }
+
 /*
  * Trash expired sticky sessions from table <t>. The next expiration date is
  * returned.
