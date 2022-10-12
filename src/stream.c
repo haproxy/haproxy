@@ -1424,24 +1424,25 @@ static int process_store_rules(struct stream *s, struct channel *rep, int an_bit
 		}
 		s->store[i].ts = NULL;
 
-		HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
-		ptr = __stktable_data_ptr(t, ts, STKTABLE_DT_SERVER_ID);
-		stktable_data_cast(ptr, std_t_sint) = __objt_server(s->target)->puid;
-		HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
-
 		if (t->server_key_type == STKTABLE_SRV_NAME)
 			key = __objt_server(s->target)->id;
 		else if (t->server_key_type == STKTABLE_SRV_ADDR)
 			key = __objt_server(s->target)->addr_node.key;
 		else
-			continue;
+			key = NULL;
 
 		HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
-		de = dict_insert(&server_key_dict, key);
-		if (de) {
-			ptr = __stktable_data_ptr(t, ts, STKTABLE_DT_SERVER_KEY);
-			stktable_data_cast(ptr, std_t_dict) = de;
+		ptr = __stktable_data_ptr(t, ts, STKTABLE_DT_SERVER_ID);
+		stktable_data_cast(ptr, std_t_sint) = __objt_server(s->target)->puid;
+
+		if (key) {
+			de = dict_insert(&server_key_dict, key);
+			if (de) {
+				ptr = __stktable_data_ptr(t, ts, STKTABLE_DT_SERVER_KEY);
+				stktable_data_cast(ptr, std_t_dict) = de;
+			}
 		}
+
 		HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
 
 		stktable_touch_local(t, ts, 1);
