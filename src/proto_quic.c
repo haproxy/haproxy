@@ -540,10 +540,6 @@ static int quic_alloc_rxbufs_listener(struct listener *l)
 	int i;
 	struct rxbuf *rxbuf;
 
-	l->rx.rxbufs = calloc(global.nbthread, sizeof *l->rx.rxbufs);
-	if (!l->rx.rxbufs)
-		return 0;
-
 	MT_LIST_INIT(&l->rx.rxbuf_list);
 	for (i = 0; i < global.nbthread; i++) {
 		char *buf;
@@ -559,8 +555,6 @@ static int quic_alloc_rxbufs_listener(struct listener *l)
 			goto err;
 		}
 
-		l->rx.rxbufs[i] = rxbuf;
-
 		rxbuf->buf = b_make(buf, QUIC_RX_BUFSZ, 0, 0);
 		LIST_INIT(&rxbuf->dgrams);
 		MT_LIST_APPEND(&l->rx.rxbuf_list, &rxbuf->mt_list);
@@ -573,7 +567,6 @@ static int quic_alloc_rxbufs_listener(struct listener *l)
 		pool_free(pool_head_quic_rxbuf, rxbuf->buf.area);
 		free(rxbuf);
 	}
-	free(l->rx.rxbufs);
 	return 0;
 }
 

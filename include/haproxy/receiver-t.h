@@ -65,7 +65,6 @@ struct receiver {
 	struct rx_settings *settings;    /* points to the settings used by this receiver */
 	struct list proto_list;          /* list in the protocol header */
 #ifdef USE_QUIC
-	struct rxbuf **rxbufs;           /* Array of buffers for RX (one by thread) */
 	struct mt_list rxbuf_list;       /* The same as ->rxbufs but arranged in a list */
 #endif
 	/* warning: this struct is huge, keep it at the bottom */
