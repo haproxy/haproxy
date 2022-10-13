@@ -246,6 +246,7 @@ static int quic_lstnr_dgram_dispatch(unsigned char *buf, size_t len, void *owner
                                      struct quic_dgram *new_dgram, struct list *dgrams)
 {
 	struct quic_dgram *dgram;
+	const struct listener *l = owner;
 	unsigned char *dcid;
 	size_t dcid_len;
 	int cid_tid;
@@ -257,7 +258,7 @@ static int quic_lstnr_dgram_dispatch(unsigned char *buf, size_t len, void *owner
 	if (!dgram)
 		goto err;
 
-	cid_tid = quic_get_cid_tid(dcid);
+	cid_tid = quic_get_cid_tid(dcid, l->bind_conf);
 
 	/* All the members must be initialized! */
 	dgram->owner = owner;
