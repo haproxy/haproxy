@@ -154,7 +154,7 @@ Core class
 .. js:class:: core
 
    The "core" class contains all the HAProxy core functions. These function are
-   useful for the controlling the execution flow, registering hooks, manipulating
+   useful for the controlling of the execution flow, registering hooks, manipulating
    global maps or ACL, ...
 
    "core" class is basically provided with HAProxy. No `require` line is
@@ -220,8 +220,8 @@ Core class
   indexed by proxy name, and each entry is of type :ref:`proxy_class`.
 
   .. Warning::
-     if you are declared frontend and backend with the same name, only one of
-     these are listed.
+     if you declared a frontend and backend with the same name, only one of
+     them will be listed.
 
   :see: :js:attr:`core.backends`
   :see: :js:attr:`core.frontends`
@@ -368,10 +368,10 @@ Core class
 
   **context**: body, init, task, action, sample-fetch, converter
 
-  Returns HAProxy core information. We can found information like the uptime,
+  Returns HAProxy core information. We can find information like the uptime,
   the pid, memory pool usage, tasks number, ...
 
-  These information are also returned by the management socket via the command
+  These informations are also returned by the management socket via the command
   "show info". See the management socket documentation for more information
   about the content of these variables.
 
@@ -492,9 +492,9 @@ Core class
   :param table actions: is a table of string describing the HAProxy actions who
                         want to register to. The expected actions are 'tcp-req',
                         'tcp-res', 'http-req' or 'http-res'.
+  :param function func: is the Lua function called to work as converter.
   :param integer nb_args: is the expected number of argument for the action.
                           By default the value is 0.
-  :param function func: is the Lua function called to work as converter.
 
   The prototype of the Lua function used as argument is:
 
@@ -549,14 +549,15 @@ Core class
     mode tcp
     tcp-request content lua.hello-world everybody
 ..
+
 .. js:function:: core.register_converters(name, func)
 
   **context**: body
 
   Register a Lua function executed as converter. All the registered converters
-  can be used in HAProxy with the prefix "lua.". An converter get a string as
-  input and return a string as output. The registered function can take up to 9
-  values as parameter. All the value are strings.
+  can be used in HAProxy with the prefix "lua.". A converter gets a string as
+  input and returns a string as output. The registered function can take up to 9
+  values as parameter. All the values are strings.
 
   :param string name: is the name of the converter.
   :param function func: is the Lua function called to work as converter.
@@ -572,7 +573,7 @@ Core class
     string.
   * **p1** .. **p5** (*string*): this is a list of string arguments declared in
     the HAProxy configuration file. The number of arguments doesn't exceed 5.
-    The order and the nature of these is conventionally choose by the
+    The order and the nature of these is conventionally chosen by the
     developer.
 
 .. js:function:: core.register_fetches(name, func)
@@ -581,10 +582,10 @@ Core class
 
   Register a Lua function executed as sample fetch. All the registered sample
   fetch can be used in HAProxy with the prefix "lua.". A Lua sample fetch
-  return a string as output. The registered function can take up to 9 values as
-  parameter. All the value are strings.
+  returns a string as output. The registered function can take up to 9 values as
+  parameter. All the values are strings.
 
-  :param string name: is the name of the converter.
+  :param string name: is the name of the sample fetch.
   :param function func: is the Lua function called to work as sample fetch.
 
   The prototype of the Lua function used as argument is:
@@ -598,7 +599,7 @@ Core class
     request.
   * **p1** .. **p5** (*string*): this is a list of string arguments declared in
     the HAProxy configuration file. The number of arguments doesn't exceed 5.
-    The order and the nature of these is conventionally choose by the
+    The order and the nature of these is conventionally chosen by the
     developer.
   * **Returns**: A string containing some data, or nil if the value cannot be
     returned now.
@@ -670,14 +671,14 @@ Core class
 
   **context**: body
 
-  Register a Lua function executed as a service. All the registered service can
+  Register a Lua function executed as a service. All the registered services can
   be used in HAProxy with the prefix "lua.". A service gets an object class as
   input according with the required mode.
 
-  :param string name: is the name of the converter.
+  :param string name: is the name of the service.
   :param string mode: is string describing the required mode. Only 'tcp' or
                       'http' are allowed.
-  :param function func: is the Lua function called to work as converter.
+  :param function func: is the Lua function called to work as service.
 
   The prototype of the Lua function used as argument is:
 
@@ -695,7 +696,7 @@ Core class
   .. warning::
      Applets of type 'http' cannot be called from 'tcp-*' rulesets. Only the
      'http-*' rulesets are authorized, this means that is not possible to call
-     an HTTP applet from a proxy in tcp mode. Applets of type 'tcp' can be
+     a HTTP applet from a proxy in tcp mode. Applets of type 'tcp' can be
      called from anywhere.
 
   Here, an example of service registration. The service just send an 'Hello world'
@@ -761,9 +762,7 @@ Core class
 
   **context**: body
 
-  Register and start independent task. The task is started when the HAProxy
-  main scheduler starts. For example this type of tasks can be executed to
-  perform complex health checks.
+  Register a custom cli that will be available from haproxy stats socket.
 
   :param array path: is the sequence of word for which the cli execute the Lua
     binding.
@@ -1232,14 +1231,15 @@ Concat class
 ..
 
   For each concatenation, Lua:
-  * allocate memory for the result,
-  * catenate the two string copying the strings in the new memory block,
-  * free the old memory block containing the string which is no longer used.
+  - allocates memory for the result,
+  - catenates the two string copying the strings in the new memory block,
+  - frees the old memory block containing the string which is no longer used.
+
   This process does many memory move, allocation and free. In addition, the
-  memory is not really freed, it is just mark mark as unused and wait for the
+  memory is not really freed, it is just marked as unused and waits for the
   garbage collector.
 
-  The Concat class provide an alternative way to concatenate strings. It uses
+  The Concat class provides an alternative way to concatenate strings. It uses
   the internal Lua mechanism (it does not allocate memory), but it doesn't copy
   the data more than once.
 
@@ -1292,8 +1292,8 @@ Fetches class
 .. js:class:: Fetches
 
   This class contains a lot of internal HAProxy sample fetches. See the
-  HAProxy "configuration.txt" documentation for more information about her
-  usage. They are the chapters 7.3.2 to 7.3.6.
+  HAProxy "configuration.txt" documentation for more information.
+  (chapters 7.3.2 to 7.3.6)
 
   .. warning::
      some sample fetches are not available in some context. These limitations
@@ -1302,17 +1302,17 @@ Fetches class
   :see: :js:attr:`TXN.f`
   :see: :js:attr:`TXN.sf`
 
-  Fetches are useful for:
+  Fetches are useful to:
 
   * get system time,
   * get environment variable,
   * get random numbers,
-  * known backend status like the number of users in queue or the number of
+  * know backend status like the number of users in queue or the number of
     connections established,
-  * client information like ip source or destination,
+  * get client information like ip source or destination,
   * deal with stick tables,
-  * Established SSL information,
-  * HTTP information like headers or method.
+  * fetch established SSL information,
+  * fetch HTTP information like headers or method.
 
 .. code-block:: lua
 
@@ -1336,13 +1336,13 @@ Converters class
   :see: :js:attr:`TXN.c`
   :see: :js:attr:`TXN.sc`
 
-  Converters provides statefull transformation. They are useful for:
+  Converters provides stateful transformation. They are useful to:
 
-  * converting input to base64,
-  * applying hash on input string (djb2, crc32, sdbm, wt6),
+  * convert input to base64,
+  * apply hash on input string (djb2, crc32, sdbm, wt6),
   * format date,
   * json escape,
-  * extracting preferred language comparing two lists,
+  * extract preferred language comparing two lists,
   * turn to lower or upper chars,
   * deal with stick tables.
 
@@ -1377,7 +1377,7 @@ Channel class
     It is forbidden to alter the Channels buffer from HTTP contexts.  So only
     :js:func:`Channel.input`, :js:func:`Channel.output`,
     :js:func:`Channel.may_recv`, :js:func:`Channel.is_full` and
-    :js:func:`Channel.is_resp` can be called from an HTTP conetext.
+    :js:func:`Channel.is_resp` can be called from a HTTP context.
 
   All the functions provided by this class are available in the
   **sample-fetches**, **actions** and **filters** contexts. For **filters**,
@@ -1394,7 +1394,7 @@ Channel class
   Same that :js:func:`Channel.insert(channel, string, channel:input())`.
 
   :param class_channel channel: The manipulated Channel.
-  :param string string: The data to copied into incoming data.
+  :param string string: The data to copy at the end of incoming data.
   :returns: an integer containing the amount of bytes copied or -1.
 
 .. js:function:: Channel.data(channel [, offset [, length]])
@@ -1407,9 +1407,9 @@ Channel class
   given offset, are returned. If **length** is set to -1, the function tries to
   retrieve a maximum of data and, if called by an action, it yields if
   necessary. It also waits for more data if the requested length exceeds the
-  available amount of incoming data. Do not providing an offset is the same that
+  available amount of incoming data. Not providing an offset is the same as
   setting it to 0. A positive offset is relative to the beginning of incoming
-  data of the channel buffer while negative offset is relative to their end.
+  data of the channel buffer while negative offset is relative to the end.
 
   If there is no incoming data and the channel can't receive more data, a 'nil'
   value is returned.
@@ -1452,8 +1452,8 @@ Channel class
   of the channel buffer while negative offset is relative to their end.
 
   :param class_channel channel: The manipulated Channel.
-  :param string string: The data to copied into incoming data.
-  :param integer offset: *optional* The offset in incomding data where to copied
+  :param string string: The data to copy into incoming data.
+  :param integer offset: *optional* The offset in incoming data where to copy
                          data. 0 by default. May be negative to be relative to
                          the end of incoming data.
   :returns: an integer containing the amount of bytes copied or -1.
@@ -1483,15 +1483,15 @@ Channel class
   offset, are evaluated. If **length** is set to -1, the function tries to
   retrieve a maximum of data and, if called by an action, yields if
   necessary. It also waits for more data if the requested length exceeds the
-  available amount of incoming data. Do not providing an offset is the same that
+  available amount of incoming data. Not providing an offset is the same as
   setting it to 0. A positive offset is relative to the beginning of incoming
-  data of the channel buffer while negative offset is relative to their end.
+  data of the channel buffer while negative offset is relative to the end.
 
   If there is no incoming data and the channel can't receive more data, a 'nil'
   value is returned.
 
   :param class_channel channel: The manipulated Channel.
-  :param integer offset: *optional* The offset in incomding data to start to
+  :param integer offset: *optional* The offset in incoming data to start to
                          parse data. 0 by default. May be negative to be
                          relative to the end of incoming data.
   :param integer length: *optional* The length of data to parse. All incoming
@@ -1523,7 +1523,7 @@ Channel class
   Same that :js:func:`Channel.insert(channel, string, 0)`.
 
   :param class_channel channel: The manipulated Channel.
-  :param string string: The data to copied into incoming data.
+  :param string string: The data to copy in front of incoming data.
   :returns: an integer containing the amount of bytes copied or -1.
 
 .. js:function:: Channel.remove(channel [, offset [, length]])
@@ -1533,12 +1533,12 @@ Channel class
   on success.
 
   By default, if no length is provided, all incoming data, starting at the given
-  offset, are removed. Do not providing an offset is the same that setting it
+  offset, are removed. Not providing an offset is the same as setting it
   to 0. A positive offset is relative to the beginning of incoming data of the
-  channel buffer while negative offset is relative to their end.
+  channel buffer while negative offset is relative to the end.
 
   :param class_channel channel: The manipulated Channel.
-  :param integer offset: *optional* The offset in incomding data where to start
+  :param integer offset: *optional* The offset in incoming data where to start
                          to remove data. 0 by default. May be negative to
                          be relative to the end of incoming data.
   :param integer length: *optional* The length of data to remove. All incoming
@@ -1550,7 +1550,7 @@ Channel class
   This function requires immediate send of the string **string**. It means the
   string is copied at the beginning of incoming data of the channel buffer and
   immediately forwarded. Unless if the connection is close, and if called by an
-  action, this function yields to copied and forward all the string.
+  action, this function yields to copy and forward all the string.
 
   :param class_channel channel: The manipulated Channel.
   :param string string: The data to send.
@@ -1558,18 +1558,18 @@ Channel class
 
 .. js:function:: Channel.set(channel, string [, offset [, length]])
 
-  This function replace **length** bytes of incoming data of the channel buffer,
+  This function replaces **length** bytes of incoming data of the channel buffer,
   starting at offset **offset**, by the string **string**. The function returns
   the copied length on success or -1 if data cannot be copied.
 
   By default, if no length is provided, all incoming data, starting at the given
-  offset, are replaced. Do not providing an offset is the same that setting it
+  offset, are replaced. Not providing an offset is the same as setting it
   to 0. A positive offset is relative to the beginning of incoming data of the
-  channel buffer while negative offset is relative to their end.
+  channel buffer while negative offset is relative to the end.
 
   :param class_channel channel: The manipulated Channel.
-  :param string string: The data to copied into incoming data.
-  :param integer offset: *optional* The offset in incomding data where to start
+  :param string string: The data to copy into incoming data.
+  :param integer offset: *optional* The offset in incoming data where to start
                          the data replacement. 0 by default. May be negative to
                          be relative to the end of incoming data.
   :param integer length: *optional* The length of data to replace. All incoming
@@ -1727,7 +1727,7 @@ HTTP class
 
 .. js:function:: HTTP.req_add_header(http, name, value)
 
-  Appends an HTTP header field in the request whose name is
+  Appends a HTTP header field in the request whose name is
   specified in "name" and whose value is defined in "value".
 
   :param class_http http: The related http object.
@@ -1737,7 +1737,7 @@ HTTP class
 
 .. js:function:: HTTP.res_add_header(http, name, value)
 
-  Appends an HTTP header field in the response whose name is
+  Appends a HTTP header field in the response whose name is
   specified in "name" and whose value is defined in "value".
 
   :param class_http http: The related http object.
@@ -1785,7 +1785,7 @@ HTTP class
 
 .. js:function:: HTTP.res_set_header(http, name, value)
 
-  This variable replace all occurrence of all header "name", by only
+  This function replaces all occurrence of all header "name", by only
   one containing the "value".
 
   :param class_http http: The related http object.
@@ -1874,8 +1874,8 @@ HTTPClient class
 .. js:function:: HTTPClient.post(httpclient, request)
 .. js:function:: HTTPClient.delete(httpclient, request)
 
-  Send an HTTP request and wait for a response. GET, HEAD PUT, POST and DELETE methods can be used.
-  The HTTPClient will send asynchronously the data and is able to send and receive more than an HAProxy bufsize.
+  Send a HTTP request and wait for a response. GET, HEAD PUT, POST and DELETE methods can be used.
+  The HTTPClient will send asynchronously the data and is able to send and receive more than HAProxy bufsize.
 
 
   :param class httpclient: Is the manipulated HTTPClient.
@@ -1918,7 +1918,7 @@ TXN class
 
   The txn class contain all the functions relative to the http or tcp
   transaction (Note than a tcp stream is the same than a tcp transaction, but
-  an HTTP transaction is not the same than a tcp stream).
+  a HTTP transaction is not the same than a tcp stream).
 
   The usage of this class permits to retrieve data from the requests, alter it
   and forward it.
@@ -1968,7 +1968,7 @@ TXN class
 
   :returns: An :ref:`http_class`.
 
-  This attribute contains an HTTP class object. It is available only if the
+  This attribute contains a HTTP class object. It is available only if the
   proxy has the "mode http" enabled.
 
 .. js:attribute:: TXN.http_req
@@ -2013,7 +2013,7 @@ TXN class
 
   :param class_txn txn: The class txn object containing the data.
   :param string msg: The log content.
-  :see: :js:func:`TXN.log
+  :see: :js:func:`TXN.log`
 
 .. js:function:: TXN.Debug(txn, msg)
 
@@ -2021,7 +2021,7 @@ TXN class
   :param string msg: The log content.
   :see: :js:func:`TXN.log`
 
-  Does the same job than:
+  Does the same job as:
 
 .. code-block:: lua
 
@@ -2036,9 +2036,11 @@ TXN class
   :param string msg: The log content.
   :see: :js:func:`TXN.log`
 
+  Does the same job as:
+
 .. code-block:: lua
 
-  function Debug(txn, msg)
+  function Info(txn, msg)
     TXN.log(txn, core.info, msg)
   end
 ..
@@ -2049,9 +2051,11 @@ TXN class
   :param string msg: The log content.
   :see: :js:func:`TXN.log`
 
+  Does the same job as:
+
 .. code-block:: lua
 
-  function Debug(txn, msg)
+  function Warning(txn, msg)
     TXN.log(txn, core.warning, msg)
   end
 ..
@@ -2062,9 +2066,11 @@ TXN class
   :param string msg: The log content.
   :see: :js:func:`TXN.log`
 
+  Does the same job as:
+
 .. code-block:: lua
 
-  function Debug(txn, msg)
+  function Alert(txn, msg)
     TXN.log(txn, core.alert, msg)
   end
 ..
@@ -2080,7 +2086,7 @@ TXN class
 
 .. js:function:: TXN.set_priv(txn, data)
 
-  Store any data in the current HAProxy transaction. This action replace the
+  Store any data in the current HAProxy transaction. This action replaces the
   old stored data.
 
   :param class_txn txn: The class txn object containing the data.
@@ -2094,7 +2100,7 @@ TXN class
   :param string var: The variable name according with the HAProxy variable syntax.
   :param type value: The value associated to the variable. The type can be string or
                      integer.
-  :param boolean ifexist: If this parameter is set to a truthy value the variable
+  :param boolean ifexist: If this parameter is set to true the variable
                           will only be set if it was defined elsewhere (i.e. used
                           within the configuration). For global variables (using the
                           "proc" scope), they will only be updated and never created.
@@ -2126,7 +2132,7 @@ TXN class
   * status : The reply status code. the code 200 is used by default.
   * reason : The reply reason. The reason corresponding to the status code is
     used by default.
-  * headers : An list of headers, indexed by header name. Empty by default. For
+  * headers : A list of headers, indexed by header name. Empty by default. For
     a given name, multiple values are possible, stored in an ordered list.
   * body : The reply body, empty by default.
 
@@ -2160,7 +2166,7 @@ TXN class
   empty reply object, an empty HTTP 200 response is returned to the client. If
   no reply object is provided, the transaction is terminated without any
   reply. If a reply object is provided, it must not exceed the buffer size once
-  converted into the internal HTTP representing. Because for now there is no
+  converted into the internal HTTP representation. Because for now there is no
   easy way to be sure it fits, it is probably better to keep it reasonably
   small.
 
@@ -2192,8 +2198,8 @@ TXN class
 ..
 
   .. warning::
-    It not make sense to call this function from sample-fetches. In this case
-    the behaviour of this one is the same than core.done(): it quit the Lua
+    It does not make sense to call this function from sample-fetches. In this case
+    the behavior is the same than core.done(): it finishes the Lua
     execution. The transaction is really aborted only from an action registered
     function.
 
@@ -2253,13 +2259,13 @@ Reply class
 
   **context**: action
 
-  This class represents an HTTP response message. It provides some methods to
+  This class represents a HTTP response message. It provides some methods to
   enrich it. Once converted into the internal HTTP representation, the response
   message must not exceed the buffer size. Because for now there is no
   easy way to be sure it fits, it is probably better to keep it reasonably
   small.
 
-  See tune.bufsize in the configuration manual for dettails.
+  See tune.bufsize in the configuration manual for details.
 
 .. code-block:: lua
 
@@ -2584,7 +2590,7 @@ Map class
 
 .. js:class:: Map
 
-  This class permits to do some lookup in HAProxy maps. The declared maps can
+  This class permits to do some lookups in HAProxy maps. The declared maps can
   be modified during the runtime through the HAProxy management socket.
 
 .. code-block:: lua
@@ -2752,7 +2758,7 @@ AppletHTTP class
   :returns: A :ref:`converters_class`
 
   This attribute contains a Converters class object. The
-  functions of this object returns always a string.
+  functions of this object always return a string.
 
 .. js:attribute:: AppletHTTP.f
 
@@ -2768,7 +2774,7 @@ AppletHTTP class
   :returns: A :ref:`fetches_class`
 
   This attribute contains a Fetches class object. The functions of
-  this object returns always a string. Note that the applet
+  this object always return a string. Note that the applet
   execution place cannot access to a valid HAProxy core HTTP
   transaction, so some sample fetches related to the HTTP dependent
   values (hdr, path, ...) are not available.
@@ -2815,7 +2821,7 @@ AppletHTTP class
   The attribute headers returns a table containing the HTTP
   headers. The header names are always in lower case. As the header name can be
   encountered more than once in each request, the value is indexed with 0 as
-  first index value. The table have this form:
+  first index value. The table has this form:
 
 .. code-block:: lua
 
@@ -2838,9 +2844,9 @@ AppletHTTP class
 
 .. js:function:: AppletHTTP.add_header(applet, name, value)
 
-  This function add an header in the response. Duplicated headers are not
+  This function adds a header in the response. Duplicated headers are not
   collapsed. The special header *content-length* is used to determinate the
-  response length. If it not exists, a *transfer-encoding: chunked* is set, and
+  response length. If it does not exist, a *transfer-encoding: chunked* is set, and
   all the write from the function *AppletHTTP:send()* become a chunk.
 
   :param class_AppletHTTP applet: An :ref:`applethttp_class`
@@ -2896,7 +2902,7 @@ AppletHTTP class
 
 .. js:function:: AppletHTTP.set_priv(applet, data)
 
-  Store any data in the current HAProxy transaction. This action replace the
+  Store any data in the current HAProxy transaction. This action replaces the
   old stored data.
 
   :param class_AppletHTTP applet: An :ref:`applethttp_class`
@@ -2911,12 +2917,12 @@ AppletHTTP class
   :param string var: The variable name according with the HAProxy variable syntax.
   :param type value: The value associated to the variable. The type ca be string or
                      integer.
-  :param boolean ifexist: If this parameter is set to a truthy value the variable
+  :param boolean ifexist: If this parameter is set to true the variable
                           will only be set if it was defined elsewhere (i.e. used
                           within the configuration). For global variables (using the
                           "proc" scope), they will only be updated and never created.
-                           It is highly recommended to
-                          always set this to true.
+                           It is highly recommended to always set this to true.
+
   :see: :js:func:`AppletHTTP.unset_var`
   :see: :js:func:`AppletHTTP.get_var`
 
@@ -2960,7 +2966,7 @@ AppletTCP class
   :returns: A :ref:`converters_class`
 
   This attribute contains a Converters class object. The
-  functions of this object returns always a string.
+  functions of this object always return a string.
 
 .. js:attribute:: AppletTCP.f
 
@@ -2991,7 +2997,7 @@ AppletTCP class
 
   :param class_AppletTCP applet: An :ref:`applettcp_class`
   :param integer size: the required read size.
-  :returns: always return a string,the string can be empty is the connection is
+  :returns: always return a string, the string can be empty if the connection is
             closed.
 
 .. js:function:: AppletTCP.send(appletmsg)
@@ -3013,7 +3019,7 @@ AppletTCP class
 
 .. js:function:: AppletTCP.set_priv(applet, data)
 
-  Store any data in the current HAProxy transaction. This action replace the
+  Store any data in the current HAProxy transaction. This action replaces the
   old stored data.
 
   :param class_AppletTCP applet: An :ref:`applettcp_class`
@@ -3028,12 +3034,12 @@ AppletTCP class
   :param string var: The variable name according with the HAProxy variable syntax.
   :param type value: The value associated to the variable. The type can be string or
                      integer.
-  :param boolean ifexist: If this parameter is set to a truthy value the variable
+  :param boolean ifexist: If this parameter is set to true the variable
                           will only be set if it was defined elsewhere (i.e. used
                           within the configuration). For global variables (using the
                           "proc" scope), they will only be updated and never created.
-                           It is highly recommended to
-                          always set this to true.
+                           It is highly recommended to always set this to true.
+
   :see: :js:func:`AppletTCP.unset_var`
   :see: :js:func:`AppletTCP.get_var`
 
@@ -3179,7 +3185,7 @@ Action class
   This attribute is an integer (5). It denies the current message. The message
   processing is stopped and the transaction is terminated. For HTTP streams, an
   HTTP 403 error is returned to the client if the deny is returned during the
-  request analysis. During the response analysis, an HTTP 502 error is returned
+  request analysis. During the response analysis, a HTTP 502 error is returned
   and the server response is discarded.
 
   :returns: integer
@@ -3199,7 +3205,7 @@ Action class
   This attribute is an integer (7). It triggers an internal errors. The message
   processing is stopped and the transaction is terminated. For HTTP streams, an
   HTTP 400 error is returned to the client if the error is returned during the
-  request analysis. During the response analysis, an HTTP 502 error is returned
+  request analysis. During the response analysis, a HTTP 502 error is returned
   and the server response is discarded.
 
   :returns: integer
@@ -3331,7 +3337,7 @@ filter is ignored. Others are optional.
 
   Called during the TCP payload analysis on the channel **chn**.
 
-Here is an full example:
+Here is a full example:
 
 .. code-block:: lua
 
@@ -3407,12 +3413,12 @@ HTTPMessage class
 
   **context**: filter
 
-  This class contains all functions to manipulate an HTTP message. For now, this
+  This class contains all functions to manipulate a HTTP message. For now, this
   class is only available from a filter context.
 
 .. js:function:: HTTPMessage.add_header(http_msg, name, value)
 
-  Appends an HTTP header field in the HTTP message **http_msg** whose name is
+  Appends a HTTP header field in the HTTP message **http_msg** whose name is
   specified in **name** and whose value is defined in **value**.
 
   :param class_httpmessage http_msg: The manipulated HTTP message.
@@ -3428,7 +3434,7 @@ HTTPMessage class
   Same that :js:func:`HTTPMessage.insert(http_msg, string, http_msg:input())`.
 
   :param class_httpmessage http_msg: The manipulated HTTP message.
-  :param string string: The data to copied into incoming data.
+  :param string string: The data to copy at the end of incoming data.
   :returns: an integer containing the amount of bytes copied or -1.
 
 .. js:function:: HTTPMessage.body(http_msgl[, offset[, length]])
@@ -3440,7 +3446,7 @@ HTTPMessage class
   By default, if no length is provided, all incoming data found, starting at the
   given offset, are returned. If **length** is set to -1, the function tries to
   retrieve a maximum of data. Because it is called in the filter context, it
-  never yield. Do not providing an offset is the same that setting it to 0. A
+  never yield. Not providing an offset is the same as setting it to 0. A
   positive offset is relative to the beginning of incoming data of the
   http_message buffer while negative offset is relative to their end.
 
@@ -3513,7 +3519,7 @@ HTTPMessage class
 .. js:function:: HTTPMessage.forward(http_msg, length)
 
   This function forwards **length** bytes of data from the HTTP message
-  **http_msg**. Because it is called in the filter context, it never yield. Only
+  **http_msg**. Because it is called in the filter context, it never yields. Only
   available incoming data may be forwarded, event if the requested length
   exceeds the available amount of incoming data. It returns the amount of data
   forwarded.
@@ -3524,7 +3530,7 @@ HTTPMessage class
 .. js:function:: HTTPMessage.input(http_msg)
 
   This function returns the length of incoming data in the HTTP message
-  **http_msg** from the calling filter point of view.
+  **http_msg** from the filter point of view.
 
   :param class_httpmessage http_msg: The manipulated HTTP message.
   :returns: an integer containing the amount of available bytes.
@@ -3540,8 +3546,8 @@ HTTPMessage class
   of the HTTP message while negative offset is relative to their end.
 
   :param class_httpmessage http_msg: The manipulated HTTP message.
-  :param string string: The data to copied into incoming data.
-  :param integer offset: *optional* The offset in incomding data where to copied
+  :param string string: The data to copy into incoming data.
+  :param integer offset: *optional* The offset in incoming data where to copy
                          data. 0 by default. May be negative to be relative to
                          the end of incoming data.
   :returns: an integer containing the amount of bytes copied or -1.
@@ -3586,7 +3592,7 @@ HTTPMessage class
   Same that :js:func:`HTTPMessage.insert(http_msg, string, 0)`.
 
   :param class_httpmessage http_msg: The manipulated HTTP message.
-  :param string string: The data to copied into incoming data.
+  :param string string: The data to copy in front of incoming data.
   :returns: an integer containing the amount of bytes copied or -1.
 
 .. js:function:: HTTPMessage.remove(http_msg[, offset[, length]])
@@ -3596,12 +3602,12 @@ HTTPMessage class
   bytes removed on success.
 
   By default, if no length is provided, all incoming data, starting at the given
-  offset, are removed. Do not providing an offset is the same that setting it
+  offset, are removed. Not providing an offset is the same that setting it
   to 0. A positive offset is relative to the beginning of incoming data of the
-  HTTP message while negative offset is relative to their end.
+  HTTP message while negative offset is relative to the end.
 
   :param class_httpmessage http_msg: The manipulated HTTP message.
-  :param integer offset: *optional* The offset in incomding data where to start
+  :param integer offset: *optional* The offset in incoming data where to start
                          to remove data. 0 by default. May be negative to
                          be relative to the end of incoming data.
   :param integer length: *optional* The length of data to remove. All incoming
@@ -3635,10 +3641,10 @@ HTTPMessage class
 
 .. js:function:: HTTPMessage.send(http_msg, string)
 
-  This function required immediate send of the string **string**. It means the
+  This function requires immediate send of the string **string**. It means the
   string is copied at the beginning of incoming data of the HTTP message
   **http_msg** and immediately forwarded. Because it is called in the filter
-  context, it never yield.
+  context, it never yields.
 
   :param class_httpmessage http_msg: The manipulated HTTP message.
   :param string string: The data to send.
@@ -3646,18 +3652,18 @@ HTTPMessage class
 
 .. js:function:: HTTPMessage.set(http_msg, string[, offset[, length]])
 
-  This function replace **length** bytes of incoming data of the HTTP message
+  This function replaces **length** bytes of incoming data of the HTTP message
   **http_msg**, starting at offset **offset**, by the string **string**. The
   function returns the copied length on success or -1 if data cannot be copied.
 
   By default, if no length is provided, all incoming data, starting at the given
-  offset, are replaced. Do not providing an offset is the same that setting it
+  offset, are replaced. Not providing an offset is the same as setting it
   to 0. A positive offset is relative to the beginning of incoming data of the
-  HTTP message while negative offset is relative to their end.
+  HTTP message while negative offset is relative to the end.
 
   :param class_httpmessage http_msg: The manipulated HTTP message.
-  :param string string: The data to copied into incoming data.
-  :param integer offset: *optional* The offset in incomding data where to start
+  :param string string: The data to copy into incoming data.
+  :param integer offset: *optional* The offset in incoming data where to start
                          the data replacement. 0 by default. May be negative to
                          be relative to the end of incoming data.
   :param integer length: *optional* The length of data to replace. All incoming
@@ -3777,8 +3783,8 @@ Redis client library:
 
 * `https://github.com/nrk/redis-lua <https://github.com/nrk/redis-lua>`_
 
-This is an example about the usage of the Redis library with HAProxy. Note that
-each call of any function of this library can throw an error if the socket
+This is an example about the usage of the Redis library within HAProxy. Note that
+each call to any function of this library can throw an error if the socket
 connection fails.
 
 .. code-block:: lua
