@@ -3895,14 +3895,30 @@ reload
   configuration is parsed and the new worker is forked. The "socat" command uses
   a timeout of 0.5s by default so it will quits before showing the message if
   the reload is too long. "ncat" does not have a timeout by default.
+  When compiled with USE_SHM_OPEN=1, the reload command is also able to dump
+  the startup-logs of the master.
 
   Example:
 
     $ echo "reload" | socat -t300 /var/run/haproxy-master.sock stdin
-    Loading success.
+    Success=1
+    --
+    [NOTICE]   (482713) : haproxy version is 2.7-dev7-4827fb-69
+    [NOTICE]   (482713) : path to executable is ./haproxy
+    [WARNING]  (482713) : config : 'http-request' rules ignored for proxy 'frt1' as they require HTTP mode.
+    [NOTICE]   (482713) : New worker (482720) forked
+    [NOTICE]   (482713) : Loading success.
 
     $ echo "reload" | socat -t300 /var/run/haproxy-master.sock stdin
-    Loading failure!
+    Success=0
+    --
+    [NOTICE]   (482886) : haproxy version is 2.7-dev7-4827fb-69
+    [NOTICE]   (482886) : path to executable is ./haproxy
+    [ALERT]    (482886) : config : parsing [test3.cfg:1]: unknown keyword 'Aglobal' out of section.
+    [ALERT]    (482886) : config : Fatal errors found in configuration.
+    [WARNING]  (482886) : Loading failure!
+
+    $
 
   The reload command is the last executed on the master CLI, every other
   command after it are ignored. Once the reload command returns its status, it
