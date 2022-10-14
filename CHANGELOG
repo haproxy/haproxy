@@ -1,6 +1,89 @@
 ChangeLog :
 ===========
 
+2022/10/14 : 2.7-dev8
+    - BUG/MINOR: checks: update pgsql regex on auth packet
+    - DOC: config: Fix pgsql-check documentation to make user param mandatory
+    - CLEANUP: mux-quic: remove usage of non-standard ull type
+    - CLEANUP: quic: remove global var definition in quic_tls header
+    - BUG/MINOR: quic: adjust quic_tls prototypes
+    - CLEANUP: quic: fix headers
+    - CLEANUP: quic: remove unused function prototype
+    - CLEANUP: quic: remove duplicated varint code from xprt_quic.h
+    - CLEANUP: quic: create a dedicated quic_conn module
+    - BUG/MINOR: mux-quic: ignore STOP_SENDING for locally closed stream
+    - BUG/MEDIUM: lua: Don't crash in hlua_lua2arg_check on failure
+    - BUG/MEDIUM: lua: handle stick table implicit arguments right.
+    - BUILD: h1: silence an initiialized warning with gcc-4.7 and -Os
+    - MINOR: fd: add a new function to only raise RLIMIT_NOFILE
+    - MINOR: init: do not try to shrink existing RLIMIT_NOFIlE
+    - BUG/MINOR: http-fetch: Update method after a prefetch in smp_fetch_meth()
+    - BUILD: http_fetch: silence an uninitiialized warning with gcc-4/5/6 at -Os
+    - BUG/MINOR: hlua: hlua_channel_insert_data() behavior conflicts with documentation
+    - MINOR: quic: limit usage of ssl_sock_ctx in favor of quic_conn
+    - MINOR: mux-quic: check quic-conn return code on Tx
+    - CLEANUP: quic: fix indentation
+    - MEDIUM: quic: retrieve frontend destination address
+    - CLEANUP: Reapply ist.cocci (2)
+    - CLEANUP: Reapply strcmp.cocci
+    - CLEANUP: quic/receiver: remove the now unused tx_qring list
+    - BUG/MINOR: quic: set IP_PKTINFO socket option for QUIC receivers only
+    - MINOR: hlua: some luaL_checktype() calls were not guarded with MAY_LJMP
+    - DOC: configuration: missing 'if' in tcp-request content example
+    - MINOR: hlua: removing ambiguous lua_pushvalue with 0 index
+    - BUG/MAJOR: stick-tables: do not try to index a server name for applets
+    - MINOR: plock: support disabling exponential back-off
+    - MINOR: freq_ctr: use the thread's local time whenever possible
+    - MEDIUM: stick-table: switch the table lock to rwlock
+    - MINOR: stick-table: do not take an exclusive lock when downing ref_cnt
+    - MINOR: stick-table: move the write lock inside stktable_touch_with_exp()
+    - MEDIUM: stick-table: only take the lock when needed in stktable_touch_with_exp()
+    - MEDIUM: stick-table: make stksess_kill_if_expired() avoid the exclusive lock
+    - MEDIUM: stick-table: return inserted entry in __stktable_store()
+    - MEDIUM: stick-table: free newly allocated stkess if it couldn't be inserted
+    - MEDIUM: stick-table: switch to rdlock in stktable_lookup() and lookup_key()
+    - MEDIUM: stick-table: make stktable_get_entry() look up under a read lock
+    - MEDIUM: stick-table: do not take a lock to update t->current anymore.
+    - MEDIUM: stick-table: make stktable_set_entry() look up under a read lock
+    - MEDIUM: stick-table: requeue the expiration task out of the exclusive lock
+    - MINOR: stick-table: split stktable_store() between key and requeue
+    - MEDIUM: stick-table: always use atomic ops to requeue the table's task
+    - MEDIUM: stick-table: requeue the wakeup task out of the write lock
+    - BUG/MINOR: stick-table: fix build with DEBUG_THREAD
+    - REORG: mux-fcgi: Extract flags and enums into mux_fcgi-t.h
+    - MINOR: flags/mux-fcgi: Decode FCGI connection and stream flags
+    - BUG/MEDIUM: mux-h1: Add connection error handling when reading/sending on a pipe
+    - BUG/MEDIUM: mux-h1: Handle abort with an incomplete message during parsing
+    - BUG/MINOR: server: make sure "show servers state" hides private bits
+    - MINOR: checks: use the lighter PRNG for spread checks
+    - MEDIUM: checks: spread the checks load over random threads
+    - CI: SSL: use proper version generating when "latest" semantic is used
+    - CI: SSL: temporarily stick to LibreSSL=3.5.3
+    - MINOR: quic: New quic_cstream object implementation
+    - MINOR: quic: Extract CRYPTO frame parsing from qc_parse_pkt_frms()
+    - MINOR: quic: Use a non-contiguous buffer for RX CRYPTO data
+    - BUG/MINOR: quic: Stalled 0RTT connections with big ClientHello TLS message
+    - MINOR: quic: Split the secrets key allocation in two parts
+    - CLEANUP: quic: remove unused rxbufs member in receiver
+    - CLEANUP: quic: improve naming for rxbuf/datagrams handling
+    - MINOR: quic: implement datagram cleanup for quic_receiver_buf
+    - MINOR: ring: ring_cast_from_area() cast from an allocated area
+    - MINOR: buffers: split b_force_xfer() into b_cpy() and b_force_xfer()
+    - MINOR: logs: startup-logs can use a shm for logging the reload
+    - MINOR: mworker/cli: reload command displays the startup-logs
+    - MEDIUM: quic: respect the threads assigned to a bind line
+    - DOC: management: update the "reload" command of the master CLI
+    - BUILD: ssl_sock: bind_conf uninitialized in ssl_sock_bind_verifycbk()
+    - BUG/MEDIUM: httpclient: Don't set EOM flag on an empty HTX message
+    - MINOR: httpclient/lua: Don't set req_payload callback if body is empty
+    - DOC/CLEANUP: lua-api: some minor corrections
+    - DOC: lua-api: updating toolbox link
+    - DOC/CLEANUP: lua-api: removing duplicate core.proxies attribute
+    - DOC: management: add forgotten "show startup-logs"
+    - DOC: management: "show startup-logs" for master CLI
+    - CI: Replace the deprecated `::set-output` command by writing to $GITHUB_OUTPUT in matrix.py
+    - CI: Replace the deprecated `::set-output` command by writing to $GITHUB_OUTPUT in workflow definition
+
 2022/10/03 : 2.7-dev7
     - BUG/MEDIUM: mux-quic: fix nb_hreq decrement
     - CLEANUP: httpclient: deleted unused variables
