@@ -3777,7 +3777,8 @@ External Lua libraries
 
 A lot of useful lua libraries can be found here:
 
-* `https://lua-toolbox.com/ <https://lua-toolbox.com/>`_
+* Lua toolbox has been superseded by `https://luarocks.org/ <https://luarocks.org/>`_
+  The old lua toolbox source code is still available here `https://github.com/catwell/lua-toolbox <https://github.com/catwell/lua-toolbox>`_ (DEPRECATED)
 
 Redis client library:
 
