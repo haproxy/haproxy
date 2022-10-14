@@ -1713,7 +1713,7 @@ int ssl_sock_bind_verifycbk(int ok, X509_STORE_CTX *x_store)
 	int err, depth;
 	X509 *client_crt;
 	STACK_OF(X509) *certs;
-	struct bind_conf *bind_conf;
+	struct bind_conf *bind_conf = NULL;
 	struct quic_conn *qc = NULL;
 
 	ssl = X509_STORE_CTX_get_ex_data(x_store, SSL_get_ex_data_X509_STORE_CTX_idx());
@@ -1734,10 +1734,7 @@ int ssl_sock_bind_verifycbk(int ok, X509_STORE_CTX *x_store)
 	}
 #endif
 
-	if (!ctx || !bind_conf) {
-		/* Must never happen */
-		ABORT_NOW();
-	}
+	BUG_ON(!ctx || !bind_conf);
 
 	ctx->xprt_st |= SSL_SOCK_ST_FL_VERIFY_DONE;
 
