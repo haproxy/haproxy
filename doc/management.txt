@@ -3439,6 +3439,9 @@ show startup-logs
   Dump all messages emitted during the startup of the current haproxy process,
   each startup-logs buffer is unique to its haproxy worker.
 
+  This keyword also exists on the master CLI, which shows the latest startup or
+  reload tentative.
+
 show table
   Dump general information on all known stick-tables. Their name is returned
   (the name of the proxy which holds them), their type (currently zero, always
@@ -3950,6 +3953,18 @@ show proc
   In this example, the master has been reloaded 5 times but one of the old
   worker is still running and survived 3 reloads. You could access the CLI of
   this worker to understand what's going on.
+
+show startup-logs
+  HAProxy needs to be compiled with USE_SHM_OPEN=1 to be used correctly on the
+  master CLI or all messages won't be visible.
+
+  Like its counterpart on the stats socket, this command is able to show the
+  startup messages of HAProxy. However it does not dump the startup messages
+  of the current worker, but the startup messages of the latest startup or
+  reload, which means it is able to dump the parsing messages of a failed
+  reload.
+
+  Those messages are also dumped with the "reload" command.
 
 10. Tricks for easier configuration management
 ----------------------------------------------
