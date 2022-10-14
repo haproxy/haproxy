@@ -421,6 +421,16 @@ int httpclient_req_xfer(struct httpclient *hc, struct ist src, int end)
 
 	/* if we copied all the data and the end flag is set */
 	if ((istlen(src) == ret) && end) {
+		/* no more data are expected. If the HTX buffer is empty, be
+		 * sure to add something (EOT block in this case) to have
+		 * something to send. It is important to be sure the EOM flags
+		 * will be handled by the endpoint. Because the message is
+		 * empty, this should not fail. Otherwise it is an error
+		 */
+		if (htx_is_empty(htx)) {
+			if (!htx_add_endof(htx, HTX_BLK_EOT))
+				goto error;
+		}
 		htx->flags |= HTX_FL_EOM;
 	}
 	htx_to_buf(htx, &hc->req.buf);
