@@ -44,13 +44,13 @@ static void qmux_trace_frm(const struct quic_frame *frm)
 {
 	switch (frm->type) {
 	case QUIC_FT_MAX_STREAMS_BIDI:
-		chunk_appendf(&trace_buf, " max_streams=%lu",
-		              frm->max_streams_bidi.max_streams);
+		chunk_appendf(&trace_buf, " max_streams=%llu",
+		              (ullong)frm->max_streams_bidi.max_streams);
 		break;
 
 	case QUIC_FT_MAX_STREAMS_UNI:
-		chunk_appendf(&trace_buf, " max_streams=%lu",
-		              frm->max_streams_uni.max_streams);
+		chunk_appendf(&trace_buf, " max_streams=%llu",
+		              (ullong)frm->max_streams_uni.max_streams);
 		break;
 
 	default:
