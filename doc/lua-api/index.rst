@@ -468,18 +468,6 @@ Core class
 
   :param integer milliseconds: the required milliseconds.
 
-.. js:attribute:: core.proxies
-
-  **context**: body, init, task, action, sample-fetch, converter
-
-  Proxies is a table containing the list of all proxies declared in the
-  configuration file. The table is indexed by the proxy name, and each entry
-  of the proxies table is an object of type :ref:`proxy_class`.
-
-  .. warning::
-     if you have declared a frontend and backend with the same name, only one of
-     these are listed.
-
 .. js:function:: core.register_action(name, actions, func [, nb_args])
 
   **context**: body
