@@ -7312,7 +7312,7 @@ __LJMP static int hlua_httpclient_send(lua_State *L, enum http_meth_t meth)
 	struct hlua *hlua;
 	const char *url_str = NULL;
 	const char *body_str = NULL;
-	size_t buf_len;
+	size_t buf_len = 0;
 	int ret;
 
 	hlua = hlua_gethlua(L);
@@ -7376,7 +7376,7 @@ __LJMP static int hlua_httpclient_send(lua_State *L, enum http_meth_t meth)
 	hlua_hc->hc->ops.res_end = hlua_httpclient_cb;
 
 	/* a body is available, it will use the request callback */
-	if (body_str) {
+	if (body_str && buf_len) {
 		hlua_hc->hc->ops.req_payload = hlua_httpclient_cb;
 	}
 
