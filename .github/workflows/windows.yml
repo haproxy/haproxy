@@ -64,4 +64,4 @@ jobs:
       id: show-version
       run: |
         ./haproxy -vv
-        echo "::set-output name=version::$(./haproxy -v |awk 'NR==1{print $3}')"
+        echo "version=$(./haproxy -v |awk 'NR==1{print $3}')" >> $GITHUB_OUTPUT

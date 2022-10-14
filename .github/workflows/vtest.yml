@@ -53,7 +53,7 @@ jobs:
     - name: Generate cache key
       id: generate-cache-key
       run: |
-        echo "::set-output name=key::$(echo ${{ matrix.name }} | sha256sum | awk '{print $1}')"
+        echo "key=$(echo ${{ matrix.name }} | sha256sum | awk '{print $1}')" >> $GITHUB_OUTPUT
 
     - name: Cache SSL libs
       if: ${{ matrix.ssl && matrix.ssl != 'stock' && matrix.ssl != 'BORINGSSL=yes' && matrix.ssl != 'QUICTLS=yes' }}
@@ -124,7 +124,7 @@ jobs:
         fi
         echo "::endgroup::"
         haproxy -vv
-        echo "::set-output name=version::$(haproxy -v |awk 'NR==1{print $3}')"
+        echo "version=$(haproxy -v |awk 'NR==1{print $3}')" >> $GITHUB_OUTPUT
     - name: Install problem matcher for VTest
       # This allows one to more easily see which tests fail.
       run: echo "::add-matcher::.github/vtest.json"
