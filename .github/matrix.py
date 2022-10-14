@@ -12,6 +12,7 @@ import json
 import sys
 import urllib.request
 import re
+from os import environ
 
 if len(sys.argv) == 2:
     build_type = sys.argv[1]
@@ -208,4 +209,6 @@ for CC in ["clang"]:
 
 print(json.dumps(matrix, indent=4, sort_keys=True))
 
-print("::set-output name=matrix::{}".format(json.dumps({"include": matrix})))
+if environ.get('GITHUB_OUTPUT') is not None:
+    with open(environ.get('GITHUB_OUTPUT'), 'a') as f:
+        print("matrix={}".format(json.dumps({"include": matrix})), file=f)
