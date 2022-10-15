@@ -137,7 +137,7 @@ if [ ! -z ${QUICTLS+x} ]; then
         download_quictls
         cd download-cache/quictls
 
-        ./config shared  ${QUICTLS_EXTRA_ARGS:-} --prefix="${HOME}/opt" --openssldir="${HOME}/opt" --libdir=lib -DPURIFY
+        ./config shared no-tests ${QUICTLS_EXTRA_ARGS:-} --prefix="${HOME}/opt" --openssldir="${HOME}/opt" --libdir=lib -DPURIFY
         make -j$(nproc) build_sw
         make install_sw
 
