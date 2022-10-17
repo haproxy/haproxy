@@ -792,7 +792,7 @@ static void sc_app_chk_snd_conn(struct stconn *sc)
 
 	if (sc_ep_test(sc, SE_FL_ERROR | SE_FL_ERR_PENDING) || sc_is_conn_error(sc)) {
 		/* Write error on the file descriptor */
-		if (sc->state >= SC_ST_CON)
+		if (sc->state >= SC_ST_CON && sc_ep_test(sc, SE_FL_EOS))
 			sc_ep_set(sc, SE_FL_ERROR);
 		goto out_wakeup;
 	}
@@ -1650,7 +1650,8 @@ static int sc_conn_send(struct stconn *sc)
 		 */
 		if (sc->state < SC_ST_CON)
 			return 0;
-		sc_ep_set(sc, SE_FL_ERROR);
+		if (sc_ep_test(sc, SE_FL_EOS))
+		    sc_ep_set(sc, SE_FL_ERROR);
 		return 1;
 	}
 
@@ -1764,7 +1765,8 @@ static int sc_conn_send(struct stconn *sc)
 	}
 
 	if (sc_ep_test(sc, SE_FL_ERROR | SE_FL_ERR_PENDING)) {
-		sc_ep_set(sc, SE_FL_ERROR);
+		if (sc_ep_test(sc, SE_FL_EOS))
+		    sc_ep_set(sc, SE_FL_ERROR);
 		return 1;
 	}
 
