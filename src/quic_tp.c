@@ -657,7 +657,7 @@ int qc_lstnr_params_init(struct quic_conn *qc,
 	memcpy(rx_params->stateless_reset_token, stateless_reset_token,
 	       sizeof rx_params->stateless_reset_token);
 	/* Copy original_destination_connection_id transport parameter. */
-	if (token_odcid) {
+	if (token_odcid->len) {
 		memcpy(odcid_param->data, token_odcid->data, token_odcid->len);
 		odcid_param->len = token_odcid->len;
 		/* Copy retry_source_connection_id transport parameter. */

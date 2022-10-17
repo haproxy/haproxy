@@ -5549,20 +5549,28 @@ static int quic_generate_retry_token(unsigned char *buf, size_t len,
 }
 
 /* QUIC server only function.
- * Check the validity of the Retry token from <token> buffer with <tokenlen>
- * as length. If valid, the ODCID of <qc> QUIC connection will be put
- * into <odcid> connection ID. <dcid> is our side destination connection ID
- * of client source connection ID.
+ *
+ * Check the validity of the Retry token from Initial packet <pkt>. <dgram> is
+ * the UDP datagram containing <pkt> and <l> is the listener instance on which
+ * it was received. If the token is valid, the ODCID of <qc> QUIC connection
+ * will be put into <odcid>. <qc> is used to retrieve the QUIC version needed
+ * to validate the token but it can be NULL : in this case the version will be
+ * retrieved from the packet.
+ *
  * Return 1 if succeeded, 0 if not.
  */
-static int quic_retry_token_check(unsigned char *token, size_t tokenlen,
-                                  const struct quic_version *qv,
-                                  struct quic_cid *odcid,
-                                  const struct quic_cid *dcid,
+
+static int quic_retry_token_check(struct quic_rx_packet *pkt,
+                                  struct quic_dgram *dgram,
+                                  struct listener *l,
                                   struct quic_conn *qc,
-                                  struct sockaddr_storage *addr)
+                                  struct quic_cid *odcid)
 {
+	struct proxy *prx;
+	struct quic_counters *prx_counters;
 	int ret = 0;
+	unsigned char *token = pkt->token;
+	const uint64_t tokenlen = pkt->token_len;
 	unsigned char buf[128];
 	unsigned char aad[sizeof(uint32_t) + sizeof(in_port_t) +
 	                  sizeof(struct in6_addr) + QUIC_CID_MAXLEN];
@@ -5574,15 +5582,29 @@ static int quic_retry_token_check(unsigned char *token, size_t tokenlen,
 	size_t seclen = strlen(global.cluster_secret);
 	EVP_CIPHER_CTX *ctx = NULL;
 	const EVP_CIPHER *aead = EVP_aes_128_gcm();
+	const struct quic_version *qv = qc ? qc->original_version :
+	                                     pkt->version;
 
 	TRACE_ENTER(QUIC_EV_CONN_LPKT, qc);
+
+	/* The caller must ensure this. */
+	BUG_ON(!global.cluster_secret || !pkt->token_len);
+
+	prx = l->bind_conf->frontend;
+	prx_counters = EXTRA_COUNTERS_GET(prx->extra_counters_fe, &quic_stats_module);
+
+	if (*pkt->token != QUIC_TOKEN_FMT_RETRY) {
+		/* TODO: New token check */
+		TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT, qc, NULL, NULL, pkt->version);
+		goto leave;
+	}
 
 	if (sizeof buf < tokenlen) {
 		TRACE_ERROR("too short buffer", QUIC_EV_CONN_LPKT, qc);
 		goto err;
 	}
 
-	aadlen = quic_generate_retry_token_aad(aad, qv->num, dcid, addr);
+	aadlen = quic_generate_retry_token_aad(aad, qv->num, &pkt->scid, &dgram->saddr);
 	salt = token + tokenlen - QUIC_RETRY_TOKEN_SALTLEN;
 	if (!quic_tls_derive_retry_token_secret(EVP_sha256(), key, sizeof key, iv, sizeof iv,
 	                                        salt, QUIC_RETRY_TOKEN_SALTLEN, sec, seclen)) {
@@ -5610,11 +5632,14 @@ static int quic_retry_token_check(unsigned char *token, size_t tokenlen,
 	EVP_CIPHER_CTX_free(ctx);
 
 	ret = 1;
+	HA_ATOMIC_INC(&prx_counters->retry_validated);
+
  leave:
 	TRACE_LEAVE(QUIC_EV_CONN_LPKT, qc);
 	return ret;
 
  err:
+	HA_ATOMIC_INC(&prx_counters->retry_error);
 	if (ctx)
 		EVP_CIPHER_CTX_free(ctx);
 	goto leave;
@@ -5936,8 +5961,7 @@ static struct quic_conn *quic_rx_pkt_retrieve_conn(struct quic_rx_packet *pkt,
                                                    struct quic_dgram *dgram,
                                                    struct listener *l)
 {
-	struct quic_cid odcid;
-	const struct quic_cid *token_odcid = NULL; // ODCID received from client token
+	struct quic_cid token_odcid = { .len = 0 };
 	struct quic_conn *qc = NULL;
 	struct proxy *prx;
 	struct quic_counters *prx_counters;
@@ -5953,27 +5977,8 @@ static struct quic_conn *quic_rx_pkt_retrieve_conn(struct quic_rx_packet *pkt,
 		BUG_ON(!pkt->version); /* This must not happen. */
 
 		if (global.cluster_secret && pkt->token_len) {
-			if (*pkt->token == QUIC_TOKEN_FMT_RETRY) {
-				const struct quic_version *ver = qc ? qc->original_version : pkt->version;
-				if (!quic_retry_token_check(pkt->token, pkt->token_len, ver, &odcid,
-				                            &pkt->scid, qc, &dgram->saddr)) {
-					HA_ATOMIC_INC(&prx_counters->retry_error);
-					TRACE_PROTO("Wrong retry token",
-					            QUIC_EV_CONN_LPKT, qc, NULL, NULL, pkt->version);
-					/* TODO: RFC 9000 8.1.2 A server SHOULD immediately close the connection
-					 * with an INVALID_TOKEN error.
-					 */
-					goto out;
-				}
-
-				token_odcid = &odcid;
-				HA_ATOMIC_INC(&prx_counters->retry_validated);
-			}
-			else {
-				/* TODO: New token check */
-				TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT, qc, NULL, NULL, pkt->version);
-				goto out;
-			}
+			if (!quic_retry_token_check(pkt, dgram, l, qc, &token_odcid))
+				goto err;
 		}
 
 		if (!qc) {
@@ -6008,7 +6013,7 @@ static struct quic_conn *quic_rx_pkt_retrieve_conn(struct quic_rx_packet *pkt,
 			pkt->saddr = dgram->saddr;
 			ipv4 = dgram->saddr.ss_family == AF_INET;
 
-			qc = qc_new_conn(pkt->version, ipv4, &pkt->dcid, &pkt->scid, token_odcid,
+			qc = qc_new_conn(pkt->version, ipv4, &pkt->dcid, &pkt->scid, &token_odcid,
 			                 &dgram->daddr, &pkt->saddr, 1,
 			                 !!pkt->token_len, l);
 			if (qc == NULL)
