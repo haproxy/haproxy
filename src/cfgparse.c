@@ -685,6 +685,7 @@ static struct peer *cfg_peers_add_peer(struct peers *peers,
 int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 {
 	static struct peers *curpeers = NULL;
+	static int nb_shards = 0;
 	struct peer *newpeer = NULL;
 	const char *err;
 	struct bind_conf *bind_conf;
@@ -905,6 +906,13 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
+		if (nb_shards && curpeers->peers_fe->srv->shard > nb_shards) {
+			ha_warning("parsing [%s:%d] : '%s %s' : %d peer shard greater value than %d shards value is ignored.\n",
+			           file, linenum, args[0], args[1], curpeers->peers_fe->srv->shard, nb_shards);
+			curpeers->peers_fe->srv->shard = 0;
+			err_code |= ERR_WARN;
+		}
+
 		if (curpeers->peers_fe->srv->init_addr_methods || curpeers->peers_fe->srv->resolvers_id ||
 		    curpeers->peers_fe->srv->do_check || curpeers->peers_fe->srv->do_agent) {
 			ha_warning("parsing [%s:%d] : '%s %s' : init_addr, resolvers, check and agent are ignored for peers.\n", file, linenum, args[0], args[1]);
@@ -965,6 +973,32 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 		l->default_target = curpeers->peers_fe->default_target;
 		l->options |= LI_O_UNLIMITED; /* don't make the peers subject to global limits */
 		global.maxsock++; /* for the listening socket */
+	}
+	else if (strcmp(args[0], "shards") == 0) {
+		char *endptr;
+
+		if (!*args[1]) {
+			ha_alert("parsing [%s:%d] : '%s' : missing value\n", file, linenum, args[0]);
+			err_code |= ERR_FATAL;
+			goto out;
+		}
+
+		curpeers->nb_shards = strtol(args[1], &endptr, 10);
+		if (*endptr != '\0') {
+			ha_alert("parsing [%s:%d] : '%s' : expects an integer argument, found '%s'\n",
+			         file, linenum, args[0], args[1]);
+			err_code |= ERR_FATAL;
+			goto out;
+		}
+
+		if (!curpeers->nb_shards) {
+			ha_alert("parsing [%s:%d] : '%s' : expects a strictly positive integer argument\n",
+			         file, linenum, args[0]);
+			err_code |= ERR_FATAL;
+			goto out;
+		}
+
+		nb_shards = curpeers->nb_shards;
 	}
 	else if (strcmp(args[0], "table") == 0) {
 		struct stktable *t, *other;
@@ -4373,6 +4407,7 @@ init_proxies_list_stage2:
 		 */
 		last = &cfg_peers;
 		while (*last) {
+			struct peer *peer;
 			struct stktable *t;
 			curpeers = *last;
 
@@ -4464,6 +4499,26 @@ init_proxies_list_stage2:
 					break;
 				}
 				last = &curpeers->next;
+
+				/* Ignore the peer shard greater than the number of peer shard for this section.
+				 * Also ignore the peer shard of the local peer.
+				 */
+				for (peer = curpeers->remote; peer; peer = peer->next) {
+					if (peer == curpeers->local) {
+						if (peer->srv->shard) {
+							ha_warning("Peers section '%s': shard ignored for '%s' local peer\n",
+									   curpeers->id, peer->id);
+							peer->srv->shard = 0;
+						}
+					}
+					else if (peer->srv->shard > curpeers->nb_shards) {
+						ha_warning("Peers section '%s': shard ignored for '%s' local peer because "
+								   "%d shard value is greater than the section number of shards (%d)\n",
+								   curpeers->id, peer->id, peer->srv->shard, curpeers->nb_shards);
+						peer->srv->shard = 0;
+					}
+				}
+
 				continue;
 			}
 

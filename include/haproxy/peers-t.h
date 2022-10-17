@@ -101,6 +101,7 @@ struct peers {
 	unsigned int flags;             /* current peers section resync state */
 	unsigned int resync_timeout;    /* resync timeout timer */
 	int count;                      /* total of peers */
+	int nb_shards;                  /* Number of peer shards */
 	int disabled;                   /* peers proxy disabled if >0 */
 	int applet_count[MAX_THREADS];  /* applet count per thread */
 };

@@ -1597,6 +1597,13 @@ static inline int peer_send_teachmsgs(struct appctx *appctx, struct peer *p,
 		}
 
 		updateid = ts->upd.key;
+		if (p->srv->shard && ts->shard != p->srv->shard) {
+			/* Skip this entry */
+			st->last_pushed = updateid;
+			new_pushed = 1;
+			continue;
+		}
+
 		ts->ref_cnt++;
 		HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &st->table->lock);
 

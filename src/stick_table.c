@@ -17,6 +17,7 @@
 #include <import/ebmbtree.h>
 #include <import/ebsttree.h>
 #include <import/ebistree.h>
+#include <import/xxhash.h>
 
 #include <haproxy/api.h>
 #include <haproxy/applet.h>
@@ -155,6 +156,48 @@ void stksess_setkey(struct stktable *t, struct stksess *ts, struct stktable_key 
 	}
 }
 
+/*
+ * Initialize or update the key hash in the sticky session <ts> present in table <t>
+ * from the value present in <key>.
+ */
+static unsigned long long stksess_getkey_hash(struct stktable *t,
+                                              struct stksess *ts,
+                                              struct stktable_key *key)
+{
+	struct buffer *buf;
+	size_t keylen;
+
+	/* Copy the stick-table id into <buf> */
+	buf = get_trash_chunk();
+	memcpy(b_tail(buf), t->id, t->idlen);
+	b_add(buf, t->idlen);
+	/* Copy the key into <buf> */
+	if (t->type == SMP_T_STR)
+		keylen = key->key_len;
+	else
+		keylen = t->key_size;
+	memcpy(b_tail(buf), key->key, keylen);
+	b_add(buf, keylen);
+
+	return XXH64(b_head(buf), b_data(buf), 0);
+}
+
+/*
+ * Set the shard for <key> key of <ts> sticky session attached to <t> stick table.
+ * Do nothing for stick-table without peers synchronisation.
+ */
+static void stksess_setkey_shard(struct stktable *t, struct stksess *ts,
+                                 struct stktable_key *key)
+{
+	if (!t->peers.p)
+		/* This stick-table is not attached to any peers section */
+		return;
+
+	if (!t->peers.p->nb_shards)
+		ts->shard = 0;
+	else
+		ts->shard = stksess_getkey_hash(t, ts, key) % t->peers.p->nb_shards + 1;
+}
 
 /*
  * Init sticky session <ts> of table <t>. The data parts are cleared and <ts>
@@ -282,8 +325,10 @@ struct stksess *stksess_new(struct stktable *t, struct stktable_key *key)
 	if (ts) {
 		ts = (void *)ts + round_ptr_size(t->data_size);
 		__stksess_init(t, ts);
-		if (key)
+		if (key) {
 			stksess_setkey(t, ts, key);
+			stksess_setkey_shard(t, ts, key);
+		}
 	}
 
 	return ts;
@@ -851,6 +896,7 @@ int parse_stick_table(const char *file, int linenum, char **args,
 	}
 
 	t->id =  id;
+	t->idlen = strlen(id);
 	t->nid =  nid;
 	t->type = (unsigned int)-1;
 	t->conf.file = file;

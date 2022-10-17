@@ -3428,6 +3428,13 @@ server <peername> [<ip>:<port>] [param*]
         server haproxy2 192.168.0.2:1024
         server haproxy3 10.2.0.1:1024
 
+shards <shards>
+
+  In some configurations, one would like to distribute the stick-table contents
+  to some peers in place of sending all the stick-table contents to each peer
+  declared in the "peers" section. In such cases, "shards" specifies the
+  number of peer involved in this stick-table contents distribution.
+  See also "shard" server parameter.
 
 table <tablename> type {ip | integer | string [len <length>] | binary [len <length>]}
       size <size> [expire <expire>] [nopurge] [store <data_type>]*
@@ -15645,6 +15652,25 @@ send-proxy-v2-ssl-cn
   setting must not be used if the server isn't aware of this version of the
   protocol. See also the "no-send-proxy-v2-ssl-cn" option of this section and
   the "send-proxy-v2" option of the "bind" keyword.
+
+shard <shard>
+  This parameter in used only in the context of stick-tables synchronisation
+  with peers protocol. The "shard" parameter identifies the peers which will
+  receive all the stick-table updates for keys with this shard as distribution
+  hash. The accepted values are 0 up to "shards" parameter value specified in
+  the "peers" section. 0 value is the default value meaning that the peer will
+  receive all the key updates. Greater values than "shards" will be ignored.
+  This is also the case for any value provided to the local peer.
+
+  Example :
+
+  peers mypeers
+       shards 3
+       peer A 127.0.0.1:40001 # local peer without shard value (0 internally)
+       peer B 127.0.0.1:40002 shard 1
+       peer C 127.0.0.1:40003 shard 2
+       peer D 127.0.0.1:40004 shard 3
+
 
 slowstart <start_time_in_ms>
   The "slowstart" parameter for a server accepts a value in milliseconds which
