@@ -1727,10 +1727,9 @@ int ssl_sock_bind_verifycbk(int ok, X509_STORE_CTX *x_store)
 #ifdef USE_QUIC
 	else {
 		qc = SSL_get_ex_data(ssl, ssl_qc_app_data_index);
-		if (qc) {
-			bind_conf = qc->li->bind_conf;
-			ctx = qc->xprt_ctx;
-		}
+		BUG_ON(!qc); /* Must never happen */
+		bind_conf = qc->li->bind_conf;
+		ctx = qc->xprt_ctx;
 	}
 #endif
 
