@@ -5164,16 +5164,23 @@ static void qc_pkt_insert(struct quic_conn *qc,
 	TRACE_LEAVE(QUIC_EV_CONN_RXPKT, qc);
 }
 
-/* Try to remove the header protection of <pkt> QUIC packet attached to <qc>
- * QUIC connection with <buf> as packet number field address, <end> a pointer to one
- * byte past the end of the buffer containing this packet and <beg> the address of
- * the packet first byte.
- * If succeeded, this function updates <*buf> to point to the next packet in the buffer.
- * Returns 1 if succeeded, 0 if not.
+/* Try to remove the header protection of <pkt> QUIC packet with <beg> the
+ * address of the packet first byte, using the keys from encryption level <el>.
+ *
+ * If header protection has been successfully removed, packet data are copied
+ * into <qc> Rx buffer. If <el> secrets are not yet available, the copy is also
+ * proceeded, and the packet is inserted into <qc> protected packets tree. In
+ * both cases, packet can now be considered handled by the <qc> connection.
+ *
+ * If header protection cannot be removed due to <el> secrets already
+ * discarded, no operation is conducted.
+ *
+ * Returns 1 on success : packet data is now handled by the connection. On
+ * error 0 is returned : packet should be dropped by the caller.
  */
 static inline int qc_try_rm_hp(struct quic_conn *qc,
                                struct quic_rx_packet *pkt,
-                               unsigned char *buf, unsigned char *beg,
+                               unsigned char *beg,
                                struct quic_enc_level **el)
 {
 	int ret = 0;
@@ -5185,11 +5192,13 @@ static inline int qc_try_rm_hp(struct quic_conn *qc,
 
 	qpkt_trace = NULL;
 	TRACE_ENTER(QUIC_EV_CONN_TRMHP, qc);
+	BUG_ON(!pkt->pn_offset);
+
 	/* The packet number is here. This is also the start minus
 	 * QUIC_PACKET_PN_MAXLEN of the sample used to add/remove the header
 	 * protection.
 	 */
-	pn = buf;
+	pn = beg + pkt->pn_offset;
 
 	tel = quic_packet_type_enc_level(pkt->type);
 	qel = &qc->els[tel];
@@ -5205,8 +5214,8 @@ static inline int qc_try_rm_hp(struct quic_conn *qc,
 			goto out;
 		}
 
-		/* The AAD includes the packet number field found at <pn>. */
-		pkt->aad_len = pn - beg + pkt->pnl;
+		/* The AAD includes the packet number field. */
+		pkt->aad_len = pkt->pn_offset + pkt->pnl;
 		if (pkt->len - pkt->aad_len < QUIC_TLS_TAG_LEN) {
 			TRACE_PROTO("Too short packet", QUIC_EV_CONN_TRMHP, qc);
 			goto out;
@@ -5224,7 +5233,6 @@ static inline int qc_try_rm_hp(struct quic_conn *qc,
 		}
 
 		TRACE_PROTO("hp not removed", QUIC_EV_CONN_TRMHP, qc, pkt);
-		pkt->pn_offset = pn - beg;
 		LIST_APPEND(&qel->rx.pqpkts, &pkt->list);
 		quic_rx_packet_refinc(pkt);
 	}
@@ -5932,7 +5940,7 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
                              struct quic_rx_packet *pkt, int first_pkt,
                              struct quic_dgram *dgram, struct list **tasklist_head)
 {
-	unsigned char *beg, *payload;
+	unsigned char *beg;
 	struct quic_conn *qc;
 	struct listener *l;
 	struct proxy *prx;
@@ -6092,8 +6100,11 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 			goto drop;
 		}
 
-		payload = buf;
-		pkt->len = len + payload - beg;
+		/* Packet Number is stored here. Packet Length totalizes the
+		 * rest of the content.
+		 */
+		pkt->pn_offset = buf - beg;
+		pkt->len = pkt->pn_offset + len;
 		if (drop_no_conn)
 			goto drop_no_conn;
 
@@ -6194,8 +6205,8 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 
 		buf += QUIC_HAP_CID_LEN;
 
+		pkt->pn_offset = buf - beg;
 		/* A short packet is the last one of a UDP datagram. */
-		payload = buf;
 		pkt->len = end - beg;
 
 		qc = retrieve_qc_conn_from_cid(pkt, l, &dgram->saddr);
@@ -6275,7 +6286,7 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 		}
 	}
 
-	if (!qc_try_rm_hp(qc, pkt, payload, beg, &qel)) {
+	if (!qc_try_rm_hp(qc, pkt, beg, &qel)) {
 		TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT, qc, NULL, NULL, qv);
 		goto drop;
 	}
@@ -7177,6 +7188,7 @@ struct task *quic_lstnr_dghdlr(struct task *t, void *ctx, unsigned int state)
 			}
 
 			pkt->version = NULL;
+			pkt->pn_offset = 0;
 
 			LIST_INIT(&pkt->qc_rx_pkt_list);
 			pkt->time_received = now_ms;

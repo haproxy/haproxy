@@ -404,6 +404,7 @@ struct quic_rx_packet {
 	/* Initial desctination connection ID. */
 	struct quic_cid dcid;
 	struct quic_cid scid;
+	/* Packet number offset : only valid for Initial/Handshake/0-RTT/1-RTT. */
 	size_t pn_offset;
 	/* Packet number */
 	int64_t pn;
