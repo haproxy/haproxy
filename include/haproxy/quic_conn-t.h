@@ -395,7 +395,11 @@ struct quic_dgram {
 struct quic_rx_packet {
 	struct list list;
 	struct list qc_rx_pkt_list;
+
+	/* QUIC version used in packet. */
+	const struct quic_version *version;
 	struct quic_conn *qc;
+
 	unsigned char type;
 	/* Initial desctination connection ID. */
 	struct quic_cid dcid;
