@@ -77,13 +77,13 @@ static void qmux_trace(enum trace_level level, uint64_t mask,
 			chunk_appendf(&trace_buf, " qc=%p", qcc->conn->handle.qc);
 
 		if (qcs)
-			chunk_appendf(&trace_buf, " qcs=%p .id=%lu .st=%s",
-			              qcs, qcs->id,
+			chunk_appendf(&trace_buf, " qcs=%p .id=%llu .st=%s",
+			              qcs, (ullong)qcs->id,
 			              qcs_st_to_str(qcs->st));
 
 		if (mask & QMUX_EV_QCC_NQCS) {
 			const uint64_t *id = a3;
-			chunk_appendf(&trace_buf, " id=%lu", *id);
+			chunk_appendf(&trace_buf, " id=%llu", (ullong)*id);
 		}
 
 		if (mask & QMUX_EV_SEND_FRM)
@@ -92,13 +92,13 @@ static void qmux_trace(enum trace_level level, uint64_t mask,
 		if (mask & QMUX_EV_QCS_XFER_DATA) {
 			const struct qcs_xfer_data_trace_arg *arg = a3;
 			chunk_appendf(&trace_buf, " prep=%lu xfer=%d",
-			              arg->prep, arg->xfer);
+			              (ulong)arg->prep, arg->xfer);
 		}
 
 		if (mask & QMUX_EV_QCS_BUILD_STRM) {
 			const struct qcs_build_stream_trace_arg *arg = a3;
-			chunk_appendf(&trace_buf, " len=%lu fin=%d offset=%lu",
-			              arg->len, arg->fin, arg->offset);
+			chunk_appendf(&trace_buf, " len=%lu fin=%d offset=%llu",
+			              (ulong)arg->len, arg->fin, (ullong)arg->offset);
 		}
 	}
 }
