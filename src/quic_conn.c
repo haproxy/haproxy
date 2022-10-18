@@ -5471,7 +5471,7 @@ static int quic_generate_retry_token(unsigned char *buf, size_t len,
 	int ret = 0;
 	unsigned char *p;
 	unsigned char aad[sizeof(uint32_t) + sizeof(in_port_t) +
-		sizeof(struct in6_addr) + QUIC_HAP_CID_LEN];
+	                  sizeof(struct in6_addr) + QUIC_CID_MAXLEN];
 	size_t aadlen;
 	unsigned char salt[QUIC_RETRY_TOKEN_SALTLEN];
 	unsigned char key[QUIC_TLS_KEY_LEN];
@@ -5557,7 +5557,7 @@ static int quic_retry_token_check(unsigned char *token, size_t tokenlen,
 	int ret = 0;
 	unsigned char buf[128];
 	unsigned char aad[sizeof(uint32_t) + sizeof(in_port_t) +
-		sizeof(struct in6_addr) + QUIC_HAP_CID_LEN];
+	                  sizeof(struct in6_addr) + QUIC_CID_MAXLEN];
 	size_t aadlen;
 	const unsigned char *salt;
 	unsigned char key[QUIC_TLS_KEY_LEN];
