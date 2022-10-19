@@ -5926,6 +5926,119 @@ static inline int quic_padding_check(const unsigned char *buf,
 	return buf == end;
 }
 
+/* Find the associated connection to the packet <pkt> or create a new one if
+ * this is an Initial packet. <dgram> is the datagram containing the packet and
+ * <l> is the listener instance on which it was received.
+ *
+ * Returns the quic-conn instance or NULL.
+ */
+static struct quic_conn *quic_rx_pkt_retrieve_conn(struct quic_rx_packet *pkt,
+                                                   struct quic_dgram *dgram,
+                                                   struct listener *l)
+{
+	struct quic_cid odcid;
+	const struct quic_cid *token_odcid = NULL; // ODCID received from client token
+	struct quic_conn *qc = NULL;
+	struct proxy *prx;
+	struct quic_counters *prx_counters;
+
+	TRACE_ENTER(QUIC_EV_CONN_LPKT);
+
+	prx = l->bind_conf->frontend;
+	prx_counters = EXTRA_COUNTERS_GET(prx->extra_counters_fe, &quic_stats_module);
+
+	qc = retrieve_qc_conn_from_cid(pkt, l, &dgram->saddr);
+
+	if (pkt->type == QUIC_PACKET_TYPE_INITIAL) {
+		BUG_ON(!pkt->version); /* This must not happen. */
+
+		if (global.cluster_secret && pkt->token_len) {
+			if (*pkt->token == QUIC_TOKEN_FMT_RETRY) {
+				const struct quic_version *ver = qc ? qc->original_version : pkt->version;
+				if (!quic_retry_token_check(pkt->token, pkt->token_len, ver, &odcid,
+				                            &pkt->scid, qc, &dgram->saddr)) {
+					HA_ATOMIC_INC(&prx_counters->retry_error);
+					TRACE_PROTO("Wrong retry token",
+					            QUIC_EV_CONN_LPKT, qc, NULL, NULL, pkt->version);
+					/* TODO: RFC 9000 8.1.2 A server SHOULD immediately close the connection
+					 * with an INVALID_TOKEN error.
+					 */
+					goto out;
+				}
+
+				token_odcid = &odcid;
+				HA_ATOMIC_INC(&prx_counters->retry_validated);
+			}
+			else {
+				/* TODO: New token check */
+				TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT, qc, NULL, NULL, pkt->version);
+				goto out;
+			}
+		}
+
+		if (!qc) {
+			int ipv4;
+
+			if (global.cluster_secret && !pkt->token_len && !(l->bind_conf->options & BC_O_QUIC_FORCE_RETRY) &&
+			    HA_ATOMIC_LOAD(&prx_counters->half_open_conn) >= global.tune.quic_retry_threshold) {
+				TRACE_PROTO("Initial without token, sending retry",
+				            QUIC_EV_CONN_LPKT, NULL, NULL, NULL, pkt->version);
+				if (send_retry(l->rx.fd, &dgram->saddr, pkt, pkt->version)) {
+					TRACE_ERROR("Error during Retry generation",
+					            QUIC_EV_CONN_LPKT, NULL, NULL, NULL, pkt->version);
+					goto out;
+				}
+
+				HA_ATOMIC_INC(&prx_counters->retry_sent);
+				goto out;
+			}
+
+			/* RFC 9000 7.2. Negotiating Connection IDs:
+			 * When an Initial packet is sent by a client that has not previously
+			 * received an Initial or Retry packet from the server, the client
+			 * populates the Destination Connection ID field with an unpredictable
+			 * value. This Destination Connection ID MUST be at least 8 bytes in length.
+			 */
+			if (pkt->dcid.len < QUIC_ODCID_MINLEN) {
+				TRACE_PROTO("dropped packet",
+				            QUIC_EV_CONN_LPKT, NULL, NULL, NULL, pkt->version);
+				goto err;
+			}
+
+			pkt->saddr = dgram->saddr;
+			ipv4 = dgram->saddr.ss_family == AF_INET;
+
+			qc = qc_new_conn(pkt->version, ipv4, &pkt->dcid, &pkt->scid, token_odcid,
+			                 &dgram->daddr, &pkt->saddr, 1,
+			                 !!pkt->token_len, l);
+			if (qc == NULL)
+				goto err;
+
+			HA_ATOMIC_INC(&prx_counters->half_open_conn);
+			/* Insert the DCID the QUIC client has chosen (only for listeners) */
+			ebmb_insert(&quic_dghdlrs[tid].odcids, &qc->odcid_node,
+			            qc->odcid.len + qc->odcid.addrlen);
+		}
+	}
+	else if (!qc) {
+		TRACE_PROTO("No connection on a non Initial packet", QUIC_EV_CONN_LPKT, NULL, NULL, NULL, pkt->version);
+		if (global.cluster_secret && !send_stateless_reset(l, &dgram->saddr, pkt))
+			TRACE_ERROR("stateless reset not sent", QUIC_EV_CONN_LPKT, qc);
+		goto err;
+	}
+
+	pkt->qc = qc;
+
+ out:
+	TRACE_LEAVE(QUIC_EV_CONN_LPKT, qc);
+	return qc;
+
+ err:
+	HA_ATOMIC_INC(&prx_counters->dropped_pkt);
+	TRACE_LEAVE(QUIC_EV_CONN_LPKT);
+	return NULL;
+}
+
 /* Parse a QUIC packet from UDP datagram found in <buf> buffer with <end> the
  * end of this buffer past one byte and populate <pkt> RX packet structure
  * with the information collected from the packet.
@@ -5994,22 +6107,20 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 
 	if (long_header) {
 		uint64_t len;
-		struct quic_cid odcid;
-		const struct quic_cid *token_odcid = NULL; // ODCID received from client token
 
-		TRACE_PROTO("long header packet received", QUIC_EV_CONN_LPKT, qc);
+		TRACE_PROTO("long header packet received", QUIC_EV_CONN_LPKT);
 		if (!quic_packet_read_long_header(&buf, end, pkt)) {
 			TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT);
 			goto drop;
 		}
 
 		if (pkt->type == QUIC_PACKET_TYPE_0RTT && !l->bind_conf->ssl_conf.early_data) {
-			TRACE_PROTO("0-RTT packet not supported", QUIC_EV_CONN_LPKT, qc);
+			TRACE_PROTO("0-RTT packet not supported", QUIC_EV_CONN_LPKT);
 			drop_no_conn = 1;
 		}
 		else if (pkt->type == QUIC_PACKET_TYPE_INITIAL &&
 		         dgram->len < QUIC_INITIAL_PACKET_MINLEN) {
-			TRACE_PROTO("Too short datagram with an Initial packet", QUIC_EV_CONN_LPKT, qc);
+			TRACE_PROTO("Too short datagram with an Initial packet", QUIC_EV_CONN_LPKT);
 			HA_ATOMIC_INC(&prx_counters->too_short_initial_dgram);
 			goto drop;
 		}
@@ -6020,7 +6131,7 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 		if (!(pkt->flags & QUIC_FL_RX_PACKET_DGRAM_FIRST) &&
 		    (pkt->dcid.len != dgram->dcid_len ||
 		     memcmp(dgram->dcid, pkt->dcid.data, pkt->dcid.len))) {
-			TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT, qc);
+			TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT);
 			goto drop;
 		}
 
@@ -6109,84 +6220,9 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 		pkt->len = pkt->pn_offset + len;
 		if (drop_no_conn)
 			goto drop_no_conn;
-
-		qc = retrieve_qc_conn_from_cid(pkt, l, &dgram->saddr);
-		if (global.cluster_secret && pkt->token_len) {
-			if (*pkt->token == QUIC_TOKEN_FMT_RETRY) {
-				const struct quic_version *ver = qc ? qc->original_version : qv;
-				if (!quic_retry_token_check(pkt->token, pkt->token_len, ver, &odcid,
-				                            &pkt->scid, qc, &dgram->saddr)) {
-					HA_ATOMIC_INC(&prx_counters->retry_error);
-					TRACE_PROTO("Wrong retry token",
-					            QUIC_EV_CONN_LPKT, qc, NULL, NULL, qv);
-					/* TODO: RFC 9000 8.1.2 A server SHOULD immediately close the connection
-					 * with an INVALID_TOKEN error.
-					 */
-					goto drop;
-				}
-
-				token_odcid = &odcid;
-				HA_ATOMIC_INC(&prx_counters->retry_validated);
-			}
-			else {
-				/* TODO: New token check */
-				TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT, qc, NULL, NULL, qv);
-				goto drop;
-			}
-		}
-		if (!qc) {
-			int ipv4;
-
-			if (pkt->type != QUIC_PACKET_TYPE_INITIAL) {
-				TRACE_PROTO("Non Initial packet", QUIC_EV_CONN_LPKT, NULL, NULL, NULL, qv);
-				goto drop;
-			}
-
-			if (global.cluster_secret && !pkt->token_len && !(l->bind_conf->options & BC_O_QUIC_FORCE_RETRY) &&
-			    HA_ATOMIC_LOAD(&prx_counters->half_open_conn) >= global.tune.quic_retry_threshold) {
-				TRACE_PROTO("Initial without token, sending retry",
-				            QUIC_EV_CONN_LPKT, NULL, NULL, NULL, qv);
-				if (send_retry(l->rx.fd, &dgram->saddr, pkt, qv)) {
-					TRACE_ERROR("Error during Retry generation",
-					            QUIC_EV_CONN_LPKT, NULL, NULL, NULL, qv);
-					goto err;
-				}
-
-				HA_ATOMIC_INC(&prx_counters->retry_sent);
-				goto err;
-			}
-
-			/* RFC 9000 7.2. Negotiating Connection IDs:
-			 * When an Initial packet is sent by a client that has not previously
-			 * received an Initial or Retry packet from the server, the client
-			 * populates the Destination Connection ID field with an unpredictable
-			 * value. This Destination Connection ID MUST be at least 8 bytes in length.
-			 */
-			if (pkt->dcid.len < QUIC_ODCID_MINLEN) {
-				TRACE_PROTO("dropped packet",
-				            QUIC_EV_CONN_LPKT, NULL, NULL, NULL, qv);
-				goto drop;
-			}
-
-			pkt->saddr = dgram->saddr;
-			ipv4 = dgram->saddr.ss_family == AF_INET;
-
-			qc = qc_new_conn(qv, ipv4, &pkt->dcid, &pkt->scid, token_odcid,
-			                 &dgram->daddr, &pkt->saddr, 1,
-			                 !!pkt->token_len, l);
-			if (qc == NULL)
-				goto drop;
-
-			HA_ATOMIC_INC(&prx_counters->half_open_conn);
-			/* Insert the DCID the QUIC client has chosen (only for listeners) */
-			ebmb_insert(&quic_dghdlrs[tid].odcids, &qc->odcid_node,
-			            qc->odcid.len + qc->odcid.addrlen);
-		}
-
-		pkt->qc = qc;
 	}
 	else {
-		TRACE_PROTO("short header packet received", QUIC_EV_CONN_LPKT, qc);
+		TRACE_PROTO("short header packet received", QUIC_EV_CONN_LPKT);
 		if (end - buf < QUIC_HAP_CID_LEN) {
 			TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT);
 			goto drop;
@@ -6201,7 +6237,7 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 		if (!(pkt->flags & QUIC_FL_RX_PACKET_DGRAM_FIRST) &&
 		    (pkt->dcid.len != dgram->dcid_len ||
 		     memcmp(dgram->dcid, pkt->dcid.data, pkt->dcid.len))) {
-			TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT, qc);
+			TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT);
 			goto drop;
 		}
 
@@ -6210,17 +6246,15 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 		pkt->pn_offset = buf - beg;
 		/* A short packet is the last one of a UDP datagram. */
 		pkt->len = end - beg;
+	}
 
-		qc = retrieve_qc_conn_from_cid(pkt, l, &dgram->saddr);
-		if (!qc) {
-			size_t pktlen = end - buf;
-			TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT, NULL, pkt, &pktlen);
-			if (global.cluster_secret && !send_stateless_reset(l, &dgram->saddr, pkt))
-				TRACE_ERROR("stateless reset not sent", QUIC_EV_CONN_LPKT, qc);
-			goto drop;
-		}
-
-		pkt->qc = qc;
+	qc = quic_rx_pkt_retrieve_conn(pkt, dgram, dgram->owner);
+	if (!qc) {
+		size_t pktlen = end - buf;
+		TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT, NULL, pkt, &pktlen);
+		if (global.cluster_secret && !send_stateless_reset(l, &dgram->saddr, pkt))
+			TRACE_ERROR("stateless reset not sent", QUIC_EV_CONN_LPKT, qc);
+		goto drop;
 	}
 
 	if (qc->flags & QUIC_FL_CONN_CLOSING) {
