@@ -1684,7 +1684,7 @@ static inline void __do_send_log(struct logsrv *logsrv, int nblogger, int level,
 		msg = ist2(message, size);
 		msg = isttrim(msg, logsrv->maxlen);
 
-		sent = sink_write(logsrv->sink, &msg, 1, level, logsrv->facility, metadata);
+		sent = sink_write(logsrv->sink, &msg, 1, level, facility, metadata);
 	}
 	else if (logsrv->addr.ss_family == AF_CUST_EXISTING_FD) {
 		struct ist msg;
