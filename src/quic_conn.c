@@ -6039,38 +6039,29 @@ static struct quic_conn *quic_rx_pkt_retrieve_conn(struct quic_rx_packet *pkt,
 	return NULL;
 }
 
-/* Parse a QUIC packet from UDP datagram found in <buf> buffer with <end> the
- * end of this buffer past one byte and populate <pkt> RX packet structure
- * with the information collected from the packet.
- * This function sets ->len <pkt> field value to the end of the packet past one
- * byte to enable the caller to run this function again to continue to parse
- * the remaining QUIC packets carried by the datagram.
- * Note that this function always sets this ->len value. If a paquet could
- * not be correctly found, ->len value will be set to the remaining number
- * bytes in the datagram to entirely consume this latter.
+/* Parse a QUIC packet starting at <buf>. Data won't be read after <end> even
+ * if the packet is incomplete. This function will populate fields of <pkt>
+ * instance, most notably its length. <dgram> is the UDP datagram which
+ * contains the parsed packet. <l> is the listener instance on which it was
+ * received.
+ *
+ * Returns 0 on success else non-zero. Packet length is guaranteed to be set to
+ * the real packet value or to cover all data between <buf> and <end> : this is
+ * useful to reject a whole datagram.
  */
-static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
-                             struct quic_rx_packet *pkt,
-                             struct quic_dgram *dgram,
-                             struct list **tasklist_head)
+static int quic_rx_pkt_parse(struct quic_rx_packet *pkt,
+                             unsigned char *buf, const unsigned char *end,
+                             struct quic_dgram *dgram, struct listener *l)
 {
-	unsigned char *beg;
-	struct quic_conn *qc;
-	struct listener *l;
+	const unsigned char *beg = buf;
 	struct proxy *prx;
 	struct quic_counters *prx_counters;
-	int drop_no_conn = 0, long_header = 0, io_cb_wakeup = 0;
-	size_t b_cspace;
-	struct quic_enc_level *qel;
+	int drop_no_conn = 0, long_header = 0;
 	uint32_t version;
 	const struct quic_version *qv = NULL;
 
 	TRACE_ENTER(QUIC_EV_CONN_LPKT);
 
-	beg = buf;
-	qc = NULL;
-	qel = NULL;
-	l = dgram->owner;
 	prx = l->bind_conf->frontend;
 	prx_counters = EXTRA_COUNTERS_GET(prx->extra_counters_fe, &quic_stats_module);
 	/* This ist only to please to traces and distinguish the
@@ -6248,34 +6239,75 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 		pkt->len = end - beg;
 	}
 
-	qc = quic_rx_pkt_retrieve_conn(pkt, dgram, dgram->owner);
-	if (!qc) {
-		size_t pktlen = end - buf;
-		TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT, NULL, pkt, &pktlen);
-		if (global.cluster_secret && !send_stateless_reset(l, &dgram->saddr, pkt))
-			TRACE_ERROR("stateless reset not sent", QUIC_EV_CONN_LPKT, qc);
-		goto drop;
-	}
+	TRACE_LEAVE(QUIC_EV_CONN_LPKT, NULL, pkt, NULL, qv);
+	return 0;
 
-	if (qc->flags & QUIC_FL_CONN_CLOSING) {
-		if (++qc->nb_pkt_since_cc >= qc->nb_pkt_for_cc) {
-			qc->flags |= QUIC_FL_CONN_IMMEDIATE_CLOSE;
-			qc->nb_pkt_for_cc++;
-			qc->nb_pkt_since_cc = 0;
-		}
-		/* Skip the entire datagram */
+ drop_no_conn:
+	if (drop_no_conn)
+		HA_ATOMIC_INC(&prx_counters->dropped_pkt);
+	TRACE_LEAVE(QUIC_EV_CONN_LPKT, NULL, pkt);
+
+	return -1;
+
+ drop:
+	HA_ATOMIC_INC(&prx_counters->dropped_pkt);
+
+ err:
+	if (!pkt->len)
 		pkt->len = end - beg;
-		TRACE_STATE("Closing state connection",
-		            QUIC_EV_CONN_LPKT, pkt->qc, NULL, NULL, qv);
-		goto drop;
+	TRACE_LEAVE(QUIC_EV_CONN_LPKT, NULL, pkt, NULL, qv);
+	return -1;
+}
+
+/* Check if received packet <pkt> should be drop due to <qc> already in closing
+ * state. This can be true if a CONNECTION_CLOSE has already been emitted for
+ * this connection.
+ *
+ * Returns false if connection is not in closing state else true. The caller
+ * should drop the whole datagram in the last case to not mess up <qc>
+ * CONNECTION_CLOSE rate limit counter.
+ */
+static int qc_rx_check_closing(struct quic_conn *qc,
+                               struct quic_rx_packet *pkt)
+{
+	if (!(qc->flags & QUIC_FL_CONN_CLOSING))
+		return 0;
+
+	TRACE_STATE("Closing state connection", QUIC_EV_CONN_LPKT, qc, NULL, NULL, pkt->version);
+
+	/* Check if CONNECTION_CLOSE rate reemission is reached. */
+	if (++qc->nb_pkt_since_cc >= qc->nb_pkt_for_cc) {
+		qc->flags |= QUIC_FL_CONN_IMMEDIATE_CLOSE;
+		qc->nb_pkt_for_cc++;
+		qc->nb_pkt_since_cc = 0;
 	}
 
-	/* When multiple QUIC packets are coalesced on the same UDP datagram,
-	 * they must have the same DCID.
-	 *
-	 * This check must be done after the final update to pkt.len to
-	 * properly drop the packet on failure.
-	 */
+	return 1;
+}
+
+/* Handle a parsed packet <pkt> by the connection <qc>. Data will be copied
+ * into <qc> receive buffer after header protection removal procedure.
+ *
+ * <dgram> must be set to the datagram which contains the QUIC packet. <beg>
+ * must point to packet buffer first byte.
+ *
+ * <tasklist_head> may be non-NULL when the caller treat several datagrams for
+ * different quic-conn. In this case, each quic-conn tasklet will be appended
+ * to it in order to be woken up after the current task.
+ *
+ * The caller can safely removed the packet data. If packet refcount was not
+ * incremented by this function, it means that the connection did not handled
+ * it and it should be freed by the caller.
+ */
+static void qc_rx_pkt_handle(struct quic_conn *qc, struct quic_rx_packet *pkt,
+                             struct quic_dgram *dgram, unsigned char *beg,
+                             struct list **tasklist_head)
+{
+	const struct quic_version *qv = pkt->version;
+	struct quic_enc_level *qel = NULL;
+	size_t b_cspace;
+	int io_cb_wakeup = 1;
+
 	if (pkt->flags & QUIC_FL_RX_PACKET_DGRAM_FIRST &&
 	    !quic_peer_validated_addr(qc) &&
 	    qc->flags & QUIC_FL_CONN_ANTI_AMPLIFICATION_REACHED) {
@@ -6288,8 +6320,6 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 		qc->flags |= QUIC_FL_CONN_IO_CB_WAKEUP;
 		io_cb_wakeup = 1;
 	}
-
-	dgram->qc = qc;
 
 	if (qc->flags & QUIC_FL_CONN_IMMEDIATE_CLOSE) {
 		TRACE_PROTO("Connection error",
@@ -6305,7 +6335,7 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 		if (b_tail(&qc->rx.buf) + b_cspace < b_wrap(&qc->rx.buf)) {
 			TRACE_PROTO("Packet dropped",
 			            QUIC_EV_CONN_LPKT, qc, NULL, NULL, qv);
-			HA_ATOMIC_INC(&prx_counters->dropped_pkt_bufoverrun);
+			HA_ATOMIC_INC(&qc->prx_counters->dropped_pkt_bufoverrun);
 			goto drop_no_conn;
 		}
 
@@ -6318,7 +6348,7 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 		if (b_contig_space(&qc->rx.buf) < pkt->len) {
 			TRACE_PROTO("Too big packet",
 			            QUIC_EV_CONN_LPKT, qc, pkt, &pkt->len, qv);
-			HA_ATOMIC_INC(&prx_counters->dropped_pkt_bufoverrun);
+			HA_ATOMIC_INC(&qc->prx_counters->dropped_pkt_bufoverrun);
 			goto drop_no_conn;
 		}
 	}
@@ -6332,24 +6362,15 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 	if (pkt->aad_len)
 		qc_pkt_insert(qc, pkt, qel);
  out:
-	/* Wake up the connection packet handler task from here only if all
-	 * the contexts have been initialized, especially the mux context
-	 * conn_ctx->conn->ctx. Note that this is ->start xprt callback which
-	 * will start it if these contexts for the connection are not already
-	 * initialized.
-	 */
 	*tasklist_head = tasklet_wakeup_after(*tasklist_head,
 	                                      qc->wait_event.tasklet);
 
  drop_no_conn:
-	if (drop_no_conn)
-		HA_ATOMIC_INC(&prx_counters->dropped_pkt);
 	TRACE_LEAVE(QUIC_EV_CONN_LPKT, qc ? qc : NULL, pkt, NULL, qv);
-
 	return;
 
  drop:
-	HA_ATOMIC_INC(&prx_counters->dropped_pkt);
+	HA_ATOMIC_INC(&qc->prx_counters->dropped_pkt);
  err:
 	/* Wakeup the I/O handler callback if the PTO timer must be armed.
 	 * This cannot be done by this thread.
@@ -6357,9 +6378,6 @@ static void qc_lstnr_pkt_rcv(unsigned char *buf, const unsigned char *end,
 	if (io_cb_wakeup)
 		tasklet_wakeup(qc->wait_event.tasklet);
 
-	/* If length not found, consume the entire datagram */
-	if (!pkt->len)
-		pkt->len = end - beg;
 	TRACE_LEAVE(QUIC_EV_CONN_LPKT, qc ? qc : NULL, pkt, NULL, qv);
 }
 
@@ -7214,6 +7232,7 @@ struct task *quic_lstnr_dghdlr(struct task *t, void *ctx, unsigned int state)
 		end = pos + dgram->len;
 		do {
 			struct quic_rx_packet *pkt;
+			struct quic_conn *qc;
 
 			/* TODO replace zalloc -> alloc. */
 			pkt = pool_zalloc(pool_head_quic_rx_packet);
@@ -7233,7 +7252,25 @@ struct task *quic_lstnr_dghdlr(struct task *t, void *ctx, unsigned int state)
 			LIST_INIT(&pkt->qc_rx_pkt_list);
 			pkt->time_received = now_ms;
 			quic_rx_packet_refinc(pkt);
-			qc_lstnr_pkt_rcv(pos, end, pkt, dgram, &tasklist_head);
+			if (quic_rx_pkt_parse(pkt, pos, end, dgram, dgram->owner))
+				goto next;
+
+			qc = quic_rx_pkt_retrieve_conn(pkt, dgram, dgram->owner);
+			if (!qc)
+				goto next;
+
+			BUG_ON(dgram->qc && dgram->qc != qc);
+			dgram->qc = qc;
+
+			if (qc_rx_check_closing(qc, pkt)) {
+				/* Skip the entire datagram. */
+				pkt->len = end - pos;
+				goto next;
+			}
+
+			qc_rx_pkt_handle(qc, pkt, dgram, pos, &tasklist_head);
+
+ next:
 			pos += pkt->len;
 			quic_rx_packet_refdec(pkt);
 
