@@ -391,6 +391,8 @@ struct quic_dgram {
 #define QUIC_MAX_RX_AEPKTS_SINCE_LAST_ACK       2
 /* Flag a received packet as being an ack-eliciting packet. */
 #define QUIC_FL_RX_PACKET_ACK_ELICITING (1UL << 0)
+/* Packet is the first one in the containing datagram. */
+#define QUIC_FL_RX_PACKET_DGRAM_FIRST   (1UL << 1)
 
 struct quic_rx_packet {
 	struct list list;
