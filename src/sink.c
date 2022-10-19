@@ -994,7 +994,7 @@ int cfg_parse_ring(const char *file, int linenum, char **args, int kwm)
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto err;
 			}
-                        if (args[1][2] == 'c')
+                        if (args[1][0] == 'c')
                                 cfg_sink->forward_px->timeout.connect = tout;
                         else
                                 cfg_sink->forward_px->timeout.server = tout;
