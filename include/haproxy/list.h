@@ -417,6 +417,40 @@
     })
 
 /*
+ * Add an item at the end of a list.
+ * It is assumed the element can't already be in a list, so it isn't checked
+ * Item will be added in busy/locked state, so that it is already
+ * referenced in the list but no other thread can use it until we're ready.
+ *
+ * This returns a struct mt_list, that will be needed at unlock time.
+ * (using MT_LIST_UNLOCK_ELT)
+ */
+#define MT_LIST_APPEND_LOCKED(_lh, _el)					   \
+    ({									   \
+	struct mt_list np;                                        	   \
+	struct mt_list *lh = (_lh), *el = (_el);                           \
+	(el)->next = MT_LIST_BUSY;                                 	   \
+	(el)->prev = MT_LIST_BUSY;                                 	   \
+	for (;;__ha_cpu_relax()) {                                         \
+		struct mt_list *n;                                         \
+		struct mt_list *p;                                         \
+		p = _HA_ATOMIC_XCHG(&(lh)->prev, MT_LIST_BUSY);            \
+		if (p == MT_LIST_BUSY)                                     \
+		        continue;                                          \
+		n = _HA_ATOMIC_XCHG(&p->next, MT_LIST_BUSY);               \
+		if (n == MT_LIST_BUSY) {                                   \
+			(lh)->prev = p;                                    \
+			__ha_barrier_store();                              \
+			continue;                                          \
+		}                                                          \
+		np.prev = p;						   \
+		np.next = n;						   \
+		break;                                                     \
+	}                                                                  \
+	(np);                                                              \
+    })
+
+/*
  * Detach a list from its head. A pointer to the first element is returned
  * and the list is closed. If the list was empty, NULL is returned. This may
  * exclusively be used with lists modified by MT_LIST_TRY_INSERT/MT_LIST_TRY_APPEND. This
