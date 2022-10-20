@@ -1248,6 +1248,7 @@ int hlua_ctx_init(struct hlua *lua, int state_id, struct task *task, int already
 	lua->wake_time = TICK_ETERNITY;
 	lua->state_id = state_id;
 	LIST_INIT(&lua->com);
+	LIST_INIT(&lua->hc_list);
 	if (!already_safe) {
 		if (!SET_SAFE_LJMP_PARENT(lua)) {
 			lua->Tref = LUA_REFNIL;
@@ -1269,6 +1270,20 @@ int hlua_ctx_init(struct hlua *lua, int state_id, struct task *task, int already
 	return 1;
 }
 
+/* kill all associated httpclient to this hlua task */
+static void hlua_httpclient_destroy_all(struct hlua *hlua)
+{
+	struct hlua_httpclient *hlua_hc, *back;
+
+	list_for_each_entry_safe(hlua_hc, back, &hlua->hc_list, by_hlua) {
+		if (hlua_hc->hc)
+			httpclient_stop_and_destroy(hlua_hc->hc);
+		hlua_hc->hc = NULL;
+		LIST_DELETE(&hlua_hc->by_hlua);
+	}
+}
+
+
 /* Used to destroy the Lua coroutine when the attached stream or task
  * is destroyed. The destroy also the memory context. The struct "lua"
  * is not freed.
@@ -1280,6 +1295,9 @@ void hlua_ctx_destroy(struct hlua *lua)
 
 	if (!lua->T)
 		goto end;
+
+	/* clean all running httpclient */
+	hlua_httpclient_destroy_all(lua);
 
 	/* Purge all the pending signals. */
 	notification_purge(&lua->com);
@@ -7012,7 +7030,10 @@ __LJMP static int hlua_httpclient_gc(lua_State *L)
 
 	hlua_hc = MAY_LJMP(hlua_checkhttpclient(L, 1));
 
-	httpclient_stop_and_destroy(hlua_hc->hc);
+	if (hlua_hc->hc)
+		httpclient_stop_and_destroy(hlua_hc->hc);
+
+	LIST_DELETE(&hlua_hc->by_hlua);
 
 	hlua_hc->hc = NULL;
 
@@ -7045,6 +7066,8 @@ __LJMP static int hlua_httpclient_new(lua_State *L)
 	hlua_hc->hc = httpclient_new(hlua, 0, IST_NULL);
 	if (!hlua_hc->hc)
 		goto err;
+
+	LIST_APPEND(&hlua->hc_list, &hlua_hc->by_hlua);
 
 	/* Pop a class stream metatable and affect it to the userdata. */
 	lua_rawgeti(L, LUA_REGISTRYINDEX, class_httpclient_ref);
