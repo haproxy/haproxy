@@ -604,10 +604,12 @@
  */
 #define MT_LIST_INLIST(el) ((el)->next != (el))
 
-/* Lock an element in the list, to be sure it won't be removed.
- * It needs to be synchronized somehow to be sure it's not removed
- * from the list in the meanwhile.
+/* Lock an element in the list, to be sure it won't be removed nor
+ * accessed by another thread while the lock is held.
+ * Locking behavior is inspired from MT_LIST_DELETE macro,
+ * thus this macro can safely be used concurrently with MT_LIST_DELETE.
  * This returns a struct mt_list, that will be needed at unlock time.
+ * (using MT_LIST_UNLOCK_ELT)
  */
 #define MT_LIST_LOCK_ELT(_el)                                              \
 	({                                                                 \
