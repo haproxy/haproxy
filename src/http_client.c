@@ -707,6 +707,11 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 	uint32_t sz;
 	int ret;
 
+	/* The IO handler could be called after the release, so we need to
+	 * check if hc is still there to run the IO handler */
+	if (!hc)
+		return;
+
 	while (1) {
 
 		/* required to stop */
@@ -1114,6 +1119,10 @@ static void httpclient_applet_release(struct appctx *appctx)
 	if (hc->flags & HTTPCLIENT_FA_AUTOKILL) {
 		httpclient_destroy(hc);
 	}
+
+	/* be sure not to use this ptr anymore if the IO handler is called a
+	 * last time */
+	appctx->svcctx = NULL;
 
 	return;
 }
