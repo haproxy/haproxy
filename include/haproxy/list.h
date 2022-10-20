@@ -612,7 +612,7 @@
 #define MT_LIST_LOCK_ELT(_el)                                              \
 	({                                                                 \
 		struct mt_list ret;                                        \
-		struct mt_liet *el = (_el);                                \
+		struct mt_list *el = (_el);                                \
 		for (;;__ha_cpu_relax()) {                                 \
 			struct mt_list *n, *n2;                            \
 			struct mt_list *p, *p2 = NULL;                     \
