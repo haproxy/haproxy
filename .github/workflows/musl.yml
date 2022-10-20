@@ -12,14 +12,21 @@ jobs:
       runs-on: ubuntu-latest
       container:
         image: alpine:latest
+        options: --privileged --ulimit core=-1 --security-opt seccomp=unconfined
+        volumes:
+          - /tmp/core:/tmp/core
       steps:
+      - name: Setup coredumps
+        run: |
+          ulimit -c unlimited
+          echo '/tmp/core/core.%h.%e.%t' > /proc/sys/kernel/core_pattern
       - uses: actions/checkout@v3
       - name: Install dependencies
-        run: apk add gcc make tar git python3 libc-dev linux-headers pcre-dev pcre2-dev openssl-dev lua5.3-dev grep socat curl
+        run: apk add gcc gdb make tar git python3 libc-dev linux-headers pcre-dev pcre2-dev openssl-dev lua5.3-dev grep socat curl musl-dbg lua5.3-dbg
       - name: Install VTest
         run: scripts/build-vtest.sh
       - name: Build
-        run: make -j$(nproc) CC=cc V=1 TARGET=linux-musl USE_LUA=1 LUA_INC=/usr/include/lua5.3 LUA_LIB=/usr/lib/lua5.3 USE_OPENSSL=1 USE_PCRE2=1 USE_PCRE2_JIT=1 USE_PROMEX=1
+        run: make -j$(nproc) TARGET=linux-musl DEBUG_CFLAGS='-ggdb3' CC=cc V=1 USE_LUA=1 LUA_INC=/usr/include/lua5.3 LUA_LIB=/usr/lib/lua5.3 USE_OPENSSL=1 USE_PCRE2=1 USE_PCRE2_JIT=1 USE_PROMEX=1
       - name: Show version
         run: ./haproxy -vv
       - name: Show linked libraries
@@ -30,6 +37,15 @@ jobs:
       - name: Run VTest
         id: vtest
         run: make reg-tests VTEST_PROGRAM=../vtest/vtest REGTESTS_TYPES=default,bug,devel
+      - name: Show coredumps
+        if: ${{ failure() && steps.vtest.outcome == 'failure' }}
+        run: |
+          ls /tmp/core/
+          for file in /tmp/core/core.*; do
+            printf "::group::"
+            gdb -ex 'thread apply all bt full' ./haproxy $file
+            echo "::endgroup::"
+          done
       - name: Show results
         if: ${{ failure() }}
         run: |
