@@ -1,0 +1,39 @@
+varnishtest "Lua: test the httpclient when the lua action timeout"
+#
+# Start an httpclient from "lua.test" whose lua task will expire before the
+# httpclient is ended.
+
+
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.5-dev7)'"
+feature ignore_unknown_macro
+
+#REQUIRE_OPTIONS=LUA
+
+haproxy h1 -conf {
+
+    global
+        lua-load ${testdir}/httpclient_action.lua
+    defaults
+        mode                    tcp
+        timeout http-request    10s
+        timeout queue           1m
+        timeout connect         10s
+        timeout client          1m
+        timeout server          1m
+        timeout check           10s
+
+   listen li1
+       mode http
+       bind "fd@${fe1}"
+       tcp-request inspect-delay 10ms
+       tcp-request content lua.test
+       http-request return status 503
+
+} -start
+
+client c0 -connect ${h1_fe1_sock} {
+    txreq
+    rxresp
+    expect resp.status == 503
+} -run
+
