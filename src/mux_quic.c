@@ -85,17 +85,25 @@ static struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
 	qcc->strms[type].nb_streams++;
 
 	/* If stream is local, use peer remote-limit, or else the opposite. */
-	/* TODO use uni limit for unidirectional streams */
-	qcs->tx.msd = quic_stream_is_local(qcc, id) ? qcc->rfctl.msd_bidi_r :
-	                                              qcc->rfctl.msd_bidi_l;
+	if (quic_stream_is_bidi(id)) {
+		qcs->tx.msd = quic_stream_is_local(qcc, id) ? qcc->rfctl.msd_bidi_r :
+		                                              qcc->rfctl.msd_bidi_l;
+	}
+	else if (quic_stream_is_local(qcc, id)) {
+		qcs->tx.msd = qcc->rfctl.msd_uni_l;
+	}
 
 	qcs->rx.ncbuf = NCBUF_NULL;
 	qcs->rx.app_buf = BUF_NULL;
 	qcs->rx.offset = qcs->rx.offset_max = 0;
 
-	/* TODO use uni limit for unidirectional streams */
-	qcs->rx.msd = quic_stream_is_local(qcc, id) ? qcc->lfctl.msd_bidi_l :
-	                                              qcc->lfctl.msd_bidi_r;
+	if (quic_stream_is_bidi(id)) {
+		qcs->rx.msd = quic_stream_is_local(qcc, id) ? qcc->lfctl.msd_bidi_l :
+		                                              qcc->lfctl.msd_bidi_r;
+	}
+	else if (quic_stream_is_remote(qcc, id)) {
+		qcs->rx.msd = qcc->lfctl.msd_uni_r;
+	}
 	qcs->rx.msd_init = qcs->rx.msd;
 
 	qcs->tx.buf = BUF_NULL;
@@ -1943,6 +1951,7 @@ static int qc_init(struct connection *conn, struct proxy *prx,
 	qcc->lfctl.ms_uni = lparams->initial_max_streams_uni;
 	qcc->lfctl.msd_bidi_l = lparams->initial_max_stream_data_bidi_local;
 	qcc->lfctl.msd_bidi_r = lparams->initial_max_stream_data_bidi_remote;
+	qcc->lfctl.msd_uni_r = lparams->initial_max_stream_data_uni;
 	qcc->lfctl.cl_bidi_r = 0;
 
 	qcc->lfctl.md = qcc->lfctl.md_init = lparams->initial_max_data;
@@ -1952,6 +1961,7 @@ static int qc_init(struct connection *conn, struct proxy *prx,
 	qcc->rfctl.md = rparams->initial_max_data;
 	qcc->rfctl.msd_bidi_l = rparams->initial_max_stream_data_bidi_local;
 	qcc->rfctl.msd_bidi_r = rparams->initial_max_stream_data_bidi_remote;
+	qcc->rfctl.msd_uni_l = rparams->initial_max_stream_data_uni;
 
 	if (conn_is_back(conn)) {
 		qcc->next_bidi_l    = 0x00;

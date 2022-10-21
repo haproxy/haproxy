@@ -61,8 +61,9 @@ struct qcc {
 
 		uint64_t ms_uni; /* max sub-ID of uni stream allowed for the peer */
 
-		uint64_t msd_bidi_l; /* initial max-stream-data on local streams */
-		uint64_t msd_bidi_r; /* initial max-stream-data on remote streams */
+		uint64_t msd_bidi_l; /* initial max-stream-data on local bidi streams */
+		uint64_t msd_bidi_r; /* initial max-stream-data on remote bidi streams */
+		uint64_t msd_uni_r; /* initial max-stream-data on remote uni streams */
 
 		uint64_t md; /* current max-data allowed for the peer */
 		uint64_t md_init; /* initial max-data */
@@ -73,8 +74,9 @@ struct qcc {
 	/* flow-control fields set by the peer which we must respect. */
 	struct {
 		uint64_t md; /* connection flow control limit updated on MAX_DATA frames reception */
-		uint64_t msd_bidi_l; /* initial max-stream-data for peer local streams */
-		uint64_t msd_bidi_r; /* initial max-stream-data for peer remote streams */
+		uint64_t msd_bidi_l; /* initial max-stream-data from peer on local bidi streams */
+		uint64_t msd_bidi_r; /* initial max-stream-data from peer on remote bidi streams */
+		uint64_t msd_uni_l; /* initial max-stream-data from peer on local uni streams */
 	} rfctl;
 
 	struct {
