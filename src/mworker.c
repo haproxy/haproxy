@@ -660,7 +660,7 @@ static int cli_parse_reload(char **args, char *payload, struct appctx *appctx, v
 
 /* Displays if the current reload failed or succeed.
  * If the startup-logs is available, dump it.  */
-static int cli_io_handler_show_status(struct appctx *appctx)
+static int cli_io_handler_show_loadstatus(struct appctx *appctx)
 {
 	char *env;
 	struct stconn *sc = appctx_sc(appctx);
@@ -753,7 +753,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "@master", NULL },         "@master                                 : send a command to the master process", cli_parse_default, NULL, NULL, NULL, ACCESS_MASTER_ONLY},
 	{ { "show", "proc", NULL },    "show proc                               : show processes status", cli_parse_default, cli_io_handler_show_proc, NULL, NULL, ACCESS_MASTER_ONLY},
 	{ { "reload", NULL },          "reload                                  : reload haproxy", cli_parse_reload, NULL, NULL, NULL, ACCESS_MASTER_ONLY},
-	{ { "_loadstatus", NULL },     NULL,                                                             cli_parse_default, cli_io_handler_show_status, NULL, NULL, ACCESS_MASTER_ONLY},
+	{ { "_loadstatus", NULL },     NULL,                                                             cli_parse_default, cli_io_handler_show_loadstatus, NULL, NULL, ACCESS_MASTER_ONLY},
 	{{},}
 }};
 
