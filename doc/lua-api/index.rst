@@ -1865,6 +1865,9 @@ HTTPClient class
   Send a HTTP request and wait for a response. GET, HEAD PUT, POST and DELETE methods can be used.
   The HTTPClient will send asynchronously the data and is able to send and receive more than HAProxy bufsize.
 
+  The HTTPClient interface is not able to decompress responses, it is not
+  recommended to send an Accept-Encoding in the request so the response is
+  received uncompressed.
 
   :param class httpclient: Is the manipulated HTTPClient.
   :param table request: Is a table containing the parameters of the request that will be send.
