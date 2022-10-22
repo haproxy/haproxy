@@ -2602,7 +2602,9 @@ struct methodVersions methodVersions[] = {
 static void ssl_sock_switchctx_set(SSL *ssl, SSL_CTX *ctx)
 {
 	SSL_set_verify(ssl, SSL_CTX_get_verify_mode(ctx), ssl_sock_bind_verifycbk);
+#ifndef USE_WOLFSSL
 	SSL_set_client_CA_list(ssl, SSL_dup_CA_list(SSL_CTX_get_client_CA_list(ctx)));
+#endif
 	SSL_set_SSL_CTX(ssl, ctx);
 }
 
@@ -3688,6 +3690,7 @@ static int ssl_sock_load_cert_chain(const char *path, const struct cert_key_and_
 				errcode |= ERR_ALERT | ERR_FATAL;
 				goto end;
 			}
+		sk_X509_free(chain);
 	}
 #endif
 
@@ -3700,6 +3703,7 @@ static int ssl_sock_load_cert_chain(const char *path, const struct cert_key_and_
 			errcode |= ERR_ALERT | ERR_FATAL;
 			goto end;
 		}
+		sk_X509_free(chain);
 	}
 #endif
 
@@ -7609,9 +7613,17 @@ static inline int ocsp_certid_print(BIO *bp, OCSP_CERTID *certid, int indent)
 		BIO_printf(bp, "%*sCertificate ID:\n", indent, "");
 		indent += 2;
 		BIO_printf(bp, "%*sIssuer Name Hash: ", indent, "");
+#ifndef USE_WOLFSSL
 		i2a_ASN1_STRING(bp, piNameHash, 0);
+#else
+        wolfSSL_ASN1_STRING_print(bp, piNameHash);
+#endif
 		BIO_printf(bp, "\n%*sIssuer Key Hash: ", indent, "");
+#ifndef USE_WOLFSSL
 		i2a_ASN1_STRING(bp, piKeyHash, 0);
+#else
+		wolfSSL_ASN1_STRING_print(bp, piNameHash);
+#endif
 		BIO_printf(bp, "\n%*sSerial Number: ", indent, "");
 		i2a_ASN1_INTEGER(bp, pSerial);
 	}
@@ -7817,7 +7829,11 @@ int ssl_ocsp_response_print(struct buffer *ocsp_response, struct buffer *out)
 		goto end;
 	}
 
-	if (OCSP_RESPONSE_print(bio, resp, 0) != 0) {
+#ifndef USE_WOLFSSL
+   if (OCSP_RESPONSE_print(bio, resp, 0) != 0) {
+#else
+   if (wolfSSL_d2i_OCSP_RESPONSE_bio(bio, &resp) != 0) {
+#endif
 		struct buffer *trash = get_trash_chunk();
 		struct ist ist_block = IST_NULL;
 		struct ist ist_double_lf = IST_NULL;

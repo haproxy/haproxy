@@ -21,10 +21,10 @@
 
 #include <stdlib.h>
 #include <string.h>
-#include <openssl/ssl.h>
 
 #include <haproxy/dynbuf.h>
 #include <haproxy/pool.h>
+#include <haproxy/openssl-compat.h>
 #include <haproxy/quic_conn-t.h>
 #include <haproxy/quic_tls-t.h>
 #include <haproxy/trace.h>
@@ -120,8 +120,10 @@ static inline const EVP_CIPHER *tls_aead(const SSL_CIPHER *cipher)
 	case TLS1_3_CK_CHACHA20_POLY1305_SHA256:
 		return EVP_chacha20_poly1305();
 #endif
+#ifndef USE_WOLFSSL
 	case TLS1_3_CK_AES_128_CCM_SHA256:
 		return EVP_aes_128_ccm();
+#endif
 	default:
 		return NULL;
 	}
@@ -242,7 +244,8 @@ static inline const char *ssl_error_str(int err)
 		return "WANT_CONNECT";
 	case SSL_ERROR_WANT_ACCEPT:
 		return "WANT_ACCEPT";
-#if !defined(LIBRESSL_VERSION_NUMBER)
+#if !defined(LIBRESSL_VERSION_NUMBER)\
+    && (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
 	case SSL_ERROR_WANT_ASYNC:
 		return "WANT_ASYNC";
 	case SSL_ERROR_WANT_ASYNC_JOB:

@@ -2,6 +2,12 @@
 #define _HAPROXY_OPENSSL_COMPAT_H
 #ifdef USE_OPENSSL
 
+#ifdef USE_WOLFSSL
+#define TLSEXT_MAXLEN_host_name 255
+#include <wolfssl/options.h>
+#include <openssl/ssl.h>
+#endif
+
 #include <openssl/bn.h>
 #include <openssl/crypto.h>
 #include <openssl/ssl.h>

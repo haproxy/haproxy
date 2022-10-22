@@ -3793,7 +3793,7 @@ static int sample_conv_json_query(const struct arg *args, struct sample *smp, vo
 	return 0;
 }
 
-#ifdef USE_OPENSSL
+#if (USE_OPENSSL && !USE_WOLFSSL)
 static int sample_conv_jwt_verify_check(struct arg *args, struct sample_conv *conv,
 					const char *file, int line, char **err)
 {
@@ -3928,7 +3928,7 @@ static int sample_conv_jwt_payload_query(const struct arg *args, struct sample *
 	return sample_conv_jwt_member_query(args, smp, private, JWT_ELT_CLAIMS);
 }
 
-#endif /* USE_OPENSSL */
+#endif /* USE_OPENSSL and not use WOLF_SSL*/
 
 /************************************************************************/
 /*       All supported sample fetch functions must be declared here     */
@@ -4440,7 +4440,7 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "rtrim",    sample_conv_rtrim,    ARG1(1,STR), NULL, SMP_T_STR,  SMP_T_STR  },
 	{ "json_query", sample_conv_json_query, ARG2(1,STR,STR),  sample_check_json_query , SMP_T_STR, SMP_T_ANY },
 
-#ifdef USE_OPENSSL
+#if (USE_OPENSSL && !USE_WOLFSSL)
 	/* JSON Web Token converters */
 	{ "jwt_header_query",  sample_conv_jwt_header_query,  ARG2(0,STR,STR), sample_conv_jwt_query_check,   SMP_T_BIN, SMP_T_ANY },
 	{ "jwt_payload_query", sample_conv_jwt_payload_query, ARG2(0,STR,STR), sample_conv_jwt_query_check,   SMP_T_BIN, SMP_T_ANY },

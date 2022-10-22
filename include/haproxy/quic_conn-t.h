@@ -27,11 +27,11 @@
 #endif
 
 #include <sys/socket.h>
-#include <openssl/ssl.h>
 
 #include <haproxy/cbuf-t.h>
 #include <haproxy/list.h>
 
+#include <haproxy/openssl-compat.h>
 #include <haproxy/mux_quic-t.h>
 #include <haproxy/quic_cc-t.h>
 #include <haproxy/quic_frame-t.h>

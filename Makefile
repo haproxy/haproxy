@@ -33,6 +33,9 @@
 #   USE_GETADDRINFO      : use getaddrinfo() to resolve IPv6 host names.
 #   USE_OPENSSL          : enable use of OpenSSL. Recommended, but see below.
 #   USE_ENGINE           : enable use of OpenSSL Engine.
+#   USE_WOLFSSL          : enable use of wolfSSL.
+#   USE_GDBSERVER        : the `haproxy` file starts a gdbserver. this is helpful for 
+#                          debugging the reg-tests
 #   USE_LUA              : enable Lua support.
 #   USE_ACCEPT4          : enable use of accept4() on linux. Automatic.
 #   USE_CLOSEFROM        : enable use of closefrom() on *bsd, solaris. Automatic.
@@ -106,6 +109,8 @@
 #                                                               pcre2-config)
 #   SSL_LIB        : force the lib path to libssl/libcrypto
 #   SSL_INC        : force the include path to libssl/libcrypto
+#   WOLFSSL_INC    : force the include path to wolfSSL
+#   WOLFSSL_LIB    : force the include path to wolfSSL
 #   LUA_LIB        : force the lib path to lua
 #   LUA_INC        : force the include path to lua
 #   LUA_LIB_NAME   : force the lib name (or automatically evaluated, by order of
@@ -209,7 +214,7 @@ LD = $(CC)
 
 #### Debug flags (typically "-g").
 # Those flags only feed CFLAGS so it is not mandatory to use this form.
-DEBUG_CFLAGS = -g
+DEBUG_CFLAGS = -g3 -O0
 
 #### Add -Werror when set to non-empty
 ERR =
@@ -347,7 +352,7 @@ use_opts = USE_EPOLL USE_KQUEUE USE_NETFILTER                                 \
            USE_DL USE_RT USE_DEVICEATLAS USE_51DEGREES USE_WURFL USE_SYSTEMD  \
            USE_OBSOLETE_LINKER USE_PRCTL USE_PROCCTL USE_THREAD_DUMP          \
            USE_EVPORTS USE_OT USE_QUIC USE_PROMEX USE_MEMORY_PROFILING        \
-           USE_SHM_OPEN
+           USE_SHM_OPEN USE_WOLFSSL
 
 #### Target system options
 # Depending on the target platform, some options are set, as well as some
@@ -634,6 +639,21 @@ endif
 OPTIONS_OBJS  += src/ssl_sample.o src/ssl_sock.o src/ssl_crtlist.o src/ssl_ckch.o src/ssl_utils.o src/cfgparse-ssl.o src/jwt.o
 endif
 
+ifneq ($(USE_WOLFSSL),)
+ifneq ($(WOLFSSL_INC),)
+OPTIONS_CFLAGS  += -I$(WOLFSSL_INC) -I$(WOLFSSL_INC)/wolfssl
+else
+OPTIONS_CFLAGS  += -I/usr/local/include/wolfssl -I/usr/local/include/wolfssl/openssl -I/usr/local/include
+endif
+ifneq ($(WOLFSSL_LIB),)
+OPTIONS_LDFLAGS  += -L$(WOLFSSL_LIB)
+endif
+OPTIONS_LDFLAGS  += -lwolfssl
+OPTIONS_OBJS  += src/ssl_sample.o src/ssl_sock.o src/ssl_crtlist.o src/ssl_ckch.o src/ssl_utils.o src/cfgparse-ssl.o
+# Enable so that the compatibility layer gets used
+USE_OPENSSL = 1
+endif
+
 ifneq ($(USE_ENGINE),)
 # OpenSSL 3.0 emits loud deprecation warnings by default when building with
 # engine support, and this option is made to silence them. Better use it
@@ -641,6 +661,8 @@ ifneq ($(USE_ENGINE),)
 # engine API.
 OPTIONS_CFLAGS += -DOPENSSL_SUPPRESS_DEPRECATED
 endif
+
+
 
 ifneq ($(USE_QUIC),)
 OPTIONS_OBJS += src/quic_sock.o src/proto_quic.o src/xprt_quic.o src/quic_tls.o \
@@ -926,7 +948,11 @@ all:
 	@echo
 	@exit 1
 else
+ifeq ($(USE_GDBSERVER),)
 all: haproxy dev/flags/flags $(EXTRA)
+else
+all: haproxy.exec dev/flags/flags $(EXTRA)
+endif
 endif
 endif
 
@@ -1006,11 +1032,21 @@ else
 .build_opts:
 endif
 
+ifeq ($(USE_GDBSERVER),)
 haproxy: $(OPTIONS_OBJS) $(OBJS)
 	$(cmd_LD) $(LDFLAGS) -o $@ $^ $(LDOPTS)
 
 objsize: haproxy
 	$(Q)objdump -t $^|grep ' g '|grep -F '.text'|awk '{print $$5 FS $$6}'|sort
+else
+haproxy.exec: $(OPTIONS_OBJS) $(OBJS)
+	$(cmd_LD) $(LDFLAGS) -o $@ $^ $(LDOPTS)
+	cp haproxy.in haproxy
+	chmod +x haproxy
+
+objsize: haproxy.exec
+	$(Q)objdump -t $^|grep ' g '|grep -F '.text'|awk '{print $$5 FS $$6}'|sort
+endif
 
 %.o:	%.c $(DEP)
 	$(cmd_CC) $(COPTS) -c -o $@ $<

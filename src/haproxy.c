@@ -3133,6 +3133,11 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
+#ifdef USE_WOLFSSL
+        wolfSSL_Init();
+        wolfSSL_Debugging_ON();
+#endif
+
 	setvbuf(stdout, NULL, _IONBF, 0);
 
 	/* take a copy of initial limits before we possibly change them */
