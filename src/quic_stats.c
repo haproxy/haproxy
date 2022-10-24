@@ -13,6 +13,8 @@ static struct name_desc quic_stats[] = {
 	                                  .desc = "Total number of EAGAIN error on sendto() calls" },
 	[QUIC_ST_SENDTO_ERR]          = { .name = "quic_sendto_err",
 	                                  .desc = "Total number of error on sendto() calls, EAGAIN excepted" },
+	[QUIC_ST_SENDTO_ERR_UNKNWN]   = { .name = "quic_sendto_err_unknwn",
+	                                  .desc = "Total number of error on sendto() calls not explicitely listed" },
 	[QUIC_ST_LOST_PACKET]         = { .name = "quic_lost_pkt",
 	                                  .desc = "Total number of lost sent packets" },
 	[QUIC_ST_TOO_SHORT_INITIAL_DGRAM] = { .name = "quic_too_short_dgram",
@@ -90,6 +92,7 @@ static void quic_fill_stats(void *data, struct field *stats)
 	stats[QUIC_ST_DROPPED_PARSING]   = mkf_u64(FN_COUNTER, counters->dropped_parsing);
 	stats[QUIC_ST_SOCKET_FULL]       = mkf_u64(FN_COUNTER, counters->socket_full);
 	stats[QUIC_ST_SENDTO_ERR]        = mkf_u64(FN_COUNTER, counters->sendto_err);
+	stats[QUIC_ST_SENDTO_ERR_UNKNWN] = mkf_u64(FN_COUNTER, counters->sendto_err_unknown);
 	stats[QUIC_ST_LOST_PACKET]       = mkf_u64(FN_COUNTER, counters->lost_pkt);
 	stats[QUIC_ST_TOO_SHORT_INITIAL_DGRAM] = mkf_u64(FN_COUNTER, counters->too_short_initial_dgram);
 	stats[QUIC_ST_RETRY_SENT]        = mkf_u64(FN_COUNTER, counters->retry_sent);
