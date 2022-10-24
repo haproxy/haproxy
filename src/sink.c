@@ -290,7 +290,7 @@ static int cli_parse_show_events(char **args, char *payload, struct appctx *appc
 void sink_setup_proxy(struct proxy *px)
 {
 	px->last_change = now.tv_sec;
-	px->cap = PR_CAP_FE | PR_CAP_BE | PR_CAP_INT;
+	px->cap = PR_CAP_BE;
 	px->maxconn = 0;
 	px->conn_retries = 1;
 	px->timeout.server = TICK_ETERNITY;
