@@ -96,7 +96,7 @@ struct protocol proto_quic4 = {
 	.rx_disable     = sock_disable,
 	.rx_unbind      = sock_unbind,
 	.rx_listening   = quic_sock_accepting_conn,
-	.default_iocb   = quic_sock_fd_iocb,
+	.default_iocb   = quic_lstnr_sock_fd_iocb,
 	.receivers      = LIST_HEAD_INIT(proto_quic4.receivers),
 	.nb_receivers   = 0,
 };
@@ -136,7 +136,7 @@ struct protocol proto_quic6 = {
 	.rx_disable     = sock_disable,
 	.rx_unbind      = sock_unbind,
 	.rx_listening   = quic_sock_accepting_conn,
-	.default_iocb   = quic_sock_fd_iocb,
+	.default_iocb   = quic_lstnr_sock_fd_iocb,
 	.receivers      = LIST_HEAD_INIT(proto_quic6.receivers),
 	.nb_receivers   = 0,
 };

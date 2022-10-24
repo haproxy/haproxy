@@ -42,7 +42,7 @@ int quic_sock_accepting_conn(const struct receiver *rx);
 struct connection *quic_sock_accept_conn(struct listener *l, int *status);
 
 struct task *quic_lstnr_dghdlr(struct task *t, void *ctx, unsigned int state);
-void quic_sock_fd_iocb(int fd);
+void quic_lstnr_sock_fd_iocb(int fd);
 int qc_snd_buf(struct quic_conn *qc, const struct buffer *buf, size_t count,
                int flags);
 

@@ -221,6 +221,7 @@ enum quic_pkt_type {
 #define           QUIC_EV_CONN_IDLE_TIMER (1ULL << 45)
 #define           QUIC_EV_CONN_SUB       (1ULL << 46)
 #define           QUIC_EV_CONN_ELEVELSEL (1ULL << 47)
+#define           QUIC_EV_CONN_RCV       (1ULL << 48)
 
 /* Similar to kernel min()/max() definitions. */
 #define QUIC_MIN(a, b) ({ \

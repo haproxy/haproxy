@@ -165,6 +165,7 @@ static const struct trace_event quic_trace_events[] = {
 	{ .mask = QUIC_EV_TRANSP_PARAMS, .name = "transport_params", .desc = "transport parameters"},
 	{ .mask = QUIC_EV_CONN_IDLE_TIMER, .name = "idle_timer",     .desc = "idle timer task"},
 	{ .mask = QUIC_EV_CONN_SUB,      .name = "xprt_sub",         .desc = "RX/TX subcription or unsubscription to QUIC xprt"},
+	{ .mask = QUIC_EV_CONN_RCV,      .name = "conn_recv",        .desc = "RX on connection" },
 	{ /* end */ }
 };
 
@@ -671,6 +672,13 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 			if (next_level)
 				chunk_appendf(&trace_buf, " next_level=%c", quic_enc_level_char(*next_level));
 
+		}
+
+		if (mask & QUIC_EV_CONN_RCV) {
+			const struct quic_dgram *dgram = a2;
+
+			if (dgram)
+				chunk_appendf(&trace_buf, " dgram.len=%zu", dgram->len);
 		}
 	}
 	if (mask & QUIC_EV_CONN_LPKT) {

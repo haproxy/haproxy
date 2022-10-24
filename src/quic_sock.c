@@ -39,6 +39,9 @@
 #include <haproxy/task.h>
 #include <haproxy/trace.h>
 #include <haproxy/tools.h>
+#include <haproxy/trace.h>
+
+#define TRACE_SOURCE &trace_quic
 
 #define TRACE_SOURCE    &trace_quic
 
@@ -383,7 +386,7 @@ static ssize_t quic_recv(int fd, void *out, size_t len,
 /* Function called on a read event from a listening socket. It tries
  * to handle as many connections as possible.
  */
-void quic_sock_fd_iocb(int fd)
+void quic_lstnr_sock_fd_iocb(int fd)
 {
 	ssize_t ret;
 	struct quic_receiver_buf *rxbuf;
@@ -479,6 +482,89 @@ void quic_sock_fd_iocb(int fd)
  out:
 	pool_free(pool_head_quic_dgram, new_dgram);
 	MT_LIST_APPEND(&l->rx.rxbuf_list, &rxbuf->rxbuf_el);
+}
+
+/* FD-owned quic-conn socket callback. */
+static void quic_conn_sock_fd_iocb(int fd)
+{
+	struct quic_conn *qc;
+
+	struct sockaddr_storage saddr = {0}, daddr = {0};
+	struct quic_receiver_buf *rxbuf;
+	struct quic_transport_params *params;
+	struct quic_dgram *new_dgram;
+	struct buffer *buf;
+	size_t max_sz;
+	size_t cspace;
+	unsigned char *dgram_buf;
+	struct listener *l;
+	ssize_t ret = 0;
+
+	qc = fdtab[fd].owner;
+	l = qc->li;
+	TRACE_ENTER(QUIC_EV_CONN_RCV, qc);
+
+	new_dgram = NULL;
+	rxbuf = MT_LIST_POP(&l->rx.rxbuf_list, typeof(rxbuf), rxbuf_el);
+	if (!rxbuf)
+		return;
+
+	buf = &rxbuf->buf;
+	new_dgram = quic_rxbuf_purge_dgrams(rxbuf);
+
+	params = &l->bind_conf->quic_params;
+	max_sz = params->max_udp_payload_size;
+	cspace = b_contig_space(buf);
+	if (cspace < max_sz) {
+		struct quic_dgram *dgram;
+
+		/* Do no mark <buf> as full, and do not try to consume it
+		 * if the contiguous remaining space is not at the end
+		 */
+		if (b_tail(buf) + cspace < b_wrap(buf))
+			goto end;
+
+		/* Allocate a fake datagram, without data to locate
+		 * the end of the RX buffer (required during purging).
+		 */
+		dgram = pool_alloc(pool_head_quic_dgram);
+		if (!dgram)
+			goto end;
+
+		/* Initialize only the useful members of this fake datagram. */
+		dgram->buf = NULL;
+		dgram->len = cspace;
+		/* Append this datagram only to the RX buffer list. It will
+		 * not be treated by any datagram handler.
+		 */
+		LIST_APPEND(&rxbuf->dgram_list, &dgram->recv_list);
+
+		/* Consume the remaining space */
+		b_add(buf, cspace);
+		if (b_contig_space(buf) < max_sz)
+			goto end;
+	}
+
+	dgram_buf = (unsigned char *)b_tail(buf);
+	ret = quic_recv(qc->fd, dgram_buf, max_sz,
+	                (struct sockaddr *)&saddr, sizeof(saddr),
+	                (struct sockaddr *)&daddr, sizeof(daddr),
+	                get_net_port(&qc->local_addr));
+	if (ret <= 0)
+		goto end;
+
+	b_add(buf, ret);
+	if (!quic_lstnr_dgram_dispatch(dgram_buf, ret, l, &qc->peer_addr, &qc->local_addr,
+	                               new_dgram, &rxbuf->dgram_list)) {
+	        b_del(buf, ret);
+	}
+	new_dgram = NULL;
+
+ end:
+	pool_free(pool_head_quic_dgram, new_dgram);
+	MT_LIST_APPEND(&l->rx.rxbuf_list, &rxbuf->rxbuf_el);
+	TRACE_LEAVE(QUIC_EV_CONN_RCV, qc);
+	return;
 }
 
 /* Send a datagram stored into <buf> buffer with <sz> as size.
@@ -602,6 +688,8 @@ void qc_alloc_fd(struct quic_conn *qc, const struct sockaddr_storage *src,
 
 	qc->fd = fd;
 	fd_set_nonblock(fd);
+	fd_insert(fd, qc, quic_conn_sock_fd_iocb, tgid, ti->ltid_bit);
+	fd_want_recv(fd);
 
 	return;
 
@@ -613,8 +701,10 @@ void qc_alloc_fd(struct quic_conn *qc, const struct sockaddr_storage *src,
 /* Release socket file-descriptor specific for QUIC connection <qc>. */
 void qc_release_fd(struct quic_conn *qc)
 {
-	if (qc_test_fd(qc))
+	if (qc_test_fd(qc)) {
+		fd_delete(qc->fd);
 		qc->fd = DEAD_FD_MAGIC;
+	}
 }
 
 /*********************** QUIC accept queue management ***********************/
