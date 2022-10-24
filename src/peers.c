@@ -2454,13 +2454,47 @@ static inline int peer_treat_awaited_msg(struct appctx *appctx, struct peer *pee
 			TRACE_PROTO("received control message", PEERS_EV_CTRLMSG,
 			            NULL, &msg_head[1], peers->local->id, peer->id);
 			if (peer->flags & PEER_F_LEARN_ASSIGN) {
+				int commit_a_finish = 1;
+
 				peer->flags &= ~PEER_F_LEARN_ASSIGN;
 				peers->flags &= ~(PEERS_F_RESYNC_ASSIGN|PEERS_F_RESYNC_PROCESS);
-				peers->flags |= (PEERS_F_RESYNC_LOCAL|PEERS_F_RESYNC_REMOTE);
-				if (peer->local)
-					peers->flags |= PEERS_F_RESYNC_LOCALFINISHED;
-				else
-					peers->flags |= PEERS_F_RESYNC_REMOTEFINISHED;
+				if (peer->srv->shard) {
+					struct peer *ps;
+
+					peers->flags |= PEERS_F_RESYNC_REMOTEPARTIAL;
+					peer->flags |= PEER_F_LEARN_NOTUP2DATE;
+					for (ps = peers->remote; ps; ps = ps->next) {
+						if (ps->srv->shard == peer->srv->shard) {
+							/* flag all peers from same shard
+							 * notup2date to disable request
+							 * of a resync frm them
+							 */
+							ps->flags |= PEER_F_LEARN_NOTUP2DATE;
+						}
+						else if (ps->srv->shard && !(ps->flags & PEER_F_LEARN_NOTUP2DATE)) {
+							/* it remains some other shards not requested
+							 * we don't commit a resync finish to request
+							 * the other shards
+							 */
+							commit_a_finish = 0;
+						}
+					}
+
+					if (!commit_a_finish) {
+						/* it remains some shard to request, we schedule a new request
+						 */
+						peers->resync_timeout = tick_add(now_ms, MS_TO_TICKS(PEER_RESYNC_TIMEOUT));
+						task_wakeup(peers->sync_task, TASK_WOKEN_MSG);
+					}
+				}
+
+				if (commit_a_finish) {
+					peers->flags |= (PEERS_F_RESYNC_LOCAL|PEERS_F_RESYNC_REMOTE);
+					if (peer->local)
+						peers->flags |= PEERS_F_RESYNC_LOCALFINISHED;
+					else
+						peers->flags |= PEERS_F_RESYNC_REMOTEFINISHED;
+				}
 			}
 			peer->confirm++;
 		}
