@@ -1095,6 +1095,10 @@ struct sink *sink_new_from_logsrv(struct logsrv *logsrv)
 	p->conf.args.file = p->conf.file = strdup(logsrv->conf.file);
 	p->conf.args.line = p->conf.line = logsrv->conf.line;
 
+	/* Set default connect and server timeout */
+	p->timeout.connect = MS_TO_TICKS(1000);
+	p->timeout.server = MS_TO_TICKS(5000);
+
 	/* allocate a new server to forward messages
 	 * from ring buffer
 	 */
