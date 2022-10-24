@@ -4817,6 +4817,15 @@ static struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 		goto err;
 	}
 
+	if ((global.tune.options & GTUNE_QUIC_SOCK_PER_CONN) &&
+	    is_addr(local_addr)) {
+		TRACE_USER("Allocate a socket for QUIC connection", QUIC_EV_CONN_INIT, qc);
+		qc_alloc_fd(qc, local_addr, peer_addr);
+	}
+	else {
+		qc_init_fd(qc);
+	}
+
 	/* insert the allocated CID in the receiver datagram handler tree */
 	if (server)
 		ebmb_insert(&quic_dghdlrs[tid].cids, &icid->node, icid->cid.len);
@@ -4935,6 +4944,9 @@ void quic_conn_release(struct quic_conn *qc)
 
 	/* We must not free the quic-conn if the MUX is still allocated. */
 	BUG_ON(qc->mux_state == QC_MUX_READY);
+
+	/* Close quic-conn socket fd. */
+	qc_release_fd(qc);
 
 	/* in the unlikely (but possible) case the connection was just added to
 	 * the accept_list we must delete it from there.

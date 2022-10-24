@@ -27,6 +27,7 @@
 #include <haproxy/global-t.h>
 #include <haproxy/list.h>
 #include <haproxy/listener.h>
+#include <haproxy/log.h>
 #include <haproxy/pool.h>
 #include <haproxy/proto_quic.h>
 #include <haproxy/proxy-t.h>
@@ -531,6 +532,81 @@ int qc_snd_buf(struct quic_conn *qc, const struct buffer *buf, size_t sz,
 	return 0;
 }
 
+/* Allocate a socket file-descriptor specific for QUIC connection <qc>.
+ * Endpoint addresses are specified by the two following arguments : <src> is
+ * the local address and <dst> is the remote one.
+ *
+ * Return the socket FD or a negative error code. On error, socket is marked as
+ * uninitialized.
+ */
+void qc_alloc_fd(struct quic_conn *qc, const struct sockaddr_storage *src,
+                 const struct sockaddr_storage *dst)
+{
+	struct proxy *p = qc->li->bind_conf->frontend;
+	int fd = -1;
+	int ret;
+
+	/* Must not happen. */
+	BUG_ON(src->ss_family != dst->ss_family);
+
+	qc_init_fd(qc);
+
+	fd = socket(src->ss_family, SOCK_DGRAM, 0);
+	if (fd < 0)
+		goto err;
+
+	if (fd >= global.maxsock) {
+		send_log(p, LOG_EMERG,
+		         "Proxy %s reached the configured maximum connection limit. Please check the global 'maxconn' value.\n",
+		         p->id);
+		goto err;
+	}
+
+	ret = setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
+	if (ret < 0)
+		goto err;
+
+	switch (src->ss_family) {
+	case AF_INET:
+#if defined(IP_PKTINFO)
+		ret = setsockopt(fd, IPPROTO_IP, IP_PKTINFO, &one, sizeof(one));
+#elif defined(IP_RECVDSTADDR)
+		ret = setsockopt(fd, IPPROTO_IP, IP_RECVDSTADDR, &one, sizeof(one));
+#endif /* IP_PKTINFO || IP_RECVDSTADDR */
+		break;
+	case AF_INET6:
+#ifdef IPV6_RECVPKTINFO
+		ret = setsockopt(fd, IPPROTO_IPV6, IPV6_RECVPKTINFO, &one, sizeof(one));
+#endif
+		break;
+	}
+	if (ret < 0)
+		goto err;
+
+	ret = bind(fd, (struct sockaddr *)src, get_addr_len(src));
+	if (ret < 0)
+		goto err;
+
+	ret = connect(fd, (struct sockaddr *)dst, get_addr_len(dst));
+	if (ret < 0)
+		goto err;
+
+	qc->fd = fd;
+	fd_set_nonblock(fd);
+
+	return;
+
+ err:
+	if (fd >= 0)
+		close(fd);
+}
+
+/* Release socket file-descriptor specific for QUIC connection <qc>. */
+void qc_release_fd(struct quic_conn *qc)
+{
+	if (qc_test_fd(qc))
+		qc->fd = DEAD_FD_MAGIC;
+}
 
 /*********************** QUIC accept queue management ***********************/
 /* per-thread accept queues */
