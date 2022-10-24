@@ -460,8 +460,17 @@ void resolv_trigger_resolution(struct resolv_requester *req)
 	 * valid */
 	exp = tick_add(res->last_resolution, resolvers->hold.valid);
 	if (resolvers->t && (res->status != RSLV_STATUS_VALID ||
-	    !tick_isset(res->last_resolution) || tick_is_expired(exp, now_ms)))
+	    !tick_isset(res->last_resolution) || tick_is_expired(exp, now_ms))) {
+		/* If the resolution is not running and the requester is a
+		 * server, reset the resoltion timer to force a quick
+		 * resolution.
+		 */
+		if (res->step == RSLV_STEP_NONE &&
+		    (obj_type(req->owner) == OBJ_TYPE_SERVER ||
+		     obj_type(req->owner) == OBJ_TYPE_SRVRQ))
+			res->last_resolution = TICK_ETERNITY;
 		task_wakeup(resolvers->t, TASK_WOKEN_OTHER);
+	}
 
 	leave_resolver_code();
 }
