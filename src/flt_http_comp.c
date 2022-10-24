@@ -304,22 +304,17 @@ set_compression_response_header(struct comp_state *st, struct stream *s, struct 
 	struct htx_sl *sl;
 	struct http_hdr_ctx ctx;
 
-	/*
-	 * Add Content-Encoding header when it's not identity encoding.
-	 * RFC 2616 : Identity encoding: This content-coding is used only in the
-	 * Accept-Encoding header, and SHOULD NOT be used in the Content-Encoding
-	 * header.
-	 */
-	if (st->comp_algo->cfg_name_len != 8 || memcmp(st->comp_algo->cfg_name, "identity", 8) != 0) {
-		struct ist v = ist2(st->comp_algo->ua_name, st->comp_algo->ua_name_len);
-
-		if (!http_add_header(htx, ist("Content-Encoding"), v))
-			goto error;
-	}
-
 	sl = http_get_stline(htx);
 	if (!sl)
 		goto error;
+
+	/* add "Transfer-Encoding: chunked" header */
+	if (!(msg->flags & HTTP_MSGF_TE_CHNK)) {
+		if (!http_add_header(htx, ist("Transfer-Encoding"), ist("chunked")))
+			goto error;
+		msg->flags |= HTTP_MSGF_TE_CHNK;
+		sl->flags |= (HTX_SL_F_XFER_ENC|HTX_SL_F_CHNK);
+	}
 
 	/* remove Content-Length header */
 	if (msg->flags & HTTP_MSGF_CNT_LEN) {
@@ -328,14 +323,6 @@ set_compression_response_header(struct comp_state *st, struct stream *s, struct 
 			http_remove_header(htx, &ctx);
 		msg->flags &= ~HTTP_MSGF_CNT_LEN;
 		sl->flags &= ~HTX_SL_F_CLEN;
-	}
-
-	/* add "Transfer-Encoding: chunked" header */
-	if (!(msg->flags & HTTP_MSGF_TE_CHNK)) {
-		if (!http_add_header(htx, ist("Transfer-Encoding"), ist("chunked")))
-			goto error;
-		msg->flags |= HTTP_MSGF_TE_CHNK;
-		sl->flags |= (HTX_SL_F_XFER_ENC|HTX_SL_F_CHNK);
 	}
 
 	/* convert "ETag" header to a weak ETag */
@@ -354,6 +341,19 @@ set_compression_response_header(struct comp_state *st, struct stream *s, struct 
 
 	if (!http_add_header(htx, ist("Vary"), ist("Accept-Encoding")))
 		goto error;
+
+	/*
+	 * Add Content-Encoding header when it's not identity encoding.
+	 * RFC 2616 : Identity encoding: This content-coding is used only in the
+	 * Accept-Encoding header, and SHOULD NOT be used in the Content-Encoding
+	 * header.
+	 */
+	if (st->comp_algo->cfg_name_len != 8 || memcmp(st->comp_algo->cfg_name, "identity", 8) != 0) {
+		struct ist v = ist2(st->comp_algo->ua_name, st->comp_algo->ua_name_len);
+
+		if (!http_add_header(htx, ist("Content-Encoding"), v))
+			goto error;
+	}
 
 	return 1;
 
