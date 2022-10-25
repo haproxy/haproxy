@@ -616,8 +616,9 @@ int ssl_sock_load_pem_into_ckch(const char *path, char *buf, struct cert_key_and
 	/* Read Certificate */
 	cert = PEM_read_bio_X509_AUX(in, NULL, NULL, NULL);
 	if (cert == NULL) {
-		memprintf(err, "%sunable to load certificate from file '%s'.\n",
-		          err && *err ? *err : "", path);
+		ret = ERR_get_error();
+		memprintf(err, "%sunable to load certificate from file '%s': %s.\n",
+		          err && *err ? *err : "", path, ERR_reason_error_string(ret));
 		goto end;
 	}
 
