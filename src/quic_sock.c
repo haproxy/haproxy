@@ -223,7 +223,7 @@ static struct quic_dgram *quic_rxbuf_purge_dgrams(struct quic_receiver_buf *buf)
 		cur = LIST_ELEM(buf->dgram_list.n, struct quic_dgram *, recv_list);
 
 		/* Loop until a not yet consumed datagram is found. */
-		if (cur->buf)
+		if (HA_ATOMIC_LOAD(&cur->buf))
 			break;
 
 		/* Clear buffer of current unused datagram. */
