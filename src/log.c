@@ -3626,7 +3626,7 @@ static void syslog_io_handler(struct appctx *appctx)
 			if (buf->area[to_skip - 1] != ' ')
 				goto parse_error;
 
-			msglen = strtol(trash.area, &p, 10);
+			msglen = strtol(buf->area, &p, 10);
 			if (!msglen || p != &buf->area[to_skip - 1])
 				goto parse_error;
 
