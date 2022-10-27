@@ -3,6 +3,8 @@
 #include <haproxy/stats.h>
 
 static struct name_desc quic_stats[] = {
+	[QUIC_ST_RXBUF_FULL]          = { .name = "quic_rxbuf_full",
+	                                  .desc = "Total number of cancelled reception due to full receiver buffer" },
 	[QUIC_ST_DROPPED_PACKET]      = { .name = "quic_dropped_pkt",
 	                                  .desc = "Total number of dropped packets" },
 	[QUIC_ST_DROPPED_PACKET_BUFOVERRUN] = { .name = "quic_dropped_pkt_bufoverrun",
@@ -87,6 +89,7 @@ static void quic_fill_stats(void *data, struct field *stats)
 {
 	struct quic_counters *counters = data;
 
+	stats[QUIC_ST_RXBUF_FULL]        = mkf_u64(FN_COUNTER, counters->rxbuf_full);
 	stats[QUIC_ST_DROPPED_PACKET]    = mkf_u64(FN_COUNTER, counters->dropped_pkt);
 	stats[QUIC_ST_DROPPED_PACKET_BUFOVERRUN] = mkf_u64(FN_COUNTER, counters->dropped_pkt_bufoverrun);
 	stats[QUIC_ST_DROPPED_PARSING]   = mkf_u64(FN_COUNTER, counters->dropped_parsing);

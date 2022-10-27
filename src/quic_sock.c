@@ -389,13 +389,17 @@ void quic_sock_fd_iocb(int fd)
 	max_sz = params->max_udp_payload_size;
 	cspace = b_contig_space(buf);
 	if (cspace < max_sz) {
+		struct proxy *px = l->bind_conf->frontend;
+		struct quic_counters *prx_counters = EXTRA_COUNTERS_GET(px->extra_counters_fe, &quic_stats_module);
 		struct quic_dgram *dgram;
 
 		/* Do no mark <buf> as full, and do not try to consume it
 		 * if the contiguous remaining space is not at the end
 		 */
-		if (b_tail(buf) + cspace < b_wrap(buf))
+		if (b_tail(buf) + cspace < b_wrap(buf)) {
+			HA_ATOMIC_INC(&prx_counters->rxbuf_full);
 			goto out;
+		}
 
 		/* Allocate a fake datagram, without data to locate
 		 * the end of the RX buffer (required during purging).
@@ -414,8 +418,10 @@ void quic_sock_fd_iocb(int fd)
 
 		/* Consume the remaining space */
 		b_add(buf, cspace);
-		if (b_contig_space(buf) < max_sz)
+		if (b_contig_space(buf) < max_sz) {
+			HA_ATOMIC_INC(&prx_counters->rxbuf_full);
 			goto out;
+		}
 	}
 
 	dgram_buf = (unsigned char *)b_tail(buf);

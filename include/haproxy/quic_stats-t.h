@@ -9,6 +9,7 @@
 extern struct stats_module quic_stats_module;
 
 enum {
+	QUIC_ST_RXBUF_FULL,
 	QUIC_ST_DROPPED_PACKET,
 	QUIC_ST_DROPPED_PACKET_BUFOVERRUN,
 	QUIC_ST_DROPPED_PARSING,
@@ -52,6 +53,7 @@ enum {
 };
 
 struct quic_counters {
+	long long rxbuf_full;        /* receive operation cancelled due to full buffer */
 	long long dropped_pkt;       /* total number of dropped packets */
 	long long dropped_pkt_bufoverrun;/* total number of dropped packets because of buffer overrun */
 	long long dropped_parsing;   /* total number of dropped packets upon parsing errors */
