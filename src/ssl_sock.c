@@ -3720,9 +3720,14 @@ static int ssl_sock_put_ckch_into_ctx(const char *path, const struct cert_key_an
 	int errcode = 0;
 	STACK_OF(X509) *find_chain = NULL;
 
+	ERR_clear_error();
+
 	if (SSL_CTX_use_PrivateKey(ctx, ckch->key) <= 0) {
-		memprintf(err, "%sunable to load SSL private key into SSL Context '%s'.\n",
-				err && *err ? *err : "", path);
+		int ret;
+
+		ret = ERR_get_error();
+		memprintf(err, "%sunable to load SSL private key into SSL Context '%s': %s.\n",
+				err && *err ? *err : "", path, ERR_reason_error_string(ret));
 		errcode |= ERR_ALERT | ERR_FATAL;
 		return errcode;
 	}
