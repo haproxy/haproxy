@@ -2,7 +2,7 @@
 #
 # Scan a branch directory for source tarballs and rebuild the releases.json
 # file for that branch. md5 and sha256 are added if present. The highest
-# numberred version is referenced as the latest release.
+# numbered version is referenced as the latest release.
 #
 # Usage: $0 [-b branch] [-o outfile] /path/to/download/branch
 #

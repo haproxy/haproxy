@@ -22,7 +22,7 @@ static int bind_parse_quic_cc_algo(char **args, int cur_arg, struct proxy *px,
 	struct quic_cc_algo *cc_algo;
 
 	if (!*args[cur_arg + 1]) {
-		memprintf(err, "'%s' : missing control congestion algorith", args[cur_arg]);
+		memprintf(err, "'%s' : missing control congestion algorithm", args[cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
 	}
 

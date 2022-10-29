@@ -849,7 +849,7 @@ static void h1s_destroy(struct h1s *h1s)
 			TRACE_STATE("set idle mode on h1c, waiting for the next request", H1_EV_H1C_ERR, h1c->conn, h1s);
 		}
 		else {
-			TRACE_STATE("set shudown on h1c", H1_EV_H1S_END, h1c->conn, h1s);
+			TRACE_STATE("set shutdown on h1c", H1_EV_H1S_END, h1c->conn, h1s);
 			h1c->flags |= H1C_F_ST_SHUTDOWN;
 		}
 

@@ -105,7 +105,7 @@ error:
 }
 
 /*
- * Use a shm accross reexec of the master.
+ * Use a shm across reexec of the master.
  *
  * During the startup of the master, a shm_open must be done and the FD saved
  * into the HAPROXY_STARTUPLOGS_FD environment variable.

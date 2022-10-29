@@ -4326,7 +4326,7 @@ void http_perform_server_redirect(struct stream *s, struct stconn *sc)
 	location = ist2(trash.area, trash.data);
 
 	/*
-	 * Create the 302 respone
+	 * Create the 302 response
 	 */
 	htx = htx_from_buf(&res->buf);
 	flags = (HTX_SL_F_IS_RESP|HTX_SL_F_VER_11|HTX_SL_F_XFER_LEN|HTX_SL_F_BODYLESS);

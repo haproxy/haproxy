@@ -3966,7 +3966,7 @@ __LJMP static int hlua_channel_forward_yield(lua_State *L, int status, lua_KCont
 		else
 			HLUA_SET_WAKEREQWR(hlua);
 
-		/* Otherwise, we can yield waiting for new data in the inpout side. */
+		/* Otherwise, we can yield waiting for new data in the input side. */
 		MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_channel_forward_yield, TICK_ETERNITY, 0));
 	}
 

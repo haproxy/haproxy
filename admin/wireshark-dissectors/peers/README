@@ -62,7 +62,7 @@ install it this way:
 $ make install plugins=~/.local/lib/wireshark/plugins/3.2/epan/
 
 If you want to install it in the system directory you can do it this way, the
-righ path is also in the Folder window. Change the plugins variable this way:
+right path is also in the Folder window. Change the plugins variable this way:
 
 $ sudo make install plugins=/usr/lib64/wireshark/plugins/3.2/epan/
 

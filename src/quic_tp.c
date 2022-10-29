@@ -636,8 +636,8 @@ int quic_transport_params_store(struct quic_conn *qc, int server,
 
 /* QUIC server (or haproxy listener) only function.
  * Initialize the local transport parameters <rx_params> from <listener_params>
- * coming from configuration and Initial packet information (destintation
- * connection ID, source connection ID, original destination connection ID from
+ * coming from configuration and Initial packet information (destination
+ * connection ID, source connection ID, original destination connection ID) from
  * client token.
  * Returns 1 if succeeded, 0 if not.
  */

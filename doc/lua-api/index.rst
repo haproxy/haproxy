@@ -119,7 +119,7 @@ On other terminal, you can test with telnet:
 Usage of load parameters
 ------------------------
 
-HAProxy lua-load(-per-thread) directives allow a list of paramaters after
+HAProxy lua-load(-per-thread) directives allow a list of parameters after
 the lua file name. These parameters are accessible through an array of args
 using this code `local args = table.pack(...)` in the body of loaded file.
 

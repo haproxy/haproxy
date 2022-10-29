@@ -111,7 +111,7 @@ static inline struct ebmb_node *ebmb_lookup_shorter(struct ebmb_node *start)
 	eb_troot_t *t = start->node.leaf_p;
 	struct ebmb_node *node;
 
-	/* first, chcek for duplicates */
+	/* first, check for duplicates */
 	node = ebmb_next_dup(start);
 	if (node)
 		return node;

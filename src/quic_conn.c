@@ -3112,7 +3112,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 	TRACE_ENTER(QUIC_EV_CONN_PHPKTS, qc);
 
 	/* Currently qc_prep_pkts() does not handle buffer wrapping so the
-	 * caller must ensure that buf is resetted.
+	 * caller must ensure that buf is reset.
 	 */
 	BUG_ON_HOT(buf->head || buf->data);
 
@@ -3838,7 +3838,7 @@ static inline void qc_rm_hp_pkts(struct quic_conn *qc, struct quic_enc_level *el
 }
 
 /* Process all the CRYPTO frame at <el> encryption level. This is the
- * responsability of the called to ensure there exists a CRYPTO data
+ * responsibility of the called to ensure there exists a CRYPTO data
  * stream for this level.
  * Return 1 if succeeded, 0 if not.
  */
@@ -5461,7 +5461,7 @@ static int quic_generate_retry_token_aad(unsigned char *aad,
 
 /* QUIC server only function.
  * Generate the token to be used in Retry packets. The token is written to
- * <buf> whith <len> as length. <odcid> is the original destination connection
+ * <buf> with <len> as length. <odcid> is the original destination connection
  * ID and <dcid> is our side destination connection ID (or client source
  * connection ID).
  * Returns the length of the encoded token or 0 on error.
@@ -6599,7 +6599,7 @@ static inline int qc_build_frms(struct list *outlist, struct list *inlist,
 				new_cf->crypto.len = dlen;
 				new_cf->crypto.offset = cf->crypto.offset;
 				new_cf->crypto.qel = qel;
-				TRACE_DEVEL("splitted frame", QUIC_EV_CONN_PRSAFRM, qc, new_cf);
+				TRACE_DEVEL("split frame", QUIC_EV_CONN_PRSAFRM, qc, new_cf);
 				if (cf->origin) {
 					TRACE_DEVEL("duplicated frame", QUIC_EV_CONN_PRSAFRM, qc);
 					/* This <cf> frame was duplicated */
@@ -6716,7 +6716,7 @@ static inline int qc_build_frms(struct list *outlist, struct list *inlist,
 				/* FIN bit reset */
 				new_cf->type &= ~QUIC_STREAM_FRAME_TYPE_FIN_BIT;
 				new_cf->stream.data = cf->stream.data;
-				TRACE_DEVEL("splitted frame", QUIC_EV_CONN_PRSAFRM, qc, new_cf);
+				TRACE_DEVEL("split frame", QUIC_EV_CONN_PRSAFRM, qc, new_cf);
 				if (cf->origin) {
 					TRACE_DEVEL("duplicated frame", QUIC_EV_CONN_PRSAFRM, qc);
 					/* This <cf> frame was duplicated */

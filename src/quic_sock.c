@@ -213,7 +213,7 @@ static int quic_lstnr_dgram_dispatch(unsigned char *buf, size_t len, void *owner
  * found or end of the list is hit. The last unused datagram found is not freed
  * and is instead returned so that the caller can reuse it if needed.
  *
- * Returns the last unused datagram or NULL if no occurence found.
+ * Returns the last unused datagram or NULL if no occurrence found.
  */
 static struct quic_dgram *quic_rxbuf_purge_dgrams(struct quic_receiver_buf *buf)
 {

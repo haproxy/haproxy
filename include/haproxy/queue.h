@@ -45,7 +45,7 @@ void pendconn_unlink(struct pendconn *p);
  * function to be used by default when unsure. Do not call it with server
  * or proxy locks held however. Warning: this is called from stream_free()
  * which may run concurrently with pendconn_process_next_strm() which can be
- * dequeing the entry. The function must not return until the pendconn is
+ * dequeuing the entry. The function must not return until the pendconn is
  * guaranteed not to be known, which means that we must check its presence
  * in the tree under the queue's lock so that penconn_process_next_strm()
  * finishes before we return in case it would have grabbed this pendconn. See

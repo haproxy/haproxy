@@ -2020,7 +2020,7 @@ next_line:
 					qfprintf(stdout, "%s %s\n", args[0], args[1]);
 				}
 
-				/* It concerns user in global secion and in userlist */
+				/* It concerns user in global section and in userlist */
 				else if (strcmp(args[0], "user") == 0) {
 					qfprintf(stdout, "%s %s ", args[0], HA_ANON_ID(g_key, args[1]));
 

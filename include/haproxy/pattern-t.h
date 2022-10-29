@@ -36,7 +36,7 @@
  * ACLs :
  *   - PASS : at least one pattern already matches
  *   - MISS : some data is missing to decide if some rules may finally match.
- *   - FAIL : no mattern may ever match
+ *   - FAIL : no pattern may ever match
  *
  * We assign values 0, 1 and 3 to FAIL, MISS and PASS respectively, so that we
  * can make use of standard arithmetic for the truth tables below :

@@ -339,18 +339,18 @@ fd_takeover():                                    |    do {
    old = {running, thread};                       |          return -1;
    new = {tid_bit, tid_bit};                      |       new = { running | tid_bit, old.thread }	 
    if (owner != expected) {                       |    } while (!dwcas({running, thread}, &old, &new));
-      atomic_and(runnning, ~tid_bit);             |
+      atomic_and(running, ~tid_bit);              |
       return -1; // fail                          | fd_clr_running():
    }                                              |    return atomic_and_fetch(running, ~tid_bit);
                                                   |
    while (old == {tid_bit, !=0 })                 | poll():
       if (dwcas({running, thread}, &old, &new)) { |    if (!owner)
-         atomic_and(runnning, ~tid_bit);          |       continue;
+         atomic_and(running, ~tid_bit);           |       continue;
          return 0; // success                     |
       }                                           |    if (!(thread_mask & tid_bit)) {
    }                                              |       epoll_ctl_del();
                                                   |       continue;
-   atomic_and(runnning, ~tid_bit);                |    }
+   atomic_and(running, ~tid_bit);                 |    }
    return -1; // fail                             |
                                                   |    // via fd_update_events()
 fd_delete():                                      |    if (fd_set_running() != -1) {

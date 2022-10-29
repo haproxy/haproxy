@@ -31,7 +31,7 @@
 /* action flags.
  * Please also update the txn_show_flags() function below in case of changes.
  */
-/* Unusued: 0x00000001..0x00000004 */
+/* Unused: 0x00000001..0x00000004 */
 #define TX_CONST_REPLY  0x00000008      /* The http reply must not be rewritten (don't eval after-response ruleset) */
 #define TX_CLTARPIT	0x00000010	/* the transaction is tarpitted (anti-dos) */
 

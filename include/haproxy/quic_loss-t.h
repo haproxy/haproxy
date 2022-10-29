@@ -39,7 +39,7 @@
 #define QUIC_LOSS_TIME_THRESHOLD_MULTIPLICAND 9
 #define QUIC_LOSS_TIME_THRESHOLD_DIVISOR      8
 
-/* Note that all the unit of variables for QUIC LOSS dectections
+/* Note that all the unit of variables for QUIC LOSS detections
  * is the tick.
  */
 

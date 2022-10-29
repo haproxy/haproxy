@@ -2819,7 +2819,7 @@ static inline void init_accepted_peer(struct peer *peer, struct peers *peers)
 		/* if st->update appears to be in future it means
 		 * that the last acked value is very old and we
 		 * remain unconnected a too long time to use this
-		 * acknowlegement as a reset.
+		 * acknowledgement as a reset.
 		 * We should update the protocol to be able to
 		 * signal the remote peer that it needs a full resync.
 		 * Here a partial fix consist to set st->update at
@@ -2874,7 +2874,7 @@ static inline void init_connected_peer(struct peer *peer, struct peers *peers)
 		/* if st->update appears to be in future it means
 		 * that the last acked value is very old and we
 		 * remain unconnected a too long time to use this
-		 * acknowlegement as a reset.
+		 * acknowledgement as a reset.
 		 * We should update the protocol to be able to
 		 * signal the remote peer that it needs a full resync.
 		 * Here a partial fix consist to set st->update at

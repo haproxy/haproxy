@@ -863,7 +863,7 @@
 								 * (tmpelt2.prev == NULL on first run)              \
 								 */                                                 \
 								_MT_LIST_UNLOCK_PREV(tmpelt, tmpelt2.prev);         \
-								/* unlock_prev will implicitely relink:             \
+								/* unlock_prev will implicitly relink:              \
 								 * elt->prev = prev                                 \
 								 * prev->next = elt                                 \
 								 */                                                 \

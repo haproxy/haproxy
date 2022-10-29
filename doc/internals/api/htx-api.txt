@@ -267,7 +267,7 @@ message. For HTTP/1 messages, it is the message body without the chunks
 formatting, if any. For HTTP/2, it is the payload of DATA frames.
 
 The DATA blocks are the only HTX blocks that may be partially processed (copied
-or removed). All other types of block must be entierly processed. This means
+or removed). All other types of block must be entirely processed. This means
 DATA blocks can be resized.
 
 

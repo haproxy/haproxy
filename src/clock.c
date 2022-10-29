@@ -348,7 +348,7 @@ void clock_leaving_poll(int timeout, int interrupted)
 
 /* Collect date and time information before calling poll(). This will be used
  * to count the run time of the past loop and the sleep time of the next poll.
- * It also compares the elasped and cpu times during the activity period to
+ * It also compares the elapsed and cpu times during the activity period to
  * estimate the amount of stolen time, which is reported if higher than half
  * a millisecond.
  */

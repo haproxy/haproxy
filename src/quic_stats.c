@@ -16,7 +16,7 @@ static struct name_desc quic_stats[] = {
 	[QUIC_ST_SENDTO_ERR]          = { .name = "quic_sendto_err",
 	                                  .desc = "Total number of error on sendto() calls, EAGAIN excepted" },
 	[QUIC_ST_SENDTO_ERR_UNKNWN]   = { .name = "quic_sendto_err_unknwn",
-	                                  .desc = "Total number of error on sendto() calls not explicitely listed" },
+	                                  .desc = "Total number of error on sendto() calls not explicitly listed" },
 	[QUIC_ST_LOST_PACKET]         = { .name = "quic_lost_pkt",
 	                                  .desc = "Total number of lost sent packets" },
 	[QUIC_ST_TOO_SHORT_INITIAL_DGRAM] = { .name = "quic_too_short_dgram",
