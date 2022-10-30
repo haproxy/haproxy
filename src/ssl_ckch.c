@@ -626,8 +626,6 @@ int ssl_sock_load_pem_into_ckch(const char *path, char *buf, struct cert_key_and
 	while ((ca = PEM_read_bio_X509(in, NULL, NULL, NULL))) {
 		if (chain == NULL)
 			chain = sk_X509_new_null();
-		if (ca == NULL)
-			break;
 		if (!sk_X509_push(chain, ca)) {
 			X509_free(ca);
 			break;
