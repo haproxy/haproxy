@@ -13,7 +13,7 @@ void quic_transport_params_init(struct quic_transport_params *p, int server);
 int quic_transport_params_encode(unsigned char *buf,
                                  const unsigned char *end,
                                  struct quic_transport_params *p,
-                                 const struct quic_version *choosen_version,
+                                 const struct quic_version *chosen_version,
                                  int server);
 
 int quic_transport_params_store(struct quic_conn *conn, int server,
@@ -46,10 +46,10 @@ static inline void quic_tp_cid_dump(struct buffer *buf,
 static inline void quic_tp_version_info_dump(struct buffer *b,
                                              const struct tp_version_information *tp, int local)
 {
-	if (!tp->choosen)
+	if (!tp->chosen)
 		return;
 
-	chunk_appendf(b, "\n\tversion_information:(choosen=0x%08x", tp->choosen);
+	chunk_appendf(b, "\n\tversion_information:(chosen=0x%08x", tp->chosen);
 	if (tp->nb_others) {
 		int i = 0;
 		const uint32_t *ver;

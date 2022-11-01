@@ -27,7 +27,7 @@ struct tp_preferred_address {
 };
 
 struct tp_version_information {
-	uint32_t choosen;
+	uint32_t chosen;
 	const uint32_t *others;
 	size_t nb_others;
 	const struct quic_version *negotiated_version;
