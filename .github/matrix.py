@@ -129,7 +129,7 @@ for CC in ["gcc", "clang"]:
         "stock",
         "OPENSSL_VERSION=1.0.2u",
         "OPENSSL_VERSION=latest",
-        "LIBRESSL_VERSION=3.5.3",
+        "LIBRESSL_VERSION=latest",
         "QUICTLS=yes",
 #        "BORINGSSL=yes",
     ]:
