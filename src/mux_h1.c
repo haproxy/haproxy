@@ -1938,7 +1938,6 @@ static size_t h1_process_mux(struct h1c *h1c, struct buffer *buf, size_t count)
 	struct buffer tmp;
 	size_t total = 0;
 	int last_data = 0;
-	int ws_key_found = 0;
 
 	chn_htx = htxbuf(buf);
 	TRACE_ENTER(H1_EV_TX_DATA, h1c->conn, h1s, chn_htx, (size_t[]){count});
@@ -2150,7 +2149,7 @@ static size_t h1_process_mux(struct h1c *h1c, struct buffer *buf, size_t count)
 				          h1m->flags & H1_MF_RESP) ||
 				         (isteq(n, ist("sec-websocket-key")) &&
 				          !(h1m->flags & H1_MF_RESP))) {
-					ws_key_found = 1;
+					h1s->flags |= H1S_F_HAVE_WS_KEY;
 				}
 				else if (isteq(n, ist("te"))) {
 					/* "te" may only be sent with "trailers" if this value
@@ -2251,8 +2250,8 @@ static size_t h1_process_mux(struct h1c *h1c, struct buffer *buf, size_t count)
 				}
 
 				/* Add websocket handshake key if needed */
-				if ((h1m->flags & (H1_MF_CONN_UPG|H1_MF_UPG_WEBSOCKET)) == (H1_MF_CONN_UPG|H1_MF_UPG_WEBSOCKET) &&
-				    !ws_key_found) {
+				if (!(h1s->flags & H1S_F_HAVE_WS_KEY) &&
+				    (h1m->flags & (H1_MF_CONN_UPG|H1_MF_UPG_WEBSOCKET)) == (H1_MF_CONN_UPG|H1_MF_UPG_WEBSOCKET)) {
 					if (!(h1m->flags & H1_MF_RESP)) {
 						/* generate a random websocket key
 						 * stored in the session to
@@ -2276,6 +2275,7 @@ static size_t h1_process_mux(struct h1c *h1c, struct buffer *buf, size_t count)
 							goto full;
 						}
 					}
+					h1s->flags |= H1S_F_HAVE_WS_KEY;
 				}
 
 				TRACE_PROTO((!(h1m->flags & H1_MF_RESP) ? "H1 request headers xferred" : "H1 response headers xferred"),
