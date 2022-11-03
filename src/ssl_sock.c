@@ -7231,8 +7231,8 @@ int ssl_load_global_issuer_from_BIO(BIO *in, char *fp, char **err)
 				break;
 			}
 		}
-		AUTHORITY_KEYID_free(akid);
 	}
+	AUTHORITY_KEYID_free(akid);
 	return issuer;
 }
 
