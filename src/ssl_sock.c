@@ -3073,6 +3073,8 @@ end:
 	EVP_PKEY_CTX_free(ctx);
 	OSSL_PARAM_free(params);
 	OSSL_PARAM_BLD_free(tmpl);
+	BN_free(p);
+	BN_free(g);
 	return pkey;
 #else
 
