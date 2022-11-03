@@ -398,6 +398,24 @@ static int sample_conv_crypto_digest(const struct arg *args, struct sample *smp,
 	return 1;
 }
 
+/* Take a numerical X509_V_ERR and return its constant name */
+static int sample_conv_x509_v_err(const struct arg *arg_p, struct sample *smp, void *private)
+{
+	const char *res = x509_v_err_int_to_str(smp->data.u.sint);
+
+	/* if the value was found return its string */
+	if (res) {
+		smp->data.u.str.area = (char *)res;
+		smp->data.u.str.data = strlen(res);
+		smp->data.type = SMP_T_STR;
+		smp->flags |= SMP_F_CONST;
+
+		return 1;
+	}
+
+	return 0;
+}
+
 static int check_crypto_hmac(struct arg *args, struct sample_conv *conv,
 						  const char *file, int line, char **err)
 {
@@ -2199,6 +2217,7 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 #ifdef EVP_CIPH_GCM_MODE
 	{ "aes_gcm_dec",        sample_conv_aes_gcm_dec,      ARG4(4,SINT,STR,STR,STR), check_aes_gcm,           SMP_T_BIN,  SMP_T_BIN  },
 #endif
+	{ "x509_v_err_str",     sample_conv_x509_v_err,       0,                        NULL,                    SMP_T_SINT, SMP_T_STR },
 	{ "digest",             sample_conv_crypto_digest,    ARG1(1,STR),              check_crypto_digest,     SMP_T_BIN,  SMP_T_BIN  },
 	{ "hmac",               sample_conv_crypto_hmac,      ARG2(2,STR,STR),          check_crypto_hmac,       SMP_T_BIN,  SMP_T_BIN  },
 #if defined(HAVE_CRYPTO_memcmp)

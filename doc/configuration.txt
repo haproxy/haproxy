@@ -18171,6 +18171,26 @@ xxh64([<seed>])
   collision rate, though care must be taken as the algorithm is not considered
   as cryptographically secure.
 
+x509_v_err_str
+  Convert a numerical value to its corresponding X509_V_ERR constant name. It
+  is useful in ACL in order to have a configuration which works with multiple
+  version of OpenSSL since some codes might change when changing version.
+
+  The list of constant provided by OpenSSL can be found at
+  https://www.openssl.org/docs/manmaster/man3/X509_STORE_CTX_get_error.html#ERROR-CODES
+  Be careful to read the page for the right version of OpenSSL.
+
+  Example:
+
+    bind :443 ssl crt common.pem ca-file ca-auth.crt verify optional crt-ignore-err X509_V_ERR_CERT_REVOKED,X509_V_ERR_CERT_HAS_EXPIRED
+
+    acl cert_expired ssl_c_verify,x509_v_err_str -m str X509_V_ERR_CERT_HAS_EXPIRED
+    acl cert_revoked ssl_c_verify,x509_v_err_str -m str X509_V_ERR_CERT_REVOKED
+    acl cert_ok      ssl_c_verify,x509_v_err_str -m str X509_V_OK
+
+    http-response add-header X-SSL Ok if cert_ok
+    http-response add-header X-SSL Expired if cert_expired
+    http-response add-header X-SSL Revoked if cert_revoked
 
 7.3.2. Fetching samples from internal states
 --------------------------------------------
