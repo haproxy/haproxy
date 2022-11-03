@@ -819,6 +819,9 @@ srv_found:
 				srv->flags &= ~SRV_F_NO_RESOLUTION;
 				srv->srvrq_check->expire = TICK_ETERNITY;
 
+				srv->svc_port = item->port;
+				srv->flags   &= ~SRV_F_MAPPORTS;
+
 				/* Check if an Additional Record is associated to this SRV record.
 				 * Perform some sanity checks too to ensure the record can be used.
 				 * If all fine, we simply pick up the IP address found and associate
@@ -872,9 +875,6 @@ srv_found:
 
 				/* Update the server status */
 				srvrq_update_srv_status(srv, (srv->addr.ss_family != AF_INET && srv->addr.ss_family != AF_INET6));
-
-				srv->svc_port = item->port;
-				srv->flags   &= ~SRV_F_MAPPORTS;
 
 				if (!srv->resolv_opts.ignore_weight) {
 					char weight[9];
