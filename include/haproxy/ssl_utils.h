@@ -41,6 +41,8 @@ int ssl_sock_get_dn_oneline(X509_NAME *a, struct buffer *out);
 X509* ssl_sock_get_peer_certificate(SSL *ssl);
 unsigned int openssl_version_parser(const char *version);
 void exclude_tls_grease(char *input, int len, struct buffer *output);
+int x509_v_err_str_to_int(const char *str);
+const char *x509_v_err_int_to_str(int code);
 
 #endif /* _HAPROXY_SSL_UTILS_H */
 #endif /* USE_OPENSSL */

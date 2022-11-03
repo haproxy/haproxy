@@ -48,7 +48,7 @@ haproxy h1 -conf {
         # crt: certificate of the server
         # ca-file: CA used for client authentication request
         # crl-file: revocation list for client auth: the client1 certificate is revoked
-        bind "${tmpdir}/ssl.sock" ssl crt ${testdir}/common.pem ca-file ${testdir}/ca-auth.crt verify optional crt-ignore-err all crl-file ${testdir}/crl-auth.pem
+        bind "${tmpdir}/ssl.sock" ssl crt ${testdir}/common.pem ca-file ${testdir}/ca-auth.crt verify optional crt-ignore-err X509_V_ERR_CERT_REVOKED,X509_V_ERR_CERT_HAS_EXPIRED crl-file ${testdir}/crl-auth.pem
 
         acl cert_expired ssl_c_verify 10
         acl cert_revoked ssl_c_verify 23

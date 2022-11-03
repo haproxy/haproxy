@@ -14084,6 +14084,11 @@ ca-file <cafile>
 ca-ignore-err [all|<errorID>,...]
   This setting is only available when support for OpenSSL was built in.
   Sets a comma separated list of errorIDs to ignore during verify at depth > 0.
+  It could be a numerical ID, or the constant name (X509_V_ERR) which is
+  available in the OpenSSL documentation:
+  https://www.openssl.org/docs/manmaster/man3/X509_STORE_CTX_get_error.html#ERROR-CODES
+  It is recommended to use the constant name as the numerical value can change
+  in new version of OpenSSL.
   If set to 'all', all errors are ignored. SSL handshake is not aborted if an
   error is ignored.
 
@@ -14204,9 +14209,14 @@ crt <cert>
 
 crt-ignore-err <errors>
   This setting is only available when support for OpenSSL was built in. Sets a
-  comma separated list of errorIDs to ignore during verify at depth == 0. If
-  set to 'all', all errors are ignored. SSL handshake is not aborted if an error
-  is ignored.
+  comma separated list of errorIDs to ignore during verify at depth == 0.
+  It could be a numerical ID, or the constant name (X509_V_ERR) which is
+  available in the OpenSSL documentation:
+  https://www.openssl.org/docs/manmaster/man3/X509_STORE_CTX_get_error.html#ERROR-CODES
+  It is recommended to use the constant name as the numerical value can change
+  in new version of OpenSSL.
+  If set to 'all', all errors are ignored. SSL handshake is not aborted if an
+  error is ignored.
 
 crt-list <file>
   This setting is only available when support for OpenSSL was built in. It

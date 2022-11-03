@@ -417,3 +417,191 @@ void exclude_tls_grease(char *input, int len, struct buffer *output)
 	if (output->size - output->data > 0 && len - ptr > 0)
 		output->area[output->data++] = input[ptr];
 }
+
+/*
+ * The following generates an array <x509_v_codes> in which the X509_V_ERR_*
+ * codes are populated with there string equivalent. Depending on the version
+ * of the SSL library, some code does not exist, these will be populated as
+ * "-1" in the array.
+ *
+ * The list was taken from
+ * https://github.com/openssl/openssl/blob/master/include/openssl/x509_vfy.h.in
+ * and must be updated when new constant are introduced.
+ */
+
+/* manual atoi() that only works on the first 10 chars of input (they must all be there) */
+#undef _S
+#define _S(x) ((x[0]-'0')*1000000000 +                  \
+               (x[1]-'0')*100000000 +                   \
+               (x[2]-'0')*10000000 +                    \
+               (x[3]-'0')*1000000 +                     \
+               (x[4]-'0')*100000 +                      \
+               (x[5]-'0')*10000 +                       \
+               (x[6]-'0')*1000 +                        \
+               (x[7]-'0')*100 +                         \
+               (x[8]-'0')*10 +                          \
+               (x[9]-'0')*1 +                           \
+               0)
+
+/* always prepends the sufficient number of leading zeroes to have 10 chars */
+#undef _R
+#define _R(x) (!x[0] ? _S("0000000000" x) :       \
+               !x[1] ? _S("000000000"  x) :       \
+               !x[2] ? _S("00000000"   x) :       \
+               !x[3] ? _S("0000000"    x) :       \
+               !x[4] ? _S("000000"     x) :       \
+               !x[5] ? _S("00000"      x) :       \
+               !x[6] ? _S("0000"       x) :       \
+               !x[7] ? _S("000"        x) :       \
+               !x[8] ? _S("00"         x) :       \
+               !x[9] ? _S("0"          x) :       \
+                       _S(""           x))
+
+/* returns the value for an integer-defined macro, otherwise -1
+ * The extraneous series of "\0" is there to shut up stupid clang which wants to
+ * evaluate the expression in false branches.
+ */
+#undef _Q
+#define _Q(x) ((#x[0] >= '0' && #x[0] <= '9') ? _R(#x "\0\0\0\0\0\0\0\0\0\0") : -1)
+#undef V
+#define V(x) { .code = _Q(x), .string = #x }
+
+static const struct x509_v_codes {
+	int code;
+	const char *string;
+} x509_v_codes[] = {
+	V(X509_V_OK),
+	V(X509_V_ERR_UNSPECIFIED),
+	V(X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT),
+	V(X509_V_ERR_UNABLE_TO_GET_CRL),
+	V(X509_V_ERR_UNABLE_TO_DECRYPT_CERT_SIGNATURE),
+	V(X509_V_ERR_UNABLE_TO_DECRYPT_CRL_SIGNATURE),
+	V(X509_V_ERR_UNABLE_TO_DECODE_ISSUER_PUBLIC_KEY),
+	V(X509_V_ERR_CERT_SIGNATURE_FAILURE),
+	V(X509_V_ERR_CRL_SIGNATURE_FAILURE),
+	V(X509_V_ERR_CERT_NOT_YET_VALID),
+	V(X509_V_ERR_CERT_HAS_EXPIRED),
+	V(X509_V_ERR_CRL_NOT_YET_VALID),
+	V(X509_V_ERR_CRL_HAS_EXPIRED),
+	V(X509_V_ERR_ERROR_IN_CERT_NOT_BEFORE_FIELD),
+	V(X509_V_ERR_ERROR_IN_CERT_NOT_AFTER_FIELD),
+	V(X509_V_ERR_ERROR_IN_CRL_LAST_UPDATE_FIELD),
+	V(X509_V_ERR_ERROR_IN_CRL_NEXT_UPDATE_FIELD),
+	V(X509_V_ERR_OUT_OF_MEM),
+	V(X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT),
+	V(X509_V_ERR_SELF_SIGNED_CERT_IN_CHAIN),
+	V(X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY),
+	V(X509_V_ERR_UNABLE_TO_VERIFY_LEAF_SIGNATURE),
+	V(X509_V_ERR_CERT_CHAIN_TOO_LONG),
+	V(X509_V_ERR_CERT_REVOKED),
+	V(X509_V_ERR_NO_ISSUER_PUBLIC_KEY),
+	V(X509_V_ERR_PATH_LENGTH_EXCEEDED),
+	V(X509_V_ERR_INVALID_PURPOSE),
+	V(X509_V_ERR_CERT_UNTRUSTED),
+	V(X509_V_ERR_CERT_REJECTED),
+	V(X509_V_ERR_SUBJECT_ISSUER_MISMATCH),
+	V(X509_V_ERR_AKID_SKID_MISMATCH),
+	V(X509_V_ERR_AKID_ISSUER_SERIAL_MISMATCH),
+	V(X509_V_ERR_KEYUSAGE_NO_CERTSIGN),
+	V(X509_V_ERR_UNABLE_TO_GET_CRL_ISSUER),
+	V(X509_V_ERR_UNHANDLED_CRITICAL_EXTENSION),
+	V(X509_V_ERR_KEYUSAGE_NO_CRL_SIGN),
+	V(X509_V_ERR_UNHANDLED_CRITICAL_CRL_EXTENSION),
+	V(X509_V_ERR_INVALID_NON_CA),
+	V(X509_V_ERR_PROXY_PATH_LENGTH_EXCEEDED),
+	V(X509_V_ERR_KEYUSAGE_NO_DIGITAL_SIGNATURE),
+	V(X509_V_ERR_PROXY_CERTIFICATES_NOT_ALLOWED),
+	V(X509_V_ERR_INVALID_EXTENSION),
+	V(X509_V_ERR_INVALID_POLICY_EXTENSION),
+	V(X509_V_ERR_NO_EXPLICIT_POLICY),
+	V(X509_V_ERR_DIFFERENT_CRL_SCOPE),
+	V(X509_V_ERR_UNSUPPORTED_EXTENSION_FEATURE),
+	V(X509_V_ERR_UNNESTED_RESOURCE),
+	V(X509_V_ERR_PERMITTED_VIOLATION),
+	V(X509_V_ERR_EXCLUDED_VIOLATION),
+	V(X509_V_ERR_SUBTREE_MINMAX),
+	V(X509_V_ERR_APPLICATION_VERIFICATION),
+	V(X509_V_ERR_UNSUPPORTED_CONSTRAINT_TYPE),
+	V(X509_V_ERR_UNSUPPORTED_CONSTRAINT_SYNTAX),
+	V(X509_V_ERR_UNSUPPORTED_NAME_SYNTAX),
+	V(X509_V_ERR_CRL_PATH_VALIDATION_ERROR),
+	V(X509_V_ERR_PATH_LOOP),
+	V(X509_V_ERR_SUITE_B_INVALID_VERSION),
+	V(X509_V_ERR_SUITE_B_INVALID_ALGORITHM),
+	V(X509_V_ERR_SUITE_B_INVALID_CURVE),
+	V(X509_V_ERR_SUITE_B_INVALID_SIGNATURE_ALGORITHM),
+	V(X509_V_ERR_SUITE_B_LOS_NOT_ALLOWED),
+	V(X509_V_ERR_SUITE_B_CANNOT_SIGN_P_384_WITH_P_256),
+	V(X509_V_ERR_HOSTNAME_MISMATCH),
+	V(X509_V_ERR_EMAIL_MISMATCH),
+	V(X509_V_ERR_IP_ADDRESS_MISMATCH),
+	V(X509_V_ERR_DANE_NO_MATCH),
+	V(X509_V_ERR_EE_KEY_TOO_SMALL),
+	V(X509_V_ERR_CA_KEY_TOO_SMALL),
+	V(X509_V_ERR_CA_MD_TOO_WEAK),
+	V(X509_V_ERR_INVALID_CALL),
+	V(X509_V_ERR_STORE_LOOKUP),
+	V(X509_V_ERR_NO_VALID_SCTS),
+	V(X509_V_ERR_PROXY_SUBJECT_NAME_VIOLATION),
+	V(X509_V_ERR_OCSP_VERIFY_NEEDED),
+	V(X509_V_ERR_OCSP_VERIFY_FAILED),
+	V(X509_V_ERR_OCSP_CERT_UNKNOWN),
+	V(X509_V_ERR_UNSUPPORTED_SIGNATURE_ALGORITHM),
+	V(X509_V_ERR_SIGNATURE_ALGORITHM_MISMATCH),
+	V(X509_V_ERR_SIGNATURE_ALGORITHM_INCONSISTENCY),
+	V(X509_V_ERR_INVALID_CA),
+	V(X509_V_ERR_PATHLEN_INVALID_FOR_NON_CA),
+	V(X509_V_ERR_PATHLEN_WITHOUT_KU_KEY_CERT_SIGN),
+	V(X509_V_ERR_KU_KEY_CERT_SIGN_INVALID_FOR_NON_CA),
+	V(X509_V_ERR_ISSUER_NAME_EMPTY),
+	V(X509_V_ERR_SUBJECT_NAME_EMPTY),
+	V(X509_V_ERR_MISSING_AUTHORITY_KEY_IDENTIFIER),
+	V(X509_V_ERR_MISSING_SUBJECT_KEY_IDENTIFIER),
+	V(X509_V_ERR_EMPTY_SUBJECT_ALT_NAME),
+	V(X509_V_ERR_EMPTY_SUBJECT_SAN_NOT_CRITICAL),
+	V(X509_V_ERR_CA_BCONS_NOT_CRITICAL),
+	V(X509_V_ERR_AUTHORITY_KEY_IDENTIFIER_CRITICAL),
+	V(X509_V_ERR_SUBJECT_KEY_IDENTIFIER_CRITICAL),
+	V(X509_V_ERR_CA_CERT_MISSING_KEY_USAGE),
+	V(X509_V_ERR_EXTENSIONS_REQUIRE_VERSION_3),
+	V(X509_V_ERR_EC_KEY_EXPLICIT_PARAMS),
+	{ 0, NULL },
+};
+
+/*
+ * Return the X509_V_ERR code corresponding to the name of the constant.
+ * See https://github.com/openssl/openssl/blob/master/include/openssl/x509_vfy.h.in
+ * If not found, return -1
+ */
+int x509_v_err_str_to_int(const char *str)
+{
+	int i;
+
+	for (i = 0; x509_v_codes[i].string; i++) {
+		if (strcmp(str, x509_v_codes[i].string) == 0) {
+			return x509_v_codes[i].code;
+		}
+	}
+
+	return -1;
+}
+
+/*
+ * Return the constant name corresponding to the X509_V_ERR code
+ * See https://github.com/openssl/openssl/blob/master/include/openssl/x509_vfy.h.in
+ * If not found, return NULL;
+ */
+const char *x509_v_err_int_to_str(int code)
+{
+	int i;
+
+	if (code == -1)
+		return NULL;
+
+	for (i = 0; x509_v_codes[i].string; i++) {
+		if (x509_v_codes[i].code == code) {
+			return x509_v_codes[i].string;
+		}
+	}
+	return NULL;
+}
