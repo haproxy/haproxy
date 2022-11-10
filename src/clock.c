@@ -284,6 +284,7 @@ void clock_init_thread_date(void)
 	now.tv_sec = old_now >> 32;
 	now.tv_usec = (uint)old_now;
 	th_ctx->idle_pct = 100;
+	th_ctx->prev_cpu_time  = now_cpu_time();
 	clock_update_date(0, 1);
 }
 
