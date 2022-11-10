@@ -158,12 +158,21 @@ struct ssl_bind_conf {
 #endif
 };
 
+/*
+ * In OpenSSL 3.0.0, the biggest verify error code's value is 94 and on the
+ * latest 1.1.1 it already reaches 79 so we need to size the ca/crt-ignore-err
+ * arrays accordingly. If the max error code increases, the arrays might need to
+ * be resized.
+ */
+#define SSL_MAX_VFY_ERROR_CODE 94
+#define IGNERR_BF_SIZE ((SSL_MAX_VFY_ERROR_CODE >> 6) + 1)
+
 /* "bind" line settings */
 struct bind_conf {
 #ifdef USE_OPENSSL
 	struct ssl_bind_conf ssl_conf; /* ssl conf for ctx setting */
-	unsigned long long ca_ignerr;  /* ignored verify errors in handshake if depth > 0 */
-	unsigned long long crt_ignerr; /* ignored verify errors in handshake if depth == 0 */
+	unsigned long long ca_ignerr_bitfield[IGNERR_BF_SIZE];   /* ignored verify errors in handshake if depth > 0 */
+	unsigned long long crt_ignerr_bitfield[IGNERR_BF_SIZE];  /* ignored verify errors in handshake if depth == 0 */
 	void *initial_ctx;             /* SSL context for initial negotiation */
 	void *default_ctx;             /* SSL context of first/default certificate */
 	struct ckch_inst *default_inst;

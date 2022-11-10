@@ -1777,7 +1777,8 @@ int ssl_sock_bind_verifycbk(int ok, X509_STORE_CTX *x_store)
 			ctx->xprt_st |= SSL_SOCK_CAEDEPTH_TO_ST(depth);
 		}
 
-		if (err < 64 && bind_conf->ca_ignerr & (1ULL << err))
+		if (err <= SSL_MAX_VFY_ERROR_CODE &&
+		    cert_ignerr_bitfield_get(__objt_listener(conn->target)->bind_conf->ca_ignerr_bitfield, err))
 			goto err_ignored;
 
 		/* TODO: for QUIC connection, this error code is lost */
@@ -1790,7 +1791,8 @@ int ssl_sock_bind_verifycbk(int ok, X509_STORE_CTX *x_store)
 		ctx->xprt_st |= SSL_SOCK_CRTERROR_TO_ST(err);
 
 	/* check if certificate error needs to be ignored */
-	if (err < 64 && bind_conf->crt_ignerr & (1ULL << err))
+	if (err <= SSL_MAX_VFY_ERROR_CODE &&
+	    cert_ignerr_bitfield_get(__objt_listener(conn->target)->bind_conf->crt_ignerr_bitfield, err))
 		goto err_ignored;
 
 	/* TODO: for QUIC connection, this error code is lost */

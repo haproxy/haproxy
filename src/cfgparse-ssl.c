@@ -825,7 +825,7 @@ static int bind_parse_ignore_err(char **args, int cur_arg, struct proxy *px, str
 {
 	int code;
 	char *p = args[cur_arg + 1];
-	unsigned long long *ignerr = &conf->crt_ignerr;
+	unsigned long long *ignerr = conf->crt_ignerr_bitfield;
 
 	if (!*p) {
 		memprintf(err, "'%s' : missing error IDs list", args[cur_arg]);
@@ -833,21 +833,21 @@ static int bind_parse_ignore_err(char **args, int cur_arg, struct proxy *px, str
 	}
 
 	if (strcmp(args[cur_arg], "ca-ignore-err") == 0)
-		ignerr = &conf->ca_ignerr;
+		ignerr = conf->ca_ignerr_bitfield;
 
 	if (strcmp(p, "all") == 0) {
-		*ignerr = ~0ULL;
+		cert_ignerr_bitfield_set_all(ignerr);
 		return 0;
 	}
 
 	while (p) {
 		code = atoi(p);
-		if ((code <= 0) || (code > 63)) {
-			memprintf(err, "'%s' : ID '%d' out of range (1..63) in error IDs list '%s'",
-			          args[cur_arg], code, args[cur_arg + 1]);
+		if ((code <= 0) || (code > SSL_MAX_VFY_ERROR_CODE)) {
+			memprintf(err, "'%s' : ID '%d' out of range (1..%d) in error IDs list '%s'",
+			          args[cur_arg], code, SSL_MAX_VFY_ERROR_CODE, args[cur_arg + 1]);
 			return ERR_ALERT | ERR_FATAL;
 		}
-		*ignerr |= 1ULL << code;
+		cert_ignerr_bitfield_set(ignerr, code);
 		p = strchr(p, ',');
 		if (p)
 			p++;

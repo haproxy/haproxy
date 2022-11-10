@@ -50,16 +50,20 @@
 #define SSL_SOCK_SEND_UNLIMITED     0x00000004
 #define SSL_SOCK_RECV_HEARTBEAT     0x00000008
 
-/* bits 0xFFFF0000 are reserved to store verify errors */
+/* bits 0xFFFFFF00 are reserved to store verify errors.
+ * The CA en CRT error codes will be stored on 7 bits each
+ * (since the max verify error code does not exceed 127)
+ * and the CA error depth will be stored on 4 bits.
+ */
 
 /* Verify errors macros */
-#define SSL_SOCK_CA_ERROR_TO_ST(e) (((e > 63) ? 63 : e) << (16))
-#define SSL_SOCK_CAEDEPTH_TO_ST(d) (((d > 15) ? 15 : d) << (6+16))
-#define SSL_SOCK_CRTERROR_TO_ST(e) (((e > 63) ? 63 : e) << (4+6+16))
+#define SSL_SOCK_CA_ERROR_TO_ST(e) (((e > 127) ? 127 : e) << (8))
+#define SSL_SOCK_CAEDEPTH_TO_ST(d) (((d > 15) ? 15 : d) << (7+8))
+#define SSL_SOCK_CRTERROR_TO_ST(e) (((e > 127) ? 127 : e) << (4+7+8))
 
-#define SSL_SOCK_ST_TO_CA_ERROR(s) ((s >> (16)) & 63)
-#define SSL_SOCK_ST_TO_CAEDEPTH(s) ((s >> (6+16)) & 15)
-#define SSL_SOCK_ST_TO_CRTERROR(s) ((s >> (4+6+16)) & 63)
+#define SSL_SOCK_ST_TO_CA_ERROR(s) ((s >> (8)) & 127)
+#define SSL_SOCK_ST_TO_CAEDEPTH(s) ((s >> (7+8)) & 15)
+#define SSL_SOCK_ST_TO_CRTERROR(s) ((s >> (4+7+8)) & 127)
 
 /* ssl_methods flags for ssl options */
 #define MC_SSL_O_ALL            0x0000
