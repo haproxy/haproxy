@@ -4869,7 +4869,7 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 	}
 
 	ha_notice("New server registered.\n");
-	cli_msg(appctx, LOG_INFO, usermsgs_str());
+	cli_umsg(appctx, LOG_INFO);
 
 	return 0;
 
@@ -4900,7 +4900,7 @@ out:
 	thread_release();
 
 	if (!usermsgs_empty())
-		cli_err(appctx, usermsgs_str());
+		cli_umsgerr(appctx);
 
 	if (srv)
 		srv_drop(srv);
