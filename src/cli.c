@@ -1041,7 +1041,7 @@ static void cli_io_handler(struct appctx *appctx)
 			case CLI_ST_PRINT:       /* print const message in msg */
 			case CLI_ST_PRINT_ERR:   /* print const error in msg */
 			case CLI_ST_PRINT_DYN:   /* print dyn message in msg, free */
-			case CLI_ST_PRINT_FREE:  /* print dyn error in err, free */
+			case CLI_ST_PRINT_DYNERR: /* print dyn error in err, free */
 				/* the message is in the svcctx */
 				ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
 				if (appctx->st0 == CLI_ST_PRINT || appctx->st0 == CLI_ST_PRINT_ERR) {
@@ -1049,8 +1049,8 @@ static void cli_io_handler(struct appctx *appctx)
 						LOG_ERR : ctx->severity;
 					msg = ctx->msg;
 				}
-				else if (appctx->st0 == CLI_ST_PRINT_DYN || appctx->st0 == CLI_ST_PRINT_FREE) {
-					sev = appctx->st0 == CLI_ST_PRINT_FREE ?
+				else if (appctx->st0 == CLI_ST_PRINT_DYN || appctx->st0 == CLI_ST_PRINT_DYNERR) {
+					sev = appctx->st0 == CLI_ST_PRINT_DYNERR ?
 						LOG_ERR : ctx->severity;
 					msg = ctx->err;
 					if (!msg) {
@@ -1064,8 +1064,8 @@ static void cli_io_handler(struct appctx *appctx)
 				}
 
 				if (cli_output_msg(res, msg, sev, cli_get_severity_output(appctx)) != -1) {
-					if (appctx->st0 == CLI_ST_PRINT_FREE ||
-					    appctx->st0 == CLI_ST_PRINT_DYN) {
+					if (appctx->st0 == CLI_ST_PRINT_DYN ||
+					    appctx->st0 == CLI_ST_PRINT_DYNERR) {
 						ha_free(&ctx->err);
 					}
 					appctx->st0 = CLI_ST_PROMPT;
@@ -1193,7 +1193,7 @@ static void cli_release_handler(struct appctx *appctx)
 		appctx->io_release(appctx);
 		appctx->io_release = NULL;
 	}
-	else if (appctx->st0 == CLI_ST_PRINT_FREE || appctx->st0 == CLI_ST_PRINT_DYN) {
+	else if (appctx->st0 == CLI_ST_PRINT_DYN || appctx->st0 == CLI_ST_PRINT_DYNERR) {
 		struct cli_print_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
 
 		ha_free(&ctx->err);

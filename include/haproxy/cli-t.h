@@ -57,7 +57,7 @@ enum {
 	CLI_ST_PRINT,      /* display const message in cli->msg */
 	CLI_ST_PRINT_ERR,  /* display const error in cli->msg */
 	CLI_ST_PRINT_DYN,  /* display dynamic message in cli->err. After the display, free the pointer */
-	CLI_ST_PRINT_FREE, /* display dynamic error in cli->err. After the display, free the pointer */
+	CLI_ST_PRINT_DYNERR, /* display dynamic error in cli->err. After the display, free the pointer */
 	CLI_ST_CALLBACK,   /* custom callback pointer */
 };
 
@@ -72,7 +72,7 @@ enum {
 /* CLI context for printing command responses. */
 struct cli_print_ctx {
 	const char *msg;        /* pointer to a persistent message to be returned in CLI_ST_PRINT state */
-	char *err;              /* pointer to a 'must free' message to be returned in CLI_ST_PRINT_FREE state */
+	char *err;              /* pointer to a 'must free' message to be returned in CLI_ST_PRINT_DYN state */
 	int severity;           /* severity of the message to be returned according to (syslog) rfc5424 */
 };
 

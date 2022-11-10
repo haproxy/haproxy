@@ -104,7 +104,7 @@ static inline int cli_dynerr(struct appctx *appctx, char *err)
 	struct cli_print_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
 
 	ctx->err = err;
-	appctx->st0 = CLI_ST_PRINT_FREE;
+	appctx->st0 = CLI_ST_PRINT_DYNERR;
 	return 1;
 }
 
