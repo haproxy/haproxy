@@ -1042,6 +1042,8 @@ static void cli_io_handler(struct appctx *appctx)
 			case CLI_ST_PRINT_ERR:   /* print const error in msg */
 			case CLI_ST_PRINT_DYN:   /* print dyn message in msg, free */
 			case CLI_ST_PRINT_DYNERR: /* print dyn error in err, free */
+			case CLI_ST_PRINT_UMSG:  /* print usermsgs_ctx and reset it */
+			case CLI_ST_PRINT_UMSGERR: /* print usermsgs_ctx as error and reset it */
 				/* the message is in the svcctx */
 				ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
 				if (appctx->st0 == CLI_ST_PRINT || appctx->st0 == CLI_ST_PRINT_ERR) {
@@ -1058,6 +1060,12 @@ static void cli_io_handler(struct appctx *appctx)
 						msg = "Out of memory.\n";
 					}
 				}
+				else if (appctx->st0 == CLI_ST_PRINT_UMSG ||
+				         appctx->st0 == CLI_ST_PRINT_UMSGERR) {
+					sev = appctx->st0 == CLI_ST_PRINT_UMSGERR ?
+					        LOG_ERR : ctx->severity;
+					msg = usermsgs_str();
+				}
 				else {
 					sev = LOG_ERR;
 					msg = "Internal error.\n";
@@ -1067,6 +1075,10 @@ static void cli_io_handler(struct appctx *appctx)
 					if (appctx->st0 == CLI_ST_PRINT_DYN ||
 					    appctx->st0 == CLI_ST_PRINT_DYNERR) {
 						ha_free(&ctx->err);
+					}
+					else if (appctx->st0 == CLI_ST_PRINT_UMSG ||
+					         appctx->st0 == CLI_ST_PRINT_UMSGERR) {
+						usermsgs_clr(NULL);
 					}
 					appctx->st0 = CLI_ST_PROMPT;
 				}
@@ -1197,6 +1209,9 @@ static void cli_release_handler(struct appctx *appctx)
 		struct cli_print_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
 
 		ha_free(&ctx->err);
+	}
+	else if (appctx->st0 == CLI_ST_PRINT_UMSG || appctx->st0 == CLI_ST_PRINT_UMSGERR) {
+		usermsgs_clr(NULL);
 	}
 }
 

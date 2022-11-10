@@ -58,6 +58,8 @@ enum {
 	CLI_ST_PRINT_ERR,  /* display const error in cli->msg */
 	CLI_ST_PRINT_DYN,  /* display dynamic message in cli->err. After the display, free the pointer */
 	CLI_ST_PRINT_DYNERR, /* display dynamic error in cli->err. After the display, free the pointer */
+	CLI_ST_PRINT_UMSG, /* display usermsgs_ctx buffer. After the display, usermsgs_ctx is resetted. */
+	CLI_ST_PRINT_UMSGERR, /* display usermsgs_ctx buffer as error. After the display, usermsgs_ctx is resetted. */
 	CLI_ST_CALLBACK,   /* custom callback pointer */
 };
 

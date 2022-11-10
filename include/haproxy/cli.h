@@ -108,5 +108,31 @@ static inline int cli_dynerr(struct appctx *appctx, char *err)
 	return 1;
 }
 
+/* updates the CLI's context to log messages stored in thread-local
+ * usermsgs_ctx at <severity> level. usermsgs_ctx will be resetted when done.
+ * This is for use in CLI parsers to deal with quick response messages.
+ *
+ * Always returns 1.
+ */
+static inline int cli_umsg(struct appctx *appctx, int severity)
+{
+	struct cli_print_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
+
+	ctx->severity = severity;
+	appctx->st0 = CLI_ST_PRINT_UMSG;
+	return 1;
+}
+
+/* updates the CLI's context to log messages stored in thread-local
+ * usermsgs_ctx using error level. usermsgs_ctx will be resetted when done.
+ * This is for use in CLI parsers to deal with quick response messages.
+ *
+ * Always returns 1.
+ */
+static inline int cli_umsgerr(struct appctx *appctx)
+{
+	appctx->st0 = CLI_ST_PRINT_UMSGERR;
+	return 1;
+}
 
 #endif /* _HAPROXY_CLI_H */
