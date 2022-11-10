@@ -1778,7 +1778,7 @@ int ssl_sock_bind_verifycbk(int ok, X509_STORE_CTX *x_store)
 		}
 
 		if (err <= SSL_MAX_VFY_ERROR_CODE &&
-		    cert_ignerr_bitfield_get(__objt_listener(conn->target)->bind_conf->ca_ignerr_bitfield, err))
+		    cert_ignerr_bitfield_get(bind_conf->ca_ignerr_bitfield, err))
 			goto err_ignored;
 
 		/* TODO: for QUIC connection, this error code is lost */
@@ -1792,7 +1792,7 @@ int ssl_sock_bind_verifycbk(int ok, X509_STORE_CTX *x_store)
 
 	/* check if certificate error needs to be ignored */
 	if (err <= SSL_MAX_VFY_ERROR_CODE &&
-	    cert_ignerr_bitfield_get(__objt_listener(conn->target)->bind_conf->crt_ignerr_bitfield, err))
+	    cert_ignerr_bitfield_get(bind_conf->crt_ignerr_bitfield, err))
 		goto err_ignored;
 
 	/* TODO: for QUIC connection, this error code is lost */
