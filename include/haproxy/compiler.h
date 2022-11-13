@@ -37,6 +37,18 @@
 #endif
 #endif
 
+/* This is used to test if a macro is defined and equals 1. The principle is
+ * that the macro is passed as a value and its value concatenated to the word
+ * "comma_for_one" to form a new macro name. The macro "comma_for_one1" equals
+ * one comma, which, once used in an argument, will shift all of them by one,
+ * so that we can use this to concatenate both a 1 and a 0 and always pick the
+ * second one.
+ */
+#define comma_for_one1 ,
+#define ____equals_1(x, y, ...) (y)
+#define ___equals_1(x, ...) ____equals_1(x, 0)
+#define __equals_1(x) ___equals_1(comma_for_one ## x 1)
+
 #if !defined(__GNUC__)
 /* Some versions of glibc irresponsibly redefine __attribute__() to empty for
  * non-gcc compilers, and as such, silently break all constructors with other
