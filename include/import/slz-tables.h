@@ -124,6 +124,23 @@ static const uint32_t len_fh[259] = {
 	0x0d1d23,  0x0d1e23,  0x0800a3               /* 256-258 */
 };
 
+/* This horrible mess is needed to shut up the fallthrough warning since the
+ * stupid comment approach doesn't resist to separate preprocessing (e.g. as
+ * used in distcc). Note that compilers which support the fallthrough attribute
+ * also support __has_attribute.
+ */
+#ifndef __fallthrough
+#  ifdef __has_attribute
+#    if __has_attribute(fallthrough)
+#      define __fallthrough __attribute__((fallthrough))
+#    else
+#      define __fallthrough do { } while (0)
+#    endif
+#  else
+#    define __fallthrough do { } while (0)
+#  endif
+#endif
+
 #if !defined(__ARM_FEATURE_CRC32)
 static uint32_t crc32_fast[4][256];
 #endif
@@ -179,35 +196,35 @@ static inline uint32_t dist_to_code(uint32_t l)
 
 	code = 0;
 	switch (l) {
-	case 24577 ... 32768: code++; /* fall through */
-	case 16385 ... 24576: code++; /* fall through */
-	case 12289 ... 16384: code++; /* fall through */
-	case  8193 ... 12288: code++; /* fall through */
-	case  6145 ...  8192: code++; /* fall through */
-	case  4097 ...  6144: code++; /* fall through */
-	case  3073 ...  4096: code++; /* fall through */
-	case  2049 ...  3072: code++; /* fall through */
-	case  1537 ...  2048: code++; /* fall through */
-	case  1025 ...  1536: code++; /* fall through */
-	case   769 ...  1024: code++; /* fall through */
-	case   513 ...   768: code++; /* fall through */
-	case   385 ...   512: code++; /* fall through */
-	case   257 ...   384: code++; /* fall through */
-	case   193 ...   256: code++; /* fall through */
-	case   129 ...   192: code++; /* fall through */
-	case    97 ...   128: code++; /* fall through */
-	case    65 ...    96: code++; /* fall through */
-	case    49 ...    64: code++; /* fall through */
-	case    33 ...    48: code++; /* fall through */
-	case    25 ...    32: code++; /* fall through */
-	case    17 ...    24: code++; /* fall through */
-	case    13 ...    16: code++; /* fall through */
-	case     9 ...    12: code++; /* fall through */
-	case     7 ...     8: code++; /* fall through */
-	case     5 ...     6: code++; /* fall through */
-	case     4          : code++; /* fall through */
-	case     3          : code++; /* fall through */
-	case     2          : code++; /* fall through */
+	case 24577 ... 32768: code++; __fallthrough;
+	case 16385 ... 24576: code++; __fallthrough;
+	case 12289 ... 16384: code++; __fallthrough;
+	case  8193 ... 12288: code++; __fallthrough;
+	case  6145 ...  8192: code++; __fallthrough;
+	case  4097 ...  6144: code++; __fallthrough;
+	case  3073 ...  4096: code++; __fallthrough;
+	case  2049 ...  3072: code++; __fallthrough;
+	case  1537 ...  2048: code++; __fallthrough;
+	case  1025 ...  1536: code++; __fallthrough;
+	case   769 ...  1024: code++; __fallthrough;
+	case   513 ...   768: code++; __fallthrough;
+	case   385 ...   512: code++; __fallthrough;
+	case   257 ...   384: code++; __fallthrough;
+	case   193 ...   256: code++; __fallthrough;
+	case   129 ...   192: code++; __fallthrough;
+	case    97 ...   128: code++; __fallthrough;
+	case    65 ...    96: code++; __fallthrough;
+	case    49 ...    64: code++; __fallthrough;
+	case    33 ...    48: code++; __fallthrough;
+	case    25 ...    32: code++; __fallthrough;
+	case    17 ...    24: code++; __fallthrough;
+	case    13 ...    16: code++; __fallthrough;
+	case     9 ...    12: code++; __fallthrough;
+	case     7 ...     8: code++; __fallthrough;
+	case     5 ...     6: code++; __fallthrough;
+	case     4          : code++; __fallthrough;
+	case     3          : code++; __fallthrough;
+	case     2          : code++;
 	}
 
 	return code;
