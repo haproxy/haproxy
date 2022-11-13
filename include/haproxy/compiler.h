@@ -49,6 +49,17 @@
 #define ___equals_1(x, ...) ____equals_1(x, 0)
 #define __equals_1(x) ___equals_1(comma_for_one ## x 1)
 
+/* gcc 5 and clang 3 brought __has_attribute(), which is not well documented in
+ * the case of gcc, but is convenient since handled at the preprocessor level.
+ * In both cases it's possible to test for __has_attribute() using ifdef. When
+ * not defined we remap this to the __has_attribute_<name> macro so that we'll
+ * later be able to implement on a per-compiler basis those which are missing,
+ * by defining __has_attribute_<name> to 1.
+ */
+#ifndef __has_attribute
+#define __has_attribute(x) __equals_1(__has_attribute_ ## x)
+#endif
+
 #if !defined(__GNUC__)
 /* Some versions of glibc irresponsibly redefine __attribute__() to empty for
  * non-gcc compilers, and as such, silently break all constructors with other
