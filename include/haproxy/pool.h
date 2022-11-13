@@ -263,8 +263,8 @@ static inline void *pool_get_from_cache(struct pool_head *pool, const void *call
 		},							\
 	};								\
 	_.extra = __pool;						\
-	HA_WEAK("__start_mem_stats");					\
-	HA_WEAK("__stop_mem_stats");					\
+	HA_WEAK(__start_mem_stats);					\
+	HA_WEAK(__stop_mem_stats);					\
 	if (__ptr)  {							\
 		_HA_ATOMIC_INC(&_.calls);				\
 		_HA_ATOMIC_ADD(&_.size, __pool->size);			\
@@ -283,8 +283,8 @@ static inline void *pool_get_from_cache(struct pool_head *pool, const void *call
 		},							\
 	};								\
 	_.extra = __pool;						\
-	HA_WEAK("__start_mem_stats");					\
-	HA_WEAK("__stop_mem_stats");					\
+	HA_WEAK(__start_mem_stats);					\
+	HA_WEAK(__stop_mem_stats);					\
 	_HA_ATOMIC_INC(&_.calls);					\
 	_HA_ATOMIC_ADD(&_.size, __x);					\
 	__pool_alloc(__pool, 0);					\
@@ -301,8 +301,8 @@ static inline void *pool_get_from_cache(struct pool_head *pool, const void *call
 		},							\
 	};								\
 	_.extra = __pool;						\
-	HA_WEAK("__start_mem_stats");					\
-	HA_WEAK("__stop_mem_stats");					\
+	HA_WEAK(__start_mem_stats);					\
+	HA_WEAK(__stop_mem_stats);					\
 	_HA_ATOMIC_INC(&_.calls);					\
 	_HA_ATOMIC_ADD(&_.size, __x);					\
 	__pool_alloc(__pool, POOL_F_MUST_ZERO);				\
