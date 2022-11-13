@@ -60,6 +60,20 @@
 #define __has_attribute(x) __equals_1(__has_attribute_ ## x)
 #endif
 
+/* The fallthrough attribute arrived with gcc 7, the same version that started
+ * to emit the fallthrough warnings and to parse the comments. Comments do not
+ * manage to stop the warning when preprocessing is split from compiling (e.g.
+ * when building under distcc). Better encourage the use of a __fallthrough
+ * statement instead. There are still limitations in that clang doesn't accept
+ * it after a label; this is the reason why we're always preceding it with an
+ * empty do-while.
+ */
+#if __has_attribute(fallthrough)
+#  define __fallthrough do { } while (0); __attribute__((fallthrough))
+#else
+#  define __fallthrough do { } while (0)
+#endif
+
 #if !defined(__GNUC__)
 /* Some versions of glibc irresponsibly redefine __attribute__() to empty for
  * non-gcc compilers, and as such, silently break all constructors with other
