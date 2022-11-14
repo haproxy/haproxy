@@ -90,7 +90,7 @@ void var_accounting_diff(struct vars *vars, struct session *sess, struct stream 
 	case SCOPE_RES:
 		if (var_reqres_limit && strm)
 			_HA_ATOMIC_ADD(&strm->vars_reqres.size, size);
-		/* fall through */
+		__fallthrough;
 	case SCOPE_TXN:
 		if (var_txn_limit && strm)
 			_HA_ATOMIC_ADD(&strm->vars_txn.size, size);
@@ -102,12 +102,12 @@ void var_accounting_diff(struct vars *vars, struct session *sess, struct stream 
 			if (check)
 				_HA_ATOMIC_ADD(&check->vars.size, size);
 		}
-		/* fall through */
 scope_sess:
+		__fallthrough;
 	case SCOPE_SESS:
 		if (var_sess_limit)
 			_HA_ATOMIC_ADD(&sess->vars.size, size);
-		/* fall through */
+		__fallthrough;
 	case SCOPE_PROC:
 		if (var_proc_limit || var_global_limit)
 			_HA_ATOMIC_ADD(&proc_vars.size, size);
@@ -128,7 +128,7 @@ static int var_accounting_add(struct vars *vars, struct session *sess, struct st
 	case SCOPE_RES:
 		if (var_reqres_limit && strm && strm->vars_reqres.size + size > var_reqres_limit)
 			return 0;
-		/* fall through */
+		__fallthrough;
 	case SCOPE_TXN:
 		if (var_txn_limit && strm && strm->vars_txn.size + size > var_txn_limit)
 			return 0;
@@ -139,12 +139,12 @@ static int var_accounting_add(struct vars *vars, struct session *sess, struct st
 			if (var_check_limit && check && check->vars.size + size > var_check_limit)
 				return 0;
 		}
-		/* fall through */
 scope_sess:
+		__fallthrough;
 	case SCOPE_SESS:
 		if (var_sess_limit && sess->vars.size + size > var_sess_limit)
 			return 0;
-		/* fall through */
+		__fallthrough;
 	case SCOPE_PROC:
 		/* note: scope proc collects all others and is currently identical to the
 		 * global limit.
