@@ -601,7 +601,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 
 				case STD_OP_GT:
 					value++; /* gt = ge + 1 */
-					/* fall through */
+					__fallthrough;
 
 				case STD_OP_GE:
 					if (expr->pat.parse == pat_parse_int)
@@ -614,7 +614,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 
 				case STD_OP_LT:
 					value--; /* lt = le - 1 */
-					/* fall through */
+					__fallthrough;
 
 				case STD_OP_LE:
 					if (expr->pat.parse == pat_parse_int)
