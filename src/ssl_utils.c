@@ -429,46 +429,15 @@ void exclude_tls_grease(char *input, int len, struct buffer *output)
  * and must be updated when new constant are introduced.
  */
 
-/* manual atoi() that only works on the first 10 chars of input (they must all be there) */
-#undef _S
-#define _S(x) ((x[0]-'0')*1000000000 +                  \
-               (x[1]-'0')*100000000 +                   \
-               (x[2]-'0')*10000000 +                    \
-               (x[3]-'0')*1000000 +                     \
-               (x[4]-'0')*100000 +                      \
-               (x[5]-'0')*10000 +                       \
-               (x[6]-'0')*1000 +                        \
-               (x[7]-'0')*100 +                         \
-               (x[8]-'0')*10 +                          \
-               (x[9]-'0')*1 +                           \
-               0)
-
-/* always prepends the sufficient number of leading zeroes to have 10 chars */
-#undef _R
-#define _R(x) (!x[0] ? _S("0000000000" x) :       \
-               !x[1] ? _S("000000000"  x) :       \
-               !x[2] ? _S("00000000"   x) :       \
-               !x[3] ? _S("0000000"    x) :       \
-               !x[4] ? _S("000000"     x) :       \
-               !x[5] ? _S("00000"      x) :       \
-               !x[6] ? _S("0000"       x) :       \
-               !x[7] ? _S("000"        x) :       \
-               !x[8] ? _S("00"         x) :       \
-               !x[9] ? _S("0"          x) :       \
-                       _S(""           x))
-
-/* returns the value for an integer-defined macro, otherwise -1
- * The extraneous series of "\0" is there to shut up stupid clang which wants to
- * evaluate the expression in false branches.
- */
 #undef _Q
-#define _Q(x) ((#x[0] >= '0' && #x[0] <= '9') ? _R(#x "\0\0\0\0\0\0\0\0\0\0") : -1)
+#define _Q(x) (#x)
 #undef V
-#define V(x) { .code = _Q(x), .string = #x }
+#define V(x) { .code = -1, .value = _Q(x), .string = #x }
 
-static const struct x509_v_codes {
-	int code;
-	const char *string;
+static struct x509_v_codes {
+	int code;             // integer value of the code or -1 if undefined
+	const char *value;    // value of the macro as a string or its name
+	const char *string;   // name of the macro
 } x509_v_codes[] = {
 	V(X509_V_OK),
 	V(X509_V_ERR_UNSPECIFIED),
@@ -565,7 +534,7 @@ static const struct x509_v_codes {
 	V(X509_V_ERR_CA_CERT_MISSING_KEY_USAGE),
 	V(X509_V_ERR_EXTENSIONS_REQUIRE_VERSION_3),
 	V(X509_V_ERR_EC_KEY_EXPLICIT_PARAMS),
-	{ 0, NULL },
+	{ 0, NULL, NULL },
 };
 
 /*
@@ -605,3 +574,17 @@ const char *x509_v_err_int_to_str(int code)
 	}
 	return NULL;
 }
+
+void init_x509_v_err_tab(void)
+{
+	int i;
+
+	for (i = 0; x509_v_codes[i].string; i++) {
+		/* either the macro exists or it's equal to its own name */
+		if (strcmp(x509_v_codes[i].string, x509_v_codes[i].value) == 0)
+			continue;
+		x509_v_codes[i].code = atoi(x509_v_codes[i].value);
+	}
+}
+
+INITCALL0(STG_REGISTER, init_x509_v_err_tab);
