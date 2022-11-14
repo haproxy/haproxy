@@ -1997,7 +1997,7 @@ spoe_handle_appctx(struct appctx *appctx)
 				goto switchstate;
 			}
 			appctx->st0 = SPOE_APPCTX_ST_PROCESSING;
-			/* fall through */
+			__fallthrough;
 
 		case SPOE_APPCTX_ST_PROCESSING:
 		case SPOE_APPCTX_ST_SENDING_FRAG_NOTIFY:
@@ -2023,7 +2023,7 @@ spoe_handle_appctx(struct appctx *appctx)
 			sc_shutw(sc);
 			sc_shutr(sc);
 			sc_ic(sc)->flags |= CF_READ_NULL;
-			/* fall through */
+			__fallthrough;
 
 		case SPOE_APPCTX_ST_END:
 			return;
