@@ -550,11 +550,17 @@ void stktable_requeue_exp(struct stktable *t, const struct stksess *ts)
 
 	/* set the task's expire to the newest expiration date. */
 	old_exp = HA_ATOMIC_LOAD(&t->exp_task->expire);
-	do {
+	new_exp = tick_first(expire, old_exp);
+
+	/* let's not go further if we're already up to date */
+	if (new_exp == old_exp)
+		return;
+
+	while (new_exp != old_exp &&
+	       !HA_ATOMIC_CAS(&t->exp_task->expire, &old_exp, new_exp)) {
+		__ha_cpu_relax();
 		new_exp = tick_first(expire, old_exp);
-	} while (new_exp != old_exp &&
-		 !HA_ATOMIC_CAS(&t->exp_task->expire, &old_exp, new_exp) &&
-		 __ha_cpu_relax());
+	}
 
 	task_queue(t->exp_task);
 }
