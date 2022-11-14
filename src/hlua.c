@@ -8774,7 +8774,7 @@ static int hlua_sample_conv_wrapper(const struct arg *arg_p, struct sample *smp,
 	case HLUA_E_ERR:
 		/* Display log. */
 		SEND_ERR(stream->be, "Lua converter '%s' returns an unknown error.\n", fcn->name);
-		/* fall through */
+		__fallthrough;
 
 	default:
 		return 0;
@@ -8912,7 +8912,7 @@ static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp
 	case HLUA_E_ERR:
 		/* Display log. */
 		SEND_ERR(smp->px, "Lua sample-fetch '%s' returns an unknown error.\n", fcn->name);
-		/* fall through */
+		__fallthrough;
 
 	default:
 		return 0;
@@ -11771,7 +11771,7 @@ int hlua_post_init_state(lua_State *L)
 
 		case LUA_ERRERR:
 			kind = "message handler error";
-			/* Fall through */
+			__fallthrough;
 		case LUA_ERRRUN:
 			if (!kind)
 				kind = "runtime error";
@@ -11789,12 +11789,12 @@ int hlua_post_init_state(lua_State *L)
 		default:
 			/* Unknown error */
 			kind = "Unknown error";
-			/* Fall through */
+			__fallthrough;
 		case LUA_YIELD:
 			/* yield is not configured at this step, this state doesn't happen */
 			if (!kind)
 				kind = "yield not allowed";
-			/* Fall through */
+			__fallthrough;
 		case LUA_ERRMEM:
 			if (!kind)
 				kind = "out of memory error";
