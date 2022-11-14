@@ -2156,7 +2156,7 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 					goto yield;
 
 				ctx->state = CERT_ST_GEN;
-				/* fallthrough */
+				__fallthrough;
 			case CERT_ST_GEN:
 				/*
 				 * This state generates the ckch instances with their
@@ -2203,7 +2203,7 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 					y++;
 				}
 				ctx->state = CERT_ST_INSERT;
-				/* fallthrough */
+				__fallthrough;
 			case CERT_ST_INSERT:
 				/* The generation is finished, we can insert everything */
 
@@ -2214,12 +2214,12 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 				ckch_store_replace(old_ckchs, new_ckchs);
 				ctx->new_ckchs = ctx->old_ckchs = NULL;
 				ctx->state = CERT_ST_SUCCESS;
-				/* fallthrough */
+				__fallthrough;
 			case CERT_ST_SUCCESS:
 				if (applet_putstr(appctx, "\nSuccess!\n") == -1)
 					goto yield;
 				ctx->state = CERT_ST_FIN;
-				/* fallthrough */
+				__fallthrough;
 			case CERT_ST_FIN:
 				/* we achieved the transaction, we can set everything to NULL */
 				ckchs_transaction.new_ckchs = NULL;
@@ -2848,7 +2848,7 @@ static int cli_io_handler_commit_cafile_crlfile(struct appctx *appctx)
 					goto yield;
 
 				ctx->state = CACRL_ST_GEN;
-				/* fallthrough */
+				__fallthrough;
 			case CACRL_ST_GEN:
 				/*
 				 * This state generates the ckch instances with their
@@ -2900,7 +2900,7 @@ static int cli_io_handler_commit_cafile_crlfile(struct appctx *appctx)
 				}
 
 				ctx->state = CACRL_ST_INSERT;
-				/* fallthrough */
+				__fallthrough;
 			case CACRL_ST_INSERT:
 				/* The generation is finished, we can insert everything */
 
@@ -2934,12 +2934,12 @@ static int cli_io_handler_commit_cafile_crlfile(struct appctx *appctx)
 
 				ctx->old_entry = ctx->new_entry = NULL;
 				ctx->state = CACRL_ST_SUCCESS;
-				/* fallthrough */
+				__fallthrough;
 			case CACRL_ST_SUCCESS:
 				if (applet_putstr(appctx, "\nSuccess!\n") == -1)
 					goto yield;
 				ctx->state = CACRL_ST_FIN;
-				/* fallthrough */
+				__fallthrough;
 			case CACRL_ST_FIN:
 				/* we achieved the transaction, we can set everything to NULL */
 				switch (ctx->cafile_type) {
