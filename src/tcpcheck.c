@@ -3757,7 +3757,7 @@ static int check_proxy_tcpcheck(struct proxy *px)
 			next = get_next_tcpcheck_rule(&px->tcpcheck_rules, chk);
 			if (next && next->action == TCPCHK_ACT_SEND)
 				chk->connect.options |= TCPCHK_OPT_HAS_DATA;
-			/* fall through */
+			__fallthrough;
 		case TCPCHK_ACT_ACTION_KW:
 			ha_free(&comment);
 			break;
