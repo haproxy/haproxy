@@ -14586,9 +14586,10 @@ quic-force-retry
   contains a token. This token must be sent back to the Retry packet sender,
   this latter being the only one to be able to validate the token. Note that QUIC
   Retry will always be used even if a Retry threshold was set (see
-  "tune.quic.retry-threshold" setting). To be functional this setting needs a
-  cluster secret to be set, if not it will be silently ignored (see "cluster-secret"
-  setting).
+  "tune.quic.retry-threshold" setting).
+
+  This setting requires the cluster secret to be set or else an error will be
+  reported on startup (see "cluster-secret").
 
   See https://www.rfc-editor.org/rfc/rfc9000.html#section-8.1.2 for more
   information about QUIC retry.
