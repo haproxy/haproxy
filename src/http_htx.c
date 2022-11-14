@@ -1571,6 +1571,7 @@ struct http_reply *http_parse_http_reply(const char **args, int *orig_arg, struc
 			fd = -1;
 			obj[objlen] = '\0';
 			reply->type = HTTP_REPLY_LOGFMT;
+			LIST_INIT(&reply->body.fmt);
 			cur_arg++;
 		}
 		else if (strcmp(args[cur_arg], "lf-string") == 0) {
@@ -1587,6 +1588,7 @@ struct http_reply *http_parse_http_reply(const char **args, int *orig_arg, struc
 			obj = strdup(args[cur_arg]);
 			objlen = strlen(args[cur_arg]);
 			reply->type = HTTP_REPLY_LOGFMT;
+			LIST_INIT(&reply->body.fmt);
 			cur_arg++;
 		}
 		else if (strcmp(args[cur_arg], "hdr") == 0) {
