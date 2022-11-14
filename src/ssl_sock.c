@@ -7390,7 +7390,7 @@ static int cli_io_handler_tlskeys_files(struct appctx *appctx)
 			ctx->next_ref = tlskeys_list_get_next(&tlskeys_reference, &tlskeys_reference);
 
 		ctx->state = SHOW_KEYS_LIST;
-		/* fall through */
+		__fallthrough;
 
 	case SHOW_KEYS_LIST:
 		while (ctx->next_ref) {
@@ -7458,7 +7458,7 @@ static int cli_io_handler_tlskeys_files(struct appctx *appctx)
 			ctx->next_ref = tlskeys_list_get_next(&ref->list, &tlskeys_reference);
 		}
 		ctx->state = SHOW_KEYS_DONE;
-		/* fall through */
+		__fallthrough;
 
 	default:
 		return 1;
