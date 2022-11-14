@@ -250,8 +250,8 @@ int make_arg_list(const char *in, int len, uint64_t mask, struct arg **argp,
 				goto resolve_err;
 			arg->unresolved = 1;
 			new_al = arg_list_add(al, arg, pos);
+			__fallthrough;
 
-			/* fall through */
 		case ARGT_STR:
 			/* all types that must be resolved are stored as strings
 			 * during the parsing. The caller must at one point resolve
