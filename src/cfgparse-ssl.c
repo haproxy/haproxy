@@ -856,7 +856,6 @@ static int bind_parse_ignore_err(char **args, int cur_arg, struct proxy *px, str
 	s1 = str;
 	while ((token = strtok_r(s1, ",", &s2))) {
 		s1 = NULL;
-		printf("token: %s\n", token);
 		if (isdigit((int)*token)) {
 			code = atoi(token);
 			if ((code <= 0) || (code > SSL_MAX_VFY_ERROR_CODE)) {
