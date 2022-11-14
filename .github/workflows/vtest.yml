@@ -100,6 +100,9 @@ jobs:
       run: make -C addons/wurfl/dummy
     - name: Compile HAProxy with ${{ matrix.CC }}
       run: |
+        echo "::group::Show compiler's version"
+        echo | ${{ matrix.CC }} -v
+        echo "::endgroup::"
         echo "::group::Show platform specific defines"
         echo | ${{ matrix.CC }} -dM -xc -E -
         echo "::endgroup::"
