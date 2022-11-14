@@ -4559,10 +4559,10 @@ bind /<path> [, ...] [param*]
                       connected unix socket or of a socketpair. The bind waits
                       to receive a FD over the unix socket and uses it as if it
                       was the FD of an accept(). Should be used carefully.
-                    - 'quicv4@' -> address is resolved as IPv4 and protocol
-                      UDP is used.
-                    - 'quicv6@' -> address is resolved as IPv6 and protocol
-                      UDP is used.
+                    - 'quic4@' -> address is resolved as IPv4 and protocol UDP
+                      is used.
+                    - 'quic6@' -> address is resolved as IPv6 and protocol UDP
+                      is used.
 
                   You may want to reference some environment variables in the
                   address parameter, see section 2.3 about environment
@@ -4627,7 +4627,7 @@ bind /<path> [, ...] [param*]
             bind "fd@${FD_APP1}"
 
         listen h3_quic_proxy
-            bind quic@10.0.0.1:8888 ssl crt /etc/mycrt alpn h3
+            bind quic4@10.0.0.1:8888 ssl crt /etc/mycrt alpn h3
 
   Note: regarding Linux's abstract namespace sockets, HAProxy uses the whole
         sun_path length is used for the address length. Some other programs
