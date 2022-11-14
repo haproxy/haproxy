@@ -2099,7 +2099,7 @@ int url_decode(char *string, int in_form)
 			break;
 		case '?':
 			in_form = 1;
-			/* fall through */
+			__fallthrough;
 		default:
 			*out++ = *in;
 			break;
