@@ -836,21 +836,20 @@ static int bind_parse_ignore_err(char **args, int cur_arg, struct proxy *px, str
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	/* copy the string to be able to dump the complete one in case of
-	 * error, because strtok_r is writing \0 inside. */
-	str = strdup(p);
-	if (!str) {
-		memprintf(err, "'%s' : Could not allocate memory", args[cur_arg]);
-		return ERR_ALERT | ERR_FATAL;
-
-	}
-
 	if (strcmp(args[cur_arg], "ca-ignore-err") == 0)
 		ignerr = conf->ca_ignerr_bitfield;
 
 	if (strcmp(p, "all") == 0) {
 		cert_ignerr_bitfield_set_all(ignerr);
 		return 0;
+	}
+
+	/* copy the string to be able to dump the complete one in case of
+	 * error, because strtok_r is writing \0 inside. */
+	str = strdup(p);
+	if (!str) {
+		memprintf(err, "'%s' : Could not allocate memory", args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
 	}
 
 	s1 = str;
