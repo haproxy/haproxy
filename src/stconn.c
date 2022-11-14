@@ -564,14 +564,14 @@ static void sc_app_shutw(struct stconn *sc)
 		    !(ic->flags & (CF_SHUTR|CF_DONT_READ)))
 			return;
 
-		/* fall through */
+		__fallthrough;
 	case SC_ST_CON:
 	case SC_ST_CER:
 	case SC_ST_QUE:
 	case SC_ST_TAR:
 		/* Note that none of these states may happen with applets */
 		sc->state = SC_ST_DIS;
-		/* fall through */
+		__fallthrough;
 	default:
 		sc->flags &= ~SC_FL_NOLINGER;
 		ic->flags |= CF_SHUTR;
@@ -728,18 +728,18 @@ static void sc_app_shutw_conn(struct stconn *sc)
 				return;
 		}
 
-		/* fall through */
+		__fallthrough;
 	case SC_ST_CON:
 		/* we may have to close a pending connection, and mark the
 		 * response buffer as shutr
 		 */
 		sc_conn_shut(sc);
-		/* fall through */
+		__fallthrough;
 	case SC_ST_CER:
 	case SC_ST_QUE:
 	case SC_ST_TAR:
 		sc->state = SC_ST_DIS;
-		/* fall through */
+		__fallthrough;
 	default:
 		sc->flags &= ~SC_FL_NOLINGER;
 		ic->flags |= CF_SHUTR;
@@ -937,7 +937,7 @@ static void sc_app_shutw_applet(struct stconn *sc)
 		    !(ic->flags & (CF_SHUTR|CF_DONT_READ)))
 			return;
 
-		/* fall through */
+		__fallthrough;
 	case SC_ST_CON:
 	case SC_ST_CER:
 	case SC_ST_QUE:
@@ -945,7 +945,7 @@ static void sc_app_shutw_applet(struct stconn *sc)
 		/* Note that none of these states may happen with applets */
 		appctx_shut(__sc_appctx(sc));
 		sc->state = SC_ST_DIS;
-		/* fall through */
+		__fallthrough;
 	default:
 		sc->flags &= ~SC_FL_NOLINGER;
 		ic->flags |= CF_SHUTR;
