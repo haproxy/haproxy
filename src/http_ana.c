@@ -3540,19 +3540,12 @@ static void http_manage_server_side_cookies(struct stream *s, struct channel *re
 	struct server *srv;
 	char *hdr_beg, *hdr_end;
 	char *prev, *att_beg, *att_end, *equal, *val_beg, *val_end, *next;
-	int is_cookie2 = 0;
 
 	htx = htxbuf(&res->buf);
 
 	ctx.blk = NULL;
-	while (1) {
+	while (http_find_header(htx, ist("Set-Cookie"), &ctx, 1)) {
 		int is_first = 1;
-
-		if (is_cookie2 || !http_find_header(htx, ist("Set-Cookie"), &ctx, 1)) {
-			if (!http_find_header(htx, ist("Set-Cookie2"), &ctx, 1))
-				break;
-			is_cookie2 = 1;
-		}
 
 		/* OK, right now we know we have a Set-Cookie* at hdr_beg, and
 		 * <prev> points to the colon.
@@ -3575,7 +3568,7 @@ static void http_manage_server_side_cookies(struct stream *s, struct channel *re
 		 * with a comma inside. We have to live with this because
 		 * many browsers don't support Max-Age and some browsers don't
 		 * support quoted strings. However the Set-Cookie2 header is
-		 * clean.
+		 * clean but basically nobody supports it.
 		 *
 		 * We have to keep multiple pointers in order to support cookie
 		 * removal at the beginning, middle or end of header without
@@ -3624,7 +3617,7 @@ static void http_manage_server_side_cookies(struct stream *s, struct channel *re
 			equal = att_end = att_beg;
 
 			while (equal < hdr_end) {
-				if (*equal == '=' || *equal == ';' || (is_cookie2 && *equal == ','))
+				if (*equal == '=' || *equal == ';')
 					break;
 				if (HTTP_IS_SPHT(*equal++))
 					continue;
@@ -3656,15 +3649,10 @@ static void http_manage_server_side_cookies(struct stream *s, struct channel *re
 			}
 
 			if (next < hdr_end) {
-				/* Set-Cookie2 supports multiple cookies, and <next> points to
-				 * a colon or semi-colon before the end. So skip all attr-value
-				 * pairs and look for the next comma. For Set-Cookie, since
-				 * commas are permitted in values, skip to the end.
+				/* For Set-Cookie, since commas are permitted
+				 * in values, skip to the end.
 				 */
-				if (is_cookie2)
-					next = http_find_hdr_value_end(next, hdr_end);
-				else
-					next = hdr_end;
+				next = hdr_end;
 			}
 
 			/* Now everything is as on the diagram above */
@@ -3803,7 +3791,8 @@ static void http_manage_server_side_cookies(struct stream *s, struct channel *re
 				}
 			}
 			/* that's done for this cookie, check the next one on the same
-			 * line when next != hdr_end (only if is_cookie2).
+			 * line when next != hdr_end (which should normally not happen
+			 * with set-cookie2 support removed).
 			 */
 		}
 	}
