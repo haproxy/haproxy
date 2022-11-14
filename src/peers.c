@@ -2942,7 +2942,7 @@ switchstate:
 				prev_state = appctx->st0;
 				appctx->svcctx = NULL;
 				appctx->st0 = PEER_SESS_ST_GETVERSION;
-				/* fall through */
+				__fallthrough;
 			case PEER_SESS_ST_GETVERSION:
 				prev_state = appctx->st0;
 				reql = peer_getline_version(appctx, &maj_ver, &min_ver);
@@ -2953,7 +2953,7 @@ switchstate:
 				}
 
 				appctx->st0 = PEER_SESS_ST_GETHOST;
-				/* fall through */
+				__fallthrough;
 			case PEER_SESS_ST_GETHOST:
 				prev_state = appctx->st0;
 				reql = peer_getline_host(appctx);
@@ -2964,7 +2964,7 @@ switchstate:
 				}
 
 				appctx->st0 = PEER_SESS_ST_GETPEER;
-				/* fall through */
+				__fallthrough;
 			case PEER_SESS_ST_GETPEER: {
 				prev_state = appctx->st0;
 				reql = peer_getline_last(appctx, &curpeer);
@@ -3006,7 +3006,7 @@ switchstate:
 				appctx->st0 = PEER_SESS_ST_SENDSUCCESS;
 				_HA_ATOMIC_INC(&active_peers);
 			}
-			/* fall through */
+			__fallthrough;
 			case PEER_SESS_ST_SENDSUCCESS: {
 				prev_state = appctx->st0;
 				if (!curpeer) {
@@ -3053,7 +3053,7 @@ switchstate:
 				/* switch to the waiting statuscode state */
 				appctx->st0 = PEER_SESS_ST_GETSTATUS;
 			}
-			/* fall through */
+			__fallthrough;
 			case PEER_SESS_ST_GETSTATUS: {
 				prev_state = appctx->st0;
 				if (!curpeer) {
@@ -3096,7 +3096,7 @@ switchstate:
 				_HA_ATOMIC_INC(&connected_peers);
 				appctx->st0 = PEER_SESS_ST_WAITMSG;
 			}
-			/* fall through */
+			__fallthrough;
 			case PEER_SESS_ST_WAITMSG: {
 				uint32_t msg_len = 0;
 				char *msg_cur = trash.area;
@@ -3186,7 +3186,7 @@ send_msgs:
 				appctx->st0 = PEER_SESS_ST_END;
 				prev_state = appctx->st0;
 			}
-			/* fall through */
+			__fallthrough;
 			case PEER_SESS_ST_END: {
 				if (prev_state == PEER_SESS_ST_WAITMSG)
 					_HA_ATOMIC_DEC(&connected_peers);
