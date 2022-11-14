@@ -99,7 +99,7 @@ int smp_is_safe(struct sample *smp)
 	case SMP_T_METH:
 		if (smp->data.u.meth.meth != HTTP_METH_OTHER)
 			return 1;
-		/* Fall through */
+		__fallthrough;
 
 	case SMP_T_STR:
 		if (!smp->data.u.str.size || smp->data.u.str.data >= smp->data.u.str.size)
@@ -149,7 +149,7 @@ int smp_is_rw(struct sample *smp)
 	case SMP_T_METH:
 		if (smp->data.u.meth.meth != HTTP_METH_OTHER)
 			return 1;
-		/* Fall through */
+		__fallthrough;
 
 	case SMP_T_STR:
 		if (!smp->data.u.str.size ||

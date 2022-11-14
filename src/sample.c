@@ -823,7 +823,7 @@ int smp_dup(struct sample *smp)
 	case SMP_T_METH:
 		if (smp->data.u.meth.meth != HTTP_METH_OTHER)
 			break;
-		/* Fall through */
+		__fallthrough;
 
 	case SMP_T_STR:
 		trash = get_trash_chunk();
