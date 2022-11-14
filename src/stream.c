@@ -3239,7 +3239,7 @@ static int stats_dump_full_strm_to_buffer(struct stconn *sc, struct stream *strm
 	case 0: /* main status of the stream */
 		ctx->uid = strm->uniq_id;
 		ctx->section = 1;
-		/* fall through */
+		__fallthrough;
 
 	case 1:
 		get_localtime(strm->logs.accept_date.tv_sec, &tm);
