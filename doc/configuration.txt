@@ -1239,8 +1239,11 @@ cluster-secret <secret>
   same cluster. It could be used for different usages. It is at least used to
   derive stateless reset tokens for all the QUIC connections instantiated by
   this process. This is also the case to derive secrets used to encrypt Retry
-  tokens. If you do not set this parameter, the stateless reset and Retry QUIC
-  features will be both silently disabled.
+  tokens.
+
+  If this parameter is not set, a random value will be selected on process
+  startup. This allows to use features which rely on it, albeit with some
+  limitations.
 
 cpu-map [auto:]<thread-group>[/<thread-set>] <cpu-set>...
   On some operating systems, it is possible to bind a thread group or a thread

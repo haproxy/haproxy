@@ -4375,9 +4375,11 @@ init_proxies_list_stage2:
 			goto init_proxies_list_stage2;
 	}
 
-	if (diag_no_cluster_secret)
-		ha_diag_warning("No cluster secret was set. The stateless reset and Retry"
-		                " features are disabled for all QUIC bindings.\n");
+	if (diag_no_cluster_secret) {
+		ha_diag_warning("Generating a random cluster secret. "
+		                "You should define your own one in the configuration to ensure consistency "
+		                "after reload/restart or across your whole cluster.\n");
+	}
 
 	/*
 	 * Recount currently required checks.

@@ -1895,6 +1895,26 @@ static void dump_registered_keywords(void)
 	}
 }
 
+/* Generate a random cluster-secret in case the setting is not provided in the
+ * configuration. This allows to use features which rely on it albeit with some
+ * limitations.
+ */
+static void generate_random_cluster_secret()
+{
+	/* used as a default random cluster-secret if none defined. */
+	uint64_t rand = ha_random64();
+
+	/* The caller must not overwrite an already defined secret. */
+	BUG_ON(global.cluster_secret);
+
+	global.cluster_secret = malloc(8);
+	if (!global.cluster_secret)
+		return;
+
+	memcpy(global.cluster_secret, &rand, sizeof(rand));
+	global.cluster_secret[7] = '\0';
+}
+
 /*
  * This function initializes all the necessary variables. It only returns
  * if everything is OK. If something fails, it exits.
@@ -2561,6 +2581,9 @@ static void init(int argc, char **argv)
 		ha_alert("failed to initialize log buffers.\n");
 		exit(1);
 	}
+
+	if (!global.cluster_secret)
+		generate_random_cluster_secret();
 
 	/*
 	 * Note: we could register external pollers here.
