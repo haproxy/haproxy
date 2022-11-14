@@ -363,7 +363,7 @@ static int cli_io_handler_pat_list(struct appctx *appctx)
 	switch (ctx->state) {
 	case STATE_INIT:
 		ctx->state = STATE_LIST;
-		/* fall through */
+		__fallthrough;
 
 	case STATE_LIST:
 		HA_SPIN_LOCK(PATREF_LOCK, &ctx->ref->lock);
@@ -405,7 +405,7 @@ static int cli_io_handler_pat_list(struct appctx *appctx)
 			ctx->bref.ref = elt->list.n;
 		}
 		HA_SPIN_UNLOCK(PATREF_LOCK, &ctx->ref->lock);
-		/* fall through */
+		__fallthrough;
 
 	default:
 		ctx->state = STATE_DONE;
@@ -437,7 +437,7 @@ static int cli_io_handler_pats_list(struct appctx *appctx)
 		ctx->ref = pat_list_get_next(ctx->ref, &pattern_reference,
 		                                        ctx->display_flags);
 		ctx->state = STATE_LIST;
-		/* fall through */
+		__fallthrough;
 
 	case STATE_LIST:
 		while (ctx->ref) {
@@ -463,7 +463,7 @@ static int cli_io_handler_pats_list(struct appctx *appctx)
 			                                        ctx->display_flags);
 		}
 
-		/* fall through */
+		__fallthrough;
 
 	default:
 		ctx->state = STATE_DONE;
@@ -485,7 +485,7 @@ static int cli_io_handler_map_lookup(struct appctx *appctx)
 		ctx->expr = LIST_ELEM(&ctx->ref->pat, struct pattern_expr *, list);
 		ctx->expr = pat_expr_get_next(ctx->expr, &ctx->ref->pat);
 		ctx->state = STATE_LIST;
-		/* fall through */
+		__fallthrough;
 
 	case STATE_LIST:
 		HA_SPIN_LOCK(PATREF_LOCK, &ctx->ref->lock);
@@ -583,7 +583,7 @@ static int cli_io_handler_map_lookup(struct appctx *appctx)
 			                                         &ctx->ref->pat);
 		}
 		HA_SPIN_UNLOCK(PATREF_LOCK, &ctx->ref->lock);
-		/* fall through */
+		__fallthrough;
 
 	default:
 		ctx->state = STATE_DONE;
