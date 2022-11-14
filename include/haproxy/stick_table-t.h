@@ -185,7 +185,6 @@ struct stktable {
 	unsigned int size;        /* maximum number of sticky sessions in table */
 	unsigned int current;     /* number of sticky sessions currently in table */
 	int nopurge;              /* if non-zero, don't purge sticky sessions when full */
-	int exp_next;             /* next expiration date (ticks) */
 	int expire;               /* time to live for sticky sessions (milliseconds) */
 	int data_size;            /* the size of the data that is prepended *before* stksess */
 	int data_ofs[STKTABLE_DATA_TYPES]; /* negative offsets of present data types, or 0 if absent */

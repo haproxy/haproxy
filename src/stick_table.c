@@ -548,19 +548,10 @@ void stktable_requeue_exp(struct stktable *t, const struct stksess *ts)
 	if (!t->expire)
 		return;
 
-	/* set both t->exp_next and the task's expire to the newest
-	 * expiration date.
-	 */
-	old_exp = HA_ATOMIC_LOAD(&t->exp_next);
-	do {
-		new_exp = tick_first(expire, old_exp);
-	} while (new_exp != old_exp &&
-		 !HA_ATOMIC_CAS(&t->exp_next, &old_exp, new_exp) &&
-		 __ha_cpu_relax());
-
+	/* set the task's expire to the newest expiration date. */
 	old_exp = HA_ATOMIC_LOAD(&t->exp_task->expire);
 	do {
-		new_exp = HA_ATOMIC_LOAD(&t->exp_next);
+		new_exp = tick_first(expire, old_exp);
 	} while (new_exp != old_exp &&
 		 !HA_ATOMIC_CAS(&t->exp_task->expire, &old_exp, new_exp) &&
 		 __ha_cpu_relax());
@@ -664,6 +655,7 @@ static int stktable_trash_expired(struct stktable *t)
 	struct stksess *ts;
 	struct eb32_node *eb;
 	int looped = 0;
+	int exp_next;
 
 	HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->lock);
 	eb = eb32_lookup_ge(&t->exps, now_ms - TIMER_LOOK_BACK);
@@ -685,7 +677,7 @@ static int stktable_trash_expired(struct stktable *t)
 
 		if (likely(tick_is_lt(now_ms, eb->key))) {
 			/* timer not expired yet, revisit it later */
-			t->exp_next = eb->key;
+			exp_next = eb->key;
 			goto out_unlock;
 		}
 
@@ -718,10 +710,10 @@ static int stktable_trash_expired(struct stktable *t)
 	}
 
 	/* We have found no task to expire in any tree */
-	t->exp_next = TICK_ETERNITY;
+	exp_next = TICK_ETERNITY;
 out_unlock:
 	HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->lock);
-	return t->exp_next;
+	return exp_next;
 }
 
 /*
@@ -748,7 +740,6 @@ int stktable_init(struct stktable *t)
 
 		t->pool = create_pool("sticktables", sizeof(struct stksess) + round_ptr_size(t->data_size) + t->key_size, MEM_F_SHARED);
 
-		t->exp_next = TICK_ETERNITY;
 		if ( t->expire ) {
 			t->exp_task = task_new_anywhere();
 			if (!t->exp_task)
