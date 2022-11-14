@@ -1088,7 +1088,7 @@ static int cli_io_handler_add_crtlist(struct appctx *appctx)
 		if (applet_putchk(appctx, &trash) == -1)
 			goto yield;
 		ctx->state = ADDCRT_ST_GEN;
-		/* fallthrough */
+		__fallthrough;
 	case ADDCRT_ST_GEN:
 		bind_conf_node = ctx->bind_conf_node; /* get the previous ptr from the yield */
 		if (bind_conf_node == NULL)
@@ -1136,7 +1136,7 @@ static int cli_io_handler_add_crtlist(struct appctx *appctx)
 			new_inst->crtlist_entry = entry;
 		}
 		ctx->state = ADDCRT_ST_INSERT;
-		/* fallthrough */
+		__fallthrough;
 	case ADDCRT_ST_INSERT:
 		/* the insertion is called for every instance of the store, not
 		 * only the one we generated.
@@ -1154,7 +1154,7 @@ static int cli_io_handler_add_crtlist(struct appctx *appctx)
 		entry->linenum = ++crtlist->linecount;
 		ctx->entry = NULL;
 		ctx->state = ADDCRT_ST_SUCCESS;
-		/* fallthrough */
+		__fallthrough;
 	case ADDCRT_ST_SUCCESS:
 		chunk_reset(&trash);
 		chunk_appendf(&trash, "\n");
