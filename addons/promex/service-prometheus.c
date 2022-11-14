@@ -1204,7 +1204,7 @@ static int promex_dump_metrics(struct appctx *appctx, struct stconn *sc, struct 
 			ctx->obj_state = 0;
 			ctx->field_num = INF_NAME;
 			appctx->st1 = PROMEX_DUMPER_GLOBAL;
-			/* fall through */
+			__fallthrough;
 
 		case PROMEX_DUMPER_GLOBAL:
 			if (ctx->flags & PROMEX_FL_SCOPE_GLOBAL) {
@@ -1225,7 +1225,7 @@ static int promex_dump_metrics(struct appctx *appctx, struct stconn *sc, struct 
 			ctx->obj_state = 0;
 			ctx->field_num = ST_F_PXNAME;
 			appctx->st1 = PROMEX_DUMPER_FRONT;
-			/* fall through */
+			__fallthrough;
 
 		case PROMEX_DUMPER_FRONT:
 			if (ctx->flags & PROMEX_FL_SCOPE_FRONT) {
@@ -1246,7 +1246,7 @@ static int promex_dump_metrics(struct appctx *appctx, struct stconn *sc, struct 
 			ctx->obj_state = 0;
 			ctx->field_num = ST_F_PXNAME;
 			appctx->st1 = PROMEX_DUMPER_LI;
-			/* fall through */
+			__fallthrough;
 
 		case PROMEX_DUMPER_LI:
 			if (ctx->flags & PROMEX_FL_SCOPE_LI) {
@@ -1267,7 +1267,7 @@ static int promex_dump_metrics(struct appctx *appctx, struct stconn *sc, struct 
 			ctx->obj_state = 0;
 			ctx->field_num = ST_F_PXNAME;
 			appctx->st1 = PROMEX_DUMPER_BACK;
-			/* fall through */
+			__fallthrough;
 
 		case PROMEX_DUMPER_BACK:
 			if (ctx->flags & PROMEX_FL_SCOPE_BACK) {
@@ -1288,7 +1288,7 @@ static int promex_dump_metrics(struct appctx *appctx, struct stconn *sc, struct 
 			ctx->obj_state = 0;
 			ctx->field_num = ST_F_PXNAME;
 			appctx->st1 = PROMEX_DUMPER_SRV;
-			/* fall through */
+			__fallthrough;
 
 		case PROMEX_DUMPER_SRV:
 			if (ctx->flags & PROMEX_FL_SCOPE_SERVER) {
@@ -1308,7 +1308,7 @@ static int promex_dump_metrics(struct appctx *appctx, struct stconn *sc, struct 
 			ctx->flags |= (PROMEX_FL_METRIC_HDR|PROMEX_FL_STICKTABLE_METRIC);
 			ctx->field_num = STICKTABLE_SIZE;
 			appctx->st1 = PROMEX_DUMPER_STICKTABLE;
-			/* fall through */
+			__fallthrough;
 
 		case PROMEX_DUMPER_STICKTABLE:
 			if (ctx->flags & PROMEX_FL_SCOPE_STICKTABLE) {
@@ -1327,7 +1327,7 @@ static int promex_dump_metrics(struct appctx *appctx, struct stconn *sc, struct 
 			ctx->flags &= ~(PROMEX_FL_METRIC_HDR|PROMEX_FL_STICKTABLE_METRIC);
 			ctx->field_num = 0;
 			appctx->st1 = PROMEX_DUMPER_DONE;
-			/* fall through */
+			__fallthrough;
 
 		case PROMEX_DUMPER_DONE:
 		default:
@@ -1530,13 +1530,13 @@ static void promex_appctx_handle_io(struct appctx *appctx)
 			}
 			appctx->st0 = PROMEX_ST_HEAD;
 			appctx->st1 = PROMEX_DUMPER_INIT;
-			/* fall through */
+			__fallthrough;
 
 		case PROMEX_ST_HEAD:
 			if (!promex_send_headers(appctx, sc, res_htx))
 				goto out;
 			appctx->st0 = ((s->txn->meth == HTTP_METH_HEAD) ? PROMEX_ST_DONE : PROMEX_ST_DUMP);
-			/* fall through */
+			__fallthrough;
 
 		case PROMEX_ST_DUMP:
 			ret = promex_dump_metrics(appctx, sc, res_htx);
@@ -1546,7 +1546,7 @@ static void promex_appctx_handle_io(struct appctx *appctx)
 				goto out;
 			}
 			appctx->st0 = PROMEX_ST_DONE;
-			/* fall through */
+			__fallthrough;
 
 		case PROMEX_ST_DONE:
 			/* no more data are expected. If the response buffer is
@@ -1566,7 +1566,7 @@ static void promex_appctx_handle_io(struct appctx *appctx)
 			res->flags |= CF_EOI;
 			se_fl_set(appctx->sedesc, SE_FL_EOI);
 			appctx->st0 = PROMEX_ST_END;
-			/* fall through */
+			__fallthrough;
 
 		case PROMEX_ST_END:
 			if (!(res->flags & CF_SHUTR)) {
