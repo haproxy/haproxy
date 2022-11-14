@@ -367,7 +367,7 @@ int quic_connect_server(struct connection *conn, int flags)
 			switch (src->opts & CO_SRC_TPROXY_MASK) {
 			case CO_SRC_TPROXY_CLI:
 				conn_set_private(conn);
-				/* fall through */
+				__fallthrough;
 			case CO_SRC_TPROXY_ADDR:
 				flags = 3;
 				break;
