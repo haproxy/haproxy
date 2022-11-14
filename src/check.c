@@ -686,7 +686,7 @@ void __health_adjust(struct server *s, short status)
 			if (s->check.health > s->check.rise)
 				s->check.health = s->check.rise + 1;
 
-			/* fall through */
+			__fallthrough;
 
 		case HANA_ONERR_FAILCHK:
 		/* simulate a failed health check */
