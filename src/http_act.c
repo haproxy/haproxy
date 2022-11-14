@@ -1733,7 +1733,7 @@ static enum act_parse_ret parse_http_del_header(const char **args, int *orig_arg
 		case PAT_MATCH_REG:
 			if (!(rule->arg.http.re = regex_comp(rule->arg.http.str.ptr, 1, 1, err)))
 				return ACT_RET_PRS_ERR;
-			/* fall through */
+			__fallthrough;
 		case PAT_MATCH_STR:
 		case PAT_MATCH_BEG:
 		case PAT_MATCH_END:
