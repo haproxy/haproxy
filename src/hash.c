@@ -14,6 +14,7 @@
  */
 
 
+#include <haproxy/compiler.h>
 #include <haproxy/hash.h>
 
 
@@ -62,12 +63,12 @@ unsigned int hash_djb2(const void *input, int len)
 		hash = ((hash << 5) + hash) + *key++;
 	}
 	switch (len) {
-		case 7: hash = ((hash << 5) + hash) + *key++; /* fallthrough... */
-		case 6: hash = ((hash << 5) + hash) + *key++; /* fallthrough... */
-		case 5: hash = ((hash << 5) + hash) + *key++; /* fallthrough... */
-		case 4: hash = ((hash << 5) + hash) + *key++; /* fallthrough... */
-		case 3: hash = ((hash << 5) + hash) + *key++; /* fallthrough... */
-		case 2: hash = ((hash << 5) + hash) + *key++; /* fallthrough... */
+		case 7: hash = ((hash << 5) + hash) + *key++; __fallthrough;
+		case 6: hash = ((hash << 5) + hash) + *key++; __fallthrough;
+		case 5: hash = ((hash << 5) + hash) + *key++; __fallthrough;
+		case 4: hash = ((hash << 5) + hash) + *key++; __fallthrough;
+		case 3: hash = ((hash << 5) + hash) + *key++; __fallthrough;
+		case 2: hash = ((hash << 5) + hash) + *key++; __fallthrough;
 		case 1: hash = ((hash << 5) + hash) + *key++; break;
 		default: /* case 0: */ break;
 	}
