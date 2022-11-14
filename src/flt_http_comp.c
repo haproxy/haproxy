@@ -241,7 +241,7 @@ comp_http_payload(struct stream *s, struct filter *filter, struct http_msg *msg,
 					to_forward += b_data(&trash);
 				}
 				st->flags &= ~COMP_STATE_PROCESSING;
-				/* fall through */
+				__fallthrough;
 
 			default:
 			  consume:
