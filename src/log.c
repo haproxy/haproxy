@@ -627,7 +627,7 @@ int parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list 
 					cformat = LF_SEPARATOR;
 					break;
 				}
-				/* fall through */
+				__fallthrough;
 			default : cformat = LF_TEXT;      break;
 			}
 		}
@@ -1383,7 +1383,7 @@ struct ist *build_log_header(enum log_fmt format, int level, int facility,
 		case LOG_FORMAT_PRIO:
 			fac_level = facility << 3;
 			/* further format ignore the facility */
-			/* fall through */
+			__fallthrough;
 		case LOG_FORMAT_TIMED:
 		case LOG_FORMAT_SHORT:
 			fac_level += level;
@@ -1476,7 +1476,7 @@ struct ist *build_log_header(enum log_fmt format, int level, int facility,
 				break;
 			}
 			/* let continue as 'timed' and 'iso' format for usual timestamp */
-			/* fall through */
+			__fallthrough;
 		case LOG_FORMAT_TIMED:
 		case LOG_FORMAT_ISO:
 			/* ISO format ex: '1900:01:01T12:00:00.123456Z'
@@ -1550,7 +1550,7 @@ struct ist *build_log_header(enum log_fmt format, int level, int facility,
 			}
 			else /* the caller MUST fill the hostname, this field is mandatory */
 				hdr_ctx.ist_vector[(*nbelem)++] = ist2("localhost ", 10);
-			/* fall through */
+			__fallthrough;
 		case LOG_FORMAT_LOCAL:
 			if (!metadata || !metadata[LOG_META_TAG].len)
 				break;
