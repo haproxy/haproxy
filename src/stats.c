@@ -3077,7 +3077,7 @@ int stats_dump_proxy_to_buffer(struct stconn *sc, struct htx *htx,
 			return 1;
 
 		ctx->px_st = STAT_PX_ST_TH;
-		/* fall through */
+		__fallthrough;
 
 	case STAT_PX_ST_TH:
 		if (ctx->flags & STAT_FMT_HTML) {
@@ -3087,7 +3087,7 @@ int stats_dump_proxy_to_buffer(struct stconn *sc, struct htx *htx,
 		}
 
 		ctx->px_st = STAT_PX_ST_FE;
-		/* fall through */
+		__fallthrough;
 
 	case STAT_PX_ST_FE:
 		/* print the frontend */
@@ -3098,7 +3098,7 @@ int stats_dump_proxy_to_buffer(struct stconn *sc, struct htx *htx,
 
 		ctx->obj2 = px->conf.listeners.n;
 		ctx->px_st = STAT_PX_ST_LI;
-		/* fall through */
+		__fallthrough;
 
 	case STAT_PX_ST_LI:
 		/* obj2 points to listeners list as initialized above */
@@ -3133,7 +3133,7 @@ int stats_dump_proxy_to_buffer(struct stconn *sc, struct htx *htx,
 
 		ctx->obj2 = px->srv; /* may be NULL */
 		ctx->px_st = STAT_PX_ST_SV;
-		/* fall through */
+		__fallthrough;
 
 	case STAT_PX_ST_SV:
 		/* obj2 points to servers list as initialized above.
@@ -3194,7 +3194,7 @@ int stats_dump_proxy_to_buffer(struct stconn *sc, struct htx *htx,
 		} /* for sv */
 
 		ctx->px_st = STAT_PX_ST_BE;
-		/* fall through */
+		__fallthrough;
 
 	case STAT_PX_ST_BE:
 		/* print the backend */
@@ -3204,7 +3204,7 @@ int stats_dump_proxy_to_buffer(struct stconn *sc, struct htx *htx,
 		}
 
 		ctx->px_st = STAT_PX_ST_END;
-		/* fall through */
+		__fallthrough;
 
 	case STAT_PX_ST_END:
 		if (ctx->flags & STAT_FMT_HTML) {
@@ -3214,7 +3214,7 @@ int stats_dump_proxy_to_buffer(struct stconn *sc, struct htx *htx,
 		}
 
 		ctx->px_st = STAT_PX_ST_FIN;
-		/* fall through */
+		__fallthrough;
 
 	case STAT_PX_ST_FIN:
 		return 1;
@@ -3744,7 +3744,7 @@ static int stats_dump_stat_to_buffer(struct stconn *sc, struct htx *htx,
 	switch (ctx->state) {
 	case STAT_STATE_INIT:
 		ctx->state = STAT_STATE_HEAD; /* let's start producing data */
-		/* fall through */
+		__fallthrough;
 
 	case STAT_STATE_HEAD:
 		if (ctx->flags & STAT_FMT_HTML)
@@ -3764,7 +3764,7 @@ static int stats_dump_stat_to_buffer(struct stconn *sc, struct htx *htx,
 			return 1;
 		}
 		ctx->state = STAT_STATE_INFO;
-		/* fall through */
+		__fallthrough;
 
 	case STAT_STATE_INFO:
 		if (ctx->flags & STAT_FMT_HTML) {
@@ -3778,7 +3778,7 @@ static int stats_dump_stat_to_buffer(struct stconn *sc, struct htx *htx,
 
 		ctx->px_st = STAT_PX_ST_INIT;
 		ctx->state = STAT_STATE_LIST;
-		/* fall through */
+		__fallthrough;
 
 	case STAT_STATE_LIST:
 		switch (domain) {
@@ -3799,7 +3799,7 @@ static int stats_dump_stat_to_buffer(struct stconn *sc, struct htx *htx,
 		}
 
 		ctx->state = STAT_STATE_END;
-		/* fall through */
+		__fallthrough;
 
 	case STAT_STATE_END:
 		if (ctx->flags & (STAT_FMT_HTML|STAT_FMT_JSON)) {
@@ -3812,7 +3812,7 @@ static int stats_dump_stat_to_buffer(struct stconn *sc, struct htx *htx,
 		}
 
 		ctx->state = STAT_STATE_FIN;
-		/* fall through */
+		__fallthrough;
 
 	case STAT_STATE_FIN:
 		return 1;
