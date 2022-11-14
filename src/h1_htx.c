@@ -520,7 +520,7 @@ static size_t h1_parse_chunk(struct h1m *h1m, struct htx **dsthtx,
 			break;
 
 		h1m->state = H1_MSG_CHUNK_CRLF;
-		/*fall through */
+		__fallthrough;
 
 	case H1_MSG_CHUNK_CRLF:
 		ret = h1_skip_chunk_crlf(srcbuf, ofs, b_data(srcbuf));
