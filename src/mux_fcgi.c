@@ -2190,7 +2190,9 @@ static size_t fcgi_strm_send_stdin(struct fcgi_conn *fconn, struct fcgi_strm *fs
 					    b_data(&outbuf) + v.len + extra_bytes <= b_room(mbuf) &&
 					    b_data(mbuf) <= MAX_DATA_REALIGN)
 						goto realign_again;
-					v.len = b_room(&outbuf) - FCGI_RECORD_HEADER_SZ - extra_bytes;
+					v.len = (FCGI_RECORD_HEADER_SZ + extra_bytes > b_room(&outbuf)
+						 ? 0
+						 : b_room(&outbuf) - FCGI_RECORD_HEADER_SZ - extra_bytes);
 				}
 				if (!v.len || !chunk_memcat(&outbuf, v.ptr, v.len)) {
 					if (outbuf.data == FCGI_RECORD_HEADER_SZ)
