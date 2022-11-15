@@ -2637,6 +2637,10 @@ void deinit(void)
 	struct cfg_postparser *pprs, *pprsb;
 	int cur_fd;
 
+	/* the user may want to skip this phase */
+	if (global.tune.options & GTUNE_QUICK_EXIT)
+		return;
+
 	/* At this point the listeners state is weird:
 	 *  - most listeners are still bound and referenced in their protocol
 	 *  - some might be zombies that are not in their proto anymore, but

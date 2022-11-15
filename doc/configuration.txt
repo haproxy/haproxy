@@ -3238,6 +3238,15 @@ anonkey <key>
   from the CLI command "set global-key". See also command line argument "-dC"
   in the management manual.
 
+quick-exit
+  This speeds up the old process exit upon reload by skipping the releasing of
+  memory objects and listeners, since all of these are reclaimed by the
+  operating system at the process' death. The gains are only marginal (in the
+  order of a few hundred milliseconds for huge configurations at most). The
+  main target usage in fact is when a bug is spotted in the deinit() code, as
+  this allows to bypass it. It is better not to use this unless instructed to
+  do so by developers.
+
 quiet
   Do not display any message during startup. It is equivalent to the command-
   line argument "-q".

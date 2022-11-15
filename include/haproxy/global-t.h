@@ -77,6 +77,7 @@
 #define GTUNE_IDLE_POOL_SHARED   (1<<20)
 #define GTUNE_DISABLE_H2_WEBSOCKET (1<<21)
 #define GTUNE_DISABLE_ACTIVE_CLOSE (1<<22)
+#define GTUNE_QUICK_EXIT         (1<<23)
 
 /* SSL server verify mode */
 enum {

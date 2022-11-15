@@ -1221,6 +1221,11 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 				env++;
 		}
 	}
+	else if (strcmp(args[0], "quick-exit") == 0) {
+		if (alertif_too_many_args(0, file, linenum, args, &err_code))
+			goto out;
+		global.tune.options |= GTUNE_QUICK_EXIT;
+	}
 	else if (strcmp(args[0], "strict-limits") == 0) { /* "no strict-limits" or "strict-limits" */
 		if (alertif_too_many_args(0, file, linenum, args, &err_code))
 			goto out;
