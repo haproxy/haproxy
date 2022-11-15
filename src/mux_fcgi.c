@@ -2100,9 +2100,10 @@ static size_t fcgi_strm_send_stdin(struct fcgi_conn *fconn, struct fcgi_strm *fs
 	size = htx_get_blksz(blk);
 	if (unlikely(size == count && htx_nbblks(htx) == 1 && type == HTX_BLK_DATA)) {
 		void *old_area = mbuf->area;
+		int eom = (htx->flags & HTX_FL_EOM);
 
 		 /* Last block of the message: Reserve the size for the empty stdin record */
-		if (htx->flags & HTX_FL_EOM)
+		if (eom)
 			extra_bytes = FCGI_RECORD_HEADER_SZ;
 
 		if (b_data(mbuf)) {
@@ -2138,6 +2139,8 @@ static size_t fcgi_strm_send_stdin(struct fcgi_conn *fconn, struct fcgi_strm *fs
 
 		htx = (struct htx *)buf->area;
 		htx_reset(htx);
+		if (eom)
+			goto empty_stdin;
 		goto end;
 	}
 
@@ -2218,6 +2221,7 @@ static size_t fcgi_strm_send_stdin(struct fcgi_conn *fconn, struct fcgi_strm *fs
 
 	/* Send the empty stding here to finish the message */
 	if (htx_is_empty(htx) && (htx->flags & HTX_FL_EOM)) {
+	  empty_stdin:
 		TRACE_PROTO("sending FCGI STDIN record", FCGI_EV_TX_RECORD|FCGI_EV_TX_STDIN, fconn->conn, fstrm, htx);
 		if (!fcgi_strm_send_empty_stdin(fconn, fstrm)) {
 			/* bytes already reserved for this record. It should not fail */
