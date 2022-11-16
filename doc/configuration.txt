@@ -997,40 +997,44 @@ of them have command-line equivalents.
 The following keywords are supported in the "global" section :
 
  * Process management and security
+   - 51degrees-cache-size
+   - 51degrees-data-file
+   - 51degrees-property-name-list
+   - 51degrees-property-separator
    - ca-base
    - chroot
    - cluster-secret
-   - crt-base
    - cpu-map
+   - crt-base
    - daemon
    - default-path
    - description
    - deviceatlas-json-file
    - deviceatlas-log-level
-   - deviceatlas-separator
    - deviceatlas-properties-cookie
+   - deviceatlas-separator
    - expose-experimental-directives
    - external-check
    - fd-hard-limit
    - gid
    - grace
    - group
+   - h1-accept-payload-with-any-method
+   - h1-case-adjust
+   - h1-case-adjust-file
+   - h2-workaround-bogus-websocket-clients
    - hard-stop-after
    - httpclient.resolvers.id
    - httpclient.resolvers.prefer
    - httpclient.ssl.ca-file
    - httpclient.ssl.verify
-   - h1-accept-payload-with-any-method
-   - h1-case-adjust
-   - h1-case-adjust-file
    - insecure-fork-wanted
    - insecure-setuid-wanted
    - issuers-chain-path
-   - h2-workaround-bogus-websocket-clients
    - localpeer
    - log
-   - log-tag
    - log-send-hostname
+   - log-tag
    - lua-load
    - lua-load-per-thread
    - lua-prepend-path
@@ -1042,13 +1046,9 @@ The following keywords are supported in the "global" section :
    - pp2-never-send-local
    - presetenv
    - resetenv
-   - uid
-   - ulimit-n
-   - user
    - set-dumpable
    - set-var
    - setenv
-   - stats
    - ssl-default-bind-ciphers
    - ssl-default-bind-ciphersuites
    - ssl-default-bind-curves
@@ -1062,25 +1062,25 @@ The following keywords are supported in the "global" section :
    - ssl-provider-path
    - ssl-server-verify
    - ssl-skip-self-issued-ca
+   - stats
+   - strict-limits
+   - uid
+   - ulimit-n
    - unix-bind
    - unsetenv
-   - 51degrees-data-file
-   - 51degrees-property-name-list
-   - 51degrees-property-separator
-   - 51degrees-cache-size
+   - user
+   - wurfl-cache-size
    - wurfl-data-file
    - wurfl-information-list
    - wurfl-information-list-separator
-   - wurfl-cache-size
-   - strict-limits
 
  * Performance tuning
    - busy-polling
    - max-spread-checks
+   - maxcompcpuusage
+   - maxcomprate
    - maxconn
    - maxconnrate
-   - maxcomprate
-   - maxcompcpuusage
    - maxpipes
    - maxsessrate
    - maxsslconn
@@ -1088,16 +1088,16 @@ The following keywords are supported in the "global" section :
    - maxzlibmem
    - no-memory-trimming
    - noepoll
-   - nokqueue
    - noevports
-   - nopoll
-   - nosplice
    - nogetaddrinfo
+   - nokqueue
+   - nopoll
    - noreuseport
+   - nosplice
    - profiling.tasks
-   - spread-checks
    - server-state-base
    - server-state-file
+   - spread-checks
    - ssl-engine
    - ssl-mode-async
    - tune.buffers.limit
@@ -1115,9 +1115,9 @@ The following keywords are supported in the "global" section :
    - tune.idletimer
    - tune.lua.forced-yield
    - tune.lua.maxmem
+   - tune.lua.service-timeout
    - tune.lua.session-timeout
    - tune.lua.task-timeout
-   - tune.lua.service-timeout
    - tune.maxaccept
    - tune.maxpollevents
    - tune.maxrewrite
@@ -1138,15 +1138,15 @@ The following keywords are supported in the "global" section :
    - tune.sndbuf.client
    - tune.sndbuf.server
    - tune.ssl.cachesize
+   - tune.ssl.capture-buffer-size
+   - tune.ssl.capture-cipherlist-size (deprecated)
+   - tune.ssl.default-dh-param
    - tune.ssl.force-private-cache
    - tune.ssl.hard-maxrecord
    - tune.ssl.keylog
    - tune.ssl.lifetime
    - tune.ssl.maxrecord
-   - tune.ssl.default-dh-param
    - tune.ssl.ssl-ctx-cache-size
-   - tune.ssl.capture-buffer-size
-   - tune.ssl.capture-cipherlist-size (deprecated)
    - tune.vars.global-max-size
    - tune.vars.proc-max-size
    - tune.vars.reqres-max-size
@@ -1164,6 +1164,36 @@ The following keywords are supported in the "global" section :
 3.1. Process management and security
 ------------------------------------
 
+51degrees-data-file <file path>
+  The path of the 51Degrees data file to provide device detection services. The
+  file should be unzipped and accessible by HAProxy with relevant permissions.
+
+  Please note that this option is only available when HAProxy has been
+  compiled with USE_51DEGREES.
+
+51degrees-property-name-list [<string> ...]
+  A list of 51Degrees property names to be load from the dataset. A full list
+  of names is available on the 51Degrees website:
+  https://51degrees.com/resources/property-dictionary
+
+  Please note that this option is only available when HAProxy has been
+  compiled with USE_51DEGREES.
+
+51degrees-property-separator <char>
+  A char that will be appended to every property value in a response header
+  containing 51Degrees results. If not set that will be set as ','.
+
+  Please note that this option is only available when HAProxy has been
+  compiled with USE_51DEGREES.
+
+51degrees-cache-size <number>
+  Sets the size of the 51Degrees converter cache to <number> entries. This
+  is an LRU cache which reminds previous device detections and their results.
+  By default, this cache is disabled.
+
+  Please note that this option is only available when HAProxy has been
+  compiled with USE_51DEGREES.
+
 ca-base <dir>
   Assigns a default directory to fetch SSL CA certificates and CRLs from when a
   relative path is used with "ca-file", "ca-verify-file" or "crl-file"
@@ -1177,14 +1207,6 @@ chroot <jail dir>
   attacker to exploit the system. This only works when the process is started
   with superuser privileges. It is important to ensure that <jail_dir> is both
   empty and non-writable to anyone.
-
-cluster-secret <secret>
-  Define an ASCII string secret shared between several nodes belonging to the
-  same cluster. It could be used for different usages. It is at least used to
-  derive stateless reset tokens for all the QUIC connections instantiated by
-  this process. This is also the case to derive secrets used to encrypt Retry
-  tokens. If you do not set this parameter, the stateless reset and Retry QUIC
-  features will be both silently disabled.
 
 close-spread-time <time>
   Define a time window during which idle connections and active connections
@@ -1211,6 +1233,14 @@ close-spread-time <time>
   have a chance to gracefully close before the process stops.
 
   See also: grace, hard-stop-after, idle-close-on-response
+
+cluster-secret <secret>
+  Define an ASCII string secret shared between several nodes belonging to the
+  same cluster. It could be used for different usages. It is at least used to
+  derive stateless reset tokens for all the QUIC connections instantiated by
+  this process. This is also the case to derive secrets used to encrypt Retry
+  tokens. If you do not set this parameter, the stateless reset and Retry QUIC
+  features will be both silently disabled.
 
 cpu-map [auto:]<thread-group>[/<thread-set>] <cpu-set>...
   On some operating systems, it is possible to bind a thread group or a thread
@@ -1355,6 +1385,13 @@ default-path { current | config | parent | origin <path> }
   paths. A robust approach could consist in prefixing all files names with
   their respective site name, or in doing so at the directory level.
 
+description <text>
+  Add a text that describes the instance.
+
+  Please note that it is required to escape certain characters (# for example)
+  and this text is inserted into a html page so you should avoid using
+  "<" and ">" characters.
+
 deviceatlas-json-file <path>
   Sets the path of the DeviceAtlas JSON data file to be loaded by the API.
   The path must be a valid JSON data file and accessible by HAProxy process.
@@ -1363,14 +1400,14 @@ deviceatlas-log-level <value>
   Sets the level of information returned by the API. This directive is
   optional and set to 0 by default if not set.
 
-deviceatlas-separator <char>
-  Sets the character separator for the API properties results. This directive
-  is optional and set to | by default if not set.
-
 deviceatlas-properties-cookie <name>
   Sets the client cookie's name used for the detection if the DeviceAtlas
   Client-side component was used during the request. This directive is optional
   and set to DAPROPS by default if not set.
+
+deviceatlas-separator <char>
+  Sets the character separator for the API properties results. This directive
+  is optional and set to | by default if not set.
 
 expose-experimental-directives
   This statement must appear before using directives tagged as experimental or
@@ -1463,24 +1500,6 @@ group <group name>
   Similar to "gid" but uses the GID of group name <group name> from /etc/group.
   See also "gid" and "user".
 
-hard-stop-after <time>
-  Defines the maximum time allowed to perform a clean soft-stop.
-
-  Arguments :
-    <time>  is the maximum time (by default in milliseconds) for which the
-            instance will remain alive when a soft-stop is received via the
-            SIGUSR1 signal.
-
-  This may be used to ensure that the instance will quit even if connections
-  remain opened during a soft-stop (for example with long timeouts for a proxy
-  in tcp mode). It applies both in TCP and HTTP mode.
-
-  Example:
-    global
-      hard-stop-after 30s
-
-  See also: grace
-
 h1-accept-payload-with-any-method
   Does not reject HTTP/1.0 GET/HEAD/DELETE requests with a payload.
 
@@ -1544,6 +1563,48 @@ h1-case-adjust-file <hdrs-file>
   See "h1-case-adjust", "option h1-case-adjust-bogus-client" and
   "option h1-case-adjust-bogus-server".
 
+h2-workaround-bogus-websocket-clients
+  This disables the announcement of the support for h2 websockets to clients.
+  This can be use to overcome clients which have issues when implementing the
+  relatively fresh RFC8441, such as Firefox 88. To allow clients to
+  automatically downgrade to http/1.1 for the websocket tunnel, specify h2
+  support on the bind line using "alpn" without an explicit "proto" keyword. If
+  this statement was previously activated, this can be disabled by prefixing
+  the keyword with "no'.
+
+hard-stop-after <time>
+  Defines the maximum time allowed to perform a clean soft-stop.
+
+  Arguments :
+    <time>  is the maximum time (by default in milliseconds) for which the
+            instance will remain alive when a soft-stop is received via the
+            SIGUSR1 signal.
+
+  This may be used to ensure that the instance will quit even if connections
+  remain opened during a soft-stop (for example with long timeouts for a proxy
+  in tcp mode). It applies both in TCP and HTTP mode.
+
+  Example:
+    global
+      hard-stop-after 30s
+
+  See also: grace
+
+httpclient.resolvers.id <resolvers id>
+  This option defines the resolvers section with which the httpclient will try
+  to resolve.
+
+  Default option is the "default" resolvers ID. By default, if this option is
+  not used, it will simply disable the resolving if the section is not found.
+
+  However, when this option is explicitly enabled it will trigger a
+  configuration error if it fails to load.
+
+httpclient.resolvers.prefer <ipv4|ipv6>
+  This option allows to chose which family of IP you want when resolving,
+  which is convenient when IPv6 is not available on your network. Default
+  option is "ipv6".
+
 httpclient.ssl.ca-file <cafile>
   This option defines the ca-file which should be used to verify the server
   certificate. It takes the same parameters as the "ca-file" option on the
@@ -1565,21 +1626,6 @@ httpclient.ssl.verify [none|required]
 
   However, when this option is explicitly enabled it will trigger a
   configuration error if it fails.
-
-httpclient.resolvers.id <resolvers id>
-  This option defines the resolvers section with which the httpclient will try
-  to resolve.
-
-  Default option is the "default" resolvers ID. By default, if this option is
-  not used, it will simply disable the resolving if the section is not found.
-
-  However, when this option is explicitly enabled it will trigger a
-  configuration error if it fails to load.
-
-httpclient.resolvers.prefer <ipv4|ipv6>
-  This option allows to chose which family of IP you want when resolving,
-  which is convenient when IPv6 is not available on your network. Default
-  option is "ipv6".
 
 insecure-fork-wanted
   By default HAProxy tries hard to prevent any thread and process creation
@@ -1627,15 +1673,6 @@ issuers-chain-path <dir>
   chain if a file with IntermediateCA2+IntermediateCA1 is present in
   "issuers-chain-path" directory. All other certificates with the same issuer
   will share the chain in memory.
-
-h2-workaround-bogus-websocket-clients
-  This disables the announcement of the support for h2 websockets to clients.
-  This can be use to overcome clients which have issues when implementing the
-  relatively fresh RFC8441, such as Firefox 88. To allow clients to
-  automatically downgrade to http/1.1 for the websocket tunnel, specify h2
-  support on the bind line using "alpn" without an explicit "proto" keyword. If
-  this statement was previously activated, this can be disabled by prefixing
-  the keyword with "no'.
 
 localpeer <name>
   Sets the local instance's peer name. It will be ignored if the "-L"
@@ -1951,6 +1988,26 @@ server-state-file <file>
   configuration. See also "server-state-base" and "show servers state",
   "load-server-state-from-file" and "server-state-file-name"
 
+set-dumpable
+  This option is better left disabled by default and enabled only upon a
+  developer's request. If it has been enabled, it may still be forcibly
+  disabled by prefixing it with the "no" keyword. It has no impact on
+  performance nor stability but will try hard to re-enable core dumps that were
+  possibly disabled by file size limitations (ulimit -f), core size limitations
+  (ulimit -c), or "dumpability" of a process after changing its UID/GID (such
+  as /proc/sys/fs/suid_dumpable on Linux). Core dumps might still be limited by
+  the current directory's permissions (check what directory the file is started
+  from), the chroot directory's permission (it may be needed to temporarily
+  disable the chroot directive or to move it to a dedicated writable location),
+  or any other system-specific constraint. For example, some Linux flavours are
+  notorious for replacing the default core file with a path to an executable
+  not even installed on the system (check /proc/sys/kernel/core_pattern). Often,
+  simply writing "core", "core.%p" or "/var/log/core/core.%p" addresses the
+  issue. When trying to enable this option waiting for a rare issue to
+  re-appear, it's often a good idea to first try to obtain such a dump by
+  issuing, for example, "kill -11" to the "haproxy" process and verify that it
+  leaves a core where expected when dying.
+
 set-var <var-name> <expr>
   Sets the process-wide variable '<var-name>' to the result of the evaluation
   of the sample expression <expr>. The variable '<var-name>' may only be a
@@ -1990,26 +2047,6 @@ setenv <name> <value>
   is overwritten. The changes immediately take effect so that the next line in
   the configuration file sees the new value. See also "presetenv", "resetenv",
   and "unsetenv".
-
-set-dumpable
-  This option is better left disabled by default and enabled only upon a
-  developer's request. If it has been enabled, it may still be forcibly
-  disabled by prefixing it with the "no" keyword. It has no impact on
-  performance nor stability but will try hard to re-enable core dumps that were
-  possibly disabled by file size limitations (ulimit -f), core size limitations
-  (ulimit -c), or "dumpability" of a process after changing its UID/GID (such
-  as /proc/sys/fs/suid_dumpable on Linux). Core dumps might still be limited by
-  the current directory's permissions (check what directory the file is started
-  from), the chroot directory's permission (it may be needed to temporarily
-  disable the chroot directive or to move it to a dedicated writable location),
-  or any other system-specific constraint. For example, some Linux flavours are
-  notorious for replacing the default core file with a path to an executable
-  not even installed on the system (check /proc/sys/kernel/core_pattern). Often,
-  simply writing "core", "core.%p" or "/var/log/core/core.%p" addresses the
-  issue. When trying to enable this option waiting for a rare issue to
-  re-appear, it's often a good idea to first try to obtain such a dump by
-  issuing, for example, "kill -11" to the "haproxy" process and verify that it
-  leaves a core where expected when dying.
 
 ssl-default-bind-ciphers <ciphers>
   This setting is only available when support for OpenSSL was built in. It sets
@@ -2244,6 +2281,10 @@ ssl-skip-self-issued-ca
   certificates. It's useless for BoringSSL, .issuer is ignored because ocsp
   bits does not need it. Requires at least OpenSSL 1.0.2.
 
+stats maxconn <connections>
+  By default, the stats socket is limited to 10 concurrent connections. It is
+  possible to change this value with "stats maxconn".
+
 stats socket [<address:port>|<path>] [param*]
   Binds a UNIX socket to <path> or a TCPv4/v6 address to <address:port>.
   Connections to this socket will return various statistics outputs and even
@@ -2260,9 +2301,12 @@ stats timeout <timeout, in milliseconds>
   to change this value with "stats timeout". The value must be passed in
   milliseconds, or be suffixed by a time unit among { us, ms, s, m, h, d }.
 
-stats maxconn <connections>
-  By default, the stats socket is limited to 10 concurrent connections. It is
-  possible to change this value with "stats maxconn".
+strict-limits
+  Makes process fail at startup when a setrlimit fails. HAProxy tries to set the
+  best setrlimit according to what has been calculated. If it fails, it will
+  emit a warning. This option is here to guarantee an explicit failure of
+  HAProxy when those limits fail. It is enabled by default. It may still be
+  forcibly disabled by prefixing it with the "no" keyword.
 
 thread-group <group> [<thread-range>...]
   This setting is only available when support for threads was built in. It
@@ -2337,42 +2381,14 @@ node <name>
   nodes, it becomes easy to immediately spot what server is handling the
   traffic.
 
-description <text>
-  Add a text that describes the instance.
+wurfl-cache-size <size>
+  Sets the WURFL Useragent cache size. For faster lookups, already processed user
+  agents are kept in a LRU cache :
+  - "0"     : no cache is used.
+  - <size>  : size of lru cache in elements.
 
-  Please note that it is required to escape certain characters (# for example)
-  and this text is inserted into a html page so you should avoid using
-  "<" and ">" characters.
-
-51degrees-data-file <file path>
-  The path of the 51Degrees data file to provide device detection services. The
-  file should be unzipped and accessible by HAProxy with relevant permissions.
-
-  Please note that this option is only available when HAProxy has been
-  compiled with USE_51DEGREES.
-
-51degrees-property-name-list [<string> ...]
-  A list of 51Degrees property names to be load from the dataset. A full list
-  of names is available on the 51Degrees website:
-  https://51degrees.com/resources/property-dictionary
-
-  Please note that this option is only available when HAProxy has been
-  compiled with USE_51DEGREES.
-
-51degrees-property-separator <char>
-  A char that will be appended to every property value in a response header
-  containing 51Degrees results. If not set that will be set as ','.
-
-  Please note that this option is only available when HAProxy has been
-  compiled with USE_51DEGREES.
-
-51degrees-cache-size <number>
-  Sets the size of the 51Degrees converter cache to <number> entries. This
-  is an LRU cache which reminds previous device detections and their results.
-  By default, this cache is disabled.
-
-  Please note that this option is only available when HAProxy has been
-  compiled with USE_51DEGREES.
+  Please note that this option is only available when HAProxy has been compiled
+  with USE_WURFL=1.
 
 wurfl-data-file <file path>
   The path of the WURFL data file to provide device detection services. The
@@ -2428,22 +2444,6 @@ wurfl-patch-file [<file path>]
   Please note that this option is only available when HAProxy has been compiled
   with USE_WURFL=1.
 
-wurfl-cache-size <size>
-  Sets the WURFL Useragent cache size. For faster lookups, already processed user
-  agents are kept in a LRU cache :
-  - "0"     : no cache is used.
-  - <size>  : size of lru cache in elements.
-
-  Please note that this option is only available when HAProxy has been compiled
-  with USE_WURFL=1.
-
-strict-limits
-  Makes process fail at startup when a setrlimit fails. HAProxy tries to set the
-  best setrlimit according to what has been calculated. If it fails, it will
-  emit a warning. This option is here to guarantee an explicit failure of
-  HAProxy when those limits fail. It is enabled by default. It may still be
-  forcibly disabled by prefixing it with the "no" keyword.
-
 3.2. Performance tuning
 -----------------------
 
@@ -2480,6 +2480,24 @@ max-spread-checks <delay in milliseconds>
   even if the servers' check intervals are larger. When servers run with
   shorter intervals, their intervals will be respected though.
 
+maxcompcpuusage <number>
+  Sets the maximum CPU usage HAProxy can reach before stopping the compression
+  for new requests or decreasing the compression level of current requests.
+  It works like 'maxcomprate' but measures CPU usage instead of incoming data
+  bandwidth. The value is expressed in percent of the CPU used by HAProxy. A
+  value of 100 disable the limit. The default value is 100. Setting a lower
+  value will prevent the compression work from slowing the whole process down
+  and from introducing high latencies.
+
+maxcomprate <number>
+  Sets the maximum per-process input compression rate to <number> kilobytes
+  per second. For each session, if the maximum is reached, the compression
+  level will be decreased during the session. If the maximum is reached at the
+  beginning of a session, the session will not compress at all. If the maximum
+  is not reached, the compression level will be increased up to
+  tune.comp.maxlevel. A value of zero means there is no limit, this is the
+  default value.
+
 maxconn <number>
   Sets the maximum per-process number of concurrent connections to <number>. It
   is equivalent to the command-line argument "-n". Proxies will stop accepting
@@ -2506,24 +2524,6 @@ maxconnrate <number>
   limit is reached, so it's a good idea to also limit each frontend to some
   value close to its expected share. Also, lowering tune.maxaccept can improve
   fairness.
-
-maxcomprate <number>
-  Sets the maximum per-process input compression rate to <number> kilobytes
-  per second. For each session, if the maximum is reached, the compression
-  level will be decreased during the session. If the maximum is reached at the
-  beginning of a session, the session will not compress at all. If the maximum
-  is not reached, the compression level will be increased up to
-  tune.comp.maxlevel. A value of zero means there is no limit, this is the
-  default value.
-
-maxcompcpuusage <number>
-  Sets the maximum CPU usage HAProxy can reach before stopping the compression
-  for new requests or decreasing the compression level of current requests.
-  It works like 'maxcomprate' but measures CPU usage instead of incoming data
-  bandwidth. The value is expressed in percent of the CPU used by HAProxy. A
-  value of 100 disable the limit. The default value is 100. Setting a lower
-  value will prevent the compression work from slowing the whole process down
-  and from introducing high latencies.
 
 maxpipes <number>
   Sets the maximum per-process number of pipes to <number>. Currently, pipes
@@ -2600,16 +2600,20 @@ noepoll
   equivalent to the command-line argument "-de". The next polling system
   used will generally be "poll". See also "nopoll".
 
-nokqueue
-  Disables the use of the "kqueue" event polling system on BSD. It is
-  equivalent to the command-line argument "-dk". The next polling system
-  used will generally be "poll". See also "nopoll".
-
 noevports
   Disables the use of the event ports event polling system on SunOS systems
   derived from Solaris 10 and later. It is equivalent to the command-line
   argument "-dv". The next polling system used will generally be "poll". See
   also "nopoll".
+
+nogetaddrinfo
+  Disables the use of getaddrinfo(3) for name resolving. It is equivalent to
+  the command line argument "-dG". Deprecated gethostbyname(3) will be used.
+
+nokqueue
+  Disables the use of the "kqueue" event polling system on BSD. It is
+  equivalent to the command-line argument "-dk". The next polling system
+  used will generally be "poll". See also "nopoll".
 
 nopoll
   Disables the use of the "poll" event polling system. It is equivalent to the
@@ -2617,6 +2621,10 @@ nopoll
   It should never be needed to disable "poll" since it's available on all
   platforms supported by HAProxy. See also "nokqueue", "noepoll" and
   "noevports".
+
+noreuseport
+  Disables the use of SO_REUSEPORT - see socket(7). It is equivalent to the
+  command line argument "-dR".
 
 nosplice
   Disables the use of kernel tcp splicing between sockets on Linux. It is
@@ -2627,14 +2635,6 @@ nosplice
   be used. This option makes it easier to globally disable kernel splicing in
   case of doubt. See also "option splice-auto", "option splice-request" and
   "option splice-response".
-
-nogetaddrinfo
-  Disables the use of getaddrinfo(3) for name resolving. It is equivalent to
-  the command line argument "-dG". Deprecated gethostbyname(3) will be used.
-
-noreuseport
-  Disables the use of SO_REUSEPORT - see socket(7). It is equivalent to the
-  command line argument "-dR".
 
 profiling.memory { on | off }
   Enables ('on') or disables ('off') per-function memory profiling. This will
@@ -2878,17 +2878,17 @@ tune.lua.session-timeout <timeout>
   counts only the pure Lua runtime. If the Lua does a sleep, the sleep is
   not taken in account. The default timeout is 4s.
 
-tune.lua.task-timeout <timeout>
-  Purpose is the same as "tune.lua.session-timeout", but this timeout is
-  dedicated to the tasks. By default, this timeout isn't set because a task may
-  remain alive during of the lifetime of HAProxy. For example, a task used to
-  check servers.
-
 tune.lua.service-timeout <timeout>
   This is the execution timeout for the Lua services. This is useful for
   preventing infinite loops or spending too much time in Lua. This timeout
   counts only the pure Lua runtime. If the Lua does a sleep, the sleep is
   not taken in account. The default timeout is 4s.
+
+tune.lua.task-timeout <timeout>
+  Purpose is the same as "tune.lua.session-timeout", but this timeout is
+  dedicated to the tasks. By default, this timeout isn't set because a task may
+  remain alive during of the lifetime of HAProxy. For example, a task used to
+  check servers.
 
 tune.maxaccept <number>
   Sets the maximum number of consecutive connections a process may accept in a
@@ -3091,6 +3091,27 @@ tune.ssl.cachesize <number>
   pre-allocated upon startup. Setting this value to 0 disables the SSL session
   cache.
 
+tune.ssl.capture-buffer-size <number>
+tune.ssl.capture-cipherlist-size <number> (deprecated)
+  Sets the maximum size of the buffer used for capturing client hello cipher
+  list, extensions list, elliptic curves list and elliptic curve point
+  formats. If the value is 0 (default value) the capture is disabled,
+  otherwise a buffer is allocated for each SSL/TLS connection.
+
+tune.ssl.default-dh-param <number>
+  Sets the maximum size of the Diffie-Hellman parameters used for generating
+  the ephemeral/temporary Diffie-Hellman key in case of DHE key exchange. The
+  final size will try to match the size of the server's RSA (or DSA) key (e.g,
+  a 2048 bits temporary DH key for a 2048 bits RSA key), but will not exceed
+  this maximum value. Only 1024 or higher values are allowed. Higher values
+  will increase the CPU load, and values greater than 1024 bits are not
+  supported by Java 7 and earlier clients. This value is not used if static
+  Diffie-Hellman parameters are supplied either directly in the certificate
+  file or by using the ssl-dh-param-file parameter.
+  If there is neither a default-dh-param nor a ssl-dh-param-file defined, and
+  if the server's PEM file of a given frontend does not specify its own DH
+  parameters, then DHE ciphers will be unavailable for this frontend.
+
 tune.ssl.force-private-cache
   This option disables SSL session cache sharing between all processes. It
   should normally not be used since it will force many renegotiations due to
@@ -3166,32 +3187,11 @@ tune.ssl.maxrecord <number>
   switch to this setting after an idle stream has been detected (see
   tune.idletimer above). See also tune.ssl.hard-maxrecord.
 
-tune.ssl.default-dh-param <number>
-  Sets the maximum size of the Diffie-Hellman parameters used for generating
-  the ephemeral/temporary Diffie-Hellman key in case of DHE key exchange. The
-  final size will try to match the size of the server's RSA (or DSA) key (e.g,
-  a 2048 bits temporary DH key for a 2048 bits RSA key), but will not exceed
-  this maximum value. Only 1024 or higher values are allowed. Higher values
-  will increase the CPU load, and values greater than 1024 bits are not
-  supported by Java 7 and earlier clients. This value is not used if static
-  Diffie-Hellman parameters are supplied either directly in the certificate
-  file or by using the ssl-dh-param-file parameter.
-  If there is neither a default-dh-param nor a ssl-dh-param-file defined, and
-  if the server's PEM file of a given frontend does not specify its own DH
-  parameters, then DHE ciphers will be unavailable for this frontend.
-
 tune.ssl.ssl-ctx-cache-size <number>
   Sets the size of the cache used to store generated certificates to <number>
   entries. This is a LRU cache. Because generating a SSL certificate
   dynamically is expensive, they are cached. The default cache size is set to
   1000 entries.
-
-tune.ssl.capture-buffer-size <number>
-tune.ssl.capture-cipherlist-size <number> (deprecated)
-  Sets the maximum size of the buffer used for capturing client hello cipher
-  list, extensions list, elliptic curves list and elliptic curve point
-  formats. If the value is 0 (default value) the capture is disabled,
-  otherwise a buffer is allocated for each SSL/TLS connection.
 
 tune.vars.global-max-size <size>
 tune.vars.proc-max-size <size>
