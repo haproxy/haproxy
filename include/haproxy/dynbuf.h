@@ -60,46 +60,47 @@ static inline int buffer_almost_full(const struct buffer *buf)
  * ((char *)1) is assigned instead with a zero size. The allocated buffer is
  * returned, or NULL in case no memory is available.
  */
-static inline struct buffer *b_alloc(struct buffer *buf)
-{
-	char *area;
-
-	if (buf->size)
-		return buf;
-
-	*buf = BUF_WANTED;
-	area = pool_alloc_flag(pool_head_buffer, POOL_F_NO_POISON);
-	if (unlikely(!area)) {
-		activity[tid].buf_wait++;
-		return NULL;
-	}
-
-	buf->area = area;
-	buf->size = pool_head_buffer->size;
-	return buf;
-}
+#define b_alloc(_buf) \
+({						\
+	char *_area;				\
+	struct buffer *_retbuf = _buf;		\
+						\
+	if (!_retbuf->size) {			\
+		*_retbuf = BUF_WANTED;					\
+		_area = pool_alloc_flag(pool_head_buffer, POOL_F_NO_POISON); \
+		if (unlikely(!_area)) {					\
+			activity[tid].buf_wait++;			\
+			_retbuf = NULL;					\
+		}							\
+		else {							\
+			_retbuf->area = _area;				\
+			_retbuf->size = pool_head_buffer->size;		\
+		}							\
+	}								\
+	_retbuf;							\
+ })
 
 /* Releases buffer <buf> (no check of emptiness). The buffer's head is marked
  * empty.
  */
-static inline void __b_free(struct buffer *buf)
-{
-	char *area = buf->area;
-
-	/* let's first clear the area to save an occasional "show sess all"
-	 * glancing over our shoulder from getting a dangling pointer.
-	 */
-	*buf = BUF_NULL;
-	__ha_barrier_store();
-	pool_free(pool_head_buffer, area);
-}
+#define __b_free(_buf)							\
+	do {								\
+		char *area = (_buf)->area;				\
+									\
+		/* let's first clear the area to save an occasional "show sess all" \
+		 * glancing over our shoulder from getting a dangling pointer.      \
+		 */							            \
+		*(_buf) = BUF_NULL;					\
+		__ha_barrier_store();					\
+		pool_free(pool_head_buffer, area);			\
+	} while (0)							\
 
 /* Releases buffer <buf> if allocated, and marks it empty. */
-static inline void b_free(struct buffer *buf)
-{
-	if (buf->size)
-		__b_free(buf);
-}
+#define b_free(_buf)				\
+	do {					\
+		if ((_buf)->size)		\
+			__b_free((_buf));	\
+	} while (0)
 
 /* Offer one or multiple buffer currently belonging to target <from> to whoever
  * needs one. Any pointer is valid for <from>, including NULL. Its purpose is
