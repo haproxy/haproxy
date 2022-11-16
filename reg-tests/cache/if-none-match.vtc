@@ -46,6 +46,10 @@ haproxy h1 -conf {
                server www ${s1_addr}:${s1_port}
                http-response cache-store my_cache
 
+               # Remove Transfer-Encoding header because of a vtest issue with
+               # 304-Not-Modified responses
+               http-after-response del-header transfer-encoding if { status eq 304 }
+
        cache my_cache
                total-max-size 3
                max-age 20
