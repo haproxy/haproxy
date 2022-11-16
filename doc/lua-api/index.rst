@@ -72,13 +72,6 @@ functions. Lua have 7 execution context.
    `core.register_filter()`. Each declared filter is prefixed by the string
    "lua.".
 
-   .. warning::
-      The Lua filter support is highly experimental. The API is still unstable
-      and may change without notice. No backward compatibility should be
-      expected for now. Use it with an extreme caution and report any issue or
-      comment about it. The feature was unveiled to improve it and to adapt it
-      to real usages.
-
 
 HAProxy Lua Hello world
 -----------------------
