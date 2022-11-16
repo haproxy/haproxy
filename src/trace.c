@@ -299,14 +299,21 @@ const struct trace_event *trace_find_event(const struct trace_event *ev, const c
 	return NULL;
 }
 
-/* parse the command, returns 1 if a message is returned, otherwise zero */
-static int cli_parse_trace(char **args, char *payload, struct appctx *appctx, void *private)
+/* Parse a "trace" statement. Returns a severity as a LOG_* level and a status
+ * message that may be delivered to the user, in <msg>. The message will be
+ * nulled first and msg must be a valid pointer. A null status message output
+ * indicates no error. Be careful not to use the return value as a boolean, as
+ * LOG_* values are not ordered as one could imagine (LOG_EMERG is zero). The
+ * function may/will use the trash buffer as the storage for the response
+ * message so that the caller never needs to release anything.
+ */
+static int trace_parse_statement(char **args, const char **msg)
 {
 	struct trace_source *src;
 	uint64_t *ev_ptr = NULL;
 
-	if (!cli_has_level(appctx, ACCESS_LVL_OPER))
-		return 1;
+	/* no error by default */
+	*msg = NULL;
 
 	if (!*args[1]) {
 		/* no arg => report the list of supported sources as a warning */
@@ -319,33 +326,36 @@ static int cli_parse_trace(char **args, char *payload, struct appctx *appctx, vo
 			chunk_appendf(&trash, " [%c] %-10s : %s\n", trace_state_char(src->state), src->name.ptr, src->desc);
 
 		trash.area[trash.data] = 0;
-		return cli_msg(appctx, LOG_WARNING, trash.area);
+		*msg = trash.area;
+		return LOG_WARNING;
 	}
 
 	if (strcmp(args[1], "0") == 0) {
 		/* emergency stop of all traces */
 		list_for_each_entry(src, &trace_sources, source_link)
 			HA_ATOMIC_STORE(&src->state, TRACE_STATE_STOPPED);
-		return cli_msg(appctx, LOG_NOTICE, "All traces now stopped");
+		*msg = "All traces now stopped";
+		return LOG_NOTICE;
 	}
 
 	src = trace_find_source(args[1]);
-	if (!src)
-		return cli_err(appctx, "No such trace source");
+	if (!src) {
+		*msg = "No such trace source";
+		return LOG_ERR;
+	}
 
 	if (!*args[2]) {
-		return cli_msg(appctx, LOG_WARNING,
-			       "Supported commands:\n"
-			       "  event     : list/enable/disable source-specific event reporting\n"
-			       //"  filter    : list/enable/disable generic filters\n"
-			       "  level     : list/set trace reporting level\n"
-			       "  lock      : automatic lock on thread/connection/stream/...\n"
-			       "  pause     : pause and automatically restart after a specific event\n"
-			       "  sink      : list/set event sinks\n"
-			       "  start     : start immediately or after a specific event\n"
-			       "  stop      : stop immediately or after a specific event\n"
-			       "  verbosity : list/set trace output verbosity\n"
-			       );
+		*msg =  "Supported commands:\n"
+			"  event     : list/enable/disable source-specific event reporting\n"
+			//"  filter    : list/enable/disable generic filters\n"
+			"  level     : list/set trace reporting level\n"
+			"  lock      : automatic lock on thread/connection/stream/...\n"
+			"  pause     : pause and automatically restart after a specific event\n"
+			"  sink      : list/set event sinks\n"
+			"  start     : start immediately or after a specific event\n"
+			"  stop      : stop immediately or after a specific event\n"
+			"  verbosity : list/set trace output verbosity\n";
+		return LOG_WARNING;
 	}
 	else if ((strcmp(args[2], "event") == 0 && (ev_ptr = &src->report_events)) ||
 	         (strcmp(args[2], "pause") == 0 && (ev_ptr = &src->pause_events)) ||
@@ -379,7 +389,8 @@ static int cli_parse_trace(char **args, char *payload, struct appctx *appctx, vo
 					      src->known_events[i].name, src->known_events[i].desc);
 			}
 			trash.area[trash.data] = 0;
-			return cli_msg(appctx, LOG_WARNING, trash.area);
+			*msg = trash.area;
+			return LOG_WARNING;
 		}
 
 		if (strcmp(name, "now") == 0 && ev_ptr != &src->report_events) {
@@ -395,6 +406,7 @@ static int cli_parse_trace(char **args, char *payload, struct appctx *appctx, vo
 				HA_ATOMIC_STORE(&src->lockon_ptr, NULL);
 				HA_ATOMIC_STORE(&src->state, TRACE_STATE_STOPPED);
 			}
+			*msg = NULL;
 			return 0;
 		}
 
@@ -404,8 +416,10 @@ static int cli_parse_trace(char **args, char *payload, struct appctx *appctx, vo
 			HA_ATOMIC_STORE(ev_ptr, ~0);
 		else {
 			ev = trace_find_event(src->known_events, name);
-			if (!ev)
-				return cli_err(appctx, "No such trace event");
+			if (!ev) {
+				*msg = "No such trace event";
+				return LOG_ERR;
+			}
 
 			if (!neg)
 				HA_ATOMIC_OR(ev_ptr, ev->mask);
@@ -426,15 +440,18 @@ static int cli_parse_trace(char **args, char *payload, struct appctx *appctx, vo
 					      sink->name, sink->desc);
 			}
 			trash.area[trash.data] = 0;
-			return cli_msg(appctx, LOG_WARNING, trash.area);
+			*msg = trash.area;
+			return LOG_WARNING;
 		}
 
 		if (strcmp(name, "none") == 0)
 			sink = NULL;
 		else {
 			sink = sink_find(name);
-			if (!sink)
-				return cli_err(appctx, "No such sink");
+			if (!sink) {
+				*msg = "No such sink";
+				return LOG_ERR;
+			}
 		}
 
 		HA_ATOMIC_STORE(&src->sink, sink);
@@ -457,7 +474,8 @@ static int cli_parse_trace(char **args, char *payload, struct appctx *appctx, vo
 			chunk_appendf(&trash, "  %c developer  : also report information useful only to the developer\n",
 				      src->level == TRACE_LEVEL_DEVELOPER ? '*' : ' ');
 			trash.area[trash.data] = 0;
-			return cli_msg(appctx, LOG_WARNING, trash.area);
+			*msg = trash.area;
+			return LOG_WARNING;
 		}
 
 		if (strcmp(name, "error") == 0)
@@ -472,8 +490,10 @@ static int cli_parse_trace(char **args, char *payload, struct appctx *appctx, vo
 			HA_ATOMIC_STORE(&src->level, TRACE_LEVEL_DATA);
 		else if (strcmp(name, "developer") == 0)
 			HA_ATOMIC_STORE(&src->level, TRACE_LEVEL_DEVELOPER);
-		else
-			return cli_err(appctx, "No such trace level");
+		else {
+			*msg = "No such trace level";
+			return LOG_ERR;
+		}
 	}
 	else if (strcmp(args[2], "lock") == 0) {
 		const char *name = args[3];
@@ -539,7 +559,8 @@ static int cli_parse_trace(char **args, char *payload, struct appctx *appctx, vo
 				              src->lockon_args[3].name, src->lockon_args[3].desc);
 
 			trash.area[trash.data] = 0;
-			return cli_msg(appctx, LOG_WARNING, trash.area);
+			*msg = trash.area;
+			return LOG_WARNING;
 		}
 		else if ((src->arg_def & (TRC_ARGS_CONN|TRC_ARGS_STRM)) && strcmp(name, "backend") == 0) {
 			HA_ATOMIC_STORE(&src->lockon, TRACE_LOCKON_BACKEND);
@@ -597,8 +618,10 @@ static int cli_parse_trace(char **args, char *payload, struct appctx *appctx, vo
 			HA_ATOMIC_STORE(&src->lockon, TRACE_LOCKON_ARG4);
 			HA_ATOMIC_STORE(&src->lockon_ptr, NULL);
 		}
-		else
-			return cli_err(appctx, "Unsupported lock-on criterion");
+		else {
+			*msg = "Unsupported lock-on criterion";
+			return LOG_ERR;
+		}
 	}
 	else if (strcmp(args[2], "verbosity") == 0) {
 		const char *name = args[3];
@@ -618,7 +641,8 @@ static int cli_parse_trace(char **args, char *payload, struct appctx *appctx, vo
 						      nd->name, nd->desc);
 			}
 			trash.area[trash.data] = 0;
-			return cli_msg(appctx, LOG_WARNING, trash.area);
+			*msg = trash.area;
+			return LOG_WARNING;
 		}
 
 		if (strcmp(name, "quiet") == 0)
@@ -626,22 +650,45 @@ static int cli_parse_trace(char **args, char *payload, struct appctx *appctx, vo
 		else if (!src->decoding || !src->decoding[0].name) {
 			if (strcmp(name, "default") == 0)
 				HA_ATOMIC_STORE(&src->verbosity, 1);
-			else
-				return cli_err(appctx, "No such verbosity level");
+			else {
+				*msg = "No such verbosity level";
+				return LOG_ERR;
+			}
 		} else {
 			for (nd = src->decoding; nd->name && nd->desc; nd++)
 				if (strcmp(name, nd->name) == 0)
 					break;
 
-			if (!nd->name || !nd->desc)
-				return cli_err(appctx, "No such verbosity level");
+			if (!nd->name || !nd->desc) {
+				*msg = "No such verbosiry level";
+				return LOG_ERR;
+			}
 
 			HA_ATOMIC_STORE(&src->verbosity, (nd - src->decoding) + 1);
 		}
 	}
-	else
-		return cli_err(appctx, "Unknown trace keyword");
+	else {
+		*msg = "Unknown trace keyword";
+		return LOG_ERR;
+	}
+	return 0;
 
+}
+
+/* parse the command, returns 1 if a message is returned, otherwise zero */
+static int cli_parse_trace(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	const char *msg;
+	int severity;
+
+	if (!cli_has_level(appctx, ACCESS_LVL_OPER))
+		return 1;
+
+	severity = trace_parse_statement(args, &msg);
+	if (msg)
+		return cli_msg(appctx, severity, msg);
+
+	/* total success */
 	return 0;
 }
 
