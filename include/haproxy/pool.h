@@ -227,6 +227,12 @@ static inline void *pool_get_from_cache(struct pool_head *pool, const void *call
 #if !defined(DEBUG_MEM_STATS)
 
 /*
+ * Returns a pointer to an object from pool <pool> allocated using
+ * flags <flag> from the POOL_F_* set.
+ */
+#define pool_alloc_flag(pool, flag)  __pool_alloc((pool), (flag))
+
+/*
  * Returns a pointer to type <type> taken from the pool <pool_type> or
  * dynamically allocated. Memory poisonning is performed if enabled.
  */
@@ -272,8 +278,9 @@ static inline void *pool_get_from_cache(struct pool_head *pool, const void *call
 	}								\
 })
 
-#define pool_alloc(pool)  ({						\
+#define pool_alloc_flag(pool, flag)  ({					\
 	struct pool_head *__pool = (pool);				\
+	uint __flag = (flag);						\
 	size_t __x = __pool->size;					\
 	static struct mem_stats _ __attribute__((used,__section__("mem_stats"),__aligned__(sizeof(void*)))) = { \
 		.caller = {						\
@@ -287,26 +294,12 @@ static inline void *pool_get_from_cache(struct pool_head *pool, const void *call
 	HA_WEAK(__stop_mem_stats);					\
 	_HA_ATOMIC_INC(&_.calls);					\
 	_HA_ATOMIC_ADD(&_.size, __x);					\
-	__pool_alloc(__pool, 0);					\
+	__pool_alloc(__pool, __flag);					\
 })
 
-#define pool_zalloc(pool)  ({						\
-	struct pool_head *__pool = (pool);				\
-	size_t __x = __pool->size;					\
-	static struct mem_stats _ __attribute__((used,__section__("mem_stats"),__aligned__(sizeof(void*)))) = { \
-		.caller = {						\
-			.file = __FILE__, .line = __LINE__,		\
-			.what = MEM_STATS_TYPE_P_ALLOC,			\
-			.func = __func__,				\
-		},							\
-	};								\
-	_.extra = __pool;						\
-	HA_WEAK(__start_mem_stats);					\
-	HA_WEAK(__stop_mem_stats);					\
-	_HA_ATOMIC_INC(&_.calls);					\
-	_HA_ATOMIC_ADD(&_.size, __x);					\
-	__pool_alloc(__pool, POOL_F_MUST_ZERO);				\
-})
+#define pool_alloc(pool) pool_alloc_flag(pool, 0)
+
+#define pool_zalloc(pool) pool_alloc_flag(pool, POOL_F_MUST_ZERO)
 
 #endif /* DEBUG_MEM_STATS */
 

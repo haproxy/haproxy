@@ -68,7 +68,7 @@ static inline struct buffer *b_alloc(struct buffer *buf)
 		return buf;
 
 	*buf = BUF_WANTED;
-	area = __pool_alloc(pool_head_buffer, POOL_F_NO_POISON);
+	area = pool_alloc_flag(pool_head_buffer, POOL_F_NO_POISON);
 	if (unlikely(!area)) {
 		activity[tid].buf_wait++;
 		return NULL;
