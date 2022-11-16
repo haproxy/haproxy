@@ -21,6 +21,7 @@
 #include <import/ist.h>
 #include <haproxy/api.h>
 #include <haproxy/buf.h>
+#include <haproxy/cfgparse.h>
 #include <haproxy/cli.h>
 #include <haproxy/errors.h>
 #include <haproxy/istbuf.h>
@@ -675,6 +676,28 @@ static int trace_parse_statement(char **args, const char **msg)
 
 }
 
+/* parse a "trace" statement in the "global" section, returns 1 if a message is returned, otherwise zero */
+static int cfg_parse_trace(char **args, int section_type, struct proxy *curpx,
+			   const struct proxy *defpx, const char *file, int line,
+			   char **err)
+{
+	const char *msg;
+	int severity;
+
+	severity = trace_parse_statement(args, &msg);
+	if (msg) {
+		if (severity >= LOG_NOTICE)
+			ha_notice("parsing [%s:%d] : '%s': %s\n", file, line, args[0], msg);
+		else if (severity >= LOG_WARNING)
+			ha_warning("parsing [%s:%d] : '%s': %s\n", file, line, args[0], msg);
+		else {
+			ha_alert("parsing [%s:%d] : '%s': %s\n", file, line, args[0], msg);
+			return -1;
+		}
+	}
+	return 0;
+}
+
 /* parse the command, returns 1 if a message is returned, otherwise zero */
 static int cli_parse_trace(char **args, char *payload, struct appctx *appctx, void *private)
 {
@@ -753,6 +776,13 @@ static struct cli_kw_list cli_kws = {{ },{
 }};
 
 INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);
+
+static struct cfg_kw_list cfg_kws = {ILH, {
+	{ CFG_GLOBAL, "trace", cfg_parse_trace, KWF_EXPERIMENTAL },
+	{ /* END */ },
+}};
+
+INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
 
 /*
  * Local variables:

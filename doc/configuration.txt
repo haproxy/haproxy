@@ -2328,6 +2328,25 @@ thread-groups <number>
   since up to 64 threads per group may be configured. The maximum number of
   groups is configured at compile time and defaults to 16. See also "nbthread".
 
+trace <args...>
+  This command configures one "trace" subsystem statement. Each of them can be
+  found in the management manual, and follow the exact same syntax. Only one
+  statement per line is permitted (i.e. if some long trace configurations using
+  semi-colons are to be imported, they must be placed one per line). Any output
+  that the "trace" command would produce will be emitted during the parsing
+  step of the section. Most of the time these will be errors and warnings, but
+  certain incomplete commands might list permissible choices. This command is
+  not meant for regular use, it will generally only be suggested by developers
+  along complex debugging sessions. For this reason it is internally marked as
+  experimental, meaning that "expose-experimental-directives" must appear on a
+  line before any "trace" statement. Note that these directives are parsed on
+  the fly, so referencing a ring buffer that is only declared further will not
+  work. For such use cases it is suggested to place another "global" section
+  with only the "trace" statements after the declaration of that ring. It is
+  important to keep in mind that depending on the trace level and details,
+  enabling traces can severely degrade the global performance. Please refer to
+  the management manual for the statements syntax.
+
 uid <number>
   Changes the process's user ID to <number>. It is recommended that the user ID
   is dedicated to HAProxy or to a small set of similar daemons. HAProxy must
