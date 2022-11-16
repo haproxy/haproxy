@@ -1,0 +1,1015 @@
+                   -----------------------------------------
+                         event_hdl Guide - version 1.0
+                          ( Last update: 2022-11-14 )
+                   ------------------------------------------
+
+ABSTRACT
+--------
+
+The event_hdl support is a new feature of HAProxy 2.7. It is a way to easily
+handle general events in a simple to maintain fashion, while keeping core code
+impact to the bare minimum.
+
+This document first describes how to use already supported events,
+then how to add support for your very own events.
+
+This feature is quite new for now. The API is not frozen and will be
+updated/modified/improved/extended as needed.
+
+SUMMARY
+-------
+
+  1.    event_hdl introduction
+  2.    How to handle existing events
+  2.1       SYNC mode
+  2.2       ASYNC mode
+  2.2.1           normal version
+  2.2.2           task version
+  2.3       Advanced features
+  2.3.1           sub_mgmt
+  2.3.2		  subscription external lookups
+  2.3.3           subscription ptr
+  2.3.4           private_free
+  3.    How to add support for new events
+  3.1       Declaring a new event data structure
+  3.2       Publishing an event
+  4.	Subscription lists
+  5.	misc/helper functions
+
+
+1. EVENT_HDL INTRODUCTION
+-----------------------
+
+EVENT_HDL provides two complementary APIs, both are implemented
+in src/event_hdl.c and include/haproxy/event_hdl(-t).h:
+
+One API targeting developers that want to register event
+handlers that will be notified when specific events occur in the process.
+(See section 2.)
+
+One API targeting developers that want to notify registered handlers about
+an event that is happening in the process.
+(See section 3.)
+
+2. HOW TO HANDLE EXISTING EVENTS
+---------------------
+
+To handle existing events, you must first decide which events you're
+interested in.
+
+event types are defined as follow:
+
+```
+	/* type for storing event subscription type */
+	typedef struct event_hdl_sub_type
+	{
+		/* up to 256 families, non cumulative, adjust if needed */
+		uint8_t family;
+		/* up to 16 sub types using bitmasks, adjust if needed */
+		uint16_t subtype;
+	} event_hdl_sub_type;
+```
+
+For an up to date list of already supported events,
+please refer to include/haproxy/event_hdl-t.h
+At the end of the file you will find existing event types.
+
+Each event family provides an unique data structure that will
+be provided to the event handler (registered to one or more
+event subtypes) when such events occur.
+
+An event handler can subscribe to a single event family type at a time, but
+within the family type it can subscribe to multiple event subtypes.
+
+	For example, let's consider the SERVER family type.
+
+	Let's assume it provides the event_hdl_cb_data_server data structure.
+
+	We can register a handler that will be notified for
+	every SERVER event types using:
+		EVENT_HDL_SUB_SERVER
+
+		This will include EVENT_HDL_SUB_SERVER_ADD,
+				  EVENT_HDL_SUB_SERVER_DEL [...]
+
+	But we can also subscribe to a specific subtype only,
+	for example server deletion:
+		EVENT_HDL_SUB_SERVER_DEL
+
+	You can even combine multiple SERVER subtypes using
+	event_hdl_sub_type_add function helper:
+		event_hdl_sub_type_add(EVENT_HDL_SUB_SERVER_DEL,
+				       EVENT_HDL_SUB_SERVER_ADD)
+
+		(will refer to server deletion as well as server addition)
+
+Registering a handler comes into multiple flavors:
+
+	SYNC mode:
+		handler is called in a blocking manner directly from the
+		thread that publishes the event.
+		This mode should be used with precaution because it could
+		slow the caller or cause deadlocks if used improperly.
+
+	Sync mode is useful when you directly depend on data or
+	state consistency from the caller.
+
+	Sync mode gives you access to unsafe elements in the data structure
+	provided by the caller (again, see event_hdl-t.h for more details).
+	The data structure may provide lock hints in the unsafe section
+	so that you know which locks are already held within the
+	calling context, hopefully preventing you from relocking
+	an already locked element and preventing deadlocks.
+
+	ASYNC mode:
+		handler is called in a non-blocking manner
+		(in a dedicated tasklet),
+		thus, the caller (that published the event) is not affected
+		by the handler. (time wise and data wise)
+
+		This is the safest way to handle events,
+		but it also comes with a limitation:
+
+		unsafe elements in the data structure provided by
+		the caller SHOULD be used under NO circumstances.
+		Indeed, only safe elements are meant to be used
+		when handling the event in async mode.
+
+	ASYNC mode is declined in 2 different versions:
+		normal:
+			handler is simply a function pointer
+			(same prototype as sync mode),
+			that is called asynchronously with relevant data
+			when the event is published. Only difference with
+			sync mode here is that 'unsafe' data provided
+			by the data structure may not be used.
+		task:
+			handler is a user defined task that uses an event queue
+			to consume pending events.
+			This mode is interesting when you need to perform
+			advanced operations or you need to handle the event
+			in an already existing task context.
+			It is a bit more complicated to setup, but really
+			nothing to worry about, some examples will be
+			provided later in this document.
+
+event subscription is performed using the function:
+
+	event_hdl_subscribe(list, event, hdl);
+
+	The function returns 1 in case of success,
+	and 0 in case of failure (bad arguments, or memory error)
+
+	The function may BUG_ON if used improperly (invalid arguments)
+
+	<list> is either user specified list used to store the
+	new subscription, or NULL if you want to store the subscription
+	in the process global list.
+
+	<list> is also asked when publishing an event,
+	so specifying list could be useful, if, for example,
+	you only want to subscribe to a specific subscription list
+	(see this as a scope for example, NULL being full scope,
+	and specific list being limited scope)
+
+	We will use server events as an example:
+
+	You could register to events for ALL servers by using the
+	global list (NULL), or only to a specific server events
+	by using the subscription list dedicated to a single server.
+
+	<event> are the events (family.subtypes) you're subscribing to
+
+	<hdl> contains required handler options, it must be provided using
+	EVENT_HDL_(TASK_)(A)SYNC() and EVENT_HDL_ID_(TASK_)(A)SYNC()
+	helper macros.
+
+	See include/haproxy/event_hdl.h or below to know which macro
+	best suits your needs.
+
+	When registering a handler, you have the ability to provide an
+	unique ID (using EVENT_HDL_ID_ macro family) that could be used
+	later to perform lookups on the subscription.
+	ID is stored as an uint64_t hash that is expected to be computed using
+	general purpose event_hdl_id inline function provided by event_hdl.h.
+	Not providing an ID (using EVENT_HDL_ macro family)
+	results in the subscription being considered as anonymous.
+	As the name implies, anonymous subscriptions don't support lookups.
+
+2.1 SYNC MODE
+---------------------
+
+Example, you want to register a sync handler that will be called when
+a new server is added.
+
+Here is what the handler function will look like:
+```
+void my_sync_handler(const struct event_hdl_cb *cb, void *private)
+{
+	const struct event_hdl_cb_data_server *server = cb->e_data;
+
+	/* using EVENT_HDL_ASSERT_SYNC is a good practice to ensure
+	 * that the function breaks if used in async mode
+	 * (because we will access unsafe data in this function that
+	 * is sync mode only)
+	 */
+	EVENT_HDL_ASSERT_SYNC(cb);
+	printf("I've been called for '%s', private = %p\n",
+	       event_hdl_sub_type_to_string(cb->e_type), private);
+	printf("server name is '%s'\n", server->safe.name);
+
+	/* here it is safe to use unsafe data */
+	printf("server ptr is '%p'\n", server->unsafe.ptr);
+
+	/* from here you have the possibility to manage the subscription
+	 * cb->sub_mgmt->unsub(cb->sub_mgmt);
+	 * // hdl will be removed from the subscription list
+	 */
+}
+```
+
+Here is how you perform the subscription:
+
+anonymous subscription:
+```
+	int private = 10;
+
+	event_hdl_subscribe(NULL, EVENT_HDL_SUB_SERVER_ADD,
+			    EVENT_HDL_SYNC(my_sync_handler, &private, NULL));
+```
+
+identified subscription:
+```
+	int private = 10;
+	uint64_t id = event_hdl_id("test", "sync");
+
+	event_hdl_subscribe(NULL, EVENT_HDL_SUB_SERVER_ADD,
+			    EVENT_HDL_ID_SYNC(id,
+					      my_sync_handler,
+					      &private,
+					      NULL));
+
+```
+
+identified subscription where freeing private is required when subscription ends:
+(also works for anonymous)
+(more on this feature in 2.3.4)
+```
+	int *private = malloc(sizeof(*private));
+	uint64_t id = event_hdl_id("test", "sync_free");
+
+	BUG_ON(!private);
+	*private = 10;
+
+	/* passing free as 'private_free' function so that
+	 * private can be freed when unregistering is performed
+	 */
+	event_hdl_subscribe(NULL, EVENT_HDL_SUB_SERVER_ADD,
+			    EVENT_HDL_ID_SYNC(id,
+					      my_sync_handler,
+					      private,
+					      free));
+
+
+	/* ... */
+
+	// unregistering the identified hdl
+	if (event_hdl_lookup_unsubscribe(NULL, id)) {
+		printf("private will automatically be freed!\n");
+	}
+```
+
+2.2 ASYNC MODE
+---------------------
+
+As mentioned before, async mode comes in 2 flavors, normal and task.
+
+2.2.1 NORMAL VERSION
+---------------------
+
+Normal is meant to be really easy to use, and highly compatible with sync mode.
+
+(Handler can easily be converted or copy pasted from async to sync mode
+and vice versa)
+
+Quick warning about sync to async handler conversion:
+
+please always use EVENT_HDL_ASSERT_SYNC whenever you develop a
+sync handler that performs unsafe data access.
+
+This way, if the handler were to be converted or copy pasted as is to
+async mode without removing unsafe data accesses,
+the handler will forcefully fail to indicate an error so that you
+know something has to be fixed in your handler code.
+
+Back to our async handler, let's say you want to declare an
+async handler that will be called when a new server is added.
+
+Here is what the handler function will look like:
+```
+void my_async_handler(const struct event_hdl_cb *cb, void *private)
+{
+	const struct event_hdl_cb_data_server *server = cb->e_data;
+
+	printf("I've been called for '%s', private = %p\n",
+	       event_hdl_sub_type_to_string(cb->e_type), private);
+	printf("server name is '%s'\n", server->safe.name);
+
+	/* here it is not safe to use unsafe data */
+
+	/* from here you have the possibility to manage the subscription
+	 * cb->sub_mgmt->unsub(cb->sub_mgmt);
+	 * // hdl will be removed from the subscription list
+	 */
+}
+```
+
+Note that it is pretty similar to sync handler, except
+for unsafe data access.
+
+Here is how you declare the subscription:
+
+anonymous subscription:
+```
+	int private = 10;
+
+	event_hdl_subscribe(NULL, EVENT_HDL_SUB_SERVER_ADD,
+			    EVENT_HDL_ASYNC(my_async_handler, &private, NULL));
+```
+
+identified subscription:
+```
+	int private = 10;
+	uint64_t id = event_hdl_id("test", "async");
+
+	event_hdl_subscribe(NULL, EVENT_HDL_SUB_SERVER_ADD,
+			    EVENT_HDL_ID_ASYNC(id,
+					       my_async_handler,
+					       &private,
+					       NULL));
+
+```
+
+identified subscription where freeing private is required when subscription ends:
+(also works for anonymous)
+```
+	int *private = malloc(sizeof(*private));
+	uint64_t id = event_hdl_id("test", "async_free");
+
+	BUG_ON(!private);
+	*private = 10;
+
+	/* passing free as 'private_free' function so that
+	 * private can be freed when unregistering is performed
+	 */
+	event_hdl_subscribe(NULL, EVENT_HDL_SUB_SERVER_ADD,
+			    EVENT_HDL_ID_ASYNC(id,
+					       my_async_handler,
+					       private,
+					       free));
+
+	/* ... */
+
+	// unregistering the identified hdl
+	if (event_hdl_lookup_unsubscribe(NULL, id)) {
+		printf("private will automatically be freed when "
+		       "all pending events referencing private "
+		       "are consumed!\n");
+	}
+```
+
+2.2.2 TASK VERSION
+---------------------
+
+task version requires a bit more setup, but it's pretty
+straightforward actually.
+
+
+First, you need to initialize an event queue that will be used
+by event_hdl facility to push you events according to your subscription:
+
+```
+	event_hdl_async_equeue my_q;
+
+	event_hdl_async_equeue_init(&my_q);
+```
+
+
+Then, you need to declare a tasklet (or reuse existing tasklet)
+
+It is your responsibility to make sure that the tasklet still exists
+(is not freed) when calling the subscribe function
+(and that the task remains valid as long as the subscription is).
+
+When a subscription referencing your task is over
+(either ended because of list purge, external code or from the handler itself),
+you will receive the EVENT_HDL_SUB_END event.
+When you receive this event, you must free it as usual and you can safely
+assume that the related subscription won't be sending you any more events.
+
+Here is what your task will look like (involving a single event queue):
+
+```
+struct task *event_hdl_async_task_my(struct task *task,
+                                     void *ctx, unsigned int state)
+{
+	struct tasklet *tl = (struct tasklet *)task;
+	event_hdl_async_equeue *queue = ctx;
+	struct event_hdl_async_event *event;
+	struct event_hdl_cb_data_server *srv;
+	uint8_t done = 0;
+
+	while ((event = event_hdl_async_equeue_pop(queue)))
+	{
+		if (event_hdl_sub_type_equal(event->type, EVENT_HDL_SUB_END)) {
+			done = 1;
+			event_hdl_async_free_event(event);
+			printf("no more events to come, "
+			       "subscription is over\n");
+			break;
+		}
+
+		srv = event->data;
+
+	        printf("task event %s, %d (name = %s)\n",
+		       event_hdl_sub_type_to_string(event->type),
+		       *((int *)event->private), srv->safe.name);
+		event_hdl_async_free_event(event);
+	}
+
+	if (done) {
+		/* our job is done, subscription is over:
+		 * no more events to come
+		 */
+		tasklet_free(tl);
+		return NULL;
+	}
+	return task;
+}
+
+```
+
+Here is how we would initialize the task event_hdl_async_task_my:
+```
+	struct tasklet *my_task;
+
+	my_task = tasklet_new();
+	BUG_ON(!my_task);
+	my_task->context = &my_q; // we declared my_q previously in this example
+	/* we declared event_hdl_async_task_my previously
+	 * in this example
+	 */
+	my_task->process = event_hdl_async_task_my;
+
+```
+
+Given our task and our previously initialized event queue, here is how
+to perform the subscription:
+```
+	int test_val = 11;
+	uint64_t id = event_hdl_id("test", "my_task");
+
+	/* anonymous variant */
+	event_hdl_subscribe(NULL, EVENT_HDL_SUB_SERVER_ADD,
+			    EVENT_HDL_ASYNC_TASK(&my_q,
+						 my_task,
+						 &test_val,
+						 NULL));
+	/* identified variant */
+	event_hdl_subscribe(NULL, EVENT_HDL_SUB_SERVER_ADD,
+			    EVENT_HDL_ID_ASYNC_TASK(id,
+						    &my_q,
+						    my_task,
+						    &test_val,
+						    NULL));
+```
+
+Note:  it is not recommended to perform multiple subscriptions
+       that share the same event queue or same tasklet (or both)
+
+       That is, having more than one subscription waking a tasklet
+       and/or feeding the same event queue.
+
+       No check is performed on this when registering, so the API
+       won't prevent you from doing it.
+
+       If you are going to do this anyway despite this warning:
+
+       In the case you need to stop the task prematurely
+	(if this is not going to happen please skip this paragraph):
+		You are responsible for acknowledging the end of every
+		active subscriptions that refer to your task or
+		your event queue(s).
+		And you really don't want a subscription associated with
+		your task or event queue to keep going when the task
+		is not active anymore because:
+			1: there will be memory leak
+			   (event queue might continue to receive new events)
+			2: there is a 100% chance of process crash in case of event
+			   because we will try to wake a task (your task)
+			   that might already be freed. Thus UAF will occur.
+
+2.3 ADVANCED FEATURES
+-----------------------
+
+We've already covered some of these features in the previous examples.
+Here is a documented recap.
+
+
+2.3.1 SUB MGMT
+-----------------------
+
+From an event handler context, either sync or async mode:
+	You have the ability to directly manage the subscription
+	that provided the event.
+
+As of today, these actions are supported:
+	- Consulting the subscription.
+	- Modifying the subscription (resubscribing within same family)
+	- Unregistering the subscription (unsubscribing).
+
+To do this, consider the following structure:
+```
+	struct event_hdl_sub_mgmt
+	{
+		/* manage subscriptions from event
+		 * this must not be used directly because
+		 * locking might be required
+		 */
+		struct event_hdl_sub *this;
+		/* safe functions than can be used from
+		 * event context (sync and async mode)
+		 */
+		struct event_hdl_sub_type (*getsub)(const struct event_hdl_sub_mgmt *);
+		int (*resub)(const struct event_hdl_sub_mgmt *, struct event_hdl_sub_type);
+		void (*unsub)(const struct event_hdl_sub_mgmt *);
+	};
+
+```
+A reference to this structure is provided in every handler mode.
+
+Sync mode and normal async mode (directly from the callback data pointer):
+```
+	const struct event_hdl_cb *cb;
+	// cb->sub_mgmt
+	// cb->sub_mgmt->getsub(cb->sub_mgmt);
+	// cb->sub_mgmt->unsub(cb->sub_mgmt);
+```
+
+task and notify async modes (from the event):
+```
+	struct event_hdl_async_event *event;
+	// event->sub_mgmt
+	// event->sub_mgmt.getsub(&event->sub_mgmt);
+	// event->sub_mgmt.unsub(&event->sub_mgmt);
+```
+
+2.3.2 SUBSCRIPTION EXTERNAL LOOKUPS
+-----------------------
+
+As you've seen in 2.3.1, managing the subscription directly
+from the handler is a possibility.
+
+But for identified subscriptions, you also have the ability to
+perform lookups and management operations on specific subscriptions
+within a list based on their ID, anywhere in the code.
+
+/!\ This feature is not available for anonymous subscriptions /!\
+
+Here are the actions already supported:
+
+	- unregistering a subscription (unsubscribing)
+	- updating a subscription (resubscribing within same family)
+	- getting a ptr/reference to the subscription
+
+Those functions are documented in event_hdl.h
+(search for EVENT_HDL_LOOKUP section).
+
+To select a specific subscription, you must provide
+the unique identifier (uint64_t hash) that was provided when subscribing.
+(using event_hdl_id(scope, name) function)
+
+Notes:
+	"id" is only unique within a given subscription list.
+
+	When using event_hdl_id to provide the id:
+		It is your responsibility to make sure that you "own"
+		the scope if you rely on name to be "free".
+
+		As ID computation is backed by xxhash hash API,
+		you should be aware that hash collisions could occur,
+		but are extremely rare and are thus considered safe
+		enough for this usage.
+		(see event_hdl.h for implementation details)
+
+		Please consider ptr based subscription management if
+		these limitations don't fit your requirements.
+
+Here are some examples:
+
+unsubscribing:
+```
+	/* registering "scope":"name" subscription */
+	event_hdl_subscribe(NULL, EVENT_HDL_SUB_SERVER_ADD,
+	  EVENT_HDL_ID_SYNC(event_hdl_id("scope", "name"),
+			    my_sync_handler,
+			    NULL,
+			    NULL));
+	/* unregistering "scope":"name" subscription */
+	event_hdl_lookup_unsubscribe(NULL, event_hdl_id("scope", "name"));
+```
+
+2.3.3 SUBSCRIPTION PTR
+-----------------------
+
+To manage existing subscriptions from external code,
+we already talked about identified subscriptions that
+allow lookups within list.
+
+But there is another way to accomplish this.
+
+When subscribing, you can use the event_hdl_subscribe_ptr() function
+variant (same arguments as event_hdl_subscribe()).
+
+What this function does, is instead of returning 1 in case of
+success and 0 in case of failure: it returns a valid subscription ptr
+for success and NULL for failure.
+
+Returned ptr is guaranteed to remain valid even if subscription
+is ended meanwhile because the ptr is internally guarded with a refcount.
+
+Thus, as long as you don't explicitly unregister the subscription with
+event_hdl_unsubscribe() or drop the reference using event_hdl_drop(),
+subscription ptr won't be freed.
+
+This ptr will allow you to use the following subscription
+management functions from external code:
+
+	- event_hdl_take() to increment subscription ptr refcount
+	(automatically incremented when using event_hdl_subscribe_ptr)
+	- event_hdl_drop() to decrement subscription ptr refcount
+	- event_hdl_resubscribe() to modify subscription subtype
+	- event_hdl_unsubscribe() to end the subscription
+	(refcount will be automatically decremented)
+
+Here is an example:
+```
+	struct event_hdl_sub *sub_ptr;
+
+	/* registering a subscription with subscribe_ptr */
+	sub_ptr = event_hdl_subscribe_ptr(NULL, EVENT_HDL_SUB_SERVER_ADD,
+			    EVENT_HDL_SYNC(my_sync_handler,
+					   NULL,
+					   NULL));
+
+	/* ... */
+
+	/* unregistering the subscription */
+	event_hdl_unsubscribe(sub_ptr);
+```
+
+Regarding identified subscriptions that were registered using the non ptr
+subscribe function:
+
+You still have the ability to get a reference to the related subscription
+(if it still exists), by using event_hdl_lookup_take(list, id) function.
+event_hdl_lookup_take will return a subscription ptr in case of success
+and NULL in case of failure.
+Returned ptr reference is automatically incremented, so it is safe to use.
+
+Please don't forget to drop the reference
+when holding the ptr is no longer needed.
+
+Example:
+```
+	struct event_hdl_sub *sub_ptr = NULL;
+
+	/* registering subscription id "test":"ptr" with normal subscribe */
+	if (event_hdl_subscribe(NULL, EVENT_HDL_SUB_SERVER_ADD,
+	    EVENT_HDL_ID_SYNC(event_hdl_id("test", "ptr"),
+			      my_sync_handler,
+			      NULL,
+			      NULL))) {
+		/* fetch ref to subscription "test":"ptr" */
+		sub_ptr = event_hdl_lookup_take(NULL,
+						event_hdl_id("test", "ptr"));
+
+		/* unregister the subscription using lookup */
+		event_hdl_lookup_unsubscribe(NULL,
+					     event_hdl_id("test", "ptr"));
+	}
+
+	/* ... */
+
+	/* unregistering the subscription with ptr
+	 * will do nothing because subscription was
+	 * already ended by lookup_unsubscribe, but
+	 * here the catch is that sub_ptr is still
+	 * valid so this won't crash the program
+	 */
+	if (sub_ptr) {
+		event_hdl_unsubscribe(sub_ptr);
+		/* unsubscribe will also result in subscription
+		 * reference drop, thus subscription will be freed here
+		 * because sub_ptr was the last active reference.
+		 * You must not use sub_ptr anymore past this point
+		 * or UAF could occur
+		 */
+	}
+
+```
+
+2.3.4 PRIVATE FREE
+-----------------------
+
+Upon handler subscription, you have the ability to provide
+a private data pointer that will be passed to the handler
+when subscribed events occur.
+
+Sometimes this private data pointer will rely on dynamically allocated memory.
+And in such cases, you have no way of knowing when
+freeing this pointer can be done safely.
+
+You could be tempted to think that freeing right after performing
+the unsubscription could be safe.
+But this is not the case, remember we could be dealing with async handlers
+that might still consume pending events even though unsubscription
+has been performed from external code.
+
+To deal with this, you may want to provide the private_free
+function pointer upon subscription.
+This way, private_free function will automatically be called
+(with private as argument) when private is no longer be used.
+
+Example:
+First we declare our private free function:
+```
+void my_private_free(void *my_private_data) {
+	/* here we only call free,
+	 * but you could do more sophisticated stuff
+	 */
+	free(my_private_data);
+}
+```
+Then:
+```
+	char *my_private_data = strdup("this string needs to be freed");
+
+	BUG_ON(!my_private_data);
+
+	event_hdl_subscribe(NULL, EVENT_HDL_SUB_SERVER_DEL,
+	    EVENT_HDL_ID_ASYNC(event_hdl_id("test", "private"),
+			       my_async_handler,
+			       my_private_data,
+			       my_private_free));
+
+	/* freeing my_private_data is not required anymore,
+	 * it will be automatically freed by our private free
+	 * function when subscription ends
+	 */
+
+	/* unregistering "test":"private" subscription */
+	event_hdl_lookup_unsubscribe(NULL, event_hdl_id("test", "private"));
+
+	/* my_private_free will be automatically summoned when my_private_data
+	 * is not referenced anymore
+	 */
+```
+
+3 HOW TO ADD SUPPORT FOR NEW EVENTS
+-----------------------
+
+Adding support for a new event is pretty straightforward.
+
+First, you need to declare a new event subtype in event_hdl-t.h file
+(bottom of the file).
+
+You might want to declare a whole new event family, in which case
+you declare both the new family and the associated subtypes (if any).
+
+```
+	#define EVENT_HDL_SUB_NEW_FAMILY                EVENT_HDL_SUB_FAMILY(4)
+	#define EVENT_HDL_SUB_NEW_FAMILY_SUBTYPE_1      EVENT_HDL_SUB_TYPE(4,0)
+```
+
+Then, you need to update the event_hdl_sub_type_map map,
+defined in src/event_hdl.c file (top of the file)
+to add string to event type and event type to string conversion support.
+You just need to add the missing entries corresponding to
+the event family / subtypes you've defined.
+
+Please follow this procedure:
+	You only added a new subtype to existing family: go to section 3.2
+	You added a new family: go to section 3.1
+
+3.1 DECLARING A NEW EVENT DATA STRUCTURE
+-----------------------
+
+You have the ability to provide additional data for a given
+event family when such events occur.
+
+Note that it is not mandatory: you could simply declare a new event family
+that does not provide any data.
+If this is your case, you can skip this section and go to 3.2 section.
+
+Now, take a look at this event data structure template
+(also defined at the top of event_hdl-t.h file):
+```
+	/* event data struct are defined as followed */
+	struct event_hdl_cb_data_template {
+		struct {
+			/* safe data can be safely used from both
+			 * sync and async functions
+			 * data consistency is guaranteed
+			 */
+		} safe;
+		struct {
+			/* unsafe data may only be used from sync functions:
+			 * in async mode, data consistency cannot be guaranteed
+			 * and unsafe data may already be stale, thus using
+			 * it is highly discouraged because it
+			 * could lead to undefined behavior
+			 * (UAF, null dereference...)
+			 */
+		} unsafe;
+	};
+```
+
+This structure template allows you to easily create a new event
+data structure that can be provided with your new event family.
+
+You should name it after 'struct event_hdl_cb_data_new_family' so that it is
+easy to guess the event family it relates to.
+
+Indeed, each event data structure is to be associated with an
+unique event family type.
+For each subtypes within a family type, the associated data structure
+should be provided when publishing the event.
+
+The event data struct declaration should not be performed
+directly under event_hdl-t.h file:
+
+	It should be done in the header files of the corresponding
+	facility that will publish/provide this event.
+
+	Example: struct event_hdl_cb_data_server, provided for the
+	EVENT_HDL_SUB_SERVER event family, is going to be declared in
+	include/haproxy/server-t.h file.
+
+	However, in event_hdl-t.h, where you declare event family/subtypes,
+	you should add comments or links to the file containing the relevant
+	data struct declaration. This way we make sure all events related
+	information is centralized in event_hdl-t.h while keeping it clean
+	and not depending on any additional includes (you are free to
+	depend on specific data types within your custom event data structure).
+
+Please make sure that EVENT_HDL_ASYNC_EVENT_DATA (defined in event_hdl-t.h)
+is greater than sizeof(event_hdl_cb_data_new_family).
+
+It is required for async handlers to properly consume event data.
+
+You are free to adjust EVENT_HDL_ASYNC_EVENT_DATA size if needed.
+
+If EVENT_HDL_ASYNC_EVENT_DATA is not big enough to store your new
+event family struct, a compilation assert triggered by EVENT_HDL_CB_DATA
+will occur. In addition to this, an extra runtime BUG_ON will make
+sure the condition is met when publishing the event.
+The goal here is to force haproxy to fail explicitely so you know that
+something must be done on your side.
+
+3.1 PUBLISHING AN EVENT
+-----------------------
+
+Publishing an event is really simple.
+It relies on the event_hdl_publish function.
+
+The function is defined as follow:
+```
+	int event_hdl_publish(event_hdl_sub_list *sub_list,
+	                      event_hdl_sub_type e_type,
+	                      const struct event_hdl_cb_data *data);
+```
+
+We will ignore sub_list argument for now.
+In the examples below, we will use sub_list = NULL.
+Go to section 4 for a full picture about this feature.
+
+<e_type>: the event type that should be published.
+	  All subscriptions referring to this event within
+	  a subscription list context will be notified about the event.
+<data>:	  data provided for the event family of <e_type>
+	  If <e_type>.family does not provide additional data,
+		data should be set to NULL.
+	  If <e_type>.family does provide additional data, data should be set
+		  using EVENT_HDL_CB_DATA macro.
+		  (see the example below)
+
+The function returns 1 in case of SUCCESS (handlers successfully notified)
+and 0 in case of FAILURE (no handlers notified, because of memory error).
+
+Event publishing can be performed from anywhere in the code.
+(this example does not compile)
+```
+	struct event_hdl_cb_data_new_family event_data;
+
+	/* first we need to prepare event data
+	 * that will be provided to event handlers
+	 */
+
+	/* safe data, available from both sync and async contexts */
+	event_data.safe.my_custom_data = x;
+
+	/* unsafe data, only available from sync contexts */
+	event_data.unsafe.my_unsafe_data = y;
+
+	/* once data is prepared, we can publish the event */
+	event_hdl_publish(NULL,
+			  EVENT_HDL_SUB_NEW_FAMILY_SUBTYPE_1,
+			  EVENT_HDL_CB_DATA(&event_data));
+
+	/* EVENT_HDL_SUB_NEW_FAMILY_SUBTYPE_1 event was
+	 * successfully published in global subscription list
+	 */
+```
+
+--------------------------------------------------------------------------------
+|You should know that there is currently a limitation about publish function:  |
+|The function should not be used from critical places                          |
+|(where the calling frequency is high                                          |
+|or where timing sensitivity is high).                                         |
+|                                                                              |
+|Because in current implementation, subscription list lookups are not          |
+|optimized for such uses cases.                                                |
+--------------------------------------------------------------------------------
+
+4 SUBSCRIPTION LISTS
+-----------------------
+
+As you may already know, EVENT_HDL API main functions rely on
+subscription lists.
+Providing NULL where subscription list argument is required
+allows to use the implicit global subscription list.
+
+But you can also provide a specific subscription list, example:
+	subscription list associated with a single entity so that you only
+	subscribe to events of this single entity
+
+A subscription list is of type event_hdl_sub_list.
+It is defined in event_hdl-t.h
+
+To make use of this feature, you should know about these 2 functions:
+
+event_hdl_sub_list_init(list): use this fcn to initialize
+			       a new subscription list.
+
+Example:
+```
+	event_hdl_sub_list my_custom_list;
+
+	event_hdl_sub_list_init(&my_custom_list);
+```
+
+event_hdl_sub_list_destroy(list): use this fcn to destroy
+				  an existing subscription list.
+
+Example:
+```
+	event_hdl_sub_list_init(&my_custom_list);
+```
+
+	Using this function will cause all the existing subscriptions
+	within the provided sub_list to be properly unregistered
+	and deleted according to their types.
+
+Now we'll take another quick look at event_hdl_publish() function:
+
+Remember that the function is defined as follow:
+```
+	int event_hdl_publish(event_hdl_sub_list *sub_list,
+	                      event_hdl_sub_type e_type,
+	                      const struct event_hdl_cb_data *data);
+```
+
+In the previous examples, we used sub_list = NULL.
+
+if sub_list is NULL:
+	event will be published in in global list
+else
+	event will be published in user specified sub_list
+
+5 MISC/HELPER FUNCTIONS
+-----------------------
+
+Don't forget to take a look at MISC/HELPER FUNCTIONS in
+include/haproxy/event_hdl.h (end of the file) for a
+complete list of helper functions / macros.
+
+We've already used some, if not the vast majority
+in the examples shown in this document.
+
+This includes, to name a few:
+	- event types manipulation
+	- event types comparison
+	- lookup id computing
+	- subscriber list management (covered in section 4)
+	- sync/async handler helpers
