@@ -954,6 +954,12 @@ int cfg_parse_ring(const char *file, int linenum, char **args, int kwm)
 		cfg_sink->ctx.ring = ring_make_from_area(area, size);
 	}
 	else if (strcmp(args[0],"server") == 0) {
+		if (!cfg_sink || (cfg_sink->type != SINK_TYPE_BUFFER)) {
+			ha_alert("parsing [%s:%d] : unable to create server '%s'.\n", file, linenum, args[1]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto err;
+		}
+
 		err_code |= parse_server(file, linenum, args, cfg_sink->forward_px, NULL,
 		                         SRV_PARSE_PARSE_ADDR|SRV_PARSE_INITIAL_RESOLVE);
 	}
