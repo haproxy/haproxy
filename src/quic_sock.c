@@ -22,6 +22,7 @@
 #include <haproxy/api.h>
 #include <haproxy/buf.h>
 #include <haproxy/connection.h>
+#include <haproxy/dynbuf.h>
 #include <haproxy/fd.h>
 #include <haproxy/freq_ctr.h>
 #include <haproxy/global-t.h>
@@ -487,84 +488,14 @@ void quic_lstnr_sock_fd_iocb(int fd)
 /* FD-owned quic-conn socket callback. */
 static void quic_conn_sock_fd_iocb(int fd)
 {
-	struct quic_conn *qc;
+	struct quic_conn *qc = fdtab[fd].owner;
 
-	struct sockaddr_storage saddr = {0}, daddr = {0};
-	struct quic_receiver_buf *rxbuf;
-	struct quic_transport_params *params;
-	struct quic_dgram *new_dgram;
-	struct buffer *buf;
-	size_t max_sz;
-	size_t cspace;
-	unsigned char *dgram_buf;
-	struct listener *l;
-	ssize_t ret = 0;
-
-	qc = fdtab[fd].owner;
-	l = qc->li;
 	TRACE_ENTER(QUIC_EV_CONN_RCV, qc);
 
-	new_dgram = NULL;
-	rxbuf = MT_LIST_POP(&l->rx.rxbuf_list, typeof(rxbuf), rxbuf_el);
-	if (!rxbuf)
-		return;
+	tasklet_wakeup_after(NULL, qc->wait_event.tasklet);
+	fd_stop_recv(fd);
 
-	buf = &rxbuf->buf;
-	new_dgram = quic_rxbuf_purge_dgrams(rxbuf);
-
-	params = &l->bind_conf->quic_params;
-	max_sz = params->max_udp_payload_size;
-	cspace = b_contig_space(buf);
-	if (cspace < max_sz) {
-		struct quic_dgram *dgram;
-
-		/* Do no mark <buf> as full, and do not try to consume it
-		 * if the contiguous remaining space is not at the end
-		 */
-		if (b_tail(buf) + cspace < b_wrap(buf))
-			goto end;
-
-		/* Allocate a fake datagram, without data to locate
-		 * the end of the RX buffer (required during purging).
-		 */
-		dgram = pool_alloc(pool_head_quic_dgram);
-		if (!dgram)
-			goto end;
-
-		/* Initialize only the useful members of this fake datagram. */
-		dgram->buf = NULL;
-		dgram->len = cspace;
-		/* Append this datagram only to the RX buffer list. It will
-		 * not be treated by any datagram handler.
-		 */
-		LIST_APPEND(&rxbuf->dgram_list, &dgram->recv_list);
-
-		/* Consume the remaining space */
-		b_add(buf, cspace);
-		if (b_contig_space(buf) < max_sz)
-			goto end;
-	}
-
-	dgram_buf = (unsigned char *)b_tail(buf);
-	ret = quic_recv(qc->fd, dgram_buf, max_sz,
-	                (struct sockaddr *)&saddr, sizeof(saddr),
-	                (struct sockaddr *)&daddr, sizeof(daddr),
-	                get_net_port(&qc->local_addr));
-	if (ret <= 0)
-		goto end;
-
-	b_add(buf, ret);
-	if (!quic_lstnr_dgram_dispatch(dgram_buf, ret, l, &qc->peer_addr, &qc->local_addr,
-	                               new_dgram, &rxbuf->dgram_list)) {
-	        b_del(buf, ret);
-	}
-	new_dgram = NULL;
-
- end:
-	pool_free(pool_head_quic_dgram, new_dgram);
-	MT_LIST_APPEND(&l->rx.rxbuf_list, &rxbuf->rxbuf_el);
 	TRACE_LEAVE(QUIC_EV_CONN_RCV, qc);
-	return;
 }
 
 /* Send a datagram stored into <buf> buffer with <sz> as size.
@@ -625,6 +556,96 @@ int qc_snd_buf(struct quic_conn *qc, const struct buffer *buf, size_t sz,
 	update_freq_ctr(&global.out_32bps, (ret + 16) / 32);
 
 	return 0;
+}
+
+/* Receive datagram on <qc> FD-owned socket.
+ *
+ * Returns the total number of bytes read or a negative value on error.
+ */
+int qc_rcv_buf(struct quic_conn *qc)
+{
+	struct sockaddr_storage saddr = {0}, daddr = {0};
+	struct quic_transport_params *params;
+	struct quic_dgram *new_dgram = NULL;
+	struct buffer buf = BUF_NULL;
+	size_t max_sz;
+	unsigned char *dgram_buf;
+	struct listener *l;
+	ssize_t ret = 0;
+
+	/* Do not call this if quic-conn FD is uninitialized. */
+	BUG_ON(qc->fd < 0);
+
+	TRACE_ENTER(QUIC_EV_CONN_RCV, qc);
+	l = qc->li;
+
+	params = &l->bind_conf->quic_params;
+	max_sz = params->max_udp_payload_size;
+
+	do {
+		if (!b_alloc(&buf))
+			break; /* TODO subscribe for memory again available. */
+
+		b_reset(&buf);
+		BUG_ON(b_contig_space(&buf) < max_sz);
+
+		/* Allocate datagram on first loop or after requeuing. */
+		if (!new_dgram && !(new_dgram = pool_alloc(pool_head_quic_dgram)))
+			break; /* TODO subscribe for memory again available. */
+
+		dgram_buf = (unsigned char *)b_tail(&buf);
+		ret = quic_recv(qc->fd, dgram_buf, max_sz,
+		                (struct sockaddr *)&saddr, sizeof(saddr),
+		                (struct sockaddr *)&daddr, sizeof(daddr),
+		                get_net_port(&qc->local_addr));
+		if (ret <= 0) {
+			/* Subscribe FD for future reception. */
+			fd_want_recv(qc->fd);
+			break;
+		}
+
+		b_add(&buf, ret);
+
+		new_dgram->buf = dgram_buf;
+		new_dgram->len = ret;
+		new_dgram->dcid_len = 0;
+		new_dgram->dcid = NULL;
+		new_dgram->saddr = saddr;
+		new_dgram->daddr = daddr;
+		new_dgram->qc = NULL;  /* set later via quic_dgram_parse() */
+
+		TRACE_DEVEL("read datagram", QUIC_EV_CONN_RCV, qc, new_dgram);
+
+		if (!quic_get_dgram_dcid(new_dgram->buf,
+		                         new_dgram->buf + new_dgram->len,
+		                         &new_dgram->dcid, &new_dgram->dcid_len)) {
+			continue;
+		}
+
+		if (!qc_check_dcid(qc, new_dgram->dcid, new_dgram->dcid_len)) {
+			/* Datagram received by error on the connection FD, dispatch it
+			 * to its associated quic-conn.
+			 *
+			 * TODO count redispatch datagrams.
+			 */
+			TRACE_STATE("wrong datagram on quic-conn socket, prepare to requeue it", QUIC_EV_CONN_RCV, qc);
+			ABORT_NOW();
+		}
+
+		quic_dgram_parse(new_dgram, qc, qc->li);
+		/* A datagram must always be consumed after quic_parse_dgram(). */
+		BUG_ON(new_dgram->buf);
+	} while (ret > 0);
+
+	pool_free(pool_head_quic_dgram, new_dgram);
+
+	if (b_size(&buf)) {
+		b_free(&buf);
+		offer_buffers(NULL, 1);
+	}
+
+	TRACE_LEAVE(QUIC_EV_CONN_RCV, qc);
+	return ret;
 }
 
 /* Allocate a socket file-descriptor specific for QUIC connection <qc>.

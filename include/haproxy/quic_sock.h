@@ -45,6 +45,7 @@ struct task *quic_lstnr_dghdlr(struct task *t, void *ctx, unsigned int state);
 void quic_lstnr_sock_fd_iocb(int fd);
 int qc_snd_buf(struct quic_conn *qc, const struct buffer *buf, size_t count,
                int flags);
+int qc_rcv_buf(struct quic_conn *qc);
 
 /* Set default value for <qc> socket as uninitialized. */
 static inline void qc_init_fd(struct quic_conn *qc)

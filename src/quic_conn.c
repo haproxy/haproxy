@@ -4310,6 +4310,9 @@ struct task *quic_conn_app_io_cb(struct task *t, void *context, unsigned int sta
 	TRACE_ENTER(QUIC_EV_CONN_IO_CB, qc);
 	TRACE_STATE("connection handshake state", QUIC_EV_CONN_IO_CB, qc, &qc->state);
 
+	if (qc_test_fd(qc))
+		qc_rcv_buf(qc);
+
 	/* Retranmissions */
 	if (qc->flags & QUIC_FL_CONN_RETRANS_NEEDED) {
 		TRACE_STATE("retransmission needed", QUIC_EV_CONN_IO_CB, qc);
@@ -4393,7 +4396,10 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 	zero_rtt = st < QUIC_HS_ST_COMPLETE &&
 		quic_tls_has_rx_sec(eqel) &&
 		(!LIST_ISEMPTY(&eqel->rx.pqpkts) || qc_el_rx_pkts(eqel));
- start:
+
+	if (qc_test_fd(qc))
+		qc_rcv_buf(qc);
+
 	if (st >= QUIC_HS_ST_COMPLETE &&
 	    qc_el_rx_pkts(&qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE])) {
 		TRACE_DEVEL("remaining Handshake packets", QUIC_EV_CONN_PHPKTS, qc);
@@ -7420,6 +7426,37 @@ int quic_dgram_parse(struct quic_dgram *dgram, struct quic_conn *from_qc,
  err:
 	TRACE_LEAVE(QUIC_EV_CONN_LPKT);
 	return -1;
+}
+
+/* Check if connection ID <dcid> of length <dcid_len> belongs to <qc> local
+ * CIDs. This can be used to determine if a datagram is addressed to the right
+ * connection instance.
+ *
+ * Returns a boolean value.
+ */
+int qc_check_dcid(struct quic_conn *qc, unsigned char *dcid, size_t dcid_len)
+{
+	struct ebmb_node *node;
+	struct quic_connection_id *id;
+
+	/* For ODCID, address is concatenated to it after qc.odcid.len so this
+	 * comparison is safe.
+	 */
+	if ((qc->scid.len == dcid_len &&
+	     memcmp(qc->scid.data, dcid, dcid_len) == 0) ||
+	    (qc->odcid.len == dcid_len &&
+	     memcmp(qc->odcid.data, dcid, dcid_len)) == 0) {
+		return 1;
+	}
+
+	node = ebmb_lookup(&quic_dghdlrs[tid].cids, dcid, dcid_len);
+	if (node) {
+		id = ebmb_entry(node, struct quic_connection_id, node);
+		if (qc == id->qc)
+			return 1;
+	}
+
+	return 0;
 }
 
 /* Retrieve the DCID from a QUIC datagram or packet with <buf> as first octet.
