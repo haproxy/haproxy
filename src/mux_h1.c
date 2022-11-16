@@ -2292,7 +2292,7 @@ static size_t h1_process_mux(struct h1c *h1c, struct buffer *buf, size_t count)
 					/* EOM flag is set or empty payload (C-L to 0) and it is the last block */
 					if (htx_is_unique_blk(chn_htx, blk) &&
 					    ((chn_htx->flags & HTX_FL_EOM) || ((h1m->flags & H1_MF_CLEN) && !h1m->curr_len))) {
-						if (h1m->flags & H1_MF_CHNK) {
+						if ((h1m->flags & H1_MF_CHNK) && !(h1s->flags & H1S_F_BODYLESS_RESP)) {
 							if (!chunk_memcat(&tmp, "\r\n0\r\n\r\n", 7))
 								goto full;
 						}
