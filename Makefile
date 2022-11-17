@@ -123,12 +123,7 @@
 #   VTEST_PROGRAM  : location of the vtest program to run reg-tests.
 #   DEBUG_USE_ABORT: use abort() for program termination, see include/haproxy/bug.h for details
 
-# verbosity: pass V=1 for verbose shell invocation
-V = 0
-Q = @
-ifeq ($V,1)
-Q=
-endif
+include include/make/verbose.mk
 
 # WARNING: Do not change cc-opt, cc-opt-alt or cc-warning without checking if
 #          clang bug #49364 is fixed. stderr is redirected to /dev/null on
@@ -864,24 +859,6 @@ endif
 # These options are added at the end of the "ld" command line. Use LDFLAGS to
 # add options at the beginning of the "ld" command line if needed.
 LDOPTS = $(TARGET_LDFLAGS) $(OPTIONS_LDFLAGS) $(ADDLIB)
-
-ifeq ($V,1)
-cmd_CC = $(CC)
-cmd_LD = $(LD)
-cmd_AR = $(AR)
-else
-ifeq (3.81,$(firstword $(sort $(MAKE_VERSION) 3.81)))
-# 3.81 or above
-cmd_CC = $(info $   CC      $@) $(Q)$(CC)
-cmd_LD = $(info $   LD      $@) $(Q)$(LD)
-cmd_AR = $(info $   AR      $@) $(Q)$(AR)
-else
-# 3.80 or older
-cmd_CC = $(Q)echo "  CC      $@";$(CC)
-cmd_LD = $(Q)echo "  LD      $@";$(LD)
-cmd_AR = $(Q)echo "  AR      $@";$(AR)
-endif
-endif
 
 ifeq ($(TARGET),)
 all:
