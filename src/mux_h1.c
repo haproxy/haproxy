@@ -2981,7 +2981,6 @@ static int h1_process(struct h1c * h1c)
 		h1_release_buf(h1c, &h1s->rxbuf);
 		h1_set_idle_expiration(h1c);
 
-	  no_parsing:
 		if (h1s->flags & H1S_F_INTERNAL_ERROR) {
 			h1_handle_internal_err(h1c);
 			h1c->flags &= ~H1C_F_WAIT_NEXT_REQ;
@@ -3003,6 +3002,7 @@ static int h1_process(struct h1c * h1c)
 		}
 	}
 
+  no_parsing:
 	h1_send(h1c);
 
 	/* H1 connection must be released ASAP if:
