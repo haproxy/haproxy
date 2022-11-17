@@ -4478,6 +4478,8 @@ void quic_cstream_free(struct quic_cstream *cs)
 		return;
 	}
 
+	quic_free_ncbuf(&cs->rx.ncbuf);
+
 	qc_stream_desc_release(cs->desc);
 	pool_free(pool_head_quic_cstream, cs);
 }
