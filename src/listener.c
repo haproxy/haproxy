@@ -1301,7 +1301,6 @@ struct task *manage_global_listener_queue(struct task *t, void *context, unsigne
 	HA_RWLOCK_WRLOCK(LISTENER_LOCK, &global_listener_rwlock);
 	t->expire = TICK_ETERNITY;
 	HA_RWLOCK_WRUNLOCK(LISTENER_LOCK, &global_listener_rwlock);
-	task_queue(t);
 	return t;
 }
 
