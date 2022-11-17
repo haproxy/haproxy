@@ -264,6 +264,7 @@ struct server {
 	int slowstart;				/* slowstart time in seconds (ms in the conf) */
 
 	char *id;				/* just for identification */
+	uint32_t rid;				/* revision: if id has been reused for a new server, rid won't match */
 	unsigned iweight,uweight, cur_eweight;	/* initial weight, user-specified weight, and effective weight */
 	unsigned wscore;			/* weight score, used during srv map computation */
 	unsigned next_eweight;			/* next pending eweight to commit */

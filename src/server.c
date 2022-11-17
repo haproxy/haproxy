@@ -72,6 +72,31 @@ struct eb_root idle_conn_srv = EB_ROOT;
 struct task *idle_conn_task __read_mostly = NULL;
 struct list servers_list = LIST_HEAD_INIT(servers_list);
 
+/* SERVER DELETE(n)->ADD global tracker:
+ * This is meant to provide srv->rid (revision id) value.
+ * Revision id allows to differentiate between a previously existing
+ * deleted server and a new server reusing deleted server name/id.
+ *
+ * start value is 0 (even value)
+ * LSB is used to specify that one or multiple srv delete in a row
+ * were performed.
+ * When adding a new server, increment by 1 if current
+ * value is odd (odd = LSB set),
+ * because adding a new server after one or
+ * multiple deletions means we could potentially be reusing old names:
+ * Increase the revision id to prevent mixups between old and new names.
+ *
+ * srv->rid is calculated from cnt even values only.
+ * sizeof(srv_id_reuse_cnt) must be twice sizeof(srv->rid)
+ *
+ * Wraparound is expected and should not cause issues
+ * (with current design we allow up to 4 billion unique revisions)
+ *
+ * Counter is only used under thread_isolate (cli_add/cli_del),
+ * no need for atomic ops.
+ */
+static uint64_t srv_id_reuse_cnt = 0;
+
 /* The server names dictionary */
 struct dict server_key_dict = {
 	.name = "server keys",
@@ -2635,6 +2660,9 @@ static int _srv_parse_init(struct server **srv, char **args, int *cur_arg,
 		else
 			newsrv->tmpl_info.prefix = strdup(args[1]);
 
+		/* revision defaults to 0 */
+		newsrv->rid = 0;
+
 		/* several ways to check the port component :
 		 *  - IP    => port=+0, relative (IPv4 only)
 		 *  - IP:   => port=+0, relative
@@ -4854,6 +4882,17 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 	if (srv->addr_node.key)
 		ebis_insert(&be->used_server_addr, &srv->addr_node);
 
+	/* check if LSB bit (odd bit) is set for reuse_cnt */
+	if (srv_id_reuse_cnt & 1) {
+		/* cnt must be increased */
+		srv_id_reuse_cnt++;
+	}
+	/* srv_id_reuse_cnt is always even at this stage, divide by 2 to
+	 * save some space
+	 * (sizeof(srv->rid) is half of sizeof(srv_id_reuse_cnt))
+	 */
+	srv->rid = (srv_id_reuse_cnt) ? (srv_id_reuse_cnt / 2) : 0;
+
 	thread_release();
 
 	/* Start the check task. The server must be fully initialized.
@@ -5021,6 +5060,9 @@ static int cli_parse_delete_server(char **args, char *payload, struct appctx *ap
 
 	/* remove srv from idle_node tree for idle conn cleanup */
 	eb32_delete(&srv->idle_node);
+
+	/* set LSB bit (odd bit) for reuse_cnt */
+	srv_id_reuse_cnt |= 1;
 
 	thread_release();
 
