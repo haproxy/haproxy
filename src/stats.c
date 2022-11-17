@@ -260,6 +260,7 @@ const struct name_desc stat_fields[ST_F_TOTAL_FIELDS] = {
 	[ST_F_NEED_CONN_EST]                 = { .name = "need_conn_est",               .desc = "Estimated needed number of connections"},
 	[ST_F_UWEIGHT]                       = { .name = "uweight",                     .desc = "Server's user weight, or sum of active servers' user weights for a backend" },
 	[ST_F_AGG_SRV_CHECK_STATUS]          = { .name = "agg_server_check_status",     .desc = "Backend's aggregated gauge of servers' state check status" },
+	[ST_F_SRID]                          = { .name = "srid",                        .desc = "Server id revision, to prevent server id reuse mixups" },
 };
 
 /* one line of info */
@@ -1153,7 +1154,7 @@ static int stats_dump_fields_html(struct buffer *out,
 				chunk_appendf(out, "%s, ", field_str(stats, ST_F_ADDR));
 
 			/* id */
-			chunk_appendf(out, "id: %d", stats[ST_F_SID].u.u32);
+			chunk_appendf(out, "id: %d, rid: %d", stats[ST_F_SID].u.u32, stats[ST_F_SRID].u.u32);
 
 			/* cookie */
 			if (stats[ST_F_COOKIE].type) {
@@ -2282,6 +2283,9 @@ int stats_fill_sv_stats(struct proxy *px, struct server *sv, int flags,
 				break;
 			case ST_F_SID:
 				metric = mkf_u32(FO_KEY|FS_SERVICE, sv->puid);
+				break;
+			case ST_F_SRID:
+				metric = mkf_u32(FN_COUNTER, sv->rid);
 				break;
 			case ST_F_THROTTLE:
 				if (sv->cur_state == SRV_ST_STARTING && !server_is_draining(sv))
