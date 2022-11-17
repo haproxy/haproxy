@@ -1043,7 +1043,7 @@ dev/udp/udp-perturb: dev/udp/udp-perturb.o
 	$(cmd_LD) $(LDFLAGS) -o $@ $^ $(LDOPTS)
 
 # rebuild it every time
-.PHONY: src/version.c
+.PHONY: src/version.c dev/poll/poll dev/tcploop/tcploop
 
 src/calltrace.o: src/calltrace.c $(DEP)
 	$(cmd_CC) $(TRACE_COPTS) -c -o $@ $<
