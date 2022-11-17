@@ -1,0 +1,93 @@
+2022-11-17 - Tests involving poll() return states upon a pending connect().
+
+- connect() to a closed port returns OUT and HUP:
+
+  $ dev/poll/poll -v -l clo -c pol
+  #### BEGIN ####
+  cmd #1 stp #1: clo(l=3): ret=0
+  cmd #2 stp #0: con(c=4): ret=-1 (Connection refused)
+  cmd #2 stp #1: pol(c=4): ret=1 ev=0x14 (OUT HUP)
+  #### END ####
+
+=> with HUP we *know* the connection failed, since we never asked for a
+   SHUTW before connecting. It is indeed an error as can be seen with
+   connect() returning -1 ECONNREFUSED.
+
+- connect() to a port that does close(accept()) does return IN and RDHUP:
+
+  $ dev/poll/poll -v -s clo -c pol
+  #### BEGIN ####
+  cmd #1 stp #0: con(c=4): ret=0
+  cmd #1 stp #0: acc(l=3): ret=5
+  cmd #1 stp #1: clo(s=5): ret=0
+  cmd #2 stp #1: pol(c=4): ret=1 ev=0x2005 (IN OUT RDHUP)
+  #### END ####
+
+=> here there's no HUP, only RDHUP because the FIN is pending in the
+   socket buffers, waiting to be read.
+
+- for a HUP to happen after a connect() to a valid port, one would have to
+  perform a shutw() on the client, which is normally not the case, indicating
+  that HUP is reliable here:
+
+  $ dev/poll/poll -v -s clo -c shw,pol
+  #### BEGIN ####
+  cmd #1 stp #0: con(c=4): ret=0
+  cmd #1 stp #0: acc(l=3): ret=5
+  cmd #1 stp #1: clo(s=5): ret=0
+  cmd #2 stp #1: shw(c=4): ret=0
+  cmd #2 stp #2: pol(c=4): ret=1 ev=0x2015 (IN OUT HUP RDHUP)
+  #### END ####
+
+- one case that may happen is when sending a request and immediately shutw()
+  (which leaves a TIME_WAIT so not recommended):
+
+  $ dev/poll/poll -v -c snd,shw -s clo -c pol,rcv,pol
+  #### BEGIN ####
+  cmd #1 stp #0: con(c=4): ret=0
+  cmd #1 stp #1: snd(c=4): ret=3
+  cmd #1 stp #2: shw(c=4): ret=0
+  cmd #2 stp #0: acc(l=3): ret=5
+  cmd #2 stp #1: clo(s=5): ret=0
+  cmd #3 stp #1: pol(c=4): ret=1 ev=0x201d (IN OUT ERR HUP RDHUP)
+  cmd #3 stp #2: rcv(c=4): ret=-1 (Connection reset by peer)
+  cmd #3 stp #3: pol(c=4): ret=1 ev=0x2015 (IN OUT HUP RDHUP)
+  #### END ####
+
+=> here it's impossible to know from the client whether the server consumed the
+   data or not, which is normal since a close on the server causes an RST to be
+   emitted for the data in flight, hence the ERR here. It's also worth noting
+   that once POLL_ERR is consumed by recv() it disappears.
+
+- for the server, sending a shutw() before closing here delivers an ACK in time
+  that prevents the RST from being sent, thus connect() is not notified (but if
+  the server has too much to send, it will truncate and emit an RST):
+
+  $ dev/poll/poll -v -c snd,shw -s shw,clo -c pol,rcv,pol
+  #### BEGIN ####
+  cmd #1 stp #0: con(c=4): ret=0
+  cmd #1 stp #1: snd(c=4): ret=3
+  cmd #1 stp #2: shw(c=4): ret=0
+  cmd #2 stp #0: acc(l=3): ret=5
+  cmd #2 stp #1: shw(s=5): ret=0
+  cmd #2 stp #2: clo(s=5): ret=0
+  cmd #3 stp #1: pol(c=4): ret=1 ev=0x2015 (IN OUT HUP RDHUP)
+  cmd #3 stp #2: rcv(c=4): ret=0
+  cmd #3 stp #3: pol(c=4): ret=1 ev=0x2015 (IN OUT HUP RDHUP)
+  #### END ####
+
+- if the server sends a response, disables lingering and closes with RST, it is
+  possible to get HUP and ERR at the same time during the connect() phase, and
+  recv() can still receive the pending response:
+
+  $ dev/poll/poll -v -s snd,lin,clo -c pol,rcv,pol
+  #### BEGIN ####
+  cmd #1 stp #0: con(c=4): ret=0
+  cmd #1 stp #0: acc(l=3): ret=5
+  cmd #1 stp #1: snd(s=5): ret=3
+  cmd #1 stp #2: lin(s=5): ret=0
+  cmd #1 stp #3: clo(s=5): ret=0
+  cmd #2 stp #1: pol(c=4): ret=1 ev=0x201d (IN OUT ERR HUP RDHUP)
+  cmd #2 stp #2: rcv(c=4): ret=3
+  cmd #2 stp #3: pol(c=4): ret=1 ev=0x201d (IN OUT ERR HUP RDHUP)
+  #### END ####
