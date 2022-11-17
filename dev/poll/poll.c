@@ -36,6 +36,17 @@ int connected = 0;
 struct sockaddr_in saddr, caddr;
 socklen_t salen, calen;
 
+static inline const char *side(int fd)
+{
+	if (fd == lfd)
+		return "l";
+	if (fd == sfd)
+		return "s";
+	if (fd == cfd)
+		return "c";
+	return "?";
+}
+
 void usage(const char *arg0)
 {
 	printf("Usage: %s [ arg [<action>[,...]] ] ...\n"
@@ -89,7 +100,7 @@ void do_acc(int fd)
 	if (sfd < 0)
 		sfd = ret;
 	if (verbose)
-		printf("cmd #%d stp #%d: %s(%d): ret=%d%s\n", cmd, cmdstep, __FUNCTION__ + 3, fd, ret, get_errno(ret));
+		printf("cmd #%d stp #%d: %s(%s=%d): ret=%d%s\n", cmd, cmdstep, __FUNCTION__ + 3, side(fd), fd, ret, get_errno(ret));
 }
 
 void do_con(int fd)
@@ -98,7 +109,7 @@ void do_con(int fd)
 
         ret = connect(cfd, (const struct sockaddr*)&saddr, salen);
 	if (verbose)
-		printf("cmd #%d stp #%d: %s(%d): ret=%d%s\n", cmd, cmdstep, __FUNCTION__ + 3, fd, ret, get_errno(ret));
+		printf("cmd #%d stp #%d: %s(%s=%d): ret=%d%s\n", cmd, cmdstep, __FUNCTION__ + 3, side(fd), fd, ret, get_errno(ret));
 	connected = 1;
 }
 
@@ -108,7 +119,7 @@ void do_snd(int fd)
 
 	ret = send(fd, "foo", 3, MSG_NOSIGNAL|MSG_DONTWAIT);
 	if (verbose)
-		printf("cmd #%d stp #%d: %s(%d): ret=%d%s\n", cmd, cmdstep, __FUNCTION__ + 3, fd, ret, get_errno(ret));
+		printf("cmd #%d stp #%d: %s(%s=%d): ret=%d%s\n", cmd, cmdstep, __FUNCTION__ + 3, side(fd), fd, ret, get_errno(ret));
 }
 
 void do_mor(int fd)
@@ -117,7 +128,7 @@ void do_mor(int fd)
 
 	ret = send(fd, "foo", 3, MSG_NOSIGNAL|MSG_DONTWAIT|MSG_MORE);
 	if (verbose)
-		printf("cmd #%d stp #%d: %s(%d): ret=%d%s\n", cmd, cmdstep, __FUNCTION__ + 3, fd, ret, get_errno(ret));
+		printf("cmd #%d stp #%d: %s(%s=%d): ret=%d%s\n", cmd, cmdstep, __FUNCTION__ + 3, side(fd), fd, ret, get_errno(ret));
 }
 
 void do_rcv(int fd)
@@ -127,7 +138,7 @@ void do_rcv(int fd)
 
 	ret = recv(fd, buf, sizeof(buf), MSG_DONTWAIT);
 	if (verbose)
-		printf("cmd #%d stp #%d: %s(%d): ret=%d%s\n", cmd, cmdstep, __FUNCTION__ + 3, fd, ret, get_errno(ret));
+		printf("cmd #%d stp #%d: %s(%s=%d): ret=%d%s\n", cmd, cmdstep, __FUNCTION__ + 3, side(fd), fd, ret, get_errno(ret));
 }
 
 void do_drn(int fd)
@@ -146,7 +157,7 @@ void do_drn(int fd)
 	}
 
 	if (verbose)
-		printf("cmd #%d stp #%d: %s(%d): ret=%d%s\n", cmd, cmdstep, __FUNCTION__ + 3, fd, total, get_errno(ret));
+		printf("cmd #%d stp #%d: %s(%s=%d): ret=%d%s\n", cmd, cmdstep, __FUNCTION__ + 3, side(fd), fd, total, get_errno(ret));
 }
 
 void do_shr(int fd)
@@ -155,7 +166,7 @@ void do_shr(int fd)
 
 	ret = shutdown(fd, SHUT_RD);
 	if (verbose)
-		printf("cmd #%d stp #%d: %s(%d): ret=%d%s\n", cmd, cmdstep, __FUNCTION__ + 3, fd, ret, get_errno(ret));
+		printf("cmd #%d stp #%d: %s(%s=%d): ret=%d%s\n", cmd, cmdstep, __FUNCTION__ + 3, side(fd), fd, ret, get_errno(ret));
 }
 
 void do_shw(int fd)
@@ -164,7 +175,7 @@ void do_shw(int fd)
 
 	ret = shutdown(fd, SHUT_WR);
 	if (verbose)
-		printf("cmd #%d stp #%d: %s(%d): ret=%d%s\n", cmd, cmdstep, __FUNCTION__ + 3, fd, ret, get_errno(ret));
+		printf("cmd #%d stp #%d: %s(%s=%d): ret=%d%s\n", cmd, cmdstep, __FUNCTION__ + 3, side(fd), fd, ret, get_errno(ret));
 }
 
 void do_shb(int fd)
@@ -173,7 +184,7 @@ void do_shb(int fd)
 
 	ret = shutdown(fd, SHUT_RDWR);
 	if (verbose)
-		printf("cmd #%d stp #%d: %s(%d): ret=%d%s\n", cmd, cmdstep, __FUNCTION__ + 3, fd, ret, get_errno(ret));
+		printf("cmd #%d stp #%d: %s(%s=%d): ret=%d%s\n", cmd, cmdstep, __FUNCTION__ + 3, side(fd), fd, ret, get_errno(ret));
 }
 
 void do_lin(int fd)
@@ -183,7 +194,7 @@ void do_lin(int fd)
 
 	ret = setsockopt(fd, SOL_SOCKET, SO_LINGER, &nolinger, sizeof(nolinger));
 	if (verbose)
-		printf("cmd #%d stp #%d: %s(%d): ret=%d%s\n", cmd, cmdstep, __FUNCTION__ + 3, fd, ret, get_errno(ret));
+		printf("cmd #%d stp #%d: %s(%s=%d): ret=%d%s\n", cmd, cmdstep, __FUNCTION__ + 3, side(fd), fd, ret, get_errno(ret));
 }
 
 void do_clo(int fd)
@@ -192,7 +203,7 @@ void do_clo(int fd)
 
 	ret = close(fd);
 	if (verbose)
-		printf("cmd #%d stp #%d: %s(%d): ret=%d%s\n", cmd, cmdstep, __FUNCTION__ + 3, fd, ret, get_errno(ret));
+		printf("cmd #%d stp #%d: %s(%s=%d): ret=%d%s\n", cmd, cmdstep, __FUNCTION__ + 3, side(fd), fd, ret, get_errno(ret));
 }
 
 void do_pol(int fd)
@@ -202,7 +213,7 @@ void do_pol(int fd)
 
 	ret = poll(&fds, 1, 0);
 	if (verbose) {
-		printf("cmd #%d stp #%d: %s(%d): ret=%d%s ev=%#x ", cmd, cmdstep, __FUNCTION__ + 3, fd, ret, get_errno(ret), ret > 0 ? fds.revents : 0);
+		printf("cmd #%d stp #%d: %s(%s=%d): ret=%d%s ev=%#x ", cmd, cmdstep, __FUNCTION__ + 3, side(fd), fd, ret, get_errno(ret), ret > 0 ? fds.revents : 0);
 		if (ret > 0 && fds.revents) {
 			int flags, flag;
 			putchar('(');
