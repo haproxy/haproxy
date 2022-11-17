@@ -47,6 +47,7 @@
 #include <haproxy/time.h>
 #include <haproxy/tools.h>
 #include <haproxy/xxhash.h>
+#include <haproxy/event_hdl.h>
 
 
 static void srv_update_status(struct server *s);
@@ -130,6 +131,33 @@ int srv_getinter(const struct check *check)
 		return (check->downinter)?(check->downinter):(check->inter);
 
 	return (check->fastinter)?(check->fastinter):(check->inter);
+}
+
+/*
+ * Use this to publish EVENT_HDL_SUB_SERVER family type event
+ * from srv facility
+ * Event will be published in both global subscription list and
+ * server dedicated subscription list
+ * server ptr must be valid
+ */
+static inline void srv_event_hdl_publish(struct event_hdl_sub_type event, struct server *srv, uint8_t thread_isolate)
+{
+	struct event_hdl_cb_data_server cb_data;
+
+	/* safe data assignments */
+	cb_data.safe.puid = srv->puid;
+	cb_data.safe.rid = srv->rid;
+	cb_data.safe.flags = srv->flags;
+	snprintf(cb_data.safe.name, sizeof(cb_data.safe.name), "%s", srv->id);
+	if (srv->proxy)
+		snprintf(cb_data.safe.proxy_name, sizeof(cb_data.safe.proxy_name), "%s", srv->proxy->id);
+	/* unsafe data assignments */
+	cb_data.unsafe.ptr = srv;
+	cb_data.unsafe.thread_isolate = thread_isolate;
+	/* publish in server dedicated sub list */
+	event_hdl_publish(&srv->e_subs, event, EVENT_HDL_CB_DATA(&cb_data));
+	/* publish in global subscription list */
+	event_hdl_publish(NULL, event, EVENT_HDL_CB_DATA(&cb_data));
 }
 
 /*
@@ -2337,6 +2365,7 @@ struct server *new_server(struct proxy *proxy)
 	LIST_APPEND(&servers_list, &srv->global_list);
 	LIST_INIT(&srv->srv_rec_item);
 	LIST_INIT(&srv->ip_rec_item);
+	event_hdl_sub_list_init(&srv->e_subs);
 
 	srv->next_state = SRV_ST_RUNNING; /* early server setup */
 	srv->last_change = now.tv_sec;
@@ -2419,6 +2448,7 @@ struct server *srv_drop(struct server *srv)
 	HA_SPIN_DESTROY(&srv->lock);
 
 	LIST_DELETE(&srv->global_list);
+	event_hdl_sub_list_destroy(&srv->e_subs);
 
 	EXTRA_COUNTERS_FREE(srv->extra_counters);
 
@@ -4893,6 +4923,11 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 	 */
 	srv->rid = (srv_id_reuse_cnt) ? (srv_id_reuse_cnt / 2) : 0;
 
+	/* adding server cannot fail when we reach this:
+	 * publishing EVENT_HDL_SUB_SERVER_ADD
+	 */
+	srv_event_hdl_publish(EVENT_HDL_SUB_SERVER_ADD, srv, 1);
+
 	thread_release();
 
 	/* Start the check task. The server must be fully initialized.
@@ -5019,6 +5054,11 @@ static int cli_parse_delete_server(char **args, char *payload, struct appctx *ap
 		cli_err(appctx, "Server still has connections attached to it, cannot remove it.");
 		goto out;
 	}
+
+	/* removing cannot fail anymore when we reach this:
+	 * publishing EVENT_HDL_SUB_SERVER_DEL
+	 */
+	srv_event_hdl_publish(EVENT_HDL_SUB_SERVER_DEL, srv, 1);
 
 	/* remove srv from tracking list */
 	if (srv->track)

@@ -40,6 +40,7 @@
 #include <haproxy/stats-t.h>
 #include <haproxy/task-t.h>
 #include <haproxy/thread-t.h>
+#include <haproxy/event_hdl-t.h>
 
 
 /* server states. Only SRV_ST_STOPPED indicates a down server. */
@@ -403,6 +404,8 @@ struct server {
 	} op_st_chg;				/* operational status change's reason */
 	char adm_st_chg_cause[48];		/* administrative status change's cause */
 
+	event_hdl_sub_list e_subs;		/* event_hdl: server's subscribers list (atomically updated) */
+
 	/* warning, these structs are huge, keep them at the bottom */
 	struct conn_src conn_src;               /* connection source settings */
 	struct sockaddr_storage addr;           /* the address to connect to, doesn't include the port */
@@ -411,6 +414,35 @@ struct server {
 	EXTRA_COUNTERS(extra_counters);
 };
 
+/* data provided to EVENT_HDL_SUB_SERVER handlers through event_hdl facility */
+struct event_hdl_cb_data_server {
+	/* provided by:
+	 *   EVENT_HDL_SUB_SERVER_ADD
+	 *   EVENT_HDL_SUB_SERVER_DOWN
+	 */
+	struct {
+		/* safe data can be safely used from both
+		 * sync and async handlers
+		 * data consistency is guaranteed
+		 */
+		char name[64];       /* server name/id */
+		char proxy_name[64]; /* id of proxy the server belongs to */
+		int puid;            /* proxy-unique server ID */
+		int rid;             /* server id revision */
+		unsigned int flags;  /* server flags */
+	} safe;
+	struct {
+		/* unsafe data may only be used from sync handlers:
+		 * in async mode, data consistency cannot be guaranteed
+		 * and unsafe data may already be stale, thus using
+		 * it is highly discouraged because it
+		 * could lead to undefined behavior (UAF, null dereference...)
+		 */
+		struct server *ptr;	/* server live ptr */
+		/* lock hints */
+		uint8_t thread_isolate;	/* 1 = thread_isolate is on, no locking required */
+	} unsafe;
+};
 
 /* Storage structure to load server-state lines from a flat file into
  * an ebtree, for faster processing
