@@ -12,16 +12,19 @@ ifeq ($V,1)
 cmd_CC = $(CC)
 cmd_LD = $(LD)
 cmd_AR = $(AR)
+cmd_MAKE = +$(MAKE)
 else
 ifeq (3.81,$(firstword $(sort $(MAKE_VERSION) 3.81)))
 # 3.81 or above
 cmd_CC = $(info $   CC      $@) $(Q)$(CC)
 cmd_LD = $(info $   LD      $@) $(Q)$(LD)
 cmd_AR = $(info $   AR      $@) $(Q)$(AR)
+cmd_MAKE = $(info $   MAKE    $@) $(Q)+$(MAKE)
 else
 # 3.80 or older
 cmd_CC = $(Q)echo "  CC      $@";$(CC)
 cmd_LD = $(Q)echo "  LD      $@";$(LD)
 cmd_AR = $(Q)echo "  AR      $@";$(AR)
+cmd_MAKE = $(Q)echo "  MAKE    $@";$(MAKE)
 endif
 endif

@@ -1008,13 +1008,13 @@ dev/hpack/%: dev/hpack/%.o
 	$(cmd_LD) $(LDFLAGS) -o $@ $^ $(LDOPTS)
 
 dev/poll/poll:
-	$(Q)$(MAKE) -C dev/poll poll CC='$(CC)' OPTIMIZE='$(COPTS)' V='$(V)'
+	$(cmd_MAKE) -C dev/poll poll CC='$(CC)' OPTIMIZE='$(COPTS)' V='$(V)'
 
 dev/qpack/decode: dev/qpack/decode.o
 	$(cmd_LD) $(LDFLAGS) -o $@ $^ $(LDOPTS)
 
 dev/tcploop/tcploop:
-	$(Q)$(MAKE) -C dev/tcploop tcploop CC='$(CC)' OPTIMIZE='$(COPTS)' V='$(V)'
+	$(cmd_MAKE) -C dev/tcploop tcploop CC='$(CC)' OPTIMIZE='$(COPTS)' V='$(V)'
 
 dev/udp/udp-perturb: dev/udp/udp-perturb.o
 	$(cmd_LD) $(LDFLAGS) -o $@ $^ $(LDOPTS)
