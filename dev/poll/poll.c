@@ -32,6 +32,7 @@ int one  = 1;
 int lfd = -1;
 int cfd = -1;
 int sfd = -1;
+int connected = 0;
 struct sockaddr_in saddr, caddr;
 socklen_t salen, calen;
 
@@ -46,6 +47,7 @@ void usage(const char *arg0)
 	       "    -l <actions>  perform <action> on listening socket\n"
 	       "\n"
 	       "actions for -c/-s/-l (multiple may be delimited by commas) :\n"
+	       "    con           connect to listener, implicit before first -c/-s\n"
 	       "    acc           accept on listener, implicit before first -s\n"
 	       "    snd           send a few bytes of data\n"
 	       "    mor           send a few bytes of data with MSG_MORE\n"
@@ -88,6 +90,16 @@ void do_acc(int fd)
 		sfd = ret;
 	if (verbose)
 		printf("cmd #%d stp #%d: %s(%d): ret=%d%s\n", cmd, cmdstep, __FUNCTION__, fd, ret, get_errno(ret));
+}
+
+void do_con(int fd)
+{
+	int ret;
+
+        ret = connect(cfd, (const struct sockaddr*)&saddr, salen);
+	if (verbose)
+		printf("cmd #%d stp #%d: %s(%d): ret=%d%s\n", cmd, cmdstep, __FUNCTION__, fd, ret, get_errno(ret));
+	connected = 1;
 }
 
 void do_snd(int fd)
@@ -251,13 +263,6 @@ int main(int argc, char **argv)
 	if (cfd < 0)
 		die("socket(c)");
 
-        if (connect(cfd, (const struct sockaddr*)&saddr, salen) == -1)
-		die("connect()");
-
-	/* connection is pending in accept queue, accept() will either be
-	 * explicit with "-l acc" below, or implicit on "-s <cmd>"
-	 */
-
 	arg0 = argv[0];
 	if (argc < 2) {
 		usage(arg0);
@@ -284,10 +289,18 @@ int main(int argc, char **argv)
 			break;
 		case 'c' :
 			cmd++; cmdstep = 0;
+			if (!connected) {
+				do_con(cfd);
+				/* connection is pending in accept queue, accept() will either be
+				 * explicit with "-l acc" below, or implicit on "-s <cmd>"
+				 */
+			}
 			fd = cfd;
 			break;
 		case 's' :
 			cmd++; cmdstep = 0;
+			if (!connected)
+				do_con(cfd);
 			if (sfd < 0)
 				do_acc(lfd);
 			if (sfd < 0)
@@ -314,6 +327,9 @@ int main(int argc, char **argv)
 				cmdstep++;
 				if (strcmp(word, "acc") == 0) {
 					do_acc(fd);
+				}
+				else if (strcmp(word, "con") == 0) {
+					do_con(fd);
 				}
 				else if (strcmp(word, "snd") == 0) {
 					do_snd(fd);
