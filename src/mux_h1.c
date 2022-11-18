@@ -3538,7 +3538,7 @@ static void h1_shutw_conn(struct connection *conn)
 		return;
 
 	conn_xprt_shutw(conn);
-	conn_sock_shutw(conn, (h1c && !(h1c->flags & H1C_F_SILENT_SHUT)));
+	conn_sock_shutw(conn, !(h1c->flags & H1C_F_SILENT_SHUT));
 	TRACE_LEAVE(H1_EV_H1C_END, conn);
 }
 
