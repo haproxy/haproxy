@@ -625,7 +625,9 @@ enum ncb_ret ncb_add(struct ncbuf *buf, ncb_sz_t off,
  * will be lost while some space will be formed at the end to be able to insert
  * new data.
  *
- * Returns NCB_RET_OK on success.
+ * Returns NCB_RET_OK on success. It may return NCB_RET_GAP_SIZE if operation
+ * is rejected due to the formation of a too small gap in front. If advance is
+ * done only inside a data block it is guaranteed to succeed.
  */
 enum ncb_ret ncb_advance(struct ncbuf *buf, ncb_sz_t adv)
 {
