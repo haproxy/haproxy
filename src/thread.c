@@ -1312,6 +1312,11 @@ static int cfg_parse_nbthread(char **args, int section_type, struct proxy *curpx
 	if (too_many_args(1, args, err, NULL))
 		return -1;
 
+	if (non_global_section_parsed == 1) {
+		memprintf(err, "'%s' not allowed if a non-global section was previously defined. This parameter must be declared in the first global section", args[0]);
+		return -1;
+	}
+
 	nbthread = strtol(args[1], &errptr, 10);
 	if (!*args[1] || *errptr) {
 		memprintf(err, "'%s' passed a missing or unparsable integer value in '%s'", args[0], args[1]);
@@ -1348,6 +1353,11 @@ static int cfg_parse_thread_group(char **args, int section_type, struct proxy *c
 	char *errptr;
 	long tnum, tend, tgroup;
 	int arg, tot;
+
+	if (non_global_section_parsed == 1) {
+		memprintf(err, "'%s' not allowed if a non-global section was previously defined. This parameter must be declared in the first global section", args[0]);
+		return -1;
+	}
 
 	tgroup = strtol(args[1], &errptr, 10);
 	if (!*args[1] || *errptr) {
@@ -1445,6 +1455,11 @@ static int cfg_parse_thread_groups(char **args, int section_type, struct proxy *
 
 	if (too_many_args(1, args, err, NULL))
 		return -1;
+
+	if (non_global_section_parsed == 1) {
+		memprintf(err, "'%s' not allowed if a non-global section was previously defined. This parameter must be declared in the first global section", args[0]);
+		return -1;
+	}
 
 	nbtgroups = strtol(args[1], &errptr, 10);
 	if (!*args[1] || *errptr) {
