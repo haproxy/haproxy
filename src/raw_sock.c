@@ -329,7 +329,7 @@ static size_t raw_sock_to_buf(struct connection *conn, void *xprt_ctx, struct bu
 	 * of recv()'s return value 0, so we have no way to tell there was
 	 * an error without checking.
 	 */
-	if (unlikely(fdtab[conn->handle.fd].state & FD_POLL_ERR))
+	if (unlikely(!done && fdtab[conn->handle.fd].state & FD_POLL_ERR))
 		conn->flags |= CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH;
 	goto leave;
 }
