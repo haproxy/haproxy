@@ -437,8 +437,17 @@ struct stream *stream_new(struct session *sess, struct stconn *sc, struct buffer
 	s->req_cap = NULL;
 	s->res_cap = NULL;
 
-	/* Initialise all the variables contexts even if not used.
+	/* Initialize all the variables contexts even if not used.
 	 * This permits to prune these contexts without errors.
+	 *
+	 * We need to make sure that those lists are not re-initialized
+	 * by stream-dependant underlying code because we could lose
+	 * track of already defined variables, leading to data inconsistency
+	 * and memory leaks...
+	 *
+	 * For reference: we had a very old bug caused by vars_txn and
+	 * vars_reqres being accidentally re-initialized in http_create_txn()
+	 * (https://github.com/haproxy/haproxy/issues/1935)
 	 */
 	vars_init_head(&s->vars_txn,    SCOPE_TXN);
 	vars_init_head(&s->vars_reqres, SCOPE_REQ);
