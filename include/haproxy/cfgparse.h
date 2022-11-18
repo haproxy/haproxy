@@ -94,6 +94,7 @@ extern int cfg_maxconn;
 extern char *cfg_scope;
 extern struct cfg_kw_list cfg_keywords;
 extern char *cursection;
+extern int non_global_section_parsed;
 
 int cfg_parse_global(const char *file, int linenum, char **args, int inv);
 int cfg_parse_listen(const char *file, int linenum, char **args, int inv);

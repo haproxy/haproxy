@@ -104,6 +104,7 @@ char *cursection = NULL;
 int cfg_maxpconn = 0;                   /* # of simultaneous connections per proxy (-N) */
 int cfg_maxconn = 0;			/* # of simultaneous connections, (-n) */
 char *cfg_scope = NULL;                 /* the current scope during the configuration parsing */
+int non_global_section_parsed = 0;
 
 /* how to handle default paths */
 static enum default_path_mode {
@@ -1577,16 +1578,14 @@ cfg_parse_track_sc_num(unsigned int *track_sc_num,
  * Detect a global section after a non-global one and output a diagnostic
  * warning.
  */
-static void check_section_position(char *section_name,
-                                   const char *file, int linenum,
-                                   int *non_global_parsed)
+static void check_section_position(char *section_name, const char *file, int linenum)
 {
 	if (strcmp(section_name, "global") == 0) {
-		if (*non_global_parsed == 1)
+		if ((global.mode & MODE_DIAG) && non_global_section_parsed == 1)
 		        _ha_diag_warning("parsing [%s:%d] : global section detected after a non-global one, the prevalence of their statements is unspecified\n", file, linenum);
 	}
-	else if (*non_global_parsed == 0) {
-		*non_global_parsed = 1;
+	else if (non_global_section_parsed == 0) {
+		non_global_section_parsed = 1;
 	}
 }
 
@@ -1743,7 +1742,6 @@ int readcfgfile(const char *file)
 	int missing_lf = -1;
 	int nested_cond_lvl = 0;
 	enum nested_cond_state nested_conds[MAXNESTEDCONDS];
-	int non_global_section_parsed = 0;
 	char *errmsg = NULL;
 
 	global.cfg_curr_line = 0;
@@ -2455,12 +2453,7 @@ next_line:
 				cs = ics;
 				free(global.cfg_curr_section);
 				global.cfg_curr_section = strdup(*args[1] ? args[1] : args[0]);
-
-				if (global.mode & MODE_DIAG) {
-					check_section_position(args[0], file, linenum,
-					                       &non_global_section_parsed);
-				}
-
+				check_section_position(args[0], file, linenum);
 				break;
 			}
 		}
