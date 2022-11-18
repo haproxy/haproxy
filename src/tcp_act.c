@@ -261,11 +261,25 @@ static enum act_return tcp_action_req_set_dst_port(struct act_rule *rule, struct
 	return ACT_RET_CONT;
 }
 
-/* Executes the "silent-drop" action. May be called from {tcp,http}{request,response} */
+/* Executes the "silent-drop" action. May be called from {tcp,http}{request,response}.
+ * If rule->arg.act.p[0] is 0, TCP_REPAIR is tried first, with a fallback to
+ * sending a RST with TTL 1 towards the client. If it is [1-255], we will skip
+ * TCP_REPAIR and prepare the socket to send a RST with the requested TTL when
+ * the connection is killed by channel_abort().
+ */
 static enum act_return tcp_exec_action_silent_drop(struct act_rule *rule, struct proxy *px,
                                                    struct session *sess, struct stream *strm, int flags)
 {
 	struct connection *conn = objt_conn(sess->origin);
+	unsigned int ttl __maybe_unused = (uintptr_t)rule->arg.act.p[0];
+	char tcp_repair_enabled __maybe_unused;
+
+	if (ttl == 0) {
+		tcp_repair_enabled = 1;
+		ttl = 1;
+	} else {
+		tcp_repair_enabled = 0;
+	}
 
 	if (!conn)
 		goto out;
@@ -298,22 +312,27 @@ static enum act_return tcp_exec_action_silent_drop(struct act_rule *rule, struct
 	HA_ATOMIC_OR(&fdtab[conn->handle.fd].state, FD_LINGER_RISK);
 
 #ifdef TCP_REPAIR
-	if (setsockopt(conn->handle.fd, IPPROTO_TCP, TCP_REPAIR, &one, sizeof(one)) == 0) {
+	/* try to put socket in repair mode if sending a RST was not requested by
+	 * config. this often fails due to missing permissions (CAP_NET_ADMIN capability)
+	 */
+	if (tcp_repair_enabled && (setsockopt(conn->handle.fd, IPPROTO_TCP, TCP_REPAIR, &one, sizeof(one)) == 0)) {
 		/* socket will be quiet now */
 		goto out;
 	}
 #endif
-	/* either TCP_REPAIR is not defined or it failed (eg: permissions).
-	 * Let's fall back on the TTL trick, though it only works for routed
-	 * network and has no effect on local net.
+
+	/* Either TCP_REPAIR is not defined, it failed (eg: permissions), or was
+	 * not executed because a RST with a specific TTL was requested to be sent.
+	 * Set the TTL of the client connection before the connection is killed
+	 * by channel_abort and a RST packet will be emitted by the TCP/IP stack.
 	 */
 #ifdef IP_TTL
 	if (conn->src && conn->src->ss_family == AF_INET)
-		setsockopt(conn->handle.fd, IPPROTO_IP, IP_TTL, &one, sizeof(one));
+		setsockopt(conn->handle.fd, IPPROTO_IP, IP_TTL, &ttl, sizeof(ttl));
 #endif
 #ifdef IPV6_UNICAST_HOPS
 	if (conn->src && conn->src->ss_family == AF_INET6)
-		setsockopt(conn->handle.fd, IPPROTO_IPV6, IPV6_UNICAST_HOPS, &one, sizeof(one));
+		setsockopt(conn->handle.fd, IPPROTO_IPV6, IPV6_UNICAST_HOPS, &ttl, sizeof(ttl));
 #endif
  out:
 	/* kill the stream if any */
@@ -480,15 +499,41 @@ static enum act_parse_ret tcp_parse_set_tos(const char **args, int *cur_arg, str
 #endif
 }
 
-
-/* Parse a "silent-drop" action. It takes no argument. It returns ACT_RET_PRS_OK on
- * success, ACT_RET_PRS_ERR on error.
+/* Parse a "silent-drop" action. It may take 2 optional arguments to define a
+ * "rst-ttl" parameter. It returns ACT_RET_PRS_OK on success, ACT_RET_PRS_ERR
+ * on error.
  */
-static enum act_parse_ret tcp_parse_silent_drop(const char **args, int *orig_arg, struct proxy *px,
+static enum act_parse_ret tcp_parse_silent_drop(const char **args, int *cur_arg, struct proxy *px,
                                                 struct act_rule *rule, char **err)
 {
+	unsigned int rst_ttl  = 0;
+	char *endp;
+
 	rule->action     = ACT_CUSTOM;
 	rule->action_ptr = tcp_exec_action_silent_drop;
+
+	if (strcmp(args[*cur_arg], "rst-ttl") == 0) {
+		if (!*args[*cur_arg + 1]) {
+			memprintf(err, "missing rst-ttl value\n");
+			return ACT_RET_PRS_ERR;
+		}
+
+		rst_ttl = (unsigned int)strtoul(args[*cur_arg + 1], &endp, 0);
+
+		if (endp && *endp != '\0') {
+			memprintf(err, "invalid character starting at '%s' (value 1-255 expected)\n",
+					endp);
+			return ACT_RET_PRS_ERR;
+		}
+		if ((rst_ttl == 0) || (rst_ttl > 255) ) {
+			memprintf(err, "valid rst-ttl values are [1-255]\n");
+			return ACT_RET_PRS_ERR;
+		}
+
+		*cur_arg += 2;
+	}
+
+	rule->arg.act.p[0] = (void *)(uintptr_t)rst_ttl;
 	return ACT_RET_PRS_OK;
 }
 

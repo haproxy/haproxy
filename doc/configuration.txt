@@ -6443,7 +6443,7 @@ http-request <action> [options...] [ { if | unless } <condition> ]
     - set-var(<var-name>[,<cond> ...]) <expr>
     - set-var-fmt(<var-name>[,<cond> ...]) <fmt>
     - send-spoe-group <engine-name> <group-name>
-    - silent-drop
+    - silent-drop [ rst-ttl <ttl> ]
     - strict-mode { on | off }
     - tarpit [ { status | deny_status } <code>] ...
     - track-sc0 <key> [table <table>]
@@ -7398,24 +7398,27 @@ http-request set-var-fmt(<var-name>[,<cond> ...]) <fmt> [ { if | unless } <condi
     http-request set-var(req.my_var) req.fhdr(user-agent),lower
     http-request set-var-fmt(txn.from) %[src]:%[src_port]
 
-http-request silent-drop [ { if | unless } <condition> ]
+http-request silent-drop [ rst-ttl <ttl> ] [ { if | unless } <condition> ]
 
-  This stops the evaluation of the rules and makes the client-facing connection
-  suddenly disappear using a system-dependent way that tries to prevent the
-  client from being notified. The effect it then that the client still sees an
-  established connection while there's none on HAProxy. The purpose is to
-  achieve a comparable effect to "tarpit" except that it doesn't use any local
-  resource at all on the machine running HAProxy. It can resist much higher
-  loads than "tarpit", and slow down stronger attackers. It is important to
-  understand the impact of using this mechanism. All stateful equipment placed
-  between the client and HAProxy (firewalls, proxies, load balancers) will also
-  keep the established connection for a long time and may suffer from this
-  action.
-  On modern Linux systems running with enough privileges, the TCP_REPAIR socket
-  option is used to block the emission of a TCP reset. On other systems, the
-  socket's TTL is reduced to 1 so that the TCP reset doesn't pass the first
-  router, though it's still delivered to local networks. Do not use it unless
-  you fully understand how it works.
+  This stops the evaluation of the rules and removes the client-facing
+  connection in a configurable way: When called without the rst-ttl argument,
+  we try to prevent sending any FIN or RST packet back to the client by
+  using TCP_REPAIR. If this fails (mainly because of missing privileges),
+  we fall back to sending a RST packet with a TTL of 1.
+
+  The effect is that the client still sees an established connection while
+  there is none on HAProxy, saving resources. However, stateful equipment
+  placed between the HAProxy and the client (firewalls, proxies,
+  load balancers) will also keep the established connection in their
+  session tables.
+
+  The optional rst-ttl changes this behaviour: TCP_REPAIR is not used,
+  and a RST packet with a configurable TTL is sent. When set to a
+  reasonable value, the RST packet travels through your own equipment,
+  deleting the connection in your middle-boxes, but does not arrive at
+  the client. Future packets from the client will then be dropped
+  already by your middle-boxes. These "local RST"s protect your resources,
+  but not the client's. Do not use it unless you fully understand how it works.
 
 http-request strict-mode { on | off } [ { if | unless } <condition> ]
 
@@ -7849,7 +7852,7 @@ http-response set-var-fmt(<var-name>[,<cond> ...]) <fmt> [ { if | unless } <cond
   inline. Please refer to "http-request set-var" and "http-request set-var-fmt"
   for a complete description.
 
-http-response silent-drop [ { if | unless } <condition> ]
+http-response silent-drop [ rst-ttl <ttl> ] [ { if | unless } <condition> ]
 
   This stops the evaluation of the rules and makes the client-facing connection
   suddenly disappear using a system-dependent way that tries to prevent the
@@ -12650,7 +12653,7 @@ tcp-request connection set-var-fmt(<var-name>[,<cond> ...]) <fmt> [ { if | unles
   scopes. Please refer to "http-request set-var" and "http-request set-var-fmt"
   for a complete description.
 
-tcp-request connection silent-drop [ { if | unless } <condition> ]
+tcp-request connection silent-drop [ rst-ttl <ttl> ] [ { if | unless } <condition> ]
 
   This stops the evaluation of the rules and makes the client-facing connection
   suddenly disappear using a system-dependent way that tries to prevent the
@@ -12972,7 +12975,7 @@ tcp-request content set-var-fmt(<var-name>[,<cond> ...]) <fmt> [ { if | unless }
   inline. Please refer to "http-request set-var" and "http-request set-var-fmt"
   for a complete description.
 
-tcp-request content silent-drop [ { if | unless } <condition> ]
+tcp-request content silent-drop [ rst-ttl <ttl> ] [ { if | unless } <condition> ]
 
   This stops the evaluation of the rules and makes the client-facing connection
   suddenly disappear using a system-dependent way that tries to prevent the
@@ -13230,7 +13233,7 @@ tcp-request session set-var-fmt(<var-name>[,<cond> ...]) <fmt> [ { if | unless }
   inline. Please refer to "http-request set-var" and "http-request set-var-fmt"
   for a complete description.
 
-tcp-request session silent-drop [ { if | unless } <condition> ]
+tcp-request session silent-drop [ rst-ttl <ttl> ] [ { if | unless } <condition> ]
 
   This stops the evaluation of the rules and makes the client-facing connection
   suddenly disappear using a system-dependent way that tries to prevent the
@@ -13400,7 +13403,7 @@ tcp-response content set-var-fmt(<var-name>[,<cond> ...]) <fmt> [ { if | unless 
   inline. Please refer to "http-request set-var" and "http-request set-var-fmt"
   for a complete description.
 
-tcp-response content silent-drop [ { if | unless } <condition> ]
+tcp-response content silent-drop [ rst-ttl <ttl> ] [ { if | unless } <condition> ]
 
   This stops the evaluation of the rules and makes the client-facing connection
   suddenly disappear using a system-dependent way that tries to prevent the
