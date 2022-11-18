@@ -1756,6 +1756,13 @@ static inline struct eb64_node *qc_ackrng_pkts(struct quic_conn *qc,
 		TRACE_DEVEL("Removing packet #", QUIC_EV_CONN_PRSAFRM, qc, NULL, &pkt->pn_node.key);
 		list_for_each_entry_safe(frm, frmbak, &pkt->frms, list)
 			qc_treat_acked_tx_frm(qc, frm);
+		/* If there are others packet in the same datagram <pkt> is attached to,
+		 * detach the previous one and the next one from <pkt>.
+		 */
+		if (pkt->prev)
+			pkt->prev->next = pkt->next;
+		if (pkt->next)
+			pkt->next->prev = pkt->prev;
 		node = eb64_prev(node);
 		eb64_delete(&pkt->pn_node);
 	}
@@ -3233,6 +3240,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 		/* Attach the current one to the previous one */
 		if (prv_pkt) {
 			prv_pkt->next = cur_pkt;
+			cur_pkt->prev = prv_pkt;
 			cur_pkt->flags |= QUIC_FL_TX_PACKET_COALESCED;
 		}
 		/* Let's say we have to build a new dgram */
@@ -7110,6 +7118,7 @@ static inline void quic_tx_packet_init(struct quic_tx_packet *pkt, int type)
 	LIST_INIT(&pkt->frms);
 	pkt->time_sent = TICK_ETERNITY;
 	pkt->next = NULL;
+	pkt->prev = NULL;
 	pkt->largest_acked_pn = -1;
 	pkt->flags = 0;
 	pkt->refcnt = 0;

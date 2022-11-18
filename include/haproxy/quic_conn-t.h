@@ -483,6 +483,8 @@ struct quic_tx_packet {
 	int refcnt;
 	/* Next packet in the same datagram */
 	struct quic_tx_packet *next;
+	/* Previous packet in the same datagram */
+	struct quic_tx_packet *prev;
 	/* Largest acknowledged packet number if this packet contains an ACK frame */
 	int64_t largest_acked_pn;
 	unsigned char type;
