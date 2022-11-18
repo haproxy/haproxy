@@ -1135,6 +1135,7 @@ The following keywords are supported in the "global" section :
    - tune.quic.frontend.max-idle-timeout
    - tune.quic.frontend.max-streams-bidi
    - tune.quic.retry-threshold
+   - tune.quic.socket-owner
    - tune.rcvbuf.client
    - tune.rcvbuf.server
    - tune.recv_enough
@@ -3086,6 +3087,26 @@ tune.quic.retry-threshold <number>
   See https://www.rfc-editor.org/rfc/rfc9000.html#section-8.1.2 for more
   information about QUIC retry.
 
+tune.quic.socket-owner { listener | connection }
+  Warning: QUIC support in HAProxy is currently experimental. Configuration may
+  change without deprecation in the future.
+
+  Specifies how QUIC connections will use socket for receive/send operations.
+  Connections can share listener socket or each connection can allocate its
+  own socket.
+
+  Default "listener" value indicates that QUIC transfers will occur on the
+  shared listener socket. This option can be a good compromise for small
+  traffic as it allows to reduce FD consumption. However, performance won't be
+  optimal due to a higher CPU usage if listeners are shared accross a lot of
+  threads or a large number of QUIC connections can be used simultaneously.
+
+  If "connection" value is set, a dedicated socket will be allocated by every
+  QUIC connections. This option is the preferred one to achieve the best
+  performance with a large QUIC traffic. However, this relies on some advanced
+  features from the UDP network stack. If your platform is deemed not
+  compatible, haproxy will automatically revert to "listener" mode on startup.
+
 tune.rcvbuf.client <number>
 tune.rcvbuf.server <number>
   Forces the kernel socket receive buffer size on the client or the server side
@@ -4601,12 +4622,13 @@ bind /<path> [, ...] [param*]
                       to receive a FD over the unix socket and uses it as if it
                       was the FD of an accept(). Should be used carefully.
                     - 'quic4@' -> address is resolved as IPv4 and protocol UDP
-                      is used. Note that QUIC connections attached to a
-                      listener will be multiplexed over the listener socket.
-                      With a large traffic this has a noticeable impact on
-                      performance and CPU consumption. To improve this, you
-                      should duplicate QUIC listener instances over several
-                      threads, for example using "shards" keyword.
+                      is used. Note that by default QUIC connections attached
+                      to a listener will be multiplexed over the listener
+                      socket. With a large traffic this has a noticeable impact
+                      on performance and CPU consumption. To improve this, you
+                      can change default settings of "tune.quic.conn-owner" to
+                      connection or at least duplicate QUIC listener instances
+                      over several threads, for example using "shards" keyword.
                     - 'quic6@' -> address is resolved as IPv6 and protocol UDP
                       is used. The performance note for QUIC over IPv4 applies
                       as well.
