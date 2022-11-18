@@ -2682,7 +2682,7 @@ static int qc_handle_crypto_frm(struct quic_conn *qc,
 		frm->offset = cstream->rx.offset;
 	}
 
-	if (frm->offset == cstream->rx.offset) {
+	if (frm->offset == cstream->rx.offset && ncb_is_empty(ncbuf)) {
 		if (!qc_provide_cdata(qel, qc->xprt_ctx, frm->data, frm->len,
 		                      pkt, &cfdebug)) {
 			// trace already emitted by function above
