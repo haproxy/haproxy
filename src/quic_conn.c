@@ -459,7 +459,7 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 			if (qel) {
 				const struct quic_pktns *pktns = qel->pktns;
 				chunk_appendf(&trace_buf,
-				              " qel=%c state=%s ack?%d cwnd=%llu ppif=%lld pif=%llu if=%llu pp=%u",
+				              " qel=%c state=%s ack?%d cwnd=%llu ppif=%lld pif=%llu if=%llu pp=%u off=%llu",
 				              quic_enc_level_char_from_qel(qel, qc),
 				              quic_hdshk_state_str(qc->state),
 				              !!(qel->pktns->flags & QUIC_FL_PKTNS_ACK_REQUIRED),
@@ -467,7 +467,8 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 				              (unsigned long long)qc->path->prep_in_flight,
 				              (unsigned long long)qc->path->in_flight,
 				              (unsigned long long)pktns->tx.in_flight,
-				              pktns->tx.pto_probe);
+				              pktns->tx.pto_probe,
+				              qel->cstream ? (unsigned long long)qel->cstream->rx.offset : 0);
 			}
 		}
 
@@ -2223,6 +2224,9 @@ static inline int qc_provide_cdata(struct quic_enc_level *el,
                                    struct quic_rx_packet *pkt,
                                    struct quic_rx_crypto_frm *cf)
 {
+#ifdef DEBUG_STRICT
+	enum ncb_ret ncb_ret;
+#endif
 	int ssl_err, state;
 	struct quic_conn *qc;
 	int ret = 0;
@@ -2319,8 +2323,20 @@ static inline int qc_provide_cdata(struct quic_enc_level *el,
 	/* The CRYPTO data are consumed even in case of an error to release
 	 * the memory asap.
 	 */
-	if (!ncb_is_null(ncbuf))
+	if (!ncb_is_null(ncbuf)) {
+#ifdef DEBUG_STRICT
+		ncb_ret = ncb_advance(ncbuf, len);
+		/* ncb_advance() must always succeed. This is guaranteed as
+		 * this is only done inside a data block. If false, this will
+		 * lead to handshake failure with quic_enc_level offset shifted
+		 * from buffer data.
+		 */
+		BUG_ON(ncb_ret != NCB_RET_OK);
+#else
 		ncb_advance(ncbuf, len);
+#endif
+	}
+
 	TRACE_LEAVE(QUIC_EV_CONN_SSLDATA, qc);
 	return ret;
 }
@@ -2690,6 +2706,7 @@ static int qc_handle_crypto_frm(struct quic_conn *qc,
 		}
 
 		cstream->rx.offset += frm->len;
+		TRACE_DEVEL("increment crypto level offset", QUIC_EV_CONN_PHPKTS, qc, qel);
 		goto done;
 	}
 
@@ -3863,23 +3880,25 @@ static inline int qc_treat_rx_crypto_frms(struct quic_conn *qc,
 	if (ncb_is_null(ncbuf))
 		goto done;
 
+	/* TODO not working if buffer is wrapping */
 	while ((data = ncb_data(ncbuf, 0))) {
 		const unsigned char *cdata = (const unsigned char *)ncb_head(ncbuf);
 
 		if (!qc_provide_cdata(el, ctx, cdata, data, NULL, NULL))
 			goto leave;
 
-		TRACE_DEVEL("buffered crypto data were provided to TLS stack",
-		            QUIC_EV_CONN_PHPKTS, qc);
-
 		cstream->rx.offset += data;
+		TRACE_DEVEL("buffered crypto data were provided to TLS stack",
+		            QUIC_EV_CONN_PHPKTS, qc, el);
 	}
 
  done:
 	ret = 1;
  leave:
-	if (ncb_is_empty(ncbuf))
+	if (!ncb_is_null(ncbuf) && ncb_is_empty(ncbuf)) {
+		TRACE_DEVEL("freeing crypto buf", QUIC_EV_CONN_PHPKTS, qc, el);
 		quic_free_ncbuf(ncbuf);
+	}
 	TRACE_LEAVE(QUIC_EV_CONN_PHPKTS, qc);
 	return ret;
 }
