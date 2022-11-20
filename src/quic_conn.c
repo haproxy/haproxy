@@ -1759,10 +1759,7 @@ static inline struct eb64_node *qc_ackrng_pkts(struct quic_conn *qc,
 		/* If there are others packet in the same datagram <pkt> is attached to,
 		 * detach the previous one and the next one from <pkt>.
 		 */
-		if (pkt->prev)
-			pkt->prev->next = pkt->next;
-		if (pkt->next)
-			pkt->next->prev = pkt->prev;
+		quic_tx_packet_dgram_detach(pkt);
 		node = eb64_prev(node);
 		eb64_delete(&pkt->pn_node);
 	}
@@ -3237,7 +3234,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 		/* keep trace of the first packet in the datagram */
 		if (!first_pkt)
 			first_pkt = cur_pkt;
-		/* Attach the current one to the previous one */
+		/* Attach the current one to the previous one and vice versa */
 		if (prv_pkt) {
 			prv_pkt->next = cur_pkt;
 			cur_pkt->prev = prv_pkt;

@@ -487,6 +487,19 @@ static inline int64_t quic_pktns_get_largest_acked_pn(struct quic_pktns *pktns)
 	return eb64_entry(ar, struct quic_arng_node, first)->last;
 }
 
+/* The TX packets sent in the same datagram are linked to each others in
+ * the order they are built. This function detach a packet from its successor
+ * and predecessor in the same datagram.
+ */
+static inline void quic_tx_packet_dgram_detach(struct quic_tx_packet *pkt)
+{
+	if (pkt->prev)
+		pkt->prev->next = pkt->next;
+	if (pkt->next)
+		pkt->next->prev = pkt->prev;
+}
+
+
 /* Increment the reference counter of <pkt> */
 static inline void quic_tx_packet_refinc(struct quic_tx_packet *pkt)
 {
@@ -498,6 +511,10 @@ static inline void quic_tx_packet_refdec(struct quic_tx_packet *pkt)
 {
 	if (!HA_ATOMIC_SUB_FETCH(&pkt->refcnt, 1)) {
 		BUG_ON(!LIST_ISEMPTY(&pkt->frms));
+		/* If there are others packet in the same datagram <pkt> is attached to,
+		 * detach the previous one and the next one from <pkt>.
+		 */
+		quic_tx_packet_dgram_detach(pkt);
 		pool_free(pool_head_quic_tx_packet, pkt);
 	}
 }
