@@ -6325,6 +6325,18 @@ static int qc_handle_conn_migration(struct quic_conn *qc,
 
 	/* RFC 9000 9. Connection Migration
 	 *
+	 * The design of QUIC relies on endpoints retaining a stable address for
+	 * the duration of the handshake.  An endpoint MUST NOT initiate
+	 * connection migration before the handshake is confirmed, as defined in
+	 * Section 4.1.2 of [QUIC-TLS].
+	 */
+	if (qc->state < QUIC_HS_ST_COMPLETE) {
+		TRACE_STATE("Connection migration during handshake rejected", QUIC_EV_CONN_LPKT, qc);
+		goto err;
+	}
+
+	/* RFC 9000 9. Connection Migration
+	 *
 	 * TODO
 	 * An endpoint MUST
 	 * perform path validation (Section 8.2) if it detects any change to a
