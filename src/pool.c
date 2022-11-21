@@ -82,6 +82,17 @@ static const struct {
 	{ 0 /* end */ }
 };
 
+/* describes a snapshot of a pool line about to be dumped by "show pools" */
+struct pool_dump_info {
+	const struct pool_head *entry;
+	ulong alloc_items;
+	ulong alloc_bytes;
+	ulong used_items;
+	ulong cached_items;
+	ulong need_avg;
+	ulong failed_items;
+};
+
 static int mem_fail_rate __read_mostly = 0;
 static int using_default_allocator __read_mostly = 1;
 static int disable_trim __read_mostly = 0;
@@ -868,38 +879,62 @@ void pool_destroy_all()
 	}
 }
 
+/* will not dump more than this number of entries. Anything beyond this will
+ * likely not fit into a regular output buffer anyway.
+ */
+#define POOLS_MAX_DUMPED_ENTRIES 1024
+
 /* This function dumps memory usage information into the trash buffer. */
 void dump_pools_to_trash()
 {
+	struct pool_dump_info pool_info[POOLS_MAX_DUMPED_ENTRIES];
 	struct pool_head *entry;
 	unsigned long long allocated, used;
-	int nbpools;
+	int nbpools, i;
 	unsigned long long cached_bytes = 0;
 	uint cached = 0;
 
 	allocated = used = nbpools = 0;
-	chunk_printf(&trash, "Dumping pools usage. Use SIGQUIT to flush them.\n");
+
 	list_for_each_entry(entry, &pools, list) {
+		if (nbpools >= POOLS_MAX_DUMPED_ENTRIES)
+			break;
+
 		if (!(pool_debugging & POOL_DBG_NO_CACHE)) {
-			int i;
 			for (cached = i = 0; i < global.nbthread; i++)
 				cached += entry->cache[i].count;
-			cached_bytes += cached * (ullong)entry->size;
 		}
-		chunk_appendf(&trash, "  - Pool %s (%u bytes) : %u allocated (%llu bytes), %u used"
-			      " (~%u by thread caches)"
-			      ", needed_avg %u, %u failures, %u users, @%p%s\n",
-		              entry->name, entry->size, entry->allocated,
-		              (ullong)entry->size * entry->allocated, entry->used,
-		              cached,
-		              swrate_avg(entry->needed_avg, POOL_AVG_SAMPLES), entry->failed,
-		              entry->users, entry,
-		              (entry->flags & MEM_F_SHARED) ? " [SHARED]" : "");
-
-		allocated += entry->allocated * (ullong)entry->size;
-		used += entry->used * (ullong)entry->size;
+		pool_info[nbpools].entry = entry;
+		pool_info[nbpools].alloc_items = entry->allocated;
+		pool_info[nbpools].alloc_bytes = (ulong)entry->size * entry->allocated;
+		pool_info[nbpools].used_items = entry->used;
+		pool_info[nbpools].cached_items = cached;
+		pool_info[nbpools].need_avg = swrate_avg(entry->needed_avg, POOL_AVG_SAMPLES);
+		pool_info[nbpools].failed_items = entry->failed;
 		nbpools++;
 	}
+
+	chunk_printf(&trash, "Dumping pools usage");
+	if (nbpools >= POOLS_MAX_DUMPED_ENTRIES)
+		chunk_appendf(&trash, " (limited to the first %u entries)", POOLS_MAX_DUMPED_ENTRIES);
+	chunk_appendf(&trash, ". Use SIGQUIT to flush them.\n");
+
+	for (i = 0; i < nbpools && i < POOLS_MAX_DUMPED_ENTRIES; i++) {
+		chunk_appendf(&trash, "  - Pool %s (%lu bytes) : %lu allocated (%lu bytes), %lu used"
+			      " (~%lu by thread caches)"
+			      ", needed_avg %lu, %lu failures, %u users, @%p%s\n",
+		              pool_info[i].entry->name, (ulong)pool_info[i].entry->size,
+			      pool_info[i].alloc_items, pool_info[i].alloc_bytes,
+			      pool_info[i].used_items, pool_info[i].cached_items,
+			      pool_info[i].need_avg, pool_info[i].failed_items,
+		              pool_info[i].entry->users, pool_info[i].entry,
+		              (pool_info[i].entry->flags & MEM_F_SHARED) ? " [SHARED]" : "");
+
+		cached_bytes += pool_info[i].cached_items * (ulong)pool_info[i].entry->size;
+		allocated    += pool_info[i].alloc_items  * (ulong)pool_info[i].entry->size;
+		used         += pool_info[i].used_items   * (ulong)pool_info[i].entry->size;
+	}
+
 	chunk_appendf(&trash, "Total: %d pools, %llu bytes allocated, %llu used"
 		      " (~%llu by thread caches)"
 		      ".\n",
