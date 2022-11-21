@@ -2381,6 +2381,7 @@ struct server *srv_drop(struct server *srv)
 	free(srv->hostname_dn);
 	free((char*)srv->conf.file);
 	free(srv->per_thr);
+	free(srv->per_tgrp);
 	free(srv->curr_idle_thr);
 	free(srv->resolvers_id);
 	free(srv->addr_node.key);
@@ -4650,7 +4651,8 @@ int srv_init_per_thr(struct server *srv)
 	int i;
 
 	srv->per_thr = calloc(global.nbthread, sizeof(*srv->per_thr));
-	if (!srv->per_thr)
+	srv->per_tgrp = calloc(global.nbtgroups, sizeof(*srv->per_tgrp));
+	if (!srv->per_thr || !srv->per_tgrp)
 		return -1;
 
 	for (i = 0; i < global.nbthread; i++) {

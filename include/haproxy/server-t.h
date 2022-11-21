@@ -212,6 +212,11 @@ struct srv_per_thread {
 	struct eb_root avail_conns;             /* Connections in use, but with still new streams available */
 };
 
+/* Each server will have one occurrence of this structure per thread group */
+struct srv_per_tgroup {
+	unsigned int next_takeover;             /* thread ID to try to steal connections from next time */
+};
+
 /* Configure the protocol selection for websocket */
 enum __attribute__((__packed__)) srv_ws_mode {
 	SRV_WS_AUTO = 0,
@@ -239,6 +244,7 @@ struct server {
 	const struct mux_proto_list *mux_proto;       /* the mux to use for all outgoing connections (specified by the "proto" keyword) */
 	unsigned maxconn, minconn;		/* max # of active sessions (0 = unlimited), min# for dynamic limit. */
 	struct srv_per_thread *per_thr;         /* array of per-thread stuff such as connections lists */
+	struct srv_per_tgroup *per_tgrp;        /* array of per-tgroup stuff such as idle conns */
 	unsigned int *curr_idle_thr;            /* Current number of orphan idling connections per thread */
 
 	unsigned int pool_purge_delay;          /* Delay before starting to purge the idle conns pool */
@@ -282,7 +288,6 @@ struct server {
 	unsigned int curr_used_conns;           /* Current number of used connections */
 	unsigned int max_used_conns;            /* Max number of used connections (the counter is reset at each connection purges */
 	unsigned int est_need_conns;            /* Estimate on the number of needed connections (max of curr and previous max_used) */
-	unsigned int next_takeover;             /* thread ID to try to steal connections from next time */
 
 	struct queue queue;			/* pending connections */
 

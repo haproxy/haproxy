@@ -1201,7 +1201,7 @@ static struct connection *conn_backend_get(struct stream *s, struct server *srv,
 	/* Lookup all other threads for an idle connection, starting from last
 	 * unvisited thread, but always staying in the same group.
 	 */
-	stop = srv->next_takeover;
+	stop = srv->per_tgrp[tgid - 1].next_takeover;
 	if (stop >= tg->count)
 		stop %= tg->count;
 
@@ -1246,7 +1246,7 @@ static struct connection *conn_backend_get(struct stream *s, struct server *srv,
 		conn = NULL;
  done:
 	if (conn) {
-		_HA_ATOMIC_STORE(&srv->next_takeover, (i + 1 == tg->base + tg->count) ? tg->base : i + 1);
+		_HA_ATOMIC_STORE(&srv->per_tgrp[tgid - 1].next_takeover, (i + 1 == tg->base + tg->count) ? tg->base : i + 1);
 
 		srv_use_conn(srv, conn);
 
