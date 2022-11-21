@@ -5933,7 +5933,7 @@ struct task *srv_cleanup_idle_conns(struct task *task, void *context, unsigned i
 		if (srv->est_need_conns < srv->max_used_conns)
 			srv->est_need_conns = srv->max_used_conns;
 
-		srv->max_used_conns = srv->curr_used_conns;
+		HA_ATOMIC_STORE(&srv->max_used_conns, srv->curr_used_conns);
 
 		if (exceed_conns <= 0)
 			goto remove;

@@ -264,18 +264,21 @@ static inline enum srv_initaddr srv_get_next_initaddr(unsigned int *list)
 
 static inline void srv_use_conn(struct server *srv, struct connection *conn)
 {
-	unsigned int curr;
+	unsigned int curr, prev;
 
 	curr = _HA_ATOMIC_ADD_FETCH(&srv->curr_used_conns, 1);
+
 
 	/* It's ok not to do that atomically, we don't need an
 	 * exact max.
 	 */
-	if (srv->max_used_conns < curr)
-		srv->max_used_conns = curr;
+	prev = HA_ATOMIC_LOAD(&srv->max_used_conns);
+	if (prev < curr)
+		HA_ATOMIC_STORE(&srv->max_used_conns, curr);
 
-	if (srv->est_need_conns < curr)
-		srv->est_need_conns = curr;
+	prev = HA_ATOMIC_LOAD(&srv->est_need_conns);
+	if (prev < curr)
+		HA_ATOMIC_STORE(&srv->est_need_conns, curr);
 }
 
 #endif /* _HAPROXY_SERVER_H */
