@@ -286,11 +286,11 @@ static inline int resolv_resolution_timeout(struct resolv_resolution *res)
 static void resolv_update_resolvers_timeout(struct resolvers *resolvers)
 {
 	struct resolv_resolution *res;
-	int next;
+	int next = TICK_ETERNITY;
 
-	next = tick_add(now_ms, resolvers->timeout.resolve);
 	if (!LIST_ISEMPTY(&resolvers->resolutions.curr)) {
 		res  = LIST_NEXT(&resolvers->resolutions.curr, struct resolv_resolution *, list);
+		next = tick_add(now_ms, resolvers->timeout.resolve);
 		next = MIN(next, tick_add(res->last_query, resolvers->timeout.retry));
 	}
 
