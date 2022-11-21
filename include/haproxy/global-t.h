@@ -78,6 +78,7 @@
 #define GTUNE_DISABLE_H2_WEBSOCKET (1<<21)
 #define GTUNE_DISABLE_ACTIVE_CLOSE (1<<22)
 #define GTUNE_QUICK_EXIT         (1<<23)
+#define GTUNE_QUIC_SOCK_PER_CONN (1<<24)
 
 /* SSL server verify mode */
 enum {

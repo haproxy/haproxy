@@ -570,6 +570,40 @@ static int quic_alloc_rxbufs_listener(struct listener *l)
 	return 0;
 }
 
+/* Check if platform supports the required feature set for quic-conn owned
+ * socket. <l> listener must already be binded; a dummy socket will be opened
+ * on the same address as one of the support test.
+ *
+ * Returns true if platform is deemed compatible else false.
+ */
+static int quic_test_sock_per_conn_support(struct listener *l)
+{
+	const struct receiver *rx = &l->rx;
+	int ret = 1, fdtest;
+
+	/* Check if platform support multiple UDP sockets bind on the same
+	 * local address. Create a dummy socket and bind it on the same address
+	 * as <l> listener. If bind system call fails, deactivate socket per
+	 * connection. All other errors are not taken into account.
+	 */
+	if (ret) {
+		fdtest = socket(rx->proto->fam->sock_domain,
+		                rx->proto->sock_type, rx->proto->sock_prot);
+		if (fdtest > 0) {
+			if (setsockopt(fdtest, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one)) &&
+			    bind(fdtest, (struct sockaddr *)&rx->addr, rx->proto->fam->sock_addrlen) < 0) {
+				ha_alert("Your platform does not seem to support multiple UDP sockets binded on the same address. "
+				         "QUIC connections will use listener socket.\n");
+				ret = 0;
+			}
+
+			close(fdtest);
+		}
+	}
+
+	return ret;
+}
+
 /* This function tries to bind a QUIC4/6 listener. It may return a warning or
  * an error message in <errmsg> if the message is at most <errlen> bytes long
  * (including '\0'). Note that <errmsg> may be NULL if <errlen> is also zero.
@@ -624,6 +658,11 @@ static int quic_bind_listener(struct listener *listener, char *errmsg, int errle
 		msg = "could not initialize tx/rx rings";
 		err |= ERR_WARN;
 		goto udp_return;
+	}
+
+	if (global.tune.options & GTUNE_QUIC_SOCK_PER_CONN) {
+		if (!quic_test_sock_per_conn_support(listener))
+			global.tune.options &= ~GTUNE_QUIC_SOCK_PER_CONN;
 	}
 
 	listener_set_state(listener, LI_LISTEN);
