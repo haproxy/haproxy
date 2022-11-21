@@ -1767,7 +1767,7 @@ int http_scheme_based_normalize(struct htx *htx)
 	}
 	host = isttrim(authority, istlen(authority) - istlen(port) - 1);
 
-	if (istlen(port) && http_is_default_port(scheme, port)) {
+	if (http_is_default_port(scheme, port)) {
 		/* reconstruct the uri with removal of the port */
 		struct buffer *temp = get_trash_chunk();
 		struct ist meth, vsn;
