@@ -1578,6 +1578,9 @@ static void init_args(int argc, char **argv)
 #ifdef USE_THREAD
 	global.tune.options |= GTUNE_IDLE_POOL_SHARED;
 #endif
+#ifdef USE_QUIC
+	global.tune.options |= GTUNE_QUIC_SOCK_PER_CONN;
+#endif
 	global.tune.options |= GTUNE_STRICT_LIMITS;
 
 	/* keep a copy of original arguments for the master process */
