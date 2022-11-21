@@ -291,6 +291,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			curr_defproxy = last_defproxy;
 
 		if (strcmp(args[arg], "from") == 0) {
+			struct ebpt_node *next_by_name;
+
 			curr_defproxy = proxy_find_by_name(args[arg+1], PR_CAP_DEF, 0);
 
 			if (!curr_defproxy) {
@@ -299,8 +301,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				goto out;
 			}
 
-			if (ebpt_next_dup(&curr_defproxy->conf.by_name)) {
-				struct proxy *px2 = container_of(ebpt_next_dup(&curr_defproxy->conf.by_name), struct proxy, conf.by_name);
+			if ((next_by_name = ebpt_next_dup(&curr_defproxy->conf.by_name))) {
+				struct proxy *px2 = container_of(next_by_name, struct proxy, conf.by_name);
 
 				ha_alert("parsing [%s:%d] : ambiguous defaults section name '%s' referenced by %s '%s' exists at least at %s:%d and %s:%d.\n",
 					 file, linenum, args[arg+1], proxy_cap_str(rc), name,
