@@ -479,7 +479,9 @@ const char *http_get_reason(unsigned int status)
 }
 
 /* Returns the ist string corresponding to port part (without ':') in the host
- * <host> or IST_NULL if not found.
+ * <host>, IST_NULL if no ':' is found or an empty IST if there is no digit. In
+ * the last case, the result is the original ist trimed to 0. So be sure to test
+ * the result length before doing any pointer arithmetic.
 */
 struct ist http_get_host_port(const struct ist host)
 {
@@ -490,8 +492,10 @@ struct ist http_get_host_port(const struct ist host)
 	for (ptr = end; ptr > start && isdigit((unsigned char)*--ptr););
 
 	/* no port found */
-	if (likely(*ptr != ':' || ptr+1 == end || ptr == start))
+	if (likely(*ptr != ':'))
 		return IST_NULL;
+	if (ptr+1 == end)
+		return isttrim(host, 0);
 
 	return istnext(ist2(ptr, end - ptr));
 }
@@ -503,6 +507,9 @@ struct ist http_get_host_port(const struct ist host)
  */
 int http_is_default_port(const struct ist schm, const struct ist port)
 {
+	if (!istlen(port))
+		return 1;
+
 	if (!isttest(schm))
 		return (isteq(port, ist("443")) || isteq(port, ist("80")));
 	else
