@@ -495,9 +495,16 @@ int qc_snd_buf(struct quic_conn *qc, const struct buffer *buf, size_t sz,
 	ssize_t ret;
 
 	do {
-		ret = sendto(qc->li->rx.fd, b_peek(buf, b_head_ofs(buf)), sz,
-		             MSG_DONTWAIT | MSG_NOSIGNAL,
-		             (struct sockaddr *)&qc->peer_addr, get_addr_len(&qc->peer_addr));
+		if (qc_test_fd(qc)) {
+			ret = send(qc->fd, b_peek(buf, b_head_ofs(buf)), sz,
+			           MSG_DONTWAIT | MSG_NOSIGNAL);
+		}
+		else {
+			ret = sendto(qc->li->rx.fd, b_peek(buf, b_head_ofs(buf)), sz,
+			             MSG_DONTWAIT|MSG_NOSIGNAL,
+			             (struct sockaddr *)&qc->peer_addr,
+			             get_addr_len(&qc->peer_addr));
+		}
 	} while (ret < 0 && errno == EINTR);
 
 	if (ret < 0 || ret != sz) {
@@ -515,7 +522,9 @@ int qc_snd_buf(struct quic_conn *qc, const struct buffer *buf, size_t sz,
 				HA_ATOMIC_INC(&prx_counters->sendto_err);
 		}
 		else if (errno) {
-			/* TODO unlisted errno : handle it explicitly. */
+			/* TODO unlisted errno : handle it explicitly.
+			 * ECONNRESET may be encounter on quic-conn socket.
+			 */
 			HA_ATOMIC_INC(&prx_counters->sendto_err_unknown);
 		}
 
