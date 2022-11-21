@@ -2897,11 +2897,15 @@ show peers [dict|-] [<peers section>]
             table:0x55871b5b46a0 id=stkt update=1 localupdate=0 \
               commitupdate=0 syncing=0
 
-show pools
+show pools [byname|bysize|byusage] [<nb>]
   Dump the status of internal memory pools. This is useful to track memory
   usage when suspecting a memory leak for example. It does exactly the same
-  as the SIGQUIT when running in foreground except that it does not flush
-  the pools.
+  as the SIGQUIT when running in foreground except that it does not flush the
+  pools. The output is not sorted by default. If "byname" is specified, it is
+  sorted by pool name; if "bysize" is specified, it is sorted by item size in
+  reverse order; if "byusage" is specified, it is sorted by total usage in
+  reverse order, and only used entries are shown. It is also possible to limit
+  the output to the <nb> first entries (e.g. when sorting by usage).
 
 show profiling [{all | status | tasks | memory}] [byaddr|bytime|aggr|<max_lines>]*
   Dumps the current profiling settings, one per line, as well as the command

@@ -93,6 +93,12 @@ struct pool_dump_info {
 	ulong failed_items;
 };
 
+/* context used by "show pools" */
+struct show_pools_ctx {
+	int by_what; /* 0=no sort, 1=by name, 2=by item size, 3=by total alloc */
+	int maxcnt;  /* 0=no limit, other=max number of output entries */
+};
+
 static int mem_fail_rate __read_mostly = 0;
 static int using_default_allocator __read_mostly = 1;
 static int disable_trim __read_mostly = 0;
@@ -879,13 +885,53 @@ void pool_destroy_all()
 	}
 }
 
+/* used by qsort in "show pools" to sort by name */
+static int cmp_dump_pools_name(const void *a, const void *b)
+{
+	const struct pool_dump_info *l = (const struct pool_dump_info *)a;
+	const struct pool_dump_info *r = (const struct pool_dump_info *)b;
+
+	return strcmp(l->entry->name, r->entry->name);
+}
+
+/* used by qsort in "show pools" to sort by item size */
+static int cmp_dump_pools_size(const void *a, const void *b)
+{
+	const struct pool_dump_info *l = (const struct pool_dump_info *)a;
+	const struct pool_dump_info *r = (const struct pool_dump_info *)b;
+
+	if (l->entry->size > r->entry->size)
+		return -1;
+	else if (l->entry->size < r->entry->size)
+		return 1;
+	else
+		return 0;
+}
+
+/* used by qsort in "show pools" to sort by usage */
+static int cmp_dump_pools_usage(const void *a, const void *b)
+{
+	const struct pool_dump_info *l = (const struct pool_dump_info *)a;
+	const struct pool_dump_info *r = (const struct pool_dump_info *)b;
+
+	if (l->alloc_bytes > r->alloc_bytes)
+		return -1;
+	else if (l->alloc_bytes < r->alloc_bytes)
+		return 1;
+	else
+		return 0;
+}
+
 /* will not dump more than this number of entries. Anything beyond this will
  * likely not fit into a regular output buffer anyway.
  */
 #define POOLS_MAX_DUMPED_ENTRIES 1024
 
-/* This function dumps memory usage information into the trash buffer. */
-void dump_pools_to_trash()
+/* This function dumps memory usage information into the trash buffer.
+ * It may sort by a criterion if <by_what> is non-zero, and limit the
+ * number of output lines if <max> is non-zero.
+ */
+void dump_pools_to_trash(int by_what, int max)
 {
 	struct pool_dump_info pool_info[POOLS_MAX_DUMPED_ENTRIES];
 	struct pool_head *entry;
@@ -899,6 +945,10 @@ void dump_pools_to_trash()
 	list_for_each_entry(entry, &pools, list) {
 		if (nbpools >= POOLS_MAX_DUMPED_ENTRIES)
 			break;
+
+		/* do not dump unused entries when sorting by usage */
+		if (by_what == 3 && !entry->allocated)
+			continue;
 
 		if (!(pool_debugging & POOL_DBG_NO_CACHE)) {
 			for (cached = i = 0; i < global.nbthread; i++)
@@ -914,12 +964,21 @@ void dump_pools_to_trash()
 		nbpools++;
 	}
 
+	if (by_what == 1)  /* sort by name */
+		qsort(pool_info, nbpools, sizeof(pool_info[0]), cmp_dump_pools_name);
+	else if (by_what == 2)  /* sort by item size */
+		qsort(pool_info, nbpools, sizeof(pool_info[0]), cmp_dump_pools_size);
+	else if (by_what == 3)  /* sort by total usage */
+		qsort(pool_info, nbpools, sizeof(pool_info[0]), cmp_dump_pools_usage);
+
 	chunk_printf(&trash, "Dumping pools usage");
-	if (nbpools >= POOLS_MAX_DUMPED_ENTRIES)
-		chunk_appendf(&trash, " (limited to the first %u entries)", POOLS_MAX_DUMPED_ENTRIES);
+	if (!max || max >= POOLS_MAX_DUMPED_ENTRIES)
+		max = POOLS_MAX_DUMPED_ENTRIES;
+	if (nbpools >= max)
+		chunk_appendf(&trash, " (limited to the first %u entries)", max);
 	chunk_appendf(&trash, ". Use SIGQUIT to flush them.\n");
 
-	for (i = 0; i < nbpools && i < POOLS_MAX_DUMPED_ENTRIES; i++) {
+	for (i = 0; i < nbpools && i < max; i++) {
 		chunk_appendf(&trash, "  - Pool %s (%lu bytes) : %lu allocated (%lu bytes), %lu used"
 			      " (~%lu by thread caches)"
 			      ", needed_avg %lu, %lu failures, %u users, @%p%s\n",
@@ -945,7 +1004,7 @@ void dump_pools_to_trash()
 /* Dump statistics on pools usage. */
 void dump_pools(void)
 {
-	dump_pools_to_trash();
+	dump_pools_to_trash(0, 0);
 	qfprintf(stderr, "%s", trash.area);
 }
 
@@ -1061,13 +1120,40 @@ int pool_parse_debugging(const char *str, char **err)
 	return 1;
 }
 
+/* parse a "show pools" command. It returns 1 on failure, 0 if it starts to dump. */
+static int cli_parse_show_pools(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	struct show_pools_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
+	int arg;
+
+	for (arg = 2; *args[arg]; arg++) {
+		if (strcmp(args[arg], "byname") == 0) {
+			ctx->by_what = 1; // sort output by name
+		}
+		else if (strcmp(args[arg], "bysize") == 0) {
+			ctx->by_what = 2; // sort output by item size
+		}
+		else if (strcmp(args[arg], "byusage") == 0) {
+			ctx->by_what = 3; // sort output by total allocated size
+		}
+		else if (isdigit((unsigned char)*args[arg])) {
+			ctx->maxcnt = atoi(args[arg]); // number of entries to dump
+		}
+		else
+			return cli_err(appctx, "Expects either 'byname', 'bysize', 'byusage', or a max number of output lines.\n");
+	}
+	return 0;
+}
+
 /* This function dumps memory usage information onto the stream connector's
  * read buffer. It returns 0 as long as it does not complete, non-zero upon
  * completion. No state is used.
  */
 static int cli_io_handler_dump_pools(struct appctx *appctx)
 {
-	dump_pools_to_trash();
+	struct show_pools_ctx *ctx = appctx->svcctx;
+
+	dump_pools_to_trash(ctx->by_what, ctx->maxcnt);
 	if (applet_putchk(appctx, &trash) == -1)
 		return 0;
 	return 1;
@@ -1114,7 +1200,7 @@ INITCALL0(STG_REGISTER, pools_register_build_options);
 
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
-	{ { "show", "pools",  NULL }, "show pools                              : report information about the memory pools usage", NULL, cli_io_handler_dump_pools },
+	{ { "show", "pools",  NULL }, "show pools [byname|bysize|byusage] [nb] : report information about the memory pools usage", cli_parse_show_pools, cli_io_handler_dump_pools },
 	{{},}
 }};
 
