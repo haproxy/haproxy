@@ -22,18 +22,135 @@ syslog S1 -level info {
 
     # C5
     recv
-    expect ~ "^.* uri: CONNECT toto:pouet@hostname:80 HTTP/1.1; host: {hostname}$"
+    expect ~ "^.* uri: CONNECT hostname:80 HTTP/1.1; host: {hostname}$"
     recv
-    expect ~ "^.* uri: CONNECT toto:pouet@hostname:80 HTTP/1.1; host: {hostname}$"
+    expect ~ "^.* uri: CONNECT hostname:80 HTTP/1.1; host: {hostname}$"
+    recv
+    expect ~ "^.* uri: CONNECT hostname:80 HTTP/1.1; host: {hostname:}$"
 
     # C6
     recv
     expect ~ "^.* uri: CONNECT hostname:443 HTTP/1.1; host: {hostname}$"
     recv
     expect ~ "^.* uri: CONNECT hostname:443 HTTP/1.1; host: {hostname}$"
+    recv
+    expect ~ "^.* uri: CONNECT hostname:443 HTTP/1.1; host: {hostname:}$"
 
+    # C7
     recv
     expect ~ "^.* uri: CONNECT hostname:8443 HTTP/1.1; host: {hostname:8443}$"
+
+    # C8
+    recv
+    expect ~ "^.* uri: <BADREQ>; host: $"
+
+    # C9
+    recv
+    expect ~ "^.* uri: <BADREQ>; host: $"
+
+    # C10
+    recv
+    expect ~ "^.* uri: <BADREQ>; host: $"
+
+    # C11
+    recv
+    expect ~ "^.* uri: <BADREQ>; host: $"
+
+    # C12
+    recv
+    expect ~ "^.* uri: <BADREQ>; host: $"
+
+    # C13
+    recv
+    expect ~ "^.* uri: <BADREQ>; host: $"
+
+    # C14
+    recv
+    expect ~ "^.* uri: <BADREQ>; host: $"
+
+    # C15
+    recv
+    expect ~ "^.* uri: <BADREQ>; host: $"
+
+    # C16
+    recv
+    expect ~ "^.* uri: <BADREQ>; host: $"
+
+    # C17
+    recv
+    expect ~ "^.* uri: <BADREQ>; host: $"
+
+    # C18
+    recv
+    expect ~ "^.* uri: <BADREQ>; host: $"
+
+    # C19
+    recv
+    expect ~ "^.* uri: <BADREQ>; host: $"
+
+    # C20
+    recv
+    expect ~ "^.* uri: GET http://hostname/c20 HTTP/1.1; host: {hostname}$"
+
+    # C21
+    recv
+    expect ~ "^.* uri: GET https://hostname/c21 HTTP/1.1; host: {hostname}$"
+
+    # C22
+    recv
+    expect ~ "^.* uri: GET http://hostname/c22 HTTP/1.1; host: {hostname:80}$"
+
+    # C23
+    recv
+    expect ~ "^.* uri: GET https://hostname/c23 HTTP/1.1; host: {hostname:443}$"
+
+    # C24
+    recv
+    expect ~ "^.* uri: GET http://hostname/c24 HTTP/1.1; host: {hostname}$"
+
+    # C25
+    recv
+    expect ~ "^.* uri: GET https://hostname/c25 HTTP/1.1; host: {hostname}$"
+
+    # C26
+    recv
+    expect ~ "^.* uri: GET http://hostname/c26 HTTP/1.1; host: {hostname:}$"
+
+    # C27
+    recv
+    expect ~ "^.* uri: GET https://hostname/c27 HTTP/1.1; host: {hostname:}$"
+
+    # C28
+    recv
+    expect ~ "^.* uri: GET http://hostname/c28 HTTP/1.1; host: {hostname}$"
+
+    # C29
+    recv
+    expect ~ "^.* uri: GET http://hostname/c29 HTTP/1.1; host: {hostname}$"
+
+    # C30
+    recv
+    expect ~ "^.* uri: GET https://hostname/c30 HTTP/1.1; host: {hostname}$"
+
+    # C31
+    recv
+    expect ~ "^.* uri: GET https://hostname/c31 HTTP/1.1; host: {hostname}$"
+
+    # C32
+    recv
+    expect ~ "^.* uri: GET http:// HTTP/1.1; host: {}$"
+
+    # C33
+    recv
+    expect ~ "^.* uri: GET https:// HTTP/1.1; host: {}$"
+
+    # C34
+    recv
+    expect ~ "^.* uri: GET http:// HTTP/1.1; host: {}$"
+
+    # C35
+    recv
+    expect ~ "^.* uri: GET https:// HTTP/1.1; host: {}$"
 } -start
 
 haproxy h1 -conf {
@@ -99,11 +216,10 @@ client c4 -connect ${h1_fe_sock} {
 } -run
 
 # CONNECT on port 80 => should be normalized
-# Be sure userinfo are skipped
 client c5 -connect ${h1_fe_sock} {
     txreq \
       -req "CONNECT" \
-      -url "toto:pouet@hostname:80" \
+      -url "hostname:80" \
       -hdr "host: hostname:80"
 
     rxresp
@@ -113,8 +229,18 @@ client c5 -connect ${h1_fe_sock} {
 
     txreq \
       -req "CONNECT" \
-      -url "toto:pouet@hostname:80" \
+      -url "hostname:80" \
       -hdr "host: hostname"
+
+    rxresp
+    expect resp.status == 200
+} -run
+client c5 -connect ${h1_fe_sock} {
+
+    txreq \
+      -req "CONNECT" \
+      -url "hostname:80" \
+      -hdr "host: hostname:"
 
     rxresp
     expect resp.status == 200
@@ -135,6 +261,15 @@ client c6 -connect ${h1_fe_sock} {
       -req "CONNECT" \
       -url "hostname:443" \
       -hdr "host: hostname"
+
+    rxresp
+    expect resp.status == 200
+} -run
+client c6 -connect ${h1_fe_sock} {
+    txreq \
+      -req "CONNECT" \
+      -url "hostname:443" \
+      -hdr "host: hostname:"
 
     rxresp
     expect resp.status == 200
@@ -272,6 +407,197 @@ client c18 -connect ${h1_fe_sock} {
 
     rxresp
     expect resp.status == 400
+} -run
+
+# no authority => error
+client c19 -connect ${h1_fe_sock} {
+    txreq \
+      -req "CONNECT" \
+      -url "hostname:" \
+      -hdr "host: hostname"
+
+    rxresp
+    expect resp.status == 400
+} -run
+
+
+# default port 80 with http scheme but no port for host value => should be normalized
+client c20 -connect ${h1_fe_sock} {
+    txreq \
+      -req "GET" \
+      -url "http://hostname:80/c20" \
+      -hdr "host: hostname"
+
+    rxresp
+    expect resp.status == 200
+} -run
+
+
+# default port 443 with https scheme but no port for host value => should be normalized
+client c21 -connect ${h1_fe_sock} {
+    txreq \
+      -req "GET" \
+      -url "https://hostname:443/c21" \
+      -hdr "host: hostname"
+
+    rxresp
+    expect resp.status == 200
+} -run
+
+
+# http scheme, no port for the authority but default port for host value => no normalization
+client c22 -connect ${h1_fe_sock} {
+    txreq \
+      -req "GET" \
+      -url "http://hostname/c22" \
+      -hdr "host: hostname:80"
+
+    rxresp
+    expect resp.status == 200
+} -run
+
+# https scheme, no port for the authority but default port for host value => no normalization
+client c23 -connect ${h1_fe_sock} {
+    txreq \
+      -req "GET" \
+      -url "https://hostname/c23" \
+      -hdr "host: hostname:443"
+
+    rxresp
+    expect resp.status == 200
+} -run
+
+
+# http scheme, empty port for the authority and no port for host value => should be normalized
+client c24 -connect ${h1_fe_sock} {
+    txreq \
+      -req "GET" \
+      -url "http://hostname:/c24" \
+      -hdr "host: hostname"
+
+    rxresp
+    expect resp.status == 200
+} -run
+
+# https scheme, empty port for the authority and no port for host value => should be normalized
+client c25 -connect ${h1_fe_sock} {
+    txreq \
+      -req "GET" \
+      -url "https://hostname:/c25" \
+      -hdr "host: hostname"
+
+    rxresp
+    expect resp.status == 200
+} -run
+
+# http scheme, no port for the authority and empty port for host value => no normalization
+client c26 -connect ${h1_fe_sock} {
+    txreq \
+      -req "GET" \
+      -url "http://hostname/c26" \
+      -hdr "host: hostname:"
+
+    rxresp
+    expect resp.status == 200
+} -run
+
+# https scheme, no port for the authority and empty port for host value => no normalization
+client c27 -connect ${h1_fe_sock} {
+    txreq \
+      -req "GET" \
+      -url "https://hostname/c27" \
+      -hdr "host: hostname:"
+
+    rxresp
+    expect resp.status == 200
+} -run
+
+# http scheme, default port for the authority and empty port for host value => should be normalized
+client c28 -connect ${h1_fe_sock} {
+    txreq \
+      -req "GET" \
+      -url "http://hostname:80/c28" \
+      -hdr "host: hostname:"
+
+    rxresp
+    expect resp.status == 200
+} -run
+
+# http scheme, empty port for the authority and default port for host value => should be normalized
+client c29 -connect ${h1_fe_sock} {
+    txreq \
+      -req "GET" \
+      -url "http://hostname:/c29" \
+      -hdr "host: hostname:80"
+
+    rxresp
+    expect resp.status == 200
+} -run
+
+# https scheme, default port for the authority and empty port for host value => should be normalized
+client c30 -connect ${h1_fe_sock} {
+    txreq \
+      -req "GET" \
+      -url "https://hostname:443/c30" \
+      -hdr "host: hostname:"
+
+    rxresp
+    expect resp.status == 200
+} -run
+
+# https scheme, empty port for the authority and default port for host value => should be normalized
+client c31 -connect ${h1_fe_sock} {
+    txreq \
+      -req "GET" \
+      -url "https://hostname:/c31" \
+      -hdr "host: hostname:443"
+
+    rxresp
+    expect resp.status == 200
+} -run
+
+# Strange cases
+client c32 -connect ${h1_fe_sock} {
+    txreq \
+      -req "GET" \
+      -url "http://:" \
+      -hdr "host: :80"
+
+    rxresp
+    expect resp.status == 200
+} -run
+
+
+client c33 -connect ${h1_fe_sock} {
+    txreq \
+      -req "GET" \
+      -url "https://:" \
+      -hdr "host: :443"
+
+    rxresp
+    expect resp.status == 200
+} -run
+
+# Strange cases
+client c34 -connect ${h1_fe_sock} {
+    txreq \
+      -req "GET" \
+      -url "http://:" \
+      -hdr "host: :"
+
+    rxresp
+    expect resp.status == 200
+} -run
+
+
+client c35 -connect ${h1_fe_sock} {
+    txreq \
+      -req "GET" \
+      -url "https://:" \
+      -hdr "host: :"
+
+    rxresp
+    expect resp.status == 200
 } -run
 
 syslog S1 -wait
