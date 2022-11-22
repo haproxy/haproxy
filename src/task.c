@@ -40,7 +40,7 @@ DECLARE_POOL(pool_head_notification, "notification", sizeof(struct notification)
  * into another one. Storing the WQ index into the task doesn't seem to be
  * sufficient either.
  */
-__decl_thread(HA_RWLOCK_T wq_lock THREAD_ALIGNED(64) = 0);
+__decl_aligned_rwlock(wq_lock);
 
 /* Flags the task <t> for immediate destruction and puts it into its first
  * thread's shared tasklet list if not yet queued/running. This will bypass
