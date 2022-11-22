@@ -4563,9 +4563,15 @@ bind /<path> [, ...] [param*]
                       to receive a FD over the unix socket and uses it as if it
                       was the FD of an accept(). Should be used carefully.
                     - 'quic4@' -> address is resolved as IPv4 and protocol UDP
-                      is used.
+                      is used. Note that QUIC connections attached to a
+                      listener will be multiplexed over the listener socket.
+                      With a large traffic this has a noticeable impact on
+                      performance and CPU consumption. To improve this, you
+                      should duplicate QUIC listener instances over several
+                      threads, for example using "shards" keyword.
                     - 'quic6@' -> address is resolved as IPv6 and protocol UDP
-                      is used.
+                      is used. The performance note for QUIC over IPv4 applies
+                      as well.
 
                   You may want to reference some environment variables in the
                   address parameter, see section 2.3 about environment
