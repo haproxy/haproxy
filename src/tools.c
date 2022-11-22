@@ -421,8 +421,7 @@ char *utoa_pad(unsigned int n, char *dst, size_t size)
 	}
 	if (i + 2 > size) // (i + 1) + '\0'
 		return NULL;  // too long
-	if (i < size)
-		i = size - 2; // padding - '\0'
+	i = size - 2; // padding - '\0'
 
 	ret = dst + i + 1;
 	*ret = '\0';
