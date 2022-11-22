@@ -2890,6 +2890,13 @@ static int h1_send(struct h1c *h1c)
 		h1c->flags |= H1C_F_ERR_PENDING;
 		if (h1c->flags & H1C_F_EOS)
 			h1c->flags |= H1C_F_ERROR;
+		else if (!(h1c->wait_event.events & SUB_RETRY_RECV)) {
+			/* EOS not seen, so subscribe for reads to be able to
+			 * catch the error on the reading path. It is especially
+			 * important if EOI was reached.
+			 */
+			h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
+		}
 		b_reset(&h1c->obuf);
 	}
 
@@ -3846,6 +3853,13 @@ static int h1_snd_pipe(struct stconn *sc, struct pipe *pipe)
 		h1c->flags = (h1c->flags & ~H1C_F_WANT_SPLICE) | H1C_F_ERR_PENDING;
 		if (h1c->flags & H1C_F_EOS)
 			h1c->flags |= H1C_F_ERROR;
+		else if (!(h1c->wait_event.events & SUB_RETRY_RECV)) {
+			/* EOS not seen, so subscribe for reads to be able to
+			 * catch the error on the reading path. It is especially
+			 * important if EOI was reached.
+			 */
+			h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
+		}
 		se_fl_set_error(h1s->sd);
 		TRACE_DEVEL("connection error", H1_EV_STRM_ERR|H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
 	}
