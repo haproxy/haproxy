@@ -47,7 +47,7 @@ struct bind_kw_list bind_keywords = {
 /* list of the temporarily limited listeners because of lack of resource */
 static struct mt_list global_listener_queue = MT_LIST_HEAD_INIT(global_listener_queue);
 static struct task *global_listener_queue_task;
-static HA_RWLOCK_T global_listener_rwlock;
+__decl_thread(static HA_RWLOCK_T global_listener_rwlock);
 
 /* listener status for stats */
 const char* li_status_st[LI_STATE_COUNT] = {
