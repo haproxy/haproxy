@@ -7366,9 +7366,11 @@ http-request set-uri <fmt> [ { if | unless } <condition> ]
 
   This rewrites the request URI with the result of the evaluation of format
   string <fmt>. The scheme, authority, path and query string are all replaced
-  at once. This can be used to rewrite hosts in front of proxies, or to
-  perform complex modifications to the URI such as moving parts between the
-  path and the query string.
+  at once. This can be used to rewrite hosts in front of proxies, or to perform
+  complex modifications to the URI such as moving parts between the path and
+  the query string. If an absolute URI is set, it will be sent as is to
+  HTTP/1.1 servers. If it is not the desired behavior, the host, the path
+  and/or the query string should be set separately.
   See also "http-request set-path" and "http-request set-query".
 
 http-request set-var(<var-name>[,<cond> ...]) <expr> [ { if | unless } <condition> ]
