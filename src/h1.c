@@ -169,7 +169,7 @@ static int h1_validate_connect_authority(struct ist authority, struct ist *host_
 		goto invalid_authority;
 	uri_host = authority;
 	uri_port = http_get_host_port(authority);
-	if (!isttest(uri_port))
+	if (!istlen(uri_port))
 		goto invalid_authority;
 	uri_host.len -= (istlen(uri_port) + 1);
 
@@ -179,8 +179,10 @@ static int h1_validate_connect_authority(struct ist authority, struct ist *host_
 	/* Get the port of the host header value, if any */
 	host = *host_hdr;
 	host_port = http_get_host_port(*host_hdr);
-	if (isttest(host_port)) {
+	if (isttest(host_port))
 		host.len -= (istlen(host_port) + 1);
+
+	if (istlen(host_port)) {
 		if (!isteqi(host, uri_host) || !isteq(host_port, uri_port))
 			goto invalid_host;
 		if (http_is_default_port(IST_NULL, uri_port))
