@@ -3262,7 +3262,7 @@ struct task *h1_timeout_task(struct task *t, void *context, unsigned int state)
 			}
 		}
 
-		if (h1c->state == H1_CS_UPGRADING) {
+		if (h1c->h1s && !se_fl_test(h1c->h1s->sd, SE_FL_ORPHAN)) {
 			/* Don't release the H1 connection right now, we must destroy the
 			 * attached SC first. */
 			se_fl_set(h1c->h1s->sd, SE_FL_EOS | SE_FL_ERROR);
