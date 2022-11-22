@@ -3234,6 +3234,7 @@ void parse_log_message(char *buf, size_t buflen, int *level, int *facility,
 		 */
 
 		p += 2;
+		*size -= 2;
 		/* timestamp is NILVALUE '-' */
 		if (*size > 2 && (p[0] == '-') && p[1] == ' ') {
 			metadata[LOG_META_TIME] = ist2(p, 1);
