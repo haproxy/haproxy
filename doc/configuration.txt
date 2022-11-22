@@ -17965,7 +17965,7 @@ table_http_req_rate(<table>)
   period configured in the table. See also the sc_http_req_rate sample fetch
   keyword.
 
-table_idle(<table>)
+table_idle(<table>,[,<default_value>])
   Uses the input sample to perform a look up in the specified table. If the key
   is not found in the table, the converter fails except if <default_value> is
   set: this makes the converter succeed and return <default_value>. If the key
