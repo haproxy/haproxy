@@ -35,6 +35,12 @@ DECLARE_POOL(pool_head_tasklet, "tasklet", sizeof(struct tasklet));
  */
 DECLARE_POOL(pool_head_notification, "notification", sizeof(struct notification));
 
+/* The lock protecting all wait queues at once. For now we have no better
+ * alternative since a task may have to be removed from a queue and placed
+ * into another one. Storing the WQ index into the task doesn't seem to be
+ * sufficient either.
+ */
+__decl_thread(HA_RWLOCK_T wq_lock THREAD_ALIGNED(64) = 0);
 
 /* Flags the task <t> for immediate destruction and puts it into its first
  * thread's shared tasklet list if not yet queued/running. This will bypass
@@ -362,29 +368,29 @@ void wake_expired_tasks()
 	if (eb_is_empty(&tg_ctx->timers))
 		goto leave;
 
-	HA_RWLOCK_RDLOCK(TASK_WQ_LOCK, &tg_ctx->wq_lock);
+	HA_RWLOCK_RDLOCK(TASK_WQ_LOCK, &wq_lock);
 	eb = eb32_lookup_ge(&tg_ctx->timers, now_ms - TIMER_LOOK_BACK);
 	if (!eb) {
 		eb = eb32_first(&tg_ctx->timers);
 		if (likely(!eb)) {
-			HA_RWLOCK_RDUNLOCK(TASK_WQ_LOCK, &tg_ctx->wq_lock);
+			HA_RWLOCK_RDUNLOCK(TASK_WQ_LOCK, &wq_lock);
 			goto leave;
 		}
 	}
 	key = eb->key;
 
 	if (tick_is_lt(now_ms, key)) {
-		HA_RWLOCK_RDUNLOCK(TASK_WQ_LOCK, &tg_ctx->wq_lock);
+		HA_RWLOCK_RDUNLOCK(TASK_WQ_LOCK, &wq_lock);
 		goto leave;
 	}
 
 	/* There's really something of interest here, let's visit the queue */
 
-	if (HA_RWLOCK_TRYRDTOSK(TASK_WQ_LOCK, &tg_ctx->wq_lock)) {
+	if (HA_RWLOCK_TRYRDTOSK(TASK_WQ_LOCK, &wq_lock)) {
 		/* if we failed to grab the lock it means another thread is
 		 * already doing the same here, so let it do the job.
 		 */
-		HA_RWLOCK_RDUNLOCK(TASK_WQ_LOCK, &tg_ctx->wq_lock);
+		HA_RWLOCK_RDUNLOCK(TASK_WQ_LOCK, &wq_lock);
 		goto leave;
 	}
 
@@ -423,20 +429,20 @@ void wake_expired_tasks()
 
 		if (tick_is_expired(task->expire, now_ms)) {
 			/* expired task, wake it up */
-			HA_RWLOCK_SKTOWR(TASK_WQ_LOCK, &tg_ctx->wq_lock);
+			HA_RWLOCK_SKTOWR(TASK_WQ_LOCK, &wq_lock);
 			__task_unlink_wq(task);
-			HA_RWLOCK_WRTOSK(TASK_WQ_LOCK, &tg_ctx->wq_lock);
+			HA_RWLOCK_WRTOSK(TASK_WQ_LOCK, &wq_lock);
 			task_drop_running(task, TASK_WOKEN_TIMER);
 		}
 		else if (task->expire != eb->key) {
 			/* task is not expired but its key doesn't match so let's
 			 * update it and skip to next apparently expired task.
 			 */
-			HA_RWLOCK_SKTOWR(TASK_WQ_LOCK, &tg_ctx->wq_lock);
+			HA_RWLOCK_SKTOWR(TASK_WQ_LOCK, &wq_lock);
 			__task_unlink_wq(task);
 			if (tick_isset(task->expire))
 				__task_queue(task, &tg_ctx->timers);
-			HA_RWLOCK_WRTOSK(TASK_WQ_LOCK, &tg_ctx->wq_lock);
+			HA_RWLOCK_WRTOSK(TASK_WQ_LOCK, &wq_lock);
 			task_drop_running(task, 0);
 			goto lookup_next;
 		}
@@ -448,7 +454,7 @@ void wake_expired_tasks()
 		}
 	}
 
-	HA_RWLOCK_SKUNLOCK(TASK_WQ_LOCK, &tg_ctx->wq_lock);
+	HA_RWLOCK_SKUNLOCK(TASK_WQ_LOCK, &wq_lock);
 #endif
 leave:
 	return;
@@ -480,13 +486,13 @@ int next_timer_expiry()
 
 #ifdef USE_THREAD
 	if (!eb_is_empty(&tg_ctx->timers)) {
-		HA_RWLOCK_RDLOCK(TASK_WQ_LOCK, &tg_ctx->wq_lock);
+		HA_RWLOCK_RDLOCK(TASK_WQ_LOCK, &wq_lock);
 		eb = eb32_lookup_ge(&tg_ctx->timers, now_ms - TIMER_LOOK_BACK);
 		if (!eb)
 			eb = eb32_first(&tg_ctx->timers);
 		if (eb)
 			key = eb->key;
-		HA_RWLOCK_RDUNLOCK(TASK_WQ_LOCK, &tg_ctx->wq_lock);
+		HA_RWLOCK_RDUNLOCK(TASK_WQ_LOCK, &wq_lock);
 		if (eb)
 			ret = tick_first(ret, key);
 	}

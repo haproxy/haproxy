@@ -91,6 +91,8 @@ extern struct pool_head *pool_head_task;
 extern struct pool_head *pool_head_tasklet;
 extern struct pool_head *pool_head_notification;
 
+__decl_thread(extern HA_RWLOCK_T wq_lock THREAD_ALIGNED(64));
+
 void __tasklet_wakeup_on(struct tasklet *tl, int thr);
 struct list *__tasklet_wakeup_after(struct list *head, struct tasklet *tl);
 void task_kill(struct task *t);
@@ -264,10 +266,10 @@ static inline struct task *task_unlink_wq(struct task *t)
 		locked = t->tid < 0;
 		BUG_ON(t->tid >= 0 && t->tid != tid && !(global.mode & MODE_STOPPING));
 		if (locked)
-			HA_RWLOCK_WRLOCK(TASK_WQ_LOCK, &tg_ctx->wq_lock);
+			HA_RWLOCK_WRLOCK(TASK_WQ_LOCK, &wq_lock);
 		__task_unlink_wq(t);
 		if (locked)
-			HA_RWLOCK_WRUNLOCK(TASK_WQ_LOCK, &tg_ctx->wq_lock);
+			HA_RWLOCK_WRUNLOCK(TASK_WQ_LOCK, &wq_lock);
 	}
 	return t;
 }
@@ -294,10 +296,10 @@ static inline void task_queue(struct task *task)
 
 #ifdef USE_THREAD
 	if (task->tid < 0) {
-		HA_RWLOCK_WRLOCK(TASK_WQ_LOCK, &tg_ctx->wq_lock);
+		HA_RWLOCK_WRLOCK(TASK_WQ_LOCK, &wq_lock);
 		if (!task_in_wq(task) || tick_is_lt(task->expire, task->wq.key))
 			__task_queue(task, &tg_ctx->timers);
-		HA_RWLOCK_WRUNLOCK(TASK_WQ_LOCK, &tg_ctx->wq_lock);
+		HA_RWLOCK_WRUNLOCK(TASK_WQ_LOCK, &wq_lock);
 	} else
 #endif
 	{
@@ -654,14 +656,14 @@ static inline void task_schedule(struct task *task, int when)
 #ifdef USE_THREAD
 	if (task->tid < 0) {
 		/* FIXME: is it really needed to lock the WQ during the check ? */
-		HA_RWLOCK_WRLOCK(TASK_WQ_LOCK, &tg_ctx->wq_lock);
+		HA_RWLOCK_WRLOCK(TASK_WQ_LOCK, &wq_lock);
 		if (task_in_wq(task))
 			when = tick_first(when, task->expire);
 
 		task->expire = when;
 		if (!task_in_wq(task) || tick_is_lt(task->expire, task->wq.key))
 			__task_queue(task, &tg_ctx->timers);
-		HA_RWLOCK_WRUNLOCK(TASK_WQ_LOCK, &tg_ctx->wq_lock);
+		HA_RWLOCK_WRUNLOCK(TASK_WQ_LOCK, &wq_lock);
 	} else
 #endif
 	{

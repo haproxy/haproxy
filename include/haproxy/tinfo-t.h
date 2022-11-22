@@ -70,7 +70,6 @@ struct tgroup_ctx {
 	ulong threads_idle;               /* mask of threads idling in the poller */
 	ulong stopping_threads;           /* mask of threads currently stopping */
 
-	HA_RWLOCK_T wq_lock;              /* RW lock related to the wait queue below */
 	struct eb_root timers;            /* wait queue (sorted timers tree, global, accessed under wq_lock) */
 
 	uint niced_tasks;                 /* number of niced tasks in this group's run queues */
