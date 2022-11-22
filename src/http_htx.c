@@ -389,6 +389,8 @@ int http_replace_req_uri(struct htx *htx, const struct ist uri)
 		goto fail;
 
 	sl = http_get_stline(htx);
+	ALREADY_CHECKED(sl); /* the stline exists because http_replace_stline() succeded */
+
 	sl->flags &= ~HTX_SL_F_NORMALIZED_URI;
 	if (!http_update_host(htx, sl, uri))
 		goto fail;
