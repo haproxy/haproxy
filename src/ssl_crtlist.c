@@ -1288,7 +1288,7 @@ static int cli_parse_add_crtlist(char **args, char *payload, struct appctx *appc
 		memprintf(&err, "certificate '%s' does not exist!", cert_path);
 		goto error;
 	}
-	if (store->ckch == NULL || store->ckch->cert == NULL) {
+	if (store->data == NULL || store->data->cert == NULL) {
 		memprintf(&err, "certificate '%s' is empty!", cert_path);
 		goto error;
 	}
@@ -1383,7 +1383,7 @@ static int cli_parse_del_crtlist(char **args, char *payload, struct appctx *appc
 		memprintf(&err, "certificate '%s' does not exist!", cert_path);
 		goto error;
 	}
-	if (store->ckch == NULL || store->ckch->cert == NULL) {
+	if (store->data == NULL || store->data->cert == NULL) {
 		memprintf(&err, "certificate '%s' is empty!", cert_path);
 		goto error;
 	}

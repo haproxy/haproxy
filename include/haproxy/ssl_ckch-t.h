@@ -46,7 +46,7 @@
  * This structure is the base one, in the case of a multi-cert bundle, we
  *  allocate 1 structure per type.
  */
-struct cert_key_and_chain {
+struct ckch_data {
 	X509 *cert;
 	EVP_PKEY *key;
 	STACK_OF(X509) *chain;
@@ -60,11 +60,13 @@ struct cert_key_and_chain {
  * this is used to store 1 to SSL_SOCK_NUM_KEYTYPES cert_key_and_chain and
  * metadata.
  *
+ * "ckch" for cert, key and chain.
+ *
  * XXX: Once we remove the multi-cert bundle support, we could merge this structure
  * with the cert_key_and_chain one.
  */
 struct ckch_store {
-	struct cert_key_and_chain *ckch;
+	struct ckch_data *data;
 	struct list ckch_inst; /* list of ckch_inst which uses this ckch_node */
 	struct list crtlist_entry; /* list of entries which use this store */
 	struct ebmb_node node;
@@ -150,7 +152,7 @@ enum {
 struct cert_exts {
 	const char *ext;
 	int type;
-	int (*load)(const char *path, char *payload, struct cert_key_and_chain *ckch, char **err);
+	int (*load)(const char *path, char *payload, struct ckch_data *data, char **err);
 	/* add a parsing callback */
 };
 

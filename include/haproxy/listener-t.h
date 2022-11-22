@@ -186,7 +186,7 @@ struct bind_conf {
 	char *ca_sign_file;        /* CAFile used to generate and sign server certificates */
 	char *ca_sign_pass;        /* CAKey passphrase */
 
-	struct cert_key_and_chain * ca_sign_ckch;	/* CA and possible certificate chain for ca generation */
+	struct ckch_data *ca_sign_ckch;	/* CA and possible certificate chain for ca generation */
 #endif
 #ifdef USE_QUIC
 	struct quic_transport_params quic_params; /* QUIC transport parameters. */

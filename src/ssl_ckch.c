@@ -165,7 +165,7 @@ out:
 /* Try to load a sctl from a buffer <buf> if not NULL, or read the file <sctl_path>
  * It fills the ckch->sctl buffer
  * return 0 on success or != 0 on failure */
-int ssl_sock_load_sctl_from_file(const char *sctl_path, char *buf, struct cert_key_and_chain *ckch, char **err)
+int ssl_sock_load_sctl_from_file(const char *sctl_path, char *buf, struct ckch_data *data, char **err)
 {
 	int fd = -1;
 	int r = 0;
@@ -208,11 +208,11 @@ int ssl_sock_load_sctl_from_file(const char *sctl_path, char *buf, struct cert_k
 		goto end;
 	}
 	/* no error, fill ckch with new context, old context must be free */
-	if (ckch->sctl) {
-		ha_free(&ckch->sctl->area);
-		free(ckch->sctl);
+	if (data->sctl) {
+		ha_free(&data->sctl->area);
+		free(data->sctl);
 	}
-	ckch->sctl = sctl;
+	data->sctl = sctl;
 	ret = 0;
 end:
 	if (fd != -1)
@@ -228,7 +228,7 @@ end:
  *
  * Returns 0 on success, 1 in error case.
  */
-int ssl_sock_load_ocsp_response_from_file(const char *ocsp_path, char *buf, struct cert_key_and_chain *ckch, char **err)
+int ssl_sock_load_ocsp_response_from_file(const char *ocsp_path, char *buf, struct ckch_data *data, char **err)
 {
 	int fd = -1;
 	int r = 0;
@@ -287,12 +287,12 @@ int ssl_sock_load_ocsp_response_from_file(const char *ocsp_path, char *buf, stru
 		ha_free(&ocsp_response);
 		goto end;
 	}
-	/* no error, fill ckch with new context, old context must be free */
-	if (ckch->ocsp_response) {
-		ha_free(&ckch->ocsp_response->area);
-		free(ckch->ocsp_response);
+	/* no error, fill data with new context, old context must be free */
+	if (data->ocsp_response) {
+		ha_free(&data->ocsp_response->area);
+		free(data->ocsp_response);
 	}
-	ckch->ocsp_response = ocsp_response;
+	data->ocsp_response = ocsp_response;
 	ret = 0;
 end:
 	if (fd != -1)
@@ -317,14 +317,14 @@ end:
  *      0 on Success
  *      1 on SSL Failure
  */
-int ssl_sock_load_files_into_ckch(const char *path, struct cert_key_and_chain *ckch, char **err)
+int ssl_sock_load_files_into_ckch(const char *path, struct ckch_data *data, char **err)
 {
 	struct buffer *fp = NULL;
 	int ret = 1;
 	struct stat st;
 
 	/* try to load the PEM */
-	if (ssl_sock_load_pem_into_ckch(path, NULL, ckch , err) != 0) {
+	if (ssl_sock_load_pem_into_ckch(path, NULL, data , err) != 0) {
 		goto end;
 	}
 
@@ -356,7 +356,7 @@ int ssl_sock_load_files_into_ckch(const char *path, struct cert_key_and_chain *c
 
 	}
 
-	if (ckch->key == NULL) {
+	if (data->key == NULL) {
 		/* If no private key was found yet and we cannot look for it in extra
 		 * files, raise an error.
 		 */
@@ -374,14 +374,14 @@ int ssl_sock_load_files_into_ckch(const char *path, struct cert_key_and_chain *c
 		}
 
 		if (stat(fp->area, &st) == 0) {
-			if (ssl_sock_load_key_into_ckch(fp->area, NULL, ckch, err)) {
+			if (ssl_sock_load_key_into_ckch(fp->area, NULL, data, err)) {
 				memprintf(err, "%s '%s' is present but cannot be read or parsed'.\n",
 					  err && *err ? *err : "", fp->area);
 				goto end;
 			}
 		}
 
-		if (ckch->key == NULL) {
+		if (data->key == NULL) {
 			memprintf(err, "%sNo Private Key found in '%s'.\n", err && *err ? *err : "", fp->area);
 			goto end;
 		}
@@ -391,7 +391,7 @@ int ssl_sock_load_files_into_ckch(const char *path, struct cert_key_and_chain *c
 	}
 
 
-	if (!X509_check_private_key(ckch->cert, ckch->key)) {
+	if (!X509_check_private_key(data->cert, data->key)) {
 		memprintf(err, "%sinconsistencies between private key and certificate loaded '%s'.\n",
 		          err && *err ? *err : "", path);
 		goto end;
@@ -410,7 +410,7 @@ int ssl_sock_load_files_into_ckch(const char *path, struct cert_key_and_chain *c
 		}
 
 		if (stat(fp->area, &st) == 0) {
-			if (ssl_sock_load_sctl_from_file(fp->area, NULL, ckch, err)) {
+			if (ssl_sock_load_sctl_from_file(fp->area, NULL, data, err)) {
 				memprintf(err, "%s '%s.sctl' is present but cannot be read or parsed'.\n",
 					  err && *err ? *err : "", fp->area);
 				ret = 1;
@@ -435,7 +435,7 @@ int ssl_sock_load_files_into_ckch(const char *path, struct cert_key_and_chain *c
 		}
 
 		if (stat(fp->area, &st) == 0) {
-			if (ssl_sock_load_ocsp_response_from_file(fp->area, NULL, ckch, err)) {
+			if (ssl_sock_load_ocsp_response_from_file(fp->area, NULL, data, err)) {
 				ret = 1;
 				goto end;
 			}
@@ -446,9 +446,9 @@ int ssl_sock_load_files_into_ckch(const char *path, struct cert_key_and_chain *c
 	}
 
 #ifndef OPENSSL_IS_BORINGSSL /* Useless for BoringSSL */
-	if (ckch->ocsp_response && (global_ssl.extra_files & SSL_GF_OCSP_ISSUER)) {
+	if (data->ocsp_response && (global_ssl.extra_files & SSL_GF_OCSP_ISSUER)) {
 		/* if no issuer was found, try to load an issuer from the .issuer */
-		if (!ckch->ocsp_issuer) {
+		if (!data->ocsp_issuer) {
 			struct stat st;
 
 			if (!chunk_strcat(fp, ".issuer") || b_data(fp) > MAXPATHLEN) {
@@ -459,12 +459,12 @@ int ssl_sock_load_files_into_ckch(const char *path, struct cert_key_and_chain *c
 			}
 
 			if (stat(fp->area, &st) == 0) {
-				if (ssl_sock_load_issuer_file_into_ckch(fp->area, NULL, ckch, err)) {
+				if (ssl_sock_load_issuer_file_into_ckch(fp->area, NULL, data, err)) {
 					ret = 1;
 					goto end;
 				}
 
-				if (X509_check_issued(ckch->ocsp_issuer, ckch->cert) != X509_V_OK) {
+				if (X509_check_issued(data->ocsp_issuer, data->cert) != X509_V_OK) {
 					memprintf(err, "%s '%s' is not an issuer'.\n",
 						  err && *err ? *err : "", fp->area);
 					ret = 1;
@@ -486,7 +486,7 @@ end:
 
 	/* Something went wrong in one of the reads */
 	if (ret != 0)
-		ssl_sock_free_cert_key_and_chain_contents(ckch);
+		ssl_sock_free_cert_key_and_chain_contents(data);
 
 	free_trash_chunk(fp);
 
@@ -500,7 +500,7 @@ end:
  *
  *  Return 0 on success or != 0 on failure
  */
-int ssl_sock_load_key_into_ckch(const char *path, char *buf, struct cert_key_and_chain *ckch , char **err)
+int ssl_sock_load_key_into_ckch(const char *path, char *buf, struct ckch_data *data , char **err)
 {
 	BIO *in = NULL;
 	int ret = 1;
@@ -534,7 +534,7 @@ int ssl_sock_load_key_into_ckch(const char *path, char *buf, struct cert_key_and
 
 	ret = 0;
 
-	SWAP(ckch->key, key);
+	SWAP(data->key, key);
 
 end:
 
@@ -556,7 +556,7 @@ end:
  *
  *  Return 0 on success or != 0 on failure
  */
-int ssl_sock_load_pem_into_ckch(const char *path, char *buf, struct cert_key_and_chain *ckch , char **err)
+int ssl_sock_load_pem_into_ckch(const char *path, char *buf, struct ckch_data *data , char **err)
 {
 	BIO *in = NULL;
 	int ret = 1;
@@ -639,27 +639,27 @@ int ssl_sock_load_pem_into_ckch(const char *path, char *buf, struct cert_key_and
 		goto end;
 	}
 
-	/* once it loaded the PEM, it should remove everything else in the ckch */
-	if (ckch->ocsp_response) {
-		ha_free(&ckch->ocsp_response->area);
-		ha_free(&ckch->ocsp_response);
+	/* once it loaded the PEM, it should remove everything else in the data */
+	if (data->ocsp_response) {
+		ha_free(&data->ocsp_response->area);
+		ha_free(&data->ocsp_response);
 	}
 
-	if (ckch->sctl) {
-		ha_free(&ckch->sctl->area);
-		ha_free(&ckch->sctl);
+	if (data->sctl) {
+		ha_free(&data->sctl->area);
+		ha_free(&data->sctl);
 	}
 
-	if (ckch->ocsp_issuer) {
-		X509_free(ckch->ocsp_issuer);
-		ckch->ocsp_issuer = NULL;
+	if (data->ocsp_issuer) {
+		X509_free(data->ocsp_issuer);
+		data->ocsp_issuer = NULL;
 	}
 
-	/* no error, fill ckch with new context, old context will be free at end: */
-	SWAP(ckch->key, key);
-	SWAP(ckch->dh, dh);
-	SWAP(ckch->cert, cert);
-	SWAP(ckch->chain, chain);
+	/* no error, fill data with new context, old context will be free at end: */
+	SWAP(data->key, key);
+	SWAP(data->dh, dh);
+	SWAP(data->cert, cert);
+	SWAP(data->chain, chain);
 
 	ret = 0;
 
@@ -682,43 +682,43 @@ end:
 
 /* Frees the contents of a cert_key_and_chain
  */
-void ssl_sock_free_cert_key_and_chain_contents(struct cert_key_and_chain *ckch)
+void ssl_sock_free_cert_key_and_chain_contents(struct ckch_data *data)
 {
-	if (!ckch)
+	if (!data)
 		return;
 
 	/* Free the certificate and set pointer to NULL */
-	if (ckch->cert)
-		X509_free(ckch->cert);
-	ckch->cert = NULL;
+	if (data->cert)
+		X509_free(data->cert);
+	data->cert = NULL;
 
 	/* Free the key and set pointer to NULL */
-	if (ckch->key)
-		EVP_PKEY_free(ckch->key);
-	ckch->key = NULL;
+	if (data->key)
+		EVP_PKEY_free(data->key);
+	data->key = NULL;
 
 	/* Free each certificate in the chain */
-	if (ckch->chain)
-		sk_X509_pop_free(ckch->chain, X509_free);
-	ckch->chain = NULL;
+	if (data->chain)
+		sk_X509_pop_free(data->chain, X509_free);
+	data->chain = NULL;
 
-	if (ckch->dh)
-		HASSL_DH_free(ckch->dh);
-	ckch->dh = NULL;
+	if (data->dh)
+		HASSL_DH_free(data->dh);
+	data->dh = NULL;
 
-	if (ckch->sctl) {
-		ha_free(&ckch->sctl->area);
-		ha_free(&ckch->sctl);
+	if (data->sctl) {
+		ha_free(&data->sctl->area);
+		ha_free(&data->sctl);
 	}
 
-	if (ckch->ocsp_response) {
-		ha_free(&ckch->ocsp_response->area);
-		ha_free(&ckch->ocsp_response);
+	if (data->ocsp_response) {
+		ha_free(&data->ocsp_response->area);
+		ha_free(&data->ocsp_response);
 	}
 
-	if (ckch->ocsp_issuer)
-		X509_free(ckch->ocsp_issuer);
-	ckch->ocsp_issuer = NULL;
+	if (data->ocsp_issuer)
+		X509_free(data->ocsp_issuer);
+	data->ocsp_issuer = NULL;
 }
 
 /*
@@ -730,8 +730,8 @@ void ssl_sock_free_cert_key_and_chain_contents(struct cert_key_and_chain *ckch)
  *
  * Return a the dst or NULL
  */
-struct cert_key_and_chain *ssl_sock_copy_cert_key_and_chain(struct cert_key_and_chain *src,
-                                                                   struct cert_key_and_chain *dst)
+struct ckch_data *ssl_sock_copy_cert_key_and_chain(struct ckch_data *src,
+                                                                   struct ckch_data *dst)
 {
 	if (!src || !dst)
 		return NULL;
@@ -801,7 +801,7 @@ error:
 /*
  * return 0 on success or != 0 on failure
  */
-int ssl_sock_load_issuer_file_into_ckch(const char *path, char *buf, struct cert_key_and_chain *ckch, char **err)
+int ssl_sock_load_issuer_file_into_ckch(const char *path, char *buf, struct ckch_data *data, char **err)
 {
 	int ret = 1;
 	BIO *in = NULL;
@@ -831,10 +831,10 @@ int ssl_sock_load_issuer_file_into_ckch(const char *path, char *buf, struct cert
 		          err && *err ? *err : "", path);
 		goto end;
 	}
-	/* no error, fill ckch with new context, old context must be free */
-	if (ckch->ocsp_issuer)
-		X509_free(ckch->ocsp_issuer);
-	ckch->ocsp_issuer = issuer;
+	/* no error, fill data with new context, old context must be free */
+	if (data->ocsp_issuer)
+		X509_free(data->ocsp_issuer);
+	data->ocsp_issuer = issuer;
 	ret = 0;
 
 end:
@@ -861,9 +861,9 @@ void ckch_store_free(struct ckch_store *store)
 	if (!store)
 		return;
 
-	ssl_sock_free_cert_key_and_chain_contents(store->ckch);
+	ssl_sock_free_cert_key_and_chain_contents(store->data);
 
-	ha_free(&store->ckch);
+	ha_free(&store->data);
 
 	list_for_each_entry_safe(inst, inst_s, &store->ckch_inst, by_ckchs) {
 		ckch_inst_free(inst);
@@ -894,8 +894,8 @@ struct ckch_store *ckch_store_new(const char *filename)
 	LIST_INIT(&store->ckch_inst);
 	LIST_INIT(&store->crtlist_entry);
 
-	store->ckch = calloc(1, sizeof(*store->ckch));
-	if (!store->ckch)
+	store->data = calloc(1, sizeof(*store->data));
+	if (!store->data)
 		goto error;
 
 	return store;
@@ -917,7 +917,7 @@ struct ckch_store *ckchs_dup(const struct ckch_store *src)
 	if (!dst)
 		return NULL;
 
-	if (!ssl_sock_copy_cert_key_and_chain(src->ckch, dst->ckch))
+	if (!ssl_sock_copy_cert_key_and_chain(src->data, dst->data))
 		goto error;
 
 	return dst;
@@ -955,7 +955,7 @@ struct ckch_store *ckchs_load_cert_file(char *path, char **err)
 		goto end;
 	}
 
-	if (ssl_sock_load_files_into_ckch(path, ckchs->ckch, err) == 1)
+	if (ssl_sock_load_files_into_ckch(path, ckchs->data, err) == 1)
 		goto end;
 
 	/* insert into the ckchs tree */
@@ -1773,13 +1773,13 @@ static int ckch_store_build_certid(struct ckch_store *ckch_store, unsigned char 
 
 	*key_length = 0;
 
-	if (!ckch_store->ckch->ocsp_response)
+	if (!ckch_store->data->ocsp_response)
 		return 0;
 
-	p = (unsigned char *) ckch_store->ckch->ocsp_response->area;
+	p = (unsigned char *) ckch_store->data->ocsp_response->area;
 
 	resp = d2i_OCSP_RESPONSE(NULL, (const unsigned char **)&p,
-				 ckch_store->ckch->ocsp_response->data);
+				 ckch_store->data->ocsp_response->data);
 	if (!resp) {
 		goto end;
 	}
@@ -1849,14 +1849,14 @@ static int cli_io_handler_show_cert_detail(struct appctx *appctx)
 	chunk_appendf(out, "%s\n", ckchs->path);
 
 	chunk_appendf(out, "Status: ");
-	if (ckchs->ckch->cert == NULL)
+	if (ckchs->data->cert == NULL)
 		chunk_appendf(out, "Empty\n");
 	else if (LIST_ISEMPTY(&ckchs->ckch_inst))
 		chunk_appendf(out, "Unused\n");
 	else
 		chunk_appendf(out, "Used\n");
 
-	retval = show_cert_detail(ckchs->ckch->cert, ckchs->ckch->chain, out);
+	retval = show_cert_detail(ckchs->data->cert, ckchs->data->chain, out);
 	if (retval < 0)
 		goto end_no_putchk;
 	else if (retval)
@@ -1895,8 +1895,8 @@ static int cli_io_handler_show_cert_ocsp_detail(struct appctx *appctx)
 	 * need to dump the ckch's ocsp_response buffer directly.
 	 * Otherwise, we must rebuild the certificate's certid in order to
 	 * look for the current OCSP response in the tree. */
-	if (from_transaction && ckchs->ckch->ocsp_response) {
-		if (ssl_ocsp_response_print(ckchs->ckch->ocsp_response, out))
+	if (from_transaction && ckchs->data->ocsp_response) {
+		if (ssl_ocsp_response_print(ckchs->data->ocsp_response, out))
 			goto end_no_putchk;
 	}
 	else {
@@ -2292,12 +2292,12 @@ static int cli_parse_commit_cert(char **args, char *payload, struct appctx *appc
 	}
 
 	/* if a certificate is here, a private key must be here too */
-	if (ckchs_transaction.new_ckchs->ckch->cert && !ckchs_transaction.new_ckchs->ckch->key) {
+	if (ckchs_transaction.new_ckchs->data->cert && !ckchs_transaction.new_ckchs->data->key) {
 		memprintf(&err, "The transaction must contain at least a certificate and a private key!\n");
 		goto error;
 	}
 
-	if (!X509_check_private_key(ckchs_transaction.new_ckchs->ckch->cert, ckchs_transaction.new_ckchs->ckch->key)) {
+	if (!X509_check_private_key(ckchs_transaction.new_ckchs->data->cert, ckchs_transaction.new_ckchs->data->key)) {
 		memprintf(&err, "inconsistencies between private key and certificate loaded '%s'.\n", ckchs_transaction.path);
 		goto error;
 	}
@@ -2335,7 +2335,7 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 	int errcode = 0;
 	char *end;
 	struct cert_exts *cert_ext = &cert_exts[0]; /* default one, PEM */
-	struct cert_key_and_chain *ckch;
+	struct ckch_data *data;
 	struct buffer *buf;
 
 	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
@@ -2434,10 +2434,10 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 		goto end;
 	}
 
-	ckch = new_ckchs->ckch;
+	data = new_ckchs->data;
 
 	/* appply the change on the duplicate */
-	if (cert_ext->load(buf->area, payload, ckch, &err) != 0) {
+	if (cert_ext->load(buf->area, payload, data, &err) != 0) {
 		memprintf(&err, "%sCan't load the payload\n", err ? err : "");
 		errcode |= ERR_ALERT | ERR_FATAL;
 		goto end;
