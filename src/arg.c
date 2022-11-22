@@ -182,7 +182,7 @@ int make_arg_list(const char *in, int len, uint64_t mask, struct arg **argp,
 			}
 			else if (*in == '\\' && !squote && len != 1) {
 				/* '\', ', ' ', '"' support being escaped by '\' */
-				if (len == 1 || in[1] == 0)
+				if (in[1] == 0)
 					goto unquote_err;
 
 				if (in[1] == '\\' || in[1] == ' ' || in[1] == '"' || in[1] == '\'') {
