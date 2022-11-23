@@ -2749,9 +2749,10 @@ static int h1_handle_req_tout(struct h1c *h1c)
 		_HA_ATOMIC_INC(&sess->listener->counters->failed_req);
 
 	h1c->errcode = 408;
+	ret = h1_send_error(h1c);
 	if (b_data(&h1c->ibuf) || !(sess->fe->options & PR_O_NULLNOLOG))
-		ret = h1_send_error(h1c);
-	sess_log(sess);
+		sess_log(sess);
+
   end:
 	return ret;
 }
