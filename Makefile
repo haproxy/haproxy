@@ -32,6 +32,7 @@
 #   USE_CRYPT_H          : set it if your system requires including crypt.h
 #   USE_GETADDRINFO      : use getaddrinfo() to resolve IPv6 host names.
 #   USE_OPENSSL          : enable use of OpenSSL. Recommended, but see below.
+#   USE_OPENSSL_WOLFSSL  : enable use of wolfSSL with the OpenSSL API
 #   USE_ENGINE           : enable use of OpenSSL Engine.
 #   USE_LUA              : enable Lua support.
 #   USE_ACCEPT4          : enable use of accept4() on linux. Automatic.
@@ -106,6 +107,8 @@
 #                                                               pcre2-config)
 #   SSL_LIB        : force the lib path to libssl/libcrypto
 #   SSL_INC        : force the include path to libssl/libcrypto
+#   WOLFSSL_INC    : force the include path to wolfSSL
+#   WOLFSSL_LIB    : force the lib path to wolfSSL
 #   LUA_LIB        : force the lib path to lua
 #   LUA_INC        : force the include path to lua
 #   LUA_LIB_NAME   : force the lib name (or automatically evaluated, by order of
@@ -295,12 +298,12 @@ use_opts = USE_EPOLL USE_KQUEUE USE_NETFILTER                                 \
            USE_THREAD USE_PTHREAD_EMULATION USE_BACKTRACE                     \
            USE_STATIC_PCRE USE_STATIC_PCRE2 USE_TPROXY USE_LINUX_TPROXY       \
            USE_LINUX_SPLICE USE_LIBCRYPT USE_CRYPT_H USE_ENGINE               \
-           USE_GETADDRINFO USE_OPENSSL USE_LUA USE_ACCEPT4                    \
-           USE_CLOSEFROM USE_ZLIB USE_SLZ USE_CPU_AFFINITY USE_TFO USE_NS     \
-           USE_DL USE_RT USE_DEVICEATLAS USE_51DEGREES USE_WURFL USE_SYSTEMD  \
-           USE_OBSOLETE_LINKER USE_PRCTL USE_PROCCTL USE_THREAD_DUMP          \
-           USE_EVPORTS USE_OT USE_QUIC USE_PROMEX USE_MEMORY_PROFILING        \
-           USE_SHM_OPEN
+           USE_GETADDRINFO USE_OPENSSL USE_OPENSSL_WOLFSSL USE_LUA            \
+           USE_ACCEPT4 USE_CLOSEFROM USE_ZLIB USE_SLZ USE_CPU_AFFINITY        \
+           USE_TFO USE_NS USE_DL USE_RT USE_DEVICEATLAS USE_51DEGREES         \
+           USE_WURFL USE_SYSTEMD USE_OBSOLETE_LINKER USE_PRCTL USE_PROCCTL    \
+           USE_THREAD_DUMP USE_EVPORTS USE_OT USE_QUIC USE_PROMEX             \
+           USE_MEMORY_PROFILING USE_SHM_OPEN
 
 #### Target system options
 # Depending on the target platform, some options are set, as well as some
@@ -580,11 +583,25 @@ SSL_LIB =
 # pass it in the "ADDLIB" variable if needed. If your SSL libraries are not
 # in the usual path, use SSL_INC=/path/to/inc and SSL_LIB=/path/to/lib.
 OPTIONS_CFLAGS  += $(if $(SSL_INC),-I$(SSL_INC))
+ifeq ($(USE_OPENSSL_WOLFSSL),)
 OPTIONS_LDFLAGS += $(if $(SSL_LIB),-L$(SSL_LIB)) -lssl -lcrypto
+endif
 ifneq ($(USE_DL),)
 OPTIONS_LDFLAGS += -ldl
 endif
 OPTIONS_OBJS  += src/ssl_sock.o src/ssl_ckch.o src/ssl_sample.o src/ssl_crtlist.o src/cfgparse-ssl.o src/ssl_utils.o src/jwt.o
+endif
+
+ifneq ($(USE_OPENSSL_WOLFSSL),)
+ifneq ($(WOLFSSL_INC),)
+OPTIONS_CFLAGS  += -I$(WOLFSSL_INC) -I$(WOLFSSL_INC)/wolfssl
+else
+OPTIONS_CFLAGS  += -I/usr/local/include/wolfssl -I/usr/local/include/wolfssl/openssl -I/usr/local/include
+endif
+ifneq ($(WOLFSSL_LIB),)
+OPTIONS_LDFLAGS  += -L$(WOLFSSL_LIB)
+endif
+OPTIONS_LDFLAGS  += -lwolfssl
 endif
 
 ifneq ($(USE_ENGINE),)

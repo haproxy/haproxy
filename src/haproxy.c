@@ -2297,6 +2297,11 @@ static void init(int argc, char **argv)
 	}
 
 #ifdef USE_OPENSSL
+#ifdef USE_OPENSSL_WOLFSSL
+        wolfSSL_Init();
+        wolfSSL_Debugging_ON();
+#endif
+
 #if (HA_OPENSSL_VERSION_NUMBER < 0x1010000fL)
 	/* Initialize the error strings of OpenSSL
 	 * It only needs to be done explicitely with older versions of the SSL

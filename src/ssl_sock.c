@@ -1430,7 +1430,7 @@ int ssl_sock_ocsp_stapling_cbk(SSL *ssl, void *arg)
 		return SSL_TLSEXT_ERR_NOACK;
 
 	memcpy(ssl_buf, ocsp->response.area, ocsp->response.data);
-	SSL_set_tlsext_status_ocsp_resp(ssl, ssl_buf, ocsp->response.data);
+	SSL_set_tlsext_status_ocsp_resp(ssl, (unsigned char*)ssl_buf, ocsp->response.data);
 
 	return SSL_TLSEXT_ERR_OK;
 }
@@ -1480,7 +1480,11 @@ static int ssl_sock_load_ocsp(SSL_CTX *ctx, const struct cert_key_and_chain *ckc
 	struct certificate_ocsp *ocsp = NULL, *iocsp;
 	char *warn = NULL;
 	unsigned char *p;
+#ifndef USE_OPENSSL_WOLFSSL
 	void (*callback) (void);
+#else
+	tlsextStatusCb callback;
+#endif
 
 
 	x = ckch->cert;
@@ -7626,9 +7630,17 @@ static inline int ocsp_certid_print(BIO *bp, OCSP_CERTID *certid, int indent)
 		BIO_printf(bp, "%*sCertificate ID:\n", indent, "");
 		indent += 2;
 		BIO_printf(bp, "%*sIssuer Name Hash: ", indent, "");
+#ifndef USE_OPENSSL_WOLFSSL
 		i2a_ASN1_STRING(bp, piNameHash, 0);
+#else
+        wolfSSL_ASN1_STRING_print(bp, piNameHash);
+#endif
 		BIO_printf(bp, "\n%*sIssuer Key Hash: ", indent, "");
+#ifndef USE_OPENSSL_WOLFSSL
 		i2a_ASN1_STRING(bp, piKeyHash, 0);
+#else
+		wolfSSL_ASN1_STRING_print(bp, piNameHash);
+#endif
 		BIO_printf(bp, "\n%*sSerial Number: ", indent, "");
 		i2a_ASN1_INTEGER(bp, pSerial);
 	}
@@ -7834,7 +7846,11 @@ int ssl_ocsp_response_print(struct buffer *ocsp_response, struct buffer *out)
 		goto end;
 	}
 
-	if (OCSP_RESPONSE_print(bio, resp, 0) != 0) {
+#ifndef USE_OPENSSL_WOLFSSL
+   if (OCSP_RESPONSE_print(bio, resp, 0) != 0) {
+#else
+   if (wolfSSL_d2i_OCSP_RESPONSE_bio(bio, &resp) != 0) {
+#endif
 		struct buffer *trash = get_trash_chunk();
 		struct ist ist_block = IST_NULL;
 		struct ist ist_double_lf = IST_NULL;
