@@ -3304,14 +3304,6 @@ struct task *process_peer_sync(struct task * task, void *context, unsigned int s
 
 	task->expire = TICK_ETERNITY;
 
-	if (!peers->peers_fe) {
-		/* this one was never started, kill it */
-		signal_unregister_handler(peers->sighandler);
-		task_destroy(peers->sync_task);
-		peers->sync_task = NULL;
-		return NULL;
-	}
-
 	/* Acquire lock for all peers of the section */
 	for (ps = peers->remote; ps; ps = ps->next)
 		HA_SPIN_LOCK(PEER_LOCK, &ps->lock);
