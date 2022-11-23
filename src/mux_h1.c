@@ -2647,7 +2647,7 @@ static int h1_send_error(struct h1c *h1c)
 static int h1_handle_internal_err(struct h1c *h1c)
 {
 	struct session *sess = h1c->conn->owner;
-	int ret = 1;
+	int ret = 0;
 
 	session_inc_http_req_ctr(sess);
 	proxy_inc_fe_req_ctr(sess->listener, sess->fe);
@@ -2670,7 +2670,7 @@ static int h1_handle_internal_err(struct h1c *h1c)
 static int h1_handle_parsing_error(struct h1c *h1c)
 {
 	struct session *sess = h1c->conn->owner;
-	int ret = 1;
+	int ret = 0;
 
 	if (!b_data(&h1c->ibuf) && ((h1c->flags & H1C_F_WAIT_NEXT_REQ) || (sess->fe->options & PR_O_IGNORE_PRB))) {
 		h1c->state = H1_CS_CLOSING;
@@ -2703,7 +2703,7 @@ static int h1_handle_parsing_error(struct h1c *h1c)
 static int h1_handle_not_impl_err(struct h1c *h1c)
 {
 	struct session *sess = h1c->conn->owner;
-	int ret = 1;
+	int ret = 0;
 
 	if (!b_data(&h1c->ibuf) && ((h1c->flags & H1C_F_WAIT_NEXT_REQ) || (sess->fe->options & PR_O_IGNORE_PRB))) {
 		h1c->state = H1_CS_CLOSING;
@@ -2733,7 +2733,7 @@ static int h1_handle_not_impl_err(struct h1c *h1c)
 static int h1_handle_req_tout(struct h1c *h1c)
 {
 	struct session *sess = h1c->conn->owner;
-	int ret = 1;
+	int ret = 0;
 
 	if (!b_data(&h1c->ibuf) && ((h1c->flags & H1C_F_WAIT_NEXT_REQ) || (sess->fe->options & PR_O_IGNORE_PRB))) {
 		h1c->state = H1_CS_CLOSING;
