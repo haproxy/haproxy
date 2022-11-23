@@ -21,10 +21,10 @@
 
 #include <stdlib.h>
 #include <string.h>
-#include <openssl/ssl.h>
 
 #include <haproxy/dynbuf.h>
 #include <haproxy/pool.h>
+#include <haproxy/openssl-compat.h>
 #include <haproxy/quic_conn-t.h>
 #include <haproxy/quic_tls-t.h>
 #include <haproxy/trace.h>
