@@ -1734,6 +1734,8 @@ int ssl_sock_bind_verifycbk(int ok, X509_STORE_CTX *x_store)
 #endif
 
 	BUG_ON(!ctx || !bind_conf);
+	ALREADY_CHECKED(ctx);
+	ALREADY_CHECKED(bind_conf);
 
 	ctx->xprt_st |= SSL_SOCK_ST_FL_VERIFY_DONE;
 
