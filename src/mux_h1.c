@@ -750,7 +750,7 @@ static struct h1s *h1s_new(struct h1c *h1c)
 	if (h1c->flags & H1C_F_WAIT_NEXT_REQ)
 		h1s->flags |= H1S_F_NOT_FIRST;
 	h1s->h1c->state = H1_CS_EMBRYONIC;
-
+	h1s->h1c->flags &= ~H1C_F_WAIT_NEXT_REQ;
 	TRACE_LEAVE(H1_EV_H1S_NEW, h1c->conn, h1s);
 	return h1s;
 
