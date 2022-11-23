@@ -2634,7 +2634,7 @@ static int h1_send_error(struct h1c *h1c)
 		h1s_destroy(h1c->h1s);
 	}
 
-	h1c->flags = (h1c->flags & ~H1C_F_ABRT_PENDING) | H1C_F_ABRTED;
+	h1c->flags = (h1c->flags & ~(H1C_F_WAIT_NEXT_REQ|H1C_F_ABRT_PENDING)) | H1C_F_ABRTED;
 	h1c->state = H1_CS_CLOSING;
   out:
 	TRACE_LEAVE(H1_EV_H1C_ERR, h1c->conn);
@@ -2674,7 +2674,7 @@ static int h1_handle_parsing_error(struct h1c *h1c)
 
 	if (!b_data(&h1c->ibuf) && ((h1c->flags & H1C_F_WAIT_NEXT_REQ) || (sess->fe->options & PR_O_IGNORE_PRB))) {
 		h1c->state = H1_CS_CLOSING;
-		h1c->flags |= H1C_F_ABRTED;
+		h1c->flags = (h1c->flags & ~H1C_F_WAIT_NEXT_REQ) | H1C_F_ABRTED;
 		goto end;
 	}
 
@@ -2707,7 +2707,7 @@ static int h1_handle_not_impl_err(struct h1c *h1c)
 
 	if (!b_data(&h1c->ibuf) && ((h1c->flags & H1C_F_WAIT_NEXT_REQ) || (sess->fe->options & PR_O_IGNORE_PRB))) {
 		h1c->state = H1_CS_CLOSING;
-		h1c->flags |= H1C_F_ABRTED;
+		h1c->flags = (h1c->flags & ~H1C_F_WAIT_NEXT_REQ) | H1C_F_ABRTED;
 		goto end;
 	}
 
@@ -2737,7 +2737,7 @@ static int h1_handle_req_tout(struct h1c *h1c)
 
 	if (!b_data(&h1c->ibuf) && ((h1c->flags & H1C_F_WAIT_NEXT_REQ) || (sess->fe->options & PR_O_IGNORE_PRB))) {
 		h1c->state = H1_CS_CLOSING;
-		h1c->flags |= H1C_F_ABRTED;
+		h1c->flags = (h1c->flags & ~H1C_F_WAIT_NEXT_REQ) | H1C_F_ABRTED;
 		goto end;
 	}
 
@@ -2967,7 +2967,6 @@ static int h1_process(struct h1c * h1c)
 			if (!h1s) {
 				b_reset(&h1c->ibuf);
 				h1_handle_internal_err(h1c);
-				h1c->flags &= ~H1C_F_WAIT_NEXT_REQ;
 				TRACE_ERROR("alloc error", H1_EV_H1C_WAKE|H1_EV_H1C_ERR);
 				goto no_parsing;
 			}
@@ -2991,17 +2990,14 @@ static int h1_process(struct h1c * h1c)
 
 		if (h1s->flags & H1S_F_INTERNAL_ERROR) {
 			h1_handle_internal_err(h1c);
-			h1c->flags &= ~H1C_F_WAIT_NEXT_REQ;
 			TRACE_ERROR("internal error detected", H1_EV_H1C_WAKE|H1_EV_H1C_ERR);
 		}
 		else if (h1s->flags & H1S_F_NOT_IMPL_ERROR) {
 			h1_handle_not_impl_err(h1c);
-			h1c->flags &= ~H1C_F_WAIT_NEXT_REQ;
 			TRACE_ERROR("not-implemented error detected", H1_EV_H1C_WAKE|H1_EV_H1C_ERR);
 		}
 		else if (h1s->flags & H1S_F_PARSING_ERROR || se_fl_test(h1s->sd, SE_FL_ERROR)) {
 			h1_handle_parsing_error(h1c);
-			h1c->flags &= ~H1C_F_WAIT_NEXT_REQ;
 			TRACE_ERROR("parsing error detected", H1_EV_H1C_WAKE|H1_EV_H1C_ERR);
 		}
 		else if (h1c->state < H1_CS_RUNNING) {
@@ -3026,7 +3022,6 @@ static int h1_process(struct h1c * h1c)
 				/* shutdown for reads and no error on the frontend connection: Send an error */
 				if (h1_handle_parsing_error(h1c))
 					h1_send(h1c);
-				h1c->flags &= ~H1C_F_WAIT_NEXT_REQ;
 			}
 			else if (h1c->flags & H1C_F_ABRT_PENDING) {
 				/* Handle pending error, if any (only possible on frontend connection) */
