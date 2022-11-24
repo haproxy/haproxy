@@ -8576,16 +8576,16 @@ struct task *hlua_process_task(struct task *task, void *context, unsigned int st
 		break;
 
 	/* finished with error. */
+	case HLUA_E_ETMOUT:
+		SEND_ERR(NULL, "Lua task: execution timeout.\n");
+		goto err_task_abort;
 	case HLUA_E_ERRMSG:
 		SEND_ERR(NULL, "Lua task: %s.\n", lua_tostring(hlua->T, -1));
-		hlua_ctx_destroy(hlua);
-		task_destroy(task);
-		task = NULL;
-		break;
-
+		goto err_task_abort;
 	case HLUA_E_ERR:
 	default:
 		SEND_ERR(NULL, "Lua task: unknown error.\n");
+	err_task_abort:
 		hlua_ctx_destroy(hlua);
 		task_destroy(task);
 		task = NULL;
