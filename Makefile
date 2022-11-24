@@ -584,7 +584,7 @@ OPTIONS_LDFLAGS += $(if $(SSL_LIB),-L$(SSL_LIB)) -lssl -lcrypto
 ifneq ($(USE_DL),)
 OPTIONS_LDFLAGS += -ldl
 endif
-OPTIONS_OBJS  += src/ssl_sample.o src/ssl_sock.o src/ssl_crtlist.o src/ssl_ckch.o src/ssl_utils.o src/cfgparse-ssl.o src/jwt.o
+OPTIONS_OBJS  += src/ssl_sock.o src/ssl_ckch.o src/ssl_sample.o src/ssl_crtlist.o src/cfgparse-ssl.o src/ssl_utils.o src/jwt.o
 endif
 
 ifneq ($(USE_ENGINE),)
@@ -596,13 +596,14 @@ OPTIONS_CFLAGS += -DOPENSSL_SUPPRESS_DEPRECATED
 endif
 
 ifneq ($(USE_QUIC),)
-OPTIONS_OBJS += src/quic_sock.o src/proto_quic.o src/xprt_quic.o src/quic_tls.o \
-                src/quic_frame.o src/quic_cc.o src/quic_cc_newreno.o src/mux_quic.o \
-                src/cbuf.o src/qpack-dec.o src/qpack-tbl.o src/h3.o src/qpack-enc.o \
-                src/hq_interop.o src/cfgparse-quic.o src/quic_loss.o \
-                src/quic_tp.o src/quic_stream.o src/quic_stats.o src/h3_stats.o \
-                src/quic_cc_cubic.o src/qmux_trace.o src/qmux_http.o \
-                src/quic_conn.o
+OPTIONS_OBJS += src/quic_conn.o src/mux_quic.o src/h3.o src/xprt_quic.o    \
+                src/quic_frame.o src/quic_tls.o src/quic_tp.o              \
+                src/quic_stats.o src/quic_sock.o src/proto_quic.o          \
+                src/qmux_trace.o src/quic_loss.o src/qpack-enc.o           \
+                src/quic_cc_newreno.o src/quic_cc_cubic.o src/qpack-tbl.o  \
+                src/qpack-dec.o src/hq_interop.o src/quic_stream.o         \
+                src/h3_stats.o src/qmux_http.o src/cfgparse-quic.o         \
+                src/cbuf.o src/quic_cc.o
 endif
 
 ifneq ($(USE_LUA),)
@@ -887,7 +888,7 @@ OBJS += src/mux_h2.o src/mux_fcgi.o src/mux_h1.o src/tcpcheck.o               \
         src/acl.o src/sock.o src/mworker.o src/tcp_act.o src/ring.o           \
         src/session.o src/proto_tcp.o src/fd.o src/channel.o src/activity.o   \
         src/queue.o src/lb_fas.o src/http_rules.o src/extcheck.o              \
-        src/thread.o src/http.o src/lb_chash.o src/applet.o                   \
+        src/flt_bwlim.o src/thread.o src/http.o src/lb_chash.o src/applet.o   \
         src/compression.o src/raw_sock.o src/ncbuf.o src/frontend.o           \
         src/errors.o src/uri_normalizer.o src/http_conv.o src/lb_fwrr.o       \
         src/sha1.o src/proto_sockpair.o src/mailers.o src/lb_fwlc.o           \
@@ -902,7 +903,7 @@ OBJS += src/mux_h2.o src/mux_fcgi.o src/mux_h1.o src/tcpcheck.o               \
         src/base64.o src/auth.o src/uri_auth.o src/time.o src/ebistree.o      \
         src/dynbuf.o src/wdt.o src/pipe.o src/init.o src/http_acl.o           \
         src/hpack-huff.o src/hpack-enc.o src/dict.o src/freq_ctr.o            \
-        src/ebtree.o src/hash.o src/dgram.o src/version.o src/flt_bwlim.o
+        src/ebtree.o src/hash.o src/dgram.o src/version.o
 
 ifneq ($(TRACE),)
 OBJS += src/calltrace.o
