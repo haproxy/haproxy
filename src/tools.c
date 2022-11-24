@@ -69,6 +69,7 @@ extern void *__elf_aux_vector;
 #include <haproxy/stconn.h>
 #include <haproxy/task.h>
 #include <haproxy/tools.h>
+#include <haproxy/xxhash.h>
 
 /* This macro returns false if the test __x is false. Many
  * of the following parsing function must be abort the processing
@@ -78,6 +79,9 @@ extern void *__elf_aux_vector;
 
 /* Define the number of line of hash_word */
 #define NB_L_HASH_WORD 15
+
+/* return the hash of a string and length for a given key. All keys are valid. */
+#define HA_ANON(key, str, len) (XXH32(str, len, key) & 0xFFFFFF)
 
 /* enough to store NB_ITOA_STR integers of :
  *   2^64-1 = 18446744073709551615 or
