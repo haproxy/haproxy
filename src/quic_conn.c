@@ -6335,6 +6335,8 @@ static void qc_rx_pkt_handle(struct quic_conn *qc, struct quic_rx_packet *pkt,
 	size_t b_cspace;
 	int io_cb_wakeup = 1;
 
+	TRACE_ENTER(QUIC_EV_CONN_LPKT, qc, pkt, NULL, qv);
+
 	if (pkt->flags & QUIC_FL_RX_PACKET_DGRAM_FIRST &&
 	    !quic_peer_validated_addr(qc) &&
 	    qc->flags & QUIC_FL_CONN_ANTI_AMPLIFICATION_REACHED) {
