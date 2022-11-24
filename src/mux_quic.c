@@ -2097,8 +2097,8 @@ static void qc_detach(struct sedesc *sd)
 }
 
 /* Called from the upper layer, to receive data */
-static size_t qc_rcv_buf(struct stconn *sc, struct buffer *buf,
-                         size_t count, int flags)
+static size_t qc_recv_buf(struct stconn *sc, struct buffer *buf,
+                          size_t count, int flags)
 {
 	struct qcs *qcs = __sc_mux_strm(sc);
 	size_t ret = 0;
@@ -2136,8 +2136,8 @@ static size_t qc_rcv_buf(struct stconn *sc, struct buffer *buf,
 	return ret;
 }
 
-static size_t qc_snd_buf(struct stconn *sc, struct buffer *buf,
-                         size_t count, int flags)
+static size_t qc_send_buf(struct stconn *sc, struct buffer *buf,
+                          size_t count, int flags)
 {
 	struct qcs *qcs = __sc_mux_strm(sc);
 	size_t ret;
@@ -2297,8 +2297,8 @@ static const struct mux_ops qc_ops = {
 	.init = qc_init,
 	.destroy = qc_destroy,
 	.detach = qc_detach,
-	.rcv_buf = qc_rcv_buf,
-	.snd_buf = qc_snd_buf,
+	.rcv_buf = qc_recv_buf,
+	.snd_buf = qc_send_buf,
 	.subscribe = qc_subscribe,
 	.unsubscribe = qc_unsubscribe,
 	.wake = qc_wake,
