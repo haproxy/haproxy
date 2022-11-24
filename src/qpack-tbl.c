@@ -144,7 +144,7 @@ const struct http_hdr qpack_sht[QPACK_SHT_SIZE] = {
 
 struct pool_head *pool_head_qpack_tbl = NULL;
 
-#ifdef DEBUG_HPACK
+#ifdef DEBUG_QPACK
 /* dump the whole dynamic header table */
 void qpack_dht_dump(FILE *out, const struct qpack_dht *dht)
 {
@@ -152,8 +152,8 @@ void qpack_dht_dump(FILE *out, const struct qpack_dht *dht)
 	unsigned int slot;
 	char name[4096], value[4096];
 
-	for (i = HPACK_SHT_SIZE; i < HPACK_SHT_SIZE + dht->used; i++) {
-		slot = (qpack_get_dte(dht, i - HPACK_SHT_SIZE + 1) - dht->dte);
+	for (i = QPACK_SHT_SIZE; i < QPACK_SHT_SIZE + dht->used; i++) {
+		slot = (qpack_get_dte(dht, i - QPACK_SHT_SIZE + 1) - dht->dte);
 		fprintf(out, "idx=%u slot=%u name=<%s> value=<%s> addr=%u-%u\n",
 			i, slot,
 			istpad(name, qpack_idx_to_name(dht, i)).ptr,
@@ -193,7 +193,7 @@ void qpack_dht_check_consistency(const struct qpack_dht *dht)
 		abort();
 	}
 }
-#endif // DEBUG_HPACK
+#endif // DEBUG_QPACK
 
 /* rebuild a new dynamic header table from <dht> with an unwrapped index and
  * contents at the end. The new table is returned, the caller must not use the
