@@ -22,6 +22,11 @@
 #ifndef _HAPROXY_COMPILER_H
 #define _HAPROXY_COMPILER_H
 
+/* leave a chance to the compiler to bring its own definitions first; this
+ * will cause cdefs.h to be included on systems which have it.
+ */
+#include <inttypes.h>
+
 #ifdef DEBUG_USE_ABORT
 #include <stdlib.h>
 #endif
