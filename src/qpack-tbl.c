@@ -154,7 +154,7 @@ void qpack_dht_dump(FILE *out, const struct qpack_dht *dht)
 
 	for (i = HPACK_SHT_SIZE; i < HPACK_SHT_SIZE + dht->used; i++) {
 		slot = (qpack_get_dte(dht, i - HPACK_SHT_SIZE + 1) - dht->dte);
-		fprintf(out, "idx=%d slot=%u name=<%s> value=<%s> addr=%u-%u\n",
+		fprintf(out, "idx=%u slot=%u name=<%s> value=<%s> addr=%u-%u\n",
 			i, slot,
 			istpad(name, qpack_idx_to_name(dht, i)).ptr,
 			istpad(value, qpack_idx_to_value(dht, i)).ptr,
