@@ -616,7 +616,7 @@ static int peer_prepare_status_errormsg(char *msg, size_t size, struct peer_prep
 	unsigned int st1;
 
 	st1 = p->error_status.st1;
-	ret = snprintf(msg, size, "%d\n", st1);
+	ret = snprintf(msg, size, "%u\n", st1);
 	if (ret >= size)
 		return 0;
 
