@@ -1,6 +1,61 @@
 ChangeLog :
 ===========
 
+2022/11/24 : 2.7-dev10
+    - MEDIUM: tcp-act: add parameter rst-ttl to silent-drop
+    - BUG/MAJOR: quic: Crash upon retransmission of dgrams with several packets
+    - MINOR: cli: print parsed command when not found
+    - BUG/MAJOR: quic: Crash after discarding packet number spaces
+    - CLEANUP: quic: replace "choosen" with "chosen" all over the code
+    - MINOR: cli/pools: store "show pools" results into a temporary array
+    - MINOR: cli/pools: add sorting capabilities to "show pools"
+    - MINOR: cli/pools: add pool name filtering capability to "show pools"
+    - DOC: configuration: fix quic prefix typo
+    - MINOR: quic: report error if force-retry without cluster-secret
+    - MINOR: global: generate random cluster.secret if not defined
+    - BUG/MINOR: resolvers: do not run the timeout task when there's no resolution
+    - BUG/MINOR: server/idle: at least use atomic stores when updating max_used_conns
+    - MINOR: server/idle: make the next_takeover index per-tgroup
+    - BUILD: listener: fix build warning on global_listener_rwlock without threads
+    - BUG/MAJOR: sched: protect task during removal from wait queue
+    - BUILD: sched: fix build with DEBUG_THREAD with the previous commit
+    - DOC: quic: add note on performance issue with listener contention
+    - BUG/MINOR: cfgparse-listen: fix ebpt_next_dup pointer dereference on proxy "from" inheritance
+    - BUG/MINOR: log: fix parse_log_message rfc5424 size check
+    - CLEANUP: arg: remove extra check in make_arg_list arg escaping
+    - CLEANUP: tools: extra check in utoa_pad
+    - MINOR: h1: Consider empty port as invalid in authority for CONNECT
+    - MINOR: http: Considere empty ports as valid default ports
+    - BUG/MINOR: http-htx: Normalized absolute URIs with an empty port
+    - BUG/MINOR: h1: Replace authority validation to conform RFC3986
+    - REG-TESTS: http: Add more tests about authority/host matching
+    - BUG/MINOR: http-htx: Don't consider an URI as normalized after a set-uri action
+    - BUG/MEDIUM: mux-h1: Don't release H1C on timeout if there is a SC attached
+    - BUG/MEDIUM: mux-h1: Subscribe for reads on error on sending path
+    - BUILD: http-htx: Silent build error about a possible NULL start-line
+    - DOC: configuration.txt: add default_value for table_idle signature
+    - BUILD: ssl-sock: Silent error about NULL deref in ssl_sock_bind_verifycbk()
+    - BUG/MEDIUM: mux-h1: Remove H1C_F_WAIT_NEXT_REQ flag on a next request
+    - BUG/MINOR: mux-h1: Fix handling of 408-Request-Time-Out
+    - MINOR: mux-h1: Remove H1C_F_WAIT_NEXT_REQ in functions handling errors
+    - MINOR: mux-h1: Avoid useless call to h1_send() if no error is sent
+    - DOC: configuration.txt: fix typo in table_idle signature
+    - BUILD: stick-tables: fix build breakage in xxhash on older compilers
+    - BUILD: compiler: include compiler's definitions before ours
+    - BUILD: quic: global.h is needed in cfgparse-quic
+    - CLEANUP: tools: do not needlessly include xxhash nor cli from tools.h
+    - BUILD: flags: really restrict the cases where flags are exposed
+    - BUILD: makefile: minor reordering of objects by build time
+    - BUILD: quic: silence two invalid build warnings at -O1 with gcc-6.5
+    - BUILD: quic: use openssl-compat.h instead of openssl/ssl.h
+    - MEDIUM: ssl: add minimal WolfSSL support with OpenSSL compatibility mode
+    - MINOR: sample: make the rand() sample fetch function use the statistical_prng
+    - MINOR: auth: silence null dereference warning in check_user()
+    - CLEANUP: peers: fix format string for status messages (int signedness)
+    - CLEANUP: qpack: fix format string in debugging code (int signedness)
+    - CLEANUP: qpack: properly use the QPACK macros not HPACK ones in debug code
+    - BUG/MEDIUM: quic: fix datagram dropping on queueing failed
+
 2022/11/18 : 2.7-dev9
     - BUILD: quic: QUIC mux build fix for 32-bit build
     - BUILD: scripts: disable tests build on QuicTLS build
