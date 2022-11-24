@@ -1275,7 +1275,7 @@ struct proxy *httpclient_create_proxy(const char *id)
 	if (httpclient_ssl_verify == SSL_SOCK_VERIFY_REQUIRED) {
 
 		srv_ssl->ssl_ctx.ca_file = strdup(httpclient_ssl_ca_file ? httpclient_ssl_ca_file : "@system-ca");
-		if (!ssl_store_load_locations_file(srv_ssl->ssl_ctx.ca_file, 1, CAFILE_CERT)) {
+		if (!__ssl_store_load_locations_file(srv_ssl->ssl_ctx.ca_file, 1, CAFILE_CERT, !hard_error_ssl)) {
 			/* if we failed to load the ca-file, only quits in
 			 * error with hard_error, otherwise just disable the
 			 * feature. */

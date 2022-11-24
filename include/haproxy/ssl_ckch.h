@@ -67,6 +67,7 @@ struct cafile_entry *ssl_store_dup_cafile_entry(struct cafile_entry *src);
 void ssl_store_delete_cafile_entry(struct cafile_entry *ca_e);
 int ssl_store_load_ca_from_buf(struct cafile_entry *ca_e, char *cert_buf, int append);
 int ssl_store_load_locations_file(char *path, int create_if_none, enum cafile_type type);
+int __ssl_store_load_locations_file(char *path, int create_if_none, enum cafile_type type, int shuterror);
 
 extern struct cert_exts cert_exts[];
 
