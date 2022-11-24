@@ -436,7 +436,7 @@ void quic_sock_fd_iocb(int fd)
 	if (!quic_lstnr_dgram_dispatch(dgram_buf, ret, l, &saddr, &daddr,
 	                               new_dgram, &rxbuf->dgram_list)) {
 		/* If wrong, consume this datagram */
-		b_del(buf, ret);
+		b_sub(buf, ret);
 	}
 	new_dgram = NULL;
 	if (--max_dgrams > 0)
