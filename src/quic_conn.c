@@ -1424,11 +1424,13 @@ static int quic_packet_encrypt(unsigned char *payload, size_t payload_len,
 	goto leave;
 }
 
-/* Decrypt <pkt> QUIC packet with <tls_ctx> as QUIC TLS cryptographic context.
- * Returns 1 if succeeded, 0 if not.
+/* Decrypt <pkt> packet using encryption level <qel> for <qc> connection.
+ * Decryption is done in place in packet buffer.
+ *
+ * Returns 1 on sucess else 0.
  */
-static int qc_pkt_decrypt(struct quic_rx_packet *pkt, struct quic_enc_level *qel,
-                          struct quic_conn *qc)
+static int qc_pkt_decrypt(struct quic_conn *qc, struct quic_enc_level *qel,
+                          struct quic_rx_packet *pkt)
 {
 	int ret, kp_changed;
 	unsigned char iv[QUIC_TLS_IV_LEN];
@@ -1454,21 +1456,21 @@ static int qc_pkt_decrypt(struct quic_rx_packet *pkt, struct quic_enc_level *qel
 				 * secrets.
 				 */
 				// TODO: check if BUG_ON() more suitable
-				if (!pkt->qc->ku.prv_rx.pn) {
+				if (!qc->ku.prv_rx.pn) {
 					TRACE_ERROR("null previous packet number", QUIC_EV_CONN_RXPKT, qc);
 					goto leave;
 				}
 
-				rx_ctx = pkt->qc->ku.prv_rx.ctx;
-				rx_iv  = pkt->qc->ku.prv_rx.iv;
-				rx_key = pkt->qc->ku.prv_rx.key;
+				rx_ctx = qc->ku.prv_rx.ctx;
+				rx_iv  = qc->ku.prv_rx.iv;
+				rx_key = qc->ku.prv_rx.key;
 			}
 			else if (pkt->pn > qel->pktns->rx.largest_pn) {
 				/* Next key phase */
 				kp_changed = 1;
-				rx_ctx = pkt->qc->ku.nxt_rx.ctx;
-				rx_iv  = pkt->qc->ku.nxt_rx.iv;
-				rx_key = pkt->qc->ku.nxt_rx.key;
+				rx_ctx = qc->ku.nxt_rx.ctx;
+				rx_iv  = qc->ku.nxt_rx.iv;
+				rx_key = qc->ku.nxt_rx.key;
 			}
 		}
 	}
@@ -1488,13 +1490,13 @@ static int qc_pkt_decrypt(struct quic_rx_packet *pkt, struct quic_enc_level *qel
 
 	/* Update the keys only if the packet decryption succeeded. */
 	if (kp_changed) {
-		quic_tls_rotate_keys(pkt->qc);
+		quic_tls_rotate_keys(qc);
 		/* Toggle the Key Phase bit */
 		tls_ctx->flags ^= QUIC_FL_TLS_KP_BIT_SET;
 		/* Store the lowest packet number received for the current key phase */
 		tls_ctx->rx.pn = pkt->pn;
 		/* Prepare the next key update */
-		if (!quic_tls_key_update(pkt->qc)) {
+		if (!quic_tls_key_update(qc)) {
 			TRACE_ERROR("quic_tls_key_update() failed", QUIC_EV_CONN_RXPKT, qc);
 			goto leave;
 		}
@@ -3935,7 +3937,7 @@ int qc_treat_rx_pkts(struct quic_conn *qc, struct quic_enc_level *cur_el,
 		pkt = eb64_entry(node, struct quic_rx_packet, pn_node);
 		TRACE_DATA("new packet", QUIC_EV_CONN_RXPKT,
 		            qc, pkt, NULL, qc->xprt_ctx->ssl);
-		if (!qc_pkt_decrypt(pkt, qel, qc)) {
+		if (!qc_pkt_decrypt(qc, qel, pkt)) {
 			/* Drop the packet */
 			TRACE_ERROR("packet decryption failed -> dropped",
 			            QUIC_EV_CONN_RXPKT, qc, pkt);
@@ -6058,8 +6060,6 @@ static struct quic_conn *quic_rx_pkt_retrieve_conn(struct quic_rx_packet *pkt,
 			TRACE_ERROR("stateless reset not sent", QUIC_EV_CONN_LPKT, qc);
 		goto err;
 	}
-
-	pkt->qc = qc;
 
  out:
 	TRACE_LEAVE(QUIC_EV_CONN_LPKT, qc);

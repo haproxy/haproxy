@@ -400,7 +400,6 @@ struct quic_rx_packet {
 
 	/* QUIC version used in packet. */
 	const struct quic_version *version;
-	struct quic_conn *qc;
 
 	unsigned char type;
 	/* Initial desctination connection ID. */
