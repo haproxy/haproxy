@@ -4096,7 +4096,7 @@ smp_fetch_thread(const struct arg *args, struct sample *smp, const char *kw, voi
 static int
 smp_fetch_rand(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	smp->data.u.sint = ha_random32();
+	smp->data.u.sint = statistical_prng();
 
 	/* reduce if needed. Don't do a modulo, use all bits! */
 	if (args[0].type == ARGT_SINT)
