@@ -270,7 +270,7 @@ check_user(struct userlist *ul, const char *user, const char *pass)
 		ep = pass;
 
 #ifdef DEBUG_AUTH
-	fprintf(stderr, ", crypt=%s\n", ep);
+	fprintf(stderr, ", crypt=%s\n", ((ep) ? ep : ""));
 #endif
 
 	if (ep && strcmp(ep, u->pass) == 0)
