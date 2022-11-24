@@ -17,7 +17,6 @@
 #include <import/ebmbtree.h>
 #include <import/ebsttree.h>
 #include <import/ebistree.h>
-#include <import/xxhash.h>
 
 #include <haproxy/api.h>
 #include <haproxy/applet.h>
@@ -45,6 +44,7 @@
 #include <haproxy/tcp_rules.h>
 #include <haproxy/ticks.h>
 #include <haproxy/tools.h>
+#include <haproxy/xxhash.h>
 
 
 /* structure used to return a table key built from a sample */
