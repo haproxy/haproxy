@@ -584,12 +584,11 @@ static int quic_transport_params_decode(struct quic_transport_params *p, int ser
                                         const unsigned char *end)
 {
 	const unsigned char *pos;
+	uint64_t type, len = 0;
 
 	pos = buf;
 
 	while (pos != end) {
-		uint64_t type, len;
-
 		if (!quic_transport_param_decode_type_len(&type, &len, &pos, end))
 			return 0;
 

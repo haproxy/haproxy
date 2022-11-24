@@ -6089,7 +6089,7 @@ static int quic_rx_pkt_parse(struct quic_rx_packet *pkt,
 	struct proxy *prx;
 	struct quic_counters *prx_counters;
 	int long_header = 0;
-	uint32_t version;
+	uint32_t version = 0;
 	const struct quic_version *qv = NULL;
 
 	TRACE_ENTER(QUIC_EV_CONN_LPKT);
