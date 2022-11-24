@@ -1268,21 +1268,21 @@ int ssl_store_load_locations_file(char *path, int create_if_none, enum cafile_ty
 
 		store = X509_STORE_new();
 		if (!store) {
-			ha_alert("Cannot allocate memory!");
+			ha_alert("Cannot allocate memory!\n");
 			goto err;
 		}
 
 		if (strcmp(path, "@system-ca") == 0) {
 			dir = X509_get_default_cert_dir();
 			if (!dir) {
-				ha_alert("Couldn't get the system CA directory from X509_get_default_cert_dir().");
+				ha_alert("Couldn't get the system CA directory from X509_get_default_cert_dir().\n");
 				goto err;
 			}
 
 		} else {
 
 			if (stat(path, &buf) == -1) {
-				ha_alert("Couldn't open the ca-file '%s' (%s).", path, strerror(errno));
+				ha_alert("Couldn't open the ca-file '%s' (%s).\n", path, strerror(errno));
 				goto err;
 			}
 
@@ -1295,7 +1295,7 @@ int ssl_store_load_locations_file(char *path, int create_if_none, enum cafile_ty
 		if (file) {
 			if (!X509_STORE_load_locations(store, file, NULL)) {
 				e = ERR_get_error();
-				ha_alert("Couldn't open the ca-file '%s' (%s).", path, ERR_reason_error_string(e));
+				ha_alert("Couldn't open the ca-file '%s' (%s).\n", path, ERR_reason_error_string(e));
 				goto err;
 			}
 		} else if (dir) {
