@@ -22,8 +22,8 @@
 #ifndef _HAPROXY_SHOW_FLAGS_H
 #define _HAPROXY_SHOW_FLAGS_H
 
-/* Only define the macro below if the caller included stdio, that we need for
- * snprintf(). It will be used by many low-level includes and we don't want to
+/* Only define the macro below if the caller requests it using HA_EXPOSE_FLAGS.
+ * It will be used by many low-level includes and we don't want to
  * include the huge stdio here by default. The macro is used to make a string
  * of a set of flags (and handles one flag at a time). It will append into
  * <_buf>:<_len> the state of flag <_val> in <_flg>, appending string <_del> as
@@ -49,7 +49,7 @@
  * to isolate bits to compare to the enum's value, and will remove the mask's
  * bits at once in case of match.
  */
-#ifdef EOF
+#ifdef HA_EXPOSE_FLAGS
 
 #define __APPEND_FLAG(_buf, _len, _del, _flg, _val, _nam, ...)			\
 	do {									\

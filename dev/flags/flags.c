@@ -1,6 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+/* make the include files below expose their flags */
+#define HA_EXPOSE_FLAGS
+
 #include <haproxy/channel-t.h>
 #include <haproxy/connection-t.h>
 #include <haproxy/fd-t.h>
