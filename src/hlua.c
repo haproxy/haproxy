@@ -1408,14 +1408,30 @@ void hlua_hook(lua_State *L, lua_Debug *ar)
 		return;
 	}
 
-	/* restore the interrupt condition. */
-	lua_sethook(hlua->T, hlua_hook, LUA_MASKCOUNT, hlua_nb_instruction);
-
 	/* If we interrupt the Lua processing in yieldable state, we yield.
 	 * If the state is not yieldable, trying yield causes an error.
 	 */
-	if (lua_isyieldable(L))
+	if (lua_isyieldable(L)) {
+		/* note: for converters/fetches.. where yielding is not allowed
+		 * hlua_ctx_resume() will simply perform a goto resume_execution
+		 * instead of rescheduling hlua->task.
+		 * also: hlua_ctx_resume() will take care of checking execution
+		 * timeout and re-applying the hook as needed.
+		 */
 		MAY_LJMP(hlua_yieldk(L, 0, 0, NULL, TICK_ETERNITY, HLUA_CTRLYIELD));
+		/* lua docs says that the hook should return immediately after lua_yieldk
+		 *
+		 * From: https://www.lua.org/manual/5.3/manual.html#lua_yieldk
+		 *
+		 * Moreover, it seems that we don't want to continue after the yield
+		 * because the end of the function is about handling unyieldable function,
+		 * which is not the case here.
+		 *
+		 *  ->if we don't return lua_sethook gets incorrectly set with MASKRET later
+		 *  in the function.
+		 */
+		return;
+	}
 
 	/* If we cannot yield, update the clock and check the timeout. */
 	clock_update_date(0, 1);
