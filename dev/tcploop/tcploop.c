@@ -33,6 +33,11 @@
 #include <sys/time.h>
 #include <sys/ioctl.h>
 #include <sys/wait.h>
+
+#ifdef __linux__
+#include <sys/epoll.h>
+#endif
+
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
@@ -77,6 +82,7 @@ volatile int nbproc = 0;
 static struct timeval start_time;
 static int showtime;
 static int verbose;
+static int use_epoll;
 static int pid;
 static int sock_type = SOCK_STREAM;
 static int sock_proto = IPPROTO_TCP;
@@ -105,6 +111,7 @@ __attribute__((noreturn)) void usage(int code, const char *arg0)
 	    "  -v           : verbose\n"
 	    "  -u           : use UDP instead of TCP (limited)\n"
 	    "  -t|-tt|-ttt  : show time (msec / relative / absolute)\n"
+	    "  -e           : use epoll instead of poll on Linux\n"
 	    "actions :\n"
 	    "  A[<count>]   : Accepts <count> incoming sockets and closes count-1\n"
 	    "                 Note: fd=accept(fd)\n"
@@ -312,6 +319,31 @@ int wait_on_fd(int fd, int events, int ms)
 {
 	struct pollfd pollfd;
 	int ret;
+
+#ifdef __linux__
+	while (use_epoll) {
+		struct epoll_event evt;
+		static int epoll_fd = -1;
+
+		if (epoll_fd == -1)
+			epoll_fd = epoll_create(1024);
+		if (epoll_fd == -1)
+			break;
+		evt.events = ((events & POLLIN) ? EPOLLIN : 0)      |
+		             ((events & POLLOUT) ? EPOLLOUT : 0)    |
+		             ((events & POLLRDHUP) ? EPOLLRDHUP : 0);
+		evt.data.fd = fd;
+		epoll_ctl(epoll_fd, EPOLL_CTL_ADD, fd, &evt);
+
+		do {
+			ret = epoll_wait(epoll_fd, &evt, 1, ms);
+		} while (ret == -1 && errno == EINTR);
+
+		evt.data.fd = fd;
+		epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, &evt);
+		return ret;
+	}
+#endif
 
 	do {
 		pollfd.fd = fd;
@@ -795,6 +827,8 @@ int main(int argc, char **argv)
 			showtime += 2;
 		else if (strcmp(argv[0], "-ttt") == 0)
 			showtime += 3;
+		else if (strcmp(argv[0], "-e") == 0)
+			use_epoll = 1;
 		else if (strcmp(argv[0], "-v") == 0)
 			verbose ++;
 		else if (strcmp(argv[0], "-u") == 0) {
