@@ -7973,7 +7973,26 @@ http-reuse { never | safe | aggressive | always }
   because almost no new connection will be established while idle connections
   remain available. This is particularly true with the "always" strategy.
 
-  See also : "option http-keep-alive", "server maxconn"
+  The rules to decide to keep an idle connection opened or to close it after
+  processing are also governed by the "tune.pool-low-fd-ratio" (default: 20%)
+  and "tune.pool-high-fd-ratio" (default: 25%). These correspond to the
+  percentage of total file descriptors spent in idle connections above which
+  haproxy will respectively refrain from keeping a connection opened after a
+  response, and actively kill idle connections. Some setups using a very high
+  ratio of idle connections, either because of too low a global "maxconn", or
+  due to a lot of HTTP/2 or HTTP/3 traffic on the frontend (few connections)
+  but HTTP/1 connections on the backend, may observe a lower reuse rate because
+  too few connections are kept open. It may be desirable in this case to adjust
+  such thresholds or simply to increase the global "maxconn" value.
+
+  Similarly, when thread groups are explicitly enabled, it is important to
+  understand that idle connections are only usable between threads from a same
+  group. As such it may happen that unfair load between groups leads to more
+  idle connections being needed, causing a lower reuse rate. The same solution
+  may then be applied (increase global "maxconn" or increase pool ratios).
+
+  See also : "option http-keep-alive", "server maxconn", "thread-groups",
+             "tune.pool-high-fd-ratio", "tune.pool-low-fd-ratio"
 
 
 http-send-name-header [<header>]
