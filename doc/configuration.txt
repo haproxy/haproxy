@@ -16873,7 +16873,8 @@ add_item(<delim>,[<var>][,<suff>]])
   sample string is empty before adding a delimiter. If commas or closing
   parenthesis are needed as delimiters, they must be protected by quotes or
   backslashes, themselves protected so that they are not stripped by the first
-  level parser. See examples below.
+  level parser (please see section 2.2 for quoting and escaping). See examples
+  below.
 
   Example:
     http-request set-var(req.tagged) 'var(req.tagged),add_item(",",req.score1,"(site1)") if src,in_table(site1)'
