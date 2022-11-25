@@ -18,6 +18,7 @@
 #include <haproxy/channel.h>
 #include <haproxy/cli.h>
 #include <haproxy/freq_ctr.h>
+#include <haproxy/listener.h>
 #include <haproxy/sc_strm.h>
 #include <haproxy/stconn.h>
 #include <haproxy/tools.h>
@@ -29,6 +30,11 @@ struct show_prof_ctx {
 	int maxcnt;     /* max line count per step (0=not set)  */
 	int by_what;    /* 0=sort by usage, 1=sort by address, 2=sort by time */
 	int aggr;       /* 0=dump raw, 1=aggregate on callee    */
+};
+
+/* CLI context for the "show activity" command */
+struct show_activity_ctx {
+	int thr;         /* thread ID to show or -1 for all */
 };
 
 #if defined(DEBUG_MEM_STATS)
@@ -1007,6 +1013,148 @@ static int cli_io_handler_show_tasks(struct appctx *appctx)
 	return 1;
 }
 
+/* This function dumps some activity counters used by developers and support to
+ * rule out some hypothesis during bug reports. It returns 0 if the output
+ * buffer is full and it needs to be called again, otherwise non-zero. It dumps
+ * everything at once in the buffer and is not designed to do it in multiple
+ * passes.
+ */
+static int cli_io_handler_show_activity(struct appctx *appctx)
+{
+	struct stconn *sc = appctx_sc(appctx);
+	struct show_activity_ctx *actctx = appctx->svcctx;
+	int tgt = actctx->thr; // target thread, -1 for all, 0 for total only
+	struct timeval up;
+	int thr;
+
+	if (unlikely(sc_ic(sc)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
+		return 1;
+
+	chunk_reset(&trash);
+
+#undef SHOW_TOT
+#define SHOW_TOT(t, x)							\
+	do {								\
+		unsigned int _v[MAX_THREADS];				\
+		unsigned int _tot;					\
+		const unsigned int _nbt = global.nbthread;		\
+		_tot = t = 0;						\
+		do {							\
+			_tot += _v[t] = (x);				\
+		} while (++t < _nbt);					\
+		if (_nbt == 1) {					\
+			chunk_appendf(&trash, " %u\n", _tot);		\
+			break;						\
+		}							\
+		if (tgt == -1) {					\
+			chunk_appendf(&trash, " %u [", _tot);		\
+			for (t = 0; t < _nbt; t++)			\
+				chunk_appendf(&trash, " %u", _v[t]);	\
+			chunk_appendf(&trash, " ]\n");			\
+		} else if (tgt == 0)					\
+				chunk_appendf(&trash, " %u\n", _tot);	\
+			else						\
+				chunk_appendf(&trash, " %u\n", _v[tgt-1]);\
+	} while (0)
+
+#undef SHOW_AVG
+#define SHOW_AVG(t, x)							\
+	do {								\
+		unsigned int _v[MAX_THREADS];				\
+		unsigned int _tot;					\
+		const unsigned int _nbt = global.nbthread;		\
+		_tot = t = 0;						\
+		do {							\
+			_tot += _v[t] = (x);				\
+		} while (++t < _nbt);					\
+		if (_nbt == 1) {					\
+			chunk_appendf(&trash, " %u\n", _tot);		\
+			break;						\
+		}							\
+		if (tgt == -1) {					\
+			chunk_appendf(&trash, " %u [", (_tot + _nbt/2) / _nbt); \
+			for (t = 0; t < _nbt; t++)			\
+				chunk_appendf(&trash, " %u", _v[t]);	\
+			chunk_appendf(&trash, " ]\n");			\
+		} else if (tgt == 0)					\
+				chunk_appendf(&trash, " %u\n", (_tot + _nbt/2) / _nbt);	\
+			else						\
+				chunk_appendf(&trash, " %u\n", _v[tgt-1]);\
+	} while (0)
+
+	/* retrieve uptime */
+	tv_remain(&start_date, &now, &up);
+
+	chunk_appendf(&trash, "thread_id: %u (%u..%u)\n", tid + 1, 1, global.nbthread);
+	chunk_appendf(&trash, "date_now: %lu.%06lu\n", (ulong)now.tv_sec, (ulong)now.tv_usec);
+	chunk_appendf(&trash, "uptime_now: %lu.%06lu\n", (ulong)up.tv_sec, (ulong)up.tv_usec);
+	chunk_appendf(&trash, "ctxsw:");        SHOW_TOT(thr, activity[thr].ctxsw);
+	chunk_appendf(&trash, "tasksw:");       SHOW_TOT(thr, activity[thr].tasksw);
+	chunk_appendf(&trash, "empty_rq:");     SHOW_TOT(thr, activity[thr].empty_rq);
+	chunk_appendf(&trash, "long_rq:");      SHOW_TOT(thr, activity[thr].long_rq);
+	chunk_appendf(&trash, "loops:");        SHOW_TOT(thr, activity[thr].loops);
+	chunk_appendf(&trash, "wake_tasks:");   SHOW_TOT(thr, activity[thr].wake_tasks);
+	chunk_appendf(&trash, "wake_signal:");  SHOW_TOT(thr, activity[thr].wake_signal);
+	chunk_appendf(&trash, "poll_io:");      SHOW_TOT(thr, activity[thr].poll_io);
+	chunk_appendf(&trash, "poll_exp:");     SHOW_TOT(thr, activity[thr].poll_exp);
+	chunk_appendf(&trash, "poll_drop_fd:"); SHOW_TOT(thr, activity[thr].poll_drop_fd);
+	chunk_appendf(&trash, "poll_skip_fd:"); SHOW_TOT(thr, activity[thr].poll_skip_fd);
+	chunk_appendf(&trash, "conn_dead:");    SHOW_TOT(thr, activity[thr].conn_dead);
+	chunk_appendf(&trash, "stream_calls:"); SHOW_TOT(thr, activity[thr].stream_calls);
+	chunk_appendf(&trash, "pool_fail:");    SHOW_TOT(thr, activity[thr].pool_fail);
+	chunk_appendf(&trash, "buf_wait:");     SHOW_TOT(thr, activity[thr].buf_wait);
+	chunk_appendf(&trash, "cpust_ms_tot:"); SHOW_TOT(thr, activity[thr].cpust_total / 2);
+	chunk_appendf(&trash, "cpust_ms_1s:");  SHOW_TOT(thr, read_freq_ctr(&activity[thr].cpust_1s) / 2);
+	chunk_appendf(&trash, "cpust_ms_15s:"); SHOW_TOT(thr, read_freq_ctr_period(&activity[thr].cpust_15s, 15000) / 2);
+	chunk_appendf(&trash, "avg_loop_us:");  SHOW_AVG(thr, swrate_avg(activity[thr].avg_loop_us, TIME_STATS_SAMPLES));
+	chunk_appendf(&trash, "accepted:");     SHOW_TOT(thr, activity[thr].accepted);
+	chunk_appendf(&trash, "accq_pushed:");  SHOW_TOT(thr, activity[thr].accq_pushed);
+	chunk_appendf(&trash, "accq_full:");    SHOW_TOT(thr, activity[thr].accq_full);
+#ifdef USE_THREAD
+	chunk_appendf(&trash, "accq_ring:");    SHOW_TOT(thr, (accept_queue_rings[thr].tail - accept_queue_rings[thr].head + ACCEPT_QUEUE_SIZE) % ACCEPT_QUEUE_SIZE);
+	chunk_appendf(&trash, "fd_takeover:");  SHOW_TOT(thr, activity[thr].fd_takeover);
+#endif
+
+#if defined(DEBUG_DEV)
+	/* keep these ones at the end */
+	chunk_appendf(&trash, "ctr0:");         SHOW_TOT(thr, activity[thr].ctr0);
+	chunk_appendf(&trash, "ctr1:");         SHOW_TOT(thr, activity[thr].ctr1);
+	chunk_appendf(&trash, "ctr2:");         SHOW_TOT(thr, activity[thr].ctr2);
+#endif
+
+	if (applet_putchk(appctx, &trash) == -1) {
+		chunk_reset(&trash);
+		chunk_printf(&trash, "[output too large, cannot dump]\n");
+	}
+
+#undef SHOW_AVG
+#undef SHOW_TOT
+	/* dump complete */
+	return 1;
+}
+
+/* parse a "show activity" CLI request. Returns 0 if it needs to continue, 1 if it
+ * wants to stop here. It sets a show_activity_ctx context where, if a specific
+ * thread is requested, it puts the thread number into ->thr otherwise sets it to
+ * -1.
+ */
+static int cli_parse_show_activity(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	struct show_activity_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
+
+	if (!cli_has_level(appctx, ACCESS_LVL_OPER))
+		return 1;
+
+	ctx->thr = -1; // show all by default
+	if (*args[2])
+		ctx->thr = atoi(args[2]);
+
+	if (ctx->thr < -1 || ctx->thr > global.nbthread)
+		return cli_err(appctx, "Thread ID number must be between -1 and nbthread\n");
+
+	return 0;
+}
+
 /* config keyword parsers */
 static struct cfg_kw_list cfg_kws = {ILH, {
 #ifdef USE_MEMORY_PROFILING
@@ -1021,6 +1169,7 @@ INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
 	{ { "set",  "profiling", NULL }, "set profiling <what> {auto|on|off}      : enable/disable resource profiling (tasks,memory)", cli_parse_set_profiling,  NULL },
+	{ { "show", "activity", NULL },  "show activity [-1|0|thread_num]         : show per-thread activity stats (for support/developers)", cli_parse_show_activity, cli_io_handler_show_activity, NULL },
 	{ { "show", "profiling", NULL }, "show profiling [<what>|<#lines>|<opts>]*: show profiling state (all,status,tasks,memory)",   cli_parse_show_profiling, cli_io_handler_show_profiling, NULL },
 	{ { "show", "tasks", NULL },     "show tasks                              : show running tasks",                               NULL, cli_io_handler_show_tasks,     NULL },
 	{{},}
