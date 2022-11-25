@@ -299,10 +299,10 @@ int addr_to_ss(const char *str, struct sockaddr_storage *ss, struct err_msg *err
 	return 0;
 }
 
-/* waits up to one second on fd <fd> for events <events> (POLLIN|POLLOUT).
- * returns poll's status.
+/* waits up to <ms> milliseconds on fd <fd> for events <events> (POLLIN|POLLOUT).
+ * returns poll's status, or -2 if the poller sets POLLERR.
  */
-int wait_on_fd(int fd, int events)
+int wait_on_fd(int fd, int events, int ms)
 {
 	struct pollfd pollfd;
 	int ret;
@@ -310,9 +310,11 @@ int wait_on_fd(int fd, int events)
 	do {
 		pollfd.fd = fd;
 		pollfd.events = events;
-		ret = poll(&pollfd, 1, 1000);
+		ret = poll(&pollfd, 1, ms);
 	} while (ret == -1 && errno == EINTR);
 
+	if (ret == 1 && pollfd.revents & POLLERR)
+		ret = -2;
 	return ret;
 }
 
@@ -536,7 +538,7 @@ int tcp_recv(int sock, const char *arg)
 				dolog("recv %d\n", ret);
 				return -1;
 			}
-			while (!wait_on_fd(sock, POLLIN));
+			while (!wait_on_fd(sock, POLLIN, 1000));
 			continue;
 		}
 		dolog("recv %d\n", ret);
@@ -589,7 +591,7 @@ int tcp_send(int sock, const char *arg)
 				dolog("send %d\n", ret);
 				return -1;
 			}
-			while (!wait_on_fd(sock, POLLOUT));
+			while (!wait_on_fd(sock, POLLOUT, 1000));
 			continue;
 		}
 		dolog("send %d\n", ret);
@@ -634,7 +636,7 @@ int tcp_echo(int sock, const char *arg)
 					dolog("recv %d\n", rcvd);
 					return -1;
 				}
-				while (!wait_on_fd(sock, POLLIN));
+				while (!wait_on_fd(sock, POLLIN, 1000));
 				continue;
 			}
 			dolog("recv %d\n", rcvd);
@@ -651,7 +653,7 @@ int tcp_echo(int sock, const char *arg)
 					dolog("send %d\n", ret);
 					return -1;
 				}
-				while (!wait_on_fd(sock, POLLOUT));
+				while (!wait_on_fd(sock, POLLOUT, 1000));
 				continue;
 			}
 			dolog("send %d\n", ret);
@@ -676,7 +678,6 @@ int tcp_echo(int sock, const char *arg)
  */
 int tcp_wait(int sock, const char *arg)
 {
-	struct pollfd pollfd;
 	int delay = -1; // wait forever
 	int ret;
 
@@ -689,14 +690,9 @@ int tcp_wait(int sock, const char *arg)
 	}
 
 	/* FIXME: this doesn't take into account delivered signals */
-	do {
-		pollfd.fd = sock;
-		pollfd.events = POLLIN | POLLOUT;
-		ret = poll(&pollfd, 1, delay);
-	} while (ret == -1 && errno == EINTR);
-
-	if (ret > 0 && pollfd.revents & POLLERR)
-		return -1;
+	ret = wait_on_fd(sock, POLLIN | POLLOUT, delay);
+	if (ret < 0)
+		return ret;
 
 	return 0;
 }
@@ -704,17 +700,11 @@ int tcp_wait(int sock, const char *arg)
 /* waits for the input data to be present */
 int tcp_wait_in(int sock, const char *arg)
 {
-	struct pollfd pollfd;
 	int ret;
 
-	do {
-		pollfd.fd = sock;
-		pollfd.events = POLLIN;
-		ret = poll(&pollfd, 1, 1000);
-	} while (ret == -1 && errno == EINTR);
-
-	if (ret > 0 && pollfd.revents & POLLERR)
-		return -1;
+	ret = wait_on_fd(sock, POLLIN, 1000);
+	if (ret < 0)
+		return ret;
 
 	return 0;
 }
@@ -722,17 +712,11 @@ int tcp_wait_in(int sock, const char *arg)
 /* waits for the output queue to be empty */
 int tcp_wait_out(int sock, const char *arg)
 {
-	struct pollfd pollfd;
 	int ret;
 
-	do {
-		pollfd.fd = sock;
-		pollfd.events = POLLOUT;
-		ret = poll(&pollfd, 1, 1000);
-	} while (ret == -1 && errno == EINTR);
-
-	if (ret > 0 && pollfd.revents & POLLERR)
-		return -1;
+	ret = wait_on_fd(sock, POLLOUT, 1000);
+	if (ret < 0)
+		return ret;
 
 	/* Now wait for data to leave the socket */
 	do {
