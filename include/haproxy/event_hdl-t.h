@@ -239,6 +239,8 @@ struct event_hdl_sub {
 #define EVENT_HDL_SUB_SERVER                            EVENT_HDL_SUB_FAMILY(1)
 #define EVENT_HDL_SUB_SERVER_ADD                        EVENT_HDL_SUB_TYPE(1,1)
 #define EVENT_HDL_SUB_SERVER_DEL                        EVENT_HDL_SUB_TYPE(1,2)
+#define EVENT_HDL_SUB_SERVER_UP                         EVENT_HDL_SUB_TYPE(1,3)
+#define EVENT_HDL_SUB_SERVER_DOWN                       EVENT_HDL_SUB_TYPE(1,4)
 
 /*	---------------------------------------        */
 

@@ -139,6 +139,7 @@ int srv_getinter(const struct check *check)
  * Event will be published in both global subscription list and
  * server dedicated subscription list
  * server ptr must be valid
+ * must be called with srv lock or under thread_isolate
  */
 static inline void srv_event_hdl_publish(struct event_hdl_sub_type event, struct server *srv, uint8_t thread_isolate)
 {
@@ -154,6 +155,7 @@ static inline void srv_event_hdl_publish(struct event_hdl_sub_type event, struct
 	/* unsafe data assignments */
 	cb_data.unsafe.ptr = srv;
 	cb_data.unsafe.thread_isolate = thread_isolate;
+	cb_data.unsafe.srv_lock = !thread_isolate;
 	/* publish in server dedicated sub list */
 	event_hdl_publish(&srv->e_subs, event, EVENT_HDL_CB_DATA(&cb_data));
 	/* publish in global subscription list */
@@ -5259,6 +5261,9 @@ static void srv_update_status(struct server *s)
 		s->next_admin = s->cur_admin;
 
 		if ((s->cur_state != SRV_ST_STOPPED) && (s->next_state == SRV_ST_STOPPED)) {
+			/* no maintenance + server DOWN: publish event SERVER DOWN */
+			srv_event_hdl_publish(EVENT_HDL_SUB_SERVER_DOWN, s, 0);
+
 			s->last_change = now.tv_sec;
 			if (s->proxy->lbprm.set_server_status_down)
 				s->proxy->lbprm.set_server_status_down(s);
@@ -5326,6 +5331,9 @@ static void srv_update_status(struct server *s)
 		}
 		else if (((s->cur_state != SRV_ST_RUNNING) && (s->next_state == SRV_ST_RUNNING))
 			 || ((s->cur_state != SRV_ST_STARTING) && (s->next_state == SRV_ST_STARTING))) {
+			/* no maintenance + server going UP: publish event SERVER UP */
+			srv_event_hdl_publish(EVENT_HDL_SUB_SERVER_UP, s, 0);
+
 			if (s->proxy->srv_bck == 0 && s->proxy->srv_act == 0) {
 				if (s->proxy->last_change < now.tv_sec)		// ignore negative times
 					s->proxy->down_time += now.tv_sec - s->proxy->last_change;
@@ -5452,6 +5460,9 @@ static void srv_update_status(struct server *s)
 			if (s->onmarkeddown & HANA_ONMARKEDDOWN_SHUTDOWNSESSIONS)
 				srv_shutdown_streams(s, SF_ERR_DOWN);
 
+			/* maintenance on previously running server: publish event SERVER DOWN */
+			srv_event_hdl_publish(EVENT_HDL_SUB_SERVER_DOWN, s, 0);
+
 			/* force connection cleanup on the given server */
 			srv_cleanup_connections(s);
 			/* we might have streams queued on this server and waiting for
@@ -5523,6 +5534,12 @@ static void srv_update_status(struct server *s)
 					s->next_state = SRV_ST_RUNNING;
 			}
 
+		}
+
+		/* ignore if server stays down when leaving maintenance mode */
+		if (s->next_state != SRV_ST_STOPPED) {
+			/* leaving maintenance + server UP: publish event SERVER UP */
+			srv_event_hdl_publish(EVENT_HDL_SUB_SERVER_UP, s, 0);
 		}
 
 		tmptrash = alloc_trash_chunk();

@@ -441,6 +441,7 @@ struct event_hdl_cb_data_server {
 		struct server *ptr;	/* server live ptr */
 		/* lock hints */
 		uint8_t thread_isolate;	/* 1 = thread_isolate is on, no locking required */
+		uint8_t srv_lock;       /* 1 = srv lock is held */
 	} unsafe;
 };
 

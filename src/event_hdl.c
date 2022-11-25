@@ -26,6 +26,8 @@ static struct event_hdl_sub_type_map event_hdl_sub_type_map[] = {
 	{"SERVER",              EVENT_HDL_SUB_SERVER},
 	{"SERVER_ADD",          EVENT_HDL_SUB_SERVER_ADD},
 	{"SERVER_DEL",          EVENT_HDL_SUB_SERVER_DEL},
+	{"SERVER_UP",           EVENT_HDL_SUB_SERVER_UP},
+	{"SERVER_DOWN",         EVENT_HDL_SUB_SERVER_DOWN},
 };
 
 /* internal types (only used in this file) */
