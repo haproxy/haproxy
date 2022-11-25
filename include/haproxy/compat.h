@@ -295,6 +295,14 @@ typedef struct { } empty_t;
  */
 #define MAX_SEND_FD 252
 
+/* Some bsd kernels (ie: FreeBSD) offer the FAST clock source as equivalent
+ * to Linux COARSE clock source. Aliasing COARSE to FAST on such systems when
+ * COARSE is not already defined.
+ */
+#if !defined(CLOCK_MONOTONIC_COARSE) && defined(CLOCK_MONOTONIC_FAST)
+#define CLOCK_MONOTONIC_COARSE CLOCK_MONOTONIC_FAST
+#endif
+
 #endif /* _HAPROXY_COMPAT_H */
 
 /*

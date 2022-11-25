@@ -60,6 +60,27 @@ uint64_t now_mono_time(void)
 	return ret;
 }
 
+/* Returns the system's monotonic time in nanoseconds.
+ * Uses the coarse clock source if supported (for fast but
+ * less precise queries with limited resource usage).
+ * Fallback to now_mono_time() if coarse source is not supported,
+ * which may itself return 0 if not supported either.
+ */
+uint64_t now_mono_time_fast(void)
+{
+#if defined(CLOCK_MONOTONIC_COARSE)
+	struct timespec ts;
+
+	clock_gettime(CLOCK_MONOTONIC_COARSE, &ts);
+	return (ts.tv_sec * 1000000000ULL + ts.tv_nsec);
+#else
+	/* fallback to regular mono time,
+	 * returns 0 if not supported
+	 */
+	return now_mono_time();
+#endif
+}
+
 /* returns the current thread's cumulated CPU time in nanoseconds if supported, otherwise zero */
 uint64_t now_cpu_time(void)
 {
