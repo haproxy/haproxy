@@ -2,6 +2,11 @@
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+
+#ifdef __linux__
+#include <sys/epoll.h>
+#endif
+
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <errno.h>
@@ -33,6 +38,7 @@ int lfd = -1;
 int cfd = -1;
 int sfd = -1;
 int connected = 0;
+int use_epoll = 0;
 struct sockaddr_in saddr, caddr;
 socklen_t salen, calen;
 
@@ -53,6 +59,7 @@ void usage(const char *arg0)
 	       "args:\n"
 	       "    -h            display this help\n"
 	       "    -v            verbose mode (shows ret values)\n"
+	       "    -e            use epoll instead of poll\n"
 	       "    -c <actions>  perform <action> on client side socket\n"
 	       "    -s <actions>  perform <action> on server side socket\n"
 	       "    -l <actions>  perform <action> on listening socket\n"
@@ -209,13 +216,56 @@ void do_clo(int fd)
 void do_pol(int fd)
 {
 	struct pollfd fds = { .fd = fd, .events = POLLIN|POLLOUT|POLLRDHUP, .revents=0 };
+	int flags, flag;
 	int ret;
 
+#ifdef __linux__
+	while (use_epoll) {
+		struct epoll_event evt;
+		static int epoll_fd = -1;
+
+		if (epoll_fd == -1)
+			epoll_fd = epoll_create(1024);
+		if (epoll_fd == -1)
+			break;
+		evt.events = EPOLLIN | EPOLLOUT | EPOLLRDHUP;
+		evt.data.fd = fd;
+		epoll_ctl(epoll_fd, EPOLL_CTL_ADD, fd, &evt);
+		ret = epoll_wait(epoll_fd, &evt, 1, 0);
+
+		if (verbose) {
+			printf("cmd #%d stp #%d: %s(%s=%d): ret=%d%s ev=%#x ", cmd, cmdstep, __FUNCTION__ + 3, side(fd), fd, ret, get_errno(ret), ret > 0 ? evt.events : 0);
+			if (ret > 0 && evt.events) {
+				putchar('(');
+
+				for (flags = evt.events; flags; flags ^= flag) {
+					flag = flags ^ (flags & (flags - 1)); // keep lowest bit only
+					switch (flag) {
+					case EPOLLIN: printf("IN"); break;
+					case EPOLLOUT: printf("OUT"); break;
+					case EPOLLPRI: printf("PRI"); break;
+					case EPOLLHUP: printf("HUP"); break;
+					case EPOLLERR: printf("ERR"); break;
+					case EPOLLRDHUP: printf("RDHUP"); break;
+					default: printf("???[%#x]", flag); break;
+					}
+					if (flags ^ flag)
+						putchar(' ');
+				}
+				putchar(')');
+			}
+			putchar('\n');
+		}
+
+		evt.data.fd = fd;
+		epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, &evt);
+		return;
+	}
+#endif
 	ret = poll(&fds, 1, 0);
 	if (verbose) {
 		printf("cmd #%d stp #%d: %s(%s=%d): ret=%d%s ev=%#x ", cmd, cmdstep, __FUNCTION__ + 3, side(fd), fd, ret, get_errno(ret), ret > 0 ? fds.revents : 0);
 		if (ret > 0 && fds.revents) {
-			int flags, flag;
 			putchar('(');
 
 			for (flags = fds.revents; flags; flags ^= flag) {
@@ -297,6 +347,9 @@ int main(int argc, char **argv)
 			break;
 		case 'v' :
 			verbose++;
+			break;
+		case 'e' :
+			use_epoll = 1;
 			break;
 		case 'c' :
 			cmd++; cmdstep = 0;
