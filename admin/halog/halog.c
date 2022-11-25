@@ -206,12 +206,12 @@ void help()
 	       "       -ua : average response time, -ut : average total time\n"
 	       "       -uao, -uto: average times computed on valid ('OK') requests\n"
 	       "       -uba, -ubt: average bytes returned, total bytes returned\n"
-	       " -hdr  output captured header at the given <block>:<field>\n",
-	       " -ac <count> -ad <delay>:\n
+	       " -hdr  output captured header at the given <block>:<field>\n"
+	       " -ac <count> -ad <delay>:\n"
 	       "       Report periods corresponding to a grouped accept of <count> requests at\n"
 	       "       the same millisecond after a delay of at least <ad> milliseconds with no\n"
 	       "       incoming accept (used to spot network outages). Output format contains:\n"
-	       "          <accept_date> <date_ms> <delta_ms from previous one> <nb_entries>\n"
+	       "          <accept_date> <date_ms> <delta_ms from previous one> <nb_entries>\n",
 	       (int)SOURCE_FIELD, (int)SOURCE_FIELD
 	       );
 	exit(0);
