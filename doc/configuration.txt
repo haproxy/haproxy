@@ -15768,8 +15768,10 @@ sni <expression>
   The "sni" parameter evaluates the sample fetch expression, converts it to a
   string and uses the result as the host name sent in the SNI TLS extension to
   the server. A typical use case is to send the SNI received from the client in
-  a bridged HTTPS scenario, using the "ssl_fc_sni" sample fetch for the
-  expression, though alternatives such as req.hdr(host) can also make sense. If
+  a bridged TCP/SSL scenario, using the "ssl_fc_sni" sample fetch for the
+  expression. THIS MUST NOT BE USED FOR HTTPS, where req.hdr(host) should be
+  used instead, since SNI in HTTPS must always match the Host field and clients
+  are allowed to use different host names over the same connection). If
   "verify required" is set (which is the recommended setting), the resulting
   name will also be matched against the server certificate's names. See the
   "verify" directive for more details. If you want to set a SNI for health
@@ -20238,6 +20240,16 @@ ssl_fc_sni : string
   forwarded. See also "ssl_fc_sni_end" and "ssl_fc_sni_reg" below. This
   requires that the SSL library is built with support for TLS extensions
   enabled (check haproxy -vv).
+
+  CAUTION! Except under very specific conditions, it is normally not correct to
+  use this field as a substitute for the HTTP "Host" header field. For example,
+  when forwarding an HTTPS connection to a server, the SNI field must be set
+  from the HTTP Host header field using "req.hdr(host)" and not from the front
+  SNI value. The reason is that SNI is solely used to select the certificate
+  the server side will present, and that clients are then allowed to send
+  requests with different Host values as long as they match the names in the
+  certificate. As such, "ssl_fc_sni" should normally not be used as an argument
+  to the "sni" server keyword, unless the backend works in TCP mode.
 
   ACL derivatives :
     ssl_fc_sni_end : suffix match
