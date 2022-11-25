@@ -1469,6 +1469,7 @@ static int cli_io_handler_show_activity(struct appctx *appctx)
 	struct stconn *sc = appctx_sc(appctx);
 	struct show_activity_ctx *actctx = appctx->svcctx;
 	int tgt = actctx->thr; // target thread, -1 for all, 0 for total only
+	struct timeval up;
 	int thr;
 
 	if (unlikely(sc_ic(sc)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
@@ -1526,8 +1527,12 @@ static int cli_io_handler_show_activity(struct appctx *appctx)
 				chunk_appendf(&trash, " %u\n", _v[tgt-1]);\
 	} while (0)
 
+	/* retrieve uptime */
+	tv_remain(&start_date, &now, &up);
+
 	chunk_appendf(&trash, "thread_id: %u (%u..%u)\n", tid + 1, 1, global.nbthread);
-	chunk_appendf(&trash, "date_now: %lu.%06lu\n", (long)now.tv_sec, (long)now.tv_usec);
+	chunk_appendf(&trash, "date_now: %lu.%06lu\n", (ulong)now.tv_sec, (ulong)now.tv_usec);
+	chunk_appendf(&trash, "uptime_now: %lu.%06lu\n", (ulong)up.tv_sec, (ulong)up.tv_usec);
 	chunk_appendf(&trash, "ctxsw:");        SHOW_TOT(thr, activity[thr].ctxsw);
 	chunk_appendf(&trash, "tasksw:");       SHOW_TOT(thr, activity[thr].tasksw);
 	chunk_appendf(&trash, "empty_rq:");     SHOW_TOT(thr, activity[thr].empty_rq);
