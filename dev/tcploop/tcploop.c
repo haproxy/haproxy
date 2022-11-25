@@ -24,6 +24,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#define _GNU_SOURCE     // for POLLRDHUP
 #include <sys/resource.h>
 #include <sys/select.h>
 #include <sys/types.h>
@@ -49,6 +50,11 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+
+/* for OSes which don't have it */
+#ifndef POLLRDHUP
+#define POLLRDHUP 0
+#endif
 
 #ifndef MSG_MORE
 #define MSG_MORE 0
@@ -299,7 +305,7 @@ int addr_to_ss(const char *str, struct sockaddr_storage *ss, struct err_msg *err
 	return 0;
 }
 
-/* waits up to <ms> milliseconds on fd <fd> for events <events> (POLLIN|POLLOUT).
+/* waits up to <ms> milliseconds on fd <fd> for events <events> (POLLIN|POLLRDHUP|POLLOUT).
  * returns poll's status, or -2 if the poller sets POLLERR.
  */
 int wait_on_fd(int fd, int events, int ms)
@@ -538,7 +544,7 @@ int tcp_recv(int sock, const char *arg)
 				dolog("recv %d\n", ret);
 				return -1;
 			}
-			while (!wait_on_fd(sock, POLLIN, 1000));
+			while (!wait_on_fd(sock, POLLIN | POLLRDHUP, 1000));
 			continue;
 		}
 		dolog("recv %d\n", ret);
@@ -636,7 +642,7 @@ int tcp_echo(int sock, const char *arg)
 					dolog("recv %d\n", rcvd);
 					return -1;
 				}
-				while (!wait_on_fd(sock, POLLIN, 1000));
+				while (!wait_on_fd(sock, POLLIN | POLLRDHUP, 1000));
 				continue;
 			}
 			dolog("recv %d\n", rcvd);
@@ -690,7 +696,7 @@ int tcp_wait(int sock, const char *arg)
 	}
 
 	/* FIXME: this doesn't take into account delivered signals */
-	ret = wait_on_fd(sock, POLLIN | POLLOUT, delay);
+	ret = wait_on_fd(sock, POLLIN | POLLRDHUP | POLLOUT, delay);
 	if (ret < 0)
 		return ret;
 
@@ -702,7 +708,7 @@ int tcp_wait_in(int sock, const char *arg)
 {
 	int ret;
 
-	ret = wait_on_fd(sock, POLLIN, 1000);
+	ret = wait_on_fd(sock, POLLIN | POLLRDHUP, 1000);
 	if (ret < 0)
 		return ret;
 
