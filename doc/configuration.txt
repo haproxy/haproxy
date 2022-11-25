@@ -10631,24 +10631,26 @@ redirect scheme   <sch> [code <code>] <option> [{if | unless} <condition>]
 
 
 retries <value>
-  Set the number of retries to perform on a server after a connection failure
+  Set the number of retries to perform on a server after a failure
   May be used in sections:    defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
   Arguments :
-    <value>   is the number of times a connection attempt should be retried on
-              a server when a connection either is refused or times out. The
-              default value is 3.
+    <value>   is the number of times a request or connection attempt should be
+              retried on a server after a failure.
 
-  It is important to understand that this value applies to the number of
-  connection attempts, not full requests. When a connection has effectively
-  been established to a server, there will be no more retry.
+  By default, retries apply only to new connection attempts. However, when
+  the "retry-on" directive is used, other conditions might trigger a retry
+  (e.g. empty response, undesired status code), and each of them will count
+  one attempt, and when the total number attempts reaches the value here, an
+  error will be returned.
 
   In order to avoid immediate reconnections to a server which is restarting,
   a turn-around timer of min("timeout connect", one second) is applied before
-  a retry occurs.
+  a retry occurs on the same server.
 
-  When "option redispatch" is set, the last retry may be performed on another
-  server even if a cookie references a different server.
+  When "option redispatch" is set, some retries may be performed on another
+  server even if a cookie references a different server. By default this will
+  only be the last retry unless an argument is passed to "option redispatch".
 
   See also : "option redispatch"
 
