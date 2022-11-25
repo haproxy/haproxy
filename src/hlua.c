@@ -345,14 +345,96 @@ static int class_applet_tcp_ref;
 static int class_applet_http_ref;
 static int class_txn_reply_ref;
 
-/* Global Lua execution timeout. By default Lua, execution linked
- * with stream (actions, sample-fetches and converters) have a
- * short timeout. Lua linked with tasks doesn't have a timeout
- * because a task may remain alive during all the haproxy execution.
+/* Lua max execution timeouts. By default, stream-related
+ * lua coroutines (e.g.: actions) have a short timeout.
+ * On the other hand tasks coroutines don't have a timeout because
+ * a task may remain alive during all the haproxy execution.
+ *
+ * Timeouts are expressed in milliseconds, they are meant to be used
+ * with hlua timer's API exclusively.
+ * 0 means no timeout
  */
-static unsigned int hlua_timeout_session = 4000; /* session timeout. */
-static unsigned int hlua_timeout_task = TICK_ETERNITY; /* task timeout. */
-static unsigned int hlua_timeout_applet = 4000; /* applet timeout. */
+static uint32_t hlua_timeout_session = 4000; /* session timeout. */
+static uint32_t hlua_timeout_task = 0; /* task timeout. */
+static uint32_t hlua_timeout_applet = 4000; /* applet timeout. */
+
+/* hlua multipurpose timer:
+ *  used to compute burst lua time (within a single hlua_ctx_resume())
+ *  and cumulative lua time for a given coroutine, and to check
+ *  the lua coroutine against the configured timeouts
+ */
+
+/* fetch per-thread cpu_time with ms precision (may wrap) */
+static inline uint32_t _hlua_time_ms()
+{
+	/* We're interested in the current cpu time in ms, which will be returned
+	 * as a uint32_t to save some space.
+	 * We must take the following into account:
+	 *
+	 * - now_cpu_time_fast() which returns the time in nanoseconds as a uint64_t
+	 *   will wrap every 585 years.
+	 * - uint32_t may only contain 4294967295ms (~=49.7 days), so _hlua_time_ms()
+	 *   itself will also wrap every 49.7 days.
+	 *
+	 * While we can safely ignore the now_cpu_time_fast() wrap, we must
+	 * take care of the uint32_t wrap by making sure to exclusively
+	 * manipulate the time using uint32_t everywhere _hlua_time_ms()
+	 * is involved.
+	 */
+	return (uint32_t)(now_cpu_time_fast() / 1000000ULL);
+}
+
+/* computes time spent in a single lua execution (in ms) */
+static inline uint32_t _hlua_time_burst(const struct hlua_timer *timer)
+{
+	uint32_t burst_ms;
+
+	/* wrapping is expected and properly
+	 * handled thanks to _hlua_time_ms() and burst_ms
+	 * being of the same type
+	 */
+	burst_ms = _hlua_time_ms() - timer->start;
+	return burst_ms;
+}
+
+static inline void hlua_timer_init(struct hlua_timer *timer, unsigned int max)
+{
+	timer->cumulative = 0;
+	timer->burst = 0;
+	timer->max = max;
+}
+
+/* reset the timer ctx between 2 yields */
+static inline void hlua_timer_reset(struct hlua_timer *timer)
+{
+	timer->cumulative += timer->burst;
+	timer->burst = 0;
+}
+
+/* start the timer right before a new execution */
+static inline void hlua_timer_start(struct hlua_timer *timer)
+{
+	timer->start = _hlua_time_ms();
+}
+
+/* update hlua timer when finishing an execution */
+static inline void hlua_timer_stop(struct hlua_timer *timer)
+{
+	timer->burst += _hlua_time_burst(timer);
+}
+
+/* check the timers for current hlua context
+ * Returns 1 if the check succeeded and 0 if it failed
+ * (ie: timeout exceeded)
+ */
+static inline int hlua_timer_check(const struct hlua_timer *timer)
+{
+	uint32_t pburst = _hlua_time_burst(timer); /* pending burst time in ms */
+
+	if (timer->max && (timer->cumulative + timer->burst + pburst) > timer->max)
+		return 0; /* cumulative timeout exceeded */
+	return 1; /* ok */
+}
 
 /* Interrupts the Lua processing each "hlua_nb_instruction" instructions.
  * it is used for preventing infinite loops.
@@ -1323,6 +1405,7 @@ int hlua_ctx_init(struct hlua *lua, int state_id, struct task *task)
 	lua->gc_count = 0;
 	lua->wake_time = TICK_ETERNITY;
 	lua->state_id = state_id;
+	hlua_timer_init(&lua->timer, 0); /* default value, no timeout */
 	LIST_INIT(&lua->com);
 	MT_LIST_INIT(&lua->hc_list);
 	if (!SET_SAFE_LJMP_PARENT(lua)) {
@@ -1505,16 +1588,11 @@ void hlua_hook(lua_State *L, lua_Debug *ar)
 		return;
 	}
 
-	/* If we cannot yield, update the clock and check the timeout. */
-	clock_update_date(0, 1);
-	hlua->run_time += now_ms - hlua->start_time;
-	if (hlua->max_time && hlua->run_time >= hlua->max_time) {
+	/* If we cannot yield, check the timeout. */
+	if (!hlua_timer_check(&hlua->timer)) {
 		lua_pushfstring(L, "execution timeout");
 		WILL_LJMP(lua_error(L));
 	}
-
-	/* Update the start time. */
-	hlua->start_time = now_ms;
 
 	/* Try to interrupt the process at the end of the current
 	 * unyieldable function.
@@ -1546,14 +1624,16 @@ static enum hlua_exec hlua_ctx_resume(struct hlua *lua, int yield_allowed)
 	const char *msg;
 	const char *trace;
 
-	/* Initialise run time counter. */
-	if (!HLUA_IS_RUNNING(lua))
-		lua->run_time = 0;
-
 	/* Lock the whole Lua execution. This lock must be before the
 	 * label "resume_execution".
 	 */
 	hlua_lock(lua);
+
+	/* reset the timer as we might be re-entering the function to
+	 * resume the coroutine after a successful yield
+	 * (cumulative time will be updated)
+	 */
+	hlua_timer_reset(&lua->timer);
 
 resume_execution:
 
@@ -1571,9 +1651,11 @@ resume_execution:
 	if (!yield_allowed)
 		HLUA_SET_NOYIELD(lua);
 
-	/* Update the start time and reset wake_time. */
-	lua->start_time = now_ms;
+	/* reset wake_time. */
 	lua->wake_time = TICK_ETERNITY;
+
+	/* start the timer as we're about to start lua processing */
+	hlua_timer_start(&lua->timer);
 
 	/* Call the function. */
 #if defined(LUA_VERSION_NUM) && LUA_VERSION_NUM >= 504
@@ -1581,6 +1663,10 @@ resume_execution:
 #else
 	ret = lua_resume(lua->T, hlua_states[lua->state_id], lua->nargs);
 #endif
+
+	/* out of lua processing, stop the timer */
+	hlua_timer_stop(&lua->timer);
+
 	switch (ret) {
 
 	case LUA_OK:
@@ -1588,12 +1674,10 @@ resume_execution:
 		break;
 
 	case LUA_YIELD:
-		/* Check if the execution timeout is expired. It it is the case, we
+		/* Check if the execution timeout is expired. If it is the case, we
 		 * break the Lua execution.
 		 */
-		clock_update_date(0, 1);
-		lua->run_time += now_ms - lua->start_time;
-		if (lua->max_time && lua->run_time > lua->max_time) {
+		if (!hlua_timer_check(&lua->timer)) {
 			lua_settop(lua->T, 0); /* Empty the stack. */
 			ret = HLUA_E_ETMOUT;
 			break;
@@ -8626,7 +8710,7 @@ struct task *hlua_process_task(struct task *task, void *context, unsigned int st
 	 * execution timeouts.
 	 */
 	if (!HLUA_IS_RUNNING(hlua))
-		hlua->max_time = hlua_timeout_task;
+		hlua_timer_init(&hlua->timer, hlua_timeout_task);
 
 	/* Execute the Lua code. */
 	status = hlua_ctx_resume(hlua, 1);
@@ -8849,9 +8933,8 @@ static void hlua_event_handler(struct hlua *hlua)
 	/* If it is the first call to the task, we must initialize the
 	 * execution timeouts.
 	 */
-	if (!HLUA_IS_RUNNING(hlua)) {
-		hlua->max_time = hlua_timeout_task;
-	}
+	if (!HLUA_IS_RUNNING(hlua))
+		hlua_timer_init(&hlua->timer, hlua_timeout_task);
 
 	/* make sure to reset the task expiry before each hlua_ctx_resume()
 	 * since the task is re-used for multiple cb function calls
@@ -9353,7 +9436,7 @@ static int hlua_sample_conv_wrapper(const struct arg *arg_p, struct sample *smp,
 		}
 
 		/* We must initialize the execution timeouts. */
-		stream->hlua->max_time = hlua_timeout_session;
+		hlua_timer_init(&stream->hlua->timer, hlua_timeout_session);
 
 		/* At this point the execution is safe. */
 		RESET_SAFE_LJMP(stream->hlua);
@@ -9488,7 +9571,7 @@ static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp
 		}
 
 		/* We must initialize the execution timeouts. */
-		stream->hlua->max_time = hlua_timeout_session;
+		hlua_timer_init(&stream->hlua->timer, hlua_timeout_session);
 
 		/* At this point the execution is safe. */
 		RESET_SAFE_LJMP(stream->hlua);
@@ -9837,7 +9920,7 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 		RESET_SAFE_LJMP(s->hlua);
 
 		/* We must initialize the execution timeouts. */
-		s->hlua->max_time = hlua_timeout_session;
+		hlua_timer_init(&s->hlua->timer, hlua_timeout_session);
 	}
 
 	/* Execute the function. */
@@ -9974,7 +10057,7 @@ static int hlua_applet_tcp_init(struct appctx *ctx)
 	}
 
 	/* Set timeout according with the applet configuration. */
-	hlua->max_time = ctx->applet->timeout;
+	hlua_timer_init(&hlua->timer, ctx->applet->timeout);
 
 	/* The following Lua calls can fail. */
 	if (!SET_SAFE_LJMP(hlua)) {
@@ -10165,7 +10248,7 @@ static int hlua_applet_http_init(struct appctx *ctx)
 	}
 
 	/* Set timeout according with the applet configuration. */
-	hlua->max_time = ctx->applet->timeout;
+	hlua_timer_init(&hlua->timer, ctx->applet->timeout);
 
 	/* The following Lua calls can fail. */
 	if (!SET_SAFE_LJMP(hlua)) {
@@ -10842,7 +10925,7 @@ static int hlua_cli_parse_fct(char **args, char *payload, struct appctx *appctx,
 	}
 
 	/* We must initialize the execution timeouts. */
-	hlua->max_time = hlua_timeout_session;
+	hlua_timer_init(&hlua->timer, hlua_timeout_session);
 
 	/* At this point the execution is safe. */
 	RESET_SAFE_LJMP(hlua);
@@ -11308,7 +11391,7 @@ static int hlua_filter_new(struct stream *s, struct filter *filter)
 		s->hlua->nargs = 1;
 
 		/* We must initialize the execution timeouts. */
-		s->hlua->max_time = hlua_timeout_session;
+		hlua_timer_init(&s->hlua->timer, hlua_timeout_session);
 
 		/* At this point the execution is safe. */
 		RESET_SAFE_LJMP(s->hlua);
@@ -11478,7 +11561,7 @@ static int hlua_filter_callback(struct stream *s, struct filter *filter, const c
 		}
 
 		/* We must initialize the execution timeouts. */
-		flt_hlua->max_time = hlua_timeout_session;
+		hlua_timer_init(&flt_hlua->timer, hlua_timeout_session);
 
 		/* At this point the execution is safe. */
 		RESET_SAFE_LJMP(flt_hlua);

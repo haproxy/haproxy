@@ -26,6 +26,7 @@
 
 #include <lua.h>
 #include <lauxlib.h>
+#include <stdint.h>
 
 #include <import/ebtree-t.h>
 
@@ -99,6 +100,13 @@ enum hlua_exec {
 	HLUA_E_ERR,    /* LUA stack execution failed without error message. */
 };
 
+struct hlua_timer {
+	uint32_t start;      /* cpu time in ms when the timer was started */
+	uint32_t burst;      /* execution time for the current call in ms */
+	uint32_t cumulative; /* cumulative execution time for the coroutine in ms */
+	uint32_t max;        /* max (cumulative) execution time for the coroutine in ms */
+};
+
 struct hlua {
 	lua_State *T; /* The LUA stack. */
 	int state_id; /* contains the lua state id. 0 is common state, 1 to n are per-thread states.*/
@@ -109,9 +117,7 @@ struct hlua {
 	int nargs; /* The number of arguments in the stack at the start of execution. */
 	unsigned int flags; /* The current execution flags. */
 	int wake_time; /* The lua wants to be waked at this time, or before. */
-	unsigned int max_time; /* The max amount of execution time for an Lua process, in ms. */
-	unsigned int start_time; /* The ms time when the Lua starts the last execution. */
-	unsigned int run_time; /* Lua total execution time in ms. */
+	struct hlua_timer timer; /* lua multipurpose timer */
 	struct task *task; /* The task associated with the lua stack execution.
 	                      We must wake this task to continue the task execution */
 	struct list com; /* The list head of the signals attached to this task. */
