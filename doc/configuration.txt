@@ -16602,13 +16602,24 @@ different forms :
   - suffix match    (-m end) : the patterns are compared with the end of the
     extracted string, and the ACL matches if any of them matches.
 
-  - subdir match    (-m dir) : the patterns are looked up inside the extracted
-    string, delimited with slashes ("/"), and the ACL matches if any of them
-    matches.
+  - subdir match    (-m dir) : the patterns are looked up anywhere inside the
+    extracted string, delimited with slashes ("/"), the beginning or the end
+    of the string. The ACL matches if any of them matches. As such, the string
+    "/images/png/logo/32x32.png", would match "/images", "/images/png",
+    "images/png", "/png/logo", "logo/32x32.png" or "32x32.png" but not "png"
+    nor "32x32".
 
-  - domain match    (-m dom) : the patterns are looked up inside the extracted
-    string, delimited with dots ("."), and the ACL matches if any of them
-    matches.
+  - domain match    (-m dom) : the patterns are looked up anywhere inside the
+    extracted string, delimited with dots ("."), colons (":"), slashes ("/"),
+    question marks ("?"), the beginning or the end of the string. This is made
+    to be used with URLs. Leading and trailing delimiters in the pattern are
+    ignored. The ACL matches if any of them matches. As such, in the example
+    string "http://www1.dc-eu.example.com:80/blah", the patterns "http",
+    "www1", ".www1", "dc-eu", "example", "com", "80", "dc-eu.example",
+    "blah", ":www1:", "dc-eu.example:80" would match, but not "eu" nor "dc".
+    Using it to match domain suffixes for filtering or routing is generally
+    not a good idea, as the routing could easily be fooled by prepending the
+    matching prefix in front of another domain for example.
 
 String matching applies to verbatim strings as they are passed, with the
 exception of the backslash ("\") which makes it possible to escape some
