@@ -306,7 +306,7 @@ int addr_to_ss(const char *str, struct sockaddr_storage *ss, struct err_msg *err
 }
 
 /* waits up to <ms> milliseconds on fd <fd> for events <events> (POLLIN|POLLRDHUP|POLLOUT).
- * returns poll's status, or -2 if the poller sets POLLERR.
+ * returns poll's status.
  */
 int wait_on_fd(int fd, int events, int ms)
 {
@@ -319,8 +319,6 @@ int wait_on_fd(int fd, int events, int ms)
 		ret = poll(&pollfd, 1, ms);
 	} while (ret == -1 && errno == EINTR);
 
-	if (ret == 1 && pollfd.revents & POLLERR)
-		ret = -2;
 	return ret;
 }
 
