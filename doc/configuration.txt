@@ -16470,7 +16470,11 @@ possible to convert the sample to lowercase before matching, like this :
 All ACL-specific criteria imply a default matching method. Most often, these
 criteria are composed by concatenating the name of the original sample fetch
 method and the matching method. For example, "hdr_beg" applies the "beg" match
-to samples retrieved using the "hdr" fetch method. Since all ACL-specific
+to samples retrieved using the "hdr" fetch method. This matching method is only
+usable when the keyword is used alone, without any converter. In case any such
+converter were to be applied after such an ACL keyword, the default matching
+method from the ACL keyword is simply ignored since what will matter for the
+matching is the output type of the last converter. Since all ACL-specific
 criteria rely on a sample fetch method, it is always possible instead to use
 the original sample fetch method and the explicit matching method using "-m".
 
