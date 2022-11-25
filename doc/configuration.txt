@@ -8526,7 +8526,9 @@ monitor-uri <uri>
   Monitor requests are processed very early, just after the request is parsed
   and even before any "http-request". The only rulesets applied before are the
   tcp-request ones. They cannot be logged either, and it is the intended
-  purpose. They are only used to report HAProxy's health to an upper component,
+  purpose. Only one URI may be configured for monitoring; when multiple
+  "monitor-uri" statements are present, the last one will define the URI to
+  be used. They are only used to report HAProxy's health to an upper component,
   nothing more. However, it is possible to add any number of conditions using
   "monitor fail" and ACLs so that the result can be adjusted to whatever check
   can be imagined (most often the number of available servers in a backend).
