@@ -220,6 +220,7 @@ fi
  echo "   Git repository   : https://git.haproxy.org/git/${gitdir}/"
  echo "   Git Web browsing : https://git.haproxy.org/?p=${gitdir}"
  echo "   Changelog        : https://www.haproxy.org/download/${BRANCH}/src/CHANGELOG"
+ echo "   Dataplane API    : https://github.com/haproxytech/dataplaneapi/releases/latest"
  echo "   Pending bugs     : https://www.haproxy.org/l/pending-bugs"
  echo "   Reviewed bugs    : https://www.haproxy.org/l/reviewed-bugs"
  echo "   Code reports     : https://www.haproxy.org/l/code-reports"
