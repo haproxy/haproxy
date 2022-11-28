@@ -174,6 +174,7 @@ struct stktable {
 				     pending for sync */
 	unsigned int refcnt;     /* number of local peer over all peers sections
 				    attached to this table */
+	uint64_t hash_seed;      /* hash seed used by shards */
 	union {
 		struct peers *p; /* sync peers */
 		char *name;

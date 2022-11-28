@@ -164,22 +164,14 @@ static unsigned long long stksess_getkey_hash(struct stktable *t,
                                               struct stksess *ts,
                                               struct stktable_key *key)
 {
-	struct buffer *buf;
 	size_t keylen;
 
-	/* Copy the stick-table id into <buf> */
-	buf = get_trash_chunk();
-	memcpy(b_tail(buf), t->id, t->idlen);
-	b_add(buf, t->idlen);
-	/* Copy the key into <buf> */
 	if (t->type == SMP_T_STR)
 		keylen = key->key_len;
 	else
 		keylen = t->key_size;
-	memcpy(b_tail(buf), key->key, keylen);
-	b_add(buf, keylen);
 
-	return XXH64(b_head(buf), b_data(buf), 0);
+	return XXH64(key->key, keylen, t->hash_seed);
 }
 
 /*
@@ -733,6 +725,9 @@ out_unlock:
 int stktable_init(struct stktable *t)
 {
 	int peers_retval = 0;
+
+	t->hash_seed = XXH64(t->id, t->idlen, 0);
+
 	if (t->size) {
 		t->keys = EB_ROOT_UNIQUE;
 		memset(&t->exps, 0, sizeof(t->exps));
