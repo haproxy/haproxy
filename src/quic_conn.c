@@ -4243,10 +4243,10 @@ static void qc_dgrams_retransmit(struct quic_conn *qc)
 		int i;
 
 		if (hqel->pktns->flags & QUIC_FL_PKTNS_PROBE_NEEDED) {
-			struct list frms1 = LIST_HEAD_INIT(frms1);
-
 			hqel->pktns->tx.pto_probe = 0;
 			for (i = 0; i < QUIC_MAX_NB_PTO_DGRAMS; i++) {
+				struct list frms1 = LIST_HEAD_INIT(frms1);
+
 				qc_prep_fast_retrans(qc, hqel, &frms1, NULL);
 				TRACE_DEVEL("Avail. ack eliciting frames", QUIC_EV_CONN_FRMLIST, qc, &frms1);
 				if (!LIST_ISEMPTY(&frms1)) {
