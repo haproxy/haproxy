@@ -28,6 +28,8 @@
 # define BUG_ON_HOT(x) if (x) { fprintf(stderr, "CRASH ON %s:%d\n", __func__, __LINE__); abort(); }
 #endif /* DEBUG_DEV */
 
+#include <haproxy/compiler.h>
+
 /* ******** internal API ******** */
 
 #define NCB_BLK_NULL ((struct ncb_blk){ .st = NULL })
@@ -64,7 +66,7 @@ static char *ncb_reserved(const struct ncbuf *buf)
 }
 
 /* Encode <off> at <st> position in <buf>. Support wrapping. */
-static void ncb_write_off(const struct ncbuf *buf, char *st, ncb_sz_t off)
+static forceinline void ncb_write_off(const struct ncbuf *buf, char *st, ncb_sz_t off)
 {
 	int i;
 
@@ -79,7 +81,7 @@ static void ncb_write_off(const struct ncbuf *buf, char *st, ncb_sz_t off)
 }
 
 /* Decode offset stored at <st> position in <buf>. Support wrapping. */
-static ncb_sz_t ncb_read_off(const struct ncbuf *buf, char *st)
+static forceinline ncb_sz_t ncb_read_off(const struct ncbuf *buf, char *st)
 {
 	int i;
 	ncb_sz_t off = 0;
@@ -97,26 +99,26 @@ static ncb_sz_t ncb_read_off(const struct ncbuf *buf, char *st)
 }
 
 /* Add <off> to the offset stored at <st> in <buf>. Support wrapping. */
-static void ncb_inc_off(const struct ncbuf *buf, char *st, ncb_sz_t off)
+static forceinline void ncb_inc_off(const struct ncbuf *buf, char *st, ncb_sz_t off)
 {
 	const ncb_sz_t old = ncb_read_off(buf, st);
 	ncb_write_off(buf, st, old + off);
 }
 
 /* Returns true if a gap cannot be inserted at <off> : a reduced gap must be used. */
-static int ncb_off_reduced(const struct ncbuf *b, ncb_sz_t off)
+static forceinline int ncb_off_reduced(const struct ncbuf *b, ncb_sz_t off)
 {
 	return off + NCB_GAP_MIN_SZ > ncb_size(b);
 }
 
 /* Returns true if <blk> is the special NULL block. */
-static int ncb_blk_is_null(const struct ncb_blk *blk)
+static forceinline int ncb_blk_is_null(const struct ncb_blk *blk)
 {
 	return !blk->st;
 }
 
 /* Returns true if <blk> is the last block of <buf>. */
-static int ncb_blk_is_last(const struct ncbuf *buf, const struct ncb_blk *blk)
+static forceinline int ncb_blk_is_last(const struct ncbuf *buf, const struct ncb_blk *blk)
 {
 	BUG_ON_HOT(blk->off + blk->sz > ncb_size(buf));
 	return blk->off + blk->sz == ncb_size(buf);
@@ -214,7 +216,7 @@ static struct ncb_blk ncb_blk_find(const struct ncbuf *buf, ncb_sz_t off)
 }
 
 /* Transform absolute offset <off> to a relative one from <blk> start. */
-static ncb_sz_t ncb_blk_off(const struct ncb_blk *blk, ncb_sz_t off)
+static forceinline ncb_sz_t ncb_blk_off(const struct ncb_blk *blk, ncb_sz_t off)
 {
 	BUG_ON_HOT(off < blk->off || off > blk->off + blk->sz);
 	BUG_ON_HOT(off - blk->off > blk->sz);
@@ -375,11 +377,6 @@ static ncb_sz_t ncb_fill_gap_blk(const struct ncbuf *buf,
 
 /* ******** public API ******** */
 
-int ncb_is_null(const struct ncbuf *buf)
-{
-	return buf->size == 0;
-}
-
 /* Initialize or reset <buf> by clearing all data. Its size is untouched.
  * Buffer is positioned to <head> offset. Use 0 to realign it. <buf> must not
  * be NCBUF_NULL.
@@ -411,35 +408,6 @@ struct ncbuf ncb_make(char *area, ncb_sz_t size, ncb_sz_t head)
 	buf.head = head;
 
 	return buf;
-}
-
-/* Returns start of allocated buffer area. */
-char *ncb_orig(const struct ncbuf *buf)
-{
-	return buf->area;
-}
-
-/* Returns current head pointer into buffer area. */
-char *ncb_head(const struct ncbuf *buf)
-{
-	return buf->area + buf->head;
-}
-
-/* Returns the first byte after the allocated buffer area. */
-char *ncb_wrap(const struct ncbuf *buf)
-{
-	return buf->area + buf->size;
-}
-
-/* Returns the usable size of <buf> for data storage. This is the size of the
- * allocated buffer without the reserved header space.
- */
-ncb_sz_t ncb_size(const struct ncbuf *buf)
-{
-	if (ncb_is_null(buf))
-		return 0;
-
-	return buf->size - NCB_RESERVED_SZ;
 }
 
 /* Returns the total number of bytes stored in whole <buf>. */
