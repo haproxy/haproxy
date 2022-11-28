@@ -110,16 +110,16 @@ static int ncb_off_reduced(const struct ncbuf *b, ncb_sz_t off)
 }
 
 /* Returns true if <blk> is the special NULL block. */
-static int ncb_blk_is_null(const struct ncb_blk blk)
+static int ncb_blk_is_null(const struct ncb_blk *blk)
 {
-	return !blk.st;
+	return !blk->st;
 }
 
 /* Returns true if <blk> is the last block of <buf>. */
-static int ncb_blk_is_last(const struct ncbuf *buf, const struct ncb_blk blk)
+static int ncb_blk_is_last(const struct ncbuf *buf, const struct ncb_blk *blk)
 {
-	BUG_ON_HOT(blk.off + blk.sz > ncb_size(buf));
-	return blk.off + blk.sz == ncb_size(buf);
+	BUG_ON_HOT(blk->off + blk->sz > ncb_size(buf));
+	return blk->off + blk->sz == ncb_size(buf);
 }
 
 /* Returns the first block of <buf> which is always a DATA. */
@@ -146,7 +146,7 @@ static struct ncb_blk ncb_blk_first(const struct ncbuf *buf)
 
 /* Returns the block following <prev> in the buffer <buf>. */
 static struct ncb_blk ncb_blk_next(const struct ncbuf *buf,
-                                   const struct ncb_blk prev)
+                                   const struct ncb_blk *prev)
 {
 	struct ncb_blk blk;
 
@@ -155,9 +155,9 @@ static struct ncb_blk ncb_blk_next(const struct ncbuf *buf,
 	if (ncb_blk_is_last(buf, prev))
 		return NCB_BLK_NULL;
 
-	blk.st = prev.end;
-	blk.off = prev.off + prev.sz;
-	blk.flag = ~prev.flag & NCB_BK_F_GAP;
+	blk.st = prev->end;
+	blk.off = prev->off + prev->sz;
+	blk.flag = ~prev->flag & NCB_BK_F_GAP;
 
 	if (blk.flag & NCB_BK_F_GAP) {
 		if (ncb_off_reduced(buf, blk.off)) {
@@ -167,7 +167,7 @@ static struct ncb_blk ncb_blk_next(const struct ncbuf *buf,
 			blk.sz_data = 0;
 
 			/* A reduced gap can only be the last block. */
-			BUG_ON_HOT(!ncb_blk_is_last(buf, blk));
+			BUG_ON_HOT(!ncb_blk_is_last(buf, &blk));
 		}
 		else {
 			blk.sz_ptr = ncb_peek(buf, blk.off + NCB_GAP_SZ_OFF);
@@ -177,8 +177,8 @@ static struct ncb_blk ncb_blk_next(const struct ncbuf *buf,
 		}
 	}
 	else {
-		blk.sz_ptr = ncb_peek(buf, prev.off + NCB_GAP_SZ_DATA_OFF);
-		blk.sz = prev.sz_data;
+		blk.sz_ptr = ncb_peek(buf, prev->off + NCB_GAP_SZ_DATA_OFF);
+		blk.sz = prev->sz_data;
 		blk.sz_data = 0;
 
 		/* only first DATA block can be empty. If this happens, a GAP
@@ -207,18 +207,18 @@ static struct ncb_blk ncb_blk_find(const struct ncbuf *buf, ncb_sz_t off)
 	BUG_ON_HOT(off >= ncb_size(buf));
 
 	for (blk = ncb_blk_first(buf); off > blk.off + blk.sz;
-	     blk = ncb_blk_next(buf, blk)) {
+	     blk = ncb_blk_next(buf, &blk)) {
 	}
 
 	return blk;
 }
 
 /* Transform absolute offset <off> to a relative one from <blk> start. */
-static ncb_sz_t ncb_blk_off(const struct ncb_blk blk, ncb_sz_t off)
+static ncb_sz_t ncb_blk_off(const struct ncb_blk *blk, ncb_sz_t off)
 {
-	BUG_ON_HOT(off < blk.off || off > blk.off + blk.sz);
-	BUG_ON_HOT(off - blk.off > blk.sz);
-	return off - blk.off;
+	BUG_ON_HOT(off < blk->off || off > blk->off + blk->sz);
+	BUG_ON_HOT(off - blk->off > blk->sz);
+	return off - blk->off;
 }
 
 /* Simulate insertion in <buf> of <data> of length <len> at offset <off>. This
@@ -230,10 +230,11 @@ static ncb_sz_t ncb_blk_off(const struct ncb_blk blk, ncb_sz_t off)
  * Returns NCB_RET_OK if insertion can proceed.
  */
 static enum ncb_ret ncb_check_insert(const struct ncbuf *buf,
-                                     struct ncb_blk blk, ncb_sz_t off,
+                                     const struct ncb_blk *blk, ncb_sz_t off,
                                      const char *data, ncb_sz_t len,
                                      enum ncb_add_mode mode)
 {
+	struct ncb_blk next;
 	ncb_sz_t off_blk = ncb_blk_off(blk, off);
 	ncb_sz_t to_copy;
 	ncb_sz_t left = len;
@@ -241,29 +242,30 @@ static enum ncb_ret ncb_check_insert(const struct ncbuf *buf,
 	/* If insertion starts in a gap, it must leave enough space to keep the
 	 * gap header.
 	 */
-	if (left && (blk.flag & NCB_BK_F_GAP)) {
+	if (left && (blk->flag & NCB_BK_F_GAP)) {
 		if (off_blk < NCB_GAP_MIN_SZ)
 			return NCB_RET_GAP_SIZE;
 	}
 
+	next = *blk;
 	while (left) {
-		off_blk = ncb_blk_off(blk, off);
-		to_copy = MIN(left, blk.sz - off_blk);
+		off_blk = ncb_blk_off(&next, off);
+		to_copy = MIN(left, next.sz - off_blk);
 
-		if (blk.flag & NCB_BK_F_GAP && off_blk + to_copy < blk.sz) {
+		if (next.flag & NCB_BK_F_GAP && off_blk + to_copy < next.sz) {
 			/* Insertion must leave enough space for a new gap
 			 * header if stopped in a middle of a gap.
 			 */
-			const ncb_sz_t gap_sz = blk.sz - (off_blk + to_copy);
-			if (gap_sz < NCB_GAP_MIN_SZ && !ncb_blk_is_last(buf, blk))
+			const ncb_sz_t gap_sz = next.sz - (off_blk + to_copy);
+			if (gap_sz < NCB_GAP_MIN_SZ && !ncb_blk_is_last(buf, &next))
 				return NCB_RET_GAP_SIZE;
 		}
-		else if (!(blk.flag & NCB_BK_F_GAP) && mode == NCB_ADD_COMPARE) {
+		else if (!(next.flag & NCB_BK_F_GAP) && mode == NCB_ADD_COMPARE) {
 			/* Compare memory of data block in NCB_ADD_COMPARE mode. */
-			const ncb_sz_t off_blk = ncb_blk_off(blk, off);
+			const ncb_sz_t off_blk = ncb_blk_off(&next, off);
 			char *st = ncb_peek(buf, off);
 
-			to_copy = MIN(left, blk.sz - off_blk);
+			to_copy = MIN(left, next.sz - off_blk);
 			if (st + to_copy > ncb_wrap(buf)) {
 				const ncb_sz_t sz1 = ncb_wrap(buf) - st;
 				if (memcmp(st, data, sz1))
@@ -281,7 +283,7 @@ static enum ncb_ret ncb_check_insert(const struct ncbuf *buf,
 		data += to_copy;
 		off  += to_copy;
 
-		blk = ncb_blk_next(buf, blk);
+		next = ncb_blk_next(buf, &next);
 	}
 
 	return NCB_RET_OK;
@@ -292,22 +294,22 @@ static enum ncb_ret ncb_check_insert(const struct ncbuf *buf,
  * block size. <mode> specifies if old data are preserved or overwritten.
  */
 static ncb_sz_t ncb_fill_data_blk(const struct ncbuf *buf,
-                                  struct ncb_blk blk, ncb_sz_t off,
+                                  const struct ncb_blk *blk, ncb_sz_t off,
                                   const char *data, ncb_sz_t len,
                                   enum ncb_add_mode mode)
 {
-	const ncb_sz_t to_copy = MIN(len, blk.sz - off);
+	const ncb_sz_t to_copy = MIN(len, blk->sz - off);
 	char *ptr = NULL;
 
-	BUG_ON_HOT(off > blk.sz);
+	BUG_ON_HOT(off > blk->sz);
 	/* This can happens due to previous ncb_blk_find() usage. In this
 	 * case the current fill is a noop.
 	 */
-	if (off == blk.sz)
+	if (off == blk->sz)
 		return 0;
 
 	if (mode == NCB_ADD_OVERWRT) {
-		ptr = ncb_peek(buf, blk.off + off);
+		ptr = ncb_peek(buf, blk->off + off);
 
 		if (ptr + to_copy >= ncb_wrap(buf)) {
 			const ncb_sz_t sz1 = ncb_wrap(buf) - ptr;
@@ -326,26 +328,26 @@ static ncb_sz_t ncb_fill_data_blk(const struct ncbuf *buf,
  * is relative to <blk> so it cannot be greater than the block size.
  */
 static ncb_sz_t ncb_fill_gap_blk(const struct ncbuf *buf,
-                                 struct ncb_blk blk, ncb_sz_t off,
+                                 const struct ncb_blk *blk, ncb_sz_t off,
                                  const char *data, ncb_sz_t len)
 {
-	const ncb_sz_t to_copy = MIN(len, blk.sz - off);
+	const ncb_sz_t to_copy = MIN(len, blk->sz - off);
 	char *ptr;
 
-	BUG_ON_HOT(off > blk.sz);
+	BUG_ON_HOT(off > blk->sz);
 	/* This can happens due to previous ncb_blk_find() usage. In this
 	 * case the current fill is a noop.
 	 */
-	if (off == blk.sz)
+	if (off == blk->sz)
 		return 0;
 
 	/* A new gap must be created if insertion stopped before gap end. */
-	if (off + to_copy < blk.sz) {
-		const ncb_sz_t gap_off = blk.off + off + to_copy;
-		const ncb_sz_t gap_sz = blk.sz - off - to_copy;
+	if (off + to_copy < blk->sz) {
+		const ncb_sz_t gap_off = blk->off + off + to_copy;
+		const ncb_sz_t gap_sz = blk->sz - off - to_copy;
 
 		BUG_ON_HOT(!ncb_off_reduced(buf, gap_off) &&
-		           blk.off + blk.sz - gap_off < NCB_GAP_MIN_SZ);
+		           blk->off + blk->sz - gap_off < NCB_GAP_MIN_SZ);
 
 		/* write the new gap header unless this is a reduced gap. */
 		if (!ncb_off_reduced(buf, gap_off)) {
@@ -353,12 +355,12 @@ static ncb_sz_t ncb_fill_gap_blk(const struct ncbuf *buf,
 			char *gap_data_ptr = ncb_peek(buf, gap_off + NCB_GAP_SZ_DATA_OFF);
 
 			ncb_write_off(buf, gap_ptr, gap_sz);
-			ncb_write_off(buf, gap_data_ptr, blk.sz_data);
+			ncb_write_off(buf, gap_data_ptr, blk->sz_data);
 		}
 	}
 
 	/* fill the gap with new data */
-	ptr = ncb_peek(buf, blk.off + off);
+	ptr = ncb_peek(buf, blk->off + off);
 	if (ptr + to_copy >= ncb_wrap(buf)) {
 		ncb_sz_t sz1 = ncb_wrap(buf) - ptr;
 		memcpy(ptr, data, sz1);
@@ -446,7 +448,7 @@ ncb_sz_t ncb_total_data(const struct ncbuf *buf)
 	struct ncb_blk blk;
 	int total = 0;
 
-	for (blk = ncb_blk_first(buf); !ncb_blk_is_null(blk); blk = ncb_blk_next(buf, blk)) {
+	for (blk = ncb_blk_first(buf); !ncb_blk_is_null(&blk); blk = ncb_blk_next(buf, &blk)) {
 		if (!(blk.flag & NCB_BK_F_GAP))
 			total += blk.sz;
 	}
@@ -502,8 +504,8 @@ int ncb_is_fragmented(const struct ncbuf *buf)
 
 	/* check that following gap is the last block */
 	data = ncb_blk_first(buf);
-	gap = ncb_blk_next(buf, data);
-	return !ncb_blk_is_last(buf, gap);
+	gap = ncb_blk_next(buf, &data);
+	return !ncb_blk_is_last(buf, &gap);
 }
 
 /* Returns the number of bytes of data available in <buf> starting at offset
@@ -519,15 +521,15 @@ ncb_sz_t ncb_data(const struct ncbuf *buf, ncb_sz_t off)
 		return 0;
 
 	blk = ncb_blk_find(buf, off);
-	off_blk = ncb_blk_off(blk, off);
+	off_blk = ncb_blk_off(&blk, off);
 
 	/* if <off> at the frontier between two and <blk> is gap, retrieve the
 	 * next data block.
 	 */
 	if (blk.flag & NCB_BK_F_GAP && off_blk == blk.sz &&
-	    !ncb_blk_is_last(buf, blk)) {
-		blk = ncb_blk_next(buf, blk);
-		off_blk = ncb_blk_off(blk, off);
+	    !ncb_blk_is_last(buf, &blk)) {
+		blk = ncb_blk_next(buf, &blk);
+		off_blk = ncb_blk_off(&blk, off);
 	}
 
 	if (blk.flag & NCB_BK_F_GAP)
@@ -560,7 +562,7 @@ enum ncb_ret ncb_add(struct ncbuf *buf, ncb_sz_t off,
 	blk = ncb_blk_find(buf, off);
 
 	/* Check if insertion is possible. */
-	ret = ncb_check_insert(buf, blk, off, data, len, mode);
+	ret = ncb_check_insert(buf, &blk, off, data, len, mode);
 	if (ret != NCB_RET_OK)
 		return ret;
 
@@ -585,16 +587,16 @@ enum ncb_ret ncb_add(struct ncbuf *buf, ncb_sz_t off,
 	/* insert data */
 	while (left) {
 		struct ncb_blk next;
-		const ncb_sz_t off_blk = ncb_blk_off(blk, off);
+		const ncb_sz_t off_blk = ncb_blk_off(&blk, off);
 		ncb_sz_t done;
 
 		/* retrieve the next block. This is necessary to do this
 		 * before overwriting a gap.
 		 */
-		next = ncb_blk_next(buf, blk);
+		next = ncb_blk_next(buf, &blk);
 
 		if (blk.flag & NCB_BK_F_GAP) {
-			done = ncb_fill_gap_blk(buf, blk, off_blk, data, left);
+			done = ncb_fill_gap_blk(buf, &blk, off_blk, data, left);
 
 			/* update the inserted data block size */
 			if (off + done == blk.off + blk.sz) {
@@ -607,7 +609,7 @@ enum ncb_ret ncb_add(struct ncbuf *buf, ncb_sz_t off,
 			}
 		}
 		else {
-			done = ncb_fill_data_blk(buf, blk, off_blk, data, left, mode);
+			done = ncb_fill_data_blk(buf, &blk, off_blk, data, left, mode);
 		}
 
 		BUG_ON_HOT(done > blk.sz || done > left);
@@ -650,7 +652,7 @@ enum ncb_ret ncb_advance(struct ncbuf *buf, ncb_sz_t adv)
 	/* Special case if advance until the last block which is a GAP. The
 	 * buffer will be left empty and is thus equivalent to a reset.
 	 */
-	if (ncb_blk_is_last(buf, start) && (start.flag & NCB_BK_F_GAP)) {
+	if (ncb_blk_is_last(buf, &start) && (start.flag & NCB_BK_F_GAP)) {
 		ncb_sz_t new_head = buf->head + adv;
 		if (new_head >= buf->size)
 			new_head -= buf->size;
@@ -660,10 +662,10 @@ enum ncb_ret ncb_advance(struct ncbuf *buf, ncb_sz_t adv)
 	}
 
 	last = start;
-	while (!ncb_blk_is_last(buf, last))
-		last = ncb_blk_next(buf, last);
+	while (!ncb_blk_is_last(buf, &last))
+		last = ncb_blk_next(buf, &last);
 
-	off_blk = ncb_blk_off(start, adv);
+	off_blk = ncb_blk_off(&start, adv);
 
 	if (start.flag & NCB_BK_F_GAP) {
 		/* If advance in a GAP, its new size must be big enough. */
@@ -758,18 +760,18 @@ static struct rand_off *ncb_generate_rand_off(const struct ncbuf *buf)
 	return roff;
 }
 
-static void ncb_print_blk(const struct ncb_blk blk)
+static void ncb_print_blk(const struct ncb_blk *blk)
 {
 	if (ncb_print) {
 		fprintf(stderr, "%s(%s): %2u/%u.\n",
-		        blk.flag & NCB_BK_F_GAP ? "GAP " : "DATA",
-		        blk.flag & NCB_BK_F_FIN ? "F" : "-", blk.off, blk.sz);
+		        blk->flag & NCB_BK_F_GAP ? "GAP " : "DATA",
+		        blk->flag & NCB_BK_F_FIN ? "F" : "-", blk->off, blk->sz);
 	}
 }
 
-static inline int ncb_is_null_blk(const struct ncb_blk blk)
+static int ncb_is_null_blk(const struct ncb_blk *blk)
 {
-	return !blk.st;
+	return !blk->st;
 }
 
 static void ncb_loop(const struct ncbuf *buf)
@@ -778,9 +780,9 @@ static void ncb_loop(const struct ncbuf *buf)
 
 	blk = ncb_blk_first(buf);
 	do {
-		ncb_print_blk(blk);
-		blk = ncb_blk_next(buf, blk);
-	} while (!ncb_is_null_blk(blk));
+		ncb_print_blk(&blk);
+		blk = ncb_blk_next(buf, &blk);
+	} while (!ncb_is_null_blk(&blk));
 
 	ncbuf_printf("\n");
 }
