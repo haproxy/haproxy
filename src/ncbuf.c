@@ -15,7 +15,7 @@
 #include <haproxy/list.h>
 #endif /* STANDALONE */
 
-#ifdef DEBUG_DEV
+#ifdef DEBUG_STRICT
 # include <haproxy/bug.h>
 #else
 # include <stdio.h>
