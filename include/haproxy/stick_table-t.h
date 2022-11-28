@@ -180,8 +180,8 @@ struct stktable {
 	} peers;
 
 	unsigned long type;       /* type of table (determines key format) */
-	unsigned int server_key_type; /* What type of key is used to identify servers */
 	size_t key_size;          /* size of a key, maximum size in case of string */
+	unsigned int server_key_type; /* What type of key is used to identify servers */
 	unsigned int size;        /* maximum number of sticky sessions in table */
 	unsigned int current;     /* number of sticky sessions currently in table */
 	int nopurge;              /* if non-zero, don't purge sticky sessions when full */
