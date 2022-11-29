@@ -4456,7 +4456,7 @@ static int table_dump_entry_to_buffer(struct buffer *msg,
 		dump_binary(msg, (const char *)entry->key.key, t->key_size);
 	}
 
-	chunk_appendf(msg, " use=%d exp=%d", entry->ref_cnt - 1, tick_remain(now_ms, entry->expire));
+	chunk_appendf(msg, " use=%d exp=%d shard=%d", entry->ref_cnt - 1, tick_remain(now_ms, entry->expire), entry->shard);
 
 	for (dt = 0; dt < STKTABLE_DATA_TYPES; dt++) {
 		void *ptr;

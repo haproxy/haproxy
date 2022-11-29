@@ -3544,6 +3544,16 @@ show table <name> [ data.<type> <operator> <value> [data.<type> ...]] | [ key <k
           | fgrep 'key=' | cut -d' ' -f2 | cut -d= -f2 > abusers-ip.txt
           ( or | awk '/key/{ print a[split($2,a,"=")]; }' )
 
+  When the stick-table is synchronized to a peers section supporting sharding,
+  the shard number will be displayed for each key (otherwise '0' is reported).
+  This allows to know which peers will receive this key.
+  Example:
+        $ echo "show table http_proxy" | socat stdio /tmp/sock1 | fgrep shard=
+          0x7f23b0c822a8: key=10.0.0.2 use=0 exp=296398 shard=9 gpc0=0
+          0x7f23a063f948: key=10.0.0.6 use=0 exp=296075 shard=12 gpc0=0
+          0x7f23b03920b8: key=10.0.0.8 use=0 exp=296766 shard=1 gpc0=0
+          0x7f23a43c09e8: key=10.0.0.12 use=0 exp=295368 shard=8 gpc0=0
+
 show tasks
   Dumps the number of tasks currently in the run queue, with the number of
   occurrences for each function, and their average latency when it's known
