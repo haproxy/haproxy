@@ -106,16 +106,16 @@ delay 2
 
 haproxy h1 -cli {
     send "show table stkt"
-    expect ~ "# table: stkt, type: string, size:1048[0-9]{4}, used:4(\n0x[0-9a-f]*: key=/c[1-4]_client use=0 exp=0 server_id=0 gpc0=1 conn_rate\\(50000\\)=1 conn_cur=0){4}"
+    expect ~ "# table: stkt, type: string, size:1048[0-9]{4}, used:4(\n0x[0-9a-f]*: key=/c[1-4]_client use=0 exp=0 shard=0 server_id=0 gpc0=1 conn_rate\\(50000\\)=1 conn_cur=0){4}"
 }
 
 haproxy h2 -cli {
     send "show table stkt"
-    expect ~ "# table: stkt, type: string, size:1048[0-9]{4}, used:4(\n0x[0-9a-f]*: key=/c[1-4]_client use=0 exp=0 server_id=0 gpc0=1 conn_rate\\(50000\\)=1 conn_cur=0){4}"
+    expect ~ "# table: stkt, type: string, size:1048[0-9]{4}, used:4(\n0x[0-9a-f]*: key=/c[1-4]_client use=0 exp=0 shard=0 server_id=0 gpc0=1 conn_rate\\(50000\\)=1 conn_cur=0){4}"
 }
 
 haproxy h3 -cli {
     send "show table stkt"
-    expect ~ "# table: stkt, type: string, size:1048[0-9]{4}, used:4(\n0x[0-9a-f]*: key=/c[1-4]_client use=0 exp=0 server_id=0 gpc0=1 conn_rate\\(50000\\)=1 conn_cur=0){4}"
+    expect ~ "# table: stkt, type: string, size:1048[0-9]{4}, used:4(\n0x[0-9a-f]*: key=/c[1-4]_client use=0 exp=0 shard=0 server_id=0 gpc0=1 conn_rate\\(50000\\)=1 conn_cur=0){4}"
 }
 

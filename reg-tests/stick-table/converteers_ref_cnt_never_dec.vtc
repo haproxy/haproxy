@@ -71,5 +71,5 @@ client c1 -connect ${h1_my_frontend_fd_sock} {
 
 haproxy h1 -cli {
 	send "show table http1"
-	expect ~ "table: http1, type: ip, size:1024, used:(0|1\\n0x[0-9a-f]*: key=127\\.0\\.0\\.1 use=0 exp=[0-9]* gpt0=0 gpc0=0 gpc0_rate\\(10000\\)=0 conn_rate\\(10000\\)=1 http_req_cnt=1 http_req_rate\\(10000\\)=1 http_err_cnt=0 http_err_rate\\(10000\\)=0 http_fail_cnt=0 http_fail_rate\\(10000\\)=0)\\n$"
+	expect ~ "table: http1, type: ip, size:1024, used:(0|1\\n0x[0-9a-f]*: key=127\\.0\\.0\\.1 use=0 exp=[0-9]* shard=0 gpt0=0 gpc0=0 gpc0_rate\\(10000\\)=0 conn_rate\\(10000\\)=1 http_req_cnt=1 http_req_rate\\(10000\\)=1 http_err_cnt=0 http_err_rate\\(10000\\)=0 http_fail_cnt=0 http_fail_rate\\(10000\\)=0)\\n$"
 } -wait
