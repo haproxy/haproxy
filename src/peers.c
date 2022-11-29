@@ -1808,6 +1808,8 @@ static int peer_treat_updatemsg(struct appctx *appctx, struct peer *p, int updt,
 		*msg_cur += keylen;
 	}
 
+	newts->shard = stktable_get_key_shard(st->table, newts->key.key, keylen);
+
 	/* lookup for existing entry */
 	ts = stktable_set_entry(st->table, newts);
 	if (ts != newts) {
