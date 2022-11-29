@@ -199,6 +199,7 @@ static struct stksess *__stksess_init(struct stktable *t, struct stksess * ts)
 {
 	memset((void *)ts - t->data_size, 0, t->data_size);
 	ts->ref_cnt = 0;
+	ts->shard = 0;
 	ts->key.node.leaf_p = NULL;
 	ts->exp.node.leaf_p = NULL;
 	ts->upd.node.leaf_p = NULL;
