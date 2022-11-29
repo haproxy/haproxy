@@ -43,6 +43,7 @@ struct stksess *stksess_new(struct stktable *t, struct stktable_key *key);
 void stksess_setkey(struct stktable *t, struct stksess *ts, struct stktable_key *key);
 void stksess_free(struct stktable *t, struct stksess *ts);
 int stksess_kill(struct stktable *t, struct stksess *ts, int decrefcount);
+int stktable_get_key_shard(struct stktable *t, const void *key, size_t len);
 
 int stktable_init(struct stktable *t);
 int stktable_parse_type(char **args, int *idx, unsigned long *type, size_t *key_size);

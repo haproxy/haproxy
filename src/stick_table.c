@@ -156,13 +156,27 @@ void stksess_setkey(struct stktable *t, struct stksess *ts, struct stktable_key 
 	}
 }
 
-/*
- * Initialize or update the key hash in the sticky session <ts> present in table <t>
- * from the value present in <key>.
+/* return a shard number for key <key> of len <len> present in table <t>. This
+ * takes into account the presence or absence of a peers section with shards
+ * and the number of shards, the table's hash_seed, and of course the key. The
+ * caller must pass a valid <key> and <len>. The shard number to be used by the
+ * entry is returned (from 1 to nb_shards, otherwise 0 for none).
  */
-static unsigned long long stksess_getkey_hash(struct stktable *t,
-                                              struct stksess *ts,
-                                              struct stktable_key *key)
+int stktable_get_key_shard(struct stktable *t, const void *key, size_t len)
+{
+	/* no peers section or no shards in the peers section */
+	if (!t->peers.p || !t->peers.p->nb_shards)
+		return 0;
+
+	return XXH64(key, len, t->hash_seed) % t->peers.p->nb_shards + 1;
+}
+
+/*
+ * Set the shard for <key> key of <ts> sticky session attached to <t> stick table.
+ * Use zero for stick-table without peers synchronisation.
+ */
+static void stksess_setkey_shard(struct stktable *t, struct stksess *ts,
+                                 struct stktable_key *key)
 {
 	size_t keylen;
 
@@ -171,24 +185,7 @@ static unsigned long long stksess_getkey_hash(struct stktable *t,
 	else
 		keylen = t->key_size;
 
-	return XXH64(key->key, keylen, t->hash_seed);
-}
-
-/*
- * Set the shard for <key> key of <ts> sticky session attached to <t> stick table.
- * Do nothing for stick-table without peers synchronisation.
- */
-static void stksess_setkey_shard(struct stktable *t, struct stksess *ts,
-                                 struct stktable_key *key)
-{
-	if (!t->peers.p)
-		/* This stick-table is not attached to any peers section */
-		return;
-
-	if (!t->peers.p->nb_shards)
-		ts->shard = 0;
-	else
-		ts->shard = stksess_getkey_hash(t, ts, key) % t->peers.p->nb_shards + 1;
+	ts->shard = stktable_get_key_shard(t, key->key, keylen);
 }
 
 /*
