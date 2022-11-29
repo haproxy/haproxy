@@ -2635,7 +2635,7 @@ static int h1_send_error(struct h1c *h1c)
 	}
 
 	h1c->flags = (h1c->flags & ~(H1C_F_WAIT_NEXT_REQ|H1C_F_ABRT_PENDING)) | H1C_F_ABRTED;
-	h1c->state = H1_CS_CLOSING;
+	h1_close(h1c);
   out:
 	TRACE_LEAVE(H1_EV_H1C_ERR, h1c->conn);
 	return ret;
@@ -2673,8 +2673,8 @@ static int h1_handle_parsing_error(struct h1c *h1c)
 	int ret = 0;
 
 	if (!b_data(&h1c->ibuf) && ((h1c->flags & H1C_F_WAIT_NEXT_REQ) || (sess->fe->options & PR_O_IGNORE_PRB))) {
-		h1c->state = H1_CS_CLOSING;
 		h1c->flags = (h1c->flags & ~H1C_F_WAIT_NEXT_REQ) | H1C_F_ABRTED;
+		h1_close(h1c);
 		goto end;
 	}
 
@@ -2706,8 +2706,8 @@ static int h1_handle_not_impl_err(struct h1c *h1c)
 	int ret = 0;
 
 	if (!b_data(&h1c->ibuf) && ((h1c->flags & H1C_F_WAIT_NEXT_REQ) || (sess->fe->options & PR_O_IGNORE_PRB))) {
-		h1c->state = H1_CS_CLOSING;
 		h1c->flags = (h1c->flags & ~H1C_F_WAIT_NEXT_REQ) | H1C_F_ABRTED;
+		h1_close(h1c);
 		goto end;
 	}
 
@@ -2736,8 +2736,8 @@ static int h1_handle_req_tout(struct h1c *h1c)
 	int ret = 0;
 
 	if (!b_data(&h1c->ibuf) && ((h1c->flags & H1C_F_WAIT_NEXT_REQ) || (sess->fe->options & PR_O_IGNORE_PRB))) {
-		h1c->state = H1_CS_CLOSING;
 		h1c->flags = (h1c->flags & ~H1C_F_WAIT_NEXT_REQ) | H1C_F_ABRTED;
+		h1_close(h1c);
 		goto end;
 	}
 
@@ -3404,7 +3404,7 @@ static void h1_detach(struct sedesc *sd)
 		 */
 		if (b_data(&h1c->ibuf)) {
 			h1_release_buf(h1c, &h1c->ibuf);
-			h1c->state = H1_CS_CLOSING;
+			h1_close(h1c);
 			TRACE_DEVEL("remaining data on detach, kill connection", H1_EV_STRM_END|H1_EV_H1C_END);
 			goto release;
 		}
@@ -3521,7 +3521,7 @@ static void h1_shutw(struct stconn *sc, enum co_shw_mode mode)
 	}
 
   do_shutw:
-	h1c->state = H1_CS_CLOSING;
+	h1_close(h1c);
 	if (mode != CO_SHW_NORMAL)
 		h1c->flags |= H1C_F_SILENT_SHUT;
 
