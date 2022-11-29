@@ -1710,6 +1710,7 @@ static int peer_treat_updatemsg(struct appctx *appctx, struct peer *p, int updt,
 	uint32_t update;
 	int expire;
 	unsigned int data_type;
+	size_t keylen;
 	void *data_ptr;
 
 	TRACE_ENTER(PEERS_EV_UPDTMSG, NULL, p);
@@ -1771,8 +1772,9 @@ static int peer_treat_updatemsg(struct appctx *appctx, struct peer *p, int updt,
 			goto malformed_free_newts;
 		}
 
-		memcpy(newts->key.key, *msg_cur, to_store);
-		newts->key.key[to_store] = 0;
+		keylen = to_store;
+		memcpy(newts->key.key, *msg_cur, keylen);
+		newts->key.key[keylen] = 0;
 		*msg_cur += to_read;
 	}
 	else if (st->table->type == SMP_T_SINT) {
@@ -1786,10 +1788,11 @@ static int peer_treat_updatemsg(struct appctx *appctx, struct peer *p, int updt,
 			goto malformed_free_newts;
 		}
 
-		memcpy(&netinteger, *msg_cur, sizeof(netinteger));
+		keylen = sizeof(netinteger);
+		memcpy(&netinteger, *msg_cur, keylen);
 		netinteger = ntohl(netinteger);
-		memcpy(newts->key.key, &netinteger, sizeof(netinteger));
-		*msg_cur += sizeof(netinteger);
+		memcpy(newts->key.key, &netinteger, keylen);
+		*msg_cur += keylen;
 	}
 	else {
 		if (*msg_cur + st->table->key_size > msg_end) {
@@ -1800,8 +1803,9 @@ static int peer_treat_updatemsg(struct appctx *appctx, struct peer *p, int updt,
 			goto malformed_free_newts;
 		}
 
-		memcpy(newts->key.key, *msg_cur, st->table->key_size);
-		*msg_cur += st->table->key_size;
+		keylen = st->table->key_size;
+		memcpy(newts->key.key, *msg_cur, keylen);
+		*msg_cur += keylen;
 	}
 
 	/* lookup for existing entry */
