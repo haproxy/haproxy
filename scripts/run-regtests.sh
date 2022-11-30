@@ -350,6 +350,12 @@ EOF
 HAPROXY_VERSION=$(echo $HAPROXY_VERSION | cut -d " " -f 3)
 echo "Testing with haproxy version: $HAPROXY_VERSION"
 
+PROJECT_VERSION=$(${MAKE:-make} version 2>&1 | grep '^VERSION:\|^SUBVERS:'|cut -f2 -d' '|tr -d '\012')
+if [ -z "${PROJECT_VERSION}${MAKE}" ]; then
+        # try again with gmake, just in case
+        PROJECT_VERSION=$(gmake version 2>&1 | grep '^VERSION:\|^SUBVERS:'|cut -f2 -d' '|tr -d '\012')
+fi
+
 FEATURES_PATTERN=" $FEATURES "
 SERVICES_PATTERN=" $SERVICES "
 
@@ -380,6 +386,11 @@ fi
 
 echo "########################## Starting vtest ##########################"
 echo "Testing with haproxy version: $HAPROXY_VERSION"
+
+if [ -n "$PROJECT_VERSION" -a "$PROJECT_VERSION" != "$HAPROXY_VERSION" ]; then
+        echo "Warning: version does not match the current tree ($PROJECT_VERSION)"
+fi
+
 _vtresult=0
 if [ -n "$testlist" ]; then
   if [ -n "$jobcount" ]; then
