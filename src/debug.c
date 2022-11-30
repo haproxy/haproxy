@@ -1629,6 +1629,7 @@ static struct cli_kw_list cli_kws = {{ },{
 #endif
 	{{ "debug", "dev", "fd", NULL },       "debug dev fd                            : scan for rogue/unhandled FDs",            debug_parse_cli_fd,    debug_iohandler_fd, NULL, NULL, ACCESS_EXPERT },
 	{{ "debug", "dev", "exit",  NULL },    "debug dev exit   [code]                 : immediately exit the process",            debug_parse_cli_exit,  NULL, NULL, NULL, ACCESS_EXPERT },
+	{{ "debug", "dev", "hash", NULL },     "debug dev hash   [msg]                  : return msg hashed if anon is set",        debug_parse_cli_hash,  NULL, NULL, NULL, ACCESS_EXPERT },
 	{{ "debug", "dev", "hex",   NULL },    "debug dev hex    <addr> [len]           : dump a memory area",                      debug_parse_cli_hex,   NULL, NULL, NULL, ACCESS_EXPERT },
 	{{ "debug", "dev", "log",   NULL },    "debug dev log    [msg] ...              : send this msg to global logs",            debug_parse_cli_log,   NULL, NULL, NULL, ACCESS_EXPERT },
 	{{ "debug", "dev", "loop",  NULL },    "debug dev loop   [ms]                   : loop this long",                          debug_parse_cli_loop,  NULL, NULL, NULL, ACCESS_EXPERT },
@@ -1642,7 +1643,6 @@ static struct cli_kw_list cli_kws = {{ },{
 	{{ "debug", "dev", "tkill", NULL },    "debug dev tkill  [thr] [sig]            : send signal to thread",                   debug_parse_cli_tkill, NULL, NULL, NULL, ACCESS_EXPERT },
 	{{ "debug", "dev", "warn",  NULL },    "debug dev warn                          : call WARN_ON() and possibly crash",       debug_parse_cli_warn,  NULL, NULL, NULL, ACCESS_EXPERT },
 	{{ "debug", "dev", "write", NULL },    "debug dev write  [size]                 : write that many bytes in return",         debug_parse_cli_write, NULL, NULL, NULL, ACCESS_EXPERT },
-	{{ "debug", "dev", "hash", NULL },     "debug dev hash  [msg]                   : return msg hashed",                       debug_parse_cli_hash, NULL, NULL, NULL, ACCESS_EXPERT },
 
 #if defined(HA_HAVE_DUMP_LIBS)
 	{{ "show", "libs", NULL, NULL },       "show libs                               : show loaded object files and libraries", debug_parse_cli_show_libs, NULL, NULL },
