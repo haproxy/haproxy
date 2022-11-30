@@ -480,7 +480,7 @@ const char *http_get_reason(unsigned int status)
 
 /* Returns the ist string corresponding to port part (without ':') in the host
  * <host>, IST_NULL if no ':' is found or an empty IST if there is no digit. In
- * the last case, the result is the original ist trimed to 0. So be sure to test
+ * the last case, the result is the original ist trimmed to 0. So be sure to test
  * the result length before doing any pointer arithmetic.
 */
 struct ist http_get_host_port(const struct ist host)

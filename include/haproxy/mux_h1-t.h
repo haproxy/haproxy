@@ -51,7 +51,7 @@
 #define H1C_F_CO_MSG_MORE    0x00020000 /* set if CO_SFL_MSG_MORE must be set when calling xprt->snd_buf() */
 #define H1C_F_CO_STREAMER    0x00040000 /* set if CO_SFL_STREAMER must be set when calling xprt->snd_buf() */
 
-/* 0x00040000 - 0x40000000 unusued*/
+/* 0x00040000 - 0x40000000 unused */
 #define H1C_F_IS_BACK        0x80000000 /* Set on outgoing connection */
 
 

@@ -7,7 +7,7 @@ feature ignore_unknown_macro
 
 # This script test health-checks for four backends with one server by backend.
 # A syslog server is attached to each backend to check the syslog messages
-# in the righ order.
+# in the right order.
 
 # First, we check a health-check has passed for all the servers thanks to the syslog
 # messages. Then each server is disabled. The health-check status are checked.

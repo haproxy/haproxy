@@ -28,7 +28,7 @@
 /**** FCGI connection flags (32 bit), in fcgi_conn->flags ****/
 #define FCGI_CF_NONE           0x00000000
 
-/* Flags indicating why writing to the mux is blockes */
+/* Flags indicating why writing to the mux is blocked */
 #define FCGI_CF_MUX_MALLOC      0x00000001 /* mux is blocked on lack connection's mux buffer */
 #define FCGI_CF_MUX_MFULL       0x00000002 /* mux is blocked on connection's mux buffer full */
 #define FCGI_CF_MUX_BLOCK_ANY   0x00000003 /* mux is blocked on connection's mux buffer full */

@@ -8579,7 +8579,7 @@ __LJMP static int hlua_register_init(lua_State *L)
 	return 0;
 }
 
-/* This functio is an LUA binding. It permits to register a task
+/* This function is an LUA binding. It permits to register a task
  * executed in parallel of the main HAroxy activity. The task is
  * created and it is set in the HAProxy scheduler. It can be called
  * from the "init" section, "post init" or during the runtime.

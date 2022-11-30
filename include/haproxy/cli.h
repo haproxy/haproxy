@@ -109,7 +109,7 @@ static inline int cli_dynerr(struct appctx *appctx, char *err)
 }
 
 /* updates the CLI's context to log messages stored in thread-local
- * usermsgs_ctx at <severity> level. usermsgs_ctx will be resetted when done.
+ * usermsgs_ctx at <severity> level. usermsgs_ctx will be reset when done.
  * This is for use in CLI parsers to deal with quick response messages.
  *
  * Always returns 1.
@@ -124,7 +124,7 @@ static inline int cli_umsg(struct appctx *appctx, int severity)
 }
 
 /* updates the CLI's context to log messages stored in thread-local
- * usermsgs_ctx using error level. usermsgs_ctx will be resetted when done.
+ * usermsgs_ctx using error level. usermsgs_ctx will be reset when done.
  * This is for use in CLI parsers to deal with quick response messages.
  *
  * Always returns 1.

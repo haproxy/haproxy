@@ -40,7 +40,7 @@ static inline void quic_loss_init(struct quic_loss *ql)
 	ql->pto_count = 0;
 }
 
-/* Return 1 if a persitent congestion is observed for a list of
+/* Return 1 if a persistent congestion is observed for a list of
  * lost packets sent during <period> period depending on <ql> loss information,
  * <now_us> the current time and <max_ack_delay_us> the maximum ACK delay of the connection
  * experiencing a packet loss. Return 0 on the contrary.

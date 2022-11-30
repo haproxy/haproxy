@@ -1844,9 +1844,9 @@ lua-load <file> [ <arg1> [ <arg2> [ ... ] ] ]
   way will always see 0 in the "core.thread" variable. This directive can be
   used multiple times.
 
-  args are avalaible in the lua file using the code below in the body of the
+  args are available in the lua file using the code below in the body of the
   file. Do not forget that Lua arrays start at index 1. A "local" variable
-  declared in a file is avalaible in the entire file and not avalaible on
+  declared in a file is available in the entire file and not available on
   other files.
 
      local args = table.pack(...)
@@ -14144,7 +14144,7 @@ ca-file <cafile>
   directive. But you mustn't use it unless you know what you are doing.
   Configuring it this way basically mean that the bind will accept any client
   certificate generated from one of the CA present on your system, which is
-  extremely unsecure.
+  extremely insecure.
 
 ca-ignore-err [all|<errorID>,...]
   This setting is only available when support for OpenSSL was built in.
@@ -23368,7 +23368,7 @@ for the cache filter.
 
 There are two kinds of bandwidth limitation filters. The first one enforces a
 default limit and is applied per stream. The second one uses a stickiness table
-to enfore a limit equally divided between all streams sharing the same entry in
+to enforce a limit equally divided between all streams sharing the same entry in
 the table.
 
 In addition, for a given filter, depending on the filter keyword used, the
