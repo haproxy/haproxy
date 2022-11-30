@@ -1245,6 +1245,7 @@ struct dev_mem_ctx {
 static int debug_parse_cli_memstats(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	struct dev_mem_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
+	int arg;
 
 	extern __attribute__((__weak__)) struct mem_stats __start_mem_stats;
 	extern __attribute__((__weak__)) struct mem_stats __stop_mem_stats;
@@ -1252,21 +1253,26 @@ static int debug_parse_cli_memstats(char **args, char *payload, struct appctx *a
 	if (!cli_has_level(appctx, ACCESS_LVL_OPER))
 		return 1;
 
-	if (strcmp(args[3], "reset") == 0) {
-		struct mem_stats *ptr;
+	for (arg = 3; *args[arg]; arg++) {
+		if (strcmp(args[arg], "reset") == 0) {
+			struct mem_stats *ptr;
 
-		if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+			if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+				return 1;
+
+			for (ptr = &__start_mem_stats; ptr < &__stop_mem_stats; ptr++) {
+				_HA_ATOMIC_STORE(&ptr->calls, 0);
+				_HA_ATOMIC_STORE(&ptr->size, 0);
+			}
 			return 1;
-
-		for (ptr = &__start_mem_stats; ptr < &__stop_mem_stats; ptr++) {
-			_HA_ATOMIC_STORE(&ptr->calls, 0);
-			_HA_ATOMIC_STORE(&ptr->size, 0);
 		}
-		return 1;
+		else if (strcmp(args[arg], "all") == 0) {
+			ctx->show_all = 1;
+			continue;
+		}
+		else
+			return cli_err(appctx, "Expects either 'reset' or 'all'.\n");
 	}
-
-	if (strcmp(args[3], "all") == 0)
-		ctx->show_all = 1;
 
 	/* otherwise proceed with the dump from p0 to p1 */
 	ctx->start = &__start_mem_stats;
