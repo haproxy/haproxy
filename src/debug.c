@@ -1237,6 +1237,7 @@ static int debug_iohandler_fd(struct appctx *appctx)
 /* CLI state for "debug dev memstats" */
 struct dev_mem_ctx {
 	struct mem_stats *start, *stop; /* begin/end of dump */
+	char *match;                    /* non-null if a name prefix is specified */
 	int show_all;                   /* show all entries if non-null */
 	int width;
 };
@@ -1270,8 +1271,14 @@ static int debug_parse_cli_memstats(char **args, char *payload, struct appctx *a
 			ctx->show_all = 1;
 			continue;
 		}
+		else if (strcmp(args[arg], "match") == 0 && *args[arg + 1]) {
+			ha_free(&ctx->match);
+			ctx->match = strdup(args[arg + 1]);
+			arg++;
+			continue;
+		}
 		else
-			return cli_err(appctx, "Expects either 'reset' or 'all'.\n");
+			return cli_err(appctx, "Expects either 'reset', 'all', or 'match <pfx>'.\n");
 	}
 
 	/* otherwise proceed with the dump from p0 to p1 */
@@ -1291,6 +1298,7 @@ static int debug_iohandler_memstats(struct appctx *appctx)
 	struct dev_mem_ctx *ctx = appctx->svcctx;
 	struct stconn *sc = appctx_sc(appctx);
 	struct mem_stats *ptr;
+	const char *pfx = ctx->match;
 	int ret = 1;
 
 	if (unlikely(sc_ic(sc)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
@@ -1362,6 +1370,10 @@ static int debug_iohandler_memstats(struct appctx *appctx)
 		//	     (unsigned long)ptr->size, (unsigned long)ptr->calls,
 		//	     (unsigned long)(ptr->calls ? (ptr->size / ptr->calls) : 0));
 
+		/* only match requested prefixes */
+		if (pfx && (!info || strncmp(info, pfx, strlen(pfx)) != 0))
+			continue;
+
 		chunk_reset(&trash);
 		if (ctx->show_all)
 			chunk_appendf(&trash, "%s(", func);
@@ -1391,6 +1403,13 @@ static int debug_iohandler_memstats(struct appctx *appctx)
 	return ret;
 }
 
+/* release the "show pools" context */
+static void debug_release_memstats(struct appctx *appctx)
+{
+	struct dev_mem_ctx *ctx = appctx->svcctx;
+
+	ha_free(&ctx->match);
+}
 #endif
 
 #ifndef USE_THREAD_DUMP
@@ -1634,7 +1653,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{{ "debug", "dev", "log",   NULL },    "debug dev log    [msg] ...              : send this msg to global logs",            debug_parse_cli_log,   NULL, NULL, NULL, ACCESS_EXPERT },
 	{{ "debug", "dev", "loop",  NULL },    "debug dev loop   [ms]                   : loop this long",                          debug_parse_cli_loop,  NULL, NULL, NULL, ACCESS_EXPERT },
 #if defined(DEBUG_MEM_STATS)
-	{{ "debug", "dev", "memstats", NULL }, "debug dev memstats [reset|all]          : dump/reset memory statistics",            debug_parse_cli_memstats, debug_iohandler_memstats, NULL, NULL, 0 },
+	{{ "debug", "dev", "memstats", NULL }, "debug dev memstats [reset|all|match ...]: dump/reset memory statistics",            debug_parse_cli_memstats, debug_iohandler_memstats, debug_release_memstats, NULL, 0 },
 #endif
 	{{ "debug", "dev", "panic", NULL },    "debug dev panic                         : immediately trigger a panic",             debug_parse_cli_panic, NULL, NULL, NULL, ACCESS_EXPERT },
 	{{ "debug", "dev", "sched", NULL },    "debug dev sched  {task|tasklet} [k=v]*  : stress the scheduler",                    debug_parse_cli_sched, NULL, NULL, NULL, ACCESS_EXPERT },
