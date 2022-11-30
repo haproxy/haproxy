@@ -1239,7 +1239,9 @@ struct dev_mem_ctx {
 	struct mem_stats *start, *stop; /* begin/end of dump */
 	char *match;                    /* non-null if a name prefix is specified */
 	int show_all;                   /* show all entries if non-null */
-	int width;
+	int width;                      /* 1st column width */
+	long tot_size;                  /* sum of alloc-free */
+	ulong tot_calls;                /* sum of calls */
 };
 
 /* CLI parser for the "debug dev memstats" command. Sets a dev_mem_ctx shown above. */
@@ -1341,6 +1343,7 @@ static int debug_iohandler_memstats(struct appctx *appctx)
 		const char *p;
 		const char *info = NULL;
 		const char *func = NULL;
+		int direction = 0; // neither alloc nor free (e.g. realloc)
 
 		if (!ptr->size && !ptr->calls && !ctx->show_all)
 			continue;
@@ -1354,13 +1357,13 @@ static int debug_iohandler_memstats(struct appctx *appctx)
 		func = ptr->caller.func;
 
 		switch (ptr->caller.what) {
-		case MEM_STATS_TYPE_CALLOC:  type = "CALLOC";  break;
-		case MEM_STATS_TYPE_FREE:    type = "FREE";    break;
-		case MEM_STATS_TYPE_MALLOC:  type = "MALLOC";  break;
+		case MEM_STATS_TYPE_CALLOC:  type = "CALLOC";  direction =  1; break;
+		case MEM_STATS_TYPE_FREE:    type = "FREE";    direction = -1; break;
+		case MEM_STATS_TYPE_MALLOC:  type = "MALLOC";  direction =  1; break;
 		case MEM_STATS_TYPE_REALLOC: type = "REALLOC"; break;
-		case MEM_STATS_TYPE_STRDUP:  type = "STRDUP";  break;
-		case MEM_STATS_TYPE_P_ALLOC: type = "P_ALLOC"; if (ptr->extra) info = ((const struct pool_head *)ptr->extra)->name; break;
-		case MEM_STATS_TYPE_P_FREE:  type = "P_FREE";  if (ptr->extra) info = ((const struct pool_head *)ptr->extra)->name; break;
+		case MEM_STATS_TYPE_STRDUP:  type = "STRDUP";  direction =  1; break;
+		case MEM_STATS_TYPE_P_ALLOC: type = "P_ALLOC"; direction =  1; if (ptr->extra) info = ((const struct pool_head *)ptr->extra)->name; break;
+		case MEM_STATS_TYPE_P_FREE:  type = "P_FREE";  direction = -1; if (ptr->extra) info = ((const struct pool_head *)ptr->extra)->name; break;
 		default:                     type = "UNSET";   break;
 		}
 
@@ -1395,10 +1398,35 @@ static int debug_iohandler_memstats(struct appctx *appctx)
 		if (applet_putchk(appctx, &trash) == -1) {
 			ctx->start = ptr;
 			ret = 0;
-			break;
+			goto end;
+		}
+		if (direction > 0) {
+			ctx->tot_size  += (ulong)ptr->size;
+			ctx->tot_calls += (ulong)ptr->calls;
+		}
+		else if (direction < 0) {
+			ctx->tot_size  -= (ulong)ptr->size;
+			ctx->tot_calls += (ulong)ptr->calls;
 		}
 	}
 
+	/* now dump a summary */
+	chunk_reset(&trash);
+	chunk_appendf(&trash, "Total");
+	while (trash.data < ctx->width)
+		trash.area[trash.data++] = ' ';
+
+	chunk_appendf(&trash, "%7s  size: %12ld  calls: %9lu  size/call: %6ld %s\n",
+		      "BALANCE",
+		      ctx->tot_size, ctx->tot_calls,
+		      (long)(ctx->tot_calls ? (ctx->tot_size / ctx->tot_calls) : 0),
+		      "(excl. realloc)");
+
+	if (applet_putchk(appctx, &trash) == -1) {
+		ctx->start = ptr;
+		ret = 0;
+		goto end;
+	}
  end:
 	return ret;
 }
