@@ -756,6 +756,20 @@ file, or could be inherited by a program (See 3.7. Programs):
   separated by semicolons. Can be useful in the case you specified a
   directory.
 
+* HAPROXY_HTTP_LOG_FMT: contains the value of the default HTTP log format as
+  defined in section 8.2.3 "HTTP log format". It can be used to override the
+  default log format without having to copy the whole original definition.
+
+  Example:
+    # Add the rule that gave the final verdict to the log
+    log-format "${HAPROXY_TCP_LOG_FMT} lr=last_rule_file:last_rule_line"
+
+* HAPROXY_HTTPS_LOG_FMT: similar to HAPROXY_HTTP_LOG_FMT but for HTTPS log
+  format as defined in section 8.2.4 "HTTPS log format".
+
+* HAPROXY_TCP_LOG_FMT: similar to HAPROXY_HTTP_LOG_FMT but for TCP log format
+  as defined in section 8.2.2 "TCP log format".
+
 * HAPROXY_MWORKER: In master-worker mode, this variable is set to 1.
 
 * HAPROXY_CLI: configured listeners addresses of the stats socket for every
@@ -21747,11 +21761,14 @@ not be logged if "option dontlog-normal" is specified in the frontend.
 
 The TCP log format is internally declared as a custom log format based on the
 exact following string, which may also be used as a basis to extend the format
-if required. Refer to section 8.2.6 "Custom log format" to see how to use this:
+if required. Additionally the HAPROXY_TCP_LOG_FMT variable can be used instead.
+Refer to section 8.2.6 "Custom log format" to see how to use this:
 
     # strict equivalent of "option tcplog"
     log-format "%ci:%cp [%t] %ft %b/%s %Tw/%Tc/%Tt %B %ts \
                 %ac/%fc/%bc/%sc/%rc %sq/%bq"
+    # or using the HAPROXY_TCP_LOG_FMT variable
+    log-format "${HAPROXY_TCP_LOG_FMT}"
 
 A few fields may slightly vary depending on some configuration options, those
 are marked with a star ('*') after the field name below.
@@ -21930,7 +21947,8 @@ is specified in the frontend.
 
 The HTTP log format is internally declared as a custom log format based on the
 exact following string, which may also be used as a basis to extend the format
-if required. Refer to section 8.2.6 "Custom log format" to see how to use this:
+if required. Additionally the HAPROXY_HTTP_LOG_FMT variable can be used
+instead. Refer to section 8.2.6 "Custom log format" to see how to use this:
 
     # strict equivalent of "option httplog"
     log-format "%ci:%cp [%tr] %ft %b/%s %TR/%Tw/%Tc/%Tr/%Ta %ST %B %CC \
@@ -21943,6 +21961,8 @@ this exact string:
     log-format "%{+Q}o %{-Q}ci - - [%trg] %r %ST %B \"\" \"\" %cp \
                 %ms %ft %b %s %TR %Tw %Tc %Tr %Ta %tsc %ac %fc \
                 %bc %sc %rc %sq %bq %CC %CS %hrl %hsl"
+    # or using the HAPROXY_HTTP_LOG_FMT variable
+    log-format "${HAPROXY_HTTP_LOG_FMT}"
 
 Most fields are shared with the TCP log, some being different. A few fields may
 slightly vary depending on some configuration options. Those ones are marked
@@ -22194,13 +22214,16 @@ dontlognull" in the frontend. Successful connections will not be logged if
 
 The HTTPS log format is internally declared as a custom log format based on the
 exact following string, which may also be used as a basis to extend the format
-if required. Refer to section 8.2.6 "Custom log format" to see how to use this:
+if required. Additionally the HAPROXY_HTTPS_LOG_FMT variable can be used
+instead. Refer to section 8.2.6 "Custom log format" to see how to use this:
 
     # strict equivalent of "option httpslog"
     log-format "%ci:%cp [%tr] %ft %b/%s %TR/%Tw/%Tc/%Tr/%Ta %ST %B %CC \
                %CS %tsc %ac/%fc/%bc/%sc/%rc %sq/%bq %hr %hs %{+Q}r \
                %[fc_err]/%[ssl_fc_err,hex]/%[ssl_c_err]/\
                %[ssl_c_ca_err]/%[ssl_fc_is_resumed] %[ssl_fc_sni]/%sslv/%sslc"
+    # or using the HAPROXY_HTTPS_LOG_FMT variable
+    log-format "${HAPROXY_HTTPS_LOG_FMT}"
 
 This format is basically the HTTP one (see section 8.2.3) with new fields
 appended to it. The new fields (lines 17 and 18) will be detailed here. For the
