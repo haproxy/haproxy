@@ -1,6 +1,49 @@
 ChangeLog :
 ===========
 
+2022/12/01 : 2.7.0
+    - MINOR: ssl: forgotten newline in error messages on ca-file
+    - BUG/MINOR: ssl: shut the ca-file errors emitted during httpclient init
+    - DOC: config: provide some configuration hints for "http-reuse"
+    - DOC: config: refer to section about quoting in the "add_item" converter
+    - DOC: halog: explain how to use -ac and -ad in the help message
+    - DOC: config: clarify the fact that SNI should not be used in HTTP scenarios
+    - DOC: config: mention that a single monitor-uri rule is supported
+    - DOC: config: explain how default matching method for ACL works
+    - DOC: config: clarify the fact that "retries" is not just for connections
+    - BUILD: halog: fix missing double-quote at end of help line
+    - DOC: config: clarify the -m dir and -m dom pattern matching methods
+    - MINOR: activity: report uptime in "show activity"
+    - REORG: activity/cli: move the "show activity" handler to activity.c
+    - DEV: poll: add support for epoll
+    - DEV: tcploop: centralize the polling code into wait_for_fd()
+    - DEV: tcploop: add support for POLLRDHUP when supported
+    - DEV: tcploop: do not report an error on POLLERR
+    - DEV: tcploop: add optional support for epoll
+    - SCRIPTS: announce-release: add a link to the data plane API
+    - CLEANUP: stick-table: fill alignment holes in the stktable struct
+    - MINOR: stick-table: store a per-table hash seed and use it
+    - MINOR: stick-table: show the shard number in each entry's "show table" output
+    - CLEANUP: ncbuf: remove ncb_blk args by value
+    - CLEANUP: ncbuf: inline small functions
+    - CLEANUP: ncbuf: use standard BUG_ON with DEBUG_STRICT
+    - BUG/MINOR: quic: Endless loop during retransmissions
+    - MINOR: mux-h2: add the expire task and its expiration date in "show fd"
+    - BUG/MINOR: peers: always initialize the stksess shard value
+    - REGTESTS: fix peers-related regtests regarding "show table"
+    - BUG/MEDIUM: mux-h1: Close client H1C on EOS when there is no output data
+    - MINOR: stick-table: change the API of the function used to calculate the shard
+    - CLEANUP: peers: factor out the key len calculation in received updates
+    - BUG/MINOR: peers: always update the stksess shard number on incoming updates
+    - CLEANUP: assorted typo fixes in the code and comments
+    - MINOR: mux-h1: add the expire task and its expiration date in "show fd"
+    - MINOR: debug: improve error handling on the memstats command parser
+    - BUILD: quic: allow build with USE_QUIC and USE_OPENSSL_WOLFSSL
+    - CLEANUP: anon: clarify the help message on "debug dev hash"
+    - MINOR: debug: relax access restrictions on "debug dev hash" and "memstats"
+    - SCRIPTS: run-regtests: add a version check
+    - MINOR: version: mention that it's stable now
+
 2022/11/24 : 2.7-dev10
     - MEDIUM: tcp-act: add parameter rst-ttl to silent-drop
     - BUG/MAJOR: quic: Crash upon retransmission of dgrams with several packets
