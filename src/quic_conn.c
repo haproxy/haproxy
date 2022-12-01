@@ -4960,7 +4960,7 @@ void quic_conn_release(struct quic_conn *qc)
 	BUG_ON(qc->mux_state == QC_MUX_READY);
 
 	/* Close quic-conn socket fd. */
-	qc_release_fd(qc);
+	qc_release_fd(qc, 0);
 
 	/* in the unlikely (but possible) case the connection was just added to
 	 * the accept_list we must delete it from there.
@@ -6368,6 +6368,16 @@ static int qc_handle_conn_migration(struct quic_conn *qc,
 	 * perform path validation (Section 8.2) if it detects any change to a
 	 * peer's address, unless it has previously validated that address.
 	 */
+
+	/* Update quic-conn owned socket if in used.
+	 * TODO try to reuse it instead of closing and opening a new one.
+	 */
+	if (qc_test_fd(qc)) {
+		/* TODO try to reuse socket instead of closing it and opening a new one. */
+		TRACE_STATE("Connection migration detected, allocate a new connection socket", QUIC_EV_CONN_LPKT, qc);
+		qc_release_fd(qc, 1);
+		qc_alloc_fd(qc, local_addr, peer_addr);
+	}
 
 	qc->local_addr = *local_addr;
 	qc->peer_addr = *peer_addr;

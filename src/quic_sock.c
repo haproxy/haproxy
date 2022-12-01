@@ -748,12 +748,17 @@ void qc_alloc_fd(struct quic_conn *qc, const struct sockaddr_storage *src,
 		close(fd);
 }
 
-/* Release socket file-descriptor specific for QUIC connection <qc>. */
-void qc_release_fd(struct quic_conn *qc)
+/* Release socket file-descriptor specific for QUIC connection <qc>. Set
+ * <reinit> if socket should be reinitialized after address migration.
+ */
+void qc_release_fd(struct quic_conn *qc, int reinit)
 {
 	if (qc_test_fd(qc)) {
 		fd_delete(qc->fd);
 		qc->fd = DEAD_FD_MAGIC;
+
+		if (reinit)
+			qc_init_fd(qc);
 	}
 }
 
