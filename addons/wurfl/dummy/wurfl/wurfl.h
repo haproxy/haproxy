@@ -4,11 +4,16 @@
  * Copyright (c) ScientiaMobile, Inc.
  * http://www.scientiamobile.com
  *
- * This software package is the property of ScientiaMobile Inc. and is licensed
- * commercially according to a contract between the Licensee and ScientiaMobile Inc. (Licensor).
- * If you represent the Licensee, please refer to the licensing agreement which has been signed
- * between the two parties. If you do not represent the Licensee, you are not authorized to use
- * this software in any way.
+ * This software package is the property of ScientiaMobile Inc. and is distributed under
+ * a dual licensing scheme:
+ *
+ * 1) commercially according to a contract between the Licensee and ScientiaMobile Inc. (Licensor).
+ *    If you represent the Licensee, please refer to the licensing agreement which has been signed
+ *    between the two parties. If you do not represent the Licensee, you are not authorized to use
+ *    this software in any way.
+ *
+ * 2) LGPL when used in the context of the HAProxy project with the purpose of testing compatibility
+ *    of HAProxy with ScientiaMobile software.
  *
  */
 
