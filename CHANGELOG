@@ -1,6 +1,9 @@
 ChangeLog :
 ===========
 
+2022/12/01 : 2.8-dev0
+    - MINOR: version: mention that it's development again
+
 2022/12/01 : 2.7.0
     - MINOR: ssl: forgotten newline in error messages on ca-file
     - BUG/MINOR: ssl: shut the ca-file errors emitted during httpclient init
