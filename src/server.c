@@ -3314,7 +3314,7 @@ const char *srv_update_addr_port(struct server *s, const char *addr, const char 
 		/* applying ADDR changes if required and allowed
 		 * ipcmp returns 0 when both ADDR are the same
 		 */
-		if (ipcmp(&s->addr, &sa) == 0) {
+		if (ipcmp(&s->addr, &sa, 0) == 0) {
 			chunk_appendf(msg, "no need to change the addr");
 			goto port;
 		}

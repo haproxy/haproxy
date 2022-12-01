@@ -775,11 +775,13 @@ extern void v4tov6(struct in6_addr *sin6_addr, struct in_addr *sin_addr);
  */
 extern int v6tov4(struct in_addr *sin_addr, struct in6_addr *sin6_addr);
 
-/* compare two struct sockaddr_storage and return:
+/* compare two struct sockaddr_storage, including port if <check_port> is true,
+ * and return:
  *  0 (true)  if the addr is the same in both
  *  1 (false) if the addr is not the same in both
+ *  -1 (unable) if one of the addr is not AF_INET*
  */
-int ipcmp(struct sockaddr_storage *ss1, struct sockaddr_storage *ss2);
+int ipcmp(struct sockaddr_storage *ss1, struct sockaddr_storage *ss2, int check_port);
 
 /* compare a struct sockaddr_storage to a struct net_addr and return :
  *  0 (true)  if <addr> is matching <net>
