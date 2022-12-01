@@ -581,6 +581,15 @@ static int quic_test_sock_per_conn_support(struct listener *l)
 	const struct receiver *rx = &l->rx;
 	int ret = 1, fdtest;
 
+	/* Check if IP destination address can be retrieved on recvfrom()
+	 * operation.
+	 */
+#if !defined(IP_PKTINFO) && !defined(IP_RECVDSTADDR)
+	ha_alert("Your platform does not seem to support UDP source address retrieval through IP_PKTINFO or an alternative flag. "
+	         "QUIC connections will use listener socket.\n");
+	ret = 0;
+#endif
+
 	/* Check if platform support multiple UDP sockets bind on the same
 	 * local address. Create a dummy socket and bind it on the same address
 	 * as <l> listener. If bind system call fails, deactivate socket per
