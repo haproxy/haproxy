@@ -1932,12 +1932,18 @@ static void init(int argc, char **argv)
 	struct pre_check_fct *prcf;
 	int ideal_maxconn;
 
-#if defined(USE_OPENSSL) && (HA_OPENSSL_VERSION_NUMBER < 0x1010000fL)
+#ifdef USE_OPENSSL
+#ifdef USE_OPENSSL_WOLFSSL
+        wolfSSL_Init();
+        wolfSSL_Debugging_ON();
+#endif
+#if (HA_OPENSSL_VERSION_NUMBER < 0x1010000fL)
 	/* Initialize the error strings of OpenSSL
 	 * It only needs to be done explicitly with older versions of the SSL
 	 * library. On newer versions, errors strings are loaded during start
 	 * up. */
 	SSL_load_error_strings();
+#endif
 #endif
 
 	startup_logs_init();
@@ -2308,11 +2314,6 @@ static void init(int argc, char **argv)
 	}
 
 #ifdef USE_OPENSSL
-#ifdef USE_OPENSSL_WOLFSSL
-        wolfSSL_Init();
-        wolfSSL_Debugging_ON();
-#endif
-
 
 	/* Initialize SSL random generator. Must be called before chroot for
 	 * access to /dev/urandom, and before ha_random_boot() which may use
