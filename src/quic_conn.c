@@ -6312,6 +6312,37 @@ static int qc_rx_check_closing(struct quic_conn *qc,
 	return 1;
 }
 
+/* React to a connection migration initiated on <qc> by a client with the new
+ * path addresses <peer_addr>/<local_addr>.
+ *
+ * Returns 0 on success else non-zero.
+ */
+static int qc_handle_conn_migration(struct quic_conn *qc,
+                                    const struct sockaddr_storage *peer_addr,
+                                    const struct sockaddr_storage *local_addr)
+{
+	TRACE_ENTER(QUIC_EV_CONN_LPKT, qc);
+
+	/* RFC 9000 9. Connection Migration
+	 *
+	 * TODO
+	 * An endpoint MUST
+	 * perform path validation (Section 8.2) if it detects any change to a
+	 * peer's address, unless it has previously validated that address.
+	 */
+
+	qc->local_addr = *local_addr;
+	qc->peer_addr = *peer_addr;
+	HA_ATOMIC_INC(&qc->prx_counters->conn_migration_done);
+
+	TRACE_LEAVE(QUIC_EV_CONN_LPKT, qc);
+	return 0;
+
+ err:
+	TRACE_LEAVE(QUIC_EV_CONN_LPKT, qc);
+	return 1;
+}
+
 /* Handle a parsed packet <pkt> by the connection <qc>. Data will be copied
  * into <qc> receive buffer after header protection removal procedure.
  *
@@ -7313,6 +7344,17 @@ int quic_dgram_parse(struct quic_dgram *dgram, struct quic_conn *from_qc,
 			/* Skip the entire datagram. */
 			pkt->len = end - pos;
 			goto next;
+		}
+
+		/* Detect QUIC connection migration. */
+		if (ipcmp(&qc->peer_addr, &dgram->saddr, 1) ||
+		    ipcmp(&qc->local_addr, &dgram->daddr, 1)) {
+			if (qc_handle_conn_migration(qc, &dgram->saddr, &dgram->daddr)) {
+				/* Skip the entire datagram. */
+				TRACE_ERROR("error during connection migration, datagram dropped", QUIC_EV_CONN_LPKT, qc);
+				pkt->len = end - pos;
+				goto next;
+			}
 		}
 
 		qc_rx_pkt_handle(qc, pkt, dgram, pos, &tasklist_head);

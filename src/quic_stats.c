@@ -33,6 +33,9 @@ static struct name_desc quic_stats[] = {
 	                                  .desc = "Total number of handshake failures" },
 	[QUIC_ST_STATELESS_RESET_SENT] = { .name = "quic_stless_rst_sent",
 	                                  .desc = "Total number of stateless reset packet sent" },
+	/* Special events of interest */
+	[QUIC_ST_CONN_MIGRATION_DONE] = { .name = "quic_conn_migration_done",
+	                                  .desc = "Total number of connection migration proceeded" },
 	/* Transport errors */
 	[QUIC_ST_TRANSP_ERR_NO_ERROR] = { .name = "quic_transp_err_no_error",
 	                                  .desc = "Total number of NO_ERROR errors received" },
@@ -104,6 +107,8 @@ static void quic_fill_stats(void *data, struct field *stats)
 	stats[QUIC_ST_HALF_OPEN_CONN]    = mkf_u64(FN_GAUGE, counters->half_open_conn);
 	stats[QUIC_ST_HDSHK_FAIL]        = mkf_u64(FN_COUNTER, counters->hdshk_fail);
 	stats[QUIC_ST_STATELESS_RESET_SENT] = mkf_u64(FN_COUNTER, counters->stateless_reset_sent);
+	/* Special events of interest */
+	stats[QUIC_ST_CONN_MIGRATION_DONE] = mkf_u64(FN_COUNTER, counters->conn_migration_done);
 	/* Transport errors */
 	stats[QUIC_ST_TRANSP_ERR_NO_ERROR]           = mkf_u64(FN_COUNTER, counters->quic_transp_err_no_error);
 	stats[QUIC_ST_TRANSP_ERR_INTERNAL_ERROR]     = mkf_u64(FN_COUNTER, counters->quic_transp_err_internal_error);

@@ -24,6 +24,8 @@ enum {
 	QUIC_ST_HALF_OPEN_CONN,
 	QUIC_ST_HDSHK_FAIL,
 	QUIC_ST_STATELESS_RESET_SENT,
+	/* Special events of interest */
+	QUIC_ST_CONN_MIGRATION_DONE,
 	/* Transport errors */
 	QUIC_ST_TRANSP_ERR_NO_ERROR,
 	QUIC_ST_TRANSP_ERR_INTERNAL_ERROR,
@@ -68,6 +70,8 @@ struct quic_counters {
 	long long half_open_conn;    /* total number of half open connections */
 	long long hdshk_fail;        /* total number of handshake failures */
 	long long stateless_reset_sent; /* total number of handshake failures */
+	/* Special events of interest */
+	long long conn_migration_done; /* total number of connection migration handled */
 	/* Transport errors */
 	long long quic_transp_err_no_error; /* total number of NO_ERROR connection errors */
 	long long quic_transp_err_internal_error; /* total number of INTERNAL_ERROR connection errors */
