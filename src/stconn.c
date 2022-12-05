@@ -518,7 +518,7 @@ static void sc_app_shutr(struct stconn *sc)
 		if (sc->flags & SC_FL_ISBACK)
 			__sc_strm(sc)->conn_exp = TICK_ETERNITY;
 	}
-	else if (sc->flags & SC_FL_NOHALF) {
+	else if ((sc->flags & SC_FL_NOHALF) && channel_is_empty(ic)) {
 		/* we want to immediately forward this close to the write side */
 		return sc_app_shutw(sc);
 	}
@@ -662,7 +662,7 @@ static void sc_app_shutr_conn(struct stconn *sc)
 		if (sc->flags & SC_FL_ISBACK)
 			__sc_strm(sc)->conn_exp = TICK_ETERNITY;
 	}
-	else if (sc->flags & SC_FL_NOHALF) {
+	else if ((sc->flags & SC_FL_NOHALF) && channel_is_empty(ic)) {
 		/* we want to immediately forward this close to the write side */
 		return sc_app_shutw_conn(sc);
 	}
@@ -890,7 +890,7 @@ static void sc_app_shutr_applet(struct stconn *sc)
 		if (sc->flags & SC_FL_ISBACK)
 			__sc_strm(sc)->conn_exp = TICK_ETERNITY;
 	}
-	else if (sc->flags & SC_FL_NOHALF) {
+	else if ((sc->flags & SC_FL_NOHALF) && channel_is_empty(ic)) {
 		/* we want to immediately forward this close to the write side */
 		return sc_app_shutw_applet(sc);
 	}
@@ -1249,7 +1249,7 @@ static void sc_conn_read0(struct stconn *sc)
 	if (oc->flags & CF_SHUTW)
 		goto do_close;
 
-	if (sc->flags & SC_FL_NOHALF) {
+	if ((sc->flags & SC_FL_NOHALF) && channel_is_empty(ic)) {
 		/* we want to immediately forward this close to the write side */
 		/* force flag on ssl to keep stream in cache */
 		sc_conn_shutw(sc, CO_SHW_SILENT);
