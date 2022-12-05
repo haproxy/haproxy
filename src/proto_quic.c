@@ -598,7 +598,7 @@ static int quic_test_sock_per_conn_support(struct listener *l)
 	if (ret) {
 		fdtest = socket(rx->proto->fam->sock_domain,
 		                rx->proto->sock_type, rx->proto->sock_prot);
-		if (fdtest > 0) {
+		if (fdtest >= 0) {
 			if (setsockopt(fdtest, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one)) &&
 			    bind(fdtest, (struct sockaddr *)&rx->addr, rx->proto->fam->sock_addrlen) < 0) {
 				ha_alert("Your platform does not seem to support multiple UDP sockets binded on the same address. "
