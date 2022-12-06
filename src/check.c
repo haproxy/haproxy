@@ -634,7 +634,6 @@ void check_notify_stopping(struct check *check)
 void __health_adjust(struct server *s, short status)
 {
 	int failed;
-	int expire;
 
 	if (s->observe >= HANA_OBS_SIZE)
 		return;
@@ -668,11 +667,6 @@ void __health_adjust(struct server *s, short status)
 
 	chunk_printf(&trash, "Detected %d consecutive errors, last one was: %s",
 	             s->consecutive_errors, get_analyze_status(status));
-
-	if (s->check.fastinter)
-		expire = tick_add(now_ms, MS_TO_TICKS(s->check.fastinter));
-	else
-		expire = TICK_ETERNITY;
 
 	HA_SPIN_LOCK(SERVER_LOCK, &s->lock);
 
@@ -713,9 +707,12 @@ void __health_adjust(struct server *s, short status)
 	s->consecutive_errors = 0;
 	_HA_ATOMIC_INC(&s->counters.failed_hana);
 
-	if (tick_isset(expire) && tick_is_lt(expire, s->check.task->expire)) {
-		/* requeue check task with new expire */
-		task_schedule(s->check.task, expire);
+	if (s->check.fastinter) {
+		/* timer might need to be advanced, it might also already be
+		 * running in another thread. Let's just wake the task up, it
+		 * will automatically adjust its timer.
+		 */
+		task_wakeup(s->check.task, TASK_WOKEN_MSG);
 	}
 }
 
