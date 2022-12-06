@@ -1138,8 +1138,21 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 		TRACE_STATE("health-check state to purge", CHK_EV_TASK_WAKE, check);
 	}
 	else if (!(check->state & (CHK_ST_INPROGRESS))) {
-		/* no check currently running */
+		/* no check currently running, but we might have been woken up
+		 * before the timer's expiration to update it according to a
+		 * new state (e.g. fastinter), in which case we'll reprogram
+		 * the new timer.
+		 */
 		if (!expired) /* woke up too early */ {
+			if (check->server) {
+				int new_exp = tick_add(now_ms, MS_TO_TICKS(srv_getinter(check)));
+
+				if (tick_is_expired(new_exp, t->expire)) {
+					TRACE_STATE("health-check was advanced", CHK_EV_TASK_WAKE, check);
+					goto update_timer;
+				}
+			}
+
 			TRACE_STATE("health-check wake up too early", CHK_EV_TASK_WAKE, check);
 			goto out_unlock;
 		}
@@ -1264,6 +1277,7 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 	check->state &= ~(CHK_ST_INPROGRESS|CHK_ST_IN_ALLOC|CHK_ST_OUT_ALLOC);
 	check->state |= CHK_ST_SLEEPING;
 
+ update_timer:
 	if (check->server) {
 		rv = 0;
 		if (global.spread_checks > 0) {
