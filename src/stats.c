@@ -2330,7 +2330,7 @@ int stats_fill_sv_stats(struct proxy *px, struct server *sv, int flags,
 			case ST_F_CHECK_DURATION:
 				if ((sv->check.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED &&
 					sv->check.status >= HCHK_STATUS_CHECKED)
-					metric = mkf_u64(FN_DURATION, sv->check.duration);
+					metric = mkf_u64(FN_DURATION, MAX(sv->check.duration, 0));
 				break;
 			case ST_F_CHECK_DESC:
 				if ((sv->check.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED)
