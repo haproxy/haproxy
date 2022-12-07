@@ -155,6 +155,9 @@ static void qcs_free(struct qcs *qcs)
 
 	TRACE_ENTER(QMUX_EV_QCS_END, qcc->conn, qcs);
 
+	if (LIST_INLIST(&qcs->el_opening))
+		LIST_DELETE(&qcs->el_opening);
+
 	qc_free_ncbuf(qcs, &qcs->rx.ncbuf);
 	b_free(&qcs->tx.buf);
 
