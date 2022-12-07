@@ -511,7 +511,7 @@ void set_server_check_status(struct check *check, short status, const char *desc
 
 		/* clear consecutive_errors if observing is enabled */
 		if (s->onerror)
-			s->consecutive_errors = 0;
+			HA_ATOMIC_STORE(&s->consecutive_errors, 0);
 		break;
 
 	default:
@@ -656,17 +656,15 @@ void __health_adjust(struct server *s, short status)
 
 	if (!failed) {
 		/* good: clear consecutive_errors */
-		s->consecutive_errors = 0;
+		HA_ATOMIC_STORE(&s->consecutive_errors, 0);
 		return;
 	}
 
-	_HA_ATOMIC_INC(&s->consecutive_errors);
-
-	if (s->consecutive_errors < s->consecutive_errors_limit)
+	if (HA_ATOMIC_ADD_FETCH(&s->consecutive_errors, 1) < s->consecutive_errors_limit)
 		return;
 
 	chunk_printf(&trash, "Detected %d consecutive errors, last one was: %s",
-	             s->consecutive_errors, get_analyze_status(status));
+	             HA_ATOMIC_LOAD(&s->consecutive_errors), get_analyze_status(status));
 
 	HA_SPIN_LOCK(SERVER_LOCK, &s->lock);
 
@@ -709,7 +707,7 @@ void __health_adjust(struct server *s, short status)
 
 	HA_SPIN_UNLOCK(SERVER_LOCK, &s->lock);
 
-	s->consecutive_errors = 0;
+	HA_ATOMIC_STORE(&s->consecutive_errors, 0);
 	_HA_ATOMIC_INC(&s->counters.failed_hana);
 
 	if (s->check.fastinter) {
