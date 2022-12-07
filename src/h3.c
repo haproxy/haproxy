@@ -352,7 +352,27 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 	//struct ist scheme = IST_NULL, authority = IST_NULL;
 	struct ist authority = IST_NULL;
 	int hdr_idx, ret;
-	int cookie = -1, last_cookie = -1;
+	int cookie = -1, last_cookie = -1, i;
+
+	/* RFC 9114 4.1.2. Malformed Requests and Responses
+	 *
+	 * A malformed request or response is one that is an otherwise valid
+	 * sequence of frames but is invalid due to:
+	 * - the presence of prohibited fields or pseudo-header fields,
+	 * - the absence of mandatory pseudo-header fields,
+	 * - invalid values for pseudo-header fields,
+	 * - pseudo-header fields after fields,
+	 * - an invalid sequence of HTTP messages,
+	 * - the inclusion of uppercase field names, or
+	 * - the inclusion of invalid characters in field names or values.
+	 *
+	 * [...]
+	 *
+	 * Intermediaries that process HTTP requests or responses (i.e., any
+	 * intermediary not acting as a tunnel) MUST NOT forward a malformed
+	 * request or response. Malformed requests or responses that are
+	 * detected MUST be treated as a stream error of type H3_MESSAGE_ERROR.
+	 */
 
 	TRACE_ENTER(H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
 
@@ -415,6 +435,14 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 	while (1) {
 		if (isteq(list[hdr_idx].n, ist("")))
 			break;
+
+		for (i = 0; i < list[hdr_idx].n.len; ++i) {
+			const char c = list[hdr_idx].n.ptr[i];
+			if ((uint8_t)(c - 'A') < 'Z' - 'A' || !HTTP_IS_TOKEN(c)) {
+				TRACE_ERROR("invalid characters in field name", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+				return -1;
+			}
+		}
 
 		if (isteq(list[hdr_idx].n, ist("cookie"))) {
 			http_cookie_register(list, hdr_idx, &cookie, &last_cookie);
