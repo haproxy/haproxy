@@ -349,8 +349,7 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 	struct http_hdr list[global.tune.max_http_hdr];
 	unsigned int flags = HTX_SL_F_NONE;
 	struct ist meth = IST_NULL, path = IST_NULL;
-	//struct ist scheme = IST_NULL, authority = IST_NULL;
-	struct ist authority = IST_NULL;
+	struct ist scheme = IST_NULL, authority = IST_NULL;
 	int hdr_idx, ret;
 	int cookie = -1, last_cookie = -1, i;
 
@@ -395,22 +394,72 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 	/* first treat pseudo-header to build the start line */
 	hdr_idx = 0;
 	while (1) {
-		if (isteq(list[hdr_idx].n, ist("")))
+		/* RFC 9114 4.3. HTTP Control Data
+		 *
+		 * Endpoints MUST treat a request or response that contains
+		 * undefined or invalid pseudo-header fields as malformed.
+		 *
+		 * All pseudo-header fields MUST appear in the header section before
+		 * regular header fields. Any request or response that contains a
+		 * pseudo-header field that appears in a header section after a regular
+		 * header field MUST be treated as malformed.
+		 */
+
+		/* Stop at first non pseudo-header. */
+		if (!istmatch(list[hdr_idx].n, ist(":")))
 			break;
 
-		if (istmatch(list[hdr_idx].n, ist(":"))) {
-			/* pseudo-header */
-			if (isteq(list[hdr_idx].n, ist(":method")))
-				meth = list[hdr_idx].v;
-			else if (isteq(list[hdr_idx].n, ist(":path")))
-				path = list[hdr_idx].v;
-			//else if (isteq(list[hdr_idx].n, ist(":scheme")))
-			//	scheme = list[hdr_idx].v;
-			else if (isteq(list[hdr_idx].n, ist(":authority")))
-				authority = list[hdr_idx].v;
+		/* pseudo-header. Malformed name with uppercase character or
+		 * invalid token will be rejected in the else clause.
+		 */
+		if (isteq(list[hdr_idx].n, ist(":method"))) {
+			if (isttest(meth)) {
+				TRACE_ERROR("duplicated method pseudo-header", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+				return -1;
+			}
+			meth = list[hdr_idx].v;
+		}
+		else if (isteq(list[hdr_idx].n, ist(":path"))) {
+			if (isttest(path)) {
+				TRACE_ERROR("duplicated path pseudo-header", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+				return -1;
+			}
+			path = list[hdr_idx].v;
+		}
+		else if (isteq(list[hdr_idx].n, ist(":scheme"))) {
+			if (isttest(scheme)) {
+				/* duplicated pseudo-header */
+				TRACE_ERROR("duplicated scheme pseudo-header", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+				return -1;
+			}
+			scheme = list[hdr_idx].v;
+		}
+		else if (isteq(list[hdr_idx].n, ist(":authority"))) {
+			if (isttest(authority)) {
+				TRACE_ERROR("duplicated authority pseudo-header", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+				return -1;
+			}
+			authority = list[hdr_idx].v;
+		}
+		else {
+			TRACE_ERROR("unknown pseudo-header", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+			return -1;
 		}
 
 		++hdr_idx;
+	}
+
+	if (!istmatch(meth, ist("CONNECT"))) {
+		/* RFC 9114 4.3.1. Request Pseudo-Header Fields
+		 *
+		 * All HTTP/3 requests MUST include exactly one value for the :method,
+		 * :scheme, and :path pseudo-header fields, unless the request is a
+		 * CONNECT request; see Section 4.4.
+		 */
+		if (!isttest(meth) || !isttest(scheme) || !isttest(path)) {
+			TRACE_ERROR("missing mandatory pseudo-header", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+			return -1;
+		}
 	}
 
 	flags |= HTX_SL_F_VER_11;
@@ -431,10 +480,14 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 		htx_add_header(htx, ist("host"), authority);
 
 	/* now treat standard headers */
-	hdr_idx = 0;
 	while (1) {
 		if (isteq(list[hdr_idx].n, ist("")))
 			break;
+
+		if (istmatch(list[hdr_idx].n, ist(":"))) {
+			TRACE_ERROR("pseudo-header field after fields", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+			return -1;
+		}
 
 		for (i = 0; i < list[hdr_idx].n.len; ++i) {
 			const char c = list[hdr_idx].n.ptr[i];
@@ -449,9 +502,7 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 			continue;
 		}
 
-		if (!istmatch(list[hdr_idx].n, ist(":")))
-			htx_add_header(htx, list[hdr_idx].n, list[hdr_idx].v);
-
+		htx_add_header(htx, list[hdr_idx].n, list[hdr_idx].v);
 		++hdr_idx;
 	}
 
