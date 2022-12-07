@@ -154,7 +154,7 @@ encoded integer value |
 
 - for other key type
 
-The value length is annonced in table definition message
+The value length is announced in table definition message
 0 ....................
 value
 

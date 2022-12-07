@@ -364,7 +364,7 @@ Core class
   Returns HAProxy core information. We can find information like the uptime,
   the pid, memory pool usage, tasks number, ...
 
-  These informations are also returned by the management socket via the command
+  This information is also returned by the management socket via the command
   "show info". See the management socket documentation for more information
   about the content of these variables.
 

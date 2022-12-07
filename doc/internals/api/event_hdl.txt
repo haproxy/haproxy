@@ -874,7 +874,7 @@ If EVENT_HDL_ASYNC_EVENT_DATA is not big enough to store your new
 event family struct, a compilation assert triggered by EVENT_HDL_CB_DATA
 will occur. In addition to this, an extra runtime BUG_ON will make
 sure the condition is met when publishing the event.
-The goal here is to force haproxy to fail explicitely so you know that
+The goal here is to force haproxy to fail explicitly so you know that
 something must be done on your side.
 
 3.1 PUBLISHING AN EVENT

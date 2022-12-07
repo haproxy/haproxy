@@ -1435,7 +1435,7 @@ static int quic_packet_encrypt(unsigned char *payload, size_t payload_len,
 /* Decrypt <pkt> packet using encryption level <qel> for <qc> connection.
  * Decryption is done in place in packet buffer.
  *
- * Returns 1 on sucess else 0.
+ * Returns 1 on success else 0.
  */
 static int qc_pkt_decrypt(struct quic_conn *qc, struct quic_enc_level *qel,
                           struct quic_rx_packet *pkt)

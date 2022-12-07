@@ -3104,7 +3104,7 @@ tune.quic.socket-owner { listener | connection }
   The "listener" value indicates that QUIC transfers will occur on the shared
   listener socket. This option can be a good compromise for small traffic as it
   allows to reduce FD consumption. However, performance won't be optimal due to
-  a higher CPU usage if listeners are shared accross a lot of threads or a
+  a higher CPU usage if listeners are shared across a lot of threads or a
   large number of QUIC connections can be used simultaneously.
 
 tune.rcvbuf.client <number>

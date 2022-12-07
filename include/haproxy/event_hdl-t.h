@@ -226,7 +226,7 @@ struct event_hdl_sub {
 /*	---------------------------------------        */
 
 /* user defined event types are listed here
- * please reflect any change in theses macros in the subtype map
+ * please reflect any change in these macros in the subtype map
  * defined below that is used to perform string to event type and
  * event type to string conversions
  */

@@ -252,7 +252,7 @@
        |      4     | Heartbeat message.                                     |
        +------------+--------------------------------------------------------+
 
-     About hearbeat messages: a peer sends heartbeat messages to peers it is
+     About heartbeat messages: a peer sends heartbeat messages to peers it is
      connected to after periods of 3s of inactivity (i.e. when there is no
      stick-table to synchronize for 3s). After a successful peer protocol
      handshake between two peers, if one of them does not send any other peer
