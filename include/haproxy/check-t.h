@@ -57,6 +57,7 @@ enum chk_result {
 #define CHK_ST_CLOSE_CONN       0x0100  /* check is waiting that the connection gets closed */
 #define CHK_ST_PURGE            0x0200  /* check must be freed */
 #define CHK_ST_SLEEPING         0x0400  /* check was sleeping */
+#define CHK_ST_FASTINTER        0x0800  /* force fastinter check */
 
 /* check status */
 enum healthcheck_status {

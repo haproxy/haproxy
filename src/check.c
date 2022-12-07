@@ -670,6 +670,11 @@ void __health_adjust(struct server *s, short status)
 
 	HA_SPIN_LOCK(SERVER_LOCK, &s->lock);
 
+	/* force fastinter for upcoming check
+	 * (does nothing if fastinter is not enabled)
+	 */
+	s->check.state |= CHK_ST_FASTINTER;
+
 	switch (s->onerror) {
 		case HANA_ONERR_FASTINTER:
 		/* force fastinter - nothing to do here as all modes force it */
@@ -1285,6 +1290,10 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 			rv -= (int) (2 * rv * (statistical_prng() / 4294967295.0));
 		}
 		t->expire = tick_add(now_ms, MS_TO_TICKS(srv_getinter(check) + rv));
+		/* reset fastinter flag (if set) so that srv_getinter()
+		 * only returns fastinter if server health is degraded
+		 */
+		check->state &= ~CHK_ST_FASTINTER;
 	}
 
  reschedule:
