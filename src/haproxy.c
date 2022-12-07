@@ -877,6 +877,17 @@ void reexec_on_failure()
 	mworker_reexec_waitmode();
 }
 
+/*
+ * Exit with an error message upon a wait-mode failure.
+ */
+void exit_on_waitmode_failure()
+{
+	if (!atexit_flag)
+		return;
+
+	ha_alert("Non-recoverable mworker wait-mode error, exiting.\n");
+}
+
 
 /*
  * upon SIGUSR1, let's have a soft stop. Note that soft_stop() broadcasts
@@ -1970,10 +1981,17 @@ static void init(int argc, char **argv)
 		global.mode &= ~MODE_MWORKER;
 	}
 
-	if ((global.mode & (MODE_MWORKER | MODE_CHECK | MODE_CHECK_CONDITION)) == MODE_MWORKER &&
-	    (getenv("HAPROXY_MWORKER_REEXEC") != NULL)) {
-		atexit_flag = 1;
-		atexit(reexec_on_failure);
+	/* set the atexit functions when not doing configuration check */
+	if (!(global.mode & (MODE_CHECK | MODE_CHECK_CONDITION))
+	    && (getenv("HAPROXY_MWORKER_REEXEC") != NULL)) {
+
+		if (global.mode & MODE_MWORKER) {
+			atexit_flag = 1;
+			atexit(reexec_on_failure);
+		} else if (global.mode & MODE_MWORKER_WAIT) {
+			atexit_flag = 1;
+			atexit(exit_on_waitmode_failure);
+		}
 	}
 
 	if (change_dir && chdir(change_dir) < 0) {
