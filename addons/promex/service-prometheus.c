@@ -303,6 +303,7 @@ const struct promex_metric promex_st_metrics[ST_F_TOTAL_FIELDS] = {
 	[ST_F_UWEIGHT]              = { .n = IST("uweight"),                          .type = PROMEX_MT_GAUGE,    .flags = (                                               PROMEX_FL_BACK_METRIC | PROMEX_FL_SRV_METRIC) },
 	[ST_F_AGG_SRV_CHECK_STATUS] = { .n = IST("agg_server_check_status"),	      .type = PROMEX_MT_GAUGE,    .flags = (                                               PROMEX_FL_BACK_METRIC                       ) },
 	[ST_F_AGG_SRV_STATUS ]      = { .n = IST("agg_server_status"),	              .type = PROMEX_MT_GAUGE,    .flags = (                                               PROMEX_FL_BACK_METRIC                       ) },
+	[ST_F_AGG_CHECK_STATUS]     = { .n = IST("agg_check_status"),	              .type = PROMEX_MT_GAUGE,    .flags = (                                               PROMEX_FL_BACK_METRIC                       ) },
 };
 
 /* Description of overridden stats fields */
@@ -812,6 +813,7 @@ static int promex_dump_back_metrics(struct appctx *appctx, struct htx *htx)
 	double secs;
 	enum promex_back_state bkd_state;
 	enum promex_srv_state srv_state;
+	enum healthcheck_status srv_check_status;
 
 	for (;ctx->field_num < ST_F_TOTAL_FIELDS; ctx->field_num++) {
 		if (!(promex_st_metrics[ctx->field_num].flags & ctx->flags))
@@ -820,6 +822,8 @@ static int promex_dump_back_metrics(struct appctx *appctx, struct htx *htx)
 		while (ctx->px) {
 			struct promex_label labels[PROMEX_MAX_LABELS-1] = {};
 			unsigned int srv_state_count[PROMEX_SRV_STATE_COUNT] = { 0 };
+			unsigned int srv_check_count[HCHK_STATUS_SIZE] = { 0 };
+			const char *check_state;
 
 			px = ctx->px;
 
@@ -848,6 +852,28 @@ static int promex_dump_back_metrics(struct appctx *appctx, struct htx *htx)
 						val = mkf_u32(FN_GAUGE, srv_state_count[ctx->obj_state]);
 						labels[1].name = ist("state");
 						labels[1].value = promex_srv_st[ctx->obj_state];
+						if (!promex_dump_metric(appctx, htx, prefix, &promex_st_metrics[ctx->field_num],
+									&val, labels, &out, max))
+							goto full;
+					}
+					ctx->obj_state = 0;
+					goto next_px;
+				case ST_F_AGG_CHECK_STATUS:
+					if (!px->srv)
+						goto next_px;
+					sv = px->srv;
+					while (sv) {
+						srv_check_status = sv->check.status;
+						srv_check_count[srv_check_status] += 1;
+						sv = sv->next;
+					}
+					for (; ctx->obj_state < HCHK_STATUS_SIZE; ctx->obj_state++) {
+						if (get_check_status_result(ctx->obj_state) < CHK_RES_FAILED)
+								continue;
+						val = mkf_u32(FO_STATUS, srv_check_count[ctx->obj_state]);
+						check_state = get_check_status_info(ctx->obj_state);
+						labels[1].name = ist("state");
+						labels[1].value = ist(check_state);
 						if (!promex_dump_metric(appctx, htx, prefix, &promex_st_metrics[ctx->field_num],
 									&val, labels, &out, max))
 							goto full;

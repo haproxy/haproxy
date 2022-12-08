@@ -457,6 +457,7 @@ enum stat_field {
 	ST_F_UWEIGHT,
 	ST_F_AGG_SRV_STATUS,
 	ST_F_AGG_SRV_CHECK_STATUS,
+	ST_F_AGG_CHECK_STATUS,
 	ST_F_SRID,
 
 	/* must always be the last one */
