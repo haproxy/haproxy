@@ -2227,6 +2227,7 @@ static void init(int argc, char **argv)
 		exit(1);
 	}
 
+	/* Note: global.nbthread will be initialized as part of this call */
 	err_code |= check_config_validity();
 	for (px = proxies_list; px; px = px->next) {
 		struct server *srv;
@@ -2597,9 +2598,6 @@ static void init(int argc, char **argv)
 		ha_warning("<debug> mode incompatible with <quiet> and <daemon>. Keeping <debug> only.\n");
 		global.mode &= ~(MODE_DAEMON | MODE_QUIET);
 	}
-
-	if (global.nbthread < 1)
-		global.nbthread = 1;
 
 	/* Realloc trash buffers because global.tune.bufsize may have changed */
 	if (!init_trash_buffers(0)) {
