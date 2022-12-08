@@ -1052,6 +1052,17 @@ int pool_parse_debugging(const char *str, char **err)
 					  dbg_options[v].clr,
 					  dbg_options[v].hlp);
 			}
+
+			memprintf(err,
+			          "%s  -----------------+-----------------+-----------------------------------------\n"
+				  "Examples:\n"
+				  "  Disable merging and enable poisonning with byte 'P': -dM0x50,no-merge\n"
+				  "  Randomly fail allocations: -dMfail\n"
+				  "  Detect out-of-bound corruptions: -dMno-merge,tag\n"
+				  "  Detect post-free cache corruptions: -dMno-merge,cold-first,integrity,caller\n"
+				  "  Detect all cache corruptions: -dMno-merge,cold-first,integrity,tag,caller\n"
+				  "  Detect post-free cache corruptions: -dMno-merge,cold-first,integrity,caller\n",
+			          *err);
 			return -1;
 		}
 
