@@ -2797,6 +2797,16 @@ int check_config_validity()
 #endif
 			global.nbthread = numa_cores ? numa_cores :
 			                               thread_cpus_enabled_at_boot;
+
+			/* Note that we cannot have more than 32 or 64 threads per group */
+			if (!global.nbtgroups)
+				global.nbtgroups = 1;
+
+			if (global.nbthread > MAX_THREADS_PER_GROUP * global.nbtgroups) {
+				ha_diag_warning("nbthread not set, found %d CPUs, limiting to %d threads (maximum is %d per thread group). Please set nbthreads and/or increase thread-groups in the global section to silence this warning.\n",
+					   global.nbthread, MAX_THREADS_PER_GROUP * global.nbtgroups, MAX_THREADS_PER_GROUP);
+				global.nbthread = MAX_THREADS_PER_GROUP * global.nbtgroups;
+			}
 		}
 #endif
 	}
