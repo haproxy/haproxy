@@ -10,7 +10,6 @@
  *
  */
 
-#include <sys/mman.h>
 #include <errno.h>
 
 #include <haproxy/activity.h>
@@ -336,7 +335,12 @@ struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
 void *pool_get_from_os(struct pool_head *pool)
 {
 	if (!pool->limit || pool->allocated < pool->limit) {
-		void *ptr = pool_alloc_area(pool->alloc_sz);
+		void *ptr;
+#ifdef DEBUG_UAF
+		ptr = pool_alloc_area_uaf(pool->alloc_sz);
+#else
+		ptr = pool_alloc_area(pool->alloc_sz);
+#endif
 		if (ptr) {
 			_HA_ATOMIC_INC(&pool->allocated);
 			return ptr;
@@ -353,7 +357,11 @@ void *pool_get_from_os(struct pool_head *pool)
  */
 void pool_put_to_os(struct pool_head *pool, void *ptr)
 {
+#ifdef DEBUG_UAF
+	pool_free_area_uaf(ptr, pool->alloc_sz);
+#else
 	pool_free_area(ptr, pool->alloc_sz);
+#endif
 	_HA_ATOMIC_DEC(&pool->allocated);
 }
 
@@ -786,63 +794,6 @@ void __pool_free(struct pool_head *pool, void *ptr)
 
 	pool_put_to_cache(pool, ptr, caller);
 }
-
-
-#ifdef DEBUG_UAF
-
-/************* use-after-free allocator *************/
-
-/* allocates an area of size <size> and returns it. The semantics are similar
- * to those of malloc(). However the allocation is rounded up to 4kB so that a
- * full page is allocated. This ensures the object can be freed alone so that
- * future dereferences are easily detected. The returned object is always
- * 16-bytes aligned to avoid issues with unaligned structure objects. In case
- * some padding is added, the area's start address is copied at the end of the
- * padding to help detect underflows.
- */
-void *pool_alloc_area_uaf(size_t size)
-{
-	size_t pad = (4096 - size) & 0xFF0;
-	void *ret;
-
-	ret = mmap(NULL, (size + 4095) & -4096, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
-	if (ret != MAP_FAILED) {
-		/* let's dereference the page before returning so that the real
-		 * allocation in the system is performed without holding the lock.
-		 */
-		*(int *)ret = 0;
-		if (pad >= sizeof(void *))
-			*(void **)(ret + pad - sizeof(void *)) = ret + pad;
-		ret += pad;
-	} else {
-		ret = NULL;
-	}
-	return ret;
-}
-
-/* frees an area <area> of size <size> allocated by pool_alloc_area(). The
- * semantics are identical to free() except that the size must absolutely match
- * the one passed to pool_alloc_area(). In case some padding is added, the
- * area's start address is compared to the one at the end of the padding, and
- * a segfault is triggered if they don't match, indicating an underflow.
- */
-void pool_free_area_uaf(void *area, size_t size)
-{
-	size_t pad = (4096 - size) & 0xFF0;
-
-	/* This object will be released for real in order to detect a use after
-	 * free. We also force a write to the area to ensure we crash on double
-	 * free or free of a const area.
-	 */
-	*(uint32_t *)area = 0xDEADADD4;
-
-	if (pad >= sizeof(void *) && *(void **)(area - sizeof(void *)) != area)
-		ABORT_NOW();
-
-	munmap(area - pad, (size + 4095) & -4096);
-}
-
-#endif /* DEBUG_UAF */
 
 /*
  * This function destroys a pool by freeing it completely, unless it's still
