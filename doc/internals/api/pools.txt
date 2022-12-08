@@ -75,9 +75,10 @@ The pools architecture is selected at build time. The main options are:
     accesses. Released objects are instantly freed using munmap() so that any
     immediate subsequent access to the memory area crashes the process if the
     area had not been reallocated yet. This mode can be enabled at build time
-    by setting DEBUG_UAF. It tends to consume a lot of memory and not to scale
-    at all with concurrent calls, that tends to make the system stall. The
-    watchdog may even trigger on some slow allocations.
+    by setting DEBUG_UAF, or at run time by disabling pools and enabling UAF
+    with "-dMuaf". It tends to consume a lot of memory and not to scale at all
+    with concurrent calls, that tends to make the system stall. The watchdog
+    may even trigger on some slow allocations.
 
 There are no more provisions for running with a shared pool but no thread-local
 cache: the shared pool's main goal is to compensate for the expensive calls to
@@ -511,7 +512,9 @@ DEBUG_UAF
         through mmap() and munmap(). The memory usage significantly inflates
         and the performance degrades, but this allows to detect a lot of
         use-after-free conditions by crashing the program at the first abnormal
-        access. This should not be used in production.
+        access. This should not be used in production. It corresponds to
+        boot-time options "-dMuaf". Caching is disabled but may be re-enabled
+        using "-dMcache".
 
 DEBUG_POOL_INTEGRITY
         When enabled, objects picked from the cache are checked for corruption

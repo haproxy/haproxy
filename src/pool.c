@@ -61,6 +61,9 @@ uint pool_debugging __read_mostly =               /* set of POOL_DBG_* flags */
 #if defined(DEBUG_MEMORY_POOLS)
 	POOL_DBG_TAG        |
 #endif
+#if defined(DEBUG_UAF)
+	POOL_DBG_UAF        |
+#endif
 	0;
 
 static const struct {
@@ -79,6 +82,7 @@ static const struct {
 	{ POOL_DBG_CALLER,     "caller",     "no-caller",    "save caller information in cache" },
 	{ POOL_DBG_TAG,        "tag",        "no-tag",       "add tag at end of allocated objects" },
 	{ POOL_DBG_POISON,     "poison",     "no-poison",    "poison newly allocated objects" },
+	{ POOL_DBG_UAF,        "uaf",        "no-uaf",       "enable use-after-free checks (slow)" },
 	{ 0 /* end */ }
 };
 
@@ -336,11 +340,11 @@ void *pool_get_from_os(struct pool_head *pool)
 {
 	if (!pool->limit || pool->allocated < pool->limit) {
 		void *ptr;
-#ifdef DEBUG_UAF
-		ptr = pool_alloc_area_uaf(pool->alloc_sz);
-#else
-		ptr = pool_alloc_area(pool->alloc_sz);
-#endif
+
+		if (pool_debugging & POOL_DBG_UAF)
+			ptr = pool_alloc_area_uaf(pool->alloc_sz);
+		else
+			ptr = pool_alloc_area(pool->alloc_sz);
 		if (ptr) {
 			_HA_ATOMIC_INC(&pool->allocated);
 			return ptr;
@@ -357,11 +361,10 @@ void *pool_get_from_os(struct pool_head *pool)
  */
 void pool_put_to_os(struct pool_head *pool, void *ptr)
 {
-#ifdef DEBUG_UAF
-	pool_free_area_uaf(ptr, pool->alloc_sz);
-#else
-	pool_free_area(ptr, pool->alloc_sz);
-#endif
+	if (pool_debugging & POOL_DBG_UAF)
+		pool_free_area_uaf(ptr, pool->alloc_sz);
+	else
+		pool_free_area(ptr, pool->alloc_sz);
 	_HA_ATOMIC_DEC(&pool->allocated);
 }
 
@@ -1061,6 +1064,8 @@ int pool_parse_debugging(const char *str, char **err)
 				  "  Detect out-of-bound corruptions: -dMno-merge,tag\n"
 				  "  Detect post-free cache corruptions: -dMno-merge,cold-first,integrity,caller\n"
 				  "  Detect all cache corruptions: -dMno-merge,cold-first,integrity,tag,caller\n"
+				  "  Detect UAF (disables cache, very slow): -dMuaf\n"
+				  "  Detect post-cache UAF: -dMuaf,cache,no-merge,cold-first,integrity,tag,caller\n"
 				  "  Detect post-free cache corruptions: -dMno-merge,cold-first,integrity,caller\n",
 			          *err);
 			return -1;
@@ -1069,6 +1074,11 @@ int pool_parse_debugging(const char *str, char **err)
 		for (v = 0; dbg_options[v].flg; v++) {
 			if (isteq(feat, ist(dbg_options[v].set))) {
 				new_dbg |= dbg_options[v].flg;
+				/* UAF implicitly disables caching, but it's
+				 * still possible to forcefully re-enable it.
+				 */
+				if (dbg_options[v].flg == POOL_DBG_UAF)
+					new_dbg |= POOL_DBG_NO_CACHE;
 				break;
 			}
 			else if (isteq(feat, ist(dbg_options[v].clr))) {
