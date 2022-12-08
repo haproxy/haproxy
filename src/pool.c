@@ -52,7 +52,7 @@ uint pool_debugging __read_mostly =               /* set of POOL_DBG_* flags */
 #ifdef CONFIG_HAP_NO_GLOBAL_POOLS
 	POOL_DBG_NO_GLOBAL  |
 #endif
-#ifndef CONFIG_HAP_POOLS
+#if defined(DEBUG_NO_POOLS) || defined(DEBUG_UAF)
 	POOL_DBG_NO_CACHE   |
 #endif
 #if defined(DEBUG_POOL_TRACING)

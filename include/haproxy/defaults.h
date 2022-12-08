@@ -410,13 +410,6 @@
 #define DEFAULT_MAXZLIBMEM 0
 #endif
 
-/* Pools are always enabled unless explicitly disabled. When disabled, the
- * calls are directly passed to the underlying OS functions.
- */
-#if !defined(DEBUG_NO_POOLS) && !defined(DEBUG_UAF)
-#define CONFIG_HAP_POOLS
-#endif
-
 /* On modern architectures with many threads, a fast memory allocator, and
  * local pools, the global pools with their single list can be way slower than
  * the standard allocator which already has its own per-thread arenas. In this
