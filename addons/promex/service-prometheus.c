@@ -302,6 +302,7 @@ const struct promex_metric promex_st_metrics[ST_F_TOTAL_FIELDS] = {
 	[ST_F_NEED_CONN_EST]        = { .n = IST("need_connections_current"),         .type = PROMEX_MT_GAUGE,    .flags = (                                                                       PROMEX_FL_SRV_METRIC) },
 	[ST_F_UWEIGHT]              = { .n = IST("uweight"),                          .type = PROMEX_MT_GAUGE,    .flags = (                                               PROMEX_FL_BACK_METRIC | PROMEX_FL_SRV_METRIC) },
 	[ST_F_AGG_SRV_CHECK_STATUS] = { .n = IST("agg_server_check_status"),	      .type = PROMEX_MT_GAUGE,    .flags = (                                               PROMEX_FL_BACK_METRIC                       ) },
+	[ST_F_AGG_SRV_STATUS ]      = { .n = IST("agg_server_status"),	              .type = PROMEX_MT_GAUGE,    .flags = (                                               PROMEX_FL_BACK_METRIC                       ) },
 };
 
 /* Description of overridden stats fields */
@@ -833,7 +834,8 @@ static int promex_dump_back_metrics(struct appctx *appctx, struct htx *htx)
 				return -1;
 
 			switch (ctx->field_num) {
-				case ST_F_AGG_SRV_CHECK_STATUS:
+				case ST_F_AGG_SRV_CHECK_STATUS: // DEPRECATED
+				case ST_F_AGG_SRV_STATUS:
 					if (!px->srv)
 						goto next_px;
 					sv = px->srv;

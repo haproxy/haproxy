@@ -259,7 +259,8 @@ const struct name_desc stat_fields[ST_F_TOTAL_FIELDS] = {
 	[ST_F_USED_CONN_CUR]                 = { .name = "used_conn_cur",               .desc = "Current number of connections in use"},
 	[ST_F_NEED_CONN_EST]                 = { .name = "need_conn_est",               .desc = "Estimated needed number of connections"},
 	[ST_F_UWEIGHT]                       = { .name = "uweight",                     .desc = "Server's user weight, or sum of active servers' user weights for a backend" },
-	[ST_F_AGG_SRV_CHECK_STATUS]          = { .name = "agg_server_check_status",     .desc = "Backend's aggregated gauge of servers' state check status" },
+	[ST_F_AGG_SRV_CHECK_STATUS]          = { .name = "agg_server_check_status",     .desc = "[DEPRECATED] Backend's aggregated gauge of servers' status" },
+	[ST_F_AGG_SRV_STATUS ]               = { .name = "agg_server_status",           .desc = "Backend's aggregated gauge of servers' status" },
 	[ST_F_SRID]                          = { .name = "srid",                        .desc = "Server id revision, to prevent server id reuse mixups" },
 };
 
@@ -2677,7 +2678,8 @@ int stats_fill_be_stats(struct proxy *px, int flags, struct field *stats, int le
 					chunk_appendf(out, " (%d/%d)", nbup, nbsrv);
 				metric = mkf_str(FO_STATUS, fld);
 				break;
-			case ST_F_AGG_SRV_CHECK_STATUS:
+			case ST_F_AGG_SRV_CHECK_STATUS:   // DEPRECATED
+			case ST_F_AGG_SRV_STATUS:
 				metric = mkf_u32(FN_GAUGE, 0);
 				break;
 			case ST_F_WEIGHT:
