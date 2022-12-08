@@ -23,6 +23,8 @@
 #ifndef _HAPROXY_ATOMIC_H
 #define _HAPROXY_ATOMIC_H
 
+#include <haproxy/compiler.h>
+
 /* A few notes for the macros and functions here:
  *  - this file is painful to edit, most operations exist in 3 variants,
  *    no-thread, threads with gcc<4.7, threads with gcc>=4.7. Be careful when
