@@ -23,6 +23,7 @@
 #include <haproxy/global.h>
 #include <haproxy/list.h>
 #include <haproxy/pool.h>
+#include <haproxy/pool-os.h>
 #include <haproxy/sc_strm.h>
 #include <haproxy/stats-t.h>
 #include <haproxy/stconn.h>

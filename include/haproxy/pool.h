@@ -27,7 +27,6 @@
 #include <haproxy/api.h>
 #include <haproxy/freq_ctr.h>
 #include <haproxy/list.h>
-#include <haproxy/pool-os.h>
 #include <haproxy/pool-t.h>
 #include <haproxy/thread.h>
 
