@@ -139,6 +139,7 @@ DECLARE_STATIC_POOL(pool_head_h3c, "h3c", sizeof(struct h3c));
 
 #define H3_SF_UNI_INIT  0x00000001  /* stream type not parsed for unidirectional stream */
 #define H3_SF_UNI_NO_H3 0x00000002  /* unidirectional stream does not carry H3 frames */
+#define H3_SF_HAVE_CLEN 0x00000004  /* content-length header is present */
 
 struct h3s {
 	struct h3c *h3c;
@@ -147,6 +148,9 @@ struct h3s {
 	enum h3s_st_req st_req; /* only used for request streams */
 	int demux_frame_len;
 	int demux_frame_type;
+
+	unsigned long long body_len; /* known request body length from content-length header if present */
+	unsigned long long data_len; /* total length of all parsed DATA */
 
 	int flags;
 };
@@ -331,6 +335,47 @@ static int h3_is_frame_valid(struct h3c *h3c, struct qcs *qcs, uint64_t ftype)
 	}
 }
 
+/* Check from stream <qcs> that length of all DATA frames does not exceed with
+ * a previously parsed content-length header. <fin> must be set for the last
+ * data of the stream so that length of DATA frames must be equal to the
+ * content-length.
+ *
+ * This must only be called for a stream with H3_SF_HAVE_CLEN flag.
+ *
+ * Return 0 on valid else non-zero.
+ */
+static int h3_check_body_size(struct qcs *qcs, int fin)
+{
+	struct h3s *h3s = qcs->ctx;
+	int ret = 0;
+	TRACE_ENTER(H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
+
+	/* Reserved for streams with a previously parsed content-length header. */
+	BUG_ON(!(h3s->flags & H3_SF_HAVE_CLEN));
+
+	/* RFC 9114 4.1.2. Malformed Requests and Responses
+	 *
+	 * A request or response that is defined as having content when it
+	 * contains a Content-Length header field (Section 8.6 of [HTTP]) is
+	 * malformed if the value of the Content-Length header field does not
+	 * equal the sum of the DATA frame lengths received.
+	 *
+	 * TODO for backend support
+	 * A response that is
+	 * defined as never having content, even when a Content-Length is
+	 * present, can have a non-zero Content-Length header field even though
+	 * no content is included in DATA frames.
+	 */
+	if (h3s->data_len > h3s->body_len ||
+	    (fin && h3s->data_len < h3s->body_len)) {
+		TRACE_ERROR("Content-length does not match DATA frame size", H3_EV_RX_FRAME|H3_EV_RX_DATA, qcs->qcc->conn, qcs);
+		ret = -1;
+	}
+
+	TRACE_LEAVE(H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
+	return ret;
+}
+
 /* Parse from buffer <buf> a H3 HEADERS frame of length <len>. Data are copied
  * in a local HTX buffer and transfer to the stream connector layer. <fin> must be
  * set if this is the last data to transfer from this stream.
@@ -500,6 +545,27 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 		if (isteq(list[hdr_idx].n, ist("cookie"))) {
 			http_cookie_register(list, hdr_idx, &cookie, &last_cookie);
 			continue;
+		}
+		else if (isteq(list[hdr_idx].n, ist("content-length"))) {
+			ret = http_parse_cont_len_header(&list[hdr_idx].v,
+			                                 &h3s->body_len,
+			                                 h3s->flags & H3_SF_HAVE_CLEN);
+			if (ret < 0) {
+				TRACE_ERROR("invalid content-length", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+				return -1;
+			}
+			else if (!ret) {
+				/* Skip duplicated value. */
+				++hdr_idx;
+				continue;
+			}
+
+			h3s->flags |= H3_SF_HAVE_CLEN;
+			/* This will fail if current frame is the last one and
+			 * content-length is not null.
+			 */
+			if (h3_check_body_size(qcs, fin))
+				return -1;
 		}
 
 		htx_add_header(htx, list[hdr_idx].n, list[hdr_idx].v);
@@ -740,8 +806,8 @@ static ssize_t h3_decode_qcs(struct qcs *qcs, struct buffer *b, int fin)
 		uint64_t ftype, flen;
 		char last_stream_frame = 0;
 
-		/* Work on a copy of <rxbuf> */
 		if (!h3s->demux_frame_len) {
+			/* Switch to a new frame. */
 			size_t hlen = h3_decode_frm_header(&ftype, &flen, b);
 			if (!hlen)
 				break;
@@ -752,6 +818,15 @@ static ssize_t h3_decode_qcs(struct qcs *qcs, struct buffer *b, int fin)
 			h3s->demux_frame_type = ftype;
 			h3s->demux_frame_len = flen;
 			total += hlen;
+
+			/* Check that content-length is not exceeded on a new DATA frame. */
+			if (ftype == H3_FT_DATA) {
+				h3s->data_len += flen;
+				if (h3s->flags & H3_SF_HAVE_CLEN && h3_check_body_size(qcs, fin)) {
+					qcc_emit_cc_app(qcs->qcc, h3c->err, 1);
+					return -1;
+				}
+			}
 
 			if (!h3_is_frame_valid(h3c, qcs, ftype)) {
 				qcc_emit_cc_app(qcs->qcc, H3_FRAME_UNEXPECTED, 1);
@@ -780,6 +855,12 @@ static ssize_t h3_decode_qcs(struct qcs *qcs, struct buffer *b, int fin)
 				return -1;
 			}
 			break;
+		}
+
+		/* Check content-length equality with DATA frames length on the last frame. */
+		if (fin && h3s->flags & H3_SF_HAVE_CLEN && h3_check_body_size(qcs, fin)) {
+			qcc_emit_cc_app(qcs->qcc, h3c->err, 1);
+			return -1;
 		}
 
 		last_stream_frame = (fin && flen == b_data(b));
@@ -1167,6 +1248,8 @@ static int h3_attach(struct qcs *qcs, void *conn_ctx)
 
 	h3s->demux_frame_len = 0;
 	h3s->demux_frame_type = 0;
+	h3s->body_len = 0;
+	h3s->data_len = 0;
 	h3s->flags = 0;
 
 	if (quic_stream_is_bidi(qcs->id)) {
