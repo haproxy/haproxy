@@ -684,6 +684,88 @@ struct ist http_parse_path(struct http_uri_parser *parser)
 	return IST_NULL;
 }
 
+/* Parse <value> Content-Length header field of an HTTP request. The function
+ * checks all possible occurrences of a comma-delimited value, and verifies if
+ * any of them doesn't match a previous value. <value> is sanitized on return
+ * to contain a single value if several identical values were found.
+ *
+ * <body_len> must be a valid pointer and is used to return the parsed length
+ * unless values differ. Also if <not_first> is true, <body_len> is assumed to
+ * point to previously parsed value and which must be equal to the new length.
+ * This is useful if an HTTP message contains several Content-Length headers.
+ *
+ * Returns <0 if a value differs, 0 if the whole header can be dropped (i.e.
+ * already known), or >0 if the value can be indexed (first one). In the last
+ * case, the value might be adjusted and the caller must only add the updated
+ * value.
+ */
+int http_parse_cont_len_header(struct ist *value, unsigned long long *body_len,
+                               int not_first)
+{
+	char *e, *n;
+	unsigned long long cl;
+	struct ist word;
+	int check_prev = not_first;
+
+	word.ptr = value->ptr - 1; // -1 for next loop's pre-increment
+	e = value->ptr + value->len;
+
+	while (++word.ptr < e) {
+		/* skip leading delimiter and blanks */
+		if (unlikely(HTTP_IS_LWS(*word.ptr)))
+			continue;
+
+		/* digits only now */
+		for (cl = 0, n = word.ptr; n < e; n++) {
+			unsigned int c = *n - '0';
+			if (unlikely(c > 9)) {
+				/* non-digit */
+				if (unlikely(n == word.ptr)) // spaces only
+					goto fail;
+				break;
+			}
+			if (unlikely(cl > ULLONG_MAX / 10ULL))
+				goto fail; /* multiply overflow */
+			cl = cl * 10ULL;
+			if (unlikely(cl + c < cl))
+				goto fail; /* addition overflow */
+			cl = cl + c;
+		}
+
+		/* keep a copy of the exact cleaned value */
+		word.len = n - word.ptr;
+
+		/* skip trailing LWS till next comma or EOL */
+		for (; n < e; n++) {
+			if (!HTTP_IS_LWS(*n)) {
+				if (unlikely(*n != ','))
+					goto fail;
+				break;
+			}
+		}
+
+		/* if duplicate, must be equal */
+		if (check_prev && cl != *body_len)
+			goto fail;
+
+		/* OK, store this result as the one to be indexed */
+		*body_len = cl;
+		*value = word;
+		word.ptr = n;
+		check_prev = 1;
+	}
+
+	/* here we've reached the end with a single value or a series of
+	 * identical values, all matching previous series if any. The last
+	 * parsed value was sent back into <value>. We just have to decide
+	 * if this occurrence has to be indexed (it's the first one) or
+	 * silently skipped (it's not the first one)
+	 */
+	return !not_first;
+ fail:
+	return -1;
+}
+
 /*
  * Checks if <hdr> is exactly <name> for <len> chars, and ends with a colon.
  * If so, returns the position of the first non-space character relative to

@@ -66,78 +66,6 @@ static int has_forbidden_char(const struct ist ist, const char *start)
 	return 0;
 }
 
-/* Parse the Content-Length header field of an HTTP/2 request. The function
- * checks all possible occurrences of a comma-delimited value, and verifies
- * if any of them doesn't match a previous value. It returns <0 if a value
- * differs, 0 if the whole header can be dropped (i.e. already known), or >0
- * if the value can be indexed (first one). In the last case, the value might
- * be adjusted and the caller must only add the updated value.
- */
-int h2_parse_cont_len_header(unsigned int *msgf, struct ist *value, unsigned long long *body_len)
-{
-	char *e, *n;
-	unsigned long long cl;
-	int not_first = !!(*msgf & H2_MSGF_BODY_CL);
-	struct ist word;
-
-	word.ptr = value->ptr - 1; // -1 for next loop's pre-increment
-	e = value->ptr + value->len;
-
-	while (++word.ptr < e) {
-		/* skip leading delimiter and blanks */
-		if (unlikely(HTTP_IS_LWS(*word.ptr)))
-			continue;
-
-		/* digits only now */
-		for (cl = 0, n = word.ptr; n < e; n++) {
-			unsigned int c = *n - '0';
-			if (unlikely(c > 9)) {
-				/* non-digit */
-				if (unlikely(n == word.ptr)) // spaces only
-					goto fail;
-				break;
-			}
-			if (unlikely(cl > ULLONG_MAX / 10ULL))
-				goto fail; /* multiply overflow */
-			cl = cl * 10ULL;
-			if (unlikely(cl + c < cl))
-				goto fail; /* addition overflow */
-			cl = cl + c;
-		}
-
-		/* keep a copy of the exact cleaned value */
-		word.len = n - word.ptr;
-
-		/* skip trailing LWS till next comma or EOL */
-		for (; n < e; n++) {
-			if (!HTTP_IS_LWS(*n)) {
-				if (unlikely(*n != ','))
-					goto fail;
-				break;
-			}
-		}
-
-		/* if duplicate, must be equal */
-		if (*msgf & H2_MSGF_BODY_CL && cl != *body_len)
-			goto fail;
-
-		/* OK, store this result as the one to be indexed */
-		*msgf |= H2_MSGF_BODY_CL;
-		*body_len = cl;
-		*value = word;
-		word.ptr = n;
-	}
-	/* here we've reached the end with a single value or a series of
-	 * identical values, all matching previous series if any. The last
-	 * parsed value was sent back into <value>. We just have to decide
-	 * if this occurrence has to be indexed (it's the first one) or
-	 * silently skipped (it's not the first one)
-	 */
-	return !not_first;
- fail:
-	return -1;
-}
-
 /* Prepare the request line into <htx> from pseudo headers stored in <phdr[]>.
  * <fields> indicates what was found so far. This should be called once at the
  * detection of the first general header field or at the end of the request if
@@ -479,10 +407,12 @@ int h2_make_htx_request(struct http_hdr *list, struct htx *htx, unsigned int *ms
 		}
 
 		if (isteq(list[idx].n, ist("content-length"))) {
-			ret = h2_parse_cont_len_header(msgf, &list[idx].v, body_len);
+			ret = http_parse_cont_len_header(&list[idx].v, body_len,
+			                                 *msgf & H2_MSGF_BODY_CL);
 			if (ret < 0)
 				goto fail;
 
+			*msgf |= H2_MSGF_BODY_CL;
 			sl_flags |= HTX_SL_F_CLEN;
 			if (ret == 0)
 				continue; // skip this duplicate
@@ -742,10 +672,12 @@ int h2_make_htx_response(struct http_hdr *list, struct htx *htx, unsigned int *m
 		}
 
 		if (isteq(list[idx].n, ist("content-length"))) {
-			ret = h2_parse_cont_len_header(msgf, &list[idx].v, body_len);
+			ret = http_parse_cont_len_header(&list[idx].v, body_len,
+			                                 *msgf & H2_MSGF_BODY_CL);
 			if (ret < 0)
 				goto fail;
 
+			*msgf |= H2_MSGF_BODY_CL;
 			sl_flags |= HTX_SL_F_CLEN;
 			if (ret == 0)
 				continue; // skip this duplicate

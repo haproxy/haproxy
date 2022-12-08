@@ -42,6 +42,8 @@ int http_validate_scheme(const struct ist schm);
 struct ist http_parse_scheme(struct http_uri_parser *parser);
 struct ist http_parse_authority(struct http_uri_parser *parser, int no_userinfo);
 struct ist http_parse_path(struct http_uri_parser *parser);
+int http_parse_cont_len_header(struct ist *value, unsigned long long *body_len,
+                               int not_first);
 int http_header_match2(const char *hdr, const char *end,
                        const char *name, int len);
 char *http_find_hdr_value_end(char *s, const char *e);
