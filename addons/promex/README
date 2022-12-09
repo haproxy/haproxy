@@ -286,6 +286,8 @@ See prometheus export for the description of each field.
 | haproxy_backend_max_total_time_seconds              |
 | haproxy_backend_internal_errors_total               |
 | haproxy_backend_uweight                             |
+| haproxy_backend_agg_server_status                   |
+| haproxy_backend_agg_check_status                    |
 +-----------------------------------------------------+
 
 * Server metrics
