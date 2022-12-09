@@ -696,6 +696,10 @@ static void qcs_consume(struct qcs *qcs, uint64_t bytes)
 		qc_free_ncbuf(qcs, buf);
 
 	qcs->rx.offset += bytes;
+	/* Not necessary to emit a MAX_STREAM_DATA if all data received. */
+	if (qcs->flags & QC_SF_SIZE_KNOWN)
+		goto conn_fctl;
+
 	if (qcs->rx.msd - qcs->rx.offset < qcs->rx.msd_init / 2) {
 		TRACE_DATA("increase stream credit via MAX_STREAM_DATA", QMUX_EV_QCS_RECV, qcc->conn, qcs);
 		frm = pool_zalloc(pool_head_quic_frame);
@@ -712,6 +716,7 @@ static void qcs_consume(struct qcs *qcs, uint64_t bytes)
 		tasklet_wakeup(qcc->wait_event.tasklet);
 	}
 
+ conn_fctl:
 	qcc->lfctl.offsets_consume += bytes;
 	if (qcc->lfctl.md - qcc->lfctl.offsets_consume < qcc->lfctl.md_init / 2) {
 		TRACE_DATA("increase conn credit via MAX_DATA", QMUX_EV_QCS_RECV, qcc->conn, qcs);
