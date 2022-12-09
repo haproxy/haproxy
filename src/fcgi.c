@@ -47,7 +47,7 @@ int fcgi_encode_record_hdr(struct buffer *out, const struct fcgi_header *h)
 	out->area[len++] = ((h->len >> 8) & 0xff);
 	out->area[len++] = (h->len & 0xff);
 	out->area[len++] = h->padding;
-	len++; /* rsv */
+	out->area[len++] = 0; /* rsv */
 
 	out->data = len;
 	return 1;
@@ -94,7 +94,11 @@ int fcgi_encode_begin_request(struct buffer *out, const struct fcgi_begin_reques
 	out->area[len++] = ((r->role >> 8) & 0xff);
 	out->area[len++] = (r->role & 0xff);
 	out->area[len++] = r->flags;
-	len += 5; /* rsv */
+	out->area[len++] = 0; /* rsv */
+	out->area[len++] = 0;
+	out->area[len++] = 0;
+	out->area[len++] = 0;
+	out->area[len++] = 0;
 
 	out->data = len;
 	return 1;
