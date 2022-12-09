@@ -153,6 +153,7 @@ struct h3s {
 	unsigned long long data_len; /* total length of all parsed DATA */
 
 	int flags;
+	int err; /* used for stream reset */
 };
 
 DECLARE_STATIC_POOL(pool_head_h3s, "h3s", sizeof(struct h3s));
@@ -369,6 +370,7 @@ static int h3_check_body_size(struct qcs *qcs, int fin)
 	if (h3s->data_len > h3s->body_len ||
 	    (fin && h3s->data_len < h3s->body_len)) {
 		TRACE_ERROR("Content-length does not match DATA frame size", H3_EV_RX_FRAME|H3_EV_RX_DATA, qcs->qcc->conn, qcs);
+		h3s->err = H3_MESSAGE_ERROR;
 		ret = -1;
 	}
 
@@ -380,7 +382,9 @@ static int h3_check_body_size(struct qcs *qcs, int fin)
  * in a local HTX buffer and transfer to the stream connector layer. <fin> must be
  * set if this is the last data to transfer from this stream.
  *
- * Returns the number of consumed bytes or a negative error code.
+ * Returns the number of consumed bytes or a negative error code. On error
+ * either the connection should be closed or the stream reset using codes
+ * provided in h3c.err / h3s.err.
  */
 static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
                                  uint64_t len, char fin)
@@ -461,6 +465,7 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 		if (isteq(list[hdr_idx].n, ist(":method"))) {
 			if (isttest(meth)) {
 				TRACE_ERROR("duplicated method pseudo-header", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+				h3s->err = H3_MESSAGE_ERROR;
 				len = -1;
 				goto out;
 			}
@@ -469,6 +474,7 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 		else if (isteq(list[hdr_idx].n, ist(":path"))) {
 			if (isttest(path)) {
 				TRACE_ERROR("duplicated path pseudo-header", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+				h3s->err = H3_MESSAGE_ERROR;
 				len = -1;
 				goto out;
 			}
@@ -478,6 +484,7 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 			if (isttest(scheme)) {
 				/* duplicated pseudo-header */
 				TRACE_ERROR("duplicated scheme pseudo-header", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+				h3s->err = H3_MESSAGE_ERROR;
 				len = -1;
 				goto out;
 			}
@@ -486,6 +493,7 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 		else if (isteq(list[hdr_idx].n, ist(":authority"))) {
 			if (isttest(authority)) {
 				TRACE_ERROR("duplicated authority pseudo-header", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+				h3s->err = H3_MESSAGE_ERROR;
 				len = -1;
 				goto out;
 			}
@@ -493,6 +501,7 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 		}
 		else {
 			TRACE_ERROR("unknown pseudo-header", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+			h3s->err = H3_MESSAGE_ERROR;
 			len = -1;
 			goto out;
 		}
@@ -509,6 +518,7 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 		 */
 		if (!isttest(meth) || !isttest(scheme) || !isttest(path)) {
 			TRACE_ERROR("missing mandatory pseudo-header", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+			h3s->err = H3_MESSAGE_ERROR;
 			len = -1;
 			goto out;
 		}
@@ -544,6 +554,7 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 
 		if (istmatch(list[hdr_idx].n, ist(":"))) {
 			TRACE_ERROR("pseudo-header field after fields", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+			h3s->err = H3_MESSAGE_ERROR;
 			len = -1;
 			goto out;
 		}
@@ -552,6 +563,7 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 			const char c = list[hdr_idx].n.ptr[i];
 			if ((uint8_t)(c - 'A') < 'Z' - 'A' || !HTTP_IS_TOKEN(c)) {
 				TRACE_ERROR("invalid characters in field name", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+				h3s->err = H3_MESSAGE_ERROR;
 				len = -1;
 				goto out;
 			}
@@ -568,6 +580,7 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 			                                 h3s->flags & H3_SF_HAVE_CLEN);
 			if (ret < 0) {
 				TRACE_ERROR("invalid content-length", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+				h3s->err = H3_MESSAGE_ERROR;
 				len = -1;
 				goto out;
 			}
@@ -840,7 +853,7 @@ static ssize_t h3_decode_qcs(struct qcs *qcs, struct buffer *b, int fin)
 		return -1;
 	}
 
-	while (b_data(b) && !(qcs->flags & QC_SF_DEM_FULL)) {
+	while (b_data(b) && !(qcs->flags & QC_SF_DEM_FULL) && !h3c->err && !h3s->err) {
 		uint64_t ftype, flen;
 		char last_stream_frame = 0;
 
@@ -860,10 +873,8 @@ static ssize_t h3_decode_qcs(struct qcs *qcs, struct buffer *b, int fin)
 			/* Check that content-length is not exceeded on a new DATA frame. */
 			if (ftype == H3_FT_DATA) {
 				h3s->data_len += flen;
-				if (h3s->flags & H3_SF_HAVE_CLEN && h3_check_body_size(qcs, fin)) {
-					qcc_emit_cc_app(qcs->qcc, h3c->err, 1);
-					return -1;
-				}
+				if (h3s->flags & H3_SF_HAVE_CLEN && h3_check_body_size(qcs, fin))
+					break;
 			}
 
 			if (!h3_is_frame_valid(h3c, qcs, ftype)) {
@@ -896,10 +907,8 @@ static ssize_t h3_decode_qcs(struct qcs *qcs, struct buffer *b, int fin)
 		}
 
 		/* Check content-length equality with DATA frames length on the last frame. */
-		if (fin && h3s->flags & H3_SF_HAVE_CLEN && h3_check_body_size(qcs, fin)) {
-			qcc_emit_cc_app(qcs->qcc, h3c->err, 1);
-			return -1;
-		}
+		if (fin && h3s->flags & H3_SF_HAVE_CLEN && h3_check_body_size(qcs, fin))
+			break;
 
 		last_stream_frame = (fin && flen == b_data(b));
 
@@ -907,20 +916,10 @@ static ssize_t h3_decode_qcs(struct qcs *qcs, struct buffer *b, int fin)
 		switch (ftype) {
 		case H3_FT_DATA:
 			ret = h3_data_to_htx(qcs, b, flen, last_stream_frame);
-			/* TODO handle error reporting. Stream closure required. */
-			if (ret < 0) { ABORT_NOW(); }
 			h3s->st_req = H3S_ST_REQ_DATA;
 			break;
 		case H3_FT_HEADERS:
 			ret = h3_headers_to_htx(qcs, b, flen, last_stream_frame);
-			if (ret < 0) {
-				/* TODO for some error, it may be preferable to
-				 * only close the stream once RESET_STREAM is
-				 * supported.
-				 */
-				qcc_emit_cc_app(qcs->qcc, h3c->err, 1);
-				return -1;
-			}
 			h3s->st_req = (h3s->st_req == H3S_ST_REQ_BEFORE) ?
 			                H3S_ST_REQ_HEADERS : H3S_ST_REQ_TRAILERS;
 			break;
@@ -950,12 +949,23 @@ static ssize_t h3_decode_qcs(struct qcs *qcs, struct buffer *b, int fin)
 			break;
 		}
 
-		if (ret) {
+		if (ret > 0) {
 			BUG_ON(h3s->demux_frame_len < ret);
 			h3s->demux_frame_len -= ret;
 			b_del(b, ret);
 			total += ret;
 		}
+	}
+
+	/* Interrupt decoding on stream/connection error detected. */
+	if (h3s->err) {
+		qcc_abort_stream_read(qcs);
+		qcc_reset_stream(qcs, h3s->err);
+		return b_data(b);
+	}
+	else if (h3c->err) {
+		qcc_emit_cc_app(qcs->qcc, h3c->err, 1);
+		return b_data(b);
 	}
 
 	/* TODO may be useful to wakeup the MUX if blocked due to full buffer.
@@ -1289,6 +1299,7 @@ static int h3_attach(struct qcs *qcs, void *conn_ctx)
 	h3s->body_len = 0;
 	h3s->data_len = 0;
 	h3s->flags = 0;
+	h3s->err = 0;
 
 	if (quic_stream_is_bidi(qcs->id)) {
 		h3s->type = H3S_T_REQ;
@@ -1376,7 +1387,7 @@ static int h3_init(struct qcc *qcc)
 
 	h3c->qcc = qcc;
 	h3c->ctrl_strm = NULL;
-	h3c->err = H3_NO_ERROR;
+	h3c->err = 0;
 	h3c->flags = 0;
 	h3c->id_goaway = 0;
 
