@@ -325,11 +325,11 @@ Unfortunately, some products such as Apache allow such characters :-/
 
 - each http_txn has 1 request message (http_req), and 0 or 1 response message
   (http_rtr). Each of them has 1 and only one http_txn. An http_txn holds
-  informations such as the HTTP method, the URI, the HTTP version, the
+  information such as the HTTP method, the URI, the HTTP version, the
   transfer-encoding, the HTTP status, the authorization, the req and rtr
   content-length, the timers, logs, etc... The backend and server which process
   the request are also known from the http_txn.
 
-- both request and response messages hold header and parsing informations, such
+- both request and response messages hold header and parsing information, such
   as the parsing state, start of headers, start of message, captures, etc...
 

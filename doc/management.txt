@@ -208,7 +208,7 @@ list of options is :
     tokenized, so comments are stripped and indenting is forced. If a non-zero
     key is specified, lines are truncated before sensitive/confidential fields,
     and identifiers and addresses are emitted hashed with this key using the
-    same algorithmm as the one used by the anonymized mode on the CLI. This
+    same algorithm as the one used by the anonymized mode on the CLI. This
     means that the output may safely be shared with a developer who needs it
     to figure what's happening in a dump that was anonymized using the same
     key. Please also see the CLI's "set anon" command.
@@ -1694,7 +1694,7 @@ add server <backend>/<server> [args]*
 
 add ssl ca-file <cafile> <payload>
    Add a new certificate to a ca-file. This command is useful when you reached
-   the buffer size limit on the CLI and want to add multiple certicates.
+   the buffer size limit on the CLI and want to add multiple certificates.
    Instead of doing a "set" with all the certificates you are able to add each
    certificate individually. A "set ssl ca-file" will reset the ca-file.
 
@@ -2968,7 +2968,7 @@ show resolvers [<resolvers section id>]
     other: any other DNS errors
     invalid: invalid DNS response (from a protocol point of view)
     too_big: too big response
-    outdated: number of response arrived too late (after an other name server)
+    outdated: number of response arrived too late (after another name server)
 
 show quic [all]
   Dump information on all active QUIC frontend connections. This command is

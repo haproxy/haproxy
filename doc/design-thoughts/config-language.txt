@@ -24,9 +24,9 @@ Pour les filtres :
     <operator>  = [ == | =~ | =* | =^ | =/ | != | !~ | !* | !^ | !/ ]
     <pattern>   = "<string>"
     <action>    = [ allow | permit | deny | delete | replace | switch | add | set | redir ]
-    <args>      = optionnal action args
+    <args>      = optional action args
 
-    exemples:
+    examples:
 
         req in URI     =^ "/images" switch images
         req in h(host) =* ".mydomain.com" switch mydomain
