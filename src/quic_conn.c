@@ -2802,8 +2802,11 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 			break;
 		}
 		case QUIC_FT_RESET_STREAM:
-		    /* TODO: handle this frame at STREAM level */
-		    break;
+			if (qc->mux_state == QC_MUX_READY) {
+				struct quic_reset_stream *rs = &frm.reset_stream;
+				qcc_recv_reset_stream(qc->qcc, rs->id, rs->app_error_code, rs->final_size);
+			}
+			break;
 		case QUIC_FT_STOP_SENDING:
 		{
 			struct quic_stop_sending *stop_sending = &frm.stop_sending;

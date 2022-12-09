@@ -888,6 +888,11 @@ int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
 		goto err;
 	}
 
+	if (qcs_is_close_remote(qcs)) {
+		TRACE_DATA("skipping STREAM for remotely closed", QMUX_EV_QCC_RECV, qcc->conn);
+		goto out;
+	}
+
 	if (offset + len <= qcs->rx.offset) {
 		/* TODO offset may have been received without FIN first and now
 		 * with it. In this case, it must be notified to be able to
@@ -1053,6 +1058,60 @@ int qcc_recv_max_stream_data(struct qcc *qcc, uint64_t id, uint64_t max)
 
 	TRACE_LEAVE(QMUX_EV_QCC_RECV, qcc->conn);
 	return 0;
+}
+
+/* Handle a new RESET_STREAM frame from stream ID <id> with error code <err>
+ * and final stream size <final_size>.
+ *
+ * Returns 0 on success else non-zero. On error, the received frame should not
+ * be acknowledged.
+ */
+int qcc_recv_reset_stream(struct qcc *qcc, uint64_t id, uint64_t err, uint64_t final_size)
+{
+	struct qcs *qcs;
+
+	TRACE_ENTER(QMUX_EV_QCC_RECV, qcc->conn);
+
+	/* RFC 9000 19.4. RESET_STREAM Frames
+	 *
+	 * An endpoint that receives a RESET_STREAM frame for a send-only stream
+	 * MUST terminate the connection with error STREAM_STATE_ERROR.
+	 */
+	if (qcc_get_qcs(qcc, id, 1, 0, &qcs)) {
+		TRACE_ERROR("RESET_STREAM for send-only stream received", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV, qcc->conn, qcs);
+		qcc_emit_cc(qcc, QC_ERR_STREAM_STATE_ERROR);
+		goto err;
+	}
+
+	if (!qcs || qcs_is_close_remote(qcs))
+		goto out;
+
+	TRACE_PROTO("receiving RESET_STREAM", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV, qcc->conn, qcs);
+	qcs_idle_open(qcs);
+
+	if (qcs->rx.offset_max > final_size ||
+	    ((qcs->flags & QC_SF_SIZE_KNOWN) && qcs->rx.offset_max != final_size)) {
+		TRACE_ERROR("final size error on RESET_STREAM", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV, qcc->conn, qcs);
+		qcc_emit_cc(qcc, QC_ERR_FINAL_SIZE_ERROR);
+		goto err;
+	}
+
+	qcs->flags |= QC_SF_SIZE_KNOWN;
+	qcs_close_remote(qcs);
+	qc_free_ncbuf(qcs, &qcs->rx.ncbuf);
+
+	if (qcs_sc(qcs)) {
+		se_fl_set_error(qcs->sd);
+		qcs_alert(qcs);
+	}
+
+ out:
+	TRACE_LEAVE(QMUX_EV_QCC_RECV, qcc->conn);
+	return 0;
+
+ err:
+	TRACE_LEAVE(QMUX_EV_QCC_RECV, qcc->conn);
+	return 1;
 }
 
 /* Handle a new STOP_SENDING frame for stream ID <id>. The error code should be
