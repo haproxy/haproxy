@@ -220,7 +220,7 @@ static ssize_t h3_init_uni_stream(struct h3c *h3c, struct qcs *qcs,
 		 * Implementations MUST [...] abort reading on unidirectional
 		 * streams that have unknown or unsupported types.
 		 */
-		qcs->flags |= QC_SF_READ_ABORTED;
+		qcc_abort_stream_read(qcs);
 		return -1;
 	};
 

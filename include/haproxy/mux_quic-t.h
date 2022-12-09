@@ -117,9 +117,10 @@ struct qcc {
 #define QC_SF_DETACH            0x00000008  /* sc is detached but there is remaining data to send */
 #define QC_SF_BLK_SFCTL         0x00000010  /* stream blocked due to stream flow control limit */
 #define QC_SF_DEM_FULL          0x00000020  /* demux blocked on request channel buffer full */
-#define QC_SF_READ_ABORTED      0x00000040  /* stream rejected by app layer */
+#define QC_SF_READ_ABORTED      0x00000040  /* Rx closed using STOP_SENDING*/
 #define QC_SF_TO_RESET          0x00000080  /* a RESET_STREAM must be sent */
 #define QC_SF_HREQ_RECV         0x00000100  /* a full HTTP request has been received */
+#define QC_SF_TO_STOP_SENDING   0x00000200  /* a STOP_SENDING must be sent */
 
 /* Maximum size of stream Rx buffer. */
 #define QC_S_RX_BUF_SZ   (global.tune.bufsize - NCB_RESERVED_SZ)
