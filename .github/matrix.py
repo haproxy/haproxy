@@ -15,12 +15,12 @@ import re
 from os import environ
 
 if len(sys.argv) == 2:
-    build_type = sys.argv[1]
+    ref_name = sys.argv[1]
 else:
-    print("Usage: {} <build_type>".format(sys.argv[0]), file=sys.stderr)
+    print("Usage: {} <ref_name>".format(sys.argv[0]), file=sys.stderr)
     sys.exit(1)
 
-print("Generating matrix for type '{}'.".format(build_type))
+print("Generating matrix for type '{}'.".format(ref_name))
 
 
 def clean_os(os):
@@ -129,11 +129,9 @@ for CC in ["gcc", "clang"]:
         "stock",
         "OPENSSL_VERSION=1.0.2u",
         "OPENSSL_VERSION=1.1.1s",
-        "OPENSSL_VERSION=latest",
-        "LIBRESSL_VERSION=latest",
         "QUICTLS=yes",
 #        "BORINGSSL=yes",
-    ]:
+    ] + (["OPENSSL_VERSION=latest", "LIBRESSL_VERSION=latest"] if "haproxy-" not in ref_name else []):
         flags = ["USE_OPENSSL=1"]
         if ssl == "BORINGSSL=yes" or ssl == "QUICTLS=yes" or "LIBRESSL" in ssl:
             flags.append("USE_QUIC=1")
