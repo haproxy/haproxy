@@ -53,11 +53,11 @@
  * Please also update the chn_show_flags() function below in case of changes.
  */
 
-#define CF_READ_NULL      0x00000001  /* last read detected on producer side */
+#define CF_READ_EVENT     0x00000001  /* a read event detected on producer side */
 #define CF_READ_PARTIAL   0x00000002  /* some data were read from producer or a read exception occurred */
 #define CF_READ_TIMEOUT   0x00000004  /* timeout while waiting for producer */
 #define CF_READ_ERROR     0x00000008  /* unrecoverable error on producer side */
-#define CF_READ_ACTIVITY  (CF_READ_NULL|CF_READ_PARTIAL|CF_READ_ERROR)
+#define CF_READ_ACTIVITY  (CF_READ_EVENT|CF_READ_PARTIAL|CF_READ_ERROR)
 
 /* unused: 0x00000010 */
 #define CF_SHUTR          0x00000020  /* producer has already shut down */
@@ -138,7 +138,7 @@ static forceinline char *chn_show_flags(char *buf, size_t len, const char *delim
 	/* prologue */
 	_(0);
 	/* flags */
-	_(CF_READ_NULL, _(CF_READ_PARTIAL, _(CF_READ_TIMEOUT, _(CF_READ_ERROR,
+	_(CF_READ_EVENT, _(CF_READ_PARTIAL, _(CF_READ_TIMEOUT, _(CF_READ_ERROR,
 	_(CF_SHUTR, _(CF_SHUTR_NOW, _(CF_READ_NOEXP, _(CF_WRITE_NULL,
 	_(CF_WRITE_PARTIAL, _(CF_WRITE_TIMEOUT, _(CF_WRITE_ERROR,
 	_(CF_WAKE_WRITE, _(CF_SHUTW, _(CF_SHUTW_NOW, _(CF_AUTO_CLOSE,

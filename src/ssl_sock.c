@@ -7344,7 +7344,7 @@ enum act_return ssl_action_wait_for_hs(struct act_rule *rule, struct proxy *px,
 	if (conn) {
 		if (conn->flags & (CO_FL_EARLY_SSL_HS | CO_FL_SSL_WAIT_HS)) {
 			sc_ep_set(s->scf, SE_FL_WAIT_FOR_HS);
-			s->req.flags |= CF_READ_NULL;
+			s->req.flags |= CF_READ_EVENT;
 			return ACT_RET_YIELD;
 		}
 	}

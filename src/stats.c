@@ -4420,7 +4420,7 @@ static void http_stats_io_handler(struct appctx *appctx)
 
 	if (appctx->st0 == STAT_HTTP_END) {
 		if (!(res->flags & CF_SHUTR)) {
-			res->flags |= CF_READ_NULL;
+			res->flags |= CF_READ_EVENT;
 			sc_shutr(sc);
 		}
 

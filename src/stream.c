@@ -1553,8 +1553,8 @@ static void stream_update_both_sc(struct stream *s)
 	struct channel *req = &s->req;
 	struct channel *res = &s->res;
 
-	req->flags &= ~(CF_READ_NULL|CF_READ_PARTIAL|CF_READ_ATTACHED|CF_WRITE_NULL|CF_WRITE_PARTIAL);
-	res->flags &= ~(CF_READ_NULL|CF_READ_PARTIAL|CF_READ_ATTACHED|CF_WRITE_NULL|CF_WRITE_PARTIAL);
+	req->flags &= ~(CF_READ_EVENT|CF_READ_PARTIAL|CF_READ_ATTACHED|CF_WRITE_NULL|CF_WRITE_PARTIAL);
+	res->flags &= ~(CF_READ_EVENT|CF_READ_PARTIAL|CF_READ_ATTACHED|CF_WRITE_NULL|CF_WRITE_PARTIAL);
 
 	s->prev_conn_state = scb->state;
 

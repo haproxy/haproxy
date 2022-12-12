@@ -446,7 +446,7 @@ static void sink_forward_io_handler(struct appctx *appctx)
 close:
 	sc_shutw(sc);
 	sc_shutr(sc);
-	sc_ic(sc)->flags |= CF_READ_NULL;
+	sc_ic(sc)->flags |= CF_READ_EVENT;
 }
 
 /*
@@ -590,7 +590,7 @@ static void sink_forward_oc_io_handler(struct appctx *appctx)
 close:
 	sc_shutw(sc);
 	sc_shutr(sc);
-	sc_ic(sc)->flags |= CF_READ_NULL;
+	sc_ic(sc)->flags |= CF_READ_EVENT;
 }
 
 void __sink_forward_session_deinit(struct sink_forward_target *sft)

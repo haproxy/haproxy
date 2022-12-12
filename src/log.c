@@ -3689,7 +3689,7 @@ close:
 	sc_shutw(sc);
 	sc_shutr(sc);
 
-	sc_ic(sc)->flags |= CF_READ_NULL;
+	sc_ic(sc)->flags |= CF_READ_EVENT;
 
 	return;
 }

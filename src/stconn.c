@@ -1194,7 +1194,7 @@ static void sc_notify(struct stconn *sc)
 
 	/* wake the task up only when needed */
 	if (/* changes on the production side */
-	    (ic->flags & (CF_READ_NULL|CF_READ_ERROR)) ||
+	    (ic->flags & (CF_READ_EVENT|CF_READ_ERROR)) ||
 	    !sc_state_in(sc->state, SC_SB_CON|SC_SB_RDY|SC_SB_EST) ||
 	    sc_ep_test(sc, SE_FL_ERROR) ||
 	    ((ic->flags & CF_READ_PARTIAL) &&
@@ -1585,7 +1585,7 @@ static int sc_conn_recv(struct stconn *sc)
 		ret = 1;
 	else if (sc_ep_test(sc, SE_FL_EOS)) {
 		/* we received a shutdown */
-		ic->flags |= CF_READ_NULL;
+		ic->flags |= CF_READ_EVENT;
 		if (ic->flags & CF_AUTO_CLOSE)
 			channel_shutw_now(ic);
 		sc_conn_read0(sc);
@@ -1866,7 +1866,7 @@ static int sc_conn_process(struct stconn *sc)
 	 */
 	if (sc_ep_test(sc, SE_FL_EOS) && !(ic->flags & CF_SHUTR)) {
 		/* we received a shutdown */
-		ic->flags |= CF_READ_NULL;
+		ic->flags |= CF_READ_EVENT;
 		if (ic->flags & CF_AUTO_CLOSE)
 			channel_shutw_now(ic);
 		sc_conn_read0(sc);
