@@ -4793,6 +4793,8 @@ static struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 
 	LIST_INIT(&qc->rx.pkt_list);
 
+	qc_init_fd(qc);
+
 	/* Now proceeds to allocation of qc members. */
 
 	buf_area = pool_alloc(pool_head_quic_conn_rxbuf);
@@ -4846,9 +4848,6 @@ static struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	    is_addr(local_addr)) {
 		TRACE_USER("Allocate a socket for QUIC connection", QUIC_EV_CONN_INIT, qc);
 		qc_alloc_fd(qc, local_addr, peer_addr);
-	}
-	else {
-		qc_init_fd(qc);
 	}
 
 	/* insert the allocated CID in the receiver datagram handler tree */
