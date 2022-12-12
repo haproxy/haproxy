@@ -119,7 +119,7 @@ int ci_putchr(struct channel *chn, char c)
 	*ci_tail(chn) = c;
 
 	b_add(&chn->buf, 1);
-	chn->flags |= CF_READ_PARTIAL;
+	chn->flags |= CF_READ_EVENT;
 
 	if (chn->to_forward >= 1) {
 		if (chn->to_forward != CHN_INFINITE_FORWARD)

@@ -1849,7 +1849,7 @@ skip_reuse:
 	 *       care of it.
 	 */
 	if (sc_ep_test(s->scb, SE_FL_EOI) && !(sc_ic(s->scb)->flags & CF_EOI))
-		sc_ic(s->scb)->flags |= (CF_EOI|CF_READ_PARTIAL);
+		sc_ic(s->scb)->flags |= (CF_EOI|CF_READ_EVENT);
 
 	/* catch all sync connect while the mux is not already installed */
 	if (!srv_conn->mux && !(srv_conn->flags & CO_FL_WAIT_XPRT)) {

@@ -378,7 +378,7 @@ static inline void channel_add_input(struct channel *chn, unsigned int len)
 	}
 	/* notify that some data was read */
 	chn->total += len;
-	chn->flags |= CF_READ_PARTIAL;
+	chn->flags |= CF_READ_EVENT;
 }
 
 static inline unsigned long long channel_htx_forward(struct channel *chn, struct htx *htx, unsigned long long bytes)

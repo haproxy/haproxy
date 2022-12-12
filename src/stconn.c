@@ -1186,19 +1186,22 @@ static void sc_notify(struct stconn *sc)
 	    (sc->flags & (SC_FL_WONT_READ|SC_FL_NEED_BUFF|SC_FL_NEED_ROOM))) {
 		ic->rex = TICK_ETERNITY;
 	}
-	else if ((ic->flags & (CF_SHUTR|CF_READ_PARTIAL)) == CF_READ_PARTIAL) {
+	else if ((ic->flags & (CF_SHUTR|CF_READ_EVENT)) == CF_READ_EVENT) {
 		/* we must re-enable reading if sc_chk_snd() has freed some space */
 		if (!(ic->flags & CF_READ_NOEXP) && tick_isset(ic->rex))
 			ic->rex = tick_add_ifset(now_ms, ic->rto);
 	}
 
 	/* wake the task up only when needed */
-	if (/* changes on the production side */
-	    (ic->flags & (CF_READ_EVENT|CF_READ_ERROR)) ||
-	    !sc_state_in(sc->state, SC_SB_CON|SC_SB_RDY|SC_SB_EST) ||
-	    sc_ep_test(sc, SE_FL_ERROR) ||
-	    ((ic->flags & CF_READ_PARTIAL) &&
-	     ((ic->flags & CF_EOI) || !ic->to_forward || sco->state != SC_ST_EST)) ||
+	if (/* changes on the production side that must be handled:
+	     *  - An error on receipt: CF_READ_ERROR or SE_FL_ERROR
+	     *  - A read event: shutdown for reads (CF_READ_EVENT + SHUTR)
+	     *                  end of input (CF_READ_EVENT + CF_EOI)
+	     *                  data received and no fast-forwarding (CF_READ_EVENT + !to_forward)
+	     *                  read event while consumer side is not established (CF_READ_EVENT + sco->state != SC_ST_EST)
+	     */
+	    ((ic->flags & CF_READ_EVENT) && ((ic->flags & (CF_SHUTR|CF_EOI)) || !ic->to_forward || sco->state != SC_ST_EST)) ||
+	    (ic->flags & CF_READ_ERROR) || sc_ep_test(sc, SE_FL_ERROR) ||
 
 	    /* changes on the consumption side */
 	    (oc->flags & (CF_WRITE_EVENT|CF_WRITE_ERROR)) ||
@@ -1371,7 +1374,7 @@ static int sc_conn_recv(struct stconn *sc)
 				ic->to_forward -= ret;
 			ic->total += ret;
 			cur_read += ret;
-			ic->flags |= CF_READ_PARTIAL;
+			ic->flags |= CF_READ_EVENT;
 		}
 
 		if (sc_ep_test(sc, SE_FL_EOS | SE_FL_ERROR))
@@ -1455,7 +1458,7 @@ static int sc_conn_recv(struct stconn *sc)
 			/* Add READ_PARTIAL because some data are pending but
 			 * cannot be xferred to the channel
 			 */
-			ic->flags |= CF_READ_PARTIAL;
+			ic->flags |= CF_READ_EVENT;
 		}
 
 		if (ret <= 0) {
@@ -1482,7 +1485,7 @@ static int sc_conn_recv(struct stconn *sc)
 			c_adv(ic, fwd);
 		}
 
-		ic->flags |= CF_READ_PARTIAL;
+		ic->flags |= CF_READ_EVENT;
 		ic->total += ret;
 
 		/* End-of-input reached, we can leave. In this case, it is
@@ -1577,7 +1580,7 @@ static int sc_conn_recv(struct stconn *sc)
 	/* Report EOI on the channel if it was reached from the mux point of
 	 * view. */
 	if (sc_ep_test(sc, SE_FL_EOI) && !(ic->flags & CF_EOI)) {
-		ic->flags |= (CF_EOI|CF_READ_PARTIAL);
+		ic->flags |= (CF_EOI|CF_READ_EVENT);
 		ret = 1;
 	}
 
@@ -1880,7 +1883,7 @@ static int sc_conn_process(struct stconn *sc)
 	 *       care of it.
 	 */
 	if (sc_ep_test(sc, SE_FL_EOI) && !(ic->flags & CF_EOI))
-		ic->flags |= (CF_EOI|CF_READ_PARTIAL);
+		ic->flags |= (CF_EOI|CF_READ_EVENT);
 
 	/* Second step : update the stream connector and channels, try to forward any
 	 * pending data, then possibly wake the stream up based on the new

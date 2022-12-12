@@ -294,7 +294,7 @@ int stream_upgrade_from_sc(struct stconn *sc, struct buffer *input)
 		s->req.buf = *input;
 		*input = BUF_NULL;
 		s->req.total = (IS_HTX_STRM(s) ? htxbuf(&s->req.buf)->data : b_data(&s->req.buf));
-		s->req.flags |= (s->req.total ? CF_READ_PARTIAL : 0);
+		s->req.flags |= (s->req.total ? CF_READ_EVENT : 0);
 	}
 
 	s->flags &= ~SF_IGNORE;
@@ -567,7 +567,7 @@ struct stream *stream_new(struct session *sess, struct stconn *sc, struct buffer
 		s->req.buf = *input;
 		*input = BUF_NULL;
 		s->req.total = (IS_HTX_STRM(s) ? htxbuf(&s->req.buf)->data : b_data(&s->req.buf));
-		s->req.flags |= (s->req.total ? CF_READ_PARTIAL : 0);
+		s->req.flags |= (s->req.total ? CF_READ_EVENT : 0);
 	}
 
 	/* it is important not to call the wakeup function directly but to
@@ -1516,7 +1516,7 @@ int stream_set_http_mode(struct stream *s, const struct mux_proto_list *mux_prot
 		}
 		sc_conn_commit_endp_upgrade(sc);
 
-		s->req.flags &= ~(CF_READ_PARTIAL|CF_AUTO_CONNECT);
+		s->req.flags &= ~(CF_READ_EVENT|CF_AUTO_CONNECT);
 		s->req.total = 0;
 		s->flags |= SF_IGNORE;
 		if (sc_ep_test(sc, SE_FL_DETACHED)) {
@@ -1553,8 +1553,8 @@ static void stream_update_both_sc(struct stream *s)
 	struct channel *req = &s->req;
 	struct channel *res = &s->res;
 
-	req->flags &= ~(CF_READ_EVENT|CF_READ_PARTIAL|CF_READ_ATTACHED|CF_WRITE_EVENT|CF_WRITE_PARTIAL);
-	res->flags &= ~(CF_READ_EVENT|CF_READ_PARTIAL|CF_READ_ATTACHED|CF_WRITE_EVENT|CF_WRITE_PARTIAL);
+	req->flags &= ~(CF_READ_EVENT|CF_READ_ATTACHED|CF_WRITE_EVENT|CF_WRITE_PARTIAL);
+	res->flags &= ~(CF_READ_EVENT|CF_READ_ATTACHED|CF_WRITE_EVENT|CF_WRITE_PARTIAL);
 
 	s->prev_conn_state = scb->state;
 
@@ -1710,7 +1710,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	 * to a bogus analyser or the fact that we're ignoring a read0. The
 	 * call_rate counter only counts calls with no progress made.
 	 */
-	if (!((req->flags | res->flags) & (CF_READ_PARTIAL|CF_WRITE_PARTIAL))) {
+	if (!((req->flags | res->flags) & (CF_READ_EVENT|CF_WRITE_PARTIAL))) {
 		rate = update_freq_ctr(&s->call_rate, 1);
 		if (rate >= 100000 && s->call_rate.prev_ctr) // make sure to wait at least a full second
 			stream_dump_and_crash(&s->obj_type, read_freq_ctr(&s->call_rate));
