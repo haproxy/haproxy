@@ -4582,7 +4582,9 @@ static void quic_conn_enc_level_uninit(struct quic_conn *qc, struct quic_enc_lev
 
 /* Initialize QUIC TLS encryption level with <level<> as level for <qc> QUIC
  * connection allocating everything needed.
- * Returns 1 if succeeded, 0 if not.
+ *
+ * Returns 1 if succeeded, 0 if not. On error the caller is responsible to use
+ * quic_conn_enc_level_uninit() to cleanup partially allocated content.
  */
 static int quic_conn_enc_level_init(struct quic_conn *qc,
                                     enum quic_tls_enc_level level)
@@ -4606,11 +4608,11 @@ static int quic_conn_enc_level_init(struct quic_conn *qc,
 	/* TODO: use a pool */
 	qel->tx.crypto.bufs = malloc(sizeof *qel->tx.crypto.bufs);
 	if (!qel->tx.crypto.bufs)
-		goto err;
+		goto leave;
 
 	qel->tx.crypto.bufs[0] = pool_alloc(pool_head_quic_crypto_buf);
 	if (!qel->tx.crypto.bufs[0])
-		goto err;
+		goto leave;
 
 	qel->tx.crypto.bufs[0]->sz = 0;
 	qel->tx.crypto.nb_buf = 1;
@@ -4623,17 +4625,13 @@ static int quic_conn_enc_level_init(struct quic_conn *qc,
 	else {
 		qel->cstream = quic_cstream_new(qc);
 		if (!qel->cstream)
-			goto err;
+			goto leave;
 	}
 
 	ret = 1;
  leave:
 	TRACE_LEAVE(QUIC_EV_CONN_CLOSE, qc);
 	return ret;
-
- err:
-	ha_free(&qel->tx.crypto.bufs);
-	goto leave;
 }
 
 /* Callback called upon loss detection and PTO timer expirations. */
@@ -4778,11 +4776,24 @@ static struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	struct quic_cc_algo *cc_algo = NULL;
 	struct quic_tls_ctx *ictx;
 	TRACE_ENTER(QUIC_EV_CONN_INIT);
+	/* TODO replace pool_zalloc by pool_alloc(). This requires special care
+	 * to properly initialized internal quic_conn members to safely use
+	 * quic_conn_release() on alloc failure.
+	 */
 	qc = pool_zalloc(pool_head_quic_conn);
 	if (!qc) {
 		TRACE_ERROR("Could not allocate a new connection", QUIC_EV_CONN_INIT);
 		goto err;
 	}
+
+	/* Initialize in priority qc members required for a safe dealloc. */
+
+	/* required to use MTLIST_IN_LIST */
+	MT_LIST_INIT(&qc->accept_list);
+
+	LIST_INIT(&qc->rx.pkt_list);
+
+	/* Now proceeds to allocation of qc members. */
 
 	buf_area = pool_alloc(pool_head_quic_conn_rxbuf);
 	if (!buf_area) {
@@ -4879,7 +4890,6 @@ static struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	qc->nb_pkt_for_cc = 1;
 	qc->nb_pkt_since_cc = 0;
 
-	LIST_INIT(&qc->rx.pkt_list);
 	if (!quic_tls_ku_init(qc)) {
 		TRACE_ERROR("Key update initialization failed", QUIC_EV_CONN_INIT, qc);
 		goto err;
@@ -4888,9 +4898,6 @@ static struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	/* XXX TO DO: Only one path at this time. */
 	qc->path = &qc->paths[0];
 	quic_path_init(qc->path, ipv4, cc_algo ? cc_algo : default_quic_cc_algo, qc);
-
-	/* required to use MTLIST_IN_LIST */
-	MT_LIST_INIT(&qc->accept_list);
 
 	qc->streams_by_id = EB_ROOT_UNIQUE;
 	qc->stream_buf_count = 0;
@@ -4933,10 +4940,11 @@ static struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 
  err:
 	pool_free(pool_head_quic_conn_rxbuf, buf_area);
-	if (qc)
+	if (qc) {
 		qc->rx.buf.area = NULL;
-	quic_conn_release(qc);
-	TRACE_LEAVE(QUIC_EV_CONN_INIT, qc);
+		quic_conn_release(qc);
+	}
+	TRACE_LEAVE(QUIC_EV_CONN_INIT);
 	return NULL;
 }
 
@@ -4998,7 +5006,8 @@ void quic_conn_release(struct quic_conn *qc)
 		qc->timer_task = NULL;
 	}
 
-	tasklet_free(qc->wait_event.tasklet);
+	if (qc->wait_event.tasklet)
+		tasklet_free(qc->wait_event.tasklet);
 
 	/* remove the connection from receiver cids trees */
 	ebmb_delete(&qc->odcid_node);

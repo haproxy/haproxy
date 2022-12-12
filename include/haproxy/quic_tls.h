@@ -654,7 +654,9 @@ static inline int quic_tls_kp_init(struct quic_tls_kp *kp)
 
 /* Initialize all the key update key phase structures for <qc>
  * QUIC connection, allocating the required memory.
- * Returns 1 if succeeded, 0 if not.
+ *
+ * Returns 1 if succeeded, 0 if not. The caller is responsible to use
+ * quic_tls_ku_free() on error to cleanup partially allocated content.
  */
 static inline int quic_tls_ku_init(struct quic_conn *qc)
 {
@@ -670,7 +672,6 @@ static inline int quic_tls_ku_init(struct quic_conn *qc)
 	return 1;
 
  err:
-	quic_tls_ku_free(qc);
 	return 0;
 }
 
