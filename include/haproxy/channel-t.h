@@ -31,7 +31,7 @@
  *
  *   - pure status flags, reported by the data layer, which must be cleared
  *     before doing further I/O :
- *     CF_*_NULL, CF_*_PARTIAL
+ *     CF_*_EVENT, CF_*_PARTIAL
  *
  *   - pure status flags, reported by stream connector layer, which must also
  *     be cleared before doing further I/O :
@@ -64,11 +64,11 @@
 #define CF_SHUTR_NOW      0x00000040  /* the producer must shut down for reads ASAP */
 #define CF_READ_NOEXP     0x00000080  /* producer should not expire */
 
-#define CF_WRITE_NULL     0x00000100  /* write(0) or connect() succeeded on consumer side */
+#define CF_WRITE_EVENT    0x00000100  /* a write event detected on consumer side */
 #define CF_WRITE_PARTIAL  0x00000200  /* some data were written to the consumer */
 #define CF_WRITE_TIMEOUT  0x00000400  /* timeout while waiting for consumer */
 #define CF_WRITE_ERROR    0x00000800  /* unrecoverable error on consumer side */
-#define CF_WRITE_ACTIVITY (CF_WRITE_NULL|CF_WRITE_PARTIAL|CF_WRITE_ERROR)
+#define CF_WRITE_ACTIVITY (CF_WRITE_EVENT|CF_WRITE_PARTIAL|CF_WRITE_ERROR)
 
 #define CF_WAKE_WRITE     0x00001000  /* wake the task up when there's write activity */
 #define CF_SHUTW          0x00002000  /* consumer has already shut down */
@@ -139,7 +139,7 @@ static forceinline char *chn_show_flags(char *buf, size_t len, const char *delim
 	_(0);
 	/* flags */
 	_(CF_READ_EVENT, _(CF_READ_PARTIAL, _(CF_READ_TIMEOUT, _(CF_READ_ERROR,
-	_(CF_SHUTR, _(CF_SHUTR_NOW, _(CF_READ_NOEXP, _(CF_WRITE_NULL,
+	_(CF_SHUTR, _(CF_SHUTR_NOW, _(CF_READ_NOEXP, _(CF_WRITE_EVENT,
 	_(CF_WRITE_PARTIAL, _(CF_WRITE_TIMEOUT, _(CF_WRITE_ERROR,
 	_(CF_WAKE_WRITE, _(CF_SHUTW, _(CF_SHUTW_NOW, _(CF_AUTO_CLOSE,
 	_(CF_STREAMER, _(CF_STREAMER_FAST, _(CF_WROTE_DATA, _(CF_ANA_TIMEOUT,

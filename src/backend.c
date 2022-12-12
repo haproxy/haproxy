@@ -1836,7 +1836,7 @@ skip_reuse:
 	if (!sc_state_in(s->scb->state, SC_SB_EST|SC_SB_DIS|SC_SB_CLO) &&
 	    (srv_conn->flags & CO_FL_WAIT_XPRT) == 0) {
 		s->conn_exp = TICK_ETERNITY;
-		sc_oc(s->scb)->flags |= CF_WRITE_NULL;
+		sc_oc(s->scb)->flags |= CF_WRITE_EVENT;
 		if (s->scb->state == SC_ST_CON)
 			s->scb->state = SC_ST_RDY;
 	}

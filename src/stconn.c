@@ -850,7 +850,7 @@ static void sc_app_chk_snd_conn(struct stconn *sc)
 	/* in case of special condition (error, shutdown, end of write...), we
 	 * have to notify the task.
 	 */
-	if (likely((oc->flags & (CF_WRITE_NULL|CF_WRITE_ERROR|CF_SHUTW)) ||
+	if (likely((oc->flags & (CF_WRITE_EVENT|CF_WRITE_ERROR|CF_SHUTW)) ||
 	          ((oc->flags & CF_WAKE_WRITE) &&
 	           ((channel_is_empty(oc) && !oc->to_forward) ||
 	            !sc_state_in(sc->state, SC_SB_EST))))) {
@@ -1201,7 +1201,7 @@ static void sc_notify(struct stconn *sc)
 	     ((ic->flags & CF_EOI) || !ic->to_forward || sco->state != SC_ST_EST)) ||
 
 	    /* changes on the consumption side */
-	    (oc->flags & (CF_WRITE_NULL|CF_WRITE_ERROR)) ||
+	    (oc->flags & (CF_WRITE_EVENT|CF_WRITE_ERROR)) ||
 	    ((oc->flags & CF_WRITE_ACTIVITY) &&
 	     ((oc->flags & CF_SHUTW) ||
 	      (((oc->flags & CF_WAKE_WRITE) ||
@@ -1776,7 +1776,7 @@ static int sc_conn_send(struct stconn *sc)
 	return did_send;
 }
 
-/* perform a synchronous send() for the stream connector. The CF_WRITE_NULL and
+/* perform a synchronous send() for the stream connector. The CF_WRITE_EVENT and
  * CF_WRITE_PARTIAL flags are cleared prior to the attempt, and will possibly
  * be updated in case of success.
  */
@@ -1784,7 +1784,7 @@ void sc_conn_sync_send(struct stconn *sc)
 {
 	struct channel *oc = sc_oc(sc);
 
-	oc->flags &= ~(CF_WRITE_NULL|CF_WRITE_PARTIAL);
+	oc->flags &= ~(CF_WRITE_EVENT|CF_WRITE_PARTIAL);
 
 	if (oc->flags & CF_SHUTW)
 		return;
@@ -1852,7 +1852,7 @@ static int sc_conn_process(struct stconn *sc)
 	    (conn->flags & CO_FL_WAIT_XPRT) == 0) {
 		if (sc->flags & SC_FL_ISBACK)
 			__sc_strm(sc)->conn_exp = TICK_ETERNITY;
-		oc->flags |= CF_WRITE_NULL;
+		oc->flags |= CF_WRITE_EVENT;
 		if (sc->state == SC_ST_CON)
 			sc->state = SC_ST_RDY;
 	}
