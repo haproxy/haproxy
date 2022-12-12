@@ -35,6 +35,59 @@ static void qcc_emit_cc(struct qcc *qcc, int err)
 	TRACE_LEAVE(QMUX_EV_QCC_END, qcc->conn);
 }
 
+static void qc_free_ncbuf(struct qcs *qcs, struct ncbuf *ncbuf)
+{
+	struct buffer buf;
+
+	if (ncb_is_null(ncbuf))
+		return;
+
+	buf = b_make(ncbuf->area, ncbuf->size, 0, 0);
+	b_free(&buf);
+	offer_buffers(NULL, 1);
+
+	*ncbuf = NCBUF_NULL;
+}
+
+/* Free <qcs> instance. This function is reserved for internal usage : it must
+ * only be called on qcs alloc error or on connection shutdown. Else
+ * qcs_destroy must be prefered to handle QUIC flow-control increase.
+ */
+static void qcs_free(struct qcs *qcs)
+{
+	struct qcc *qcc = qcs->qcc;
+
+	TRACE_ENTER(QMUX_EV_QCS_END, qcc->conn, qcs);
+
+	if (LIST_INLIST(&qcs->el_opening))
+		LIST_DELETE(&qcs->el_opening);
+
+	/* Release stream endpoint descriptor. */
+	BUG_ON(qcs->sd && !se_fl_test(qcs->sd, SE_FL_ORPHAN));
+	sedesc_free(qcs->sd);
+
+	/* Release app-layer context. */
+	if (qcs->ctx && qcc->app_ops->detach)
+		qcc->app_ops->detach(qcs);
+
+	/* Release qc_stream_desc buffer from quic-conn layer. */
+	qc_stream_desc_release(qcs->stream);
+
+	/* Free Rx/Tx buffers. */
+	qc_free_ncbuf(qcs, &qcs->rx.ncbuf);
+	b_free(&qcs->tx.buf);
+
+	BUG_ON(!qcc->strms[qcs_id_type(qcs->id)].nb_streams);
+	--qcc->strms[qcs_id_type(qcs->id)].nb_streams;
+
+	/* Remove qcs from qcc tree. */
+	eb64_delete(&qcs->by_id);
+
+	pool_free(pool_head_qcs, qcs);
+
+	TRACE_LEAVE(QMUX_EV_QCS_END, qcc->conn);
+}
+
 /* Allocate a new QUIC streams with id <id> and type <type>. */
 static struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
 {
@@ -61,6 +114,12 @@ static struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
 	LIST_INIT(&qcs->el_opening);
 	qcs->start = TICK_ETERNITY;
 
+	/* store transport layer stream descriptor in qcc tree */
+	qcs->id = qcs->by_id.key = id;
+	eb64_insert(&qcc->streams_by_id, &qcs->by_id);
+
+	qcc->strms[type].nb_streams++;
+
 	/* Allocate transport layer stream descriptor. Only needed for TX. */
 	if (!quic_stream_is_uni(id) || !quic_stream_is_remote(qcc, id)) {
 		struct quic_conn *qc = qcc->conn->handle.qc;
@@ -71,18 +130,12 @@ static struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
 		}
 	}
 
-	qcs->id = qcs->by_id.key = id;
 	if (qcc->app_ops->attach) {
 		if (qcc->app_ops->attach(qcs, qcc->ctx)) {
 			TRACE_ERROR("app proto failure", QMUX_EV_QCS_NEW, qcc->conn, qcs);
 			goto err;
 		}
 	}
-
-	/* store transport layer stream descriptor in qcc tree */
-	eb64_insert(&qcc->streams_by_id, &qcs->by_id);
-
-	qcc->strms[type].nb_streams++;
 
 	/* If stream is local, use peer remote-limit, or else the opposite. */
 	if (quic_stream_is_bidi(id)) {
@@ -121,61 +174,9 @@ static struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
 	return qcs;
 
  err:
-	if (qcs->ctx && qcc->app_ops->detach)
-		qcc->app_ops->detach(qcs);
-
-	qc_stream_desc_release(qcs->stream);
-	pool_free(pool_head_qcs, qcs);
-
-	TRACE_LEAVE(QMUX_EV_QCS_NEW, qcc->conn, qcs);
+	qcs_free(qcs);
+	TRACE_LEAVE(QMUX_EV_QCS_NEW, qcc->conn);
 	return NULL;
-}
-
-static void qc_free_ncbuf(struct qcs *qcs, struct ncbuf *ncbuf)
-{
-	struct buffer buf;
-
-	if (ncb_is_null(ncbuf))
-		return;
-
-	buf = b_make(ncbuf->area, ncbuf->size, 0, 0);
-	b_free(&buf);
-	offer_buffers(NULL, 1);
-
-	*ncbuf = NCBUF_NULL;
-}
-
-/* Free a qcs. This function must only be done to remove a stream on allocation
- * error or connection shutdown. Else use qcs_destroy which handle all the
- * QUIC connection mechanism.
- */
-static void qcs_free(struct qcs *qcs)
-{
-	struct qcc *qcc = qcs->qcc;
-
-	TRACE_ENTER(QMUX_EV_QCS_END, qcc->conn, qcs);
-
-	if (LIST_INLIST(&qcs->el_opening))
-		LIST_DELETE(&qcs->el_opening);
-
-	qc_free_ncbuf(qcs, &qcs->rx.ncbuf);
-	b_free(&qcs->tx.buf);
-
-	BUG_ON(!qcc->strms[qcs_id_type(qcs->id)].nb_streams);
-	--qcc->strms[qcs_id_type(qcs->id)].nb_streams;
-
-	if (qcs->ctx && qcc->app_ops->detach)
-		qcc->app_ops->detach(qcs);
-
-	qc_stream_desc_release(qcs->stream);
-
-	BUG_ON(qcs->sd && !se_fl_test(qcs->sd, SE_FL_ORPHAN));
-	sedesc_free(qcs->sd);
-
-	eb64_delete(&qcs->by_id);
-	pool_free(pool_head_qcs, qcs);
-
-	TRACE_LEAVE(QMUX_EV_QCS_END, qcc->conn);
 }
 
 static forceinline struct stconn *qcs_sc(const struct qcs *qcs)
