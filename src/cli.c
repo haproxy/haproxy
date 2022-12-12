@@ -2694,7 +2694,7 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		return 0;
 	}
 
-	if ((rep->flags & (CF_SHUTR|CF_READ_NULL))) {
+	if (rep->flags & CF_SHUTR) {
 		/* stream cleanup */
 
 		pcli_write_prompt(s);

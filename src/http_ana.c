@@ -1142,7 +1142,7 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 	 * it can be abused to exhaust source ports. */
 	if (s->be->options & PR_O_ABRT_CLOSE) {
 		channel_auto_read(req);
-		if ((req->flags & (CF_SHUTR|CF_READ_NULL)) && !(txn->flags & TX_CON_WANT_TUN))
+		if ((req->flags & CF_SHUTR) && !(txn->flags & TX_CON_WANT_TUN))
 			s->scb->flags |= SC_FL_NOLINGER;
 		channel_auto_close(req);
 	}
@@ -2833,7 +2833,7 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 		/* Always call the action function if defined */
 		if (rule->action_ptr) {
 			if ((s->req.flags & CF_READ_ERROR) ||
-			    ((s->req.flags & (CF_SHUTR|CF_READ_NULL)) &&
+			    ((s->req.flags & CF_SHUTR) &&
 			     (px->options & PR_O_ABRT_CLOSE)))
 				act_opts |= ACT_OPT_FINAL;
 
@@ -2996,7 +2996,7 @@ resume_execution:
 		/* Always call the action function if defined */
 		if (rule->action_ptr) {
 			if ((s->req.flags & CF_READ_ERROR) ||
-			    ((s->req.flags & (CF_SHUTR|CF_READ_NULL)) &&
+			    ((s->req.flags & CF_SHUTR) &&
 			     (px->options & PR_O_ABRT_CLOSE)))
 				act_opts |= ACT_OPT_FINAL;
 
