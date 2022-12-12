@@ -128,6 +128,7 @@ for CC in ["gcc", "clang"]:
     for ssl in [
         "stock",
         "OPENSSL_VERSION=1.0.2u",
+        "OPENSSL_VERSION=1.1.1s",
         "OPENSSL_VERSION=latest",
         "LIBRESSL_VERSION=latest",
         "QUICTLS=yes",
