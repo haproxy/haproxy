@@ -136,7 +136,7 @@ jobs:
       run: |
         # This is required for macOS which does not actually allow to increase
         # the '-n' soft limit to the hard limit, thus failing to run.
-        ulimit -n 5000
+        ulimit -n 65536
         make reg-tests VTEST_PROGRAM=../vtest/vtest REGTESTS_TYPES=default,bug,devel
     - name: Show VTest results
       if: ${{ failure() && steps.vtest.outcome == 'failure' }}
