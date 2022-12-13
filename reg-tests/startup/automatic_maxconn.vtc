@@ -1,11 +1,13 @@
-#REGTEST_TYPE=broken
-#REQUIRE_VERSION=2.2
-#REQUIRE_OPTION=OPENSSL
+varnishtest "Automatic maxconn computation"
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.5-dev0)'"
+feature cmd "$HAPROXY_PROGRAM -cc '!feature(OBSOLETE_LINKER)'"
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL)'"
+feature ignore_unknown_macro
+#REGTEST_TYPE=devel
+
 
 # Check the maxconn computation with the -m parameter
 # Broken because it can't work with ASAN.
-
-varnishtest "Automatic maxconn computation"
 
 
 feature ignore_unknown_macro
