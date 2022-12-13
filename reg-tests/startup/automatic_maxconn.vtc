@@ -1,0 +1,102 @@
+#REGTEST_TYPE=broken
+#REQUIRE_VERSION=2.2
+#REQUIRE_OPTION=OPENSSL
+
+# Check the maxconn computation with the -m parameter
+# Broken because it can't work with ASAN.
+
+varnishtest "Automatic maxconn computation"
+
+
+feature ignore_unknown_macro
+
+server s1 {
+    rxreq
+    txresp
+} -start
+
+
+haproxy h1 -arg "-m 1024" -conf {
+} -start
+
+haproxy h1 -cli {
+	send "show info"
+	expect ~ ".*Maxconn: 29000\n.*"
+}
+
+haproxy h2 -arg "-m 384" -conf {
+} -start
+
+haproxy h2 -cli {
+	send "show info"
+	expect ~ ".*Maxconn: 10000\n.*"
+}
+
+haproxy h3 -arg "-m 256" -conf {
+} -start
+
+haproxy h3 -cli {
+	send "show info"
+	expect ~ ".*Maxconn: 7300\n.*"
+}
+
+# 1 SSL front but no back
+
+haproxy h4 -arg "-m 256" -conf {
+	defaults
+		mode http
+		timeout connect 1s
+		timeout client  1s
+		timeout server  1s
+
+	frontend fe1
+		bind "fd@${fe1}" ssl crt ${testdir}/common.pem
+
+} -start
+
+haproxy h4 -cli {
+	send "show info"
+	expect ~ ".*Maxconn: 1900\n.*"
+}
+
+# 1 SSL back but not front
+
+haproxy h5 -arg "-m 256" -conf {
+	defaults
+		mode http
+		timeout connect 1s
+		timeout client  1s
+		timeout server  1s
+
+	listen li2
+		bind "fd@${li2}"
+		server ssl "${s1_addr}:${s1_port}" ssl verify none
+
+} -start
+
+haproxy h5 -cli {
+	send "show info"
+	expect ~ ".*Maxconn: 1900\n.*"
+}
+
+
+# 1 SSL front and 1 back
+
+haproxy h6 -arg "-m 256" -conf {
+	defaults
+		mode http
+		timeout connect 1s
+		timeout client  1s
+		timeout server  1s
+
+	listen li3
+		bind "fd@${li3}" ssl crt ${testdir}/common.pem
+		server ssl "${s1_addr}:${s1_port}" ssl verify none
+
+} -start
+
+haproxy h6 -cli {
+	send "show info"
+	expect ~ ".*Maxconn: 1700\n.*"
+}
+
