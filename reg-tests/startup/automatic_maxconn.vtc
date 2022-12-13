@@ -29,7 +29,7 @@ haproxy h2 -arg "-m 384" -conf {
 
 haproxy h2 -cli {
 	send "show info"
-	expect ~ ".*Maxconn: 10000\n.*"
+	expect ~ ".*Maxconn: 11000\n.*"
 }
 
 haproxy h3 -arg "-m 256" -conf {
