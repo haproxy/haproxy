@@ -579,15 +579,8 @@ OPTIONS_OBJS  += src/ssl_sock.o src/ssl_ckch.o src/ssl_sample.o src/ssl_crtlist.
 endif
 
 ifneq ($(USE_OPENSSL_WOLFSSL),)
-ifneq ($(WOLFSSL_INC),)
-OPTIONS_CFLAGS  += -I$(WOLFSSL_INC) -I$(WOLFSSL_INC)/wolfssl
-else
-OPTIONS_CFLAGS  += -I/usr/local/include/wolfssl -I/usr/local/include/wolfssl/openssl -I/usr/local/include
-endif
-ifneq ($(WOLFSSL_LIB),)
-OPTIONS_LDFLAGS  += -L$(WOLFSSL_LIB)
-endif
-OPTIONS_LDFLAGS  += -lwolfssl
+OPTIONS_CFLAGS   += $(if $(WOLFSSL_INC),-I$(WOLFSSL_INC) -I$(WOLFSSL_INC)/wolfssl)
+OPTIONS_LDFLAGS  += $(if $(WOLFSSL_LIB),-L$(WOLFSSL_LIB)) -lwolfssl
 endif
 
 ifneq ($(USE_ENGINE),)
