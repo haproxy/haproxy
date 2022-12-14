@@ -23,7 +23,7 @@ haproxy h1 -arg "-m 1024" -conf {
 
 haproxy h1 -cli {
 	send "show info"
-	expect ~ ".*Maxconn: 29000\n.*"
+	expect ~ ".*Maxconn: (29000|28000)\n.*"
 }
 
 haproxy h2 -arg "-m 384" -conf {
@@ -31,7 +31,7 @@ haproxy h2 -arg "-m 384" -conf {
 
 haproxy h2 -cli {
 	send "show info"
-	expect ~ ".*Maxconn: 11000\n.*"
+	expect ~ ".*Maxconn: (11000|10000)\n.*"
 }
 
 haproxy h3 -arg "-m 256" -conf {
@@ -39,7 +39,7 @@ haproxy h3 -arg "-m 256" -conf {
 
 haproxy h3 -cli {
 	send "show info"
-	expect ~ ".*Maxconn: 7300\n.*"
+	expect ~ ".*Maxconn: (7300|7000)\n.*"
 }
 
 # 1 SSL front but no back
