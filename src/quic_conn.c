@@ -4389,7 +4389,7 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 		 * datagram parser was not executed by only one thread.
 		 */
 		qc_set_timer(qc);
-		if (tick_isset(qc->timer) && tick_is_lt(qc->timer, now_ms))
+		if (qc->timer_task && tick_isset(qc->timer) && tick_is_lt(qc->timer, now_ms))
 			task_wakeup(qc->timer_task, TASK_WOKEN_MSG);
 	}
 	ssl_err = SSL_ERROR_NONE;
