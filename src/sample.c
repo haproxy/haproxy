@@ -2607,6 +2607,69 @@ found:
 	return 1;
 }
 
+static int sample_conv_param_check(struct arg *arg, struct sample_conv *conv,
+                                   const char *file, int line, char **err)
+{
+	if (arg[1].type == ARGT_STR && arg[1].data.str.data != 1) {
+		memprintf(err, "Delimiter must be exactly 1 character.");
+		return 0;
+	}
+
+	return 1;
+}
+
+static int sample_conv_param(const struct arg *arg_p, struct sample *smp, void *private)
+{
+	char *pos, *end, *pend, *equal;
+	char delim = '&';
+	const char *name = arg_p[0].data.str.area;
+	size_t name_l = arg_p[0].data.str.data;
+
+	if (arg_p[1].type == ARGT_STR)
+		delim = *arg_p[1].data.str.area;
+
+	pos = smp->data.u.str.area;
+	end = pos + smp->data.u.str.data;
+	while (pos < end) {
+		equal = pos + name_l;
+		/* Parameter not found */
+		if (equal > end)
+			break;
+
+		if (equal == end || *equal == delim) {
+			if (memcmp(pos, name, name_l) == 0) {
+				/* input contains parameter, but no value is supplied */
+				smp->data.u.str.data = 0;
+				return 1;
+			}
+			pos = equal + 1;
+			continue;
+		}
+
+		if (*equal == '=' && memcmp(pos, name, name_l) == 0) {
+			pos = equal + 1;
+			pend = memchr(pos, delim, end - pos);
+			if (pend == NULL)
+				pend = end;
+
+			if (smp->data.u.str.size)
+				smp->data.u.str.size -= pos - smp->data.u.str.area;
+			smp->data.u.str.area = pos;
+			smp->data.u.str.data = pend - pos;
+			return 1;
+		}
+		/* find the next delimiter and set position to character after that */
+		pos = memchr(pos, delim, end - pos);
+		if (pos == NULL)
+			pos = end;
+		else
+			pos++;
+	}
+	/* Parameter not found */
+	smp->data.u.str.data = 0;
+	return 0;
+}
+
 static int sample_conv_regsub_check(struct arg *args, struct sample_conv *conv,
                                     const char *file, int line, char **err)
 {
@@ -4399,6 +4462,7 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "bytes",   sample_conv_bytes,        ARG2(1,SINT,SINT),     NULL,                     SMP_T_BIN,  SMP_T_BIN  },
 	{ "field",   sample_conv_field,        ARG3(2,SINT,STR,SINT), sample_conv_field_check,  SMP_T_STR,  SMP_T_STR  },
 	{ "word",    sample_conv_word,         ARG3(2,SINT,STR,SINT), sample_conv_field_check,  SMP_T_STR,  SMP_T_STR  },
+	{ "param",   sample_conv_param,        ARG2(1,STR,STR),       sample_conv_param_check,  SMP_T_STR,  SMP_T_STR  },
 	{ "regsub",  sample_conv_regsub,       ARG3(2,REG,STR,STR),   sample_conv_regsub_check, SMP_T_STR,  SMP_T_STR  },
 	{ "sha1",    sample_conv_sha1,         0,                     NULL,                     SMP_T_BIN,  SMP_T_BIN  },
 	{ "strcmp",  sample_conv_strcmp,       ARG1(1,STR),           smp_check_strcmp,         SMP_T_STR,  SMP_T_SINT },

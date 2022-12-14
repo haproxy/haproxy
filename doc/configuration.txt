@@ -17702,6 +17702,32 @@ or(<value>)
   This prefix is followed by a name. The separator is a '.'. The name may only
   contain characters 'a-z', 'A-Z', '0-9', '.' and '_'.
 
+param(<name>,[<delim>])
+  This extracts the first occurrence of the parameter <name> in the input string
+  where parameters are delimited by <delim>, which defaults to "&", and the name
+  and value of the parameter are separated by a "=". If there is no "=" and
+  value before the end of the parameter segment, it is treated as equivalent to
+  a value of an empty string.
+
+  This can be useful for extracting parameters from a query string, or possibly
+  a x-www-form-urlencoded body. In particular, `query,param(<name>)` can be used
+  as an alternative to `urlp(<name>)` which only uses "&" as a delimiter,
+  whereas "urlp" also uses "?" and ";".
+
+  Note that this converter doesn't do anything special with url encoded
+  characters. If you want to decode the value, you can use the url_dec converter
+  on the output. If the name of the parameter in the input might contain encoded
+  characters, you'll probably want do normalize the input before calling
+  "param". This can be done using "http-request normalize-uri", in particular
+  the percent-decode-unreserved and percent-to-uppercase options.
+
+  Example :
+      str(a=b&c=d&a=r),param(a)   # b
+      str(a&b=c),param(a)         # ""
+      str(a=&b&c=a),param(b)      # ""
+      str(a=1;b=2;c=4),param(b,;) # 2
+      query,param(redirect_uri),urldec()
+
 port_only
   Converts a string which contains a Host header value into an integer by
   returning its port.

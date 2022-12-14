@@ -1,0 +1,80 @@
+varnishtest "param converter Test"
+
+feature ignore_unknown_macro
+
+server s1 {
+	rxreq
+	txresp -hdr "Connection: close"
+} -repeat 10 -start
+
+haproxy h1 -conf {
+	defaults
+	mode http
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+	frontend fe
+	bind "fd@${fe}"
+
+	### requests
+	http-request set-var(txn.query) query
+	http-response set-header Found %[var(txn.query),param(test)] if { var(txn.query),param(test) -m found }
+
+	default_backend be
+
+	backend be
+	server s1 ${s1_addr}:${s1_port}
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+	txreq -url "/foo/?test=1&b=4&d"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.found == "1"
+
+	txreq -url "/?a=1&b=4&test=34"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.found == "34"
+
+	txreq -url "/?test=bar"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.found == "bar"
+
+	txreq -url "/?a=b&c=d"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.found == "<undef>"
+
+	txreq -url "/?a=b&test=t&c=d"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.found == "t"
+
+	txreq -url "/?a=b&test&c=d"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.found == ""
+
+	txreq -url "/?test="
+	rxresp
+	expect resp.status == 200
+	expect resp.http.found == ""
+
+    txreq -url "/?a=b&test"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.found == ""
+
+    txreq -url "/?testing=123"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.found == "<undef>"
+
+    txreq -url "/?testing=123&test=4"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.found == "4"
+} -run
