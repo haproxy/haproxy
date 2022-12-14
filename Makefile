@@ -542,10 +542,6 @@ ifneq ($(USE_EVPORTS),)
 OPTIONS_OBJS   += src/ev_evports.o
 endif
 
-ifneq ($(USE_DL),)
-OPTIONS_LDFLAGS += -ldl
-endif
-
 ifneq ($(USE_RT),)
 OPTIONS_LDFLAGS += -lrt
 endif
@@ -571,9 +567,6 @@ ifneq ($(USE_OPENSSL),)
 ifeq ($(USE_OPENSSL_WOLFSSL),)
 OPTIONS_CFLAGS  += $(if $(SSL_INC),-I$(SSL_INC))
 OPTIONS_LDFLAGS += $(if $(SSL_LIB),-L$(SSL_LIB)) -lssl -lcrypto
-endif
-ifneq ($(USE_DL),)
-OPTIONS_LDFLAGS += -ldl
 endif
 OPTIONS_OBJS  += src/ssl_sock.o src/ssl_ckch.o src/ssl_sample.o src/ssl_crtlist.o src/cfgparse-ssl.o src/ssl_utils.o src/jwt.o src/ssl_ocsp.o
 endif
@@ -629,9 +622,6 @@ endif
 endif
 
 OPTIONS_LDFLAGS += $(LUA_LD_FLAGS) -l$(LUA_LIB_NAME) -lm
-ifneq ($(USE_DL),)
-OPTIONS_LDFLAGS += -ldl
-endif
 OPTIONS_OBJS    += src/hlua.o src/hlua_fcn.o
 endif
 
@@ -802,6 +792,11 @@ endif
 
 ifneq ($(USE_OT),)
 include addons/ot/Makefile
+endif
+
+# better keep this one close to the end, as several libs above may need it
+ifneq ($(USE_DL),)
+  DL_LDFLAGS = -ldl
 endif
 
 ifneq ($(USE_LIBATOMIC),)
