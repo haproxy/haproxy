@@ -22,15 +22,6 @@ else:
 
 print("Generating matrix for type '{}'.".format(ref_name))
 
-
-def clean_os(os):
-    if os == "ubuntu-latest":
-        return "Ubuntu"
-    elif os == "macos-latest":
-        return "macOS"
-    return os.replace("-latest", "")
-
-
 def clean_ssl(ssl):
     return ssl.replace("_VERSION", "").lower()
 
@@ -70,12 +61,12 @@ matrix = []
 
 # Ubuntu
 
-os = "ubuntu-latest"
+os = "ubuntu-latest" if "haproxy-" not in ref_name else "ubuntu-22.04"
 TARGET = "linux-glibc"
 for CC in ["gcc", "clang"]:
     matrix.append(
         {
-            "name": "{}, {}, no features".format(clean_os(os), CC),
+            "name": "{}, {}, no features".format(os, CC),
             "os": os,
             "TARGET": TARGET,
             "CC": CC,
@@ -85,7 +76,7 @@ for CC in ["gcc", "clang"]:
 
     matrix.append(
         {
-            "name": "{}, {}, all features".format(clean_os(os), CC),
+            "name": "{}, {}, all features".format(os, CC),
             "os": os,
             "TARGET": TARGET,
             "CC": CC,
@@ -116,7 +107,7 @@ for CC in ["gcc", "clang"]:
 
     matrix.append(
         {
-            "name": "{}, {}, ASAN, all features".format(clean_os(os), CC),
+            "name": "{}, {}, ASAN, all features".format(os, CC),
             "os": os,
             "TARGET": TARGET,
             "CC": CC,
@@ -148,7 +139,7 @@ for CC in ["gcc", "clang"]:
         matrix.append(
             {
                 "name": "{}, {}, gz={}".format(
-                    clean_os(os), CC, clean_compression(compression)
+                    os, CC, clean_compression(compression)
                 ),
                 "os": os,
                 "TARGET": TARGET,
@@ -177,7 +168,7 @@ for CC in ["gcc", "clang"]:
 
         matrix.append(
             {
-                "name": "{}, {}, ssl={}".format(clean_os(os), CC, clean_ssl(ssl)),
+                "name": "{}, {}, ssl={}".format(os, CC, clean_ssl(ssl)),
                 "os": os,
                 "TARGET": TARGET,
                 "CC": CC,
@@ -188,12 +179,12 @@ for CC in ["gcc", "clang"]:
 
 # macOS
 
-os = "macos-latest"
+os = "macos-latest" if "haproxy-" not in ref_name else "macos-12"
 TARGET = "osx"
 for CC in ["clang"]:
     matrix.append(
         {
-            "name": "{}, {}, no features".format(clean_os(os), CC),
+            "name": "{}, {}, no features".format(os, CC),
             "os": os,
             "TARGET": TARGET,
             "CC": CC,
