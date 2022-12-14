@@ -568,8 +568,8 @@ ifneq ($(USE_OPENSSL),)
 # reason why it's added by default. Some even need -lz, then you'll need to
 # pass it in the "ADDLIB" variable if needed. If your SSL libraries are not
 # in the usual path, use SSL_INC=/path/to/inc and SSL_LIB=/path/to/lib.
-OPTIONS_CFLAGS  += $(if $(SSL_INC),-I$(SSL_INC))
 ifeq ($(USE_OPENSSL_WOLFSSL),)
+OPTIONS_CFLAGS  += $(if $(SSL_INC),-I$(SSL_INC))
 OPTIONS_LDFLAGS += $(if $(SSL_LIB),-L$(SSL_LIB)) -lssl -lcrypto
 endif
 ifneq ($(USE_DL),)
