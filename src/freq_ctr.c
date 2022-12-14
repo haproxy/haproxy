@@ -147,8 +147,9 @@ ullong freq_ctr_total(const struct freq_ctr *ctr, uint period, int pend)
 }
 
 /* Returns the excess of events (may be negative) over the current period for
- * target frequency <freq>. It returns 0 if the counter is in the future. The
- * result considers the position of the current time within the current period.
+ * target frequency <freq>. It returns 0 if the counter is in the future or if
+ * the counter is empty. The result considers the position of the current time
+ * within the current period.
  *
  * The caller may safely add new events if result is negative or null.
  */
@@ -194,6 +195,11 @@ int freq_ctr_overshoot_period(const struct freq_ctr *ctr, uint period, uint freq
 	redo2:
 		__ha_cpu_relax();
 	};
+
+	if (!curr && !tick) {
+		/* The counter is empty, there is no overshoot */
+		return 0;
+	}
 
 	elapsed = HA_ATOMIC_LOAD(&global_now_ms) - tick;
 	if (unlikely(elapsed < 0)) {
