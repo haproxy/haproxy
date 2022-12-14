@@ -5231,7 +5231,7 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 	SSL_CTX *ctx;
 	/* Automatic memory computations need to know we use SSL there
 	 * If this is an internal proxy, don't use it for the computation */
-	if (!(srv->proxy && srv->proxy->cap & PR_CAP_INT))
+	if (!(srv->proxy->cap & PR_CAP_INT))
 		global.ssl_used_backend = 1;
 
 	/* Initiate SSL context for current server */
