@@ -580,9 +580,9 @@ int stats_emit_json_field_tags(struct buffer *out, const struct field *f)
 /* Dump all fields from <stats> into <out> using CSV format */
 static int stats_dump_fields_csv(struct buffer *out,
                                  const struct field *stats, size_t stats_count,
-                                 unsigned int flags,
-                                 enum stats_domain domain)
+                                 struct show_stat_ctx *ctx)
 {
+	int domain = ctx->domain;
 	int field;
 
 	for (field = 0; field < stats_count; ++field) {
@@ -607,9 +607,10 @@ static int stats_dump_fields_csv(struct buffer *out,
 static int stats_dump_fields_typed(struct buffer *out,
                                    const struct field *stats,
                                    size_t stats_count,
-                                   unsigned int flags,
-                                   enum stats_domain domain)
+                                   struct show_stat_ctx * ctx)
 {
+	int flags = ctx->flags;
+	int domain = ctx->domain;
 	int field;
 
 	for (field = 0; field < stats_count; ++field) {
@@ -657,7 +658,8 @@ static int stats_dump_fields_typed(struct buffer *out,
 
 /* Dump all fields from <stats> into <out> using the "show info json" format */
 static int stats_dump_json_info_fields(struct buffer *out,
-				       const struct field *info, unsigned int flags)
+                                       const struct field *info,
+                                       struct show_stat_ctx *ctx)
 {
 	int field;
 	int started = 0;
@@ -747,9 +749,10 @@ static void stats_print_rslv_field_json(struct buffer *out,
 /* Dump all fields from <stats> into <out> using a typed "field:desc:type:value" format */
 static int stats_dump_fields_json(struct buffer *out,
                                   const struct field *stats, size_t stats_count,
-                                  unsigned int flags,
-                                  enum stats_domain domain)
+                                  struct show_stat_ctx *ctx)
 {
+	int flags = ctx->flags;
+	int domain = ctx->domain;
 	int field;
 	int started = 0;
 
@@ -816,11 +819,12 @@ err:
  * present in <flags>.
  */
 static int stats_dump_fields_html(struct buffer *out,
-				  const struct field *stats,
-				  unsigned int flags)
+                                  const struct field *stats,
+                                  struct show_stat_ctx *ctx)
 {
 	struct buffer src;
 	struct stats_module *mod;
+	int flags = ctx->flags;
 	int i = 0, j = 0;
 
 	if (stats[ST_F_TYPE].u.u32 == STATS_TYPE_FE) {
@@ -1626,13 +1630,13 @@ int stats_dump_one_line(const struct field *stats, size_t stats_count,
 	int ret;
 
 	if (ctx->flags & STAT_FMT_HTML)
-		ret = stats_dump_fields_html(&trash, stats, ctx->flags);
+		ret = stats_dump_fields_html(&trash, stats, ctx);
 	else if (ctx->flags & STAT_FMT_TYPED)
-		ret = stats_dump_fields_typed(&trash, stats, stats_count, ctx->flags, ctx->domain);
+		ret = stats_dump_fields_typed(&trash, stats, stats_count, ctx);
 	else if (ctx->flags & STAT_FMT_JSON)
-		ret = stats_dump_fields_json(&trash, stats, stats_count, ctx->flags, ctx->domain);
+		ret = stats_dump_fields_json(&trash, stats, stats_count, ctx);
 	else
-		ret = stats_dump_fields_csv(&trash, stats, stats_count, ctx->flags, ctx->domain);
+		ret = stats_dump_fields_csv(&trash, stats, stats_count, ctx);
 
 	if (ret)
 		ctx->flags |= STAT_STARTED;
@@ -4401,8 +4405,10 @@ static void http_stats_io_handler(struct appctx *appctx)
 
 /* Dump all fields from <info> into <out> using the "show info" format (name: value) */
 static int stats_dump_info_fields(struct buffer *out,
-				  const struct field *info, unsigned int flags)
+                                  const struct field *info,
+                                  struct show_stat_ctx *ctx)
 {
+	int flags = ctx->flags;
 	int field;
 
 	for (field = 0; field < INF_TOTAL_FIELDS; field++) {
@@ -4423,8 +4429,10 @@ static int stats_dump_info_fields(struct buffer *out,
 
 /* Dump all fields from <info> into <out> using the "show info typed" format */
 static int stats_dump_typed_info_fields(struct buffer *out,
-					const struct field *info, unsigned int flags)
+                                        const struct field *info,
+                                        struct show_stat_ctx *ctx)
 {
+	int flags = ctx->flags;
 	int field;
 
 	for (field = 0; field < INF_TOTAL_FIELDS; field++) {
@@ -4578,11 +4586,11 @@ static int stats_dump_info_to_buffer(struct stconn *sc)
 	chunk_reset(&trash);
 
 	if (ctx->flags & STAT_FMT_TYPED)
-		stats_dump_typed_info_fields(&trash, info, ctx->flags);
+		stats_dump_typed_info_fields(&trash, info, ctx);
 	else if (ctx->flags & STAT_FMT_JSON)
-		stats_dump_json_info_fields(&trash, info, ctx->flags);
+		stats_dump_json_info_fields(&trash, info, ctx);
 	else
-		stats_dump_info_fields(&trash, info, ctx->flags);
+		stats_dump_info_fields(&trash, info, ctx);
 
 	if (applet_putchk(appctx, &trash) == -1)
 		return 0;
