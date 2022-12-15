@@ -3045,8 +3045,11 @@ int stats_dump_proxy_to_buffer(struct stconn *sc, struct htx *htx,
 	struct channel *rep = sc_ic(sc);
 	struct server *sv, *svs;	/* server and server-state, server-state=server or server->track */
 	struct listener *l;
+	int current_field;
 
 	chunk_reset(&trash);
+more:
+	current_field = ctx->field;
 
 	switch (ctx->px_st) {
 	case STAT_PX_ST_INIT:
@@ -3108,8 +3111,11 @@ int stats_dump_proxy_to_buffer(struct stconn *sc, struct htx *htx,
 		if (stats_dump_fe_stats(sc, px)) {
 			if (!stats_putchk(rep, htx, &trash))
 				goto full;
+			if (ctx->field)
+				goto more;
 		}
 
+		current_field = 0;
 		ctx->obj2 = px->conf.listeners.n;
 		ctx->px_st = STAT_PX_ST_LI;
 		__fallthrough;
@@ -3142,9 +3148,12 @@ int stats_dump_proxy_to_buffer(struct stconn *sc, struct htx *htx,
 			if (stats_dump_li_stats(sc, px, l)) {
 				if (!stats_putchk(rep, htx, &trash))
 					goto full;
+				if (ctx->field)
+					goto more;
 			}
 		}
 
+		current_field = 0;
 		ctx->obj2 = px->srv; /* may be NULL */
 		ctx->px_st = STAT_PX_ST_SV;
 		__fallthrough;
@@ -3215,8 +3224,11 @@ int stats_dump_proxy_to_buffer(struct stconn *sc, struct htx *htx,
 		if (stats_dump_be_stats(sc, px)) {
 			if (!stats_putchk(rep, htx, &trash))
 				goto full;
+			if (ctx->field)
+				goto more;
 		}
 
+		current_field = 0;
 		ctx->px_st = STAT_PX_ST_END;
 		__fallthrough;
 
@@ -3240,6 +3252,8 @@ int stats_dump_proxy_to_buffer(struct stconn *sc, struct htx *htx,
 
   full:
 	sc_need_room(sc);
+	/* restore previous field */
+	ctx->field = current_field;
 	return 0;
 }
 
@@ -3729,6 +3743,7 @@ static int stats_dump_proxies(struct stconn *sc,
 
 		ctx->obj1 = px->next;
 		ctx->px_st = STAT_PX_ST_INIT;
+		ctx->field = 0;
 	}
 
 	return 1;
@@ -3791,6 +3806,7 @@ static int stats_dump_stat_to_buffer(struct stconn *sc, struct htx *htx,
 			ctx->obj1 = proxies_list;
 
 		ctx->px_st = STAT_PX_ST_INIT;
+		ctx->field = 0;
 		ctx->state = STAT_STATE_LIST;
 		__fallthrough;
 
@@ -4579,22 +4595,33 @@ static int stats_dump_info_to_buffer(struct stconn *sc)
 {
 	struct appctx *appctx = __sc_appctx(sc);
 	struct show_stat_ctx *ctx = appctx->svcctx;
+	int ret;
+	int current_field;
 
 	if (!stats_fill_info(info, INF_TOTAL_FIELDS, ctx->flags))
 		return 0;
 
 	chunk_reset(&trash);
+more:
+	current_field = ctx->field;
 
 	if (ctx->flags & STAT_FMT_TYPED)
-		stats_dump_typed_info_fields(&trash, info, ctx);
+		ret = stats_dump_typed_info_fields(&trash, info, ctx);
 	else if (ctx->flags & STAT_FMT_JSON)
-		stats_dump_json_info_fields(&trash, info, ctx);
+		ret = stats_dump_json_info_fields(&trash, info, ctx);
 	else
-		stats_dump_info_fields(&trash, info, ctx);
+		ret = stats_dump_info_fields(&trash, info, ctx);
 
-	if (applet_putchk(appctx, &trash) == -1)
+	if (applet_putchk(appctx, &trash) == -1) {
+		/* restore previous field */
+		ctx->field = current_field;
 		return 0;
-
+	}
+	if (ret && ctx->field) {
+		/* partial dump */
+		goto more;
+	}
+	ctx->field = 0;
 	return 1;
 }
 
@@ -4947,6 +4974,7 @@ static int cli_parse_show_info(char **args, char *payload, struct appctx *appctx
 	ctx->scope_str = 0;
 	ctx->scope_len = 0;
 	ctx->flags = 0;
+	ctx->field = 0; /* explicit default value */
 
 	while (*args[arg]) {
 		if (strcmp(args[arg], "typed") == 0)

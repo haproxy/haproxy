@@ -540,6 +540,7 @@ struct show_stat_ctx {
 	uint32_t domain;        /* set the stats to used, for now only proxy stats are supported */
 	int scope_str;		/* limit scope to a frontend/backend substring */
 	int scope_len;		/* length of the string above in the buffer */
+	int field;              /* current field iterator when stat line is dumped through returning function */
 	int px_st;		/* STAT_PX_ST* */
 	unsigned int flags;	/* STAT_* from stats-t.h */
 	int iid, type, sid;	/* proxy id, type and service id if bounding of stats is enabled */
