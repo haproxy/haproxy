@@ -429,11 +429,12 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 	if (ret < 0) {
 		TRACE_ERROR("QPACK decoding error", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
 		h3c->err = -ret;
-		return -1;
+		len = -1;
+		goto out;
 	}
 
 	qc_get_buf(qcs, &htx_buf);
-	BUG_ON(!b_size(&htx_buf));
+	BUG_ON(!b_size(&htx_buf)); /* TODO */
 	htx = htx_from_buf(&htx_buf);
 
 	/* first treat pseudo-header to build the start line */
@@ -460,14 +461,16 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 		if (isteq(list[hdr_idx].n, ist(":method"))) {
 			if (isttest(meth)) {
 				TRACE_ERROR("duplicated method pseudo-header", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
-				return -1;
+				len = -1;
+				goto out;
 			}
 			meth = list[hdr_idx].v;
 		}
 		else if (isteq(list[hdr_idx].n, ist(":path"))) {
 			if (isttest(path)) {
 				TRACE_ERROR("duplicated path pseudo-header", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
-				return -1;
+				len = -1;
+				goto out;
 			}
 			path = list[hdr_idx].v;
 		}
@@ -475,20 +478,23 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 			if (isttest(scheme)) {
 				/* duplicated pseudo-header */
 				TRACE_ERROR("duplicated scheme pseudo-header", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
-				return -1;
+				len = -1;
+				goto out;
 			}
 			scheme = list[hdr_idx].v;
 		}
 		else if (isteq(list[hdr_idx].n, ist(":authority"))) {
 			if (isttest(authority)) {
 				TRACE_ERROR("duplicated authority pseudo-header", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
-				return -1;
+				len = -1;
+				goto out;
 			}
 			authority = list[hdr_idx].v;
 		}
 		else {
 			TRACE_ERROR("unknown pseudo-header", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
-			return -1;
+			len = -1;
+			goto out;
 		}
 
 		++hdr_idx;
@@ -503,7 +509,8 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 		 */
 		if (!isttest(meth) || !isttest(scheme) || !isttest(path)) {
 			TRACE_ERROR("missing mandatory pseudo-header", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
-			return -1;
+			len = -1;
+			goto out;
 		}
 	}
 
@@ -513,7 +520,8 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 	sl = htx_add_stline(htx, HTX_BLK_REQ_SL, flags, meth, path, ist("HTTP/3.0"));
 	if (!sl) {
 		h3c->err = H3_INTERNAL_ERROR;
-		return -1;
+		len = -1;
+		goto out;
 	}
 
 	if (fin)
@@ -531,14 +539,16 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 
 		if (istmatch(list[hdr_idx].n, ist(":"))) {
 			TRACE_ERROR("pseudo-header field after fields", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
-			return -1;
+			len = -1;
+			goto out;
 		}
 
 		for (i = 0; i < list[hdr_idx].n.len; ++i) {
 			const char c = list[hdr_idx].n.ptr[i];
 			if ((uint8_t)(c - 'A') < 'Z' - 'A' || !HTTP_IS_TOKEN(c)) {
 				TRACE_ERROR("invalid characters in field name", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
-				return -1;
+				len = -1;
+				goto out;
 			}
 		}
 
@@ -553,7 +563,8 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 			                                 h3s->flags & H3_SF_HAVE_CLEN);
 			if (ret < 0) {
 				TRACE_ERROR("invalid content-length", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
-				return -1;
+				len = -1;
+				goto out;
 			}
 			else if (!ret) {
 				/* Skip duplicated value. */
@@ -565,8 +576,10 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 			/* This will fail if current frame is the last one and
 			 * content-length is not null.
 			 */
-			if (h3_check_body_size(qcs, fin))
-				return -1;
+			if (h3_check_body_size(qcs, fin)) {
+				len = -1;
+				goto out;
+			}
 		}
 
 		htx_add_header(htx, list[hdr_idx].n, list[hdr_idx].v);
@@ -576,19 +589,22 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 	if (cookie >= 0) {
 		if (http_cookie_merge(htx, list, cookie)) {
 			h3c->err = H3_INTERNAL_ERROR;
-			return -1;
+			len = -1;
+			goto out;
 		}
 	}
 
 	htx_add_endof(htx, HTX_BLK_EOH);
-	htx_to_buf(htx, &htx_buf);
-
 	if (fin)
 		htx->flags |= HTX_FL_EOM;
 
+	htx_to_buf(htx, &htx_buf);
+	htx = NULL;
+
 	if (!qc_attach_sc(qcs, &htx_buf)) {
 		h3c->err = H3_INTERNAL_ERROR;
-		return -1;
+		len = -1;
+		goto out;
 	}
 
 	/* RFC 9114 5.2. Connection Shutdown
@@ -604,11 +620,18 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 	if (qcs->id >= h3c->id_goaway)
 		h3c->id_goaway = qcs->id + 4;
 
+ out:
+	/* HTX may be non NULL if error before previous htx_to_buf(). */
+	if (htx)
+		htx_to_buf(htx, &htx_buf);
+
 	/* buffer is transferred to the stream connector and set to NULL
 	 * except on stream creation error.
 	 */
-	b_free(&htx_buf);
-	offer_buffers(NULL, 1);
+	if (b_size(&htx_buf)) {
+		b_free(&htx_buf);
+		offer_buffers(NULL, 1);
+	}
 
 	TRACE_LEAVE(H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
 	return len;
