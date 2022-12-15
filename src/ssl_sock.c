@@ -7921,30 +7921,18 @@ int ssl_get_ocspresponse_detail(unsigned char *ocsp_certid, struct buffer *out)
  */
 static int cli_io_handler_show_ocspresponse_detail(struct appctx *appctx)
 {
-	struct buffer *trash = alloc_trash_chunk();
+	struct buffer *trash = get_trash_chunk();
 	struct certificate_ocsp *ocsp = appctx->svcctx;
 
-	if (trash == NULL)
-		return 1;
-
-	if (ssl_ocsp_response_print(&ocsp->response, trash)) {
-		free_trash_chunk(trash);
-		return 1;
-	}
+	if (ssl_ocsp_response_print(&ocsp->response, trash))
+		goto end;
 
 	if (applet_putchk(appctx, trash) == -1)
-		goto yield;
+		return 0;
 
+end:
 	appctx->svcctx = NULL;
-	if (trash)
-		free_trash_chunk(trash);
 	return 1;
-
-yield:
-	if (trash)
-		free_trash_chunk(trash);
-
-	return 0;
 }
 #endif
 
