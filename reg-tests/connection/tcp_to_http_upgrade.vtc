@@ -155,6 +155,13 @@ client c_err3 -connect ${h1_err3h1_sock} {
     expect_close
 } -run
 
+# TCP > HTTP upgrade with a parsing error
+client c_err4 -connect ${h1_fe2h1_sock} {
+    send "GET / BAD-VERSION\r\n\r\n"
+    rxresp
+    expect resp.status == 400
+} -run
+
 # To be sure no other request was received by the server
 client c_end -connect ${s1_sock} {
     txreq
