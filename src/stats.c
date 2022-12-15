@@ -661,14 +661,15 @@ static int stats_dump_json_info_fields(struct buffer *out,
                                        const struct field *info,
                                        struct show_stat_ctx *ctx)
 {
-	int field;
-	int started = 0;
+	int started = (ctx->field) ? 1 : 0;
+	int ready_data = 0;
 
-	if (!chunk_strcat(out, "["))
+	if (!started && !chunk_strcat(out, "["))
 		return 0;
 
-	for (field = 0; field < INF_TOTAL_FIELDS; field++) {
+	for (; ctx->field < INF_TOTAL_FIELDS; ctx->field++) {
 		int old_len;
+		int field = ctx->field;
 
 		if (!field_format(info, field))
 			continue;
@@ -694,16 +695,24 @@ static int stats_dump_json_info_fields(struct buffer *out,
 
 		if (!chunk_strcat(out, "}"))
 			goto err;
+		ready_data = out->data;
 	}
 
 	if (!chunk_strcat(out, "]\n"))
 		goto err;
+	ctx->field = 0; /* we're done */
 	return 1;
 
 err:
-	chunk_reset(out);
-	chunk_appendf(out, "{\"errorStr\":\"output buffer too short\"}\n");
-	return 0;
+	if (!ready_data) {
+		/* not enough buffer space for a single entry.. */
+		chunk_reset(out);
+		chunk_appendf(out, "{\"errorStr\":\"output buffer too short\"}\n");
+		return 0; /* hard error */
+	}
+	/* push ready data and wait for a new buffer to complete the dump */
+	out->data = ready_data;
+	return 1;
 }
 
 static void stats_print_proxy_field_json(struct buffer *out,
