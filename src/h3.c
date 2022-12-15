@@ -529,8 +529,13 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 
 	sl->info.req.meth = find_http_meth(meth.ptr, meth.len);
 
-	if (isttest(authority))
-		htx_add_header(htx, ist("host"), authority);
+	if (isttest(authority)) {
+		if (!htx_add_header(htx, ist("host"), authority)) {
+			h3c->err = H3_INTERNAL_ERROR;
+			len = -1;
+			goto out;
+		}
+	}
 
 	/* now treat standard headers */
 	while (1) {
@@ -582,7 +587,11 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 			}
 		}
 
-		htx_add_header(htx, list[hdr_idx].n, list[hdr_idx].v);
+		if (!htx_add_header(htx, list[hdr_idx].n, list[hdr_idx].v)) {
+			h3c->err = H3_INTERNAL_ERROR;
+			len = -1;
+			goto out;
+		}
 		++hdr_idx;
 	}
 
@@ -594,7 +603,12 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 		}
 	}
 
-	htx_add_endof(htx, HTX_BLK_EOH);
+	if (!htx_add_endof(htx, HTX_BLK_EOH)) {
+		h3c->err = H3_INTERNAL_ERROR;
+		len = -1;
+		goto out;
+	}
+
 	if (fin)
 		htx->flags |= HTX_FL_EOM;
 
