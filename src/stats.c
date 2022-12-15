@@ -753,16 +753,17 @@ static int stats_dump_fields_json(struct buffer *out,
 {
 	int flags = ctx->flags;
 	int domain = ctx->domain;
-	int field;
-	int started = 0;
+	int started = (ctx->field) ? 1 : 0;
+	int ready_data = 0;
 
-	if ((flags & STAT_STARTED) && !chunk_strcat(out, ","))
+	if (!started && (flags & STAT_STARTED) && !chunk_strcat(out, ","))
 		return 0;
-	if (!chunk_strcat(out, "["))
+	if (!started && !chunk_strcat(out, "["))
 		return 0;
 
-	for (field = 0; field < stats_count; field++) {
+	for (; ctx->field < stats_count; ctx->field++) {
 		int old_len;
+		int field = ctx->field;
 
 		if (!stats[field].type)
 			continue;
@@ -797,19 +798,27 @@ static int stats_dump_fields_json(struct buffer *out,
 
 		if (!chunk_strcat(out, "}"))
 			goto err;
+		ready_data = out->data;
 	}
 
 	if (!chunk_strcat(out, "]"))
 		goto err;
 
+	ctx->field = 0; /* we're done */
 	return 1;
 
 err:
-	chunk_reset(out);
-	if (flags & STAT_STARTED)
-		chunk_strcat(out, ",");
-	chunk_appendf(out, "{\"errorStr\":\"output buffer too short\"}");
-	return 0;
+	if (!ready_data) {
+		/* not enough buffer space for a single entry.. */
+		chunk_reset(out);
+		if (ctx->flags & STAT_STARTED)
+			chunk_strcat(out, ",");
+		chunk_appendf(out, "{\"errorStr\":\"output buffer too short\"}");
+		return 0; /* hard error */
+	}
+	/* push ready data and wait for a new buffer to complete the dump */
+	out->data = ready_data;
+	return 1;
 }
 
 /* Dump all fields from <stats> into <out> using the HTML format. A column is
