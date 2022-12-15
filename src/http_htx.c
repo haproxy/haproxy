@@ -1817,6 +1817,11 @@ void http_cookie_register(struct http_hdr *list, int idx, int *first, int *last)
 	 * the next one. The last entry will contains -1.
 	 */
 
+	/* Caller is responsible to initialize *first and *last to -1 on first
+	 * invocation. Both will thus be set to a valid index after it.
+	 */
+	BUG_ON(*first > 0 && *last < 0);
+
 	/* Mark the current end of cookie linked list. */
 	list[idx].n.len = -1;
 	if (*first < 0) {
