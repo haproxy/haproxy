@@ -189,7 +189,7 @@ typedef struct fiftyone_degrees_config_hash_t {
 	bool usePredictiveGraph;
 } fiftyoneDegreesConfigHash;
 
-fiftyoneDegreesConfigHash fiftyoneDegreesHashInMemoryConfig;
+extern fiftyoneDegreesConfigHash fiftyoneDegreesHashInMemoryConfig;
 
 typedef struct fiftyone_degrees_property_available_t {
 
@@ -206,7 +206,7 @@ typedef struct fiftyone_degrees_properties_required_t {
 	fiftyoneDegreesPropertiesAvailable *existing;
 } fiftyoneDegreesPropertiesRequired;
 
-fiftyoneDegreesPropertiesRequired fiftyoneDegreesPropertiesDefault;
+extern fiftyoneDegreesPropertiesRequired fiftyoneDegreesPropertiesDefault;
 
 typedef struct fiftyone_degrees_memory_reader_t {
 	byte *startByte;

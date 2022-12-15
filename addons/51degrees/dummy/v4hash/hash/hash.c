@@ -36,6 +36,9 @@
 static fiftyoneDegreesHeaders dummyHeaders = { };
 static fiftyoneDegreesDataSetBase dummyDataSet = { &dummyHeaders };
 
+fiftyoneDegreesConfigHash fiftyoneDegreesHashInMemoryConfig;
+fiftyoneDegreesPropertiesRequired fiftyoneDegreesPropertiesDefault;
+
 fiftyoneDegreesDataSetBase* fiftyoneDegreesDataSetGet(
 	fiftyoneDegreesResourceManager *manager) {
 	return &dummyDataSet;
