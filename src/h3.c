@@ -544,6 +544,7 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 
 		if (isteq(list[hdr_idx].n, ist("cookie"))) {
 			http_cookie_register(list, hdr_idx, &cookie, &last_cookie);
+			++hdr_idx;
 			continue;
 		}
 		else if (isteq(list[hdr_idx].n, ist("content-length"))) {
