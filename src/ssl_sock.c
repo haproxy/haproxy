@@ -7583,22 +7583,19 @@ static int cli_parse_show_ocspresponse(char **args, char *payload, struct appctx
 #if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) && !defined OPENSSL_IS_BORINGSSL)
 	if (*args[3]) {
 		struct certificate_ocsp *ocsp = NULL;
-		char *key = NULL;
-		int key_length = 0;
+		char key[OCSP_MAX_CERTID_ASN1_LENGTH] = {};
+		int key_length = OCSP_MAX_CERTID_ASN1_LENGTH;
+		char *key_ptr = key;
 
 		if (strlen(args[3]) > OCSP_MAX_CERTID_ASN1_LENGTH*2) {
 			return cli_err(appctx, "'show ssl ocsp-response' received a too big key.\n");
 		}
 
-		if (parse_binary(args[3], &key, &key_length, NULL)) {
-
-			char full_key[OCSP_MAX_CERTID_ASN1_LENGTH] = {};
-			memcpy(full_key, key, key_length);
-
-			ocsp = (struct certificate_ocsp *)ebmb_lookup(&cert_ocsp_tree, full_key, OCSP_MAX_CERTID_ASN1_LENGTH);
+		if (!parse_binary(args[3], &key_ptr, &key_length, NULL)) {
+			return cli_err(appctx, "'show ssl ocsp-response' received an invalid key.\n");
 		}
-		if (key)
-			ha_free(&key);
+
+		ocsp = (struct certificate_ocsp *)ebmb_lookup(&cert_ocsp_tree, key, OCSP_MAX_CERTID_ASN1_LENGTH);
 
 		if (!ocsp) {
 			return cli_err(appctx, "Certificate ID does not match any certificate.\n");
