@@ -31,6 +31,7 @@
 
 #include <haproxy/api-t.h>
 #include <haproxy/dict-t.h>
+#include <haproxy/stick_table-t.h>
 #include <haproxy/thread-t.h>
 
 
