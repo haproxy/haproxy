@@ -3,7 +3,7 @@ feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.5-dev0)'"
 feature cmd "$HAPROXY_PROGRAM -cc '!feature(OBSOLETE_LINKER)'"
 feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL)'"
 feature ignore_unknown_macro
-#REGTEST_TYPE=devel
+#REGTEST_TYPE=broken
 
 
 # Check the maxconn computation with the -m parameter
