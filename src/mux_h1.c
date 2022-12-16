@@ -2992,22 +2992,23 @@ static int h1_process(struct h1c * h1c)
 		h1_process_demux(h1c, buf, count);
 		h1_release_buf(h1c, &h1s->rxbuf);
 		h1_set_idle_expiration(h1c);
-
-		if (h1s->flags & H1S_F_INTERNAL_ERROR) {
-			h1_handle_internal_err(h1c);
-			TRACE_ERROR("internal error detected", H1_EV_H1C_WAKE|H1_EV_H1C_ERR);
-		}
-		else if (h1s->flags & H1S_F_NOT_IMPL_ERROR) {
-			h1_handle_not_impl_err(h1c);
-			TRACE_ERROR("not-implemented error detected", H1_EV_H1C_WAKE|H1_EV_H1C_ERR);
-		}
-		else if (h1s->flags & H1S_F_PARSING_ERROR || se_fl_test(h1s->sd, SE_FL_ERROR)) {
-			h1_handle_parsing_error(h1c);
-			TRACE_ERROR("parsing error detected", H1_EV_H1C_WAKE|H1_EV_H1C_ERR);
-		}
-		else if (h1c->state < H1_CS_RUNNING) {
-			TRACE_STATE("Incomplete message, subscribing", H1_EV_RX_DATA|H1_EV_H1C_BLK|H1_EV_H1C_WAKE, h1c->conn, h1s);
-			h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
+		if (h1c->state < H1_CS_RUNNING) {
+			if (h1s->flags & H1S_F_INTERNAL_ERROR) {
+				h1_handle_internal_err(h1c);
+				TRACE_ERROR("internal error detected", H1_EV_H1C_WAKE|H1_EV_H1C_ERR);
+			}
+			else if (h1s->flags & H1S_F_NOT_IMPL_ERROR) {
+				h1_handle_not_impl_err(h1c);
+				TRACE_ERROR("not-implemented error detected", H1_EV_H1C_WAKE|H1_EV_H1C_ERR);
+			}
+			else if (h1s->flags & H1S_F_PARSING_ERROR || se_fl_test(h1s->sd, SE_FL_ERROR)) {
+				h1_handle_parsing_error(h1c);
+				TRACE_ERROR("parsing error detected", H1_EV_H1C_WAKE|H1_EV_H1C_ERR);
+			}
+			else {
+				TRACE_STATE("Incomplete message, subscribing", H1_EV_RX_DATA|H1_EV_H1C_BLK|H1_EV_H1C_WAKE, h1c->conn, h1s);
+				h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
+			}
 		}
 	}
 
