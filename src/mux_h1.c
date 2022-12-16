@@ -1920,6 +1920,10 @@ static size_t h1_process_demux(struct h1c *h1c, struct buffer *buf, size_t count
   err:
 	htx_to_buf(htx, buf);
 	se_fl_set(h1s->sd, SE_FL_EOI);
+	if (h1c->state < H1_CS_RUNNING) {
+		h1c->flags |= H1C_F_EOS;
+		se_fl_set(h1s->sd, SE_FL_EOS);
+	}
 	TRACE_DEVEL("leaving on error", H1_EV_RX_DATA|H1_EV_STRM_ERR, h1c->conn, h1s);
 	return 0;
 }
