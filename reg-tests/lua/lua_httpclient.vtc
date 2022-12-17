@@ -51,13 +51,13 @@ haproxy h1 -conf {
 
    listen li1
        mode http
-       bind unix@${testdir}/srv3
+       bind unix@${tmpdir}/srv3
        server srv3 ${s3_addr}:${s3_port}
 
 } -start
 
 client c0 -connect ${h1_fe1_sock} {
-    txreq -url "/" -hdr "vtcport: ${s1_port}" -hdr "vtcport2: ${s2_port}" -hdr "vtcport3: unix@${testdir}/srv3"
+    txreq -url "/" -hdr "vtcport: ${s1_port}" -hdr "vtcport2: ${s2_port}" -hdr "vtcport3: unix@${tmpdir}/srv3"
     rxresp
     expect resp.status == 200
 } -run
