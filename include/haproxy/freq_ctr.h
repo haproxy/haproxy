@@ -348,6 +348,41 @@ static inline unsigned int swrate_add_scaled(unsigned int *sum, unsigned int n, 
 	return new_sum;
 }
 
+/* opportunistic versions of the functions above: an attempt is made to update
+ * the value, but in case of contention, it's not retried. This is fine when
+ * rough estimates are needed and speed is preferred over accuracy.
+ */
+
+static inline uint swrate_add_opportunistic(uint *sum, uint n, uint v)
+{
+	uint new_sum, old_sum;
+
+	old_sum = *sum;
+	new_sum = old_sum - (old_sum + n - 1) / n + v;
+	HA_ATOMIC_CAS(sum, &old_sum, new_sum);
+	return new_sum;
+}
+
+static inline uint swrate_add_dynamic_opportunistic(uint *sum, uint n, uint v)
+{
+	uint new_sum, old_sum;
+
+	old_sum = *sum;
+	new_sum = old_sum - (n ? (old_sum + n - 1) / n : 0) + v;
+	HA_ATOMIC_CAS(sum, &old_sum, new_sum);
+	return new_sum;
+}
+
+static inline uint swrate_add_scaled_opportunistic(uint *sum, uint n, uint v, uint s)
+{
+	uint new_sum, old_sum;
+
+	old_sum = *sum;
+	new_sum = old_sum + v * s - div64_32((unsigned long long)(old_sum + n) * s, n);
+	HA_ATOMIC_CAS(sum, &old_sum, new_sum);
+	return new_sum;
+}
+
 /* Returns the average sample value for the sum <sum> over a sliding window of
  * <n> samples. Better if <n> is a power of two. It must be the same <n> as the
  * one used above in all additions.
