@@ -380,7 +380,7 @@ void *pool_alloc_nocache(struct pool_head *pool)
 	if (!ptr)
 		return NULL;
 
-	swrate_add_scaled(&pool->needed_avg, POOL_AVG_SAMPLES, pool->used, POOL_AVG_SAMPLES/4);
+	swrate_add_scaled_opportunistic(&pool->needed_avg, POOL_AVG_SAMPLES, pool->used, POOL_AVG_SAMPLES/4);
 	_HA_ATOMIC_INC(&pool->used);
 
 	/* keep track of where the element was allocated from */
@@ -396,7 +396,7 @@ void *pool_alloc_nocache(struct pool_head *pool)
 void pool_free_nocache(struct pool_head *pool, void *ptr)
 {
 	_HA_ATOMIC_DEC(&pool->used);
-	swrate_add(&pool->needed_avg, POOL_AVG_SAMPLES, pool->used);
+	swrate_add_opportunistic(&pool->needed_avg, POOL_AVG_SAMPLES, pool->used);
 	pool_put_to_os(pool, ptr);
 }
 
@@ -655,7 +655,7 @@ void pool_put_to_shared_cache(struct pool_head *pool, struct pool_item *item, ui
 		__ha_barrier_atomic_store();
 	} while (!_HA_ATOMIC_CAS(&pool->free_list, &free_list, item));
 	__ha_barrier_atomic_store();
-	swrate_add(&pool->needed_avg, POOL_AVG_SAMPLES, pool->used);
+	swrate_add_opportunistic(&pool->needed_avg, POOL_AVG_SAMPLES, pool->used);
 }
 
 /*
