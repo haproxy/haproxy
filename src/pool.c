@@ -517,7 +517,7 @@ void pool_evict_from_local_cache(struct pool_head *pool, int full)
 	while ((ph->count && full) ||
 	       (ph->count >= CONFIG_HAP_POOL_CLUSTER_SIZE &&
 	        ph->count >= 16 + pool_cache_count / 8 &&
-	        pool_cache_bytes > CONFIG_HAP_POOL_CACHE_SIZE * 3 / 4)) {
+	        pool_cache_bytes > global.tune.pool_cache_size * 3 / 4)) {
 		pool_evict_last_items(pool, ph, CONFIG_HAP_POOL_CLUSTER_SIZE);
 	}
 }
@@ -546,7 +546,7 @@ void pool_evict_from_local_caches()
 		BUG_ON(pool != ph->pool);
 
 		pool_evict_last_items(pool, ph, CONFIG_HAP_POOL_CLUSTER_SIZE);
-	} while (pool_cache_bytes > CONFIG_HAP_POOL_CACHE_SIZE * 7 / 8);
+	} while (pool_cache_bytes > global.tune.pool_cache_size * 7 / 8);
 }
 
 /* Frees an object to the local cache, possibly pushing oldest objects to the
@@ -572,10 +572,10 @@ void pool_put_to_cache(struct pool_head *pool, void *ptr, const void *caller)
 	pool_cache_count++;
 	pool_cache_bytes += pool->size;
 
-	if (unlikely(pool_cache_bytes > CONFIG_HAP_POOL_CACHE_SIZE * 3 / 4)) {
+	if (unlikely(pool_cache_bytes > global.tune.pool_cache_size * 3 / 4)) {
 		if (ph->count >= 16 + pool_cache_count / 8 + CONFIG_HAP_POOL_CLUSTER_SIZE)
 			pool_evict_from_local_cache(pool, 0);
-		if (pool_cache_bytes > CONFIG_HAP_POOL_CACHE_SIZE)
+		if (pool_cache_bytes > global.tune.pool_cache_size)
 			pool_evict_from_local_caches();
 	}
 }
@@ -790,7 +790,8 @@ void __pool_free(struct pool_head *pool, void *ptr)
 	}
 #endif
 
-	if (unlikely(pool_debugging & POOL_DBG_NO_CACHE)) {
+	if (unlikely((pool_debugging & POOL_DBG_NO_CACHE) ||
+		     global.tune.pool_cache_size < pool->size)) {
 		pool_free_nocache(pool, ptr);
 		return;
 	}
@@ -1211,6 +1212,26 @@ static int mem_parse_global_fail_alloc(char **args, int section_type, struct pro
 	return 0;
 }
 
+/* config parser for global "tune.memory.hot-size" */
+static int mem_parse_global_hot_size(char **args, int section_type, struct proxy *curpx,
+                                       const struct proxy *defpx, const char *file, int line,
+                                       char **err)
+{
+	long size;
+
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	size = atol(args[1]);
+	if (size <= 0) {
+	    memprintf(err, "'%s' expects a strictly positive value.", args[0]);
+	    return -1;
+	}
+
+	global.tune.pool_cache_size = size;
+	return 0;
+}
+
 /* config parser for global "no-memory-trimming" */
 static int mem_parse_global_no_mem_trim(char **args, int section_type, struct proxy *curpx,
                                        const struct proxy *defpx, const char *file, int line,
@@ -1225,6 +1246,7 @@ static int mem_parse_global_no_mem_trim(char **args, int section_type, struct pr
 /* register global config keywords */
 static struct cfg_kw_list mem_cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.fail-alloc", mem_parse_global_fail_alloc },
+	{ CFG_GLOBAL, "tune.memory.hot-size", mem_parse_global_hot_size },
 	{ CFG_GLOBAL, "no-memory-trimming", mem_parse_global_no_mem_trim },
 	{ 0, NULL, NULL }
 }};

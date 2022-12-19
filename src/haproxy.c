@@ -2670,6 +2670,14 @@ static void init(int argc, char **argv)
 
 	if (!hlua_post_init())
 		exit(1);
+
+	/* Set the per-thread pool cache size to the default value if not set.
+	 * This is the right place to decide to automatically adjust it (e.g.
+	 * check L2 cache size, thread counts or take into account certain
+	 * expensive pools).
+	 */
+	if (!global.tune.pool_cache_size)
+		global.tune.pool_cache_size = CONFIG_HAP_POOL_CACHE_SIZE;
 }
 
 void deinit(void)

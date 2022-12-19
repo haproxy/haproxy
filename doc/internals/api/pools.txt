@@ -124,13 +124,17 @@ properly handle allocation failures. It may also be enabled at boot time using
 "-dMfail". In this case the desired average rate of allocation failures can be
 fixed by global setting "tune.fail-alloc" expressed in percent.
 
-The thread-local caches contain the freshest objects whose total size amounts
-to CONFIG_HAP_POOL_CACHE_SIZE bytes, which is typically was 1MB before 2.6 and
-is 512kB after. The aim is to keep hot objects that still fit in the CPU core's
-private L2 cache. Once these objects do not fit into the cache anymore, there's
-no benefit keeping them local to the thread, so they'd rather be returned to
-the shared pool or the main allocator so that any other thread may make use of
-them.
+The thread-local caches contain the freshest objects. Its total size amounts to
+the number of bytes set in global.tune.pool_cache_size and that may be adjusted
+by the "tune.memory.hot-size" global option, which itself defaults to build
+time setting CONFIG_HAP_POOL_CACHE_SIZE, which was 1MB before 2.6 and 512kB
+after. The aim is to keep hot objects that still fit in the CPU core's private
+L2 cache. Once these objects do not fit into the cache anymore, there's no
+benefit keeping them local to the thread, so they'd rather be returned to the
+shared pool or the main allocator so that any other thread may make use of
+them. Under extreme thread contention the cost of accessing shared structures
+in the global cache or in malloc() may still be important and it may prove
+useful to increase the thread-local cache size.
 
 
 3. Storage in thread-local caches
@@ -563,14 +567,15 @@ CONFIG_HAP_NO_GLOBAL_POOLS
         boot-time option "-dMno-global".
 
 CONFIG_HAP_POOL_CACHE_SIZE
-        This allows one to define the size of the per-thread cache, in bytes.
-        The default value is 512 kB (524288). Smaller values will use less
-        memory at the expense of a possibly higher CPU usage when using many
-        threads. Higher values will give diminishing returns on performance
-        while using much more memory. Usually there is no benefit in using
-        more than a per-core L2 cache size. It would be better not to set this
-        value lower than a few times the size of a buffer (bufsize, defaults to
-        16 kB).
+        This allows one to define the default size of the per-thread cache, in
+        bytes. The default value is 512 kB (524288). Smaller values will use
+        less memory at the expense of a possibly higher CPU usage when using
+        many threads. Higher values will give diminishing returns on
+        performance while using much more memory. Usually there is no benefit
+        in using more than a per-core L2 cache size. It would be better not to
+        set this value lower than a few times the size of a buffer (bufsize,
+        defaults to 16 kB). In addition, keep in mind that this option may be
+        changed at runtime using "tune.memory.hot-size".
 
 CONFIG_HAP_POOL_CLUSTER_SIZE
         This allows one to define the maximum number of objects that will be

@@ -1126,6 +1126,7 @@ The following keywords are supported in the "global" section :
    - tune.maxaccept
    - tune.maxpollevents
    - tune.maxrewrite
+   - tune.memory.hot-size
    - tune.pattern.cache-size
    - tune.peers.max-updates-at-once
    - tune.pipesize
@@ -2982,6 +2983,22 @@ tune.maxrewrite <number>
   to about 1024. It is automatically readjusted to half of bufsize if it is
   larger than that. This means you don't have to worry about it when changing
   bufsize.
+
+tune.memory.hot-size <number>
+  Sets the per-thread amount of memory that will be kept hot in the local cache
+  and will never be recoverable by other threads. Access to this memory is very
+  fast (lockless), and having enough is critical to maintain a good performance
+  level under extreme thread contention. The value is expressed in bytes, and
+  the default value is configured at build time via CONFIG_HAP_POOL_CACHE_SIZE
+  which defaults to 524288 (512 kB). A larger value may increase performance in
+  some usage scenarios, especially when performance profiles show that memory
+  allocation is stressed a lot. Experience shows that a good value sits between
+  once to twice the per CPU core L2 cache size. Too large values will have a
+  negative impact on performance by making inefficient use of the L3 caches in
+  the CPUs, and will consume larger amounts of memory. It is recommended not to
+  change this value, or to proceed in small increments. In order to completely
+  disable the per-thread CPU caches, using a very small value could work, but
+  it is better to use "-dMno-cache" on the command-line.
 
 tune.pattern.cache-size <number>
   Sets the size of the pattern lookup cache to <number> entries. This is an LRU
