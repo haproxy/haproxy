@@ -1782,7 +1782,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		 * timeout needs to be refreshed.
 		 */
 		if (!((req->flags | res->flags) &
-		      (CF_SHUTR|CF_READ_ACTIVITY|CF_READ_TIMEOUT|CF_SHUTW|
+		      (CF_SHUTR|CF_READ_EVENT|CF_READ_ERROR|CF_READ_TIMEOUT|CF_SHUTW|
 		       CF_WRITE_ACTIVITY|CF_WRITE_TIMEOUT|CF_ANA_TIMEOUT)) &&
 		    !(s->flags & SF_CONN_EXP) &&
 		    !((sc_ep_get(scf) | scb->flags) & SE_FL_ERROR) &&

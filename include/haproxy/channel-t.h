@@ -57,7 +57,6 @@
 /* unused: 0x00000002 */
 #define CF_READ_TIMEOUT   0x00000004  /* timeout while waiting for producer */
 #define CF_READ_ERROR     0x00000008  /* unrecoverable error on producer side */
-#define CF_READ_ACTIVITY  (CF_READ_EVENT|CF_READ_ERROR)
 
 /* unused: 0x00000010 */
 #define CF_SHUTR          0x00000020  /* producer has already shut down */
@@ -123,7 +122,7 @@
 #define CF_ISRESP         0x80000000  /* 0 = request channel, 1 = response channel */
 
 /* Masks which define input events for stream analysers */
-#define CF_MASK_ANALYSER  (CF_READ_ATTACHED|CF_READ_ACTIVITY|CF_READ_TIMEOUT|CF_ANA_TIMEOUT|CF_WRITE_ACTIVITY|CF_WAKE_ONCE)
+#define CF_MASK_ANALYSER  (CF_READ_ATTACHED|CF_READ_EVENT|CF_READ_ERROR|CF_READ_TIMEOUT|CF_ANA_TIMEOUT|CF_WRITE_ACTIVITY|CF_WAKE_ONCE)
 
 /* Mask for static flags which cause analysers to be woken up when they change */
 #define CF_MASK_STATIC    (CF_SHUTR|CF_SHUTW|CF_SHUTR_NOW|CF_SHUTW_NOW)

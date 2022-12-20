@@ -1226,7 +1226,7 @@ static void sc_notify(struct stconn *sc)
 
 		task_queue(task);
 	}
-	if (ic->flags & CF_READ_ACTIVITY)
+	if (ic->flags & (CF_READ_EVENT|CF_READ_ERROR))
 		ic->flags &= ~CF_READ_DONTWAIT;
 }
 
