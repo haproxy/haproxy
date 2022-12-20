@@ -65,10 +65,10 @@
 #define CF_READ_NOEXP     0x00000080  /* producer should not expire */
 
 #define CF_WRITE_EVENT    0x00000100  /* a write event detected on consumer side */
-#define CF_WRITE_PARTIAL  0x00000200  /* some data were written to the consumer */
+/* unused: 0x00000200 */
 #define CF_WRITE_TIMEOUT  0x00000400  /* timeout while waiting for consumer */
 #define CF_WRITE_ERROR    0x00000800  /* unrecoverable error on consumer side */
-#define CF_WRITE_ACTIVITY (CF_WRITE_EVENT|CF_WRITE_PARTIAL|CF_WRITE_ERROR)
+#define CF_WRITE_ACTIVITY (CF_WRITE_EVENT|CF_WRITE_ERROR)
 
 #define CF_WAKE_WRITE     0x00001000  /* wake the task up when there's write activity */
 #define CF_SHUTW          0x00002000  /* consumer has already shut down */
@@ -140,13 +140,13 @@ static forceinline char *chn_show_flags(char *buf, size_t len, const char *delim
 	/* flags */
 	_(CF_READ_EVENT, _(CF_READ_TIMEOUT, _(CF_READ_ERROR,
 	_(CF_SHUTR, _(CF_SHUTR_NOW, _(CF_READ_NOEXP, _(CF_WRITE_EVENT,
-	_(CF_WRITE_PARTIAL, _(CF_WRITE_TIMEOUT, _(CF_WRITE_ERROR,
+	_(CF_WRITE_TIMEOUT, _(CF_WRITE_ERROR,
 	_(CF_WAKE_WRITE, _(CF_SHUTW, _(CF_SHUTW_NOW, _(CF_AUTO_CLOSE,
 	_(CF_STREAMER, _(CF_STREAMER_FAST, _(CF_WROTE_DATA, _(CF_ANA_TIMEOUT,
 	_(CF_READ_ATTACHED, _(CF_KERN_SPLICING, _(CF_READ_DONTWAIT,
 	_(CF_AUTO_CONNECT, _(CF_DONT_READ, _(CF_EXPECT_MORE,
 	_(CF_SEND_DONTWAIT, _(CF_NEVER_WAIT, _(CF_WAKE_ONCE, _(CF_FLT_ANALYZE,
-	_(CF_EOI, _(CF_ISRESP))))))))))))))))))))))))))))));
+	_(CF_EOI, _(CF_ISRESP)))))))))))))))))))))))))))));
 	/* epilogue */
 	_(~0U);
 	return buf;

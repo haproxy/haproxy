@@ -1553,8 +1553,8 @@ static void stream_update_both_sc(struct stream *s)
 	struct channel *req = &s->req;
 	struct channel *res = &s->res;
 
-	req->flags &= ~(CF_READ_EVENT|CF_READ_ATTACHED|CF_WRITE_EVENT|CF_WRITE_PARTIAL);
-	res->flags &= ~(CF_READ_EVENT|CF_READ_ATTACHED|CF_WRITE_EVENT|CF_WRITE_PARTIAL);
+	req->flags &= ~(CF_READ_EVENT|CF_READ_ATTACHED|CF_WRITE_EVENT);
+	res->flags &= ~(CF_READ_EVENT|CF_READ_ATTACHED|CF_WRITE_EVENT);
 
 	s->prev_conn_state = scb->state;
 
@@ -1710,7 +1710,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	 * to a bogus analyser or the fact that we're ignoring a read0. The
 	 * call_rate counter only counts calls with no progress made.
 	 */
-	if (!((req->flags | res->flags) & (CF_READ_EVENT|CF_WRITE_PARTIAL))) {
+	if (!((req->flags | res->flags) & (CF_READ_EVENT|CF_WRITE_EVENT))) {
 		rate = update_freq_ctr(&s->call_rate, 1);
 		if (rate >= 100000 && s->call_rate.prev_ctr) // make sure to wait at least a full second
 			stream_dump_and_crash(&s->obj_type, read_freq_ctr(&s->call_rate));

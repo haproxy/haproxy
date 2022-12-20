@@ -830,7 +830,7 @@ static void sc_app_chk_snd_conn(struct stconn *sc)
 		struct channel *ic = sc_ic(sc);
 
 		/* update timeout if we have written something */
-		if ((oc->flags & (CF_SHUTW|CF_WRITE_PARTIAL)) == CF_WRITE_PARTIAL &&
+		if ((oc->flags & (CF_SHUTW|CF_WRITE_EVENT)) == CF_WRITE_EVENT &&
 		    !channel_is_empty(oc))
 			oc->wex = tick_add_ifset(now_ms, oc->wto);
 
@@ -1127,7 +1127,7 @@ static void sc_notify(struct stconn *sc)
 
 	/* update OC timeouts and wake the other side up if it's waiting for room */
 	if (oc->flags & CF_WRITE_ACTIVITY) {
-		if ((oc->flags & (CF_SHUTW|CF_WRITE_PARTIAL)) == CF_WRITE_PARTIAL &&
+		if ((oc->flags & (CF_SHUTW|CF_WRITE_EVENT)) == CF_WRITE_EVENT &&
 		    !channel_is_empty(oc))
 			if (tick_isset(oc->wex))
 				oc->wex = tick_add_ifset(now_ms, oc->wto);
@@ -1204,13 +1204,14 @@ static void sc_notify(struct stconn *sc)
 	    (ic->flags & CF_READ_ERROR) || sc_ep_test(sc, SE_FL_ERROR) ||
 
 	    /* changes on the consumption side */
-	    (oc->flags & (CF_WRITE_EVENT|CF_WRITE_ERROR)) ||
-	    ((oc->flags & CF_WRITE_ACTIVITY) &&
-	     ((oc->flags & CF_SHUTW) ||
+	    (oc->flags & CF_WRITE_ERROR) ||
+	    ((oc->flags & CF_WRITE_EVENT) &&
+	     ((sc->state < SC_ST_EST) ||
+	      (oc->flags & CF_SHUTW) ||
 	      (((oc->flags & CF_WAKE_WRITE) ||
-		!(oc->flags & (CF_AUTO_CLOSE|CF_SHUTW_NOW|CF_SHUTW))) &&
-	       (sco->state != SC_ST_EST ||
-	        (channel_is_empty(oc) && !oc->to_forward)))))) {
+	       !(oc->flags & (CF_AUTO_CLOSE|CF_SHUTW_NOW|CF_SHUTW))) &&
+	      (sco->state != SC_ST_EST ||
+	       (channel_is_empty(oc) && !oc->to_forward)))))) {
 		task_wakeup(task, TASK_WOKEN_IO);
 	}
 	else {
@@ -1760,7 +1761,7 @@ static int sc_conn_send(struct stconn *sc)
 
  end:
 	if (did_send) {
-		oc->flags |= CF_WRITE_PARTIAL | CF_WROTE_DATA;
+		oc->flags |= CF_WRITE_EVENT | CF_WROTE_DATA;
 		if (sc->state == SC_ST_CON)
 			sc->state = SC_ST_RDY;
 
@@ -1779,15 +1780,15 @@ static int sc_conn_send(struct stconn *sc)
 	return did_send;
 }
 
-/* perform a synchronous send() for the stream connector. The CF_WRITE_EVENT and
- * CF_WRITE_PARTIAL flags are cleared prior to the attempt, and will possibly
- * be updated in case of success.
+/* perform a synchronous send() for the stream connector. The CF_WRITE_EVENT
+ * flag are cleared prior to the attempt, and will possibly be updated in case
+ * of success.
  */
 void sc_conn_sync_send(struct stconn *sc)
 {
 	struct channel *oc = sc_oc(sc);
 
-	oc->flags &= ~(CF_WRITE_EVENT|CF_WRITE_PARTIAL);
+	oc->flags &= ~CF_WRITE_EVENT;
 
 	if (oc->flags & CF_SHUTW)
 		return;
