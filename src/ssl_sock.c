@@ -1248,6 +1248,72 @@ end:
 	return errcode;
 }
 
+/*
+ * Parse an OCSP_RESPONSE contained in <respbuf> and check its validity in
+ * regard to the contents of <ckch> or the <issuer> certificate.
+ * Certificate_ocsp structure does not keep a reference to the corresponding
+ * ckch_store so outside of a CLI context (see "send ssl ocsp-response"
+ * command), we only have an easy access to the issuer's certificate whose
+ * reference is held in the structure.
+ * Return 0 in case of success, 1 otherwise.
+ */
+int ssl_ocsp_check_response(STACK_OF(X509) *chain, X509 *issuer,
+                            struct buffer *respbuf, char **err)
+{
+	int ret = 1;
+	int n;
+	OCSP_RESPONSE *response = NULL;
+	OCSP_BASICRESP *basic = NULL;
+	X509_STORE *store = NULL;
+	const unsigned char *start = (const unsigned char*)b_orig(respbuf);
+
+	if (!chain && !issuer) {
+		memprintf(err, "check_ocsp_response needs a certificate validation chain or an issuer certificate");
+		goto end;
+	}
+
+	response = d2i_OCSP_RESPONSE(NULL, &start, b_data(respbuf));
+	if (!response) {
+		memprintf(err, "d2i_OCSP_RESPONSE() failed");
+		goto end;
+	}
+
+	n = OCSP_response_status(response);
+
+	if (n != OCSP_RESPONSE_STATUS_SUCCESSFUL) {
+		memprintf(err, "OCSP response not successful (%d: %s)",
+		        n, OCSP_response_status_str(n));
+		goto end;
+	}
+
+	basic = OCSP_response_get1_basic(response);
+	if (basic == NULL) {
+		memprintf(err, "OCSP_response_get1_basic() failed");
+		goto end;
+	}
+
+	/* Add ocsp issuer certificate to a store in order verify the ocsp
+	 * response. */
+	store = X509_STORE_new();
+	if (!store) {
+		memprintf(err, "X509_STORE_new() failed");
+		goto end;
+	}
+	X509_STORE_add_cert(store, issuer);
+
+	if (OCSP_basic_verify(basic, chain, store, 0) != 1) {
+		memprintf(err, "OCSP_basic_verify() failed");
+		goto end;
+	}
+
+	ret = 0;
+
+end:
+	X509_STORE_free(store);
+	OCSP_RESPONSE_free(response);
+	OCSP_BASICRESP_free(basic);
+	return ret;
+}
 #endif /* defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP */
 
 /*

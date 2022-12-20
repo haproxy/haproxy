@@ -90,6 +90,8 @@ int ssl_sock_update_ocsp_response(struct buffer *ocsp_response, char **err);
 int ssl_ocsp_get_uri_from_cert(X509 *cert, struct buffer *out, char **err);
 int ssl_ocsp_create_request_details(const OCSP_CERTID *certid, struct buffer *req_url,
                                     struct buffer *req_body, char **err);
+int ssl_ocsp_check_response(STACK_OF(X509) *chain, X509 *issuer,
+                            struct buffer *respbuf, char **err);
 #endif
 #if (defined SSL_CTRL_SET_TLSEXT_TICKET_KEY_CB && TLS_TICKETS_NO > 0)
 int ssl_sock_update_tlskey_ref(struct tls_keys_ref *ref,
