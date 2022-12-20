@@ -1141,8 +1141,40 @@ int ssl_sock_update_ocsp_response(struct buffer *ocsp_response, char **err)
 	return ssl_sock_load_ocsp_response(ocsp_response, NULL, NULL, err);
 }
 
-#endif
 
+/*
+ * Extract the first OCSP URI (if any) contained in <cert> and write it into
+ * <out>.
+ * Returns 0 in case of success, 1 otherwise.
+ */
+int ssl_ocsp_get_uri_from_cert(X509 *cert, struct buffer *out, char **err)
+{
+	STACK_OF(OPENSSL_STRING) *ocsp_uri_stk = NULL;
+	int ret = 1;
+
+	if (!cert || !out)
+		goto end;
+
+	ocsp_uri_stk = X509_get1_ocsp(cert);
+	if (ocsp_uri_stk == NULL) {
+		memprintf(err, "%sNo OCSP URL stack!\n", *err ? *err : "");
+		goto end;
+	}
+
+	chunk_strcpy(out, sk_OPENSSL_STRING_value(ocsp_uri_stk, 0));
+	if (b_data(out) == 0) {
+		memprintf(err, "%sNo OCSP URL!\n", *err ? *err : "");
+		goto end;
+	}
+
+	ret = 0;
+
+end:
+	X509_email_free(ocsp_uri_stk);
+	return ret;
+}
+
+#endif /* defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP */
 
 /*
  * Initialize an HMAC context <hctx> using the <key> and <md> parameters.

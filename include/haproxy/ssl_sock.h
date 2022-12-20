@@ -87,6 +87,7 @@ int ssl_sock_get_pkey_algo(struct connection *conn, struct buffer *out);
 unsigned int ssl_sock_get_verify_result(struct connection *conn);
 #if (defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP)
 int ssl_sock_update_ocsp_response(struct buffer *ocsp_response, char **err);
+int ssl_ocsp_get_uri_from_cert(X509 *cert, struct buffer *out, char **err);
 #endif
 #if (defined SSL_CTRL_SET_TLSEXT_TICKET_KEY_CB && TLS_TICKETS_NO > 0)
 int ssl_sock_update_tlskey_ref(struct tls_keys_ref *ref,
