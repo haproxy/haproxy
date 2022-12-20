@@ -107,20 +107,24 @@ struct pool_item {
  * alignment could be removed.
  */
 struct pool_head {
-	struct pool_item *free_list; /* list of free shared objects */
-	unsigned int used;	/* how many chunks are currently in use */
-	unsigned int needed_avg;/* floating indicator between used and allocated */
-	unsigned int allocated;	/* how many chunks have been allocated */
+	/* read-mostly part, purely configuration */
 	unsigned int limit;	/* hard limit on the number of chunks */
 	unsigned int minavail;	/* how many chunks are expected to be used */
 	unsigned int size;	/* chunk size */
 	unsigned int flags;	/* MEM_F_* */
 	unsigned int users;	/* number of pools sharing this zone */
-	unsigned int failed;	/* failed allocations */
 	unsigned int alloc_sz;	/* allocated size (includes hidden fields) */
 	struct list list;	/* list of all known pools */
 	void *base_addr;        /* allocation address, for free() */
 	char name[12];		/* name of the pool */
+
+	/* heavily read-write part */
+	THREAD_ALIGN(64);
+	struct pool_item *free_list; /* list of free shared objects */
+	unsigned int used;	/* how many chunks are currently in use */
+	unsigned int needed_avg;/* floating indicator between used and allocated */
+	unsigned int allocated;	/* how many chunks have been allocated */
+	unsigned int failed;	/* failed allocations */
 	struct pool_cache_head cache[MAX_THREADS] THREAD_ALIGNED(64); /* pool caches */
 } __attribute__((aligned(64)));
 
