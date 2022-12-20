@@ -957,6 +957,7 @@ struct certificate_ocsp {
 	struct buffer response;
 	int refcount;
 	long expire;
+	struct eb64_node next_update;	/* Key of items inserted in ocsp_update_tree (sorted by absolute date) */
 };
 
 struct ocsp_cbk_arg {
@@ -977,6 +978,11 @@ struct ocsp_cbk_arg {
 static struct eb_root cert_ocsp_tree = EB_ROOT_UNIQUE;
 
 __decl_thread(HA_SPINLOCK_T ocsp_tree_lock);
+
+static struct eb_root ocsp_update_tree = EB_ROOT; /* updatable ocsp responses sorted by next_update in absolute time */
+#define SSL_OCSP_UPDATE_DELAY_MAX 60*60 /* 1H */
+#define SSL_OCSP_UPDATE_DELAY_MIN 5*60  /* 5 minutes */
+#define SSL_OCSP_UPDATE_MARGIN 60   /* 1 minute */
 
 /* This function starts to check if the OCSP response (in DER format) contained
  * in chunk 'ocsp_response' is valid (else exits on error).
@@ -1315,6 +1321,37 @@ end:
 	OCSP_BASICRESP_free(basic);
 	return ret;
 }
+
+/*
+ * Insert a certificate_ocsp structure into the ocsp_update_tree tree, in which
+ * entries are sorted by absolute date of the next update. The next_update key
+ * will be the smallest out of the actual expire value of the response and
+ * now+1H. This arbitrary 1H value ensures that ocsp responses are updated
+ * periodically even when they have a long expire time, while not overloading
+ * the system too much (in theory). Likewise, a minimum 5 minutes interval is
+ * defined in order to avoid updating too often responses that have a really
+ * short expire time or even no 'Next Update' at all.
+ */
+static int ssl_ocsp_update_insert(struct certificate_ocsp *ocsp)
+{
+	int update_margin = (ocsp->expire >= SSL_OCSP_UPDATE_MARGIN) ? SSL_OCSP_UPDATE_MARGIN : 0;
+
+	ocsp->next_update.key = MIN(now.tv_sec + SSL_OCSP_UPDATE_DELAY_MAX,
+	                            ocsp->expire - update_margin);
+
+	/* An already existing valid OCSP response that expires within less than
+	 * SSL_OCSP_UPDATE_DELAY_MIN or has no 'Next Update' field should not be
+	 * updated more than once every 5 minutes in order to avoid continuous
+	 * update of the same response. */
+	if (b_data(&ocsp->response))
+		ocsp->next_update.key = MAX(ocsp->next_update.key, SSL_OCSP_UPDATE_DELAY_MIN);
+
+	HA_SPIN_LOCK(OCSP_LOCK, &ocsp_tree_lock);
+	eb64_insert(&ocsp_update_tree, &ocsp->next_update);
+	HA_SPIN_UNLOCK(OCSP_LOCK, &ocsp_tree_lock);
+
+	return 0;
+}
 #endif /* defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP */
 
 /*
@@ -1630,7 +1667,9 @@ static void ssl_sock_free_ocsp(struct certificate_ocsp *ocsp)
 	ocsp->refcount--;
 	if (ocsp->refcount <= 0) {
 		ebmb_delete(&ocsp->key);
+		eb64_delete(&ocsp->next_update);
 		chunk_destroy(&ocsp->response);
+
 		free(ocsp);
 	}
 }
