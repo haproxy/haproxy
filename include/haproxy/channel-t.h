@@ -67,7 +67,6 @@
 /* unused: 0x00000200 */
 #define CF_WRITE_TIMEOUT  0x00000400  /* timeout while waiting for consumer */
 #define CF_WRITE_ERROR    0x00000800  /* unrecoverable error on consumer side */
-#define CF_WRITE_ACTIVITY (CF_WRITE_EVENT|CF_WRITE_ERROR)
 
 #define CF_WAKE_WRITE     0x00001000  /* wake the task up when there's write activity */
 #define CF_SHUTW          0x00002000  /* consumer has already shut down */
@@ -122,7 +121,7 @@
 #define CF_ISRESP         0x80000000  /* 0 = request channel, 1 = response channel */
 
 /* Masks which define input events for stream analysers */
-#define CF_MASK_ANALYSER  (CF_READ_ATTACHED|CF_READ_EVENT|CF_READ_ERROR|CF_READ_TIMEOUT|CF_ANA_TIMEOUT|CF_WRITE_ACTIVITY|CF_WAKE_ONCE)
+#define CF_MASK_ANALYSER  (CF_READ_ATTACHED|CF_READ_EVENT|CF_READ_ERROR|CF_READ_TIMEOUT|CF_ANA_TIMEOUT|CF_WRITE_EVENT|CF_WRITE_ERROR|CF_WAKE_ONCE)
 
 /* Mask for static flags which cause analysers to be woken up when they change */
 #define CF_MASK_STATIC    (CF_SHUTR|CF_SHUTW|CF_SHUTR_NOW|CF_SHUTW_NOW)

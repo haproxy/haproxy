@@ -826,7 +826,7 @@ static void sc_app_chk_snd_conn(struct stconn *sc)
 			oc->wex = tick_add_ifset(now_ms, oc->wto);
 	}
 
-	if (likely(oc->flags & CF_WRITE_ACTIVITY)) {
+	if (likely(oc->flags & (CF_WRITE_EVENT|CF_WRITE_ERROR))) {
 		struct channel *ic = sc_ic(sc);
 
 		/* update timeout if we have written something */
@@ -1126,7 +1126,7 @@ static void sc_notify(struct stconn *sc)
 		sc_ep_clr(sc, SE_FL_WAIT_DATA);
 
 	/* update OC timeouts and wake the other side up if it's waiting for room */
-	if (oc->flags & CF_WRITE_ACTIVITY) {
+	if (oc->flags & (CF_WRITE_EVENT|CF_WRITE_ERROR)) {
 		if ((oc->flags & (CF_SHUTW|CF_WRITE_EVENT)) == CF_WRITE_EVENT &&
 		    !channel_is_empty(oc))
 			if (tick_isset(oc->wex))
