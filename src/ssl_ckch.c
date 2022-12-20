@@ -719,6 +719,9 @@ void ssl_sock_free_cert_key_and_chain_contents(struct ckch_data *data)
 	if (data->ocsp_issuer)
 		X509_free(data->ocsp_issuer);
 	data->ocsp_issuer = NULL;
+
+	OCSP_CERTID_free(data->ocsp_cid);
+	data->ocsp_cid = NULL;
 }
 
 /*
@@ -787,6 +790,8 @@ struct ckch_data *ssl_sock_copy_cert_key_and_chain(struct ckch_data *src,
 		X509_up_ref(src->ocsp_issuer);
 		dst->ocsp_issuer = src->ocsp_issuer;
 	}
+
+	dst->ocsp_cid = OCSP_CERTID_dup(src->ocsp_cid);
 
 	return dst;
 
@@ -1760,44 +1765,25 @@ end:
  * Build the OCSP tree entry's key for a given ckch_store.
  * Returns a negative value in case of error.
  */
-static int ckch_store_build_certid(struct ckch_store *ckch_store, unsigned char certid[128], unsigned int *key_length)
+static int ckch_store_build_certid(struct ckch_store *ckch_store, unsigned char certid[OCSP_MAX_CERTID_ASN1_LENGTH], unsigned int *key_length)
 {
-	OCSP_RESPONSE *resp;
-	OCSP_BASICRESP *bs = NULL;
-	OCSP_SINGLERESP *sr;
-	OCSP_CERTID *id;
 	unsigned char *p = NULL;
+	int i;
 
 	if (!key_length)
 		return -1;
 
 	*key_length = 0;
 
-	if (!ckch_store->data->ocsp_response)
+	if (!ckch_store->data->ocsp_cid)
 		return 0;
 
-	p = (unsigned char *) ckch_store->data->ocsp_response->area;
-
-	resp = d2i_OCSP_RESPONSE(NULL, (const unsigned char **)&p,
-				 ckch_store->data->ocsp_response->data);
-	if (!resp) {
-		goto end;
-	}
-
-	bs = OCSP_response_get1_basic(resp);
-	if (!bs) {
-		goto end;
-	}
-
-	sr = OCSP_resp_get0(bs, 0);
-	if (!sr) {
-		goto end;
-	}
-
-	id = (OCSP_CERTID*)OCSP_SINGLERESP_get0_id(sr);
+	i = i2d_OCSP_CERTID(ckch_store->data->ocsp_cid, NULL);
+	if (!i || (i > OCSP_MAX_CERTID_ASN1_LENGTH))
+		return 0;
 
 	p = certid;
-	*key_length = i2d_OCSP_CERTID(id, &p);
+	*key_length = i2d_OCSP_CERTID(ckch_store->data->ocsp_cid, &p);
 
 end:
 	return *key_length > 0;

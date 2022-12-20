@@ -1650,10 +1650,9 @@ static void ssl_sock_free_ocsp(struct certificate_ocsp *ocsp)
  * Returns 1 if no ".ocsp" file found, 0 if OCSP status extension is
  * successfully enabled, or -1 in other error case.
  */
-static int ssl_sock_load_ocsp(SSL_CTX *ctx, const struct ckch_data *data, STACK_OF(X509) *chain)
+static int ssl_sock_load_ocsp(SSL_CTX *ctx, struct ckch_data *data, STACK_OF(X509) *chain)
 {
 	X509 *x, *issuer;
-	OCSP_CERTID *cid = NULL;
 	int i, ret = -1;
 	struct certificate_ocsp *ocsp = NULL, *iocsp;
 	char *warn = NULL;
@@ -1684,11 +1683,11 @@ static int ssl_sock_load_ocsp(SSL_CTX *ctx, const struct ckch_data *data, STACK_
 	if (!issuer)
 		goto out;
 
-	cid = OCSP_cert_to_id(0, x, issuer);
-	if (!cid)
+	data->ocsp_cid = OCSP_cert_to_id(0, x, issuer);
+	if (!data->ocsp_cid)
 		goto out;
 
-	i = i2d_OCSP_CERTID(cid, NULL);
+	i = i2d_OCSP_CERTID(data->ocsp_cid, NULL);
 	if (!i || (i > OCSP_MAX_CERTID_ASN1_LENGTH))
 		goto out;
 
@@ -1697,7 +1696,7 @@ static int ssl_sock_load_ocsp(SSL_CTX *ctx, const struct ckch_data *data, STACK_
 		goto out;
 
 	p = ocsp->key_data;
-	ocsp->key_length = i2d_OCSP_CERTID(cid, &p);
+	ocsp->key_length = i2d_OCSP_CERTID(data->ocsp_cid, &p);
 
 	HA_SPIN_LOCK(OCSP_LOCK, &ocsp_tree_lock);
 	iocsp = (struct certificate_ocsp *)ebmb_insert(&cert_ocsp_tree, &ocsp->key, OCSP_MAX_CERTID_ASN1_LENGTH);
@@ -1768,14 +1767,19 @@ static int ssl_sock_load_ocsp(SSL_CTX *ctx, const struct ckch_data *data, STACK_
 	ret = 0;
 
 	warn = NULL;
-	if (ssl_sock_load_ocsp_response(data->ocsp_response, iocsp, cid, &warn)) {
+	if (ssl_sock_load_ocsp_response(data->ocsp_response, iocsp, data->ocsp_cid, &warn)) {
 		memprintf(&warn, "Loading: %s. Content will be ignored", warn ? warn : "failure");
 		ha_warning("%s.\n", warn);
 	}
 
 out:
-	if (cid)
-		OCSP_CERTID_free(cid);
+	if (ret && data->ocsp_cid)
+		OCSP_CERTID_free(data->ocsp_cid);
+
+	if (!ret && data->ocsp_response) {
+		ha_free(&data->ocsp_response->area);
+		ha_free(&data->ocsp_response);
+	}
 
 	if (ocsp)
 		ssl_sock_free_ocsp(ocsp);
@@ -1788,7 +1792,7 @@ out:
 #endif
 
 #ifdef OPENSSL_IS_BORINGSSL
-static int ssl_sock_load_ocsp(SSL_CTX *ctx, const struct ckch_data *data, STACK_OF(X509) *chain)
+static int ssl_sock_load_ocsp(SSL_CTX *ctx, struct ckch_data *data, STACK_OF(X509) *chain)
 {
 	return SSL_CTX_set_ocsp_response(ctx, (const uint8_t *)ckch->ocsp_response->area, ckch->ocsp_response->data);
 }
@@ -3909,7 +3913,7 @@ end:
  * The value 0 means there is no error nor warning and
  * the operation succeed.
  */
-static int ssl_sock_put_ckch_into_ctx(const char *path, const struct ckch_data *data, SSL_CTX *ctx, char **err)
+static int ssl_sock_put_ckch_into_ctx(const char *path, struct ckch_data *data, SSL_CTX *ctx, char **err)
 {
 	int errcode = 0;
 	STACK_OF(X509) *find_chain = NULL;
