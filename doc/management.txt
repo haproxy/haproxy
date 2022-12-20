@@ -3820,6 +3820,19 @@ trace <source> verbosity [<level>]
   information available at the trace point. The first level above "quiet" is
   set by default.
 
+update ssl ocsp-response <certfile>
+  Create an OCSP request for the specified <certfile> and send it to the OCSP
+  responder whose URI should be specified in the "Authority Information Access"
+  section of the certificate. Only the first URI is taken into account. The
+  OCSP response that we should receive in return is then checked and inserted
+  in the local OCSP response tree. This command will only work for certificates
+  that already had a stored OCSP response, either because it was provided
+  during init or if it was previously set through the "set ssl cert" or "set
+  ssl ocsp-response" commands.
+  If the received OCSP response is valid and was properly inserted into the
+  local tree, its contents will be displayed on the standard output. The format
+  is the same as the one described in "show ssl ocsp-response".
+
 
 9.4. Master CLI
 ---------------
