@@ -406,6 +406,7 @@ int addr_is_local(const struct netns_entry *ns,
  * The input string must also be zero-terminated.
  */
 extern const char hextab[];
+extern long query_encode_map[];
 char *encode_string(char *start, char *stop,
 		    const char escape, const long *map,
 		    const char *string);

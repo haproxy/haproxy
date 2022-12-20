@@ -1174,6 +1174,80 @@ end:
 	return ret;
 }
 
+/*
+ * Create the url and request body that make a proper OCSP request for the
+ * <certid>. The <req_url> parameter should already hold the OCSP URI that was
+ * extracted from the corresponding certificate. Depending on the size of the
+ * certid we will either append data to the <req_url> to create a proper URL
+ * that will be sent with a GET command, or the <req_body> will be constructed
+ * in case of a POST.
+ * Returns 0 in case of success.
+ */
+int ssl_ocsp_create_request_details(const OCSP_CERTID *certid, struct buffer *req_url,
+                                    struct buffer *req_body, char **err)
+{
+	int errcode = -1;
+	OCSP_REQUEST *ocsp;
+	struct buffer *bin_request = get_trash_chunk();
+	unsigned char *outbuf = (unsigned char*)b_orig(bin_request);
+
+	ocsp = OCSP_REQUEST_new();
+	if (ocsp == NULL) {
+		memprintf(err, "%sCan't create OCSP_REQUEST\n", *err ? *err : "");
+		goto end;
+	}
+
+	if (OCSP_request_add0_id(ocsp, (OCSP_CERTID*)certid) == NULL) {
+		memprintf(err, "%sOCSP_request_add0_id() error\n", *err ? *err : "");
+		goto end;
+	}
+
+	bin_request->data = i2d_OCSP_REQUEST(ocsp, &outbuf);
+	if (b_data(bin_request) <= 0) {
+		memprintf(err, "%si2d_OCSP_REQUEST() error\n", *err ? *err : "");
+		goto end;
+	}
+
+	errcode = 0;
+
+	/* HTTP based OCSP requests can use either the GET or the POST method to
+	 * submit their requests. To enable HTTP caching, small requests (that
+	 * after encoding are less than 255 bytes), MAY be submitted using GET.
+	 * If HTTP caching is not important, or the request is greater than 255
+	 * bytes, the request SHOULD be submitted using POST.
+	 */
+	if (b_data(bin_request)+b_data(req_url) < 0xff) {
+		struct buffer *b64buf = get_trash_chunk();
+		char *ret = NULL;
+		int base64_ret = 0;
+
+		chunk_strcat(req_url, "/");
+
+		base64_ret = a2base64(b_orig(bin_request), b_data(bin_request),
+		                      b_orig(b64buf), b_size(b64buf));
+
+		if (base64_ret < 0) {
+			memprintf(err, "%sa2base64() error\n", *err ? *err : "");
+		}
+
+		b64buf->data = base64_ret;
+
+		ret = encode_chunk((char*)b_stop(req_url), b_orig(req_url)+b_size(req_url), '%',
+		                   query_encode_map, b64buf);
+		if (ret && *ret == '\0') {
+			req_url->data = ret-b_orig(req_url);
+		}
+	}
+	else {
+		chunk_cpy(req_body, bin_request);
+	}
+
+end:
+	OCSP_REQUEST_free(ocsp);
+
+	return errcode;
+}
+
 #endif /* defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP */
 
 /*
