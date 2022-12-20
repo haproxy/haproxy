@@ -55,6 +55,7 @@ struct ckch_data {
 	struct buffer *ocsp_response;
 	X509 *ocsp_issuer;
 	OCSP_CERTID *ocsp_cid;
+	int ocsp_update_mode;
 };
 
 /*
