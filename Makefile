@@ -591,7 +591,7 @@ endif
 ifneq ($(USE_DL),)
 OPTIONS_LDFLAGS += -ldl
 endif
-OPTIONS_OBJS  += src/ssl_sock.o src/ssl_ckch.o src/ssl_sample.o src/ssl_crtlist.o src/cfgparse-ssl.o src/ssl_utils.o src/jwt.o
+OPTIONS_OBJS  += src/ssl_sock.o src/ssl_ckch.o src/ssl_sample.o src/ssl_crtlist.o src/cfgparse-ssl.o src/ssl_utils.o src/jwt.o src/ssl_ocsp.o
 endif
 
 ifneq ($(USE_OPENSSL_WOLFSSL),)

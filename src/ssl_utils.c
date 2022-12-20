@@ -588,3 +588,86 @@ void init_x509_v_err_tab(void)
 }
 
 INITCALL0(STG_REGISTER, init_x509_v_err_tab);
+
+
+/*
+ *  This function returns the number of seconds  elapsed
+ *  since the Epoch, 1970-01-01 00:00:00 +0000 (UTC) and the
+ *  date presented un ASN1_GENERALIZEDTIME.
+ *
+ *  In parsing error case, it returns -1.
+ */
+long asn1_generalizedtime_to_epoch(ASN1_GENERALIZEDTIME *d)
+{
+	long epoch;
+	char *p, *end;
+	const unsigned short month_offset[12] = {
+		0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334
+	};
+	unsigned long year, month;
+
+	if (!d || (d->type != V_ASN1_GENERALIZEDTIME)) return -1;
+
+	p = (char *)d->data;
+	end = p + d->length;
+
+	if (end - p < 4) return -1;
+	year = 1000 * (p[0] - '0') + 100 * (p[1] - '0') + 10 * (p[2] - '0') + p[3] - '0';
+	p += 4;
+	if (end - p < 2) return -1;
+	month = 10 * (p[0] - '0') + p[1] - '0';
+	if (month < 1 || month > 12) return -1;
+	/* Compute the number of seconds since 1 jan 1970 and the beginning of current month
+	   We consider leap years and the current month (<marsh or not) */
+	epoch = (  ((year - 1970) * 365)
+		 + ((year - (month < 3)) / 4 - (year - (month < 3)) / 100 + (year - (month < 3)) / 400)
+		 - ((1970 - 1) / 4 - (1970 - 1) / 100 + (1970 - 1) / 400)
+		 + month_offset[month-1]
+		) * 24 * 60 * 60;
+	p += 2;
+	if (end - p < 2) return -1;
+	/* Add the number of seconds of completed days of current month */
+	epoch += (10 * (p[0] - '0') + p[1] - '0' - 1) * 24 * 60 * 60;
+	p += 2;
+	if (end - p < 2) return -1;
+	/* Add the completed hours of the current day */
+	epoch += (10 * (p[0] - '0') + p[1] - '0') * 60 * 60;
+	p += 2;
+	if (end - p < 2) return -1;
+	/* Add the completed minutes of the current hour */
+	epoch += (10 * (p[0] - '0') + p[1] - '0') * 60;
+	p += 2;
+	if (p == end) return -1;
+	/* Test if there is available seconds */
+	if (p[0] < '0' || p[0] > '9')
+		goto nosec;
+	if (end - p < 2) return -1;
+	/* Add the seconds of the current minute */
+	epoch += 10 * (p[0] - '0') + p[1] - '0';
+	p += 2;
+	if (p == end) return -1;
+	/* Ignore seconds float part if present */
+	if (p[0] == '.') {
+		do {
+			if (++p == end) return -1;
+		} while (p[0] >= '0' && p[0] <= '9');
+	}
+
+nosec:
+	if (p[0] == 'Z') {
+		if (end - p != 1) return -1;
+		return epoch;
+	}
+	else if (p[0] == '+') {
+		if (end - p != 5) return -1;
+		/* Apply timezone offset */
+		return epoch - ((10 * (p[1] - '0') + p[2] - '0') * 60 * 60 + (10 * (p[3] - '0') + p[4] - '0')) * 60;
+	}
+	else if (p[0] == '-') {
+		if (end - p != 5) return -1;
+		/* Apply timezone offset */
+		return epoch + ((10 * (p[1] - '0') + p[2] - '0') * 60 * 60 + (10 * (p[3] - '0') + p[4] - '0')) * 60;
+	}
+
+	return -1;
+}

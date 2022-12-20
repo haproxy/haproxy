@@ -40,6 +40,7 @@
 #include <haproxy/ssl_utils.h>
 #include <haproxy/tools.h>
 #include <haproxy/ssl_ckch.h>
+#include <haproxy/ssl_ocsp.h>
 
 
 /****************** Global Section Parsing ********************************************/
