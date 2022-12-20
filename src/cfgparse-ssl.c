@@ -1354,6 +1354,13 @@ static int ssl_bind_parse_ocsp_update(char **args, int cur_arg, struct proxy *px
 		return ERR_ALERT | ERR_FATAL;
 	}
 
+	if (ssl_conf->ocsp_update == SSL_SOCK_OCSP_UPDATE_ON) {
+		/* We might need to create the main ocsp update task */
+		int ret = ssl_create_ocsp_update_task(err);
+		if (ret)
+			return ret;
+	}
+
 	return 0;
 }
 

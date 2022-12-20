@@ -1363,6 +1363,15 @@ int ssl_create_ocsp_update_task(char **err)
 	return 0;
 }
 
+static int ssl_ocsp_task_schedule()
+{
+	if (ocsp_update_task)
+		task_schedule(ocsp_update_task, now_ms);
+
+	return 0;
+}
+REGISTER_POST_CHECK(ssl_ocsp_task_schedule);
+
 static void ssl_sock_free_ocsp(struct certificate_ocsp *ocsp);
 
 static void ssl_destroy_ocsp_update_task(void)
