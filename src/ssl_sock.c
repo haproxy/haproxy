@@ -957,7 +957,10 @@ struct certificate_ocsp {
 	struct buffer response;
 	int refcount;
 	long expire;
+	X509 *issuer;
+	STACK_OF(X509) *chain;
 	struct eb64_node next_update;	/* Key of items inserted in ocsp_update_tree (sorted by absolute date) */
+	struct buffer *uri;	/* First OCSP URI contained in the corresponding certificate */
 };
 
 struct ocsp_cbk_arg {
@@ -1668,7 +1671,13 @@ static void ssl_sock_free_ocsp(struct certificate_ocsp *ocsp)
 	if (ocsp->refcount <= 0) {
 		ebmb_delete(&ocsp->key);
 		eb64_delete(&ocsp->next_update);
+		X509_free(ocsp->issuer);
+		ocsp->issuer = NULL;
+		sk_X509_pop_free(ocsp->chain, X509_free);
+		ocsp->chain = NULL;
 		chunk_destroy(&ocsp->response);
+		free_trash_chunk(ocsp->uri);
+		ocsp->uri = NULL;
 
 		free(ocsp);
 	}
@@ -1701,11 +1710,29 @@ static int ssl_sock_load_ocsp(SSL_CTX *ctx, struct ckch_data *data, STACK_OF(X50
 #else
 	tlsextStatusCb callback;
 #endif
+	struct buffer *ocsp_uri = get_trash_chunk();
 
 
 	x = data->cert;
 	if (!x)
 		goto out;
+
+	if (data->ocsp_update_mode == SSL_SOCK_OCSP_UPDATE_ON) {
+		ssl_ocsp_get_uri_from_cert(x, ocsp_uri, NULL);
+		/* We should have an "OCSP URI" field in order for auto update to work. */
+		if (b_data(ocsp_uri) == 0)
+			goto out;
+	}
+
+	/* In case of ocsp update mode set to 'on', this function might be
+	 * called with no known ocsp response. If no ocsp uri can be found in
+	 * the certificate, nothing needs to be done here. */
+	if (!data->ocsp_response) {
+		if (data->ocsp_update_mode != SSL_SOCK_OCSP_UPDATE_ON || b_data(ocsp_uri) == 0) {
+			ret = 0;
+			goto out;
+		}
+	}
 
 	issuer = data->ocsp_issuer;
 	/* take issuer from chain over ocsp_issuer, is what is done historicaly */
@@ -1806,9 +1833,29 @@ static int ssl_sock_load_ocsp(SSL_CTX *ctx, struct ckch_data *data, STACK_OF(X50
 	ret = 0;
 
 	warn = NULL;
-	if (ssl_sock_load_ocsp_response(data->ocsp_response, iocsp, data->ocsp_cid, &warn)) {
+	if (data->ocsp_response && ssl_sock_load_ocsp_response(data->ocsp_response, iocsp, data->ocsp_cid, &warn)) {
 		memprintf(&warn, "Loading: %s. Content will be ignored", warn ? warn : "failure");
 		ha_warning("%s.\n", warn);
+	}
+
+	if (data->ocsp_update_mode == SSL_SOCK_OCSP_UPDATE_ON) {
+
+		/* Do not insert the same certificate_ocsp structure in the
+		 * update tree more than once. */
+		if (!ocsp) {
+			iocsp->issuer = issuer;
+			X509_up_ref(issuer);
+			if (data->chain)
+				iocsp->chain = X509_chain_up_ref(data->chain);
+
+			iocsp->uri = alloc_trash_chunk();
+			if (!iocsp->uri)
+				goto out;
+			if (!chunk_cpy(iocsp->uri, ocsp_uri))
+				goto out;
+
+			ssl_ocsp_update_insert(iocsp);
+		}
 	}
 
 out:
@@ -4001,14 +4048,20 @@ static int ssl_sock_put_ckch_into_ctx(const char *path, struct ckch_data *data, 
 #endif
 
 #if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) || defined OPENSSL_IS_BORINGSSL)
-	/* Load OCSP Info into context */
-	if (data->ocsp_response) {
-		if (ssl_sock_load_ocsp(ctx, data, find_chain) < 0) {
+	/* Load OCSP Info into context
+	 * If OCSP update mode is set to 'on', an entry will be created in the
+	 * ocsp tree even if no ocsp_response was known during init, unless the
+	 * frontend's conf disables ocsp update explicitely.
+	 */
+	if (ssl_sock_load_ocsp(ctx, data, find_chain) < 0) {
+		if (data->ocsp_response)
 			memprintf(err, "%s '%s.ocsp' is present and activates OCSP but it is impossible to compute the OCSP certificate ID (maybe the issuer could not be found)'.\n",
-			          err && *err ? *err : "", path);
-			errcode |= ERR_ALERT | ERR_FATAL;
-			goto end;
-		}
+				  err && *err ? *err : "", path);
+		else
+			memprintf(err, "%s '%s' has an OCSP URI and OCSP auto-update is set to 'on' but an error occurred (maybe the issuer could not be found)'.\n",
+				  err && *err ? *err : "", path);
+		errcode |= ERR_ALERT | ERR_FATAL;
+		goto end;
 	}
 #endif
 
