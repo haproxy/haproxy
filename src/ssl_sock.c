@@ -975,6 +975,8 @@ struct ocsp_cbk_arg {
 
 static struct eb_root cert_ocsp_tree = EB_ROOT_UNIQUE;
 
+__decl_thread(HA_SPINLOCK_T ocsp_tree_lock);
+
 /* This function starts to check if the OCSP response (in DER format) contained
  * in chunk 'ocsp_response' is valid (else exits on error).
  * If 'cid' is not NULL, it will be compared to the OCSP certificate ID
@@ -1084,11 +1086,14 @@ static int ssl_sock_load_ocsp_response(struct buffer *ocsp_response,
 		p = key;
 		memset(key, 0, OCSP_MAX_CERTID_ASN1_LENGTH);
 		i2d_OCSP_CERTID(id, &p);
+		HA_SPIN_LOCK(OCSP_LOCK, &ocsp_tree_lock);
 		ocsp = (struct certificate_ocsp *)ebmb_lookup(&cert_ocsp_tree, key, OCSP_MAX_CERTID_ASN1_LENGTH);
 		if (!ocsp) {
+			HA_SPIN_UNLOCK(OCSP_LOCK, &ocsp_tree_lock);
 			memprintf(err, "OCSP single response: Certificate ID does not match any certificate or issuer");
 			goto out;
 		}
+		HA_SPIN_UNLOCK(OCSP_LOCK, &ocsp_tree_lock);
 	}
 
 	/* According to comments on "chunk_dup", the
@@ -1521,6 +1526,7 @@ static int ssl_sock_load_ocsp(SSL_CTX *ctx, const struct ckch_data *data, STACK_
 	p = ocsp->key_data;
 	ocsp->key_length = i2d_OCSP_CERTID(cid, &p);
 
+	HA_SPIN_LOCK(OCSP_LOCK, &ocsp_tree_lock);
 	iocsp = (struct certificate_ocsp *)ebmb_insert(&cert_ocsp_tree, &ocsp->key, OCSP_MAX_CERTID_ASN1_LENGTH);
 	if (iocsp == ocsp)
 		ocsp = NULL;
@@ -1584,6 +1590,7 @@ static int ssl_sock_load_ocsp(SSL_CTX *ctx, const struct ckch_data *data, STACK_
 			iocsp->refcount++;
 		}
 	}
+	HA_SPIN_UNLOCK(OCSP_LOCK, &ocsp_tree_lock);
 
 	ret = 0;
 
@@ -7596,11 +7603,15 @@ static int cli_parse_show_ocspresponse(char **args, char *payload, struct appctx
 			return cli_err(appctx, "'show ssl ocsp-response' received an invalid key.\n");
 		}
 
+		HA_SPIN_LOCK(OCSP_LOCK, &ocsp_tree_lock);
 		ocsp = (struct certificate_ocsp *)ebmb_lookup(&cert_ocsp_tree, key, OCSP_MAX_CERTID_ASN1_LENGTH);
 
 		if (!ocsp) {
+			HA_SPIN_UNLOCK(OCSP_LOCK, &ocsp_tree_lock);
 			return cli_err(appctx, "Certificate ID does not match any certificate.\n");
 		}
+		++ocsp->refcount;
+		HA_SPIN_UNLOCK(OCSP_LOCK, &ocsp_tree_lock);
 
 		appctx->svcctx = ocsp;
 		appctx->io_handler = cli_io_handler_show_ocspresponse_detail;
@@ -7666,6 +7677,8 @@ static int cli_io_handler_show_ocspresponse(struct appctx *appctx)
 	if (trash == NULL)
 		return 1;
 
+	HA_SPIN_LOCK(OCSP_LOCK, &ocsp_tree_lock);
+
 	tmp = alloc_trash_chunk();
 	if (!tmp)
 		goto end;
@@ -7718,24 +7731,21 @@ static int cli_io_handler_show_ocspresponse(struct appctx *appctx)
 	}
 
 end:
+	HA_SPIN_UNLOCK(OCSP_LOCK, &ocsp_tree_lock);
 	appctx->svcctx = NULL;
-	if (trash)
-		free_trash_chunk(trash);
-	if (tmp)
-		free_trash_chunk(tmp);
-	if (bio)
-		BIO_free(bio);
+	free_trash_chunk(trash);
+	free_trash_chunk(tmp);
+	BIO_free(bio);
 	return 1;
 
 yield:
+	free_trash_chunk(trash);
+	free_trash_chunk(tmp);
+	BIO_free(bio);
 
-	if (trash)
-		free_trash_chunk(trash);
-	if (tmp)
-		free_trash_chunk(tmp);
-	if (bio)
-		BIO_free(bio);
+	++ocsp->refcount;
 	appctx->svcctx = ocsp;
+	HA_SPIN_UNLOCK(OCSP_LOCK, &ocsp_tree_lock);
 	return 0;
 #else
 	return cli_err(appctx, "HAProxy was compiled against a version of OpenSSL that doesn't support OCSP stapling.\n");
@@ -7908,12 +7918,20 @@ end:
 int ssl_get_ocspresponse_detail(unsigned char *ocsp_certid, struct buffer *out)
 {
 	struct certificate_ocsp *ocsp;
+	int ret = 0;
 
+	HA_SPIN_LOCK(OCSP_LOCK, &ocsp_tree_lock);
 	ocsp = (struct certificate_ocsp *)ebmb_lookup(&cert_ocsp_tree, ocsp_certid, OCSP_MAX_CERTID_ASN1_LENGTH);
-	if (!ocsp)
+	if (!ocsp) {
+		HA_SPIN_UNLOCK(OCSP_LOCK, &ocsp_tree_lock);
 		return -1;
+	}
 
-	return ssl_ocsp_response_print(&ocsp->response, out);
+	ret = ssl_ocsp_response_print(&ocsp->response, out);
+
+	HA_SPIN_UNLOCK(OCSP_LOCK, &ocsp_tree_lock);
+
+	return ret;
 }
 
 
@@ -7932,6 +7950,7 @@ static int cli_io_handler_show_ocspresponse_detail(struct appctx *appctx)
 		return 0;
 
 end:
+	ssl_sock_free_ocsp(ocsp);
 	appctx->svcctx = NULL;
 	return 1;
 }
@@ -8178,6 +8197,8 @@ static void __ssl_sock_init(void)
 	BIO_meth_set_gets(ha_meth, ha_ssl_gets);
 
 	HA_SPIN_INIT(&ckch_lock);
+
+	HA_SPIN_INIT(&ocsp_tree_lock);
 
 	/* Try to register dedicated SSL/TLS protocol message callbacks for
 	 * heartbleed attack (CVE-2014-0160) and clienthello.

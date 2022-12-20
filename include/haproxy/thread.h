@@ -407,6 +407,7 @@ enum lock_label {
 	SFT_LOCK, /* sink forward target */
 	IDLE_CONNS_LOCK,
 	QUIC_LOCK,
+	OCSP_LOCK,
 	OTHER_LOCK,
 	/* WT: make sure never to use these ones outside of development,
 	 * we need them for lock profiling!
