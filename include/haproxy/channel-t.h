@@ -104,8 +104,7 @@
 #define CF_STREAMER_FAST  0x00020000  /* the consumer seems to eat the stream very fast */
 
 #define CF_WROTE_DATA     0x00040000  /* some data were sent from this buffer */
-/* unused 0x00080000 */
-#define CF_READ_ATTACHED  0x00100000  /* the read side is attached for the first time */
+/* unused 0x00080000 - 0x00100000  */
 #define CF_KERN_SPLICING  0x00200000  /* kernel splicing desired for this channel */
 #define CF_READ_DONTWAIT  0x00400000  /* wake the task up after every read (eg: HTTP request) */
 #define CF_AUTO_CONNECT   0x00800000  /* consumer may attempt to establish a new connection */
@@ -121,7 +120,7 @@
 #define CF_ISRESP         0x80000000  /* 0 = request channel, 1 = response channel */
 
 /* Masks which define input events for stream analysers */
-#define CF_MASK_ANALYSER  (CF_READ_ATTACHED|CF_READ_EVENT|CF_READ_ERROR|CF_READ_TIMEOUT|CF_WRITE_EVENT|CF_WRITE_ERROR|CF_WAKE_ONCE)
+#define CF_MASK_ANALYSER  (CF_READ_EVENT|CF_READ_ERROR|CF_READ_TIMEOUT|CF_WRITE_EVENT|CF_WRITE_ERROR|CF_WAKE_ONCE)
 
 /* Mask for static flags which cause analysers to be woken up when they change */
 #define CF_MASK_STATIC    (CF_SHUTR|CF_SHUTW|CF_SHUTR_NOW|CF_SHUTW_NOW)
@@ -141,10 +140,10 @@ static forceinline char *chn_show_flags(char *buf, size_t len, const char *delim
 	_(CF_WRITE_TIMEOUT, _(CF_WRITE_ERROR,
 	_(CF_WAKE_WRITE, _(CF_SHUTW, _(CF_SHUTW_NOW, _(CF_AUTO_CLOSE,
 	_(CF_STREAMER, _(CF_STREAMER_FAST, _(CF_WROTE_DATA,
-	_(CF_READ_ATTACHED, _(CF_KERN_SPLICING, _(CF_READ_DONTWAIT,
+	_(CF_KERN_SPLICING, _(CF_READ_DONTWAIT,
 	_(CF_AUTO_CONNECT, _(CF_DONT_READ, _(CF_EXPECT_MORE,
 	_(CF_SEND_DONTWAIT, _(CF_NEVER_WAIT, _(CF_WAKE_ONCE, _(CF_FLT_ANALYZE,
-	_(CF_EOI, _(CF_ISRESP))))))))))))))))))))))))))));
+	_(CF_EOI, _(CF_ISRESP)))))))))))))))))))))))))));
 	/* epilogue */
 	_(~0U);
 	return buf;

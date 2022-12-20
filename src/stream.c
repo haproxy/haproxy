@@ -294,9 +294,9 @@ int stream_upgrade_from_sc(struct stconn *sc, struct buffer *input)
 		s->req.buf = *input;
 		*input = BUF_NULL;
 		s->req.total = (IS_HTX_STRM(s) ? htxbuf(&s->req.buf)->data : b_data(&s->req.buf));
-		s->req.flags |= (s->req.total ? CF_READ_EVENT : 0);
 	}
 
+	s->req.flags |= CF_READ_EVENT; /* Always report a read event */
 	s->flags &= ~SF_IGNORE;
 
 	task_wakeup(s->task, TASK_WOKEN_INIT);
@@ -501,7 +501,7 @@ struct stream *stream_new(struct session *sess, struct stconn *sc, struct buffer
 	s->store_count = 0;
 
 	channel_init(&s->req);
-	s->req.flags |= CF_READ_ATTACHED; /* the producer is already connected */
+	s->req.flags |= CF_READ_EVENT; /* the producer is already connected */
 	s->req.analysers = sess->listener ? sess->listener->analysers : sess->fe->fe_req_ana;
 
 	if (IS_HTX_STRM(s)) {
@@ -567,7 +567,6 @@ struct stream *stream_new(struct session *sess, struct stconn *sc, struct buffer
 		s->req.buf = *input;
 		*input = BUF_NULL;
 		s->req.total = (IS_HTX_STRM(s) ? htxbuf(&s->req.buf)->data : b_data(&s->req.buf));
-		s->req.flags |= (s->req.total ? CF_READ_EVENT : 0);
 	}
 
 	/* it is important not to call the wakeup function directly but to
@@ -937,7 +936,7 @@ static void back_establish(struct stream *s)
 	rep->analysers |= strm_fe(s)->fe_rsp_ana | s->be->be_rsp_ana;
 
 	se_have_more_data(s->scb->sedesc);
-	rep->flags |= CF_READ_ATTACHED; /* producer is now attached */
+	rep->flags |= CF_READ_EVENT; /* producer is now attached */
 	if (conn) {
 		/* real connections have timeouts
 		 * if already defined, it means that a set-timeout rule has
@@ -1553,8 +1552,8 @@ static void stream_update_both_sc(struct stream *s)
 	struct channel *req = &s->req;
 	struct channel *res = &s->res;
 
-	req->flags &= ~(CF_READ_EVENT|CF_READ_ATTACHED|CF_WRITE_EVENT);
-	res->flags &= ~(CF_READ_EVENT|CF_READ_ATTACHED|CF_WRITE_EVENT);
+	req->flags &= ~(CF_READ_EVENT|CF_WRITE_EVENT);
+	res->flags &= ~(CF_READ_EVENT|CF_WRITE_EVENT);
 
 	s->prev_conn_state = scb->state;
 
