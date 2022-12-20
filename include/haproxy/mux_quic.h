@@ -120,7 +120,7 @@ static inline struct stconn *qc_attach_sc(struct qcs *qcs, struct buffer *buf)
 	 * it to sedesc. See <qcs_wait_http_req> for more info.
 	 */
 	BUG_ON_HOT(!LIST_INLIST(&qcs->el_opening));
-	LIST_DELETE(&qcs->el_opening);
+	LIST_DEL_INIT(&qcs->el_opening);
 
 	return qcs->sd->sc;
 }

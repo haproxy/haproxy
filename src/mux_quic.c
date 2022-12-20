@@ -59,8 +59,8 @@ static void qcs_free(struct qcs *qcs)
 
 	TRACE_ENTER(QMUX_EV_QCS_END, qcc->conn, qcs);
 
-	if (LIST_INLIST(&qcs->el_opening))
-		LIST_DELETE(&qcs->el_opening);
+	/* Safe to use even if already removed from the list. */
+	LIST_DEL_INIT(&qcs->el_opening);
 
 	/* Release stream endpoint descriptor. */
 	BUG_ON(qcs->sd && !se_fl_test(qcs->sd, SE_FL_ORPHAN));
