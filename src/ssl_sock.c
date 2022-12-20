@@ -1325,6 +1325,70 @@ end:
 	return ret;
 }
 
+struct task *ocsp_update_task __read_mostly = NULL;
+
+static struct ssl_ocsp_task_ctx {
+	struct certificate_ocsp *cur_ocsp;
+	struct httpclient *hc;
+	int flags;
+} ssl_ocsp_task_ctx;
+
+const struct http_hdr ocsp_request_hdrs[] = {
+	{ IST("Content-Type"), IST("application/ocsp-request") },
+	{ IST_NULL, IST_NULL }
+};
+
+/*
+ * Create the main OCSP update task that will iterate over the OCSP responses
+ * stored in ocsp_update_tree and send an OCSP request via the http_client
+ * applet to the corresponding OCSP responder. The task will then be in charge
+ * of processing the response, verifying it and resinserting it in the actual
+ * ocsp response tree if the response is valid.
+ * Returns 0 in case of success.
+ */
+int ssl_create_ocsp_update_task(char **err)
+{
+	if (ocsp_update_task)
+		return 0; /* Already created */
+
+	ocsp_update_task = task_new_anywhere();
+	if (!ocsp_update_task) {
+		memprintf(err, "parsing : failed to allocate global ocsp update task.");
+		return -1;
+	}
+
+	ocsp_update_task->process = ssl_ocsp_update_responses;
+	ocsp_update_task->context = NULL;
+
+	return 0;
+}
+
+static void ssl_sock_free_ocsp(struct certificate_ocsp *ocsp);
+
+static void ssl_destroy_ocsp_update_task(void)
+{
+	struct eb64_node *node, *next;
+	struct certificate_ocsp *ocsp;
+	if (!ocsp_update_task)
+		return;
+
+	HA_SPIN_LOCK(OCSP_LOCK, &ocsp_tree_lock);
+
+	node = eb64_first(&ocsp_update_tree);
+	while (node) {
+		ocsp = eb64_entry(node, struct certificate_ocsp, next_update);
+		next = eb64_next(node);
+		eb64_delete(node);
+		ssl_sock_free_ocsp(ocsp);
+		node = next;
+	}
+
+	HA_SPIN_UNLOCK(OCSP_LOCK, &ocsp_tree_lock);
+
+	task_destroy(ocsp_update_task);
+	ocsp_update_task = NULL;
+}
+
 /*
  * Insert a certificate_ocsp structure into the ocsp_update_tree tree, in which
  * entries are sorted by absolute date of the next update. The next_update key
@@ -1355,6 +1419,271 @@ static int ssl_ocsp_update_insert(struct certificate_ocsp *ocsp)
 
 	return 0;
 }
+
+void ocsp_update_response_stline_cb(struct httpclient *hc)
+{
+	struct task *task = hc->caller;
+
+	if (!task)
+		return;
+
+	ssl_ocsp_task_ctx.flags |= HC_F_RES_STLINE;
+	task_wakeup(task, TASK_WOKEN_MSG);
+}
+
+void ocsp_update_response_headers_cb(struct httpclient *hc)
+{
+	struct task *task = hc->caller;
+
+	if (!task)
+		return;
+
+	ssl_ocsp_task_ctx.flags |= HC_F_RES_HDR;
+	task_wakeup(task, TASK_WOKEN_MSG);
+}
+
+void ocsp_update_response_body_cb(struct httpclient *hc)
+{
+	struct task *task = hc->caller;
+
+	if (!task)
+		return;
+
+	ssl_ocsp_task_ctx.flags |= HC_F_RES_BODY;
+	task_wakeup(task, TASK_WOKEN_MSG);
+}
+
+void ocsp_update_response_end_cb(struct httpclient *hc)
+{
+	struct task *task = hc->caller;
+
+	if (!task)
+		return;
+
+	ssl_ocsp_task_ctx.flags |= HC_F_RES_END;
+	task_wakeup(task, TASK_WOKEN_MSG);
+}
+
+/*
+ * This is the main function of the ocsp auto update mechanism. It has two
+ * distinct parts and the branching to one or the other is completely based on
+ * the fact that the cur_ocsp pointer of the ssl_ocsp_task_ctx member is set.
+ *
+ * If the pointer is not set, we need to look at the first item of the update
+ * tree and see if it needs to be updated. If it does not we simply wait until
+ * the time is right and let the task asleep. If it does need to be updated, we
+ * simply build and send the corresponding ocsp request thanks to the
+ * http_client. The task is then sent to sleep with an expire time set to
+ * infinity. The http_client will wake it back up once the response is received
+ * (or a timeout occurs). Just note that during this whole process the
+ * cetificate_ocsp object corresponding to the entry being updated is taken out
+ * of the update tree and only stored in the ssl_ocsp_task_ctx context.
+ *
+ * Once the task is waken up by the http_client, it branches on the response
+ * processing part of the function which basically checks that the response is
+ * valid and inserts it into the ocsp_response tree. The task then goes back to
+ * sleep until another entry needs to be updated.
+ */
+struct task *ssl_ocsp_update_responses(struct task *task, void *context, unsigned int state)
+{
+	unsigned int next_wakeup;
+	struct eb64_node *eb;
+	struct certificate_ocsp *ocsp;
+	struct httpclient *hc = NULL;
+	struct buffer *req_url = NULL;
+	struct buffer *req_body = NULL;
+	OCSP_CERTID *certid = NULL;
+	struct ssl_ocsp_task_ctx *ctx = &ssl_ocsp_task_ctx;
+
+	/* This arbitrary 10s time should only be used when an error occurred
+	 * during an ocsp response processing. */
+	next_wakeup = 10000;
+
+	if (ctx->cur_ocsp) {
+		/* An update is in process */
+		ocsp = ctx->cur_ocsp;
+		hc = ctx->hc;
+		if (ctx->flags & HC_F_RES_STLINE) {
+			if (hc->res.status != 200) {
+				goto http_error;
+			}
+			ctx->flags &= ~HC_F_RES_STLINE;
+		}
+
+		if (ctx->flags & HC_F_RES_HDR) {
+			struct http_hdr *hdr;
+			int found = 0;
+			/* Look for "Content-Type" header which should have
+			 * "application/ocsp-response" value. */
+			for (hdr = hc->res.hdrs; isttest(hdr->v); hdr++) {
+				if (isteqi(hdr->n, ist("Content-Type")) &&
+				    isteqi(hdr->v, ist("application/ocsp-response"))) {
+					found = 1;
+					break;
+				}
+			}
+			if (!found) {
+				goto http_error;
+			}
+			ctx->flags &= ~HC_F_RES_HDR;
+		}
+
+		/* If the HC_F_RES_BODY is set, we still need for the
+		 * HC_F_RES_END flag to be set as well in order to be sure that
+		 * the body is complete. */
+
+		/* we must close only if F_RES_END is the last flag */
+		if (ctx->flags & HC_F_RES_END) {
+
+			/* Process the body that must be complete since
+			 * HC_F_RES_END is set. */
+			if (ctx->flags & HC_F_RES_BODY) {
+				if (ssl_ocsp_check_response(ocsp->chain, ocsp->issuer, &hc->res.buf, NULL))
+					goto http_error;
+
+				if (ssl_sock_update_ocsp_response(&hc->res.buf, NULL) != 0) {
+					goto http_error;
+				}
+
+				ctx->flags &= ~HC_F_RES_BODY;
+			}
+
+			ctx->flags &= ~HC_F_RES_END;
+
+			/* Reinsert the entry into the update list so that it can be updated later */
+			ssl_ocsp_update_insert(ocsp);
+			ctx->cur_ocsp = NULL;
+
+			HA_SPIN_LOCK(OCSP_LOCK, &ocsp_tree_lock);
+			/* Set next_wakeup to the new first entry of the tree */
+			eb = eb64_first(&ocsp_update_tree);
+			if (eb) {
+				if (eb->key > now.tv_sec)
+					next_wakeup = (eb->key - now.tv_sec)*1000;
+				else
+					next_wakeup = 0;
+			}
+			HA_SPIN_UNLOCK(OCSP_LOCK, &ocsp_tree_lock);
+			goto leave;
+		}
+
+		/* We did not receive the HC_F_RES_END flag yet, wait for it
+		 * before trying to update a new ocsp response. */
+		goto wait;
+	} else {
+		/* Look for next entry that needs to be updated. */
+		const unsigned char *p = NULL;
+
+		HA_SPIN_LOCK(OCSP_LOCK, &ocsp_tree_lock);
+
+		eb = eb64_first(&ocsp_update_tree);
+		if (!eb) {
+			HA_SPIN_UNLOCK(OCSP_LOCK, &ocsp_tree_lock);
+			goto leave;
+		}
+
+		if (eb->key > now.tv_sec) {
+			next_wakeup = (eb->key - now.tv_sec)*1000;
+			HA_SPIN_UNLOCK(OCSP_LOCK, &ocsp_tree_lock);
+			goto leave;
+		}
+
+		ocsp = eb64_entry(eb, struct certificate_ocsp, next_update);
+
+		/* Take the current entry out of the update tree, it will be
+		 * reinserted after the response is processed. */
+		eb64_delete(&ocsp->next_update);
+
+		ctx->cur_ocsp = ocsp;
+
+		HA_SPIN_UNLOCK(OCSP_LOCK, &ocsp_tree_lock);
+
+		req_url = alloc_trash_chunk();
+		if (!req_url) {
+			goto leave;
+		}
+		req_body = alloc_trash_chunk();
+		if (!req_body) {
+			goto leave;
+		}
+
+		p = ocsp->key_data;
+
+		d2i_OCSP_CERTID(&certid, &p, ocsp->key_length);
+		if (!certid)
+			goto leave;
+
+		/* Copy OCSP URI stored in ocsp structure into req_url */
+		chunk_cpy(req_url, ocsp->uri);
+
+		/* Create ocsp request */
+		if (ssl_ocsp_create_request_details(certid, req_url, req_body, NULL) != 0) {
+			goto leave;
+		}
+
+		/* Depending on the processing that occurred in
+		 * ssl_ocsp_create_request_details we could either have to send
+		 * a GET or a POST request. */
+		hc = httpclient_new(task, b_data(req_body) ? HTTP_METH_POST : HTTP_METH_GET, ist2(b_orig(req_url), b_data(req_url)));
+		if (!hc) {
+			goto leave;
+		}
+
+		if (httpclient_req_gen(hc, hc->req.url, hc->req.meth,
+		                       b_data(req_body) ? ocsp_request_hdrs : NULL,
+		                       ist2(b_orig(req_body), b_data(req_body))) != ERR_NONE) {
+			goto leave;
+		}
+
+		hc->ops.res_stline = ocsp_update_response_stline_cb;
+		hc->ops.res_headers = ocsp_update_response_headers_cb;
+		hc->ops.res_payload = ocsp_update_response_body_cb;
+		hc->ops.res_end = ocsp_update_response_end_cb;
+
+		if (!httpclient_start(hc)) {
+			goto leave;
+		}
+
+		ctx->flags = 0;
+		ctx->hc = hc;
+
+		/* We keep the lock, this indicates that an update is in process. */
+		goto wait;
+	}
+
+leave:
+	if (ctx->cur_ocsp) {
+		/* Something went wrong, reinsert the entry in the tree. */
+		ssl_ocsp_update_insert(ctx->cur_ocsp);
+		ctx->cur_ocsp = NULL;
+	}
+	if (hc)
+		httpclient_stop_and_destroy(hc);
+	free_trash_chunk(req_url);
+	free_trash_chunk(req_body);
+	task->expire = tick_add(now_ms, next_wakeup);
+	return task;
+
+wait:
+	free_trash_chunk(req_url);
+	free_trash_chunk(req_body);
+	task->expire = TICK_ETERNITY;
+	return task;
+
+http_error:
+	/* Reinsert certificate into update list so that it can be updated later */
+	if (ocsp)
+		ssl_ocsp_update_insert(ocsp);
+
+	if (hc)
+		httpclient_stop_and_destroy(hc);
+	ctx->cur_ocsp = NULL;
+	ctx->hc = NULL;
+	ctx->flags = 0;
+	task->expire = tick_add(now_ms, next_wakeup);
+	return task;
+}
+
 #endif /* defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP */
 
 /*
@@ -8231,10 +8560,6 @@ struct ocsp_cli_ctx {
 	uint do_update;
 };
 
-const struct http_hdr ocsp_request_hdrs[] = {
-	{ IST("Content-Type"), IST("application/ocsp-request") },
-	{ IST_NULL, IST_NULL }
-};
 
 void cli_ocsp_res_stline_cb(struct httpclient *hc)
 {
@@ -8878,6 +9203,10 @@ static void __ssl_sock_deinit(void)
         CRYPTO_cleanup_all_ex_data();
 #endif
 	BIO_meth_free(ha_meth);
+
+#if !defined OPENSSL_NO_OCSP
+	ssl_destroy_ocsp_update_task();
+#endif
 }
 REGISTER_POST_DEINIT(__ssl_sock_deinit);
 

@@ -92,6 +92,8 @@ int ssl_ocsp_create_request_details(const OCSP_CERTID *certid, struct buffer *re
                                     struct buffer *req_body, char **err);
 int ssl_ocsp_check_response(STACK_OF(X509) *chain, X509 *issuer,
                             struct buffer *respbuf, char **err);
+struct task *ssl_ocsp_update_responses(struct task *task, void *context, unsigned int state);
+int ssl_create_ocsp_update_task(char **err);
 #endif
 #if (defined SSL_CTRL_SET_TLSEXT_TICKET_KEY_CB && TLS_TICKETS_NO > 0)
 int ssl_sock_update_tlskey_ref(struct tls_keys_ref *ref,
