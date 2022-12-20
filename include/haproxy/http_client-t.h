@@ -59,4 +59,11 @@ enum {
 
 #define HTTPCLIENT_USERAGENT "HAProxy"
 
+/* What kind of data we need to read */
+#define HC_F_RES_STLINE     0x01
+#define HC_F_RES_HDR        0x02
+#define HC_F_RES_BODY       0x04
+#define HC_F_RES_END        0x08
+
+
 #endif /* ! _HAPROXY_HTTCLIENT__T_H */
