@@ -1,0 +1,245 @@
+#REGTEST_TYPE=slow
+
+# broken with BoringSSL.
+
+# This reg-test focuses on the OCSP response auto-update functionality. It does
+# not test the full scope of the feature because most of it is based on
+# expiration times and long delays between updates of valid OCSP responses.
+# Automatic update of valid OCSP responses loaded during init will not be
+# tested because by design, such a response would no be automatically updated
+# until init+1H.
+#
+# This test will then focus on certificates that have a specified OCSP URI but
+# no known OCSP response. For those certificates, OCSP requests are sent as
+# soon as possible by the update task.
+#
+# The ocsp responder used in all the tests will be an openssl using the
+# certificate database in ocsp_update/index.txt. It will listen on port 12346
+# which is not the same as the one specified in the certificates' OCSP URI
+# which point to port 12345. The link from port 12345 to port 12346 will be
+# ensured through HAProxy instances that will enable logs, later used as a
+# synchronization mean.
+#
+# Unfortunately some arbitrary "sleep" calls are still needed to leave some
+# time for the ocsp update task to actually process the ocsp responses and
+# reinsert them into the tree. This explains why the test's mode is set to
+# "slow".
+#
+# If this test does not work anymore:
+# - Check that you have openssl
+
+varnishtest "Test the OCSP auto update feature"
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.7-dev0)'"
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL) && !ssllib_name_startswith(BoringSSL) && openssl_version_atleast(1.1.1)'"
+feature cmd "command -v openssl"
+feature ignore_unknown_macro
+
+
+###################
+#                 #
+# FIRST TEST CASE #
+#                 #
+###################
+
+# No automatic update should occur in this test case since we load two already
+# valid OCSP responses during init which have a "Next Update" date really far
+# in the future. So they should only be updated after one hour.
+# This test will only be the most basic one where we check that ocsp response
+# loading still works as expected.
+
+haproxy h1 -conf {
+    global
+        tune.ssl.default-dh-param 2048
+        tune.ssl.capture-buffer-size 1
+        stats socket "${tmpdir}/h1/stats" level admin
+        crt-base ${testdir}/ocsp_update
+
+    defaults
+        mode http
+        option httplog
+        log stderr local0 debug err
+        option logasap
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend ssl-fe
+        bind "${tmpdir}/ssl.sock" ssl crt multicert/server_ocsp.pem ca-file ${testdir}/set_cafile_rootCA.crt verify none crt-ignore-err all
+        http-request return status 200
+} -start
+
+
+# We should have two distinct ocsp responses known that were loaded at build time
+haproxy h1 -cli {
+    send "show ssl ocsp-response"
+    expect ~ "Certificate ID key : 303b300906052b0e03021a050004148a83e0060faff709ca7e9b95522a2e81635fda0a0414f652b0e435d5ea923851508f0adbe92d85de007a02021015"
+    send "show ssl ocsp-response"
+    expect ~ "Certificate ID key : 303b300906052b0e03021a050004148a83e0060faff709ca7e9b95522a2e81635fda0a0414f652b0e435d5ea923851508f0adbe92d85de007a02021016"
+
+    send "show ssl ocsp-response 303b300906052b0e03021a050004148a83e0060faff709ca7e9b95522a2e81635fda0a0414f652b0e435d5ea923851508f0adbe92d85de007a02021015"
+    expect ~ "Cert Status: revoked"
+
+    send "show ssl ocsp-response 303b300906052b0e03021a050004148a83e0060faff709ca7e9b95522a2e81635fda0a0414f652b0e435d5ea923851508f0adbe92d85de007a02021016"
+    expect ~ "Cert Status: good"
+}
+
+haproxy h1 -wait
+
+
+
+####################
+#                  #
+# SECOND TEST CASE #
+#                  #
+####################
+
+# This test will focus on two separate certificates that have the same OCSP uri
+# (http://ocsp.haproxy.com:12345) but no OCSP response loaded at build time.
+# The update mode is set to 'on' in the two crt-lists used. The two ocsp
+# responses should then be fetched automatically after init. We use an http
+# listener as a rebound on which http log is enabled towards Syslog_http. This
+# ensures that two requests are sent by the ocsp auto update task and it
+# enables to use a barrier to synchronize the ocsp task and the subsequent cli
+# calls. Thanks to the barrier we know that when calling "show ssl
+# ocsp-response" on the cli, the two answers should already have been received
+# and processed.
+
+process p1 "openssl ocsp -index ${testdir}/ocsp_update/index.txt -rsigner ${testdir}/ocsp_update/ocsp.haproxy.com.pem -CA ${testdir}/ocsp_update/ocsp_update_rootca.crt -nrequest 2 -ndays 1 -port 12346 -timeout 5" -start
+
+barrier b1 cond 2 -cyclic
+
+syslog Syslog_http -level info {
+    recv
+    expect ~ "GET /MEMwQTA%2FMD0wOzAJBgUrDgMCGgUABBSKg%2BAGD6%2F3Ccp%2Bm5VSKi6BY1%2FaCgQU9lKw5DXV6pI4UVCPCtvpLYXeAHoCAhAV HTTP/1.1"
+
+    recv
+    expect ~ "GET /MEMwQTA%2FMD0wOzAJBgUrDgMCGgUABBSKg%2BAGD6%2F3Ccp%2Bm5VSKi6BY1%2FaCgQU9lKw5DXV6pI4UVCPCtvpLYXeAHoCAhAW HTTP/1.1"
+
+    barrier b1 sync
+} -start
+
+haproxy h2 -conf {
+    global
+        tune.ssl.default-dh-param 2048
+        tune.ssl.capture-buffer-size 1
+        stats socket "${tmpdir}/h2/stats" level admin
+        crt-base ${testdir}/ocsp_update
+
+    defaults
+        mode http
+        option httplog
+        log stderr local0 debug err
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend ssl-rsa-fe
+        bind "${tmpdir}/ssl2.sock" ssl crt-list ${testdir}/ocsp_update/multicert_rsa.crt-list ca-file ${testdir}/set_cafile_rootCA.crt verify none crt-ignore-err all
+        http-request return status 200
+
+    frontend ssl-ecdsa-fe
+        bind "${tmpdir}/ssl3.sock" ssl crt-list ${testdir}/ocsp_update/multicert_ecdsa.crt-list ca-file ${testdir}/set_cafile_rootCA.crt verify none crt-ignore-err all
+        http-request return status 200
+
+    listen http_rebound_lst
+        mode http
+        option httplog
+        log ${Syslog_http_addr}:${Syslog_http_port} local0
+        bind "127.0.0.1:12345"
+        server s1 "127.0.0.1:12346"
+} -start
+
+barrier b1 sync
+
+shell "sleep 1"
+
+# We should have two distinct ocsp IDs known that were loaded at build time and
+# the responses' contents should have been filled automatically by the ocsp
+# update task after init
+haproxy h2 -cli {
+    send "show ssl ocsp-response"
+    expect ~ "Certificate ID key : 303b300906052b0e03021a050004148a83e0060faff709ca7e9b95522a2e81635fda0a0414f652b0e435d5ea923851508f0adbe92d85de007a02021015"
+    send "show ssl ocsp-response"
+    expect ~ "Certificate ID key : 303b300906052b0e03021a050004148a83e0060faff709ca7e9b95522a2e81635fda0a0414f652b0e435d5ea923851508f0adbe92d85de007a02021016"
+
+    send "show ssl ocsp-response 303b300906052b0e03021a050004148a83e0060faff709ca7e9b95522a2e81635fda0a0414f652b0e435d5ea923851508f0adbe92d85de007a02021015"
+    expect ~ "Cert Status: revoked"
+
+    send "show ssl ocsp-response 303b300906052b0e03021a050004148a83e0060faff709ca7e9b95522a2e81635fda0a0414f652b0e435d5ea923851508f0adbe92d85de007a02021016"
+    expect ~ "Cert Status: revoked"
+}
+
+haproxy h2 -wait
+process p1 -wait -expect-exit 0
+
+
+###################
+#                 #
+# THIRD TEST CASE #
+#                 #
+###################
+
+# This test will be roughly the same as the second one but one of the crt-lists
+# will not enable ocsp-update on its certificate. Only one request should then
+# be sent.
+
+process p2 "openssl ocsp -index ${testdir}/ocsp_update/index.txt -rsigner ${testdir}/ocsp_update/ocsp.haproxy.com.pem -CA ${testdir}/ocsp_update/ocsp_update_rootca.crt -nrequest 1 -ndays 1 -port 12346 -timeout 5" -start
+
+barrier b2 cond 2 -cyclic
+
+syslog Syslog_http2 -level info {
+    recv
+    expect ~ "GET /MEMwQTA%2FMD0wOzAJBgUrDgMCGgUABBSKg%2BAGD6%2F3Ccp%2Bm5VSKi6BY1%2FaCgQU9lKw5DXV6pI4UVCPCtvpLYXeAHoCAhAV HTTP/1.1"
+
+    barrier b2 sync
+} -start
+
+haproxy h3 -conf {
+    global
+        tune.ssl.default-dh-param 2048
+        tune.ssl.capture-buffer-size 1
+        stats socket "${tmpdir}/h3/stats" level admin
+        crt-base ${testdir}/ocsp_update
+
+    defaults
+        mode http
+        option httplog
+        log stderr local0 debug err
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend ssl-rsa-fe
+        bind "${tmpdir}/ssl4.sock" ssl crt-list ${testdir}/ocsp_update/multicert_rsa.crt-list ca-file ${testdir}/set_cafile_rootCA.crt verify none crt-ignore-err all
+        http-request return status 200
+
+    frontend ssl-ecdsa-fe
+        bind "${tmpdir}/ssl5.sock" ssl crt-list ${testdir}/ocsp_update/multicert_ecdsa_no_update.crt-list ca-file ${testdir}/set_cafile_rootCA.crt verify none crt-ignore-err all
+        http-request return status 200
+
+    listen http_rebound_lst
+        mode http
+        option httplog
+        log ${Syslog_http2_addr}:${Syslog_http2_port} local0
+        bind "127.0.0.1:12345"
+        server s1 "127.0.0.1:12346"
+} -start
+
+barrier b2 sync
+
+shell "sleep 1"
+
+# We should have a single ocsp ID known that was loaded at build time and the
+# response should be filled
+ haproxy h3 -cli {
+    send "show ssl ocsp-response"
+    expect ~ "Certificate ID key : 303b300906052b0e03021a050004148a83e0060faff709ca7e9b95522a2e81635fda0a0414f652b0e435d5ea923851508f0adbe92d85de007a02021015"
+    send "show ssl ocsp-response"
+    expect !~ "Certificate ID key : 303b300906052b0e03021a050004148a83e0060faff709ca7e9b95522a2e81635fda0a0414f652b0e435d5ea923851508f0adbe92d85de007a02021016"
+
+    send "show ssl ocsp-response 303b300906052b0e03021a050004148a83e0060faff709ca7e9b95522a2e81635fda0a0414f652b0e435d5ea923851508f0adbe92d85de007a02021015"
+    expect ~ "Cert Status: revoked"
+}
+
+haproxy h3 -wait
+process p2 -wait

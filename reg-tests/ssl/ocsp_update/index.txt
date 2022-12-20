@@ -1,0 +1,2 @@
+R	20500410103904Z	221123104541Z	1015	unknown	/C=FR/O=HAProxy Technologies/CN=rsa.haproxy.com
+R	20500410103956Z	221123104430Z	1016	unknown	/C=FR/O=HAProxy Technologies/CN=ecdsa.haproxy.com
