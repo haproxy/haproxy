@@ -14646,6 +14646,32 @@ npn <protocols>
   at the time of writing this. It is possible to enable both NPN and ALPN
   though it probably doesn't make any sense out of testing.
 
+ocsp-update [ off | on ]
+  Enable automatic OCSP response update when set to 'on', disable it otherwise.
+  Its value defaults to 'off'.
+  This option can only be used in a crt-list line so that is applies to only
+  one certificate at a time. If a given certificate is used in multiple
+  crt-lists with different values of the 'ocsp-update' set, an error will be
+  raised.
+  When the option is set to 'on', we will try to get an ocsp response whenever
+  an ocsp uri is found in the frontend's certificate. The only limitation of
+  this mode is that the certificate's issuer will have to be known in order for
+  the OCSP certid to be built.
+  Each OCSP response will be updated at least once an hour, and even more
+  frequently if a given OCSP response has an expire date earlier than this one
+  hour limit. A minimum update interval of 5 minutes will still exist in order
+  to avoid updating too often responses that have a really short expire time or
+  even no 'Next Update' at all. Because of this hard limit, please note that
+  when auto update is set to 'on' or 'auto', any OCSP response loaded during
+  init will not be updated until at least 5 minutes, even if its expire time
+  ends before now+5m. This should not be too much of a hassle since an OCSP
+  response must be valid when it gets loaded during init (its expire time must
+  be in the future) so it is unlikely that this response expires in such a
+  short time after init.
+  On the other hand, if a certificate has an OCSP uri specified and no OCSP
+  response, setting this option to 'on' for the given certificate will ensure
+  that the OCSP response gets fetched automatically right after init.
+
 prefer-client-ciphers
   Use the client's preference when selecting the cipher suite, by default
   the server's preference is enforced. This option is also available on
