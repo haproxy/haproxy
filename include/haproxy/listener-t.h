@@ -146,6 +146,7 @@ struct ssl_bind_conf {
 	unsigned int verify:3;     /* verify method (set of SSL_VERIFY_* flags) */
 	unsigned int no_ca_names:1;/* do not send ca names to clients (ca_file related) */
 	unsigned int early_data:1; /* early data allowed */
+	unsigned int ocsp_update:2;/* enable OCSP auto update */
 	char *ca_file;             /* CAfile to use on verify and ca-names */
 	char *ca_verify_file;      /* CAverify file to use on verify only */
 	char *crl_file;            /* CRLfile to use on verify */

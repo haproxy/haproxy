@@ -103,6 +103,13 @@ enum {
 	SSL_SOCK_VERIFY_NONE     = 3,
 };
 
+/* bind ocsp update mode */
+enum {
+	SSL_SOCK_OCSP_UPDATE_DFLT     = 0,
+	SSL_SOCK_OCSP_UPDATE_OFF      = 1,
+	SSL_SOCK_OCSP_UPDATE_ON       = 2,
+};
+
 /* states of the CLI IO handler for 'set ssl cert' */
 enum {
 	SETCERT_ST_INIT = 0,

@@ -603,6 +603,7 @@ static int ssl_parse_global_extra_noext(char **args, int section_type, struct pr
 	return 0;
 }
 
+
 /***************************** Bind keyword Parsing ********************************************/
 
 /* for ca-file and ca-verify-file */
@@ -1335,6 +1336,28 @@ static int bind_parse_no_ca_names(char **args, int cur_arg, struct proxy *px, st
 	return ssl_bind_parse_no_ca_names(args, cur_arg, px, &conf->ssl_conf, 0, err);
 }
 
+
+static int ssl_bind_parse_ocsp_update(char **args, int cur_arg, struct proxy *px,
+                                      struct ssl_bind_conf *ssl_conf, int from_cli, char **err)
+{
+	if (!*args[cur_arg + 1]) {
+		memprintf(err, "'%s' : expecting <on|off>", args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	if (strcmp(args[cur_arg + 1], "on") == 0)
+		ssl_conf->ocsp_update = SSL_SOCK_OCSP_UPDATE_ON;
+	else if (strcmp(args[cur_arg + 1], "off") == 0)
+		ssl_conf->ocsp_update = SSL_SOCK_OCSP_UPDATE_OFF;
+	else {
+		memprintf(err, "'%s' : expecting <on|off>", args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	return 0;
+}
+
+
 /***************************** "server" keywords Parsing ********************************************/
 
 /* parse the "npn" bind keyword */
@@ -1900,6 +1923,7 @@ struct ssl_bind_kw ssl_bind_kws[] = {
 	{ "ssl-min-ver",           ssl_bind_parse_tls_method_minmax,1 }, /* minimum version */
 	{ "ssl-max-ver",           ssl_bind_parse_tls_method_minmax,1 }, /* maximum version */
 	{ "verify",                ssl_bind_parse_verify,           1 }, /* set SSL verify method */
+	{ "ocsp-update",           ssl_bind_parse_ocsp_update,      1 }, /* ocsp update mode (on or off) */
 	{ NULL, NULL, 0 },
 };
 
