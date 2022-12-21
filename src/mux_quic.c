@@ -2269,6 +2269,25 @@ static int qc_wake(struct connection *conn)
 	return 1;
 }
 
+static void qc_shutw(struct stconn *sc, enum co_shw_mode mode)
+{
+	struct qcs *qcs = __sc_mux_strm(sc);
+
+	TRACE_ENTER(QMUX_EV_STRM_SHUT, qcs->qcc->conn, qcs);
+
+	/* If QC_SF_FIN_STREAM is not set and stream is not closed locally, it
+	 * means that upper layer reported an early closure. A RESET_STREAM is
+	 * necessary if not already scheduled.
+	 */
+
+	if (!qcs_is_close_local(qcs) &&
+	    !(qcs->flags & (QC_SF_FIN_STREAM|QC_SF_TO_RESET))) {
+		qcc_reset_stream(qcs, 0);
+		se_fl_set_error(qcs->sd);
+	}
+
+	TRACE_LEAVE(QMUX_EV_STRM_SHUT, qcs->qcc->conn, qcs);
+}
 
 /* for debugging with CLI's "show sess" command. May emit multiple lines, each
  * new one being prefixed with <pfx>, if <pfx> is not NULL, otherwise a single
@@ -2306,6 +2325,7 @@ static const struct mux_ops qc_ops = {
 	.subscribe = qc_subscribe,
 	.unsubscribe = qc_unsubscribe,
 	.wake = qc_wake,
+	.shutw = qc_shutw,
 	.show_sd = qc_show_sd,
 	.flags = MX_FL_HTX|MX_FL_NO_UPG|MX_FL_FRAMED,
 	.name = "QUIC",

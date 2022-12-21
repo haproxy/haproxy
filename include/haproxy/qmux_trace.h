@@ -34,17 +34,19 @@ static const struct trace_event qmux_trace_events[] = {
 	{ .mask = QMUX_EV_STRM_RECV,    .name = "strm_recv",    .desc = "receiving data for stream" },
 #define           QMUX_EV_STRM_SEND     (1ULL << 11)
 	{ .mask = QMUX_EV_STRM_SEND,    .name = "strm_send",    .desc = "sending data for stream" },
-#define           QMUX_EV_STRM_END      (1ULL << 12)
+#define           QMUX_EV_STRM_SHUT     (1ULL << 12)
+	{ .mask = QMUX_EV_STRM_SHUT,    .name = "strm_shut",    .desc = "stream shutdown" },
+#define           QMUX_EV_STRM_END      (1ULL << 13)
 	{ .mask = QMUX_EV_STRM_END,     .name = "strm_end",     .desc = "detaching app-layer stream" },
-#define           QMUX_EV_SEND_FRM      (1ULL << 13)
+#define           QMUX_EV_SEND_FRM      (1ULL << 14)
 	{ .mask = QMUX_EV_SEND_FRM,     .name = "send_frm",     .desc = "sending QUIC frame" },
 /* special event dedicated to qcs_xfer_data */
-#define           QMUX_EV_QCS_XFER_DATA  (1ULL << 14)
+#define           QMUX_EV_QCS_XFER_DATA  (1ULL << 15)
 	{ .mask = QMUX_EV_QCS_XFER_DATA,  .name = "qcs_xfer_data", .desc = "qcs_xfer_data" },
 /* special event dedicated to qcs_build_stream_frm */
-#define           QMUX_EV_QCS_BUILD_STRM (1ULL << 15)
+#define           QMUX_EV_QCS_BUILD_STRM (1ULL << 16)
 	{ .mask = QMUX_EV_QCS_BUILD_STRM, .name = "qcs_build_stream_frm", .desc = "qcs_build_stream_frm" },
-#define           QMUX_EV_PROTO_ERR     (1ULL << 16)
+#define           QMUX_EV_PROTO_ERR     (1ULL << 17)
 	{ .mask = QMUX_EV_PROTO_ERR,    .name = "proto_err",    .desc = "protocol error" },
 	{ }
 };
