@@ -713,7 +713,7 @@ ifneq ($(USE_WURFL),)
 endif
 
 ifneq ($(USE_SYSTEMD),)
-  OPTIONS_LDFLAGS += -lsystemd
+  SYSTEMD_LDFLAGS = -lsystemd
 endif
 
 ifneq ($(USE_PCRE)$(USE_STATIC_PCRE)$(USE_PCRE_JIT),)
