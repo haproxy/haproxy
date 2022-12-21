@@ -552,7 +552,7 @@ ifneq ($(USE_THREAD),)
 endif
 
 ifneq ($(USE_BACKTRACE),)
-  OPTIONS_LDFLAGS += -Wl,$(if $(EXPORT_SYMBOL),$(EXPORT_SYMBOL),--export-dynamic)
+  BACKTRACE_LDFLAGS = -Wl,$(if $(EXPORT_SYMBOL),$(EXPORT_SYMBOL),--export-dynamic)
 endif
 
 ifneq ($(USE_CPU_AFFINITY),)
