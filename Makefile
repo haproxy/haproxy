@@ -548,7 +548,7 @@ ifneq ($(USE_RT),)
 endif
 
 ifneq ($(USE_THREAD),)
-  OPTIONS_LDFLAGS += -lpthread
+  THREAD_LDFLAGS = -lpthread
 endif
 
 ifneq ($(USE_BACKTRACE),)
