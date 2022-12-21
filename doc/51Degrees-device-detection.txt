@@ -30,11 +30,11 @@ official git repository :
 
       git clone --recurse-submodules https://github.com/51Degrees/device-detection-cxx.git
 
-then run 'make' with USE_51DEGREES or USE_51DEGREES_V4 (if using 51Degrees
-version 4), and 51DEGREES_SRC set. Both 51DEGREES_INC and 51DEGREES_LIB may
-additionally be used to force specific different paths for .o and .h, but
-will default to 51DEGREES_SRC. Make sure to replace '51D_REPO_PATH' with
-the path to the 51Degrees repository.
+then run 'make' with USE_51DEGREES, optionally 51DEGREES_VER=4 (if using
+51Degrees version 4), and 51DEGREES_SRC set. Both 51DEGREES_INC and
+51DEGREES_LIB may additionally be used to force specific different paths for
+.o and .h, but will default to 51DEGREES_SRC. Make sure to replace
+'51D_REPO_PATH' with the path to the 51Degrees repository.
 
 51Degrees provide 4 different detection algorithms:
 
@@ -55,7 +55,7 @@ To use the 51Degrees Trie algorithm use the following command line.
 
 To build with the 51Degrees Device Detection V4 use the following command line.
 
-    $ make TARGET=<target> USE_51DEGREES_V4=1 51DEGREES_SRC='51D_REPO_PATH'/src
+    $ make TARGET=<target> USE_51DEGREES=1 51DEGREES_VER=4 51DEGREES_SRC='51D_REPO_PATH'/src
 
 A data file containing information about devices, browsers, operating systems
 and their associated signatures is then needed. 51Degrees provide a free
@@ -77,7 +77,7 @@ Hash algorithm, build with:
 or
     $ make TARGET=<target> USE_51DEGREES=1 51DEGREES_SRC=addons/51degrees/dummy/trie
 or
-    $ make TARGET=<target> USE_51DEGREES_V4=1 51DEGREES_SRC=addons/51degrees/dummy/v4hash
+    $ make TARGET=<target> USE_51DEGREES=1 51DEGREES_VER=4 51DEGREES_SRC=addons/51degrees/dummy/v4hash
 
 respectively.
 
