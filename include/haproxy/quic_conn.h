@@ -213,7 +213,7 @@ static inline void quic_connection_id_to_frm_cpy(struct quic_frame *dst,
 	to->stateless_reset_token = src->stateless_reset_token;
 }
 
-/* extract a TID from a CID for bind_conf <bc>, from 0 to global.nbthread-1 and
+/* extract a TID from a CID for receiver <rx>, from 0 to global.nbthread-1 and
  * in any case no more than 4095. It takes into account the bind_conf's thread
  * group and the bind_conf's thread mask. The algorithm is the following: most
  * packets contain a valid thread ID for the bind_conf, which means that the
@@ -221,27 +221,27 @@ static inline void quic_connection_id_to_frm_cpy(struct quic_frame *dst,
  * then we have to remap it. The resulting thread ID will then differ but will
  * be correctly encoded and decoded.
  */
-static inline uint quic_get_cid_tid(const unsigned char *cid, const struct bind_conf *bc)
+static inline uint quic_get_cid_tid(const unsigned char *cid, const struct receiver *rx)
 {
 	uint id, grp;
 	uint base, count;
 
 	id = read_n16(cid) & 4095;
-	grp = bc->bind_tgroup;
+	grp = rx->bind_tgroup;
 	base  = ha_tgroup_info[grp - 1].base;
 	count = ha_tgroup_info[grp - 1].count;
 
 	if (base <= id && id < base + count &&
-	    bc->bind_thread & ha_thread_info[id].ltid_bit)
+	    rx->bind_thread & ha_thread_info[id].ltid_bit)
 		return id; // part of the group and bound: valid
 
 	/* The thread number isn't valid, it doesn't map to a thread bound on
 	 * this receiver. Let's reduce it to one of the thread(s) valid for
 	 * that receiver.
 	 */
-	count = my_popcountl(bc->bind_thread);
+	count = my_popcountl(rx->bind_thread);
 	id = count - 1 - id % count;
-	id = mask_find_rank_bit(id, bc->bind_thread);
+	id = mask_find_rank_bit(id, rx->bind_thread);
 	id += base;
 	return id;
 }

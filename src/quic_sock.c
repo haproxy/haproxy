@@ -221,7 +221,7 @@ static int quic_lstnr_dgram_dispatch(unsigned char *buf, size_t len, void *owner
 	if (!dgram)
 		goto err;
 
-	cid_tid = quic_get_cid_tid(dcid, l->bind_conf);
+	cid_tid = quic_get_cid_tid(dcid, &l->rx);
 
 	/* All the members must be initialized! */
 	dgram->owner = owner;
