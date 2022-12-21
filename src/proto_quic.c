@@ -541,7 +541,7 @@ static int quic_alloc_rxbufs_listener(struct listener *l)
 	struct quic_receiver_buf *tmp;
 
 	MT_LIST_INIT(&l->rx.rxbuf_list);
-	for (i = 0; i < global.nbthread; i++) {
+	for (i = 0; i < my_popcountl(l->rx.bind_thread); i++) {
 		struct quic_receiver_buf *rxbuf;
 		char *buf;
 
