@@ -566,8 +566,8 @@ ifneq ($(USE_OPENSSL),)
   # pass it in the "ADDLIB" variable if needed. If your SSL libraries are not
   # in the usual path, use SSL_INC=/path/to/inc and SSL_LIB=/path/to/lib.
   ifeq ($(USE_OPENSSL_WOLFSSL),)
-    OPTIONS_CFLAGS  += $(if $(SSL_INC),-I$(SSL_INC))
-    OPTIONS_LDFLAGS += $(if $(SSL_LIB),-L$(SSL_LIB)) -lssl -lcrypto
+    OPENSSL_CFLAGS   = $(if $(SSL_INC),-I$(SSL_INC))
+    OPENSSL_LDFLAGS  = $(if $(SSL_LIB),-L$(SSL_LIB)) -lssl -lcrypto
   endif
   OPTIONS_OBJS  += src/ssl_sock.o src/ssl_ckch.o src/ssl_sample.o src/ssl_crtlist.o src/cfgparse-ssl.o src/ssl_utils.o src/jwt.o src/ssl_ocsp.o
 endif
