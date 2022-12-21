@@ -544,7 +544,7 @@ ifneq ($(USE_EVPORTS),)
 endif
 
 ifneq ($(USE_RT),)
-  OPTIONS_LDFLAGS += -lrt
+  RT_LDFLAGS = -lrt
 endif
 
 ifneq ($(USE_THREAD),)
