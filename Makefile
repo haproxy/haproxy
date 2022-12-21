@@ -302,7 +302,7 @@ use_opts = USE_EPOLL USE_KQUEUE USE_NETFILTER                                 \
            USE_LINUX_SPLICE USE_LIBCRYPT USE_CRYPT_H USE_ENGINE               \
            USE_GETADDRINFO USE_OPENSSL USE_OPENSSL_WOLFSSL USE_LUA            \
            USE_ACCEPT4 USE_CLOSEFROM USE_ZLIB USE_SLZ USE_CPU_AFFINITY        \
-           USE_TFO USE_NS USE_DL USE_RT                                       \
+           USE_TFO USE_NS USE_DL USE_RT USE_LIBATOMIC                         \
            USE_DEVICEATLAS USE_51DEGREES USE_51DEGREES_V4                     \
            USE_WURFL USE_SYSTEMD USE_OBSOLETE_LINKER USE_PRCTL USE_PROCCTL    \
            USE_THREAD_DUMP USE_EVPORTS USE_OT USE_QUIC USE_PROMEX             \
@@ -436,7 +436,7 @@ ifeq ($(TARGET),aix72-gcc)
   set_target_defaults = $(call default_opts, \
     USE_POLL USE_THREAD USE_LIBCRYPT USE_OBSOLETE_LINKER USE_GETADDRINFO)
   TARGET_CFLAGS   = -D_H_XMEM -D_H_VAR
-  TARGET_LDFLAGS  = -latomic
+  USE_LIBATOMIC   = implicit
 endif
 
 # Cygwin
@@ -458,7 +458,7 @@ $(set_target_defaults)
 # (especially on archs which do not need it).
 ifneq ($(USE_THREAD),)
 ifneq ($(shell $(CC) $(CFLAGS) -dM -E -xc - </dev/null 2>/dev/null | grep -c 'LOCK_FREE.*1'),0)
-  USE_LIBATOMIC=1
+  USE_LIBATOMIC   = implicit
 endif
 endif
 
@@ -694,7 +694,7 @@ endif
 
 OPTIONS_LDFLAGS += $(if $(51DEGREES_LIB),-L$(51DEGREES_LIB)) -lm
 ifneq ($(USE_51DEGREES_V4),)
-OPTIONS_LDFLAGS += -latomic
+USE_LIBATOMIC    = implicit
 endif
 endif
 
@@ -803,7 +803,7 @@ ifneq ($(USE_DL),)
 endif
 
 ifneq ($(USE_LIBATOMIC),)
-  TARGET_LDFLAGS += -latomic
+  LIBATOMIC_LDFLAGS = -latomic
 endif
 
 #### End of the USE_* options handling, any such option that would be added
