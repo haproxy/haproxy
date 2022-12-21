@@ -512,7 +512,7 @@ OPTIONS_CFLAGS += $(call opts_as_defines)
 ifneq ($(USE_LIBCRYPT),)
   ifneq ($(TARGET),openbsd)
     ifneq ($(TARGET),osx)
-      OPTIONS_LDFLAGS += -lcrypt
+      LIBCRYPT_LDFLAGS = -lcrypt
     endif
   endif
 endif
