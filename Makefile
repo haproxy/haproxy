@@ -519,8 +519,8 @@ endif
 
 ifneq ($(USE_ZLIB),)
   # Use ZLIB_INC and ZLIB_LIB to force path to zlib.h and libz.{a,so} if needed.
-  OPTIONS_CFLAGS  += $(if $(ZLIB_INC),-I$(ZLIB_INC))
-  OPTIONS_LDFLAGS += $(if $(ZLIB_LIB),-L$(ZLIB_LIB)) -lz
+  ZLIB_CFLAGS      = $(if $(ZLIB_INC),-I$(ZLIB_INC))
+  ZLIB_LDFLAGS     = $(if $(ZLIB_LIB),-L$(ZLIB_LIB)) -lz
 endif
 
 ifneq ($(USE_SLZ),)
