@@ -660,46 +660,41 @@ ifneq ($(USE_DEVICEATLAS),)
   OPTIONS_CFLAGS += $(if $(DEVICEATLAS_INC),-I$(DEVICEATLAS_INC))
 endif
 
-ifneq ($(USE_51DEGREES),)
-  ifneq ($(USE_51DEGREES_V4),)
+# Use 51DEGREES_SRC and possibly 51DEGREES_INC and 51DEGREES_LIB to force path
+# to 51degrees v3/v4 headers and libraries if needed.
+51DEGREES_INC = $(51DEGREES_SRC)
+51DEGREES_LIB = $(51DEGREES_SRC)
+
+ifneq ($(USE_51DEGREES_V4),)  # v4 here
+  ifneq ($(USE_51DEGREES),)
     $(error cannot compile both 51Degrees V3 and V4 engine support)
   endif
-endif
-
-ifneq ($(USE_51DEGREES)$(USE_51DEGREES_V4),)
-  # Use 51DEGREES_SRC and possibly 51DEGREES_INC and 51DEGREES_LIB to force path
-  # to 51degrees headers and libraries if needed.
-  51DEGREES_INC = $(51DEGREES_SRC)
-  51DEGREES_LIB = $(51DEGREES_SRC)
-  ifneq ($(USE_51DEGREES_V4),)
-    _51DEGREES_SRC   = $(shell find $(51DEGREES_LIB) -maxdepth 2 -name '*.c')
-    OPTIONS_OBJS    += $(_51DEGREES_SRC:%.c=%.o)
-  else
-    OPTIONS_OBJS    += $(51DEGREES_LIB)/../cityhash/city.o
-    OPTIONS_OBJS    += $(51DEGREES_LIB)/51Degrees.o
+  _51DEGREES_SRC   = $(shell find $(51DEGREES_LIB) -maxdepth 2 -name '*.c')
+  OPTIONS_OBJS    += $(_51DEGREES_SRC:%.c=%.o)
+  OPTIONS_CFLAGS  += -DUSE_51DEGREES_V4
+  ifeq ($(USE_THREAD),)
+    OPTIONS_CFLAGS  += -DFIFTYONEDEGREES_NO_THREADING -DFIFTYONE_DEGREES_NO_THREADING
   endif
   OPTIONS_OBJS    += addons/51degrees/51d.o
   OPTIONS_CFLAGS  += $(if $(51DEGREES_INC),-I$(51DEGREES_INC))
-  ifneq ($(USE_51DEGREES_V4),)
-    OPTIONS_CFLAGS  += -DUSE_51DEGREES_V4
-  endif
+  OPTIONS_LDFLAGS += $(if $(51DEGREES_LIB),-L$(51DEGREES_LIB))
+  USE_ATOMIC       = implicit
+  USE_MATH         = implicit
+endif # USE_51DEGREES_V4
+
+ifneq ($(USE_51DEGREES),) # v3 here
+  OPTIONS_OBJS    += $(51DEGREES_LIB)/../cityhash/city.o
+  OPTIONS_OBJS    += $(51DEGREES_LIB)/51Degrees.o
   ifeq ($(USE_THREAD),)
     OPTIONS_CFLAGS  += -DFIFTYONEDEGREES_NO_THREADING
-    ifneq ($(USE_51DEGREES_V4),)
-      OPTIONS_CFLAGS  += -DFIFTYONE_DEGREES_NO_THREADING
-    endif
-    else
-      ifeq ($(USE_51DEGREES_V4),)
-      OPTIONS_OBJS    += $(51DEGREES_LIB)/../threading.o
-    endif
+  else
+    OPTIONS_OBJS    += $(51DEGREES_LIB)/../threading.o
   endif
-
+  OPTIONS_OBJS    += addons/51degrees/51d.o
+  OPTIONS_CFLAGS  += $(if $(51DEGREES_INC),-I$(51DEGREES_INC))
   OPTIONS_LDFLAGS += $(if $(51DEGREES_LIB),-L$(51DEGREES_LIB))
   USE_MATH         = implicit
-  ifneq ($(USE_51DEGREES_V4),)
-    USE_LIBATOMIC    = implicit
-  endif
-endif
+endif # USE_51DEGREES
 
 ifneq ($(USE_WURFL),)
   # Use WURFL_SRC and possibly WURFL_INC and WURFL_LIB to force path
