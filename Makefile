@@ -706,14 +706,14 @@ ifneq ($(USE_WURFL),)
   WURFL_INC = $(WURFL_SRC)
   WURFL_LIB = $(WURFL_SRC)
   OPTIONS_OBJS    += addons/wurfl/wurfl.o
-  OPTIONS_CFLAGS  += $(if $(WURFL_INC),-I$(WURFL_INC))
+  WURFL_CFLAGS     = $(if $(WURFL_INC),-I$(WURFL_INC))
   ifneq ($(WURFL_DEBUG),)
-    OPTIONS_CFLAGS  += -DWURFL_DEBUG
+    WURFL_CFLAGS  += -DWURFL_DEBUG
   endif
   ifneq ($(WURFL_HEADER_WITH_DETAILS),)
-    OPTIONS_CFLAGS  += -DWURFL_HEADER_WITH_DETAILS
+    WURFL_CFLAGS  += -DWURFL_HEADER_WITH_DETAILS
   endif
-  OPTIONS_LDFLAGS += $(if $(WURFL_LIB),-L$(WURFL_LIB)) -lwurfl
+  WURFL_LDFLAGS    = $(if $(WURFL_LIB),-L$(WURFL_LIB)) -lwurfl
 endif
 
 ifneq ($(USE_SYSTEMD),)
