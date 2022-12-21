@@ -732,6 +732,8 @@ endif
 # Forcing PCREDIR to an empty string will let the compiler use the default
 # locations.
 
+# in case only USE_STATIC_PCRE/USE_PCRE_JIT were set
+USE_PCRE        := $(if $(USE_PCRE),$(USE_PCRE),implicit)
 PCRE_CONFIG    	:= pcre-config
 PCREDIR	        := $(shell $(PCRE_CONFIG) --prefix 2>/dev/null || echo /usr/local)
 ifneq ($(PCREDIR),)
@@ -741,16 +743,18 @@ endif
 
 ifeq ($(USE_STATIC_PCRE),)
 # dynamic PCRE
-OPTIONS_CFLAGS  += -DUSE_PCRE $(if $(PCRE_INC),-I$(PCRE_INC))
+OPTIONS_CFLAGS  += $(if $(PCRE_INC),-I$(PCRE_INC))
 OPTIONS_LDFLAGS += $(if $(PCRE_LIB),-L$(PCRE_LIB)) -lpcreposix -lpcre
 else
 # static PCRE
-OPTIONS_CFLAGS  += -DUSE_PCRE $(if $(PCRE_INC),-I$(PCRE_INC))
+OPTIONS_CFLAGS  += $(if $(PCRE_INC),-I$(PCRE_INC))
 OPTIONS_LDFLAGS += $(if $(PCRE_LIB),-L$(PCRE_LIB)) -Wl,-Bstatic -lpcreposix -lpcre -Wl,-Bdynamic
 endif
 endif
 
 ifneq ($(USE_PCRE2)$(USE_STATIC_PCRE2)$(USE_PCRE2_JIT),)
+# in case only USE_STATIC_PCRE2/USE_PCRE2_JIT were set
+USE_PCRE2       := $(if $(USE_PCRE2),$(USE_PCRE2),implicit)
 PCRE2_CONFIG 	:= pcre2-config
 PCRE2DIR	:= $(shell $(PCRE2_CONFIG) --prefix 2>/dev/null || echo /usr/local)
 ifneq ($(PCRE2DIR),)
@@ -780,7 +784,7 @@ PCRE2_LDFLAGS	+= -lpcre2-posix
 endif
 endif
 
-OPTIONS_CFLAGS	+= -DUSE_PCRE2 -DPCRE2_CODE_UNIT_WIDTH=$(PCRE2_WIDTH)
+OPTIONS_CFLAGS	+= -DPCRE2_CODE_UNIT_WIDTH=$(PCRE2_WIDTH)
 OPTIONS_CFLAGS  += $(if $(PCRE2_INC), -I$(PCRE2_INC))
 
 ifneq ($(USE_STATIC_PCRE2),)
