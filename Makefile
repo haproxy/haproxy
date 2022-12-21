@@ -200,7 +200,7 @@ SPEC_CFLAGS += $(call cc-nowarn,string-plus-int)
 SPEC_CFLAGS += $(call cc-nowarn,atomic-alignment)
 
 ifneq ($(ERR),)
-SPEC_CFLAGS += -Werror
+  SPEC_CFLAGS += -Werror
 endif
 
 #### Memory usage tuning
@@ -321,7 +321,7 @@ USE_POLL   = default
 # SLZ is always supported unless explicitly disabled by passing USE_SLZ=""
 # or disabled by enabling ZLIB using USE_ZLIB=1
 ifeq ($(USE_ZLIB),)
-USE_SLZ    = default
+  USE_SLZ    = default
 endif
 
 # generic system target has nothing specific
@@ -458,9 +458,9 @@ $(set_target_defaults)
 # linking with it by default as it's not always available nor deployed
 # (especially on archs which do not need it).
 ifneq ($(USE_THREAD),)
-ifneq ($(shell $(CC) $(CFLAGS) -dM -E -xc - </dev/null 2>/dev/null | grep -c 'LOCK_FREE.*1'),0)
-  USE_LIBATOMIC   = implicit
-endif
+  ifneq ($(shell $(CC) $(CFLAGS) -dM -E -xc - </dev/null 2>/dev/null | grep -c 'LOCK_FREE.*1'),0)
+    USE_LIBATOMIC   = implicit
+  endif
 endif
 
 #### Determine version, sub-version and release date.
@@ -469,23 +469,23 @@ endif
 # holding the same names in the current directory.
 
 ifeq ($(IGNOREGIT),)
-VERSION := $(shell [ -d .git/. ] && (git describe --tags --match 'v*' --abbrev=0 | cut -c 2-) 2>/dev/null)
-ifneq ($(VERSION),)
-# OK git is there and works.
-SUBVERS := $(shell comms=`git log --format=oneline --no-merges v$(VERSION).. 2>/dev/null | wc -l | tr -d '[:space:]'`; commit=`(git log -1 --pretty=%h --abbrev=6) 2>/dev/null`; [ $$comms -gt 0 ] && echo "-$$commit-$$comms")
-VERDATE := $(shell git log -1 --pretty=format:%ci | cut -f1 -d' ' | tr '-' '/')
-endif
+  VERSION := $(shell [ -d .git/. ] && (git describe --tags --match 'v*' --abbrev=0 | cut -c 2-) 2>/dev/null)
+  ifneq ($(VERSION),)
+    # OK git is there and works.
+    SUBVERS := $(shell comms=`git log --format=oneline --no-merges v$(VERSION).. 2>/dev/null | wc -l | tr -d '[:space:]'`; commit=`(git log -1 --pretty=%h --abbrev=6) 2>/dev/null`; [ $$comms -gt 0 ] && echo "-$$commit-$$comms")
+    VERDATE := $(shell git log -1 --pretty=format:%ci | cut -f1 -d' ' | tr '-' '/')
+  endif
 endif
 
 # Last commit version not found, take it from the files.
 ifeq ($(VERSION),)
-VERSION := $(shell cat VERSION 2>/dev/null || touch VERSION)
+  VERSION := $(shell cat VERSION 2>/dev/null || touch VERSION)
 endif
 ifeq ($(SUBVERS),)
-SUBVERS := $(shell (grep -v '\$$Format' SUBVERS 2>/dev/null || touch SUBVERS) | head -n 1)
+  SUBVERS := $(shell (grep -v '\$$Format' SUBVERS 2>/dev/null || touch SUBVERS) | head -n 1)
 endif
 ifeq ($(VERDATE),)
-VERDATE := $(shell (grep -v '^\$$Format' VERDATE 2>/dev/null || touch VERDATE) | head -n 1 | cut -f1 -d' ' | tr '-' '/')
+  VERDATE := $(shell (grep -v '^\$$Format' VERDATE 2>/dev/null || touch VERDATE) | head -n 1 | cut -f1 -d' ' | tr '-' '/')
 endif
 
 # this one is always empty by default and appended verbatim
@@ -510,79 +510,79 @@ BUILD_OPTIONS  := $(call build_options)
 OPTIONS_CFLAGS += $(call opts_as_defines)
 
 ifneq ($(USE_LIBCRYPT),)
-ifneq ($(TARGET),openbsd)
-ifneq ($(TARGET),osx)
-OPTIONS_LDFLAGS += -lcrypt
-endif
-endif
+  ifneq ($(TARGET),openbsd)
+    ifneq ($(TARGET),osx)
+      OPTIONS_LDFLAGS += -lcrypt
+    endif
+  endif
 endif
 
 ifneq ($(USE_ZLIB),)
-# Use ZLIB_INC and ZLIB_LIB to force path to zlib.h and libz.{a,so} if needed.
-OPTIONS_CFLAGS  += $(if $(ZLIB_INC),-I$(ZLIB_INC))
-OPTIONS_LDFLAGS += $(if $(ZLIB_LIB),-L$(ZLIB_LIB)) -lz
+  # Use ZLIB_INC and ZLIB_LIB to force path to zlib.h and libz.{a,so} if needed.
+  OPTIONS_CFLAGS  += $(if $(ZLIB_INC),-I$(ZLIB_INC))
+  OPTIONS_LDFLAGS += $(if $(ZLIB_LIB),-L$(ZLIB_LIB)) -lz
 endif
 
 ifneq ($(USE_SLZ),)
-OPTIONS_OBJS   += src/slz.o
+  OPTIONS_OBJS   += src/slz.o
 endif
 
 ifneq ($(USE_POLL),)
-OPTIONS_OBJS   += src/ev_poll.o
+  OPTIONS_OBJS   += src/ev_poll.o
 endif
 
 ifneq ($(USE_EPOLL),)
-OPTIONS_OBJS   += src/ev_epoll.o
+  OPTIONS_OBJS   += src/ev_epoll.o
 endif
 
 ifneq ($(USE_KQUEUE),)
-OPTIONS_OBJS   += src/ev_kqueue.o
+  OPTIONS_OBJS   += src/ev_kqueue.o
 endif
 
 ifneq ($(USE_EVPORTS),)
-OPTIONS_OBJS   += src/ev_evports.o
+  OPTIONS_OBJS   += src/ev_evports.o
 endif
 
 ifneq ($(USE_RT),)
-OPTIONS_LDFLAGS += -lrt
+  OPTIONS_LDFLAGS += -lrt
 endif
 
 ifneq ($(USE_THREAD),)
-OPTIONS_LDFLAGS += -lpthread
+  OPTIONS_LDFLAGS += -lpthread
 endif
 
 ifneq ($(USE_BACKTRACE),)
-OPTIONS_LDFLAGS += -Wl,$(if $(EXPORT_SYMBOL),$(EXPORT_SYMBOL),--export-dynamic)
+  OPTIONS_LDFLAGS += -Wl,$(if $(EXPORT_SYMBOL),$(EXPORT_SYMBOL),--export-dynamic)
 endif
 
 ifneq ($(USE_CPU_AFFINITY),)
-OPTIONS_OBJS   += src/cpuset.o
+  OPTIONS_OBJS   += src/cpuset.o
 endif
 
 ifneq ($(USE_OPENSSL),)
-# OpenSSL is packaged in various forms and with various dependencies.
-# In general -lssl is enough, but on some platforms, -lcrypto may be needed,
-# reason why it's added by default. Some even need -lz, then you'll need to
-# pass it in the "ADDLIB" variable if needed. If your SSL libraries are not
-# in the usual path, use SSL_INC=/path/to/inc and SSL_LIB=/path/to/lib.
-ifeq ($(USE_OPENSSL_WOLFSSL),)
-OPTIONS_CFLAGS  += $(if $(SSL_INC),-I$(SSL_INC))
-OPTIONS_LDFLAGS += $(if $(SSL_LIB),-L$(SSL_LIB)) -lssl -lcrypto
-endif
-OPTIONS_OBJS  += src/ssl_sock.o src/ssl_ckch.o src/ssl_sample.o src/ssl_crtlist.o src/cfgparse-ssl.o src/ssl_utils.o src/jwt.o src/ssl_ocsp.o
+  # OpenSSL is packaged in various forms and with various dependencies.
+  # In general -lssl is enough, but on some platforms, -lcrypto may be needed,
+  # reason why it's added by default. Some even need -lz, then you'll need to
+  # pass it in the "ADDLIB" variable if needed. If your SSL libraries are not
+  # in the usual path, use SSL_INC=/path/to/inc and SSL_LIB=/path/to/lib.
+  ifeq ($(USE_OPENSSL_WOLFSSL),)
+    OPTIONS_CFLAGS  += $(if $(SSL_INC),-I$(SSL_INC))
+    OPTIONS_LDFLAGS += $(if $(SSL_LIB),-L$(SSL_LIB)) -lssl -lcrypto
+  endif
+  OPTIONS_OBJS  += src/ssl_sock.o src/ssl_ckch.o src/ssl_sample.o src/ssl_crtlist.o src/cfgparse-ssl.o src/ssl_utils.o src/jwt.o src/ssl_ocsp.o
 endif
 
 ifneq ($(USE_OPENSSL_WOLFSSL),)
-OPTIONS_CFLAGS   += $(if $(WOLFSSL_INC),-I$(WOLFSSL_INC) -I$(WOLFSSL_INC)/wolfssl)
-OPTIONS_LDFLAGS  += $(if $(WOLFSSL_LIB),-L$(WOLFSSL_LIB)) -lwolfssl
+  OPTIONS_CFLAGS   += $(if $(WOLFSSL_INC),-I$(WOLFSSL_INC) -I$(WOLFSSL_INC)/wolfssl)
+  OPTIONS_LDFLAGS  += $(if $(WOLFSSL_LIB),-L$(WOLFSSL_LIB)) -lwolfssl
 endif
 
 ifneq ($(USE_ENGINE),)
-# OpenSSL 3.0 emits loud deprecation warnings by default when building with
-# engine support, and this option is made to silence them. Better use it
-# only when absolutely necessary, until there's a viable alternative to the
-# engine API.
-OPTIONS_CFLAGS += -DOPENSSL_SUPPRESS_DEPRECATED
+  # OpenSSL 3.0 emits loud deprecation warnings by default when building with
+  # engine support, and this option is made to silence them. Better use it
+  # only when absolutely necessary, until there's a viable alternative to the
+  # engine API.
+  OPTIONS_CFLAGS += -DOPENSSL_SUPPRESS_DEPRECATED
 endif
 
 ifneq ($(USE_QUIC),)
@@ -597,211 +597,209 @@ OPTIONS_OBJS += src/quic_conn.o src/mux_quic.o src/h3.o src/xprt_quic.o    \
 endif
 
 ifneq ($(USE_LUA),)
-check_lua_inc = $(shell if [ -d $(2)$(1) ]; then echo $(2)$(1); fi;)
-LUA_INC      := $(firstword $(foreach lib,lua5.4 lua54 lua5.3 lua53 lua,$(call check_lua_inc,$(lib),"/usr/include/")))
-OPTIONS_CFLAGS  += $(if $(LUA_INC),-I$(LUA_INC))
+  check_lua_inc = $(shell if [ -d $(2)$(1) ]; then echo $(2)$(1); fi;)
+  LUA_INC      := $(firstword $(foreach lib,lua5.4 lua54 lua5.3 lua53 lua,$(call check_lua_inc,$(lib),"/usr/include/")))
+  OPTIONS_CFLAGS  += $(if $(LUA_INC),-I$(LUA_INC))
 
-check_lua_lib = $(shell echo "int main(){}" | $(CC) -o /dev/null -x c - $(2) -l$(1) 2>/dev/null && echo $(1))
-LUA_LIB       =
-LUA_LD_FLAGS := -Wl,$(if $(EXPORT_SYMBOL),$(EXPORT_SYMBOL),--export-dynamic) $(if $(LUA_LIB),-L$(LUA_LIB))
+  check_lua_lib = $(shell echo "int main(){}" | $(CC) -o /dev/null -x c - $(2) -l$(1) 2>/dev/null && echo $(1))
+  LUA_LIB       =
+  LUA_LD_FLAGS := -Wl,$(if $(EXPORT_SYMBOL),$(EXPORT_SYMBOL),--export-dynamic) $(if $(LUA_LIB),-L$(LUA_LIB))
 
-# Try to automatically detect the Lua library if not set
-ifeq ($(LUA_LIB_NAME),)
-LUA_LIB_NAME := $(firstword $(foreach lib,lua5.4 lua54 lua5.3 lua53 lua,$(call check_lua_lib,$(lib),$(LUA_LD_FLAGS))))
-endif
+  # Try to automatically detect the Lua library if not set
+  ifeq ($(LUA_LIB_NAME),)
+    LUA_LIB_NAME := $(firstword $(foreach lib,lua5.4 lua54 lua5.3 lua53 lua,$(call check_lua_lib,$(lib),$(LUA_LD_FLAGS))))
+  endif
 
-# Lua lib name must be set now (forced/detected above)
-ifeq ($(LUA_LIB_NAME),)
-$(error unable to automatically detect the Lua library name, you can enforce its name with LUA_LIB_NAME=<name> (where <name> can be lua5.4, lua54, lua, ...))
-endif
+  # Lua lib name must be set now (forced/detected above)
+  ifeq ($(LUA_LIB_NAME),)
+    $(error unable to automatically detect the Lua library name, you can enforce its name with LUA_LIB_NAME=<name> (where <name> can be lua5.4, lua54, lua, ...))
+  endif
 
-ifneq ($(HLUA_PREPEND_PATH),)
-OPTIONS_CFLAGS  += -DHLUA_PREPEND_PATH=$(HLUA_PREPEND_PATH)
-BUILD_OPTIONS += HLUA_PREPEND_PATH=$(HLUA_PREPEND_PATH)
-endif # HLUA_PREPEND_PATH
+  ifneq ($(HLUA_PREPEND_PATH),)
+    OPTIONS_CFLAGS  += -DHLUA_PREPEND_PATH=$(HLUA_PREPEND_PATH)
+    BUILD_OPTIONS   += HLUA_PREPEND_PATH=$(HLUA_PREPEND_PATH)
+  endif # HLUA_PREPEND_PATH
 
-ifneq ($(HLUA_PREPEND_CPATH),)
-OPTIONS_CFLAGS  += -DHLUA_PREPEND_CPATH=$(HLUA_PREPEND_CPATH)
-BUILD_OPTIONS += HLUA_PREPEND_CPATH=$(HLUA_PREPEND_CPATH)
-endif # HLUA_PREPEND_CPATH
+  ifneq ($(HLUA_PREPEND_CPATH),)
+    OPTIONS_CFLAGS  += -DHLUA_PREPEND_CPATH=$(HLUA_PREPEND_CPATH)
+    BUILD_OPTIONS   += HLUA_PREPEND_CPATH=$(HLUA_PREPEND_CPATH)
+  endif # HLUA_PREPEND_CPATH
 
-USE_MATH         = implicit
-OPTIONS_LDFLAGS += $(LUA_LD_FLAGS) -l$(LUA_LIB_NAME)
-OPTIONS_OBJS    += src/hlua.o src/hlua_fcn.o
+  USE_MATH         = implicit
+  OPTIONS_LDFLAGS += $(LUA_LD_FLAGS) -l$(LUA_LIB_NAME)
+  OPTIONS_OBJS    += src/hlua.o src/hlua_fcn.o
 endif # USE_LUA
 
 ifneq ($(USE_PROMEX),)
-OPTIONS_OBJS    += addons/promex/service-prometheus.o
+  OPTIONS_OBJS    += addons/promex/service-prometheus.o
 endif
 
 ifneq ($(USE_DEVICEATLAS),)
-# Use DEVICEATLAS_SRC and possibly DEVICEATLAS_INC and DEVICEATLAS_LIB to force path
-# to DeviceAtlas headers and libraries if needed.
-DEVICEATLAS_INC = $(DEVICEATLAS_SRC)
-DEVICEATLAS_LIB = $(DEVICEATLAS_SRC)
-ifeq ($(DEVICEATLAS_SRC),)
-OPTIONS_LDFLAGS += -lda
-else
-ifeq ($(USE_PCRE),)
-ifeq ($(USE_PCRE2),)
-$(error the DeviceAtlas module needs the PCRE or the PCRE2 library in order to compile)
-endif
-endif
-ifneq ($(USE_PCRE2),)
-OPTIONS_CFLAGS  += -DDA_REGEX_HDR=\"dac_pcre2.c\" -DDA_REGEX_TAG=2
-endif
-OPTIONS_OBJS	+= $(DEVICEATLAS_LIB)/Os/daunix.o
-OPTIONS_OBJS	+= $(DEVICEATLAS_LIB)/dadwcom.o
-OPTIONS_OBJS	+= $(DEVICEATLAS_LIB)/dasch.o
-OPTIONS_OBJS	+= $(DEVICEATLAS_LIB)/json.o
-OPTIONS_OBJS	+= $(DEVICEATLAS_LIB)/dac.o
-endif
-OPTIONS_OBJS	+= addons/deviceatlas/da.o
-OPTIONS_CFLAGS += $(if $(DEVICEATLAS_INC),-I$(DEVICEATLAS_INC))
+  # Use DEVICEATLAS_SRC and possibly DEVICEATLAS_INC and DEVICEATLAS_LIB to force path
+  # to DeviceAtlas headers and libraries if needed.
+  DEVICEATLAS_INC = $(DEVICEATLAS_SRC)
+  DEVICEATLAS_LIB = $(DEVICEATLAS_SRC)
+  ifeq ($(DEVICEATLAS_SRC),)
+    OPTIONS_LDFLAGS += -lda
+  else
+    ifeq ($(USE_PCRE),)
+      ifeq ($(USE_PCRE2),)
+        $(error the DeviceAtlas module needs the PCRE or the PCRE2 library in order to compile)
+      endif
+    endif
+    ifneq ($(USE_PCRE2),)
+      OPTIONS_CFLAGS  += -DDA_REGEX_HDR=\"dac_pcre2.c\" -DDA_REGEX_TAG=2
+    endif
+    OPTIONS_OBJS += $(DEVICEATLAS_LIB)/Os/daunix.o
+    OPTIONS_OBJS += $(DEVICEATLAS_LIB)/dadwcom.o
+    OPTIONS_OBJS += $(DEVICEATLAS_LIB)/dasch.o
+    OPTIONS_OBJS += $(DEVICEATLAS_LIB)/json.o
+    OPTIONS_OBJS += $(DEVICEATLAS_LIB)/dac.o
+  endif
+  OPTIONS_OBJS += addons/deviceatlas/da.o
+  OPTIONS_CFLAGS += $(if $(DEVICEATLAS_INC),-I$(DEVICEATLAS_INC))
 endif
 
 ifneq ($(USE_51DEGREES),)
-ifneq ($(USE_51DEGREES_V4),)
-$(error cannot compile both 51Degrees V3 and V4 engine support)
-endif
+  ifneq ($(USE_51DEGREES_V4),)
+    $(error cannot compile both 51Degrees V3 and V4 engine support)
+  endif
 endif
 
 ifneq ($(USE_51DEGREES)$(USE_51DEGREES_V4),)
-# Use 51DEGREES_SRC and possibly 51DEGREES_INC and 51DEGREES_LIB to force path
-# to 51degrees headers and libraries if needed.
-51DEGREES_INC = $(51DEGREES_SRC)
-51DEGREES_LIB = $(51DEGREES_SRC)
-ifneq ($(USE_51DEGREES_V4),)
-_51DEGREES_SRC   = $(shell find $(51DEGREES_LIB) -maxdepth 2 -name '*.c')
-OPTIONS_OBJS    += $(_51DEGREES_SRC:%.c=%.o)
-else
-OPTIONS_OBJS    += $(51DEGREES_LIB)/../cityhash/city.o
-OPTIONS_OBJS    += $(51DEGREES_LIB)/51Degrees.o
-endif
-OPTIONS_OBJS    += addons/51degrees/51d.o
-OPTIONS_CFLAGS  += $(if $(51DEGREES_INC),-I$(51DEGREES_INC))
-ifneq ($(USE_51DEGREES_V4),)
-OPTIONS_CFLAGS  += -DUSE_51DEGREES_V4
-endif
-ifeq ($(USE_THREAD),)
-OPTIONS_CFLAGS  += -DFIFTYONEDEGREES_NO_THREADING
-ifneq ($(USE_51DEGREES_V4),)
-OPTIONS_CFLAGS  += -DFIFTYONE_DEGREES_NO_THREADING
-endif
-else
-ifeq ($(USE_51DEGREES_V4),)
-OPTIONS_OBJS    += $(51DEGREES_LIB)/../threading.o
-endif
-endif
+  # Use 51DEGREES_SRC and possibly 51DEGREES_INC and 51DEGREES_LIB to force path
+  # to 51degrees headers and libraries if needed.
+  51DEGREES_INC = $(51DEGREES_SRC)
+  51DEGREES_LIB = $(51DEGREES_SRC)
+  ifneq ($(USE_51DEGREES_V4),)
+    _51DEGREES_SRC   = $(shell find $(51DEGREES_LIB) -maxdepth 2 -name '*.c')
+    OPTIONS_OBJS    += $(_51DEGREES_SRC:%.c=%.o)
+  else
+    OPTIONS_OBJS    += $(51DEGREES_LIB)/../cityhash/city.o
+    OPTIONS_OBJS    += $(51DEGREES_LIB)/51Degrees.o
+  endif
+  OPTIONS_OBJS    += addons/51degrees/51d.o
+  OPTIONS_CFLAGS  += $(if $(51DEGREES_INC),-I$(51DEGREES_INC))
+  ifneq ($(USE_51DEGREES_V4),)
+    OPTIONS_CFLAGS  += -DUSE_51DEGREES_V4
+  endif
+  ifeq ($(USE_THREAD),)
+    OPTIONS_CFLAGS  += -DFIFTYONEDEGREES_NO_THREADING
+    ifneq ($(USE_51DEGREES_V4),)
+      OPTIONS_CFLAGS  += -DFIFTYONE_DEGREES_NO_THREADING
+    endif
+    else
+      ifeq ($(USE_51DEGREES_V4),)
+      OPTIONS_OBJS    += $(51DEGREES_LIB)/../threading.o
+    endif
+  endif
 
-OPTIONS_LDFLAGS += $(if $(51DEGREES_LIB),-L$(51DEGREES_LIB))
-USE_MATH         = implicit
-ifneq ($(USE_51DEGREES_V4),)
-USE_LIBATOMIC    = implicit
-endif
+  OPTIONS_LDFLAGS += $(if $(51DEGREES_LIB),-L$(51DEGREES_LIB))
+  USE_MATH         = implicit
+  ifneq ($(USE_51DEGREES_V4),)
+    USE_LIBATOMIC    = implicit
+  endif
 endif
 
 ifneq ($(USE_WURFL),)
-# Use WURFL_SRC and possibly WURFL_INC and WURFL_LIB to force path
-# to WURFL headers and libraries if needed.
-WURFL_INC = $(WURFL_SRC)
-WURFL_LIB = $(WURFL_SRC)
-OPTIONS_OBJS    += addons/wurfl/wurfl.o
-OPTIONS_CFLAGS  += $(if $(WURFL_INC),-I$(WURFL_INC))
-ifneq ($(WURFL_DEBUG),)
-OPTIONS_CFLAGS  += -DWURFL_DEBUG
-endif
-ifneq ($(WURFL_HEADER_WITH_DETAILS),)
-OPTIONS_CFLAGS  += -DWURFL_HEADER_WITH_DETAILS
-endif
-OPTIONS_LDFLAGS += $(if $(WURFL_LIB),-L$(WURFL_LIB)) -lwurfl
+  # Use WURFL_SRC and possibly WURFL_INC and WURFL_LIB to force path
+  # to WURFL headers and libraries if needed.
+  WURFL_INC = $(WURFL_SRC)
+  WURFL_LIB = $(WURFL_SRC)
+  OPTIONS_OBJS    += addons/wurfl/wurfl.o
+  OPTIONS_CFLAGS  += $(if $(WURFL_INC),-I$(WURFL_INC))
+  ifneq ($(WURFL_DEBUG),)
+    OPTIONS_CFLAGS  += -DWURFL_DEBUG
+  endif
+  ifneq ($(WURFL_HEADER_WITH_DETAILS),)
+    OPTIONS_CFLAGS  += -DWURFL_HEADER_WITH_DETAILS
+  endif
+  OPTIONS_LDFLAGS += $(if $(WURFL_LIB),-L$(WURFL_LIB)) -lwurfl
 endif
 
 ifneq ($(USE_SYSTEMD),)
-OPTIONS_LDFLAGS += -lsystemd
+  OPTIONS_LDFLAGS += -lsystemd
 endif
 
 ifneq ($(USE_PCRE)$(USE_STATIC_PCRE)$(USE_PCRE_JIT),)
+  ifneq ($(USE_PCRE2)$(USE_STATIC_PCRE2)$(USE_PCRE2_JIT),)
+    $(error cannot compile both PCRE and PCRE2 support)
+  endif
+  # PCREDIR is used to automatically construct the PCRE_INC and PCRE_LIB paths,
+  # by appending /include and /lib respectively. If your system does not use the
+  # same sub-directories, simply force these variables instead of PCREDIR. It is
+  # automatically detected but can be forced if required (for cross-compiling).
+  # Forcing PCREDIR to an empty string will let the compiler use the default
+  # locations.
+
+  # in case only USE_STATIC_PCRE/USE_PCRE_JIT were set
+  USE_PCRE    := $(if $(USE_PCRE),$(USE_PCRE),implicit)
+  PCRE_CONFIG := pcre-config
+  PCREDIR     := $(shell $(PCRE_CONFIG) --prefix 2>/dev/null || echo /usr/local)
+  ifneq ($(PCREDIR),)
+    PCRE_INC := $(PCREDIR)/include
+    PCRE_LIB := $(PCREDIR)/lib
+  endif
+
+  ifeq ($(USE_STATIC_PCRE),)
+    # dynamic PCRE
+    OPTIONS_CFLAGS  += $(if $(PCRE_INC),-I$(PCRE_INC))
+    OPTIONS_LDFLAGS += $(if $(PCRE_LIB),-L$(PCRE_LIB)) -lpcreposix -lpcre
+  else
+    # static PCRE
+    OPTIONS_CFLAGS  += $(if $(PCRE_INC),-I$(PCRE_INC))
+    OPTIONS_LDFLAGS += $(if $(PCRE_LIB),-L$(PCRE_LIB)) -Wl,-Bstatic -lpcreposix -lpcre -Wl,-Bdynamic
+  endif
+endif # USE_PCRE
+
 ifneq ($(USE_PCRE2)$(USE_STATIC_PCRE2)$(USE_PCRE2_JIT),)
-$(error cannot compile both PCRE and PCRE2 support)
-endif
-# PCREDIR is used to automatically construct the PCRE_INC and PCRE_LIB paths,
-# by appending /include and /lib respectively. If your system does not use the
-# same sub-directories, simply force these variables instead of PCREDIR. It is
-# automatically detected but can be forced if required (for cross-compiling).
-# Forcing PCREDIR to an empty string will let the compiler use the default
-# locations.
+  # in case only USE_STATIC_PCRE2/USE_PCRE2_JIT were set
+  USE_PCRE2    := $(if $(USE_PCRE2),$(USE_PCRE2),implicit)
+  PCRE2_CONFIG := pcre2-config
+  PCRE2DIR     := $(shell $(PCRE2_CONFIG) --prefix 2>/dev/null || echo /usr/local)
+  ifneq ($(PCRE2DIR),)
+    PCRE2_INC := $(PCRE2DIR)/include
+    PCRE2_LIB := $(PCRE2DIR)/lib
 
-# in case only USE_STATIC_PCRE/USE_PCRE_JIT were set
-USE_PCRE        := $(if $(USE_PCRE),$(USE_PCRE),implicit)
-PCRE_CONFIG    	:= pcre-config
-PCREDIR	        := $(shell $(PCRE_CONFIG) --prefix 2>/dev/null || echo /usr/local)
-ifneq ($(PCREDIR),)
-PCRE_INC        := $(PCREDIR)/include
-PCRE_LIB        := $(PCREDIR)/lib
-endif
+    ifeq ($(PCRE2_WIDTH),)
+      PCRE2_WIDTH = 8
+    endif
 
-ifeq ($(USE_STATIC_PCRE),)
-# dynamic PCRE
-OPTIONS_CFLAGS  += $(if $(PCRE_INC),-I$(PCRE_INC))
-OPTIONS_LDFLAGS += $(if $(PCRE_LIB),-L$(PCRE_LIB)) -lpcreposix -lpcre
-else
-# static PCRE
-OPTIONS_CFLAGS  += $(if $(PCRE_INC),-I$(PCRE_INC))
-OPTIONS_LDFLAGS += $(if $(PCRE_LIB),-L$(PCRE_LIB)) -Wl,-Bstatic -lpcreposix -lpcre -Wl,-Bdynamic
-endif
-endif
+    ifneq ($(PCRE2_WIDTH),8)
+      ifneq ($(PCRE2_WIDTH),16)
+        ifneq ($(PCRE2_WIDTH),32)
+          $(error PCRE2_WIDTH needs to be set to either 8,16 or 32)
+        endif
+      endif
+    endif
 
-ifneq ($(USE_PCRE2)$(USE_STATIC_PCRE2)$(USE_PCRE2_JIT),)
-# in case only USE_STATIC_PCRE2/USE_PCRE2_JIT were set
-USE_PCRE2       := $(if $(USE_PCRE2),$(USE_PCRE2),implicit)
-PCRE2_CONFIG 	:= pcre2-config
-PCRE2DIR	:= $(shell $(PCRE2_CONFIG) --prefix 2>/dev/null || echo /usr/local)
-ifneq ($(PCRE2DIR),)
-PCRE2_INC       := $(PCRE2DIR)/include
-PCRE2_LIB       := $(PCRE2DIR)/lib
+    PCRE2_LDFLAGS := $(shell $(PCRE2_CONFIG) --libs$(PCRE2_WIDTH) 2>/dev/null || echo -L/usr/local/lib -lpcre2-$(PCRE2_WIDTH))
 
-ifeq ($(PCRE2_WIDTH),)
-PCRE2_WIDTH	= 8
-endif
+    ifeq ($(PCRE2_LDFLAGS),)
+      $(error libpcre2-$(PCRE2_WIDTH) not found)
+    else
+      ifeq ($(PCRE2_WIDTH),8)
+        PCRE2_LDFLAGS += -lpcre2-posix
+      endif
+    endif
 
-ifneq ($(PCRE2_WIDTH),8)
-ifneq ($(PCRE2_WIDTH),16)
-ifneq ($(PCRE2_WIDTH),32)
-$(error PCRE2_WIDTH needs to be set to either 8,16 or 32)
-endif
-endif
-endif
+    OPTIONS_CFLAGS  += -DPCRE2_CODE_UNIT_WIDTH=$(PCRE2_WIDTH)
+    OPTIONS_CFLAGS  += $(if $(PCRE2_INC), -I$(PCRE2_INC))
 
-
-PCRE2_LDFLAGS	:= $(shell $(PCRE2_CONFIG) --libs$(PCRE2_WIDTH) 2>/dev/null || echo -L/usr/local/lib -lpcre2-$(PCRE2_WIDTH))
-
-ifeq ($(PCRE2_LDFLAGS),)
-$(error libpcre2-$(PCRE2_WIDTH) not found)
-else
-ifeq ($(PCRE2_WIDTH),8)
-PCRE2_LDFLAGS	+= -lpcre2-posix
-endif
-endif
-
-OPTIONS_CFLAGS	+= -DPCRE2_CODE_UNIT_WIDTH=$(PCRE2_WIDTH)
-OPTIONS_CFLAGS  += $(if $(PCRE2_INC), -I$(PCRE2_INC))
-
-ifneq ($(USE_STATIC_PCRE2),)
-PCRE2_LDFLAGS   := $(if $(PCRE2_LIB),-L$(PCRE2_LIB)) -Wl,-Bstatic -L$(PCRE2_LIB) $(PCRE2_LDFLAGS) -Wl,-Bdynamic
-else
-PCRE2_LDFLAGS   := $(if $(PCRE2_LIB),-L$(PCRE2_LIB)) -L$(PCRE2_LIB) $(PCRE2_LDFLAGS)
-endif
-
-endif
-endif
+    ifneq ($(USE_STATIC_PCRE2),)
+      PCRE2_LDFLAGS := $(if $(PCRE2_LIB),-L$(PCRE2_LIB)) -Wl,-Bstatic -L$(PCRE2_LIB) $(PCRE2_LDFLAGS) -Wl,-Bdynamic
+    else
+      PCRE2_LDFLAGS := $(if $(PCRE2_LIB),-L$(PCRE2_LIB)) -L$(PCRE2_LIB) $(PCRE2_LDFLAGS)
+    endif
+  endif # PCRE2DIR
+endif # USE_PCRE2
 
 ifneq ($(USE_NS),)
-OPTIONS_OBJS  += src/namespace.o
+  OPTIONS_OBJS  += src/namespace.o
 endif
 
 ifneq ($(USE_OT),)
-include addons/ot/Makefile
+  include addons/ot/Makefile
 endif
 
 # better keep this one close to the end, as several libs above may need it
@@ -831,17 +829,17 @@ COPTS += $(CFLAGS) $(TARGET_CFLAGS) $(SMALL_OPTS) $(DEFINE) $(SILENT_DEFINE)
 COPTS += $(DEBUG) $(OPTIONS_CFLAGS) $(ADDINC)
 
 ifneq ($(VERSION)$(SUBVERS)$(EXTRAVERSION),)
-COPTS += -DCONFIG_HAPROXY_VERSION=\"$(VERSION)$(SUBVERS)$(EXTRAVERSION)\"
+  COPTS += -DCONFIG_HAPROXY_VERSION=\"$(VERSION)$(SUBVERS)$(EXTRAVERSION)\"
 endif
 
 ifneq ($(VERDATE),)
-COPTS += -DCONFIG_HAPROXY_DATE=\"$(VERDATE)\"
+  COPTS += -DCONFIG_HAPROXY_DATE=\"$(VERDATE)\"
 endif
 
 ifneq ($(TRACE),)
-# if tracing is enabled, we want it to be as fast as possible
-TRACE_COPTS := $(filter-out -O0 -O1 -O2 -pg -finstrument-functions,$(COPTS)) -O3 -fomit-frame-pointer
-COPTS += -finstrument-functions
+  # if tracing is enabled, we want it to be as fast as possible
+  TRACE_COPTS := $(filter-out -O0 -O1 -O2 -pg -finstrument-functions,$(COPTS)) -O3 -fomit-frame-pointer
+  COPTS += -finstrument-functions
 endif
 
 #### Global link options
@@ -893,13 +891,13 @@ all:
 	@exit 1
 else
 all: haproxy dev/flags/flags $(EXTRA)
-endif
-endif
+endif # obsolete targets
+endif # TARGET
 
 OBJS =
 
 ifneq ($(EXTRA_OBJS),)
-OBJS += $(EXTRA_OBJS)
+  OBJS += $(EXTRA_OBJS)
 endif
 
 OBJS += src/mux_h2.o src/mux_fcgi.o src/mux_h1.o src/tcpcheck.o               \
@@ -936,7 +934,7 @@ OBJS += src/mux_h2.o src/mux_fcgi.o src/mux_h1.o src/tcpcheck.o               \
         src/ebtree.o src/hash.o src/dgram.o src/version.o
 
 ifneq ($(TRACE),)
-OBJS += src/calltrace.o
+  OBJS += src/calltrace.o
 endif
 
 # Used only for forced dependency checking. May be cleared during development.
@@ -970,7 +968,7 @@ build_opts = $(shell rm -f .build_opts.new; echo \'$(TARGET) $(BUILD_OPTIONS) $(
 .build_opts: $(build_opts)
 else
 .build_opts:
-endif
+endif # reg-tests
 
 haproxy: $(OPTIONS_OBJS) $(OBJS)
 	$(cmd_LD) $(LDFLAGS) -o $@ $^ $(LDOPTS)
