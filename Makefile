@@ -737,14 +737,11 @@ ifneq ($(USE_PCRE)$(USE_STATIC_PCRE)$(USE_PCRE_JIT),)
     PCRE_LIB := $(PCREDIR)/lib
   endif
 
+  PCRE_CFLAGS := $(if $(PCRE_INC),-I$(PCRE_INC))
   ifeq ($(USE_STATIC_PCRE),)
-    # dynamic PCRE
-    OPTIONS_CFLAGS  += $(if $(PCRE_INC),-I$(PCRE_INC))
-    OPTIONS_LDFLAGS += $(if $(PCRE_LIB),-L$(PCRE_LIB)) -lpcreposix -lpcre
+    PCRE_LDFLAGS := $(if $(PCRE_LIB),-L$(PCRE_LIB)) -lpcreposix -lpcre
   else
-    # static PCRE
-    OPTIONS_CFLAGS  += $(if $(PCRE_INC),-I$(PCRE_INC))
-    OPTIONS_LDFLAGS += $(if $(PCRE_LIB),-L$(PCRE_LIB)) -Wl,-Bstatic -lpcreposix -lpcre -Wl,-Bdynamic
+    PCRE_LDFLAGS := $(if $(PCRE_LIB),-L$(PCRE_LIB)) -Wl,-Bstatic -lpcreposix -lpcre -Wl,-Bdynamic
   endif
 endif # USE_PCRE
 
@@ -769,6 +766,7 @@ ifneq ($(USE_PCRE2)$(USE_STATIC_PCRE2)$(USE_PCRE2_JIT),)
       endif
     endif
 
+    PCRE2_CFLAGS  := -DPCRE2_CODE_UNIT_WIDTH=$(PCRE2_WIDTH) $(if $(PCRE2_INC), -I$(PCRE2_INC))
     PCRE2_LDFLAGS := $(shell $(PCRE2_CONFIG) --libs$(PCRE2_WIDTH) 2>/dev/null || echo -L/usr/local/lib -lpcre2-$(PCRE2_WIDTH))
 
     ifeq ($(PCRE2_LDFLAGS),)
@@ -778,9 +776,6 @@ ifneq ($(USE_PCRE2)$(USE_STATIC_PCRE2)$(USE_PCRE2_JIT),)
         PCRE2_LDFLAGS += -lpcre2-posix
       endif
     endif
-
-    OPTIONS_CFLAGS  += -DPCRE2_CODE_UNIT_WIDTH=$(PCRE2_WIDTH)
-    OPTIONS_CFLAGS  += $(if $(PCRE2_INC), -I$(PCRE2_INC))
 
     ifneq ($(USE_STATIC_PCRE2),)
       PCRE2_LDFLAGS := $(if $(PCRE2_LIB),-L$(PCRE2_LIB)) -Wl,-Bstatic -L$(PCRE2_LIB) $(PCRE2_LDFLAGS) -Wl,-Bdynamic
