@@ -601,10 +601,8 @@ endif
 ifneq ($(USE_LUA),)
   check_lua_inc = $(shell if [ -d $(2)$(1) ]; then echo $(2)$(1); fi;)
   LUA_INC      := $(firstword $(foreach lib,lua5.4 lua54 lua5.3 lua53 lua,$(call check_lua_inc,$(lib),"/usr/include/")))
-  OPTIONS_CFLAGS  += $(if $(LUA_INC),-I$(LUA_INC))
 
   check_lua_lib = $(shell echo "int main(){}" | $(CC) -o /dev/null -x c - $(2) -l$(1) 2>/dev/null && echo $(1))
-  LUA_LIB       =
   LUA_LD_FLAGS := -Wl,$(if $(EXPORT_SYMBOL),$(EXPORT_SYMBOL),--export-dynamic) $(if $(LUA_LIB),-L$(LUA_LIB))
 
   # Try to automatically detect the Lua library if not set
@@ -618,17 +616,18 @@ ifneq ($(USE_LUA),)
   endif
 
   ifneq ($(HLUA_PREPEND_PATH),)
-    OPTIONS_CFLAGS  += -DHLUA_PREPEND_PATH=$(HLUA_PREPEND_PATH)
+    LUA_CFLAGS      += -DHLUA_PREPEND_PATH=$(HLUA_PREPEND_PATH)
     BUILD_OPTIONS   += HLUA_PREPEND_PATH=$(HLUA_PREPEND_PATH)
   endif # HLUA_PREPEND_PATH
 
   ifneq ($(HLUA_PREPEND_CPATH),)
-    OPTIONS_CFLAGS  += -DHLUA_PREPEND_CPATH=$(HLUA_PREPEND_CPATH)
+    LUA_CFLAGS      += -DHLUA_PREPEND_CPATH=$(HLUA_PREPEND_CPATH)
     BUILD_OPTIONS   += HLUA_PREPEND_CPATH=$(HLUA_PREPEND_CPATH)
   endif # HLUA_PREPEND_CPATH
 
   USE_MATH         = implicit
-  OPTIONS_LDFLAGS += $(LUA_LD_FLAGS) -l$(LUA_LIB_NAME)
+  LUA_CFLAGS      += $(if $(LUA_INC),-I$(LUA_INC))
+  LUA_LDFLAGS      = $(LUA_LD_FLAGS) -l$(LUA_LIB_NAME)
   OPTIONS_OBJS    += src/hlua.o src/hlua_fcn.o
 endif # USE_LUA
 
