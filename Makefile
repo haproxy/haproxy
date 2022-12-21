@@ -641,7 +641,7 @@ ifneq ($(USE_DEVICEATLAS),)
   DEVICEATLAS_INC = $(DEVICEATLAS_SRC)
   DEVICEATLAS_LIB = $(DEVICEATLAS_SRC)
   ifeq ($(DEVICEATLAS_SRC),)
-    OPTIONS_LDFLAGS += -lda
+    DEVICEATLAS_LDFLAGS += -lda
   else
     ifeq ($(USE_PCRE),)
       ifeq ($(USE_PCRE2),)
@@ -649,7 +649,7 @@ ifneq ($(USE_DEVICEATLAS),)
       endif
     endif
     ifneq ($(USE_PCRE2),)
-      OPTIONS_CFLAGS  += -DDA_REGEX_HDR=\"dac_pcre2.c\" -DDA_REGEX_TAG=2
+      DEVICEATLAS_CFLAGS += -DDA_REGEX_HDR=\"dac_pcre2.c\" -DDA_REGEX_TAG=2
     endif
     OPTIONS_OBJS += $(DEVICEATLAS_LIB)/Os/daunix.o
     OPTIONS_OBJS += $(DEVICEATLAS_LIB)/dadwcom.o
@@ -658,7 +658,7 @@ ifneq ($(USE_DEVICEATLAS),)
     OPTIONS_OBJS += $(DEVICEATLAS_LIB)/dac.o
   endif
   OPTIONS_OBJS += addons/deviceatlas/da.o
-  OPTIONS_CFLAGS += $(if $(DEVICEATLAS_INC),-I$(DEVICEATLAS_INC))
+  DEVICEATLAS_CFLAGS += $(if $(DEVICEATLAS_INC),-I$(DEVICEATLAS_INC))
 endif
 
 # Use 51DEGREES_SRC and possibly 51DEGREES_INC and 51DEGREES_LIB to force path
