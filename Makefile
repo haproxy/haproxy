@@ -45,6 +45,7 @@
 #   USE_TFO              : enable TCP fast open. Supported on Linux >= 3.7.
 #   USE_NS               : enable network namespace support. Supported on Linux >= 2.6.24.
 #   USE_DL               : enable it if your system requires -ldl. Automatic on Linux.
+#   USE_MATH             : enable use of -lm. Automatic.
 #   USE_RT               : enable it if your system requires -lrt. Automatic on Linux.
 #   USE_BACKTRACE        : enable backtrace(). Automatic on Linux.
 #   USE_PROMEX           : enable the Prometheus exporter
@@ -302,7 +303,7 @@ use_opts = USE_EPOLL USE_KQUEUE USE_NETFILTER                                 \
            USE_LINUX_SPLICE USE_LIBCRYPT USE_CRYPT_H USE_ENGINE               \
            USE_GETADDRINFO USE_OPENSSL USE_OPENSSL_WOLFSSL USE_LUA            \
            USE_ACCEPT4 USE_CLOSEFROM USE_ZLIB USE_SLZ USE_CPU_AFFINITY        \
-           USE_TFO USE_NS USE_DL USE_RT USE_LIBATOMIC                         \
+           USE_TFO USE_NS USE_DL USE_RT USE_LIBATOMIC USE_MATH                \
            USE_DEVICEATLAS USE_51DEGREES USE_51DEGREES_V4                     \
            USE_WURFL USE_SYSTEMD USE_OBSOLETE_LINKER USE_PRCTL USE_PROCCTL    \
            USE_THREAD_DUMP USE_EVPORTS USE_OT USE_QUIC USE_PROMEX             \
@@ -624,7 +625,8 @@ OPTIONS_CFLAGS  += -DHLUA_PREPEND_CPATH=$(HLUA_PREPEND_CPATH)
 BUILD_OPTIONS += HLUA_PREPEND_CPATH=$(HLUA_PREPEND_CPATH)
 endif # HLUA_PREPEND_CPATH
 
-OPTIONS_LDFLAGS += $(LUA_LD_FLAGS) -l$(LUA_LIB_NAME) -lm
+USE_MATH         = implicit
+OPTIONS_LDFLAGS += $(LUA_LD_FLAGS) -l$(LUA_LIB_NAME)
 OPTIONS_OBJS    += src/hlua.o src/hlua_fcn.o
 endif # USE_LUA
 
@@ -692,7 +694,8 @@ OPTIONS_OBJS    += $(51DEGREES_LIB)/../threading.o
 endif
 endif
 
-OPTIONS_LDFLAGS += $(if $(51DEGREES_LIB),-L$(51DEGREES_LIB)) -lm
+OPTIONS_LDFLAGS += $(if $(51DEGREES_LIB),-L$(51DEGREES_LIB))
+USE_MATH         = implicit
 ifneq ($(USE_51DEGREES_V4),)
 USE_LIBATOMIC    = implicit
 endif
@@ -800,6 +803,10 @@ endif
 # better keep this one close to the end, as several libs above may need it
 ifneq ($(USE_DL),)
   DL_LDFLAGS = -ldl
+endif
+
+ifneq ($(USE_MATH),)
+  MATH_LDFLAGS = -lm
 endif
 
 ifneq ($(USE_LIBATOMIC),)
