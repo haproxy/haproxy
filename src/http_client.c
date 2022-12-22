@@ -39,6 +39,7 @@
 
 #include <string.h>
 
+static char httpclient_log_format[] = "%ci:%cp [%tr] %ft -/- %TR/%Tw/%Tc/%Tr/%Ta %ST %B %CC %CS %tsc %ac/%fc/%bc/%sc/%rc %sq/%bq %hr %hs %{+Q}r";
 
 static struct proxy *httpclient_proxy;
 
@@ -1214,7 +1215,7 @@ struct proxy *httpclient_create_proxy(const char *id)
 	px->conn_retries = CONN_RETRIES;
 	px->timeout.client = TICK_ETERNITY;
 	/* The HTTP Client use the "option httplog" with the global log server */
-	px->conf.logformat_string = default_http_log_format;
+	px->conf.logformat_string = httpclient_log_format;
 	px->http_needed = 1;
 
 	/* clear HTTP server */
