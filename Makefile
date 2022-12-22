@@ -803,6 +803,21 @@ endif
 endif
 endif
 
+ifneq ($(USE_NS),)
+OPTIONS_OBJS  += src/namespace.o
+endif
+
+ifneq ($(USE_OT),)
+include addons/ot/Makefile
+endif
+
+ifneq ($(USE_LIBATOMIC),)
+  TARGET_LDFLAGS += -latomic
+endif
+
+#### End of the USE_* options handling, any such option that would be added
+#### below could be silently ignored.
+
 # appends all foo_{C,LD}FLAGS to OPTIONS_{C,LD}FLAGS
 $(collect_opts_flags)
 
@@ -825,18 +840,6 @@ ifneq ($(TRACE),)
 # if tracing is enabled, we want it to be as fast as possible
 TRACE_COPTS := $(filter-out -O0 -O1 -O2 -pg -finstrument-functions,$(COPTS)) -O3 -fomit-frame-pointer
 COPTS += -finstrument-functions
-endif
-
-ifneq ($(USE_NS),)
-OPTIONS_OBJS  += src/namespace.o
-endif
-
-ifneq ($(USE_OT),)
-include addons/ot/Makefile
-endif
-
-ifneq ($(USE_LIBATOMIC),)
-  TARGET_LDFLAGS += -latomic
 endif
 
 #### Global link options

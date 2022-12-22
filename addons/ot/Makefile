@@ -70,6 +70,4 @@ OPTIONS_OBJS += \
 	addons/ot/src/vars.o
 endif
 
-OPTIONS_CFLAGS  += $(OT_CFLAGS) -Iaddons/ot/include
-OPTIONS_LDFLAGS += $(OT_LDFLAGS)
-OPTIONS_CFLAGS  += $(OT_DEFINE)
+OT_CFLAGS := $(OT_CFLAGS) -Iaddons/ot/include $(OT_DEFINE)
