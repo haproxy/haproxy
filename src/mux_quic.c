@@ -1237,12 +1237,11 @@ static int qcc_release_remote_stream(struct qcc *qcc, uint64_t id)
 		}
 	}
 	else {
-		/* TODO in HTTP/3 unidirectional streams cannot be closed or a
-		 * H3_CLOSED_CRITICAL_STREAM will be triggered before
-		 * entering here. If a new application protocol is supported it
-		 * might be necessary to implement MAX_STREAMS_UNI emission.
+		/* TODO unidirectional stream flow control with MAX_STREAMS_UNI
+		 * emission not implemented. It should be unnecessary for
+		 * HTTP/3 but may be required if other application protocols
+		 * are supported.
 		 */
-		ABORT_NOW();
 	}
 
 	TRACE_LEAVE(QMUX_EV_QCS_END, qcc->conn);
