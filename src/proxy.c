@@ -178,7 +178,8 @@ void free_proxy(struct proxy *p)
 	if (p->conf.logformat_string != default_http_log_format &&
 	    p->conf.logformat_string != default_tcp_log_format &&
 	    p->conf.logformat_string != clf_http_log_format &&
-	    p->conf.logformat_string != default_https_log_format)
+	    p->conf.logformat_string != default_https_log_format &&
+	    p->conf.logformat_string != httpclient_log_format)
 		free(p->conf.logformat_string);
 
 	free(p->conf.lfs_file);

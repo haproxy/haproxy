@@ -39,8 +39,6 @@
 
 #include <string.h>
 
-static char httpclient_log_format[] = "%ci:%cp [%tr] %ft -/- %TR/%Tw/%Tc/%Tr/%Ta %ST %B %CC %CS %tsc %ac/%fc/%bc/%sc/%rc %sq/%bq %hr %hs %{+Q}r";
-
 static struct proxy *httpclient_proxy;
 
 #ifdef USE_OPENSSL
