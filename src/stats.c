@@ -4541,9 +4541,9 @@ int stats_fill_info(struct field *info, int len, uint flags)
 	info[INF_MEMMAX_MB]                      = mkf_u32(FO_CONFIG|FN_LIMIT, global.rlimit_memmax);
 	info[INF_MEMMAX_BYTES]                   = mkf_u32(FO_CONFIG|FN_LIMIT, global.rlimit_memmax * 1048576L);
 	info[INF_POOL_ALLOC_MB]                  = mkf_u32(0, (unsigned)(pool_total_allocated() / 1048576L));
-	info[INF_POOL_ALLOC_BYTES]               = mkf_u32(0, pool_total_allocated());
+	info[INF_POOL_ALLOC_BYTES]               = mkf_u64(0, pool_total_allocated());
 	info[INF_POOL_USED_MB]                   = mkf_u32(0, (unsigned)(pool_total_used() / 1048576L));
-	info[INF_POOL_USED_BYTES]                = mkf_u32(0, pool_total_used());
+	info[INF_POOL_USED_BYTES]                = mkf_u64(0, pool_total_used());
 	info[INF_POOL_FAILED]                    = mkf_u32(FN_COUNTER, pool_total_failures());
 	info[INF_ULIMIT_N]                       = mkf_u32(FO_CONFIG|FN_LIMIT, global.rlimit_nofile);
 	info[INF_MAXSOCK]                        = mkf_u32(FO_CONFIG|FN_LIMIT, global.maxsock);

@@ -439,14 +439,14 @@ int pool_total_failures(void)
         and is only meant to be used as an indicator rather than a precise
         measure.
 
-ulong pool_total_allocated(void)
+ullong pool_total_allocated(void)
         Report the total number of bytes allocated in all pools, for reporting
         in the "PoolAlloc_MB" field of the "show info" output. The total is
         calculated on the fly by summing the number of allocated bytes in all
         pools and is only meant to be used as an indicator rather than a
         precise measure.
 
-ulong pool_total_used(void)
+ullong pool_total_used(void)
         Report the total number of bytes used in all pools, for reporting in
         the "PoolUsed_MB" field of the "show info" output. The total is
         calculated on the fly by summing the number of used bytes in all pools
