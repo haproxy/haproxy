@@ -26,7 +26,9 @@ def clean_ssl(ssl):
     return ssl.replace("_VERSION", "").lower()
 
 def determine_latest_openssl(ssl):
-    openssl_tags = urllib.request.urlopen("https://api.github.com/repos/openssl/openssl/tags")
+    headers = {'Authorization': 'token ' + environ.get('GITHUB_API_TOKEN')} if environ.get('GITHUB_API_TOKEN') else {}
+    request = urllib.request.Request('https://api.github.com/repos/openssl/openssl/tags', headers=headers)
+    openssl_tags = urllib.request.urlopen(request)
     tags = json.loads(openssl_tags.read().decode('utf-8'))
     latest_tag = ''
     for tag in tags:
