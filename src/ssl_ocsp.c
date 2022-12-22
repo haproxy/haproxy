@@ -648,7 +648,7 @@ int ssl_ocsp_create_request_details(const OCSP_CERTID *certid, struct buffer *re
 	 * If HTTP caching is not important, or the request is greater than 255
 	 * bytes, the request SHOULD be submitted using POST.
 	 */
-	if (b_data(bin_request)+b_data(req_url) < 0xff) {
+	if (b_data(bin_request) + b_data(req_url) < 0xff) {
 		struct buffer *b64buf = get_trash_chunk();
 		char *ret = NULL;
 		int base64_ret = 0;
@@ -664,10 +664,10 @@ int ssl_ocsp_create_request_details(const OCSP_CERTID *certid, struct buffer *re
 
 		b64buf->data = base64_ret;
 
-		ret = encode_chunk((char*)b_stop(req_url), b_orig(req_url)+b_size(req_url), '%',
+		ret = encode_chunk((char*)b_stop(req_url), b_orig(req_url) + b_size(req_url), '%',
 		                   query_encode_map, b64buf);
 		if (ret && *ret == '\0') {
-			req_url->data = ret-b_orig(req_url);
+			req_url->data = ret - b_orig(req_url);
 		}
 	}
 	else {
