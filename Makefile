@@ -129,6 +129,7 @@
 
 include include/make/verbose.mk
 include include/make/compiler.mk
+include include/make/options.mk
 
 #### Installation options.
 DESTDIR =
@@ -308,12 +309,6 @@ use_opts = USE_EPOLL USE_KQUEUE USE_NETFILTER                                 \
            USE_MEMORY_PROFILING USE_SHM_OPEN
 
 #### Target system options
-# Depending on the target platform, some options are set, as well as some
-# CFLAGS and LDFLAGS. All variables pre-set here will not appear in the build
-# options string. They may be set to any value, but are historically set to
-# "implicit" which eases debugging. You should not have to change anything
-# there unless you're adding support for a new platform.
-default_opts = $(foreach name,$(1),$(eval $(name)=implicit))
 
 # poll() is always supported, unless explicitly disabled by passing USE_POLL=""
 # on the make command line.
@@ -501,28 +496,14 @@ OPTIONS_OBJS    =
 #### Extra objects to be built and integrated (used only for development)
 EXTRA_OBJS =
 
-# Return USE_xxx=$(USE_xxx) if the variable was set from the environment or the
-# command line.
-# Usage:
-#   BUILD_OPTIONS += $(call ignore_implicit,USE_xxx)
-ignore_implicit = $(if $(subst environment,,$(origin $(1))),         \
-                       $(if $(subst command line,,$(origin $(1))),,  \
-                            $(1)=$($(1))),                           \
-                       $(1)=$($(1)))                                 \
-
 # This variable collects all USE_* values except those set to "implicit". This
 # is used to report a list of all flags which were used to build this version.
 # Do not assign anything to it.
-BUILD_OPTIONS  := $(foreach opt,$(use_opts),$(call ignore_implicit,$(opt)))
-
-# Make a list of all known features with +/- prepended depending on their
-# activation status. Must be a macro so that dynamically enabled ones are
-# evaluated with their current status.
-BUILD_FEATURES  = $(foreach opt,$(patsubst USE_%,%,$(use_opts)),$(if $(USE_$(opt)),+$(opt),-$(opt)))
+BUILD_OPTIONS  := $(call build_options)
 
 # All USE_* options have their equivalent macro defined in the code (some might
 # possibly be unused though)
-OPTIONS_CFLAGS += $(foreach opt,$(use_opts),$(if $($(opt)),-D$(opt),))
+OPTIONS_CFLAGS += $(call opts_as_defines)
 
 ifneq ($(USE_LIBCRYPT),)
 ifneq ($(TARGET),openbsd)
@@ -974,9 +955,9 @@ help:
 	     echo "  custom"; \
 	   fi
 	@echo;echo "Enabled features for TARGET '$(TARGET)' (disable with 'USE_xxx=') :"
-	@set -- $(foreach opt,$(patsubst USE_%,%,$(use_opts)),$(if $(USE_$(opt)),$(opt),)); echo "  $$*" | (fmt || cat) 2>/dev/null
+	@set -- $(enabled_opts); echo "  $$*" | (fmt || cat) 2>/dev/null
 	@echo;echo "Disabled features for TARGET '$(TARGET)' (enable with 'USE_xxx=1') :"
-	@set -- $(foreach opt,$(patsubst USE_%,%,$(use_opts)),$(if $(USE_$(opt)),,$(opt))); echo "  $$*" | (fmt || cat) 2>/dev/null
+	@set -- $(disabled_opts); echo "  $$*" | (fmt || cat) 2>/dev/null
 
 # Used only to force a rebuild if some build options change, but we don't do
 # it for certain targets which take no build options
@@ -1038,7 +1019,7 @@ src/haproxy.o:	src/haproxy.c $(DEP)
 	      -DBUILD_CFLAGS='"$(strip $(VERBOSE_CFLAGS))"' \
 	      -DBUILD_OPTIONS='"$(strip $(BUILD_OPTIONS))"' \
 	      -DBUILD_DEBUG='"$(strip $(DEBUG))"' \
-	      -DBUILD_FEATURES='"$(strip $(BUILD_FEATURES))"' \
+	      -DBUILD_FEATURES='"$(strip $(build_features))"' \
 	       -c -o $@ $<
 
 install-man:
