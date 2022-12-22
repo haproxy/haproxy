@@ -582,7 +582,7 @@ ifneq ($(USE_ENGINE),)
   # engine support, and this option is made to silence them. Better use it
   # only when absolutely necessary, until there's a viable alternative to the
   # engine API.
-  OPTIONS_CFLAGS += -DOPENSSL_SUPPRESS_DEPRECATED
+  ENGINE_CFLAGS   = -DOPENSSL_SUPPRESS_DEPRECATED
 endif
 
 ifneq ($(USE_QUIC),)
