@@ -36,7 +36,7 @@ disabled_opts   = $(foreach opt,$(patsubst USE_%,%,$(use_opts)),$(if $(USE_$(opt
 reset_opt_vars = $(foreach name,INC LIB CFLAGS LDFLAGS SRC,$(eval $(1)_$(name)=))
 
 # preset all variables for all supported build options among use_opts
-reset_opts_vars = $(foreach opt,$(patsubst USE_%,%,$(use_opts)) SSL WOLFSSL,$(call reset_opt_vars,$(opt)))
+reset_opts_vars = $(foreach opt,$(patsubst USE_%,%,$(use_opts)) SSL,$(call reset_opt_vars,$(opt)))
 
 # append $(1)_{C,LD}FLAGS into OPTIONS_{C,LD}FLAGS if not empty
 define collect_opt_flags =

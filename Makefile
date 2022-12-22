@@ -108,8 +108,6 @@
 #                                                               pcre2-config)
 #   SSL_LIB        : force the lib path to libssl/libcrypto
 #   SSL_INC        : force the include path to libssl/libcrypto
-#   WOLFSSL_INC    : force the include path to wolfSSL
-#   WOLFSSL_LIB    : force the lib path to wolfSSL
 #   LUA_LIB        : force the lib path to lua
 #   LUA_INC        : force the include path to lua
 #   LUA_LIB_NAME   : force the lib name (or automatically evaluated, by order of
@@ -558,24 +556,29 @@ ifneq ($(USE_CPU_AFFINITY),)
   OPTIONS_OBJS   += src/cpuset.o
 endif
 
-ifneq ($(USE_OPENSSL),)
-  # OpenSSL is packaged in various forms and with various dependencies.
-  # In general -lssl is enough, but on some platforms, -lcrypto may be needed,
-  # reason why it's added by default. Some even need -lz, then you'll need to
-  # pass it in the "ADDLIB" variable if needed. If your SSL libraries are not
-  # in the usual path, use SSL_INC=/path/to/inc and SSL_LIB=/path/to/lib.
-  ifeq ($(USE_OPENSSL_WOLFSSL),)
-    OPENSSL_CFLAGS   = $(if $(SSL_INC),-I$(SSL_INC))
-    OPENSSL_LDFLAGS  = $(if $(SSL_LIB),-L$(SSL_LIB)) -lssl -lcrypto
-  endif
-  OPTIONS_OBJS  += src/ssl_sock.o src/ssl_ckch.o src/ssl_sample.o src/ssl_crtlist.o src/cfgparse-ssl.o src/ssl_utils.o src/jwt.o src/ssl_ocsp.o
+# OpenSSL is packaged in various forms and with various dependencies.
+# In general -lssl is enough, but on some platforms, -lcrypto may be needed,
+# reason why it's added by default. Some even need -lz, then you'll need to
+# pass it in the "ADDLIB" variable if needed. If your SSL libraries are not
+# in the usual path, use SSL_INC=/path/to/inc and SSL_LIB=/path/to/lib.
+
+# This is for the WolfSSL variant of the OpenSSL API. Setting it implies
+# OPENSSL so it's not necessary to set the latter.
+ifneq ($(USE_OPENSSL_WOLFSSL),)
+  SSL_CFLAGS      := $(if $(SSL_INC),-I$(SSL_INC) -I$(SSL_INC)/wolfssl)
+  SSL_LDFLAGS     := $(if $(SSL_LIB),-L$(SSL_LIB)) -lwolfssl
+  # always automatically set USE_OPENSSL
+  USE_OPENSSL     := $(if $(USE_OPENSSL),$(USE_OPENSSL),implicit)
 endif
 
-ifneq ($(USE_OPENSSL_WOLFSSL),)
-  WOLFSSL_CFLAGS    = $(if $(WOLFSSL_INC),-I$(WOLFSSL_INC) -I$(WOLFSSL_INC)/wolfssl)
-  WOLFSSL_LDFLAGS   = $(if $(WOLFSSL_LIB),-L$(WOLFSSL_LIB)) -lwolfssl
-  OPTIONS_CFLAGS   += $(WOLFSSL_CFLAGS)
-  OPTIONS_LDFLAGS  += $(WOLFSSL_LDFLAGS)
+# This is for any variant of the OpenSSL API. By default it uses OpenSSL.
+ifneq ($(USE_OPENSSL),)
+  # only preset these for the regular openssl
+  ifeq ($(USE_OPENSSL_WOLFSSL),)
+    SSL_CFLAGS    := $(if $(SSL_INC),-I$(SSL_INC))
+    SSL_LDFLAGS   := $(if $(SSL_LIB),-L$(SSL_LIB)) -lssl -lcrypto
+  endif
+  OPTIONS_OBJS += src/ssl_sock.o src/ssl_ckch.o src/ssl_sample.o src/ssl_crtlist.o src/cfgparse-ssl.o src/ssl_utils.o src/jwt.o src/ssl_ocsp.o
 endif
 
 ifneq ($(USE_ENGINE),)
