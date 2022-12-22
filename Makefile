@@ -795,13 +795,16 @@ OPTIONS_CFLAGS	+= -DUSE_PCRE2 -DPCRE2_CODE_UNIT_WIDTH=$(PCRE2_WIDTH)
 OPTIONS_CFLAGS  += $(if $(PCRE2_INC), -I$(PCRE2_INC))
 
 ifneq ($(USE_STATIC_PCRE2),)
-OPTIONS_LDFLAGS += $(if $(PCRE2_LIB),-L$(PCRE2_LIB)) -Wl,-Bstatic -L$(PCRE2_LIB) $(PCRE2_LDFLAGS) -Wl,-Bdynamic
+PCRE2_LDFLAGS   := $(if $(PCRE2_LIB),-L$(PCRE2_LIB)) -Wl,-Bstatic -L$(PCRE2_LIB) $(PCRE2_LDFLAGS) -Wl,-Bdynamic
 else
-OPTIONS_LDFLAGS += $(if $(PCRE2_LIB),-L$(PCRE2_LIB)) -L$(PCRE2_LIB) $(PCRE2_LDFLAGS)
+PCRE2_LDFLAGS   := $(if $(PCRE2_LIB),-L$(PCRE2_LIB)) -L$(PCRE2_LIB) $(PCRE2_LDFLAGS)
 endif
 
 endif
 endif
+
+# appends all foo_{C,LD}FLAGS to OPTIONS_{C,LD}FLAGS
+$(collect_opts_flags)
 
 #### Global compile options
 VERBOSE_CFLAGS = $(CFLAGS) $(TARGET_CFLAGS) $(SMALL_OPTS) $(DEFINE)
