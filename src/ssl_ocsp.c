@@ -590,7 +590,10 @@ int ssl_ocsp_get_uri_from_cert(X509 *cert, struct buffer *out, char **err)
 		goto end;
 	}
 
-	chunk_strcpy(out, sk_OPENSSL_STRING_value(ocsp_uri_stk, 0));
+	if (!chunk_strcpy(out, sk_OPENSSL_STRING_value(ocsp_uri_stk, 0))) {
+		memprintf(err, "%sOCSP URI too long!\n", *err ? *err : "");
+		goto end;
+	}
 	if (b_data(out) == 0) {
 		memprintf(err, "%sNo OCSP URL!\n", *err ? *err : "");
 		goto end;
