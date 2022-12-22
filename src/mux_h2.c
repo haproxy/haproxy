@@ -4782,6 +4782,11 @@ next_frame:
 		*flags |= H2_SF_HEADERS_RCVD;
 
 	if (h2c->dff & H2_F_HEADERS_END_STREAM) {
+		if (msgf & H2_MSGF_RSP_1XX) {
+			/* RFC9113#8.1 : HEADERS frame with the ES flag set that carries an informational status code is malformed */
+			TRACE_STATE("invalid interim response with ES flag!", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_H2C_ERR|H2_EV_PROTO_ERR, h2c->conn);
+			goto fail;
+		}
 		/* no more data are expected for this message */
 		htx->flags |= HTX_FL_EOM;
 	}
