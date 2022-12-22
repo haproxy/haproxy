@@ -1069,7 +1069,7 @@ static struct task *ssl_ocsp_update_responses(struct task *task, void *context, 
 
 		if (httpclient_req_gen(hc, hc->req.url, hc->req.meth,
 		                       b_data(req_body) ? ocsp_request_hdrs : NULL,
-		                       ist2(b_orig(req_body), b_data(req_body))) != ERR_NONE) {
+		                       b_data(req_body) ? ist2(b_orig(req_body), b_data(req_body)) : IST_NULL) != ERR_NONE) {
 			goto leave;
 		}
 
