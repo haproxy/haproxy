@@ -31,3 +31,9 @@ opts_as_defines = $(foreach opt,$(use_opts),$(if $($(opt)),-D$(opt),))
 # Lists all enabled or disabled options without the "USE_" prefix
 enabled_opts    = $(foreach opt,$(patsubst USE_%,%,$(use_opts)),$(if $(USE_$(opt)),$(opt),))
 disabled_opts   = $(foreach opt,$(patsubst USE_%,%,$(use_opts)),$(if $(USE_$(opt)),,$(opt)))
+
+# preset all XXX_{INC,LIB,CFLAGS,LDFLAGS,SRC} variables to empty for $1=XXX
+reset_opt_vars = $(foreach name,INC LIB CFLAGS LDFLAGS SRC,$(eval $(1)_$(name)=))
+
+# preset all variables for all supported build options among use_opts
+reset_opts_vars = $(foreach opt,$(patsubst USE_%,%,$(use_opts)) SSL WOLFSSL,$(call reset_opt_vars,$(opt)))

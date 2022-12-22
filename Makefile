@@ -308,6 +308,9 @@ use_opts = USE_EPOLL USE_KQUEUE USE_NETFILTER                                 \
            USE_THREAD_DUMP USE_EVPORTS USE_OT USE_QUIC USE_PROMEX             \
            USE_MEMORY_PROFILING USE_SHM_OPEN
 
+# preset all variables for all supported build options among use_opts
+$(reset_opts_vars)
+
 #### Target system options
 
 # poll() is always supported, unless explicitly disabled by passing USE_POLL=""
@@ -515,8 +518,6 @@ endif
 
 ifneq ($(USE_ZLIB),)
 # Use ZLIB_INC and ZLIB_LIB to force path to zlib.h and libz.{a,so} if needed.
-ZLIB_INC =
-ZLIB_LIB =
 OPTIONS_CFLAGS  += $(if $(ZLIB_INC),-I$(ZLIB_INC))
 OPTIONS_LDFLAGS += $(if $(ZLIB_LIB),-L$(ZLIB_LIB)) -lz
 endif
@@ -562,8 +563,6 @@ OPTIONS_OBJS   += src/cpuset.o
 endif
 
 ifneq ($(USE_OPENSSL),)
-SSL_INC =
-SSL_LIB =
 # OpenSSL is packaged in various forms and with various dependencies.
 # In general -lssl is enough, but on some platforms, -lcrypto may be needed,
 # reason why it's added by default. Some even need -lz, then you'll need to
@@ -650,7 +649,6 @@ endif
 ifneq ($(USE_DEVICEATLAS),)
 # Use DEVICEATLAS_SRC and possibly DEVICEATLAS_INC and DEVICEATLAS_LIB to force path
 # to DeviceAtlas headers and libraries if needed.
-DEVICEATLAS_SRC =
 DEVICEATLAS_INC = $(DEVICEATLAS_SRC)
 DEVICEATLAS_LIB = $(DEVICEATLAS_SRC)
 ifeq ($(DEVICEATLAS_SRC),)
@@ -683,7 +681,6 @@ endif
 ifneq ($(USE_51DEGREES)$(USE_51DEGREES_V4),)
 # Use 51DEGREES_SRC and possibly 51DEGREES_INC and 51DEGREES_LIB to force path
 # to 51degrees headers and libraries if needed.
-51DEGREES_SRC =
 51DEGREES_INC = $(51DEGREES_SRC)
 51DEGREES_LIB = $(51DEGREES_SRC)
 ifneq ($(USE_51DEGREES_V4),)
@@ -718,7 +715,6 @@ endif
 ifneq ($(USE_WURFL),)
 # Use WURFL_SRC and possibly WURFL_INC and WURFL_LIB to force path
 # to WURFL headers and libraries if needed.
-WURFL_SRC =
 WURFL_INC = $(WURFL_SRC)
 WURFL_LIB = $(WURFL_SRC)
 OPTIONS_OBJS    += addons/wurfl/wurfl.o
