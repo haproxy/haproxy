@@ -298,7 +298,7 @@ use_opts = USE_EPOLL USE_KQUEUE USE_NETFILTER                                 \
            USE_THREAD USE_PTHREAD_EMULATION USE_BACKTRACE                     \
            USE_STATIC_PCRE USE_STATIC_PCRE2 USE_TPROXY USE_LINUX_TPROXY       \
            USE_LINUX_SPLICE USE_LIBCRYPT USE_CRYPT_H USE_ENGINE               \
-           USE_GETADDRINFO USE_OPENSSL USE_OPENSSL_WOLFSSL USE_LUA            \
+           USE_GETADDRINFO USE_OPENSSL USE_OPENSSL_WOLFSSL USE_SSL USE_LUA    \
            USE_ACCEPT4 USE_CLOSEFROM USE_ZLIB USE_SLZ USE_CPU_AFFINITY        \
            USE_TFO USE_NS USE_DL USE_RT USE_LIBATOMIC USE_MATH                \
            USE_DEVICEATLAS USE_51DEGREES                                      \
@@ -578,6 +578,7 @@ ifneq ($(USE_OPENSSL),)
     SSL_CFLAGS    := $(if $(SSL_INC),-I$(SSL_INC))
     SSL_LDFLAGS   := $(if $(SSL_LIB),-L$(SSL_LIB)) -lssl -lcrypto
   endif
+  USE_SSL         := $(if $(USE_SSL),$(USE_SSL),implicit)
   OPTIONS_OBJS += src/ssl_sock.o src/ssl_ckch.o src/ssl_sample.o src/ssl_crtlist.o src/cfgparse-ssl.o src/ssl_utils.o src/jwt.o src/ssl_ocsp.o
 endif
 
