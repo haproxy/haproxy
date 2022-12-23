@@ -48,5 +48,5 @@ define collect_opt_flags =
   endif
 endef
 
-# collect all known USE_foo's foo_{C,LD}FLAGS into OPTIONS_{C,LD}FLAGS
-collect_opts_flags = $(foreach opt,$(patsubst USE_%,%,$(use_opts)),$(eval $(call collect_opt_flags,$(opt))))
+# collect all enabled USE_foo's foo_{C,LD}FLAGS into OPTIONS_{C,LD}FLAGS
+collect_opts_flags = $(foreach opt,$(enabled_opts),$(eval $(call collect_opt_flags,$(opt))))
