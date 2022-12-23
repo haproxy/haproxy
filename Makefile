@@ -63,7 +63,10 @@
 #
 # Options can be forced by specifying "USE_xxx=1" or can be disabled by using
 # "USE_xxx=" (empty string). The list of enabled and disabled options for a
-# given TARGET is enumerated at the end of "make help".
+# given TARGET is enumerated at the end of "make help". Most of these options
+# support specific xxx_CFLAGS and/or xxx_LDFLAGS that can be individually
+# forced. The currently active ones for a given set of options are listed in
+# "make opts USE_xxx=1 ...".
 #
 # Variables useful for packagers :
 #   CC is set to "cc" by default and is used for compilation only.
@@ -875,7 +878,8 @@ all:
 	@echo "    USE_LUA=1     - Support for dynamic processing using Lua"
 	@echo
 	@echo "Use 'make help' to print a full explanation of supported targets"
-	@echo "and features."
+	@echo "and features, and 'make ... opts' to show the variables in use"
+	@echo "for a given set of build options, in a reusable form."
 	@echo
 	@exit 1
 else
@@ -1110,7 +1114,9 @@ update-version:
 	echo "$(SUBVERS)" > SUBVERS
 	echo "$(VERDATE)" > VERDATE
 
-# just display the build options
+# just display the build options. The "USE_*" options and their respective
+# settings are also listed if they're explicitly set on the command line, or if
+# they are not empty. Implicit "USE_*" are not listed.
 opts:
 	@echo -n 'Using: '
 	@echo -n 'TARGET="$(strip $(TARGET))" '
@@ -1120,7 +1126,17 @@ opts:
 	@echo -n 'ARCH_FLAGS="$(strip $(ARCH_FLAGS))" '
 	@echo -n 'CPU_CFLAGS="$(strip $(CPU_CFLAGS))" '
 	@echo -n 'DEBUG_CFLAGS="$(strip $(DEBUG_CFLAGS))" '
-	@echo "$(strip $(BUILD_OPTIONS))"
+	@#echo "$(strip $(BUILD_OPTIONS))"
+	@$(foreach opt,$(enabled_opts),\
+		$(if $(subst command line,,$(origin USE_$(opt))),,\
+			echo -n 'USE_$(opt)=$(USE_$(opt)) ';) \
+		$(if $(subst command line,,$(origin $(opt)_CFLAGS)),\
+			$(if $($(opt)_CFLAGS),echo -n '$(opt)_CFLAGS="$($(opt)_CFLAGS)" ';),\
+			echo -n '$(opt)_CFLAGS="$($(opt)_CFLAGS)" ';) \
+		$(if $(subst command line,,$(origin $(opt)_LDFLAGS)),\
+			$(if $($(opt)_LDFLAGS),echo -n '$(opt)_LDFLAGS="$($(opt)_LDFLAGS)" ';),\
+			echo -n '$(opt)_LDFLAGS="$($(opt)_LDFLAGS)" ';))
+	@echo
 	@echo 'COPTS="$(strip $(COPTS))"'
 	@echo 'LDFLAGS="$(strip $(LDFLAGS))"'
 	@echo 'LDOPTS="$(strip $(LDOPTS))"'
