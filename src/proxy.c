@@ -350,6 +350,7 @@ void free_proxy(struct proxy *p)
 
 	free(p->desc);
 	istfree(&p->fwdfor_hdr_name);
+	istfree(&p->orgto_hdr_name);
 
 	task_destroy(p->task);
 
