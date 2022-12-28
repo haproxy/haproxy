@@ -266,6 +266,10 @@ struct error_snapshot {
 	char buf[VAR_ARRAY];                    /* copy of the beginning of the message for bufsize bytes */
 };
 
+/* http options */
+struct proxy_http {
+};
+
 struct proxy {
 	enum obj_type obj_type;                 /* object type == OBJ_TYPE_PROXY */
 	char flags;                             /* bit field PR_FL_* */
@@ -441,6 +445,7 @@ struct proxy {
 		char *elfs_file;
 		int elfs_line;
 	} conf;					/* config information */
+	struct proxy_http http;			/* http only options */
 	struct eb_root used_server_addr;        /* list of server addresses in use */
 	void *parent;				/* parent of the proxy when applicable */
 	struct comp *comp;			/* http compression */
