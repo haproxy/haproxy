@@ -1310,6 +1310,7 @@ int smp_resolve_args(struct proxy *p, char **err)
 		case ARGC_USRV:  where = "in use-server or balance expression in"; break;
 		case ARGC_HERR:  where = "in http-error directive in"; break;
 		case ARGC_OT:    where = "in ot-scope directive in"; break;
+		case ARGC_OPT:   where = "in option directive in"; break;
 		case ARGC_TCO:   where = "in tcp-request connection expression in"; break;
 		case ARGC_TSE:   where = "in tcp-request session expression in"; break;
 		case ARGC_TRQ:   where = "in tcp-request content expression in"; break;

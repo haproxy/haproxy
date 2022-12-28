@@ -83,6 +83,7 @@ enum {
 	ARGC_USRV,     /* use-server message */
 	ARGC_HERR,     /* http-error */
 	ARGC_OT,       /* opentracing scope args */
+	ARGC_OPT,      /* option directive */
 	ARGC_TCO,      /* tcp-request connection expression */
 	ARGC_TSE,      /* tcp-request session expression */
 	ARGC_TRQ,      /* tcp-request content expression */
