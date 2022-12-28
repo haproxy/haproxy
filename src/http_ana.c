@@ -26,6 +26,7 @@
 #include <haproxy/http.h>
 #include <haproxy/http_ana.h>
 #include <haproxy/http_htx.h>
+#include <haproxy/http_ext.h>
 #include <haproxy/htx.h>
 #include <haproxy/log.h>
 #include <haproxy/net_helper.h>
@@ -659,6 +660,12 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 		if (isttest(sess->fe->header_unique_id) &&
 		    unlikely(!http_add_header(htx, sess->fe->header_unique_id, unique_id)))
 				goto return_fail_rewrite;
+	}
+
+	/* add forwarded header (RFC 7239) (ignored for frontends) */
+	if (s->be->options & PR_O_HTTP_7239) {
+		if (unlikely(!http_handle_7239_header(s, req)))
+			goto return_fail_rewrite;
 	}
 
 	/*

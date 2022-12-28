@@ -913,7 +913,7 @@ OBJS += src/mux_h2.o src/mux_fcgi.o src/mux_h1.o src/tcpcheck.o               \
         src/tcp_rules.o src/sink.o src/h1_htx.o src/task.o src/mjson.o        \
         src/h2.o src/filters.o src/server_state.o src/payload.o               \
         src/fcgi-app.o src/map.o src/htx.o src/h1.o src/pool.o                \
-        src/cfgparse-global.o src/trace.o src/tcp_sample.o                    \
+        src/cfgparse-global.o src/trace.o src/tcp_sample.o src/http_ext.o     \
         src/flt_http_comp.o src/mux_pt.o src/flt_trace.o src/mqtt.o           \
         src/acl.o src/sock.o src/mworker.o src/tcp_act.o src/ring.o           \
         src/session.o src/proto_tcp.o src/fd.o src/channel.o src/activity.o   \

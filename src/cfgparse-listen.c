@@ -20,6 +20,7 @@
 #include <haproxy/extcheck.h>
 #include <haproxy/http_ana.h>
 #include <haproxy/http_htx.h>
+#include <haproxy/http_ext.h>
 #include <haproxy/http_rules.h>
 #include <haproxy/listener.h>
 #include <haproxy/log.h>
@@ -61,7 +62,7 @@ static const char *common_options[] = {
 	"redispatch", "httplog", "tcplog", "tcpka", "httpchk",
 	"ssl-hello-chk", "smtpchk", "pgsql-check", "redis-check",
 	"mysql-check", "ldap-check", "spop-check", "tcp-check",
-	"external-check", "forwardfor", "original-to",
+	"external-check", "forwardfor", "original-to", "forwarded",
 	NULL /* must be last */
 };
 
@@ -2030,6 +2031,16 @@ stats_error_parsing:
 				 file, linenum, args[1]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
+		}
+		else if (strcmp(args[1], "forwarded") == 0) {
+			if (kwm == KWM_STD) {
+				err_code |= proxy_http_parse_7239(args, 0, curproxy, curr_defproxy, file, linenum);
+				goto out;
+			}
+			else if (kwm == KWM_NO) {
+				curproxy->options &= ~PR_O_HTTP_7239;
+				goto out;
+			}
 		}
 
 		/* Redispatch can take an integer argument that control when the

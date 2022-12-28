@@ -43,6 +43,7 @@
 #include <haproxy/thread-t.h>
 #include <haproxy/tools-t.h>
 #include <haproxy/uri_auth-t.h>
+#include <haproxy/http_ext-t.h>
 
 /* values for proxy->mode */
 enum pr_mode {
@@ -100,7 +101,7 @@ enum PR_SRV_STATE_FILE {
 #define PR_O_TCP_CLI_KA 0x00040000      /* enable TCP keep-alive on client-side streams */
 #define PR_O_TCP_SRV_KA 0x00080000      /* enable TCP keep-alive on server-side streams */
 #define PR_O_USE_ALL_BK 0x00100000      /* load-balance between backup servers */
-/* unused: 0x00020000 */
+#define PR_O_HTTP_7239  0x00200000      /* insert 7239 forwarded header */
 #define PR_O_TCP_NOLING 0x00400000      /* disable lingering on client and server connections */
 #define PR_O_ABRT_CLOSE 0x00800000      /* immediately abort request when client closes */
 
@@ -268,6 +269,8 @@ struct error_snapshot {
 
 /* http options */
 struct proxy_http {
+	/* forwarded header (RFC 7239) */
+	struct http_ext_7239       fwd;
 };
 
 struct proxy {

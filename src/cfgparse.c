@@ -59,6 +59,7 @@
 #include <haproxy/global.h>
 #include <haproxy/http_ana.h>
 #include <haproxy/http_rules.h>
+#include <haproxy/http_ext.h>
 #include <haproxy/lb_chash.h>
 #include <haproxy/lb_fas.h>
 #include <haproxy/lb_fwlc.h>
@@ -3669,6 +3670,9 @@ out_uri_auth_compat:
 			else
 				curproxy->http_needed |= !!(curproxy->lbprm.expr->fetch->use & SMP_USE_HTTP_ANY);
 		}
+		/* option "forwarded" may need to compile its expressions */
+		if ((curproxy->mode == PR_MODE_HTTP) && curproxy->options & PR_O_HTTP_7239)
+			cfgerr += proxy_http_compile_7239(curproxy);
 
 		/* only now we can check if some args remain unresolved.
 		 * This must be done after the users and groups resolution.
@@ -3962,6 +3966,13 @@ out_uri_auth_compat:
 				ha_warning("'redirect' rules ignored for %s '%s' as they require HTTP mode.\n",
 					   proxy_type_str(curproxy), curproxy->id);
 				err_code |= ERR_WARN;
+			}
+
+			if (curproxy->options & PR_O_HTTP_7239) {
+				ha_warning("'option %s' ignored for %s '%s' as it requires HTTP mode.\n",
+					   "forwarded", proxy_type_str(curproxy), curproxy->id);
+				err_code |= ERR_WARN;
+				curproxy->options &= ~PR_O_HTTP_7239;
 			}
 
 			if (curproxy->options & (PR_O_FWDFOR | PR_O_FF_ALWAYS)) {

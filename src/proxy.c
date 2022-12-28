@@ -31,6 +31,7 @@
 #include <haproxy/global.h>
 #include <haproxy/http_ana.h>
 #include <haproxy/http_htx.h>
+#include <haproxy/http_ext.h>
 #include <haproxy/listener.h>
 #include <haproxy/log.h>
 #include <haproxy/obj_type-t.h>
@@ -353,6 +354,7 @@ void free_proxy(struct proxy *p)
 	free(p->desc);
 	istfree(&p->fwdfor_hdr_name);
 	istfree(&p->orgto_hdr_name);
+	http_ext_7239_clean(&p->http.fwd);
 
 	task_destroy(p->task);
 
@@ -1467,6 +1469,8 @@ void proxy_free_defaults(struct proxy *defproxy)
 	istfree(&defproxy->orgto_hdr_name);
 	istfree(&defproxy->server_id_hdr_name);
 
+	http_ext_7239_clean(&defproxy->http.fwd);
+
 	list_for_each_entry_safe(acl, aclb, &defproxy->acl, list) {
 		LIST_DELETE(&acl->list);
 		prune_acl(acl);
@@ -1696,6 +1700,9 @@ static int proxy_defproxy_cpy(struct proxy *curproxy, const struct proxy *defpro
 		}
 
 		curproxy->ck_opts = defproxy->ck_opts;
+		if (defproxy->options & PR_O_HTTP_7239)
+			http_ext_7239_copy(&curproxy->http.fwd, &defproxy->http.fwd);
+
 		if (defproxy->cookie_name)
 			curproxy->cookie_name = strdup(defproxy->cookie_name);
 		curproxy->cookie_len = defproxy->cookie_len;

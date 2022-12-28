@@ -4202,6 +4202,7 @@ option dontlog-normal                (*)  X          X         X         -
 option dontlognull                   (*)  X          X         X         -
 -- keyword -------------------------- defaults - frontend - listen -- backend -
 option forwardfor                         X          X         X         X
+option forwarded                     (*)  X          -         X         X
 option h1-case-adjust-bogus-client   (*)  X          X         X         -
 option h1-case-adjust-bogus-server   (*)  X          -         X         X
 option http-buffer-request           (*)  X          X         X         X
@@ -9059,6 +9060,140 @@ no option dontlognull
   See also : "log", "http-ignore-probes", "monitor-uri", and
              section 8 about logging.
 
+option forwarded [ proto ]
+                 [ host | host-expr <host_expr> ]
+                 [ by | by-expr <by_expr> ] [ by_port | by_port-expr <by_port_expr>]
+                 [ for | for-expr <for_expr> ] [ for_port | for_port-expr <for_port_expr>]
+no option forwarded
+  Enable insertion of the rfc 7239 forwarded header in requests sent to servers
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    no    |   yes  |   yes
+  Arguments :
+    <host_expr>     optional argument to specify a custom sample expression
+                    those result will be used as 'host' parameter value
+
+    <by_expr>       optional argument to specicy a custom sample expression
+                    those result will be used as 'by' parameter nodename value
+
+    <for_expr>      optional argument to specicy a custom sample expression
+                    those result will be used as 'for' parameter nodename value
+
+    <by_port_expr>  optional argument to specicy a custom sample expression
+                    those result will be used as 'by' parameter nodeport value
+
+    <for_port_expr> optional argument to specicy a custom sample expression
+                    those result will be used as 'for' parameter nodeport value
+
+
+  Since HAProxy works in reverse-proxy mode, servers are loosing some request
+  context (request origin: client ip address, protocol used...)
+
+  A common way to address this limitation is to use the well known
+  x-forward-for and x-forward-* friends to expose some of this context to the
+  underlying servers/applications.
+  While this use to work and is widely deployed, it is not officially supported
+  by the IETF and can be the root of some interoperability as well as security
+  issues.
+
+  To solve this, a new HTTP extension has been described by the IETF:
+  forwarded header (RFC7239).
+  More information here: https://www.rfc-editor.org/rfc/rfc7239.html
+
+  The use of this single header allow to convey multiple informations
+  within the same header, and most importantly, fixes the proxy chaining
+  issue. (the rfc allows for multiple chained proxies to append their own
+  values to an already existing header).
+
+  This option may be specified in defaults, listen or backend section, but it
+  will be ignored for frontend sections.
+
+  Setting option forwarded without arguments results in using default implicit
+  behavior.
+  Default behavior enables proto parameter and injects original client ip.
+
+  The equivalent explicit/manual configuration would be:
+	option forwarded proto for
+
+  The keyword 'by' is used to enable 'by' parameter ("nodename") in
+  forwarded header. It allows to embed request proxy information.
+  'by' value will be set to proxy ip (destination address)
+  If not available (ie: UNIX listener), 'by' will be set to
+  "unknown".
+
+  The keyword 'by-expr' is used to enable 'by' parameter ("nodename") in
+  forwarded header. It allows to embed request proxy information.
+  'by' value will be set to the result of the sample expression
+  <by_expr>, if valid, otherwise it will be set to "unknown".
+
+  The keyword 'for' is used to enable 'for' parameter ("nodename") in
+  forwarded header. It allows to embed request client information.
+  'for' value will be set to client ip (source address)
+  If not available (ie: UNIX listener), 'for' will be set to
+  "unknown".
+
+  The keyword 'for-expr' is used to enable 'for' parameter ("nodename") in
+  forwarded header. It allows to embed request client information.
+  'for' value will be set to the result of the sample expression
+  <for_expr>, if valid, otherwise it will be set to "unknown".
+
+  The keyword 'by_port' is used to provide "nodeport" info to
+  'by' parameter. 'by_port' requires 'by' or 'by-expr' to be set or
+  it will be ignored.
+  "nodeport" will be set to proxy (destination) port if available,
+  otherwise it will be ignored.
+
+  The keyword 'by_port-expr' is used to provide "nodeport" info to
+  'by' parameter. 'by_port-expr' requires 'by' or 'by-expr' to be set or
+  it will be ignored.
+  "nodeport" will be set to the result of the sample expression
+  <by_port_expr>, if valid, otherwise it will be ignored.
+
+  The keyword 'for_port' is used to provide "nodeport" info to
+  'for' parameter. 'for_port' requires 'for' or 'for-expr' to be set or
+  it will be ignored.
+  "nodeport" will be set to client (source) port if available,
+  otherwise it will be ignored.
+
+  The keyword 'for_port-expr' is used to provide "nodeport" info to
+  'for' parameter. 'for_port-expr' requires 'for' or 'for-expr' to be set or
+  it will be ignored.
+  "nodeport" will be set to the result of the sample expression
+  <for_port_expr>, if valid, otherwise it will be ignored.
+
+  Examples :
+    # Those servers want the ip address and protocol of the client request
+    # Resulting header would look like this:
+    #   forwarded: proto=http;for=127.0.0.1
+    backend www_default
+        mode http
+        option forwarded
+        #equivalent to: option forwarded proto for
+
+    # Those servers want the requested host and hashed client ip address
+    # as well as client source port (you should use seed for xxh32 if ensuring
+    # ip privacy is a concern)
+    # Resulting header would look like this:
+    #   forwarded: host="haproxy.org";for="_000000007F2F367E:60138"
+    backend www_host
+        mode http
+        option forwarded host for-expr src,xxh32,hex for_port
+
+    # Those servers want custom data in host, for and by parameters
+    # Resulting header would look like this:
+    #   forwarded: host="host.com";by=_haproxy;for="[::1]:10"
+    backend www_custom
+        mode http
+        option forwarded host-expr str(host.com) by-expr str(_haproxy) for for_port-expr int(10)
+
+    # Those servers want random 'for' obfuscated identifiers for request
+    # tracing purposes while protecting sensitive IP information
+    # Resulting header would look like this:
+    #   forwarded: for=_000000002B1F4D63
+    backend www_for_hide
+        mode http
+        option forwarded for-expr rand,hex
+
+  See also : "option forwardfor", "option originalto"
 
 option forwardfor [ except <network> ] [ header <name> ] [ if-none ]
   Enable insertion of the X-Forwarded-For header to requests sent to servers
