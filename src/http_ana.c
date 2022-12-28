@@ -669,60 +669,12 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 	}
 
 	/*
-	 * 9: add X-Forwarded-For if either the frontend or the backend
+	 * add X-Forwarded-For if either the frontend or the backend
 	 * asks for it.
 	 */
-	if ((sess->fe->options | s->be->options) & PR_O_FWDFOR) {
-		const struct sockaddr_storage *src = sc_src(s->scf);
-		struct http_hdr_ctx ctx = { .blk = NULL };
-		struct ist hdr = isttest(s->be->fwdfor_hdr_name) ? s->be->fwdfor_hdr_name : sess->fe->fwdfor_hdr_name;
-
-		if (!((sess->fe->options | s->be->options) & PR_O_FF_ALWAYS) &&
-		    http_find_header(htx, hdr, &ctx, 0)) {
-			/* The header is set to be added only if none is present
-			 * and we found it, so don't do anything.
-			 */
-		}
-		else if (src && src->ss_family == AF_INET) {
-			/* Add an X-Forwarded-For header unless the source IP is
-			 * in the 'except' network range.
-			 */
-			if (ipcmp2net(src, &sess->fe->except_xff_net) &&
-			    ipcmp2net(src, &s->be->except_xff_net)) {
-				unsigned char *pn = (unsigned char *)&((struct sockaddr_in *)src)->sin_addr;
-
-				/* Note: we rely on the backend to get the header name to be used for
-				 * x-forwarded-for, because the header is really meant for the backends.
-				 * However, if the backend did not specify any option, we have to rely
-				 * on the frontend's header name.
-				 */
-				chunk_printf(&trash, "%d.%d.%d.%d", pn[0], pn[1], pn[2], pn[3]);
-				if (unlikely(!http_add_header(htx, hdr, ist2(trash.area, trash.data))))
-					goto return_fail_rewrite;
-			}
-		}
-		else if (src && src->ss_family == AF_INET6) {
-			/* Add an X-Forwarded-For header unless the source IP is
-			 * in the 'except' network range.
-			 */
-			if (ipcmp2net(src, &sess->fe->except_xff_net) &&
-			    ipcmp2net(src, &s->be->except_xff_net)) {
-				char pn[INET6_ADDRSTRLEN];
-
-				inet_ntop(AF_INET6,
-					  (const void *)&((struct sockaddr_in6 *)(src))->sin6_addr,
-					  pn, sizeof(pn));
-
-				/* Note: we rely on the backend to get the header name to be used for
-				 * x-forwarded-for, because the header is really meant for the backends.
-				 * However, if the backend did not specify any option, we have to rely
-				 * on the frontend's header name.
-				 */
-				chunk_printf(&trash, "%s", pn);
-				if (unlikely(!http_add_header(htx, hdr, ist2(trash.area, trash.data))))
-					goto return_fail_rewrite;
-			}
-		}
+	if ((sess->fe->options | s->be->options) & PR_O_HTTP_XFF) {
+		if (unlikely(!http_handle_xff_header(s, req)))
+			goto return_fail_rewrite;
 	}
 
 	/*

@@ -88,12 +88,12 @@ enum PR_SRV_STATE_FILE {
 #define PR_O_PREF_LAST  0x00000020      /* prefer last server */
 #define PR_O_DISPATCH   0x00000040      /* use dispatch mode */
 #define PR_O_FORCED_ID  0x00000080      /* proxy's ID was forced in the configuration */
-#define PR_O_FWDFOR     0x00000100      /* conditionally insert x-forwarded-for with client address */
+#define PR_O_HTTP_XFF   0x00000100      /* conditionally insert x-forwarded-for with client address */
 #define PR_O_IGNORE_PRB 0x00000200      /* ignore empty requests (aborts and timeouts) */
 #define PR_O_NULLNOLOG  0x00000400      /* a connect without request will not be logged */
 #define PR_O_WREQ_BODY  0x00000800      /* always wait for the HTTP request body */
 #define PR_O_HTTP_UPG   0x00001000      /* Contain a "switch-mode http" tcp-request rule */
-#define PR_O_FF_ALWAYS  0x00002000      /* always set x-forwarded-for */
+/* unused: 0x00002000 */
 #define PR_O_PERSIST    0x00004000      /* server persistence stays effective even when server is down */
 #define PR_O_LOGASAP    0x00008000      /* log as soon as possible, without waiting for the stream to complete */
 #define PR_O_ERR_LOGFMT 0x00010000      /* use log-format for connection error message */
@@ -271,6 +271,8 @@ struct error_snapshot {
 struct proxy_http {
 	/* forwarded header (RFC 7239) */
 	struct http_ext_7239       fwd;
+	/* x-forward-for */
+	struct http_ext_xff        xff;
 };
 
 struct proxy {
@@ -364,9 +366,7 @@ struct proxy {
 	unsigned int fe_sps_lim;		/* limit on new sessions per second on the frontend */
 	unsigned int fullconn;			/* #conns on backend above which servers are used at full load */
 	unsigned int tot_fe_maxconn;		/* #maxconn of frontends linked to that backend, it is used to compute fullconn */
-	struct net_addr except_xff_net;         /* don't x-forward-for for this address. */
 	struct net_addr except_xot_net;         /* don't x-original-to for this address. */
-	struct ist fwdfor_hdr_name;			/* header to use - default: "x-forwarded-for" */
 	struct ist orgto_hdr_name;			/* header to use - default: "x-original-to" */
 	struct ist server_id_hdr_name;                   /* the header to use to send the server id (name) */
 	int conn_retries;			/* maximum number of connect retries */

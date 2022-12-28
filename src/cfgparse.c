@@ -3975,11 +3975,11 @@ out_uri_auth_compat:
 				curproxy->options &= ~PR_O_HTTP_7239;
 			}
 
-			if (curproxy->options & (PR_O_FWDFOR | PR_O_FF_ALWAYS)) {
+			if (curproxy->options & PR_O_HTTP_XFF) {
 				ha_warning("'option %s' ignored for %s '%s' as it requires HTTP mode.\n",
 					   "forwardfor", proxy_type_str(curproxy), curproxy->id);
 				err_code |= ERR_WARN;
-				curproxy->options &= ~(PR_O_FWDFOR | PR_O_FF_ALWAYS);
+				curproxy->options &= ~PR_O_HTTP_XFF;
 			}
 
 			if (curproxy->options & PR_O_ORGTO) {

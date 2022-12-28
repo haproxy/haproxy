@@ -110,4 +110,14 @@ enum forwarded_header_field {
 	FORWARDED_HEADER_ALL	= FORWARDED_HEADER_FOR|FORWARDED_HEADER_BY|FORWARDED_HEADER_HOST|FORWARDED_HEADER_PROTO
 };
 
+enum http_ext_xff_mode {
+	HTTP_XFF_IFNONE = 0, /* set if not already set */
+	HTTP_XFF_ALWAYS = 1 /* always set x-forwarded-for */
+};
+struct http_ext_xff {
+	struct ist      hdr_name;   /* header to use - default: "x-forwarded-for" */
+	struct net_addr except_net; /* don't forward x-forward-for for this address. */
+	uint8_t         mode;
+};
+
 #endif /* !_HAPROXY_HTTPEXT_T_H */
