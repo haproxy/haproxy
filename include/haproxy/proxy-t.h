@@ -115,7 +115,7 @@ enum PR_SRV_STATE_FILE {
 #define PR_O_CONTSTATS	0x10000000	/* continuous counters */
 /* unused: 0x20000000 */
 #define PR_O_DISABLE404 0x40000000      /* Disable a server on a 404 response to a health-check */
-#define PR_O_ORGTO      0x80000000      /* insert x-original-to with destination address */
+#define PR_O_HTTP_XOT   0x80000000      /* insert x-original-to with destination address */
 
 /* bits for proxy->options2 */
 #define PR_O2_SPLIC_REQ	0x00000001      /* transfer requests using linux kernel's splice() */
@@ -273,6 +273,8 @@ struct proxy_http {
 	struct http_ext_7239       fwd;
 	/* x-forward-for */
 	struct http_ext_xff        xff;
+	/* x-original-to */
+	struct http_ext_xot        xot;
 };
 
 struct proxy {
@@ -366,8 +368,6 @@ struct proxy {
 	unsigned int fe_sps_lim;		/* limit on new sessions per second on the frontend */
 	unsigned int fullconn;			/* #conns on backend above which servers are used at full load */
 	unsigned int tot_fe_maxconn;		/* #maxconn of frontends linked to that backend, it is used to compute fullconn */
-	struct net_addr except_xot_net;         /* don't x-original-to for this address. */
-	struct ist orgto_hdr_name;			/* header to use - default: "x-original-to" */
 	struct ist server_id_hdr_name;                   /* the header to use to send the server id (name) */
 	int conn_retries;			/* maximum number of connect retries */
 	unsigned int retry_type;                /* Type of retry allowed */

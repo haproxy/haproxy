@@ -3982,11 +3982,11 @@ out_uri_auth_compat:
 				curproxy->options &= ~PR_O_HTTP_XFF;
 			}
 
-			if (curproxy->options & PR_O_ORGTO) {
+			if (curproxy->options & PR_O_HTTP_XOT) {
 				ha_warning("'option %s' ignored for %s '%s' as it requires HTTP mode.\n",
 					   "originalto", proxy_type_str(curproxy), curproxy->id);
 				err_code |= ERR_WARN;
-				curproxy->options &= ~PR_O_ORGTO;
+				curproxy->options &= ~PR_O_HTTP_XOT;
 			}
 
 			for (optnum = 0; cfg_opts[optnum].name; optnum++) {

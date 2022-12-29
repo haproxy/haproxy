@@ -828,6 +828,67 @@ int http_handle_xff_header(struct stream *s, struct channel *req)
 	return 1;
 }
 
+/* This function will try to inject x-original-to header if
+ * configured on the frontend or the backend (or both)
+ * Returns 1 for success and 0 for failure
+ */
+int http_handle_xot_header(struct stream *s, struct channel *req)
+{
+	struct session *sess = s->sess;
+	struct htx *htx = htxbuf(&req->buf);
+	const struct sockaddr_storage *dst = sc_dst(s->scf);
+	struct http_ext_xot *f_xot = ((sess->fe->options & PR_O_HTTP_XOT) ? &sess->fe->http.xot : NULL);
+	struct http_ext_xot *b_xot = ((s->be->options & PR_O_HTTP_XOT) ? &s->be->http.xot : NULL);
+	struct ist hdr;
+
+	/* xot is expected to be enabled on be, or fe, or both */
+	BUG_ON(!f_xot && !b_xot);
+
+	hdr = ((b_xot) ? b_xot->hdr_name : f_xot->hdr_name);
+
+	if (dst && dst->ss_family == AF_INET) {
+		/* Add an X-Original-To header unless the destination IP is
+		 * in the 'except' network range.
+		 */
+		if ((!f_xot || ipcmp2net(dst, &f_xot->except_net)) &&
+		    (!b_xot || ipcmp2net(dst, &b_xot->except_net))) {
+			unsigned char *pn = (unsigned char *)&((struct sockaddr_in *)dst)->sin_addr;
+
+			/* Note: we rely on the backend to get the header name to be used for
+			 * x-original-to, because the header is really meant for the backends.
+			 * However, if the backend did not specify any option, we have to rely
+			 * on the frontend's header name.
+			 */
+			chunk_printf(&trash, "%d.%d.%d.%d", pn[0], pn[1], pn[2], pn[3]);
+			if (unlikely(!http_add_header(htx, hdr, ist2(trash.area, trash.data))))
+				return 0;
+		}
+	}
+	else if (dst && dst->ss_family == AF_INET6) {
+		/* Add an X-Original-To header unless the source IP is
+		 * in the 'except' network range.
+		 */
+		if ((!f_xot || ipcmp2net(dst, &f_xot->except_net)) &&
+		    (!b_xot || ipcmp2net(dst, &b_xot->except_net))) {
+			char pn[INET6_ADDRSTRLEN];
+
+			inet_ntop(AF_INET6,
+				  (const void *)&((struct sockaddr_in6 *)dst)->sin6_addr,
+				  pn, sizeof(pn));
+
+			/* Note: we rely on the backend to get the header name to be used for
+			 * x-forwarded-for, because the header is really meant for the backends.
+			 * However, if the backend did not specify any option, we have to rely
+			 * on the frontend's header name.
+			 */
+			chunk_printf(&trash, "%s", pn);
+			if (unlikely(!http_add_header(htx, hdr, ist2(trash.area, trash.data))))
+				return 0;
+		}
+	}
+	return 1;
+}
+
 /*
  * =========== CONFIG ===========
  * below are helpers to parse http ext options from the config
@@ -1150,6 +1211,78 @@ int proxy_http_parse_xff(char **args, int cur_arg,
 	return err_code;
 }
 
+/* x-original-to */
+int proxy_http_parse_xot(char **args, int cur_arg,
+                         struct proxy *curproxy, const struct proxy *defpx,
+                         const char *file, int linenum)
+{
+	int err_code = 0;
+
+	/* insert x-original-to field, but not for the IP address listed as an except.
+	 * set default options (ie: bitfield, header name, etc)
+	 */
+
+	curproxy->options |= PR_O_HTTP_XOT;
+
+	istfree(&curproxy->http.xot.hdr_name);
+	curproxy->http.xot.hdr_name = istdup(ist(DEF_XORIGINALTO_HDR));
+	if (!isttest(curproxy->http.xot.hdr_name))
+		return proxy_http_parse_oom(file, linenum);
+	curproxy->http.xot.except_net.family = AF_UNSPEC;
+
+	/* loop to go through arguments - start at 2, since 0+1 = "option" "originalto" */
+	cur_arg = 2;
+	while (*(args[cur_arg])) {
+		if (strcmp(args[cur_arg], "except") == 0) {
+			unsigned char mask;
+			int i;
+
+			/* suboption except - needs additional argument for it */
+			if (*(args[cur_arg+1]) &&
+			    str2net(args[cur_arg+1], 1, &curproxy->http.xot.except_net.addr.v4.ip, &curproxy->http.xot.except_net.addr.v4.mask)) {
+				curproxy->http.xot.except_net.family = AF_INET;
+				curproxy->http.xot.except_net.addr.v4.ip.s_addr &= curproxy->http.xot.except_net.addr.v4.mask.s_addr;
+			}
+			else if (*(args[cur_arg+1]) &&
+				 str62net(args[cur_arg+1], &curproxy->http.xot.except_net.addr.v6.ip, &mask)) {
+				curproxy->http.xot.except_net.family = AF_INET6;
+				len2mask6(mask, &curproxy->http.xot.except_net.addr.v6.mask);
+				for (i = 0; i < 16; i++)
+					curproxy->http.xot.except_net.addr.v6.ip.s6_addr[i] &= curproxy->http.xot.except_net.addr.v6.mask.s6_addr[i];
+			}
+			else {
+				ha_alert("parsing [%s:%d] : '%s %s %s' expects <address>[/mask] as argument.\n",
+					 file, linenum, args[0], args[1], args[cur_arg]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+			cur_arg += 2;
+		} else if (strcmp(args[cur_arg], "header") == 0) {
+			/* suboption header - needs additional argument for it */
+			if (*(args[cur_arg+1]) == 0) {
+				ha_alert("parsing [%s:%d] : '%s %s %s' expects <header_name> as argument.\n",
+					 file, linenum, args[0], args[1], args[cur_arg]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+			istfree(&curproxy->http.xot.hdr_name);
+			curproxy->http.xot.hdr_name = istdup(ist(args[cur_arg+1]));
+			if (!isttest(curproxy->http.xot.hdr_name))
+				return proxy_http_parse_oom(file, linenum);
+			cur_arg += 2;
+		} else {
+			/* unknown suboption - catchall */
+			ha_alert("parsing [%s:%d] : '%s %s' only supports optional values: 'except' and 'header'.\n",
+				 file, linenum, args[0], args[1]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+	} /* end while loop */
+
+ out:
+	return err_code;
+}
+
 /*
  * =========== MGMT ===========
  * below are helpers to manage http ext options
@@ -1177,6 +1310,11 @@ void http_ext_7239_clean(struct http_ext_7239 *clean)
 }
 
 void http_ext_xff_clean(struct http_ext_xff *clean)
+{
+	istfree(&clean->hdr_name);
+}
+
+void http_ext_xot_clean(struct http_ext_xot *clean)
 {
 	istfree(&clean->hdr_name);
 }
@@ -1215,5 +1353,12 @@ void http_ext_xff_copy(struct http_ext_xff *dest, const struct http_ext_xff *ori
 	if (isttest(orig->hdr_name))
 		dest->hdr_name = istdup(orig->hdr_name);
 	dest->mode = orig->mode;
+	dest->except_net = orig->except_net;
+}
+
+void http_ext_xot_copy(struct http_ext_xot *dest, const struct http_ext_xot *orig)
+{
+	if (isttest(orig->hdr_name))
+		dest->hdr_name = istdup(orig->hdr_name);
 	dest->except_net = orig->except_net;
 }

@@ -678,53 +678,12 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 	}
 
 	/*
-	 * 10: add X-Original-To if either the frontend or the backend
+	 * add X-Original-To if either the frontend or the backend
 	 * asks for it.
 	 */
-	if ((sess->fe->options | s->be->options) & PR_O_ORGTO) {
-		const struct sockaddr_storage *dst = sc_dst(s->scf);
-		struct ist hdr = isttest(s->be->orgto_hdr_name) ? s->be->orgto_hdr_name : sess->fe->orgto_hdr_name;
-
-		if (dst && dst->ss_family == AF_INET) {
-			/* Add an X-Original-To header unless the destination IP is
-			 * in the 'except' network range.
-			 */
-			if (ipcmp2net(dst, &sess->fe->except_xot_net) &&
-			    ipcmp2net(dst, &s->be->except_xot_net)) {
-				unsigned char *pn = (unsigned char *)&((struct sockaddr_in *)dst)->sin_addr;
-
-				/* Note: we rely on the backend to get the header name to be used for
-				 * x-original-to, because the header is really meant for the backends.
-				 * However, if the backend did not specify any option, we have to rely
-				 * on the frontend's header name.
-				 */
-				chunk_printf(&trash, "%d.%d.%d.%d", pn[0], pn[1], pn[2], pn[3]);
-				if (unlikely(!http_add_header(htx, hdr, ist2(trash.area, trash.data))))
-					goto return_fail_rewrite;
-			}
-		}
-		else if (dst && dst->ss_family == AF_INET6) {
-			/* Add an X-Original-To header unless the source IP is
-			 * in the 'except' network range.
-			 */
-			if (ipcmp2net(dst, &sess->fe->except_xot_net) &&
-			    ipcmp2net(dst, &s->be->except_xot_net)) {
-				char pn[INET6_ADDRSTRLEN];
-
-				inet_ntop(AF_INET6,
-					  (const void *)&((struct sockaddr_in6 *)dst)->sin6_addr,
-					  pn, sizeof(pn));
-
-				/* Note: we rely on the backend to get the header name to be used for
-				 * x-forwarded-for, because the header is really meant for the backends.
-				 * However, if the backend did not specify any option, we have to rely
-				 * on the frontend's header name.
-				 */
-				chunk_printf(&trash, "%s", pn);
-				if (unlikely(!http_add_header(htx, hdr, ist2(trash.area, trash.data))))
-					goto return_fail_rewrite;
-			}
-		}
+	if ((sess->fe->options | s->be->options) & PR_O_HTTP_XOT) {
+		if (unlikely(!http_handle_xot_header(s, req)))
+			goto return_fail_rewrite;
 	}
 
 	/* Filter the request headers if there are filters attached to the

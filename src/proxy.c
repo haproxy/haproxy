@@ -352,9 +352,9 @@ void free_proxy(struct proxy *p)
 		pxdf->fct(p);
 
 	free(p->desc);
-	istfree(&p->orgto_hdr_name);
 	http_ext_7239_clean(&p->http.fwd);
 	http_ext_xff_clean(&p->http.xff);
+	http_ext_xot_clean(&p->http.xot);
 
 	task_destroy(p->task);
 
@@ -1465,11 +1465,11 @@ void proxy_free_defaults(struct proxy *defproxy)
 	istfree(&defproxy->monitor_uri);
 	ha_free(&defproxy->defbe.name);
 	ha_free(&defproxy->conn_src.iface_name);
-	istfree(&defproxy->orgto_hdr_name);
 	istfree(&defproxy->server_id_hdr_name);
 
 	http_ext_7239_clean(&defproxy->http.fwd);
 	http_ext_xff_clean(&defproxy->http.xff);
+	http_ext_xot_clean(&defproxy->http.xot);
 
 	list_for_each_entry_safe(acl, aclb, &defproxy->acl, list) {
 		LIST_DELETE(&acl->list);
@@ -1646,16 +1646,14 @@ static int proxy_defproxy_cpy(struct proxy *curproxy, const struct proxy *defpro
 	curproxy->options2 = defproxy->options2;
 	curproxy->no_options = defproxy->no_options;
 	curproxy->no_options2 = defproxy->no_options2;
-	curproxy->except_xot_net = defproxy->except_xot_net;
 	curproxy->retry_type = defproxy->retry_type;
 	curproxy->tcp_req.inspect_delay = defproxy->tcp_req.inspect_delay;
 	curproxy->tcp_rep.inspect_delay = defproxy->tcp_rep.inspect_delay;
 
 	if (defproxy->options & PR_O_HTTP_XFF)
 		http_ext_xff_copy(&curproxy->http.xff, &defproxy->http.xff);
-
-	if (isttest(defproxy->orgto_hdr_name))
-		curproxy->orgto_hdr_name = istdup(defproxy->orgto_hdr_name);
+	if (defproxy->options & PR_O_HTTP_XOT)
+		http_ext_xot_copy(&curproxy->http.xot, &defproxy->http.xot);
 
 	if (isttest(defproxy->server_id_hdr_name))
 		curproxy->server_id_hdr_name = istdup(defproxy->server_id_hdr_name);

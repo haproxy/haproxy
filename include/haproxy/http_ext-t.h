@@ -120,4 +120,9 @@ struct http_ext_xff {
 	uint8_t         mode;
 };
 
+struct http_ext_xot {
+	struct ist      hdr_name;   /* header to use - default: "x-original-to" */
+	struct net_addr except_net; /* don't forward x-original-to for this address. */
+};
+
 #endif /* !_HAPROXY_HTTPEXT_T_H */
