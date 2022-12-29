@@ -21,6 +21,8 @@
 #include <haproxy/sc_strm.h>
 #include <haproxy/obj_type.h>
 #include <haproxy/cfgparse.h>
+#include <haproxy/arg.h>
+#include <haproxy/initcall.h>
 #include <haproxy/tools.h>
 
 /* check if char is a valid obfuscated identifier char
@@ -1362,3 +1364,15 @@ void http_ext_xot_copy(struct http_ext_xot *dest, const struct http_ext_xot *ori
 		dest->hdr_name = istdup(orig->hdr_name);
 	dest->except_net = orig->except_net;
 }
+
+/*
+ * =========== CONV ===========
+ * related converters
+ */
+
+/* Note: must not be declared <const> as its list will be overwritten */
+static struct sample_conv_kw_list sample_conv_kws = {ILH, {
+	{ NULL, NULL, 0, 0, 0 },
+}};
+
+INITCALL1(STG_REGISTER, sample_register_convs, &sample_conv_kws);
