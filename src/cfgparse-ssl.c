@@ -1016,6 +1016,11 @@ static int ssl_bind_parse_npn(char **args, int cur_arg, struct proxy *px, struct
 	 */
 	conf->npn_len = strlen(args[cur_arg + 1]) + 1;
 	conf->npn_str = calloc(1, conf->npn_len + 1);
+	if (!conf->npn_str) {
+		memprintf(err, "out of memory");
+		return ERR_ALERT | ERR_FATAL;
+	}
+
 	memcpy(conf->npn_str + 1, args[cur_arg + 1], conf->npn_len);
 
 	/* replace commas with the name length */
