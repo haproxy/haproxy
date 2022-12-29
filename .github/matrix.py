@@ -8,6 +8,7 @@
 # as published by the Free Software Foundation; either version
 # 2 of the License, or (at your option) any later version.
 
+import functools
 import json
 import sys
 import urllib.request
@@ -25,6 +26,7 @@ print("Generating matrix for branch '{}'.".format(ref_name))
 def clean_ssl(ssl):
     return ssl.replace("_VERSION", "").lower()
 
+@functools.lru_cache(5)
 def determine_latest_openssl(ssl):
     headers = {'Authorization': 'token ' + environ.get('GITHUB_API_TOKEN')} if environ.get('GITHUB_API_TOKEN') else {}
     request = urllib.request.Request('https://api.github.com/repos/openssl/openssl/tags', headers=headers)
@@ -38,6 +40,7 @@ def determine_latest_openssl(ssl):
                latest_tag = name
     return "OPENSSL_VERSION={}".format(latest_tag[8:])
 
+@functools.lru_cache(5)
 def determine_latest_libressl(ssl):
     libressl_download_list = urllib.request.urlopen("http://ftp.openbsd.org/pub/OpenBSD/LibreSSL/")
     for line in libressl_download_list.readlines():
