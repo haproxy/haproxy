@@ -10,9 +10,9 @@
 
 import functools
 import json
+import re
 import sys
 import urllib.request
-import re
 from os import environ
 
 if len(sys.argv) == 2:
@@ -23,34 +23,42 @@ else:
 
 print("Generating matrix for branch '{}'.".format(ref_name))
 
+
 def clean_ssl(ssl):
     return ssl.replace("_VERSION", "").lower()
+
 
 @functools.lru_cache(5)
 def determine_latest_openssl(ssl):
     headers = {}
-    if environ.get('GITHUB_TOKEN') is not None:
-        headers["Authorization"] = "token {}".format(environ.get('GITHUB_TOKEN'))
+    if environ.get("GITHUB_TOKEN") is not None:
+        headers["Authorization"] = "token {}".format(environ.get("GITHUB_TOKEN"))
 
-    request = urllib.request.Request('https://api.github.com/repos/openssl/openssl/tags', headers=headers)
+    request = urllib.request.Request(
+        "https://api.github.com/repos/openssl/openssl/tags", headers=headers
+    )
     openssl_tags = urllib.request.urlopen(request)
-    tags = json.loads(openssl_tags.read().decode('utf-8'))
-    latest_tag = ''
+    tags = json.loads(openssl_tags.read().decode("utf-8"))
+    latest_tag = ""
     for tag in tags:
-        name = tag['name']
+        name = tag["name"]
         if "openssl-" in name:
             if name > latest_tag:
-               latest_tag = name
+                latest_tag = name
     return "OPENSSL_VERSION={}".format(latest_tag[8:])
+
 
 @functools.lru_cache(5)
 def determine_latest_libressl(ssl):
-    libressl_download_list = urllib.request.urlopen("http://ftp.openbsd.org/pub/OpenBSD/LibreSSL/")
+    libressl_download_list = urllib.request.urlopen(
+        "http://ftp.openbsd.org/pub/OpenBSD/LibreSSL/"
+    )
     for line in libressl_download_list.readlines():
         decoded_line = line.decode("utf-8")
         if "libressl-" in decoded_line and ".tar.gz.asc" in decoded_line:
-             l = re.split("libressl-|.tar.gz.asc", decoded_line)[1]
+            l = re.split("libressl-|.tar.gz.asc", decoded_line)[1]
     return "LIBRESSL_VERSION={}".format(l)
+
 
 def clean_compression(compression):
     return compression.replace("USE_", "").lower()
@@ -115,7 +123,7 @@ for CC in ["gcc", "clang"]:
         }
     )
 
-# ASAN
+    # ASAN
 
     matrix.append(
         {
@@ -150,9 +158,7 @@ for CC in ["gcc", "clang"]:
     for compression in ["USE_ZLIB=1"]:
         matrix.append(
             {
-                "name": "{}, {}, gz={}".format(
-                    os, CC, clean_compression(compression)
-                ),
+                "name": "{}, {}, gz={}".format(os, CC, clean_compression(compression)),
                 "os": os,
                 "TARGET": TARGET,
                 "CC": CC,
@@ -165,7 +171,7 @@ for CC in ["gcc", "clang"]:
         "OPENSSL_VERSION=1.0.2u",
         "OPENSSL_VERSION=1.1.1s",
         "QUICTLS=yes",
-#        "BORINGSSL=yes",
+        # "BORINGSSL=yes",
     ]
 
     if "haproxy-" not in ref_name:
@@ -220,6 +226,6 @@ for CC in ["clang"]:
 
 print(json.dumps(matrix, indent=4, sort_keys=True))
 
-if environ.get('GITHUB_OUTPUT') is not None:
-    with open(environ.get('GITHUB_OUTPUT'), 'a') as f:
+if environ.get("GITHUB_OUTPUT") is not None:
+    with open(environ.get("GITHUB_OUTPUT"), "a") as f:
         print("matrix={}".format(json.dumps({"include": matrix})), file=f)
