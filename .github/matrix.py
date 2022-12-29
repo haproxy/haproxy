@@ -29,8 +29,8 @@ def clean_ssl(ssl):
 @functools.lru_cache(5)
 def determine_latest_openssl(ssl):
     headers = {}
-    if environ.get('GITHUB_API_TOKEN'):
-        headers["Authorization"] = "token {}".format(environ.get('GITHUB_API_TOKEN'))
+    if environ.get('GITHUB_TOKEN'):
+        headers["Authorization"] = "token {}".format(environ.get('GITHUB_TOKEN'))
 
     request = urllib.request.Request('https://api.github.com/repos/openssl/openssl/tags', headers=headers)
     openssl_tags = urllib.request.urlopen(request)
