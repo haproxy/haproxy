@@ -28,7 +28,10 @@ def clean_ssl(ssl):
 
 @functools.lru_cache(5)
 def determine_latest_openssl(ssl):
-    headers = {'Authorization': 'token ' + environ.get('GITHUB_API_TOKEN')} if environ.get('GITHUB_API_TOKEN') else {}
+    headers = {}
+    if environ.get('GITHUB_API_TOKEN'):
+        headers["Authorization"] = "token {}".format(environ.get('GITHUB_API_TOKEN'))
+
     request = urllib.request.Request('https://api.github.com/repos/openssl/openssl/tags', headers=headers)
     openssl_tags = urllib.request.urlopen(request)
     tags = json.loads(openssl_tags.read().decode('utf-8'))
@@ -66,7 +69,11 @@ matrix = []
 
 # Ubuntu
 
-os = "ubuntu-latest" if "haproxy-" not in ref_name else "ubuntu-22.04"
+if "haproxy-" in ref_name:
+    os = "ubuntu-22.04"
+else:
+    os = "ubuntu-latest"
+
 TARGET = "linux-glibc"
 for CC in ["gcc", "clang"]:
     matrix.append(
@@ -153,13 +160,21 @@ for CC in ["gcc", "clang"]:
             }
         )
 
-    for ssl in [
+    ssl_versions = [
         "stock",
         "OPENSSL_VERSION=1.0.2u",
         "OPENSSL_VERSION=1.1.1s",
         "QUICTLS=yes",
 #        "BORINGSSL=yes",
-    ] + (["OPENSSL_VERSION=latest", "LIBRESSL_VERSION=latest"] if "haproxy-" not in ref_name else []):
+    ]
+
+    if "haproxy-" not in ref_name:
+        ssl_versions = ssl_versions + [
+            "OPENSSL_VERSION=latest",
+            "LIBRESSL_VERSION=latest",
+        ]
+
+    for ssl in ssl_versions:
         flags = ["USE_OPENSSL=1"]
         if ssl == "BORINGSSL=yes" or ssl == "QUICTLS=yes" or "LIBRESSL" in ssl:
             flags.append("USE_QUIC=1")
@@ -184,7 +199,11 @@ for CC in ["gcc", "clang"]:
 
 # macOS
 
-os = "macos-latest" if "haproxy-" not in ref_name else "macos-12"
+if "haproxy-" in ref_name:
+    os = "macos-12"
+else:
+    os = "macos-latest"
+
 TARGET = "osx"
 for CC in ["clang"]:
     matrix.append(
