@@ -20,7 +20,7 @@ else:
     print("Usage: {} <ref_name>".format(sys.argv[0]), file=sys.stderr)
     sys.exit(1)
 
-print("Generating matrix for type '{}'.".format(ref_name))
+print("Generating matrix for branch '{}'.".format(ref_name))
 
 def clean_ssl(ssl):
     return ssl.replace("_VERSION", "").lower()
