@@ -17217,6 +17217,17 @@ The currently available list of transformation keywords include :
       http-request set-header X-51D-DeviceTypeMobileTablet \
         %[req.fhdr(User-Agent),51d.single(DeviceType,IsMobile,IsTablet)]
 
+rfc7239_is_valid
+  Returns true if input header is RFC 7239 compliant header value and false
+  otherwise.
+
+  Example:
+    acl valid req.hdr(forwarded),rfc7239_is_valid
+    #input: "for=127.0.0.1;proto=http"
+    #  output: TRUE
+    #input: "proto=custom"
+    #  output: FALSE
+
 add(<value>)
   Adds <value> to the input value of type signed integer, and returns the
   result as a signed integer. <value> can be a numeric value or a variable

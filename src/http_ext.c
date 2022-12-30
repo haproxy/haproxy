@@ -1370,8 +1370,22 @@ void http_ext_xot_copy(struct http_ext_xot *dest, const struct http_ext_xot *ori
  * related converters
  */
 
+/* input: string representing 7239 forwarded header single value
+ * does not take arguments
+ * output: 1 if header is RFC compliant, 0 otherwise
+ */
+static int sample_conv_7239_valid(const struct arg *args, struct sample *smp, void *private)
+{
+	struct ist input = ist2(smp->data.u.str.area, smp->data.u.str.data);
+
+	smp->data.type = SMP_T_BOOL;
+	smp->data.u.sint = !!http_validate_7239_header(input, FORWARDED_HEADER_ALL, NULL);
+	return 1;
+}
+
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct sample_conv_kw_list sample_conv_kws = {ILH, {
+	{ "rfc7239_is_valid",  sample_conv_7239_valid,   0,                NULL,   SMP_T_STR,  SMP_T_BOOL},
 	{ NULL, NULL, 0, 0, 0 },
 }};
 
