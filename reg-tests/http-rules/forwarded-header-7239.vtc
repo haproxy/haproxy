@@ -1,0 +1,171 @@
+varnishtest "Test RFC 7239 forwarded header support (forwarded option and related converters)"
+#REQUIRE_VERSION=2.8
+
+# This config tests the HTTP forwarded option and RFC7239 related converters.
+
+feature ignore_unknown_macro
+
+#test: converters, parsing and header injection logic
+haproxy h1 -conf {
+    global
+        # WT: limit false-positives causing "HTTP header incomplete" due to
+        # idle server connections being randomly used and randomly expiring
+        # under us.
+        tune.idle-pool.shared off
+
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe1
+        bind "fd@${fe1}"
+        http-request set-src hdr(x-src)
+        http-request set-dst hdr(x-dst)
+	http-request set-header host %[str(vtest)]
+	use_backend be1 if { path /req1 }
+	use_backend be2 if { path /req2 }
+	use_backend be3 if { path /req3 }
+	use_backend be4 if { path /req4 }
+
+    frontend fe2
+        bind "fd@${fe2}"
+	http-request return status 200 hdr forwarded "%[req.hdr(forwarded)]"
+
+    backend be1
+	option forwarded
+        server s1 ${h1_fe2_addr}:${h1_fe2_port}
+
+    backend be2
+	option forwarded for-expr src for_port-expr str(id) by by_port-expr int(10)
+        server s1 ${h1_fe2_addr}:${h1_fe2_port}
+
+    backend be3
+	acl valid req.hdr(forwarded),rfc7239_is_valid
+	http-request return status 200 if valid
+	http-request return status 400
+
+    backend be4
+	http-request set-var(req.fnode) req.hdr(forwarded),rfc7239_field(for)
+	http-request return status 200 hdr nodename "%[var(req.fnode),rfc7239_n2nn]" hdr nodeport "%[var(req.fnode),rfc7239_n2np]"
+
+} -start
+
+#test: "default" and "no option forwarded"
+haproxy h2 -conf {
+    global
+        # WT: limit false-positives causing "HTTP header incomplete" due to
+        # idle server connections being randomly used and randomly expiring
+        # under us.
+        tune.idle-pool.shared off
+
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+        option forwarded
+
+    frontend fe1
+        bind "fd@${fe1h2}"
+	use_backend default if { path /default }
+	use_backend override if { path /override }
+	use_backend disabled if { path /disabled }
+
+    backend default
+	server s1 ${h1_fe2_addr}:${h1_fe2_port}
+
+    backend override
+	option forwarded host-expr str(override)
+	server s1 ${h1_fe2_addr}:${h1_fe2_port}
+
+    backend disabled
+	no option forwarded
+	server s1 ${h1_fe2_addr}:${h1_fe2_port}
+
+} -start
+
+client c1 -connect ${h1_fe1_sock} {
+    txreq -req GET -url /req1 \
+        -hdr "x-src: 127.0.0.1"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.forwarded == "proto=http;for=127.0.0.1"
+
+    txreq -req GET -url /req2 \
+        -hdr "x-src: 127.0.0.2" \
+        -hdr "x-dst: 127.0.0.3"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.forwarded == "by=\"127.0.0.3:10\";for=\"127.0.0.2:_id\""
+
+    txreq -req GET -url /req3 \
+        -hdr "forwarded: for=\"unknown:132\";host=\"[::1]:65535\";by=\"_obfs:_port\";proto=https"
+    rxresp
+    expect resp.status == 200
+
+    txreq -req GET -url /req3 \
+        -hdr "forwarded: for=\"127.0.0.1\";host=v.test"
+    rxresp
+    expect resp.status == 200
+
+    txreq -req GET -url /req3 \
+        -hdr "forwarded: fore=\"unknown:132\""
+    rxresp
+    expect resp.status == 400
+
+    txreq -req GET -url /req3 \
+        -hdr "forwarded: proto=http;proto=http"
+    rxresp
+    expect resp.status == 400
+
+    txreq -req GET -url /req3 \
+        -hdr "forwarded: \""
+    rxresp
+    expect resp.status == 400
+
+    txreq -req GET -url /req3 \
+        -hdr "forwarded: by=[::1]"
+    rxresp
+    expect resp.status == 400
+
+    txreq -req GET -url /req3 \
+        -hdr "forwarded: by=\"[::1]\""
+    rxresp
+    expect resp.status == 200
+
+    txreq -req GET -url /req3 \
+        -hdr "forwarded: by=\"[::1]:\""
+    rxresp
+    expect resp.status == 400
+
+    txreq -req GET -url /req3 \
+        -hdr "forwarded: by=\"[::1]:3\""
+    rxresp
+    expect resp.status == 200
+
+    txreq -req GET -url /req4 \
+        -hdr "forwarded: proto=http;for=\"[::1]:_id\""
+    rxresp
+    expect resp.status == 200
+    expect resp.http.nodename == "::1"
+    expect resp.http.nodeport == "_id"
+} -run
+
+client c2 -connect ${h2_fe1h2_sock} {
+    txreq -req GET -url /default
+    rxresp
+    expect resp.status == 200
+    expect resp.http.forwarded != <undef>
+
+    txreq -req GET -url /override
+    rxresp
+    expect resp.status == 200
+    expect resp.http.forwarded == "host=\"override\""
+
+    txreq -req GET -url /disabled
+    rxresp
+    expect resp.status == 200
+    expect resp.http.forwarded == <undef>
+} -run
