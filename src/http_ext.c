@@ -1383,9 +1383,60 @@ static int sample_conv_7239_valid(const struct arg *args, struct sample *smp, vo
 	return 1;
 }
 
+/* input: string representing 7239 forwarded header single value
+ * argument: parameter name to look for in the header
+ * output: header parameter raw value, as a string
+ */
+static int sample_conv_7239_field(const struct arg *args, struct sample *smp, void *private)
+{
+	struct ist input = ist2(smp->data.u.str.area, smp->data.u.str.data);
+	struct buffer *output;
+	struct forwarded_header_ctx ctx;
+	int validate;
+	int field = 0;
+
+	if (strcmp(args->data.str.area, "proto") == 0)
+		field = FORWARDED_HEADER_PROTO;
+	else if (strcmp(args->data.str.area, "host") == 0)
+		field = FORWARDED_HEADER_HOST;
+	else if (strcmp(args->data.str.area, "for") == 0)
+		field = FORWARDED_HEADER_FOR;
+	else if (strcmp(args->data.str.area, "by") == 0)
+		field = FORWARDED_HEADER_BY;
+
+	validate = http_validate_7239_header(input, FORWARDED_HEADER_ALL, &ctx);
+	if (!(validate & field))
+		return 0; /* invalid header or header does not contain field */
+	output = get_trash_chunk();
+	switch (field) {
+		case FORWARDED_HEADER_PROTO:
+			if (ctx.proto == FORWARDED_HEADER_HTTP)
+				chunk_appendf(output, "http");
+			else if (ctx.proto == FORWARDED_HEADER_HTTPS)
+				chunk_appendf(output, "https");
+			break;
+		case FORWARDED_HEADER_HOST:
+			chunk_istcat(output, ctx.host);
+			break;
+		case FORWARDED_HEADER_FOR:
+			chunk_istcat(output, ctx.nfor.raw);
+			break;
+		case FORWARDED_HEADER_BY:
+			chunk_istcat(output, ctx.nby.raw);
+			break;
+		default:
+			break;
+	}
+	smp->flags &= ~SMP_F_CONST;
+	smp->data.type = SMP_T_STR;
+	smp->data.u.str = *output;
+	return 1;
+}
+
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "rfc7239_is_valid",  sample_conv_7239_valid,   0,                NULL,   SMP_T_STR,  SMP_T_BOOL},
+	{ "rfc7239_field",     sample_conv_7239_field,   ARG1(1,STR),      NULL,   SMP_T_STR,  SMP_T_STR},
 	{ NULL, NULL, 0, 0, 0 },
 }};
 

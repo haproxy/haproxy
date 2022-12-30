@@ -17228,6 +17228,29 @@ rfc7239_is_valid
     #input: "proto=custom"
     #  output: FALSE
 
+rfc7239_field(<field>)
+  Extracts a single field/parameter from RFC 7239 compliant header value input.
+
+  Supported fields are:
+    - proto: either 'http' or 'https'
+    - host: http compliant host
+    - for: RFC7239 node
+    - by: RFC7239 node
+
+  More info here:
+    https://www.rfc-editor.org/rfc/rfc7239.html#section-6
+
+  Example:
+    # extract host field from forwarded header and store it in req.fhost var
+    http-request set-var(req.fhost) req.hdr(forwarded),rfc7239_field(host)
+    #input: "proto=https;host=\"haproxy.org:80\""
+    #  output: "haproxy.org:80"
+
+    # extract for field from forwarded header and store it in req.ffor var
+    http-request set-var(req.ffor) req.hdr(forwarded),rfc7239_field(for)
+    #input: "proto=https;host=\"haproxy.org:80\";for=\"127.0.0.1:9999\""
+    #  output: "127.0.0.1:9999"
+
 add(<value>)
   Adds <value> to the input value of type signed integer, and returns the
   result as a signed integer. <value> can be a numeric value or a variable
