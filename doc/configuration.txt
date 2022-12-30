@@ -17251,6 +17251,23 @@ rfc7239_field(<field>)
     #input: "proto=https;host=\"haproxy.org:80\";for=\"127.0.0.1:9999\""
     #  output: "127.0.0.1:9999"
 
+rfc7239_n2nn
+  Converts RFC7239 node (provided by 'for' or 'by' 7239 header fields)
+  into its corresponding nodename final form:
+    - ipv4 address
+    - ipv6 address
+    - 'unknown'
+    - '_obfs' identifier
+
+  Example:
+    # extract 'for' field from forwarded header, extract nodename from
+    # resulting node identifier and store the result in req.fnn
+    http-request set-var(req.fnn) req.hdr(forwarded),rfc7239_field(for),rfc7239_n2nn
+    #input: "for=\"127.0.0.1:9999\""
+    #  output: 127.0.0.1
+    #input: "for=\"_name:_port\""
+    #  output: "_name"
+
 add(<value>)
   Adds <value> to the input value of type signed integer, and returns the
   result as a signed integer. <value> can be a numeric value or a variable
