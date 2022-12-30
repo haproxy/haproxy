@@ -17268,6 +17268,21 @@ rfc7239_n2nn
     #input: "for=\"_name:_port\""
     #  output: "_name"
 
+rfc7239_n2np
+  Converts RFC7239 node (provided by 'for' or 'by' 7239 header fields)
+  into its corresponding nodeport final form:
+    - unsigned integer
+    - '_obfs' identifier
+
+  Example:
+    # extract 'by' field from forwarded header, extract node port from
+    # resulting node identifier and store the result in req.fnp
+    http-request set-var(req.fnp) req.hdr(forwarded),rfc7239_field(by),rfc7239_n2np
+    #input: "by=\"127.0.0.1:9999\""
+    #  output: 9999
+    #input: "by=\"_name:_port\""
+    #  output: "_port"
+
 add(<value>)
   Adds <value> to the input value of type signed integer, and returns the
   result as a signed integer. <value> can be a numeric value or a variable

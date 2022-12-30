@@ -1480,11 +1480,47 @@ static int sample_conv_7239_n2nn(const struct arg *args, struct sample *smp, voi
 	return 1;
 }
 
+/* input: substring representing 7239 forwarded header node
+ * output: forwarded header nodeport translated to either
+ * integer or str for obfuscated ('_' prefix)
+ */
+static int sample_conv_7239_n2np(const struct arg *args, struct sample *smp, void *private)
+{
+	struct ist input = ist2(smp->data.u.str.area, smp->data.u.str.data);
+	struct forwarded_header_node ctx;
+	struct buffer *output;
+
+	if (http_7239_extract_node(&input, &ctx, 1) == 0)
+		return 0; /* could not extract node */
+
+	switch (ctx.nodeport.type) {
+		case FORWARDED_HEADER_UNK:
+			return 0; /* not provided */
+		case FORWARDED_HEADER_OBFS:
+			output = get_trash_chunk();
+			chunk_appendf(output, "_"); /* append obfs prefix */
+			chunk_istcat(output, ctx.nodeport.obfs);
+			smp->flags &= ~SMP_F_CONST;
+			smp->data.type = SMP_T_STR;
+			smp->data.u.str = *output;
+			break;
+		case FORWARDED_HEADER_PORT:
+			smp->data.type = SMP_T_SINT;
+			smp->data.u.sint = ctx.nodeport.port;
+			break;
+		default:
+			return 0; /* unsupported */
+	}
+
+	return 1;
+}
+
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "rfc7239_is_valid",  sample_conv_7239_valid,   0,                NULL,   SMP_T_STR,  SMP_T_BOOL},
 	{ "rfc7239_field",     sample_conv_7239_field,   ARG1(1,STR),      NULL,   SMP_T_STR,  SMP_T_STR},
 	{ "rfc7239_n2nn",      sample_conv_7239_n2nn,    0,                NULL,   SMP_T_STR,  SMP_T_ANY},
+	{ "rfc7239_n2np",      sample_conv_7239_n2np,    0,                NULL,   SMP_T_STR,  SMP_T_ANY},
 	{ NULL, NULL, 0, 0, 0 },
 }};
 
