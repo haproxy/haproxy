@@ -1561,9 +1561,6 @@ void debug_handler(int sig, siginfo_t *si, void *arg)
 	while ((HA_ATOMIC_LOAD(&thread_dump_state) & THREAD_DUMP_TMASK) != tid)
 		ha_thread_relax();
 
-	/* make sure we don't count all that wait time against us */
-	HA_ATOMIC_AND(&th_ctx->flags, ~TH_FL_STUCK);
-
 	if (!harmless)
 		thread_harmless_end();
 
@@ -1609,9 +1606,6 @@ void debug_handler(int sig, siginfo_t *si, void *arg)
 	/* wait for everyone to finish*/
 	while (HA_ATOMIC_LOAD(&thread_dump_state) & THREAD_DUMP_PMASK)
 		ha_thread_relax();
-
-	/* make sure we don't count all that wait time against us */
-	HA_ATOMIC_AND(&th_ctx->flags, ~TH_FL_STUCK);
 
 	if (!harmless)
 		thread_harmless_end();
