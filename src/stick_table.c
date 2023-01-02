@@ -2848,6 +2848,166 @@ static enum act_parse_ret parse_set_gpt(const char **args, int *arg, struct prox
 	return ACT_RET_PRS_OK;
 }
 
+/* This function updates the gpc at index 'rule->arg.gpc.idx' of the array on
+ * the tracksc counter of index 'rule->arg.gpc.sc' stored into the <stream> or
+ * directly in the session <sess> if <stream> is set to NULL. This gpc is
+ * set to the value computed by the expression 'rule->arg.gpc.expr' or if
+ * 'rule->arg.gpc.expr' is null directly to the value of 'rule->arg.gpc.value'.
+ *
+ * This function always returns ACT_RET_CONT and parameter flags is unused.
+ */
+static enum act_return action_add_gpc(struct act_rule *rule, struct proxy *px,
+                                      struct session *sess, struct stream *s, int flags)
+{
+	void *ptr1, *ptr2;
+	struct stksess *ts;
+	struct stkctr *stkctr;
+	unsigned int value = 0;
+	struct sample *smp;
+	int smp_opt_dir;
+
+	/* Extract the stksess, return OK if no stksess available. */
+	if (s)
+		stkctr = &s->stkctr[rule->arg.gpc.sc];
+	else
+		stkctr = &sess->stkctr[rule->arg.gpc.sc];
+
+	ts = stkctr_entry(stkctr);
+	if (!ts)
+		return ACT_RET_CONT;
+
+	/* First, update gpc_rate if it's tracked. Second, update its gpc if tracked. */
+	ptr1 = stktable_data_ptr_idx(stkctr->table, ts, STKTABLE_DT_GPC_RATE, rule->arg.gpc.idx);
+	ptr2 = stktable_data_ptr_idx(stkctr->table, ts, STKTABLE_DT_GPC, rule->arg.gpc.idx);
+
+	if (ptr1 || ptr2) {
+		if (!rule->arg.gpc.expr)
+			value = (unsigned int)(rule->arg.gpc.value);
+		else {
+			switch (rule->from) {
+			case ACT_F_TCP_REQ_SES: smp_opt_dir = SMP_OPT_DIR_REQ; break;
+			case ACT_F_TCP_REQ_CNT: smp_opt_dir = SMP_OPT_DIR_REQ; break;
+			case ACT_F_TCP_RES_CNT: smp_opt_dir = SMP_OPT_DIR_RES; break;
+			case ACT_F_HTTP_REQ:    smp_opt_dir = SMP_OPT_DIR_REQ; break;
+			case ACT_F_HTTP_RES:    smp_opt_dir = SMP_OPT_DIR_RES; break;
+			default:
+				send_log(px, LOG_ERR, "stick table: internal error while setting gpc%u.", rule->arg.gpc.idx);
+				if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
+					ha_alert("stick table: internal error while executing setting gpc%u.\n", rule->arg.gpc.idx);
+				return ACT_RET_CONT;
+			}
+
+			/* Fetch and cast the expression. */
+			smp = sample_fetch_as_type(px, sess, s, smp_opt_dir|SMP_OPT_FINAL, rule->arg.gpc.expr, SMP_T_SINT);
+			if (!smp) {
+				send_log(px, LOG_WARNING, "stick table: invalid expression or data type while setting gpc%u.", rule->arg.gpc.idx);
+				if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
+					ha_alert("stick table: invalid expression or data type while setting gpc%u.\n", rule->arg.gpc.idx);
+				return ACT_RET_CONT;
+			}
+			value = (unsigned int)(smp->data.u.sint);
+		}
+
+		if (value) {
+			/* only update the value if non-null increment */
+			HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
+
+			if (ptr1)
+				update_freq_ctr_period(&stktable_data_cast(ptr1, std_t_frqp),
+					       stkctr->table->data_arg[STKTABLE_DT_GPC_RATE].u, value);
+
+			if (ptr2)
+				stktable_data_cast(ptr2, std_t_uint) += value;
+
+			HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
+		}
+		/* always touch the table so that it doesn't expire */
+		stktable_touch_local(stkctr->table, ts, 0);
+	}
+
+	return ACT_RET_CONT;
+}
+
+/* This function is a parser for the "sc-add-gpc" action. It understands the
+ * format:
+ *
+ *   sc-add-gpc(<gpc IDX>,<track ID>) <expression>
+ *
+ * It returns ACT_RET_PRS_ERR if fails and <err> is filled with an error message.
+ * Otherwise, it returns ACT_RET_PRS_OK and the variable 'rule->arg.gpc.expr'
+ * is filled with the pointer to the expression to execute or NULL if the arg
+ * is directly an integer stored into 'rule->arg.gpt.value'.
+ */
+static enum act_parse_ret parse_add_gpc(const char **args, int *arg, struct proxy *px,
+                                         struct act_rule *rule, char **err)
+{
+	const char *cmd_name = args[*arg-1];
+	char *error;
+	int smp_val;
+
+	cmd_name += strlen("sc-add-gpc");
+	if (*cmd_name != '(') {
+		memprintf(err, "Missing or invalid arguments for '%s'. Expects sc-add-gpc(<GPC ID>,<Track ID>)", args[*arg-1]);
+		return ACT_RET_PRS_ERR;
+	}
+	cmd_name++; /* skip the '(' */
+	rule->arg.gpc.idx = strtoul(cmd_name, &error, 10); /* Convert stick table id. */
+	if (*error != ',') {
+		memprintf(err, "Missing gpc ID. Expects %s(<GPC ID>,<Track ID>)", args[*arg-1]);
+		return ACT_RET_PRS_ERR;
+	}
+	else {
+		cmd_name = error + 1; /* skip the ',' */
+		rule->arg.gpc.sc = strtol(cmd_name, &error, 10); /* Convert stick table id. */
+		if (*error != ')') {
+			memprintf(err, "invalid stick table track ID '%s'. Expects %s(<GPC ID>,<Track ID>)", cmd_name, args[*arg-1]);
+			return ACT_RET_PRS_ERR;
+		}
+
+		if (rule->arg.gpc.sc >= MAX_SESS_STKCTR) {
+			memprintf(err, "invalid stick table track ID '%s' for '%s'. The max allowed ID is %d",
+				  cmd_name, args[*arg-1], MAX_SESS_STKCTR-1);
+			return ACT_RET_PRS_ERR;
+		}
+	}
+	rule->action_ptr = action_add_gpc;
+
+	/* value may be either an integer or an expression */
+	rule->arg.gpc.expr = NULL;
+	rule->arg.gpc.value = strtol(args[*arg], &error, 10);
+	if (*error == '\0') {
+		/* valid integer, skip it */
+		(*arg)++;
+	} else {
+		rule->arg.gpc.expr = sample_parse_expr((char **)args, arg, px->conf.args.file,
+		                                       px->conf.args.line, err, &px->conf.args, NULL);
+		if (!rule->arg.gpc.expr)
+			return ACT_RET_PRS_ERR;
+
+		switch (rule->from) {
+		case ACT_F_TCP_REQ_SES: smp_val = SMP_VAL_FE_SES_ACC; break;
+		case ACT_F_TCP_REQ_CNT: smp_val = SMP_VAL_FE_REQ_CNT; break;
+		case ACT_F_TCP_RES_CNT: smp_val = SMP_VAL_BE_RES_CNT; break;
+		case ACT_F_HTTP_REQ:    smp_val = SMP_VAL_FE_HRQ_HDR; break;
+		case ACT_F_HTTP_RES:    smp_val = SMP_VAL_BE_HRS_HDR; break;
+		default:
+			memprintf(err, "internal error, unexpected rule->from=%d, please report this bug!", rule->from);
+			return ACT_RET_PRS_ERR;
+		}
+
+		if (!(rule->arg.gpc.expr->fetch->val & smp_val)) {
+			memprintf(err, "fetch method '%s' extracts information from '%s', none of which is available here", args[*arg-1],
+			          sample_src_names(rule->arg.gpc.expr->fetch->use));
+			free(rule->arg.gpc.expr);
+			return ACT_RET_PRS_ERR;
+		}
+	}
+
+	rule->action = ACT_CUSTOM;
+
+	return ACT_RET_PRS_OK;
+}
+
 /* set temp integer to the number of used entries in the table pointed to by expr.
  * Accepts exactly 1 argument of type table.
  */
@@ -5072,6 +5232,7 @@ static struct cli_kw_list cli_kws = {{ },{
 INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);
 
 static struct action_kw_list tcp_conn_kws = { { }, {
+	{ "sc-add-gpc",  parse_add_gpc,  KWF_MATCH_PREFIX },
 	{ "sc-inc-gpc",  parse_inc_gpc,  KWF_MATCH_PREFIX },
 	{ "sc-inc-gpc0", parse_inc_gpc,  KWF_MATCH_PREFIX },
 	{ "sc-inc-gpc1", parse_inc_gpc,  KWF_MATCH_PREFIX },
@@ -5083,6 +5244,7 @@ static struct action_kw_list tcp_conn_kws = { { }, {
 INITCALL1(STG_REGISTER, tcp_req_conn_keywords_register, &tcp_conn_kws);
 
 static struct action_kw_list tcp_sess_kws = { { }, {
+	{ "sc-add-gpc",  parse_add_gpc,  KWF_MATCH_PREFIX },
 	{ "sc-inc-gpc",  parse_inc_gpc,  KWF_MATCH_PREFIX },
 	{ "sc-inc-gpc0", parse_inc_gpc,  KWF_MATCH_PREFIX },
 	{ "sc-inc-gpc1", parse_inc_gpc,  KWF_MATCH_PREFIX },
@@ -5094,6 +5256,7 @@ static struct action_kw_list tcp_sess_kws = { { }, {
 INITCALL1(STG_REGISTER, tcp_req_sess_keywords_register, &tcp_sess_kws);
 
 static struct action_kw_list tcp_req_kws = { { }, {
+	{ "sc-add-gpc",  parse_add_gpc,  KWF_MATCH_PREFIX },
 	{ "sc-inc-gpc",  parse_inc_gpc,  KWF_MATCH_PREFIX },
 	{ "sc-inc-gpc0", parse_inc_gpc,  KWF_MATCH_PREFIX },
 	{ "sc-inc-gpc1", parse_inc_gpc,  KWF_MATCH_PREFIX },
@@ -5105,6 +5268,7 @@ static struct action_kw_list tcp_req_kws = { { }, {
 INITCALL1(STG_REGISTER, tcp_req_cont_keywords_register, &tcp_req_kws);
 
 static struct action_kw_list tcp_res_kws = { { }, {
+	{ "sc-add-gpc",  parse_add_gpc,  KWF_MATCH_PREFIX },
 	{ "sc-inc-gpc",  parse_inc_gpc,  KWF_MATCH_PREFIX },
 	{ "sc-inc-gpc0", parse_inc_gpc,  KWF_MATCH_PREFIX },
 	{ "sc-inc-gpc1", parse_inc_gpc,  KWF_MATCH_PREFIX },
@@ -5116,6 +5280,7 @@ static struct action_kw_list tcp_res_kws = { { }, {
 INITCALL1(STG_REGISTER, tcp_res_cont_keywords_register, &tcp_res_kws);
 
 static struct action_kw_list http_req_kws = { { }, {
+	{ "sc-add-gpc",  parse_add_gpc,  KWF_MATCH_PREFIX },
 	{ "sc-inc-gpc",  parse_inc_gpc,  KWF_MATCH_PREFIX },
 	{ "sc-inc-gpc0", parse_inc_gpc,  KWF_MATCH_PREFIX },
 	{ "sc-inc-gpc1", parse_inc_gpc,  KWF_MATCH_PREFIX },
@@ -5127,6 +5292,7 @@ static struct action_kw_list http_req_kws = { { }, {
 INITCALL1(STG_REGISTER, http_req_keywords_register, &http_req_kws);
 
 static struct action_kw_list http_res_kws = { { }, {
+	{ "sc-add-gpc",  parse_add_gpc,  KWF_MATCH_PREFIX },
 	{ "sc-inc-gpc",  parse_inc_gpc,  KWF_MATCH_PREFIX },
 	{ "sc-inc-gpc0", parse_inc_gpc,  KWF_MATCH_PREFIX },
 	{ "sc-inc-gpc1", parse_inc_gpc,  KWF_MATCH_PREFIX },

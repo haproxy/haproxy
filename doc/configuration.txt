@@ -7202,6 +7202,30 @@ http-request return [status <code>] [content-type <type>]
         lf-string "Access denied. IP %[src] is blacklisted."  \
         if { src -f /etc/haproxy/blacklist.lst }
 
+http-request sc-add-gpc(<idx>,<sc-id>) { <int> | <expr> }
+                                           [ { if | unless } <condition> ]
+
+  This action increments the General Purpose Counter at the index <idx> of the
+  array associated to the sticky counter designated by <sc-id> by the value of
+  either integer <int> or the integer evaluation of expression <expr>. Integers
+  and expressions are limited to unsigned 32-bit values. If an error occurs,
+  this action silently fails and the actions evaluation continues. <idx> is an
+  integer between 0 and 99 and <sc-id> is an integer between 0 and 2. It also
+  silently fails if the there is no GPC stored at this index. The entry in the
+  table is refreshed even if the value is zero. The 'gpc_rate' is automatically
+  adjusted to reflect the average growth rate of the gpc value.
+
+  This action applies only to the 'gpc' and 'gpc_rate' array data_types (and
+  not to the legacy 'gpc0', 'gpc1', 'gpc0_rate' nor 'gpc1_rate' data_types).
+  There is no equivalent function for legacy data types, but if the value is
+  always 1, please see 'sc-inc-gpc()', 'sc-inc-gpc0()' and 'sc-inc-gpc1()'.
+  There is no way to decrement the value either, but it is possible to store
+  exact values in a General Purpose Tag using 'sc-set-gpt()' instead.
+
+  The main use of this action is to count scores or total volumes (e.g.
+  estimated danger per source IP reported by the server or a WAF, total
+  uploaded bytes, etc).
+
 http-request sc-inc-gpc(<idx>,<sc-id>) [ { if | unless } <condition> ]
 
   This actions increments the General Purpose Counter at the index <idx>
