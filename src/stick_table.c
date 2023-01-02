@@ -2579,7 +2579,7 @@ static enum act_parse_ret parse_inc_gpc(const char **args, int *arg, struct prox
 	}
 	else {
 		/* default stick table id. */
-		memprintf(err, "invalid gpc ID '%s'. Expects sc-set-gpc(<GPC ID>,<Track ID>)", args[*arg-1]);
+		memprintf(err, "invalid gpc ID '%s'. Expects sc-inc-gpc(<GPC ID>,<Track ID>)", args[*arg-1]);
 		return ACT_RET_PRS_ERR;
 	}
 	rule->action = ACT_CUSTOM;
