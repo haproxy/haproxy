@@ -640,8 +640,6 @@ int ssl_ocsp_create_request_details(const OCSP_CERTID *certid, struct buffer *re
 		goto end;
 	}
 
-	errcode = 0;
-
 	/* HTTP based OCSP requests can use either the GET or the POST method to
 	 * submit their requests. To enable HTTP caching, small requests (that
 	 * after encoding are less than 255 bytes), MAY be submitted using GET.
@@ -660,6 +658,7 @@ int ssl_ocsp_create_request_details(const OCSP_CERTID *certid, struct buffer *re
 
 		if (base64_ret < 0) {
 			memprintf(err, "%sa2base64() error\n", *err ? *err : "");
+			goto end;
 		}
 
 		b64buf->data = base64_ret;
@@ -668,11 +667,14 @@ int ssl_ocsp_create_request_details(const OCSP_CERTID *certid, struct buffer *re
 		                   query_encode_map, b64buf);
 		if (ret && *ret == '\0') {
 			req_url->data = ret - b_orig(req_url);
+			errcode = 0;
 		}
 	}
 	else {
 		chunk_cpy(req_body, bin_request);
+		errcode = 0;
 	}
+
 
 end:
 	OCSP_REQUEST_free(ocsp);
