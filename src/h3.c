@@ -1032,8 +1032,11 @@ static int h3_control_send(struct qcs *qcs, void *ctx)
 	}
 
 	ret = b_force_xfer(res, &pos, b_data(&pos));
-	if (ret > 0)
+	if (ret > 0) {
+		/* Register qcs for sending before other streams. */
+		qcc_send_stream(qcs);
 		h3c->flags |= H3_CF_SETTINGS_SENT;
+	}
 
 	TRACE_LEAVE(H3_EV_TX_SETTINGS, qcs->qcc->conn, qcs);
 	return ret;
