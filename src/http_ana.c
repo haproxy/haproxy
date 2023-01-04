@@ -865,7 +865,7 @@ int http_process_tarpit(struct stream *s, struct channel *req, int an_bit)
 	 * there and that the timeout has not expired.
 	 */
 	channel_dont_connect(req);
-	if ((req->flags & (CF_SHUTR|CF_READ_ERROR)) == 0 &&
+	if (!(req->flags & CF_SHUTR) &&
 	    !tick_is_expired(req->analyse_exp, now_ms)) {
 		/* Be sure to drain all data from the request channel */
 		channel_htx_erase(req, htxbuf(&req->buf));
@@ -4244,7 +4244,7 @@ enum rule_result http_wait_for_msg_body(struct stream *s, struct channel *chn,
 	}
 
 	/* we get here if we need to wait for more data */
-	if (!(chn->flags & (CF_SHUTR | CF_READ_ERROR))) {
+	if (!(chn->flags & CF_SHUTR)) {
 		if (!tick_isset(chn->analyse_exp))
 			chn->analyse_exp = tick_add_ifset(now_ms, time);
 		ret = HTTP_RULE_RES_YIELD;
