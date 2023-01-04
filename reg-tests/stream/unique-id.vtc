@@ -1,7 +1,5 @@
 varnishtest "unique-id test"
 
-#REQUIRE_VERSION=2.0
-
 feature ignore_unknown_macro
 
 server s1 {

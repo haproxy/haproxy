@@ -1,6 +1,5 @@
 vtest "Basic test for peers protocol over SSL/TLS"
 #REQUIRE_OPTIONS=OPENSSL
-#REQUIRE_VERSION=2.0
 feature ignore_unknown_macro
 
 #REGTEST_TYPE=slow

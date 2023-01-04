@@ -1,5 +1,4 @@
 varnishtest "Health-checks: basic HTTP health-check though a socks4 proxy"
-#REQUIRE_VERSION=2.0
 #REGTEST_TYPE=slow
 feature ignore_unknown_macro
 

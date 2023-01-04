@@ -1,6 +1,5 @@
 varnishtest "Try to start a master CLI with 2 programs"
 #REGTEST_TYPE=bug
-#REQUIRE_VERSION=2.0
 feature cmd "command -v sleep"
 
 feature ignore_unknown_macro

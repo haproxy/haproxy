@@ -1,6 +1,5 @@
 vtest "Test for balance URI"
 feature ignore_unknown_macro
-#REQUIRE_VERSION=2.0
 
 server s1 {
     rxreq

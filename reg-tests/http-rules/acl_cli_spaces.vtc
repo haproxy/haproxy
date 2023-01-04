@@ -1,8 +1,6 @@
 varnishtest "haproxy ACL, CLI and mCLI spaces"
 feature ignore_unknown_macro
 
-#REQUIRE_VERSION=2.0
-
 server s1 {
    rxreq
    expect req.method == "GET"

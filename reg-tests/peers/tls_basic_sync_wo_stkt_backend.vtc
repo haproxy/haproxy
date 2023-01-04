@@ -1,7 +1,6 @@
 vtest "Basic test for peers protocol over SSL/TLS with stick-table declared in peers sections"
 feature ignore_unknown_macro
 
-#REQUIRE_VERSION=2.0
 #REQUIRE_OPTIONS=OPENSSL
 #REGTEST_TYPE=slow
 

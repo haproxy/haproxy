@@ -1,8 +1,6 @@
 varnishtest "Basic log load-balancing test"
 feature ignore_unknown_macro
 
-#REQUIRE_VERSION=2.0
-
 barrier b1 cond 2 -cyclic
 barrier b2 cond 2 -cyclic
 barrier b3 cond 2 -cyclic

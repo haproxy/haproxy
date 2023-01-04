@@ -6,8 +6,6 @@ feature ignore_unknown_macro
 # do the job they are supposed to do.
 # If we remove one of the "stick on" rule, this script fails.
 
-#REQUIRE_VERSION=2.0
-
 server s_not_used_1 {}
 server s_not_used_2 {}
 server s_not_used_3 {}

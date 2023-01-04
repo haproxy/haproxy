@@ -1,7 +1,6 @@
 vtest "Basic test for peers protocol stick-table declared in peers sections"
 feature ignore_unknown_macro
 
-#REQUIRE_VERSION=2.0
 #REGTEST_TYPE=slow
 
 haproxy h1 -arg "-L A" -conf {
