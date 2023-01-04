@@ -311,7 +311,7 @@ struct htx *smp_prefetch_htx(struct sample *smp, struct channel *chn, struct che
 			if (txn->meth == HTTP_METH_GET || txn->meth == HTTP_METH_HEAD)
 				s->flags |= SF_REDIRECTABLE;
 		}
-		else
+		else if (txn->status == -1)
 			txn->status = sl->info.res.status;
 		if (sl->flags & HTX_SL_F_VER_11)
 			msg->flags |= HTTP_MSGF_VER_11;
