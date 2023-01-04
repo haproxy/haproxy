@@ -1,7 +1,5 @@
 varnishtest "Basic cache test"
 
-#REQUIRE_VERSION=1.9
-
 feature ignore_unknown_macro
 
 server s1 {

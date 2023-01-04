@@ -1,9 +1,6 @@
 varnishtest "Minimal tests for 1.9 converters: ipmask,concat,strcmp,field,word"
 feature ignore_unknown_macro
 
-# concat,strcmp,ipmask(ipv6mask) need 1.9
-#REQUIRE_VERSION=1.9
-
 # ipmask tests server
 server s1 {
    rxreq

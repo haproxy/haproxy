@@ -1,6 +1,5 @@
 varnishtest "Basic compression test"
 
-#REQUIRE_VERSION=1.9
 #REQUIRE_OPTION=ZLIB|SLZ
 
 feature ignore_unknown_macro

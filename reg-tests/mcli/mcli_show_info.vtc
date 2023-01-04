@@ -1,7 +1,5 @@
 varnishtest "Show info of process 1"
 
-#REQUIRE_VERSION=1.9
-
 feature ignore_unknown_macro
 
 # Do nothing. Is there only to create s1_* macros
