@@ -534,7 +534,7 @@ static int cli_io_handler_show_proc(struct appctx *appctx)
 	char *uptime = NULL;
 	char *reloadtxt = NULL;
 
-	if (unlikely(sc_ic(sc)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
+	if (unlikely(sc_ic(sc)->flags & CF_SHUTW))
 		return 1;
 
 	chunk_reset(&trash);
@@ -669,7 +669,7 @@ static int cli_io_handler_show_loadstatus(struct appctx *appctx)
 	if (!cli_has_level(appctx, ACCESS_LVL_OPER))
 		return 1;
 
-	if (unlikely(sc_ic(sc)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
+	if (unlikely(sc_ic(sc)->flags & CF_SHUTW))
 		return 1;
 
 

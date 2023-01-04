@@ -459,8 +459,7 @@ static void dns_session_io_handler(struct appctx *appctx)
 	if (ds->shutdown)
 		goto close;
 
-	/* an error was detected */
-	if (unlikely(sc_ic(sc)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
+	if (unlikely(sc_ic(sc)->flags & CF_SHUTW))
 		goto close;
 
 	/* con closed by server side, we will skip data write and drain data from channel */

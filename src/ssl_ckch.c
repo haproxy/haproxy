@@ -2148,7 +2148,7 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 	struct ckch_store *old_ckchs, *new_ckchs = NULL;
 	struct ckch_inst *ckchi;
 
-	if (unlikely(sc_ic(sc)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
+	if (unlikely(sc_ic(sc)->flags & CF_SHUTW))
 		goto end;
 
 	while (1) {

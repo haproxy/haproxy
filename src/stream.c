@@ -1782,7 +1782,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		 */
 		if (!((req->flags | res->flags) &
 		      (CF_SHUTR|CF_READ_EVENT|CF_READ_TIMEOUT|CF_SHUTW|
-		       CF_WRITE_EVENT|CF_WRITE_ERROR|CF_WRITE_TIMEOUT)) &&
+		       CF_WRITE_EVENT|CF_WRITE_TIMEOUT)) &&
 		    !(s->flags & SF_CONN_EXP) &&
 		    !((sc_ep_get(scf) | scb->flags) & SE_FL_ERROR) &&
 		    ((s->pending_events & TASK_WOKEN_ANY) == TASK_WOKEN_TIMER)) {
@@ -3626,7 +3626,7 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 		goto done;
 	}
 
-	if (unlikely(sc_ic(sc)->flags & (CF_WRITE_ERROR|CF_SHUTW))) {
+	if (unlikely(sc_ic(sc)->flags & CF_SHUTW)) {
 		/* If we're forced to shut down, we might have to remove our
 		 * reference to the last stream being dumped.
 		 */

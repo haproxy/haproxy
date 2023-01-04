@@ -850,7 +850,7 @@ static void sc_app_chk_snd_conn(struct stconn *sc)
 	/* in case of special condition (error, shutdown, end of write...), we
 	 * have to notify the task.
 	 */
-	if (likely((oc->flags & (CF_WRITE_EVENT|CF_WRITE_ERROR|CF_SHUTW)) ||
+	if (likely((oc->flags & (CF_WRITE_EVENT|CF_SHUTW)) ||
 	          ((oc->flags & CF_WAKE_WRITE) &&
 	           ((channel_is_empty(oc) && !oc->to_forward) ||
 	            !sc_state_in(sc->state, SC_SB_EST))))) {
@@ -1127,7 +1127,7 @@ static void sc_notify(struct stconn *sc)
 
 	/* update OC timeouts and wake the other side up if it's waiting for room */
 	if (oc->flags & (CF_WRITE_EVENT|CF_WRITE_ERROR)) {
-		if ((oc->flags & (CF_SHUTW|CF_WRITE_EVENT)) == CF_WRITE_EVENT &&
+		if (!(oc->flags & CF_WRITE_ERROR) &&
 		    !channel_is_empty(oc))
 			if (tick_isset(oc->wex))
 				oc->wex = tick_add_ifset(now_ms, oc->wto);

@@ -348,7 +348,7 @@ static int cli_io_handler_pat_list(struct appctx *appctx)
 	struct stconn *sc = appctx_sc(appctx);
 	struct pat_ref_elt *elt;
 
-	if (unlikely(sc_ic(sc)->flags & (CF_WRITE_ERROR|CF_SHUTW))) {
+	if (unlikely(sc_ic(sc)->flags & CF_SHUTW)) {
 		/* If we're forced to shut down, we might have to remove our
 		 * reference to the last ref_elt being dumped.
 		 */

@@ -347,7 +347,7 @@ int cli_io_handler_show_ring(struct appctx *appctx)
 	size_t len, cnt;
 	int ret;
 
-	if (unlikely(sc_ic(sc)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
+	if (unlikely(sc_ic(sc)->flags & CF_SHUTW))
 		return 1;
 
 	HA_RWLOCK_WRLOCK(LOGSRV_LOCK, &ring->lock);

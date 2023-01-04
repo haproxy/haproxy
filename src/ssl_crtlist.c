@@ -1098,7 +1098,7 @@ static int cli_io_handler_add_crtlist(struct appctx *appctx)
 	/* for each bind_conf which use the crt-list, a new ckch_inst must be
 	 * created.
 	 */
-	if (unlikely(sc_ic(sc)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
+	if (unlikely(sc_ic(sc)->flags & CF_SHUTW))
 		goto end;
 
 	switch (ctx->state) {

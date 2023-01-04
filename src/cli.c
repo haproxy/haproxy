@@ -1227,7 +1227,7 @@ static int cli_io_handler_show_env(struct appctx *appctx)
 	struct stconn *sc = appctx_sc(appctx);
 	char **var = ctx->var;
 
-	if (unlikely(sc_ic(sc)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
+	if (unlikely(sc_ic(sc)->flags & CF_SHUTW))
 		return 1;
 
 	chunk_reset(&trash);
@@ -1264,7 +1264,7 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 	int fd = fdctx->fd;
 	int ret = 1;
 
-	if (unlikely(sc_ic(sc)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
+	if (unlikely(sc_ic(sc)->flags & CF_SHUTW))
 		goto end;
 
 	chunk_reset(&trash);

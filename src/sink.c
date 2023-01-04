@@ -330,8 +330,7 @@ static void sink_forward_io_handler(struct appctx *appctx)
 	/* rto should not change but it seems the case */
 	sc_oc(sc)->rto = TICK_ETERNITY;
 
-	/* an error was detected */
-	if (unlikely(sc_ic(sc)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
+	if (unlikely(sc_ic(sc)->flags & CF_SHUTW))
 		goto close;
 
 	/* con closed by server side */
@@ -480,7 +479,7 @@ static void sink_forward_oc_io_handler(struct appctx *appctx)
 	sc_oc(sc)->rto = TICK_ETERNITY;
 
 	/* an error was detected */
-	if (unlikely(sc_ic(sc)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
+	if (unlikely(sc_ic(sc)->flags & CF_SHUTW))
 		goto close;
 
 	/* con closed by server side */
