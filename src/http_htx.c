@@ -591,6 +591,63 @@ int http_append_header_value(struct htx *htx, struct http_hdr_ctx *ctx, const st
 	return 0;
 }
 
+/* Prepend new value <data> before <ctx> value in header
+ * if <ctx> is not first value (at least one value exists):
+ *   - ',' delimiter is added after <data> is prepended
+ *
+ * ctx is updated to point to new value
+ *
+ * Returns 1 on success and 0 on failure.
+ */
+int http_prepend_header_value(struct htx *htx, struct http_hdr_ctx *ctx, const struct ist data)
+{
+	char *start;
+	struct htx_blk *blk = ctx->blk;
+	struct ist v;
+	uint32_t off = 0;
+	uint8_t first = 0;
+
+	if (!blk)
+		goto fail;
+
+	v = htx_get_blk_value(htx, blk);
+
+	if (!istlen(v)) {
+		start = v.ptr;
+		first = 1;
+	}
+	if (unlikely(!istlen(ctx->value)))
+		goto fail; /* invalid: value is empty, not supported */
+
+	if (!first)
+		start = istptr(ctx->value) - ctx->lws_before;
+	off = start - v.ptr;
+
+	blk = htx_replace_blk_value(htx, blk, ist2(start, 0), data);
+	if (!blk)
+		goto fail;
+	v = htx_get_blk_value(htx, blk);
+
+	if (first)
+		goto end; /* header is empty, don't append ',' */
+
+	start = v.ptr + off + data.len;
+
+	blk = htx_replace_blk_value(htx, blk, ist2(start, 0), ist(","));
+	if (!blk)
+		goto fail;
+	v = htx_get_blk_value(htx, blk);
+
+  end:
+	ctx->blk = blk;
+	ctx->value = ist2(v.ptr + off, data.len);
+	ctx->lws_before = ctx->lws_after = 0;
+
+	return 1;
+  fail:
+	return 0;
+}
+
 /* Replaces a part of a header value referenced in the context <ctx> by
  * <data>. It returns 1 on success, otherwise it returns 0. The context is
  * updated if necessary.
