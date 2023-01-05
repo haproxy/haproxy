@@ -467,7 +467,7 @@ static inline void b_slow_realign(struct buffer *b, char *swap, size_t output)
 
 	/* process output data in two steps to cover wrapping */
 	if (block1 > b_size(b) - b_head_ofs(b)) {
-		block2 = b_size(b) - b_head_ofs(b);
+		block2 = b_peek_ofs(b, block1);
 		block1 -= block2;
 	}
 	memcpy(swap + b_size(b) - output, b_head(b), block1);
