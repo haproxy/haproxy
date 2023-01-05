@@ -2476,10 +2476,13 @@ static struct action_kw_list http_after_res_actions = {
 		{ "add-header",      parse_http_set_header,     0 },
 		{ "allow",           parse_http_allow,          0 },
 		{ "capture",         parse_http_res_capture,    0 },
+		{ "del-acl",          parse_http_set_map,       KWF_MATCH_PREFIX },
 		{ "del-header",      parse_http_del_header,     0 },
+		{ "del-map",          parse_http_set_map,       KWF_MATCH_PREFIX },
 		{ "replace-header",  parse_http_replace_header, 0 },
 		{ "replace-value",   parse_http_replace_header, 0 },
 		{ "set-header",      parse_http_set_header,     0 },
+		{ "set-map",         parse_http_set_map,        KWF_MATCH_PREFIX },
 		{ "set-status",      parse_http_set_status,     0 },
 		{ "strict-mode",     parse_http_strict_mode,    0 },
 		{ NULL, NULL }

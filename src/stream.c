@@ -3942,6 +3942,13 @@ static struct action_kw_list stream_http_res_keywords = { ILH, {
 
 INITCALL1(STG_REGISTER, http_res_keywords_register, &stream_http_res_keywords);
 
+static struct action_kw_list stream_http_after_res_actions =  { ILH, {
+	{ "set-log-level", stream_parse_set_log_level },
+	{ /* END */ }
+}};
+
+INITCALL1(STG_REGISTER, http_after_res_keywords_register, &stream_http_after_res_actions);
+
 static int smp_fetch_cur_server_timeout(const struct arg *args, struct sample *smp, const char *km, void *private)
 {
 	smp->flags = SMP_F_VOL_TXN;

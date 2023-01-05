@@ -5811,10 +5811,19 @@ http-after-response <action> <options...> [ { if | unless } <condition> ]
     - add-header <name> <fmt>
     - allow
     - capture <sample> id <id>
+    - del-acl(<file-name>) <key fmt>
     - del-header <name> [ -m <meth> ]
+    - del-map(<file-name>) <key fmt>
     - replace-header <name> <regex-match> <replace-fmt>
     - replace-value <name> <regex-match> <replace-fmt>
+    - sc-inc-gpc(<idx>,<sc-id>)
+    - sc-inc-gpc0(<sc-id>)
+    - sc-inc-gpc1(<sc-id>)
+    - sc-set-gpt(<idx>,<sc-id>) { <int> | <expr> }
+    - sc-set-gpt0(<sc-id>) { <int> | <expr> }
     - set-header <name> <fmt>
+    - set-log-level <level>
+    - set-map(<file-name>) <key fmt> <value fmt>
     - set-status <status> [reason <str>]
     - set-var(<var-name>[,<cond> ...]) <expr>
     - set-var-fmt(<var-name>[,<cond> ...]) <fmt>
@@ -5859,10 +5868,20 @@ http-after-response capture <sample> id <id> [ { if | unless } <condition> ]
   converts it to a string. Please refer to "http-response capture" for a
   complete description.
 
+http-after-response del-acl(<file-name>) <key fmt> [ { if | unless } <condition> ]
+
+  This is used to delete an entry from an ACL. Please refer to "http-request
+  del-acl" for a complete description.
+
 http-after-response del-header <name> [ -m <meth> ] [ { if | unless } <condition> ]
 
   This removes all HTTP header fields whose name is specified in <name>. Please
   refer to "http-request del-header" for a complete description.
+
+http-after-response del-map(<file-name>) <key fmt> [ { if | unless } <condition> ]
+
+  This is used to delete an entry from a MAP. Please refer to "http-request
+  del-map" for a complete description.
 
 http-after-response replace-header <name> <regex-match> <replace-fmt>
                                    [ { if | unless } <condition> ]
@@ -5893,6 +5912,34 @@ http-after-response replace-value <name> <regex-match> <replace-fmt>
 
     # outputs:
     Cache-Control: max-age=3600, private
+
+http-after-response sc-inc-gpc(<idx>,<sc-id>) [ { if | unless } <condition> ]
+http-after-response sc-inc-gpc0(<sc-id>) [ { if | unless } <condition> ]
+http-after-response sc-inc-gpc1(<sc-id>) [ { if | unless } <condition> ]
+
+  These actions increment the General Purppose Counters according to the sticky
+  counter designated by <sc-id>. Please refer to "http-request sc-inc-gpc",
+  "http-request sc-inc-gpc0" and "http-request sc-inc-gpc1" for a complete
+  description.
+
+http-after-response sc-set-gpt(<idx>,<sc-id>) { <int> | <expr> }
+                                              [ { if | unless } <condition> ]
+http-after-response sc-set-gpt0(<sc-id>) { <int> | <expr> }
+                                         [ { if | unless } <condition> ]
+
+  These actions set the 32-bit unsigned General Purpose Tags according to the
+  sticky counter designated by <sc-id>. Please refer to "http-request
+  sc-inc-gpt" and "http-request sc-inc-gpt0" for a complete description.
+
+http-after-response set-log-level <level> [ { if | unless } <condition> ]
+
+  This is used to change the log level of the current response. Please refer to
+  "http-request set-log-level" for a complete description.
+
+http-after-response set-map(<file-name>) <key fmt> <value fmt>
+
+  This is used to add a new entry into a MAP. Please refer to "http-request
+  set-map" for a complete description.
 
 http-after-response set-header <name> <fmt> [ { if | unless } <condition> ]
 

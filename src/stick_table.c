@@ -5077,6 +5077,17 @@ static struct action_kw_list http_res_kws = { { }, {
 
 INITCALL1(STG_REGISTER, http_res_keywords_register, &http_res_kws);
 
+static struct action_kw_list http_after_res_kws = { { }, {
+	{ "sc-inc-gpc",  parse_inc_gpc,  KWF_MATCH_PREFIX },
+	{ "sc-inc-gpc0", parse_inc_gpc,  KWF_MATCH_PREFIX },
+	{ "sc-inc-gpc1", parse_inc_gpc,  KWF_MATCH_PREFIX },
+	{ "sc-set-gpt",  parse_set_gpt,  KWF_MATCH_PREFIX },
+	{ "sc-set-gpt0", parse_set_gpt,  KWF_MATCH_PREFIX },
+	{ /* END */ }
+}};
+
+INITCALL1(STG_REGISTER, http_after_res_keywords_register, &http_after_res_kws);
+
 /* Note: must not be declared <const> as its list will be overwritten.
  * Please take care of keeping this list alphabetically sorted.
  */
