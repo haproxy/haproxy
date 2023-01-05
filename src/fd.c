@@ -366,7 +366,7 @@ void fd_delete(int fd)
 	/* the tgid cannot change before a complete close so we should never
 	 * face the situation where we try to close an fd that was reassigned.
 	 */
-	BUG_ON(fd_tgid(fd) != ti->tgid && !thread_isolated());
+	BUG_ON(fd_tgid(fd) != ti->tgid && !thread_isolated() && !(global.mode & MODE_STOPPING));
 
 	/* we must postpone removal of an FD that may currently be in use
 	 * by another thread. This can happen in the following two situations:
