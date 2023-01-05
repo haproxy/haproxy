@@ -7927,8 +7927,6 @@ http-response sc-set-gpt(<idx>,<sc-id>) { <int> | <expr> }
                                         [ { if | unless } <condition> ]
 http-response sc-set-gpt0(<sc-id>) { <int> | <expr> }
                                    [ { if | unless } <condition> ]
-http-response sc-set-gpt0(<sc-id>) { <int> | <expr> }
-                                   [ { if | unless } <condition> ]
 
   These actions set the 32-bit unsigned General Purpose Tags according to the
   sticky counter designated by <sc-id>. Please refer to "http-request
