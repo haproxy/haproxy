@@ -5848,16 +5848,16 @@ http-after-response add-header <name> <fmt> [ { if | unless } <condition> ]
   value is defined by <fmt>. Please refer to "http-request add-header" for a
   complete description.
 
+http-after-response allow [ { if | unless } <condition> ]
+
+  This stops the evaluation of the rules and lets the response pass the check.
+  No further "http-after-response" rules are evaluated for the current section.
+
 http-after-response capture <sample> id <id> [ { if | unless } <condition> ]
 
   This captures sample expression <sample> from the response buffer, and
   converts it to a string. Please refer to "http-response capture" for a
   complete description.
-
-http-after-response allow [ { if | unless } <condition> ]
-
-  This stops the evaluation of the rules and lets the response pass the check.
-  No further "http-after-response" rules are evaluated for the current section.
 
 http-after-response del-header <name> [ -m <meth> ] [ { if | unless } <condition> ]
 
