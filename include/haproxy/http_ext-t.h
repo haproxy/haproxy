@@ -73,10 +73,14 @@ enum http_ext_7239_forby_mode {
 };
 struct http_ext_7239_forby {
 	/* nn = nodename, np = nodeport */
-	char                          *nn_expr_s;
-	struct sample_expr            *nn_expr;
-	char                          *np_expr_s;
-	struct sample_expr            *np_expr;
+	union {
+		char                  *nn_expr_s;
+		struct sample_expr    *nn_expr;
+	};
+	union {
+		char                  *np_expr_s;
+		struct sample_expr    *np_expr;
+	};
 	enum http_ext_7239_forby_mode nn_mode;
 	enum http_ext_7239_forby_mode np_mode;
 };
@@ -86,8 +90,10 @@ enum http_ext_7239_host_mode {
 	HTTP_7239_HOST_SMP  = 2
 };
 struct http_ext_7239_host {
-	char                         *expr_s;
-	struct sample_expr           *expr;
+	union {
+		char                 *expr_s;
+		struct sample_expr   *expr;
+	};
 	enum http_ext_7239_host_mode mode;
 };
 
@@ -100,6 +106,7 @@ struct http_ext_7239 {
 	/* config error hints, used only during configuration parsing */
 	char                       *c_file;
 	int                        c_line;
+	int                        c_mode; /* 0: parsed, 1: compiled */
 };
 
 enum forwarded_header_field {

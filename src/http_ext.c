@@ -1049,7 +1049,6 @@ int proxy_http_parse_7239(char **args, int cur_arg,
  */
 int proxy_http_compile_7239(struct proxy *curproxy)
 {
-	char *err = NULL;
 	int cfgerr = 0;
 	int loop;
 
@@ -1066,71 +1065,98 @@ int proxy_http_compile_7239(struct proxy *curproxy)
 	curproxy->conf.args.file = curproxy->http.fwd.c_file;
 	curproxy->conf.args.line = curproxy->http.fwd.c_line;
 
+	/* it is important that we keep iterating on error to make sure
+	 * all fwd config fields are in the same state (post-parsing state)
+	 */
 	for (loop = 0; loop < 5; loop++) {
-		char *expr_str = NULL;
+		char **expr_str = NULL;
 		struct sample_expr **expr = NULL;
+		struct sample_expr *cur_expr;
+		char *err = NULL;
 		int smp = 0;
 		int idx = 0;
 
 		switch (loop) {
 			case 0:
 				/* host */
-				expr_str = curproxy->http.fwd.p_host.expr_s;
+				expr_str = &curproxy->http.fwd.p_host.expr_s;
 				expr = &curproxy->http.fwd.p_host.expr;
 				smp = (curproxy->http.fwd.p_host.mode ==
 				       HTTP_7239_HOST_SMP);
 				break;
 			case 1:
 				/* by->node */
-				expr_str = curproxy->http.fwd.p_by.nn_expr_s;
+				expr_str = &curproxy->http.fwd.p_by.nn_expr_s;
 				expr = &curproxy->http.fwd.p_by.nn_expr;
 				smp = (curproxy->http.fwd.p_by.nn_mode ==
 				       HTTP_7239_FORBY_SMP);
 				break;
 			case 2:
 				/* by->nodeport */
-				expr_str = curproxy->http.fwd.p_by.np_expr_s;
+				expr_str = &curproxy->http.fwd.p_by.np_expr_s;
 				expr = &curproxy->http.fwd.p_by.np_expr;
 				smp = (curproxy->http.fwd.p_by.np_mode ==
 				       HTTP_7239_FORBY_SMP);
 				break;
 			case 3:
 				/* for->node */
-				expr_str = curproxy->http.fwd.p_for.nn_expr_s;
+				expr_str = &curproxy->http.fwd.p_for.nn_expr_s;
 				expr = &curproxy->http.fwd.p_for.nn_expr;
 				smp = (curproxy->http.fwd.p_for.nn_mode ==
 				       HTTP_7239_FORBY_SMP);
 				break;
 			case 4:
 				/* for->nodeport */
-				expr_str = curproxy->http.fwd.p_for.np_expr_s;
+				expr_str = &curproxy->http.fwd.p_for.np_expr_s;
 				expr = &curproxy->http.fwd.p_for.np_expr;
 				smp = (curproxy->http.fwd.p_for.np_mode ==
 				       HTTP_7239_FORBY_SMP);
 				break;
 		}
-		if (!smp || !expr_str)
+		if (!smp)
 			continue; /* no expr */
-		/* expr cannot be NULL past this point */
-		ALREADY_CHECKED(expr);
 
-		*expr =
-			sample_parse_expr((char*[]){expr_str, NULL}, &idx,
+		/* expr and expr_str cannot be NULL past this point */
+		BUG_ON(!expr || !expr_str);
+
+		if (!*expr_str) {
+			/* should not happen unless system memory exhaustion */
+			ha_alert("%s '%s' [%s:%d]: failed to parse 'option forwarded' expression : %s.\n",
+				 proxy_type_str(curproxy), curproxy->id,
+				 curproxy->http.fwd.c_file, curproxy->http.fwd.c_line,
+				 "memory error");
+			cfgerr++;
+			continue;
+		}
+
+		cur_expr =
+			sample_parse_expr((char*[]){*expr_str, NULL}, &idx,
 					  curproxy->http.fwd.c_file,
 					  curproxy->http.fwd.c_line,
 					  &err, &curproxy->conf.args, NULL);
 
-		if (!*expr) {
+		if (!cur_expr) {
 			ha_alert("%s '%s' [%s:%d]: failed to parse 'option forwarded' expression '%s' in : %s.\n",
 				 proxy_type_str(curproxy), curproxy->id,
 				 curproxy->http.fwd.c_file, curproxy->http.fwd.c_line,
-				 expr_str, err);
+				 *expr_str, err);
 			ha_free(&err);
 			cfgerr++;
 		}
+		/* post parsing individual expr cleanup */
+		ha_free(expr_str);
+
+		/* expr assignment */
+		*expr = cur_expr;
 	}
 	curproxy->conf.args.file = NULL;
 	curproxy->conf.args.line = 0;
+
+	/* post parsing general cleanup */
+	ha_free(&curproxy->http.fwd.c_file);
+	curproxy->http.fwd.c_line = 0;
+
+	curproxy->http.fwd.c_mode = 1; /* parsing completed */
 
  out:
 	return cfgerr;
@@ -1292,23 +1318,28 @@ int proxy_http_parse_xot(char **args, int cur_arg,
 
 void http_ext_7239_clean(struct http_ext_7239 *clean)
 {
-	ha_free(&clean->c_file);
-	ha_free(&clean->p_host.expr_s);
-	ha_free(&clean->p_by.nn_expr_s);
-	ha_free(&clean->p_by.np_expr_s);
-	ha_free(&clean->p_for.nn_expr_s);
-	ha_free(&clean->p_for.np_expr_s);
-
-	release_sample_expr(clean->p_host.expr);
-	clean->p_host.expr = NULL;
-	release_sample_expr(clean->p_by.nn_expr);
-	clean->p_by.nn_expr = NULL;
-	release_sample_expr(clean->p_by.np_expr);
-	clean->p_by.np_expr = NULL;
-	release_sample_expr(clean->p_for.nn_expr);
-	clean->p_for.nn_expr = NULL;
-	release_sample_expr(clean->p_for.np_expr);
-	clean->p_for.np_expr = NULL;
+	if (!clean->c_mode) {
+		/* parsed */
+		ha_free(&clean->c_file);
+		ha_free(&clean->p_host.expr_s);
+		ha_free(&clean->p_by.nn_expr_s);
+		ha_free(&clean->p_by.np_expr_s);
+		ha_free(&clean->p_for.nn_expr_s);
+		ha_free(&clean->p_for.np_expr_s);
+	}
+	else {
+		/* compiled */
+		release_sample_expr(clean->p_host.expr);
+		clean->p_host.expr = NULL;
+		release_sample_expr(clean->p_by.nn_expr);
+		clean->p_by.nn_expr = NULL;
+		release_sample_expr(clean->p_by.np_expr);
+		clean->p_by.np_expr = NULL;
+		release_sample_expr(clean->p_for.nn_expr);
+		clean->p_for.nn_expr = NULL;
+		release_sample_expr(clean->p_for.np_expr);
+		clean->p_for.np_expr = NULL;
+	}
 }
 
 void http_ext_xff_clean(struct http_ext_xff *clean)
@@ -1323,6 +1354,8 @@ void http_ext_xot_clean(struct http_ext_xot *clean)
 
 void http_ext_7239_copy(struct http_ext_7239 *dest, const struct http_ext_7239 *orig)
 {
+	if (orig->c_mode)
+		return; /* copy not supported once compiled */
 	if (orig->c_file)
 		dest->c_file = strdup(orig->c_file);
 	dest->c_line = orig->c_line;
