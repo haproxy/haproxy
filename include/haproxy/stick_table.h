@@ -32,6 +32,7 @@
 #include <haproxy/ticks.h>
 
 extern struct stktable *stktables_list;
+extern struct pool_head *pool_head_stk_ctr;
 extern struct stktable_type stktable_types[];
 
 #define stktable_data_size(type) (sizeof(((union stktable_data*)0)->type))

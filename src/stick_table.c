@@ -50,7 +50,7 @@
 /* structure used to return a table key built from a sample */
 static THREAD_LOCAL struct stktable_key static_table_key;
 static int (*smp_fetch_src)(const struct arg *, struct sample *, const char *, void *);
-
+struct pool_head *pool_head_stk_ctr __read_mostly = NULL;
 struct stktable *stktables_list;
 struct eb_root stktable_by_name = EB_ROOT;
 
@@ -2456,14 +2456,16 @@ static enum act_return action_inc_gpc1(struct act_rule *rule, struct proxy *px,
                                        struct session *sess, struct stream *s, int flags)
 {
 	struct stksess *ts;
-	struct stkctr *stkctr;
+	struct stkctr *stkctr = NULL;
 	unsigned int period = 0;
 
 	/* Extract the stksess, return OK if no stksess available. */
-	if (s)
+	if (s && s->stkctr)
 		stkctr = &s->stkctr[rule->arg.gpc.sc];
-	else
+	else if (sess->stkctr)
 		stkctr = &sess->stkctr[rule->arg.gpc.sc];
+	else
+		return ACT_RET_CONT;
 
 	ts = stkctr_entry(stkctr);
 	if (ts) {
@@ -2522,6 +2524,11 @@ static enum act_parse_ret parse_inc_gpc(const char **args, int *arg, struct prox
 	const char *cmd_name = args[*arg-1];
 	char *error;
 
+	if (!global.tune.nb_stk_ctr) {
+		memprintf(err, "Cannot use '%s', stick-counters are disabled via tune.stick-counters", args[*arg-1]);
+		return ACT_RET_PRS_ERR;
+	}
+
 	cmd_name += strlen("sc-inc-gpc");
 	if (*cmd_name == '(') {
 		cmd_name++; /* skip the '(' */
@@ -2538,9 +2545,9 @@ static enum act_parse_ret parse_inc_gpc(const char **args, int *arg, struct prox
 				return ACT_RET_PRS_ERR;
 			}
 
-			if (rule->arg.gpc.sc >= MAX_SESS_STKCTR) {
-				memprintf(err, "invalid stick table track ID '%s'. The max allowed ID is %d",
-				          args[*arg-1], MAX_SESS_STKCTR-1);
+			if (rule->arg.gpc.sc >= global.tune.nb_stk_ctr) {
+				memprintf(err, "invalid stick table track ID '%s'. The max allowed ID is %d (tune.stick-counters)",
+				          args[*arg-1], global.tune.nb_stk_ctr-1);
 				return ACT_RET_PRS_ERR;
 			}
 		}
@@ -2566,9 +2573,9 @@ static enum act_parse_ret parse_inc_gpc(const char **args, int *arg, struct prox
 				return ACT_RET_PRS_ERR;
 			}
 
-			if (rule->arg.gpc.sc >= MAX_SESS_STKCTR) {
-				memprintf(err, "invalid stick table track ID. The max allowed ID is %d",
-				          MAX_SESS_STKCTR-1);
+			if (rule->arg.gpc.sc >= global.tune.nb_stk_ctr) {
+				memprintf(err, "invalid stick table track ID. The max allowed ID is %d (tune.stick-counters)",
+				          global.tune.nb_stk_ctr-1);
 				return ACT_RET_PRS_ERR;
 			}
 		}
@@ -2599,16 +2606,18 @@ static enum act_return action_set_gpt(struct act_rule *rule, struct proxy *px,
 {
 	void *ptr;
 	struct stksess *ts;
-	struct stkctr *stkctr;
+	struct stkctr *stkctr = NULL;
 	unsigned int value = 0;
 	struct sample *smp;
 	int smp_opt_dir;
 
 	/* Extract the stksess, return OK if no stksess available. */
-	if (s)
+	if (s && s->stkctr)
 		stkctr = &s->stkctr[rule->arg.gpt.sc];
-	else
+	else if (sess->stkctr)
 		stkctr = &sess->stkctr[rule->arg.gpt.sc];
+	else
+		return ACT_RET_CONT;
 
 	ts = stkctr_entry(stkctr);
 	if (!ts)
@@ -2663,16 +2672,18 @@ static enum act_return action_set_gpt0(struct act_rule *rule, struct proxy *px,
 {
 	void *ptr;
 	struct stksess *ts;
-	struct stkctr *stkctr;
+	struct stkctr *stkctr = NULL;
 	unsigned int value = 0;
 	struct sample *smp;
 	int smp_opt_dir;
 
 	/* Extract the stksess, return OK if no stksess available. */
-	if (s)
+	if (s && s->stkctr)
 		stkctr = &s->stkctr[rule->arg.gpt.sc];
-	else
+	else if (sess->stkctr)
 		stkctr = &sess->stkctr[rule->arg.gpt.sc];
+	else
+		return ACT_RET_CONT;
 
 	ts = stkctr_entry(stkctr);
 	if (!ts)
@@ -2741,6 +2752,11 @@ static enum act_parse_ret parse_set_gpt(const char **args, int *arg, struct prox
 	char *error;
 	int smp_val;
 
+	if (!global.tune.nb_stk_ctr) {
+		memprintf(err, "Cannot use '%s', stick-counters are disabled via tune.stick-counters", args[*arg-1]);
+		return ACT_RET_PRS_ERR;
+	}
+
 	cmd_name += strlen("sc-set-gpt");
 	if (*cmd_name == '(') {
 		cmd_name++; /* skip the '(' */
@@ -2757,9 +2773,9 @@ static enum act_parse_ret parse_set_gpt(const char **args, int *arg, struct prox
 				return ACT_RET_PRS_ERR;
 			}
 
-			if (rule->arg.gpt.sc >= MAX_SESS_STKCTR) {
+			if (rule->arg.gpt.sc >= global.tune.nb_stk_ctr) {
 				memprintf(err, "invalid stick table track ID '%s'. The max allowed ID is %d",
-				          args[*arg-1], MAX_SESS_STKCTR-1);
+				          args[*arg-1], global.tune.nb_stk_ctr-1);
 				return ACT_RET_PRS_ERR;
 			}
 		}
@@ -2783,9 +2799,9 @@ static enum act_parse_ret parse_set_gpt(const char **args, int *arg, struct prox
 				return ACT_RET_PRS_ERR;
 			}
 
-			if (rule->arg.gpt.sc >= MAX_SESS_STKCTR) {
+			if (rule->arg.gpt.sc >= global.tune.nb_stk_ctr) {
 				memprintf(err, "invalid stick table track ID '%s'. The max allowed ID is %d",
-				          args[*arg-1], MAX_SESS_STKCTR-1);
+				          args[*arg-1], global.tune.nb_stk_ctr-1);
 				return ACT_RET_PRS_ERR;
 			}
 		}
@@ -2914,15 +2930,19 @@ smp_fetch_sc_stkctr(struct session *sess, struct stream *strm, const struct arg 
 	 * the sc[0-9]_ form, or even higher using sc_(num) if needed.
 	 * args[arg] is the first optional argument. We first lookup the
 	 * ctr form the stream, then from the session if it was not there.
-	 * But we must be sure the counter does not exceed MAX_SESS_STKCTR.
+	 * But we must be sure the counter does not exceed global.tune.nb_stk_ctr.
 	 */
-	if (num >= MAX_SESS_STKCTR)
+	if (num >= global.tune.nb_stk_ctr)
 		return NULL;
 
-	if (strm)
+	stkptr = NULL;
+	if (strm && strm->stkctr)
 		stkptr = &strm->stkctr[num];
-	if (!strm || !stkctr_entry(stkptr)) {
-		stkptr = &sess->stkctr[num];
+	if (!strm || !stkptr || !stkctr_entry(stkptr)) {
+		if (sess->stkctr)
+			stkptr = &sess->stkctr[num];
+		else
+			return NULL;
 		if (!stkctr_entry(stkptr))
 			return NULL;
 	}
@@ -4990,6 +5010,45 @@ static void cli_release_show_table(struct appctx *appctx)
 	}
 }
 
+static int stk_parse_stick_counters(char **args, int section_type, struct proxy *curpx,
+                                const struct proxy *defpx, const char *file, int line,
+                                char **err)
+{
+	char *error;
+	int counters;
+
+	counters = strtol(args[1], &error, 10);
+	if (*error != 0) {
+		memprintf(err, "%s: '%s' is an invalid number", args[0], args[1]);
+		return -1;
+	}
+
+	if (counters < 0) {
+		memprintf(err, "%s: the number of stick-counters may not be negative (was %d)", args[0], counters);
+		return -1;
+	}
+
+	global.tune.nb_stk_ctr = counters;
+	return 0;
+}
+
+/* This function creates the stk_ctr pools after the configuration parsing. It
+ * returns 0 on success otherwise ERR_*. If nb_stk_ctr is 0, the pool remains
+ * NULL.
+ */
+static int stkt_create_stk_ctr_pool(void)
+{
+	if (!global.tune.nb_stk_ctr)
+		return 0;
+
+	pool_head_stk_ctr = create_pool("stk_ctr", sizeof(*((struct session*)0)->stkctr) * global.tune.nb_stk_ctr, MEM_F_SHARED);
+	if (!pool_head_stk_ctr) {
+		ha_alert("out of memory while creating the stick-counters pool.\n");
+		return ERR_ABORT;
+	}
+	return 0;
+}
+
 static void stkt_late_init(void)
 {
 	struct sample_fetch *f;
@@ -4997,6 +5056,7 @@ static void stkt_late_init(void)
 	f = find_sample_fetch("src", strlen("src"));
 	if (f)
 		smp_fetch_src = f->process;
+	hap_register_post_check(stkt_create_stk_ctr_pool);
 }
 
 INITCALL0(STG_INIT, stkt_late_init);
@@ -5273,3 +5333,10 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 }};
 
 INITCALL1(STG_REGISTER, sample_register_convs, &sample_conv_kws);
+
+static struct cfg_kw_list cfg_kws = {{ },{
+	{ CFG_GLOBAL, "tune.stick-counters", stk_parse_stick_counters },
+	{ /* END */ }
+}};
+
+INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);

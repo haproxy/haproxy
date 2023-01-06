@@ -388,13 +388,20 @@ struct stream *stream_new(struct session *sess, struct stconn *sc, struct buffer
 	s->last_rule_file = NULL;
 	s->last_rule_line = 0;
 
-	/* Copy SC counters for the stream. We don't touch refcounts because
-	 * any reference we have is inherited from the session. Since the stream
-	 * doesn't exist without the session, the session's existence guarantees
-	 * we don't lose the entry. During the store operation, the stream won't
-	 * touch these ones.
-	 */
-	memcpy(s->stkctr, sess->stkctr, sizeof(s->stkctr));
+	s->stkctr = NULL;
+	if (pool_head_stk_ctr) {
+		s->stkctr = pool_alloc(pool_head_stk_ctr);
+		if (!s->stkctr)
+			goto out_fail_alloc;
+
+		/* Copy SC counters for the stream. We don't touch refcounts because
+		 * any reference we have is inherited from the session. Since the stream
+		 * doesn't exist without the session, the session's existence guarantees
+		 * we don't lose the entry. During the store operation, the stream won't
+		 * touch these ones.
+		 */
+		memcpy(s->stkctr, sess->stkctr, sizeof(s->stkctr[0]) * global.tune.nb_stk_ctr);
+	}
 
 	s->sess = sess;
 
@@ -582,6 +589,8 @@ struct stream *stream_new(struct session *sess, struct stconn *sc, struct buffer
  out_fail_attach_scf:
 	task_destroy(t);
  out_fail_alloc:
+	if (s)
+		pool_free(pool_head_stk_ctr, s->stkctr);
 	pool_free(pool_head_stream, s);
 	DBG_TRACE_DEVEL("leaving on error", STRM_EV_STRM_NEW|STRM_EV_STRM_ERR);
 	return NULL;
@@ -701,6 +710,7 @@ void stream_free(struct stream *s)
 		vars_prune(&s->vars_reqres, s->sess, s);
 
 	stream_store_counters(s);
+	pool_free(pool_head_stk_ctr, s->stkctr);
 
 	list_for_each_entry_safe(bref, back, &s->back_refs, users) {
 		/* we have to unlink all watchers. We must not relink them if
@@ -797,7 +807,7 @@ void stream_process_counters(struct stream *s)
 		if (sess->listener && sess->listener->counters)
 			_HA_ATOMIC_ADD(&sess->listener->counters->bytes_in, bytes);
 
-		for (i = 0; i < MAX_SESS_STKCTR; i++) {
+		for (i = 0; i < global.tune.nb_stk_ctr; i++) {
 			if (!stkctr_inc_bytes_in_ctr(&s->stkctr[i], bytes))
 				stkctr_inc_bytes_in_ctr(&sess->stkctr[i], bytes);
 		}
@@ -815,7 +825,7 @@ void stream_process_counters(struct stream *s)
 		if (sess->listener && sess->listener->counters)
 			_HA_ATOMIC_ADD(&sess->listener->counters->bytes_out, bytes);
 
-		for (i = 0; i < MAX_SESS_STKCTR; i++) {
+		for (i = 0; i < global.tune.nb_stk_ctr; i++) {
 			if (!stkctr_inc_bytes_out_ctr(&s->stkctr[i], bytes))
 				stkctr_inc_bytes_out_ctr(&sess->stkctr[i], bytes);
 		}

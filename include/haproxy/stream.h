@@ -116,7 +116,10 @@ static inline void stream_store_counters(struct stream *s)
 	int i;
 	struct stksess *ts;
 
-	for (i = 0; i < MAX_SESS_STKCTR; i++) {
+	if (unlikely(!s->stkctr)) // pool not allocated yet
+		return;
+
+	for (i = 0; i < global.tune.nb_stk_ctr; i++) {
 		ts = stkctr_entry(&s->stkctr[i]);
 		if (!ts)
 			continue;
@@ -152,7 +155,10 @@ static inline void stream_stop_content_counters(struct stream *s)
 	void *ptr;
 	int i;
 
-	for (i = 0; i < MAX_SESS_STKCTR; i++) {
+	if (unlikely(!s->stkctr)) // pool not allocated yet
+		return;
+
+	for (i = 0; i < global.tune.nb_stk_ctr; i++) {
 		ts = stkctr_entry(&s->stkctr[i]);
 		if (!ts)
 			continue;
@@ -231,7 +237,10 @@ static inline void stream_inc_http_req_ctr(struct stream *s)
 {
 	int i;
 
-	for (i = 0; i < MAX_SESS_STKCTR; i++) {
+	if (unlikely(!s->stkctr)) // pool not allocated yet
+		return;
+
+	for (i = 0; i < global.tune.nb_stk_ctr; i++) {
 		if (!stkctr_inc_http_req_ctr(&s->stkctr[i]))
 			stkctr_inc_http_req_ctr(&s->sess->stkctr[i]);
 	}
@@ -244,7 +253,10 @@ static inline void stream_inc_be_http_req_ctr(struct stream *s)
 {
 	int i;
 
-	for (i = 0; i < MAX_SESS_STKCTR; i++) {
+	if (unlikely(!s->stkctr)) // pool not allocated yet
+		return;
+
+	for (i = 0; i < global.tune.nb_stk_ctr; i++) {
 		if (!stkctr_entry(&s->stkctr[i]) || !(stkctr_flags(&s->stkctr[i]) & STKCTR_TRACK_BACKEND))
 			continue;
 
@@ -262,7 +274,10 @@ static inline void stream_inc_http_err_ctr(struct stream *s)
 {
 	int i;
 
-	for (i = 0; i < MAX_SESS_STKCTR; i++) {
+	if (unlikely(!s->stkctr)) // pool not allocated yet
+		return;
+
+	for (i = 0; i < global.tune.nb_stk_ctr; i++) {
 		if (!stkctr_inc_http_err_ctr(&s->stkctr[i]))
 			stkctr_inc_http_err_ctr(&s->sess->stkctr[i]);
 	}
@@ -277,7 +292,10 @@ static inline void stream_inc_http_fail_ctr(struct stream *s)
 {
 	int i;
 
-	for (i = 0; i < MAX_SESS_STKCTR; i++) {
+	if (unlikely(!s->stkctr)) // pool not allocated yet
+		return;
+
+	for (i = 0; i < global.tune.nb_stk_ctr; i++) {
 		if (!stkctr_inc_http_fail_ctr(&s->stkctr[i]))
 			stkctr_inc_http_fail_ctr(&s->sess->stkctr[i]);
 	}

@@ -162,6 +162,7 @@ struct global {
 		int pool_high_count;  /* max number of opened fd before we start killing idle connections when creating new connections */
 		size_t pool_cache_size;    /* per-thread cache size per pool (defaults to CONFIG_HAP_POOL_CACHE_SIZE) */
 		unsigned short idle_timer; /* how long before an empty buffer is considered idle (ms) */
+		int nb_stk_ctr;       /* number of stick counters, defaults to MAX_SESS_STKCTR */
 #ifdef USE_QUIC
 		unsigned int quic_backend_max_idle_timeout;
 		unsigned int quic_frontend_max_idle_timeout;

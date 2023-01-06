@@ -50,7 +50,10 @@ static inline void session_store_counters(struct session *sess)
 	int i;
 	struct stksess *ts;
 
-	for (i = 0; i < MAX_SESS_STKCTR; i++) {
+	if (unlikely(!sess->stkctr)) // pool not allocated yet
+		return;
+
+	for (i = 0; i < global.tune.nb_stk_ctr; i++) {
 		struct stkctr *stkctr = &sess->stkctr[i];
 
 		ts = stkctr_entry(stkctr);
@@ -80,7 +83,10 @@ static inline void session_inc_http_req_ctr(struct session *sess)
 {
 	int i;
 
-	for (i = 0; i < MAX_SESS_STKCTR; i++)
+	if (unlikely(!sess->stkctr)) // pool not allocated yet
+		return;
+
+	for (i = 0; i < global.tune.nb_stk_ctr; i++)
 		stkctr_inc_http_req_ctr(&sess->stkctr[i]);
 }
 
@@ -94,7 +100,10 @@ static inline void session_inc_http_err_ctr(struct session *sess)
 {
 	int i;
 
-	for (i = 0; i < MAX_SESS_STKCTR; i++)
+	if (unlikely(!sess->stkctr)) // pool not allocated yet
+		return;
+
+	for (i = 0; i < global.tune.nb_stk_ctr; i++)
 		stkctr_inc_http_err_ctr(&sess->stkctr[i]);
 }
 
@@ -107,7 +116,10 @@ static inline void session_inc_http_fail_ctr(struct session *sess)
 {
 	int i;
 
-	for (i = 0; i < MAX_SESS_STKCTR; i++)
+	if (unlikely(!sess->stkctr)) // pool not allocated yet
+		return;
+
+	for (i = 0; i < global.tune.nb_stk_ctr; i++)
 		stkctr_inc_http_fail_ctr(&sess->stkctr[i]);
 }
 

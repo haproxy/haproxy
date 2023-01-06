@@ -46,7 +46,13 @@ struct session *session_new(struct proxy *fe, struct listener *li, enum obj_type
 		sess->origin = origin;
 		sess->accept_date = date; /* user-visible date for logging */
 		sess->tv_accept   = now;  /* corrected date for internal use */
-		memset(sess->stkctr, 0, sizeof(sess->stkctr));
+		sess->stkctr = NULL;
+		if (pool_head_stk_ctr) {
+			sess->stkctr = pool_alloc(pool_head_stk_ctr);
+			if (!sess->stkctr)
+				goto out_fail_alloc;
+			memset(sess->stkctr, 0, sizeof(sess->stkctr[0]) * global.tune.nb_stk_ctr);
+		}
 		vars_init_head(&sess->vars, SCOPE_SESS);
 		sess->task = NULL;
 		sess->t_handshake = -1; /* handshake not done yet */
@@ -60,6 +66,9 @@ struct session *session_new(struct proxy *fe, struct listener *li, enum obj_type
 		sess->dst = NULL;
 	}
 	return sess;
+ out_fail_alloc:
+	pool_free(pool_head_session, sess);
+	return NULL;
 }
 
 void session_free(struct session *sess)
@@ -70,6 +79,7 @@ void session_free(struct session *sess)
 	if (sess->listener)
 		listener_release(sess->listener);
 	session_store_counters(sess);
+	pool_free(pool_head_stk_ctr, sess->stkctr);
 	vars_prune_per_sess(&sess->vars);
 	conn = objt_conn(sess->origin);
 	if (conn != NULL && conn->mux)
@@ -116,7 +126,7 @@ static void session_count_new(struct session *sess)
 
 	proxy_inc_fe_sess_ctr(sess->listener, sess->fe);
 
-	for (i = 0; i < MAX_SESS_STKCTR; i++) {
+	for (i = 0; i < global.tune.nb_stk_ctr; i++) {
 		stkctr = &sess->stkctr[i];
 		if (!stkctr_entry(stkctr))
 			continue;

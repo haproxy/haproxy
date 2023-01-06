@@ -1158,6 +1158,7 @@ The following keywords are supported in the "global" section :
    - tune.sched.low-latency
    - tune.sndbuf.client
    - tune.sndbuf.server
+   - tune.stick-counters
    - tune.ssl.cachesize
    - tune.ssl.capture-buffer-size
    - tune.ssl.capture-cipherlist-size (deprecated)
@@ -3304,6 +3305,21 @@ tune.ssl.ssl-ctx-cache-size <number>
   entries. This is a LRU cache. Because generating a SSL certificate
   dynamically is expensive, they are cached. The default cache size is set to
   1000 entries.
+
+tune.stick-counters <number>
+  Sets the number of stick-counters that may be tracked at the same time by a
+  connection or a request via "track-sc*" actions in "tcp-request" or
+  "http-request" rules. The defaut value is set at build time by the macro
+  MAX_SESS_STK_CTR, and defaults to 3. With this setting it is possible to
+  change the value and ignore the one passed at build time. Increasing this
+  value may be needed when porting complex configurations to haproxy, but users
+  are warned against the costs: each entry takes 16 bytes per connection and
+  16 bytes per request, all of which need to be allocated and zeroed for all
+  requests even when not used. As such a value of 10 will inflate the memory
+  consumption per request by 320 bytes and will cause this memory to be erased
+  for each request, which does have measurable CPU impacts. Conversely, when
+  no "track-sc" rules are used, the value may be lowered (0 being valid to
+  entirely disable stick-counters).
 
 tune.vars.global-max-size <size>
 tune.vars.proc-max-size <size>
@@ -7617,9 +7633,10 @@ http-request track-sc2 <key> [table <table>] [ { if | unless } <condition> ]
 
   This enables tracking of sticky counters from current request. These rules do
   not stop evaluation and do not change default action. The number of counters
-  that may be simultaneously tracked by the same connection is set in
-  MAX_SESS_STKCTR at build time (reported in haproxy -vv) which defaults to 3,
-  so the track-sc number is between 0 and (MAX_SESS_STKCTR-1). The first
+  that may be simultaneously tracked by the same connection is set by the
+  global "tune.stick-counters" setting, which defaults to MAX_SESS_STKCTR if
+  set at build time (it is reported in haproxy -vv) and which defaults to 3,
+  so the track-sc number is between 0 and (tune.stick-counters-1). The first
   "track-sc0" rule executed enables tracking of the counters of the specified
   table as the first set. The first "track-sc1" rule executed enables tracking
   of the counters of the specified table as the second set. The first
@@ -18924,12 +18941,12 @@ TCP/IP addresses and ports, as well as elements from stick-tables related to
 the incoming connection. For retrieving a value from a sticky counters, the
 counter number can be explicitly set as 0, 1, or 2 using the pre-defined
 "sc0_", "sc1_", or "sc2_" prefix. These three pre-defined prefixes can only be
-used if MAX_SESS_STKCTR value does not exceed 3, otherwise the counter number
-can be specified as the first integer argument when using the "sc_" prefix.
-Starting from "sc_0" to "sc_N" where N is (MAX_SESS_STKCTR-1). An optional
-table may be specified with the "sc*" form, in which case the currently
-tracked key will be looked up into this alternate table instead of the table
-currently being tracked.
+used if the global "tune.stick-counters" value does not exceed 3, otherwise the
+counter number can be specified as the first integer argument when using the
+"sc_" prefix starting from "sc_0" to "sc_N" where N is (tune.stick-counters-1).
+An optional table may be specified with the "sc*" form, in which case the
+currently tracked key will be looked up into this alternate table instead of
+the table currently being tracked.
 
 bc_dst : ip
   This is the destination ip address of the connection on the server side,

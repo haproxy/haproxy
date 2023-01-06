@@ -1058,7 +1058,7 @@ static int tcp_parse_request_rule(char **args, int arg, int section_type,
 			memprintf(err,
 			          "'%s %s' expects 'accept', 'reject', 'capture', 'expect-proxy', 'expect-netscaler-cip', 'track-sc0' ... 'track-sc%d', %s "
 			          "in %s '%s' (got '%s').%s%s%s\n",
-			          args[0], args[1], MAX_SESS_STKCTR-1,
+			          args[0], args[1], global.tune.nb_stk_ctr-1,
 			          trash.area, proxy_type_str(curpx),
 			          curpx->id, args[arg],
 			          best ? " Did you mean '" : "",

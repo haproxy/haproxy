@@ -1564,9 +1564,13 @@ cfg_parse_track_sc_num(unsigned int *track_sc_num,
 		return -1;
 	}
 
-	if (num >= MAX_SESS_STKCTR) {
-		memprintf(errmsg, "%u track-sc number exceeding "
-		          "%d (MAX_SESS_STKCTR-1) value", num, MAX_SESS_STKCTR - 1);
+	if (num >= global.tune.nb_stk_ctr) {
+		if (!global.tune.nb_stk_ctr)
+			memprintf(errmsg, "%u track-sc number not usable, stick-counters "
+			          "are disabled by tune.stick-counters", num);
+		else
+			memprintf(errmsg, "%u track-sc number exceeding "
+			          "%d (tune.stick-counters-1) value", num, global.tune.nb_stk_ctr - 1);
 		return -1;
 	}
 

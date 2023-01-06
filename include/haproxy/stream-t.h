@@ -245,7 +245,7 @@ struct stream {
 		struct stktable *table;
 	} store[8];                     /* tracked stickiness values to store */
 
-	struct stkctr stkctr[MAX_SESS_STKCTR];  /* content-aware stick counters */
+	struct stkctr *stkctr;                  /* content-aware stick counters */
 
 	struct strm_flt strm_flt;               /* current state of filters active on this stream */
 

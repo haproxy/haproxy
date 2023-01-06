@@ -204,6 +204,7 @@ struct global global = {
 #else
 		.idle_timer = 1000, /* 1 second */
 #endif
+		.nb_stk_ctr = MAX_SESS_STKCTR,
 #ifdef USE_QUIC
 		.quic_backend_max_idle_timeout = QUIC_TP_DFLT_BACK_MAX_IDLE_TIMEOUT,
 		.quic_frontend_max_idle_timeout = QUIC_TP_DFLT_FRONT_MAX_IDLE_TIMEOUT,
