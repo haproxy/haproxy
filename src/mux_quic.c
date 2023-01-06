@@ -818,6 +818,8 @@ void qcc_reset_stream(struct qcs *qcs, int err)
 	TRACE_STATE("reset stream", QMUX_EV_QCS_END, qcc->conn, qcs);
 	qcs->flags |= QC_SF_TO_RESET;
 	qcs->err = err;
+
+	qcc_send_stream(qcs, 1);
 	tasklet_wakeup(qcc->wait_event.tasklet);
 }
 
@@ -858,6 +860,8 @@ void qcc_abort_stream_read(struct qcs *qcs)
 
 	TRACE_STATE("abort stream read", QMUX_EV_QCS_END, qcc->conn, qcs);
 	qcs->flags |= (QC_SF_TO_STOP_SENDING|QC_SF_READ_ABORTED);
+
+	qcc_send_stream(qcs, 1);
 	tasklet_wakeup(qcc->wait_event.tasklet);
 
  end:
@@ -1445,6 +1449,13 @@ static int qcs_stream_fin(struct qcs *qcs)
 	return qcs->flags & QC_SF_FIN_STREAM && !b_data(&qcs->tx.buf);
 }
 
+/* Return true if <qcs> has data to send in new STREAM frames. */
+static forceinline int qcs_need_sending(struct qcs *qcs)
+{
+	return b_data(&qcs->tx.buf) || qcs->tx.sent_offset < qcs->tx.offset ||
+	       qcs_stream_fin(qcs);
+}
+
 /* This function must be called by the upper layer to inform about the sending
  * of a STREAM frame for <qcs> instance. The frame is of <data> length and on
  * <offset>.
@@ -1713,7 +1724,6 @@ static int _qc_send_qcs(struct qcs *qcs, struct list *frms)
 static int qc_send(struct qcc *qcc)
 {
 	struct list frms = LIST_HEAD_INIT(frms);
-	struct eb64_node *node;
 	struct qcs *qcs, *qcs_tmp;
 	int total = 0, tmp_total = 0;
 
@@ -1733,7 +1743,7 @@ static int qc_send(struct qcc *qcc)
 	}
 
 	if (qcc->flags & QC_CF_BLK_MFCTL)
-		return 0;
+		goto err;
 
 	if (!(qcc->flags & QC_CF_APP_FINAL) && !eb_is_empty(&qcc->streams_by_id) &&
 	    qcc->app_ops->finalize) {
@@ -1744,43 +1754,41 @@ static int qc_send(struct qcc *qcc)
 		qcc->flags |= QC_CF_APP_FINAL;
 	}
 
-	/* Loop through all streams for STOP_SENDING/RESET_STREAM sending. Each
-	 * frame is send individually to guarantee emission.
-	 *
-	 * TODO Optimize sending by multiplexing several frames in one datagram.
-	 */
-	node = eb64_first(&qcc->streams_by_id);
-	while (node) {
-		uint64_t id;
+	/* Send STREAM/STOP_SENDING/RESET_STREAM data for registered streams. */
+	list_for_each_entry_safe(qcs, qcs_tmp, &qcc->send_list, el_send) {
+		/* Stream must not be present in send_list if it has nothing to send. */
+		BUG_ON(!(qcs->flags & (QC_SF_TO_STOP_SENDING|QC_SF_TO_RESET)) &&
+		       !qcs_need_sending(qcs));
 
-		qcs = eb64_entry(node, struct qcs, by_id);
-		id = qcs->id;
+		/* Each STOP_SENDING/RESET_STREAM frame is sent individually to
+		 * guarantee its emission.
+		 *
+		 * TODO multiplex several frames in same datagram to optimize sending
+		 */
+		if (qcs->flags & QC_SF_TO_STOP_SENDING) {
+			if (qcs_send_stop_sending(qcs))
+				goto out;
 
-		if (quic_stream_is_uni(id) && quic_stream_is_remote(qcc, id)) {
-			node = eb64_next(node);
-			continue;
+			/* Remove stream from send_list if it had only STOP_SENDING
+			 * to send.
+			 */
+			if (!(qcs->flags & QC_SF_TO_RESET) && !qcs_need_sending(qcs)) {
+				LIST_DEL_INIT(&qcs->el_send);
+				continue;
+			}
 		}
-
-		if (qcs->flags & QC_SF_TO_STOP_SENDING)
-			qcs_send_stop_sending(qcs);
 
 		if (qcs->flags & QC_SF_TO_RESET) {
-			qcs_send_reset(qcs);
-			node = eb64_next(node);
-			continue;
-		}
+			if (qcs_send_reset(qcs))
+				goto out;
 
-		node = eb64_next(node);
-	}
-
-	/* Send STREAM data for registered streams. */
-	list_for_each_entry(qcs, &qcc->send_list, el_send) {
-		/* Stream must not be present in send_list if it has nothing to send. */
-		BUG_ON(!b_data(&qcs->tx.buf) &&
-		       qcs->tx.sent_offset == qcs->tx.offset &&
-		       !qcs_stream_fin(qcs));
-
-		if (qcs_is_close_local(qcs)) {
+			/* RFC 9000 3.3. Permitted Frame Types
+			 *
+			 * A sender MUST NOT send
+			 * a STREAM or STREAM_DATA_BLOCKED frame for a stream in the
+			 * "Reset Sent" state or any terminal state -- that is, after
+			 * sending a RESET_STREAM frame.
+			 */
 			LIST_DEL_INIT(&qcs->el_send);
 			continue;
 		}

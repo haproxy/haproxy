@@ -95,7 +95,7 @@ struct qcc {
 	struct eb_root streams_by_id; /* all active streams by their ID */
 
 	struct list send_retry_list; /* list of qcs eligible to send retry */
-	struct list send_list; /* list of qcs ready to send */
+	struct list send_list; /* list of qcs ready to send (STREAM, STOP_SENDING or RESET_STREAM emission) */
 
 	struct wait_event wait_event;  /* To be used if we're waiting for I/Os */
 
