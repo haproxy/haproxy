@@ -1143,6 +1143,19 @@ int proxy_http_compile_7239(struct proxy *curproxy)
 			ha_free(&err);
 			cfgerr++;
 		}
+		else if (!(cur_expr->fetch->val & SMP_VAL_BE_HRQ_HDR)) {
+			/* fetch not available in this context: sample expr is resolved
+			 * within backend right after headers are processed.
+			 * (in http_process_request())
+			 * -> we simply warn the user about the misuse
+			 */
+			ha_warning("%s '%s' [%s:%d]: in 'option forwarded' sample expression '%s' : "
+				   "some args extract information from '%s', "
+				   "none of which is available here.\n",
+				   proxy_type_str(curproxy), curproxy->id,
+				   curproxy->http.fwd.c_file, curproxy->http.fwd.c_line,
+				   *expr_str, sample_ckp_names(cur_expr->fetch->use));
+		}
 		/* post parsing individual expr cleanup */
 		ha_free(expr_str);
 
