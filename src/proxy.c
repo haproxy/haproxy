@@ -244,6 +244,8 @@ void free_proxy(struct proxy *p)
 		free(rdr->rdr_str);
 		list_for_each_entry_safe(lf, lfb, &rdr->rdr_fmt, list) {
 			LIST_DELETE(&lf->list);
+			release_sample_expr(lf->expr);
+			free(lf->arg);
 			free(lf);
 		}
 		free(rdr);

@@ -1769,6 +1769,8 @@ static void release_http_redir(struct act_rule *rule)
 	free(redir->cookie_str);
 	list_for_each_entry_safe(lf, lfb, &redir->rdr_fmt, list) {
 		LIST_DELETE(&lf->list);
+		release_sample_expr(lf->expr);
+		free(lf->arg);
 		free(lf);
 	}
 	free(redir);
