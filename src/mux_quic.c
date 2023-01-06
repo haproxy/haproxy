@@ -1499,12 +1499,10 @@ void qcc_streams_sent_done(struct qcs *qcs, uint64_t data, uint64_t offset)
 			TRACE_STATE("stream flow-control reached", QMUX_EV_QCS_SEND, qcc->conn, qcs);
 		}
 
+		/* If qcs.stream.buf is full, release it to the lower layer. */
 		if (qcs->tx.offset == qcs->tx.sent_offset &&
 		    b_full(&qcs->stream->buf->buf)) {
 			qc_stream_buf_release(qcs->stream);
-			/* prepare qcs for immediate send retry if data to send */
-			if (b_data(&qcs->tx.buf))
-				LIST_APPEND(&qcc->send_retry_list, &qcs->el);
 		}
 	}
 
@@ -1538,8 +1536,6 @@ static int qc_send_frames(struct qcc *qcc, struct list *frms)
 		TRACE_DEVEL("no frames to send", QMUX_EV_QCC_SEND, qcc->conn);
 		goto err;
 	}
-
-	LIST_INIT(&qcc->send_retry_list);
 
 	if (!qc_send_mux(qcc->conn->handle.qc, frms))
 		goto err;
@@ -1725,7 +1721,7 @@ static int qc_send(struct qcc *qcc)
 {
 	struct list frms = LIST_HEAD_INIT(frms);
 	struct qcs *qcs, *qcs_tmp;
-	int total = 0, tmp_total = 0;
+	int total = 0;
 
 	TRACE_ENTER(QMUX_EV_QCC_SEND, qcc->conn);
 
@@ -1797,26 +1793,24 @@ static int qc_send(struct qcc *qcc)
 			total += _qc_send_qcs(qcs, &frms);
 	}
 
-	if (qc_send_frames(qcc, &frms)) {
-		/* data rejected by transport layer, do not retry. */
-		goto out;
+	/* Retry sending until no frame to send, data rejected or connection
+	 * flow-control limit reached.
+	 */
+	while (qc_send_frames(qcc, &frms) == 0 && !(qcc->flags & QC_CF_BLK_MFCTL)) {
+		/* Reloop over <qcc.send_list>. Useful for streams which have
+		 * fulfilled their qc_stream_desc buf and have now release it.
+		 */
+		list_for_each_entry(qcs, &qcc->send_list, el_send) {
+			/* Only streams blocked on flow-control or waiting on a
+			 * new qc_stream_desc should be present in send_list as
+			 * long as transport layer can handle all data.
+			 */
+			BUG_ON(qcs->stream->buf && !(qcs->flags & QC_SF_BLK_SFCTL));
+
+			if (!(qcs->flags & QC_SF_BLK_SFCTL))
+				total += _qc_send_qcs(qcs, &frms);
+		}
 	}
-
- retry:
-	tmp_total = 0;
-	list_for_each_entry_safe(qcs, qcs_tmp, &qcc->send_retry_list, el) {
-		int ret;
-		BUG_ON(!b_data(&qcs->tx.buf));
-		BUG_ON(qc_stream_buf_get(qcs->stream));
-
-		ret = _qc_send_qcs(qcs, &frms);
-		tmp_total += ret;
-		LIST_DELETE(&qcs->el);
-	}
-
-	total += tmp_total;
-	if (!qc_send_frames(qcc, &frms) && !LIST_ISEMPTY(&qcc->send_retry_list))
-		goto retry;
 
  out:
 	/* Deallocate frames that the transport layer has rejected. */
@@ -2174,7 +2168,6 @@ static int qc_init(struct connection *conn, struct proxy *prx,
 	}
 
 	LIST_INIT(&qcc->send_list);
-	LIST_INIT(&qcc->send_retry_list);
 
 	qcc->wait_event.tasklet->process = qc_io_cb;
 	qcc->wait_event.tasklet->context = qcc;
