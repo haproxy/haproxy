@@ -1446,15 +1446,19 @@ void qcc_streams_sent_done(struct qcs *qcs, uint64_t data, uint64_t offset)
 		/* increase offset sum on connection */
 		qcc->tx.sent_offsets += diff;
 		BUG_ON_HOT(qcc->tx.sent_offsets > qcc->rfctl.md);
-		if (qcc->tx.sent_offsets == qcc->rfctl.md)
+		if (qcc->tx.sent_offsets == qcc->rfctl.md) {
 			qcc->flags |= QC_CF_BLK_MFCTL;
+			TRACE_STATE("connection flow-control reached", QMUX_EV_QCS_SEND, qcc->conn);
+		}
 
 		/* increase offset on stream */
 		qcs->tx.sent_offset += diff;
 		BUG_ON_HOT(qcs->tx.sent_offset > qcs->tx.msd);
 		BUG_ON_HOT(qcs->tx.sent_offset > qcs->tx.offset);
-		if (qcs->tx.sent_offset == qcs->tx.msd)
+		if (qcs->tx.sent_offset == qcs->tx.msd) {
 			qcs->flags |= QC_SF_BLK_SFCTL;
+			TRACE_STATE("stream flow-control reached", QMUX_EV_QCS_SEND, qcc->conn, qcs);
+		}
 
 		if (qcs->tx.offset == qcs->tx.sent_offset &&
 		    b_full(&qcs->stream->buf->buf)) {
