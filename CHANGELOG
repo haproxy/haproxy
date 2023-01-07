@@ -1,6 +1,214 @@
 ChangeLog :
 ===========
 
+2023/01/07 : 2.8-dev1
+    - MEDIUM: 51d: add support for 51Degrees V4 with Hash algorithm
+    - MINOR: debug: support pool filtering on "debug dev memstats"
+    - MINOR: debug: add a balance of alloc - free at the end of the memstats dump
+    - LICENSE: wurfl: clarify the dummy library license.
+    - MINOR: event_hdl: add event handler base api
+    - DOC/MINOR: api: add documentation for event_hdl feature
+    - MEDIUM: ssl: rename the struct "cert_key_and_chain" to "ckch_data"
+    - MINOR: quic: remove qc from quic_rx_packet
+    - MINOR: quic: complete traces in qc_rx_pkt_handle()
+    - MINOR: quic: extract datagram parsing code
+    - MINOR: tools: add port for ipcmp as optional criteria
+    - MINOR: quic: detect connection migration
+    - MINOR: quic: ignore address migration during handshake
+    - MINOR: quic: startup detect for quic-conn owned socket support
+    - MINOR: quic: test IP_PKTINFO support for quic-conn owned socket
+    - MINOR: quic: define config option for socket per conn
+    - MINOR: quic: allocate a socket per quic-conn
+    - MINOR: quic: use connection socket for emission
+    - MEDIUM: quic: use quic-conn socket for reception
+    - MEDIUM: quic: move receive out of FD handler to quic-conn io-cb
+    - MINOR: mux-quic: rename duplicate function names
+    - MEDIUM: quic: requeue datagrams received on wrong socket
+    - MINOR: quic: reconnect quic-conn socket on address migration
+    - MINOR: quic: activate socket per conn by default
+    - BUG/MINOR: ssl: initialize SSL error before parsing
+    - BUG/MINOR: ssl: initialize WolfSSL before parsing
+    - BUG/MINOR: quic: fix fd leak on startup check quic-conn owned socket
+    - BUG/MEDIIM: stconn: Flush output data before forwarding close to write side
+    - MINOR: server: add srv->rid (revision id) value
+    - MINOR: stats: add server revision id support
+    - MINOR: server/event_hdl: add support for SERVER_ADD and SERVER_DEL events
+    - MINOR: server/event_hdl: add support for SERVER_UP and SERVER_DOWN events
+    - BUG/MEDIUM: checks: do not reschedule a possibly running task on state change
+    - BUG/MINOR: checks: make sure fastinter is used even on forced transitions
+    - CLEANUP: assorted typo fixes in the code and comments
+    - MINOR: mworker: display an alert upon a wait-mode exit
+    - BUG/MEDIUM: mworker: fix segv in early failure of mworker mode with peers
+    - BUG/MEDIUM: mworker: create the mcli_reload socketpairs in case of upgrade
+    - BUG/MINOR: checks: restore legacy on-error fastinter behavior
+    - MINOR: check: use atomic for s->consecutive_errors
+    - MINOR: stats: properly handle ST_F_CHECK_DURATION metric
+    - MINOR: mworker: remove unused legacy code in mworker_cleanlisteners
+    - MINOR: peers: unused code path in process_peer_sync
+    - BUG/MINOR: init/threads: continue to limit default thread count to max per group
+    - CLEANUP: init: remove useless assignment of nbthread
+    - BUILD: atomic: atomic.h may need compiler.h on ARMv8.2-a
+    - BUILD: makefile/da: also clean Os/ in Device Atlas dummy lib dir
+    - BUG/MEDIUM: httpclient/lua: double LIST_DELETE on end of lua task
+    - CLEANUP: pools: move the write before free to the uaf-only function
+    - CLEANUP: pool: only include pool-os from pool.c not pool.h
+    - REORG: pool: move all the OS specific code to pool-os.h
+    - CLEANUP: pools: get rid of CONFIG_HAP_POOLS
+    - DEBUG: pool: show a few examples in -dMhelp
+    - MINOR: pools: make DEBUG_UAF a runtime setting
+    - BUG/MINOR: promex: create haproxy_backend_agg_server_status
+    - MINOR: promex: introduce haproxy_backend_agg_check_status
+    - DOC: promex: Add missing backend metrics
+    - BUG/MAJOR: fcgi: Fix uninitialized reserved bytes
+    - REGTESTS: fix the race conditions in iff.vtc
+    - CI: github: reintroduce openssl 1.1.1
+    - BUG/MINOR: quic: properly handle alloc failure in qc_new_conn()
+    - BUG/MINOR: quic: handle alloc failure on qc_new_conn() for owned socket
+    - CLEANUP: mux-quic: remove unused attribute on qcs_is_close_remote()
+    - BUG/MINOR: mux-quic: remove qcs from opening-list on free
+    - BUG/MINOR: mux-quic: handle properly alloc error in qcs_new()
+    - CI: github: split ssl lib selection based on git branch
+    - REGTESTS: startup: check maxconn computation
+    - BUG/MINOR: startup: don't use internal proxies to compute the maxconn
+    - REGTESTS: startup: change the expected maxconn to 11000
+    - CI: github: set ulimit -n to a greater value
+    - REGTESTS: startup: activate automatic_maxconn.vtc
+    - MINOR: sample: add param converter
+    - CLEANUP: ssl: remove check on srv->proxy
+    - BUG/MEDIUM: freq-ctr: Don't compute overshoot value for empty counters
+    - BUG/MEDIUM: resolvers: Use tick_first() to update the resolvers task timeout
+    - REGTESTS: startup: add alternatives values in automatic_maxconn.vtc
+    - BUG/MEDIUM: h3: reject request with invalid header name
+    - BUG/MEDIUM: h3: reject request with invalid pseudo header
+    - MINOR: http: extract content-length parsing from H2
+    - BUG/MEDIUM: h3: parse content-length and reject invalid messages
+    - CI: github: remove redundant ASAN loop
+    - CI: github: split matrix for development and stable branches
+    - BUG/MEDIUM: mux-h1: Don't release H1 stream upgraded from TCP on error
+    - BUG/MINOR: mux-h1: Fix test instead a BUG_ON() in h1_send_error()
+    - MINOR: http-htx: add BUG_ON to prevent API error on http_cookie_register
+    - BUG/MEDIUM: h3: fix cookie header parsing
+    - BUG/MINOR: h3: fix memleak on HEADERS parsing failure
+    - MINOR: h3: check return values of htx_add_* on headers parsing
+    - MINOR: ssl: Remove unneeded buffer allocation in show ocsp-response
+    - MINOR: ssl: Remove unnecessary alloc'ed trash chunk in show ocsp-response
+    - BUG/MINOR: ssl: Fix memory leak of find_chain in ssl_sock_load_cert_chain
+    - MINOR: stats: provide ctx for dumping functions
+    - MINOR: stats: introduce stats field ctx
+    - BUG/MINOR: stats: fix show stat json buffer limitation
+    - MINOR: stats: make show info json future-proof
+    - BUG/MINOR: quic: fix crash on PTO rearm if anti-amplification reset
+    - BUILD: 51d: fix build issue with recent compilers
+    - REGTESTS: startup: disable automatic_maxconn.vtc
+    - BUILD: peers: peers-t.h depends on stick-table-t.h
+    - BUG/MEDIUM: tests: use tmpdir to create UNIX socket
+    - BUG/MINOR: mux-h1: Report EOS on parsing/internal error for not running stream
+    - BUG/MINOR:: mux-h1: Never handle error at mux level for running connection
+    - BUG/MEDIUM: stats: Rely on a local trash buffer to dump the stats
+    - OPTIM: pool: split the read_mostly from read_write parts in pool_head
+    - MINOR: pool: make the thread-local hot cache size configurable
+    - MINOR: freq_ctr: add opportunistic versions of swrate_add()
+    - MINOR: pool: only use opportunistic versions of the swrate_add() functions
+    - REGTESTS: ssl: enable the ssl_reuse.vtc test for WolfSSL
+    - BUG/MEDIUM: mux-quic: fix double delete from qcc.opening_list
+    - BUG/MEDIUM: quic: properly take shards into account on bind lines
+    - BUG/MINOR: quic: do not allocate more rxbufs than necessary
+    - MINOR: ssl: Add a lock to the OCSP response tree
+    - MINOR: httpclient: Make the CLI flags public for future use
+    - MINOR: ssl: Add helper function that extracts an OCSP URI from a certificate
+    - MINOR: ssl: Add OCSP request helper function
+    - MINOR: ssl: Add helper function that checks the validity of an OCSP response
+    - MINOR: ssl: Add "update ssl ocsp-response" cli command
+    - MEDIUM: ssl: Add ocsp_certid in ckch structure and discard ocsp buffer early
+    - MINOR: ssl: Add ocsp_update_tree and helper functions
+    - MINOR: ssl: Add crt-list ocsp-update option
+    - MINOR: ssl: Store 'ocsp-update' mode in the ckch_data and check for inconsistencies
+    - MEDIUM: ssl: Insert ocsp responses in update tree when needed
+    - MEDIUM: ssl: Add ocsp update task main function
+    - MEDIUM: ssl: Start update task if at least one ocsp-update option is set to on
+    - DOC: ssl: Add documentation for ocsp-update option
+    - REGTESTS: ssl: Add tests for ocsp auto update mechanism
+    - MINOR: ssl: Move OCSP code to a dedicated source file
+    - BUG/MINOR: ssl/ocsp: check chunk_strcpy() in ssl_ocsp_get_uri_from_cert()
+    - CLEANUP: ssl/ocsp: add spaces around operators
+    - BUG/MEDIUM: mux-h2: Refuse interim responses with end-stream flag set
+    - BUG/MINOR: pool/stats: Use ullong to report total pool usage in bytes in stats
+    - BUG/MINOR: ssl/ocsp: httpclient blocked when doing a GET
+    - MINOR: httpclient: don't add body when istlen is empty
+    - MEDIUM: httpclient: change the default log format to skip duplicate proxy data
+    - BUG/MINOR: httpclient/log: free of invalid ptr with httpclient_log_format
+    - MEDIUM: mux-quic: implement shutw
+    - MINOR: mux-quic: do not count stream flow-control if already closed
+    - MINOR: mux-quic: handle RESET_STREAM reception
+    - MEDIUM: mux-quic: implement STOP_SENDING emission
+    - MINOR: h3: use stream error when needed instead of connection
+    - CI: github: enable github api authentication for OpenSSL tags read
+    - BUG/MINOR: mux-quic: ignore remote unidirectional stream close
+    - CI: github: use the GITHUB_TOKEN instead of a manually generated token
+    - BUILD: makefile: build the features list dynamically
+    - BUILD: makefile: move common options-oriented macros to include/make/options.mk
+    - BUILD: makefile: sort the features list
+    - BUILD: makefile: initialize all build options' variables at once
+    - BUILD: makefile: add a function to collect all options' CFLAGS/LDFLAGS
+    - BUILD: makefile: start to automatically collect CFLAGS/LDFLAGS
+    - BUILD: makefile: ensure that all USE_* handlers appear before CFLAGS are used
+    - BUILD: makefile: clean the wolfssl include and lib generation rules
+    - BUILD: makefile: make sure to also ignore SSL_INC when using wolfssl
+    - BUILD: makefile: reference libdl only once
+    - BUILD: makefile: make sure LUA_INC and LUA_LIB are always initialized
+    - BUILD: makefile: do not restrict Lua's prepend path to empty LUA_LIB_NAME
+    - BUILD: makefile: never force -latomic, set USE_LIBATOMIC instead
+    - BUILD: makefile: add an implicit USE_MATH variable for -lm
+    - BUILD: makefile: properly report USE_PCRE/USE_PCRE2 in features
+    - CLEANUP: makefile: properly indent ifeq/ifneq conditional blocks
+    - BUILD: makefile: rework 51D to split v3/v4
+    - BUILD: makefile: support LIBCRYPT_LDFLAGS
+    - BUILD: makefile: support RT_LDFLAGS
+    - BUILD: makefile: support THREAD_LDFLAGS
+    - BUILD: makefile: support BACKTRACE_LDFLAGS
+    - BUILD: makefile: support SYSTEMD_LDFLAGS
+    - BUILD: makefile: support ZLIB_CFLAGS and ZLIB_LDFLAGS
+    - BUILD: makefile: support ENGINE_CFLAGS
+    - BUILD: makefile: support OPENSSL_CFLAGS and OPENSSL_LDFLAGS
+    - BUILD: makefile: support WOLFSSL_CFLAGS and WOLFSSL_LDFLAGS
+    - BUILD: makefile: support LUA_CFLAGS and LUA_LDFLAGS
+    - BUILD: makefile: support DEVICEATLAS_CFLAGS and DEVICEATLAS_LDFLAGS
+    - BUILD: makefile: support PCRE[2]_CFLAGS and PCRE[2]_LDFLAGS
+    - BUILD: makefile: refactor support for 51DEGREES v3/v4
+    - BUILD: makefile: support WURFL_CFLAGS and WURFL_LDFLAGS
+    - BUILD: makefile: make all OpenSSL variants use the same settings
+    - BUILD: makefile: remove the special case of the SSL option
+    - BUILD: makefile: only consider settings from enabled options
+    - BUILD: makefile: also list per-option settings in 'make opts'
+    - BUG/MINOR: debug: don't mask the TH_FL_STUCK flag before dumping threads
+    - MINOR: cfgparse-ssl: avoid a possible crash on OOM in ssl_bind_parse_npn()
+    - BUG/MINOR: ssl: Missing goto in error path in ocsp update code
+    - BUG/MINOR: stick-table: report the correct action name in error message
+    - CI: Improve headline in matrix.py
+    - CI: Add in-memory cache for the latest OpenSSL/LibreSSL
+    - CI: Use proper `if` blocks instead of conditional expressions in matrix.py
+    - CI: Unify the `GITHUB_TOKEN` name across matrix.py and vtest.yml
+    - CI: Explicitly check environment variable against `None` in matrix.py
+    - CI: Reformat `matrix.py` using `black`
+    - MINOR: config: add environment variables for default log format
+    - REGTESTS: Remove REQUIRE_VERSION=1.9 from all tests
+    - REGTESTS: Remove REQUIRE_VERSION=2.0 from all tests
+    - REGTESTS: Remove tests with REQUIRE_VERSION_BELOW=1.9
+    - BUG/MINOR: http-fetch: Only fill txn status during prefetch if not already set
+    - BUG/MAJOR: buf: Fix copy of wrapping output data when a buffer is realigned
+    - DOC: config: fix alphabetical ordering of http-after-response rules
+    - MINOR: http-rules: Add missing actions in http-after-response ruleset
+    - DOC: config: remove duplicated "http-response sc-set-gpt0" directive
+    - BUG/MINOR: proxy: free orgto_hdr_name in free_proxy()
+    - REGTEST: fix the race conditions in json_query.vtc
+    - REGTEST: fix the race conditions in add_item.vtc
+    - REGTEST: fix the race conditions in digest.vtc
+    - REGTEST: fix the race conditions in hmac.vtc
+    - BUG/MINOR: fd: avoid bad tgid assertion in fd_delete() from deinit()
+    - BUG/MINOR: http: Memory leak of http redirect rules' format string
+    - MEDIUM: stick-table: set the track-sc limit at boottime via tune.stick-counters
+    - MINOR: stick-table: implement the sc-add-gpc() action
+
 2022/12/01 : 2.8-dev0
     - MINOR: version: mention that it's development again
 
