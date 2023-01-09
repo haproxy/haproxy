@@ -1244,8 +1244,13 @@ static int ssl_sock_load_ocsp(SSL_CTX *ctx, struct ckch_data *data, STACK_OF(X50
 		/* Do not insert the same certificate_ocsp structure in the
 		 * update tree more than once. */
 		if (!ocsp) {
-			iocsp->issuer = issuer;
-			X509_up_ref(issuer);
+			/* Issuer certificate is not included in the certificate
+			 * chain, it will have to be treated separately during
+			 * ocsp response validation. */
+			if (issuer == data->ocsp_issuer) {
+				iocsp->issuer = issuer;
+				X509_up_ref(issuer);
+			}
 			if (data->chain)
 				iocsp->chain = X509_chain_up_ref(data->chain);
 
