@@ -821,8 +821,11 @@ void qcc_reset_stream(struct qcs *qcs, int err)
 	tasklet_wakeup(qcc->wait_event.tasklet);
 }
 
-/* Register <qcs> stream for emission of STREAM, STOP_SENDING or RESET_STREAM. */
-void qcc_send_stream(struct qcs *qcs)
+/* Register <qcs> stream for emission of STREAM, STOP_SENDING or RESET_STREAM.
+ * Set <urg> to 1 if stream content should be treated in priority compared to
+ * other streams.
+ */
+void qcc_send_stream(struct qcs *qcs, int urg)
 {
 	struct qcc *qcc = qcs->qcc;
 
@@ -831,8 +834,14 @@ void qcc_send_stream(struct qcs *qcs)
 	/* Cannot send if already closed. */
 	BUG_ON(qcs_is_close_local(qcs));
 
-	if (!LIST_INLIST(&qcs->el_send))
-		LIST_APPEND(&qcs->qcc->send_list, &qcs->el_send);
+	if (urg) {
+		LIST_DEL_INIT(&qcs->el_send);
+		LIST_INSERT(&qcc->send_list, &qcs->el_send);
+	}
+	else {
+		if (!LIST_INLIST(&qcs->el_send))
+			LIST_APPEND(&qcs->qcc->send_list, &qcs->el_send);
+	}
 
 	TRACE_LEAVE(QMUX_EV_QCS_SEND, qcc->conn, qcs);
 }
@@ -2327,7 +2336,7 @@ static size_t qc_send_buf(struct stconn *sc, struct buffer *buf,
 		qcs->flags |= QC_SF_FIN_STREAM;
 
 	if (ret || fin) {
-		qcc_send_stream(qcs);
+		qcc_send_stream(qcs, 0);
 		if (!(qcs->qcc->wait_event.events & SUB_RETRY_SEND))
 			tasklet_wakeup(qcs->qcc->wait_event.tasklet);
 	}
