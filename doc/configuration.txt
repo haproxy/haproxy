@@ -7793,7 +7793,7 @@ http-response <action> <options...> [ { if | unless } <condition> ]
     - set-tos <tos>
     - set-var(<var-name>[,<cond> ...]) <expr>
     - set-var-fmt(<var-name>[,<cond> ...]) <fmt>
-    - silent-drop
+    - silent-drop [ rst-ttl <ttl> ]
     - strict-mode { on | off }
     - track-sc0 <key> [table <table>]
     - track-sc1 <key> [table <table>]
@@ -12727,7 +12727,7 @@ tcp-request connection <action> <options...> [ { if | unless } <condition> ]
     - set-tos <tos>
     - set-var(<var-name>[,<cond> ...]) <expr>
     - set-var-fmt(<var-name>[,<cond> ...]) <fmt>
-    - silent-drop
+    - silent-drop [ rst-ttl <ttl> ]
     - track-sc0 <key> [table <table>]
     - track-sc1 <key> [table <table>]
     - track-sc2 <key> [table <table>]
@@ -12944,7 +12944,7 @@ tcp-request content <action> [{if | unless} <condition>]
     - set-tos <tos>
     - set-var(<var-name>[,<cond> ...]) <expr>
     - set-var-fmt(<var-name>[,<cond> ...]) <fmt>
-    - silent-drop
+    - silent-drop [ rst-ttl <ttl> ]
     - switch-mode http [ proto <name> ]
     - track-sc0 <key> [table <table>]
     - track-sc1 <key> [table <table>]
@@ -13334,7 +13334,7 @@ tcp-request session <action> [{if | unless} <condition>]
     - set-tos <tos>
     - set-var(<var-name>[,<cond> ...]) <expr>
     - set-var-fmt(<var-name>[,<cond> ...]) <fmt>
-    - silent-drop
+    - silent-drop [ rst-ttl <ttl> ]
     - track-sc0 <key> [table <table>]
     - track-sc1 <key> [table <table>]
     - track-sc2 <key> [table <table>]
@@ -13506,7 +13506,7 @@ tcp-response content <action> [{if | unless} <condition>]
     - set-tos <tos>
     - set-var(<var-name>[,<cond> ...]) <expr>
     - set-var-fmt(<var-name>[,<cond> ...]) <fmt>
-    - silent-drop
+    - silent-drop [ rst-ttl <ttl> ]
     - unset-var(<var-name>)
 
   The supported actions are described below.
