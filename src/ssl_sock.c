@@ -1255,11 +1255,11 @@ static int ssl_sock_load_ocsp(SSL_CTX *ctx, struct ckch_data *data, STACK_OF(X50
 			if (data->chain)
 				iocsp->chain = X509_chain_up_ref(data->chain);
 
-			iocsp->uri = alloc_trash_chunk();
-			if (!iocsp->uri)
+			iocsp->uri = calloc(1, sizeof(*iocsp->uri));
+			if (!chunk_dup(iocsp->uri, ocsp_uri)) {
+				ha_free(&iocsp->uri);
 				goto out;
-			if (!chunk_cpy(iocsp->uri, ocsp_uri))
-				goto out;
+			}
 
 			ssl_ocsp_update_insert(iocsp);
 		}

@@ -373,8 +373,10 @@ void ssl_sock_free_ocsp(struct certificate_ocsp *ocsp)
 		sk_X509_pop_free(ocsp->chain, X509_free);
 		ocsp->chain = NULL;
 		chunk_destroy(&ocsp->response);
-		free_trash_chunk(ocsp->uri);
-		ocsp->uri = NULL;
+		if (ocsp->uri) {
+			ha_free(&ocsp->uri->area);
+			ha_free(&ocsp->uri);
+		}
 
 		free(ocsp);
 	}
