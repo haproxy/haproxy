@@ -1,0 +1,87 @@
+varnishtest "Test if-none param for the forwardfor option"
+#REQUIRE_VERSION=2.6
+
+# This config tests the if-none parameter for the HTTP forwardfor option.
+
+feature ignore_unknown_macro
+
+haproxy h1 -conf {
+    global
+        # WT: limit false-positives causing "HTTP header incomplete" due to
+        # idle server connections being randomly used and randomly expiring
+        # under us.
+        tune.idle-pool.shared off
+
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend none
+        bind "fd@${none}"
+        http-request set-src hdr(x-src)
+	option forwardfor if-none
+	use_backend be1 if { path /req1 }
+	use_backend be2 if { path /req2 }
+
+    frontend normal
+        bind "fd@${normal}"
+        http-request set-src hdr(x-src)
+	option forwardfor
+	use_backend be1 if { path /req1 }
+	use_backend be2 if { path /req2 }
+
+
+    frontend fe2
+        bind "fd@${fe2}"
+	http-request return status 200 hdr x-ff "%[req.fhdr_cnt(x-forwarded-for)]"
+
+    backend be1
+        option forwardfor
+        server s1 ${h1_fe2_addr}:${h1_fe2_port}
+
+    backend be2
+        option forwardfor if-none
+        server s1 ${h1_fe2_addr}:${h1_fe2_port}
+} -start
+
+client c1 -connect ${h1_none_sock} {
+    txreq -req GET -url /req1 \
+        -hdr "x-src: 10.0.0.128" \
+        -hdr "x-forwarded-for: 127.0.0.1"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ff == 2
+
+    txreq -req GET -url /req2 \
+        -hdr "x-src: 10.0.0.128" \
+        -hdr "x-forwarded-for: 127.0.0.1"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ff == 1
+
+    txreq -req GET -url /req2 \
+        -hdr "x-src: 10.0.0.128"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ff == 1
+
+} -run
+
+client c1 -connect ${h1_normal_sock} {
+    txreq -req GET -url /req1 \
+        -hdr "x-src: 10.0.0.128" \
+        -hdr "x-forwarded-for: 127.0.0.1"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ff == 2
+
+    txreq -req GET -url /req2 \
+        -hdr "x-src: 10.0.0.128" \
+        -hdr "x-forwarded-for: 127.0.0.1"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ff == 2
+
+} -run
