@@ -613,14 +613,15 @@ int crtlist_parse_file(char *file, struct bind_conf *bind_conf, struct proxy *cu
 
 					entry_dup->node.key = ckchs;
 					entry_dup->crtlist = newlist;
-					if (entry->ssl_conf) {
-						if (ckchs->data->ocsp_update_mode != SSL_SOCK_OCSP_UPDATE_DFLT &&
-						    ckchs->data->ocsp_update_mode != entry->ssl_conf->ocsp_update) {
+					if (ckchs->data->ocsp_update_mode != SSL_SOCK_OCSP_UPDATE_DFLT || entry->ssl_conf) {
+						if ((!entry->ssl_conf && ckchs->data->ocsp_update_mode == SSL_SOCK_OCSP_UPDATE_ON)
+						    || ckchs->data->ocsp_update_mode != entry->ssl_conf->ocsp_update) {
 							memprintf(err, "%sIncompatibilities found in OCSP update mode for certificate %s\n", err && *err ? *err : "", crt_path);
 							cfgerr |= ERR_ALERT;
 						}
-						ckchs->data->ocsp_update_mode = entry->ssl_conf->ocsp_update;
 					}
+					if (entry->ssl_conf)
+						ckchs->data->ocsp_update_mode = entry->ssl_conf->ocsp_update;
 					ebpt_insert(&newlist->entries, &entry_dup->node);
 					LIST_APPEND(&newlist->ord_entries, &entry_dup->by_crtlist);
 					LIST_APPEND(&ckchs->crtlist_entry, &entry_dup->by_ckch_store);
@@ -644,14 +645,15 @@ int crtlist_parse_file(char *file, struct bind_conf *bind_conf, struct proxy *cu
 		} else {
 			entry->node.key = ckchs;
 			entry->crtlist = newlist;
-			if (entry->ssl_conf) {
-				if (ckchs->data->ocsp_update_mode != SSL_SOCK_OCSP_UPDATE_DFLT &&
-				    ckchs->data->ocsp_update_mode != entry->ssl_conf->ocsp_update) {
+			if (ckchs->data->ocsp_update_mode != SSL_SOCK_OCSP_UPDATE_DFLT || entry->ssl_conf) {
+				if ((!entry->ssl_conf && ckchs->data->ocsp_update_mode == SSL_SOCK_OCSP_UPDATE_ON)
+				    || ckchs->data->ocsp_update_mode != entry->ssl_conf->ocsp_update) {
 					memprintf(err, "%sIncompatibilities found in OCSP update mode for certificate %s\n", err && *err ? *err : "", crt_path);
 					cfgerr |= ERR_ALERT;
 				}
-				ckchs->data->ocsp_update_mode = entry->ssl_conf->ocsp_update;
 			}
+			if (entry->ssl_conf)
+				ckchs->data->ocsp_update_mode = entry->ssl_conf->ocsp_update;
 			ebpt_insert(&newlist->entries, &entry->node);
 			LIST_APPEND(&newlist->ord_entries, &entry->by_crtlist);
 			LIST_APPEND(&ckchs->crtlist_entry, &entry->by_ckch_store);
