@@ -840,6 +840,9 @@ void ssl_destroy_ocsp_update_task(void)
 
 	task_destroy(ocsp_update_task);
 	ocsp_update_task = NULL;
+
+	ssl_sock_free_ocsp(ssl_ocsp_task_ctx.cur_ocsp);
+	ssl_ocsp_task_ctx.cur_ocsp = NULL;
 }
 
 /*
