@@ -363,6 +363,7 @@ void ssl_sock_free_ocsp(struct certificate_ocsp *ocsp)
 	if (!ocsp)
 		return;
 
+	HA_SPIN_LOCK(OCSP_LOCK, &ocsp_tree_lock);
 	ocsp->refcount--;
 	if (ocsp->refcount <= 0) {
 		ebmb_delete(&ocsp->key);
@@ -377,6 +378,7 @@ void ssl_sock_free_ocsp(struct certificate_ocsp *ocsp)
 
 		free(ocsp);
 	}
+	HA_SPIN_UNLOCK(OCSP_LOCK, &ocsp_tree_lock);
 }
 
 
@@ -808,7 +810,6 @@ void ssl_sock_free_ocsp(struct certificate_ocsp *ocsp);
 void ssl_destroy_ocsp_update_task(void)
 {
 	struct eb64_node *node, *next;
-	struct certificate_ocsp *ocsp;
 	if (!ocsp_update_task)
 		return;
 
@@ -816,10 +817,8 @@ void ssl_destroy_ocsp_update_task(void)
 
 	node = eb64_first(&ocsp_update_tree);
 	while (node) {
-		ocsp = eb64_entry(node, struct certificate_ocsp, next_update);
 		next = eb64_next(node);
 		eb64_delete(node);
-		ssl_sock_free_ocsp(ocsp);
 		node = next;
 	}
 
@@ -992,6 +991,8 @@ static struct task *ssl_ocsp_update_responses(struct task *task, void *context, 
 
 			/* Reinsert the entry into the update list so that it can be updated later */
 			ssl_ocsp_update_insert(ocsp);
+			/* Release the reference kept on the updated ocsp response. */
+			ssl_sock_free_ocsp(ctx->cur_ocsp);
 			ctx->cur_ocsp = NULL;
 
 			HA_SPIN_LOCK(OCSP_LOCK, &ocsp_tree_lock);
@@ -1034,6 +1035,7 @@ static struct task *ssl_ocsp_update_responses(struct task *task, void *context, 
 		 * reinserted after the response is processed. */
 		eb64_delete(&ocsp->next_update);
 
+		++ocsp->refcount;
 		ctx->cur_ocsp = ocsp;
 
 		HA_SPIN_UNLOCK(OCSP_LOCK, &ocsp_tree_lock);
@@ -1095,6 +1097,8 @@ leave:
 	if (ctx->cur_ocsp) {
 		/* Something went wrong, reinsert the entry in the tree. */
 		ssl_ocsp_update_insert(ctx->cur_ocsp);
+		/* Release the reference kept on the updated ocsp response. */
+		ssl_sock_free_ocsp(ctx->cur_ocsp);
 		ctx->cur_ocsp = NULL;
 	}
 	if (hc)
@@ -1117,6 +1121,8 @@ http_error:
 
 	if (hc)
 		httpclient_stop_and_destroy(hc);
+	/* Release the reference kept on the updated ocsp response. */
+	ssl_sock_free_ocsp(ctx->cur_ocsp);
 	ctx->cur_ocsp = NULL;
 	ctx->hc = NULL;
 	ctx->flags = 0;
