@@ -1150,7 +1150,8 @@ static int ssl_sock_load_ocsp(SSL_CTX *ctx, struct ckch_data *data, STACK_OF(X50
 	if (!issuer)
 		goto out;
 
-	data->ocsp_cid = OCSP_cert_to_id(0, x, issuer);
+	if (!data->ocsp_cid)
+		data->ocsp_cid = OCSP_cert_to_id(0, x, issuer);
 	if (!data->ocsp_cid)
 		goto out;
 
