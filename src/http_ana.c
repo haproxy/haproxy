@@ -662,29 +662,13 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 				goto return_fail_rewrite;
 	}
 
-	/* add forwarded header (RFC 7239) (ignored for frontends) */
-	if (s->be->options & PR_O_HTTP_7239) {
-		if (unlikely(!http_handle_7239_header(s, req)))
-			goto return_fail_rewrite;
-	}
-
-	/*
-	 * add X-Forwarded-For if either the frontend or the backend
-	 * asks for it.
-	 */
-	if ((sess->fe->options | s->be->options) & PR_O_HTTP_XFF) {
-		if (unlikely(!http_handle_xff_header(s, req)))
-			goto return_fail_rewrite;
-	}
-
-	/*
-	 * add X-Original-To if either the frontend or the backend
-	 * asks for it.
-	 */
-	if ((sess->fe->options | s->be->options) & PR_O_HTTP_XOT) {
-		if (unlikely(!http_handle_xot_header(s, req)))
-			goto return_fail_rewrite;
-	}
+	/* handle http extensions (if configured) */
+	if (unlikely(!http_handle_7239_header(s, req)))
+		goto return_fail_rewrite;
+	if (unlikely(!http_handle_xff_header(s, req)))
+		goto return_fail_rewrite;
+	if (unlikely(!http_handle_xot_header(s, req)))
+		goto return_fail_rewrite;
 
 	/* Filter the request headers if there are filters attached to the
 	 * stream.

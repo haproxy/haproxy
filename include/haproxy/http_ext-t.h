@@ -132,4 +132,18 @@ struct http_ext_xot {
 	struct net_addr except_net; /* don't forward x-original-to for this address. */
 };
 
+/* http_ext options */
+struct http_ext {
+	/* forwarded header (RFC 7239) */
+	struct http_ext_7239       *fwd;
+	/* x-forward-for:
+	 *   conditionally insert x-forwarded-for with client address
+	 */
+	struct http_ext_xff        *xff;
+	/* x-original-to:
+	 *  insert x-original-to with destination address
+	 */
+	struct http_ext_xot        *xot;
+};
+
 #endif /* !_HAPROXY_HTTPEXT_T_H */

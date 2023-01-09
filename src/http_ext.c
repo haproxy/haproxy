@@ -611,7 +611,7 @@ static inline void http_build_7239_header_node(struct buffer *out,
 	if (forby->np_mode)
 		chunk_appendf(out, "\"");
 	offset_save = out->data;
-	http_build_7239_header_node(out, s, curproxy, addr, &curproxy->http.fwd.p_by);
+	http_build_7239_header_nodename(out, s, curproxy, addr, forby);
 	if (offset_save == out->data) {
 		/* could not build nodename, either because some
 		 * data is not available or user is providing bad input
@@ -621,7 +621,7 @@ static inline void http_build_7239_header_node(struct buffer *out,
 	if (forby->np_mode) {
 		chunk_appendf(out, ":");
 		offset_save = out->data;
-		http_build_7239_header_nodeport(out, s, curproxy, addr, &curproxy->http.fwd.p_by);
+		http_build_7239_header_nodeport(out, s, curproxy, addr, forby);
 		if (offset_save == out->data) {
 			/* could not build nodeport, either because some data is
 			 * not available or user is providing bad input
@@ -682,31 +682,30 @@ static int http_build_7239_header(struct buffer *out,
 {
 	struct connection *cli_conn = objt_conn(strm_sess(s)->origin);
 
-	if (curproxy->http.fwd.p_proto) {
+	if (curproxy->http_ext->fwd->p_proto) {
 		chunk_appendf(out, "%sproto=%s", ((out->data) ? ";" : ""),
 			((conn_is_ssl(cli_conn)) ? "https" : "http"));
 	}
-	if (curproxy->http.fwd.p_host.mode) {
+	if (curproxy->http_ext->fwd->p_host.mode) {
 		/* always add quotes for host parameter to make output compliancy checks simpler */
 		chunk_appendf(out, "%shost=\"", ((out->data) ? ";" : ""));
 		/* ignore return value for now, but could be useful some day */
-		http_build_7239_header_host(out, s, curproxy, htx,
-		                            &curproxy->http.fwd.p_host);
+		http_build_7239_header_host(out, s, curproxy, htx, &curproxy->http_ext->fwd->p_host);
 		chunk_appendf(out, "\"");
 	}
 
-	if (curproxy->http.fwd.p_by.nn_mode) {
+	if (curproxy->http_ext->fwd->p_by.nn_mode) {
 		const struct sockaddr_storage *dst = sc_dst(s->scf);
 
 		chunk_appendf(out, "%sby=", ((out->data) ? ";" : ""));
-		http_build_7239_header_node(out, s, curproxy, dst, &curproxy->http.fwd.p_by);
+		http_build_7239_header_node(out, s, curproxy, dst, &curproxy->http_ext->fwd->p_by);
 	}
 
-	if (curproxy->http.fwd.p_for.nn_mode) {
+	if (curproxy->http_ext->fwd->p_for.nn_mode) {
 		const struct sockaddr_storage *src = sc_src(s->scf);
 
 		chunk_appendf(out, "%sfor=", ((out->data) ? ";" : ""));
-		http_build_7239_header_node(out, s, curproxy, src, &curproxy->http.fwd.p_for);
+		http_build_7239_header_node(out, s, curproxy, src, &curproxy->http_ext->fwd->p_for);
 	}
 	if (unlikely(out->data == out->size)) {
 		/* not enough space in buffer, error */
@@ -715,177 +714,196 @@ static int http_build_7239_header(struct buffer *out,
 	return 1;
 }
 
-/* This function will try to inject 7239 forwarded header
+/* This function will try to inject RFC 7239 forwarded header if
+ * configured on the backend (ignored for frontends).
+ * Will do nothing if the option is not enabled on the proxy.
  * Returns 1 for success and 0 for failure
  */
 int http_handle_7239_header(struct stream *s, struct channel *req)
 {
-	struct htx *htx = htxbuf(&req->buf);
 	struct proxy *curproxy = s->be; /* ignore frontend */
-	int validate = 1;
-	struct http_hdr_ctx find = { .blk = NULL };
-	struct http_hdr_ctx last = { .blk = NULL};
-	struct ist hdr = ist("forwarded");
 
-	BUG_ON(!(curproxy->options & PR_O_HTTP_7239)); /* should not happen */
+	if (curproxy->http_ext && curproxy->http_ext->fwd) {
+		struct htx *htx = htxbuf(&req->buf);
+		int validate = 1;
+		struct http_hdr_ctx find = { .blk = NULL };
+		struct http_hdr_ctx last = { .blk = NULL};
+		struct ist hdr = ist("forwarded");
 
-	/* ok, let's build forwarded header */
-	chunk_reset(&trash);
-	if (unlikely(!http_build_7239_header(&trash, s, curproxy, htx)))
-		return 0; /* error when building header (bad user conf or memory error) */
+		/* ok, let's build forwarded header */
+		chunk_reset(&trash);
+		if (unlikely(!http_build_7239_header(&trash, s, curproxy, htx)))
+			return 0; /* error when building header (bad user conf or memory error) */
 
-	/* validate existing forwarded header (including multiple values),
-	 * hard stop if error is encountered
-	 */
-	while (http_find_header(htx, hdr, &find, 0)) {
-		/* validate current header chunk */
-		if (!http_validate_7239_header(find.value, FORWARDED_HEADER_ALL, NULL)) {
-			/* at least one error, existing forwarded header not OK, add our own
-			 * forwarded header, so that it can be trusted
-			 */
-			validate = 0;
-			break;
+		/* validate existing forwarded header (including multiple values),
+		 * hard stop if error is encountered
+		 */
+		while (http_find_header(htx, hdr, &find, 0)) {
+			/* validate current header chunk */
+			if (!http_validate_7239_header(find.value, FORWARDED_HEADER_ALL, NULL)) {
+				/* at least one error, existing forwarded header not OK, add our own
+				 * forwarded header, so that it can be trusted
+				 */
+				validate = 0;
+				break;
+			}
+			last = find;
 		}
-		last = find;
-	}
-	/* no errors, append our data at the end of existing header */
-	if (last.blk && validate) {
-		if (unlikely(!http_append_header_value(htx, &last, ist2(trash.area, trash.data))))
-			return 0; /* htx error */
-	}
-	else {
-		if (unlikely(!http_add_header(htx, hdr, ist2(trash.area, trash.data))))
-			return 0; /* htx error */
+		/* no errors, append our data at the end of existing header */
+		if (last.blk && validate) {
+			if (unlikely(!http_append_header_value(htx, &last, ist2(trash.area, trash.data))))
+				return 0; /* htx error */
+		}
+		else {
+			if (unlikely(!http_add_header(htx, hdr, ist2(trash.area, trash.data))))
+				return 0; /* htx error */
+		}
 	}
 	return 1;
 }
 
-/* This function will try to inject x-forwarded-for header if
- * configured on the frontend or the backend (or both)
+/*
+ * add X-Forwarded-For if either the frontend or the backend
+ * asks for it.
  * Returns 1 for success and 0 for failure
  */
 int http_handle_xff_header(struct stream *s, struct channel *req)
 {
 	struct session *sess = s->sess;
-	struct htx *htx = htxbuf(&req->buf);
-	const struct sockaddr_storage *src = sc_src(s->scf);
-	struct http_hdr_ctx ctx = { .blk = NULL };
-	struct http_ext_xff *f_xff = ((sess->fe->options & PR_O_HTTP_XFF) ? &sess->fe->http.xff : NULL);
-	struct http_ext_xff *b_xff = ((s->be->options & PR_O_HTTP_XFF) ? &s->be->http.xff : NULL);
-	struct ist hdr;
+	struct http_ext_xff *f_xff = NULL;
+	struct http_ext_xff *b_xff = NULL;
 
-	/* xff is expected to be enabled on be, or fe, or both */
-	BUG_ON(!f_xff && !b_xff);
-
-	hdr = ((b_xff) ? b_xff->hdr_name : f_xff->hdr_name);
-
-	if (f_xff && f_xff->mode == HTTP_XFF_IFNONE &&
-	    b_xff && b_xff->mode == HTTP_XFF_IFNONE &&
-	    http_find_header(htx, hdr, &ctx, 0)) {
-		/* The header is set to be added only if none is present
-		 * and we found it, so don't do anything.
-		 */
+	if (sess->fe->http_ext && sess->fe->http_ext->xff) {
+		/* frontend */
+		f_xff = sess->fe->http_ext->xff;
 	}
-	else if (src && src->ss_family == AF_INET) {
-		/* Add an X-Forwarded-For header unless the source IP is
-		 * in the 'except' network range.
-		 */
-		if ((!f_xff || ipcmp2net(src, &f_xff->except_net)) &&
-		    (!b_xff || ipcmp2net(src, &b_xff->except_net))) {
-			unsigned char *pn = (unsigned char *)&((struct sockaddr_in *)src)->sin_addr;
+	if (s->be->http_ext && s->be->http_ext->xff) {
+		/* backend */
+		b_xff = s->be->http_ext->xff;
+	}
 
-			/* Note: we rely on the backend to get the header name to be used for
-			 * x-forwarded-for, because the header is really meant for the backends.
-			 * However, if the backend did not specify any option, we have to rely
-			 * on the frontend's header name.
+	if (f_xff || b_xff) {
+		struct htx *htx = htxbuf(&req->buf);
+		const struct sockaddr_storage *src = sc_src(s->scf);
+		struct http_hdr_ctx ctx = { .blk = NULL };
+		struct ist hdr = ((b_xff) ? b_xff->hdr_name : f_xff->hdr_name);
+
+		if (f_xff && f_xff->mode == HTTP_XFF_IFNONE &&
+		    b_xff && b_xff->mode == HTTP_XFF_IFNONE &&
+		    http_find_header(htx, hdr, &ctx, 0)) {
+			/* The header is set to be added only if none is present
+			 * and we found it, so don't do anything.
 			 */
-			chunk_printf(&trash, "%d.%d.%d.%d", pn[0], pn[1], pn[2], pn[3]);
-			if (unlikely(!http_add_header(htx, hdr, ist2(trash.area, trash.data))))
-				return 0;
+		}
+		else if (src && src->ss_family == AF_INET) {
+			/* Add an X-Forwarded-For header unless the source IP is
+			 * in the 'except' network range.
+			 */
+			if ((!f_xff || ipcmp2net(src, &f_xff->except_net)) &&
+			    (!b_xff || ipcmp2net(src, &b_xff->except_net))) {
+				unsigned char *pn = (unsigned char *)&((struct sockaddr_in *)src)->sin_addr;
+
+				/* Note: we rely on the backend to get the header name to be used for
+				 * x-forwarded-for, because the header is really meant for the backends.
+				 * However, if the backend did not specify any option, we have to rely
+				 * on the frontend's header name.
+				 */
+				chunk_printf(&trash, "%d.%d.%d.%d", pn[0], pn[1], pn[2], pn[3]);
+				if (unlikely(!http_add_header(htx, hdr, ist2(trash.area, trash.data))))
+					return 0;
+			}
+		}
+		else if (src && src->ss_family == AF_INET6) {
+			/* Add an X-Forwarded-For header unless the source IP is
+			 * in the 'except' network range.
+			 */
+			if ((!f_xff || ipcmp2net(src, &f_xff->except_net)) &&
+			    (!b_xff || ipcmp2net(src, &b_xff->except_net))) {
+				char pn[INET6_ADDRSTRLEN];
+
+				inet_ntop(AF_INET6,
+					  (const void *)&((struct sockaddr_in6 *)(src))->sin6_addr,
+					  pn, sizeof(pn));
+
+				/* Note: we rely on the backend to get the header name to be used for
+				 * x-forwarded-for, because the header is really meant for the backends.
+				 * However, if the backend did not specify any option, we have to rely
+				 * on the frontend's header name.
+				 */
+				chunk_printf(&trash, "%s", pn);
+				if (unlikely(!http_add_header(htx, hdr, ist2(trash.area, trash.data))))
+					return 0;
+			}
 		}
 	}
-	else if (src && src->ss_family == AF_INET6) {
-		/* Add an X-Forwarded-For header unless the source IP is
-		 * in the 'except' network range.
-		 */
-		if ((!f_xff || ipcmp2net(src, &f_xff->except_net)) &&
-		    (!b_xff || ipcmp2net(src, &b_xff->except_net))) {
-			char pn[INET6_ADDRSTRLEN];
-
-			inet_ntop(AF_INET6,
-				  (const void *)&((struct sockaddr_in6 *)(src))->sin6_addr,
-				  pn, sizeof(pn));
-
-			/* Note: we rely on the backend to get the header name to be used for
-			 * x-forwarded-for, because the header is really meant for the backends.
-			 * However, if the backend did not specify any option, we have to rely
-			 * on the frontend's header name.
-			 */
-			chunk_printf(&trash, "%s", pn);
-			if (unlikely(!http_add_header(htx, hdr, ist2(trash.area, trash.data))))
-				return 0;
-		}
-	}
-
 	return 1;
 }
 
-/* This function will try to inject x-original-to header if
- * configured on the frontend or the backend (or both)
+/*
+ * add X-Original-To if either the frontend or the backend
+ * asks for it.
  * Returns 1 for success and 0 for failure
  */
 int http_handle_xot_header(struct stream *s, struct channel *req)
 {
 	struct session *sess = s->sess;
-	struct htx *htx = htxbuf(&req->buf);
-	const struct sockaddr_storage *dst = sc_dst(s->scf);
-	struct http_ext_xot *f_xot = ((sess->fe->options & PR_O_HTTP_XOT) ? &sess->fe->http.xot : NULL);
-	struct http_ext_xot *b_xot = ((s->be->options & PR_O_HTTP_XOT) ? &s->be->http.xot : NULL);
-	struct ist hdr;
+	struct http_ext_xot *f_xot = NULL;
+	struct http_ext_xot *b_xot = NULL;
 
-	/* xot is expected to be enabled on be, or fe, or both */
-	BUG_ON(!f_xot && !b_xot);
-
-	hdr = ((b_xot) ? b_xot->hdr_name : f_xot->hdr_name);
-
-	if (dst && dst->ss_family == AF_INET) {
-		/* Add an X-Original-To header unless the destination IP is
-		 * in the 'except' network range.
-		 */
-		if ((!f_xot || ipcmp2net(dst, &f_xot->except_net)) &&
-		    (!b_xot || ipcmp2net(dst, &b_xot->except_net))) {
-			unsigned char *pn = (unsigned char *)&((struct sockaddr_in *)dst)->sin_addr;
-
-			/* Note: we rely on the backend to get the header name to be used for
-			 * x-original-to, because the header is really meant for the backends.
-			 * However, if the backend did not specify any option, we have to rely
-			 * on the frontend's header name.
-			 */
-			chunk_printf(&trash, "%d.%d.%d.%d", pn[0], pn[1], pn[2], pn[3]);
-			if (unlikely(!http_add_header(htx, hdr, ist2(trash.area, trash.data))))
-				return 0;
-		}
+	if (sess->fe->http_ext && sess->fe->http_ext->xot) {
+		/* frontend */
+		f_xot = sess->fe->http_ext->xot;
 	}
-	else if (dst && dst->ss_family == AF_INET6) {
-		/* Add an X-Original-To header unless the source IP is
-		 * in the 'except' network range.
-		 */
-		if ((!f_xot || ipcmp2net(dst, &f_xot->except_net)) &&
-		    (!b_xot || ipcmp2net(dst, &b_xot->except_net))) {
-			char pn[INET6_ADDRSTRLEN];
+	if (s->be->http_ext && s->be->http_ext->xot) {
+		/* backend */
+		BUG_ON(!s->be->http_ext);
+		b_xot = s->be->http_ext->xot;
+	}
 
-			inet_ntop(AF_INET6,
-				  (const void *)&((struct sockaddr_in6 *)dst)->sin6_addr,
-				  pn, sizeof(pn));
+	if (f_xot || b_xot) {
+		struct htx *htx = htxbuf(&req->buf);
+		const struct sockaddr_storage *dst = sc_dst(s->scf);
+		struct ist hdr = ((b_xot) ? b_xot->hdr_name : f_xot->hdr_name);
 
-			/* Note: we rely on the backend to get the header name to be used for
-			 * x-forwarded-for, because the header is really meant for the backends.
-			 * However, if the backend did not specify any option, we have to rely
-			 * on the frontend's header name.
+		if (dst && dst->ss_family == AF_INET) {
+			/* Add an X-Original-To header unless the destination IP is
+			 * in the 'except' network range.
 			 */
-			chunk_printf(&trash, "%s", pn);
-			if (unlikely(!http_add_header(htx, hdr, ist2(trash.area, trash.data))))
-				return 0;
+			if ((!f_xot || ipcmp2net(dst, &f_xot->except_net)) &&
+			    (!b_xot || ipcmp2net(dst, &b_xot->except_net))) {
+				unsigned char *pn = (unsigned char *)&((struct sockaddr_in *)dst)->sin_addr;
+
+				/* Note: we rely on the backend to get the header name to be used for
+				 * x-original-to, because the header is really meant for the backends.
+				 * However, if the backend did not specify any option, we have to rely
+				 * on the frontend's header name.
+				 */
+				chunk_printf(&trash, "%d.%d.%d.%d", pn[0], pn[1], pn[2], pn[3]);
+				if (unlikely(!http_add_header(htx, hdr, ist2(trash.area, trash.data))))
+					return 0;
+			}
+		}
+		else if (dst && dst->ss_family == AF_INET6) {
+			/* Add an X-Original-To header unless the source IP is
+			 * in the 'except' network range.
+			 */
+			if ((!f_xot || ipcmp2net(dst, &f_xot->except_net)) &&
+			    (!b_xot || ipcmp2net(dst, &b_xot->except_net))) {
+				char pn[INET6_ADDRSTRLEN];
+
+				inet_ntop(AF_INET6,
+					  (const void *)&((struct sockaddr_in6 *)dst)->sin6_addr,
+					  pn, sizeof(pn));
+
+				/* Note: we rely on the backend to get the header name to be used for
+				 * x-forwarded-for, because the header is really meant for the backends.
+				 * However, if the backend did not specify any option, we have to rely
+				 * on the frontend's header name.
+				 */
+				chunk_printf(&trash, "%s", pn);
+				if (unlikely(!http_add_header(htx, hdr, ist2(trash.area, trash.data))))
+					return 0;
+			}
 		}
 	}
 	return 1;
@@ -930,6 +948,7 @@ int proxy_http_parse_7239(char **args, int cur_arg,
                           struct proxy *curproxy, const struct proxy *defpx,
                           const char *file, int linenum)
 {
+	struct http_ext_7239 *fwd;
 	int err_code = 0;
 
 	if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, "option forwarded", NULL)) {
@@ -938,73 +957,77 @@ int proxy_http_parse_7239(char **args, int cur_arg,
 		goto out;
 	}
 
-	curproxy->options |= PR_O_HTTP_7239;
-	curproxy->http.fwd.p_proto = 0;
-	curproxy->http.fwd.p_host.mode = 0;
-	curproxy->http.fwd.p_for.nn_mode = 0;
-	curproxy->http.fwd.p_for.np_mode = 0;
-	curproxy->http.fwd.p_by.nn_mode = 0;
-	curproxy->http.fwd.p_by.np_mode = 0;
-	ha_free(&curproxy->http.fwd.c_file);
-	curproxy->http.fwd.c_file = strdup(file);
-	curproxy->http.fwd.c_line = linenum;
+	if (!http_ext_7239_prepare(curproxy))
+		return proxy_http_parse_oom(file, linenum);
+
+	fwd = curproxy->http_ext->fwd;
+
+	fwd->p_proto = 0;
+	fwd->p_host.mode = 0;
+	fwd->p_for.nn_mode = 0;
+	fwd->p_for.np_mode = 0;
+	fwd->p_by.nn_mode = 0;
+	fwd->p_by.np_mode = 0;
+	ha_free(&fwd->c_file);
+	fwd->c_file = strdup(file);
+	fwd->c_line = linenum;
 
 	/* start at 2, since 0+1 = "option" "forwarded" */
 	cur_arg = 2;
 	if (!*(args[cur_arg])) {
 		/* no optional argument provided, use default settings */
-		curproxy->http.fwd.p_for.nn_mode = HTTP_7239_FORBY_ORIG; /* enable for and mimic xff */
-		curproxy->http.fwd.p_proto = 1; /* enable proto */
+		fwd->p_for.nn_mode = HTTP_7239_FORBY_ORIG; /* enable for and mimic xff */
+		fwd->p_proto = 1; /* enable proto */
 		goto out;
 	}
 	/* loop to go through optional arguments */
 	while (*(args[cur_arg])) {
 		if (strcmp(args[cur_arg], "proto") == 0) {
-			curproxy->http.fwd.p_proto = 1;
+			fwd->p_proto = 1;
 			cur_arg += 1;
 		} else if (strcmp(args[cur_arg], "host") == 0) {
-			curproxy->http.fwd.p_host.mode = HTTP_7239_HOST_ORIG;
+			fwd->p_host.mode = HTTP_7239_HOST_ORIG;
 			cur_arg += 1;
 		} else if (strcmp(args[cur_arg], "host-expr") == 0) {
-			curproxy->http.fwd.p_host.mode = HTTP_7239_HOST_SMP;
+			fwd->p_host.mode = HTTP_7239_HOST_SMP;
 			err_code |= _proxy_http_parse_7239_expr(args, &cur_arg, file, linenum,
-								&curproxy->http.fwd.p_host.expr_s);
+								&fwd->p_host.expr_s);
 			if (err_code & ERR_FATAL)
 				goto out;
 		} else if (strcmp(args[cur_arg], "by") == 0) {
-			curproxy->http.fwd.p_by.nn_mode = HTTP_7239_FORBY_ORIG;
+			fwd->p_by.nn_mode = HTTP_7239_FORBY_ORIG;
 			cur_arg += 1;
 		} else if (strcmp(args[cur_arg], "by-expr") == 0) {
-			curproxy->http.fwd.p_by.nn_mode = HTTP_7239_FORBY_SMP;
+			fwd->p_by.nn_mode = HTTP_7239_FORBY_SMP;
 			err_code |= _proxy_http_parse_7239_expr(args, &cur_arg, file, linenum,
-								&curproxy->http.fwd.p_by.nn_expr_s);
+								&fwd->p_by.nn_expr_s);
 			if (err_code & ERR_FATAL)
 				goto out;
 		} else if (strcmp(args[cur_arg], "for") == 0) {
-			curproxy->http.fwd.p_for.nn_mode = HTTP_7239_FORBY_ORIG;
+			fwd->p_for.nn_mode = HTTP_7239_FORBY_ORIG;
 			cur_arg += 1;
 		} else if (strcmp(args[cur_arg], "for-expr") == 0) {
-			curproxy->http.fwd.p_for.nn_mode = HTTP_7239_FORBY_SMP;
+			fwd->p_for.nn_mode = HTTP_7239_FORBY_SMP;
 			err_code |= _proxy_http_parse_7239_expr(args, &cur_arg, file, linenum,
-								&curproxy->http.fwd.p_for.nn_expr_s);
+								&fwd->p_for.nn_expr_s);
 			if (err_code & ERR_FATAL)
 				goto out;
 		} else if (strcmp(args[cur_arg], "by_port") == 0) {
-			curproxy->http.fwd.p_by.np_mode = HTTP_7239_FORBY_ORIG;
+			fwd->p_by.np_mode = HTTP_7239_FORBY_ORIG;
 			cur_arg += 1;
 		} else if (strcmp(args[cur_arg], "by_port-expr") == 0) {
-			curproxy->http.fwd.p_by.np_mode = HTTP_7239_FORBY_SMP;
+			fwd->p_by.np_mode = HTTP_7239_FORBY_SMP;
 			err_code |= _proxy_http_parse_7239_expr(args, &cur_arg, file, linenum,
-								&curproxy->http.fwd.p_by.np_expr_s);
+								&fwd->p_by.np_expr_s);
 			if (err_code & ERR_FATAL)
 				goto out;
 		} else if (strcmp(args[cur_arg], "for_port") == 0) {
-			curproxy->http.fwd.p_for.np_mode = HTTP_7239_FORBY_ORIG;
+			fwd->p_for.np_mode = HTTP_7239_FORBY_ORIG;
 			cur_arg += 1;
 		} else if (strcmp(args[cur_arg], "for_port-expr") == 0) {
-			curproxy->http.fwd.p_for.np_mode = HTTP_7239_FORBY_SMP;
+			fwd->p_for.np_mode = HTTP_7239_FORBY_SMP;
 			err_code |= _proxy_http_parse_7239_expr(args, &cur_arg, file, linenum,
-								&curproxy->http.fwd.p_for.np_expr_s);
+								&fwd->p_for.np_expr_s);
 			if (err_code & ERR_FATAL)
 				goto out;
 		} else {
@@ -1019,24 +1042,24 @@ int proxy_http_parse_7239(char **args, int cur_arg,
 	} /* end while loop */
 
 	/* consistency check */
-	if (curproxy->http.fwd.p_by.np_mode &&
-	    !curproxy->http.fwd.p_by.nn_mode) {
-		curproxy->http.fwd.p_by.np_mode = 0;
-		ha_free(&curproxy->http.fwd.p_by.np_expr_s);
+	if (fwd->p_by.np_mode &&
+	    !fwd->p_by.nn_mode) {
+		fwd->p_by.np_mode = 0;
+		ha_free(&fwd->p_by.np_expr_s);
 		ha_warning("parsing [%s:%d] : '%s %s' : '%s' will be ignored because both 'by' "
 			   "and 'by-expr' are unset\n",
 			   file, linenum, args[0], args[1],
-			   ((curproxy->http.fwd.p_by.np_mode == HTTP_7239_FORBY_ORIG) ? "by_port" : "by_port-expr"));
+			   ((fwd->p_by.np_mode == HTTP_7239_FORBY_ORIG) ? "by_port" : "by_port-expr"));
 		err_code |= ERR_WARN;
 	}
-	if (curproxy->http.fwd.p_for.np_mode &&
-	    !curproxy->http.fwd.p_for.nn_mode) {
-		curproxy->http.fwd.p_for.np_mode = 0;
-		ha_free(&curproxy->http.fwd.p_for.np_expr_s);
+	if (fwd->p_for.np_mode &&
+	    !fwd->p_for.nn_mode) {
+		fwd->p_for.np_mode = 0;
+		ha_free(&fwd->p_for.np_expr_s);
 		ha_warning("parsing [%s:%d] : '%s %s' : '%s' will be ignored because both 'for' "
 			   "and 'for-expr' are unset\n",
 			   file, linenum, args[0], args[1],
-			   ((curproxy->http.fwd.p_for.np_mode == HTTP_7239_FORBY_ORIG) ? "for_port" : "for_port-expr"));
+			   ((fwd->p_for.np_mode == HTTP_7239_FORBY_ORIG) ? "for_port" : "for_port-expr"));
 		err_code |= ERR_WARN;
 	}
 
@@ -1049,21 +1072,22 @@ int proxy_http_parse_7239(char **args, int cur_arg,
  */
 int proxy_http_compile_7239(struct proxy *curproxy)
 {
+	struct http_ext_7239 *fwd;
 	int cfgerr = 0;
 	int loop;
 
-	BUG_ON(!(curproxy->options & PR_O_HTTP_7239)); /* should not happen */
 	if (!(curproxy->cap & PR_CAP_BE)) {
-		/* no backend cap: not supported (ie: frontend)
-		 * Moreover, 7239 settings are only inherited from default
-		 * if proxy is backend capable.. going further would result in
-		 * undefined behavior */
+		/* no backend cap: not supported (ie: frontend) */
 		goto out;
 	}
 
+	/* should not happen (test should be performed after BE cap test) */
+	BUG_ON(!curproxy->http_ext || !curproxy->http_ext->fwd);
+
 	curproxy->conf.args.ctx = ARGC_OPT; /* option */
-	curproxy->conf.args.file = curproxy->http.fwd.c_file;
-	curproxy->conf.args.line = curproxy->http.fwd.c_line;
+	curproxy->conf.args.file = curproxy->http_ext->fwd->c_file;
+	curproxy->conf.args.line = curproxy->http_ext->fwd->c_line;
+	fwd = curproxy->http_ext->fwd;
 
 	/* it is important that we keep iterating on error to make sure
 	 * all fwd config fields are in the same state (post-parsing state)
@@ -1079,38 +1103,33 @@ int proxy_http_compile_7239(struct proxy *curproxy)
 		switch (loop) {
 			case 0:
 				/* host */
-				expr_str = &curproxy->http.fwd.p_host.expr_s;
-				expr = &curproxy->http.fwd.p_host.expr;
-				smp = (curproxy->http.fwd.p_host.mode ==
-				       HTTP_7239_HOST_SMP);
+				expr_str = &fwd->p_host.expr_s;
+				expr = &fwd->p_host.expr;
+				smp = (fwd->p_host.mode == HTTP_7239_HOST_SMP);
 				break;
 			case 1:
 				/* by->node */
-				expr_str = &curproxy->http.fwd.p_by.nn_expr_s;
-				expr = &curproxy->http.fwd.p_by.nn_expr;
-				smp = (curproxy->http.fwd.p_by.nn_mode ==
-				       HTTP_7239_FORBY_SMP);
+				expr_str = &fwd->p_by.nn_expr_s;
+				expr = &fwd->p_by.nn_expr;
+				smp = (fwd->p_by.nn_mode == HTTP_7239_FORBY_SMP);
 				break;
 			case 2:
 				/* by->nodeport */
-				expr_str = &curproxy->http.fwd.p_by.np_expr_s;
-				expr = &curproxy->http.fwd.p_by.np_expr;
-				smp = (curproxy->http.fwd.p_by.np_mode ==
-				       HTTP_7239_FORBY_SMP);
+				expr_str = &fwd->p_by.np_expr_s;
+				expr = &fwd->p_by.np_expr;
+				smp = (fwd->p_by.np_mode == HTTP_7239_FORBY_SMP);
 				break;
 			case 3:
 				/* for->node */
-				expr_str = &curproxy->http.fwd.p_for.nn_expr_s;
-				expr = &curproxy->http.fwd.p_for.nn_expr;
-				smp = (curproxy->http.fwd.p_for.nn_mode ==
-				       HTTP_7239_FORBY_SMP);
+				expr_str = &fwd->p_for.nn_expr_s;
+				expr = &fwd->p_for.nn_expr;
+				smp = (fwd->p_for.nn_mode == HTTP_7239_FORBY_SMP);
 				break;
 			case 4:
 				/* for->nodeport */
-				expr_str = &curproxy->http.fwd.p_for.np_expr_s;
-				expr = &curproxy->http.fwd.p_for.np_expr;
-				smp = (curproxy->http.fwd.p_for.np_mode ==
-				       HTTP_7239_FORBY_SMP);
+				expr_str = &fwd->p_for.np_expr_s;
+				expr = &fwd->p_for.np_expr;
+				smp = (fwd->p_for.np_mode == HTTP_7239_FORBY_SMP);
 				break;
 		}
 		if (!smp)
@@ -1123,7 +1142,7 @@ int proxy_http_compile_7239(struct proxy *curproxy)
 			/* should not happen unless system memory exhaustion */
 			ha_alert("%s '%s' [%s:%d]: failed to parse 'option forwarded' expression : %s.\n",
 				 proxy_type_str(curproxy), curproxy->id,
-				 curproxy->http.fwd.c_file, curproxy->http.fwd.c_line,
+				 fwd->c_file, fwd->c_line,
 				 "memory error");
 			cfgerr++;
 			continue;
@@ -1131,14 +1150,14 @@ int proxy_http_compile_7239(struct proxy *curproxy)
 
 		cur_expr =
 			sample_parse_expr((char*[]){*expr_str, NULL}, &idx,
-					  curproxy->http.fwd.c_file,
-					  curproxy->http.fwd.c_line,
+					  fwd->c_file,
+					  fwd->c_line,
 					  &err, &curproxy->conf.args, NULL);
 
 		if (!cur_expr) {
 			ha_alert("%s '%s' [%s:%d]: failed to parse 'option forwarded' expression '%s' in : %s.\n",
 				 proxy_type_str(curproxy), curproxy->id,
-				 curproxy->http.fwd.c_file, curproxy->http.fwd.c_line,
+				 fwd->c_file, fwd->c_line,
 				 *expr_str, err);
 			ha_free(&err);
 			cfgerr++;
@@ -1153,7 +1172,7 @@ int proxy_http_compile_7239(struct proxy *curproxy)
 				   "some args extract information from '%s', "
 				   "none of which is available here.\n",
 				   proxy_type_str(curproxy), curproxy->id,
-				   curproxy->http.fwd.c_file, curproxy->http.fwd.c_line,
+				   fwd->c_file, fwd->c_line,
 				   *expr_str, sample_ckp_names(cur_expr->fetch->use));
 		}
 		/* post parsing individual expr cleanup */
@@ -1166,10 +1185,10 @@ int proxy_http_compile_7239(struct proxy *curproxy)
 	curproxy->conf.args.line = 0;
 
 	/* post parsing general cleanup */
-	ha_free(&curproxy->http.fwd.c_file);
-	curproxy->http.fwd.c_line = 0;
+	ha_free(&fwd->c_file);
+	fwd->c_line = 0;
 
-	curproxy->http.fwd.c_mode = 1; /* parsing completed */
+	fwd->c_mode = 1; /* parsing completed */
 
  out:
 	return cfgerr;
@@ -1180,21 +1199,25 @@ int proxy_http_parse_xff(char **args, int cur_arg,
                          struct proxy *curproxy, const struct proxy *defpx,
                          const char *file, int linenum)
 {
+	struct http_ext_xff *xff;
 	int err_code = 0;
+
+	if (!http_ext_xff_prepare(curproxy))
+		return proxy_http_parse_oom(file, linenum);
+
+	xff = curproxy->http_ext->xff;
 
 	/* insert x-forwarded-for field, but not for the IP address listed as an except.
 	 * set default options (ie: bitfield, header name, etc)
 	 */
 
-	curproxy->options |= PR_O_HTTP_XFF;
+	xff->mode = HTTP_XFF_ALWAYS;
 
-	curproxy->http.xff.mode = HTTP_XFF_ALWAYS;
-
-	istfree(&curproxy->http.xff.hdr_name);
-	curproxy->http.xff.hdr_name = istdup(ist(DEF_XFORWARDFOR_HDR));
-	if (!isttest(curproxy->http.xff.hdr_name))
+	istfree(&xff->hdr_name);
+	xff->hdr_name = istdup(ist(DEF_XFORWARDFOR_HDR));
+	if (!isttest(xff->hdr_name))
 		return proxy_http_parse_oom(file, linenum);
-	curproxy->http.xff.except_net.family = AF_UNSPEC;
+	xff->except_net.family = AF_UNSPEC;
 
 	/* loop to go through arguments - start at 2, since 0+1 = "option" "forwardfor" */
 	cur_arg = 2;
@@ -1205,16 +1228,16 @@ int proxy_http_parse_xff(char **args, int cur_arg,
 
 			/* suboption except - needs additional argument for it */
 			if (*(args[cur_arg+1]) &&
-			    str2net(args[cur_arg+1], 1, &curproxy->http.xff.except_net.addr.v4.ip, &curproxy->http.xff.except_net.addr.v4.mask)) {
-				curproxy->http.xff.except_net.family = AF_INET;
-				curproxy->http.xff.except_net.addr.v4.ip.s_addr &= curproxy->http.xff.except_net.addr.v4.mask.s_addr;
+			    str2net(args[cur_arg+1], 1, &xff->except_net.addr.v4.ip, &xff->except_net.addr.v4.mask)) {
+				xff->except_net.family = AF_INET;
+				xff->except_net.addr.v4.ip.s_addr &= xff->except_net.addr.v4.mask.s_addr;
 			}
 			else if (*(args[cur_arg+1]) &&
-				 str62net(args[cur_arg+1], &curproxy->http.xff.except_net.addr.v6.ip, &mask)) {
-				curproxy->http.xff.except_net.family = AF_INET6;
-				len2mask6(mask, &curproxy->http.xff.except_net.addr.v6.mask);
+				 str62net(args[cur_arg+1], &xff->except_net.addr.v6.ip, &mask)) {
+				xff->except_net.family = AF_INET6;
+				len2mask6(mask, &xff->except_net.addr.v6.mask);
 				for (i = 0; i < 16; i++)
-					curproxy->http.xff.except_net.addr.v6.ip.s6_addr[i] &= curproxy->http.xff.except_net.addr.v6.mask.s6_addr[i];
+					xff->except_net.addr.v6.ip.s6_addr[i] &= xff->except_net.addr.v6.mask.s6_addr[i];
 			}
 			else {
 				ha_alert("parsing [%s:%d] : '%s %s %s' expects <address>[/mask] as argument.\n",
@@ -1232,13 +1255,13 @@ int proxy_http_parse_xff(char **args, int cur_arg,
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
-			istfree(&curproxy->http.xff.hdr_name);
-			curproxy->http.xff.hdr_name = istdup(ist(args[cur_arg+1]));
-			if (!isttest(curproxy->http.xff.hdr_name))
+			istfree(&xff->hdr_name);
+			xff->hdr_name = istdup(ist(args[cur_arg+1]));
+			if (!isttest(xff->hdr_name))
 				return proxy_http_parse_oom(file, linenum);
 			cur_arg += 2;
 		} else if (strcmp(args[cur_arg], "if-none") == 0) {
-			curproxy->http.xff.mode = HTTP_XFF_IFNONE;
+			xff->mode = HTTP_XFF_IFNONE;
 			cur_arg += 1;
 		} else {
 			/* unknown suboption - catchall */
@@ -1257,19 +1280,23 @@ int proxy_http_parse_xot(char **args, int cur_arg,
                          struct proxy *curproxy, const struct proxy *defpx,
                          const char *file, int linenum)
 {
+	struct http_ext_xot *xot;
 	int err_code = 0;
+
+	if (!http_ext_xot_prepare(curproxy))
+		return proxy_http_parse_oom(file, linenum);
+
+	xot = curproxy->http_ext->xot;
 
 	/* insert x-original-to field, but not for the IP address listed as an except.
 	 * set default options (ie: bitfield, header name, etc)
 	 */
 
-	curproxy->options |= PR_O_HTTP_XOT;
-
-	istfree(&curproxy->http.xot.hdr_name);
-	curproxy->http.xot.hdr_name = istdup(ist(DEF_XORIGINALTO_HDR));
-	if (!isttest(curproxy->http.xot.hdr_name))
+	istfree(&xot->hdr_name);
+	xot->hdr_name = istdup(ist(DEF_XORIGINALTO_HDR));
+	if (!isttest(xot->hdr_name))
 		return proxy_http_parse_oom(file, linenum);
-	curproxy->http.xot.except_net.family = AF_UNSPEC;
+	xot->except_net.family = AF_UNSPEC;
 
 	/* loop to go through arguments - start at 2, since 0+1 = "option" "originalto" */
 	cur_arg = 2;
@@ -1280,16 +1307,16 @@ int proxy_http_parse_xot(char **args, int cur_arg,
 
 			/* suboption except - needs additional argument for it */
 			if (*(args[cur_arg+1]) &&
-			    str2net(args[cur_arg+1], 1, &curproxy->http.xot.except_net.addr.v4.ip, &curproxy->http.xot.except_net.addr.v4.mask)) {
-				curproxy->http.xot.except_net.family = AF_INET;
-				curproxy->http.xot.except_net.addr.v4.ip.s_addr &= curproxy->http.xot.except_net.addr.v4.mask.s_addr;
+			    str2net(args[cur_arg+1], 1, &xot->except_net.addr.v4.ip, &xot->except_net.addr.v4.mask)) {
+				xot->except_net.family = AF_INET;
+				xot->except_net.addr.v4.ip.s_addr &= xot->except_net.addr.v4.mask.s_addr;
 			}
 			else if (*(args[cur_arg+1]) &&
-				 str62net(args[cur_arg+1], &curproxy->http.xot.except_net.addr.v6.ip, &mask)) {
-				curproxy->http.xot.except_net.family = AF_INET6;
-				len2mask6(mask, &curproxy->http.xot.except_net.addr.v6.mask);
+				 str62net(args[cur_arg+1], &xot->except_net.addr.v6.ip, &mask)) {
+				xot->except_net.family = AF_INET6;
+				len2mask6(mask, &xot->except_net.addr.v6.mask);
 				for (i = 0; i < 16; i++)
-					curproxy->http.xot.except_net.addr.v6.ip.s6_addr[i] &= curproxy->http.xot.except_net.addr.v6.mask.s6_addr[i];
+					xot->except_net.addr.v6.ip.s6_addr[i] &= xot->except_net.addr.v6.mask.s6_addr[i];
 			}
 			else {
 				ha_alert("parsing [%s:%d] : '%s %s %s' expects <address>[/mask] as argument.\n",
@@ -1306,9 +1333,9 @@ int proxy_http_parse_xot(char **args, int cur_arg,
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
-			istfree(&curproxy->http.xot.hdr_name);
-			curproxy->http.xot.hdr_name = istdup(ist(args[cur_arg+1]));
-			if (!isttest(curproxy->http.xot.hdr_name))
+			istfree(&xot->hdr_name);
+			xot->hdr_name = istdup(ist(args[cur_arg+1]));
+			if (!isttest(xot->hdr_name))
 				return proxy_http_parse_oom(file, linenum);
 			cur_arg += 2;
 		} else {
@@ -1329,8 +1356,105 @@ int proxy_http_parse_xot(char **args, int cur_arg,
  * below are helpers to manage http ext options
  */
 
-void http_ext_7239_clean(struct http_ext_7239 *clean)
+/* Ensure http_ext->fwd is properly allocated and
+ * initialized for <curproxy>.
+ * The function will leverage http_ext_prepare() to make
+ * sure http_ext is properly allocated and initialized as well.
+ * Returns 1 for success and 0 for failure (memory error)
+ */
+int http_ext_7239_prepare(struct proxy *curproxy)
 {
+	struct http_ext_7239 *fwd;
+
+	if (!http_ext_prepare(curproxy))
+		return 0;
+	if (curproxy->http_ext->fwd)
+		return 1; /* nothing to do */
+
+	fwd = malloc(sizeof(*fwd));
+	if (!fwd)
+		return 0;
+	/* initialize fwd mandatory fields */
+	fwd->c_mode = 0; /* pre-compile (parse) time */
+	fwd->c_file = NULL;
+	fwd->p_host.expr_s = NULL;
+	fwd->p_by.nn_expr_s = NULL;
+	fwd->p_by.np_expr_s = NULL;
+	fwd->p_for.nn_expr_s = NULL;
+	fwd->p_for.np_expr_s = NULL;
+	/* assign */
+	curproxy->http_ext->fwd = fwd;
+	return 1;
+}
+
+/* Ensure http_ext->xff is properly allocated and
+ * initialized for <curproxy>.
+ * The function will leverage http_ext_prepare() to make
+ * sure http_ext is properly allocated and initialized as well.
+ * Returns 1 for success and 0 for failure (memory error)
+ */
+int http_ext_xff_prepare(struct proxy *curproxy)
+{
+	struct http_ext_xff *xff;
+
+	if (!http_ext_prepare(curproxy))
+		return 0;
+	if (curproxy->http_ext->xff)
+		return 1; /* nothing to do */
+
+	xff = malloc(sizeof(*xff));
+	if (!xff)
+		return 0;
+	/* initialize xff mandatory fields */
+	xff->hdr_name = IST_NULL;
+	/* assign */
+	curproxy->http_ext->xff = xff;
+	return 1;
+}
+
+/* Ensure http_ext->xot is properly allocated and
+ * initialized for <curproxy>.
+ * The function will leverage http_ext_prepare() to make
+ * sure http_ext is properly allocated and initialized as well.
+ * Returns 1 for success and 0 for failure (memory error)
+ */
+int http_ext_xot_prepare(struct proxy *curproxy)
+{
+	struct http_ext_xot *xot;
+
+	if (!http_ext_prepare(curproxy))
+		return 0;
+	if (curproxy->http_ext->xot)
+		return 1; /* nothing to do */
+
+	xot = malloc(sizeof(*xot));
+	if (!xot)
+		return 0;
+	/* initialize xot mandatory fields */
+	xot->hdr_name = IST_NULL;
+	/* assign */
+	curproxy->http_ext->xot = xot;
+	return 1;
+}
+
+/* deep clean http_ext->fwd parameter for <curproxy>
+ * http_ext->fwd will be freed
+ * clean behavior will differ depending on http_ext->fwd
+ * state. If fwd is in 'parsed' state, parsing hints will be
+ * cleaned. Else, it means fwd is in 'compiled' state, in this
+ * case we're cleaning compiled results.
+ * This is because parse and compile memory areas are shared in
+ * a single union to optimize struct http_ext_7239 size.
+ */
+void http_ext_7239_clean(struct proxy *curproxy)
+{
+	struct http_ext_7239 *clean;
+
+	if (!curproxy->http_ext)
+		return;
+	clean = curproxy->http_ext->fwd;
+	if (!clean)
+		return; /* nothing to do */
 	if (!clean->c_mode) {
 		/* parsed */
 		ha_free(&clean->c_file);
@@ -1353,22 +1477,69 @@ void http_ext_7239_clean(struct http_ext_7239 *clean)
 		release_sample_expr(clean->p_for.np_expr);
 		clean->p_for.np_expr = NULL;
 	}
+	/* free fwd */
+	ha_free(&curproxy->http_ext->fwd);
 }
 
-void http_ext_xff_clean(struct http_ext_xff *clean)
+/* deep clean http_ext->xff parameter for <curproxy>
+ * http_ext->xff will be freed
+ */
+void http_ext_xff_clean(struct proxy *curproxy)
 {
+	struct http_ext_xff *clean;
+
+	if (!curproxy->http_ext)
+		return;
+	clean = curproxy->http_ext->xff;
+	if (!clean)
+		return; /* nothing to do */
 	istfree(&clean->hdr_name);
+	/* free xff */
+	ha_free(&curproxy->http_ext->xff);
 }
 
-void http_ext_xot_clean(struct http_ext_xot *clean)
+/* deep clean http_ext->xot parameter for <curproxy>
+ * http_ext->xot will be freed
+ */
+void http_ext_xot_clean(struct proxy *curproxy)
 {
+	struct http_ext_xot *clean;
+
+	if (!curproxy->http_ext)
+		return;
+	clean = curproxy->http_ext->xot;
+	if (!clean)
+		return; /* nothing to do */
 	istfree(&clean->hdr_name);
+	/* free xot */
+	ha_free(&curproxy->http_ext->xot);
 }
 
-void http_ext_7239_copy(struct http_ext_7239 *dest, const struct http_ext_7239 *orig)
+/* duplicate http_ext->fwd parameters from <def> to <cpy>
+ * performs the required memory allocation and initialization
+ */
+void http_ext_7239_dup(const struct proxy *def, struct proxy *cpy)
 {
+	struct http_ext_7239 *dest = NULL;
+	struct http_ext_7239 *orig = NULL;
+
+	/* feature requires backend cap */
+	if (!(cpy->cap & PR_CAP_BE))
+		return;
+
+	if (def->http_ext == NULL || def->http_ext->fwd == NULL)
+		return;
+
+	orig = def->http_ext->fwd;
+
 	if (orig->c_mode)
 		return; /* copy not supported once compiled */
+
+	if (!http_ext_7239_prepare(cpy))
+		return;
+
+	dest = cpy->http_ext->fwd;
+
 	if (orig->c_file)
 		dest->c_file = strdup(orig->c_file);
 	dest->c_line = orig->c_line;
@@ -1396,19 +1567,102 @@ void http_ext_7239_copy(struct http_ext_7239 *dest, const struct http_ext_7239 *
 		dest->p_for.np_expr_s = strdup(orig->p_for.np_expr_s);
 }
 
-void http_ext_xff_copy(struct http_ext_xff *dest, const struct http_ext_xff *orig)
+/* duplicate http_ext->xff parameters from <def> to <cpy>
+ * performs the required memory allocation and initialization
+ */
+void http_ext_xff_dup(const struct proxy *def, struct proxy *cpy)
 {
+	struct http_ext_xff *dest = NULL;
+	struct http_ext_xff *orig = NULL;
+
+	if (def->http_ext == NULL || def->http_ext->xff == NULL ||
+	    !http_ext_xff_prepare(cpy))
+		return;
+
+	orig = def->http_ext->xff;
+	dest = cpy->http_ext->xff;
+
 	if (isttest(orig->hdr_name))
 		dest->hdr_name = istdup(orig->hdr_name);
 	dest->mode = orig->mode;
 	dest->except_net = orig->except_net;
 }
 
-void http_ext_xot_copy(struct http_ext_xot *dest, const struct http_ext_xot *orig)
+/* duplicate http_ext->xot parameters from <def> to <cpy>
+ * performs the required memory allocation and initialization
+ */
+void http_ext_xot_dup(const struct proxy *def, struct proxy *cpy)
 {
+	struct http_ext_xot *dest = NULL;
+	struct http_ext_xot *orig = NULL;
+
+	if (def->http_ext == NULL || def->http_ext->xot == NULL ||
+	    !http_ext_xot_prepare(cpy))
+		return;
+
+	orig = def->http_ext->xot;
+	dest = cpy->http_ext->xot;
+
 	if (isttest(orig->hdr_name))
 		dest->hdr_name = istdup(orig->hdr_name);
 	dest->except_net = orig->except_net;
+}
+
+/* Allocate new http_ext and initialize it
+ * if needed
+ * Returns 1 for success and 0 for failure
+ */
+int http_ext_prepare(struct proxy *curproxy)
+{
+	if (curproxy->http_ext)
+		return 1; /* nothing to do */
+
+	curproxy->http_ext = malloc(sizeof(*curproxy->http_ext));
+	if (!curproxy->http_ext)
+		return 0; /* failure */
+	/* first init, set supported ext to NULL */
+	curproxy->http_ext->fwd = NULL;
+	curproxy->http_ext->xff = NULL;
+	curproxy->http_ext->xot = NULL;
+	return 1;
+}
+
+/* duplicate existing http_ext from <defproxy> to <curproxy>
+ */
+void http_ext_dup(const struct proxy *defproxy, struct proxy *curproxy)
+{
+	/* copy defproxy.http_ext members */
+	http_ext_7239_dup(defproxy, curproxy);
+	http_ext_xff_dup(defproxy, curproxy);
+	http_ext_xot_dup(defproxy, curproxy);
+}
+
+/* deep clean http_ext for <curproxy> (if previously allocated)
+ */
+void http_ext_clean(struct proxy *curproxy)
+{
+	if (!curproxy->http_ext)
+		return; /* nothing to do */
+	/* first, free supported ext */
+	http_ext_7239_clean(curproxy);
+	http_ext_xff_clean(curproxy);
+	http_ext_xot_clean(curproxy);
+
+	/* then, free http_ext */
+	ha_free(&curproxy->http_ext);
+}
+
+/* soft clean (only clean http_ext if no more options are used) */
+void http_ext_softclean(struct proxy *curproxy)
+{
+	if (!curproxy->http_ext)
+		return; /* nothing to do */
+	if (!curproxy->http_ext->fwd &&
+	    !curproxy->http_ext->xff &&
+	    !curproxy->http_ext->xot) {
+		/* no more use for http_ext, all options are disabled */
+		http_ext_clean(curproxy);
+	}
 }
 
 /*

@@ -2038,7 +2038,8 @@ stats_error_parsing:
 				goto out;
 			}
 			else if (kwm == KWM_NO) {
-				curproxy->options &= ~PR_O_HTTP_7239;
+				if (curproxy->http_ext)
+					http_ext_7239_clean(curproxy);
 				goto out;
 			}
 		}

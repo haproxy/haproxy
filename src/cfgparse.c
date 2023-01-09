@@ -3670,8 +3670,9 @@ out_uri_auth_compat:
 			else
 				curproxy->http_needed |= !!(curproxy->lbprm.expr->fetch->use & SMP_USE_HTTP_ANY);
 		}
+
 		/* option "forwarded" may need to compile its expressions */
-		if ((curproxy->mode == PR_MODE_HTTP) && curproxy->options & PR_O_HTTP_7239)
+		if ((curproxy->mode == PR_MODE_HTTP) && curproxy->http_ext && curproxy->http_ext->fwd)
 			cfgerr += proxy_http_compile_7239(curproxy);
 
 		/* only now we can check if some args remain unresolved.
@@ -3968,25 +3969,26 @@ out_uri_auth_compat:
 				err_code |= ERR_WARN;
 			}
 
-			if (curproxy->options & PR_O_HTTP_7239) {
-				ha_warning("'option %s' ignored for %s '%s' as it requires HTTP mode.\n",
-					   "forwarded", proxy_type_str(curproxy), curproxy->id);
-				err_code |= ERR_WARN;
-				curproxy->options &= ~PR_O_HTTP_7239;
-			}
-
-			if (curproxy->options & PR_O_HTTP_XFF) {
-				ha_warning("'option %s' ignored for %s '%s' as it requires HTTP mode.\n",
-					   "forwardfor", proxy_type_str(curproxy), curproxy->id);
-				err_code |= ERR_WARN;
-				curproxy->options &= ~PR_O_HTTP_XFF;
-			}
-
-			if (curproxy->options & PR_O_HTTP_XOT) {
-				ha_warning("'option %s' ignored for %s '%s' as it requires HTTP mode.\n",
-					   "originalto", proxy_type_str(curproxy), curproxy->id);
-				err_code |= ERR_WARN;
-				curproxy->options &= ~PR_O_HTTP_XOT;
+			if (curproxy->http_ext) {
+				/* consistency checks for http_ext */
+				if (curproxy->http_ext->fwd) {
+					ha_warning("'option %s' ignored for %s '%s' as it requires HTTP mode.\n",
+						   "forwarded", proxy_type_str(curproxy), curproxy->id);
+					err_code |= ERR_WARN;
+					http_ext_7239_clean(curproxy);
+				}
+				if (curproxy->http_ext->xff) {
+					ha_warning("'option %s' ignored for %s '%s' as it requires HTTP mode.\n",
+						   "forwardfor", proxy_type_str(curproxy), curproxy->id);
+					err_code |= ERR_WARN;
+					http_ext_xff_clean(curproxy);
+				}
+				if (curproxy->http_ext->xot) {
+					ha_warning("'option %s' ignored for %s '%s' as it requires HTTP mode.\n",
+						   "originalto", proxy_type_str(curproxy), curproxy->id);
+					err_code |= ERR_WARN;
+					http_ext_xot_clean(curproxy);
+				}
 			}
 
 			for (optnum = 0; cfg_opts[optnum].name; optnum++) {
@@ -4221,6 +4223,8 @@ out_uri_auth_compat:
 				rules->flags = 0;
 			}
 		}
+		/* http_ext post init early cleanup */
+		http_ext_softclean(curproxy);
 	}
 
 	/*

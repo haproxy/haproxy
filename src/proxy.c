@@ -352,9 +352,8 @@ void free_proxy(struct proxy *p)
 		pxdf->fct(p);
 
 	free(p->desc);
-	http_ext_7239_clean(&p->http.fwd);
-	http_ext_xff_clean(&p->http.xff);
-	http_ext_xot_clean(&p->http.xot);
+
+	http_ext_clean(p);
 
 	task_destroy(p->task);
 
@@ -1467,9 +1466,7 @@ void proxy_free_defaults(struct proxy *defproxy)
 	ha_free(&defproxy->conn_src.iface_name);
 	istfree(&defproxy->server_id_hdr_name);
 
-	http_ext_7239_clean(&defproxy->http.fwd);
-	http_ext_xff_clean(&defproxy->http.xff);
-	http_ext_xot_clean(&defproxy->http.xot);
+	http_ext_clean(defproxy);
 
 	list_for_each_entry_safe(acl, aclb, &defproxy->acl, list) {
 		LIST_DELETE(&acl->list);
@@ -1650,10 +1647,8 @@ static int proxy_defproxy_cpy(struct proxy *curproxy, const struct proxy *defpro
 	curproxy->tcp_req.inspect_delay = defproxy->tcp_req.inspect_delay;
 	curproxy->tcp_rep.inspect_delay = defproxy->tcp_rep.inspect_delay;
 
-	if (defproxy->options & PR_O_HTTP_XFF)
-		http_ext_xff_copy(&curproxy->http.xff, &defproxy->http.xff);
-	if (defproxy->options & PR_O_HTTP_XOT)
-		http_ext_xot_copy(&curproxy->http.xot, &defproxy->http.xot);
+	http_ext_clean(curproxy);
+	http_ext_dup(defproxy, curproxy);
 
 	if (isttest(defproxy->server_id_hdr_name))
 		curproxy->server_id_hdr_name = istdup(defproxy->server_id_hdr_name);
@@ -1697,8 +1692,6 @@ static int proxy_defproxy_cpy(struct proxy *curproxy, const struct proxy *defpro
 		}
 
 		curproxy->ck_opts = defproxy->ck_opts;
-		if (defproxy->options & PR_O_HTTP_7239)
-			http_ext_7239_copy(&curproxy->http.fwd, &defproxy->http.fwd);
 
 		if (defproxy->cookie_name)
 			curproxy->cookie_name = strdup(defproxy->cookie_name);

@@ -88,7 +88,7 @@ enum PR_SRV_STATE_FILE {
 #define PR_O_PREF_LAST  0x00000020      /* prefer last server */
 #define PR_O_DISPATCH   0x00000040      /* use dispatch mode */
 #define PR_O_FORCED_ID  0x00000080      /* proxy's ID was forced in the configuration */
-#define PR_O_HTTP_XFF   0x00000100      /* conditionally insert x-forwarded-for with client address */
+/* unused: 0x00000100 */
 #define PR_O_IGNORE_PRB 0x00000200      /* ignore empty requests (aborts and timeouts) */
 #define PR_O_NULLNOLOG  0x00000400      /* a connect without request will not be logged */
 #define PR_O_WREQ_BODY  0x00000800      /* always wait for the HTTP request body */
@@ -101,7 +101,7 @@ enum PR_SRV_STATE_FILE {
 #define PR_O_TCP_CLI_KA 0x00040000      /* enable TCP keep-alive on client-side streams */
 #define PR_O_TCP_SRV_KA 0x00080000      /* enable TCP keep-alive on server-side streams */
 #define PR_O_USE_ALL_BK 0x00100000      /* load-balance between backup servers */
-#define PR_O_HTTP_7239  0x00200000      /* insert 7239 forwarded header */
+/* unused: 0x00200000 */
 #define PR_O_TCP_NOLING 0x00400000      /* disable lingering on client and server connections */
 #define PR_O_ABRT_CLOSE 0x00800000      /* immediately abort request when client closes */
 
@@ -115,7 +115,7 @@ enum PR_SRV_STATE_FILE {
 #define PR_O_CONTSTATS	0x10000000	/* continuous counters */
 /* unused: 0x20000000 */
 #define PR_O_DISABLE404 0x40000000      /* Disable a server on a 404 response to a health-check */
-#define PR_O_HTTP_XOT   0x80000000      /* insert x-original-to with destination address */
+/* unused: 0x80000000 */
 
 /* bits for proxy->options2 */
 #define PR_O2_SPLIC_REQ	0x00000001      /* transfer requests using linux kernel's splice() */
@@ -265,16 +265,6 @@ struct error_snapshot {
 	/**** protocol-specific part ****/
 	union error_snapshot_ctx ctx;
 	char buf[VAR_ARRAY];                    /* copy of the beginning of the message for bufsize bytes */
-};
-
-/* http options */
-struct proxy_http {
-	/* forwarded header (RFC 7239) */
-	struct http_ext_7239       fwd;
-	/* x-forward-for */
-	struct http_ext_xff        xff;
-	/* x-original-to */
-	struct http_ext_xot        xot;
 };
 
 struct proxy {
@@ -448,7 +438,7 @@ struct proxy {
 		char *elfs_file;
 		int elfs_line;
 	} conf;					/* config information */
-	struct proxy_http http;			/* http only options */
+	struct http_ext *http_ext;	        /* http ext options */
 	struct eb_root used_server_addr;        /* list of server addresses in use */
 	void *parent;				/* parent of the proxy when applicable */
 	struct comp *comp;			/* http compression */
