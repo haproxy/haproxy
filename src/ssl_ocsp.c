@@ -728,16 +728,30 @@ int ssl_ocsp_check_response(STACK_OF(X509) *chain, X509 *issuer,
 		goto end;
 	}
 
-	/* Add ocsp issuer certificate to a store in order verify the ocsp
-	 * response. */
+	/* Create a temporary store in which we add the certificate's chain
+	 * certificates. We assume that all those certificates can be trusted
+	 * because they were provided by the user.
+	 * The only ssl item that needs to be verified here is the OCSP
+	 * response.
+	 */
 	store = X509_STORE_new();
 	if (!store) {
 		memprintf(err, "X509_STORE_new() failed");
 		goto end;
 	}
-	X509_STORE_add_cert(store, issuer);
 
-	if (OCSP_basic_verify(basic, chain, store, 0) != 1) {
+	if (chain) {
+		int i = 0;
+		for (i = 0; i < sk_X509_num(chain); i++) {
+			X509 *cert = sk_X509_value(chain, i);
+			X509_STORE_add_cert(store, cert);
+		}
+	}
+
+	if (issuer)
+		X509_STORE_add_cert(store, issuer);
+
+	if (OCSP_basic_verify(basic, chain, store, OCSP_TRUSTOTHER) != 1) {
 		memprintf(err, "OCSP_basic_verify() failed");
 		goto end;
 	}
