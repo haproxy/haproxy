@@ -1255,7 +1255,7 @@ static int cli_parse_update_ocsp_response(char **args, char *payload, struct app
 	ckch_store = ckchs_lookup(args[3]);
 
 	if (!ckch_store) {
-		memprintf(&err, "%sCkch_store not found!\n", err ? err : "");
+		memprintf(&err, "%sUnknown certificate! 'update ssl ocsp-response' expects an already known certificate file name.\n", err ? err : "");
 		errcode |= ERR_ALERT | ERR_FATAL;
 		HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
 		goto end;
