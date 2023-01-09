@@ -1130,6 +1130,7 @@ http_error:
 struct ocsp_cli_ctx {
 	struct httpclient *hc;
 	struct ckch_data *ckch_data;
+	X509 *ocsp_issuer;
 	uint flags;
 	uint do_update;
 };
@@ -1245,7 +1246,32 @@ static int cli_parse_update_ocsp_response(char **args, char *payload, struct app
 		goto end;
 	}
 
-	certid = OCSP_cert_to_id(NULL, ctx->ckch_data->cert, ctx->ckch_data->ocsp_issuer);
+	/* Look for the ocsp issuer in the ckch_data or in the certificate
+	 * chain, the same way it is done in ssl_sock_load_ocsp. */
+	ctx->ocsp_issuer = ctx->ckch_data->ocsp_issuer;
+
+	/* take issuer from chain over ocsp_issuer, is what is done historicaly */
+	if (ctx->ckch_data->chain) {
+		int i = 0;
+		/* check if one of the certificate of the chain is the issuer */
+		for (i = 0; i < sk_X509_num(ctx->ckch_data->chain); i++) {
+			X509 *ti = sk_X509_value(ctx->ckch_data->chain, i);
+			if (X509_check_issued(ti, cert) == X509_V_OK) {
+				ctx->ocsp_issuer = ti;
+				break;
+			}
+		}
+	}
+
+	if (!ctx->ocsp_issuer) {
+		memprintf(&err, "%sOCSP issuer not found\n", err ? err : "");
+		HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+		goto end;
+	}
+
+	X509_up_ref(ctx->ocsp_issuer);
+
+	certid = OCSP_cert_to_id(NULL, cert, ctx->ocsp_issuer);
 	if (certid == NULL) {
 		memprintf(&err, "%sOCSP_cert_to_id() error\n", err ? err : "");
 		HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
@@ -1342,7 +1368,7 @@ static int cli_io_handler_update_ocsp_response(struct appctx *appctx)
 	if (ctx->flags & HC_F_RES_END) {
 		char *err = NULL;
 
-		if (ssl_ocsp_check_response(ctx->ckch_data->chain, ctx->ckch_data->ocsp_issuer, &hc->res.buf, &err)) {
+		if (ssl_ocsp_check_response(ctx->ckch_data->chain, ctx->ocsp_issuer, &hc->res.buf, &err)) {
 			chunk_printf(&trash, "%s", err);
 			if (applet_putchk(appctx, &trash) == -1)
 				goto more;
@@ -1380,6 +1406,9 @@ static void cli_release_update_ocsp_response(struct appctx *appctx)
 {
 	struct ocsp_cli_ctx *ctx = appctx->svcctx;
 	struct httpclient *hc = ctx->hc;
+
+	if (ctx)
+		X509_free(ctx->ocsp_issuer);
 
 	/* Everything possible was printed on the CLI, we can destroy the client */
 	httpclient_stop_and_destroy(hc);
