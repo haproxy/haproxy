@@ -615,7 +615,7 @@ int crtlist_parse_file(char *file, struct bind_conf *bind_conf, struct proxy *cu
 					entry_dup->crtlist = newlist;
 					if (ckchs->data->ocsp_update_mode != SSL_SOCK_OCSP_UPDATE_DFLT || entry->ssl_conf) {
 						if ((!entry->ssl_conf && ckchs->data->ocsp_update_mode == SSL_SOCK_OCSP_UPDATE_ON)
-						    || ckchs->data->ocsp_update_mode != entry->ssl_conf->ocsp_update) {
+						    || (entry->ssl_conf && ckchs->data->ocsp_update_mode != entry->ssl_conf->ocsp_update)) {
 							memprintf(err, "%sIncompatibilities found in OCSP update mode for certificate %s\n", err && *err ? *err : "", crt_path);
 							cfgerr |= ERR_ALERT;
 						}
@@ -647,7 +647,7 @@ int crtlist_parse_file(char *file, struct bind_conf *bind_conf, struct proxy *cu
 			entry->crtlist = newlist;
 			if (ckchs->data->ocsp_update_mode != SSL_SOCK_OCSP_UPDATE_DFLT || entry->ssl_conf) {
 				if ((!entry->ssl_conf && ckchs->data->ocsp_update_mode == SSL_SOCK_OCSP_UPDATE_ON)
-				    || ckchs->data->ocsp_update_mode != entry->ssl_conf->ocsp_update) {
+				    || (entry->ssl_conf && ckchs->data->ocsp_update_mode != entry->ssl_conf->ocsp_update)) {
 					memprintf(err, "%sIncompatibilities found in OCSP update mode for certificate %s\n", err && *err ? *err : "", crt_path);
 					cfgerr |= ERR_ALERT;
 				}
