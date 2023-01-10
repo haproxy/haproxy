@@ -3273,8 +3273,10 @@ show stat [domain <dns|proxy>] [{<iid>|<proxy>} <type> <sid>] [typed|json] \
     python -m json.tool
 
 show ssl ca-file [<cafile>[:<index>]]
-  Display the list of CA files used by HAProxy and their respective certificate
-  counts. If a filename is prefixed by an asterisk, it is a transaction which
+  Display the list of CA files loaded into the process and their respective
+  certificate counts. The certificates are not used by any frontend or backend
+  until their status is "Used".
+  If a filename is prefixed by an asterisk, it is a transaction which
   is not committed yet. If a <cafile> is specified without <index>, it will show
   the status of the CA file ("Used"/"Unused") followed by details about all the
   certificates contained in the CA file. The details displayed for every
@@ -3317,7 +3319,8 @@ show ssl ca-file [<cafile>[:<index>]]
     [...]
 
 show ssl cert [<filename>]
-  Display the list of certificates used on frontends and backends.
+  Display the list of certificates loaded into the process. They are not used
+  by any frontend or backend until their status is "Used".
   If a filename is prefixed by an asterisk, it is a transaction which is not
   committed yet. If a filename is specified, it will show details about the
   certificate. This command can be useful to check if a certificate was well
@@ -3339,6 +3342,7 @@ show ssl cert [<filename>]
 
     $ echo "@1 show ssl cert test.local.pem" | socat /var/run/haproxy.master -
     Filename: test.local.pem
+    Status: Used
     Serial: 03ECC19BA54B25E85ABA46EE561B9A10D26F
     notBefore: Sep 13 21:20:24 2019 GMT
     notAfter: Dec 12 21:20:24 2019 GMT
@@ -3350,10 +3354,12 @@ show ssl cert [<filename>]
 
     $ echo "@1 show ssl cert *test.local.pem" | socat /var/run/haproxy.master -
     Filename: *test.local.pem
+    Status: Unused
     [...]
 
 show ssl crl-file [<crlfile>[:<index>]]
-  Display the list of CRL files used by HAProxy.
+  Display the list of CRL files loaded into the process. They are not used
+  by any frontend or backend until their status is "Used".
   If a filename is prefixed by an asterisk, it is a transaction which is not
   committed yet. If a <crlfile> is specified without <index>, it will show the
   status of the CRL file ("Used"/"Unused") followed by details about all the
