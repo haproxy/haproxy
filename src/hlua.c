@@ -3242,11 +3242,22 @@ __LJMP static int hlua_channel_get_data_yield(lua_State *L, int status, lua_KCon
 		}
 	}
 
-	if (offset + len > output + input) {
+	/* Wait for more data if possible if no length was specified and there
+	 * is no data or not enough data was received.
+	 */
+	if (!len || offset + len > output + input) {
 		if (!HLUA_CANT_YIELD(hlua_gethlua(L)) && !channel_input_closed(chn) && channel_may_recv(chn)) {
 			/* Yield waiting for more data, as requested */
 			MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_channel_get_data_yield, TICK_ETERNITY, 0));
 		}
+
+		/* Return 'nil' if there is no data and the channel can't receive more data */
+		if (!len) {
+			lua_pushnil(L);
+			return -1;
+		}
+
+		/* Otherwise, return all data */
 		len = output + input - offset;
 	}
 
@@ -3315,11 +3326,22 @@ __LJMP static int hlua_channel_get_line_yield(lua_State *L, int status, lua_KCon
 		}
 	}
 
-	if (offset + len > output + input) {
+	/* Wait for more data if possible if no line is found and no length was
+	 * specified or not enough data was received.
+	 */
+	if (lua_gettop(L) != 3 ||  offset + len > output + input) {
 		if (!HLUA_CANT_YIELD(hlua_gethlua(L)) && !channel_input_closed(chn) && channel_may_recv(chn)) {
 			/* Yield waiting for more data */
 			MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_channel_get_line_yield, TICK_ETERNITY, 0));
 		}
+
+		/* Return 'nil' if there is no data and the channel can't receive more data */
+		if (!len) {
+			lua_pushnil(L);
+			return -1;
+		}
+
+		/* Otherwise, return all data */
 		len = output + input - offset;
 	}
 
