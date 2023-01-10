@@ -3276,6 +3276,9 @@ show ssl ca-file [<cafile>[:<index>]]
   Display the list of CA files loaded into the process and their respective
   certificate counts. The certificates are not used by any frontend or backend
   until their status is "Used".
+  A "@system-ca" entry can appear in the list, it is loaded by the httpclient
+  by default. It contains the list of trusted CA of your system returned by
+  OpenSSL.
   If a filename is prefixed by an asterisk, it is a transaction which
   is not committed yet. If a <cafile> is specified without <index>, it will show
   the status of the CA file ("Used"/"Unused") followed by details about all the
