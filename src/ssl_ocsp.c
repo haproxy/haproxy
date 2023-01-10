@@ -1432,8 +1432,7 @@ static void cli_release_update_ocsp_response(struct appctx *appctx)
 	struct ocsp_cli_ctx *ctx = appctx->svcctx;
 	struct httpclient *hc = ctx->hc;
 
-	if (ctx)
-		X509_free(ctx->ocsp_issuer);
+	X509_free(ctx->ocsp_issuer);
 
 	/* Everything possible was printed on the CLI, we can destroy the client */
 	httpclient_stop_and_destroy(hc);
