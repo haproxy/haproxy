@@ -279,6 +279,9 @@ static int h1_postparse_res_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx 
 		goto output_full;
 	}
 
+	if ((h1m->flags & (H1_MF_CONN_UPG|H1_MF_UPG_WEBSOCKET)) && code != 101)
+		h1m->flags &= ~(H1_MF_CONN_UPG|H1_MF_UPG_WEBSOCKET);
+
 	if (((h1m->flags & H1_MF_METH_CONNECT) && code >= 200 && code < 300) || code == 101) {
 		h1m->flags &= ~(H1_MF_CLEN|H1_MF_CHNK);
 		h1m->flags |= H1_MF_XFER_LEN;
