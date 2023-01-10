@@ -1739,7 +1739,9 @@ static int qc_send(struct qcc *qcc)
 			continue;
 		}
 
-		if (!b_data(&qcs->tx.buf) && !qc_stream_buf_get(qcs->stream)) {
+		/* Check if there is something to send. */
+		if (!b_data(&qcs->tx.buf) && !qcs_stream_fin(qcs) &&
+		    !qc_stream_buf_get(qcs->stream)) {
 			node = eb64_next(node);
 			continue;
 		}
@@ -2293,7 +2295,7 @@ static size_t qc_send_buf(struct stconn *sc, struct buffer *buf,
 	if (fin)
 		qcs->flags |= QC_SF_FIN_STREAM;
 
-	if (ret) {
+	if (ret || fin) {
 		if (!(qcs->qcc->wait_event.events & SUB_RETRY_SEND))
 			tasklet_wakeup(qcs->qcc->wait_event.tasklet);
 	}
