@@ -32,6 +32,7 @@
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <sys/ioctl.h>
+#include <sys/un.h>
 #include <sys/wait.h>
 
 #ifdef __linux__
@@ -110,6 +111,7 @@ __attribute__((noreturn)) void usage(int code, const char *arg0)
 	    "options :\n"
 	    "  -v           : verbose\n"
 	    "  -u           : use UDP instead of TCP (limited)\n"
+	    "  -U           : use UNIX instead of TCP (limited, addr must have one '/')\n"
 	    "  -t|-tt|-ttt  : show time (msec / relative / absolute)\n"
 	    "  -e           : use epoll instead of poll on Linux\n"
 	    "actions :\n"
@@ -261,6 +263,14 @@ int addr_to_ss(const char *str, struct sockaddr_storage *ss, struct err_msg *err
 
 	memset(ss, 0, sizeof(*ss));
 
+	/* if there's a slash it's a unix socket */
+	if (strchr(str, '/')) {
+		((struct sockaddr_un *)ss)->sun_family = AF_UNIX;
+		strncpy(((struct sockaddr_un *)ss)->sun_path, str, sizeof(((struct sockaddr_un *)ss)->sun_path) - 1);
+		((struct sockaddr_un *)ss)->sun_path[sizeof(((struct sockaddr_un *)ss)->sun_path)] = 0;
+		return 0;
+	}
+
 	/* look for the addr/port delimiter, it's the last colon. If there's no
 	 * colon, it's 0:<port>.
 	 */
@@ -375,11 +385,11 @@ int tcp_set_noquickack(int sock, const char *arg)
 }
 
 /* Create a new TCP socket for either listening or connecting */
-int tcp_socket()
+int tcp_socket(sa_family_t fam)
 {
 	int sock;
 
-	sock = socket(AF_INET, sock_type, sock_proto);
+	sock = socket(fam, sock_type, sock_proto);
 	if (sock < 0) {
 		perror("socket()");
 		return -1;
@@ -405,7 +415,7 @@ int tcp_bind(int sock, const struct sockaddr_storage *sa, const char *arg)
 
 
 	if (sock < 0) {
-		sock = tcp_socket();
+		sock = tcp_socket(sa->ss_family);
 		if (sock < 0)
 			return sock;
 	}
@@ -513,7 +523,7 @@ int tcp_connect(int sock, const struct sockaddr_storage *sa, const char *arg)
 	}
 
 	if (sock < 0) {
-		sock = tcp_socket();
+		sock = tcp_socket(sa->ss_family);
 		if (sock < 0)
 			return sock;
 	}
@@ -834,6 +844,9 @@ int main(int argc, char **argv)
 		else if (strcmp(argv[0], "-u") == 0) {
 			sock_type = SOCK_DGRAM;
 			sock_proto = IPPROTO_UDP;
+		}
+		else if (strcmp(argv[0], "-U") == 0) {
+			sock_proto = 0;
 		}
 		else if (strcmp(argv[0], "--") == 0)
 			break;
