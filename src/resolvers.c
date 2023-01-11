@@ -2930,7 +2930,12 @@ enum act_return resolv_action_do_resolve(struct act_rule *rule, struct proxy *px
 		if (resolution->step == RSLV_STEP_RUNNING)
 			goto yield;
 		if (resolution->step == RSLV_STEP_NONE) {
-			/* We update the variable only if we have a valid response. */
+			/* We update the variable only if we have a valid
+			 * response. If the response was not received yet, we
+			 * must yield.
+			 */
+			if (resolution->status == RSLV_STATUS_NONE)
+				goto yield;
 			if (resolution->status == RSLV_STATUS_VALID) {
 				struct sample smp;
 				short ip_sin_family = 0;
