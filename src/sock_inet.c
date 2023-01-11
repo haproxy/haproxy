@@ -312,6 +312,24 @@ int sock_inet_bind_receiver(struct receiver *rx, char **errmsg)
 		}
 	}
 
+	if (ext && fd < global.maxsock && fdtab[fd].owner) {
+		/* This FD was already bound so this means that it was already
+		 * known and registered before parsing, hence it's an inherited
+		 * FD. The only reason why it's already known here is that it
+		 * has been registered multiple times (multiple listeners on the
+		 * same, or a "shards" directive on the line). There cannot be
+		 * multiple listeners on one FD but at least we can create a
+		 * new one from the original one. We won't reconfigure it,
+		 * however, as this was already done for the first one.
+		 */
+		fd = dup(fd);
+		if (fd == -1) {
+			err |= ERR_RETRYABLE | ERR_ALERT;
+			memprintf(errmsg, "cannot dup() receiving socket (%s)", strerror(errno));
+			goto bind_return;
+		}
+	}
+
 	if (fd >= global.maxsock) {
 		err |= ERR_FATAL | ERR_ABORT | ERR_ALERT;
 		memprintf(errmsg, "not enough free sockets (raise '-n' parameter)");
