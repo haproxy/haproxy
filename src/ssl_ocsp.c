@@ -186,6 +186,7 @@ struct eb_root ocsp_update_tree = EB_ROOT; /* updatable ocsp responses sorted by
 #define SSL_OCSP_UPDATE_DELAY_MAX 60*60 /* 1H */
 #define SSL_OCSP_UPDATE_DELAY_MIN 5*60  /* 5 minutes */
 #define SSL_OCSP_UPDATE_MARGIN 60   /* 1 minute */
+#define SSL_OCSP_HTTP_ERR_REPLAY 60 /* 1 minute */
 
 /* This function starts to check if the OCSP response (in DER format) contained
  * in chunk 'ocsp_response' is valid (else exits on error).
@@ -847,17 +848,7 @@ void ssl_destroy_ocsp_update_task(void)
 	ssl_ocsp_task_ctx.cur_ocsp = NULL;
 }
 
-/*
- * Insert a certificate_ocsp structure into the ocsp_update_tree tree, in which
- * entries are sorted by absolute date of the next update. The next_update key
- * will be the smallest out of the actual expire value of the response and
- * now+1H. This arbitrary 1H value ensures that ocsp responses are updated
- * periodically even when they have a long expire time, while not overloading
- * the system too much (in theory). Likewise, a minimum 5 minutes interval is
- * defined in order to avoid updating too often responses that have a really
- * short expire time or even no 'Next Update' at all.
- */
-int ssl_ocsp_update_insert(struct certificate_ocsp *ocsp)
+static inline void ssl_ocsp_set_next_update(struct certificate_ocsp *ocsp)
 {
 	int update_margin = (ocsp->expire >= SSL_OCSP_UPDATE_MARGIN) ? SSL_OCSP_UPDATE_MARGIN : 0;
 
@@ -870,7 +861,49 @@ int ssl_ocsp_update_insert(struct certificate_ocsp *ocsp)
 	 * update of the same response. */
 	if (b_data(&ocsp->response))
 		ocsp->next_update.key = MAX(ocsp->next_update.key,
-                                            now.tv_sec + SSL_OCSP_UPDATE_DELAY_MIN);
+		                            now.tv_sec + SSL_OCSP_UPDATE_DELAY_MIN);
+}
+
+/*
+ * Insert a certificate_ocsp structure into the ocsp_update_tree tree, in which
+ * entries are sorted by absolute date of the next update. The next_update key
+ * will be the smallest out of the actual expire value of the response and
+ * now+1H. This arbitrary 1H value ensures that ocsp responses are updated
+ * periodically even when they have a long expire time, while not overloading
+ * the system too much (in theory). Likewise, a minimum 5 minutes interval is
+ * defined in order to avoid updating too often responses that have a really
+ * short expire time or even no 'Next Update' at all.
+ */
+int ssl_ocsp_update_insert(struct certificate_ocsp *ocsp)
+{
+	/* Set next_update based on current time and the various OCSP
+	 * minimum/maximum update times.
+	 */
+	ssl_ocsp_set_next_update(ocsp);
+
+	HA_SPIN_LOCK(OCSP_LOCK, &ocsp_tree_lock);
+	eb64_insert(&ocsp_update_tree, &ocsp->next_update);
+	HA_SPIN_UNLOCK(OCSP_LOCK, &ocsp_tree_lock);
+
+	return 0;
+}
+
+/*
+ * Reinsert an entry in the update tree. The entry's next update time can not
+ * occur before now+SSL_OCSP_HTTP_ERR_REPLAY.
+ * This is supposed to be used in case of http error (ocsp responder unreachable
+ * for instance). This ensures that the entry does not get reinserted at the
+ * beginning of the tree every time.
+ */
+int ssl_ocsp_update_insert_after_error(struct certificate_ocsp *ocsp)
+{
+	/* Set next_update based on current time and the various OCSP
+	 * minimum/maximum update times.
+	 */
+	ssl_ocsp_set_next_update(ocsp);
+
+	if (ocsp->next_update.key < now.tv_sec + SSL_OCSP_HTTP_ERR_REPLAY)
+		ocsp->next_update.key = now.tv_sec + SSL_OCSP_HTTP_ERR_REPLAY;
 
 	HA_SPIN_LOCK(OCSP_LOCK, &ocsp_tree_lock);
 	eb64_insert(&ocsp_update_tree, &ocsp->next_update);
@@ -945,7 +978,7 @@ void ocsp_update_response_end_cb(struct httpclient *hc)
  */
 static struct task *ssl_ocsp_update_responses(struct task *task, void *context, unsigned int state)
 {
-	unsigned int next_wakeup;
+	unsigned int next_wakeup = 0;
 	struct eb64_node *eb;
 	struct certificate_ocsp *ocsp;
 	struct httpclient *hc = NULL;
@@ -953,10 +986,6 @@ static struct task *ssl_ocsp_update_responses(struct task *task, void *context, 
 	struct buffer *req_body = NULL;
 	OCSP_CERTID *certid = NULL;
 	struct ssl_ocsp_task_ctx *ctx = &ssl_ocsp_task_ctx;
-
-	/* This arbitrary 10s time should only be used when an error occurred
-	 * during an ocsp response processing. */
-	next_wakeup = 10000;
 
 	if (ctx->cur_ocsp) {
 		/* An update is in process */
@@ -1137,12 +1166,22 @@ wait:
 http_error:
 	/* Reinsert certificate into update list so that it can be updated later */
 	if (ocsp)
-		ssl_ocsp_update_insert(ocsp);
+		ssl_ocsp_update_insert_after_error(ocsp);
 
 	if (hc)
 		httpclient_stop_and_destroy(hc);
 	/* Release the reference kept on the updated ocsp response. */
 	ssl_sock_free_ocsp(ctx->cur_ocsp);
+	HA_SPIN_LOCK(OCSP_LOCK, &ocsp_tree_lock);
+	/* Set next_wakeup to the new first entry of the tree */
+	eb = eb64_first(&ocsp_update_tree);
+	if (eb) {
+		if (eb->key > now.tv_sec)
+			next_wakeup = (eb->key - now.tv_sec)*1000;
+		else
+			next_wakeup = 0;
+	}
+	HA_SPIN_UNLOCK(OCSP_LOCK, &ocsp_tree_lock);
 	ctx->cur_ocsp = NULL;
 	ctx->hc = NULL;
 	ctx->flags = 0;
