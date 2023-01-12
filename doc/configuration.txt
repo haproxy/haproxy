@@ -1982,6 +1982,14 @@ nbthread <number>
   Otherwise, this value defaults to 1. The default value is reported in the
   output of "haproxy -vv".
 
+no-quic
+  Warning: QUIC support in HAProxy is currently experimental. Configuration may
+  change without deprecation in the future.
+
+  Disable QUIC transport protocol. All the QUIC listeners will still be created.
+  But they will not bind their addresses. Hence, no QUIC traffic will be
+  processed by haproxy. See also "quic_enabled" sample fetch.
+
 numa-cpu-mapping
   If running on a NUMA-aware platform, HAProxy inspects on startup the CPU
   topology of the machine. If a multi-socket machine is detected, the affinity

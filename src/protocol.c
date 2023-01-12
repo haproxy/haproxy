@@ -15,8 +15,10 @@
 
 #include <haproxy/api.h>
 #include <haproxy/errors.h>
+#include <haproxy/global.h>
 #include <haproxy/list.h>
 #include <haproxy/listener.h>
+#include <haproxy/proto_quic.h>
 #include <haproxy/protocol.h>
 #include <haproxy/proxy.h>
 #include <haproxy/tools.h>
@@ -75,6 +77,11 @@ int protocol_bind_all(int verbose)
 	HA_SPIN_LOCK(PROTO_LOCK, &proto_lock);
 	list_for_each_entry(proto, &protocols, list) {
 		list_for_each_entry(receiver, &proto->receivers, proto_list) {
+#ifdef USE_QUIC
+			if ((global.tune.options & GTUNE_NO_QUIC) &&
+			    (proto == &proto_quic4 || proto == &proto_quic6))
+				continue;
+#endif
 			listener = LIST_ELEM(receiver, struct listener *, rx);
 
 			lerr = proto->fam->bind(receiver, &errmsg);
