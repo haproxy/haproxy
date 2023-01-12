@@ -73,13 +73,7 @@ static int bind_parse_defer_accept(char **args, int cur_arg, struct proxy *px, s
 /* parse the "tfo" bind keyword */
 static int bind_parse_tfo(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
-	struct listener *l;
-
-	list_for_each_entry(l, &conf->listeners, by_bind) {
-		if (l->rx.addr.ss_family == AF_INET || l->rx.addr.ss_family == AF_INET6)
-			l->options |= LI_O_TCP_FO;
-	}
-
+	conf->options |= BC_O_TCP_FO;
 	return 0;
 }
 #endif

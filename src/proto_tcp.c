@@ -670,7 +670,7 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 		    sizeof(zero));
 #endif
 #if defined(TCP_FASTOPEN)
-	if (listener->options & LI_O_TCP_FO) {
+	if (listener->bind_conf->options & BC_O_TCP_FO) {
 		/* TFO needs a queue length, let's use the configured backlog */
 		int qlen = listener_backlog(listener);
 		if (setsockopt(fd, IPPROTO_TCP, TCP_FASTOPEN, &qlen, sizeof(qlen)) == -1) {
