@@ -266,7 +266,7 @@ int session_accept_fd(struct connection *cli_conn)
 			goto out_free_sess;
 
 		sess->task->context = sess;
-		sess->task->nice    = l->nice;
+		sess->task->nice    = l->bind_conf->nice;
 		sess->task->process = session_expire_embryonic;
 		sess->task->expire  = tick_add_ifset(now_ms, p->timeout.client);
 		task_queue(sess->task);

@@ -206,6 +206,8 @@ struct bind_conf {
 	int (*accept)(struct connection *conn); /* upper layer's accept() */
 	int level;                 /* stats access level (ACCESS_LVL_*) */
 	int severity_output;       /* default severity output format in cli feedback messages */
+	short int nice;            /* nice value to assign to the instantiated tasks */
+	/* 2-byte hole here */
 	struct list listeners;     /* list of listeners using this bind config */
 	uint32_t ns_cip_magic;     /* Excepted NetScaler Client IP magic number */
 	struct list by_fe;         /* next binding for the same frontend, or NULL */
@@ -237,7 +239,7 @@ struct li_per_thread {
 struct listener {
 	enum obj_type obj_type;         /* object type = OBJ_TYPE_LISTENER */
 	enum li_state state;            /* state: NEW, INIT, ASSIGNED, LISTEN, READY, FULL */
-	short int nice;                 /* nice value to assign to the instantiated tasks */
+	/* 2-byte hole here */
 	int luid;			/* listener universally unique ID, used for SNMP */
 	int options;			/* socket options : LI_O_* */
 	int flags;                      /* LI_F_* flags */

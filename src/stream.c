@@ -434,7 +434,7 @@ struct stream *stream_new(struct session *sess, struct stconn *sc, struct buffer
 	t->context = s;
 	t->expire = TICK_ETERNITY;
 	if (sess->listener)
-		t->nice = sess->listener->nice;
+		t->nice = sess->listener->bind_conf->nice;
 
 	/* Note: initially, the stream's backend points to the frontend.
 	 * This changes later when switching rules are executed or
