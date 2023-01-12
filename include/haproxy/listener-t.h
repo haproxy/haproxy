@@ -100,16 +100,16 @@ enum li_status {
 #define LI_O_TCP_L5_RULES       0x0020  /* run TCP L5 rules checks on the incoming session */
 /* unused                       0x0040  */
 /* unused                       0x0080  */
-#define LI_O_UNLIMITED          0x0100  /* listener not subject to global limits (peers & stats socket) */
+/* unused                       0x0100  */
 /* unused                       0x0200  */
 /* unused                       0x0400  */
 /* unused                       0x0800  */
 /* unused                       0x1000  */
 /* unused                       0x2000  */
 /* unused                       0x4000  */
-#define LI_O_NOSTOP             0x8000  /* keep the listener active even after a soft stop */
+/* unused                       0x8000  */
 
-/* Note: if a listener uses LI_O_UNLIMITED, it is highly recommended that it adds its own
+/* Note: if a bind_conf uses BC_O_UNLIMITED, it is highly recommended that it adds its own
  * maxconn setting to the global.maxsock value so that its resources are reserved.
  */
 
@@ -127,6 +127,8 @@ enum li_status {
 #define BC_O_TCP_FO             0x00000400 /* enable TCP Fast Open (linux >= 3.7) */
 #define BC_O_ACC_PROXY          0x00000800 /* find the proxied address in the first request line */
 #define BC_O_ACC_CIP            0x00001000 /* find the proxied address in the NetScaler Client IP header */
+#define BC_O_UNLIMITED          0x00002000 /* listeners not subject to global limits (peers & stats socket) */
+#define BC_O_NOSTOP             0x00004000 /* keep the listeners active even after a soft stop */
 
 
 /* flags used with bind_conf->ssl_options */

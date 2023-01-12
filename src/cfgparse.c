@@ -690,7 +690,6 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 	struct peer *newpeer = NULL;
 	const char *err;
 	struct bind_conf *bind_conf;
-	struct listener *l;
 	int err_code = 0;
 	char *errmsg = NULL;
 	static int bind_line, peer_line;
@@ -717,6 +716,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 
 		bind_conf->maxaccept = 1;
 		bind_conf->accept = session_accept_fd;
+		bind_conf->options |= BC_O_UNLIMITED; /* don't make the peers subject to global limits */
 
 		if (*args[0] == 'b') {
 			struct listener *l;
@@ -743,11 +743,12 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 				err_code |= ERR_FATAL;
 				goto out;
 			}
+
 			/*
 			 * Newly allocated listener is at the end of the list
 			 */
 			l = LIST_ELEM(bind_conf->listeners.p, typeof(l), by_bind);
-			l->options |= LI_O_UNLIMITED; /* don't make the peers subject to global limits */
+
 			global.maxsock++; /* for the listening socket */
 
 			bind_line = 1;
@@ -949,6 +950,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 
 		bind_conf->maxaccept = 1;
 		bind_conf->accept = session_accept_fd;
+		bind_conf->options |= BC_O_UNLIMITED; /* don't make the peers subject to global limits */
 
 		if (!LIST_ISEMPTY(&bind_conf->listeners)) {
 			ha_alert("parsing [%s:%d] : One listener per \"peers\" section is authorized but another is already configured at [%s:%d].\n", file, linenum, bind_conf->file, bind_conf->line);
@@ -967,11 +969,6 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		/*
-		 * Newly allocated listener is at the end of the list
-		 */
-		l = LIST_ELEM(bind_conf->listeners.p, typeof(l), by_bind);
-		l->options |= LI_O_UNLIMITED; /* don't make the peers subject to global limits */
 		global.maxsock++; /* for the listening socket */
 	}
 	else if (strcmp(args[0], "shards") == 0) {
