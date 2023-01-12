@@ -745,7 +745,6 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 			l = LIST_ELEM(bind_conf->listeners.p, typeof(l), by_bind);
 			l->maxaccept = 1;
 			l->accept = session_accept_fd;
-			l->analysers |=  curpeers->peers_fe->fe_req_ana;
 			l->default_target = curpeers->peers_fe->default_target;
 			l->options |= LI_O_UNLIMITED; /* don't make the peers subject to global limits */
 			global.maxsock++; /* for the listening socket */
@@ -970,7 +969,6 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 		l = LIST_ELEM(bind_conf->listeners.p, typeof(l), by_bind);
 		l->maxaccept = 1;
 		l->accept = session_accept_fd;
-		l->analysers |=  curpeers->peers_fe->fe_req_ana;
 		l->default_target = curpeers->peers_fe->default_target;
 		l->options |= LI_O_UNLIMITED; /* don't make the peers subject to global limits */
 		global.maxsock++; /* for the listening socket */
@@ -4285,6 +4283,7 @@ init_proxies_list_stage2:
 			if (bind_conf->xprt->prepare_bind_conf &&
 			    bind_conf->xprt->prepare_bind_conf(bind_conf) < 0)
 				cfgerr++;
+			bind_conf->analysers |= curproxy->fe_req_ana;
 		}
 
 		/* adjust this proxy's listeners */
@@ -4329,7 +4328,6 @@ init_proxies_list_stage2:
 			}
 #endif
 
-			listener->analysers |= curproxy->fe_req_ana;
 			listener->default_target = curproxy->default_target;
 
 			if (!LIST_ISEMPTY(&curproxy->tcp_req.l4_rules))

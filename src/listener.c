@@ -1436,6 +1436,7 @@ struct bind_conf *bind_conf_alloc(struct proxy *fe, const char *file,
 	bind_conf->settings.shards = 1;
 	bind_conf->xprt = xprt;
 	bind_conf->frontend = fe;
+	bind_conf->analysers = fe->fe_req_ana;
 	bind_conf->severity_output = CLI_SEVERITY_NONE;
 #ifdef USE_OPENSSL
 	HA_RWLOCK_INIT(&bind_conf->sni_lock);

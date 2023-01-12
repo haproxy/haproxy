@@ -489,7 +489,7 @@ flt_stream_start(struct stream *s)
 		if (FLT_OPS(filter)->stream_start && FLT_OPS(filter)->stream_start(s, filter) < 0)
 			return -1;
 	}
-	if (strm_li(s) && (strm_li(s)->analysers & AN_REQ_FLT_START_FE)) {
+	if (strm_li(s) && (strm_li(s)->bind_conf->analysers & AN_REQ_FLT_START_FE)) {
 		s->req.flags |= CF_FLT_ANALYZE;
 		s->req.analysers |= AN_REQ_FLT_END;
 	}

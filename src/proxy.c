@@ -2425,7 +2425,7 @@ int stream_set_backend(struct stream *s, struct proxy *be)
 		 */
 		req_ana &= ~(AN_REQ_WAIT_HTTP|AN_REQ_HTTP_PROCESS_FE);
 	}
-	s->req.analysers |= req_ana & ~(strm_li(s) ? strm_li(s)->analysers : 0);
+	s->req.analysers |= req_ana & ~(strm_li(s) ? strm_li(s)->bind_conf->analysers : 0);
 
 	if (!IS_HTX_STRM(s) && be->mode == PR_MODE_HTTP) {
 		/* If we chain a TCP frontend to an HTX backend, we must upgrade
