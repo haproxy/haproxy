@@ -3811,6 +3811,7 @@ int cfg_parse_log_forward(const char *file, int linenum, char **args, int kwm)
 		}
 
 		bind_conf->maxaccept = global.tune.maxaccept ? global.tune.maxaccept : MAX_ACCEPT;
+		bind_conf->accept = session_accept_fd;
 
 		if (!str2listener(args[1], cfg_log_forward, bind_conf, file, linenum, &errmsg)) {
 			if (errmsg && *errmsg) {
@@ -3825,7 +3826,6 @@ int cfg_parse_log_forward(const char *file, int linenum, char **args, int kwm)
 			}
 		}
 		list_for_each_entry(l, &bind_conf->listeners, by_bind) {
-			l->accept = session_accept_fd;
 			l->default_target = cfg_log_forward->default_target;
 			global.maxsock++;
 		}

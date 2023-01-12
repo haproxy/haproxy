@@ -142,14 +142,15 @@ struct task *accept_queue_process(struct task *t, void *context, unsigned int st
 
 		li = __objt_listener(conn->target);
 		_HA_ATOMIC_INC(&li->thr_conn[tid]);
-		ret = li->accept(conn);
+		ret = li->bind_conf->accept(conn);
 		if (ret <= 0) {
 			/* connection was terminated by the application */
 			continue;
 		}
 
 		/* increase the per-process number of cumulated sessions, this
-		 * may only be done once l->accept() has accepted the connection.
+		 * may only be done once l->bind_conf->accept() has accepted the
+		 * connection.
 		 */
 		if (!(li->options & LI_O_UNLIMITED)) {
 			HA_ATOMIC_UPDATE_MAX(&global.sps_max,
@@ -1007,7 +1008,7 @@ void listener_accept(struct listener *l)
 
 		_HA_ATOMIC_INC(&activity[tid].accepted);
 
-		/* past this point, l->accept() will automatically decrement
+		/* past this point, l->bind_conf->accept() will automatically decrement
 		 * l->nbconn, feconn and actconn once done. Setting next_*conn=0
 		 * allows the error path not to rollback on nbconn. It's more
 		 * convenient than duplicating all exit labels.
@@ -1137,7 +1138,7 @@ void listener_accept(struct listener *l)
 
  local_accept:
 		_HA_ATOMIC_INC(&l->thr_conn[tid]);
-		ret = l->accept(cli_conn);
+		ret = l->bind_conf->accept(cli_conn);
 		if (unlikely(ret <= 0)) {
 			/* The connection was closed by stream_accept(). Either
 			 * we just have to ignore it (ret == 0) or it's a critical
@@ -1151,7 +1152,8 @@ void listener_accept(struct listener *l)
 		}
 
 		/* increase the per-process number of cumulated sessions, this
-		 * may only be done once l->accept() has accepted the connection.
+		 * may only be done once l->bind_conf->accept() has accepted the
+		 * connection.
 		 */
 		if (!(l->options & LI_O_UNLIMITED)) {
 			count = update_freq_ctr(&global.sess_per_sec, 1);

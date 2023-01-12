@@ -716,6 +716,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 		}
 
 		bind_conf->maxaccept = 1;
+		bind_conf->accept = session_accept_fd;
 
 		if (*args[0] == 'b') {
 			struct listener *l;
@@ -746,7 +747,6 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 			 * Newly allocated listener is at the end of the list
 			 */
 			l = LIST_ELEM(bind_conf->listeners.p, typeof(l), by_bind);
-			l->accept = session_accept_fd;
 			l->default_target = curpeers->peers_fe->default_target;
 			l->options |= LI_O_UNLIMITED; /* don't make the peers subject to global limits */
 			global.maxsock++; /* for the listening socket */
@@ -949,6 +949,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 		}
 
 		bind_conf->maxaccept = 1;
+		bind_conf->accept = session_accept_fd;
 
 		if (!LIST_ISEMPTY(&bind_conf->listeners)) {
 			ha_alert("parsing [%s:%d] : One listener per \"peers\" section is authorized but another is already configured at [%s:%d].\n", file, linenum, bind_conf->file, bind_conf->line);
@@ -971,7 +972,6 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 		 * Newly allocated listener is at the end of the list
 		 */
 		l = LIST_ELEM(bind_conf->listeners.p, typeof(l), by_bind);
-		l->accept = session_accept_fd;
 		l->default_target = curpeers->peers_fe->default_target;
 		l->options |= LI_O_UNLIMITED; /* don't make the peers subject to global limits */
 		global.maxsock++; /* for the listening socket */
@@ -4289,6 +4289,7 @@ init_proxies_list_stage2:
 			bind_conf->analysers |= curproxy->fe_req_ana;
 			if (!bind_conf->maxaccept)
 				bind_conf->maxaccept = global.tune.maxaccept ? global.tune.maxaccept : MAX_ACCEPT;
+			bind_conf->accept = session_accept_fd;
 		}
 
 		/* adjust this proxy's listeners */
@@ -4314,10 +4315,7 @@ init_proxies_list_stage2:
 			if (curproxy->options & PR_O_TCP_NOLING)
 				listener->options |= LI_O_NOLINGER;
 
-			/* listener accept callback */
-			listener->accept = session_accept_fd;
 #ifdef USE_QUIC
-			/* override the accept callback for QUIC listeners. */
 			if (listener->flags & LI_F_QUIC_LISTENER) {
 				if (!global.cluster_secret) {
 					diag_no_cluster_secret = 1;
