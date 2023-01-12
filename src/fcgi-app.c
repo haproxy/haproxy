@@ -589,7 +589,7 @@ static int proxy_parse_use_fcgi_app(char **args, int section, struct proxy *curp
 	struct fcgi_flt_conf *fcgi_conf = NULL;
 	int retval = 0;
 
-	if (!(curpx->cap & PR_CAP_BE)) {
+	if ((curpx->cap & PR_CAP_DEF) || !(curpx->cap & PR_CAP_BE)) {
 		memprintf(err, "'%s' only available in backend or listen section", args[0]);
 		retval = -1;
 		goto end;
