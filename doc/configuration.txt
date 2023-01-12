@@ -4177,7 +4177,7 @@ http-error                                X          X         X         X
 http-request                              X (!)      X         X         X
 http-response                             X (!)      X         X         X
 http-reuse                                X          -         X         X
-http-send-name-header                     -          -         X         X
+http-send-name-header                     X          -         X         X
 id                                        -          X         X         X
 ignore-persist                            -          -         X         X
 load-server-state-from-file               X          -         X         X
