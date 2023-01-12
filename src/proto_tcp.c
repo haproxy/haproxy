@@ -620,10 +620,10 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	}
 
 #if defined(TCP_MAXSEG)
-	if (listener->maxseg > 0) {
+	if (listener->bind_conf->maxseg > 0) {
 		if (setsockopt(fd, IPPROTO_TCP, TCP_MAXSEG,
-			       &listener->maxseg, sizeof(listener->maxseg)) == -1) {
-			chunk_appendf(msg, "%scannot set MSS to %d", msg->data ? ", " : "", listener->maxseg);
+			       &listener->bind_conf->maxseg, sizeof(listener->bind_conf->maxseg)) == -1) {
+			chunk_appendf(msg, "%scannot set MSS to %d", msg->data ? ", " : "", listener->bind_conf->maxseg);
 			err |= ERR_WARN;
 		}
 	} else {
@@ -647,9 +647,9 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	}
 #endif
 #if defined(TCP_USER_TIMEOUT)
-	if (listener->tcp_ut) {
+	if (listener->bind_conf->tcp_ut) {
 		if (setsockopt(fd, IPPROTO_TCP, TCP_USER_TIMEOUT,
-			       &listener->tcp_ut, sizeof(listener->tcp_ut)) == -1) {
+			       &listener->bind_conf->tcp_ut, sizeof(listener->bind_conf->tcp_ut)) == -1) {
 			chunk_appendf(msg, "%scannot set TCP User Timeout", msg->data ? ", " : "");
 			err |= ERR_WARN;
 		}

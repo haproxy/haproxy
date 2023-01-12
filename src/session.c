@@ -227,12 +227,12 @@ int session_accept_fd(struct connection *cli_conn)
 			HA_ATOMIC_OR(&fdtab[cfd].state, FD_LINGER_RISK);
 
 #if defined(TCP_MAXSEG)
-		if (l->maxseg < 0) {
+		if (l->bind_conf->maxseg < 0) {
 			/* we just want to reduce the current MSS by that value */
 			int mss;
 			socklen_t mss_len = sizeof(mss);
 			if (getsockopt(cfd, IPPROTO_TCP, TCP_MAXSEG, &mss, &mss_len) == 0) {
-				mss += l->maxseg; /* remember, it's < 0 */
+				mss += l->bind_conf->maxseg; /* remember, it's < 0 */
 				setsockopt(cfd, IPPROTO_TCP, TCP_MAXSEG, &mss, sizeof(mss));
 			}
 		}

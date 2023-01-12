@@ -198,6 +198,8 @@ struct bind_conf {
 	struct xprt_ops *xprt;     /* transport-layer operations for all listeners */
 	uint options;              /* set of BC_O_* flags */
 	unsigned int analysers;    /* bitmap of required protocol analysers */
+	int maxseg;                /* for TCP, advertised MSS */
+	int tcp_ut;                /* for TCP, user timeout */
 	int level;                 /* stats access level (ACCESS_LVL_*) */
 	int severity_output;       /* default severity output format in cli feedback messages */
 	struct list listeners;     /* list of listeners using this bind config */
@@ -247,8 +249,6 @@ struct listener {
 	/* cache line boundary */
 	struct mt_list wait_queue;	/* link element to make the listener wait for something (LI_LIMITED)  */
 	unsigned int thr_idx;           /* thread indexes for queue distribution : (t2<<16)+t1 */
-	int maxseg;			/* for TCP, advertised MSS */
-	int tcp_ut;                     /* for TCP, user timeout */
 	char *name;			/* listener's name */
 
 	/* cache line boundary */

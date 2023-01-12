@@ -94,7 +94,6 @@ static int bind_parse_tfo(char **args, int cur_arg, struct proxy *px, struct bin
 /* parse the "mss" bind keyword */
 static int bind_parse_mss(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
-	struct listener *l;
 	int mss;
 
 	if (!*args[cur_arg + 1]) {
@@ -108,11 +107,7 @@ static int bind_parse_mss(char **args, int cur_arg, struct proxy *px, struct bin
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	list_for_each_entry(l, &conf->listeners, by_bind) {
-		if (l->rx.addr.ss_family == AF_INET || l->rx.addr.ss_family == AF_INET6)
-			l->maxseg = mss;
-	}
-
+	conf->maxseg = mss;
 	return 0;
 }
 #endif
@@ -122,7 +117,6 @@ static int bind_parse_mss(char **args, int cur_arg, struct proxy *px, struct bin
 static int bind_parse_tcp_ut(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
 	const char *ptr = NULL;
-	struct listener *l;
 	unsigned int timeout;
 
 	if (!*args[cur_arg + 1]) {
@@ -146,11 +140,7 @@ static int bind_parse_tcp_ut(char **args, int cur_arg, struct proxy *px, struct 
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	list_for_each_entry(l, &conf->listeners, by_bind) {
-		if (l->rx.addr.ss_family == AF_INET || l->rx.addr.ss_family == AF_INET6)
-			l->tcp_ut = timeout;
-	}
-
+	conf->tcp_ut = timeout;
 	return 0;
 }
 #endif
