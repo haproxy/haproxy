@@ -1996,7 +1996,7 @@ int stats_fill_li_stats(struct proxy *px, struct listener *l, int flags,
 				metric = mkf_u32(FN_MAX, l->counters->conn_max);
 				break;
 			case ST_F_SLIM:
-				metric = mkf_u32(FO_CONFIG|FN_LIMIT, l->maxconn);
+				metric = mkf_u32(FO_CONFIG|FN_LIMIT, l->bind_conf->maxconn);
 				break;
 			case ST_F_STOT:
 				metric = mkf_u64(FN_COUNTER, l->counters->cum_conn);

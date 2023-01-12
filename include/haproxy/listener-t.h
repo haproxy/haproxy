@@ -202,6 +202,7 @@ struct bind_conf {
 	int tcp_ut;                /* for TCP, user timeout */
 	int maxaccept;             /* if set, max number of connections accepted at once (-1 when disabled) */
 	unsigned int backlog;      /* if set, listen backlog */
+	int maxconn;               /* maximum connections allowed on this listener */
 	int level;                 /* stats access level (ACCESS_LVL_*) */
 	int severity_output;       /* default severity output format in cli feedback messages */
 	struct list listeners;     /* list of listeners using this bind config */
@@ -243,7 +244,6 @@ struct listener {
 
 	struct fe_counters *counters;	/* statistics counters */
 	int nbconn;			/* current number of connections on this listener */
-	int maxconn;			/* maximum connections allowed on this listener */
 	int (*accept)(struct connection *conn); /* upper layer's accept() */
 	enum obj_type *default_target;  /* default target to use for accepted sessions or NULL */
 	/* cache line boundary */

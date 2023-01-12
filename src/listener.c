@@ -229,7 +229,7 @@ int li_init_per_thr(struct listener *li)
 /* helper to get listener status for stats */
 enum li_status get_li_status(struct listener *l)
 {
-	if (!l->maxconn || l->nbconn < l->maxconn) {
+	if (!l->bind_conf->maxconn || l->nbconn < l->bind_conf->maxconn) {
 		if (l->state == LI_LIMITED)
 			return LI_STATUS_WAITING;
 		else
@@ -319,7 +319,7 @@ void enable_listener(struct listener *listener)
 			 */
 			do_unbind_listener(listener);
 		}
-		else if (!listener->maxconn || listener->nbconn < listener->maxconn) {
+		else if (!listener->bind_conf->maxconn || listener->nbconn < listener->bind_conf->maxconn) {
 			listener->rx.proto->enable(listener);
 			listener_set_state(listener, LI_READY);
 		}
@@ -537,7 +537,7 @@ int resume_listener(struct listener *l, int lpx)
 	if (l->rx.proto->resume)
 		ret = l->rx.proto->resume(l);
 
-	if (l->maxconn && l->nbconn >= l->maxconn) {
+	if (l->bind_conf->maxconn && l->nbconn >= l->bind_conf->maxconn) {
 		l->rx.proto->disable(l);
 		listener_set_state(l, LI_FULL);
 		goto done;
@@ -816,8 +816,8 @@ int listener_backlog(const struct listener *l)
 	if (l->bind_conf->frontend->backlog)
 		return l->bind_conf->frontend->backlog;
 
-	if (l->maxconn)
-		return l->maxconn;
+	if (l->bind_conf->maxconn)
+		return l->bind_conf->maxconn;
 
 	if (l->bind_conf->frontend->maxconn)
 		return l->bind_conf->frontend->maxconn;
@@ -916,7 +916,7 @@ void listener_accept(struct listener *l)
 		 */
 		do {
 			count = l->nbconn;
-			if (unlikely(l->maxconn && count >= l->maxconn)) {
+			if (unlikely(l->bind_conf->maxconn && count >= l->bind_conf->maxconn)) {
 				/* the listener was marked full or another
 				 * thread is going to do it.
 				 */
@@ -1178,7 +1178,7 @@ void listener_accept(struct listener *l)
 	if (next_actconn)
 		_HA_ATOMIC_DEC(&actconn);
 
-	if ((l->state == LI_FULL && (!l->maxconn || l->nbconn < l->maxconn)) ||
+	if ((l->state == LI_FULL && (!l->bind_conf->maxconn || l->nbconn < l->bind_conf->maxconn)) ||
 	    (l->state == LI_LIMITED &&
 	     ((!p || p->feconn < p->maxconn) && (actconn < global.maxconn) &&
 	      (!tick_isset(global_listener_queue_task->expire) ||
@@ -1704,7 +1704,6 @@ int bind_parse_args_list(struct bind_conf *bind_conf, char **args, int cur_arg, 
 /* parse the "maxconn" bind keyword */
 static int bind_parse_maxconn(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
-	struct listener *l;
 	int val;
 
 	if (!*args[cur_arg + 1]) {
@@ -1718,9 +1717,7 @@ static int bind_parse_maxconn(char **args, int cur_arg, struct proxy *px, struct
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	list_for_each_entry(l, &conf->listeners, by_bind)
-		l->maxconn = val;
-
+	conf->maxconn = val;
 	return 0;
 }
 
