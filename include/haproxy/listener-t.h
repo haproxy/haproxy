@@ -92,7 +92,7 @@ enum li_status {
 
 /* listener socket options */
 #define LI_O_NONE               0x0000
-#define LI_O_NOLINGER           0x0001  /* disable linger on this socket */
+/* unused                       0x0001  */
 /* unused                       0x0002  */
 #define LI_O_NOQUICKACK         0x0004  /* disable quick ack of immediate data (linux) */
 #define LI_O_DEF_ACCEPT         0x0008  /* wait up to 1 second for data before accepting */
@@ -121,6 +121,7 @@ enum li_status {
 #define BC_O_USE_SOCK_STREAM    0x00000010 /* at least one stream-type listener is used */
 #define BC_O_USE_XPRT_DGRAM     0x00000020 /* at least one dgram-only xprt listener is used */
 #define BC_O_USE_XPRT_STREAM    0x00000040 /* at least one stream-only xprt listener is used */
+#define BC_O_NOLINGER           0x00000080 /* disable lingering on these listeners */
 
 
 /* flags used with bind_conf->ssl_options */

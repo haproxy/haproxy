@@ -4288,6 +4288,8 @@ init_proxies_list_stage2:
 			if (!bind_conf->maxaccept)
 				bind_conf->maxaccept = global.tune.maxaccept ? global.tune.maxaccept : MAX_ACCEPT;
 			bind_conf->accept = session_accept_fd;
+			if (curproxy->options & PR_O_TCP_NOLING)
+				bind_conf->options |= BC_O_NOLINGER;
 		}
 
 		/* adjust this proxy's listeners */
@@ -4309,9 +4311,6 @@ init_proxies_list_stage2:
 				if (!listener->name)
 					memprintf(&listener->name, "sock-%d", listener->luid);
 			}
-
-			if (curproxy->options & PR_O_TCP_NOLING)
-				listener->options |= LI_O_NOLINGER;
 
 #ifdef USE_QUIC
 			if (listener->flags & LI_F_QUIC_LISTENER) {

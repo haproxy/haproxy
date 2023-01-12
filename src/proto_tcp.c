@@ -605,7 +605,7 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 
 	fd = listener->rx.fd;
 
-	if (listener->options & LI_O_NOLINGER)
+	if (listener->bind_conf->options & BC_O_NOLINGER)
 		setsockopt(fd, SOL_SOCKET, SO_LINGER, &nolinger, sizeof(struct linger));
 	else {
 		struct linger tmplinger;
