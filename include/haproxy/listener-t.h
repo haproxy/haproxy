@@ -219,7 +219,6 @@ struct li_per_thread {
 	struct listener *li; /* back reference on the listener */
 };
 
-#define LI_F_QUIC_LISTENER       0x00000001  /* listener uses proto quic */
 
 /* The listener will be directly referenced by the fdtab[] which holds its
  * socket. The listener provides the protocol-specific accept() function to
@@ -230,12 +229,11 @@ struct listener {
 	enum li_state state;            /* state: NEW, INIT, ASSIGNED, LISTEN, READY, FULL */
 	/* 2-byte hole here */
 	int luid;			/* listener universally unique ID, used for SNMP */
-	int flags;                      /* LI_F_* flags */
+	int nbconn;			/* current number of connections on this listener */
 	unsigned int thr_idx;           /* thread indexes for queue distribution : (t2<<16)+t1 */
 	__decl_thread(HA_RWLOCK_T lock);
 
 	struct fe_counters *counters;	/* statistics counters */
-	int nbconn;			/* current number of connections on this listener */
 	struct mt_list wait_queue;	/* link element to make the listener wait for something (LI_LIMITED)  */
 	char *name;			/* listener's name */
 

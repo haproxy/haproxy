@@ -526,7 +526,6 @@ int quic_connect_server(struct connection *conn, int flags)
  */
 static void quic_add_listener(struct protocol *proto, struct listener *listener)
 {
-	listener->flags |= LI_F_QUIC_LISTENER;
 	listener->rx.flags |= RX_F_LOCAL_ACCEPT;
 
 	default_add_listener(proto, listener);

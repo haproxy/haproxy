@@ -4316,7 +4316,7 @@ init_proxies_list_stage2:
 			}
 
 #ifdef USE_QUIC
-			if (listener->flags & LI_F_QUIC_LISTENER) {
+			if (listener->bind_conf->xprt == xprt_get(XPRT_QUIC)) {
 				if (!global.cluster_secret) {
 					diag_no_cluster_secret = 1;
 					if (listener->bind_conf->options & BC_O_QUIC_FORCE_RETRY) {
