@@ -190,7 +190,7 @@ int session_accept_fd(struct connection *cli_conn)
 	/* now evaluate the tcp-request layer4 rules. We only need a session
 	 * and no stream for these rules.
 	 */
-	if ((l->options & LI_O_TCP_L4_RULES) && !tcp_exec_l4_rules(sess)) {
+	if (!LIST_ISEMPTY(&p->tcp_req.l4_rules) && !tcp_exec_l4_rules(sess)) {
 		/* let's do a no-linger now to close with a single RST. */
 		setsockopt(cfd, SOL_SOCKET, SO_LINGER, (struct linger *) &nolinger, sizeof(struct linger));
 		ret = 0; /* successful termination */
@@ -433,7 +433,7 @@ int conn_complete_session(struct connection *conn)
 		conn->flags |= CO_FL_XPRT_TRACKED;
 
 	/* we may have some tcp-request-session rules */
-	if ((sess->listener->options & LI_O_TCP_L5_RULES) && !tcp_exec_l5_rules(sess))
+	if (!LIST_ISEMPTY(&sess->fe->tcp_req.l5_rules) && !tcp_exec_l5_rules(sess))
 		goto fail;
 
 	session_count_new(sess);

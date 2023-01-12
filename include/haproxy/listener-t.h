@@ -96,8 +96,8 @@ enum li_status {
 /* unused                       0x0002  */
 /* unused                       0x0004  */
 /* unused                       0x0008  */
-#define LI_O_TCP_L4_RULES       0x0010  /* run TCP L4 rules checks on the incoming connection */
-#define LI_O_TCP_L5_RULES       0x0020  /* run TCP L5 rules checks on the incoming session */
+/* unused                       0x0010  */
+/* unused                       0x0020  */
 /* unused                       0x0040  */
 /* unused                       0x0080  */
 /* unused                       0x0100  */

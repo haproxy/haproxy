@@ -4328,12 +4328,6 @@ init_proxies_list_stage2:
 				li_init_per_thr(listener);
 			}
 #endif
-
-			if (!LIST_ISEMPTY(&curproxy->tcp_req.l4_rules))
-				listener->options |= LI_O_TCP_L4_RULES;
-
-			if (!LIST_ISEMPTY(&curproxy->tcp_req.l5_rules))
-				listener->options |= LI_O_TCP_L5_RULES;
 		}
 
 		/* Release unused SSL configs */
