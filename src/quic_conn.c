@@ -7406,8 +7406,7 @@ int quic_dgram_parse(struct quic_dgram *dgram, struct quic_conn *from_qc,
 		}
 
 		/* Detect QUIC connection migration. */
-		if (ipcmp(&qc->peer_addr, &dgram->saddr, 1) ||
-		    ipcmp(&qc->local_addr, &dgram->daddr, 1)) {
+		if (ipcmp(&qc->peer_addr, &dgram->saddr, 1)) {
 			if (qc_handle_conn_migration(qc, &dgram->saddr, &dgram->daddr)) {
 				/* Skip the entire datagram. */
 				TRACE_ERROR("error during connection migration, datagram dropped", QUIC_EV_CONN_LPKT, qc);
