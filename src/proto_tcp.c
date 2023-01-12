@@ -658,7 +658,7 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 		    sizeof(zero));
 #endif
 #if defined(TCP_DEFER_ACCEPT)
-	if (listener->options & LI_O_DEF_ACCEPT) {
+	if (listener->bind_conf->options & BC_O_DEF_ACCEPT) {
 		/* defer accept by up to one second */
 		int accept_delay = 1;
 		if (setsockopt(fd, IPPROTO_TCP, TCP_DEFER_ACCEPT, &accept_delay, sizeof(accept_delay)) == -1) {
@@ -706,7 +706,7 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 
 #if !defined(TCP_DEFER_ACCEPT) && defined(SO_ACCEPTFILTER)
 	/* the socket needs to listen first */
-	if (listener->options & LI_O_DEF_ACCEPT) {
+	if (listener->bind_conf->options & BC_O_DEF_ACCEPT) {
 		struct accept_filter_arg accept;
 		memset(&accept, 0, sizeof(accept));
 		strcpy(accept.af_name, "dataready");
