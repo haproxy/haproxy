@@ -4393,6 +4393,19 @@ static int smp_fetch_uuid(const struct arg *args, struct sample *smp, const char
 	return 0;
 }
 
+/* Check if QUIC support was compiled and was not disabled by "no-quic" global option */
+static int smp_fetch_quic_enabled(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	smp->data.type = SMP_T_BOOL;
+	smp->flags = 0;
+#ifdef USE_QUIC
+	smp->data.u.sint = !(global.tune.options & GTUNE_NO_QUIC);
+#else
+	smp->data.u.sint = 0;
+#endif
+	return smp->data.u.sint;
+}
+
 /* Note: must not be declared <const> as its list will be overwritten.
  * Note: fetches that may return multiple types must be declared as the lowest
  * common denominator, the type that can be casted into all other ones. For
@@ -4407,6 +4420,7 @@ static struct sample_fetch_kw_list smp_kws = {ILH, {
 	{ "hostname",     smp_fetch_hostname, 0,         NULL, SMP_T_STR,  SMP_USE_CONST },
 	{ "nbproc",       smp_fetch_nbproc,0,            NULL, SMP_T_SINT, SMP_USE_CONST },
 	{ "proc",         smp_fetch_proc,  0,            NULL, SMP_T_SINT, SMP_USE_CONST },
+	{ "quic_enabled", smp_fetch_quic_enabled, 0,     NULL, SMP_T_BOOL, SMP_USE_CONST },
 	{ "thread",       smp_fetch_thread,  0,          NULL, SMP_T_SINT, SMP_USE_CONST },
 	{ "rand",         smp_fetch_rand,  ARG1(0,SINT), NULL, SMP_T_SINT, SMP_USE_CONST },
 	{ "stopping",     smp_fetch_stopping, 0,         NULL, SMP_T_BOOL, SMP_USE_INTRN },

@@ -18846,6 +18846,14 @@ queue([<backend>]) : integer
   possible action could be to reject new users but still accept old ones. See
   also the "avg_queue", "be_conn", and "be_sess_rate" fetches.
 
+quic_enabled : boolean
+  Warning: QUIC support in HAProxy is currently experimental. Configuration may
+  change without deprecation in the future.
+
+  Return true when the support for QUIC transport protocol was compiled and
+  if this procotol was not disabled by "no-quic" global option. See also "no-quic"
+  global option.
+
 rand([<range>]) : integer
   Returns a random integer value within a range of <range> possible values,
   starting at zero. If the range is not specified, it defaults to 2^32, which
