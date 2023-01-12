@@ -25,13 +25,19 @@
 # reinsert them into the tree. This explains why the test's mode is set to
 # "slow".
 #
+# The fourth test case focuses on the "update ssl ocsp-response" CLI command
+# and tests two certificates that have a known OCSP response loaded during init
+# but no OCSP auto update. The only difference between the two certificates is
+# that one has a separate .issuer file while the other one has the issuer
+# certificate directly in the main .pem file.
+#
 # If this test does not work anymore:
-# - Check that you have openssl
+# - Check that you have openssl and socat
 
 varnishtest "Test the OCSP auto update feature"
 feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.7-dev0)'"
 feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL) && !ssllib_name_startswith(BoringSSL) && openssl_version_atleast(1.1.1)'"
-feature cmd "command -v openssl"
+feature cmd "command -v openssl && command -v socat"
 feature ignore_unknown_macro
 
 
@@ -231,7 +237,7 @@ shell "sleep 1"
 
 # We should have a single ocsp ID known that was loaded at build time and the
 # response should be filled
- haproxy h3 -cli {
+haproxy h3 -cli {
     send "show ssl ocsp-response"
     expect ~ "Certificate ID key : 303b300906052b0e03021a050004148a83e0060faff709ca7e9b95522a2e81635fda0a0414f652b0e435d5ea923851508f0adbe92d85de007a02021015"
     send "show ssl ocsp-response"
@@ -243,3 +249,102 @@ shell "sleep 1"
 
 haproxy h3 -wait
 process p2 -wait
+
+
+
+####################
+#                  #
+# FOURTH TEST CASE #
+#  (CLI COMMAND)   #
+#                  #
+####################
+
+process p3 "openssl ocsp -index ${testdir}/ocsp_update/index.txt -rsigner ${testdir}/ocsp_update/ocsp.haproxy.com.pem -CA ${testdir}/ocsp_update/ocsp_update_rootca.crt -nrequest 2 -ndays 1 -port 12346 -timeout 5" -start
+
+haproxy h4 -conf {
+    global
+        tune.ssl.default-dh-param 2048
+        tune.ssl.capture-buffer-size 1
+        stats socket "${tmpdir}/h4/stats" level admin
+        crt-base ${testdir}/ocsp_update
+
+    defaults
+        mode http
+        option httplog
+        log stderr local0 debug err
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend ssl-rsa-ocsp
+        bind "${tmpdir}/ssl5.sock" ssl crt ${testdir}/ocsp_update/multicert/server_ocsp.pem.rsa ca-file ${testdir}/set_cafile_rootCA.crt verify none crt-ignore-err all
+        http-request return status 200
+
+    frontend ssl-ecdsa-ocsp
+        bind "${tmpdir}/ssl6.sock" ssl crt ${testdir}/ocsp_update/multicert/server_ocsp_ecdsa.pem ca-file ${testdir}/set_cafile_rootCA.crt verify none crt-ignore-err all
+        http-request return status 200
+
+    listen http_rebound_lst
+        mode http
+        option httplog
+        bind "127.0.0.1:12345"
+        server s1 "127.0.0.1:12346"
+} -start
+
+# We need to "enable" the cli with a first cli call before using it only through socats
+haproxy h4 -cli {
+    send "show ssl ocsp-response"
+    expect ~ "Certificate ID key : 303b300906052b0e03021a050004148a83e0060faff709ca7e9b95522a2e81635fda0a0414f652b0e435d5ea923851508f0adbe92d85de007a02021016"
+}
+
+# We should have two OCSP responses loaded during init
+shell {
+    responses=$(echo "show ssl ocsp-response" | socat "${tmpdir}/h4/stats" -)
+
+    [ $(echo "$responses" | grep -c "^Certificate ID key") -eq 2 ] && \
+        echo "$responses" | grep "Serial Number: 1016" && \
+        echo "$responses" | grep "Serial Number: 1015"
+}
+
+shell {
+    echo "show ssl ocsp-response 303b300906052b0e03021a050004148a83e0060faff709ca7e9b95522a2e81635fda0a0414f652b0e435d5ea923851508f0adbe92d85de007a02021015" | socat "${tmpdir}/h4/stats" - | grep "Cert Status: revoked"
+}
+
+shell {
+    echo "show ssl ocsp-response 303b300906052b0e03021a050004148a83e0060faff709ca7e9b95522a2e81635fda0a0414f652b0e435d5ea923851508f0adbe92d85de007a02021016" | socat "${tmpdir}/h4/stats" - | grep "Cert Status: good"
+}
+
+# Update the first ocsp response (ckch_data has a non-NULL ocsp_issuer pointer)
+shell {
+    # Store the current "Produced At" in order to ensure that after the update
+    # the OCSP response actually changed
+    produced_at=$(echo "show ssl ocsp-response 303b300906052b0e03021a050004148a83e0060faff709ca7e9b95522a2e81635fda0a0414f652b0e435d5ea923851508f0adbe92d85de007a02021015" | socat "${tmpdir}/h4/stats" - | grep "Produced At")
+    # We should receive the OCSP response's details on the standard output when calling
+    # 'update ssl ocsp-response'
+    ocsp_response=$(echo "update ssl ocsp-response ${testdir}/ocsp_update/multicert/server_ocsp.pem.rsa" | socat "${tmpdir}/h4/stats" -)
+
+    new_produced_at=$(echo "$ocsp_response" | grep "Produced At")
+
+    echo "$ocsp_response" | grep -q "Serial Number: 1015" && \
+        echo "$ocsp_response" | grep -q "Cert Status: revoked" && \
+        [ "$new_produced_at" != "$produced_at" ]
+}
+
+# Update the second ocsp response (ckch_data has a NULL ocsp_issuer pointer)
+shell {
+    # Store the current "Produced At" in order to ensure that after the update
+    # the OCSP response actually changed
+    produced_at=$(echo "show ssl ocsp-response 303b300906052b0e03021a050004148a83e0060faff709ca7e9b95522a2e81635fda0a0414f652b0e435d5ea923851508f0adbe92d85de007a02021016" | socat "${tmpdir}/h4/stats" - | grep "Produced At")
+    # We should receive the OCSP response's details on the standard output when calling
+    # 'update ssl ocsp-response'
+    ocsp_response=$(echo "update ssl ocsp-response ${testdir}/ocsp_update/multicert/server_ocsp_ecdsa.pem" | socat "${tmpdir}/h4/stats" -)
+
+    new_produced_at=$(echo "$ocsp_response" | grep "Produced At")
+
+    echo "$ocsp_response" | grep -q "Serial Number: 1016" && \
+        echo "$ocsp_response" | grep -q "Cert Status: revoked" && \
+        [ "$new_produced_at" != "$produced_at" ]
+}
+
+haproxy h4 -wait
+process p3 -wait
