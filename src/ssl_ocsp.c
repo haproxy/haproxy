@@ -869,7 +869,8 @@ int ssl_ocsp_update_insert(struct certificate_ocsp *ocsp)
 	 * updated more than once every 5 minutes in order to avoid continuous
 	 * update of the same response. */
 	if (b_data(&ocsp->response))
-		ocsp->next_update.key = MAX(ocsp->next_update.key, SSL_OCSP_UPDATE_DELAY_MIN);
+		ocsp->next_update.key = MAX(ocsp->next_update.key,
+                                            now.tv_sec + SSL_OCSP_UPDATE_DELAY_MIN);
 
 	HA_SPIN_LOCK(OCSP_LOCK, &ocsp_tree_lock);
 	eb64_insert(&ocsp_update_tree, &ocsp->next_update);
