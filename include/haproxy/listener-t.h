@@ -94,7 +94,7 @@ enum li_status {
 #define LI_O_NONE               0x0000
 /* unused                       0x0001  */
 /* unused                       0x0002  */
-#define LI_O_NOQUICKACK         0x0004  /* disable quick ack of immediate data (linux) */
+/* unused                       0x0004  */
 #define LI_O_DEF_ACCEPT         0x0008  /* wait up to 1 second for data before accepting */
 #define LI_O_TCP_L4_RULES       0x0010  /* run TCP L4 rules checks on the incoming connection */
 #define LI_O_TCP_L5_RULES       0x0020  /* run TCP L5 rules checks on the incoming session */
@@ -122,6 +122,7 @@ enum li_status {
 #define BC_O_USE_XPRT_DGRAM     0x00000020 /* at least one dgram-only xprt listener is used */
 #define BC_O_USE_XPRT_STREAM    0x00000040 /* at least one stream-only xprt listener is used */
 #define BC_O_NOLINGER           0x00000080 /* disable lingering on these listeners */
+#define BC_O_NOQUICKACK         0x00000100 /* disable quick ack of immediate data (linux) */
 
 
 /* flags used with bind_conf->ssl_options */

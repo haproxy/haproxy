@@ -4290,6 +4290,12 @@ init_proxies_list_stage2:
 			bind_conf->accept = session_accept_fd;
 			if (curproxy->options & PR_O_TCP_NOLING)
 				bind_conf->options |= BC_O_NOLINGER;
+
+			/* smart accept mode is automatic in HTTP mode */
+			if ((curproxy->options2 & PR_O2_SMARTACC) ||
+			    ((curproxy->mode == PR_MODE_HTTP || (bind_conf->options & BC_O_USE_SSL)) &&
+			     !(curproxy->no_options2 & PR_O2_SMARTACC)))
+				bind_conf->options |= BC_O_NOQUICKACK;
 		}
 
 		/* adjust this proxy's listeners */
@@ -4331,12 +4337,6 @@ init_proxies_list_stage2:
 
 			if (!LIST_ISEMPTY(&curproxy->tcp_req.l5_rules))
 				listener->options |= LI_O_TCP_L5_RULES;
-
-			/* smart accept mode is automatic in HTTP mode */
-			if ((curproxy->options2 & PR_O2_SMARTACC) ||
-			    ((curproxy->mode == PR_MODE_HTTP || (listener->bind_conf->options & BC_O_USE_SSL)) &&
-			     !(curproxy->no_options2 & PR_O2_SMARTACC)))
-				listener->options |= LI_O_NOQUICKACK;
 		}
 
 		/* Release unused SSL configs */

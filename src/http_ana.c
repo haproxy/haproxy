@@ -707,7 +707,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 	 * in case we previously disabled it, otherwise we might cause
 	 * the client to delay further data.
 	 */
-	if ((sess->listener && (sess->listener->options & LI_O_NOQUICKACK)) && !(htx->flags & HTX_FL_EOM))
+	if ((sess->listener && (sess->listener->bind_conf->options & BC_O_NOQUICKACK)) && !(htx->flags & HTX_FL_EOM))
 		conn_set_quickack(cli_conn, 1);
 
 	/*************************************************************

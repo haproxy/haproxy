@@ -717,7 +717,7 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	}
 #endif
 #if defined(TCP_QUICKACK)
-	if (listener->options & LI_O_NOQUICKACK)
+	if (listener->bind_conf->options & BC_O_NOQUICKACK)
 		setsockopt(fd, IPPROTO_TCP, TCP_QUICKACK, &zero, sizeof(zero));
 	else
 		setsockopt(fd, IPPROTO_TCP, TCP_QUICKACK, &one, sizeof(one));
