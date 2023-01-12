@@ -714,6 +714,9 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_FATAL;
 			goto out;
 		}
+
+		bind_conf->maxaccept = 1;
+
 		if (*args[0] == 'b') {
 			struct listener *l;
 
@@ -743,7 +746,6 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 			 * Newly allocated listener is at the end of the list
 			 */
 			l = LIST_ELEM(bind_conf->listeners.p, typeof(l), by_bind);
-			l->maxaccept = 1;
 			l->accept = session_accept_fd;
 			l->default_target = curpeers->peers_fe->default_target;
 			l->options |= LI_O_UNLIMITED; /* don't make the peers subject to global limits */
@@ -946,6 +948,8 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
+		bind_conf->maxaccept = 1;
+
 		if (!LIST_ISEMPTY(&bind_conf->listeners)) {
 			ha_alert("parsing [%s:%d] : One listener per \"peers\" section is authorized but another is already configured at [%s:%d].\n", file, linenum, bind_conf->file, bind_conf->line);
 			err_code |= ERR_FATAL;
@@ -967,7 +971,6 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 		 * Newly allocated listener is at the end of the list
 		 */
 		l = LIST_ELEM(bind_conf->listeners.p, typeof(l), by_bind);
-		l->maxaccept = 1;
 		l->accept = session_accept_fd;
 		l->default_target = curpeers->peers_fe->default_target;
 		l->options |= LI_O_UNLIMITED; /* don't make the peers subject to global limits */
@@ -4284,6 +4287,8 @@ init_proxies_list_stage2:
 			    bind_conf->xprt->prepare_bind_conf(bind_conf) < 0)
 				cfgerr++;
 			bind_conf->analysers |= curproxy->fe_req_ana;
+			if (!bind_conf->maxaccept)
+				bind_conf->maxaccept = global.tune.maxaccept ? global.tune.maxaccept : MAX_ACCEPT;
 		}
 
 		/* adjust this proxy's listeners */
@@ -4308,8 +4313,6 @@ init_proxies_list_stage2:
 
 			if (curproxy->options & PR_O_TCP_NOLING)
 				listener->options |= LI_O_NOLINGER;
-			if (!listener->maxaccept)
-				listener->maxaccept = global.tune.maxaccept ? global.tune.maxaccept : MAX_ACCEPT;
 
 			/* listener accept callback */
 			listener->accept = session_accept_fd;

@@ -3525,7 +3525,7 @@ void syslog_fd_handler(int fd)
 		if (!fd_recv_ready(fd))
 			return;
 
-		max_accept = l->maxaccept ? l->maxaccept : 1;
+		max_accept = l->bind_conf->maxaccept ? l->bind_conf->maxaccept : 1;
 
 		do {
 			/* Source address */
@@ -3577,7 +3577,7 @@ static void syslog_io_handler(struct appctx *appctx)
 	char *message;
 	size_t size;
 
-	max_accept = l->maxaccept ? l->maxaccept : 1;
+	max_accept = l->bind_conf->maxaccept ? l->bind_conf->maxaccept : 1;
 	while (co_data(sc_oc(sc))) {
 		char c;
 
@@ -3810,6 +3810,8 @@ int cfg_parse_log_forward(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
+		bind_conf->maxaccept = global.tune.maxaccept ? global.tune.maxaccept : MAX_ACCEPT;
+
 		if (!str2listener(args[1], cfg_log_forward, bind_conf, file, linenum, &errmsg)) {
 			if (errmsg && *errmsg) {
 				indent_msg(&errmsg, 2);
@@ -3823,7 +3825,6 @@ int cfg_parse_log_forward(const char *file, int linenum, char **args, int kwm)
 			}
 		}
 		list_for_each_entry(l, &bind_conf->listeners, by_bind) {
-			l->maxaccept = global.tune.maxaccept ? global.tune.maxaccept : MAX_ACCEPT;
 			l->accept = session_accept_fd;
 			l->default_target = cfg_log_forward->default_target;
 			global.maxsock++;
@@ -3853,6 +3854,8 @@ int cfg_parse_log_forward(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
+		bind_conf->maxaccept = global.tune.maxaccept ? global.tune.maxaccept : MAX_ACCEPT;
+
 		if (!str2receiver(args[1], cfg_log_forward, bind_conf, file, linenum, &errmsg)) {
 			if (errmsg && *errmsg) {
 				indent_msg(&errmsg, 2);
@@ -3867,7 +3870,6 @@ int cfg_parse_log_forward(const char *file, int linenum, char **args, int kwm)
 		}
 		list_for_each_entry(l, &bind_conf->listeners, by_bind) {
 			/* the fact that the sockets are of type dgram is guaranteed by str2receiver() */
-			l->maxaccept = global.tune.maxaccept ? global.tune.maxaccept : MAX_ACCEPT;
 			l->rx.iocb   = syslog_fd_handler;
 			global.maxsock++;
 		}

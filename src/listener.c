@@ -842,10 +842,10 @@ void listener_accept(struct listener *l)
 
 	p = l->bind_conf->frontend;
 
-	/* if l->maxaccept is -1, then max_accept is UINT_MAX. It is not really
-	 * illimited, but it is probably enough.
+	/* if l->bind_conf->maxaccept is -1, then max_accept is UINT_MAX. It is
+	 * not really illimited, but it is probably enough.
 	 */
-	max_accept = l->maxaccept ? l->maxaccept : 1;
+	max_accept = l->bind_conf->maxaccept ? l->bind_conf->maxaccept : 1;
 
 	if (!(l->options & LI_O_UNLIMITED) && global.sps_lim) {
 		int max = freq_ctr_remain(&global.sess_per_sec, global.sps_lim, 0);
