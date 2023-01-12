@@ -90,25 +90,6 @@ enum li_status {
 	LI_STATE_COUNT /* must be last */
 };
 
-/* listener socket options */
-#define LI_O_NONE               0x0000
-/* unused                       0x0001  */
-/* unused                       0x0002  */
-/* unused                       0x0004  */
-/* unused                       0x0008  */
-/* unused                       0x0010  */
-/* unused                       0x0020  */
-/* unused                       0x0040  */
-/* unused                       0x0080  */
-/* unused                       0x0100  */
-/* unused                       0x0200  */
-/* unused                       0x0400  */
-/* unused                       0x0800  */
-/* unused                       0x1000  */
-/* unused                       0x2000  */
-/* unused                       0x4000  */
-/* unused                       0x8000  */
-
 /* Note: if a bind_conf uses BC_O_UNLIMITED, it is highly recommended that it adds its own
  * maxconn setting to the global.maxsock value so that its resources are reserved.
  */
@@ -249,21 +230,16 @@ struct listener {
 	enum li_state state;            /* state: NEW, INIT, ASSIGNED, LISTEN, READY, FULL */
 	/* 2-byte hole here */
 	int luid;			/* listener universally unique ID, used for SNMP */
-	int options;			/* socket options : LI_O_* */
 	int flags;                      /* LI_F_* flags */
+	unsigned int thr_idx;           /* thread indexes for queue distribution : (t2<<16)+t1 */
 	__decl_thread(HA_RWLOCK_T lock);
 
 	struct fe_counters *counters;	/* statistics counters */
 	int nbconn;			/* current number of connections on this listener */
-	/* cache line boundary */
 	struct mt_list wait_queue;	/* link element to make the listener wait for something (LI_LIMITED)  */
-	unsigned int thr_idx;           /* thread indexes for queue distribution : (t2<<16)+t1 */
 	char *name;			/* listener's name */
 
-	/* cache line boundary */
 	unsigned int thr_conn[MAX_THREADS]; /* number of connections per thread */
-
-	/* cache line boundary */
 
 	struct list by_fe;              /* chaining in frontend's list of listeners */
 	struct list by_bind;            /* chaining in bind_conf's list of listeners */
