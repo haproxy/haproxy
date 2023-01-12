@@ -1199,6 +1199,127 @@ static int h3_resp_headers_send(struct qcs *qcs, struct htx *htx)
 	return 0;
 }
 
+/* Convert a series of HTX trailer blocks from <htx> buffer into <qcs> buffer
+ * as a H3 HEADERS frame. H3 forbidden trailers are skipped. HTX trailer blocks
+ * are removed from <htx> until EOT is found and itself removed.
+ *
+ * If only a EOT HTX block is present without trailer, no H3 frame is produced.
+ * Caller is responsible to emit an empty QUIC STREAM frame to signal the end
+ * of the stream.
+ *
+ * Returns the size of HTX blocks removed.
+ */
+static int h3_resp_trailers_send(struct qcs *qcs, struct htx *htx)
+{
+	struct buffer headers_buf = BUF_NULL;
+	struct buffer *res;
+	struct http_hdr list[global.tune.max_http_hdr];
+	struct htx_blk *blk;
+	enum htx_blk_type type;
+	char *tail;
+	int ret = 0;
+	int hdr;
+
+	TRACE_ENTER(H3_EV_TX_HDR, qcs->qcc->conn, qcs);
+
+	hdr = 0;
+	for (blk = htx_get_head_blk(htx); blk; blk = htx_get_next_blk(htx, blk)) {
+		type = htx_get_blk_type(blk);
+
+		if (type == HTX_BLK_UNUSED)
+			continue;
+
+		if (type == HTX_BLK_EOT)
+			break;
+
+		if (type == HTX_BLK_TLR) {
+			if (unlikely(hdr >= sizeof(list) / sizeof(list[0]) - 1))
+				goto err;
+			list[hdr].n = htx_get_blk_name(htx, blk);
+			list[hdr].v = htx_get_blk_value(htx, blk);
+			hdr++;
+		}
+		else {
+			TRACE_ERROR("unexpected HTX block", H3_EV_TX_HDR, qcs->qcc->conn, qcs);
+			goto err;
+		}
+	}
+
+	list[hdr].n = ist("");
+
+	res = mux_get_buf(qcs);
+
+	/* At least 9 bytes to store frame type + length as a varint max size */
+	if (b_room(res) < 9) {
+		qcs->flags |= QC_SF_BLK_MROOM;
+		goto err;
+	}
+
+	/* Force buffer realignment as size required to encode headers is unknown. */
+	if (b_space_wraps(res))
+		b_slow_realign(res, trash.area, b_data(res));
+	/* Start the headers after frame type + length */
+	headers_buf = b_make(b_peek(res, b_data(res) + 9), b_contig_space(res) - 9, 0, 0);
+
+	if (qpack_encode_field_section_line(&headers_buf))
+		ABORT_NOW();
+
+	tail = b_tail(&headers_buf);
+	for (hdr = 0; hdr < sizeof(list) / sizeof(list[0]); ++hdr) {
+		if (isteq(list[hdr].n, ist("")))
+			break;
+
+		/* forbidden HTTP/3 headers, cf h3_resp_headers_send() */
+		if (isteq(list[hdr].n, ist("host")) ||
+		    isteq(list[hdr].n, ist("content-length")) ||
+		    isteq(list[hdr].n, ist("connection")) ||
+		    isteq(list[hdr].n, ist("proxy-connection")) ||
+		    isteq(list[hdr].n, ist("keep-alive")) ||
+		    isteq(list[hdr].n, ist("te")) ||
+		    isteq(list[hdr].n, ist("transfer-encoding"))) {
+			continue;
+		}
+
+		if (qpack_encode_header(&headers_buf, list[hdr].n, list[hdr].v))
+			ABORT_NOW();
+	}
+
+	/* Now that all headers are encoded, we are certain that res buffer is
+	 * big enough.
+	 */
+
+	/* Check that at least one header was encoded in buffer. */
+	if (b_tail(&headers_buf) != tail) {
+		b_putchr(res, 0x01); /* h3 HEADERS frame type */
+		if (!b_quic_enc_int(res, b_data(&headers_buf), 8))
+			ABORT_NOW();
+		b_add(res, b_data(&headers_buf));
+	}
+	else  {
+		/* No headers encoded here so no need to generate a H3 HEADERS
+		 * frame. Mux will send an empty QUIC STREAM frame with FIN.
+		 */
+		TRACE_DATA("skipping trailer", H3_EV_TX_HDR, qcs->qcc->conn, qcs);
+	}
+
+	ret = 0;
+	blk = htx_get_head_blk(htx);
+	while (blk) {
+		type = htx_get_blk_type(blk);
+		ret += htx_get_blksz(blk);
+		blk = htx_remove_blk(htx, blk);
+		if (type == HTX_BLK_EOT)
+			break;
+	}
+
+	TRACE_LEAVE(H3_EV_TX_HDR, qcs->qcc->conn, qcs);
+	return ret;
+
+ err:
+	TRACE_DEVEL("leaving on error", H3_EV_TX_HDR, qcs->qcc->conn, qcs);
+	return 0;
+}
+
 /* Returns the total of bytes sent. */
 static int h3_resp_data_send(struct qcs *qcs, struct htx *htx, size_t count)
 {
@@ -1316,7 +1437,14 @@ static size_t h3_snd_buf(struct qcs *qcs, struct htx *htx, size_t count)
 
 		case HTX_BLK_TLR:
 		case HTX_BLK_EOT:
-			/* TODO trailers */
+			ret = h3_resp_trailers_send(qcs, htx);
+			if (ret > 0) {
+				total += ret;
+				count -= ret;
+				if (ret < bsize)
+					goto out;
+			}
+			break;
 
 		default:
 			htx_remove_blk(htx, blk);
