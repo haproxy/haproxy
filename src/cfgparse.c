@@ -747,7 +747,6 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 			 * Newly allocated listener is at the end of the list
 			 */
 			l = LIST_ELEM(bind_conf->listeners.p, typeof(l), by_bind);
-			l->default_target = curpeers->peers_fe->default_target;
 			l->options |= LI_O_UNLIMITED; /* don't make the peers subject to global limits */
 			global.maxsock++; /* for the listening socket */
 
@@ -972,7 +971,6 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 		 * Newly allocated listener is at the end of the list
 		 */
 		l = LIST_ELEM(bind_conf->listeners.p, typeof(l), by_bind);
-		l->default_target = curpeers->peers_fe->default_target;
 		l->options |= LI_O_UNLIMITED; /* don't make the peers subject to global limits */
 		global.maxsock++; /* for the listening socket */
 	}
@@ -4328,8 +4326,6 @@ init_proxies_list_stage2:
 				li_init_per_thr(listener);
 			}
 #endif
-
-			listener->default_target = curproxy->default_target;
 
 			if (!LIST_ISEMPTY(&curproxy->tcp_req.l4_rules))
 				listener->options |= LI_O_TCP_L4_RULES;

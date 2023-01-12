@@ -552,8 +552,8 @@ static int cli_parse_global(char **args, int section_type, struct proxy *curpx,
 		}
 
 		bind_conf->accept = session_accept_fd;
+
 		list_for_each_entry(l, &bind_conf->listeners, by_bind) {
-			l->default_target = global.cli_fe->default_target;
 			l->options |= LI_O_UNLIMITED; /* don't make the peers subject to global limits */
 			l->nice = -64;  /* we want to boost priority for local stats */
 			global.maxsock++; /* for the listening socket */
@@ -3045,8 +3045,8 @@ struct bind_conf *mworker_cli_proxy_new_listener(char *line)
 
 
 	bind_conf->accept = session_accept_fd;
+
 	list_for_each_entry(l, &bind_conf->listeners, by_bind) {
-		l->default_target = mworker_proxy->default_target;
 		/* don't make the peers subject to global limits and don't close it in the master */
 		l->options  |= LI_O_UNLIMITED;
 		l->rx.flags |= RX_F_MWORKER; /* we are keeping this FD in the master */
@@ -3112,8 +3112,8 @@ int mworker_cli_sockpair_new(struct mworker_proc *mworker_proc, int proc)
 	ha_free(&path);
 
 	bind_conf->accept = session_accept_fd;
+
 	list_for_each_entry(l, &bind_conf->listeners, by_bind) {
-		l->default_target = global.cli_fe->default_target;
 		l->options |= (LI_O_UNLIMITED | LI_O_NOSTOP);
 		HA_ATOMIC_INC(&unstoppable_jobs);
 		/* it's a sockpair but we don't want to keep the fd in the master */

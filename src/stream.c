@@ -491,7 +491,7 @@ struct stream *stream_new(struct session *sess, struct stconn *sc, struct buffer
 	}
 
 	stream_init_srv_conn(s);
-	s->target = sess->listener ? sess->listener->default_target : NULL;
+	s->target = sess->fe->default_target;
 
 	s->pend_pos = NULL;
 	s->priority_class = 0;

@@ -245,7 +245,6 @@ struct listener {
 
 	struct fe_counters *counters;	/* statistics counters */
 	int nbconn;			/* current number of connections on this listener */
-	enum obj_type *default_target;  /* default target to use for accepted sessions or NULL */
 	/* cache line boundary */
 	struct mt_list wait_queue;	/* link element to make the listener wait for something (LI_LIMITED)  */
 	unsigned int thr_idx;           /* thread indexes for queue distribution : (t2<<16)+t1 */
