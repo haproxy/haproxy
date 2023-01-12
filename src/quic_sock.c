@@ -552,8 +552,8 @@ int qc_snd_buf(struct quic_conn *qc, const struct buffer *buf, size_t sz,
 	 * The reason for the latter is that freq_ctr are limited to 4GB and
 	 * that it's not enough per second.
 	 */
-	_HA_ATOMIC_ADD(&global.out_bytes, ret);
-	update_freq_ctr(&global.out_32bps, (ret + 16) / 32);
+	_HA_ATOMIC_ADD(&th_ctx->out_bytes, ret);
+	update_freq_ctr(&th_ctx->out_32bps, (ret + 16) / 32);
 
 	return 0;
 }

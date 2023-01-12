@@ -3461,7 +3461,11 @@ static void stats_dump_html_info(struct stconn *sc, struct uri_auth *uri)
 	unsigned int up = (now.tv_sec - start_date.tv_sec);
 	char scope_txt[STAT_SCOPE_TXT_MAXLEN + sizeof STAT_SCOPE_PATTERN];
 	const char *scope_ptr = stats_scope_ptr(appctx, sc);
-	unsigned long long bps = (unsigned long long)read_freq_ctr(&global.out_32bps) * 32;
+	unsigned long long bps;
+	int thr;
+
+	for (bps = thr = 0; thr < global.nbthread; thr++)
+		bps += 32ULL * read_freq_ctr(&ha_thread_ctx[thr].out_32bps);
 
 	/* Turn the bytes per second to bits per second and take care of the
 	 * usual ethernet overhead in order to help figure how far we are from
@@ -4505,6 +4509,8 @@ int stats_fill_info(struct field *info, int len, uint flags)
 {
 	struct timeval up;
 	struct buffer *out = get_trash_chunk();
+	uint64_t glob_out_bytes, glob_spl_bytes, glob_out_b32;
+	int thr;
 
 #ifdef USE_OPENSSL
 	double ssl_sess_rate = read_freq_ctr_flt(&global.ssl_per_sec);
@@ -4514,6 +4520,15 @@ int stats_fill_info(struct field *info, int len, uint flags)
 	if (ssl_key_rate < ssl_sess_rate)
 		ssl_reuse = 100.0 * (1.0 - ssl_key_rate / ssl_sess_rate);
 #endif
+
+	/* sum certain per-thread totals (mostly byte counts) */
+	glob_out_bytes = glob_spl_bytes = glob_out_b32 = 0;
+	for (thr = 0; thr < global.nbthread; thr++) {
+		glob_out_bytes += HA_ATOMIC_LOAD(&ha_thread_ctx[thr].out_bytes);
+		glob_spl_bytes += HA_ATOMIC_LOAD(&ha_thread_ctx[thr].spliced_out_bytes);
+		glob_out_b32   += read_freq_ctr(&ha_thread_ctx[thr].out_32bps);
+	}
+	glob_out_b32 *= 32; // values are 32-byte units
 
 	tv_remain(&start_date, &now, &up);
 
@@ -4601,9 +4616,9 @@ int stats_fill_info(struct field *info, int len, uint flags)
 	info[INF_DROPPED_LOGS]                   = mkf_u32(0, dropped_logs);
 	info[INF_BUSY_POLLING]                   = mkf_u32(0, !!(global.tune.options & GTUNE_BUSY_POLLING));
 	info[INF_FAILED_RESOLUTIONS]             = mkf_u32(0, resolv_failed_resolutions);
-	info[INF_TOTAL_BYTES_OUT]                = mkf_u64(0, global.out_bytes);
-	info[INF_TOTAL_SPLICED_BYTES_OUT]        = mkf_u64(0, global.spliced_out_bytes);
-	info[INF_BYTES_OUT_RATE]                 = mkf_u64(FN_RATE, (unsigned long long)read_freq_ctr(&global.out_32bps) * 32);
+	info[INF_TOTAL_BYTES_OUT]                = mkf_u64(0, glob_out_bytes);
+	info[INF_TOTAL_SPLICED_BYTES_OUT]        = mkf_u64(0, glob_spl_bytes);
+	info[INF_BYTES_OUT_RATE]                 = mkf_u64(FN_RATE, glob_out_b32);
 	info[INF_DEBUG_COMMANDS_ISSUED]          = mkf_u32(0, debug_commands_issued);
 	info[INF_CUM_LOG_MSGS]                   = mkf_u32(FN_COUNTER, cum_log_messages);
 

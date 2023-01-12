@@ -25,6 +25,7 @@
 #include <import/ebtree-t.h>
 
 #include <haproxy/api-t.h>
+#include <haproxy/freq_ctr-t.h>
 #include <haproxy/thread-t.h>
 
 /* tasklet classes */
@@ -137,6 +138,10 @@ struct thread_ctx {
 
 	struct eb_root rqueue_shared;       /* run queue fed by other threads */
 	__decl_thread(HA_SPINLOCK_T rqsh_lock); /* lock protecting the shared runqueue */
+
+	struct freq_ctr out_32bps;              /* #of 32-byte blocks emitted per second */
+	unsigned long long out_bytes;           /* total #of bytes emitted */
+	unsigned long long spliced_out_bytes;   /* total #of bytes emitted though a kernel pipe */
 
 	ALWAYS_ALIGN(128);
 };
