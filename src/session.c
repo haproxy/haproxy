@@ -169,11 +169,11 @@ int session_accept_fd(struct connection *cli_conn)
 	conn_ctrl_init(cli_conn);
 
 	/* wait for a PROXY protocol header */
-	if (l->options & LI_O_ACC_PROXY)
+	if (l->bind_conf->options & BC_O_ACC_PROXY)
 		cli_conn->flags |= CO_FL_ACCEPT_PROXY;
 
 	/* wait for a NetScaler client IP insertion protocol header */
-	if (l->options & LI_O_ACC_CIP)
+	if (l->bind_conf->options & BC_O_ACC_CIP)
 		cli_conn->flags |= CO_FL_ACCEPT_CIP;
 
 	/* Add the handshake pseudo-XPRT */

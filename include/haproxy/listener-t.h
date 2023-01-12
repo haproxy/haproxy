@@ -99,12 +99,12 @@ enum li_status {
 #define LI_O_TCP_L4_RULES       0x0010  /* run TCP L4 rules checks on the incoming connection */
 #define LI_O_TCP_L5_RULES       0x0020  /* run TCP L5 rules checks on the incoming session */
 /* unused                       0x0040  */
-#define LI_O_ACC_PROXY          0x0080  /* find the proxied address in the first request line */
+/* unused                       0x0080  */
 #define LI_O_UNLIMITED          0x0100  /* listener not subject to global limits (peers & stats socket) */
 /* unused                       0x0200  */
 /* unused                       0x0400  */
 /* unused                       0x0800  */
-#define LI_O_ACC_CIP            0x1000  /* find the proxied address in the NetScaler Client IP header */
+/* unused                       0x1000  */
 /* unused                       0x2000  */
 /* unused                       0x4000  */
 #define LI_O_NOSTOP             0x8000  /* keep the listener active even after a soft stop */
@@ -125,6 +125,8 @@ enum li_status {
 #define BC_O_NOQUICKACK         0x00000100 /* disable quick ack of immediate data (linux) */
 #define BC_O_DEF_ACCEPT         0x00000200 /* wait up to 1 second for data before accepting */
 #define BC_O_TCP_FO             0x00000400 /* enable TCP Fast Open (linux >= 3.7) */
+#define BC_O_ACC_PROXY          0x00000800 /* find the proxied address in the first request line */
+#define BC_O_ACC_CIP            0x00001000 /* find the proxied address in the NetScaler Client IP header */
 
 
 /* flags used with bind_conf->ssl_options */

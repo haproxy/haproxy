@@ -1506,18 +1506,13 @@ smp_fetch_so_name(const struct arg *args, struct sample *smp, const char *kw, vo
 /* parse the "accept-proxy" bind keyword */
 static int bind_parse_accept_proxy(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
-	struct listener *l;
-
-	list_for_each_entry(l, &conf->listeners, by_bind)
-		l->options |= LI_O_ACC_PROXY;
-
+	conf->options |= BC_O_ACC_PROXY;
 	return 0;
 }
 
 /* parse the "accept-netscaler-cip" bind keyword */
 static int bind_parse_accept_netscaler_cip(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
-	struct listener *l;
 	uint32_t val;
 
 	if (!*args[cur_arg + 1]) {
@@ -1531,11 +1526,8 @@ static int bind_parse_accept_netscaler_cip(char **args, int cur_arg, struct prox
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	list_for_each_entry(l, &conf->listeners, by_bind) {
-		l->options |= LI_O_ACC_CIP;
-		conf->ns_cip_magic = val;
-	}
-
+	conf->options |= BC_O_ACC_CIP;
+	conf->ns_cip_magic = val;
 	return 0;
 }
 
