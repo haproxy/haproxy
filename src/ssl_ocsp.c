@@ -1040,7 +1040,7 @@ static struct task *ssl_ocsp_update_responses(struct task *task, void *context, 
 		eb = eb64_first(&ocsp_update_tree);
 		if (!eb) {
 			HA_SPIN_UNLOCK(OCSP_LOCK, &ocsp_tree_lock);
-			goto leave;
+			goto wait;
 		}
 
 		if (eb->key > now.tv_sec) {
