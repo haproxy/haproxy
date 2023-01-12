@@ -70,8 +70,10 @@ void quic_transport_params_init(struct quic_transport_params *p, int server)
 	p->initial_max_stream_data_uni         = ncb_size;
 	p->initial_max_data = (max_streams_bidi + max_streams_uni) * ncb_size;
 
-	if (server)
+	if (server) {
 		p->with_stateless_reset_token  = 1;
+		p->disable_active_migration    = 1;
+	}
 
 	p->active_connection_id_limit          = 8;
 

@@ -6360,6 +6360,19 @@ static int qc_handle_conn_migration(struct quic_conn *qc,
 {
 	TRACE_ENTER(QUIC_EV_CONN_LPKT, qc);
 
+	/* RFC 9000. Connection Migration
+	 *
+	 * If the peer sent the disable_active_migration transport parameter,
+	 * an endpoint also MUST NOT send packets (including probing packets;
+	 * see Section 9.1) from a different local address to the address the peer
+	 * used during the handshake, unless the endpoint has acted on a
+	 * preferred_address transport parameter from the peer.
+	 */
+	if (qc->li->bind_conf->quic_params.disable_active_migration) {
+		TRACE_ERROR("Active migration was disabled, datagram dropped", QUIC_EV_CONN_LPKT, qc);
+		goto err;
+	}
+
 	/* RFC 9000 9. Connection Migration
 	 *
 	 * The design of QUIC relies on endpoints retaining a stable address for
