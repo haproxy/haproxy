@@ -4236,7 +4236,7 @@ option socket-stats                  (*)  X          X         X         -
 option splice-auto                   (*)  X          X         X         X
 option splice-request                (*)  X          X         X         X
 option splice-response               (*)  X          X         X         X
-option spop-check                         -          -         -         X
+option spop-check                         X          -         X         X
 option srvtcpka                      (*)  X          -         X         X
 option ssl-hello-chk                      X          -         X         X
 -- keyword -------------------------- defaults - frontend - listen -- backend -
@@ -10375,7 +10375,7 @@ no option splice-response
 option spop-check
   Use SPOP health checks for server testing
   May be used in sections :   defaults | frontend | listen | backend
-                                 no    |    no    |   no   |   yes
+                                 yes   |    no    |   yes  |   yes
   Arguments : none
 
   It is possible to test that the server correctly talks SPOP protocol instead
