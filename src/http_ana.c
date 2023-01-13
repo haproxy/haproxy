@@ -947,10 +947,7 @@ int http_wait_for_request_body(struct stream *s, struct channel *req, int an_bit
 	/* fall through */
 
  return_prx_cond:
-	if (!(s->flags & SF_ERR_MASK))
-		s->flags |= SF_ERR_PRXCOND;
-	if (!(s->flags & SF_FINST_MASK))
-		s->flags |= SF_FINST_R;
+	http_set_term_flags(s);
 
 	req->analysers &= AN_REQ_FLT_END;
 	req->analyse_exp = TICK_ETERNITY;
@@ -4223,29 +4220,26 @@ enum rule_result http_wait_for_msg_body(struct stream *s, struct channel *chn,
   end:
 	return ret;
 
+  abort:
+	http_reply_and_close(s, txn->status, http_error_message(s));
+	ret = HTTP_RULE_RES_ABRT;
+	goto end;
+
   abort_req:
 	txn->status = 408;
 	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= SF_ERR_CLITO;
-	if (!(s->flags & SF_FINST_MASK))
-		s->flags |= SF_FINST_R;
 	_HA_ATOMIC_INC(&sess->fe->fe_counters.failed_req);
 	if (sess->listener && sess->listener->counters)
 		_HA_ATOMIC_INC(&sess->listener->counters->failed_req);
-	http_reply_and_close(s, txn->status, http_error_message(s));
-	ret = HTTP_RULE_RES_ABRT;
-	goto end;
+	goto abort;
 
   abort_res:
 	txn->status = 504;
 	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= SF_ERR_SRVTO;
-	if (!(s->flags & SF_FINST_MASK))
-		s->flags |= SF_FINST_R;
 	stream_inc_http_fail_ctr(s);
-	http_reply_and_close(s, txn->status, http_error_message(s));
-	ret = HTTP_RULE_RES_ABRT;
-	goto end;
+	goto abort;
 }
 
 void http_perform_server_redirect(struct stream *s, struct stconn *sc)
