@@ -24,7 +24,7 @@ server s1 {
 
 syslog S -level info {
 	recv
-	expect ~ "[^:\\[ ]*\\[[0-9]*\\]: .* .* fe1 fe1/<NOSRV> .* 408 .* - - cD-- .* .* \"GET /this-is-a-long-url-this-is-a-long-url-this-is-a-long-url-this-is-a-long-url-this-is-a-long-url-this-is-a-long-url-this-is-a-long-url HTTP/1\\.1\""
+	expect ~ "[^:\\[ ]*\\[[0-9]*\\]: .* .* fe1 fe1/<NOSRV> .* 408 .* - - cR-- .* .* \"GET /this-is-a-long-url-this-is-a-long-url-this-is-a-long-url-this-is-a-long-url-this-is-a-long-url-this-is-a-long-url-this-is-a-long-url HTTP/1\\.1\""
 	barrier b1 sync
 
 	recv
