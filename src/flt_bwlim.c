@@ -35,6 +35,11 @@ struct flt_ops bwlim_ops;
 #define BWLIM_FL_OUT     0x00000002 /* Limit clients downloads */
 #define BWLIM_FL_SHARED  0x00000004 /* Limit shared between clients (using stick-tables) */
 
+#define BWLIM_ACT_LIMIT_EXPR   0x00000001
+#define BWLIM_ACT_LIMIT_CONST  0x00000002
+#define BWLIM_ACT_PERIOD_EXPR  0x00000004
+#define BWLIM_ACT_PERIOD_CONST 0x00000008
+
 struct bwlim_config {
 	struct proxy *proxy;
 	char         *name;
@@ -384,16 +389,21 @@ static enum act_return bwlim_set_limit(struct act_rule *rule, struct proxy *px,
 
 		st->limit = 0;
 		st->period = 0;
-		if (rule->arg.act.p[1]) {
+		if (rule->action & BWLIM_ACT_LIMIT_EXPR) {
 			smp = sample_fetch_as_type(px, sess, s, opt, rule->arg.act.p[1], SMP_T_SINT);
 			if (smp && smp->data.u.sint > 0)
 				st->limit = smp->data.u.sint;
 		}
-		if (rule->arg.act.p[2]) {
+		else if (rule->action & BWLIM_ACT_LIMIT_CONST)
+			st->limit = (uintptr_t)rule->arg.act.p[1];
+
+		if (rule->action & BWLIM_ACT_PERIOD_EXPR) {
 			smp = sample_fetch_as_type(px, sess, s, opt, rule->arg.act.p[2], SMP_T_SINT);
 			if (smp && smp->data.u.sint > 0)
 				st->period = smp->data.u.sint;
 		}
+		else if (rule->action & BWLIM_ACT_PERIOD_CONST)
+			st->period = (uintptr_t)rule->arg.act.p[2];
 	}
 
 	st->exp = TICK_ETERNITY;
@@ -445,7 +455,7 @@ int check_bwlim_action(struct act_rule *rule, struct proxy *px, char **err)
 	if (px->cap & PR_CAP_BE)
 		where |= (rule->from == ACT_F_HTTP_REQ ? SMP_VAL_BE_HRQ_HDR : SMP_VAL_BE_HRS_HDR);
 
-	if (rule->arg.act.p[1]) {
+	if ((rule->action & BWLIM_ACT_LIMIT_EXPR) && rule->arg.act.p[1]) {
 		struct sample_expr *expr = rule->arg.act.p[1];
 
 		if (!(expr->fetch->val & where)) {
@@ -465,7 +475,7 @@ int check_bwlim_action(struct act_rule *rule, struct proxy *px, char **err)
 		}
 	}
 
-	if (rule->arg.act.p[2]) {
+	if ((rule->action & BWLIM_ACT_PERIOD_EXPR) && rule->arg.act.p[2]) {
 		struct sample_expr *expr = rule->arg.act.p[2];
 
 		if (!(expr->fetch->val & where)) {
@@ -512,11 +522,11 @@ int check_bwlim_action(struct act_rule *rule, struct proxy *px, char **err)
 static void release_bwlim_action(struct act_rule *rule)
 {
 	ha_free(&rule->arg.act.p[0]);
-	if (rule->arg.act.p[1]) {
+	if ((rule->action & BWLIM_ACT_LIMIT_EXPR) && rule->arg.act.p[1]) {
 		release_sample_expr(rule->arg.act.p[1]);
 		rule->arg.act.p[1] = NULL;
 	}
-	if (rule->arg.act.p[2]) {
+	if ((rule->action & BWLIM_ACT_PERIOD_EXPR) && rule->arg.act.p[2]) {
 		release_sample_expr(rule->arg.act.p[2]);
 		rule->arg.act.p[2] = NULL;
 	}
@@ -556,27 +566,55 @@ static enum act_parse_ret parse_bandwidth_limit(const char **args, int *orig_arg
 
 	while (1) {
 		if (strcmp(args[cur_arg], "limit") == 0) {
+			const char *res;
+			unsigned int limit;
+
 			cur_arg++;
 			if (!args[cur_arg]) {
-				memprintf(err, "missing limit expression");
+				memprintf(err, "missing limit value or expression");
 				goto error;
 			}
 
-			expr = sample_parse_expr((char **)args, &cur_arg, px->conf.args.file, px->conf.args.line, err, &px->conf.args, NULL);
-			if (!expr)
+			res = parse_size_err(args[cur_arg], &limit);
+			if (!res) {
+				rule->action |= BWLIM_ACT_LIMIT_CONST;
+				rule->arg.act.p[1] = (void *)(uintptr_t)limit;
+				cur_arg++;
+				continue;
+			}
+
+			expr = sample_parse_expr((char **)args, &cur_arg, px->conf.args.file, px->conf.args.line, NULL, &px->conf.args, NULL);
+			if (!expr) {
+				memprintf(err, "'%s': invalid size value or unknown fetch method '%s'", args[cur_arg-1], args[cur_arg]);
 				goto error;
+			}
+			rule->action |= BWLIM_ACT_LIMIT_EXPR;
 			rule->arg.act.p[1] = expr;
 		}
 		else if (strcmp(args[cur_arg], "period") == 0) {
+			const char *res;
+			unsigned int period;
+
 			cur_arg++;
 			if (!args[cur_arg]) {
-				memprintf(err, "missing period expression");
+				memprintf(err, "missing period value or expression");
 				goto error;
 			}
 
-			expr = sample_parse_expr((char **)args, &cur_arg, px->conf.args.file, px->conf.args.line, err, &px->conf.args, NULL);
-			if (!expr)
+			res = parse_time_err(args[cur_arg], &period, TIME_UNIT_MS);
+			if (!res) {
+				rule->action |= BWLIM_ACT_PERIOD_CONST;
+				rule->arg.act.p[2] = (void *)(uintptr_t)period;
+				cur_arg++;
+				continue;
+			}
+
+			expr = sample_parse_expr((char **)args, &cur_arg, px->conf.args.file, px->conf.args.line, NULL, &px->conf.args, NULL);
+			if (!expr) {
+				memprintf(err, "'%s': invalid time value or unknown fetch method '%s'", args[cur_arg-1], args[cur_arg]);
 				goto error;
+			}
+			rule->action |= BWLIM_ACT_PERIOD_EXPR;
 			rule->arg.act.p[2] = expr;
 		}
 		else

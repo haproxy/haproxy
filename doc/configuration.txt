@@ -6592,7 +6592,7 @@ http-request <action> [options...] [ { if | unless } <condition> ]
     - sc-inc-gpc1(<sc-id>)
     - sc-set-gpt(<idx>,<sc-id>) { <int> | <expr> }
     - sc-set-gpt0(<sc-id>) { <int> | <expr> }
-    - set-bandwidth-limit <name> [limit <expr>] [period <expr>]
+    - set-bandwidth-limit <name> [limit {<expr> | <size>}] [period {<expr> | <time>}]
     - set-dst <expr>
     - set-dst-port <expr>
     - set-header <name> <fmt>
@@ -7287,7 +7287,8 @@ http-request send-spoe-group <engine-name> <group-name>
     <group-name>   The SPOE group name as specified in the engine
                    configuration.
 
-http-request set-bandwidth-limit <name> [limit <expr>] [period <expr>] [ { if | unless } <condition> ]
+http-request set-bandwidth-limit <name> [limit { <expr> | <size> }]
+                 [period { <expr> | <time> }] [ { if | unless } <condition> ]
 
   This action is used to enable the bandwidth limitation filter <name>, either
   on the upload or download direction depending on the filter type. Custom
@@ -7307,6 +7308,12 @@ http-request set-bandwidth-limit <name> [limit <expr>] [period <expr>] [ { if | 
             by some converters. The result is converted to an integer. It is
             interpreted as a size in bytes for the "limit" parameter and as a
             duration in milliseconds for the "period" parameter.
+
+    <size>  Is a number. It follows the HAProxy size format and is expressed in
+            bytes.
+
+    <time>  Is a number. It follows the HAProxy time format and is expressed in
+            milliseconds.
 
   Example:
     http-request set-bandwidth-limit global-limit
@@ -7791,7 +7798,7 @@ http-response <action> <options...> [ { if | unless } <condition> ]
     - sc-set-gpt(<idx>,<sc-id>) { <int> | <expr> }
     - sc-set-gpt0(<sc-id>) { <int> | <expr> }
     - send-spoe-group <engine-name> <group-name>
-    - set-bandwidth-limit <name> [limit <expr>] [period <expr>]
+    - set-bandwidth-limit <name> [limit {<expr> | <size>}] [period {<expr> | <time>}]
     - set-header <name> <fmt>
     - set-log-level <level>
     - set-map(<file-name>) <key fmt> <value fmt>
@@ -7987,7 +7994,8 @@ http-response send-spoe-group <engine-name> <group-name>
   This action is used to trigger sending of a group of SPOE messages. Please
   refer to "http-request send-spoe-group" for a complete description.
 
-http-response set-bandwidth-limit <name> [limit <expr>] [period <expr>] [ { if | unless } <condition> ]
+http-response set-bandwidth-limit <name> [limit { <expr> | <size> }]
+                 [period { <expr> | <time> }] [ { if | unless } <condition> ]
 
   This action is used to enable the bandwidth limitation filter <name>, either
   on the upload or download direction depending on the filter type. Please
@@ -12939,7 +12947,7 @@ tcp-request content <action> [{if | unless} <condition>]
     - sc-set-gpt(<idx>,<sc-id>) { <int> | <expr> }
     - sc-set-gpt0(<sc-id>) { <int> | <expr> }
     - send-spoe-group <engine-name> <group-name>
-    - set-bandwidth-limit <name> [limit <expr>] [period <expr>]
+    - set-bandwidth-limit <name> [limit {<expr> | <size>}] [period {<expr> | <time>}]
     - set-dst <expr>
     - set-dst-port <expr>
     - set-log-level <level>
@@ -13133,8 +13141,8 @@ tcp-request content send-spoe-group <engine-name> <group-name>
   Thaction is is used to trigger sending of a group of SPOE messages. Please
   refer to "http-request send-spoe-group" for a complete description.
 
-tcp-request content set-bandwidth-limit <name> [limit <expr>] [period <expr>]
-                    [ { if | unless } <condition> ]
+tcp-request content set-bandwidth-limit <name> [limit { <expr> | <size> }]
+                 [period { <expr> | <time> }] [ { if | unless } <condition> ]
 
   This action is used to enable the bandwidth limitation filter <name>, either
   on the upload or download direction depending on the filter type. Please
@@ -13507,7 +13515,7 @@ tcp-response content <action> [{if | unless} <condition>]
     - sc-set-gpt(<idx>,<sc-id>) { <int> | <expr> }
     - sc-set-gpt0(<sc-id>) { <int> | <expr> }
     - send-spoe-group <engine-name> <group-name>
-    - set-bandwidth-limit <name> [limit <expr>] [period <expr>]
+    - set-bandwidth-limit <name> [limit {<expr> | <size>}] [period {<expr> | <time>}]
     - set-log-level <level>
     - set-mark <mark>
     - set-nice <nice>
@@ -13586,8 +13594,8 @@ tcp-response content send-spoe-group <engine-name> <group-name>
   refer to "http-request send-spoe-group" for a complete description.
 
 
-tcp-response content set-bandwidth-limit <name> [limit <expr>] [period <expr>]
-                     [ { if | unless } <condition> ]
+tcp-response content set-bandwidth-limit <name> [limit { <expr> | <size> }]
+                 [period { <expr> | <time> }] [ { if | unless } <condition> ]
 
   This action is used to enable the bandwidth limitation filter <name>, either
   on the upload or download direction depending on the filter type. Please
