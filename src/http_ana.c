@@ -5249,6 +5249,53 @@ void http_destroy_txn(struct stream *s)
 }
 
 
+void http_set_term_flags(struct stream *s)
+{
+	if (!(s->flags & SF_ERR_MASK))
+		s->flags |= SF_ERR_PRXCOND;
+
+	if (!(s->flags & SF_FINST_MASK)) {
+		if (s->scb->state == SC_ST_INI) {
+			/* Before any connection attempt on the server side, we
+			 * are still in the request analysis. Just take case to
+			 * detect tarpit error
+			 */
+			if (s->req.analysers & AN_REQ_HTTP_TARPIT)
+				s->flags |= SF_FINST_T;
+			else
+				s->flags |= SF_FINST_R;
+		}
+		else if (s->scb->state == SC_ST_QUE)
+			s->flags |= SF_FINST_Q;
+		else if (sc_state_in(s->scb->state, SC_SB_REQ|SC_SB_TAR|SC_SB_ASS|SC_SB_CON|SC_SB_CER|SC_SB_RDY)) {
+			if (unlikely(objt_applet(s->target))) {
+				s->flags |= SF_FINST_R;
+			}
+			else
+				s->flags |= SF_FINST_C;
+		}
+		else {
+			if (s->txn->rsp.msg_state < HTTP_MSG_DATA) {
+				/* We are still processing the response headers */
+				s->flags |= SF_FINST_H;
+			}
+			// (res >= done) & (res->flags & shutw)
+			else if (s->txn->rsp.msg_state >= HTTP_MSG_DONE &&
+				 (s->flags & (SF_ERR_CLITO|SF_ERR_CLICL))) {
+				/* A client error was reported and we are
+				 * transmitting the last block of data
+				 */
+				s->flags |= SF_FINST_L;
+			}
+			else {
+				/* Otherwise we are in DATA phase on both sides */
+				s->flags |= SF_FINST_D;
+			}
+		}
+	}
+}
+
+
 DECLARE_POOL(pool_head_http_txn, "http_txn", sizeof(struct http_txn));
 
 /*

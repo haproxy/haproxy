@@ -62,6 +62,8 @@ int http_forward_proxy_resp(struct stream *s, int final);
 struct http_txn *http_create_txn(struct stream *s);
 void http_destroy_txn(struct stream *s);
 
+void http_set_term_flags(struct stream *s);
+
 /* for debugging, reports the HTTP/1 message state name (legacy version) */
 static inline const char *h1_msg_state_str(enum h1_state msg_state)
 {
