@@ -332,11 +332,7 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 
  return_prx_cond:
 	http_reply_and_close(s, txn->status, http_error_message(s));
-
-	if (!(s->flags & SF_ERR_MASK))
-		s->flags |= SF_ERR_PRXCOND;
-	if (!(s->flags & SF_FINST_MASK))
-		s->flags |= SF_FINST_R;
+	http_set_term_flags(s);
 
 	DBG_TRACE_DEVEL("leaving on error",
 			STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_HTTP_ERR, s, txn);
@@ -465,8 +461,7 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 
 		if (!(s->flags & SF_ERR_MASK))      // this is not really an error but it is
 			s->flags |= SF_ERR_LOCAL;   // to mark that it comes from the proxy
-		if (!(s->flags & SF_FINST_MASK))
-			s->flags |= SF_FINST_R;
+		http_set_term_flags(s);
 
 		if (HAS_FILTERS(s))
 			req->analysers |= AN_REQ_FLT_HTTP_HDRS;
@@ -599,10 +594,7 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 	/* fall through */
 
  return_prx_cond:
-	if (!(s->flags & SF_ERR_MASK))
-		s->flags |= SF_ERR_PRXCOND;
-	if (!(s->flags & SF_FINST_MASK))
-		s->flags |= SF_FINST_R;
+	http_set_term_flags(s);
 
 	req->analysers &= AN_REQ_FLT_END;
 	req->analyse_exp = TICK_ETERNITY;
@@ -839,11 +831,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 		_HA_ATOMIC_INC(&sess->listener->counters->internal_errors);
 
 	http_reply_and_close(s, txn->status, http_error_message(s));
-
-	if (!(s->flags & SF_ERR_MASK))
-		s->flags |= SF_ERR_PRXCOND;
-	if (!(s->flags & SF_FINST_MASK))
-		s->flags |= SF_FINST_R;
+	http_set_term_flags(s);
 
 	DBG_TRACE_DEVEL("leaving on error",
 			STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_HTTP_ERR, s, txn);
@@ -884,11 +872,7 @@ int http_process_tarpit(struct stream *s, struct channel *req, int an_bit)
 	s->logs.t_queue = tv_ms_elapsed(&s->logs.tv_accept, &now);
 
 	http_reply_and_close(s, txn->status, (!(req->flags & CF_READ_ERROR) ? http_error_message(s) : NULL));
-
-	if (!(s->flags & SF_ERR_MASK))
-		s->flags |= SF_ERR_PRXCOND;
-	if (!(s->flags & SF_FINST_MASK))
-		s->flags |= SF_FINST_T;
+	http_set_term_flags(s);
 
 	DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
 	return 0;
@@ -1392,8 +1376,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 
 			if (!(s->flags & SF_ERR_MASK))
 				s->flags |= SF_ERR_SRVCL;
-			if (!(s->flags & SF_FINST_MASK))
-				s->flags |= SF_FINST_H;
+			http_set_term_flags(s);
 			DBG_TRACE_DEVEL("leaving on error",
 					STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_HTTP_ERR, s, txn);
 			return 0;
@@ -1422,8 +1405,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 
 			if (!(s->flags & SF_ERR_MASK))
 				s->flags |= SF_ERR_SRVTO;
-			if (!(s->flags & SF_FINST_MASK))
-				s->flags |= SF_FINST_H;
+			http_set_term_flags(s);
 			DBG_TRACE_DEVEL("leaving on error",
 					STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_HTTP_ERR, s, txn);
 			return 0;
@@ -1443,8 +1425,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 
 			if (!(s->flags & SF_ERR_MASK))
 				s->flags |= SF_ERR_CLICL;
-			if (!(s->flags & SF_FINST_MASK))
-				s->flags |= SF_FINST_H;
+			http_set_term_flags(s);
 
 			/* process_stream() will take care of the error */
 			DBG_TRACE_DEVEL("leaving on error",
@@ -1479,8 +1460,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 
 			if (!(s->flags & SF_ERR_MASK))
 				s->flags |= SF_ERR_SRVCL;
-			if (!(s->flags & SF_FINST_MASK))
-				s->flags |= SF_FINST_H;
+			http_set_term_flags(s);
 			DBG_TRACE_DEVEL("leaving on error",
 					STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_HTTP_ERR, s, txn);
 			return 0;
@@ -1498,8 +1478,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 
 			if (!(s->flags & SF_ERR_MASK))
 				s->flags |= SF_ERR_CLICL;
-			if (!(s->flags & SF_FINST_MASK))
-				s->flags |= SF_FINST_H;
+			http_set_term_flags(s);
 
 			/* process_stream() will take care of the error */
 			DBG_TRACE_DEVEL("leaving on error",
@@ -1763,11 +1742,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 
  return_prx_cond:
 	http_reply_and_close(s, txn->status, http_error_message(s));
-
-	if (!(s->flags & SF_ERR_MASK))
-		s->flags |= SF_ERR_PRXCOND;
-	if (!(s->flags & SF_FINST_MASK))
-		s->flags |= SF_FINST_H;
+	http_set_term_flags(s);
 
 	s->scb->flags |= SC_FL_NOLINGER;
 	DBG_TRACE_DEVEL("leaving on error",
@@ -2092,10 +2067,7 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 	s->logs.t_data = -1; /* was not a valid response */
 	s->scb->flags |= SC_FL_NOLINGER;
 
-	if (!(s->flags & SF_ERR_MASK))
-		s->flags |= SF_ERR_PRXCOND;
-	if (!(s->flags & SF_FINST_MASK))
-		s->flags |= SF_FINST_H;
+	http_set_term_flags(s);
 
 	rep->analysers &= AN_RES_FLT_END;
 	s->req.analysers &= AN_REQ_FLT_END;
@@ -2612,8 +2584,7 @@ int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s, struc
 
 	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= SF_ERR_LOCAL;
-	if (!(s->flags & SF_FINST_MASK))
-		s->flags |= ((rule->flags & REDIRECT_FLAG_FROM_REQ) ? SF_FINST_R : SF_FINST_H);
+	http_set_term_flags(s);
 
   out:
 	free_trash_chunk(chunk);
