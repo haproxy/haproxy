@@ -450,10 +450,26 @@ int check_bwlim_action(struct act_rule *rule, struct proxy *px, char **err)
 	}
 
 	where = 0;
-	if (px->cap & PR_CAP_FE)
-		where |= (rule->from == ACT_F_HTTP_REQ ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_FE_HRS_HDR);
-	if (px->cap & PR_CAP_BE)
-		where |= (rule->from == ACT_F_HTTP_REQ ? SMP_VAL_BE_HRQ_HDR : SMP_VAL_BE_HRS_HDR);
+	if (px->cap & PR_CAP_FE) {
+		if (rule->from == ACT_F_TCP_REQ_CNT)
+			where |= SMP_VAL_FE_REQ_CNT;
+		else if (rule->from == ACT_F_HTTP_REQ)
+			where |= SMP_VAL_FE_HRQ_HDR;
+		else if (rule->from == ACT_F_TCP_RES_CNT)
+			where |= SMP_VAL_FE_RES_CNT;
+		else if (rule->from == ACT_F_HTTP_RES)
+			where |= SMP_VAL_FE_HRS_HDR;
+	}
+	if (px->cap & PR_CAP_BE) {
+		if (rule->from == ACT_F_TCP_REQ_CNT)
+			where |= SMP_VAL_BE_REQ_CNT;
+		else if (rule->from == ACT_F_HTTP_REQ)
+			where |= SMP_VAL_BE_HRQ_HDR;
+		else if (rule->from == ACT_F_TCP_RES_CNT)
+			where |= SMP_VAL_BE_RES_CNT;
+		else if (rule->from == ACT_F_HTTP_RES)
+			where |= SMP_VAL_BE_HRS_HDR;
+	}
 
 	if ((rule->action & BWLIM_ACT_LIMIT_EXPR) && rule->arg.act.p[1]) {
 		struct sample_expr *expr = rule->arg.act.p[1];
@@ -470,6 +486,15 @@ int check_bwlim_action(struct act_rule *rule, struct proxy *px, char **err)
 					   " contents without any 'tcp-request inspect-delay' setting."
 					   " This means that this rule will randomly find its contents. This can be fixed by"
 					   " setting the tcp-request inspect-delay.\n",
+					   proxy_type_str(px), px->id);
+			}
+		}
+		if (rule->from == ACT_F_TCP_RES_CNT && (px->cap & PR_CAP_BE)) {
+			if (!px->tcp_rep.inspect_delay && !(expr->fetch->val & SMP_VAL_BE_SRV_CON)) {
+				ha_warning("%s '%s' : a 'tcp-response content set-bandwidth-limit*' rule explicitly depending on response"
+					   " contents without any 'tcp-response inspect-delay' setting."
+					   " This means that this rule will randomly find its contents. This can be fixed by"
+					   " setting the tcp-response inspect-delay.\n",
 					   proxy_type_str(px), px->id);
 			}
 		}
@@ -491,6 +516,15 @@ int check_bwlim_action(struct act_rule *rule, struct proxy *px, char **err)
 					   " This means that this rule will randomly find its contents. This can be fixed by"
 					   " setting the tcp-request inspect-delay.\n",
 					   proxy_type_str(px), px->id);
+                       }
+		}
+		if (rule->from == ACT_F_TCP_RES_CNT && (px->cap & PR_CAP_BE)) {
+			if (!px->tcp_rep.inspect_delay && !(expr->fetch->val & SMP_VAL_BE_SRV_CON)) {
+				ha_warning("%s '%s' : a 'tcp-response content set-bandwidth-limit*' rule explicitly depending on response"
+					   " contents without any 'tcp-response inspect-delay' setting."
+					   " This means that this rule will randomly find its contents. This can be fixed by"
+					   " setting the tcp-response inspect-delay.\n",
+					   proxy_type_str(px), px->id);
 			}
 		}
 	}
@@ -508,6 +542,15 @@ int check_bwlim_action(struct act_rule *rule, struct proxy *px, char **err)
 					   " contents without any 'tcp-request inspect-delay' setting."
 					   " This means that this rule will randomly find its contents. This can be fixed by"
 					   " setting the tcp-request inspect-delay.\n",
+					   proxy_type_str(px), px->id);
+			}
+		}
+		if (rule->from == ACT_F_TCP_RES_CNT && (px->cap & PR_CAP_BE)) {
+			if (!px->tcp_rep.inspect_delay && !(conf->expr->fetch->val & SMP_VAL_BE_SRV_CON)) {
+				ha_warning("%s '%s' : a 'tcp-response content set-bandwidth-limit*' rule explicitly depending on response"
+					   " contents without any 'tcp-response inspect-delay' setting."
+					   " This means that this rule will randomly find its contents. This can be fixed by"
+					   " setting the tcp-response inspect-delay.\n",
 					   proxy_type_str(px), px->id);
 			}
 		}
