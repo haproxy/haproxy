@@ -70,10 +70,10 @@ extern struct pool_head *pool_head_quic_tls_key;
 	"\xbe\x0c\x69\x0b\x9f\x66\x57\x5a\x1d\x76\x6b\x54\xe3\x68\xc8\x4e"
 #define QUIC_TLS_RETRY_NONCE_V1 \
 	"\x46\x15\x99\xd3\x5d\x63\x2b\xf2\x23\x98\x25\xbb"
-#define QUIC_TLS_RETRY_KEY_V2_DRAFT \
-	"\xba\x85\x8d\xc7\xb4\x3d\xe5\xdb\xf8\x76\x17\xff\x4a\xb2\x53\xdb"
-#define QUIC_TLS_RETRY_NONCE_V2_DRAFT \
-	"\x14\x1b\x99\xc2\x39\xb0\x3e\x78\x5d\x6a\x2e\x9f"
+#define QUIC_TLS_RETRY_KEY_V2 \
+	"\x8f\xb4\xb0\x1b\x56\xac\x48\xe2\x60\xfb\xcb\xce\xad\x7c\xcc\x92"
+#define QUIC_TLS_RETRY_NONCE_V2 \
+	"\xd8\x69\x69\xbc\x2d\x7c\x6d\x99\x90\xef\xb0\x4a"
 
 /* QUIC handshake states for both clients and servers. */
 enum quic_handshake_state {
@@ -114,7 +114,7 @@ enum quic_tls_pktns {
 extern unsigned char initial_salt[20];
 extern const unsigned char initial_salt_draft_29[20];
 extern const unsigned char initial_salt_v1[20];
-extern const unsigned char initial_salt_v2_draft[20];
+extern const unsigned char initial_salt_v2[20];
 
 /* Key phase used for Key Update */
 struct quic_tls_kp {

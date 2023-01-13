@@ -47,7 +47,7 @@ typedef unsigned long long ull;
 
 #define QUIC_PROTOCOL_VERSION_DRAFT_29   0xff00001d /* draft-29 */
 #define QUIC_PROTOCOL_VERSION_1          0x00000001 /* V1 */
-#define QUIC_PROTOCOL_VERSION_2_DRAFT    0x709a50c4 /* V2 draft */
+#define QUIC_PROTOCOL_VERSION_2          0x6b3343cf /* V2 */
 
 #define QUIC_INITIAL_IPV4_MTU      1252 /* (bytes) */
 #define QUIC_INITIAL_IPV6_MTU      1232

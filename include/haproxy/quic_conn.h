@@ -55,7 +55,7 @@ int ssl_quic_initial_ctx(struct bind_conf *bind_conf);
 /* Return the long packet type matching with <qv> version and <type> */
 static inline int quic_pkt_type(int type, uint32_t version)
 {
-	if (version != QUIC_PROTOCOL_VERSION_2_DRAFT)
+	if (version != QUIC_PROTOCOL_VERSION_2)
 		return type;
 
 	switch (type) {

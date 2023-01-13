@@ -93,9 +93,9 @@ const struct quic_version quic_versions[] = {
 		.retry_tag_nonce  = (const unsigned char *)QUIC_TLS_RETRY_NONCE_V1,
 	},
 	{
-		.num              = QUIC_PROTOCOL_VERSION_2_DRAFT,
-		.initial_salt     = initial_salt_v2_draft,
-		.initial_salt_len = sizeof initial_salt_v2_draft,
+		.num              = QUIC_PROTOCOL_VERSION_2,
+		.initial_salt     = initial_salt_v2,
+		.initial_salt_len = sizeof initial_salt_v2,
 		.key_label        = (const unsigned char *)QUIC_HKDF_KEY_LABEL_V2,
 		.key_label_len    = sizeof(QUIC_HKDF_KEY_LABEL_V2) - 1,
 		.iv_label         = (const unsigned char *)QUIC_HKDF_IV_LABEL_V2,
@@ -104,8 +104,8 @@ const struct quic_version quic_versions[] = {
 		.hp_label_len     = sizeof(QUIC_HKDF_HP_LABEL_V2) - 1,
 		.ku_label         = (const unsigned char *)QUIC_HKDF_KU_LABEL_V2,
 		.ku_label_len     = sizeof(QUIC_HKDF_KU_LABEL_V2) - 1,
-		.retry_tag_key    = (const unsigned char *)QUIC_TLS_RETRY_KEY_V2_DRAFT,
-		.retry_tag_nonce  = (const unsigned char *)QUIC_TLS_RETRY_NONCE_V2_DRAFT,
+		.retry_tag_key    = (const unsigned char *)QUIC_TLS_RETRY_KEY_V2,
+		.retry_tag_nonce  = (const unsigned char *)QUIC_TLS_RETRY_NONCE_V2,
 	},
 };
 
@@ -5341,7 +5341,7 @@ static inline int qc_parse_hd_form(struct quic_rx_packet *pkt,
 			goto out;
 		}
 
-		if (*version != QUIC_PROTOCOL_VERSION_2_DRAFT) {
+		if (*version != QUIC_PROTOCOL_VERSION_2) {
 			pkt->type = type;
 		}
 		else {
