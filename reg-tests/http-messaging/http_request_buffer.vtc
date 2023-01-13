@@ -36,7 +36,7 @@ syslog S -level info {
 	barrier b1 sync
 
 	recv
-	expect ~ "[^:\\[ ]*\\[[0-9]*\\]: .* .* fe2 be1/<NOSRV> [0-9]*/-1/-1/-1/[0-9]* -1 .* - - CR-- .* .* \"POST /2 HTTP/1\\.1\""
+	expect ~ "[^:\\[ ]*\\[[0-9]*\\]: .* .* fe2 be1/<NOSRV> [0-9]*/-1/-1/-1/[0-9]* 400 .* - - CR-- .* .* \"POST /2 HTTP/1\\.1\""
 } -start
 
 haproxy h1 -conf {

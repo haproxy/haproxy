@@ -984,35 +984,6 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 	if (htx->flags & HTX_FL_PROCESSING_ERROR)
 		goto return_int_err;
 
-	if ((req->flags & (CF_READ_ERROR|CF_READ_TIMEOUT|CF_WRITE_ERROR|CF_WRITE_TIMEOUT)) ||
-	    ((req->flags & CF_SHUTW) && (req->to_forward || co_data(req)))) {
-		/* Output closed while we were sending data. We must abort and
-		 * wake the other side up.
-		 *
-		 * If we have finished to send the request and the response is
-		 * still in progress, don't catch write error on the request
-		 * side if it is in fact a read error on the server side.
-		 */
-		if (msg->msg_state == HTTP_MSG_DONE && (s->res.flags & CF_READ_ERROR) && s->res.analysers)
-			return 0;
-
-		/* Don't abort yet if we had L7 retries activated and it
-		 * was a write error, we may recover.
-		 */
-		if (!(req->flags & (CF_READ_ERROR | CF_READ_TIMEOUT)) &&
-		    (txn->flags & TX_L7_RETRY)) {
-			DBG_TRACE_DEVEL("leaving on L7 retry",
-					STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_HTTP_ERR, s, txn);
-			return 0;
-		}
-		msg->msg_state = HTTP_MSG_ERROR;
-		http_end_request(s);
-		http_end_response(s);
-		DBG_TRACE_DEVEL("leaving on error",
-				STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_HTTP_ERR, s, txn);
-		return 1;
-	}
-
 	/* Note that we don't have to send 100-continue back because we don't
 	 * need the data to complete our job, and it's up to the server to
 	 * decide whether to return 100, 417 or anything else in return of
@@ -1100,17 +1071,14 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 	if (!(txn->flags & TX_CON_WANT_TUN))
 		channel_dont_close(req);
 
+	if ((req->flags & CF_SHUTW) && co_data(req)) {
+		/* request errors are most likely due to the server aborting the
+		 * transfer. */
+		goto return_srv_abort;
+	}
+
 	http_end_request(s);
 	if (!(req->analysers & an_bit)) {
-		http_end_response(s);
-		if (unlikely(msg->msg_state == HTTP_MSG_ERROR)) {
-			if (req->flags & CF_SHUTW) {
-				/* request errors are most likely due to the
-				 * server aborting the transfer. */
-				goto return_srv_abort;
-			}
-			goto return_bad_req;
-		}
 		DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
 		return 1;
 	}
@@ -1180,7 +1148,7 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 	if (objt_server(s->target))
 		_HA_ATOMIC_INC(&__objt_server(s->target)->counters.cli_aborts);
 	if (!(s->flags & SF_ERR_MASK))
-		s->flags |= SF_ERR_CLICL;
+		s->flags |= ((req->flags & CF_READ_TIMEOUT) ? SF_ERR_CLITO : SF_ERR_CLICL);
 	status = 400;
 	goto return_prx_cond;
 
@@ -1192,7 +1160,7 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 	if (objt_server(s->target))
 		_HA_ATOMIC_INC(&__objt_server(s->target)->counters.srv_aborts);
 	if (!(s->flags & SF_ERR_MASK))
-		s->flags |= SF_ERR_SRVCL;
+		s->flags |= ((req->flags & CF_WRITE_TIMEOUT) ? SF_ERR_SRVTO : SF_ERR_SRVCL);
 	status = 502;
 	goto return_prx_cond;
 
@@ -1223,10 +1191,7 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 		txn->status = status;
 		http_reply_and_close(s, txn->status, http_error_message(s));
 	}
-	if (!(s->flags & SF_ERR_MASK))
-		s->flags |= SF_ERR_PRXCOND;
-	if (!(s->flags & SF_FINST_MASK))
-		s->flags |= ((txn->rsp.msg_state < HTTP_MSG_ERROR) ? SF_FINST_H : SF_FINST_D);
+	http_set_term_flags(s);
 	DBG_TRACE_DEVEL("leaving on error ",
 			STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_HTTP_ERR, s, txn);
 	return 0;
@@ -2126,19 +2091,6 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 	if (htx->flags & HTX_FL_PROCESSING_ERROR)
 		goto return_int_err;
 
-	if ((res->flags & (CF_READ_ERROR|CF_READ_TIMEOUT|CF_WRITE_ERROR|CF_WRITE_TIMEOUT)) ||
-	    ((res->flags & CF_SHUTW) && (res->to_forward || co_data(res)))) {
-		/* Output closed while we were sending data. We must abort and
-		 * wake the other side up.
-		 */
-		msg->msg_state = HTTP_MSG_ERROR;
-		http_end_response(s);
-		http_end_request(s);
-		DBG_TRACE_DEVEL("leaving on error",
-				STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_HTTP_ERR, s, txn);
-		return 1;
-	}
-
 	if (msg->msg_state == HTTP_MSG_BODY)
 		msg->msg_state = HTTP_MSG_DATA;
 
@@ -2229,17 +2181,14 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 
 	channel_dont_close(res);
 
+	if ((res->flags & CF_SHUTW) && co_data(res)) {
+		/* response errors are most likely due to the client aborting
+		 * the transfer. */
+		goto return_cli_abort;
+	}
+
 	http_end_response(s);
 	if (!(res->analysers & an_bit)) {
-		http_end_request(s);
-		if (unlikely(msg->msg_state == HTTP_MSG_ERROR)) {
-			if (res->flags & CF_SHUTW) {
-				/* response errors are most likely due to the
-				 * client aborting the transfer. */
-				goto return_cli_abort;
-			}
-			goto return_bad_res;
-		}
 		DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
 		return 1;
 	}
@@ -2298,7 +2247,7 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 		_HA_ATOMIC_INC(&__objt_server(s->target)->counters.srv_aborts);
 	stream_inc_http_fail_ctr(s);
 	if (!(s->flags & SF_ERR_MASK))
-		s->flags |= SF_ERR_SRVCL;
+		s->flags |= ((res->flags & CF_READ_TIMEOUT) ? SF_ERR_SRVTO : SF_ERR_SRVCL);
 	goto return_error;
 
   return_cli_abort:
@@ -2309,7 +2258,7 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 	if (objt_server(s->target))
 		_HA_ATOMIC_INC(&__objt_server(s->target)->counters.cli_aborts);
 	if (!(s->flags & SF_ERR_MASK))
-		s->flags |= SF_ERR_CLICL;
+		s->flags |= ((res->flags & CF_WRITE_TIMEOUT) ? SF_ERR_CLITO : SF_ERR_CLICL);
 	goto return_error;
 
   return_int_err:
@@ -2337,8 +2286,8 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
    return_error:
 	/* don't send any error message as we're in the body */
 	http_reply_and_close(s, txn->status, NULL);
-	if (!(s->flags & SF_FINST_MASK))
-		s->flags |= SF_FINST_D;
+	http_set_term_flags(s);
+	stream_inc_http_fail_ctr(s);
 	DBG_TRACE_DEVEL("leaving on error",
 			STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_HTTP_ERR, s, txn);
 	return 0;
@@ -4336,13 +4285,6 @@ static void http_end_request(struct stream *s)
 
 	DBG_TRACE_ENTER(STRM_EV_HTTP_ANA, s, txn);
 
-	if (unlikely(txn->req.msg_state == HTTP_MSG_ERROR ||
-		     txn->rsp.msg_state == HTTP_MSG_ERROR)) {
-		channel_abort(chn);
-		channel_htx_truncate(chn, htxbuf(&chn->buf));
-		goto end;
-	}
-
 	if (unlikely(txn->req.msg_state < HTTP_MSG_DONE)) {
 		DBG_TRACE_DEVEL("waiting end of the request", STRM_EV_HTTP_ANA, s, txn);
 		return;
@@ -4422,10 +4364,6 @@ static void http_end_request(struct stream *s)
 			txn->req.msg_state = HTTP_MSG_CLOSED;
 			goto http_msg_closed;
 		}
-		else if (chn->flags & CF_SHUTW) {
-			txn->req.msg_state = HTTP_MSG_ERROR;
-			goto end;
-		}
 		DBG_TRACE_LEAVE(STRM_EV_HTTP_ANA, s, txn);
 		return;
 	}
@@ -4471,13 +4409,6 @@ static void http_end_response(struct stream *s)
 	struct http_txn *txn = s->txn;
 
 	DBG_TRACE_ENTER(STRM_EV_HTTP_ANA, s, txn);
-
-	if (unlikely(txn->req.msg_state == HTTP_MSG_ERROR ||
-		     txn->rsp.msg_state == HTTP_MSG_ERROR)) {
-		channel_htx_truncate(&s->req, htxbuf(&s->req.buf));
-		channel_abort(&s->req);
-		goto end;
-	}
 
 	if (unlikely(txn->rsp.msg_state < HTTP_MSG_DONE)) {
 		DBG_TRACE_DEVEL("waiting end of the response", STRM_EV_HTTP_ANA, s, txn);
@@ -4531,16 +4462,6 @@ static void http_end_response(struct stream *s)
 		if (channel_is_empty(chn)) {
 			txn->rsp.msg_state = HTTP_MSG_CLOSED;
 			goto http_msg_closed;
-		}
-		else if (chn->flags & CF_SHUTW) {
-			txn->rsp.msg_state = HTTP_MSG_ERROR;
-			_HA_ATOMIC_INC(&strm_sess(s)->fe->fe_counters.cli_aborts);
-			_HA_ATOMIC_INC(&s->be->be_counters.cli_aborts);
-			if (strm_sess(s)->listener && strm_sess(s)->listener->counters)
-				_HA_ATOMIC_INC(&strm_sess(s)->listener->counters->cli_aborts);
-			if (objt_server(s->target))
-				_HA_ATOMIC_INC(&__objt_server(s->target)->counters.cli_aborts);
-			goto end;
 		}
 		DBG_TRACE_LEAVE(STRM_EV_HTTP_ANA, s, txn);
 		return;
