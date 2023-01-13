@@ -695,6 +695,133 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 	return len;
 }
 
+/* Parse from buffer <buf> a H3 HEADERS frame of length <len> used as trailers.
+ * Data are copied in a local HTX buffer and transfer to the stream connector
+ * layer. <fin> must be set if this is the last data to transfer from this
+ * stream.
+ *
+ * Returns the number of consumed bytes or a negative error code. On error
+ * either the connection should be closed or the stream reset using codes
+ * provided in h3c.err / h3s.err.
+ */
+static ssize_t h3_trailers_to_htx(struct qcs *qcs, const struct buffer *buf,
+                                  uint64_t len, char fin)
+{
+	struct h3s *h3s = qcs->ctx;
+	struct h3c *h3c = h3s->h3c;
+	struct buffer htx_buf = BUF_NULL;
+	struct buffer *tmp = get_trash_chunk();
+	struct htx *htx = NULL;
+	struct htx_sl *sl;
+	struct http_hdr list[global.tune.max_http_hdr];
+	int hdr_idx, ret;
+	int i;
+
+	TRACE_ENTER(H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+
+	/* TODO support buffer wrapping */
+	BUG_ON(b_head(buf) + len >= b_wrap(buf));
+	ret = qpack_decode_fs((const unsigned char *)b_head(buf), len, tmp,
+	                    list, sizeof(list) / sizeof(list[0]));
+	if (ret < 0) {
+		TRACE_ERROR("QPACK decoding error", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+		h3c->err = -ret;
+		len = -1;
+		goto out;
+	}
+
+	qc_get_buf(qcs, &htx_buf);
+	BUG_ON(!b_size(&htx_buf)); /* TODO */
+	htx = htx_from_buf(&htx_buf);
+
+	if (!h3s->data_len) {
+		/* Notify that no body is present. This can only happens if
+		 * there is H3 HEADERS as trailers without or empty H3 DATA
+		 * frame. So this is probably not realistice ?
+		 *
+		 * TODO if sl is NULL because already consumed there is no way
+		 * to notify about missing body.
+		 */
+		sl = http_get_stline(htx);
+		if (sl)
+			sl->flags |= HTX_SL_F_BODYLESS;
+		else
+			TRACE_ERROR("cannot notify missing body after trailers", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+	}
+
+	hdr_idx = 0;
+	while (1) {
+		if (isteq(list[hdr_idx].n, ist("")))
+			break;
+
+		/* RFC 9114 4.3. HTTP Control Data
+		 *
+		 * Pseudo-header
+		 * fields MUST NOT appear in trailer sections.
+		 */
+		if (istmatch(list[hdr_idx].n, ist(":"))) {
+			TRACE_ERROR("pseudo-header field in trailers", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+			h3s->err = H3_MESSAGE_ERROR;
+			len = -1;
+			goto out;
+		}
+
+		for (i = 0; i < list[hdr_idx].n.len; ++i) {
+			const char c = list[hdr_idx].n.ptr[i];
+			if ((uint8_t)(c - 'A') < 'Z' - 'A' || !HTTP_IS_TOKEN(c)) {
+				TRACE_ERROR("invalid characters in field name", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+				h3s->err = H3_MESSAGE_ERROR;
+				len = -1;
+				goto out;
+			}
+		}
+
+		/* forbidden HTTP/3 headers, cf h3_headers_to_htx() */
+		if (isteq(list[hdr_idx].n, ist("host")) ||
+		    isteq(list[hdr_idx].n, ist("content-length")) ||
+		    isteq(list[hdr_idx].n, ist("connection")) ||
+		    isteq(list[hdr_idx].n, ist("proxy-connection")) ||
+		    isteq(list[hdr_idx].n, ist("keep-alive")) ||
+		    isteq(list[hdr_idx].n, ist("te")) ||
+		    isteq(list[hdr_idx].n, ist("transfer-encoding"))) {
+			TRACE_ERROR("forbidden HTTP/3 headers", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+			h3s->err = H3_MESSAGE_ERROR;
+			len = -1;
+			goto out;
+		}
+
+		if (!htx_add_trailer(htx, list[hdr_idx].n, list[hdr_idx].v)) {
+			TRACE_ERROR("cannot add trailer", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+			h3c->err = H3_INTERNAL_ERROR;
+			len = -1;
+			goto out;
+		}
+
+		++hdr_idx;
+	}
+
+	if (!htx_add_endof(htx, HTX_BLK_EOT)) {
+		TRACE_ERROR("cannot add trailer", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+		h3c->err = H3_INTERNAL_ERROR;
+		len = -1;
+		goto out;
+	}
+
+	if (fin)
+		htx->flags |= HTX_FL_EOM;
+
+	htx_to_buf(htx, &htx_buf);
+	htx = NULL;
+
+ out:
+	/* HTX may be non NULL if error before previous htx_to_buf(). */
+	if (htx)
+		htx_to_buf(htx, &htx_buf);
+
+	TRACE_LEAVE(H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+	return len;
+}
+
 /* Copy from buffer <buf> a H3 DATA frame of length <len> in QUIC stream <qcs>
  * HTX buffer. <fin> must be set if this is the last data to transfer from this
  * stream.
@@ -950,9 +1077,14 @@ static ssize_t h3_decode_qcs(struct qcs *qcs, struct buffer *b, int fin)
 			h3s->st_req = H3S_ST_REQ_DATA;
 			break;
 		case H3_FT_HEADERS:
-			ret = h3_headers_to_htx(qcs, b, flen, last_stream_frame);
-			h3s->st_req = (h3s->st_req == H3S_ST_REQ_BEFORE) ?
-			                H3S_ST_REQ_HEADERS : H3S_ST_REQ_TRAILERS;
+			if (h3s->st_req == H3S_ST_REQ_BEFORE) {
+				ret = h3_headers_to_htx(qcs, b, flen, last_stream_frame);
+				h3s->st_req = H3S_ST_REQ_HEADERS;
+			}
+			else {
+				ret = h3_trailers_to_htx(qcs, b, flen, last_stream_frame);
+				h3s->st_req = H3S_ST_REQ_TRAILERS;
+			}
 			break;
 		case H3_FT_CANCEL_PUSH:
 		case H3_FT_PUSH_PROMISE:
