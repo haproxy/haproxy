@@ -434,6 +434,11 @@ int check_bwlim_action(struct act_rule *rule, struct proxy *px, char **err)
 		return 0;
 	}
 
+	if ((conf->flags & BWLIM_FL_SHARED) && rule->arg.act.p[2]) {
+		memprintf(err, "set-bandwidth-limit rule cannot define a period for a shared bwlim filter");
+		return 0;
+	}
+
 	where = 0;
 	if (px->cap & PR_CAP_FE)
 		where |= (rule->from == ACT_F_HTTP_REQ ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_FE_HRS_HDR);
@@ -445,6 +450,26 @@ int check_bwlim_action(struct act_rule *rule, struct proxy *px, char **err)
 
 		if (!(expr->fetch->val & where)) {
 			memprintf(err, "set-bandwidth-limit rule uses a limit extracting information from '%s', none of which is available here",
+				  sample_src_names(expr->fetch->use));
+			return 0;
+		}
+
+		if (rule->from == ACT_F_TCP_REQ_CNT && (px->cap & PR_CAP_FE)) {
+			if (!px->tcp_req.inspect_delay && !(expr->fetch->val & SMP_VAL_FE_SES_ACC)) {
+				ha_warning("%s '%s' : a 'tcp-request content set-bandwidth-limit*' rule explicitly depending on request"
+					   " contents without any 'tcp-request inspect-delay' setting."
+					   " This means that this rule will randomly find its contents. This can be fixed by"
+					   " setting the tcp-request inspect-delay.\n",
+					   proxy_type_str(px), px->id);
+			}
+		}
+	}
+
+	if (rule->arg.act.p[2]) {
+		struct sample_expr *expr = rule->arg.act.p[2];
+
+		if (!(expr->fetch->val & where)) {
+			memprintf(err, "set-bandwidth-limit rule uses a period extracting information from '%s', none of which is available here",
 				  sample_src_names(expr->fetch->use));
 			return 0;
 		}
