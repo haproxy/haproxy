@@ -226,7 +226,7 @@ struct htx *smp_prefetch_htx(struct sample *smp, struct channel *chn, struct che
 	if (IS_HTX_STRM(s)) {
 		htx = htxbuf(&chn->buf);
 
-		if (msg->msg_state == HTTP_MSG_ERROR || (htx->flags & HTX_FL_PARSING_ERROR))
+		if (htx->flags & HTX_FL_PARSING_ERROR)
 			return NULL;
 
 		if (msg->msg_state < HTTP_MSG_BODY) {
