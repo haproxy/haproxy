@@ -6356,7 +6356,7 @@ static size_t h2_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, in
 	if (!(h2s->flags & H2_SF_OUTGOING_DATA) && count)
 		h2s->flags |= H2_SF_OUTGOING_DATA;
 
-	if (htx->extra && htx->extra != ULLONG_MAX)
+	if (htx->extra && htx->extra != HTX_UNKOWN_PAYLOAD_LENGTH)
 		h2s->flags |= H2_SF_MORE_HTX_DATA;
 	else
 		h2s->flags &= ~H2_SF_MORE_HTX_DATA;

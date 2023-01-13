@@ -208,9 +208,9 @@ static int h1_postparse_req_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx 
 	}
 
 	/* If body length cannot be determined, set htx->extra to
-	 * ULLONG_MAX. This value is impossible in other cases.
+	 * HTX_UNKOWN_PAYLOAD_LENGTH. This value is impossible in other cases.
 	 */
-	htx->extra = ((h1m->flags & H1_MF_XFER_LEN) ? h1m->curr_len : ULLONG_MAX);
+	htx->extra = ((h1m->flags & H1_MF_XFER_LEN) ? h1m->curr_len : HTX_UNKOWN_PAYLOAD_LENGTH);
 
   end:
 	return 1;
@@ -306,9 +306,9 @@ static int h1_postparse_res_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx 
 	sl->info.res.status = code;
 
 	/* If body length cannot be determined, set htx->extra to
-	 * ULLONG_MAX. This value is impossible in other cases.
+	 * HTX_UNKOWN_PAYLOAD_LENGTH. This value is impossible in other cases.
 	 */
-	htx->extra = ((h1m->flags & H1_MF_XFER_LEN) ? h1m->curr_len : ULLONG_MAX);
+	htx->extra = ((h1m->flags & H1_MF_XFER_LEN) ? h1m->curr_len : HTX_UNKOWN_PAYLOAD_LENGTH);
 
   end:
 	return 1;

@@ -30,6 +30,11 @@
 #include <haproxy/http-t.h>
 #include <haproxy/htx-t.h>
 
+/* ->extra field value when the payload lenght is unknown (non-chunked message
+ * with no "Content-length" header)
+ */
+#define HTX_UNKOWN_PAYLOAD_LENGTH ULLONG_MAX
+
 extern struct htx htx_empty;
 
 struct htx_blk *htx_defrag(struct htx *htx, struct htx_blk *blk, uint32_t info);

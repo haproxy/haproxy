@@ -679,7 +679,7 @@ static int smp_fetch_body_size(const struct arg *args, struct sample *smp, const
 		if (type == HTX_BLK_DATA)
 			len += htx_get_blksz(blk);
 	}
-	if (htx->extra != ULLONG_MAX)
+	if (htx->extra != HTX_UNKOWN_PAYLOAD_LENGTH)
 		len += htx->extra;
 
 	smp->data.type = SMP_T_SINT;
