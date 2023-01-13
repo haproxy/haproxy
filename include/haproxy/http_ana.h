@@ -70,7 +70,6 @@ static inline const char *h1_msg_state_str(enum h1_state msg_state)
 	switch (msg_state) {
 	case HTTP_MSG_RQBEFORE:    return "MSG_RQBEFORE";
 	case HTTP_MSG_RPBEFORE:    return "MSG_RPBEFORE";
-	case HTTP_MSG_ERROR:       return "MSG_ERROR";
 	case HTTP_MSG_BODY:        return "MSG_BODY";
 	case HTTP_MSG_DATA:        return "MSG_DATA";
 	case HTTP_MSG_ENDING:      return "MSG_ENDING";

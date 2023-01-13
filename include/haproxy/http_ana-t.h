@@ -201,23 +201,19 @@ enum h1_state {
 	HTTP_MSG_RQBEFORE     =  0, // request: leading LF, before start line
 	HTTP_MSG_RPBEFORE     =  1, // response: leading LF, before start line
 
-	/* error state : must be before HTTP_MSG_BODY so that (>=BODY) always indicates
-	 * that data are being processed.
-	 */
-	HTTP_MSG_ERROR        =  2, // an error occurred
 	/* Body processing.
 	 * The state HTTP_MSG_BODY is a delimiter to know if we're waiting for headers
 	 * or body. All the sub-states below also indicate we're processing the body,
 	 * with some additional information.
 	 */
-	HTTP_MSG_BODY         =  3, // parsing body at end of headers
-	HTTP_MSG_DATA         =  4, // skipping data chunk / content-length data
+	HTTP_MSG_BODY         =  2, // parsing body at end of headers
+	HTTP_MSG_DATA         =  3, // skipping data chunk / content-length data
 	/* we enter this state when we've received the end of the current message */
-	HTTP_MSG_ENDING       =  5, // message end received, wait that the filters end too
-	HTTP_MSG_DONE         =  6, // message end received, waiting for resync or close
-	HTTP_MSG_CLOSING      =  7, // shutdown_w done, not all bytes sent yet
-	HTTP_MSG_CLOSED       =  8, // shutdown_w done, all bytes sent
-	HTTP_MSG_TUNNEL       =  9, // tunneled data after DONE
+	HTTP_MSG_ENDING       =  4, // message end received, wait that the filters end too
+	HTTP_MSG_DONE         =  5, // message end received, waiting for resync or close
+	HTTP_MSG_CLOSING      =  6, // shutdown_w done, not all bytes sent yet
+	HTTP_MSG_CLOSED       =  7, // shutdown_w done, all bytes sent
+	HTTP_MSG_TUNNEL       =  8, // tunneled data after DONE
 } __attribute__((packed));
 
 
