@@ -24079,7 +24079,7 @@ This is the case for "log" statement where the default is syslog over UDP
 but we could force to use syslog over TCP.
 
 Those prefixes were designed for internal purpose and users should
-instead use aliases of the next section "11.5.3 Protocol prefixes".
+instead use aliases of the next section "11.3 Protocol prefixes".
 
 If users need one those prefixes to perform what they expect because
 they can not configure the same using the protocol prefixes, they should
