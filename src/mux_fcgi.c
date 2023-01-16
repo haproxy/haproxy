@@ -1308,7 +1308,7 @@ static int fcgi_set_default_param(struct fcgi_conn *fconn, struct fcgi_strm *fst
 		 * captured
 		 */
 		params->scriptname = ist2(path.ptr + pmatch[1].rm_so, pmatch[1].rm_eo - pmatch[1].rm_so);
-		if (!(params->mask & FCGI_SP_PATH_INFO) &&  (pmatch[2].rm_so == -1 || pmatch[2].rm_eo == -1))
+		if (!(params->mask & FCGI_SP_PATH_INFO) && !(pmatch[2].rm_so == -1 || pmatch[2].rm_eo == -1))
 			params->pathinfo = ist2(path.ptr + pmatch[2].rm_so, pmatch[2].rm_eo - pmatch[2].rm_so);
 
 	  check_index:
