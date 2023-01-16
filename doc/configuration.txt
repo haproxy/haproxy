@@ -24095,6 +24095,20 @@ report this to the maintainers.
 11.3 Protocol prefixes
 ----------------------
 
+'quic4@<address>[:port1[-port2]]' following <address> is always considered as
+                                  an IPv4 address but socket type is forced to
+                                  "datagram" and the transport method is forced
+                                  to "stream". Depending on the statement using
+                                  this address, a UDP port or port range can or
+                                  must be specified.
+
+'quic6@<address>[:port1[-port2]]' following <address> is always considered as
+                                  an IPv6 address but socket type is forced to
+                                  "datagram" and the transport method is forced
+                                  to "stream". Depending on the statement using
+                                  this address, a UDP port or port range can or
+                                  must be specified.
+
 'tcp@<address>[:port1[-port2]]' following <address> is considered as an IPv4
                                 or IPv6 address depending of the syntax but
                                 socket type and transport method is forced to
