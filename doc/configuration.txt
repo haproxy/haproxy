@@ -24130,14 +24130,14 @@ report this to the maintainers.
                                  method is forced to "datagram". Depending on
                                  the statement using this address, a port or
                                  port range can or must be specified.
-                                 It is considered as an alias of 'stream+ipv4@'.
+                                 It is considered as an alias of 'dgram+ipv4@'.
 
 'udp6@<address>[:port1[-port2]]' following <address> is always considered as
                                  an IPv6 address but socket type and transport
                                  method is forced to "datagram". Depending on
                                  the statement using this address, a port or
                                  port range can or must be specified.
-                                 It is considered as an alias of 'stream+ipv4@'.
+                                 It is considered as an alias of 'dgram+ipv4@'.
 
 'uxdg@<path>'    following string is considered as a unix socket <path> but
                  transport method is forced to "datagram". It is considered as
