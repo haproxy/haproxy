@@ -176,7 +176,9 @@ static void udp_disable_listener(struct listener *l)
  * suspend the receiver, we want it to stop receiving traffic, which means that
  * the socket must be unhashed from the kernel's socket table. The simple way
  * to do this is to connect to any address that is reachable and will not be
- * used by regular traffic, and a great one is reconnecting to self.
+ * used by regular traffic, and a great one is reconnecting to self. Note that
+ * inherited FDs are neither suspended nor resumed, we only enable/disable
+ * polling on them.
  */
 int udp_suspend_receiver(struct receiver *rx)
 {
@@ -190,14 +192,14 @@ int udp_suspend_receiver(struct receiver *rx)
 	 * parent process and any possible subsequent worker inheriting it.
 	 */
 	if (rx->flags & RX_F_INHERITED)
-		return -1;
+		goto done;
 
 	if (getsockname(rx->fd, (struct sockaddr *)&ss, &len) < 0)
 		return -1;
 
 	if (connect(rx->fd, (struct sockaddr *)&ss, len) < 0)
 		return -1;
-
+ done:
 	/* not necessary but may make debugging clearer */
 	fd_stop_recv(rx->fd);
 	return 1;
@@ -207,7 +209,8 @@ int udp_suspend_receiver(struct receiver *rx)
  * was totally stopped, or > 0 if correctly suspended.
  * The principle is to reverse the change above, we'll break the connection by
  * connecting to AF_UNSPEC. The association breaks and the socket starts to
- * receive from everywhere again.
+ * receive from everywhere again. Note that inherited FDs are neither suspended
+ * nor resumed, we only enable/disable polling on them.
  */
 int udp_resume_receiver(struct receiver *rx)
 {
@@ -216,7 +219,7 @@ int udp_resume_receiver(struct receiver *rx)
 	if (rx->fd < 0)
 		return 0;
 
-	if (connect(rx->fd, &sa, sizeof(sa)) < 0)
+	if (!(rx->flags & RX_F_INHERITED) && connect(rx->fd, &sa, sizeof(sa)) < 0)
 		return -1;
 
 	fd_want_recv(rx->fd);
