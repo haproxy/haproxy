@@ -1002,6 +1002,11 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 		proto_type = PROTO_TYPE_DGRAM;
 		ctrl_type = SOCK_DGRAM;
 	}
+	else if (strncmp(str2, "quic+", 5) == 0) {
+		str2 += 5;
+		proto_type = PROTO_TYPE_DGRAM;
+		ctrl_type = SOCK_STREAM;
+	}
 
 	if (strncmp(str2, "unix@", 5) == 0) {
 		str2 += 5;

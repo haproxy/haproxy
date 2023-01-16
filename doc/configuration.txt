@@ -24078,8 +24078,11 @@ this address but in some cases the user may force it to a different one.
 This is the case for "log" statement where the default is syslog over UDP
 but we could force to use syslog over TCP.
 
-Those prefixes were designed for internal purpose and users should
-instead use aliases of the next section "11.3 Protocol prefixes".
+Those prefixes were designed for internal purpose and users should instead use
+use aliases of the next section "11.3 Protocol prefixes". However these can
+sometimes be convenient, for example in combination with inherited sockets
+known by their file descriptor number, in which case the address family is "fd"
+and the socket type must be declared.
 
 If users need one those prefixes to perform what they expect because
 they can not configure the same using the protocol prefixes, they should
@@ -24091,6 +24094,10 @@ report this to the maintainers.
 'dgram+<family>@<address>'  forces socket type and transport method
                             to "datagram".
 
+'quic+<family>@<address>'   forces socket type to "datagram" and transport
+                            method to "stream".
+
+
 
 11.3 Protocol prefixes
 ----------------------
@@ -24100,14 +24107,16 @@ report this to the maintainers.
                                   "datagram" and the transport method is forced
                                   to "stream". Depending on the statement using
                                   this address, a UDP port or port range can or
-                                  must be specified.
+                                  must be specified. It is equivalent to
+                                  "quic+ipv4@".
 
 'quic6@<address>[:port1[-port2]]' following <address> is always considered as
                                   an IPv6 address but socket type is forced to
                                   "datagram" and the transport method is forced
                                   to "stream". Depending on the statement using
                                   this address, a UDP port or port range can or
-                                  must be specified.
+                                  must be specified. It is equivalent to
+                                  "quic+ipv6@".
 
 'tcp@<address>[:port1[-port2]]' following <address> is considered as an IPv4
                                 or IPv6 address depending of the syntax but
