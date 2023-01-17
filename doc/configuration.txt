@@ -24049,8 +24049,8 @@ Optionally, a prefix could be used to force the address family and/or the
 socket type and the transport method.
 
 
-11.1 Address family prefixes
-----------------------------
+11.1. Address family prefixes
+-----------------------------
 
 'abns@<name>' following <name> is an abstract namespace (Linux only).
 
@@ -24085,8 +24085,8 @@ socket type and the transport method.
                start by slash '/'.
 
 
-11.2 Socket type prefixes
--------------------------
+11.2. Socket type prefixes
+--------------------------
 
 Previous "Address family prefixes" can also be prefixed to force the socket
 type and the transport method. The default depends of the statement using
@@ -24115,8 +24115,8 @@ report this to the maintainers.
 
 
 
-11.3 Protocol prefixes
-----------------------
+11.3. Protocol prefixes
+-----------------------
 
 'quic4@<address>[:port1[-port2]]' following <address> is always considered as
                                   an IPv4 address but socket type is forced to
