@@ -1042,17 +1042,17 @@ static int h3_control_send(struct qcs *qcs, void *ctx)
 		quic_int_getsize(h3_settings_max_field_section_size);
 	}
 
-	b_quic_enc_int(&pos, H3_UNI_S_T_CTRL);
+	b_quic_enc_int(&pos, H3_UNI_S_T_CTRL, 0);
 	/* Build a SETTINGS frame */
-	b_quic_enc_int(&pos, H3_FT_SETTINGS);
-	b_quic_enc_int(&pos, frm_len);
-	b_quic_enc_int(&pos, H3_SETTINGS_QPACK_MAX_TABLE_CAPACITY);
-	b_quic_enc_int(&pos, h3_settings_qpack_max_table_capacity);
-	b_quic_enc_int(&pos, H3_SETTINGS_QPACK_BLOCKED_STREAMS);
-	b_quic_enc_int(&pos, h3_settings_qpack_blocked_streams);
+	b_quic_enc_int(&pos, H3_FT_SETTINGS, 0);
+	b_quic_enc_int(&pos, frm_len, 0);
+	b_quic_enc_int(&pos, H3_SETTINGS_QPACK_MAX_TABLE_CAPACITY, 0);
+	b_quic_enc_int(&pos, h3_settings_qpack_max_table_capacity, 0);
+	b_quic_enc_int(&pos, H3_SETTINGS_QPACK_BLOCKED_STREAMS, 0);
+	b_quic_enc_int(&pos, h3_settings_qpack_blocked_streams, 0);
 	if (h3_settings_max_field_section_size) {
-		b_quic_enc_int(&pos, H3_SETTINGS_MAX_FIELD_SECTION_SIZE);
-		b_quic_enc_int(&pos, h3_settings_max_field_section_size);
+		b_quic_enc_int(&pos, H3_SETTINGS_MAX_FIELD_SECTION_SIZE, 0);
+		b_quic_enc_int(&pos, h3_settings_max_field_section_size, 0);
 	}
 
 	res = mux_get_buf(qcs);
@@ -1177,7 +1177,7 @@ static int h3_resp_headers_send(struct qcs *qcs, struct htx *htx)
 	frame_length_size = quic_int_getsize(b_data(&headers_buf));
 	res->head += 4 - frame_length_size;
 	b_putchr(res, 0x01); /* h3 HEADERS frame type */
-	if (!b_quic_enc_int(res, b_data(&headers_buf)))
+	if (!b_quic_enc_int(res, b_data(&headers_buf), 0))
 		ABORT_NOW();
 	b_add(res, b_data(&headers_buf));
 
@@ -1252,7 +1252,7 @@ static int h3_resp_data_send(struct qcs *qcs, struct htx *htx, size_t count)
 	BUG_ON(fsize <= 0);
 
 	b_putchr(&outbuf, 0x00);        /* h3 frame type = DATA */
-	b_quic_enc_int(&outbuf, fsize); /* h3 frame length */
+	b_quic_enc_int(&outbuf, fsize, 0); /* h3 frame length */
 
 	b_putblk(&outbuf, htx_get_blk_ptr(htx, blk), fsize);
 	total += fsize;
@@ -1407,9 +1407,9 @@ static int h3_send_goaway(struct h3c *h3c)
 
 	pos = b_make((char *)data, sizeof(data), 0, 0);
 
-	b_quic_enc_int(&pos, H3_FT_GOAWAY);
-	b_quic_enc_int(&pos, frm_len);
-	b_quic_enc_int(&pos, h3c->id_goaway);
+	b_quic_enc_int(&pos, H3_FT_GOAWAY, 0);
+	b_quic_enc_int(&pos, frm_len, 0);
+	b_quic_enc_int(&pos, h3c->id_goaway, 0);
 
 	res = mux_get_buf(qcs);
 	if (!res || b_room(res) < b_data(&pos)) {
