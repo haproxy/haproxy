@@ -599,6 +599,37 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 				goto out;
 			}
 		}
+		else if (isteq(list[hdr_idx].n, ist("connection")) ||
+		         isteq(list[hdr_idx].n, ist("proxy-connection")) ||
+		         isteq(list[hdr_idx].n, ist("keep-alive")) ||
+		         isteq(list[hdr_idx].n, ist("transfer-encoding"))) {
+			/* RFC 9114 4.2. HTTP Fields
+		         *
+		         * HTTP/3 does not use the Connection header field to indicate
+		         * connection-specific fields; in this protocol, connection-
+		         * specific metadata is conveyed by other means. An endpoint
+		         * MUST NOT generate an HTTP/3 field section containing
+		         * connection-specific fields; any message containing
+		         * connection-specific fields MUST be treated as malformed.
+		         */
+			TRACE_ERROR("invalid connection header", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+			h3s->err = H3_MESSAGE_ERROR;
+			len = -1;
+			goto out;
+		}
+		else if (isteq(list[hdr_idx].n, ist("te")) &&
+		         !isteq(list[hdr_idx].v, ist("trailers"))) {
+			/* RFC 9114 4.2. HTTP Fields
+			 *
+			 * The only exception to this is the TE header field, which MAY
+			 * be present in an HTTP/3 request header; when it is, it MUST
+			 * NOT contain any value other than "trailers".
+			 */
+			TRACE_ERROR("invalid te header", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+			h3s->err = H3_MESSAGE_ERROR;
+			len = -1;
+			goto out;
+		}
 
 		if (!htx_add_header(htx, list[hdr_idx].n, list[hdr_idx].v)) {
 			h3c->err = H3_INTERNAL_ERROR;
@@ -1113,13 +1144,28 @@ static int h3_resp_headers_send(struct qcs *qcs, struct htx *htx)
 		if (isteq(list[hdr].n, ist("")))
 			break;
 
-		/* draft-ietf-quic-http34 4.1. HTTP Message Exchanges
-		 * Transfer codings (see Section 6.1 of [HTTP11]) are not
-		 * defined for HTTP/3; the Transfer-Encoding header field MUST
-		 * NOT be used.
+		/* RFC 9114 4.2. HTTP Fields
+		 *
+		 * An intermediary transforming an HTTP/1.x message to HTTP/3
+		 * MUST remove connection-specific header fields as discussed in
+		 * Section 7.6.1 of [HTTP], or their messages will be treated by
+		 * other HTTP/3 endpoints as malformed.
 		 */
-		if (isteq(list[hdr].n, ist("transfer-encoding")))
+		if (isteq(list[hdr].n, ist("connection")) ||
+		    isteq(list[hdr].n, ist("proxy-connection")) ||
+		    isteq(list[hdr].n, ist("keep-alive")) ||
+		    isteq(list[hdr].n, ist("transfer-encoding"))) {
 			continue;
+		}
+		else if (isteq(list[hdr].n, ist("te"))) {
+			/* "te" may only be sent with "trailers" if this value
+			 * is present, otherwise it must be deleted.
+			 */
+			const struct ist v = istist(list[hdr].v, ist("trailers"));
+			if (!isttest(v) || (v.len > 8 && v.ptr[8] != ','))
+				continue;
+			list[hdr].v = ist("trailers");
+		}
 
 		if (qpack_encode_header(&headers_buf, list[hdr].n, list[hdr].v))
 			ABORT_NOW();
