@@ -99,7 +99,7 @@ static forceinline uint se_fl_get(const struct sedesc *se)
 /* sets SE_FL_ERROR or SE_FL_ERR_PENDING on the endpoint */
 static inline void se_fl_set_error(struct sedesc *se)
 {
-	if (se_fl_test(se, SE_FL_EOS))
+	if (se_fl_test(se, (SE_FL_EOS|SE_FL_EOI)))
 		se_fl_set(se, SE_FL_ERROR);
 	else
 		se_fl_set(se, SE_FL_ERR_PENDING);
