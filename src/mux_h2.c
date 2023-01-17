@@ -6477,10 +6477,7 @@ static size_t h2_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, in
 	    !b_data(&h2s->h2c->dbuf) &&
 	    (h2s->flags & (H2_SF_BLK_SFCTL | H2_SF_BLK_MFCTL))) {
 		TRACE_DEVEL("fctl with shutr, reporting error to app-layer", H2_EV_H2S_SEND|H2_EV_STRM_SEND|H2_EV_STRM_ERR, h2s->h2c->conn, h2s);
-		if (se_fl_test(h2s->sd, SE_FL_EOS))
-			se_fl_set(h2s->sd, SE_FL_ERROR);
-		else
-			se_fl_set(h2s->sd, SE_FL_ERR_PENDING);
+		se_fl_set_error(h2s->sd);
 	}
 
 	if (total > 0 && !(h2s->flags & H2_SF_BLK_SFCTL) &&

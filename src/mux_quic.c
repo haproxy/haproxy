@@ -2394,10 +2394,7 @@ static int qc_wake_some_streams(struct qcc *qcc)
 			continue;
 
 		if (qcc->conn->flags & CO_FL_ERROR) {
-			se_fl_set(qcs->sd, SE_FL_ERR_PENDING);
-			if (se_fl_test(qcs->sd, SE_FL_EOS))
-				se_fl_set(qcs->sd, SE_FL_ERROR);
-
+			se_fl_set_error(qcs->sd);
 			qcs_alert(qcs);
 		}
 	}
