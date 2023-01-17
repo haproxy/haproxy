@@ -3381,10 +3381,9 @@ int main(int argc, char **argv)
 	/* Note: protocol_bind_all() sends an alert when it fails. */
 	if ((err & ~ERR_WARN) != ERR_NONE) {
 		ha_alert("[%s.main()] Some protocols failed to start their listeners! Exiting.\n", argv[0]);
-		if (retry != MAX_START_RETRIES && nb_oldpids) {
-			protocol_unbind_all(); /* cleanup everything we can */
+		if (retry != MAX_START_RETRIES && nb_oldpids)
 			tell_old_pids(SIGTTIN);
-		}
+		protocol_unbind_all(); /* cleanup everything we can */
 		exit(1);
 	}
 
