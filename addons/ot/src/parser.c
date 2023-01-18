@@ -640,7 +640,7 @@ static int flt_ot_parse_cfg_group(const char *file, int linenum, char **args, in
 
 	if (pdata->keyword == FLT_OT_PARSE_GROUP_ID) {
 		flt_ot_current_group = flt_ot_conf_group_init(args[1], linenum, &(flt_ot_current_config->groups), &err);
-		if (flt_ot_current_config == NULL)
+		if (flt_ot_current_group == NULL)
 			retval |= ERR_ABORT | ERR_ALERT;
 	}
 	else if (pdata->keyword == FLT_OT_PARSE_GROUP_SCOPES) {
