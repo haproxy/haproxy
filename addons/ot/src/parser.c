@@ -359,17 +359,13 @@ static int flt_ot_parse_cfg_sample(const char *file, int linenum, char **args, s
  */
 static int flt_ot_parse_cfg_str(const char *file, int linenum, char **args, struct list *head, char **err)
 {
-	struct flt_ot_conf_str *str = NULL;
-	int                     i, retval = ERR_NONE;
+	int i, retval = ERR_NONE;
 
 	FLT_OT_FUNC("\"%s\", %d, %p, %p, %p:%p", file, linenum, args, head, FLT_OT_DPTR_ARGS(err));
 
 	for (i = 1; !(retval & ERR_CODE) && FLT_OT_ARG_ISVALID(i); i++)
 		if (flt_ot_conf_str_init(args[i], linenum, head, err) == NULL)
 			retval |= ERR_ABORT | ERR_ALERT;
-
-	if (retval & ERR_CODE)
-		flt_ot_conf_str_free(&str);
 
 	FLT_OT_RETURN_INT(retval);
 }
