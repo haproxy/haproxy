@@ -3546,7 +3546,7 @@ void syslog_fd_handler(int fd)
 
 			/* update counters */
 			_HA_ATOMIC_INC(&cum_log_messages);
-			proxy_inc_fe_req_ctr(l, l->bind_conf->frontend);
+			proxy_inc_fe_req_ctr(l, l->bind_conf->frontend, 0);
 
 			parse_log_message(buf->area, buf->data, &level, &facility, metadata, &message, &size);
 
@@ -3653,7 +3653,7 @@ static void syslog_io_handler(struct appctx *appctx)
 
 		/* update counters */
 		_HA_ATOMIC_INC(&cum_log_messages);
-		proxy_inc_fe_req_ctr(l, frontend);
+		proxy_inc_fe_req_ctr(l, frontend, 0);
 
 		parse_log_message(buf->area, buf->data, &level, &facility, metadata, &message, &size);
 

@@ -978,6 +978,8 @@ static int h1_init(struct connection *conn, struct proxy *proxy, struct session 
 	else if (h1_recv_allowed(h1c))
 		h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
 
+	if (!conn_is_back(conn))
+		proxy_inc_fe_cum_sess_ver_ctr(sess->listener, proxy, 1);
 	HA_ATOMIC_INC(&h1c->px_counters->open_conns);
 	HA_ATOMIC_INC(&h1c->px_counters->total_conns);
 
@@ -2655,7 +2657,7 @@ static int h1_handle_internal_err(struct h1c *h1c)
 	int ret = 0;
 
 	session_inc_http_req_ctr(sess);
-	proxy_inc_fe_req_ctr(sess->listener, sess->fe);
+	proxy_inc_fe_req_ctr(sess->listener, sess->fe, 1);
 	_HA_ATOMIC_INC(&sess->fe->fe_counters.p.http.rsp[5]);
 	_HA_ATOMIC_INC(&sess->fe->fe_counters.internal_errors);
 	if (sess->listener && sess->listener->counters)
@@ -2685,7 +2687,7 @@ static int h1_handle_parsing_error(struct h1c *h1c)
 
 	session_inc_http_req_ctr(sess);
 	session_inc_http_err_ctr(sess);
-	proxy_inc_fe_req_ctr(sess->listener, sess->fe);
+	proxy_inc_fe_req_ctr(sess->listener, sess->fe, 1);
 	_HA_ATOMIC_INC(&sess->fe->fe_counters.p.http.rsp[4]);
 	_HA_ATOMIC_INC(&sess->fe->fe_counters.failed_req);
 	if (sess->listener && sess->listener->counters)
@@ -2717,7 +2719,7 @@ static int h1_handle_not_impl_err(struct h1c *h1c)
 	}
 
 	session_inc_http_req_ctr(sess);
-	proxy_inc_fe_req_ctr(sess->listener, sess->fe);
+	proxy_inc_fe_req_ctr(sess->listener, sess->fe, 1);
 	_HA_ATOMIC_INC(&sess->fe->fe_counters.p.http.rsp[4]);
 	_HA_ATOMIC_INC(&sess->fe->fe_counters.failed_req);
 	if (sess->listener && sess->listener->counters)
@@ -2747,7 +2749,7 @@ static int h1_handle_req_tout(struct h1c *h1c)
 	}
 
 	session_inc_http_req_ctr(sess);
-	proxy_inc_fe_req_ctr(sess->listener, sess->fe);
+	proxy_inc_fe_req_ctr(sess->listener, sess->fe, 1);
 	_HA_ATOMIC_INC(&sess->fe->fe_counters.p.http.rsp[4]);
 	_HA_ATOMIC_INC(&sess->fe->fe_counters.failed_req);
 	if (sess->listener && sess->listener->counters)

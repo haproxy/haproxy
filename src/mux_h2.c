@@ -26,6 +26,7 @@
 #include <haproxy/log.h>
 #include <haproxy/mux_h2-t.h>
 #include <haproxy/net_helper.h>
+#include <haproxy/proxy.h>
 #include <haproxy/session-t.h>
 #include <haproxy/stats.h>
 #include <haproxy/stconn.h>
@@ -1038,6 +1039,7 @@ static int h2_init(struct connection *conn, struct proxy *prx, struct session *s
 			goto fail_stream;
 	}
 
+	proxy_inc_fe_cum_sess_ver_ctr(sess->listener, prx, 2);
 	HA_ATOMIC_INC(&h2c->px_counters->open_conns);
 	HA_ATOMIC_INC(&h2c->px_counters->total_conns);
 

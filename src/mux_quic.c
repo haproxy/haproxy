@@ -5,9 +5,11 @@
 #include <haproxy/api.h>
 #include <haproxy/connection.h>
 #include <haproxy/dynbuf.h>
+#include <haproxy/h3.h>
 #include <haproxy/list.h>
 #include <haproxy/ncbuf.h>
 #include <haproxy/pool.h>
+#include <haproxy/proxy.h>
 #include <haproxy/qmux_http.h>
 #include <haproxy/qmux_trace.h>
 #include <haproxy/quic_conn.h>
@@ -2207,6 +2209,9 @@ static int qc_init(struct connection *conn, struct proxy *prx,
 		quic_set_connection_close(conn->handle.qc, quic_err_transport(QC_ERR_APPLICATION_ERROR));
 		goto fail_install_app_ops;
 	}
+
+	if (qcc->app_ops == &h3_ops)
+		proxy_inc_fe_cum_sess_ver_ctr(sess->listener, prx, 3);
 
 	/* init read cycle */
 	tasklet_wakeup(qcc->wait_event.tasklet);

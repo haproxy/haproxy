@@ -28,6 +28,7 @@ struct fe_counters {
 	unsigned int conn_max;                  /* max # of active sessions */
 	long long    cum_conn;                  /* cumulated number of received connections */
 	long long    cum_sess;                  /* cumulated number of accepted connections */
+	long long    cum_sess_ver[3];           /* cumulated number of h1/h2/h3 sessions */
 
 	unsigned int cps_max;                   /* maximum of new connections received per second */
 	unsigned int sps_max;                   /* maximum of new connections accepted per second (sessions) */
@@ -53,7 +54,7 @@ struct fe_counters {
 
 	union {
 		struct {
-			long long cum_req;      /* cumulated number of processed HTTP requests */
+			long long cum_req[4];   /* cumulated number of processed other/h1/h2/h3 requests */
 			long long comp_rsp;     /* number of compressed responses */
 			unsigned int rps_max;   /* maximum of new HTTP requests second observed */
 			long long rsp[6];       /* http response codes */

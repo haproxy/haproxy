@@ -263,6 +263,14 @@ const struct name_desc stat_fields[ST_F_TOTAL_FIELDS] = {
 	[ST_F_AGG_SRV_STATUS ]               = { .name = "agg_server_status",           .desc = "Backend's aggregated gauge of servers' status" },
 	[ST_F_AGG_CHECK_STATUS]              = { .name = "agg_check_status",            .desc = "Backend's aggregated gauge of servers' state check status" },
 	[ST_F_SRID]                          = { .name = "srid",                        .desc = "Server id revision, to prevent server id reuse mixups" },
+	[ST_F_SESS_OTHER]                    = { .name = "sess_other",                  .desc = "Total number of sessions other than HTTP since process started" },
+	[ST_F_H1SESS]                        = { .name = "h1sess",                      .desc = "Total number of HTTP/1 sessions since process started" },
+	[ST_F_H2SESS]                        = { .name = "h2sess",                      .desc = "Total number of HTTP/2 sessions since process started" },
+	[ST_F_H3SESS]                        = { .name = "h3sess",                      .desc = "Total number of HTTP/3 sessions since process started" },
+	[ST_F_REQ_OTHER]                     = { .name = "req_other",                   .desc = "Total number of sessions other than HTTP processed by this object since the worker process started" },
+	[ST_F_H1REQ]                         = { .name = "h1req",                       .desc = "Total number of HTTP/1 sessions processed by this object since the worker process started" },
+	[ST_F_H2REQ]                         = { .name = "h2req",                       .desc = "Total number of hTTP/2 sessions processed by this object since the worker process started" },
+	[ST_F_H3REQ]                         = { .name = "h3req",                       .desc = "Total number of HTTP/3 sessions processed by this object since the worker process started" },
 };
 
 /* one line of info */
@@ -917,7 +925,27 @@ static int stats_dump_fields_html(struct buffer *out,
 		/* http response (via hover): 1xx, 2xx, 3xx, 4xx, 5xx, other */
 		if (strcmp(field_str(stats, ST_F_MODE), "http") == 0) {
 			chunk_appendf(out,
+			              "<tr><th>- HTTP/1 sessions:</th><td>%s</td></tr>"
+			              "<tr><th>- HTTP/2 sessions:</th><td>%s</td></tr>"
+			              "<tr><th>- HTTP/3 sessions:</th><td>%s</td></tr>"
+			              "<tr><th>- other sessions:</th><td>%s</td></tr>"
 			              "<tr><th>Cum. HTTP requests:</th><td>%s</td></tr>"
+			              "<tr><th>- HTTP/1 requests:</th><td>%s</td></tr>"
+			              "<tr><th>- HTTP/2 requests:</th><td>%s</td></tr>"
+			              "<tr><th>- HTTP/3 requests:</th><td>%s</td></tr>"
+			              "<tr><th>- other requests:</th><td>%s</td></tr>"
+			              "",
+			              U2H(stats[ST_F_H1SESS].u.u64),
+			              U2H(stats[ST_F_H2SESS].u.u64),
+			              U2H(stats[ST_F_H3SESS].u.u64),
+			              U2H(stats[ST_F_SESS_OTHER].u.u64),
+			              U2H(stats[ST_F_REQ_TOT].u.u64),
+			              U2H(stats[ST_F_H1REQ].u.u64),
+			              U2H(stats[ST_F_H2REQ].u.u64),
+			              U2H(stats[ST_F_H3REQ].u.u64),
+			              U2H(stats[ST_F_REQ_OTHER].u.u64));
+
+			chunk_appendf(out,
 			              "<tr><th>- HTTP 1xx responses:</th><td>%s</td></tr>"
 			              "<tr><th>- HTTP 2xx responses:</th><td>%s</td></tr>"
 			              "<tr><th>&nbsp;&nbsp;Compressed 2xx:</th><td>%s</td><td>(%d%%)</td></tr>"
@@ -925,13 +953,7 @@ static int stats_dump_fields_html(struct buffer *out,
 			              "<tr><th>- HTTP 4xx responses:</th><td>%s</td></tr>"
 			              "<tr><th>- HTTP 5xx responses:</th><td>%s</td></tr>"
 			              "<tr><th>- other responses:</th><td>%s</td></tr>"
-			              "<tr><th>Intercepted requests:</th><td>%s</td></tr>"
-			              "<tr><th>Cache lookups:</th><td>%s</td></tr>"
-			              "<tr><th>Cache hits:</th><td>%s</td><td>(%d%%)</td></tr>"
-			              "<tr><th>Failed hdr rewrites:</th><td>%s</td></tr>"
-			              "<tr><th>Internal errors:</th><td>%s</td></tr>"
 			              "",
-			              U2H(stats[ST_F_REQ_TOT].u.u64),
 			              U2H(stats[ST_F_HRSP_1XX].u.u64),
 			              U2H(stats[ST_F_HRSP_2XX].u.u64),
 			              U2H(stats[ST_F_COMP_RSP].u.u64),
@@ -940,7 +962,15 @@ static int stats_dump_fields_html(struct buffer *out,
 			              U2H(stats[ST_F_HRSP_3XX].u.u64),
 			              U2H(stats[ST_F_HRSP_4XX].u.u64),
 			              U2H(stats[ST_F_HRSP_5XX].u.u64),
-			              U2H(stats[ST_F_HRSP_OTHER].u.u64),
+			              U2H(stats[ST_F_HRSP_OTHER].u.u64));
+
+			chunk_appendf(out,
+			              "<tr><th>Intercepted requests:</th><td>%s</td></tr>"
+			              "<tr><th>Cache lookups:</th><td>%s</td></tr>"
+			              "<tr><th>Cache hits:</th><td>%s</td><td>(%d%%)</td></tr>"
+			              "<tr><th>Failed hdr rewrites:</th><td>%s</td></tr>"
+			              "<tr><th>Internal errors:</th><td>%s</td></tr>"
+			              "",
 			              U2H(stats[ST_F_INTERCEPTED].u.u64),
 			              U2H(stats[ST_F_CACHE_LOOKUPS].u.u64),
 			              U2H(stats[ST_F_CACHE_HITS].u.u64),
@@ -1805,9 +1835,18 @@ int stats_fill_fe_stats(struct proxy *px, struct field *stats, int len,
 			case ST_F_REQ_RATE_MAX:
 				metric = mkf_u32(FN_MAX, px->fe_counters.p.http.rps_max);
 				break;
-			case ST_F_REQ_TOT:
-				metric = mkf_u64(FN_COUNTER, px->fe_counters.p.http.cum_req);
+			case ST_F_REQ_TOT: {
+				int i;
+				uint64_t total_req;
+				size_t nb_reqs =
+					sizeof(px->fe_counters.p.http.cum_req) / sizeof(*px->fe_counters.p.http.cum_req);
+
+				total_req = 0;
+				for (i = 0; i < nb_reqs; i++)
+					total_req += px->fe_counters.p.http.cum_req[i];
+				metric = mkf_u64(FN_COUNTER, total_req);
 				break;
+			}
 			case ST_F_COMP_IN:
 				metric = mkf_u64(FN_COUNTER, px->fe_counters.comp_in);
 				break;
@@ -1828,6 +1867,39 @@ int stats_fill_fe_stats(struct proxy *px, struct field *stats, int len,
 				break;
 			case ST_F_CONN_TOT:
 				metric = mkf_u64(FN_COUNTER, px->fe_counters.cum_conn);
+				break;
+			case ST_F_SESS_OTHER: {
+				int i;
+				uint64_t total_sess;
+				size_t nb_sess =
+					sizeof(px->fe_counters.cum_sess_ver) / sizeof(*px->fe_counters.cum_sess_ver);
+
+				total_sess = px->fe_counters.cum_sess;
+				for (i = 0; i < nb_sess; i++)
+					total_sess -= px->fe_counters.cum_sess_ver[i];
+				metric = mkf_u64(FN_COUNTER, total_sess);
+				break;
+			}
+			case ST_F_H1SESS:
+				metric = mkf_u64(FN_COUNTER, px->fe_counters.cum_sess_ver[0]);
+				break;
+			case ST_F_H2SESS:
+				metric = mkf_u64(FN_COUNTER, px->fe_counters.cum_sess_ver[1]);
+				break;
+			case ST_F_H3SESS:
+				metric = mkf_u64(FN_COUNTER, px->fe_counters.cum_sess_ver[2]);
+				break;
+			case ST_F_REQ_OTHER:
+				metric = mkf_u64(FN_COUNTER, px->fe_counters.p.http.cum_req[0]);
+				break;
+			case ST_F_H1REQ:
+				metric = mkf_u64(FN_COUNTER, px->fe_counters.p.http.cum_req[1]);
+				break;
+			case ST_F_H2REQ:
+				metric = mkf_u64(FN_COUNTER, px->fe_counters.p.http.cum_req[2]);
+				break;
+			case ST_F_H3REQ:
+				metric = mkf_u64(FN_COUNTER, px->fe_counters.p.http.cum_req[3]);
 				break;
 			default:
 				/* not used for frontends. If a specific metric

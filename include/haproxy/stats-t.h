@@ -459,6 +459,14 @@ enum stat_field {
 	ST_F_AGG_SRV_CHECK_STATUS,
 	ST_F_AGG_CHECK_STATUS,
 	ST_F_SRID,
+	ST_F_SESS_OTHER,
+	ST_F_H1SESS,
+	ST_F_H2SESS,
+	ST_F_H3SESS,
+	ST_F_REQ_OTHER,
+	ST_F_H1REQ,
+	ST_F_H2REQ,
+	ST_F_H3REQ,
 
 	/* must always be the last one */
 	ST_F_TOTAL_FIELDS

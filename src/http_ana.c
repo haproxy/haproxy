@@ -94,6 +94,8 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	struct http_msg *msg = &txn->req;
 	struct htx *htx;
 	struct htx_sl *sl;
+	char http_ver;
+	int len;
 
 	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn, msg);
 
@@ -127,11 +129,22 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	}
 
 	htx = htxbuf(&req->buf);
+	sl = http_get_stline(htx);
+	len = HTX_SL_REQ_VLEN(sl);
+	if (len < 6) {
+		http_ver = 0;
+	}
+	else {
+		char *ptr;
+
+		ptr = HTX_SL_REQ_VPTR(sl);
+		http_ver = ptr[5] - '0';
+	}
 
 	/* Parsing errors are caught here */
 	if (htx->flags & (HTX_FL_PARSING_ERROR|HTX_FL_PROCESSING_ERROR)) {
 		stream_inc_http_req_ctr(s);
-		proxy_inc_fe_req_ctr(sess->listener, sess->fe);
+		proxy_inc_fe_req_ctr(sess->listener, sess->fe, http_ver);
 		if (htx->flags & HTX_FL_PARSING_ERROR) {
 			stream_inc_http_err_ctr(s);
 			goto return_bad_req;
@@ -145,13 +158,12 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 
 	msg->msg_state = HTTP_MSG_BODY;
 	stream_inc_http_req_ctr(s);
-	proxy_inc_fe_req_ctr(sess->listener, sess->fe); /* one more valid request for this FE */
+	proxy_inc_fe_req_ctr(sess->listener, sess->fe, http_ver); /* one more valid request for this FE */
 
 	/* kill the pending keep-alive timeout */
 	req->analyse_exp = TICK_ETERNITY;
 
 	BUG_ON(htx_get_first_type(htx) != HTX_BLK_REQ_SL);
-	sl = http_get_stline(htx);
 
 	/* 0: we might have to print this header in debug mode */
 	if (unlikely((global.mode & MODE_DEBUG) &&
