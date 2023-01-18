@@ -18,6 +18,7 @@
 #include <haproxy/openssl-compat.h>
 #include <haproxy/base64.h>
 #include <haproxy/jwt.h>
+#include <haproxy/buf.h>
 
 
 #ifdef USE_OPENSSL
@@ -214,31 +215,93 @@ jwt_jwsverify_hmac(const struct jwt_ctx *ctx, const struct buffer *decoded_signa
 }
 
 /*
+ * Convert a JWT ECDSA signature (R and S parameters concatenatedi, see section
+ * 3.4 of RFC7518) into an ECDSA_SIG that can be fed back into OpenSSL's digest
+ * verification functions.
+ * Returns 0 in case of success.
+ */
+static int convert_ecdsa_sig(const struct jwt_ctx *ctx, EVP_PKEY *pkey, struct buffer *signature)
+{
+	int retval = 0;
+	ECDSA_SIG *ecdsa_sig = NULL;
+	BIGNUM *ec_R = NULL, *ec_S = NULL;
+	unsigned int bignum_len;
+	unsigned char *p;
+
+	ecdsa_sig = ECDSA_SIG_new();
+	if (!ecdsa_sig) {
+		retval = JWT_VRFY_OUT_OF_MEMORY;
+		goto end;
+	}
+
+	if (b_data(signature) % 2) {
+		retval = JWT_VRFY_INVALID_TOKEN;
+		goto end;
+	}
+
+	bignum_len = b_data(signature) / 2;
+
+	ec_R = BN_bin2bn((unsigned char*)b_orig(signature), bignum_len, NULL);
+	ec_S = BN_bin2bn((unsigned char *)(b_orig(signature) + bignum_len), bignum_len, NULL);
+
+	if (!ec_R || !ec_S) {
+		retval = JWT_VRFY_INVALID_TOKEN;
+		goto end;
+	}
+
+	/* Build ecdsa out of R and S values. */
+	ECDSA_SIG_set0(ecdsa_sig, ec_R, ec_S);
+
+	p = (unsigned char*)signature->area;
+
+	signature->data = i2d_ECDSA_SIG(ecdsa_sig, &p);
+	if (signature->data == 0) {
+		retval = JWT_VRFY_INVALID_TOKEN;
+		goto end;
+	}
+
+end:
+	ECDSA_SIG_free(ecdsa_sig);
+	return retval;
+}
+
+/*
  * Check that the signature included in a JWT signed via RSA or ECDSA is valid
  * and can be verified thanks to a given public certificate.
  * Returns 1 in case of success.
  */
 static enum jwt_vrfy_status
-jwt_jwsverify_rsa_ecdsa(const struct jwt_ctx *ctx, const struct buffer *decoded_signature)
+jwt_jwsverify_rsa_ecdsa(const struct jwt_ctx *ctx, struct buffer *decoded_signature)
 {
 	const EVP_MD *evp = NULL;
 	EVP_MD_CTX *evp_md_ctx;
 	enum jwt_vrfy_status retval = JWT_VRFY_KO;
 	struct ebmb_node *eb;
 	struct jwt_cert_tree_entry *entry = NULL;
+	int is_ecdsa = 0;
 
 	switch(ctx->alg) {
 	case JWS_ALG_RS256:
-	case JWS_ALG_ES256:
 		evp = EVP_sha256();
 		break;
 	case JWS_ALG_RS384:
-	case JWS_ALG_ES384:
 		evp = EVP_sha384();
 		break;
 	case JWS_ALG_RS512:
+		evp = EVP_sha512();
+		break;
+
+	case JWS_ALG_ES256:
+		evp = EVP_sha256();
+		is_ecdsa = 1;
+		break;
+	case JWS_ALG_ES384:
+		evp = EVP_sha384();
+		is_ecdsa = 1;
+		break;
 	case JWS_ALG_ES512:
 		evp = EVP_sha512();
+		is_ecdsa = 1;
 		break;
 	default: break;
 	}
@@ -261,9 +324,22 @@ jwt_jwsverify_rsa_ecdsa(const struct jwt_ctx *ctx, const struct buffer *decoded_
 		goto end;
 	}
 
-	if (EVP_DigestVerifyInit(evp_md_ctx, NULL, evp, NULL,entry-> pkey) == 1 &&
+	/*
+	 * ECXXX signatures are a direct concatenation of the (R, S) pair and
+	 * need to be converted back to asn.1 in order for verify operations to
+	 * work with OpenSSL.
+	 */
+	if (is_ecdsa) {
+		int conv_retval = convert_ecdsa_sig(ctx, entry->pkey, decoded_signature);
+		if (retval != 0) {
+			retval = conv_retval;
+			goto end;
+		}
+	}
+
+	if (EVP_DigestVerifyInit(evp_md_ctx, NULL, evp, NULL, entry->pkey) == 1 &&
 	    EVP_DigestVerifyUpdate(evp_md_ctx, (const unsigned char*)ctx->jose.start,
-				   ctx->jose.length + ctx->claims.length + 1) == 1 &&
+	                           ctx->jose.length + ctx->claims.length + 1) == 1 &&
 	    EVP_DigestVerifyFinal(evp_md_ctx, (const unsigned char*)decoded_signature->area, decoded_signature->data) == 1) {
 		retval = JWT_VRFY_OK;
 	}

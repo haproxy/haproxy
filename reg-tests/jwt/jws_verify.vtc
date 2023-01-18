@@ -220,9 +220,9 @@ client c9 -connect ${h1_mainfe_sock} {
     # Token content : {"alg":"ES256","typ":"JWT"}
     #                 {"sub":"1234567890","name":"John Doe","iat":1516239022}
     # Key gen process : openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -out es256-private.pem; openssl ec -in es256-private.pem -pubout -out es256-public.pem
-    # OpenSSL cmd : openssl dgst -sha256 -sign es256-private.pem data.txt | base64 | tr -d '=\n' | tr '/+' '_-'
+    # Token creation : ./build_token.py ES256 '{"sub":"1234567890","name":"John Doe","iat":1516239022}' es256-private.pem
 
-    txreq -url "/es256" -hdr "Authorization: Bearer eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.MEYCIQCkHcfMhzhP3FvZqjaqEDW89_5QEhBwUvpXv535lAnRuQIhALc62LiFZz0oDuKeqI3ogto336D7kEg4Uat8qm_iW6ur"
+    txreq -url "/es256" -hdr "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJFUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.pNI_c5mHE3mLV0YDpstlP4l3t5XARLl6OmcKLuvF5r60m-C63mbgfKWdPjmJPMTCmX_y50YW_v2SKw0ju0tJHw"
     rxresp
     expect resp.status == 200
     expect resp.http.x-jwt-alg == "ES256"
@@ -233,9 +233,9 @@ client c10 -connect ${h1_mainfe_sock} {
     # Token content : {"alg":"ES384","typ":"JWT"}
     #                 {"sub":"1234567890","name":"John Doe","iat":1516239022}
     # Key gen process : openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-384 -out es384-private.pem; openssl ec -in es384-private.pem -pubout -out es384-public.pem
-    # OpenSSL cmd : openssl dgst -sha384 -sign es384-private.pem data.txt | base64 | tr -d '=\n' | tr '/+' '_-'
+    # Token creation : ./build_token.py ES384 '{"sub":"1234567890","name":"John Doe","iat":1516239022}' es384-private.pem
 
-    txreq -url "/es384" -hdr "Authorization: Bearer eyJhbGciOiJFUzM4NCIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.MGUCMQDQFs6fqnmoxbw3eIQCT6km0TnMakpGy2F-8ZgGu5G8nFQKzCAO-V-UTOD0OqxHUa8CMBqHfZ6pjqRaLK-PebsvbGSzneAG7Id3oN78n2wWGKcYCI_s0KSO88thboaR9AS4tA"
+    txreq -url "/es384" -hdr "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJFUzM4NCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.cs59CQiCI_Pl8J-PKQ2y73L5IJascZXkf7MfRXycO1HkT9pqDW2bFr1bh7pFyPA85GaML4BPYVH_zDhcmjSMn_EIvUV8cPDuuUu69Au7n9LYGVkVJ-k7qN4DAR5eLCiU"
     rxresp
     expect resp.status == 200
     expect resp.http.x-jwt-alg == "ES384"
@@ -246,9 +246,9 @@ client c11 -connect ${h1_mainfe_sock} {
     # Token content : {"alg":"ES512","typ":"JWT"}
     #                 {"sub":"1234567890","name":"John Doe","iat":1516239022}
     # Key gen process : openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-521 -out es512-private.pem; openssl ec -in es512-private.pem -pubout -out es512-public.pem
-    # OpenSSL cmd : openssl dgst -sha512 -sign es512-private.pem data.txt | base64 | tr -d '=\n' | tr '/+' '_-'
+    # Token creation : ./build_token.py ES512 '{"sub":"1234567890","name":"John Doe","iat":1516239022}' es512-private.pem
 
-    txreq -url "/es512" -hdr "Authorization: Bearer eyJhbGciOiJFUzUxMiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.MIGHAkEEPEgIrFKIDofBpFKX_mtya55QboGr09P6--v8uO85DwQWR0iKgMNSzYkL3K1lwyExG0Vtwfnife0lNe7Fn5TigAJCAY95NShiTn3tvleXVGCkkD0-HcribnMhd34QPGRc4rlwTkUg9umIUhxnEhPR--OohlmhJyIYGHuH8Ksm5fSIWfRa"
+    txreq -url "/es512" -hdr "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJFUzUxMiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.AJcyt0OYf2wg7SggJJVKYysLUkBQA0f0Zc0EbKgud2fQLeT65n42A9l9hhGje79VLWhEyisQmDpFXTpfFXeD_NiaAXyNnX5b8TbZALqxbjx8iIpbcObgUh_g5Gi81bKmRmfXUHW7L5iAwoNjYbUpXGipCpCD0N6-8zCrjcFD2UX01f0Y"
     rxresp
     expect resp.status == 200
     expect resp.http.x-jwt-alg == "ES512"
@@ -301,7 +301,7 @@ client c15 -connect ${h1_mainfe_sock} {
     rxresp
     expect resp.status == 200
     expect resp.http.x-jwt-alg == "ES512"
-    # Unmanaged algorithm
+    # Invalid token
     expect resp.http.x-jwt-verify == "-3"
 } -run
 
@@ -313,7 +313,7 @@ client c16 -connect ${h1_mainfe_sock} {
     rxresp
     expect resp.status == 200
     expect resp.http.x-jwt-alg == "ES512"
-    # Unmanaged algorithm
+    # Invalid token
     expect resp.http.x-jwt-verify == "-3"
 } -run
 
@@ -325,7 +325,7 @@ client c17 -connect ${h1_mainfe_sock} {
     rxresp
     expect resp.status == 200
     expect resp.http.x-jwt-alg == "ES512"
-    # Unmanaged algorithm
+    # Invalid token
     expect resp.http.x-jwt-verify == "-3"
 } -run
 
@@ -340,7 +340,7 @@ client c18 -connect ${h1_mainfe_sock} {
     rxresp
     expect resp.status == 200
     expect resp.http.x-jwt-alg == "ES512"
-    # Unmanaged algorithm
+    # Unknown certificate
     expect resp.http.x-jwt-verify == "-5"
 } -run
 
