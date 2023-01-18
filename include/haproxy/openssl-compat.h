@@ -325,6 +325,19 @@ static inline X509 *X509_STORE_CTX_get0_cert(X509_STORE_CTX *ctx)
 {
     return ctx->cert;
 }
+
+static inline int ECDSA_SIG_set0(ECDSA_SIG *sig, BIGNUM *r, BIGNUM *s)
+{
+	if (r == NULL || s == NULL)
+		return 0;
+	BN_clear_free(sig->r);
+	BN_clear_free(sig->s);
+
+	sig->r = r;
+	sig->s = s;
+	return 1;
+}
+
 #endif
 
 #if (HA_OPENSSL_VERSION_NUMBER < 0x3000000fL)
