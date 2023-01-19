@@ -481,7 +481,8 @@ void updt_fd_polling(const int fd)
 		unsigned long update_mask = fdtab[fd].update_mask;
 		int thr;
 
-		while (!_HA_ATOMIC_CAS(&fdtab[fd].update_mask, &update_mask, ha_tgroup_info[tgrp - 1].threads_enabled))
+		while (!_HA_ATOMIC_CAS(&fdtab[fd].update_mask, &update_mask,
+		                       _HA_ATOMIC_LOAD(&ha_tgroup_info[tgrp - 1].threads_enabled)))
 			__ha_cpu_relax();
 
 		fd_add_to_fd_list(&update_list[tgrp - 1], fd);

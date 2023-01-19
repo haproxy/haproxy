@@ -136,11 +136,11 @@ static inline void done_update_polling(int fd)
 	unsigned long update_mask;
 
 	update_mask = _HA_ATOMIC_AND_FETCH(&fdtab[fd].update_mask, ~ti->ltid_bit);
-	while ((update_mask & tg->threads_enabled) == 0) {
+	while ((update_mask & _HA_ATOMIC_LOAD(&tg->threads_enabled)) == 0) {
 		/* If we were the last one that had to update that entry, remove it from the list */
 		fd_rm_from_fd_list(&update_list[tgid - 1], fd);
 		update_mask = _HA_ATOMIC_LOAD(&fdtab[fd].update_mask);
-		if ((update_mask & tg->threads_enabled) != 0) {
+		if ((update_mask & _HA_ATOMIC_LOAD(&tg->threads_enabled)) != 0) {
 			/* Maybe it's been re-updated in the meanwhile, and we
 			 * wrongly removed it from the list, if so, re-add it
 			 */

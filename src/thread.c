@@ -104,9 +104,14 @@ void thread_isolate()
 	 */
 	while (1) {
 		for (tgrp = 0; tgrp < global.nbtgroups; tgrp++) {
-			while ((_HA_ATOMIC_LOAD(&ha_tgroup_ctx[tgrp].threads_harmless) &
-				ha_tgroup_info[tgrp].threads_enabled) != ha_tgroup_info[tgrp].threads_enabled)
+			do {
+				ulong te = _HA_ATOMIC_LOAD(&ha_tgroup_info[tgrp].threads_enabled);
+				ulong th = _HA_ATOMIC_LOAD(&ha_tgroup_ctx[tgrp].threads_harmless);
+
+				if ((th & te) == te)
+					break;
 				ha_thread_relax();
+			} while (1);
 		}
 
 		/* Now we've seen all threads marked harmless, we can try to run
@@ -160,10 +165,15 @@ void thread_isolate_full()
 	 */
 	while (1) {
 		for (tgrp = 0; tgrp < global.nbtgroups; tgrp++) {
-			while ((_HA_ATOMIC_LOAD(&ha_tgroup_ctx[tgrp].threads_harmless) &
-				_HA_ATOMIC_LOAD(&ha_tgroup_ctx[tgrp].threads_idle) &
-				ha_tgroup_info[tgrp].threads_enabled) != ha_tgroup_info[tgrp].threads_enabled)
+			do {
+				ulong te = _HA_ATOMIC_LOAD(&ha_tgroup_info[tgrp].threads_enabled);
+				ulong th = _HA_ATOMIC_LOAD(&ha_tgroup_ctx[tgrp].threads_harmless);
+				ulong id = _HA_ATOMIC_LOAD(&ha_tgroup_ctx[tgrp].threads_idle);
+
+				if ((th & id & te) == te)
+					break;
 				ha_thread_relax();
+			} while (1);
 		}
 
 		/* Now we've seen all threads marked harmless and idle, we can
