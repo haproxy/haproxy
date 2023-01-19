@@ -530,6 +530,10 @@ int resume_listener(struct listener *l, int lpx)
 	if (l->state == LI_READY)
 		goto end;
 
+	/* the listener might have been stopped in parallel */
+	if (l->state < LI_PAUSED)
+		goto end;
+
 	if (l->rx.proto->resume)
 		ret = l->rx.proto->resume(l);
 
