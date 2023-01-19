@@ -516,6 +516,91 @@ int qc_snd_buf(struct quic_conn *qc, const struct buffer *buf, size_t sz,
 			ret = send(qc->fd, b_peek(buf, b_head_ofs(buf)), sz,
 			           MSG_DONTWAIT | MSG_NOSIGNAL);
 		}
+#if defined(IP_PKTINFO) || defined(IP_RECVDSTADDR) || defined(IPV6_RECVPKTINFO)
+		else if (is_addr(&qc->local_addr)) {
+			struct msghdr msg = { 0 };
+			struct iovec vec;
+			struct cmsghdr *cmsg;
+#ifdef IP_PKTINFO
+			struct in_pktinfo in;
+#endif /* IP_PKTINFO */
+#ifdef IPV6_RECVPKTINFO
+			struct in6_pktinfo in6;
+#endif /* IPV6_RECVPKTINFO */
+			union {
+#ifdef IP_PKTINFO
+				char buf[CMSG_SPACE(sizeof(in))];
+#endif /* IP_PKTINFO */
+#ifdef IPV6_RECVPKTINFO
+				char buf6[CMSG_SPACE(sizeof(in6))];
+#endif /* IPV6_RECVPKTINFO */
+				char bufaddr[CMSG_SPACE(sizeof(struct in_addr))];
+				struct cmsghdr align;
+			} u;
+
+			vec.iov_base = b_peek(buf, b_head_ofs(buf));
+			vec.iov_len = sz;
+			msg.msg_name = &qc->peer_addr;
+			msg.msg_namelen = get_addr_len(&qc->peer_addr);
+			msg.msg_iov = &vec;
+			msg.msg_iovlen = 1;
+
+			switch (qc->local_addr.ss_family) {
+			case AF_INET:
+#if defined(IP_PKTINFO)
+				memset(&in, 0, sizeof(in));
+				memcpy(&in.ipi_spec_dst,
+				       &((struct sockaddr_in *)&qc->local_addr)->sin_addr,
+				       sizeof(struct in_addr));
+
+				msg.msg_control = u.buf;
+				msg.msg_controllen = sizeof(u.buf);
+
+				cmsg = CMSG_FIRSTHDR(&msg);
+				cmsg->cmsg_level = IPPROTO_IP;
+				cmsg->cmsg_type = IP_PKTINFO;
+				cmsg->cmsg_len = CMSG_LEN(sizeof(struct in_pktinfo));
+				memcpy(CMSG_DATA(cmsg), &in, sizeof(in));
+#elif defined(IP_RECVDSTADDR)
+				msg.msg_control = u.bufaddr;
+				msg.msg_controllen = sizeof(u.bufaddr);
+
+				cmsg = CMSG_FIRSTHDR(&msg);
+				cmsg->cmsg_level = IPPROTO_IP;
+				cmsg->cmsg_type = IP_SENDSRCADDR;
+				cmsg->cmsg_len = CMSG_LEN(sizeof(struct in_addr));
+				memcpy(CMSG_DATA(cmsg),
+				       &((struct sockaddr_in *)&qc->local_addr)->sin_addr,
+				       sizeof(struct in_addr));
+#endif /* IP_PKTINFO || IP_RECVDSTADDR */
+				break;
+
+			case AF_INET6:
+#ifdef IPV6_RECVPKTINFO
+				memset(&in6, 0, sizeof(in6));
+				memcpy(&in6.ipi6_addr,
+				       &((struct sockaddr_in6 *)&qc->local_addr)->sin6_addr,
+				       sizeof(struct in6_addr));
+
+				msg.msg_control = u.buf6;
+				msg.msg_controllen = sizeof(u.buf6);
+
+				cmsg = CMSG_FIRSTHDR(&msg);
+				cmsg->cmsg_level = IPPROTO_IPV6;
+				cmsg->cmsg_type = IPV6_PKTINFO;
+				cmsg->cmsg_len = CMSG_LEN(sizeof(struct in6_pktinfo));
+				memcpy(CMSG_DATA(cmsg), &in6, sizeof(in6));
+#endif /* IPV6_RECVPKTINFO */
+				break;
+
+			default:
+				break;
+			}
+
+			ret = sendmsg(qc->li->rx.fd, &msg,
+			              MSG_DONTWAIT|MSG_NOSIGNAL);
+		}
+#endif /* IP_PKTINFO || IP_RECVDSTADDR || IPV6_RECVPKTINFO */
 		else {
 			ret = sendto(qc->li->rx.fd, b_peek(buf, b_head_ofs(buf)), sz,
 			             MSG_DONTWAIT|MSG_NOSIGNAL,
