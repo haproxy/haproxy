@@ -2584,8 +2584,10 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 		if (h2s->st != H2_SS_CLOSED) {
 			error = h2c_decode_headers(h2c, &h2s->rxbuf, &h2s->flags, &body_len, NULL);
 			/* unrecoverable error ? */
-			if (h2c->st0 >= H2_CS_ERROR)
+			if (h2c->st0 >= H2_CS_ERROR) {
+				sess_log(h2c->conn->owner);
 				goto out;
+			}
 
 			if (error == 0) {
 				/* Demux not blocked because of the stream, it is an incomplete frame */
@@ -2598,6 +2600,7 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 				/* Failed to decode this frame (e.g. too large request)
 				 * but the HPACK decompressor is still synchronized.
 				 */
+				sess_log(h2c->conn->owner);
 				h2s_error(h2s, H2_ERR_INTERNAL_ERROR);
 				h2c->st0 = H2_CS_FRAME_E;
 				goto out;
@@ -2608,6 +2611,7 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 		 * the data and send another RST.
 		 */
 		error = h2c_decode_headers(h2c, &rxbuf, &flags, &body_len, NULL);
+		sess_log(h2c->conn->owner);
 		h2s = (struct h2s*)h2_error_stream;
 		goto send_rst;
 	}
@@ -2625,8 +2629,10 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 	error = h2c_decode_headers(h2c, &rxbuf, &flags, &body_len, NULL);
 
 	/* unrecoverable error ? */
-	if (h2c->st0 >= H2_CS_ERROR)
+	if (h2c->st0 >= H2_CS_ERROR) {
+		sess_log(h2c->conn->owner);
 		goto out;
+	}
 
 	if (error <= 0) {
 		if (error == 0) {
@@ -2639,6 +2645,7 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 		/* Failed to decode this stream (e.g. too large request)
 		 * but the HPACK decompressor is still synchronized.
 		 */
+		sess_log(h2c->conn->owner);
 		h2s = (struct h2s*)h2_error_stream;
 		goto send_rst;
 	}
