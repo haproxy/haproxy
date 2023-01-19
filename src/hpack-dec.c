@@ -32,6 +32,7 @@
 
 #include <import/ist.h>
 #include <haproxy/chunk.h>
+#include <haproxy/global.h>
 #include <haproxy/h2.h>
 #include <haproxy/hpack-dec.h>
 #include <haproxy/hpack-huff.h>
