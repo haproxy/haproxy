@@ -272,6 +272,18 @@ static inline void thread_harmless_end()
 	}
 }
 
+/* Ends the harmless period started by thread_harmless_now(), but without
+ * waiting for isolated requests. This is meant to be used from signal handlers
+ * which might be called recursively while a thread already requested an
+ * isolation that must be ignored. It must not be used past a checkpoint where
+ * another thread could return and see the current thread as harmless before
+ * this call (or this could validate an isolation request by accident).
+ */
+static inline void thread_harmless_end_sig()
+{
+	HA_ATOMIC_AND(&tg_ctx->threads_harmless, ~ti->ltid_bit);
+}
+
 /* an isolated thread has its ID in isolated_thread */
 static inline unsigned long thread_isolated()
 {
