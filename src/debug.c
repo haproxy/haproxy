@@ -1562,7 +1562,7 @@ void debug_handler(int sig, siginfo_t *si, void *arg)
 		ha_thread_relax();
 
 	if (!harmless)
-		thread_harmless_end();
+		thread_harmless_end_sig();
 
 	/* dump if needed */
 	if (thread_dump_buffer)
@@ -1598,17 +1598,16 @@ void debug_handler(int sig, siginfo_t *si, void *arg)
 	}
 
 	/* now wait for all others to finish dumping: the lowest part will turn
-	 * to zero. Then all others decrement the done part.
+	 * to zero. Then all others decrement the done part. We must not change
+	 * the harmless status anymore because one of the other threads might
+	 * have been interrupted in thread_isolate() waiting for all others to
+	 * become harmless, and changing the situation here would break that
+	 * promise.
 	 */
-	if (!harmless)
-		thread_harmless_now();
 
 	/* wait for everyone to finish*/
 	while (HA_ATOMIC_LOAD(&thread_dump_state) & THREAD_DUMP_PMASK)
 		ha_thread_relax();
-
-	if (!harmless)
-		thread_harmless_end();
 
 	/* we're gone. Past this point anything can happen including another
 	 * thread trying to re-trigger a dump, so thread_dump_buffer and
