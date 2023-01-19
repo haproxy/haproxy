@@ -17,7 +17,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
-#include "include.h"
+#include "../include/include.h"
 
 
 #define FLT_OT_EVENT_DEF(a,b,c,d,e,f)   { AN_##b##_##a, SMP_OPT_DIR_##b, SMP_VAL_FE_##c, SMP_VAL_BE_##d, e, f },
