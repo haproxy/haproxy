@@ -2836,6 +2836,17 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 				}
 				else {
 					TRACE_DEVEL("No mux for new stream", QUIC_EV_CONN_PRSHPKT, qc);
+					if (qc->app_ops == &h3_ops && quic_stream_is_uni(stream->id)) {
+						/* Do not send STOP_SENDING frames for h3 unidirectional streams.
+						 * TODO: this test should be removed when the connection closure
+						 * will be more clean.
+						 * At quic_conn level there is no mean to know that an application
+						 * want to forbid stream closure requests to receivers. This is the
+						 * case for the Control and QPACK h3 unidirectional streams.
+						 */
+						goto leave;
+					}
+
 					if (!qc_stop_sending_frm_enqueue(qc, stream->id))
 						TRACE_ERROR("could not enqueue STOP_SENDING frame", QUIC_EV_CONN_PRSHPKT, qc);
 					/* This packet will not be acknowledged */
