@@ -41,7 +41,7 @@ void flt_ot_args_dump(char **args)
 
 	argc = flt_ot_args_count(args);
 
-	(void)fprintf(stderr, FLT_OT_DBG_FMT("%.*sargs[%d]: { '%s' "), dbg_indent_level, FLT_OT_DBG_INDENT, argc, args[0]);
+	(void)fprintf(stderr, FLT_OT_DBG_FMT("%.*sargs[%d]: { '%s' "), flt_ot_dbg_indent_level, FLT_OT_DBG_INDENT, argc, args[0]);
 
 	for (i = 1; i < argc; i++)
 		(void)fprintf(stderr, "'%s' ", args[i]);

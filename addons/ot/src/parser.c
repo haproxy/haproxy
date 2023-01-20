@@ -22,7 +22,7 @@
 
 #ifdef DEBUG_OT
 struct flt_ot_debug               flt_ot_debug;
-THREAD_LOCAL int                  dbg_indent_level = 0;
+THREAD_LOCAL int                  flt_ot_dbg_indent_level = 0;
 #endif
 
 #ifdef OTC_DBG_MEM

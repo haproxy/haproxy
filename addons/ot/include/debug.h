@@ -35,11 +35,11 @@
 	do {                                                                               \
 		if (!(l) || (flt_ot_debug.level & (1 << (l))))                             \
 			(void)fprintf(stderr, FLT_OT_DBG_FMT("%.*s" f "\n"),               \
-			              dbg_indent_level, FLT_OT_DBG_INDENT, ##__VA_ARGS__); \
+			              flt_ot_dbg_indent_level, FLT_OT_DBG_INDENT, ##__VA_ARGS__); \
 	} while (0)
-#  define FLT_OT_FUNC(f, ...)       do { FLT_OT_DBG(1, "%s(" f ") {", __func__, ##__VA_ARGS__); dbg_indent_level += 3; } while (0)
-#  define FLT_OT_RETURN(a)          do { dbg_indent_level -= 3; FLT_OT_DBG(1, "}"); return a; } while (0)
-#  define FLT_OT_RETURN_EX(a,t,f)   do { dbg_indent_level -= 3; { t _r = (a); FLT_OT_DBG(1, "} = " f, _r); return _r; } } while (0)
+#  define FLT_OT_FUNC(f, ...)       do { FLT_OT_DBG(1, "%s(" f ") {", __func__, ##__VA_ARGS__); flt_ot_dbg_indent_level += 3; } while (0)
+#  define FLT_OT_RETURN(a)          do { flt_ot_dbg_indent_level -= 3; FLT_OT_DBG(1, "}"); return a; } while (0)
+#  define FLT_OT_RETURN_EX(a,t,f)   do { flt_ot_dbg_indent_level -= 3; { t _r = (a); FLT_OT_DBG(1, "} = " f, _r); return _r; } } while (0)
 #  define FLT_OT_RETURN_INT(a)      FLT_OT_RETURN_EX((a), int, "%d")
 #  define FLT_OT_RETURN_PTR(a)      FLT_OT_RETURN_EX((a), void *, "%p")
 #  define FLT_OT_DBG_IFDEF(a,b)     a
@@ -54,7 +54,7 @@ struct flt_ot_debug {
 };
 
 
-extern THREAD_LOCAL int    dbg_indent_level;
+extern THREAD_LOCAL int    flt_ot_dbg_indent_level;
 extern struct flt_ot_debug flt_ot_debug;
 
 #else
