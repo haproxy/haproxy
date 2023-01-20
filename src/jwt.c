@@ -331,7 +331,7 @@ jwt_jwsverify_rsa_ecdsa(const struct jwt_ctx *ctx, struct buffer *decoded_signat
 	 */
 	if (is_ecdsa) {
 		int conv_retval = convert_ecdsa_sig(ctx, entry->pkey, decoded_signature);
-		if (retval != 0) {
+		if (conv_retval != 0) {
 			retval = conv_retval;
 			goto end;
 		}

@@ -265,7 +265,8 @@ client c12 -connect ${h1_mainfe_sock} {
     rxresp
     expect resp.status == 200
     expect resp.http.x-jwt-alg == "ES512"
-    expect resp.http.x-jwt-verify-ES512 == "0"
+    # Invalid token
+    expect resp.http.x-jwt-verify-ES512 == "-3"
 } -run
 
 
