@@ -1,6 +1,99 @@
 ChangeLog :
 ===========
 
+2023/01/22 : 2.8-dev2
+    - CLEANUP: htx: fix a typo in an error message of http_str_to_htx
+    - DOC: config: added optional rst-ttl argument to silent-drop in action lists
+    - BUG/MINOR: ssl: Fix crash in 'update ssl ocsp-response' CLI command
+    - BUG/MINOR: ssl: Crash during cleanup because of ocsp structure pointer UAF
+    - MINOR: ssl: Create temp X509_STORE filled with cert chain when checking ocsp response
+    - MINOR: ssl: Only set ocsp->issuer if issuer not in cert chain
+    - MINOR: ssl: Release ssl_ocsp_task_ctx.cur_ocsp when destroying task
+    - MINOR: ssl: Detect more OCSP update inconsistencies
+    - BUG/MINOR: ssl: Fix OCSP_CERTID leak when same certificate is used multiple times
+    - MINOR: ssl: Limit ocsp_uri buffer size to minimum
+    - MINOR: ssl: Remove mention of ckch_store in error message of cli command
+    - MINOR: channel: Don't test CF_READ_NULL while CF_SHUTR is enough
+    - REORG: channel: Rename CF_READ_NULL to CF_READ_EVENT
+    - REORG: channel: Rename CF_WRITE_NULL to CF_WRITE_EVENT
+    - MEDIUM: channel: Use CF_READ_EVENT instead of CF_READ_PARTIAL
+    - MEDIUM: channel: Use CF_WRITE_EVENT instead of CF_WRITE_PARTIAL
+    - MINOR: channel: Remove CF_READ_ACTIVITY
+    - MINOR: channel: Remove CF_WRITE_ACTIVITY
+    - MINOR: channel: Remove CF_ANA_TIMEOUT and report CF_READ_EVENT instead
+    - MEDIUM: channel: Remove CF_READ_ATTACHED and report CF_READ_EVENT instead
+    - MINOR: channel: Stop to test CF_READ_ERROR flag if CF_SHUTR is enough
+    - MINOR: channel/applets: Stop to test CF_WRITE_ERROR flag if CF_SHUTW is enough
+    - DOC: management: add details on "Used" status
+    - DOC: management: add details about @system-ca in "show ssl ca-file"
+    - BUG/MINOR: mux-quic: fix transfer of empty HTTP response
+    - MINOR: mux-quic: add traces for flow-control limit reach
+    - MAJOR: mux-quic: rework stream sending priorization
+    - MEDIUM: h3: send SETTINGS before STREAM frames
+    - MINOR: mux-quic: use send-list for STOP_SENDING/RESET_STREAM emission
+    - MINOR: mux-quic: use send-list for immediate sending retry
+    - BUG/MINOR: h1-htx: Remove flags about protocol upgrade on non-101 responses
+    - BUG/MINOR: hlua: Fix Channel.line and Channel.data behavior regarding the doc
+    - BUG/MINOR: resolvers: Wait the resolution execution for a do_resolv action
+    - BUG/MINOR: ssl: Remove unneeded pointer check in ocsp cli release function
+    - BUG/MINOR: ssl: Missing ssl_conf pointer check when checking ocsp update inconsistencies
+    - DEV: tcploop: add minimal support for unix sockets
+    - BUG/MEDIUM: listener: duplicate inherited FDs if needed
+    - BUG/MINOR: ssl: OCSP minimum update threshold not properly set
+    - MINOR: ssl: Treat ocsp-update inconsistencies as fatal errors
+    - MINOR: ssl: Do not wake ocsp update task if update tree empty
+    - MINOR: ssl: Reinsert updated ocsp response later in tree in case of http error
+    - REGTEST: ssl: Add test for 'update ssl ocsp-response' CLI command
+    - OPTIM: global: move byte counts out of global and per-thread
+    - BUG/MEDIUM: peers: make "show peers" more careful about partial initialization
+    - BUG/MINOR: promex: Don't forget to consume the request on error
+    - MINOR: http-ana: Add a function to set HTTP termination flags
+    - MINOR: http-ana: Use http_set_term_flags() in most of HTTP analyzers
+    - BUG/MINOR: http-ana: Report SF_FINST_R flag on error waiting the request body
+    - MINOR: http-ana: Use http_set_term_flags() when waiting the request body
+    - BUG/MINOR: http-fetch: Don't block HTTP sample fetch eval in HTTP_MSG_ERROR state
+    - MAJOR: http-ana: Review error handling during HTTP payload forwarding
+    - CLEANUP: http-ana: Remove HTTP_MSG_ERROR state
+    - BUG/MEDIUM: mux-h2: Don't send CANCEL on shutw when response length is unkown
+    - MINOR: htx: Add an HTX value for the extra field is payload length is unknown
+    - BUG/MINOR: http-ana: make set-status also update txn->status
+    - BUG/MINOR: listeners: fix suspend/resume of inherited FDs
+    - DOC: config: fix wrong section number for "protocol prefixes"
+    - DOC: config: fix aliases for protocol prefixes "udp4@" and "udp6@"
+    - DOC: config: mention the missing "quic4@" and "quic6@" in protocol prefixes
+    - MINOR: listener: also support "quic+" as an address prefix
+    - CLEANUP: stconn: always use se_fl_set_error() to set the pending error
+    - BUG/MEDIUM: stconn: also consider SE_FL_EOI to switch to SE_FL_ERROR
+    - MINOR: quic: Useless test about datagram destination addresses
+    - MINOR: quic: Disable the active connection migrations
+    - MINOR: quic: Add "no-quic" global option
+    - MINOR: sample: Add "quic_enabled" sample fetch
+    - MINOR: quic: Replace v2 draft definitions by those of the final 2 version
+    - BUG/MINOR: mux-fcgi: Correctly set pathinfo
+    - DOC: config: fix "Address formats" chapter syntax
+    - BUG/MEDIUM: jwt: Properly process ecdsa signatures (concatenated R and S params)
+    - BUILD: ssl: add ECDSA_SIG_set0() for openssl < 1.1 or libressl < 2.7
+    - Revert "BUILD: ssl: add ECDSA_SIG_set0() for openssl < 1.1 or libressl < 2.7"
+    - BUG/MINOR: ssl: Fix compilation with OpenSSL 1.0.2 (missing ECDSA_SIG_set0)
+    - BUG/MINOR: listener: close tiny race between resume_listener() and stopping
+    - BUG/MINOR: h3: properly handle connection headers
+    - MINOR: h3: extend function for QUIC varint encoding
+    - MINOR: h3: implement TRAILERS encoding
+    - BUG/MINOR: bwlim: Check scope for period expr for set-bandwitdh-limit actions
+    - MEDIUM: bwlim: Support constants limit or period on set-bandwidth-limit actions
+    - BUG/MINOR: bwlim: Fix parameters check for set-bandwidth-limit actions
+    - MINOR: h3: implement TRAILERS decoding
+    - BUG/MEDIUM: fd/threads: fix again incorrect thread selection in wakeup broadcast
+    - BUG/MINOR: thread: always reload threads_enabled in loops
+    - MINOR: threads: add a thread_harmless_end() version that doesn't wait
+    - BUG/MEDIUM: debug/thread: make the debug handler not wait for !rdv_requests
+    - BUG/MINOR: mux-h2: make sure to produce a log on invalid requests
+    - BUG/MINOR: mux-h2: add missing traces on failed headers decoding
+    - BUILD: hpack: include global.h for the trash that is needed in debug mode
+    - BUG/MINOR: jwt: Wrong return value checked
+    - BUG/MINOR: quic: Do not request h3 clients to close its unidirection streams
+    - MEDIUM: quic-sock: fix udp source address for send on listener socket
+
 2023/01/07 : 2.8-dev1
     - MEDIUM: 51d: add support for 51Degrees V4 with Hash algorithm
     - MINOR: debug: support pool filtering on "debug dev memstats"
