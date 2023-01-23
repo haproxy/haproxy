@@ -1378,11 +1378,13 @@ static int cli_parse_update_ocsp_response(char **args, char *payload, struct app
 	}
 
 	free_trash_chunk(req_url);
+	free_trash_chunk(req_body);
 
 	return 0;
 
 end:
 	free_trash_chunk(req_url);
+	free_trash_chunk(req_body);
 
 	if (errcode & ERR_CODE) {
 		return cli_dynerr(appctx, memprintf(&err, "%sCan't send ocsp request for %s!\n", err ? err : "", args[3]));
@@ -1435,6 +1437,7 @@ static int cli_io_handler_update_ocsp_response(struct appctx *appctx)
 
 		if (ssl_ocsp_check_response(ctx->ckch_data->chain, ctx->ocsp_issuer, &hc->res.buf, &err)) {
 			chunk_printf(&trash, "%s", err);
+			free(err);
 			if (applet_putchk(appctx, &trash) == -1)
 				goto more;
 			goto end;
@@ -1442,11 +1445,13 @@ static int cli_io_handler_update_ocsp_response(struct appctx *appctx)
 
 		if (ssl_sock_update_ocsp_response(&hc->res.buf, &err) != 0) {
 			chunk_printf(&trash, "%s", err);
+			free(err);
 			if (applet_putchk(appctx, &trash) == -1)
 				goto more;
 			goto end;
 		}
 
+		free(err);
 		chunk_reset(&trash);
 
 		if (ssl_ocsp_response_print(&hc->res.buf, &trash))
