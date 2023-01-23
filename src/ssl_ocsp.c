@@ -1420,7 +1420,9 @@ static int cli_io_handler_update_ocsp_response(struct appctx *appctx)
 			}
 		}
 		if (!found) {
-			fprintf(stderr, "Missing 'Content-Type: application/ocsp-response' header\n");
+			chunk_printf(&trash, "Missing 'Content-Type: application/ocsp-response' header\n");
+			if (applet_putchk(appctx, &trash) == -1)
+				goto more;
 			goto end;
 		}
 		ctx->flags &= ~HC_F_RES_HDR;
