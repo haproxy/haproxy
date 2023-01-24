@@ -298,6 +298,14 @@ void __trace(enum trace_level level, uint64_t mask, struct trace_source *src,
 	}
 }
 
+/* this callback may be used when no output modification is desired */
+void trace_no_cb(enum trace_level level, uint64_t mask, const struct trace_source *src,
+		 const struct ist where, const struct ist func,
+		 const void *a1, const void *a2, const void *a3, const void *a4)
+{
+	/* do nothing */
+}
+
 /* registers trace source <source>. Modifies the list element!
  * The {start,pause,stop,report} events are not changed so the source may
  * preset them.

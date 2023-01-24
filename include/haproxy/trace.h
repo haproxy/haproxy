@@ -149,6 +149,10 @@ void __trace(enum trace_level level, uint64_t mask, struct trace_source *src,
                         const void *a1, const void *a2, const void *a3, const void *a4),
              const struct ist msg);
 
+void trace_no_cb(enum trace_level level, uint64_t mask, const struct trace_source *src,
+		 const struct ist where, const struct ist func,
+		 const void *a1, const void *a2, const void *a3, const void *a4);
+
 void trace_register_source(struct trace_source *source);
 
 /* return a single char to describe a trace state */
