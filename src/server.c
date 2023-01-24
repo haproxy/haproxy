@@ -5107,6 +5107,15 @@ static int cli_parse_delete_server(char **args, char *payload, struct appctx *ap
 	/* remove srv from idle_node tree for idle conn cleanup */
 	eb32_delete(&srv->idle_node);
 
+	/* flag the server as deleted
+	 * (despite the server being removed from primary server list,
+	 * one could still access the server data from a valid ptr)
+	 * Deleted flag helps detecting when a server is in transient removal
+	 * state.
+	 * ie: removed from the list but not yet freed/purged from memory.
+	 */
+	srv->flags |= SRV_F_DELETED;
+
 	/* set LSB bit (odd bit) for reuse_cnt */
 	srv_id_reuse_cnt |= 1;
 

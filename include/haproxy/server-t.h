@@ -150,6 +150,7 @@ enum srv_initaddr {
 #define SRV_F_DYNAMIC      0x1000        /* dynamic server instantiated at runtime */
 #define SRV_F_NON_PURGEABLE 0x2000       /* this server cannot be removed at runtime */
 #define SRV_F_DEFSRV_USE_SSL 0x4000      /* default-server uses SSL */
+#define SRV_F_DELETED 0x8000             /* srv is deleted but not yet purged */
 
 /* configured server options for send-proxy (server->pp_opts) */
 #define SRV_PP_V1               0x0001   /* proxy protocol version 1 */
