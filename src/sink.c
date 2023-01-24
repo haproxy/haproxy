@@ -1392,8 +1392,13 @@ static void sink_deinit()
 
 	list_for_each_entry_safe(sink, sb, &sink_list, sink_list) {
 		if (sink->type == SINK_TYPE_BUFFER) {
-			if (sink->store)
-				munmap(sink->ctx.ring->buf.area, sink->ctx.ring->buf.size);
+			if (sink->store) {
+				size_t size = (sink->ctx.ring->buf.size + 4095UL) & -4096UL;
+				void *area = (sink->ctx.ring->buf.area - sizeof(*sink->ctx.ring));
+
+				msync(area, size, MS_SYNC);
+				munmap(area, size);
+			}
 			else
 				ring_free(sink->ctx.ring);
 		}
