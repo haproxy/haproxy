@@ -883,6 +883,21 @@ int qcc_install_app_ops(struct qcc *qcc, const struct qcc_app_ops *app_ops)
 
 	TRACE_PROTO("application layer initialized", QMUX_EV_QCC_NEW, qcc->conn);
 
+	/* RFC 9114 7.2.4.2. Initialization
+	 *
+	 * Endpoints MUST NOT require any data to be
+	 * received from the peer prior to sending the SETTINGS frame;
+	 * settings MUST be sent as soon as the transport is ready to
+	 * send data.
+	 */
+	if (qcc->app_ops->finalize) {
+		if (qcc->app_ops->finalize(qcc->ctx)) {
+			TRACE_ERROR("app ops finalize error", QMUX_EV_QCC_NEW, qcc->conn);
+			goto err;
+		}
+		tasklet_wakeup(qcc->wait_event.tasklet);
+	}
+
 	TRACE_LEAVE(QMUX_EV_QCC_NEW, qcc->conn);
 	return 0;
 
@@ -1740,15 +1755,6 @@ static int qc_send(struct qcc *qcc)
 
 	if (qcc->flags & QC_CF_BLK_MFCTL)
 		goto err;
-
-	if (!(qcc->flags & QC_CF_APP_FINAL) && !eb_is_empty(&qcc->streams_by_id) &&
-	    qcc->app_ops->finalize) {
-		/* Finalize the application layer before sending any stream.
-		 * For h3 this consists in preparing the control stream data (SETTINGS h3).
-		 */
-		qcc->app_ops->finalize(qcc->ctx);
-		qcc->flags |= QC_CF_APP_FINAL;
-	}
 
 	/* Send STREAM/STOP_SENDING/RESET_STREAM data for registered streams. */
 	list_for_each_entry_safe(qcs, qcs_tmp, &qcc->send_list, el_send) {

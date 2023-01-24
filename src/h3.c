@@ -1636,6 +1636,10 @@ static void h3_detach(struct qcs *qcs)
 	TRACE_LEAVE(H3_EV_H3S_END, qcs->qcc->conn, qcs);
 }
 
+/* Initialize H3 control stream and prepare SETTINGS emission.
+ *
+ * Returns 0 on success else non-zero.
+ */
 static int h3_finalize(void *ctx)
 {
 	struct h3c *h3c = ctx;
@@ -1643,12 +1647,12 @@ static int h3_finalize(void *ctx)
 
 	qcs = qcc_init_stream_local(h3c->qcc, 0);
 	if (!qcs)
-		return 0;
+		return 1;
 
 	h3_control_send(qcs, h3c);
 	h3c->ctrl_strm = qcs;
 
-	return 1;
+	return 0;
 }
 
 /* Generate a GOAWAY frame for <h3c> connection on the control stream.
