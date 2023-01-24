@@ -1067,13 +1067,14 @@ int proxy_http_parse_7239(char **args, int cur_arg,
 	return err_code;
 }
 
-/* returns 0 for success and positive value
- * (equals to number of errors) in case of error
+/* rfc7239 forwarded option needs a postparsing step
+ * to convert parsing hints into runtime usable sample expressions
+ * Returns a composition of ERR_NONE, ERR_FATAL, ERR_ALERT, ERR_WARN
  */
 int proxy_http_compile_7239(struct proxy *curproxy)
 {
 	struct http_ext_7239 *fwd;
-	int cfgerr = 0;
+	int err = ERR_NONE;
 	int loop;
 
 	if (!(curproxy->cap & PR_CAP_BE)) {
@@ -1096,7 +1097,7 @@ int proxy_http_compile_7239(struct proxy *curproxy)
 		char **expr_str = NULL;
 		struct sample_expr **expr = NULL;
 		struct sample_expr *cur_expr;
-		char *err = NULL;
+		char *err_str = NULL;
 		int smp = 0;
 		int idx = 0;
 
@@ -1144,7 +1145,7 @@ int proxy_http_compile_7239(struct proxy *curproxy)
 				 proxy_type_str(curproxy), curproxy->id,
 				 fwd->c_file, fwd->c_line,
 				 "memory error");
-			cfgerr++;
+			err |= ERR_ALERT | ERR_FATAL;
 			continue;
 		}
 
@@ -1152,15 +1153,15 @@ int proxy_http_compile_7239(struct proxy *curproxy)
 			sample_parse_expr((char*[]){*expr_str, NULL}, &idx,
 					  fwd->c_file,
 					  fwd->c_line,
-					  &err, &curproxy->conf.args, NULL);
+					  &err_str, &curproxy->conf.args, NULL);
 
 		if (!cur_expr) {
 			ha_alert("%s '%s' [%s:%d]: failed to parse 'option forwarded' expression '%s' in : %s.\n",
 				 proxy_type_str(curproxy), curproxy->id,
 				 fwd->c_file, fwd->c_line,
-				 *expr_str, err);
-			ha_free(&err);
-			cfgerr++;
+				 *expr_str, err_str);
+			ha_free(&err_str);
+			err |= ERR_ALERT | ERR_FATAL;
 		}
 		else if (!(cur_expr->fetch->val & SMP_VAL_BE_HRQ_HDR)) {
 			/* fetch not available in this context: sample expr is resolved
@@ -1174,6 +1175,7 @@ int proxy_http_compile_7239(struct proxy *curproxy)
 				   proxy_type_str(curproxy), curproxy->id,
 				   fwd->c_file, fwd->c_line,
 				   *expr_str, sample_ckp_names(cur_expr->fetch->use));
+			err |= ERR_WARN;
 		}
 		/* post parsing individual expr cleanup */
 		ha_free(expr_str);
@@ -1191,7 +1193,7 @@ int proxy_http_compile_7239(struct proxy *curproxy)
 	fwd->c_mode = 1; /* parsing completed */
 
  out:
-	return cfgerr;
+	return err;
 }
 
 /* x-forwarded-for */
@@ -1665,6 +1667,49 @@ void http_ext_softclean(struct proxy *curproxy)
 	}
 }
 
+/* Perform some consitency checks on px.http_ext after parsing
+ * is completed.
+ * We make sure to perform a softclean in case some options were
+ * to be disabled in this check. This way we can release some memory.
+ * Returns a composition of ERR_NONE, ERR_ALERT, ERR_FATAL, ERR_WARN
+ */
+static int check_http_ext_postconf(struct proxy *px) {
+	int err = ERR_NONE;
+
+	if (px->http_ext) {
+		/* consistency check for http_ext */
+		if (px->mode != PR_MODE_HTTP && !(px->options & PR_O_HTTP_UPG)) {
+			/* http is disabled on px, yet it is required by http_ext */
+			if (px->http_ext->fwd) {
+				ha_warning("'option %s' ignored for %s '%s' as it requires HTTP mode.\n",
+					   "forwarded", proxy_type_str(px), px->id);
+				err |= ERR_WARN;
+				http_ext_7239_clean(px);
+			}
+			if (px->http_ext->xff) {
+				ha_warning("'option %s' ignored for %s '%s' as it requires HTTP mode.\n",
+					   "forwardfor", proxy_type_str(px), px->id);
+				err |= ERR_WARN;
+				http_ext_xff_clean(px);
+			}
+			if (px->http_ext->xot) {
+				ha_warning("'option %s' ignored for %s '%s' as it requires HTTP mode.\n",
+					   "originalto", proxy_type_str(px), px->id);
+				err |= ERR_WARN;
+				http_ext_xot_clean(px);
+			}
+		} else if (px->http_ext->fwd) {
+			/* option "forwarded" may need to compile its expressions */
+			err |= proxy_http_compile_7239(px);
+		}
+		/* http_ext post init early cleanup */
+		http_ext_softclean(px);
+
+	}
+	return err;
+}
+
+REGISTER_POST_PROXY_CHECK(check_http_ext_postconf);
 /*
  * =========== CONV ===========
  * related converters
