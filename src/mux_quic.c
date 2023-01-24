@@ -1950,6 +1950,23 @@ static void qc_shutdown(struct qcc *qcc)
 	TRACE_LEAVE(QMUX_EV_QCC_END, qcc->conn);
 }
 
+/* Conduct operations which should be made for <qcc> connection after
+ * input/output. Most notably, closed streams are purged which may leave the
+ * connection has ready to be released.
+ *
+ * Returns 1 if <qcc> must be released else 0.
+ */
+
+static int qc_process(struct qcc *qcc)
+{
+	qc_purge_streams(qcc);
+
+	if (qcc_is_dead(qcc))
+		return 1;
+
+	return 0;
+}
+
 /* release function. This one should be called to free all resources allocated
  * to the mux.
  */
@@ -2021,18 +2038,12 @@ struct task *qc_io_cb(struct task *t, void *ctx, unsigned int status)
 
 	qc_send(qcc);
 
-	if (qc_purge_streams(qcc)) {
-		if (qcc_is_dead(qcc)) {
-			TRACE_STATE("releasing dead connection", QMUX_EV_QCC_WAKE, qcc->conn);
-			goto release;
-		}
-	}
-
 	qc_recv(qcc);
 
-	/* TODO check if qcc proxy is disabled. If yes, use graceful shutdown
-	 * to close the connection.
-	 */
+	if (qc_process(qcc)) {
+		TRACE_STATE("releasing dead connection", QMUX_EV_QCC_WAKE, qcc->conn);
+		goto release;
+	}
 
 	qcc_refresh_timeout(qcc);
 
@@ -2451,10 +2462,12 @@ static int qc_wake(struct connection *conn)
 
 	qc_send(qcc);
 
-	qc_wake_some_streams(qcc);
-
-	if (qcc_is_dead(qcc))
+	if (qc_process(qcc)) {
+		TRACE_STATE("releasing dead connection", QMUX_EV_QCC_WAKE, qcc->conn);
 		goto release;
+	}
+
+	qc_wake_some_streams(qcc);
 
 	qcc_refresh_timeout(qcc);
 
@@ -2462,7 +2475,6 @@ static int qc_wake(struct connection *conn)
 	return 0;
 
  release:
-	TRACE_STATE("releasing dead connection", QMUX_EV_QCC_WAKE, qcc->conn);
 	qc_release(qcc);
 	TRACE_LEAVE(QMUX_EV_QCC_WAKE);
 	return 1;
