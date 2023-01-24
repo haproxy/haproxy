@@ -67,7 +67,9 @@
  * simply omitted (in which case they will be replaced by a NULL). This
  * ordering allows many TRACE() calls to be placed using copy-paste and just
  * change the message at the beginning. Only TRACE_DEVEL(), TRACE_ENTER() and
- * TRACE_LEAVE() will report the calling function's name.
+ * TRACE_LEAVE() will report the calling function's name. TRACE_PRINTF() does
+ * require all the optional a1..a4 to be passed (possibly zero) so that they're
+ * always followed by the format string, then the values to be formatted.
  *
  * TRACE_* will call the _trace() macro which will test if the trace is enabled
  * before calling the __trace() function. _trace() shouldn't be a function (nor
@@ -109,6 +111,35 @@
 #define TRACE_POINT(mask, args...)  \
 	_trace(TRACE_LEVEL_DEVELOPER, (mask), TRACE_SOURCE, ist(TRC_LOC), __FUNCTION__, TRC_5ARGS(0,##args,0,0,0,0,0), ist("in"))
 
+/* This produces a printf-like trace at level <level> for event mask <mask> and
+ * trace arguments <a1..a4>. All args mandatory, but may be zero. No output
+ * callback will be used since we expect the caller to pass a fully formatted
+ * message that must not be degraded. The output will be truncated to
+ * TRACE_MAX_MSG-1 bytes (1023 by default). Caller must include <stdio.h> for
+ * snprintf(). One call will lead to one independent message, which means that
+ * multiple messages may be interleaved between threads, hence the caller is
+ * encouraged to prepend a context at the beginning of the format string when
+ * dumping lists or arrays. The _LOC variation takes the caller's location and
+ * function name as an ist and a (const char *) respectively, it is meant for
+ * being called from wrapper function which will work on behalf of a caller.
+ */
+#define TRACE_PRINTF(level, mask, a1, a2, a3, a4, fmt, args...)		\
+	TRACE_PRINTF_LOC(level, mask, ist(TRC_LOC), __FUNCTION__, a1, a2, a3, a4, fmt, ##args)
+
+#define TRACE_PRINTF_LOC(level, mask, trc_loc, func, a1, a2, a3, a4, fmt, args...) \
+	do {									\
+		if (TRACE_ENABLED((level), (mask), a1, a2, a3, a4)) {		\
+			char _msg[TRACE_MAX_MSG];				\
+			size_t _msg_len;					\
+			_msg_len = snprintf(_msg, sizeof(_msg), (fmt), ##args);	\
+			if (_msg_len >= sizeof(_msg))				\
+				_msg_len = sizeof(_msg) - 1;			\
+			_trace(TRACE_LEVEL_DEVELOPER, (mask), TRACE_SOURCE,	\
+			       trc_loc, func, a1, a2, a3, a4,			\
+			       &trace_no_cb, ist2(_msg, _msg_len));		\
+		}								\
+	} while (0)
+
 #if defined(DEBUG_DEV) || defined(DEBUG_FULL)
 #    define DBG_TRACE(msg, mask, args...)        TRACE(msg, mask, ##args)
 #    define DBG_TRACE_ERROR(msg, mask, args...)  TRACE_ERROR(msg, mask, ##args)
@@ -120,6 +151,8 @@
 #    define DBG_TRACE_ENTER(mask, args...)       TRACE_ENTER(mask, ##args)
 #    define DBG_TRACE_LEAVE(mask, args...)       TRACE_LEAVE(mask, ##args)
 #    define DBG_TRACE_POINT(mask, args...)       TRACE_POINT(mask, ##args)
+#    define DBG_TRACE_PRINTF(level, args...)     TRACE_PRINTF(level, ##args)
+#    define DBG_TRACE_PRINTF_LOC(level, args...) TRACE_PRINTF_LOC(level, ##args)
 #else
 #    define DBG_TRACE(msg, mask, args...)        do { /* do nothing */ } while(0)
 #    define DBG_TRACE_ERROR(msg, mask, args...)  do { /* do nothing */ } while(0)
@@ -131,6 +164,8 @@
 #    define DBG_TRACE_ENTER(mask, args...)       do { /* do nothing */ } while(0)
 #    define DBG_TRACE_LEAVE(mask, args...)       do { /* do nothing */ } while(0)
 #    define DBG_TRACE_POINT(mask, args...)       do { /* do nothing */ } while(0)
+#    define DBG_TRACE_PRINTF(level, args...)     do { /* do nothing */ } while(0)
+#    define DBG_TRACE_PRINTF_LOC(level, args...) do { /* do nothing */ } while(0)
 #endif
 
 extern struct list trace_sources;

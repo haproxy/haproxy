@@ -145,6 +145,11 @@
 #define MAX_HDR_HISTORY 10
 #endif
 
+// max length of a TRACE_PRINTF() output buffer (one less char for the message)
+#ifndef TRACE_MAX_MSG
+#define TRACE_MAX_MSG 1024
+#endif
+
 // max # of stick counters per session (at least 3 for sc0..sc2)
 #ifndef MAX_SESS_STKCTR
 #define MAX_SESS_STKCTR 3
