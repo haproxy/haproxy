@@ -70,14 +70,24 @@ static inline const void *trace_pick_arg(uint32_t arg_def, const void *a1, const
 	return NULL;
 }
 
-/* write a message for the given trace source */
-void __trace(enum trace_level level, uint64_t mask, struct trace_source *src,
-             const struct ist where, const char *func,
-             const void *a1, const void *a2, const void *a3, const void *a4,
-             void (*cb)(enum trace_level level, uint64_t mask, const struct trace_source *src,
-                        const struct ist where, const struct ist func,
-                        const void *a1, const void *a2, const void *a3, const void *a4),
-             const struct ist msg)
+/* Reports whether the trace is enabled for the specified arguments, needs to enable
+ * or disable tracking. It gets the same API as __trace() except for <cb> and <msg>
+ * which are not used and were dropped, and plockptr which is an optional pointer to
+ * the lockptr to be updated (or NULL) for tracking. The function returns:
+ *   0 if the trace is not enabled for the module or these values
+ *  <0 if the trace matches some locking criteria but don't have the proper level.
+ *     In this case the interested caller might have to consider disabling tracking.
+ *  >0 if the trace is enabled for the given criteria.
+ * In all cases, <plockptr> will only be set if non-null and if a locking criterion
+ * matched. It will be up to the caller to enable tracking if desired. A casual
+ * tester not interested in adjusting tracking (i.e. calling the function before
+ * deciding so prepare a buffer to be dumped) will only need to pass 0 for plockptr
+ * and check if the result is >0.
+ */
+int __trace_enabled(enum trace_level level, uint64_t mask, struct trace_source *src,
+		    const struct ist where, const char *func,
+		    const void *a1, const void *a2, const void *a3, const void *a4,
+		    const void **plockptr)
 {
 	const struct listener *li = NULL;
 	const struct proxy *fe = NULL;
@@ -89,17 +99,13 @@ void __trace(enum trace_level level, uint64_t mask, struct trace_source *src,
 	const struct check *check = NULL;
 	const struct quic_conn *qc = NULL;
 	const void *lockon_ptr = NULL;
-	struct ist ist_func = ist(func);
-	char tnum[4];
-	struct ist line[12];
-	int words = 0;
 
 	if (likely(src->state == TRACE_STATE_STOPPED))
-		return;
+		return 0;
 
 	/* check that at least one action is interested by this event */
 	if (((src->report_events | src->start_events | src->pause_events | src->stop_events) & mask) == 0)
-		return;
+		return 0;
 
 	/* retrieve available information from the caller's arguments */
 	if (src->arg_def & TRC_ARGS_CONN)
@@ -158,7 +164,7 @@ void __trace(enum trace_level level, uint64_t mask, struct trace_source *src,
 	/* check if we need to start the trace now */
 	if (src->state == TRACE_STATE_WAITING) {
 		if ((src->start_events & mask) == 0)
-			return;
+			return 0;
 
 		/* TODO: add update of lockon+lockon_ptr here */
 		HA_ATOMIC_STORE(&src->state, TRACE_STATE_RUNNING);
@@ -185,16 +191,48 @@ void __trace(enum trace_level level, uint64_t mask, struct trace_source *src,
 		}
 
 		if (src->lockon_ptr && src->lockon_ptr != lockon_ptr)
-			return;
+			return 0;
 
-		if (!src->lockon_ptr && lockon_ptr && src->state == TRACE_STATE_RUNNING)
-			HA_ATOMIC_STORE(&src->lockon_ptr, lockon_ptr);
+		if (*plockptr && !src->lockon_ptr && lockon_ptr && src->state == TRACE_STATE_RUNNING)
+			*plockptr = lockon_ptr;
 	}
 
 	/* here the trace is running and is tracking a desired item */
+	if ((src->report_events & mask) == 0 || level > src->level) {
+		/* tracking did match, and might have to be disabled */
+		return -1;
+	}
 
-	if ((src->report_events & mask) == 0 || level > src->level)
-		goto end;
+	/* OK trace still enabled */
+	return 1;
+}
+
+/* write a message for the given trace source */
+void __trace(enum trace_level level, uint64_t mask, struct trace_source *src,
+             const struct ist where, const char *func,
+             const void *a1, const void *a2, const void *a3, const void *a4,
+             void (*cb)(enum trace_level level, uint64_t mask, const struct trace_source *src,
+                        const struct ist where, const struct ist func,
+                        const void *a1, const void *a2, const void *a3, const void *a4),
+             const struct ist msg)
+{
+	const void *lockon_ptr;
+	struct ist ist_func = ist(func);
+	char tnum[4];
+	struct ist line[12];
+	int words = 0;
+	int ret;
+
+	lockon_ptr = NULL;
+	ret = __trace_enabled(level, mask, src, where, func, a1, a2, a3, a4, &lockon_ptr);
+	if (lockon_ptr)
+		HA_ATOMIC_STORE(&src->lockon_ptr, lockon_ptr);
+
+	if (ret <= 0) {
+		if (ret < 0) // may have to disable tracking
+			goto end;
+		return;
+	}
 
 	/* log the logging location truncated to 10 chars from the right so that
 	 * the line number and the end of the file name are there.

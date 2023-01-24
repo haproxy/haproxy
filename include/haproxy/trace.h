@@ -39,6 +39,15 @@
  */
 #define TRC_5ARGS(a0,a1,a2,a3,a4,a5,...) DEFNULL(a1),DEFNULL(a2),DEFNULL(a3),DEFNULL(a4),DEFNULL(a5)
 
+/* reports whether trace is active for the source and the arguments. It uses
+ * the same criteria as trace() (locking, filtering etc) so it's safe to use
+ * from application code to decide whether or not to engage in heavier data
+ * preparation processing.
+ */
+#define _trace_enabled(level, mask, src, args...)			\
+	(unlikely((src)->state != TRACE_STATE_STOPPED &&		\
+		  __trace_enabled(level, mask, src, ##args, NULL) > 0))
+
 /* sends a trace for the given source. Arguments are passed in the exact same
  * order as in the __trace() function, which is only called if (src)->state is
  * not TRACE_STATE_STOPPED. This is the only case where arguments are evaluated.
@@ -64,7 +73,12 @@
  * before calling the __trace() function. _trace() shouldn't be a function (nor
  * inline) itself because we don't want the caller to compute its arguments if
  * traces are not enabled.
+ *
+ * TRACE_ENABLED() reports whether or not trace is enabled for the current
+ * source, level, mask and arguments.
  */
+#define TRACE_ENABLED(level, mask, args...) (_trace_enabled((level), (mask), TRACE_SOURCE, ist(TRC_LOC), __FUNCTION__, ##args))
+
 #define TRACE(msg, mask, args...)    \
 	_trace(TRACE_LEVEL,           (mask), TRACE_SOURCE, ist(TRC_LOC), NULL, TRC_5ARGS(0,##args,0,0,0,0,0), ist(msg))
 
@@ -121,6 +135,11 @@
 
 extern struct list trace_sources;
 extern THREAD_LOCAL struct buffer trace_buf;
+
+int __trace_enabled(enum trace_level level, uint64_t mask, struct trace_source *src,
+		    const struct ist where, const char *func,
+		    const void *a1, const void *a2, const void *a3, const void *a4,
+		    const void **plockptr);
 
 void __trace(enum trace_level level, uint64_t mask, struct trace_source *src,
              const struct ist where, const char *func,
