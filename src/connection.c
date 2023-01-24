@@ -498,6 +498,10 @@ void conn_free(struct connection *conn)
 	pool_free(pool_head_uniqueid, istptr(conn->proxy_unique_id));
 	conn->proxy_unique_id = IST_NULL;
 
+	/* Make sure the connection is not left in the idle connection tree */
+	if (conn->hash_node != NULL)
+		BUG_ON(conn->hash_node->node.node.leaf_p != NULL);
+
 	pool_free(pool_head_conn_hash_node, conn->hash_node);
 	conn->hash_node = NULL;
 
