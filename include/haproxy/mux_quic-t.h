@@ -30,6 +30,7 @@ enum qcs_type {
 #define QC_CF_CC_EMIT   0x00000001 /* A CONNECTION_CLOSE is set by the MUX */
 #define QC_CF_BLK_MFCTL 0x00000002 /* sending blocked due to connection flow-control */
 #define QC_CF_CONN_FULL 0x00000004 /* no stream buffers available on connection */
+#define QC_CF_APP_SHUT  0x00000008 /* Application layer shutdown done. */
 
 struct qcc {
 	struct connection *conn;

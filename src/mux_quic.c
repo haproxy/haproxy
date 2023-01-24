@@ -1926,6 +1926,30 @@ static int qc_purge_streams(struct qcc *qcc)
 	return release;
 }
 
+/* Execute application layer shutdown. If this operation is not defined, a
+ * CONNECTION_CLOSE will be prepared as a fallback. This function is protected
+ * against multiple invocation with the flag QC_CF_APP_SHUT.
+ */
+static void qc_shutdown(struct qcc *qcc)
+{
+	TRACE_ENTER(QMUX_EV_QCC_END, qcc->conn);
+
+	if (qcc->flags & QC_CF_APP_SHUT)
+		goto out;
+
+	if (qcc->app_ops && qcc->app_ops->shutdown) {
+		qcc->app_ops->shutdown(qcc->ctx);
+		qc_send(qcc);
+	}
+	else {
+		qcc_emit_cc_app(qcc, QC_ERR_NO_ERROR, 0);
+	}
+
+ out:
+	qcc->flags |= QC_CF_APP_SHUT;
+	TRACE_LEAVE(QMUX_EV_QCC_END, qcc->conn);
+}
+
 /* release function. This one should be called to free all resources allocated
  * to the mux.
  */
@@ -1936,20 +1960,7 @@ static void qc_release(struct qcc *qcc)
 
 	TRACE_ENTER(QMUX_EV_QCC_END, conn);
 
-	if (qcc->app_ops && qcc->app_ops->shutdown) {
-		/* Application protocol with dedicated connection closing
-		 * procedure.
-		 */
-		qcc->app_ops->shutdown(qcc->ctx);
-
-		/* useful if application protocol should emit some closing
-		 * frames. For example HTTP/3 GOAWAY frame.
-		 */
-		qc_send(qcc);
-	}
-	else {
-		qcc_emit_cc_app(qcc, QC_ERR_NO_ERROR, 0);
-	}
+	qc_shutdown(qcc);
 
 	if (qcc->task) {
 		task_destroy(qcc->task);
