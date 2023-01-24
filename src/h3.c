@@ -114,6 +114,7 @@ INITCALL1(STG_REGISTER, trace_register_source, TRACE_SOURCE);
 #define H3_CF_UNI_CTRL_SET      0x00000004  /* Remote H3 Control stream opened */
 #define H3_CF_UNI_QPACK_DEC_SET 0x00000008  /* Remote QPACK decoder stream opened */
 #define H3_CF_UNI_QPACK_ENC_SET 0x00000010  /* Remote QPACK encoder stream opened */
+#define H3_CF_GOAWAY_SENT       0x00000020  /* GOAWAY sent on local control stream */
 
 /* Default settings */
 static uint64_t h3_settings_qpack_max_table_capacity = 0;
@@ -1661,13 +1662,38 @@ static int h3_close(struct qcs *qcs, enum qcc_app_ops_close_side side)
 
 static int h3_attach(struct qcs *qcs, void *conn_ctx)
 {
-	struct h3s *h3s;
+	struct h3c *h3c = conn_ctx;
+	struct h3s *h3s = NULL;
 
 	TRACE_ENTER(H3_EV_H3S_NEW, qcs->qcc->conn, qcs);
 
+	/* RFC 9114 5.2. Connection Shutdown
+	 *
+	 * Upon sending
+	 * a GOAWAY frame, the endpoint SHOULD explicitly cancel (see
+	 * Sections 4.1.1 and 7.2.3) any requests or pushes that have
+	 * identifiers greater than or equal to the one indicated, in
+	 * order to clean up transport state for the affected streams.
+	 * The endpoint SHOULD continue to do so as more requests or
+	 * pushes arrive.
+	 */
+	if (h3c->flags & H3_CF_GOAWAY_SENT && qcs->id >= h3c->id_goaway &&
+	    quic_stream_is_bidi(qcs->id)) {
+		/* Reject request and do not allocate a h3s context.
+		 * TODO support push uni-stream rejection.
+		 */
+		TRACE_STATE("reject stream higher than goaway", H3_EV_H3S_NEW, qcs->qcc->conn, qcs);
+		qcc_abort_stream_read(qcs);
+		qcc_reset_stream(qcs, H3_REQUEST_REJECTED);
+		goto done;
+	}
+
 	h3s = pool_alloc(pool_head_h3s);
-	if (!h3s)
-		return 1;
+	if (!h3s) {
+		TRACE_ERROR("h3s allocation failure", H3_EV_H3S_NEW, qcs->qcc->conn, qcs);
+		qcc_emit_cc_app(qcs->qcc, H3_INTERNAL_ERROR, 1);
+		goto err;
+	}
 
 	qcs->ctx = h3s;
 	h3s->h3c = conn_ctx;
@@ -1689,8 +1715,13 @@ static int h3_attach(struct qcs *qcs, void *conn_ctx)
 		h3s->type = H3S_T_UNKNOWN;
 	}
 
+ done:
 	TRACE_LEAVE(H3_EV_H3S_NEW, qcs->qcc->conn, qcs);
 	return 0;
+
+ err:
+	TRACE_DEVEL("leaving in error", H3_EV_H3S_NEW, qcs->qcc->conn, qcs);
+	return 1;
 }
 
 static void h3_detach(struct qcs *qcs)
@@ -1758,10 +1789,15 @@ static int h3_send_goaway(struct h3c *h3c)
 	b_force_xfer(res, &pos, b_data(&pos));
 	qcc_send_stream(qcs, 1);
 
+	h3c->flags |= H3_CF_GOAWAY_SENT;
 	TRACE_LEAVE(H3_EV_H3C_END, h3c->qcc->conn);
 	return 0;
 
  err:
+	/* Consider GOAWAY as sent even if not really the case. This will
+	 * block future stream opening using H3_REQUEST_REJECTED reset.
+	 */
+	h3c->flags |= H3_CF_GOAWAY_SENT;
 	TRACE_DEVEL("leaving in error", H3_EV_H3C_END, h3c->qcc->conn);
 	return 1;
 }
