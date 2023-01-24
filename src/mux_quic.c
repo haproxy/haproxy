@@ -14,6 +14,7 @@
 #include <haproxy/qmux_trace.h>
 #include <haproxy/quic_conn.h>
 #include <haproxy/quic_frame.h>
+#include <haproxy/quic_sock.h>
 #include <haproxy/quic_stream.h>
 #include <haproxy/quic_tp-t.h>
 #include <haproxy/ssl_sock-t.h>
@@ -258,15 +259,14 @@ static void qcc_refresh_timeout(struct qcc *qcc)
 		goto leave;
 	}
 
-	/* TODO if connection is idle on frontend and proxy is disabled, remove
-	 * it with global close_spread delay applied.
-	 */
-
 	/* Frontend timeout management
 	 * - shutdown done -> timeout client-fin
 	 * - detached streams with data left to send -> default timeout
 	 * - stream waiting on incomplete request or no stream yet activated -> timeout http-request
 	 * - idle after stream processing -> timeout http-keep-alive
+	 *
+	 * If proxy stop-stop in progress, immediate or spread close will be
+	 * processed if shutdown already one or connection is idle.
 	 */
 	if (!conn_is_back(qcc->conn)) {
 		if (qcc->nb_hreq && !(qcc->flags & QC_CF_APP_SHUT)) {
@@ -304,6 +304,41 @@ static void qcc_refresh_timeout(struct qcc *qcc)
 				              px->timeout.httpka : px->timeout.httpreq;
 				TRACE_DEVEL("at least one request achieved but none currently in progress", QMUX_EV_QCC_WAKE, qcc->conn);
 				qcc->task->expire = tick_add_ifset(qcc->idle_start, timeout);
+			}
+
+			/* If proxy soft-stop in progress and connection is
+			 * inactive, close the connection immediately. If a
+			 * close-spread-time is configured, randomly spread the
+			 * timer over a closing window.
+			 */
+			if ((qcc->proxy->flags & (PR_FL_DISABLED|PR_FL_STOPPED)) &&
+			    !(global.tune.options & GTUNE_DISABLE_ACTIVE_CLOSE)) {
+
+				/* Wake timeout task immediately if window already expired. */
+				int remaining_window = tick_isset(global.close_spread_end) ?
+				  tick_remain(now_ms, global.close_spread_end) : 0;
+
+				TRACE_DEVEL("proxy disabled, prepare connection soft-stop", QMUX_EV_QCC_WAKE, qcc->conn);
+				if (remaining_window) {
+					/* We don't need to reset the expire if it would
+					 * already happen before the close window end.
+					 */
+					if (!tick_isset(qcc->task->expire) ||
+					    tick_is_le(global.close_spread_end, qcc->task->expire)) {
+						/* Set an expire value shorter than the current value
+						 * because the close spread window end comes earlier.
+						 */
+						qcc->task->expire = tick_add(now_ms,
+						                             statistical_prng_range(remaining_window));
+					}
+				}
+				else {
+					/* We are past the soft close window end, wake the timeout
+					 * task up immediately.
+					 */
+					qcc->task->expire = now_ms;
+					task_wakeup(qcc->task, TASK_WOKEN_TIMER);
+				}
 			}
 		}
 	}
@@ -1967,6 +2002,46 @@ static int qc_process(struct qcc *qcc)
 {
 	qc_purge_streams(qcc);
 
+	/* Check if a soft-stop is in progress.
+	 *
+	 * TODO this is relevant for frontend connections only.
+	 */
+	if (unlikely(qcc->proxy->flags & (PR_FL_DISABLED|PR_FL_STOPPED))) {
+		int close = 1;
+
+		/* If using listener socket, soft-stop is not supported. The
+		 * connection must be closed immediately.
+		 */
+		if (!qc_test_fd(qcc->conn->handle.qc)) {
+			TRACE_DEVEL("proxy disabled with listener socket, closing connection", QMUX_EV_QCC_WAKE, qcc->conn);
+			qcc->conn->flags |= (CO_FL_SOCK_RD_SH|CO_FL_SOCK_WR_SH);
+			qc_send(qcc);
+			goto out;
+		}
+
+		TRACE_DEVEL("proxy disabled, prepare connection soft-stop", QMUX_EV_QCC_WAKE, qcc->conn);
+
+		/* If a close-spread-time option is set, we want to avoid
+		 * closing all the active HTTP3 connections at once so we add a
+		 * random factor that will spread the closing.
+		 */
+		if (tick_isset(global.close_spread_end)) {
+			int remaining_window = tick_remain(now_ms, global.close_spread_end);
+			if (remaining_window) {
+				/* This should increase the closing rate the
+				 * further along the window we are. */
+				close = (remaining_window <= statistical_prng_range(global.close_spread_time));
+			}
+		}
+		else if (global.tune.options & GTUNE_DISABLE_ACTIVE_CLOSE) {
+			close = 0; /* let the client close his connection himself */
+		}
+
+		if (close)
+			qc_shutdown(qcc);
+	}
+
+ out:
 	if (qcc_is_dead(qcc))
 		return 1;
 
@@ -2457,20 +2532,8 @@ static int qc_wake_some_streams(struct qcc *qcc)
 static int qc_wake(struct connection *conn)
 {
 	struct qcc *qcc = conn->ctx;
-	struct proxy *prx = conn->handle.qc->li->bind_conf->frontend;
 
 	TRACE_ENTER(QMUX_EV_QCC_WAKE, conn);
-
-	/* Check if a soft-stop is in progress.
-	 *
-	 * TODO this is relevant for frontend connections only.
-	 *
-	 * TODO Client should be notified with a H3 GOAWAY and then a
-	 * CONNECTION_CLOSE. However, quic-conn uses the listener socket for
-	 * sending which at this stage is already closed.
-	 */
-	if (unlikely(prx->flags & (PR_FL_DISABLED|PR_FL_STOPPED)))
-		qcc->conn->flags |= (CO_FL_SOCK_RD_SH|CO_FL_SOCK_WR_SH);
 
 	if (conn->handle.qc->flags & QUIC_FL_CONN_NOTIFY_CLOSE)
 		qcc->conn->flags |= (CO_FL_SOCK_RD_SH|CO_FL_SOCK_WR_SH);
