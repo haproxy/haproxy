@@ -875,13 +875,13 @@ int qcc_install_app_ops(struct qcc *qcc, const struct qcc_app_ops *app_ops)
 {
 	TRACE_ENTER(QMUX_EV_QCC_NEW, qcc->conn);
 
-	qcc->app_ops = app_ops;
-	if (qcc->app_ops->init && !qcc->app_ops->init(qcc)) {
+	if (app_ops->init && !app_ops->init(qcc)) {
 		TRACE_ERROR("app ops init error", QMUX_EV_QCC_NEW, qcc->conn);
 		goto err;
 	}
 
 	TRACE_PROTO("application layer initialized", QMUX_EV_QCC_NEW, qcc->conn);
+	qcc->app_ops = app_ops;
 
 	/* RFC 9114 7.2.4.2. Initialization
 	 *
@@ -2100,12 +2100,6 @@ static int qc_init(struct connection *conn, struct proxy *prx,
 	qcc->flags = 0;
 
 	qcc->app_ops = NULL;
-	if (qcc_install_app_ops(qcc, conn->handle.qc->app_ops)) {
-		TRACE_PROTO("Cannot install app layer", QMUX_EV_QCC_NEW, qcc->conn);
-		/* prepare a CONNECTION_CLOSE frame */
-		quic_set_connection_close(conn->handle.qc, quic_err_transport(QC_ERR_APPLICATION_ERROR));
-		goto fail_no_tasklet;
-	}
 
 	qcc->streams_by_id = EB_ROOT_UNIQUE;
 
@@ -2205,17 +2199,26 @@ static int qc_init(struct connection *conn, struct proxy *prx,
 	}
 
 	HA_ATOMIC_STORE(&conn->handle.qc->qcc, qcc);
+
+	if (qcc_install_app_ops(qcc, conn->handle.qc->app_ops)) {
+		TRACE_PROTO("Cannot install app layer", QMUX_EV_QCC_NEW, qcc->conn);
+		/* prepare a CONNECTION_CLOSE frame */
+		quic_set_connection_close(conn->handle.qc, quic_err_transport(QC_ERR_APPLICATION_ERROR));
+		goto fail_install_app_ops;
+	}
+
 	/* init read cycle */
 	tasklet_wakeup(qcc->wait_event.tasklet);
 
 	TRACE_LEAVE(QMUX_EV_QCC_NEW, qcc->conn);
 	return 0;
 
+ fail_install_app_ops:
+	if (qcc->app_ops && qcc->app_ops->release)
+		qcc->app_ops->release(qcc->ctx);
  fail_no_timeout_task:
 	tasklet_free(qcc->wait_event.tasklet);
  fail_no_tasklet:
-	if (qcc->app_ops && qcc->app_ops->release)
-		qcc->app_ops->release(qcc->ctx);
 	pool_free(pool_head_qcc, qcc);
  fail_no_qcc:
 	TRACE_LEAVE(QMUX_EV_QCC_NEW);
