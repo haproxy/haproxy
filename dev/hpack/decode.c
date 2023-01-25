@@ -30,7 +30,7 @@ uint8_t buf[MAX_RQ_SIZE];
 char trash_buf[MAX_RQ_SIZE];
 char tmp_buf[MAX_RQ_SIZE];
 
-struct buffer trash = { .area = trash_buf, .data = 0, .size = sizeof(trash_buf) };
+THREAD_LOCAL struct buffer trash = { .area = trash_buf, .data = 0, .size = sizeof(trash_buf) };
 struct buffer tmp   = { .area = tmp_buf,   .data = 0, .size = sizeof(tmp_buf)   };
 
 /* displays a <len> long memory block at <buf>, assuming first byte of <buf>
