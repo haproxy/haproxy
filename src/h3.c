@@ -1682,6 +1682,7 @@ static int h3_send_goaway(struct h3c *h3c)
 	}
 
 	b_force_xfer(res, &pos, b_data(&pos));
+	qcc_send_stream(qcs, 1);
 
 	return 0;
 }
