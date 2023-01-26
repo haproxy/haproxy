@@ -2823,10 +2823,10 @@ void deinit(void)
 	idle_conn_task = NULL;
 
 	list_for_each_entry_safe(log, logb, &global.logsrvs, list) {
-			LIST_DELETE(&log->list);
-			free(log->conf.file);
-			free(log);
-		}
+		LIST_DEL_INIT(&log->list);
+		free_logsrv(log);
+	}
+
 	list_for_each_entry_safe(wl, wlb, &cfg_cfgfiles, list) {
 		free(wl->s);
 		LIST_DELETE(&wl->list);
