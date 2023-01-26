@@ -6730,6 +6730,9 @@ static inline int qc_build_frms(struct list *outlist, struct list *inlist,
 					/* This <cf> frame was duplicated */
 					LIST_APPEND(&cf->origin->reflist, &new_cf->ref);
 					new_cf->origin = cf->origin;
+					/* Detach the remaining CRYPTO frame from its original frame */
+					LIST_DEL_INIT(&cf->ref);
+					cf->origin = NULL;
 				}
 				LIST_APPEND(outlist, &new_cf->list);
 				/* Consume <dlen> bytes of the current frame. */
@@ -6842,6 +6845,9 @@ static inline int qc_build_frms(struct list *outlist, struct list *inlist,
 					/* This <cf> frame was duplicated */
 					LIST_APPEND(&cf->origin->reflist, &new_cf->ref);
 					new_cf->origin = cf->origin;
+					/* Detach this STREAM frame from its origin */
+					LIST_DEL_INIT(&cf->ref);
+					cf->origin = NULL;
 				}
 				LIST_APPEND(outlist, &new_cf->list);
 				cf->type |= QUIC_STREAM_FRAME_TYPE_OFF_BIT;
