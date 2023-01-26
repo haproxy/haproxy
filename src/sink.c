@@ -1398,6 +1398,7 @@ static void sink_deinit()
 
 				msync(area, size, MS_SYNC);
 				munmap(area, size);
+				ha_free(&sink->store);
 			}
 			else
 				ring_free(sink->ctx.ring);
