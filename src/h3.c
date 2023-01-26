@@ -1377,6 +1377,13 @@ static int h3_resp_trailers_send(struct qcs *qcs, struct htx *htx)
 		}
 	}
 
+	if (!hdr) {
+		/* No headers encoded here so no need to generate a H3 HEADERS
+		 * frame. Mux will send an empty QUIC STREAM frame with FIN.
+		 */
+		TRACE_DATA("skipping trailer", H3_EV_TX_HDR, qcs->qcc->conn, qcs);
+		goto end;
+	}
 	list[hdr].n = ist("");
 
 	res = mux_get_buf(qcs);
@@ -1420,24 +1427,24 @@ static int h3_resp_trailers_send(struct qcs *qcs, struct htx *htx)
 		}
 	}
 
-	/* Now that all headers are encoded, we are certain that res buffer is
-	 * big enough.
-	 */
-
 	/* Check that at least one header was encoded in buffer. */
-	if (b_tail(&headers_buf) != tail) {
-		b_putchr(res, 0x01); /* h3 HEADERS frame type */
-		if (!b_quic_enc_int(res, b_data(&headers_buf), 8))
-			ABORT_NOW();
-		b_add(res, b_data(&headers_buf));
-	}
-	else  {
+	if (b_tail(&headers_buf) == tail) {
 		/* No headers encoded here so no need to generate a H3 HEADERS
 		 * frame. Mux will send an empty QUIC STREAM frame with FIN.
 		 */
 		TRACE_DATA("skipping trailer", H3_EV_TX_HDR, qcs->qcc->conn, qcs);
+		goto end;
 	}
 
+	/* Now that all headers are encoded, we are certain that res buffer is
+	 * big enough.
+	 */
+	b_putchr(res, 0x01); /* h3 HEADERS frame type */
+	if (!b_quic_enc_int(res, b_data(&headers_buf), 8))
+		ABORT_NOW();
+	b_add(res, b_data(&headers_buf));
+
+ end:
 	ret = 0;
 	blk = htx_get_head_blk(htx);
 	while (blk) {
