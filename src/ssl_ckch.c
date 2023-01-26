@@ -2824,7 +2824,7 @@ static int cli_io_handler_commit_cafile_crlfile(struct appctx *appctx)
 	struct ckch_inst_link *ckchi_link;
 	char *path;
 
-	if (unlikely(sc_ic(sc)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
+	if (unlikely(sc_ic(sc)->flags & CF_SHUTW))
 		goto end;
 
 	/* The ctx was already validated by the ca-file/crl-file parsing
