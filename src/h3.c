@@ -1393,8 +1393,10 @@ static int h3_resp_trailers_send(struct qcs *qcs, struct htx *htx)
 	/* Start the headers after frame type + length */
 	headers_buf = b_make(b_peek(res, b_data(res) + 9), b_contig_space(res) - 9, 0, 0);
 
-	if (qpack_encode_field_section_line(&headers_buf))
-		ABORT_NOW();
+	if (qpack_encode_field_section_line(&headers_buf)) {
+		qcs->flags |= QC_SF_BLK_MROOM;
+		goto err;
+	}
 
 	tail = b_tail(&headers_buf);
 	for (hdr = 0; hdr < sizeof(list) / sizeof(list[0]); ++hdr) {
@@ -1412,8 +1414,10 @@ static int h3_resp_trailers_send(struct qcs *qcs, struct htx *htx)
 			continue;
 		}
 
-		if (qpack_encode_header(&headers_buf, list[hdr].n, list[hdr].v))
-			ABORT_NOW();
+		if (qpack_encode_header(&headers_buf, list[hdr].n, list[hdr].v)) {
+			qcs->flags |= QC_SF_BLK_MROOM;
+			goto err;
+		}
 	}
 
 	/* Now that all headers are encoded, we are certain that res buffer is
