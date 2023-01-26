@@ -5079,8 +5079,8 @@ void http_set_term_flags(struct stream *s)
 				/* We are still processing the response headers */
 				s->flags |= SF_FINST_H;
 			}
-			// (res >= done) & (res->flags & shutw)
-			else if (s->txn->rsp.msg_state >= HTTP_MSG_DONE &&
+			// (res == (done|closing|closed)) & (res->flags & shutw)
+			else if (s->txn->rsp.msg_state >= HTTP_MSG_DONE && s->txn->rsp.msg_state < HTTP_MSG_TUNNEL &&
 				 (s->flags & (SF_ERR_CLITO|SF_ERR_CLICL))) {
 				/* A client error was reported and we are
 				 * transmitting the last block of data
