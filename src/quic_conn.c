@@ -734,7 +734,7 @@ static inline void qc_set_timer(struct quic_conn *qc)
 {
 	struct quic_pktns *pktns;
 	unsigned int pto;
-	int handshake_complete;
+	int handshake_confirmed;
 
 	TRACE_ENTER(QUIC_EV_CONN_STIMER, qc,
 	            NULL, NULL, &qc->path->ifae_pkts);
@@ -762,8 +762,8 @@ static inline void qc_set_timer(struct quic_conn *qc)
 		goto out;
 	}
 
-	handshake_complete = qc->state >= QUIC_HS_ST_COMPLETE;
-	pktns = quic_pto_pktns(qc, handshake_complete, &pto);
+	handshake_confirmed = qc->state >= QUIC_HS_ST_CONFIRMED;
+	pktns = quic_pto_pktns(qc, handshake_confirmed, &pto);
 	if (tick_isset(pto))
 		qc->timer = pto;
  out:
@@ -4650,7 +4650,7 @@ struct task *qc_process_timer(struct task *task, void *ctx, unsigned int state)
 	}
 
 	if (qc->path->in_flight) {
-		pktns = quic_pto_pktns(qc, qc->state >= QUIC_HS_ST_COMPLETE, NULL);
+		pktns = quic_pto_pktns(qc, qc->state >= QUIC_HS_ST_CONFIRMED, NULL);
 		if (qc->subs && qc->subs->events & SUB_RETRY_SEND) {
 			pktns->tx.pto_probe = QUIC_MAX_NB_PTO_DGRAMS;
 			tasklet_wakeup(qc->subs->tasklet);

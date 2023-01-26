@@ -80,7 +80,7 @@ struct quic_pktns *quic_loss_pktns(struct quic_conn *qc)
  * as PTO value if not.
  */
 struct quic_pktns *quic_pto_pktns(struct quic_conn *qc,
-                                  int handshake_completed,
+                                  int handshake_confirmed,
                                   unsigned int *pto)
 {
 	int i;
@@ -117,7 +117,7 @@ struct quic_pktns *quic_pto_pktns(struct quic_conn *qc,
 			continue;
 
 		if (i == QUIC_TLS_PKTNS_01RTT) {
-			if (!handshake_completed) {
+			if (!handshake_confirmed) {
 				TRACE_STATE("handshake not already completed", QUIC_EV_CONN_SPTO, qc);
 				pktns = p;
 				goto out;
