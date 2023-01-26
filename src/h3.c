@@ -149,8 +149,8 @@ struct h3s {
 
 	enum h3s_t type;
 	enum h3s_st_req st_req; /* only used for request streams */
-	int demux_frame_len;
-	int demux_frame_type;
+	uint64_t demux_frame_len;
+	uint64_t demux_frame_type;
 
 	unsigned long long body_len; /* known request body length from content-length header if present */
 	unsigned long long data_len; /* total length of all parsed DATA */
@@ -1838,7 +1838,7 @@ static void h3_stats_inc_err_cnt(void *ctx, int err_code)
 	h3_inc_err_cnt(h3c->prx_counters, err_code);
 }
 
-static inline const char *h3_ft_str(int type)
+static inline const char *h3_ft_str(uint64_t type)
 {
 	switch (type) {
 	case H3_FT_DATA:         return "DATA";
@@ -1875,8 +1875,8 @@ static void h3_trace(enum trace_level level, uint64_t mask,
 			chunk_appendf(&trace_buf, " qcs=%p(%llu)", qcs, (ull)qcs->id);
 
 		if (h3s && h3s->demux_frame_type != H3_FT_UNINIT) {
-			chunk_appendf(&trace_buf, " h3s.dem=%s/%d",
-			              h3_ft_str(h3s->demux_frame_type), h3s->demux_frame_len);
+			chunk_appendf(&trace_buf, " h3s.dem=%s/%llu",
+			              h3_ft_str(h3s->demux_frame_type), (ull)h3s->demux_frame_len);
 		}
 	}
 }
