@@ -999,12 +999,6 @@ flt_xfer_data(struct stream *s, struct channel *chn, unsigned int an_bit)
 	if (!HAS_DATA_FILTERS(s, chn))
 		goto end;
 
-	/* Be sure that the output is still opened. Else we stop the data
-	 * filtering. */
-	if ((chn->flags & (CF_READ_ERROR|CF_READ_TIMEOUT|CF_WRITE_ERROR|CF_WRITE_TIMEOUT)) ||
-	    ((chn->flags & CF_SHUTW) && (chn->to_forward || co_data(chn))))
-		goto end;
-
 	if (s->flags & SF_HTX) {
 		struct htx *htx = htxbuf(&chn->buf);
 		len = htx->data;
@@ -1017,8 +1011,11 @@ flt_xfer_data(struct stream *s, struct channel *chn, unsigned int an_bit)
 		goto end;
 	c_adv(chn, ret);
 
-	/* Stop waiting data if the input in closed and no data is pending or if
-	 * the output is closed. */
+	/* Stop waiting data if:
+	 *  - it the output is closed
+	 *  - the input in closed and no data is pending
+	 *  - There is a READ/WRITE timeout
+	 */
 	if (chn->flags & CF_SHUTW) {
 		ret = 1;
 		goto end;
@@ -1028,6 +1025,10 @@ flt_xfer_data(struct stream *s, struct channel *chn, unsigned int an_bit)
 			ret = 1;
 			goto end;
 		}
+	}
+	if (chn->flags & (CF_READ_TIMEOUT|CF_WRITE_TIMEOUT)) {
+		ret = 1;
+		goto end;
 	}
 
 	/* Wait for data */

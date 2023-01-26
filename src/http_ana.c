@@ -785,7 +785,7 @@ int http_process_tarpit(struct stream *s, struct channel *req, int an_bit)
 	 */
 	s->logs.t_queue = tv_ms_elapsed(&s->logs.tv_accept, &now);
 
-	http_reply_and_close(s, txn->status, (!(req->flags & CF_READ_ERROR) ? http_error_message(s) : NULL));
+	http_reply_and_close(s, txn->status, (!sc_ep_test(s->scf, SE_FL_ERROR) ? http_error_message(s) : NULL));
 	http_set_term_flags(s);
 
 	DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
@@ -1134,8 +1134,8 @@ static __inline int do_l7_retry(struct stream *s, struct stconn *sc)
 	req = &s->req;
 	res = &s->res;
 	/* Remove any write error from the request, and read error from the response */
-	req->flags &= ~(CF_WRITE_ERROR | CF_WRITE_TIMEOUT | CF_SHUTW | CF_SHUTW_NOW);
-	res->flags &= ~(CF_READ_ERROR | CF_READ_TIMEOUT | CF_SHUTR | CF_EOI | CF_READ_EVENT | CF_SHUTR_NOW);
+	req->flags &= ~(CF_WRITE_TIMEOUT | CF_SHUTW | CF_SHUTW_NOW);
+	res->flags &= ~(CF_READ_TIMEOUT | CF_SHUTR | CF_EOI | CF_READ_EVENT | CF_SHUTR_NOW);
 	res->analysers &= AN_RES_FLT_END;
 	s->conn_err_type = STRM_ET_NONE;
 	s->flags &= ~(SF_CONN_EXP | SF_ERR_MASK | SF_FINST_MASK);
@@ -1216,7 +1216,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
   next_one:
 	if (unlikely(htx_is_empty(htx) || htx->first == -1)) {
 		/* 1: have we encountered a read error ? */
-		if (rep->flags & CF_READ_ERROR) {
+		if (sc_ep_test(s->scb, SE_FL_ERROR)) {
 			struct connection *conn = sc_conn(s->scb);
 
 			/* Perform a L7 retry because server refuses the early data. */
@@ -1342,7 +1342,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		}
 
 		/* 5: write error to client (we don't send any message then) */
-		else if (rep->flags & CF_WRITE_ERROR) {
+		else if (sc_ep_test(s->scf, SE_FL_ERR_PENDING)) {
 			if (txn->flags & TX_NOT_FIRST)
 				goto abort_keep_alive;
 
@@ -2663,7 +2663,7 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 
 		/* Always call the action function if defined */
 		if (rule->action_ptr) {
-			if ((s->req.flags & CF_READ_ERROR) ||
+			if (sc_ep_test(s->scf, SE_FL_ERROR) ||
 			    ((s->req.flags & CF_SHUTR) &&
 			     (px->options & PR_O_ABRT_CLOSE)))
 				act_opts |= ACT_OPT_FINAL;
@@ -2826,7 +2826,7 @@ resume_execution:
 
 		/* Always call the action function if defined */
 		if (rule->action_ptr) {
-			if ((s->req.flags & CF_READ_ERROR) ||
+			if (sc_ep_test(s->scf, SE_FL_ERROR) ||
 			    ((s->req.flags & CF_SHUTR) &&
 			     (px->options & PR_O_ABRT_CLOSE)))
 				act_opts |= ACT_OPT_FINAL;

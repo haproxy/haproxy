@@ -905,14 +905,8 @@ static void back_establish(struct stream *s)
 
 	/* errors faced after sending data need to be reported */
 	if (sc_ep_test(s->scb, SE_FL_ERROR) && req->flags & CF_WROTE_DATA) {
-		/* Don't add CF_WRITE_ERROR if we're here because
-		 * early data were rejected by the server, or
-		 * http_wait_for_response() will never be called
-		 * to send a 425.
-		 */
-		if (conn && conn->err_code != CO_ER_SSL_EARLY_FAILED)
-			req->flags |= CF_WRITE_ERROR;
-		rep->flags |= CF_READ_ERROR;
+		s->req.flags |= CF_WRITE_EVENT;
+		s->res.flags |= CF_READ_EVENT;
 		s->conn_err_type = STRM_ET_DATA_ERR;
 		DBG_TRACE_STATE("read/write error", STRM_EV_STRM_PROC|STRM_EV_CS_ST|STRM_EV_STRM_ERR, s);
 	}
@@ -1826,7 +1820,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		if (sc_state_in(scf->state, SC_SB_EST|SC_SB_DIS)) {
 			sc_shutr(scf);
 			sc_shutw(scf);
-			sc_report_error(scf);
+			//sc_report_error(scf); TODO: Be sure it is useless
 			if (!(req->analysers) && !(res->analysers)) {
 				_HA_ATOMIC_INC(&s->be->be_counters.cli_aborts);
 				_HA_ATOMIC_INC(&sess->fe->fe_counters.cli_aborts);
@@ -1846,7 +1840,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		if (sc_state_in(scb->state, SC_SB_EST|SC_SB_DIS)) {
 			sc_shutr(scb);
 			sc_shutw(scb);
-			sc_report_error(scb);
+			//sc_report_error(scb); TODO: Be sure it is useless
 			_HA_ATOMIC_INC(&s->be->be_counters.failed_resp);
 			if (srv)
 				_HA_ATOMIC_INC(&srv->counters.failed_resp);
@@ -2131,10 +2125,10 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	 */
 	srv = objt_server(s->target);
 	if (unlikely(!(s->flags & SF_ERR_MASK))) {
-		if (req->flags & (CF_READ_ERROR|CF_READ_TIMEOUT|CF_WRITE_ERROR|CF_WRITE_TIMEOUT)) {
+		if (sc_ep_test(s->scf, SE_FL_ERROR) || req->flags & (CF_READ_TIMEOUT|CF_WRITE_TIMEOUT)) {
 			/* Report it if the client got an error or a read timeout expired */
 			req->analysers &= AN_REQ_FLT_END;
-			if (req->flags & CF_READ_ERROR) {
+			if (sc_ep_test(s->scf, SE_FL_ERROR)) {
 				_HA_ATOMIC_INC(&s->be->be_counters.cli_aborts);
 				_HA_ATOMIC_INC(&sess->fe->fe_counters.cli_aborts);
 				if (sess->listener && sess->listener->counters)
@@ -2151,15 +2145,6 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 				if (srv)
 					_HA_ATOMIC_INC(&srv->counters.cli_aborts);
 				s->flags |= SF_ERR_CLITO;
-			}
-			else if (req->flags & CF_WRITE_ERROR) {
-				_HA_ATOMIC_INC(&s->be->be_counters.srv_aborts);
-				_HA_ATOMIC_INC(&sess->fe->fe_counters.srv_aborts);
-				if (sess->listener && sess->listener->counters)
-					_HA_ATOMIC_INC(&sess->listener->counters->srv_aborts);
-				if (srv)
-					_HA_ATOMIC_INC(&srv->counters.srv_aborts);
-				s->flags |= SF_ERR_SRVCL;
 			}
 			else {
 				_HA_ATOMIC_INC(&s->be->be_counters.srv_aborts);
@@ -2185,10 +2170,10 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 					channel_erase(req);
 			}
 		}
-		else if (res->flags & (CF_READ_ERROR|CF_READ_TIMEOUT|CF_WRITE_ERROR|CF_WRITE_TIMEOUT)) {
+		else if (sc_ep_test(s->scb, SE_FL_ERROR) || res->flags & (CF_READ_TIMEOUT|CF_WRITE_TIMEOUT)) {
 			/* Report it if the server got an error or a read timeout expired */
 			res->analysers &= AN_RES_FLT_END;
-			if (res->flags & CF_READ_ERROR) {
+			if (sc_ep_test(s->scb, SE_FL_ERROR)) {
 				_HA_ATOMIC_INC(&s->be->be_counters.srv_aborts);
 				_HA_ATOMIC_INC(&sess->fe->fe_counters.srv_aborts);
 				if (sess->listener && sess->listener->counters)
@@ -2205,15 +2190,6 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 				if (srv)
 					_HA_ATOMIC_INC(&srv->counters.srv_aborts);
 				s->flags |= SF_ERR_SRVTO;
-			}
-			else if (res->flags & CF_WRITE_ERROR) {
-				_HA_ATOMIC_INC(&s->be->be_counters.cli_aborts);
-				_HA_ATOMIC_INC(&sess->fe->fe_counters.cli_aborts);
-				if (sess->listener && sess->listener->counters)
-					_HA_ATOMIC_INC(&sess->listener->counters->cli_aborts);
-				if (srv)
-					_HA_ATOMIC_INC(&srv->counters.cli_aborts);
-				s->flags |= SF_ERR_CLICL;
 			}
 			else {
 				_HA_ATOMIC_INC(&s->be->be_counters.cli_aborts);
@@ -2376,7 +2352,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	/* shutdown(write) pending */
 	if (unlikely((req->flags & (CF_SHUTW|CF_SHUTW_NOW)) == CF_SHUTW_NOW &&
 		     channel_is_empty(req))) {
-		if (req->flags & CF_READ_ERROR)
+		if (sc_ep_test(s->scf, SE_FL_ERROR))
 			scb->flags |= SC_FL_NOLINGER;
 		sc_shutw(scb);
 	}

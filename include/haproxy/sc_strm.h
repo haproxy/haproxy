@@ -85,16 +85,6 @@ static inline struct stconn *sc_opposite(const struct stconn *sc)
 }
 
 
-/* to be called only when in SC_ST_DIS with SC_FL_ERR */
-static inline void sc_report_error(struct stconn *sc)
-{
-	if (!__sc_strm(sc)->conn_err_type)
-		__sc_strm(sc)->conn_err_type = STRM_ET_DATA_ERR;
-
-	sc_oc(sc)->flags |= CF_WRITE_ERROR;
-	sc_ic(sc)->flags |= CF_READ_ERROR;
-}
-
 /* sets the current and previous state of a stream connector to <state>. This is
  * mainly used to create one in the established state on incoming conncetions.
  */

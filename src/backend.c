@@ -1953,7 +1953,7 @@ int srv_redispatch_connect(struct stream *s)
 /* Check if the connection request is in such a state that it can be aborted. */
 static int back_may_abort_req(struct channel *req, struct stream *s)
 {
-	return ((req->flags & (CF_READ_ERROR)) ||
+	return (sc_ep_test(s->scf, SE_FL_ERROR) ||
 	        ((req->flags & (CF_SHUTW_NOW|CF_SHUTW)) &&  /* empty and client aborted */
 	         (channel_is_empty(req) || (s->be->options & PR_O_ABRT_CLOSE))));
 }
@@ -2022,7 +2022,8 @@ void back_try_conn_req(struct stream *s)
 			/* Failed and not retryable. */
 			sc_shutr(sc);
 			sc_shutw(sc);
-			req->flags |= CF_WRITE_ERROR;
+			sc_ep_set(sc, SE_FL_ERROR|SE_FL_EOS);
+			req->flags |= CF_WRITE_EVENT;
 
 			s->logs.t_queue = tv_ms_elapsed(&s->logs.tv_accept, &now);
 
@@ -2182,7 +2183,8 @@ void back_handle_st_req(struct stream *s)
 
 			sc_shutr(sc);
 			sc_shutw(sc);
-			s->req.flags |= CF_WRITE_ERROR;
+			sc_ep_set(sc, SE_FL_ERROR|SE_FL_EOS);
+			s->req.flags |= CF_WRITE_EVENT;
 			s->conn_err_type = STRM_ET_CONN_RES;
 			sc->state = SC_ST_CLO;
 			if (s->srv_error)
@@ -2208,7 +2210,8 @@ void back_handle_st_req(struct stream *s)
 		/* we did not get any server, let's check the cause */
 		sc_shutr(sc);
 		sc_shutw(sc);
-		s->req.flags |= CF_WRITE_ERROR;
+		sc_ep_set(sc, SE_FL_ERROR|SE_FL_EOS);
+		s->req.flags |= CF_WRITE_EVENT;
 		if (!s->conn_err_type)
 			s->conn_err_type = STRM_ET_CONN_OTHER;
 		sc->state = SC_ST_CLO;
@@ -2343,8 +2346,9 @@ void back_handle_st_cer(struct stream *s)
 
 		/* shutw is enough to stop a connecting socket */
 		sc_shutw(sc);
-		s->req.flags |= CF_WRITE_ERROR;
-		s->res.flags |= CF_READ_ERROR;
+		sc_ep_set(sc, SE_FL_ERROR|SE_FL_EOS);
+		s->req.flags |= CF_WRITE_EVENT;
+		s->res.flags |= CF_READ_EVENT;
 
 		sc->state = SC_ST_CLO;
 		if (s->srv_error)
@@ -2377,8 +2381,9 @@ void back_handle_st_cer(struct stream *s)
 
 		/* shutw is enough to stop a connecting socket */
 		sc_shutw(sc);
-		s->req.flags |= CF_WRITE_ERROR;
-		s->res.flags |= CF_READ_ERROR;
+		sc_ep_set(sc, SE_FL_ERROR|SE_FL_EOS);
+		s->req.flags |= CF_WRITE_EVENT;
+		s->res.flags |= CF_READ_EVENT;
 
 		sc->state = SC_ST_CLO;
 		if (s->srv_error)

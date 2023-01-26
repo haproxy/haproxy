@@ -35,7 +35,7 @@
  *
  *   - pure status flags, reported by stream connector layer, which must also
  *     be cleared before doing further I/O :
- *     CF_*_TIMEOUT, CF_*_ERROR
+ *     CF_*_TIMEOUT
  *
  *   - read-only indicators reported by lower data levels :
  *     CF_STREAMER, CF_STREAMER_FAST
@@ -56,7 +56,7 @@
 #define CF_READ_EVENT     0x00000001  /* a read event detected on producer side */
 /* unused: 0x00000002 */
 #define CF_READ_TIMEOUT   0x00000004  /* timeout while waiting for producer */
-#define CF_READ_ERROR     0x00000008  /* unrecoverable error on producer side */
+/* unused 0x00000008 */
 
 /* unused: 0x00000010 */
 #define CF_SHUTR          0x00000020  /* producer has already shut down */
@@ -66,7 +66,7 @@
 #define CF_WRITE_EVENT    0x00000100  /* a write event detected on consumer side */
 /* unused: 0x00000200 */
 #define CF_WRITE_TIMEOUT  0x00000400  /* timeout while waiting for consumer */
-#define CF_WRITE_ERROR    0x00000800  /* unrecoverable error on consumer side */
+/* unused 0x00000800 */
 
 #define CF_WAKE_WRITE     0x00001000  /* wake the task up when there's write activity */
 #define CF_SHUTW          0x00002000  /* consumer has already shut down */
@@ -120,7 +120,7 @@
 #define CF_ISRESP         0x80000000  /* 0 = request channel, 1 = response channel */
 
 /* Masks which define input events for stream analysers */
-#define CF_MASK_ANALYSER  (CF_READ_EVENT|CF_READ_ERROR|CF_READ_TIMEOUT|CF_WRITE_EVENT|CF_WRITE_ERROR|CF_WAKE_ONCE)
+#define CF_MASK_ANALYSER  (CF_READ_EVENT|CF_READ_TIMEOUT|CF_WRITE_EVENT|CF_WAKE_ONCE)
 
 /* Mask for static flags which cause analysers to be woken up when they change */
 #define CF_MASK_STATIC    (CF_SHUTR|CF_SHUTW|CF_SHUTR_NOW|CF_SHUTW_NOW)
@@ -135,15 +135,15 @@ static forceinline char *chn_show_flags(char *buf, size_t len, const char *delim
 	/* prologue */
 	_(0);
 	/* flags */
-	_(CF_READ_EVENT, _(CF_READ_TIMEOUT, _(CF_READ_ERROR,
+	_(CF_READ_EVENT, _(CF_READ_TIMEOUT,
 	_(CF_SHUTR, _(CF_SHUTR_NOW, _(CF_WRITE_EVENT,
-	_(CF_WRITE_TIMEOUT, _(CF_WRITE_ERROR,
+	_(CF_WRITE_TIMEOUT,
 	_(CF_WAKE_WRITE, _(CF_SHUTW, _(CF_SHUTW_NOW, _(CF_AUTO_CLOSE,
 	_(CF_STREAMER, _(CF_STREAMER_FAST, _(CF_WROTE_DATA,
 	_(CF_KERN_SPLICING, _(CF_READ_DONTWAIT,
 	_(CF_AUTO_CONNECT, _(CF_DONT_READ, _(CF_EXPECT_MORE,
 	_(CF_SEND_DONTWAIT, _(CF_NEVER_WAIT, _(CF_WAKE_ONCE, _(CF_FLT_ANALYZE,
-	_(CF_EOI, _(CF_ISRESP))))))))))))))))))))))))));
+	_(CF_EOI, _(CF_ISRESP))))))))))))))))))))))));
 	/* epilogue */
 	_(~0U);
 	return buf;

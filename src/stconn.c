@@ -846,12 +846,11 @@ static void sc_app_chk_snd_conn(struct stconn *sc)
 			oc->wex = tick_add_ifset(now_ms, oc->wto);
 	}
 
-	if (likely(oc->flags & (CF_WRITE_EVENT|CF_WRITE_ERROR))) {
+	if (likely(oc->flags & CF_WRITE_EVENT)) {
 		struct channel *ic = sc_ic(sc);
 
 		/* update timeout if we have written something */
-		if ((oc->flags & (CF_SHUTW|CF_WRITE_EVENT)) == CF_WRITE_EVENT &&
-		    !channel_is_empty(oc))
+		if (!(oc->flags & CF_SHUTW) && !channel_is_empty(oc))
 			oc->wex = tick_add_ifset(now_ms, oc->wto);
 
 		if (tick_isset(ic->rex) && !(sc->flags & SC_FL_INDEP_STR)) {
@@ -1133,8 +1132,8 @@ static void sc_notify(struct stconn *sc)
 		sc_ep_clr(sc, SE_FL_WAIT_DATA);
 
 	/* update OC timeouts and wake the other side up if it's waiting for room */
-	if (oc->flags & (CF_WRITE_EVENT|CF_WRITE_ERROR)) {
-		if (!(oc->flags & CF_WRITE_ERROR) &&
+	if (oc->flags & (CF_WRITE_EVENT)) {
+		if (sc_ep_test(sc, SE_FL_ERR_PENDING|SE_FL_ERROR) &&
 		    !channel_is_empty(oc))
 			if (tick_isset(oc->wex))
 				oc->wex = tick_add_ifset(now_ms, oc->wto);
@@ -1201,17 +1200,17 @@ static void sc_notify(struct stconn *sc)
 
 	/* wake the task up only when needed */
 	if (/* changes on the production side that must be handled:
-	     *  - An error on receipt: CF_READ_ERROR or SE_FL_ERROR
+	     *  - An error on receipt: SE_FL_ERROR
 	     *  - A read event: shutdown for reads (CF_READ_EVENT + SHUTR)
 	     *                  end of input (CF_READ_EVENT + CF_EOI)
 	     *                  data received and no fast-forwarding (CF_READ_EVENT + !to_forward)
 	     *                  read event while consumer side is not established (CF_READ_EVENT + sco->state != SC_ST_EST)
 	     */
 	    ((ic->flags & CF_READ_EVENT) && ((ic->flags & (CF_SHUTR|CF_EOI)) || !ic->to_forward || sco->state != SC_ST_EST)) ||
-	    (ic->flags & CF_READ_ERROR) || sc_ep_test(sc, SE_FL_ERROR) ||
+	    sc_ep_test(sc, SE_FL_ERROR) ||
 
 	    /* changes on the consumption side */
-	    (oc->flags & CF_WRITE_ERROR) ||
+	    sc_ep_test(sc, SE_FL_ERR_PENDING) ||
 	    ((oc->flags & CF_WRITE_EVENT) &&
 	     ((sc->state < SC_ST_EST) ||
 	      (oc->flags & CF_SHUTW) ||
@@ -1233,7 +1232,7 @@ static void sc_notify(struct stconn *sc)
 
 		task_queue(task);
 	}
-	if (ic->flags & (CF_READ_EVENT|CF_READ_ERROR))
+	if (ic->flags & CF_READ_EVENT)
 		ic->flags &= ~CF_READ_DONTWAIT;
 }
 
@@ -1777,8 +1776,9 @@ static int sc_conn_send(struct stconn *sc)
 	}
 
 	if (sc_ep_test(sc, SE_FL_ERROR | SE_FL_ERR_PENDING)) {
+		oc->flags |= CF_WRITE_EVENT;
 		if (sc_ep_test(sc, SE_FL_EOS))
-		    sc_ep_set(sc, SE_FL_ERROR);
+			sc_ep_set(sc, SE_FL_ERROR);
 		return 1;
 	}
 
