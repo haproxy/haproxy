@@ -318,19 +318,27 @@ static inline int h2_str_to_phdr(const struct ist str)
 	return 0;
 }
 
+/* returns the pseudo-header name <num> as an ist, or ":UNKNOWN" if unknown.
+ * Note that all strings are zero-terminated constants.
+ */
+static inline struct ist h2_phdr_to_ist(int phdr)
+{
+	switch (phdr) {
+	case H2_PHDR_IDX_NONE: return ist(":NONE");
+	case H2_PHDR_IDX_AUTH: return ist(":authority");
+	case H2_PHDR_IDX_METH: return ist(":method");
+	case H2_PHDR_IDX_PATH: return ist(":path");
+	case H2_PHDR_IDX_SCHM: return ist(":scheme");
+	case H2_PHDR_IDX_STAT: return ist(":status");
+	case H2_PHDR_IDX_HOST: return ist("Host");
+	default:               return ist(":UNKNOWN");
+	}
+}
+
 /* returns the pseudo-header name <num> as a string, or ":UNKNOWN" if unknown */
 static inline const char *h2_phdr_to_str(int phdr)
 {
-	switch (phdr) {
-	case H2_PHDR_IDX_NONE: return ":NONE";
-	case H2_PHDR_IDX_AUTH: return ":authority";
-	case H2_PHDR_IDX_METH: return ":method";
-	case H2_PHDR_IDX_PATH: return ":path";
-	case H2_PHDR_IDX_SCHM: return ":scheme";
-	case H2_PHDR_IDX_STAT: return ":status";
-	case H2_PHDR_IDX_HOST: return "Host";
-	default:               return ":UNKNOWN";
-	}
+	return h2_phdr_to_ist(phdr).ptr;
 }
 
 #endif /* _HAPROXY_H2_H */
