@@ -458,7 +458,7 @@ static int h2_process(struct h2c *h2c);
 /* h2_io_cb is exported to see it resolved in "show fd" */
 struct task *h2_io_cb(struct task *t, void *ctx, unsigned int state);
 static inline struct h2s *h2c_st_by_id(struct h2c *h2c, int id);
-static int h2c_decode_headers(struct h2c *h2c, struct buffer *rxbuf, uint32_t *flags, unsigned long long *body_len, char *upgrade_protocol);
+static int h2c_dec_hdrs(struct h2c *h2c, struct buffer *rxbuf, uint32_t *flags, unsigned long long *body_len, char *upgrade_protocol);
 static int h2_frt_transfer_data(struct h2s *h2s);
 struct task *h2_deferred_shut(struct task *t, void *ctx, unsigned int state);
 static struct h2s *h2c_bck_stream_new(struct h2c *h2c, struct stconn *sc, struct session *sess);
@@ -2656,7 +2656,7 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 	if (h2s->st != H2_SS_IDLE) {
 		/* The stream exists/existed, this must be a trailers frame */
 		if (h2s->st != H2_SS_CLOSED) {
-			error = h2c_decode_headers(h2c, &h2s->rxbuf, &h2s->flags, &body_len, NULL);
+			error = h2c_dec_hdrs(h2c, &h2s->rxbuf, &h2s->flags, &body_len, NULL);
 			/* unrecoverable error ? */
 			if (h2c->st0 >= H2_CS_ERROR) {
 				TRACE_USER("Unrecoverable error decoding H2 trailers", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_STRM_NEW|H2_EV_STRM_END, h2c->conn, 0, &rxbuf);
@@ -2686,7 +2686,7 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 		/* the connection was already killed by an RST, let's consume
 		 * the data and send another RST.
 		 */
-		error = h2c_decode_headers(h2c, &rxbuf, &flags, &body_len, NULL);
+		error = h2c_dec_hdrs(h2c, &rxbuf, &flags, &body_len, NULL);
 		sess_log(h2c->conn->owner);
 		h2s = (struct h2s*)h2_error_stream;
 		goto send_rst;
@@ -2702,7 +2702,7 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 	else if (h2c->flags & H2_CF_DEM_TOOMANY)
 		goto out; // IDLE but too many sc still present
 
-	error = h2c_decode_headers(h2c, &rxbuf, &flags, &body_len, NULL);
+	error = h2c_dec_hdrs(h2c, &rxbuf, &flags, &body_len, NULL);
 
 	/* unrecoverable error ? */
 	if (h2c->st0 >= H2_CS_ERROR) {
@@ -2811,13 +2811,13 @@ static struct h2s *h2c_bck_handle_headers(struct h2c *h2c, struct h2s *h2s)
 	}
 
 	if (h2s->st != H2_SS_CLOSED) {
-		error = h2c_decode_headers(h2c, &h2s->rxbuf, &h2s->flags, &h2s->body_len, h2s->upgrade_protocol);
+		error = h2c_dec_hdrs(h2c, &h2s->rxbuf, &h2s->flags, &h2s->body_len, h2s->upgrade_protocol);
 	}
 	else {
 		/* the connection was already killed by an RST, let's consume
 		 * the data and send another RST.
 		 */
-		error = h2c_decode_headers(h2c, &rxbuf, &flags, &body_len, NULL);
+		error = h2c_dec_hdrs(h2c, &rxbuf, &flags, &body_len, NULL);
 		h2s = (struct h2s*)h2_error_stream;
 		h2c->st0 = H2_CS_FRAME_E;
 		goto send_rst;
@@ -4663,7 +4663,7 @@ static void h2_shutw(struct stconn *sc, enum co_shw_mode mode)
  * decoding, in order to detect if we're dealing with a headers or a trailers
  * block (the trailers block appears after H2_SF_HEADERS_RCVD was seen).
  */
-static int h2c_decode_headers(struct h2c *h2c, struct buffer *rxbuf, uint32_t *flags, unsigned long long *body_len, char *upgrade_protocol)
+static int h2c_dec_hdrs(struct h2c *h2c, struct buffer *rxbuf, uint32_t *flags, unsigned long long *body_len, char *upgrade_protocol)
 {
 	const uint8_t *hdrs = (uint8_t *)b_head(&h2c->dbuf);
 	struct buffer *tmp = get_trash_chunk();
@@ -5074,7 +5074,7 @@ try_again:
  * header blocks and an end of header, otherwise an invalid frame could be
  * emitted and the resulting htx message could be left in an inconsistent state.
  */
-static size_t h2s_frt_make_resp_headers(struct h2s *h2s, struct htx *htx)
+static size_t h2s_snd_fhdrs(struct h2s *h2s, struct htx *htx)
 {
 	struct http_hdr list[global.tune.max_http_hdr];
 	struct h2c *h2c = h2s->h2c;
@@ -5338,7 +5338,7 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, struct htx *htx)
  * header blocks and an end of header, otherwise an invalid frame could be
  * emitted and the resulting htx message could be left in an inconsistent state.
  */
-static size_t h2s_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
+static size_t h2s_snd_bhdrs(struct h2s *h2s, struct htx *htx)
 {
 	struct http_hdr list[global.tune.max_http_hdr];
 	struct h2c *h2c = h2s->h2c;
@@ -6510,7 +6510,7 @@ static size_t h2_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, in
 		switch (btype) {
 			case HTX_BLK_REQ_SL:
 				/* start-line before headers */
-				ret = h2s_bck_make_req_headers(h2s, htx);
+				ret = h2s_snd_bhdrs(h2s, htx);
 				if (ret > 0) {
 					total += ret;
 					count -= ret;
@@ -6521,7 +6521,7 @@ static size_t h2_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, in
 
 			case HTX_BLK_RES_SL:
 				/* start-line before headers */
-				ret = h2s_frt_make_resp_headers(h2s, htx);
+				ret = h2s_snd_fhdrs(h2s, htx);
 				if (ret > 0) {
 					total += ret;
 					count -= ret;
