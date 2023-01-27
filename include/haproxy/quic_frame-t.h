@@ -270,6 +270,7 @@ struct quic_frame {
 	struct list reflist;        /* List head containing duplicated children frames. */
 	struct list ref;            /* List elem from parent frame reflist. Set if frame is a duplicate (used for retransmission). */
 	unsigned int flags;         /* QUIC_FL_TX_FRAME_* */
+	unsigned int loss_count;    /* Counter for each occurence of this frame marked as lost. */
 };
 
 

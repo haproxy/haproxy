@@ -1752,17 +1752,22 @@ static inline struct eb64_node *qc_ackrng_pkts(struct quic_conn *qc,
 	return node;
 }
 
-/* Remove all frames from <pkt_frm_list> and reinsert them in the
- * same order they have been sent into <pktns_frm_list>.
+/* Remove all frames from <pkt_frm_list> and reinsert them in the same order
+ * they have been sent into <pktns_frm_list>. The loss counter of each frame is
+ * incremented and checked if it does not exceed retransmission limit.
+ *
+ * Returns 1 on success, 0 if a frame loss limit is exceeded. A
+ * CONNECTION_CLOSE is scheduled in this case.
  */
-static inline void qc_requeue_nacked_pkt_tx_frms(struct quic_conn *qc,
-                                                 struct quic_tx_packet *pkt,
-                                                 struct list *pktns_frm_list)
+static inline int qc_requeue_nacked_pkt_tx_frms(struct quic_conn *qc,
+                                                struct quic_tx_packet *pkt,
+                                                struct list *pktns_frm_list)
 {
 	struct quic_frame *frm, *frmbak;
 	struct list tmp = LIST_HEAD_INIT(tmp);
 	struct list *pkt_frm_list = &pkt->frms;
 	uint64_t pn = pkt->pn_node.key;
+	int close = 0;
 
 	TRACE_ENTER(QUIC_EV_CONN_PRSAFRM, qc);
 
@@ -1827,6 +1832,12 @@ static inline void qc_requeue_nacked_pkt_tx_frms(struct quic_conn *qc,
 			qc_frm_free(&frm);
 		}
 		else {
+			if (++frm->loss_count >= QUIC_DFLT_MAX_FRAME_LOSS) {
+				TRACE_ERROR("retransmission limit reached, closing the connection", QUIC_EV_CONN_PRSAFRM, qc);
+				quic_set_connection_close(qc, quic_err_transport(QC_ERR_INTERNAL_ERROR));
+				close = 1;
+			}
+
 			if (QUIC_FT_STREAM_8 <= frm->type && frm->type <= QUIC_FT_STREAM_F) {
 				/* Mark this STREAM frame as lost. A look up their stream descriptor
 				 * will be performed to check the stream is not consumed or released.
@@ -1840,7 +1851,9 @@ static inline void qc_requeue_nacked_pkt_tx_frms(struct quic_conn *qc,
 
 	LIST_SPLICE(pktns_frm_list, &tmp);
 
+ end:
 	TRACE_LEAVE(QUIC_EV_CONN_PRSAFRM, qc);
+	return !close;
 }
 
 /* Free <pkt> TX packet and its attached frames.
@@ -1973,19 +1986,20 @@ static inline void qc_release_pktns_frms(struct quic_conn *qc,
 	TRACE_LEAVE(QUIC_EV_CONN_PHPKTS, qc);
 }
 
-/* Handle <pkts> list of lost packets detected at <now_us> handling
- * their TX frames.
- * Send a packet loss event to the congestion controller if
- * in flight packet have been lost.
- * Also frees the packet in <pkts> list.
- * Never fails.
+/* Handle <pkts> list of lost packets detected at <now_us> handling their TX
+ * frames. Send a packet loss event to the congestion controller if in flight
+ * packet have been lost. Also frees the packet in <pkts> list.
+ *
+ * Returns 1 on success else 0 if loss limit has been exceeded. A
+ * CONNECTION_CLOSE was prepared to close the connection ASAP.
  */
-static inline void qc_release_lost_pkts(struct quic_conn *qc,
-                                        struct quic_pktns *pktns,
-                                        struct list *pkts,
-                                        uint64_t now_us)
+static inline int qc_release_lost_pkts(struct quic_conn *qc,
+                                       struct quic_pktns *pktns,
+                                       struct list *pkts,
+                                       uint64_t now_us)
 {
 	struct quic_tx_packet *pkt, *tmp, *oldest_lost, *newest_lost;
+	int close = 0;
 
 	TRACE_ENTER(QUIC_EV_CONN_PRSAFRM, qc);
 
@@ -2002,7 +2016,8 @@ static inline void qc_release_lost_pkts(struct quic_conn *qc,
 		if (pkt->flags & QUIC_FL_TX_PACKET_ACK_ELICITING)
 			qc->path->ifae_pkts--;
 		/* Treat the frames of this lost packet. */
-		qc_requeue_nacked_pkt_tx_frms(qc, pkt, &pktns->tx.frms);
+		if (!qc_requeue_nacked_pkt_tx_frms(qc, pkt, &pktns->tx.frms))
+			close = 1;
 		LIST_DELETE(&pkt->list);
 		if (!oldest_lost) {
 			oldest_lost = newest_lost = pkt;
@@ -2014,27 +2029,29 @@ static inline void qc_release_lost_pkts(struct quic_conn *qc,
 		}
 	}
 
-	if (newest_lost) {
-		/* Sent a congestion event to the controller */
-		struct quic_cc_event ev = { };
+	if (!close) {
+		if (newest_lost) {
+			/* Sent a congestion event to the controller */
+			struct quic_cc_event ev = { };
 
-		ev.type = QUIC_CC_EVT_LOSS;
-		ev.loss.time_sent = newest_lost->time_sent;
+			ev.type = QUIC_CC_EVT_LOSS;
+			ev.loss.time_sent = newest_lost->time_sent;
 
-		quic_cc_event(&qc->path->cc, &ev);
-	}
+			quic_cc_event(&qc->path->cc, &ev);
+		}
 
-	/* If an RTT have been already sampled, <rtt_min> has been set.
-	 * We must check if we are experiencing a persistent congestion.
-	 * If this is the case, the congestion controller must re-enter
-	 * slow start state.
-	 */
-	if (qc->path->loss.rtt_min && newest_lost != oldest_lost) {
-		unsigned int period = newest_lost->time_sent - oldest_lost->time_sent;
+		/* If an RTT have been already sampled, <rtt_min> has been set.
+		 * We must check if we are experiencing a persistent congestion.
+		 * If this is the case, the congestion controller must re-enter
+		 * slow start state.
+		 */
+		if (qc->path->loss.rtt_min && newest_lost != oldest_lost) {
+			unsigned int period = newest_lost->time_sent - oldest_lost->time_sent;
 
-		if (quic_loss_persistent_congestion(&qc->path->loss, period,
-		                                    now_ms, qc->max_ack_delay))
-			qc->path->cc.algo->slow_start(&qc->path->cc);
+			if (quic_loss_persistent_congestion(&qc->path->loss, period,
+							    now_ms, qc->max_ack_delay))
+				qc->path->cc.algo->slow_start(&qc->path->cc);
+		}
 	}
 
 	/* <oldest_lost> cannot be NULL at this stage because we have ensured
@@ -2048,6 +2065,7 @@ static inline void qc_release_lost_pkts(struct quic_conn *qc,
 
  leave:
 	TRACE_LEAVE(QUIC_EV_CONN_PRSAFRM, qc);
+	return !close;
 }
 
 /* Parse ACK frame into <frm> from a buffer at <buf> address with <end> being at
@@ -2154,7 +2172,8 @@ static inline int qc_parse_ack_frm(struct quic_conn *qc,
 	if (!LIST_ISEMPTY(&newly_acked_pkts)) {
 		if (!eb_is_empty(&qel->pktns->tx.pkts)) {
 			qc_packet_loss_lookup(qel->pktns, qc, &lost_pkts);
-			qc_release_lost_pkts(qc, qel->pktns, &lost_pkts, now_ms);
+			if (!qc_release_lost_pkts(qc, qel->pktns, &lost_pkts, now_ms))
+				goto leave;
 		}
 		qc_treat_newly_acked_pkts(qc, &newly_acked_pkts);
 		if (quic_peer_validated_addr(qc))
@@ -4625,8 +4644,8 @@ struct task *qc_process_timer(struct task *task, void *ctx, unsigned int state)
 		qc_packet_loss_lookup(pktns, qc, &lost_pkts);
 		if (!LIST_ISEMPTY(&lost_pkts))
 		    tasklet_wakeup(qc->wait_event.tasklet);
-		qc_release_lost_pkts(qc, pktns, &lost_pkts, now_ms);
-		qc_set_timer(qc);
+		if (qc_release_lost_pkts(qc, pktns, &lost_pkts, now_ms))
+			qc_set_timer(qc);
 		goto out;
 	}
 

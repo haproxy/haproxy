@@ -197,14 +197,15 @@ static inline struct quic_frame *qc_frm_alloc(int type)
 	frm->pkt = NULL;
 	frm->origin = NULL;
 	frm->flags = 0;
+	frm->loss_count = 0;
 
 	return frm;
 }
 
 /* Allocate a quic_frame by duplicating <origin> frame. This will create a new
  * frame of the same type with the same content. Internal fields such as packet
- * owner and flags are however resetted for the newly allocated frame. Frame
- * must be freed with qc_frm_free().
+ * owner and flags are however resetted for the newly allocated frame except
+ * for the loss counter. Frame must be freed with qc_frm_free().
  *
  * Returns the allocated frame or NULL on failure.
  */
@@ -218,7 +219,7 @@ static inline struct quic_frame *qc_frm_dup(struct quic_frame *origin)
 
 	*frm = *origin;
 
-	/* Reinit all internal members. */
+	/* Reinit all internal members except loss_count. */
 	LIST_INIT(&frm->list);
 	LIST_INIT(&frm->reflist);
 	frm->pkt = NULL;
