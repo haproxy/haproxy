@@ -1199,6 +1199,16 @@ int thread_map_to_groups()
 	m = 0;
 	for (g = 0; g < global.nbtgroups; g++) {
 		ha_tgroup_info[g].threads_enabled = nbits(ha_tgroup_info[g].count);
+		/* for now, additional threads are not started, so we should
+		 * consider them as harmless and idle.
+		 * This will get automatically updated when such threads are
+		 * started in run_thread_poll_loop()
+		 * Without this, thread_isolate() and thread_isolate_full()
+		 * will fail to work as long as secondary threads did not enter
+		 * the polling loop at least once.
+		 */
+		ha_tgroup_ctx[g].threads_harmless = ha_tgroup_info[g].threads_enabled;
+		ha_tgroup_ctx[g].threads_idle = ha_tgroup_info[g].threads_enabled;
 		if (!ha_tgroup_info[g].count)
 			continue;
 		m |= 1UL << g;

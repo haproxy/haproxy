@@ -3020,6 +3020,9 @@ static void *run_thread_poll_loop(void *data)
 	ha_set_thread(data);
 	set_thread_cpu_affinity();
 	clock_set_local_source();
+	/* thread is started, from now on it is not idle nor harmless */
+	thread_harmless_end();
+	thread_idle_end();
 
 	/* Now, initialize one thread init at a time. This is better since
 	 * some init code is a bit tricky and may release global resources
