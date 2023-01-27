@@ -1122,14 +1122,12 @@ static int quic_crypto_data_cpy(struct quic_conn *qc, struct quic_enc_level *qel
 			found->crypto.len += cf_len;
 		}
 		else {
-			frm = pool_zalloc(pool_head_quic_frame);
+			frm = qc_frm_alloc(QUIC_FT_CRYPTO);
 			if (!frm) {
 				TRACE_ERROR("Could not allocate quic frame", QUIC_EV_CONN_ADDDATA, qc);
 				goto leave;
 			}
 
-			LIST_INIT(&frm->reflist);
-			frm->type = QUIC_FT_CRYPTO;
 			frm->crypto.offset = cf_offset;
 			frm->crypto.len = cf_len;
 			frm->crypto.qel = qel;
@@ -2433,30 +2431,26 @@ static void qc_dup_pkt_frms(struct quic_conn *qc,
 			break;
 		}
 
-		dup_frm = pool_alloc(pool_head_quic_frame);
+		/* If <frm> is already a copy of another frame, we must take
+		 * its original frame as source for the copy.
+		 */
+		origin = frm->origin ? frm->origin : frm;
+		dup_frm = qc_frm_dup(origin);
 		if (!dup_frm) {
 			TRACE_ERROR("could not duplicate frame", QUIC_EV_CONN_PRSAFRM, qc, frm);
 			break;
 		}
 
-		/* If <frm> is already a copy of another frame, we must take
-		 * its original frame as source for the copy.
-		 */
-		origin = frm->origin ? frm->origin : frm;
 		TRACE_DEVEL("built probing frame", QUIC_EV_CONN_PRSAFRM, qc, origin);
-		if (origin->pkt)
+		if (origin->pkt) {
 			TRACE_DEVEL("duplicated from packet", QUIC_EV_CONN_PRSAFRM,
 			            qc, NULL, &origin->pkt->pn_node.key);
+		}
 		else {
 			/* <origin> is a frame which was sent from a packet detected as lost. */
 			TRACE_DEVEL("duplicated from lost packet", QUIC_EV_CONN_PRSAFRM, qc);
 		}
-		*dup_frm = *origin;
-		dup_frm->pkt = NULL;
-		dup_frm->origin = origin;
-		dup_frm->flags = 0;
-		LIST_INIT(&dup_frm->reflist);
-		LIST_APPEND(&origin->reflist, &dup_frm->ref);
+
 		LIST_APPEND(&tmp, &dup_frm->list);
 	}
 
@@ -2614,17 +2608,14 @@ static int qc_stop_sending_frm_enqueue(struct quic_conn *qc, uint64_t id)
 	 * at this time.
 	 */
 	app_error_code = H3_REQUEST_REJECTED;
-	// fixme: zalloc
-	frm = pool_zalloc(pool_head_quic_frame);
+	frm = qc_frm_alloc(QUIC_FT_STOP_SENDING);
 	if (!frm) {
 		TRACE_ERROR("failed to allocate quic_frame", QUIC_EV_CONN_PRSHPKT, qc);
 		goto out;
 	}
 
-	frm->type = QUIC_FT_STOP_SENDING;
 	frm->stop_sending.id = id;
 	frm->stop_sending.app_error_code = app_error_code;
-	LIST_INIT(&frm->reflist);
 	LIST_APPEND(&qel->pktns->tx.frms, &frm->list);
 	ret = 1;
  out:
@@ -3548,14 +3539,12 @@ static int quic_build_post_handshake_frames(struct quic_conn *qc)
 	qel = &qc->els[QUIC_TLS_ENC_LEVEL_APP];
 	/* Only servers must send a HANDSHAKE_DONE frame. */
 	if (qc_is_listener(qc)) {
-		frm = pool_zalloc(pool_head_quic_frame);
+		frm = qc_frm_alloc(QUIC_FT_HANDSHAKE_DONE);
 		if (!frm) {
 			TRACE_ERROR("frame allocation error", QUIC_EV_CONN_IO_CB, qc);
 			goto leave;
 		}
 
-		LIST_INIT(&frm->reflist);
-		frm->type = QUIC_FT_HANDSHAKE_DONE;
 		LIST_APPEND(&frm_list, &frm->list);
 	}
 
@@ -3569,13 +3558,12 @@ static int quic_build_post_handshake_frames(struct quic_conn *qc)
 	for (i = first; i < max; i++) {
 		struct quic_connection_id *cid;
 
-		frm = pool_zalloc(pool_head_quic_frame);
+		frm = qc_frm_alloc(QUIC_FT_NEW_CONNECTION_ID);
 		if (!frm) {
 			TRACE_ERROR("frame allocation error", QUIC_EV_CONN_IO_CB, qc);
 			goto err;
 		}
 
-		LIST_INIT(&frm->reflist);
 		cid = new_quic_cid(&qc->cids, qc, i);
 		if (!cid) {
 			pool_free(pool_head_quic_frame, frm);
@@ -6736,14 +6724,12 @@ static inline int qc_build_frms(struct list *outlist, struct list *inlist,
 			else {
 				struct quic_frame *new_cf;
 
-				new_cf = pool_zalloc(pool_head_quic_frame);
+				new_cf = qc_frm_alloc(QUIC_FT_CRYPTO);
 				if (!new_cf) {
 					TRACE_ERROR("No memory for new crypto frame", QUIC_EV_CONN_BCFRMS, qc);
 					continue;
 				}
 
-				LIST_INIT(&new_cf->reflist);
-				new_cf->type = QUIC_FT_CRYPTO;
 				new_cf->crypto.len = dlen;
 				new_cf->crypto.offset = cf->crypto.offset;
 				new_cf->crypto.qel = qel;
@@ -6846,14 +6832,12 @@ static inline int qc_build_frms(struct list *outlist, struct list *inlist,
 				struct quic_frame *new_cf;
 				struct buffer cf_buf;
 
-				new_cf = pool_zalloc(pool_head_quic_frame);
+				new_cf = qc_frm_alloc(cf->type);
 				if (!new_cf) {
 					TRACE_ERROR("No memory for new STREAM frame", QUIC_EV_CONN_BCFRMS, qc);
 					continue;
 				}
 
-				LIST_INIT(&new_cf->reflist);
-				new_cf->type = cf->type;
 				new_cf->stream.stream = cf->stream.stream;
 				new_cf->stream.buf = cf->stream.buf;
 				new_cf->stream.id = cf->stream.id;

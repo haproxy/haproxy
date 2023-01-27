@@ -239,9 +239,9 @@ struct quic_connection_close_app {
 };
 
 struct quic_frame {
-	struct list list;
-	struct quic_tx_packet *pkt;
-	unsigned char type;
+	struct list list;           /* List elem from parent elem (typically a Tx packet instance, a PKTNS or a MUX element). */
+	struct quic_tx_packet *pkt; /* Last Tx packet used to send the frame. */
+	unsigned char type;         /* QUIC frame type. */
 	union {
 		struct quic_padding padding;
 		struct quic_ack ack;
@@ -266,10 +266,10 @@ struct quic_frame {
 		struct quic_connection_close connection_close;
 		struct quic_connection_close_app connection_close_app;
 	};
-	struct quic_frame *origin;
-	struct list reflist;
-	struct list ref;
-	unsigned int flags;
+	struct quic_frame *origin;  /* Parent frame. Set if frame is a duplicate (used for retransmission). */
+	struct list reflist;        /* List head containing duplicated children frames. */
+	struct list ref;            /* List elem from parent frame reflist. Set if frame is a duplicate (used for retransmission). */
+	unsigned int flags;         /* QUIC_FL_TX_FRAME_* */
 };
 
 

@@ -176,5 +176,58 @@ static inline struct quic_err quic_err_app(uint64_t code)
 	return (struct quic_err){ .code = code, .app = 1 };
 }
 
+/* Allocate a quic_frame with type <type>.
+ *
+ * Returns the allocated frame or NULL on failure.
+ */
+static inline struct quic_frame *qc_frm_alloc(int type)
+{
+	struct quic_frame *frm = NULL;
+
+	frm = pool_alloc(pool_head_quic_frame);
+	if (!frm)
+		return NULL;
+
+	frm->type = type;
+
+	LIST_INIT(&frm->list);
+	LIST_INIT(&frm->reflist);
+	LIST_INIT(&frm->ref);
+	frm->pkt = NULL;
+	frm->origin = NULL;
+	frm->flags = 0;
+
+	return frm;
+}
+
+/* Allocate a quic_frame by duplicating <origin> frame. This will create a new
+ * frame of the same type with the same content. Internal fields such as packet
+ * owner and flags are however resetted for the newly allocated frame.
+ *
+ * Returns the allocated frame or NULL on failure.
+ */
+static inline struct quic_frame *qc_frm_dup(struct quic_frame *origin)
+{
+	struct quic_frame *frm = NULL;
+
+	frm = pool_alloc(pool_head_quic_frame);
+	if (!frm)
+		return NULL;
+
+	*frm = *origin;
+
+	/* Reinit all internal members. */
+	LIST_INIT(&frm->list);
+	LIST_INIT(&frm->reflist);
+	frm->pkt = NULL;
+	frm->flags = 0;
+
+	/* Attach <frm> to <origin>. */
+	LIST_APPEND(&origin->reflist, &frm->ref);
+	frm->origin = origin;
+
+	return frm;
+}
+
 #endif /* USE_QUIC */
 #endif /* _HAPROXY_QUIC_FRAME_H */

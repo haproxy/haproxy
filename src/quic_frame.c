@@ -10,6 +10,9 @@
 #include <string.h>
 
 #include <import/eb64tree.h>
+#include <haproxy/buf-t.h>
+#include <haproxy/chunk.h>
+#include <haproxy/pool.h>
 #include <haproxy/quic_conn-t.h>
 #include <haproxy/quic_enc.h>
 #include <haproxy/quic_frame.h>

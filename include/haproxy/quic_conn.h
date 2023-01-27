@@ -197,7 +197,7 @@ static inline void free_quic_conn_cids(struct quic_conn *conn)
 	}
 }
 
-/* Copy <src> new connection ID information to <to> NEW_CONNECTION_ID frame data.
+/* Copy <src> new connection ID information to <dst> NEW_CONNECTION_ID frame.
  * Always succeeds.
  */
 static inline void quic_connection_id_to_frm_cpy(struct quic_frame *dst,
@@ -205,7 +205,6 @@ static inline void quic_connection_id_to_frm_cpy(struct quic_frame *dst,
 {
 	struct quic_new_connection_id *to = &dst->new_connection_id;
 
-	dst->type = QUIC_FT_NEW_CONNECTION_ID;
 	to->seq_num = src->seq_num.key;
 	to->retire_prior_to = src->retire_prior_to;
 	to->cid.len = src->cid.len;
