@@ -185,12 +185,19 @@ struct qcs {
 	int start; /* base timestamp for http-request timeout */
 };
 
+/* Used as qcc_app_ops.close callback argument. */
+enum qcc_app_ops_close_side {
+	QCC_APP_OPS_CLOSE_SIDE_RD, /* Read channel closed (RESET_STREAM received). */
+	QCC_APP_OPS_CLOSE_SIDE_WR /* Write channel closed (STOP_SENDING received). */
+};
+
 /* QUIC application layer operations */
 struct qcc_app_ops {
 	int (*init)(struct qcc *qcc);
 	int (*attach)(struct qcs *qcs, void *conn_ctx);
 	ssize_t (*decode_qcs)(struct qcs *qcs, struct buffer *b, int fin);
 	size_t (*snd_buf)(struct qcs *qcs, struct htx *htx, size_t count);
+	int (*close)(struct qcs *qcs, enum qcc_app_ops_close_side side);
 	void (*detach)(struct qcs *qcs);
 	int (*finalize)(void *ctx);
 	void (*shutdown)(void *ctx);                    /* Close a connection. */

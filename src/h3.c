@@ -1601,6 +1601,24 @@ static size_t h3_snd_buf(struct qcs *qcs, struct htx *htx, size_t count)
 	return total;
 }
 
+/* Notify about a closure on <qcs> stream requested by the remote peer.
+ *
+ * Stream channel <side> is explained relative to our endpoint : WR for
+ * STOP_SENDING or RD for RESET_STREAM reception. Callback decode_qcs() is used
+ * instead for closure performed using a STREAM frame with FIN bit.
+ *
+ * The main objective of this function is to check if closure is valid
+ * according to HTTP/3 specification.
+ *
+ * Returns 0 on success else non-zero. A CONNECTION_CLOSE is generated on
+ * error.
+ */
+static int h3_close(struct qcs *qcs, enum qcc_app_ops_close_side side)
+{
+	/* TODO */
+	return 0;
+}
+
 static int h3_attach(struct qcs *qcs, void *conn_ctx)
 {
 	struct h3s *h3s;
@@ -1795,6 +1813,7 @@ const struct qcc_app_ops h3_ops = {
 	.attach      = h3_attach,
 	.decode_qcs  = h3_decode_qcs,
 	.snd_buf     = h3_snd_buf,
+	.close       = h3_close,
 	.detach      = h3_detach,
 	.finalize    = h3_finalize,
 	.shutdown    = h3_shutdown,
