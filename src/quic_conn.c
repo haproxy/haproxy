@@ -2471,6 +2471,9 @@ static void qc_prep_fast_retrans(struct quic_conn *qc,
 		pkt = eb64_entry(node, struct quic_tx_packet, pn_node);
 		node = eb64_next(node);
 		/* Skip the empty and coalesced packets */
+		TRACE_PRINTF(TRACE_LEVEL_DEVELOPER, QUIC_EV_CONN_SPPKTS, qc, 0, 0, 0,
+		             "--> pn=%llu (%d %d)", (ull)pkt->pn_node.key,
+		             LIST_ISEMPTY(&pkt->frms), !!(pkt->flags & QUIC_FL_TX_PACKET_COALESCED));
 		if (!LIST_ISEMPTY(&pkt->frms) && !(pkt->flags & QUIC_FL_TX_PACKET_COALESCED))
 			break;
 	}
@@ -2524,6 +2527,9 @@ static void qc_prep_hdshk_fast_retrans(struct quic_conn *qc,
 	/* Skip the empty packet (they have already been retransmitted) */
 	while (node) {
 		pkt = eb64_entry(node, struct quic_tx_packet, pn_node);
+		TRACE_PRINTF(TRACE_LEVEL_DEVELOPER, QUIC_EV_CONN_SPPKTS, qc, 0, 0, 0,
+		             "--> pn=%llu (%d %d)", (ull)pkt->pn_node.key,
+		             LIST_ISEMPTY(&pkt->frms), !!(pkt->flags & QUIC_FL_TX_PACKET_COALESCED));
 		if (!LIST_ISEMPTY(&pkt->frms) && !(pkt->flags & QUIC_FL_TX_PACKET_COALESCED))
 			break;
 		node = eb64_next(node);
