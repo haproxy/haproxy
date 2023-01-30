@@ -879,7 +879,7 @@ void _h2_trace_header(const struct ist hn, const struct ist hv,
 		chunk_appendf(&trash, " (... +%ld)", (long)(hv.len - v_ist.len));
 
 	TRACE_PRINTF_LOC(TRACE_LEVEL_USER, mask, trc_loc, func,
-	                 h2c->conn, 0, 0, 0,
+	                 (h2c ? h2c->conn : 0), 0, 0, 0,
 	                 "%s%s%s %s: %s", c_str, s_str,
 	                 (mask & H2_EV_TX_HDR) ? "sndh" : "rcvh",
 	                 n_ist.ptr, v_ist.ptr);
