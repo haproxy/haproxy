@@ -485,12 +485,25 @@ int http_validate_7239_header(struct ist hdr, int required_steps, struct forward
 	return 0;
 }
 
+static inline void _7239_print_ip6(struct buffer *out, struct in6_addr *ip6_addr, int quoted)
+{
+	char pn[INET6_ADDRSTRLEN];
+
+	inet_ntop(AF_INET6,
+		  ip6_addr,
+		  pn, sizeof(pn));
+	if (!quoted)
+		chunk_appendf(out, "\""); /* explicit quoting required for ipv6 */
+	chunk_appendf(out, "[%s]", pn);
+}
+
 static inline void http_build_7239_header_nodename(struct buffer *out,
                                                    struct stream *s, struct proxy *curproxy,
                                                    const struct sockaddr_storage *addr,
                                                    struct http_ext_7239_forby *forby)
 {
 	struct in6_addr *ip6_addr;
+	int quoted = !!forby->np_mode;
 
 	if (forby->nn_mode == HTTP_7239_FORBY_ORIG) {
 		if (addr && addr->ss_family == AF_INET) {
@@ -500,17 +513,7 @@ static inline void http_build_7239_header_nodename(struct buffer *out,
 		}
 		else if (addr && addr->ss_family == AF_INET6) {
 			ip6_addr = &((struct sockaddr_in6 *)addr)->sin6_addr;
- print_ip6:
-			{
-				char pn[INET6_ADDRSTRLEN];
-
-				inet_ntop(AF_INET6,
-					  ip6_addr,
-					  pn, sizeof(pn));
-				if (!forby->np_mode)
-					chunk_appendf(out, "\""); /* explicit quoting required for ipv6 */
-				chunk_appendf(out, "[%s]", pn);
-			}
+			_7239_print_ip6(out, ip6_addr, quoted);
 		}
 		/* else: not supported */
 	}
@@ -524,10 +527,10 @@ static inline void http_build_7239_header_nodename(struct buffer *out,
 			if (smp->data.type == SMP_T_IPV6) {
 				/* smp is valid IP6, print with RFC compliant output */
 				ip6_addr = &smp->data.u.ipv6;
-				goto print_ip6;
+				_7239_print_ip6(out, ip6_addr, quoted);
 			}
-			if (sample_casts[smp->data.type][SMP_T_STR] &&
-			    sample_casts[smp->data.type][SMP_T_STR](smp)) {
+			else if (sample_casts[smp->data.type][SMP_T_STR] &&
+				 sample_casts[smp->data.type][SMP_T_STR](smp)) {
 				struct ist validate_n = ist2(smp->data.u.str.area, smp->data.u.str.data);
 				struct ist validate_o = ist2(smp->data.u.str.area, smp->data.u.str.data);
 				struct forwarded_header_nodename nodename;
@@ -539,12 +542,13 @@ static inline void http_build_7239_header_nodename(struct buffer *out,
 					    nodename.ip.ss_family == AF_INET6) {
 						/* special care needed for valid ip6 nodename (quoting) */
 						ip6_addr = &((struct sockaddr_in6 *)&nodename.ip)->sin6_addr;
-						goto print_ip6;
+						_7239_print_ip6(out, ip6_addr, quoted);
+					} else {
+						/* no special care needed, input is already rfc compliant,
+						 * just print as regular non quoted string
+						 */
+						chunk_cat(out, &smp->data.u.str);
 					}
-					/* no special care needed, input is already rfc compliant,
-					 * just print as regular non quoted string
-					 */
-					chunk_cat(out, &smp->data.u.str);
 				}
 				else if (http_7239_extract_obfs(&validate_o, NULL) &&
 					 !istlen(validate_o)) {
