@@ -1626,7 +1626,7 @@ static int h3_close(struct qcs *qcs, enum qcc_app_ops_close_side side)
 	 * control stream is closed at any point, this MUST be treated
 	 * as a connection error of type H3_CLOSED_CRITICAL_STREAM.
 	 */
-	if (qcs == h3c->ctrl_strm) {
+	if (qcs == h3c->ctrl_strm || h3s->type == H3S_T_CTRL) {
 		TRACE_ERROR("closure detected on control stream", H3_EV_H3S_END, qcs->qcc, qcs);
 		qcc_emit_cc_app(qcs->qcc, H3_CLOSED_CRITICAL_STREAM, 1);
 		return 1;
