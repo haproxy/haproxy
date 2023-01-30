@@ -1615,7 +1615,23 @@ static size_t h3_snd_buf(struct qcs *qcs, struct htx *htx, size_t count)
  */
 static int h3_close(struct qcs *qcs, enum qcc_app_ops_close_side side)
 {
-	/* TODO */
+	struct h3s *h3s = qcs->ctx;
+	struct h3c *h3c = h3s->h3c;;
+
+	/* RFC 9114 6.2.1. Control Streams
+	 *
+	 * The sender
+	 * MUST NOT close the control stream, and the receiver MUST NOT
+	 * request that the sender close the control stream.  If either
+	 * control stream is closed at any point, this MUST be treated
+	 * as a connection error of type H3_CLOSED_CRITICAL_STREAM.
+	 */
+	if (qcs == h3c->ctrl_strm) {
+		TRACE_ERROR("closure detected on control stream", H3_EV_H3S_END, qcs->qcc, qcs);
+		qcc_emit_cc_app(qcs->qcc, H3_CLOSED_CRITICAL_STREAM, 1);
+		return 1;
+	}
+
 	return 0;
 }
 

@@ -1232,6 +1232,13 @@ int qcc_recv_stop_sending(struct qcc *qcc, uint64_t id, uint64_t err)
 
 	qcs_idle_open(qcs);
 
+	if (qcc->app_ops->close) {
+		if (qcc->app_ops->close(qcs, QCC_APP_OPS_CLOSE_SIDE_WR)) {
+			TRACE_ERROR("closure rejected by app layer", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV, qcc->conn, qcs);
+			goto out;
+		}
+	}
+
 	/* RFC 9000 3.5. Solicited State Transitions
 	 *
 	 * An endpoint that receives a STOP_SENDING frame
