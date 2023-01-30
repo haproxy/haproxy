@@ -66,6 +66,8 @@ static const struct trace_event h3_trace_events[] = {
 	{ .mask = H3_EV_H3S_NEW,      .name = "h3s_new",     .desc = "new H3 stream" },
 #define           H3_EV_H3S_END       (1ULL <<  8)
 	{ .mask = H3_EV_H3S_END,      .name = "h3s_end",     .desc = "H3 stream terminated" },
+#define           H3_EV_H3C_END       (1ULL <<  9)
+	{ .mask = H3_EV_H3C_END,      .name = "h3c_end",     .desc = "H3 connection terminated" },
 	{ }
 };
 
@@ -1711,8 +1713,12 @@ static int h3_send_goaway(struct h3c *h3c)
 	unsigned char data[3 * QUIC_VARINT_MAX_SIZE];
 	size_t frm_len = quic_int_getsize(h3c->id_goaway);
 
-	if (!qcs)
-		return 1;
+	TRACE_ENTER(H3_EV_H3C_END, h3c->qcc);
+
+	if (!qcs) {
+		TRACE_ERROR("control stream not initialized", H3_EV_H3C_END, h3c->qcc);
+		goto err;
+	}
 
 	pos = b_make((char *)data, sizeof(data), 0, 0);
 
@@ -1723,13 +1729,19 @@ static int h3_send_goaway(struct h3c *h3c)
 	res = mux_get_buf(qcs);
 	if (!res || b_room(res) < b_data(&pos)) {
 		/* Do not try forcefully to emit GOAWAY if no space left. */
-		return 1;
+		TRACE_ERROR("cannot send GOAWAY", H3_EV_H3C_END, h3c->qcc, qcs);
+		goto err;
 	}
 
 	b_force_xfer(res, &pos, b_data(&pos));
 	qcc_send_stream(qcs, 1);
 
+	TRACE_LEAVE(H3_EV_H3C_END, h3c->qcc);
 	return 0;
+
+ err:
+	TRACE_DEVEL("leaving in error", H3_EV_H3C_END, h3c->qcc);
+	return 1;
 }
 
 /* Initialize the HTTP/3 context for <qcc> mux.
@@ -1768,6 +1780,8 @@ static void h3_shutdown(void *ctx)
 {
 	struct h3c *h3c = ctx;
 
+	TRACE_ENTER(H3_EV_H3C_END, h3c->qcc);
+
 	/* RFC 9114 5.2. Connection Shutdown
 	 *
 	 * Even when a connection is not idle, either endpoint can decide to
@@ -1784,6 +1798,8 @@ static void h3_shutdown(void *ctx)
 	 * the connection.
 	 */
 	qcc_emit_cc_app(h3c->qcc, H3_NO_ERROR, 0);
+
+	TRACE_LEAVE(H3_EV_H3C_END, h3c->qcc);
 }
 
 static void h3_release(void *ctx)
