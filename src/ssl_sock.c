@@ -4211,6 +4211,7 @@ static int sh_ssl_sess_store(unsigned char *s_id, unsigned char *data, int data_
 	if (oldsh_ssl_sess != sh_ssl_sess) {
 		 /* NOTE: Row couldn't be in use because we lock read & write function */
 		/* release the reserved row */
+		first->len = 0; /* the len must be liberated in order not to call the release callback on it */
 		shctx_row_dec_hot(ssl_shctx, first);
 		/* replace the previous session already in the tree */
 		sh_ssl_sess = oldsh_ssl_sess;
