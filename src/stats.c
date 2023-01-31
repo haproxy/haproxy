@@ -3142,6 +3142,7 @@ int stats_dump_proxy_to_buffer(struct stconn *sc, struct htx *htx,
 	struct server *sv, *svs;	/* server and server-state, server-state=server or server->track */
 	struct listener *l;
 	int current_field;
+	int px_st = ctx->px_st;
 
 	chunk_reset(&trash_chunk);
 more:
@@ -3257,11 +3258,28 @@ more:
 		__fallthrough;
 
 	case STAT_PX_ST_SV:
+		/* check for dump resumption */
+		if (px_st == STAT_PX_ST_SV) {
+			struct server *cur = ctx->obj2;
+
+			/* re-entrant dump */
+			BUG_ON(!cur);
+			if (cur->flags & SRV_F_DELETED) {
+				/* the server could have been marked as deleted
+				 * between two dumping attempts, skip it.
+				 */
+				cur = cur->next;
+			}
+			srv_drop(ctx->obj2); /* drop old srv taken on last dumping attempt */
+			ctx->obj2 = cur; /* could be NULL */
+			/* back to normal */
+		}
+
 		/* obj2 points to servers list as initialized above.
 		 *
 		 * A server may be removed during the stats dumping.
 		 * Temporarily increment its refcount to prevent its
-		 * anticipated cleaning. Call free_server to release it.
+		 * anticipated cleaning. Call srv_drop() to release it.
 		 */
 		for (; ctx->obj2 != NULL;
 		       ctx->obj2 = srv_drop(sv)) {
