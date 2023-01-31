@@ -2970,15 +2970,15 @@ init_proxies_list_stage1:
 			/* apply thread masks and groups to all receivers */
 			list_for_each_entry(li, &bind_conf->listeners, by_bind) {
 				if (bind_conf->settings.shards <= 1) {
-					li->rx.bind_thread = bind_conf->bind_thread;
-					li->rx.bind_tgroup = bind_conf->bind_tgroup;
+					li->rx.bind_thread = thread_set_first_tmask(&bind_conf->thread_set);
+					li->rx.bind_tgroup = thread_set_first_group(&bind_conf->thread_set);
 				} else {
 					struct listener *new_li;
 					int shard, shards, todo, done, bit;
 					ulong mask;
 
 					shards = bind_conf->settings.shards;
-					todo = my_popcountl(bind_conf->bind_thread);
+					todo = my_popcountl(thread_set_first_tmask(&bind_conf->thread_set));
 
 					/* no more shards than total threads */
 					if (shards > todo)
@@ -2991,15 +2991,15 @@ init_proxies_list_stage1:
 						mask = 0;
 						while (done < todo) {
 							/* enlarge mask to cover next bit of bind_thread */
-							while (!(bind_conf->bind_thread & (1UL << bit)))
+							while (!(thread_set_first_tmask(&bind_conf->thread_set) & (1UL << bit)))
 								bit++;
 							mask |= (1UL << bit);
 							bit++;
 							done += shards;
 						}
 
-						new_li->rx.bind_thread = bind_conf->bind_thread & mask;
-						new_li->rx.bind_tgroup = bind_conf->bind_tgroup;
+						new_li->rx.bind_thread = thread_set_first_tmask(&bind_conf->thread_set) & mask;
+						new_li->rx.bind_tgroup = thread_set_first_group(&bind_conf->thread_set);
 						done -= todo;
 
 						shard++;
@@ -4451,8 +4451,8 @@ init_proxies_list_stage2:
 
 					/* apply thread masks and groups to all receivers */
 					list_for_each_entry(li, &bind_conf->listeners, by_bind) {
-						li->rx.bind_thread = bind_conf->bind_thread;
-						li->rx.bind_tgroup = bind_conf->bind_tgroup;
+						li->rx.bind_thread = thread_set_first_tmask(&bind_conf->thread_set);
+						li->rx.bind_tgroup = thread_set_first_group(&bind_conf->thread_set);
 					}
 
 					if (bind_conf->xprt->prepare_bind_conf &&
