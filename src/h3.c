@@ -1713,10 +1713,10 @@ static int h3_send_goaway(struct h3c *h3c)
 	unsigned char data[3 * QUIC_VARINT_MAX_SIZE];
 	size_t frm_len = quic_int_getsize(h3c->id_goaway);
 
-	TRACE_ENTER(H3_EV_H3C_END, h3c->qcc);
+	TRACE_ENTER(H3_EV_H3C_END, h3c->qcc->conn);
 
 	if (!qcs) {
-		TRACE_ERROR("control stream not initialized", H3_EV_H3C_END, h3c->qcc);
+		TRACE_ERROR("control stream not initialized", H3_EV_H3C_END, h3c->qcc->conn);
 		goto err;
 	}
 
@@ -1729,18 +1729,18 @@ static int h3_send_goaway(struct h3c *h3c)
 	res = mux_get_buf(qcs);
 	if (!res || b_room(res) < b_data(&pos)) {
 		/* Do not try forcefully to emit GOAWAY if no space left. */
-		TRACE_ERROR("cannot send GOAWAY", H3_EV_H3C_END, h3c->qcc, qcs);
+		TRACE_ERROR("cannot send GOAWAY", H3_EV_H3C_END, h3c->qcc->conn, qcs);
 		goto err;
 	}
 
 	b_force_xfer(res, &pos, b_data(&pos));
 	qcc_send_stream(qcs, 1);
 
-	TRACE_LEAVE(H3_EV_H3C_END, h3c->qcc);
+	TRACE_LEAVE(H3_EV_H3C_END, h3c->qcc->conn);
 	return 0;
 
  err:
-	TRACE_DEVEL("leaving in error", H3_EV_H3C_END, h3c->qcc);
+	TRACE_DEVEL("leaving in error", H3_EV_H3C_END, h3c->qcc->conn);
 	return 1;
 }
 
@@ -1780,7 +1780,7 @@ static void h3_shutdown(void *ctx)
 {
 	struct h3c *h3c = ctx;
 
-	TRACE_ENTER(H3_EV_H3C_END, h3c->qcc);
+	TRACE_ENTER(H3_EV_H3C_END, h3c->qcc->conn);
 
 	/* RFC 9114 5.2. Connection Shutdown
 	 *
@@ -1799,7 +1799,7 @@ static void h3_shutdown(void *ctx)
 	 */
 	qcc_emit_cc_app(h3c->qcc, H3_NO_ERROR, 0);
 
-	TRACE_LEAVE(H3_EV_H3C_END, h3c->qcc);
+	TRACE_LEAVE(H3_EV_H3C_END, h3c->qcc->conn);
 }
 
 static void h3_release(void *ctx)
