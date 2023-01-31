@@ -15063,33 +15063,51 @@ tfo
   need to build HAProxy with USE_TFO=1 if your libc doesn't define
   TCP_FASTOPEN.
 
-thread [<thread-group>/]<thread-set>
+thread [<thread-group>/]<thread-set>[,...]
   This restricts the list of threads on which this listener is allowed to run.
   It does not enforce any of them but eliminates those which do not match. It
   limits the threads allowed to process incoming connections for this listener.
 
   There are two numbering schemes. By default, thread numbers are absolute in
   the process, comprised between 1 and the value specified in global.nbthread.
-  When thread groups are enabled, the number of a single desired thread group
-  (starting at 1) may be specified before a slash ('/') before the thread
-  range. In this case, the thread numbers in the range are relative to the
-  thread group instead, and start at 1 for each thread group. Absolute and
-  relative thread numbers may be used interchangeably but they must not be
-  mixed on a single "bind" line, as those not set will be resolved at the end
-  of the parsing.
+  It is also possible to designate a thread number using its relative number
+  inside its thread group, by specifying the thread group number first, then a
+  slash ('/') and the relative thread number(s). In this case thread numbers
+  also start at 1 and end at 32 or 64 depending on the platform. When absolute
+  thread numbers are specified, they will be automatically translated to
+  relative numbers once thread groups are known. Usually, absolute numbers are
+  preferred for simple configurations, and relative ones are preferred for
+  complex configurations where CPU arrangement matters for performance.
 
-  For the unlikely case where several ranges are needed, this directive may be
-  repeated. It is not permitted to use different thread groups even when using
-  multiple directives. The <thread-set> specification must use the format:
+  After the optional thread group number, the "thread-set" specification must
+  use the following format:
 
-      all | odd | even | number[-[number]]
+      "all" | "odd" | "even" | [number][-[number]]
 
-  Ranges can be partially defined. The higher bound can be omitted. In such a
-  case, it is replaced by the corresponding maximum value. The main purpose is
-  to have multiple bind lines sharing the same IP:port but not the same thread
-  in a listener, so that the system can distribute the incoming connections
-  into multiple queues, bypassing haproxy's internal queue load balancing.
-  Currently Linux 3.9 and above is known for supporting this.
+  As their names imply, "all" validates all threads within the set (either all
+  of the group's when a group is specified, or all of the process' threads),
+  "odd" validates all odd-numberred threads (every other thread starting at 1)
+  either for the process or the group, and "even" validates all even-numberred
+  threads (every other thread starting at 2). If instead thread number ranges
+  are used, then all threads included in the range from the first to the last
+  thread number are validated. The numbers are either relative to the group
+  or absolute dependeing on the presence of a thread group number. If the first
+  thread number is omitted, "1" is used, representing either the first thread
+  of the group or the first thread of the process. If the last thread number is
+  omitted, either the last thread number of the group (32 or 64) is used, or
+  the last thread number of the process (global.nbthread).
+
+  These ranges may be repeated and delimited by a comma, so that non-contiguous
+  thread sets can be specified, and the group, if present, must be specified
+  again for each new range. Note that it is not permitted to mix group-relative
+  and absolute specifications because the whole "bind" line must use either
+  an absolute notation or a relative one, as those not set will be resolved at
+  the end of the parsing.
+
+  The main purpose is to have multiple bind lines sharing the same IP:port but
+  not the same thread in a listener, so that the system can distribute the
+  incoming connections into multiple queues, bypassing haproxy's internal queue
+  load balancing. Currently Linux 3.9 and above is known for supporting this.
 
 tls-ticket-keys <keyfile>
   Sets the TLS ticket keys file to load the keys from. The keys need to be 48

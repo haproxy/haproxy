@@ -1801,41 +1801,15 @@ static int bind_parse_shards(char **args, int cur_arg, struct proxy *px, struct 
 	return 0;
 }
 
-/* parse the "thread" bind keyword */
+/* parse the "thread" bind keyword. This will replace any preset thread_set */
 static int bind_parse_thread(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
-	char *sep = NULL;
-	ulong thread = 0;
-	long tgroup = 0;
-
-	tgroup = strtol(args[cur_arg + 1], &sep, 10);
-	if (*sep == '/') {
-		/* a thread group was present */
-		if (tgroup < 1 || tgroup > MAX_TGROUPS) {
-			memprintf(err, "'%s' thread-group number must be between 1 and %d (was %ld)", args[cur_arg + 1], MAX_TGROUPS, tgroup);
-			return ERR_ALERT | ERR_FATAL;
-		}
-		sep++;
-	}
-	else {
-		/* no thread group */
-		tgroup = 0;
-		sep = args[cur_arg + 1];
-	}
-
-	if ((conf->bind_tgroup || conf->bind_thread) &&
-	    conf->bind_tgroup != tgroup) {
-		memprintf(err, "'%s' multiple thread-groups are not supported", args[cur_arg + 1]);
+	/* note that the thread set is zeroed before first call, and we don't
+	 * want to reset it so that it remains possible to chain multiple
+	 * "thread" directives.
+	 */
+	if (parse_thread_set(args[cur_arg+1], &conf->thread_set, err) < 0)
 		return ERR_ALERT | ERR_FATAL;
-	}
-
-	if (parse_process_number(sep, &thread, LONGBITS, NULL, err)) {
-		memprintf(err, "'%s' : %s", sep, *err);
-		return ERR_ALERT | ERR_FATAL;
-	}
-
-	conf->bind_thread |= thread;
-	conf->bind_tgroup  = tgroup;
 	return 0;
 }
 

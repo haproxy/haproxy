@@ -44,7 +44,7 @@ void ha_tkill(unsigned int thr, int sig);
 void ha_tkillall(int sig);
 void ha_thread_relax(void);
 int thread_map_to_groups();
-int thread_resolve_group_mask(struct thread_set *ts, uint *ogid, ulong *omask, char **err);
+int thread_resolve_group_mask(struct thread_set *ts, int defgrp, uint *ogid, ulong *omask, char **err);
 int parse_thread_set(const char *arg, struct thread_set *ts, char **err);
 extern int thread_cpus_enabled_at_boot;
 
