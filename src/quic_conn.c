@@ -2474,7 +2474,7 @@ static void qc_prep_fast_retrans(struct quic_conn *qc,
 		TRACE_PRINTF(TRACE_LEVEL_DEVELOPER, QUIC_EV_CONN_SPPKTS, qc, 0, 0, 0,
 		             "--> pn=%llu (%d %d)", (ull)pkt->pn_node.key,
 		             LIST_ISEMPTY(&pkt->frms), !!(pkt->flags & QUIC_FL_TX_PACKET_COALESCED));
-		if (!LIST_ISEMPTY(&pkt->frms) && !(pkt->flags & QUIC_FL_TX_PACKET_COALESCED))
+		if (!LIST_ISEMPTY(&pkt->frms))
 			break;
 	}
 
