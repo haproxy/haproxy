@@ -4210,16 +4210,19 @@ static void qc_dgrams_retransmit(struct quic_conn *qc)
 	TRACE_ENTER(QUIC_EV_CONN_TXPKT, qc);
 
 	if (iqel->pktns->flags & QUIC_FL_PKTNS_PROBE_NEEDED) {
-		struct list ifrms = LIST_HEAD_INIT(ifrms);
-		struct list hfrms = LIST_HEAD_INIT(hfrms);
+		int i;
 
-		qc_prep_hdshk_fast_retrans(qc, &ifrms, &hfrms);
-		TRACE_DEVEL("Avail. ack eliciting frames", QUIC_EV_CONN_FRMLIST, qc, &ifrms);
-		TRACE_DEVEL("Avail. ack eliciting frames", QUIC_EV_CONN_FRMLIST, qc, &hfrms);
-		if (!LIST_ISEMPTY(&ifrms)) {
-			iqel->pktns->tx.pto_probe = 1;
-			if (!LIST_ISEMPTY(&hfrms)) {
-				hqel->pktns->tx.pto_probe = 1;
+		for (i = 0; i < QUIC_MAX_NB_PTO_DGRAMS; i++) {
+			struct list ifrms = LIST_HEAD_INIT(ifrms);
+			struct list hfrms = LIST_HEAD_INIT(hfrms);
+
+			qc_prep_hdshk_fast_retrans(qc, &ifrms, &hfrms);
+			TRACE_DEVEL("Avail. ack eliciting frames", QUIC_EV_CONN_FRMLIST, qc, &ifrms);
+			TRACE_DEVEL("Avail. ack eliciting frames", QUIC_EV_CONN_FRMLIST, qc, &hfrms);
+			if (!LIST_ISEMPTY(&ifrms)) {
+				iqel->pktns->tx.pto_probe = 1;
+				if (!LIST_ISEMPTY(&hfrms))
+					hqel->pktns->tx.pto_probe = 1;
 				qc_send_hdshk_pkts(qc, 1, QUIC_TLS_ENC_LEVEL_INITIAL, &ifrms,
 				                   QUIC_TLS_ENC_LEVEL_HANDSHAKE, &hfrms);
 				/* Put back unsent frames in their packet number spaces */
@@ -4227,27 +4230,10 @@ static void qc_dgrams_retransmit(struct quic_conn *qc)
 				LIST_SPLICE(&hqel->pktns->tx.frms, &hfrms);
 			}
 		}
-		if (hqel->pktns->flags & QUIC_FL_PKTNS_PROBE_NEEDED) {
-			/* This list has potentially been already used and spliced
-			 * to another one attached to the connection. We must reinitialize it.
-			 */
-			LIST_INIT(&hfrms);
-			qc_prep_fast_retrans(qc, hqel, &hfrms, NULL);
-			TRACE_DEVEL("Avail. ack eliciting frames", QUIC_EV_CONN_FRMLIST, qc, &hfrms);
-			if (!LIST_ISEMPTY(&hfrms)) {
-				hqel->pktns->tx.pto_probe = 1;
-				qc_send_hdshk_pkts(qc, 1, QUIC_TLS_ENC_LEVEL_HANDSHAKE, &hfrms,
-				                   QUIC_TLS_ENC_LEVEL_NONE, NULL);
-				/* Put back unsent frames into their packet number spaces */
-				LIST_SPLICE(&hqel->pktns->tx.frms, &hfrms);
-			}
-			TRACE_STATE("no more need to probe Handshake packet number space",
-			            QUIC_EV_CONN_TXPKT, qc);
-			hqel->pktns->flags &= ~QUIC_FL_PKTNS_PROBE_NEEDED;
-		}
 		TRACE_STATE("no more need to probe Initial packet number space",
 					QUIC_EV_CONN_TXPKT, qc);
 		iqel->pktns->flags &= ~QUIC_FL_PKTNS_PROBE_NEEDED;
+		hqel->pktns->flags &= ~QUIC_FL_PKTNS_PROBE_NEEDED;
 	}
 	else {
 		int i;
@@ -4676,6 +4662,10 @@ struct task *qc_process_timer(struct task *task, void *ctx, unsigned int state)
 			}
 			else if (pktns == &qc->pktns[QUIC_TLS_PKTNS_HANDSHAKE]) {
 				TRACE_STATE("needs to probe Handshake packet number space", QUIC_EV_CONN_TXPKT, qc);
+				if (qc->pktns[QUIC_TLS_PKTNS_INITIAL].tx.in_flight) {
+					qc->pktns[QUIC_TLS_PKTNS_INITIAL].flags |= QUIC_FL_PKTNS_PROBE_NEEDED;
+					TRACE_STATE("needs to probe Initial packet number space", QUIC_EV_CONN_TXPKT, qc);
+				}
 			}
 			else if (pktns == &qc->pktns[QUIC_TLS_PKTNS_01RTT]) {
 				TRACE_STATE("needs to probe 01RTT packet number space", QUIC_EV_CONN_TXPKT, qc);
