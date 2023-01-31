@@ -1149,6 +1149,7 @@ The following keywords are supported in the "global" section :
    - tune.quic.frontend.conn-tx-buffers.limit
    - tune.quic.frontend.max-idle-timeout
    - tune.quic.frontend.max-streams-bidi
+   - tune.quic.max-frame-loss
    - tune.quic.retry-threshold
    - tune.quic.socket-owner
    - tune.rcvbuf.client
@@ -3109,6 +3110,15 @@ tune.quic.frontend.max-streams-bidi <number>
   requests.
 
   The default value is 100.
+
+tune.quic.max-frame-loss <number>
+  Warning: QUIC support in HAProxy is currently experimental. Configuration may
+  change without deprecation in the future.
+
+  Sets the limit for which a single QUIC frame can be marked as lost. If
+  exceeded, the connection is considered as failing and is closed immediately.
+
+  The default value is 10.
 
 tune.quic.retry-threshold <number>
   Warning: QUIC support in HAProxy is currently experimental. Configuration may

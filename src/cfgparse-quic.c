@@ -144,6 +144,8 @@ static int cfg_parse_quic_tune_setting(char **args, int section_type,
 		global.tune.quic_streams_buf = arg;
 	else if (strcmp(suffix, "frontend.max-streams-bidi") == 0)
 		global.tune.quic_frontend_max_streams_bidi = arg;
+	else if (strcmp(suffix, "max-frame-loss") == 0)
+		global.tune.quic_max_frame_loss = arg;
 	else if (strcmp(suffix, "retry-threshold") == 0)
 		global.tune.quic_retry_threshold = arg;
 	else {
@@ -160,6 +162,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.quic.frontend.conn-tx-buffers.limit", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.frontend.max-streams-bidi", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.frontend.max-idle-timeout", cfg_parse_quic_time },
+	{ CFG_GLOBAL, "tune.quic.max-frame-loss", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.retry-threshold", cfg_parse_quic_tune_setting },
 	{ 0, NULL, NULL }
 }};

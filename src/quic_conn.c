@@ -1832,7 +1832,7 @@ static inline int qc_requeue_nacked_pkt_tx_frms(struct quic_conn *qc,
 			qc_frm_free(&frm);
 		}
 		else {
-			if (++frm->loss_count >= QUIC_DFLT_MAX_FRAME_LOSS) {
+			if (++frm->loss_count >= global.tune.quic_max_frame_loss) {
 				TRACE_ERROR("retransmission limit reached, closing the connection", QUIC_EV_CONN_PRSAFRM, qc);
 				quic_set_connection_close(qc, quic_err_transport(QC_ERR_INTERNAL_ERROR));
 				close = 1;
