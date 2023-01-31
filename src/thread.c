@@ -1304,20 +1304,259 @@ int thread_resolve_group_mask(uint igid, ulong imask, uint *ogid, ulong *omask, 
 
 				while (imask) {
 					new_mask |= imask & mask;
-					imask >>= ha_tgroup_info[igid - 1].count;
+					imask >>= ha_tgroup_info[g].count;
 				}
 				imask = new_mask;
 #else
-				memprintf(err, "'thread' directive only references threads not belonging to the group");
+				memprintf(err, "'thread' directive only references threads not belonging to group %u", g+1);
 				return -1;
 #endif
 			}
 
-			*omask = mask & imask;
-			*ogid = igid;
-			return 0;
+			new_ts.rel[g] = imask & mask;
+			new_ts.nbgrp++;
 		}
 	}
+
+	/* update the thread_set */
+	if (!thread_set_first_group(&new_ts)) {
+		memprintf(err, "'thread' directive only references non-existing threads");
+		return -1;
+	}
+
+	*ts = new_ts;
+
+	/* FIXME: for now we still also return the old format */
+	*ogid  = thread_set_first_group(ts);
+	*omask = thread_set_first_tmask(ts);
+	return 0;
+}
+
+/* Parse a string representing a thread set in one of the following forms:
+ *
+ * - { "all" | "odd" | "even" | <abs_num> [ "-" <abs_num> ] }[,...]
+ *   => these are (lists of) absolute thread numbers
+ *
+ * - <tgnum> "/" { "all" | "odd" | "even" | <rel_num> [ "-" <rel_num> ][,...]
+ *   => these are (lists of) per-group relative thread numbers. All numbers
+ *      must be lower than or equal to LONGBITS. When multiple list elements
+ *      are provided, each of them must contain the thread group number.
+ *
+ * Minimum value for a thread or group number is always 1. Maximum value for an
+ * absolute thread number is MAX_THREADS, maximum value for a relative thread
+ * number is MAX_THREADS_PER_GROUP, an maximum value for a thread group is
+ * MAX_TGROUPS. "all", "even" and "odd" will be bound by MAX_THREADS and/or
+ * MAX_THREADS_PER_GROUP in any case. In ranges, a missing digit before "-"
+ * is implicitly 1, and a missing digit after "-" is implicitly the highest of
+ * its class. As such "-" is equivalent to "all", allowing to build strings
+ * such as "${MIN}-${MAX}" where both MIN and MAX are optional.
+ *
+ * It is not valid to mix absolute and relative numbers. As such:
+ * - all               valid (all absolute threads)
+ * - 12-19,24-31       valid (abs threads 12 to 19 and 24 to 31)
+ * - 1/all             valid (all 32 or 64 threads of group 1)
+ * - 1/1-4,1/8-10,2/1  valid
+ * - 1/1-4,8-10        invalid (mixes relatve "1/1-4" with absolute "8-10")
+ * - 1-4,8-10,2/1      invalid (mixes absolute "1-4,8-10" with relative "2/1")
+ * - 1/odd-4           invalid (mixes range with boundary)
+ *
+ * The target thread set is *completed* with supported threads, which means
+ * that it's the caller's responsibility for pre-initializing it. If the target
+ * thread set is NULL, it's not updated and the function only verifies that the
+ * input parses.
+ *
+ * On success, it returns 0. otherwise it returns non-zero with an error
+ * message in <err>.
+ */
+int parse_thread_set(const char *arg, struct thread_set *ts, char **err)
+{
+	const char *set;
+	const char *sep;
+	int v, min, max, tg;
+	int is_rel;
+
+	/* search for the first delimiter (',', '-' or '/') to decide whether
+	 * we're facing an absolute or relative form. The relative form always
+	 * starts with a number followed by a slash.
+	 */
+	for (sep = arg; isdigit((uchar)*sep); sep++)
+		;
+
+	is_rel = (/*sep > arg &&*/ *sep == '/'); /* relative form */
+
+	/* from there we have to cut the thread spec around commas */
+
+	set = arg;
+	tg = 0;
+	while (*set) {
+		/* note: we can't use strtol() here because "-3" would parse as
+		 * (-3) while we want to stop before the "-", so we find the
+		 * separator ourselves and rely on atoi() whose value we may
+		 * ignore depending where the separator is.
+		 */
+		for (sep = set; isdigit((uchar)*sep); sep++)
+			;
+
+		if (sep != set && *sep && *sep != '/' && *sep != '-' && *sep != ',') {
+			memprintf(err, "invalid character '%c' in thread set specification: '%s'.", *sep, set);
+			return -1;
+		}
+
+		v = (sep != set) ? atoi(set) : 0;
+
+		/* Now we know that the string is made of an optional series of digits
+		 * optionally followed by one of the delimiters above, or that it
+		 * starts with a different character.
+		 */
+
+		/* first, let's search for the thread group (digits before '/') */
+
+		if (tg || !is_rel) {
+			/* thread group already specified or not expected if absolute spec */
+			if (*sep == '/') {
+				if (tg)
+					memprintf(err, "redundant thread group specification '%s' for group %d", set, tg);
+				else
+					memprintf(err, "group-relative thread specification '%s' is not permitted after a absolute thread range.", set);
+				return -1;
+			}
+		} else {
+			/* this is a group-relative spec, first field is the group number */
+			if (sep == set && *sep == '/') {
+				memprintf(err, "thread group number expected before '%s'.", set);
+				return -1;
+			}
+
+			if (*sep != '/') {
+				memprintf(err, "absolute thread specification '%s' is not permitted after a group-relative thread range.", set);
+				return -1;
+			}
+
+			if (v < 1 || v > MAX_TGROUPS) {
+				memprintf(err, "invalid thread group number '%d', permitted range is 1..%d in '%s'.", v, MAX_TGROUPS, set);
+				return -1;
+			}
+
+			tg = v;
+
+			/* skip group number and go on with set,sep,v as if
+			 * there was no group number.
+			 */
+			set = sep + 1;
+			continue;
+		}
+
+		/* Now 'set' starts at the min thread number, whose value is in v if any,
+		 * and preset the max to it, unless the range is filled at once via "all"
+		 * (stored as 1:0), "odd" (stored as) 1:-1, or "even" (stored as 1:-2).
+		 * 'sep' points to the next non-digit which may be set itself e.g. for
+		 * "all" etc or "-xx".
+		 */
+
+		if (!*set) {
+			/* empty set sets no restriction */
+			min = 1;
+			max = is_rel ? MAX_THREADS_PER_GROUP : MAX_THREADS;
+		}
+		else {
+			if (sep != set && *sep && *sep != '-' && *sep != ',') {
+				// Only delimitors are permitted around digits.
+				memprintf(err, "invalid character '%c' in thread set specification: '%s'.", *sep, set);
+				return -1;
+			}
+
+			/* for non-digits, find next delim */
+			for (; *sep && *sep != '-' && *sep != ','; sep++)
+				;
+
+			min = max = 1;
+			if (sep != set) {
+				/* non-empty first thread */
+				if (isteq(ist2(set, sep-set), ist("all")))
+					max = 0;
+				else if (isteq(ist2(set, sep-set), ist("odd")))
+					max = -1;
+				else if (isteq(ist2(set, sep-set), ist("even")))
+					max = -2;
+				else if (v)
+					min = max = v;
+				else
+					max = min = 0; // throw an error below
+			}
+
+			if (min < 1 || min > MAX_THREADS || (is_rel && min > MAX_THREADS_PER_GROUP)) {
+				memprintf(err, "invalid first thread number '%s', permitted range is 1..%d, or 'all', 'odd', 'even'.",
+					  set, is_rel ? MAX_THREADS_PER_GROUP : MAX_THREADS);
+				return -1;
+			}
+
+			/* is this a range ? */
+			if (*sep == '-') {
+				if (min != max) {
+					memprintf(err, "extraneous range after 'all', 'odd' or 'even': '%s'.", set);
+					return -1;
+				}
+
+				/* this is a seemingly valid range, there may be another number  */
+				for (set = ++sep; isdigit((uchar)*sep); sep++)
+					;
+				v = atoi(set);
+
+				if (sep == set) { // no digit: to the max
+					max = is_rel ? MAX_THREADS_PER_GROUP : MAX_THREADS;
+					if (*sep && *sep != ',')
+						max = 0; // throw an error below
+				} else
+					max = v;
+
+				if (max < 1 || max > MAX_THREADS || (is_rel && max > MAX_THREADS_PER_GROUP)) {
+					memprintf(err, "invalid last thread number '%s', permitted range is 1..%d.",
+						  set, is_rel ? MAX_THREADS_PER_GROUP : MAX_THREADS);
+					return -1;
+				}
+			}
+
+			/* here sep points to the first non-digit after the thread spec,
+			 * must be a valid delimiter.
+			 */
+			if (*sep && *sep != ',') {
+				memprintf(err, "invalid character '%c' after thread set specification: '%s'.", *sep, set);
+				return -1;
+			}
+		}
+
+		/* store values */
+		if (ts) {
+			if (is_rel) {
+				/* group-relative thread numbers */
+				if (!ts->rel[tg - 1])
+					ts->nbgrp++;
+
+				if (max >= min) {
+					for (v = min; v <= max; v++)
+						ts->rel[tg - 1] |= 1UL << v;
+				} else {
+					memset(&ts->rel[tg - 1],
+					       (max == 0) ? 0xff /* all */ : (max == -1) ? 0x55 /* odd */: 0xaa /* even */,
+					       sizeof(ts->rel[tg - 1]));
+				}
+			} else {
+				/* absolute thread numbers */
+				if (max >= min) {
+					for (v = min; v <= max; v++)
+						ts->abs[v / LONGBITS] |= 1UL << (v % LONGBITS);
+				} else {
+					memset(&ts->abs,
+					       (max == 0) ? 0xff /* all */ : (max == -1) ? 0x55 /* odd */: 0xaa /* even */,
+					       sizeof(ts->abs));
+				}
+			}
+		}
+
+		set = *sep ? sep + 1 : sep;
+		tg = 0;
+	}
+	return 0;
 }
 
 /* Parse the "nbthread" global directive, which takes an integer argument that
