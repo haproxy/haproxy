@@ -2926,7 +2926,6 @@ init_proxies_list_stage1:
 
 		/* check and reduce the bind-proc of each listener */
 		list_for_each_entry(bind_conf, &curproxy->conf.bind, by_fe) {
-			unsigned long mask;
 			struct listener *li;
 
 			/* HTTP frontends with "h2" as ALPN/NPN will work in
@@ -2961,19 +2960,6 @@ init_proxies_list_stage1:
 					   curproxy->id, err, bind_conf->arg, bind_conf->file, bind_conf->line);
 				free(err);
 				cfgerr++;
-			} else if (!((mask = bind_conf->bind_thread) & ha_tgroup_info[bind_conf->bind_tgroup-1].threads_enabled)) {
-				unsigned long new_mask = 0;
-				ulong thr_mask = ha_tgroup_info[bind_conf->bind_tgroup-1].threads_enabled;
-
-				while (mask) {
-					new_mask |= mask & thr_mask;
-					mask >>= ha_tgroup_info[bind_conf->bind_tgroup-1].count;
-				}
-
-				bind_conf->bind_thread = new_mask;
-				ha_warning("Proxy '%s': the thread range specified on the 'thread' directive of 'bind %s' at [%s:%d] only refers to thread numbers out of the range supported by thread group %d (%d). The thread numbers were remapped to existing threads instead (mask 0x%lx).\n",
-					   curproxy->id, bind_conf->arg, bind_conf->file, bind_conf->line,
-					   bind_conf->bind_tgroup, ha_tgroup_info[bind_conf->bind_tgroup-1].count, new_mask);
 			}
 
 			/* apply thread masks and groups to all receivers */
@@ -4429,7 +4415,6 @@ init_proxies_list_stage2:
 					struct list *l;
 					struct bind_conf *bind_conf;
 					struct listener *li;
-					unsigned long mask;
 
 					l = &curpeers->peers_fe->conf.bind;
 					bind_conf = LIST_ELEM(l->n, typeof(bind_conf), by_fe);
@@ -4452,19 +4437,6 @@ init_proxies_list_stage2:
 							 curpeers->peers_fe->id, err, bind_conf->arg, bind_conf->file, bind_conf->line);
 						free(err);
 						cfgerr++;
-					} else if (!((mask = bind_conf->bind_thread) & ha_tgroup_info[bind_conf->bind_tgroup-1].threads_enabled)) {
-						unsigned long new_mask = 0;
-						ulong thr_mask = ha_tgroup_info[bind_conf->bind_tgroup-1].threads_enabled;
-
-						while (mask) {
-							new_mask |= mask & thr_mask;
-							mask >>= ha_tgroup_info[bind_conf->bind_tgroup-1].count;
-						}
-
-						bind_conf->bind_thread = new_mask;
-						ha_warning("Peers section '%s': the thread range specified on the 'thread' directive of 'bind %s' at [%s:%d] only refers to thread numbers out of the range supported by thread group %d (%d). The thread numbers were remapped to existing threads instead (mask 0x%lx).\n",
-							   curpeers->peers_fe->id, bind_conf->arg, bind_conf->file, bind_conf->line,
-							   bind_conf->bind_tgroup, ha_tgroup_info[bind_conf->bind_tgroup-1].count, new_mask);
 					}
 
 					/* apply thread masks and groups to all receivers */
