@@ -49,7 +49,6 @@
 
 extern struct pool_head *pool_head_quic_connection_id;
 
-int qc_conn_finalize(struct quic_conn *qc, int server);
 int ssl_quic_initial_ctx(struct bind_conf *bind_conf);
 
 /* Return the long packet type matching with <qv> version and <type> */

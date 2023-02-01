@@ -625,12 +625,30 @@ int quic_transport_params_store(struct quic_conn *qc, int server,
                                 const unsigned char *end)
 {
 	struct quic_transport_params *tx_params = &qc->tx.params;
+	struct quic_transport_params *rx_params = &qc->rx.params;
 
 	/* initialize peer TPs to RFC default value */
 	quic_dflt_transport_params_cpy(tx_params);
 
 	if (!quic_transport_params_decode(tx_params, server, buf, end))
 		return 0;
+
+	/* Update the connection from transport parameters received */
+	if (tx_params->version_information.negotiated_version &&
+	    tx_params->version_information.negotiated_version != qc->original_version)
+		qc->negotiated_version =
+			qc->tx.params.version_information.negotiated_version;
+
+	if (tx_params->max_ack_delay)
+		qc->max_ack_delay = tx_params->max_ack_delay;
+
+	if (tx_params->max_idle_timeout && rx_params->max_idle_timeout)
+		qc->max_idle_timeout =
+			QUIC_MIN(tx_params->max_idle_timeout, rx_params->max_idle_timeout);
+	else
+		qc->max_idle_timeout =
+			QUIC_MAX(tx_params->max_idle_timeout, rx_params->max_idle_timeout);
+	TRACE_PROTO("\nTX(remote) transp. params.", QUIC_EV_TRANSP_PARAMS, qc, tx_params);
 
 	return 1;
 }

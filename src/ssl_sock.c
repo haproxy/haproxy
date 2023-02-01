@@ -2361,9 +2361,10 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 		}
 
 		if (!quic_transport_params_store(qc, 0, extension_data,
-		                                 extension_data + extension_len) ||
-		    !qc_conn_finalize(qc, 0))
+		                                 extension_data + extension_len))
 			goto abort;
+
+		qc->flags |= QUIC_FL_CONN_TX_TP_RECEIVED;
 	}
 #endif /* USE_QUIC */
 
@@ -2657,10 +2658,10 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *priv)
 		}
 
 		if (!quic_transport_params_store(qc, 0, extension_data,
-		                                 extension_data + extension_len) ||
-		    !qc_conn_finalize(qc, 0)) {
+		                                 extension_data + extension_len))
 			return SSL_TLSEXT_ERR_NOACK;
-		}
+
+		qc->flags |= QUIC_FL_CONN_TX_TP_RECEIVED;
 	}
 #endif /* USE_QUIC */
 

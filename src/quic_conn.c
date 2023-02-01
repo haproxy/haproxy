@@ -1002,6 +1002,22 @@ write:
 		goto leave;
 	}
 
+	if (level == ssl_encryption_handshake && qc_is_listener(qc)) {
+		qc->enc_params_len =
+			quic_transport_params_encode(qc->enc_params,
+			                             qc->enc_params + sizeof qc->enc_params,
+			                             &qc->rx.params, ver, 1);
+		if (!qc->enc_params_len) {
+			TRACE_ERROR("quic_transport_params_encode() failed", QUIC_EV_CONN_RWSEC);
+			goto leave;
+		}
+
+		if (!SSL_set_quic_transport_params(qc->xprt_ctx->ssl, qc->enc_params, qc->enc_params_len)) {
+			TRACE_ERROR("SSL_set_quic_transport_params() failed", QUIC_EV_CONN_RWSEC);
+			goto leave;
+		}
+	}
+
 	if (level == ssl_encryption_application) {
 		struct quic_tls_kp *prv_rx = &qc->ku.prv_rx;
 		struct quic_tls_kp *nxt_rx = &qc->ku.nxt_rx;
@@ -2216,6 +2232,41 @@ static forceinline void qc_ssl_dump_errors(struct connection *conn)
 int ssl_sock_get_alpn(const struct connection *conn, void *xprt_ctx,
                       const char **str, int *len);
 
+/* Finalize <qc> QUIC connection:
+ * - initialize the Initial QUIC TLS context for negotiated version,
+ * - derive the secrets for this context,
+ * - set them into the TLS stack,
+ *
+ * MUST be called after having received the remote transport parameters which
+ * are parsed when the TLS callback for the ClientHello message is called upon
+ * SSL_do_handshake() calls, not necessarily at the first time as this TLS
+ * message may be splitted between packets
+ * Return 1 if succeeded, 0 if not.
+ */
+static int qc_conn_finalize(struct quic_conn *qc, int server)
+{
+	int ret = 0;
+
+	TRACE_ENTER(QUIC_EV_CONN_NEW, qc);
+
+	if (qc->flags & QUIC_FL_CONN_FINALIZED)
+		goto finalized;
+
+	if (qc->negotiated_version &&
+	    !qc_new_isecs(qc, &qc->negotiated_ictx, qc->negotiated_version,
+	                  qc->odcid.data, qc->odcid.len, server))
+		goto out;
+
+	/* This connection is functional (ready to send/receive) */
+	qc->flags |= QUIC_FL_CONN_FINALIZED;
+
+ finalized:
+	ret = 1;
+ out:
+	TRACE_LEAVE(QUIC_EV_CONN_NEW, qc);
+	return ret;
+}
+
 /* Provide CRYPTO data to the TLS stack found at <data> with <len> as length
  * from <qel> encryption level with <ctx> as QUIC connection context.
  * Remaining parameter are there for debugging purposes.
@@ -2252,6 +2303,16 @@ static inline int qc_provide_cdata(struct quic_enc_level *el,
 	state = qc->state;
 	if (state < QUIC_HS_ST_COMPLETE) {
 		ssl_err = SSL_do_handshake(ctx->ssl);
+
+		/* Finalize the connection as soon as possible if the peer transport parameters
+		 * have been received. This may be useful to send packets even if this
+		 * handshake fails.
+		 */
+		if ((qc->flags & QUIC_FL_CONN_TX_TP_RECEIVED) && !qc_conn_finalize(qc, 1)) {
+			TRACE_ERROR("connection finalization failed", QUIC_EV_CONN_IO_CB, qc, &state);
+			goto leave;
+		}
+
 		if (ssl_err != 1) {
 			ssl_err = SSL_get_error(ctx->ssl, ssl_err);
 			if (ssl_err == SSL_ERROR_WANT_READ || ssl_err == SSL_ERROR_WANT_WRITE) {
@@ -5875,71 +5936,6 @@ static int qc_ssl_sess_init(struct quic_conn *qc, SSL_CTX *ssl_ctx, SSL **ssl,
  err:
 	qc->conn->err_code = CO_ER_SSL_NO_MEM;
 	goto leave;
-}
-
-/* Finalize <qc> QUIC connection:
- * - initialize the Initial QUIC TLS context for negotiated version,
- * - derive the secrets for this context,
- * - encode the transport parameters to be sent,
- * - set them into the TLS stack,
- * - initialize ->max_ack_delay and max_idle_timeout,
- *
- * MUST be called after having received the remote transport parameters.
- * Return 1 if succeeded, 0 if not.
- */
-int qc_conn_finalize(struct quic_conn *qc, int server)
-{
-	int ret = 0;
-	struct quic_transport_params *tx_tp = &qc->tx.params;
-	struct quic_transport_params *rx_tp = &qc->rx.params;
-	const struct quic_version *ver;
-
-	TRACE_ENTER(QUIC_EV_CONN_NEW, qc);
-
-	if (tx_tp->version_information.negotiated_version &&
-	    tx_tp->version_information.negotiated_version != qc->original_version) {
-		qc->negotiated_version =
-			qc->tx.params.version_information.negotiated_version;
-		if (!qc_new_isecs(qc, &qc->negotiated_ictx, qc->negotiated_version,
-						  qc->odcid.data, qc->odcid.len, !server))
-			goto out;
-
-		ver = qc->negotiated_version;
-	}
-	else {
-		ver = qc->original_version;
-	}
-
-	qc->enc_params_len =
-		quic_transport_params_encode(qc->enc_params,
-		                             qc->enc_params + sizeof qc->enc_params,
-		                             &qc->rx.params, ver, 1);
-	if (!qc->enc_params_len) {
-		TRACE_ERROR("quic_transport_params_encode() failed", QUIC_EV_CONN_TXPKT);
-		goto out;
-	}
-
-	if (!SSL_set_quic_transport_params(qc->xprt_ctx->ssl, qc->enc_params, qc->enc_params_len)) {
-		TRACE_ERROR("SSL_set_quic_transport_params() failed", QUIC_EV_CONN_TXPKT);
-		goto out;
-	}
-
-	if (tx_tp->max_ack_delay)
-		qc->max_ack_delay = tx_tp->max_ack_delay;
-
-	if (tx_tp->max_idle_timeout && rx_tp->max_idle_timeout)
-		qc->max_idle_timeout =
-			QUIC_MIN(tx_tp->max_idle_timeout, rx_tp->max_idle_timeout);
-	else
-		qc->max_idle_timeout =
-			QUIC_MAX(tx_tp->max_idle_timeout, rx_tp->max_idle_timeout);
-
-	TRACE_PROTO("\nTX(remote) transp. params.", QUIC_EV_TRANSP_PARAMS, qc, tx_tp);
-
-	ret = 1;
- out:
-	TRACE_LEAVE(QUIC_EV_CONN_NEW, qc);
-	return ret;
 }
 
 /* Allocate the ssl_sock_ctx from connection <qc>. This creates the tasklet
