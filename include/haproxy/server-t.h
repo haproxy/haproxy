@@ -237,6 +237,7 @@ struct server {
 	unsigned int pp_opts;                   /* proxy protocol options (SRV_PP_*) */
 	struct list global_list;                /* attach point in the global servers_list */
 	struct server *next;
+	struct mt_list prev_deleted;            /* deleted servers with 'next' ptr pointing to us */
 	int cklen;				/* the len of the cookie, to speed up checks */
 	int rdr_len;				/* the length of the redirection prefix */
 	char *cookie;				/* the id set in the cookie */

@@ -2368,6 +2368,7 @@ struct server *new_server(struct proxy *proxy)
 	LIST_APPEND(&servers_list, &srv->global_list);
 	LIST_INIT(&srv->srv_rec_item);
 	LIST_INIT(&srv->ip_rec_item);
+	MT_LIST_INIT(&srv->prev_deleted);
 	event_hdl_sub_list_init(&srv->e_subs);
 
 	srv->next_state = SRV_ST_RUNNING; /* early server setup */
@@ -2428,6 +2429,13 @@ struct server *srv_drop(struct server *srv)
 		if (HA_ATOMIC_SUB_FETCH(&srv->refcount, 1))
 			goto end;
 	}
+
+	/* make sure we are removed from our 'next->prev_deleted' list
+	 * This doesn't require full thread isolation as we're using mt lists
+	 * However this could easily be turned into regular list if required
+	 * (with the proper use of thread isolation)
+	 */
+	MT_LIST_DELETE(&srv->prev_deleted);
 
 	task_destroy(srv->warmup);
 	task_destroy(srv->srvrq_check);
@@ -4998,6 +5006,7 @@ static int cli_parse_delete_server(char **args, char *payload, struct appctx *ap
 	struct proxy *be;
 	struct server *srv;
 	char *be_name, *sv_name;
+	struct server *prev_del;
 
 	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
 		return 1;
@@ -5097,6 +5106,25 @@ static int cli_parse_delete_server(char **args, char *payload, struct appctx *ap
 
 		next->next = srv->next;
 	}
+
+	/* Some deleted servers could still point to us using their 'next',
+	 * update them as needed
+	 * Please note the small race between the POP and APPEND, although in
+	 * this situation this is not an issue as we are under full thread
+	 * isolation
+	 */
+	while ((prev_del = MT_LIST_POP(&srv->prev_deleted, struct server *, prev_deleted))) {
+		/* update its 'next' ptr */
+		prev_del->next = srv->next;
+		if (srv->next) {
+			/* now it is our 'next' responsibility */
+			MT_LIST_APPEND(&srv->next->prev_deleted, &prev_del->prev_deleted);
+		}
+	}
+
+	/* we ourselves need to inform our 'next' that we will still point it */
+	if (srv->next)
+		MT_LIST_APPEND(&srv->next->prev_deleted, &srv->prev_deleted);
 
 	/* remove srv from addr_node tree */
 	eb32_delete(&srv->conf.id);
