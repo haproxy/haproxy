@@ -3032,8 +3032,8 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 				 * Rearm the idle timeout only one time when entering draining
 				 * state.
 				 */
-				qc_idle_timer_do_rearm(qc);
 				qc->flags |= QUIC_FL_CONN_DRAINING|QUIC_FL_CONN_IMMEDIATE_CLOSE;
+				qc_idle_timer_do_rearm(qc);
 				qc_notify_close(qc);
 			}
 			break;
@@ -5280,9 +5280,15 @@ static void qc_idle_timer_do_rearm(struct quic_conn *qc)
 {
 	unsigned int expire;
 
-	expire = QUIC_MAX(3 * quic_pto(qc), qc->max_idle_timeout);
-	qc->idle_timer_task->expire = tick_add(now_ms, MS_TO_TICKS(expire));
-	task_queue(qc->idle_timer_task);
+	if (stopping && qc->flags & (QUIC_FL_CONN_CLOSING|QUIC_FL_CONN_DRAINING)) {
+		TRACE_STATE("executing idle timer immediately on stopping", QUIC_EV_CONN_IDLE_TIMER, qc);
+		task_wakeup(qc->idle_timer_task, TASK_WOKEN_MSG);
+	}
+	else {
+		expire = QUIC_MAX(3 * quic_pto(qc), qc->max_idle_timeout);
+		qc->idle_timer_task->expire = tick_add(now_ms, MS_TO_TICKS(expire));
+		task_queue(qc->idle_timer_task);
+	}
 }
 
 /* Rearm the idle timer for <qc> QUIC connection depending on <read> boolean

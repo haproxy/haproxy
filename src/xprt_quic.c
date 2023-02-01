@@ -34,6 +34,10 @@ static void quic_close(struct connection *conn, void *xprt_ctx)
 		goto leave;
 	}
 
+	/* Schedule a CONNECTION_CLOSE emission. If process stopping is in
+	 * progress, quic-conn idle-timer will be scheduled immediately after
+	 * its emission to ensure an immediate connection closing.
+	 */
 	qc_check_close_on_released_mux(qc);
  leave:
 	TRACE_LEAVE(QUIC_EV_CONN_CLOSE, qc);

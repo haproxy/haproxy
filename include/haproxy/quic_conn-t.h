@@ -623,9 +623,9 @@ enum qc_mux_state {
 #define QUIC_FL_CONN_FINALIZED                   (1U << 26) /* QUIC connection finalized (functional, ready to send/receive) */
 #define QUIC_FL_CONN_NOTIFY_CLOSE                (1U << 27) /* MUX notified about quic-conn imminent closure (idle-timeout or CONNECTION_CLOSE emission/reception) */
 #define QUIC_FL_CONN_EXP_TIMER                   (1U << 28) /* timer has expired, quic-conn can be freed */
-#define QUIC_FL_CONN_CLOSING                     (1U << 29)
-#define QUIC_FL_CONN_DRAINING                    (1U << 30)
-#define QUIC_FL_CONN_IMMEDIATE_CLOSE             (1U << 31)
+#define QUIC_FL_CONN_CLOSING                     (1U << 29) /* closing state, entered on CONNECTION_CLOSE emission */
+#define QUIC_FL_CONN_DRAINING                    (1U << 30) /* draining state, entered on CONNECTION_CLOSE reception */
+#define QUIC_FL_CONN_IMMEDIATE_CLOSE             (1U << 31) /* A CONNECTION_CLOSE must be sent */
 
 struct quic_conn {
 	const struct quic_version *original_version;
