@@ -7646,6 +7646,8 @@ static int cli_io_handler_dump_quic(struct appctx *appctx)
 	struct show_quic_ctx *ctx = appctx->svcctx;
 	struct stconn *sc = appctx_sc(appctx);
 	struct quic_conn *qc;
+	int expire;
+	unsigned char cid_len;
 
 	thread_isolate();
 
@@ -7692,7 +7694,42 @@ static int cli_io_handler_dump_quic(struct appctx *appctx)
 			continue;
 		}
 
-		chunk_appendf(&trash, "%p", qc);
+		/* CIDs */
+		chunk_appendf(&trash, "* %p[%02u]: scid=", qc, qc->tid);
+		for (cid_len = 0; cid_len < qc->scid.len; ++cid_len)
+			chunk_appendf(&trash, "%02x", qc->scid.data[cid_len]);
+		while (cid_len++ < 20)
+			chunk_appendf(&trash, "..");
+
+		chunk_appendf(&trash, " dcid=");
+		for (cid_len = 0; cid_len < qc->dcid.len; ++cid_len)
+			chunk_appendf(&trash, "%02x", qc->dcid.data[cid_len]);
+		while (cid_len++ < 20)
+			chunk_appendf(&trash, "..");
+
+		chunk_appendf(&trash, "\n");
+
+		/* Connection state */
+		if (qc->flags & QUIC_FL_CONN_CLOSING)
+			chunk_appendf(&trash, "  st=closing          ");
+		else if (qc->flags & QUIC_FL_CONN_DRAINING)
+			chunk_appendf(&trash, "  st=draining         ");
+		else if (qc->state < QUIC_HS_ST_CONFIRMED)
+			chunk_appendf(&trash, "  st=handshake        ");
+		else
+			chunk_appendf(&trash, "  st=opened           ");
+
+		if (qc->mux_state == QC_MUX_NULL)
+			chunk_appendf(&trash, "mux=null                                      ");
+		else if (qc->mux_state == QC_MUX_READY)
+			chunk_appendf(&trash, "mux=ready                                     ");
+		else
+			chunk_appendf(&trash, "mux=released                                  ");
+
+		expire = qc->idle_timer_task->expire;
+		chunk_appendf(&trash, "expire=%02ds ",
+		              expire > now_ms ? (expire - now_ms) / 1000 : 0);
+
 		chunk_appendf(&trash, "\n");
 
 		if (applet_putchk(appctx, &trash) == -1) {
