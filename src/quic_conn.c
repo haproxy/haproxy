@@ -7646,6 +7646,7 @@ static int cli_io_handler_dump_quic(struct appctx *appctx)
 	struct show_quic_ctx *ctx = appctx->svcctx;
 	struct stconn *sc = appctx_sc(appctx);
 	struct quic_conn *qc;
+	char bufaddr[INET6_ADDRSTRLEN], bufport[6];
 	int expire;
 	unsigned char cid_len;
 
@@ -7729,6 +7730,21 @@ static int cli_io_handler_dump_quic(struct appctx *appctx)
 		expire = qc->idle_timer_task->expire;
 		chunk_appendf(&trash, "expire=%02ds ",
 		              expire > now_ms ? (expire - now_ms) / 1000 : 0);
+
+		chunk_appendf(&trash, "\n");
+
+		/* Socket */
+		chunk_appendf(&trash, "  fd=%d", qc->fd);
+		if (qc->local_addr.ss_family == AF_INET ||
+		    qc->local_addr.ss_family == AF_INET6) {
+			addr_to_str(&qc->local_addr, bufaddr, sizeof(bufaddr));
+			port_to_str(&qc->local_addr, bufport, sizeof(bufport));
+			chunk_appendf(&trash, "               from=%s:%s", bufaddr, bufport);
+
+			addr_to_str(&qc->peer_addr, bufaddr, sizeof(bufaddr));
+			port_to_str(&qc->peer_addr, bufport, sizeof(bufport));
+			chunk_appendf(&trash, " to=%s:%s", bufaddr, bufport);
+		}
 
 		chunk_appendf(&trash, "\n");
 
