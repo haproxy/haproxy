@@ -7647,6 +7647,8 @@ static int cli_io_handler_dump_quic(struct appctx *appctx)
 	struct stconn *sc = appctx_sc(appctx);
 	struct quic_conn *qc;
 	struct quic_enc_level *qel;
+	struct eb64_node *node;
+	struct qc_stream_desc *stream;
 	char bufaddr[INET6_ADDRSTRLEN], bufport[6];
 	int expire;
 	unsigned char cid_len;
@@ -7678,6 +7680,7 @@ static int cli_io_handler_dump_quic(struct appctx *appctx)
 
 	while (1) {
 		int done = 0;
+		int i;
 
 		if (ctx->bref.ref == &ha_thread_ctx[ctx->thr].quic_conns) {
 			done = 1;
@@ -7762,6 +7765,24 @@ static int cli_io_handler_dump_quic(struct appctx *appctx)
 		qel = &qc->els[QUIC_TLS_ENC_LEVEL_APP];
 		chunk_appendf(&trash, "           [1-rtt]  rx.ackrng=%-6zu tx.inflight=%-6zu",
 		              qel->pktns->rx.arngs.sz, qel->pktns->tx.in_flight);
+
+		chunk_appendf(&trash, "\n");
+
+		/* Streams */
+		node = eb64_first(&qc->streams_by_id);
+		i = 0;
+		while (node) {
+			stream = eb64_entry(node, struct qc_stream_desc, by_id);
+			node = eb64_next(node);
+
+			chunk_appendf(&trash, "  | stream=%-8llu", (long long unsigned int)stream->by_id.key);
+			chunk_appendf(&trash, " off=%-8lu ack=%-8lu", stream->buf_offset, stream->ack_offset);
+
+			if (!(++i % 3)) {
+				chunk_appendf(&trash, "\n");
+				i = 0;
+			}
+		}
 
 		chunk_appendf(&trash, "\n");
 
