@@ -4035,6 +4035,11 @@ static int qc_qel_may_rm_hp(struct quic_conn *qc, struct quic_enc_level *qel)
 		goto cant_rm_hp;
 	}
 
+	if (tel == QUIC_TLS_ENC_LEVEL_APP && qc->state < QUIC_HS_ST_COMPLETE) {
+		TRACE_DEVEL("handshake not complete", QUIC_EV_CONN_TRMHP, qc);
+		goto cant_rm_hp;
+	}
+
 	/* check if the connection layer is ready before using app level */
 	if ((tel == QUIC_TLS_ENC_LEVEL_APP || tel == QUIC_TLS_ENC_LEVEL_EARLY_DATA) &&
 	    qc->mux_state == QC_MUX_NULL) {
