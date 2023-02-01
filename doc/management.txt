@@ -2966,10 +2966,11 @@ show resolvers [<resolvers section id>]
     too_big: too big response
     outdated: number of response arrived too late (after an other name server)
 
-show quic
+show quic [all]
   Dump information on all active QUIC frontend connections. This command is
   restricted and can only be issued on sockets configured for levels "operator"
-  or "admin".
+  or "admin". By default, connections on closing or draining state are not
+  displayed. Use the extra argument "all" to include them in the output.
 
 show servers conn [<backend>]
   Dump the current and idle connections state of the servers belonging to the
