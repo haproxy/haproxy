@@ -7646,6 +7646,7 @@ static int cli_io_handler_dump_quic(struct appctx *appctx)
 	struct show_quic_ctx *ctx = appctx->svcctx;
 	struct stconn *sc = appctx_sc(appctx);
 	struct quic_conn *qc;
+	struct quic_enc_level *qel;
 	char bufaddr[INET6_ADDRSTRLEN], bufport[6];
 	int expire;
 	unsigned char cid_len;
@@ -7745,6 +7746,22 @@ static int cli_io_handler_dump_quic(struct appctx *appctx)
 			port_to_str(&qc->peer_addr, bufport, sizeof(bufport));
 			chunk_appendf(&trash, " to=%s:%s", bufaddr, bufport);
 		}
+
+		chunk_appendf(&trash, "\n");
+
+		/* Encryption levels */
+		qel = &qc->els[QUIC_TLS_ENC_LEVEL_INITIAL];
+		chunk_appendf(&trash, "  [initl]             rx.ackrng=%-6zu tx.inflight=%-6zu",
+		              qel->pktns->rx.arngs.sz, qel->pktns->tx.in_flight);
+		qel = &qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE];
+		chunk_appendf(&trash, "           [hndshk] rx.ackrng=%-6zu tx.inflight=%-6zu\n",
+		              qel->pktns->rx.arngs.sz, qel->pktns->tx.in_flight);
+		qel = &qc->els[QUIC_TLS_ENC_LEVEL_EARLY_DATA];
+		chunk_appendf(&trash, "  [0-rtt]             rx.ackrng=%-6zu tx.inflight=%-6zu",
+		              qel->pktns->rx.arngs.sz, qel->pktns->tx.in_flight);
+		qel = &qc->els[QUIC_TLS_ENC_LEVEL_APP];
+		chunk_appendf(&trash, "           [1-rtt]  rx.ackrng=%-6zu tx.inflight=%-6zu",
+		              qel->pktns->rx.arngs.sz, qel->pktns->tx.in_flight);
 
 		chunk_appendf(&trash, "\n");
 
