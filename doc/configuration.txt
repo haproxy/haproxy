@@ -3159,9 +3159,11 @@ tune.quic.socket-owner { listener | connection }
 
   When default "connection" value is set, a dedicated socket will be allocated
   by every QUIC connections. This option is the preferred one to achieve the
-  best performance with a large QUIC traffic. However, this relies on some
-  advanced features from the UDP network stack. If your platform is deemed not
-  compatible, haproxy will automatically switch to "listener" mode on startup.
+  best performance with a large QUIC traffic. This is also the only way to
+  ensure soft-stop is conducted properly without data loss for QUIC
+  connections. However, this relies on some advanced features from the UDP
+  network stack. If your platform is deemed not compatible, haproxy will
+  automatically switch to "listener" mode on startup.
 
   The "listener" value indicates that QUIC transfers will occur on the shared
   listener socket. This option can be a good compromise for small traffic as it

@@ -5022,6 +5022,12 @@ static struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	    is_addr(local_addr)) {
 		TRACE_USER("Allocate a socket for QUIC connection", QUIC_EV_CONN_INIT, qc);
 		qc_alloc_fd(qc, local_addr, peer_addr);
+
+		/* haproxy soft-stop is supported only for QUIC connections
+		 * with their owned socket.
+		 */
+		if (qc_test_fd(qc))
+			_HA_ATOMIC_INC(&jobs);
 	}
 
 	/* insert the allocated CID in the receiver datagram handler tree */
@@ -5144,6 +5150,9 @@ void quic_conn_release(struct quic_conn *qc)
 	/* We must not free the quic-conn if the MUX is still allocated. */
 	BUG_ON(qc->mux_state == QC_MUX_READY);
 
+	if (qc_test_fd(qc))
+		_HA_ATOMIC_DEC(&jobs);
+
 	/* Close quic-conn socket fd. */
 	qc_release_fd(qc, 0);
 
@@ -5235,6 +5244,7 @@ void quic_conn_release(struct quic_conn *qc)
 
 	pool_free(pool_head_quic_conn_rxbuf, qc->rx.buf.area);
 	pool_free(pool_head_quic_conn, qc);
+
 	TRACE_PROTO("QUIC conn. freed", QUIC_EV_CONN_FREED, qc);
 
 	TRACE_LEAVE(QUIC_EV_CONN_CLOSE, qc);
@@ -6537,6 +6547,7 @@ static int qc_handle_conn_migration(struct quic_conn *qc,
 		/* TODO try to reuse socket instead of closing it and opening a new one. */
 		TRACE_STATE("Connection migration detected, allocate a new connection socket", QUIC_EV_CONN_LPKT, qc);
 		qc_release_fd(qc, 1);
+		/* TODO need to adjust <jobs> on socket allocation failure. */
 		qc_alloc_fd(qc, local_addr, peer_addr);
 	}
 
