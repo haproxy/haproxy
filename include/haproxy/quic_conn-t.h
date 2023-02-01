@@ -733,6 +733,10 @@ struct quic_conn {
 
 	const struct qcc_app_ops *app_ops;
 	struct quic_counters *prx_counters;
+
+	struct list el_th_ctx; /* list elem in ha_thread_ctx */
+	struct list back_refs; /* list head of CLI context currently dumping this connection. */
+	unsigned int qc_epoch; /* delimiter for newer instances started after "show quic". */
 };
 
 #endif /* USE_QUIC */

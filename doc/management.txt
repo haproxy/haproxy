@@ -2966,6 +2966,11 @@ show resolvers [<resolvers section id>]
     too_big: too big response
     outdated: number of response arrived too late (after an other name server)
 
+show quic
+  Dump information on all active QUIC frontend connections. This command is
+  restricted and can only be issued on sockets configured for levels "operator"
+  or "admin".
+
 show servers conn [<backend>]
   Dump the current and idle connections state of the servers belonging to the
   designated backend (or all backends if none specified). A backend name or

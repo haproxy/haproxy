@@ -34,6 +34,8 @@
 #include <haproxy/tools.h>
 #include <haproxy/ticks.h>
 
+#include <haproxy/applet-t.h>
+#include <haproxy/cli.h>
 #include <haproxy/connection.h>
 #include <haproxy/fd.h>
 #include <haproxy/freq_ctr.h>
@@ -58,7 +60,11 @@
 #include <haproxy/quic_tls.h>
 #include <haproxy/ssl_sock.h>
 #include <haproxy/task.h>
+#include <haproxy/thread.h>
 #include <haproxy/trace.h>
+
+/* incremented by each "show quic". */
+static unsigned int qc_epoch = 0;
 
 /* list of supported QUIC versions by this implementation */
 const struct quic_version quic_versions[] = {
@@ -4886,6 +4892,8 @@ static struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 
 	qc_init_fd(qc);
 
+	LIST_INIT(&qc->back_refs);
+
 	/* Now proceeds to allocation of qc members. */
 
 	buf_area = pool_alloc(pool_head_quic_conn_rxbuf);
@@ -5024,6 +5032,9 @@ static struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	if (!qc_new_isecs(qc, ictx,qc->original_version, dcid->data, dcid->len, 1))
 		goto err;
 
+	LIST_APPEND(&th_ctx->quic_conns, &qc->el_th_ctx);
+	qc->qc_epoch = HA_ATOMIC_LOAD(&qc_epoch);
+
 	TRACE_LEAVE(QUIC_EV_CONN_INIT, qc);
 
 	return qc;
@@ -5051,6 +5062,7 @@ void quic_conn_release(struct quic_conn *qc)
 	struct eb64_node *node;
 	struct quic_tls_ctx *app_tls_ctx;
 	struct quic_rx_packet *pkt, *pktback;
+	struct bref *bref, *back;
 
 	TRACE_ENTER(QUIC_EV_CONN_CLOSE, qc);
 
@@ -5125,6 +5137,26 @@ void quic_conn_release(struct quic_conn *qc)
 		quic_pktns_tx_pkts_release(&qc->pktns[i], qc);
 		quic_free_arngs(qc, &qc->pktns[i].rx.arngs);
 	}
+
+	/* Detach CLI context watchers currently dumping this connection.
+	 * Reattach them to the next quic_conn instance.
+	 */
+	list_for_each_entry_safe(bref, back, &qc->back_refs, users) {
+		/* Remove watcher from this quic_conn instance. */
+		LIST_DEL_INIT(&bref->users);
+
+		/* Attach it to next instance unless it was the last list element. */
+		if (qc->el_th_ctx.n != &th_ctx->quic_conns) {
+			struct quic_conn *next = LIST_NEXT(&qc->el_th_ctx,
+			                                   struct quic_conn *,
+			                                   el_th_ctx);
+			LIST_APPEND(&next->back_refs, &bref->users);
+		}
+		bref->ref = qc->el_th_ctx.n;
+		__ha_barrier_store();
+	}
+	/* Remove quic_conn from global ha_thread_ctx list. */
+	LIST_DELETE(&qc->el_th_ctx);
 
 	pool_free(pool_head_quic_conn_rxbuf, qc->rx.buf.area);
 	pool_free(pool_head_quic_conn, qc);
@@ -7585,6 +7617,128 @@ void qc_notify_close(struct quic_conn *qc)
  leave:
 	TRACE_LEAVE(QUIC_EV_CONN_CLOSE, qc);
 }
+
+
+/* appctx context used by "show quic" command */
+struct show_quic_ctx {
+	unsigned int epoch;
+	struct bref bref; /* back-reference to the quic-conn being dumped */
+	unsigned int thr;
+};
+
+static int cli_parse_show_quic(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	struct show_quic_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
+
+	if (!cli_has_level(appctx, ACCESS_LVL_OPER))
+		return 1;
+
+	ctx->epoch = _HA_ATOMIC_FETCH_ADD(&qc_epoch, 1);
+	ctx->thr = 0;
+
+	LIST_INIT(&ctx->bref.users);
+
+	return 0;
+}
+
+static int cli_io_handler_dump_quic(struct appctx *appctx)
+{
+	struct show_quic_ctx *ctx = appctx->svcctx;
+	struct stconn *sc = appctx_sc(appctx);
+	struct quic_conn *qc;
+
+	thread_isolate();
+
+	if (ctx->thr >= global.nbthread)
+		goto done;
+
+	if (unlikely(sc_ic(sc)->flags & CF_SHUTW)) {
+		/* If we're forced to shut down, we might have to remove our
+		 * reference to the last stream being dumped.
+		 */
+		if (!LIST_ISEMPTY(&ctx->bref.users))
+			LIST_DEL_INIT(&ctx->bref.users);
+		goto done;
+	}
+
+	chunk_reset(&trash);
+
+	if (!LIST_ISEMPTY(&ctx->bref.users)) {
+		/* Remove show_quic_ctx from previous quic_conn instance. */
+		LIST_DEL_INIT(&ctx->bref.users);
+	}
+	else if (!ctx->bref.ref) {
+		/* First invocation. */
+		ctx->bref.ref = ha_thread_ctx[ctx->thr].quic_conns.n;
+	}
+
+	while (1) {
+		int done = 0;
+
+		if (ctx->bref.ref == &ha_thread_ctx[ctx->thr].quic_conns) {
+			done = 1;
+		}
+		else {
+			qc = LIST_ELEM(ctx->bref.ref, struct quic_conn *, el_th_ctx);
+			if ((int)(qc->qc_epoch - ctx->epoch) > 0)
+				done = 1;
+		}
+
+		if (done) {
+			++ctx->thr;
+			if (ctx->thr >= global.nbthread)
+				break;
+			ctx->bref.ref = ha_thread_ctx[ctx->thr].quic_conns.n;
+			continue;
+		}
+
+		chunk_appendf(&trash, "%p", qc);
+		chunk_appendf(&trash, "\n");
+
+		if (applet_putchk(appctx, &trash) == -1) {
+			/* Register show_quic_ctx to quic_conn instance. */
+			LIST_APPEND(&qc->back_refs, &ctx->bref.users);
+			goto full;
+		}
+
+		ctx->bref.ref = qc->el_th_ctx.n;
+	}
+
+ done:
+	thread_release();
+	return 1;
+
+ full:
+	thread_release();
+	return 0;
+}
+
+static void cli_release_show_quic(struct appctx *appctx)
+{
+	struct show_quic_ctx *ctx = appctx->svcctx;
+
+	if (ctx->thr < global.nbthread) {
+		thread_isolate();
+		if (!LIST_ISEMPTY(&ctx->bref.users))
+			LIST_DEL_INIT(&ctx->bref.users);
+		thread_release();
+	}
+}
+
+static struct cli_kw_list cli_kws = {{ }, {
+	{ { "show", "quic", NULL }, "show quic : display quic connections status", cli_parse_show_quic, cli_io_handler_dump_quic, cli_release_show_quic },
+}};
+
+INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);
+
+static void init_quic()
+{
+	int thr;
+
+	for (thr = 0; thr < MAX_THREADS; ++thr)
+		LIST_INIT(&ha_thread_ctx[thr].quic_conns);
+}
+INITCALL0(STG_INIT, init_quic);
 
 /*
  * Local variables:
