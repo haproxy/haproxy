@@ -1228,13 +1228,11 @@ int thread_map_to_groups()
  * was completed and the thread group numbers configured. The thread_set is
  * replaced by the resolved group-based one. It is possible to force a single
  * default group for unspecified sets instead of enabling all groups by passing
- * this group's non-zero value to defgrp. The output ogid and omask are set,
- * respectively, to the first non-empty group and its mask. They're used only
- * for the transition to the new model.
+ * this group's non-zero value to defgrp.
  *
  * Returns <0 on failure, >=0 on success.
  */
-int thread_resolve_group_mask(struct thread_set *ts, int defgrp, uint *ogid, ulong *omask, char **err)
+int thread_resolve_group_mask(struct thread_set *ts, int defgrp, char **err)
 {
 	struct thread_set new_ts = { 0 };
 	ulong mask, imask;
@@ -1319,10 +1317,6 @@ int thread_resolve_group_mask(struct thread_set *ts, int defgrp, uint *ogid, ulo
 	}
 
 	*ts = new_ts;
-
-	/* FIXME: for now we still also return the old format */
-	*ogid  = thread_set_first_group(ts);
-	*omask = thread_set_first_tmask(ts);
 	return 0;
 }
 

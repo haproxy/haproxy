@@ -2954,8 +2954,7 @@ init_proxies_list_stage1:
 
 			/* detect and address thread affinity inconsistencies */
 			err = NULL;
-			if (thread_resolve_group_mask(&bind_conf->thread_set, 1,
-			                              &bind_conf->bind_tgroup, &bind_conf->bind_thread, &err) < 0) {
+			if (thread_resolve_group_mask(&bind_conf->thread_set, (curproxy == global.cli_fe) ? 1 : 0, &err) < 0) {
 				ha_alert("Proxy '%s': %s in 'bind %s' at [%s:%d].\n",
 					   curproxy->id, err, bind_conf->arg, bind_conf->file, bind_conf->line);
 				free(err);
@@ -4436,8 +4435,7 @@ init_proxies_list_stage2:
 					}
 
 					err = NULL;
-					if (thread_resolve_group_mask(&bind_conf->thread_set, (curproxy == global.cli_fe) ? 1 : 0,
-								      &bind_conf->bind_tgroup, &bind_conf->bind_thread, &err) < 0) {
+					if (thread_resolve_group_mask(&bind_conf->thread_set, 1, &err) < 0) {
 						ha_alert("Peers section '%s': %s in 'bind %s' at [%s:%d].\n",
 							 curpeers->peers_fe->id, err, bind_conf->arg, bind_conf->file, bind_conf->line);
 						free(err);
