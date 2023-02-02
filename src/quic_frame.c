@@ -507,6 +507,10 @@ static int quic_build_stream_frame(unsigned char **buf, const unsigned char *end
 	struct quic_stream *stream = &frm->stream;
 	const unsigned char *wrap;
 
+	/* Caller must set OFF bit if and only if a non-null offset is used. */
+	BUG_ON(!!(frm->type & QUIC_STREAM_FRAME_TYPE_OFF_BIT) !=
+	       !!stream->offset.key);
+
 	if (!quic_enc_int(buf, end, stream->id) ||
 	    ((frm->type & QUIC_STREAM_FRAME_TYPE_OFF_BIT) && !quic_enc_int(buf, end, stream->offset.key)) ||
 	    ((frm->type & QUIC_STREAM_FRAME_TYPE_LEN_BIT) &&

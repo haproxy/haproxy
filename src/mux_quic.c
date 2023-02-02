@@ -1436,6 +1436,7 @@ static int qcs_build_stream_frm(struct qcs *qcs, struct buffer *out, char fin,
 	frm->stream.id = qcs->id;
 	frm->stream.buf = out;
 	frm->stream.data = (unsigned char *)b_peek(out, head);
+	frm->stream.offset.key = 0;
 
 	/* FIN is positioned only when the buffer has been totally emptied. */
 	if (fin)

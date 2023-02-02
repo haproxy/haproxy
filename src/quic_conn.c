@@ -6857,8 +6857,7 @@ static inline int qc_build_frms(struct list *outlist, struct list *inlist,
 				new_cf->stream.stream = cf->stream.stream;
 				new_cf->stream.buf = cf->stream.buf;
 				new_cf->stream.id = cf->stream.id;
-				if (cf->type & QUIC_STREAM_FRAME_TYPE_OFF_BIT)
-					new_cf->stream.offset = cf->stream.offset;
+				new_cf->stream.offset = cf->stream.offset;
 				new_cf->stream.len = dlen;
 				new_cf->type |= QUIC_STREAM_FRAME_TYPE_LEN_BIT;
 				/* FIN bit reset */
