@@ -2355,14 +2355,15 @@ static inline int qc_provide_cdata(struct quic_enc_level *el,
 	return ret;
 }
 
-/* Parse a STREAM frame <strm_frm>
+/* Parse a STREAM frame <strm_frm> received in <pkt> packet for <qc>
+ * connection. <fin> is true if FIN bit is set on frame type.
  *
  * Return 1 on success. On error, 0 is returned. In this case, the packet
  * containing the frame must not be acknowledged.
  */
 static inline int qc_handle_strm_frm(struct quic_rx_packet *pkt,
                                      struct quic_stream *strm_frm,
-                                     struct quic_conn *qc)
+                                     struct quic_conn *qc, char fin)
 {
 	int ret;
 
@@ -2377,8 +2378,7 @@ static inline int qc_handle_strm_frm(struct quic_rx_packet *pkt,
 	TRACE_ENTER(QUIC_EV_CONN_PRSFRM, qc);
 
 	ret = qcc_recv(qc->qcc, strm_frm->id, strm_frm->len,
-	               strm_frm->offset.key, strm_frm->fin,
-	               (char *)strm_frm->data);
+	               strm_frm->offset.key, fin, (char *)strm_frm->data);
 
 	/* frame rejected - packet must not be acknowledeged */
 	TRACE_LEAVE(QUIC_EV_CONN_PRSFRM, qc);
@@ -2827,6 +2827,7 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 		{
 			struct quic_stream *stream = &frm.stream;
 			unsigned nb_streams = qc->rx.strms[qcs_id_type(stream->id)].nb_streams;
+			const char fin = frm.type & QUIC_STREAM_FRAME_TYPE_FIN_BIT;
 
 			/* The upper layer may not be allocated. */
 			if (qc->mux_state != QC_MUX_READY) {
@@ -2854,7 +2855,7 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 				}
 			}
 
-			if (!qc_handle_strm_frm(pkt, stream, qc)) {
+			if (!qc_handle_strm_frm(pkt, stream, qc, fin)) {
 				TRACE_ERROR("qc_handle_strm_frm() failed", QUIC_EV_CONN_PRSHPKT, qc);
 				goto leave;
 			}

@@ -170,7 +170,6 @@ struct quic_stream {
 
 	struct eb64_node offset;
 	uint64_t len;
-	int fin;
 
 	/* for TX pointer into <buf> field.
 	 * for RX pointer into the packet buffer.
