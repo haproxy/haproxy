@@ -502,13 +502,13 @@ static inline void quic_tx_packet_dgram_detach(struct quic_tx_packet *pkt)
 /* Increment the reference counter of <pkt> */
 static inline void quic_tx_packet_refinc(struct quic_tx_packet *pkt)
 {
-	HA_ATOMIC_ADD(&pkt->refcnt, 1);
+	pkt->refcnt++;
 }
 
 /* Decrement the reference counter of <pkt> */
 static inline void quic_tx_packet_refdec(struct quic_tx_packet *pkt)
 {
-	if (!HA_ATOMIC_SUB_FETCH(&pkt->refcnt, 1)) {
+	if (--pkt->refcnt == 0) {
 		BUG_ON(!LIST_ISEMPTY(&pkt->frms));
 		/* If there are others packet in the same datagram <pkt> is attached to,
 		 * detach the previous one and the next one from <pkt>.
@@ -670,7 +670,7 @@ static inline void quic_rx_pkts_del(struct quic_conn *qc)
 			break;
 		}
 
-		if (HA_ATOMIC_LOAD(&pkt->refcnt))
+		if (pkt->refcnt)
 			break;
 
 		b_del(&qc->rx.buf, pkt->raw_len);
@@ -685,17 +685,14 @@ static inline void quic_rx_pkts_del(struct quic_conn *qc)
 /* Increment the reference counter of <pkt> */
 static inline void quic_rx_packet_refinc(struct quic_rx_packet *pkt)
 {
-	HA_ATOMIC_ADD(&pkt->refcnt, 1);
+	pkt->refcnt++;
 }
 
 /* Decrement the reference counter of <pkt> while remaining positive */
 static inline void quic_rx_packet_refdec(struct quic_rx_packet *pkt)
 {
-	unsigned int refcnt;
-
-	do {
-		refcnt = HA_ATOMIC_LOAD(&pkt->refcnt);
-	} while (refcnt && !HA_ATOMIC_CAS(&pkt->refcnt, &refcnt, refcnt - 1));
+	if (pkt->refcnt)
+		pkt->refcnt--;
 }
 
 /* Delete all RX packets for <qel> QUIC encryption level */
