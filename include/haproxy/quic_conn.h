@@ -532,9 +532,10 @@ static inline void quic_pktns_tx_pkts_release(struct quic_pktns *pktns, struct q
 		if (pkt->flags & QUIC_FL_TX_PACKET_ACK_ELICITING)
 			qc->path->ifae_pkts--;
 		list_for_each_entry_safe(frm, frmbak, &pkt->frms, list) {
-			LIST_DELETE(&frm->list);
+			qc_frm_unref(frm, qc);
+			LIST_DEL_INIT(&frm->list);
 			quic_tx_packet_refdec(frm->pkt);
-			pool_free(pool_head_quic_frame, frm);
+			qc_frm_free(&frm);
 		}
 		eb64_delete(&pkt->pn_node);
 		quic_tx_packet_refdec(pkt);

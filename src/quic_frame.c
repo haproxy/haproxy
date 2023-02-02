@@ -1171,3 +1171,25 @@ int qc_build_frm(unsigned char **buf, const unsigned char *end,
 	return ret;
 }
 
+/* Detach all duplicated frames from <frm> reflist. */
+void qc_frm_unref(struct quic_frame *frm, struct quic_conn *qc)
+{
+	struct quic_frame *f, *tmp;
+
+	TRACE_ENTER(QUIC_EV_CONN_PRSAFRM, qc);
+
+	list_for_each_entry_safe(f, tmp, &frm->reflist, ref) {
+		f->origin = NULL;
+		LIST_DEL_INIT(&f->ref);
+		if (f->pkt) {
+			TRACE_DEVEL("remove frame reference",
+			            QUIC_EV_CONN_PRSAFRM, qc, f, &f->pkt->pn_node.key);
+		}
+		else {
+			TRACE_DEVEL("remove frame reference for unsent frame",
+			            QUIC_EV_CONN_PRSAFRM, qc, f);
+		}
+	}
+
+	TRACE_LEAVE(QUIC_EV_CONN_PRSAFRM, qc);
+}
