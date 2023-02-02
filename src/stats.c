@@ -4386,7 +4386,11 @@ static void http_stats_io_handler(struct appctx *appctx)
 	}
 
 	if (appctx->st0 == STAT_HTTP_DUMP) {
-		trash_chunk = b_make(trash.area, channel_htx_recv_limit(res, res_htx), 0, 0);
+		trash_chunk = b_make(trash.area, trash.size, 0, 0);
+		/* adjust buffer size to take htx overhead into account,
+		 * make sure to perform this call on an empty buffer
+		 */
+		trash_chunk.size = buf_room_for_htx_data(&trash_chunk);
 		if (stats_dump_stat_to_buffer(sc, res_htx, s->be->uri_auth))
 			appctx->st0 = STAT_HTTP_DONE;
 	}
