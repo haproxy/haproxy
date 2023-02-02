@@ -1690,9 +1690,6 @@ int stats_dump_one_line(const struct field *stats, size_t stats_count,
 	else
 		ret = stats_dump_fields_csv(&trash_chunk, stats, stats_count, ctx);
 
-	if (ret)
-		ctx->flags |= STAT_STARTED;
-
 	return ret;
 }
 
@@ -3209,6 +3206,7 @@ more:
 		if (stats_dump_fe_stats(sc, px)) {
 			if (!stats_putchk(rep, htx))
 				goto full;
+			ctx->flags |= STAT_STARTED;
 			if (ctx->field)
 				goto more;
 		}
@@ -3246,6 +3244,7 @@ more:
 			if (stats_dump_li_stats(sc, px, l)) {
 				if (!stats_putchk(rep, htx))
 					goto full;
+				ctx->flags |= STAT_STARTED;
 				if (ctx->field)
 					goto more;
 			}
@@ -3311,6 +3310,7 @@ more:
 			if (stats_dump_sv_stats(sc, px, sv)) {
 				if (!stats_putchk(rep, htx))
 					goto full;
+				ctx->flags |= STAT_STARTED;
 				if (ctx->field)
 					goto more;
 			}
@@ -3325,6 +3325,7 @@ more:
 		if (stats_dump_be_stats(sc, px)) {
 			if (!stats_putchk(rep, htx))
 				goto full;
+			ctx->flags |= STAT_STARTED;
 			if (ctx->field)
 				goto more;
 		}
