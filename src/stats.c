@@ -3311,7 +3311,10 @@ more:
 			if (stats_dump_sv_stats(sc, px, sv)) {
 				if (!stats_putchk(rep, htx))
 					goto full;
+				if (ctx->field)
+					goto more;
 			}
+			current_field = 0;
 		} /* for sv */
 
 		ctx->px_st = STAT_PX_ST_BE;
