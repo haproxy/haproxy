@@ -2960,41 +2960,63 @@ init_proxies_list_stage1:
 				free(err);
 				cfgerr++;
 			}
-			else if (bind_conf->thread_set.nbgrp > 1) {
-				ha_alert("Proxy '%s': 'thread' spans more than one group in 'bind %s' at [%s:%d].\n",
-					   curproxy->id, bind_conf->arg, bind_conf->file, bind_conf->line);
-				cfgerr++;
-			}
 
 			/* apply thread masks and groups to all receivers */
 			list_for_each_entry(li, &bind_conf->listeners, by_bind) {
 				struct listener *new_li;
-				int shard, shards, todo, done, bit;
-				ulong mask;
+				struct thread_set new_ts;
+				int shard, shards, todo, done, grp;
+				ulong mask, bit;
 
 				shards = bind_conf->settings.shards;
-				todo = my_popcountl(thread_set_first_tmask(&bind_conf->thread_set));
+				todo = thread_set_count(&bind_conf->thread_set);
 
 				/* no more shards than total threads */
 				if (shards > todo)
 					shards = todo;
 
-				shard = done = bit = 0;
+				shard = done = grp = bit = mask = 0;
 				new_li = li;
 
-				while (1) {
-					mask = 0;
-					while (done < todo) {
-						/* enlarge mask to cover next bit of bind_thread */
-						while (!(thread_set_first_tmask(&bind_conf->thread_set) & (1UL << bit)))
-							bit++;
-						mask |= (1UL << bit);
-						bit++;
+				while (shard < shards) {
+					memset(&new_ts, 0, sizeof(new_ts));
+					while (grp < global.nbtgroups && done < todo) {
+						/* enlarge mask to cover next bit of bind_thread till we
+						 * have enough bits for one shard. We restart from the
+						 * current grp+bit.
+						 */
+
+						/* first let's find the first non-empty group starting at <mask> */
+						if (!(bind_conf->thread_set.rel[grp] & ha_tgroup_info[grp].threads_enabled & ~mask)) {
+							grp++;
+							mask = 0;
+							continue;
+						}
+
+						/* take next unassigned bit */
+						bit = (bind_conf->thread_set.rel[grp] & ~mask) & -(bind_conf->thread_set.rel[grp] & ~mask);
+						new_ts.rel[grp] |= bit;
+						mask |= bit;
+
+						if (!atleast2(new_ts.rel[grp])) // first time we add a bit: new group
+							new_ts.nbgrp++;
+
 						done += shards;
+					};
+
+					BUG_ON(!new_ts.nbgrp); // no more bits left unassigned
+
+					if (new_ts.nbgrp > 1) {
+						ha_alert("Proxy '%s': shard number %d spans %d groups in 'bind %s' at [%s:%d]\n",
+							 curproxy->id, shard, new_ts.nbgrp, bind_conf->arg, bind_conf->file, bind_conf->line);
+						cfgerr++;
+						err_code |= ERR_FATAL | ERR_ALERT;
+						goto out;
 					}
 
-					new_li->rx.bind_thread = thread_set_first_tmask(&bind_conf->thread_set) & mask;
-					new_li->rx.bind_tgroup = thread_set_first_group(&bind_conf->thread_set);
+					/* assign the first (and only) thread and group */
+					new_li->rx.bind_thread = thread_set_first_tmask(&new_ts);
+					new_li->rx.bind_tgroup = thread_set_first_group(&new_ts);
 					done -= todo;
 
 					shard++;
