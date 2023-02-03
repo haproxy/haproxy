@@ -3249,9 +3249,9 @@ more:
 				if (ctx->field)
 					goto more;
 			}
+			current_field = 0;
 		}
 
-		current_field = 0;
 		ctx->obj2 = px->srv; /* may be NULL */
 		ctx->px_st = STAT_PX_ST_SV;
 		__fallthrough;
