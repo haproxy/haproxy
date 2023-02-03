@@ -272,7 +272,9 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 
 		if (mask & QUIC_EV_TRANSP_PARAMS) {
 			const struct quic_transport_params *p = a2;
-			quic_transport_params_dump(&trace_buf, qc, p);
+
+			if (p)
+				quic_transport_params_dump(&trace_buf, qc, p);
 		}
 
 		if (mask & QUIC_EV_CONN_ADDDATA) {
@@ -727,6 +729,13 @@ static inline int quic_peer_validated_addr(struct quic_conn *qc)
 	return 0;
 }
 
+/* To be called to kill a connection as soon as possible (without sending any packet). */
+void qc_kill_conn(struct quic_conn *qc)
+{
+	qc->flags |= QUIC_FL_CONN_TO_KILL;
+	task_wakeup(qc->idle_timer_task, TASK_WOKEN_OTHER);
+}
+
 /* Set the timer attached to the QUIC connection with <ctx> as I/O handler and used for
  * both loss detection and PTO and schedule the task assiated to this timer if needed.
  */
@@ -926,6 +935,12 @@ int ha_quic_set_encryption_secrets(SSL *ssl, enum ssl_encryption_level_t level,
 
 	TRACE_ENTER(QUIC_EV_CONN_RWSEC, qc);
 	BUG_ON(secret_len > QUIC_TLS_SECRET_LEN);
+
+	if (qc->flags & QUIC_FL_CONN_TO_KILL) {
+		TRACE_PROTO("connection to be killed", QUIC_EV_CONN_ADDDATA, qc);
+		goto out;
+	}
+
 	if (qc->flags & QUIC_FL_CONN_IMMEDIATE_CLOSE) {
 		TRACE_PROTO("CC required", QUIC_EV_CONN_RWSEC, qc);
 		goto out;
@@ -1219,6 +1234,11 @@ int ha_quic_add_handshake_data(SSL *ssl, enum ssl_encryption_level_t level,
 
 	qc = SSL_get_ex_data(ssl, ssl_qc_app_data_index);
 	TRACE_ENTER(QUIC_EV_CONN_ADDDATA, qc);
+
+	if (qc->flags & QUIC_FL_CONN_TO_KILL) {
+		TRACE_PROTO("connection to be killed", QUIC_EV_CONN_ADDDATA, qc);
+		goto out;
+	}
 
 	if (qc->flags & QUIC_FL_CONN_IMMEDIATE_CLOSE) {
 		TRACE_PROTO("CC required", QUIC_EV_CONN_ADDDATA, qc);
@@ -2303,6 +2323,11 @@ static inline int qc_provide_cdata(struct quic_enc_level *el,
 	state = qc->state;
 	if (state < QUIC_HS_ST_COMPLETE) {
 		ssl_err = SSL_do_handshake(ctx->ssl);
+
+		if (qc->flags & QUIC_FL_CONN_TO_KILL) {
+			TRACE_DEVEL("connection to be killed", QUIC_EV_CONN_IO_CB, qc);
+			goto leave;
+		}
 
 		/* Finalize the connection as soon as possible if the peer transport parameters
 		 * have been received. This may be useful to send packets even if this
@@ -4380,6 +4405,11 @@ struct task *quic_conn_app_io_cb(struct task *t, void *context, unsigned int sta
 		goto out;
 	}
 
+	if (qc->flags & QUIC_FL_CONN_TO_KILL) {
+		TRACE_DEVEL("connection to be killed", QUIC_EV_CONN_IO_CB, qc);
+		goto out;
+	}
+
 	if ((qc->flags & QUIC_FL_CONN_DRAINING) &&
 	    !(qc->flags & QUIC_FL_CONN_IMMEDIATE_CLOSE)) {
 		TRACE_STATE("draining connection (must not send packets)", QUIC_EV_CONN_IO_CB, qc);
@@ -4474,6 +4504,11 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 		qel == &qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE];
 	if (!qc_treat_rx_pkts(qc, qel, next_qel, force_ack))
 		goto out;
+
+	if (qc->flags & QUIC_FL_CONN_TO_KILL) {
+		TRACE_DEVEL("connection to be killed", QUIC_EV_CONN_PHPKTS, qc);
+		goto out;
+	}
 
 	if ((qc->flags & QUIC_FL_CONN_DRAINING) &&
 	    !(qc->flags & QUIC_FL_CONN_IMMEDIATE_CLOSE))

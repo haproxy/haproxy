@@ -4,7 +4,7 @@
 #include <haproxy/global.h>
 #include <haproxy/ncbuf-t.h>
 #include <haproxy/net_helper.h>
-#include <haproxy/quic_conn-t.h>
+#include <haproxy/quic_conn.h>
 #include <haproxy/quic_enc.h>
 #include <haproxy/quic_tp.h>
 #include <haproxy/trace.h>
@@ -626,6 +626,8 @@ int quic_transport_params_store(struct quic_conn *qc, int server,
 {
 	struct quic_transport_params *tx_params = &qc->tx.params;
 	struct quic_transport_params *rx_params = &qc->rx.params;
+	/* Initial source connection ID */
+	struct tp_cid *iscid;
 
 	/* initialize peer TPs to RFC default value */
 	quic_dflt_transport_params_cpy(tx_params);
@@ -649,6 +651,18 @@ int quic_transport_params_store(struct quic_conn *qc, int server,
 		qc->max_idle_timeout =
 			QUIC_MAX(tx_params->max_idle_timeout, rx_params->max_idle_timeout);
 	TRACE_PROTO("\nTX(remote) transp. params.", QUIC_EV_TRANSP_PARAMS, qc, tx_params);
+
+	/* Check that the "initial_source_connection_id" transport parameter matches
+	 * the SCID received which is also the DCID of the connection.
+	 */
+	iscid = &tx_params->initial_source_connection_id;
+	if (qc->dcid.len != iscid->len ||
+	    (qc->dcid.len && memcmp(qc->dcid.data, iscid->data, qc->dcid.len))) {
+		TRACE_PROTO("initial_source_connection_id transport parameter mismatch",
+		            QUIC_EV_TRANSP_PARAMS, qc);
+		/* Kill the connection as soon as possible */
+		qc_kill_conn(qc);
+	}
 
 	return 1;
 }
