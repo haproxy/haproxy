@@ -6819,11 +6819,13 @@ static inline int qc_build_frms(struct list *outlist, struct list *inlist,
 
 			TRACE_DEVEL("          New STREAM frame build (room, len)",
 			            QUIC_EV_CONN_BCFRMS, qc, &room, len);
+
+			/* hlen contains STREAM id and offset. Ensure there is
+			 * enough room for length field.
+			 */
 			if (cf->type & QUIC_STREAM_FRAME_TYPE_LEN_BIT) {
-				dlen = max_available_room(avail_room, &dlen_sz);
-				if (dlen > cf->stream.len) {
-					dlen = cf->stream.len;
-				}
+				dlen = QUIC_MIN((uint64_t)max_available_room(avail_room, &dlen_sz),
+				                cf->stream.len);
 				dlen_sz = quic_int_getsize(dlen);
 				flen = hlen + dlen_sz + dlen;
 			}
@@ -6831,6 +6833,14 @@ static inline int qc_build_frms(struct list *outlist, struct list *inlist,
 				dlen = QUIC_MIN((uint64_t)avail_room, cf->stream.len);
 				flen = hlen + dlen;
 			}
+
+			if (cf->stream.len && !dlen) {
+				/* Only a small gap is left on buffer, not
+				 * enough to encode the STREAM data length.
+				 */
+				continue;
+			}
+
 			TRACE_DEVEL(" STREAM data length (hlen, stream.len, dlen)",
 			            QUIC_EV_CONN_BCFRMS, qc, &hlen, &cf->stream.len, &dlen);
 			TRACE_DEVEL("                 STREAM frame length (flen)",
