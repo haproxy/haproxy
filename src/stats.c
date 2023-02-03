@@ -4458,7 +4458,7 @@ static void http_stats_io_handler(struct appctx *appctx)
 	}
 
 	if (appctx->st0 == STAT_HTTP_DUMP) {
-		trash_chunk = b_make(trash.area, trash.size, 0, 0);
+		trash_chunk = b_make(trash.area, res->buf.size, 0, 0);
 		/* adjust buffer size to take htx overhead into account,
 		 * make sure to perform this call on an empty buffer
 		 */
