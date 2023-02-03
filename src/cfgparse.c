@@ -2968,52 +2968,47 @@ init_proxies_list_stage1:
 
 			/* apply thread masks and groups to all receivers */
 			list_for_each_entry(li, &bind_conf->listeners, by_bind) {
-				if (bind_conf->settings.shards <= 1) {
-					li->rx.bind_thread = thread_set_first_tmask(&bind_conf->thread_set);
-					li->rx.bind_tgroup = thread_set_first_group(&bind_conf->thread_set);
-				} else {
-					struct listener *new_li;
-					int shard, shards, todo, done, bit;
-					ulong mask;
+				struct listener *new_li;
+				int shard, shards, todo, done, bit;
+				ulong mask;
 
-					shards = bind_conf->settings.shards;
-					todo = my_popcountl(thread_set_first_tmask(&bind_conf->thread_set));
+				shards = bind_conf->settings.shards;
+				todo = my_popcountl(thread_set_first_tmask(&bind_conf->thread_set));
 
-					/* no more shards than total threads */
-					if (shards > todo)
-						shards = todo;
+				/* no more shards than total threads */
+				if (shards > todo)
+					shards = todo;
 
-					shard = done = bit = 0;
-					new_li = li;
+				shard = done = bit = 0;
+				new_li = li;
 
-					while (1) {
-						mask = 0;
-						while (done < todo) {
-							/* enlarge mask to cover next bit of bind_thread */
-							while (!(thread_set_first_tmask(&bind_conf->thread_set) & (1UL << bit)))
-								bit++;
-							mask |= (1UL << bit);
+				while (1) {
+					mask = 0;
+					while (done < todo) {
+						/* enlarge mask to cover next bit of bind_thread */
+						while (!(thread_set_first_tmask(&bind_conf->thread_set) & (1UL << bit)))
 							bit++;
-							done += shards;
-						}
+						mask |= (1UL << bit);
+						bit++;
+						done += shards;
+					}
 
-						new_li->rx.bind_thread = thread_set_first_tmask(&bind_conf->thread_set) & mask;
-						new_li->rx.bind_tgroup = thread_set_first_group(&bind_conf->thread_set);
-						done -= todo;
+					new_li->rx.bind_thread = thread_set_first_tmask(&bind_conf->thread_set) & mask;
+					new_li->rx.bind_tgroup = thread_set_first_group(&bind_conf->thread_set);
+					done -= todo;
 
-						shard++;
-						if (shard >= shards)
-							break;
+					shard++;
+					if (shard >= shards)
+						break;
 
-						/* create another listener for new shards */
-						new_li = clone_listener(li);
-						if (!new_li) {
-							ha_alert("Out of memory while trying to allocate extra listener for shard %d in %s %s\n",
-								 shard, proxy_type_str(curproxy), curproxy->id);
-							cfgerr++;
-							err_code |= ERR_FATAL | ERR_ALERT;
-							goto out;
-						}
+					/* create another listener for new shards */
+					new_li = clone_listener(li);
+					if (!new_li) {
+						ha_alert("Out of memory while trying to allocate extra listener for shard %d in %s %s\n",
+							 shard, proxy_type_str(curproxy), curproxy->id);
+						cfgerr++;
+						err_code |= ERR_FATAL | ERR_ALERT;
+						goto out;
 					}
 				}
 			}
