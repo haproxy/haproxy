@@ -296,10 +296,14 @@ LDFLAGS = $(ARCH_FLAGS) -g
 #### list of all "USE_*" options. These ones must be updated if new options are
 # added, so that the relevant options are properly added to the CFLAGS and to
 # the reported build options.
-use_opts = USE_EPOLL USE_KQUEUE USE_NETFILTER                                 \
-           USE_PCRE USE_PCRE_JIT USE_PCRE2 USE_PCRE2_JIT USE_POLL             \
+#
+# Relevant *_CFLAGS/*_LDFLAGS will be concatenated in the order defined here.
+# Note that PCRE last position is advisable as it relies on pcre configuration
+# detection tool which may generate default include/lib paths overriding more
+# specific entries if present before them.
+use_opts = USE_EPOLL USE_KQUEUE USE_NETFILTER USE_POLL                        \
            USE_THREAD USE_PTHREAD_EMULATION USE_BACKTRACE                     \
-           USE_STATIC_PCRE USE_STATIC_PCRE2 USE_TPROXY USE_LINUX_TPROXY       \
+           USE_TPROXY USE_LINUX_TPROXY                                        \
            USE_LINUX_SPLICE USE_LIBCRYPT USE_CRYPT_H USE_ENGINE               \
            USE_GETADDRINFO USE_OPENSSL USE_OPENSSL_WOLFSSL USE_SSL USE_LUA    \
            USE_ACCEPT4 USE_CLOSEFROM USE_ZLIB USE_SLZ USE_CPU_AFFINITY        \
@@ -307,7 +311,9 @@ use_opts = USE_EPOLL USE_KQUEUE USE_NETFILTER                                 \
            USE_DEVICEATLAS USE_51DEGREES                                      \
            USE_WURFL USE_SYSTEMD USE_OBSOLETE_LINKER USE_PRCTL USE_PROCCTL    \
            USE_THREAD_DUMP USE_EVPORTS USE_OT USE_QUIC USE_PROMEX             \
-           USE_MEMORY_PROFILING USE_SHM_OPEN
+           USE_MEMORY_PROFILING USE_SHM_OPEN                                  \
+           USE_STATIC_PCRE USE_STATIC_PCRE2                                   \
+           USE_PCRE USE_PCRE_JIT USE_PCRE2 USE_PCRE2_JIT
 
 # preset all variables for all supported build options among use_opts
 $(reset_opts_vars)
