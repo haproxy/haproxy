@@ -1234,7 +1234,7 @@ int thread_map_to_groups()
  */
 int thread_resolve_group_mask(struct thread_set *ts, int defgrp, char **err)
 {
-	struct thread_set new_ts = { 0 };
+	struct thread_set new_ts = { };
 	ulong mask, imask;
 	uint g;
 
