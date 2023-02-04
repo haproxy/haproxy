@@ -1,6 +1,106 @@
 ChangeLog :
 ===========
 
+2023/02/04 : 2.8-dev3
+    - BUG/MINOR: sink: make sure to always properly unmap a file-backed ring
+    - DEV: haring: add a new option "-r" to automatically repair broken files
+    - BUG/MINOR: ssl: Fix leaks in 'update ssl ocsp-response' CLI command
+    - MINOR: ssl: Remove debug fprintf in 'update ssl ocsp-response' cli command
+    - MINOR: connection: add a BUG_ON() to detect destroying connection in idle list
+    - MINOR: mux-quic/h3: send SETTINGS as soon as transport is ready
+    - BUG/MINOR: h3: fix GOAWAY emission
+    - BUG/MEDIUM: mux-quic: fix crash on H3 SETTINGS emission
+    - BUG/MEDIUM: hpack: fix incorrect huffman decoding of some control chars
+    - BUG/MINOR: log: release global log servers on exit
+    - BUG/MINOR: ring: release the backing store name on exit
+    - BUG/MINOR: sink: free the forwarding task on exit
+    - CLEANUP: trace: remove the QUIC-specific ifdefs
+    - MINOR: trace: add a TRACE_ENABLED() macro to determine if a trace is active
+    - MINOR: trace: add a trace_no_cb() dummy callback for when to use no callback
+    - MINOR: trace: add the long awaited TRACE_PRINTF()
+    - MINOR: h2: add h2_phdr_to_ist() to make ISTs from pseudo headers
+    - MEDIUM: mux-h2/trace: add tracing support for headers
+    - CLEANUP: mux-h2/trace: shorten the name of the header enc/dec functions
+    - DEV: hpack: fix `trash` build regression
+    - MINOR: http_htx: add http_append_header() to append value to header
+    - MINOR: http_htx: add http_prepend_header() to prepend value to header
+    - MINOR: sample: add ARGC_OPT
+    - MINOR: proxy: introduce http only options
+    - MINOR: proxy/http_ext: introduce proxy forwarded option
+    - REGTEST: add ifnone-forwardfor test
+    - MINOR: proxy: move 'forwardfor' option to http_ext
+    - MINOR: proxy: move 'originalto' option to http_ext
+    - MINOR: http_ext: introduce http ext converters
+    - MINOR: http_ext: add rfc7239_is_valid converter
+    - MINOR: http_ext: add rfc7239_field converter
+    - MINOR: http_ext: add rfc7239_n2nn converter
+    - MINOR: http_ext: add rfc7239_n2np converter
+    - REGTEST: add RFC7239 forwarded header tests
+    - OPTIM: http_ext/7239: introduce c_mode to save some space
+    - MINOR: http_ext/7239: warn the user when fetch is not available
+    - MEDIUM: proxy/http_ext: implement dynamic http_ext
+    - MINOR: cfgparse/http_ext: move post-parsing http_ext steps to http_ext
+    - DOC: config: fix option spop-check proxy compatibility
+    - BUG/MINOR: fcgi-app: prevent 'use-fcgi-app' in default section
+    - DOC: config: 'http-send-name-header' option may be used in default section
+    - BUG/MINOR: mux-h2: Fix possible null pointer deref on h2c in _h2_trace_header()
+    - BUG/MINOR: http_ext/7239: ipv6 dumping relies on out of scope variables
+    - BUG/MEDIUM: h3: do not crash if no buf space for trailers
+    - OPTIM: h3: skip buf realign if no trailer to encode
+    - MINOR: mux-quic/h3: define stream close callback
+    - BUG/MEDIUM: h3: handle STOP_SENDING on control stream
+    - BUG/MINOR: h3: reject RESET_STREAM received for control stream
+    - MINOR: h3: add missing traces on closure
+    - BUG/MEDIUM: ssl: wrong eviction from the session cache tree
+    - BUG/MINOR: h3: fix crash due to h3 traces
+    - BUG/MINOR: h3: fix crash due to h3 traces
+    - BUG/MEDIUM: thread: consider secondary threads as idle+harmless during boot
+    - BUG/MINOR: stats: use proper buffer size for http dump
+    - BUILD: makefile: fix PCRE overriding specific lib path
+    - MINOR: quic: remove fin from quic_stream frame type
+    - MINOR: quic: ensure offset is properly set for STREAM frames
+    - MINOR: quic: define new functions for frame alloc
+    - MINOR: quic: refactor frame deallocation
+    - MEDIUM: quic: implement a retransmit limit per frame
+    - MINOR: quic: add config for retransmit limit
+    - OPTIM: htx: inline the most common memcpy(8)
+    - CLEANUP: quic: no need for atomics on packet refcnt
+    - MINOR: stats: add by HTTP version cumulated number of sessions and requests
+    - BUG/MINOR: quic: Possible stream truncations under heavy loss
+    - BUG/MINOR: quic: Too big PTO during handshakes
+    - MINOR: quic: Add a trace about variable states in qc_prep_fast_retrans()
+    - BUG/MINOR: quic: Do not ignore coalesced packets in qc_prep_fast_retrans()
+    - MINOR: quic: When probing Handshake packet number space, also probe the Initial one
+    - BUG/MAJOR: quic: Possible crash when processing 1-RTT during 0-RTT session
+    - MEDIUM: quic: Remove qc_conn_finalize() from the ClientHello TLS callbacks
+    - BUG/MINOR: quic: Unchecked source connection ID
+    - MEDIUM: listener: move the analysers mask to the bind_conf
+    - MINOR: listener: move maxseg and tcp_ut to bind_conf
+    - MINOR: listener: move maxaccept from listener to bind_conf
+    - MINOR: listener: move the backlog setting from listener to bind_conf
+    - MINOR: listener: move the maxconn parameter to the bind_conf
+    - MINOR: listener: move the ->accept callback to the bind_conf
+    - MINOR: listener: remove the useless ->default_target field
+    - MINOR: listener: move the nice field to the bind_conf
+    - MINOR: listener: move the NOLINGER option to the bind_conf
+    - MINOR: listener: move the NOQUICKACK option to the bind_conf
+    - MINOR: listener: move the DEF_ACCEPT option to the bind_conf
+    - MINOR: listener: move TCP_FO to bind_conf
+    - MINOR: listener: move the ACC_PROXY and ACC_CIP options to bind_conf
+    - MINOR: listener: move LI_O_UNLIMITED and LI_O_NOSTOP to bind_conf
+    - MINOR: listener: get rid of LI_O_TCP_L4_RULES and LI_O_TCP_L5_RULES
+    - CLEANUP: listener: remove the now unused options field
+    - MINOR: listener: remove the now useless LI_F_QUIC_LISTENER flag
+    - CLEANUP: config: remove test for impossible case regarding bind thread mask
+    - MINOR: thread: add a simple thread_set API
+    - MEDIUM: listener/config: make the "thread" parser rely on thread_sets
+    - CLEANUP: config: stop using bind_tgroup and bind_thread
+    - CLEANUP: listener/thread: remove now unused bind_conf's bind_tgroup/bind_thread
+    - CLEANUP: listener/config: remove the special case for shards==1
+    - MEDIUM: config: restrict shards, not bind_conf to one group each
+    - BUG/MEDIUM: quic: do not split STREAM frames if no space
+    - BUILD: thread: fix build warnings with older gcc compilers
+
 2023/01/22 : 2.8-dev2
     - CLEANUP: htx: fix a typo in an error message of http_str_to_htx
     - DOC: config: added optional rst-ttl argument to silent-drop in action lists
