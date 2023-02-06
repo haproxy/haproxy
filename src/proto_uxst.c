@@ -57,6 +57,7 @@ struct protocol proto_uxst = {
 	.add            = default_add_listener,
 	.unbind         = default_unbind_listener,
 	.suspend        = default_suspend_listener,
+	.resume         = default_resume_listener,
 	.accept_conn    = sock_accept_conn,
 	.ctrl_init      = sock_conn_ctrl_init,
 	.ctrl_close     = sock_conn_ctrl_close,
