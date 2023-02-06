@@ -3262,7 +3262,6 @@ struct task *h1_timeout_task(struct task *t, void *context, unsigned int state)
 
 		/* Try to send an error to the client */
 		if (h1c->state != H1_CS_CLOSING && !(h1c->flags & (H1C_F_IS_BACK|H1C_F_ERROR|H1C_F_ABRT_PENDING))) {
-			h1c->flags |= H1C_F_ERROR;
 			TRACE_DEVEL("timeout error detected", H1_EV_H1C_WAKE|H1_EV_H1C_ERR, h1c->conn, h1c->h1s);
 			if (h1_handle_req_tout(h1c))
 				h1_send(h1c);
