@@ -1522,7 +1522,7 @@ int parse_thread_set(const char *arg, struct thread_set *ts, char **err)
 
 				if (max >= min) {
 					for (v = min; v <= max; v++)
-						ts->rel[tg - 1] |= 1UL << v;
+						ts->rel[tg - 1] |= 1UL << (v - 1);
 				} else {
 					memset(&ts->rel[tg - 1],
 					       (max == 0) ? 0xff /* all */ : (max == -1) ? 0x55 /* odd */: 0xaa /* even */,
@@ -1532,7 +1532,7 @@ int parse_thread_set(const char *arg, struct thread_set *ts, char **err)
 				/* absolute thread numbers */
 				if (max >= min) {
 					for (v = min; v <= max; v++)
-						ts->abs[v / LONGBITS] |= 1UL << (v % LONGBITS);
+						ts->abs[(v - 1) / LONGBITS] |= 1UL << ((v - 1) % LONGBITS);
 				} else {
 					memset(&ts->abs,
 					       (max == 0) ? 0xff /* all */ : (max == -1) ? 0x55 /* odd */: 0xaa /* even */,
