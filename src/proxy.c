@@ -3035,7 +3035,7 @@ static int cli_parse_set_maxconn_frontend(char **args, char *payload, struct app
 	px->maxconn = v;
 	list_for_each_entry(l, &px->conf.listeners, by_fe) {
 		if (l->state == LI_FULL)
-			resume_listener(l, 1, 0);
+			relax_listener(l, 1, 0);
 	}
 
 	if (px->maxconn > px->feconn)
