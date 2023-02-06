@@ -42,29 +42,31 @@ void listener_set_state(struct listener *l, enum li_state st);
  * closes upon SHUT_WR and refuses to rebind. So a common validation path
  * involves SHUT_WR && listen && SHUT_RD. In case of success, the FD's polling
  * is disabled. It normally returns non-zero, unless an error is reported.
- * It will need to operate under the proxy's lock. The caller is
- * responsible for indicating in lpx whether the proxy locks is
- * already held (non-zero) or not (zero) so that the function picks it.
+ * It will need to operate under the proxy's lock and the listener's lock.
+ * The caller is responsible for indicating in lpx, lli whether the respective
+ * locks are already held (non-zero) or not (zero) so that the function pick
+ * the missing ones, in this order.
  */
-int pause_listener(struct listener *l, int lpx);
+int pause_listener(struct listener *l, int lpx, int lli);
 
 /* This function tries to resume a temporarily disabled listener.
  * The resulting state will either be LI_READY or LI_FULL. 0 is returned
  * in case of failure to resume (eg: dead socket).
- * It will need to operate under the proxy's lock. The caller is
- * responsible for indicating in lpx whether the proxy locks is
- * already held (non-zero) or not (zero) so that the function picks it.
+ * It will need to operate under the proxy's lock and the listener's lock.
+ * The caller is responsible for indicating in lpx, lli whether the respective
+ * locks are already held (non-zero) or not (zero) so that the function pick
+ * the missing ones, in this order.
  */
-int resume_listener(struct listener *l, int lpx);
+int resume_listener(struct listener *l, int lpx, int lli);
 
 /*
  * This function completely stops a listener. It will need to operate under the
- * proxy's lock and the protocol's lock. The caller is
- * responsible for indicating in lpx, lpr whether the respective locks are
+ * proxy's lock, the protocol's and the listener's lock. The caller is
+ * responsible for indicating in lpx, lpr, lli whether the respective locks are
  * already held (non-zero) or not (zero) so that the function picks the missing
  * ones, in this order.
  */
-void stop_listener(struct listener *l, int lpx, int lpr);
+void stop_listener(struct listener *l, int lpx, int lpr, int lli);
 
 /* This function adds the specified listener's file descriptor to the polling
  * lists if it is in the LI_LISTEN state. The listener enters LI_READY or

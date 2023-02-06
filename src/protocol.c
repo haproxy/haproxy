@@ -169,7 +169,7 @@ void protocol_stop_now(void)
 	HA_SPIN_LOCK(PROTO_LOCK, &proto_lock);
 	list_for_each_entry(proto, &protocols, list) {
 		list_for_each_entry_safe(listener, lback, &proto->receivers, rx.proto_list)
-			stop_listener(listener, 0, 1);
+			stop_listener(listener, 0, 1, 0);
 	}
 	HA_SPIN_UNLOCK(PROTO_LOCK, &proto_lock);
 }
@@ -189,7 +189,7 @@ int protocol_pause_all(void)
 	HA_SPIN_LOCK(PROTO_LOCK, &proto_lock);
 	list_for_each_entry(proto, &protocols, list) {
 		list_for_each_entry(listener, &proto->receivers, rx.proto_list)
-			if (!pause_listener(listener, 0))
+			if (!pause_listener(listener, 0, 0))
 				err |= ERR_FATAL;
 	}
 	HA_SPIN_UNLOCK(PROTO_LOCK, &proto_lock);
@@ -211,7 +211,7 @@ int protocol_resume_all(void)
 	HA_SPIN_LOCK(PROTO_LOCK, &proto_lock);
 	list_for_each_entry(proto, &protocols, list) {
 		list_for_each_entry(listener, &proto->receivers, rx.proto_list)
-			if (!resume_listener(listener, 0))
+			if (!resume_listener(listener, 0, 0))
 				err |= ERR_FATAL;
 	}
 	HA_SPIN_UNLOCK(PROTO_LOCK, &proto_lock);
