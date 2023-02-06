@@ -2959,6 +2959,7 @@ init_proxies_list_stage1:
 					   curproxy->id, err, bind_conf->arg, bind_conf->file, bind_conf->line);
 				free(err);
 				cfgerr++;
+				continue;
 			}
 
 			/* apply thread masks and groups to all receivers */
