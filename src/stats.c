@@ -1876,6 +1876,7 @@ int stats_fill_fe_stats(struct proxy *px, struct field *stats, int len,
 				total_sess = px->fe_counters.cum_sess;
 				for (i = 0; i < nb_sess; i++)
 					total_sess -= px->fe_counters.cum_sess_ver[i];
+				total_sess = (int64_t)total_sess < 0 ? 0 : total_sess;
 				metric = mkf_u64(FN_COUNTER, total_sess);
 				break;
 			}
