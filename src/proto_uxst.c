@@ -119,6 +119,7 @@ static int uxst_bind_listener(struct listener *listener, char *errmsg, int errle
 
 	if (!(listener->rx.flags & RX_F_BOUND)) {
 		msg = "receiving socket not bound";
+		err |= ERR_FATAL | ERR_ALERT;
 		goto uxst_return;
 	}
 
