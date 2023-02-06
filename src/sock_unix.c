@@ -337,8 +337,13 @@ int sock_unix_bind_receiver(struct receiver *rx, char **errmsg)
 		unlink(backname);
  bind_return:
 	if (errmsg && *errmsg) {
-		if (!ext)
-			memprintf(errmsg, "%s [%s]", *errmsg, path);
+		if (!ext) {
+			char *path_str;
+
+			path_str = sa2str((struct sockaddr_storage *)&rx->addr, 0, 0);
+			memprintf(errmsg, "%s [%s]", *errmsg, ((path_str) ? path_str : ""));
+			ha_free(&path_str);
+		}
 		else
 			memprintf(errmsg, "%s [fd %d]", *errmsg, fd);
 	}

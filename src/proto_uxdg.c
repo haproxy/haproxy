@@ -29,6 +29,7 @@
 #include <haproxy/protocol.h>
 #include <haproxy/sock.h>
 #include <haproxy/sock_unix.h>
+#include <haproxy/tools.h>
 
 static int uxdg_bind_listener(struct listener *listener, char *errmsg, int errlen);
 static void uxdg_enable_listener(struct listener *listener);
@@ -103,8 +104,11 @@ int uxdg_bind_listener(struct listener *listener, char *errmsg, int errlen)
 
  uxdg_return:
 	if (msg && errlen) {
-		const char *path = ((struct sockaddr_un *)&listener->rx.addr)->sun_path;
-                snprintf(errmsg, errlen, "%s for [%s]", msg, path);
+		char *path_str;
+
+		path_str = sa2str((struct sockaddr_storage *)&listener->rx.addr, 0, 0);
+		snprintf(errmsg, errlen, "%s for [%s]", msg, ((path_str) ? path_str : ""));
+		ha_free(&path_str);
 	}
 	return err;
 }

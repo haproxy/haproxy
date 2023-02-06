@@ -142,8 +142,11 @@ static int uxst_bind_listener(struct listener *listener, char *errmsg, int errle
 	close(fd);
  uxst_return:
 	if (msg && errlen) {
-		const char *path = ((struct sockaddr_un *)&listener->rx.addr)->sun_path;
-		snprintf(errmsg, errlen, "%s for [%s]", msg, path);
+		char *path_str;
+
+		path_str = sa2str((struct sockaddr_storage *)&listener->rx.addr, 0, 0);
+		snprintf(errmsg, errlen, "%s for [%s]", msg, ((path_str) ? path_str : ""));
+		ha_free(&path_str);
 	}
 	return err;
 }
