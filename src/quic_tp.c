@@ -319,7 +319,7 @@ static int quic_transport_param_decode(struct quic_transport_params *p,
 		if (!quic_dec_int(&p->active_connection_id_limit, buf, end))
 			return 0;
 		break;
-	case QUIC_TP_DRAFT_VERSION_INFORMATION:
+	case QUIC_TP_VERSION_INFORMATION:
 		if (!quic_transport_param_dec_version_info(&p->version_information,
 		                                           buf, *buf + len, server))
 			return 0;
@@ -435,7 +435,7 @@ static int quic_transport_param_enc_version_info(unsigned char **buf,
 
 	tp_len = sizeof chosen_version->num + quic_versions_nb * sizeof(uint32_t);
 	if (!quic_transport_param_encode_type_len(buf, end,
-	                                          QUIC_TP_DRAFT_VERSION_INFORMATION,
+	                                          QUIC_TP_VERSION_INFORMATION,
 	                                          tp_len))
 		return 0;
 

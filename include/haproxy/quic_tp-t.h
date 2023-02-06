@@ -63,7 +63,7 @@ struct tp_version_information {
 #define QUIC_TP_ACTIVE_CONNECTION_ID_LIMIT          0x0e
 #define QUIC_TP_INITIAL_SOURCE_CONNECTION_ID        0x0f
 #define QUIC_TP_RETRY_SOURCE_CONNECTION_ID          0x10
-#define QUIC_TP_DRAFT_VERSION_INFORMATION           0xff73db
+#define QUIC_TP_VERSION_INFORMATION                 0x11
 
 /*
  * These defines are not for transport parameter type, but the maximum accepted value for
