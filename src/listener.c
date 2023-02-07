@@ -399,19 +399,17 @@ void default_add_listener(struct protocol *proto, struct listener *listener)
 
 /* default function called to suspend a listener: it simply passes the call to
  * the underlying receiver. This is find for most socket-based protocols. This
- * must be called under the listener's lock. It will return non-zero on success,
- * 0 on failure. If no receiver-level suspend is provided, the operation is
- * assumed to succeed.
+ * must be called under the listener's lock. It will return < 0 in case of
+ * failure, 0 if the listener was totally stopped, or > 0 if correctly paused..
+ * If no receiver-level suspend is provided, the operation is assumed
+ * to succeed.
  */
 int default_suspend_listener(struct listener *l)
 {
-	int ret = 1;
-
 	if (!l->rx.proto->rx_suspend)
 		return 1;
 
-	ret = l->rx.proto->rx_suspend(&l->rx);
-	return ret > 0 ? ret : 0;
+	return l->rx.proto->rx_suspend(&l->rx);
 }
 
 
@@ -462,6 +460,8 @@ int default_resume_listener(struct listener *l)
  * closes upon SHUT_WR and refuses to rebind. So a common validation path
  * involves SHUT_WR && listen && SHUT_RD. In case of success, the FD's polling
  * is disabled. It normally returns non-zero, unless an error is reported.
+ * pause() may totally stop a listener if it doesn't support the PAUSED state,
+ * in which case state will be set to ASSIGNED.
  * It will need to operate under the proxy's lock and the listener's lock.
  * The caller is responsible for indicating in lpx, lli whether the respective
  * locks are already held (non-zero) or not (zero) so that the function pick
@@ -481,12 +481,27 @@ int pause_listener(struct listener *l, int lpx, int lli)
 	if (!(l->flags & LI_F_FINALIZED) || l->state <= LI_PAUSED)
 		goto end;
 
-	if (l->rx.proto->suspend)
+	if (l->rx.proto->suspend) {
 		ret = l->rx.proto->suspend(l);
+		/* if the suspend() fails, we don't want to change the
+		 * current listener state
+		 */
+		if (ret < 0)
+			goto end;
+	}
 
 	MT_LIST_DELETE(&l->wait_queue);
 
-	listener_set_state(l, LI_PAUSED);
+	/* ret == 0 means that the suspend() has been turned into
+	 * an unbind(), meaning the listener is now stopped (ie: ABNS), we need
+	 * to report this state change properly
+	 */
+	listener_set_state(l, ((ret) ? LI_PAUSED : LI_ASSIGNED));
+
+	/* at this point, everything is under control, no error should be
+	 * returned to calling function
+	 */
+	ret = 1;
 
 	if (px && !px->li_ready) {
 		/* PROXY_LOCK is required */
