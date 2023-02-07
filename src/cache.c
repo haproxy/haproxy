@@ -155,7 +155,7 @@ struct cache_st {
 struct cache_entry {
 	unsigned int complete;    /* An entry won't be valid until complete is not null. */
 	unsigned int latest_validation;     /* latest validation date */
-	unsigned int expire;      /* expiration date */
+	unsigned int expire;      /* expiration date (wall clock time) */
 	unsigned int age;         /* Origin server "Age" header value */
 
 	struct eb32_node eb;     /* ebtree node used to hold the cache object */
@@ -207,7 +207,7 @@ struct cache_entry *entry_exist(struct cache *cache, char *hash)
 	if (memcmp(entry->hash, hash, sizeof(entry->hash)))
 		return NULL;
 
-	if (entry->expire > now.tv_sec) {
+	if (entry->expire > date.tv_sec) {
 		return entry;
 	} else {
 		delete_entry(entry);
@@ -268,7 +268,7 @@ struct cache_entry *secondary_entry_exist(struct cache *cache, struct cache_entr
 		 * when we find them. Calling delete_entry would be too costly
 		 * so we simply call eb32_delete. The secondary_entry count will
 		 * be updated when we try to insert a new entry to this list. */
-		if (entry->expire <= now.tv_sec) {
+		if (entry->expire <= date.tv_sec) {
 			eb32_delete(&entry->eb);
 			entry->eb.key = 0;
 		}
@@ -277,7 +277,7 @@ struct cache_entry *secondary_entry_exist(struct cache *cache, struct cache_entr
 	}
 
 	/* Expired entry */
-	if (entry && entry->expire <= now.tv_sec) {
+	if (entry && entry->expire <= date.tv_sec) {
 		eb32_delete(&entry->eb);
 		entry->eb.key = 0;
 		entry = NULL;
@@ -302,7 +302,7 @@ static unsigned int clear_expired_duplicates(struct eb32_node **dup_tail)
 	while (prev) {
 		entry = container_of(prev, struct cache_entry, eb);
 		prev = eb32_prev_dup(prev);
-		if (entry->expire <= now.tv_sec) {
+		if (entry->expire <= date.tv_sec) {
 			eb32_delete(&entry->eb);
 			entry->eb.key = 0;
 		}
@@ -334,7 +334,7 @@ static struct eb32_node *insert_entry(struct cache *cache, struct cache_entry *n
 	struct eb32_node *prev = NULL;
 	struct cache_entry *entry = NULL;
 	unsigned int entry_count = 0;
-	unsigned int last_clear_ts = now.tv_sec;
+	unsigned int last_clear_ts = date.tv_sec;
 
 	struct eb32_node *node = eb32_insert(&cache->entries, &new_entry->eb);
 
@@ -357,7 +357,7 @@ static struct eb32_node *insert_entry(struct cache *cache, struct cache_entry *n
 			 * space. In order to avoid going over the same list too
 			 * often, we first check the timestamp of the last check
 			 * performed. */
-			if (last_clear_ts == now.tv_sec) {
+			if (last_clear_ts == date.tv_sec) {
 				/* Too many entries for this primary key, clear the
 				 * one that was inserted. */
 				eb32_delete(node);
@@ -370,7 +370,7 @@ static struct eb32_node *insert_entry(struct cache *cache, struct cache_entry *n
 				/* Still too many entries for this primary key, delete
 				 * the newly inserted one. */
 				entry = container_of(prev, struct cache_entry, eb);
-				entry->last_clear_ts = now.tv_sec;
+				entry->last_clear_ts = date.tv_sec;
 				eb32_delete(node);
 				node->key = 0;
 				return NULL;
@@ -829,8 +829,8 @@ int http_calc_maxage(struct stream *s, struct cache *cache, int *true_maxage)
 				/* A request having an expiring date earlier
 				 * than the current date should be considered as
 				 * stale. */
-				expires = (expires_val >= now.tv_sec) ?
-					(expires_val - now.tv_sec) : 0;
+				expires = (expires_val >= date.tv_sec) ?
+					(expires_val - date.tv_sec) : 0;
 			}
 			else {
 				/* Following RFC 7234#5.3, an invalid date
@@ -904,7 +904,7 @@ static time_t get_last_modified_time(struct htx *htx)
 	/* Fallback on the current time if no "Last-Modified" or "Date" header
 	 * was found. */
 	if (!last_modified)
-		last_modified = now.tv_sec;
+		last_modified = date.tv_sec;
 
 	return last_modified;
 }
@@ -1138,7 +1138,7 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 	 * is set by the end of this function (in case of concurrent accesses to
 	 * the same resource). This way the second access will find an existing
 	 * but not yet usable entry in the tree and will avoid storing its data. */
-	object->expire = now.tv_sec + 2;
+	object->expire = date.tv_sec + 2;
 
 	memcpy(object->hash, txn->cache_hash, sizeof(object->hash));
 	if (vary_signature)
@@ -1242,8 +1242,8 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 	if (cache_ctx) {
 		cache_ctx->first_block = first;
 		/* store latest value and expiration time */
-		object->latest_validation = now.tv_sec;
-		object->expire = now.tv_sec + effective_maxage;
+		object->latest_validation = date.tv_sec;
+		object->expire = date.tv_sec + effective_maxage;
 		return ACT_RET_CONT;
 	}
 
@@ -1440,7 +1440,7 @@ static int htx_cache_add_age_hdr(struct appctx *appctx, struct htx *htx)
 	char *end;
 
 	chunk_reset(&trash);
-	age = MAX(0, (int)(now.tv_sec - cache_ptr->latest_validation)) + cache_ptr->age;
+	age = MAX(0, (int)(date.tv_sec - cache_ptr->latest_validation)) + cache_ptr->age;
 	if (unlikely(age > CACHE_ENTRY_MAX_AGE))
 		age = CACHE_ENTRY_MAX_AGE;
 	end = ultoa_o(age, b_head(&trash), b_size(&trash));
@@ -2629,13 +2629,13 @@ static int cli_io_handler_show_cache(struct appctx *appctx)
 			entry = container_of(node, struct cache_entry, eb);
 			next_key = node->key + 1;
 
-			if (entry->expire > now.tv_sec) {
+			if (entry->expire > date.tv_sec) {
 				chunk_printf(&trash, "%p hash:%u vary:0x", entry, read_u32(entry->hash));
 				for (i = 0; i < HTTP_CACHE_SEC_KEY_LEN; ++i)
 					chunk_appendf(&trash, "%02x", (unsigned char)entry->secondary_key[i]);
 				chunk_appendf(&trash, " size:%u (%u blocks), refcount:%u, expire:%d\n",
 					      block_ptr(entry)->len, block_ptr(entry)->block_count,
-					      block_ptr(entry)->refcount, entry->expire - (int)now.tv_sec);
+					      block_ptr(entry)->refcount, entry->expire - (int)date.tv_sec);
 			} else {
 				/* time to remove that one */
 				delete_entry(entry);
