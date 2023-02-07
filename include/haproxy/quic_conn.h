@@ -648,39 +648,6 @@ static inline int qc_el_rx_pkts(struct quic_enc_level *qel)
 	return ret;
 }
 
-/* Release the memory for the RX packets which are no more referenced
- * and consume their payloads which have been copied to the RX buffer
- * for the connection.
- * Always succeeds.
- */
-static inline void quic_rx_pkts_del(struct quic_conn *qc)
-{
-	struct quic_rx_packet *pkt, *pktback;
-
-	list_for_each_entry_safe(pkt, pktback, &qc->rx.pkt_list, qc_rx_pkt_list) {
-		if (pkt->data != (unsigned char *)b_head(&qc->rx.buf)) {
-			size_t cdata;
-
-			cdata = b_contig_data(&qc->rx.buf, 0);
-			if (cdata && !*b_head(&qc->rx.buf)) {
-				/* Consume the remaining data */
-				b_del(&qc->rx.buf, cdata);
-			}
-			break;
-		}
-
-		if (pkt->refcnt)
-			break;
-
-		b_del(&qc->rx.buf, pkt->raw_len);
-		LIST_DELETE(&pkt->qc_rx_pkt_list);
-		pool_free(pool_head_quic_rx_packet, pkt);
-	}
-
-	/* In frequent cases the buffer will be emptied at this stage. */
-	b_realign_if_empty(&qc->rx.buf);
-}
-
 /* Increment the reference counter of <pkt> */
 static inline void quic_rx_packet_refinc(struct quic_rx_packet *pkt)
 {

@@ -6470,6 +6470,46 @@ static int qc_handle_conn_migration(struct quic_conn *qc,
 	return 1;
 }
 
+/* Release the memory for the RX packets which are no more referenced
+ * and consume their payloads which have been copied to the RX buffer
+ * for the connection.
+ * Always succeeds.
+ */
+static inline void quic_rx_pkts_del(struct quic_conn *qc)
+{
+	struct quic_rx_packet *pkt, *pktback;
+
+	list_for_each_entry_safe(pkt, pktback, &qc->rx.pkt_list, qc_rx_pkt_list) {
+		TRACE_PRINTF(TRACE_LEVEL_DEVELOPER, QUIC_EV_CONN_LPKT, qc, 0, 0, 0,
+		             "pkt #%lld(type=%d,len=%zu,rawlen=%zu,refcnt=%u) (diff: %zd)",
+		             (long long)pkt->pn_node.key,
+		             pkt->type, pkt->len, pkt->raw_len, pkt->refcnt,
+		             (unsigned char *)b_head(&qc->rx.buf) - pkt->data);
+		if (pkt->data != (unsigned char *)b_head(&qc->rx.buf)) {
+			size_t cdata;
+
+			cdata = b_contig_data(&qc->rx.buf, 0);
+			TRACE_PRINTF(TRACE_LEVEL_DEVELOPER, QUIC_EV_CONN_LPKT, qc, 0, 0, 0,
+			             "cdata=%zu *b_head()=0x%x", cdata, *b_head(&qc->rx.buf));
+			if (cdata && !*b_head(&qc->rx.buf)) {
+				/* Consume the remaining data */
+				b_del(&qc->rx.buf, cdata);
+			}
+			break;
+		}
+
+		if (pkt->refcnt)
+			break;
+
+		b_del(&qc->rx.buf, pkt->raw_len);
+		LIST_DELETE(&pkt->qc_rx_pkt_list);
+		pool_free(pool_head_quic_rx_packet, pkt);
+	}
+
+	/* In frequent cases the buffer will be emptied at this stage. */
+	b_realign_if_empty(&qc->rx.buf);
+}
+
 /* Handle a parsed packet <pkt> by the connection <qc>. Data will be copied
  * into <qc> receive buffer after header protection removal procedure.
  *
@@ -6518,6 +6558,8 @@ static void qc_rx_pkt_handle(struct quic_conn *qc, struct quic_rx_packet *pkt,
 	quic_rx_pkts_del(qc);
 	b_cspace = b_contig_space(&qc->rx.buf);
 	if (b_cspace < pkt->len) {
+		TRACE_PRINTF(TRACE_LEVEL_DEVELOPER, QUIC_EV_CONN_LPKT, qc, 0, 0, 0,
+		             "bspace=%zu pkt->len=%zu", b_cspace, pkt->len);
 		/* Do not consume buf if space not at the end. */
 		if (b_tail(&qc->rx.buf) + b_cspace < b_wrap(&qc->rx.buf)) {
 			TRACE_PROTO("Packet dropped",
