@@ -427,8 +427,28 @@ int default_resume_listener(struct listener *l)
 
 	if (l->state == LI_ASSIGNED) {
 		char msg[100];
+		char *errmsg;
 		int err;
 
+		/* first, try to bind the receiver */
+		err = l->rx.proto->fam->bind(&l->rx, &errmsg);
+		if (err != ERR_NONE) {
+			if (err & ERR_WARN)
+				ha_warning("Resuming listener: %s\n", errmsg);
+			else if (err & ERR_ALERT)
+				ha_alert("Resuming listener: %s\n", errmsg);
+			ha_free(&errmsg);
+			if (err & (ERR_FATAL | ERR_ABORT)) {
+				ret = 0;
+				goto end;
+			}
+		}
+
+		/* then, try to listen:
+		 * for now there's still always a listening function
+		 * (same check performed in protocol_bind_all()
+		 */
+		BUG_ON(!l->rx.proto->listen);
 		err = l->rx.proto->listen(l, msg, sizeof(msg));
 		if (err & ERR_ALERT)
 			ha_alert("Resuming listener: %s\n", msg);
