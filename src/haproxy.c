@@ -1504,7 +1504,8 @@ static void init_early(int argc, char **argv)
 	/* initialize date, time, and pid */
 	tzset();
 	clock_init_process_date();
-	start_date = now;
+	start_date = date;
+	start_time = now;
 	pid = getpid();
 
 	/* Set local host name and adjust some environment variables.

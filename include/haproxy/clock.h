@@ -26,6 +26,7 @@
 #include <haproxy/api.h>
 
 extern struct timeval              start_date;    /* the process's start date in wall-clock time */
+extern struct timeval              start_time;    /* the process's start date in internal monotonic time */
 extern volatile ullong             global_now;    /* common monotonic date between all threads (32:32) */
 
 extern THREAD_LOCAL struct timeval now;           /* internal monotonic date derived from real clock */

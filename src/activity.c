@@ -1083,7 +1083,7 @@ static int cli_io_handler_show_activity(struct appctx *appctx)
 	} while (0)
 
 	/* retrieve uptime */
-	tv_remain(&start_date, &now, &up);
+	tv_remain(&start_time, &now, &up);
 
 	chunk_appendf(&trash, "thread_id: %u (%u..%u)\n", tid + 1, 1, global.nbthread);
 	chunk_appendf(&trash, "date_now: %lu.%06lu\n", (ulong)now.tv_sec, (ulong)now.tv_usec);
