@@ -554,8 +554,11 @@ int resume_listener(struct listener *l, int lpx, int lli)
 	if (!(l->flags & LI_F_FINALIZED) || l->state == LI_READY)
 		goto end;
 
-	if (l->rx.proto->resume)
+	if (l->rx.proto->resume) {
 		ret = l->rx.proto->resume(l);
+		if (!ret)
+			goto end; /* failure to resume */
+	}
 
 	if (l->bind_conf->maxconn && l->nbconn >= l->bind_conf->maxconn) {
 		l->rx.proto->disable(l);
