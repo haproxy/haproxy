@@ -517,8 +517,8 @@ struct stream *stream_new(struct session *sess, struct stconn *sc, struct buffer
 		channel_auto_close(&s->req);    /* let the producer forward close requests */
 	}
 
-	s->req.rto = sess->fe->timeout.client;
-	s->req.wto = TICK_ETERNITY;
+	s->scf->rto = sess->fe->timeout.client;
+	s->scf->wto = sess->fe->timeout.client;
 	s->req.rex = TICK_ETERNITY;
 	s->req.wex = TICK_ETERNITY;
 	s->req.analyse_exp = TICK_ETERNITY;
@@ -532,8 +532,8 @@ struct stream *stream_new(struct session *sess, struct stconn *sc, struct buffer
 		s->res.flags |= CF_NEVER_WAIT;
 	}
 
-	s->res.wto = sess->fe->timeout.client;
-	s->res.rto = TICK_ETERNITY;
+	s->scb->wto = TICK_ETERNITY;
+	s->scb->rto = TICK_ETERNITY;
 	s->res.rex = TICK_ETERNITY;
 	s->res.wex = TICK_ETERNITY;
 	s->res.analyse_exp = TICK_ETERNITY;
@@ -854,7 +854,7 @@ void stream_retnclose(struct stream *s, const struct buffer *msg)
 	if (likely(msg && msg->data))
 		co_inject(oc, msg->area, msg->data);
 
-	oc->wex = tick_add_ifset(now_ms, oc->wto);
+	oc->wex = tick_add_ifset(now_ms, s->scf->wto);
 	channel_auto_read(oc);
 	channel_auto_close(oc);
 	channel_shutr_now(oc);
@@ -864,8 +864,8 @@ int stream_set_timeout(struct stream *s, enum act_timeout_name name, int timeout
 {
 	switch (name) {
 	case ACT_TIMEOUT_SERVER:
-		s->req.wto = timeout;
-		s->res.rto = timeout;
+		s->scb->wto = timeout;
+		s->scb->rto = timeout;
 		return 1;
 
 	case ACT_TIMEOUT_TUNNEL:
@@ -936,10 +936,10 @@ static void back_establish(struct stream *s)
 		 * if already defined, it means that a set-timeout rule has
 		 * been executed so do not overwrite them
 		 */
-		if (!tick_isset(req->wto))
-			req->wto = s->be->timeout.server;
-		if (!tick_isset(rep->rto))
-			rep->rto = s->be->timeout.server;
+		if (!tick_isset(s->scb->wto))
+			s->scb->wto = s->be->timeout.server;
+		if (!tick_isset(s->scb->rto))
+			s->scb->rto = s->be->timeout.server;
 		if (!tick_isset(s->tunnel_timeout))
 			s->tunnel_timeout = s->be->timeout.tunnel;
 
@@ -2422,22 +2422,22 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		 * the half-closed timeouts as well.
 		 */
 		if (!req->analysers && s->tunnel_timeout) {
-			req->rto = req->wto = res->rto = res->wto =
+			scf->rto = scf->wto = scb->rto = scb->wto =
 				s->tunnel_timeout;
 
 			if ((req->flags & CF_SHUTR) && tick_isset(sess->fe->timeout.clientfin))
-				res->wto = sess->fe->timeout.clientfin;
+				scf->wto = sess->fe->timeout.clientfin;
 			if ((req->flags & CF_SHUTW) && tick_isset(s->be->timeout.serverfin))
-				res->rto = s->be->timeout.serverfin;
+				scb->rto = s->be->timeout.serverfin;
 			if ((res->flags & CF_SHUTR) && tick_isset(s->be->timeout.serverfin))
-				req->wto = s->be->timeout.serverfin;
+				scb->wto = s->be->timeout.serverfin;
 			if ((res->flags & CF_SHUTW) && tick_isset(sess->fe->timeout.clientfin))
-				req->rto = sess->fe->timeout.clientfin;
+				scf->rto = sess->fe->timeout.clientfin;
 
-			req->rex = tick_add(now_ms, req->rto);
-			req->wex = tick_add(now_ms, req->wto);
-			res->rex = tick_add(now_ms, res->rto);
-			res->wex = tick_add(now_ms, res->wto);
+			req->rex = tick_add(now_ms, scf->rto);
+			req->wex = tick_add(now_ms, scb->wto);
+			res->rex = tick_add(now_ms, scb->rto);
+			res->wex = tick_add(now_ms, scf->wto);
 		}
 	}
 
@@ -3929,7 +3929,7 @@ static int smp_fetch_cur_server_timeout(const struct arg *args, struct sample *s
 	if (!smp->strm)
 		return 0;
 
-	smp->data.u.sint = TICKS_TO_MS(smp->strm->res.rto);
+	smp->data.u.sint = TICKS_TO_MS(smp->strm->scb->rto);
 	return 1;
 }
 

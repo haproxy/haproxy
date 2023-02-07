@@ -253,8 +253,6 @@ struct channel {
 	unsigned long long total;       /* total data read */
 	int rex;                        /* expiration date for a read, in ticks */
 	int wex;                        /* expiration date for a write or connect, in ticks */
-	int rto;                        /* read timeout, in ticks */
-	int wto;                        /* write timeout, in ticks */
 	int analyse_exp;                /* expiration date for current analysers (if set) */
 };
 

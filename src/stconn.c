@@ -133,7 +133,7 @@ static struct stconn *sc_new(struct sedesc *sedesc)
 	sc->obj_type = OBJ_TYPE_SC;
 	sc->flags = SC_FL_NONE;
 	sc->state = SC_ST_INI;
-	sc->hcto = TICK_ETERNITY;
+	sc->rto = sc->wto = sc->hcto = TICK_ETERNITY;
 	sc->app = NULL;
 	sc->app_ops = NULL;
 	sc->src = NULL;
@@ -569,8 +569,8 @@ static void sc_app_shutw(struct stconn *sc)
 	oc->wex = TICK_ETERNITY;
 
 	if (tick_isset(sc->hcto)) {
-		ic->rto = sc->hcto;
-		ic->rex = tick_add(now_ms, ic->rto);
+		sc->rto = sc->hcto;
+		ic->rex = tick_add(now_ms, sc->rto);
 	}
 
 	switch (sc->state) {
@@ -648,7 +648,7 @@ static void sc_app_chk_snd(struct stconn *sc)
 	 */
 	sc_ep_clr(sc, SE_FL_WAIT_DATA);
 	if (!tick_isset(oc->wex))
-		oc->wex = tick_add_ifset(now_ms, oc->wto);
+		oc->wex = tick_add_ifset(now_ms, sc->wto);
 
 	if (!(sc->flags & SC_FL_DONT_WAKE))
 		task_wakeup(sc_strm_task(sc), TASK_WOKEN_IO);
@@ -710,8 +710,8 @@ static void sc_app_shutw_conn(struct stconn *sc)
 	oc->wex = TICK_ETERNITY;
 
 	if (tick_isset(sc->hcto)) {
-		ic->rto = sc->hcto;
-		ic->rex = tick_add(now_ms, ic->rto);
+		sc->rto = sc->hcto;
+		ic->rex = tick_add(now_ms, sc->rto);
 	}
 
 	switch (sc->state) {
@@ -843,7 +843,7 @@ static void sc_app_chk_snd_conn(struct stconn *sc)
 		 */
 		sc_ep_clr(sc, SE_FL_WAIT_DATA);
 		if (!tick_isset(oc->wex))
-			oc->wex = tick_add_ifset(now_ms, oc->wto);
+			oc->wex = tick_add_ifset(now_ms, sc->wto);
 	}
 
 	if (likely(oc->flags & CF_WRITE_EVENT)) {
@@ -851,7 +851,7 @@ static void sc_app_chk_snd_conn(struct stconn *sc)
 
 		/* update timeout if we have written something */
 		if (!(oc->flags & CF_SHUTW) && !channel_is_empty(oc))
-			oc->wex = tick_add_ifset(now_ms, oc->wto);
+			oc->wex = tick_add_ifset(now_ms, sc->wto);
 
 		if (tick_isset(ic->rex) && !(sc->flags & SC_FL_INDEP_STR)) {
 			/* Note: to prevent the client from expiring read timeouts
@@ -862,7 +862,7 @@ static void sc_app_chk_snd_conn(struct stconn *sc)
 			 * of data which can full the socket buffers long before a
 			 * write timeout is detected.
 			 */
-			ic->rex = tick_add_ifset(now_ms, ic->rto);
+			ic->rex = tick_add_ifset(now_ms, sc->rto);
 		}
 	}
 
@@ -935,8 +935,8 @@ static void sc_app_shutw_applet(struct stconn *sc)
 	oc->wex = TICK_ETERNITY;
 
 	if (tick_isset(sc->hcto)) {
-		ic->rto = sc->hcto;
-		ic->rex = tick_add(now_ms, ic->rto);
+		sc->rto = sc->hcto;
+		ic->rex = tick_add(now_ms, sc->rto);
 	}
 
 	/* on shutw we always wake the applet up */
@@ -1009,7 +1009,7 @@ static void sc_app_chk_snd_applet(struct stconn *sc)
 		return;
 
 	if (!tick_isset(oc->wex))
-		oc->wex = tick_add_ifset(now_ms, oc->wto);
+		oc->wex = tick_add_ifset(now_ms, sc->wto);
 
 	if (!channel_is_empty(oc)) {
 		/* (re)start sending */
@@ -1043,7 +1043,7 @@ void sc_update_rx(struct stconn *sc)
 	if ((ic->flags & CF_EOI) || sc->flags & (SC_FL_WONT_READ|SC_FL_NEED_BUFF|SC_FL_NEED_ROOM))
 		ic->rex = TICK_ETERNITY;
 	else if (!tick_isset(ic->rex))
-		ic->rex = tick_add_ifset(now_ms, ic->rto);
+		ic->rex = tick_add_ifset(now_ms, sc->rto);
 
 	sc_chk_rcv(sc);
 }
@@ -1083,7 +1083,7 @@ void sc_update_tx(struct stconn *sc)
 	 */
 	sc_ep_clr(sc, SE_FL_WAIT_DATA);
 	if (!tick_isset(oc->wex)) {
-		oc->wex = tick_add_ifset(now_ms, oc->wto);
+		oc->wex = tick_add_ifset(now_ms, sc->wto);
 		if (tick_isset(ic->rex) && !(sc->flags & SC_FL_INDEP_STR)) {
 			/* Note: depending on the protocol, we don't know if we're waiting
 			 * for incoming data or not. So in order to prevent the socket from
@@ -1091,7 +1091,7 @@ void sc_update_tx(struct stconn *sc)
 			 * except if it was already infinite or if we have explicitly setup
 			 * independent streams.
 			 */
-			ic->rex = tick_add_ifset(now_ms, ic->rto);
+			ic->rex = tick_add_ifset(now_ms, sc->rto);
 		}
 	}
 }
@@ -1136,11 +1136,11 @@ static void sc_notify(struct stconn *sc)
 		if (sc_ep_test(sc, SE_FL_ERR_PENDING|SE_FL_ERROR) &&
 		    !channel_is_empty(oc))
 			if (tick_isset(oc->wex))
-				oc->wex = tick_add_ifset(now_ms, oc->wto);
+				oc->wex = tick_add_ifset(now_ms, sc->wto);
 
 		if (!(sc->flags & SC_FL_INDEP_STR))
 			if (tick_isset(ic->rex))
-				ic->rex = tick_add_ifset(now_ms, ic->rto);
+				ic->rex = tick_add_ifset(now_ms, sc->rto);
 	}
 
 	if (oc->flags & CF_DONT_READ)
@@ -1195,7 +1195,7 @@ static void sc_notify(struct stconn *sc)
 	else if ((ic->flags & (CF_SHUTR|CF_READ_EVENT)) == CF_READ_EVENT) {
 		/* we must re-enable reading if sc_chk_snd() has freed some space */
 		if (tick_isset(ic->rex))
-			ic->rex = tick_add_ifset(now_ms, ic->rto);
+			ic->rex = tick_add_ifset(now_ms, sc->rto);
 	}
 
 	/* wake the task up only when needed */

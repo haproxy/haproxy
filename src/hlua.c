@@ -3016,10 +3016,8 @@ __LJMP static int hlua_socket_settimeout(struct lua_State *L)
 	s = appctx_strm(container_of(peer, struct hlua_csk_ctx, xref)->appctx);
 
 	s->sess->fe->timeout.connect = tmout;
-	s->req.rto = tmout;
-	s->req.wto = tmout;
-	s->res.rto = tmout;
-	s->res.wto = tmout;
+	s->scf->rto = s->scf->wto = tmout;
+	s->scb->rto = s->scb->wto = tmout;
 	s->req.rex = tick_add_ifset(now_ms, tmout);
 	s->req.wex = tick_add_ifset(now_ms, tmout);
 	s->res.rex = tick_add_ifset(now_ms, tmout);
@@ -8086,7 +8084,7 @@ __LJMP static int hlua_txn_done(lua_State *L)
 		channel_auto_close(req);
 		channel_erase(req);
 
-		res->wex = tick_add_ifset(now_ms, res->wto);
+		res->wex = tick_add_ifset(now_ms, s->scf->wto);
 		channel_auto_read(res);
 		channel_auto_close(res);
 		channel_shutr_now(res);

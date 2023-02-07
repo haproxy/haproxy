@@ -1059,8 +1059,8 @@ static int httpclient_applet_init(struct appctx *appctx)
 	s = appctx_strm(appctx);
 	s->target = target;
 	/* set the "timeout server" */
-	s->req.wto = hc->timeout_server;
-	s->res.rto = hc->timeout_server;
+	s->scb->rto = hc->timeout_server;
+	s->scb->wto = hc->timeout_server;
 
 	if (doresolve) {
 		/* in order to do the set-dst we need to put the address on the front */

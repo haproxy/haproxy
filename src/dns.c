@@ -838,7 +838,7 @@ static int dns_session_init(struct appctx *appctx)
 	/* for rto and rex to eternity to not expire on idle recv:
 	 * We are using a syslog server.
 	 */
-	s->res.rto = TICK_ETERNITY;
+	s->scb->rto = TICK_ETERNITY;
 	s->res.rex = TICK_ETERNITY;
 
 	ds->appctx = appctx;

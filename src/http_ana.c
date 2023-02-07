@@ -4439,7 +4439,7 @@ int http_forward_proxy_resp(struct stream *s, int final)
 		channel_auto_close(req);
 		channel_htx_erase(req, htxbuf(&req->buf));
 
-		res->wex = tick_add_ifset(now_ms, res->wto);
+		res->wex = tick_add_ifset(now_ms, s->scf->wto);
 		channel_auto_read(res);
 		channel_auto_close(res);
 		channel_shutr_now(res);
@@ -4493,7 +4493,7 @@ void http_reply_and_close(struct stream *s, short status, struct http_reply *msg
 	}
 
 end:
-	s->res.wex = tick_add_ifset(now_ms, s->res.wto);
+	s->res.wex = tick_add_ifset(now_ms, s->scf->wto);
 
 	/* At this staged, HTTP analysis is finished */
 	s->req.analysers &= AN_REQ_FLT_END;

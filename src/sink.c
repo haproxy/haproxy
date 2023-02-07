@@ -328,7 +328,7 @@ static void sink_forward_io_handler(struct appctx *appctx)
 	 */
 	sc_oc(sc)->rex = TICK_ETERNITY;
 	/* rto should not change but it seems the case */
-	sc_oc(sc)->rto = TICK_ETERNITY;
+	sc_opposite(sc)->rto = TICK_ETERNITY;
 
 	if (unlikely(sc_ic(sc)->flags & CF_SHUTW))
 		goto close;
@@ -476,7 +476,7 @@ static void sink_forward_oc_io_handler(struct appctx *appctx)
 	 */
 	sc_oc(sc)->rex = TICK_ETERNITY;
 	/* rto should not change but it seems the case */
-	sc_oc(sc)->rto = TICK_ETERNITY;
+	sc_opposite(sc)->rto = TICK_ETERNITY;
 
 	/* an error was detected */
 	if (unlikely(sc_ic(sc)->flags & CF_SHUTW))
@@ -635,7 +635,7 @@ static int sink_forward_session_init(struct appctx *appctx)
 	/* for rto and rex to eternity to not expire on idle recv:
 	 * We are using a syslog server.
 	 */
-	s->res.rto = TICK_ETERNITY;
+	s->scb->rto = TICK_ETERNITY;
 	s->res.rex = TICK_ETERNITY;
 	sft->appctx = appctx;
 
