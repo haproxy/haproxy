@@ -92,6 +92,7 @@ void sedesc_init(struct sedesc *sedesc)
 	sedesc->se = NULL;
 	sedesc->conn = NULL;
 	sedesc->sc = NULL;
+	sedesc->rex = sedesc->wex = TICK_ETERNITY;
 	se_fl_setall(sedesc, SE_FL_NONE);
 }
 
@@ -532,7 +533,7 @@ static void sc_app_shutr(struct stconn *sc)
 	if (ic->flags & CF_SHUTR)
 		return;
 	ic->flags |= CF_SHUTR;
-	ic->rex = TICK_ETERNITY;
+	sc_ep_reset_rex(sc);
 
 	if (!sc_state_in(sc->state, SC_SB_CON|SC_SB_RDY|SC_SB_EST))
 		return;
@@ -566,11 +567,11 @@ static void sc_app_shutw(struct stconn *sc)
 	if (oc->flags & CF_SHUTW)
 		return;
 	oc->flags |= CF_SHUTW;
-	oc->wex = TICK_ETERNITY;
+	sc_ep_reset_wex(sc);
 
 	if (tick_isset(sc->hcto)) {
 		sc->rto = sc->hcto;
-		ic->rex = tick_add(now_ms, sc->rto);
+		sc_ep_set_rex(sc, sc->rto);
 	}
 
 	switch (sc->state) {
@@ -597,7 +598,7 @@ static void sc_app_shutw(struct stconn *sc)
 	default:
 		sc->flags &= ~SC_FL_NOLINGER;
 		ic->flags |= CF_SHUTR;
-		ic->rex = TICK_ETERNITY;
+		sc_ep_reset_rex(sc);
 		if (sc->flags & SC_FL_ISBACK)
 			__sc_strm(sc)->conn_exp = TICK_ETERNITY;
 	}
@@ -647,8 +648,8 @@ static void sc_app_chk_snd(struct stconn *sc)
 	 * so we tell the handler.
 	 */
 	sc_ep_clr(sc, SE_FL_WAIT_DATA);
-	if (!tick_isset(oc->wex))
-		oc->wex = tick_add_ifset(now_ms, sc->wto);
+	if (!tick_isset(sc_ep_wex(sc)))
+		sc_ep_set_wex(sc, sc->wto);
 
 	if (!(sc->flags & SC_FL_DONT_WAKE))
 		task_wakeup(sc_strm_task(sc), TASK_WOKEN_IO);
@@ -673,7 +674,7 @@ static void sc_app_shutr_conn(struct stconn *sc)
 	if (ic->flags & CF_SHUTR)
 		return;
 	ic->flags |= CF_SHUTR;
-	ic->rex = TICK_ETERNITY;
+	sc_ep_reset_rex(sc);
 
 	if (!sc_state_in(sc->state, SC_SB_CON|SC_SB_RDY|SC_SB_EST))
 		return;
@@ -707,11 +708,11 @@ static void sc_app_shutw_conn(struct stconn *sc)
 	if (oc->flags & CF_SHUTW)
 		return;
 	oc->flags |= CF_SHUTW;
-	oc->wex = TICK_ETERNITY;
+	sc_ep_reset_wex(sc);
 
 	if (tick_isset(sc->hcto)) {
 		sc->rto = sc->hcto;
-		ic->rex = tick_add(now_ms, sc->rto);
+		sc_ep_set_rex(sc, sc->rto);
 	}
 
 	switch (sc->state) {
@@ -763,7 +764,7 @@ static void sc_app_shutw_conn(struct stconn *sc)
 	default:
 		sc->flags &= ~SC_FL_NOLINGER;
 		ic->flags |= CF_SHUTR;
-		ic->rex = TICK_ETERNITY;
+		sc_ep_reset_rex(sc);
 		if (sc->flags & SC_FL_ISBACK)
 			__sc_strm(sc)->conn_exp = TICK_ETERNITY;
 	}
@@ -835,25 +836,23 @@ static void sc_app_chk_snd_conn(struct stconn *sc)
 
 		if ((oc->flags & (CF_SHUTW|CF_SHUTW_NOW)) == 0)
 			sc_ep_set(sc, SE_FL_WAIT_DATA);
-		oc->wex = TICK_ETERNITY;
+		sc_ep_reset_wex(sc);
 	}
 	else {
 		/* Otherwise there are remaining data to be sent in the buffer,
 		 * which means we have to poll before doing so.
 		 */
 		sc_ep_clr(sc, SE_FL_WAIT_DATA);
-		if (!tick_isset(oc->wex))
-			oc->wex = tick_add_ifset(now_ms, sc->wto);
+		if (!tick_isset(sc_ep_wex(sc)))
+			sc_ep_set_wex(sc, sc->wto);
 	}
 
 	if (likely(oc->flags & CF_WRITE_EVENT)) {
-		struct channel *ic = sc_ic(sc);
-
 		/* update timeout if we have written something */
 		if (!(oc->flags & CF_SHUTW) && !channel_is_empty(oc))
-			oc->wex = tick_add_ifset(now_ms, sc->wto);
+			sc_ep_set_wex(sc, sc->wto);
 
-		if (tick_isset(ic->rex) && !(sc->flags & SC_FL_INDEP_STR)) {
+		if (tick_isset(sc_ep_rex(sc)) && !(sc->flags & SC_FL_INDEP_STR)) {
 			/* Note: to prevent the client from expiring read timeouts
 			 * during writes, we refresh it. We only do this if the
 			 * interface is not configured for "independent streams",
@@ -862,7 +861,7 @@ static void sc_app_chk_snd_conn(struct stconn *sc)
 			 * of data which can full the socket buffers long before a
 			 * write timeout is detected.
 			 */
-			ic->rex = tick_add_ifset(now_ms, sc->rto);
+			sc_ep_set_rex(sc, sc->rto);
 		}
 	}
 
@@ -897,7 +896,7 @@ static void sc_app_shutr_applet(struct stconn *sc)
 	if (ic->flags & CF_SHUTR)
 		return;
 	ic->flags |= CF_SHUTR;
-	ic->rex = TICK_ETERNITY;
+	sc_ep_reset_rex(sc);
 
 	/* Note: on shutr, we don't call the applet */
 
@@ -932,11 +931,11 @@ static void sc_app_shutw_applet(struct stconn *sc)
 	if (oc->flags & CF_SHUTW)
 		return;
 	oc->flags |= CF_SHUTW;
-	oc->wex = TICK_ETERNITY;
+	sc_ep_reset_wex(sc);
 
 	if (tick_isset(sc->hcto)) {
 		sc->rto = sc->hcto;
-		ic->rex = tick_add(now_ms, sc->rto);
+		sc_ep_set_rex(sc, sc->rto);
 	}
 
 	/* on shutw we always wake the applet up */
@@ -967,7 +966,7 @@ static void sc_app_shutw_applet(struct stconn *sc)
 	default:
 		sc->flags &= ~SC_FL_NOLINGER;
 		ic->flags |= CF_SHUTR;
-		ic->rex = TICK_ETERNITY;
+		sc_ep_reset_rex(sc);
 		if (sc->flags & SC_FL_ISBACK)
 			__sc_strm(sc)->conn_exp = TICK_ETERNITY;
 	}
@@ -1008,8 +1007,8 @@ static void sc_app_chk_snd_applet(struct stconn *sc)
 	if (!sc_ep_test(sc, SE_FL_WAIT_DATA) || sc_ep_test(sc, SE_FL_WONT_CONSUME))
 		return;
 
-	if (!tick_isset(oc->wex))
-		oc->wex = tick_add_ifset(now_ms, sc->wto);
+	if (!tick_isset(sc_ep_wex(sc)))
+		sc_ep_set_wex(sc, sc->wto);
 
 	if (!channel_is_empty(oc)) {
 		/* (re)start sending */
@@ -1041,9 +1040,9 @@ void sc_update_rx(struct stconn *sc)
 		sc_will_read(sc);
 
 	if ((ic->flags & CF_EOI) || sc->flags & (SC_FL_WONT_READ|SC_FL_NEED_BUFF|SC_FL_NEED_ROOM))
-		ic->rex = TICK_ETERNITY;
-	else if (!tick_isset(ic->rex))
-		ic->rex = tick_add_ifset(now_ms, sc->rto);
+		sc_ep_reset_rex(sc);
+	else if (!tick_isset(sc_ep_rex(sc)))
+		sc_ep_set_rex(sc, sc->rto);
 
 	sc_chk_rcv(sc);
 }
@@ -1060,7 +1059,6 @@ void sc_update_rx(struct stconn *sc)
 void sc_update_tx(struct stconn *sc)
 {
 	struct channel *oc = sc_oc(sc);
-	struct channel *ic = sc_ic(sc);
 
 	if (oc->flags & CF_SHUTW)
 		return;
@@ -1071,7 +1069,7 @@ void sc_update_tx(struct stconn *sc)
 		if (!sc_ep_test(sc, SE_FL_WAIT_DATA)) {
 			if ((oc->flags & CF_SHUTW_NOW) == 0)
 				sc_ep_set(sc, SE_FL_WAIT_DATA);
-			oc->wex = TICK_ETERNITY;
+			sc_ep_reset_wex(sc);
 		}
 		return;
 	}
@@ -1082,16 +1080,16 @@ void sc_update_tx(struct stconn *sc)
 	 * have updated it if there has been a completed I/O.
 	 */
 	sc_ep_clr(sc, SE_FL_WAIT_DATA);
-	if (!tick_isset(oc->wex)) {
-		oc->wex = tick_add_ifset(now_ms, sc->wto);
-		if (tick_isset(ic->rex) && !(sc->flags & SC_FL_INDEP_STR)) {
+	if (!tick_isset(sc_ep_wex(sc))) {
+		sc_ep_set_wex(sc, sc->wto);
+		if (tick_isset(sc_ep_rex(sc)) && !(sc->flags & SC_FL_INDEP_STR)) {
 			/* Note: depending on the protocol, we don't know if we're waiting
 			 * for incoming data or not. So in order to prevent the socket from
 			 * expiring read timeouts during writes, we refresh the read timeout,
 			 * except if it was already infinite or if we have explicitly setup
 			 * independent streams.
 			 */
-			ic->rex = tick_add_ifset(now_ms, sc->rto);
+			sc_ep_set_rex(sc, sc->rto);
 		}
 	}
 }
@@ -1120,7 +1118,7 @@ static void sc_notify(struct stconn *sc)
 		if (((oc->flags & (CF_SHUTW|CF_SHUTW_NOW)) == CF_SHUTW_NOW) &&
 		    (sc->state == SC_ST_EST) && (!conn || !(conn->flags & (CO_FL_WAIT_XPRT | CO_FL_EARLY_SSL_HS))))
 			sc_shutw(sc);
-		oc->wex = TICK_ETERNITY;
+		sc_ep_reset_wex(sc);
 	}
 
 	/* indicate that we may be waiting for data from the output channel or
@@ -1135,12 +1133,12 @@ static void sc_notify(struct stconn *sc)
 	if (oc->flags & (CF_WRITE_EVENT)) {
 		if (sc_ep_test(sc, SE_FL_ERR_PENDING|SE_FL_ERROR) &&
 		    !channel_is_empty(oc))
-			if (tick_isset(oc->wex))
-				oc->wex = tick_add_ifset(now_ms, sc->wto);
+			if (tick_isset(sc_ep_wex(sc)))
+				sc_ep_set_wex(sc, sc->wto);
 
 		if (!(sc->flags & SC_FL_INDEP_STR))
-			if (tick_isset(ic->rex))
-				ic->rex = tick_add_ifset(now_ms, sc->rto);
+			if (tick_isset(sc_ep_rex(sc)))
+				sc_ep_set_rex(sc, sc->rto);
 	}
 
 	if (oc->flags & CF_DONT_READ)
@@ -1190,12 +1188,12 @@ static void sc_notify(struct stconn *sc)
 
 	if (ic->flags & (CF_EOI|CF_SHUTR) || sc_ep_test(sc, SE_FL_APPLET_NEED_CONN) ||
 	    (sc->flags & (SC_FL_WONT_READ|SC_FL_NEED_BUFF|SC_FL_NEED_ROOM))) {
-		ic->rex = TICK_ETERNITY;
+		sc_ep_reset_rex(sc);
 	}
 	else if ((ic->flags & (CF_SHUTR|CF_READ_EVENT)) == CF_READ_EVENT) {
 		/* we must re-enable reading if sc_chk_snd() has freed some space */
-		if (tick_isset(ic->rex))
-			ic->rex = tick_add_ifset(now_ms, sc->rto);
+		if (tick_isset(sc_ep_rex(sc)))
+			sc_ep_set_rex(sc, sc->rto);
 	}
 
 	/* wake the task up only when needed */
@@ -1223,8 +1221,8 @@ static void sc_notify(struct stconn *sc)
 	else {
 		/* Update expiration date for the task and requeue it */
 		task->expire = tick_first((tick_is_expired(task->expire, now_ms) ? 0 : task->expire),
-					  tick_first(tick_first(ic->rex, ic->wex),
-						     tick_first(oc->rex, oc->wex)));
+					  tick_first(tick_first(sc_ep_rex(sc), sc_ep_wex(sc)),
+						     tick_first(sc_ep_rex(sco), sc_ep_wex(sco))));
 
 		task->expire = tick_first(task->expire, ic->analyse_exp);
 		task->expire = tick_first(task->expire, oc->analyse_exp);
@@ -1251,7 +1249,7 @@ static void sc_conn_read0(struct stconn *sc)
 	if (ic->flags & CF_SHUTR)
 		return;
 	ic->flags |= CF_SHUTR;
-	ic->rex = TICK_ETERNITY;
+	sc_ep_reset_rex(sc);
 
 	if (!sc_state_in(sc->state, SC_SB_CON|SC_SB_RDY|SC_SB_EST))
 		return;
@@ -1275,7 +1273,7 @@ static void sc_conn_read0(struct stconn *sc)
 
 	oc->flags &= ~CF_SHUTW_NOW;
 	oc->flags |= CF_SHUTW;
-	oc->wex = TICK_ETERNITY;
+	sc_ep_reset_wex(sc);
 
 	sc->state = SC_ST_DIS;
 	if (sc->flags & SC_FL_ISBACK)

@@ -251,8 +251,6 @@ struct channel {
 	unsigned char xfer_large;       /* number of consecutive large xfers */
 	unsigned char xfer_small;       /* number of consecutive small xfers */
 	unsigned long long total;       /* total data read */
-	int rex;                        /* expiration date for a read, in ticks */
-	int wex;                        /* expiration date for a write or connect, in ticks */
 	int analyse_exp;                /* expiration date for current analysers (if set) */
 };
 

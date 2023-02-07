@@ -206,10 +206,11 @@ static void strm_trace(enum trace_level level, uint64_t mask, const struct trace
 			      task, s, s->flags, s->conn_err_type, txn->flags, txn->req.flags, txn->rsp.flags, txn->status);
 	}
 	else {
-		chunk_appendf(&trace_buf, " - t=%p s=(%p,0x%08x,0x%x) scf=(%p,%d,0x%08x,0x%x) scb=(%p,%d,0x%08x,0x%x) retries=%d",
+		chunk_appendf(&trace_buf, " - t=%p s=(%p,0x%08x,0x%x) scf=(%p,%d,0x%08x,0x%x) scb=(%p,%d,0x%08x,0x%x) scf.exp(r,w)=(%u,%u) scb.exp(r,w)=(%u,%u) retries=%d",
 			      task, s, s->flags, s->conn_err_type,
 			      s->scf, s->scf->state, s->scf->flags, s->scf->sedesc->flags,
 			      s->scb, s->scb->state, s->scb->flags, s->scb->sedesc->flags,
+			      sc_ep_rex(s->scf), sc_ep_wex(s->scf), sc_ep_rex(s->scb), sc_ep_wex(s->scb),
 			      s->conn_retries);
 	}
 
@@ -219,17 +220,17 @@ static void strm_trace(enum trace_level level, uint64_t mask, const struct trace
 
 	/* If txn defined, don't display all channel info */
 	if (src->verbosity == STRM_VERB_SIMPLE || txn) {
-		chunk_appendf(&trace_buf, " req=(%p .fl=0x%08x .exp(r,w,a)=(%u,%u,%u))",
-			      req, req->flags, req->rex, req->wex, req->analyse_exp);
-		chunk_appendf(&trace_buf, " res=(%p .fl=0x%08x .exp(r,w,a)=(%u,%u,%u))",
-			      res, res->flags, res->rex, res->wex, res->analyse_exp);
+		chunk_appendf(&trace_buf, " req=(%p .fl=0x%08x .exp=,%u)",
+			      req, req->flags, req->analyse_exp);
+		chunk_appendf(&trace_buf, " res=(%p .fl=0x%08x .exp=%u)",
+			      res, res->flags, res->analyse_exp);
 	}
 	else {
-		chunk_appendf(&trace_buf, " req=(%p .fl=0x%08x .ana=0x%08x .exp(r,w,a)=(%u,%u,%u) .o=%lu .tot=%llu .to_fwd=%u)",
-			      req, req->flags, req->analysers, req->rex, req->wex, req->analyse_exp,
+		chunk_appendf(&trace_buf, " req=(%p .fl=0x%08x .ana=0x%08x .exp=%u .o=%lu .tot=%llu .to_fwd=%u)",
+			      req, req->flags, req->analysers, req->analyse_exp,
 			      (long)req->output, req->total, req->to_forward);
-		chunk_appendf(&trace_buf, " res=(%p .fl=0x%08x .ana=0x%08x .exp(r,w,a)=(%u,%u,%u) .o=%lu .tot=%llu .to_fwd=%u)",
-			      res, res->flags, res->analysers, res->rex, res->wex, res->analyse_exp,
+		chunk_appendf(&trace_buf, " res=(%p .fl=0x%08x .ana=0x%08x .exp=%u .o=%lu .tot=%llu .to_fwd=%u)",
+			      res, res->flags, res->analysers, res->analyse_exp,
 			      (long)res->output, res->total, res->to_forward);
 	}
 
@@ -519,8 +520,6 @@ struct stream *stream_new(struct session *sess, struct stconn *sc, struct buffer
 
 	s->scf->rto = sess->fe->timeout.client;
 	s->scf->wto = sess->fe->timeout.client;
-	s->req.rex = TICK_ETERNITY;
-	s->req.wex = TICK_ETERNITY;
 	s->req.analyse_exp = TICK_ETERNITY;
 
 	channel_init(&s->res);
@@ -534,8 +533,6 @@ struct stream *stream_new(struct session *sess, struct stconn *sc, struct buffer
 
 	s->scb->wto = TICK_ETERNITY;
 	s->scb->rto = TICK_ETERNITY;
-	s->res.rex = TICK_ETERNITY;
-	s->res.wex = TICK_ETERNITY;
 	s->res.analyse_exp = TICK_ETERNITY;
 
 	s->txn = NULL;
@@ -854,7 +851,7 @@ void stream_retnclose(struct stream *s, const struct buffer *msg)
 	if (likely(msg && msg->data))
 		co_inject(oc, msg->area, msg->data);
 
-	oc->wex = tick_add_ifset(now_ms, s->scf->wto);
+	sc_ep_set_wex(s->scf, s->scf->wto);
 	channel_auto_read(oc);
 	channel_auto_close(oc);
 	channel_shutr_now(oc);
@@ -950,7 +947,7 @@ static void back_establish(struct stream *s)
 		 */
 		sc_chk_rcv(s->scb);
 	}
-	req->wex = TICK_ETERNITY;
+	sc_ep_reset_wex(s->scf);
 	/* If we managed to get the whole response, and we don't have anything
 	 * left to send, or can't, switch to SC_ST_DIS now. */
 	if (rep->flags & (CF_SHUTR | CF_SHUTW)) {
@@ -2434,10 +2431,10 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 			if ((res->flags & CF_SHUTW) && tick_isset(sess->fe->timeout.clientfin))
 				scf->rto = sess->fe->timeout.clientfin;
 
-			req->rex = tick_add(now_ms, scf->rto);
-			req->wex = tick_add(now_ms, scb->wto);
-			res->rex = tick_add(now_ms, scb->rto);
-			res->wex = tick_add(now_ms, scf->wto);
+			sc_ep_set_rex(scf, scf->rto);
+			sc_ep_set_wex(scf, scb->wto);
+			sc_ep_set_rex(scb, scb->rto);
+			sc_ep_set_wex(scb, scf->wto);
 		}
 	}
 
@@ -2526,8 +2523,8 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	update_exp_and_leave:
 		/* Note: please ensure that if you branch here you disable SC_FL_DONT_WAKE */
 		t->expire = tick_first((tick_is_expired(t->expire, now_ms) ? 0 : t->expire),
-				       tick_first(tick_first(req->rex, req->wex),
-						  tick_first(res->rex, res->wex)));
+				       tick_first(tick_first(sc_ep_rex(scf), sc_ep_wex(scf)),
+						  tick_first(sc_ep_rex(scb), sc_ep_wex(scb))));
 		if (!req->analysers)
 			req->analyse_exp = TICK_ETERNITY;
 
@@ -3353,10 +3350,14 @@ static int stats_dump_full_strm_to_buffer(struct stconn *sc, struct stream *strm
 			      strm->txn->req.flags, strm->txn->rsp.flags);
 
 		scf = strm->scf;
-		chunk_appendf(&trash, "  scf=%p flags=0x%08x state=%s endp=%s,%p,0x%08x sub=%d\n",
+		chunk_appendf(&trash, "  scf=%p flags=0x%08x state=%s endp=%s,%p,0x%08x sub=%d",
 			      scf, scf->flags, sc_state_str(scf->state),
 			      (sc_ep_test(scf, SE_FL_T_MUX) ? "CONN" : (sc_ep_test(scf, SE_FL_T_APPLET) ? "APPCTX" : "NONE")),
 			      scf->sedesc->se, sc_ep_get(scf), scf->wait_event.events);
+		chunk_appendf(&trash, " rex=%s",
+			      sc_ep_rex(scf) ? human_time(TICKS_TO_MS(sc_ep_rex(scf) - now_ms), TICKS_TO_MS(1000)) : "<NEVER>");
+		chunk_appendf(&trash, " wex=%s\n",
+			      sc_ep_wex(scf) ? human_time(TICKS_TO_MS(sc_ep_wex(scf) - now_ms), TICKS_TO_MS(1000)) : "<NEVER>");
 
 		if ((conn = sc_conn(scf)) != NULL) {
 			if (conn->mux && conn->mux->show_sd) {
@@ -3395,10 +3396,14 @@ static int stats_dump_full_strm_to_buffer(struct stconn *sc, struct stream *strm
 		}
 
 		scb = strm->scb;
-		chunk_appendf(&trash, "  scb=%p flags=0x%08x state=%s endp=%s,%p,0x%08x sub=%d\n",
+		chunk_appendf(&trash, "  scb=%p flags=0x%08x state=%s endp=%s,%p,0x%08x sub=%d",
 			      scb, scb->flags, sc_state_str(scb->state),
 			      (sc_ep_test(scb, SE_FL_T_MUX) ? "CONN" : (sc_ep_test(scb, SE_FL_T_APPLET) ? "APPCTX" : "NONE")),
 			      scb->sedesc->se, sc_ep_get(scb), scb->wait_event.events);
+		chunk_appendf(&trash, " rex=%s",
+			      sc_ep_rex(scb) ? human_time(TICKS_TO_MS(sc_ep_rex(scb) - now_ms), TICKS_TO_MS(1000)) : "<NEVER>");
+		chunk_appendf(&trash, " wex=%s\n",
+			      sc_ep_wex(scb) ? human_time(TICKS_TO_MS(sc_ep_wex(scb) - now_ms), TICKS_TO_MS(1000)) : "<NEVER>");
 
 		if ((conn = sc_conn(scb)) != NULL) {
 			if (conn->mux && conn->mux->show_sd) {
@@ -3438,29 +3443,16 @@ static int stats_dump_full_strm_to_buffer(struct stconn *sc, struct stream *strm
 
 		chunk_appendf(&trash,
 			     "  req=%p (f=0x%06x an=0x%x pipe=%d tofwd=%d total=%lld)\n"
-			     "      an_exp=%s",
+			     "      an_exp=%s buf=%p data=%p o=%u p=%u i=%u size=%u\n",
 			     &strm->req,
 			     strm->req.flags, strm->req.analysers,
 			     strm->req.pipe ? strm->req.pipe->data : 0,
 			     strm->req.to_forward, strm->req.total,
 			     strm->req.analyse_exp ?
 			     human_time(TICKS_TO_MS(strm->req.analyse_exp - now_ms),
-					TICKS_TO_MS(1000)) : "<NEVER>");
-
-		chunk_appendf(&trash,
-			     " rex=%s",
-			     strm->req.rex ?
-			     human_time(TICKS_TO_MS(strm->req.rex - now_ms),
-					TICKS_TO_MS(1000)) : "<NEVER>");
-
-		chunk_appendf(&trash,
-			     " wex=%s\n"
-			     "      buf=%p data=%p o=%u p=%u i=%u size=%u\n",
-			     strm->req.wex ?
-			     human_time(TICKS_TO_MS(strm->req.wex - now_ms),
 					TICKS_TO_MS(1000)) : "<NEVER>",
 			     &strm->req.buf,
-		             b_orig(&strm->req.buf), (unsigned int)co_data(&strm->req),
+			     b_orig(&strm->req.buf), (unsigned int)co_data(&strm->req),
 			     (unsigned int)ci_head_ofs(&strm->req), (unsigned int)ci_data(&strm->req),
 			     (unsigned int)strm->req.buf.size);
 
@@ -3482,26 +3474,13 @@ static int stats_dump_full_strm_to_buffer(struct stconn *sc, struct stream *strm
 
 		chunk_appendf(&trash,
 			     "  res=%p (f=0x%06x an=0x%x pipe=%d tofwd=%d total=%lld)\n"
-			     "      an_exp=%s",
+			     "      an_exp=%s buf=%p data=%p o=%u p=%u i=%u size=%u\n",
 			     &strm->res,
 			     strm->res.flags, strm->res.analysers,
 			     strm->res.pipe ? strm->res.pipe->data : 0,
 			     strm->res.to_forward, strm->res.total,
 			     strm->res.analyse_exp ?
 			     human_time(TICKS_TO_MS(strm->res.analyse_exp - now_ms),
-					TICKS_TO_MS(1000)) : "<NEVER>");
-
-		chunk_appendf(&trash,
-			     " rex=%s",
-			     strm->res.rex ?
-			     human_time(TICKS_TO_MS(strm->res.rex - now_ms),
-					TICKS_TO_MS(1000)) : "<NEVER>");
-
-		chunk_appendf(&trash,
-			     " wex=%s\n"
-			     "      buf=%p data=%p o=%u p=%u i=%u size=%u\n",
-			     strm->res.wex ?
-			     human_time(TICKS_TO_MS(strm->res.wex - now_ms),
 					TICKS_TO_MS(1000)) : "<NEVER>",
 			     &strm->res.buf,
 		             b_orig(&strm->res.buf), (unsigned int)co_data(&strm->res),
@@ -3692,19 +3671,10 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 		             (unsigned long long)curr_strm->cpu_time, (unsigned long long)curr_strm->lat_time);
 
 		chunk_appendf(&trash,
-			     " rq[f=%06xh,i=%u,an=%02xh,rx=%s",
+			     " rq[f=%06xh,i=%u,an=%02xh",
 			     curr_strm->req.flags,
 		             (unsigned int)ci_data(&curr_strm->req),
-			     curr_strm->req.analysers,
-			     curr_strm->req.rex ?
-			     human_time(TICKS_TO_MS(curr_strm->req.rex - now_ms),
-					TICKS_TO_MS(1000)) : "");
-
-		chunk_appendf(&trash,
-			     ",wx=%s",
-			     curr_strm->req.wex ?
-			     human_time(TICKS_TO_MS(curr_strm->req.wex - now_ms),
-					TICKS_TO_MS(1000)) : "");
+			     curr_strm->req.analysers);
 
 		chunk_appendf(&trash,
 			     ",ax=%s]",
@@ -3713,20 +3683,10 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 					TICKS_TO_MS(1000)) : "");
 
 		chunk_appendf(&trash,
-			     " rp[f=%06xh,i=%u,an=%02xh,rx=%s",
+			     " rp[f=%06xh,i=%u,an=%02xh",
 			     curr_strm->res.flags,
 		             (unsigned int)ci_data(&curr_strm->res),
-			     curr_strm->res.analysers,
-			     curr_strm->res.rex ?
-			     human_time(TICKS_TO_MS(curr_strm->res.rex - now_ms),
-					TICKS_TO_MS(1000)) : "");
-
-		chunk_appendf(&trash,
-			     ",wx=%s",
-			     curr_strm->res.wex ?
-			     human_time(TICKS_TO_MS(curr_strm->res.wex - now_ms),
-					TICKS_TO_MS(1000)) : "");
-
+			     curr_strm->res.analysers);
 		chunk_appendf(&trash,
 			     ",ax=%s]",
 			     curr_strm->res.analyse_exp ?
@@ -3734,18 +3694,28 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 					TICKS_TO_MS(1000)) : "");
 
 		conn = sc_conn(curr_strm->scf);
-		chunk_appendf(&trash,
-			     " scf=[%d,%1xh,fd=%d]",
-			      curr_strm->scf->state,
-			     curr_strm->scf->flags,
-			     conn_fd(conn));
+		chunk_appendf(&trash," scf=[%d,%1xh,fd=%d",
+			      curr_strm->scf->state, curr_strm->scf->flags, conn_fd(conn));
+		chunk_appendf(&trash, ",rex=%s",
+			      sc_ep_rex(curr_strm->scf) ?
+			      human_time(TICKS_TO_MS(sc_ep_rex(curr_strm->scf) - now_ms),
+					 TICKS_TO_MS(1000)) : "");
+		chunk_appendf(&trash,",wex=%s]",
+			      sc_ep_wex(curr_strm->scf) ?
+			      human_time(TICKS_TO_MS(sc_ep_wex(curr_strm->scf) - now_ms),
+					 TICKS_TO_MS(1000)) : "");
 
 		conn = sc_conn(curr_strm->scb);
-		chunk_appendf(&trash,
-			     " scb=[%d,%1xh,fd=%d]",
-			      curr_strm->scb->state,
-			     curr_strm->scb->flags,
-			     conn_fd(conn));
+		chunk_appendf(&trash, " scb=[%d,%1xh,fd=%d",
+			      curr_strm->scb->state, curr_strm->scb->flags, conn_fd(conn));
+		chunk_appendf(&trash, ",rex=%s",
+			      sc_ep_rex(curr_strm->scb) ?
+			      human_time(TICKS_TO_MS(sc_ep_rex(curr_strm->scb) - now_ms),
+					 TICKS_TO_MS(1000)) : "");
+		chunk_appendf(&trash, ",wex=%s]",
+			      sc_ep_wex(curr_strm->scb) ?
+			      human_time(TICKS_TO_MS(sc_ep_wex(curr_strm->scb) - now_ms),
+					 TICKS_TO_MS(1000)) : "");
 
 		chunk_appendf(&trash,
 			     " exp=%s rc=%d c_exp=%s",

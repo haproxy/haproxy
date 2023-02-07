@@ -199,6 +199,8 @@ struct stconn;
  * <se>     is the stream endpoint, i.e. the mux stream or the appctx
  * <conn>   is the connection for connection-based streams
  * <sc>     is the stream connector we're attached to, or NULL
+ * <rex>    is the expiration date for a read, in ticks
+ * <wex>    is the expiration date for a write or connect, in ticks
  * <flags>  SE_FL_*
 */
 struct sedesc {
@@ -206,6 +208,8 @@ struct sedesc {
 	struct connection *conn;
 	struct stconn *sc;
 	unsigned int flags;
+	int rex;
+	int wex;
 };
 
 /* sc_app_ops describes the application layer's operations and notification

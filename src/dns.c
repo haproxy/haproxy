@@ -839,7 +839,7 @@ static int dns_session_init(struct appctx *appctx)
 	 * We are using a syslog server.
 	 */
 	s->scb->rto = TICK_ETERNITY;
-	s->res.rex = TICK_ETERNITY;
+	sc_ep_reset_rex(s->scb);
 
 	ds->appctx = appctx;
 	return 0;

@@ -760,8 +760,9 @@ static int debug_parse_cli_stream(char **args, char *payload, struct appctx *app
 	if (!*args[3]) {
 		return cli_err(appctx,
 			       "Usage: debug dev stream { <obj> <op> <value> | wake }*\n"
-			       "     <obj>   = {strm | strm.f | strm.x | scf.s | scb.s |\n"
-			       "                txn.f | req.f | req.r | req.w | res.f | res.r | res.w}\n"
+			       "     <obj>   = {strm | strm.f | strm.x |\n"
+			       "                scf.s | scf.r | scf.w | scb.s | scb.r | scb.w |\n"
+			       "                txn.f | req.f | res.f}\n"
 			       "     <op>    = {'' (show) | '=' (assign) | '^' (xor) | '+' (or) | '-' (andnot)}\n"
 			       "     <value> = 'now' | 64-bit dec/hex integer (0x prefix supported)\n"
 			       "     'wake' wakes the stream asssigned to 'strm' (default: current)\n"
@@ -787,18 +788,18 @@ static int debug_parse_cli_stream(char **args, char *payload, struct appctx *app
 			ptr = (!s || !may_access(s)) ? NULL : &s->req.flags; size = sizeof(s->req.flags);
 		} else if (isteq(name, ist("res.f"))) {
 			ptr = (!s || !may_access(s)) ? NULL : &s->res.flags; size = sizeof(s->res.flags);
-		} else if (isteq(name, ist("req.r"))) {
-			ptr = (!s || !may_access(s)) ? NULL : &s->req.rex; size = sizeof(s->req.rex);
-		} else if (isteq(name, ist("res.r"))) {
-			ptr = (!s || !may_access(s)) ? NULL : &s->res.rex; size = sizeof(s->res.rex);
-		} else if (isteq(name, ist("req.w"))) {
-			ptr = (!s || !may_access(s)) ? NULL : &s->req.wex; size = sizeof(s->req.wex);
-		} else if (isteq(name, ist("res.w"))) {
-			ptr = (!s || !may_access(s)) ? NULL : &s->res.wex; size = sizeof(s->res.wex);
 		} else if (isteq(name, ist("scf.s"))) {
 			ptr = (!s || !may_access(s)) ? NULL : &s->scf->state; size = sizeof(s->scf->state);
+		} else if (isteq(name, ist("scf.r"))) {
+			ptr = (!s || !may_access(s)) ? NULL : &s->scf->sedesc->rex; size = sizeof(s->scf->sedesc->rex);
+		} else if (isteq(name, ist("scf.w"))) {
+			ptr = (!s || !may_access(s)) ? NULL : &s->scf->sedesc->wex; size = sizeof(s->scf->sedesc->wex);
 		} else if (isteq(name, ist("scb.s"))) {
 			ptr = (!s || !may_access(s)) ? NULL : &s->scf->state; size = sizeof(s->scb->state);
+		} else if (isteq(name, ist("scb.r"))) {
+			ptr = (!s || !may_access(s)) ? NULL : &s->scb->sedesc->rex; size = sizeof(s->scb->sedesc->rex);
+		} else if (isteq(name, ist("scb.w"))) {
+			ptr = (!s || !may_access(s)) ? NULL : &s->scb->sedesc->wex; size = sizeof(s->scb->sedesc->wex);
 		} else if (isteq(name, ist("wake"))) {
 			if (s && may_access(s) && may_access((void *)s + sizeof(*s) - 1))
 				task_wakeup(s->task, TASK_WOKEN_TIMER|TASK_WOKEN_IO|TASK_WOKEN_MSG);

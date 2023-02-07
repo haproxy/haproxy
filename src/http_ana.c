@@ -1141,7 +1141,6 @@ static __inline int do_l7_retry(struct stream *s, struct stconn *sc)
 	s->flags &= ~(SF_CONN_EXP | SF_ERR_MASK | SF_FINST_MASK);
 	s->conn_exp = TICK_ETERNITY;
 	stream_choose_redispatch(s);
-	res->rex = TICK_ETERNITY;
 	res->to_forward = 0;
 	res->analyse_exp = TICK_ETERNITY;
 	res->total = 0;
@@ -4439,7 +4438,7 @@ int http_forward_proxy_resp(struct stream *s, int final)
 		channel_auto_close(req);
 		channel_htx_erase(req, htxbuf(&req->buf));
 
-		res->wex = tick_add_ifset(now_ms, s->scf->wto);
+		sc_ep_set_wex(s->scb, s->scf->wto);
 		channel_auto_read(res);
 		channel_auto_close(res);
 		channel_shutr_now(res);
@@ -4493,7 +4492,7 @@ void http_reply_and_close(struct stream *s, short status, struct http_reply *msg
 	}
 
 end:
-	s->res.wex = tick_add_ifset(now_ms, s->scf->wto);
+	sc_ep_set_wex(s->scb, s->scf->wto);
 
 	/* At this staged, HTTP analysis is finished */
 	s->req.analysers &= AN_REQ_FLT_END;

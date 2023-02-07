@@ -326,7 +326,7 @@ static void sink_forward_io_handler(struct appctx *appctx)
 	 * and we don't want expire on this case
 	 * with a syslog server
 	 */
-	sc_oc(sc)->rex = TICK_ETERNITY;
+	sc_ep_reset_rex(sc_opposite(sc));
 	/* rto should not change but it seems the case */
 	sc_opposite(sc)->rto = TICK_ETERNITY;
 
@@ -474,7 +474,7 @@ static void sink_forward_oc_io_handler(struct appctx *appctx)
 	 * and we don't want expire on this case
 	 * with a syslog server
 	 */
-	sc_oc(sc)->rex = TICK_ETERNITY;
+	sc_ep_reset_rex(sc_opposite(sc));
 	/* rto should not change but it seems the case */
 	sc_opposite(sc)->rto = TICK_ETERNITY;
 
@@ -636,7 +636,7 @@ static int sink_forward_session_init(struct appctx *appctx)
 	 * We are using a syslog server.
 	 */
 	s->scb->rto = TICK_ETERNITY;
-	s->res.rex = TICK_ETERNITY;
+	sc_ep_reset_rex(s->scb);
 	sft->appctx = appctx;
 
 	return 0;
