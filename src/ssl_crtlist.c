@@ -403,6 +403,11 @@ int crtlist_parse_line(char *line, char **crt_path, struct crtlist_entry *entry,
 	*crt_path = args[0];
 
 	if (ssl_b) {
+		if (ssl_b > 1) {
+			memprintf(err, "parsing [%s:%d]: malformated line, filters can't be between filename and options!", file, linenum);
+			cfgerr |= ERR_WARN;
+		}
+
 		ssl_conf = calloc(1, sizeof *ssl_conf);
 		if (!ssl_conf) {
 			memprintf(err, "not enough memory!");
