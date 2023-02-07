@@ -202,6 +202,10 @@
 #define TV_ETERNITY_MS  (-1)
 #endif
 
+/* delay between boot and first time wrap, in seconds */
+#ifndef BOOT_TIME_WRAP_SEC
+#define BOOT_TIME_WRAP_SEC 20
+#endif
 /* we want to be able to detect time jumps. Fix the maximum wait time to a low
  * value so that we know the time has changed if we wait longer.
  */

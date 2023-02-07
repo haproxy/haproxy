@@ -267,6 +267,16 @@ void clock_init_process_date(void)
 	now = after_poll = before_poll = date;
 	global_now = ((ullong)date.tv_sec << 32) + (uint)date.tv_usec;
 	global_now_ms = now.tv_sec * 1000 + now.tv_usec / 1000;
+
+	/* force time to wrap 20s after boot: we first compute the time offset
+	 * that once applied to the wall-clock date will make the local time
+	 * wrap in 5 seconds. This offset is applied to the process-wide time,
+	 * and will be used to recompute the local time, both of which will
+	 * match and continue from this shifted date.
+	 */
+	now_offset = (uint64_t)(-(global_now_ms / 1000U) - BOOT_TIME_WRAP_SEC) << 32;
+	global_now += now_offset;
+
 	th_ctx->idle_pct = 100;
 	clock_update_date(0, 1);
 }
