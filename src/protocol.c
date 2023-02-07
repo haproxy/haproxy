@@ -99,8 +99,10 @@ int protocol_bind_all(int verbose)
 					ha_warning("Binding [%s:%d] for %s %s: %s\n",
 					           listener->bind_conf->file, listener->bind_conf->line,
 						   proxy_type_str(px), px->id, errmsg);
-				ha_free(&errmsg);
 			}
+			if (lerr != ERR_NONE)
+				ha_free(&errmsg);
+
 			if (lerr & ERR_ABORT)
 				break;
 
