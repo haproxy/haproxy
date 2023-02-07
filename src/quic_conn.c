@@ -2697,24 +2697,33 @@ static void qc_cc_err_count_inc(struct quic_conn *qc, struct quic_frame *frm)
 	TRACE_LEAVE(QUIC_EV_CONN_CLOSE, qc);
 }
 
-/* Enqueue a STOP_SENDING frame to send into 1RTT packet number space
- * frame list to send.
- * Return 1 if succeeded, 0 if not.
+/* Cancel a request on connection <qc> for stream id <id>. This is useful when
+ * the client opens a new stream but the MUX has already been released. A
+ * STOP_SENDING frame is prepared for emission.
+ *
+ * TODO this function is closely related to H3. Its place should be in H3 layer
+ * instead of quic-conn but this requires an architecture adjustment.
+ *
+ * Returns 1 on sucess else 0.
  */
-static int qc_stop_sending_frm_enqueue(struct quic_conn *qc, uint64_t id)
+static int qc_h3_request_reject(struct quic_conn *qc, uint64_t id)
 {
 	int ret = 0;
 	struct quic_frame *frm;
 	struct quic_enc_level *qel = &qc->els[QUIC_TLS_ENC_LEVEL_APP];
-	uint64_t app_error_code;
+	const uint64_t app_error_code = H3_REQUEST_REJECTED;
 
 	TRACE_ENTER(QUIC_EV_CONN_PRSHPKT, qc);
 
-	/* TODO: the mux may be released, we cannot have more
-	 * information about the application error code to send
-	 * at this time.
+	/* Do not emit rejection for unknown unidirectional stream as it is
+	 * forbidden to close some of them (H3 control stream and QPACK
+	 * encoder/decoder streams).
 	 */
-	app_error_code = H3_REQUEST_REJECTED;
+	if (quic_stream_is_uni(id)) {
+		ret = 1;
+		goto out;
+	}
+
 	frm = qc_frm_alloc(QUIC_FT_STOP_SENDING);
 	if (!frm) {
 		TRACE_ERROR("failed to allocate quic_frame", QUIC_EV_CONN_PRSHPKT, qc);
@@ -2935,19 +2944,10 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 				}
 				else {
 					TRACE_DEVEL("No mux for new stream", QUIC_EV_CONN_PRSHPKT, qc);
-					if (qc->app_ops == &h3_ops && quic_stream_is_uni(stream->id)) {
-						/* Do not send STOP_SENDING frames for h3 unidirectional streams.
-						 * TODO: this test should be removed when the connection closure
-						 * will be more clean.
-						 * At quic_conn level there is no mean to know that an application
-						 * want to forbid stream closure requests to receivers. This is the
-						 * case for the Control and QPACK h3 unidirectional streams.
-						 */
-						goto leave;
+					if (qc->app_ops == &h3_ops) {
+						if (!qc_h3_request_reject(qc, stream->id))
+							TRACE_ERROR("could not enqueue STOP_SENDING frame", QUIC_EV_CONN_PRSHPKT, qc);
 					}
-
-					if (!qc_stop_sending_frm_enqueue(qc, stream->id))
-						TRACE_ERROR("could not enqueue STOP_SENDING frame", QUIC_EV_CONN_PRSHPKT, qc);
 					/* This packet will not be acknowledged */
 					goto leave;
 				}
