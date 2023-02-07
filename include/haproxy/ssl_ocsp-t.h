@@ -27,6 +27,7 @@
 
 #include <haproxy/buf-t.h>
 #include <haproxy/openssl-compat.h>
+#include <haproxy/ssl_sock-t.h>
 
 #ifndef OPENSSL_NO_OCSP
 extern int ocsp_ex_index;
