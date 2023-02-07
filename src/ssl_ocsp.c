@@ -1668,6 +1668,20 @@ yield:
 #endif
 }
 
+/* Check if the ckch_store and the entry does have the same configuration */
+int ocsp_update_check_cfg_consistency(struct ckch_store *store, struct crtlist_entry *entry, char *crt_path, char **err)
+{
+	int err_code = ERR_NONE;
+
+	if (store->data->ocsp_update_mode != SSL_SOCK_OCSP_UPDATE_DFLT || entry->ssl_conf) {
+		if ((!entry->ssl_conf && store->data->ocsp_update_mode == SSL_SOCK_OCSP_UPDATE_ON)
+		    || (entry->ssl_conf && store->data->ocsp_update_mode != entry->ssl_conf->ocsp_update)) {
+			memprintf(err, "%sIncompatibilities found in OCSP update mode for certificate %s\n", err && *err ? *err : "", crt_path);
+			err_code |= ERR_ALERT | ERR_FATAL;
+		}
+	}
+	return err_code;
+}
 
 static struct cli_kw_list cli_kws = {{ },{
 	{ { "set", "ssl", "ocsp-response", NULL }, "set ssl ocsp-response <resp|payload>    : update a certificate's OCSP Response from a base64-encode DER",      cli_parse_set_ocspresponse, NULL },
