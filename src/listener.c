@@ -527,7 +527,7 @@ int suspend_listener(struct listener *l, int lpx, int lli)
 	 */
 	ret = 1;
 
-	if (px && !px->li_ready) {
+	if (px && !(px->flags & PR_FL_PAUSED) && !px->li_ready) {
 		/* PROXY_LOCK is required */
 		proxy_cond_pause(px);
 		ha_warning("Paused %s %s.\n", proxy_cap_str(px->cap), px->id);
@@ -560,7 +560,6 @@ int suspend_listener(struct listener *l, int lpx, int lli)
 int resume_listener(struct listener *l, int lpx, int lli)
 {
 	struct proxy *px = l->bind_conf->frontend;
-	int was_paused = px && px->li_paused;
 	int ret = 1;
 
 	if (!lpx && px)
@@ -598,7 +597,7 @@ int resume_listener(struct listener *l, int lpx, int lli)
 		px->li_suspended--;
 	l->flags &= ~LI_F_SUSPENDED;
 
-	if (was_paused && !px->li_paused) {
+	if (px && (px->flags & PR_FL_PAUSED) && !px->li_suspended) {
 		/* PROXY_LOCK is required */
 		proxy_cond_resume(px);
 		ha_warning("Resumed %s %s.\n", proxy_cap_str(px->cap), px->id);
