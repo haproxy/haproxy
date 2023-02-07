@@ -257,7 +257,18 @@ int __stktable_trash_oldest(struct stktable *t, int to_batch)
 			ts->exp.key = ts->expire;
 			eb32_insert(&t->exps, &ts->exp);
 
-			if (!eb || eb->key > ts->exp.key)
+			/* the update might have jumped beyond the next element,
+			 * possibly causing a wrapping. We need to check whether
+			 * the next element should be used instead. If the next
+			 * element doesn't exist it means we're on the right
+			 * side and have to check the first one then. If it
+			 * exists and is closer, we must use it, otherwise we
+			 * use the current one.
+			 */
+			if (!eb)
+				eb = eb32_first(&t->exps);
+
+			if (!eb || tick_is_lt(ts->exp.key, eb->key))
 				eb = &ts->exp;
 
 			continue;
@@ -699,7 +710,18 @@ struct task *process_table_expire(struct task *task, void *context, unsigned int
 			ts->exp.key = ts->expire;
 			eb32_insert(&t->exps, &ts->exp);
 
-			if (!eb || eb->key > ts->exp.key)
+			/* the update might have jumped beyond the next element,
+			 * possibly causing a wrapping. We need to check whether
+			 * the next element should be used instead. If the next
+			 * element doesn't exist it means we're on the right
+			 * side and have to check the first one then. If it
+			 * exists and is closer, we must use it, otherwise we
+			 * use the current one.
+			 */
+			if (!eb)
+				eb = eb32_first(&t->exps);
+
+			if (!eb || tick_is_lt(ts->exp.key, eb->key))
 				eb = &ts->exp;
 			continue;
 		}
