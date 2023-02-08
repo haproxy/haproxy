@@ -4466,20 +4466,6 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 		qc_dgrams_retransmit(qc);
 	}
 
-	if (qc->flags & QUIC_FL_CONN_IO_CB_WAKEUP) {
-		qc->flags &= ~QUIC_FL_CONN_IO_CB_WAKEUP;
-		TRACE_DEVEL("needs to wakeup the timer task after the anti-amplicaiton limit was reached",
-		            QUIC_EV_CONN_IO_CB, qc);
-		/* The I/O handler has been woken up by the dgram parser (qc_lstnr_pkt_rcv())
-		 * after the anti-amplification was reached.
-		 *
-		 * TODO: this part should be removed. This was there because the
-		 * datagram parser was not executed by only one thread.
-		 */
-		qc_set_timer(qc);
-		if (qc->timer_task && tick_isset(qc->timer) && tick_is_lt(qc->timer, now_ms))
-			task_wakeup(qc->timer_task, TASK_WOKEN_MSG);
-	}
 	ssl_err = SSL_ERROR_NONE;
 	zero_rtt = st < QUIC_HS_ST_COMPLETE &&
 		quic_tls_has_rx_sec(eqel) &&
@@ -6544,7 +6530,6 @@ static void qc_rx_pkt_handle(struct quic_conn *qc, struct quic_rx_packet *pkt,
 		 * when sending the next packet if reached again.
 		 */
 		qc->flags &= ~QUIC_FL_CONN_ANTI_AMPLIFICATION_REACHED;
-		qc->flags |= QUIC_FL_CONN_IO_CB_WAKEUP;
 		io_cb_wakeup = 1;
 	}
 
@@ -6601,11 +6586,13 @@ static void qc_rx_pkt_handle(struct quic_conn *qc, struct quic_rx_packet *pkt,
  drop:
 	HA_ATOMIC_INC(&qc->prx_counters->dropped_pkt);
  err:
-	/* Wakeup the I/O handler callback if the PTO timer must be armed.
-	 * This cannot be done by this thread.
-	 */
-	if (io_cb_wakeup)
-		tasklet_wakeup(qc->wait_event.tasklet);
+	if (io_cb_wakeup) {
+		TRACE_DEVEL("needs to wakeup the timer task after the amplification limit was reached",
+		            QUIC_EV_CONN_LPKT, qc);
+		qc_set_timer(qc);
+		if (qc->timer_task && tick_isset(qc->timer) && tick_is_lt(qc->timer, now_ms))
+			task_wakeup(qc->timer_task, TASK_WOKEN_MSG);
+	}
 
 	TRACE_LEAVE(QUIC_EV_CONN_LPKT, qc ? qc : NULL, pkt, NULL, qv);
 }
