@@ -4830,6 +4830,9 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 		goto out;
 	}
 
+	/* ensure minconn/maxconn consistency */
+	srv_minmax_conn_apply(srv);
+
 	if (srv->use_ssl == 1 || (srv->proxy->options & PR_O_TCPCHK_SSL) ||
 	    srv->check.use_ssl == 1) {
 		if (xprt_get(XPRT_SSL) && xprt_get(XPRT_SSL)->prepare_srv) {
