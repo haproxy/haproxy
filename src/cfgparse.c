@@ -3818,16 +3818,7 @@ out_uri_auth_compat:
 		while (newsrv != NULL) {
 			set_usermsgs_ctx(newsrv->conf.file, newsrv->conf.line, &newsrv->obj_type);
 
-			if (newsrv->minconn > newsrv->maxconn) {
-				/* Only 'minconn' was specified, or it was higher than or equal
-				 * to 'maxconn'. Let's turn this into maxconn and clean it, as
-				 * this will avoid further useless expensive computations.
-				 */
-				newsrv->maxconn = newsrv->minconn;
-			} else if (newsrv->maxconn && !newsrv->minconn) {
-				/* minconn was not specified, so we set it to maxconn */
-				newsrv->minconn = newsrv->maxconn;
-			}
+			srv_minmax_conn_apply(newsrv);
 
 			/* this will also properly set the transport layer for
 			 * prod and checks

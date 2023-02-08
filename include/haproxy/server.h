@@ -281,6 +281,26 @@ static inline void srv_use_conn(struct server *srv, struct connection *conn)
 		HA_ATOMIC_STORE(&srv->est_need_conns, curr);
 }
 
+/* checks if minconn and maxconn are consistent to each other
+ * and automatically adjust them if it is not the case
+ * This logic was historically implemented in check_config_validity()
+ * at boot time, but with the introduction of dynamic servers
+ * this may be used at multiple places in the code now
+ */
+static inline void srv_minmax_conn_apply(struct server *srv)
+{
+	if (srv->minconn > srv->maxconn) {
+		/* Only 'minconn' was specified, or it was higher than or equal
+		 * to 'maxconn'. Let's turn this into maxconn and clean it, as
+		 * this will avoid further useless expensive computations.
+		 */
+		srv->maxconn = srv->minconn;
+	} else if (srv->maxconn && !srv->minconn) {
+		/* minconn was not specified, so we set it to maxconn */
+		srv->minconn = srv->maxconn;
+	}
+}
+
 #endif /* _HAPROXY_SERVER_H */
 
 /*
