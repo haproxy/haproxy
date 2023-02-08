@@ -494,6 +494,30 @@ struct appctx *sc_applet_create(struct stconn *sc, struct applet *app)
 	return appctx;
 }
 
+/* Conditionnaly forward the close to the wirte side. It return 1 if it can be
+ * forwarded. It is the caller responsibility to forward the close to the write
+ * side. Otherwise, 0 is returned. In this case, CF_SHUTW_NOW flag may be set on
+ * the channel if we are only waiting for the outgoing data to be flushed.
+ */
+static inline int sc_cond_forward_shutw(struct stconn *sc)
+{
+	/* The close must not be forwarded */
+	if (!(sc_ic(sc)->flags & CF_SHUTR) || !(sc->flags & SC_FL_NOHALF))
+		return 0;
+
+	if (!channel_is_empty(sc_ic(sc))) {
+		/* the close to the write side cannot be forwarded now because
+		 * we should flush outgoing data first. But instruct the output
+		 * channel it should be done ASAP.
+		 */
+		channel_shutw_now(sc_oc(sc));
+		return 0;
+	}
+
+	/* the close can be immediately forwarded to the write side */
+	return 1;
+}
+
 /*
  * This function performs a shutdown-read on a detached stream connector in a
  * connected or init state (it does nothing for other states). It either shuts
@@ -518,10 +542,8 @@ static void sc_app_shutr(struct stconn *sc)
 		if (sc->flags & SC_FL_ISBACK)
 			__sc_strm(sc)->conn_exp = TICK_ETERNITY;
 	}
-	else if ((sc->flags & SC_FL_NOHALF) && channel_is_empty(ic)) {
-		/* we want to immediately forward this close to the write side */
+	else if (sc_cond_forward_shutw(sc))
 		return sc_app_shutw(sc);
-	}
 
 	/* note that if the task exists, it must unregister itself once it runs */
 	if (!(sc->flags & SC_FL_DONT_WAKE))
@@ -662,10 +684,8 @@ static void sc_app_shutr_conn(struct stconn *sc)
 		if (sc->flags & SC_FL_ISBACK)
 			__sc_strm(sc)->conn_exp = TICK_ETERNITY;
 	}
-	else if ((sc->flags & SC_FL_NOHALF) && channel_is_empty(ic)) {
-		/* we want to immediately forward this close to the write side */
+	else if (sc_cond_forward_shutw(sc))
 		return sc_app_shutw_conn(sc);
-	}
 }
 
 /*
@@ -890,10 +910,8 @@ static void sc_app_shutr_applet(struct stconn *sc)
 		if (sc->flags & SC_FL_ISBACK)
 			__sc_strm(sc)->conn_exp = TICK_ETERNITY;
 	}
-	else if ((sc->flags & SC_FL_NOHALF) && channel_is_empty(ic)) {
-		/* we want to immediately forward this close to the write side */
+	else if (sc_cond_forward_shutw(sc))
 		return sc_app_shutw_applet(sc);
-	}
 }
 
 /*
@@ -1253,7 +1271,7 @@ static void sc_conn_read0(struct stconn *sc)
 	if (oc->flags & CF_SHUTW)
 		goto do_close;
 
-	if ((sc->flags & SC_FL_NOHALF) && channel_is_empty(ic)) {
+	if (sc_cond_forward_shutw(sc)) {
 		/* we want to immediately forward this close to the write side */
 		/* force flag on ssl to keep stream in cache */
 		sc_conn_shutw(sc, CO_SHW_SILENT);
