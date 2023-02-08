@@ -262,22 +262,22 @@ static void qcc_refresh_timeout(struct qcc *qcc)
 	 * it with global close_spread delay applied.
 	 */
 
-	/* TODO implement client/server-fin timeout for graceful shutdown */
-
 	/* Frontend timeout management
+	 * - shutdown done -> timeout client-fin
 	 * - detached streams with data left to send -> default timeout
 	 * - stream waiting on incomplete request or no stream yet activated -> timeout http-request
 	 * - idle after stream processing -> timeout http-keep-alive
 	 */
 	if (!conn_is_back(qcc->conn)) {
-		if (qcc->nb_hreq) {
+		if (qcc->nb_hreq && !(qcc->flags & QC_CF_APP_SHUT)) {
 			TRACE_DEVEL("one or more requests still in progress", QMUX_EV_QCC_WAKE, qcc->conn);
 			qcc->task->expire = tick_add_ifset(now_ms, qcc->timeout);
 			task_queue(qcc->task);
 			goto leave;
 		}
 
-		if (!LIST_ISEMPTY(&qcc->opening_list) || unlikely(!qcc->largest_bidi_r)) {
+		if ((!LIST_ISEMPTY(&qcc->opening_list) || unlikely(!qcc->largest_bidi_r)) &&
+		    !(qcc->flags & QC_CF_APP_SHUT)) {
 			int timeout = px->timeout.httpreq;
 			struct qcs *qcs = NULL;
 			int base_time;
@@ -293,12 +293,18 @@ static void qcc_refresh_timeout(struct qcc *qcc)
 			qcc->task->expire = tick_add_ifset(base_time, timeout);
 		}
 		else {
-			/* Use http-request timeout if keep-alive timeout not set */
-			int timeout = tick_isset(px->timeout.httpka) ?
-			                px->timeout.httpka : px->timeout.httpreq;
-
-			TRACE_DEVEL("at least one request achieved but none currently in progress", QMUX_EV_QCC_WAKE, qcc->conn);
-			qcc->task->expire = tick_add_ifset(qcc->idle_start, timeout);
+			if (qcc->flags & QC_CF_APP_SHUT) {
+				TRACE_DEVEL("connection in closing", QMUX_EV_QCC_WAKE, qcc->conn);
+				qcc->task->expire = tick_add_ifset(now_ms,
+				                                   qcc->shut_timeout);
+			}
+			else {
+				/* Use http-request timeout if keep-alive timeout not set */
+				int timeout = tick_isset(px->timeout.httpka) ?
+				              px->timeout.httpka : px->timeout.httpreq;
+				TRACE_DEVEL("at least one request achieved but none currently in progress", QMUX_EV_QCC_WAKE, qcc->conn);
+				qcc->task->expire = tick_add_ifset(qcc->idle_start, timeout);
+			}
 		}
 	}
 
@@ -2201,8 +2207,17 @@ static int qc_init(struct connection *conn, struct proxy *prx,
 	qcc->proxy = prx;
 	/* haproxy timeouts */
 	qcc->task = NULL;
-	qcc->timeout = conn_is_back(qcc->conn) ? prx->timeout.server :
-	                                         prx->timeout.client;
+	if (conn_is_back(qcc->conn)) {
+		qcc->timeout = prx->timeout.server;
+		qcc->shut_timeout = tick_isset(prx->timeout.serverfin) ?
+		                    prx->timeout.serverfin : prx->timeout.server;
+	}
+	else {
+		qcc->timeout = prx->timeout.client;
+		qcc->shut_timeout = tick_isset(prx->timeout.clientfin) ?
+		                    prx->timeout.clientfin : prx->timeout.client;
+	}
+
 	if (tick_isset(qcc->timeout)) {
 		qcc->task = task_new_here();
 		if (!qcc->task) {

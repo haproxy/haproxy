@@ -105,6 +105,7 @@ struct qcc {
 	struct task *task;
 	struct list opening_list; /* list of not already attached streams (http-request timeout) */
 	int timeout;
+	int shut_timeout;
 	int idle_start; /* base time for http-keep-alive timeout */
 
 	const struct qcc_app_ops *app_ops;
