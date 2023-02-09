@@ -7636,12 +7636,12 @@ static int cli_parse_show_quic(char **args, char *payload, struct appctx *appctx
 	if (!cli_has_level(appctx, ACCESS_LVL_OPER))
 		return 1;
 
-	if (*args[2] && strcmp(args[2], "all") == 0)
-		ctx->flags |= QC_CLI_FL_SHOW_ALL;
-
 	ctx->epoch = _HA_ATOMIC_FETCH_ADD(&qc_epoch, 1);
 	ctx->thr = 0;
 	ctx->flags = 0;
+
+	if (*args[2] && strcmp(args[2], "all") == 0)
+		ctx->flags |= QC_CLI_FL_SHOW_ALL;
 
 	LIST_INIT(&ctx->bref.users);
 
@@ -7706,7 +7706,7 @@ static int cli_io_handler_dump_quic(struct appctx *appctx)
 			continue;
 		}
 
-		if (!ctx->flags & QC_CLI_FL_SHOW_ALL &&
+		if (!(ctx->flags & QC_CLI_FL_SHOW_ALL) &&
 		    qc->flags & (QUIC_FL_CONN_CLOSING|QUIC_FL_CONN_DRAINING)) {
 			ctx->bref.ref = qc->el_th_ctx.n;
 			continue;
