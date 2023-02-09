@@ -1248,7 +1248,7 @@ int hlua_ctx_init(struct hlua *lua, int state_id, struct task *task, int already
 	lua->wake_time = TICK_ETERNITY;
 	lua->state_id = state_id;
 	LIST_INIT(&lua->com);
-	LIST_INIT(&lua->hc_list);
+	MT_LIST_INIT(&lua->hc_list);
 	if (!already_safe) {
 		if (!SET_SAFE_LJMP_PARENT(lua)) {
 			lua->Tref = LUA_REFNIL;
@@ -1270,16 +1270,30 @@ int hlua_ctx_init(struct hlua *lua, int state_id, struct task *task, int already
 	return 1;
 }
 
-/* kill all associated httpclient to this hlua task */
+/* kill all associated httpclient to this hlua task
+ * We must take extra precautions as we're manipulating lua-exposed
+ * objects without the main lua lock.
+ */
 static void hlua_httpclient_destroy_all(struct hlua *hlua)
 {
-	struct hlua_httpclient *hlua_hc, *back;
+	struct hlua_httpclient *hlua_hc;
 
-	list_for_each_entry_safe(hlua_hc, back, &hlua->hc_list, by_hlua) {
-		if (hlua_hc->hc)
-			httpclient_stop_and_destroy(hlua_hc->hc);
+	/* use thread-safe accessors for hc_list since GC cycle initiated by
+	 * another thread sharing the same main lua stack (lua coroutine)
+	 * could execute hlua_httpclient_gc() on the hlua->hc_list items
+	 * in parallel: Lua GC applies on the main stack, it is not limited to
+	 * a single coroutine stack, see Github issue #2037 for reference.
+	 * Remember, coroutines created using lua_newthread() are not meant to
+	 * be thread safe in Lua. (From lua co-author:
+	 * http://lua-users.org/lists/lua-l/2011-07/msg00072.html)
+	 *
+	 * This security measure is superfluous when 'lua-load-per-thread' is used
+	 * since in this case coroutines exclusively run on the same thread
+	 * (main stack is not shared between OS threads).
+	 */
+	while ((hlua_hc = MT_LIST_POP(&hlua->hc_list, typeof(hlua_hc), by_hlua))) {
+		httpclient_stop_and_destroy(hlua_hc->hc);
 		hlua_hc->hc = NULL;
-		LIST_DEL_INIT(&hlua_hc->by_hlua);
 	}
 }
 
@@ -7052,11 +7066,11 @@ __LJMP static int hlua_httpclient_gc(lua_State *L)
 
 	hlua_hc = MAY_LJMP(hlua_checkhttpclient(L, 1));
 
-	if (hlua_hc->hc)
+	if (MT_LIST_DELETE(&hlua_hc->by_hlua)) {
+		/* we won the race against hlua_httpclient_destroy_all() */
 		httpclient_stop_and_destroy(hlua_hc->hc);
-
-	hlua_hc->hc = NULL;
-	LIST_DEL_INIT(&hlua_hc->by_hlua);
+		hlua_hc->hc = NULL;
+	}
 
 	return 0;
 }
@@ -7087,7 +7101,7 @@ __LJMP static int hlua_httpclient_new(lua_State *L)
 	if (!hlua_hc->hc)
 		goto err;
 
-	LIST_APPEND(&hlua->hc_list, &hlua_hc->by_hlua);
+	MT_LIST_APPEND(&hlua->hc_list, &hlua_hc->by_hlua);
 
 	/* Pop a class stream metatable and affect it to the userdata. */
 	lua_rawgeti(L, LUA_REGISTRYINDEX, class_httpclient_ref);

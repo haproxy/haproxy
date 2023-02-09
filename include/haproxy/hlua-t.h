@@ -111,7 +111,7 @@ struct hlua {
 	struct task *task; /* The task associated with the lua stack execution.
 	                      We must wake this task to continue the task execution */
 	struct list com; /* The list head of the signals attached to this task. */
-	struct list hc_list;  /* list of httpclient associated to this lua task */
+	struct mt_list hc_list;  /* list of httpclient associated to this lua task */
 	struct ebpt_node node;
 	int gc_count;  /* number of items which need a GC */
 };
@@ -199,7 +199,7 @@ struct hlua_httpclient {
 	struct httpclient *hc; /* ptr to the httpclient instance */
 	size_t sent; /* payload sent */
 	luaL_Buffer b; /* buffer used to prepare strings. */
-	struct list by_hlua; /* linked in the current hlua task */
+	struct mt_list by_hlua; /* linked in the current hlua task */
 };
 
 #else /* USE_LUA */
