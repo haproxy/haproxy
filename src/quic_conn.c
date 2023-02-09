@@ -754,6 +754,12 @@ static inline void qc_set_timer(struct quic_conn *qc)
 	TRACE_ENTER(QUIC_EV_CONN_STIMER, qc,
 	            NULL, NULL, &qc->path->ifae_pkts);
 
+	pktns = NULL;
+	if (!qc->timer_task) {
+		TRACE_PROTO("already released timer task", QUIC_EV_CONN_STIMER, qc);
+		goto leave;
+	}
+
 	pktns = quic_loss_pktns(qc);
 	if (tick_isset(pktns->tx.loss_time)) {
 		qc->timer = pktns->tx.loss_time;
@@ -782,19 +788,18 @@ static inline void qc_set_timer(struct quic_conn *qc)
 	if (tick_isset(pto))
 		qc->timer = pto;
  out:
-	if (qc->timer_task) {
-		if (qc->timer == TICK_ETERNITY) {
-			qc->timer_task->expire = TICK_ETERNITY;
-		}
-		else  if (tick_is_expired(qc->timer, now_ms)) {
-			TRACE_DEVEL("wakeup asap timer task", QUIC_EV_CONN_STIMER, qc);
-			task_wakeup(qc->timer_task, TASK_WOKEN_MSG);
-		}
-		else {
-			TRACE_DEVEL("timer task scheduling", QUIC_EV_CONN_STIMER, qc);
-			task_schedule(qc->timer_task, qc->timer);
-		}
+	if (qc->timer == TICK_ETERNITY) {
+		qc->timer_task->expire = TICK_ETERNITY;
 	}
+	else  if (tick_is_expired(qc->timer, now_ms)) {
+		TRACE_DEVEL("wakeup asap timer task", QUIC_EV_CONN_STIMER, qc);
+		task_wakeup(qc->timer_task, TASK_WOKEN_MSG);
+	}
+	else {
+		TRACE_DEVEL("timer task scheduling", QUIC_EV_CONN_STIMER, qc);
+		task_schedule(qc->timer_task, qc->timer);
+	}
+ leave:
 	TRACE_LEAVE(QUIC_EV_CONN_STIMER, qc, pktns);
 }
 
