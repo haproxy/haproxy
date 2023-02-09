@@ -192,13 +192,20 @@ int session_accept_fd(struct connection *cli_conn)
 	 */
 	if (!LIST_ISEMPTY(&p->tcp_req.l4_rules) && !tcp_exec_l4_rules(sess)) {
 		/* let's do a no-linger now to close with a single RST. */
-		setsockopt(cfd, SOL_SOCKET, SO_LINGER, (struct linger *) &nolinger, sizeof(struct linger));
+		if (!(cli_conn->flags & CO_FL_FDLESS))
+			setsockopt(cfd, SOL_SOCKET, SO_LINGER, (struct linger *) &nolinger, sizeof(struct linger));
 		ret = 0; /* successful termination */
 		goto out_free_sess;
 	}
 	/* TCP rules may flag the connection as needing proxy protocol, now that it's done we can start ourxprt */
 	if (conn_xprt_start(cli_conn) < 0)
 		goto out_free_sess;
+
+	/* FIXME/WTA: we should implement the setsockopt() calls at the proto
+	 * level instead and let non-inet protocols implement their own equivalent.
+	 */
+	if (cli_conn->flags & CO_FL_FDLESS)
+		goto skip_fd_setup;
 
 	/* Adjust some socket options */
 	if (l->rx.addr.ss_family == AF_INET || l->rx.addr.ss_family == AF_INET6) {
@@ -245,6 +252,7 @@ int session_accept_fd(struct connection *cli_conn)
 	if (global.tune.client_rcvbuf)
 		setsockopt(cfd, SOL_SOCKET, SO_RCVBUF, &global.tune.client_rcvbuf, sizeof(global.tune.client_rcvbuf));
 
+ skip_fd_setup:
 	/* OK, now either we have a pending handshake to execute with and then
 	 * we must return to the I/O layer, or we can proceed with the end of
 	 * the stream initialization. In case of handshake, we also set the I/O
@@ -292,7 +300,8 @@ int session_accept_fd(struct connection *cli_conn)
 
  out_free_conn:
 	if (ret < 0 && l->bind_conf->xprt == xprt_get(XPRT_RAW) &&
-	    p->mode == PR_MODE_HTTP && l->bind_conf->mux_proto == NULL) {
+	    p->mode == PR_MODE_HTTP && l->bind_conf->mux_proto == NULL &&
+	    !(cli_conn->flags & CO_FL_FDLESS)) {
 		/* critical error, no more memory, try to emit a 500 response */
 		send(cfd, http_err_msgs[HTTP_ERR_500], strlen(http_err_msgs[HTTP_ERR_500]),
 		     MSG_DONTWAIT|MSG_NOSIGNAL);
