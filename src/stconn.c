@@ -870,10 +870,11 @@ static void sc_app_chk_snd_conn(struct stconn *sc)
 	/* in case of special condition (error, shutdown, end of write...), we
 	 * have to notify the task.
 	 */
-	if (likely((oc->flags & (CF_WRITE_EVENT|CF_SHUTW)) ||
-	          ((oc->flags & CF_WAKE_WRITE) &&
-	           ((channel_is_empty(oc) && !oc->to_forward) ||
-	            !sc_state_in(sc->state, SC_SB_EST))))) {
+	if (likely((oc->flags & CF_SHUTW) ||
+		   ((oc->flags & CF_WRITE_EVENT) && sc->state < SC_ST_EST) ||
+		   ((oc->flags & CF_WAKE_WRITE) &&
+		    ((channel_is_empty(oc) && !oc->to_forward) ||
+		     !sc_state_in(sc->state, SC_SB_EST))))) {
 	out_wakeup:
 		if (!(sc->flags & SC_FL_DONT_WAKE))
 			task_wakeup(sc_strm_task(sc), TASK_WOKEN_IO);
