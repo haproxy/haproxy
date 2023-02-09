@@ -834,6 +834,10 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 
 		if (likely(*ptr == ':')) {
 			col = ptr - start;
+			if (col <= sol) {
+				state = H1_MSG_HDR_NAME;
+				goto http_msg_invalid;
+			}
 			EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_hdr_l1_sp, http_msg_ood, state, H1_MSG_HDR_L1_SP);
 		}
 

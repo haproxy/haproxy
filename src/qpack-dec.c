@@ -531,6 +531,15 @@ int qpack_decode_fs(const unsigned char *raw, uint64_t len, struct buffer *tmp,
 			len -= value_len;
 		}
 
+		/* We must not accept empty header names (forbidden by the spec and used
+		 * as a list termination).
+		 */
+		if (!name.len) {
+			qpack_debug_printf(stderr, "##ERR@%d\n", __LINE__);
+			ret = -QPACK_DECOMPRESSION_FAILED;
+			goto out;
+		}
+
 		list[hdr_idx].n = name;
 		list[hdr_idx].v = value;
 		++hdr_idx;
