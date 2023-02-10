@@ -5221,6 +5221,7 @@ static void qc_idle_timer_do_rearm(struct quic_conn *qc)
 
 	expire = QUIC_MAX(3 * quic_pto(qc), qc->max_idle_timeout);
 	qc->idle_timer_task->expire = tick_add(now_ms, MS_TO_TICKS(expire));
+	task_queue(qc->idle_timer_task);
 }
 
 /* Rearm the idle timer for <qc> QUIC connection depending on <read> boolean
