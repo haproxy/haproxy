@@ -738,8 +738,10 @@ static inline int quic_peer_validated_addr(struct quic_conn *qc)
 /* To be called to kill a connection as soon as possible (without sending any packet). */
 void qc_kill_conn(struct quic_conn *qc)
 {
+	TRACE_ENTER(QUIC_EV_CONN_KILL, qc);
 	qc->flags |= QUIC_FL_CONN_TO_KILL;
 	task_wakeup(qc->idle_timer_task, TASK_WOKEN_OTHER);
+	TRACE_LEAVE(QUIC_EV_CONN_KILL, qc);
 }
 
 /* Set the timer attached to the QUIC connection with <ctx> as I/O handler and used for
