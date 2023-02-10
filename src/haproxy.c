@@ -2144,7 +2144,7 @@ static void init(int argc, char **argv)
 			}
 			tmproc->options |= PROC_O_TYPE_MASTER; /* master */
 			tmproc->pid = pid;
-			tmproc->timestamp = start_date.tv_sec;
+			tmproc->timestamp = start_time.tv_sec;
 			proc_self = tmproc;
 
 			LIST_APPEND(&proc_list, &tmproc->list);
