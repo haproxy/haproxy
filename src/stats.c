@@ -3537,7 +3537,7 @@ static void stats_dump_html_info(struct stconn *sc, struct uri_auth *uri)
 {
 	struct appctx *appctx = __sc_appctx(sc);
 	struct show_stat_ctx *ctx = appctx->svcctx;
-	unsigned int up = (now.tv_sec - start_date.tv_sec);
+	unsigned int up = (now.tv_sec - start_time.tv_sec);
 	char scope_txt[STAT_SCOPE_TXT_MAXLEN + sizeof STAT_SCOPE_PATTERN];
 	const char *scope_ptr = stats_scope_ptr(appctx, sc);
 	unsigned long long bps;
