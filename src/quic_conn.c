@@ -7788,8 +7788,10 @@ static int cli_io_handler_dump_quic(struct appctx *appctx)
 			stream = eb64_entry(node, struct qc_stream_desc, by_id);
 			node = eb64_next(node);
 
-			chunk_appendf(&trash, "  | stream=%-8llu", (long long unsigned int)stream->by_id.key);
-			chunk_appendf(&trash, " off=%-8lu ack=%-8lu", stream->buf_offset, stream->ack_offset);
+			chunk_appendf(&trash, "  | stream=%-8llu", (unsigned long long)stream->by_id.key);
+			chunk_appendf(&trash, " off=%-8llu ack=%-8llu",
+			              (unsigned long long)stream->buf_offset,
+			              (unsigned long long)stream->ack_offset);
 
 			if (!(++i % 3)) {
 				chunk_appendf(&trash, "\n");
