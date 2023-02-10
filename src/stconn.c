@@ -1041,18 +1041,6 @@ void sc_update_rx(struct stconn *sc)
 	else
 		sc_will_read(sc);
 
-	if (!channel_is_empty(ic) || !channel_may_recv(ic)) {
-		/* stop reading, imposed by channel's policy or contents */
-		sc_need_room(sc);
-	}
-	else {
-		/* (re)start reading and update timeout. Note: we don't recompute the timeout
-		 * every time we get here, otherwise it would risk never to expire. We only
-		 * update it if is was not yet set. The stream socket handler will already
-		 * have updated it if there has been a completed I/O.
-		 */
-		sc_have_room(sc);
-	}
 	if (sc->flags & (SC_FL_WONT_READ|SC_FL_NEED_BUFF|SC_FL_NEED_ROOM))
 		ic->rex = TICK_ETERNITY;
 	else if (!(ic->flags & CF_READ_NOEXP) && !tick_isset(ic->rex))
@@ -1346,6 +1334,7 @@ static int sc_conn_recv(struct stconn *sc)
 
 	/* prepare to detect if the mux needs more room */
 	sc_ep_clr(sc, SE_FL_WANT_ROOM);
+	BUG_ON(sc_waiting_room(sc));
 
 	if ((ic->flags & (CF_STREAMER | CF_STREAMER_FAST)) && !co_data(ic) &&
 	    global.tune.idle_timer &&
