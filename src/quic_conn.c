@@ -3422,6 +3422,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
  */
 int qc_send_ppkts(struct buffer *buf, struct ssl_sock_ctx *ctx)
 {
+	int ret = 0;
 	struct quic_conn *qc;
 	char skip_sendto = 0;
 
@@ -3457,7 +3458,17 @@ int qc_send_ppkts(struct buffer *buf, struct ssl_sock_ctx *ctx)
 		 * quic-conn fd management.
 		 */
 		if (!skip_sendto) {
-			if (qc_snd_buf(qc, &tmpbuf, tmpbuf.data, 0)) {
+			int syscall_errno;
+
+			syscall_errno = 0;
+			if (qc_snd_buf(qc, &tmpbuf, tmpbuf.data, 0, &syscall_errno)) {
+				if (syscall_errno == ECONNREFUSED) {
+					/* Let's kill this connection asap. */
+					TRACE_PROTO("UDP port unreachable", QUIC_EV_CONN_SPPKTS, qc);
+					qc_kill_conn(qc);
+					goto leave;
+				}
+
 				skip_sendto = 1;
 				TRACE_ERROR("sendto error, simulate sending for the rest of data", QUIC_EV_CONN_SPPKTS, qc);
 			}
@@ -3506,9 +3517,11 @@ int qc_send_ppkts(struct buffer *buf, struct ssl_sock_ctx *ctx)
 		}
 	}
 
+	ret = 1;
+leave:
 	TRACE_LEAVE(QUIC_EV_CONN_SPPKTS, qc);
 
-	return 1;
+	return ret;
 }
 
 /* Copy into <buf> buffer a stateless reset token depending on the
