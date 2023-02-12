@@ -500,7 +500,7 @@ protocol. Identifying the protocol version is easy :
     - if the incoming byte count is 16 or above and the 13 first bytes match
       the protocol signature block followed by the protocol version 2 :
 
-           \x0D\x0A\x0D\x0A\x00\x0D\x0A\x51\x55\x49\x54\x0A\x02
+           \x0D\x0A\x0D\x0A\x00\x0D\x0A\x51\x55\x49\x54\x0A\x20
 
     - otherwise, if the incoming byte count is 8 or above, and the 5 first
       characters match the US-ASCII representation of "PROXY" then the protocol
