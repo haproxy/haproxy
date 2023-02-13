@@ -363,9 +363,10 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 
 			if (qel) {
 				const struct quic_pktns *pktns = qel->pktns;
-				chunk_appendf(&trace_buf, " qel=%c cwnd=%llu ppif=%lld pif=%llu "
+				chunk_appendf(&trace_buf, " qel=%c pto_count=%d cwnd=%llu ppif=%lld pif=%llu "
 				              "if=%llu pp=%u",
 				              quic_enc_level_char_from_qel(qel, qc),
+				              qc->path->loss.pto_count,
 				              (unsigned long long)qc->path->cwnd,
 				              (unsigned long long)qc->path->prep_in_flight,
 				              (unsigned long long)qc->path->in_flight,
@@ -468,10 +469,11 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 			if (qel) {
 				const struct quic_pktns *pktns = qel->pktns;
 				chunk_appendf(&trace_buf,
-				              " qel=%c state=%s ack?%d cwnd=%llu ppif=%lld pif=%llu if=%llu pp=%u off=%llu",
+				              " qel=%c state=%s ack?%d pto_count=%d cwnd=%llu ppif=%lld pif=%llu if=%llu pp=%u off=%llu",
 				              quic_enc_level_char_from_qel(qel, qc),
 				              quic_hdshk_state_str(qc->state),
 				              !!(qel->pktns->flags & QUIC_FL_PKTNS_ACK_REQUIRED),
+				              qc->path->loss.pto_count,
 				              (unsigned long long)qc->path->cwnd,
 				              (unsigned long long)qc->path->prep_in_flight,
 				              (unsigned long long)qc->path->in_flight,
@@ -614,7 +616,8 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 		if (mask & QUIC_EV_CONN_SPPKTS) {
 			const struct quic_tx_packet *pkt = a2;
 
-			chunk_appendf(&trace_buf, " cwnd=%llu ppif=%llu pif=%llu",
+			chunk_appendf(&trace_buf, " pto_count=%d cwnd=%llu ppif=%llu pif=%llu",
+			              qc->path->loss.pto_count,
 			             (unsigned long long)qc->path->cwnd,
 			             (unsigned long long)qc->path->prep_in_flight,
 			             (unsigned long long)qc->path->in_flight);
