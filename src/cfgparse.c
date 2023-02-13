@@ -4715,7 +4715,8 @@ void cfg_restore_sections(struct list *backup_sections)
 /* dumps all registered keywords by section on stdout */
 void cfg_dump_registered_keywords()
 {
-	const char* sect_names[] = { "", "global", "listen", "userlist", "peers", 0 };
+	/*                             CFG_GLOBAL, CFG_LISTEN, CFG_USERLIST, CFG_PEERS, CFG_CRTLIST */
+	const char* sect_names[] = { "", "global", "listen", "userlist", "peers", "crt-list", 0 };
 	int section;
 	int index;
 
@@ -4742,22 +4743,24 @@ void cfg_dump_registered_keywords()
 			extern struct list tcp_req_conn_keywords, tcp_req_sess_keywords,
 				tcp_req_cont_keywords, tcp_res_cont_keywords;
 			extern struct bind_kw_list bind_keywords;
-			extern struct ssl_crtlist_kw ssl_crtlist_kws[] __maybe_unused;
 			extern struct srv_kw_list srv_keywords;
 			struct bind_kw_list *bkwl;
 			struct srv_kw_list *skwl;
 			const struct bind_kw *bkwp, *bkwn;
 			const struct srv_kw *skwp, *skwn;
-			const struct ssl_crtlist_kw *sbkwp __maybe_unused, *sbkwn __maybe_unused;
 			const struct cfg_opt *coptp, *coptn;
 
+			/* display the non-ssl keywords */
 			for (bkwn = bkwp = NULL;; bkwp = bkwn) {
 				list_for_each_entry(bkwl, &bind_keywords.list, list) {
-					for (index = 0; bkwl->kw[index].kw != NULL; index++)
+					if (strcmp(bkwl->scope, "SSL") == 0) /* skip SSL keywords */
+						continue;
+					for (index = 0; bkwl->kw[index].kw != NULL; index++) {
 						if (strordered(bkwp ? bkwp->kw : NULL,
 							       bkwl->kw[index].kw,
 							       bkwn != bkwp ? bkwn->kw : NULL))
 							bkwn = &bkwl->kw[index];
+					}
 				}
 				if (bkwn == bkwp)
 					break;
@@ -4767,24 +4770,31 @@ void cfg_dump_registered_keywords()
 				else
 					printf("\tbind <addr> %s +%d\n", bkwn->kw, bkwn->skip);
 			}
-
 #if defined(USE_OPENSSL)
-			for (sbkwn = sbkwp = NULL;; sbkwp = sbkwn) {
-				for (index = 0; ssl_crtlist_kws[index].kw != NULL; index++) {
-					if (strordered(sbkwp ? sbkwp->kw : NULL,
-						       ssl_crtlist_kws[index].kw,
-						       sbkwn != sbkwp ? sbkwn->kw : NULL))
-						sbkwn = &ssl_crtlist_kws[index];
+			/* displays the "ssl" keywords */
+			for (bkwn = bkwp = NULL;; bkwp = bkwn) {
+				list_for_each_entry(bkwl, &bind_keywords.list, list) {
+					if (strcmp(bkwl->scope, "SSL") != 0) /* skip non-SSL keywords */
+						continue;
+					for (index = 0; bkwl->kw[index].kw != NULL; index++) {
+						if (strordered(bkwp ? bkwp->kw : NULL,
+						               bkwl->kw[index].kw,
+						               bkwn != bkwp ? bkwn->kw : NULL))
+							bkwn = &bkwl->kw[index];
+					}
 				}
-				if (sbkwn == sbkwp)
+				if (bkwn == bkwp)
 					break;
-				if (!sbkwn->skip)
-					printf("\tbind <addr> ssl %s\n", sbkwn->kw);
+
+				if (strcmp(bkwn->kw, "ssl") == 0) /* skip "bind <addr> ssl ssl" */
+					continue;
+
+				if (!bkwn->skip)
+					printf("\tbind <addr> ssl %s\n", bkwn->kw);
 				else
-					printf("\tbind <addr> ssl %s +%d\n", sbkwn->kw, sbkwn->skip);
+					printf("\tbind <addr> ssl %s +%d\n", bkwn->kw, bkwn->skip);
 			}
 #endif
-
 			for (skwn = skwp = NULL;; skwp = skwn) {
 				list_for_each_entry(skwl, &srv_keywords.list, list) {
 					for (index = 0; skwl->kw[index].kw != NULL; index++)
@@ -4834,6 +4844,29 @@ void cfg_dump_registered_keywords()
 			dump_act_rules(&http_req_keywords.list,       "\thttp-request ");
 			dump_act_rules(&http_res_keywords.list,       "\thttp-response ");
 			dump_act_rules(&http_after_res_keywords.list, "\thttp-after-response ");
+		}
+		if (section == CFG_CRTLIST) {
+			/* displays the keyword available for the crt-lists */
+			extern struct ssl_crtlist_kw ssl_crtlist_kws[] __maybe_unused;
+			const struct ssl_crtlist_kw *sbkwp __maybe_unused, *sbkwn __maybe_unused;
+
+#if defined(USE_OPENSSL)
+			for (sbkwn = sbkwp = NULL;; sbkwp = sbkwn) {
+				for (index = 0; ssl_crtlist_kws[index].kw != NULL; index++) {
+					if (strordered(sbkwp ? sbkwp->kw : NULL,
+						       ssl_crtlist_kws[index].kw,
+						       sbkwn != sbkwp ? sbkwn->kw : NULL))
+						sbkwn = &ssl_crtlist_kws[index];
+				}
+				if (sbkwn == sbkwp)
+					break;
+				if (!sbkwn->skip)
+					printf("\t%s\n", sbkwn->kw);
+				else
+					printf("\t%s +%d\n", sbkwn->kw, sbkwn->skip);
+			}
+#endif
+
 		}
 	}
 }

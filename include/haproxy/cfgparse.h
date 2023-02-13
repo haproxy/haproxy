@@ -35,6 +35,7 @@ struct acl_cond;
 #define CFG_LISTEN	2
 #define CFG_USERLIST	3
 #define CFG_PEERS	4
+#define CFG_CRTLIST	5
 
 /* various keyword modifiers */
 enum kw_mod {
