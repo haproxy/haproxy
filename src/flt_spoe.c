@@ -3053,7 +3053,6 @@ spoe_init(struct proxy *px, struct flt_conf *fconf)
         conf->agent_fe.accept = frontend_accept;
         conf->agent_fe.srv = NULL;
         conf->agent_fe.timeout.client = TICK_ETERNITY;
-	conf->agent_fe.default_target = &spoe_applet.obj_type;
 	conf->agent_fe.fe_req_ana = AN_REQ_SWITCHING_RULES;
 
 	if (!sighandler_registered) {
