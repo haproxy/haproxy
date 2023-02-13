@@ -403,6 +403,7 @@ struct proxy {
 	unsigned int li_paused;                 /* total number of listeners paused (LI_PAUSED) */
 	unsigned int li_bound;                  /* total number of listeners ready (LI_LISTEN)  */
 	unsigned int li_ready;                  /* total number of listeners ready (>=LI_READY) */
+	unsigned int li_suspended;		/* total number of listeners suspended (could be paused or unbound) */
 
 	/* warning: these structs are huge, keep them at the bottom */
 	struct sockaddr_storage dispatch_addr;	/* the default address to connect to */

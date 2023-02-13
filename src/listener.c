@@ -480,14 +480,14 @@ int default_resume_listener(struct listener *l)
  * closes upon SHUT_WR and refuses to rebind. So a common validation path
  * involves SHUT_WR && listen && SHUT_RD. In case of success, the FD's polling
  * is disabled. It normally returns non-zero, unless an error is reported.
- * pause() may totally stop a listener if it doesn't support the PAUSED state,
- * in which case state will be set to ASSIGNED.
+ * suspend() may totally stop a listener if it doesn't support the PAUSED
+ * state, in which case state will be set to ASSIGNED.
  * It will need to operate under the proxy's lock and the listener's lock.
  * The caller is responsible for indicating in lpx, lli whether the respective
  * locks are already held (non-zero) or not (zero) so that the function pick
  * the missing ones, in this order.
  */
-int pause_listener(struct listener *l, int lpx, int lli)
+int suspend_listener(struct listener *l, int lpx, int lli)
 {
 	struct proxy *px = l->bind_conf->frontend;
 	int ret = 1;
@@ -518,6 +518,10 @@ int pause_listener(struct listener *l, int lpx, int lli)
 	 */
 	listener_set_state(l, ((ret) ? LI_PAUSED : LI_ASSIGNED));
 
+	if (px && !(l->flags & LI_F_SUSPENDED))
+		px->li_suspended++;
+	l->flags |= LI_F_SUSPENDED;
+
 	/* at this point, everything is under control, no error should be
 	 * returned to calling function
 	 */
@@ -545,7 +549,7 @@ int pause_listener(struct listener *l, int lpx, int lli)
  * or LI_FULL. 0 is returned in case of failure to resume (eg: dead socket).
  * Listeners bound to a different process are not woken up unless we're in
  * foreground mode, and are ignored. If the listener was only in the assigned
- * state, it's totally rebound. This can happen if a pause() has completely
+ * state, it's totally rebound. This can happen if a suspend() has completely
  * stopped it. If the resume fails, 0 is returned and an error might be
  * displayed.
  * It will need to operate under the proxy's lock and the listener's lock.
@@ -590,6 +594,10 @@ int resume_listener(struct listener *l, int lpx, int lli)
 	listener_set_state(l, LI_READY);
 
   done:
+	if (px && (l->flags & LI_F_SUSPENDED))
+		px->li_suspended--;
+	l->flags &= ~LI_F_SUSPENDED;
+
 	if (was_paused && !px->li_paused) {
 		/* PROXY_LOCK is required */
 		proxy_cond_resume(px);
@@ -1275,7 +1283,7 @@ void listener_accept(struct listener *l)
 	 * Let's put it to pause in this case.
 	 */
 	if (l->rx.proto && l->rx.proto->rx_listening(&l->rx) == 0) {
-		pause_listener(l, 0, 0);
+		suspend_listener(l, 0, 0);
 		goto end;
 	}
 

@@ -2286,7 +2286,7 @@ int pause_proxy(struct proxy *p)
 		goto end;
 
 	list_for_each_entry(l, &p->conf.listeners, by_fe)
-		pause_listener(l, 1, 0);
+		suspend_listener(l, 1, 0);
 
 	if (p->li_ready) {
 		ha_warning("%s %s failed to enter pause mode.\n", proxy_cap_str(p->cap), p->id);

@@ -43,11 +43,13 @@ void listener_set_state(struct listener *l, enum li_state st);
  * involves SHUT_WR && listen && SHUT_RD. In case of success, the FD's polling
  * is disabled. It normally returns non-zero, unless an error is reported.
  * It will need to operate under the proxy's lock and the listener's lock.
+ * suspend() may totally stop a listener if it doesn't support the PAUSED
+ * state, in which case state will be set to ASSIGNED.
  * The caller is responsible for indicating in lpx, lli whether the respective
  * locks are already held (non-zero) or not (zero) so that the function pick
  * the missing ones, in this order.
  */
-int pause_listener(struct listener *l, int lpx, int lli);
+int suspend_listener(struct listener *l, int lpx, int lli);
 
 /* This function tries to resume a temporarily disabled listener.
  * The resulting state will either be LI_READY or LI_FULL. 0 is returned
