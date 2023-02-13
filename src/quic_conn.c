@@ -7542,7 +7542,7 @@ int qc_check_dcid(struct quic_conn *qc, unsigned char *dcid, size_t dcid_len)
 	if ((qc->scid.len == dcid_len &&
 	     memcmp(qc->scid.data, dcid, dcid_len) == 0) ||
 	    (qc->odcid.len == dcid_len &&
-	     memcmp(qc->odcid.data, dcid, dcid_len)) == 0) {
+	     memcmp(qc->odcid.data, dcid, dcid_len) == 0)) {
 		return 1;
 	}
 
