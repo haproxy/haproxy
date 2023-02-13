@@ -1917,9 +1917,9 @@ static int ssl_parse_skip_self_issued_ca(char **args, int section_type, struct p
  * not enabled.
  */
 
-/* the <ssl_bind_kws> keywords are used for crt-list parsing, they *MUST* be safe
+/* the <ssl_crtlist_kws> keywords are used for crt-list parsing, they *MUST* be safe
  * with their proxy argument NULL and must only fill the ssl_bind_conf */
-struct ssl_bind_kw ssl_bind_kws[] = {
+struct ssl_crtlist_kw ssl_crtlist_kws[] = {
 	{ "allow-0rtt",            ssl_bind_parse_allow_0rtt,       0 }, /* allow 0-RTT */
 	{ "alpn",                  ssl_bind_parse_alpn,             1 }, /* set ALPN supported protocols */
 	{ "ca-file",               ssl_bind_parse_ca_file,          1 }, /* set CAfile to process ca-names and verify on client cert */

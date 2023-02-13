@@ -262,7 +262,9 @@ struct bind_kw {
 	int (*parse)(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err);
 	int skip; /* nb of args to skip */
 };
-struct ssl_bind_kw {
+
+/* same as bind_kw but for crtlist keywords */
+struct ssl_crtlist_kw {
 	const char *kw;
 	int (*parse)(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, int from_cli, char **err);
 	int skip; /* nb of args to skip */

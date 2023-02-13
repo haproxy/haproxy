@@ -420,17 +420,17 @@ int crtlist_parse_line(char *line, char **crt_path, struct crtlist_entry *entry,
 	cur_arg = ssl_b ? ssl_b : 1;
 	while (cur_arg < ssl_e) {
 		newarg = 0;
-		for (i = 0; ssl_bind_kws[i].kw != NULL; i++) {
-			if (strcmp(ssl_bind_kws[i].kw, args[cur_arg]) == 0) {
+		for (i = 0; ssl_crtlist_kws[i].kw != NULL; i++) {
+			if (strcmp(ssl_crtlist_kws[i].kw, args[cur_arg]) == 0) {
 				newarg = 1;
-				cfgerr |= ssl_bind_kws[i].parse(args, cur_arg, NULL, ssl_conf, from_cli, err);
-				if (cur_arg + 1 + ssl_bind_kws[i].skip > ssl_e) {
+				cfgerr |= ssl_crtlist_kws[i].parse(args, cur_arg, NULL, ssl_conf, from_cli, err);
+				if (cur_arg + 1 + ssl_crtlist_kws[i].skip > ssl_e) {
 					memprintf(err, "parsing [%s:%d]: ssl args out of '[]' for %s",
 					          file, linenum, args[cur_arg]);
 					cfgerr |= ERR_ALERT | ERR_FATAL;
 					goto error;
 				}
-				cur_arg += 1 + ssl_bind_kws[i].skip;
+				cur_arg += 1 + ssl_crtlist_kws[i].skip;
 				break;
 			}
 		}

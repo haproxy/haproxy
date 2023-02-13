@@ -4742,13 +4742,13 @@ void cfg_dump_registered_keywords()
 			extern struct list tcp_req_conn_keywords, tcp_req_sess_keywords,
 				tcp_req_cont_keywords, tcp_res_cont_keywords;
 			extern struct bind_kw_list bind_keywords;
-			extern struct ssl_bind_kw ssl_bind_kws[] __maybe_unused;
+			extern struct ssl_crtlist_kw ssl_crtlist_kws[] __maybe_unused;
 			extern struct srv_kw_list srv_keywords;
 			struct bind_kw_list *bkwl;
 			struct srv_kw_list *skwl;
 			const struct bind_kw *bkwp, *bkwn;
 			const struct srv_kw *skwp, *skwn;
-			const struct ssl_bind_kw *sbkwp __maybe_unused, *sbkwn __maybe_unused;
+			const struct ssl_crtlist_kw *sbkwp __maybe_unused, *sbkwn __maybe_unused;
 			const struct cfg_opt *coptp, *coptn;
 
 			for (bkwn = bkwp = NULL;; bkwp = bkwn) {
@@ -4770,11 +4770,11 @@ void cfg_dump_registered_keywords()
 
 #if defined(USE_OPENSSL)
 			for (sbkwn = sbkwp = NULL;; sbkwp = sbkwn) {
-				for (index = 0; ssl_bind_kws[index].kw != NULL; index++) {
+				for (index = 0; ssl_crtlist_kws[index].kw != NULL; index++) {
 					if (strordered(sbkwp ? sbkwp->kw : NULL,
-						       ssl_bind_kws[index].kw,
+						       ssl_crtlist_kws[index].kw,
 						       sbkwn != sbkwp ? sbkwn->kw : NULL))
-						sbkwn = &ssl_bind_kws[index];
+						sbkwn = &ssl_crtlist_kws[index];
 				}
 				if (sbkwn == sbkwp)
 					break;
