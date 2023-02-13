@@ -632,6 +632,11 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 					chunk_appendf(&trace_buf, " frm@%p", frm);
 					chunk_frm_appendf(&trace_buf, frm);
 				}
+
+				if (pkt->type == QUIC_PACKET_TYPE_INITIAL) {
+					chunk_appendf(&trace_buf, " with scid");
+					quic_cid_dump(&trace_buf, &qc->scid);
+				}
 			}
 		}
 
