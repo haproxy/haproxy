@@ -226,7 +226,7 @@ struct li_per_thread {
 struct listener {
 	enum obj_type obj_type;         /* object type = OBJ_TYPE_LISTENER */
 	enum li_state state;            /* state: NEW, INIT, ASSIGNED, LISTEN, READY, FULL */
-	/* 2-byte hole here */
+	uint16_t flags;                 /* listener flags: LI_F_* */
 	int luid;			/* listener universally unique ID, used for SNMP */
 	int nbconn;			/* current number of connections on this listener */
 	unsigned int thr_idx;           /* thread indexes for queue distribution : (t2<<16)+t1 */
@@ -250,6 +250,9 @@ struct listener {
 
 	EXTRA_COUNTERS(extra_counters);
 };
+
+/* listener flags (16 bits) */
+#define LI_F_FINALIZED           0x0001  /* listener made it to the READY||LIMITED||FULL state at least once, may be suspended/resumed safely */
 
 /* Descriptor for a "bind" keyword. The ->parse() function returns 0 in case of
  * success, or a combination of ERR_* flags if an error is encountered. The

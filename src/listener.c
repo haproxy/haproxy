@@ -288,6 +288,7 @@ void listener_set_state(struct listener *l, enum li_state st)
 		case LI_LIMITED:
 			BUG_ON(l->rx.fd == -1);
 			_HA_ATOMIC_INC(&px->li_ready);
+			l->flags |= LI_F_FINALIZED;
 			break;
 		}
 	}
@@ -477,7 +478,7 @@ int pause_listener(struct listener *l, int lpx, int lli)
 	if (!lli)
 		HA_RWLOCK_WRLOCK(LISTENER_LOCK, &l->lock);
 
-	if (l->state <= LI_PAUSED)
+	if (!(l->flags & LI_F_FINALIZED) || l->state <= LI_PAUSED)
 		goto end;
 
 	if (l->rx.proto->suspend)
@@ -535,7 +536,7 @@ int resume_listener(struct listener *l, int lpx, int lli)
 	if (MT_LIST_INLIST(&l->wait_queue))
 		goto end;
 
-	if (l->state == LI_READY)
+	if (!(l->flags & LI_F_FINALIZED) || l->state == LI_READY)
 		goto end;
 
 	if (l->rx.proto->resume)
