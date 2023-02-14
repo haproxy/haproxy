@@ -1,6 +1,49 @@
 ChangeLog :
 ===========
 
+2023/02/14 : 2.8-dev4
+    - BUG/MINOR: stats: fix source buffer size for http dump
+    - BUG/MEDIUM: stats: fix resolvers dump
+    - BUG/MINOR: stats: fix ctx->field update in stats_dump_proxy_to_buffer()
+    - BUG/MINOR: stats: fix show stats field ctx for servers
+    - BUG/MINOR: stats: fix STAT_STARTED behavior with full htx
+    - MINOR: quic: Update version_information transport parameter to draft-14
+    - BUG/MINOR: stats: Prevent HTTP "other sessions" counter underflows
+    - BUG/MEDIUM: thread: fix extraneous shift in the thread_set parser
+    - BUG/MEDIUM: listener/thread: bypass shards setting on failed thread resolution
+    - BUG/MINOR: ssl/crt-list: warn when a line is malformated
+    - BUG/MEDIUM: stick-table: do not leave entries in end of window during purge
+    - BUG/MINOR: clock: do not mix wall-clock and monotonic time in uptime calculation
+    - BUG/MEDIUM: cache: use the correct time reference when comparing dates
+    - MEDIUM: clock: force internal time to wrap early after boot
+    - BUILD: ssl/ocsp: ssl_ocsp-t.h depends on ssl_sock-t.h
+    - MINOR: ssl/ocsp: add a function to check the OCSP update configuration
+    - MINOR: cfgparse/server: move (min/max)conn postparsing logic into dedicated function
+    - BUG/MINOR: server/add: ensure minconn/maxconn consistency when adding server
+    - BUG/MEDIUM: stconn: Schedule a shutw on shutr if data must be sent first
+    - BUG/MEDIUM: quic: fix crash when "option nolinger" is set in the frontend
+    - MINOR: quic: implement a basic "show quic" CLI handler
+    - MINOR: quic: display CIDs and state in "show quic"
+    - MINOR: quic: display socket info on "show quic"
+    - MINOR: quic: display infos about various encryption level on "show quic"
+    - MINOR: quic: display Tx stream info on "show quic"
+    - MINOR: quic: filter closing conn on "show quic"
+    - BUG/MINOR: quic: fix filtering of closing connections on "show quic"
+    - BUG/MEDIUM: stconn: Don't needlessly wake the stream on send during fast-forward
+    - BUG/MINOR: quic: fix type bug on "show quic" for 32-bits arch
+    - BUG/MINOR: mworker: fix uptime for master process
+    - BUG/MINOR: clock/stats: also use start_time not start_date in HTML info
+    - BUG/MEDIUM: stconn: stop to enable/disable reads from streams via si_update_rx
+    - BUG/MEDIUM: quic: Buffer overflow when looking through QUIC CLI keyword list
+    - DOC: proxy-protocol: fix wrong byte in provided example
+    - MINOR: ssl-ckch: Stop to test CF_WRITE_ERROR to commit CA/CRL file
+    - MINOR: bwlim: Remove useless test on CF_READ_ERROR to detect the last packet
+    - BUG/MINOR: http-ana: Fix condition to set LAST termination flag
+    - BUG/MINOR: mux-h1: Don't report an H1C error on client timeout
+    - BUG/MEDIUM: spoe: Don't set the default traget for the SPOE agent frontend
+    - BUG/MINOR: quic: Wrong datagram dispatch because of qc_check_dcid()
+    - BUG/CRITICAL: http: properly reject empty http header field names
+
 2023/02/04 : 2.8-dev3
     - BUG/MINOR: sink: make sure to always properly unmap a file-backed ring
     - DEV: haring: add a new option "-r" to automatically repair broken files
