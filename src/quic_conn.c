@@ -4759,6 +4759,16 @@ static int quic_conn_enc_level_init(struct quic_conn *qc,
 	return ret;
 }
 
+/* Return 1 if <qc> connection may probe the Initial packet number space, 0 if not.
+ * This is not the case if the remote peer address is not validated and if
+ * it cannot send at least QUIC_INITIAL_PACKET_MINLEN bytes.
+ */
+static int qc_may_probe_ipktns(struct quic_conn *qc)
+{
+	return quic_peer_validated_addr(qc) ||
+	       (int)(3 * qc->rx.bytes - qc->tx.prep_bytes) >= QUIC_INITIAL_PACKET_MINLEN;
+}
+
 /* Callback called upon loss detection and PTO timer expirations. */
 struct task *qc_process_timer(struct task *task, void *ctx, unsigned int state)
 {
@@ -4790,24 +4800,39 @@ struct task *qc_process_timer(struct task *task, void *ctx, unsigned int state)
 				qc->subs = NULL;
 		}
 		else {
-			qc->flags |= QUIC_FL_CONN_RETRANS_NEEDED;
-			pktns->flags |= QUIC_FL_PKTNS_PROBE_NEEDED;
 			if (pktns == &qc->pktns[QUIC_TLS_PKTNS_INITIAL]) {
-				TRACE_STATE("needs to probe Initial packet number space", QUIC_EV_CONN_TXPKT, qc);
+				if (qc_may_probe_ipktns(qc)) {
+					qc->flags |= QUIC_FL_CONN_RETRANS_NEEDED;
+					pktns->flags |= QUIC_FL_PKTNS_PROBE_NEEDED;
+					TRACE_STATE("needs to probe Initial packet number space", QUIC_EV_CONN_TXPKT, qc);
+				}
+				else {
+					TRACE_STATE("Cannot probe Initial packet number space", QUIC_EV_CONN_TXPKT, qc);
+				}
 				if (qc->pktns[QUIC_TLS_PKTNS_HANDSHAKE].tx.in_flight) {
+					qc->flags |= QUIC_FL_CONN_RETRANS_NEEDED;
 					qc->pktns[QUIC_TLS_PKTNS_HANDSHAKE].flags |= QUIC_FL_PKTNS_PROBE_NEEDED;
 					TRACE_STATE("needs to probe Handshake packet number space", QUIC_EV_CONN_TXPKT, qc);
 				}
 			}
 			else if (pktns == &qc->pktns[QUIC_TLS_PKTNS_HANDSHAKE]) {
 				TRACE_STATE("needs to probe Handshake packet number space", QUIC_EV_CONN_TXPKT, qc);
+				qc->flags |= QUIC_FL_CONN_RETRANS_NEEDED;
+				pktns->flags |= QUIC_FL_PKTNS_PROBE_NEEDED;
 				if (qc->pktns[QUIC_TLS_PKTNS_INITIAL].tx.in_flight) {
-					qc->pktns[QUIC_TLS_PKTNS_INITIAL].flags |= QUIC_FL_PKTNS_PROBE_NEEDED;
-					TRACE_STATE("needs to probe Initial packet number space", QUIC_EV_CONN_TXPKT, qc);
+					if (qc_may_probe_ipktns(qc)) {
+						qc->pktns[QUIC_TLS_PKTNS_INITIAL].flags |= QUIC_FL_PKTNS_PROBE_NEEDED;
+						TRACE_STATE("needs to probe Initial packet number space", QUIC_EV_CONN_TXPKT, qc);
+					}
+					else {
+						TRACE_STATE("Cannot probe Initial packet number space", QUIC_EV_CONN_TXPKT, qc);
+					}
 				}
 			}
 			else if (pktns == &qc->pktns[QUIC_TLS_PKTNS_01RTT]) {
 				TRACE_STATE("needs to probe 01RTT packet number space", QUIC_EV_CONN_TXPKT, qc);
+				qc->flags |= QUIC_FL_CONN_RETRANS_NEEDED;
+				pktns->flags |= QUIC_FL_PKTNS_PROBE_NEEDED;
 			}
 		}
 	}
