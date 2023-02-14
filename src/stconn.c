@@ -1041,7 +1041,7 @@ void sc_update_rx(struct stconn *sc)
 	else
 		sc_will_read(sc);
 
-	if (sc->flags & (SC_FL_WONT_READ|SC_FL_NEED_BUFF|SC_FL_NEED_ROOM))
+	if ((ic->flags & CF_EOI) || sc->flags & (SC_FL_WONT_READ|SC_FL_NEED_BUFF|SC_FL_NEED_ROOM))
 		ic->rex = TICK_ETERNITY;
 	else if (!(ic->flags & CF_READ_NOEXP) && !tick_isset(ic->rex))
 		ic->rex = tick_add_ifset(now_ms, ic->rto);
@@ -1189,7 +1189,7 @@ static void sc_notify(struct stconn *sc)
 	sc_chk_rcv(sc);
 	sc_chk_rcv(sco);
 
-	if (ic->flags & CF_SHUTR || sc_ep_test(sc, SE_FL_APPLET_NEED_CONN) ||
+	if (ic->flags & (CF_EOI|CF_SHUTR) || sc_ep_test(sc, SE_FL_APPLET_NEED_CONN) ||
 	    (sc->flags & (SC_FL_WONT_READ|SC_FL_NEED_BUFF|SC_FL_NEED_ROOM))) {
 		ic->rex = TICK_ETERNITY;
 	}
