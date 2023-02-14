@@ -4229,9 +4229,10 @@ static void http_end_request(struct stream *s)
 		 */
 		chn->flags |= CF_NEVER_WAIT;
 
-		if (txn->rsp.msg_state < HTTP_MSG_DONE) {
-			/* The server has not finished to respond, so we
-			 * don't want to move in order not to upset it.
+		if (txn->rsp.msg_state < HTTP_MSG_DONE && s->scb->state != SC_ST_CLO) {
+			/* The server has not finished to respond and the
+			 * backend SC is not closed, so we don't want to move in
+			 * order not to upset it.
 			 */
 			DBG_TRACE_DEVEL("waiting end of the response", STRM_EV_HTTP_ANA, s, txn);
 			return;
@@ -4338,7 +4339,7 @@ static void http_end_response(struct stream *s)
 		 */
 		/* channel_dont_read(chn); */
 
-		if (txn->req.msg_state < HTTP_MSG_DONE) {
+		if (txn->req.msg_state < HTTP_MSG_DONE && s->scf->state != SC_ST_CLO) {
 			/* The client seems to still be sending data, probably
 			 * because we got an error response during an upload.
 			 * We have the choice of either breaking the connection
