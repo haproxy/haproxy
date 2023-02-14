@@ -962,11 +962,8 @@ int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
 		goto out;
 	}
 
-	if (offset + len <= qcs->rx.offset) {
-		/* TODO offset may have been received without FIN first and now
-		 * with it. In this case, it must be notified to be able to
-		 * close the stream.
-		 */
+	if (offset + len < qcs->rx.offset ||
+	    (offset + len == qcs->rx.offset && (!fin || (qcs->flags & QC_SF_SIZE_KNOWN)))) {
 		TRACE_DATA("already received offset", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV, qcc->conn, qcs);
 		goto out;
 	}
@@ -1009,9 +1006,13 @@ int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
 		offset = qcs->rx.offset;
 	}
 
-	ret = ncb_add(&qcs->rx.ncbuf, offset - qcs->rx.offset, data, len, NCB_ADD_COMPARE);
-	if (ret != NCB_RET_OK) {
-		if (ret == NCB_RET_DATA_REJ) {
+	if (len) {
+		ret = ncb_add(&qcs->rx.ncbuf, offset - qcs->rx.offset, data, len, NCB_ADD_COMPARE);
+		switch (ret) {
+		case NCB_RET_OK:
+			break;
+
+		case NCB_RET_DATA_REJ:
 			/* RFC 9000 2.2. Sending and Receiving Data
 			 *
 			 * An endpoint could receive data for a stream at the
@@ -1025,12 +1026,13 @@ int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
 			TRACE_ERROR("overlapping data rejected", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV|QMUX_EV_PROTO_ERR,
 			            qcc->conn, qcs);
 			qcc_emit_cc(qcc, QC_ERR_PROTOCOL_VIOLATION);
-		}
-		else if (ret == NCB_RET_GAP_SIZE) {
+			return 1;
+
+		case NCB_RET_GAP_SIZE:
 			TRACE_DATA("cannot bufferize frame due to gap size limit", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV,
 			           qcc->conn, qcs);
+			return 1;
 		}
-		return 1;
 	}
 
 	if (fin)
@@ -1041,7 +1043,7 @@ int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
 		qcs_close_remote(qcs);
 	}
 
-	if (ncb_data(&qcs->rx.ncbuf, 0) && !(qcs->flags & QC_SF_DEM_FULL)) {
+	if ((ncb_data(&qcs->rx.ncbuf, 0) && !(qcs->flags & QC_SF_DEM_FULL)) || fin) {
 		qcc_decode_qcs(qcc, qcs);
 		qcc_refresh_timeout(qcc);
 	}
