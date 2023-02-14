@@ -941,7 +941,7 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 	}
 	else {
 		c_adv(req, htx->data - co_data(req));
-		if (msg->flags & HTTP_MSGF_XFER_LEN)
+		if (!(global.tune.options & GTUNE_NO_FAST_FWD) && (msg->flags & HTTP_MSGF_XFER_LEN))
 			channel_htx_forward_forever(req, htx);
 	}
 
@@ -2044,7 +2044,7 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 	}
 	else {
 		c_adv(res, htx->data - co_data(res));
-		if (msg->flags & HTTP_MSGF_XFER_LEN)
+		if (!(global.tune.options & GTUNE_NO_FAST_FWD) && (msg->flags & HTTP_MSGF_XFER_LEN))
 			channel_htx_forward_forever(res, htx);
 	}
 

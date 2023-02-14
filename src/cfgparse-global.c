@@ -36,7 +36,8 @@ static const char *common_kw_list[] = {
 	"tune.idletimer", "tune.rcvbuf.client", "tune.rcvbuf.server",
 	"tune.sndbuf.client", "tune.sndbuf.server", "tune.pipesize",
 	"tune.http.cookielen", "tune.http.logurilen", "tune.http.maxhdr",
-	"tune.comp.maxlevel", "tune.pattern.cache-size", "uid", "gid",
+	"tune.comp.maxlevel", "tune.pattern.cache-size",
+	"tune.fast-forward", "uid", "gid",
 	"external-check", "user", "group", "nbproc", "maxconn",
 	"ssl-server-verify", "maxconnrate", "maxsessrate", "maxsslrate",
 	"maxcomprate", "maxpipes", "maxzlibmem", "maxcompcpuusage", "ulimit-n",
@@ -488,6 +489,34 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		} else {
 			ha_alert("parsing [%s:%d] : '%s' expects a positive numeric value\n",
 				 file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+	}
+	else if (strcmp(args[0], "tune.fast-forward") == 0) {
+		if (!experimental_directives_allowed) {
+			ha_alert("parsing [%s:%d] : '%s' directive is experimental, must be allowed via a global 'expose-experimental-directives'",
+				 file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		mark_tainted(TAINTED_CONFIG_EXP_KW_DECLARED);
+
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
+		if (*(args[1]) == 0) {
+			ha_alert("parsing [%s:%d] : '%s' expects either 'on' or 'off' as argument.",
+				 file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		if (strcmp(args[1], "on") == 0)
+			global.tune.options &= ~GTUNE_NO_FAST_FWD;
+		else if (strcmp(args[1], "off") == 0)
+			global.tune.options |= GTUNE_NO_FAST_FWD;
+		else {
+			ha_alert("parsing [%s:%d] : '%s' expects either 'on' or 'off' but got '%s'.",
+				 file, linenum, args[0], args[1]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}

@@ -1123,6 +1123,7 @@ The following keywords are supported in the "global" section :
    - tune.buffers.reserve
    - tune.bufsize
    - tune.comp.maxlevel
+   - tune.fast-forward
    - tune.fd.edge-triggered
    - tune.h2.header-table-size
    - tune.h2.initial-window-size
@@ -2836,6 +2837,17 @@ tune.fail-alloc
   percentage of chances an allocation attempt fails. Must be between 0 (no
   failure) and 100 (no success). This is useful to debug and make sure memory
   failures are handled gracefully.
+
+tune.fast-forward { on | off } [ EXPERIMENTAL ]
+
+  Enabled ('on') or disables ('off') the data fast-forwarding. It is a
+  mechanism to optimize the data forwarding by passing data directly from a
+  side to the other one without waking the stream up. Thanks to this directive,
+  it is possible to disable this optimization. Note it also disable any kernel
+  tcp splicing. This command is not meant for regular use, it will generally
+  only be suggested by developers along complex debugging sessions. For this
+  reason it is internally marked as experimental, meaning that
+  "expose-experimental-directives" must appear on a line before this directive.
 
 tune.fd.edge-triggered { on | off }  [ EXPERIMENTAL ]
   Enables ('on') or disables ('off') the edge-triggered polling mode for FDs

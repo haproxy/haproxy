@@ -2258,7 +2258,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 			 * to the consumer.
 			 */
 			co_set_data(req, htx->data);
-			if (!(req->flags & (CF_SHUTR|CF_SHUTW_NOW)))
+			if (!(global.tune.options & GTUNE_NO_FAST_FWD) && !(req->flags & (CF_SHUTR|CF_SHUTW_NOW)))
 				channel_htx_forward_forever(req, htx);
 		}
 		else {
@@ -2266,7 +2266,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 			 * to the consumer (which might possibly not be connected yet).
 			 */
 			c_adv(req, ci_data(req));
-			if (!(req->flags & (CF_SHUTR|CF_SHUTW_NOW)))
+			if (!(global.tune.options & GTUNE_NO_FAST_FWD) && !(req->flags & (CF_SHUTR|CF_SHUTW_NOW)))
 				channel_forward_forever(req);
 		}
 	}
@@ -2429,7 +2429,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 			 * to the consumer.
 			 */
 			co_set_data(res, htx->data);
-			if (!(res->flags & (CF_SHUTR|CF_SHUTW_NOW)))
+			if (!(global.tune.options & GTUNE_NO_FAST_FWD) && !(res->flags & (CF_SHUTR|CF_SHUTW_NOW)))
 				channel_htx_forward_forever(res, htx);
 		}
 		else {
@@ -2437,7 +2437,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 			 * to the consumer.
 			 */
 			c_adv(res, ci_data(res));
-			if (!(res->flags & (CF_SHUTR|CF_SHUTW_NOW)))
+			if (!(global.tune.options & GTUNE_NO_FAST_FWD) && !(res->flags & (CF_SHUTR|CF_SHUTW_NOW)))
 				channel_forward_forever(res);
 		}
 
