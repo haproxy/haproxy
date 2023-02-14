@@ -622,6 +622,7 @@ static void usage(char *name)
 		"        -dV disables SSL verify on servers side\n"
 		"        -dW fails if any warning is emitted\n"
 		"        -dD diagnostic mode : warn about suspicious configuration statements\n"
+		"        -dF disable fast-forward\n"
 		"        -sf/-st [pid ]* finishes/terminates old pids.\n"
 		"        -x <unix_socket> get listening sockets from a unix socket\n"
 		"        -S <bind>[,<bind options>...] new master CLI\n"
@@ -1647,6 +1648,8 @@ static void init_args(int argc, char **argv)
 			else if (*flag == 'd' && flag[1] == 'R')
 				global.tune.options &= ~GTUNE_USE_REUSEPORT;
 #endif
+			else if (*flag == 'd' && flag[1] == 'F')
+				global.tune.options |= GTUNE_NO_FAST_FWD;
 			else if (*flag == 'd' && flag[1] == 'V')
 				global.ssl_server_verify = SSL_SERVER_VERIFY_NONE;
 			else if (*flag == 'V')

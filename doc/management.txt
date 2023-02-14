@@ -217,6 +217,13 @@ list of options is :
     suspicious configuration statements. This will never prevent startup even in
     "zero-warning" mode nor change the exit status code.
 
+  -dF : disable data fast-forward. It is a mechanism to optimize the data
+    forwarding by passing data directly from a side to the other one without
+    waking the stream up. Thanks to this directive, it is possible to disable
+    this optimization. Note it also disable any kernel tcp splicing. This
+    command is not meant for regular use, it will generally only be suggested by
+    developers along complex debugging sessions.
+
   -dG : disable use of getaddrinfo() to resolve host names into addresses. It
     can be used when suspecting that getaddrinfo() doesn't work as expected.
     This option was made available because many bogus implementations of
