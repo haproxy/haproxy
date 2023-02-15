@@ -571,6 +571,33 @@ int resume_listener(struct listener *l, int lpx, int lli)
 	return ret;
 }
 
+/* Same as resume_listener(), but will only work to resume from
+ * LI_FULL or LI_LIMITED states because we try to relax listeners that
+ * were temporarily restricted and not to resume inactive listeners that
+ * may have been paused or completely stopped in the meantime.
+ * Returns positive value for success and 0 for failure.
+ * It will need to operate under the proxy's lock and the listener's lock.
+ * The caller is responsible for indicating in lpx, lli whether the respective
+ * locks are already held (non-zero) or not (zero) so that the function pick
+ * the missing ones, in this order.
+ */
+int relax_listener(struct listener *l, int lpx, int lli)
+{
+	int ret = 1;
+
+	if (!lli)
+		HA_RWLOCK_WRLOCK(LISTENER_LOCK, &l->lock);
+
+	if (l->state != LI_FULL && l->state != LI_LIMITED)
+		goto end; /* listener may be suspended or even stopped */
+	ret = resume_listener(l, lpx, 1);
+
+ end:
+	if (!lli)
+		HA_RWLOCK_WRUNLOCK(LISTENER_LOCK, &l->lock);
+	return ret;
+}
+
 /* Marks a ready listener as full so that the stream code tries to re-enable
  * it upon next close() using resume_listener().
  */

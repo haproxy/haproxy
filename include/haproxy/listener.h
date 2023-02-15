@@ -59,6 +59,18 @@ int pause_listener(struct listener *l, int lpx, int lli);
  */
 int resume_listener(struct listener *l, int lpx, int lli);
 
+/* Same as resume_listener(), but will only work to resume from
+ * LI_FULL or LI_LIMITED states because we try to relax listeners that
+ * were temporarily restricted and not to resume inactive listeners that
+ * may have been paused or completely stopped in the meantime.
+ * Returns positive value for success and 0 for failure.
+ * It will need to operate under the proxy's lock and the listener's lock.
+ * The caller is responsible for indicating in lpx, lli whether the respective
+ * locks are already held (non-zero) or not (zero) so that the function pick
+ * the missing ones, in this order.
+ */
+int relax_listener(struct listener *l, int lpx, int lli);
+
 /*
  * This function completely stops a listener. It will need to operate under the
  * proxy's lock, the protocol's and the listener's lock. The caller is
