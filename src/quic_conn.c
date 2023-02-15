@@ -6589,7 +6589,7 @@ static void qc_rx_pkt_handle(struct quic_conn *qc, struct quic_rx_packet *pkt,
 	const struct quic_version *qv = pkt->version;
 	struct quic_enc_level *qel = NULL;
 	size_t b_cspace;
-	int io_cb_wakeup = 1;
+	int io_cb_wakeup = 0;
 
 	TRACE_ENTER(QUIC_EV_CONN_LPKT, qc, pkt, NULL, qv);
 
@@ -6657,7 +6657,6 @@ static void qc_rx_pkt_handle(struct quic_conn *qc, struct quic_rx_packet *pkt,
 
  drop:
 	HA_ATOMIC_INC(&qc->prx_counters->dropped_pkt);
- err:
 	if (io_cb_wakeup) {
 		TRACE_DEVEL("needs to wakeup the timer task after the amplification limit was reached",
 		            QUIC_EV_CONN_LPKT, qc);
