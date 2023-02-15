@@ -235,8 +235,7 @@ struct stconn {
 
 	unsigned int flags;                  /* SC_FL_* */
 	unsigned int hcto;                   /* half-closed timeout (0 = unset) */
-	unsigned int rto;                    /* read timeout, in ticks */
-	unsigned int wto;                    /* write timeout, in ticks */
+	unsigned int ioto;                   /* I/O activity timeout */
 	struct wait_event wait_event;        /* We're in a wait list */
 	struct sedesc *sedesc;               /* points to the stream endpoint descriptor */
 	enum obj_type *app;                  /* points to the applicative point (stream or check) */

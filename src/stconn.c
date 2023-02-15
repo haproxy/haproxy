@@ -134,7 +134,7 @@ static struct stconn *sc_new(struct sedesc *sedesc)
 	sc->obj_type = OBJ_TYPE_SC;
 	sc->flags = SC_FL_NONE;
 	sc->state = SC_ST_INI;
-	sc->rto = sc->wto = sc->hcto = TICK_ETERNITY;
+	sc->ioto = sc->hcto = TICK_ETERNITY;
 	sc->app = NULL;
 	sc->app_ops = NULL;
 	sc->src = NULL;
@@ -570,8 +570,8 @@ static void sc_app_shutw(struct stconn *sc)
 	sc_ep_reset_wex(sc);
 
 	if (tick_isset(sc->hcto)) {
-		sc->rto = sc->hcto;
-		sc_ep_set_rex(sc, sc->rto);
+		sc->ioto = sc->hcto;
+		sc_ep_set_rex(sc, sc->ioto);
 	}
 
 	switch (sc->state) {
@@ -649,7 +649,7 @@ static void sc_app_chk_snd(struct stconn *sc)
 	 */
 	sc_ep_clr(sc, SE_FL_WAIT_DATA);
 	if (!tick_isset(sc_ep_wex(sc)))
-		sc_ep_set_wex(sc, sc->wto);
+		sc_ep_set_wex(sc, sc->ioto);
 
 	if (!(sc->flags & SC_FL_DONT_WAKE))
 		task_wakeup(sc_strm_task(sc), TASK_WOKEN_IO);
@@ -711,8 +711,8 @@ static void sc_app_shutw_conn(struct stconn *sc)
 	sc_ep_reset_wex(sc);
 
 	if (tick_isset(sc->hcto)) {
-		sc->rto = sc->hcto;
-		sc_ep_set_rex(sc, sc->rto);
+		sc->ioto = sc->hcto;
+		sc_ep_set_rex(sc, sc->ioto);
 	}
 
 	switch (sc->state) {
@@ -844,13 +844,13 @@ static void sc_app_chk_snd_conn(struct stconn *sc)
 		 */
 		sc_ep_clr(sc, SE_FL_WAIT_DATA);
 		if (!tick_isset(sc_ep_wex(sc)))
-			sc_ep_set_wex(sc, sc->wto);
+			sc_ep_set_wex(sc, sc->ioto);
 	}
 
 	if (likely(oc->flags & CF_WRITE_EVENT)) {
 		/* update timeout if we have written something */
 		if (!(oc->flags & CF_SHUTW) && !channel_is_empty(oc))
-			sc_ep_set_wex(sc, sc->wto);
+			sc_ep_set_wex(sc, sc->ioto);
 
 		if (tick_isset(sc_ep_rex(sc)) && !(sc->flags & SC_FL_INDEP_STR)) {
 			/* Note: to prevent the client from expiring read timeouts
@@ -861,7 +861,7 @@ static void sc_app_chk_snd_conn(struct stconn *sc)
 			 * of data which can full the socket buffers long before a
 			 * write timeout is detected.
 			 */
-			sc_ep_set_rex(sc, sc->rto);
+			sc_ep_set_rex(sc, sc->ioto);
 		}
 	}
 
@@ -934,8 +934,8 @@ static void sc_app_shutw_applet(struct stconn *sc)
 	sc_ep_reset_wex(sc);
 
 	if (tick_isset(sc->hcto)) {
-		sc->rto = sc->hcto;
-		sc_ep_set_rex(sc, sc->rto);
+		sc->ioto = sc->hcto;
+		sc_ep_set_rex(sc, sc->ioto);
 	}
 
 	/* on shutw we always wake the applet up */
@@ -1008,7 +1008,7 @@ static void sc_app_chk_snd_applet(struct stconn *sc)
 		return;
 
 	if (!tick_isset(sc_ep_wex(sc)))
-		sc_ep_set_wex(sc, sc->wto);
+		sc_ep_set_wex(sc, sc->ioto);
 
 	if (!channel_is_empty(oc)) {
 		/* (re)start sending */
@@ -1042,7 +1042,7 @@ void sc_update_rx(struct stconn *sc)
 	if ((ic->flags & CF_EOI) || sc->flags & (SC_FL_WONT_READ|SC_FL_NEED_BUFF|SC_FL_NEED_ROOM))
 		sc_ep_reset_rex(sc);
 	else if (!tick_isset(sc_ep_rex(sc)))
-		sc_ep_set_rex(sc, sc->rto);
+		sc_ep_set_rex(sc, sc->ioto);
 
 	sc_chk_rcv(sc);
 }
@@ -1081,7 +1081,7 @@ void sc_update_tx(struct stconn *sc)
 	 */
 	sc_ep_clr(sc, SE_FL_WAIT_DATA);
 	if (!tick_isset(sc_ep_wex(sc))) {
-		sc_ep_set_wex(sc, sc->wto);
+		sc_ep_set_wex(sc, sc->ioto);
 		if (tick_isset(sc_ep_rex(sc)) && !(sc->flags & SC_FL_INDEP_STR)) {
 			/* Note: depending on the protocol, we don't know if we're waiting
 			 * for incoming data or not. So in order to prevent the socket from
@@ -1089,7 +1089,7 @@ void sc_update_tx(struct stconn *sc)
 			 * except if it was already infinite or if we have explicitly setup
 			 * independent streams.
 			 */
-			sc_ep_set_rex(sc, sc->rto);
+			sc_ep_set_rex(sc, sc->ioto);
 		}
 	}
 }
@@ -1134,11 +1134,11 @@ static void sc_notify(struct stconn *sc)
 		if (sc_ep_test(sc, SE_FL_ERR_PENDING|SE_FL_ERROR) &&
 		    !channel_is_empty(oc))
 			if (tick_isset(sc_ep_wex(sc)))
-				sc_ep_set_wex(sc, sc->wto);
+				sc_ep_set_wex(sc, sc->ioto);
 
 		if (!(sc->flags & SC_FL_INDEP_STR))
 			if (tick_isset(sc_ep_rex(sc)))
-				sc_ep_set_rex(sc, sc->rto);
+				sc_ep_set_rex(sc, sc->ioto);
 	}
 
 	if (oc->flags & CF_DONT_READ)
@@ -1193,7 +1193,7 @@ static void sc_notify(struct stconn *sc)
 	else if ((ic->flags & (CF_SHUTR|CF_READ_EVENT)) == CF_READ_EVENT) {
 		/* we must re-enable reading if sc_chk_snd() has freed some space */
 		if (tick_isset(sc_ep_rex(sc)))
-			sc_ep_set_rex(sc, sc->rto);
+			sc_ep_set_rex(sc, sc->ioto);
 	}
 
 	/* wake the task up only when needed */

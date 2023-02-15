@@ -1597,7 +1597,7 @@ static int cli_parse_set_timeout(char **args, char *payload, struct appctx *appc
 		if (res || timeout < 1)
 			return cli_err(appctx, "Invalid timeout value.\n");
 
-		s->scf->rto = s->scf->wto = 1 + MS_TO_TICKS(timeout*1000);
+		s->scf->ioto = 1 + MS_TO_TICKS(timeout*1000);
 		task_wakeup(s->task, TASK_WOKEN_MSG); // recompute timeouts
 		return 1;
 	}
@@ -2825,11 +2825,8 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		/* Now we can realign the response buffer */
 		c_realign_if_empty(&s->res);
 
-		s->scf->rto = strm_fe(s)->timeout.client;
-		s->scf->wto = strm_fe(s)->timeout.client;
-
-		s->scb->rto = TICK_ETERNITY;
-		s->scb->wto = TICK_ETERNITY;
+		s->scf->ioto = strm_fe(s)->timeout.client;
+		s->scb->ioto = TICK_ETERNITY;
 
 		sc_ep_reset_rex(s->scf);
 		sc_ep_reset_wex(s->scf);
