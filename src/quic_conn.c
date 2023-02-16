@@ -6287,13 +6287,6 @@ static int quic_rx_pkt_parse(struct quic_rx_packet *pkt,
 			goto drop;
 		}
 
-		if (pkt->type == QUIC_PACKET_TYPE_INITIAL &&
-		    dgram->len < QUIC_INITIAL_PACKET_MINLEN) {
-			TRACE_PROTO("Too short datagram with an Initial packet", QUIC_EV_CONN_LPKT);
-			HA_ATOMIC_INC(&prx_counters->too_short_initial_dgram);
-			goto drop;
-		}
-
 		/* When multiple QUIC packets are coalesced on the same UDP datagram,
 		 * they must have the same DCID.
 		 */
@@ -6387,6 +6380,19 @@ static int quic_rx_pkt_parse(struct quic_rx_packet *pkt,
 		 */
 		pkt->pn_offset = buf - beg;
 		pkt->len = pkt->pn_offset + len;
+
+		/* RFC 9000. Initial Datagram Size
+		 *
+		 * A server MUST discard an Initial packet that is carried in a UDP datagram
+		 * with a payload that is smaller than the smallest allowed maximum datagram
+		 * size of 1200 bytes.
+		 */
+		if (pkt->type == QUIC_PACKET_TYPE_INITIAL &&
+		    dgram->len < QUIC_INITIAL_PACKET_MINLEN) {
+			TRACE_PROTO("Too short datagram with an Initial packet", QUIC_EV_CONN_LPKT);
+			HA_ATOMIC_INC(&prx_counters->too_short_initial_dgram);
+			goto drop;
+		}
 
 		/* Interrupt parsing after packet length retrieval : this
 		 * ensures that only the packet is dropped but not the whole
