@@ -7277,7 +7277,10 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 		padding_len -= quic_int_getsize(len + padding_len) - len_sz;
 		len += padding_len;
 	}
-	else if (LIST_ISEMPTY(&frm_list) || len_frms == len) {
+	else if (len_frms && len_frms < QUIC_PACKET_PN_MAXLEN) {
+		len += padding_len = QUIC_PACKET_PN_MAXLEN - len_frms;
+	}
+	else if (LIST_ISEMPTY(&frm_list)) {
 		if (qel->pktns->tx.pto_probe) {
 			/* If we cannot send a frame, we send a PING frame. */
 			add_ping_frm = 1;
