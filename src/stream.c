@@ -199,19 +199,22 @@ static void strm_trace(enum trace_level level, uint64_t mask, const struct trace
 				      HTX_SL_P3_LEN(sl), HTX_SL_P3_PTR(sl));
 	}
 
+		chunk_appendf(&trace_buf, " - t=%p t.exp=%d s=(%p,0x%08x,0x%x)",
+			      task, tick_isset(task->expire) ? TICKS_TO_MS(task->expire - now_ms) : TICK_ETERNITY, s, s->flags, s->conn_err_type);
 
 	/* If txn defined info about HTTP msgs, otherwise info about SI. */
 	if (txn) {
-		chunk_appendf(&trace_buf, " - t=%p t.exp=%u s=(%p,0x%08x,0x%x) txn.flags=0x%08x, http.flags=(0x%08x,0x%08x) status=%d",
-			      task, task->expire, s, s->flags, s->conn_err_type, txn->flags, txn->req.flags, txn->rsp.flags, txn->status);
+		chunk_appendf(&trace_buf, " txn.flags=0x%08x, http.flags=(0x%08x,0x%08x) status=%d",
+			      txn->flags, txn->req.flags, txn->rsp.flags, txn->status);
 	}
 	else {
-		chunk_appendf(&trace_buf, " - t=%p t.exp=%u s=(%p,0x%08x,0x%x) scf=(%p,%d,0x%08x,0x%x) scb=(%p,%d,0x%08x,0x%x) scf.exp(r,w)=(%u,%u) scb.exp(r,w)=(%u,%u) retries=%d",
-			      task, task->expire, s, s->flags, s->conn_err_type,
+		chunk_appendf(&trace_buf, " scf=(%p,%d,0x%08x,0x%x) scb=(%p,%d,0x%08x,0x%x) scf.exp(r,w)=(%d,%d) scb.exp(r,w)=(%d,%d) retries=%d",
 			      s->scf, s->scf->state, s->scf->flags, s->scf->sedesc->flags,
 			      s->scb, s->scb->state, s->scb->flags, s->scb->sedesc->flags,
-			      sc_ep_rcv_ex(s->scf), sc_ep_snd_ex(s->scf),
-			      sc_ep_rcv_ex(s->scb), sc_ep_snd_ex(s->scb),
+			      tick_isset(sc_ep_rcv_ex(s->scf)) ? TICKS_TO_MS(sc_ep_rcv_ex(s->scf) - now_ms) : TICK_ETERNITY,
+			      tick_isset(sc_ep_snd_ex(s->scf)) ? TICKS_TO_MS(sc_ep_snd_ex(s->scf) - now_ms) : TICK_ETERNITY,
+			      tick_isset(sc_ep_rcv_ex(s->scb)) ? TICKS_TO_MS(sc_ep_rcv_ex(s->scb) - now_ms) : TICK_ETERNITY,
+			      tick_isset(sc_ep_snd_ex(s->scb)) ? TICKS_TO_MS(sc_ep_snd_ex(s->scb) - now_ms) : TICK_ETERNITY,
 			      s->conn_retries);
 	}
 
@@ -221,10 +224,10 @@ static void strm_trace(enum trace_level level, uint64_t mask, const struct trace
 
 	/* If txn defined, don't display all channel info */
 	if (src->verbosity == STRM_VERB_SIMPLE || txn) {
-		chunk_appendf(&trace_buf, " req=(%p .fl=0x%08x .exp=%u)",
-			      req, req->flags, req->analyse_exp);
-		chunk_appendf(&trace_buf, " res=(%p .fl=0x%08x .exp=%u)",
-			      res, res->flags, res->analyse_exp);
+		chunk_appendf(&trace_buf, " req=(%p .fl=0x%08x .exp=%d)",
+			      req, req->flags, tick_isset(req->analyse_exp) ? TICKS_TO_MS(req->analyse_exp - now_ms) : TICK_ETERNITY);
+		chunk_appendf(&trace_buf, " res=(%p .fl=0x%08x .exp=%d)",
+			      res, res->flags, tick_isset(res->analyse_exp) ? TICKS_TO_MS(res->analyse_exp - now_ms) : TICK_ETERNITY);
 	}
 	else {
 		chunk_appendf(&trace_buf, " req=(%p .fl=0x%08x .ana=0x%08x .exp=%u .o=%lu .tot=%llu .to_fwd=%u)",
