@@ -136,6 +136,56 @@ static forceinline uint sc_ep_get(const struct stconn *sc)
 	return se_fl_get(sc->sedesc);
 }
 
+/* Return the last read activity timestamp. May be TICK_ETERNITY */
+static forceinline unsigned int sc_ep_lra(const struct stconn *sc)
+{
+	return sc->sedesc->lra;
+}
+
+/* Return the first send blocked timestamp. May be TICK_ETERNITY */
+static forceinline unsigned int sc_ep_fsb(const struct stconn *sc)
+{
+	return sc->sedesc->fsb;
+}
+
+/* Report a read activity. This function sets <lra> to now_ms */
+static forceinline void sc_ep_report_read_activity(struct stconn *sc)
+{
+	sc->sedesc->lra = now_ms;
+}
+
+/* Report a send blocked. This function sets <fsb> to now_ms if it was not
+ * already set
+ */
+static forceinline void sc_ep_report_blocked_send(struct stconn *sc)
+{
+	if (!tick_isset(sc->sedesc->fsb))
+		sc->sedesc->fsb = now_ms;
+}
+
+/* Report a send activity by setting <fsb> to TICK_ETERNITY.
+ * For non-independent stream, a read activity is reported.
+ */
+static forceinline void sc_ep_report_send_activity(struct stconn *sc)
+{
+	sc->sedesc->fsb = TICK_ETERNITY;
+	if (!(sc->flags & SC_FL_INDEP_STR))
+		sc_ep_report_read_activity(sc);
+}
+
+static forceinline int sc_ep_rcv_ex(const struct stconn *sc)
+{
+	return (tick_isset(sc->sedesc->lra)
+		? tick_add_ifset(sc->sedesc->lra, sc->ioto)
+		: TICK_ETERNITY);
+}
+
+static forceinline int sc_ep_snd_ex(const struct stconn *sc)
+{
+	return (tick_isset(sc->sedesc->fsb)
+		? tick_add_ifset(sc->sedesc->fsb, sc->ioto)
+		: TICK_ETERNITY);
+}
 
 static forceinline int sc_ep_rex(const struct stconn *sc)
 {
@@ -345,11 +395,14 @@ static inline void se_have_no_more_data(struct sedesc *se)
 }
 
 /* The application layer informs a stream connector that it's willing to
- * receive data from the endpoint.
+ * receive data from the endpoint. A read activity is reported.
  */
 static inline void sc_will_read(struct stconn *sc)
 {
-	sc->flags &= ~SC_FL_WONT_READ;
+	if (sc->flags & SC_FL_WONT_READ) {
+		sc->flags &= ~SC_FL_WONT_READ;
+		sc_ep_report_read_activity(sc);
+	}
 }
 
 /* The application layer informs a stream connector that it will not receive
@@ -372,11 +425,14 @@ static inline void se_need_remote_conn(struct sedesc *se)
 }
 
 /* The application layer tells the stream connector that it just got the input
- * buffer it was waiting for.
+ * buffer it was waiting for. A read activity is reported.
  */
 static inline void sc_have_buff(struct stconn *sc)
 {
-	sc->flags &= ~SC_FL_NEED_BUFF;
+	if (sc->flags & SC_FL_NEED_BUFF) {
+		sc->flags &= ~SC_FL_NEED_BUFF;
+		sc_ep_report_read_activity(sc);
+	}
 }
 
 /* The stream connector failed to get an input buffer and is waiting for it.
@@ -392,10 +448,14 @@ static inline void sc_need_buff(struct stconn *sc)
 /* Tell a stream connector some room was made in the input buffer and any
  * failed attempt to inject data into it may be tried again. This is usually
  * called after a successful transfer of buffer contents to the other side.
+ *  A read activity is reported.
  */
 static inline void sc_have_room(struct stconn *sc)
 {
-	sc->flags &= ~SC_FL_NEED_ROOM;
+	if (sc->flags & SC_FL_NEED_ROOM) {
+		sc->flags &= ~SC_FL_NEED_ROOM;
+		sc_ep_report_read_activity(sc);
+	}
 }
 
 /* The stream connector announces it failed to put data into the input buffer

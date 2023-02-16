@@ -92,6 +92,8 @@ void sedesc_init(struct sedesc *sedesc)
 	sedesc->se = NULL;
 	sedesc->conn = NULL;
 	sedesc->sc = NULL;
+	sedesc->lra = TICK_ETERNITY;
+	sedesc->fsb = TICK_ETERNITY;
 	sedesc->rex = sedesc->wex = TICK_ETERNITY;
 	se_fl_setall(sedesc, SE_FL_NONE);
 }
@@ -533,6 +535,7 @@ static void sc_app_shutr(struct stconn *sc)
 	if (ic->flags & CF_SHUTR)
 		return;
 	ic->flags |= CF_SHUTR;
+	sc_ep_report_read_activity(sc);
 	sc_ep_reset_rex(sc);
 
 	if (!sc_state_in(sc->state, SC_SB_CON|SC_SB_RDY|SC_SB_EST))
@@ -1238,6 +1241,7 @@ static void sc_conn_read0(struct stconn *sc)
 	if (ic->flags & CF_SHUTR)
 		return;
 	ic->flags |= CF_SHUTR;
+	sc_ep_report_read_activity(sc);
 	sc_ep_reset_rex(sc);
 
 	if (!sc_state_in(sc->state, SC_SB_CON|SC_SB_RDY|SC_SB_EST))
@@ -1567,6 +1571,7 @@ static int sc_conn_recv(struct stconn *sc)
 			ic->xfer_large = 0;
 		}
 		ic->last_read = now_ms;
+		sc_ep_report_read_activity(sc);
 	}
 
  end_recv:
@@ -1575,6 +1580,7 @@ static int sc_conn_recv(struct stconn *sc)
 	/* Report EOI on the channel if it was reached from the mux point of
 	 * view. */
 	if (sc_ep_test(sc, SE_FL_EOI) && !(ic->flags & CF_EOI)) {
+		sc_ep_report_read_activity(sc);
 		ic->flags |= (CF_EOI|CF_READ_EVENT);
 		ret = 1;
 	}
@@ -1760,7 +1766,10 @@ static int sc_conn_send(struct stconn *sc)
 			sc->state = SC_ST_RDY;
 
 		sc_have_room(sc_opposite(sc));
+		sc_ep_report_send_activity(sc);
 	}
+	else
+		sc_ep_report_blocked_send(sc);
 
 	if (sc_ep_test(sc, SE_FL_ERROR | SE_FL_ERR_PENDING)) {
 		oc->flags |= CF_WRITE_EVENT;

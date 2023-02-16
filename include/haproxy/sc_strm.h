@@ -309,8 +309,10 @@ static inline int sc_is_recv_allowed(const struct stconn *sc)
 static inline void sc_chk_rcv(struct stconn *sc)
 {
 	if (sc_ep_test(sc, SE_FL_APPLET_NEED_CONN) &&
-	    sc_state_in(sc_opposite(sc)->state, SC_SB_RDY|SC_SB_EST|SC_SB_DIS|SC_SB_CLO))
+	    sc_state_in(sc_opposite(sc)->state, SC_SB_RDY|SC_SB_EST|SC_SB_DIS|SC_SB_CLO)) {
 		sc_ep_clr(sc, SE_FL_APPLET_NEED_CONN);
+		sc_ep_report_read_activity(sc);
+	}
 
 	if (!sc_is_recv_allowed(sc))
 		return;

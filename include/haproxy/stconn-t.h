@@ -199,15 +199,26 @@ struct stconn;
  * <se>     is the stream endpoint, i.e. the mux stream or the appctx
  * <conn>   is the connection for connection-based streams
  * <sc>     is the stream connector we're attached to, or NULL
+ * <lra>    is the last read activity
+ * <fsb>    is the first send blocked
  * <rex>    is the expiration date for a read, in ticks
  * <wex>    is the expiration date for a write or connect, in ticks
  * <flags>  SE_FL_*
-*/
+ *
+ * <lra> should be updated when a read activity is detected. It can be a
+ *       sucessful receive, when a shutr is reported or when receives are
+ *       unblocked.
+
+ * <fsb> should be updated when the first send of a series is blocked and reset
+ *       when a successful send is reported.
+ */
 struct sedesc {
 	void *se;
 	struct connection *conn;
 	struct stconn *sc;
 	unsigned int flags;
+	unsigned int lra;
+	unsigned int fsb;
 	int rex;
 	int wex;
 };

@@ -295,6 +295,7 @@ int stream_upgrade_from_sc(struct stconn *sc, struct buffer *input)
 		s->req.buf = *input;
 		*input = BUF_NULL;
 		s->req.total = (IS_HTX_STRM(s) ? htxbuf(&s->req.buf)->data : b_data(&s->req.buf));
+		sc_ep_report_read_activity(s->scf);
 	}
 
 	s->req.flags |= CF_READ_EVENT; /* Always report a read event */
@@ -562,6 +563,7 @@ struct stream *stream_new(struct session *sess, struct stconn *sc, struct buffer
 		s->req.buf = *input;
 		*input = BUF_NULL;
 		s->req.total = (IS_HTX_STRM(s) ? htxbuf(&s->req.buf)->data : b_data(&s->req.buf));
+		sc_ep_report_read_activity(s->scf);
 	}
 
 	/* it is important not to call the wakeup function directly but to
@@ -925,6 +927,7 @@ static void back_establish(struct stream *s)
 
 	se_have_more_data(s->scb->sedesc);
 	rep->flags |= CF_READ_EVENT; /* producer is now attached */
+	sc_ep_report_read_activity(s->scb);
 	if (conn) {
 		/* real connections have timeouts
 		 * if already defined, it means that a set-timeout rule has
