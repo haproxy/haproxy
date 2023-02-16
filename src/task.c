@@ -765,7 +765,7 @@ void process_runnable_tasks()
 	 */
 	max_total = max[TL_URGENT] + max[TL_NORMAL] + max[TL_BULK] + max[TL_HEAVY];
 	if (!max_total)
-		return;
+		goto leave;
 
 	for (queue = 0; queue < TL_CLASSES; queue++)
 		max[queue]  = ((unsigned)max_processed * max[queue] + max_total - 1) / max_total;
@@ -864,6 +864,7 @@ void process_runnable_tasks()
 	if (max_processed > 0 && thread_has_tasks())
 		goto not_done_yet;
 
+ leave:
 	if (tt->tl_class_mask)
 		activity[tid].long_rq++;
 }
