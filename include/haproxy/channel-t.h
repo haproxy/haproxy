@@ -61,7 +61,7 @@
 /* unused: 0x00000010 */
 #define CF_SHUTR          0x00000020  /* producer has already shut down */
 #define CF_SHUTR_NOW      0x00000040  /* the producer must shut down for reads ASAP */
-#define CF_READ_NOEXP     0x00000080  /* producer should not expire */
+/* 0x00000080 unused */
 
 #define CF_WRITE_EVENT    0x00000100  /* a write event detected on consumer side */
 /* unused: 0x00000200 */
@@ -136,14 +136,14 @@ static forceinline char *chn_show_flags(char *buf, size_t len, const char *delim
 	_(0);
 	/* flags */
 	_(CF_READ_EVENT, _(CF_READ_TIMEOUT, _(CF_READ_ERROR,
-	_(CF_SHUTR, _(CF_SHUTR_NOW, _(CF_READ_NOEXP, _(CF_WRITE_EVENT,
+	_(CF_SHUTR, _(CF_SHUTR_NOW, _(CF_WRITE_EVENT,
 	_(CF_WRITE_TIMEOUT, _(CF_WRITE_ERROR,
 	_(CF_WAKE_WRITE, _(CF_SHUTW, _(CF_SHUTW_NOW, _(CF_AUTO_CLOSE,
 	_(CF_STREAMER, _(CF_STREAMER_FAST, _(CF_WROTE_DATA,
 	_(CF_KERN_SPLICING, _(CF_READ_DONTWAIT,
 	_(CF_AUTO_CONNECT, _(CF_DONT_READ, _(CF_EXPECT_MORE,
 	_(CF_SEND_DONTWAIT, _(CF_NEVER_WAIT, _(CF_WAKE_ONCE, _(CF_FLT_ANALYZE,
-	_(CF_EOI, _(CF_ISRESP)))))))))))))))))))))))))));
+	_(CF_EOI, _(CF_ISRESP))))))))))))))))))))))))));
 	/* epilogue */
 	_(~0U);
 	return buf;

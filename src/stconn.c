@@ -1043,7 +1043,7 @@ void sc_update_rx(struct stconn *sc)
 
 	if ((ic->flags & CF_EOI) || sc->flags & (SC_FL_WONT_READ|SC_FL_NEED_BUFF|SC_FL_NEED_ROOM))
 		ic->rex = TICK_ETERNITY;
-	else if (!(ic->flags & CF_READ_NOEXP) && !tick_isset(ic->rex))
+	else if (!tick_isset(ic->rex))
 		ic->rex = tick_add_ifset(now_ms, ic->rto);
 
 	sc_chk_rcv(sc);
@@ -1195,7 +1195,7 @@ static void sc_notify(struct stconn *sc)
 	}
 	else if ((ic->flags & (CF_SHUTR|CF_READ_EVENT)) == CF_READ_EVENT) {
 		/* we must re-enable reading if sc_chk_snd() has freed some space */
-		if (!(ic->flags & CF_READ_NOEXP) && tick_isset(ic->rex))
+		if (tick_isset(ic->rex))
 			ic->rex = tick_add_ifset(now_ms, ic->rto);
 	}
 

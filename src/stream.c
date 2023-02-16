@@ -1720,8 +1720,8 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		memset(&s->txn->auth, 0, sizeof(s->txn->auth));
 
 	/* This flag must explicitly be set every time */
-	req->flags &= ~(CF_READ_NOEXP|CF_WAKE_WRITE);
-	res->flags &= ~(CF_READ_NOEXP|CF_WAKE_WRITE);
+	req->flags &= ~CF_WAKE_WRITE;
+	res->flags &= ~CF_WAKE_WRITE;
 
 	/* Keep a copy of req/rep flags so that we can detect shutdowns */
 	rqf_last = req->flags & ~CF_MASK_ANALYSER;
@@ -2543,20 +2543,6 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 			stream_process_counters(s);
 
 		stream_update_both_sc(s);
-
-		/* Trick: if a request is being waiting for the server to respond,
-		 * and if we know the server can timeout, we don't want the timeout
-		 * to expire on the client side first, but we're still interested
-		 * in passing data from the client to the server (eg: POST). Thus,
-		 * we can cancel the client's request timeout if the server's
-		 * request timeout is set and the server has not yet sent a response.
-		 */
-
-		if ((res->flags & (CF_AUTO_CLOSE|CF_SHUTR)) == 0 &&
-		    (tick_isset(req->wex) || tick_isset(res->rex))) {
-			req->flags |= CF_READ_NOEXP;
-			req->rex = TICK_ETERNITY;
-		}
 
 		/* Reset pending events now */
 		s->pending_events = 0;

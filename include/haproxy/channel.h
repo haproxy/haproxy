@@ -530,7 +530,7 @@ static inline int channel_output_closed(struct channel *chn)
  */
 static inline void channel_check_timeouts(struct channel *chn)
 {
-	if (likely(!(chn->flags & (CF_SHUTR|CF_READ_TIMEOUT|CF_READ_EVENT|CF_READ_NOEXP))) &&
+	if (likely(!(chn->flags & (CF_SHUTR|CF_READ_TIMEOUT|CF_READ_EVENT))) &&
 	    unlikely(tick_is_expired(chn->rex, now_ms)))
 		chn->flags |= CF_READ_TIMEOUT;
 
