@@ -1729,14 +1729,13 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	if (unlikely(s->pending_events & TASK_WOKEN_TIMER)) {
 		stream_check_conn_timeout(s);
 
-		/* check channel timeouts, and close the corresponding stream connectors
+		/* check SC and channel timeouts, and close the corresponding stream connectors
 		 * for future reads or writes. Note: this will also concern upper layers
 		 * but we do not touch any other flag. We must be careful and correctly
 		 * detect state changes when calling them.
 		 */
-
-		channel_check_timeouts(req);
-
+		sc_check_timeouts(scf);
+		channel_check_timeout(req);
 		if (unlikely((req->flags & (CF_SHUTW|CF_WRITE_TIMEOUT)) == CF_WRITE_TIMEOUT)) {
 			scb->flags |= SC_FL_NOLINGER;
 			sc_shutw(scb);
@@ -1748,8 +1747,8 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 			sc_shutr(scf);
 		}
 
-		channel_check_timeouts(res);
-
+		sc_check_timeouts(scb);
+		channel_check_timeout(res);
 		if (unlikely((res->flags & (CF_SHUTW|CF_WRITE_TIMEOUT)) == CF_WRITE_TIMEOUT)) {
 			scf->flags |= SC_FL_NOLINGER;
 			sc_shutw(scf);
@@ -2515,9 +2514,17 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 
 	update_exp_and_leave:
 		/* Note: please ensure that if you branch here you disable SC_FL_DONT_WAKE */
-		t->expire = tick_first((tick_is_expired(t->expire, now_ms) ? 0 : t->expire),
-				       tick_first(tick_first(sc_ep_rex(scf), sc_ep_wex(scf)),
-						  tick_first(sc_ep_rex(scb), sc_ep_wex(scb))));
+		t->expire = (tick_is_expired(t->expire, now_ms) ? 0 : t->expire);
+
+		if (likely(sc_rcv_may_expire(scf)))
+			t->expire = tick_first(t->expire, sc_ep_rcv_ex(scf));
+		if (likely(sc_snd_may_expire(scf)))
+			t->expire = tick_first(t->expire, sc_ep_snd_ex(scf));
+		if (likely(sc_rcv_may_expire(scb)))
+			t->expire = tick_first(t->expire, sc_ep_rcv_ex(scb));
+		if (likely(sc_snd_may_expire(scb)))
+			t->expire = tick_first(t->expire, sc_ep_snd_ex(scb));
+
 		if (!req->analysers)
 			req->analyse_exp = TICK_ETERNITY;
 

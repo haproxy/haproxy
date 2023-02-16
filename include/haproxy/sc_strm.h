@@ -373,4 +373,32 @@ static inline int sc_is_send_allowed(const struct stconn *sc)
 	return !sc_ep_test(sc, SE_FL_WAIT_DATA | SE_FL_WONT_CONSUME);
 }
 
+static inline int sc_rcv_may_expire(const struct stconn *sc)
+{
+	if (sc_ic(sc)->flags & (CF_EOI|CF_SHUTR|CF_READ_TIMEOUT|CF_READ_EVENT))
+		return 0;
+	if (sc->flags & (SC_FL_WONT_READ|SC_FL_NEED_BUFF|SC_FL_NEED_ROOM))
+		return 0;
+	if (sc_ep_test(sc, SE_FL_APPLET_NEED_CONN) || sc_ep_test(sc_opposite(sc), SE_FL_EXP_NO_DATA))
+		return 0;
+	return 1;
+}
+
+static inline int sc_snd_may_expire(const struct stconn *sc)
+{
+	if (sc_oc(sc)->flags & (CF_SHUTW|CF_WRITE_TIMEOUT|CF_WRITE_EVENT))
+		return 0;
+	if (sc_ep_test(sc, SE_FL_WONT_CONSUME))
+		return 0;
+	return 1;
+}
+
+static inline void sc_check_timeouts(const struct stconn *sc)
+{
+	if (likely(sc_rcv_may_expire(sc)) && unlikely(tick_is_expired(sc_ep_rcv_ex(sc), now_ms)))
+		sc_ic(sc)->flags |= CF_READ_TIMEOUT;
+	if (likely(sc_snd_may_expire(sc)) && unlikely(tick_is_expired(sc_ep_snd_ex(sc), now_ms)))
+		sc_oc(sc)->flags |= CF_WRITE_TIMEOUT;
+}
+
 #endif /* _HAPROXY_SC_STRM_H */

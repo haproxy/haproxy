@@ -523,25 +523,13 @@ static inline int channel_output_closed(struct channel *chn)
 	return ((chn->flags & CF_SHUTW) != 0);
 }
 
-/* Check channel timeouts, and set the corresponding flags. The likely/unlikely
- * have been optimized for fastest normal path. The read/write timeouts are not
- * set if there was activity on the channel. That way, we don't have to update
- * the timeout on every I/O. Note that the analyser timeout is always checked.
- */
-static inline void channel_check_timeouts(struct channel *chn)
+/* Check channel timeouts, and set the corresponding flags. */
+static inline void channel_check_timeout(struct channel *chn)
 {
-	if (likely(!(chn->flags & (CF_SHUTR|CF_READ_TIMEOUT|CF_READ_EVENT))) &&
-	    unlikely(tick_is_expired(sc_ep_rex(chn_prod(chn)), now_ms)))
-		chn->flags |= CF_READ_TIMEOUT;
-
-	if (likely(!(chn->flags & (CF_SHUTW|CF_WRITE_TIMEOUT|CF_WRITE_EVENT))) &&
-	    unlikely(tick_is_expired(sc_ep_wex(chn_cons(chn)), now_ms)))
-		chn->flags |= CF_WRITE_TIMEOUT;
-
-	if (likely(!(chn->flags & CF_READ_EVENT)) &&
-	    unlikely(tick_is_expired(chn->analyse_exp, now_ms)))
+	if (likely(!(chn->flags & CF_READ_EVENT)) && unlikely(tick_is_expired(chn->analyse_exp, now_ms)))
 		chn->flags |= CF_READ_EVENT;
 }
+
 
 /* Erase any content from channel <buf> and adjusts flags accordingly. Note
  * that any spliced data is not affected since we may not have any access to
