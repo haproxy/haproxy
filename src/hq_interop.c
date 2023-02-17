@@ -7,6 +7,7 @@
 #include <haproxy/htx.h>
 #include <haproxy/http.h>
 #include <haproxy/mux_quic.h>
+#include <haproxy/qmux_http.h>
 
 static ssize_t hq_interop_decode_qcs(struct qcs *qcs, struct buffer *b, int fin)
 {
@@ -18,6 +19,13 @@ static ssize_t hq_interop_decode_qcs(struct qcs *qcs, struct buffer *b, int fin)
 	char *end = b_wrap(b);
 	size_t size = b_size(b);
 	size_t data = b_data(b);
+
+	if (!data && fin) {
+		/* FIN is notified with an empty STREAM frame. */
+		BUG_ON(!qcs->sd); /* sd must already be attached here */
+		qcs_http_handle_standalone_fin(qcs);
+		return 0;
+	}
 
 	b_alloc(&htx_buf);
 	htx = htx_from_buf(&htx_buf);

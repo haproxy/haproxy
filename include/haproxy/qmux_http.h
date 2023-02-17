@@ -12,6 +12,8 @@ size_t qcs_http_snd_buf(struct qcs *qcs, struct buffer *buf, size_t count,
                         char *fin);
 size_t qcs_http_reset_buf(struct qcs *qcs, struct buffer *buf, size_t count);
 
+void qcs_http_handle_standalone_fin(struct qcs *qcs);
+
 #endif /* USE_QUIC */
 
 #endif /* _HAPROXY_MUX_QUIC_HTTP_H */

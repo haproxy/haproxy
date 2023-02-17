@@ -33,6 +33,7 @@
 #include <haproxy/istbuf.h>
 #include <haproxy/mux_quic.h>
 #include <haproxy/pool.h>
+#include <haproxy/qmux_http.h>
 #include <haproxy/qpack-dec.h>
 #include <haproxy/qpack-enc.h>
 #include <haproxy/quic_conn-t.h>
@@ -982,8 +983,6 @@ static ssize_t h3_decode_qcs(struct qcs *qcs, struct buffer *b, int fin)
 	ssize_t total = 0, ret;
 
 	h3_debug_printf(stderr, "%s: STREAM ID: %lu\n", __func__, qcs->id);
-	if (!b_data(b))
-		return 0;
 
 	if (quic_stream_is_uni(qcs->id) && !(h3s->flags & H3_SF_UNI_INIT)) {
 		if ((ret = h3_init_uni_stream(h3c, qcs, b)) < 0)
@@ -1011,6 +1010,11 @@ static ssize_t h3_decode_qcs(struct qcs *qcs, struct buffer *b, int fin)
 	if (h3s->type == H3S_T_CTRL && fin) {
 		qcc_emit_cc_app(qcs->qcc, H3_CLOSED_CRITICAL_STREAM, 1);
 		return -1;
+	}
+
+	if (!b_data(b) && fin && quic_stream_is_bidi(qcs->id)) {
+		qcs_http_handle_standalone_fin(qcs);
+		return 0;
 	}
 
 	while (b_data(b) && !(qcs->flags & QC_SF_DEM_FULL) && !h3c->err && !h3s->err) {

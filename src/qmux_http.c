@@ -107,3 +107,25 @@ size_t qcs_http_reset_buf(struct qcs *qcs, struct buffer *buf, size_t count)
 
 	return count;
 }
+
+/* Utility function which can be used by app layer an empty STREAM frame is
+ * received with FIN bit set for <qcs> stream. It will ensure that HTX EOM is
+ * properly inserted in <qcs> app_buf.
+ */
+void qcs_http_handle_standalone_fin(struct qcs *qcs)
+{
+	struct buffer *appbuf;
+	struct htx *htx = NULL;
+
+	appbuf = qc_get_buf(qcs, &qcs->rx.app_buf);
+	BUG_ON(!appbuf);
+
+	htx = htx_from_buf(appbuf);
+	if (htx_is_empty(htx)) {
+		if (!htx_add_endof(htx, HTX_BLK_EOT)) {
+			ABORT_NOW(); /* cannot happen for empty HTX message. */
+		}
+	}
+	htx->flags |= HTX_FL_EOM;
+	htx_to_buf(htx, appbuf);
+}

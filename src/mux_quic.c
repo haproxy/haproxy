@@ -768,10 +768,10 @@ static int qcc_decode_qcs(struct qcc *qcc, struct qcs *qcs)
 		ret = b_data(&b);
 	}
 
-	if (ret) {
+	if (ret)
 		qcs_consume(qcs, ret);
+	if (ret || (!b_data(&b) && fin))
 		qcs_notify_recv(qcs);
-	}
 
 	TRACE_LEAVE(QMUX_EV_QCS_RECV, qcc->conn, qcs);
 	return 0;
