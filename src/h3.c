@@ -982,22 +982,26 @@ static ssize_t h3_decode_qcs(struct qcs *qcs, struct buffer *b, int fin)
 	struct h3c *h3c = h3s->h3c;
 	ssize_t total = 0, ret;
 
-	h3_debug_printf(stderr, "%s: STREAM ID: %lu\n", __func__, qcs->id);
+	TRACE_ENTER(H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
 
 	if (quic_stream_is_uni(qcs->id) && !(h3s->flags & H3_SF_UNI_INIT)) {
-		if ((ret = h3_init_uni_stream(h3c, qcs, b)) < 0)
-			return -1;
+		if ((ret = h3_init_uni_stream(h3c, qcs, b)) < 0) {
+			TRACE_ERROR("cannot initialize uni stream", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
+			goto err;
+		}
 
 		total += ret;
 	}
 
 	if (quic_stream_is_uni(qcs->id) && (h3s->flags & H3_SF_UNI_NO_H3)) {
 		/* For non-h3 STREAM, parse it and return immediately. */
-		if ((ret = h3_parse_uni_stream_no_h3(qcs, b, fin)) < 0)
-			return -1;
+		if ((ret = h3_parse_uni_stream_no_h3(qcs, b, fin)) < 0) {
+			TRACE_ERROR("error when parsing non-HTTP3 uni stream", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
+			goto err;
+		}
 
 		total += ret;
-		return total;
+		goto done;
 	}
 
 	/* RFC 9114 6.2.1. Control Streams
@@ -1008,13 +1012,15 @@ static ssize_t h3_decode_qcs(struct qcs *qcs, struct buffer *b, int fin)
 	 * error of type H3_CLOSED_CRITICAL_STREAM.
 	 */
 	if (h3s->type == H3S_T_CTRL && fin) {
+		TRACE_ERROR("control stream closed by remote peer", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
 		qcc_emit_cc_app(qcs->qcc, H3_CLOSED_CRITICAL_STREAM, 1);
-		return -1;
+		goto err;
 	}
 
 	if (!b_data(b) && fin && quic_stream_is_bidi(qcs->id)) {
+		TRACE_PROTO("received FIN without data", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
 		qcs_http_handle_standalone_fin(qcs);
-		return 0;
+		goto done;
 	}
 
 	while (b_data(b) && !(qcs->flags & QC_SF_DEM_FULL) && !h3c->err && !h3s->err) {
@@ -1024,15 +1030,15 @@ static ssize_t h3_decode_qcs(struct qcs *qcs, struct buffer *b, int fin)
 		if (!h3s->demux_frame_len) {
 			/* Switch to a new frame. */
 			size_t hlen = h3_decode_frm_header(&ftype, &flen, b);
-			if (!hlen)
+			if (!hlen) {
+				TRACE_PROTO("pause parsing on incomplete frame header", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
 				break;
-
-			h3_debug_printf(stderr, "%s: ftype: %lu, flen: %lu\n",
-			                __func__, ftype, flen);
+			}
 
 			h3s->demux_frame_type = ftype;
 			h3s->demux_frame_len = flen;
 			total += hlen;
+			TRACE_PROTO("parsing a new frame", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
 
 			/* Check that content-length is not exceeded on a new DATA frame. */
 			if (ftype == H3_FT_DATA) {
@@ -1042,8 +1048,9 @@ static ssize_t h3_decode_qcs(struct qcs *qcs, struct buffer *b, int fin)
 			}
 
 			if (!h3_is_frame_valid(h3c, qcs, ftype)) {
+				TRACE_ERROR("received an invalid frame", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
 				qcc_emit_cc_app(qcs->qcc, H3_FRAME_UNEXPECTED, 1);
-				return -1;
+				goto err;
 			}
 
 			if (!b_data(b))
@@ -1064,8 +1071,9 @@ static ssize_t h3_decode_qcs(struct qcs *qcs, struct buffer *b, int fin)
 			 * excessive decompressed size.
 			 */
 			if (flen > QC_S_RX_BUF_SZ) {
+				TRACE_ERROR("received a too big frame", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
 				qcc_emit_cc_app(qcs->qcc, H3_EXCESSIVE_LOAD, 1);
-				return -1;
+				goto err;
 			}
 			break;
 		}
@@ -1102,8 +1110,9 @@ static ssize_t h3_decode_qcs(struct qcs *qcs, struct buffer *b, int fin)
 		case H3_FT_SETTINGS:
 			ret = h3_parse_settings_frm(qcs->qcc->ctx, b, flen);
 			if (ret < 0) {
+				TRACE_ERROR("error on SETTINGS parsing", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
 				qcc_emit_cc_app(qcs->qcc, h3c->err, 1);
-				return -1;
+				goto err;
 			}
 			h3c->flags |= H3_CF_SETTINGS_RECV;
 			break;
@@ -1113,7 +1122,6 @@ static ssize_t h3_decode_qcs(struct qcs *qcs, struct buffer *b, int fin)
 			 * Implementations MUST discard frames [...] that have unknown
 			 * or unsupported types.
 			 */
-			h3_debug_printf(stderr, "ignore unknown frame type 0x%lx\n", ftype);
 			ret = flen;
 			break;
 		}
@@ -1125,6 +1133,10 @@ static ssize_t h3_decode_qcs(struct qcs *qcs, struct buffer *b, int fin)
 			total += ret;
 		}
 	}
+
+	/* Reset demux frame type for traces. */
+	if (!h3s->demux_frame_len)
+		h3s->demux_frame_type = H3_FT_UNINIT;
 
 	/* Interrupt decoding on stream/connection error detected. */
 	if (h3s->err) {
@@ -1141,7 +1153,13 @@ static ssize_t h3_decode_qcs(struct qcs *qcs, struct buffer *b, int fin)
 	 * However, currently, io-cb of MUX does not handle Rx.
 	 */
 
+ done:
+	TRACE_LEAVE(H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
 	return total;
+
+ err:
+	TRACE_DEVEL("leaving on error", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
+	return -1;
 }
 
 /* Returns buffer for data sending.
@@ -1655,7 +1673,7 @@ static int h3_attach(struct qcs *qcs, void *conn_ctx)
 	h3s->h3c = conn_ctx;
 
 	h3s->demux_frame_len = 0;
-	h3s->demux_frame_type = 0;
+	h3s->demux_frame_type = H3_FT_UNINIT;
 	h3s->body_len = 0;
 	h3s->data_len = 0;
 	h3s->flags = 0;
@@ -1820,6 +1838,20 @@ static void h3_stats_inc_err_cnt(void *ctx, int err_code)
 	h3_inc_err_cnt(h3c->prx_counters, err_code);
 }
 
+static inline const char *h3_ft_str(int type)
+{
+	switch (type) {
+	case H3_FT_DATA:         return "DATA";
+	case H3_FT_HEADERS:      return "HEADERS";
+	case H3_FT_SETTINGS:     return "SETTINGS";
+	case H3_FT_PUSH_PROMISE: return "PUSH_PROMISE";
+	case H3_FT_MAX_PUSH_ID:  return "MAX_PUSH_ID";
+	case H3_FT_CANCEL_PUSH:  return "CANCEL_PUSH";
+	case H3_FT_GOAWAY:       return "GOAWAY";
+	default:                 return "_UNKNOWN_";
+	}
+}
+
 /* h3 trace handler */
 static void h3_trace(enum trace_level level, uint64_t mask,
                      const struct trace_source *src,
@@ -1829,6 +1861,7 @@ static void h3_trace(enum trace_level level, uint64_t mask,
 	const struct connection *conn = a1;
 	const struct qcc *qcc   = conn ? conn->ctx : NULL;
 	const struct qcs *qcs   = a2;
+	const struct h3s *h3s   = qcs ? qcs->ctx : NULL;
 
 	if (!qcc)
 		return;
@@ -1840,6 +1873,11 @@ static void h3_trace(enum trace_level level, uint64_t mask,
 
 		if (qcs)
 			chunk_appendf(&trace_buf, " qcs=%p(%llu)", qcs, (ull)qcs->id);
+
+		if (h3s && h3s->demux_frame_type != H3_FT_UNINIT) {
+			chunk_appendf(&trace_buf, " h3s.dem=%s/%d",
+			              h3_ft_str(h3s->demux_frame_type), h3s->demux_frame_len);
+		}
 	}
 }
 

@@ -75,6 +75,9 @@ enum h3_err {
 
 /* Frame types. */
 enum h3_ft       {
+	/* internal value used to mark demuxing as inactive */
+	H3_FT_UNINIT       = -1,
+
 	H3_FT_DATA         = 0x00,
 	H3_FT_HEADERS      = 0x01,
 	/* hole */
