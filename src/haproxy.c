@@ -2147,7 +2147,7 @@ static void init(int argc, char **argv)
 			}
 			tmproc->options |= PROC_O_TYPE_MASTER; /* master */
 			tmproc->pid = pid;
-			tmproc->timestamp = start_time.tv_sec;
+			tmproc->timestamp = start_date.tv_sec;
 			proc_self = tmproc;
 
 			LIST_APPEND(&proc_list, &tmproc->list);
@@ -3563,7 +3563,7 @@ int main(int argc, char **argv)
 						if (child->reloads == 0 &&
 						    child->options & PROC_O_TYPE_WORKER &&
 						    child->pid == -1) {
-							child->timestamp = now.tv_sec;
+							child->timestamp = date.tv_sec;
 							child->pid = ret;
 							child->version = strdup(haproxy_version);
 							break;
