@@ -2922,6 +2922,8 @@ void run_poll_loop()
 {
 	int next, wake;
 
+	_HA_ATOMIC_OR(&th_ctx->flags, TH_FL_IN_LOOP);
+
 	clock_update_date(0,1);
 	while (1) {
 		wake_expired_tasks();
@@ -3010,6 +3012,8 @@ void run_poll_loop()
 
 		activity[tid].loops++;
 	}
+
+	_HA_ATOMIC_AND(&th_ctx->flags, ~TH_FL_IN_LOOP);
 }
 
 static void *run_thread_poll_loop(void *data)
@@ -3028,6 +3032,7 @@ static void *run_thread_poll_loop(void *data)
 	/* thread is started, from now on it is not idle nor harmless */
 	thread_harmless_end();
 	thread_idle_end();
+	_HA_ATOMIC_OR(&th_ctx->flags, TH_FL_STARTED);
 
 	/* Now, initialize one thread init at a time. This is better since
 	 * some init code is a bit tricky and may release global resources
