@@ -1124,6 +1124,7 @@ The following keywords are supported in the "global" section :
    - tune.bufsize
    - tune.comp.maxlevel
    - tune.disable-fast-forward
+   - tune.fail-alloc
    - tune.fd.edge-triggered
    - tune.h2.header-table-size
    - tune.h2.initial-window-size
