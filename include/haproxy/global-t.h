@@ -80,7 +80,7 @@
 #define GTUNE_QUICK_EXIT         (1<<23)
 #define GTUNE_QUIC_SOCK_PER_CONN (1<<24)
 #define GTUNE_NO_QUIC            (1<<25)
-#define GTUNE_NO_FAST_FWD        (1<<26)
+#define GTUNE_USE_FAST_FWD       (1<<26)
 
 /* SSL server verify mode */
 enum {

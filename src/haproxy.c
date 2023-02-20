@@ -1598,6 +1598,8 @@ static void init_args(int argc, char **argv)
 #endif
 	global.tune.options |= GTUNE_STRICT_LIMITS;
 
+	global.tune.options |= GTUNE_USE_FAST_FWD; /* Use fast-forward by default */
+
 	/* keep a copy of original arguments for the master process */
 	old_argv = copy_argv(argc, argv);
 	if (!old_argv) {
@@ -1649,7 +1651,7 @@ static void init_args(int argc, char **argv)
 				global.tune.options &= ~GTUNE_USE_REUSEPORT;
 #endif
 			else if (*flag == 'd' && flag[1] == 'F')
-				global.tune.options |= GTUNE_NO_FAST_FWD;
+				global.tune.options &= ~GTUNE_USE_FAST_FWD;
 			else if (*flag == 'd' && flag[1] == 'V')
 				global.ssl_server_verify = SSL_SERVER_VERIFY_NONE;
 			else if (*flag == 'V')
