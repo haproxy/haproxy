@@ -865,6 +865,7 @@ The list of currently supported predicates is the following:
 
   - streq(<str1>,<str2>)  : returns true only if the two strings are equal
   - strneq(<str1>,<str2>) : returns true only if the two strings differ
+  - strstr(<str1>,<str2>) : returns true only if the second string is found in the first one
 
   - version_atleast(<ver>): returns true if the current haproxy version is
                             at least as recent as <ver> otherwise false. The

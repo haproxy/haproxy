@@ -22,6 +22,7 @@ const struct cond_pred_kw cond_predicates[] = {
 	{ "feature",                 CFG_PRED_FEATURE,                ARG1(1, STR)         },
 	{ "streq",                   CFG_PRED_STREQ,                  ARG2(2, STR, STR)    },
 	{ "strneq",                  CFG_PRED_STRNEQ,                 ARG2(2, STR, STR)    },
+	{ "strstr",                  CFG_PRED_STRSTR,                 ARG2(2, STR, STR)    },
 	{ "version_atleast",         CFG_PRED_VERSION_ATLEAST,        ARG1(1, STR)         },
 	{ "version_before",          CFG_PRED_VERSION_BEFORE,         ARG1(1, STR)         },
 	{ "openssl_version_atleast", CFG_PRED_OSSL_VERSION_ATLEAST,   ARG1(1, STR)         },
@@ -223,6 +224,10 @@ int cfg_eval_cond_term(const struct cfg_cond_term *term, char **err)
 
 		case CFG_PRED_STRNEQ:   // checks if the two arg are different
 			ret = strcmp(term->args[0].data.str.area, term->args[1].data.str.area) != 0;
+			break;
+
+		case CFG_PRED_STRSTR:   // checks if the 2nd arg is found in the first one
+			ret = strstr(term->args[0].data.str.area, term->args[1].data.str.area) != NULL;
 			break;
 
 		case CFG_PRED_VERSION_ATLEAST: // checks if the current version is at least this one
