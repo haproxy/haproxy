@@ -2404,9 +2404,6 @@ int stream_set_backend(struct stream *s, struct proxy *be)
 	if (be->options2 & PR_O2_INDEPSTR)
 		s->scb->flags |= SC_FL_INDEP_STR;
 
-	if (tick_isset(be->timeout.serverfin))
-		s->scb->hcto = be->timeout.serverfin;
-
 	/* We want to enable the backend-specific analysers except those which
 	 * were already run as part of the frontend/listener. Note that it would
 	 * be more reliable to store the list of analysers that have been run,

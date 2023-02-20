@@ -478,12 +478,10 @@ struct stream *stream_new(struct session *sess, struct stconn *sc, struct buffer
 		goto out_fail_alloc_scb;
 
 	sc_set_state(s->scf, SC_ST_EST);
-	s->scf->hcto = sess->fe->timeout.clientfin;
 
 	if (likely(sess->fe->options2 & PR_O2_INDEPSTR))
 		s->scf->flags |= SC_FL_INDEP_STR;
 
-	s->scb->hcto = TICK_ETERNITY;
 	if (likely(sess->fe->options2 & PR_O2_INDEPSTR))
 		s->scb->flags |= SC_FL_INDEP_STR;
 

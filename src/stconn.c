@@ -135,7 +135,7 @@ static struct stconn *sc_new(struct sedesc *sedesc)
 	sc->obj_type = OBJ_TYPE_SC;
 	sc->flags = SC_FL_NONE;
 	sc->state = SC_ST_INI;
-	sc->ioto = sc->hcto = TICK_ETERNITY;
+	sc->ioto = TICK_ETERNITY;
 	sc->app = NULL;
 	sc->app_ops = NULL;
 	sc->src = NULL;

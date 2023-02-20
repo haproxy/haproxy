@@ -2830,8 +2830,6 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		s->req.analyse_exp = TICK_ETERNITY;
 		s->res.analyse_exp = TICK_ETERNITY;
 
-		s->scb->hcto = TICK_ETERNITY;
-
 		/* we're removing the analysers, we MUST re-enable events detection.
 		 * We don't enable close on the response channel since it's either
 		 * already closed, or in keep-alive with an idle connection handler.
