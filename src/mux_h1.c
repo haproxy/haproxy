@@ -1230,7 +1230,6 @@ static void h1_set_srv_conn_mode(struct h1s *h1s, struct h1m *h1m)
 		else if (!(h1m->flags & H1_MF_CONN_KAL) &&
 			 ((fe_flags & PR_O_HTTP_MODE) == PR_O_HTTP_SCL ||
 			  (be->options & PR_O_HTTP_MODE) == PR_O_HTTP_SCL ||
-			  (fe_flags & PR_O_HTTP_MODE) == PR_O_HTTP_CLO ||
 			  (be->options & PR_O_HTTP_MODE) == PR_O_HTTP_CLO)) {
 			/* no explicit keep-alive option httpclose/server-close => close */
 			h1s->flags = (h1s->flags & ~H1S_F_WANT_MSK) | H1S_F_WANT_CLO;

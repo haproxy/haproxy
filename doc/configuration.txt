@@ -9700,10 +9700,8 @@ no option httpclose
   httpclose".
 
   If "option httpclose" is set, HAProxy will close the client or the server
-  connection, depending where the option is set. Only the frontend is
-  considered for client connections while the frontend and the backend are
-  considered for server ones. In this case the option is enabled if at least
-  one of the frontend or backend holding the connection has it enabled. If the
+  connection, depending where the option is set. The frontend is considered for
+  client connections while the backend is considered for server ones. If the
   option is set on a listener, it is applied both on client and server
   connections. It will check if a "Connection: close" header is already set in
   each direction, and will add one if missing.
