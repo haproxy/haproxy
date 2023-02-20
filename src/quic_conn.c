@@ -2699,7 +2699,7 @@ static void qc_cc_err_count_inc(struct quic_conn *qc, struct quic_frame *frm)
 
 /* Cancel a request on connection <qc> for stream id <id>. This is useful when
  * the client opens a new stream but the MUX has already been released. A
- * STOP_SENDING frame is prepared for emission.
+ * STOP_SENDING + RESET_STREAM frames are prepared for emission.
  *
  * TODO this function is closely related to H3. Its place should be in H3 layer
  * instead of quic-conn but this requires an architecture adjustment.
@@ -2709,7 +2709,7 @@ static void qc_cc_err_count_inc(struct quic_conn *qc, struct quic_frame *frm)
 static int qc_h3_request_reject(struct quic_conn *qc, uint64_t id)
 {
 	int ret = 0;
-	struct quic_frame *frm;
+	struct quic_frame *ss, *rs;
 	struct quic_enc_level *qel = &qc->els[QUIC_TLS_ENC_LEVEL_APP];
 	const uint64_t app_error_code = H3_REQUEST_REJECTED;
 
@@ -2724,15 +2724,28 @@ static int qc_h3_request_reject(struct quic_conn *qc, uint64_t id)
 		goto out;
 	}
 
-	frm = qc_frm_alloc(QUIC_FT_STOP_SENDING);
-	if (!frm) {
+	ss = qc_frm_alloc(QUIC_FT_STOP_SENDING);
+	if (!ss) {
 		TRACE_ERROR("failed to allocate quic_frame", QUIC_EV_CONN_PRSHPKT, qc);
 		goto out;
 	}
 
-	frm->stop_sending.id = id;
-	frm->stop_sending.app_error_code = app_error_code;
-	LIST_APPEND(&qel->pktns->tx.frms, &frm->list);
+	ss->stop_sending.id = id;
+	ss->stop_sending.app_error_code = app_error_code;
+
+	rs = qc_frm_alloc(QUIC_FT_RESET_STREAM);
+	if (!rs) {
+		TRACE_ERROR("failed to allocate quic_frame", QUIC_EV_CONN_PRSHPKT, qc);
+		qc_frm_free(&ss);
+		goto out;
+	}
+
+	rs->reset_stream.id = id;
+	rs->reset_stream.app_error_code = app_error_code;
+	rs->reset_stream.final_size = 0;
+
+	LIST_APPEND(&qel->pktns->tx.frms, &ss->list);
+	LIST_APPEND(&qel->pktns->tx.frms, &rs->list);
 	ret = 1;
  out:
 	TRACE_LEAVE(QUIC_EV_CONN_PRSHPKT, qc);
