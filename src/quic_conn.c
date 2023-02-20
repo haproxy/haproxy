@@ -3523,6 +3523,15 @@ int qc_send_ppkts(struct buffer *buf, struct ssl_sock_ctx *ctx)
 		time_sent = now_ms;
 
 		for (pkt = first_pkt; pkt; pkt = next_pkt) {
+			/* RFC 9000 14.1 Initial datagram size
+			 * a server MUST expand the payload of all UDP datagrams carrying ack-eliciting
+			 * Initial packets to at least the smallest allowed maximum datagram size of
+			 * 1200 bytes.
+			 */
+			BUG_ON_HOT(pkt->type == QUIC_PACKET_TYPE_INITIAL &&
+			           (pkt->flags & QUIC_FL_TX_PACKET_ACK_ELICITING) &&
+			           dglen < QUIC_INITIAL_PACKET_MINLEN);
+
 			pkt->time_sent = time_sent;
 			if (pkt->flags & QUIC_FL_TX_PACKET_ACK_ELICITING) {
 				pkt->pktns->tx.time_of_last_eliciting = time_sent;
