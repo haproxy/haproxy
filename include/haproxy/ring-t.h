@@ -27,7 +27,7 @@
 #include <haproxy/thread.h>
 
 /* The code below handles circular buffers with single-producer and multiple
- * readers (up to 255). The buffer storage area must remain always allocated.
+ * readers (up to 254). The buffer storage area must remain always allocated.
  * It's made of series of payload blocks followed by a readers count (RC).
  * There is always a readers count at the beginning of the buffer as well. Each
  * payload block is composed of a varint-encoded size (VI) followed by the
@@ -95,6 +95,10 @@
 /* ring watch flags to be used when watching the ring */
 #define RING_WF_WAIT_MODE  0x00000001   /* wait for new contents */
 #define RING_WF_SEEK_NEW   0x00000002   /* seek to new contents  */
+
+/* keep values below in decimal, they may be dumped in error messages */
+#define RING_WRITING_SIZE  255  /* the next message's size is being written */
+#define RING_MAX_READERS   254  /* highest supported value for RC */
 
 struct ring {
 	struct buffer buf;   // storage area

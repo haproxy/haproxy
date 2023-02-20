@@ -270,7 +270,7 @@ int ring_attach(struct ring *ring)
 	int users = ring->readers_count;
 
 	do {
-		if (users >= 255)
+		if (users >= RING_MAX_READERS)
 			return 0;
 	} while (!_HA_ATOMIC_CAS(&ring->readers_count, &users, users + 1));
 	return 1;
@@ -313,7 +313,7 @@ int ring_attach_cli(struct ring *ring, struct appctx *appctx, uint flags)
 
 	if (!ring_attach(ring))
 		return cli_err(appctx,
-		               "Sorry, too many watchers (255) on this ring buffer. "
+		               "Sorry, too many watchers (" TOSTR(RING_MAX_READERS) ") on this ring buffer. "
 		               "What could it have so interesting to attract so many watchers ?");
 
 	if (!appctx->io_handler)
