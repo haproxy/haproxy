@@ -9410,18 +9410,18 @@ no option http-ignore-probes
 
 option http-keep-alive
 no option http-keep-alive
-  Enable or disable HTTP keep-alive from client to server
+  Enable or disable HTTP keep-alive from client to server for HTTP/1.x
+  connections
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   yes
   Arguments : none
 
   By default HAProxy operates in keep-alive mode with regards to persistent
-  connections: for each connection it processes each request and response, and
-  leaves the connection idle on both sides between the end of a response and
-  the start of a new request. This mode may be changed by several options such
-  as "option http-server-close" or "option httpclose". This option allows to
-  set back the keep-alive mode, which can be useful when another mode was used
-  in a defaults section.
+  HTTP/1.x connections: for each connection it processes each request and
+  response, and leaves the connection idle on both sides. This mode may be
+  changed by several options such as "option http-server-close" or "option
+  httpclose". This option allows to set back the keep-alive mode, which can be
+  useful when another mode was used in a defaults section.
 
   Setting "option http-keep-alive" enables HTTP keep-alive mode on the client-
   and server- sides. This provides the lowest latency on the client side (slow
@@ -9438,15 +9438,6 @@ no option http-keep-alive
       compared to the cost of retrieving the associated object from the server.
 
   This last case can happen when the server is a fast static server of cache.
-  In this case, the server will need to be properly tuned to support high enough
-  connection counts because connections will last until the client sends another
-  request.
-
-  If the client request has to go to another backend or another server due to
-  content switching or the load balancing algorithm, the idle connection will
-  immediately be closed and a new one re-opened. Option "prefer-last-server" is
-  available to try optimize server selection so that if the server currently
-  attached to an idle connection is usable, it will be used.
 
   At the moment, logs will not indicate whether requests came from the same
   session or not. The accept date reported in the logs corresponds to the end
@@ -9456,12 +9447,10 @@ no option http-keep-alive
   not set.
 
   This option disables and replaces any previous "option httpclose" or "option
-  http-server-close". When backend and frontend options differ, all of these 4
-  options have precedence over "option http-keep-alive".
+  http-server-close".
 
   See also : "option httpclose",, "option http-server-close",
-             "option prefer-last-server", "option http-pretend-keepalive",
-             and "1.1. The HTTP transaction model".
+             "option prefer-last-server" and "option http-pretend-keepalive".
 
 
 option http-no-delay
@@ -9500,19 +9489,19 @@ no option http-no-delay
 
 option http-pretend-keepalive
 no option http-pretend-keepalive
-  Define whether HAProxy will announce keepalive to the server or not
+  Define whether HAProxy will announce keepalive for HTTP/1.x connection to the
+  server or not
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no   |   yes  |   yes
   Arguments : none
 
   When running with "option http-server-close" or "option httpclose", HAProxy
-  adds a "Connection: close" header to the request forwarded to the server.
-  Unfortunately, when some servers see this header, they automatically refrain
-  from using the chunked encoding for responses of unknown length, while this
-  is totally unrelated. The immediate effect is that this prevents HAProxy from
-  maintaining the client connection alive. A second effect is that a client or
-  a cache could receive an incomplete response without being aware of it, and
-  consider the response complete.
+  adds a "Connection: close" header to the HTTP/1.x request forwarded to the
+  server. Unfortunately, when some servers see this header, they automatically
+  refrain from using the chunked encoding for responses of unknown length,
+  while this is totally unrelated. The effect is that a client or a cache could
+  receive an incomplete response without being aware of it, and consider the
+  response complete.
 
   By setting "option http-pretend-keepalive", HAProxy will make the server
   believe it will keep the connection alive. The server will then not fall back
@@ -9532,9 +9521,7 @@ no option http-pretend-keepalive
   This option may be set in backend and listen sections. Using it in a frontend
   section will be ignored and a warning will be reported during startup. It is
   a backend related option, so there is no real reason to set it on a
-  frontend. This option may be combined with "option httpclose", which will
-  cause keepalive to be announced to the server and close to be announced to
-  the client. This practice is discouraged though.
+  frontend.
 
   If this option has been enabled in a "defaults" section, it can be disabled
   in a specific instance by prepending the "no" keyword before it.
@@ -9572,26 +9559,25 @@ option http-restrict-req-hdr-names { preserve | delete | reject }
 
 option http-server-close
 no option http-server-close
-  Enable or disable HTTP connection closing on the server side
+  Enable or disable HTTP/1.x connection closing on the server side
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   yes
   Arguments : none
 
   By default HAProxy operates in keep-alive mode with regards to persistent
-  connections: for each connection it processes each request and response, and
-  leaves the connection idle on both sides between the end of a response and
-  the start of a new request. This mode may be changed by several options such
-  as "option http-server-close" or "option httpclose". Setting "option
-  http-server-close" enables HTTP connection-close mode on the server side
-  while keeping the ability to support HTTP keep-alive and pipelining on the
-  client side. This provides the lowest latency on the client side (slow
-  network) and the fastest session reuse on the server side to save server
-  resources, similarly to "option httpclose".  It also permits non-keepalive
-  capable servers to be served in keep-alive mode to the clients if they
-  conform to the requirements of RFC7230. Please note that some servers do not
-  always conform to those requirements when they see "Connection: close" in the
-  request. The effect will be that keep-alive will never be used. A workaround
-  consists in enabling "option http-pretend-keepalive".
+  HTTP/1.x connections: for each connection it processes each request and
+  response, and leaves the connection idle on both sides. This mode may be
+  changed by several options such as "option http-server-close" or "option
+  httpclose". Setting "option http-server-close" enables HTTP connection-close
+  mode on the server side while keeping the ability to support HTTP keep-alive
+  and pipelining on the client side. This provides the lowest latency on the
+  client side (slow network) and the fastest session reuse on the server side
+  to save server resources, similarly to "option httpclose".  It also permits
+  non-keepalive capable servers to be served in keep-alive mode to the clients
+  if they conform to the requirements of RFC7230. Please note that some servers
+  do not always conform to those requirements when they see "Connection: close"
+  in the request. The effect will be that keep-alive will never be used. A
+  workaround consists in enabling "option http-pretend-keepalive".
 
   At the moment, logs will not indicate whether requests came from the same
   session or not. The accept date reported in the logs corresponds to the end
@@ -9609,8 +9595,8 @@ no option http-server-close
   If this option has been enabled in a "defaults" section, it can be disabled
   in a specific instance by prepending the "no" keyword before it.
 
-  See also : "option httpclose", "option http-pretend-keepalive",
-             "option http-keep-alive", and "1.1. The HTTP transaction model".
+  See also : "option httpclose", "option http-pretend-keepalive" and
+             "option http-keep-alive".
 
 option http-use-proxy-header
 no option http-use-proxy-header
@@ -9702,37 +9688,37 @@ option httpchk <method> <uri> <version>
 
 option httpclose
 no option httpclose
-  Enable or disable HTTP connection closing
+  Enable or disable HTTP/1.x connection closing
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   yes
   Arguments : none
 
   By default HAProxy operates in keep-alive mode with regards to persistent
-  connections: for each connection it processes each request and response, and
-  leaves the connection idle on both sides between the end of a response and
-  the start of a new request. This mode may be changed by several options such
-  as "option http-server-close" or "option httpclose".
+  HTTP/1.x connections: for each connection it processes each request and
+  response, and leaves the connection idle on both sides. This mode may be
+  changed by several options such as "option http-server-close" or "option
+  httpclose".
 
-  If "option httpclose" is set, HAProxy will close connections with the server
-  and the client as soon as the request and the response are received. It will
-  also check if a "Connection: close" header is already set in each direction,
-  and will add one if missing. Any "Connection" header different from "close"
-  will also be removed.
+  If "option httpclose" is set, HAProxy will close the client or the server
+  connection, depending where the option is set. Only the frontend is
+  considered for client connections while the frontend and the backend are
+  considered for server ones. In this case the option is enabled if at least
+  one of the frontend or backend holding the connection has it enabled. If the
+  option is set on a listener, it is applied both on client and server
+  connections. It will check if a "Connection: close" header is already set in
+  each direction, and will add one if missing.
 
   This option may also be combined with "option http-pretend-keepalive", which
-  will disable sending of the "Connection: close" header, but will still cause
-  the connection to be closed once the whole response is received.
+  will disable sending of the "Connection: close" request header, but will
+  still cause the connection to be closed once the whole response is received.
 
-  This option may be set both in a frontend and in a backend. It is enabled if
-  at least one of the frontend or backend holding a connection has it enabled.
   It disables and replaces any previous "option http-server-close" or "option
-  http-keep-alive". Please check section 4 ("Proxies") to see how this option
-  combines with others when frontend and backend options differ.
+  http-keep-alive".
 
   If this option has been enabled in a "defaults" section, it can be disabled
   in a specific instance by prepending the "no" keyword before it.
 
-  See also : "option http-server-close" and "1.1. The HTTP transaction model".
+  See also : "option http-server-close".
 
 
 option httplog [ clf ]
