@@ -2579,6 +2579,8 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 
 		t->expire = tick_first(t->expire, s->conn_exp);
 
+		BUG_ON(tick_is_expired(t->expire, now_ms));
+
 		s->pending_events &= ~(TASK_WOKEN_TIMER | TASK_WOKEN_RES);
 		stream_release_buffers(s);
 
