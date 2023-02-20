@@ -507,7 +507,10 @@ static void h2_trace(enum trace_level level, uint64_t mask, const struct trace_s
 		if (h2s) {
 			if (h2s->id <= 0)
 				chunk_appendf(&trace_buf, " dsi=%d", h2c->dsi);
-			chunk_appendf(&trace_buf, " h2s=%p(%d,%s)", h2s, h2s->id, h2s_st_to_str(h2s->st));
+			if (h2s == h2_idle_stream)
+				chunk_appendf(&trace_buf, " h2s=IDL");
+			else if (h2s != h2_closed_stream)
+				chunk_appendf(&trace_buf, " h2s=%p(%d,%s)", h2s, h2s->id, h2s_st_to_str(h2s->st));
 			if (h2s->id && h2s->errcode)
 				chunk_appendf(&trace_buf, " err=%s/%02x", h2_err_str(h2s->errcode), h2s->errcode);
 		}
