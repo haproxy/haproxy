@@ -2958,11 +2958,16 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 				else {
 					TRACE_DEVEL("No mux for new stream", QUIC_EV_CONN_PRSHPKT, qc);
 					if (qc->app_ops == &h3_ops) {
-						if (!qc_h3_request_reject(qc, stream->id))
-							TRACE_ERROR("could not enqueue STOP_SENDING frame", QUIC_EV_CONN_PRSHPKT, qc);
+						if (!qc_h3_request_reject(qc, stream->id)) {
+							TRACE_ERROR("error on request rejection", QUIC_EV_CONN_PRSHPKT, qc);
+							/* This packet will not be acknowledged */
+							goto leave;
+						}
 					}
-					/* This packet will not be acknowledged */
-					goto leave;
+					else {
+						/* This packet will not be acknowledged */
+						goto leave;
+					}
 				}
 			}
 
